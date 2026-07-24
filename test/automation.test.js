@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   detectAutomationCandidate, makeGrowthCandidate, approveAutomation,
-  isJobRunnable, cancelJob, admitTickTrigger,
+  isJobRunnable, cancelJob, admitTickTrigger, nextBackoffMs, resolveAfterRun,
 } from '../src/kernel/l5-growth/automation.js';
 import { tickAutomation } from '../src/runtime/automation-engine.js';
 import { AutomationScheduler } from '../src/runtime/automation-scheduler.js';
+import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
@@ -300,4 +301,102 @@ test('스케줄러: start/stop이 타이머를 정리한다(데몬 아님)', () 
   s.start(); // 중복 기동 금지
   s.stop();
   assert.equal(s._timer, null, '정지됨');
+});
+
+// ── P6-4 Automation Reliability Guard: 백오프·포기·중첩·만료 ──
+
+// 실행 가능한 도구를 가진 결정적 컨텍스트(성공/transient실패/permanent차단).
+function reliabilityCtx() {
+  const env = {
+    model: { authSignal: 'ok' },
+    connections: [
+      { id: 'ok', status: 'usable', connected: true },
+      { id: 'flaky', status: 'usable', connected: true },
+      { id: 'wall', status: 'usable', connected: true },
+    ],
+    grantedAuthorities: [],
+  };
+  const tools = new ToolRunner({
+    ok: { async handler() { return { result: {}, userSafeSummary: '됨' }; } },
+    flaky: { async handler() { throw new Error('transient'); } }, // → failed(transient)
+    wall: { async handler() { return { blocked: true, userSafeSummary: '차단' }; } }, // → blocked(permanent)
+  });
+  return { self: buildSelfState(env), tools };
+}
+
+test('신뢰성: nextBackoffMs는 지수 증가하고 cap에서 포화한다', () => {
+  assert.equal(nextBackoffMs(1, { baseMs: 10, capMs: 1000 }), 10);
+  assert.equal(nextBackoffMs(2, { baseMs: 10, capMs: 1000 }), 20);
+  assert.equal(nextBackoffMs(3, { baseMs: 10, capMs: 1000 }), 40);
+  assert.equal(nextBackoffMs(10, { baseMs: 10, capMs: 100 }), 100, 'cap 포화');
+  assert.equal(nextBackoffMs(0, { baseMs: 10, capMs: 1000 }), 10, 'fc<1은 1로 취급');
+});
+
+test('신뢰성: resolveAfterRun — 성공 리셋 / permanent 즉시 포기 / transient 백오프', () => {
+  // 성공(반복): 재예약 + failureCount 0
+  assert.deepEqual(resolveAfterRun({ intervalMs: 100, failureCount: 3 }, 'none', 1000), { state: 'scheduled', nextRunAt: 1100, failureCount: 0 });
+  // 성공(1회): completed
+  assert.deepEqual(resolveAfterRun({ failureCount: 2 }, 'none', 1000), { state: 'completed', failureCount: 0 });
+  // permanent(차단): 즉시 failed(재시도 없음)
+  assert.deepEqual(resolveAfterRun({ failureCount: 0 }, 'blocked', 1000), { state: 'failed', failureCount: 1 });
+  // transient(cap 미만): 백오프 재예약
+  const r = resolveAfterRun({ failureCount: 0, maxAttempts: 5, backoffBaseMs: 10 }, 'failed', 1000);
+  assert.deepEqual(r, { state: 'scheduled', nextRunAt: 1010, failureCount: 1 });
+  // transient(maxAttempts 도달): failed
+  assert.deepEqual(resolveAfterRun({ failureCount: 4, maxAttempts: 5 }, 'timeout', 1000), { state: 'failed', failureCount: 5 });
+});
+
+test('신뢰성: transient 실패는 백오프 재시도 후 maxAttempts에서 포기(failed)', async () => {
+  const { self, tools } = reliabilityCtx();
+  const job = approveAutomation({ statement: 'x', action: { tool: 'flaky', args: {} } },
+    { id: 'f1', now: 0, nextRunAt: 0, intervalMs: 100, maxAttempts: 3, backoffBaseMs: 10, backoffCapMs: 1000 });
+  await tickAutomation([job], { tools, selfState: self, now: 0 });   // 1차 실패
+  assert.equal(job.state, 'scheduled'); assert.equal(job.failureCount, 1); assert.equal(job.nextRunAt, 10);
+  assert.equal((await tickAutomation([job], { tools, selfState: self, now: 5 })).length, 0, '백오프 미도달은 실행 0');
+  await tickAutomation([job], { tools, selfState: self, now: 10 });  // 2차 실패
+  assert.equal(job.failureCount, 2); assert.equal(job.nextRunAt, 30);
+  await tickAutomation([job], { tools, selfState: self, now: 30 });  // 3차 → maxAttempts 도달
+  assert.equal(job.state, 'failed', 'maxAttempts 초과 → 정직하게 포기');
+  assert.equal(job.executions.length, 3, '원장에 3회 실패');
+  assert.equal((await tickAutomation([job], { tools, selfState: self, now: 100 })).length, 0, 'failed는 다시 실행 안 함');
+});
+
+test('신뢰성: permanent 실패(차단)는 재시도 없이 즉시 포기(무한 재전송 차단)', async () => {
+  const { self, tools } = reliabilityCtx();
+  const job = approveAutomation({ statement: 'x', action: { tool: 'wall', args: {} } },
+    { id: 'w1', now: 0, nextRunAt: 0, intervalMs: 100 });
+  await tickAutomation([job], { tools, selfState: self, now: 0 });
+  assert.equal(job.state, 'failed', '차단은 재시도로 안 풀린다 → 즉시 포기');
+  assert.equal(job.failureCount, 1);
+  const ran = await tickAutomation([job], { tools, selfState: self, now: 200 });
+  assert.equal(ran.length, 0, '재전송 반복 없음');
+  assert.equal(job.executions.length, 1);
+});
+
+test('신뢰성: 백오프 대기 중 만료되면 expired(만료가 재시도보다 우선)', async () => {
+  const { self, tools } = reliabilityCtx();
+  const job = approveAutomation({ statement: 'x', action: { tool: 'flaky', args: {} } },
+    { id: 'e1', now: 0, nextRunAt: 0, intervalMs: 100, maxAttempts: 5, backoffBaseMs: 1000, grantScope: { kind: 'session', expiresAt: 500 } });
+  await tickAutomation([job], { tools, selfState: self, now: 0 }); // 실패 → 백오프 nextRunAt=1000
+  assert.equal(job.state, 'scheduled'); assert.equal(job.nextRunAt, 1000);
+  const ran = await tickAutomation([job], { tools, selfState: self, now: 600 }); // 만료(>500)
+  assert.equal(ran.length, 0);
+  assert.equal(job.state, 'expired', '백오프 대기 중이라도 만료 우선');
+});
+
+test('신뢰성: tick 중첩 방지 — 겹친 tick은 skip되고 job은 1회만 실행', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-lock-'));
+  const autoStore = new AutomationStore(dir);
+  let release; const gate = new Promise((r) => { release = r; });
+  let calls = 0;
+  const tools = new ToolRunner({ slow: { async handler() { calls++; await gate; return { result: {}, userSafeSummary: 'ok' }; } } });
+  const env = { model: { authSignal: 'ok' }, connections: [{ id: 'slow', status: 'usable', connected: true }], grantedAuthorities: [] };
+  const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore, runtimeToken: TICK_TOKEN, tools, env });
+  await autoStore.save({ candidates: [], jobs: [approveAutomation({ statement: 'x', action: { tool: 'slow', args: {} } }, { id: 's1', now: 0, nextRunAt: 0 })] });
+  const p1 = server.runtimeTick(); // 첫 tick이 gate에서 대기
+  const p2 = server.runtimeTick(); // 겹침 → skip
+  release();
+  const [r1, r2] = await Promise.all([p1, p2]);
+  assert.equal([r1, r2].filter((r) => r.skipped === 'in_flight').length, 1, '하나는 in_flight로 skip');
+  assert.equal(calls, 1, 'job은 1회만 실행(중복 실행 방지)');
 });

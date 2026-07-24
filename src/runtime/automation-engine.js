@@ -1,6 +1,6 @@
 // L3 · Automation Engine — in-process scheduler tick(최소). 실제 cron/daemon은 P6 후속.
 // 실행 가능한 job만 실행한다. 취소·만료·완료는 실행 0(몰래 실행 금지). 결과는 job.executions(원장)에.
-import { isJobRunnable, jobExpired, appendAutomationLedger } from '../kernel/l5-growth/automation.js';
+import { isJobRunnable, jobExpired, appendAutomationLedger, resolveAfterRun } from '../kernel/l5-growth/automation.js';
 
 /**
  * @param {object[]} jobs   ScheduledJob 목록(변경됨 — state·executions 갱신)
@@ -21,15 +21,11 @@ export async function tickAutomation(jobs, ctx) {
     const rec = await tools.run(job.action.tool, job.action.args ?? {}, selfState);
     appendAutomationLedger(job, rec); // AutomationLedger(§8) — ToolReceipt 계약, 세션 원장과 분리
 
-    if (rec.failureState !== 'none') {
-      // 실패·차단은 정직하게. 반복 job은 다음 실행 여지, 1회 job은 failed.
-      job.state = job.intervalMs ? 'scheduled' : 'failed';
-    } else if (job.intervalMs) {
-      job.state = 'scheduled';
-    } else {
-      job.state = 'completed'; // 1회 실행 완료
-    }
-    if (job.intervalMs) job.nextRunAt = now + job.intervalMs;
+    // 상태·다음 실행 계획을 순수 전이 함수로 결정(P6-4): 성공 리셋 / permanent 즉시 포기 / transient 백오프.
+    const next = resolveAfterRun(job, rec.failureState, now);
+    job.state = next.state;
+    job.failureCount = next.failureCount;
+    if (next.nextRunAt !== undefined) job.nextRunAt = next.nextRunAt;
     ran.push({ jobId: job.id, receipt: rec });
   }
   return ran;

@@ -57,13 +57,21 @@ export function makeServer(deps = {}) {
   const runtimeToken = deps.runtimeToken ?? randomUUID();
 
   // tick 실행의 단일 경로(트러스트 게이트). trusted_runtime_event만 실행한다(admitTickTrigger).
+  // tick 중첩 방지(P6-4): 이전 tick이 아직 도는 중이면 새 tick은 건너뛴다 — load→save 경합·중복 실행 차단.
+  let ticking = false;
   async function runTrustedTick(trigger) {
     if (!admitTickTrigger(trigger)) return { ok: false, reason: 'not_trusted', ran: [] };
-    const a = await autoStore.load();
-    const selfState = buildSelfState(env);
-    const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
-    await autoStore.save(a);
-    return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+    if (ticking) return { ok: true, skipped: 'in_flight', ran: [] };
+    ticking = true;
+    try {
+      const a = await autoStore.load();
+      const selfState = buildSelfState(env);
+      const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
+      await autoStore.save(a);
+      return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+    } finally {
+      ticking = false;
+    }
   }
 
   // 승인 대기(pending)를 세션 파일에 지속한다(Approval Lifecycle). 기억(memory)·활성목표(activeGoal)를
@@ -183,6 +191,7 @@ export function makeServer(deps = {}) {
         const stripJob = (j) => ({
           id: j.id, statement: j.statement, state: j.state, external: j.external,
           nextRunAt: j.nextRunAt, grantScope: j.grantScope, runs: j.executions.length,
+          failureCount: j.failureCount ?? 0, // 신뢰성(P6-4): 연속 실패 카운트 표면화
           lastResult: j.executions.at(-1)?.failureState ?? null,
           ledger: j.executions.map((r) => ({ failureState: r.failureState, lifecycle: r.lifecycle, summary: r.userSafeSummary })),
         });

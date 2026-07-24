@@ -5,7 +5,14 @@
 //   4. 외부 전송은 승인 범위(A2)를 유지한다. 5. 실패·차단·만료·취소는 원장에 정직하게 남는다.
 //   (Hermes cron 단일 job 엔진 원리 흡수 — relay/daemon/config는 복제하지 않는다.)
 
+import { classifyRetry } from '../l2-plan/tool-descriptor.js';
+
 export const JOB_STATES = Object.freeze(['scheduled', 'paused', 'cancelled', 'completed', 'expired', 'failed']);
+
+// 신뢰성 기본값(P6-4). 무한 재전송·즉시 재시도 폭주를 막는다.
+export const DEFAULT_MAX_ATTEMPTS = 5;      // transient 실패 재시도 상한 → 초과 시 정직하게 failed
+export const BACKOFF_BASE_MS = 1_000;       // 백오프 기준(지수)
+export const BACKOFF_CAP_MS = 3_600_000;    // 백오프 상한(1시간) — 무한정 벌어지지 않게
 
 // 반복 신호(자동화 후보 감지). 특정 대화 전용이 아니라 일반 언어 범주. 모델이 뒷단에서 정교화.
 const RECURRENCE_SIGNAL = /매주|매일|매번|매달|정기|자동으로|주기적|스케줄|예약해|예약 ?해/;
@@ -46,7 +53,48 @@ export function approveAutomation(candidate, opts) {
     grantScope: opts.grantScope ?? { kind: 'persist' },
     external: opts.external ?? false, // 외부 전송 자동화는 승인 경계(A2)를 유지
     executions: [], // 실행 원장(ToolReceipt)
+    // 신뢰성(P6-4): 연속 실패 카운트·재시도 상한·백오프 파라미터.
+    failureCount: 0,
+    maxAttempts: opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+    backoffBaseMs: opts.backoffBaseMs ?? BACKOFF_BASE_MS,
+    backoffCapMs: opts.backoffCapMs ?? BACKOFF_CAP_MS,
   };
+}
+
+/**
+ * 지수 백오프 지연(ms). failureCount=1→base, 2→2·base, 3→4·base … cap에서 포화.
+ * @param {number} failureCount
+ * @param {{baseMs?:number, capMs?:number}} [opts]
+ */
+export function nextBackoffMs(failureCount, opts = {}) {
+  const baseMs = opts.baseMs ?? BACKOFF_BASE_MS;
+  const capMs = opts.capMs ?? BACKOFF_CAP_MS;
+  const n = Math.max(1, failureCount);
+  return Math.min(capMs, baseMs * 2 ** (n - 1));
+}
+
+/**
+ * 실행 결과 → 다음 상태·실행 계획(순수). 백오프·포기·재예약·완료를 한곳에서 결정한다(P6-4).
+ * - 성공: failureCount 리셋. 반복이면 재예약, 아니면 완료.
+ * - permanent(차단·취소): 재시도로 안 풀린다 → 즉시 failed(무한 재전송 차단).
+ * - transient(실패·타임아웃): 백오프 재시도. maxAttempts 도달 시 정직하게 failed.
+ * @param {object} job
+ * @param {import('../contracts.js').FailureState} failureState
+ * @param {number} now
+ * @returns {{state:string, failureCount:number, nextRunAt?:number}}
+ */
+export function resolveAfterRun(job, failureState, now) {
+  const retry = classifyRetry(failureState);
+  if (retry === 'none') {
+    if (job.intervalMs) return { state: 'scheduled', nextRunAt: now + job.intervalMs, failureCount: 0 };
+    return { state: 'completed', failureCount: 0 };
+  }
+  const failureCount = (job.failureCount ?? 0) + 1;
+  if (retry === 'permanent') return { state: 'failed', failureCount };
+  // transient
+  if (failureCount >= (job.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)) return { state: 'failed', failureCount };
+  const delay = nextBackoffMs(failureCount, { baseMs: job.backoffBaseMs, capMs: job.backoffCapMs });
+  return { state: 'scheduled', nextRunAt: now + delay, failureCount };
 }
 
 /** 만료 여부(grantScope.expiresAt 지남). */
