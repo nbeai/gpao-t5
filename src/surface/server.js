@@ -25,6 +25,7 @@ import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
 import { AutomationScheduler } from '../runtime/automation-scheduler.js';
+import { makeWebCollector } from '../runtime/web-collector.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -346,7 +347,8 @@ export function makeServer(deps = {}) {
 // 직접 실행할 때만 listen 한다(import 시 부작용 없음).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
-  const server = makeServer();
+  // 라이브 서버는 실제 웹 수집 어댑터를 쓴다(P6-5). 테스트/기본 demoTools는 offline 스텁 유지.
+  const server = makeServer({ tools: demoTools({ webCollector: makeWebCollector() }) });
   server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });
