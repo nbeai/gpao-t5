@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
+import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
@@ -20,6 +21,9 @@ import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-m
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors } from './demo-context.js';
+import { AutomationStore } from './automation-store.js';
+import { makeGrowthCandidate, approveAutomation, cancelJob } from '../kernel/l5-growth/automation.js';
+import { tickAutomation } from '../runtime/automation-engine.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +47,7 @@ function sendJson(res, code, obj) {
 export function makeServer(deps = {}) {
   const store = deps.store ?? new SessionStore();
   const memStore = deps.memoryStore ?? new MemoryStore(store.dir);
+  const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -133,8 +138,86 @@ export function makeServer(deps = {}) {
             result.memorySuggestion.candidateId = cand.candidateId; // UI 가 confirm 에 쓸 id
           }
         }
+        // 자동화 후보(P6-3): 반복 신호를 조용히 후보로만 저장. 승인 전 실행·영향 0(중복 제외).
+        if (result.automationSuggestion?.action) {
+          const a = await autoStore.load();
+          const dedupKey = result.automationSuggestion.statement;
+          if (a.candidates.some((c) => c.statement === dedupKey && !c.approved)) {
+            result.automationSuggestion = undefined; // 이미 제안한 것은 다시 제안하지 않는다
+          } else {
+            const cand = makeGrowthCandidate({
+              candidateId: randomUUID(),
+              statement: result.automationSuggestion.statement,
+              action: result.automationSuggestion.action,
+              dedupKey,
+            });
+            a.candidates.push(cand);
+            await autoStore.save(a);
+            result.automationSuggestion.candidateId = cand.candidateId; // UI 가 approve 에 쓸 id
+          }
+        } else if (result.automationSuggestion) {
+          result.automationSuggestion = undefined; // action 없는 후보는 실행 불가 — 표면화하지 않음
+        }
         await store.save(session);
         return sendJson(res, 200, result);
+      }
+
+      // ── 자동화 (P6-3) ── 후보 → 승인 → 예약 → tick 실행 → 원장 → 취소/만료.
+      if (req.method === 'GET' && url === '/automation') {
+        const a = await autoStore.load();
+        const stripJob = (j) => ({
+          id: j.id, statement: j.statement, state: j.state, external: j.external,
+          nextRunAt: j.nextRunAt, grantScope: j.grantScope, runs: j.executions.length,
+          lastResult: j.executions.at(-1)?.failureState ?? null,
+        });
+        return sendJson(res, 200, {
+          candidates: a.candidates.filter((c) => !c.approved).map((c) => ({ candidateId: c.candidateId, statement: c.statement })),
+          jobs: a.jobs.map(stripJob),
+        });
+      }
+      // 후보 승인 → ScheduledJob. external(외부 전송) 여부는 도구 descriptor에서 파생(사용자 입력 불신).
+      // 외부 전송 자동화는 반드시 만료(bounded) 승인 범위를 요구한다 — 몰래·무기한 권한 금지(A2 경계).
+      if (req.method === 'POST' && url === '/automation/approve') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const a = await autoStore.load();
+        const cand = a.candidates.find((c) => c.candidateId === input.candidateId && !c.approved);
+        if (!cand) return sendJson(res, 404, { error: '자동화 후보를 찾지 못했어요.' });
+        const external = env.connections.find((c) => c.id === cand.action?.tool)?.needsApproval === true;
+        const expiresAt = Number.isFinite(input.expiresAt) ? input.expiresAt : undefined;
+        if (external && !expiresAt) {
+          // 외부 전송은 만료 없는 승인을 허용하지 않는다(승인 경계 유지).
+          return sendJson(res, 400, { error: '외부 전송 자동화는 만료가 있는 승인이 필요해요.', needsExpiry: true });
+        }
+        const grantScope = { kind: external ? 'session' : (input.persist ? 'persist' : 'session'), ...(expiresAt ? { expiresAt } : {}) };
+        const job = approveAutomation(cand, {
+          id: randomUUID(),
+          grantScope, external,
+          now: Date.now(),
+          nextRunAt: Number.isFinite(input.nextRunAt) ? input.nextRunAt : Date.now(),
+          intervalMs: Number.isFinite(input.intervalMs) ? input.intervalMs : undefined,
+        });
+        cand.approved = true;
+        a.jobs.push(job);
+        await autoStore.save(a);
+        return sendJson(res, 200, { ok: true, jobId: job.id, state: job.state, external, grantScope });
+      }
+      // 스케줄러 tick(최소·수동). 실행 가능한 job만 실행 → ToolReceipt를 job 원장에 남긴다.
+      if (req.method === 'POST' && url === '/automation/tick') {
+        const a = await autoStore.load();
+        const selfState = buildSelfState(env);
+        const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
+        await autoStore.save(a);
+        return sendJson(res, 200, { ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) });
+      }
+      // 취소(되돌리기). 이후 tick에서 실행되지 않는다.
+      if (req.method === 'POST' && url === '/automation/cancel') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const a = await autoStore.load();
+        const idx = a.jobs.findIndex((j) => j.id === input.jobId);
+        if (idx < 0) return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
+        a.jobs[idx] = cancelJob(a.jobs[idx]);
+        await autoStore.save(a);
+        return sendJson(res, 200, { ok: true, state: 'cancelled' });
       }
 
       // ── 기억(Context Mesh) ──
