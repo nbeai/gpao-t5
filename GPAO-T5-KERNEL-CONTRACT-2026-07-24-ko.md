@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1 개정 반영(2026-07-24)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1 개정(2026-07-24) · Approval Lifecycle 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -8,6 +8,9 @@
 - Phase 5.1 개정 반영(근거: `GPAO-T5-PHASE-5-1-REFERENCE-ABSORPTION-HARDENING`, 감사 보정 4건 포함):
   ① §1.5 InboundEventGate 신규 ② §6 connectedTools `status` 세분화 ③ §7 ToolReceipt `lifecycle`
   (실행/전달 전용, 승인은 AuthorityGrant) ④ §8.1 FollowUpEvent `candidateKind`
+- Approval Lifecycle 개정 반영(근거: `GPAO-T5-APPROVAL-LIFECYCLE-CONTRACT`, 깊은 감사 통과):
+  §3.2 AuthorityGrant `grantScope{kind:once/session/persist, expiresAt}` 정형화 + 만료→재승인·fail-closed
+  규칙. once만 P5 도달, session·persist는 P6.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -139,10 +142,15 @@ Takeover State Seal, T5 AI OS 연구계획서.
 | approvalRequired | 불리언 | 필수 | 승인 필요 여부 | A2·A3는 true. "사용자가 원했다"만으로 우회 불가(헌법 §3-6) |
 | approvalPreview | 객체 | A2·A3 필수 | 영향·범위·기간·취소 | 승인 전 사용자에게 보여줄 요약 |
 | granted | 불리언 | 필수 | 승인 여부 | 실행 직전 게이트. 미승인이면 실행 금지 |
-| grantScope | 객체 | 선택 | 승인의 범위·기간 | "이번 한 번" vs "이 세션" vs "지속" 구분 |
+| grantScope | 객체 | 선택 | 승인의 범위·수명(Approval Lifecycle 개정) | `{kind: once\|session\|persist, expiresAt?}`. once=이번 한 번(P5 도달) / session·persist=P6. expiresAt 이후는 만료 |
 | revocable | 불리언 | 필수 | 되돌리기 가능 여부 | 되돌리기 불가면 approvalPreview에 명시 |
 
 규칙: 외부 전송·삭제·결제·공개·권한 상승·장기기억 승격은 authority gate를 반드시 통과(헌법 §3-6).
+
+승인 수명 규칙(Approval Lifecycle Contract, 2026-07-25): 승인 대기는 `grantScope.expiresAt`까지만 유효하다.
+**만료된 승인은 이어실행하지 않고 재승인을 요청한다**(무단 지연 실행 금지). 만료·해소된 승인은 화면에서
+되살아나지 않는다(죽은 버튼 금지). 승인은 보관된 봉인 계획을 이어받는다(발화 재해석 아님). 애매하면
+실행하지 않는다(fail-closed). session·persist 범위와 grant registry·revocation은 P6.
 
 ---
 
