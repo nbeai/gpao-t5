@@ -1,9 +1,9 @@
 # GPAO-T5 Scenario Replay Spec
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `Codex 감사 통과 · Phase 4 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
-- Auditor: Codex (감사 대기)
+- Auditor: Codex (시나리오 정합성·계약 재생·자연스러움·Phase 5 연결성 감사 완료)
 - Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 4 Scenario Replay
 - 근거: 계획서 §5·§7 / Kernel Contract(봉인) / UX Architecture(봉인) / 세 감사 문서
 - 위상: 이 문서는 봉인된 Kernel Contract·UX Architecture가 실제 인간 사용 흐름에서 성립하는지를
@@ -453,13 +453,18 @@
 - 표면: Local PC Workspace + Recovery Center.
 - 합격: 이동 로그(rollback 증거)로 실제 복원이 가능하다.
 
-### 2.9 자동화 후보 — GrowthCandidate (S32–S34)
+### 2.9 자동화 후보 — FollowUpEvent + AuthorityGrant 조합 (S32–S34)
+
+감사 경계: `GrowthCandidate`는 Phase 2 Kernel Contract의 독립 계약이 아니다. 이 범주에서는 새 계약
+상태를 만들지 않고, 자동화 후보를 **FollowUpEvent(decision=queue) + AuthorityGrant(A2 활성화) +
+ToolReceipt(실행/실패 시)** 조합으로 표현한다. Phase 5 자동화 구현 전에 독립 계약으로 승격할지
+다시 결정한다.
 
 #### S32 · 반복 감지 → 후보 제안 (숨은 자동 실행 금지)
 - 발화(맥락): 사용자가 매주 같은 리포트를 요청.
 - SelfState: usable. 반복 패턴 감지.
 - Intent: 반복 작업 인지.
-- 경로: GrowthCandidate 생성(비활성 후보) → review queue.
+- 경로: FollowUpEvent(decision=queue)로 비활성 자동화 후보를 review queue에 올림.
 - Authority: 없음(후보 제안일 뿐, 아직 실행·활성화 아님).
 - Receipt: 없음.
 - 원장/복구: 후보로만 존재.
@@ -663,10 +668,9 @@ BEAI5 최종 기준(§10.3): 응답 뒤 사용자의 현실이 더 선명해지�
 
 1. 시나리오 합격 조건의 실행 가능한 검증 형태(입력·기대·판정)는 Phase 5 착수 시 확정한다. 이 문서는
    계약 재생 명세까지만 정한다.
-2. GrowthCandidate는 Kernel Contract에 독립 계약으로 명시되지 않고 §8 FollowUp·§3 AuthorityGrant로
-   표현됐다. Phase 5 자동화 구현 전, 자동화 후보의 계약 위치(별도 계약 vs 기존 계약 조합)를 감사가
-   확정할 것을 제안한다.
+2. 자동화 후보는 Phase 4에서는 FollowUpEvent + AuthorityGrant 조합으로 봉인한다. Phase 5 자동화 구현 전,
+   별도 계약으로 승격할지 기존 계약 조합으로 유지할지 다시 결정한다.
 
 ---
 
-*이 문서는 초안이다. Codex 감사 후 Phase 4 Scenario Replay로 봉인한다. 다음 단계는 감사다.*
+*Codex 감사 결과 이 문서는 Phase 4 Scenario Replay Spec 으로 봉인한다. 다음 단계는 Phase 5 First Build Slice 다.*
