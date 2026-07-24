@@ -1,10 +1,13 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인`
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1 개정 반영(2026-07-24)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
-- Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료)
-- Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 2 Kernel Contract
+- Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
+- Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 2 Kernel Contract (+ Phase 5.1 Reference Absorption Hardening)
+- Phase 5.1 개정 반영(근거: `GPAO-T5-PHASE-5-1-REFERENCE-ABSORPTION-HARDENING`, 감사 보정 4건 포함):
+  ① §1.5 InboundEventGate 신규 ② §6 connectedTools `status` 세분화 ③ §7 ToolReceipt `lifecycle`
+  (실행/전달 전용, 승인은 AuthorityGrant) ④ §8.1 FollowUpEvent `candidateKind`
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -63,6 +66,32 @@ Takeover State Seal, T5 AI OS 연구계획서.
 
 즉 헌법 §8-1의 "native 구조 우선 참고 + T3 흐름 병합"은 유효하되, **둘 다 정본이 아니라 참고**라는
 경계가 이 조사로 확정됐다.
+
+---
+
+## 1.5 InboundEventGate (Relevance Gate) — Phase 5.1 개정
+
+근거: Hermes mention-gating 흡수(P5.1 §2.4·§9.1). 이 게이트는 **IntentPacket(§2) 앞**에 위치해,
+외부·비요청 이벤트가 턴을 열 가치가 있는지 **모델 호출 없이 값싼 결정적 판정**으로 거른다. 모든 입력을
+모델에 태우지 않는다. 자연스러움 gate(§9)·안티 대시보드와 정합.
+
+| 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
+| --- | --- | --- | --- | --- |
+| source | 열거 | 필수 | user_chat / external_channel / automation_trigger / trusted_runtime_event | **게이트 대상은 external_channel·automation_trigger 뿐.** user_chat·trusted_runtime_event은 우회 |
+| triggerSignal | 열거목록 | 선택 | mention / allowlisted / direct_message / dedup_new | 결정적 신호만. 모델 판단 아님 |
+| disposition | 열거 | 필수 | respond / context_only / ignore / defer | 비respond는 턴을 열지 않는다 |
+| admittedAsContext | 불리언 | 필수 | 비respond 시 맥락 backfill 여부 | context_only는 channel_context로 |
+| userSafeReason | 문자열 | 선택 | 사용자에게 보여도 되는 판정 요약 | **respond일 때만 채운다.** ignore/context_only는 비운다 |
+| diagnosticReason | 객체 | 선택 | 내부 판정 근거·신호값 | 사용자면 노출 금지. 감사·디버그용 |
+
+규칙:
+- **게이트 대상은 외부·비요청 이벤트(external_channel·automation_trigger) 뿐이다.** `user_chat`은 항상
+  admit(우회, 자연스러움 보존, 절대원칙 4). fast_chat 경로엔 절대 걸지 않는다.
+- **`trusted_runtime_event`(시스템 복구·보안·권한)는 relevance 게이트에 걸리지 않는다.** 게이트로 묻히면
+  위험하므로 우회해 Recovery·Authority(§3·§4) 규칙으로 직행한다.
+- 통과분만 §2 말귀로 넘어간다. **모델을 부르지 않는다.**
+- **조용히 무시(ignore)하는 이벤트는 사용자 설명문을 만들지 않는다**(userSafeReason 비움). 알림 많은
+  운영 콘솔로 변질되지 않게(안티 대시보드).
 
 ---
 
@@ -168,7 +197,7 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 | --- | --- | --- | --- | --- |
 | currentModel | 객체 | 필수 | 지금 쓰는 모델 | id·강점·한계. 죽은 자격증명이면 대체 프로필로 전환(헌법 §4.1) |
 | modelAuthState | 열거 | 필수 | 자격증명 상태 | usable / billing_blocked / rate_limited / auth_failed. billing과 rate_limit 구분 |
-| connectedTools | 목록 | 필수 | 연결된 도구·앱 | 각각 executable 여부를 가짐. 목록에 있다고 실행 가능 아님(헌법 §3-3) |
+| connectedTools | 목록 | 필수 | 연결된 도구·앱 | 각 항목이 `status` 를 가짐(Phase 5.1 개정): usable / needs_auth / needs_config / needs_connection / blocked. `executable`은 `status===usable`의 파생(하위호환). 목록에 있다고 실행 가능 아님(헌법 §3-3). P5는 도달값만 구현 |
 | grantedAuthorities | 목록 | 필수 | 승인된 권한 | 무엇이 승인, 무엇이 승인 필요 |
 | riskyActions | 목록 | 선택 | 위험 실행 후보 | 외부전송·삭제·결제·공개 |
 | limits | 목록 | 필수 | 현재 한계 | 못 하는 것과 그 이유 |
@@ -189,6 +218,7 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 | actualCall | 객체 | 필수 | 실제로 호출한 것 | 도구·인자. 호출 안 했으면 그렇게 기록 |
 | result | 객체 | 선택 | 받은 결과 | 성공 시 |
 | failureState | 열거 | 필수 | 실패/차단/타임아웃 여부 | none / failed / blocked / timeout |
+| lifecycle | 열거 | 선택 | 실행·전달 수명주기(Phase 5.1 개정) | none / attempting / delivered / failed / abandoned. **실행·전달만.** 승인 상태(held/approved)는 AuthorityGrant(approvalRequired+granted)에 있고 원장에 섞지 않는다 |
 | userSafeSummary | 문자열 | 필수 | 사용자에게 말해도 되는 요약 | 내부 용어 제외. 사용자면/진단면 분리(감사 §3-3) |
 | diagnosticTrace | 객체 | 선택 | 내부 진단·오류·스택·provider 상태 | 사용자 답변에 그대로 노출 금지. 디버그·감사용 |
 | nextSafeAction | 문자열 | 선택 | 다음 안전 행동 | 실패 시 |
@@ -211,6 +241,7 @@ diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 �
 | incomingInput | 문자열 | 필수 | 새로 들어온 말 | "현재 요청 우선" 원칙으로 처리 |
 | conflict | 불리언 | 필수 | 충돌 여부 | 현재 목표와 새 지시의 충돌 |
 | decision | 열거 | 필수 | 중단/병합/대기/우선순위 변경 | interrupt / merge / queue / reprioritize |
+| candidateKind | 열거 | 선택 | 후보 유형(Phase 5.1 개정) | none / automation / retry / long_task. 자동화·재시도·장기작업 후보의 계약 자리 |
 | userNotice | 문자열 | 필수 | 사용자에게 알릴 한 줄 | |
 
 ### 8.2 simple chat fast path / complex work path 분리
