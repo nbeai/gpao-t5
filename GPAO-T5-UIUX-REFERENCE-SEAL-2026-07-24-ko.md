@@ -40,6 +40,24 @@
 원장)**을, **T3 실제 화면의 "접어서 조용히"** 방식으로 얹는다. 이것이 오너가 처음부터 요청한
 "챗지피티 인터페이스 + 코덱스 기능 / 클로드 인터페이스 + 클로드코드 기능"의 표면적 실체다.
 
+### 1.1 CSS/레이아웃 craft 참고원 — OpenClaw `ui/` (craft만, IA·identity 아님)
+
+이 제품군은 이미지가 무거운 게 아니라 **CSS·레이아웃 감각**이 자산이다(오너 지시). 그 감각의 참고원을
+못박는다:
+
+- **참고 대상(craft)**: OpenClaw `ui/docs/design-system/`(문서화된 디자인 시스템 —
+  `color-tokens.md·motion.md·glass-surfaces.md·accessibility.md`) + `ui/src/styles/`의
+  `base.css·layout.css·layout.mobile.css·components.css·chat.css(+chat/)·option-card.css·approval.css` +
+  `theme.ts`. 여기서 **간격·타입 스케일·밀도·motion 타이밍·컴포넌트 형태·모바일 브레이크포인트·접근성**을
+  감각으로 흡수한다. (`layout.mobile.css`는 T5 모바일 브레이크포인트 게이트의 직접 참고원.)
+- **금지(§5와 동일)**: `--oc-*`/`<openclaw-*>` 토큰·클래스·요소 접두어의 그대로 수입 금지. OpenClaw의
+  40-라우트 콘솔 **정보구조(IA)는 반면교사**(§1 표·§5). CSS 장인정신은 배우되 화면 구성은 안 따른다.
+- **규율**: 값은 영감으로 보고 **T5 자기 토큰으로 재구성**한다("그들이 어떻게 여백·크기·움직임을 다루는지
+  읽어서 배우고, T5는 자기 언어로 다시 쓴다"). Hermes는 `apps/desktop`(Tauri) 정도라 웹챗 craft 참고는
+  OpenClaw `ui/`가 주력이다.
+- **추적**: 실제로 반영한 지점은 design evidence에 **출처와 함께 기록**해 다음 감사에서 craft-흡수 vs
+  복제를 판별할 수 있게 한다.
+
 ---
 
 ## 2. 계승할 구조 (INHERIT)
