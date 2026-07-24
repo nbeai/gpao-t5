@@ -152,6 +152,13 @@
   .badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:var(--r-full); }
   .badge.a2 { background:var(--info-subtle); color:var(--info); }
   .badge.a3 { background:var(--danger-subtle); color:var(--danger); }
+  /* 기억 제안 — 조용한 info-톤, 대화를 막지 않는다. */
+  .suggest { align-self:flex-start; max-width:86%; border:1px solid var(--line); border-left:3px solid var(--info);
+    border-radius:var(--r-md); padding:var(--sp-3) var(--sp-4); background:var(--surface); animation:rise var(--dur-normal) var(--ease-out); }
+  .suggest .sug-t { font-size:var(--fs-sm); color:var(--fg); }
+  .suggest .sug-s { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-2); }
+  .suggest .btns { margin-top:var(--sp-2); display:flex; gap:var(--sp-2); }
+  .sug-done { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:0 var(--sp-1); }
   .card .btns { margin-top:var(--sp-3); display:flex; gap:var(--sp-2); }
   button.act { border:1px solid var(--line-strong); color:var(--fg); background:var(--surface);
     border-radius:var(--r-md); padding:var(--sp-2) var(--sp-4); cursor:pointer; font:inherit; font-size:var(--fs-sm);
@@ -379,6 +386,27 @@ function renderResult(r, opts = {}) {
   if (r.nextSafeAction) bot.textContent += `\n\n다음: ${r.nextSafeAction}`;
   box.appendChild(bot);
   renderRecord(box, r.ledger);
+  // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
+  if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
+}
+
+// 기억 후보를 조용히 제안. preference=바로 기억, operating_principle=검토(replay) 후 적용.
+function renderSuggestion(box, sug) {
+  const isPrin = sug.kind === 'operating_principle';
+  const card = el('suggest');
+  card.appendChild(el('sug-t', isPrin ? '운영 원칙으로 기억할까요? (검토 후 적용)' : '이걸 기본으로 기억할까요?'));
+  card.appendChild(el('sug-s', `"${sug.statement}"`));
+  const btns = el('btns');
+  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = isPrin ? '검토 후 적용' : '기억하기';
+  const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
+  yes.onclick = async () => {
+    const r = await (await fetch('/memory/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId }) })).json();
+    card.remove();
+    box.appendChild(el('sug-done', r.ok ? (isPrin ? '검토를 거쳐 원칙으로 기억했어요.' : '기억했어요. 앞으로 반영할게요.') : (r.reason === 'replay_failed' ? '검토에서 과거와 충돌해 적용하지 않았어요.' : '적용하지 않았어요.')));
+  };
+  no.onclick = () => card.remove();
+  btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
+  box.appendChild(card);
 }
 
 async function submit() {

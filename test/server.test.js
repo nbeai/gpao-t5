@@ -140,6 +140,38 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
   }
 });
 
+// P6-1 기억: 선호 발화 → 후보(자동 승격 아님) → confirm → 승격.
+test('선호 발화는 후보로만 저장되고 confirm 후에만 승격된다', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' });
+    const m1 = await getj(base, '/memory');
+    assert.equal(m1.promoted.length, 0, '자동 승격 금지');
+    assert.equal(m1.candidates.length, 1);
+    assert.equal(m1.candidates[0].kind, 'preference');
+    const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
+    assert.equal(r.ok, true);
+    const m2 = await getj(base, '/memory');
+    assert.equal(m2.promoted.length, 1);
+    assert.equal(m2.candidates.length, 0);
+  });
+});
+
+// P6-1 핵심 안전: 운영원리는 confirm 시 replay 게이트를 거쳐야 승격된다(replay 전 행동 영향 0).
+test('운영원리는 replay 게이트를 통과해야 승격된다', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    await post(base, '/turn', { sessionId: s.id, text: '외부에 보낼 땐 무조건 나한테 확인받아' });
+    const m1 = await getj(base, '/memory');
+    assert.equal(m1.candidates[0].kind, 'operating_principle');
+    assert.equal(m1.promoted.length, 0, 'confirm 전 승격 없음(영향 0)');
+    const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
+    assert.equal(r.ok, true, 'replay 통과 시 승격');
+    const m2 = await getj(base, '/memory');
+    assert.equal(m2.promoted.length, 1);
+  });
+});
+
 test('존재하지 않는 세션의 turn은 404', async () => {
   await withServer(async (base) => {
     const res = await post(base, '/turn', { sessionId: '00000000-0000-0000-0000-000000000000', text: '안녕' });
