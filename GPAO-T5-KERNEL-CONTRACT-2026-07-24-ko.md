@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 개정 · P6-3 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -20,8 +20,10 @@
 - P6-3 개정 반영(근거: `P6-3-AUTOMATION`, 깊은 감사 통과):
   §8.3 Automation 신규 — ScheduledJob(state·grantScope·external=descriptor needsApproval 파생) +
   AutomationLedger(세션 TruthLedger와 분리된 자동화 실행 원장, §7 ToolReceipt 계약 재사용) +
-  tick 경계(현재 수동 in-process, 몰래 실행 0·후보≠실행·외부 만료 필수). **필수 후속(blocker 아님):**
-  tick을 `trusted_runtime_event` 전용 경계로 제한 + 반복 job 실제 스케줄러 — 다음 자동화 slice.
+  tick 경계(몰래 실행 0·후보≠실행·외부 만료 필수).
+- P6-3b 개정 반영(근거: `P6-3-AUTOMATION` 후속, 깊은 감사 통과): §8.3 tick 경계 **구현됨** —
+  `admitTickTrigger`(trusted_runtime_event 전용) + HTTP tick 런타임 토큰 요구(없으면 403·실행0, UI 버튼 없음) +
+  in-process `AutomationScheduler`(setInterval+unref, cron/daemon 아님, intervalMs job 재예약·원장 누적).
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -357,10 +359,20 @@ diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 �
 그대로 쓴다 — 성공·실패·차단·만료·취소를 정직하게. 추가는 `appendAutomationLedger(job, receipt)`로만 한다.
 `GET /automation`의 `jobs[].ledger`가 이 원장의 투영이고 `runs`/`lastResult`는 그 요약이다.
 
-**tick 경계(현재 + 필수 후속)** — 현재 슬라이스의 `tick`은 수동/테스트 tick(in-process, 실행 가능한 job만).
-**필수 후속(다음 자동화/스케줄러 slice, 이번 병합의 blocker 아님):** `tick` 트리거를 `trusted_runtime_event`
-전용 경계로 제한한다 — 일반 사용자가 누르는 버튼처럼 보이면 안 되고, §1.5 InboundEventGate의
-`trusted_runtime_event` 경로와 동일 계약으로 게이트한다. 반복 job의 실제 스케줄러 구동도 이 후속에 포함.
+**tick 경계(구현됨, P6-3b)** — `tick`은 사용자 행동이 아니라 **런타임 이벤트**다. 일반 사용자가 누르는
+버튼처럼 tick을 돌릴 수 없다.
+- `admitTickTrigger(trigger)`: §1.5 InboundEventGate와 동일 계약으로 `trusted_runtime_event`만 admit한다
+  (`automation_trigger`는 게이트 대상 외부 이벤트라 tick 트리거가 아니다 — 불허). `runTrustedTick`이 tick
+  실행의 단일 경로이고, 이 게이트를 통과한 트리거만 실행한다.
+- HTTP `POST /automation/tick`은 **런타임 트러스트 토큰**(`x-runtime-token`)을 요구한다. 토큰은 어떤 GET에도
+  노출하지 않으므로 브라우저·사용자는 tick을 칠 수 없다 — 없으면 `403 not_trusted`, 실행 0. 이 라우트는
+  런타임/운영·테스트 전용이고 UI에는 tick 버튼이 없다(승인 카드만).
+- 반복 구동은 **in-process `AutomationScheduler`**(`setInterval`+`unref`, cron/daemon 아님 — 프로세스가 죽으면
+  함께 죽는다)가 담당한다. 항상 `trusted_runtime_event`로 발화해 `runtimeTick`을 직접 호출(HTTP 우회, 구성상
+  trusted). `intervalMs` job은 실행 후 `nextRunAt += intervalMs`, `scheduled` 유지 → 다음 발화에 재실행하고
+  매 실행을 AutomationLedger에 누적한다.
+
+남은 후속(다음 slice): 반복 job의 만료·백오프·tick 중첩 방지 정교화. 진짜 cron/daemon은 배포 계약 이후.
 
 ---
 
