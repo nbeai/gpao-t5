@@ -23,11 +23,11 @@
 | --- | --- | --- |
 | GPAO-T3 | 로컬 소스 `/Users/jyp/Developer/gpao-t3-2026.7.18` + 이번 세션 직접 개발·라이브 실측 | 강함 |
 | lab_un/OpenClaw | 로컬 소스 `/Users/jyp/Developer/lab_un/openclaw-pure-2026-07-20` (read-only 정찰) | 강함(구조), 실행 미검증 |
-| Codex | 이번 세션 같은 머신 병렬 실행 관찰 + 공식 문서 | 중간 |
+| Codex | 이번 세션 같은 머신 병렬 실행 관찰 + Codex 공식 문서(developers.openai.com/codex, OpenAI Codex CLI) | 중간 |
 | Claude Code | 이 세션 자체가 Claude Code 실사용 | 강함(실사용), 내부구현 비공개 |
-| OpenHands | 공식 문서만 | 약함 → 대부분 `추가 검증 필요` |
+| OpenHands | 공식 문서만(docs.all-hands.dev/sdk; openhands.dev; MIT 라이선스) | 약함 → 대부분 `추가 검증 필요` |
 | ChatGPT | 공식 문서 + 일반 실사용 지식 | 중간 |
-| native-runtime-research | 로컬 `/Users/jyp/Developer/gpao-t-native-runtime-research` | 정찰 진행 중 |
+| native-runtime-research | 로컬 `/Users/jyp/Developer/gpao-t-native-runtime-research` (read-only 정찰) | 강함(구조) |
 
 표기 규약: 6층위 = 기능/성능/로직/알고리즘/디자인/구조. T5매핑 = 표면/커널/라우터/권한/원장/복구
 (+보조 자기파악/BEAI5/성장). 4분류 = 재사용가능/원리흡수/폐기/추가검증. 라이선스 = 확인됨/확인
@@ -94,21 +94,36 @@ T3는 T5의 직전 개발본이자 최대 흡수 후보다. 단 프로토콜 §2
 
 | ID | 대상 | 경로/근거 | 기능·기관명 | 6층위 | 사용자 기능 서술 | 관찰된 작동 방식 | T5 매핑 | 7대 영역 | 11기능군 | 4분류 | 판정 이유 | 라이선스 | 권한·프라이버시 | Ledger | 복구 요구 | 검증 | Codex 감사 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CODEX-LOCAL-001 | Codex | 이번 세션 같은 머신 병렬 실행 관찰 + 공식 문서 | 로컬 PC 지배력 (파일·터미널·독립 실행) | 기능,로직 | 말하면 로컬에서 파일·명령이 실제로 실행되고 진행이 보임 | 독립 프로세스로 파일 정리 rm 등을 실행하는 것을 이번 세션 실측 | 라우터,표면 | 5 Router / 6 Surface | 로컬PC실행,개발작업 | 원리흡수 | T5 Local PC Workspace의 방향. 비공개 구현이라 원리만 | 비공개 | 읽기,쓰기,실행 | 필수 | 사용자확인 | 사용자판단필요 |  |
-| CODEX-APPROVAL-001 | Codex | 공식 문서 | 승인 모드 (approval modes) | 로직 | 위험 행동 전에 승인을 받는 단계가 있음 | approval mode로 실행 전 확인 | 권한 | 4 Authority | 승인/권한 | 원리흡수 | T5 A0-A3로 재구성. Claude Code permission mode와 함께 통합 | 비공개 | 쓰기,실행 | 권장 | 사용자확인 | 봉인가능 |  |
-| CLAUDE-PERM-001 | Claude Code | 이 세션 자체가 실사용 | permission mode | 로직,디자인 | 도구 사용 전 허용/차단이 사용자 통제 아래 있음 | 도구별 권한 모드. 이번 세션 auto-mode classifier가 rm 차단 실측 | 권한 | 4 Authority | 승인/권한 | 원리흡수 | 계획서 §7이 명시적으로 A0-A3로 통합하라 지시 | 비공개 | 쓰기,실행 | 권장 | 사용자확인 | 봉인가능 |  |
-| CLAUDE-MCP-001 | Claude Code | 이 세션 실사용 + 공식 문서 | MCP (도구 연결 프로토콜) | 구조 | 외부 도구·데이터를 표준 방식으로 붙임 | MCP 서버를 도구로 노출. 세션 중 deferred tool 로딩 관찰 | 라우터 | 5 Router | 도구/앱연결,확장성 | 원리흡수 | T5 Connector Manifest로 재구성. 개방 표준이나 T5 계약으로 감쌈 | 공식원리참조만 | 읽기,쓰기 | 권장 | 없음 | 봉인가능 |  |
-| CLAUDE-HOOKS-001 | Claude Code | 이 세션 실사용 + 공식 문서 | hooks | 로직 | 특정 시점에 자동 동작을 걸어 규율을 강제 | 이벤트에 훅 실행. 환경헌장이 Phase 5 게이트로 참조 | 원장,권한 | (개발 규율) | 자동화/스케줄 | 원리흡수 | T5 개발 규율(환경헌장) + 제품 자동화 양쪽 참고. Phase 5에 적용 | 공식원리참조만 | 실행 | 권장 | 없음 | 봉인가능 |  |
-| CLAUDE-SUBAGENT-001 | Claude Code | 이 세션 실사용(이 인벤토리 정찰에 사용) | subagents | 알고리즘,성능 | 큰 조사를 병렬로 나눠 빠르게, 맥락 오염 없이 | 서브에이전트에 read-only 정찰 위임, 결과만 회수. 이번 정찰에 실사용 | 커널 | (개발 방식) | 개발작업 | 원리흡수 | 개발 방식 참고(Reference-First 병렬 흡수에 직접 유효). 제품 기능 아님 | 공식원리참조만 | 읽기 | 불필요 | 없음 | 봉인가능 |  |
-| CLAUDE-RESUME-001 | Claude Code | 이 세션 실사용 + 공식 문서 | resume / continue | 기능 | 대화가 끊겨도 이전 작업을 이어감 | 세션 재개. T3 long-flow와 같은 목표 | 커널 | 3 Context | 세션연속성 | 원리흡수 | T5 cross-surface session resume(P1)로 재구성 | 공식원리참조만 | 읽기 | 권장 | 없음 | 봉인가능 |  |
-| CLAUDE-MULTISURFACE-001 | Claude Code | 공식 문서 | 다중 표면 (terminal/IDE/desktop/web) | 디자인,구조 | 같은 에이전트를 여러 화면에서 같은 상태로 씀 | terminal·IDE·desktop·web에서 운영 | 표면 | 6 Work Surface | 멀티표면 | 원리흡수 | 계획서 §4 "같은 상태 언어" 목표. T5 화면 문법으로 통합 | 비공개 | 읽기 | 불필요 | 없음 | 추가소스필요 |  |
-| OPENHANDS-SDK-001 | OpenHands | 공식 문서만 | model-agnostic agent server (CLI/web/SDK/headless) | 구조 | 특정 모델·UI에 묶이지 않는 에이전트 실행 기반 | CLI·web GUI·headless SDK·sandbox 제공(공식 문서 근거) | 라우터,커널 | 5 Router | 확장성,로컬PC실행 | 추가검증 | 계획서 §2.3이 "wrapper화 금지" 명시. 소스 미확인이라 추가검증 | 공식원리참조만 | 읽기,쓰기,실행 | 권장 | 없음 | 추가소스필요 |  |
-| OPENHANDS-SANDBOX-001 | OpenHands | 공식 문서만 | sandbox 실행 격리 | 로직,구조 | 위험 작업을 격리된 환경에서 실행 | sandbox로 파일/명령 격리(공식 문서) | 권한,복구 | 4 Authority / 7 Recovery | 로컬PC실행,승인/권한 | 추가검증 | 격리 실행 원리 참고. 실동작·라이선스 미확인 | 공식원리참조만 | 실행 | 권장 | non-mutation | 실행검증필요 |  |
-| CHATGPT-PROJECT-001 | ChatGPT | 공식 문서 + 일반 실사용 | Projects (작업공간) | 기능,디자인 | 대화·파일·지침을 프로젝트 단위로 묶음 | 프로젝트에 대화·파일·커스텀 지침 | 표면 | 6 Work Surface | 프로젝트/작업공간 | 원리흡수 | T5 Project Rooms로 재구성. 화면 복제 금지 | 비공개 | 읽기,쓰기 | 불필요 | 없음 | 봉인가능 |  |
-| CHATGPT-MEMORY-001 | ChatGPT | 공식 문서 + 일반 실사용 | Memory (개인화 기억) | 기능 | 이전 대화를 기억해 개인화된 답 | 자동 기억 + 사용자 관리 | 커널,성장 | 3 Context/T-cell | 기억/개인화 | 원리흡수 | 계획서 §3이 "raw memory 아닌 admitted context/POM 분리" 명시. 원리만 | 비공개 | 읽기,장기기억 | 권장 | 되돌리기 | 봉인가능 |  |
-| CHATGPT-APPS-001 | ChatGPT | 공식 문서 | Apps / Connectors | 구조 | 외부 앱·데이터를 대화에서 바로 사용 | 앱/커넥터로 외부 연결 | 라우터 | 5 Router | 도구/앱연결,확장성 | 원리흡수 | T5 Connection Center로 재구성(읽기/쓰기/전송/비용 분리) | 비공개 | 읽기,쓰기,전송 | 필수 | 없음 | 봉인가능 |  |
-| CHATGPT-TASKS-001 | ChatGPT | 공식 문서 | Tasks (예약·자동화) | 기능 | 반복·예약 작업을 자동 실행 | 스케줄된 작업 | 성장,권한 | 7 Growth Loop | 자동화/스케줄 | 원리흡수 | T5는 review queue 시작·외부효과 명시승인으로 재구성 | 비공개 | 쓰기,전송 | 필수 | 되돌리기 | 봉인가능 |  |
-| CHATGPT-CANVAS-001 | ChatGPT | 공식 문서 + 일반 실사용 | Canvas (산출물 편집) | 디자인,기능 | 문서·코드를 대화 옆에서 직접 편집 | 편집 가능 캔버스 + 버전 | 표면 | 6 Work Surface | 프로젝트/작업공간 | 원리흡수 | T5 Canvas/Workboard(P1)로 재구성 | 비공개 | 읽기,쓰기 | 권장 | 버전되돌리기 | 봉인가능 |  |
+| CODEX-LOCAL-001 | Codex | 이번 세션 같은 머신 병렬 실행 관찰 + Codex 공식 문서(developers.openai.com/codex, OpenAI Codex CLI) | 로컬 PC 지배력 (파일·터미널·독립 실행) | 기능,로직 | 말하면 로컬에서 파일·명령이 실제로 실행되고 진행이 보임 | 독립 프로세스로 파일 정리 rm 등을 실행하는 것을 이번 세션 실측 | 라우터,표면 | 5 Router / 6 Surface | 로컬PC실행,개발작업 | 원리흡수 | T5 Local PC Workspace의 방향. 비공개 구현이라 원리만 | 비공개 | 읽기,쓰기,실행 | 필수 | 사용자확인 | 사용자판단필요 |  |
+| CODEX-APPROVAL-001 | Codex | Codex 공식 문서(developers.openai.com/codex — approval modes) | 승인 모드 (approval modes) | 로직 | 위험 행동 전에 승인을 받는 단계가 있음 | approval mode로 실행 전 확인 | 권한 | 4 Authority | 승인/권한 | 원리흡수 | T5 A0-A3로 재구성. Claude Code permission mode와 함께 통합 | 비공개 | 쓰기,실행 | 권장 | 사용자확인 | 봉인가능 |  |
+| CLAUDE-PERM-001 | Claude Code | 이 세션 자체가 실사용 + 공식 문서(code.claude.com/docs — permission modes) | permission mode | 로직,디자인 | 도구 사용 전 허용/차단이 사용자 통제 아래 있음 | 도구별 권한 모드. 이번 세션 auto-mode classifier가 rm 차단 실측 | 권한 | 4 Authority | 승인/권한 | 원리흡수 | 계획서 §7이 명시적으로 A0-A3로 통합하라 지시 | 비공개 | 쓰기,실행 | 권장 | 사용자확인 | 봉인가능 |  |
+| CLAUDE-MCP-001 | Claude Code | 이 세션 실사용 + 공식 문서(code.claude.com/docs) | MCP (도구 연결 프로토콜) | 구조 | 외부 도구·데이터를 표준 방식으로 붙임 | MCP 서버를 도구로 노출. 세션 중 deferred tool 로딩 관찰 | 라우터 | 5 Router | 도구/앱연결,확장성 | 원리흡수 | T5 Connector Manifest로 재구성. 개방 표준이나 T5 계약으로 감쌈 | 공식원리참조만 | 읽기,쓰기 | 권장 | 없음 | 봉인가능 |  |
+| CLAUDE-HOOKS-001 | Claude Code | 이 세션 실사용 + 공식 문서(code.claude.com/docs) | hooks | 로직 | 특정 시점에 자동 동작을 걸어 규율을 강제 | 이벤트에 훅 실행. 환경헌장이 Phase 5 게이트로 참조 | 원장,권한 | (개발 규율) | 자동화/스케줄 | 원리흡수 | T5 개발 규율(환경헌장) + 제품 자동화 양쪽 참고. Phase 5에 적용 | 공식원리참조만 | 실행 | 권장 | 없음 | 봉인가능 |  |
+| CLAUDE-SUBAGENT-001 | Claude Code | 이 세션 실사용(이 인벤토리 정찰에 서브에이전트 사용) + 공식 문서(code.claude.com/docs — subagents) | subagents | 알고리즘,성능 | 큰 조사를 병렬로 나눠 빠르게, 맥락 오염 없이 | 서브에이전트에 read-only 정찰 위임, 결과만 회수. 이번 정찰에 실사용 | 커널 | (개발 방식) | 개발작업 | 원리흡수 | 개발 방식 참고(Reference-First 병렬 흡수에 직접 유효). 제품 기능 아님 | 공식원리참조만 | 읽기 | 불필요 | 없음 | 봉인가능 |  |
+| CLAUDE-RESUME-001 | Claude Code | 이 세션 실사용 + 공식 문서(code.claude.com/docs) | resume / continue | 기능 | 대화가 끊겨도 이전 작업을 이어감 | 세션 재개. T3 long-flow와 같은 목표 | 커널 | 3 Context | 세션연속성 | 원리흡수 | T5 cross-surface session resume(P1)로 재구성 | 공식원리참조만 | 읽기 | 권장 | 없음 | 봉인가능 |  |
+| CLAUDE-MULTISURFACE-001 | Claude Code | 공식 문서(code.claude.com/docs — IDE/terminal/desktop/web) | 다중 표면 (terminal/IDE/desktop/web) | 디자인,구조 | 같은 에이전트를 여러 화면에서 같은 상태로 씀 | terminal·IDE·desktop·web에서 운영 | 표면 | 6 Work Surface | 멀티표면 | 원리흡수 | 계획서 §4 "같은 상태 언어" 목표. T5 화면 문법으로 통합 | 비공개 | 읽기 | 불필요 | 없음 | 추가소스필요 |  |
+| OPENHANDS-SDK-001 | OpenHands | 공식 문서만(docs.all-hands.dev/sdk; openhands.dev; MIT 라이선스) | model-agnostic agent server (CLI/web/SDK/headless) | 구조,알고리즘 | 특정 모델·UI에 묶이지 않는 에이전트 실행 기반 | event-sourced state + deterministic replay, typed tool + MCP, workspace 추상화(로컬/원격 컨테이너). 공식 문서 근거 | 라우터,커널 | 5 Router | 확장성,로컬PC실행 | 추가검증 | 계획서 §2.3이 "wrapper화 금지" 명시. MIT라 참조 가능하나 소스·동작 미확인이라 추가검증 | MIT 확인(공식) | 읽기,쓰기,실행 | 권장 | 없음 | 추가소스필요 |  |
+| OPENHANDS-SANDBOX-001 | OpenHands | 공식 문서만(docs.all-hands.dev/sdk — Workspace) | sandbox 실행 격리 (로컬/원격 컨테이너 workspace) | 로직,구조 | 위험 작업을 격리된 환경에서 실행 | workspace 추상화로 로컬 프로토타입 또는 원격 컨테이너 실행. 공식 문서 | 권한,복구 | 4 Authority / 7 Recovery | 로컬PC실행,승인/권한 | 추가검증 | 격리 실행 원리 참고. MIT지만 실동작 미확인 | MIT 확인(공식) | 실행 | 권장 | non-mutation | 실행검증필요 |  |
+| CHATGPT-PROJECT-001 | ChatGPT | 공식 문서(help.openai.com; openai.com) + 일반 실사용 | Projects (작업공간) | 기능,디자인 | 대화·파일·지침을 프로젝트 단위로 묶음 | 프로젝트에 대화·파일·커스텀 지침 | 표면 | 6 Work Surface | 프로젝트/작업공간 | 원리흡수 | T5 Project Rooms로 재구성. 화면 복제 금지 | 비공개 | 읽기,쓰기 | 불필요 | 없음 | 봉인가능 |  |
+| CHATGPT-MEMORY-001 | ChatGPT | 공식 문서(help.openai.com; openai.com) + 일반 실사용 | Memory (개인화 기억) | 기능 | 이전 대화를 기억해 개인화된 답 | 자동 기억 + 사용자 관리 | 커널,성장 | 3 Context/T-cell | 기억/개인화 | 원리흡수 | 계획서 §3이 "raw memory 아닌 admitted context/POM 분리" 명시. 원리만 | 비공개 | 읽기,장기기억 | 권장 | 되돌리기 | 봉인가능 |  |
+| CHATGPT-APPS-001 | ChatGPT | 공식 문서(help.openai.com; openai.com) | Apps / Connectors | 구조 | 외부 앱·데이터를 대화에서 바로 사용 | 앱/커넥터로 외부 연결 | 라우터 | 5 Router | 도구/앱연결,확장성 | 원리흡수 | T5 Connection Center로 재구성(읽기/쓰기/전송/비용 분리) | 비공개 | 읽기,쓰기,전송 | 필수 | 없음 | 봉인가능 |  |
+| CHATGPT-TASKS-001 | ChatGPT | 공식 문서(help.openai.com; openai.com) | Tasks (예약·자동화) | 기능 | 반복·예약 작업을 자동 실행 | 스케줄된 작업 | 성장,권한 | 7 Growth Loop | 자동화/스케줄 | 원리흡수 | T5는 review queue 시작·외부효과 명시승인으로 재구성 | 비공개 | 쓰기,전송 | 필수 | 되돌리기 | 봉인가능 |  |
+| CHATGPT-CANVAS-001 | ChatGPT | 공식 문서(help.openai.com; openai.com) + 일반 실사용 | Canvas (산출물 편집) | 디자인,기능 | 문서·코드를 대화 옆에서 직접 편집 | 편집 가능 캔버스 + 버전 | 표면 | 6 Work Surface | 프로젝트/작업공간 | 원리흡수 | T5 Canvas/Workboard(P1)로 재구성 | 비공개 | 읽기,쓰기 | 권장 | 버전되돌리기 | 봉인가능 |  |
+
+---
+
+## 3.6 BEAI5 (Foundational Reference 문서)
+
+근거: `references/BEAI5-SYSTEM-PROMPT-REFERENCE-2026-07-24-ko.md`(800줄, 정본 근간) + 계획서 §5.6
+BEAI5 이중구현 원칙. BEAI5는 T5 개발영역 2이자 첫 슬라이스 구성요소다. 프로토콜 §4.4가 보조 태그
+`BEAI5` 최소 1회 등장을 권장하나, 계획 중심축임을 감안해 전용 행으로 명시한다. 계획서 §5.6이 정한
+경계를 그대로 따른다: **OS가 정렬할 것(구조·상태)과 모델이 생성할 것(판단·언어)을 나눈다.**
+
+| ID | 대상 | 경로/근거 | 기능·기관명 | 6층위 | 사용자 기능 서술 | 관찰된 작동 방식 | T5 매핑 | 7대 영역 | 11기능군 | 4분류 | 판정 이유 | 라이선스 | 권한·프라이버시 | Ledger | 복구 요구 | 검증 | Codex 감사 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| BEAI5-OPERATION-001 | BEAI5 | references/BEAI5-SYSTEM-PROMPT-REFERENCE §0·§1 | BEAI5 Model Operation (현실 동반자 작동 원리) | 로직,알고리즘 | 답 뒤 사용자의 현실이 선명해지고 판단 부담이 줄며 실제로 쓸 무언가가 남음 | 최상위 작동 순서(현실 보존→정확한 순서로 놓기→확정/미정 분리→쓸 수 있게 닫기). 사용자 결정권·위치 보존 | BEAI,커널 | 2 BEAI5 Model Operation | 투명성 | 원리흡수 | 프로토콜 §5.1(6)·§2.2대로 모델 판단 영역. 프롬프트 장문 주입이 아니라 §5.6.1 OS 속성 + §5.6.2 모델 헌장으로 이중 구현 | 확인됨(자체 근간) | 읽기 | 권장 | 없음 | 봉인가능 |  |
+| BEAI5-NATURAL-001 | BEAI5 | 계획서 §5.6.2 + §11 성공기준 12 + Rejection Criteria | 자연스러움 회귀 기준 (모델 판단·언어 훼손 방지) | 로직 | 시스템이 정렬돼도 모델의 자연스러운 판단·언어·산출물 품질이 훼손되지 않음 | rigid prompt template 금지, BEAI5를 체크리스트/분류기로 축소 금지, 과잉통제 금지선 | BEAI,성장 | 2 BEAI5 Model Operation | 투명성 | 원리흡수 | Rejection Criteria가 명시적으로 금지한 항목. T5는 자연스러움 회귀 테스트(§10 Phase4)로 고정 | 확인됨(자체 근간) | 없음 | 불필요 | 없음 | 실행검증필요 |  |
+| BEAI5-SPLIT-001 | BEAI5 | 계획서 §5.6.1 / §5.6.2 이중구현 표 | OS-구현 속성과 모델 판단 영역 분리 (BEAI5 Integration Contract) | 구조 | (기반) 사용자는 매끄럽게 느끼되 시스템은 정렬, 모델은 판단을 유지 | OS 속성으로 구현(SelfStateSnapshot·ModelRouteCell·Connection 등) vs 모델 헌장으로 남김(판단·언어). 외부 코드가 완전히 대신하면 BEAI5 가치가 죽음 | BEAI,자기파악 | 1 Selfhood / 2 BEAI5 | 투명성 | 원리흡수 | 필수 산출물 6번 BEAI5 Integration Contract의 근거. 정본은 Phase 1~2에서 작성. 여기서는 근거 매핑만 | 확인됨(자체 근간) | 읽기 | 권장 | 없음 | 봉인가능 |  |
 
 ---
 
@@ -141,24 +156,25 @@ Stage Board가 스스로 `development: hold until baseline seal`, `current mutat
 
 | 봉인 조건 | 현재 상태 |
 | --- | --- |
-| 대상별 최소 조사 단위 | GPAO-T3 ✅ / lab_un/OpenClaw ✅ / native-runtime ✅ / Codex △(공식+관찰) / Claude Code ✅ / OpenHands ⚠(공식만) / ChatGPT △ |
+| 대상별 최소 조사 단위 | GPAO-T3 ✅ / lab_un/OpenClaw ✅ / native-runtime ✅ / BEAI5 ✅(전용 3행) / Claude Code ✅ / ChatGPT △ / Codex △(공식+관찰) / OpenHands △(MIT·공식 문서) |
 | 11개 기능군 모두 커버 | ✅ 1프로젝트 2기억 3도구연결 4로컬실행 5멀티표면 6자동화 7승인권한 8세션연속 9개발작업 10확장성 11투명성 각 1행 이상 |
 | 6층위 모두 등장 | ✅ 기능·성능·로직·알고리즘·디자인·구조 전부 등장 |
-| T5 매핑 6태그 모두 등장 | ✅ 표면·커널·라우터·권한·원장·복구 전부 + 보조 자기파악·BEAI5(간접)·성장 |
-| 폐기·원리흡수 충분 | ✅ 폐기 4행, 원리흡수 다수 |
-| 재사용가능은 라이선스 표시 | ✅ 재사용가능 4행 모두 라이선스 상태 기재 |
+| T5 매핑 6태그 모두 등장 | ✅ 표면·커널·라우터·권한·원장·복구 전부 + 보조 자기파악·BEAI5(전용 3행)·성장 |
+| 4분류 실제 집계 (표 판정 칸 기준, 실측) | 원리흡수 35 · 추가검증 14 · 재사용가능 3 · 폐기 3 = 총 55행 |
+| 폐기·원리흡수 충분 | ✅ 폐기 3행(T3-SURFACE-001, OPENCLAW-APP-001, OPENCLAW-SPEECH-001), 원리흡수 35행 |
+| 재사용가능은 라이선스 표시 | ✅ 재사용가능 3행(T3-AUTH-001, T3-RECOVERY-001, T3-VAULT-001) 모두 라이선스 상태 기재 |
 | 근거 없는 칭찬 없음 | 자가점검상 없음(각 행 경로/실측/문서 근거) |
 | Codex 감사 메모 | ⬜ 전 행 비움 (감사자 작성 대기) |
 
 ### 미충족·정직한 공백
 
-- **OpenHands**: 공식 문서만. 로컬 소스·실행 근거 없어 대부분 `추가 검증 필요`. 봉인 전 추가 소스 필요.
+- **OpenHands**: MIT 라이선스 확인(docs.all-hands.dev/sdk). 단 로컬 소스·실행 검증은 없어 `추가 검증 필요`. 봉인 전 실소스·동작 확인 권장.
 - **native-runtime-research**: 정찰 완료(§3.5 추가). 단 Stage Board가 `hold until baseline seal`·
   `mutation prohibited`를 스스로 선언한 봉인 전 연구물이라 대부분 `추가 검증 필요`. T3본과 커널
   개념이 겹쳐(어느 쪽을 이전 기준으로) Phase 1 결정 필요.
 - **Codex/ChatGPT**: 비공개라 내부 동작은 관찰·공식 문서 한계. `원리만 흡수`로 정직히 제한.
-- **BEAI5 보조 태그**: 직접 행은 T3-KERNEL·conversation-flow 계열에 간접적. BEAI5 참고 문서 기반
-  전용 행은 Phase 1~2 Kernel Contract에서 보강 권장.
+- **BEAI5**: §3.6에 전용 3행 추가(Model Operation·자연스러움 회귀·OS/모델 분리). 정본 계약
+  (필수 산출물 6번 BEAI5 Integration Contract)은 Phase 1~2에서 작성하며, 여기서는 근거 매핑만 남긴다.
 
 ---
 
@@ -166,9 +182,11 @@ Stage Board가 스스로 `development: hold until baseline seal`, `current mutat
 
 프로토콜 §6-8대로 정본 문서는 수정하지 않았다. 아래는 감사·다음 Phase 판단용 제안일 뿐이다.
 
-1. **T3 재사용가능 4건**(tool-turn-guard, recovery-envelope, customer-vault, capability-registry)은
-   라이선스가 자체이므로 코드 이전이 가장 현실적이다. 단 recovery-envelope는 이번 세션에서
-   "정화가 진단면까지 덮는" 부작용이 확인됐으니 T5 이전 시 사용자면/진단면 분리가 조건.
+1. **T3 재사용가능 3건**(T3-AUTH-001 tool-turn-guard, T3-RECOVERY-001 recovery-envelope,
+   T3-VAULT-001 customer-vault)은 라이선스가 자체이므로 코드 이전이 가장 현실적이다. 단
+   recovery-envelope는 이번 세션에서 "정화가 진단면까지 덮는" 부작용이 확인됐으니 T5 이전 시
+   사용자면/진단면 분리가 조건. (capability-registry(T3-SELF-001)는 `원리흡수`로 둔다 — 배포치환이
+   그 가드를 라이브에서 뒤집었던 모듈이라 그대로 이전보다 T5 Operational Selfhood로 재구성이 맞다.)
 2. **lab_un/OpenClaw는 전부 라이선스 `확인 필요`**다. `재사용 가능` 승격 전 라이선스·transitive
    dependency 실사가 선행돼야 한다(프로토콜 §3.3). 현재는 `원리만 흡수`/`추가 검증`에 머문다.
 3. **로컬 PC 실행**은 Codex·Claude Code·OpenClaw·OpenHands가 겹친다. T5 Local PC Workspace 설계
