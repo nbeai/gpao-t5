@@ -1,6 +1,6 @@
 # GPAO-T5 Phase 5.1 — Reference Absorption Hardening
 
-- Status: `감사 보정 4건 반영 · 재제출 (재감사 대기)`
+- Status: `Codex 조건부 감사 통과 · 보정 4건 반영 · §9 개정 Kernel Contract 반영 완료(2026-07-24, main d4b352d)`
 - 감사 대응(Codex 조건부 통과 4건, 전부 동의·반영): ① ToolReceipt.lifecycle이 승인/실행을 섞던 것
   분리(승인=AuthorityGrant, 실행/전달=ToolReceipt, §9.3·§5-3) ② InboundEventGate `source=system` →
   `trusted_runtime_event`로 게이트 우회, 복구·보안·권한 이벤트가 묻히지 않게(§9.1·§5-5) ③ 게이트 `reason`을
@@ -208,10 +208,12 @@ Profile/Instance 격리(profile home), 자동화 센터(scheduler/blueprint), �
 
 ---
 
-## 9. 제안하는 Kernel Contract 개정 (오너 승인: 커널 개정 · Codex 감사 전)
+## 9. Kernel Contract 개정 (반영 완료)
 
-봉인된 Phase 2 Kernel Contract에 아래를 추가·수정 제안한다. **이 문서는 제안이며, Codex 감사 통과
-전까지 봉인 Kernel Contract 파일을 수정하지 않는다.**
+**이 개정은 Codex 조건부 감사 통과 후 봉인 Phase 2 Kernel Contract에 이미 반영됐다**(2026-07-24,
+main `d4b352d`): §9.1→Kernel §1.5 InboundEventGate, §9.2→Kernel §6 connectedTools.status,
+§9.3→Kernel §7 ToolReceipt.lifecycle(실행/전달 전용, 승인은 AuthorityGrant), §9.4→Kernel §8.1
+FollowUpEvent.candidateKind. 아래는 그 반영본의 근거 기록이다.
 
 ### 9.1 신규 계약 — Relevance Gate (InboundEventGate)
 
@@ -260,5 +262,5 @@ Profile/Instance 격리(profile home), 자동화 센터(scheduler/blueprint), �
 
 ---
 
-*이 문서는 초안이다. Codex 감사 후 Phase 5.1 Reference Absorption Hardening 으로 봉인하고, §9 개정을
-봉인 Kernel Contract에 반영한다. 그 전까지 개발·코드 감사는 멈춤 유지.*
+*Codex 조건부 감사 통과. §9 개정은 봉인 Kernel Contract에 반영 완료(main `d4b352d`). 다음 단계는
+§5 최소 P5 코드 반영(브랜치 작업 → 감사 통과분만 main 병합).*
