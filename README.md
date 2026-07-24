@@ -26,6 +26,13 @@ These documents do not sit above the top authority documents, but they are the s
 1. `references/BEAI5-SYSTEM-PROMPT-REFERENCE-2026-07-24-ko.md`
    - Foundational. BEAI5 underlies the development plan itself: it is development domain 2 of 7, part of the first build slice, and the basis of the BEAI5 Dual-Implementation Principle (plan §5.6). This is the source material for BEAI5 Model Operation, the BEAI5 Integration Contract, naturalness regression gates, and the split between OS-implemented properties and model-held judgment. Read it before any BEAI5-related design, implementation, or audit.
 
+## Phase 0 Working Protocols
+
+These documents govern the pre-code research seal. They are not product code, but they define what must be true before product code starts.
+
+1. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
+   - Defines the Reference Inventory table schema, reuse classification rules, lab_un/OpenClaw boundary, coverage bar, and Codex audit criteria for Phase 0.
+
 ## Non-Scope For Current Body Development
 
 Installation and onboarding are intentionally excluded from the current GPAO-T5 body-development plan. Packaging lessons from GPAO-T3 still remain binding as regression-prevention knowledge when T5 later enters release/distribution work.

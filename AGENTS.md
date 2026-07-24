@@ -9,6 +9,10 @@ Before any planning, implementation, review, verification, handoff, or release w
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
 
+For Phase 0 reference inventory, also read:
+
+5. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
+
 Core rule:
 
 - Do not treat GPAO-T5 as a feature-heavy chat app.
