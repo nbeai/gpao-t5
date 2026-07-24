@@ -390,6 +390,37 @@ function renderResult(r, opts = {}) {
   renderRecord(box, r.ledger);
   // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
   if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
+  // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
+  if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
+}
+
+// 자동화 후보를 조용히 제안. 승인해도 범위·만료·취소·원장이 있다. 승인 전 영향 0.
+function renderAutomationSuggestion(box, sug) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', '이 작업을 자동으로 반복할까요?'));
+  card.appendChild(el('sug-s', `"${sug.statement}"`));
+  card.appendChild(el('sug-line', '승인 전엔 아무것도 실행하지 않아요. 켜도 범위·만료(기본 30일)·취소가 있고 실행은 원장에 남아요.'));
+  const btns = el('btns');
+  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '자동화 승인';
+  const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
+  yes.onclick = async () => {
+    const expiresAt = Date.now() + 30 * 24 * 3600 * 1000; // 기본 30일 범위 — 만료·재승인 보장(무기한 금지)
+    const r = await (await fetch('/automation/approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId, expiresAt }) })).json();
+    card.remove();
+    if (!r.ok) { box.appendChild(el('sug-done', '자동화를 켜지 못했어요.')); return; }
+    const done = el('sug-done');
+    done.appendChild(el('sug-line', `자동화를 예약했어요${r.external ? ' (외부 전송 — 승인 범위 유지)' : ''}. 30일 후 만료돼요.`));
+    const cancel = document.createElement('button'); cancel.className = 'act no'; cancel.textContent = '취소'; cancel.style.marginTop = 'var(--sp-2)';
+    cancel.onclick = async () => {
+      await fetch('/automation/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: r.jobId }) });
+      done.replaceChildren(el('sug-line', '자동화를 취소했어요. 앞으로 실행하지 않아요.'));
+    };
+    done.appendChild(cancel);
+    box.appendChild(done);
+  };
+  no.onclick = () => card.remove();
+  btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
+  box.appendChild(card);
 }
 
 // 기억 후보를 조용히 제안. preference=바로 기억, operating_principle=검토(replay) 후 적용.

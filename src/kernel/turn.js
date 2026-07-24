@@ -13,6 +13,7 @@ import { isExecutionAllowed } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
+import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -138,6 +139,14 @@ export async function runTurn(input, ctx) {
   // 4) complex path — 계획 → 권한 게이트 → 실행 → 원장.
   const plan = buildActionPlan({ intent, selfState });
 
+  // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
+  //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
+  const primaryTool = plan.toolsToUse?.[0] ?? plan.needsApproval?.[0]?.action ?? null;
+  const automationSuggestion = detectAutomationCandidate(
+    input.text ?? '',
+    primaryTool ? { tool: primaryTool, args: { request: intent.currentRequest ?? input.text } } : null,
+  );
+
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
   //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
   const pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
@@ -160,6 +169,8 @@ export async function runTurn(input, ctx) {
       understoodTask: plan.understoodTask,
       selfStateSummary: summary,
       followUp,
+      memorySuggestion,
+      automationSuggestion,
     };
   }
 
@@ -167,6 +178,7 @@ export async function runTurn(input, ctx) {
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted);
   result.followUp = followUp;
   result.memorySuggestion = memorySuggestion;
+  result.automationSuggestion = automationSuggestion;
   return result;
 }
 

@@ -95,6 +95,25 @@
  */
 
 /**
+ * @typedef {Object} ScheduledJob        §8.2 Automation 계약(P6-3)
+ * @property {string} id
+ * @property {{tool:string, args?:*}} action  실행할 도구·인자
+ * @property {string} statement
+ * @property {'scheduled'|'paused'|'cancelled'|'completed'|'expired'|'failed'} state
+ * @property {number} createdAt
+ * @property {number} nextRunAt
+ * @property {number} [intervalMs]        있으면 반복, 없으면 1회
+ * @property {{kind:'once'|'session'|'persist', expiresAt?:number}} grantScope  승인 범위·만료(§3.2)
+ * @property {boolean} external           외부 전송 자동화(A2 경계 유지) — descriptor needsApproval에서 파생
+ * @property {ToolReceipt[]} executions   AutomationLedger — 세션 TruthLedger와 분리된 자동화 실행 원장
+ */
+
+/**
+ * @typedef {ToolReceipt[]} AutomationLedger  §8.2 자동화 실행 진실 원장. 세션 TruthLedger와 분리.
+ * 세션 밖 백그라운드 실행이라 세션 원장에 섞지 않는다. ToolReceipt 계약을 그대로 쓴다(성공·실패·차단 정직).
+ */
+
+/**
  * @typedef {Object} FollowUpEvent       §8 Follow-up Queue 계약
  * @property {string} runningTask
  * @property {string} incomingInput
