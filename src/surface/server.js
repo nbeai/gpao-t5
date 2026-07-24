@@ -22,8 +22,9 @@ import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors } from './demo-context.js';
 import { AutomationStore } from './automation-store.js';
-import { makeGrowthCandidate, approveAutomation, cancelJob } from '../kernel/l5-growth/automation.js';
+import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
+import { AutomationScheduler } from '../runtime/automation-scheduler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +52,19 @@ export function makeServer(deps = {}) {
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
+  // tick 트러스트 토큰(§8.3): 런타임만 안다. 어떤 GET에도 노출하지 않는다 → 브라우저·사용자는 tick 불가.
+  // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
+  const runtimeToken = deps.runtimeToken ?? randomUUID();
+
+  // tick 실행의 단일 경로(트러스트 게이트). trusted_runtime_event만 실행한다(admitTickTrigger).
+  async function runTrustedTick(trigger) {
+    if (!admitTickTrigger(trigger)) return { ok: false, reason: 'not_trusted', ran: [] };
+    const a = await autoStore.load();
+    const selfState = buildSelfState(env);
+    const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
+    await autoStore.save(a);
+    return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+  }
 
   // 승인 대기(pending)를 세션 파일에 지속한다(Approval Lifecycle). 기억(memory)·활성목표(activeGoal)를
   // ctx에 주입 — 라우터는 raw 기억을 쓰지 않고, admitted된 것만 좁게 입장한다(§5).
@@ -65,7 +79,7 @@ export function makeServer(deps = {}) {
     };
   }
 
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     try {
       const url = (req.url ?? '').split('?')[0];
 
@@ -203,13 +217,13 @@ export function makeServer(deps = {}) {
         await autoStore.save(a);
         return sendJson(res, 200, { ok: true, jobId: job.id, state: job.state, external, grantScope });
       }
-      // 스케줄러 tick(최소·수동). 실행 가능한 job만 실행 → ToolReceipt를 job 원장에 남긴다.
+      // tick은 런타임 이벤트로만 실행된다(§8.3). 사용자 버튼이 아니다 — 트러스트 토큰 없으면 거부.
+      // 정상 구동은 in-process 스케줄러(server.runtimeTick). 이 라우트는 런타임/운영·테스트 전용.
       if (req.method === 'POST' && url === '/automation/tick') {
-        const a = await autoStore.load();
-        const selfState = buildSelfState(env);
-        const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
-        await autoStore.save(a);
-        return sendJson(res, 200, { ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) });
+        if (req.headers['x-runtime-token'] !== runtimeToken) {
+          return sendJson(res, 403, { ok: false, reason: 'not_trusted', error: 'tick은 런타임 이벤트로만 실행돼요.' });
+        }
+        return sendJson(res, 200, await runTrustedTick({ source: 'trusted_runtime_event' }));
       }
       // 취소(되돌리기). 이후 tick에서 실행되지 않는다.
       if (req.method === 'POST' && url === '/automation/cancel') {
@@ -315,12 +329,19 @@ export function makeServer(deps = {}) {
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
   });
+  // in-process 스케줄러가 부를 트러스트 tick(§8.3). HTTP를 거치지 않고 직접 실행 — 구성상 trusted.
+  server.runtimeTick = () => runTrustedTick({ source: 'trusted_runtime_event' });
+  return server;
 }
 
 // 직접 실행할 때만 listen 한다(import 시 부작용 없음).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
-  makeServer().listen(port, () => {
+  const server = makeServer();
+  server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });
+  // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
+  const tickMs = Number(process.env.GPAO_T5_TICK_MS ?? 60_000);
+  new AutomationScheduler({ onTick: () => server.runtimeTick(), intervalMs: tickMs }).start();
 }
