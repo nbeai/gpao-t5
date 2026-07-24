@@ -1,6 +1,6 @@
 # GPAO-T5 Tool & Connector Reference Seal
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `Codex 감사 통과 · 봉인 (2026-07-25) · 경로 표기 보정 반영`
 - Date: 2026-07-25
 - Author: Claude Code (구현자) — OpenClaw·Hermes 도구/커넥터 구조 read-only 분석(심층 리드 2건)
 - Auditor: Codex (감사 대기)
@@ -84,16 +84,17 @@
 
 ### 2.4 실행 — 백엔드 + RPC + 위임
 - 터미널 백엔드 `TERMINAL_ENV = local|docker|singularity|modal|daytona|ssh`
-  (`_CONTAINER_BACKENDS`). Modal은 직접자격/관리형 게이트웨이.
-- 스크립트 RPC(`code_execution_tool.py`): 자식이 `hermes_tools.py` 스텁으로 부모 도구를 소켓 RPC 호출
-  (토큰 인증). 위임(`delegate_tool.py`): 격리 자식 에이전트, `DELEGATE_BLOCKED_TOOLS` 차단.
+  (`tools/terminal_tool.py` `_CONTAINER_BACKENDS`). Modal은 직접자격/관리형 게이트웨이.
+- 스크립트 RPC(`tools/code_execution_tool.py`): 자식이 `hermes_tools.py` 스텁으로 부모 도구를 소켓 RPC
+  호출(토큰 인증). 위임(`tools/delegate_tool.py`): 격리 자식 에이전트, `DELEGATE_BLOCKED_TOOLS` 차단.
 
 ### 2.5 결과/실패 — 분류 + at-least-once
-- 결과: `tool_result_storage.py`가 초과 결과를 디스크로 spill(도구별 `max_result_size_chars`).
-- **MCP 실패 분류**: `_classify_mcp_failure` → `permanent`(401/403 auth, ENOENT — 즉시 parking) vs
-  `transient`(네트워크/타임아웃 — backoff 재시도).
-- 전달 원장(`delivery_ledger.py`): `pending→attempting→delivered|failed→abandoned`(MAX_ATTEMPTS=3),
-  재전달에 가시적 `RECOVERED_MARKER`(정직한 at-least-once). API 오류는 `classify_api_error`로 진단/사용자면 분리.
+- 결과: `tools/tool_result_storage.py`가 초과 결과를 디스크로 spill(도구별 `max_result_size_chars`).
+- **MCP 실패 분류**: `tools/mcp_tool.py` `_classify_mcp_failure` → `permanent`(401/403 auth, ENOENT —
+  즉시 parking) vs `transient`(네트워크/타임아웃 — backoff 재시도).
+- 전달 원장(`gateway/delivery_ledger.py`): `pending→attempting→delivered|failed→abandoned`
+  (MAX_ATTEMPTS=3), 재전달에 가시적 `RECOVERED_MARKER`(정직한 at-least-once). API 오류는
+  `run_agent.py` `classify_api_error`로 진단/사용자면 분리.
 
 ---
 
@@ -147,5 +148,10 @@
 
 ---
 
-*이 문서는 초안이다. Codex 감사 후 Tool & Connector Reference Seal 로 봉인한다. §3 신규 계약·봉인 개정은
-P6 진입 시 반영한다.*
+*Codex 감사 통과. Tool & Connector Reference Seal 로 봉인. §3 신규 계약·봉인 개정은 P6 진입 시 Codex
+감사와 함께 반영한다.*
+
+**P6 진입 전 선행 계약(오너 지시)**: 승인의 **지속/만료/재승인 경계**를 별도 계약으로 정리한다. 현재
+Work Chat의 승인 대기는 서버 메모리(livePending)에만 있어 재시작 후 이어실행이 불가할 수 있다(living
+슬라이스 조건부 메모와 동일 지점). AuthorityGrant에 승인 수명(grantScope 기간·만료·재승인 요구)을
+계약화한 뒤 P6 권한/원장에 들어간다.
