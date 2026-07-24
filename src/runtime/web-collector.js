@@ -55,14 +55,34 @@ const WALL_MESSAGE = {
   timeout: '그 페이지를 불러오지 못했어요.',
 };
 
+// 시간 제한 실행 — 응답이 끝나지 않는 페이지가 Work Chat을 멈추지 못하게(감사 보정, P6-5).
+// signal을 무시하는 fetch도 멈추도록 race로 감싸고, 실제 요청엔 abort 신호를 보낸다.
+async function withTimeout(factory, timeoutMs, controller) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort(); // 실제 네트워크 요청 취소(리소스 정리)
+      reject(Object.assign(new Error('timeout'), { name: 'AbortError' }));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([factory(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 /**
  * 실제 웹 수집 도구 핸들러를 만든다. WebToolDescriptor 계약(sourceLedgerRequired)을 켠다.
- * @param {{fetchImpl?:Function, robotsCheck?:(url:string)=>Promise<boolean>, now?:()=>number}} [deps]
+ * @param {{fetchImpl?:Function, robotsCheck?:(url:string)=>Promise<boolean>, now?:()=>number, timeoutMs?:number}} [deps]
  * @returns {{sourceLedgerRequired:true, handler:(args:*)=>Promise<object>}}
  */
 export function makeWebCollector(deps = {}) {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const { robotsCheck, now } = deps;
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   return {
     sourceLedgerRequired: true, // ToolRunner가 출처 없는 성공·내용 담은 실패를 막는다
     async handler(args) {
@@ -83,10 +103,15 @@ export function makeWebCollector(deps = {}) {
 
       let res, body;
       try {
-        res = await fetchImpl(url, { redirect: 'follow' });
-        body = await res.text();
+        // fetch + 본문 읽기 전체에 시간 제한(헤더·본문 어느 쪽이 멈춰도 잡는다).
+        const controller = new AbortController();
+        ({ res, body } = await withTimeout(async () => {
+          const r = await fetchImpl(url, { redirect: 'follow', signal: controller.signal });
+          const b = await r.text();
+          return { res: r, body: b };
+        }, timeoutMs, controller));
       } catch (e) {
-        // 네트워크 실패는 timeout으로 정직하게(내용 없음). 원인은 진단면으로만.
+        // 네트워크 실패·시간 초과는 timeout으로 정직하게(내용 없음). 원인은 진단면으로만.
         return { blocked: true, fetchState: 'timeout', userSafeSummary: WALL_MESSAGE.timeout, diagnosticTrace: { message: e?.message } };
       }
 

@@ -83,6 +83,37 @@ test('네트워크 실패: timeout으로 정직하게(내용 없음)', async () 
   assert.equal(out.result, undefined);
 });
 
+// 감사 보정(P6-5): 끝나지 않는 응답은 timeoutMs 후 timeout으로 잡힌다 — Work Chat이 멈추지 않는다.
+// (이 테스트가 hang 없이 끝나는 것 자체가 시간 제한이 실제로 동작한다는 증거.)
+test('timeout: 끝나지 않는 fetch는 timeoutMs 후 timeout(blocked, 내용·출처 없음)', async () => {
+  const hanging = () => new Promise(() => {}); // 영원히 미해결(signal 무시)
+  const c = makeWebCollector({ fetchImpl: hanging, timeoutMs: 30 });
+  const out = await c.handler({ url: 'http://x/' });
+  assert.equal(out.blocked, true);
+  assert.equal(out.fetchState, 'timeout');
+  assert.equal(out.result, undefined, '못 봤으면 내용 없음');
+  assert.ok(!out.sources, '못 봤으면 출처 없음');
+  assertWebEvidence(out);
+});
+
+// 본문 읽기가 멈춰도 잡힌다(헤더는 왔지만 text()가 안 끝나는 경우).
+test('timeout: 본문(text) 지연도 timeout으로 잡힌다', async () => {
+  const slowBody = async () => ({ status: 200, url: 'http://x/', headers: { get: () => 'text/html' }, text: () => new Promise(() => {}) });
+  const c = makeWebCollector({ fetchImpl: slowBody, timeoutMs: 30 });
+  const out = await c.handler({ url: 'http://x/' });
+  assert.equal(out.fetchState, 'timeout');
+  assert.equal(out.result, undefined);
+});
+
+// 시간 제한 안에 끝나는 응답은 정상 성공(경계가 정상 요청을 막지 않는다).
+test('timeout 경계: 제한 안에 끝나면 정상 수집', async () => {
+  const quick = async () => { await new Promise((r) => setTimeout(r, 5)); return { status: 200, url: 'http://x/', headers: { get: () => 'text/html' }, text: async () => '<title>빠름</title>본문' }; };
+  const c = makeWebCollector({ fetchImpl: quick, timeoutMs: 200 });
+  const out = await c.handler({ url: 'http://x/' });
+  assert.ok(out.result, '제한 안이면 성공');
+  assert.equal(out.result.title, '빠름');
+});
+
 test('URL 없음(검색어 단독)은 이 슬라이스에서 수집 불가(정직)', async () => {
   const c = makeWebCollector({ fetchImpl: fakeFetch(200, 'x') });
   const out = await c.handler({ searchQuery: '환율' });
