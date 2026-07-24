@@ -1,6 +1,11 @@
 # GPAO-T5 Phase 5.1 — Reference Absorption Hardening
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `감사 보정 4건 반영 · 재제출 (재감사 대기)`
+- 감사 대응(Codex 조건부 통과 4건, 전부 동의·반영): ① ToolReceipt.lifecycle이 승인/실행을 섞던 것
+  분리(승인=AuthorityGrant, 실행/전달=ToolReceipt, §9.3·§5-3) ② InboundEventGate `source=system` →
+  `trusted_runtime_event`로 게이트 우회, 복구·보안·권한 이벤트가 묻히지 않게(§9.1·§5-5) ③ 게이트 `reason`을
+  `userSafeReason`/`diagnosticReason`으로 분리, ignore 이벤트는 사용자 설명문 없음(§9.1) ④ 계보 표현을
+  "한 라인의 두 세대" → "강한 연속성을 가진 참조 계열"로 낮추고 근거 명시(§0·§4)
 - Date: 2026-07-24
 - Author: Claude Code (구현자) — 두 원본소스 직접 분석 + 심층 리드 2건
 - Auditor: Codex (감사 대기)
@@ -19,9 +24,12 @@
   제품 코드를 대량 작성하지 않는다(최소 반영은 §5, 감사 통과 후).
 - **Reference-First(헌법 §3.1)**: 구조·원리를 흡수하되 identity/runtime/config/UI/브랜드를 정본으로
   삼거나 복제하지 않는다. T5는 이미 봉인된 자기 계약의 빈자리를 채울 뿐, 그들의 언어를 수입하지 않는다.
-- **계보 경계(핵심)**: OpenClaw와 Hermes는 별개 참조가 아니라 **한 제품 라인의 두 세대**다
-  (Warelay→Clawdbot→Moltbot→OpenClaw→Hermes[Nous]. `hermes claw migrate`가 `~/.openclaw`를 읽는다).
-  **T5는 이 사슬의 다음 껍질이 되지 않는다.** P5.1의 절반은 흡수, 절반은 오염 차단이다.
+- **계보 경계(핵심)**: OpenClaw(`openclaw/openclaw`)와 Hermes(`NousResearch/hermes-agent`)는 서로 다른
+  프로젝트·org이지만 **강한 연속성을 가진 참조 계열**이다 — 공유 개념 DNA + 직접 마이그레이션 호환
+  (`hermes claw migrate`가 `~/.openclaw`를 읽어 SOUL·MEMORY·skills·키를 이관). 별개 근거: OpenClaw
+  자신의 이력은 Warelay→Clawdbot→Moltbot→OpenClaw이고(VISION.md), Hermes는 그 사슬의 다음 이름이
+  아니라 OpenClaw로부터의 이관 경로를 제공하는 별도 프로젝트다. **T5는 이 참조 계열의 정체성에
+  녹아들지 않는다.** P5.1의 절반은 흡수, 절반은 오염 차단이다.
 
 Phase 0 인벤토리와의 관계: 인벤토리는 OpenClaw(openclaw-pure)·native-runtime을 다뤘고 **Hermes는
 없었다.** P5.1은 Phase 0 재탕이 아니라, 새로 확보된 — 그리고 P6가 필요로 하는 바로 그 DNA를 가진 —
@@ -151,7 +159,7 @@ cli-config + 24KB env**(scope 폭발이지 템플릿 아님).
    40-도메인 config 트리, 85KB cli-config + 24KB env(scope 폭발).
 4. **인프라**: gateway-protocol 와이어 계약, relay/connector, NAS token self-provision, Fly suspend 가정.
 5. **UI**: OpenClaw 40-라우트 개발자 콘솔 셸(대시보드화 금지).
-6. **한 줄**: **T5는 Warelay→…→OpenClaw→Hermes 사슬의 다음 껍질이 되지 않는다.** 흡수는 구조 DNA뿐.
+6. **한 줄**: **T5는 이 참조 계열(OpenClaw·Hermes)의 정체성에 녹아들지 않는다.** 흡수는 구조 DNA뿐.
 
 ---
 
@@ -164,12 +172,14 @@ cli-config + 24KB env**(scope 폭발이지 템플릿 아님).
    값만 구현**(usable/needs_connection/blocked), 나머지는 정의-하되-미도달로 예약.
 2. **Connection 생존성 분리**: 전송 상태(connected/reconnecting/fatal-retryable)를 도구 가용성과 분리.
    P5는 언어만.
-3. **ToolReceipt lifecycle 직교 필드**: `approved/held/attempting/delivered/failed/abandoned`를 받되,
-   **진실 투영(확인/미확인/추정)은 손대지 않는다.** 원장이 이벤트 소방호스가 되지 않게.
+3. **ToolReceipt.lifecycle 직교 필드**: 실행·전달만 — `attempting/delivered/failed/abandoned`(none 포함).
+   **승인 상태(approved/held)는 AuthorityGrant에 두고 원장에 섞지 않는다**(감사 보정 1). 진실 투영
+   (확인/미확인/추정)은 손대지 않는다. 원장이 이벤트 소방호스가 되지 않게.
 4. **FollowUpEvent 타입 후보**: `automation | retry | long_task` 후보로 확장 가능하게(계약 필드만).
-5. **Relevance Gate(§9 계약)**: 외부·비요청 이벤트 admission을 IntentPacket 앞에 둔다. **직접 사용자
-   채팅과 fast_chat엔 절대 걸지 않는다.** 값싼 결정적 필터(mention/allowlist/dedup), 비admit은
-   channel_context backfill.
+5. **Relevance Gate(§9 계약)**: external_channel·automation_trigger admission만 IntentPacket 앞에 둔다.
+   **user_chat·fast_chat엔 절대 걸지 않고, trusted_runtime_event(복구·보안·권한)는 게이트를 우회해
+   Recovery·Authority로 직행한다**(감사 보정 2). 값싼 결정적 필터(mention/allowlist/dedup), 비admit은
+   channel_context backfill, ignore는 사용자 설명문 없음(보정 3).
 6. **Work Chat UI는 자연 웹챗 유지**(대시보드화 금지). 도구 카드 접힘 = OpenClaw 흡수 확인점.
 
 ---
@@ -210,24 +220,39 @@ Profile/Instance 격리(profile home), 자동화 센터(scheduler/blueprint), �
 
 | 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
 | --- | --- | --- | --- | --- |
-| source | 열거 | 필수 | user_chat / external_channel / automation_trigger / system | user_chat은 항상 admit(게이트 우회) |
+| source | 열거 | 필수 | user_chat / external_channel / automation_trigger / trusted_runtime_event | **게이트 대상은 external_channel·automation_trigger 뿐.** user_chat·trusted_runtime_event은 게이트를 우회한다 |
 | triggerSignal | 열거목록 | 선택 | mention / allowlisted / direct_message / dedup_new | 결정적 신호만. 모델 판단 아님 |
 | disposition | 열거 | 필수 | respond / context_only / ignore / defer | 비respond는 턴을 열지 않는다 |
 | admittedAsContext | 불리언 | 필수 | 비respond 시 맥락 backfill 여부 | context_only는 channel_context로 |
-| reason | 문자열 | 필수 | 판정 근거(사용자면 요약) | 내부용어 금지 |
+| userSafeReason | 문자열 | 선택 | 사용자에게 보여도 되는 판정 요약 | **respond일 때만 채운다.** ignore/context_only는 비운다(알림 콘솔화 금지) |
+| diagnosticReason | 객체 | 선택 | 내부 판정 근거·신호값 | 사용자면 노출 금지. 감사·디버그용 |
 
-규칙: `source=user_chat`은 게이트를 우회한다(자연스러움 보존, 절대원칙 4). 게이트는 IntentPacket
-**앞**에 위치하며, 통과분만 §2 말귀로 넘어간다. 모델을 부르지 않는다(§9 자연스러움 gate와 정합).
+규칙:
+- **게이트 대상은 외부·비요청 이벤트(external_channel·automation_trigger) 뿐이다.** `user_chat`은 항상
+  admit(게이트 우회, 자연스러움 보존, 절대원칙 4).
+- **`trusted_runtime_event`(시스템 복구·보안·권한 이벤트)는 relevance 게이트에 걸리지 않는다.** 이 게이트로
+  묻히면 위험하므로, 이들은 게이트를 우회해 Recovery·Authority 규칙으로 직행한다(감사 보정 2).
+- 게이트는 IntentPacket **앞**에 위치하며, 통과분만 §2 말귀로 넘어간다. **모델을 부르지 않는다**(§9
+  자연스러움 gate와 정합).
+- **조용히 무시(ignore)하는 이벤트는 사용자에게 어떤 설명문도 만들지 않는다**(userSafeReason 비움). T5가
+  알림 많은 운영 콘솔로 변질되지 않게(감사 보정 3, UX 안티 대시보드와 정합).
 
 ### 9.2 SelfStateSnapshot.connectedTools 세분화 (수정)
 
 `executable: 불리언` → `status: 열거(usable|needs_auth|needs_config|needs_connection|blocked)` +
 `executable`은 `status===usable`의 파생으로 유지(하위호환). P5는 도달값만 구현(§5-1).
 
-### 9.3 ToolReceipt lifecycle 필드 (추가)
+### 9.3 실행/전달 vs 승인 상태 분리 (수정 — 감사 보정 1)
 
-`lifecycle: 열거(none|approved|held|attempting|delivered|failed|abandoned)` 직교 추가. 진실 투영
-(확인/미확인/추정)의 상위 규칙은 불변(§7 원장 규칙 유지).
+내가 스스로 말한 "관심사별 계층 분리"를 이 필드가 어겼다. 승인 상태와 실행/전달 상태를 분리한다:
+
+- **ToolReceipt.lifecycle**(추가) = `열거(none|attempting|delivered|failed|abandoned)`. **실행·전달**만
+  담는다(Hermes delivery_ledger 대응). 진실 투영(확인/미확인/추정)의 상위 규칙은 불변(§7 유지).
+- **승인 상태(approved/held)는 ToolReceipt가 아니라 AuthorityGrant에 있다.** 이미 있는
+  `approvalRequired`+`granted`가 그 상태를 표현한다: `held` = `approvalRequired && !granted`,
+  `approved` = `granted`. 승인 수명주기를 원장에 섞지 않는다.
+- 근거: 실행-신뢰·승인은 Authority 층, 전달 수명주기는 Ledger 층 — 두 소스가 독립적으로 가르친 계층
+  분리와 일치.
 
 ### 9.4 FollowUpEvent.candidateKind (추가)
 
