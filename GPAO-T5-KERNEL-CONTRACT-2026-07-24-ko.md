@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1 개정(2026-07-24) · Approval Lifecycle 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -11,6 +11,9 @@
 - Approval Lifecycle 개정 반영(근거: `GPAO-T5-APPROVAL-LIFECYCLE-CONTRACT`, 깊은 감사 통과):
   §3.2 AuthorityGrant `grantScope{kind:once/session/persist, expiresAt}` 정형화 + 만료→재승인·fail-closed
   규칙. once만 P5 도달, session·persist는 P6.
+- P6-2 개정 반영(근거: `GPAO-T5-TOOL-CONNECTOR-REFERENCE-SEAL`·`P6-2-TOOL-DESCRIPTOR`, 깊은 감사 통과):
+  §6.5 ToolDescriptor 신규(소유≠실행·availability·auth≠approval, needsApproval/toolKind→ActionPlan 전달) +
+  §7 failureState `cancelled` 추가·재시도 분류.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -216,6 +219,27 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 
 ---
 
+## 6.5 ToolDescriptor (도구 계약 — P6-2 개정)
+
+근거: Tool&Connector Reference Seal §1.1·§3 흡수. 도구를 계약으로 세운다. connectedTools(§6)는 각
+도구 descriptor의 availability를 환경 사실에 대입해 채운다.
+
+| 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
+| --- | --- | --- | --- | --- |
+| id | 문자열 | 필수 | 내부 식별자 | 사용자면 비노출(라벨만) |
+| label | 문자열 | 필수 | 사용자 표시명 | |
+| owner | 열거 | 필수 | 정의 주체 | core/plugin/channel/mcp. **소유≠실행** |
+| executor | 참조 | 필수 | 실행 주체 | owner와 분리(디스패치) |
+| availability | 목록 | 필수 | 실행 가능 신호(allOf) | auth/config/env/connected. → status(§6) 판정 |
+| toolKind | 문자열 | 필수 | 권한 종류 | read/send/organize… ActionPlan 권한 판정 입력 |
+| needsApproval | 불리언 | 필수 | 행동 승인 필요 | **auth≠approval**: 실행 가능해도 승인 필요일 수 있음 |
+
+규칙: **"실행 가능"(availability→status)과 "실행해도 됨"(needsApproval)은 다른 축이다**(헌법 §3-3).
+descriptor의 toolKind·needsApproval은 SelfState.connectedTools에 보존되어 §4 ActionPlan 권한 판정까지
+전달된다 — 하드코딩 목록에 없는 새 도구도 needsApproval이면 승인 게이트를 우회하지 못한다(감사 보정).
+
+---
+
 ## 7. ToolReceipt (Tool Execution Truth Ledger 계약)
 
 근거: 계획서 §5.4 / 헌법 §3-4. 도구를 썼다고 착각하거나 못 썼는데 쓴 척하지 않는다.
@@ -225,7 +249,7 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 | intended | 문자열 | 필수 | 하려던 일 | ActionPlan 항목 기준 |
 | actualCall | 객체 | 필수 | 실제로 호출한 것 | 도구·인자. 호출 안 했으면 그렇게 기록 |
 | result | 객체 | 선택 | 받은 결과 | 성공 시 |
-| failureState | 열거 | 필수 | 실패/차단/타임아웃 여부 | none / failed / blocked / timeout |
+| failureState | 열거 | 필수 | 실패/차단/타임아웃/취소 여부 | none / failed / blocked / timeout / cancelled(P6-2). blocked·cancelled=permanent, failed·timeout=transient(재시도 분류) |
 | lifecycle | 열거 | 선택 | 실행·전달 수명주기(Phase 5.1 개정) | none / attempting / delivered / failed / abandoned. **실행·전달만.** 승인 상태(held/approved)는 AuthorityGrant(approvalRequired+granted)에 있고 원장에 섞지 않는다 |
 | userSafeSummary | 문자열 | 필수 | 사용자에게 말해도 되는 요약 | 내부 용어 제외. 사용자면/진단면 분리(감사 §3-3) |
 | diagnosticTrace | 객체 | 선택 | 내부 진단·오류·스택·provider 상태 | 사용자 답변에 그대로 노출 금지. 디버그·감사용 |
