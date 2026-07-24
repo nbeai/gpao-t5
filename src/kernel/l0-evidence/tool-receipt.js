@@ -46,6 +46,8 @@ export function receipt(r) {
     failureState,
     // 실행·전달 수명주기. 승인 상태는 여기 아니라 AuthorityGrant에 있다.
     lifecycle,
+    // 출처 근거(P6-2 Slice-2). 웹 도구는 출처 없이 "확인"을 주장하지 못한다 — Truth Ledger 연결.
+    sources: r.sources,
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,

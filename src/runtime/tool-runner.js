@@ -2,6 +2,7 @@
 // 결과는 항상 ToolReceipt 로 기록한다(못 쓴 도구를 쓴 척 금지). 진단면은 diagnosticTrace 로 분리.
 import { receipt, blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
 import { isToolExecutable } from '../kernel/l0-evidence/self-state.js';
+import { assertWebEvidence } from '../kernel/l2-plan/web-tool.js';
 import { FAILURE } from '../kernel/contracts.js';
 
 export class ToolRunner {
@@ -39,6 +40,22 @@ export class ToolRunner {
     // 2) 실제 호출. 실패는 failureState 로 정직하게, 원인은 진단면으로 분리.
     try {
       const out = await tool.handler(args);
+      // 출처 원장 필수 도구(웹 등)는 계약을 런타임이 강제한다 — handler 관례에 맡기지 않는다(감사 보정 1).
+      // 출처 없는 성공·내용 담은 실패는 계약 위반이므로 failed로 떨어뜨린다("못 본 걸 본 척" 차단).
+      if (tool.sourceLedgerRequired) {
+        try {
+          assertWebEvidence(out);
+        } catch (e) {
+          return receipt({
+            intended,
+            actualCall: { tool: toolId, args },
+            failureState: FAILURE.FAILED,
+            userSafeSummary: '출처를 확인하지 못해 결과를 신뢰할 수 없어요.',
+            diagnosticTrace: { reason: e?.message },
+            nextSafeAction: '출처가 있는 방법으로 다시 시도할까요?',
+          });
+        }
+      }
       if (out && out.blocked) {
         return receipt({
           intended,
@@ -54,6 +71,8 @@ export class ToolRunner {
         actualCall: { tool: toolId, args },
         result: out?.result ?? out,
         failureState: FAILURE.NONE,
+        // 출처 근거를 원장에 함께 남긴다(P6-2). 웹 도구는 sources 없이 성공을 반환하지 못한다.
+        sources: out?.sources,
         userSafeSummary: out?.userSafeSummary ?? `${toolId} 실행 완료.`,
       });
     } catch (err) {
