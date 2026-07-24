@@ -11,9 +11,11 @@
 - Approval Lifecycle 개정 반영(근거: `GPAO-T5-APPROVAL-LIFECYCLE-CONTRACT`, 깊은 감사 통과):
   §3.2 AuthorityGrant `grantScope{kind:once/session/persist, expiresAt}` 정형화 + 만료→재승인·fail-closed
   규칙. once만 P5 도달, session·persist는 P6.
-- P6-2 개정 반영(근거: `GPAO-T5-TOOL-CONNECTOR-REFERENCE-SEAL`·`P6-2-TOOL-DESCRIPTOR`, 깊은 감사 통과):
+- P6-2 개정 반영(근거: `GPAO-T5-TOOL-CONNECTOR-REFERENCE-SEAL`·`P6-2-TOOL-DESCRIPTOR`·
+  `P6-2-WEB-TOOL-DESCRIPTOR`, 깊은 감사 통과):
   §6.5 ToolDescriptor 신규(소유≠실행·availability·auth≠approval, needsApproval/toolKind→ActionPlan 전달) +
-  §7 failureState `cancelled` 추가·재시도 분류.
+  §6.6 WebToolDescriptor(inputSchema·sourcePolicy·sessionMode, 출처 없는 성공 런타임 강제 금지, fetch 상태 분리) +
+  §7 failureState `cancelled`·재시도 분류 + §7 `sources` 출처 근거.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -238,6 +240,22 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 descriptor의 toolKind·needsApproval은 SelfState.connectedTools에 보존되어 §4 ActionPlan 권한 판정까지
 전달된다 — 하드코딩 목록에 없는 새 도구도 needsApproval이면 승인 게이트를 우회하지 못한다(감사 보정).
 
+### 6.6 WebToolDescriptor (ToolDescriptor 확장 — P6-2 Slice-2)
+
+근거: Tool&Connector Seal §3. 웹/브라우징/스크래핑 도구의 계약. ToolDescriptor + 아래 필드.
+
+| 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
+| --- | --- | --- | --- | --- |
+| inputSchema | 객체 | 필수 | 입력 계약 | url/searchQuery(하나 필수)·depth·allowedDomains·maxPages. maxPages 상한(대량수집 금지), allowedDomains는 hostname 기준(우회 차단) |
+| sourcePolicy | 객체 | 필수 | 스크래핑 정책 | readOnly·noMassCollect·noExternalSend·**sourceLedgerRequired** |
+| sessionMode | 열거 | 필수 | 브라우저 세션 | anonymous(A0) / authenticated(auth availability, 자격 축) / user_approved(**needsApproval:true**, 승인 축) |
+
+규칙(핵심 불변식): **웹 도구는 출처(SourceEvidence) 없이 "검색했다/봤다"고 말하지 못한다.**
+`sourceLedgerRequired` 도구의 성공은 **ToolRunner가 런타임에서 강제**한다(handler 관례 아님) — 출처 없는
+성공, 실패·차단(fetchState≠ok)에 내용·출처가 섞이면 계약 위반으로 failed 처리. fetch 상태
+(login_wall/blocked/robots_disallow/bot_wall/timeout)는 성공과 분리한다. auth≠approval: user_approved
+세션은 공개 읽기 A0와 달리 승인 경계를 가진다.
+
 ---
 
 ## 7. ToolReceipt (Tool Execution Truth Ledger 계약)
@@ -251,6 +269,7 @@ descriptor의 toolKind·needsApproval은 SelfState.connectedTools에 보존되�
 | result | 객체 | 선택 | 받은 결과 | 성공 시 |
 | failureState | 열거 | 필수 | 실패/차단/타임아웃/취소 여부 | none / failed / blocked / timeout / cancelled(P6-2). blocked·cancelled=permanent, failed·timeout=transient(재시도 분류) |
 | lifecycle | 열거 | 선택 | 실행·전달 수명주기(Phase 5.1 개정) | none / attempting / delivered / failed / abandoned. **실행·전달만.** 승인 상태(held/approved)는 AuthorityGrant(approvalRequired+granted)에 있고 원장에 섞지 않는다 |
+| sources | 목록 | 선택 | 출처 근거(P6-2 Slice-2) | `{sourceUrl,fetchedAt,title,excerptHash,confidence}`. 웹 등 sourceLedgerRequired 도구는 출처 없이 "확인"을 주장하지 못한다(런타임 강제). Truth Ledger 근거로 연결 |
 | userSafeSummary | 문자열 | 필수 | 사용자에게 말해도 되는 요약 | 내부 용어 제외. 사용자면/진단면 분리(감사 §3-3) |
 | diagnosticTrace | 객체 | 선택 | 내부 진단·오류·스택·provider 상태 | 사용자 답변에 그대로 노출 금지. 디버그·감사용 |
 | nextSafeAction | 문자열 | 선택 | 다음 안전 행동 | 실패 시 |
