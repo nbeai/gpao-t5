@@ -42,9 +42,14 @@ export function isInfluenceEligible(entry) {
 
 // 이번 요청에 "관련" 있는지(좁게 입장). P6-1은 statement 단어가 요청에 걸치는지로 판정 —
 // 뒷단 임베딩/모델 회수는 밀도화 단계. "많이 기억함"이 아니라 "이번 행동에 필요함".
-function relevant(entry, requestText) {
+/**
+ * 이 문장이 이번 요청에 관련 있는가(좁게 입장 판정). activeGoal·기억 공통 사용.
+ * @param {string} statement
+ * @param {string} requestText
+ */
+export function isRelevant(statement, requestText) {
   const req = String(requestText ?? '');
-  const words = entry.statement.split(/\s+/).filter((w) => w.length >= 2);
+  const words = String(statement ?? '').split(/\s+/).filter((w) => w.length >= 2);
   return words.some((w) => {
     if (req.includes(w)) return true;
     // 조사 근사 제거: 마지막 글자를 떼고도 비교(보고서는→보고서).
@@ -52,6 +57,7 @@ function relevant(entry, requestText) {
     return stem.length >= 2 && req.includes(stem);
   });
 }
+const relevant = (entry, requestText) => isRelevant(entry.statement, requestText);
 
 /**
  * 이번 턴 admitted context — 승격되어 영향 가능한 것 중, 이번 요청에 관련된 것만 좁게.
@@ -109,13 +115,17 @@ export function promote(entry, approval = {}) {
   if (entry.kind === 'operating_principle' && approval.replayPassed !== true) {
     return { ok: false, reason: 'needs_replay' };
   }
+  const isPrin = entry.kind === 'operating_principle';
   return {
     ok: true,
     entry: {
       ...entry,
       admitted: true,
       userConfirmed: true,
-      replayPassed: entry.kind === 'operating_principle' ? true : entry.replayPassed,
+      replayPassed: isPrin ? true : entry.replayPassed,
+      // 정직화(감사 보정): P6-1 replay는 최소(명시 모순만 검사). 강하게 "검토 완료"라 하지 않는다.
+      reviewLevel: isPrin ? 'basic' : undefined,
+      influenceScope: '관련된 이후 대화',
     },
   };
 }

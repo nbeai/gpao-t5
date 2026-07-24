@@ -7,10 +7,21 @@
 - 근거 정본: 봉인 Kernel Contract §5 ContextAdmissionPacket / 헌법 §3-2·§4.3 / 시나리오 S24–S27
 - 위상: T5의 심장 첫 진입. 도구·채널·자동화가 그 위에 얹힌다.
 
-## 0. 스코프 (오너 — 작게)
+## 0. 원칙 + 스코프
 
-**현재 목표 유지 + 세션 간 좁은 맥락 복원 + 기억 승격 후보 + replay 전 행동 영향 금지.**
-아직 안 함: 임베딩 회수, Memory Center 실화면, 프로필 격리, session/persist grant, 자동화.
+**broad memory, narrow influence** (감사 재해석). T5는 많이 관찰·저장·학습한다. 다만 **현재 답변/행동에
+영향을 주는 것은 admitted context만**이다. memory ≠ permission, retrieved ≠ admitted,
+admitted support ≠ answer anchor. "적게 기억"이 아니라 "영향을 좁게".
+
+스코프(오너 — 작게): **현재 목표 유지 + 세션 간 좁은 맥락 복원 + 기억 승격 후보 + replay 전 행동 영향
+금지.** 아직 안 함: 임베딩 회수, Memory Center 실화면, 프로필 격리, session/persist grant, 자동화.
+
+감사 보정 4건(조건부 반려 → 반영):
+1. **세션 목록 오염**: `list()`가 UUID 세션 파일만 읽는다(memory.json 등 제외) + relAge NaN 방어. 회귀 테스트.
+2. **activeGoal 관련성 게이트**: activeGoal은 이번 발화와 관련될 때만 admitted(무관 발화 주입 금지). 테스트.
+3. **operating_principle 정직화**: replay가 최소임을 `reviewLevel:'basic'`로 표시, UI 문구 하향
+   ("원칙으로 기억했어요 (기본 검토)").
+4. **승격 권한 표면**: 승격 후 무엇을·어디에 반영·되돌리기를 조용한 카드로(대시보드 아님).
 
 ## 1. 핵심 안전 불변식 (이 슬라이스의 심장)
 

@@ -160,7 +160,12 @@ export function makeServer(deps = {}) {
         m.candidates.splice(idx, 1);
         m.promoted.push(r.entry);
         await memStore.save(m);
-        return sendJson(res, 200, { ok: true, kind: entry.kind });
+        // 권한 표면(감사 보정): 무엇을·어디에·되돌리기 가능한지 UI가 짧게 보여줄 근거.
+        return sendJson(res, 200, {
+          ok: true, kind: entry.kind, candidateId: r.entry.candidateId,
+          statement: r.entry.statement, influenceScope: r.entry.influenceScope,
+          reviewLevel: r.entry.reviewLevel, rollbackable: r.entry.rollbackable,
+        });
       }
       if (req.method === 'POST' && url === '/memory/rollback') {
         const input = JSON.parse((await readBody(req)) || '{}');

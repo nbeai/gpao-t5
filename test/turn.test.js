@@ -166,6 +166,22 @@ test('외부 이벤트 + mention → 정상 턴', async () => {
   assert.notEqual(r.kind, 'gated');
 });
 
+// 감사 보정: activeGoal은 관련 발화에만 admitted되고, 무관 발화엔 모델 입력에 주입되지 않는다
+// (현재요청우선 · broad memory narrow influence).
+test('activeGoal은 관련 발화에만 admitted, 무관 발화엔 주입 안 됨', async () => {
+  const captured = [];
+  const c = ctx();
+  c.model = { async respond(tc) { captured.push(tc); return '응답'; } };
+  c.activeGoal = { understoodTask: '경쟁사 뉴스 조사', successCriteria: 'x' };
+
+  await runTurn({ text: '오늘 날씨 어때' }, c); // 무관
+  assert.ok(!captured[0].admittedContext.some((s) => s.includes('경쟁사')), '무관 발화엔 목표 주입 안 됨');
+
+  captured.length = 0;
+  await runTurn({ text: '경쟁사 관련 더 알려줘' }, c); // 관련
+  assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')), '관련 발화엔 목표 admitted');
+});
+
 // Approval Lifecycle: 승인은 만료 전엔 이어실행, 만료 후엔 재승인 요청(이어실행 안 함).
 test('만료 전 승인은 보관된 계획을 이어실행', async () => {
   let clock = 1000;

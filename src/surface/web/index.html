@@ -158,7 +158,8 @@
   .suggest .sug-t { font-size:var(--fs-sm); color:var(--fg); }
   .suggest .sug-s { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-2); }
   .suggest .btns { margin-top:var(--sp-2); display:flex; gap:var(--sp-2); }
-  .sug-done { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:0 var(--sp-1); }
+  .sug-done { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:0 var(--sp-1);
+    display:flex; flex-direction:column; align-items:flex-start; gap:var(--sp-1); }
   .card .btns { margin-top:var(--sp-3); display:flex; gap:var(--sp-2); }
   button.act { border:1px solid var(--line-strong); color:var(--fg); background:var(--surface);
     border-radius:var(--r-md); padding:var(--sp-2) var(--sp-4); cursor:pointer; font:inherit; font-size:var(--fs-sm);
@@ -281,6 +282,7 @@ function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); 
 
 // ── 세션 ──
 function relAge(ts) {
+  if (!Number.isFinite(ts)) return '';   // 방어: 세션 아닌 파일이 섞여도 NaN 표시 안 함
   const m = Math.floor((Date.now() - ts) / 60000);
   if (m < 1) return '지금'; if (m < 60) return `${m}분`;
   const h = Math.floor(m / 60); if (h < 24) return `${h}시간`;
@@ -402,7 +404,22 @@ function renderSuggestion(box, sug) {
   yes.onclick = async () => {
     const r = await (await fetch('/memory/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId }) })).json();
     card.remove();
-    box.appendChild(el('sug-done', r.ok ? (isPrin ? '검토를 거쳐 원칙으로 기억했어요.' : '기억했어요. 앞으로 반영할게요.') : (r.reason === 'replay_failed' ? '검토에서 과거와 충돌해 적용하지 않았어요.' : '적용하지 않았어요.')));
+    if (!r.ok) {
+      box.appendChild(el('sug-done', r.reason === 'replay_failed' ? '과거와 충돌해 적용하지 않았어요.' : '적용하지 않았어요.'));
+      return;
+    }
+    // 권한 표면(감사 보정): 무엇을·어디에 반영·되돌리기. 운영원리는 "기본 검토"로 정직하게.
+    const done = el('sug-done');
+    const head = isPrin ? '원칙으로 기억했어요 (기본 검토).' : '기억했어요.';
+    done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.`));
+    const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기';
+    undo.style.marginTop = 'var(--sp-2)';
+    undo.onclick = async () => {
+      await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: r.candidateId }) });
+      done.replaceChildren(el('sug-line', '되돌렸어요. 앞으로 반영하지 않아요.'));
+    };
+    done.appendChild(undo);
+    box.appendChild(done);
   };
   no.onclick = () => card.remove();
   btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);

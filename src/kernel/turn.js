@@ -12,7 +12,7 @@ import { buildActionPlan } from './l2-plan/action-plan.js';
 import { isExecutionAllowed } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { detectCandidate, admittedContext } from './l1-intent/context-mesh.js';
+import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -100,8 +100,11 @@ export async function runTurn(input, ctx) {
   // 1.5) Context Mesh — 좁은 맥락 입장 + 기억 승격 후보(P6-1).
   //   admitted: 현재 목표 + 승격되어 영향 가능하고 이번 요청에 관련된 기억만(라우터가 raw 기억 안 씀).
   //   memorySuggestion: 후보만 표면화(자동 승격 아님). operating_principle은 replay 전 영향 0(§5).
+  // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
+  // 위반이다(감사 보정). broad memory, narrow influence.
+  const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
   const admitted = [
-    ...(ctx.activeGoal?.understoodTask ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
+    ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedContext(ctx.memory ?? {}, input.text ?? ''),
   ];
   const memorySuggestion = detectCandidate(input.text ?? '');
