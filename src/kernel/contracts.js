@@ -8,10 +8,16 @@
  */
 
 /**
+ * @typedef {'usable'|'needs_auth'|'needs_config'|'needs_connection'|'blocked'} ToolStatus
+ * Phase 5.1(§6): 실행 가능성 세분화. "왜 못 쓰는지"를 담는다. executable은 status===usable의 파생.
+ */
+
+/**
  * @typedef {Object} ConnectedTool
  * @property {string} id                 도구·앱 식별자
  * @property {boolean} connected          연결됨 여부
- * @property {boolean} executable         지금 실제 실행 가능 여부(목록에 있다고 실행 가능 아님, 헌법 §3-3)
+ * @property {ToolStatus} status          실행 가능성 세분화(Phase 5.1 §6)
+ * @property {boolean} executable         `status === 'usable'`의 파생(하위호환). 목록에 있다고 실행 가능 아님(헌법 §3-3)
  * @property {string} [note]              사용자용 짧은 상태 메모
  */
 
@@ -71,11 +77,17 @@
  */
 
 /**
+ * @typedef {'none'|'attempting'|'delivered'|'failed'|'abandoned'} ReceiptLifecycle
+ * Phase 5.1(§7): 실행·전달 수명주기만. 승인 상태(approved/held)는 여기 아니라 AuthorityGrant 소관.
+ */
+
+/**
  * @typedef {Object} ToolReceipt         §7 Tool Execution Truth Ledger 계약
  * @property {string} intended
  * @property {{tool:string, args?:*}|null} actualCall  호출 안 했으면 null
  * @property {*} [result]
  * @property {FailureState} failureState
+ * @property {ReceiptLifecycle} lifecycle  실행·전달 수명주기(Phase 5.1 §7). 승인 상태는 불허
  * @property {string} userSafeSummary     내부 용어 제외, 사용자면 전용
  * @property {*} [diagnosticTrace]        내부 진단·스택·provider 상태. 사용자면 노출 금지
  * @property {string} [nextSafeAction]
@@ -87,6 +99,7 @@
  * @property {string} incomingInput
  * @property {boolean} conflict
  * @property {'interrupt'|'merge'|'queue'|'reprioritize'} decision
+ * @property {'none'|'automation'|'retry'|'long_task'} candidateKind  후보 유형(Phase 5.1 §8.1)
  * @property {string} userNotice
  */
 
@@ -116,3 +129,9 @@ export const FAILURE = Object.freeze({
   BLOCKED: 'blocked',
   TIMEOUT: 'timeout',
 });
+
+// Phase 5.1(§7): ToolReceipt.lifecycle 허용값. 실행·전달만 — 승인(approved/held)은 여기 없다.
+export const LIFECYCLE = Object.freeze(['none', 'attempting', 'delivered', 'failed', 'abandoned']);
+
+// Phase 5.1(§6): ConnectedTool.status 허용값.
+export const TOOL_STATUS = Object.freeze(['usable', 'needs_auth', 'needs_config', 'needs_connection', 'blocked']);
