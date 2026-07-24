@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -39,6 +39,17 @@ test('list는 최근 수정순, 실제 세션만', async () => {
   const list = await store.list();
   assert.equal(list.length, 2);
   assert.equal(list[0].id, b.id, '최근 수정이 먼저');
+});
+
+// 감사 보정: 세션 목록은 UUID 세션 파일만 — memory.json 등 다른 저장물이 섞이지 않는다.
+test('list는 UUID 세션 파일만 포함(memory.json 등 제외)', async () => {
+  const store = await tmpStore();
+  const s = await store.create();
+  await writeFile(join(store.dir, 'memory.json'), JSON.stringify({ candidates: [], promoted: [] }), 'utf8');
+  await writeFile(join(store.dir, 'notes.json'), '{}', 'utf8');
+  const list = await store.list();
+  assert.equal(list.length, 1, '세션만');
+  assert.equal(list[0].id, s.id);
 });
 
 // 보안: 클라이언트가 준 id로 경로 탈출이 되면 안 된다.

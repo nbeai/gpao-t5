@@ -12,6 +12,7 @@ import { buildActionPlan } from './l2-plan/action-plan.js';
 import { isExecutionAllowed } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
+import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -58,7 +59,8 @@ export async function runTurn(input, ctx) {
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     ctx.pending.delete(input.approve);
-    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary);
+    // 승인 재개 시 게이트에서 계산한 admitted를 함께 이어받는다 — 승격된 맥락을 잃지 않게(감사 소보정).
+    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? []);
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -96,25 +98,39 @@ export async function runTurn(input, ctx) {
   // 1) 말귀
   const intent = interpret(input.text, { selfState });
 
+  // 1.5) Context Mesh — 좁은 맥락 입장 + 기억 승격 후보(P6-1).
+  //   admitted: 현재 목표 + 승격되어 영향 가능하고 이번 요청에 관련된 기억만(라우터가 raw 기억 안 씀).
+  //   memorySuggestion: 후보만 표면화(자동 승격 아님). operating_principle은 replay 전 영향 0(§5).
+  // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
+  // 위반이다(감사 보정). broad memory, narrow influence.
+  const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
+  const admitted = [
+    ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
+    ...admittedContext(ctx.memory ?? {}, input.text ?? ''),
+  ];
+  const memorySuggestion = detectCandidate(input.text ?? '');
+
   // 2) 확인 필요 → 실행 전 멈추고 묻는다(방법 나열 금지).
   if (intent.needsClarification) {
     return {
       kind: 'clarify',
       question: '무엇을 말씀하시는 걸까요? (직전 대화 / 특정 파일 / 할 일) 중에 알려 주세요.',
       selfStateSummary: summary,
+      memorySuggestion,
       followUp,
     };
   }
 
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
   if (intent.answerMode === 'fast_chat') {
-    const tc = buildTaskContext({ intent, selfState });
+    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted });
     const reply = await ctx.model.respond(tc);
     return {
       kind: 'reply',
       reply,
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
+      memorySuggestion,
       followUp,
     };
   }
@@ -129,7 +145,8 @@ export async function runTurn(input, ctx) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
-    ctx.pending.set(pendingId, { intent, plan, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
+    // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
+    ctx.pending.set(pendingId, { intent, plan, admitted, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
     return {
       kind: 'approval',
       pendingId,
@@ -147,8 +164,9 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted);
   result.followUp = followUp;
+  result.memorySuggestion = memorySuggestion;
   return result;
 }
 
@@ -161,7 +179,7 @@ export async function runTurn(input, ctx) {
  * @param {TruthLedger} ledger
  * @param {Object} summary
  */
-async function executePlan(intent, plan, selfState, ctx, ledger, summary) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = []) {
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
@@ -184,7 +202,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary) {
   }
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
-  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts });
+  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted });
   const reply = await ctx.model.respond(tc);
   const projection = projectReceipts(turnReceipts);
 
@@ -195,5 +213,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary) {
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
     nextSafeAction: projection.unconfirmed.length ? plan.recoveryCriteria : undefined,
+    // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
+    goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
   };
 }

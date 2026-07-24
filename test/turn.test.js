@@ -166,6 +166,41 @@ test('외부 이벤트 + mention → 정상 턴', async () => {
   assert.notEqual(r.kind, 'gated');
 });
 
+// 감사 보정: activeGoal은 관련 발화에만 admitted되고, 무관 발화엔 모델 입력에 주입되지 않는다
+// (현재요청우선 · broad memory narrow influence).
+test('activeGoal은 관련 발화에만 admitted, 무관 발화엔 주입 안 됨', async () => {
+  const captured = [];
+  const c = ctx();
+  c.model = { async respond(tc) { captured.push(tc); return '응답'; } };
+  c.activeGoal = { understoodTask: '경쟁사 뉴스 조사', successCriteria: 'x' };
+
+  await runTurn({ text: '오늘 날씨 어때' }, c); // 무관
+  assert.ok(!captured[0].admittedContext.some((s) => s.includes('경쟁사')), '무관 발화엔 목표 주입 안 됨');
+
+  captured.length = 0;
+  await runTurn({ text: '경쟁사 관련 더 알려줘' }, c); // 관련
+  assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')), '관련 발화엔 목표 admitted');
+});
+
+// 감사 소보정: 승인 재개 경로에서도 admittedContext가 보존된다(게이트에서 계산한 맥락을 잃지 않음).
+test('승인 재개 후에도 승격된 preference가 admittedContext에 유지된다', async () => {
+  const captured = [];
+  const promotedPref = { candidateId: 'p', kind: 'preference', statement: '보고서는 항상 글로 받기', userConfirmed: true, admitted: true, replayPassed: false, rollbackable: true };
+  const c = ctx({
+    connections: [{ id: 'slack.post', connected: true, executable: true }],
+    tools: new ToolRunner({ 'slack.post': { async handler() { return { result: {}, userSafeSummary: '게시했어요' }; } } }),
+  });
+  c.memory = { candidates: [], promoted: [promotedPref] };
+  c.model = { async respond(tc) { captured.push(tc); return '응답'; } };
+
+  const r1 = await runTurn({ text: '이 보고서 슬랙에 올려줘' }, c); // 선호와 관련 + 승인 필요
+  assert.equal(r1.kind, 'approval');
+  captured.length = 0;
+  const r2 = await runTurn({ approve: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.ok(captured[0].admittedContext.some((s) => s.includes('보고서')), '승인 재개 후에도 admitted 유지');
+});
+
 // Approval Lifecycle: 승인은 만료 전엔 이어실행, 만료 후엔 재승인 요청(이어실행 안 함).
 test('만료 전 승인은 보관된 계획을 이어실행', async () => {
   let clock = 1000;

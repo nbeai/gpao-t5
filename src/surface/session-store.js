@@ -58,7 +58,8 @@ export class SessionStore {
   /** 사이드바용 목록(최근 수정순). 실제 세션만 — 가짜 없음. */
   async list() {
     await this._ensure();
-    const files = (await readdir(this.dir)).filter((f) => f.endsWith('.json'));
+    // UUID 세션 파일만 읽는다 — memory.json 등 다른 저장물이 세션 목록에 섞이지 않게(감사 보정).
+    const files = (await readdir(this.dir)).filter((f) => f.endsWith('.json') && SAFE_ID.test(f.slice(0, -5)));
     const out = [];
     for (const f of files) {
       try {
