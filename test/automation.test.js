@@ -193,6 +193,27 @@ test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', 
   });
 });
 
+// 전체 경로 회귀(감사 보정): /sessions → /turn 반복 → approve → tick → runs 1 을 한 줄 흐름으로 고정.
+test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 정리해줘' })).json();
+    const candidateId = r.automationSuggestion.candidateId;
+    const appr = await (await post(base, '/automation/approve', { candidateId })).json();
+    assert.equal(appr.ok, true);
+    assert.equal(appr.external, false);
+    const ticked = await (await post(base, '/automation/tick')).json();
+    assert.equal(ticked.ran.length, 1);
+    assert.equal(ticked.ran[0].failureState, 'none');
+    const view = await getj(base, '/automation');
+    assert.equal(view.jobs.length, 1);
+    assert.equal(view.jobs[0].state, 'completed');
+    assert.equal(view.jobs[0].runs, 1);
+    assert.equal(view.jobs[0].ledger.length, 1, 'AutomationLedger에 실행 1건');
+    assert.equal(view.jobs[0].ledger[0].failureState, 'none');
+  });
+});
+
 test('서버: 일반 대화 turn은 자동화 후보를 만들지 않는다(흐름 미교란)', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();

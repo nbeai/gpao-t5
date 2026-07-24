@@ -69,3 +69,16 @@ export function isJobRunnable(job, now) {
 export function cancelJob(job) {
   return { ...job, state: 'cancelled' };
 }
+
+/**
+ * AutomationLedger — 자동화 실행 진실 원장(§8). 세션 TruthLedger와 **분리된** job별 원장이다.
+ * 자동화는 세션 밖 백그라운드에서 돌기 때문에 세션 원장에 섞지 않는다. 실행 기록은 TruthLedger와
+ * 동일한 ToolReceipt 계약을 쓴다(성공·실패·차단을 정직하게). 원장 추가는 이 함수로만 한다.
+ * @param {object} job   ScheduledJob (executions = AutomationLedger)
+ * @param {import('../contracts.js').ToolReceipt} receipt
+ * @returns {import('../contracts.js').ToolReceipt}
+ */
+export function appendAutomationLedger(job, receipt) {
+  job.executions.push(receipt);
+  return receipt;
+}

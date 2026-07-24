@@ -36,6 +36,15 @@ GrowthCandidate → 사용자 승인 → 예약/대기(ScheduledJob) → tick �
 - `POST /automation/tick` — 수동 스케줄러 tick(최소).
 - `POST /automation/cancel` — 되돌리기.
 
+## AutomationLedger (§8.2) — 자동화 실행 진실 원장
+
+자동화 실행 기록은 `ScheduledJob.executions`에 쌓이며, 이를 **AutomationLedger**로 명명·선언한다.
+세션 `TruthLedger`/`ledgerEntries`와는 **분리된** 별도 원장이다 — 자동화는 세션 밖 백그라운드에서 돌기
+때문에 세션 원장에 섞으면 세션 원장의 의미가 흐려진다. 단, 기록 계약은 동일한 `ToolReceipt`
+(성공·실패·차단을 정직하게)를 그대로 쓴다. 원장 추가는 `appendAutomationLedger(job, receipt)`로만 한다.
+`GET /automation`의 `jobs[].ledger`가 이 원장의 투영이고, `runs`/`lastResult`는 그 요약이다.
+계약: `contracts.js`의 `@typedef ScheduledJob`, `@typedef AutomationLedger`.
+
 ## 경계 (A2/승인)
 
 외부 전송 자동화의 A2는 **후보 승인 시점**에 걸린다(job은 승인해야만 존재). 승인은 `grantScope.expiresAt`로
@@ -54,3 +63,10 @@ GrowthCandidate → 사용자 승인 → 예약/대기(ScheduledJob) → tick �
 
 `매주 로컬 파일 정리해줘` → reply + 조용한 카드 → 승인 → job scheduled → tick 1회(failureState none) →
 completed·runs 1. 브라우저에서 카드 렌더·승인·"30일 후 만료"·취소 버튼까지 육안 확인.
+
+## 다음 슬라이스 후속(감사 권고)
+
+- `/automation/tick`은 지금 수동 tick(로컬 데모)이라 통과지만, **trusted runtime event 전용 경계**를
+  세워야 한다. 일반 사용자가 누르는 버튼처럼 보이면 안 된다 — InboundEventGate의 `trusted_runtime_event`
+  경로와 동일 계약으로 tick 트리거를 제한한다(다음 슬라이스).
+- 반복(interval) job의 실제 스케줄러 구동(현재는 tick 호출 시 재예약만). 여전히 in-process, cron/daemon 아님.

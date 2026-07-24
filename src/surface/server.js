@@ -165,10 +165,12 @@ export function makeServer(deps = {}) {
       // ── 자동화 (P6-3) ── 후보 → 승인 → 예약 → tick 실행 → 원장 → 취소/만료.
       if (req.method === 'GET' && url === '/automation') {
         const a = await autoStore.load();
+        // ledger: AutomationLedger 투영(세션 TruthLedger와 분리). runs·lastResult는 그 요약.
         const stripJob = (j) => ({
           id: j.id, statement: j.statement, state: j.state, external: j.external,
           nextRunAt: j.nextRunAt, grantScope: j.grantScope, runs: j.executions.length,
           lastResult: j.executions.at(-1)?.failureState ?? null,
+          ledger: j.executions.map((r) => ({ failureState: r.failureState, lifecycle: r.lifecycle, summary: r.userSafeSummary })),
         });
         return sendJson(res, 200, {
           candidates: a.candidates.filter((c) => !c.approved).map((c) => ({ candidateId: c.candidateId, statement: c.statement })),
