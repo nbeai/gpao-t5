@@ -35,10 +35,12 @@ test('list는 최근 수정순, 실제 세션만', async () => {
   const store = await tmpStore();
   const a = await store.create();
   const b = await store.create();
+  await new Promise((r) => setTimeout(r, 5)); // save 는 Date.now 를 쓰므로 결정적 간격 확보(기존 flaky 수정)
   await store.save(b); // b 가 더 최근
   const list = await store.list();
   assert.equal(list.length, 2);
   assert.equal(list[0].id, b.id, '최근 수정이 먼저');
+  assert.ok(a.id); // a 도 목록에 있음(참조 유지)
 });
 
 // 감사 보정: 세션 목록은 UUID 세션 파일만 — memory.json 등 다른 저장물이 섞이지 않는다.
