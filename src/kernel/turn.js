@@ -14,8 +14,9 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
 
 /**
  * @typedef {Object} TurnInput
- * @property {string} text                     사용자 발화
- * @property {string[]} [approvedActions]       이번 턴에 승인된 행동 label
+ * @property {string} [text]                    사용자 발화
+ * @property {string} [approve]                 승인할 보류 계획 id(재해석 없이 그 계획을 이어받음)
+ * @property {string} [reject]                  거부할 보류 계획 id
  * @property {string} [runningTask]             진행 중 작업(있으면 follow-up 판정)
  * @property {boolean} [conflict]               새 지시가 진행 작업과 충돌하는지
  */
@@ -26,6 +27,7 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
  * @property {import('../runtime/model-client.js').ModelClient} model
  * @property {import('../runtime/tool-runner.js').ToolRunner} tools
  * @property {TruthLedger} [ledger]
+ * @property {Map<string, {intent:Object, plan:Object}>} [pending]  보류 계획 보관(서버 소유)
  */
 
 /**
@@ -34,8 +36,25 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
  */
 export async function runTurn(input, ctx) {
   const ledger = ctx.ledger ?? new TruthLedger();
+  if (!ctx.pending) ctx.pending = new Map();
   const selfState = buildSelfState(ctx.env);
   const summary = selfStateSummary(selfState);
+
+  // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
+  if (input.approve) {
+    const saved = ctx.pending.get(input.approve);
+    if (!saved) {
+      return { kind: 'reply', reply: '그 승인 요청을 찾지 못했어요. 다시 말씀해 주세요.', selfStateSummary: summary };
+    }
+    ctx.pending.delete(input.approve);
+    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary);
+  }
+
+  // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
+  if (input.reject) {
+    ctx.pending.delete(input.reject);
+    return { kind: 'reply', reply: '보내지 않았어요. 초안은 그대로 있어요.', selfStateSummary: summary };
+  }
 
   // 0) 진행 중 작업이 있으면 follow-up 을 먼저 판정한다(새 지시를 놓치지 않는다).
   let followUp;
@@ -68,7 +87,7 @@ export async function runTurn(input, ctx) {
       kind: 'reply',
       reply,
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
-      ledger: ledger.project(),
+      ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       followUp,
     };
   }
@@ -77,28 +96,44 @@ export async function runTurn(input, ctx) {
   const plan = buildActionPlan({ intent, selfState });
 
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
-  const approvedSet = new Set(input.approvedActions ?? []);
-  const pending = plan.needsApproval.filter(
-    (g) => !isExecutionAllowed({ ...g, granted: g.granted || approvedSet.has(g.action) }),
-  );
-  if (pending.length) {
+  //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
+  const pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
+  if (pendingGrants.length) {
+    const pendingId = `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
+    ctx.pending.set(pendingId, { intent, plan });
     return {
       kind: 'approval',
+      pendingId,
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
-      pending: pending.map((g) => ({
+      pending: pendingGrants.map((g) => ({
         action: g.action,
         label: toolLabel(g.action),
         tier: g.tier,
         preview: g.approvalPreview,
       })),
-      plan,
+      understoodTask: plan.understoodTask,
       selfStateSummary: summary,
       followUp,
     };
   }
 
-  // 4b) 승인된/자동 도구를 실제 실행하고 receipt 를 남긴다.
-  //     이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
+  // 4b) 승인 필요 없음 → 바로 실행.
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary);
+  result.followUp = followUp;
+  return result;
+}
+
+/**
+ * 계획을 실제 실행하고 원장·응답을 만든다. 승인 게이트를 통과한 뒤(또는 승인 재개 시) 호출된다.
+ * @param {Object} intent
+ * @param {Object} plan
+ * @param {import('../contracts.js').SelfStateSnapshot} selfState
+ * @param {TurnContext} ctx
+ * @param {TruthLedger} ledger
+ * @param {Object} summary
+ */
+async function executePlan(intent, plan, selfState, ctx, ledger, summary) {
+  // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
   for (const toolId of plan.toolsToUse) {
@@ -106,8 +141,7 @@ export async function runTurn(input, ctx) {
     ledger.append(rec);
     turnReceipts.push(rec);
   }
-  // 4c) 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
-  //     못 쓴 도구를 쓴 척하지 않고, 막힘 + 다음 안전 행동으로 정직하게 남긴다(S15).
+  // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
   for (const toolId of plan.blockedTools ?? []) {
     const label = toolLabel(toolId);
     const rec = blockedReceipt(
@@ -120,7 +154,7 @@ export async function runTurn(input, ctx) {
     turnReceipts.push(rec);
   }
 
-  // 5) 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
+  // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts });
   const reply = await ctx.model.respond(tc);
   const projection = projectReceipts(turnReceipts);
@@ -131,8 +165,6 @@ export async function runTurn(input, ctx) {
     selfStateSummary: summary,
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
-    nextSafeAction:
-      projection.unconfirmed.length ? plan.recoveryCriteria : undefined,
-    followUp,
+    nextSafeAction: projection.unconfirmed.length ? plan.recoveryCriteria : undefined,
   };
 }

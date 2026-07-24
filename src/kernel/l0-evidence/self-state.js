@@ -99,7 +99,8 @@ export function selfStateSummary(selfState) {
   return {
     model: selfState.currentModel.id,
     modelAuthState: selfState.modelAuthState,
-    ready: selfState.connectedTools.filter((t) => t.executable).map((t) => t.id),
+    // 사용자면에는 내부 도구 id 대신 라벨만 노출한다(안티 대시보드, 감사 지적).
+    ready: selfState.connectedTools.filter((t) => t.executable).map((t) => toolLabel(t.id)),
     limits: selfState.limits,
     nextSafeAction: selfState.nextSafeAction,
   };

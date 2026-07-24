@@ -64,6 +64,7 @@ test('S20 실행 가능한 발송은 승인 게이트에서 멈춘다', async ()
   const r = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   assert.equal(r.kind, 'approval');
   assert.ok(r.pending.some((p) => p.tier === 'A2'));
+  assert.ok(r.pendingId, '보류 계획 id 를 발급한다');
   // 승인 카드도 사용자 라벨을 쓰고 내부 id 는 노출하지 않는다(안티 대시보드).
   const shown = r.pending.map((p) => `${p.label} ${p.preview?.impact}`).join(' ');
   assert.match(shown, /메일 발송/);
@@ -72,16 +73,38 @@ test('S20 실행 가능한 발송은 승인 게이트에서 멈춘다', async ()
   assert.equal(c.ledger.entries.length, 0);
 });
 
-test('S20 승인되면 발송이 실행되어 원장에 남는다', async () => {
+// 감사 지적 수정: 승인은 텍스트 재해석이 아니라 보관된 봉인 계획을 그대로 이어받는다.
+test('S20 승인은 재해석 없이 보관된 계획을 이어받아 실행한다', async () => {
   const sent = [];
   const c = ctx({
     connections: [{ id: 'mail.send', connected: true, executable: true }],
     tools: new ToolRunner({ 'mail.send': { async handler(a) { sent.push(a); return { result: { ok: true }, userSafeSummary: '메일을 보냈어요' }; } } }),
   });
-  const r = await runTurn({ text: '이 초안 메일로 보내줘', approvedActions: ['mail.send'] }, c);
-  assert.equal(r.kind, 'reply');
-  assert.equal(sent.length, 1, '승인 후 실제 발송');
-  assert.ok(r.ledger.confirmed.some((s) => /보냈/.test(s)));
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(r1.kind, 'approval');
+  // 두 번째 요청은 발화 텍스트 없이 승인 id 만 — 서버가 보관한 계획으로 재개.
+  const r2 = await runTurn({ approve: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.equal(sent.length, 1, '승인 후 실제 발송(계획 이어받음)');
+  assert.ok(r2.ledger.confirmed.some((s) => /보냈/.test(s)));
+});
+
+// S23: 거부하면 실행하지 않고 안전 정지, 보류 계획은 폐기된다.
+test('S23 거부는 실행하지 않고 안전 정지', async () => {
+  const sent = [];
+  const c = ctx({
+    connections: [{ id: 'mail.send', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+  });
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  const r2 = await runTurn({ reject: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.match(r2.reply, /보내지 않았어요/);
+  assert.equal(sent.length, 0, '거부 후 발송 없음');
+  // 폐기 후 같은 id 재승인은 무효(재실행 방지).
+  const r3 = await runTurn({ approve: r1.pendingId }, c);
+  assert.equal(sent.length, 0);
+  assert.match(r3.reply, /찾지 못했어요/);
 });
 
 // S16: 도구 차단 → 성공인 척 금지, 다음 안전 행동 제시.

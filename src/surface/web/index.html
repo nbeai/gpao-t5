@@ -5,142 +5,271 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GPAO-T5 · Work Chat</title>
 <style>
-  :root { color-scheme: light dark; --bg:#fff; --fg:#1a1a1a; --muted:#6b7280; --line:#e5e7eb;
-    --me:#e8f0fe; --bot:#f6f7f9; --accent:#2563eb; --warn:#b45309; }
+  /* T3 구조적 DNA 계승: 조용한 사이드바 + 넓은 채팅 + 하단 입력 + 접힌 고기능 + 작은 상태.
+     복제가 아니라 발전. 따뜻하고 조용한 생활형 톤, 개발자 콘솔 아님. */
+  :root {
+    color-scheme: light dark;
+    --bg:#f4efe6; --panel:#efe9dd; --fg:#2b2823; --muted:#8a8172; --faint:#b6ad9c;
+    --line:#e2dac9; --me:#e7ecd8; --bot:#faf7f0; --accent:#7c6f5b;
+    --warn:#b06f2b; --dot:#5a9e6f; --radius:14px;
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#0f1115; --fg:#e8eaed; --muted:#9aa0a6; --line:#262a30;
-      --me:#1b2b4d; --bot:#171a1f; --accent:#5b9dff; --warn:#e0a458; } }
+    :root:not([data-theme="light"]) { --bg:#1a1712; --panel:#201c16; --fg:#eae3d4; --muted:#9a9080; --faint:#6b6455;
+      --line:#2f2a22; --me:#2b3320; --bot:#211d17; --accent:#c9b48c; --warn:#e0a458; --dot:#6fbf8f; }
+  }
+  /* 사용자 토글이 media query 를 양방향으로 이긴다. */
+  :root[data-theme="dark"] { --bg:#1a1712; --panel:#201c16; --fg:#eae3d4; --muted:#9a9080; --faint:#6b6455;
+    --line:#2f2a22; --me:#2b3320; --bot:#211d17; --accent:#c9b48c; --warn:#e0a458; --dot:#6fbf8f; }
+  :root[data-theme="light"] { --bg:#f4efe6; --panel:#efe9dd; --fg:#2b2823; --muted:#8a8172; --faint:#b6ad9c;
+    --line:#e2dac9; --me:#e7ecd8; --bot:#faf7f0; --accent:#7c6f5b; --warn:#b06f2b; --dot:#5a9e6f; }
   * { box-sizing:border-box; }
+  html,body { height:100%; }
   body { margin:0; background:var(--bg); color:var(--fg);
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    display:flex; overflow:hidden; }
+
+  /* ── 사이드바 ── */
+  #side { width:248px; flex:none; background:var(--panel); border-right:1px solid var(--line);
     display:flex; flex-direction:column; height:100dvh; }
-  /* 안티 대시보드: 화면은 채팅이 전부. 상태는 작은 칩으로 접혀 있다. */
-  header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
-  header b { font-weight:600; }
+  .brand { display:flex; align-items:center; gap:8px; padding:14px 16px; }
+  .brand .logo { width:22px; height:22px; border-radius:7px; background:var(--accent); color:var(--panel);
+    display:grid; place-items:center; font-size:12px; font-weight:700; }
+  .brand b { font-weight:650; flex:1; }
+  .brand .ic { color:var(--muted); cursor:pointer; font-size:14px; }
+  .nav { padding:6px 8px; }
+  .nav a { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:9px;
+    color:var(--muted); text-decoration:none; font-size:13.5px; cursor:pointer; }
+  .nav a:hover { background:var(--bot); color:var(--fg); }
+  .nav .em { width:16px; text-align:center; opacity:.8; }
+  .newchat { margin:8px; padding:8px 10px; border:1px solid var(--line); border-radius:10px;
+    background:transparent; color:var(--fg); cursor:pointer; font:inherit; font-size:13.5px; text-align:left; }
+  .newchat:hover { background:var(--bot); }
+  .seclabel { padding:10px 16px 4px; font-size:11.5px; color:var(--faint); letter-spacing:.02em; }
+  .sessions { flex:1; overflow-y:auto; padding:0 8px; }
+  .sess { display:flex; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; font-size:13.5px; }
+  .sess:hover { background:var(--bot); }
+  .sess.active { background:var(--bot); }
+  .sess .t { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sess .age { color:var(--faint); font-size:11.5px; }
+  .sidefoot { display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line); color:var(--muted); }
+  .sidefoot .dot { width:8px; height:8px; border-radius:50%; background:var(--dot); }
+  .sidefoot .ic { cursor:pointer; font-size:14px; }
+  .sidefoot .spacer { flex:1; }
+
+  /* ── 본문 ── */
+  #main { flex:1; display:flex; flex-direction:column; height:100dvh; min-width:0; }
+  .crumb { display:flex; align-items:center; gap:8px; padding:12px 20px; border-bottom:1px solid var(--line);
+    font-size:13px; color:var(--muted); }
+  .crumb .sep { color:var(--faint); }
+  .crumb .hb { display:none; margin-right:6px; cursor:pointer; font-size:16px; }
   #chip { margin-left:auto; font-size:12px; color:var(--muted); cursor:pointer;
-    border:1px solid var(--line); border-radius:999px; padding:3px 10px; background:transparent; }
+    border:1px solid var(--line); border-radius:999px; padding:3px 11px; background:transparent; }
   #chip.warn { color:var(--warn); border-color:var(--warn); }
-  #state { display:none; padding:8px 16px; border-bottom:1px solid var(--line);
-    font-size:12px; color:var(--muted); white-space:pre-wrap; }
-  #log { flex:1; overflow-y:auto; padding:18px 16px; display:flex; flex-direction:column; gap:12px; }
-  .msg { max-width:min(680px,92%); padding:10px 13px; border-radius:14px; white-space:pre-wrap; }
+  #state { display:none; padding:10px 20px; border-bottom:1px solid var(--line);
+    font-size:12px; color:var(--muted); white-space:pre-wrap; background:var(--panel); }
+
+  #log { flex:1; overflow-y:auto; padding:26px 20px; }
+  .wrap { max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+  .turn { display:flex; flex-direction:column; gap:6px; }
+  .msg { max-width:88%; padding:11px 14px; border-radius:var(--radius); white-space:pre-wrap; }
   .me { align-self:flex-end; background:var(--me); }
-  .bot { align-self:flex-start; background:var(--bot); }
-  .card { align-self:flex-start; max-width:min(680px,92%); border:1px solid var(--line);
-    border-radius:14px; padding:12px 14px; background:var(--bot); }
-  .card h4 { margin:0 0 6px; font-size:13px; }
-  .card .row { font-size:13px; color:var(--muted); margin:2px 0; }
-  .card .btns { margin-top:10px; display:flex; gap:8px; }
+  .who { font-size:11.5px; color:var(--faint); }
+  .who.right { align-self:flex-end; }
+  .bot { align-self:flex-start; background:var(--bot); border:1px solid var(--line); }
+  /* 접힌 고기능: 작업 기록 (T3 "작업 기록: 도구 N개") */
+  .record { align-self:flex-start; }
+  .record .head { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted);
+    cursor:pointer; padding:3px 2px; }
+  .record .head .tw { transition:transform .15s; }
+  .record .head.open .tw { transform:rotate(90deg); }
+  .record .body { display:none; margin-top:6px; padding:9px 12px; border:1px solid var(--line);
+    border-radius:10px; background:var(--panel); font-size:12.5px; color:var(--muted); white-space:pre-wrap; }
+  .card { align-self:flex-start; max-width:88%; border:1px solid var(--line); border-radius:var(--radius);
+    padding:13px 15px; background:var(--panel); }
+  .card h4 { margin:0 0 7px; font-size:13.5px; }
+  .card .row { font-size:13px; color:var(--muted); margin:3px 0; }
+  .card .btns { margin-top:11px; display:flex; gap:8px; }
   button.act { border:1px solid var(--accent); color:var(--accent); background:transparent;
-    border-radius:10px; padding:6px 12px; cursor:pointer; font-size:13px; }
+    border-radius:10px; padding:6px 13px; cursor:pointer; font:inherit; font-size:13px; }
+  button.act.primary { background:var(--accent); color:var(--panel); }
   button.act.no { border-color:var(--line); color:var(--muted); }
-  .evi { font-size:12px; color:var(--muted); margin-top:4px; cursor:pointer; }
-  .evi pre { margin:6px 0 0; padding:8px; background:var(--bot); border:1px solid var(--line);
-    border-radius:8px; white-space:pre-wrap; }
-  form { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
-  #text { flex:1; resize:none; border:1px solid var(--line); border-radius:12px;
-    padding:10px 12px; font:inherit; background:transparent; color:var(--fg); }
-  #send { border:none; background:var(--accent); color:#fff; border-radius:12px; padding:0 18px; cursor:pointer; }
+
+  /* ── 입력 ── */
+  .composer { padding:12px 20px 16px; border-top:1px solid var(--line); }
+  .cwrap { max-width:760px; margin:0 auto; }
+  .inbox { display:flex; align-items:flex-end; gap:8px; border:1px solid var(--line); border-radius:16px;
+    padding:8px 10px 8px 14px; background:var(--bot); }
+  .inbox .plus { color:var(--muted); font-size:18px; padding-bottom:2px; }
+  #text { flex:1; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
+    font:inherit; max-height:160px; padding:4px 0; }
+  #send { border:none; background:var(--accent); color:var(--panel); border-radius:11px;
+    padding:7px 14px; cursor:pointer; font:inherit; }
+  .statusrow { max-width:760px; margin:6px auto 0; display:flex; align-items:center; gap:10px;
+    font-size:11.5px; color:var(--faint); padding:0 4px; }
+  .statusrow .spacer { flex:1; }
+
+  @media (max-width:720px) {
+    #side { position:fixed; z-index:20; transform:translateX(-100%); transition:transform .2s;
+      box-shadow:0 0 40px rgba(0,0,0,.2); }
+    body.nav-open #side { transform:translateX(0); }
+    .crumb .hb { display:inline; }
+  }
 </style>
 </head>
 <body>
-  <header>
-    <b>GPAO-T5</b>
-    <span style="color:var(--muted);font-size:13px">Work Chat</span>
-    <button id="chip" title="현재 상태 보기">준비됨</button>
-  </header>
-  <div id="state"></div>
-  <div id="log"></div>
-  <form id="f">
-    <textarea id="text" rows="1" placeholder="말하면 일이 이어집니다…" autofocus></textarea>
-    <button id="send" type="submit">보내기</button>
-  </form>
+  <!-- ── 사이드바: 조용하게, 고기능은 접어서 숨기되 접근 가능 ── -->
+  <aside id="side">
+    <div class="brand">
+      <span class="logo">T5</span><b>GPAO-T5</b>
+      <span class="ic" title="검색">⌕</span>
+    </div>
+    <div class="nav">
+      <a data-soon="더 보기"><span class="em">▾</span>더 보기</a>
+      <a data-soon="스킬"><span class="em">✦</span>스킬</a>
+      <a data-soon="배운 작업"><span class="em">✎</span>배운 작업</a>
+      <a data-soon="연결"><span class="em">🜁</span>연결</a>
+      <a data-soon="자동화"><span class="em">◷</span>자동화</a>
+    </div>
+    <button class="newchat" id="newchat">＋ 새 대화</button>
+    <div class="seclabel">세션</div>
+    <div class="sessions" id="sessions">
+      <div class="sess active"><span class="t">Work Chat</span><span class="age">지금</span></div>
+    </div>
+    <div class="sidefoot">
+      <span class="dot" title="연결됨"></span>
+      <span class="spacer"></span>
+      <span class="ic" title="설정" data-soon="설정">⚙</span>
+      <span class="ic" id="theme" title="테마">◐</span>
+    </div>
+  </aside>
+
+  <!-- ── 본문 ── -->
+  <main id="main">
+    <div class="crumb">
+      <span class="hb" id="hb">☰</span>
+      GPAO-T5 <span class="sep">›</span> <span>Work Chat</span>
+      <button id="chip" title="현재 상태 보기">준비됨</button>
+    </div>
+    <div id="state"></div>
+    <div id="log"><div class="wrap" id="wrap"></div></div>
+    <div class="composer">
+      <div class="cwrap">
+        <div class="inbox">
+          <span class="plus">＋</span>
+          <textarea id="text" rows="1" placeholder="GPAO-T5에게 메시지 입력" autofocus></textarea>
+          <button id="send">보내기</button>
+        </div>
+        <div class="statusrow">
+          <span id="modelinfo">beai5-stub · 준비됨</span>
+          <span class="spacer"></span>
+          <span>말하면 일이 이어집니다</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
 <script type="module">
-const log = document.getElementById('log');
+const wrap = document.getElementById('wrap');
 const chip = document.getElementById('chip');
 const statePanel = document.getElementById('state');
-const form = document.getElementById('f');
+const modelinfo = document.getElementById('modelinfo');
 const text = document.getElementById('text');
-let lastRunningTask = null;
+const send = document.getElementById('send');
 
-chip.onclick = () => {
-  statePanel.style.display = statePanel.style.display === 'block' ? 'none' : 'block';
+// 사이드바: 미구축 표면은 죽은 버튼이 아니라 정직한 "곧" 안내(헌법 §4.2).
+document.querySelectorAll('[data-soon]').forEach((n) => {
+  n.addEventListener('click', () => sysline(`${n.dataset.soon} 화면은 다음 단계에서 준비됩니다. 지금은 채팅으로 이어가 주세요.`));
+});
+document.getElementById('hb').onclick = () => document.body.classList.toggle('nav-open');
+document.getElementById('theme').onclick = () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark';
+  if (next) document.documentElement.setAttribute('data-theme', next);
+  else document.documentElement.removeAttribute('data-theme');
 };
-function el(cls, txt) { const d = document.createElement('div'); d.className = cls; if (txt!=null) d.textContent = txt; return d; }
-function add(node) { log.appendChild(node); log.scrollTop = log.scrollHeight; return node; }
+document.getElementById('newchat').onclick = () => { wrap.innerHTML = ''; text.focus(); };
+chip.onclick = () => { statePanel.style.display = statePanel.style.display === 'block' ? 'none' : 'block'; };
+
+function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
+function add(node) { wrap.appendChild(node); node.scrollIntoView({ block: 'end' }); return node; }
+function turnBox() { const t = el('turn'); add(t); return t; }
+function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); b.appendChild(el('msg bot', t)); }
 
 function renderSelfState(s) {
   if (!s) return;
   const warn = s.modelAuthState !== 'usable' || (s.limits && s.limits.length);
   chip.textContent = s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState;
   chip.classList.toggle('warn', !!warn);
-  const lines = [
+  modelinfo.textContent = `${s.model} · ${s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState}`;
+  statePanel.textContent = [
     `모델: ${s.model} (${s.modelAuthState})`,
-    `바로 쓰는 연결: ${s.ready.length ? s.ready.join(', ') : '없음'}`,
+    `바로 쓰는 연결: ${s.ready.length ? s.ready.join(', ') : '없음'}`,   // 라벨만(내부 id 비노출)
     s.limits && s.limits.length ? `막힌 것: ${s.limits.join(' · ')}` : null,
     s.nextSafeAction ? `다음: ${s.nextSafeAction}` : null,
-  ].filter(Boolean);
-  statePanel.textContent = lines.join('\n');
+  ].filter(Boolean).join('\n');
 }
 
-function renderLedger(node, ledger) {
-  if (!ledger) return;
-  const total = ledger.confirmed.length + ledger.unconfirmed.length + ledger.estimated.length;
-  if (!total) return;
-  const evi = el('evi', `근거 보기 (확인 ${ledger.confirmed.length} · 미확인 ${ledger.unconfirmed.length})`);
-  const pre = document.createElement('pre'); pre.style.display = 'none';
-  pre.textContent = [
+// 접힌 고기능: 작업 기록(T3 "작업 기록: 도구 N개"). 대화 흐름 안에서 작게, 열면 근거.
+function renderRecord(box, ledger) {
+  const n = (ledger?.confirmed.length || 0) + (ledger?.unconfirmed.length || 0) + (ledger?.estimated.length || 0);
+  if (!n) return;
+  const rec = el('record');
+  const head = el('head'); head.innerHTML = `<span class="tw">▸</span> 작업 기록 · 도구 ${n}개`;
+  const body = el('body');
+  body.textContent = [
     ledger.confirmed.length ? '확인: ' + ledger.confirmed.join('; ') : '',
     ledger.unconfirmed.length ? '미확인: ' + ledger.unconfirmed.join('; ') : '',
     ledger.estimated.length ? '추정: ' + ledger.estimated.join('; ') : '',
   ].filter(Boolean).join('\n');
-  evi.onclick = () => { pre.style.display = pre.style.display === 'none' ? 'block' : 'none'; };
-  evi.appendChild(pre); node.appendChild(evi);
+  head.onclick = () => { const o = body.style.display === 'block'; body.style.display = o ? 'none' : 'block'; head.classList.toggle('open', !o); };
+  rec.appendChild(head); rec.appendChild(body); box.appendChild(rec);
 }
 
 async function turn(payload) {
-  const res = await fetch('/turn', { method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify(payload) });
+  const res = await fetch('/turn', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
   return res.json();
 }
 
 function renderResult(r) {
   renderSelfState(r.selfStateSummary);
-  if (r.followUp) add(el('bot', r.followUp.userNotice));
+  if (r.followUp) sysline(r.followUp.userNotice);
 
-  if (r.kind === 'clarify') { add(el('bot', r.question)); return; }
+  if (r.kind === 'clarify') { sysline(r.question); return; }
+
   if (r.kind === 'approval') {
+    const box = turnBox();
     const card = el('card');
     card.appendChild(el('h4', '실행 전 승인이 필요해요'));
-    for (const p of r.pending) {
+    for (const p of r.pending)
       card.appendChild(el('row', `· ${p.label ?? p.action} [${p.tier}] — ${p.preview?.impact ?? ''} (${p.preview?.cancel ?? ''})`));
-    }
     const btns = el('btns');
-    const yes = el(''); yes.innerHTML = '<button class="act">승인</button>';
-    const no = el(''); no.innerHTML = '<button class="act no">보내지 마</button>';
-    yes.firstChild.onclick = async () => {
-      card.remove();
-      const done = await turn({ text: r.plan.understoodTask, approvedActions: r.pending.map(p=>p.action) });
-      renderResult(done);
-    };
-    no.firstChild.onclick = () => { card.remove(); add(el('bot', '보내지 않았어요. 초안은 그대로 있어요.')); };
+    const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
+    const no = document.createElement('button'); no.className = 'act no'; no.textContent = '보내지 마';
+    yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); };
+    no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); };
     btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
-    add(card); return;
+    box.appendChild(card); return;
   }
+
   // reply
-  const bot = add(el('bot', r.reply));
+  const box = turnBox();
+  box.appendChild(el('who', 'GPAO-T5'));
+  const bot = el('msg bot', r.reply);
   if (r.nextSafeAction) bot.textContent += `\n\n다음: ${r.nextSafeAction}`;
-  renderLedger(bot, r.ledger);
+  box.appendChild(bot);
+  renderRecord(box, r.ledger);
 }
 
-form.onsubmit = async (e) => {
-  e.preventDefault();
+async function submit() {
   const t = text.value.trim(); if (!t) return;
-  add(el('msg me', t)); text.value = '';
-  try { renderResult(await turn({ text: t, runningTask: lastRunningTask ?? undefined })); }
-  catch { add(el('bot', '연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.')); }
-};
-text.addEventListener('keydown', (e) => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
+  text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
+  try { renderResult(await turn({ text: t })); }
+  catch { sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.'); }
+}
+send.onclick = submit;
+text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
+text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
 </script>
 </body>
 </html>
