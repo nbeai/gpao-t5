@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -24,6 +24,10 @@
 - P6-3b 개정 반영(근거: `P6-3-AUTOMATION` 후속, 깊은 감사 통과): §8.3 tick 경계 **구현됨** —
   `admitTickTrigger`(trusted_runtime_event 전용) + HTTP tick 런타임 토큰 요구(없으면 403·실행0, UI 버튼 없음) +
   in-process `AutomationScheduler`(setInterval+unref, cron/daemon 아님, intervalMs job 재예약·원장 누적).
+- P6-4 개정 반영(근거: `P6-4-AUTOMATION-RELIABILITY`, 깊은 감사 통과): §8.3 신뢰성 가드 —
+  ScheduledJob에 failureCount/maxAttempts/backoffBaseMs/backoffCapMs, `resolveAfterRun` 상태 전이(transient
+  백오프·maxAttempts 초과 시 failed / permanent 즉시 포기 / 성공 리셋), `runTrustedTick` in-flight 중첩·중복
+  방지, 백오프 대기 중에도 만료 우선.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -353,6 +357,9 @@ diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 �
 | grantScope | `{kind, expiresAt?}` | 필수 | 승인 범위·만료(§3.2 재사용) | 만료 후 실행 금지 → 재승인(Approval Lifecycle) |
 | external | 불리언 | 필수 | 외부 전송 자동화 | **도구 descriptor `needsApproval`에서 파생**(사용자 입력 불신). true면 **만료 없는 승인 거부** → A2 경계 유지 |
 | executions | `ToolReceipt[]` | 필수 | AutomationLedger | 아래 |
+| failureCount | 수 | 필수 | 연속 실패 횟수(P6-4) | 성공 시 0으로 리셋 |
+| maxAttempts | 수 | 필수 | transient 실패 재시도 상한(기본 5) | 초과 시 정직하게 `failed`(무한 재시도 금지) |
+| backoffBaseMs / backoffCapMs | 수 | 필수 | 지수 백오프 기준·상한(기본 1s / 1h) | 재시도가 무한정 벌어지지 않게 |
 
 **AutomationLedger** — 자동화 실행 진실 원장. 세션 `TruthLedger`/`ledgerEntries`와 **분리된** 별도 원장이다
 (자동화는 세션 밖 백그라운드 실행이라 섞으면 세션 원장 의미가 흐려진다). 기록 계약은 §7 `ToolReceipt`를
@@ -372,7 +379,20 @@ diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 �
   trusted). `intervalMs` job은 실행 후 `nextRunAt += intervalMs`, `scheduled` 유지 → 다음 발화에 재실행하고
   매 실행을 AutomationLedger에 누적한다.
 
-남은 후속(다음 slice): 반복 job의 만료·백오프·tick 중첩 방지 정교화. 진짜 cron/daemon은 배포 계약 이후.
+**신뢰성 가드(구현됨, P6-4)** — 반복·실패·동시성 아래서 안전하게. 막는 사고: 두 번 실행 · 무한 재전송 ·
+만료 잔존. 상태 전이는 순수 함수 `resolveAfterRun(job, failureState, now)`에 모은다.
+- **실패 백오프**: transient 실패(`failed`/`timeout`, `classifyRetry`)는 `nextBackoffMs`(지수·`backoffCapMs` 포화)로
+  재예약해 재시도하되, `failureCount >= maxAttempts`면 정직하게 `failed`로 접는다(무한 재시도 금지).
+- **permanent 즉시 포기**: 차단·취소(`blocked`/`cancelled`)는 재시도로 안 풀린다 → 재예약 없이 즉시 `failed`
+  (실패한 외부 전송의 무한 반복 차단).
+- **성공 리셋**: 성공하면 `failureCount=0`. 반복 job은 `nextRunAt += intervalMs`, 1회 job은 `completed`.
+- **tick 중첩/중복 방지**: `runTrustedTick`은 서버 인스턴스별 in-flight 플래그로 직렬화된다 — 이전 tick이
+  도는 중이면 새 tick은 `skipped:'in_flight'`로 즉시 반환(load→run→save 경합·중복 실행 차단). 플래그는
+  지속하지 않는다(크래시 후 stuck-running 회피). 단일 tick 내부는 순차 실행이라 중복 픽업이 없다.
+- **만료 우선**: `tick` 진입에서 `state==='scheduled' && jobExpired` → `expired`(continue). 백오프 대기 중이라도
+  만료가 재시도보다 앞선다 — 만료된 승인으로 재시도하지 않는다.
+
+남은 후속(다음 slice): 백오프 지터(thundering herd 완화) · 반복 job 원장 크기 상한. 진짜 cron/daemon은 배포 계약 이후.
 
 ---
 
