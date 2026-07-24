@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 개정 · P6-3 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -17,6 +17,11 @@
   §6.6 WebToolDescriptor(inputSchema·sourcePolicy·sessionMode, 출처 없는 성공 런타임 강제 금지, fetch 상태 분리) +
   §6.7 ConnectorProfile & 채널 인바운드(auth≠approval, 단일 정규화 이벤트, 게이트 순서·미등록/미연결/gated 미기록) +
   §7 failureState `cancelled`·재시도 분류 + §7 `sources` 출처 근거.
+- P6-3 개정 반영(근거: `P6-3-AUTOMATION`, 깊은 감사 통과):
+  §8.3 Automation 신규 — ScheduledJob(state·grantScope·external=descriptor needsApproval 파생) +
+  AutomationLedger(세션 TruthLedger와 분리된 자동화 실행 원장, §7 ToolReceipt 계약 재사용) +
+  tick 경계(현재 수동 in-process, 몰래 실행 0·후보≠실행·외부 만료 필수). **필수 후속(blocker 아님):**
+  tick을 `trusted_runtime_event` 전용 경계로 제한 + 반복 job 실제 스케줄러 — 다음 자동화 slice.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -327,6 +332,35 @@ diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 �
 
 규칙: 단순 대화를 complex path로 무겁게 태우면 자연스러움이 죽는다. 경로 판정은 IntentPacket에서
 시작하되, 도중에 도구·외부효과가 필요해지면 complex로 승격한다.
+
+### 8.3 Automation (ScheduledJob / AutomationLedger / tick 경계) — P6-3 개정
+
+근거: 계획서 §5·§6.2, `P6-3-AUTOMATION`(깊은 감사 통과). §8.1 `candidateKind:'automation'`가 후보의
+계약 자리였고, 여기서 실행 계약으로 잇는다. 핵심 불변식: **자동화는 몰래 실행하지 않는다. 후보는
+실행이 아니다(승인 전 영향 0).** 흐름: `GrowthCandidate → 승인 → ScheduledJob → tick → ToolReceipt(AutomationLedger) → 취소/만료`.
+
+**ScheduledJob 계약**
+
+| 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
+| --- | --- | --- | --- | --- |
+| id | 문자열 | 필수 | job 식별자 | |
+| action | `{tool, args?}` | 필수 | 실행할 도구·인자 | 계획의 첫 도구를 재사용. 실행 가능(SelfState) 게이트를 그대로 탄다 |
+| state | 열거 | 필수 | scheduled/paused/cancelled/completed/expired/failed | scheduled+미만료+도달만 실행. 그 외 실행 0 |
+| createdAt / nextRunAt | 수 | 필수 | 생성·다음 실행 시각 | `ctx.now` 주입(결정적) |
+| intervalMs | 수 | 선택 | 있으면 반복, 없으면 1회 | 반복도 in-process tick — cron/daemon 아님 |
+| grantScope | `{kind, expiresAt?}` | 필수 | 승인 범위·만료(§3.2 재사용) | 만료 후 실행 금지 → 재승인(Approval Lifecycle) |
+| external | 불리언 | 필수 | 외부 전송 자동화 | **도구 descriptor `needsApproval`에서 파생**(사용자 입력 불신). true면 **만료 없는 승인 거부** → A2 경계 유지 |
+| executions | `ToolReceipt[]` | 필수 | AutomationLedger | 아래 |
+
+**AutomationLedger** — 자동화 실행 진실 원장. 세션 `TruthLedger`/`ledgerEntries`와 **분리된** 별도 원장이다
+(자동화는 세션 밖 백그라운드 실행이라 섞으면 세션 원장 의미가 흐려진다). 기록 계약은 §7 `ToolReceipt`를
+그대로 쓴다 — 성공·실패·차단·만료·취소를 정직하게. 추가는 `appendAutomationLedger(job, receipt)`로만 한다.
+`GET /automation`의 `jobs[].ledger`가 이 원장의 투영이고 `runs`/`lastResult`는 그 요약이다.
+
+**tick 경계(현재 + 필수 후속)** — 현재 슬라이스의 `tick`은 수동/테스트 tick(in-process, 실행 가능한 job만).
+**필수 후속(다음 자동화/스케줄러 slice, 이번 병합의 blocker 아님):** `tick` 트리거를 `trusted_runtime_event`
+전용 경계로 제한한다 — 일반 사용자가 누르는 버튼처럼 보이면 안 되고, §1.5 InboundEventGate의
+`trusted_runtime_event` 경로와 동일 계약으로 게이트한다. 반복 job의 실제 스케줄러 구동도 이 후속에 포함.
 
 ---
 
