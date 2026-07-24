@@ -72,11 +72,18 @@ export function makeServer(deps = {}) {
         const id = decodeURIComponent(url.slice('/sessions/'.length));
         const s = await store.load(id);
         if (!s) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        // activePendingIds: 아직 유효한 승인 대기 id — 재접속 시 그 승인 카드는 다시 눌러 이어실행 가능.
-        return sendJson(res, 200, {
-          id: s.id, title: s.title, transcript: s.transcript,
-          activePendingIds: Object.keys(s.pendingApprovals ?? {}),
-        });
+        // activePendingIds: 아직 유효한(만료 전) 승인 대기만 — 만료된 것은 UI에서 되살아나면 죽은 버튼이라
+        // 제외한다(감사 보정). 만료된 pending은 세션 파일에서도 정리한다.
+        const now = Date.now();
+        const all = s.pendingApprovals ?? {};
+        const activePendingIds = Object.keys(all).filter(
+          (id) => !all[id].grantScope?.expiresAt || all[id].grantScope.expiresAt > now,
+        );
+        if (activePendingIds.length !== Object.keys(all).length) {
+          s.pendingApprovals = Object.fromEntries(activePendingIds.map((id) => [id, all[id]]));
+          await store.save(s);
+        }
+        return sendJson(res, 200, { id: s.id, title: s.title, transcript: s.transcript, activePendingIds });
       }
 
       if (req.method === 'POST' && url === '/turn') {

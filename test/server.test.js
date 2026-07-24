@@ -113,6 +113,33 @@ test('승인 대기가 재시작 후에도 지속돼 이어실행된다', async 
   }
 });
 
+// 감사 보정: 만료된 승인 대기는 activePendingIds에 포함되지 않고, 파일에서도 정리된다(죽은 버튼 금지).
+test('만료된 pending은 activePendingIds에서 제외되고 정리된다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-expire-'));
+  const store = new SessionStore(dir);
+  const server = makeServer({ store });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await post(base, '/sessions')).json();
+    // 유효 1 + 만료 1 을 직접 주입.
+    const session = await store.load(s.id);
+    session.pendingApprovals = {
+      'active-1': { intent: {}, plan: {}, grantScope: { kind: 'once', expiresAt: Date.now() + 60000 } },
+      'expired-1': { intent: {}, plan: {}, grantScope: { kind: 'once', expiresAt: Date.now() - 1000 } },
+    };
+    await store.save(session);
+
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.deepEqual(reloaded.activePendingIds, ['active-1'], '만료는 active 아님');
+    // 파일에서도 만료 정리(유효만 남음).
+    const after = await store.load(s.id);
+    assert.deepEqual(Object.keys(after.pendingApprovals), ['active-1'], '만료 pending 정리');
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
 test('존재하지 않는 세션의 turn은 404', async () => {
   await withServer(async (base) => {
     const res = await post(base, '/turn', { sessionId: '00000000-0000-0000-0000-000000000000', text: '안녕' });
