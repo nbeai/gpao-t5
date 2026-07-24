@@ -1,9 +1,9 @@
-# GPAO-T5 UX Architecture (초안)
+# GPAO-T5 UX Architecture
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `Codex 감사 통과 · Phase 3 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
-- Auditor: Codex (표면 정합성·계약 번역·자연스러움·Phase 4 연결성 감사)
+- Auditor: Codex (표면 정합성·계약 번역·자연스러움·Phase 4 연결성 감사 완료)
 - Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 3 UX Architecture
 - 근거: 계획서 §4(표면)·§7(UX 방향) / Kernel Contract(봉인) / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법·Kernel Contract 아래에서 계약을 사용자 표면으로 번역한다. UI 구현·컴포넌트
@@ -41,7 +41,18 @@
 - 도구를 못 쓰는 상황에서도 막다른 답으로 끝내지 않고 다음 안전 행동을 제시한다.
 - 설정·연결·권한·기억은 대화 흐름을 방해하지 않되 필요할 때 즉시 열린다.
 
-### 1.2 상태 언어(모든 화면 공통 어휘)
+### 1.2 안티 대시보드 원칙
+
+T5는 복잡한 개발자 대시보드가 아니다. 내부 계약이 많아질수록 사용자 첫 화면은 더 단순해야 한다.
+
+- 기본 화면은 Work Chat 이다.
+- 상태 패널은 기본 노출이 아니라 필요할 때 열리는 보조 표면이다.
+- 내부 로그, raw path, stack trace, provider error, schema 이름은 사용자 기본 화면에 나오지 않는다.
+- Today / Project / Connection / Ledger 는 사용자를 관리자로 만드는 화면이 아니라, 대화 흐름에서 필요한
+  상태와 다음 행동을 조용히 보여 주는 작업 표면이다.
+- 사용자가 "시스템을 조작한다"고 느끼기보다 "말하면 일이 이어진다"고 느껴야 한다.
+
+### 1.3 상태 언어(모든 화면 공통 어휘)
 
 계약의 열거값을 사용자 문장으로 번역한다. 화면마다 다시 정의하지 않는다.
 
@@ -242,5 +253,4 @@ Work Chat(§2.1) — 심장
 
 ---
 
-*이 초안은 `초안 작성 완료 · 감사 전` 상태다. Codex가 표면 정합성·계약 번역·자연스러움·Phase 4
-연결성을 감사해 통과해야 Phase 3 봉인이다. 그 전에는 좁은 상태 언어만 쓴다.*
+*Codex 감사 결과 이 UX Architecture 는 Phase 3 산출물로 봉인한다. 다음 단계는 Phase 4 Scenario Replay 다.*
