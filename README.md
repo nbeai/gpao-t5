@@ -19,12 +19,12 @@ These documents are mandatory first-read material before any GPAO-T5 planning, i
 3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
    - Defines how the discipline is enforced in the working environment: build artifacts stay out of the source tree, source and generated outputs are physically separated, builds are deterministic, and multi-agent work is isolated by worktree. Frictionless rules apply now; slow gates (hooks/CI/test gates) attach in Phase 5 when real code and a build pipeline exist. Zero friction for everyday local work.
 
-## Reference Documents
+## Foundational Reference Documents
 
-These documents are not above the top authority documents, but they preserve source material that must be consulted when designing the related GPAO-T5 system.
+These documents do not sit above the top authority documents, but they are the source material the plan is built on. Consulting them is mandatory when designing the related GPAO-T5 systems — the plan draws its reasoning from them.
 
 1. `references/BEAI5-SYSTEM-PROMPT-REFERENCE-2026-07-24-ko.md`
-   - Original BEAI5 system prompt reference. Use it as the source material for BEAI5 Model Operation, BEAI5 Integration Contract, naturalness regression gates, and the split between OS-implemented properties and model-held judgment.
+   - Foundational. BEAI5 underlies the development plan itself: it is development domain 2 of 7, part of the first build slice, and the basis of the BEAI5 Dual-Implementation Principle (plan §5.6). This is the source material for BEAI5 Model Operation, the BEAI5 Integration Contract, naturalness regression gates, and the split between OS-implemented properties and model-held judgment. Read it before any BEAI5-related design, implementation, or audit.
 
 ## Non-Scope For Current Body Development
 
