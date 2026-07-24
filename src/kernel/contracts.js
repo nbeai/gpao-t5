@@ -106,6 +106,10 @@
  * @property {{kind:'once'|'session'|'persist', expiresAt?:number}} grantScope  승인 범위·만료(§3.2)
  * @property {boolean} external           외부 전송 자동화(A2 경계 유지) — descriptor needsApproval에서 파생
  * @property {ToolReceipt[]} executions   AutomationLedger — 세션 TruthLedger와 분리된 자동화 실행 원장
+ * @property {number} failureCount        연속 실패 횟수(P6-4). 성공 시 0으로 리셋
+ * @property {number} maxAttempts         transient 실패 재시도 상한 — 초과 시 정직하게 failed
+ * @property {number} backoffBaseMs       지수 백오프 기준(ms)
+ * @property {number} backoffCapMs        백오프 상한(ms) — 무한정 벌어지지 않게
  */
 
 /**
