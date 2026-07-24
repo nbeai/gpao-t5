@@ -56,7 +56,7 @@
  * @property {boolean} approvalRequired   A2·A3 는 true. "원했다"만으로 우회 불가
  * @property {{impact:string, scope:string, duration:string, cancel:string}} [approvalPreview]
  * @property {boolean} granted            실행 직전 게이트. 미승인이면 실행 금지
- * @property {{kind:string}} [grantScope] "이번 한 번" / "이 세션" / "지속"
+ * @property {{kind:'once'|'session'|'persist', expiresAt?:number}} [grantScope] 승인 범위·수명(Phase 5.1+). once=이번 한 번, session=이 세션, persist=지속. expiresAt 이후는 만료→재승인
  * @property {boolean} revocable
  */
 
@@ -135,3 +135,7 @@ export const LIFECYCLE = Object.freeze(['none', 'attempting', 'delivered', 'fail
 
 // Phase 5.1(§6): ConnectedTool.status 허용값.
 export const TOOL_STATUS = Object.freeze(['usable', 'needs_auth', 'needs_config', 'needs_connection', 'blocked']);
+
+// Approval Lifecycle: 승인 범위 종류 + 대기 만료. once 만 P5 도달, session/persist는 P6.
+export const GRANT_SCOPE = Object.freeze(['once', 'session', 'persist']);
+export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 승인 대기 30분 후 만료 → 재승인 요구

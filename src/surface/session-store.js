@@ -33,7 +33,8 @@ export class SessionStore {
   async create(title = '새 대화') {
     await this._ensure();
     const now = Date.now();
-    const session = { id: randomUUID(), title, createdAt: now, updatedAt: now, transcript: [], ledgerEntries: [] };
+    // pendingApprovals: 승인 대기 계획을 세션에 지속(재시작 후 이어실행·만료 판정 가능).
+    const session = { id: randomUUID(), title, createdAt: now, updatedAt: now, transcript: [], ledgerEntries: [], pendingApprovals: {} };
     await writeFile(this._path(session.id), JSON.stringify(session), 'utf8');
     return session;
   }

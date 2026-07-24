@@ -89,6 +89,30 @@ test('세션 안 승인 재개(approve)는 text 없이도 200, 계획 이어받�
   });
 });
 
+// Approval Lifecycle: 승인 대기가 서버 재시작(같은 저장소, 새 서버) 후에도 지속돼 이어실행된다.
+test('승인 대기가 재시작 후에도 지속돼 이어실행된다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-persist-'));
+  const srv1 = makeServer({ store: new SessionStore(dir) });
+  await new Promise((r) => srv1.listen(0, r));
+  const b1 = `http://127.0.0.1:${srv1.address().port}`;
+  const s = await (await post(b1, '/sessions')).json();
+  const r1 = await (await post(b1, '/turn', { sessionId: s.id, text: '이 소식 슬랙에 올려줘' })).json();
+  assert.equal(r1.kind, 'approval');
+  await new Promise((r) => srv1.close(r)); // 재시작
+
+  const srv2 = makeServer({ store: new SessionStore(dir) }); // 같은 저장소, 새 프로세스
+  await new Promise((r) => srv2.listen(0, r));
+  const b2 = `http://127.0.0.1:${srv2.address().port}`;
+  try {
+    const reloaded = await getj(b2, `/sessions/${s.id}`);
+    assert.ok(reloaded.activePendingIds.includes(r1.pendingId), '재시작 후 승인 대기 유효');
+    const r2 = await (await post(b2, '/turn', { sessionId: s.id, approve: r1.pendingId })).json();
+    assert.equal(r2.kind, 'reply', '재시작 후에도 이어실행');
+  } finally {
+    await new Promise((r) => srv2.close(r));
+  }
+});
+
 test('존재하지 않는 세션의 turn은 404', async () => {
   await withServer(async (base) => {
     const res = await post(base, '/turn', { sessionId: '00000000-0000-0000-0000-000000000000', text: '안녕' });

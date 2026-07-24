@@ -1,8 +1,6 @@
 // 슬라이스-1 데모 환경. 실서비스 연결·자격은 밀도화 단계에서 실제 provider/connector 로 대체한다.
 // 여기서는 커널 흐름을 사람이 실제로 겪어 보게 하는 최소 실행 맥락만 만든다.
-import { StubModelClient } from '../runtime/model-client.js';
 import { ToolRunner } from '../runtime/tool-runner.js';
-import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 
 /** 슬라이스-1 기본 환경(SelfState 입력). */
 export function demoEnv() {
@@ -41,14 +39,4 @@ export function demoTools() {
       },
     },
   });
-}
-
-/** 서버 프로세스 1개가 공유하는 턴 컨텍스트. */
-export function makeContext() {
-  return {
-    env: demoEnv(),
-    model: new StubModelClient(),
-    tools: demoTools(),
-    ledger: new TruthLedger(),
-  };
 }
