@@ -15,6 +15,7 @@
   `P6-2-WEB-TOOL-DESCRIPTOR`, 깊은 감사 통과):
   §6.5 ToolDescriptor 신규(소유≠실행·availability·auth≠approval, needsApproval/toolKind→ActionPlan 전달) +
   §6.6 WebToolDescriptor(inputSchema·sourcePolicy·sessionMode, 출처 없는 성공 런타임 강제 금지, fetch 상태 분리) +
+  §6.7 ConnectorProfile & 채널 인바운드(auth≠approval, 단일 정규화 이벤트, 게이트 순서·미등록/미연결/gated 미기록) +
   §7 failureState `cancelled`·재시도 분류 + §7 `sources` 출처 근거.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
@@ -255,6 +256,28 @@ descriptor의 toolKind·needsApproval은 SelfState.connectedTools에 보존되�
 성공, 실패·차단(fetchState≠ok)에 내용·출처가 섞이면 계약 위반으로 failed 처리. fetch 상태
 (login_wall/blocked/robots_disallow/bot_wall/timeout)는 성공과 분리한다. auth≠approval: user_approved
 세션은 공개 읽기 A0와 달리 승인 경계를 가진다.
+
+### 6.7 ConnectorProfile & 채널 인바운드 (멀티채널 — P6-2 Slice-3)
+
+근거: Tool&Connector Seal §2·§3. 채널/provider를 선언형 프로필로. 채널이 달라도 같은 OS 흐름을 탄다.
+
+| 필드 | 타입 | 필수 | 의미 | 경계·규칙 |
+| --- | --- | --- | --- | --- |
+| id | 문자열 | 필수 | 커넥터 식별자 | |
+| label | 문자열 | 필수 | 사용자 표시명 | |
+| kind | 열거 | 필수 | channel / provider | |
+| authState | 열거 | 필수 | 자격(로그인) 축 | none(**인증 불요=공개**) / api_key / oauth / session. "미설정"과 구분은 후속 requiresAuth |
+| connected | 불리언 | 필수 | 연결 여부 | |
+
+- `connectorReadiness(profile)` = 연결 생존성 축: **disconnected / needs_auth / ok**(authState와 별개 축).
+- `sendNeedsApproval()` = **항상 true**: 연결·인증돼도 외부 전송은 A2 승인(**auth≠approval**, 헌법 §3-6).
+- `normalizeInboundEvent(msg)`: 채널 메시지 → 단일 InboundEvent(source=external_channel, triggerSignals
+  는 mention/allowlisted/direct_message 결정적 신호). 채널별 로직을 커널에 두지 않는다(Hermes 흡수).
+
+**채널 인바운드 게이트 순서(정본)**: ① sessionId ② channel 필드 ③ **registry 확인**(미등록→blocked)
+④ **connectorReadiness===ok**(아니면 blocked) ⑤ normalizeInboundEvent ⑥ InboundEventGate(§1.5,
+mention/allowlist/DM) ⑦ **respond일 때만 turn** ⑧ **gated/blocked는 transcript 미기록**(reply/approval/
+clarify만 기록). 등록·연결된 채널만 커널로 태우고, 트리거 없는 외부 메시지는 자동 응답하지 않는다.
 
 ---
 
