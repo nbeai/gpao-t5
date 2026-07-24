@@ -16,6 +16,13 @@ These two documents are mandatory first-read material before any GPAO-T5 plannin
 2. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
    - Defines the non-negotiable development discipline: verify delivered artifacts, do not build on unverified premises, gate destructive/external actions, generalize beyond one case, keep changes surgical, prefer simplicity, write failure tests, report honestly, and define completion by the real user path.
 
+## Reference Documents
+
+These documents are not above the top authority documents, but they preserve source material that must be consulted when designing the related GPAO-T5 system.
+
+1. `references/BEAI5-SYSTEM-PROMPT-REFERENCE-2026-07-24-ko.md`
+   - Original BEAI5 system prompt reference. Use it as the source material for BEAI5 Model Operation, BEAI5 Integration Contract, naturalness regression gates, and the split between OS-implemented properties and model-held judgment.
+
 ## Non-Scope For Current Body Development
 
 Installation and onboarding are intentionally excluded from the current GPAO-T5 body-development plan. Packaging lessons from GPAO-T3 still remain binding as regression-prevention knowledge when T5 later enters release/distribution work.
