@@ -17,6 +17,9 @@ import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
 import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
+import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
+import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
+import { demoConnectors } from './demo-context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -174,6 +177,40 @@ export function makeServer(deps = {}) {
         m.promoted = m.promoted.filter((e) => e.candidateId !== input.candidateId);
         if (m.promoted.length !== before) await memStore.save(m);
         return sendJson(res, 200, { ok: true });
+      }
+
+      // ── 커넥터 / 멀티채널 (P6-2 Slice-3) ──
+      if (req.method === 'GET' && url === '/connectors') {
+        // auth(자격)과 approval(전송)을 두 축으로 보여준다.
+        const connectors = (deps.connectors ?? demoConnectors()).map((p) => ({
+          id: p.id, label: p.label, kind: p.kind, authState: p.authState,
+          readiness: connectorReadiness(p), sendNeedsApproval: sendNeedsApproval(),
+        }));
+        return sendJson(res, 200, { connectors });
+      }
+      // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. mention-gating 없이 아무 채널 메시지에 응답하지 않는다.
+      if (req.method === 'POST' && url === '/channel/inbound') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.text !== 'string' || !input.text.trim()) return sendJson(res, 400, { error: '빈 발화' });
+        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
+        const session = await store.load(input.sessionId);
+        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+
+        const event = normalizeInboundEvent(input); // 단일 정규화 이벤트
+        const memory = await memStore.load();
+        const ctx = ctxForSession(session, memory);
+        // 같은 커널: source=external_channel → InboundEventGate → (respond면) turn.
+        const result = await runTurn({ text: input.text, source: 'external_channel', triggerSignals: event.triggerSignals }, ctx);
+        // gated(무시)는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
+        if (result.kind !== 'gated') {
+          session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
+          session.transcript.push({ role: 'assistant', result });
+          session.ledgerEntries = ctx.ledger.entries;
+          session.pendingApprovals = Object.fromEntries(ctx.pending);
+          if (result.goal) session.activeGoal = result.goal;
+          await store.save(session);
+        }
+        return sendJson(res, 200, { ...result, channelMeta: event.channelMeta });
       }
 
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
