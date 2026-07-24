@@ -719,6 +719,14 @@ T5는 바로 기능부터 쌓으면 안 된다. 본 최종 계획서를 기준�
    - BEAI5를 체크리스트/분류기로 축소
    - 모델의 판단력과 문장 흐름을 과잉 제어
 
+8. `GPAO-T5 Engineering Environment Charter`
+   - 절대 원칙이 "왜"라면, 이 문서는 개발 환경에서 "어떻게 지킬지"를 정한다.
+   - 빌드 산출물은 소스 트리 밖 고정 경로에만, 소스와 산출물 물리 분리, 결정적 빌드,
+     에이전트 worktree 격리를 정의한다.
+   - 방침: 마찰 0인 것(gitignore·폴더 구조 원칙·협업 기본 원칙·결정적 빌드 원칙)은 지금 적용하고,
+     느린 게이트(hook·CI·테스트 게이트)는 Phase 5에서 실제 코드·빌드 파이프라인이 생긴 뒤 붙인다.
+   - 정본: `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`.
+
 ## 10. 1차 개발 로드맵
 
 ### Phase 0. Final Research Seal

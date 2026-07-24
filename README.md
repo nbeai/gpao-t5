@@ -8,13 +8,16 @@ GPAO-T5 is an Original AI Operating System: the user feels they are only chattin
 
 ## Top Authority Documents
 
-These two documents are mandatory first-read material before any GPAO-T5 planning, implementation, review, verification, or handoff.
+These documents are mandatory first-read material before any GPAO-T5 planning, implementation, review, verification, or handoff.
 
 1. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
    - Defines the product identity, Original AI OS philosophy, Operational Selfhood, BEAI5 split, 7 development domains, first build slice, and scenario qualification path.
 
 2. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
    - Defines the non-negotiable development discipline: verify delivered artifacts, do not build on unverified premises, gate destructive/external actions, generalize beyond one case, keep changes surgical, prefer simplicity, write failure tests, report honestly, and define completion by the real user path.
+
+3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+   - Defines how the discipline is enforced in the working environment: build artifacts stay out of the source tree, source and generated outputs are physically separated, builds are deterministic, and multi-agent work is isolated by worktree. Frictionless rules apply now; slow gates (hooks/CI/test gates) attach in Phase 5 when real code and a build pipeline exist. Zero friction for everyday local work.
 
 ## Reference Documents
 

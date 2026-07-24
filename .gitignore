@@ -10,12 +10,32 @@
 node_modules/
 dist/
 build/
+out/
 coverage/
 .cache/
 tmp/
+
+# 빌드 스테이지 — 소스 트리 안에 생기면 그 자체가 사고다(T3: 12GB 스트레이 트리).
+# 산출물·스테이지는 소스 트리 밖 고정 경로에만 쓴다. 여기서는 혹시 새더라도 커밋을 막는다.
+.stage-*/
+**/.stage-*/
+
+# 소스 폴더 안에 상태 디렉터리를 두지 않는다(T3: root/.gpao-t3 가 스테이지 근원이었다).
+.gpao-t5/
+.gpaoT5/
+
+# 릴리스 산출물은 릴리스 단계에서 out-of-tree 로 생성한다. 저장소에 커밋하지 않는다.
+*.pkg
+*.tar.gz
+*.tgz
+*.zip
+*.tsbuildinfo
 
 .secrets/
 secrets/
 *.key
 *.pem
 *.p12
+*.pfx
+*.jks
+*.keystore
