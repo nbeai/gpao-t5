@@ -38,12 +38,12 @@ export function defineTool(d) {
  * @returns {'usable'|'needs_auth'|'needs_config'|'needs_connection'|'blocked'}
  */
 export function evaluateStatus(descriptor, facts = {}) {
-  for (const sig of descriptor.availability ?? []) {
-    if (sig.kind === 'connected' && !facts.connected) return 'needs_connection';
-    if (sig.kind === 'auth' && !facts.auth) return 'needs_auth';
-    if (sig.kind === 'config' && !facts.config) return 'needs_config';
-    if (sig.kind === 'env' && !facts.env) return 'blocked'; // env 미충족은 지금 실행 불가
-  }
+  const has = (kind) => (descriptor.availability ?? []).some((s) => s.kind === kind);
+  // 배열 순서에 의존하지 않도록 고정 우선순위(connected 먼저)로 판정한다(감사 보정).
+  if (has('connected') && !facts.connected) return 'needs_connection';
+  if (has('auth') && !facts.auth) return 'needs_auth';
+  if (has('config') && !facts.config) return 'needs_config';
+  if (has('env') && !facts.env) return 'blocked'; // env 미충족은 지금 실행 불가
   return 'usable';
 }
 

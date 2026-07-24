@@ -76,6 +76,10 @@ export function buildSelfState(env) {
       connected: Boolean(t.connected),
       status, // Phase 5.1: usable|needs_auth|needs_config|needs_connection|blocked
       executable: status === 'usable', // 하위호환 파생(§6)
+      // P6-2 감사 보정: "실행 가능"과 "실행해도 됨"의 두 축을 끝까지 보존한다. descriptor의
+      // needsApproval(행동 승인)·toolKind(권한 종류)를 버리지 않고 ActionPlan이 참조하게 실어 보낸다.
+      needsApproval: t.needsApproval,
+      toolKind: t.toolKind,
       note: t.note,
     };
   });

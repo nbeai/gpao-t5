@@ -46,6 +46,21 @@
 - `classifyRetry`는 파생 헬퍼(계약 필드 아님) — 개정 불요.
 - **감사 통과 후** 봉인 Kernel Contract에 반영(지금 봉인 파일 미수정).
 
+## 4.5 감사 보정 (조건부 반려 → 반영)
+
+1. **FailureState typedef +cancelled**: 상수와 타입 계약 일치.
+2. **descriptor 권한이 ActionPlan까지 전달(보안)**: action-plan이 selfState.connectedTools의
+   `toolKind`를 먼저 믿고, `needsApproval:true`면 등급이 낮게 나와도 A2 승인으로 올린다. 하드코딩
+   TOOL_KIND 맵에 없는 새 send/write 도구가 승인 우회하지 못한다. **반대 테스트로 확증**(무력화 시
+   custom.send 자동허용→실패).
+3. **SelfState가 needsApproval·toolKind 보존**: connectedTools에 그대로 실어 ActionPlan이 참조.
+   "실행 가능"과 "실행해도 됨" 두 축이 끝까지 산다.
+4. availability 판정을 배열 순서 무관·connected 우선으로 고정.
+5. cancelled receipt 테스트 추가(미확인 투영).
+6. (덤) 기존 flaky 테스트 수정: `list는 최근 수정순`이 같은 ms에 저장되면 정렬 동률이던 것을 결정적 간격으로.
+
+검증: **87개 테스트 통과**(+custom.send 승인 게이트 2, +cancelled receipt 1). flaky 5회 0 실패.
+
 ## 5. P6 다음
 
 ConnectorProfile(auth 흐름·DM 페어링), 멀티채널 adapter(단일 MessageEvent·레지스트리), MCP 연결,

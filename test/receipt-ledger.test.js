@@ -57,6 +57,20 @@ test('lifecycle은 실행/전달 enum만 허용 — 승인 상태·임의 값은
   }
 });
 
+// P6-2: cancelled 실패 상태 receipt (Tool&Connector Seal §3). 확인 못 함으로 분리된다.
+test('cancelled receipt는 유효하고 미확인으로 투영된다', () => {
+  const r = receipt({
+    intended: '전송', actualCall: { tool: 'x' }, failureState: 'cancelled',
+    userSafeSummary: '전송을 취소했어요.', nextSafeAction: '다시 하시겠어요?',
+  });
+  assert.equal(r.failureState, 'cancelled');
+  const L = new TruthLedger();
+  L.append(r);
+  const p = L.project();
+  assert.equal(p.confirmed.length, 0);
+  assert.ok(p.unconfirmed.some((s) => s.includes('취소')));
+});
+
 test('receipt 는 intended·userSafeSummary 필수', () => {
   assert.throws(() => receipt({ userSafeSummary: 'x' }));
   assert.throws(() => receipt({ intended: 'x' }));

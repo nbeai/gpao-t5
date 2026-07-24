@@ -31,18 +31,22 @@ export function buildActionPlan(p) {
   /** @type {import('../contracts.js').AuthorityGrant[]} */
   const needsApproval = [];
   for (const id of toolsToUse) {
-    const kind = TOOL_KIND[id] ?? 'read';
-    // action 은 매칭 키로 id 를 유지하고, 사용자에게 보일 미리보기는 라벨로 만든다(id 비노출).
-    const grant = grantFor({
-      label: id,
-      kind,
-      preview: {
-        impact: `${toolLabel(id)} 실행`,
-        scope: '이번 요청',
-        duration: '이번 한 번',
-        cancel: kind === 'delete' ? '되돌릴 수 없음(실행 전 확인)' : '되돌릴 수 있음',
-      },
+    // 권한 종류는 descriptor(toolKind)를 먼저 믿는다 — 하드코딩 맵에 없어도 새 도구가 새지 않게.
+    const tool = selfState.connectedTools.find((t) => t.id === id);
+    let kind = tool?.toolKind ?? TOOL_KIND[id] ?? 'read';
+    // 감사 보정(보안): descriptor가 needsApproval=true면 등급이 낮게 나와도 승인 게이트로 올린다.
+    // "실행 가능"(availability)과 "실행해도 됨"(needsApproval) 두 축을 끝까지 살린다.
+    const preview = (k) => ({
+      impact: `${toolLabel(id)} 실행`,
+      scope: '이번 요청',
+      duration: '이번 한 번',
+      cancel: k === 'delete' ? '되돌릴 수 없음(실행 전 확인)' : '되돌릴 수 있음',
     });
+    let grant = grantFor({ label: id, kind, preview: preview(kind) });
+    if (tool?.needsApproval && !grant.approvalRequired) {
+      kind = 'send'; // 최소 A2로 승인 강제(하드코딩 우회 차단)
+      grant = grantFor({ label: id, kind, preview: preview(kind) });
+    }
     if (grant.approvalRequired) needsApproval.push(grant);
     else autoAllowed.push(id);
   }

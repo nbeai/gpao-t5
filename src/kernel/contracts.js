@@ -73,7 +73,7 @@
  */
 
 /**
- * @typedef {'none'|'failed'|'blocked'|'timeout'} FailureState
+ * @typedef {'none'|'failed'|'blocked'|'timeout'|'cancelled'} FailureState
  */
 
 /**
