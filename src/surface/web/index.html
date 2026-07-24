@@ -10,23 +10,21 @@
      흡수하고 T5 자기 토큰으로 재구성했다. 브랜드·토큰명·IA는 복제하지 않는다(UI/UX Seal §1.1). */
   :root {
     color-scheme: light dark;
-    /* 간격(4px 리듬) */
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px;
-    /* radius */
     --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
-    /* 타이포 스케일 */
     --fs-xs:11.5px; --fs-sm:13px; --fs-md:13.5px; --fs-base:15px; --lh:1.55;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
-    /* 모션(3단 + ease-out 기본) */
     --dur-fast:110ms; --dur-normal:190ms; --dur-slow:300ms;
     --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
-    /* 색 — 라이트(웜 페이퍼), 기본 */
+    /* 색 — 라이트(웜 페이퍼), 기본. 상태색·강조·정보 위계를 분리한다. */
     --bg:#f4efe6; --surface:#faf6ef; --panel:#efe9dd; --elevated:#fffdf9; --hover:#ece4d6;
     --line:#e4dccb; --line-strong:#d7ccb6;
-    --fg:#2b2823; --fg-strong:#1b1915; --muted:#8a8172; --faint:#b3aa98;
-    --accent:#7c6f5b; --accent-ink:#faf6ef; --accent-glow:rgba(124,111,91,0.16);
-    --me:#e7ecd8; --bot:#fffdf9;
-    --warn:#b0692a; --ok:#5a9e6f; --danger:#b0402b; --dot:#5a9e6f;
+    --fg:#2b2823; --fg-strong:#191712; --muted:#857c6d; --faint:#b3aa98;
+    --accent:#7c6f5b; --accent-ink:#faf6ef; --accent-glow:rgba(124,111,91,0.16); --accent-subtle:rgba(124,111,91,0.13);
+    --info:#3f6f7a; --info-subtle:rgba(63,111,122,0.12);
+    --me:#e5ebd6; --bot:#fffdf9;
+    --warn:#b0692a; --warn-subtle:rgba(176,105,42,0.13);
+    --ok:#4f9268; --danger:#a83a26; --danger-subtle:rgba(168,58,38,0.12); --dot:#4f9268;
     --sh-sm:0 1px 2px rgba(60,42,24,0.06); --sh-md:0 4px 14px rgba(60,42,24,0.08);
     --sh-lg:0 14px 34px rgba(60,42,24,0.11);
   }
@@ -35,34 +33,37 @@
     :root:not([data-theme="light"]) {
       --bg:#17140f; --surface:#1e1a14; --panel:#221d16; --elevated:#26211a; --hover:#2c261d;
       --line:#332c22; --line-strong:#3d3529;
-      --fg:#eae3d4; --fg-strong:#f5efe2; --muted:#9a9080; --faint:#6b6455;
-      --accent:#c9b48c; --accent-ink:#17140f; --accent-glow:rgba(201,180,140,0.20);
-      --me:#2b3320; --bot:#1e1a14;
-      --warn:#e0a458; --ok:#6fbf8f; --danger:#e08063; --dot:#6fbf8f;
-      --sh-sm:0 1px 2px rgba(0,0,0,0.4); --sh-md:0 4px 16px rgba(0,0,0,0.45);
-      --sh-lg:0 14px 34px rgba(0,0,0,0.55);
+      --fg:#eae3d4; --fg-strong:#f7f1e6; --muted:#9a9080; --faint:#6b6455;
+      --accent:#cbb68e; --accent-ink:#17140f; --accent-glow:rgba(203,182,142,0.22); --accent-subtle:rgba(203,182,142,0.15);
+      --info:#82b3c2; --info-subtle:rgba(130,179,194,0.15);
+      --me:#2c3421; --bot:#1e1a14;
+      --warn:#e0a458; --warn-subtle:rgba(224,164,88,0.16);
+      --ok:#74c391; --danger:#e58063; --danger-subtle:rgba(229,128,99,0.16); --dot:#74c391;
+      --sh-sm:0 1px 2px rgba(0,0,0,0.4); --sh-md:0 4px 16px rgba(0,0,0,0.45); --sh-lg:0 14px 34px rgba(0,0,0,0.55);
     }
   }
-  /* 사용자 토글이 media query 를 양방향으로 이긴다. */
   :root[data-theme="dark"] {
     --bg:#17140f; --surface:#1e1a14; --panel:#221d16; --elevated:#26211a; --hover:#2c261d;
     --line:#332c22; --line-strong:#3d3529;
-    --fg:#eae3d4; --fg-strong:#f5efe2; --muted:#9a9080; --faint:#6b6455;
-    --accent:#c9b48c; --accent-ink:#17140f; --accent-glow:rgba(201,180,140,0.20);
-    --me:#2b3320; --bot:#1e1a14;
-    --warn:#e0a458; --ok:#6fbf8f; --danger:#e08063; --dot:#6fbf8f;
+    --fg:#eae3d4; --fg-strong:#f7f1e6; --muted:#9a9080; --faint:#6b6455;
+    --accent:#cbb68e; --accent-ink:#17140f; --accent-glow:rgba(203,182,142,0.22); --accent-subtle:rgba(203,182,142,0.15);
+    --info:#82b3c2; --info-subtle:rgba(130,179,194,0.15);
+    --me:#2c3421; --bot:#1e1a14;
+    --warn:#e0a458; --warn-subtle:rgba(224,164,88,0.16);
+    --ok:#74c391; --danger:#e58063; --danger-subtle:rgba(229,128,99,0.16); --dot:#74c391;
     --sh-sm:0 1px 2px rgba(0,0,0,0.4); --sh-md:0 4px 16px rgba(0,0,0,0.45); --sh-lg:0 14px 34px rgba(0,0,0,0.55);
   }
   :root[data-theme="light"] {
     --bg:#f4efe6; --surface:#faf6ef; --panel:#efe9dd; --elevated:#fffdf9; --hover:#ece4d6;
     --line:#e4dccb; --line-strong:#d7ccb6;
-    --fg:#2b2823; --fg-strong:#1b1915; --muted:#8a8172; --faint:#b3aa98;
-    --accent:#7c6f5b; --accent-ink:#faf6ef; --accent-glow:rgba(124,111,91,0.16);
-    --me:#e7ecd8; --bot:#fffdf9;
-    --warn:#b0692a; --ok:#5a9e6f; --danger:#b0402b; --dot:#5a9e6f;
+    --fg:#2b2823; --fg-strong:#191712; --muted:#857c6d; --faint:#b3aa98;
+    --accent:#7c6f5b; --accent-ink:#faf6ef; --accent-glow:rgba(124,111,91,0.16); --accent-subtle:rgba(124,111,91,0.13);
+    --info:#3f6f7a; --info-subtle:rgba(63,111,122,0.12);
+    --me:#e5ebd6; --bot:#fffdf9;
+    --warn:#b0692a; --warn-subtle:rgba(176,105,42,0.13);
+    --ok:#4f9268; --danger:#a83a26; --danger-subtle:rgba(168,58,38,0.12); --dot:#4f9268;
     --sh-sm:0 1px 2px rgba(60,42,24,0.06); --sh-md:0 4px 14px rgba(60,42,24,0.08); --sh-lg:0 14px 34px rgba(60,42,24,0.11);
   }
-  /* 접근성: 모션 최소화 요청 시 모든 전환·애니메이션 억제(OpenClaw motion 규율 흡수). */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration:0.01ms !important; animation-duration:0.01ms !important; }
   }
@@ -70,8 +71,7 @@
   * { box-sizing:border-box; }
   html,body { height:100%; }
   body { margin:0; background:var(--bg); color:var(--fg);
-    font:var(--fs-base)/var(--lh) var(--font); display:flex; overflow:hidden;
-    -webkit-font-smoothing:antialiased; }
+    font:var(--fs-base)/var(--lh) var(--font); display:flex; overflow:hidden; -webkit-font-smoothing:antialiased; }
 
   /* ── 사이드바 ── */
   #side { width:252px; flex:none; background:var(--panel); border-right:1px solid var(--line);
@@ -94,16 +94,15 @@
   .seclabel { padding:var(--sp-3) var(--sp-4) var(--sp-1); font-size:var(--fs-xs); color:var(--faint);
     letter-spacing:.04em; text-transform:uppercase; }
   .sessions { flex:1; overflow-y:auto; padding:0 var(--sp-2); }
-  .sess { display:flex; align-items:center; padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
+  .sess { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
     cursor:pointer; font-size:var(--fs-md); transition:background var(--dur-fast) var(--ease-out); }
   .sess:hover { background:var(--hover); }
   .sess.active { background:var(--elevated); box-shadow:var(--sh-sm); }
   .sess .t { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
-  .sess .age { color:var(--faint); font-size:var(--fs-xs); }
+  .sess .age { color:var(--faint); font-size:var(--fs-xs); flex:none; }
   .sidefoot { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
     border-top:1px solid var(--line); color:var(--muted); }
-  .sidefoot .dot { width:8px; height:8px; border-radius:var(--r-full); background:var(--dot);
-    box-shadow:0 0 0 3px var(--accent-glow); }
+  .sidefoot .dot { width:8px; height:8px; border-radius:var(--r-full); background:var(--dot); box-shadow:0 0 0 3px var(--accent-glow); }
   .sidefoot .ic { cursor:pointer; font-size:15px; transition:color var(--dur-fast) var(--ease-out); }
   .sidefoot .ic:hover { color:var(--fg); }
   .sidefoot .spacer { flex:1; }
@@ -114,11 +113,14 @@
     border-bottom:1px solid var(--line); font-size:var(--fs-sm); color:var(--muted); }
   .crumb .sep { color:var(--faint); }
   .crumb .hb { display:none; margin-right:var(--sp-1); cursor:pointer; font-size:17px; }
-  #chip { margin-left:auto; font-size:var(--fs-xs); color:var(--muted); cursor:pointer;
-    border:1px solid var(--line-strong); border-radius:var(--r-full); padding:var(--sp-1) var(--sp-3);
-    background:var(--surface); transition:border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+  #chip { margin-left:auto; display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-xs);
+    color:var(--muted); cursor:pointer; border:1px solid var(--line-strong); border-radius:var(--r-full);
+    padding:var(--sp-1) var(--sp-3); background:var(--surface);
+    transition:border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+  #chip::before { content:''; width:6px; height:6px; border-radius:var(--r-full); background:var(--ok); flex:none; }
   #chip:hover { border-color:var(--accent); }
   #chip.warn { color:var(--warn); border-color:var(--warn); }
+  #chip.warn::before { background:var(--warn); }
   #state { display:none; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line);
     font-size:var(--fs-sm); color:var(--muted); white-space:pre-wrap; background:var(--panel); }
 
@@ -132,26 +134,28 @@
   .who.right { align-self:flex-end; }
   .bot { align-self:flex-start; background:var(--bot); border:1px solid var(--line);
     border-bottom-left-radius:var(--r-sm); box-shadow:var(--sh-sm); color:var(--fg); }
-  /* 접힌 고기능: 작업 기록 (T3 "작업 기록: 도구 N개") */
   .record { align-self:flex-start; }
   .record .head { display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-sm); color:var(--muted);
-    cursor:pointer; padding:var(--sp-1) var(--sp-1); border-radius:var(--r-sm);
-    transition:color var(--dur-fast) var(--ease-out); }
+    cursor:pointer; padding:var(--sp-1) var(--sp-1); border-radius:var(--r-sm); transition:color var(--dur-fast) var(--ease-out); }
   .record .head:hover { color:var(--fg); }
   .record .head .tw { transition:transform var(--dur-fast) var(--ease-out); display:inline-block; }
   .record .head.open .tw { transform:rotate(90deg); }
   .record .body { display:none; margin-top:var(--sp-2); padding:var(--sp-3) var(--sp-4); border:1px solid var(--line);
     border-radius:var(--r-md); background:var(--panel); font-size:var(--fs-sm); color:var(--muted); white-space:pre-wrap; }
   .card { align-self:flex-start; max-width:86%; border:1px solid var(--line-strong); border-radius:var(--r-lg);
-    padding:var(--sp-4) var(--sp-4); background:var(--elevated); box-shadow:var(--sh-md);
-    animation:rise var(--dur-normal) var(--ease-out); }
+    padding:var(--sp-4) var(--sp-4); background:var(--elevated); box-shadow:var(--sh-md); animation:rise var(--dur-normal) var(--ease-out); }
   .card h4 { margin:0 0 var(--sp-2); font-size:var(--fs-md); color:var(--fg-strong); }
-  .card .row { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0; line-height:1.5; }
+  .card .row { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0; line-height:1.6; }
+  .card .row .cancel { color:var(--faint); }
+  .card .row.hist { color:var(--faint); font-style:italic; }
+  /* 권한 등급 배지 — 상태색으로 위계 분리(A2 승인 vs A3 강한 승인). */
+  .badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:var(--r-full); }
+  .badge.a2 { background:var(--info-subtle); color:var(--info); }
+  .badge.a3 { background:var(--danger-subtle); color:var(--danger); }
   .card .btns { margin-top:var(--sp-3); display:flex; gap:var(--sp-2); }
   button.act { border:1px solid var(--line-strong); color:var(--fg); background:var(--surface);
     border-radius:var(--r-md); padding:var(--sp-2) var(--sp-4); cursor:pointer; font:inherit; font-size:var(--fs-sm);
-    transition:transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out); }
+    transition:transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
   button.act:active { transform:scale(0.97); }
   button.act.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   button.act.primary:hover { box-shadow:var(--sh-sm); }
@@ -184,14 +188,13 @@
       transition:transform var(--dur-normal) var(--ease-out); box-shadow:var(--sh-lg); }
     body.nav-open #side { transform:translateX(0); }
     .crumb .hb { display:inline; }
-    .composer { padding:var(--sp-2) var(--sp-3) var(--sp-4); }   /* 좁은 폭에서 좌우 여백 축소 */
+    .composer { padding:var(--sp-2) var(--sp-3) var(--sp-4); }
     #log { padding:var(--sp-5) var(--sp-3); }
-    .statusrow .hint { display:none; }        /* 아주 좁으면 힌트 문구 숨겨 잘림 방지 */
+    .statusrow .hint { display:none; }
   }
 </style>
 </head>
 <body>
-  <!-- ── 사이드바: 조용하게, 고기능은 접어서 숨기되 접근 가능 ── -->
   <aside id="side">
     <div class="brand">
       <span class="logo">T5</span><b>GPAO-T5</b>
@@ -206,9 +209,7 @@
     </div>
     <button class="newchat" id="newchat">＋ 새 대화</button>
     <div class="seclabel">세션</div>
-    <div class="sessions" id="sessions">
-      <div class="sess active"><span class="t">Work Chat</span><span class="age">지금</span></div>
-    </div>
+    <div class="sessions" id="sessions"></div>
     <div class="sidefoot">
       <span class="dot" title="연결됨"></span>
       <span class="spacer"></span>
@@ -217,7 +218,6 @@
     </div>
   </aside>
 
-  <!-- ── 본문 ── -->
   <main id="main">
     <div class="crumb">
       <span class="hb" id="hb">☰</span>
@@ -249,8 +249,11 @@ const statePanel = document.getElementById('state');
 const modelinfo = document.getElementById('modelinfo');
 const text = document.getElementById('text');
 const send = document.getElementById('send');
+const sessionsEl = document.getElementById('sessions');
+let currentSessionId = null;
 
-// 사이드바: 미구축 표면은 죽은 버튼이 아니라 정직한 "곧" 안내(헌법 §4.2).
+const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
 document.querySelectorAll('[data-soon]').forEach((n) => {
   n.addEventListener('click', () => sysline(`${n.dataset.soon} 화면은 다음 단계에서 준비됩니다. 지금은 채팅으로 이어가 주세요.`));
 });
@@ -261,13 +264,48 @@ document.getElementById('theme').onclick = () => {
   if (next) document.documentElement.setAttribute('data-theme', next);
   else document.documentElement.removeAttribute('data-theme');
 };
-document.getElementById('newchat').onclick = () => { wrap.innerHTML = ''; text.focus(); };
+document.getElementById('newchat').onclick = () => newSession();
 chip.onclick = () => { statePanel.style.display = statePanel.style.display === 'block' ? 'none' : 'block'; };
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
 function add(node) { wrap.appendChild(node); node.scrollIntoView({ block: 'end' }); return node; }
 function turnBox() { const t = el('turn'); add(t); return t; }
 function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); b.appendChild(el('msg bot', t)); }
+
+// ── 세션 ──
+function relAge(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return '지금'; if (m < 60) return `${m}분`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}시간`;
+  return `${Math.floor(h / 24)}일`;
+}
+async function loadSessions() {
+  const { sessions } = await (await fetch('/sessions')).json();
+  sessionsEl.innerHTML = '';
+  for (const s of sessions) {
+    const item = el('sess'); if (s.id === currentSessionId) item.classList.add('active');
+    const t = el('t', s.title || '새 대화'); const age = el('age', relAge(s.updatedAt));
+    item.appendChild(t); item.appendChild(age);
+    item.onclick = () => selectSession(s.id);
+    sessionsEl.appendChild(item);
+  }
+}
+async function newSession() {
+  const s = await (await fetch('/sessions', { method: 'POST' })).json();
+  currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
+  document.body.classList.remove('nav-open'); text.focus();
+}
+async function selectSession(id) {
+  currentSessionId = id;
+  const s = await (await fetch('/sessions/' + id)).json();
+  wrap.innerHTML = '';
+  for (const e of s.transcript || []) {
+    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
+    else if (e.role === 'assistant') { renderResult(e.result, true); }
+  }
+  await loadSessions();
+  document.body.classList.remove('nav-open');
+}
 
 function renderSelfState(s) {
   if (!s) return;
@@ -283,7 +321,6 @@ function renderSelfState(s) {
   ].filter(Boolean).join('\n');
 }
 
-// 접힌 고기능: 작업 기록(T3 "작업 기록: 도구 N개"). 대화 흐름 안에서 작게, 열면 근거.
 function renderRecord(box, ledger) {
   const n = (ledger?.confirmed.length || 0) + (ledger?.unconfirmed.length || 0) + (ledger?.estimated.length || 0);
   if (!n) return;
@@ -300,32 +337,37 @@ function renderRecord(box, ledger) {
 }
 
 async function turn(payload) {
-  const res = await fetch('/turn', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  const res = await fetch('/turn', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...payload, sessionId: currentSessionId }) });
   return res.json();
 }
 
-function renderResult(r) {
+function renderResult(r, historical) {
   renderSelfState(r.selfStateSummary);
   if (r.followUp) sysline(r.followUp.userNotice);
-
   if (r.kind === 'clarify') { sysline(r.question); return; }
+  if (r.kind === 'gated') { return; }   // 조용히 무시된 외부 이벤트 — 사용자 화면에 남기지 않음
 
   if (r.kind === 'approval') {
     const box = turnBox();
     const card = el('card');
     card.appendChild(el('h4', '실행 전 승인이 필요해요'));
-    for (const p of r.pending)
-      card.appendChild(el('row', `· ${p.label ?? p.action} [${p.tier}] — ${p.preview?.impact ?? ''} (${p.preview?.cancel ?? ''})`));
+    for (const p of r.pending) {
+      const row = el('row');
+      const cls = p.tier === 'A3' ? 'a3' : 'a2';
+      row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span> — ${esc(p.preview?.impact ?? '')} <span class="cancel">(${esc(p.preview?.cancel ?? '')})</span>`;
+      card.appendChild(row);
+    }
+    if (historical) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
     const btns = el('btns');
     const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
     const no = document.createElement('button'); no.className = 'act no'; no.textContent = '보내지 마';
-    yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); };
-    no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); };
+    yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); await loadSessions(); };
+    no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); await loadSessions(); };
     btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
     box.appendChild(card); return;
   }
 
-  // reply
   const box = turnBox();
   box.appendChild(el('who', 'GPAO-T5'));
   const bot = el('msg bot', r.reply);
@@ -336,14 +378,24 @@ function renderResult(r) {
 
 async function submit() {
   const t = text.value.trim(); if (!t) return;
+  if (!currentSessionId) await newSession();
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
-  try { renderResult(await turn({ text: t })); }
+  try { renderResult(await turn({ text: t })); await loadSessions(); }
   catch { sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.'); }
 }
 send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
 text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
+
+// 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다.
+(async () => {
+  try {
+    const { sessions } = await (await fetch('/sessions')).json();
+    if (sessions.length) await selectSession(sessions[0].id);
+    else await newSession();
+  } catch { await newSession(); }
+})();
 </script>
 </body>
 </html>
