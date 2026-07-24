@@ -100,19 +100,24 @@
   .inbox { display:flex; align-items:flex-end; gap:8px; border:1px solid var(--line); border-radius:16px;
     padding:8px 10px 8px 14px; background:var(--bot); }
   .inbox .plus { color:var(--muted); font-size:18px; padding-bottom:2px; }
-  #text { flex:1; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
+  /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
+     보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
+  #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
     font:inherit; max-height:160px; padding:4px 0; }
-  #send { border:none; background:var(--accent); color:var(--panel); border-radius:11px;
-    padding:7px 14px; cursor:pointer; font:inherit; }
+  #send { flex:none; border:none; background:var(--accent); color:var(--panel); border-radius:11px;
+    padding:7px 14px; cursor:pointer; font:inherit; white-space:nowrap; }
   .statusrow { max-width:760px; margin:6px auto 0; display:flex; align-items:center; gap:10px;
     font-size:11.5px; color:var(--faint); padding:0 4px; }
-  .statusrow .spacer { flex:1; }
+  .statusrow .spacer { flex:1; min-width:8px; }
 
   @media (max-width:720px) {
     #side { position:fixed; z-index:20; transform:translateX(-100%); transition:transform .2s;
       box-shadow:0 0 40px rgba(0,0,0,.2); }
     body.nav-open #side { transform:translateX(0); }
     .crumb .hb { display:inline; }
+    .composer { padding:10px 12px 14px; }   /* 좁은 폭에서 좌우 여백 축소 */
+    #log { padding:20px 14px; }
+    .statusrow .hint { display:none; }        /* 아주 좁으면 힌트 문구 숨겨 잘림 방지 */
   }
 </style>
 </head>
@@ -162,7 +167,7 @@
         <div class="statusrow">
           <span id="modelinfo">beai5-stub · 준비됨</span>
           <span class="spacer"></span>
-          <span>말하면 일이 이어집니다</span>
+          <span class="hint">말하면 일이 이어집니다</span>
         </div>
       </div>
     </div>
