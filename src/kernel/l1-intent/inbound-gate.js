@@ -15,9 +15,32 @@ const TRIGGERS = new Set(['mention', 'allowlisted', 'direct_message', 'dedup_new
 /**
  * @typedef {Object} InboundEvent
  * @property {'user_chat'|'external_channel'|'automation_trigger'|'trusted_runtime_event'} source
+ * @property {string} [text]               이벤트 발화(채널 정규화 시)
  * @property {string[]} [triggerSignals]  결정적 신호(mention/allowlisted/direct_message/dedup_new)
  * @property {boolean} [keepAsContext]     트리거 없을 때 맥락 backfill을 허용할지
+ * @property {{channel?:string, chatId?:string, userId?:string}} [channelMeta]  채널 출처(정규화 시)
  */
+
+/**
+ * 채널 메시지를 단일 InboundEvent로 정규화한다(P6-2 Slice-3). 채널이 달라도 같은 이벤트 형태로
+ * InboundEventGate·turn을 탄다(Hermes MessageEvent 정규화 흡수). 채널별 로직을 커널에 두지 않는다.
+ * mention/allowlist/DM 신호만 결정적으로 뽑는다 — 모델 판단 아님.
+ * @param {{channel:string, chatId?:string, userId?:string, text:string,
+ *   isMention?:boolean, isAllowlistedUser?:boolean, isDirectMessage?:boolean}} msg
+ * @returns {InboundEvent}
+ */
+export function normalizeInboundEvent(msg = {}) {
+  const triggerSignals = [];
+  if (msg.isMention) triggerSignals.push('mention');
+  if (msg.isAllowlistedUser) triggerSignals.push('allowlisted');
+  if (msg.isDirectMessage) triggerSignals.push('direct_message');
+  return {
+    source: 'external_channel',
+    text: msg.text,
+    triggerSignals,
+    channelMeta: { channel: msg.channel, chatId: msg.chatId, userId: msg.userId },
+  };
+}
 
 /**
  * @param {InboundEvent} event

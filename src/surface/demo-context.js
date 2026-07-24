@@ -3,6 +3,15 @@
 import { ToolRunner } from '../runtime/tool-runner.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
+import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
+
+// P6-2 Slice-3: 채널 커넥터를 ConnectorProfile로 선언(멀티채널). 실제 adapter는 P6 후속.
+export function demoConnectors() {
+  return [
+    defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true }),
+    defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false }),
+  ];
+}
 
 // P6-2: 도구를 ToolDescriptor로 정의한다(소유≠실행, availability 신호, auth≠approval).
 // web.collect는 WebToolDescriptor로 확장(입력스키마·출처계약·세션·스크래핑 정책).

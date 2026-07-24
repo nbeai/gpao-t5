@@ -172,6 +172,55 @@ test('운영원리는 replay 게이트를 통과해야 승격된다', async () =
   });
 });
 
+// P6-2 Slice-3: 채널 인바운드는 같은 커널을 타되 자동 신뢰가 아니다 — mention-gating 통과해야 응답.
+test('채널 인바운드: mention 없으면 gated, 있으면 응답(같은 흐름·자동신뢰 아님)', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r1 = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'telegram', text: '그룹 잡담' })).json();
+    assert.equal(r1.kind, 'gated', '트리거 없는 외부 메시지는 응답 안 함');
+    const r2 = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'telegram', text: '이거 봐줘', isMention: true })).json();
+    assert.notEqual(r2.kind, 'gated', 'mention 있으면 같은 커널로 응답');
+    // gated는 대화에 안 남고(조용), 응답만 남는다.
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.ok(reloaded.transcript.some((e) => e.text === '이거 봐줘'));
+    assert.ok(!reloaded.transcript.some((e) => e.text === '그룹 잡담'), 'gated 이벤트는 미기록');
+  });
+});
+
+// 감사 보정 1: 등록 안 된 채널은 mention이 있어도 커널로 안 넘긴다(blocked, 미기록).
+test('unknown 채널은 mention 있어도 응답·기록 안 함', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'unknown', text: '이거 봐줘', isMention: true })).json();
+    assert.equal(r.kind, 'blocked');
+    assert.equal(r.reason, 'unknown_channel');
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.equal(reloaded.transcript.length, 0, 'unknown 채널은 transcript 미기록');
+  });
+});
+
+// 감사 보정 2: 연결 끊긴 커넥터는 inbound를 열지 않는다(slack.channel=disconnected).
+test('disconnected 채널은 mention 있어도 응답·기록 안 함', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'slack.channel', text: '이거 봐줘', isMention: true })).json();
+    assert.equal(r.kind, 'blocked');
+    assert.equal(r.reason, 'channel_not_ready');
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.equal(reloaded.transcript.length, 0, 'disconnected 채널은 transcript 미기록');
+  });
+});
+
+test('GET /connectors: auth(자격)와 approval(전송)을 두 축으로 — 전송은 항상 승인', async () => {
+  await withServer(async (base) => {
+    const { connectors } = await getj(base, '/connectors');
+    assert.ok(connectors.length >= 1);
+    assert.ok(connectors.every((c) => c.sendNeedsApproval === true), '연결돼도 전송은 승인');
+    assert.ok(connectors.some((c) => c.readiness === 'ok'));
+    assert.ok(connectors.some((c) => c.readiness === 'disconnected'));
+  });
+});
+
 test('존재하지 않는 세션의 turn은 404', async () => {
   await withServer(async (base) => {
     const res = await post(base, '/turn', { sessionId: '00000000-0000-0000-0000-000000000000', text: '안녕' });
