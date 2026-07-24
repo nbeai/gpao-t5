@@ -1,9 +1,9 @@
-# GPAO-T5 Product Constitution (초안)
+# GPAO-T5 Product Constitution
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `Codex 감사 통과 · Phase 1 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
-- Auditor: Codex (정본성·철학·금지선·Phase 2 연결성 감사)
+- Auditor: Codex (정본성·철학·금지선·Phase 2 연결성 감사 완료)
 - Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 1 Product Constitution
 - 근거: 계획서 §0·§5·§6.2·§8 / 절대원칙 / Phase 0 봉인 인벤토리 + 감사(`REFERENCE-INVENTORY-AUDIT`)
 - 위상: 이 문서는 T5가 "무엇이고 무엇이 아닌지"를 정하는 헌법이다. 세부 PRD·kernel spec·UI spec 보다
@@ -70,6 +70,21 @@ T5의 모든 영역에 적용되는 헌법적 규칙이다.
 6. external send / delete / payment / public post / 권한 상승 / 장기기억 승격은 "사용자가 원했다"만
    으로 실행하지 않는다. authority gate 를 통과한다.
 7. 사용자 목적 달성이 최상위 목표지만, 자기파악·권한·증거·복구 경계를 통과할 때만 OS 능력이 된다.
+
+### 3.1 Reference-First Absorption
+
+T5는 바닥에서 미련하게 다시 만들지 않는다. Phase 0 인벤토리로 봉인한 T3, lab_un/OpenClaw,
+native-runtime, Codex, Claude Code, ChatGPT, OpenHands, BEAI5의 기능·성능·로직·알고리즘·디자인·
+구조를 해부해 흡수한다.
+
+단, 흡수는 복제가 아니다.
+
+- T3의 검증된 사용자 흐름은 가져오되, 임시 설계와 live 회귀는 버린다.
+- OpenClaw/lab_un은 기능군과 runtime/tool/adapter 원리만 흡수하고, identity·runtime path·
+  config schema·사용자 표면은 T5 정본으로 삼지 않는다.
+- Codex, Claude Code, ChatGPT의 고유 화면·브랜드·비공개 구현은 복제하지 않는다.
+- OpenHands는 실소스·실행 검증 전에는 구현 근거로 쓰지 않는다.
+- 모든 흡수 후보는 T5의 자기파악, BEAI5, 권한, 원장, 복구 계약으로 다시 태어나야 한다.
 
 ---
 
@@ -191,5 +206,4 @@ Phase 0 감사가 Phase 1~2 결정으로 넘긴 5건을 헌법 수준에서 확�
 
 ---
 
-*이 초안은 `초안 작성 완료 · 감사 전` 상태다. Codex 가 정본성·철학·금지선·Phase 2 연결성을 감사해
-`통과`로 닫아야 Phase 1 봉인이다. 그 전에는 좁은 상태 언어만 쓴다.*
+*Codex 감사 결과 이 헌법은 Phase 1 Product Constitution 으로 봉인한다. 다음 단계는 Phase 2 Kernel Contract 다.*
