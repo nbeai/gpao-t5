@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # 의존성 0 — 설치 단계 없음. 전체 계약·시나리오 테스트를 실행한다(환경헌장: CI는 전체).
+      - name: Run tests
+        run: node --test
+      # 산출물이 저장소에 섞여 커밋되지 않았는지 확인(빌드 아티팩트는 out-of-tree).
+      - name: Guard committed build artifacts
+        run: |
+          if git ls-files | grep -E '(^|/)(dist|build|out|node_modules)/'; then
+            echo "committed build artifacts found" >&2; exit 1
+          fi

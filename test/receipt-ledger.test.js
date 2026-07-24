@@ -32,6 +32,31 @@ test('diagnosticTrace 의 스택·오류코드가 userSafeSummary 로 새지 않
   assert.equal(leaksDiagnostics(leaky), true);
 });
 
+// Phase 5.1(§7): lifecycle은 실행/전달만. 승인 상태는 여기 없다.
+test('lifecycle 파생: 성공=delivered, 실패=failed, 미호출=none', () => {
+  const ok = receipt({ intended: 'x', actualCall: { tool: 't' }, result: {}, userSafeSummary: 'ok' });
+  assert.equal(ok.lifecycle, 'delivered');
+  const fail = receipt({ intended: 'x', actualCall: { tool: 't' }, failureState: 'failed', userSafeSummary: 'no' });
+  assert.equal(fail.lifecycle, 'failed');
+  const blocked = blockedReceipt('x', 't', '아직');
+  assert.equal(blocked.lifecycle, 'none', '호출 안 한 것은 none');
+  // 명시 override 가능(허용 enum 내에서)
+  const explicit = receipt({ intended: 'x', actualCall: { tool: 't' }, result: {}, userSafeSummary: 'ok', lifecycle: 'abandoned' });
+  assert.equal(explicit.lifecycle, 'abandoned');
+});
+
+// 감사 보정: 승인 상태(approved/held)나 임의 값이 lifecycle로 원장에 새면 안 된다.
+test('lifecycle은 실행/전달 enum만 허용 — 승인 상태·임의 값은 거부', () => {
+  const base = { intended: 'x', actualCall: { tool: 't' }, result: {}, userSafeSummary: 'ok' };
+  assert.throws(() => receipt({ ...base, lifecycle: 'approved' }), /lifecycle/, 'approved 거부');
+  assert.throws(() => receipt({ ...base, lifecycle: 'held' }), /lifecycle/, 'held 거부');
+  assert.throws(() => receipt({ ...base, lifecycle: 'anything' }), /lifecycle/, '임의 값 거부');
+  // 허용값은 통과
+  for (const ok of ['none', 'attempting', 'delivered', 'failed', 'abandoned']) {
+    assert.doesNotThrow(() => receipt({ ...base, lifecycle: ok }));
+  }
+});
+
 test('receipt 는 intended·userSafeSummary 필수', () => {
   assert.throws(() => receipt({ userSafeSummary: 'x' }));
   assert.throws(() => receipt({ intended: 'x' }));

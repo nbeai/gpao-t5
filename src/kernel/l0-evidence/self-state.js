@@ -44,6 +44,21 @@ function nextActionForAuth(state) {
 }
 
 /**
+ * 연결 항목의 실행 가능성을 세분화한다(Phase 5.1, §6 개정). 단일 executable 불리언 대신
+ * "왜 못 쓰는지"를 담는다. P5는 도달값(usable/needs_connection/blocked)만 실제로 산출하고,
+ * needs_auth/needs_config는 env가 명시할 때만(정의-하되-대부분-미도달).
+ * @param {{connected?:boolean, executable?:boolean, needs?:string}} t
+ * @returns {'usable'|'needs_auth'|'needs_config'|'needs_connection'|'blocked'}
+ */
+function deriveToolStatus(t) {
+  if (!t.connected) return 'needs_connection';
+  if (t.executable) return 'usable';
+  if (t.needs === 'auth') return 'needs_auth';
+  if (t.needs === 'config') return 'needs_config';
+  return 'blocked'; // 연결됐으나 실행 불가(사유 미상)
+}
+
+/**
  * @param {Object} env
  * @param {{id:string, strengths?:string, limits?:string, authSignal?:string}} env.model
  * @param {import('../contracts.js').ConnectedTool[]} [env.connections]
@@ -53,12 +68,16 @@ function nextActionForAuth(state) {
 export function buildSelfState(env) {
   const model = env.model ?? { id: 'unknown' };
   const modelAuthState = classifyModelAuth(model.authSignal);
-  const connectedTools = (env.connections ?? []).map((t) => ({
-    id: t.id,
-    connected: Boolean(t.connected),
-    executable: Boolean(t.executable),
-    note: t.note,
-  }));
+  const connectedTools = (env.connections ?? []).map((t) => {
+    const status = deriveToolStatus(t);
+    return {
+      id: t.id,
+      connected: Boolean(t.connected),
+      status, // Phase 5.1: usable|needs_auth|needs_config|needs_connection|blocked
+      executable: status === 'usable', // 하위호환 파생(§6)
+      note: t.note,
+    };
+  });
 
   const limits = [];
   if (modelAuthState !== AUTH_STATE.USABLE) {

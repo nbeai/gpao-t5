@@ -61,6 +61,11 @@ npm test     # node --test — 계약 불변식 + 시나리오 재생 테스트
 npm start    # http://localhost:4173 — Work Chat (데모 환경)
 ```
 
+Enforcement gates (Phase 5, 환경헌장): enable the fast pre-commit guard with
+`git config core.hooksPath .githooks` (grep-only: blocks staged build artifacts/secrets, milliseconds).
+CI (`.github/workflows/ci.yml`) runs the full `node --test` on push/PR. Full visual (mobile widths,
+approval card) is reproducible via `design/evidence/capture.mjs` (Chrome headless).
+
 Source layout maps to the sealed L0–L5 architecture (plan §6.2):
 
 ```text

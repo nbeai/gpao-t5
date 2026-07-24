@@ -15,3 +15,12 @@ test('충돌하면 interrupt 하고 현재 작업 저장을 알린다', () => {
   assert.equal(e.decision, 'interrupt');
   assert.match(e.userNotice, /저장/);
 });
+
+// Phase 5.1(§8.1): candidateKind 계약 자리 — 기본 none, 명시하면 반영.
+test('candidateKind 기본 none, 호출자가 명시하면 반영', () => {
+  assert.equal(decideFollowUp({ runningTask: 't', incomingInput: 'i' }).candidateKind, 'none');
+  assert.equal(
+    decideFollowUp({ runningTask: 't', incomingInput: 'i', candidateKind: 'automation' }).candidateKind,
+    'automation',
+  );
+});

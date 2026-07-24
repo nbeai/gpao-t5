@@ -1,7 +1,21 @@
 // L0 · ToolReceipt (Tool Execution Truth Ledger 계약, §7)
 // 못 쓴 도구를 쓴 척하지 않는다. 사용자면(userSafeSummary)과 진단면(diagnosticTrace)을 분리한다.
 // T3 회귀 방지: 정화가 진단면까지 덮거나, 진단이 사용자면으로 새는 두 방향 모두 막는다.
-import { FAILURE } from '../contracts.js';
+import { FAILURE, LIFECYCLE } from '../contracts.js';
+
+/**
+ * 실행·전달 수명주기 파생(Phase 5.1, §7). none|attempting|delivered|failed|abandoned.
+ * 실행/전달만 — 승인(held/approved)은 AuthorityGrant 소관.
+ * @param {object|null} actualCall
+ * @param {import('../contracts.js').FailureState} failureState
+ * @param {*} result
+ */
+function deriveLifecycle(actualCall, failureState, result) {
+  if (!actualCall) return 'none'; // 호출 안 함(예: 실행 불가로 차단)
+  if (failureState === FAILURE.NONE && result !== undefined) return 'delivered';
+  if (failureState !== FAILURE.NONE) return 'failed';
+  return 'attempting';
+}
 
 /**
  * @param {Object} r
@@ -17,11 +31,21 @@ import { FAILURE } from '../contracts.js';
 export function receipt(r) {
   if (!r || typeof r.intended !== 'string') throw new TypeError('receipt: intended 필수');
   if (typeof r.userSafeSummary !== 'string') throw new TypeError('receipt: userSafeSummary 필수');
+  const failureState = r.failureState ?? FAILURE.NONE;
+  const actualCall = r.actualCall ?? null;
+  // Phase 5.1(§7): lifecycle은 실행·전달 enum만 허용. 승인 상태(approved/held 등)가 원장에 새는 것을
+  // 계약 차원에서 막는다(감사 보정). 잘못된 값은 조용히 통과시키지 않고 실패로 본다.
+  const lifecycle = r.lifecycle ?? deriveLifecycle(actualCall, failureState, r.result);
+  if (!LIFECYCLE.includes(lifecycle)) {
+    throw new TypeError(`receipt: lifecycle 은 ${LIFECYCLE.join('/')} 만 허용(받음: ${lifecycle}). 승인 상태는 AuthorityGrant 소관`);
+  }
   return {
     intended: r.intended,
-    actualCall: r.actualCall ?? null,
+    actualCall,
     result: r.result,
-    failureState: r.failureState ?? FAILURE.NONE,
+    failureState,
+    // 실행·전달 수명주기. 승인 상태는 여기 아니라 AuthorityGrant에 있다.
+    lifecycle,
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,

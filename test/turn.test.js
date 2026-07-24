@@ -148,6 +148,24 @@ test('S15 실행 불가 도구는 막힘 + 다음 안전 행동으로 안내', a
   assert.doesNotMatch(userText, /mail\.send|web\.collect|slack\.post/, '내부 도구 id 비노출');
 });
 
+// Phase 5.1(§1.5): Relevance Gate가 turn에 배선됨.
+test('user_chat(기본 발화)은 게이트 우회 — 기존 동작 불변', async () => {
+  const r = await runTurn({ text: '안녕' }, ctx());
+  assert.equal(r.kind, 'reply'); // gated 아님
+});
+
+test('외부 이벤트 + 트리거 없음 → 턴 안 열림(gated), 사용자 답 없음', async () => {
+  const r = await runTurn({ text: '광고 스팸', source: 'external_channel', triggerSignals: [] }, ctx());
+  assert.equal(r.kind, 'gated');
+  assert.equal(r.disposition, 'ignore');
+  assert.equal(r.reply, undefined, '무시된 이벤트엔 사용자 답이 없다');
+});
+
+test('외부 이벤트 + mention → 정상 턴', async () => {
+  const r = await runTurn({ text: '이것 좀 봐줘', source: 'external_channel', triggerSignals: ['mention'] }, ctx());
+  assert.notEqual(r.kind, 'gated');
+});
+
 // S28: billing_blocked 는 SelfState 에 결제 문구로 반영(재시도 아님).
 test('S28 billing_blocked 는 결제 확인 안내(재시도 문구 아님)', async () => {
   const r = await runTurn({ text: '안녕' }, ctx({ authSignal: 'insufficient_quota' }));
