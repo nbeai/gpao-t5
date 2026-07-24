@@ -20,13 +20,20 @@ export function webSourcePolicy() {
  * @param {Object} d
  */
 export function defineWebTool(d = {}) {
+  const sessionMode = d.sessionMode ?? 'anonymous';
+  // auth ≠ approval을 세션모드로 계약화(감사 보정):
+  //  - anonymous     : 공개 읽기. [connected], 승인 불요.
+  //  - authenticated : 저장된 자격으로 접속. [connected, auth](availability 축), 승인 불요.
+  //  - user_approved : 사용자 승인 세션. 공개 읽기와 다르다 → needsApproval:true(approval 축).
+  const availability = d.availability
+    ?? (sessionMode === 'authenticated' ? [{ kind: 'connected' }, { kind: 'auth' }] : [{ kind: 'connected' }]);
   const base = defineTool({
     id: d.id ?? 'web.collect',
     label: d.label ?? '웹 자료 수집',
     owner: 'core',
-    availability: d.availability ?? [{ kind: 'connected' }],
+    availability,
     toolKind: 'read', // 읽기 전용 — send/write 아님
-    needsApproval: false, // 공개 읽기는 A0. user_approved 세션은 별도 승인(auth≠approval)
+    needsApproval: sessionMode === 'user_approved', // 사용자 승인 세션만 승인 경계
   });
   return {
     ...base,
@@ -35,7 +42,7 @@ export function defineWebTool(d = {}) {
       allowedDomains: 'string[]?', maxPages: 'number?',
     },
     sourcePolicy: webSourcePolicy(),
-    sessionMode: d.sessionMode ?? 'anonymous',
+    sessionMode,
   };
 }
 
@@ -53,9 +60,18 @@ export function validateWebInput(input = {}) {
   const maxPages = Math.min(Number(input.maxPages ?? 1) || 1, MAX_PAGES_CAP); // 대량수집 금지
   const depth = Math.min(Number(input.depth ?? 0) || 0, MAX_DEPTH_CAP);
   const allowedDomains = Array.isArray(input.allowedDomains) ? input.allowedDomains : undefined;
-  // url이 allowedDomains 밖이면 거부(경계).
-  if (input.url && allowedDomains && !allowedDomains.some((dom) => String(input.url).includes(dom))) {
-    return { ok: false, reason: 'allowedDomains 밖 url' };
+  // url은 hostname 기준으로 검증한다 — 문자열 includes는 ?next=a.com 같은 우회에 뚫린다(감사 보정).
+  if (input.url) {
+    let host;
+    try { host = new URL(input.url).hostname.toLowerCase(); } catch { return { ok: false, reason: 'invalid url' }; }
+    if (allowedDomains) {
+      // exact host 또는 subdomain(*.dom)만 허용.
+      const allowed = allowedDomains.some((dom) => {
+        const d = String(dom).toLowerCase();
+        return host === d || host.endsWith('.' + d);
+      });
+      if (!allowed) return { ok: false, reason: 'allowedDomains 밖 host' };
+    }
   }
   return { ok: true, normalized: { url: input.url, searchQuery: input.searchQuery, depth, maxPages, allowedDomains } };
 }
@@ -74,12 +90,14 @@ function djb2(s) {
  */
 export function makeSourceEvidence(p) {
   if (!p || typeof p.sourceUrl !== 'string' || !p.sourceUrl) throw new TypeError('sourceEvidence: sourceUrl 필수');
+  // confidence는 0~1로 clamp(범위 밖 값 방지, 감사 선택 보정).
+  const c = typeof p.confidence === 'number' ? p.confidence : 0.5;
   return {
     sourceUrl: p.sourceUrl,
     fetchedAt: p.now ?? Date.now(),
     title: p.title ?? '',
     excerptHash: djb2(String(p.excerpt ?? '')),
-    confidence: typeof p.confidence === 'number' ? p.confidence : 0.5,
+    confidence: Math.max(0, Math.min(1, c)),
   };
 }
 
@@ -90,9 +108,18 @@ export function makeSourceEvidence(p) {
  * @returns {{result?:*, sources:object[], userSafeSummary?:string}|{blocked:boolean}}
  */
 export function assertWebEvidence(out) {
-  if (out?.blocked || (out?.fetchState && out.fetchState !== 'ok')) return out; // 실패/차단은 내용 없음 — 통과
   const hasContent = out?.result !== undefined;
   const hasSources = Array.isArray(out?.sources) && out.sources.length > 0;
+  const isFailure = out?.blocked === true || (out?.fetchState && out.fetchState !== 'ok');
+  if (isFailure) {
+    // 실패/차단/로그인벽/robots/봇벽/타임아웃은 내용·출처를 함께 담을 수 없다(성공처럼 섞이면 안 됨).
+    // userSafeSummary·nextSafeAction만 허용(감사 보정 2).
+    if (hasContent || hasSources) {
+      throw new Error('web contract 위반: 실패/차단 상태는 result·sources를 담을 수 없다');
+    }
+    return out;
+  }
+  // 성공: 내용이 있으면 출처가 반드시 있어야 한다("검색했다/봤다"를 출처 없이 말 못 함).
   if (hasContent && !hasSources) {
     throw new Error('web contract 위반: 출처(sources) 없이 성공 결과를 반환할 수 없다');
   }

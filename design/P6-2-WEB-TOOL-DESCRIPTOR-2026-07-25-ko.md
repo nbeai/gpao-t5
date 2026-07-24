@@ -45,6 +45,21 @@
 - WebToolDescriptor를 §6.5 ToolDescriptor의 확장으로 명시(inputSchema·sourcePolicy·sessionMode).
 - **감사 통과 후** 봉인 Kernel Contract에 반영(지금 미수정).
 
+## 4.5 감사 보정 (조건부 반려 → 반영)
+
+1. **출처 강제를 런타임으로**: ToolRunner가 `sourceLedgerRequired` 도구의 성공에 assertWebEvidence를
+   호출한다. 출처 없는 성공은 handler가 뭐라 반환하든 **failed receipt**로 떨어진다(handler 관례 아님).
+   반대 테스트: 나쁜 handler가 출처 없이 성공 반환 시 delivered 아님(확증).
+2. **실패 상태에 내용 금지**: assertWebEvidence가 fetchState≠ok/blocked에 result·sources가 있으면 거부.
+   실패는 userSafeSummary·nextSafeAction만.
+3. **allowedDomains hostname 검증**: `new URL().hostname` 기준(exact 또는 *.dom). `?next=a.com` 우회
+   차단, invalid URL 거부. 반대 테스트.
+4. **user_approved 승인 경계**: 세션모드로 auth≠approval 계약화 — user_approved→needsApproval:true
+   (승인 축), authenticated→availability auth(자격 축), anonymous→A0. 문서·테스트로 분리.
+5. (선택) confidence 0~1 clamp.
+
+검증: **98개 테스트 통과**(+반대 4 + clamp 1). 런타임 강제 반대 테스트 확증.
+
 ## 5. P6 다음
 
 실제 브라우저 연동(Playwright 참고), authenticated/user_approved 세션 승인 흐름, 검색 provider,

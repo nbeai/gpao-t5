@@ -2,7 +2,7 @@
 // 여기서는 커널 흐름을 사람이 실제로 겪어 보게 하는 최소 실행 맥락만 만든다.
 import { ToolRunner } from '../runtime/tool-runner.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
-import { defineWebTool, makeSourceEvidence, assertWebEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
+import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 
 // P6-2: 도구를 ToolDescriptor로 정의한다(소유≠실행, availability 신호, auth≠approval).
 // web.collect는 WebToolDescriptor로 확장(입력스키마·출처계약·세션·스크래핑 정책).
@@ -33,6 +33,8 @@ export function demoEnv() {
 export function demoTools() {
   return new ToolRunner({
     'web.collect': {
+      // 출처 원장 필수 — ToolRunner가 assertWebEvidence를 강제한다(handler 관례에 안 맡김).
+      sourceLedgerRequired: true,
       async handler(args) {
         const q = String(args?.request ?? '');
         // 로그인벽/차단/봇벽을 성공과 분리(정직한 상태). 실패는 내용·출처 없음.
@@ -44,9 +46,9 @@ export function demoTools() {
                 : '그 사이트가 접근을 막고 있어요.';
           return { blocked: true, fetchState, userSafeSummary: msg };
         }
-        // 성공: 반드시 출처 근거(SourceEvidence)를 만든다. assertWebEvidence가 출처 없는 성공을 막는다.
+        // 성공: 반드시 출처 근거(SourceEvidence)를 만든다. 런타임 assertWebEvidence가 출처 없는 성공을 막는다.
         const sources = [makeSourceEvidence({ sourceUrl: 'https://example.com/public', title: '공개 자료', excerpt: q, confidence: 0.6 })];
-        return assertWebEvidence({ result: { note: '공개 자료 기준 요약' }, sources, userSafeSummary: '공개 자료로 확인했어요.' });
+        return { result: { note: '공개 자료 기준 요약' }, sources, userSafeSummary: '공개 자료로 확인했어요.' };
       },
     },
     'local.file': {

@@ -49,6 +49,48 @@ test('classifyWebFetch: 로그인벽/봇벽/robots/차단/타임아웃 분리', 
   assert.equal(classifyWebFetch({ status: '정상 본문' }), 'ok');
 });
 
+// 감사 보정 1(반대 테스트): 출처 강제는 handler가 아니라 ToolRunner가 한다.
+// 나쁜 handler가 출처 없이 성공을 반환해도 delivered가 아니라 failed로 떨어진다.
+test('sourceLedgerRequired 도구가 출처 없이 성공 반환하면 failed로 떨어진다', async () => {
+  const selfState = buildSelfState({ model: { id: 'm' }, connections: [{ id: 'bad.web', connected: true, status: 'usable' }] });
+  const runner = new ToolRunner({
+    'bad.web': { sourceLedgerRequired: true, async handler() { return { result: { x: 1 }, userSafeSummary: '웹에서 확인했어요.' }; } },
+  });
+  const r = await runner.run('bad.web', {}, selfState);
+  assert.equal(r.failureState, 'failed', '출처 없는 성공은 delivered 아님');
+  assert.notEqual(r.lifecycle, 'delivered');
+});
+
+// 감사 보정 2(반대 테스트): 실패 상태에 내용/출처가 섞이면 거부.
+test('assertWebEvidence: 실패 상태에 result/sources가 섞이면 거부', () => {
+  assert.throws(() => assertWebEvidence({ fetchState: 'blocked', result: { x: 1 } }), /위반/);
+  assert.throws(() => assertWebEvidence({ blocked: true, sources: [{ sourceUrl: 'x' }] }), /위반/);
+  assert.doesNotThrow(() => assertWebEvidence({ fetchState: 'blocked', userSafeSummary: '막힘', nextSafeAction: '대안' }));
+});
+
+// 감사 보정 3(반대 테스트): allowedDomains는 hostname 기준(우회 차단, invalid 거부).
+test('validateWebInput: hostname 기준 — ?next 우회 차단, subdomain 허용, invalid 거부', () => {
+  assert.equal(validateWebInput({ url: 'https://evil.com/?next=a.com', allowedDomains: ['a.com'] }).ok, false);
+  assert.equal(validateWebInput({ url: 'https://docs.a.com/x', allowedDomains: ['a.com'] }).ok, true);
+  assert.equal(validateWebInput({ url: 'https://a.com', allowedDomains: ['a.com'] }).ok, true);
+  assert.equal(validateWebInput({ url: 'not a url', allowedDomains: ['a.com'] }).ok, false);
+});
+
+// 감사 보정 4(반대 테스트): 세션모드로 auth≠approval 분리.
+test('세션모드: user_approved=승인 필요, authenticated=auth 축(승인 아님), anonymous=A0', () => {
+  assert.equal(defineWebTool({ sessionMode: 'anonymous' }).needsApproval, false);
+  assert.equal(defineWebTool({ sessionMode: 'user_approved' }).needsApproval, true);
+  const authd = defineWebTool({ sessionMode: 'authenticated' });
+  assert.equal(authd.needsApproval, false);
+  assert.ok(authd.availability.some((s) => s.kind === 'auth'), 'authenticated는 auth availability');
+});
+
+// 선택 보정: confidence clamp.
+test('makeSourceEvidence: confidence 0~1 clamp', () => {
+  assert.equal(makeSourceEvidence({ sourceUrl: 'x', confidence: 5 }).confidence, 1);
+  assert.equal(makeSourceEvidence({ sourceUrl: 'x', confidence: -2 }).confidence, 0);
+});
+
 // 런타임: 웹 성공 receipt는 sources를 담고, 차단은 sources 없이 미확인(출처 원장 연결).
 test('웹 성공 receipt는 sources 포함, 차단은 sources 없음', async () => {
   const selfState = buildSelfState(demoEnv());
