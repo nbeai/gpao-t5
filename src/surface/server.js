@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -39,15 +40,14 @@ export function makeServer(deps = {}) {
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
-  // 세션별 라이브 pending(승인 대기 계획). 지속하지 않는다 — 프로세스 수명 동안만.
-  const livePending = new Map();
 
+  // 승인 대기(pending)를 세션 파일에 지속한다 — 재시작 후에도 이어실행·만료 판정 가능
+  // (Approval Lifecycle Contract). newId 주입으로 지속 pending 간 id 충돌을 막는다.
   function ctxForSession(session) {
     const ledger = new TruthLedger();
     ledger.entries = (session.ledgerEntries ?? []).slice();
-    let pending = livePending.get(session.id);
-    if (!pending) { pending = new Map(); livePending.set(session.id, pending); }
-    return { env, model, tools, ledger, pending };
+    const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
+    return { env, model, tools, ledger, pending, newId: () => randomUUID(), now: () => Date.now() };
   }
 
   return createServer(async (req, res) => {
@@ -72,7 +72,18 @@ export function makeServer(deps = {}) {
         const id = decodeURIComponent(url.slice('/sessions/'.length));
         const s = await store.load(id);
         if (!s) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        return sendJson(res, 200, { id: s.id, title: s.title, transcript: s.transcript });
+        // activePendingIds: 아직 유효한(만료 전) 승인 대기만 — 만료된 것은 UI에서 되살아나면 죽은 버튼이라
+        // 제외한다(감사 보정). 만료된 pending은 세션 파일에서도 정리한다.
+        const now = Date.now();
+        const all = s.pendingApprovals ?? {};
+        const activePendingIds = Object.keys(all).filter(
+          (id) => !all[id].grantScope?.expiresAt || all[id].grantScope.expiresAt > now,
+        );
+        if (activePendingIds.length !== Object.keys(all).length) {
+          s.pendingApprovals = Object.fromEntries(activePendingIds.map((id) => [id, all[id]]));
+          await store.save(s);
+        }
+        return sendJson(res, 200, { id: s.id, title: s.title, transcript: s.transcript, activePendingIds });
       }
 
       if (req.method === 'POST' && url === '/turn') {
@@ -97,6 +108,7 @@ export function makeServer(deps = {}) {
         const result = await runTurn(input, ctx);
         session.transcript.push({ role: 'assistant', result });
         session.ledgerEntries = ctx.ledger.entries; // 세션 원장 갱신(지속)
+        session.pendingApprovals = Object.fromEntries(ctx.pending); // 승인 대기 지속(재시작 후 이어실행)
         await store.save(session);
         return sendJson(res, 200, result);
       }

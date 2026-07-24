@@ -12,6 +12,10 @@ import { buildActionPlan } from './l2-plan/action-plan.js';
 import { isExecutionAllowed } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
+import { APPROVAL_TTL_MS } from './contracts.js';
+
+// 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
+function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 
 /**
  * @typedef {Object} TurnInput
@@ -46,6 +50,12 @@ export async function runTurn(input, ctx) {
     const saved = ctx.pending.get(input.approve);
     if (!saved) {
       return { kind: 'reply', reply: '그 승인 요청을 찾지 못했어요. 다시 말씀해 주세요.', selfStateSummary: summary };
+    }
+    // 승인 만료 — 재시작·시간경과로 만료된 승인은 이어실행하지 않고 정직하게 재승인을 요청한다
+    // (죽은 버튼 금지, 무단 지연 실행 금지). Approval Lifecycle Contract.
+    if (saved.grantScope?.expiresAt && nowMs(ctx) > saved.grantScope.expiresAt) {
+      ctx.pending.delete(input.approve);
+      return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     ctx.pending.delete(input.approve);
     return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary);
@@ -116,8 +126,10 @@ export async function runTurn(input, ctx) {
   //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
   const pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
   if (pendingGrants.length) {
-    const pendingId = `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
-    ctx.pending.set(pendingId, { intent, plan });
+    // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
+    // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
+    const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
+    ctx.pending.set(pendingId, { intent, plan, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
     return {
       kind: 'approval',
       pendingId,

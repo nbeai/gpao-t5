@@ -166,6 +166,38 @@ test('외부 이벤트 + mention → 정상 턴', async () => {
   assert.notEqual(r.kind, 'gated');
 });
 
+// Approval Lifecycle: 승인은 만료 전엔 이어실행, 만료 후엔 재승인 요청(이어실행 안 함).
+test('만료 전 승인은 보관된 계획을 이어실행', async () => {
+  let clock = 1000;
+  const c = ctx({
+    connections: [{ id: 'mail.send', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler() { return { result: { ok: true }, userSafeSummary: '메일을 보냈어요' }; } } }),
+  });
+  c.now = () => clock;
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(r1.kind, 'approval');
+  clock += 60 * 1000; // TTL 이내
+  const r2 = await runTurn({ approve: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.ok(r2.ledger.confirmed.some((s) => /보냈/.test(s)));
+});
+
+test('만료된 승인은 실행하지 않고 재승인을 요청한다(죽은 버튼 금지)', async () => {
+  let clock = 1000;
+  const sent = [];
+  const c = ctx({
+    connections: [{ id: 'mail.send', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+  });
+  c.now = () => clock;
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  clock += 30 * 60 * 1000 + 1; // TTL 초과
+  const r2 = await runTurn({ approve: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.match(r2.reply, /만료/);
+  assert.equal(sent.length, 0, '만료 후 무단 지연 실행 금지');
+});
+
 // S28: billing_blocked 는 SelfState 에 결제 문구로 반영(재시도 아님).
 test('S28 billing_blocked 는 결제 확인 안내(재시도 문구 아님)', async () => {
   const r = await runTurn({ text: '안녕' }, ctx({ authSignal: 'insufficient_quota' }));

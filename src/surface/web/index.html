@@ -298,10 +298,11 @@ async function newSession() {
 async function selectSession(id) {
   currentSessionId = id;
   const s = await (await fetch('/sessions/' + id)).json();
+  const active = s.activePendingIds || [];
   wrap.innerHTML = '';
   for (const e of s.transcript || []) {
     if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
-    else if (e.role === 'assistant') { renderResult(e.result, true); }
+    else if (e.role === 'assistant') { renderResult(e.result, { historical: true, activePendingIds: active }); }
   }
   await loadSessions();
   document.body.classList.remove('nav-open');
@@ -342,7 +343,8 @@ async function turn(payload) {
   return res.json();
 }
 
-function renderResult(r, historical) {
+function renderResult(r, opts = {}) {
+  const { historical, activePendingIds } = opts;
   renderSelfState(r.selfStateSummary);
   if (r.followUp) sysline(r.followUp.userNotice);
   if (r.kind === 'clarify') { sysline(r.question); return; }
@@ -358,7 +360,10 @@ function renderResult(r, historical) {
       row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span> — ${esc(p.preview?.impact ?? '')} <span class="cancel">(${esc(p.preview?.cancel ?? '')})</span>`;
       card.appendChild(row);
     }
-    if (historical) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
+    // 재접속(historical)이라도 그 승인이 아직 유효하면(activePendingIds) 다시 눌러 이어실행할 수 있다.
+    // 만료·해소돼 목록에 없으면 정직하게 지난 요청으로만 표시(죽은 버튼 금지).
+    const stillActive = historical ? (activePendingIds || []).includes(r.pendingId) : true;
+    if (!stillActive) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
     const btns = el('btns');
     const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
     const no = document.createElement('button'); no.className = 'act no'; no.textContent = '보내지 마';
