@@ -1,9 +1,9 @@
-# GPAO-T5 Kernel Contract (초안)
+# GPAO-T5 Kernel Contract
 
-- Status: `초안 작성 완료 · 감사 전`
+- Status: `Codex 감사 통과 · Phase 2 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
-- Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사)
+- Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료)
 - Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 2 Kernel Contract
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
@@ -190,11 +190,12 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 | result | 객체 | 선택 | 받은 결과 | 성공 시 |
 | failureState | 열거 | 필수 | 실패/차단/타임아웃 여부 | none / failed / blocked / timeout |
 | userSafeSummary | 문자열 | 필수 | 사용자에게 말해도 되는 요약 | 내부 용어 제외. 사용자면/진단면 분리(감사 §3-3) |
+| diagnosticTrace | 객체 | 선택 | 내부 진단·오류·스택·provider 상태 | 사용자 답변에 그대로 노출 금지. 디버그·감사용 |
 | nextSafeAction | 문자열 | 선택 | 다음 안전 행동 | 실패 시 |
 
 규칙: 사용자 답변은 이 원장 기준으로 "확인한 것 / 확인 못한 것 / 추정"을 분리한다(계획서 §5.4).
 검색·수집 결과는 이 원장과 출처 요약을 거쳐야 답변 근거가 된다(헌법 §3-4). userSafeSummary와
-내부 진단 데이터를 분리한다 — T3에서 정화가 진단면까지 덮은 사고를 반복하지 않는다(감사 §3-2·3-3).
+diagnosticTrace를 분리한다 — T3에서 정화가 진단면까지 덮은 사고를 반복하지 않는다(감사 §3-2·3-3).
 
 ---
 
@@ -304,5 +305,4 @@ T-cell(operating_principle)과 preference를 kind로 분리해 섞이지 않게 
 
 ---
 
-*이 초안은 `초안 작성 완료 · 감사 전` 상태다. §1 seal 확인 완료 후 `초안 작성 완료 · 감사 전`으로
-바꾼다. Codex가 계약 정합성·경계·Phase 3 연결성을 감사해 통과해야 Phase 2 봉인이다.*
+*Codex 감사 결과 이 계약은 Phase 2 Kernel Contract 로 봉인한다. 다음 단계는 Phase 3 UX Architecture 다.*
