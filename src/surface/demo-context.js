@@ -2,10 +2,12 @@
 // 여기서는 커널 흐름을 사람이 실제로 겪어 보게 하는 최소 실행 맥락만 만든다.
 import { ToolRunner } from '../runtime/tool-runner.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
+import { defineWebTool, makeSourceEvidence, assertWebEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 
 // P6-2: 도구를 ToolDescriptor로 정의한다(소유≠실행, availability 신호, auth≠approval).
+// web.collect는 WebToolDescriptor로 확장(입력스키마·출처계약·세션·스크래핑 정책).
 const DESCRIPTORS = [
-  defineTool({ id: 'web.collect', label: '웹 자료 수집', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read' }),
+  defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
   defineTool({ id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize' }),
   defineTool({ id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true }),
   defineTool({ id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
@@ -33,10 +35,18 @@ export function demoTools() {
     'web.collect': {
       async handler(args) {
         const q = String(args?.request ?? '');
-        if (/차단|blocked|로그인벽/.test(q)) {
-          return { blocked: true, userSafeSummary: '그 사이트가 접근을 막고 있어요.' };
+        // 로그인벽/차단/봇벽을 성공과 분리(정직한 상태). 실패는 내용·출처 없음.
+        const fetchState = classifyWebFetch({ status: q });
+        if (fetchState !== 'ok') {
+          const msg = fetchState === 'login_wall' ? '로그인이 필요한 페이지예요.'
+            : fetchState === 'bot_wall' ? '봇 차단이 걸려 있어요.'
+              : fetchState === 'robots_disallow' ? '그 사이트가 수집을 허용하지 않아요.'
+                : '그 사이트가 접근을 막고 있어요.';
+          return { blocked: true, fetchState, userSafeSummary: msg };
         }
-        return { result: { note: '공개 자료 기준 요약' }, userSafeSummary: '공개 자료로 확인했어요.' };
+        // 성공: 반드시 출처 근거(SourceEvidence)를 만든다. assertWebEvidence가 출처 없는 성공을 막는다.
+        const sources = [makeSourceEvidence({ sourceUrl: 'https://example.com/public', title: '공개 자료', excerpt: q, confidence: 0.6 })];
+        return assertWebEvidence({ result: { note: '공개 자료 기준 요약' }, sources, userSafeSummary: '공개 자료로 확인했어요.' });
       },
     },
     'local.file': {

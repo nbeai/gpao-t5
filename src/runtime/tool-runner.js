@@ -54,6 +54,8 @@ export class ToolRunner {
         actualCall: { tool: toolId, args },
         result: out?.result ?? out,
         failureState: FAILURE.NONE,
+        // 출처 근거를 원장에 함께 남긴다(P6-2). 웹 도구는 sources 없이 성공을 반환하지 못한다.
+        sources: out?.sources,
         userSafeSummary: out?.userSafeSummary ?? `${toolId} 실행 완료.`,
       });
     } catch (err) {
