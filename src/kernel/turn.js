@@ -59,7 +59,8 @@ export async function runTurn(input, ctx) {
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     ctx.pending.delete(input.approve);
-    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary);
+    // 승인 재개 시 게이트에서 계산한 admitted를 함께 이어받는다 — 승격된 맥락을 잃지 않게(감사 소보정).
+    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? []);
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -144,7 +145,8 @@ export async function runTurn(input, ctx) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
-    ctx.pending.set(pendingId, { intent, plan, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
+    // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
+    ctx.pending.set(pendingId, { intent, plan, admitted, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
     return {
       kind: 'approval',
       pendingId,
