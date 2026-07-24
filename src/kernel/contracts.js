@@ -128,7 +128,19 @@ export const FAILURE = Object.freeze({
   FAILED: 'failed',
   BLOCKED: 'blocked',
   TIMEOUT: 'timeout',
+  CANCELLED: 'cancelled', // P6-2: 사용자·시스템이 실행을 취소(Tool&Connector Seal §3 흡수)
 });
+
+/**
+ * @typedef {Object} ToolDescriptor      P6-2 Tool 계약(Tool&Connector Seal §1.1 흡수)
+ * @property {string} id                  내부 식별자(사용자면 비노출)
+ * @property {string} label               사용자 표시명
+ * @property {'core'|'plugin'|'channel'|'mcp'} owner  정의 주체(소유)
+ * @property {string} executor            실행 주체 참조(소유≠실행 분리)
+ * @property {Array<{kind:'auth'|'config'|'env'|'connected'}>} availability  실행 가능 신호(allOf)
+ * @property {string} toolKind            권한 종류(read/send/organize…)로 이어짐
+ * @property {boolean} [needsApproval]    행동 승인 필요 여부(auth와 분리 — auth≠approval)
+ */
 
 // Phase 5.1(§7): ToolReceipt.lifecycle 허용값. 실행·전달만 — 승인(approved/held)은 여기 없다.
 export const LIFECYCLE = Object.freeze(['none', 'attempting', 'delivered', 'failed', 'abandoned']);

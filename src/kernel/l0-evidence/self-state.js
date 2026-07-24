@@ -69,7 +69,8 @@ export function buildSelfState(env) {
   const model = env.model ?? { id: 'unknown' };
   const modelAuthState = classifyModelAuth(model.authSignal);
   const connectedTools = (env.connections ?? []).map((t) => {
-    const status = deriveToolStatus(t);
+    // descriptor가 availability로 이미 판정한 status를 존중한다(P6-2). 없으면 파생(하위호환).
+    const status = t.status ?? deriveToolStatus(t);
     return {
       id: t.id,
       connected: Boolean(t.connected),
