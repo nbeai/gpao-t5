@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   detectAutomationCandidate, makeGrowthCandidate, approveAutomation,
-  isJobRunnable, cancelJob,
+  isJobRunnable, cancelJob, admitTickTrigger,
 } from '../src/kernel/l5-growth/automation.js';
 import { tickAutomation } from '../src/runtime/automation-engine.js';
+import { AutomationScheduler } from '../src/runtime/automation-scheduler.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
@@ -119,19 +120,23 @@ test('일반 대화: 반복 신호 없으면 자동화 후보 0', () => {
 });
 
 // ── 서버 통합: 후보 → 승인 → tick → 원장 → 취소. 외부는 만료 없는 승인 거부. ──
+const TICK_TOKEN = 'test-tick-token';
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-auto-'));
   const autoStore = new AutomationStore(dir);
-  const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore });
+  const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore, runtimeToken: TICK_TOKEN });
   await new Promise((r) => server.listen(0, r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
-  try { return await fn(base, autoStore); }
+  try { return await fn(base, autoStore, server); }
   finally { await new Promise((r) => server.close(r)); }
 }
 const post = (base, path, body) =>
   fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
 const getj = async (base, path) => (await fetch(`${base}${path}`)).json();
+// tick은 런타임 이벤트로만(§8.3) — 트러스트 토큰을 실어 호출. 사용자 요청은 이 토큰이 없다.
+const tick = (base) =>
+  fetch(`${base}/automation/tick`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-runtime-token': TICK_TOKEN } });
 
 test('서버: 후보 승인 → tick 실행 → 원장 기록', async () => {
   await withServer(async (base, autoStore) => {
@@ -143,7 +148,7 @@ test('서버: 후보 승인 → tick 실행 → 원장 기록', async () => {
     assert.equal(view.jobs.length, 1);
     assert.equal(view.jobs[0].state, 'scheduled');
     assert.equal(view.candidates.length, 0, '승인된 후보는 후보 목록에서 빠진다');
-    const ticked = await (await post(base, '/automation/tick')).json();
+    const ticked = await (await tick(base)).json();
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].failureState, 'none');
     view = await getj(base, '/automation');
@@ -171,7 +176,7 @@ test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async (
     const { jobId } = await (await post(base, '/automation/approve', { candidateId: 'c3' })).json();
     const cancelled = await (await post(base, '/automation/cancel', { jobId })).json();
     assert.equal(cancelled.state, 'cancelled');
-    const ticked = await (await post(base, '/automation/tick')).json();
+    const ticked = await (await tick(base)).json();
     assert.equal(ticked.ran.length, 0, '취소된 job은 실행 안 함');
   });
 });
@@ -202,7 +207,7 @@ test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1'
     const appr = await (await post(base, '/automation/approve', { candidateId })).json();
     assert.equal(appr.ok, true);
     assert.equal(appr.external, false);
-    const ticked = await (await post(base, '/automation/tick')).json();
+    const ticked = await (await tick(base)).json();
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].failureState, 'none');
     const view = await getj(base, '/automation');
@@ -222,4 +227,77 @@ test('서버: 일반 대화 turn은 자동화 후보를 만들지 않는다(흐�
     assert.equal(r.automationSuggestion, undefined, '반복 신호 없으면 제안 0');
     assert.deepEqual((await getj(base, '/automation')).candidates, []);
   });
+});
+
+// ── 후속 슬라이스: tick 트러스트 경계(§8.3) + 반복 스케줄러 ──
+
+// 불변식: tick은 trusted_runtime_event만 트리거한다. 사용자·자동화 인바운드·빈 값은 불허.
+test('불변식: admitTickTrigger는 trusted_runtime_event만 허용', () => {
+  assert.equal(admitTickTrigger({ source: 'trusted_runtime_event' }), true);
+  assert.equal(admitTickTrigger({ source: 'user_chat' }), false);
+  assert.equal(admitTickTrigger({ source: 'automation_trigger' }), false, '게이트 대상 외부 이벤트는 tick 아님');
+  assert.equal(admitTickTrigger({ source: 'external_channel' }), false);
+  assert.equal(admitTickTrigger({}), false);
+  assert.equal(admitTickTrigger(null), false);
+});
+
+// 핵심 경계: 사용자가 누르듯 토큰 없이 tick을 치면 실행 0(403). "사용자 버튼 아님"을 산출물에서 고정.
+test('서버: 트러스트 토큰 없는 tick은 거부되고 실행 0(not_trusted)', async () => {
+  await withServer(async (base, autoStore) => {
+    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
+    await post(base, '/automation/approve', { candidateId: 'c1' });
+    // 토큰 없이 일반 POST(=사용자 요청 흉내) → 403, job은 scheduled 그대로.
+    const res = await post(base, '/automation/tick');
+    assert.equal(res.status, 403);
+    assert.equal((await res.json()).reason, 'not_trusted');
+    const view = await getj(base, '/automation');
+    assert.equal(view.jobs[0].state, 'scheduled', '거부됐으니 실행 안 됨');
+    assert.equal(view.jobs[0].runs, 0);
+    // 트러스트 토큰을 실으면 정상 실행(대조).
+    const ok = await (await tick(base)).json();
+    assert.equal(ok.ran.length, 1);
+    assert.equal((await getj(base, '/automation')).jobs[0].runs, 1);
+  });
+});
+
+// in-process 스케줄러는 trusted_runtime_event로 발화하고, server.runtimeTick 경로로 실제 실행한다.
+test('서버: 스케줄러 발화(runtimeTick)로 tick이 실제 실행된다', async () => {
+  await withServer(async (base, autoStore, server) => {
+    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
+    await post(base, '/automation/approve', { candidateId: 'c1' });
+    const scheduler = new AutomationScheduler({ onTick: server.runtimeTick });
+    const out = await scheduler.fire(); // 실타이머 없이 1회 발화(결정적)
+    assert.equal(out.ok, true);
+    assert.equal(out.ran.length, 1, '스케줄러 발화로 실행됨');
+    assert.equal((await getj(base, '/automation')).jobs[0].runs, 1);
+  });
+});
+
+// 반복(interval) job: 스케줄러가 여러 번 발화하면 여러 번 실행되고, 매번 AutomationLedger에 쌓인다.
+test('반복 job: 연속 tick에서 여러 번 실행되고 재예약된다', async () => {
+  // engine 직접 구동(결정적 now). interval=100ms 반복 job.
+  const cand = candidateFor(localAction, '매일 로컬 정리');
+  const job = approveAutomation(cand, { id: 'r1', now: 0, nextRunAt: 0, intervalMs: 100 });
+  const ran1 = await tickAutomation([job], { tools, selfState, now: 0 });
+  assert.equal(ran1.length, 1, '1차 실행');
+  assert.equal(job.state, 'scheduled', '반복은 완료되지 않고 재예약');
+  assert.equal(job.nextRunAt, 100, 'nextRunAt 재예약');
+  // 아직 nextRunAt 미도달 → 실행 안 함
+  assert.equal((await tickAutomation([job], { tools, selfState, now: 50 })).length, 0, '미도달은 실행 0');
+  // 도달 → 2차 실행
+  const ran2 = await tickAutomation([job], { tools, selfState, now: 100 });
+  assert.equal(ran2.length, 1, '2차 실행');
+  assert.equal(job.executions.length, 2, 'AutomationLedger에 2건 누적');
+  assert.equal(job.nextRunAt, 200);
+});
+
+// 스케줄러는 프로세스를 붙잡지 않는다(unref) — start/stop이 타이머를 정리한다.
+test('스케줄러: start/stop이 타이머를 정리한다(데몬 아님)', () => {
+  let fired = 0;
+  const s = new AutomationScheduler({ onTick: async () => { fired++; }, intervalMs: 10_000 });
+  s.start();
+  assert.ok(s._timer, '기동됨');
+  s.start(); // 중복 기동 금지
+  s.stop();
+  assert.equal(s._timer, null, '정지됨');
 });

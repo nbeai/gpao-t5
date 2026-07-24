@@ -71,6 +71,17 @@ export function cancelJob(job) {
 }
 
 /**
+ * tick 트리거 경계(§8.3) — tick은 사용자 행동이 아니라 **런타임 이벤트**다. 일반 사용자가 누르는
+ * 버튼처럼 tick을 돌릴 수 없다. §1.5 InboundEventGate와 동일 계약으로 `trusted_runtime_event`만 admit한다.
+ * (`automation_trigger`는 게이트 대상 외부 이벤트라 tick 트리거가 아니다 — 여기선 불허.)
+ * @param {{source?:string}} trigger
+ * @returns {boolean}
+ */
+export function admitTickTrigger(trigger) {
+  return trigger?.source === 'trusted_runtime_event';
+}
+
+/**
  * AutomationLedger — 자동화 실행 진실 원장(§8). 세션 TruthLedger와 **분리된** job별 원장이다.
  * 자동화는 세션 밖 백그라운드에서 돌기 때문에 세션 원장에 섞지 않는다. 실행 기록은 TruthLedger와
  * 동일한 ToolReceipt 계약을 쓴다(성공·실패·차단을 정직하게). 원장 추가는 이 함수로만 한다.

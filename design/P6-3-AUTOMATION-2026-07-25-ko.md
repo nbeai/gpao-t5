@@ -64,9 +64,26 @@ GrowthCandidate → 사용자 승인 → 예약/대기(ScheduledJob) → tick �
 `매주 로컬 파일 정리해줘` → reply + 조용한 카드 → 승인 → job scheduled → tick 1회(failureState none) →
 completed·runs 1. 브라우저에서 카드 렌더·승인·"30일 후 만료"·취소 버튼까지 육안 확인.
 
-## 다음 슬라이스 후속(감사 권고)
+## 후속 슬라이스 — tick 트러스트 경계 + 반복 스케줄러 (구현 완료, 2026-07-25)
 
-- `/automation/tick`은 지금 수동 tick(로컬 데모)이라 통과지만, **trusted runtime event 전용 경계**를
-  세워야 한다. 일반 사용자가 누르는 버튼처럼 보이면 안 된다 — InboundEventGate의 `trusted_runtime_event`
-  경로와 동일 계약으로 tick 트리거를 제한한다(다음 슬라이스).
-- 반복(interval) job의 실제 스케줄러 구동(현재는 tick 호출 시 재예약만). 여전히 in-process, cron/daemon 아님.
+P6-3 후속 슬라이스에서 아래 두 항목을 구현했다(깊은 감사 대상).
+
+**1. tick 트러스트 경계(§8.3)** — `tick`은 사용자 행동이 아니라 런타임 이벤트다.
+- `admitTickTrigger(trigger)`: `trusted_runtime_event`만 admit. `automation_trigger`(게이트 대상 외부
+  이벤트)·`user_chat`·빈 값은 불허. §1.5 InboundEventGate와 동일 계약.
+- `runTrustedTick(trigger)`: tick 실행의 단일 경로. `admitTickTrigger` 통과분만 실행.
+- HTTP `POST /automation/tick`: **런타임 트러스트 토큰(`x-runtime-token`)** 요구. 토큰은 어떤 GET에도
+  노출하지 않는다 → 브라우저·사용자는 tick 불가. 없으면 `403 not_trusted`, 실행 0. 이 라우트는
+  런타임/운영·테스트 전용이고, UI에는 tick 버튼이 없다(승인 카드만).
+
+**2. in-process 반복 스케줄러** — `AutomationScheduler`(`setInterval`+`unref`, cron/daemon 아님).
+- 항상 `trusted_runtime_event`로 발화 → `server.runtimeTick`(HTTP 우회, 구성상 trusted) 직접 호출.
+- 반복(intervalMs) job은 실행 후 `nextRunAt += intervalMs`, state `scheduled` 유지 → 다음 발화에 재실행.
+  매 실행은 AutomationLedger에 누적. 프로세스가 죽으면 스케줄러도 죽는다(외부 상주 없음).
+
+라이브: 사용자 tick(토큰 없음) → 403, in-process 스케줄러(300ms)가 스스로 발화 → runs 1(사용자 개입 0).
+반대 테스트: 토큰 게이트 제거 시 "not_trusted 실행 0" 테스트가 실패 → 게이트가 진짜 경계를 지킴.
+
+### 남은 후속(다음 slice)
+
+- 반복 job의 만료·백오프·중복 실행 방지(tick 중첩) 정교화. 여전히 in-process — 진짜 cron/daemon은 배포 계약 이후.
