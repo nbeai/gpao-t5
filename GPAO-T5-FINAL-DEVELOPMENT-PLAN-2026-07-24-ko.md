@@ -658,6 +658,14 @@ T5의 UI/UX는 다음 톤을 참고하되 복제하지 않는다.
 7. Growth Review Queue
 8. Scenario Replay Bench
 9. Cross-surface session resume
+10. Toolbox / Connection Store
+    - 앱스토어형 도구함·연결 센터
+    - 설치됨/추천/개인용/공개 구분
+    - 아이콘 기반 도구 카드, 검색, 카테고리, 상태 점
+    - 채팅 중 필요한 도구 연결 흐름
+    - P6에서 닫은 ToolDescriptor/WebToolDescriptor/ConnectorProfile/Authority/TruthLedger를 사용자 표면으로 번역
+    - HTML-native Output Canvas: HTML/CSS/JS 기반 미디어·랜딩·리포트·홍보 산출물 표면. 얇은 metadata, 브라우저 preview/render receipt, 출처·권리·외부 게시 승인 경계를 유지한다.
+    - 참고 문서: `design/T5-2.0-TOOLBOX-CONNECTION-CENTER-UX-REFERENCE-2026-07-25-ko.md`
 
 ### P2: 고급 생태계
 
@@ -726,6 +734,15 @@ T5는 바로 기능부터 쌓으면 안 된다. 본 최종 계획서를 기준�
    - 방침: 마찰 0인 것(gitignore·폴더 구조 원칙·협업 기본 원칙·결정적 빌드 원칙)은 지금 적용하고,
      느린 게이트(hook·CI·테스트 게이트)는 Phase 5에서 실제 코드·빌드 파이프라인이 생긴 뒤 붙인다.
    - 정본: `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`.
+
+9. `GPAO-T5 Operating Blueprint and Recovery Map`
+   - 개발 종료 시점의 유지보수·복구·인수인계용 설계도다.
+   - 새 세션, 새 에이전트, 새 개발자가 들어와도 T5의 구조, 책임 위치, 불변식, 고장 대응 경로를
+     빠르게 파악하고 이어서 수정·보강할 수 있어야 한다.
+   - 7대 영역 구조도, 전체 요청 흐름 지도, 기능별 책임 파일/계약 매핑, 고장 증상별 대응표,
+     핵심 불변식 목록, 테스트/검증 지도, 외부 연결·권한·원장 경계, 새 세션 handoff 템플릿,
+     현재 구현 범위와 아직 열지 않은 범위, 마무리 검증 절차를 포함한다.
+   - 이 문서는 설명서가 아니라, 실전 장애 대응과 지속 보강을 위한 운영 설계도다.
 
 ## 10. 1차 개발 로드맵
 
@@ -806,6 +823,36 @@ T5는 단위 테스트나 화면 로딩으로 완료를 주장하지 않는다. 
 -> 복구 또는 성장 후보
 -> 다음 대화로 자연스럽게 연결
 ```
+
+### Phase 8. Operating Blueprint / Recovery Map
+
+Human Scenario Qualification을 통과한 뒤, T5를 장기적으로 수정·보강할 수 있도록 운영 설계도를 닫는다.
+이 단계는 문서 정리가 아니라, 고장 대응과 다음 개발 세션의 연속성을 보장하는 마무리 공정이다.
+
+반드시 포함한다.
+
+1. **7대 영역 구조도**
+   - Operational Selfhood, BEAI5 Model Operation, Intent/Context/T-cell, ActionPlan/Authority,
+     Router/Execution, Work Surface, Truth Ledger/Recovery/Growth가 어떤 책임을 갖는지 정리한다.
+2. **전체 요청 흐름 지도**
+   - 사용자 발화 → SelfState → Intent → Context/POM/T-cell → ActionPlan → Authority →
+     ToolRunner/Connector/Web/Automation → ToolReceipt → TruthLedger → Reply/Recovery/Growth.
+3. **기능별 책임 파일/계약 매핑**
+   - 웹 출처 문제, 채널 게이트, 기억 오염, 승인 우회, 원장 누락, UI 상태 불일치가 발생했을 때
+     어느 계약·파일·테스트를 봐야 하는지 바로 찾을 수 있어야 한다.
+4. **고장 증상별 대응표**
+   - "웹에서 확인했다고 하는데 출처가 없음", "미등록 채널이 응답함", "기억이 무관한 답변에 영향",
+     "승인 없이 전송", "원장에는 없는데 UI가 완료 표시" 같은 실사용 증상 기준으로 작성한다.
+5. **핵심 불변식 목록**
+   - 승인 전 실행 0, 출처 없는 웹 확인 금지, replay 전 T-cell 영향 0, unknown/disconnected channel 응답 금지,
+     gated/blocked 이벤트 미기록, 도구 실행 가능성과 실행 허가 분리, 모델 자연스러움 훼손 금지.
+6. **테스트/검증 지도**
+   - 각 불변식을 어느 테스트와 어떤 실제 사용자 경로가 지키는지 연결한다.
+7. **새 세션 handoff 템플릿**
+   - 현재 phase, 최신 main, 열린 브랜치, 미추적 파일, 다음 작업, 금지선, 감사 기준, 검증 상태를
+     다음 에이전트가 즉시 이어받을 수 있게 한다.
+
+이 산출물이 없으면 T5는 "구현됐다"고 말할 수 있어도 "운영 가능한 OS"라고 말할 수 없다.
 
 ## 11. 성공 기준
 
