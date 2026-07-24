@@ -51,3 +51,27 @@ Work Chat
 ```
 
 This slice is the first heart of GPAO-T5. If this flow does not feel natural, truthful, capability-aware, and goal-directed, T5 is not yet an AI OS.
+
+## Running the First Build Slice (Phase 5)
+
+Plain ESM JavaScript, zero build step, zero runtime dependencies. There is no compile/transform layer, so what the tests run is exactly what ships — this deliberately closes the GPAO-T3 "source is fine but the distribution is broken" failure class (absolute principle 1). Node 20+.
+
+```bash
+npm test     # node --test — 계약 불변식 + 시나리오 재생 테스트
+npm start    # http://localhost:4173 — Work Chat (데모 환경)
+```
+
+Source layout maps to the sealed L0–L5 architecture (plan §6.2):
+
+```text
+src/kernel/contracts.js          봉인된 Kernel Contract 를 코드 타입(JSDoc)으로
+src/kernel/l0-evidence/          SelfStateSnapshot · ToolReceipt · Truth Ledger
+src/kernel/l1-intent/            IntentPacket(말귀) · Task Context Packet
+src/kernel/l2-plan/              ActionPlan · Authority(A0-A3) · Follow-up
+src/kernel/turn.js               한 턴 오케스트레이터(L0-L2 배선)
+src/runtime/                     ModelClient · ToolRunner (L3, 슬라이스-1 스텁)
+src/surface/                     Work Chat 서버 + 웹 UI (L4)
+test/                            실패-우선 시나리오 테스트
+```
+
+Build artifacts are never committed; releases are generated out-of-tree per the Engineering Charter.

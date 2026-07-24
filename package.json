@@ -1,0 +1,14 @@
+{
+  "name": "gpao-t5",
+  "version": "0.0.0-slice1",
+  "private": true,
+  "type": "module",
+  "description": "GPAO-T5 Original AI Operating System — First Build Slice (Work Chat kernel vertical)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/surface/server.js"
+  }
+}
