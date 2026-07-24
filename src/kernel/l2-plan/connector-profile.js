@@ -5,6 +5,7 @@
 //   (Hermes NAS/relay/connector 와이어·config는 복제하지 않는다 — 원리·상태언어만.)
 
 // 자격 상태(로그인·인증 축). Hermes auth_type 흡수.
+// none = 인증이 필요 없는 커넥터(공개). "인증 미설정"이 아니다 — 미설정 구분은 다음 slice의 requiresAuth로.
 export const AUTH_STATES = Object.freeze(['none', 'api_key', 'oauth', 'session']);
 // 준비 상태(연결 생존성 축).
 export const READINESS = Object.freeze(['ok', 'degraded', 'needs_auth', 'disconnected']);

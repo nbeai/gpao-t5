@@ -188,21 +188,31 @@ export function makeServer(deps = {}) {
         }));
         return sendJson(res, 200, { connectors });
       }
-      // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. mention-gating 없이 아무 채널 메시지에 응답하지 않는다.
+      // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. 게이트 순서(감사 보정):
+      //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화
+      //   → 6 InboundEventGate(mention/allowlist/DM) → 7 respond일 때만 turn → 8 gated/blocked 미기록.
       if (req.method === 'POST' && url === '/channel/inbound') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.text !== 'string' || !input.text.trim()) return sendJson(res, 400, { error: '빈 발화' });
         if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
         const session = await store.load(input.sessionId);
         if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        // 2·3·4: 등록된 채널이고 연결이 ok일 때만 커널로 넘긴다. 아니면 blocked(미기록).
+        if (typeof input.channel !== 'string' || !input.channel) {
+          return sendJson(res, 200, { kind: 'blocked', reason: 'no_channel' });
+        }
+        const profile = (deps.connectors ?? demoConnectors()).find((c) => c.id === input.channel);
+        if (!profile) return sendJson(res, 200, { kind: 'blocked', reason: 'unknown_channel' });
+        const readiness = connectorReadiness(profile);
+        if (readiness !== 'ok') return sendJson(res, 200, { kind: 'blocked', reason: 'channel_not_ready', readiness });
 
-        const event = normalizeInboundEvent(input); // 단일 정규화 이벤트
+        const event = normalizeInboundEvent(input); // 5: 단일 정규화 이벤트
         const memory = await memStore.load();
         const ctx = ctxForSession(session, memory);
-        // 같은 커널: source=external_channel → InboundEventGate → (respond면) turn.
+        // 6·7: 같은 커널. source=external_channel → InboundEventGate → (respond면) turn.
         const result = await runTurn({ text: input.text, source: 'external_channel', triggerSignals: event.triggerSignals }, ctx);
-        // gated(무시)는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
-        if (result.kind !== 'gated') {
+        // 8: gated/blocked는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
+        if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
           session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
           session.transcript.push({ role: 'assistant', result });
           session.ledgerEntries = ctx.ledger.entries;

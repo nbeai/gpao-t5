@@ -187,6 +187,30 @@ test('채널 인바운드: mention 없으면 gated, 있으면 응답(같은 흐�
   });
 });
 
+// 감사 보정 1: 등록 안 된 채널은 mention이 있어도 커널로 안 넘긴다(blocked, 미기록).
+test('unknown 채널은 mention 있어도 응답·기록 안 함', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'unknown', text: '이거 봐줘', isMention: true })).json();
+    assert.equal(r.kind, 'blocked');
+    assert.equal(r.reason, 'unknown_channel');
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.equal(reloaded.transcript.length, 0, 'unknown 채널은 transcript 미기록');
+  });
+});
+
+// 감사 보정 2: 연결 끊긴 커넥터는 inbound를 열지 않는다(slack.channel=disconnected).
+test('disconnected 채널은 mention 있어도 응답·기록 안 함', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const r = await (await post(base, '/channel/inbound', { sessionId: s.id, channel: 'slack.channel', text: '이거 봐줘', isMention: true })).json();
+    assert.equal(r.kind, 'blocked');
+    assert.equal(r.reason, 'channel_not_ready');
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.equal(reloaded.transcript.length, 0, 'disconnected 채널은 transcript 미기록');
+  });
+});
+
 test('GET /connectors: auth(자격)와 approval(전송)을 두 축으로 — 전송은 항상 승인', async () => {
   await withServer(async (base) => {
     const { connectors } = await getj(base, '/connectors');
