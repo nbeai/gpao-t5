@@ -4,6 +4,20 @@
 import { FAILURE } from '../contracts.js';
 
 /**
+ * 실행·전달 수명주기 파생(Phase 5.1, §7). none|attempting|delivered|failed|abandoned.
+ * 실행/전달만 — 승인(held/approved)은 AuthorityGrant 소관.
+ * @param {object|null} actualCall
+ * @param {import('../contracts.js').FailureState} failureState
+ * @param {*} result
+ */
+function deriveLifecycle(actualCall, failureState, result) {
+  if (!actualCall) return 'none'; // 호출 안 함(예: 실행 불가로 차단)
+  if (failureState === FAILURE.NONE && result !== undefined) return 'delivered';
+  if (failureState !== FAILURE.NONE) return 'failed';
+  return 'attempting';
+}
+
+/**
  * @param {Object} r
  * @param {string} r.intended
  * @param {{tool:string, args?:*}|null} [r.actualCall]
@@ -17,11 +31,15 @@ import { FAILURE } from '../contracts.js';
 export function receipt(r) {
   if (!r || typeof r.intended !== 'string') throw new TypeError('receipt: intended 필수');
   if (typeof r.userSafeSummary !== 'string') throw new TypeError('receipt: userSafeSummary 필수');
+  const failureState = r.failureState ?? FAILURE.NONE;
+  const actualCall = r.actualCall ?? null;
   return {
     intended: r.intended,
-    actualCall: r.actualCall ?? null,
+    actualCall,
     result: r.result,
-    failureState: r.failureState ?? FAILURE.NONE,
+    failureState,
+    // Phase 5.1(§7): 실행·전달 수명주기. 승인 상태는 여기 아니라 AuthorityGrant에 있다.
+    lifecycle: r.lifecycle ?? deriveLifecycle(actualCall, failureState, r.result),
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,

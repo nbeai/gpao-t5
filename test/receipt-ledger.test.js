@@ -32,6 +32,19 @@ test('diagnosticTrace 의 스택·오류코드가 userSafeSummary 로 새지 않
   assert.equal(leaksDiagnostics(leaky), true);
 });
 
+// Phase 5.1(§7): lifecycle은 실행/전달만. 승인 상태는 여기 없다.
+test('lifecycle 파생: 성공=delivered, 실패=failed, 미호출=none', () => {
+  const ok = receipt({ intended: 'x', actualCall: { tool: 't' }, result: {}, userSafeSummary: 'ok' });
+  assert.equal(ok.lifecycle, 'delivered');
+  const fail = receipt({ intended: 'x', actualCall: { tool: 't' }, failureState: 'failed', userSafeSummary: 'no' });
+  assert.equal(fail.lifecycle, 'failed');
+  const blocked = blockedReceipt('x', 't', '아직');
+  assert.equal(blocked.lifecycle, 'none', '호출 안 한 것은 none');
+  // 명시 override 가능
+  const explicit = receipt({ intended: 'x', actualCall: { tool: 't' }, result: {}, userSafeSummary: 'ok', lifecycle: 'abandoned' });
+  assert.equal(explicit.lifecycle, 'abandoned');
+});
+
 test('receipt 는 intended·userSafeSummary 필수', () => {
   assert.throws(() => receipt({ userSafeSummary: 'x' }));
   assert.throws(() => receipt({ intended: 'x' }));

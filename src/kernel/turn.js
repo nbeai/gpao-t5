@@ -11,6 +11,7 @@ import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan } from './l2-plan/action-plan.js';
 import { isExecutionAllowed } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
+import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 
 /**
  * @typedef {Object} TurnInput
@@ -54,6 +55,22 @@ export async function runTurn(input, ctx) {
   if (input.reject) {
     ctx.pending.delete(input.reject);
     return { kind: 'reply', reply: '보내지 않았어요. 초안은 그대로 있어요.', selfStateSummary: summary };
+  }
+
+  // C) Relevance Gate(§1.5) — 외부·비요청 이벤트만 거른다. user_chat(기본)·trusted_runtime_event은
+  //    우회한다. 비respond면 턴을 열지 않고 조용히 종료(사용자 설명문 없음, 안티 대시보드).
+  const gate = admitInboundEvent({
+    source: input.source ?? 'user_chat',
+    triggerSignals: input.triggerSignals,
+    keepAsContext: input.keepAsContext,
+  });
+  if (gate.disposition !== 'respond') {
+    return {
+      kind: 'gated',
+      disposition: gate.disposition,
+      admittedAsContext: gate.admittedAsContext,
+      selfStateSummary: summary,
+    };
   }
 
   // 0) 진행 중 작업이 있으면 follow-up 을 먼저 판정한다(새 지시를 놓치지 않는다).

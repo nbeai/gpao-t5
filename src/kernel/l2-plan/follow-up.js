@@ -21,6 +21,8 @@ export function decideFollowUp(p) {
     incomingInput: p.incomingInput,
     conflict,
     decision,
+    // Phase 5.1(§8.1): 후보 유형 계약 자리. P5는 호출자가 명시할 때만 채우고 기본 none.
+    candidateKind: p.candidateKind ?? 'none',
     userNotice,
   };
 }

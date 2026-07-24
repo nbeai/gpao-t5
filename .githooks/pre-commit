@@ -1,0 +1,17 @@
+#!/bin/sh
+# GPAO-T5 pre-commit — 빠른 것만(밀리초). 산출물·시크릿·스테이지 패턴이 staged 에 섞였는지 grep.
+# 전체 테스트는 CI(.github/workflows/ci.yml)가 실행한다(환경헌장).
+# 설치: git config core.hooksPath .githooks
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# 소스 트리에 커밋되면 안 되는 것들(환경헌장: 산출물·시크릿·스테이지).
+bad=$(printf '%s\n' "$staged" | grep -E '(^|/)(dist|build|out|node_modules|coverage)/|\.stage-|(^|/)\.env$|\.(pem|key|p12|pfx|jks|keystore)$' || true)
+if [ -n "$bad" ]; then
+  echo "pre-commit 거부: 산출물/시크릿/스테이지 패턴이 staged 에 있습니다:" >&2
+  printf '  %s\n' "$bad" >&2
+  echo "환경헌장: 소스와 산출물은 물리적으로 분리, 시크릿은 커밋 금지." >&2
+  exit 1
+fi
+exit 0

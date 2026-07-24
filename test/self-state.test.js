@@ -35,6 +35,28 @@ test('연결됐지만 실행 준비 안 된 도구는 실행 불가로 판정', 
   assert.ok(!s.limits.some((l) => l.includes('slack.post')));
 });
 
+// Phase 5.1(§6): connectedTools.status 세분화 + executable 파생.
+test('connectedTools.status: usable/needs_connection/blocked 세분화, executable은 파생', () => {
+  const s = buildSelfState({
+    model: { id: 'm' },
+    connections: [
+      { id: 'a', connected: true, executable: true },
+      { id: 'b', connected: false, executable: false },
+      { id: 'c', connected: true, executable: false },
+      { id: 'd', connected: true, executable: false, needs: 'auth' },
+    ],
+  });
+  const by = Object.fromEntries(s.connectedTools.map((t) => [t.id, t]));
+  assert.equal(by.a.status, 'usable');
+  assert.equal(by.a.executable, true);
+  assert.equal(by.b.status, 'needs_connection');
+  assert.equal(by.c.status, 'blocked');
+  assert.equal(by.d.status, 'needs_auth');
+  // executable은 status===usable의 파생
+  assert.equal(by.c.executable, false);
+  assert.equal(by.d.executable, false);
+});
+
 test('billing_blocked 는 결제 문구의 다음 안전 행동을 준다(재시도 문구 아님)', () => {
   const s = buildSelfState({ model: { id: 'm', authSignal: 'insufficient_quota' } });
   assert.equal(s.modelAuthState, 'billing_blocked');
