@@ -99,6 +99,55 @@ test('T3 회귀: 동시 세션 스트림이 서로 안 막고 각자 complete', 
   });
 });
 
+test('같은 세션 동시 스트림: eventId 중복·transcript 유실이 없다', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const [first, second] = await Promise.all([
+      stream(base, s.id, { text: '첫 번째 뉴스 조사해줘' }),
+      stream(base, s.id, { text: '두 번째 뉴스 조사해줘' }),
+    ]);
+    const combined = [...first, ...second];
+    const ids = combined.filter((e) => Number.isInteger(e.id)).map((e) => e.id);
+    assert.equal(new Set(ids).size, ids.length, '같은 세션 eventId는 중복되면 안 된다');
+    assert.equal(combined.filter((e) => e.type === 'complete').length, 2, '두 turn 모두 명시 종료');
+
+    const reloaded = await (await fetch(`${base}/sessions/${s.id}`)).json();
+    assert.equal(reloaded.transcript.length, 4, '두 turn 모두 transcript에 남아야 한다');
+    assert.deepEqual(
+      reloaded.transcript.filter((e) => e.role === 'user').map((e) => e.text).sort(),
+      ['두 번째 뉴스 조사해줘', '첫 번째 뉴스 조사해줘'].sort(),
+    );
+    assert.equal(reloaded.transcript.filter((e) => e.role === 'assistant').length, 2);
+  });
+});
+
+test('스트림 내부 오류도 recoverable_error + complete로 닫고 멈추지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-sse-error-'));
+  const eventLog = {
+    async nextEventId() { throw new Error('event-log-down'); },
+    async append() {},
+    async since() { return []; },
+    async lastIsTerminal() { return false; },
+  };
+  const server = makeServer({ store: new SessionStore(dir), eventLog });
+  await new Promise((r) => server.listen(0, r));
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const s = await (await post(base, '/sessions')).json();
+    const events = await stream(base, s.id, { text: '뉴스 조사해줘' });
+    const types = events.map((e) => e.type);
+    assert.ok(types.includes('heartbeat'), '오류 전 heartbeat가 있어야 한다');
+    assert.ok(types.includes('recoverable_error'), '오류를 사용자 안전 상태로 닫는다');
+    assert.equal(types.at(-1), 'complete', '내부 오류여도 complete로 닫힌다');
+  } finally {
+    console.error = originalError;
+    await new Promise((r) => server.close(r));
+  }
+});
+
 // 프라이버시(blocker): 사용자 원문은 URL query가 아니라 POST 본문으로만. GET에 streamId 없으면 실행 안 함.
 test('프라이버시: text를 GET query에 실어도 실행되지 않는다(원문 URL 노출 금지)', async () => {
   await withServer(async (base) => {
