@@ -479,6 +479,15 @@ function renderResult(r, opts = {}) {
       const cls = p.tier === 'A3' ? 'a3' : 'a2';
       row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span> — ${esc(p.preview?.impact ?? '')} <span class="cancel">(${esc(p.preview?.cancel ?? '')})</span>`;
       card.appendChild(row);
+      // P6-7: send류는 어디에/무엇을을 사용자 언어로 분명히 보여준다(문장 전체가 아니라 분리된 내용).
+      if (p.preview?.what != null || p.preview?.where != null) {
+        const d = el('sug-line');
+        if (p.preview.where != null) d.appendChild(el(null, `어디에: ${p.preview.where}`));
+        if (p.preview.what != null) d.appendChild(el(null, `무엇을: ${p.preview.what}`));
+        d.appendChild(el(null, `되돌리기: ${p.preview.cancel ?? '되돌릴 수 있어요'}`));
+        d.style.marginLeft = 'var(--sp-4)';
+        card.appendChild(d);
+      }
     }
     // 재접속(historical)이라도 그 승인이 아직 유효하면(activePendingIds) 다시 눌러 이어실행할 수 있다.
     // 만료·해소돼 목록에 없으면 정직하게 지난 요청으로만 표시(죽은 버튼 금지).

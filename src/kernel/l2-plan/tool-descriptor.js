@@ -62,6 +62,8 @@ export function toConnection(descriptor, facts = {}) {
     status,
     // auth ≠ approval: 실행 가능해도 승인이 필요할 수 있다(별도 축).
     needsApproval: descriptor.needsApproval,
+    // 권한 종류를 SelfState까지 실어 보낸다(ActionPlan·send 분리가 descriptor toolKind를 먼저 믿게).
+    toolKind: descriptor.toolKind,
   };
 }
 

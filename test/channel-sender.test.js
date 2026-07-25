@@ -107,7 +107,7 @@ test('A2 경계: 슬랙 전송 요청은 실행 전 승인(approval)을 거친�
   const base = `http://127.0.0.1:${port}`;
   try {
     const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙에 안녕이라고 올려줘' })).json();
+    const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙 #general에 안녕이라고 올려줘' })).json();
     assert.equal(r.kind, 'approval', '전송은 A2 — 실행 전 승인');
     assert.equal(sent, false, '승인 전엔 실제 전송이 일어나지 않는다(몰래 안 보냄)');
     assert.ok(r.pending?.some((p) => /슬랙|slack/i.test(p.label)), '승인 대상에 슬랙 전송');
