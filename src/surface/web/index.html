@@ -152,6 +152,11 @@
   .badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:var(--r-full); }
   .badge.a2 { background:var(--info-subtle); color:var(--info); }
   .badge.a3 { background:var(--danger-subtle); color:var(--danger); }
+  .badge.floor { background:var(--warn-subtle); color:var(--warn); }
+  /* P6-15: 조용한 승인 모드 표시 + 승인 이유(사용자 언어). 정책이 아니라 판단을 보여준다. */
+  .card .mode { font-size:var(--fs-xs); color:var(--faint); margin-bottom:var(--sp-2); }
+  .card .why { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-1) var(--sp-4); line-height:1.6; }
+  .card .why b { color:var(--fg); font-weight:600; }
   /* 기억 제안 — 조용한 info-톤, 대화를 막지 않는다. */
   .suggest { align-self:flex-start; max-width:86%; border:1px solid var(--line); border-left:3px solid var(--info);
     border-radius:var(--r-md); padding:var(--sp-3) var(--sp-4); background:var(--surface); animation:rise var(--dur-normal) var(--ease-out); }
@@ -492,20 +497,32 @@ function renderResult(r, opts = {}) {
     const box = turnBox();
     const card = el('card');
     card.appendChild(el('h4', '실행 전 승인이 필요해요'));
+    // P6-15: 현재 승인 모드를 조용히 표시(정책 아님, 판단을 보여줄 뿐). smart는 기본이라 굳이 강조 안 함.
+    const modeLabel = { manual: '수동', smart: '스마트', strict: '엄격' }[r.approvalMode];
+    if (modeLabel) card.appendChild(el('mode', `승인 모드: ${modeLabel} · 위험한 일만 멈춰서 확인해요`));
     for (const p of r.pending) {
       const row = el('row');
       const cls = p.tier === 'A3' ? 'a3' : 'a2';
-      row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span> — ${esc(p.preview?.impact ?? '')} <span class="cancel">(${esc(p.preview?.cancel ?? '')})</span>`;
+      // 내부 계약어(safetyFloor)는 화면에 그대로 노출하지 않는다 — 사용자 언어로 "꼭 확인"(감사 blocker).
+      const floor = p.safetyFloor ? ' <span class="badge floor">꼭 확인</span>' : '';
+      row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span>${floor} — ${esc(p.preview?.impact ?? '')}`;
       card.appendChild(row);
+      // P6-15: 왜 확인하는지 사용자 언어로. 개발자식 설명 금지.
+      if (p.reason?.why) {
+        const w = el('why'); w.innerHTML = `<b>왜 확인하나요</b> ${esc(p.reason.why)}`; card.appendChild(w);
+      }
       // P6-7: send류는 어디에/무엇을을 사용자 언어로 분명히 보여준다(문장 전체가 아니라 분리된 내용).
       if (p.preview?.what != null || p.preview?.where != null) {
-        const d = el('sug-line');
+        const d = el('why');
         if (p.preview.where != null) d.appendChild(el(null, `어디에: ${p.preview.where}`));
         if (p.preview.what != null) d.appendChild(el(null, `무엇을: ${p.preview.what}`));
-        d.appendChild(el(null, `되돌리기: ${p.preview.cancel ?? '되돌릴 수 있어요'}`));
-        d.style.marginLeft = 'var(--sp-4)';
         card.appendChild(d);
+      } else if (p.reason?.whatChanges) {
+        const c = el('why'); c.innerHTML = `<b>무엇이 바뀌나요</b> ${esc(p.reason.whatChanges)}`; card.appendChild(c);
       }
+      // 되돌릴 수 있는지 — reason 우선, 없으면 preview.cancel.
+      const rev = p.reason?.reversible ?? p.preview?.cancel;
+      if (rev) { const rv = el('why'); rv.innerHTML = `<b>되돌리기</b> ${esc(rev)}`; card.appendChild(rv); }
     }
     // 재접속(historical)이라도 그 승인이 아직 유효하면(activePendingIds) 다시 눌러 이어실행할 수 있다.
     // 만료·해소돼 목록에 없으면 정직하게 지난 요청으로만 표시(죽은 버튼 금지).
