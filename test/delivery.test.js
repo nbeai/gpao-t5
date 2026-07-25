@@ -66,7 +66,7 @@ test('전달 실패 → 원장 기록 + deliveryFailed 표면화(완료 아님)'
     assert.equal(done.kind, 'reply');
     assert.ok(done.deliveryFailed?.deliveryId, '전달 실패를 표면화(처음부터 다시 아님)');
     assert.equal(done.deliveryFailed.target, '#general');
-    const view = await getj(base, '/deliveries');
+    const view = await getj(base, `/deliveries?sessionId=${s.id}`);
     assert.equal(view.deliveries.length, 1);
     assert.equal(view.deliveries[0].state, 'failed');
     assert.equal(view.deliveries[0].retriable, true);
@@ -80,12 +80,12 @@ test('재전달: 기존 산출물을 그대로 다시 보낸다(재생성 없음
     const done = await send(base, s.id, '슬랙 #general에 회의 시작이라고 올려줘');
     const id = done.deliveryFailed.deliveryId;
     ctl.mode = 'ok'; // 이번엔 성공
-    const retry = await (await post(base, `/deliveries/${id}/retry`)).json();
+    const retry = await (await post(base, `/deliveries/${id}/retry`, { sessionId: s.id })).json();
     assert.equal(retry.ok, true);
     assert.equal(retry.state, 'delivered');
     // 재전달은 저장된 산출물을 그대로 — 새 턴/재생성 없이 같은 {text, target}
     assert.deepEqual(calls[1], { text: '회의 시작', target: '#general' }, '같은 산출물 재전달');
-    const view = await getj(base, '/deliveries');
+    const view = await getj(base, `/deliveries?sessionId=${s.id}`);
     assert.equal(view.deliveries[0].state, 'delivered');
     assert.equal(view.deliveries[0].attempts, 2);
   });
@@ -97,7 +97,7 @@ test('전달 성공은 deliveryFailed 없음 + delivered', async () => {
     const s = await (await post(base, '/sessions')).json();
     const done = await send(base, s.id, '슬랙 #general에 회의 시작이라고 올려줘');
     assert.equal(done.deliveryFailed, undefined);
-    const view = await getj(base, '/deliveries');
+    const view = await getj(base, `/deliveries?sessionId=${s.id}`);
     assert.equal(view.deliveries[0].state, 'delivered');
   });
 });
@@ -107,10 +107,72 @@ test('이미 전달된 건 재전달해도 중복 전송 안 함', async () => {
     ctl.mode = 'ok';
     const s = await (await post(base, '/sessions')).json();
     await send(base, s.id, '슬랙 #general에 회의 시작이라고 올려줘');
-    const view = await getj(base, '/deliveries');
+    const view = await getj(base, `/deliveries?sessionId=${s.id}`);
     const before = calls.length;
-    const retry = await (await post(base, `/deliveries/${view.deliveries[0].id}/retry`)).json();
+    const retry = await (await post(base, `/deliveries/${view.deliveries[0].id}/retry`, { sessionId: s.id })).json();
     assert.equal(retry.alreadyDelivered, true);
     assert.equal(calls.length, before, '이미 전달됐으면 다시 안 보냄');
+  });
+});
+
+// ── 세션/권한 경계 (감사 blocker) ── 전달 원장은 전역이 아니라 세션 소유. 재전달은
+//   same session + same approved artifact + same target + explicit user retry일 때만.
+//   wrong-session·sessionId 없음은 반드시 tool call 0(외부 전송 A2 경계를 우회 금지).
+
+test('경계1: S1에서 실패한 delivery가 S2 조회에 보이지 않는다', async () => {
+  await withServer(async (base) => {
+    const s1 = await (await post(base, '/sessions')).json();
+    const s2 = await (await post(base, '/sessions')).json();
+    await send(base, s1.id, '슬랙 #general에 회의 시작이라고 올려줘'); // S1에서 실패 기록
+    const v1 = await getj(base, `/deliveries?sessionId=${s1.id}`);
+    const v2 = await getj(base, `/deliveries?sessionId=${s2.id}`);
+    assert.equal(v1.deliveries.length, 1, 'S1엔 보인다');
+    assert.equal(v2.deliveries.length, 0, 'S2엔 안 보인다(세션 경계)');
+    // sessionId 없이 조회는 열지 않는다
+    const bad = await fetch(`${base}/deliveries`);
+    assert.equal(bad.status, 400);
+  });
+});
+
+test('경계2: S2가 S1 delivery id로 retry하면 실패하고 tool call 0', async () => {
+  await withServer(async (base, calls, ctl) => {
+    const s1 = await (await post(base, '/sessions')).json();
+    const s2 = await (await post(base, '/sessions')).json();
+    await send(base, s1.id, '슬랙 #general에 회의 시작이라고 올려줘');
+    const id = (await getj(base, `/deliveries?sessionId=${s1.id}`)).deliveries[0].id;
+    ctl.mode = 'ok'; // 성공하게 열어둬도 — 경계에서 막혀 tool은 안 돈다
+    const before = calls.length;
+    const resp = await post(base, `/deliveries/${id}/retry`, { sessionId: s2.id });
+    assert.equal(resp.status, 403, '다른 세션은 재전달 불가');
+    assert.equal(calls.length, before, 'wrong-session retry는 tool call 0');
+    // 원장 상태도 그대로(전달 안 됨)
+    assert.equal((await getj(base, `/deliveries?sessionId=${s1.id}`)).deliveries[0].state, 'failed');
+  });
+});
+
+test('경계3: sessionId 없이 retry하면 실패하고 tool call 0', async () => {
+  await withServer(async (base, calls, ctl) => {
+    const s1 = await (await post(base, '/sessions')).json();
+    await send(base, s1.id, '슬랙 #general에 회의 시작이라고 올려줘');
+    const id = (await getj(base, `/deliveries?sessionId=${s1.id}`)).deliveries[0].id;
+    ctl.mode = 'ok';
+    const before = calls.length;
+    const resp = await post(base, `/deliveries/${id}/retry`); // sessionId 없음
+    assert.equal(resp.status, 400, 'sessionId 없으면 재전달 불가');
+    assert.equal(calls.length, before, 'sessionId 없는 retry는 tool call 0');
+  });
+});
+
+test('경계4: 올바른 S1 retry만 저장된 산출물로 delivered 전환', async () => {
+  await withServer(async (base, calls, ctl) => {
+    const s1 = await (await post(base, '/sessions')).json();
+    await send(base, s1.id, '슬랙 #general에 회의 시작이라고 올려줘');
+    const id = (await getj(base, `/deliveries?sessionId=${s1.id}`)).deliveries[0].id;
+    ctl.mode = 'ok';
+    const retry = await (await post(base, `/deliveries/${id}/retry`, { sessionId: s1.id })).json();
+    assert.equal(retry.state, 'delivered', '올바른 세션 retry만 전달됨으로');
+    // 저장된 artifact/target 그대로 — 재생성 없음
+    assert.deepEqual(calls[1], { text: '회의 시작', target: '#general' }, '저장된 산출물 재전달');
+    assert.equal((await getj(base, `/deliveries?sessionId=${s1.id}`)).deliveries[0].state, 'delivered');
   });
 });

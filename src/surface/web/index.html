@@ -550,7 +550,7 @@ function renderDeliveryFailed(box, df) {
   const btns = el('btns');
   const retry = document.createElement('button'); retry.className = 'act primary'; retry.textContent = '다시 보내기';
   retry.onclick = async () => {
-    const r = await (await fetch(`/deliveries/${df.deliveryId}/retry`, { method: 'POST' })).json();
+    const r = await (await fetch(`/deliveries/${df.deliveryId}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) })).json();
     card.remove();
     box.appendChild(el('sug-done', r.ok ? '다시 보냈어요. 전달됐어요.' : `아직 전달이 안 됐어요. ${r.userSafeSummary || ''}`));
   };

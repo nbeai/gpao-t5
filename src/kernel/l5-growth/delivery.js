@@ -8,11 +8,13 @@ export const DELIVERY_STATES = Object.freeze(['attempting', 'delivered', 'failed
 
 /**
  * 전달 기록 생성(attempting). artifact는 이미 만들어진 산출물 — 재전달 시 재생성하지 않는다.
- * @param {{id:string, tool:string, channel?:string, target:string, artifact:object, now?:number}} p
+ * sessionId는 이 전달을 승인·생성한 세션 — 조회·재전달은 이 세션에서만 허용한다(세션/권한 경계).
+ * @param {{id:string, sessionId?:string, tool:string, channel?:string, target:string, artifact:object, now?:number}} p
  */
 export function makeDelivery(p) {
   return {
     id: p.id,
+    sessionId: p.sessionId ?? null, // 소유 세션 — 다른 세션의 조회·재전달을 막는 권한 경계
     tool: p.tool,                 // 전달 수단(slack.post 등) — 재전달에 그대로 쓴다
     channel: p.channel ?? p.tool,
     target: p.target,

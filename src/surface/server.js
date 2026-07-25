@@ -141,7 +141,7 @@ export function makeServer(deps = {}) {
       const delivered = sv.failureState === 'none' || sv.failureState === undefined;
       // P6-14: 전달 원장 — 생성(artifact)과 전달을 분리해 남긴다. 실패해도 산출물 보존 → 재전달 가능.
       const dl = await deliveryStore.load();
-      let rec = makeDelivery({ id: randomUUID(), tool: sv.tool, target: sv.target, artifact: { text: sv.text }, now: Date.now() });
+      let rec = makeDelivery({ id: randomUUID(), sessionId: session.id, tool: sv.tool, target: sv.target, artifact: { text: sv.text }, now: Date.now() });
       rec = applyDeliveryResult(rec, sv.failureState ?? 'none', sv.userSafeSummary, Date.now());
       dl.deliveries.push(rec);
       await deliveryStore.save(dl);
@@ -468,18 +468,27 @@ export function makeServer(deps = {}) {
 
       // ── 전달 원장 (Delivery Ledger, P6-14) ── 생성≠전달. 실패 시 기존 산출물 재전달(처음부터 아님).
       if (req.method === 'GET' && url === '/deliveries') {
+        // 세션별 조회만 — 다른 대화의 전달은 보이지 않는다(권한 경계). sessionId 없으면 열지 않는다.
+        const sessionId = new URL(req.url, 'http://x').searchParams.get('sessionId');
+        if (typeof sessionId !== 'string' || !sessionId) return sendJson(res, 400, { error: '세션 없음' });
         const a = await deliveryStore.load();
         const strip = (d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state, attempts: d.attempts, retriable: isRetriable(d), needsFix: d.needsFix ?? false, lastResult: d.lastError?.failureState ?? null });
-        return sendJson(res, 200, { deliveries: a.deliveries.map(strip) });
+        return sendJson(res, 200, { deliveries: a.deliveries.filter((d) => d.sessionId === sessionId).map(strip) });
       }
       // 재전달: 이미 만든 산출물(artifact)을 그대로 다시 보낸다 — 재생성하지 않는다. 외부 전송은 원 승인 범위의
       //   재전달(A2 유지). 전달 확인(delivered) 이후에만 완료로 본다.
       if (req.method === 'POST' && url.startsWith('/deliveries/') && url.endsWith('/retry')) {
         const id = url.slice('/deliveries/'.length, -'/retry'.length);
+        // 재전달 계약: same session + same approved artifact + same target + explicit user retry.
+        //   세션 검증을 tools.run 전에 모두 통과시킨다 — 세션 없음/다른 세션은 tool call 0(외부 전송 A2 경계).
+        const body = JSON.parse((await readBody(req)) || '{}');
+        const sessionId = body.sessionId;
+        if (typeof sessionId !== 'string' || !sessionId) return sendJson(res, 400, { error: '세션 없음' });
         const a = await deliveryStore.load();
         const idx = a.deliveries.findIndex((d) => d.id === id);
         if (idx < 0) return sendJson(res, 404, { error: '전달 기록을 찾지 못했어요.' });
         const d = a.deliveries[idx];
+        if (d.sessionId !== sessionId) return sendJson(res, 403, { error: '다른 대화의 전달이라 여기서 다시 보낼 수 없어요.' });
         if (d.state === 'delivered') return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
         // 저장된 산출물을 그대로 재전달(재생성 없음). 실행 가능 게이트를 그대로 탄다.
         const selfState = buildSelfState(env);
