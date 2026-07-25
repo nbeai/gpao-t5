@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -36,6 +36,10 @@
   `makeChannelSender`(Slack/Telegram 실제 전송, fetchImpl 주입), A2 우회 없음(전송은 승인 뒤 실행자),
   토큰=사용자 소유(env)·없으면 needs_auth(가짜 성공 없음), 실패 분리(auth_failed→permanent /
   rate_limited·timeout→transient), ToolRunner `{failed:true}`→FAILED(transient) 매핑.
+- 2.0-A 개정 반영(근거: `T5-2.0-A-TOOLBOX-STATE`, 깊은 감사 통과+보정): §6.8 도구함 표면 —
+  `projectToolbox`(순수)·`GET /toolbox`, UI 상태=실제 runtime 상태. 보정: 도구 상태는 SelfState(env)
+  단일 진실을 따르고, 라이브 자격을 `liveDeps(processEnv)`가 env·tools에 함께 반영(slack.post는 토큰 유무로
+  connected 결정) — 도구함과 실행 게이트가 어긋나지 않는다.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -322,6 +326,20 @@ Bearer)·Telegram(`sendMessage`, URL token). 안전 경계:
 - **ToolRunner 매핑(general)**: 핸들러의 `{failed:true}`→FAILED(transient) receipt(기존 `{blocked}`=permanent와
   분리). 일시 실패를 정직한 메시지와 함께 남기고 자동화 백오프로 잇는다.
 - 안전 규율: `fetchImpl` 주입 — 테스트·기본 demoTools는 실 API를 치지 않는다. 라이브 서버만 실어댑터.
+
+### 6.8 도구함 표면 (Toolbox surface — 2.0-A)
+
+근거: `T5-2.0-TOOLBOX-CONNECTION-CENTER-UX-REFERENCE`(오너 정본) §7 Slice 2.0-A. 사용자가 "실제로 뭘 할 수
+있는지" 아는 읽기 전용 상태 표면. 제1원칙: **도구함 UI 상태 = 실제 runtime 상태**(어긋나면 T3의 "보이는 것≠
+되는 것" 재발). `projectToolbox(selfState, descriptors)`(순수)가 `GET /toolbox`로 사용자 언어 카드를 준다 —
+상태 점(초록 사용가능/노랑 연결필요/빨강 차단/회색 비활성)·능력 배지·연결/실행/승인 세 축 분리.
+
+**단일 진실 규칙(감사 보정)**: 도구 상태는 `SelfStateSnapshot`(= `buildSelfState(env)`)에서만 온다. 실제 자격은
+env에 반영해 **도구함과 실행 게이트(`isToolExecutable`)가 같은 env를 읽게** 한다. 라이브 배선은
+`liveDeps(processEnv)`가 env·tools를 함께 만든다 — 예: `slack.post.connected = Boolean(SLACK_BOT_TOKEN)`.
+토큰 없으면 도구함은 노랑 "연결이 필요해요"·`executable:false`(승인만 받고 뒤늦게 실패하는 불일치 금지),
+있으면 초록 사용 가능. 없는 도구를 있는 것처럼 보이지 않고(카드=descriptor), 기술 용어(status enum·MCP·
+token·schema)를 표면에 노출하지 않는다. 연결 실행·개인용 도구·Output Canvas는 2.0-B 이후.
 
 ---
 
