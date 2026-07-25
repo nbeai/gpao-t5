@@ -4,12 +4,24 @@ import { ToolRunner } from '../runtime/tool-runner.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
+import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
 // P6-2 Slice-3: 채널 커넥터를 ConnectorProfile로 선언(멀티채널). 실제 adapter는 P6 후속.
 export function demoConnectors() {
   return [
     defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true }),
     defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false }),
+  ];
+}
+
+// P6-16 Slice-1: ChannelRegistry 데모 fixture — 커넥터(자격) + inbound 정책 + outbound 도구 바인딩.
+//   ⚠️ **demo/test 전용 fixture다.** telegram을 connected:true로 박아두므로 **라이브 표면에 쓰면 안 된다** —
+//   라이브 채널 상태는 실제 자격에서 파생한다(live-context.liveChannels). server 기본은 이 fixture(테스트 편의).
+export function demoChannels() {
+  const byId = Object.fromEntries(demoConnectors().map((c) => [c.id, c]));
+  return [
+    defineChannel({ id: 'telegram', connector: byId.telegram, inboundPolicy: 'mention_required', outboundTool: 'telegram.send' }),
+    defineChannel({ id: 'slack.channel', connector: byId['slack.channel'], inboundPolicy: 'mention_required', outboundTool: 'slack.post' }),
   ];
 }
 
