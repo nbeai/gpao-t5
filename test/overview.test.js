@@ -8,7 +8,7 @@ import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
-// P6-18 Slice-1 Status Overview — 조용한 읽기 전용 요약. 누적된 "반드시 구분"을 구조에 박는다:
+// P6-18 Status Overview — 조용한 요약(칩 열 때만) + 조용한 조치. 누적된 "반드시 구분"을 구조에 박는다:
 //   연결 상태↔실제 가능 · 추천 스킬↔활성 스킬 · 추정된 성향↔반영 중 선호 · 전달 실패↔완료.
 
 // ── 순수 조합: 두 범주가 별도 필드로 분리된다(안 섞임) ──
@@ -39,8 +39,9 @@ test('buildOverview: 각 항목이 두 범주로 분리된다', () => {
   assert.equal(o.deliveries.deliveredCount, 1);
 });
 
-// ── 액션 가능 항목은 id를 싣고, 읽기 전용(추정·활성·반영)은 액션 없음 ──
-test('buildOverview: actionable(추천·대기·실패)은 id, 읽기전용(추정·활성·반영)은 id 없음', () => {
+// ── 액션 가능 항목은 id를 싣고, 읽기 전용(추정·활성)은 액션 없음 ──
+//   반영 중(선호·기억)은 되돌리기 액션이 있어 id를 싣는다(읽기 전용 아님). 추정만 액션 없는 읽기 전용.
+test('buildOverview: actionable(추천·대기·실패·반영)은 id, 읽기전용(추정·활성)은 id 없음', () => {
   const o = buildOverview({
     skills: [{ id: 'sk1', label: '추천', state: 'candidate' }, { id: 'sk3', label: '활성', state: 'admitted' }],
     userModel: { inferredTraits: [{ statement: '아침형' }], operatingPreferences: [{ id: 'p1', statement: '대기', status: 'pending_confirm', admitted: false }, { id: 'pr1', statement: '반영', status: 'admitted', admitted: true }] },
