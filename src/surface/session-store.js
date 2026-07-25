@@ -55,6 +55,17 @@ export class SessionStore {
     return session;
   }
 
+  /** 전체 세션(transcript 포함) 로드 — 세션 검색(P6-17)용. 손상 파일은 조용히 제외. */
+  async loadAll() {
+    await this._ensure();
+    const files = (await readdir(this.dir)).filter((f) => f.endsWith('.json') && SAFE_ID.test(f.slice(0, -5)));
+    const out = [];
+    for (const f of files) {
+      try { out.push(JSON.parse(await readFile(join(this.dir, f), 'utf8'))); } catch { /* 손상 제외 */ }
+    }
+    return out;
+  }
+
   /** 사이드바용 목록(최근 수정순). 실제 세션만 — 가짜 없음. */
   async list() {
     await this._ensure();

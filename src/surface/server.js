@@ -22,6 +22,7 @@ import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
 import { projectChannels } from '../kernel/l2-plan/channel-registry.js';
+import { searchTranscripts, projectSearchCandidates } from '../kernel/l5-growth/session-search.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
@@ -545,6 +546,17 @@ export function makeServer(deps = {}) {
       //   내부 readiness 코드가 아니라 "받을 준비됨/로그인 필요/연결 필요"로. 미연결·미자격은 초록 아님.
       if (req.method === 'GET' && url === '/channels') {
         return sendJson(res, 200, { channels: projectChannels(deps.channels ?? demoChannels()) });
+      }
+      // ── 세션 검색 (P6-17 Slice-1) ── 과거 대화 회수. **결과는 후보로만 나온다(admitted:false, 영향 0).**
+      //   turn을 돌리지 않고 모델에 먹이지 않는다 — 라우터·answer에 raw로 섞이지 않게. 승격은 별도 admission.
+      if (req.method === 'POST' && url === '/search') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.query !== 'string' || !input.query.trim()) return sendJson(res, 400, { error: '검색어가 필요해요.' });
+        const sessions = await store.loadAll();
+        const hits = searchTranscripts(sessions, input.query);
+        const results = projectSearchCandidates(hits, () => randomUUID());
+        // admitted:false를 명시적으로 보장(표면이 "이미 반영됨"으로 오해하지 않게).
+        return sendJson(res, 200, { query: input.query, results, admittedIntoContext: false });
       }
       // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. 게이트 순서(감사 보정):
       //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화
