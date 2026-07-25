@@ -247,7 +247,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
     if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
-    if (sendArgs?.[toolId]?.target && !sentVia) sentVia = { tool: toolId, target: sendArgs[toolId].target };
+    // P6-11 학습 + P6-14 전달 원장: 전달 수단·대상·산출물·전달 결과를 함께 실어 보낸다(생성≠전달 분리).
+    if (sendArgs?.[toolId]?.target && !sentVia) {
+      sentVia = { tool: toolId, target: sendArgs[toolId].target, text: sendArgs[toolId].text, failureState: rec.failureState, userSafeSummary: rec.userSafeSummary };
+    }
   }
   // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
   // 2.0-B: 연결/자격 때문에 막힌 도구는 구조화해 표면화한다(채팅 안 '연결이 필요해요' 카드 → 도구함 안내).

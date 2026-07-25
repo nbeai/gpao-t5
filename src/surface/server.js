@@ -29,6 +29,8 @@ import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import { makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget } from '../kernel/l5-growth/task-trace.js';
+import { DeliveryStore } from './delivery-store.js';
+import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
@@ -61,6 +63,7 @@ export function makeServer(deps = {}) {
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
+  const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
@@ -134,9 +137,22 @@ export function makeServer(deps = {}) {
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     if (result.goal) session.activeGoal = result.goal;
     if (result.sentVia?.tool && result.sentVia.target) {
-      learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: result.sentVia.tool, target: result.sentVia.target, now: Date.now() }));
-      const cand = proposeDefaultTarget({ tool: result.sentVia.tool, target: result.sentVia.target, promoted: learning.promoted, proposed: learning.proposed });
-      if (cand) { const withId = { patternId: randomUUID(), ...cand }; learning.proposed.push(withId); result.patternCandidate = withId; }
+      const sv = result.sentVia;
+      const delivered = sv.failureState === 'none' || sv.failureState === undefined;
+      // P6-14: 전달 원장 — 생성(artifact)과 전달을 분리해 남긴다. 실패해도 산출물 보존 → 재전달 가능.
+      const dl = await deliveryStore.load();
+      let rec = makeDelivery({ id: randomUUID(), tool: sv.tool, target: sv.target, artifact: { text: sv.text }, now: Date.now() });
+      rec = applyDeliveryResult(rec, sv.failureState ?? 'none', sv.userSafeSummary, Date.now());
+      dl.deliveries.push(rec);
+      await deliveryStore.save(dl);
+      // 전달 실패면 채팅에서 "전달이 막혔어요 / 다시 보낼까요?"로 이어가게 표면화(처음부터 다시 아님).
+      if (rec.state !== 'delivered') result.deliveryFailed = { deliveryId: rec.id, tool: rec.tool, target: rec.target, needsFix: rec.needsFix, userSafeSummary: rec.lastError?.userSafeSummary };
+      // P6-11 학습: TaskTrace는 넓게 기록하되, DefaultTarget 후보는 **실제 전달된** 경우에만 제안(잘못 학습 방지).
+      learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: sv.tool, target: sv.target, outcome: delivered ? 'delivered' : 'failed', now: Date.now() }));
+      if (delivered) {
+        const cand = proposeDefaultTarget({ tool: sv.tool, target: sv.target, promoted: learning.promoted, proposed: learning.proposed });
+        if (cand) { const withId = { patternId: randomUUID(), ...cand }; learning.proposed.push(withId); result.patternCandidate = withId; }
+      }
       await traceStore.save(learning);
     }
     if (result.memorySuggestion) {
@@ -448,6 +464,29 @@ export function makeServer(deps = {}) {
         const contract = parseCompletionCriteria(input.criteria);
         const receipt = verifyCompletion(contract, input.artifact ?? {});
         return sendJson(res, 200, { contract, receipt });
+      }
+
+      // ── 전달 원장 (Delivery Ledger, P6-14) ── 생성≠전달. 실패 시 기존 산출물 재전달(처음부터 아님).
+      if (req.method === 'GET' && url === '/deliveries') {
+        const a = await deliveryStore.load();
+        const strip = (d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state, attempts: d.attempts, retriable: isRetriable(d), needsFix: d.needsFix ?? false, lastResult: d.lastError?.failureState ?? null });
+        return sendJson(res, 200, { deliveries: a.deliveries.map(strip) });
+      }
+      // 재전달: 이미 만든 산출물(artifact)을 그대로 다시 보낸다 — 재생성하지 않는다. 외부 전송은 원 승인 범위의
+      //   재전달(A2 유지). 전달 확인(delivered) 이후에만 완료로 본다.
+      if (req.method === 'POST' && url.startsWith('/deliveries/') && url.endsWith('/retry')) {
+        const id = url.slice('/deliveries/'.length, -'/retry'.length);
+        const a = await deliveryStore.load();
+        const idx = a.deliveries.findIndex((d) => d.id === id);
+        if (idx < 0) return sendJson(res, 404, { error: '전달 기록을 찾지 못했어요.' });
+        const d = a.deliveries[idx];
+        if (d.state === 'delivered') return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
+        // 저장된 산출물을 그대로 재전달(재생성 없음). 실행 가능 게이트를 그대로 탄다.
+        const selfState = buildSelfState(env);
+        const rec = await tools.run(d.tool, { text: d.artifact?.text, target: d.target }, selfState);
+        a.deliveries[idx] = applyDeliveryResult(d, rec.failureState, rec.userSafeSummary, Date.now());
+        await deliveryStore.save(a);
+        return sendJson(res, 200, { ok: rec.failureState === 'none', state: a.deliveries[idx].state, userSafeSummary: a.deliveries[idx].lastError?.userSafeSummary ?? '다시 보냈어요.' });
       }
 
       // ── 도구함 (2.0-A 상태 기반 표면) ── UI는 실제 runtime 상태만 본다(감사 §5.5·§10.1).
