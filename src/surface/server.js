@@ -20,7 +20,8 @@ import { MemoryStore } from './memory-store.js';
 import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
-import { demoConnectors } from './demo-context.js';
+import { demoConnectors, demoDescriptors } from './demo-context.js';
+import { projectToolbox } from './toolbox-view.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
@@ -287,6 +288,12 @@ export function makeServer(deps = {}) {
         m.promoted = m.promoted.filter((e) => e.candidateId !== input.candidateId);
         if (m.promoted.length !== before) await memStore.save(m);
         return sendJson(res, 200, { ok: true });
+      }
+
+      // ── 도구함 (2.0-A 상태 기반 표면) ── UI는 실제 runtime 상태만 본다(감사 §5.5·§10.1).
+      if (req.method === 'GET' && url === '/toolbox') {
+        const descriptors = deps.descriptors ?? demoDescriptors();
+        return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors));
       }
 
       // ── 커넥터 / 멀티채널 (P6-2 Slice-3) ──
