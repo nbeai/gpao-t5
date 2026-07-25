@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -86,6 +86,9 @@
   (inferred_trait, observed 레인, 영향 0, gate 이중 차단)과 승인된 운영 선호(operating_preference, userConfirmed 후
   promoted→admittedContext)를 kind/lane/API 분리. 추정→승인 자동 승격 금지. GET /user-model + traits/preferences/
   confirm. 후속: P6-18에서 "추정됨"↔"반영 중" 구분(추정을 "T5가 나를 반영한다"처럼 보이게 금지).
+- P6-18 Slice-1 반영(근거: `P6-18-STATUS-OVERVIEW`, 깊은 감사 통과): §6.19 Status Overview — 조용한 읽기 전용
+  단일 진입점(칩 열 때만, 안티 대시보드). 누적된 구분을 구조/문구로: 연결≠가능·추천≠활성·추정≠반영·실패≠완료.
+  buildOverview는 projection 조합만, GET /overview는 전달 세션 스코프. 후속: Slice-2 액션(구분 유지)·검색 표면·모바일.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -620,8 +623,27 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   (**"추정됨(influence:none)"↔"반영 중(admitted)" 분리 뷰**). `memory-store`에 `observed` 레인 추가.
 - 배선(UI 최소): `GET /user-model` · `POST /user-model/traits`(observed) · `/preferences`(candidate) ·
   `/preferences/:id/confirm`(promoted).
-- **후속**: 추정 자동 감지·추정→선호 전환 제안(자동 승격 아님) · **P6-18에서 "추정됨"과 "반영 중"을 사용자가
-  헷갈리지 않게 분리**(추정 성향을 "T5가 나를 안다/반영한다"처럼 보이게 금지) · 프로필/세션별 격리.
+- **후속**: 추정 자동 감지·추정→선호 전환 제안(자동 승격 아님) · 프로필/세션별 격리.
+
+### 6.19 Status Overview (P6-18 Slice-1, 구현됨 — 조용한 단일 진입점, 구분을 구조로)
+
+근거: 헌법 §5.5(안티 대시보드 — 채팅 점유 금지), P6-14~17 감사 후속(누적된 "반드시 구분"). 내부 상태 계약을
+먼저 세운 뒤(§6.13~6.18), 사용자가 "지금 무엇이 실제로 반영·가능한지"를 **열 때만 보는 조용한 읽기 전용
+요약**으로 통합한다.
+
+- **안티 대시보드**: 상시 패널·폴링 없음. 칩 열 때만 `/overview` 1회 fetch, 닫으면 사라진다. **읽기 전용**
+  (실행·승격·재전달은 각 흐름이 담당, 요약엔 액션 없음 — Slice-1 기준).
+- **누적된 "반드시 구분"을 구조에 박는다**(각 항목 두 범주 별도 필드, 안 섞임):
+  - 연결: `ready`(실제 받을 수 있음) ↔ `notReady`(연결/로그인 필요) — §6.15 연결≠가능.
+  - 스킬: `active`(admitted) ↔ `recommended`(candidate/replay_required) — §6.17 추천≠활성.
+  - 선호: `reflected`(admitted 운영 선호) ↔ `inferred`(추정, 영향 0) — §6.18 추정≠반영.
+  - 전달: `deliveredCount` ↔ `failed`(다시 보낼 수 있음) — §6.13 실패≠완료.
+- `buildOverview(...)`는 **이미 만든 projection 조합만**(신규 상태 invent 없음). `GET /overview?sessionId=` —
+  전달은 **세션 스코프(§6.13)**, sessionId 없으면 전달 미노출(유출 방지). UI는 칩 열 때 렌더(on=반영/활성/가능,
+  off=추정/추천/필요/실패를 색으로 분리).
+- **후속(Slice-2 주의)**: 요약에 액션(재전달·스킬 승인·선호 확인)을 붙일 때도 이 구분을 무너뜨리지 않는다 —
+  `추천됨`·`추정됨`·`전달 실패`는 계속 "아직 완료/반영/활성 아님"으로 보여야 한다. 검색 "찾은 기억↔반영된 기억"
+  카드(§6.16 admittedIntoContext) · 모바일 375px 레이아웃 회귀.
 
 ---
 
