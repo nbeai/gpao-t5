@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -47,6 +47,10 @@
 - P6-7 개정 반영(근거: `P6-7-NL-SEND-PRECISION`, 깊은 감사 통과): §6.7 send 정밀화 — `parseSend`로 대상·내용을
   지시 문장과 분리(문장 전체 미전송), 애매하면 clarify(대상/내용), 승인 preview 어디에/무엇을/되돌리기,
   executePlan은 {target,text}로 실행, A2 경계 유지. toConnection이 toolKind를 SelfState까지 전달.
+- 2.0-C-0 개정 반영(근거: `T5-2.0-C-0-CAPABILITY-RESOLUTION`, 깊은 감사 통과+보정): §6.9 CapabilityResolution —
+  부족 능력(tool/skill/connector/profile/target/permission)을 하나의 패킷·통합 카드로(비파괴), resumeContext
+  복귀 경로. 개인 도구 준비 게이트(등록≠실행가능, "설정 확인" 통과 전 executable=false, 실패시 이유+다음행동) +
+  SkillDescriptor 다섯 축 초안. 후속: P6-11 Learning-to-Workflow Promotion.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -376,6 +380,31 @@ token·schema)를 표면에 노출하지 않는다.
 - T5는 필요한 도구/스킬을 능동적으로 감지하고 추천할 수 있지만, 추천은 설치·연결·권한 부여·기억 승격이 아니다. 사용자의 확인과 테스트 게이트가 지나기 전에는 행동에 영향을 주지 않는다.
 
 개인용 도구·추천·Output Canvas는 2.0-C 이후.
+
+### 6.9 CapabilityResolution (막힘 해결 경로 — 2.0-C-0, 구현됨)
+
+근거: 헌법 최상위 원칙(사용자를 덜 헤매게), Codex 전략 브리핑(오너 승인). "이거 해줘" 했는데 능력이 없을 때,
+흩어진 신호(커넥터·도구·대상·권한)를 **하나의 정식 패킷**으로 묶어 막힘을 목적 달성 경로로 바꾼다.
+
+`CapabilityResolution {requestText, desiredOutcome, missingCapability, capabilityType, currentStatus, reason,
+nextAction, requiresApproval, testPlan, resumeContext, alternatives, ref}`
+- `capabilityType`: tool | skill | connector | profile | target | permission
+- `nextAction`: connect | install | register | test | clarify | approve | alternative
+- `resolveCapability(signals)`: 부족 신호를 첫 하나로 분류(우선순위 permission > connector > tool > target).
+  **비파괴**: 기존 §6.7 connectionNeeded(2.0-B)·toolCandidate(2.0-C)·send-clarify(P6-7)·approval을 근거로 재사용.
+  UI는 연결/도구를 **하나의 통합 카드**로(2.0-B+2.0-C 카드 통합). `resumeContext`는 원래 작업 복귀 경로(비우지 않음).
+
+**개인 도구 준비 게이트(2.0-C-1, 구현됨)**: `definePersonalTool`(등록=`testState:'untested'`, executable=false) →
+`runProbe`(이 슬라이스: **필수 설정 완비 확인** — 실제 외부 실행/OAuth는 후속이라 UI는 "설정 확인", "실행 테스트"
+아님) → `applyProbe`(passed→executable / failed→이유·다음 안전 행동). **등록됨 ≠ 실행 가능**: 확인 통과 전에는
+사용 가능처럼 보이지 않는다. 도구함은 "개인용/설정 확인 전/실행 불가"로 정직하게. 죽은 버튼 없음.
+
+**SkillDescriptor 초안(2.0-C-2, 계약만)**: 도구 ≠ 스킬. 스킬은 작업 "방식"으로 다섯 축(말귀·절차·맥락·결과물
+형식·replay)을 가진다. 추천은 설치·승격 아님 — 확인·replay 통과 전 영향 0. store·UI·실행은 후속.
+
+후속: P6-11 Learning-to-Workflow Promotion(TaskTrace→PatternCandidate→ReplayCase→Skill/AutomationBlueprint/
+DefaultTarget/ProfileRule 승격, broad memory narrow influence) + 기본 대상·프로필 라우팅·페어링·ambient·
+connector doctor·blueprint·task flow·채널별 출력.
 
 ---
 
