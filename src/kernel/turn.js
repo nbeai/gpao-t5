@@ -201,6 +201,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
   }
   // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
+  // 2.0-B: 연결/자격 때문에 막힌 도구는 구조화해 표면화한다(채팅 안 '연결이 필요해요' 카드 → 도구함 안내).
+  //   원래 작업(currentRequest)을 함께 보존해 연결 후 이어갈 pending context로 쓴다. 첫 도구만(누더기 방지).
+  let connectionNeeded;
   for (const toolId of plan.blockedTools ?? []) {
     const label = toolLabel(toolId);
     const rec = blockedReceipt(
@@ -211,6 +214,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     );
     ledger.append(rec);
     turnReceipts.push(rec);
+    if (!connectionNeeded) {
+      const ct = selfState.connectedTools.find((t) => t.id === toolId);
+      const status = ct?.status ?? 'needs_connection';
+      // 연결·설정 계열(노랑)만 연결 안내로 잇는다. 완전 차단(빨강)은 연결로 안 풀리므로 제외.
+      if (status === 'needs_auth' || status === 'needs_connection' || status === 'needs_config') {
+        connectionNeeded = { toolId, label, requestText: intent.currentRequest };
+      }
+    }
   }
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
@@ -227,5 +238,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     nextSafeAction: projection.unconfirmed.length ? plan.recoveryCriteria : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+    // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
+    connectionNeeded,
   };
 }

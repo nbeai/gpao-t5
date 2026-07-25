@@ -67,6 +67,8 @@ export function projectToolbox(selfState, descriptors) {
     // 실제 status만 쓴다. connectedTools에 없으면 회색(비활성) — 있는 척하지 않는다.
     const known = byId.has(d.id);
     const status = ct.status ?? 'needs_connection';
+    // 연결·설정 계열만 "연결되면 이어서" 안내. blocked(차단)·gray(비활성)엔 부정확하므로 붙이지 않는다.
+    const connectable = known && !ct.executable && ['needs_auth', 'needs_connection', 'needs_config'].includes(status);
     return {
       id: d.id,
       label: d.label ?? d.id,
@@ -80,6 +82,8 @@ export function projectToolbox(selfState, descriptors) {
       sourceLedgerRequired: Boolean(d.sourcePolicy?.sourceLedgerRequired),
       badges: badgesOf(d),
       blurb: blurbOf(d),
+      // 2.0-B: 연결·설정 필요 도구만 정직한 준비 안내(죽은 '연결하기' 버튼 대신 텍스트). 실제 연결은 후속.
+      connectHint: connectable ? '연결이 준비되면 이어서 쓸 수 있어요. (실제 연결은 곧 지원돼요.)' : undefined,
     };
   });
   const categories = [...new Set(tools.map((t) => t.category))];

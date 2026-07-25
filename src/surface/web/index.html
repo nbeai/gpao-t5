@@ -220,6 +220,9 @@
     font-size:var(--fs-sm); color:var(--muted); display:none; }
   .tb-card.open .tb-detail { display:block; }
   .tb-detail .tb-axes { display:flex; flex-direction:column; gap:2px; margin-top:var(--sp-2); font-size:var(--fs-xs); }
+  .tb-hint { margin-top:var(--sp-2); font-size:var(--fs-xs); color:var(--fg); background:var(--accent-subtle);
+    border-radius:var(--r-sm); padding:var(--sp-2); }
+  .tb-card.focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
   .tb-empty { font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-4) var(--sp-1); }
 
   @media (max-width:720px) {
@@ -325,29 +328,35 @@ const tbSearch = document.getElementById('tb-search');
 let tbTools = [];
 const mk = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
 
-async function openToolbox() {
+async function openToolbox(focusId) {
   tbov.classList.add('open');
   document.body.classList.remove('nav-open');
   tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
   try {
     const r = await (await fetch('/toolbox')).json();
     tbTools = r.tools || [];
-    renderToolbox('');
-    tbSearch.focus();
+    renderToolbox('', focusId);
+    if (!focusId) tbSearch.focus();
   } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
 }
 function closeToolbox() { tbov.classList.remove('open'); }
 
-function renderToolbox(q) {
+function renderToolbox(q, focusId) {
   const query = (q || '').trim().toLowerCase();
   const list = tbTools.filter((t) => !query || t.label.toLowerCase().includes(query)
     || (t.badges || []).some((b) => b.toLowerCase().includes(query)) || (t.category || '').toLowerCase().includes(query));
   tbBody.replaceChildren();
   if (!list.length) { tbBody.appendChild(mk('div', 'tb-empty', '조건에 맞는 도구가 없어요.')); return; }
+  let focusCard = null;
   for (const cat of [...new Set(list.map((t) => t.category))]) {
     tbBody.appendChild(mk('div', 'tb-cat', cat));
-    for (const t of list.filter((x) => x.category === cat)) tbBody.appendChild(toolCard(t));
+    for (const t of list.filter((x) => x.category === cat)) {
+      const card = toolCard(t);
+      if (t.id === focusId) { card.classList.add('open', 'focus'); focusCard = card; }
+      tbBody.appendChild(card);
+    }
   }
+  if (focusCard) requestAnimationFrame(() => focusCard.scrollIntoView({ block: 'center' }));
 }
 function toolCard(t) {
   const card = mk('div', 'tb-card');
@@ -367,6 +376,7 @@ function toolCard(t) {
   if (t.needsApproval) axes.appendChild(mk('div', null, '보내기·실행 전에 확인받아요'));
   if (t.sourceLedgerRequired) axes.appendChild(mk('div', null, '출처를 남겨요'));
   d.appendChild(axes);
+  if (t.connectHint) d.appendChild(mk('div', 'tb-hint', t.connectHint)); // 2.0-B 연결 준비 안내(죽은 버튼 아님)
   card.appendChild(d);
   card.onclick = () => card.classList.toggle('open');
   return card;
@@ -493,6 +503,24 @@ function renderResult(r, opts = {}) {
   if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
   // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
   if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
+  // 연결 필요(2.0-B) — 작업 중 필요한 도구가 아직 연결 안 됨. 채팅 안에서 도구함으로 자연스럽게 안내.
+  // 제안(memory/automation)과 달리 이건 "작업 복귀 경로"다 → 재접속/새로고침(historical)에도 남긴다.
+  // 버튼은 /toolbox 열어 도구 focus만(실제 연결 실행은 후속) — 죽은 버튼 아님.
+  if (r.connectionNeeded?.toolId) renderConnectionNeeded(box, r.connectionNeeded);
+}
+
+// 작업 중 필요한 도구가 연결 안 됨 → 채팅 흐름 안에서 안내(원래 작업은 세션에 보존, 연결되면 이어감).
+function renderConnectionNeeded(box, cn) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', `${cn.label} 연결이 필요해요`));
+  card.appendChild(el('sug-line', '이 작업을 이어가려면 먼저 연결이 필요해요. 연결되면 이어서 진행할게요.'));
+  const btns = el('btns');
+  const open = document.createElement('button'); open.className = 'act primary'; open.textContent = '연결 화면 열기';
+  open.onclick = () => openToolbox(cn.toolId);
+  const later = document.createElement('button'); later.className = 'act no'; later.textContent = '나중에';
+  later.onclick = () => card.remove();
+  btns.appendChild(open); btns.appendChild(later); card.appendChild(btns);
+  box.appendChild(card);
 }
 
 // 자동화 후보를 조용히 제안. 승인해도 범위·만료·취소·원장이 있다. 승인 전 영향 0.
