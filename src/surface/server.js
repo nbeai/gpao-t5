@@ -23,7 +23,7 @@ import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
 import { projectChannels } from '../kernel/l2-plan/channel-registry.js';
-import { searchTranscripts, projectSearchCandidates } from '../kernel/l5-growth/session-search.js';
+import { searchTranscripts, projectSearchCandidates, makeSearchCandidate } from '../kernel/l5-growth/session-search.js';
 import { buildOverview } from './overview.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
@@ -575,6 +575,24 @@ export function makeServer(deps = {}) {
         const results = projectSearchCandidates(hits, () => randomUUID());
         // admitted:false를 명시적으로 보장(표면이 "이미 반영됨"으로 오해하지 않게).
         return sendJson(res, 200, { query: input.query, results, admittedIntoContext: false });
+      }
+      // 검색 결과 반영 — **찾은 기억은 아직 반영된 기억이 아니다(§6.16).** 사용자가 명시로 admit할 때만
+      //   admission(context-mesh promote, userConfirmed)을 태워 promoted로 → 이후 관련 대화에 좁게 입장.
+      if (req.method === 'POST' && url === '/search/admit') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '반영할 내용이 필요해요.' });
+        const memory = await memStore.load();
+        const stmt = input.statement.trim();
+        // 이미 반영된 같은 회수 기억이면 중복 반영하지 않는다.
+        if ((memory.promoted ?? []).some((e) => e.kind === 'recalled_context' && e.statement === stmt)) {
+          return sendJson(res, 200, { admitted: true, already: true, statement: stmt });
+        }
+        const cand = makeSearchCandidate({ snippet: stmt, sessionId: input.source?.sessionId, title: input.source?.title, role: input.source?.role }, randomUUID());
+        const result = promote(cand, { userConfirmed: true }); // §6.16 admission — 자동 아님, 사용자 확인
+        if (!result.ok) return sendJson(res, 200, { admitted: false, reason: result.reason });
+        memory.promoted = [...(memory.promoted ?? []), result.entry];
+        await memStore.save(memory);
+        return sendJson(res, 200, { admitted: true, statement: result.entry.statement });
       }
       // ── 스킬 학습 (P6-17 Slice-2) ── SkillCandidate lifecycle. **추천 ≠ 실행/승격. replay+확인 전 영향 0.**
       //   스킬은 자동 실행 권한이 없다(외부 행동은 여전히 A2). UI는 최소 표면.
