@@ -54,13 +54,43 @@ function blurbOf(d) {
   return extra.length ? `${verb}. ${extra.join(', ')}.` : `${verb}.`;
 }
 
+// 개인 도구(2.0-C) → 사용자 카드. 등록됨 ≠ 실행 가능: 테스트 통과 전에는 "테스트 전"(사용 가능 아님).
+const PERSONAL_STATUS = { untested: '테스트 전', passed: '사용 가능', failed: '테스트 실패' };
+const PERSONAL_DOT = { untested: 'yellow', passed: 'green', failed: 'red' };
+
+function personalCard(t) {
+  const st = t.testState ?? 'untested';
+  const executable = st === 'passed';
+  return {
+    id: t.id,
+    label: t.label ?? t.id,
+    category: '개인용',
+    statusDot: PERSONAL_DOT[st] ?? 'yellow',
+    userStatus: PERSONAL_STATUS[st] ?? '테스트 전',
+    connected: true, // 등록됨(로컬). 단 실행 가능은 테스트 통과가 결정한다(축 분리).
+    executable,
+    needsApproval: t.toolKind === 'send',
+    sourceLedgerRequired: false,
+    personal: true,
+    testState: st,
+    badges: ['개인용', ...(t.toolKind === 'send' ? ['보내요', '실행 전에 확인받아요'] : t.toolKind === 'read' ? ['읽어요'] : ['정리해요'])],
+    blurb: '사용자가 준비한 개인 도구예요.',
+    // 준비 안내(죽은 버튼 대신 텍스트). 테스트 실패면 실제 사유·다음 안전 행동을 정직하게.
+    connectHint: executable ? undefined
+      : st === 'failed' ? `${t.testError?.reason ?? '테스트에 실패했어요.'} ${t.testError?.nextSafeAction ?? ''}`.trim()
+        : '실행 테스트를 통과하면 쓸 수 있어요.',
+  };
+}
+
 /**
  * 도구함 투영 — 실제 SelfState.connectedTools의 status를 descriptor와 합쳐 사용자 카드로.
+ * 개인 도구(personalTools)가 있으면 "개인용" 카테고리 카드로 함께 보여준다(등록됨≠실행가능).
  * @param {{connectedTools?:Array}} selfState  buildSelfState(env) 결과
  * @param {Array} descriptors                   ToolDescriptor 목록(라벨·toolKind·needsApproval·sourcePolicy)
+ * @param {Array} [personalTools]               등록된 PersonalTool 목록(2.0-C)
  * @returns {{tools:object[], categories:string[]}}
  */
-export function projectToolbox(selfState, descriptors) {
+export function projectToolbox(selfState, descriptors, personalTools = []) {
   const byId = new Map((selfState?.connectedTools ?? []).map((t) => [t.id, t]));
   const tools = (descriptors ?? []).map((d) => {
     const ct = byId.get(d.id) ?? {};
@@ -86,6 +116,8 @@ export function projectToolbox(selfState, descriptors) {
       connectHint: connectable ? '연결이 준비되면 이어서 쓸 수 있어요. (실제 연결은 곧 지원돼요.)' : undefined,
     };
   });
-  const categories = [...new Set(tools.map((t) => t.category))];
-  return { tools, categories };
+  const personal = (personalTools ?? []).map(personalCard);
+  const all = [...tools, ...personal];
+  const categories = [...new Set(all.map((t) => t.category))];
+  return { tools: all, categories };
 }

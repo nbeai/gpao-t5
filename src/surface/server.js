@@ -22,6 +22,8 @@ import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors, demoDescriptors } from './demo-context.js';
 import { projectToolbox } from './toolbox-view.js';
+import { PersonalToolsStore } from './personal-tools-store.js';
+import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
@@ -51,6 +53,7 @@ export function makeServer(deps = {}) {
   const store = deps.store ?? new SessionStore();
   const memStore = deps.memoryStore ?? new MemoryStore(store.dir);
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
+  const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -292,7 +295,34 @@ export function makeServer(deps = {}) {
       // ── 도구함 (2.0-A 상태 기반 표면) ── UI는 실제 runtime 상태만 본다(감사 §5.5·§10.1).
       if (req.method === 'GET' && url === '/toolbox') {
         const descriptors = deps.descriptors ?? demoDescriptors();
-        return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors));
+        const { tools: personalTools } = await personalStore.load(); // 2.0-C: 개인 도구 함께
+        return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors, personalTools));
+      }
+
+      // ── 개인 도구 (2.0-C-1) ── 등록됨 ≠ 실행 가능. 실행 테스트 통과 전에는 executable=false.
+      if (req.method === 'POST' && url === '/personal-tools') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.label !== 'string' || !input.label.trim()) return sendJson(res, 400, { error: '도구 이름이 필요해요.' });
+        const a = await personalStore.load();
+        const tool = definePersonalTool({ id: randomUUID(), label: input.label.trim(), kind: input.kind, config: input.config, now: Date.now() });
+        a.tools.push(tool);
+        await personalStore.save(a);
+        // 등록 직후엔 테스트 전 — 사용 가능처럼 보이지 않게 정직하게 반환.
+        return sendJson(res, 200, { ok: true, id: tool.id, testState: tool.testState, executable: false });
+      }
+      // 실행 테스트: 통과하면 executable, 실패하면 이유·다음 안전 행동을 정직하게.
+      if (req.method === 'POST' && url.startsWith('/personal-tools/') && url.endsWith('/test')) {
+        const id = url.slice('/personal-tools/'.length, -'/test'.length);
+        const a = await personalStore.load();
+        const idx = a.tools.findIndex((t) => t.id === id);
+        if (idx < 0) return sendJson(res, 404, { error: '개인 도구를 찾지 못했어요.' });
+        const probe = runProbe(a.tools[idx]);
+        a.tools[idx] = applyProbe(a.tools[idx], probe, Date.now());
+        await personalStore.save(a);
+        return sendJson(res, 200, {
+          ok: probe.ok, testState: a.tools[idx].testState, executable: probe.ok,
+          reason: probe.ok ? undefined : probe.reason, nextSafeAction: probe.ok ? undefined : probe.nextSafeAction,
+        });
       }
 
       // ── 커넥터 / 멀티채널 (P6-2 Slice-3) ──

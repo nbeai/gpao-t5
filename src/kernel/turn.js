@@ -15,6 +15,8 @@ import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend } from './l1-intent/send-parse.js';
+import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
+import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -111,6 +113,8 @@ export async function runTurn(input, ctx) {
     ...admittedContext(ctx.memory ?? {}, input.text ?? ''),
   ];
   const memorySuggestion = detectCandidate(input.text ?? '');
+  // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
+  const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
   // 2) 확인 필요 → 실행 전 멈추고 묻는다(방법 나열 금지).
   if (intent.needsClarification) {
@@ -133,6 +137,8 @@ export async function runTurn(input, ctx) {
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
+      toolCandidate,
+      capabilityResolution: resolveCapability({ text: input.text, toolCandidate }),
       followUp,
     };
   }
@@ -166,6 +172,7 @@ export async function runTurn(input, ctx) {
           : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action)}의 채널/받는 사람)`,
         selfStateSummary: summary,
         memorySuggestion,
+        capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action), toolId: sendGrant.action } }),
         followUp,
       };
     }
@@ -195,6 +202,7 @@ export async function runTurn(input, ctx) {
       followUp,
       memorySuggestion,
       automationSuggestion,
+      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action), action: pendingGrants[0].action } }),
     };
   }
 
@@ -203,6 +211,9 @@ export async function runTurn(input, ctx) {
   result.followUp = followUp;
   result.memorySuggestion = memorySuggestion;
   result.automationSuggestion = automationSuggestion;
+  result.toolCandidate = toolCandidate;
+  // 2.0-C-0: 부족 능력 신호(연결/도구)를 통합 패킷으로. 커넥터가 우선(작업 직접 차단), 없으면 도구 준비.
+  result.capabilityResolution = resolveCapability({ text: input.text, connectionNeeded: result.connectionNeeded, toolCandidate });
   return result;
 }
 
