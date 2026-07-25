@@ -64,6 +64,9 @@ export function makeServer(deps = {}) {
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
+  // 같은 세션의 턴은 durable truth(EventLog)와 transcript를 공유하므로 직렬화한다.
+  // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
+  const sessionQueues = new Map();
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -87,6 +90,16 @@ export function makeServer(deps = {}) {
     } finally {
       ticking = false;
     }
+  }
+
+  function withSessionQueue(sessionId, task) {
+    const previous = sessionQueues.get(sessionId) ?? Promise.resolve();
+    const run = previous.catch(() => {}).then(task);
+    const tail = run.finally(() => {
+      if (sessionQueues.get(sessionId) === tail) sessionQueues.delete(sessionId);
+    });
+    sessionQueues.set(sessionId, tail);
+    return run;
   }
 
   // 승인 대기(pending)를 세션 파일에 지속한다(Approval Lifecycle). 기억(memory)·활성목표(activeGoal)를
@@ -191,9 +204,12 @@ export function makeServer(deps = {}) {
         if (!hasText && !hasControl) return sendJson(res, 400, { error: '빈 발화' });
         if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
 
-        const session = await store.load(input.sessionId);
-        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        const result = await runAndPersistTurn(session, input);
+        const result = await withSessionQueue(input.sessionId, async () => {
+          const session = await store.load(input.sessionId);
+          if (!session) return null;
+          return runAndPersistTurn(session, input);
+        });
+        if (!result) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
         return sendJson(res, 200, result);
       }
 
@@ -245,31 +261,41 @@ export function makeServer(deps = {}) {
         const text = pending.text;
         writeHeartbeat(); // 연결 즉시 생존 신호(무한 대기 방지)
         const hb = setInterval(writeHeartbeat, 15_000); hb.unref?.(); // 긴 turn 동안 연결 유지
-        const turnId = randomUUID();
-        let seq = (await eventLog.nextEventId(sessionId)) - 1;
-        const emit = async (type, payload) => {
-          seq += 1;
-          const ev = makeTurnEvent({ turnId, eventId: seq, type, payload: payload ?? {}, now: Date.now() });
-          await eventLog.append(sessionId, ev); // durable만 남는다(안전 척추)
-          writeEvent(ev);
-        };
         try {
-          await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
-          const result = await runAndPersistTurn(session, { sessionId, text }, emit);
-          // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
-          if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
-          else if (result.capabilityResolution && ['connector', 'tool'].includes(result.capabilityResolution.capabilityType)) {
-            await emit('capability_needed', { capabilityType: result.capabilityResolution.capabilityType, missingCapability: result.capabilityResolution.missingCapability });
-          }
-          await emit('complete', { kind: result.kind });
-        } catch (err) {
-          await emit('recoverable_error', { text: '처리 중 문제가 있었어요.', nextSafeAction: '잠시 후 다시 시도할까요?' });
-          await emit('complete', { kind: 'error' });
-          console.error('[stream:diagnostic]', err?.stack ?? err);
+          await withSessionQueue(sessionId, async () => {
+            try {
+              const activeSession = await store.load(sessionId);
+              if (!activeSession) {
+                res.write('event: recoverable_error\ndata: {"text":"세션을 찾지 못했어요."}\n\n');
+                res.write('event: complete\ndata: {"kind":"error"}\n\n');
+                return;
+              }
+              const turnId = randomUUID();
+              let seq = (await eventLog.nextEventId(sessionId)) - 1;
+              const emit = async (type, payload) => {
+                seq += 1;
+                const ev = makeTurnEvent({ turnId, eventId: seq, type, payload: payload ?? {}, now: Date.now() });
+                await eventLog.append(sessionId, ev); // durable만 남는다(안전 척추)
+                writeEvent(ev);
+              };
+              await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
+              const result = await runAndPersistTurn(activeSession, { sessionId, text }, emit);
+              // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
+              if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
+              else if (result.capabilityResolution && ['connector', 'tool'].includes(result.capabilityResolution.capabilityType)) {
+                await emit('capability_needed', { capabilityType: result.capabilityResolution.capabilityType, missingCapability: result.capabilityResolution.missingCapability });
+              }
+              await emit('complete', { kind: result.kind });
+            } catch (err) {
+              res.write('event: recoverable_error\ndata: {"text":"처리 중 문제가 있었어요.","nextSafeAction":"잠시 후 다시 시도할까요?"}\n\n');
+              res.write('event: complete\ndata: {"kind":"error"}\n\n');
+              console.error('[stream:diagnostic]', err?.stack ?? err);
+            }
+          });
         } finally {
           clearInterval(hb); // heartbeat 정리(타이머 누수 방지)
+          res.end();
         }
-        res.end();
         return;
       }
 

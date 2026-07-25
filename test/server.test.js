@@ -62,6 +62,23 @@ test('turn 결과가 세션 transcript에 지속되고 복원된다', async () =
   });
 });
 
+test('같은 세션 동시 turn은 transcript를 유실하지 않는다', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    await Promise.all([
+      post(base, '/turn', { sessionId: s.id, text: '첫 번째 요청' }),
+      post(base, '/turn', { sessionId: s.id, text: '두 번째 요청' }),
+    ]);
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.equal(reloaded.transcript.length, 4, '두 turn 모두 user+assistant 쌍으로 남아야 한다');
+    assert.deepEqual(
+      reloaded.transcript.filter((e) => e.role === 'user').map((e) => e.text).sort(),
+      ['두 번째 요청', '첫 번째 요청'].sort(),
+    );
+    assert.equal(reloaded.transcript.filter((e) => e.role === 'assistant').length, 2);
+  });
+});
+
 // 격리: 두 세션의 대화가 서로 새지 않는다.
 test('세션 간 대화 격리 — 한 세션 발화가 다른 세션에 안 보인다', async () => {
   await withServer(async (base) => {
