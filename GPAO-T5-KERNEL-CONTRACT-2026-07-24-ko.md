@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -44,6 +44,9 @@
   blockedTools(연결/설정 계열)→`connectionNeeded` 표면화, 채팅→도구함 focus. 보정: 연결 안내는 작업 복귀
   경로라 **historical에서도 유지**(pending context), 연결 버튼은 도구함 focus만(실제 연결 후속), `connectHint`는
   연결/설정 계열에만.
+- P6-7 개정 반영(근거: `P6-7-NL-SEND-PRECISION`, 깊은 감사 통과): §6.7 send 정밀화 — `parseSend`로 대상·내용을
+  지시 문장과 분리(문장 전체 미전송), 애매하면 clarify(대상/내용), 승인 preview 어디에/무엇을/되돌리기,
+  executePlan은 {target,text}로 실행, A2 경계 유지. toConnection이 toolKind를 SelfState까지 전달.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -330,6 +333,17 @@ Bearer)·Telegram(`sendMessage`, URL token). 안전 경계:
 - **ToolRunner 매핑(general)**: 핸들러의 `{failed:true}`→FAILED(transient) receipt(기존 `{blocked}`=permanent와
   분리). 일시 실패를 정직한 메시지와 함께 남기고 자동화 백오프로 잇는다.
 - 안전 규율: `fetchImpl` 주입 — 테스트·기본 demoTools는 실 API를 치지 않는다. 라이브 서버만 실어댑터.
+
+**send 정밀화(P6-7)** — send류 요청은 **보낼 내용(message)·대상(target)을 지시 문장과 분리**한다. 사용자
+문장 전체를 도구에 그대로 던지지 않는다(T3의 위험 지점). `parseSend(text, toolId)`(순수, `l1-intent`)가
+대상(email/#채널/이름+에게)과 내용(따옴표 > 플랫폼·대상 접두·말미 동사·인용 어미 제거)을 분리한다.
+- **애매하면 실행하지 않고 확인**한다(kind:'clarify'): 대상 없으면 "어디로", 내용 없으면 "무엇을". 기본
+  대상(ConnectorProfile default target)이 생기기 전까지는 대상 없는 전송을 clarify로 막는 게 맞다(후속에서
+  default가 생기면 clarify를 줄인다).
+- 명확하면 `sendArgs{[tool]:{target,text}}`를 승인 pending에 보존하고, 승인 카드 preview를 사용자 언어
+  **어디에/무엇을/되돌리기**로 채운다. `executePlan`은 send를 `{target, text}`로 실행한다(문장 전체 아님).
+- **A2 경계는 그대로**: 명확해도 전송은 승인 뒤 실행자로만(sendNeedsApproval). 정밀해진 건 전송 인자뿐이다.
+- 부수: `toConnection`이 `toolKind`를 SelfState까지 전달해 send 판정·ActionPlan이 descriptor를 먼저 믿는다.
 
 ### 6.8 도구함 표면 (Toolbox surface — 2.0-A)
 
