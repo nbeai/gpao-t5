@@ -19,6 +19,25 @@ test('parseCompletionCriteria: 개수·중복·누락·섹션·중단·제약', 
   assert.ok(c.constraints.includes('원본은 수정하지 않는다'));
 });
 
+// 회귀(감사 blocker): 중단 조건의 숫자를 산출물 개수(count)로 오인하지 않는다.
+test('중단 숫자를 count로 오인하지 않는다', () => {
+  const hasCount = (c) => c.checks.some((x) => x.type === 'count');
+  // 1) 중단만 → count 없음, stop.n=3
+  const a = parseCompletionCriteria('애매한 문의가 3건 넘으면 멈춰');
+  assert.equal(hasCount(a), false, '중단 숫자는 count 아님');
+  assert.deepEqual(a.stop, { type: 'ambiguous_over', n: 3 });
+  // 2) 산출물 개수 + 중단 → count=30, stop=3
+  const b = parseCompletionCriteria('30건 분류하고 애매한 문의가 3건 넘으면 멈춰');
+  assert.equal(b.checks.find((x) => x.type === 'count')?.expected, 30);
+  assert.equal(b.stop.n, 3);
+  // 3) 중복/누락 + 중단 → no_duplicate/no_missing만, count 없음
+  const c = parseCompletionCriteria('중복 없고 누락 없고 애매 3건 넘으면 멈춰');
+  assert.equal(hasCount(c), false, 'count 없음');
+  assert.ok(c.checks.some((x) => x.type === 'no_duplicate'));
+  assert.ok(c.checks.some((x) => x.type === 'no_missing'));
+  assert.equal(c.stop.n, 3);
+});
+
 // ── 검증: 완료 = 검증 통과. "생성했다"만으론 완료 아님. ──
 const contract = parseCompletionCriteria('30건, 중복 없고, 누락 없고, 배송 환불 계정 섹션 존재. 애매 3건 넘으면 멈춰.');
 
