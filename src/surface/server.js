@@ -20,13 +20,13 @@ import { MemoryStore } from './memory-store.js';
 import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
-import { demoConnectors } from './demo-context.js';
+import { demoConnectors, demoDescriptors } from './demo-context.js';
+import { projectToolbox } from './toolbox-view.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
 import { AutomationScheduler } from '../runtime/automation-scheduler.js';
-import { makeWebCollector } from '../runtime/web-collector.js';
-import { makeChannelSender } from '../runtime/channel-sender.js';
+import { liveDeps } from './live-context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -289,6 +289,12 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, { ok: true });
       }
 
+      // ── 도구함 (2.0-A 상태 기반 표면) ── UI는 실제 runtime 상태만 본다(감사 §5.5·§10.1).
+      if (req.method === 'GET' && url === '/toolbox') {
+        const descriptors = deps.descriptors ?? demoDescriptors();
+        return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors));
+      }
+
       // ── 커넥터 / 멀티채널 (P6-2 Slice-3) ──
       if (req.method === 'GET' && url === '/connectors') {
         // auth(자격)과 approval(전송)을 두 축으로 보여준다.
@@ -348,14 +354,10 @@ export function makeServer(deps = {}) {
 // 직접 실행할 때만 listen 한다(import 시 부작용 없음).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
-  // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 테스트/기본 demoTools는 offline 스텁 유지.
-  // 시간 제한은 env로 조정 가능(기본 15초) — 끝나지 않는 응답이 Work Chat을 멈추지 못하게.
-  const webTimeoutMs = Number(process.env.GPAO_T5_WEB_TIMEOUT_MS ?? 15_000);
-  // slack.post는 실제 전송 어댑터. 토큰(env)이 없으면 어댑터가 정직하게 needs_auth를 낸다(가짜 성공 아님).
-  const senders = {
-    'slack.post': makeChannelSender({ channel: 'slack', token: process.env.SLACK_BOT_TOKEN, defaultTarget: process.env.SLACK_DEFAULT_CHANNEL }),
-  };
-  const server = makeServer({ tools: demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders }) });
+  // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영한다(단일 진실):
+  // slack.post는 토큰이 있어야 도구함에서 사용 가능·실행 가능. 없으면 연결 필요(도구함·실행 일치, 2.0-A 보정).
+  const { env: liveEnv, tools: liveTools } = liveDeps(process.env);
+  const server = makeServer({ env: liveEnv, tools: liveTools });
   server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });

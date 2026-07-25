@@ -21,6 +21,11 @@ const DESCRIPTORS = [
   defineTool({ id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true }),
   defineTool({ id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
 ];
+/** 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함). */
+export function demoDescriptors() {
+  return DESCRIPTORS;
+}
+
 // 환경 사실(연결·인증 존재 여부). mail.send는 연결됐으나 발송 인증 미준비 → needs_auth.
 const FACTS = {
   'web.collect': { connected: true },
@@ -29,11 +34,15 @@ const FACTS = {
   'slack.post': { connected: true },
 };
 
-/** 슬라이스-1 기본 환경(SelfState 입력). 연결은 descriptor availability로 판정한다. */
-export function demoEnv() {
+/**
+ * 슬라이스-1 기본 환경(SelfState 입력). 연결은 descriptor availability로 판정한다.
+ * @param {{factOverrides?:Record<string,object>}} [opts] 실제 자격 상태를 반영할 때 FACTS를 덮어쓴다(라이브).
+ */
+export function demoEnv(opts = {}) {
+  const facts = { ...FACTS, ...(opts.factOverrides ?? {}) };
   return {
     model: { id: 'beai5-stub', strengths: '자연 대화·판단', authSignal: 'ok' },
-    connections: DESCRIPTORS.map((d) => toConnection(d, FACTS[d.id] ?? {})),
+    connections: DESCRIPTORS.map((d) => toConnection(d, facts[d.id] ?? {})),
     grantedAuthorities: [],
   };
 }

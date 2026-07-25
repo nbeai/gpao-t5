@@ -191,6 +191,37 @@
     font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }
   .statusrow .spacer { flex:1; min-width:8px; }
 
+  /* ── 도구함 (2.0-A) ── */
+  #tbov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
+  #tbov.open { display:block; }
+  #tbpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
+    border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
+  .tb-head { padding:var(--sp-5) var(--sp-5) var(--sp-3); border-bottom:1px solid var(--line); }
+  .tb-head h2 { font-size:var(--fs-base); color:var(--fg-strong); display:flex; align-items:center; gap:var(--sp-2); }
+  .tb-head .tb-x { margin-left:auto; cursor:pointer; color:var(--muted); font-size:18px; background:none; border:none; }
+  .tb-head p { font-size:var(--fs-sm); color:var(--muted); margin-top:var(--sp-1); }
+  .tb-search { width:100%; margin-top:var(--sp-3); padding:var(--sp-2) var(--sp-3); border:1px solid var(--line-strong);
+    border-radius:var(--r-md); background:var(--elevated); color:var(--fg); font:inherit; font-size:var(--fs-sm); }
+  .tb-body { flex:1; overflow-y:auto; padding:var(--sp-3) var(--sp-4) var(--sp-6); }
+  .tb-cat { font-size:var(--fs-xs); color:var(--faint); text-transform:none; margin:var(--sp-4) var(--sp-1) var(--sp-2); }
+  .tb-card { border:1px solid var(--line); border-radius:var(--r-md); background:var(--elevated); padding:var(--sp-3);
+    margin-bottom:var(--sp-2); cursor:pointer; transition:border-color var(--dur-fast) var(--ease-out); }
+  .tb-card:hover { border-color:var(--line-strong); }
+  .tb-row { display:flex; align-items:center; gap:var(--sp-2); }
+  .tb-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .tb-dot.green { background:#6f9c5f; } .tb-dot.yellow { background:#c9a23b; }
+  .tb-dot.red { background:#b5654a; } .tb-dot.gray { background:var(--faint); }
+  .tb-name { font-size:var(--fs-sm); color:var(--fg-strong); }
+  .tb-stat { margin-left:auto; font-size:var(--fs-xs); color:var(--muted); }
+  .tb-badges { display:flex; flex-wrap:wrap; gap:var(--sp-1); margin-top:var(--sp-2); }
+  .tb-badge { font-size:var(--fs-xs); color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--r-full); padding:1px var(--sp-2); }
+  .tb-detail { margin-top:var(--sp-2); padding-top:var(--sp-2); border-top:1px dashed var(--line);
+    font-size:var(--fs-sm); color:var(--muted); display:none; }
+  .tb-card.open .tb-detail { display:block; }
+  .tb-detail .tb-axes { display:flex; flex-direction:column; gap:2px; margin-top:var(--sp-2); font-size:var(--fs-xs); }
+  .tb-empty { font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-4) var(--sp-1); }
+
   @media (max-width:720px) {
     #side { position:fixed; z-index:20; transform:translateX(-100%);
       transition:transform var(--dur-normal) var(--ease-out); box-shadow:var(--sh-lg); }
@@ -199,6 +230,7 @@
     .composer { padding:var(--sp-2) var(--sp-3) var(--sp-4); }
     #log { padding:var(--sp-5) var(--sp-3); }
     .statusrow .hint { display:none; }
+    #tbpanel { width:100%; border-left:none; }
   }
 </style>
 </head>
@@ -212,7 +244,7 @@
       <a data-soon="더 보기"><span class="em">▾</span>더 보기</a>
       <a data-soon="스킬"><span class="em">✦</span>스킬</a>
       <a data-soon="배운 작업"><span class="em">✎</span>배운 작업</a>
-      <a data-soon="연결"><span class="em">🜁</span>연결</a>
+      <a id="nav-toolbox"><span class="em">🜁</span>연결</a>
       <a data-soon="자동화"><span class="em">◷</span>자동화</a>
     </div>
     <button class="newchat" id="newchat">＋ 새 대화</button>
@@ -250,6 +282,17 @@
     </div>
   </main>
 
+  <div id="tbov">
+    <div id="tbpanel">
+      <div class="tb-head">
+        <h2>🜁 도구함 <button class="tb-x" id="tb-x" title="닫기">✕</button></h2>
+        <p>T5가 작업에 사용할 도구예요. 연결 상태는 실제 실행 상태와 같아요.</p>
+        <input class="tb-search" id="tb-search" placeholder="도구 검색" />
+      </div>
+      <div class="tb-body" id="tb-body"></div>
+    </div>
+  </div>
+
 <script type="module">
 const wrap = document.getElementById('wrap');
 const chip = document.getElementById('chip');
@@ -274,6 +317,64 @@ document.getElementById('theme').onclick = () => {
 };
 document.getElementById('newchat').onclick = () => newSession();
 chip.onclick = () => { statePanel.style.display = statePanel.style.display === 'block' ? 'none' : 'block'; };
+
+// ── 도구함 (2.0-A) — 실제 /toolbox 상태만 보여준다(없는 도구 안 만듦, 죽은 버튼 없음). ──
+const tbov = document.getElementById('tbov');
+const tbBody = document.getElementById('tb-body');
+const tbSearch = document.getElementById('tb-search');
+let tbTools = [];
+const mk = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+
+async function openToolbox() {
+  tbov.classList.add('open');
+  document.body.classList.remove('nav-open');
+  tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
+  try {
+    const r = await (await fetch('/toolbox')).json();
+    tbTools = r.tools || [];
+    renderToolbox('');
+    tbSearch.focus();
+  } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
+}
+function closeToolbox() { tbov.classList.remove('open'); }
+
+function renderToolbox(q) {
+  const query = (q || '').trim().toLowerCase();
+  const list = tbTools.filter((t) => !query || t.label.toLowerCase().includes(query)
+    || (t.badges || []).some((b) => b.toLowerCase().includes(query)) || (t.category || '').toLowerCase().includes(query));
+  tbBody.replaceChildren();
+  if (!list.length) { tbBody.appendChild(mk('div', 'tb-empty', '조건에 맞는 도구가 없어요.')); return; }
+  for (const cat of [...new Set(list.map((t) => t.category))]) {
+    tbBody.appendChild(mk('div', 'tb-cat', cat));
+    for (const t of list.filter((x) => x.category === cat)) tbBody.appendChild(toolCard(t));
+  }
+}
+function toolCard(t) {
+  const card = mk('div', 'tb-card');
+  const row = mk('div', 'tb-row');
+  row.appendChild(mk('span', 'tb-dot ' + t.statusDot));
+  row.appendChild(mk('span', 'tb-name', t.label));
+  row.appendChild(mk('span', 'tb-stat', t.userStatus));
+  card.appendChild(row);
+  const badges = mk('div', 'tb-badges');
+  for (const b of t.badges || []) badges.appendChild(mk('span', 'tb-badge', b));
+  card.appendChild(badges);
+  const d = mk('div', 'tb-detail');
+  d.appendChild(mk('div', null, t.blurb));
+  const axes = mk('div', 'tb-axes');
+  axes.appendChild(mk('div', null, '연결: ' + (t.connected ? '연결됨' : '연결 안 됨')));
+  axes.appendChild(mk('div', null, '실행: ' + (t.executable ? '실행 가능' : '실행 준비 안 됨')));
+  if (t.needsApproval) axes.appendChild(mk('div', null, '보내기·실행 전에 확인받아요'));
+  if (t.sourceLedgerRequired) axes.appendChild(mk('div', null, '출처를 남겨요'));
+  d.appendChild(axes);
+  card.appendChild(d);
+  card.onclick = () => card.classList.toggle('open');
+  return card;
+}
+document.getElementById('nav-toolbox').onclick = openToolbox;
+document.getElementById('tb-x').onclick = closeToolbox;
+tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
+tbSearch.oninput = () => renderToolbox(tbSearch.value);
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
 function add(node) { wrap.appendChild(node); node.scrollIntoView({ block: 'end' }); return node; }
