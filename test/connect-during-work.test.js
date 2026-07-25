@@ -48,6 +48,34 @@ test('연결됨: 토큰 있으면 슬랙 요청은 connectionNeeded 없음(승�
   });
 });
 
+// 감사 보정(필수): 연결 안내는 작업 복귀 경로 → 재접속/새로고침(historical)에도 transcript에 남아야 한다.
+test('재접속: connectionNeeded가 transcript에 복원된다(pending context 유지)', async () => {
+  await withLiveServer({}, async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    await post(base, '/turn', { sessionId: s.id, text: '슬랙에 회의 시작이라고 올려줘' });
+    // 세션 재접속(GET) → 저장된 transcript의 assistant result에 연결 안내가 남아 있어야 UI가 복귀 경로를 그린다.
+    const reloaded = await (await fetch(`${base}/sessions/${s.id}`)).json();
+    const asst = reloaded.transcript.find((e) => e.role === 'assistant');
+    assert.ok(asst?.result?.connectionNeeded, '재접속 transcript에도 연결 안내가 남음');
+    assert.equal(asst.result.connectionNeeded.toolId, 'slack.post');
+    assert.match(asst.result.connectionNeeded.requestText, /회의 시작/, '원래 작업도 함께 복원');
+  });
+});
+
+// 선택 보정: connectHint는 연결·설정 계열에만. blocked/gray엔 부정확하므로 없음.
+test('connectHint: needs_connection엔 있고, blocked에는 없다', () => {
+  const { env, descriptors } = liveDeps({});
+  const withBlocked = buildSelfState({
+    model: { authSignal: 'ok' },
+    connections: [{ id: 'slack.post', status: 'blocked', connected: true }],
+    grantedAuthorities: [],
+  });
+  const blockedSlack = projectToolbox(withBlocked, descriptors).tools.find((t) => t.id === 'slack.post');
+  assert.equal(blockedSlack.connectHint, undefined, 'blocked엔 연결 안내 부정확 → 없음');
+  const needsConn = projectToolbox(buildSelfState(env), descriptors).tools.find((t) => t.id === 'slack.post');
+  assert.ok(needsConn.connectHint, 'needs_connection엔 준비 안내 있음');
+});
+
 // 연결 불필요한 작업은 connectionNeeded를 내지 않는다(흐름 미교란).
 test('일반 작업: 연결 안내 없음', async () => {
   await withLiveServer({}, async (base) => {

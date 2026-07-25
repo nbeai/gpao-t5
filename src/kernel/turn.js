@@ -217,8 +217,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (!connectionNeeded) {
       const ct = selfState.connectedTools.find((t) => t.id === toolId);
       const status = ct?.status ?? 'needs_connection';
-      // 연결/자격 문제(노랑)만 연결 안내로 잇는다. 완전 차단(빨강)은 연결로 안 풀리므로 제외.
-      if (status === 'needs_auth' || status === 'needs_connection') {
+      // 연결·설정 계열(노랑)만 연결 안내로 잇는다. 완전 차단(빨강)은 연결로 안 풀리므로 제외.
+      if (status === 'needs_auth' || status === 'needs_connection' || status === 'needs_config') {
         connectionNeeded = { toolId, label, requestText: intent.currentRequest };
       }
     }

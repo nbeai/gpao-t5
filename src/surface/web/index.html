@@ -504,7 +504,9 @@ function renderResult(r, opts = {}) {
   // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
   if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
   // 연결 필요(2.0-B) — 작업 중 필요한 도구가 아직 연결 안 됨. 채팅 안에서 도구함으로 자연스럽게 안내.
-  if (!historical && r.connectionNeeded?.toolId) renderConnectionNeeded(box, r.connectionNeeded);
+  // 제안(memory/automation)과 달리 이건 "작업 복귀 경로"다 → 재접속/새로고침(historical)에도 남긴다.
+  // 버튼은 /toolbox 열어 도구 focus만(실제 연결 실행은 후속) — 죽은 버튼 아님.
+  if (r.connectionNeeded?.toolId) renderConnectionNeeded(box, r.connectionNeeded);
 }
 
 // 작업 중 필요한 도구가 연결 안 됨 → 채팅 흐름 안에서 안내(원래 작업은 세션에 보존, 연결되면 이어감).
