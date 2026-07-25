@@ -122,7 +122,15 @@
   #chip.warn { color:var(--warn); border-color:var(--warn); }
   #chip.warn::before { background:var(--warn); }
   #state { display:none; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line);
-    font-size:var(--fs-sm); color:var(--muted); white-space:pre-wrap; background:var(--panel); }
+    font-size:var(--fs-sm); color:var(--muted); background:var(--panel); }
+  /* P6-18: 조용한 상태 요약(읽기 전용). 각 항목이 "반영/가능"(on)과 "추정/추천/필요"(off)를 나눠 보인다. */
+  #state #stateSelf { white-space:pre-wrap; }
+  #state .ov { margin-top:var(--sp-3); display:grid; gap:var(--sp-3); grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+  #state .ov-h { font-size:var(--fs-xs); color:var(--faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+  #state .ov-row { font-size:var(--fs-sm); line-height:1.5; }
+  #state .ov-on { color:var(--ok); font-weight:600; }   /* 반영 중 · 활성 · 받을 준비됨 */
+  #state .ov-off { color:var(--warn); font-weight:600; } /* 추정됨 · 추천됨 · 연결 필요 · 실패 — 아직 반영/가능 아님 */
+  #state .ov-k { color:var(--muted); }
 
   #log { flex:1; overflow-y:auto; padding:var(--sp-6) var(--sp-5); }
   .wrap { max-width:768px; margin:0 auto; display:flex; flex-direction:column; gap:var(--sp-5); }
@@ -329,7 +337,17 @@ document.getElementById('theme').onclick = () => {
   else document.documentElement.removeAttribute('data-theme');
 };
 document.getElementById('newchat').onclick = () => newSession();
-chip.onclick = () => { statePanel.style.display = statePanel.style.display === 'block' ? 'none' : 'block'; };
+chip.onclick = async () => {
+  const open = statePanel.style.display !== 'block';
+  statePanel.style.display = open ? 'block' : 'none';
+  // 열 때만 요약을 채운다(안티 대시보드 — 상시 폴링 없음). 읽기 전용.
+  if (open) {
+    try {
+      const o = await (await fetch(`/overview?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
+      renderOverview(o);
+    } catch { /* 요약 실패해도 자기상태 텍스트는 남는다 */ }
+  }
+};
 
 // ── 도구함 (2.0-A) — 실제 /toolbox 상태만 보여준다(없는 도구 안 만듦, 죽은 버튼 없음). ──
 const tbov = document.getElementById('tbov');
@@ -457,12 +475,32 @@ function renderSelfState(s) {
   chip.textContent = s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState;
   chip.classList.toggle('warn', !!warn);
   modelinfo.textContent = `${s.model} · ${s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState}`;
-  statePanel.textContent = [
+  let self = document.getElementById('stateSelf');
+  if (!self) { self = document.createElement('div'); self.id = 'stateSelf'; statePanel.prepend(self); }
+  self.textContent = [
     `모델: ${s.model} (${s.modelAuthState})`,
     `바로 쓰는 연결: ${s.ready.length ? s.ready.join(', ') : '없음'}`,   // 라벨만(내부 id 비노출)
     s.limits && s.limits.length ? `막힌 것: ${s.limits.join(' · ')}` : null,
     s.nextSafeAction ? `다음: ${s.nextSafeAction}` : null,
   ].filter(Boolean).join('\n');
+}
+
+// P6-18: 조용한 상태 요약. **누적된 "반드시 구분"을 라벨로 못 박는다** — 추정≠반영, 추천≠활성, 연결≠가능,
+//   실패≠완료. 읽기 전용(실행/승격 버튼 없음). 안티 대시보드: 칩을 열 때만 채운다.
+function renderOverview(o) {
+  let el = document.getElementById('stateOv');
+  if (!el) { el = document.createElement('div'); el.id = 'stateOv'; el.className = 'ov'; statePanel.appendChild(el); }
+  const list = (items, fmt) => items && items.length ? esc(items.map(fmt).join(', ')) : '없음';
+  const sec = (title, onLabel, onItems, offLabel, offItems) =>
+    `<div class="ov-sec"><div class="ov-h">${esc(title)}</div>` +
+    `<div class="ov-row"><span class="ov-on">${esc(onLabel)}</span> <span class="ov-k">${onItems}</span></div>` +
+    `<div class="ov-row"><span class="ov-off">${esc(offLabel)}</span> <span class="ov-k">${offItems}</span></div></div>`;
+  el.innerHTML = [
+    sec('연결', '받을 준비됨', list(o.connections.ready, (c) => c.label), '연결/로그인 필요', list(o.connections.notReady, (c) => c.label)),
+    sec('스킬', '활성화됨', list(o.skills.active, (s) => s.label), '추천됨(아직 아님)', list(o.skills.recommended, (s) => s.label)),
+    sec('선호', '반영 중', list(o.preferences.reflected, (x) => x.statement), '추정됨(반영 안 함)', list(o.preferences.inferred, (x) => x.statement)),
+    sec('전달', `보냄 ${o.deliveries.deliveredCount}건`, '', '전달 실패(다시 보낼 수 있어요)', list(o.deliveries.failed, (d) => d.target || d.label)),
+  ].join('');
 }
 
 function renderRecord(box, ledger) {
