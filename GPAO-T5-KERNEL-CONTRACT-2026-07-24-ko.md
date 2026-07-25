@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -55,6 +55,10 @@
   TaskTrace(넓게 기록)→PatternCandidate→ReplayCase(기본 형식 확인)→승인 후 DefaultTarget 승격(질문 축소).
   broad memory narrow influence(승격분만 영향), A2 우회 없음, scope:'global' 명시(숨은 전역 금지)·UI 정직 표시,
   되돌리기. 남은 승격 타입(Skill/Blueprint/ProfileRule)은 후속.
+- P6-12 개정 반영(근거: `P6-12-STREAMING-WORKTRACE`, 깊은 감사 통과+blocker 2건 보정): §6.11 Streaming &
+  Work Trace — TurnEvent 계약+EventLog(durable truth 투영, lastEventId 재접속, 항상 complete·무한대기 금지),
+  사용자 언어 작업흐름(사고 원문 금지), 프라이버시(원문 URL 금지·POST stream-start→streamId), heartbeat.
+  Hermes 운영 신뢰성 흡수(복제 아님). 후속(P6-12-2): 토큰 스트리밍·backpressure·lane 회귀.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -426,6 +430,22 @@ nextAction, requiresApproval, testPlan, resumeContext, alternatives, ref}`
   `GET/POST /patterns`(confirm=replay→승격 / rollback=영향 제거).
 
 남은 승격 타입(후속): SkillDescriptor(작업 방식)·AutomationBlueprint(반복 주기)·ProfileRule(가게/고객방 격리).
+
+### 6.11 Streaming & Work Trace (P6-12, 구현됨 — 안전 척추)
+
+근거: Hermes 운영 신뢰성 흡수(복제 아님, T5 원칙 재구성) + 헌법(사용자를 덜 헤매게). **스트림은 durable
+truth(EventLog/ToolReceipt/TruthLedger) 위의 투영이지 진실의 출처가 아니다** — T3의 "스트림 멈추면 대화 죽음"을 막는다.
+
+- `TurnEvent{turnId, eventId(단조), type, payload, durable, createdAt}`(§L0). type: trace_status/tool_progress/
+  evidence_added/approval_required/capability_needed/blocked/recoverable_error/partial_result/answer_delta/
+  complete/heartbeat. **모델 숨은 사고 원문 노출 금지 — payload는 사용자 언어 상태뿐**(Hermes는 리즈닝 원문을
+  노출하지만 T5는 작업흐름: 요청 이해→도구 확인→실행→검증→정리).
+- `EventLog`(세션별): durable 이벤트만 남긴다(answer_delta/heartbeat 비지속). `since(lastEventId)`로 재접속
+  복구, `lastIsTerminal`로 미종료 turn 복구 표시. **항상 complete로 닫힌다(무한 대기 금지).**
+- **프라이버시(감사 blocker)**: 사용자 원문은 URL에 싣지 않는다. `POST /turn/stream-start`(본문 text)→streamId,
+  `GET /turn/stream?sessionId&streamId`로 구독(일회성·만료). URL엔 sessionId/streamId/lastEventId만.
+- `heartbeat`(비지속)로 연결 생존. `/turn`과 `/turn/stream`이 `runAndPersistTurn`을 공유(동작 갈라짐 방지).
+- 후속(P6-12-2): 진짜 LLM 토큰 스트리밍(answer_delta)·backpressure·느린 클라/모델·백그라운드 tick 동시 회귀.
 
 ---
 
