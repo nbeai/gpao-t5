@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import {
   classifyTier, grantFor, isExecutionAllowed, decideAutoGrant,
   isSafetyFloor, SAFETY_FLOOR_KINDS, explainAuthority,
 } from '../src/kernel/l2-plan/authority.js';
+import { buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
+import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { APPROVAL_MODES } from '../src/kernel/contracts.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -70,13 +73,49 @@ test('안전 바닥은 Smart 포함 어느 모드에서도 자동 승인 불가'
 
 // 안전 바닥은 tier 분류가 흔들려도(회귀) 독립적으로 auto를 막는다 — 사용자 지정 kind가 매핑에 없어도.
 test('안전 바닥은 tier가 낮게 나와도 auto를 막는다(독립 불변식)', () => {
-  // 매핑에 없는 kind는 tier가 A0로 떨어지지만, 바닥 kind면 여전히 승인.
-  assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A0');
+  // 매핑에 없는 kind는 최소 A2(애매하면 높은 등급) + allowlist에도 없어 자동 진행 안 함.
+  assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A2');
   // 자동화 활성화는 바닥 — mode 무관 자동 금지.
   assert.equal(decideAutoGrant({ kind: 'automate' }, 'smart'), false);
   assert.equal(decideAutoGrant({ kind: 'access_secret' }, 'smart'), false);
   assert.equal(decideAutoGrant({ kind: 'grant_permission' }, 'smart'), false);
   assert.equal(decideAutoGrant({ kind: 'connect_account' }, 'smart'), false);
+});
+
+// ── 모르는 kind는 자동 진행 금지(감사 blocker 1) ── 새 도구·플러그인·커넥터가 매핑에 없어도 A0로 새면 안 된다.
+test('unknown kind는 자동 승인되지 않는다(애매하면 높은 등급)', () => {
+  assert.equal(decideAutoGrant({ kind: 'unknown_kind' }, 'smart'), false);
+  assert.equal(decideAutoGrant({ kind: 'transfer_money' }, 'smart'), false);
+  assert.equal(decideAutoGrant({ kind: 'crm_write' }, 'smart'), false);
+  const g = grantFor({ kind: 'unknown_kind' });
+  assert.equal(g.approvalRequired, true, 'unknown은 승인 필요');
+  assert.equal(g.granted, false);
+  assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A2', '모르는 kind는 최소 A2');
+});
+
+test('기존 저위험 kind는 의도대로 유지된다', () => {
+  for (const kind of ['read', 'search', 'draft', 'summarize']) {
+    assert.equal(decideAutoGrant({ kind }, 'smart'), true, `${kind} 자연 진행`);
+    assert.equal(grantFor({ kind }).approvalRequired, false);
+  }
+  assert.equal(decideAutoGrant({ kind: 'organize' }, 'smart'), true, 'A1 정리 자연 진행');
+  assert.equal(decideAutoGrant({ kind: 'organize' }, 'strict'), false, '엄격은 A1 확인');
+});
+
+// executable descriptor가 toolKind:'unknown_kind', needsApproval:false여도 autoAllowed로 새지 않는다.
+test('실행 가능한 unknown toolKind 도구는 autoAllowed로 새지 않는다', () => {
+  const selfState = buildSelfState({
+    model: { id: 'm', authSignal: 'ok' },
+    connections: [{ id: 'evil.tool', connected: true, status: 'usable', toolKind: 'unknown_kind', needsApproval: false }],
+  });
+  const plan = buildActionPlan({
+    intent: { neededTools: ['evil.tool'], desiredOutcome: '뭔가 실행' },
+    selfState,
+    mode: 'smart',
+  });
+  assert.ok(plan.toolsToUse.includes('evil.tool'), '실행 가능 판정은 됨');
+  assert.equal(plan.autoAllowed.includes('evil.tool'), false, 'unknown은 자동 허용으로 새지 않는다');
+  assert.ok(plan.needsApproval.some((g) => g.action === 'evil.tool'), '승인 게이트로 올라간다');
 });
 
 // ── 승인 이유(사용자 언어) ──
@@ -97,6 +136,16 @@ test('explainAuthority: 자동 진행은 왜 진행했는지, 승인 필요는 �
 
   const del = explainAuthority({ kind: 'delete' });
   assert.match(del.reversible, /되돌리기 어려/);
+});
+
+// ── 화면 라벨은 사용자 언어(감사 blocker 2) ── 내부 계약어 "안전 바닥"이 화면에 노출되면 안 된다.
+test('승인 카드 화면 라벨에 내부어 "안전 바닥"이 노출되지 않는다', async () => {
+  const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
+  // 렌더되는 배지 텍스트: 내부어 대신 사용자 언어.
+  assert.match(html, /badge floor">꼭 확인</, '안전 바닥 배지는 "꼭 확인"으로 보여야 한다');
+  assert.equal(html.includes('안전 바닥'), false, '화면 파일에 내부 계약어가 남으면 안 된다');
+  // 내부 필드명은 유지(safetyFloor는 계약, 화면 텍스트 아님).
+  assert.ok(html.includes('safetyFloor'), 'safetyFloor 필드는 유지');
 });
 
 // ── 서버 흐름: 전송은 승인 카드에 모드 + 이유가 사용자 언어로 실려 나온다 ──

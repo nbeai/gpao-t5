@@ -15,8 +15,11 @@
 
 - **안전 바닥은 어느 모드에서도 자동 승인 금지.** 외부 전송·SaaS 쓰기·자동화 활성화·장기 기억 승격·삭제·
   결제·게시·민감 내보내기·권한 상승/변경·비밀/계정 접근은 **항상 A2+**. Smart라고 이걸 자동 통과시키지 않는다.
-- 안전 바닥은 tier 분류와 **독립된 불변식**이다 — tier가 낮게 회귀해도(사용자 지정 kind가 매핑에 없어 A0로
-  떨어져도) `decideAutoGrant`가 바닥 kind를 먼저 걸러 auto를 막는다(방어적 이중화).
+- **자동 진행은 명시된 저위험 allowlist만**(감사 blocker 1). 모르는 kind는 자동 진행하지 않는다 —
+  `classifyTier` default = **A2**(애매하면 높은 등급), `decideAutoGrant`는 `AUTO_SAFE_KINDS`(read/summarize/
+  search/draft = A0, organize/title/archive = A1) 안에 있을 때만 true. 새 도구·플러그인·커넥터가
+  `toolKind:'transfer_money'`처럼 매핑에 없어도 A0로 새지 않는다.
+- 안전 바닥·allowlist는 tier 분류와 **독립된 불변식**이다 — tier가 낮게 회귀해도 auto가 새지 않는다(방어적 이중화).
 - 저위험(A0 읽기/요약, A1 되돌릴 수 있는 로컬 정리)만 자연 진행. 사용자는 덜 멈추고, 위험한 건 계속 멈춘다.
 
 ## 계약 (`l2-plan/authority.js`, `contracts.js`)
@@ -25,9 +28,9 @@
   통과시키느냐만** 조절한다:
   - manual/smart: A0·A1 자연 진행, 그 외 승인. (smart는 판단 이유를 표면화)
   - strict: A1(되돌릴 수 있는 정리)도 확인. A0만 자연 진행.
-- `SAFETY_FLOOR_KINDS` + `isSafetyFloor(kind)` — 항상 승인 집합.
-- `decideAutoGrant(action, mode)` → 승인 없이 진행할지. **안전 바닥은 tier 검사 전에 걸러 어느 모드도 우회
-  못 함.** 이어서 A2/A3 이중 차단, strict는 A1도 확인, 그 외 저위험 통과.
+- `SAFETY_FLOOR_KINDS` + `isSafetyFloor(kind)` — 항상 승인 집합. `AUTO_SAFE_KINDS` — 자동 진행 저위험 allowlist.
+- `decideAutoGrant(action, mode)` → 승인 없이 진행할지. **안전 바닥 먼저 차단 → allowlist(always=A0 / reversibleLocal=
+  A1, strict 제외)에 있을 때만 true → 그 외(모르는 kind 포함) 승인.** tier에 의존하지 않아 오분류에도 안전.
 - `grantFor(action, mode)` — `granted`는 모드가 아니라 위험이 정한다. grant에 `kind`·`safetyFloor`·`reason` 부착.
 - `explainAuthority(action, mode)` → `{tier, needsApproval, safetyFloor, why, whatChanges, reversible}`.
   **개발자식 용어(A2/tier/grant…) 금지 — 사용자 언어.** 자동 진행은 "왜 바로 했는지", 승인 필요는
@@ -39,16 +42,20 @@
 - 턴: `approvalMode = ctx.approvalMode ?? 'smart'`. 승인 카드 응답에 `approvalMode` + 각 grant의 `reason`·
   `safetyFloor`를 실어 보낸다. send류는 reason.whatChanges를 구체 대상·내용으로 채운다.
 - UI(`web/index.html`): 승인 카드에 조용한 모드 표시("승인 모드: 스마트 · 위험한 일만 멈춰서 확인해요") +
-  A2/A3 배지 + `안전 바닥` 배지 + "왜 확인하나요/어디에·무엇을/되돌리기"를 사용자 언어로.
+  A2/A3 배지 + **꼭 확인** 배지(내부어 `safetyFloor`는 필드로 유지, 화면은 사용자 언어 — 감사 blocker 2) +
+  "왜 확인하나요/어디에·무엇을/되돌리기"를 사용자 언어로.
 
-## 테스트 (8, 총 232)
+## 테스트 (12, 총 236)
 
 A0 자연 진행 · A1 manual/smart 통과·strict 확인 · A2 전송 승인 유지(모든 모드) · 삭제(A3) 승인 유지 ·
-**안전 바닥은 Smart 포함 어느 모드도 자동 승인 불가(반대 테스트 핵심)** · 안전 바닥 tier 회귀 독립성 ·
-explainAuthority 사용자 언어(개발자 용어 부재) · 서버: 전송이 승인 카드에 approvalMode+reason 실어 멈춤.
+**안전 바닥은 Smart 포함 어느 모드도 자동 승인 불가(반대 테스트 핵심)** · 안전 바닥/allowlist tier 회귀 독립성 ·
+**unknown kind 자동 승인 불가(blocker 1): decideAutoGrant false, grantFor approvalRequired, unknown toolKind
+descriptor가 autoAllowed로 안 샘, 기존 저위험 유지** · **화면 라벨에 "안전 바닥" 미노출(blocker 2)** ·
+explainAuthority 사용자 언어 · 서버: 전송이 승인 카드에 approvalMode+reason 실어 멈춤.
 
-반대 테스트: `decideAutoGrant`에 "smart면 무조건 통과" 버그를 주입하면 안전 바닥/전송/삭제 테스트 6건이
-실패함을 실측(바닥 불변식이 load-bearing임을 확인). 라이브: 전송→카드(모드+이유), 저위험 질문→카드 없이 응답.
+반대 테스트: (a) `decideAutoGrant`에 "smart면 무조건 통과" 주입 시 바닥/전송/삭제 6건 실패 실측. (b) blocker 수정
+전 코드(default A0·tier 신뢰·"안전 바닥" 배지)로 되돌리면 blocker 테스트 4건 실패 실측 → 수정이 load-bearing.
+라이브: 전송→카드("A2 꼭 확인" + 이유), 저위험 질문→카드 없이 응답.
 
 ## 남은 후속
 

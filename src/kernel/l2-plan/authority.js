@@ -53,10 +53,20 @@ export function classifyTier(action) {
     case 'summarize':
     case 'search':
     case 'draft':
-    default:
       return TIER.A0;
+    default:
+      // 애매하면 높은 등급. 모르는 kind(새 도구·플러그인·커넥터의 toolKind)를 A0로 흘리지 않는다 —
+      // Smart Approval에서 unknown 자동 진행은 안전 바닥 철학과 정면으로 어긋난다(감사 blocker).
+      return TIER.A2;
   }
 }
+
+// 자동 진행 저위험 allowlist — **명시된 것만** 자연 진행한다. 모르는 kind는 여기에 없으므로 자동 진행 안 함.
+//   tier가 낮게 나와도(회귀·오분류) 이 allowlist가 독립적으로 auto를 막는다(안전 바닥과 같은 방어적 이중화).
+export const AUTO_SAFE_KINDS = Object.freeze({
+  always: ['read', 'summarize', 'search', 'draft'],   // A0 — 모든 모드 자연 진행(읽기·요약·검색·초안)
+  reversibleLocal: ['organize', 'title', 'archive'],  // A1 — manual/smart 진행, strict는 확인
+});
 
 /**
  * 승인 없이 자연 진행할지 결정한다(모드 인지). **안전 바닥은 어느 모드에서도 자동 진행하지 않는다** —
@@ -67,11 +77,11 @@ export function classifyTier(action) {
  */
 export function decideAutoGrant(action, mode = DEFAULT_APPROVAL_MODE) {
   const kind = action?.kind ?? 'read';
-  if (isSafetyFloor(kind)) return false;       // 안전 바닥 — 모드 무관 항상 승인(우회 불가)
-  const tier = classifyTier(action);
-  if (tier === TIER.A2 || tier === TIER.A3) return false; // 이중 안전(바닥 아닌 고위험도 자동 금지)
-  if (mode === 'strict') return tier === TIER.A0;         // 엄격: A1(되돌릴 수 있는 정리)도 확인
-  return tier === TIER.A0 || tier === TIER.A1;            // manual/smart: 저위험 자연 진행
+  if (isSafetyFloor(kind)) return false;                      // 안전 바닥 — 모드 무관 항상 승인(우회 불가)
+  // 명시된 저위험 allowlist만 자연 진행 — 모르는 kind는 여기에 없으니 승인으로 간다(애매하면 높은 등급).
+  if (AUTO_SAFE_KINDS.always.includes(kind)) return true;              // A0: 읽기·요약·검색·초안
+  if (AUTO_SAFE_KINDS.reversibleLocal.includes(kind)) return mode !== 'strict'; // A1: strict는 확인
+  return false;                                              // 그 외(A2/A3·모르는 kind) → 승인 필요
 }
 
 /**

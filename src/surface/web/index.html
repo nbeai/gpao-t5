@@ -503,7 +503,8 @@ function renderResult(r, opts = {}) {
     for (const p of r.pending) {
       const row = el('row');
       const cls = p.tier === 'A3' ? 'a3' : 'a2';
-      const floor = p.safetyFloor ? ' <span class="badge floor">안전 바닥</span>' : '';
+      // 내부 계약어(safetyFloor)는 화면에 그대로 노출하지 않는다 — 사용자 언어로 "꼭 확인"(감사 blocker).
+      const floor = p.safetyFloor ? ' <span class="badge floor">꼭 확인</span>' : '';
       row.innerHTML = `· ${esc(p.label ?? p.action)} <span class="badge ${cls}">${esc(p.tier)}</span>${floor} — ${esc(p.preview?.impact ?? '')}`;
       card.appendChild(row);
       // P6-15: 왜 확인하는지 사용자 언어로. 개발자식 설명 금지.
