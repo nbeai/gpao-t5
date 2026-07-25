@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~4) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~5) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -655,8 +655,11 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   대기 선호 확인(`/user-model/preferences/:id/confirm`). **액션은 기존 게이트 엔드포인트를 그대로 부른다(우회 없음)**
   이고, 항목을 "아직 아님"→"완료"로 옮길 뿐. actionable(추천·대기·실패)만 id를 싣고, **추정(inferred)은 액션 없이
   읽기 전용**(추정→승인 경계 §6.18 유지). preferences는 추정↔대기(pending)↔반영 3분.
-- **후속**: 검색 "찾은 기억↔반영된 기억" 카드(§6.16 admittedIntoContext — **찾은 기억은 아직 반영된 기억이 아니다**,
-  같은 원칙으로 admit 액션 설계) · 모바일 375px 레이아웃 회귀 · 액션 실패 사용자 언어 표면.
+- **Slice-5 반영 중 기억 일원화(구현됨)**: 반영된 검색 기억(recalled_context)도 overview "기억 · 반영 중"에
+  선호와 함께 표면화하고, **반영 중 기억도 overview에서 같은 수준의 되돌리기를 제공한다**(§6.16 `/memory/rollback`
+  재사용, rollback 후 promoted/admitted 영향 제거). overview는 신규 상태를 만들지 않고 promoted의 recalled_context를
+  투영만 한다. **반영 중(선호·기억)은 되돌리기 액션이 있어 읽기 전용이 아니다 — 추정만 읽기 전용.**
+- **후속**: 반영 중 기억 출처(session/title) 표시 · 모바일 375px 레이아웃 회귀 · 액션 실패 사용자 언어 표면.
 
 ---
 
