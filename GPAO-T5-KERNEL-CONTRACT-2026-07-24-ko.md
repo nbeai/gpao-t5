@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -28,6 +28,10 @@
   ScheduledJob에 failureCount/maxAttempts/backoffBaseMs/backoffCapMs, `resolveAfterRun` 상태 전이(transient
   백오프·maxAttempts 초과 시 failed / permanent 즉시 포기 / 성공 리셋), `runTrustedTick` in-flight 중첩·중복
   방지, 백오프 대기 중에도 만료 우선.
+- P6-5 개정 반영(근거: `P6-5-REAL-WEB`, 깊은 감사 통과+보정): §6.6 런타임 어댑터 **구현됨** —
+  `makeWebCollector`(실제 HTTP GET, fetchImpl 주입, 라이브만 실어댑터·기본 offline 스텁), `httpToFetchState`
+  (코드+본문으로 벽/차단 분리), 봤다→출처 필수·못봤다→내용·출처 없음, timeoutMs+AbortController(끝나지 않는
+  페이지가 Work Chat을 멈추지 못하게).
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -267,6 +271,18 @@ descriptor의 toolKind·needsApproval은 SelfState.connectedTools에 보존되�
 성공, 실패·차단(fetchState≠ok)에 내용·출처가 섞이면 계약 위반으로 failed 처리. fetch 상태
 (login_wall/blocked/robots_disallow/bot_wall/timeout)는 성공과 분리한다. auth≠approval: user_approved
 세션은 공개 읽기 A0와 달리 승인 경계를 가진다.
+
+**런타임 어댑터(구현됨, P6-5)** — 위 계약을 실제로 실행하는 `makeWebCollector({fetchImpl, robotsCheck,
+timeoutMs})`(L3). 실제 HTTP GET(기본 `global fetch`, **주입 가능** — 테스트·기본 경로는 실네트워크를 치지
+않고 offline 스텁 유지, 라이브 서버만 실제 어댑터).
+- `httpToFetchState(status, {body})`: 코드+본문 신호로 상태 분류. 401→login_wall, 429→bot_wall,
+  403→(봇신호)bot_wall|blocked, 2xx→(본문신호)ok|login_wall|bot_wall|robots_disallow(200이어도 로그인/캡차
+  페이지는 벽으로), 그 외→blocked. **봤다→title·excerpt·SourceEvidence, 못봤다→내용·출처 없이 상태만.**
+- **시간 제한(필수)**: `global fetch`엔 기본 제한이 없어 끝나지 않는 페이지가 Work Chat을 멈출 수 있다.
+  `timeoutMs`(기본 15s, 라이브 `GPAO_T5_WEB_TIMEOUT_MS`) + `AbortController`로 fetch+본문읽기 전체를 timeout
+  race로 감싼다(signal 무시 응답도 멈춤). 초과 → `{blocked, fetchState:'timeout', result/sources 없음}`.
+- 스크래핑 정책 실행: 읽기전용(GET)·`validateWebInput` maxPages cap·robots 판정(주입, 실제 robots.txt fetch는
+  후속). freeform `{request}`에서 URL 추출(turn은 generic — 웹 로직은 어댑터). 검색어 단독(SERP)은 후속.
 
 ### 6.7 ConnectorProfile & 채널 인바운드 (멀티채널 — P6-2 Slice-3)
 
