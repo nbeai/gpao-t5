@@ -10,12 +10,14 @@
  * @param {Array} [p.skills]       skillView 결과({label, state})
  * @param {{inferredTraits?:Array, operatingPreferences?:Array}} [p.userModel]  projectUserModel 결과
  * @param {Array} [p.deliveries]   세션 스코프 delivery({tool, target, state})
+ * @param {Array} [p.memories]     반영된 회수 기억(promoted recalled_context: {candidateId, statement})
  */
 export function buildOverview(p = {}) {
   const channels = p.channels ?? [];
   const skills = p.skills ?? [];
   const um = p.userModel ?? { inferredTraits: [], operatingPreferences: [] };
   const deliveries = p.deliveries ?? [];
+  const memories = p.memories ?? [];
   return {
     // 연결 상태 ↔ 실제 가능 상태(2.0-A·§6.15). ready만 "실제로 받을 수 있음".
     connections: {
@@ -40,6 +42,10 @@ export function buildOverview(p = {}) {
     deliveries: {
       failed: deliveries.filter((d) => d.state === 'failed').map((d) => ({ id: d.id, label: d.tool, target: d.target })),
       deliveredCount: deliveries.filter((d) => d.state === 'delivered').length,
+    },
+    // 반영 중 기억(§6.16 검색으로 admit한 recalled_context). id를 실어 되돌리기 가능 — 선호와 같은 수준의 되돌리기.
+    memories: {
+      reflected: memories.map((m) => ({ id: m.candidateId, statement: m.statement })),
     },
   };
 }

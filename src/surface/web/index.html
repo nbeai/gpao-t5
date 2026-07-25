@@ -600,6 +600,8 @@ function renderOverview(o) {
       + row('ov-off', '확인 대기', acts(o.preferences.pending, 'confirm-pref', (x) => x.statement, '확인(반영)'))
       + row('ov-off', '추정됨(반영 안 함)', list(o.preferences.inferred, (x) => x.statement))), // 추정은 액션 없음(읽기 전용)
     sec('전달', row('ov-on', `보냄 ${o.deliveries.deliveredCount}건`, '') + row('ov-off', '전달 실패(다시 보낼 수 있어요)', acts(o.deliveries.failed, 'retry-delivery', (d) => d.target || d.label, '다시 보내기'))),
+    // 검색으로 반영한 기억도 같은 자리서 되돌린다(선호 되돌리기와 같은 수준).
+    sec('기억', row('ov-on', '반영 중', acts(o.memories.reflected, 'rollback-memory', (m) => m.statement, '되돌리기'))),
   ].join('');
 }
 

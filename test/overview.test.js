@@ -60,6 +60,14 @@ test('buildOverview: 빈 입력도 안전한 빈 구조', () => {
   assert.deepEqual(o.skills, { recommended: [], active: [] });
   assert.deepEqual(o.preferences, { inferred: [], pending: [], reflected: [] });
   assert.deepEqual(o.deliveries, { failed: [], deliveredCount: 0 });
+  assert.deepEqual(o.memories, { reflected: [] });
+});
+
+test('buildOverview: 반영된 검색 기억은 memories.reflected에 id와 함께(되돌리기용)', () => {
+  const o = buildOverview({ memories: [{ candidateId: 'mem1', statement: '부오상회 견적서 초안' }] });
+  assert.equal(o.memories.reflected.length, 1);
+  assert.equal(o.memories.reflected[0].id, 'mem1', '되돌리기용 id');
+  assert.equal(o.memories.reflected[0].statement, '부오상회 견적서 초안');
 });
 
 // ── 서버 /overview: 실제 store 조합 + 전달은 세션 스코프 ──
@@ -125,6 +133,25 @@ test('액션이 항목을 "아직 아님"→"완료"로 옮긴다(액션 전엔 
     assert.equal(o.skills.recommended.length, 0); assert.equal(o.skills.active.length, 1, '승인→활성');
     assert.equal(o.preferences.pending.length, 0); assert.equal(o.preferences.reflected.length, 1, '확인→반영');
     assert.equal(o.deliveries.failed.length, 0); assert.equal(o.deliveries.deliveredCount, 1, '재전달→완료');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('GET /overview: 반영한 검색 기억이 memories.reflected에 뜨고, 되돌리면 사라진다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ovm-'));
+  const memoryStore = mem({ candidates: [], promoted: [], observed: [] });
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
+  await new Promise((r) => server.listen(0, r));
+  const b = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // 검색 기억 반영
+    const a = await (await post(b, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    let o = await getj(b, '/overview?sessionId=s1');
+    assert.equal(o.memories.reflected.length, 1, '반영 중 기억으로 표면화');
+    assert.equal(o.memories.reflected[0].id, a.candidateId, '되돌리기용 id 일치');
+    // overview 자리에서 되돌리기
+    await post(b, '/memory/rollback', { candidateId: a.candidateId });
+    o = await getj(b, '/overview?sessionId=s1');
+    assert.equal(o.memories.reflected.length, 0, '되돌리면 반영 중에서 사라진다');
   } finally { await new Promise((r) => server.close(r)); }
 });
 

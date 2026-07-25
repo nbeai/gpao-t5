@@ -564,11 +564,14 @@ export function makeServer(deps = {}) {
         const channels = projectChannels(deps.channels ?? demoChannels());
         const skillsData = await skillStore.load();
         const skills = skillsData.skills.map((s) => ({ id: s.id, label: s.label, state: s.state }));
-        const userModel = projectUserModel(await memStore.load());
+        const memoryState = await memStore.load();
+        const userModel = projectUserModel(memoryState);
+        // 반영된 검색 기억(recalled_context)도 "반영 중"으로 함께 표면화 — 선호와 같은 자리서 보고 되돌린다.
+        const memories = (memoryState.promoted ?? []).filter((e) => e.kind === 'recalled_context').map((e) => ({ candidateId: e.candidateId, statement: e.statement }));
         const dl = await deliveryStore.load();
         // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다. id는 재전달 액션에 쓴다.
         const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state })) : [];
-        return sendJson(res, 200, buildOverview({ channels, skills, userModel, deliveries }));
+        return sendJson(res, 200, buildOverview({ channels, skills, userModel, deliveries, memories }));
       }
       // ── 세션 검색 (P6-17 Slice-1) ── 과거 대화 회수. **결과는 후보로만 나온다(admitted:false, 영향 0).**
       //   turn을 돌리지 않고 모델에 먹이지 않는다 — 라우터·answer에 raw로 섞이지 않게. 승격은 별도 admission.
