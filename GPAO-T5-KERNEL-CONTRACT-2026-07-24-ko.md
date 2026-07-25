@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -75,6 +75,10 @@
   채널/커넥터를 한 레지스트리로 정리(connector-profile·inbound-gate 재사용), 사용자 언어 status+doctor,
   connected≠approved 유지. **라이브 표면은 실제 자격에서 파생**(liveDeps.channels, 토큰 없이 초록 오표시 금지 —
   "보이는 것=실제 가능한 것"). demoChannels는 fixture 전용. 후속: inbound 정책 게이트 소비·P6-18 UI 표면화.
+- P6-17 개정 반영(근거: `P6-17-SESSION-SEARCH`, 깊은 감사 통과): §6.16 Session Search(학습 루프 3분할 첫 조각) —
+  검색 결과는 raw로 라우터·answer에 안 섞이고 candidate(recalled_context, admitted:false)로만, admission
+  (context-mesh userConfirmed) 통과해야 영향. POST /search는 turn 미실행. 후속: SkillCandidate·user model 분리,
+  P6-18에서 "찾은 기억"↔"반영된 기억" 구분.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -553,6 +557,26 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
 - **후속**: inboundPolicy를 게이트가 실제 소비(채널별 차등) · `/channel/inbound` 조회를 레지스트리 단일 소스로
   승격 · P6-18에서 연결 페이지에 status·doctor 표면화(조용히·필요할 때만, 안티 대시보드) · 실 provider 연동·
   토큰 유효성 실측(지금은 토큰 존재 유무까지).
+
+### 6.16 Session Search (P6-17 Slice-1, 구현됨 — 검색은 후보로만, admission 없이는 영향 0)
+
+근거: Hermes closed learning loop 흡수(복제 아님, T5 권한·admission 구조로 재구성), 헌법 §3-2·§5(라우터가 raw
+기억 안 씀), §5 Context Mesh. P6-17(학습 루프)의 첫 조각 — 가장 격리하기 쉬운 검색부터 admission 경계를 세운다.
+후속: Slice-2 SkillCandidate lifecycle, Slice-3 user model("추정"↔"승인된 운영 선호") 분리.
+
+- **핵심 안전 불변식**: 검색 결과는 **raw 상태로 라우터·answer에 섞이지 않는다.** 검색은 turn을 돌리지 않고
+  모델에 먹이지 않는다. 결과는 **candidate로만**(admitted:false, userConfirmed:false → 영향 0). 이후 대화에
+  영향을 주려면 T5 admission(§5 context-mesh, `isInfluenceEligible`)을 통과해야 하고, 승격돼도 "이번 요청에
+  관련"될 때만 좁게 입장(broad memory, narrow influence).
+- `searchTranscripts(sessions, query)` → `[{sessionId,title,role,snippet}]`. 결정적 키워드 매치(모델 아님),
+  `isRelevant` 재사용. user 발화·assistant reply 대상. **자기 과거 대화 회수라 세션 경계를 넘어 찾는다 —
+  가시성 경계가 아니라 영향 경계(admission)로 안전을 건다**(§6.13 delivery 세션 소유권과 다른 축).
+- `makeSearchCandidate(hit, id)` → ContextAdmissionPacket 호환(`kind:'recalled_context'`, admitted:false,
+  `source:{sessionId,title,role}`). context-mesh `isInfluenceEligible`/`promote`가 그대로 게이트(신규 admission 없음).
+- `session-store.loadAll()`(검색용 전체 로드). `POST /search {query}` → `{results, admittedIntoContext:false}` —
+  turn 미실행·모델 미투입, 후보만. 빈 검색어 400.
+- **후속**: 검색 후보 admit UI(promote 흐름 연결)·출처 표시 · **P6-18에서 "찾은 기억"과 "현재 답변에 반영된
+  기억"을 반드시 구분**(검색 결과를 답변 근거처럼 보이게 하지 않는다) · 의미 검색(임베딩)·랭킹.
 
 ---
 
