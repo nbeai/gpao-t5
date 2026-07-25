@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -67,6 +67,10 @@
   생성≠전달, DeliveryRecord(sessionId 소유권), GET/retry 세션 검증(없음 400/타 세션 403, tool call 0),
   delivered 중복 방지, failed delivery는 DefaultTarget 학습 제외. 외부 전송 A2를 계약으로 명시. **후속(필수)**:
   원 승인 만료 후 재승인 · retry approvalId·grantScope 원장 연결.
+- P6-15 개정 반영(근거: `P6-15-SMART-APPROVAL`, 깊은 감사 통과+blocker 3건 보정): §6.14 Smart Approval —
+  판단을 사용자 언어로(정책 불변), 안전 바닥(SAFETY_FLOOR)·자동 진행 allowlist(AUTO_SAFE_KINDS) 어느 모드도
+  우회 불가, unknown/누락 kind·toolKind는 최소 A2(UNKNOWN_KIND, autoAllowed 미유입), 화면 내부어 금지
+  (안전 바닥→"꼭 확인"). 후속: 모드 전환 UI·저장.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -500,6 +504,28 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   재승인 — Approval Lifecycle 계약과 연결) · **retry의 approvalId·grantScope를 DeliveryRecord/원장에 연결**
   (재전달이 참조하는 승인 범위를 durable하게 추적). 그 외: 채널 외 전달 확장(파일·다운로드 링크·웹 게시의 전달
   확인) · needsFix(연결/권한) 자동 안내→연결 흐름 · §6.12 완료 게이트에 "전달 확인" 포함.
+
+### 6.14 Smart Approval (P6-15, 구현됨 — 판단을 사용자 언어로, 안전 바닥 불변)
+
+근거: Hermes 승인 UX(복제 아님, T5 재구성), 헌법 §3(AuthorityGrant A0-A3). 목표는 승인을 **느슨하게 만드는
+게 아니라 사용자가 덜 헤매게** 하는 것 — 위험한 일은 계속 멈추고(안전 바닥), 낮은 위험만 자연 진행하며, 멈출 땐
+**왜 멈추는지 사용자 언어로** 설명한다. 첫 슬라이스는 **정책을 바꾸지 않고** 현재 A0-A3 판단을 표면화한다.
+
+- `ApprovalMode = 'manual'|'smart'|'strict'`(`APPROVAL_MODES`, 기본 `smart`). 모드는 **저위험을 얼마나
+  통과시키느냐만** 조절한다: manual/smart는 A0·A1 자연 진행(smart는 이유 표면화), strict는 A1(되돌릴 수 있는
+  로컬 정리)도 확인. **안전 바닥은 어느 모드에서도 우회 불가.**
+- **안전 바닥(`SAFETY_FLOOR_KINDS`, `isSafetyFloor`)** — 외부 전송·SaaS 쓰기·자동화 활성화·장기 기억 승격·삭제·
+  결제·게시·민감 내보내기·권한 상승/변경·비밀/계정 접근은 **항상 A2+**. tier 분류와 **독립된 불변식**이다.
+- **자동 진행은 명시된 저위험 allowlist(`AUTO_SAFE_KINDS`)만**: A0=read/summarize/search/draft,
+  A1=organize/title/archive. `decideAutoGrant`는 tier가 아니라 이 allowlist로 판정 → 오분류·회귀에도 안전.
+- **모르는 것·비어 있는 것은 안전하지 않은 것**: `classifyTier` default=**A2**(애매하면 높은 등급). `kind`
+  누락은 `read`가 아니라 **`UNKNOWN_KIND`**(authority 세 진입점 + action-plan fallback 통일, known `TOOL_KIND`
+  맵은 유지). unknown/누락 `toolKind` 도구는 `autoAllowed`로 새지 않고 승인 게이트로 올라간다.
+- **판단을 사용자 언어로**: `explainAuthority(action, mode)` → `{tier, needsApproval, safetyFloor, why,
+  whatChanges, reversible}`. 개발자식 용어(A2/tier/grant…) 금지. 승인 카드 응답에 `approvalMode` + grant별
+  `reason`·`safetyFloor` 표면화. **화면 라벨은 내부어 금지** — `안전 바닥`은 화면에 `꼭 확인`으로(필드명 `safetyFloor`는 유지).
+- **후속**: 모드 전환 UI + 저장(이 슬라이스는 판단 표면까지) · strict 모드별 문구 · A2/A3 배지의 일반 사용자용
+  라벨 병행 · 자동 진행 이유의 조용한 표면화(요청 시 펼치기).
 
 ---
 
