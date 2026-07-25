@@ -18,6 +18,7 @@ import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
 import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
+import { makeInferredTrait, makeOperatingPreference, confirmOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
@@ -594,6 +595,45 @@ export function makeServer(deps = {}) {
         a.skills[idx] = adm.sk;
         await skillStore.save(a);
         return sendJson(res, 200, { ok: true, state: adm.sk.state, skill: skillView(adm.sk) });
+      }
+      // ── 사용자 모델 (P6-17 Slice-3) ── "추정된 성향"과 "승인된 운영 선호"를 분리. **추정은 관찰만(영향 0)**,
+      //   운영 선호만 userConfirmed 후 admittedContext에 좁게 입장. UI는 최소 API(표면 분리는 P6-18).
+      if (req.method === 'GET' && url === '/user-model') {
+        const memory = await memStore.load();
+        return sendJson(res, 200, projectUserModel(memory)); // {inferredTraits(영향0), operatingPreferences(pending/admitted)}
+      }
+      // 추정 성향 기록 — observed 레인(관찰 전용). 승격 대상 아님. admittedContext에 절대 안 들어간다.
+      if (req.method === 'POST' && url === '/user-model/traits') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '추정 내용이 필요해요.' });
+        const memory = await memStore.load();
+        const trait = makeInferredTrait(randomUUID(), input.statement.trim(), input.evidence ?? []);
+        memory.observed = [...(memory.observed ?? []), trait];
+        await memStore.save(memory);
+        return sendJson(res, 200, { trait: { statement: trait.statement, admitted: false, influence: 'none' } });
+      }
+      // 운영 선호 후보 등록(candidate, 영향 0). 확인 전까지 admittedContext에 안 들어간다.
+      if (req.method === 'POST' && url === '/user-model/preferences') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '운영 선호 내용이 필요해요.' });
+        const memory = await memStore.load();
+        const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
+        memory.candidates = [...(memory.candidates ?? []), pref];
+        await memStore.save(memory);
+        return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false } });
+      }
+      // 운영 선호 승인 — userConfirmed로 승격(candidates→promoted). 이후 관련될 때만 좁게 입장.
+      if (req.method === 'POST' && url.startsWith('/user-model/preferences/') && url.endsWith('/confirm')) {
+        const id = url.slice('/user-model/preferences/'.length, -'/confirm'.length);
+        const memory = await memStore.load();
+        const idx = (memory.candidates ?? []).findIndex((c) => c.candidateId === id && c.kind === 'operating_preference');
+        if (idx < 0) return sendJson(res, 404, { error: '운영 선호 후보를 찾지 못했어요.' });
+        const result = confirmOperatingPreference(memory.candidates[idx]);
+        if (!result.ok) return sendJson(res, 200, { ok: false, reason: result.reason });
+        memory.candidates = memory.candidates.filter((_, i) => i !== idx);
+        memory.promoted = [...(memory.promoted ?? []), result.entry];
+        await memStore.save(memory);
+        return sendJson(res, 200, { ok: true, status: 'admitted', statement: result.entry.statement });
       }
       // 거절: 후보를 rejected로(영향 0 영구).
       if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/reject')) {

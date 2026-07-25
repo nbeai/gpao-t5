@@ -32,6 +32,9 @@ export function detectCandidate(text) {
  */
 export function isInfluenceEligible(entry) {
   if (!entry) return false;
+  // 추정된 성향(inferred_trait, P6-17 Slice-3)은 **관찰 전용 — 어떤 경우에도 영향 0**. tier·userConfirmed와
+  //   독립된 불변식(안전 바닥과 같은 방어적 이중화). 레인이 뚫려도(promoted에 잘못 들어가도) 여기서 막힌다.
+  if (entry.kind === 'inferred_trait') return false;
   if (entry.kind === 'operating_principle') {
     // T-cell: replay 통과 + 사용자 승인 전에는 절대 영향 금지.
     return entry.replayPassed === true && entry.userConfirmed === true;
