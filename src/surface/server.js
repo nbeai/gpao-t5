@@ -33,6 +33,8 @@ import { TaskTraceStore } from './task-trace-store.js';
 import { makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget } from '../kernel/l5-growth/task-trace.js';
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
+import { SkillStore } from './skill-store.js';
+import { detectSkillCandidate, surfaceCandidate, markReplayRequired, replaySkill, approveSkill, admitSkill, rejectSkill, canInfluence, canAutoExecute } from '../kernel/l5-growth/skill-learning.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
@@ -66,6 +68,7 @@ export function makeServer(deps = {}) {
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
+  const skillStore = deps.skillStore ?? new SkillStore(store.dir);
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
@@ -557,6 +560,50 @@ export function makeServer(deps = {}) {
         const results = projectSearchCandidates(hits, () => randomUUID());
         // admitted:false를 명시적으로 보장(표면이 "이미 반영됨"으로 오해하지 않게).
         return sendJson(res, 200, { query: input.query, results, admittedIntoContext: false });
+      }
+      // ── 스킬 학습 (P6-17 Slice-2) ── SkillCandidate lifecycle. **추천 ≠ 실행/승격. replay+확인 전 영향 0.**
+      //   스킬은 자동 실행 권한이 없다(외부 행동은 여전히 A2). UI는 최소 표면.
+      const skillView = (s) => ({ id: s.id, label: s.label, state: s.state, trigger: s.trigger, steps: s.steps, tool: s.tool, canInfluence: canInfluence(s), canAutoExecute: canAutoExecute() });
+      if (req.method === 'GET' && url === '/skills') {
+        const a = await skillStore.load();
+        return sendJson(res, 200, { skills: a.skills.map(skillView) });
+      }
+      // 반복 신호에서 스킬 후보를 감지해 표면화(candidate 상태, 영향 0). 자동 승격 아님.
+      if (req.method === 'POST' && url === '/skills/detect') {
+        const learning = await traceStore.load();
+        const detected = detectSkillCandidate(learning.traces, { id: randomUUID(), now: Date.now() });
+        if (!detected) return sendJson(res, 200, { detected: false });
+        const a = await skillStore.load();
+        // 같은 도구의 미종료(비 rejected) 후보가 이미 있으면 중복 제안하지 않는다.
+        if (a.skills.some((s) => s.tool === detected.tool && s.state !== 'rejected')) return sendJson(res, 200, { detected: false, reason: 'already_proposed' });
+        const surfaced = surfaceCandidate(detected); // detected → candidate(추천 표면화)
+        a.skills.push(surfaced);
+        await skillStore.save(a);
+        return sendJson(res, 200, { detected: true, skill: skillView(surfaced) });
+      }
+      // 승인: 사용자 확인 + replay 통과해야 admitted. replay 실패면 rejected(영향 0). lifecycle을 코드가 강제.
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/approve')) {
+        const id = url.slice('/skills/'.length, -'/approve'.length);
+        const a = await skillStore.load();
+        const idx = a.skills.findIndex((s) => s.id === id);
+        if (idx < 0) return sendJson(res, 404, { error: '스킬 후보를 찾지 못했어요.' });
+        let sk = markReplayRequired(a.skills[idx]);       // candidate → replay_required
+        const appr = approveSkill(sk, { userConfirmed: true, replayResult: replaySkill(sk) });
+        if (!appr.ok) { a.skills[idx] = appr.sk; await skillStore.save(a); return sendJson(res, 200, { ok: false, state: appr.sk.state, reason: appr.reason }); }
+        const adm = admitSkill(appr.sk);                  // approved → admitted
+        a.skills[idx] = adm.sk;
+        await skillStore.save(a);
+        return sendJson(res, 200, { ok: true, state: adm.sk.state, skill: skillView(adm.sk) });
+      }
+      // 거절: 후보를 rejected로(영향 0 영구).
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/reject')) {
+        const id = url.slice('/skills/'.length, -'/reject'.length);
+        const a = await skillStore.load();
+        const idx = a.skills.findIndex((s) => s.id === id);
+        if (idx < 0) return sendJson(res, 404, { error: '스킬 후보를 찾지 못했어요.' });
+        a.skills[idx] = rejectSkill(a.skills[idx], 'user_rejected');
+        await skillStore.save(a);
+        return sendJson(res, 200, { ok: true, state: 'rejected' });
       }
       // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. 게이트 순서(감사 보정):
       //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화
