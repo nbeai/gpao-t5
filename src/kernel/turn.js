@@ -17,6 +17,7 @@ import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend } from './l1-intent/send-parse.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
+import { defaultTargetFor } from './l5-growth/task-trace.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -164,6 +165,12 @@ export async function runTurn(input, ctx) {
   const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
   if (sendGrant) {
     const parsed = parseSend(input.text ?? '', sendGrant.action);
+    // P6-11: 대상이 없지만 학습된 기본 대상(승인·replay 통과분)이 있으면 채운다 → 다음부터 "어디로?" 질문 축소.
+    //   승인(A2)은 그대로다. broad memory, narrow influence: 승격된 좁은 것만 영향을 준다.
+    if (parsed.clarifyReason === 'no_target') {
+      const def = defaultTargetFor(ctx.defaults, sendGrant.action);
+      if (def) { parsed.target = def; parsed.ambiguous = false; parsed.clarifyReason = null; parsed.usedDefault = true; }
+    }
     if (parsed.ambiguous) {
       return {
         kind: 'clarify',
@@ -230,12 +237,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
+  let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
   for (const toolId of plan.toolsToUse) {
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
     const rec = await ctx.tools.run(toolId, args, selfState);
     ledger.append(rec);
     turnReceipts.push(rec);
+    if (sendArgs?.[toolId]?.target && !sentVia) sentVia = { tool: toolId, target: sendArgs[toolId].target };
   }
   // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
   // 2.0-B: 연결/자격 때문에 막힌 도구는 구조화해 표면화한다(채팅 안 '연결이 필요해요' 카드 → 도구함 안내).
@@ -277,5 +286,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
     connectionNeeded,
+    // P6-11: 승인된 send 실행 사실 — 서버가 학습(TaskTrace·DefaultTarget 후보)에 쓴다.
+    sentVia,
   };
 }

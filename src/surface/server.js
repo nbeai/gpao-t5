@@ -24,6 +24,8 @@ import { demoConnectors, demoDescriptors } from './demo-context.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
+import { TaskTraceStore } from './task-trace-store.js';
+import { makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget } from '../kernel/l5-growth/task-trace.js';
 import { AutomationStore } from './automation-store.js';
 import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
@@ -54,6 +56,7 @@ export function makeServer(deps = {}) {
   const memStore = deps.memoryStore ?? new MemoryStore(store.dir);
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
+  const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -140,7 +143,9 @@ export function makeServer(deps = {}) {
         if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
 
         const memory = await memStore.load();
+        const learning = await traceStore.load();
         const ctx = ctxForSession(session, memory);
+        ctx.defaults = learning.promoted; // P6-11: 승인·replay 통과한 기본 대상만 영향(좁은 영향)
         // 첫 사용자 발화로 제목을 짓는다(ChatGPT식). 발화가 있으면 transcript에 남긴다.
         if (hasText) {
           if (!session.transcript.some((e) => e.role === 'user')) {
@@ -153,6 +158,18 @@ export function makeServer(deps = {}) {
         session.ledgerEntries = ctx.ledger.entries; // 세션 원장 갱신(지속)
         session.pendingApprovals = Object.fromEntries(ctx.pending); // 승인 대기 지속(재시작 후 이어실행)
         if (result.goal) session.activeGoal = result.goal; // 현재 목표 유지(세션 간 좁게 복원)
+        // P6-11: 승인된 send 실행을 넓게 기록(TaskTrace)하고, 반복 가능성이 있으면 DefaultTarget 후보를 제안한다.
+        //   기록은 영향 0 — 승격(승인+replay)돼야 다음 턴에서 clarify를 줄인다(broad memory, narrow influence).
+        if (result.sentVia?.tool && result.sentVia.target) {
+          learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: result.sentVia.tool, target: result.sentVia.target, now: Date.now() }));
+          const cand = proposeDefaultTarget({ tool: result.sentVia.tool, target: result.sentVia.target, promoted: learning.promoted, proposed: learning.proposed });
+          if (cand) {
+            const withId = { patternId: randomUUID(), ...cand };
+            learning.proposed.push(withId);
+            result.patternCandidate = withId; // 채팅 안 "다음부터 이 대상으로?" 카드용
+          }
+          await traceStore.save(learning);
+        }
         // 기억 승격 후보: 자동 승격하지 않고 후보로만 저장(중복 제외). 승격은 별도 confirm/replay.
         if (result.memorySuggestion) {
           const dup = [...memory.candidates, ...memory.promoted].some((e) => e.statement === result.memorySuggestion.statement);
@@ -289,6 +306,43 @@ export function makeServer(deps = {}) {
         const before = m.promoted.length;
         m.promoted = m.promoted.filter((e) => e.candidateId !== input.candidateId);
         if (m.promoted.length !== before) await memStore.save(m);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      // ── 학습(Learning-to-Workflow, P6-11) ── 후보 → 승인+replay → 승격(영향) → 되돌리기.
+      if (req.method === 'GET' && url === '/patterns') {
+        const a = await traceStore.load();
+        return sendJson(res, 200, {
+          proposed: a.proposed.map((p) => ({ patternId: p.patternId, kind: p.kind, tool: p.tool, target: p.target })),
+          promoted: a.promoted.map((p) => ({ kind: p.kind, tool: p.tool, target: p.target })),
+          traceCount: a.traces.length,
+        });
+      }
+      // 승격: 승인 + replay 게이트를 통과해야 promoted(영향)로. 실패하면 승격하지 않고 정직하게 알린다.
+      if (req.method === 'POST' && url === '/patterns/confirm') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const a = await traceStore.load();
+        const idx = a.proposed.findIndex((p) => p.patternId === input.patternId);
+        if (idx < 0) return sendJson(res, 404, { error: '학습 후보를 찾지 못했어요.' });
+        const pat = a.proposed[idx];
+        const replay = replayDefaultTarget(pat); // 승격 전 재현 검증(영향 전 게이트)
+        if (!replay.ok) {
+          return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: replay.reason });
+        }
+        a.proposed.splice(idx, 1);
+        // 같은 도구의 기존 기본은 대체(하나만 유지).
+        a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === pat.tool));
+        a.promoted.push(promoteDefaultTarget(pat, Date.now()));
+        await traceStore.save(a);
+        return sendJson(res, 200, { ok: true, kind: pat.kind, tool: pat.tool, target: pat.target });
+      }
+      // 되돌리기: 잘못 배운 기본 대상을 제거한다(영향 제거). 다음부터 다시 대상을 확인한다.
+      if (req.method === 'POST' && url === '/patterns/rollback') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const a = await traceStore.load();
+        const before = a.promoted.length;
+        a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === input.tool));
+        if (a.promoted.length !== before) await traceStore.save(a);
         return sendJson(res, 200, { ok: true });
       }
 
