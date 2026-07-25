@@ -158,6 +158,11 @@
   .suggest .sug-t { font-size:var(--fs-sm); color:var(--fg); }
   .suggest .sug-s { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-2); }
   .suggest .btns { margin-top:var(--sp-2); display:flex; gap:var(--sp-2); }
+  .trace { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
+    display:flex; align-items:center; gap:var(--sp-2); opacity:0.9; }
+  .trace::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent);
+    animation:tpulse 1.1s var(--ease-out) infinite; }
+  @keyframes tpulse { 0%,100%{opacity:0.3;} 50%{opacity:1;} }
   .sug-done { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:0 var(--sp-1);
     display:flex; flex-direction:column; align-items:flex-start; gap:var(--sp-1); }
   .card .btns { margin-top:var(--sp-3); display:flex; gap:var(--sp-2); }
@@ -661,8 +666,36 @@ async function submit() {
   if (!currentSessionId) await newSession();
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
-  try { renderResult(await turn({ text: t })); await loadSessions(); }
-  catch { sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.'); }
+  // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
+  const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  try {
+    await streamTurn(t, trace);
+    trace.remove();
+    const sess = await (await fetch(`/sessions/${currentSessionId}`)).json();
+    const last = (sess.transcript || []).filter((e) => e.role === 'assistant').at(-1);
+    if (last) renderResult(last.result); // 스트림이 실행·지속한 그 결과(중복 실행 없음)
+    await loadSessions();
+  } catch {
+    trace.remove();
+    sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// 진행 상태를 조용히 표시. 모델 사고 원문이 아니라 trace_status/tool_progress 등 사용자 언어 상태만.
+function streamTurn(t, trace) {
+  return new Promise((resolve, reject) => {
+    const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&text=${encodeURIComponent(t)}`;
+    const es = new EventSource(url);
+    let done = false;
+    const show = (e) => { try { trace.textContent = (JSON.parse(e.data).text || '작업 중') + '…'; } catch {} };
+    es.addEventListener('trace_status', show);
+    es.addEventListener('tool_progress', show);
+    es.addEventListener('evidence_added', () => { trace.textContent = '근거를 정리하고 있어요…'; });
+    es.addEventListener('approval_required', () => { trace.textContent = '승인이 필요해요…'; });
+    es.addEventListener('capability_needed', () => { trace.textContent = '연결/준비가 필요해요…'; });
+    es.addEventListener('complete', () => { done = true; es.close(); resolve(); });
+    es.onerror = () => { es.close(); done ? resolve() : reject(new Error('stream')); };
+  });
 }
 send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
