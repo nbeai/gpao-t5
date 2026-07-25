@@ -81,7 +81,7 @@ test('세션 간 대화 격리 — 한 세션 발화가 다른 세션에 안 보
 test('세션 안 승인 재개(approve)는 text 없이도 200, 계획 이어받음', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    const r1 = await (await post(base, '/turn', { sessionId: s.id, text: '이 소식 슬랙에 올려줘' })).json();
+    const r1 = await (await post(base, '/turn', { sessionId: s.id, text: '이 소식 슬랙 #공지에 올려줘' })).json();
     assert.equal(r1.kind, 'approval');
     const res2 = await post(base, '/turn', { sessionId: s.id, approve: r1.pendingId });
     assert.equal(res2.status, 200);
@@ -96,7 +96,7 @@ test('승인 대기가 재시작 후에도 지속돼 이어실행된다', async 
   await new Promise((r) => srv1.listen(0, r));
   const b1 = `http://127.0.0.1:${srv1.address().port}`;
   const s = await (await post(b1, '/sessions')).json();
-  const r1 = await (await post(b1, '/turn', { sessionId: s.id, text: '이 소식 슬랙에 올려줘' })).json();
+  const r1 = await (await post(b1, '/turn', { sessionId: s.id, text: '이 소식 슬랙 #공지에 올려줘' })).json();
   assert.equal(r1.kind, 'approval');
   await new Promise((r) => srv1.close(r)); // 재시작
 

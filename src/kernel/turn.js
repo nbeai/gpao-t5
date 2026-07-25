@@ -14,6 +14,7 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
+import { parseSend } from './l1-intent/send-parse.js';
 import { APPROVAL_TTL_MS } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -60,8 +61,8 @@ export async function runTurn(input, ctx) {
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     ctx.pending.delete(input.approve);
-    // 승인 재개 시 게이트에서 계산한 admitted를 함께 이어받는다 — 승격된 맥락을 잃지 않게(감사 소보정).
-    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? []);
+    // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
+    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -150,12 +151,35 @@ export async function runTurn(input, ctx) {
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
   //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
   const pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
+
+  // P6-7: send류는 보낼 내용·대상을 지시 문장과 분리한다(문장 전체를 그대로 보내지 않는다).
+  //   대상·내용이 애매하면 실행/승인 전에 짧게 확인한다. 명확하면 승인 preview를 어디에/무엇을로 채운다.
+  let sendArgs; // { [toolId]: { target, text } } — 승인 후 executePlan이 이 인자로 전송한다.
+  const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
+  if (sendGrant) {
+    const parsed = parseSend(input.text ?? '', sendGrant.action);
+    if (parsed.ambiguous) {
+      return {
+        kind: 'clarify',
+        question: parsed.clarifyReason === 'no_message'
+          ? '무엇을 보낼지 알려주세요. (보낼 내용)'
+          : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action)}의 채널/받는 사람)`,
+        selfStateSummary: summary,
+        memorySuggestion,
+        followUp,
+      };
+    }
+    sendArgs = { [sendGrant.action]: { target: parsed.target, text: parsed.message } };
+    // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
+    sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: parsed.target, what: parsed.message };
+  }
+
   if (pendingGrants.length) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
     // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
-    ctx.pending.set(pendingId, { intent, plan, admitted, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
+    ctx.pending.set(pendingId, { intent, plan, admitted, sendArgs, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
     return {
       kind: 'approval',
       pendingId,
@@ -175,7 +199,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
   result.followUp = followUp;
   result.memorySuggestion = memorySuggestion;
   result.automationSuggestion = automationSuggestion;
@@ -191,12 +215,14 @@ export async function runTurn(input, ctx) {
  * @param {TruthLedger} ledger
  * @param {Object} summary
  */
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = []) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs) {
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
   for (const toolId of plan.toolsToUse) {
-    const rec = await ctx.tools.run(toolId, { request: intent.currentRequest }, selfState);
+    // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
+    const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
+    const rec = await ctx.tools.run(toolId, args, selfState);
     ledger.append(rec);
     turnReceipts.push(rec);
   }

@@ -42,7 +42,8 @@ test('연결 필요: 미연결 슬랙 요청 → connectionNeeded(원래 작업 
 test('연결됨: 토큰 있으면 슬랙 요청은 connectionNeeded 없음(승인 경로로)', async () => {
   await withLiveServer({ SLACK_BOT_TOKEN: 'xoxb-test' }, async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙에 회의 시작이라고 올려줘' })).json();
+    // 대상(채널)까지 명시 → P6-7 정밀 파싱이 애매하지 않아 A2 승인 경로로 간다.
+    const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙 #general에 회의 시작이라고 올려줘' })).json();
     assert.equal(r.connectionNeeded, undefined, '연결됐으면 안내 카드 없음');
     assert.equal(r.kind, 'approval', '연결됐으면 A2 승인 경로');
   });
