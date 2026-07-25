@@ -66,6 +66,6 @@ export function projectUserModel(memory) {
     .map((c) => ({ id: c.candidateId, statement: c.statement, status: 'pending_confirm', admitted: false }));
   const admitted = (memory?.promoted ?? [])
     .filter((p) => p.kind === 'operating_preference')
-    .map((p) => ({ statement: p.statement, status: 'admitted', admitted: true }));
+    .map((p) => ({ id: p.candidateId, statement: p.statement, status: 'admitted', admitted: true })); // id: 되돌리기용
   return { inferredTraits, operatingPreferences: [...pending, ...admitted] };
 }

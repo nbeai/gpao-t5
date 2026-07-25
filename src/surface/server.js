@@ -417,12 +417,17 @@ export function makeServer(deps = {}) {
         });
       }
       if (req.method === 'POST' && url === '/memory/rollback') {
+        // 반영 철회 — "반영하기"가 있으면 "잘못 반영 시 되돌릴 길"도 같은 수준(감사 지적). promoted에서 빼면
+        //   다음 턴부터 admittedContext에 안 들어간다(영향 사라짐). rollbackable=false(고정 원칙 등)는 거부.
         const input = JSON.parse((await readBody(req)) || '{}');
+        const cid = input.candidateId ?? input.id;
         const m = await memStore.load();
-        const before = m.promoted.length;
-        m.promoted = m.promoted.filter((e) => e.candidateId !== input.candidateId);
-        if (m.promoted.length !== before) await memStore.save(m);
-        return sendJson(res, 200, { ok: true });
+        const idx = m.promoted.findIndex((e) => e.candidateId === cid);
+        if (idx < 0) return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
+        if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
+        const [removed] = m.promoted.splice(idx, 1);
+        await memStore.save(m);
+        return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement });
       }
 
       // ── 학습(Learning-to-Workflow, P6-11) ── 후보 → 승인+replay → 승격(영향) → 되돌리기.
@@ -592,7 +597,8 @@ export function makeServer(deps = {}) {
         if (!result.ok) return sendJson(res, 200, { admitted: false, reason: result.reason });
         memory.promoted = [...(memory.promoted ?? []), result.entry];
         await memStore.save(memory);
-        return sendJson(res, 200, { admitted: true, statement: result.entry.statement });
+        // candidateId를 함께 준다 — "반영하기"가 있으면 "되돌리기"(POST /memory/rollback)도 같은 수준으로(감사 지적).
+        return sendJson(res, 200, { admitted: true, candidateId: result.entry.candidateId, statement: result.entry.statement });
       }
       // ── 스킬 학습 (P6-17 Slice-2) ── SkillCandidate lifecycle. **추천 ≠ 실행/승격. replay+확인 전 영향 0.**
       //   스킬은 자동 실행 권한이 없다(외부 행동은 여전히 A2). UI는 최소 표면.
