@@ -38,10 +38,13 @@ export function demoEnv() {
   };
 }
 
-/** 슬라이스-1 스텁 도구. web.collect 는 차단 사례를 재현할 수 있게 한다(복구 흐름 시연). */
-export function demoTools() {
+/**
+ * 슬라이스-1 스텁 도구. web.collect 는 차단 사례를 재현할 수 있게 한다(복구 흐름 시연).
+ * @param {{webCollector?:object}} [opts] webCollector 주입 시 web.collect를 실제 어댑터로 교체(P6-5 라이브).
+ */
+export function demoTools(opts = {}) {
   return new ToolRunner({
-    'web.collect': {
+    'web.collect': opts.webCollector ?? {
       // 출처 원장 필수 — ToolRunner가 assertWebEvidence를 강제한다(handler 관례에 안 맡김).
       sourceLedgerRequired: true,
       async handler(args) {
