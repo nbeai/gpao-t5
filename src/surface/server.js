@@ -598,8 +598,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
   // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영한다(단일 진실):
   // slack.post는 토큰이 있어야 도구함에서 사용 가능·실행 가능. 없으면 연결 필요(도구함·실행 일치, 2.0-A 보정).
-  const { env: liveEnv, tools: liveTools } = liveDeps(process.env);
-  const server = makeServer({ env: liveEnv, tools: liveTools });
+  const { env: liveEnv, tools: liveTools, channels: liveChannelList } = liveDeps(process.env);
+  // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
+  const server = makeServer({ env: liveEnv, tools: liveTools, channels: liveChannelList });
   server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });

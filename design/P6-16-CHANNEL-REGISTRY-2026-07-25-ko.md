@@ -32,26 +32,36 @@ Kernel Contract §1.5(InboundEventGate)·§6.7(ConnectorProfile). 관련: [[gpao
 
 ## 배선
 
-- `demoChannels()`(demo-context) — `demoConnectors()`에서 **파생**(커넥터/채널 두 소스로 갈라지지 않게).
+- **라이브 표면은 실제 자격에서 파생**(감사 blocker 보정): `liveDeps(processEnv)`가 `channels`도 반환한다 —
+  `liveChannels`가 `TELEGRAM_BOT_TOKEN`/`SLACK_BOT_TOKEN` 유무로 `connected`를 정한다. 토큰 없으면 채널은
+  `ready:false`(연결 안내). standalone server는 `makeServer({env, tools, channels})`로 이 라이브 채널을 넘긴다.
+  **"보이는 것 = 실제 가능한 것"** — 2.0-A slack 초록 오표시와 같은 계열을 채널에서도 막는다.
+- `demoChannels()`는 **demo/test 전용 fixture**(telegram connected:true 고정) — 라이브 표면에 쓰지 않는다.
+  server 기본 fallback은 테스트 편의용이며, 라이브는 항상 liveChannels를 주입받는다.
 - `GET /channels` — 사용자 안전 뷰 + doctor. 기존 `/connectors`(원시 두 축)는 내부/디버그 뷰로 유지.
 - UI 콘솔화(연결 페이지에 이 상태 표시)는 **P6-18**로 분리(안티 대시보드 원칙 함께).
 
-## 테스트 (7, 총 246)
+## 테스트 (10, 총 249)
 
 미연결→초록 아님+연결 안내 · 미자격→needs_auth+로그인 안내 · 연결·자격 갖춤만 ready · **connected ≠ approved
 (ready여도 전송 A2)** · userSafe·doctor에 내부 코드 미노출 · inbound 정책/outbound 바인딩 선언 · `GET /channels`
 사용자 언어(원시 readiness 코드 미노출·전송 모두 승인). 인바운드 게이팅·gated 미기록은 server.test에서 이미 커버.
+**라이브 자격(blocker)**: `liveDeps({}).channels`는 telegram/slack.channel 모두 ready 아님 · `liveChannels`는
+실제 토큰(TELEGRAM_BOT_TOKEN/SLACK_BOT_TOKEN)이 있을 때만 ready · 라이브 자격 주입 서버의 `/channels`는 토큰 없이
+telegram을 "받을 준비됨"으로 말하지 않음.
 
-반대 테스트: `ready`를 무조건 true로(미연결도 초록) 주입하면 미연결/미자격/endpoint 3건 실패 실측 → 상태 투영이
-load-bearing. 라이브: `GET /channels` — telegram ready, slack.channel needs_connection(연결 안내), 둘 다 전송 A2.
+반대 테스트: (a) `ready` 무조건 true 주입 시 미연결/미자격/endpoint 3건 실패. (b) `liveChannels`가 토큰을 무시하고
+connected:true면(fixture-style) 라이브 자격 테스트 3건 실패 실측 → 자격 파생이 load-bearing. 라이브 standalone:
+토큰 없음→telegram·slack.channel 둘 다 ready:false(연결 안내), TELEGRAM_BOT_TOKEN 주면 telegram ready:true.
 
 ## 완료/미완료 (사용자 언어)
 
 - **된 것**: 채널을 한 곳(레지스트리)으로 묶어, 각 채널이 "받을 준비됐는지 / 로그인·연결이 필요한지"를
   사용자 말로 보여주고, 무엇을 하면 되는지(doctor)까지 준다. 미연결·미자격은 초록으로 안 보인다. 전송은 어느
   채널이든 보내기 전에 승인을 받는다.
+  라이브 표면은 실제 토큰이 있을 때만 "받을 준비됨"으로 보인다 — 토큰 없이 초록으로 속이지 않는다.
 - **아직 아닌 것**: 실제 외부 전송·설정 변경, 채널별 inbound 정책의 게이트 반영(지금은 선언값), 연결 페이지 UI
-  표시(P6-18), 실 provider 연동. 이 슬라이스는 정리·표면화까지.
+  표시(P6-18), 실 provider 연동·토큰 유효성 실측(지금은 토큰 존재 유무까지). 이 슬라이스는 정리·표면화까지.
 
 ## 남은 후속
 

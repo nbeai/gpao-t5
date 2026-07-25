@@ -5,10 +5,35 @@
 import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
+import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
+import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
+
+/**
+ * 라이브 채널 상태를 **실제 자격**에서 파생한다(P6-16 blocker 보정). demoChannels(고정 fixture)를
+ * 라이브 표면에 쓰지 않는다 — "보이는 것 = 실제 가능한 것". 토큰/수신 설정 없으면 connected:false →
+ * `/channels`가 "받을 준비됨(초록)"으로 보이지 않고 연결 안내를 준다(2.0-A slack 초록 오표시와 같은 계열).
+ * @param {Record<string,string|undefined>} processEnv
+ */
+export function liveChannels(processEnv = {}) {
+  const tgToken = processEnv.TELEGRAM_BOT_TOKEN;   // 없으면 텔레그램 수신 불가 → 미연결
+  const slackToken = processEnv.SLACK_BOT_TOKEN;   // 슬랙 채널 자격도 실제 토큰 유무로
+  return [
+    defineChannel({
+      id: 'telegram',
+      connector: defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: Boolean(tgToken) }),
+      inboundPolicy: 'mention_required', outboundTool: 'telegram.send',
+    }),
+    defineChannel({
+      id: 'slack.channel',
+      connector: defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: Boolean(slackToken) }),
+      inboundPolicy: 'mention_required', outboundTool: 'slack.post',
+    }),
+  ];
+}
 
 /**
  * @param {Record<string,string|undefined>} [processEnv]  실제 자격(SLACK_BOT_TOKEN 등)
- * @returns {{env:object, tools:object, descriptors:object[]}}
+ * @returns {{env:object, tools:object, descriptors:object[], channels:object[]}}
  */
 export function liveDeps(processEnv = {}) {
   const slackToken = processEnv.SLACK_BOT_TOKEN;
@@ -23,5 +48,6 @@ export function liveDeps(processEnv = {}) {
   };
   const tools = demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders });
 
-  return { env, tools, descriptors: demoDescriptors() };
+  // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
+  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv) };
 }

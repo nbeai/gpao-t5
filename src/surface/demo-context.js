@@ -14,8 +14,9 @@ export function demoConnectors() {
   ];
 }
 
-// P6-16 Slice-1: ChannelRegistry — 커넥터(자격) + inbound 정책 + outbound 도구 바인딩을 한 곳으로.
-//   같은 커넥터 목록에서 파생한다(단일 진실 — 커넥터/채널 두 소스로 갈라지지 않게).
+// P6-16 Slice-1: ChannelRegistry 데모 fixture — 커넥터(자격) + inbound 정책 + outbound 도구 바인딩.
+//   ⚠️ **demo/test 전용 fixture다.** telegram을 connected:true로 박아두므로 **라이브 표면에 쓰면 안 된다** —
+//   라이브 채널 상태는 실제 자격에서 파생한다(live-context.liveChannels). server 기본은 이 fixture(테스트 편의).
 export function demoChannels() {
   const byId = Object.fromEntries(demoConnectors().map((c) => [c.id, c]));
   return [
