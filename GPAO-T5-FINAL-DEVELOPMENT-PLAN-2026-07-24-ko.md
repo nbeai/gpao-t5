@@ -809,7 +809,19 @@ T5는 바로 기능부터 쌓으면 안 된다. 본 최종 계획서를 기준�
 | 6 | Work Surface / Project OS UX | Work Chat, Project Rooms, Connection/Approval surfaces |
 | 7 | Truth Ledger / Recovery / Growth Loop | TruthLedger, RecoveryCell, GrowthCandidate replay |
 
-### Phase 7. Human Scenario Qualification
+Phase 6을 닫을 때 마지막 감사는 단순 기능 통과가 아니라 **P7 진입 가능성 감사**여야 한다.
+P6 마지막 감사자는 아래 질문을 반드시 남긴다.
+
+1. 7대 영역이 실제 사용자 목적 달성 흐름에서 끊기지 않는가?
+2. 도구/웹/메신저/자동화/개인 도구/스킬이 "보이는 것 = 실제 되는 것" 원칙을 지키는가?
+3. P6에서 생긴 실행 흔적, 사용자 수정, 반복 작업, 실패/복구가 P7의 T-cell 심화 재료로 남는가?
+4. `ContextAdmissionPacket`, `TaskContextPacket`, `SkillDescriptor`, `AutomationBlueprint`, `TruthLedger`가 P7의 `pi extraction`과 replay로 이어질 충분한 trace를 갖는가?
+5. P7로 넘기기 전에 닫아야 할 기능 공백, 죽은 UI, 가짜 상태, 과잉 자동화, 권한 우회 위험이 남아 있지 않은가?
+
+P6 마지막 감사 보고서에는 반드시 "P7 T-cell Deep Intelligence Layer로 넘길 수 있는 것 / 넘기면 안 되는 것 /
+P7에서 첫 번째로 심화해야 할 것"을 포함한다.
+
+### Phase 7. Human Scenario Qualification + T-cell Deep Intelligence Layer
 
 T5는 단위 테스트나 화면 로딩으로 완료를 주장하지 않는다. 최소 40개 인간 사용자 시나리오에서 아래 흐름을 검증한다.
 
@@ -825,6 +837,31 @@ T5는 단위 테스트나 화면 로딩으로 완료를 주장하지 않는다. 
 -> 복구 또는 성장 후보
 -> 다음 대화로 자연스럽게 연결
 ```
+
+Phase 7의 목적은 시나리오 통과만이 아니다. Phase 6에서 만든 실행 가능한 AI OS의 몸 위에,
+사용자의 말귀, 반복 업무 방식, 생략된 의도, correction, 실패/복구 흔적을 **T-cell 작동원리**로 더 깊게
+승격시키는 것이다.
+
+Phase 7은 아래 하위 슬라이스를 포함한다.
+
+| 순서 | 슬라이스 | 목적 |
+| --- | --- | --- |
+| 1 | `P7-1 pi Extraction Rubric` | 사용자 반복 지시, 수정, 불만, 선호, 금지선에서 작동원리 후보를 정밀 추출한다. 정규식 후보 감지를 넘어 evidence, boundary, risk, invalid condition을 함께 본다. |
+| 2 | `P7-2 Operating Principle Schema Deepening` | `operating_principle`에 trace, source, boundary, invalid condition, demotion reason, confidence, replay cases, rollback path를 추가한다. |
+| 3 | `P7-3 Conversation Flow T-cell` | 겉말투가 아니라 현재 발화, 생략된 전제, 사용자 상황, 답변 목적을 복원하는 대화 흐름 T-cell을 만든다. |
+| 4 | `P7-4 T-sphere Composition` | 여러 T-cell이 충돌하거나 겹칠 때 우선순위, 합성, 보류, 차단을 판단한다. endpoint-centered T-shape 원리를 목적 수렴점 모델로 적용한다. |
+| 5 | `P7-5 Longitudinal Replay` | 시간이 지나도 같은 실수가 줄어드는지, correction 이후 같은 실패 재발률이 줄어드는지 검증한다. |
+| 6 | `P7-6 Learning-to-Workflow Promotion` | 한 번 어렵게 수행한 일을 `TaskTrace -> PatternCandidate -> SkillDescriptor / AutomationBlueprint / DefaultTarget / ProfileRule`로 승격해 다음부터 빠르고 강하게 수행한다. |
+
+Phase 7의 비타협 원칙:
+
+- T-cell은 기억 조각이 아니라 행동에 영향을 줄 수 있는 작동원리다.
+- 많이 관찰하고 저장하되, 행동 영향은 admitted context만 허용한다.
+- `memory != permission`, `retrieved != admitted`, `admitted support != answer anchor`를 유지한다.
+- `operating_principle`은 replay와 사용자 확인 전에는 행동 영향 0이다.
+- 사용자의 현재 요청은 과거 T-cell보다 우선한다.
+- 잘못 배운 작동원리는 demotion/rollback 가능해야 한다.
+- 자연스러운 응답 능력을 훼손하는 과잉 분류, 과잉 템플릿, 과잉 통제는 실패다.
 
 ### Phase 8. Operating Blueprint / Recovery Map
 
