@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -51,6 +51,10 @@
   부족 능력(tool/skill/connector/profile/target/permission)을 하나의 패킷·통합 카드로(비파괴), resumeContext
   복귀 경로. 개인 도구 준비 게이트(등록≠실행가능, "설정 확인" 통과 전 executable=false, 실패시 이유+다음행동) +
   SkillDescriptor 다섯 축 초안. 후속: P6-11 Learning-to-Workflow Promotion.
+- P6-11 개정 반영(근거: `P6-11-LEARNING-TO-WORKFLOW`, 깊은 감사 통과+보정): §6.10 Learning-to-Workflow —
+  TaskTrace(넓게 기록)→PatternCandidate→ReplayCase(기본 형식 확인)→승인 후 DefaultTarget 승격(질문 축소).
+  broad memory narrow influence(승격분만 영향), A2 우회 없음, scope:'global' 명시(숨은 전역 금지)·UI 정직 표시,
+  되돌리기. 남은 승격 타입(Skill/Blueprint/ProfileRule)은 후속.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -402,9 +406,26 @@ nextAction, requiresApproval, testPlan, resumeContext, alternatives, ref}`
 **SkillDescriptor 초안(2.0-C-2, 계약만)**: 도구 ≠ 스킬. 스킬은 작업 "방식"으로 다섯 축(말귀·절차·맥락·결과물
 형식·replay)을 가진다. 추천은 설치·승격 아님 — 확인·replay 통과 전 영향 0. store·UI·실행은 후속.
 
-후속: P6-11 Learning-to-Workflow Promotion(TaskTrace→PatternCandidate→ReplayCase→Skill/AutomationBlueprint/
-DefaultTarget/ProfileRule 승격, broad memory narrow influence) + 기본 대상·프로필 라우팅·페어링·ambient·
-connector doctor·blueprint·task flow·채널별 출력.
+후속: 기본 대상·프로필 라우팅·페어링·ambient·connector doctor·blueprint·task flow·채널별 출력.
+
+### 6.10 Learning-to-Workflow Promotion (P6-11, 구현됨 — DefaultTarget)
+
+근거: Hermes "한 번 어렵게 한 일을 다음부터 빠르게" 흡수 + auto-memory 절대 경계. 한 번 수행한 작업을
+`TaskTrace`로 넓게 기록하고, 반복 가능성이 있으면 `PatternCandidate`로 제안한 뒤, **사용자 승인 + ReplayCase**를
+거쳐 승격한다. 첫 타입은 `DefaultTarget`(P6-7 "어디로?" clarify를 두 번째부터 축소).
+
+**절대 경계**: **broad memory, narrow influence** — 넓게 관찰·기록하되 행동 영향은 승인·replay 통과한 좁은
+것만. "배워간다" 느끼되 "멋대로 한다"는 안 된다. **권한 승인(A2)은 우회하지 않는다**(기본 대상이 있어도 자동
+전송 안 하고 승인). 잘못 배운 건 되돌린다.
+- `TaskTrace`(넓게 관찰, 영향 0) → `proposeDefaultTarget`(대상 명시 전송→후보) → `replayDefaultTarget`(승격 전
+  **기본 형식 확인** — 실제 채널 존재 검증은 후속) → `promoteDefaultTarget`. `defaultTargetFor`는 승격분만 소비.
+- **scope 명시(숨은 전역 영향 금지)**: 승격에 `scope:'global'` 저장. UI는 "모든 대화에서 이 도구의 기본 대상으로
+  기억"으로 범위를 사용자 언어로 정직하게 표시 — 사용자가 이해한 기본값이지 숨은 전역이 아니다. project/profile
+  scope는 후속.
+- 서버: `sentVia`(승인된 send 실행)→TaskTrace 기록+후보, `ctx.defaults=promoted`만 주입(narrow),
+  `GET/POST /patterns`(confirm=replay→승격 / rollback=영향 제거).
+
+남은 승격 타입(후속): SkillDescriptor(작업 방식)·AutomationBlueprint(반복 주기)·ProfileRule(가게/고객방 격리).
 
 ---
 
