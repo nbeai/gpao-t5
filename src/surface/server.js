@@ -24,6 +24,7 @@ import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connect
 import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
 import { projectChannels } from '../kernel/l2-plan/channel-registry.js';
 import { searchTranscripts, projectSearchCandidates } from '../kernel/l5-growth/session-search.js';
+import { buildOverview } from './overview.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
@@ -550,6 +551,19 @@ export function makeServer(deps = {}) {
       //   내부 readiness 코드가 아니라 "받을 준비됨/로그인 필요/연결 필요"로. 미연결·미자격은 초록 아님.
       if (req.method === 'GET' && url === '/channels') {
         return sendJson(res, 200, { channels: projectChannels(deps.channels ?? demoChannels()) });
+      }
+      // ── 상태 요약 (P6-18 Slice-1) ── 조용한 단일 진입점(읽기 전용). 안티 대시보드: 열 때만 본다.
+      //   누적된 "반드시 구분"을 구조로: 연결↔가능·추천↔활성·추정↔반영·실패↔완료. 이미 만든 projection 조합만.
+      if (req.method === 'GET' && url === '/overview') {
+        const sessionId = new URL(req.url, 'http://x').searchParams.get('sessionId');
+        const channels = projectChannels(deps.channels ?? demoChannels());
+        const skillsData = await skillStore.load();
+        const skills = skillsData.skills.map((s) => ({ label: s.label, state: s.state }));
+        const userModel = projectUserModel(await memStore.load());
+        const dl = await deliveryStore.load();
+        // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다.
+        const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ tool: d.tool, target: d.target, state: d.state })) : [];
+        return sendJson(res, 200, buildOverview({ channels, skills, userModel, deliveries }));
       }
       // ── 세션 검색 (P6-17 Slice-1) ── 과거 대화 회수. **결과는 후보로만 나온다(admitted:false, 영향 0).**
       //   turn을 돌리지 않고 모델에 먹이지 않는다 — 라우터·answer에 raw로 섞이지 않게. 승격은 별도 admission.
