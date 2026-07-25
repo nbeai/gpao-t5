@@ -588,9 +588,11 @@ export function makeServer(deps = {}) {
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '반영할 내용이 필요해요.' });
         const memory = await memStore.load();
         const stmt = input.statement.trim();
-        // 이미 반영된 같은 회수 기억이면 중복 반영하지 않는다.
-        if ((memory.promoted ?? []).some((e) => e.kind === 'recalled_context' && e.statement === stmt)) {
-          return sendJson(res, 200, { admitted: true, already: true, statement: stmt });
+        // 이미 반영된 같은 회수 기억이면 중복 반영하지 않는다. **단 되돌리기용 candidateId는 반드시 함께 준다**
+        //   — 안 주면 UI가 "반영됨"으로 보이는데 되돌리기 id가 없어 못 되돌린다(반영↔되돌리기 대칭 깨짐, 감사 blocker).
+        const dup = (memory.promoted ?? []).find((e) => e.kind === 'recalled_context' && e.statement === stmt);
+        if (dup) {
+          return sendJson(res, 200, { admitted: true, already: true, candidateId: dup.candidateId, statement: stmt });
         }
         const cand = makeSearchCandidate({ snippet: stmt, sessionId: input.source?.sessionId, title: input.source?.title, role: input.source?.role }, randomUUID());
         const result = promote(cand, { userConfirmed: true }); // §6.16 admission — 자동 아님, 사용자 확인

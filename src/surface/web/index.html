@@ -422,7 +422,8 @@ function renderQResults(results) {
         btn.disabled = true;
         try {
           const a = await (await fetch('/search/admit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statement: r.statement, source: src }) })).json();
-          if (a.admitted) { admittedId = a.candidateId; setReflected(); } else btn.disabled = false;
+          // 되돌리기 id(candidateId)가 있을 때만 "반영됨"으로 — id 없이 반영됨으로 보이면 못 되돌린다(대칭 보장).
+          if (a.admitted && a.candidateId) { admittedId = a.candidateId; setReflected(); } else btn.disabled = false;
         } catch { btn.disabled = false; }
       };
     }

@@ -184,6 +184,24 @@ test('POST /memory/rollback: 반영 취소하면 promoted에서 빠지고 영향
   });
 });
 
+// 감사 blocker: 이미 반영된 기억을 다시 admit해도 candidateId를 줘야 되돌릴 수 있다(반영↔되돌리기 대칭).
+test('POST /search/admit: 중복 반영(already)도 candidateId를 주고, 그 id로 되돌릴 수 있다', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    const a1 = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    assert.equal(a1.admitted, true);
+    const a2 = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    assert.equal(a2.already, true, '중복 반영은 already');
+    assert.ok(a2.candidateId, 'already 응답에도 되돌리기용 candidateId가 있다');
+    assert.equal(a2.candidateId, a1.candidateId, '같은 기억의 같은 id');
+    // 그 id로 되돌리면 실제로 제거되고 영향이 사라진다(화면=실제 일치).
+    const g = await (await post(base, '/memory/rollback', { candidateId: a2.candidateId })).json();
+    assert.equal(g.rolledBack, true);
+    const m = await memoryStore.load();
+    assert.equal(m.promoted.length, 0, 'promoted에서 제거');
+    assert.deepEqual(admittedContext(m, '부오상회 견적서 다시'), [], '되돌린 뒤 영향 사라짐');
+  });
+});
+
 test('POST /memory/rollback: 없는 candidateId는 rolledBack:false(그대로)', async () => {
   await withMemServer(async (base) => {
     const g = await (await post(base, '/memory/rollback', { candidateId: 'nope' })).json();
