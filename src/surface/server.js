@@ -20,7 +20,8 @@ import { MemoryStore } from './memory-store.js';
 import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
-import { demoConnectors, demoDescriptors } from './demo-context.js';
+import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
+import { projectChannels } from '../kernel/l2-plan/channel-registry.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
@@ -533,12 +534,17 @@ export function makeServer(deps = {}) {
 
       // ── 커넥터 / 멀티채널 (P6-2 Slice-3) ──
       if (req.method === 'GET' && url === '/connectors') {
-        // auth(자격)과 approval(전송)을 두 축으로 보여준다.
+        // auth(자격)과 approval(전송)을 두 축으로 보여준다(원시 축 — 내부/디버그 뷰).
         const connectors = (deps.connectors ?? demoConnectors()).map((p) => ({
           id: p.id, label: p.label, kind: p.kind, authState: p.authState,
           readiness: connectorReadiness(p), sendNeedsApproval: sendNeedsApproval(),
         }));
         return sendJson(res, 200, { connectors });
+      }
+      // ── 채널 레지스트리 (P6-16 Slice-1) ── 사용자 안전 상태 + doctor 진단(사용자 언어). 정리·표면화만.
+      //   내부 readiness 코드가 아니라 "받을 준비됨/로그인 필요/연결 필요"로. 미연결·미자격은 초록 아님.
+      if (req.method === 'GET' && url === '/channels') {
+        return sendJson(res, 200, { channels: projectChannels(deps.channels ?? demoChannels()) });
       }
       // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. 게이트 순서(감사 보정):
       //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화

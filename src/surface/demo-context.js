@@ -4,12 +4,23 @@ import { ToolRunner } from '../runtime/tool-runner.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
+import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
 // P6-2 Slice-3: 채널 커넥터를 ConnectorProfile로 선언(멀티채널). 실제 adapter는 P6 후속.
 export function demoConnectors() {
   return [
     defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true }),
     defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false }),
+  ];
+}
+
+// P6-16 Slice-1: ChannelRegistry — 커넥터(자격) + inbound 정책 + outbound 도구 바인딩을 한 곳으로.
+//   같은 커넥터 목록에서 파생한다(단일 진실 — 커넥터/채널 두 소스로 갈라지지 않게).
+export function demoChannels() {
+  const byId = Object.fromEntries(demoConnectors().map((c) => [c.id, c]));
+  return [
+    defineChannel({ id: 'telegram', connector: byId.telegram, inboundPolicy: 'mention_required', outboundTool: 'telegram.send' }),
+    defineChannel({ id: 'slack.channel', connector: byId['slack.channel'], inboundPolicy: 'mention_required', outboundTool: 'slack.post' }),
   ];
 }
 
