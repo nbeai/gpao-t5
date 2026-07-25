@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -32,6 +32,10 @@
   `makeWebCollector`(실제 HTTP GET, fetchImpl 주입, 라이브만 실어댑터·기본 offline 스텁), `httpToFetchState`
   (코드+본문으로 벽/차단 분리), 봤다→출처 필수·못봤다→내용·출처 없음, timeoutMs+AbortController(끝나지 않는
   페이지가 Work Chat을 멈추지 못하게).
+- P6-6 개정 반영(근거: `P6-6-REAL-CHANNEL`, 깊은 감사 통과): §6.7 ChannelSender 런타임 어댑터 **구현됨** —
+  `makeChannelSender`(Slack/Telegram 실제 전송, fetchImpl 주입), A2 우회 없음(전송은 승인 뒤 실행자),
+  토큰=사용자 소유(env)·없으면 needs_auth(가짜 성공 없음), 실패 분리(auth_failed→permanent /
+  rate_limited·timeout→transient), ToolRunner `{failed:true}`→FAILED(transient) 매핑.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -305,6 +309,19 @@ timeoutMs})`(L3). 실제 HTTP GET(기본 `global fetch`, **주입 가능** — �
 ④ **connectorReadiness===ok**(아니면 blocked) ⑤ normalizeInboundEvent ⑥ InboundEventGate(§1.5,
 mention/allowlist/DM) ⑦ **respond일 때만 turn** ⑧ **gated/blocked는 transcript 미기록**(reply/approval/
 clarify만 기록). 등록·연결된 채널만 커널로 태우고, 트리거 없는 외부 메시지는 자동 응답하지 않는다.
+
+**ChannelSender 런타임 어댑터(구현됨, P6-6)** — §6.7 계약을 실행하는 **아웃바운드 전송** 어댑터.
+`makeChannelSender({channel, token, defaultTarget, fetchImpl, timeoutMs})`(L3). Slack(`chat.postMessage`,
+Bearer)·Telegram(`sendMessage`, URL token). 안전 경계:
+- **A2 우회 없음**: 전송은 `sendNeedsApproval()=true` 그대로, ActionPlan 승인 뒤 executePlan이 부르는
+  실행자일 뿐이다. 어댑터가 게이트를 우회하지 않는다(라이브 실측: 슬랙 전송 요청→approval, 승인 전 전송 0).
+- **자격은 사용자 소유**: 토큰은 config/env(`SLACK_BOT_TOKEN` 등). 어댑터가 소유·회전하지 않는다. 없으면
+  정직하게 `needs_auth`(몰래 안 보냄, 가짜 성공 없음).
+- **실패 분류**: `auth_failed`(재시도로 안 풀림→blocked→permanent) vs `rate_limited`/`timeout`(→failed→
+  transient=P6-4 백오프). 보냈으면 sent, 못 보냈으면 보낸 척 안 한다. 시간 제한은 공유 `withTimeout`.
+- **ToolRunner 매핑(general)**: 핸들러의 `{failed:true}`→FAILED(transient) receipt(기존 `{blocked}`=permanent와
+  분리). 일시 실패를 정직한 메시지와 함께 남기고 자동화 백오프로 잇는다.
+- 안전 규율: `fetchImpl` 주입 — 테스트·기본 demoTools는 실 API를 치지 않는다. 라이브 서버만 실어댑터.
 
 ---
 
