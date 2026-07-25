@@ -28,3 +28,24 @@ test('#send 는 flex:none·nowrap 로 폭을 유지한다', () => {
 test('모바일 브레이크포인트(<=720px)가 존재한다(반응형 필수)', () => {
   assert.match(html, /@media\s*\(max-width:\s*720px\)/, '모바일 미디어쿼리 유지');
 });
+
+// ── 크럼 회귀 가드(P6-18 모바일) ── 375px에서 크럼(브레드크럼+기억 찾기+준비됨)이 단어 중간에서
+//   꺾이던 회귀. 원인의 부재/존재를 불변식으로 고정한다(레이아웃 자체는 라이브 브라우저로 검증).
+const css = html.replace(/\s+/g, ' ');
+
+test('크럼 버튼은 단어 중간에서 안 꺾인다(nowrap) + 브레드크럼은 말줄임', () => {
+  assert.match(css, /#searchbtn,\s*#chip\s*\{[^}]*white-space:\s*nowrap/, '검색·상태 버튼 nowrap');
+  assert.match(css, /\.crumb\s+\.bc\s*\{[^}]*white-space:\s*nowrap[^}]*text-overflow:\s*ellipsis/, '브레드크럼 말줄임');
+});
+
+test('모바일 media query가 크럼을 압축한다(앱이름·검색라벨 숨김)', () => {
+  const mq = css.match(/@media\s*\(max-width:\s*720px\)\s*\{([\s\S]*?)\}\s*<\/style>/);
+  assert.ok(mq, '720px 이하 media query 블록');
+  assert.match(mq[1], /\.crumb\s+\.appn\s*\{[^}]*display:\s*none/, '앱 이름 숨김');
+  assert.match(mq[1], /#searchbtn\s+\.sb-t\s*\{[^}]*display:\s*none/, '검색 라벨 숨김(아이콘만)');
+});
+
+test('HTML에 압축·말줄임이 걸릴 훅이 있다(.bc/.appn/.sb-t)', () => {
+  assert.match(html, /class="bc"[\s\S]*class="appn"/, '브레드크럼 훅');
+  assert.match(html, /id="searchbtn"[\s\S]*class="sb-t"/, '검색 라벨 훅');
+});
