@@ -558,11 +558,11 @@ export function makeServer(deps = {}) {
         const sessionId = new URL(req.url, 'http://x').searchParams.get('sessionId');
         const channels = projectChannels(deps.channels ?? demoChannels());
         const skillsData = await skillStore.load();
-        const skills = skillsData.skills.map((s) => ({ label: s.label, state: s.state }));
+        const skills = skillsData.skills.map((s) => ({ id: s.id, label: s.label, state: s.state }));
         const userModel = projectUserModel(await memStore.load());
         const dl = await deliveryStore.load();
-        // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다.
-        const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ tool: d.tool, target: d.target, state: d.state })) : [];
+        // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다. id는 재전달 액션에 쓴다.
+        const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state })) : [];
         return sendJson(res, 200, buildOverview({ channels, skills, userModel, deliveries }));
       }
       // ── 세션 검색 (P6-17 Slice-1) ── 과거 대화 회수. **결과는 후보로만 나온다(admitted:false, 영향 0).**
