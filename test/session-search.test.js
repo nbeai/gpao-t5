@@ -110,3 +110,58 @@ test('POST /search: 빈 검색어는 400', async () => {
     assert.equal((await post(base, '/search', { query: '   ' })).status, 400);
   });
 });
+
+// ── 검색 표면 반영 (P6-18) ── **찾은 기억은 아직 반영된 기억이 아니다.** admit해야만 promoted로. ──
+function mem(d) { return { async load() { return d; }, async save(a) { d = a; return a; } }; }
+
+async function withMemServer(fn) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-sadm-'));
+  const memoryStore = mem({ candidates: [], promoted: [], observed: [] });
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
+  await new Promise((r) => server.listen(0, r));
+  const { port } = server.address();
+  try { return await fn(`http://127.0.0.1:${port}`, memoryStore); }
+  finally { await new Promise((r) => server.close(r)); }
+}
+
+test('검색만으로는 아무것도 반영되지 않는다(찾음 ≠ 반영)', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    const s = await (await post(base, '/sessions')).json();
+    await post(base, '/turn', { sessionId: s.id, text: '부오상회 견적서 정리해줘' });
+    const r = await (await post(base, '/search', { query: '부오상회' })).json();
+    assert.ok(r.results.length >= 1, '검색은 됨');
+    assert.equal(r.admittedIntoContext, false);
+    const m = await memoryStore.load();
+    assert.equal((m.promoted ?? []).length, 0, '검색만으론 promoted 비어 있음(반영 아님)');
+  });
+});
+
+test('POST /search/admit: 명시 반영하면 promoted(recalled_context)로 → 이후 관련 대화에 입장', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    const a = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1', title: '견적' } })).json();
+    assert.equal(a.admitted, true);
+    const m = await memoryStore.load();
+    assert.equal(m.promoted.length, 1);
+    assert.equal(m.promoted[0].kind, RECALLED_KIND);
+    assert.equal(m.promoted[0].userConfirmed, true, 'admission(사용자 확인) 거침');
+    // 반영 후에는 관련 대화에 좁게 입장.
+    assert.deepEqual(admittedContext(m, '부오상회 견적서 다시'), ['부오상회 견적서 초안']);
+    assert.deepEqual(admittedContext(m, '오늘 날씨'), [], '무관하면 입장 안 함');
+  });
+});
+
+test('POST /search/admit: 같은 기억 중복 반영 안 함(already)', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    await post(base, '/search/admit', { statement: '표로 정리한 견적', source: {} });
+    const a2 = await (await post(base, '/search/admit', { statement: '표로 정리한 견적', source: {} })).json();
+    assert.equal(a2.already, true);
+    assert.equal((await memoryStore.load()).promoted.length, 1, '중복 반영 없음');
+  });
+});
+
+test('POST /search/admit: 빈 statement는 400', async () => {
+  await withMemServer(async (base) => {
+    assert.equal((await post(base, '/search/admit', {})).status, 400);
+    assert.equal((await post(base, '/search/admit', { statement: '  ' })).status, 400);
+  });
+});
