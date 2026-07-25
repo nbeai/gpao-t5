@@ -16,7 +16,7 @@ Hermes가 점수 받는 지점: 한 번 어렵게 한 일을 다음부터 **작�
 ```
 1) 슬랙 #general에 …올려줘 → 승인 → 전송 → TaskTrace 기록(넓게) + DefaultTarget 후보 제안
 2) (승격 전) 슬랙에 …올려줘  → 여전히 "어디로?" clarify   ← 기록만으론 영향 0
-3) 후보 승인 + ReplayCase(대상 형식 재현 검증) 통과 → DefaultTarget 승격
+3) 후보 승인 + ReplayCase(기본 형식 확인 — 실제 채널 존재 검증은 후속) 통과 → DefaultTarget 승격
 4) 슬랙에 …올려줘(채널 없음) → clarify 없이 승인 경로, 대상=#general  ← 질문 축소(체감)
 5) 되돌리기 → 다시 "어디로?" clarify
 ```
@@ -25,7 +25,10 @@ Hermes가 점수 받는 지점: 한 번 어렵게 한 일을 다음부터 **작�
 
 - `makeTaskTrace`(requestText·tool·target·outcome) — 넓게 관찰. 영향 0.
 - `proposeDefaultTarget({tool,target,promoted,proposed})` — 대상 명시 전송 → 후보(dedup: 이미 기본/대기 중이면 안 함).
-- `replayDefaultTarget(pattern)` — 승격 전 재현 검증(대상이 #채널/이메일/이름 형태인가). 실제 전송 아님.
+- `replayDefaultTarget(pattern)` — 승격 전 **기본 형식 확인**(대상이 #채널/이메일/이름 형태인가). 실제 채널
+  존재 검증은 후속.
+- **scope 명시(감사 보정)**: 승격된 기본에 `scope:'global'`을 저장한다(숨은 전역 영향 금지). UI는 "모든
+  대화에서 이 도구의 기본 대상으로 기억"으로 범위를 사용자 언어로 정직하게 보인다. project/profile scope는 후속.
 - `promoteDefaultTarget` / `defaultTargetFor(promoted, tool)` — 승격·조회(좁은 영향의 소비 지점).
 - 저장: `task-trace-store.js` {traces, proposed, promoted}(파일).
 

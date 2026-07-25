@@ -313,8 +313,8 @@ export function makeServer(deps = {}) {
       if (req.method === 'GET' && url === '/patterns') {
         const a = await traceStore.load();
         return sendJson(res, 200, {
-          proposed: a.proposed.map((p) => ({ patternId: p.patternId, kind: p.kind, tool: p.tool, target: p.target })),
-          promoted: a.promoted.map((p) => ({ kind: p.kind, tool: p.tool, target: p.target })),
+          proposed: a.proposed.map((p) => ({ patternId: p.patternId, kind: p.kind, tool: p.tool, target: p.target, scope: p.scope ?? 'global' })),
+          promoted: a.promoted.map((p) => ({ kind: p.kind, tool: p.tool, target: p.target, scope: p.scope ?? 'global' })),
           traceCount: a.traces.length,
         });
       }
@@ -332,9 +332,10 @@ export function makeServer(deps = {}) {
         a.proposed.splice(idx, 1);
         // 같은 도구의 기존 기본은 대체(하나만 유지).
         a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === pat.tool));
-        a.promoted.push(promoteDefaultTarget(pat, Date.now()));
+        const prom = promoteDefaultTarget(pat, Date.now());
+        a.promoted.push(prom);
         await traceStore.save(a);
-        return sendJson(res, 200, { ok: true, kind: pat.kind, tool: pat.tool, target: pat.target });
+        return sendJson(res, 200, { ok: true, kind: pat.kind, tool: pat.tool, target: pat.target, scope: prom.scope });
       }
       // 되돌리기: 잘못 배운 기본 대상을 제거한다(영향 제거). 다음부터 다시 대상을 확인한다.
       if (req.method === 'POST' && url === '/patterns/rollback') {

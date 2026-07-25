@@ -13,7 +13,9 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 // ── 계약: 기록은 영향 0, 승격(승인+replay)만 영향. ──
 test('DefaultTarget 계약: 제안 dedup · replay 검증 · 조회', () => {
-  assert.equal(proposeDefaultTarget({ tool: 'slack.post', target: '#general' }).kind, 'default_target');
+  const prop = proposeDefaultTarget({ tool: 'slack.post', target: '#general' });
+  assert.equal(prop.kind, 'default_target');
+  assert.equal(prop.scope, 'global', '숨은 전역 영향 금지 — scope 명시');
   assert.equal(proposeDefaultTarget({ tool: 'slack.post', target: '#g', promoted: [{ kind: 'default_target', tool: 'slack.post' }] }), null, '이미 기본 있으면 제안 안 함');
   assert.equal(proposeDefaultTarget({ tool: 'slack.post', target: null }), null);
   assert.equal(replayDefaultTarget({ target: '#general' }).ok, true);
@@ -62,6 +64,7 @@ test('학습 루프: 1회 명시 → 후보 → 승격 → 2회째 clarify 없�
     const conf = await (await post(base, '/patterns/confirm', { patternId: done1.patternCandidate.patternId })).json();
     assert.equal(conf.ok, true);
     assert.equal(conf.target, '#general');
+    assert.equal(conf.scope, 'global', '승격에도 scope 보존(정직한 범위)');
 
     // 4) 2회째: 채널 없이 보내도 clarify 없이 승인 경로로(질문 축소). preview 대상은 학습된 기본.
     const s2 = await (await post(base, '/sessions')).json();
