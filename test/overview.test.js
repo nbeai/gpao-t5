@@ -43,14 +43,14 @@ test('buildOverview: 각 항목이 두 범주로 분리된다', () => {
 test('buildOverview: actionable(추천·대기·실패)은 id, 읽기전용(추정·활성·반영)은 id 없음', () => {
   const o = buildOverview({
     skills: [{ id: 'sk1', label: '추천', state: 'candidate' }, { id: 'sk3', label: '활성', state: 'admitted' }],
-    userModel: { inferredTraits: [{ statement: '아침형' }], operatingPreferences: [{ id: 'p1', statement: '대기', status: 'pending_confirm', admitted: false }, { statement: '반영', status: 'admitted', admitted: true }] },
+    userModel: { inferredTraits: [{ statement: '아침형' }], operatingPreferences: [{ id: 'p1', statement: '대기', status: 'pending_confirm', admitted: false }, { id: 'pr1', statement: '반영', status: 'admitted', admitted: true }] },
     deliveries: [{ id: 'd1', tool: 'slack.post', target: '#g', state: 'failed' }],
   });
   assert.equal(o.skills.recommended[0].id, 'sk1', '추천 스킬은 승인 액션용 id');
   assert.equal(o.skills.active[0].id, undefined, '활성은 읽기 전용(액션 없음)');
   assert.equal(o.preferences.pending[0].id, 'p1', '대기 선호는 확인 액션용 id');
   assert.equal(o.preferences.inferred[0].id, undefined, '추정은 읽기 전용 — 액션 없음(추정→승인 경계)');
-  assert.equal(o.preferences.reflected[0].id, undefined, '반영 중은 읽기 전용');
+  assert.equal(o.preferences.reflected[0].id, 'pr1', '반영 중은 되돌리기 액션용 id(반영하기와 같은 수준)');
   assert.equal(o.deliveries.failed[0].id, 'd1', '전달 실패는 재전달 액션용 id');
 });
 

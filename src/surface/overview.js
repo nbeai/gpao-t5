@@ -33,7 +33,8 @@ export function buildOverview(p = {}) {
     preferences: {
       inferred: (um.inferredTraits ?? []).map((t) => ({ statement: t.statement })),
       pending: (um.operatingPreferences ?? []).filter((x) => x.status === 'pending_confirm').map((x) => ({ id: x.id, statement: x.statement })),
-      reflected: (um.operatingPreferences ?? []).filter((x) => x.admitted).map((x) => ({ statement: x.statement })),
+      // 반영 중은 id를 실어 "되돌리기"가 가능(반영하기와 같은 수준). 추정은 여전히 액션 없음(읽기 전용).
+      reflected: (um.operatingPreferences ?? []).filter((x) => x.admitted).map((x) => ({ id: x.id, statement: x.statement })),
     },
     // 전달 실패(다시 보낼 수 있음) ↔ 완료(§6.13). 실패는 완료로 보이지 않는다 — 재전달 액션으로만 이동.
     deliveries: {

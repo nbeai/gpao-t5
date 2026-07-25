@@ -165,3 +165,61 @@ test('POST /search/admit: 빈 statement는 400', async () => {
     assert.equal((await post(base, '/search/admit', { statement: '  ' })).status, 400);
   });
 });
+
+// ── 반영 철회 (P6-18) ── "반영하기"가 있으면 "되돌리기"도 같은 수준. 되돌리면 다음 턴부터 영향 사라짐. ──
+test('POST /memory/rollback: 반영 취소하면 promoted에서 빠지고 영향이 사라진다', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    const a = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    assert.equal(a.admitted, true);
+    assert.ok(a.candidateId, 'admit이 되돌리기용 candidateId를 준다');
+    // 반영 상태: 관련 대화에 입장
+    let m = await memoryStore.load();
+    assert.deepEqual(admittedContext(m, '부오상회 견적서 다시'), ['부오상회 견적서 초안']);
+    // 되돌리기
+    const g = await (await post(base, '/memory/rollback', { candidateId: a.candidateId })).json();
+    assert.equal(g.rolledBack, true);
+    m = await memoryStore.load();
+    assert.equal(m.promoted.length, 0, 'promoted에서 제거');
+    assert.deepEqual(admittedContext(m, '부오상회 견적서 다시'), [], '되돌린 뒤 영향 사라짐');
+  });
+});
+
+// 감사 blocker: 이미 반영된 기억을 다시 admit해도 candidateId를 줘야 되돌릴 수 있다(반영↔되돌리기 대칭).
+test('POST /search/admit: 중복 반영(already)도 candidateId를 주고, 그 id로 되돌릴 수 있다', async () => {
+  await withMemServer(async (base, memoryStore) => {
+    const a1 = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    assert.equal(a1.admitted, true);
+    const a2 = await (await post(base, '/search/admit', { statement: '부오상회 견적서 초안', source: { sessionId: 's1' } })).json();
+    assert.equal(a2.already, true, '중복 반영은 already');
+    assert.ok(a2.candidateId, 'already 응답에도 되돌리기용 candidateId가 있다');
+    assert.equal(a2.candidateId, a1.candidateId, '같은 기억의 같은 id');
+    // 그 id로 되돌리면 실제로 제거되고 영향이 사라진다(화면=실제 일치).
+    const g = await (await post(base, '/memory/rollback', { candidateId: a2.candidateId })).json();
+    assert.equal(g.rolledBack, true);
+    const m = await memoryStore.load();
+    assert.equal(m.promoted.length, 0, 'promoted에서 제거');
+    assert.deepEqual(admittedContext(m, '부오상회 견적서 다시'), [], '되돌린 뒤 영향 사라짐');
+  });
+});
+
+test('POST /memory/rollback: 없는 candidateId는 rolledBack:false(그대로)', async () => {
+  await withMemServer(async (base) => {
+    const g = await (await post(base, '/memory/rollback', { candidateId: 'nope' })).json();
+    assert.equal(g.rolledBack, false);
+    assert.equal(g.reason, 'not_found');
+  });
+});
+
+test('POST /memory/rollback: rollbackable=false 기억은 거부(되돌리지 않음)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-nrb-'));
+  const memoryStore = mem({ candidates: [], observed: [], promoted: [{ candidateId: 'x1', kind: 'operating_principle', statement: '고정 원칙', admitted: true, userConfirmed: true, replayPassed: true, rollbackable: false }] });
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
+  await new Promise((r) => server.listen(0, r));
+  const b = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const g = await (await post(b, '/memory/rollback', { candidateId: 'x1' })).json();
+    assert.equal(g.rolledBack, false);
+    assert.equal(g.reason, 'not_rollbackable');
+    assert.equal((await memoryStore.load()).promoted.length, 1, '거부됐으니 그대로');
+  } finally { await new Promise((r) => server.close(r)); }
+});

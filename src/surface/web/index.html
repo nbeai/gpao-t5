@@ -407,23 +407,37 @@ function renderQResults(results) {
   if (!results.length) { qResults.textContent = '찾은 기억이 없어요.'; return; }
   for (const r of results) {
     const card = el('qhit');
-    card.appendChild(el('qh-tag', '찾은 기억 · 반영 안 됨')); // 찾음 ≠ 반영(명시)
+    const tag = el('qh-tag');
     const src = r.source || {};
+    card.appendChild(tag);
     if (src.title) card.appendChild(el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`));
     card.appendChild(el('qh-body', r.statement));
-    const act = document.createElement('button'); act.className = 'qh-act'; act.textContent = '반영하기';
-    act.onclick = async () => {
-      act.disabled = true;
-      try {
-        const a = await (await fetch('/search/admit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statement: r.statement, source: src }) })).json();
-        if (a.admitted) {
-          card.classList.add('done');
-          card.querySelector('.qh-tag').textContent = '반영됨 · 이제 관련 대화에 쓰여요';
-          act.remove();
-        } else { act.disabled = false; }
-      } catch { act.disabled = false; }
-    };
-    card.appendChild(act);
+    const btn = document.createElement('button'); btn.className = 'qh-act';
+    card.appendChild(btn);
+    let admittedId = null;
+    // 찾음(반영 안 됨) ↔ 반영됨 토글 — 반영하기가 있으면 되돌리기도 같은 수준.
+    function setFound() {
+      card.classList.remove('done'); tag.textContent = '찾은 기억 · 반영 안 됨'; btn.textContent = '반영하기'; btn.disabled = false;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const a = await (await fetch('/search/admit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statement: r.statement, source: src }) })).json();
+          // 되돌리기 id(candidateId)가 있을 때만 "반영됨"으로 — id 없이 반영됨으로 보이면 못 되돌린다(대칭 보장).
+          if (a.admitted && a.candidateId) { admittedId = a.candidateId; setReflected(); } else btn.disabled = false;
+        } catch { btn.disabled = false; }
+      };
+    }
+    function setReflected() {
+      card.classList.add('done'); tag.textContent = '반영됨 · 이제 관련 대화에 쓰여요'; btn.textContent = '되돌리기'; btn.disabled = false;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const g = await (await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: admittedId }) })).json();
+          if (g.rolledBack) setFound(); else btn.disabled = false; // 되돌리면 다시 "반영 안 됨"으로
+        } catch { btn.disabled = false; }
+      };
+    }
+    setFound();
     qResults.appendChild(card);
   }
 }
@@ -582,7 +596,7 @@ function renderOverview(o) {
   el.innerHTML = [
     sec('연결', row('ov-on', '받을 준비됨', list(o.connections.ready, (c) => c.label)) + row('ov-off', '연결/로그인 필요', list(o.connections.notReady, (c) => c.label))),
     sec('스킬', row('ov-on', '활성화됨', list(o.skills.active, (s) => s.label)) + row('ov-off', '추천됨(아직 아님)', acts(o.skills.recommended, 'approve-skill', (s) => s.label, '승인'))),
-    sec('선호', row('ov-on', '반영 중', list(o.preferences.reflected, (x) => x.statement))
+    sec('선호', row('ov-on', '반영 중', acts(o.preferences.reflected, 'rollback-memory', (x) => x.statement, '되돌리기')) // 반영하기와 같은 수준의 되돌리기
       + row('ov-off', '확인 대기', acts(o.preferences.pending, 'confirm-pref', (x) => x.statement, '확인(반영)'))
       + row('ov-off', '추정됨(반영 안 함)', list(o.preferences.inferred, (x) => x.statement))), // 추정은 액션 없음(읽기 전용)
     sec('전달', row('ov-on', `보냄 ${o.deliveries.deliveredCount}건`, '') + row('ov-off', '전달 실패(다시 보낼 수 있어요)', acts(o.deliveries.failed, 'retry-delivery', (d) => d.target || d.label, '다시 보내기'))),
@@ -605,6 +619,7 @@ async function onOverviewAction(e) {
     if (act === 'retry-delivery') await fetch(`/deliveries/${id}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) });
     else if (act === 'approve-skill') await fetch(`/skills/${id}/approve`, { method: 'POST' });
     else if (act === 'confirm-pref') await fetch(`/user-model/preferences/${id}/confirm`, { method: 'POST' });
+    else if (act === 'rollback-memory') await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) });
     await refreshOverview();
   } catch { btn.disabled = false; }
 }
