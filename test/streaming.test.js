@@ -30,7 +30,12 @@ async function withServer(fn) {
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }
 }
+// 발화는 POST 본문으로만(URL 노출 금지). streamId로 구독. 재접속은 lastEventId(원문 없음).
 const stream = async (base, sessionId, params) => {
+  if (params.text != null) {
+    const { streamId } = await (await post(base, '/turn/stream-start', { sessionId, text: params.text })).json();
+    return parseSSE(await (await fetch(`${base}/turn/stream?sessionId=${sessionId}&streamId=${streamId}`)).text());
+  }
   const qs = new URLSearchParams({ sessionId, ...params }).toString();
   return parseSSE(await (await fetch(`${base}/turn/stream?${qs}`)).text());
 };
@@ -40,6 +45,7 @@ test('스트림: 진행 상태 이벤트 + 항상 complete로 닫힘(무한 대�
     const s = await (await post(base, '/sessions')).json();
     const events = await stream(base, s.id, { text: '뉴스 조사해줘' });
     const types = events.map((e) => e.type);
+    assert.ok(types.includes('heartbeat'), '연결 생존 신호(heartbeat)');
     assert.ok(types.includes('trace_status'), '요청 이해 상태');
     assert.ok(types.includes('tool_progress'), '도구 실행 진행');
     assert.equal(types.at(-1), 'complete', '항상 complete로 닫힌다(무한 대기 금지)');
@@ -90,6 +96,35 @@ test('T3 회귀: 동시 세션 스트림이 서로 안 막고 각자 complete', 
     ]);
     assert.equal(ea.map((e) => e.type).at(-1), 'complete');
     assert.equal(eb.map((e) => e.type).at(-1), 'complete');
+  });
+});
+
+// 프라이버시(blocker): 사용자 원문은 URL query가 아니라 POST 본문으로만. GET에 streamId 없으면 실행 안 함.
+test('프라이버시: text를 GET query에 실어도 실행되지 않는다(원문 URL 노출 금지)', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    // 구식(원문 query) 시도 → streamId 없으니 만료 오류 + complete(실행 안 됨)
+    const events = parseSSE(await (await fetch(`${base}/turn/stream?sessionId=${s.id}&text=${encodeURIComponent('비밀 메시지')}`)).text());
+    const types = events.map((e) => e.type);
+    assert.ok(!types.includes('trace_status'), 'text query로는 턴이 실행되지 않는다');
+    assert.equal(types.at(-1), 'complete');
+    // 세션에도 그 발화가 남지 않음
+    const reloaded = await (await fetch(`${base}/sessions/${s.id}`)).json();
+    assert.equal(reloaded.transcript.length, 0, '원문 query는 기록되지 않는다');
+  });
+});
+
+test('stream-start: streamId 발급, 일회성 구독(재사용/만료 시 실행 안 함)', async () => {
+  await withServer(async (base) => {
+    const s = await (await post(base, '/sessions')).json();
+    const { streamId } = await (await post(base, '/turn/stream-start', { sessionId: s.id, text: '안녕' })).json();
+    assert.match(streamId, /^[a-f0-9-]{36}$/);
+    const first = parseSSE(await (await fetch(`${base}/turn/stream?sessionId=${s.id}&streamId=${streamId}`)).text());
+    assert.ok(first.some((e) => e.type === 'trace_status'), '첫 구독은 실행');
+    // 같은 streamId 재사용 → 일회성이라 실행 안 됨
+    const again = parseSSE(await (await fetch(`${base}/turn/stream?sessionId=${s.id}&streamId=${streamId}`)).text());
+    assert.ok(!again.some((e) => e.type === 'trace_status'), '재사용 불가');
+    assert.equal(again.at(-1).type, 'complete');
   });
 });
 

@@ -682,9 +682,12 @@ async function submit() {
 }
 
 // 진행 상태를 조용히 표시. 모델 사고 원문이 아니라 trace_status/tool_progress 등 사용자 언어 상태만.
-function streamTurn(t, trace) {
+// 사용자 원문은 POST 본문으로만 보내고(URL 노출 금지), streamId로만 구독한다(프라이버시).
+async function streamTurn(t, trace) {
+  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t }) })).json();
+  if (!start.streamId) throw new Error('stream-start');
   return new Promise((resolve, reject) => {
-    const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&text=${encodeURIComponent(t)}`;
+    const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
     const es = new EventSource(url);
     let done = false;
     const show = (e) => { try { trace.textContent = (JSON.parse(e.data).text || '작업 중') + '…'; } catch {} };

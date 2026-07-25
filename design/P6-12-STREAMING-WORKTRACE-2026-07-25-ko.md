@@ -45,6 +45,10 @@ blocked/recoverable_error/partial/complete). `durable=false`는 연결 생존용
 
 ## 런타임 규칙
 
+- **사용자 원문은 URL에 싣지 않는다(프라이버시).** `POST /turn/stream-start`(본문 text)로 `streamId`를 받고,
+  `EventSource /turn/stream?sessionId&streamId`로 구독한다(일회성·30초 만료). URL엔 sessionId·streamId·
+  lastEventId만 — 히스토리·프록시·서버 로그·crash report에 발화가 남지 않게.
+- `heartbeat`(비지속)로 연결 생존을 알린다: SSE 개시 즉시 1회 + 이후 주기적(unref). 무한 대기 방지.
 - 클라이언트는 `lastEventId`로 재접속 → EventLog에서 그 뒤부터 재생.
 - 느린 클라이언트가 전체 turn을 막지 않게 **backpressure 한계**(버퍼 상한 + 초과 시 비-durable 드롭을 로그로,
   절대 조용히 버리지 않음).

@@ -60,6 +60,9 @@ export function makeServer(deps = {}) {
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
+  // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
+  //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
+  const pendingStreams = new Map();
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -193,8 +196,21 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, result);
       }
 
+      // ── 스트림 시작 (P6-12) ── 사용자 원문은 POST 본문으로만. streamId를 발급하고 EventSource가 그걸로 구독.
+      if (req.method === 'POST' && url === '/turn/stream-start') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.text !== 'string' || !input.text.trim()) return sendJson(res, 400, { error: '빈 발화' });
+        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
+        const session = await store.load(input.sessionId);
+        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        const streamId = randomUUID();
+        pendingStreams.set(streamId, { sessionId: input.sessionId, text: input.text, expiresAt: Date.now() + 30_000 });
+        return sendJson(res, 200, { streamId });
+      }
+
       // ── 스트리밍 (P6-12) ── SSE로 진행 상태를 흘리되, 진실은 EventLog(durable)에 남긴다. 끊겨도 복구된다.
       //   모델 숨은 사고 원문은 절대 흘리지 않는다 — trace_status/tool_progress 등 사용자 언어 상태만.
+      //   URL엔 sessionId·streamId·lastEventId만(사용자 원문 미포함).
       if (req.method === 'GET' && url === '/turn/stream') {
         const q = new URL(req.url, 'http://x').searchParams;
         const sessionId = q.get('sessionId');
@@ -203,6 +219,7 @@ export function makeServer(deps = {}) {
         if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
         res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' });
         const writeEvent = (ev) => res.write(`id: ${ev.eventId}\nevent: ${ev.type}\ndata: ${JSON.stringify({ ...ev.payload, _turnId: ev.turnId })}\n\n`);
+        const writeHeartbeat = () => res.write('event: heartbeat\ndata: {}\n\n'); // 연결 생존(비지속, EventLog에 안 남김)
 
         // 재접속: lastEventId 이후의 durable 이벤트만 재생(진실은 EventLog에 있었다). 미종료면 표시.
         const lastEventId = q.get('lastEventId');
@@ -214,8 +231,19 @@ export function makeServer(deps = {}) {
           return;
         }
 
-        const text = q.get('text');
-        if (typeof text !== 'string' || !text.trim()) { res.write('event: complete\ndata: {}\n\n'); res.end(); return; }
+        // 실행: streamId로 pending 발화를 찾는다(URL에 원문 없음). 일회성 + 만료 검사.
+        const streamId = q.get('streamId');
+        const pending = streamId && pendingStreams.get(streamId);
+        if (pending) pendingStreams.delete(streamId);
+        if (!pending || pending.sessionId !== sessionId || pending.expiresAt < Date.now()) {
+          res.write('event: recoverable_error\ndata: {"text":"요청이 만료됐어요. 다시 보내 주세요."}\n\n');
+          res.write('event: complete\ndata: {"kind":"error"}\n\n');
+          res.end();
+          return;
+        }
+        const text = pending.text;
+        writeHeartbeat(); // 연결 즉시 생존 신호(무한 대기 방지)
+        const hb = setInterval(writeHeartbeat, 15_000); hb.unref?.(); // 긴 turn 동안 연결 유지
         const turnId = randomUUID();
         let seq = (await eventLog.nextEventId(sessionId)) - 1;
         const emit = async (type, payload) => {
@@ -237,6 +265,8 @@ export function makeServer(deps = {}) {
           await emit('recoverable_error', { text: '처리 중 문제가 있었어요.', nextSafeAction: '잠시 후 다시 시도할까요?' });
           await emit('complete', { kind: 'error' });
           console.error('[stream:diagnostic]', err?.stack ?? err);
+        } finally {
+          clearInterval(hb); // heartbeat 정리(타이머 누수 방지)
         }
         res.end();
         return;
