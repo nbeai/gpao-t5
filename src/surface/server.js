@@ -24,6 +24,8 @@ import { demoConnectors, demoDescriptors } from './demo-context.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
+import { EventLog } from './event-log.js';
+import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import { makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget } from '../kernel/l5-growth/task-trace.js';
 import { AutomationStore } from './automation-store.js';
@@ -57,6 +59,10 @@ export function makeServer(deps = {}) {
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
+  const eventLog = deps.eventLog ?? new EventLog(store.dir);
+  // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
+  //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
+  const pendingStreams = new Map();
   const env = deps.env ?? demoEnv();
   const model = deps.model ?? new StubModelClient();
   const tools = deps.tools ?? demoTools();
@@ -93,6 +99,51 @@ export function makeServer(deps = {}) {
       memory, activeGoal: session.activeGoal ?? null,
       newId: () => randomUUID(), now: () => Date.now(),
     };
+  }
+
+  // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
+  // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
+  async function runAndPersistTurn(session, input, emit) {
+    const hasText = typeof input.text === 'string' && input.text.trim();
+    const memory = await memStore.load();
+    const learning = await traceStore.load();
+    const ctx = ctxForSession(session, memory);
+    ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
+    if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
+    if (hasText) {
+      if (!session.transcript.some((e) => e.role === 'user')) session.title = input.text.trim().slice(0, 30);
+      session.transcript.push({ role: 'user', text: input.text });
+    }
+    const result = await runTurn(input, ctx);
+    session.transcript.push({ role: 'assistant', result });
+    session.ledgerEntries = ctx.ledger.entries;
+    session.pendingApprovals = Object.fromEntries(ctx.pending);
+    if (result.goal) session.activeGoal = result.goal;
+    if (result.sentVia?.tool && result.sentVia.target) {
+      learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: result.sentVia.tool, target: result.sentVia.target, now: Date.now() }));
+      const cand = proposeDefaultTarget({ tool: result.sentVia.tool, target: result.sentVia.target, promoted: learning.promoted, proposed: learning.proposed });
+      if (cand) { const withId = { patternId: randomUUID(), ...cand }; learning.proposed.push(withId); result.patternCandidate = withId; }
+      await traceStore.save(learning);
+    }
+    if (result.memorySuggestion) {
+      const dup = [...memory.candidates, ...memory.promoted].some((e) => e.statement === result.memorySuggestion.statement);
+      if (dup) { result.memorySuggestion = undefined; }
+      else {
+        const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
+        memory.candidates.push(c); await memStore.save(memory); result.memorySuggestion.candidateId = c.candidateId;
+      }
+    }
+    if (result.automationSuggestion?.action) {
+      const a = await autoStore.load();
+      const dedupKey = result.automationSuggestion.statement;
+      if (a.candidates.some((c) => c.statement === dedupKey && !c.approved)) { result.automationSuggestion = undefined; }
+      else {
+        const c = makeGrowthCandidate({ candidateId: randomUUID(), statement: result.automationSuggestion.statement, action: result.automationSuggestion.action, dedupKey });
+        a.candidates.push(c); await autoStore.save(a); result.automationSuggestion.candidateId = c.candidateId;
+      }
+    } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
+    await store.save(session);
+    return result;
   }
 
   const server = createServer(async (req, res) => {
@@ -141,69 +192,84 @@ export function makeServer(deps = {}) {
 
         const session = await store.load(input.sessionId);
         if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-
-        const memory = await memStore.load();
-        const learning = await traceStore.load();
-        const ctx = ctxForSession(session, memory);
-        ctx.defaults = learning.promoted; // P6-11: 승인·replay 통과한 기본 대상만 영향(좁은 영향)
-        // 첫 사용자 발화로 제목을 짓는다(ChatGPT식). 발화가 있으면 transcript에 남긴다.
-        if (hasText) {
-          if (!session.transcript.some((e) => e.role === 'user')) {
-            session.title = input.text.trim().slice(0, 30);
-          }
-          session.transcript.push({ role: 'user', text: input.text });
-        }
-        const result = await runTurn(input, ctx);
-        session.transcript.push({ role: 'assistant', result });
-        session.ledgerEntries = ctx.ledger.entries; // 세션 원장 갱신(지속)
-        session.pendingApprovals = Object.fromEntries(ctx.pending); // 승인 대기 지속(재시작 후 이어실행)
-        if (result.goal) session.activeGoal = result.goal; // 현재 목표 유지(세션 간 좁게 복원)
-        // P6-11: 승인된 send 실행을 넓게 기록(TaskTrace)하고, 반복 가능성이 있으면 DefaultTarget 후보를 제안한다.
-        //   기록은 영향 0 — 승격(승인+replay)돼야 다음 턴에서 clarify를 줄인다(broad memory, narrow influence).
-        if (result.sentVia?.tool && result.sentVia.target) {
-          learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: result.sentVia.tool, target: result.sentVia.target, now: Date.now() }));
-          const cand = proposeDefaultTarget({ tool: result.sentVia.tool, target: result.sentVia.target, promoted: learning.promoted, proposed: learning.proposed });
-          if (cand) {
-            const withId = { patternId: randomUUID(), ...cand };
-            learning.proposed.push(withId);
-            result.patternCandidate = withId; // 채팅 안 "다음부터 이 대상으로?" 카드용
-          }
-          await traceStore.save(learning);
-        }
-        // 기억 승격 후보: 자동 승격하지 않고 후보로만 저장(중복 제외). 승격은 별도 confirm/replay.
-        if (result.memorySuggestion) {
-          const dup = [...memory.candidates, ...memory.promoted].some((e) => e.statement === result.memorySuggestion.statement);
-          if (dup) {
-            result.memorySuggestion = undefined; // 이미 아는 것은 다시 제안하지 않는다
-          } else {
-            const cand = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
-            memory.candidates.push(cand);
-            await memStore.save(memory);
-            result.memorySuggestion.candidateId = cand.candidateId; // UI 가 confirm 에 쓸 id
-          }
-        }
-        // 자동화 후보(P6-3): 반복 신호를 조용히 후보로만 저장. 승인 전 실행·영향 0(중복 제외).
-        if (result.automationSuggestion?.action) {
-          const a = await autoStore.load();
-          const dedupKey = result.automationSuggestion.statement;
-          if (a.candidates.some((c) => c.statement === dedupKey && !c.approved)) {
-            result.automationSuggestion = undefined; // 이미 제안한 것은 다시 제안하지 않는다
-          } else {
-            const cand = makeGrowthCandidate({
-              candidateId: randomUUID(),
-              statement: result.automationSuggestion.statement,
-              action: result.automationSuggestion.action,
-              dedupKey,
-            });
-            a.candidates.push(cand);
-            await autoStore.save(a);
-            result.automationSuggestion.candidateId = cand.candidateId; // UI 가 approve 에 쓸 id
-          }
-        } else if (result.automationSuggestion) {
-          result.automationSuggestion = undefined; // action 없는 후보는 실행 불가 — 표면화하지 않음
-        }
-        await store.save(session);
+        const result = await runAndPersistTurn(session, input);
         return sendJson(res, 200, result);
+      }
+
+      // ── 스트림 시작 (P6-12) ── 사용자 원문은 POST 본문으로만. streamId를 발급하고 EventSource가 그걸로 구독.
+      if (req.method === 'POST' && url === '/turn/stream-start') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.text !== 'string' || !input.text.trim()) return sendJson(res, 400, { error: '빈 발화' });
+        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
+        const session = await store.load(input.sessionId);
+        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        const streamId = randomUUID();
+        pendingStreams.set(streamId, { sessionId: input.sessionId, text: input.text, expiresAt: Date.now() + 30_000 });
+        return sendJson(res, 200, { streamId });
+      }
+
+      // ── 스트리밍 (P6-12) ── SSE로 진행 상태를 흘리되, 진실은 EventLog(durable)에 남긴다. 끊겨도 복구된다.
+      //   모델 숨은 사고 원문은 절대 흘리지 않는다 — trace_status/tool_progress 등 사용자 언어 상태만.
+      //   URL엔 sessionId·streamId·lastEventId만(사용자 원문 미포함).
+      if (req.method === 'GET' && url === '/turn/stream') {
+        const q = new URL(req.url, 'http://x').searchParams;
+        const sessionId = q.get('sessionId');
+        if (typeof sessionId !== 'string' || !sessionId) return sendJson(res, 400, { error: '세션 없음' });
+        const session = await store.load(sessionId);
+        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' });
+        const writeEvent = (ev) => res.write(`id: ${ev.eventId}\nevent: ${ev.type}\ndata: ${JSON.stringify({ ...ev.payload, _turnId: ev.turnId })}\n\n`);
+        const writeHeartbeat = () => res.write('event: heartbeat\ndata: {}\n\n'); // 연결 생존(비지속, EventLog에 안 남김)
+
+        // 재접속: lastEventId 이후의 durable 이벤트만 재생(진실은 EventLog에 있었다). 미종료면 표시.
+        const lastEventId = q.get('lastEventId');
+        if (lastEventId != null) {
+          for (const ev of await eventLog.since(sessionId, lastEventId)) writeEvent(ev);
+          const terminal = await eventLog.lastIsTerminal(sessionId);
+          res.write(`event: reconnected\ndata: ${JSON.stringify({ terminal })}\n\n`);
+          res.end();
+          return;
+        }
+
+        // 실행: streamId로 pending 발화를 찾는다(URL에 원문 없음). 일회성 + 만료 검사.
+        const streamId = q.get('streamId');
+        const pending = streamId && pendingStreams.get(streamId);
+        if (pending) pendingStreams.delete(streamId);
+        if (!pending || pending.sessionId !== sessionId || pending.expiresAt < Date.now()) {
+          res.write('event: recoverable_error\ndata: {"text":"요청이 만료됐어요. 다시 보내 주세요."}\n\n');
+          res.write('event: complete\ndata: {"kind":"error"}\n\n');
+          res.end();
+          return;
+        }
+        const text = pending.text;
+        writeHeartbeat(); // 연결 즉시 생존 신호(무한 대기 방지)
+        const hb = setInterval(writeHeartbeat, 15_000); hb.unref?.(); // 긴 turn 동안 연결 유지
+        const turnId = randomUUID();
+        let seq = (await eventLog.nextEventId(sessionId)) - 1;
+        const emit = async (type, payload) => {
+          seq += 1;
+          const ev = makeTurnEvent({ turnId, eventId: seq, type, payload: payload ?? {}, now: Date.now() });
+          await eventLog.append(sessionId, ev); // durable만 남는다(안전 척추)
+          writeEvent(ev);
+        };
+        try {
+          await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
+          const result = await runAndPersistTurn(session, { sessionId, text }, emit);
+          // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
+          if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
+          else if (result.capabilityResolution && ['connector', 'tool'].includes(result.capabilityResolution.capabilityType)) {
+            await emit('capability_needed', { capabilityType: result.capabilityResolution.capabilityType, missingCapability: result.capabilityResolution.missingCapability });
+          }
+          await emit('complete', { kind: result.kind });
+        } catch (err) {
+          await emit('recoverable_error', { text: '처리 중 문제가 있었어요.', nextSafeAction: '잠시 후 다시 시도할까요?' });
+          await emit('complete', { kind: 'error' });
+          console.error('[stream:diagnostic]', err?.stack ?? err);
+        } finally {
+          clearInterval(hb); // heartbeat 정리(타이머 누수 방지)
+        }
+        res.end();
+        return;
       }
 
       // ── 자동화 (P6-3) ── 후보 → 승인 → 예약 → tick 실행 → 원장 → 취소/만료.

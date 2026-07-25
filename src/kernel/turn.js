@@ -239,11 +239,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const turnReceipts = [];
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
   for (const toolId of plan.toolsToUse) {
+    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
     const rec = await ctx.tools.run(toolId, args, selfState);
     ledger.append(rec);
     turnReceipts.push(rec);
+    // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
+    if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
     if (sendArgs?.[toolId]?.target && !sentVia) sentVia = { tool: toolId, target: sendArgs[toolId].target };
   }
   // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
@@ -271,6 +274,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   }
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
+  await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted });
   const reply = await ctx.model.respond(tc);
   const projection = projectReceipts(turnReceipts);
