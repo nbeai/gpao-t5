@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -82,7 +82,10 @@
 - P6-17 Slice-2 반영(근거: `P6-17-SKILL-LIFECYCLE`, 깊은 감사 통과): §6.17 SkillCandidate Lifecycle — §6.10을
   명시적 상태 기계(detected→candidate→replay_required→approved→admitted|rejected)로 일반화. 스킬 자동 실행 권한
   없음(canAutoExecute 항상 false), replay+확인 전 영향 0, replay 실패→rejected. GET/detect/approve/reject(최소 표면).
-  후속: Slice-3 user model 분리, P6-18에서 "추천된 스킬"↔"활성화된 스킬" 구분.
+- P6-17 Slice-3 반영(근거: `P6-17-USER-MODEL`, 깊은 감사 통과): §6.18 User Model Separation — 추정된 성향
+  (inferred_trait, observed 레인, 영향 0, gate 이중 차단)과 승인된 운영 선호(operating_preference, userConfirmed 후
+  promoted→admittedContext)를 kind/lane/API 분리. 추정→승인 자동 승격 금지. GET /user-model + traits/preferences/
+  confirm. 후속: P6-18에서 "추정됨"↔"반영 중" 구분(추정을 "T5가 나를 반영한다"처럼 보이게 금지).
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -599,8 +602,26 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   `replaySkill`(승격 전 기본 구조 확인, 통과가 곧 실행 권한 아님).
 - 배선(UI 최소): `skill-store.js`{skills}. `GET /skills`·`POST /skills/detect`(반복 신호→candidate, 중복 미제안)·
   `/skills/:id/approve`(→admitted, replay 실패→rejected)·`/skills/:id/reject`. turn 핫패스 불변.
-- **후속**: Slice-3 user model 분리 · 스킬 실행 시 각 외부 단계가 AuthorityGrant를 타는지 통합 검증 ·
+- **후속**: 스킬 실행 시 각 외부 단계가 AuthorityGrant를 타는지 통합 검증 ·
   **P6-18에서 "추천된 스킬"↔"활성화된 스킬" 반드시 구분**(추천 카드를 "이미 설치/작동"으로 오해 금지 — T3식 메뉴 문제 방지).
+
+### 6.18 User Model Separation (P6-17 Slice-3, 구현됨 — 추정 ≠ 승인)
+
+근거: Hermes user model 흡수(복제 아님, T5 admission 구조로 재구성), 헌법 §3-2·§5(라우터가 raw 기억 안 씀),
+§5 Context Mesh. P6-17 학습 루프 마지막 조각. 학습에서 가장 위험한 "추정한 것을 승인한 것처럼 다루기"를 막는다.
+
+- **inferred_trait(추정된 성향)은 관찰만 — 영향 0.** admittedContext/TaskContextPacket에 **절대** 안 들어간다.
+  **두 겹 방어**: (1) `observed` 레인에만 산다(admittedContext는 `promoted`만 읽는다), (2) `isInfluenceEligible`이
+  `inferred_trait`를 **kind로 항상 거부**(tier·userConfirmed와 독립된 불변식 — 레인이 뚫려 promoted에 잘못
+  들어가고 userConfirmed까지 켜져도 영향 0).
+- **operating_preference(승인된 운영 선호)만** userConfirmed + admission 이후 좁게 입장(관련될 때만). context-mesh
+  preference 게이트 재사용(candidates→promoted). **추정을 승인으로 자동 승격하지 않는다** — 사용자가 명시 확인해야.
+- `makeInferredTrait`/`makeOperatingPreference`/`confirmOperatingPreference`(promote 재사용)/`projectUserModel`
+  (**"추정됨(influence:none)"↔"반영 중(admitted)" 분리 뷰**). `memory-store`에 `observed` 레인 추가.
+- 배선(UI 최소): `GET /user-model` · `POST /user-model/traits`(observed) · `/preferences`(candidate) ·
+  `/preferences/:id/confirm`(promoted).
+- **후속**: 추정 자동 감지·추정→선호 전환 제안(자동 승격 아님) · **P6-18에서 "추정됨"과 "반영 중"을 사용자가
+  헷갈리지 않게 분리**(추정 성향을 "T5가 나를 안다/반영한다"처럼 보이게 금지) · 프로필/세션별 격리.
 
 ---
 
