@@ -20,7 +20,7 @@ const TOOL_KIND = {
  * @returns {import('../contracts.js').ActionPlan}
  */
 export function buildActionPlan(p) {
-  const { intent, selfState } = p;
+  const { intent, selfState, mode } = p; // mode(P6-15): 저위험 통과 강도. 안전 바닥은 불변.
   const needed = intent.neededTools ?? [];
 
   // 실행 가능한 도구만 계획에 올린다(목록 존재 ≠ 실행 가능).
@@ -42,10 +42,10 @@ export function buildActionPlan(p) {
       duration: '이번 한 번',
       cancel: k === 'delete' ? '되돌릴 수 없음(실행 전 확인)' : '되돌릴 수 있음',
     });
-    let grant = grantFor({ label: id, kind, preview: preview(kind) });
+    let grant = grantFor({ label: id, kind, preview: preview(kind) }, mode);
     if (tool?.needsApproval && !grant.approvalRequired) {
       kind = 'send'; // 최소 A2로 승인 강제(하드코딩 우회 차단)
-      grant = grantFor({ label: id, kind, preview: preview(kind) });
+      grant = grantFor({ label: id, kind, preview: preview(kind) }, mode);
     }
     if (grant.approvalRequired) needsApproval.push(grant);
     else autoAllowed.push(id);

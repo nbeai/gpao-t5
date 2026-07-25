@@ -18,7 +18,7 @@ import { parseSend } from './l1-intent/send-parse.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
-import { APPROVAL_TTL_MS } from './contracts.js';
+import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -145,7 +145,9 @@ export async function runTurn(input, ctx) {
   }
 
   // 4) complex path — 계획 → 권한 게이트 → 실행 → 원장.
-  const plan = buildActionPlan({ intent, selfState });
+  // P6-15: 승인 모드(세션 설정). 저위험 통과 강도만 조절하고 안전 바닥은 불변. 미설정 시 smart.
+  const approvalMode = ctx.approvalMode ?? DEFAULT_APPROVAL_MODE;
+  const plan = buildActionPlan({ intent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
   //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
@@ -186,6 +188,8 @@ export async function runTurn(input, ctx) {
     sendArgs = { [sendGrant.action]: { target: parsed.target, text: parsed.message } };
     // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
     sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: parsed.target, what: parsed.message };
+    // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
+    sendGrant.reason = { ...sendGrant.reason, whatChanges: `${parsed.target}에 "${parsed.message}"를 실제로 보내요.` };
   }
 
   if (pendingGrants.length) {
@@ -197,12 +201,15 @@ export async function runTurn(input, ctx) {
     return {
       kind: 'approval',
       pendingId,
+      approvalMode, // P6-15: 현재 승인 모드(조용한 표면 — 정책 아님, 판단을 보여줄 뿐)
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
       pending: pendingGrants.map((g) => ({
         action: g.action,
         label: toolLabel(g.action),
         tier: g.tier,
+        safetyFloor: g.safetyFloor ?? false,
         preview: g.approvalPreview,
+        reason: g.reason, // P6-15: 왜 필요한지/무엇이 바뀌는지/되돌릴 수 있는지(사용자 언어)
       })),
       understoodTask: plan.understoodTask,
       selfStateSummary: summary,

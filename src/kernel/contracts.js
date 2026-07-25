@@ -52,9 +52,12 @@
 /**
  * @typedef {Object} AuthorityGrant      §3 권한 계약
  * @property {AuthorityTier} tier
+ * @property {string} [kind]              권한 종류(read/send/delete…) — 안전 바닥 판정·설명에 쓴다
  * @property {string} action              대상 행동(ActionPlan 항목 참조)
- * @property {boolean} approvalRequired   A2·A3 는 true. "원했다"만으로 우회 불가
- * @property {{impact:string, scope:string, duration:string, cancel:string}} [approvalPreview]
+ * @property {boolean} [safetyFloor]      안전 바닥(항상 승인) 여부. Smart라도 자동 승인 불가(P6-15)
+ * @property {boolean} approvalRequired   A2·A3(+엄격 모드 A1) 는 true. "원했다"만으로 우회 불가
+ * @property {{impact:string, scope:string, duration:string, cancel:string, where?:string, what?:string}} [approvalPreview]
+ * @property {{tier:string, needsApproval:boolean, safetyFloor:boolean, why:string, whatChanges:string, reversible:string}} [reason] P6-15: A0-A3 판단을 사용자 언어로(왜/무엇이/되돌릴 수 있나)
  * @property {boolean} granted            실행 직전 게이트. 미승인이면 실행 금지
  * @property {{kind:'once'|'session'|'persist', expiresAt?:number}} [grantScope] 승인 범위·수명(Phase 5.1+). once=이번 한 번, session=이 세션, persist=지속. expiresAt 이후는 만료→재승인
  * @property {boolean} revocable
@@ -175,3 +178,15 @@ export const TOOL_STATUS = Object.freeze(['usable', 'needs_auth', 'needs_config'
 // Approval Lifecycle: 승인 범위 종류 + 대기 만료. once 만 P5 도달, session/persist는 P6.
 export const GRANT_SCOPE = Object.freeze(['once', 'session', 'persist']);
 export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 승인 대기 30분 후 만료 → 재승인 요구
+
+/**
+ * ApprovalMode (P6-15) — 승인 마찰의 강도. **정책을 느슨하게 하려는 게 아니라 사용자가 덜 헤매게** 하는 표면.
+ * 어느 모드도 안전 바닥(SAFETY_FLOOR)을 우회하지 못한다 — 외부 전송·삭제·권한 변경·자동화 활성화·비밀/계정
+ * 접근은 항상 승인(A2+). 모드는 저위험(A0/A1)을 얼마나 자연스럽게 통과시키느냐만 조절한다.
+ * - manual : 저위험 자연 진행(A0/A1), 그 외 승인. (기존 동작)
+ * - smart  : manual과 같되 판단 이유를 사용자 언어로 표면화(기본).
+ * - strict : A1(되돌릴 수 있는 로컬 정리)도 확인. A0만 자연 진행.
+ * @typedef {'manual'|'smart'|'strict'} ApprovalMode
+ */
+export const APPROVAL_MODES = Object.freeze(['manual', 'smart', 'strict']);
+export const DEFAULT_APPROVAL_MODE = 'smart';
