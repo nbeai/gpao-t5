@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -40,6 +40,10 @@
   `projectToolbox`(순수)·`GET /toolbox`, UI 상태=실제 runtime 상태. 보정: 도구 상태는 SelfState(env)
   단일 진실을 따르고, 라이브 자격을 `liveDeps(processEnv)`가 env·tools에 함께 반영(slack.post는 토큰 유무로
   connected 결정) — 도구함과 실행 게이트가 어긋나지 않는다.
+- 2.0-B 개정 반영(근거: `T5-2.0-B-CONNECT-DURING-WORK`, 깊은 감사 통과+보정): §6.8 작업 중 연결 안내 —
+  blockedTools(연결/설정 계열)→`connectionNeeded` 표면화, 채팅→도구함 focus. 보정: 연결 안내는 작업 복귀
+  경로라 **historical에서도 유지**(pending context), 연결 버튼은 도구함 focus만(실제 연결 후속), `connectHint`는
+  연결/설정 계열에만.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -339,7 +343,20 @@ env에 반영해 **도구함과 실행 게이트(`isToolExecutable`)가 같은 e
 `liveDeps(processEnv)`가 env·tools를 함께 만든다 — 예: `slack.post.connected = Boolean(SLACK_BOT_TOKEN)`.
 토큰 없으면 도구함은 노랑 "연결이 필요해요"·`executable:false`(승인만 받고 뒤늦게 실패하는 불일치 금지),
 있으면 초록 사용 가능. 없는 도구를 있는 것처럼 보이지 않고(카드=descriptor), 기술 용어(status enum·MCP·
-token·schema)를 표면에 노출하지 않는다. 연결 실행·개인용 도구·Output Canvas는 2.0-B 이후.
+token·schema)를 표면에 노출하지 않는다.
+
+**작업 중 연결 안내(2.0-B)**: 작업에 필요한 도구가 연결/설정 계열(needs_auth/needs_connection/needs_config)로
+막히면, `executePlan`이 `plan.blockedTools` 중 첫 도구를 `connectionNeeded{toolId,label,requestText}`로
+표면화한다(완전 차단=빨강은 연결로 안 풀리므로 제외). 원칙:
+- **연결 안내는 제안이 아니라 작업 복귀 경로다** → 메모리·자동화 제안과 달리 **historical transcript에서도
+  유지**된다(재접속·새로고침 후에도 연결이 필요했던 작업으로 돌아갈 길이 사라지지 않는다). 원래 요청
+  (`requestText`)을 보존해 pending context로 쓴다.
+- **연결 버튼은 실제 연결 실행이 아니라 도구함 focus만** 수행한다(죽은 '연결하기' 버튼 금지). 실제
+  OAuth/토큰 저장은 후속(2.0-C).
+- `connectHint`(도구함 상세의 준비 안내)는 **연결/설정 계열 상태에만** 붙인다. `blocked`·비활성엔 "연결되면
+  이어서"가 부정확하므로 붙이지 않는다.
+
+개인용 도구·추천·Output Canvas는 2.0-C 이후.
 
 ---
 
