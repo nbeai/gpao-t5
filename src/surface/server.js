@@ -24,6 +24,7 @@ import { demoConnectors, demoDescriptors } from './demo-context.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
+import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/completion-contract.js';
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
@@ -411,6 +412,16 @@ export function makeServer(deps = {}) {
         a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === input.tool));
         if (a.promoted.length !== before) await traceStore.save(a);
         return sendJson(res, 200, { ok: true });
+      }
+
+      // ── 완료 검증 (Completion Contract, P6-13) ── 자연어 완료 기준 → 구조화 검증 → VerificationReceipt.
+      //   완료 = "생성했다"가 아니라 검증 통과. 실패면 무엇이 안 맞는지, 중단 기준이면 멈추고 묻는다.
+      if (req.method === 'POST' && url === '/verify') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.criteria !== 'string' || !input.criteria.trim()) return sendJson(res, 400, { error: '완료 기준이 필요해요.' });
+        const contract = parseCompletionCriteria(input.criteria);
+        const receipt = verifyCompletion(contract, input.artifact ?? {});
+        return sendJson(res, 200, { contract, receipt });
       }
 
       // ── 도구함 (2.0-A 상태 기반 표면) ── UI는 실제 runtime 상태만 본다(감사 §5.5·§10.1).
