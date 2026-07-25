@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -59,6 +59,10 @@
   Work Trace — TurnEvent 계약+EventLog(durable truth 투영, lastEventId 재접속, 항상 complete·무한대기 금지),
   사용자 언어 작업흐름(사고 원문 금지), 프라이버시(원문 URL 금지·POST stream-start→streamId), heartbeat.
   Hermes 운영 신뢰성 흡수(복제 아님). 후속(P6-12-2): 토큰 스트리밍·backpressure·lane 회귀.
+- P6-13 개정 반영(근거: `P6-13-COMPLETION-CONTRACT`, 깊은 감사 통과+보정): §6.12 Completion Contract —
+  완료=검증됨(생성 아님). parseCompletionCriteria(count/no_dup/no_missing/sections/stop, 중단↔count 분리) +
+  verifyCompletion→VerificationReceipt(실패 지목·중단 시 멈추고 물음), POST /verify. CLAUDE.md "완료=실제 동작"을
+  런타임 계약으로. 턴 자동 게이트·TruthLedger 연결은 후속.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -446,6 +450,24 @@ truth(EventLog/ToolReceipt/TruthLedger) 위의 투영이지 진실의 출처가 
   `GET /turn/stream?sessionId&streamId`로 구독(일회성·만료). URL엔 sessionId/streamId/lastEventId만.
 - `heartbeat`(비지속)로 연결 생존. `/turn`과 `/turn/stream`이 `runAndPersistTurn`을 공유(동작 갈라짐 방지).
 - 후속(P6-12-2): 진짜 LLM 토큰 스트리밍(answer_delta)·backpressure·느린 클라/모델·백그라운드 tick 동시 회귀.
+
+### 6.12 Completion Contract (P6-13, 구현됨 — 완료 = 검증됨)
+
+근거: Hermes "/goal + 검증"(복제 아님, T5 원칙 재구성), 헌법·CLAUDE.md **"완료 = 테스트 통과가 아니라 실제
+동작"**. 사용자가 "언제 끝난 걸로 볼지"를 자연어로 말하면 T5가 그걸 **검증 기준**으로 잡는다. **완료는
+"생성했다"가 아니라 검증 통과다.**
+
+- `parseCompletionCriteria(text)` → `{checks, constraints, stop}`. 체크: count·no_duplicate·no_missing·
+  sections_exist(절 경계 존중)·constraint(안내)·stop(애매 N건 넘으면 멈춤). **중단 조건과 count 분리(감사
+  보정)**: stop을 먼저 파싱·제거한 뒤 count를 뽑는다 — "애매 3건 넘으면"의 숫자를 산출물 개수로 오인하지 않는다.
+- `verifyCompletion(contract, artifact)` → **VerificationReceipt**{checks[{name,ok,detail}], allPassed,
+  stopTriggered, complete, userSafeSummary, nextSafeAction}. `complete = allPassed && !stopTriggered && checks>0`.
+  실패면 어느 체크가 안 맞는지 지목+다음 안전 행동, 중단이면 멈추고 확인 질문. VerificationReceipt는
+  TruthLedger와 같은 정직-원장 계약.
+- `POST /verify {criteria, artifact}` → `{contract, receipt}`.
+- **후속**: 턴 자동 게이트(도구가 구조화 산출물을 낼 때 완료를 자동 검증해 "완료"를 게이트 + VerificationReceipt를
+  TruthLedger에 durable) + 채팅 검증 카드 + P6-12 스트리밍 `trace_status:검증 중` 연결. 이 슬라이스는 `/verify`
+  첫 조각까지.
 
 ---
 
