@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1·2) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1·2·3) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -77,8 +77,8 @@
   "보이는 것=실제 가능한 것"). demoChannels는 fixture 전용. 후속: inbound 정책 게이트 소비·P6-18 UI 표면화.
 - P6-17 개정 반영(근거: `P6-17-SESSION-SEARCH`, 깊은 감사 통과): §6.16 Session Search(학습 루프 3분할 첫 조각) —
   검색 결과는 raw로 라우터·answer에 안 섞이고 candidate(recalled_context, admitted:false)로만, admission
-  (context-mesh userConfirmed) 통과해야 영향. POST /search는 turn 미실행. 후속: SkillCandidate·user model 분리,
-  P6-18에서 "찾은 기억"↔"반영된 기억" 구분.
+  (context-mesh userConfirmed) 통과해야 영향. POST /search는 turn 미실행. **검색 표면(Slice-3): 결과는 "찾은 기억·
+  반영 안 됨", 반영은 명시 admit(POST /search/admit, promote userConfirmed)만 — 찾음≠반영.** 후속: 반영 철회 UI.
 - P6-17 Slice-2 반영(근거: `P6-17-SKILL-LIFECYCLE`, 깊은 감사 통과): §6.17 SkillCandidate Lifecycle — §6.10을
   명시적 상태 기계(detected→candidate→replay_required→approved→admitted|rejected)로 일반화. 스킬 자동 실행 권한
   없음(canAutoExecute 항상 false), replay+확인 전 영향 0, replay 실패→rejected. GET/detect/approve/reject(최소 표면).
@@ -586,8 +586,13 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   `source:{sessionId,title,role}`). context-mesh `isInfluenceEligible`/`promote`가 그대로 게이트(신규 admission 없음).
 - `session-store.loadAll()`(검색용 전체 로드). `POST /search {query}` → `{results, admittedIntoContext:false}` —
   turn 미실행·모델 미투입, 후보만. 빈 검색어 400.
-- **후속**: 검색 후보 admit UI(promote 흐름 연결)·출처 표시 · **P6-18에서 "찾은 기억"과 "현재 답변에 반영된
-  기억"을 반드시 구분**(검색 결과를 답변 근거처럼 보이게 하지 않는다) · 의미 검색(임베딩)·랭킹.
+- **검색 표면(P6-18 Slice-3, 구현됨)**: 결과는 화면에서 **"찾은 기억 · 반영 안 됨"**으로 명시. **검색만으로는
+  memory.promoted가 생기지 않는다(찾음 ≠ 반영).** 반영은 명시 admit만 — `POST /search/admit {statement, source}`이
+  `promote(userConfirmed:true)`(admission)를 태워 promoted로. 반영 후에만 관련 대화의 admittedContext에 좁게 입장.
+  중복 반영 방지(already). UI: `🔍 기억 찾기` 패널, `반영하기`→`반영됨`(호박→초록) 전환.
+- **후속**: **반영된 기억의 철회/되돌리기 — "반영하기"가 있으면 "잘못 반영했을 때 되돌릴 길"도 같은 수준으로
+  보여야 한다**(context-mesh rollbackable 활용) · 반영된 recalled_context를 §6.19 overview에 함께 표면화 ·
+  의미 검색(임베딩)·랭킹.
 
 ### 6.17 SkillCandidate Lifecycle (P6-17 Slice-2, 구현됨 — 추천 ≠ 실행/승격)
 
