@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -79,6 +79,10 @@
   검색 결과는 raw로 라우터·answer에 안 섞이고 candidate(recalled_context, admitted:false)로만, admission
   (context-mesh userConfirmed) 통과해야 영향. POST /search는 turn 미실행. 후속: SkillCandidate·user model 분리,
   P6-18에서 "찾은 기억"↔"반영된 기억" 구분.
+- P6-17 Slice-2 반영(근거: `P6-17-SKILL-LIFECYCLE`, 깊은 감사 통과): §6.17 SkillCandidate Lifecycle — §6.10을
+  명시적 상태 기계(detected→candidate→replay_required→approved→admitted|rejected)로 일반화. 스킬 자동 실행 권한
+  없음(canAutoExecute 항상 false), replay+확인 전 영향 0, replay 실패→rejected. GET/detect/approve/reject(최소 표면).
+  후속: Slice-3 user model 분리, P6-18에서 "추천된 스킬"↔"활성화된 스킬" 구분.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -577,6 +581,26 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   turn 미실행·모델 미투입, 후보만. 빈 검색어 400.
 - **후속**: 검색 후보 admit UI(promote 흐름 연결)·출처 표시 · **P6-18에서 "찾은 기억"과 "현재 답변에 반영된
   기억"을 반드시 구분**(검색 결과를 답변 근거처럼 보이게 하지 않는다) · 의미 검색(임베딩)·랭킹.
+
+### 6.17 SkillCandidate Lifecycle (P6-17 Slice-2, 구현됨 — 추천 ≠ 실행/승격)
+
+근거: Hermes skill loop 흡수(복제 아님, T5 권한·replay·admission 구조로 재구성), 헌법 §3-2·§3-6(권한 우회 금지),
+§6.10 DefaultTarget. P6-17 학습 루프 두 번째 조각 — §6.10의 암묵적 trace→propose→replay→promote를 **명시적
+상태 기계**로 일반화. 표면(P6-18) 전에 상태 계약을 세운다.
+
+- 상태: `detected → candidate → replay_required → approved → admitted | rejected`(`SKILL_STATES`).
+- **절대 경계(코드가 강제)**:
+  - **스킬은 자동 실행 권한이 없다.** `canAutoExecute()`=**언제나 false**. admitted 스킬이라도 외부 행동은
+    그대로 AuthorityGrant(A2, §6.14). 스킬은 계획·추천에 영향을 줄 뿐 스스로 외부로 나가지 않는다.
+  - **replay 통과 + 사용자 확인 전 영향 0.** `canInfluence`=`state==='admitted' && userConfirmed && replayPassed`.
+  - **"추천" ≠ "설치/승격".** detected/candidate는 관찰, admitted만 영향 자격. replay 실패는 **rejected**(영향 0 영구).
+- `detectSkillCandidate(traces)`(같은 도구 2회↑ 반복→detected, 결정적) · 전이 `surfaceCandidate`/
+  `markReplayRequired`/`approveSkill`(확인+replay 둘 다 필요, 실패→rejected)/`admitSkill`/`rejectSkill` ·
+  `replaySkill`(승격 전 기본 구조 확인, 통과가 곧 실행 권한 아님).
+- 배선(UI 최소): `skill-store.js`{skills}. `GET /skills`·`POST /skills/detect`(반복 신호→candidate, 중복 미제안)·
+  `/skills/:id/approve`(→admitted, replay 실패→rejected)·`/skills/:id/reject`. turn 핫패스 불변.
+- **후속**: Slice-3 user model 분리 · 스킬 실행 시 각 외부 단계가 AuthorityGrant를 타는지 통합 검증 ·
+  **P6-18에서 "추천된 스킬"↔"활성화된 스킬" 반드시 구분**(추천 카드를 "이미 설치/작동"으로 오해 금지 — T3식 메뉴 문제 방지).
 
 ---
 
