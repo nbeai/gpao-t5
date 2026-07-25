@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -71,6 +71,10 @@
   판단을 사용자 언어로(정책 불변), 안전 바닥(SAFETY_FLOOR)·자동 진행 allowlist(AUTO_SAFE_KINDS) 어느 모드도
   우회 불가, unknown/누락 kind·toolKind는 최소 A2(UNKNOWN_KIND, autoAllowed 미유입), 화면 내부어 금지
   (안전 바닥→"꼭 확인"). 후속: 모드 전환 UI·저장.
+- P6-16 개정 반영(근거: `P6-16-CHANNEL-REGISTRY`, 깊은 감사 통과+라이브 자격 blocker 보정): §6.15 ChannelRegistry —
+  채널/커넥터를 한 레지스트리로 정리(connector-profile·inbound-gate 재사용), 사용자 언어 status+doctor,
+  connected≠approved 유지. **라이브 표면은 실제 자격에서 파생**(liveDeps.channels, 토큰 없이 초록 오표시 금지 —
+  "보이는 것=실제 가능한 것"). demoChannels는 fixture 전용. 후속: inbound 정책 게이트 소비·P6-18 UI 표면화.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -526,6 +530,29 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   `reason`·`safetyFloor` 표면화. **화면 라벨은 내부어 금지** — `안전 바닥`은 화면에 `꼭 확인`으로(필드명 `safetyFloor`는 유지).
 - **후속**: 모드 전환 UI + 저장(이 슬라이스는 판단 표면까지) · strict 모드별 문구 · A2/A3 배지의 일반 사용자용
   라벨 병행 · 자동 진행 이유의 조용한 표면화(요청 시 펼치기).
+
+### 6.15 ChannelRegistry (P6-16 Slice-1, 구현됨 — 채널을 한 곳으로, 보이는 것 = 실제 가능한 것)
+
+근거: OpenClaw gateway/channel 운영 구조 흡수(복제 아님, T5 재구성), §6.7 ConnectorProfile(auth≠approval),
+§1.5 InboundEventGate. **새 기능이 아니라 정리** — 웹·채널·자동화·승인·전달·도구함이 붙은 지금, 채널/커넥터를
+기능마다 따로 다루면 엉킨다(누더기). 연결 상태·자격·승인·진단·안내를 한 레지스트리로 묶는다. 이 슬라이스는
+정리·표면화까지 — **실제 외부 전송·설정 변경은 하지 않는다.**
+
+- **재사용(신규 발명 아님)**: `connector-profile`(자격·`connectorReadiness`·`sendNeedsApproval`) 단일 진실,
+  `inbound-gate`(mention/allowlist/DM 결정적 게이팅 — 정책은 레지스트리가 선언, 게이팅은 게이트가 수행).
+- `defineChannel({id, label, connector, inboundPolicy, outboundTool})` — 커넥터(자격)+inbound 정책+outbound 도구
+  **바인딩**+라벨을 한 서술자로. `channelStatus`→`{status, ready, userSafe, inboundPolicy, outboundTool,
+  sendNeedsApproval, diagnosis}`. `projectChannels`로 사용자 안전 뷰. 순수·선언(무 I/O)이라 l2-plan에 둔다.
+- **보이는 것 = 실제 가능한 것**(핵심 신뢰선): `ready`(초록)는 `readiness==ok`일 때만 — 미연결·미자격은 초록
+  아님. **라이브 표면은 실제 자격에서 파생**: `liveDeps`가 `channels`도 반환하고 `liveChannels`가
+  `TELEGRAM_BOT_TOKEN`/`SLACK_BOT_TOKEN` 유무로 `connected`를 정한다. 토큰 없이 "받을 준비됨"으로 속이지 않는다
+  (2.0-A slack 초록 오표시와 같은 계열 차단). `demoChannels`는 **test fixture 전용**(라이브 표면 금지).
+- **connected ≠ approved**: 준비됐어도 전송은 항상 A2(`sendNeedsApproval=true`). **사용자 언어**: `userSafe`·
+  doctor `diagnosis`(nextAction: connect/authenticate/retry)에 내부 readiness 코드 미노출.
+- `GET /channels`(사용자 안전 뷰+doctor). 기존 `/connectors`(원시 두 축)는 내부/디버그 뷰로 유지.
+- **후속**: inboundPolicy를 게이트가 실제 소비(채널별 차등) · `/channel/inbound` 조회를 레지스트리 단일 소스로
+  승격 · P6-18에서 연결 페이지에 status·doctor 표면화(조용히·필요할 때만, 안티 대시보드) · 실 provider 연동·
+  토큰 유효성 실측(지금은 토큰 존재 유무까지).
 
 ---
 
