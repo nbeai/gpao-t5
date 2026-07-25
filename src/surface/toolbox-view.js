@@ -80,6 +80,8 @@ export function projectToolbox(selfState, descriptors) {
       sourceLedgerRequired: Boolean(d.sourcePolicy?.sourceLedgerRequired),
       badges: badgesOf(d),
       blurb: blurbOf(d),
+      // 2.0-B: 실행 준비 안 된 도구는 정직한 준비 안내(죽은 '연결하기' 버튼 대신 텍스트). 실제 연결은 후속.
+      connectHint: Boolean(ct.executable) ? undefined : '연결이 준비되면 이어서 쓸 수 있어요. (실제 연결은 곧 지원돼요.)',
     };
   });
   const categories = [...new Set(tools.map((t) => t.category))];
