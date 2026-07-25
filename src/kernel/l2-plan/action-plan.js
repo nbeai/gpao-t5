@@ -2,7 +2,7 @@
 // toolsToUse 는 SelfState 가 실행 가능 판정한 것만. needsApproval 은 A2·A3.
 import { isToolExecutable } from '../l0-evidence/self-state.js';
 import { toolLabel } from '../tool-labels.js';
-import { grantFor } from './authority.js';
+import { grantFor, UNKNOWN_KIND } from './authority.js';
 
 // 도구 id → 권한 종류(범주). 실행 종류를 권한 등급으로 잇는다.
 const TOOL_KIND = {
@@ -32,8 +32,10 @@ export function buildActionPlan(p) {
   const needsApproval = [];
   for (const id of toolsToUse) {
     // 권한 종류는 descriptor(toolKind)를 먼저 믿는다 — 하드코딩 맵에 없어도 새 도구가 새지 않게.
+    // toolKind가 아예 없으면(권한 종류 미상) read로 흘리지 않고 unknown으로 둔다 → 자동 진행 금지(감사 blocker).
+    //   단, 기존 known id(web.collect 등)는 TOOL_KIND 맵으로 그대로 동작한다.
     const tool = selfState.connectedTools.find((t) => t.id === id);
-    let kind = tool?.toolKind ?? TOOL_KIND[id] ?? 'read';
+    let kind = tool?.toolKind ?? TOOL_KIND[id] ?? UNKNOWN_KIND;
     // 감사 보정(보안): descriptor가 needsApproval=true면 등급이 낮게 나와도 승인 게이트로 올린다.
     // "실행 가능"(availability)과 "실행해도 됨"(needsApproval) 두 축을 끝까지 살린다.
     const preview = (k) => ({

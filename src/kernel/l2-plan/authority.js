@@ -5,6 +5,10 @@
 //   어느 모드도 안전 바닥(SAFETY_FLOOR)을 우회하지 못한다. 그리고 판단 이유를 사용자 언어로 설명한다(정책 불변).
 import { TIER, DEFAULT_APPROVAL_MODE } from '../contracts.js';
 
+// kind 누락·미상은 **자동 진행 금지**로 취급한다(감사 blocker). "권한 종류가 비어 있는 것"도 안전하지 않은 것 —
+//   allowlist에 없고 classifyTier가 A2로 올려 auto가 새지 않는다. read로 흘리지 않는다.
+export const UNKNOWN_KIND = 'unknown_kind';
+
 /**
  * 안전 바닥(Safety Floor) — 모드와 무관하게 **항상 승인(A2+)**. Smart라도 자동 승인 금지.
  * 외부 전송·SaaS 쓰기·자동화 활성화·장기 기억 승격·삭제·결제·게시·민감 내보내기·권한 상승/변경·비밀/계정 접근.
@@ -29,7 +33,7 @@ export function isSafetyFloor(kind) {
  * @returns {import('../contracts.js').AuthorityTier}
  */
 export function classifyTier(action) {
-  const kind = action?.kind ?? 'read';
+  const kind = action?.kind ?? UNKNOWN_KIND;
   switch (kind) {
     case 'delete':
     case 'pay':
@@ -76,7 +80,7 @@ export const AUTO_SAFE_KINDS = Object.freeze({
  * @returns {boolean} true면 승인 없이 진행(저위험).
  */
 export function decideAutoGrant(action, mode = DEFAULT_APPROVAL_MODE) {
-  const kind = action?.kind ?? 'read';
+  const kind = action?.kind ?? UNKNOWN_KIND;
   if (isSafetyFloor(kind)) return false;                      // 안전 바닥 — 모드 무관 항상 승인(우회 불가)
   // 명시된 저위험 allowlist만 자연 진행 — 모르는 kind는 여기에 없으니 승인으로 간다(애매하면 높은 등급).
   if (AUTO_SAFE_KINDS.always.includes(kind)) return true;              // A0: 읽기·요약·검색·초안
@@ -155,7 +159,7 @@ const WHY_APPROVAL = {
  * @returns {{tier:string, needsApproval:boolean, safetyFloor:boolean, why:string, whatChanges:string, reversible:string}}
  */
 export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
-  const kind = action?.kind ?? 'read';
+  const kind = action?.kind ?? UNKNOWN_KIND;
   const tier = classifyTier(action);
   const auto = decideAutoGrant(action, mode);
   const floor = isSafetyFloor(kind);

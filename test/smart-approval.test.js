@@ -118,6 +118,51 @@ test('실행 가능한 unknown toolKind 도구는 autoAllowed로 새지 않는�
   assert.ok(plan.needsApproval.some((g) => g.action === 'evil.tool'), '승인 게이트로 올라간다');
 });
 
+// ── kind 자체가 비어 있는 것도 안전하지 않은 것으로 본다(감사 blocker) ── 누락 ≠ read.
+test('kind 누락은 자동 진행 금지(누락 ≠ read)', () => {
+  assert.equal(decideAutoGrant({}, 'smart'), false, 'kind 없는 행동은 자동 승인 안 함');
+  assert.equal(decideAutoGrant({ label: '새 도구' }, 'smart'), false);
+  const g = grantFor({ label: '새 도구' });
+  assert.equal(g.approvalRequired, true, 'kind 없으면 승인 필요');
+  assert.equal(g.granted, false);
+  assert.equal(classifyTier({}), 'A2', 'kind 누락은 최소 A2');
+});
+
+// toolKind를 아예 안 싣고 들어온 실행 가능 도구도 autoAllowed로 새지 않는다.
+test('toolKind 없는(비어 있는) 도구는 read로 흘리지 않고 승인으로 올린다', () => {
+  const selfState = buildSelfState({
+    model: { id: 'm', authSignal: 'ok' },
+    connections: [{ id: 'custom.danger', connected: true, status: 'usable', needsApproval: false }], // toolKind 없음
+  });
+  const plan = buildActionPlan({
+    intent: { neededTools: ['custom.danger'], desiredOutcome: '뭔가 실행' },
+    selfState,
+    mode: 'smart',
+  });
+  assert.ok(plan.toolsToUse.includes('custom.danger'), '실행 가능 판정은 됨');
+  assert.equal(plan.autoAllowed.includes('custom.danger'), false, 'toolKind 없음도 자동 허용으로 새지 않는다');
+  assert.ok(plan.needsApproval.some((g) => g.action === 'custom.danger'), '승인 게이트로 올라간다');
+});
+
+// 기존 known id는 하드코딩 맵(TOOL_KIND)으로 그대로 동작한다(깨지지 않게).
+test('known id fallback 유지: toolKind 없어도 TOOL_KIND 맵대로 동작', () => {
+  const selfState = buildSelfState({
+    model: { id: 'm', authSignal: 'ok' },
+    connections: [
+      { id: 'web.collect', connected: true, status: 'usable' },  // 맵: read → A0 자연 진행
+      { id: 'local.file', connected: true, status: 'usable' },   // 맵: organize → A1 자연 진행(smart)
+    ],
+  });
+  const plan = buildActionPlan({
+    intent: { neededTools: ['web.collect', 'local.file'], desiredOutcome: '조회·정리' },
+    selfState,
+    mode: 'smart',
+  });
+  assert.ok(plan.autoAllowed.includes('web.collect'), 'web.collect는 read로 자연 진행(기존 유지)');
+  assert.ok(plan.autoAllowed.includes('local.file'), 'local.file은 organize로 자연 진행(기존 유지)');
+  assert.equal(plan.needsApproval.length, 0, '알려진 저위험 도구는 승인 안 걸림');
+});
+
 // ── 승인 이유(사용자 언어) ──
 test('explainAuthority: 자동 진행은 왜 진행했는지, 승인 필요는 왜 필요한지 사용자 언어로', () => {
   const a0 = explainAuthority({ kind: 'read' });

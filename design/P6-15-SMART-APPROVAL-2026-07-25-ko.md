@@ -19,6 +19,10 @@
   `classifyTier` default = **A2**(애매하면 높은 등급), `decideAutoGrant`는 `AUTO_SAFE_KINDS`(read/summarize/
   search/draft = A0, organize/title/archive = A1) 안에 있을 때만 true. 새 도구·플러그인·커넥터가
   `toolKind:'transfer_money'`처럼 매핑에 없어도 A0로 새지 않는다.
+- **"권한 종류가 비어 있는 것"도 안전하지 않은 것으로 본다**(감사 blocker 재발 방지). `kind` 누락은 `read`가
+  아니라 `UNKNOWN_KIND`로 취급한다 — authority의 세 진입점(`classifyTier`·`decideAutoGrant`·`explainAuthority`)
+  기본값과 action-plan의 `toolKind` fallback을 `UNKNOWN_KIND`로 통일(기존 `TOOL_KIND[id]` 맵은 유지해 known
+  도구는 그대로). `toolKind`를 아예 안 싣고 들어온 실행 가능 도구도 승인 게이트로 올라간다.
 - 안전 바닥·allowlist는 tier 분류와 **독립된 불변식**이다 — tier가 낮게 회귀해도 auto가 새지 않는다(방어적 이중화).
 - 저위험(A0 읽기/요약, A1 되돌릴 수 있는 로컬 정리)만 자연 진행. 사용자는 덜 멈추고, 위험한 건 계속 멈춘다.
 
@@ -45,12 +49,14 @@
   A2/A3 배지 + **꼭 확인** 배지(내부어 `safetyFloor`는 필드로 유지, 화면은 사용자 언어 — 감사 blocker 2) +
   "왜 확인하나요/어디에·무엇을/되돌리기"를 사용자 언어로.
 
-## 테스트 (12, 총 236)
+## 테스트 (15, 총 239)
 
 A0 자연 진행 · A1 manual/smart 통과·strict 확인 · A2 전송 승인 유지(모든 모드) · 삭제(A3) 승인 유지 ·
 **안전 바닥은 Smart 포함 어느 모드도 자동 승인 불가(반대 테스트 핵심)** · 안전 바닥/allowlist tier 회귀 독립성 ·
 **unknown kind 자동 승인 불가(blocker 1): decideAutoGrant false, grantFor approvalRequired, unknown toolKind
-descriptor가 autoAllowed로 안 샘, 기존 저위험 유지** · **화면 라벨에 "안전 바닥" 미노출(blocker 2)** ·
+descriptor가 autoAllowed로 안 샘, 기존 저위험 유지** · **kind/toolKind 누락도 자동 진행 금지(blocker 재발):
+decideAutoGrant({}) false, grantFor({label}) approvalRequired, toolKind 없는 custom.danger가 autoAllowed로
+안 샘, known id(web.collect/local.file) 맵 유지** · **화면 라벨에 "안전 바닥" 미노출(blocker 2)** ·
 explainAuthority 사용자 언어 · 서버: 전송이 승인 카드에 approvalMode+reason 실어 멈춤.
 
 반대 테스트: (a) `decideAutoGrant`에 "smart면 무조건 통과" 주입 시 바닥/전송/삭제 6건 실패 실측. (b) blocker 수정
