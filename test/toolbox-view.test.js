@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { projectToolbox } from '../src/surface/toolbox-view.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv, demoDescriptors } from '../src/surface/demo-context.js';
+import { liveDeps } from '../src/surface/live-context.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 
@@ -73,6 +74,40 @@ test('connectedTools에 없으면 회색(비활성)', () => {
   const self = buildSelfState({ model: { authSignal: 'ok' }, connections: [], grantedAuthorities: [] });
   const { tools } = projectToolbox(self, demoDescriptors());
   assert.ok(tools.every((t) => t.statusDot === 'gray' && t.userStatus === '비활성'));
+});
+
+// 감사 보정(§10.1): 라이브 도구함 상태 = 실제 sender 자격 상태. 토큰 없으면 slack.post는 사용 가능 아님.
+test('라이브: SLACK_BOT_TOKEN 없으면 slack.post는 노랑 연결 필요·실행 불가', () => {
+  const { env, descriptors } = liveDeps({}); // 토큰 없음
+  const slack = projectToolbox(buildSelfState(env), descriptors).tools.find((t) => t.id === 'slack.post');
+  assert.equal(slack.statusDot, 'yellow', '토큰 없으면 초록 아님');
+  assert.equal(slack.userStatus, '연결이 필요해요');
+  assert.equal(slack.executable, false, '실행 게이트도 불가 — 승인만 받고 뒤늦게 실패하지 않게');
+});
+
+test('라이브: SLACK_BOT_TOKEN 있으면 slack.post는 초록 사용 가능', () => {
+  const { env, descriptors } = liveDeps({ SLACK_BOT_TOKEN: 'xoxb-test' });
+  const slack = projectToolbox(buildSelfState(env), descriptors).tools.find((t) => t.id === 'slack.post');
+  assert.equal(slack.statusDot, 'green');
+  assert.equal(slack.userStatus, '사용 가능');
+  assert.equal(slack.executable, true);
+});
+
+// 서버 실경로: 토큰 없는 라이브 deps로 띄운 /toolbox가 slack 초록 오표시를 내지 않는다.
+test('서버 GET /toolbox(라이브, 토큰 없음): slack.post 초록 오표시 없음', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tbl-'));
+  const { env, tools, descriptors } = liveDeps({});
+  const server = makeServer({ store: new SessionStore(dir), env, tools, descriptors });
+  await new Promise((r) => server.listen(0, r));
+  const { port } = server.address();
+  try {
+    const r = await (await fetch(`http://127.0.0.1:${port}/toolbox`)).json();
+    const slack = r.tools.find((t) => t.id === 'slack.post');
+    assert.equal(slack.statusDot, 'yellow');
+    assert.equal(slack.userStatus, '연결이 필요해요');
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
 });
 
 test('서버 GET /toolbox: 실제 상태 카드 반환', async () => {

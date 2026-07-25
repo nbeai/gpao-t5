@@ -34,11 +34,15 @@ const FACTS = {
   'slack.post': { connected: true },
 };
 
-/** 슬라이스-1 기본 환경(SelfState 입력). 연결은 descriptor availability로 판정한다. */
-export function demoEnv() {
+/**
+ * 슬라이스-1 기본 환경(SelfState 입력). 연결은 descriptor availability로 판정한다.
+ * @param {{factOverrides?:Record<string,object>}} [opts] 실제 자격 상태를 반영할 때 FACTS를 덮어쓴다(라이브).
+ */
+export function demoEnv(opts = {}) {
+  const facts = { ...FACTS, ...(opts.factOverrides ?? {}) };
   return {
     model: { id: 'beai5-stub', strengths: '자연 대화·판단', authSignal: 'ok' },
-    connections: DESCRIPTORS.map((d) => toConnection(d, FACTS[d.id] ?? {})),
+    connections: DESCRIPTORS.map((d) => toConnection(d, facts[d.id] ?? {})),
     grantedAuthorities: [],
   };
 }
