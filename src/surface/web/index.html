@@ -377,9 +377,10 @@ function toolCard(t) {
   if (t.sourceLedgerRequired) axes.appendChild(mk('div', null, '출처를 남겨요'));
   d.appendChild(axes);
   if (t.connectHint) d.appendChild(mk('div', 'tb-hint', t.connectHint)); // 2.0-B 연결 준비 안내(죽은 버튼 아님)
-  // 2.0-C: 개인 도구가 아직 테스트 통과 전이면 실제 실행 테스트 버튼(죽은 버튼 아님). 통과해야 사용 가능.
+  // 2.0-C: 개인 도구가 아직 테스트 통과 전이면 설정 확인 버튼(실제 동작, 죽은 버튼 아님). 통과해야 사용 가능.
   if (t.personal && t.testState !== 'passed') {
-    const tb = document.createElement('button'); tb.className = 'act primary'; tb.textContent = '실행 테스트';
+    // 이 슬라이스의 확인은 실제 실행이 아니라 필수 설정 완비 점검이다 → "설정 확인"(오해 방지). 진짜 실행 테스트는 후속.
+    const tb = document.createElement('button'); tb.className = 'act primary'; tb.textContent = '설정 확인';
     tb.style.marginTop = 'var(--sp-2)';
     tb.onclick = async (e) => {
       e.stopPropagation();
@@ -536,7 +537,8 @@ function renderResult(r, opts = {}) {
 function renderCapabilityResolution(box, cr) {
   const card = el('suggest');
   const isTool = cr.capabilityType === 'tool';
-  card.appendChild(el('sug-t', isTool ? `${cr.missingCapability ? '' : ''}이 일을 하려면 도구 준비가 필요해요` : `${cr.missingCapability} 연결이 필요해요`));
+  const name = cr.missingCapability || '이 도구';
+  card.appendChild(el('sug-t', isTool ? `"${name}" 준비가 필요해요` : `${name} 연결이 필요해요`));
   card.appendChild(el('sug-line', `${cr.reason} 준비되면 이어서 진행할게요.`));
   const btns = el('btns');
   const yes = document.createElement('button'); yes.className = 'act primary';
@@ -547,7 +549,7 @@ function renderCapabilityResolution(box, cr) {
       card.remove();
       if (!r.ok) { box.appendChild(el('sug-done', '개인 도구를 준비하지 못했어요.')); return; }
       const done = el('sug-done');
-      done.appendChild(el('sug-line', '개인 도구를 준비했어요(테스트 전). 실행 테스트를 통과하면 쓸 수 있어요.'));
+      done.appendChild(el('sug-line', '개인 도구를 준비했어요(확인 전). 설정 확인을 통과하면 쓸 수 있어요.'));
       box.appendChild(done);
       openToolbox(r.id);
     } else {

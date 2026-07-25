@@ -76,7 +76,7 @@ export function resolveCapability(s = {}) {
       requestText: text, desiredOutcome, capabilityType: 'tool',
       missingCapability: s.toolCandidate.label,
       currentStatus: '준비 전', reason: '이 일을 하려면 개인 도구를 준비해야 해요.',
-      nextAction: 'register', requiresApproval: false, testPlan: '실행 테스트',
+      nextAction: 'register', requiresApproval: false, testPlan: '설정 확인',
       resumeContext: s.toolCandidate.requestText ?? text,
       ref: { label: s.toolCandidate.label, kind: s.toolCandidate.kind },
     });

@@ -33,9 +33,11 @@ test('개인 도구: 등록은 테스트 전(실행 불가), 프로브 통과해
   assert.equal(isPersonalExecutable(applyProbe(t2, pass)), true);
 });
 
-test('개인 도구 감지: 준비 요청만 후보, 일반 발화는 아님', () => {
+test('개인 도구 감지: 준비 요청만 후보, 짧은 이름 추출, 일반 발화는 아님', () => {
   assert.ok(detectPersonalToolRequest('이 크롤러 쓸 수 있게 준비해줘'));
   assert.ok(detectPersonalToolRequest('내 파이썬 스크립트 등록해줘')?.kind === 'script');
+  // 라벨은 문장 전체가 아니라 짧은 이름(신뢰 문구 보정).
+  assert.equal(detectPersonalToolRequest('내 크롤러 스크립트 쓸 수 있게 준비해줘').label, '내 크롤러 스크립트');
   assert.equal(detectPersonalToolRequest('오늘 날씨 어때'), null);
 });
 
@@ -60,11 +62,8 @@ test('도구함: 개인 도구 untested→노랑 테스트 전·실행 불가 / 
 test('도구함: 개인 도구도 사용자 언어(기술 용어 미노출)', () => {
   const t = applyProbe(definePersonalTool({ id: 'x', label: '내 도구', kind: 'web' }), runProbe(definePersonalTool({ id: 'x', label: '내 도구', kind: 'web' })));
   const { tools } = projectToolbox(buildSelfState(demoEnv()), demoDescriptors(), [t]);
-  const blob = JSON.stringify(tools.find((c) => c.id === 'x'));
-  for (const term of ['testState', 'untested', 'failed', 'MCP', 'schema', 'toolKind', 'executable"']) {
-    // userStatus/badges/blurb/connectHint에 기술 용어가 없어야(필드 이름 executable은 데이터라 예외)
-  }
   const card = tools.find((c) => c.id === 'x');
+  // 사용자 표면 문자열(userStatus/badges/blurb/connectHint)에만 검사 — 필드 이름 executable 등은 데이터라 예외.
   const surface = [card.userStatus, ...card.badges, card.blurb, card.connectHint].join(' ');
   for (const term of ['testState', 'untested', 'passed', 'MCP', 'schema']) {
     assert.ok(!surface.includes(term), `표면에 ${term} 노출 금지`);

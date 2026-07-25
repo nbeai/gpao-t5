@@ -25,7 +25,7 @@ test('resolveCapability: 타입 분류·우선순위·복귀맥락', () => {
   const tool = resolveCapability({ text: '준비해줘', toolCandidate: { label: '내 크롤러', kind: 'web', requestText: '준비해줘' } });
   assert.equal(tool.capabilityType, 'tool');
   assert.equal(tool.nextAction, 'register');
-  assert.equal(tool.testPlan, '실행 테스트');
+  assert.equal(tool.testPlan, '설정 확인'); // 실제 실행이 아니라 필수 설정 완비 확인(오해 방지)
   assert.deepEqual(tool.ref, { label: '내 크롤러', kind: 'web' });
 
   const tgt = resolveCapability({ text: '슬랙에 올려줘', sendClarify: { reason: 'no_target', label: '슬랙 게시', toolId: 'slack.post' } });

@@ -1,6 +1,6 @@
 // L2 · PersonalTool (2.0-C-1). 사용자가 채팅 흐름에서 준비하는 개인용 실행 수단.
 // 최상위 기준(헌법): 사용자를 덜 헤매게 — 메뉴가 아니라 작업 흐름 안에서 준비하고 원래 작업으로 돌아온다.
-// 핵심 경계(깊은 감사): 등록됨 ≠ 실행 가능. 실행 테스트를 통과하기 전에는 executable=false(사용 가능처럼
+// 핵심 경계(깊은 감사): 등록됨 ≠ 실행 가능. 설정 확인(필수 설정 완비)을 통과하기 전에는 executable=false(사용 가능처럼
 //   보이지 않는다). 실패하면 이유와 다음 안전 행동을 정직하게 남긴다. 죽은 버튼·가짜 성공 금지.
 // 실제 외부 실행/OAuth는 후속 — 이 슬라이스는 준비 흐름(등록·상태·테스트 게이트·복귀)까지다.
 
@@ -26,7 +26,16 @@ export function detectPersonalToolRequest(text) {
   if (!PREPARE_SIGNAL.test(t)) return null;
   let kind = null;
   for (const [re, k] of KIND_HINT) { if (re.test(t)) { kind = k; break; } }
-  return { label: t.slice(0, 40), kind, requestText: t };
+  return { label: extractLabel(t), kind, requestText: t };
+}
+
+// 요청 문장에서 짧은 도구 이름을 뽑는다(문장 전체를 라벨로 쓰지 않는다).
+// "내 크롤러 스크립트 쓸 수 있게 준비해줘" → "내 크롤러 스크립트".
+function extractLabel(t) {
+  let s = t.replace(/\s*(쓸 ?수 ?있게|사용할 수 있게).*$/, '');
+  s = s.replace(/\s*(를|을|좀)?\s*(준비|추가|등록|연결)해?\s*줘.*$/, '');
+  s = s.replace(/\s*(이거|이것)\s*$/, '').trim();
+  return s || t.slice(0, 24);
 }
 
 /**

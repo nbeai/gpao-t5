@@ -77,8 +77,8 @@ function personalCard(t) {
     blurb: '사용자가 준비한 개인 도구예요.',
     // 준비 안내(죽은 버튼 대신 텍스트). 테스트 실패면 실제 사유·다음 안전 행동을 정직하게.
     connectHint: executable ? undefined
-      : st === 'failed' ? `${t.testError?.reason ?? '테스트에 실패했어요.'} ${t.testError?.nextSafeAction ?? ''}`.trim()
-        : '실행 테스트를 통과하면 쓸 수 있어요.',
+      : st === 'failed' ? `${t.testError?.reason ?? '설정 확인에 실패했어요.'} ${t.testError?.nextSafeAction ?? ''}`.trim()
+        : '설정 확인을 통과하면 쓸 수 있어요.',
   };
 }
 

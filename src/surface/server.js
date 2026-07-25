@@ -299,7 +299,7 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors, personalTools));
       }
 
-      // ── 개인 도구 (2.0-C-1) ── 등록됨 ≠ 실행 가능. 실행 테스트 통과 전에는 executable=false.
+      // ── 개인 도구 (2.0-C-1) ── 등록됨 ≠ 실행 가능. 설정 확인 통과 전에는 executable=false.
       if (req.method === 'POST' && url === '/personal-tools') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.label !== 'string' || !input.label.trim()) return sendJson(res, 400, { error: '도구 이름이 필요해요.' });
@@ -310,7 +310,7 @@ export function makeServer(deps = {}) {
         // 등록 직후엔 테스트 전 — 사용 가능처럼 보이지 않게 정직하게 반환.
         return sendJson(res, 200, { ok: true, id: tool.id, testState: tool.testState, executable: false });
       }
-      // 실행 테스트: 통과하면 executable, 실패하면 이유·다음 안전 행동을 정직하게.
+      // 설정 확인: 통과하면 executable, 실패하면 이유·다음 안전 행동을 정직하게.
       if (req.method === 'POST' && url.startsWith('/personal-tools/') && url.endsWith('/test')) {
         const id = url.slice('/personal-tools/'.length, -'/test'.length);
         const a = await personalStore.load();
