@@ -26,6 +26,7 @@ import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } f
 import { tickAutomation } from '../runtime/automation-engine.js';
 import { AutomationScheduler } from '../runtime/automation-scheduler.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
+import { makeChannelSender } from '../runtime/channel-sender.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -347,10 +348,14 @@ export function makeServer(deps = {}) {
 // 직접 실행할 때만 listen 한다(import 시 부작용 없음).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
-  // 라이브 서버는 실제 웹 수집 어댑터를 쓴다(P6-5). 테스트/기본 demoTools는 offline 스텁 유지.
-  // 시간 제한은 env로 조정 가능(기본 15초) — 끝나지 않는 페이지가 Work Chat을 멈추지 못하게.
+  // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 테스트/기본 demoTools는 offline 스텁 유지.
+  // 시간 제한은 env로 조정 가능(기본 15초) — 끝나지 않는 응답이 Work Chat을 멈추지 못하게.
   const webTimeoutMs = Number(process.env.GPAO_T5_WEB_TIMEOUT_MS ?? 15_000);
-  const server = makeServer({ tools: demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }) }) });
+  // slack.post는 실제 전송 어댑터. 토큰(env)이 없으면 어댑터가 정직하게 needs_auth를 낸다(가짜 성공 아님).
+  const senders = {
+    'slack.post': makeChannelSender({ channel: 'slack', token: process.env.SLACK_BOT_TOKEN, defaultTarget: process.env.SLACK_DEFAULT_CHANNEL }),
+  };
+  const server = makeServer({ tools: demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders }) });
   server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });

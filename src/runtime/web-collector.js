@@ -4,6 +4,7 @@
 // 정책: 읽기 전용(GET) · 대량수집 금지(validateWebInput maxPages cap) · 외부 전송 없음.
 // 안전 규율: fetchImpl 주입 가능 — 테스트는 실네트워크 대신 로컬 서버/스텁을 쓴다.
 import { validateWebInput, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
+import { withTimeout } from './with-timeout.js';
 
 /**
  * HTTP 응답 → fetchState. 코드 + 본문 신호로 로그인벽/봇벽/robots/차단을 성공과 분리한다.
@@ -54,23 +55,6 @@ const WALL_MESSAGE = {
   blocked: '그 사이트가 접근을 막고 있어요.',
   timeout: '그 페이지를 불러오지 못했어요.',
 };
-
-// 시간 제한 실행 — 응답이 끝나지 않는 페이지가 Work Chat을 멈추지 못하게(감사 보정, P6-5).
-// signal을 무시하는 fetch도 멈추도록 race로 감싸고, 실제 요청엔 abort 신호를 보낸다.
-async function withTimeout(factory, timeoutMs, controller) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort(); // 실제 네트워크 요청 취소(리소스 정리)
-      reject(Object.assign(new Error('timeout'), { name: 'AbortError' }));
-    }, timeoutMs);
-  });
-  try {
-    return await Promise.race([factory(), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 

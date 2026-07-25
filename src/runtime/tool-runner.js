@@ -66,6 +66,17 @@ export class ToolRunner {
           nextSafeAction: out.nextSafeAction ?? '공개 자료/대체 경로로 이어갈까요?',
         });
       }
+      // transient 실패(재시도 여지) — handler가 정직한 사용자면 메시지와 함께 알린다. blocked(permanent)와 분리.
+      if (out && out.failed) {
+        return receipt({
+          intended,
+          actualCall: { tool: toolId, args },
+          failureState: FAILURE.FAILED,
+          userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
+          diagnosticTrace: out.diagnosticTrace,
+          nextSafeAction: out.nextSafeAction ?? '잠시 후 다시 시도할까요?',
+        });
+      }
       return receipt({
         intended,
         actualCall: { tool: toolId, args },

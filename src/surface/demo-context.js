@@ -40,9 +40,11 @@ export function demoEnv() {
 
 /**
  * 슬라이스-1 스텁 도구. web.collect 는 차단 사례를 재현할 수 있게 한다(복구 흐름 시연).
- * @param {{webCollector?:object}} [opts] webCollector 주입 시 web.collect를 실제 어댑터로 교체(P6-5 라이브).
+ * @param {{webCollector?:object, senders?:Record<string,object>}} [opts]
+ *   webCollector 주입 시 web.collect를 실제 어댑터로(P6-5). senders 주입 시 해당 send 도구를 실제 어댑터로(P6-6).
  */
 export function demoTools(opts = {}) {
+  const senders = opts.senders ?? {};
   return new ToolRunner({
     'web.collect': opts.webCollector ?? {
       // 출처 원장 필수 — ToolRunner가 assertWebEvidence를 강제한다(handler 관례에 안 맡김).
@@ -68,7 +70,7 @@ export function demoTools(opts = {}) {
         return { result: { scanned: true }, userSafeSummary: '로컬 파일을 확인했어요(변경 없음).' };
       },
     },
-    'slack.post': {
+    'slack.post': senders['slack.post'] ?? {
       async handler() {
         return { result: { posted: true }, userSafeSummary: '슬랙에 게시했어요.' };
       },
