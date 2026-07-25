@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1·2·3) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~4) 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -78,7 +78,8 @@
 - P6-17 개정 반영(근거: `P6-17-SESSION-SEARCH`, 깊은 감사 통과): §6.16 Session Search(학습 루프 3분할 첫 조각) —
   검색 결과는 raw로 라우터·answer에 안 섞이고 candidate(recalled_context, admitted:false)로만, admission
   (context-mesh userConfirmed) 통과해야 영향. POST /search는 turn 미실행. **검색 표면(Slice-3): 결과는 "찾은 기억·
-  반영 안 됨", 반영은 명시 admit(POST /search/admit, promote userConfirmed)만 — 찾음≠반영.** 후속: 반영 철회 UI.
+  반영 안 됨", 반영은 명시 admit(POST /search/admit)만 — 찾음≠반영. 되돌리기(Slice-4): 반영하기와 동일 수준의
+  rollback(POST /memory/rollback), rollback 후 promoted/admitted 영향 제거, admit은 중복도 candidateId 반환.**
 - P6-17 Slice-2 반영(근거: `P6-17-SKILL-LIFECYCLE`, 깊은 감사 통과): §6.17 SkillCandidate Lifecycle — §6.10을
   명시적 상태 기계(detected→candidate→replay_required→approved→admitted|rejected)로 일반화. 스킬 자동 실행 권한
   없음(canAutoExecute 항상 false), replay+확인 전 영향 0, replay 실패→rejected. GET/detect/approve/reject(최소 표면).
@@ -590,9 +591,13 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   memory.promoted가 생기지 않는다(찾음 ≠ 반영).** 반영은 명시 admit만 — `POST /search/admit {statement, source}`이
   `promote(userConfirmed:true)`(admission)를 태워 promoted로. 반영 후에만 관련 대화의 admittedContext에 좁게 입장.
   중복 반영 방지(already). UI: `🔍 기억 찾기` 패널, `반영하기`→`반영됨`(호박→초록) 전환.
-- **후속**: **반영된 기억의 철회/되돌리기 — "반영하기"가 있으면 "잘못 반영했을 때 되돌릴 길"도 같은 수준으로
-  보여야 한다**(context-mesh rollbackable 활용) · 반영된 recalled_context를 §6.19 overview에 함께 표면화 ·
-  의미 검색(임베딩)·랭킹.
+- **반영 되돌리기(P6-18 Slice-4, 구현됨)**: **"반영하기"가 있는 검색/기억 표면은 동일 수준의 되돌리기를
+  제공한다.** `POST /memory/rollback {candidateId}`가 promoted에서 제거 → **rollback 후 promoted/admittedContext
+  영향이 반드시 제거된다**(다음 턴부터 안 쓰임). rollbackable=false(고정 원칙)는 거부, 실제 제거 여부는
+  `rolledBack`으로 반환. **화면=실제 일치 보장**: `/search/admit`은 신규·중복(already) 모두 되돌리기용
+  `candidateId`를 반환하고, UI는 candidateId가 있을 때만 "반영됨"으로 전환한다(반영↔되돌리기 대칭 — 감사 blocker
+  수정). 검색 카드는 반영됨↔되돌리기 토글, overview "반영 중"에도 되돌리기(추정은 여전히 읽기 전용).
+- **후속**: 반영된 recalled_context를 §6.19 overview "반영 중"에 함께 표면화(현재 선호만) · 의미 검색(임베딩)·랭킹.
 
 ### 6.17 SkillCandidate Lifecycle (P6-17 Slice-2, 구현됨 — 추천 ≠ 실행/승격)
 
