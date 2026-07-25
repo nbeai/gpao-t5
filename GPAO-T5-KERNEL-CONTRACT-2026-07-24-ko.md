@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 개정(2026-07-25)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 개정(2026-07-25)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -63,6 +63,10 @@
   완료=검증됨(생성 아님). parseCompletionCriteria(count/no_dup/no_missing/sections/stop, 중단↔count 분리) +
   verifyCompletion→VerificationReceipt(실패 지목·중단 시 멈추고 물음), POST /verify. CLAUDE.md "완료=실제 동작"을
   런타임 계약으로. 턴 자동 게이트·TruthLedger 연결은 후속.
+- P6-14 개정 반영(근거: `P6-14-DELIVERY-LEDGER`, 깊은 감사 통과+세션 경계 blocker 보정): §6.13 Delivery Ledger —
+  생성≠전달, DeliveryRecord(sessionId 소유권), GET/retry 세션 검증(없음 400/타 세션 403, tool call 0),
+  delivered 중복 방지, failed delivery는 DefaultTarget 학습 제외. 외부 전송 A2를 계약으로 명시. **후속(필수)**:
+  원 승인 만료 후 재승인 · retry approvalId·grantScope 원장 연결.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -468,6 +472,34 @@ truth(EventLog/ToolReceipt/TruthLedger) 위의 투영이지 진실의 출처가 
 - **후속**: 턴 자동 게이트(도구가 구조화 산출물을 낼 때 완료를 자동 검증해 "완료"를 게이트 + VerificationReceipt를
   TruthLedger에 durable) + 채팅 검증 카드 + P6-12 스트리밍 `trace_status:검증 중` 연결. 이 슬라이스는 `/verify`
   첫 조각까지.
+
+### 6.13 Delivery Ledger (P6-14, 구현됨 — 생성 ≠ 전달)
+
+근거: Hermes "Delivery Application Ledger"(복제 아님, T5 재구성), P6-12 EventLog(durable truth), P6-13
+VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 사고 **"했다는데 사용자가 못 받음"**을
+막는다. **결과 생성(artifact)과 결과 전달(delivery)을 분리**하고, 실패해도 처음부터 다시가 아니라 **기존
+산출물을 이어서 재전달**한다.
+
+- **완료 = 실제 전달 확인(delivered) 이후에만.** "생성했다"·"보내려 했다"는 완료가 아니다(§6.12와 같은 정직 원장).
+- `DeliveryRecord {id, sessionId, tool, channel, target, artifact, state('attempting'|'delivered'|'failed'),
+  attempts, lastError, retriable, needsFix, createdAt}`. `sessionId`는 이 전달을 승인·생성한 **소유 세션**.
+  - `makeDelivery` — 산출물·소유 세션과 함께 attempting으로 시작.
+  - `applyDeliveryResult(d, failureState, summary)` — none→delivered / failed·timeout→failed(retriable) /
+    blocked·cancelled→failed(needsFix, 원인 해소 후 재전달). **산출물은 항상 보존(재생성 없음).**
+- **세션 소유권 경계**: 전달 원장은 전역이 아니라 세션 소유. `GET /deliveries?sessionId=`는 **sessionId 필수
+  (없으면 400) + 세션별 필터** — 다른 대화의 전달은 보이지 않는다.
+- **retry 세션 검증**: `POST /deliveries/:id/retry {sessionId}`는 세션 검증을 **`tools.run` 전에** 통과시킨다 —
+  sessionId 없음→400, 다른 세션→403, **둘 다 tool call 0**(외부 전송 미발생). 통과 시에만 저장된 artifact/target을
+  그대로 재전달. **외부 전송은 A2 유지**(주석이 아니라 계약): 재전달 허용은 **정확히**
+  `same session + same approved artifact + same target + explicit user retry action`일 때만이다 —
+  이 경계를 우회한 임의 대상·임의 내용 전송은 A2를 건너뛴 새 외부 행동이므로 금지.
+- **delivered 중복 방지**: 이미 delivered인 건 재전달해도 다시 보내지 않는다(`alreadyDelivered`).
+- **실패 전달은 학습에서 배제**: DefaultTarget(§6.10) 학습 후보는 **실제 전달된(delivered) 경우에만** 제안한다 —
+  실패한 전송을 기본 대상으로 잘못 학습하지 않는다.
+- **후속(필수)**: **원 승인 만료 후 재승인**(재전달 시 원 승인 범위가 시간 경과로 만료됐으면 이어실행하지 않고
+  재승인 — Approval Lifecycle 계약과 연결) · **retry의 approvalId·grantScope를 DeliveryRecord/원장에 연결**
+  (재전달이 참조하는 승인 범위를 durable하게 추적). 그 외: 채널 외 전달 확장(파일·다운로드 링크·웹 게시의 전달
+  확인) · needsFix(연결/권한) 자동 안내→연결 흐름 · §6.12 완료 게이트에 "전달 확인" 포함.
 
 ---
 
