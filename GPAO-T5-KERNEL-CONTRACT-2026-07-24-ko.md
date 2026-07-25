@@ -659,7 +659,9 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
   선호와 함께 표면화하고, **반영 중 기억도 overview에서 같은 수준의 되돌리기를 제공한다**(§6.16 `/memory/rollback`
   재사용, rollback 후 promoted/admitted 영향 제거). overview는 신규 상태를 만들지 않고 promoted의 recalled_context를
   투영만 한다. **반영 중(선호·기억)은 되돌리기 액션이 있어 읽기 전용이 아니다 — 추정만 읽기 전용.**
-- **후속**: 반영 중 기억 출처(session/title) 표시 · 모바일 375px 레이아웃 회귀 · 액션 실패 사용자 언어 표면.
+- **모바일 375px 크럼 회귀 해소(구현됨)**: 크럼(브레드크럼+기억 찾기+준비됨)이 단어 중간에서 꺾이던 회귀를
+  nowrap·말줄임 + 모바일 압축(Work Chat+🔍만)으로 수정. overview·검색 패널은 이미 정상. 데스크톱 라벨 불변.
+- **후속**: 반영 중 기억 출처(session/title) 표시 · 액션 실패 사용자 언어 표면.
 
 ---
 
