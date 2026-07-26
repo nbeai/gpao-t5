@@ -133,9 +133,10 @@ export function makeChatGptModelClient(deps) {
           const { appendFileSync } = await import('node:fs');
           appendFileSync(process.env.GPAO_T5_DEBUG_PROMPT,
             `\n===== ${new Date().toISOString()} tools=${(opts.tools ?? []).length} effort=${opts.effort}\n`
-            + `--- system ---\n${m.system}\n--- history(${(m.history ?? []).length}) ---\n`
-            + `${(m.history ?? []).map((h) => `${h.role}: ${h.text.slice(0, 120)}`).join('\n')}\n`
-            + `--- user ---\n${m.user}\n`);
+            + `--- system(${m.system.length}) ---\n${m.system}\n`
+            + `--- history(${(m.history ?? []).length}턴 ${(m.history ?? []).reduce((n, h) => n + h.text.length, 0)}자) ---\n`
+            + `${(m.history ?? []).map((h) => `${h.role}(${h.text.length}): ${h.text.slice(0, 120)}`).join('\n')}\n`
+            + `--- user(${m.user.length}) ---\n${m.user}\n`);
         } catch { /* 진단 실패가 응답을 막지 않는다 */ }
       }
       const controller = new AbortController();

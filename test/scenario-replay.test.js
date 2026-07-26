@@ -16,6 +16,8 @@ import { runTurn } from '../src/kernel/turn.js';
 import { recentTurns } from '../src/kernel/l1-intent/conversation.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { buildModelMessages } from '../src/runtime/model-provider.js';
+import { workingStateFacts } from '../src/kernel/l0-evidence/working-state.js';
 
 /**
  * 대화를 여러 턴 이어 돌리고, **매 턴 모델에게 간 사실(TaskContext)** 을 모은다.
@@ -148,6 +150,57 @@ test('시나리오: 모델이 고른 주소 그대로 읽는다(발화 원문으
 
   assert.equal(seenArgs.at(-1)?.request, REVIEW,
     '모델이 고른 주소를 버리고 발화 원문을 넘기면, 그 문장을 검색해 엉뚱한 글을 읽는다');
+});
+
+// 대상은 **잇는 것만큼 푸는 것이 중요하다.** 잇기만 하면 한 번 읽은 페이지가 현재 대상으로 고착돼
+// 이후 모든 턴이 그 오염을 물려받는다(절대원칙 §0).
+// **이 테스트는 턴을 관통해야 한다** — 단위 테스트는 deriveWorkingState 를 직접 불러 턴 경로를
+// 건너뛰었고, 그래서 "도구를 안 쓴 턴은 상태를 안 넘긴다"는 결함을 못 잡았다. 라이브에서만 나왔다:
+// 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 읽은 자료: 팔식당"이었다.
+test('시나리오: 화제가 바뀌면 옛 대상이 "방금"에서 물러난다(도구 없는 턴도 한 턴이다)', async () => {
+  const tools = demoTools({
+    webCollector: webReading('팔식당 : 네이버', 'https://m.place.naver.com/restaurant/1/home', '청담동 고깃집'),
+  });
+  const { seen } = await replay([
+    {
+      user: 'https://map.naver.com/p/entry/place/1 분석해줘',
+      model: { toolCalls: [{ name: 'web.collect', args: { request: 'https://map.naver.com/p/entry/place/1' } }], text: '청담동 고깃집이에요.' },
+    },
+    { user: '아니 그거 말고. 파이썬 리스트 정렬하는 법 알려줘.', model: { text: 'sort() 를 쓰면 돼요.' } },
+    { user: '내림차순도 되나?', model: { text: 'reverse=True 를 붙이면 돼요.' } },
+    { user: '그럼 원본은 안 바뀌게 하려면?', model: { text: 'sorted() 를 쓰면 돼요.' } },
+  ], { tools });
+
+  const facts = workingStateFacts(seen.at(-1).tc.workingState);
+  assert.doesNotMatch(facts ?? '', /방금 읽은 자료: 팔식당/,
+    '화제를 바꿔도 옛 대상이 계속 "방금"이면, 모델이 지금 이야기가 무엇인지 헷갈린다');
+  assert.match(facts ?? '', /앞서 다룬 것: .*팔식당.*\(\d+턴 전\)/,
+    '사라지지는 않는다 — 몇 턴 전 이야기였는지 정확히 말한다');
+});
+
+// ── 크기 회귀 금지선 (P2-7 2축 · 실측 근거) ──────────────────────────────
+// "모델 입력이 과도하게 커지지 않음"은 그대로는 판정할 수 없다. 그래서 라이브 6턴 대화를 실측하고
+// 그 숫자로 상한을 잡았다(절대원칙 2: 근거 없는 전제 금지).
+//   고정 접두 2,131자 · [지금까지] 492~558자 · history 3,311자 · [실행 사실] 1,239자 → 전체 최대 7,186자
+// history 가 상한(4,000)까지 차면 ~7,900자. 2축이 키우는 [지금까지]에 여유를 얹어 12,000자로 건다.
+test('긴 대화에서도 모델 입력이 상한을 넘지 않는다(실측 7,186자 → 상한 12,000자)', async () => {
+  const long = '가'.repeat(3000);
+  const tools = demoTools({
+    webCollector: webReading('아주 긴 페이지', 'https://long.example/a', long),
+  });
+  const turns = Array.from({ length: 12 }, (_, i) => ({
+    user: `${i}번째 질문인데 꽤 길게 물어본다 ${'질문'.repeat(60)}`,
+    model: {
+      toolCalls: [{ name: 'web.collect', args: { request: `https://long.example/a?${i}` } }],
+      text: `${i}번째 답인데 아주 길다 ${'답변'.repeat(400)}`,
+    },
+  }));
+  const { seen } = await replay(turns, { tools });
+  const m = buildModelMessages(seen.at(-1).tc);
+  const total = m.system.length + m.user.length + (m.history ?? []).reduce((n, h) => n + h.text.length, 0);
+  assert.ok(total <= 12_000, `프롬프트 ${total.toLocaleString()}자 — 커지면 정작 대화 앵커가 먼저 잘려 나간다`);
+  // 그리고 커졌다고 현재 대상을 잃으면 안 된다(크기를 줄이려다 흐름을 버리는 것 금지).
+  assert.match(m.system, /\[이 대화에서 지금까지\]/, '무엇을 다루던 중인지는 끝까지 남아야 한다');
 });
 
 // ── 시나리오 4: 범위 밖 요청 (오너 실패 — 내부 문구가 화면에 찍힘) ────────

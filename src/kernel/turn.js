@@ -22,7 +22,7 @@ import { parseSend } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
 import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
-import { updateWorkingState } from './l0-evidence/working-state.js';
+import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -218,9 +218,15 @@ export async function runTurn(input, ctx) {
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
   if (!modelChosen && intent.answerMode === 'fast_chat' && !influence) {
+    // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
+    // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
+    // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
+    const idleState = deriveWorkingState(ctx.workingState, { receipts: [] });
     return {
       kind: 'reply',
       reply: earlyReply,
+      workingState: idleState,
+      contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
@@ -438,7 +444,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   const ladder = nextRung(turnReceipts);
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
-  const workingState = updateWorkingState(ctx.workingState, {
+  // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
+  const workingState = deriveWorkingState(ctx.workingState, {
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
   });
@@ -498,6 +505,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
     workingState,
+    // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
+    // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
+    // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.
+    // **사용자 화면에는 안 나간다.** 나중에 "무엇을 보고 그렇게 판단했나"(거버넌스·자가학습)가
+    // 여기서 답해질 자리를 지금 막지 않으려는 것이다.
+    contextShown: workingStateFacts(workingState),
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
     connectionNeeded,
     // P6-11: 승인된 send 실행 사실 — 서버가 학습(TaskTrace·DefaultTarget 후보)에 쓴다.
