@@ -26,7 +26,7 @@ const FORGET_AFTER_TURNS = 8;
 export const MAX_FACTS_CHARS = 1200;
 
 /** 그 페이지에서 이어갈 수 있는 **같은 사이트 안의 길**만. 광고·외부 링크는 길이 아니다. */
-function sameSiteLinks(pageUrl, links = []) {
+export function sameSiteLinks(pageUrl, links = []) {
   let host;
   try { host = new URL(pageUrl).hostname; } catch { return []; }
   const out = [];

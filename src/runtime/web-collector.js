@@ -190,7 +190,13 @@ export function makeWebCollector(deps = {}) {
       const excerpt = description || markdown.slice(0, 500); // 출처 근거용 짧은 발췌
       const source = makeSourceEvidence({ sourceUrl: res.url || url, title, excerpt, confidence: 0.6, now: now?.() });
       return {
-        result: { title, excerpt, description, markdown, blocks, links, ...(foundVia ? { foundVia } : {}) },
+        result: {
+          title, excerpt, description, markdown, blocks, links,
+          // P2-9: **사후 기록**이다 — 발화에서 예측한 분류가 아니라 실제로 무엇을 했는가.
+          // 둘이면 충분하다. 큰 분류 체계(routeKind 11개)는 만들지 않는다(§24 · 절대원칙 8).
+          surfaceAction: foundVia ? 'search_then_read' : 'read_url',
+          ...(foundVia ? { foundVia } : {}),
+        },
         sources: [source],
         // 찾아서 읽었으면 "찾아서 읽었다"고 말한다 — 검색만 하고 아는 척하지 않는다.
         userSafeSummary: foundVia

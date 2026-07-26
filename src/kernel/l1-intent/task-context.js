@@ -2,6 +2,7 @@
 // 계약들이 모델에게 전달되는 최종 형태. "사실·경계"를 주고 "판단·문장"은 모델에 남긴다.
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
 import { selfStateSummary } from '../l0-evidence/self-state.js';
+import { sameSiteLinks } from '../l0-evidence/working-state.js';
 
 /**
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
@@ -15,18 +16,38 @@ export function compactResult(result, maxChars = 1200) {
 }
 
 /**
- * 이 결과를 **어떻게** 얻었는가. 주소를 직접 받아 읽었으면 출처가 곧 그 주소이므로 아무 것도 만들지
- * 않는다(군더더기 금지). 검색해서 찾은 경우에만 "찾아서 읽었다"는 사실과 안 읽은 후보를 남긴다.
+ * P2-9 · 외부 표면 상태 — **무엇을 요청했고, 무엇을 읽었고, 무엇을 못 읽었는가.**
+ *
+ * 큰 분류 체계를 만들지 않는다(routeKind 11개·surfaceType 12개 금지 — 발화에서 예측하는 분류기는
+ * 오늘 걷어낸 것과 같은 병이다). `surfaceAction` 은 **실제로 한 일**의 사후 기록 하나뿐이다.
+ *
+ * **못 읽은 것은 실패가 아니다.** failureState 는 그대로 'none' 이다 — 페이지는 읽었다.
+ * 왜 더 못 읽었는지는 `web.collect` 의 **능력 문장**이 말한다(브라우저로 열어 버튼·탭·스크롤을
+ * 다루는 손이 없다). 능력 부재를 실패로 기록하면 T5 가 "막혔다"고 말하게 되고, 그건
+ * P2-8 에서 고친 것과 정면으로 충돌한다.
  */
-export function provenanceOf(receipt) {
-  const via = receipt?.result?.foundVia;
-  if (!via?.query) return undefined;
-  const readUrl = receipt?.sources?.[0]?.sourceUrl;
-  const others = (via.candidates ?? [])
-    .map((c) => (typeof c === 'string' ? c : c?.url))
-    .filter((u) => u && u !== readUrl)
-    .slice(0, 4);
-  return { sought: via.query, readUrl, others };
+export function surfaceOf(receipt) {
+  if (receipt?.actualCall?.tool !== 'web.collect') return undefined;
+  if ((receipt.failureState ?? 'none') !== 'none') return undefined; // 실패는 여기서 말하지 않는다
+  const read = receipt.sources?.[0];
+  if (!read?.sourceUrl) return undefined;
+  const via = receipt.result?.foundVia;
+  const pick = (c) => (typeof c === 'string' ? c : c?.url);
+  return {
+    action: receipt.result?.surfaceAction ?? (via ? 'search_then_read' : 'read_url'),
+    requested: via?.query ?? receipt.actualCall?.args?.request,
+    read: {
+      url: read.sourceUrl,
+      title: read.title || receipt.result?.title,
+      chars: (receipt.result?.markdown ?? '').length, // 얼마나 읽었는지 — "보이는 만큼"의 근거
+    },
+    notRead: {
+      // 그 사이트 안에 있는데 열지 않은 곳 = **다음에 갈 수 있는 경로**
+      onPage: sameSiteLinks(read.sourceUrl, receipt.result?.links),
+      // 검색이 준 다른 후보. 찾던 곳이 여기 없으면 **검색이 못 찾은 것**이지 막힌 게 아니다.
+      fromSearch: (via?.candidates ?? []).map(pick).filter((u) => u && u !== read.sourceUrl).slice(0, 4),
+    },
+  };
 }
 
 /** 지금 시각·시간대·지역 — OS 가 아는 사실. 모델이 "오늘"을 알아야 오늘 일을 할 수 있다. */
@@ -127,7 +148,7 @@ export function buildTaskContext(p) {
       // 알고 이유를 몰라 "검색 수집이 제한돼서"라고 **추측**했다 — 우리가 안 알려줬기 때문이다.
       // 불일치 탐지기(토큰 휴리스틱)를 만들지 않는다. 그건 다음에 또 어긋난다(절대원칙 8).
       // 사실만 준다: 무엇을 찾으려 했고, 무엇을 읽었고, 안 읽은 후보가 무엇인가. 판단은 모델이 한다(§24).
-      provenance: provenanceOf(r),
+      surface: surfaceOf(r),
       summary: r.userSafeSummary, // diagnosticTrace 는 절대 넣지 않는다
       // 결과의 **알맹이**도 준다. 요약만 주면 모델이 "목록을 붙여달라"고 되묻는다(실측: 파일 목록을
       // 실제로 읽어 놓고 "도구가 없어 못 본다"고 답했다). 진단면은 여전히 안 넣는다.

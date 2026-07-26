@@ -37,6 +37,29 @@ export class ModelProviderError extends Error {
  * @param {import('../kernel/contracts.js').TaskContextPacket} tc
  * @returns {{system:string, user:string}}
  */
+/**
+ * P2-9 · 외부 표면에서 **무엇을 읽었고 무엇을 못 읽었는가**를 사실로 준다.
+ * 지시가 아니라 사실이다 — "브라우저가 없으니 이렇게 말해라"가 아니라, 읽은 범위와 안 읽은 곳을
+ * 놓는다. 왜 더 못 읽는지는 도구의 **능력 문장**이 이미 말하고 있다(§24: 판단은 모델이).
+ */
+function surfaceLines(s) {
+  const out = [];
+  if (s.action === 'search_then_read') {
+    // 실측: 모델이 검색으로 찾은 블로그를 "사용자가 준 글"이라고 말했다 → 먼저 못 박는다.
+    out.push(`이건 사용자가 준 주소가 아니에요. "${s.requested}"로 검색해서 나온 것 중 하나를 읽었어요.`);
+  }
+  out.push(`읽은 곳: ${s.read.url}${s.read.chars ? ` (본문 ${s.read.chars}자)` : ''}`);
+  if (s.action === 'search_then_read') {
+    // 후보 목록이 **전부**라는 사실. 이게 없으면 모델이 "수집이 제한돼서"라고 이유를 지어낸다(실측).
+    out.push(`검색이 준 나머지 후보(이게 전부예요): ${s.notRead.fromSearch.length ? s.notRead.fromSearch.join(' , ') : '없음'}`);
+    out.push('찾던 곳이 이 목록에 없으면 검색이 그걸 못 찾은 거예요(막힌 게 아니에요). 주소를 받으면 바로 읽을 수 있어요.');
+  }
+  if (s.notRead.onPage.length) {
+    out.push(`그 페이지에서 아직 안 연 곳: ${s.notRead.onPage.join(' , ')}`);
+  }
+  return `\n  ${out.join('\n  ')}`;
+}
+
 export function buildModelMessages(tc) {
   const sys = [];
   const sf = tc.selfStateFacts ?? {};
@@ -92,15 +115,7 @@ export function buildModelMessages(tc) {
       .map((f) => `- ${f.summary}${f.failureState !== 'none' ? ` (미확인: ${f.failureState})` : ''}`
         // P2-8: 검색으로 찾아 읽은 경우, **요청한 것과 읽은 것이 같지 않을 수 있다**는 사실을 준다.
         // 이걸 안 주면 모델이 이유를 추측한다(실측: "검색 수집이 제한돼서" — 그런 일 없었다).
-        + (f.provenance
-          // "사용자가 준 주소가 아니다"를 먼저 못 박는다 — 실측에서 모델이 검색으로 찾은 블로그를
-          // "사용자가 준 글"이라고 말했다. 그리고 **후보 목록이 전부라는 사실**을 준다: 원하던 곳이
-          // 목록에 없으면 검색이 못 찾은 것이지 막힌 게 아니다(모델이 "제한돼서"라고 지어냈다).
-          ? `\n  이건 사용자가 준 주소가 아니에요. "${f.provenance.sought}"로 검색해서 나온 것 중 하나를 읽었어요.`
-            + `\n  읽은 곳: ${f.provenance.readUrl}`
-            + `\n  검색이 준 나머지 후보(이게 전부예요): ${f.provenance.others.length ? f.provenance.others.join(' , ') : '없음'}`
-            + '\n  찾던 곳이 이 목록에 없으면 검색이 그걸 못 찾은 거예요(막힌 게 아니에요). 주소를 받으면 바로 읽을 수 있어요.'
-          : '')
+        + (f.surface ? surfaceLines(f.surface) : '')
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }
