@@ -65,7 +65,11 @@ const OPENAI_WIRE = {
   body: (cfg, m) => JSON.stringify({
     model: cfg.modelId,
     max_tokens: cfg.maxTokens,
-    messages: [{ role: 'system', content: m.system }, { role: 'user', content: m.user }],
+    // 일부 호환 서버는 user/assistant 만 허용(beai V1 실측 2026-07-26). 그 경우 system 사실을
+    // user 턴 앞에 합쳐 보낸다 — 사실 전달은 유지, 셰이프만 서버 제약에 맞춘다.
+    messages: cfg.noSystemRole
+      ? [{ role: 'user', content: `${m.system}\n\n${m.user}` }]
+      : [{ role: 'system', content: m.system }, { role: 'user', content: m.user }],
   }),
   extract: (json) => json?.choices?.[0]?.message?.content,
   errorSignal: (status, json) =>
@@ -101,6 +105,14 @@ export const MODEL_PROVIDERS = {
   openai_oauth: { ...OPENAI_WIRE, defaultModel: 'gpt-5.1', envKey: 'OPENAI_OAUTH_ACCESS_TOKEN' },
   // 오픈소스/기타 모델(Ollama·vLLM·LM Studio 등) — baseUrl·modelId 필수, 토큰 선택.
   openai_compatible: { ...OPENAI_WIRE, defaultModel: undefined, defaultBase: undefined, envKey: 'GPAO_T5_MODEL_API_KEY' },
+  // 자사 beai V1(chat.beai.kr) — OpenAI-호환 와이어, 단 user/assistant 만 허용(라이브 실측).
+  beai: {
+    ...OPENAI_WIRE,
+    defaultModel: 'beai-8.6',
+    defaultBase: 'https://chat.beai.kr/api/external/v1',
+    envKey: 'BEAI_API_KEY',
+    noSystemRole: true,
+  },
   gemini: {
     // 안정 별칭 — 버전 고정은 "신규 사용자에게 미제공" 404 로 낡는다(2026-07-26 라이브 실측: 2.5-flash 가 그랬다)
     defaultModel: 'gemini-flash-latest',
@@ -138,6 +150,7 @@ export function resolveModelConfig(env = {}) {
     if (env.ANTHROPIC_API_KEY) provider = 'anthropic';
     else if (env.OPENAI_API_KEY) provider = 'openai';
     else if (env.GEMINI_API_KEY) provider = 'gemini';
+    else if (env.BEAI_API_KEY) provider = 'beai';
     else if (env.OPENAI_OAUTH_ACCESS_TOKEN) provider = 'openai_oauth';
     else if (env.GPAO_T5_MODEL_BASE_URL) provider = 'openai_compatible';
     else return null;
@@ -156,6 +169,8 @@ export function resolveModelConfig(env = {}) {
     modelId,
     baseUrl,
     maxTokens: Number(env.GPAO_T5_MODEL_MAX_TOKENS ?? DEFAULT_MAX_TOKENS),
+    // 서버가 system role 을 거부하는 경우(beai 등) — spec 선언 또는 호환 서버용 env 스위치.
+    noSystemRole: Boolean(spec.noSystemRole) || env.GPAO_T5_MODEL_NO_SYSTEM_ROLE === '1',
   };
 }
 

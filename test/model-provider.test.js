@@ -113,6 +113,35 @@ test('openai_compatible: 지정 baseUrl 로 가고, 토큰 없으면 authorizati
   assert.equal(calls[0].init.headers.authorization, undefined);
 });
 
+test('beai 와이어: 자사 V1 — Bearer + user/assistant 만(system 사실은 user 턴에 합침)', async () => {
+  const { impl, calls } = fakeFetch(200, { choices: [{ message: { content: '안녕하세요' } }] });
+  const cfg = resolveModelConfig({ BEAI_API_KEY: 'beai_sk_x' });
+  assert.equal(cfg.provider, 'beai');
+  assert.equal(cfg.modelId, 'beai-8.6');
+  const reply = await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC);
+  assert.equal(reply, '안녕하세요');
+  const { url, init } = calls[0];
+  assert.equal(url, 'https://chat.beai.kr/api/external/v1/chat/completions');
+  assert.equal(init.headers.authorization, 'Bearer beai_sk_x');
+  const body = JSON.parse(init.body);
+  assert.equal(body.messages.length, 1);                       // system role 없음(V1 제약 실측)
+  assert.equal(body.messages[0].role, 'user');
+  assert.ok(body.messages[0].content.includes('slack.post'));  // system 사실이 user 턴에 실려 간다
+  assert.ok(body.messages[0].content.includes('내일 회의 준비 도와줘'));
+});
+
+test('openai_compatible: GPAO_T5_MODEL_NO_SYSTEM_ROLE=1 이면 같은 방식으로 합친다(일반형)', async () => {
+  const { impl, calls } = fakeFetch(200, { choices: [{ message: { content: 'ok' } }] });
+  const cfg = resolveModelConfig({
+    GPAO_T5_MODEL_BASE_URL: 'http://localhost:11434/v1', GPAO_T5_MODEL_ID: 'llama3.3',
+    GPAO_T5_MODEL_NO_SYSTEM_ROLE: '1',
+  });
+  await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC);
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.messages.length, 1);
+  assert.equal(body.messages[0].role, 'user');
+});
+
 test('gemini 와이어: :generateContent + x-goog-api-key, parts 추출', async () => {
   const { impl, calls } = fakeFetch(200, { candidates: [{ content: { parts: [{ text: '알겠' }, { text: '어요' }] } }] });
   const cfg = resolveModelConfig({ GEMINI_API_KEY: 'g-1' });

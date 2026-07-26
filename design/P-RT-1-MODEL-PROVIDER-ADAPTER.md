@@ -25,6 +25,10 @@
 | `openai_oauth` | 위와 동일 와이어, 토큰만 OAuth access token | `OPENAI_OAUTH_ACCESS_TOKEN` | `gpt-5.1` |
 | `gemini` | `POST /v1beta/models/{id}:generateContent` (x-goog-api-key) | `GEMINI_API_KEY` | `gemini-2.5-flash` |
 | `openai_compatible` | OpenAI 와이어 + `GPAO_T5_MODEL_BASE_URL` (예: Ollama `http://localhost:11434/v1`) | 토큰 선택(로컬 서버는 무자격 허용) | 없음 — `GPAO_T5_MODEL_ID` 필수 |
+| `beai` | 자사 V1 `chat.beai.kr/api/external/v1` — OpenAI 와이어, 단 **user/assistant만 허용**(실측) → system 사실을 user 턴에 합침(`noSystemRole`) | `BEAI_API_KEY` | `beai-8.6` |
+
+`noSystemRole`은 beai 전용이 아닌 일반 플래그다 — system role 없는 호환 서버는
+`GPAO_T5_MODEL_NO_SYSTEM_ROLE=1`로 같은 경로를 탄다.
 
 - env: `GPAO_T5_MODEL_PROVIDER`(명시) / 미지정 시 자격 유무로 추론(anthropic→openai→gemini→oauth→base_url 순).
   `GPAO_T5_MODEL_ID`·`GPAO_T5_MODEL_BASE_URL`·`GPAO_T5_MODEL_HTTP_TIMEOUT_MS`(기본 25s) 오버라이드.
