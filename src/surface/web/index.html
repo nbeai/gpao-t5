@@ -1034,7 +1034,24 @@ async function streamTurn(t, trace) {
         recovery = { text: '처리 중 잠시 멈췄어요.', nextSafeAction: '잠시 후 다시 시도할까요?' };
       }
     });
-    es.addEventListener('complete', () => { done = true; es.close(); resolve(recovery); });
+    // P-STR-1: 답변 조각을 오는 대로 그린다(미리보기). 완료되면 지속된 결과로 **교체**한다 —
+    // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
+    let preview = null;
+    es.addEventListener('answer_delta', (e) => {
+      try {
+        const { text: piece } = JSON.parse(e.data);
+        if (!piece) return;
+        if (!preview) {
+          trace.textContent = '';
+          preview = document.createElement('div');
+          preview.className = 'msg';
+          trace.parentNode.insertBefore(preview, trace);
+        }
+        preview.textContent += piece;
+        wrap.scrollTop = wrap.scrollHeight; // 흐르는 동안 따라 내려간다
+      } catch {}
+    });
+    es.addEventListener('complete', () => { done = true; preview?.remove(); es.close(); resolve(recovery); });
     es.onerror = () => { es.close(); done ? resolve() : reject(new Error('stream')); };
   });
 }

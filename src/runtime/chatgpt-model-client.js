@@ -16,23 +16,63 @@ export const CHATGPT_DEFAULT_MODEL = 'gpt-5.5';
 // 느린 모델을 죽이는 게 아니다. 넉넉히 잡되 무한은 아니게 한다(스트림 heartbeat 가 대기를 지탱).
 const DEFAULT_TIMEOUT_MS = 150_000;
 
-/** SSE 스트림에서 최종 텍스트만 누적한다(사용자면엔 완성문만 — 사고 원문 미노출). */
+/** SSE 한 줄에서 사용자면 텍스트 조각만 뽑는다(사고 원문·도구 인자는 절대 흘리지 않는다, §6.12). */
+export function textDeltaFromLine(line, { allowCompleted = true } = {}) {
+  if (!line.startsWith('data:')) return null;
+  const payload = line.slice(5).trim();
+  if (!payload || payload === '[DONE]') return null;
+  let ev;
+  try { ev = JSON.parse(payload); } catch { return null; }
+  if (ev.type === 'response.output_text.delta' && typeof ev.delta === 'string') return ev.delta;
+  if (allowCompleted && ev.type === 'response.completed') {
+    // 델타를 못 준 응답의 폴백(완성본에서 텍스트만).
+    const text = ev.response?.output
+      ?.flatMap((o) => o.content ?? [])
+      ?.filter((c) => c.type === 'output_text')
+      ?.map((c) => c.text)
+      ?.join('');
+    return text || null;
+  }
+  return null;
+}
+
+/** 전체 SSE 본문에서 최종 텍스트를 누적한다(비스트리밍 경로·테스트용). */
 export function accumulateResponsesText(raw) {
   const out = [];
+  let sawDelta = false;
   for (const line of raw.split('\n')) {
-    if (!line.startsWith('data:')) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    let ev;
-    try { ev = JSON.parse(payload); } catch { continue; }
-    if (ev.type === 'response.output_text.delta' && typeof ev.delta === 'string') out.push(ev.delta);
-    else if (ev.type === 'response.completed' && !out.length) {
-      const text = ev.response?.output
-        ?.flatMap((o) => o.content ?? [])
-        ?.filter((c) => c.type === 'output_text')
-        ?.map((c) => c.text)
-        ?.join('');
-      if (text) out.push(text);
+    const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
+    if (piece == null) continue;
+    if (line.includes('output_text.delta')) sawDelta = true;
+    out.push(piece);
+  }
+  return out.join('');
+}
+
+/**
+ * 스트림 본문을 줄 단위로 읽으며 텍스트 조각을 흘린다(P-STR-1).
+ * 조각은 **화면용 미리보기**다 — 저장하지 않는다. 최종 텍스트는 반환값이 진실.
+ * @param {ReadableStream|null} body @param {(t:string)=>void} [onDelta]
+ */
+export async function readTextStream(body, onDelta) {
+  if (!body?.getReader) return '';
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let sawDelta = false;
+  const out = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? ''; // 마지막 조각은 미완일 수 있다 — 다음 청크와 이어 붙인다
+    for (const line of lines) {
+      const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
+      if (piece == null) continue;
+      if (line.includes('output_text.delta')) sawDelta = true;
+      out.push(piece);
+      try { onDelta?.(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
     }
   }
   return out.join('');
@@ -48,13 +88,14 @@ export function makeChatGptModelClient(deps) {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const modelId = deps.modelId ?? CHATGPT_DEFAULT_MODEL;
   return {
-    async respond(tc) {
+    /** @param {*} tc @param {{onDelta?:(t:string)=>void}} [opts] 조각은 화면용 미리보기(저장 안 함) */
+    async respond(tc, opts = {}) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
       const controller = new AbortController();
-      let status, raw;
+      let status, raw, whole;
       try {
-        ({ status, raw } = await withTimeout(async () => {
+        ({ status, raw, whole } = await withTimeout(async () => {
           const r = await fetchImpl(CHATGPT_BACKEND_URL, {
             method: 'POST',
             headers: {
@@ -72,7 +113,12 @@ export function makeChatGptModelClient(deps) {
             }),
             signal: controller.signal,
           });
-          return { status: r.status, raw: await r.text() };
+          // 성공이면 **읽으면서 흘린다**(다 모으고 넘기지 않는다 — 체감 지연의 원인이었다).
+          // 실패면 진단을 위해 본문을 통째로 읽는다(짧다).
+          if (r.status >= 200 && r.status < 300 && r.body?.getReader) {
+            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta) };
+          }
+          return { status: r.status, raw: await r.text(), whole: true };
         }, timeoutMs, controller));
       } catch (e) {
         if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs);
@@ -88,7 +134,8 @@ export function makeChatGptModelClient(deps) {
           authSignal: `${modelRejected ? 'model_missing ' : ''}${status} ${raw.slice(0, 300)}`,
         });
       }
-      const text = accumulateResponsesText(raw);
+      // 스트리밍 경로면 raw 가 이미 누적된 텍스트다. 통째로 읽은 경우(테스트·비스트림 응답)만 파싱.
+      const text = whole ? accumulateResponsesText(raw) : raw;
       if (!text) throw new ModelProviderError({ provider: 'chatgpt_oauth', status, authSignal: 'empty response stream' });
       return text;
     },

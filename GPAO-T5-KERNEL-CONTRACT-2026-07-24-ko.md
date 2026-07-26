@@ -98,6 +98,10 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-STR-1 반영(근거: `P-STR-1-ANSWER-STREAMING`, 오너 실계정 체감 실측): §6.29 Answer Streaming —
+  ModelClient 계약에 `respond(tc,{onDelta})` 를 더해 답변 조각을 화면으로 흘린다. **조각은 durable 에
+  남기지 않는다**(토큰마다 EventLog append 는 §6.21 후속의 무한 성장을 자초). 진실은 지속된 완성
+  결과 하나. 실측: 첫 글자까지 32.7s → **2.4s**.
 - P-DIST-1 반영(근거: `P-DIST-1-INSTALL-PIPELINE`, 산출물 실행 실측 + 게이트 반대 검증): §6.28
   Install Pipeline & Artifact Gate — T5 가 **처음으로 배포 단계를 통과**했다. bin 진입점·files
   화이트리스트·`GET /health`·`npm run verify:package`(pack→펼침→실행→health→온보딩 도달)를 넣고
@@ -882,6 +886,26 @@ T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(
   나중에 연결해도 첫인사를 영영 못 받음)을 회귀 테스트로 고정.
 - **라이브 실증**: 빈 상태 부팅 → needed=true → 미연결 웰컴은 안내만(표식 안 켜짐) → 실키 연결 →
   needed=false → 모델이 만든 3문장 인사(실제 도구를 근거로, 마지막에 질문).
+
+### 6.29 Answer Streaming (P-STR-1, 구현됨 — 체감 속도, 미리보기는 진실이 아니다)
+
+근거: 오너 실사용 체감("전체가 느리다") → 실측으로 원인 분리. T5 자체 처리 **0.001s**, 짧은 답 1.4s,
+긴 답 23.4s — 느린 건 T5 가 아니라 모델이 긴 답을 쓰는 시간이었다. 그런데 어댑터가 SSE 를 **다 모은
+뒤** 넘겨서 그동안 화면에 글자가 하나도 없었다. `P-STR-1-ANSWER-STREAMING`.
+
+- **계약 확장(일반형)**: `respond(tc, { onDelta })` — 두 번째 인자는 선택. 스트리밍 가능한 어댑터만
+  조각을 흘리고, 못 하는 어댑터는 무시한다(기존 구현 그대로 — 계약 파괴 없음). chatgpt(Codex SSE)와
+  OpenAI 계열(beai·호환 서버 포함)에 증분 파싱 적용. gemini/anthropic 은 단발 유지(계약상 무해).
+- **비지속 미리보기**: 조각은 `/turn/stream` 의 `answer_delta` 로만 나가고 **EventLog·transcript 를
+  건드리지 않는다**. 토큰마다 append 하면 §6.21 후속의 "EventLog 무한 성장"을 우리가 직접 만든다.
+  진실은 지속된 완성 결과 하나이고, UI 는 완료 시 미리보기를 **결과로 교체**한다. 재접속 때 조각은
+  재생되지 않는다(완성 결과가 재생된다 — 손실 아님). OpenClaw 의 delta preview 도 never persisted.
+- **경계**: 사용자면 텍스트 조각만 흘린다 — 모델 사고·도구 인자 이벤트는 걸러낸다(§6.12).
+  조각이 하나도 없으면 빈 답을 성공처럼 돌려주지 않는다. `onDelta` 가 던져도 응답은 안 깨진다.
+  승인·원장·타임아웃 계약 불변(스트리밍은 표시 계층이지 실행 계층이 아니다).
+- **잡은 버그**: `withModelTimeout`·연결 관리자 위임 래퍼가 **두 번째 인자를 삼켜** 스트리밍이 조용히
+  죽었다. 실스트림 테스트가 아니었으면 못 잡았다 — 데코레이터는 인자를 통과시켜야 한다.
+- **실측(오너 실계정, gpt-5.5)**: 같은 질문에서 첫 글자까지 **32.7s → 2.4s**, 전체 32.7s(글자 3021).
 
 ### 6.28 Install Pipeline & Artifact Gate (P-DIST-1, 구현됨 — 산출물이 실제로 실행되는지 검증한다)
 

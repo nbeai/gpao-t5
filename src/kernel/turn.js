@@ -131,7 +131,8 @@ export async function runTurn(input, ctx) {
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
   if (intent.answerMode === 'fast_chat') {
     const tc = buildTaskContext({ intent, selfState, admittedContext: admitted });
-    const reply = await ctx.model.respond(tc);
+    // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
+    const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
     return {
       kind: 'reply',
       reply,
@@ -286,7 +287,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted });
-  const reply = await ctx.model.respond(tc);
+  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
   const projection = projectReceipts(turnReceipts);
 
   return {
