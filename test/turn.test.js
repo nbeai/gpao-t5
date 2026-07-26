@@ -128,7 +128,9 @@ test('턴 응답은 이전 턴 결과를 끌어오지 않는다(원장 누출 �
     }),
   });
   await runTurn({ text: '뉴스 조사해줘' }, c);              // 첫 턴: web.collect
-  const r2 = await runTurn({ text: '이 폴더 파일 정리해줘' }, c); // 둘째 턴: local.file
+  // "정리해줘"는 무엇을 하라는 건지 자체가 애매해 이제 되묻는다(감사 blocker: 못 알아들은 말을
+  // list 로 흘려 엉뚱한 일을 하고 성공으로 기록했다). 이 테스트의 주제는 원장 격리이므로 분명한 말로.
+  const r2 = await runTurn({ text: '이 폴더 파일 목록 정리해줘' }, c); // 둘째 턴: local.file(목록)
   // 둘째 턴 응답에 첫 턴의 "첫 턴 확인" 이 섞이면 안 된다.
   assert.ok(!r2.ledger.confirmed.some((s) => s.includes('첫 턴')), '이전 턴 결과 비혼입');
   assert.ok(r2.ledger.confirmed.some((s) => s.includes('둘째 턴')));

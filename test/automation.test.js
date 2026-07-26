@@ -186,14 +186,14 @@ test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async (
 test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 정리해줘' })).json();
+    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
     assert.ok(r.automationSuggestion, '반복 신호 → 제안 카드');
     assert.ok(r.automationSuggestion.candidateId, 'UI 승인용 candidateId');
     assert.ok(r.automationSuggestion.action?.tool, '실행할 action 도구');
     const view = await getj(base, '/automation');
     assert.equal(view.candidates.length, 1, '후보로 저장됨(자동 승인 아님)');
     // 같은 발화 재입력 → 중복 제안 안 함
-    const r2 = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 정리해줘' })).json();
+    const r2 = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
     assert.equal(r2.automationSuggestion, undefined, '이미 제안한 것은 다시 제안하지 않는다');
     assert.equal((await getj(base, '/automation')).candidates.length, 1);
   });
@@ -203,7 +203,7 @@ test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', 
 test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 정리해줘' })).json();
+    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
     const candidateId = r.automationSuggestion.candidateId;
     const appr = await (await post(base, '/automation/approve', { candidateId })).json();
     assert.equal(appr.ok, true);

@@ -33,6 +33,9 @@ export function interpret(currentRequest, opts = {}) {
   else if (A2_SIGNALS.test(trimmed)) authorityBoundary = TIER.A2;
 
   // 확인 필요: 짧고 지시대상이 대명사뿐인데 행동을 요구 → 실행 전 멈추고 묻는다(절대원칙 5).
+  // 도구 후보는 한 번만 뽑는다(두 번 부르면 두 진실이 생긴다).
+  const tools = looksActionable ? inferTools(trimmed, opts.selfState) : undefined;
+
   const isShort = trimmed.length <= 12;
   const needsClarification = looksActionable && isShort && VAGUE_REF.test(trimmed);
 
@@ -42,23 +45,31 @@ export function interpret(currentRequest, opts = {}) {
     authorityBoundary,
     answerMode,
     needsClarification,
-    neededTools: looksActionable ? inferTools(trimmed) : undefined,
+    neededTools: tools,
     // Phase 0-1: 파일 작업 종류를 여기서 정해 계획이 **작업별 권한**을 판정하게 한다.
     // 도구 단위로 kind 를 고정하면 같은 도구의 삭제가 organize 로 새어 승인을 건너뛴다(실사용에서 확인).
-    fileOp: looksActionable && inferTools(trimmed)?.includes('local.file')
-      ? parseFileRequest(trimmed) : undefined,
+    fileOp: tools?.includes('local.file') ? parseFileRequest(trimmed) : undefined,
   };
 }
 
 /**
  * 필요한 도구 후보(범주 신호). 실행 가능 판정은 SelfState 가 한다.
+ * **이 환경에 아예 없는 도구는 후보로 올리지 않는다** — 올리면 "연결이 필요해요 / [연결 화면 열기]"
+ * 라는 죽은 버튼이 뜬다(연결할 대상이 존재하지 않으므로 거짓 안내다). 연결이 안 된 것과 아예 없는
+ * 것은 다르다: 전자는 안내해야 하고 후자는 능력이 없다고 말해야 한다.
  * @param {string} t
+ * @param {import('../contracts.js').SelfStateSnapshot} [selfState]
  */
-function inferTools(t) {
+function inferTools(t, selfState) {
+  const known = selfState?.connectedTools;
+  const exists = (id) => !known || known.some((x) => x.id === id);
   const tools = [];
   if (/메일|이메일/.test(t)) tools.push('mail.send');
   if (/슬랙|slack/i.test(t)) tools.push('slack.post');
-  if (/파일|폴더|정리|이동|옮겨|\.md|\.txt|\.csv|저장해|적어|메모|되돌려|복구|취소해/.test(t)) tools.push('local.file');
+  // 파일 도구는 **파일·폴더가 명시될 때만**. "정리해줘" 같은 일반어로 부르면 엉뚱한 도구가 돈다
+  // (실사용: "AI 뉴스 조사해서 정리해줘"에 파일 도구가 돌아 원장에 "그 폴더는 비어 있어요"가 남았다).
+  if (/파일|폴더|\.md|\.txt|\.csv|메모|되돌려|복구|취소해|저장해 ?줘/.test(t)) tools.push('local.file');
   if (/조사|검색|수집|가져와|불러와|뉴스|환율/.test(t)) tools.push('web.collect');
-  return tools.length ? tools : undefined;
+  const present = tools.filter(exists);
+  return present.length ? present : undefined;
 }

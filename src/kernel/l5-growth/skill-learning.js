@@ -125,3 +125,49 @@ export function canInfluence(sk) {
 export function canAutoExecute() {
   return false;
 }
+
+// ── 소비 지점: 승격된 스킬이 실제로 대화를 바꾼다 (Phase 0-4) ──
+//
+// 이전까지 canInfluence 는 **화면 표시에만** 쓰였다. 감지→후보→replay→승인→admitted 를 다 거쳐도
+// 대화는 그대로였다 — 상태 기계만 있고 효과가 없었다. 계획서 v3.0 Phase 7 이 규정한 효과는
+// "다음 같은 요청에서 **질문이 줄어든다**"이다. 여기가 그 지점이다.
+//
+// 경계(불변): 스킬은 **영향만** 준다. 외부 행동은 여전히 AuthorityGrant(A2)를 받는다 —
+// canAutoExecute() 는 계속 false 다. 스킬이 승인 게이트를 우회하지 못한다.
+
+/** 발화가 이 스킬의 트리거와 맞는가(보수적 — 애매하면 안 맞다고 본다). */
+function triggerMatches(trigger, text) {
+  const t = String(text ?? '').trim();
+  const trig = String(trigger ?? '').trim();
+  if (!t || trig.length < 2) return false;
+  if (t.includes(trig) || trig.includes(t)) return true;
+  // 트리거의 핵심 낱말이 충분히 겹치면 같은 일로 본다.
+  const words = trig.split(/\s+/).filter((w) => w.length >= 2);
+  if (!words.length) return false;
+  const hit = words.filter((w) => t.includes(w)).length;
+  return hit / words.length >= 0.6;
+}
+
+/**
+ * 이번 발화에 쓸 수 있는 승격된 스킬을 찾는다. **admitted + 확인 + replay 통과만**(canInfluence).
+ * @param {Array<Object>} skills @param {string} text
+ * @returns {Object|null}
+ */
+export function applicableSkill(skills, text) {
+  return (skills ?? []).find((sk) => canInfluence(sk) && triggerMatches(sk.trigger, text)) ?? null;
+}
+
+/**
+ * 스킬이 계획에 주는 영향(사실만). 도구를 정해 주므로 "무엇으로 할까요"를 다시 묻지 않는다.
+ * 실행 권한은 건드리지 않는다 — tool 이 외부 전송이면 그대로 A2 를 받는다.
+ * @param {Object|null} sk
+ */
+export function skillInfluence(sk) {
+  if (!sk || !canInfluence(sk)) return null;
+  return {
+    skillId: sk.id,
+    label: sk.label,
+    tool: sk.tool ?? null,          // 계획이 쓸 도구(승인 경계는 도구 종류가 정한다)
+    steps: sk.steps ?? [],          // 모델에게 줄 "지난번엔 이렇게 했다" 사실
+  };
+}

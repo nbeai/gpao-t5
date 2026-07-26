@@ -17,6 +17,8 @@ const TRIGGERS = new Set(['mention', 'allowlisted', 'direct_message', 'dedup_new
  * @property {'user_chat'|'external_channel'|'automation_trigger'|'trusted_runtime_event'} source
  * @property {string} [text]               이벤트 발화(채널 정규화 시)
  * @property {string[]} [triggerSignals]  결정적 신호(mention/allowlisted/direct_message/dedup_new)
+ * @property {'mention_required'|'dm_open'|'allowlist_only'} [channelPolicy]  채널이 선언한 수신 정책
+ * @property {boolean} [channelConnected]  채널 자격이 실제로 있는가(없으면 응답하지 않는다)
  * @property {boolean} [keepAsContext]     트리거 없을 때 맥락 backfill을 허용할지
  * @property {{channel?:string, chatId?:string, userId?:string}} [channelMeta]  채널 출처(정규화 시)
  */
@@ -38,6 +40,9 @@ export function normalizeInboundEvent(msg = {}) {
     source: 'external_channel',
     text: msg.text,
     triggerSignals,
+    // Phase 0-5: 채널 정책·연결 상태를 이벤트에 실어 게이트가 실제로 소비하게 한다.
+    channelPolicy: msg.inboundPolicy,
+    channelConnected: msg.connected,
     channelMeta: { channel: msg.channel, chatId: msg.chatId, userId: msg.userId },
   };
 }
@@ -69,8 +74,28 @@ export function admitInboundEvent(event) {
   }
 
   const signals = (event?.triggerSignals ?? []).filter((s) => TRIGGERS.has(s));
+
+  // Phase 0-5: **채널 정책을 실제로 소비한다.** 이전에는 inboundPolicy 가 선언만 되고 판정에 안 쓰여
+  //   allowlist_only 채널도 mention 하나로 열렸다(정책이 장식이었다).
+  //   · allowlist_only — 허용된 발신자만. mention 이어도 목록 밖이면 처리하지 않는다.
+  //   · mention_required — 부르거나 DM 이어야 한다(기본).
+  //   · dm_open — DM 은 부르지 않아도 받는다.
+  //   미등록·미연결 채널은 여기 오기 전에 서버가 막지만, 커널도 스스로 판단한다(이중 방어).
+  const policy = event?.channelPolicy ?? 'mention_required';
+  if (source === 'external_channel') {
+    if (event?.channelConnected === false) {
+      return { source, disposition: 'ignore', admittedAsContext: false, diagnosticReason: { reason: 'channel_not_connected' } };
+    }
+    if (policy === 'allowlist_only' && !signals.includes('allowlisted')) {
+      return { source, disposition: 'ignore', admittedAsContext: false, diagnosticReason: { reason: 'sender_not_allowlisted', policy } };
+    }
+    if (policy === 'dm_open' && signals.includes('direct_message')) {
+      return { source, disposition: 'respond', admittedAsContext: false, diagnosticReason: { signals, policy } };
+    }
+  }
+
   if (signals.length) {
-    return { source, disposition: 'respond', admittedAsContext: false, diagnosticReason: { signals } };
+    return { source, disposition: 'respond', admittedAsContext: false, diagnosticReason: { signals, policy } };
   }
 
   // 트리거 없음: 맥락으로만 backfill하거나 조용히 무시. 어느 쪽이든 사용자 설명문 없음.

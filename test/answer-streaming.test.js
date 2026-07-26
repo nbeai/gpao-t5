@@ -76,7 +76,7 @@ test('ChatGPT 어댑터: onDelta 를 주면 흘리고, 안 주면 기존처럼 �
   assert.equal(await client.respond(TC), '안녕하세요'); // onDelta 없이도 동일(계약 파괴 없음)
 });
 
-test('OpenAI 계열 어댑터(beai·호환 서버 포함): stream:true 로 요청하고 delta.content 를 흘린다', async () => {
+test('OpenAI 계열 어댑터(호환 서버·OpenAI): stream:true 로 요청하고 delta.content 를 흘린다', async () => {
   const calls = [];
   const lines = [
     'data: {"choices":[{"delta":{"content":"실"}}]}\n',
@@ -87,7 +87,7 @@ test('OpenAI 계열 어댑터(beai·호환 서버 포함): stream:true 로 요�
     calls.push({ url, init });
     return { status: 200, body: bodyOf(lines), text: async () => lines.join('') };
   };
-  const cfg = resolveModelConfigFromInput({ provider: 'beai', key: 'k' });
+  const cfg = resolveModelConfigFromInput({ provider: 'openai_compatible', key: 'k', modelId: 'llama3.3', baseUrl: 'http://localhost:11434/v1' });
   const client = makeProviderModelClient(cfg, { fetchImpl });
   const seen = [];
   assert.equal(await client.respond(TC, { onDelta: (t) => seen.push(t) }), '실모델');
@@ -130,12 +130,13 @@ test('실제 스트림 턴: 조각은 화면으로 흐르지만 EventLog(durable
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-str-'));
   const lines = ['data: {"choices":[{"delta":{"content":"흐"}}]}\n', 'data: {"choices":[{"delta":{"content":"른다"}}]}\n', 'data: [DONE]\n'];
   const fetchImpl = async (url) => {
-    if (url.includes('/models')) return { status: 200, json: async () => ({ data: [{ id: 'beai-8.6' }] }) };
+    if (url.includes('/models')) return { status: 200, json: async () => ({ data: [{ id: 'llama3.3' }] }) };
     return { status: 200, body: bodyOf(lines), text: async () => lines.join('') };
   };
   const env = {};
   const mc = makeModelConnection({ env, processEnv: {}, store: new ModelConnectionStore(dir), fetchImpl });
-  await mc.connect({ provider: 'beai', key: 'k' });
+  // beai 는 스트리밍 미지원(실측) — 스트림 계약 검증에는 스트리밍되는 provider 를 쓴다.
+  await mc.connect({ provider: 'openai_compatible', key: 'k', modelId: 'llama3.3', baseUrl: 'http://localhost:11434/v1' });
   const sessionStore = new SessionStore(dir);
   const eventLog = new EventLog(dir);
   const server = makeServer({ store: sessionStore, eventLog, env, model: mc.model, modelConnection: mc });
@@ -165,4 +166,81 @@ test('실제 스트림 턴: 조각은 화면으로 흐르지만 EventLog(durable
     assert.equal(last.role, 'assistant');
     assert.equal(last.result.reply, '흐른다');
   } finally { await new Promise((r) => server.close(r)); }
+});
+
+// ── P0-3: 전 provider 스트리밍 (능력 일관성 — 모델을 바꿔도 체감이 같아야 한다) ──
+test('anthropic: stream:true 로 요청하고 content_block_delta 만 흘린다', async () => {
+  const lines = [
+    'data: {"type":"message_start","message":{"id":"m1"}}\n',
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"안녕"}}\n',
+    'data: {"type":"ping"}\n',
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"하세요"}}\n',
+    'data: {"type":"message_stop"}\n',
+  ];
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { status: 200, body: bodyOf(lines) }; };
+  const cfg = resolveModelConfigFromInput({ provider: 'anthropic', key: 'sk-ant-x' });
+  const seen = [];
+  const text = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: (t) => seen.push(t) });
+  assert.equal(text, '안녕하세요');
+  assert.deepEqual(seen, ['안녕', '하세요'], 'message_start·ping 같은 비텍스트 이벤트는 흘리지 않는다');
+  assert.equal(JSON.parse(calls[0].init.body).stream, true);
+  assert.ok(calls[0].url.endsWith('/v1/messages'));
+});
+
+test('gemini: 별도 엔드포인트(:streamGenerateContent&alt=sse)로 흘린다', async () => {
+  const lines = [
+    'data: {"candidates":[{"content":{"parts":[{"text":"제미"}]}}]}\n',
+    'data: {"candidates":[{"content":{"parts":[{"text":"나이"}]}}]}\n',
+  ];
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { status: 200, body: bodyOf(lines) }; };
+  const cfg = resolveModelConfigFromInput({ provider: 'gemini', key: 'g-1' });
+  const seen = [];
+  const text = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: (t) => seen.push(t) });
+  assert.equal(text, '제미나이');
+  assert.deepEqual(seen, ['제미', '나이']);
+  assert.ok(calls[0].url.includes(':streamGenerateContent'), '단발 엔드포인트로 가면 안 된다');
+  assert.ok(calls[0].url.includes('alt=sse'));
+});
+
+test('능력 일관성: 모든 provider 가 스트리밍하거나, 못 하면 명시적으로 선언돼 있다', async () => {
+  const { MODEL_PROVIDERS } = await import('../src/runtime/model-provider.js');
+  // 실측으로 확인된 미지원(beai V1: 400 "Streaming is not supported")은 streaming:false 로 **명시**한다.
+  // 선언 없이 조용히 빠지면 "왜 이 모델만 느리지?"를 아무도 설명 못 한다.
+  const unclear = Object.entries(MODEL_PROVIDERS)
+    .filter(([, spec]) => (typeof spec.streamBody !== 'function' || typeof spec.streamDelta !== 'function')
+      && spec.streaming !== false)
+    .map(([id]) => id);
+  assert.deepEqual(unclear, [], `스트리밍 여부가 불분명한 provider: ${unclear.join(', ')}`);
+});
+
+test('스트리밍 미지원 provider 는 onDelta 를 줘도 단발로 돈다(켜서 깨뜨리지 않는다)', async () => {
+  // 실사용 사고: beai 에 stream:true 를 보내자 400 으로 **응답 자체가 실패**했다.
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return { status: 200, json: async () => ({ choices: [{ message: { content: '단발 응답' } }] }) };
+  };
+  const cfg = resolveModelConfigFromInput({ provider: 'beai', key: 'k' });
+  const text = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: () => {} });
+  assert.equal(text, '단발 응답');
+  assert.notEqual(bodies[0].stream, true, 'stream 을 켜면 beai V1 은 400 으로 깨진다');
+});
+
+test('onDelta 없이 호출하면 provider 무관하게 단발 경로를 쓴다(계약 파괴 없음)', async () => {
+  for (const [provider, key] of [['anthropic', 'k'], ['gemini', 'k'], ['beai', 'k']]) {
+    const bodies = [];
+    const fetchImpl = async (url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return { status: 200, json: async () => ({
+        content: [{ type: 'text', text: '단발' }],
+        candidates: [{ content: { parts: [{ text: '단발' }] } }],
+        choices: [{ message: { content: '단발' } }],
+      }) };
+    };
+    const cfg = resolveModelConfigFromInput({ provider, key });
+    assert.equal(await makeProviderModelClient(cfg, { fetchImpl }).respond(TC), '단발', provider);
+    assert.notEqual(bodies[0].stream, true, `${provider}: onDelta 없으면 stream 을 켜지 않는다`);
+  }
 });

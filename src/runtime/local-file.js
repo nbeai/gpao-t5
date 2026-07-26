@@ -83,10 +83,19 @@ export function makeLocalFileTool(deps = {}) {
           const list = await loadUndo();
           const last = list.pop();
           if (!last) return fail('되돌릴 작업이 없어요.');
-          await saveUndo(list);
           await mkdir(dirname(last.from), { recursive: true });
+          // **되돌리는 자리에 지금 다른 파일이 있으면 그것부터 휴지통으로.** rename 은 말없이 덮어쓴다 —
+          // move 의 copyFile 은 막아 놓고 undo 의 rename 을 열어 두면 같은 손실이 그대로 난다:
+          // 옮기고 → 사용자가 그 이름으로 새로 쓰고 → 되돌리면 새 내용이 영영 사라졌다(감사에서 실증).
+          const parked = await toTrash(last.from);
           await rename(last.to, last.from);
-          return ok(`${basename(last.from)} 을(를) 되돌렸어요.`, { undone: last.op, path: last.from });
+          await saveUndo(list); // 성공한 뒤에 표에서 지운다(중간에 실패하면 되돌릴 기회가 남아야 한다)
+          return ok(
+            parked
+              ? `${basename(last.from)} 을(를) 되돌렸어요(그 자리에 있던 파일은 휴지통에 있어요).`
+              : `${basename(last.from)} 을(를) 되돌렸어요.`,
+            { undone: last.op, path: last.from, parked: Boolean(parked) },
+          );
         }
 
         const abs = await resolveInScope(target, { roots });
@@ -126,6 +135,17 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'move') {
           const dest = await resolveInScope(args.to ?? '', { roots });
+          // **조용한 덮어쓰기 금지**(P0-1b): 대상이 이미 있으면 막고 확인을 요구한다.
+          // copyFile 은 대상을 말없이 덮어쓰는데, 그러면 undo(대상→원본)로도 대상의 원래 내용은
+          // 영영 사라진다 — 되돌릴 수 없는 손실이다. write 는 휴지통 백업이 있는데 move 만 빠져 있었다.
+          let destExists = false;
+          try { await stat(dest); destExists = true; } catch { /* 없으면 진행 */ }
+          if (destExists) {
+            return fail(
+              `${basename(dest)} 이(가) 이미 있어서 옮기지 않았어요(덮어쓰면 되돌릴 수 없어요).`,
+              '다른 이름으로 옮기거나, 기존 파일을 먼저 지울까요?',
+            );
+          }
           await mkdir(dirname(dest), { recursive: true });
           await copyFile(abs, dest);
           await rm(abs);

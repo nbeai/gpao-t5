@@ -114,11 +114,41 @@ test('timeout 경계: 제한 안에 끝나면 정상 수집', async () => {
   assert.equal(out.result.title, '빠름');
 });
 
-test('URL 없음(검색어 단독)은 이 슬라이스에서 수집 불가(정직)', async () => {
-  const c = makeWebCollector({ fetchImpl: fakeFetch(200, 'x') });
-  const out = await c.handler({ searchQuery: '환율' });
+// Phase 0-2 로 계약이 바뀌었다: 주소가 없으면 **찾아서 실제로 읽는다**(검색만 하고 아는 척 금지).
+test('주소가 없으면 찾아서 읽고, 출처는 실제로 읽은 페이지다', async () => {
+  const search = { search: async () => ({ state: 'ok', provider: 'duckduckgo', providerLabel: '덕덕고',
+    results: [{ title: '한국은행', url: 'https://www.bok.or.kr/rate', snippet: '' }], tried: ['duckduckgo'] }) };
+  // 실제 fetch 는 최종 URL 을 res.url 로 준다 — 가짜도 그렇게 흉내 낸다.
+  const fetched = [];
+  const fetchImpl = async (u) => {
+    fetched.push(u);
+    return { status: 200, url: u, headers: { get: () => 'text/html' }, text: async () => '<title>기준금리</title>본문' };
+  };
+  const c = makeWebCollector({ fetchImpl, search });
+  const out = await c.handler({ query: '한국은행 기준금리' });
+  assert.equal(out.blocked, undefined);
+  assert.deepEqual(fetched, ['https://www.bok.or.kr/rate'], '찾은 페이지를 실제로 읽는다(스니펫으로 때우지 않는다)');
+  assert.equal(out.sources.length, 1);
+  assert.equal(out.sources[0].sourceUrl, 'https://www.bok.or.kr/rate', '실제로 읽은 페이지가 출처다');
+  assert.match(out.userSafeSummary, /찾아서 읽었어요/);
+  assert.equal(out.result.foundVia.provider, '덕덕고');
+});
+
+test('검색 경로가 모두 막히면 정직하게 말하고 대안을 준다(연결 권유는 이때만)', async () => {
+  const search = { search: async () => ({ state: 'unavailable', tried: ['duckduckgo'] }) };
+  const c = makeWebCollector({ fetchImpl: fakeFetch(200, 'x'), search });
+  const out = await c.handler({ query: '요즘 뉴스' });
   assert.equal(out.blocked, true);
-  assert.match(out.userSafeSummary, /URL/);
+  assert.match(out.userSafeSummary, /찾아보지 못했/);
+  assert.ok(out.nextSafeAction.includes('주소'), '지금 할 수 있는 길도 함께 준다');
+});
+
+test('검색이 되는데 연결을 권하지 않는다(오너 지시 — 절대 규칙)', async () => {
+  const search = { search: async () => ({ state: 'ok', provider: 'duckduckgo', providerLabel: '덕덕고',
+    results: [{ title: 'T', url: 'https://a.example/1', snippet: '' }], tried: ['duckduckgo'] }) };
+  const c = makeWebCollector({ fetchImpl: fakeFetch(200, '<title>T</title>본문'), search });
+  const out = await c.handler({ query: '질의' });
+  assert.ok(!JSON.stringify(out).includes('연결하면'), '되는데 설정을 요구하면 안 된다');
 });
 
 test('freeform 요청문에서 URL 추출 → 수집(turn generic {request} 경로)', async () => {

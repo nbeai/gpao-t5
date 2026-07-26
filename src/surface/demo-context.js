@@ -32,10 +32,17 @@ const DESCRIPTORS = [
   defineTool({ id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize' }),
   defineTool({ id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true }),
   defineTool({ id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
+  // 채널 레지스트리가 outboundTool 로 선언하는 도구는 descriptor 도 있어야 한다 — 선언만 있고
+  // 손이 없으면 T5 가 "텔레그램으로 보낸다"고 말해 놓고 못 보낸다(감사 지적, 게이트가 불변식으로 막는다).
+  defineTool({ id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
 ];
-/** 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함). */
-export function demoDescriptors() {
-  return DESCRIPTORS;
+/**
+ * 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함).
+ * @param {{include?:string[]}} [opts] include 를 주면 **그 id 만** 선언한다 — 라이브는 실제 손이 있는
+ *   것만 선언한다(손 없는 선언 = 사용자에게 하는 거짓말).
+ */
+export function demoDescriptors(opts = {}) {
+  return opts.include ? DESCRIPTORS.filter((d) => opts.include.includes(d.id)) : DESCRIPTORS;
 }
 
 // 환경 사실(연결·인증 존재 여부). mail.send는 연결됐으나 발송 인증 미준비 → needs_auth.
@@ -44,17 +51,20 @@ const FACTS = {
   'local.file': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
+  'telegram.send': { connected: true },
 };
 
 /**
  * 슬라이스-1 기본 환경(SelfState 입력). 연결은 descriptor availability로 판정한다.
- * @param {{factOverrides?:Record<string,object>}} [opts] 실제 자격 상태를 반영할 때 FACTS를 덮어쓴다(라이브).
+ * @param {{factOverrides?:Record<string,object>, include?:string[]}} [opts]
+ *   factOverrides: 실제 자격 상태를 반영할 때 FACTS를 덮어쓴다(라이브).
+ *   include: 그 도구만 자기 상태에 싣는다 — descriptor 선언과 같은 집합이어야 한다(단일 진실).
  */
 export function demoEnv(opts = {}) {
   const facts = { ...FACTS, ...(opts.factOverrides ?? {}) };
   return {
     model: { id: 'beai5-stub', strengths: '자연 대화·판단', authSignal: 'ok' },
-    connections: DESCRIPTORS.map((d) => toConnection(d, facts[d.id] ?? {})),
+    connections: demoDescriptors(opts).map((d) => toConnection(d, facts[d.id] ?? {})),
     grantedAuthorities: [],
   };
 }
@@ -97,6 +107,13 @@ export function demoTools(opts = {}) {
     'slack.post': senders['slack.post'] ?? {
       async handler() {
         return { result: { posted: true }, userSafeSummary: '슬랙에 게시했어요.' };
+      },
+    },
+    // 라이브는 makeChannelSender 로 실제 전송을 주입한다. 여기 기본값은 데모/테스트 전용이다.
+    'telegram.send': senders['telegram.send'] ?? {
+      isFixture: true,
+      async handler() {
+        return { result: { sent: true }, userSafeSummary: '텔레그램으로 보냈어요.' };
       },
     },
   });

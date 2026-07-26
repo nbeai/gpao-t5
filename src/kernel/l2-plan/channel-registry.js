@@ -19,6 +19,9 @@ export const INBOUND_POLICIES = Object.freeze(['mention_required', 'dm_open', 'a
  * @param {{id:string,label:string,authState:string,connected:boolean}} p.connector  connector-profile
  * @param {'mention_required'|'dm_open'|'allowlist_only'} [p.inboundPolicy]
  * @param {string|null} [p.outboundTool]  이 채널로 보낼 때 쓰는 send 도구 id(바인딩)
+ * @param {boolean} [p.hasReceiver]  이 채널의 **실수신기**(webhook·폴링)가 배선돼 있는가.
+ *   자격(connector)이 있어도 수신기가 없으면 메시지는 한 통도 들어오지 않는다. 이 둘을 구분하지
+ *   않으면 "받을 준비가 됐어요"라고 말해 놓고 아무것도 못 받는다(Phase 5 이월분의 정직 표시).
  */
 export function defineChannel(p) {
   return {
@@ -27,6 +30,7 @@ export function defineChannel(p) {
     connector: p.connector ?? { id: p.id, label: p.id, authState: 'none', connected: false },
     inboundPolicy: p.inboundPolicy ?? 'mention_required',
     outboundTool: p.outboundTool ?? null,
+    hasReceiver: p.hasReceiver === true,
   };
 }
 
@@ -39,9 +43,11 @@ const STATUS_VIEW = {
 };
 
 // doctor — 무엇이 문제고 사용자가 뭘 하면 되는지(개발자식 코드 아님, 사용자 언어).
-function channelDiagnosis(readiness, label) {
+function channelDiagnosis(readiness, label, hasReceiver) {
   switch (readiness) {
-    case 'ok': return { ok: true, nextAction: null, detail: `${label}에서 오는 메시지를 받을 수 있어요.` };
+    case 'ok': return hasReceiver
+      ? { ok: true, nextAction: null, detail: `${label}에서 오는 메시지를 받을 수 있어요.` }
+      : { ok: true, nextAction: null, detail: `${label}으로 보낼 수 있어요. 받기는 아직 준비 중이에요.` };
     case 'needs_auth': return { ok: false, nextAction: 'authenticate', detail: `${label} 로그인·토큰을 넣어 주세요.` };
     case 'degraded': return { ok: false, nextAction: 'retry', detail: `${label} 연결이 불안정해요. 잠시 후 다시 해주세요.` };
     default: return { ok: false, nextAction: 'connect', detail: `${label}을(를) 먼저 연결해 주세요.` };
@@ -61,11 +67,13 @@ export function channelStatus(channel) {
     label: channel.label,
     status: view.status,          // UI 로직용 enum
     ready: readiness === 'ok',    // 초록은 이 값이 true일 때만 — 미연결·미자격은 절대 초록 아님
-    userSafe: view.userSafe,      // 사용자 언어 상태
+    // 자격만으로 "받을 준비"라고 말하지 않는다 — 수신기가 없으면 실제로 한 통도 안 들어온다.
+    userSafe: readiness === 'ok' && !channel.hasReceiver ? '보낼 수 있어요(받기는 준비 중).' : view.userSafe,
+    hasReceiver: channel.hasReceiver === true,
     inboundPolicy: channel.inboundPolicy,
     outboundTool: channel.outboundTool,
     sendNeedsApproval: sendNeedsApproval(), // 연결됨 ≠ 보내도 됨(항상 A2)
-    diagnosis: channelDiagnosis(readiness, channel.label), // doctor: 다음 안전 행동
+    diagnosis: channelDiagnosis(readiness, channel.label, channel.hasReceiver), // doctor: 다음 안전 행동
   };
 }
 

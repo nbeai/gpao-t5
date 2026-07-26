@@ -12,7 +12,7 @@
 const ACTION_PATTERNS = [
   { action: 'delete', re: /지워|삭제|없애/ },
   { action: 'undo', re: /되돌려|복구|취소해|undo/i },
-  { action: 'move', re: /옮겨|이동|이름.?바꿔|rename/i },
+  { action: 'move', re: /옮겨|이동|이름.*바꿔|rename/i },
   { action: 'write', re: /만들어|저장해|적어|써줘|쓰고|기록해|생성/ },
   { action: 'read', re: /읽어|열어|보여|내용/ },
   { action: 'list', re: /목록|뭐.?있|리스트|보여줘/ },
@@ -30,7 +30,11 @@ const QUOTED = /['"“”‘’]([^'"“”‘’]{1,4000})['"“”‘’]/;
  */
 export function parseFileRequest(text) {
   const t = String(text ?? '').trim();
-  const action = ACTION_PATTERNS.find((p) => p.re.test(t))?.action ?? 'list';
+  // **못 알아들은 말을 list 로 흘리지 않는다.** 예전엔 기본값이 'list' 라서 "이름 바꿔줘" 같은
+  // 표현이 조용히 "폴더 목록"이 됐다 — 사용자가 시킨 일과 다른 일을 하고 성공으로 기록했다.
+  // 이 목록은 손으로 관리하는 패턴이라 언젠가 또 어긋난다. 어긋났을 때 **묻는 쪽으로** 떨어지게 한다.
+  const action = ACTION_PATTERNS.find((p) => p.re.test(t))?.action;
+  if (!action) return { action: 'unknown', ambiguous: true, clarifyReason: 'no_action' };
 
   if (action === 'undo') return { action: 'undo' };
   if (action === 'list') {
@@ -65,6 +69,7 @@ export function fileClarifyQuestion(parsed) {
     case 'no_path': return '어떤 파일로 할까요? (파일 이름을 알려주세요)';
     case 'no_destination': return '어디로 옮길까요? (새 이름이나 폴더를 알려주세요)';
     case 'no_content': return '무엇을 적을까요? (내용을 따옴표로 알려주시면 그대로 씁니다)';
+    case 'no_action': return '그 파일로 무엇을 할까요? (보기·읽기·저장·옮기기·지우기 중에서요)';
     default: return '파일 작업을 조금 더 자세히 알려주시겠어요?';
   }
 }

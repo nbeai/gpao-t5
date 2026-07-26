@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
+import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
+import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
@@ -139,6 +141,7 @@ export function makeServer(deps = {}) {
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
     return {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
+      modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       memory, activeGoal: session.activeGoal ?? null,
       newId: () => randomUUID(), now: () => Date.now(),
     };
@@ -152,6 +155,9 @@ export function makeServer(deps = {}) {
     const learning = await traceStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
+    // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
+    // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
+    ctx.skills = (await skillStore.load()).skills ?? [];
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -396,7 +402,12 @@ export function makeServer(deps = {}) {
         const a = await autoStore.load();
         const cand = a.candidates.find((c) => c.candidateId === input.candidateId && !c.approved);
         if (!cand) return sendJson(res, 404, { error: '자동화 후보를 찾지 못했어요.' });
-        const external = env.connections.find((c) => c.id === cand.action?.tool)?.needsApproval === true;
+        // 만료를 강제할지는 **행동 종류**로 정한다. 도구 단위 needsApproval 로 보면 `local.file` 은
+        // 플래그가 없어 삭제 자동화가 무기한 승인으로 통과했다(도구 단위 kind 고정이 만든 사고의 재판).
+        const jobKind = toolActionKind({
+          toolId: cand.action?.tool, args: cand.action?.args, selfState: buildSelfState(env),
+        });
+        const external = isSafetyFloor(jobKind);
         const expiresAt = Number.isFinite(input.expiresAt) ? input.expiresAt : undefined;
         if (external && !expiresAt) {
           // 외부 전송은 만료 없는 승인을 허용하지 않는다(승인 경계 유지).
@@ -876,11 +887,22 @@ export function makeServer(deps = {}) {
         const readiness = connectorReadiness(profile);
         if (readiness !== 'ok') return sendJson(res, 200, { kind: 'blocked', reason: 'channel_not_ready', readiness });
 
-        const event = normalizeInboundEvent(input); // 5: 단일 정규화 이벤트
+        // Phase 0-5: 채널이 선언한 수신 정책을 레지스트리에서 읽어 이벤트에 싣는다.
+        //   이게 없으면 게이트가 정책을 볼 수 없어 allowlist_only 채널도 mention 하나로 열린다.
+        const registered = (deps.channels ?? demoChannels()).find((c) => c.id === input.channel);
+        const event = normalizeInboundEvent({
+          ...input,
+          inboundPolicy: registered?.inboundPolicy,
+          connected: readiness === 'ok',
+        }); // 5: 단일 정규화 이벤트
         const memory = await memStore.load();
         const ctx = ctxForSession(session, memory);
         // 6·7: 같은 커널. source=external_channel → InboundEventGate → (respond면) turn.
-        const result = await runTurn({ text: input.text, source: 'external_channel', triggerSignals: event.triggerSignals }, ctx);
+        const result = await runTurn({
+          text: input.text, source: 'external_channel',
+          triggerSignals: event.triggerSignals,
+          channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
+        }, ctx);
         // 8: gated/blocked는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
         if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
           session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
@@ -926,11 +948,18 @@ export async function startLiveServer(opts = {}) {
   const bootStore = opts.sessionStore ?? new SessionStore();
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
-  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection } =
+  const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
+    descriptors: liveDescriptors,
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch } =
     liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
-  const server = makeServer({ store: bootStore, env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection });
+  const server = makeServer({
+    store: bootStore, env: liveEnv, tools: liveTools,
+    channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
+    descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch,
+  });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
   try { await server.loadSelfhood(); } catch { /* 문서 준비 실패 → 기본 정체로 계속(차단하지 않는다) */ }
