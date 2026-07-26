@@ -287,8 +287,14 @@ export function makeServer(deps = {}) {
         const input = JSON.parse((await readBody(req)) || '{}');
         const deleted = await store.softDelete(input.sessionId);
         if (!deleted) return sendJson(res, 404, { error: '그 대화를 찾지 못했어요.' });
+        // 지금 열려 있던 대화를 지웠을 때 **어디로 갈지는 서버가 정한다**(화면은 따르기만).
+        //   예전엔 화면이 곧바로 새 대화를 만들어서, 지운 자리에 빈 대화가 즉시 생겨
+        //   "내용만 지워지고 목록에는 그대로 있다"로 보였다(오너 실사용 지적).
+        //   남은 대화가 있으면 그 중 최근 것으로 가고, 하나도 없을 때만 새로 만든다.
+        const remaining = await store.list();
         return sendJson(res, 200, {
           ok: true, id: deleted.id,
+          nextSessionId: remaining[0]?.id ?? null,
           userSafeSummary: `"${deleted.title}" 을(를) 휴지통으로 옮겼어요. 30일 안에는 되돌릴 수 있어요.`,
         });
       }

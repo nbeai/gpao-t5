@@ -212,3 +212,34 @@ test('API: 없는 대화를 조작하면 정직하게 못 찾았다고 한다', 
     assert.match(out.error, /찾지 못했어요/);
   });
 });
+
+// 오너 실사용 지적: 열려 있는 대화를 지웠더니 화면은 비는데 그 자리에 **새 대화가 즉시 생겨**
+// 목록에 그대로 남아 있는 것처럼 보였다. 어디로 갈지는 서버가 정하고 화면은 따르기만 한다.
+test('API: 지운 뒤 갈 곳을 알려준다 — 남은 대화가 있으면 새 대화를 만들지 않는다', async () => {
+  await withServer(async ({ post }) => {
+    const keep = await post('/sessions');
+    await post('/sessions/meta', { sessionId: keep.id, title: '남는 대화' });
+    const target = await post('/sessions');
+    const out = await post('/sessions/delete', { sessionId: target.id });
+    assert.equal(out.nextSessionId, keep.id, '남은 대화 중 최근 것으로 간다');
+  });
+});
+
+test('API: 마지막 대화를 지우면 갈 곳이 없다고 정직하게 말한다(그때만 새로 만든다)', async () => {
+  await withServer(async ({ post }) => {
+    const only = await post('/sessions');
+    const out = await post('/sessions/delete', { sessionId: only.id });
+    assert.equal(out.nextSessionId, null);
+  });
+});
+
+test('API: 갈 곳은 고정 우선 정렬을 따른다(목록에서 맨 위에 보이는 그 대화)', async () => {
+  await withServer(async ({ post }) => {
+    await post('/sessions'); // 더 최근이지만 고정 아님
+    const pinned = await post('/sessions');
+    await post('/sessions/meta', { sessionId: pinned.id, pinned: true });
+    const target = await post('/sessions');
+    const out = await post('/sessions/delete', { sessionId: target.id });
+    assert.equal(out.nextSessionId, pinned.id);
+  });
+});

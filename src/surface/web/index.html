@@ -734,9 +734,13 @@ function openSessMenu(item, s, anchor) {
     menu.appendChild(el('sep'));
     // 지우기는 휴지통으로 간다 — 무엇이 사라지고 무엇이 복구되는지는 서버 문구가 말한다(P2-3 계약).
     add('지우기', async () => {
-      await sessionAction('/sessions/delete', { sessionId: s.id });
-      // 지금 열려 있는 대화를 지웠으면 빈 화면에 갇히지 않게 새 대화로 옮긴다.
-      if (s.id === currentSessionId) await newSession();
+      const out = await sessionAction('/sessions/delete', { sessionId: s.id });
+      // 지금 열려 있는 대화를 지웠으면 빈 화면에 갇히지 않게 옮긴다. **곧바로 새 대화를 만들지
+      // 않는다** — 지운 자리에 빈 대화가 생기면 "내용만 지워지고 목록엔 그대로"로 보인다.
+      if (s.id === currentSessionId) {
+        if (out.nextSessionId) await selectSession(out.nextSessionId);
+        else await newSession();
+      }
     }, 'warn');
   }
   document.body.appendChild(menu);
