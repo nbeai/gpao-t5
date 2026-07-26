@@ -3,6 +3,10 @@
 //                 → Truth Ledger → 다음 안전 행동.
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
+import { detectSelfNaming } from './l1-intent/self-naming.js';
+import { selfhoodLookup, selectSelfhoodDetail } from './l1-intent/selfhood-lookup.js';
+import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
+import { DEFAULT_IDENTITY } from './identity.js';
 import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
 import { blockedReceipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel } from './tool-labels.js';
@@ -50,6 +54,20 @@ export async function runTurn(input, ctx) {
   if (!ctx.pending) ctx.pending = new Map();
   const selfState = buildSelfState(ctx.env);
   const summary = selfStateSummary(selfState);
+
+  // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).
+  //   · 이름을 지어 주면 **이번 턴부터** 그 이름으로 답한다(지속은 서버가 identityUpdate 로).
+  //   · 상시로는 개수 요약만 싣고, 물어봤을 때만 문서에서 대목을 꺼낸다(계획서 Phase 2 다이어트).
+  const naming = detectSelfNaming(input.text ?? '');
+  const identity = naming ? { ...(ctx.identity ?? DEFAULT_IDENTITY), name: naming.name, named: true }
+    : (ctx.identity ?? DEFAULT_IDENTITY);
+  const identityUpdate = naming ? { name: naming.name } : undefined;
+  const capCounts = capabilityCounts(buildCapabilityFacts(selfState));
+  const lookup = selfhoodLookup(input.text ?? '');
+  const selfhoodDetail = lookup.needed ? selectSelfhoodDetail(ctx.selfhoodDocs ?? {}, lookup.sections) : undefined;
+  const selfhood = { identity, capabilityCounts: capCounts, selfhoodDetail };
+  ctx.identityUpdate = identityUpdate; // executePlan 경계를 넘겨 결과에 함께 실린다
+  ctx.selfhood = selfhood;
 
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
   if (input.approve) {
@@ -130,12 +148,13 @@ export async function runTurn(input, ctx) {
 
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
   if (intent.answerMode === 'fast_chat') {
-    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted });
+    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, ...selfhood });
     // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
     const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
     return {
       kind: 'reply',
       reply,
+      identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
@@ -286,13 +305,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
-  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted });
+  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, ...(ctx.selfhood ?? {}) });
   const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
   const projection = projectReceipts(turnReceipts);
 
   return {
     kind: 'reply',
     reply,
+    identityUpdate: ctx.identityUpdate, // P-ID-1: 승인 재개 경로에서도 이름 지정을 잃지 않는다
     selfStateSummary: summary,
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.

@@ -32,6 +32,10 @@ export function buildTaskContext(p) {
   };
 
   const packet = {
+    // P-ID-1: 자기인지. identity 는 매 턴(짧게), selfhoodDetail 은 물어봤을 때만(문서에서 꺼낸 대목).
+    identity: p.identity,
+    capabilityCounts: p.capabilityCounts,
+    selfhoodDetail: p.selfhoodDetail,
     currentRequest: intent.currentRequest, // 원문 보존
     selfStateFacts,
     admittedContext: p.admittedContext ?? [],

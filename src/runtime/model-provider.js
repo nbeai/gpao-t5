@@ -9,6 +9,7 @@
 //     실제로 abort 하고(§6.21 진짜 취소의 HTTP 구간) ModelTimeoutError로 기존 사용자 언어 경로를 탄다.
 //   - 테스트·기본은 실 API를 치지 않는다(fetchImpl 주입). 라이브 서버만 실제 배선.
 import { withTimeout } from './with-timeout.js';
+import { buildIdentityFacts } from '../kernel/identity.js';
 import { ModelTimeoutError } from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
 
@@ -34,11 +35,11 @@ export class ModelProviderError extends Error {
  */
 export function buildModelMessages(tc) {
   const sys = [];
-  sys.push('너는 사용자의 작업 비서다. 아래 사실을 왜곡하지 말고, 방법과 문장은 네가 자연스럽게 정한다.');
   const sf = tc.selfStateFacts ?? {};
-  // 자기 자신(모델)도 사실이다 — 이걸 빼면 "내가 어떤 모델인지 확인할 권한이 없다"고 답한다
-  // (오너 실사용 2026-07-26에서 실제로 그렇게 답했다). Operational Selfhood(§6) 위반.
-  if (sf.model) sys.push(`지금 너를 돌리는 모델: ${sf.model}`);
+  // P-ID-1: **정체성이 먼저다.** 이게 없으면 모델이 빈칸을 자기 출신으로 채운다(오너 실사용:
+  // "저는 ChatGPT예요" / 자기가 OS 인 줄 모름). 짧게 유지 — 상세는 물어봤을 때만 아래에서.
+  sys.push(...buildIdentityFacts(tc.identity, { model: sf.model, ...(tc.capabilityCounts ?? {}) }));
+  sys.push('아래 사실을 왜곡하지 말고, 방법과 문장은 네가 자연스럽게 정한다.');
   if (sf.readyTools?.length) sys.push(`준비된 도구: ${sf.readyTools.join(', ')}`);
   if (sf.limits?.length) sys.push(`현재 한계: ${sf.limits.join('; ')}`);
   // 능력 과장 금지 — 라벨만 보고 하위 기능을 지어내던 것을 막는다(오너 실사용에서 검색·다중 페이지
@@ -48,6 +49,9 @@ export function buildModelMessages(tc) {
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
   if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);
+
+  // 물어봤을 때만 자기인지 상세를 싣는다(오너 결정: 필요할 때만 찾아 반영).
+  if (tc.selfhoodDetail) sys.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
 
   const usr = [];
   if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);

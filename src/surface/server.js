@@ -18,6 +18,8 @@ import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { ModelConnectionStore } from './model-connection.js';
 import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
+import { SelfhoodStore } from './selfhood-store.js';
+import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
@@ -77,6 +79,11 @@ export function makeServer(deps = {}) {
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
   const onboardingStore = deps.onboardingStore ?? new OnboardingStore(store.dir); // P-ONB-2 단일 진실
+  // P-ID-1 자기인지: SOUL.md · CAPABILITIES.md(사용자 경로). 문서는 부팅 시 읽고, 이름·능력이
+  // 바뀌면 갱신한다. 모델에겐 상시 요약만 가고 상세는 물어봤을 때만 간다(turn 이 판단).
+  const selfhoodStore = deps.selfhoodStore ?? new SelfhoodStore(store.dir);
+  let selfhoodDocs = { soul: null, capabilities: null };
+  let identity = { ...DEFAULT_IDENTITY };
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
@@ -131,7 +138,7 @@ export function makeServer(deps = {}) {
     ledger.entries = (session.ledgerEntries ?? []).slice();
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
     return {
-      env, model, tools, ledger, pending,
+      env, model, tools, ledger, pending, identity, selfhoodDocs,
       memory, activeGoal: session.activeGoal ?? null,
       newId: () => randomUUID(), now: () => Date.now(),
     };
@@ -154,6 +161,12 @@ export function makeServer(deps = {}) {
       session.transcript.push({ role: 'user', text: input.text });
     }
     const result = await runTurn(input, ctx);
+    // P-ID-1: 사용자가 이름을 지어 줬으면 SOUL.md 에 남긴다(다음 대화에서도 그 이름으로 답한다).
+    if (result.identityUpdate?.name) {
+      const soul = await selfhoodStore.setName(result.identityUpdate.name);
+      selfhoodDocs = { ...selfhoodDocs, soul };
+      identity = { name: result.identityUpdate.name, named: true };
+    }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
@@ -888,6 +901,14 @@ export function makeServer(deps = {}) {
     }
   });
   // in-process 스케줄러가 부를 트러스트 tick(§8.3). HTTP를 거치지 않고 직접 실행 — 구성상 trusted.
+  // P-ID-1: 문서를 읽고(없으면 오너 원문으로 시드) 능력 파생 구역을 지금 상태로 다시 만든다.
+  server.loadSelfhood = async () => {
+    const capabilities = await selfhoodStore.refreshCapabilities(buildSelfState(env));
+    const loaded = await selfhoodStore.load();
+    selfhoodDocs = { soul: loaded.soul, capabilities };
+    identity = loaded.identity;
+    return { identity, selfhoodDocs };
+  };
   server.runtimeTick = () => runTrustedTick({ source: 'trusted_runtime_event' });
   return server;
 }
@@ -912,6 +933,7 @@ export async function startLiveServer(opts = {}) {
   const server = makeServer({ store: bootStore, env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
+  try { await server.loadSelfhood(); } catch { /* 문서 준비 실패 → 기본 정체로 계속(차단하지 않는다) */ }
   const port = opts.port ?? Number(processEnv.PORT ?? 4173);
   await new Promise((resolve) => server.listen(port, resolve));
   // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
