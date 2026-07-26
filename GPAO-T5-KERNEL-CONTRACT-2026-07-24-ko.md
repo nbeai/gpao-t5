@@ -98,6 +98,11 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-RT-4 반영(근거: `P-RT-4-MODEL-CONNECT-UX`, 조건부 반려 blocker 2건 해소 후 병합 + 전 여정 라이브 실측):
+  §6.24 Model Connect UX — 화면에서 키 연결. 검증 통과(usable)만 저장(0600, 덮어쓰기 포함 chmod 보장 —
+  감사 B1)·활성화(핫스왑), 실패 키는 기존 연결 불가침. 우선순위 저장>env>stub. 저장 연결 복원은 **listen
+  전**(감사 B2 — 재시작 직후 첫 요청부터 저장 모델, startLiveServer 로 추출·테스트). 원본 키·authSignal
+  은 어떤 응답에도 미노출(마스킹만). baseUrl 은 http/https·자격증명 금지 검증. 후속: P-RT-3 OAuth·keychain.
 - P-RT-2 반영(근거: `P-RT-2-PROVIDER-DOCTOR`, 조건부 반려 blocker 2건 해소 후 병합 + 라이브 3종 실측): §6.23
   Provider Doctor — "구성됨→검증됨" 승격. 과금 0 모델 목록 GET 으로 키 유효성·도달성·설정 모델 존재를 실검증.
   두 축 반영: 자격은 authSignal(classifyModelAuth), readiness 는 별도 env.model.healthState →
@@ -757,8 +762,30 @@ beai(beai-8.6) 라이브 실측 — evidenceFacts 가 실모델 답변에 반영
   응답에서 제거(키 조각·내부 문구 유출 방지). 테스트: 원문에 키 문자열을 심어 응답 미포함 확인.
 - **표면**: `GET /model/health`(요청 시 재검증) + 부팅 1회 비차단 점검(실패해도 부팅 계속 — 게이트가
   아니라 정직한 표시). doctor 미배선 구성은 stub/unverified — 검증 안 됨을 검증됨처럼 말하지 않는다.
-- **후속**: P-RT-3 OpenAI OAuth 플로우 · 키 입력·보관 UX · overview(§6.19) 모델 상태 통합 검토 ·
-  주기 재검증(TTL) · 자격 실패 턴의 POST 500 사용자 언어화(§6.20 후속과 합류).
+- **후속**: P-RT-3 OpenAI OAuth 플로우 · 키 입력·보관 UX(→ §6.24 로 착지) · overview(§6.19) 모델 상태
+  통합 검토 · 주기 재검증(TTL) · 자격 실패 턴의 POST 500 사용자 언어화(§6.20 후속과 합류).
+
+### 6.24 Model Connect UX (P-RT-4, 구현됨 — 화면에서 키 연결, 검증 통과만 저장·활성화)
+
+근거: 오너 지시 잔여분(연결 UX)·연결 전략(개발자-떠넘김 금지)·`P-RT-4-MODEL-CONNECT-UX`.
+감사 조건부 반려 blocker 2건(B1 권한·B2 부팅 순서) 해소 후 병합.
+
+- **핵심**: `model-connection.js` 관리자 — 활성 우선순위 **저장된 사용자 연결 > env(개발자) > stub**,
+  respond 는 현재 client 위임(핫스왑 — 재시작 없이 교체). `POST /model/connect` 는 저장 전에
+  doctor(§6.23, 과금 0)로 실검증하고 **usable 만 저장·활성화** — 실패 키는 기존 연결을 깨지 않는다.
+- **키 위생**: 저장 파일은 소유자 전용 0600 — **기존 파일 덮어쓰기에서도** 임시 파일→chmod→rename 으로
+  보장(B1: writeFile mode 는 생성 시에만 적용, 0644 실측 후 수정). 원본 키는 저장 파일·요청 본문에만
+  존재하고 status/connect/health 어떤 응답에도 없다(마스킹 `beai…2790`). authSignal 미노출(§6.23 B2) 유지.
+- **부팅 순서(B2)**: 저장 연결 복원(`init`)은 **listen 전에** 끝난다 — 재시작 직후 첫 요청이 stub/env 로
+  새는 창 제거. `startLiveServer` 로 부팅을 추출해 순서를 테스트로 고정. 복원 실패는 부팅을 막지 않는다.
+- **입력 검증**: provider allowlist + `baseUrl` 은 http/https 만·URL 자격증명 금지(서버가 직접 fetch 하는
+  사용자 입력 — 감사 권고).
+- **표면**: 칩 패널 "모델 연결" 블록(현재 상태 마스킹·출처, 입력, 연결/해제, 사용자 언어 결과) +
+  `GET /model/connection`(마스킹 status)·`POST /model/disconnect`. 안티 대시보드(열 때만).
+- **라이브 실증**: env 없이 부팅→연결→즉시 실모델 턴→재시작 첫 응답부터 saved→가짜 키 거부·기존
+  유지→해제→stub. 브라우저: 패널 렌더·마스킹 표시·해제 버튼 실클릭.
+- **후속**: P-RT-3 OpenAI OAuth(이 표면 위에) · keychain 등 OS 보안 저장소 · 다중 연결 보관·전환 ·
+  해제 직후 하단 상태줄 즉시 갱신(현재는 다음 턴에 갱신).
 
 ---
 

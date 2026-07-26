@@ -46,14 +46,23 @@ export function describeUnprobedModel(envModel = {}) {
 }
 
 /**
- * 실 검증 리포트. state: stub|usable|model_missing|auth_failed|billing_blocked|rate_limited|unreachable
+ * env 기반 진입점(하위호환). 구성 없으면 stub.
  * @param {Record<string,string|undefined>} processEnv
  * @param {{fetchImpl?:Function, timeoutMs?:number}} [deps]
  */
 export async function checkModelHealth(processEnv = {}, deps = {}) {
   const cfg = resolveModelConfig(processEnv);
   if (!cfg) return describeUnprobedModel({ id: 'beai5-stub' });
+  return checkConfigHealth(cfg, deps);
+}
 
+/**
+ * 구성 직접 검증(P-RT-4: 화면 연결이 저장 전에 이걸로 실검증한다).
+ * state: usable|model_missing|auth_failed|billing_blocked|rate_limited|unreachable
+ * @param {ReturnType<typeof resolveModelConfig>} cfg
+ * @param {{fetchImpl?:Function, timeoutMs?:number}} [deps]
+ */
+export async function checkConfigHealth(cfg, deps = {}) {
   const spec = MODEL_PROVIDERS[cfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
