@@ -206,3 +206,16 @@ test('"되돌려줘"가 실제 되돌리기로 이어진다(fast_chat 으로 새
   assert.ok(i.neededTools?.includes('local.file'));
   assert.equal(i.fileOp?.action, 'undo');
 });
+
+test('되돌리기는 재시작 후에도 된다 — 표가 메모리에만 있으면 다음 날 못 되돌린다(§18)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gpao-t5-undo-'));
+  const first = makeLocalFileTool({ roots: [root], dataDir: root });
+  await first.handler({ action: 'write', path: '보관.md', text: '지키고 싶은 것' });
+  await first.handler({ action: 'delete', path: '보관.md' });
+
+  // 새 프로세스(관리자 재생성) — 메모리 표는 사라졌다
+  const afterRestart = makeLocalFileTool({ roots: [root], dataDir: root });
+  const u = await afterRestart.handler({ action: 'undo' });
+  assert.equal(u.blocked, undefined, '재시작 뒤에도 되돌릴 수 있어야 한다');
+  assert.equal(await readFile(join(root, '보관.md'), 'utf8'), '지키고 싶은 것');
+});

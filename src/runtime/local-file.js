@@ -26,8 +26,24 @@ function undoEntry(op, from, to) {
 export function makeLocalFileTool(deps = {}) {
   const roots = deps.roots ?? defaultFileRoots();
   const trashDir = deps.trashDir ?? join(deps.dataDir ?? roots[0], '.trash');
-  /** @type {Array<ReturnType<typeof undoEntry>>} 최근 되돌리기 표(프로세스 수명) */
-  const undoLog = [];
+  // 되돌리기 표는 **파일에 남긴다**. 메모리에만 두면 재시작 뒤 휴지통 파일은 있는데 되돌릴 방법이
+  // 없어진다 — "되돌릴 수 있어요"라고 말해놓고 다음 날 못 되돌리는 거짓말이 된다(§18 지속성 계약).
+  const undoFile = join(trashDir, 'undo-log.json');
+
+  async function loadUndo() {
+    try { return JSON.parse(await readFile(undoFile, 'utf8')); } catch { return []; }
+  }
+  async function saveUndo(list) {
+    await mkdir(trashDir, { recursive: true });
+    const tmp = `${undoFile}.tmp`;
+    await writeFile(tmp, JSON.stringify(list.slice(-50)), 'utf8'); // 최근 50건만(무한 성장 금지)
+    await rename(tmp, undoFile);
+  }
+  async function pushUndo(entry) {
+    const list = await loadUndo();
+    list.push(entry);
+    await saveUndo(list);
+  }
 
   /** 원본을 휴지통으로 옮긴다(덮어쓰기·삭제 전 필수). 없으면 아무 것도 안 한다. */
   async function toTrash(abs) {
@@ -64,8 +80,10 @@ export function makeLocalFileTool(deps = {}) {
         await ensureRoot(roots);
 
         if (action === 'undo') {
-          const last = undoLog.pop();
+          const list = await loadUndo();
+          const last = list.pop();
           if (!last) return fail('되돌릴 작업이 없어요.');
+          await saveUndo(list);
           await mkdir(dirname(last.from), { recursive: true });
           await rename(last.to, last.from);
           return ok(`${basename(last.from)} 을(를) 되돌렸어요.`, { undone: last.op, path: last.from });
@@ -98,7 +116,7 @@ export function makeLocalFileTool(deps = {}) {
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
           await writeFile(abs, text, 'utf8');
-          if (parked) undoLog.push(undoEntry('write', abs, parked));
+          if (parked) await pushUndo(undoEntry('write', abs, parked));
           return ok(
             parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
               : `${basename(abs)} 을(를) 만들었어요.`,
@@ -111,14 +129,14 @@ export function makeLocalFileTool(deps = {}) {
           await mkdir(dirname(dest), { recursive: true });
           await copyFile(abs, dest);
           await rm(abs);
-          undoLog.push(undoEntry('move', abs, dest));
+          await pushUndo(undoEntry('move', abs, dest));
           return ok(`${basename(abs)} 을(를) ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
         }
 
         if (action === 'delete') {
           const parked = await toTrash(abs);
           if (!parked) return fail(`${basename(abs)} 을(를) 찾지 못했어요.`);
-          undoLog.push(undoEntry('delete', abs, parked));
+          await pushUndo(undoEntry('delete', abs, parked));
           return ok(`${basename(abs)} 을(를) 지웠어요(되돌릴 수 있어요).`, { path: abs, recoverable: true });
         }
 
