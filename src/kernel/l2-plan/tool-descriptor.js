@@ -19,6 +19,9 @@ import { FAILURE } from '../contracts.js';
  * @param {boolean} [d.reversible]   실행을 되돌릴 수 있는가 — **도구가 아는 사실**이다. 종류로 추측하면
  *   거짓말이 된다(로컬 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라 했다).
  * @param {string} [d.reversibleNote]  되돌리는 방법 한 줄(사용자 말)
+ * @param {{description:string, parameters:object}} [d.schema]  모델이 **직접 고를 수 있게** 보여줄
+ *   스키마. 없으면 모델에게 노출하지 않는다 — 고를 수 없는 도구를 보여주면 되는 줄 알고 약속한다.
+ *   (오너 실사용: `session.search` 가 이 자리에 없어서 "그 기능은 없습니다"라고 답했다.)
  * @param {string} [d.capability]  이 도구가 **실제로 하는 일** 한 줄(사용자 말). 라벨만 주면 모델이
  *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
  * @returns {import('../contracts.js').ToolDescriptor}
@@ -35,6 +38,7 @@ export function defineTool(d) {
     reversible: d.reversible,           // 미선언은 undefined — 모르면 안전하게 "어려울 수 있다"로 말한다
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
+    schema: d.schema,                   // 없으면 모델에게 안 보인다(고를 수 없는 것을 보여주지 않는다)
   };
 }
 
@@ -76,6 +80,7 @@ export function toConnection(descriptor, facts = {}) {
     reversible: descriptor.reversible,
     reversibleNote: descriptor.reversibleNote,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
+    schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };
 }
 

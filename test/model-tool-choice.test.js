@@ -47,13 +47,13 @@ test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려�
 
 // ── 호출 → 커널 형태 변환 ────────────────────────────────────────────────
 test('모델의 파일 호출은 fileOp 로 실려 권한 판정이 작업을 본다', () => {
-  const parts = callsToIntentParts([{ name: 'local.file', args: { action: 'delete', path: 'a.md' } }]);
+  const parts = callsToIntentParts([{ name: 'local.file', args: { action: 'delete', path: 'a.md' } }], selfState);
   assert.deepEqual(parts.neededTools, ['local.file']);
   assert.deepEqual(parts.fileOp, { action: 'delete', path: 'a.md' });
 });
 
 test('모르는 도구 이름은 조용히 버린다(있는 척 금지)', () => {
-  const parts = callsToIntentParts([{ name: 'nuke.everything', args: {} }, { name: 'web.collect', args: { request: '뉴스' } }]);
+  const parts = callsToIntentParts([{ name: 'nuke.everything', args: {} }, { name: 'web.collect', args: { request: '뉴스' } }], selfState);
   assert.deepEqual(parts.neededTools, ['web.collect']);
 });
 

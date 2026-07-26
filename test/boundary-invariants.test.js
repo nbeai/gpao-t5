@@ -12,13 +12,14 @@ import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
 import { toolActionKind, buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
 import { decideAutoGrant, isSafetyFloor } from '../src/kernel/l2-plan/authority.js';
-import { callsToIntentParts, TOOL_SCHEMAS } from '../src/kernel/l2-plan/tool-schema.js';
+import { callsToIntentParts, allToolSchemas } from '../src/kernel/l2-plan/tool-schema.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 const selfState = buildSelfState(demoEnv());
-const FILE_ACTIONS = TOOL_SCHEMAS['local.file'].parameters.properties.action.enum;
+// 1축: 스키마는 descriptor 파생이다(수동 맵 없음) — selfState 를 통해 읽는다.
+const FILE_ACTIONS = allToolSchemas(selfState)['local.file'].parameters.properties.action.enum;
 
 // 모델이 고른 것을 흉내내는 클라이언트. 실제 모델 대신 지정한 호출을 한 번 돌려준다.
 const chooseOnce = (calls) => {
@@ -47,7 +48,7 @@ async function fileCtx(files = {}) {
 // ── 1. 같은 작업이면 같은 등급이다(누가 골랐든) ──────────────────────────
 test('불변식: 파일 작업의 권한 등급은 선택자와 무관하다', () => {
   for (const action of FILE_ACTIONS) {
-    const viaModel = callsToIntentParts([{ name: 'local.file', args: { action, path: 'x.md' } }]).fileOp;
+    const viaModel = callsToIntentParts([{ name: 'local.file', args: { action, path: 'x.md' } }], selfState).fileOp;
     const kindModel = toolActionKind({ toolId: 'local.file', args: viaModel, selfState });
     const kindRegex = toolActionKind({ toolId: 'local.file', args: { action, path: 'x.md' }, selfState });
     assert.equal(kindModel, kindRegex, `${action}: 경로에 따라 등급이 달라지면 안 된다`);

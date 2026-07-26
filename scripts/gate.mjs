@@ -193,6 +193,9 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     for (const d of demoDescriptors()) {
       if (!d.label || d.label === d.id) problems.push(`${d.id}: 이름이 없다(id 가 화면에 샌다)`);
       if (!d.capability) problems.push(`${d.id}: 하는 일 설명이 없다(모델이 지어낸다)`);
+      // 스키마가 없으면 모델이 그 도구의 **존재를 모른다.** 실행 불가 도구도 마찬가지다 —
+      // 연결되는 순간 보여야 하는데 그때 없으면 `session.search` 사고가 그대로 재현된다.
+      if (!d.schema?.description || !d.schema?.parameters) problems.push(`${d.id}: 모델 노출 스키마가 없다(모델이 존재를 모른다)`);
       // 커널이 보는 이름이 descriptor 의 이름과 같아야 한다 — 다르면 어딘가 또 맵이 생긴 것이다.
       if (toolLabel(d.id, selfState) !== d.label) problems.push(`${d.id}: 커널 이름이 descriptor 와 다르다`);
       if (!toolCapabilityLine(d.id, selfState).startsWith(d.label)) problems.push(`${d.id}: 능력 문장이 descriptor 파생이 아니다`);
@@ -200,6 +203,8 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     // 수동 맵이 되살아나면 잡는다 — 파일에 id→문자열 리터럴 맵이 다시 생기는 것을 막는다.
     const labelsSrc = await readFile(new URL('../src/kernel/tool-labels.js', import.meta.url), 'utf8');
     if (/^\s*'[\w.]+'\s*:\s*'/m.test(labelsSrc)) problems.push('tool-labels.js 에 수동 맵이 다시 생겼다');
+    const schemaSrc = await readFile(new URL('../src/kernel/l2-plan/tool-schema.js', import.meta.url), 'utf8');
+    if (/^\s*'[\w.]+'\s*:\s*\{/m.test(schemaSrc)) problems.push('tool-schema.js 에 수동 맵이 다시 생겼다');
     if (problems.length) problems.forEach((p) => bad(p));
     else ok(`도구 이름·설명이 descriptor 단일 진실 (${demoDescriptors().length}개)`);
   } catch (e) {

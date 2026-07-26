@@ -7,75 +7,11 @@
 // 불변(이게 핵심이다): 모델은 **고르기만** 한다. 실행·승인·기록은 지금 그대로 런타임이 한다.
 //   모델이 `local.file{action:'delete'}` 를 골라도 `toolActionKind` 가 안전 바닥으로 판정해
 //   승인 카드가 뜬다. Phase 0 에서 만든 경계가 여기서 값을 한다 — 유연해지되 안전은 안 풀린다.
-
-/** 도구 id → 모델에게 보여줄 스키마. 라이브에 손이 있는 도구만 노출한다(선언 ⊆ 손). */
-const SCHEMAS = {
-  'local.file': {
-    description: '정해진 작업 폴더 안의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. 되돌리기도 가능.',
-    parameters: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'delete', 'undo'] },
-        path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로)' },
-        to: { type: 'string', description: 'move 일 때 옮길 위치' },
-        text: { type: 'string', description: 'write 일 때 저장할 내용' },
-      },
-      required: ['action'],
-    },
-  },
-  'web.collect': {
-    // 설명이 정확해야 모델이 제대로 고른다. 예전엔 "웹에서 찾아 읽는다"라고만 해서, 모델이 검색까지
-    // 이 도구로 하려다 robots·로그인벽에 막히고 빈손으로 끝났다(오너 실사용: 네이버 지도).
-    // 검색은 모델 내장 검색이 더 강하다 — 그 사실을 알려주고 역할을 나눈다.
-    description: '주소의 원문을 직접 읽는다.'
-      + ' **사용자가 주소(URL)를 준 경우에는 반드시 이 도구로 읽는다** — 기억이나 검색 요약이 아니라'
-      + ' 그 페이지의 실제 내용을 읽고, 출처가 기록으로 남는다.'
-      + ' 주소 없이 하는 일반 검색은 네 내장 검색이 더 낫다(그건 이 도구 없이 한다).'
-      + ' robots 로 수집을 막은 곳, 로그인이 필요한 곳, 자바스크립트로 그리는 지도·SNS 는 읽지 못한다 —'
-      + ' 그런 경우 막혔다고 말하고 아는 범위로 답한다.',
-    parameters: {
-      type: 'object',
-      properties: {
-        request: { type: 'string', description: '찾을 것(검색어) 또는 읽을 주소' },
-      },
-      required: ['request'],
-    },
-  },
-  // 오너 실사용(2026-07-27): "내가 팔식당 물어본 세션 찾을 수 있어?" 에 "찾아볼 수 없어요"라고
-  // 답했다. **T5 에는 세션 검색이 있는데** 도구 목록에 없어서 모델이 존재를 몰랐다.
-  // 가진 것을 못 쓰는 건 없는 것과 같다(§16-D 능력 완결).
-  'session.search': {
-    description: '지난 대화들에서 찾는다. 사용자가 "전에 말했던", "그때 그거", "물어봤던 세션"처럼'
-      + ' 과거 대화를 가리키면 이걸로 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
-    parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '찾을 말(주제·상호·키워드)' } },
-      required: ['query'],
-    },
-  },
-  'slack.post': {
-    description: '슬랙에 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
-    parameters: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: '보낼 내용' },
-        target: { type: 'string', description: '채널·대상(없으면 기본 대상)' },
-      },
-      required: ['text'],
-    },
-  },
-  'telegram.send': {
-    description: '텔레그램으로 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
-    parameters: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: '보낼 내용' },
-        target: { type: 'string', description: '보낼 방(없으면 기본 대상)' },
-      },
-      required: ['text'],
-    },
-  },
-};
+//
+// 1축(단일 진실화, 2026-07-27): 예전엔 이 파일에 `SCHEMAS` **수동 맵**이 있었다. 그래서 도구를
+// 만들어도 여기 안 적으면 모델이 존재를 몰랐다 — 오너 실사용에서 실제로 났다:
+//   "내가 팔식당 물어본 세션 찾을 수 있어?" → "찾아볼 수 없어요"  (session.search 는 있었다)
+// 이제 스키마는 **ToolDescriptor 가 든다.** 이 파일은 그것을 고르고 옮길 뿐이다.
 
 /**
  * 지금 **실행 가능한** 도구만 모델에게 보여준다. 실행할 수 없는 것을 고르게 하면
@@ -85,23 +21,27 @@ const SCHEMAS = {
  */
 export function toolSchemasFor(selfState) {
   return (selfState?.connectedTools ?? [])
-    .filter((t) => t.executable && SCHEMAS[t.id])
-    .map((t) => ({ name: t.id, ...SCHEMAS[t.id] }));
+    .filter((t) => t.executable && t.schema)
+    .map((t) => ({ name: t.id, ...t.schema }));
 }
 
 /**
  * 모델이 고른 도구 호출 → 커널이 아는 형태(IntentPacket 조각). **판정하지 않는다** —
  * 승인·범위·실행은 기존 경로(buildActionPlan → authority → ToolRunner)가 그대로 한다.
  * @param {Array<{name:string, args:object}>} calls
+ * @param {import('../contracts.js').SelfStateSnapshot} [selfState]
  * @returns {{neededTools:string[], fileOp?:object, toolArgs:Record<string,object>}}
  */
-export function callsToIntentParts(calls = []) {
+export function callsToIntentParts(calls = [], selfState) {
+  // 우리가 **실제로 보여준** 도구만 받아들인다. 예전엔 수동 맵으로 걸렀는데, 맵과 실제 노출이
+  // 어긋나면 안 보여준 도구를 받아들이거나 보여준 도구를 버렸다(1축: 한 자리에서 나온다).
+  const known = new Set(toolSchemasFor(selfState).map((t) => t.name));
   const neededTools = [];
   const toolArgs = {};
   let fileOp;
   for (const call of calls) {
     const id = call?.name;
-    if (!id || !SCHEMAS[id]) continue; // 모르는 도구는 조용히 버린다(있는 척 금지)
+    if (!id || !known.has(id)) continue; // 안 보여준 도구는 조용히 버린다(있는 척 금지)
     if (!neededTools.includes(id)) neededTools.push(id);
     const args = call.args && typeof call.args === 'object' ? call.args : {};
     toolArgs[id] = { ...(toolArgs[id] ?? {}), ...args };
@@ -112,4 +52,9 @@ export function callsToIntentParts(calls = []) {
   return { neededTools, fileOp, toolArgs };
 }
 
-export const TOOL_SCHEMAS = SCHEMAS;
+/** 게이트·테스트가 선언 전체를 훑을 수 있게. **파생**이다 — 여기에 맵을 다시 만들지 않는다. */
+export function allToolSchemas(selfState) {
+  const out = {};
+  for (const t of selfState?.connectedTools ?? []) if (t.schema) out[t.id] = t.schema;
+  return out;
+}

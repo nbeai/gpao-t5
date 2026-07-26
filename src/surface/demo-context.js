@@ -32,21 +32,79 @@ const DESCRIPTORS = [
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
     capability: '정해진 작업 폴더 안에서 파일을 보고·읽고·만들고·옮기고·지운다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
+    // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
+    schema: {
+      description: '정해진 작업 폴더 안의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. 되돌리기도 가능.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'delete', 'undo'] },
+          path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로)' },
+          to: { type: 'string', description: 'move 일 때 옮길 위치' },
+          text: { type: 'string', description: 'write 일 때 저장할 내용' },
+        },
+        required: ['action'],
+      },
+    },
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
-    capability: '메일을 보낸다(보내기 전 확인을 받는다).' }),
+    capability: '메일을 보낸다(보내기 전 확인을 받는다).',
+    // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
+    // 그때 `session.search` 와 똑같은 일이 난다 — 도구는 있는데 모델이 존재를 모른다.
+    schema: {
+      description: '메일을 보낸다. 보내기 전에 사용자 승인을 받는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: '보낼 내용' },
+          target: { type: 'string', description: '받는 사람(없으면 기본 대상)' },
+        },
+        required: ['text'],
+      },
+    } }),
   defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
-    capability: '슬랙에 글을 올린다(올리기 전 확인을 받는다).' }),
+    capability: '슬랙에 글을 올린다(올리기 전 확인을 받는다).',
+    schema: {
+      description: '슬랙에 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: '보낼 내용' },
+          target: { type: 'string', description: '채널·대상(없으면 기본 대상)' },
+        },
+        required: ['text'],
+      },
+    } }),
   // 채널 레지스트리가 outboundTool 로 선언하는 도구는 descriptor 도 있어야 한다 — 선언만 있고
   // 손이 없으면 T5 가 "텔레그램으로 보낸다"고 말해 놓고 못 보낸다(감사 지적, 게이트가 불변식으로 막는다).
   // 지난 대화 검색 — 읽기 전용이라 자연 진행(A0). 결과는 후보이지 자동 반영이 아니다.
     // 능력 문장이 없어서 자기파악에서 이름만 보였다(1축에서 발견 — 맵에 안 적혀 있었다).
   defineTool({ id: 'session.search', label: '지난 대화 찾기', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
-    capability: '지난 대화들에서 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.' }),
+    capability: '지난 대화들에서 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
+    schema: {
+      description: '지난 대화들에서 찾는다. 사용자가 "전에 말했던", "그때 그거", "물어봤던 세션"처럼'
+        + ' 과거 대화를 가리키면 이걸로 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: '찾을 말(주제·상호·키워드)' } },
+        required: ['query'],
+      },
+    } }),
   defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
-    capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).' }),
+    capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).',
+    schema: {
+      description: '텔레그램으로 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: '보낼 내용' },
+          target: { type: 'string', description: '보낼 방(없으면 기본 대상)' },
+        },
+        required: ['text'],
+      },
+    } }),
 ];
 /**
  * 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함).

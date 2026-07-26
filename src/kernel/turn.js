@@ -269,7 +269,8 @@ export async function runTurn(input, ctx) {
   // (모델 미연결·도구 호출 미지원 provider). 판정·승인·실행은 아래 그대로 — 경계는 안 바뀐다.
   let modelToolArgs;
   if (modelChosen?.length) {
-    const parts = callsToIntentParts(modelChosen);
+    // 1축: 우리가 **실제로 보여준** 도구만 받아들인다(selfState 파생 — 수동 맵 없음).
+    const parts = callsToIntentParts(modelChosen, selfState);
     if (parts.neededTools.length) {
       planIntent = { ...planIntent, neededTools: parts.neededTools, fileOp: parts.fileOp ?? planIntent.fileOp };
       modelToolArgs = parts.toolArgs;

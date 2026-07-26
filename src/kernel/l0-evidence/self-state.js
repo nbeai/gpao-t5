@@ -89,6 +89,7 @@ export function buildSelfState(env) {
       // 손으로 관리하는 맵이 생긴다 — 실제로 그래서 LABELS·CAPABILITIES 두 맵이 있었다.
       label: t.label,
       capability: t.capability,
+      schema: t.schema,                   // 모델에게 보여줄 스키마도 descriptor 파생
       note: t.note,
     };
   });
