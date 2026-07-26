@@ -31,15 +31,22 @@ const DESCRIPTORS = [
   defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
-    capability: '정해진 작업 폴더 안에서 파일을 보고·읽고·만들고·옮기고·지운다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
+    capability: '허락된 폴더 안에서 파일을 보고·이름이나 내용으로 찾고·읽고·만들고·옮기고·지운다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
-      description: '정해진 작업 폴더 안의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. 되돌리기도 가능.',
+      description:
+        '작업 폴더 안의 파일을 보고·찾고·읽고·저장하고·옮기고·지운다. 되돌리기도 가능.'
+        + ' 사용자가 파일 위치를 모르면 search(이름) 또는 search+contains(내용)로 **직접 찾는다** —'
+        + ' 경로를 되묻거나 터미널 명령을 대신 실행해 달라고 하지 않는다.'
+        + ' 다루려는 위치가 범위 밖이면 local.scope 로 그 폴더를 여는 승인을 받는다.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'delete', 'undo'] },
-          path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로)' },
+          action: { type: 'string', enum: ['list', 'search', 'recent', 'read', 'write', 'move', 'delete', 'undo'] },
+          path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로). search·recent 에서 비우면 다룰 수 있는 폴더 전부를 본다' },
+          query: { type: 'string', description: 'search 일 때 찾을 파일 이름의 일부' },
+          contains: { type: 'string', description: 'search 일 때 파일 **안에** 들어 있는 말(이름으로 못 찾을 때)' },
+          limit: { type: 'number', description: 'search·recent 결과 개수(기본 search 40, recent 20)' },
           to: { type: 'string', description: 'move 일 때 옮길 위치' },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
         },

@@ -51,6 +51,34 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n본문: ${body}`;
   }
 
+  // ①-b 로컬 찾기 — **경로가 핵심이다.** JSON 으로 접으면 가운데가 생략되면서 경로가 잘려
+  // 모델이 "찾았지만 어디인지 모른다"가 된다. 어디를 뒤졌는지·못 본 자리도 같이 준다 —
+  // 이게 없으면 모델이 "없는 것 같다"고 단정한다(§0: 빈 자리는 모델이 지어낸다).
+  if (Array.isArray(result.hits)) {
+    const lines = [];
+    if (Array.isArray(result.searchedIn) && result.searchedIn.length) {
+      lines.push(`찾아본 곳: ${result.searchedIn.join(' · ')}`);
+    }
+    if (!result.hits.length) lines.push('찾은 것: 없음');
+    else {
+      const shown = [];
+      let used = lines.join('\n').length;
+      for (const h of result.hits) {
+        const line = `· ${h.path}${h.matched === 'text' ? ' (내용에서 찾음)' : ''}`;
+        if (used + line.length > maxChars - 200) break; // 경로는 **자르지 않는다** — 줄 단위로 멈춘다
+        shown.push(line); used += line.length + 1;
+      }
+      lines.push(`찾은 것 ${result.hits.length}개:`);
+      lines.push(...shown);
+      const hidden = result.hits.length - shown.length;
+      if (hidden > 0) lines.push(`…(${hidden}개는 자리가 모자라 안 적었어요 — 더 좁혀 물어보면 돼요)`);
+    }
+    if (result.moreHits) lines.push(`이것 말고도 ${result.moreHits}개가 더 있어요(상한까지만 봤어요).`);
+    if (result.stoppedAtLimit) lines.push('폴더가 커서 도중에 멈췄어요 — 못 본 자리가 있어요.');
+    if (result.skippedCount) lines.push(`안 들어간 자리 ${result.skippedCount}곳(비밀·시스템·도구가 만든 폴더).`);
+    return lines.join('\n');
+  }
+
   // ② 웹 수집 — 제목 · 본문 길이 · 핵심 발췌 · 열지 않은 같은 사이트 링크
   if (typeof result.markdown === 'string' || Array.isArray(result.links)) {
     const lines = [];

@@ -39,10 +39,36 @@ test('실행할 수 없는 도구는 모델에게 보여주지 않는다(되는 
   assert.ok(!names.includes('mail.send'), '연결 안 된 도구를 고르게 하면 "된다더니 안 된다"가 된다');
 });
 
-test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려면 알아야 한다)', () => {
+test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려면 알아야 한다)', async () => {
   const file = toolSchemasFor(selfState).find((t) => t.name === 'local.file');
   assert.match(file.description, /파일/);
-  assert.deepEqual(file.parameters.properties.action.enum, ['list', 'read', 'write', 'move', 'delete', 'undo']);
+  const declared = file.parameters.properties.action.enum;
+
+  // **목록을 손으로 맞추지 않는다**(§8). 여기 하드코딩된 배열이 있어서 기능을 늘릴 때마다
+  // 테스트가 "틀렸다"고 했다 — 검사가 아니라 관리 대상이었다. 불변식 두 방향으로 바꾼다.
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../src/runtime/local-file.js', import.meta.url), 'utf8');
+  const implemented = new Set([...src.matchAll(/action === '([a-z]+)'/g)].map((m) => m[1]));
+
+  // ① 선언한 것은 실제로 동작한다 — 못 하는 걸 할 수 있다고 말하는 게 이 저장소의 1급 죄다.
+  const { makeLocalFileTool } = await import('../src/runtime/local-file.js');
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-enum-'));
+  const tool = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  for (const action of declared) {
+    const r = await tool.handler({ action, path: 'x.md', to: 'y.md', text: '', query: 'x' });
+    assert.doesNotMatch(
+      String(r.userSafeSummary ?? ''), /할 수 있는 파일 작업이 아니에요/,
+      `스키마가 '${action}' 을 할 수 있다고 말하는데 손이 모른다`,
+    );
+  }
+  // ② 손에 있는 것은 모델에게 보인다 — 스키마에 없으면 모델에겐 없는 기능이다
+  //    (session.search 가 정확히 그랬다: 손은 있는데 스키마가 없어 "그 기능은 없습니다"라고 답했다).
+  for (const action of implemented) {
+    assert.ok(declared.includes(action), `'${action}' 은 동작하는데 스키마에 없다 — 모델이 못 쓴다`);
+  }
 });
 
 // ── 호출 → 커널 형태 변환 ────────────────────────────────────────────────

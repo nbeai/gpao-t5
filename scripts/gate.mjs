@@ -317,6 +317,50 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-e 찾기: **보호 영역을 이 길로 우회할 수 없다** ──────────────────────
+// 찾기는 보호 영역의 가장 약한 옆구리다. 폴더는 못 열게 막아 놔도, 내용 검색이 비밀 파일을
+// 읽어 버리면 그 자체가 유출이다(막혔다는 말도 없이 샌다). 그래서 별도 불변식으로 잠근다.
+{
+  try {
+    const { makeLocalFileTool } = await import('../src/runtime/local-file.js');
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const problems = [];
+
+    const root = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-search-'));
+    const SECRET = 'sk-gate-누출탐지-토큰';
+    await writeFile(join(root, '.env'), `API_KEY=${SECRET}`);
+    await writeFile(join(root, 'deploy.pem'), `-----BEGIN PRIVATE KEY-----\n${SECRET}`);
+    await writeFile(join(root, '보고서.md'), '분기 매출 정리');
+    const tool = makeLocalFileTool({ roots: [root], dataDir: root });
+
+    // 일반 자료는 찾아진다(안전하다고 아무것도 못 찾으면 그건 도구가 아니다).
+    const normal = await tool.handler({ action: 'search', query: '보고서' });
+    if (!normal?.result?.hits?.length) problems.push('일반 파일이 안 찾아진다 — 찾기가 죽어 있다');
+
+    // **핵심**: 비밀은 이름으로도 내용으로도 안 나온다.
+    for (const [what, args] of [
+      ['이름(.env)', { action: 'search', query: 'env' }],
+      ['이름(.pem)', { action: 'search', query: 'pem' }],
+      ['내용', { action: 'search', contains: SECRET }],
+      ['최근 파일 목록', { action: 'recent' }],
+    ]) {
+      const r = await tool.handler(args);
+      const leaked = (r?.result?.hits ?? []).filter((h) => /\.env$|\.pem$/.test(h.path));
+      if (leaked.length) problems.push(`찾기로 비밀이 샌다(${what}): ${leaked.map((h) => h.path).join(', ')}`);
+    }
+
+    // 못 본 자리를 숨기지 않는다 — "없다"와 "여기까지만 봤다"는 다른 말이다.
+    if (!(normal?.result?.searchedIn?.length)) problems.push('어디를 뒤졌는지 안 남는다(모델이 "없다"고 단정한다)');
+
+    if (problems.length) problems.forEach((p) => bad(p));
+    else ok('찾기: 일반 자료는 찾아지고, 비밀은 이름·내용 어느 쪽으로도 안 샌다');
+  } catch (e) {
+    bad(`찾기 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ④ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
 let deferred = 0;
 {

@@ -12,9 +12,53 @@ import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 
 import { join, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots } from './file-scope.js';
-import { protectionBlocks, protectionMessage } from './local-protection.js';
+import { protectionBlocks, protectionMessage, protectionFor } from './local-protection.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
+
+// P6-L3 · 찾기의 상한. **한 번의 요청이 프롬프트도 디스크도 삼키지 않게 한다.**
+// 상한에 걸리면 조용히 자르지 않고 "여기까지만 봤다"를 결과에 남긴다 —
+// 잘린 걸 숨기면 모델이 "없다"고 단정한다(§compactResult 계약과 같은 원리).
+const MAX_HITS = 40;            // 사용자에게 돌려줄 결과 수
+const MAX_WALK_ENTRIES = 20_000; // 훑을 항목 수(폴더가 깊어도 멈춘다)
+const MAX_CONTENT_BYTES = 2_000_000; // 내용까지 뒤질 때 한 번에 읽는 총량
+const MAX_FILE_SCAN_BYTES = 200_000; // 파일 하나에서 내용을 볼 최대치
+
+// 걷지 않는 자리. **비밀은 애초에 들어가지 않는다** — 이름만 스쳐도 되는 자리가 아니고,
+// 내용 검색이 켜지면 그대로 유출 통로가 된다(보호 영역 정책을 찾기가 우회하면 안 된다).
+// 나머지는 사용자의 자료가 아니라 도구가 만든 더미다. 건너뛴 것은 결과에 적는다(숨기지 않는다).
+const SKIP_NAMES = new Set(['node_modules', '.git', '.venv', 'venv', '__pycache__', '.cache', '.Trash']);
+
+/**
+ * 폴더를 훑는다. **보호 영역은 들어가지 않고, 상한에 걸리면 멈춘 사실을 돌려준다.**
+ * @returns {Promise<{files:Array, walked:number, stopped:boolean, skipped:string[]}>}
+ */
+async function walkFiles(root, { maxEntries = MAX_WALK_ENTRIES } = {}) {
+  const files = []; const skipped = []; let walked = 0; let stopped = false;
+  const queue = [root];
+  while (queue.length) {
+    const dir = queue.shift();
+    let entries;
+    try { entries = await readdir(dir, { withFileTypes: true }); }
+    catch { continue; } // 못 읽는 폴더는 건너뛴다(권한 등) — 전체를 실패시키지 않는다
+    for (const e of entries) {
+      if (walked >= maxEntries) { stopped = true; break; }
+      walked += 1;
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (SKIP_NAMES.has(e.name) || e.name.startsWith('.')) { skipped.push(full); continue; }
+        if (protectionFor(full)) { skipped.push(full); continue; } // 비밀·시스템은 들어가지 않는다
+        queue.push(full);
+        continue;
+      }
+      if (!e.isFile() || e.name.startsWith('.')) continue;
+      if (protectionFor(full)) { skipped.push(full); continue; } // 비밀 파일은 이름도 결과에 담지 않는다
+      files.push(full);
+    }
+    if (stopped) break;
+  }
+  return { files, walked, stopped, skipped };
+}
 
 /** 되돌리기 표 한 줄. 휴지통 경로와 원래 자리를 함께 남긴다. */
 function undoEntry(op, from, to) {
@@ -117,11 +161,72 @@ export function makeLocalFileTool(deps = {}) {
         // P6-L1: **범위 안이어도 보호 영역은 막는다.** 루트를 넓혀도 여기는 안 열린다 —
         // 안전이 "좁은 루트"에서 나오던 구조를 대체하는 자리다(게이트가 불변식으로 검사한다).
         // secret 은 읽기까지, system 은 변경만 막는다(뭉뚱그리면 아무것도 못 하는 도구가 된다).
-        const writes = action !== 'list' && action !== 'read';
+        // 읽기와 변경을 가른다. **찾기를 여기 빠뜨리면 읽기가 변경으로 분류돼** 시스템 폴더
+        // 검색이 통째로 막히고, 승인 문구도 "바꿉니다"로 잘못 나간다.
+        const READS = new Set(['list', 'read', 'search', 'recent']);
+        const writes = !READS.has(action);
         const prot = protectionBlocks(abs, { write: writes });
         if (prot) {
           const msg = protectionMessage(prot, { write: writes });
           return { blocked: true, scopeState: 'protected', ...msg };
+        }
+
+        // ── P6-L3 · 찾기 ────────────────────────────────────────────────
+        // 사용자는 경로를 외우지 않는다. "그 계약서 어디 있지"가 통해야 로컬을 실제로 다루는 것이다.
+        // **어디를 뒤졌는지 결과에 남긴다** — 이게 없으면 모델이 자기가 어디를 봤는지 몰라
+        // "없는 것 같다"고 단정하거나 터미널을 시킨다(라이브 실측).
+        if (action === 'search' || action === 'recent') {
+          const where = args.path ? [abs] : roots; // 자리를 안 정하면 다룰 수 있는 폴더 전부
+          const name = String(args.query ?? args.name ?? '').trim().toLowerCase();
+          const contains = String(args.contains ?? '').trim().toLowerCase();
+          if (action === 'search' && !name && !contains) {
+            return fail('무엇을 찾을지 알려주시면 찾아볼게요.', '파일 이름의 일부나, 안에 들어 있는 말을 알려주세요.');
+          }
+
+          const found = []; const skipped = []; let walked = 0; let stopped = false; let readBytes = 0;
+          for (const r of where) {
+            const w = await walkFiles(r);
+            walked += w.walked; stopped = stopped || w.stopped; skipped.push(...w.skipped);
+            for (const f of w.files) {
+              let info;
+              try { info = await stat(f); } catch { continue; }
+              if (action === 'recent') { found.push({ path: f, bytes: info.size, modifiedAt: info.mtime.toISOString() }); continue; }
+              const nameHit = name ? basename(f).toLowerCase().includes(name) : false;
+              let textHit = false;
+              // 내용까지 뒤지는 건 사용자가 그걸 물었을 때만. 총량 상한에 걸리면 멈춘 사실을 남긴다.
+              if (contains && !nameHit && info.size <= MAX_FILE_SCAN_BYTES && readBytes < MAX_CONTENT_BYTES) {
+                try {
+                  const t = await readFile(f, 'utf8');
+                  readBytes += info.size;
+                  textHit = t.toLowerCase().includes(contains);
+                } catch { /* 글이 아닌 파일은 건너뛴다 */ }
+              } else if (contains && !nameHit && readBytes >= MAX_CONTENT_BYTES) {
+                stopped = true;
+              }
+              if (nameHit || textHit) {
+                found.push({ path: f, bytes: info.size, modifiedAt: info.mtime.toISOString(), matched: nameHit ? 'name' : 'text' });
+              }
+            }
+          }
+
+          // recent 는 최근 순, search 는 최근 순(같은 이름이 여럿이면 방금 쓴 게 대개 그거다).
+          found.sort((x, y) => (x.modifiedAt < y.modifiedAt ? 1 : -1));
+          const limit = Math.min(Number(args.limit) || (action === 'recent' ? 20 : MAX_HITS), MAX_HITS);
+          const hits = found.slice(0, limit);
+          const more = found.length - hits.length;
+
+          return ok(
+            hits.length
+              ? `${hits.length}개를 찾았어요${more > 0 ? ` (더 있어요 — ${more}개는 안 보여드렸어요)` : ''}.`
+              : '찾는 게 안 보여요.',
+            {
+              hits, searchedIn: where, walked,
+              // **못 본 자리를 밝힌다.** "없다"와 "여기까지만 봤다"는 다른 말이다.
+              ...(more > 0 ? { moreHits: more } : {}),
+              ...(stopped ? { stoppedAtLimit: true } : {}),
+              ...(skipped.length ? { skippedCount: skipped.length } : {}),
+            },
+          );
         }
 
         if (action === 'list') {
@@ -190,7 +295,7 @@ export function makeLocalFileTool(deps = {}) {
           return ok(`${basename(abs)} 을(를) 지웠어요(되돌릴 수 있어요).`, { path: abs, recoverable: true });
         }
 
-        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·읽기·저장·옮기기·지우기·되돌리기가 가능해요.');
+        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·찾기·최근 파일·읽기·저장·옮기기·지우기·되돌리기가 가능해요.');
       } catch (e) {
         return failureOf(e, target);
       }
