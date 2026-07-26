@@ -47,7 +47,26 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   if (!failures.length) ok(`위험 작업 ${risky.length}종 모두 승인 게이트 통과`);
 }
 
-// ── ③ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
+// ── ③ 능력 설명의 부정 주장은 매번 눈에 띄게 한다 (감사 지적: 되는데 "못 한다"고 말했다) ──
+{
+  const { CAPABILITY_LINES } = await import('../src/kernel/tool-labels.js').then((m) => ({
+    CAPABILITY_LINES: m.allCapabilityLines?.() ?? null,
+  })).catch(() => ({ CAPABILITY_LINES: null }));
+  if (CAPABILITY_LINES) {
+    // "아직 없다/지원하지 않는다/못 한다" 는 **사실일 수도 있다**. 그래서 막지 않고 **보이게** 한다 —
+    // 기능이 생기면 이 줄부터 고쳐야 한다는 걸 매 게이트마다 상기시킨다.
+    const negatives = Object.entries(CAPABILITY_LINES)
+      .filter(([, line]) => /아직 없|지원하지 않|못 한다|불가능/.test(line));
+    if (negatives.length) {
+      console.log(`  ⚠ 능력 설명에 "못 한다" 주장 ${negatives.length}건 — 기능이 생겼으면 먼저 고칠 것:`);
+      for (const [id, line] of negatives) console.log(`      · ${id}: ${line.slice(0, 60)}…`);
+    } else {
+      ok('능력 설명에 남은 "못 한다" 주장 없음');
+    }
+  }
+}
+
+// ── ④ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
 let deferred = 0;
 {
   const out = execFileSync('bash', ['-lc',
@@ -63,7 +82,7 @@ let deferred = 0;
   }
 }
 
-// ── ④ 테스트 + 성능 기준선 (§17) ──────────────────────────────────────────
+// ── ⑤ 테스트 + 성능 기준선 (§17) ──────────────────────────────────────────
 {
   const out = execFileSync('npm', ['test'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const pass = Number(out.match(/^ℹ pass (\d+)/m)?.[1] ?? 0);
@@ -80,7 +99,7 @@ let deferred = 0;
   notes.push(`테스트 ${pass}건 / ${(ms / 1000).toFixed(2)}s`);
 }
 
-// ── ⑤ 프로세스 산출물이 커밋되지 않았다 ───────────────────────────────────
+// ── ⑥ 프로세스 산출물이 커밋되지 않았다 ───────────────────────────────────
 {
   const tracked = execFileSync('bash', ['-lc',
     `cd ${root} && git ls-files | grep -E '(^|/)(\\.beai-harness|workspace-notes)/' | head -3`,
