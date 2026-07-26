@@ -40,6 +40,18 @@ test('세션 생성 → 목록에 나타남', async () => {
   });
 });
 
+test('빈 상태/첫 사용: 저장된 대화가 없어도 새 대화를 만들고 바로 시작할 수 있다', async () => {
+  await withServer(async (base) => {
+    const first = await getj(base, '/sessions');
+    assert.deepEqual(first.sessions, [], '첫 실행은 빈 목록으로 시작');
+    const s = await (await post(base, '/sessions')).json();
+    assert.equal(s.title, '새 대화');
+    assert.match(s.id, /^[a-f0-9-]{36}$/);
+    const reloaded = await getj(base, `/sessions/${s.id}`);
+    assert.deepEqual(reloaded.transcript, [], '새 대화는 기록 없이 바로 입력 가능한 상태');
+  });
+});
+
 test('sessionId 없는 turn은 400', async () => {
   await withServer(async (base) => {
     const res = await post(base, '/turn', { text: '안녕' });
