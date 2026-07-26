@@ -139,10 +139,11 @@ export function isExecutionAllowed(grant) {
 // 승인 이유(사용자 언어) — kind별 한 줄. 개발자식 설명 금지.
 const WHY_APPROVAL = {
   send: '메시지를 실제로 밖으로 보내는 일이라 보내기 전에 한 번 확인받아요.',
-  write: '외부 서비스에 내용을 남기는 일이라 실행 전에 확인받아요.',
+  write: '내용을 남기거나 덮어쓰는 일이라 실행 전에 확인받아요.',
   automate: '앞으로 자동으로 실행될 설정이라 켜기 전에 확인받아요.',
   promote_memory: '오래 기억할 내용이라 저장하기 전에 확인받아요.',
-  delete: '되돌리기 어려운 삭제라 실행 전에 확인받아요.',
+  // 되돌릴 수 있는지는 도구가 말한다 — 여기서 "어렵다"고 단정하면 같은 카드 안에서 말이 어긋난다.
+  delete: '지우는 일이라 실행 전에 확인받아요.',
   pay: '돈이 나가는 일이라 진행 전에 확인받아요.',
   publish: '밖으로 공개되는 일이라 게시 전에 확인받아요.',
   export_sensitive: '민감한 정보를 내보내는 일이라 먼저 확인받아요.',
@@ -163,10 +164,15 @@ export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
   const tier = classifyTier(action);
   const auto = decideAutoGrant(action, mode);
   const floor = isSafetyFloor(kind);
-  const irreversible = kind === 'delete' || kind === 'pay' || kind === 'publish' || tier === TIER.A3;
-  const reversible = action?.revocable === false || irreversible
+  // **되돌릴 수 있는지는 도구가 아는 사실이다.** 종류만 보고 추측하면 거짓말이 된다 —
+  // 로컬 파일 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라고 겁을 줬다(실측).
+  // 도구가 밝힌 사실(revocable)이 있으면 그것이 이긴다. 모르면 안전하게 "어렵다"로.
+  const declared = action?.revocable;
+  const irreversible = declared === false
+    || (declared === undefined && (kind === 'delete' || kind === 'pay' || kind === 'publish' || tier === TIER.A3));
+  const reversible = irreversible
     ? '되돌리기 어려워요 — 그래서 미리 확인해요.'
-    : (auto ? '되돌릴 수 있어요.' : '되돌릴 수 있어요.');
+    : (action?.reversibleNote ?? '되돌릴 수 있어요.');
   let why;
   if (auto) {
     why = tier === TIER.A0
@@ -175,8 +181,9 @@ export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
   } else {
     why = WHY_APPROVAL[kind] ?? '되돌리기 어렵거나 밖으로 나가는 일이라 실행 전에 확인받아요.';
   }
-  const whatChanges = auto
-    ? '바깥으로 나가거나 되돌리기 어려운 변화는 없어요.'
-    : (floor ? '실행하면 밖으로 나가거나 상태가 바뀌어요 — 그래서 먼저 물어봐요.' : '지정한 항목이 바뀌어요.');
+  // 무엇이 바뀌는지는 **이번 요청의 구체 사실**로 말한다. 일반론("상태가 바뀌어요")은 정책문이고,
+  // 사용자는 그걸 읽고도 무엇이 사라지는지 모른다(P2-3 목표).
+  const whatChanges = action?.preview?.impact
+    ?? (auto ? '바깥으로 나가거나 되돌리기 어려운 변화는 없어요.' : '지정한 항목이 바뀌어요.');
   return { tier, needsApproval: !auto, safetyFloor: floor, why, whatChanges, reversible };
 }

@@ -22,6 +22,22 @@ export function fileKind(fileOp) {
   }
 }
 
+/**
+ * 이번 실행이 무엇을 하는지 **사용자 말로**. 대상이 없으면 null 을 주고 호출자가 라벨로 떨어진다.
+ * 도구가 늘어나면 여기에 한 줄씩 — 사례 전용이 아니라 도구별 서술이다.
+ */
+export function describeAction(toolId, args) {
+  if (toolId !== 'local.file' || !args?.action) return null;
+  const name = args.path ? String(args.path) : '그 파일';
+  switch (args.action) {
+    case 'delete': return `${name} 을(를) 지웁니다`;
+    case 'write': return `${name} 에 내용을 저장합니다(기존 내용은 휴지통으로)`;
+    case 'move': return args.to ? `${name} 을(를) ${args.to} 로 옮깁니다` : `${name} 을(를) 옮깁니다`;
+    case 'undo': return '방금 한 파일 작업을 되돌립니다';
+    default: return null;
+  }
+}
+
 const TOOL_KIND = {
   'mail.send': 'send',
   'slack.post': 'send',
@@ -71,16 +87,26 @@ export function buildActionPlan(p) {
     // 판정은 toolActionKind 하나로 모은다 — 승인·자동화·tick 이 같은 답을 봐야 한다.
     const tool = selfState.connectedTools.find((t) => t.id === id);
     let kind = toolActionKind({ toolId: id, args: intent.fileOp, selfState });
-    const preview = (k) => ({
-      impact: `${toolLabel(id)} 실행`,
+    // 승인 카드는 **이번 요청의 구체 사실**을 말해야 한다. "로컬 파일 실행"으로는 무엇이 사라지는지
+    // 알 수 없다(실측). 되돌릴 수 있는지도 종류가 아니라 **도구가 밝힌 사실**을 쓴다.
+    const reversible = tool?.reversible;
+    const cancelText = reversible === true ? (tool.reversibleNote ?? '되돌릴 수 있어요')
+      : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
+        : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
+    const preview = () => ({
+      impact: describeAction(id, intent.fileOp) ?? `${toolLabel(id)} 실행`,
       scope: '이번 요청',
       duration: '이번 한 번',
-      cancel: k === 'delete' ? '되돌릴 수 없음(실행 전 확인)' : '되돌릴 수 있음',
+      cancel: cancelText,
     });
-    let grant = grantFor({ label: id, kind, preview: preview(kind) }, mode);
+    const asAction = (k) => ({
+      label: id, kind: k, preview: preview(),
+      revocable: reversible, reversibleNote: tool?.reversibleNote,
+    });
+    let grant = grantFor(asAction(kind), mode);
     if (tool?.needsApproval && !grant.approvalRequired) {
       kind = 'send'; // 최소 A2로 승인 강제(하드코딩 우회 차단)
-      grant = grantFor({ label: id, kind, preview: preview(kind) }, mode);
+      grant = grantFor(asAction(kind), mode);
     }
     if (grant.approvalRequired) needsApproval.push(grant);
     else autoAllowed.push(id);

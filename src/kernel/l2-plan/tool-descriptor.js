@@ -16,6 +16,9 @@ import { FAILURE } from '../contracts.js';
  * @param {Array<{kind:'auth'|'config'|'env'|'connected'}>} [d.availability]
  * @param {string} [d.toolKind]
  * @param {boolean} [d.needsApproval]
+ * @param {boolean} [d.reversible]   실행을 되돌릴 수 있는가 — **도구가 아는 사실**이다. 종류로 추측하면
+ *   거짓말이 된다(로컬 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라 했다).
+ * @param {string} [d.reversibleNote]  되돌리는 방법 한 줄(사용자 말)
  * @returns {import('../contracts.js').ToolDescriptor}
  */
 export function defineTool(d) {
@@ -27,6 +30,8 @@ export function defineTool(d) {
     availability: d.availability ?? [{ kind: 'connected' }],
     toolKind: d.toolKind ?? 'read',
     needsApproval: d.needsApproval ?? false,
+    reversible: d.reversible,           // 미선언은 undefined — 모르면 안전하게 "어려울 수 있다"로 말한다
+    reversibleNote: d.reversibleNote,
   };
 }
 
@@ -64,6 +69,9 @@ export function toConnection(descriptor, facts = {}) {
     needsApproval: descriptor.needsApproval,
     // 권한 종류를 SelfState까지 실어 보낸다(ActionPlan·send 분리가 descriptor toolKind를 먼저 믿게).
     toolKind: descriptor.toolKind,
+    // 되돌리기 가능 여부도 함께. 여기서 떨어뜨리면 승인 카드가 다시 종류로 **추측**하게 된다.
+    reversible: descriptor.reversible,
+    reversibleNote: descriptor.reversibleNote,
   };
 }
 

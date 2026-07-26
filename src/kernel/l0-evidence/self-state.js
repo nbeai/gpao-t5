@@ -80,6 +80,8 @@ export function buildSelfState(env) {
       // needsApproval(행동 승인)·toolKind(권한 종류)를 버리지 않고 ActionPlan이 참조하게 실어 보낸다.
       needsApproval: t.needsApproval,
       toolKind: t.toolKind,
+      reversible: t.reversible,           // 승인 카드가 사실대로 말하게(추측 금지)
+      reversibleNote: t.reversibleNote,
       note: t.note,
     };
   });
