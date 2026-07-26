@@ -88,6 +88,14 @@ export function buildSelfState(env) {
   if (modelAuthState !== AUTH_STATE.USABLE) {
     limits.push(`모델 상태: ${modelAuthState}`);
   }
+  // P-RT-2 감사 B1: 자격(auth)과 별도의 모델 readiness 축. doctor 가 env.model.healthState 로 싣는다.
+  // model_missing/unreachable 인데 "준비됨"으로 보이면 T3 "보이는 것≠되는 것" 재발 — 한계로 정직 표시.
+  const modelHealthState = model.healthState;
+  if (modelAuthState === AUTH_STATE.USABLE && modelHealthState === 'model_missing') {
+    limits.push('모델 확인 필요: 설정된 모델을 지금 쓸 수 없어요');
+  } else if (modelAuthState === AUTH_STATE.USABLE && modelHealthState === 'unreachable') {
+    limits.push('모델 확인 필요: 모델 서비스에 연결이 안 돼요');
+  }
   for (const t of connectedTools) {
     // 목록에 있으나 실행 불가한 도구는 한계로 정직하게 표시한다(헌법 §3-3).
     if (t.connected && !t.executable) limits.push(`${toolLabel(t.id)}: 연결됨, 아직 실행 준비 안 됨`);
@@ -97,6 +105,7 @@ export function buildSelfState(env) {
   return {
     currentModel: { id: model.id, strengths: model.strengths, limits: model.limits },
     modelAuthState,
+    modelHealthState, // 검증 축(P-RT-2): usable|model_missing|unreachable|… / 미검증이면 undefined
     connectedTools,
     grantedAuthorities: env.grantedAuthorities ?? [],
     riskyActions: [],
@@ -123,6 +132,7 @@ export function selfStateSummary(selfState) {
   return {
     model: selfState.currentModel.id,
     modelAuthState: selfState.modelAuthState,
+    modelHealthState: selfState.modelHealthState, // 칩이 "준비됨" 대신 "모델 확인 필요"를 고를 근거
     // 사용자면에는 내부 도구 id 대신 라벨만 노출한다(안티 대시보드, 감사 지적).
     ready: selfState.connectedTools.filter((t) => t.executable).map((t) => toolLabel(t.id)),
     limits: selfState.limits,

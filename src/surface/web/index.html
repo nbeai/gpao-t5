@@ -573,10 +573,14 @@ async function selectSession(id) {
 
 function renderSelfState(s) {
   if (!s) return;
-  const warn = s.modelAuthState !== 'usable' || (s.limits && s.limits.length);
-  chip.textContent = s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState;
+  // P-RT-2 감사 B1: 자격이 usable 이어도 doctor 가 model_missing/unreachable 을 보고했으면
+  // "준비됨"이라 말하지 않는다(보이는 것=되는 것).
+  const healthIssue = s.modelHealthState === 'model_missing' || s.modelHealthState === 'unreachable';
+  const label = s.modelAuthState !== 'usable' ? s.modelAuthState : (healthIssue ? '모델 확인 필요' : '준비됨');
+  const warn = s.modelAuthState !== 'usable' || healthIssue || (s.limits && s.limits.length);
+  chip.textContent = label;
   chip.classList.toggle('warn', !!warn);
-  modelinfo.textContent = `${s.model} · ${s.modelAuthState === 'usable' ? '준비됨' : s.modelAuthState}`;
+  modelinfo.textContent = `${s.model} · ${label}`;
   let self = document.getElementById('stateSelf');
   if (!self) { self = document.createElement('div'); self.id = 'stateSelf'; statePanel.prepend(self); }
   self.textContent = [

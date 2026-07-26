@@ -6,6 +6,7 @@ import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { selectLiveModel } from '../runtime/model-provider.js';
+import { checkModelHealth } from '../runtime/model-doctor.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
@@ -50,11 +51,30 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const { model, envModel } = selectLiveModel(processEnv, { fetchImpl: deps.fetchImpl });
   env.model = envModel;
 
+  // P-RT-2 doctor: "구성됨"을 실 검증으로 "검증됨"까지 승격한다. 자격 실패로 분류되면 env.model 에
+  // 반영 → 턴마다 buildSelfState 가 읽어 기존 칩(limits)이 자동으로 진실을 표시(새 대시보드 없음).
+  // model_missing 은 자격 문제가 아니므로 authSignal 을 오염시키지 않는다(리포트로만).
+  const modelDoctor = async () => {
+    const report = await checkModelHealth(processEnv, { fetchImpl: deps.fetchImpl });
+    // authSignal 은 내부 진단값 — env 갱신에만 쓰고 공개 리포트에서는 제거한다(감사 B2:
+    // provider 원문 에러에는 키 조각·내부 문구가 섞일 수 있어 사용자 표면으로 새면 안 된다).
+    const { authSignal, ...publicReport } = report;
+    if (['auth_failed', 'billing_blocked', 'rate_limited'].includes(report.state)) {
+      env.model.authSignal = authSignal;
+    } else if (report.state === 'usable') {
+      env.model.authSignal = 'ok'; // 재검증으로 회복되면 표시도 회복
+    }
+    // 자격과 별도의 readiness 축(감사 B1): model_missing/unreachable 도 SelfState·칩까지 실어
+    // "모델 이름이 틀렸는데 화면은 준비됨"을 막는다(보이는 것=되는 것).
+    env.model.healthState = report.state;
+    return publicReport;
+  };
+
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
   };
   const tools = demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
-  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model };
+  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor };
 }
