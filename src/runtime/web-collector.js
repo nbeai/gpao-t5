@@ -6,6 +6,7 @@
 import { validateWebInput, makeSourceEvidence, classifyWebFetch, MIN_READABLE_CHARS } from '../kernel/l2-plan/web-tool.js';
 import { withTimeout } from './with-timeout.js';
 import { makeWebSearch, searchConnectionSuggestion } from './web-search.js';
+import { makeHostManners, waitPhrase } from './host-manners.js';
 import { extractTitle, extractDescription, extractReadable, extractLinks, extractHydrationText } from './readable.js';
 
 /**
@@ -17,7 +18,10 @@ import { extractTitle, extractDescription, extractReadable, extractLinks, extrac
  */
 export function httpToFetchState(status, ctx = {}) {
   if (status === 401) return 'login_wall';
-  if (status === 429) return 'bot_wall';
+  // 429 는 **봇 차단이 아니다** — 너무 자주 물어서 서버가 물러서라고 한 것이다.
+  // 예전엔 bot_wall 로 묶어 "봇 차단이 걸려 있어요"라고 말했다(오너 지적). 사실이 아니고,
+  // 사용자는 "이 사이트는 원래 안 되나 보다"로 오해한다. 잠시 뒤면 되는 일이다.
+  if (status === 429 || status === 503) return 'rate_limited';
   if (status === 403) {
     const sig = classifyWebFetch({ body: ctx.body }); // 봇벽/캡차 신호면 bot_wall, 아니면 접근차단
     return sig === 'ok' ? 'blocked' : sig;
@@ -72,6 +76,7 @@ function extractUrl(text) {
 }
 
 const WALL_MESSAGE = {
+  rate_limited: '그 사이트에 너무 자주 물어봐서 잠시 막혔어요.',
   login_wall: '로그인이 필요한 페이지예요.',
   bot_wall: '봇 차단이 걸려 있어요.',
   robots_disallow: '그 사이트가 수집을 허용하지 않아요.',
@@ -97,9 +102,13 @@ export function makeWebCollector(deps = {}) {
     apiKey: deps.searchApiKey,
     instanceUrl: deps.searchInstanceUrl,
   });
+  // P2-11: 사이트에 대한 예의. 같은 곳에 연달아 묻지 않고, 한 번 읽은 것은 다시 안 읽고,
+  // 429 를 받으면 물러선다. 우회가 아니라 **우리가 429 를 만들지 않는 것**이다.
+  const manners = deps.manners ?? makeHostManners();
   return {
     sourceLedgerRequired: true, // ToolRunner가 출처 없는 성공·내용 담은 실패를 막는다
     robotsCheck,                // 배선됐는지 밖에서 확인할 수 있게 노출(안 넘기면 검사가 통째로 안 돈다)
+    manners,                    // 브라우저 손과 **같은 예의를 공유**한다(두 손이 따로 놀지 않게)
     async handler(args) {
       // turn은 generic하게 {request}만 넘기므로, url이 없으면 요청문에서 URL을 뽑아 본다.
       const norm = { ...(args ?? {}), url: args?.url ?? extractUrl(args?.request) };
@@ -142,6 +151,15 @@ export function makeWebCollector(deps = {}) {
           try { allowed = await robotsCheck(candidate); } catch { allowed = false; }
           if (!allowed) { lastState = 'robots_disallow'; res = null; continue; }
         }
+        // ① 최근에 읽은 것은 **다시 열지 않는다.** 오늘 같은 주소를 열 번 넘게 다시 열어
+        //    429 를 자초했다 — 그게 이 줄이 생긴 이유다.
+        const hit = manners.cached(candidate);
+        if (hit) { url = candidate; body = hit.value.body; res = hit.value.res; fetchState = 'ok'; break; }
+        // ② 그 사이트가 쉬라고 했으면 **쉰다.** 시도조차 하지 않는다(제한을 더 늘리지 않게).
+        const cooling = manners.coolingMs(candidate);
+        if (cooling > 0) { lastState = 'rate_limited'; res = null; continue; }
+        // ③ 같은 곳에 연달아 묻지 않는다.
+        await manners.pace(candidate);
         try {
           const controller = new AbortController();
           ({ res, body } = await withTimeout(async () => {
@@ -154,11 +172,22 @@ export function makeWebCollector(deps = {}) {
           res = null;
           continue; // 이 후보는 못 읽었다 — 다음 후보로
         }
+        if (res.status === 429 || res.status === 503) {
+          manners.noteRateLimited(candidate, res.headers?.get?.('retry-after'));
+          lastState = 'rate_limited';
+          res = null;
+          continue;
+        }
         // 본문을 먼저 뽑아 보고 판정한다 — 건진 게 있으면 벽이 아니다(로그인 링크 하나로 막던 오판 수정).
         const probe = extractReadable(body);
         const probeChars = Math.max((probe.markdown ?? '').length, extractHydrationText(body, { maxChars: 400 }).length);
         fetchState = httpToFetchState(res.status, { body, readableChars: probeChars });
-        if (fetchState === 'ok') { url = candidate; break; }
+        if (fetchState === 'ok') {
+          url = candidate;
+          manners.noteOk(candidate);
+          manners.remember(candidate, { res, body }); // 다음에 같은 주소를 또 열지 않게
+          break;
+        }
         lastState = fetchState;
         res = null;
       }
@@ -168,9 +197,12 @@ export function makeWebCollector(deps = {}) {
           blocked: true,
           fetchState: lastState,
           userSafeSummary: WALL_MESSAGE[lastState] ?? WALL_MESSAGE.blocked,
-          nextSafeAction: candidates.length
-            ? '다른 자료로 다시 찾아볼까요? 보고 싶은 페이지 주소를 주시면 그건 바로 읽을 수 있어요.'
-            : '주소를 다시 확인해 주시겠어요?',
+          // 속도 제한은 **잠시 뒤면 되는 일**이다. "안 되는 사이트"로 오해하게 두지 않는다.
+          nextSafeAction: lastState === 'rate_limited'
+            ? `${waitPhrase(manners.coolingMs(tryUrls[0])) || '잠시'} 뒤에 다시 열어 볼까요? 그동안 아는 범위로 정리해 드릴 수도 있어요.`
+            : (candidates.length
+              ? '다른 자료로 다시 찾아볼까요? 보고 싶은 페이지 주소를 주시면 그건 바로 읽을 수 있어요.'
+              : '주소를 다시 확인해 주시겠어요?'),
         };
       }
 

@@ -9,6 +9,7 @@ import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
+import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
@@ -50,7 +51,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const webTimeoutMs = Number(processEnv.GPAO_T5_WEB_TIMEOUT_MS ?? 15_000);
   // 브라우저는 **있으면 쓰고 없으면 없는 대로**. 동기 탐지 — descriptor 조립이 동기다.
   const browserPath = processEnv.GPAO_T5_BROWSER_PATH ?? findBrowserSync();
-  const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath })) : undefined;
+  // P2-11: **하나의 예의를 두 손이 나눠 쓴다.** 같은 IP 로 나가므로 web.collect 가 만든 제한에
+  // 브라우저도 걸린다(실측). 따로 두면 한쪽이 절제해도 다른 쪽이 문을 닫는다.
+  const manners = deps.manners ?? makeHostManners();
+  const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
 
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
@@ -61,7 +65,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // Phase 0-1: 로컬 파일은 **실제 손발**을 배선한다(스텁 금지 — 등록된 도구는 실제로 동작해야 한다).
   const tools = demoTools({
     webCollector: makeWebCollector({
-      timeoutMs: webTimeoutMs,
+      timeoutMs: webTimeoutMs, manners,
       // 실제 robots.txt 를 확인한다. 안 넘기면 검사가 아예 안 돌아 "수집을 막은 페이지는 읽지 못한다"는
       // 능력 문장이 라이브에서만 거짓이 된다(감사 지적).
       robotsCheck: makeRobotsCheck({ timeoutMs: webTimeoutMs }),

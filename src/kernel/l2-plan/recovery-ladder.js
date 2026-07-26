@@ -21,6 +21,9 @@ const LADDER = {
   // "그 주소를 열지 못했어요"가 나간다(라이브 실측). 도구 중립으로 둔다.
   blocked: { rung: 'other_tool', useModelSearch: true, why: '그건 지금 열지 못했어요' },
   timeout: { rung: 'retry', why: '응답이 늦어요' },
+  // 429/503 은 "안 되는 곳"이 아니라 **잠시 뒤면 되는 일**이다. 다른 경로로 도망가지 말고 기다린다.
+  // (우리가 너무 자주 물어서 생긴 경우가 대부분이다 — 실측 2026-07-27.)
+  rate_limited: { rung: 'retry', why: '너무 자주 물어봐서 그 사이트가 잠시 쉬라고 했어요' },
   // 로컬: 범위 밖이면 **범위를 넓히자고 제안**한다(그냥 실패로 끝내지 않는다 — §22 로컬 지배력).
   out_of_scope: { rung: 'ask_user', requestScope: true, why: '제 작업 폴더 밖이에요' },
   needs_auth: { rung: 'ask_user', why: '연결이 필요해요' },

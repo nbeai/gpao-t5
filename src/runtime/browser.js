@@ -18,6 +18,7 @@ import { accessSync, constants } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { makeHostManners } from './host-manners.js';
 
 /** 시스템에 설치된 브라우저를 찾는다. 없으면 없는 대로 — 없는 손을 있다고 하지 않는다. */
 export const BROWSER_CANDIDATES = [
@@ -127,6 +128,9 @@ const OBSERVE_SCRIPT = `(() => {
  * @param {{browserPath?:string, headless?:boolean, port?:number, idleMs?:number, launch?:Function}} [deps]
  */
 export function makeBrowser(deps = {}) {
+  // P2-11: web.collect 와 **같은 예의를 공유한다.** 손이 둘인데 한쪽만 절제하면 소용없다 —
+  // 같은 IP 로 나가므로 429 도 함께 맞는다(실측: 내가 web.collect 로 만든 제한에 브라우저도 걸렸다).
+  const manners = deps.manners ?? makeHostManners();
   const port = deps.port ?? 9412;
   const idleMs = deps.idleMs ?? 120_000;
   let proc; let conn; let profileDir; let sessionId; let idleTimer;
@@ -183,9 +187,13 @@ export function makeBrowser(deps = {}) {
     /** 지금 이 컴퓨터에 브라우저가 있는가 — 없으면 **선언하지 않는다**(없는 손 금지). */
     async available() { return Boolean(deps.browserPath ?? await findBrowser()); },
 
+    /** 지금 이 호스트가 쉬는 중이면 남은 시간(ms). 도구가 이걸 보고 시도조차 안 한다. */
+    coolingMs(url) { return manners.coolingMs(url); },
+
     /** 주소를 열고 화면을 본다. 렌더가 끝날 때까지 기다린다(고정 대기 아님). */
     async open(url, { settleMs = 900, maxWaitMs = 12_000 } = {}) {
       await ensure();
+      await manners.pace(url); // 같은 곳에 연달아 묻지 않는다
       await conn.send('Page.navigate', { url }, sessionId);
       // 본문이 더 안 자랄 때까지 기다린다 — 사이트마다 렌더 시점이 다르므로 고정 대기는 거짓말이 된다.
       let last = -1; const until = Date.now() + maxWaitMs;

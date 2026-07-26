@@ -14,6 +14,7 @@
 // 브라우저가 이 컴퓨터에 없으면 **선언하지 않는다**(선언 ⊆ 손, 게이트가 검사한다).
 // 없다는 것은 실패가 아니라 능력의 한계다 — failureState 로 쓰지 않는다.
 import { makeSourceEvidence, validateWebInput } from '../kernel/l2-plan/web-tool.js';
+import { waitPhrase } from './host-manners.js';
 
 // 이만큼도 안 되면 **화면은 열렸지만 내용이 없는 것**이다(차단·안내·빈 페이지).
 // web.collect 의 MIN_READABLE_CHARS 와 같은 기준 — 도구가 달라도 "읽었다"의 뜻은 같아야 한다.
@@ -118,7 +119,17 @@ export function makeBrowserObserveTool(deps = {}) {
       const target = args.url ?? args.request ?? '';
       const v = validateWebInput({ url: target, request: target });
       if (!v.ok) return { blocked: true, fetchState: 'blocked', userSafeSummary: `열 수 없어요: ${v.reason}` };
-      return toReceipt(await browser.open(v.normalized.url ?? target), { action });
+      const open = v.normalized.url ?? target;
+      // 그 사이트가 쉬라고 했으면 **브라우저로도 안 연다.** 손이 둘이라고 두 번 두드리지 않는다.
+      const cooling = browser.coolingMs?.(open) ?? 0;
+      if (cooling > 0) {
+        return {
+          blocked: true, fetchState: 'rate_limited',
+          userSafeSummary: '그 사이트에 너무 자주 물어봐서 잠시 막혔어요.',
+          nextSafeAction: `${waitPhrase(cooling)} 뒤에 다시 열어 볼까요?`,
+        };
+      }
+      return toReceipt(await browser.open(open), { action });
     }),
   };
 }

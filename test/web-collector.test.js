@@ -17,7 +17,11 @@ test('httpToFetchState: 코드·본문 신호로 벽/차단 분리', () => {
   assert.equal(httpToFetchState(200, { body: '<title>문서</title>본문' }), 'ok');
   assert.equal(httpToFetchState(200, { body: '로그인 해주세요' }), 'login_wall', '200이어도 로그인 페이지');
   assert.equal(httpToFetchState(401), 'login_wall');
-  assert.equal(httpToFetchState(429), 'bot_wall');
+  // P2-11: 429 는 **봇 차단이 아니라 속도 제한**이다. 예전엔 bot_wall 로 묶어 "봇 차단이 걸려
+  // 있어요"라고 말했는데, 사실이 아니고 사용자는 "원래 안 되는 사이트"로 오해한다.
+  // 잠시 뒤면 되는 일이고, 대개는 **우리가 너무 자주 물어서** 생긴다(실측 2026-07-27).
+  assert.equal(httpToFetchState(429), 'rate_limited');
+  assert.equal(httpToFetchState(503), 'rate_limited', '서버가 잠시 쉬라는 것도 같다');
   assert.equal(httpToFetchState(403, { body: 'are you human captcha' }), 'bot_wall', '403+봇신호');
   assert.equal(httpToFetchState(403, { body: '접근이 거부되었습니다' }), 'blocked', '403 접근차단');
   assert.equal(httpToFetchState(500), 'blocked');
