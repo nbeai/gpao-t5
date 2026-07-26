@@ -12,6 +12,23 @@
 const find = (id, selfState) => selfState?.connectedTools?.find((t) => t.id === id);
 
 /**
+ * 받침에 맞는 조사. "슬랙 게시**으로**"처럼 틀리면 T5 가 한국어를 못 하는 것처럼 보인다.
+ * 사용자가 보는 모든 문장에 쓴다 — 작지만 이런 게 "자연스럽다"를 만든다.
+ * @param {string} word @param {'로'|'을'|'이'|'과'} kind
+ */
+export function withParticle(word, kind) {
+  const last = String(word ?? '').trim().slice(-1);
+  const code = last.charCodeAt(0);
+  const isHangul = code >= 0xac00 && code <= 0xd7a3;
+  const jong = isHangul ? (code - 0xac00) % 28 : 0;              // 0 이면 받침 없음
+  const rieul = jong === 8;                                       // ㄹ 받침은 "로"를 쓴다
+  const has = isHangul ? jong !== 0 : /[013678]$/.test(last);     // 숫자·영문은 근사
+  const pair = { 로: ['로', '으로'], 을: ['를', '을'], 이: ['가', '이'], 과: ['와', '과'] }[kind] ?? ['', ''];
+  if (kind === '로' && rieul) return `${word}로`;
+  return `${word}${has ? pair[1] : pair[0]}`;
+}
+
+/**
  * @param {string} id
  * @param {{connectedTools?:Array<{id:string,label?:string}>}} [selfState]
  */

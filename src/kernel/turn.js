@@ -9,7 +9,7 @@ import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
 import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
 import { blockedReceipt } from './l0-evidence/tool-receipt.js';
-import { toolLabel } from './tool-labels.js';
+import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan } from './l2-plan/action-plan.js';
@@ -345,9 +345,13 @@ export async function runTurn(input, ctx) {
       return {
         kind: 'clarify',
         usedSkill: ctx.usedSkill, // 스킬이 도구를 골랐으면 그 사실을 숨기지 않는다
+        // P2 봉인 검사에서 걸린 것: 여기가 이렇게 물었다 —
+        //   "어디로 보낼지 알려주세요. (텔레그램 전송의 채널/받는 사람)"
+        // 괄호 안에 **내부 구조가 그대로 노출**됐다. 완료 기준 ③("승인/복구 안내가 정책문처럼
+        // 보이지 않는다") 위반이다. 멈추는 것 자체는 안전이므로 그대로 두고, **말만 사람 말로** 한다.
         question: parsed.clarifyReason === 'no_message'
-          ? '무엇을 보낼지 알려주세요. (보낼 내용)'
-          : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action, selfState)}의 채널/받는 사람)`,
+          ? '어떤 내용을 보낼까요?'
+          : `${withParticle(toolLabel(sendGrant.action, selfState), '로')} 어디에 보낼까요?`,
         selfStateSummary: summary,
         memorySuggestion,
         capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action, selfState), toolId: sendGrant.action } }),
