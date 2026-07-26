@@ -120,6 +120,15 @@
   .listtabs button { background:none; border:0; color:var(--faint); font:inherit; font-size:var(--fs-xs);
     cursor:pointer; padding:2px 6px; border-radius:var(--r-sm); }
   .listtabs button.on { color:var(--fg); background:var(--hover); }
+  .listtabs .spacer { flex:1; }
+  .selbar { display:flex; align-items:center; gap:6px; padding:4px var(--sp-4) var(--sp-2);
+    font-size:var(--fs-xs); color:var(--muted); }
+  .selbar .spacer { flex:1; }
+  .selbar button { background:none; border:1px solid var(--line); color:var(--fg); font:inherit; font-size:var(--fs-xs);
+    cursor:pointer; padding:3px 8px; border-radius:var(--r-sm); }
+  .selbar button:hover { background:var(--hover); }
+  .selbar button.warn { color:var(--danger, #e5534b); }
+  .sess .chk { flex:none; width:14px; height:14px; margin-right:2px; accent-color:var(--dot, #7a8); }
   .toastbox { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(8px); z-index:60;
     background:var(--elevated); border:1px solid var(--line); box-shadow:var(--sh-md); color:var(--fg);
     padding:10px 14px; border-radius:var(--r-md); font-size:var(--fs-sm); max-width:min(520px, 92vw);
@@ -336,6 +345,16 @@
       <button data-view="active" class="on">대화</button>
       <button data-view="archived">보관함</button>
       <button data-view="deleted">휴지통</button>
+      <span class="spacer"></span>
+      <button id="selectMode" title="여러 개 정리">선택</button>
+      <button id="tidyMenu" title="정리">정리</button>
+    </div>
+    <div class="selbar" id="selbar" hidden>
+      <span id="selcount">0개 선택</span>
+      <span class="spacer"></span>
+      <button id="selArchive">숨기기</button>
+      <button id="selDelete" class="warn">지우기</button>
+      <button id="selCancel">취소</button>
     </div>
     <div class="sessions" id="sessions"></div>
     <div class="sidefoot">
@@ -750,6 +769,60 @@ function openSessMenu(item, s, anchor) {
   setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
 }
 
+// P2-4b 여러 개 정리. 선택은 화면 상태일 뿐 — 실제 판단·기록은 서버가 한다.
+let selectMode = false;
+const selected = new Set();
+const selbar = document.getElementById('selbar');
+
+function syncSelBar() {
+  selbar.hidden = !selectMode;
+  document.getElementById('selcount').textContent = `${selected.size}개 선택`;
+}
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selected.clear();
+  syncSelBar();
+  loadSessions();
+}
+async function bulk(action) {
+  if (!selected.size) { toast('먼저 정리할 대화를 골라 주세요.'); return; }
+  const ids = [...selected];
+  const out = await sessionAction('/sessions/bulk', { ids, action });
+  // 지금 열려 있던 대화가 정리 대상이었으면 갈 곳으로 옮긴다(빈 화면에 갇히지 않게).
+  if (ids.includes(currentSessionId)) {
+    if (out.nextSessionId) await selectSession(out.nextSessionId);
+    else await newSession();
+  }
+  setSelectMode(false);
+}
+document.getElementById('selectMode').onclick = () => setSelectMode(!selectMode);
+document.getElementById('selCancel').onclick = () => setSelectMode(false);
+document.getElementById('selArchive').onclick = () => bulk('archive');
+document.getElementById('selDelete').onclick = () => bulk('delete');
+
+// 정리 메뉴 — "전체 삭제"를 바로 노출하지 않는다. 무엇이 몇 개 정리되는지 먼저 말한다.
+document.getElementById('tidyMenu').onclick = async (ev) => {
+  ev.stopPropagation();
+  closeSessMenu();
+  const { sessions } = await (await fetch('/sessions')).json();
+  const empty = sessions.filter((s) => (s.turns ?? 0) === 0 && s.id !== currentSessionId);
+  const old = sessions.filter((s) => !s.pinned && Date.now() - s.updatedAt > 30 * 24 * 3600 * 1000);
+  const menu = el('sessmenu'); menu.setAttribute('role', 'menu');
+  const add = (label, fn) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.onclick = async (e) => { e.stopPropagation(); closeSessMenu(); await fn(); await loadSessions(); };
+    menu.appendChild(b);
+  };
+  if (empty.length) add(`빈 대화 ${empty.length}개 지우기`, () => sessionAction('/sessions/bulk', { ids: empty.map((s) => s.id), action: 'delete' }));
+  if (old.length) add(`30일 넘게 안 쓴 대화 ${old.length}개 숨기기`, () => sessionAction('/sessions/bulk', { ids: old.map((s) => s.id), action: 'archive' }));
+  if (!empty.length && !old.length) add('정리할 게 없어요', async () => {});
+  document.body.appendChild(menu);
+  const r = ev.target.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+  setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
+};
+
 async function loadSessions() {
   const { sessions } = await (await fetch(listQuery())).json();
   sessionsEl.innerHTML = '';
@@ -764,6 +837,17 @@ async function loadSessions() {
     // 목록 항목은 실제로 누를 수 있는 것이다 — 키보드·보조기기에서도 그렇게 보여야 한다.
     item.setAttribute('role', 'button'); item.tabIndex = 0;
     item.setAttribute('aria-current', s.id === currentSessionId ? 'true' : 'false');
+    if (selectMode) {
+      const chk = document.createElement('input');
+      chk.type = 'checkbox'; chk.className = 'chk'; chk.checked = selected.has(s.id);
+      chk.setAttribute('aria-label', `${s.title || '새 대화'} 선택`);
+      chk.onclick = (ev) => {
+        ev.stopPropagation();
+        if (chk.checked) selected.add(s.id); else selected.delete(s.id);
+        syncSelBar();
+      };
+      item.appendChild(chk);
+    }
     if (s.pinned) item.appendChild(el('pin', '📌'));
     const t = el('t', s.title || '새 대화'); const age = el('age', relAge(s.updatedAt));
     const more = document.createElement('button');
@@ -774,8 +858,19 @@ async function loadSessions() {
     item.onkeydown = (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); }
     };
-    // 지운 대화는 열 수 없다(서버도 404). 되돌린 뒤에 열린다.
-    item.onclick = () => (s.deletedAt ? toast('되돌린 뒤에 열 수 있어요.') : selectSession(s.id));
+    // 선택 모드에서는 행을 눌러도 대화가 열리지 않는다 — 고르는 중이다.
+    item.onclick = () => {
+      if (selectMode) {
+        const chk = item.querySelector('.chk');
+        chk.checked = !chk.checked;
+        if (chk.checked) selected.add(s.id); else selected.delete(s.id);
+        syncSelBar();
+        return;
+      }
+      // 지운 대화는 열 수 없다(서버도 404). 되돌린 뒤에 열린다.
+      if (s.deletedAt) { toast('되돌린 뒤에 열 수 있어요.'); return; }
+      selectSession(s.id);
+    };
     sessionsEl.appendChild(item);
   }
 }

@@ -119,6 +119,8 @@ export class SessionStore {
           id: s.id, title: s.title || DEFAULT_TITLE, updatedAt: s.updatedAt, createdAt: s.createdAt,
           pinned: Boolean(s.pinned), archivedAt: s.archivedAt ?? null, deletedAt: s.deletedAt ?? null,
           groupId: s.groupId ?? null,
+          // 정리 메뉴가 "빈 대화"를 고르려면 대화가 비었는지 알아야 한다(내용은 싣지 않는다).
+          turns: (s.transcript ?? []).length,
         });
       } catch {
         // 손상 파일은 목록에서 조용히 제외(전체 목록을 막지 않는다).

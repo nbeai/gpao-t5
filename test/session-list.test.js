@@ -243,3 +243,63 @@ test('API: 갈 곳은 고정 우선 정렬을 따른다(목록에서 맨 위에 
     assert.equal(out.nextSessionId, pinned.id);
   });
 });
+
+// ── P2-4b 여러 개 정리 ────────────────────────────────────────────────────
+test('API: 여러 개를 한 번에 숨긴다', async () => {
+  await withServer(async ({ post, getj }) => {
+    const a = await post('/sessions'); const b = await post('/sessions'); await post('/sessions');
+    const out = await post('/sessions/bulk', { ids: [a.id, b.id], action: 'archive' });
+    assert.equal(out.done, 2);
+    assert.equal(out.failed, 0);
+    assert.match(out.userSafeSummary, /보관함/);
+    assert.equal((await getj('/sessions')).sessions.length, 1);
+    assert.equal((await getj('/sessions?archived=1')).sessions.length, 2);
+  });
+});
+
+// 검증 기준: 일부 실패해도 나머지 결과를 정직하게 보여준다
+test('API: 일부가 실패해도 나머지는 되고, 무엇이 안 됐는지 말한다', async () => {
+  await withServer(async ({ post }) => {
+    const ok = await post('/sessions');
+    const out = await post('/sessions/bulk', {
+      ids: [ok.id, '00000000-0000-4000-8000-000000000000'], action: 'delete',
+    });
+    assert.equal(out.done, 1);
+    assert.equal(out.failed, 1);
+    assert.equal(out.ok, false, '일부 실패를 성공으로 보고하지 않는다');
+    assert.match(out.userSafeSummary, /1개는 못 했어요/);
+    assert.deepEqual(out.results.map((r) => r.ok), [true, false]);
+  });
+});
+
+test('API: 고를 게 없거나 모르는 동작이면 실행하지 않는다', async () => {
+  await withServer(async ({ post }) => {
+    assert.match((await post('/sessions/bulk', { ids: [], action: 'delete' })).error, /골라 주세요/);
+    const s = await post('/sessions');
+    assert.match((await post('/sessions/bulk', { ids: [s.id], action: 'purge' })).error, /숨기기 또는 지우기/);
+  });
+});
+
+test('API: 목록이 빈 대화를 골라낼 수 있게 턴 수를 준다(내용은 싣지 않는다)', async () => {
+  await withServer(async ({ post, getj }) => {
+    const empty = await post('/sessions');
+    const used = await post('/sessions');
+    await post('/turn', { sessionId: used.id, text: '안녕' });
+    const { sessions } = await getj('/sessions');
+    const byId = Object.fromEntries(sessions.map((s) => [s.id, s]));
+    assert.equal(byId[empty.id].turns, 0);
+    assert.ok(byId[used.id].turns >= 2);
+    // 제목은 첫 발화에서 오므로 그 말이 보이는 건 정상이다. 대화 **내용 자체**가 실리면 안 된다.
+    assert.ok(sessions.every((s2) => s2.transcript === undefined && s2.ledgerEntries === undefined),
+      '목록에 대화 내용·원장이 실리면 안 된다');
+  });
+});
+
+test('API: 여러 개를 지운 뒤에도 갈 곳을 알려준다', async () => {
+  await withServer(async ({ post }) => {
+    const keep = await post('/sessions');
+    const a = await post('/sessions'); const b = await post('/sessions');
+    const out = await post('/sessions/bulk', { ids: [a.id, b.id], action: 'delete' });
+    assert.equal(out.nextSessionId, keep.id);
+  });
+});

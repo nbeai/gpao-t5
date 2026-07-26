@@ -298,6 +298,35 @@ export function makeServer(deps = {}) {
           userSafeSummary: `"${deleted.title}" 을(를) 휴지통으로 옮겼어요. 30일 안에는 되돌릴 수 있어요.`,
         });
       }
+      // P2-4b 여러 개 한 번에 정리. **일부만 실패해도 나머지 결과를 정직하게 돌려준다** —
+      // 한 건 때문에 통째로 실패했다고 하면 사용자는 무엇이 됐는지 모른다(Delivery 원장과 같은 원리).
+      if (req.method === 'POST' && url === '/sessions/bulk') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const ids = Array.isArray(input.ids) ? input.ids.filter((x) => typeof x === 'string') : [];
+        const action = input.action;
+        if (!ids.length) return sendJson(res, 400, { error: '정리할 대화를 골라 주세요.' });
+        if (!['archive', 'delete'].includes(action)) return sendJson(res, 400, { error: '숨기기 또는 지우기만 할 수 있어요.' });
+        const results = [];
+        for (const id of ids) {
+          try {
+            const done = action === 'archive' ? await store.setArchived(id, true) : await store.softDelete(id);
+            results.push(done ? { id, ok: true } : { id, ok: false, reason: 'not_found' });
+          } catch {
+            results.push({ id, ok: false, reason: 'failed' });
+          }
+        }
+        const done = results.filter((r) => r.ok).length;
+        const failed = results.length - done;
+        const verb = action === 'archive' ? '숨겼어요' : '휴지통으로 옮겼어요';
+        const remaining = await store.list();
+        return sendJson(res, 200, {
+          ok: failed === 0, results, done, failed,
+          nextSessionId: remaining[0]?.id ?? null,
+          userSafeSummary: failed
+            ? `${done}개를 ${verb}. ${failed}개는 못 했어요(그 대화를 찾지 못했어요).`
+            : `${done}개를 ${verb}.${action === 'delete' ? ' 30일 안에는 되돌릴 수 있어요.' : ' 보관함에서 다시 꺼낼 수 있어요.'}`,
+        });
+      }
       if (req.method === 'POST' && url === '/sessions/restore') {
         const input = JSON.parse((await readBody(req)) || '{}');
         const restored = await store.restore(input.sessionId);
