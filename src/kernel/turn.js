@@ -178,16 +178,18 @@ export async function runTurn(input, ctx) {
   // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
   const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
-  // 2) 확인 필요 → 실행 전 멈추고 묻는다(방법 나열 금지).
-  if (intent.needsClarification) {
-    return {
-      kind: 'clarify',
-      question: '무엇을 말씀하시는 걸까요? (직전 대화 / 특정 파일 / 할 일) 중에 알려 주세요.',
-      selfStateSummary: summary,
-      memorySuggestion,
-      followUp,
-    };
-  }
+  // 2) **모호함은 정규식이 판정하지 않는다**(P2-8, §24 · §0 「앞」).
+  //
+  // 예전엔 여기서 `intent.needsClarification` 이면 **모델을 부르기도 전에** 하드코딩 문장으로
+  // 되물었다("무엇을 말씀하시는 걸까요? (직전 대화 / 특정 파일 / 할 일)"). 라이브 실측:
+  //   "그거 정리해줘" → clarify(하드코딩 문장)
+  //   "이거 요약해줘" → 팔식당을 정확히 요약        ← 같은 대화·같은 모호함
+  // 갈린 이유는 하나뿐이었다 — "정리"는 ACTION_SIGNALS 정규식에 있고 "요약"은 없었다.
+  // 정규식 단어 하나로 하나는 되묻고 하나는 완벽히 답했다. **모델은 할 수 있었다.**
+  //
+  // 정규식을 손보는 건 같은 병이다(다음 단어에서 또 난다). 우리는 비킨다 — "그거"가 무엇인지는
+  // workingState 가 사실로 주고, 그래도 모르면 모델이 헌장 <질문>대로 하나만 짧게 묻는다.
+  // 안전은 안 풀린다: 실행 승인은 여기가 아니라 authority(A2·A3·safetyFloor)가 따로 잡는다.
 
   // P2-5b: **도구 선택을 모델에게.** 분기 전에 한 번 묻는다 — 정규식(answerMode)이 "행동이 아니다"라고
   // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
