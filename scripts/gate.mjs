@@ -151,9 +151,17 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
 
 // ── ③ 능력 설명의 부정 주장은 매번 눈에 띄게 한다 (감사 지적: 되는데 "못 한다"고 말했다) ──
 {
-  const { CAPABILITY_LINES } = await import('../src/kernel/tool-labels.js').then((m) => ({
-    CAPABILITY_LINES: m.allCapabilityLines?.() ?? null,
-  })).catch(() => ({ CAPABILITY_LINES: null }));
+  // 1축: 능력 문장은 이제 **descriptor 파생**이다(수동 맵 없음). selfState 를 만들어 훑는다.
+  const CAPABILITY_LINES = await (async () => {
+    try {
+      const [{ allCapabilityLines }, { buildSelfState }, { demoEnv }] = await Promise.all([
+        import('../src/kernel/tool-labels.js'),
+        import('../src/kernel/l0-evidence/self-state.js'),
+        import('../src/surface/demo-context.js'),
+      ]);
+      return allCapabilityLines(buildSelfState(demoEnv()));
+    } catch { return null; }
+  })();
   if (CAPABILITY_LINES) {
     // "아직 없다/지원하지 않는다/못 한다" 는 **사실일 수도 있다**. 그래서 막지 않고 **보이게** 한다 —
     // 기능이 생기면 이 줄부터 고쳐야 한다는 걸 매 게이트마다 상기시킨다.
@@ -165,6 +173,37 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     } else {
       ok('능력 설명에 남은 "못 한다" 주장 없음');
     }
+  }
+}
+
+// ── ③-b 1축: 도구의 이름·설명은 descriptor 하나에서만 나온다 ─────────────
+// 예전엔 tool-labels.js 에 LABELS·CAPABILITIES 수동 맵 두 개가 따로 있었다. 그래서 도구를 더해도
+// 이름·설명이 안 따라왔다(`session.search` 는 CAPABILITIES 에 없어서 자기파악에 이름만 나왔다).
+// 목록이 아니라 **불변식**으로 막는다(§8): 선언된 도구는 이름과 설명을 갖고, 커널은 그것만 쓴다.
+{
+  try {
+    const [{ buildSelfState }, { demoEnv, demoDescriptors }, { toolLabel, toolCapabilityLine }] =
+      await Promise.all([
+        import('../src/kernel/l0-evidence/self-state.js'),
+        import('../src/surface/demo-context.js'),
+        import('../src/kernel/tool-labels.js'),
+      ]);
+    const selfState = buildSelfState(demoEnv());
+    const problems = [];
+    for (const d of demoDescriptors()) {
+      if (!d.label || d.label === d.id) problems.push(`${d.id}: 이름이 없다(id 가 화면에 샌다)`);
+      if (!d.capability) problems.push(`${d.id}: 하는 일 설명이 없다(모델이 지어낸다)`);
+      // 커널이 보는 이름이 descriptor 의 이름과 같아야 한다 — 다르면 어딘가 또 맵이 생긴 것이다.
+      if (toolLabel(d.id, selfState) !== d.label) problems.push(`${d.id}: 커널 이름이 descriptor 와 다르다`);
+      if (!toolCapabilityLine(d.id, selfState).startsWith(d.label)) problems.push(`${d.id}: 능력 문장이 descriptor 파생이 아니다`);
+    }
+    // 수동 맵이 되살아나면 잡는다 — 파일에 id→문자열 리터럴 맵이 다시 생기는 것을 막는다.
+    const labelsSrc = await readFile(new URL('../src/kernel/tool-labels.js', import.meta.url), 'utf8');
+    if (/^\s*'[\w.]+'\s*:\s*'/m.test(labelsSrc)) problems.push('tool-labels.js 에 수동 맵이 다시 생겼다');
+    if (problems.length) problems.forEach((p) => bad(p));
+    else ok(`도구 이름·설명이 descriptor 단일 진실 (${demoDescriptors().length}개)`);
+  } catch (e) {
+    bad(`도구 단일 진실 검사 실패: ${e.message}`);
   }
 }
 

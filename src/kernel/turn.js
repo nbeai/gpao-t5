@@ -346,10 +346,10 @@ export async function runTurn(input, ctx) {
         usedSkill: ctx.usedSkill, // 스킬이 도구를 골랐으면 그 사실을 숨기지 않는다
         question: parsed.clarifyReason === 'no_message'
           ? '무엇을 보낼지 알려주세요. (보낼 내용)'
-          : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action)}의 채널/받는 사람)`,
+          : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action, selfState)}의 채널/받는 사람)`,
         selfStateSummary: summary,
         memorySuggestion,
-        capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action), toolId: sendGrant.action } }),
+        capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action, selfState), toolId: sendGrant.action } }),
         followUp,
       };
     }
@@ -374,7 +374,7 @@ export async function runTurn(input, ctx) {
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
       pending: pendingGrants.map((g) => ({
         action: g.action,
-        label: toolLabel(g.action),
+        label: toolLabel(g.action, selfState),
         tier: g.tier,
         safetyFloor: g.safetyFloor ?? false,
         preview: g.approvalPreview,
@@ -385,7 +385,7 @@ export async function runTurn(input, ctx) {
       followUp,
       memorySuggestion,
       automationSuggestion,
-      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action), action: pendingGrants[0].action } }),
+      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
   }
 
@@ -415,7 +415,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const turnReceipts = [];
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
   for (const toolId of plan.toolsToUse) {
-    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
+    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
     const rec = await ctx.tools.run(toolId, args, selfState);
@@ -433,7 +433,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   //   원래 작업(currentRequest)을 함께 보존해 연결 후 이어갈 pending context로 쓴다. 첫 도구만(누더기 방지).
   let connectionNeeded;
   for (const toolId of plan.blockedTools ?? []) {
-    const label = toolLabel(toolId);
+    const label = toolLabel(toolId, selfState);
     const rec = blockedReceipt(
       `${label} 실행`,
       toolId,

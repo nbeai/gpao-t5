@@ -34,6 +34,10 @@ export function defineWebTool(d = {}) {
     availability,
     toolKind: 'read', // 읽기 전용 — send/write 아님
     needsApproval: sessionMode === 'user_approved', // 사용자 승인 세션만 승인 경계
+    // 하는 일은 **구현과 함께** 적는다. 라벨만 주면 모델이 없는 하위 기능을 지어낸다
+    // (오너 실사용 2026-07-26: "다중 페이지 순회·CSV 내보내기"를 약속했지만 전부 미구현이었다).
+    capability: d.capability
+      ?? '주소를 주면 그 페이지를 읽고, 주소가 없으면 찾아서 읽는다(읽기 전용). 읽은 내용은 출처와 함께 준다. 로그인이 필요하거나 수집을 막은 페이지는 읽지 못한다.',
   });
   return {
     ...base,

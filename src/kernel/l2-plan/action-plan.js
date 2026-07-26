@@ -94,7 +94,7 @@ export function buildActionPlan(p) {
       : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
         : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
     const preview = () => ({
-      impact: describeAction(id, intent.fileOp) ?? `${toolLabel(id)} 실행`,
+      impact: describeAction(id, intent.fileOp) ?? `${toolLabel(id, selfState)} 실행`,
       scope: '이번 요청',
       duration: '이번 한 번',
       cancel: cancelText,

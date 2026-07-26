@@ -12,9 +12,9 @@
 import { toolLabel, toolCapabilityLine } from './tool-labels.js';
 
 /** "라벨 — 설명" 에서 설명만(문서에서 라벨은 이미 굵게 따로 쓴다 — 중복 표기 방지). */
-function doesOnly(id) {
-  const line = toolCapabilityLine(id);
-  const label = toolLabel(id);
+function doesOnly(id, selfState) {
+  const line = toolCapabilityLine(id, selfState);
+  const label = toolLabel(id, selfState);
   return line.startsWith(`${label} — `) ? line.slice(label.length + 3) : line;
 }
 
@@ -53,13 +53,13 @@ export function buildCapabilityFacts(selfState) {
       healthState: selfState.modelHealthState,
     },
     ready: ready.map((t) => ({
-      label: toolLabel(t.id),
-      does: doesOnly(t.id),
+      label: t.label ?? t.id,
+      does: doesOnly(t.id, selfState),
       needsApproval: Boolean(t.needsApproval),
       risk: RISK_BY_KIND[t.toolKind] ?? null,
     })),
     blocked: blocked.map((t) => ({
-      label: toolLabel(t.id),
+      label: t.label ?? t.id,
       why: BLOCKED_REASON[t.status] ?? BLOCKED_REASON.blocked,
     })),
     granted: selfState.grantedAuthorities ?? [],

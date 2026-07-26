@@ -27,7 +27,9 @@ test('auth 실패와 정상은 구분된다', () => {
 test('연결됐지만 실행 준비 안 된 도구는 실행 불가로 판정', () => {
   const s = buildSelfState({
     model: { id: 'm' },
-    connections: [{ id: 'slack.post', connected: true, executable: false }],
+    // 라이브는 descriptor → toConnection 을 거쳐 label 을 들고 온다. fixture 도 같게 만든다
+    // (1축: 이름은 descriptor 가 진실이다 — 커널이 id 에서 이름을 지어내지 않는다).
+    connections: [{ id: 'slack.post', label: '슬랙 게시', connected: true, executable: false }],
   });
   assert.equal(isToolExecutable(s, 'slack.post'), false);
   // 한계는 사용자 라벨로 표시하고 내부 id 는 노출하지 않는다(안티 대시보드).

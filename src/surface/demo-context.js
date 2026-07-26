@@ -31,16 +31,22 @@ const DESCRIPTORS = [
   defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
+    capability: '정해진 작업 폴더 안에서 파일을 보고·읽고·만들고·옮기고·지운다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
-  defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true }),
-  defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
+  defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
+    capability: '메일을 보낸다(보내기 전 확인을 받는다).' }),
+  defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
+    capability: '슬랙에 글을 올린다(올리기 전 확인을 받는다).' }),
   // 채널 레지스트리가 outboundTool 로 선언하는 도구는 descriptor 도 있어야 한다 — 선언만 있고
   // 손이 없으면 T5 가 "텔레그램으로 보낸다"고 말해 놓고 못 보낸다(감사 지적, 게이트가 불변식으로 막는다).
   // 지난 대화 검색 — 읽기 전용이라 자연 진행(A0). 결과는 후보이지 자동 반영이 아니다.
-  defineTool({ id: 'session.search', label: '지난 대화 찾기', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true }),
-  defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true }),
+    // 능력 문장이 없어서 자기파악에서 이름만 보였다(1축에서 발견 — 맵에 안 적혀 있었다).
+  defineTool({ id: 'session.search', label: '지난 대화 찾기', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    capability: '지난 대화들에서 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.' }),
+  defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
+    capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).' }),
 ];
 /**
  * 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함).

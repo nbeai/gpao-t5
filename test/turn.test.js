@@ -9,10 +9,12 @@ function ctx(overrides = {}) {
   return {
     env: {
       model: { id: 'beai5-stub', authSignal: overrides.authSignal ?? 'ok' },
+      // 1축: 라이브는 descriptor → toConnection 이 label 을 실어 준다. fixture 도 같은 모양이어야
+      // "내부 id 비노출" 계약을 진짜로 검사한다(커널이 id 에서 이름을 지어내면 그게 두 진실이다).
       connections: overrides.connections ?? [
-        { id: 'web.collect', connected: true, executable: true },
-        { id: 'local.file', connected: true, executable: true },
-        { id: 'mail.send', connected: true, executable: false },
+        { id: 'web.collect', label: '웹 자료 수집', connected: true, executable: true },
+        { id: 'local.file', label: '로컬 파일', connected: true, executable: true },
+        { id: 'mail.send', label: '메일 발송', connected: true, executable: false },
       ],
     },
     model: new StubModelClient(),
@@ -68,7 +70,7 @@ test('S15 실행 불가 도구는 쓴 척하지 않고 막힘으로 원장에 �
 
 // S20/S23: 외부 전송이 실행 가능해도 승인 전에는 멈춘다.
 test('S20 실행 가능한 발송은 승인 게이트에서 멈춘다', async () => {
-  const c = ctx({ connections: [{ id: 'mail.send', connected: true, executable: true }] });
+  const c = ctx({ connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }] });
   const r = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   assert.equal(r.kind, 'approval');
   assert.ok(r.pending.some((p) => p.tier === 'A2'));

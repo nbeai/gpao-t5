@@ -19,6 +19,8 @@ import { FAILURE } from '../contracts.js';
  * @param {boolean} [d.reversible]   실행을 되돌릴 수 있는가 — **도구가 아는 사실**이다. 종류로 추측하면
  *   거짓말이 된다(로컬 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라 했다).
  * @param {string} [d.reversibleNote]  되돌리는 방법 한 줄(사용자 말)
+ * @param {string} [d.capability]  이 도구가 **실제로 하는 일** 한 줄(사용자 말). 라벨만 주면 모델이
+ *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
  * @returns {import('../contracts.js').ToolDescriptor}
  */
 export function defineTool(d) {
@@ -32,6 +34,7 @@ export function defineTool(d) {
     needsApproval: d.needsApproval ?? false,
     reversible: d.reversible,           // 미선언은 undefined — 모르면 안전하게 "어려울 수 있다"로 말한다
     reversibleNote: d.reversibleNote,
+    capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
   };
 }
 
@@ -72,6 +75,7 @@ export function toConnection(descriptor, facts = {}) {
     // 되돌리기 가능 여부도 함께. 여기서 떨어뜨리면 승인 카드가 다시 종류로 **추측**하게 된다.
     reversible: descriptor.reversible,
     reversibleNote: descriptor.reversibleNote,
+    capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
   };
 }
 

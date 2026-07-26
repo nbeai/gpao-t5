@@ -73,6 +73,9 @@ export function buildSelfState(env) {
     const status = t.status ?? deriveToolStatus(t);
     return {
       id: t.id,
+      // 1축: **이름은 descriptor 가 진실이다.** 여기서 흘리면 화면·승인 카드가 이름을 다시
+      // 손으로 관리하게 된다 — 실제로 그래서 tool-labels.js 의 LABELS 맵이 생겼다(두 진실).
+      label: t.label,
       connected: Boolean(t.connected),
       status, // Phase 5.1: usable|needs_auth|needs_config|needs_connection|blocked
       executable: status === 'usable', // 하위호환 파생(§6)
@@ -82,6 +85,10 @@ export function buildSelfState(env) {
       toolKind: t.toolKind,
       reversible: t.reversible,           // 승인 카드가 사실대로 말하게(추측 금지)
       reversibleNote: t.reversibleNote,
+      // 1축: **이름과 하는 일은 descriptor 가 진실이다.** 여기서 흘리면 커널이 알 길이 없어
+      // 손으로 관리하는 맵이 생긴다 — 실제로 그래서 LABELS·CAPABILITIES 두 맵이 있었다.
+      label: t.label,
+      capability: t.capability,
       note: t.note,
     };
   });
@@ -100,8 +107,8 @@ export function buildSelfState(env) {
   }
   for (const t of connectedTools) {
     // 목록에 있으나 실행 불가한 도구는 한계로 정직하게 표시한다(헌법 §3-3).
-    if (t.connected && !t.executable) limits.push(`${toolLabel(t.id)}: 연결됨, 아직 실행 준비 안 됨`);
-    if (!t.connected) limits.push(`${toolLabel(t.id)}: 연결하면 가능`);
+    if (t.connected && !t.executable) limits.push(`${t.label ?? t.id}: 연결됨, 아직 실행 준비 안 됨`);
+    if (!t.connected) limits.push(`${t.label ?? t.id}: 연결하면 가능`);
   }
 
   return {
@@ -136,9 +143,9 @@ export function selfStateSummary(selfState) {
     modelAuthState: selfState.modelAuthState,
     modelHealthState: selfState.modelHealthState, // 칩이 "준비됨" 대신 "모델 확인 필요"를 고를 근거
     // 사용자면에는 내부 도구 id 대신 라벨만 노출한다(안티 대시보드, 감사 지적).
-    ready: selfState.connectedTools.filter((t) => t.executable).map((t) => toolLabel(t.id)),
+    ready: selfState.connectedTools.filter((t) => t.executable).map((t) => t.label ?? t.id),
     // 모델 입력용: 라벨 + 실제로 하는 일 한 줄. 화면 칩은 위 ready(라벨만)를 그대로 쓴다.
-    readyCapabilities: selfState.connectedTools.filter((t) => t.executable).map((t) => toolCapabilityLine(t.id)),
+    readyCapabilities: selfState.connectedTools.filter((t) => t.executable).map((t) => toolCapabilityLine(t.id, selfState)),
     limits: selfState.limits,
     nextSafeAction: selfState.nextSafeAction,
   };
