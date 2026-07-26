@@ -153,6 +153,9 @@ export function makeServer(deps = {}) {
     const learning = await traceStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
+    // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
+    // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
+    ctx.skills = (await skillStore.load()).skills ?? [];
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.

@@ -23,6 +23,7 @@ import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
+import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -122,6 +123,14 @@ export async function runTurn(input, ctx) {
   // 1) 말귀
   const intent = interpret(input.text, { selfState });
 
+  // Phase 0-4: 승격된 스킬이 **말귀를 넓힌다**. 일반 규칙이 못 알아듣는 표현이라도 배운 작업의
+  //   트리거와 맞으면 그것 자체가 실행 신호다 — 그게 "배웠다"의 뜻이다(계획서 Phase 7).
+  //   이걸 fast_chat 판정 뒤에 두면 스킬이 구경도 못 한다(테스트에서 실제로 그랬다).
+  //   **영향만 준다**: 도구를 정해 줄 뿐 실행 권한은 그대로 — 외부 전송이면 여전히 A2 를 받는다.
+  const skill = applicableSkill(ctx.skills, input.text ?? '');
+  const influence = skillInfluence(skill);
+  ctx.usedSkill = influence ? { id: influence.skillId, label: influence.label } : undefined;
+
   // 1.5) Context Mesh — 좁은 맥락 입장 + 기억 승격 후보(P6-1).
   //   admitted: 현재 목표 + 승격되어 영향 가능하고 이번 요청에 관련된 기억만(라우터가 raw 기억 안 씀).
   //   memorySuggestion: 후보만 표면화(자동 승격 아님). operating_principle은 replay 전 영향 0(§5).
@@ -148,7 +157,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
-  if (intent.answerMode === 'fast_chat') {
+  if (intent.answerMode === 'fast_chat' && !influence) {
     const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, ...selfhood });
     // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
     // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
@@ -174,9 +183,13 @@ export async function runTurn(input, ctx) {
   // Phase 0-2: 모델이 내장 검색을 하면 T5 가 같은 일을 또 하지 않는다(중복 실행·실패 원장 방지).
   //   실사용에서 1층이 답을 만들었는데 2층도 돌아 "로그인이 필요한 페이지예요"가 원장에 남았다.
   //   OpenClaw 도 내장 검색이 있으면 관리형 검색 도구를 억제한다(같은 원리).
-  const planIntent = ctx.modelSupportsSearch && intent.neededTools?.includes('web.collect')
+  let planIntent = ctx.modelSupportsSearch && intent.neededTools?.includes('web.collect')
     ? { ...intent, neededTools: intent.neededTools.filter((id) => id !== 'web.collect') }
     : intent;
+
+  if (influence?.tool && !planIntent.neededTools?.includes(influence.tool)) {
+    planIntent = { ...planIntent, neededTools: [...(planIntent.neededTools ?? []), influence.tool] };
+  }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
@@ -224,6 +237,7 @@ export async function runTurn(input, ctx) {
     if (parsed.ambiguous) {
       return {
         kind: 'clarify',
+        usedSkill: ctx.usedSkill, // 스킬이 도구를 골랐으면 그 사실을 숨기지 않는다
         question: parsed.clarifyReason === 'no_message'
           ? '무엇을 보낼지 알려주세요. (보낼 내용)'
           : `어디로 보낼지 알려주세요. (${toolLabel(sendGrant.action)}의 채널/받는 사람)`,
@@ -344,6 +358,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     kind: 'reply',
     reply,
     identityUpdate: ctx.identityUpdate, // P-ID-1: 승인 재개 경로에서도 이름 지정을 잃지 않는다
+    usedSkill: ctx.usedSkill,           // Phase 0-4: 어떤 배운 작업이 도왔는지(조용히 바뀌지 않는다)
     selfStateSummary: summary,
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
