@@ -412,6 +412,10 @@ async function renderModelConnect() {
         <button id="mcConnect">연결</button>
         <button id="mcDisconnect">해제</button>
       </div>
+      <div style="margin:4px 0;">
+        <button id="mcChatgpt">ChatGPT 계정으로 연결</button>
+        <span style="opacity:.7; font-size:11px;">공식 지원 방식이 아니에요 — 막히면 연결이 끊길 수 있어요.</span>
+      </div>
       <div id="mcResult"></div>`;
     statePanel.appendChild(box);
     box.querySelector('#mcProvider').onchange = (e) => {
@@ -431,6 +435,15 @@ async function renderModelConnect() {
       if (r.connected) box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
       await refreshModelConnect();
     };
+    box.querySelector('#mcChatgpt').onclick = async () => {
+      const r = await (await fetch('/model/chatgpt/login', { method: 'POST' })).json();
+      if (r.error) { box.querySelector('#mcResult').textContent = r.error; return; }
+      box.querySelector('#mcResult').textContent = r.notice + ' (브라우저에서 승인해 주세요)';
+      window.open(r.authorizeUrl, '_blank', 'noopener'); // 로그인은 사용자가 직접 한다
+      const done = await (await fetch('/model/chatgpt/await', { method: 'POST' })).json();
+      box.querySelector('#mcResult').textContent = [done.userSafeSummary, done.nextSafeAction].filter(Boolean).join(' ');
+      await refreshModelConnect();
+    };
     box.querySelector('#mcDisconnect').onclick = async () => {
       await fetch('/model/disconnect', { method: 'POST' });
       box.querySelector('#mcResult').textContent = '연결을 해제했어요.';
@@ -445,8 +458,9 @@ async function refreshModelConnect() {
   const el = document.getElementById('mcStatus');
   if (!el) return;
   if (!st || !st.connected) { el.textContent = '연결된 모델 없음 — 내장 안내 모드로 동작 중'; return; }
-  const src = { user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정' }[st.source] ?? st.source;
-  el.textContent = `${st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''} (${src})`;
+  const src = { user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source;
+  el.textContent = `${st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''} (${src})`
+    + (st.unofficial ? ' · 공식 지원 아님' : '');
 }
 
 // ── 기억 찾기 (P6-18) ── 과거 대화 검색. **결과는 "찾은 기억(반영 안 됨)".** 반영은 명시 admit(§6.16)만 —
