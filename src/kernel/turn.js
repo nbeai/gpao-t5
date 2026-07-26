@@ -22,6 +22,7 @@ import { parseSend } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
 import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
+import { updateWorkingState } from './l0-evidence/working-state.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -192,15 +193,22 @@ export async function runTurn(input, ctx) {
   {
     const tc = buildTaskContext({
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
-      nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...selfhood,
+      nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
+      // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
+      // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
+      workingState: ctx.workingState,
+      ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
     const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
     const out = await ctx.model.respond(tc, {
       onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
       search: wantedWeb,
-      // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
-      effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
+      // **도구를 함께 주는 호출에는 낮은 강도를 쓰지 않는다.** 낮으면 모델이 "방금 읽은 자료" 같은
+      // 사실을 안 보고 표면 단어로 인자를 만든다 — 실측: 팔식당 페이지를 읽은 다음 턴의 "리뷰"를
+      // 그냥 "리뷰"로 검색해 **책 리뷰 쓰는 방법**을 읽어 왔다. 잘못된 인자는 오염된 사실을 만들고,
+      // 오염된 사실은 다음 턴까지 번진다. 속도보다 이해가 먼저다(절대 원칙 §0).
+      effort: 'medium',
       tools: toolSchemasFor(selfState),
     });
     earlyReply = typeof out === 'string' ? out : out?.text ?? '';
@@ -276,7 +284,13 @@ export async function runTurn(input, ctx) {
   //   대상·내용이 애매하면 실행/승인 전에 짧게 확인한다. 명확하면 승인 preview를 어디에/무엇을로 채운다.
   // toolArgs: { [toolId]: {...} } — 도구별 정밀 인자. send 는 parseSend, 파일은 parseFileRequest 가 채운다.
   // 문장 전체를 그대로 도구에 넘기지 않는다(같은 원리를 도구 종류마다 반복 — 일반형).
-  let sendArgs;
+  // P2-6b: **모델이 고른 인자가 실행 인자의 바닥이다.** 여기가 비어 있어서 라이브에서 이런 일이 났다:
+  //   턴2 "리뷰 내용들 읽어보고" → 모델은 `web.collect{request:'…/review/visitor'}` 를 정확히 골랐는데
+  //   실행부는 그걸 버리고 발화 원문("리뷰 내용들 읽어보고 …")을 검색해 **책 리뷰 쓰는 방법** 블로그를
+  //   읽었다. 턴1이 멀쩡했던 건 우연이다 — 그땐 발화 원문 안에 주소가 들어 있었다.
+  //   §24: 코드는 경계와 사실, 모델은 이해와 선택. 모델이 이해해서 고른 것을 정규식으로 되돌리지 않는다.
+  //   아래 파일·전송 파싱은 모델이 못 고를 때(미연결·도구호출 미지원)의 폴백으로 이 위에 얹힌다.
+  let sendArgs = modelToolArgs && Object.keys(modelToolArgs).length ? { ...modelToolArgs } : undefined;
 
   // Phase 0-1: 파일 작업 인자. 도구만 만들면 커널이 "무엇을 하라"고 말해줄 수 없다(실사용에서 드러남).
   // 인자는 **권한 판정이 본 것과 같은 파싱**을 그대로 쓴다(다시 파싱하지 않는다 — 두 진실 금지).
@@ -321,7 +335,8 @@ export async function runTurn(input, ctx) {
         followUp,
       };
     }
-    sendArgs = { [sendGrant.action]: { target: parsed.target, text: parsed.message } };
+    // 전송 인자만 갈아끼운다 — 통째로 덮으면 같은 턴의 다른 도구 인자(web.collect 등)가 사라진다.
+    sendArgs = { ...(sendArgs ?? {}), [sendGrant.action]: { target: parsed.target, text: parsed.message } };
     // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
     sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: parsed.target, what: parsed.message };
     // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
@@ -422,10 +437,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   const ladder = nextRung(turnReceipts);
+  // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
+  const workingState = updateWorkingState(ctx.workingState, {
+    receipts: turnReceipts,
+    blocked: ladder ? rungMessage(ladder) : undefined,
+  });
   const tc = buildTaskContext({
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
-    modelProviderId: ctx.modelProviderId,
+    modelProviderId: ctx.modelProviderId, workingState,
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
     recoveryHint: rungMessage(ladder),
     ...(ctx.selfhood ?? {}),
@@ -476,6 +496,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     nextSafeAction: projection.unconfirmed.length ? userSafeNextAction(turnReceipts) : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+    // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
+    workingState,
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
     connectionNeeded,
     // P6-11: 승인된 send 실행 사실 — 서버가 학습(TaskTrace·DefaultTarget 후보)에 쓴다.

@@ -12,6 +12,7 @@ import { withTimeout } from './with-timeout.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
+import { workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { ModelTimeoutError } from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
 
@@ -61,6 +62,9 @@ export function buildModelMessages(tc) {
   if (sf.readyTools?.length) sys.push(`T5 가 대신 실행할 수 있는 도구: ${sf.readyTools.join(', ')}`);
   if (sf.limits?.length) sys.push(`아직 안 되는 것: ${sf.limits.join('; ')}`);
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
+  // 자기 파악 세 번째 축: 지금 이 대화에서 어디까지 왔는가. "그거·거기·그 페이지"가 여기서 풀린다.
+  const working = workingStateFacts(tc.workingState);
+  if (working) sys.push(`[이 대화에서 지금까지]\n${working}`);
 
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);

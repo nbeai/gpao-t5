@@ -126,6 +126,18 @@ export function makeChatGptModelClient(deps) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
       const toolCalls = []; // 모델이 고른 도구(있으면 호출자가 승인·실행 경로로 태운다)
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
+      // 진단(기본 꺼짐): 라이브에서 모델에게 **실제로 간 것**을 눈으로 보기 위한 덤프.
+      // 오프라인 재현과 라이브가 다른 사고를 여러 번 겪었다(절대원칙 1).
+      if (process.env.GPAO_T5_DEBUG_PROMPT) {
+        try {
+          const { appendFileSync } = await import('node:fs');
+          appendFileSync(process.env.GPAO_T5_DEBUG_PROMPT,
+            `\n===== ${new Date().toISOString()} tools=${(opts.tools ?? []).length} effort=${opts.effort}\n`
+            + `--- system ---\n${m.system}\n--- history(${(m.history ?? []).length}) ---\n`
+            + `${(m.history ?? []).map((h) => `${h.role}: ${h.text.slice(0, 120)}`).join('\n')}\n`
+            + `--- user ---\n${m.user}\n`);
+        } catch { /* 진단 실패가 응답을 막지 않는다 */ }
+      }
       const controller = new AbortController();
       let status, raw, whole;
       try {
@@ -198,6 +210,13 @@ export function makeChatGptModelClient(deps) {
       const restored = toolCalls
         .map((c) => (byWire.has(c.name) ? { ...c, name: byWire.get(c.name) } : null))
         .filter(Boolean);
+      if (process.env.GPAO_T5_DEBUG_PROMPT && restored.length) {
+        try {
+          const { appendFileSync } = await import('node:fs');
+          appendFileSync(process.env.GPAO_T5_DEBUG_PROMPT,
+            `>>> 모델이 고른 호출: ${JSON.stringify(restored)}\n`);
+        } catch { /* 진단 실패가 응답을 막지 않는다 */ }
+      }
       return { text, toolCalls: restored };
     },
   };

@@ -152,6 +152,8 @@ export function makeServer(deps = {}) {
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       modelProviderId: deps.modelProviderId?.(),
       memory, activeGoal: session.activeGoal ?? null,
+      // 자기 파악 세 번째 축 — 이 대화에서 지금까지 실제로 한 일. 다음 턴이 "그거"를 이어받는다.
+      workingState: session.workingState ?? null,
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
       recentTurns: recentTurns(session.transcript ?? []),
@@ -192,6 +194,8 @@ export function makeServer(deps = {}) {
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     if (result.goal) session.activeGoal = result.goal;
+    // 자기 파악 세 번째 축 — 이 대화에서 실제로 한 일을 지속한다(다음 턴의 "그거"가 여기서 풀린다).
+    if (result.workingState) session.workingState = result.workingState;
     if (result.sentVia?.tool && result.sentVia.target) {
       const sv = result.sentVia;
       const delivered = sv.failureState === 'none' || sv.failureState === undefined;
@@ -1064,6 +1068,7 @@ export function makeServer(deps = {}) {
       session.ledgerEntries = ctx.ledger.entries;
       session.pendingApprovals = Object.fromEntries(ctx.pending);
       if (result.goal) session.activeGoal = result.goal;
+      if (result.workingState) session.workingState = result.workingState;
       await store.save(session);
     }
     return ok({ ...result, channelMeta: event.channelMeta });
