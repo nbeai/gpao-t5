@@ -14,6 +14,7 @@ import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { StubModelClient } from '../runtime/model-client.js';
+import { withModelTimeout } from '../runtime/model-timeout.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
@@ -78,7 +79,9 @@ export function makeServer(deps = {}) {
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
   const env = deps.env ?? demoEnv();
-  const model = deps.model ?? new StubModelClient();
+  // 안정성: 느린/멈춘 모델이 턴을 무한 매달아 세션 큐를 막지 않게 타임아웃으로 감싼다(기본 30s, 0이면 무제한).
+  const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 30_000);
+  const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
   // tick 트러스트 토큰(§8.3): 런타임만 안다. 어떤 GET에도 노출하지 않는다 → 브라우저·사용자는 tick 불가.
   // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
@@ -310,7 +313,9 @@ export function makeServer(deps = {}) {
               }
               await emit('complete', { kind: result.kind });
             } catch (err) {
-              res.write('event: recoverable_error\ndata: {"text":"처리 중 문제가 있었어요.","nextSafeAction":"잠시 후 다시 시도할까요?"}\n\n');
+              // 느린 모델은 그 원인을 사용자 언어로(진단 원문 아님). 어느 경우든 항상 complete로 닫아 큐를 푼다.
+              const text = err?.isModelTimeout ? '응답이 늦어 잠시 멈췄어요.' : '처리 중 문제가 있었어요.';
+              res.write(`event: recoverable_error\ndata: ${JSON.stringify({ text, nextSafeAction: '잠시 후 다시 시도할까요?' })}\n\n`);
               res.write('event: complete\ndata: {"kind":"error"}\n\n');
               console.error('[stream:diagnostic]', err?.stack ?? err);
             }
