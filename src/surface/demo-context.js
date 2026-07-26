@@ -60,6 +60,23 @@ const DESCRIPTORS = [
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
+  // P6-L5 · 설치된 앱 확인. **"열어드릴게요" 앞에 오는 사실.** 이게 없으면 모델이 빈 자리를
+  // 지어낸다(설치돼 있지도 않은 앱으로 열어주겠다고 한다). 실제 실행은 여기 없다 — 다음 경계다.
+  defineTool({
+    id: 'local.apps', label: '설치된 앱 확인', owner: 'core', availability: [{ kind: 'connected' }],
+    toolKind: 'read', needsApproval: false, reversible: true,
+    capability: '이 컴퓨터에 어떤 앱이 설치돼 있는지, 실행 가능한 상태인지 확인한다(실행은 하지 않는다).',
+    schema: {
+      description:
+        '이 컴퓨터에 설치된 앱을 확인한다. 특정 앱으로 뭔가 하겠다고 말하기 **전에** 있는지 본다.'
+        + ' query 를 비우면 전체 목록을 준다 — 사용자가 부르는 이름("엑셀")과 실제 앱 이름이 다를 수 있으니'
+        + ' 못 찾으면 전체 목록에서 직접 고른다. 앱을 실행하지는 않는다.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: '찾을 앱 이름의 일부(비우면 전체)' } },
+      },
+    },
+  }),
   // P6-L2 · 폴더를 여는 길. **이게 없어서 T5 가 "터미널에서 `ls` 해서 붙여 주세요"라고 답했다**(실측).
   // 헌장에 금지를 써도 안 고쳐졌다 — 넓히는 길이 없었으니 모델이 옳았다. 규칙 대신 길을 만든다.
   // 넓히는 것은 **사용자의 결정**이라 승인을 탄다(grant_permission → A3 + 안전 바닥).
@@ -197,6 +214,7 @@ const FACTS = {
   'web.collect': { connected: true },
   'local.file': { connected: true },
   'local.scope': { connected: true },
+  'local.apps': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -262,6 +280,7 @@ export function demoTools(opts = {}) {
     // 지난 대화 찾기 — 라이브는 실제 세션 저장소를 주입한다(여기 기본값은 빈 결과).
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
     ...(opts.localScope ? { 'local.scope': opts.localScope } : {}),
+    ...(opts.localApps ? { 'local.apps': opts.localApps } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
