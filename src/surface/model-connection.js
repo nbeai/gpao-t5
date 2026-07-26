@@ -236,11 +236,28 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       const saved = await store?.load();
       if (!saved) return;
       connections = saved.connections ?? [];
+      // 계정 경로에서 거절되는 옛 기본 모델로 저장된 연결은 현재 기본으로 이관한다(사용자가 다시
+      // 로그인하지 않아도 되게). 2026-07-26 실측: codex 접미 계열은 계정 경로에서 400 으로 거절된다.
+      let migrated = false;
+      for (const c of connections) {
+        if (c.kind === 'chatgpt_oauth' && /-codex/.test(c.modelId ?? '')) {
+          c.modelId = CHATGPT_DEFAULT_MODEL;
+          const oldId = c.id;
+          c.id = connectionId(c);
+          c.label = connectionLabel(c);
+          if (saved.activeId === oldId) saved.activeId = c.id;
+          for (const [role, boundId] of Object.entries(saved.roleBindings ?? {})) {
+            if (boundId === oldId) saved.roleBindings[role] = c.id;
+          }
+          migrated = true;
+        }
+      }
       activeId = saved.activeId ?? connections[0]?.id ?? null;
       roleBindings = saved.roleBindings ?? {};
       restored = connections.length > 0;
       clients.clear();
       applyEnvModel();
+      if (migrated) await persist(); // 이관 결과를 남긴다(다음 부팅에서 또 고치지 않게)
     },
 
     /**

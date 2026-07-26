@@ -7,8 +7,14 @@ import { ModelProviderError } from './model-provider.js';
 import { buildModelMessages } from './model-provider.js';
 
 export const CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex/responses';
-export const CHATGPT_DEFAULT_MODEL = 'gpt-5.3-codex';
-const DEFAULT_TIMEOUT_MS = 25_000;
+// 계정 경로에서 실제로 통과하는 모델(2026-07-26 오너 계정 실측). codex 접미 계열은 이 경로에서
+// "not supported when using Codex with a ChatGPT account" 400 으로 거절된다 — 카탈로그 문자열이
+// 있다고 계정 경로에서도 되는 게 아니다(실측 전엔 기본값을 추정하지 않는다).
+export const CHATGPT_DEFAULT_MODEL = 'gpt-5.5';
+// 계정 경로(추론 모델)는 한 턴이 분 단위로 걸린다 — 2026-07-26 실사용에서 "설명해봐" 한 마디가
+// 25초 상한에 걸려 "응답이 늦어 잠시 멈췄어요"로 끊겼다. §6.21 의 목적은 **무한 매달림 방지**이지
+// 느린 모델을 죽이는 게 아니다. 넉넉히 잡되 무한은 아니게 한다(스트림 heartbeat 가 대기를 지탱).
+const DEFAULT_TIMEOUT_MS = 150_000;
 
 /** SSE 스트림에서 최종 텍스트만 누적한다(사용자면엔 완성문만 — 사고 원문 미노출). */
 export function accumulateResponsesText(raw) {
@@ -74,7 +80,13 @@ export function makeChatGptModelClient(deps) {
       }
       if (status < 200 || status >= 300) {
         // 원문을 authSignal 로만 나른다(분류는 kernel classifyModelAuth — 공개면 미노출).
-        throw new ModelProviderError({ provider: 'chatgpt_oauth', status, authSignal: `${status} ${raw.slice(0, 300)}` });
+        // 모델 거절(계정 경로 미지원)은 자격 문제가 아니므로 readiness 축으로 갈리게 표식을 붙인다
+        // (§6.23 두 축) — "키가 잘못됐다"고 오해하게 만들지 않는다.
+        const modelRejected = /model is not supported|model_not_supported|unknown model/i.test(raw);
+        throw new ModelProviderError({
+          provider: 'chatgpt_oauth', status,
+          authSignal: `${modelRejected ? 'model_missing ' : ''}${status} ${raw.slice(0, 300)}`,
+        });
       }
       const text = accumulateResponsesText(raw);
       if (!text) throw new ModelProviderError({ provider: 'chatgpt_oauth', status, authSignal: 'empty response stream' });
