@@ -56,7 +56,7 @@ test('migrateConnectionFile: v1 단일 연결이 목록 1건으로 이관되고 
   assert.deepEqual(v2.roleBindings, {});
   const oauth = migrateConnectionFile({ kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r' } });
   assert.equal(oauth.connections[0].kind, 'chatgpt_oauth');
-  assert.equal(oauth.connections[0].modelId, 'gpt-5.3-codex');
+  assert.equal(oauth.connections[0].modelId, 'gpt-5.5');
   assert.equal(migrateConnectionFile(null), null);
   assert.equal(migrateConnectionFile({ provider: 'unknown-vendor' }), null); // 못 살리는 건 정직하게 버린다
 });

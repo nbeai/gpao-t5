@@ -151,6 +151,33 @@ test('서버 /welcome: 인사를 transcript 에 남기되 숨은 지시는 남�
   } finally { await new Promise((r) => server.close(r)); }
 });
 
+test('서버 /welcome: 이미 오간 대화에는 인사가 끼어들지 않는다(라이브 실측 회귀)', async () => {
+  // 2026-07-26 실사용에서 발견: 진행 중이던 대화 한가운데 첫인사가 붙어 흐름을 끊었다.
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-onbsrv4-'));
+  const env = {};
+  const { impl } = providerFetch({ reply: '끼어든 인사' });
+  const mc = makeModelConnection({ env, processEnv: {}, store: new ModelConnectionStore(dir), fetchImpl: impl });
+  await mc.connect({ provider: 'beai', key: 'k' });
+  const sessionStore = new SessionStore(dir);
+  const server = makeServer({ store: sessionStore, env, model: mc.model, modelConnection: mc, onboardingStore: new OnboardingStore(dir) });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const session = await sessionStore.load(s.id);
+    session.transcript.push({ role: 'user', text: '이미 대화 중' }); // 진행 중인 대화
+    await sessionStore.save(session);
+
+    const w = await (await fetch(`${base}/welcome`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: s.id }),
+    })).json();
+    assert.equal(w.state, 'skipped_existing');
+    assert.equal(w.text, undefined);
+    const after = await sessionStore.load(s.id);
+    assert.equal(after.transcript.length, 1, '대화에 인사가 추가되지 않는다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
 test('서버 /welcome: 모델 미연결이면 인사를 만들지 않고 정직하게 안내한다(fail-closed)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-onbsrv3-'));
   const server = makeServer({ store: new SessionStore(dir), onboardingStore: new OnboardingStore(dir) });

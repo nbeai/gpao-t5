@@ -7,8 +7,16 @@
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "gpao-t5": "bin/gpao-t5.mjs"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
   "scripts": {
     "test": "node --test",
-    "start": "node src/surface/server.js"
+    "start": "node src/surface/server.js",
+    "verify:package": "node scripts/verify-package.mjs"
   }
 }

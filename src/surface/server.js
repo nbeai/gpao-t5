@@ -85,7 +85,9 @@ export function makeServer(deps = {}) {
   const sessionQueues = new Map();
   const env = deps.env ?? demoEnv();
   // 안정성: 느린/멈춘 모델이 턴을 무한 매달아 세션 큐를 막지 않게 타임아웃으로 감싼다(기본 30s, 0이면 무제한).
-  const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 30_000);
+  // 바깥 경계는 어댑터 상한(계정 경로 150s)보다 커야 안쪽의 진짜 취소가 먼저 돈다(§6.22).
+  // 30s 기본은 추론 모델의 정상 응답까지 끊었다(2026-07-26 실사용) — 무한 매달림만 막는다.
+  const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 180_000);
   const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
   // tick 트러스트 토큰(§8.3): 런타임만 안다. 어떤 GET에도 노출하지 않는다 → 브라우저·사용자는 tick 불가.
@@ -196,6 +198,23 @@ export function makeServer(deps = {}) {
   const server = createServer(async (req, res) => {
     try {
       const url = (req.url ?? '').split('?')[0];
+
+      // ── health (P-DIST-1) ── 설치 검증이 물어보는 단일 신호. **거짓 초록 금지**: 서버가 살아 있으면
+      //   ok:true 이되, 모델 연결 여부는 있는 그대로 싣는다(모델이 없다고 ok 를 거짓으로 만들지도,
+      //   연결됐다고 꾸미지도 않는다). 설치 스크립트가 이 한 줄로 "도달했는가"를 판정한다.
+      if (req.method === 'GET' && url === '/health') {
+        const connStatus = deps.modelConnection?.status?.() ?? {};
+        const onboarding = await onboardingStore.load();
+        return sendJson(res, 200, {
+          ok: true,
+          model: {
+            connected: Boolean(connStatus.connected),
+            id: env.model?.id ?? null,
+            healthState: env.model?.healthState ?? null, // 미검증이면 null — 검증됨이라 말하지 않는다
+          },
+          onboarding: { needed: onboardingNeeded(onboarding, connStatus) },
+        });
+      }
 
       if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
         const html = await readFile(join(__dirname, 'web', 'index.html'), 'utf8');
@@ -583,6 +602,12 @@ export function makeServer(deps = {}) {
       // ── 웰컴/첫 응답 (P-ONB-2) ── 인사말은 모델이 만든다(하드코딩 아님). 미연결이면 지어내지 않는다.
       if (req.method === 'POST' && url === '/welcome') {
         const { sessionId } = JSON.parse((await readBody(req)) || '{}');
+        // 인사는 **빈 대화에서만** 한다. 이미 오간 대화에 첫인사가 끼어들면 흐름을 끊는다
+        // (라이브 실측에서 발견: 진행 중이던 대화 한가운데 인사가 붙었다).
+        if (typeof sessionId === 'string') {
+          const existing = await store.load(sessionId);
+          if (existing?.transcript?.length) return sendJson(res, 200, { state: 'skipped_existing' });
+        }
         const connStatus = deps.modelConnection?.status?.() ?? {};
         const selfState = buildSelfState(env);
         let result;

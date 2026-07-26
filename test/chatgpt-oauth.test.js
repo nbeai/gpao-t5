@@ -133,7 +133,7 @@ test('ChatGPT ModelClient: 백엔드 URL·Bearer·계정 헤더·Responses 셰�
   assert.equal(init.headers.authorization, 'Bearer at');
   assert.equal(init.headers['chatgpt-account-id'], 'acct_7');
   const body = JSON.parse(init.body);
-  assert.equal(body.model, 'gpt-5.3-codex');
+  assert.equal(body.model, 'gpt-5.5'); // 계정 경로 실측 기본(codex 접미는 400 거절)
   assert.equal(body.stream, true);
   assert.equal(body.store, false);
   assert.equal(body.input[0].content[0].text.includes('안녕'), true);
@@ -156,7 +156,7 @@ async function saveV1(store, obj) {
 test('저장·복원: 계정 연결이 재시작 후 살아나고, 만료 토큰은 첫 요청에서 선제 갱신된다', async () => {
   const store = await tmpStore();
   const cred = { access: 'at1', refresh: 'rt1', expiresAt: 0, accountId: 'acct_1' }; // 이미 만료
-  await saveV1(store, { kind: 'chatgpt_oauth', credential: cred, modelId: 'gpt-5.3-codex' });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: cred, modelId: 'gpt-5.5' });
   const seen = [];
   const fetchImpl = async (url, init) => {
     seen.push(url);
@@ -167,7 +167,7 @@ test('저장·복원: 계정 연결이 재시작 후 살아나고, 만료 토큰
   const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl });
   await mc.init();
   assert.equal(mc.status().provider, 'chatgpt_oauth');
-  assert.equal(env.model.id, 'gpt-5.3-codex');
+  assert.equal(env.model.id, 'gpt-5.5');
   assert.equal(await mc.model.respond(TC), '안녕하세요');
   assert.equal(seen[0], CHATGPT_OAUTH.tokenUrl, '만료 → 먼저 refresh');
   assert.equal((await store.load()).connections[0].credential.access, 'at2', '갱신된 토큰이 재저장된다');
@@ -228,6 +228,29 @@ test('턴 중 refresh 실패: ModelProviderError 로 정규화되고 상태가 a
   assert.ok(!JSON.stringify(report).includes('SECRET_REFRESH'));
 });
 
+test('옛 codex 모델로 저장된 계정 연결은 재로그인 없이 현재 기본으로 이관된다(라이브 실측 회귀)', async () => {
+  // 2026-07-26 오너 실계정: gpt-5.3-codex 는 계정 경로에서 400("not supported when using Codex
+  // with a ChatGPT account"). 이미 저장된 사용자를 재로그인시키지 않고 이관해야 한다.
+  const store = await tmpStore();
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: Date.now() + 600_000 }, modelId: 'gpt-5.3-codex' });
+  const env = {};
+  const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl: async () => ({ status: 200, text: async () => SSE }) });
+  await mc.init();
+  assert.equal(env.model.id, 'gpt-5.5');
+  assert.equal(mc.status().modelId, 'gpt-5.5');
+  // 이관 결과가 저장돼 다음 부팅에서 또 고치지 않는다
+  assert.equal((await store.load()).connections[0].modelId, 'gpt-5.5');
+});
+
+test('모델 거절(계정 경로 미지원)은 자격 실패가 아니라 readiness 축으로 갈린다', async () => {
+  const fetchImpl = async () => ({ status: 400, text: async () => '{"detail":"The \'x-codex\' model is not supported when using Codex with a ChatGPT account."}' });
+  const client = makeChatGptModelClient({ credentials: async () => ({ access: 'at' }), fetchImpl });
+  await assert.rejects(() => client.respond(TC), (e) => {
+    assert.ok(e.authSignal.startsWith('model_missing '), '키가 잘못됐다고 오해하게 만들지 않는다');
+    return true;
+  });
+});
+
 test('활성은 항상 하나: 계정 연결 상태에서 키 연결이 오면 키가 이긴다', async () => {
   const store = await tmpStore();
   await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: Date.now() + 600_000 } });
@@ -272,6 +295,6 @@ test('서버: 계정 연결 상태의 /model/connection 은 비공식 고지 포
     assert.ok(!raw.includes('TOKEN_SECRET'));
     const st = JSON.parse(raw);
     assert.equal(st.unofficial, true);
-    assert.equal(st.modelId, 'gpt-5.3-codex');
+    assert.equal(st.modelId, 'gpt-5.5');
   } finally { await new Promise((r) => server.close(r)); }
 });
