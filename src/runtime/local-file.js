@@ -83,10 +83,19 @@ export function makeLocalFileTool(deps = {}) {
           const list = await loadUndo();
           const last = list.pop();
           if (!last) return fail('되돌릴 작업이 없어요.');
-          await saveUndo(list);
           await mkdir(dirname(last.from), { recursive: true });
+          // **되돌리는 자리에 지금 다른 파일이 있으면 그것부터 휴지통으로.** rename 은 말없이 덮어쓴다 —
+          // move 의 copyFile 은 막아 놓고 undo 의 rename 을 열어 두면 같은 손실이 그대로 난다:
+          // 옮기고 → 사용자가 그 이름으로 새로 쓰고 → 되돌리면 새 내용이 영영 사라졌다(감사에서 실증).
+          const parked = await toTrash(last.from);
           await rename(last.to, last.from);
-          return ok(`${basename(last.from)} 을(를) 되돌렸어요.`, { undone: last.op, path: last.from });
+          await saveUndo(list); // 성공한 뒤에 표에서 지운다(중간에 실패하면 되돌릴 기회가 남아야 한다)
+          return ok(
+            parked
+              ? `${basename(last.from)} 을(를) 되돌렸어요(그 자리에 있던 파일은 휴지통에 있어요).`
+              : `${basename(last.from)} 을(를) 되돌렸어요.`,
+            { undone: last.op, path: last.from, parked: Boolean(parked) },
+          );
         }
 
         const abs = await resolveInScope(target, { roots });

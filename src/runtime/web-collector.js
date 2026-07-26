@@ -65,6 +65,7 @@ export function makeWebCollector(deps = {}) {
   });
   return {
     sourceLedgerRequired: true, // ToolRunner가 출처 없는 성공·내용 담은 실패를 막는다
+    robotsCheck,                // 배선됐는지 밖에서 확인할 수 있게 노출(안 넘기면 검사가 통째로 안 돈다)
     async handler(args) {
       // turn은 generic하게 {request}만 넘기므로, url이 없으면 요청문에서 URL을 뽑아 본다.
       const norm = { ...(args ?? {}), url: args?.url ?? extractUrl(args?.request) };
@@ -92,7 +93,8 @@ export function makeWebCollector(deps = {}) {
         foundVia = { provider: found.providerLabel, query: q, candidates: found.results.slice(0, 5) };
       }
 
-      // robots 정책(주입). 실제 robots.txt fetch는 후속 — 지금은 주입된 판정만 존중한다.
+      // robots 정책. 라이브는 makeRobotsCheck(실제 robots.txt 확인)를 주입한다 — 주입이 없으면
+      // 검사 자체가 안 돌기 때문에, 라이브가 안 넘기던 시절엔 능력 문장만 robots 를 지킨다고 말했다.
       if (robotsCheck) {
         let allowed = true;
         try { allowed = await robotsCheck(url); } catch { allowed = false; }

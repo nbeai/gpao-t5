@@ -942,6 +942,7 @@ export async function startLiveServer(opts = {}) {
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
+    descriptors: liveDescriptors,
     model: liveModel, modelDoctor, modelConnection, modelSupportsSearch } =
     liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
@@ -949,6 +950,7 @@ export async function startLiveServer(opts = {}) {
   const server = makeServer({
     store: bootStore, env: liveEnv, tools: liveTools,
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
+    descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
     model: liveModel, modelDoctor, modelConnection, modelSupportsSearch,
   });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.

@@ -193,14 +193,26 @@ export async function runTurn(input, ctx) {
   if (influence?.tool && !planIntent.neededTools?.includes(influence.tool)) {
     planIntent = { ...planIntent, neededTools: [...(planIntent.neededTools ?? []), influence.tool] };
   }
+  // **승인 판정과 실행 인자는 같은 파싱 하나에서 나와야 한다.** 예전엔 승인은 `intent.fileOp` 를,
+  // 실행 인자는 아래에서 원문을 다시 파싱해 만들었다. 스킬이 `local.file` 을 밀어 넣으면 fileOp 가
+  // 없어 권한은 read 로 통과하는데 실행은 delete 를 했다 — 두 진실이 갈라진 자리에서 안전 바닥이 샜다.
+  if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
+    planIntent = { ...planIntent, fileOp: parseFileRequest(input.text ?? '') };
+  }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
   //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
   const primaryTool = plan.toolsToUse?.[0] ?? plan.needsApproval?.[0]?.action ?? null;
+  // 자동화 후보의 인자도 **이번 턴이 이해한 작업 그대로**여야 한다. 원문만 실으면 나중에 tick 이
+  // 돌 때 도구가 그 문장을 못 읽고 기본 동작(목록 보기)을 하고는 성공으로 기록한다 — 승인받은
+  // 자동화가 엉뚱한 일을 조용히 반복하는 것이다(감사 지적).
+  const primaryArgs = primaryTool === 'local.file' && planIntent.fileOp
+    ? { ...planIntent.fileOp, request: intent.currentRequest ?? input.text }
+    : { request: intent.currentRequest ?? input.text };
   const automationSuggestion = detectAutomationCandidate(
     input.text ?? '',
-    primaryTool ? { tool: primaryTool, args: { request: intent.currentRequest ?? input.text } } : null,
+    primaryTool ? { tool: primaryTool, args: primaryArgs } : null,
   );
 
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
@@ -214,8 +226,9 @@ export async function runTurn(input, ctx) {
   let sendArgs;
 
   // Phase 0-1: 파일 작업 인자. 도구만 만들면 커널이 "무엇을 하라"고 말해줄 수 없다(실사용에서 드러남).
+  // 인자는 **권한 판정이 본 것과 같은 파싱**을 그대로 쓴다(다시 파싱하지 않는다 — 두 진실 금지).
   if (plan.toolsToUse?.includes('local.file') || plan.needsApproval?.some((g) => g.action === 'local.file')) {
-    const parsedFile = parseFileRequest(input.text ?? '');
+    const parsedFile = planIntent.fileOp ?? parseFileRequest(input.text ?? '');
     if (parsedFile.ambiguous) {
       // 실행 전에 한 가지만 묻는다(막다른 답 금지).
       return {
@@ -224,6 +237,7 @@ export async function runTurn(input, ctx) {
         selfStateSummary: summary,
         memorySuggestion,
         followUp,
+        usedSkill: ctx.usedSkill, // 스킬이 도구를 골랐으면 묻는 자리에서도 그 사실을 숨기지 않는다
       };
     }
     sendArgs = { ...(sendArgs ?? {}), 'local.file': parsedFile };

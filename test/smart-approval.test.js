@@ -150,7 +150,7 @@ test('known id fallback 유지: toolKind 없어도 TOOL_KIND 맵대로 동작', 
     model: { id: 'm', authSignal: 'ok' },
     connections: [
       { id: 'web.collect', connected: true, status: 'usable' },  // 맵: read → A0 자연 진행
-      { id: 'local.file', connected: true, status: 'usable' },   // 맵: organize → A1 자연 진행(smart)
+      { id: 'local.file', connected: true, status: 'usable' },   // 작업(fileOp) 미상 → 승인
     ],
   });
   const plan = buildActionPlan({
@@ -159,8 +159,10 @@ test('known id fallback 유지: toolKind 없어도 TOOL_KIND 맵대로 동작', 
     mode: 'smart',
   });
   assert.ok(plan.autoAllowed.includes('web.collect'), 'web.collect는 read로 자연 진행(기존 유지)');
-  assert.ok(plan.autoAllowed.includes('local.file'), 'local.file은 organize로 자연 진행(기존 유지)');
-  assert.equal(plan.needsApproval.length, 0, '알려진 저위험 도구는 승인 안 걸림');
+  // 감사 blocker B1: local.file 은 같은 도구가 읽기도 삭제도 한다. **무슨 작업인지 모르면** 자연
+  // 진행하지 않는다 — 예전엔 fileOp 없는 경로가 organize/read 로 떨어져 삭제가 승인 없이 실행됐다.
+  assert.equal(plan.autoAllowed.includes('local.file'), false, '작업 미상인 파일 도구는 자동 진행 금지');
+  assert.ok(plan.needsApproval.some((g) => g.action === 'local.file'), '승인 게이트로 올라간다');
 });
 
 // ── 승인 이유(사용자 언어) ──

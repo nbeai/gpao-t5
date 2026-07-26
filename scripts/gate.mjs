@@ -17,34 +17,56 @@ const notes = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
 const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
 
-// ── ① 라이브 레지스트리에 스텁(fixture)이 없다 (§16-C) ────────────────────
+// ── ① 선언한 도구는 라이브에 실제 손이 있다 (§16-C 불변식) ────────────────
+// 예전엔 `isFixture` 플래그가 붙은 것만 셌다 — 플래그 없는 유령 선언(`telegram.send`·`mail.send`)은
+// 그대로 통과했다. 목록이 아니라 **선언 ⊆ 손** 불변식을 본다.
 {
   const { liveDeps } = await import('../src/surface/live-context.js');
-  const registry = liveDeps({}).tools?.tools ?? {};
+  const live = liveDeps({});
+  const registry = live.tools?.tools ?? {};
+  const handlers = new Set(Object.keys(registry));
+
+  const declared = new Map(); // id → 어디서 선언했는가(사용자에게 뭐라고 말하는가)
+  for (const d of live.descriptors ?? []) declared.set(d.id, 'descriptor(도구함)');
+  for (const c of live.channels ?? []) if (c.outboundTool) declared.set(c.outboundTool, `채널 ${c.id} 의 보내기`);
+
+  const phantom = [...declared].filter(([id]) => !handlers.has(id));
+  if (phantom.length) {
+    bad(`선언만 있고 손이 없는 도구: ${phantom.map(([id, src]) => `${id}(${src})`).join(', ')} — 배선하거나 선언을 거둘 것`);
+  }
   const fixtures = Object.entries(registry).filter(([, t]) => t?.isFixture).map(([id]) => id);
   if (fixtures.length) bad(`라이브에 스텁 등록: ${fixtures.join(', ')} — 등록된 도구는 실제로 동작해야 한다`);
-  else ok(`라이브 도구 ${Object.keys(registry).length}개 모두 실제 구현`);
+  if (!phantom.length && !fixtures.length) ok(`선언 ${declared.size}개 = 라이브 손 ${handlers.size}개, 스텁 0`);
 }
 
-// ── ② 위험 작업이 승인 없이 실행되지 않는다 (안전 바닥) ───────────────────
+// ── ② 위험 작업이 승인 없이 실행되지 않는다 (안전 바닥 불변식) ────────────
+// 예전엔 위험 발화 **3문장 목록**이었다. 그 목록에 "옮겨줘"가 없어서 파일 이동·되돌리기가
+// 승인 없이 실행되는 것을 놓쳤다(Phase 0 감사 blocker). 문장이 아니라 **종류 전체**를 검사한다.
 {
-  const { interpret } = await import('../src/kernel/l1-intent/intent.js');
-  const { buildActionPlan } = await import('../src/kernel/l2-plan/action-plan.js');
-  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
-  const { demoEnv } = await import('../src/surface/demo-context.js');
-  const selfState = buildSelfState(demoEnv());
-  // 위험 발화 → 반드시 승인 대기여야 한다. 하나라도 자동 진행되면 안전 바닥이 샌 것이다.
-  const risky = [
-    ['파일 삭제', '메모.md 지워줘'],
-    ['파일 쓰기', "메모.md 만들어서 '내용'이라고 적어줘"],
-    ['슬랙 전송', '슬랙에 회의 시작이라고 올려줘'],
-  ];
-  for (const [label, text] of risky) {
-    const plan = buildActionPlan({ intent: interpret(text), selfState });
-    const gated = plan.needsApproval?.length > 0;
-    if (!gated) bad(`${label}이 승인 없이 실행된다: "${text}"`);
+  const { fileKind } = await import('../src/kernel/l2-plan/action-plan.js');
+  const { decideAutoGrant, SAFETY_FLOOR_KINDS } = await import('../src/kernel/l2-plan/authority.js');
+  const { parseFileRequest } = await import('../src/kernel/l1-intent/file-parse.js');
+  const before = failures.length;
+
+  // (a) 안전 바닥은 어느 모드에서도 자동 진행하지 않는다.
+  for (const kind of SAFETY_FLOOR_KINDS) {
+    for (const mode of ['strict', 'smart', 'manual']) {
+      if (decideAutoGrant({ kind }, mode)) bad(`안전 바닥 ${kind} 이 ${mode} 모드에서 자동 진행된다`);
+    }
   }
-  if (!failures.length) ok(`위험 작업 ${risky.length}종 모두 승인 게이트 통과`);
+  // (b) 파일 도구: 읽기·목록 외의 모든 작업(모르는 작업 포함)은 자동 진행 금지.
+  for (const action of ['write', 'move', 'delete', 'undo', undefined, '새로운_작업']) {
+    if (decideAutoGrant({ kind: fileKind({ action }) }, 'smart')) {
+      bad(`파일 작업 "${action ?? '(미상)'}" 이 승인 없이 실행된다`);
+    }
+  }
+  // (c) 말로 들어오는 표현도 파싱을 거쳐 같은 결론이어야 한다(파서가 바뀌어도 안전 쪽으로).
+  for (const text of ['메모.md 지워줘', "메모.md 만들어서 '내용' 적어줘", 'a.md 를 b.md 로 옮겨줘', '방금 거 되돌려줘']) {
+    if (decideAutoGrant({ kind: fileKind(parseFileRequest(text)) }, 'smart')) {
+      bad(`"${text}" 가 승인 없이 실행된다`);
+    }
+  }
+  if (failures.length === before) ok('안전 바닥 불변식 통과(파일 변경 전 종류 + 전송·결제·기억 승격)');
 }
 
 // ── ③ 능력 설명의 부정 주장은 매번 눈에 띄게 한다 (감사 지적: 되는데 "못 한다"고 말했다) ──
