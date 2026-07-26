@@ -42,11 +42,15 @@ const DESCRIPTORS = [
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['list', 'search', 'recent', 'read', 'write', 'move', 'delete', 'undo'] },
+          action: { type: 'string', enum: ['list', 'search', 'recent', 'read', 'write', 'patch', 'rename', 'copy', 'move', 'delete', 'undo'] },
           path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로). search·recent 에서 비우면 다룰 수 있는 폴더 전부를 본다' },
           query: { type: 'string', description: 'search 일 때 찾을 파일 이름의 일부' },
           contains: { type: 'string', description: 'search 일 때 파일 **안에** 들어 있는 말(이름으로 못 찾을 때)' },
           limit: { type: 'number', description: 'search·recent 결과 개수(기본 search 40, recent 20)' },
+          find: { type: 'string', description: 'patch 일 때 바꿀 글(파일에 있는 그대로). 한 줄만 고칠 때 write 대신 이걸 쓴다 — write 는 전체를 갈아 끼운다' },
+          replace: { type: 'string', description: 'patch 일 때 새로 넣을 글' },
+          all: { type: 'boolean', description: 'patch 에서 같은 글이 여러 군데일 때 전부 바꿀지' },
+          preview: { type: 'boolean', description: '실제로 바꾸지 않고 무엇이 바뀔지만 본다(승인 전에 보여줄 때)' },
           to: { type: 'string', description: 'move 일 때 옮길 위치' },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
         },

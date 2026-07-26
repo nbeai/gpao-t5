@@ -60,6 +60,18 @@ async function walkFiles(root, { maxEntries = MAX_WALK_ENTRIES } = {}) {
   return { files, walked, stopped, skipped };
 }
 
+/**
+ * 바뀌는 자리 앞뒤를 보여 준다(미리보기용). 파일 전체를 승인 카드에 실을 수는 없고,
+ * 그렇다고 "고칠게요"만 보여 주면 사용자가 **무엇을** 허락하는지 모른 채 누른다.
+ */
+function excerptAround(text, needle, pad = 80) {
+  const i = text.indexOf(needle);
+  if (i < 0) return text.slice(0, pad * 2);
+  const from = Math.max(0, i - pad);
+  const to = Math.min(text.length, i + needle.length + pad);
+  return `${from > 0 ? '…' : ''}${text.slice(from, to)}${to < text.length ? '…' : ''}`;
+}
+
 /** 되돌리기 표 한 줄. 휴지통 경로와 원래 자리를 함께 남긴다. */
 function undoEntry(op, from, to) {
   return { id: randomUUID(), op, from, to, at: new Date().toISOString() };
@@ -106,6 +118,34 @@ export function makeLocalFileTool(deps = {}) {
 
   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });
   const fail = (userSafeSummary, nextSafeAction) => ({ blocked: true, userSafeSummary, nextSafeAction });
+
+  /**
+   * P6-L4 · 옮기기·복사·이름 바꾸기의 **공통 안전장치.** 셋 다 "대상 자리에 이미 있는 것"을
+   * 말없이 지울 수 있다 — copyFile 도 rename 도 조용히 덮어쓴다. 한 군데로 모아 두지 않으면
+   * 하나를 고쳐도 나머지로 같은 손실이 그대로 난다(move 만 막아 놨다가 undo 로 샜던 그 일).
+   */
+  async function moveInto(from, dest, { keepSource, verb, preview }) {
+    let destExists = false;
+    try { await stat(dest); destExists = true; } catch { /* 없으면 진행 */ }
+    if (destExists) {
+      return fail(
+        `${basename(dest)} 이(가) 이미 있어서 그대로 뒀어요(덮어쓰면 되돌릴 수 없어요).`,
+        '다른 이름으로 할까요, 아니면 기존 파일을 휴지통으로 보낼까요?',
+      );
+    }
+    if (preview) {
+      return ok(`${basename(from)} → ${basename(dest)} 로 ${verb.replace('어요', '을게요')}(아직 안 했어요).`,
+        { from, to: dest, applied: false });
+    }
+    await mkdir(dirname(dest), { recursive: true });
+    await copyFile(from, dest);
+    if (!keepSource) {
+      await rm(from);
+      await pushUndo(undoEntry('move', from, dest));
+    }
+    return ok(`${basename(from)} 을(를) ${basename(dest)} 로 ${verb}.`,
+      { from, to: dest, applied: true, ...(keepSource ? { copied: true } : {}) });
+  }
 
   /** 실패를 종류별로 사용자 언어로. 진단 원문은 화면에 내보내지 않는다. */
   function failureOf(e, path) {
@@ -251,6 +291,15 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'write') {
           const text = String(args.text ?? '');
+          if (args.preview) {
+            let old = null; try { old = await readFile(abs, 'utf8'); } catch { /* 새 파일 */ }
+            return ok(
+              old === null ? `${basename(abs)} 을(를) 새로 만들 거예요(아직 안 만들었어요).`
+                // **덮어쓰기는 전체를 갈아 끼운다.** 몇 자가 몇 자로 바뀌는지 말해야 사용자가 판단한다.
+                : `${basename(abs)} 의 내용 전체를 바꿀 거예요(${old.length}자 → ${text.length}자, 아직 안 바꿨어요).`,
+              { path: abs, preview: { overwrite: old !== null, wasChars: old?.length ?? 0, willBeChars: text.length }, applied: false },
+            );
+          }
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
           await writeFile(abs, text, 'utf8');
@@ -262,6 +311,64 @@ export function makeLocalFileTool(deps = {}) {
           );
         }
 
+        // ── P6-L4 · 부분 수정 ───────────────────────────────────────────
+        // write 는 **파일 전체를 갈아 끼운다.** 한 줄 고치려고 write 를 쓰면 나머지가 사라진다.
+        // 그래서 "찾아서 바꾸기"를 따로 둔다. **찾는 글이 없으면 조용히 넘어가지 않는다** —
+        // 이 저장소에서 replace 를 assert 없이 써서 하루에 세 번 조용히 실패했다(§CLAUDE.md).
+        if (action === 'patch') {
+          const find = String(args.find ?? '');
+          if (!find) return fail('무엇을 바꿀지 알려주세요.', '바꿀 글과 새 글을 알려주시면 그 부분만 고칠게요.');
+          const replace = String(args.replace ?? '');
+          let text;
+          try { text = await readFile(abs, 'utf8'); }
+          catch { return fail(`${basename(abs)} 을(를) 읽지 못했어요.`, '파일 이름이 맞는지 확인해 주시겠어요?'); }
+
+          const count = text.split(find).length - 1;
+          if (count === 0) {
+            return fail(
+              `${basename(abs)} 에서 그 글을 찾지 못해서 **아무것도 바꾸지 않았어요.**`,
+              '파일을 먼저 읽어 드릴까요? 그 다음에 정확한 부분을 짚어 주시면 돼요.',
+            );
+          }
+          // 여러 군데면 사용자가 어느 쪽을 뜻했는지 우리가 모른다. 다 바꾸라고 하지 않았으면 멈춘다.
+          if (count > 1 && !args.all) {
+            return fail(
+              `${basename(abs)} 안에 그 글이 ${count}군데 있어서 바꾸지 않았어요.`,
+              '전부 바꿀까요, 아니면 앞뒤 문장까지 알려주셔서 한 군데만 짚을까요?',
+            );
+          }
+          const next = args.all ? text.split(find).join(replace) : text.replace(find, replace);
+          const changed = { at: count, from: find.length, to: replace.length };
+          // 미리보기: 무엇이 바뀌는지 보여주고 **적용하지 않는다**(승인 카드에 실릴 내용).
+          if (args.preview) {
+            return ok(`${basename(abs)} 에서 ${count}군데를 바꿀 거예요(아직 안 바꿨어요).`,
+              { path: abs, preview: { ...changed, before: excerptAround(text, find), after: excerptAround(next, replace || find) }, applied: false });
+          }
+          const parked = await toTrash(abs); // 원본을 휴지통으로 — 되돌릴 수 있게
+          await writeFile(abs, next, 'utf8');
+          if (parked) await pushUndo(undoEntry('patch', abs, parked));
+          return ok(`${basename(abs)} 에서 ${count}군데를 바꿨어요(되돌릴 수 있어요).`,
+            { path: abs, changed, applied: true, recoverable: Boolean(parked) });
+        }
+
+        // 이름만 바꾸기. move 로도 되지만 사용자는 "이름 바꿔줘"라고 말하고, 그때 전체 경로를
+        // 만들게 하면 모델이 엉뚱한 폴더로 옮긴다(옮기기와 이름 바꾸기는 사용자에게 다른 일이다).
+        if (action === 'rename') {
+          const name = String(args.to ?? args.name ?? '').trim();
+          if (!name) return fail('새 이름을 알려주세요.');
+          if (name.includes('/')) {
+            return fail('이름에는 폴더 경로를 넣지 않아요.', '다른 폴더로 보내려면 "옮겨줘"라고 말씀해 주세요.');
+          }
+          return await moveInto(abs, join(dirname(abs), name), { keepSource: false, verb: '이름을 바꿨어요', preview: args.preview });
+        }
+
+        if (action === 'copy') {
+          const dest = await resolveInScope(args.to ?? '', { roots });
+          const destProt = protectionBlocks(dest, { write: true });
+          if (destProt) return { blocked: true, scopeState: 'protected', ...protectionMessage(destProt, { write: true }) };
+          return await moveInto(abs, dest, { keepSource: true, verb: '복사했어요', preview: args.preview });
+        }
+
         if (action === 'move') {
           const dest = await resolveInScope(args.to ?? '', { roots });
           // 목적지도 본다 — 보호 영역으로 **옮겨 넣는 것**도 변경이다.
@@ -270,32 +377,24 @@ export function makeLocalFileTool(deps = {}) {
             const msg = protectionMessage(destProt, { write: true });
             return { blocked: true, scopeState: 'protected', ...msg };
           }
-          // **조용한 덮어쓰기 금지**(P0-1b): 대상이 이미 있으면 막고 확인을 요구한다.
-          // copyFile 은 대상을 말없이 덮어쓰는데, 그러면 undo(대상→원본)로도 대상의 원래 내용은
-          // 영영 사라진다 — 되돌릴 수 없는 손실이다. write 는 휴지통 백업이 있는데 move 만 빠져 있었다.
-          let destExists = false;
-          try { await stat(dest); destExists = true; } catch { /* 없으면 진행 */ }
-          if (destExists) {
-            return fail(
-              `${basename(dest)} 이(가) 이미 있어서 옮기지 않았어요(덮어쓰면 되돌릴 수 없어요).`,
-              '다른 이름으로 옮기거나, 기존 파일을 먼저 지울까요?',
-            );
-          }
-          await mkdir(dirname(dest), { recursive: true });
-          await copyFile(abs, dest);
-          await rm(abs);
-          await pushUndo(undoEntry('move', abs, dest));
-          return ok(`${basename(abs)} 을(를) ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
+          // **조용한 덮어쓰기 금지**(P0-1b)는 moveInto 에 모아 뒀다 — 옮기기·복사·이름 바꾸기가
+          // 같은 손실 경로를 공유하므로, 두 벌로 두면 한쪽만 고쳐진다(undo 로 샜던 그 일).
+          return await moveInto(abs, dest, { keepSource: false, verb: '옮겼어요', preview: args.preview });
         }
 
         if (action === 'delete') {
+          if (args.preview) {
+            let info; try { info = await stat(abs); } catch { return fail(`${basename(abs)} 을(를) 찾지 못했어요.`); }
+            return ok(`${basename(abs)} 을(를) 휴지통으로 보낼 거예요(아직 안 지웠어요).`,
+              { path: abs, preview: { bytes: info.size, kind: info.isDirectory() ? 'folder' : 'file' }, applied: false, recoverable: true });
+          }
           const parked = await toTrash(abs);
           if (!parked) return fail(`${basename(abs)} 을(를) 찾지 못했어요.`);
           await pushUndo(undoEntry('delete', abs, parked));
           return ok(`${basename(abs)} 을(를) 지웠어요(되돌릴 수 있어요).`, { path: abs, recoverable: true });
         }
 
-        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·찾기·최근 파일·읽기·저장·옮기기·지우기·되돌리기가 가능해요.');
+        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·찾기·최근 파일·읽기·저장·부분 수정·이름 바꾸기·복사·옮기기·지우기·되돌리기가 가능해요.');
       } catch (e) {
         return failureOf(e, target);
       }

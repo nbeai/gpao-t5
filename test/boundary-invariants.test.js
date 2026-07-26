@@ -55,13 +55,42 @@ test('불변식: 파일 작업의 권한 등급은 선택자와 무관하다', (
   }
 });
 
-test('불변식: 읽기·목록 외의 모든 파일 작업은 승인을 받는다', () => {
+test('불변식: 승인 없이 진행되는 파일 작업은 **아무것도 바꾸지 않는다**', async () => {
+  // 예전엔 여기 'read'·'list' 두 이름이 박혀 있었다. 기능을 늘릴 때마다 이 목록을 손으로
+  // 맞춰야 했고, 그건 검사가 아니라 관리 대상이다(§8). 이름이 아니라 **결과**를 본다:
+  // 자동으로 진행되는 작업이 파일을 건드리면 그때가 사고다.
+  const { mkdtemp, writeFile, readdir, readFile: rf } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { makeLocalFileTool } = await import('../src/runtime/local-file.js');
+
+  const snapshot = async (dir) => {
+    const out = [];
+    for (const name of (await readdir(dir)).sort()) {
+      try { out.push(`${name}:${await rf(join(dir, name), 'utf8')}`); } catch { out.push(`${name}:<폴더>`); }
+    }
+    return out.join('|');
+  };
+
+  let autoCount = 0;
   for (const action of FILE_ACTIONS) {
     const kind = toolActionKind({ toolId: 'local.file', args: { action }, selfState });
-    const auto = decideAutoGrant({ kind }, 'smart');
-    if (action === 'read' || action === 'list') assert.equal(auto, true, `${action} 은 자연스럽게 진행돼야 한다`);
-    else assert.equal(auto, false, `${action} 이 승인 없이 실행된다`);
+    if (!decideAutoGrant({ kind }, 'smart')) continue; // 승인을 받는 작업은 여기 관심사가 아니다
+    autoCount += 1;
+
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-noharm-'));
+    await writeFile(join(dir, 'a.md'), '원래 내용');
+    await writeFile(join(dir, 'b.md'), '두 번째');
+    const before = await snapshot(dir);
+    const tool = makeLocalFileTool({ roots: [dir], dataDir: dir });
+    // 파괴적으로 해석될 수 있는 인자를 **일부러 전부** 넣는다 — 자동 등급으로 새는 길을 찾는다.
+    await tool.handler({
+      action, path: 'a.md', to: 'b.md', text: '덮어쓴 내용',
+      find: '원래', replace: '바뀐', all: true, query: 'a', contains: '내용',
+    });
+    assert.equal(await snapshot(dir), before, `'${action}' 이 승인 없이 진행되는데 파일을 바꿨다`);
   }
+  assert.ok(autoCount >= 2, '자동 진행되는 읽기 작업이 하나도 없으면 도구가 매번 승인을 묻는다');
 });
 
 test('불변식: 전송 도구는 어떤 인자로도 안전 바닥이다', () => {

@@ -14,8 +14,12 @@ export function fileKind(fileOp) {
     case 'delete': return 'delete';
     // 옮기기·되돌리기도 **사용자 파일을 바꾼다**. organize(A1 자동 진행)로 두었더니 "옮겨줘" 한 마디에
     // 승인 없이 파일이 사라졌다(감사 실증). 사용자 체감은 삭제와 같다 — 안전 바닥으로 올린다.
-    case 'write': case 'move': case 'undo': return 'write';
-    case 'read': case 'list': return 'read';
+    // P6-L4: 이름 바꾸기·복사·부분 수정도 사용자 파일을 바꾼다. 여기 없으면 '미상'으로 떨어져
+    // 승인은 받지만 카드에 "무엇을 하는지"가 안 나온다 — 사용자가 뭘 허락하는지 모르게 된다.
+    case 'write': case 'move': case 'undo': case 'rename': case 'copy': case 'patch': return 'write';
+    // 찾기는 읽기다. 여기 빠뜨렸더니 "그 계약서 찾아줘" 한 마디에 승인 카드가 떴다 —
+    // 안전해지는 게 아니라 사용자가 승인을 기계적으로 누르게 만드는 쪽으로 나빠진다.
+    case 'read': case 'list': case 'search': case 'recent': return 'read';
     // **모르면 read 로 흘리지 않는다.** fileOp 가 없는 경로(스킬이 도구만 밀어 넣는 경우)에서
     // read 로 떨어져 삭제가 승인 없이 실행됐다. 미상은 승인으로 간다.
     default: return UNKNOWN_KIND;
