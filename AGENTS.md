@@ -9,6 +9,12 @@ Before any planning, implementation, review, verification, handoff, or release w
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
 
+For current (v3.x) development, also read — these define what "done" means now:
+
+4a. `GPAO-T5-DEVELOPMENT-PLAN-v3.0-2026-07-26-ko.md` (owner, canonical identity §0 and Phases 1-9)
+4b. `GPAO-T5-DEVELOPMENT-PLAN-v3.1-SUPPLEMENT-2026-07-26-ko.md` (completion definition, target list,
+    performance floor, Phase 0 debt). **A slice is not done while any "다만 ~는 아직" remains.**
+
 For Phase 0 reference inventory, also read:
 
 5. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`

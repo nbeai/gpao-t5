@@ -245,27 +245,21 @@ v3.0의 작업은 커널 재작성 아니라 실사용 경로 완성이다.
 
 ## 3. 현재 출발 상태
 
-현재 확인된 상태:
+현재 확인된 상태(2026-07-26 갱신):
 
 ```text
-브랜치: p-dist-1-install-pipeline
-테스트: 392개 중 388 pass, 4 fail
-미커밋 변경:
-- src/runtime/chatgpt-model-client.js
-- src/surface/model-connection.js
+브랜치: main (로컬·원격 모두 main 하나로 정리)
+테스트: 421개 전부 pass
+산출물 게이트: npm run verify:package 통과
+미커밋 변경: 없음
 ```
 
-현재 실패:
+**Phase 1(Current Branch Green)은 완료됐다.** 위에 적혔던 4 fail 은 ChatGPT 계정 경로의 기본 모델
+기대값 불일치였고, 오너 실계정 E2E 에서 `gpt-5.5` 가 의도된(그리고 유일하게 동작하는) 값임을
+확인해 테스트·문서를 갱신했다. `gpt-5.3-codex` 는 계정 경로에서 400 으로 거절된다.
 
-```text
-ChatGPT OAuth / model connection 기본 모델 기대값 불일치
-현재 코드: gpt-5.5
-테스트 기대: gpt-5.3-codex
-```
-
-따라서 첫 작업은 새 기능이 아니다.
-
-현재 브랜치를 green으로 복구하는 것이 v3.0의 출발점이다.
+따라서 다음 출발점은 green 복구가 아니라 **v3.1 보강안 §21 Phase 0(부채 상환)** 이다.
+근거: `GPAO-T5-DEVELOPMENT-PLAN-v3.1-SUPPLEMENT-2026-07-26-ko.md`
 
 ---
 
