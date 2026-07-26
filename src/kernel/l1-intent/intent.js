@@ -3,9 +3,10 @@
 // 이 1차 분류는 일반 신호(범주)로만 판단하며, 밀도화 단계에서 모델 분류가 이를 정교화한다.
 // 특정 대화 하나에 맞춘 규칙을 넣지 않는다(절대원칙 4: 누더기 금지).
 import { TIER } from '../contracts.js';
+import { parseFileRequest } from './file-parse.js';
 
 // 외부효과·도구가 필요한 일반 동사 범주(예시 전용이 아니라 범주 신호).
-const ACTION_SIGNALS = /보내|발송|전송|올려|게시|삭제|지워|결제|구매|정리|이동|옮겨|조사|검색|수집|가져와|불러와|분석|만들|작성|바꿔|편집/;
+const ACTION_SIGNALS = /보내|발송|전송|올려|게시|삭제|지워|결제|구매|정리|이동|옮겨|조사|검색|수집|가져와|불러와|분석|만들|작성|바꿔|편집|되돌려|복구|취소해/;
 // 강한 권한(A3) 범주.
 const A3_SIGNALS = /삭제|지워|결제|구매|공개.?게시|권한|내보내/;
 // 짧은 승인(A2) 범주: 외부 전송·쓰기.
@@ -42,6 +43,10 @@ export function interpret(currentRequest, opts = {}) {
     answerMode,
     needsClarification,
     neededTools: looksActionable ? inferTools(trimmed) : undefined,
+    // Phase 0-1: 파일 작업 종류를 여기서 정해 계획이 **작업별 권한**을 판정하게 한다.
+    // 도구 단위로 kind 를 고정하면 같은 도구의 삭제가 organize 로 새어 승인을 건너뛴다(실사용에서 확인).
+    fileOp: looksActionable && inferTools(trimmed)?.includes('local.file')
+      ? parseFileRequest(trimmed) : undefined,
   };
 }
 
@@ -53,7 +58,7 @@ function inferTools(t) {
   const tools = [];
   if (/메일|이메일/.test(t)) tools.push('mail.send');
   if (/슬랙|slack/i.test(t)) tools.push('slack.post');
-  if (/파일|폴더|정리|이동|옮겨/.test(t)) tools.push('local.file');
+  if (/파일|폴더|정리|이동|옮겨|\.md|\.txt|\.csv|저장해|적어|메모|되돌려|복구|취소해/.test(t)) tools.push('local.file');
   if (/조사|검색|수집|가져와|불러와|뉴스|환율/.test(t)) tools.push('web.collect');
   return tools.length ? tools : undefined;
 }
