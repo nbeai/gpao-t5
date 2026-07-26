@@ -219,6 +219,8 @@ export function makeProviderModelClient(cfg, deps = {}) {
 /**
  * 라이브 배선 단일 진입점: 구성되면 실 provider, 아니면 stub — env.model(SelfState 단일 진실)도 함께 반환.
  * "보이는 것 = 실제": 구성 안 됐는데 실 모델처럼 보이게 하지 않는다.
+ * 단, authSignal:'ok'는 **자격이 구성됐다**는 뜻이지 실시간 유효성 검증이 아니다(구성됨≠검증됨).
+ * 만료·오류 키는 첫 호출에서 잡혀 classifyModelAuth 로 갈린다. 상시 검증은 후속 provider doctor 에서.
  * @param {Record<string,string|undefined>} env
  * @param {{fetchImpl?:Function}} [deps]
  * @returns {{model:import('./model-client.js').ModelClient, envModel:{id:string, strengths:string, authSignal:string}}}

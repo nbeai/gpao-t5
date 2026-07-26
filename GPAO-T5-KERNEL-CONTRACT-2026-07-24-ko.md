@@ -98,6 +98,12 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-RT-1 반영(근거: `P-RT-1-MODEL-PROVIDER-ADAPTER`, 조건부 통과 감사 + gemini·beai 라이브 검증): §6.22 Model
+  Provider Adapter — 오너 지시(OpenAI OAuth·3사 API 키·오픈소스 호환) 착지. 선언형 어댑터 6종
+  (anthropic/openai/openai_oauth/gemini/beai/openai_compatible), 자격 분류는 classifyModelAuth 단일 소스,
+  타임아웃 시 fetch 실제 abort, 미구성→stub 폴백(env.model 단일 진실). **구성됨≠검증됨**(authSignal:'ok'는
+  자격 존재 표시 — 상시 검증은 후속 provider doctor). 부수: withSessionQueue tail unhandledRejection
+  프로세스 사망 잠복 버그 수정(반대 테스트 동반). 후속: P-RT-2 OAuth 플로우·키 입력 UX·스트리밍.
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -699,6 +705,31 @@ Timeout, §6.11 Streaming. 내부 안전장치가 사용자에게 아무 말 없
 - 설정: `modelTimeoutMs = deps.modelTimeoutMs ?? GPAO_T5_MODEL_TIMEOUT_MS ?? 30_000`. 모든 `ctx.model` 공통.
 - **후속**: 진짜 취소(실 provider AbortSignal을 모델까지 전달해 background orphan promise도 중단) · 재접속 중
   미종료 스트림 re-attach · EventLog 장시간 성장(append O(n)) 상한 · 느린 클라 backpressure · POST 경로 타임아웃 표면.
+
+### 6.22 Model Provider Adapter (P-RT-1, 구현됨 — 실 두뇌 착지, 와이어는 어댑터·정책은 커널)
+
+근거: 오너 지시(2026-07-26, OpenAI OAuth·OpenAI/Claude/Gemini API 키·오픈소스 호환 기본 지원),
+`P-RT-1-MODEL-PROVIDER-ADAPTER`. §6.21 위에서 도는 첫 실 런타임. gemini(gemini-flash-latest)·
+beai(beai-8.6) 라이브 실측 — evidenceFacts 가 실모델 답변에 반영됨(§11 실증).
+
+- **핵심**: `model-provider.js` 선언형 어댑터가 `ModelClient.respond(tc)` seam 에 실 provider 를 꽂는다.
+  6종: anthropic(/v1/messages) · openai·openai_oauth·openai_compatible(/chat/completions) ·
+  gemini(:generateContent) · beai(자사 V1, OpenAI-호환). provider별 one-off 금지 — 와이어 스펙만 선언.
+- **분류 단일 소스**: 어댑터는 provider 원문 오류를 `authSignal` 로 나를 뿐, 분류는 `classifyModelAuth` 가
+  한다(billing≠rate_limit 분리 유지). 분류기가 못 읽는 벤더 고유 표기만 정규 토큰 보강(gemini API_KEY_INVALID).
+- **serverside 제약 일반화**: system role 미지원 서버(beai V1 실측)는 `noSystemRole` 플래그로 system 사실을
+  user 턴에 합쳐 보낸다(사실 전달 유지, 셰이프만 적응). 호환 서버는 `GPAO_T5_MODEL_NO_SYSTEM_ROLE=1`.
+- **타임아웃 진짜 취소(HTTP 구간)**: 어댑터 기본 25s < 서버 30s — 초과 시 AbortController 로 fetch 를
+  실제 abort 하고 `ModelTimeoutError` 로 기존 사용자 언어 경로를 탄다(§6.21 후속의 부분 착지).
+- **단일 진실 폴백**: 자격 미구성 → StubModelClient + `env.model.id='beai5-stub'`. 구성 → 실 provider +
+  실제 모델 id. 화면 표시와 실행 모델이 항상 일치한다.
+- **경계 — 구성됨≠검증됨**: `authSignal:'ok'` 는 자격이 구성됐다는 뜻이지 실시간 유효성 검증이 아니다.
+  만료·오류 키는 첫 호출에서 잡혀 classifyModelAuth 로 갈린다. 문서·화면은 "선택된 모델=실행 모델"까지만
+  주장한다. 자격은 어댑터가 소유하지 않고(env 주입) 승인·안전 바닥 계약 불변, 테스트는 실 API 미호출(fetchImpl).
+- **안정성 부수 수정**: `withSessionQueue` 꼬리(tail)가 task 거부를 들고 있어 모델 오류 1건에
+  unhandledRejection 으로 프로세스가 죽던 잠복 버그(stub 시절 미노출)를 반대 테스트 동반으로 수정.
+- **후속**: P-RT-2 OpenAI OAuth 플로우(로그인/PKCE/refresh/저장) · provider doctor/health-check(구성됨→
+  검증됨 상시 승격) · 키 입력·보관 UX · 스트리밍 respond · openai/anthropic 실 키 실측.
 
 ---
 
