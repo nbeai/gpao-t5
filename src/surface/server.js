@@ -6,7 +6,7 @@
 // GET  /sessions/:id    → 세션 transcript(재접속 복원)
 // POST /turn            → { sessionId, text|approve|reject, ... } → 턴 결과 JSON
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -16,6 +16,8 @@ import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
 import { AllowlistStore } from './allowlist-store.js';
 import { ChannelBindingStore } from './channel-binding-store.js';
+import { ChannelCredentialStore } from './channel-credential-store.js';
+import { makeTelegramReceiver } from '../runtime/telegram-receiver.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -968,6 +970,28 @@ export function makeServer(deps = {}) {
         return sendJson(res, out.status, out.body);
       }
 
+      // P5-1 채널 허용목록: 누가 내 T5 에 말을 걸 수 있는지. 목록·대기·허용·해제.
+      if (req.method === 'GET' && url === '/channels/allowlist') {
+        const channel = new URLSearchParams((req.url ?? '').split('?')[1] ?? '').get('channel') ?? 'telegram';
+        return sendJson(res, 200, {
+          channel,
+          allowed: await allowlistStore.list(channel),
+          pending: await allowlistStore.listPending(channel),
+        });
+      }
+      if (req.method === 'POST' && url === '/channels/allowlist') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const channel = input.channel ?? 'telegram';
+        if (input.revoke) {
+          const list = await allowlistStore.revoke(channel, input.revoke);
+          return sendJson(res, 200, { ok: true, allowed: list, userSafeSummary: '이제 그 사람은 말을 걸 수 없어요.' });
+        }
+        if (!input.userId && !input.username) return sendJson(res, 400, { error: '누구를 허용할지 알려주세요.' });
+        const list = await allowlistStore.allow(channel, { userId: input.userId, username: input.username, label: input.label });
+        await allowlistStore.clearPending(channel, input.userId ?? input.username);
+        return sendJson(res, 200, { ok: true, allowed: list, userSafeSummary: '이제 그 사람의 메시지를 받아요.' });
+      }
+
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('not found');
     } catch (err) {
@@ -984,6 +1008,15 @@ export function makeServer(deps = {}) {
     identity = loaded.identity;
     return { identity, selfhoodDocs };
   };
+  // 승인이 필요한 일은 채널에서 자동으로 실행하지 않는다. 무엇을 하려는지·왜 멈췄는지만 알린다 —
+  // 승인은 T5 화면에서 받는다(밖에서 "네" 한 마디로 외부 효과가 나가면 안 된다).
+  function approvalNoticeText(result) {
+    const first = result.pending?.[0];
+    const what = first?.approvalPreview?.impact ?? first?.action ?? '그 작업';
+    const why = first?.reason?.why ?? '실행 전에 확인이 필요해요.';
+    return `${what} — ${why}\nT5 화면에서 확인해 주시면 이어서 할게요.`;
+  }
+
   // P5-1: 채널 인바운드 처리는 **한 곳**이다. HTTP 라우트와 수신기가 같은 길을 쓴다 — 두 벌이 되면
   // 한쪽만 고쳐 놓고 다른 쪽으로 새는 사고가 난다(Phase 0 에서 이미 두 번 겪었다).
   //   1 발화·세션 → 2 등록된 채널 → 3 연결 ok → 4 허용 발신자(저장된 목록) → 5 정규화
@@ -1008,6 +1041,9 @@ export function makeServer(deps = {}) {
     const allowed = await allowlistStore.isAllowed(input.channel, {
       userId: input.userId, username: input.username,
     });
+    // 모르는 사람이면 **사실만** 남긴다(내용은 안 남긴다). 이게 없으면 처음 연결한 사용자가
+    // 자기 id 를 알아낼 방법이 없어 허용목록을 아예 만들 수 없다(닭과 달걀).
+    if (!allowed) await allowlistStore.notePending(input.channel, { userId: input.userId, username: input.username });
     const event = normalizeInboundEvent({
       ...input,
       isAllowlistedUser: allowed,
@@ -1049,12 +1085,36 @@ export function makeServer(deps = {}) {
     let session = sessionId ? await store.load(sessionId) : null;
     if (!session) {
       // 이 방의 첫 메시지(또는 이어가던 대화가 사라졌다) → 새 대화를 만들어 묶는다.
-      session = await store.create(`${msg.channel} 대화`);
+      const label = (deps.channels ?? demoChannels()).find((c) => c.id === msg.channel)?.label ?? msg.channel;
+      session = await store.create(`${label} 대화`, { origin: { channel: msg.channel, chatId: msg.chatId } });
       await bindings.set(msg.channel, msg.chatId, session.id);
       sessionId = session.id;
     }
     const out = await processChannelInbound({ ...msg, sessionId });
-    return { ...out.body, sessionId };
+    const result = out.body ?? {};
+
+    // P5-2 답장(오너 결정): **온 방에, 그 메시지에 대한 답만** 승인 없이 보낸다 — 전화를 받으면
+    // 그 자리에서 답하는 것과 같다. 다른 방·다른 사람에게 보내는 것은 지금처럼 승인(A2)이다.
+    // gated/blocked 는 조용히 넘긴다(모르는 사람에게 "당신은 허용되지 않았습니다"라고 알려주지
+    // 않는다 — 봇의 존재와 정책을 떠보는 통로가 된다).
+    const answer = result.kind === 'reply' ? result.reply
+      : result.kind === 'clarify' ? result.question
+        : result.kind === 'approval' ? approvalNoticeText(result)
+          : null;
+    if (answer) {
+      const sender = (deps.tools?.tools ?? {})[`${msg.channel}.send`];
+      if (sender?.handler) {
+        const sent = await sender.handler({ text: answer, target: msg.chatId })
+          .catch((e) => ({ blocked: true, userSafeSummary: e?.message }));
+        // 보냈으면 보냈다고, 못 보냈으면 못 보냈다고 원장에 남긴다(보낸 척 금지).
+        result.channelDelivery = sent?.result?.sent
+          ? { sent: true, target: msg.chatId }
+          : { sent: false, reason: sent?.sendState ?? 'failed', userSafeSummary: sent?.userSafeSummary };
+      } else {
+        result.channelDelivery = { sent: false, reason: 'no_sender' };
+      }
+    }
+    return { ...result, sessionId };
   };
   return server;
 }
@@ -1068,8 +1128,16 @@ export function makeServer(deps = {}) {
  *          fetchImpl?:Function, startScheduler?:boolean}} [opts]
  */
 export async function startLiveServer(opts = {}) {
-  const processEnv = opts.processEnv ?? process.env;
   const bootStore = opts.sessionStore ?? new SessionStore();
+  // P5-1: 저장된 채널 자격을 **liveDeps 보다 먼저** 읽어 같은 env 키로 합친다. 안 그러면 수신기는
+  // 도는데 채널 상태는 "연결 안 됨"이라 인바운드가 channel_not_ready 로 막힌다(실측).
+  const channelCreds = opts.channelCredentialStore ?? new ChannelCredentialStore(bootStore.dir);
+  const savedChannel = await channelCreds.load().catch(() => ({}));
+  const processEnv = {
+    ...(opts.processEnv ?? process.env),
+    ...((opts.processEnv ?? process.env).TELEGRAM_BOT_TOKEN || !savedChannel?.telegram?.token
+      ? {} : { TELEGRAM_BOT_TOKEN: savedChannel.telegram.token }),
+  };
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
@@ -1097,6 +1165,40 @@ export async function startLiveServer(opts = {}) {
     // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
     const tickMs = Number(processEnv.GPAO_T5_TICK_MS ?? 60_000);
     new AutomationScheduler({ onTick: () => server.runtimeTick(), intervalMs: tickMs }).start();
+  }
+
+  // P5-1 자기 교정: 채널에 묶인 대화인데 출처 표시가 없는 것들을 채운다. 출처 필드가 생기기 전에
+  // 만들어진 대화는 목록에서 메신저 대화로 안 보인다 — 사용자는 "아이콘이 안 나온다"로 겪는다.
+  try {
+    const bindings = new ChannelBindingStore(bootStore.dir);
+    const all = await bindings.load();
+    for (const [key, sessionId] of Object.entries(all)) {
+      const [channel, chatId] = key.split(':');
+      const s = await bootStore.load(sessionId);
+      if (s && !s.origin) { s.origin = { channel, chatId }; await bootStore.save(s); }
+    }
+  } catch { /* 교정 실패는 부팅을 막지 않는다 */ }
+
+  // P5-1: 채널 수신기. 자격이 있으면 실제로 받기 시작한다 — 없으면 조용히 안 돈다(도는 척 금지).
+  // env 보다 저장된 자격을 먼저 본다: 사용자가 화면에서 연결한 것이 재시작에도 살아 있어야 한다.
+  if (opts.startReceivers !== false) {
+    const credStore = opts.channelCredentialStore ?? new ChannelCredentialStore(bootStore.dir);
+    const token = processEnv.TELEGRAM_BOT_TOKEN ?? (await credStore.get('telegram'));
+    if (token) {
+      const offsetFile = join(bootStore.dir, 'telegram-offset.json');
+      const receiver = makeTelegramReceiver({
+        token,
+        onMessage: (msg) => server.handleChannelMessage(msg),
+        offsetStore: {
+          load: async () => { try { return JSON.parse(await readFile(offsetFile, 'utf8')).offset; } catch { return 0; } },
+          save: async (offset) => { await writeFile(offsetFile, JSON.stringify({ offset }), 'utf8'); },
+        },
+        log: (...a) => console.log('[telegram]', ...a),
+      });
+      const started = await receiver.start();
+      server.telegramReceiver = receiver;
+      console.log(`[telegram] 수신 ${started.started ? `시작(@${started.botUsername ?? '이름 미상'})` : `안 함 — ${started.reason}`}`);
+    }
   }
   return server;
 }

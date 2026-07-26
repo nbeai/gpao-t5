@@ -64,6 +64,46 @@ export class AllowlistStore {
   }
 
   /**
+   * 모르는 사람이 말을 걸었다는 **사실만** 남긴다(내용은 남기지 않는다). 사용자가 화면에서
+   * "이 사람 맞아요" 하고 허용할 수 있게 하기 위한 것 — 이게 없으면 처음 연결한 사람이
+   * 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수가 없다(닭과 달걀).
+   */
+  async notePending(channel, { userId, username } = {}) {
+    if (!channel || (!userId && !username)) return null;
+    const state = await this.load();
+    const pending = state.pending ?? {};
+    const list = pending[channel] ?? [];
+    const key = String(userId ?? username);
+    const found = list.find((e) => String(e.userId ?? e.username) === key);
+    if (found) { found.lastSeenAt = Date.now(); found.count = (found.count ?? 1) + 1; }
+    else {
+      list.push({
+        userId: userId ? String(userId) : undefined,
+        username: username ? String(username).replace(/^@/, '') : undefined,
+        firstSeenAt: Date.now(), lastSeenAt: Date.now(), count: 1,
+      });
+    }
+    pending[channel] = list.slice(-20); // 무한 성장 금지
+    state.pending = pending;
+    await this.save(state);
+    return pending[channel];
+  }
+
+  async listPending(channel) {
+    const state = await this.load();
+    return channel ? (state.pending?.[channel] ?? []) : (state.pending ?? {});
+  }
+
+  async clearPending(channel, key) {
+    const state = await this.load();
+    const k = String(key).replace(/^@/, '');
+    const list = (state.pending?.[channel] ?? []).filter((e) => String(e.userId) !== k && String(e.username) !== k);
+    state.pending = { ...(state.pending ?? {}), [channel]: list };
+    await this.save(state);
+    return list;
+  }
+
+  /**
    * 이 발신자가 허용됐는가. **목록이 비어 있으면 아무도 허용되지 않은 것이다** —
    * "비었으니 전부 통과"로 읽으면 봇 주소를 아는 누구나 T5 를 쓰게 된다.
    */

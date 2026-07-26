@@ -24,7 +24,9 @@ export function liveChannels(processEnv = {}) {
     defineChannel({
       id: 'telegram',
       connector: defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: Boolean(tgToken) }),
-      inboundPolicy: 'mention_required', outboundTool: 'telegram.send',
+      // P5-1: 토큰이 있으면 실수신기(long polling)가 실제로 돈다 — 이제 "받는다"고 말해도 참이다.
+      // 오너 결정: 봇은 누구나 말을 걸 수 있으므로 기본은 허용된 사람만.
+      inboundPolicy: 'allowlist_only', outboundTool: 'telegram.send', hasReceiver: Boolean(tgToken),
     }),
     defineChannel({
       id: 'slack.channel',

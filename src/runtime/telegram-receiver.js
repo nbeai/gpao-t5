@@ -47,6 +47,33 @@ export function toInboundMessage(update, botUsername) {
  * @param {{token?:string, fetchImpl?:Function, onMessage:Function, offsetStore?:{load:Function,save:Function},
  *   timeoutMs?:number, longPollSeconds?:number, log?:Function}} deps
  */
+/**
+ * "입력 중" 표시를 켜 둔다. 텔레그램의 typing 은 **약 5초면 꺼지므로** 답이 나올 때까지 되살려야
+ * 한다. 안 그러면 사용자는 몇십 초 동안 아무 반응 없는 화면을 보고 먹통이라고 느낀다(오너 지적).
+ * 원리는 OpenClaw 의 typing keepalive 와 같다 — 진행 중인 tick 이 있으면 겹쳐 쏘지 않는다.
+ * @returns {{stop:()=>void}}
+ */
+export function startTypingIndicator({ token, chatId, fetchImpl = globalThis.fetch, intervalMs = 4000 }) {
+  let stopped = false;
+  let inFlight = false;
+  const ping = async () => {
+    if (stopped || inFlight) return;
+    inFlight = true;
+    try {
+      await fetchImpl(API(token, 'sendChatAction'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+      });
+    } catch { /* 표시가 실패해도 답변은 계속 간다 — 부가 기능이 본 일을 막지 않는다 */ }
+    finally { inFlight = false; }
+  };
+  ping();
+  const timer = setInterval(ping, intervalMs);
+  timer.unref?.();
+  return { stop() { stopped = true; clearInterval(timer); } };
+}
+
 export function makeTelegramReceiver(deps = {}) {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const longPoll = deps.longPollSeconds ?? LONG_POLL_S;
@@ -87,7 +114,12 @@ export function makeTelegramReceiver(deps = {}) {
       offset = Math.max(offset, (u.update_id ?? 0) + 1);
       const msg = toInboundMessage(u, botUsername);
       if (!msg) continue;
+      // 답이 나올 때까지 "입력 중"을 켜 둔다. 모델이 수십 초 걸리는 동안 사용자가 먹통으로 느끼지 않게.
+      const typing = deps.token
+        ? startTypingIndicator({ token: deps.token, chatId: msg.chatId, fetchImpl })
+        : { stop() {} };
       try { await deps.onMessage(msg); handled += 1; } catch (e) { log('inbound_handler_failed', e?.message); }
+      finally { typing.stop(); }
     }
     if (updates.length) await deps.offsetStore?.save(offset);
     return handled;

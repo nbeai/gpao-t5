@@ -49,8 +49,12 @@ export class SessionStore {
     return join(this.dir, `${id}.json`);
   }
 
-  /** 새 세션 생성. @param {string} [title] */
-  async create(title = '새 대화') {
+  /**
+   * 새 세션 생성.
+   * @param {string} [title]
+   * @param {{origin?:{channel:string, chatId?:string}}} [meta] 어디서 시작된 대화인가(메신저 등)
+   */
+  async create(title = DEFAULT_TITLE, meta = {}) {
     await this._ensure();
     const now = Date.now();
     // pendingApprovals: 승인 대기 계획을 세션에 지속(재시작 후 이어실행·만료 판정 가능).
@@ -59,6 +63,8 @@ export class SessionStore {
       transcript: [], ledgerEntries: [], pendingApprovals: {},
       // P2-4a 목록 메타. 대화 내용·모델·승인·기억에 영향을 주지 않는 순수 목록 정보다.
       manualTitle: false, pinned: false, archivedAt: null, deletedAt: null, groupId: null,
+      // 어디서 시작된 대화인가 — 메신저에서 온 대화는 목록에서 구분되어야 한다(오너 지적).
+      origin: meta.origin ?? null,
     };
     await writeFile(this._path(session.id), JSON.stringify(session), 'utf8');
     return session;
@@ -119,6 +125,7 @@ export class SessionStore {
           id: s.id, title: s.title || DEFAULT_TITLE, updatedAt: s.updatedAt, createdAt: s.createdAt,
           pinned: Boolean(s.pinned), archivedAt: s.archivedAt ?? null, deletedAt: s.deletedAt ?? null,
           groupId: s.groupId ?? null,
+          origin: s.origin ?? null,
           // 정리 메뉴가 "빈 대화"를 고르려면 대화가 비었는지 알아야 한다(내용은 싣지 않는다).
           turns: (s.transcript ?? []).length,
         });
