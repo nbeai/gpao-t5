@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { makeWebCollector, httpToFetchState } from '../src/runtime/web-collector.js';
+import { classifyWebFetch } from '../src/kernel/l2-plan/web-tool.js';
 import { assertWebEvidence } from '../src/kernel/l2-plan/web-tool.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
@@ -172,4 +173,23 @@ test('ToolRunner: 실수집 성공은 sources 포함, 차단은 미확인', asyn
   const blocked = await blockTools.run('web.collect', { url: 'http://x/' }, self);
   assert.equal(blocked.failureState, 'blocked');
   assert.ok(!blocked.sources || blocked.sources.length === 0, '차단엔 출처 없음(확인 못 함)');
+});
+
+// 오너 실사용(2026-07-27): 웹 검색·브라우징·스크래핑을 다 붙여 놨는데 **아무것도 못 읽었다**.
+// 원인: 본문 어딘가에 "로그인" 단어가 하나만 있어도 login_wall 로 판정했다. 한국 사이트 대부분에
+// 로그인 링크가 있으니 2층 수집이 통째로 죽어 있었다(위키백과조차 막힘으로 나왔다).
+test('본문을 건졌으면 벽으로 판정하지 않는다(로그인 링크 하나로 막던 오판)', () => {
+  const page = '로그인 회원가입 홈 뉴스 ' + '실제 본문입니다. '.repeat(30);
+  assert.equal(classifyWebFetch({ body: page }), 'login_wall', '건진 게 없으면 신호대로 벽');
+  assert.equal(classifyWebFetch({ body: page, readableChars: 500 }), 'ok', '본문을 건졌으면 읽은 것이다');
+});
+
+test('아무것도 못 건졌는데 로그인 신호만 있으면 그때는 벽이다', () => {
+  assert.equal(classifyWebFetch({ body: '로그인이 필요합니다', readableChars: 20 }), 'login_wall');
+});
+
+test('httpToFetchState 도 건진 분량을 함께 본다', () => {
+  assert.equal(httpToFetchState(200, { body: '로그인', readableChars: 1000 }), 'ok');
+  assert.equal(httpToFetchState(200, { body: '로그인', readableChars: 0 }), 'login_wall');
+  assert.equal(httpToFetchState(401, { body: '', readableChars: 9999 }), 'login_wall', '401 은 분량과 무관하게 벽');
 });

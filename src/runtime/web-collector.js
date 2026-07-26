@@ -24,7 +24,8 @@ export function httpToFetchState(status, ctx = {}) {
   }
   if (status >= 400) return 'blocked';
   if (status >= 200 && status < 300) {
-    return classifyWebFetch({ body: ctx.body }); // login_wall/bot_wall/robots_disallow/ok
+    // 건진 본문 길이를 함께 넘긴다 — 실제로 읽었으면 벽으로 판정하지 않는다.
+    return classifyWebFetch({ body: ctx.body, readableChars: ctx.readableChars });
   }
   return 'blocked'; // 3xx 미해결·기타
 }
@@ -118,7 +119,9 @@ export function makeWebCollector(deps = {}) {
           res = null;
           continue; // 이 후보는 못 읽었다 — 다음 후보로
         }
-        fetchState = httpToFetchState(res.status, { body });
+        // 본문을 먼저 뽑아 보고 판정한다 — 건진 게 있으면 벽이 아니다(로그인 링크 하나로 막던 오판 수정).
+        const probe = extractReadable(body);
+        fetchState = httpToFetchState(res.status, { body, readableChars: (probe.markdown ?? '').length });
         if (fetchState === 'ok') { url = candidate; break; }
         lastState = fetchState;
         res = null;

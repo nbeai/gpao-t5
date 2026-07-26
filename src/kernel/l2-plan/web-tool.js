@@ -132,7 +132,16 @@ export function assertWebEvidence(out) {
  * 웹 fetch 원시 결과 → 상태 분류(로그인벽/차단/robots/봇벽 분리).
  * @param {{status?:string, body?:string}} raw
  */
+// 이만큼 건졌으면 "봤다"고 본다. 너무 낮으면 껍데기를 본문으로 오인하고, 너무 높으면 짧은 정상
+// 페이지를 벽으로 오인한다.
+export const MIN_READABLE_CHARS = 200;
+
 export function classifyWebFetch(raw = {}) {
+  // **본문을 실제로 건졌으면 그건 읽은 것이다.** 예전엔 본문 어딘가에 "로그인" 단어가 하나만 있어도
+  // login_wall 로 판정했다 — 위키백과처럼 누구나 읽는 페이지도 전부 막힌 것으로 처리됐다(실측).
+  // 한국 사이트 대부분에 로그인 링크가 있으니 사실상 2층 수집이 통째로 죽어 있었다.
+  // 벽은 "아무것도 못 건졌는데 벽 신호만 있을 때" 판정한다.
+  if (typeof raw.readableChars === 'number' && raw.readableChars >= MIN_READABLE_CHARS) return 'ok';
   const s = String(raw.status ?? raw.body ?? '').toLowerCase();
   if (/login|signin|sign in|로그인/.test(s)) return 'login_wall';
   if (/robots|disallow/.test(s)) return 'robots_disallow';

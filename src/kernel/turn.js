@@ -52,6 +52,18 @@ function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
  * @param {TurnInput} input
  * @param {TurnContext} ctx
  */
+/**
+ * 모델이 끝내 문장을 못 만들었을 때 **원장의 사실로** 답을 만든다. 빈 답은 사용자에게 먹통으로
+ * 보인다 — 무엇을 시도했고 왜 막혔는지, 그리고 지금 할 수 있는 것을 말한다(막다른 답 금지).
+ */
+export function fallbackReplyFrom(receipts = []) {
+  const blocked = receipts.filter((r) => r.failureState && r.failureState !== 'none');
+  if (!blocked.length) return '방금 요청은 처리했는데 설명을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?';
+  const what = blocked.map((r) => r.userSafeSummary).filter(Boolean).join(' ');
+  const next = blocked.map((r) => r.nextSafeAction).filter(Boolean)[0];
+  return `${what}${next ? ` ${next}` : ''}`.trim();
+}
+
 export async function runTurn(input, ctx) {
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
@@ -405,15 +417,24 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // "웹 조회가 연결되어 있지 않습니다"라고 했다 — 되는데 못 한다고 말한 것이다(오너 실사용).
   // 우리가 목록으로 미리 맞히려 하면 날씨·환율·뉴스… 사례가 끝없이 늘어난다(누더기 금지).
   const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-  // 최종 답변 호출에도 도구 목록을 함께 준다. 안 주면 모델이 "그 도구가 노출되어 있지 않다"고
-  // 말한다 — 방금 그 도구로 실행해 놓고서(실측). 결과는 위 [이번 턴 실행 사실]로 이미 들어가 있다.
+  // 최종 답변. 도구 목록도 함께 주되(안 주면 "그 도구가 없다"고 말한다), **모델이 또 도구를 고르면
+  // 텍스트가 비어 나온다.** 그걸 그대로 내보내 빈 답이 네 번 연속 나갔다(오너 실사용, 내가 만든 버그).
+  //   · 한 번은 다시 시도한다(도구 없이) — 실행 사실은 이미 프롬프트에 있으니 모델이 설명할 수 있다.
+  //   · 그래도 비면 원장의 사실로 정직한 문장을 만든다. **빈 답은 절대 내보내지 않는다.**
   const finalOut = await ctx.model.respond(tc, {
     onDelta: ctx.onAnswerDelta,
     search: wantedWeb,
     effort: 'medium',
     tools: toolSchemasFor(selfState),
   });
-  const reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
+  let reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
+  if (!reply.trim()) {
+    // 도구를 빼고 한 번 더. 이번엔 고를 것이 없으니 모델은 지금까지의 사실로 답한다.
+    // 내장 검색은 켜 둔다 — 우리 수집이 막혔어도 모델은 자기 인프라로 찾을 수 있다(막다른 답 금지).
+    const retry = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
+    reply = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
+  }
+  if (!reply.trim()) reply = fallbackReplyFrom(turnReceipts);
   const projection = projectReceipts(turnReceipts);
 
   return {

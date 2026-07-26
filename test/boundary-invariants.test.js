@@ -135,3 +135,38 @@ test('불변식: 승인 뒤 삭제해도 되살릴 수 있는 상태로 남는�
   const trash = (await readdir(join(dir, '.trash'))).filter((f) => !f.startsWith('undo-log'));
   assert.equal(trash.length, 1, '지운 것이 휴지통에 없으면 "되돌릴 수 있어요"는 거짓말이다');
 });
+
+// ── 7. 빈 답은 절대 내보내지 않는다 ──────────────────────────────────────
+// 오너 실사용(2026-07-27): 네이버 지도 분석 요청에서 **빈 응답이 네 번 연속** 나갔다.
+// 모델이 도구를 고름 → 실행 → robots 로 막힘 → 최종 호출에서 모델이 **또 도구를 고르며**
+// 텍스트를 비워 보냈고, 우리는 그걸 그대로 사용자에게 내보냈다. 사용자는 먹통으로 겪는다.
+test('불변식: 도구가 막혀도 빈 답을 내보내지 않는다', async () => {
+  const blockedWeb = {
+    sourceLedgerRequired: true,
+    async handler() {
+      return { blocked: true, fetchState: 'robots_disallow', userSafeSummary: '그 사이트가 수집을 허용하지 않아요.', nextSafeAction: '아는 범위로 답할까요?' };
+    },
+  };
+  // 최종 호출에서도 계속 도구만 고르는 모델(실제로 그랬다).
+  const alwaysTools = {
+    async respond(_tc, opts = {}) {
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'https://x.example' } }] };
+      return ''; // 도구를 빼고 물어도 비었다 — 최악의 경우
+    },
+  };
+  const r = await runTurn({ text: 'https://x.example 분석해줘' }, {
+    env: demoEnv(), model: alwaysTools, tools: demoTools({ webCollector: blockedWeb }),
+  });
+  assert.equal(r.kind, 'reply');
+  assert.ok((r.reply ?? '').trim().length > 0, '빈 답이 나갔다 — 사용자는 먹통으로 겪는다');
+  assert.match(r.reply, /수집을 허용하지 않아요/, '무엇이 막혔는지 사실대로 말한다');
+  assert.match(r.reply, /답할까요|주소/, '다음에 할 수 있는 것을 준다(막다른 답 금지)');
+});
+
+test('불변식: 모델이 문장을 못 만들어도 무슨 일이 있었는지는 말한다', async () => {
+  const silent = { async respond() { return ''; } };
+  const r = await runTurn({ text: '작업 폴더 목록 정리해줘' }, {
+    env: demoEnv(), model: silent, tools: demoTools(),
+  });
+  assert.ok((r.reply ?? '').trim().length > 0);
+});
