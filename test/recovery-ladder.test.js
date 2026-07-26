@@ -60,7 +60,11 @@ test('관통: 범위 밖 요청에 내부 문구 대신 "범위를 넓힐까요?
     env: demoEnv(), model, tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
   });
   assert.equal(r.kind, 'reply');
-  assert.match(sawHint ?? '', /작업 범위에 넣어 주시면/, '모델에게 다음 길을 사실로 줘야 한다');
+  // **도구가 남긴 말이 먼저다.** 예전엔 사용자에겐 도구 문장이, 모델에겐 사다리 문구가 가서
+  // 같은 턴에 두 말이 돌았다(두 진실). 이제 하나다 — 검사할 것은 문장이 아니라 계약이다:
+  // "되는 방법이 사실로 갔는가". 도구는 자기가 왜 막혔는지 더 정확히 안다.
+  assert.match(sawHint ?? '', /폴더|범위/, '모델에게 다음 길을 사실로 줘야 한다');
+  assert.doesNotMatch(sawHint ?? '', /실패 시 무엇이 안전하고/, '내부 계약 문구는 나가지 않는다');
   const shown = JSON.stringify({ reply: r.reply, next: r.nextSafeAction });
   assert.ok(!shown.includes('실패 시 무엇이 안전하고'), '내부 계획 문구가 나가면 안 된다');
 });

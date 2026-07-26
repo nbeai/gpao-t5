@@ -4,7 +4,7 @@
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
-import { selfhoodLookup, selectSelfhoodDetail } from './l1-intent/selfhood-lookup.js';
+import { selfhoodLookup, selectSelfhoodDetail, soulVoice } from './l1-intent/selfhood-lookup.js';
 import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
 import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
@@ -97,7 +97,11 @@ export async function runTurn(input, ctx) {
   const capCounts = capabilityCounts(buildCapabilityFacts(selfState));
   const lookup = selfhoodLookup(input.text ?? '');
   const selfhoodDetail = lookup.needed ? selectSelfhoodDetail(ctx.selfhoodDocs ?? {}, lookup.sections) : undefined;
-  const selfhood = { identity, capabilityCounts: capCounts, selfhoodDetail };
+  // 말투는 **매 턴** 간다 — 그게 "한 대화 안에서 일관된 목소리"의 근거다. 정체·능력 상세는
+  // 지금처럼 물어봤을 때만(다이어트). SOUL.md 는 사용자가 고치는 문서이고, 말투 구역을 지우면
+  // 아무 것도 안 실린다 — 그게 사용자의 주도권이다.
+  const voice = soulVoice(ctx.selfhoodDocs?.soul);
+  const selfhood = { identity, capabilityCounts: capCounts, selfhoodDetail, voice };
   ctx.identityUpdate = identityUpdate; // executePlan 경계를 넘겨 결과에 함께 실린다
   ctx.selfhood = selfhood;
 
@@ -463,7 +467,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState,
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
-    recoveryHint: rungMessage(ladder),
+    // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
+    // 못 찾았어요"). 사다리는 도구 종류를 모르는 일반 폴백이라, 앞세우면 파일 실패에 웹 문구가
+    // 나간다 — 실측: 원장엔 정확한 문장이 있었는데 사다리가 덮어써서 모델이 터미널 명령을 시켰다.
+    recoveryHint: userSafeNextAction(turnReceipts) ?? rungMessage(ladder),
     ...(ctx.selfhood ?? {}),
   });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아

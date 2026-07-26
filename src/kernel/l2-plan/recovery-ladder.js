@@ -17,7 +17,9 @@ const LADDER = {
   robots_disallow: { rung: 'other_tool', useModelSearch: true, why: '그 사이트가 수집을 막아 두었어요' },
   login_wall: { rung: 'ask_user', useModelSearch: true, why: '로그인이 필요한 페이지예요' },
   bot_wall: { rung: 'other_tool', useModelSearch: true, why: '자동 접근을 막아 두었어요' },
-  blocked: { rung: 'other_tool', useModelSearch: true, why: '그 주소를 열지 못했어요' },
+  // 'blocked' 는 **모든 도구 공통** 상태다. 여기에 "주소" 같은 웹 어휘를 쓰면 파일 실패에도
+  // "그 주소를 열지 못했어요"가 나간다(라이브 실측). 도구 중립으로 둔다.
+  blocked: { rung: 'other_tool', useModelSearch: true, why: '그건 지금 열지 못했어요' },
   timeout: { rung: 'retry', why: '응답이 늦어요' },
   // 로컬: 범위 밖이면 **범위를 넓히자고 제안**한다(그냥 실패로 끝내지 않는다 — §22 로컬 지배력).
   out_of_scope: { rung: 'ask_user', requestScope: true, why: '제 작업 폴더 밖이에요' },

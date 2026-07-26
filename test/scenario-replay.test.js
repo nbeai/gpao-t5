@@ -93,7 +93,10 @@ test('시나리오: 웹이 막혀도 빈 답이 아니고, 다음 길이 사실�
   );
   assert.ok((results[0].reply ?? '').trim().length > 0, '빈 답은 먹통으로 겪는다');
   const finalTc = seen.at(-1).tc;
-  assert.match(finalTc.recoveryHint ?? '', /찾아볼게요|붙여 주시면|다시 한 번/, '막혔으면 다음 길을 사실로 준다');
+  // 문구가 아니라 계약을 본다 — 막혔을 때 **다음에 할 수 있는 것**이 사실로 갔는가.
+  // 도구가 남긴 말이 있으면 그게 먼저다(사다리는 도구 종류를 모르는 일반 폴백).
+  assert.ok((finalTc.recoveryHint ?? '').trim().length > 0, '막혔으면 다음 길을 사실로 준다');
+  assert.match(finalTc.recoveryHint ?? '', /\?|까요|주시면|볼게요/, '다음 행동을 가리켜야 한다');
 });
 
 // ── 시나리오 3: 현재 대상 유지 (오너 실패 — 팔식당 → 책 리뷰 요약) ────────
@@ -213,7 +216,7 @@ test('시나리오: 작업 폴더 밖을 물으면 내부 문구 대신 넓히�
   );
   const shown = JSON.stringify({ reply: results[0].reply, next: results[0].nextSafeAction });
   assert.ok(!shown.includes('실패 시 무엇이 안전하고'), '내부 계획 문구가 사용자에게 가면 안 된다');
-  assert.match(seen.at(-1).tc.recoveryHint ?? '', /작업 범위에 넣어 주시면/, '되는 방법을 사실로 준다');
+  assert.match(seen.at(-1).tc.recoveryHint ?? '', /폴더|범위/, '되는 방법을 사실로 준다');
 });
 
 // ── 시나리오 5: 가진 것을 안다 (오너 실패 — "세션 못 찾아요") ─────────────

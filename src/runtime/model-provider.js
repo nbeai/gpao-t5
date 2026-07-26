@@ -51,6 +51,10 @@ export function buildModelMessages(tc) {
   // 계열마다 실제로 다르게 구는 지점만 몇 줄 — 여기가 길어지면 그건 헌장에 있어야 할 내용이다.
   const profile = modelPromptProfile({ providerId: tc.modelProviderId, modelId: sf.model });
   if (profile) sys.push(profile);
+  // SOUL 의 말투 — **매 턴 같은 자리**에 있어야 목소리가 흔들리지 않는다(OpenClaw·Hermes 의
+  // SOUL.md 계층에서 흡수: voice 는 SOUL 이 갖고, 운영 규칙·판단 순서는 따로).
+  // 예전엔 SOUL 전체가 "물어봤을 때만" 실려서 말투 문장이 **한 번도 모델에게 간 적이 없었다.**
+  if (tc.voice) sys.push(`<말투>\n${tc.voice}\n</말투>`);
 
   // ── 캐시 경계 ──────────────────────────────────────────────────────────
   // 위(정체성·헌장)는 매 턴 같다. 아래는 **세션 안에서 잘 안 변하는 사실** → 여기까지가 고정 접두다.

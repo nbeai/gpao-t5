@@ -110,6 +110,9 @@ export function buildTaskContext(p) {
     naturalness: 'method_and_language_open',
   };
 
+  // SOUL 말투 — 매 턴 고정 접두에 얹힌다(캐시에 붙는다).
+  if (p.voice) packet.voice = p.voice;
+
   // 3축: 응답 표면(웹/텔레그램/슬랙). 방 id·정책·도구명은 싣지 않는다 — 라벨과 성질만.
   if (p.surface) packet.surface = p.surface;
 

@@ -40,3 +40,27 @@ export function selectSelfhoodDetail(docs = {}, sections = []) {
   }
   return out.join('\n\n');
 }
+
+/** 말투 구역의 상한 — 이건 **매 턴** 실린다. 커지면 대화 이력이 밀려난다(실측 기반 다이어트). */
+export const MAX_VOICE_CHARS = 500;
+
+/**
+ * SOUL.md 에서 **말투 구역만** 뽑는다. 정체·능력 상세는 물어봤을 때만 싣지만(다이어트),
+ * 말투는 매 턴 필요하다 — 그게 "한 대화 안에서 일관된 목소리"의 근거다(OpenClaw·Hermes 의
+ * SOUL.md 계층에서 흡수한 원리: voice 는 SOUL, 운영 규칙은 따로).
+ *
+ * 사용자가 직접 고치는 문서다. 구역을 지우면 아무 것도 싣지 않는다 — 그게 사용자의 주도권이다.
+ * @param {string} [soulDoc]
+ * @returns {string|undefined}
+ */
+export function soulVoice(soulDoc) {
+  const text = String(soulDoc ?? '');
+  const start = text.search(/^##\s*말투\s*$/m);
+  if (start < 0) return undefined;
+  const after = text.slice(start);
+  const body = after.slice(after.indexOf('\n') + 1);
+  const end = body.search(/^##\s/m);
+  const voice = (end < 0 ? body : body.slice(0, end)).trim();
+  if (!voice) return undefined;
+  return voice.length > MAX_VOICE_CHARS ? `${voice.slice(0, MAX_VOICE_CHARS)}…` : voice;
+}

@@ -61,7 +61,14 @@ export function makeLocalFileTool(deps = {}) {
   function failureOf(e, path) {
     // 범위 밖은 **되는 방법을 제안할 수 있는 실패**다(§22). 사다리가 알아볼 표식을 단다.
     if (e?.isScopeError) return { blocked: true, scopeState: 'out_of_scope', ...outOfScopeMessage(e) };
-    if (e?.code === 'ENOENT') return fail(`${path} 을(를) 찾지 못했어요.`, '경로를 다시 알려 주시겠어요?');
+    // **어디에서** 찾았는지 말한다. 이게 없으면 모델은 자기가 어디를 보고 있는지 몰라서
+    // "접근이 막힌 것 같다"고 추측하고 터미널 명령을 시킨다(라이브 실측 — 개발자 떠넘김).
+    if (e?.code === 'ENOENT') {
+      return fail(
+        `제가 다루는 폴더(${roots[0]}) 안에서 ${path} 을(를) 찾지 못했어요.`,
+        '다른 폴더에 있다면 그 폴더를 열어 주시면 바로 볼게요.',
+      );
+    }
     if (e?.code === 'EACCES' || e?.code === 'EPERM') return fail('그 파일에 접근할 권한이 없어요.', '다른 파일로 해볼까요?');
     if (e?.code === 'EISDIR') return fail('그건 파일이 아니라 폴더예요.', '폴더 안을 보여드릴까요?');
     if (e?.code === 'ENOSPC') return fail('저장 공간이 부족해요.', '공간을 확보한 뒤 다시 할까요?');
