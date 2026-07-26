@@ -98,6 +98,10 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-DIST-1 반영(근거: `P-DIST-1-INSTALL-PIPELINE`, 산출물 실행 실측 + 게이트 반대 검증): §6.28
+  Install Pipeline & Artifact Gate — T5 가 **처음으로 배포 단계를 통과**했다. bin 진입점·files
+  화이트리스트·`GET /health`·`npm run verify:package`(pack→펼침→실행→health→온보딩 도달)를 넣고
+  CI 에 배선. T3 제1원칙("소스가 아니라 산출물을 검증")이 T5 에서 처음으로 실제 게이트가 됐다.
 - P-ONB-2 반영(근거: `P-ONB-2-FIRST-RUN-WELCOME`, 오너 지시(T5 마무리) + T3·Hermes·OpenClaw 실측 조사 +
   전 여정 라이브 실측): §6.27 First-Run Onboarding & Welcome — 설치 후 첫 실행에 모델 연결이 즉시
   전개되고(서버측 단일 진실, URL 쿼리 판정 금지), 건너뛰기는 영속이며, 같은 표면이 곧 상시 설정이다.
@@ -878,6 +882,29 @@ T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(
   나중에 연결해도 첫인사를 영영 못 받음)을 회귀 테스트로 고정.
 - **라이브 실증**: 빈 상태 부팅 → needed=true → 미연결 웰컴은 안내만(표식 안 켜짐) → 실키 연결 →
   needed=false → 모델이 만든 3문장 인사(실제 도구를 근거로, 마지막에 질문).
+
+### 6.28 Install Pipeline & Artifact Gate (P-DIST-1, 구현됨 — 산출물이 실제로 실행되는지 검증한다)
+
+근거: T3 절대원칙 제1조("소스가 아니라 산출물을 검증한다" — 배포 치환이 가드를 먹음·postinstall
+`\n` 파손·설치가 제품 코드 146개 삭제, **전부 배포 단계에서만 터졌다**). §6.27 온보딩이 "설치 완료 후
+즉시 전개"를 전제하는데 T5 엔 설치가 없었다. `P-DIST-1-INSTALL-PIPELINE`.
+
+- **진입점**: `bin/gpao-t5.mjs` — 설치하면 `gpao-t5` 한 줄로 뜬다. 기동은 `startLiveServer` 를 그대로
+  써서 저장 연결 복원이 listen 전에 끝나는 순서 계약(§6.24 B2)을 진입점이 재구현해 어긋내지 않는다.
+  브라우저 열기는 선택 — 실패해도 서버는 산다(열지 못했다고 설치를 실패시키지 않는다).
+- **`GET /health`**: 설치 검증이 묻는 단일 신호. **거짓 초록 금지** — 서버가 살아 있으면 `ok:true` 이되
+  `model.connected`·`healthState` 는 있는 그대로(미검증이면 null, 도달 불가면 `unreachable`).
+  `onboarding.needed` 도 함께 실어 "설치 직후 온보딩이 뜨는가"를 밖에서 확인할 수 있게 한다.
+- **산출물 게이트** `npm run verify:package`: 개발 트리를 믿지 않는다. `npm pack` → tarball 을 임시
+  디렉터리에 **펼치고** → 거기서 **실제 실행** → `/health` `ok` → `/onboarding.needed` → 화면에 연결
+  표면 존재까지 확인한다. 내용물은 **누락·과다 양방향**으로 검사(필수 파일 없음 / 테스트·설계문서 섞임).
+  사용자 데이터 경로는 임시 디렉터리로 격리한다. 실패는 비-0 종료, CI 가 테스트 뒤에 돌린다.
+- **반대 검증**(원칙 8): `files` 에서 `src` 를 빼면 "필수 파일 없음"으로, `test` 를 넣으면 "섞이면 안 되는
+  것" 으로 게이트가 실제 실패하는 것을 확인했다.
+- **라이브 실증**: 펼친 산출물에서 부팅 → health(미연결·온보딩 필요) → 실키 연결 → **실모델 응답** →
+  health(연결됨·usable·온보딩 불필요). 설치본이 실사용 전 여정을 돈다.
+- **후속**: 레지스트리/사설 배포·서명 · macOS pkg · 자동 업데이트 · **재설치 안전성**(T3: 실행 중
+  바이너리 교체는 SIGKILL 137 — bootout 먼저 + 원자적 교체).
 
 ---
 

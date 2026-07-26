@@ -197,6 +197,23 @@ export function makeServer(deps = {}) {
     try {
       const url = (req.url ?? '').split('?')[0];
 
+      // ── health (P-DIST-1) ── 설치 검증이 물어보는 단일 신호. **거짓 초록 금지**: 서버가 살아 있으면
+      //   ok:true 이되, 모델 연결 여부는 있는 그대로 싣는다(모델이 없다고 ok 를 거짓으로 만들지도,
+      //   연결됐다고 꾸미지도 않는다). 설치 스크립트가 이 한 줄로 "도달했는가"를 판정한다.
+      if (req.method === 'GET' && url === '/health') {
+        const connStatus = deps.modelConnection?.status?.() ?? {};
+        const onboarding = await onboardingStore.load();
+        return sendJson(res, 200, {
+          ok: true,
+          model: {
+            connected: Boolean(connStatus.connected),
+            id: env.model?.id ?? null,
+            healthState: env.model?.healthState ?? null, // 미검증이면 null — 검증됨이라 말하지 않는다
+          },
+          onboarding: { needed: onboardingNeeded(onboarding, connStatus) },
+        });
+      }
+
       if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
         const html = await readFile(join(__dirname, 'web', 'index.html'), 'utf8');
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
