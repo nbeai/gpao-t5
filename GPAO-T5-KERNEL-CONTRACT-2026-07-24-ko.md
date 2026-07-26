@@ -1,6 +1,6 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~5) 개정(2026-07-25~26)**
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~5) · P6-19(Slice-1) · P-STAB-1 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
@@ -91,6 +91,13 @@
   Overview — 조용한 읽기 전용 단일 진입점(칩 열 때만, 안티 대시보드) + 조치. 누적된 구분을 구조/문구로:
   연결≠가능·추천≠활성·추정≠반영·실패≠완료. Slice-2 액션(재전달·승인·확인)은 기존 게이트 엔드포인트 그대로,
   항목을 "아직 아님"→"완료"로 이동. 추정은 액션 없이 읽기 전용. 후속: 검색 표면(찾은≠반영)·모바일.
+  (모바일 375px 크럼 회귀 해소 포함.)
+- P6-19 Slice-1 반영(근거: `P6-19-NATURAL-GOVERNANCE`, 라이브 검증): §6.20 Natural Governance Recovery Surface —
+  회복 가능한 실패(recoverable_error)를 침묵 대신 같은 턴의 사용자 언어 회복 안내(text+다음 안전 행동)로 렌더.
+  내부 원문·스택 미노출, 성공처럼 안 보임. P-STAB-1 타임아웃의 사용자 표면.
+- P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
+  느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
+  ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
 - 근거: 계획서 §5·§6.2 / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법(Product Constitution) 아래에서 T5 커널이 주고받는 데이터 계약을 정한다.
   세부 구현·kernel spec 위, 헌법 아래(절대원칙 §12 순서).
@@ -662,6 +669,36 @@ VerificationReceipt, §7 ToolReceipt.lifecycle, P6-6 ChannelSender. T3의 큰 �
 - **모바일 375px 크럼 회귀 해소(구현됨)**: 크럼(브레드크럼+기억 찾기+준비됨)이 단어 중간에서 꺾이던 회귀를
   nowrap·말줄임 + 모바일 압축(Work Chat+🔍만)으로 수정. overview·검색 패널은 이미 정상. 데스크톱 라벨 불변.
 - **후속**: 반영 중 기억 출처(session/title) 표시 · 액션 실패 사용자 언어 표면.
+
+### 6.20 Natural Governance Recovery Surface (P6-19 Slice-1, 구현됨 — 회복 가능한 실패는 같은 턴의 다음 행동으로)
+
+근거: 윤 지시 "부자연스러운 거버넌스가 아니라 사용자 입장에서 아주 자연스러운 거버넌스", P-STAB-1 Model
+Timeout, §6.11 Streaming. 내부 안전장치가 사용자에게 아무 말 없이 사라지면 통제는 있어도 경험은 깨진다.
+
+- **계약**: `recoverable_error`는 개발자 오류 표시가 아니라 사용자 회복 안내다. trace는 진행 상태이고,
+  회복 안내는 같은 턴 박스에 남는 사용자 언어 메시지다.
+- **구현**: Work Chat `streamTurn()`이 `recoverable_error` payload를 보관하고, `complete` 시 `submit()`이
+  `renderRecovery()`로 `text`와 `nextSafeAction`을 보여 준다. 정상 complete는 기존처럼 지속된 assistant 결과를 렌더한다.
+- **경계**: 회복 안내는 성공·완료처럼 보이면 안 된다. 내부 오류 원문·스택·provider 진단을 화면에 노출하지 않는다.
+- **후속**: POST `/turn` 모델 타임아웃도 500 대신 사용자 언어 recovery JSON으로 표면화 · recovery를 overview 최근 막힘으로
+  요약할지 검토 · 실 provider AbortSignal 연결.
+
+### 6.21 Stability Guard / Model Response Timeout (P-STAB-1, 구현됨 — 어떤 턴도 무한히 매달리지 않는다)
+
+근거: ②장시간 안정성/스트리밍 내구성(윤 지정), T3 "잘 되다가 갑자기 멈춤" 재발 방지. §6.11 Streaming,
+§6.20 Natural Governance(회복 안내가 이 타임아웃의 사용자 표면). **백엔드 안정성 계약** — §6.20(사용자 회복
+표면)과 성격이 다른 별도 절.
+
+- **핵심**: `runTurn → model.respond()`가 느리거나 멈추면 턴이 안 닫히고, `withSessionQueue`가 직렬화하므로
+  **그 세션의 후속 턴까지 전부 막힌다**(T3 재발 지점). `withModelTimeout(model, ms)`가 respond를 타임아웃과 race해
+  **초과 시 `ModelTimeoutError`로 reject** → 기존 오류 경로(stream `recoverable_error+complete`, POST 500)가 턴을
+  바운드해 닫고 **큐를 풀어 다음 턴을 살린다.**
+- 어떤 ModelClient(스텁·실 provider)든 같은 계약으로 감싼다. `ms<=0`이면 무제한. 타이머 unref+finally clear(누수 없음).
+  오류 시 assistant 결과 미기록·미저장이라 half-state 없음(원자적). 스트림 catch는 `isModelTimeout`이면 "응답이
+  늦어 잠시 멈췄어요"로.
+- 설정: `modelTimeoutMs = deps.modelTimeoutMs ?? GPAO_T5_MODEL_TIMEOUT_MS ?? 30_000`. 모든 `ctx.model` 공통.
+- **후속**: 진짜 취소(실 provider AbortSignal을 모델까지 전달해 background orphan promise도 중단) · 재접속 중
+  미종료 스트림 re-attach · EventLog 장시간 성장(append O(n)) 상한 · 느린 클라 backpressure · POST 경로 타임아웃 표면.
 
 ---
 

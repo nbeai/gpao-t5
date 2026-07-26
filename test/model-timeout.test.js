@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { withModelTimeout, ModelTimeoutError } from '../src/runtime/model-timeout.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -104,4 +106,14 @@ test('타임아웃 무제한(0)이어도 정상 턴은 그대로 complete', asyn
     const complete = evs.find((e) => e.type === 'complete');
     assert.ok(complete && complete.data.kind !== 'error');
   });
+});
+
+// P6-19 자연스러운 거버넌스: 서버가 recoverable_error를 내보내도 클라이언트가 trace만 지우면
+// 사용자는 아무 설명 없이 멈춘 것처럼 느낀다. 회복 안내는 같은 턴의 사용자 언어 메시지로 남아야 한다.
+test('Work Chat은 recoverable_error를 같은 턴의 회복 안내로 렌더한다', async () => {
+  const html = await readFile(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'surface', 'web', 'index.html'), 'utf8');
+  assert.match(html, /addEventListener\('recoverable_error'/, 'SSE recoverable_error를 듣는다');
+  assert.match(html, /function renderRecovery/, '회복 안내 렌더러가 있다');
+  assert.match(html, /const recovery = await streamTurn/, 'submit 경로가 회복 payload를 받는다');
+  assert.match(html, /다음: \$\{r\.nextSafeAction\}/, '다음 안전 행동을 사용자에게 남긴다');
 });
