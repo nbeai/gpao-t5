@@ -193,3 +193,45 @@ test('httpToFetchState 도 건진 분량을 함께 본다', () => {
   assert.equal(httpToFetchState(200, { body: '로그인', readableChars: 0 }), 'login_wall');
   assert.equal(httpToFetchState(401, { body: '', readableChars: 9999 }), 'login_wall', '401 은 분량과 무관하게 벽');
 });
+
+// 오너 지시(2026-07-27): 네이버는 모바일 주소로 바꿔 적용한다.
+// 근거(실측): map.naver.com 은 robots 차단이지만 m.place.naver.com 은 허용이고 내용이 HTML 에 있다.
+test('네이버 지도 주소는 읽을 수 있는 모바일 주소로 바꾼다', async () => {
+  const { preferReadableUrl } = await import('../src/runtime/web-collector.js');
+  assert.equal(
+    preferReadableUrl('https://map.naver.com/p/entry/place/1747125291?lng=127'),
+    'https://m.place.naver.com/place/1747125291/home',
+  );
+  assert.equal(preferReadableUrl('https://blog.naver.com/someone/123'), 'https://m.blog.naver.com/someone/123');
+  assert.equal(preferReadableUrl('https://example.com/a'), 'https://example.com/a', '관계없는 주소는 그대로');
+  assert.equal(preferReadableUrl('그냥 글자'), '그냥 글자', '주소가 아니면 건드리지 않는다');
+});
+
+// robots 는 **후보마다** 확인해야 한다. 원래 주소로만 보면 바꾼 주소가 허용인데도 시도조차 못 한다.
+test('원래 주소가 막혀도 허용된 대체 주소는 시도한다', async () => {
+  const seen = [];
+  const collector = makeWebCollector({
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return { status: 200, url, text: async () => '<html><body><article><p>' + '읽을 수 있는 본문입니다. '.repeat(20) + '</p></article></body></html>' };
+    },
+    robotsCheck: async (u) => !u.includes('map.naver.com'), // 데스크톱만 차단
+  });
+  const out = await collector.handler({ request: 'https://map.naver.com/p/entry/place/123' });
+  assert.ok(!out.blocked, `막히면 안 된다: ${out.userSafeSummary}`);
+  assert.ok(seen.some((u) => u.includes('m.place.naver.com')), '허용된 대체 주소를 시도해야 한다');
+  assert.ok(!seen.some((u) => u.includes('map.naver.com')), 'robots 가 막은 주소는 치지 않는다');
+});
+
+test('사용자 대신 여는 도구임을 밝히는 요청 헤더를 보낸다(헤더 없이는 429 로 막힌다)', async () => {
+  let headers;
+  const collector = makeWebCollector({
+    fetchImpl: async (url, init) => {
+      headers = init?.headers;
+      return { status: 200, url, text: async () => '<html><body><article><p>' + '본문입니다. '.repeat(30) + '</p></article></body></html>' };
+    },
+  });
+  await collector.handler({ request: 'https://example.com/a' });
+  assert.ok(headers?.['user-agent'], 'User-Agent 없이 요청하면 주요 서비스가 막는다(실측 429)');
+  assert.match(headers['accept-language'], /ko/);
+});
