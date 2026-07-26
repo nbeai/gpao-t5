@@ -102,7 +102,8 @@ export const MODEL_PROVIDERS = {
   // 오픈소스/기타 모델(Ollama·vLLM·LM Studio 등) — baseUrl·modelId 필수, 토큰 선택.
   openai_compatible: { ...OPENAI_WIRE, defaultModel: undefined, defaultBase: undefined, envKey: 'GPAO_T5_MODEL_API_KEY' },
   gemini: {
-    defaultModel: 'gemini-2.5-flash',
+    // 안정 별칭 — 버전 고정은 "신규 사용자에게 미제공" 404 로 낡는다(2026-07-26 라이브 실측: 2.5-flash 가 그랬다)
+    defaultModel: 'gemini-flash-latest',
     defaultBase: 'https://generativelanguage.googleapis.com/v1beta',
     envKey: 'GEMINI_API_KEY',
     endpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models/${cfg.modelId}:generateContent`,

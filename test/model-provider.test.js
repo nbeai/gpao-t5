@@ -119,7 +119,7 @@ test('gemini 와이어: :generateContent + x-goog-api-key, parts 추출', async 
   const reply = await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC);
   assert.equal(reply, '알겠어요');
   const { url, init } = calls[0];
-  assert.ok(url.endsWith('/models/gemini-2.5-flash:generateContent'));
+  assert.ok(url.endsWith('/models/gemini-flash-latest:generateContent'));
   assert.equal(init.headers['x-goog-api-key'], 'g-1');
   const body = JSON.parse(init.body);
   assert.ok(body.system_instruction.parts[0].text.length);
