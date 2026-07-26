@@ -61,8 +61,19 @@ export function buildModelMessages(tc) {
       .join('\n')}`);
   }
   usr.push(tc.currentRequest); // 원문 보존
-  return { system: sys.join('\n'), user: usr.join('\n\n') };
+  // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
+  // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
+  const history = (tc.recentTurns ?? [])
+    .filter((t) => t && typeof t.text === 'string' && t.text.trim())
+    .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
+  return { system: sys.join('\n'), user: usr.join('\n\n'), history };
 }
+
+// 이력을 provider 셰이프로. 역할 이름만 다르고 순서·내용은 같다(오래된 것 → 최근 것).
+const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, content: h.text }));
+const geminiHistory = (m) => (m.history ?? []).map((h) => ({
+  role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }],
+}));
 
 // provider별 요청 빌더·응답 해석(선언형). 토큰 위치·본문 셰이프가 provider마다 다르다.
 // errorSignal 은 분류하지 않는다 — 원문을 모으고, 분류기가 못 읽는 벤더 고유 표기만 정규 토큰으로 보강.
@@ -79,8 +90,8 @@ const OPENAI_WIRE = {
     // 일부 호환 서버는 user/assistant 만 허용(beai V1 실측 2026-07-26). 그 경우 system 사실을
     // user 턴 앞에 합쳐 보낸다 — 사실 전달은 유지, 셰이프만 서버 제약에 맞춘다.
     messages: cfg.noSystemRole
-      ? [{ role: 'user', content: `${m.system}\n\n${m.user}` }]
-      : [{ role: 'system', content: m.system }, { role: 'user', content: m.user }],
+      ? [...openaiHistory(m), { role: 'user', content: `${m.system}\n\n${m.user}` }]
+      : [{ role: 'system', content: m.system }, ...openaiHistory(m), { role: 'user', content: m.user }],
   }),
   extract: (json) => json?.choices?.[0]?.message?.content,
   errorSignal: (status, json) =>
@@ -111,7 +122,7 @@ export const MODEL_PROVIDERS = {
       model: cfg.modelId,
       max_tokens: cfg.maxTokens,
       system: m.system,
-      messages: [{ role: 'user', content: m.user }],
+      messages: [...openaiHistory(m), { role: 'user', content: m.user }],
     }),
     extract: (json) => {
       const parts = (json?.content ?? []).filter((b) => b.type === 'text').map((b) => b.text);
@@ -125,7 +136,7 @@ export const MODEL_PROVIDERS = {
     // (message_start·ping 등 다른 이벤트는 흘리지 않는다 — 사용자면 텍스트만).
     streamBody: (cfg, m) => JSON.stringify({
       model: cfg.modelId, max_tokens: cfg.maxTokens, system: m.system,
-      messages: [{ role: 'user', content: m.user }], stream: true,
+      messages: [...openaiHistory(m), { role: 'user', content: m.user }], stream: true,
     }),
     streamDelta: (ev) => (ev?.type === 'content_block_delta' && ev?.delta?.type === 'text_delta'
       ? ev.delta.text : null),
@@ -158,7 +169,7 @@ export const MODEL_PROVIDERS = {
     headers: (cfg) => ({ 'content-type': 'application/json', 'x-goog-api-key': cfg.token }),
     body: (cfg, m) => JSON.stringify({
       system_instruction: { parts: [{ text: m.system }] },
-      contents: [{ role: 'user', parts: [{ text: m.user }] }],
+      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }],
     }),
     extract: (json) => {
       const parts = json?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean);
@@ -176,7 +187,7 @@ export const MODEL_PROVIDERS = {
     streamEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models/${cfg.modelId}:streamGenerateContent?alt=sse`,
     streamBody: (cfg, m) => JSON.stringify({
       system_instruction: { parts: [{ text: m.system }] },
-      contents: [{ role: 'user', parts: [{ text: m.user }] }],
+      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }],
     }),
     streamDelta: (ev) => {
       const t = ev?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('');

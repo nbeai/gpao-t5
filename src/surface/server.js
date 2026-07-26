@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
+import { recentTurns } from '../kernel/l1-intent/conversation.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -143,6 +144,9 @@ export function makeServer(deps = {}) {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       memory, activeGoal: session.activeGoal ?? null,
+      // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
+      // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
+      recentTurns: recentTurns(session.transcript ?? []),
       newId: () => randomUUID(), now: () => Date.now(),
     };
   }

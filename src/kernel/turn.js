@@ -161,7 +161,7 @@ export async function runTurn(input, ctx) {
 
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
   if (intent.answerMode === 'fast_chat' && !influence) {
-    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, ...selfhood });
+    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, ...selfhood });
     // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
     // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
   // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
@@ -364,7 +364,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
-  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, ...(ctx.selfhood ?? {}) });
+  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, recentTurns: ctx.recentTurns, ...(ctx.selfhood ?? {}) });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
   // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
   const wantedWeb = Boolean(intent.neededTools?.includes('web.collect'));

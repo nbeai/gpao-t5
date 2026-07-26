@@ -8,6 +8,7 @@ import { selfStateSummary } from '../l0-evidence/self-state.js';
  * @param {import('../contracts.js').IntentPacket} p.intent
  * @param {import('../contracts.js').SelfStateSnapshot} p.selfState
  * @param {string[]} [p.admittedContext]
+ * @param {Array<{role:string,text:string}>} [p.recentTurns]  같은 대화의 최근 발화(사람이 읽는 말만)
  * @param {import('../contracts.js').ActionPlan} [p.plan]
  * @param {import('../contracts.js').ToolReceipt[]} [p.receipts]
  * @returns {import('../contracts.js').TaskContextPacket}
@@ -37,6 +38,9 @@ export function buildTaskContext(p) {
     capabilityCounts: p.capabilityCounts,
     selfhoodDetail: p.selfhoodDetail,
     currentRequest: intent.currentRequest, // 원문 보존
+    // Phase 2-1: 같은 대화의 최근 발화. 이게 없으면 매 턴이 단발이라 방금 한 말을 기억하지 못하고
+    // 말투도 턴마다 다시 골라진다(실측: 이름을 기억하겠다고 답한 다음 턴에 모른다고 했다).
+    recentTurns: p.recentTurns ?? [],
     selfStateFacts,
     admittedContext: p.admittedContext ?? [],
     authorityFacts,

@@ -7,6 +7,13 @@ import { ModelProviderError } from './model-provider.js';
 import { buildModelMessages } from './model-provider.js';
 
 export const CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex/responses';
+
+/** 대화 이력 → Responses 입력 아이템. 이 셰이프는 사용자면 input_text, 모델면 output_text 다. */
+export function responsesHistory(m) {
+  return (m?.history ?? []).map((h) => (h.role === 'assistant'
+    ? { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: h.text }] }
+    : { type: 'message', role: 'user', content: [{ type: 'input_text', text: h.text }] }));
+}
 // 계정 경로에서 실제로 통과하는 모델(2026-07-26 오너 계정 실측). codex 접미 계열은 이 경로에서
 // "not supported when using Codex with a ChatGPT account" 400 으로 거절된다 — 카탈로그 문자열이
 // 있다고 계정 경로에서도 되는 게 아니다(실측 전엔 기본값을 추정하지 않는다).
@@ -108,7 +115,9 @@ export function makeChatGptModelClient(deps) {
             body: JSON.stringify({
               model: modelId,
               instructions: m.system,
-              input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
+              // Phase 2-1: 이력도 함께 넘긴다. 여기가 빠져 있어서 **라이브에서만** 대화가 안 이어졌다 —
+              // 다른 provider 와이어는 고쳐 놓고 이 경로를 빼먹었다(같은 계약, 다른 셰이프).
+              input: [...responsesHistory(m), { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
               // Phase 0-2 1층: 웹이 필요한 턴에만 내장 검색을 켠다(실측 확인: 이 백엔드는 web_search 지원).
               ...(opts.search ? { tools: [{ type: 'web_search' }] } : {}),
               stream: true,   // 이 백엔드는 스트림만 받는다
