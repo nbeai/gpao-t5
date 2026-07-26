@@ -116,3 +116,73 @@ test('모델이 도구를 안 고르면 예전처럼 그냥 답한다(폴백 유
   assert.equal(r.kind, 'reply');
   assert.equal(r.reply, '안녕하세요');
 });
+
+// ── P2-5b-2: 다른 provider 도 같은 계약 ──────────────────────────────────
+// 라이브(ChatGPT)에서 검증된 것을 넓힌다. 셰이프만 다르고 계약은 같다:
+// 도구를 주면 {text, toolCalls} 를 돌려주고, 이름은 와이어에서 안전하게 바꿨다가 되돌린다.
+import { MODEL_PROVIDERS, makeProviderModelClient, wireToolName } from '../src/runtime/model-provider.js';
+import { buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
+import { interpret } from '../src/kernel/l1-intent/intent.js';
+
+const TOOLS = [{ name: 'local.file', description: '파일', parameters: { type: 'object', properties: {} } }];
+const tcFor = (text) => buildTaskContext({ intent: interpret(text), selfState });
+
+test('와이어 이름 규칙: 점을 쓰지 못하는 서버가 있다(라이브 400 실측)', () => {
+  assert.equal(wireToolName('local.file'), 'local_file');
+  assert.match(wireToolName('local.file'), /^[a-zA-Z0-9_-]+$/);
+});
+
+test('OpenAI 계열: tools 를 싣고 tool_calls 를 되돌린다', () => {
+  const body = JSON.parse(MODEL_PROVIDERS.openai.body({ modelId: 'x', maxTokens: 1 }, { system: 's', user: 'u' }, { tools: TOOLS }));
+  assert.equal(body.tools[0].function.name, 'local_file');
+  const calls = MODEL_PROVIDERS.openai.extractToolCalls({
+    choices: [{ message: { tool_calls: [{ function: { name: 'local_file', arguments: '{"action":"list"}' } }] } }],
+  });
+  assert.deepEqual(calls, [{ name: 'local_file', args: { action: 'list' } }]);
+});
+
+test('Anthropic: input_schema 로 싣고 tool_use 를 읽는다', () => {
+  const body = JSON.parse(MODEL_PROVIDERS.anthropic.body({ modelId: 'x', maxTokens: 1 }, { system: 's', user: 'u' }, { tools: TOOLS }));
+  assert.equal(body.tools[0].input_schema.type, 'object');
+  const calls = MODEL_PROVIDERS.anthropic.extractToolCalls({
+    content: [{ type: 'text', text: '음' }, { type: 'tool_use', name: 'local_file', input: { action: 'read' } }],
+  });
+  assert.deepEqual(calls, [{ name: 'local_file', args: { action: 'read' } }]);
+});
+
+test('Gemini: function_declarations 로 싣고 functionCall 을 읽는다', () => {
+  const body = JSON.parse(MODEL_PROVIDERS.gemini.body({ modelId: 'x', baseUrl: 'https://b' }, { system: 's', user: 'u' }, { tools: TOOLS }));
+  assert.equal(body.tools[0].function_declarations[0].name, 'local_file');
+  const calls = MODEL_PROVIDERS.gemini.extractToolCalls({
+    candidates: [{ content: { parts: [{ functionCall: { name: 'local_file', args: { action: 'list' } } }] } }],
+  });
+  assert.deepEqual(calls, [{ name: 'local_file', args: { action: 'list' } }]);
+});
+
+test('provider 경로: 이름을 되돌려 커널 도구 id 로 준다', async () => {
+  const client = makeProviderModelClient(
+    { provider: 'anthropic', token: 'k', modelId: 'claude-x', baseUrl: 'https://api.anthropic.com' },
+    { fetchImpl: async () => ({ status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'local_file', input: { action: 'list' } }] }) }) },
+  );
+  const out = await client.respond(tcFor('봐줘'), { tools: TOOLS });
+  assert.deepEqual(out.toolCalls, [{ name: 'local.file', args: { action: 'list' } }]);
+});
+
+test('provider 경로: 모르는 도구 이름은 버린다(실행하지 않는다)', async () => {
+  const client = makeProviderModelClient(
+    { provider: 'anthropic', token: 'k', modelId: 'claude-x', baseUrl: 'https://api.anthropic.com' },
+    { fetchImpl: async () => ({ status: 200, json: async () => ({ content: [{ type: 'text', text: '음' }, { type: 'tool_use', name: 'shell_exec', input: {} }] }) }) },
+  );
+  const out = await client.respond(tcFor('해줘'), { tools: TOOLS });
+  assert.deepEqual(out.toolCalls, []);
+});
+
+test('도구를 준 턴은 텍스트가 비어도 빈 응답으로 보지 않는다', async () => {
+  const client = makeProviderModelClient(
+    { provider: 'anthropic', token: 'k', modelId: 'claude-x', baseUrl: 'https://api.anthropic.com' },
+    { fetchImpl: async () => ({ status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'local_file', input: {} }] }) }) },
+  );
+  const out = await client.respond(tcFor('해줘'), { tools: TOOLS });
+  assert.equal(out.text, '');
+  assert.equal(out.toolCalls.length, 1);
+});

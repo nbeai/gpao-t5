@@ -89,6 +89,16 @@ export function buildModelMessages(tc) {
   return { system: sys.join('\n'), user: usr.join('\n\n'), history };
 }
 
+/** 도구 이름은 서버마다 허용 문자가 다르다(점 불가 등). 와이어에서만 바꾸고 응답에서 되돌린다. */
+export const wireToolName = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+/** 와이어가 준 이름·인자 → 커널 호출. 인자가 깨졌으면 버린다(반쪽 인자로 실행하지 않는다). */
+function parseWireCall(name, rawArgs) {
+  if (!name) return null;
+  if (rawArgs && typeof rawArgs === 'object') return { name, args: rawArgs };
+  try { return { name, args: rawArgs ? JSON.parse(rawArgs) : {} }; } catch { return null; }
+}
+
 // 이력을 provider 셰이프로. 역할 이름만 다르고 순서·내용은 같다(오래된 것 → 최근 것).
 const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, content: h.text }));
 const geminiHistory = (m) => (m.history ?? []).map((h) => ({
@@ -104,9 +114,17 @@ const OPENAI_WIRE = {
     'content-type': 'application/json',
     ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : {}), // 호환(로컬) 서버는 무자격 허용
   }),
-  body: (cfg, m) => JSON.stringify({
+  body: (cfg, m, opts = {}) => JSON.stringify({
     model: cfg.modelId,
     max_tokens: cfg.maxTokens,
+    // P2-5b-2: 도구 **선택**을 모델에게(집행은 런타임). 이름 제약이 있는 서버가 있어 와이어에서
+    // 안전한 이름으로 바꾸고 응답에서 되돌린다(라이브에서 `local.file` 의 점이 400 을 냈다).
+    ...(opts.tools?.length ? {
+      tools: opts.tools.map((t) => ({
+        type: 'function',
+        function: { name: wireToolName(t.name), description: t.description, parameters: t.parameters },
+      })),
+    } : {}),
     // 일부 호환 서버는 user/assistant 만 허용(beai V1 실측 2026-07-26). 그 경우 system 사실을
     // user 턴 앞에 합쳐 보낸다 — 사실 전달은 유지, 셰이프만 서버 제약에 맞춘다.
     messages: cfg.noSystemRole
@@ -114,6 +132,9 @@ const OPENAI_WIRE = {
       : [{ role: 'system', content: m.system }, ...openaiHistory(m), { role: 'user', content: m.user }],
   }),
   extract: (json) => json?.choices?.[0]?.message?.content,
+  extractToolCalls: (json) => (json?.choices?.[0]?.message?.tool_calls ?? [])
+    .map((c) => parseWireCall(c?.function?.name, c?.function?.arguments))
+    .filter(Boolean),
   errorSignal: (status, json) =>
     [status, json?.error?.code, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
   // doctor(P-RT-2): 과금 없는 모델 목록 GET — 키 유효성·도달성·설정 모델 존재를 한 번에 검증
@@ -138,16 +159,25 @@ export const MODEL_PROVIDERS = {
       'x-api-key': cfg.token,
       'anthropic-version': '2023-06-01',
     }),
-    body: (cfg, m) => JSON.stringify({
+    body: (cfg, m, opts = {}) => JSON.stringify({
       model: cfg.modelId,
       max_tokens: cfg.maxTokens,
       system: m.system,
       messages: [...openaiHistory(m), { role: 'user', content: m.user }],
+      ...(opts.tools?.length ? {
+        tools: opts.tools.map((t) => ({
+          name: wireToolName(t.name), description: t.description, input_schema: t.parameters,
+        })),
+      } : {}),
     }),
     extract: (json) => {
       const parts = (json?.content ?? []).filter((b) => b.type === 'text').map((b) => b.text);
       return parts.length ? parts.join('\n') : undefined;
     },
+    extractToolCalls: (json) => (json?.content ?? [])
+      .filter((b) => b.type === 'tool_use')
+      .map((b) => parseWireCall(b.name, b.input))
+      .filter(Boolean),
     errorSignal: (status, json) =>
       [status, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
     modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/v1/models`,
@@ -187,14 +217,25 @@ export const MODEL_PROVIDERS = {
     envKey: 'GEMINI_API_KEY',
     endpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models/${cfg.modelId}:generateContent`,
     headers: (cfg) => ({ 'content-type': 'application/json', 'x-goog-api-key': cfg.token }),
-    body: (cfg, m) => JSON.stringify({
+    body: (cfg, m, opts = {}) => JSON.stringify({
       system_instruction: { parts: [{ text: m.system }] },
       contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }],
+      ...(opts.tools?.length ? {
+        tools: [{
+          function_declarations: opts.tools.map((t) => ({
+            name: wireToolName(t.name), description: t.description, parameters: t.parameters,
+          })),
+        }],
+      } : {}),
     }),
     extract: (json) => {
       const parts = json?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean);
       return parts?.length ? parts.join('') : undefined;
     },
+    extractToolCalls: (json) => (json?.candidates?.[0]?.content?.parts ?? [])
+      .filter((p) => p.functionCall)
+      .map((p) => parseWireCall(p.functionCall.name, p.functionCall.args))
+      .filter(Boolean),
     errorSignal: (status, json) => {
       const reasons = (json?.error?.details ?? []).map((d) => d.reason).filter(Boolean);
       const raw = [status, json?.error?.status, json?.error?.message, ...reasons].filter(Boolean).join(' ');
@@ -356,7 +397,9 @@ export function makeProviderModelClient(cfg, deps = {}) {
     async respond(tc, opts = {}) {
       const messages = buildModelMessages(tc);
       // 스트리밍 가능한 와이어(OpenAI 계열)면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로.
-      if (opts.onDelta && spec.streamBody) {
+      // 도구를 준 턴은 단발로 받는다 — 조각 스트림 중간의 도구 호출까지 다루는 것은 이 슬라이스 범위 밖이고,
+      // 반쪽으로 만들면 "고른 줄 알았는데 실행 안 됨"이 된다(§16-D 능력 완결).
+      if (opts.onDelta && spec.streamBody && !opts.tools?.length) {
         return streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
       }
       const url = spec.endpoint(cfg);
@@ -367,7 +410,7 @@ export function makeProviderModelClient(cfg, deps = {}) {
           const r = await fetchImpl(url, {
             method: 'POST',
             headers: spec.headers(cfg),
-            body: spec.body(cfg, messages),
+            body: spec.body(cfg, messages, opts),
             signal: controller.signal,
           });
           let j = null;
@@ -380,8 +423,19 @@ export function makeProviderModelClient(cfg, deps = {}) {
       }
       if (status >= 200 && status < 300) {
         const text = spec.extract(json);
-        if (typeof text === 'string' && text.length) return text;
-        throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty or unreadable response' });
+        if (!opts.tools?.length) {
+          if (typeof text === 'string' && text.length) return text;
+          throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty or unreadable response' });
+        }
+        // 도구를 준 턴은 텍스트가 비어 있을 수 있다 — 그건 빈 응답이 아니라 "손이 필요하다"는 답이다.
+        const byWire = new Map(opts.tools.map((t) => [wireToolName(t.name), t.name]));
+        const toolCalls = (spec.extractToolCalls?.(json) ?? [])
+          .map((c) => (byWire.has(c.name) ? { ...c, name: byWire.get(c.name) } : null))
+          .filter(Boolean); // 못 되돌리는 이름은 버린다(모르는 도구는 실행 안 한다)
+        if ((typeof text !== 'string' || !text.length) && !toolCalls.length) {
+          throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty or unreadable response' });
+        }
+        return { text: typeof text === 'string' ? text : '', toolCalls };
       }
       throw new ModelProviderError({ provider: cfg.provider, status, authSignal: spec.errorSignal(status, json) });
     },
