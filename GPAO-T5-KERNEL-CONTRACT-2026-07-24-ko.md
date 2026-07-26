@@ -807,6 +807,12 @@ T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(
   id_token claim 에서 파생. 기본 모델 `gpt-5.3-codex`. 같은 ModelClient 계약이라 turn·타임아웃·doctor 공용.
 - **토큰**: 0600 저장소에만. 만료 60s 전 선제 refresh·재저장, refresh 회전 시 새 값 유지. status 는
   마스킹조차 하지 않고 "ChatGPT 계정"만 — 토큰·refresh 는 어떤 응답에도 없다(테스트로 고정).
+- **무한 대기 금지(감사 B1)**: 콜백 리스너의 취소·타임아웃은 **반드시 대기(waitForCode)를 거부**한다
+  (멱등). 로그인 재시작·연결 해제가 진행 중 로그인을 닫아도 `/model/chatgpt/await` 가 매달리지 않는다 —
+  T3 "갑자기 멈춤" 계열 재발 지점.
+- **턴 중 갱신 실패도 자격 실패로(감사 B2)**: 실행 중 refresh 실패는 `env.model` 을 auth_failed 로 내리고
+  `ModelProviderError(chatgpt_oauth)` 로 정규화해 기존 오류 경로를 탄다 — 칩이 "준비됨"으로 거짓말하지
+  않는다(§6.23 두 축). 원문 토큰·detail 은 공개면에 나가지 않는다.
 - **doctor**: 모델 목록 endpoint 가 없으므로 refresh 성공 여부로 검증(과금 0). 실패는 정규 토큰 보강 후
   classifyModelAuth 로 auth_failed → 칩·limits 에 "다시 로그인" 안내(§6.23 두 축 계약 그대로).
 - **경계**: 활성 연결은 항상 하나(키 연결이 오면 계정 연결 후퇴). **비공식 경로임을 화면에 고지**하고,

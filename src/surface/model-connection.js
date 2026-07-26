@@ -10,7 +10,7 @@ import { readFile, writeFile, mkdir, rm, chmod, rename } from 'node:fs/promises'
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import {
-  resolveModelConfig, resolveModelConfigFromInput, makeProviderModelClient,
+  resolveModelConfig, resolveModelConfigFromInput, makeProviderModelClient, ModelProviderError,
 } from '../runtime/model-provider.js';
 import { checkConfigHealth, describeUnprobedModel } from '../runtime/model-doctor.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -87,12 +87,21 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
   applyEnvModel();
 
   // 만료 임박이면 선제 갱신하고 재저장한다(사용자가 다시 로그인하지 않게).
+  // 갱신 실패(재로그인 필요)는 **턴 실행 중에도** 자격 실패로 정규화한다(감사 B2): 상태를 내려
+  // 칩이 "준비됨"으로 거짓말하지 않게 하고, ModelProviderError 로 던져 기존 오류 경로를 탄다.
   async function freshOauthCredential() {
-    if (isExpired(oauthCred)) {
+    if (!isExpired(oauthCred)) return oauthCred;
+    try {
       oauthCred = await refreshCredential(oauthCred, { fetchImpl });
       await store?.save({ kind: 'chatgpt_oauth', credential: oauthCred, modelId: oauthModelId });
+      return oauthCred;
+    } catch (e) {
+      // 원문(token/refresh/detail)은 공개면에 안 나간다 — 내부 authSignal 로만.
+      const authSignal = `auth_failed refresh ${e?.status ?? ''}`.trim();
+      env.model.authSignal = authSignal;   // → classifyModelAuth: auth_failed(칩·limits 즉시 반영)
+      env.model.healthState = 'auth_failed';
+      throw new ModelProviderError({ provider: 'chatgpt_oauth', status: e?.status, authSignal });
     }
-    return oauthCred;
   }
 
   function activateOauth(cred, modelId) {

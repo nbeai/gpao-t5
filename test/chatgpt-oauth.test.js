@@ -8,7 +8,8 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  createPkce, buildAuthorizeUrl, readAccountId, exchangeCode, refreshCredential, isExpired, CHATGPT_OAUTH,
+  createPkce, buildAuthorizeUrl, readAccountId, exchangeCode, refreshCredential, isExpired,
+  startCallbackListener, CHATGPT_OAUTH,
 } from '../src/runtime/chatgpt-oauth.js';
 import { makeChatGptModelClient, accumulateResponsesText, CHATGPT_BACKEND_URL } from '../src/runtime/chatgpt-model-client.js';
 import { makeModelConnection, ModelConnectionStore } from '../src/surface/model-connection.js';
@@ -46,6 +47,36 @@ test('PKCE: challenge 는 verifier 의 S256, authorize URL 에 필수 파라미�
   assert.equal(u.searchParams.get('client_id'), CHATGPT_OAUTH.clientId);
   assert.equal(u.searchParams.get('state'), p.state);
   assert.ok(!u.search.includes(p.verifier), 'verifier 는 URL 에 실리지 않는다');
+});
+
+// ── 무한 대기 금지(감사 B1) ───────────────────────────────────────────────
+test('cancel(): 대기 중인 waitForCode 를 취소로 종료한다 — 영원히 안 끝나면 안 된다', async () => {
+  const l = startCallbackListener({ state: 's', timeoutMs: 60_000 });
+  await l.listening;
+  l.cancel();
+  const settled = await Promise.race([
+    l.waitForCode.then(() => 'resolved', (e) => (e.isLoginCancelled ? 'cancelled' : `other:${e.message}`)),
+    new Promise((r) => setTimeout(() => r('still-pending'), 300)),
+  ]);
+  assert.equal(settled, 'cancelled');
+  l.cancel(); // 멱등: 두 번 취소해도 예외 없음
+});
+
+test('로그인 재시작·해제: 이전 대기가 매달리지 않고 취소로 닫힌다(감사 B1)', async () => {
+  const env = {};
+  const mc = makeModelConnection({ env, processEnv: {}, fetchImpl: async () => ({ status: 200, json: async () => ({}) }) });
+  await mc.startChatGptLogin();
+  const firstAwait = mc.awaitChatGptLogin();          // 아직 승인 전 — 대기 중
+  await mc.startChatGptLogin();                       // 사용자가 버튼을 다시 누름 → 이전 로그인 취소
+  const r1 = await Promise.race([firstAwait, new Promise((r) => setTimeout(() => r({ hung: true }), 500))]);
+  assert.ok(!r1.hung, '재시작 시 이전 await 가 끝나야 한다');
+  assert.equal(r1.connected, false);
+
+  const secondAwait = mc.awaitChatGptLogin();
+  await mc.disconnect();                              // 해제도 진행 중 로그인을 닫아야 한다
+  const r2 = await Promise.race([secondAwait, new Promise((r) => setTimeout(() => r({ hung: true }), 500))]);
+  assert.ok(!r2.hung, '해제 시 대기가 끝나야 한다');
+  assert.equal(r2.connected, false);
 });
 
 test('readAccountId: id_token claim 에서 계정 id 를 읽고, 깨진 토큰은 null', () => {
@@ -162,6 +193,34 @@ test('doctor: refresh 실패는 auth_failed 로 갈리고 SelfState 에 반영�
   assert.equal(report.state, 'auth_failed');
   assert.ok(report.nextSafeAction.includes('로그인'));
   assert.equal(buildSelfState(env).modelAuthState, 'auth_failed');
+});
+
+test('턴 중 refresh 실패: ModelProviderError 로 정규화되고 상태가 auth_failed 로 내려간다(감사 B2)', async () => {
+  const store = await tmpStore();
+  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'SECRET_REFRESH', expiresAt: 0 } });
+  const env = {};
+  const mc = makeModelConnection({
+    env, processEnv: {}, store,
+    fetchImpl: async () => ({ status: 400, json: async () => ({ error: 'invalid_grant' }) }),
+  });
+  await mc.init();
+  assert.equal(buildSelfState(env).modelAuthState, 'usable'); // 실행 전에는 낙관적 표시
+  await assert.rejects(
+    () => mc.model.respond(TC),
+    (e) => {
+      assert.equal(e.name, 'ModelProviderError');       // 기존 오류 경로(turn·스트림)가 다룰 수 있는 형태
+      assert.equal(e.provider, 'chatgpt_oauth');
+      assert.ok(!String(e.message).includes('SECRET_REFRESH')); // 원문 토큰 미노출
+      return true;
+    },
+  );
+  // 칩이 "준비됨"으로 거짓말하지 않는다 — 다음 턴부터 재로그인 안내
+  const after = buildSelfState(env);
+  assert.equal(after.modelAuthState, 'auth_failed');
+  assert.ok(after.limits.some((l) => l.includes('모델 상태')));
+  const report = await mc.doctor();
+  assert.equal(report.state, 'auth_failed');
+  assert.ok(!JSON.stringify(report).includes('SECRET_REFRESH'));
 });
 
 test('활성은 항상 하나: 계정 연결 상태에서 키 연결이 오면 키가 이긴다', async () => {

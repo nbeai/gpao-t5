@@ -104,13 +104,26 @@ export function isExpired(cred, now = Date.now()) {
   return !cred?.expiresAt || cred.expiresAt <= now;
 }
 
+export class OAuthLoginCancelledError extends Error {
+  constructor(message = 'oauth login cancelled') {
+    super(message);
+    this.name = 'OAuthLoginCancelledError';
+    this.isLoginCancelled = true; // 사용자 안전 문구를 고르는 표식(진단 원문 아님)
+  }
+}
+
 /**
  * localhost 콜백을 한 번만 받는다(로그인 1회용). 사용자가 브라우저에서 승인하면 code 가 돌아온다.
- * @returns {{url:string, waitForCode:Promise<string>, cancel:Function}}
+ * **취소·타임아웃은 반드시 waitForCode 를 reject 한다** — 기다리는 쪽이 영원히 매달리지 않게(감사 B1,
+ * T3 "갑자기 멈춤" 재발 지점). 이미 끝난 뒤의 cancel 은 무해(멱등).
+ * @returns {{listening:Promise, waitForCode:Promise<string>, cancel:Function}}
  */
 export function startCallbackListener({ state, timeoutMs = 300_000 } = {}) {
   let resolveCode, rejectCode;
   const waitForCode = new Promise((res, rej) => { resolveCode = res; rejectCode = rej; });
+  waitForCode.catch(() => {}); // 아무도 안 기다리는 사이의 거부로 프로세스가 죽지 않게(unhandled 방지)
+  let settled = false;
+  const settle = (fn, v) => { if (settled) return; settled = true; fn(v); };
   const server = createServer((req, res) => {
     const u = new URL(req.url, `http://localhost:${CHATGPT_OAUTH.callbackPort}`);
     if (u.pathname !== CHATGPT_OAUTH.callbackPath) { res.writeHead(404); res.end(); return; }
@@ -119,16 +132,24 @@ export function startCallbackListener({ state, timeoutMs = 300_000 } = {}) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     if (!code || (state && gotState !== state)) {
       res.end('<h3>로그인을 완료하지 못했어요. 창을 닫고 다시 시도해 주세요.</h3>');
-      rejectCode(new Error('oauth callback rejected'));
+      settle(rejectCode, new Error('oauth callback rejected'));
     } else {
       res.end('<h3>연결됐어요. 이 창을 닫고 GPAO-T5로 돌아가세요.</h3>');
-      resolveCode(code);
+      settle(resolveCode, code);
     }
     close();
   });
-  const timer = setTimeout(() => { rejectCode(new Error('oauth login timed out')); close(); }, timeoutMs);
+  const timer = setTimeout(() => {
+    settle(rejectCode, new OAuthLoginCancelledError('oauth login timed out'));
+    close();
+  }, timeoutMs);
   timer.unref?.();
-  function close() { clearTimeout(timer); server.close(); }
+  /** 서버를 닫고, 아직 안 끝난 대기를 취소로 종료한다(무한 대기 금지). */
+  function close() {
+    clearTimeout(timer);
+    server.close();
+    settle(rejectCode, new OAuthLoginCancelledError()); // 이미 끝났으면 no-op
+  }
   const listening = new Promise((res, rej) => {
     server.once('error', rej);
     server.listen(CHATGPT_OAUTH.callbackPort, '127.0.0.1', res);
