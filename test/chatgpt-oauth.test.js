@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -148,10 +148,15 @@ test('ChatGPT ModelClient: 비2xx 는 ModelProviderError(원문은 authSignal �
 // ── 연결 관리자 통합 ──────────────────────────────────────────────────────
 async function tmpStore() { return new ModelConnectionStore(await mkdtemp(join(tmpdir(), 'gpao-t5-oauth-'))); }
 
+/** v1(단일 연결) 저장본을 그대로 기록한다 — 복원 테스트가 곧 v1→v2 이관 테스트가 된다(P-ONB-1). */
+async function saveV1(store, obj) {
+  await writeFile(store.file, JSON.stringify(obj), { encoding: 'utf8', mode: 0o600 });
+}
+
 test('저장·복원: 계정 연결이 재시작 후 살아나고, 만료 토큰은 첫 요청에서 선제 갱신된다', async () => {
   const store = await tmpStore();
   const cred = { access: 'at1', refresh: 'rt1', expiresAt: 0, accountId: 'acct_1' }; // 이미 만료
-  await store.save({ kind: 'chatgpt_oauth', credential: cred, modelId: 'gpt-5.3-codex' });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: cred, modelId: 'gpt-5.3-codex' });
   const seen = [];
   const fetchImpl = async (url, init) => {
     seen.push(url);
@@ -165,12 +170,12 @@ test('저장·복원: 계정 연결이 재시작 후 살아나고, 만료 토큰
   assert.equal(env.model.id, 'gpt-5.3-codex');
   assert.equal(await mc.model.respond(TC), '안녕하세요');
   assert.equal(seen[0], CHATGPT_OAUTH.tokenUrl, '만료 → 먼저 refresh');
-  assert.equal((await store.load()).credential.access, 'at2', '갱신된 토큰이 재저장된다');
+  assert.equal((await store.load()).connections[0].credential.access, 'at2', '갱신된 토큰이 재저장된다');
 });
 
 test('status/doctor: 토큰·refresh 원문이 어떤 응답에도 없다(마스킹조차 노출 금지)', async () => {
   const store = await tmpStore();
-  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'SECRET_ACCESS', refresh: 'SECRET_REFRESH', expiresAt: Date.now() + 600_000 } });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'SECRET_ACCESS', refresh: 'SECRET_REFRESH', expiresAt: Date.now() + 600_000 } });
   const env = {};
   const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl: async () => ({ status: 200, json: async () => ({}) }) });
   await mc.init();
@@ -185,7 +190,7 @@ test('status/doctor: 토큰·refresh 원문이 어떤 응답에도 없다(마스
 
 test('doctor: refresh 실패는 auth_failed 로 갈리고 SelfState 에 반영된다(재로그인 안내)', async () => {
   const store = await tmpStore();
-  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: 0 } });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: 0 } });
   const env = {};
   const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl: async () => ({ status: 400, json: async () => ({ error: 'invalid_grant' }) }) });
   await mc.init();
@@ -197,7 +202,7 @@ test('doctor: refresh 실패는 auth_failed 로 갈리고 SelfState 에 반영�
 
 test('턴 중 refresh 실패: ModelProviderError 로 정규화되고 상태가 auth_failed 로 내려간다(감사 B2)', async () => {
   const store = await tmpStore();
-  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'SECRET_REFRESH', expiresAt: 0 } });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'SECRET_REFRESH', expiresAt: 0 } });
   const env = {};
   const mc = makeModelConnection({
     env, processEnv: {}, store,
@@ -225,7 +230,7 @@ test('턴 중 refresh 실패: ModelProviderError 로 정규화되고 상태가 a
 
 test('활성은 항상 하나: 계정 연결 상태에서 키 연결이 오면 키가 이긴다', async () => {
   const store = await tmpStore();
-  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: Date.now() + 600_000 } });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'a', refresh: 'r', expiresAt: Date.now() + 600_000 } });
   const env = {};
   const fetchImpl = async (url) => {
     if (url.includes('/models')) return { status: 200, json: async () => ({ data: [{ id: 'beai-8.6' }] }) };
@@ -255,7 +260,7 @@ test('서버: 계정 연결 미배선(demo)이면 로그인 라우트는 400으�
 test('서버: 계정 연결 상태의 /model/connection 은 비공식 고지 포함·토큰 미노출', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-oauthsrv2-'));
   const store = new ModelConnectionStore(dir);
-  await store.save({ kind: 'chatgpt_oauth', credential: { access: 'TOKEN_SECRET', refresh: 'R', expiresAt: Date.now() + 600_000 } });
+  await saveV1(store, { kind: 'chatgpt_oauth', credential: { access: 'TOKEN_SECRET', refresh: 'R', expiresAt: Date.now() + 600_000 } });
   const env = {};
   const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl: async () => ({ status: 200, text: async () => SSE }) });
   await mc.init();

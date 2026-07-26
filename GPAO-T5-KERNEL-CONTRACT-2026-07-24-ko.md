@@ -98,6 +98,11 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-ONB-1 반영(근거: `P-ONB-1-MULTI-CONNECTION`, 오너 지시(T5 마무리) + 실키 2개 라이브 전환 실측): §6.26
+  Multi Connection & Role Binding — 연결을 여러 개 보관하고(v1→v2 자동 이관) 그중 하나를 기본으로,
+  역할(role)별로 다른 연결을 쓸 수 있다. **역할 바인딩은 선택이지 허용목록이 아니다**(바인딩 없으면
+  조용히 기본으로 — T3 `agents.defaults.models` allowlist 사고 재발 방지). 목록·전환·바인딩·삭제 표면,
+  마스킹만 노출. 활성 삭제 시 승계, 0개면 stub 복귀.
 - P-RT-3 반영(근거: `P-RT-3-OPENAI-OAUTH-FINDINGS`, 오너 재가 A + 로그인 시작 경로 라이브 실측): §6.25
   ChatGPT Account Connect — 사용자의 ChatGPT 계정으로 모델 사용(T3 가 실제로 쓰는 원리를 T5 계약으로 흡수,
   코드 복제 아님). PKCE(S256)+state, localhost:1455 콜백 1회, 토큰 교환·선제 refresh·회전 유지, Codex 백엔드
@@ -820,6 +825,24 @@ T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(
 - **검증 한계(정직)**: 실 계정 로그인 E2E 는 오너의 브라우저 승인 1회가 필요 — 자동화가 계정 로그인을
   대행하지 않는다. 로그인 시작(authorize URL 구성·콜백 리스너)·토큰/와이어/저장/복원은 실측·테스트 완료.
 - **후속**: 오너 실 로그인 E2E · 모델 선택(codex 계열) UI · keychain 저장.
+
+### 6.26 Multi Connection & Role Binding (P-ONB-1, 구현됨 — 여러 개 보관·선택, 역할별 모델)
+
+근거: 오너 지시(T5 마무리, 2026-07-26) "여러 개를 연결했을 경우 선택적으로 사용하거나 에이전트별로
+다른 모델을 사용하는 것도 가능해야". `P-ONB-1-MULTI-CONNECTION`.
+
+- **저장 v2**: `{version:2, connections[], activeId, roleBindings}`. v1(단일) 저장본은 로드 시
+  **자동 이관**(사용자 재연결 불필요) — v1 이 생략했던 modelId/baseUrl 은 이관 시 기본값으로 확정한다.
+  id 는 `provider:modelId` 정규화라 같은 조합 재연결은 **갱신**(중복 누적 없음). 0600·원자 교체 유지.
+- **선택**: `activate(id)` 가 기본 연결을 바꾸고 SelfState(env.model)도 함께 이동한다(핫스왑 — 다음 턴부터).
+- **역할 바인딩**: `roleBindings[role] → connectionId`. `modelFor(role)` 이 바인딩 → 기본 → env → stub
+  순으로 해석한다. **선택이지 허용목록이 아니다** — 바인딩 없는 역할은 막히지 않고 조용히 기본으로 간다
+  (T3 `agents.defaults.models` 한 줄이 모델 피커를 좁힌 실사고의 반대 계약). 바인딩된 연결이 지워지면
+  바인딩도 함께 사라지고 기본으로 폴백한다(막다른 답 금지).
+- **표면**: `GET /model/connections` · `POST /model/connections/{activate,bind,remove}`. 목록엔 마스킹만
+  (원본 키·토큰 없음). UI 는 연결이 2개 이상일 때만 목록을 보여준다(안티 대시보드 §5.5).
+- **라이브 실증**: beai·gemini 실키 2개 동시 연결 → 목록 표시 → 전환 → 각 모델이 자기 이름으로 응답.
+- **후속**: 역할이 실재하게 되면(자동화·서브에이전트) 그 호출부가 role 만 넘긴다 — 커널 변경 없이 확장.
 
 ---
 
