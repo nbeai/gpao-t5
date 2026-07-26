@@ -211,6 +211,28 @@
   .turn { display:flex; flex-direction:column; gap:var(--sp-2); animation:rise var(--dur-normal) var(--ease-out); }
   @keyframes rise { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
   .msg { max-width:86%; padding:var(--sp-3) var(--sp-4); border-radius:var(--r-lg); white-space:pre-wrap; line-height:var(--lh); }
+  /* 마크다운으로 그린 답변. **말풍선 안**이므로 문서가 아니라 대화처럼 보여야 한다 —
+     제목이 커서 화면을 차지하거나 문단 사이가 벌어지면 채팅이 아니라 보고서로 읽힌다.
+     블록을 직접 그리므로 pre-wrap 은 끈다(안 그러면 태그 사이 줄바꿈이 빈 줄로 보인다). */
+  .msg.bot { white-space:normal; }
+  .msg.bot > :first-child { margin-top:0; }
+  .msg.bot > :last-child { margin-bottom:0; }
+  .msg.bot p { margin:0 0 var(--sp-2); }
+  .msg.bot h1, .msg.bot h2, .msg.bot h3,
+  .msg.bot h4, .msg.bot h5, .msg.bot h6 { margin:var(--sp-3) 0 var(--sp-2); font-size:1em; font-weight:650; line-height:1.35; }
+  .msg.bot h1 { font-size:1.15em; }
+  .msg.bot h2 { font-size:1.08em; }
+  .msg.bot ul, .msg.bot ol { margin:0 0 var(--sp-2); padding-left:1.35em; }
+  .msg.bot li { margin:2px 0; }
+  .msg.bot code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.92em;
+                  background:rgba(127,127,127,0.16); padding:1px 4px; border-radius:4px; }
+  .msg.bot pre { margin:0 0 var(--sp-2); padding:var(--sp-3); border-radius:var(--r-lg);
+                 background:rgba(127,127,127,0.14); overflow-x:auto; }
+  .msg.bot pre code { background:none; padding:0; font-size:0.88em; line-height:1.5; }
+  .msg.bot blockquote { margin:0 0 var(--sp-2); padding-left:var(--sp-3);
+                        border-left:3px solid rgba(127,127,127,0.35); opacity:0.9; }
+  .msg.bot hr { border:0; border-top:1px solid rgba(127,127,127,0.25); margin:var(--sp-3) 0; }
+  .msg.bot a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
   .me { align-self:flex-end; background:var(--me); border-bottom-right-radius:var(--r-sm); }
   .who { font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }
   .who.right { align-self:flex-end; }
@@ -418,6 +440,8 @@
   </div>
 
 <script type="module">
+// 모델 답변은 **여기 하나로만** 그린다 — 스트리밍 미리보기와 최종 답변이 같은 경로를 쓴다.
+import { renderMarkdownInto } from './markdown.js';
 const wrap = document.getElementById('wrap');
 const chip = document.getElementById('chip');
 const statePanel = document.getElementById('state');
@@ -1144,8 +1168,10 @@ function renderResult(r, opts = {}) {
 
   const box = turnBox();
   box.appendChild(el('who', 'GPAO-T5'));
-  const bot = el('msg bot', r.reply);
-  if (r.nextSafeAction) bot.textContent += `\n\n다음: ${r.nextSafeAction}`;
+  // 답변은 마크다운으로 그린다(원문 기호가 화면에 찍히지 않게). 안전은 renderMarkdown 이 진다 —
+  // 먼저 전부 escape 하고 우리가 만든 태그만 넣는다(수집한 페이지의 HTML 이 섞여도 글자로 보인다).
+  const bot = el('msg bot');
+  renderMarkdownInto(bot, r.nextSafeAction ? `${r.reply ?? ''}\n\n다음: ${r.nextSafeAction}` : (r.reply ?? ''));
   box.appendChild(bot);
   renderRecord(box, r.ledger);
   // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
@@ -1363,6 +1389,7 @@ async function streamTurn(t, trace) {
     // P-STR-1: 답변 조각을 오는 대로 그린다(미리보기). 완료되면 지속된 결과로 **교체**한다 —
     // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
     let preview = null;
+    let previewText = '';
     es.addEventListener('answer_delta', (e) => {
       try {
         const { text: piece } = JSON.parse(e.data);
@@ -1373,7 +1400,8 @@ async function streamTurn(t, trace) {
           preview.className = 'msg';
           trace.parentNode.insertBefore(preview, trace);
         }
-        preview.textContent += piece;
+        previewText += piece;
+        renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
         scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
       } catch {}
     });

@@ -261,6 +261,15 @@ export function makeServer(deps = {}) {
         });
       }
 
+      // 화면이 쓰는 최소 마크다운 렌더러. 번들러 없이 index.html 의 module 스크립트가 import 한다
+      // (§17 런타임 의존성 0 — 라이브러리도, 빌드 단계도 들이지 않는다).
+      if (req.method === 'GET' && url === '/markdown.js') {
+        const js = await readFile(join(__dirname, 'web', 'markdown.js'), 'utf8');
+        res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        res.end(js);
+        return;
+      }
+
       if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
         const html = await readFile(join(__dirname, 'web', 'index.html'), 'utf8');
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
