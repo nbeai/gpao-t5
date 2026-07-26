@@ -224,11 +224,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
 
   return {
     /** ModelClient — 기본 역할로 위임(핫스왑). 서버가 withModelTimeout 으로 감싼다. */
-    model: { respond: (tc) => clientForRole(DEFAULT_ROLE).respond(tc) },
+    // opts(P-STR-1 onDelta 등)를 그대로 통과시킨다 — 위임 래퍼가 인자를 삼키면 스트리밍이 죽는다.
+    model: { respond: (tc, opts) => clientForRole(DEFAULT_ROLE).respond(tc, opts) },
 
     /** 역할별 ModelClient — 에이전트·자동화가 생기면 role 만 넘기면 된다(커널 변경 없이 확장). */
     modelFor(role) {
-      return { respond: (tc) => clientForRole(role).respond(tc) };
+      return { respond: (tc, opts) => clientForRole(role).respond(tc, opts) };
     },
 
     /** 부팅 시 저장된 사용자 연결 복원(프로브 없음 — 부팅 doctor 가 뒤에서 검증·표시). */

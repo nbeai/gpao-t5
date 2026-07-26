@@ -20,7 +20,7 @@ export function buildTaskContext(p) {
   const selfStateFacts = {
     model: summary.model,
     modelAuthState: summary.modelAuthState,
-    readyTools: summary.ready,
+    readyTools: summary.readyCapabilities ?? summary.ready, // 모델에겐 능력 설명까지(§11 사실)
     limits: summary.limits,
   };
 

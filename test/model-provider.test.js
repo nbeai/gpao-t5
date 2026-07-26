@@ -264,6 +264,14 @@ test('모델 오류(401 등)에 /turn 은 500 으로 답하고 프로세스는 �
 });
 
 // ── 모델 입력(§11): 사실만, 원문 보존 ────────────────────────────────────
+test('buildModelMessages: 자기 모델명과 능력 경계를 싣는다(오너 실사용 회귀)', () => {
+  // 2026-07-26 실사용: "넌 지금 어떤 모델이지?" → "확인할 권한이 없다"고 답했다(패킷엔 있는데
+  // 프롬프트에 안 실려서). 그리고 라벨만 보고 검색·다중 페이지 순회 같은 없는 기능을 약속했다.
+  const m = buildModelMessages({ ...TC, selfStateFacts: { model: 'gpt-5.5', readyTools: ['웹 자료 수집'], limits: [] } });
+  assert.ok(m.system.includes('gpt-5.5'), '자기 모델명을 안다(Operational Selfhood §6)');
+  assert.ok(m.system.includes('부풀리지'), '능력 과장 금지 경계가 실린다');
+});
+
 test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 경계를 사실로만 싣는다', () => {
   const m = buildModelMessages(TC);
   assert.ok(m.user.includes('내일 회의 준비 도와줘'));       // 원문

@@ -36,8 +36,15 @@ export function buildModelMessages(tc) {
   const sys = [];
   sys.push('너는 사용자의 작업 비서다. 아래 사실을 왜곡하지 말고, 방법과 문장은 네가 자연스럽게 정한다.');
   const sf = tc.selfStateFacts ?? {};
+  // 자기 자신(모델)도 사실이다 — 이걸 빼면 "내가 어떤 모델인지 확인할 권한이 없다"고 답한다
+  // (오너 실사용 2026-07-26에서 실제로 그렇게 답했다). Operational Selfhood(§6) 위반.
+  if (sf.model) sys.push(`지금 너를 돌리는 모델: ${sf.model}`);
   if (sf.readyTools?.length) sys.push(`준비된 도구: ${sf.readyTools.join(', ')}`);
   if (sf.limits?.length) sys.push(`현재 한계: ${sf.limits.join('; ')}`);
+  // 능력 과장 금지 — 라벨만 보고 하위 기능을 지어내던 것을 막는다(오너 실사용에서 검색·다중 페이지
+  // 순회·CSV 내보내기 등 없는 기능을 약속했다). 목록에 없으면 없는 것이다.
+  sys.push('할 수 있는 일은 위 목록이 전부다. 목록에 없는 기능을 있다고 말하거나 범위를 부풀리지 마라.'
+    + ' 확실하지 않으면 "지금은 확인이 필요하다"고 말한다.');
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
   if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);
@@ -77,6 +84,12 @@ const OPENAI_WIRE = {
   // doctor(P-RT-2): 과금 없는 모델 목록 GET — 키 유효성·도달성·설정 모델 존재를 한 번에 검증
   modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models`,
   listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
+  // P-STR-1: 같은 요청에 stream 을 켠 본문. 조각은 `chat.completion.chunk` 의 delta.content.
+  streamBody: (cfg, m) => JSON.stringify({
+    ...JSON.parse(OPENAI_WIRE.body(cfg, m)),
+    stream: true,
+  }),
+  streamDelta: (ev) => (typeof ev?.choices?.[0]?.delta?.content === 'string' ? ev.choices[0].delta.content : null),
 };
 
 export const MODEL_PROVIDERS = {
@@ -182,6 +195,59 @@ export function resolveModelConfig(env = {}) {
 }
 
 /**
+ * OpenAI 계열 SSE 를 읽으며 조각을 흘린다(P-STR-1). 반환값(전체 텍스트)이 진실이고, 조각은 미리보기다.
+ * 스트림이 텍스트를 하나도 못 주면 정직하게 오류로 던진다(빈 답을 성공처럼 돌려주지 않는다).
+ */
+async function streamOpenAiStyle({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta }) {
+  const controller = new AbortController();
+  const url = spec.endpoint(cfg);
+  let out = '';
+  let status;
+  try {
+    status = await withTimeout(async () => {
+      const r = await fetchImpl(url, {
+        method: 'POST',
+        headers: { ...spec.headers(cfg), accept: 'text/event-stream' },
+        body: spec.streamBody(cfg, messages),
+        signal: controller.signal,
+      });
+      if (r.status < 200 || r.status >= 300 || !r.body?.getReader) {
+        const body = await r.text().catch(() => '');
+        throw new ModelProviderError({ provider: cfg.provider, status: r.status, authSignal: `${r.status} ${body.slice(0, 300)}` });
+      }
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          let ev;
+          try { ev = JSON.parse(payload); } catch { continue; }
+          const piece = spec.streamDelta(ev);
+          if (!piece) continue;
+          out += piece;
+          try { onDelta(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
+        }
+      }
+      return r.status;
+    }, timeoutMs, controller);
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs);
+    if (e instanceof ModelProviderError) throw e;
+    throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });
+  }
+  if (!out) throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty response stream' });
+  return out;
+}
+
+/**
  * 사용자 입력(화면 연결, P-RT-4)에서 provider 구성을 해석한다. env 해석과 같은 규칙:
  * allowlist provider 만, 기본 모델/베이스 적용, compatible 은 baseUrl+modelId 필수.
  * 유효하지 않으면 null — 호출부가 사용자 언어로 안내한다.
@@ -222,8 +288,13 @@ export function makeProviderModelClient(cfg, deps = {}) {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
   return {
-    async respond(tc) {
+    /** @param {*} tc @param {{onDelta?:(t:string)=>void}} [opts] 조각은 화면용 미리보기(저장 안 함) */
+    async respond(tc, opts = {}) {
       const messages = buildModelMessages(tc);
+      // 스트리밍 가능한 와이어(OpenAI 계열)면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로.
+      if (opts.onDelta && spec.streamBody) {
+        return streamOpenAiStyle({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
+      }
       const url = spec.endpoint(cfg);
       const controller = new AbortController();
       let status, json;

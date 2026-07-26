@@ -139,13 +139,16 @@ export function makeServer(deps = {}) {
 
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
-  async function runAndPersistTurn(session, input, emit) {
+  async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
     const hasText = typeof input.text === 'string' && input.text.trim();
     const memory = await memStore.load();
     const learning = await traceStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
+    // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
+    // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
+    if (onAnswerDelta) ctx.onAnswerDelta = onAnswerDelta;
     if (hasText) {
       if (!session.transcript.some((e) => e.role === 'user')) session.title = input.text.trim().slice(0, 30);
       session.transcript.push({ role: 'user', text: input.text });
@@ -331,7 +334,11 @@ export function makeServer(deps = {}) {
                 writeEvent(ev);
               };
               await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
-              const result = await runAndPersistTurn(activeSession, { sessionId, text }, emit);
+              // 답변 조각은 EventLog 를 거치지 않고 바로 화면으로만 흘린다(비지속 미리보기).
+              const onAnswerDelta = (piece) => {
+                res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: piece, _turnId: turnId })}\n\n`);
+              };
+              const result = await runAndPersistTurn(activeSession, { sessionId, text }, emit, onAnswerDelta);
               // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
               if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
               else if (result.capabilityResolution && ['connector', 'tool'].includes(result.capabilityResolution.capabilityType)) {

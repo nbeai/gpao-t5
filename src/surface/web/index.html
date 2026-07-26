@@ -637,7 +637,13 @@ tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
 tbSearch.oninput = () => renderToolbox(tbSearch.value);
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
-function add(node) { wrap.appendChild(node); node.scrollIntoView({ block: 'end' }); return node; }
+// 실제로 스크롤되는 건 #log 다(#wrap 은 안쪽 div — overflow 없음). 빈 상자에 scrollIntoView 를
+// 걸면 내용이 붙기 전 위치로 가서 아무 일도 안 일어난다(오너 실사용에서 "머무른다"의 원인).
+const logEl = document.getElementById('log');
+/** 이미 아래쪽을 보고 있을 때만 따라간다 — 위로 올려 읽는 중이면 낚아채지 않는다. */
+function nearBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120; }
+function scrollToBottom(force = false) { if (force || nearBottom()) logEl.scrollTop = logEl.scrollHeight; }
+function add(node) { wrap.appendChild(node); scrollToBottom(); return node; }
 function turnBox() { const t = el('turn'); add(t); return t; }
 function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); b.appendChild(el('msg bot', t)); }
 
@@ -675,6 +681,7 @@ async function selectSession(id) {
     else if (e.role === 'assistant') { renderResult(e.result, { historical: true, activePendingIds: active }); }
   }
   await loadSessions();
+  scrollToBottom(true); // 대화를 열면 마지막 대목부터 보인다(위에서부터 읽게 두지 않는다)
   document.body.classList.remove('nav-open');
 }
 
@@ -986,6 +993,7 @@ async function submit() {
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
     const recovery = await streamTurn(t, trace);
     trace.remove();
@@ -996,6 +1004,7 @@ async function submit() {
     const sess = await (await fetch(`/sessions/${currentSessionId}`)).json();
     const last = (sess.transcript || []).filter((e) => e.role === 'assistant').at(-1);
     if (last) renderResult(last.result); // 스트림이 실행·지속한 그 결과(중복 실행 없음)
+    scrollToBottom(); // 최종 결과로 교체된 뒤에도 아래를 보고 있게
     await loadSessions();
   } catch {
     trace.remove();
@@ -1034,7 +1043,24 @@ async function streamTurn(t, trace) {
         recovery = { text: '처리 중 잠시 멈췄어요.', nextSafeAction: '잠시 후 다시 시도할까요?' };
       }
     });
-    es.addEventListener('complete', () => { done = true; es.close(); resolve(recovery); });
+    // P-STR-1: 답변 조각을 오는 대로 그린다(미리보기). 완료되면 지속된 결과로 **교체**한다 —
+    // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
+    let preview = null;
+    es.addEventListener('answer_delta', (e) => {
+      try {
+        const { text: piece } = JSON.parse(e.data);
+        if (!piece) return;
+        if (!preview) {
+          trace.textContent = '';
+          preview = document.createElement('div');
+          preview.className = 'msg';
+          trace.parentNode.insertBefore(preview, trace);
+        }
+        preview.textContent += piece;
+        scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
+      } catch {}
+    });
+    es.addEventListener('complete', () => { done = true; preview?.remove(); es.close(); resolve(recovery); });
     es.onerror = () => { es.close(); done ? resolve() : reject(new Error('stream')); };
   });
 }

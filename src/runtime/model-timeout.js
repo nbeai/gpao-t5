@@ -21,14 +21,15 @@ export class ModelTimeoutError extends Error {
 export function withModelTimeout(model, ms) {
   if (!ms || ms <= 0) return model;
   return {
-    async respond(tc) {
+    /** opts(예: P-STR-1 onDelta)를 **그대로 통과**시킨다 — 데코레이터가 인자를 삼키면 안 된다. */
+    async respond(tc, opts) {
       let timer;
       const timeout = new Promise((_resolve, reject) => {
         timer = setTimeout(() => reject(new ModelTimeoutError(ms)), ms);
         timer.unref?.(); // 프로세스를 붙잡지 않는다(cron/daemon 아님)
       });
       try {
-        return await Promise.race([model.respond(tc), timeout]);
+        return await Promise.race([model.respond(tc, opts), timeout]);
       } finally {
         clearTimeout(timer); // 원본이 먼저 끝나면 타이머 정리(누수 방지)
       }
