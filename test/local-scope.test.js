@@ -96,3 +96,33 @@ test('기본 작업 폴더는 열지 않아도 그대로 쓸 수 있다(처음�
   const roots = await s.roots();
   assert.ok(roots.some((r) => r.endsWith('GPAO-T5')), '기본 폴더가 사라지면 기존 사용자가 깨진다');
 });
+
+// ── 턴 관통: 모델이 "폴더를 열겠다"고 골라도 사용자 승인에서 멈춘다 ────────
+// 이게 이 단계의 안전 축이다. 폴더를 넓히는 길을 만들었으니, 그 길이 **모델 혼자 걸을 수 있는
+// 길이 되면** 1단계의 보호 영역 전체가 무의미해진다. 등급 표만 보지 않고 실제 턴으로 확인한다.
+test('관통: 모델이 폴더 열기를 골라도 승인 대기에서 멈춘다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoEnv: env, demoTools: tools } = await import('../src/surface/demo-context.js');
+  const s = new LocalRootsStore(await mkdtemp(join(tmpdir(), 'gpao-t5-turn-roots-')));
+  const target = await mkdtemp(join(tmpdir(), 'gpao-t5-turn-target-'));
+
+  let used = false;
+  const model = {
+    async respond(_tc, opts = {}) {
+      if (!used && opts.tools?.length) {
+        used = true;
+        return { text: '', toolCalls: [{ name: 'local.scope', args: { action: 'open', path: target } }] };
+      }
+      return opts.tools?.length ? { text: '했어요', toolCalls: [] } : '했어요';
+    },
+  };
+  const r = await runTurn({ text: '그 폴더 봐줘' }, {
+    env: env(), model, tools: tools({ localScope: makeLocalScopeTool({ store: s }) }),
+  });
+
+  assert.equal(r.kind, 'approval', `승인 없이 진행됐다(${r.kind})`);
+  // **말만 승인이 아니라 실제로 안 열렸어야 한다.**
+  assert.deepEqual(await s.opened(), [], '승인 전에 폴더가 이미 열렸다');
+  const file = makeLocalFileTool({ dataDir: s.dir, rootsProvider: () => s.roots() });
+  assert.ok((await file.handler({ action: 'list', path: target })).blocked, '승인 전인데 그 폴더가 보인다');
+});
