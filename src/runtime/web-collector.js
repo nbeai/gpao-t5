@@ -6,6 +6,7 @@
 import { validateWebInput, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { withTimeout } from './with-timeout.js';
 import { makeWebSearch, searchConnectionSuggestion } from './web-search.js';
+import { extractTitle, extractDescription, extractReadable, extractLinks } from './readable.js';
 
 /**
  * HTTP 응답 → fetchState. 코드 + 본문 신호로 로그인벽/봇벽/robots/차단을 성공과 분리한다.
@@ -29,19 +30,6 @@ export function httpToFetchState(status, ctx = {}) {
 }
 
 // 의존성 0의 최소 HTML 파싱(제목·발췌). 대량 파서 도입은 과잉 — 발췌 지문만 있으면 출처 계약 충족.
-function extractTitle(html) {
-  const m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-  return m ? m[1].replace(/\s+/g, ' ').trim().slice(0, 200) : '';
-}
-function extractExcerpt(html, max = 500) {
-  const text = String(html)
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.slice(0, max);
-}
 
 // freeform 요청문에서 첫 http(s) URL을 뽑는다(turn은 generic하게 {request}만 넘긴다 — 웹 로직은 여기서).
 function extractUrl(text) {
@@ -146,11 +134,16 @@ export function makeWebCollector(deps = {}) {
       }
 
       // 봤다 — 출처 근거(SourceEvidence)를 반드시 만든다.
+      // 추출 품질(Phase 0-2b, 기준: Crawl4AI "LLM-ready Markdown"): 껍데기를 걷고 제목·문단·목록·
+      // 표의 구조를 남긴다. 앞 500자를 자르면 네비게이션·쿠키 배너가 본문이 된다(이전 동작).
       const title = extractTitle(body);
-      const excerpt = extractExcerpt(body);
+      const description = extractDescription(body);
+      const { markdown, blocks } = extractReadable(body);
+      const links = extractLinks(body, res.url || url);
+      const excerpt = description || markdown.slice(0, 500); // 출처 근거용 짧은 발췌
       const source = makeSourceEvidence({ sourceUrl: res.url || url, title, excerpt, confidence: 0.6, now: now?.() });
       return {
-        result: { title, excerpt, ...(foundVia ? { foundVia } : {}) },
+        result: { title, excerpt, description, markdown, blocks, links, ...(foundVia ? { foundVia } : {}) },
         sources: [source],
         // 찾아서 읽었으면 "찾아서 읽었다"고 말한다 — 검색만 하고 아는 척하지 않는다.
         userSafeSummary: foundVia
