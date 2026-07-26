@@ -95,6 +95,9 @@ export function buildTaskContext(p) {
     naturalness: 'method_and_language_open',
   };
 
+  // 3축: 응답 표면(웹/텔레그램/슬랙). 방 id·정책·도구명은 싣지 않는다 — 라벨과 성질만.
+  if (p.surface) packet.surface = p.surface;
+
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
   if (p.receipts && p.receipts.length) {
     packet.evidenceFacts = p.receipts.map((r) => ({

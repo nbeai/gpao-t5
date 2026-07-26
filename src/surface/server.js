@@ -1083,6 +1083,8 @@ export function makeServer(deps = {}) {
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,
       channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
+      // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
+      channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
     if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
       session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });

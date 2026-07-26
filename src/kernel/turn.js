@@ -23,6 +23,7 @@ import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js
 import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
 import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
 import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
+import { resolveResponseSurface } from './l0-evidence/response-surface.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -78,6 +79,9 @@ export function fallbackReplyFrom(receipts = []) {
 }
 
 export async function runTurn(input, ctx) {
+  // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
+  // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
+  ctx.surface = resolveResponseSurface(input);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
   const selfState = buildSelfState(ctx.env);
@@ -193,6 +197,8 @@ export async function runTurn(input, ctx) {
   {
     const tc = buildTaskContext({
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
+      // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
+      surface: ctx.surface,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
@@ -451,6 +457,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   });
   const tc = buildTaskContext({
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+    surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState,
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
