@@ -36,6 +36,11 @@ async function tmpStore() {
   return new ModelConnectionStore(await mkdtemp(join(tmpdir(), 'gpao-t5-conn-')));
 }
 
+/** v1(단일 연결) 저장본을 그대로 기록한다 — 복원 테스트가 곧 v1→v2 이관 테스트가 된다(P-ONB-1). */
+async function saveV1(store, obj) {
+  await writeFile(store.file, JSON.stringify(obj), { encoding: 'utf8', mode: 0o600 });
+}
+
 // ── 입력 해석 ─────────────────────────────────────────────────────────────
 test('resolveModelConfigFromInput: allowlist·기본값·필수 조건', () => {
   assert.equal(resolveModelConfigFromInput({ provider: 'nope', key: 'k' }), null);
@@ -85,7 +90,7 @@ test('connect(usable): 저장·활성화·env 동기화, 다음 respond 부터 �
   assert.ok(!('authSignal' in r.report), '공개면 위생 유지(P-RT-2 B2)');
   assert.equal(env.model.id, 'beai-8.6');
   assert.equal(env.model.healthState, 'usable');
-  assert.equal((await store.load()).key, 'beai_sk_new'); // 검증 통과 → 저장됨
+  assert.equal((await store.load()).connections[0].key, 'beai_sk_new'); // 검증 통과 → 저장됨
 
   const reply = await mc.model.respond(TC); // 재시작 없이 같은 model 참조로 실 provider
   assert.equal(reply, '실모델 응답');
@@ -159,7 +164,7 @@ test('disconnect: 저장 제거 → env 구성으로, env 도 없으면 stub 으
 
 test('우선순위: 저장된 사용자 연결 > env(개발자)', async () => {
   const store = await tmpStore();
-  await store.save({ provider: 'beai', key: 'beai_sk_saved' });
+  await saveV1(store, { provider: 'beai', key: 'beai_sk_saved' }); // v1 저장본 → 이관 검증 겸용
   const env = {};
   const { impl, calls } = providerFetch();
   const mc = makeModelConnection({ env, processEnv: { GEMINI_API_KEY: 'g-1' }, store, fetchImpl: impl });
@@ -205,7 +210,7 @@ test('서버: connect→턴이 실모델로, 응답 어디에도 원본 키·aut
 test('부팅 순서: 저장 연결이 있으면 listen 전에 복원 — 첫 /turn 부터 저장 모델 (감사 B2)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-boot-'));
   const connectionStore = new ModelConnectionStore(dir);
-  await connectionStore.save({ provider: 'beai', key: 'beai_sk_boot' });
+  await saveV1(connectionStore, { provider: 'beai', key: 'beai_sk_boot' });
   const { impl, calls } = providerFetch({ reply: '재시작 후에도 저장 모델' });
   const server = await startLiveServer({
     port: 0, processEnv: {}, sessionStore: new SessionStore(dir), connectionStore,

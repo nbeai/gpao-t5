@@ -416,6 +416,7 @@ async function renderModelConnect() {
         <button id="mcChatgpt">ChatGPT 계정으로 연결</button>
         <span style="opacity:.7; font-size:11px;">공식 지원 방식이 아니에요 — 막히면 연결이 끊길 수 있어요.</span>
       </div>
+      <div id="mcList" style="margin:4px 0;"></div>
       <div id="mcResult"></div>`;
     statePanel.appendChild(box);
     box.querySelector('#mcProvider').onchange = (e) => {
@@ -453,8 +454,39 @@ async function renderModelConnect() {
   await refreshModelConnect();
 }
 
+// 보관 중인 연결 목록(P-ONB-1). 라디오=기본으로 쓸 모델, 각 항목에 해제. 여러 개일 때만 보인다.
+async function renderConnectionList() {
+  const box = document.getElementById('mcList');
+  if (!box) return;
+  const data = await (await fetch('/model/connections')).json().catch(() => null);
+  const list = data?.connections ?? [];
+  if (list.length < 2) { box.innerHTML = ''; return; } // 하나뿐이면 상태 줄로 충분(안티 대시보드)
+  box.innerHTML = '<div style="opacity:.7; font-size:11px; margin-bottom:2px;">쓸 모델 고르기</div>';
+  for (const c of list) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:6px; margin:2px 0;';
+    const radio = document.createElement('input');
+    radio.type = 'radio'; radio.name = 'mcActive'; radio.checked = !!c.active;
+    radio.onchange = async () => {
+      await fetch('/model/connections/activate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+      await refreshModelConnect();
+    };
+    const label = document.createElement('span');
+    label.textContent = `${c.label}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
+    const del = document.createElement('button');
+    del.textContent = '해제'; del.style.cssText = 'font-size:11px; padding:1px 6px;';
+    del.onclick = async () => {
+      await fetch('/model/connections/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+      await refreshModelConnect();
+    };
+    row.append(radio, label, del);
+    box.appendChild(row);
+  }
+}
+
 async function refreshModelConnect() {
   const st = await (await fetch('/model/connection')).json().catch(() => null);
+  await renderConnectionList();
   const el = document.getElementById('mcStatus');
   if (!el) return;
   if (!st || !st.connected) { el.textContent = '연결된 모델 없음 — 내장 안내 모드로 동작 중'; return; }

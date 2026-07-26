@@ -573,6 +573,27 @@ export function makeServer(deps = {}) {
         if (deps.modelConnection) return sendJson(res, 200, deps.modelConnection.status());
         return sendJson(res, 200, { connected: false, source: 'none', provider: null, modelId: null, keyMasked: null });
       }
+      // ── 다중 연결 (P-ONB-1) ── 여러 개 보관 → 기본 선택 / 역할별 바인딩. 목록엔 마스킹만 나간다.
+      //   역할 바인딩은 선택이지 허용목록이 아니다 — 없으면 조용히 기본으로 간다(T3 allowlist 사고 방지).
+      if (req.method === 'GET' && url === '/model/connections') {
+        if (!deps.modelConnection?.list) return sendJson(res, 200, { connections: [], activeId: null, roleBindings: {} });
+        return sendJson(res, 200, deps.modelConnection.list());
+      }
+      if (req.method === 'POST' && url === '/model/connections/activate') {
+        if (!deps.modelConnection?.activate) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
+        const { id } = JSON.parse((await readBody(req)) || '{}');
+        return sendJson(res, 200, await deps.modelConnection.activate(id));
+      }
+      if (req.method === 'POST' && url === '/model/connections/bind') {
+        if (!deps.modelConnection?.bind) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
+        const { role, id } = JSON.parse((await readBody(req)) || '{}');
+        return sendJson(res, 200, await deps.modelConnection.bind(role, id ?? null));
+      }
+      if (req.method === 'POST' && url === '/model/connections/remove') {
+        if (!deps.modelConnection?.remove) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
+        const { id } = JSON.parse((await readBody(req)) || '{}');
+        return sendJson(res, 200, await deps.modelConnection.remove(id));
+      }
       if (req.method === 'POST' && url === '/model/connect') {
         if (!deps.modelConnection) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
         const input = JSON.parse((await readBody(req)) || '{}');
