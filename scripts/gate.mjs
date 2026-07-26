@@ -115,5 +115,13 @@ if (failures.length) {
   for (const f of failures) console.error(`  · ${f}`);
   process.exit(1);
 }
-await writeFile(baselineFile, JSON.stringify({ deferred, updatedAt: new Date().toISOString() }, null, 2));
+// 기준선은 **값이 바뀔 때만** 쓴다. 매번 timestamp 를 갱신하면 실행할 때마다 워킹트리가 더러워져
+// "이 변경이 의도된 것인가"를 매번 되묻게 된다(감사에서 실제로 지적됐다).
+{
+  let prev = null;
+  try { prev = JSON.parse(await readFile(baselineFile, 'utf8')); } catch { /* 최초 */ }
+  if (prev?.deferred !== deferred) {
+    await writeFile(baselineFile, `${JSON.stringify({ deferred }, null, 2)}\n`);
+  }
+}
 console.log(`[gate] PASS — ${notes.join(' · ')}`);
