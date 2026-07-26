@@ -167,14 +167,26 @@ async function liveish() {
   return { server, store, allowlistStore, bindingStore };
 }
 
-test('관통: 목록 밖 사람의 메시지는 대화가 되지 않는다', async () => {
-  const { server, store } = await liveish();
+test('관통: 목록 밖 사람의 메시지는 대화가 되지 않되, 누가 말을 걸었는지는 남는다', async () => {
+  const { server, store, allowlistStore } = await liveish();
   const out = await server.handleChannelMessage({
-    channel: 'telegram', chatId: '555', userId: '99', text: '나 좀 도와줘',
+    channel: 'telegram', chatId: '555', userId: '99', username: 'stranger', text: '나 좀 도와줘',
   });
   assert.equal(out.kind, 'gated');
   const sessions = await store.list();
   assert.equal(sessions.every((s) => (s.turns ?? 0) === 0), true, '모르는 사람의 말이 대화로 남으면 안 된다');
+
+  // 사용자가 화면에서 허용할 수 있으려면 **누가 말을 걸었는지**는 알아야 한다(닭과 달걀).
+  const pending = await allowlistStore.listPending('telegram');
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].userId, '99');
+  assert.ok(!JSON.stringify(pending).includes('나 좀 도와줘'), '내용은 남기지 않는다');
+
+  // 두 번째 시도는 새 줄을 만들지 않고 횟수만 올린다(목록이 지저분해지지 않게).
+  await server.handleChannelMessage({ channel: 'telegram', chatId: '555', userId: '99', text: '한 번 더' });
+  const again = await allowlistStore.listPending('telegram');
+  assert.equal(again.length, 1);
+  assert.equal(again[0].count, 2);
 });
 
 test('관통: 허용된 사람의 메시지는 대화가 되고, 같은 방은 같은 대화에 쌓인다', async () => {

@@ -631,10 +631,60 @@ async function openToolbox(focusId) {
     const r = await (await fetch('/toolbox')).json();
     tbTools = r.tools || [];
     renderToolbox('', focusId);
+    await renderPendingSenders();
     if (!focusId) tbSearch.focus();
   } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
 }
 function closeToolbox() { tbov.classList.remove('open'); }
+
+// P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
+// 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —
+// 누가 언제 몇 번 말을 걸었는지만.
+async function renderPendingSenders() {
+  let data;
+  try { data = await (await fetch('/channels/allowlist?channel=telegram')).json(); } catch { return; }
+  const pending = data.pending ?? [];
+  const allowed = data.allowed ?? [];
+  if (!pending.length && !allowed.length) return;
+  const box = mk('div', 'tb-card');
+  box.appendChild(mk('div', 'tb-name', '텔레그램에서 말을 건 사람'));
+  if (pending.length) {
+    for (const p of pending) {
+      const row = mk('div', 'tb-hint', `${p.username ? '@' + p.username : 'id ' + p.userId} · ${p.count}번 시도 — 아직 받지 않았어요`);
+      const btn = document.createElement('button');
+      btn.className = 'tb-test'; btn.textContent = '이 사람 허용';
+      btn.onclick = async () => {
+        const out = await (await fetch('/channels/allowlist', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ channel: 'telegram', userId: p.userId, username: p.username }),
+        })).json();
+        if (out.userSafeSummary) toast(out.userSafeSummary);
+        await renderPendingSenders();
+      };
+      row.appendChild(btn);
+      box.appendChild(row);
+    }
+  }
+  for (const a of allowed) {
+    const row = mk('div', 'tb-hint', `${a.label ? a.label + ' · ' : ''}${a.username ? '@' + a.username : 'id ' + a.userId} — 받는 중`);
+    const btn = document.createElement('button');
+    btn.className = 'tb-test'; btn.textContent = '해제';
+    btn.onclick = async () => {
+      const out = await (await fetch('/channels/allowlist', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel: 'telegram', revoke: a.userId ?? a.username }),
+      })).json();
+      if (out.userSafeSummary) toast(out.userSafeSummary);
+      await renderPendingSenders();
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
+  const old = document.getElementById('pendingSenders');
+  if (old) old.remove();
+  box.id = 'pendingSenders';
+  tbBody.prepend(box);
+}
 
 function renderToolbox(q, focusId) {
   const query = (q || '').trim().toLowerCase();
