@@ -8,11 +8,65 @@ import { sameSiteLinks } from '../l0-evidence/working-state.js';
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
  * 안 넣으면 모델이 실행 결과를 못 보고 되묻는다. 진단·내부 구조는 애초에 receipt 에 없다.
  */
+/** 긴 글은 앞뒤를 남기고 가운데를 접는다 — 앞부분만 자르면 결론이 통째로 사라진다. */
+function fold(text, keep) {
+  const t = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (t.length <= keep) return t;
+  const head = Math.ceil(keep * 0.7);
+  return `${t.slice(0, head)} …(가운데 ${t.length - keep}자 생략)… ${t.slice(-(keep - head))}`;
+}
+
+/**
+ * 실행 결과 → **모델이 판단할 수 있는 요약 사실**.
+ *
+ * 예전엔 `JSON.stringify(result).slice(0, 1200)` 이었다. 앞부분만 남기는 절단이라 뒤에 있던
+ * 링크·관찰 사실이 통째로 잘렸다 — 그리고 무엇이 잘렸는지도 안 보였다(오너 지적).
+ * 원문은 **영수증에 그대로 남는다.** 여기 오는 것은 판단에 필요한 것만이다.
+ *
+ * 도구마다 "중요한 것"이 다르므로 종류별로 요약한다. 사이트별 분기는 없다.
+ */
 export function compactResult(result, maxChars = 1200) {
   if (result == null || typeof result !== 'object') return undefined;
+
+  // ① 브라우저 관찰 — 화면 핵심 글 · 본 범위 · 못 본 범위 · 더 열 것 · 조작
+  const o = result.observation;
+  if (o) {
+    const lines = [];
+    if (result.title) lines.push(`화면: ${result.title}`);
+    if (o.seen) {
+      lines.push(`글로 받은 범위: ${o.seen.chars}자 / 전체 ${o.seen.of}자 (${o.seen.percent}%)`
+        + (o.thin ? ' — 글이 거의 없어요(열리기만 했을 수 있어요)' : ''));
+    }
+    if (o.unseen?.chars) lines.push(`못 받은 글: ${o.unseen.chars}자 (${o.unseen.percent}%)`);
+    lines.push(`화면 아래 남음: ${o.moreBelow ? '있음(더 내리면 새로 불러올 수 있어요)' : '없음'}`);
+    if (o.canOpen?.length) {
+      lines.push(`더 열 수 있는 것: ${o.canOpen.map((c) => `${c.text}(${c.kind}, ref=${c.ref})`).join(' · ')}`);
+    }
+    if (o.acted) {
+      lines.push(o.acted.kind === 'scroll'
+        ? `조작: ${o.acted.times}번 내렸어요${o.acted.stopped ? ` (${o.acted.stopped})` : ''}`
+        : `조작: ${o.acted.ref} 를 눌렀어요`);
+    }
+    const body = fold(result.markdown ?? result.excerpt ?? '', Math.max(maxChars - lines.join('\n').length - 40, 200));
+    return `${lines.join('\n')}\n본문: ${body}`;
+  }
+
+  // ② 웹 수집 — 제목 · 본문 길이 · 핵심 발췌 · 열지 않은 같은 사이트 링크
+  if (typeof result.markdown === 'string' || Array.isArray(result.links)) {
+    const lines = [];
+    if (result.title) lines.push(`제목: ${result.title}`);
+    const md = String(result.markdown ?? '');
+    if (md) lines.push(`본문 ${md.length}자`);
+    const links = (result.links ?? []).map((l) => (typeof l === 'string' ? l : l?.url)).filter(Boolean).slice(0, 6);
+    if (links.length) lines.push(`그 페이지의 링크: ${links.join(' · ')}`);
+    const body = fold(md || result.excerpt || '', Math.max(maxChars - lines.join('\n').length - 40, 200));
+    return `${lines.join('\n')}\n본문: ${body}`;
+  }
+
+  // ③ 그 밖(작은 결과) — 통째로 주되, 넘치면 가운데를 접는다(앞부분만 남기지 않는다).
   const json = JSON.stringify(result);
   if (!json || json === '{}') return undefined;
-  return json.length > maxChars ? `${json.slice(0, maxChars)}…(생략)` : json;
+  return fold(json, maxChars);
 }
 
 /**

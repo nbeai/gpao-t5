@@ -138,3 +138,40 @@ test('사후 기록은 두 가지뿐이다(큰 분류 체계를 만들지 않는
   const src = readFileSync(new URL('../src/kernel/l1-intent/task-context.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /place_home|visitor_review|external\.collect_review/, '표면 유형 열거 금지(네이버 전용이 된다)');
 });
+
+// ── 결과 요약: 앞부분 절단 금지 (오너 지시 2026-07-27) ────────────────────
+// 예전엔 JSON.stringify 후 앞 1200자를 잘랐다. 뒤에 있던 링크·관찰 사실이 통째로 사라졌고,
+// 무엇이 잘렸는지도 안 보였다. 원문은 영수증에 남고, 모델 입력에는 **판단에 필요한 사실**만 간다.
+test('웹 결과 요약에 제목·본문 길이·링크가 남는다(뒤가 잘려 사라지지 않는다)', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const out = compactResult({
+    title: '어떤 페이지', markdown: '본문'.repeat(3000),
+    links: ['https://a.example/1', 'https://a.example/2'],
+  });
+  assert.match(out, /제목: 어떤 페이지/);
+  assert.match(out, /본문 6000자/, '얼마나 긴 글이었는지가 사라지면 안 된다');
+  assert.match(out, /https:\/\/a\.example\/2/, '링크는 JSON 뒤쪽에 있어서 예전 방식이면 잘렸다');
+  assert.doesNotMatch(out, /^\{/, 'JSON 덩어리가 아니라 읽을 수 있는 사실이어야 한다');
+});
+
+test('브라우저 결과 요약에 본 범위·못 본 범위·더 열 것·조작이 남는다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const out = compactResult({
+    title: '어떤 화면', markdown: '가'.repeat(5000),
+    observation: {
+      seen: { chars: 12000, of: 40666, percent: 30 }, unseen: { chars: 28666, percent: 70 },
+      moreBelow: true, canOpen: [{ ref: 'e1', text: '리뷰', kind: 'tab' }],
+      acted: { kind: 'scroll', times: 3, stopped: 'no_new_content' },
+    },
+  });
+  for (const must of [/30%/, /28666자/, /아래 남음: 있음/, /리뷰\(tab, ref=e1\)/, /3번 내렸어요/]) {
+    assert.match(out, must, `요약에서 빠지면 모델이 그 빈칸을 지어낸다: ${must}`);
+  }
+});
+
+test('잘릴 때는 **가운데를 접고 얼마가 생략됐는지 말한다**(앞부분만 남기지 않는다)', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const out = compactResult({ title: 'x', markdown: `시작${'중간'.repeat(3000)}끝맺음` });
+  assert.match(out, /가운데 \d+자 생략/, '무엇이 생략됐는지 보여야 한다');
+  assert.match(out, /끝맺음/, '앞부분만 남기면 결론이 통째로 사라진다');
+});

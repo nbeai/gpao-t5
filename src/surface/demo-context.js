@@ -92,6 +92,48 @@ const DESCRIPTORS = [
         required: ['query'],
       },
     } }),
+  // P2-10: 브라우저 표면. **URL 읽기로 닿지 않는 화면**을 실제로 보는 손이다.
+  // 보기(observe)와 조작(act)을 나눈다 — 조작이라 해도 이 슬라이스는 관찰 목적뿐이다.
+  // 둘 다 읽기(A0): 입력·전송·구매는 만들지 않았으므로 실수로도 못 한다.
+  // 브라우저가 없는 컴퓨터에서는 손이 안 붙고, 손이 없으면 선언도 안 딸려온다(1축의 배당금).
+  defineTool({
+    id: 'browser.observe', label: '브라우저로 화면 보기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    capability: '주소를 브라우저로 열어 **실제로 그려진 화면**을 본다. 자바스크립트로 그려지거나 탭 뒤에 있는 내용도 볼 수 있고,'
+      + ' 어디까지 봤고 얼마가 남았는지를 함께 남긴다. 보기만 하고 화면을 바꾸지 않는다.',
+    schema: {
+      description: '주소를 브라우저로 열어 실제 화면을 본다. `web.collect` 로 읽었는데 내용이 비어 있거나'
+        + ' 자바스크립트로 그려지는 화면일 때 쓴다. 본 범위와 못 본 범위를 함께 돌려준다.'
+        + ' 화면을 더 보려면(내리기·탭 전환·더보기) `browser.act` 를 쓴다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['open', 'snapshot'] },
+          url: { type: 'string', description: 'open 일 때 열 주소' },
+        },
+        required: ['action'],
+      },
+    },
+  }),
+  defineTool({
+    id: 'browser.act', label: '브라우저 화면 넘기기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    capability: '보고 있는 화면을 더 본다 — 아래로 내리거나, 탭을 바꾸거나, 더보기를 편다.'
+      + ' 몇 번 내렸는지와 왜 멈췄는지를 남긴다. 글을 쓰거나 보내거나 사는 일은 하지 않는다.',
+    schema: {
+      description: '보고 있는 화면을 더 본다. scroll(아래로 내리기 — 최대 5번, 새 내용이 안 나오면 멈춘다) ·'
+        + ' click(앞선 관찰이 준 ref 의 **탭·더보기만**). 링크는 누르지 않는다 — 주소를 알면 browser.observe 로 연다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['scroll', 'click'] },
+          ref: { type: 'string', description: 'click 일 때, 앞선 관찰이 준 ref(탭·더보기만)' },
+          times: { type: 'number', description: 'scroll 일 때 몇 번 내릴지(최대 5)' },
+        },
+        required: ['action'],
+      },
+    },
+  }),
   defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
     capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).',
     schema: {
@@ -182,6 +224,9 @@ export function demoTools(opts = {}) {
     },
     // 라이브는 makeChannelSender 로 실제 전송을 주입한다. 여기 기본값은 데모/테스트 전용이다.
     // 지난 대화 찾기 — 라이브는 실제 세션 저장소를 주입한다(여기 기본값은 빈 결과).
+    // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
+    ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
+    ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
       async handler() { return { result: { hits: [] }, userSafeSummary: '지난 대화에서 찾지 못했어요.' }; },
     },

@@ -8,6 +8,8 @@ import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
+import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
+import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
@@ -46,6 +48,9 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const slackToken = processEnv.SLACK_BOT_TOKEN;
   const tgToken = processEnv.TELEGRAM_BOT_TOKEN;
   const webTimeoutMs = Number(processEnv.GPAO_T5_WEB_TIMEOUT_MS ?? 15_000);
+  // 브라우저는 **있으면 쓰고 없으면 없는 대로**. 동기 탐지 — descriptor 조립이 동기다.
+  const browserPath = processEnv.GPAO_T5_BROWSER_PATH ?? findBrowserSync();
+  const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath })) : undefined;
 
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
@@ -65,6 +70,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
+    // P2-10: 이 컴퓨터에 브라우저가 있을 때만 손을 배선한다. 없으면 descriptor 도 안 딸려온다
+    // (liveToolIds 가 손에서 파생하므로 — 1축의 배당금). 없는 손을 선언하지 않는다.
+    // 같은 브라우저 인스턴스를 둘이 나눠 쓴다(창을 두 개 띄우지 않는다).
+    browserObserve: browserHand ? makeBrowserObserveTool({ browser: browserHand }) : undefined,
+    browserAct: browserHand ? makeBrowserActTool({ browser: browserHand }) : undefined,
   });
 
   // 1축(단일 진실화): **라이브가 선언하는 도구 = 라이브에 실제 손이 있는 도구.** 손에서 파생한다.
@@ -82,6 +92,12 @@ export function liveDeps(processEnv = {}, deps = {}) {
     factOverrides: {
       'slack.post': { connected: Boolean(slackToken) },
       'telegram.send': { connected: Boolean(tgToken) },
+      // P2-10: 브라우저는 **이 컴퓨터에 있으면 연결된 것**이다(토큰이 필요 없다).
+      // 이걸 빠뜨려서 손·선언은 붙었는데 executable=false 라 **모델에게 안 보였다**(라이브 실측).
+      // 그때 모델은 브라우저 없이 "하단부 1812~1902줄을 봤다"고 지어냈다 — 없는 손을 못 보면
+      // 모델이 그 자리를 상상으로 메운다(§0: 빈 자리는 모델이 지어낸다).
+      'browser.observe': { connected: Boolean(browserHand) },
+      'browser.act': { connected: Boolean(browserHand) },
     },
   });
 
