@@ -118,8 +118,11 @@ export function makeChatGptModelClient(deps) {
               // Phase 2-1: 이력도 함께 넘긴다. 여기가 빠져 있어서 **라이브에서만** 대화가 안 이어졌다 —
               // 다른 provider 와이어는 고쳐 놓고 이 경로를 빼먹었다(같은 계약, 다른 셰이프).
               input: [...responsesHistory(m), { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
-              // Phase 0-2 1층: 웹이 필요한 턴에만 내장 검색을 켠다(실측 확인: 이 백엔드는 web_search 지원).
+              // Phase 0-2 1층: 내장 검색(§24 — 켜 두고 쓸지는 모델이 판단).
               ...(opts.search ? { tools: [{ type: 'web_search' }] } : {}),
+              // 추론 강도는 **속도 다이얼**이다(모델의 판단을 규칙으로 묶는 것과 다르다).
+              // 일상 대화까지 높은 강도로 돌면 한 마디에 1분 넘게 걸린다 — 실측 1m52s(오너 지적).
+              ...(opts.effort ? { reasoning: { effort: opts.effort } } : {}),
               stream: true,   // 이 백엔드는 스트림만 받는다
               store: false,   // 대화 저장 안 함(사용자 데이터 최소)
             }),

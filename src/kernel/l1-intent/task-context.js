@@ -3,6 +3,23 @@
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 
+/** 지금 시각·시간대·지역 — OS 가 아는 사실. 모델이 "오늘"을 알아야 오늘 일을 할 수 있다. */
+export function nowFacts(clock = () => new Date()) {
+  const d = clock();
+  let timeZone; let locale;
+  try {
+    const opt = Intl.DateTimeFormat().resolvedOptions();
+    timeZone = opt.timeZone; locale = opt.locale;
+  } catch { /* 알 수 없으면 안 싣는다 — 지어내지 않는다 */ }
+  let local;
+  try {
+    local = new Intl.DateTimeFormat('ko-KR', {
+      dateStyle: 'full', timeStyle: 'short', timeZone,
+    }).format(d);
+  } catch { local = d.toISOString(); }
+  return { iso: d.toISOString(), local, timeZone, locale };
+}
+
 /**
  * @param {Object} p
  * @param {import('../contracts.js').IntentPacket} p.intent
@@ -47,6 +64,14 @@ export function buildTaskContext(p) {
     // Phase 2-1: 같은 대화의 최근 발화. 이게 없으면 매 턴이 단발이라 방금 한 말을 기억하지 못하고
     // 말투도 턴마다 다시 골라진다(실측: 이름을 기억하겠다고 답한 다음 턴에 모른다고 했다).
     recentTurns: p.recentTurns ?? [],
+    // 모델이 스스로 찾을 수 있는가 — 사실이므로 알려준다. 모르면 "못 한다"고 답해 버린다.
+    nativeSearch: Boolean(p.nativeSearch),
+    // 어느 provider 인가 — 모델 계열별 운영 보정을 고르는 데만 쓴다(정체성은 안 바뀐다).
+    modelProviderId: p.modelProviderId,
+    // **지금 언제, 어디인가.** OS 는 이걸 안다. 안 주면 모델은 "오늘"이 언제인지 몰라 되묻거나
+    // 엉뚱한 날짜로 답한다(실측: "미국 기준 오늘인 7월 26일을 말씀하신 거라면…").
+    // 지역도 마찬가지 — 사실이 없으니 "어느 지역이요?"를 매번 물었다. 규칙이 아니라 사실이 부족했다.
+    now: p.now ?? nowFacts(),
     selfStateFacts,
     admittedContext: p.admittedContext ?? [],
     authorityFacts,

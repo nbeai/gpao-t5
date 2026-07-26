@@ -269,7 +269,10 @@ test('buildModelMessages: 자기 모델명과 능력 경계를 싣는다(오너 
   // 프롬프트에 안 실려서). 그리고 라벨만 보고 검색·다중 페이지 순회 같은 없는 기능을 약속했다.
   const m = buildModelMessages({ ...TC, selfStateFacts: { model: 'gpt-5.5', readyTools: ['웹 자료 수집'], limits: [] } });
   assert.ok(m.system.includes('gpt-5.5'), '자기 모델명을 안다(Operational Selfhood §6)');
-  assert.ok(m.system.includes('부풀리지'), '능력 과장 금지 경계가 실린다');
+  // §24: 경계는 남기되 "확실하지 않으면 확인이 필요하다고 말해라"는 뺐다 — 그 한 줄이 모델을
+  // 겁쟁이로 만들어 "오늘 날씨"에 되묻고 헤지하게 했다(오너 실사용).
+  assert.ok(m.system.includes('없는 도구를 있다고 하지 않는다'), '없는 능력을 주장하지 않는 경계는 남는다(헌장)');
+  assert.ok(!/확인이 필요하다/.test(m.system), '헤지를 시키는 규칙은 없어야 한다');
 });
 
 test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 경계를 사실로만 싣는다', () => {

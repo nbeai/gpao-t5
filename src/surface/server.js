@@ -150,6 +150,7 @@ export function makeServer(deps = {}) {
     return {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
+      modelProviderId: deps.modelProviderId?.(),
       memory, activeGoal: session.activeGoal ?? null,
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
@@ -1142,7 +1143,7 @@ export async function startLiveServer(opts = {}) {
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
     descriptors: liveDescriptors,
-    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch } =
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId } =
     liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
@@ -1150,7 +1151,7 @@ export async function startLiveServer(opts = {}) {
     store: bootStore, env: liveEnv, tools: liveTools,
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
     descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
-    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch,
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
   });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }

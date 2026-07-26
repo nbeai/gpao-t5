@@ -10,6 +10,8 @@
 //   - 테스트·기본은 실 API를 치지 않는다(fetchImpl 주입). 라이브 서버만 실제 배선.
 import { withTimeout } from './with-timeout.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
+import { judgmentCharter } from '../kernel/judgment-charter.js';
+import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
 import { ModelTimeoutError } from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
 
@@ -39,23 +41,36 @@ export function buildModelMessages(tc) {
   // P-ID-1: **정체성이 먼저다.** 이게 없으면 모델이 빈칸을 자기 출신으로 채운다(오너 실사용:
   // "저는 ChatGPT예요" / 자기가 OS 인 줄 모름). 짧게 유지 — 상세는 물어봤을 때만 아래에서.
   sys.push(...buildIdentityFacts(tc.identity, { model: sf.model, ...(tc.capabilityCounts ?? {}) }));
-  sys.push('아래 사실을 왜곡하지 말고, 방법과 문장은 네가 자연스럽게 정한다.');
-  // Phase 2 대화 헌장(계획서 Phase 2). **문장을 지정하지 않는다** — 형식의 과잉만 막는다.
-  // 실측: 인사 한 마디에 능력을 번호 목록으로 되읊고, 같은 대화에서 말투가 뒤집혔다.
-  sys.push('대화하듯 답한다. 목록·번호 매기기는 정말 목록일 때만 쓰고, 묻지 않은 능력을 나열하지 않는다.'
-    + ' 같은 대화에서 말투(존댓말/반말)를 바꾸지 않는다.');
-  if (sf.readyTools?.length) sys.push(`준비된 도구: ${sf.readyTools.join(', ')}`);
-  if (sf.limits?.length) sys.push(`현재 한계: ${sf.limits.join('; ')}`);
-  // 능력 과장 금지 — 라벨만 보고 하위 기능을 지어내던 것을 막는다(오너 실사용에서 검색·다중 페이지
-  // 순회·CSV 내보내기 등 없는 기능을 약속했다). 목록에 없으면 없는 것이다.
-  sys.push('할 수 있는 일은 위 목록이 전부다. 목록에 없는 기능을 있다고 말하거나 범위를 부풀리지 마라.'
-    + ' 확실하지 않으면 "지금은 확인이 필요하다"고 말한다.');
+  // P2-5a: 판단 헌장 — **보는 법**을 준다(금지 목록이 아니다). 매 턴 같은 문장이라 캐시에 얹힌다.
+  //   예전엔 이 자리에 "할 수 있는 건 이게 전부다 / 확실치 않으면 확인을 구해라" 같은 허가 목록이
+  //   있었고, 그게 모델을 위축시켜 "오늘 날씨"에 두 번 되묻고 헤지하게 만들었다(오너 실사용).
+  sys.push(judgmentCharter());
+  // 모델별 **운영 보정**만 얇게 얹는다(오너 지시): 정체성·헌장·승인 경계는 모델이 바뀌어도 그대로다.
+  // 계열마다 실제로 다르게 구는 지점만 몇 줄 — 여기가 길어지면 그건 헌장에 있어야 할 내용이다.
+  const profile = modelPromptProfile({ providerId: tc.modelProviderId, modelId: sf.model });
+  if (profile) sys.push(profile);
+
+  // ── 캐시 경계 ──────────────────────────────────────────────────────────
+  // 위(정체성·헌장)는 매 턴 같다. 아래는 **세션 안에서 잘 안 변하는 사실** → 여기까지가 고정 접두다.
+  // **매 턴 바뀌는 것(정확한 시각·승인 대기·이번 턴 실행 사실)은 맨 뒤로 뺀다.**
+  //   예전엔 "지금은 …12시 14분"을 위쪽에 넣어 매 턴 캐시가 통째로 깨졌다(OpenClaw 는 타임존만
+  //   프롬프트에 두고 정확한 시각은 뒤/도구로 뺀다 — 그 원리를 흡수).
+  sys.push('[환경]');
+  // 지시가 아니라 **사실**로 준다("…로 본다"는 허가처럼 읽혀 모델이 되레 허락을 구했다).
+  if (tc.now?.timeZone) sys.push(`사용자 시간대: ${tc.now.timeZone}`);
+  if (sf.readyTools?.length) sys.push(`T5 가 대신 실행할 수 있는 도구: ${sf.readyTools.join(', ')}`);
+  if (sf.limits?.length) sys.push(`아직 안 되는 것: ${sf.limits.join('; ')}`);
+  if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
+
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
   if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);
 
   // 물어봤을 때만 자기인지 상세를 싣는다(오너 결정: 필요할 때만 찾아 반영).
   if (tc.selfhoodDetail) sys.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
+
+  // ── 여기부터 매 턴 바뀐다(캐시 경계 아래) ──
+  if (tc.now?.local) sys.push(`[지금] ${tc.now.local}`);
 
   const usr = [];
   if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);

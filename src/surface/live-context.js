@@ -71,6 +71,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   });
   const model = modelConnection.model;
   const modelSupportsSearch = () => modelConnection.supportsSearch();
+  const modelProviderId = () => modelConnection.providerId();
   const modelDoctor = () => modelConnection.doctor();
 
   const senders = {
@@ -99,6 +100,6 @@ export function liveDeps(processEnv = {}, deps = {}) {
   return {
     env, tools, descriptors: demoDescriptors({ include: LIVE_TOOL_IDS }), channels,
     connectors: channels.map((c) => c.connector),
-    model, modelDoctor, modelConnection, modelSupportsSearch,
+    model, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
   };
 }

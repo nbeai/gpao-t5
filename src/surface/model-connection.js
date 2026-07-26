@@ -412,6 +412,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       return reflect(await checkConfigHealth(cfg, { fetchImpl, timeoutMs }));
     },
 
+    /** 지금 연결된 provider id — 모델 계열별 **운영 보정**을 고르는 데만 쓴다(정체성 불변). */
+    providerId() {
+      const rec = activeConn();
+      return rec?.provider ?? rec?.kind ?? undefined;
+    },
+
     /** 지금 연결된 모델이 **스스로 웹을 찾을 수 있는가**(1층). 자기인지·계획이 이걸 본다. */
     supportsSearch() {
       const rec = activeConn();

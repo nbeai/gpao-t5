@@ -161,7 +161,7 @@ export async function runTurn(input, ctx) {
 
   // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
   if (intent.answerMode === 'fast_chat' && !influence) {
-    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, ...selfhood });
+    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...selfhood });
     // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
     // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
   // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
@@ -170,7 +170,12 @@ export async function runTurn(input, ctx) {
   // "웹 조회가 연결되어 있지 않습니다"라고 했다 — 되는데 못 한다고 말한 것이다(오너 실사용).
   // 우리가 목록으로 미리 맞히려 하면 날씨·환율·뉴스… 사례가 끝없이 늘어난다(누더기 금지).
   const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta, search: wantedWeb });
+  const reply = await ctx.model.respond(tc, {
+    onDelta: ctx.onAnswerDelta,
+    search: wantedWeb,
+    // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
+    effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
+  });
     return {
       kind: 'reply',
       reply,
@@ -368,7 +373,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
-  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, recentTurns: ctx.recentTurns, ...(ctx.selfhood ?? {}) });
+  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...(ctx.selfhood ?? {}) });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
   // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
   // 모델이 스스로 찾을 수 있으면 **켜 두고 모델이 판단하게 한다.** 예전엔 우리 말귀가 web.collect
@@ -376,7 +381,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // "웹 조회가 연결되어 있지 않습니다"라고 했다 — 되는데 못 한다고 말한 것이다(오너 실사용).
   // 우리가 목록으로 미리 맞히려 하면 날씨·환율·뉴스… 사례가 끝없이 늘어난다(누더기 금지).
   const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta, search: wantedWeb });
+  const reply = await ctx.model.respond(tc, {
+    onDelta: ctx.onAnswerDelta,
+    search: wantedWeb,
+    // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
+    effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
+  });
   const projection = projectReceipts(turnReceipts);
 
   return {

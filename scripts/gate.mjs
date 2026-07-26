@@ -124,6 +124,31 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   if (failures.length === before) ok('안전 바닥 불변식 통과(파일 변경·전송·결제·기억 승격 + 무인 실행)');
 }
 
+// ── ②-b 프롬프트 예산 (Hermes 의 prompt-size 원리 흡수) ───────────────────
+// 프롬프트는 조용히 자란다. 어디에 예산이 가는지 매번 보이게 하고, **캐시 접두 대비 가변 구역**이
+// 커지면 경고한다 — 가변이 앞에 끼면 매 턴 캐시가 통째로 깨진다(실제로 그렇게 만들어 놨다가 고쳤다).
+{
+  const { buildModelMessages } = await import('../src/runtime/model-provider.js');
+  const { buildTaskContext } = await import('../src/kernel/l1-intent/task-context.js');
+  const { interpret: parse } = await import('../src/kernel/l1-intent/intent.js');
+  const { buildSelfState: bss2 } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { demoEnv: env2 } = await import('../src/surface/demo-context.js');
+  const { judgmentCharter } = await import('../src/kernel/judgment-charter.js');
+  const st = bss2(env2());
+  const sys = buildModelMessages(buildTaskContext({
+    intent: parse('안녕', { selfState: st }), selfState: st, nativeSearch: true,
+  })).system;
+  const charter = judgmentCharter().length;
+  const nowAt = sys.indexOf('[지금]');
+  const volatile = nowAt > 0 ? sys.length - nowAt : 0;
+  const stable = sys.length - volatile;
+  if (nowAt > 0 && nowAt < sys.length * 0.8) {
+    bad(`가변 구역이 프롬프트 앞쪽에 있다(${nowAt}/${sys.length}) — 매 턴 캐시가 깨진다`);
+  } else {
+    ok(`프롬프트 ${sys.length}자 = 고정 ${stable}(헌장 ${charter}) + 가변 ${volatile}`);
+  }
+}
+
 // ── ③ 능력 설명의 부정 주장은 매번 눈에 띄게 한다 (감사 지적: 되는데 "못 한다"고 말했다) ──
 {
   const { CAPABILITY_LINES } = await import('../src/kernel/tool-labels.js').then((m) => ({
@@ -146,8 +171,10 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
 // ── ④ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
 let deferred = 0;
 {
+  // **주석만** 센다. 사용자에게 보이는 문구("아직 안 되는 것")까지 세면 정직한 표시가 유예로
+  // 오인된다(실제로 그렇게 막혔다). 이 검사의 뜻은 "미룬 일이 늘었는가"이지 단어 사냥이 아니다.
   const out = execFileSync('bash', ['-lc',
-    `grep -rEoh '후속|TODO|FIXME|아직 (안|없|구현)' ${root}src --include='*.js' | wc -l`,
+    `grep -rEh '^\\s*(//|\\*)' ${root}src --include='*.js' | grep -Eoc '후속|TODO|FIXME|아직 (안|없|구현)' || true`,
   ], { encoding: 'utf8' });
   deferred = Number(out.trim());
   let baseline = { deferred: Infinity };
