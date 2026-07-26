@@ -21,8 +21,14 @@ export function buildTaskContext(p) {
   const selfStateFacts = {
     model: summary.model,
     modelAuthState: summary.modelAuthState,
-    readyTools: summary.readyCapabilities ?? summary.ready, // 모델에겐 능력 설명까지(§11 사실)
-    limits: summary.limits,
+    // Phase 2-2 다이어트(§11 "무관한 사실을 나열하지 않는다"): 능력 **설명 문장**은 도구를 실제로
+    // 쓰는 턴이나 능력을 물어본 턴에만. 인사 한 마디에 설명서를 통째로 실으면 모델이 그걸 읽고
+    // 번호 목록으로 되읊는다(실측). 가벼운 턴에는 도구 **이름만** 준다 — 과장 금지는 이름만으로도 선다.
+    readyTools: intent.answerMode === 'fast_chat' && !p.selfhoodDetail
+      ? (summary.ready ?? [])
+      : (summary.readyCapabilities ?? summary.ready),
+    // 한계(무엇을 연결하면 되는지)는 그 도구가 걸리는 턴에서만 쓸모 있다. 잡담에는 소음이다.
+    limits: intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits,
   };
 
   const authorityFacts = {

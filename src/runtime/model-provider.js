@@ -40,6 +40,10 @@ export function buildModelMessages(tc) {
   // "저는 ChatGPT예요" / 자기가 OS 인 줄 모름). 짧게 유지 — 상세는 물어봤을 때만 아래에서.
   sys.push(...buildIdentityFacts(tc.identity, { model: sf.model, ...(tc.capabilityCounts ?? {}) }));
   sys.push('아래 사실을 왜곡하지 말고, 방법과 문장은 네가 자연스럽게 정한다.');
+  // Phase 2 대화 헌장(계획서 Phase 2). **문장을 지정하지 않는다** — 형식의 과잉만 막는다.
+  // 실측: 인사 한 마디에 능력을 번호 목록으로 되읊고, 같은 대화에서 말투가 뒤집혔다.
+  sys.push('대화하듯 답한다. 목록·번호 매기기는 정말 목록일 때만 쓰고, 묻지 않은 능력을 나열하지 않는다.'
+    + ' 같은 대화에서 말투(존댓말/반말)를 바꾸지 않는다.');
   if (sf.readyTools?.length) sys.push(`준비된 도구: ${sf.readyTools.join(', ')}`);
   if (sf.limits?.length) sys.push(`현재 한계: ${sf.limits.join('; ')}`);
   // 능력 과장 금지 — 라벨만 보고 하위 기능을 지어내던 것을 막는다(오너 실사용에서 검색·다중 페이지
