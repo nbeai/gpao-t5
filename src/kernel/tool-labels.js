@@ -6,6 +6,7 @@ const LABELS = {
   'mail.send': '메일 발송',
   'slack.post': '슬랙 게시',
   'telegram.send': '텔레그램 전송',
+  'session.search': '지난 대화 찾기',
 };
 
 /** @param {string} id */

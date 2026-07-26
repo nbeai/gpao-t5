@@ -21,6 +21,7 @@ import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
+import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -56,6 +57,17 @@ function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
  * 모델이 끝내 문장을 못 만들었을 때 **원장의 사실로** 답을 만든다. 빈 답은 사용자에게 먹통으로
  * 보인다 — 무엇을 시도했고 왜 막혔는지, 그리고 지금 할 수 있는 것을 말한다(막다른 답 금지).
  */
+/**
+ * 사용자에게 보일 "다음에 할 수 있는 것". 도구가 남긴 사용자면 문장을 쓰고, 없으면 한 줄로 만든다.
+ * 내부 계획 문자열은 여기 오지 않는다 — 그게 화면에 찍히면 사용자는 무슨 말인지 알 수 없다.
+ */
+export function userSafeNextAction(receipts = []) {
+  const fromTool = receipts.map((r) => r.nextSafeAction).find((x) => typeof x === 'string' && x.trim());
+  if (fromTool) return fromTool;
+  const blocked = receipts.find((r) => r.failureState && r.failureState !== 'none');
+  return blocked ? '다른 방법으로 이어가 볼까요?' : undefined;
+}
+
 export function fallbackReplyFrom(receipts = []) {
   const blocked = receipts.filter((r) => r.failureState && r.failureState !== 'none');
   if (!blocked.length) return '방금 요청은 처리했는데 설명을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?';
@@ -409,7 +421,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
-  const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...(ctx.selfhood ?? {}) });
+  const ladder = nextRung(turnReceipts);
+  const tc = buildTaskContext({
+    intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+    recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
+    modelProviderId: ctx.modelProviderId,
+    // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
+    recoveryHint: rungMessage(ladder),
+    ...(ctx.selfhood ?? {}),
+  });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
   // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
   // 모델이 스스로 찾을 수 있으면 **켜 두고 모델이 판단하게 한다.** 예전엔 우리 말귀가 web.collect
@@ -421,9 +441,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 텍스트가 비어 나온다.** 그걸 그대로 내보내 빈 답이 네 번 연속 나갔다(오너 실사용, 내가 만든 버그).
   //   · 한 번은 다시 시도한다(도구 없이) — 실행 사실은 이미 프롬프트에 있으니 모델이 설명할 수 있다.
   //   · 그래도 비면 원장의 사실로 정직한 문장을 만든다. **빈 답은 절대 내보내지 않는다.**
+  // P2-6 사다리: 막힌 게 있으면 **다음 계단을 정해** 최종 답변에 사실로 실어 준다.
+  //   "안 됩니다"로 끝내지 않는다 — 우리 수집이 막혔으면 모델이 자기 경로로 찾고, 사람만 할 수
+  //   있는 일이면 최소 단계를 부탁하고, 범위 밖이면 범위를 넓히자고 제안한다(오너 지시).
+  const step = nextRung(turnReceipts);
   const finalOut = await ctx.model.respond(tc, {
     onDelta: ctx.onAnswerDelta,
-    search: wantedWeb,
+    // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
+    search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
     effort: 'medium',
     tools: toolSchemasFor(selfState),
   });
@@ -445,7 +470,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     selfStateSummary: summary,
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
-    nextSafeAction: projection.unconfirmed.length ? plan.recoveryCriteria : undefined,
+    // **영수증의 사용자면 문장을 쓴다.** 예전엔 계획의 `recoveryCriteria`(내부 문자열)를 그대로
+    // 올려서 사용자 화면에 "다음: 실패 시 무엇이 안전하고 다음 안전 행동을 제시한다"가 찍혔다
+    // (오너 실사용). 내부 계약 문구는 사용자면에 절대 나가지 않는다(§7 사용자면/진단면 분리).
+    nextSafeAction: projection.unconfirmed.length ? userSafeNextAction(turnReceipts) : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).

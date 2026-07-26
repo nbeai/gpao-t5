@@ -170,3 +170,28 @@ test('불변식: 모델이 문장을 못 만들어도 무슨 일이 있었는지
   });
   assert.ok((r.reply ?? '').trim().length > 0);
 });
+
+// ── 8. 사용자면과 진단면은 섞이지 않는다 ─────────────────────────────────
+// 오너 실사용(2026-07-27): "다음: 실패 시 무엇이 안전하고 다음 안전 행동을 제시한다" 가 화면에 찍혔다.
+// 그건 답이 아니라 **내부 계획 문자열**(plan.recoveryCriteria)이다. 사용자는 무슨 말인지 알 수 없다.
+test('불변식: 도구가 실패해도 내부 계획 문구가 사용자에게 나가지 않는다', async () => {
+  const failing = {
+    async handler() {
+      return { blocked: true, fetchState: 'blocked', userSafeSummary: '그 사이트가 접근을 막았어요.', nextSafeAction: '다른 주소로 해볼까요?' };
+    },
+    sourceLedgerRequired: true,
+  };
+  const model = {
+    async respond(_tc, opts = {}) {
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'https://x.example' } }] };
+      return '못 읽었어요.';
+    },
+  };
+  const r = await runTurn({ text: 'https://x.example 읽어줘' }, {
+    env: demoEnv(), model, tools: demoTools({ webCollector: failing }),
+  });
+  const shown = JSON.stringify({ reply: r.reply, nextSafeAction: r.nextSafeAction, ledger: r.ledger });
+  assert.ok(!shown.includes('실패 시 무엇이 안전하고'), `내부 문구가 새어 나갔다: ${r.nextSafeAction}`);
+  assert.ok(!shown.includes('recoveryCriteria'));
+  assert.equal(r.nextSafeAction, '다른 주소로 해볼까요?', '도구가 남긴 사용자면 문장을 쓴다');
+});

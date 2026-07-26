@@ -41,6 +41,18 @@ const SCHEMAS = {
       required: ['request'],
     },
   },
+  // 오너 실사용(2026-07-27): "내가 팔식당 물어본 세션 찾을 수 있어?" 에 "찾아볼 수 없어요"라고
+  // 답했다. **T5 에는 세션 검색이 있는데** 도구 목록에 없어서 모델이 존재를 몰랐다.
+  // 가진 것을 못 쓰는 건 없는 것과 같다(§16-D 능력 완결).
+  'session.search': {
+    description: '지난 대화들에서 찾는다. 사용자가 "전에 말했던", "그때 그거", "물어봤던 세션"처럼'
+      + ' 과거 대화를 가리키면 이걸로 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
+    parameters: {
+      type: 'object',
+      properties: { query: { type: 'string', description: '찾을 말(주제·상호·키워드)' } },
+      required: ['query'],
+    },
+  },
   'slack.post': {
     description: '슬랙에 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
     parameters: {

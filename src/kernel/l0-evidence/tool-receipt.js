@@ -51,6 +51,10 @@ export function receipt(r) {
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,
+    // 막힌 **종류**(사이트 차단·로그인벽·범위 밖…). 다음 계단을 이걸로 정한다(P2-6 사다리).
+    // 진단 원문이 아니라 분류값이라 사용자면 판단에 써도 안전하다.
+    fetchState: r.fetchState,
+    scopeState: r.scopeState,
   };
 }
 

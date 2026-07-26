@@ -61,6 +61,9 @@ export class ToolRunner {
           intended,
           actualCall: { tool: toolId, args },
           failureState: FAILURE.BLOCKED,
+          // 어떤 종류로 막혔는지(사이트 차단·로그인벽·범위 밖…)를 잃지 않는다 — 다음 계단을 그걸로 정한다.
+          fetchState: out.fetchState,
+          scopeState: out.scopeState,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 대상이 접근을 막았어요.`,
           diagnosticTrace: out.diagnosticTrace,
           nextSafeAction: out.nextSafeAction ?? '공개 자료/대체 경로로 이어갈까요?',

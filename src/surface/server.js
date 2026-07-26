@@ -1144,7 +1144,7 @@ export async function startLiveServer(opts = {}) {
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
     descriptors: liveDescriptors,
     model: liveModel, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId } =
-    liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
+    liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl, sessionStore: bootStore });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
   const server = makeServer({

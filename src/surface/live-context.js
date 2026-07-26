@@ -7,6 +7,7 @@ import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
+import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
@@ -49,7 +50,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 라이브가 **선언하는 도구 = 라이브에 실제 손이 있는 도구**. 예전엔 demo 목록을 그대로 선언해
   // `mail.send`(핸들러가 아예 없다)를 "연결됨"으로 사용자와 모델에게 말했다 — 없는 능력을 있다고
   // 한 것이다. 목록을 손으로 맞추지 말고, 게이트가 선언⊆손 불변식을 매번 검사한다.
-  const LIVE_TOOL_IDS = ['web.collect', 'local.file', 'slack.post', 'telegram.send'];
+  const LIVE_TOOL_IDS = ['web.collect', 'local.file', 'session.search', 'slack.post', 'telegram.send'];
 
   // 전송 도구의 연결 상태는 실제 토큰 유무로 결정한다. 토큰 없으면 도구함에서 "연결이 필요해요"(노랑),
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
@@ -90,6 +91,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
     }),
     senders,
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
+    // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
+    sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
   });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).

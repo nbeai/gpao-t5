@@ -59,7 +59,8 @@ export function makeLocalFileTool(deps = {}) {
 
   /** 실패를 종류별로 사용자 언어로. 진단 원문은 화면에 내보내지 않는다. */
   function failureOf(e, path) {
-    if (e?.isScopeError) return { blocked: true, ...outOfScopeMessage(e) };
+    // 범위 밖은 **되는 방법을 제안할 수 있는 실패**다(§22). 사다리가 알아볼 표식을 단다.
+    if (e?.isScopeError) return { blocked: true, scopeState: 'out_of_scope', ...outOfScopeMessage(e) };
     if (e?.code === 'ENOENT') return fail(`${path} 을(를) 찾지 못했어요.`, '경로를 다시 알려 주시겠어요?');
     if (e?.code === 'EACCES' || e?.code === 'EPERM') return fail('그 파일에 접근할 권한이 없어요.', '다른 파일로 해볼까요?');
     if (e?.code === 'EISDIR') return fail('그건 파일이 아니라 폴더예요.', '폴더 안을 보여드릴까요?');

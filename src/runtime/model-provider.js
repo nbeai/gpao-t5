@@ -80,6 +80,8 @@ export function buildModelMessages(tc) {
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }
+  // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
+  if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
   usr.push(tc.currentRequest); // 원문 보존
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
