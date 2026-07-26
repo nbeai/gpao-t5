@@ -1,4 +1,9 @@
-# P-RT-4 · Model Connect UX (화면에서 키 연결 — 검증 통과만 저장·활성화)
+# P-RT-4 · Model Connect UX (화면에서 키 연결)
+
+> ⚠️ **저장 정책은 P-ONB-2(§6.27)에서 확장됐다.** 이 문서의 "usable 만 저장"은 당시 계약이며,
+> 현재는 **확실한 무효만 거절**한다: `usable`은 검증됨으로 저장·활성화, `unreachable`/`rate_limited`는
+> 저장하되 `verified:false`와 "모델 확인 필요"로 표시, `auth_failed`/`model_missing`/`billing_blocked`는
+> 저장하지 않는다.
 
 날짜: 2026-07-26 · 브랜치: `p-rt-4-model-connect-ux`
 번호: P-RT-3(OpenAI OAuth)은 라벨 유지·후속. 이 슬라이스가 만드는 연결 표면 위에 OAuth가 앉는다.
@@ -12,7 +17,7 @@
 ## 범위
 
 **흐름**: 사용자가 칩 패널에서 제공자·키(·모델) 입력 → `POST /model/connect` →
-doctor 실검증(과금 0 목록 GET) → **usable 만 저장·활성화**(검증 실패 키는 저장하지 않는다) →
+doctor 실검증(과금 0 목록 GET) → **확실한 무효만 거절**(§6.27; 당시엔 usable 만 저장이었다) →
 그 턴부터 실제 모델로 동작. 재시작해도 저장된 연결 유지.
 
 - `model-connection.js`(surface): 연결 관리자 —
@@ -32,7 +37,8 @@ doctor 실검증(과금 0 목록 GET) → **usable 만 저장·활성화**(검�
 
 ## 경계
 
-- **검증 통과만 저장**: auth_failed/model_missing 키는 저장·활성화하지 않는다(리포트로 안내만).
+- **확실한 무효만 거절**(§6.27로 확장): auth_failed/model_missing/billing_blocked 는 저장·활성화하지
+  않는다(리포트로 안내만). unreachable/rate_limited 는 저장하되 verified:false 로 표시한다.
 - 키는 저장 파일(0600)과 요청 본문에만 존재 — 로그·GET 응답·오류 메시지에 노출 금지(마스킹만).
 - P-RT-2 계약 유지: 두 축(auth/health)·공개면 authSignal 미노출·stub 정직 폴백.
 - env 로만 쓰던 기존 개발자 흐름은 그대로 동작(저장 연결이 없을 때의 폴백).

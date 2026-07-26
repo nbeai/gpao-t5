@@ -1,6 +1,8 @@
 // L4 · Model Connection (P-RT-4 → P-ONB-1) — 화면에서 모델을 연결·보관·선택하는 관리자.
 // 핵심 경계:
-//   - **검증 통과(usable)만 저장·활성화**한다. 실패 키는 기존 연결을 깨지 않는다.
+//   - 저장 정책(§6.27 이후): **확실한 무효만 거절**한다. usable 은 검증됨으로 저장·활성,
+//     unreachable/rate_limited 는 저장하되 verified:false("모델 확인 필요"), auth_failed/
+//     model_missing/billing_blocked 는 저장하지 않는다. 실패 키가 기존 연결을 깨지 않는다.
 //   - 여러 연결을 보관하고(P-ONB-1) 그중 하나를 기본으로, 역할(role)별로 다른 연결을 쓸 수 있다.
 //     역할 바인딩은 **선택이지 허용목록이 아니다** — 바인딩이 없으면 조용히 기본으로 간다
 //     (T3 agents.defaults.models allowlist 사고 재발 방지: 목록에 없다고 실행을 막지 않는다).
@@ -22,6 +24,9 @@ import {
 import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL } from '../runtime/chatgpt-model-client.js';
 
 export const DEFAULT_ROLE = 'default';
+
+/** 저장을 거절하는 "확실한 무효"만. 불확실(unreachable·rate_limited)은 저장하되 미검증으로 둔다. */
+export const CERTAINLY_INVALID = Object.freeze(['auth_failed', 'model_missing', 'billing_blocked']);
 
 export function defaultConnectionDir() {
   return process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
@@ -272,7 +277,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       return { ...r, pending: false };
     },
 
-    /** 화면 연결: 실검증 통과(usable)만 저장·활성화. 실패면 기존 유지 + 사용자 언어 리포트. */
+    /** 화면 연결: 확실한 무효만 거절(§6.27). 불확실은 저장하되 verified:false. 실패면 기존 유지. */
     async connect(input) {
       const cfg = resolveModelConfigFromInput(input ?? {});
       if (!cfg) {
@@ -286,7 +291,11 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
         };
       }
       const report = await checkConfigHealth(cfg, { fetchImpl, timeoutMs });
-      if (report.state !== 'usable') {
+      // **확실한 무효만 거절한다**(P-ONB-2, T3·Hermes 공통 교훈): 라이브 프로브 하드블록은 사내
+      // 프록시·지역 차단·일시 rate limit 같은 정상 사용자를 너무 많이 막았다. 확실히 틀린 것
+      // (자격 거부·모델 없음·결제)만 거절하고, 불확실(도달 불가·혼잡)은 저장하되 **검증됨이라
+      // 말하지 않는다** — 거짓 초록 금지(§6.23) 계약은 그대로 지킨다.
+      if (CERTAINLY_INVALID.includes(report.state)) {
         // 저장·활성화 없음 — 잘못된 키가 동작 중인 연결을 깨지 않는다. 원문(authSignal) 미노출.
         const { authSignal, ...publicReport } = report;
         return { connected: false, report: publicReport };
@@ -295,7 +304,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
         kind: 'api_key', provider: cfg.provider, key: cfg.token,
         modelId: cfg.modelId, baseUrl: cfg.baseUrl, addedAt: Date.now(),
       });
-      return { connected: true, report: reflect(report) };
+      const publicReport = reflect(report);
+      return {
+        connected: true,
+        verified: report.state === 'usable', // 저장됐다≠검증됐다
+        report: publicReport,
+      };
     },
 
     /** 보관 중인 연결 목록(마스킹만) + 기본·역할 바인딩. */

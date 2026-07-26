@@ -46,7 +46,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const env = demoEnv({ factOverrides: { 'slack.post': { connected: Boolean(slackToken) } } });
 
   // 모델(P-RT-1·2·4, 단일 진실): 연결 관리자가 소유한다 — 저장된 사용자 연결 > env(개발자) > stub.
-  // doctor(두 축 반영·공개면 위생)와 화면 연결(connect/disconnect, 검증 통과만 저장)이 한 곳에 있다.
+  // doctor(두 축 반영·공개면 위생)와 화면 연결(connect/disconnect, 확실한 무효만 거절 §6.27)이 한 곳에 있다.
   const modelConnection = makeModelConnection({
     env, processEnv,
     store: deps.connectionStore, // 없으면 지속 없이 동작(demo·테스트)
