@@ -25,7 +25,12 @@ function undoEntry(op, from, to) {
  * @param {{roots?:string[], trashDir?:string, dataDir?:string}} [deps]
  */
 export function makeLocalFileTool(deps = {}) {
-  const roots = deps.roots ?? defaultFileRoots();
+  // P6-L2: 다룰 수 있는 폴더는 **매 호출마다 다시 읽는다.** 시작할 때 한 번 고정하면 사용자가
+  // 방금 연 폴더를 그 턴에도 다음 턴에도 못 본다 — "열었어요"라고 말해 놓고 못 여는 거짓말이 된다.
+  const rootsNow = deps.rootsProvider
+    ? () => deps.rootsProvider()
+    : () => (deps.roots ?? defaultFileRoots());
+  const roots = deps.roots ?? defaultFileRoots(); // trashDir 자리를 정할 기준(첫 루트)
   const trashDir = deps.trashDir ?? join(deps.dataDir ?? roots[0], '.trash');
   // 되돌리기 표는 **파일에 남긴다**. 메모리에만 두면 재시작 뒤 휴지통 파일은 있는데 되돌릴 방법이
   // 없어진다 — "되돌릴 수 있어요"라고 말해놓고 다음 날 못 되돌리는 거짓말이 된다(§18 지속성 계약).
@@ -86,6 +91,7 @@ export function makeLocalFileTool(deps = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');
       const target = args.path ?? '.';
       try {
+        const roots = await rootsNow(); // 이 호출 시점의 범위(위의 고정값을 가린다 — 의도적)
         await ensureRoot(roots);
 
         if (action === 'undo') {

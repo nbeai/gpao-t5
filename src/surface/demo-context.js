@@ -49,6 +49,30 @@ const DESCRIPTORS = [
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
+  // P6-L2 · 폴더를 여는 길. **이게 없어서 T5 가 "터미널에서 `ls` 해서 붙여 주세요"라고 답했다**(실측).
+  // 헌장에 금지를 써도 안 고쳐졌다 — 넓히는 길이 없었으니 모델이 옳았다. 규칙 대신 길을 만든다.
+  // 넓히는 것은 **사용자의 결정**이라 승인을 탄다(grant_permission → A3 + 안전 바닥).
+  defineTool({
+    id: 'local.scope', label: '다룰 폴더 열기', owner: 'core', availability: [{ kind: 'connected' }],
+    toolKind: 'grant_permission', needsApproval: true,
+    capability: '사용자가 허락한 폴더를 작업 범위로 연다. 이름("데스크탑")으로도 열 수 있고, 언제든 닫을 수 있다.',
+    schema: {
+      description:
+        '작업할 폴더를 사용자 승인으로 연다. 다루려는 위치가 지금 범위 밖이면 **이걸 쓴다** —'
+        + ' 사용자에게 터미널 명령(ls 등)을 대신 실행해 붙여 달라고 하지 않는다.'
+        + ' 열쇠·인증서가 있는 자리는 열리지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['open', 'close', 'list'] },
+          path: { type: 'string', description: '열 폴더의 경로(사용자가 말한 그대로)' },
+          name: { type: 'string', description: '경로 대신 부르는 이름 — 데스크탑·문서·다운로드 등' },
+        },
+        required: ['action'],
+      },
+    },
+    reversible: true, reversibleNote: '"그 폴더 이제 안 봐도 돼"라고 하시면 바로 닫아요',
+  }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     capability: '메일을 보낸다(보내기 전 확인을 받는다).',
     // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
@@ -161,6 +185,7 @@ export function demoDescriptors(opts = {}) {
 const FACTS = {
   'web.collect': { connected: true },
   'local.file': { connected: true },
+  'local.scope': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -225,6 +250,7 @@ export function demoTools(opts = {}) {
     // 라이브는 makeChannelSender 로 실제 전송을 주입한다. 여기 기본값은 데모/테스트 전용이다.
     // 지난 대화 찾기 — 라이브는 실제 세션 저장소를 주입한다(여기 기본값은 빈 결과).
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
+    ...(opts.localScope ? { 'local.scope': opts.localScope } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {

@@ -7,6 +7,8 @@ import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
+import { makeLocalScopeTool } from '../runtime/local-scope-tool.js';
+import { LocalRootsStore } from './local-roots-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
@@ -54,6 +56,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // P2-11: **하나의 예의를 두 손이 나눠 쓴다.** 같은 IP 로 나가므로 web.collect 가 만든 제한에
   // 브라우저도 걸린다(실측). 따로 두면 한쪽이 절제해도 다른 쪽이 문을 닫는다.
   const manners = deps.manners ?? makeHostManners();
+  // P6-L2: 사용자가 연 폴더 기록. 세션 저장소와 같은 자리에 둔다(설정이 아니라 **사용자의 결정**이다).
+  const rootsStore = deps.rootsStore ?? new LocalRootsStore(
+    processEnv.GPAO_T5_DATA_DIR ?? new URL('.', import.meta.url).pathname,
+  );
   const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
 
   const senders = {
@@ -71,7 +77,9 @@ export function liveDeps(processEnv = {}, deps = {}) {
       robotsCheck: makeRobotsCheck({ timeoutMs: webTimeoutMs }),
     }),
     senders,
-    localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
+    // rootsProvider 로 넘긴다 — 고정해 두면 방금 연 폴더를 그 턴에 못 쓴다("열었어요"가 거짓이 된다).
+    localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR, rootsProvider: () => rootsStore.roots() }),
+    localScope: makeLocalScopeTool({ store: rootsStore }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
     // P2-10: 이 컴퓨터에 브라우저가 있을 때만 손을 배선한다. 없으면 descriptor 도 안 딸려온다

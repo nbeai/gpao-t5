@@ -259,6 +259,64 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-d 폴더를 여는 길: **사용자가 실제로 열 수 있는가** ──────────────────
+// 실측(2026-07-27): "디벨로퍼 폴더 봐줘"에 T5 가 "터미널에서 `ls` 해서 붙여 주세요"라고 답했다.
+// 헌장에 금지를 써도 그대로였다 — **모델이 옳았다.** 넓히는 길이 없으니 되는 방법을 말한 것이다.
+// 그래서 문장("터미널 떠넘김 금지")을 검사하지 않는다. 문장은 길이 없으면 못 지킨다.
+// **길이 실제로 통하는지**를 라이브 배선으로 관통해서 본다(오너 지시: 검사 가능한 게이트).
+{
+  try {
+    const { liveDeps } = await import('../src/surface/live-context.js');
+    const { LocalRootsStore, wellKnownFor } = await import('../src/surface/local-roots-store.js');
+    const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
+    const { classifyTier, isSafetyFloor } = await import('../src/kernel/l2-plan/authority.js');
+    const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const problems = [];
+
+    // 사용자 데이터는 건드리지 않는다 — 저장소를 격리해서 넣는다(게이트가 실제 설정을 바꾸면 안 된다).
+    const store = new LocalRootsStore(await mkdtemp(join(tmpdir(), 'gpao-t5-gate-roots-')));
+    const live = liveDeps({}, { rootsStore: store });
+    const scope = live.tools?.tools?.['local.scope'];
+    const file = live.tools?.tools?.['local.file'];
+    if (!scope || !file) throw new Error('local.scope / local.file 손이 라이브에 없다');
+
+    // 경로를 외우게 하지 않는다 — 부르는 이름으로 찾아진다.
+    if (wellKnownFor('데스크탑 좀 봐줘')?.key !== 'desktop') problems.push('이름("데스크탑")으로 폴더를 못 찾는다');
+
+    // **관통**: 열면 그 즉시 그 안을 다룰 수 있어야 "열었다"가 참이다.
+    const target = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-open-'));
+    await writeFile(join(target, '메모.md'), '안녕');
+    const before = await file.handler({ action: 'list', path: target });
+    if (!before?.blocked) problems.push('열지도 않은 폴더가 이미 열려 있다(범위가 의미 없다)');
+    await scope.handler({ action: 'open', path: target });
+    const after = await file.handler({ action: 'list', path: target });
+    if (after?.blocked) problems.push(`열었는데 못 본다 — "열었어요"가 거짓이 된다(${after.scopeState})`);
+
+    // 되돌릴 수 있다고 말하려면 닫는 길이 실제로 있어야 한다.
+    await scope.handler({ action: 'close', path: target });
+    if (!(await file.handler({ action: 'list', path: target }))?.blocked) problems.push('닫았는데 그대로 보인다');
+
+    // 넓히는 것은 **사용자의 결정**이다. 모델이 혼자 열면 보호 영역 전체가 무의미해진다.
+    // selfState 는 `live.env` 로 만든다(`live` 를 통째로 넘기면 도구가 0개인 빈 상태가 나와
+    // "등급이 없다"는 가짜 실패가 난다 — 여기서 실제로 한 번 속았다).
+    const kind = toolActionKind({ toolId: 'local.scope', selfState: buildSelfState(live.env) });
+    if (classifyTier({ kind }) !== 'A3') problems.push('폴더 열기가 강한 승인을 안 탄다(모델이 혼자 넓힌다)');
+    if (!isSafetyFloor(kind)) problems.push('폴더 열기가 안전 바닥 밖이다(자동 모드에서 그냥 열린다)');
+
+    // 열어 달라고 해도 열쇠가 있는 자리는 안 연다(③-c 와 독립으로 한 번 더).
+    const secret = await scope.handler({ action: 'open', path: join((await import('node:os')).homedir(), '.ssh') });
+    if (!secret?.blocked) problems.push('비밀 자리를 열어 준다 — 보호 영역을 이 길로 우회할 수 있다');
+
+    if (problems.length) problems.forEach((p) => bad(p));
+    else ok('폴더를 여는 길: 이름으로 열고, 열면 바로 쓰고, 닫히고, 승인을 탄다');
+  } catch (e) {
+    bad(`폴더 열기 경로 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ④ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
 let deferred = 0;
 {

@@ -61,9 +61,11 @@ export async function resolveInScope(target, opts = {}) {
   const base = roots[0];
   // 상대 경로는 첫 루트 기준으로 푼다(사용자가 "메모.md"라고만 말해도 되게).
   const abs = isAbsolute(target) ? resolve(target) : resolve(base, target);
-  if (!roots.some((r) => isWithin(r, abs))) throw new ScopeError(abs, roots);
 
-  // 실제 경로(링크 해제)로 재판정 — 여기가 없으면 링크 한 줄로 범위를 벗어난다.
+  // 판정은 **실제 경로 하나로만** 한다. 여기서 문자열로 먼저 걸러 보면 반대 방향으로 틀린다 —
+  // macOS 의 `/var`·`/tmp` 는 `/private/…` 로 가는 링크라, 범위 안인 폴더가 밖으로 보인다
+  // (사용자가 연 임시 폴더가 열자마자 "범위 밖"이 됐다 — 실측). 홈이 외장 볼륨이면 같은 일이 난다.
+  // 아래 루프가 링크를 풀어 **좁게** 판정하므로 안전은 그대로다.
   let probe = abs;
   for (;;) {
     try {
@@ -74,7 +76,9 @@ export async function resolveInScope(target, opts = {}) {
     } catch (e) {
       if (e?.isScopeError) throw e;
       const parent = resolve(probe, '..');
-      if (parent === probe) return abs; // 루트까지 올라가도 없으면 문자열 판정으로 통과된 abs
+      // 루트(`/`)까지 올라가도 못 풀면 판정할 근거가 없다. **모르면 막는다** — 여기서 통과시키면
+      // 위 판정이 통째로 비어 버린다(사전 문자열 검사를 걷어낸 뒤로 이 줄이 유일한 구멍이었다).
+      if (parent === probe) throw new ScopeError(abs, roots);
       probe = parent;
     }
   }
