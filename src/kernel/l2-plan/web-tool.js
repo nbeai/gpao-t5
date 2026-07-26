@@ -55,7 +55,9 @@ const MAX_DEPTH_CAP = 2;
  * @returns {{ok:boolean, reason?:string, normalized?:object}}
  */
 export function validateWebInput(input = {}) {
-  const hasTarget = (typeof input.url === 'string' && input.url) || (typeof input.searchQuery === 'string' && input.searchQuery);
+  // Phase 0-2: 검색어도 대상이다(주소가 없으면 찾아서 읽는다). query·searchQuery·request 를 모두 받는다.
+  const q = input.searchQuery ?? input.query ?? input.request;
+  const hasTarget = (typeof input.url === 'string' && input.url) || (typeof q === 'string' && q.trim());
   if (!hasTarget) return { ok: false, reason: 'url 또는 searchQuery 필요' };
   const maxPages = Math.min(Number(input.maxPages ?? 1) || 1, MAX_PAGES_CAP); // 대량수집 금지
   const depth = Math.min(Number(input.depth ?? 0) || 0, MAX_DEPTH_CAP);

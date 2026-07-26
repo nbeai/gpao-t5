@@ -55,6 +55,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
     timeoutMs: processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS ? Number(processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS) : undefined,
   });
   const model = modelConnection.model;
+  const modelSupportsSearch = () => modelConnection.supportsSearch();
   const modelDoctor = () => modelConnection.doctor();
 
   const senders = {
@@ -68,5 +69,5 @@ export function liveDeps(processEnv = {}, deps = {}) {
   });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
-  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor, modelConnection };
+  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor, modelConnection, modelSupportsSearch };
 }

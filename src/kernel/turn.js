@@ -151,7 +151,10 @@ export async function runTurn(input, ctx) {
   if (intent.answerMode === 'fast_chat') {
     const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, ...selfhood });
     // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
-    const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
+    // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
+  // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
+  const wantedWeb = Boolean(intent.neededTools?.includes('web.collect'));
+  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta, search: wantedWeb });
     return {
       kind: 'reply',
       reply,
@@ -168,7 +171,13 @@ export async function runTurn(input, ctx) {
   // 4) complex path — 계획 → 권한 게이트 → 실행 → 원장.
   // P6-15: 승인 모드(세션 설정). 저위험 통과 강도만 조절하고 안전 바닥은 불변. 미설정 시 smart.
   const approvalMode = ctx.approvalMode ?? DEFAULT_APPROVAL_MODE;
-  const plan = buildActionPlan({ intent, selfState, mode: approvalMode });
+  // Phase 0-2: 모델이 내장 검색을 하면 T5 가 같은 일을 또 하지 않는다(중복 실행·실패 원장 방지).
+  //   실사용에서 1층이 답을 만들었는데 2층도 돌아 "로그인이 필요한 페이지예요"가 원장에 남았다.
+  //   OpenClaw 도 내장 검색이 있으면 관리형 검색 도구를 억제한다(같은 원리).
+  const planIntent = ctx.modelSupportsSearch && intent.neededTools?.includes('web.collect')
+    ? { ...intent, neededTools: intent.neededTools.filter((id) => id !== 'web.collect') }
+    : intent;
+  const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
   //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
@@ -325,7 +334,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   const tc = buildTaskContext({ intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, ...(ctx.selfhood ?? {}) });
-  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta });
+  // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
+  // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
+  const wantedWeb = Boolean(intent.neededTools?.includes('web.collect'));
+  const reply = await ctx.model.respond(tc, { onDelta: ctx.onAnswerDelta, search: wantedWeb });
   const projection = projectReceipts(turnReceipts);
 
   return {

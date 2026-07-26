@@ -58,7 +58,9 @@ function inferTools(t) {
   const tools = [];
   if (/메일|이메일/.test(t)) tools.push('mail.send');
   if (/슬랙|slack/i.test(t)) tools.push('slack.post');
-  if (/파일|폴더|정리|이동|옮겨|\.md|\.txt|\.csv|저장해|적어|메모|되돌려|복구|취소해/.test(t)) tools.push('local.file');
+  // 파일 도구는 **파일·폴더가 명시될 때만**. "정리해줘" 같은 일반어로 부르면 엉뚱한 도구가 돈다
+  // (실사용: "AI 뉴스 조사해서 정리해줘"에 파일 도구가 돌아 원장에 "그 폴더는 비어 있어요"가 남았다).
+  if (/파일|폴더|\.md|\.txt|\.csv|메모|되돌려|복구|취소해|저장해 ?줘/.test(t)) tools.push('local.file');
   if (/조사|검색|수집|가져와|불러와|뉴스|환율/.test(t)) tools.push('web.collect');
   return tools.length ? tools : undefined;
 }

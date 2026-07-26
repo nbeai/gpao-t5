@@ -89,6 +89,7 @@ export function makeChatGptModelClient(deps) {
   const modelId = deps.modelId ?? CHATGPT_DEFAULT_MODEL;
   return {
     /** @param {*} tc @param {{onDelta?:(t:string)=>void}} [opts] 조각은 화면용 미리보기(저장 안 함) */
+    /** 내장 검색을 켤 수 있다(1층). 모델이 자기 인프라로 찾아 읽으므로 스크래핑 차단에 안 걸린다. */
     async respond(tc, opts = {}) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
@@ -108,6 +109,8 @@ export function makeChatGptModelClient(deps) {
               model: modelId,
               instructions: m.system,
               input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
+              // Phase 0-2 1층: 웹이 필요한 턴에만 내장 검색을 켠다(실측 확인: 이 백엔드는 web_search 지원).
+              ...(opts.search ? { tools: [{ type: 'web_search' }] } : {}),
               stream: true,   // 이 백엔드는 스트림만 받는다
               store: false,   // 대화 저장 안 함(사용자 데이터 최소)
             }),
