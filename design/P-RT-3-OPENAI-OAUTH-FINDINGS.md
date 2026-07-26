@@ -1,6 +1,29 @@
-# P-RT-3 · OpenAI OAuth — 사전 조사 결과 (구현 전 오너 결정 필요)
+# P-RT-3 · OpenAI OAuth — 사전 조사 결과 및 결정
 
-날짜: 2026-07-26 · 상태: **조사 완료, 구현 보류(리스크 결정 대기)**
+날짜: 2026-07-26 · 상태: **오너 결정 A — T3 방식(ChatGPT OAuth)으로 구현**
+
+## 결정 경위 (정정 포함)
+
+최초 보고에서 "안 된다"로 들리게 전달했으나 정정: **T3 가 지금 쓰는 방식이 바로 선택지 A**다.
+T3 실물(dist) 실측으로 확인 — `openai-chatgpt-oauth-flow.runtime`(auth.openai.com·PKCE·
+localhost:1455)·`chatgpt.com/backend-api/codex` 와이어·`gpt-5.x-codex` 카탈로그가 실제 구현·
+사용 중이다. 오너는 이 리스크(비공식·차단 가능)를 이미 T3 에서 감수하며 사용하고 있고,
+같은 방식의 T5 착지를 재가했다(2026-07-26). 화면에 비공식 경로 고지 1줄을 유지한다.
+
+## T5 구현 계약 (T3 원리 흡수, 코드 복제 금지)
+
+- OAuth: authorize `auth.openai.com/oauth/authorize` · token 동 `/oauth/token` ·
+  client_id `app_EMoamEEZ73f0CkXaXp7hrann` · redirect `http://localhost:1455/auth/callback` ·
+  scope `openid profile email offline_access` · PKCE S256 + state.
+- 계정: id_token(JWT) claim `https://api.openai.com/auth`.chatgpt_account_id → 요청 헤더
+  `chatgpt-account-id` 로 전달.
+- 와이어: `POST https://chatgpt.com/backend-api/codex/responses` — Responses 셰이프
+  (`instructions`+`input[message]`), **stream 필수**(SSE 누적 후 단발 응답으로 환원), store:false.
+  기본 모델 `gpt-5.3-codex`(T3 카탈로그 최신).
+- 토큰 수명: 만료 임박 시 refresh_token 으로 선제 갱신·재저장(0600 저장소 재사용).
+  doctor 는 refresh 성공 여부로 검증(모델 목록 endpoint 없음 — 과금 0 유지).
+- 검증 한계(정직): **실 로그인 E2E 는 오너의 브라우저 로그인 1회가 필요** — 자동화가 계정
+  로그인을 대행하지 않는다(안전 원칙). 그 전까지 해당 경로는 "적용했으나 미검증".
 
 ## 실측·조사로 확인된 사실
 

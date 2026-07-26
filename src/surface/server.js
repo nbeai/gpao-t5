@@ -578,6 +578,27 @@ export function makeServer(deps = {}) {
         const input = JSON.parse((await readBody(req)) || '{}');
         return sendJson(res, 200, await deps.modelConnection.connect(input));
       }
+      // ── ChatGPT 계정 연결 (P-RT-3) ── 로그인은 사용자가 브라우저에서 직접 한다(주소만 제공).
+      //   비공식 경로임을 화면에 고지한다. 토큰은 응답에 절대 싣지 않는다.
+      if (req.method === 'POST' && url === '/model/chatgpt/login') {
+        if (!deps.modelConnection?.startChatGptLogin) return sendJson(res, 400, { error: '이 구성에서는 계정 연결을 쓸 수 없어요.' });
+        try {
+          return sendJson(res, 200, await deps.modelConnection.startChatGptLogin());
+        } catch (err) {
+          console.error('[oauth:diagnostic]', err?.stack ?? err);
+          return sendJson(res, 200, { error: '로그인 창을 열지 못했어요(다른 로그인이 진행 중일 수 있어요).' });
+        }
+      }
+      if (req.method === 'POST' && url === '/model/chatgpt/await') {
+        if (!deps.modelConnection?.awaitChatGptLogin) return sendJson(res, 400, { error: '이 구성에서는 계정 연결을 쓸 수 없어요.' });
+        const r = await deps.modelConnection.awaitChatGptLogin();
+        // 실패 원문은 진단용 — 사용자에겐 사용자 언어만.
+        return sendJson(res, 200, {
+          connected: r.connected,
+          userSafeSummary: r.connected ? '연결됐어요. 이제 ChatGPT 계정으로 답해요.' : '연결을 완료하지 못했어요.',
+          nextSafeAction: r.connected ? undefined : '다시 시도해 주세요.',
+        });
+      }
       if (req.method === 'POST' && url === '/model/disconnect') {
         if (!deps.modelConnection) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
         return sendJson(res, 200, await deps.modelConnection.disconnect());

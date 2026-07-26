@@ -98,6 +98,12 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-RT-3 반영(근거: `P-RT-3-OPENAI-OAUTH-FINDINGS`, 오너 재가 A + 로그인 시작 경로 라이브 실측): §6.25
+  ChatGPT Account Connect — 사용자의 ChatGPT 계정으로 모델 사용(T3 가 실제로 쓰는 원리를 T5 계약으로 흡수,
+  코드 복제 아님). PKCE(S256)+state, localhost:1455 콜백 1회, 토큰 교환·선제 refresh·회전 유지, Codex 백엔드
+  Responses 와이어(stream 누적·store:false·chatgpt-account-id). **비공식 경로 — 화면 고지 유지**, 토큰은 0600
+  저장소에만(status 는 마스킹조차 없이 "ChatGPT 계정"). doctor 는 refresh 성공으로 검증(과금 0). 활성은 항상
+  하나(키 연결이 오면 계정 연결 후퇴). **실 계정 로그인 E2E 는 오너 브라우저 승인 필요 — 미검증으로 남김.**
 - P-RT-4 반영(근거: `P-RT-4-MODEL-CONNECT-UX`, 조건부 반려 blocker 2건 해소 후 병합 + 전 여정 라이브 실측):
   §6.24 Model Connect UX — 화면에서 키 연결. 검증 통과(usable)만 저장(0600, 덮어쓰기 포함 chmod 보장 —
   감사 B1)·활성화(핫스왑), 실패 키는 기존 연결 불가침. 우선순위 저장>env>stub. 저장 연결 복원은 **listen
@@ -784,8 +790,36 @@ beai(beai-8.6) 라이브 실측 — evidenceFacts 가 실모델 답변에 반영
   `GET /model/connection`(마스킹 status)·`POST /model/disconnect`. 안티 대시보드(열 때만).
 - **라이브 실증**: env 없이 부팅→연결→즉시 실모델 턴→재시작 첫 응답부터 saved→가짜 키 거부·기존
   유지→해제→stub. 브라우저: 패널 렌더·마스킹 표시·해제 버튼 실클릭.
-- **후속**: P-RT-3 OpenAI OAuth(이 표면 위에) · keychain 등 OS 보안 저장소 · 다중 연결 보관·전환 ·
+- **후속**: P-RT-3 OpenAI OAuth(→ §6.25 로 착지) · keychain 등 OS 보안 저장소 · 다중 연결 보관·전환 ·
   해제 직후 하단 상태줄 즉시 갱신(현재는 다음 턴에 갱신).
+
+### 6.25 ChatGPT Account Connect (P-RT-3, 구현됨 — 계정으로 모델 사용, 비공식 경로 고지)
+
+근거: 오너 지시(OpenAI OAuth 기본 지원)·오너 재가(2026-07-26, 선택지 A)·`P-RT-3-OPENAI-OAUTH-FINDINGS`.
+사실 정정: 공식 서드파티 구독-사용 OAuth 는 없고, **T3 가 실제로 쓰는 비공식 경로**가 그 방식이다.
+T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(코드 복제 아님).
+
+- **로그인**: PKCE(S256)+state → `auth.openai.com/oauth/authorize` → 사용자가 **직접** 브라우저에서
+  승인 → `localhost:1455/auth/callback` 1회 수신(state 불일치·타임아웃은 거절) → 코드 교환.
+  우리는 주소만 열어 준다 — 계정 입력을 대행하지 않는다(안전 원칙).
+- **와이어**: `chatgpt.com/backend-api/codex/responses`(플랫폼 API 아님) — Responses 셰이프,
+  `stream:true` SSE 누적 후 단발 반환(사고 원문 미노출), `store:false`, `chatgpt-account-id` 헤더는
+  id_token claim 에서 파생. 기본 모델 `gpt-5.3-codex`. 같은 ModelClient 계약이라 turn·타임아웃·doctor 공용.
+- **토큰**: 0600 저장소에만. 만료 60s 전 선제 refresh·재저장, refresh 회전 시 새 값 유지. status 는
+  마스킹조차 하지 않고 "ChatGPT 계정"만 — 토큰·refresh 는 어떤 응답에도 없다(테스트로 고정).
+- **무한 대기 금지(감사 B1)**: 콜백 리스너의 취소·타임아웃은 **반드시 대기(waitForCode)를 거부**한다
+  (멱등). 로그인 재시작·연결 해제가 진행 중 로그인을 닫아도 `/model/chatgpt/await` 가 매달리지 않는다 —
+  T3 "갑자기 멈춤" 계열 재발 지점.
+- **턴 중 갱신 실패도 자격 실패로(감사 B2)**: 실행 중 refresh 실패는 `env.model` 을 auth_failed 로 내리고
+  `ModelProviderError(chatgpt_oauth)` 로 정규화해 기존 오류 경로를 탄다 — 칩이 "준비됨"으로 거짓말하지
+  않는다(§6.23 두 축). 원문 토큰·detail 은 공개면에 나가지 않는다.
+- **doctor**: 모델 목록 endpoint 가 없으므로 refresh 성공 여부로 검증(과금 0). 실패는 정규 토큰 보강 후
+  classifyModelAuth 로 auth_failed → 칩·limits 에 "다시 로그인" 안내(§6.23 두 축 계약 그대로).
+- **경계**: 활성 연결은 항상 하나(키 연결이 오면 계정 연결 후퇴). **비공식 경로임을 화면에 고지**하고,
+  차단되면 정직하게 실패한다(§6.20 회복 표면).
+- **검증 한계(정직)**: 실 계정 로그인 E2E 는 오너의 브라우저 승인 1회가 필요 — 자동화가 계정 로그인을
+  대행하지 않는다. 로그인 시작(authorize URL 구성·콜백 리스너)·토큰/와이어/저장/복원은 실측·테스트 완료.
+- **후속**: 오너 실 로그인 E2E · 모델 선택(codex 계열) UI · keychain 저장.
 
 ---
 
