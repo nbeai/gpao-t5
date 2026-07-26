@@ -17,6 +17,8 @@ import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { ModelConnectionStore } from './model-connection.js';
+import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
+import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
@@ -74,6 +76,7 @@ export function makeServer(deps = {}) {
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
+  const onboardingStore = deps.onboardingStore ?? new OnboardingStore(store.dir); // P-ONB-2 단일 진실
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
@@ -560,6 +563,54 @@ export function makeServer(deps = {}) {
           readiness: connectorReadiness(p), sendNeedsApproval: sendNeedsApproval(),
         }));
         return sendJson(res, 200, { connectors });
+      }
+      // ── 첫 실행 온보딩 (P-ONB-2) ── **서버측 단일 진실**: 연결 0개 && 건너뛴 적 없음일 때만 필요.
+      //   URL 쿼리로 판정하지 않는다(T3 실사고). 건너뛰기는 영속 — 다시 조르지 않는다.
+      if (req.method === 'GET' && url === '/onboarding') {
+        const state = await onboardingStore.load();
+        const connStatus = deps.modelConnection?.status?.() ?? {};
+        return sendJson(res, 200, {
+          needed: onboardingNeeded(state, connStatus),
+          skipped: Boolean(state.skippedAt),
+          seenWelcome: Boolean(state.seenWelcome),
+          canConnect: Boolean(deps.modelConnection),
+        });
+      }
+      if (req.method === 'POST' && url === '/onboarding/skip') {
+        await onboardingStore.patch({ skippedAt: new Date().toISOString() });
+        return sendJson(res, 200, { ok: true, needed: false });
+      }
+      // ── 웰컴/첫 응답 (P-ONB-2) ── 인사말은 모델이 만든다(하드코딩 아님). 미연결이면 지어내지 않는다.
+      if (req.method === 'POST' && url === '/welcome') {
+        const { sessionId } = JSON.parse((await readBody(req)) || '{}');
+        const connStatus = deps.modelConnection?.status?.() ?? {};
+        const selfState = buildSelfState(env);
+        let result;
+        try {
+          result = await makeWelcome({ model, selfState, connected: Boolean(connStatus.connected) });
+        } catch (err) {
+          // 모델이 실패해도 인사를 지어내지 않는다 — 정직하게 안내한다(§6.20 회복 표면).
+          console.error('[welcome:diagnostic]', err?.stack ?? err);
+          return sendJson(res, 200, {
+            state: 'not_connected',
+            userSafeSummary: '지금은 모델에 연결하지 못했어요.',
+            nextSafeAction: '모델 연결을 확인하면 이어서 도와드릴게요.',
+          });
+        }
+        if (result.state === 'greeted') {
+          if (typeof sessionId === 'string') {
+            // 숨은 지시는 남기지 않는다 — 사용자 발화로 위장하지 않는다. assistant 결과만 지속.
+            const session = await store.load(sessionId);
+            if (session) {
+              session.transcript.push({ role: 'assistant', result: { kind: 'reply', reply: result.text } });
+              await store.save(session);
+            }
+          }
+          // **인사를 실제로 한 경우에만** 1회성 표식을 남긴다(라이브 실측에서 발견: 미연결 상태로
+          // 한 번 열었다고 표식이 켜지면, 나중에 연결해도 첫인사를 영영 못 받는다).
+          await onboardingStore.patch({ seenWelcome: true });
+        }
+        return sendJson(res, 200, result);
       }
       // ── 모델 doctor (P-RT-2) ── "구성됨→검증됨". 요청 시 재검증(과금 없는 목록 GET), 사용자 언어 리포트.
       //   doctor 미배선 구성(demo 등)은 검증 안 됨을 검증됨처럼 말하지 않는다(stub/unverified).

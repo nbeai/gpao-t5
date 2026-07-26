@@ -1041,13 +1041,54 @@ send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
 text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
 
-// 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다.
+// ── 첫 실행 온보딩 (P-ONB-2) ── 새 화면을 만들지 않는다. 모델 연결 패널을 펼쳐 두고
+//   "무엇을 얻는지" 언어로 한 줄 안내 + 건너뛰기. 서버가 needed 를 판정한다(URL 쿼리 아님).
+async function maybeRunOnboarding() {
+  const ob = await (await fetch('/onboarding')).json().catch(() => null);
+  if (!ob?.needed || !ob.canConnect) return false;
+  statePanel.style.display = 'block';
+  await refreshOverview();
+  await renderModelConnect();
+  const box = document.getElementById('modelConnect');
+  if (box && !document.getElementById('obNote')) {
+    const note = document.createElement('div');
+    note.id = 'obNote';
+    note.style.cssText = 'margin:0 0 6px; font-size:12px;';
+    note.innerHTML = '<b>먼저 쓸 모델을 연결해요.</b> 하나만 연결하면 바로 대화를 시작할 수 있어요. '
+      + '<button id="obSkip" style="font-size:11px; padding:1px 6px;">나중에 할게요</button>';
+    box.prepend(note);
+    document.getElementById('obSkip').onclick = async () => {
+      await fetch('/onboarding/skip', { method: 'POST' });
+      note.remove();
+      statePanel.style.display = 'none';
+    };
+  }
+  return true;
+}
+
+// 연결 후 첫 인사 — 문구는 모델이 만든다(하드코딩 아님). 미연결이면 인사를 만들지 않는다.
+async function maybeWelcome(sessionId) {
+  const ob = await (await fetch('/onboarding')).json().catch(() => null);
+  if (!ob || ob.seenWelcome) return;
+  const conn = await (await fetch('/model/connection')).json().catch(() => null);
+  if (!conn?.connected) return; // 인사를 지어내지 않는다(fail-closed)
+  const r = await (await fetch('/welcome', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId }),
+  })).json().catch(() => null);
+  if (r?.state === 'greeted' && r.text) renderResult({ kind: 'reply', reply: r.text }, {});
+}
+
+// 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
 (async () => {
   try {
     const { sessions } = await (await fetch('/sessions')).json();
     if (sessions.length) await selectSession(sessions[0].id);
     else await newSession();
   } catch { await newSession(); }
+  try {
+    const onboarding = await maybeRunOnboarding();
+    if (!onboarding && currentSessionId) await maybeWelcome(currentSessionId);
+  } catch { /* 온보딩 실패가 채팅을 막지 않는다 */ }
 })();
 </script>
 </body>

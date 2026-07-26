@@ -23,6 +23,9 @@ import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL } from '../runtime/chatgp
 
 export const DEFAULT_ROLE = 'default';
 
+/** 저장을 거절하는 "확실한 무효"만. 불확실(unreachable·rate_limited)은 저장하되 미검증으로 둔다. */
+export const CERTAINLY_INVALID = Object.freeze(['auth_failed', 'model_missing', 'billing_blocked']);
+
 export function defaultConnectionDir() {
   return process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
 }
@@ -286,7 +289,11 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
         };
       }
       const report = await checkConfigHealth(cfg, { fetchImpl, timeoutMs });
-      if (report.state !== 'usable') {
+      // **확실한 무효만 거절한다**(P-ONB-2, T3·Hermes 공통 교훈): 라이브 프로브 하드블록은 사내
+      // 프록시·지역 차단·일시 rate limit 같은 정상 사용자를 너무 많이 막았다. 확실히 틀린 것
+      // (자격 거부·모델 없음·결제)만 거절하고, 불확실(도달 불가·혼잡)은 저장하되 **검증됨이라
+      // 말하지 않는다** — 거짓 초록 금지(§6.23) 계약은 그대로 지킨다.
+      if (CERTAINLY_INVALID.includes(report.state)) {
         // 저장·활성화 없음 — 잘못된 키가 동작 중인 연결을 깨지 않는다. 원문(authSignal) 미노출.
         const { authSignal, ...publicReport } = report;
         return { connected: false, report: publicReport };
@@ -295,7 +302,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
         kind: 'api_key', provider: cfg.provider, key: cfg.token,
         modelId: cfg.modelId, baseUrl: cfg.baseUrl, addedAt: Date.now(),
       });
-      return { connected: true, report: reflect(report) };
+      const publicReport = reflect(report);
+      return {
+        connected: true,
+        verified: report.state === 'usable', // 저장됐다≠검증됐다
+        report: publicReport,
+      };
     },
 
     /** 보관 중인 연결 목록(마스킹만) + 기본·역할 바인딩. */
