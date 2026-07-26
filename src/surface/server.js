@@ -14,6 +14,8 @@ import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
+import { AllowlistStore } from './allowlist-store.js';
+import { ChannelBindingStore } from './channel-binding-store.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -81,6 +83,9 @@ export function makeServer(deps = {}) {
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
+  // P5-1 채널: 누가 말을 걸 수 있는지(허용목록)와 어느 방이 어느 대화와 이어지는지(연결).
+  const allowlistStore = deps.allowlistStore ?? new AllowlistStore(store.dir);
+  const bindingStoreDefault = new ChannelBindingStore(store.dir);
   const onboardingStore = deps.onboardingStore ?? new OnboardingStore(store.dir); // P-ONB-2 단일 진실
   // P-ID-1 자기인지: SOUL.md · CAPABILITIES.md(사용자 경로). 문서는 부팅 시 읽고, 이름·능력이
   // 바뀌면 갱신한다. 모델에겐 상시 요약만 가고 상세는 물어봤을 때만 간다(turn 이 판단).
@@ -959,46 +964,8 @@ export function makeServer(deps = {}) {
       //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화
       //   → 6 InboundEventGate(mention/allowlist/DM) → 7 respond일 때만 turn → 8 gated/blocked 미기록.
       if (req.method === 'POST' && url === '/channel/inbound') {
-        const input = JSON.parse((await readBody(req)) || '{}');
-        if (typeof input.text !== 'string' || !input.text.trim()) return sendJson(res, 400, { error: '빈 발화' });
-        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
-        const session = await store.load(input.sessionId);
-        if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        // 2·3·4: 등록된 채널이고 연결이 ok일 때만 커널로 넘긴다. 아니면 blocked(미기록).
-        if (typeof input.channel !== 'string' || !input.channel) {
-          return sendJson(res, 200, { kind: 'blocked', reason: 'no_channel' });
-        }
-        const profile = (deps.connectors ?? demoConnectors()).find((c) => c.id === input.channel);
-        if (!profile) return sendJson(res, 200, { kind: 'blocked', reason: 'unknown_channel' });
-        const readiness = connectorReadiness(profile);
-        if (readiness !== 'ok') return sendJson(res, 200, { kind: 'blocked', reason: 'channel_not_ready', readiness });
-
-        // Phase 0-5: 채널이 선언한 수신 정책을 레지스트리에서 읽어 이벤트에 싣는다.
-        //   이게 없으면 게이트가 정책을 볼 수 없어 allowlist_only 채널도 mention 하나로 열린다.
-        const registered = (deps.channels ?? demoChannels()).find((c) => c.id === input.channel);
-        const event = normalizeInboundEvent({
-          ...input,
-          inboundPolicy: registered?.inboundPolicy,
-          connected: readiness === 'ok',
-        }); // 5: 단일 정규화 이벤트
-        const memory = await memStore.load();
-        const ctx = ctxForSession(session, memory);
-        // 6·7: 같은 커널. source=external_channel → InboundEventGate → (respond면) turn.
-        const result = await runTurn({
-          text: input.text, source: 'external_channel',
-          triggerSignals: event.triggerSignals,
-          channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
-        }, ctx);
-        // 8: gated/blocked는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
-        if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
-          session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
-          session.transcript.push({ role: 'assistant', result });
-          session.ledgerEntries = ctx.ledger.entries;
-          session.pendingApprovals = Object.fromEntries(ctx.pending);
-          if (result.goal) session.activeGoal = result.goal;
-          await store.save(session);
-        }
-        return sendJson(res, 200, { ...result, channelMeta: event.channelMeta });
+        const out = await processChannelInbound(JSON.parse((await readBody(req)) || '{}'));
+        return sendJson(res, out.status, out.body);
       }
 
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -1017,7 +984,78 @@ export function makeServer(deps = {}) {
     identity = loaded.identity;
     return { identity, selfhoodDocs };
   };
+  // P5-1: 채널 인바운드 처리는 **한 곳**이다. HTTP 라우트와 수신기가 같은 길을 쓴다 — 두 벌이 되면
+  // 한쪽만 고쳐 놓고 다른 쪽으로 새는 사고가 난다(Phase 0 에서 이미 두 번 겪었다).
+  //   1 발화·세션 → 2 등록된 채널 → 3 연결 ok → 4 허용 발신자(저장된 목록) → 5 정규화
+  //   → 6 InboundEventGate → 7 respond 일 때만 turn → 8 gated/blocked 미기록
+  async function processChannelInbound(input) {
+    const ok = (body) => ({ status: 200, body });
+    if (typeof input.text !== 'string' || !input.text.trim()) return { status: 400, body: { error: '빈 발화' } };
+    if (typeof input.sessionId !== 'string') return { status: 400, body: { error: '세션 없음' } };
+    const session = await store.load(input.sessionId);
+    if (!session) return { status: 404, body: { error: '세션을 찾지 못했어요.' } };
+    if (typeof input.channel !== 'string' || !input.channel) return ok({ kind: 'blocked', reason: 'no_channel' });
+
+    const profile = (deps.connectors ?? demoConnectors()).find((c) => c.id === input.channel);
+    if (!profile) return ok({ kind: 'blocked', reason: 'unknown_channel' });
+    const readiness = connectorReadiness(profile);
+    if (readiness !== 'ok') return ok({ kind: 'blocked', reason: 'channel_not_ready', readiness });
+
+    // Phase 0-5: 채널이 선언한 수신 정책을 레지스트리에서 읽어 이벤트에 싣는다.
+    const registered = (deps.channels ?? demoChannels()).find((c) => c.id === input.channel);
+    // P5-1: 허용 발신자는 **저장된 목록**으로 판정한다. 예전엔 요청 본문의 isAllowlistedUser 를
+    // 그대로 믿어서, 커널의 allowlist_only 분기가 라이브에서 도달 불가능한 코드였다(감사 지적).
+    const allowed = await allowlistStore.isAllowed(input.channel, {
+      userId: input.userId, username: input.username,
+    });
+    const event = normalizeInboundEvent({
+      ...input,
+      isAllowlistedUser: allowed,
+      inboundPolicy: registered?.inboundPolicy,
+      connected: readiness === 'ok',
+    });
+    const memory = await memStore.load();
+    const ctx = ctxForSession(session, memory);
+    const result = await runTurn({
+      text: input.text, source: 'external_channel',
+      triggerSignals: event.triggerSignals,
+      channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
+    }, ctx);
+    if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
+      session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
+      session.transcript.push({ role: 'assistant', result });
+      session.ledgerEntries = ctx.ledger.entries;
+      session.pendingApprovals = Object.fromEntries(ctx.pending);
+      if (result.goal) session.activeGoal = result.goal;
+      await store.save(session);
+    }
+    return ok({ ...result, channelMeta: event.channelMeta });
+  }
+
   server.runtimeTick = () => runTrustedTick({ source: 'trusted_runtime_event' });
+
+  /**
+   * P5-1: 채널 수신기가 부르는 입구. HTTP `/channel/inbound` 와 **같은 커널 길**을 쓰되,
+   * 세션은 방(chatId)에 묶인 것을 쓴다 — 메시지마다 새 대화면 기억이 없는 것과 같다.
+   * @param {{channel:string, chatId:string, userId?:string, username?:string, text:string,
+   *   isDirectMessage?:boolean, isMention?:boolean}} msg
+   */
+  server.handleChannelMessage = async (msg) => {
+    if (!msg?.channel || !msg?.chatId || !String(msg.text ?? '').trim()) {
+      return { kind: 'blocked', reason: 'invalid_message' };
+    }
+    const bindings = deps.bindingStore ?? bindingStoreDefault;
+    let sessionId = await bindings.get(msg.channel, msg.chatId);
+    let session = sessionId ? await store.load(sessionId) : null;
+    if (!session) {
+      // 이 방의 첫 메시지(또는 이어가던 대화가 사라졌다) → 새 대화를 만들어 묶는다.
+      session = await store.create(`${msg.channel} 대화`);
+      await bindings.set(msg.channel, msg.chatId, session.id);
+      sessionId = session.id;
+    }
+    const out = await processChannelInbound({ ...msg, sessionId });
+    return { ...out.body, sessionId };
+  };
   return server;
 }
 

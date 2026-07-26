@@ -15,6 +15,7 @@ import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { defineChannel } from '../src/kernel/l2-plan/channel-registry.js';
 import { defineConnector } from '../src/kernel/l2-plan/connector-profile.js';
+import { AllowlistStore } from '../src/surface/allowlist-store.js';
 
 // ── 커널 게이트: 정책이 판정에 쓰인다 ────────────────────────────────────
 test('allowlist_only 는 mention 만으로 열리지 않는다(정책이 장식이면 여기서 respond 가 된다)', () => {
@@ -66,7 +67,10 @@ const allowlistOnlyDeps = () => {
 async function withServer(fn, deps = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-inbound-'));
   const store = new SessionStore(dir);
-  const server = makeServer({ store, ...deps });
+  // P5-1: 허용 발신자는 **저장된 목록**으로 판정한다(요청 본문의 주장이 아니라).
+  const allowlistStore = new AllowlistStore(dir);
+  await allowlistStore.allow('telegram', { userId: 'u-allowed', label: '오너' });
+  const server = makeServer({ store, allowlistStore, ...deps });
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const session = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
@@ -89,7 +93,7 @@ test('allowlist_only 채널: 목록 밖 발신자는 부르더라도 처리·기
 
 test('allowlist_only 채널: 허용된 발신자만 턴으로 들어가고 대화에 남는다', async () => {
   await withServer(async ({ inbound, transcript }) => {
-    const r = await inbound({ text: '안녕', chatId: 'c9', isAllowlistedUser: true });
+    const r = await inbound({ text: '안녕', chatId: 'c9', userId: 'u-allowed' });
     assert.ok(['reply', 'clarify', 'approval'].includes(r.kind), `실제: ${r.kind}`);
     assert.equal(r.channelMeta.chatId, 'c9', '어느 방에서 온 말인지 잃지 않는다');
     assert.ok((await transcript()).length >= 2);
@@ -98,7 +102,7 @@ test('allowlist_only 채널: 허용된 발신자만 턴으로 들어가고 대�
 
 test('외부에서 들어온 전송 요청도 승인 게이트를 탄다(외부라고 봐주지 않는다)', async () => {
   await withServer(async ({ inbound }) => {
-    const r = await inbound({ text: '슬랙에 회의 시작이라고 올려줘', isAllowlistedUser: true });
+    const r = await inbound({ text: '슬랙에 회의 시작이라고 올려줘', userId: 'u-allowed' });
     assert.notEqual(r.kind, 'reply', '승인 없이 보내면 안 된다');
     assert.ok(['approval', 'clarify'].includes(r.kind), `실제: ${r.kind}`);
   }, allowlistOnlyDeps());
