@@ -76,7 +76,8 @@ export function buildModelMessages(tc) {
   if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);
   if (tc.evidenceFacts?.length) {
     usr.push(`[이번 턴 실행 사실]\n${tc.evidenceFacts
-      .map((f) => `- ${f.summary}${f.failureState !== 'none' ? ` (미확인: ${f.failureState})` : ''}`)
+      .map((f) => `- ${f.summary}${f.failureState !== 'none' ? ` (미확인: ${f.failureState})` : ''}`
+        + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }
   usr.push(tc.currentRequest); // 원문 보존

@@ -20,6 +20,7 @@ import { detectCandidate, admittedContext, isRelevant } from './l1-intent/contex
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
+import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -159,26 +160,35 @@ export async function runTurn(input, ctx) {
     };
   }
 
-  // 3) fast path — 도구·외부효과 없음. 무겁게 태우지 않는다(자연스러움 보존).
-  if (intent.answerMode === 'fast_chat' && !influence) {
-    const tc = buildTaskContext({ intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...selfhood });
-    // P-STR-1: 조각은 화면용 미리보기로만 흘린다 — 커널은 저장하지 않는다(진실은 완성 결과).
-    // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
-  // 읽으므로 스크래핑 차단(robots·로그인벽)에 걸리지 않는다 — 실측에서 2층은 자주 막혔다.
-  // 모델이 스스로 찾을 수 있으면 **켜 두고 모델이 판단하게 한다.** 예전엔 우리 말귀가 web.collect
-  // 를 골랐을 때만 켜서, "오늘 날씨 알려줘"처럼 검색 신호가 없는 말에는 모델이 도구 없이 답하다가
-  // "웹 조회가 연결되어 있지 않습니다"라고 했다 — 되는데 못 한다고 말한 것이다(오너 실사용).
-  // 우리가 목록으로 미리 맞히려 하면 날씨·환율·뉴스… 사례가 끝없이 늘어난다(누더기 금지).
-  const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-  const reply = await ctx.model.respond(tc, {
-    onDelta: ctx.onAnswerDelta,
-    search: wantedWeb,
-    // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
-    effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
-  });
+  // P2-5b: **도구 선택을 모델에게.** 분기 전에 한 번 묻는다 — 정규식(answerMode)이 "행동이 아니다"라고
+  // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
+  // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
+  let modelChosen = null;
+  let earlyReply = null;
+  {
+    const tc = buildTaskContext({
+      intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
+      nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId, ...selfhood,
+    });
+    // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
+    const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
+    const out = await ctx.model.respond(tc, {
+      onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
+      search: wantedWeb,
+      // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
+      effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
+      tools: toolSchemasFor(selfState),
+    });
+    earlyReply = typeof out === 'string' ? out : out?.text ?? '';
+    const chosen = typeof out === 'string' ? [] : (out?.toolCalls ?? []);
+    if (chosen.length) modelChosen = chosen;
+  }
+
+  // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
+  if (!modelChosen && intent.answerMode === 'fast_chat' && !influence) {
     return {
       kind: 'reply',
-      reply,
+      reply: earlyReply,
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
@@ -205,6 +215,16 @@ export async function runTurn(input, ctx) {
   // **승인 판정과 실행 인자는 같은 파싱 하나에서 나와야 한다.** 예전엔 승인은 `intent.fileOp` 를,
   // 실행 인자는 아래에서 원문을 다시 파싱해 만들었다. 스킬이 `local.file` 을 밀어 넣으면 fileOp 가
   // 없어 권한은 read 로 통과하는데 실행은 delete 를 했다 — 두 진실이 갈라진 자리에서 안전 바닥이 샜다.
+  // P2-5b: 모델이 고른 도구가 있으면 **그것이 우선**이다. 정규식은 모델이 못 고를 때의 폴백이다
+  // (모델 미연결·도구 호출 미지원 provider). 판정·승인·실행은 아래 그대로 — 경계는 안 바뀐다.
+  let modelToolArgs;
+  if (modelChosen?.length) {
+    const parts = callsToIntentParts(modelChosen);
+    if (parts.neededTools.length) {
+      planIntent = { ...planIntent, neededTools: parts.neededTools, fileOp: parts.fileOp ?? planIntent.fileOp };
+      modelToolArgs = parts.toolArgs;
+    }
+  }
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
     planIntent = { ...planIntent, fileOp: parseFileRequest(input.text ?? '') };
   }
@@ -253,7 +273,11 @@ export async function runTurn(input, ctx) {
   }
   const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
   if (sendGrant) {
-    const parsed = parseSend(input.text ?? '', sendGrant.action);
+    // P2-5b: 모델이 보낼 내용·대상을 이미 골랐으면 그것을 쓴다(문장 재파싱보다 정확하다).
+    const fromModel = modelToolArgs?.[sendGrant.action];
+    const parsed = fromModel?.text
+      ? { text: fromModel.text, message: fromModel.text, target: fromModel.target, ambiguous: !fromModel.target, clarifyReason: fromModel.target ? null : 'no_target' }
+      : parseSend(input.text ?? '', sendGrant.action);
     // P6-11: 대상이 없지만 학습된 기본 대상(승인·replay 통과분)이 있으면 채운다 → 다음부터 "어디로?" 질문 축소.
     //   승인(A2)은 그대로다. broad memory, narrow influence: 승격된 좁은 것만 영향을 준다.
     if (parsed.clarifyReason === 'no_target') {
@@ -381,12 +405,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // "웹 조회가 연결되어 있지 않습니다"라고 했다 — 되는데 못 한다고 말한 것이다(오너 실사용).
   // 우리가 목록으로 미리 맞히려 하면 날씨·환율·뉴스… 사례가 끝없이 늘어난다(누더기 금지).
   const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-  const reply = await ctx.model.respond(tc, {
+  // 최종 답변 호출에도 도구 목록을 함께 준다. 안 주면 모델이 "그 도구가 노출되어 있지 않다"고
+  // 말한다 — 방금 그 도구로 실행해 놓고서(실측). 결과는 위 [이번 턴 실행 사실]로 이미 들어가 있다.
+  const finalOut = await ctx.model.respond(tc, {
     onDelta: ctx.onAnswerDelta,
     search: wantedWeb,
-    // 가벼운 대화는 낮은 추론 강도로 빠르게. 도구가 걸린 일은 모델이 더 생각하게 둔다.
-    effort: intent.answerMode === 'fast_chat' ? 'low' : 'medium',
+    effort: 'medium',
+    tools: toolSchemasFor(selfState),
   });
+  const reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
   const projection = projectReceipts(turnReceipts);
 
   return {

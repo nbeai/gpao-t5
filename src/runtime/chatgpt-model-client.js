@@ -8,6 +8,9 @@ import { buildModelMessages } from './model-provider.js';
 
 export const CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex/responses';
 
+/** 이 백엔드가 받는 도구 이름 형태(`^[a-zA-Z0-9_-]+$`). 커널의 도구 id 와 1:1 로 오간다. */
+export const wireToolName = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
 /** 대화 이력 → Responses 입력 아이템. 이 셰이프는 사용자면 input_text, 모델면 output_text 다. */
 export function responsesHistory(m) {
   return (m?.history ?? []).map((h) => (h.role === 'assistant'
@@ -43,6 +46,25 @@ export function textDeltaFromLine(line, { allowCompleted = true } = {}) {
   return null;
 }
 
+/**
+ * SSE 한 줄에서 **모델이 고른 도구 호출**을 뽑는다. Responses 셰이프는 완료된 output item 으로 온다.
+ * 인자가 깨졌으면 버린다 — 반쪽 인자로 실행하면 엉뚱한 일을 한다(지어내지 않는다).
+ */
+export function toolCallFromLine(line) {
+  if (!line.startsWith('data:')) return null;
+  const payload = line.slice(5).trim();
+  if (!payload || payload === '[DONE]') return null;
+  let ev;
+  try { ev = JSON.parse(payload); } catch { return null; }
+  const item = ev?.item ?? (ev?.type === 'response.completed'
+    ? (ev.response?.output ?? []).find((o) => o.type === 'function_call')
+    : null);
+  if (!item || item.type !== 'function_call' || !item.name) return null;
+  let args = {};
+  try { args = item.arguments ? JSON.parse(item.arguments) : {}; } catch { return null; }
+  return { name: item.name, args, callId: item.call_id };
+}
+
 /** 전체 SSE 본문에서 최종 텍스트를 누적한다(비스트리밍 경로·테스트용). */
 export function accumulateResponsesText(raw) {
   const out = [];
@@ -61,7 +83,7 @@ export function accumulateResponsesText(raw) {
  * 조각은 **화면용 미리보기**다 — 저장하지 않는다. 최종 텍스트는 반환값이 진실.
  * @param {ReadableStream|null} body @param {(t:string)=>void} [onDelta]
  */
-export async function readTextStream(body, onDelta) {
+export async function readTextStream(body, onDelta, collected) {
   if (!body?.getReader) return '';
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -75,6 +97,9 @@ export async function readTextStream(body, onDelta) {
     const lines = buf.split('\n');
     buf = lines.pop() ?? ''; // 마지막 조각은 미완일 수 있다 — 다음 청크와 이어 붙인다
     for (const line of lines) {
+      // P2-5b: 모델이 고른 도구 호출도 함께 거둔다(텍스트만 보던 것을 넓힌다).
+      const call = toolCallFromLine(line);
+      if (call && collected) collected.push(call);
       const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
       if (piece == null) continue;
       if (line.includes('output_text.delta')) sawDelta = true;
@@ -99,6 +124,7 @@ export function makeChatGptModelClient(deps) {
     /** 내장 검색을 켤 수 있다(1층). 모델이 자기 인프라로 찾아 읽으므로 스크래핑 차단에 안 걸린다. */
     async respond(tc, opts = {}) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
+      const toolCalls = []; // 모델이 고른 도구(있으면 호출자가 승인·실행 경로로 태운다)
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
       const controller = new AbortController();
       let status, raw, whole;
@@ -119,10 +145,21 @@ export function makeChatGptModelClient(deps) {
               // 다른 provider 와이어는 고쳐 놓고 이 경로를 빼먹었다(같은 계약, 다른 셰이프).
               input: [...responsesHistory(m), { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
               // Phase 0-2 1층: 내장 검색(§24 — 켜 두고 쓸지는 모델이 판단).
-              ...(opts.search ? { tools: [{ type: 'web_search' }] } : {}),
+              ...(opts.search && !opts.tools?.length ? { tools: [{ type: 'web_search' }] } : {}),
               // 추론 강도는 **속도 다이얼**이다(모델의 판단을 규칙으로 묶는 것과 다르다).
               // 일상 대화까지 높은 강도로 돌면 한 마디에 1분 넘게 걸린다 — 실측 1m52s(오너 지적).
               ...(opts.effort ? { reasoning: { effort: opts.effort } } : {}),
+              // P2-5b: 도구 **선택**을 모델에게 넘긴다. 실행·승인·기록은 그대로 런타임이 한다.
+              ...(opts.tools?.length ? {
+                tools: [
+                  ...(opts.search ? [{ type: 'web_search' }] : []),
+                  // 이 백엔드는 도구 이름에 `^[a-zA-Z0-9_-]+$` 만 허용한다 — `local.file` 의 점이 400 을
+                  // 낸다(라이브 실측). 와이어에서만 안전한 이름으로 바꾸고 응답에서 되돌린다.
+                  ...opts.tools.map((t) => ({
+                    type: 'function', name: wireToolName(t.name), description: t.description, parameters: t.parameters,
+                  })),
+                ],
+              } : {}),
               stream: true,   // 이 백엔드는 스트림만 받는다
               store: false,   // 대화 저장 안 함(사용자 데이터 최소)
             }),
@@ -131,7 +168,7 @@ export function makeChatGptModelClient(deps) {
           // 성공이면 **읽으면서 흘린다**(다 모으고 넘기지 않는다 — 체감 지연의 원인이었다).
           // 실패면 진단을 위해 본문을 통째로 읽는다(짧다).
           if (r.status >= 200 && r.status < 300 && r.body?.getReader) {
-            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta) };
+            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta, toolCalls) };
           }
           return { status: r.status, raw: await r.text(), whole: true };
         }, timeoutMs, controller));
@@ -151,8 +188,17 @@ export function makeChatGptModelClient(deps) {
       }
       // 스트리밍 경로면 raw 가 이미 누적된 텍스트다. 통째로 읽은 경우(테스트·비스트림 응답)만 파싱.
       const text = whole ? accumulateResponsesText(raw) : raw;
-      if (!text) throw new ModelProviderError({ provider: 'chatgpt_oauth', status, authSignal: 'empty response stream' });
-      return text;
+      // 도구를 고른 턴은 텍스트가 비어 있을 수 있다 — 그건 빈 응답이 아니라 "손이 필요하다"는 답이다.
+      if (!text && !toolCalls.length) {
+        throw new ModelProviderError({ provider: 'chatgpt_oauth', status, authSignal: 'empty response stream' });
+      }
+      if (!opts.tools?.length) return text;
+      // 와이어 이름 → 커널 도구 id 로 되돌린다(못 되돌리면 그 호출은 버린다 — 모르는 도구는 실행 안 한다).
+      const byWire = new Map(opts.tools.map((t) => [wireToolName(t.name), t.name]));
+      const restored = toolCalls
+        .map((c) => (byWire.has(c.name) ? { ...c, name: byWire.get(c.name) } : null))
+        .filter(Boolean);
+      return { text, toolCalls: restored };
     },
   };
 }

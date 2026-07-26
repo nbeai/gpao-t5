@@ -3,6 +3,17 @@
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 
+/**
+ * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
+ * 안 넣으면 모델이 실행 결과를 못 보고 되묻는다. 진단·내부 구조는 애초에 receipt 에 없다.
+ */
+export function compactResult(result, maxChars = 1200) {
+  if (result == null || typeof result !== 'object') return undefined;
+  const json = JSON.stringify(result);
+  if (!json || json === '{}') return undefined;
+  return json.length > maxChars ? `${json.slice(0, maxChars)}…(생략)` : json;
+}
+
 /** 지금 시각·시간대·지역 — OS 가 아는 사실. 모델이 "오늘"을 알아야 오늘 일을 할 수 있다. */
 export function nowFacts(clock = () => new Date()) {
   const d = clock();
@@ -86,6 +97,9 @@ export function buildTaskContext(p) {
       intended: r.intended,
       failureState: r.failureState,
       summary: r.userSafeSummary, // diagnosticTrace 는 절대 넣지 않는다
+      // 결과의 **알맹이**도 준다. 요약만 주면 모델이 "목록을 붙여달라"고 되묻는다(실측: 파일 목록을
+      // 실제로 읽어 놓고 "도구가 없어 못 본다"고 답했다). 진단면은 여전히 안 넣는다.
+      data: compactResult(r.result),
     }));
   }
 
