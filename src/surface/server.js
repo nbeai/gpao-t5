@@ -618,8 +618,10 @@ export function makeServer(deps = {}) {
         if (deps.modelDoctor) return sendJson(res, 200, await deps.modelDoctor());
         return sendJson(res, 200, describeUnprobedModel(env.model));
       }
-      // ── 모델 연결 (P-RT-4) ── 화면에서 키 연결. 검증 통과(usable)만 저장·활성화 — 실패 키는
-      //   기존 연결을 깨지 않는다. 응답에 원본 키·원문 진단 미노출(마스킹·사용자 언어만).
+      // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 화면에서 키 연결. 저장 정책은 **확실한 무효만 거절**:
+      //   usable 은 검증됨으로 저장·활성, unreachable/rate_limited 는 저장하되 verified:false("모델 확인
+      //   필요"), auth_failed/model_missing/billing_blocked 는 저장하지 않는다(기존 연결 불가침).
+      //   응답에 원본 키·원문 진단 미노출(마스킹·사용자 언어만).
       if (req.method === 'GET' && url === '/model/connection') {
         if (deps.modelConnection) return sendJson(res, 200, deps.modelConnection.status());
         return sendJson(res, 200, { connected: false, source: 'none', provider: null, modelId: null, keyMasked: null });

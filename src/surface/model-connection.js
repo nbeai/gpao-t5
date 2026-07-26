@@ -1,6 +1,8 @@
 // L4 · Model Connection (P-RT-4 → P-ONB-1) — 화면에서 모델을 연결·보관·선택하는 관리자.
 // 핵심 경계:
-//   - **검증 통과(usable)만 저장·활성화**한다. 실패 키는 기존 연결을 깨지 않는다.
+//   - 저장 정책(§6.27 이후): **확실한 무효만 거절**한다. usable 은 검증됨으로 저장·활성,
+//     unreachable/rate_limited 는 저장하되 verified:false("모델 확인 필요"), auth_failed/
+//     model_missing/billing_blocked 는 저장하지 않는다. 실패 키가 기존 연결을 깨지 않는다.
 //   - 여러 연결을 보관하고(P-ONB-1) 그중 하나를 기본으로, 역할(role)별로 다른 연결을 쓸 수 있다.
 //     역할 바인딩은 **선택이지 허용목록이 아니다** — 바인딩이 없으면 조용히 기본으로 간다
 //     (T3 agents.defaults.models allowlist 사고 재발 방지: 목록에 없다고 실행을 막지 않는다).
@@ -275,7 +277,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       return { ...r, pending: false };
     },
 
-    /** 화면 연결: 실검증 통과(usable)만 저장·활성화. 실패면 기존 유지 + 사용자 언어 리포트. */
+    /** 화면 연결: 확실한 무효만 거절(§6.27). 불확실은 저장하되 verified:false. 실패면 기존 유지. */
     async connect(input) {
       const cfg = resolveModelConfigFromInput(input ?? {});
       if (!cfg) {

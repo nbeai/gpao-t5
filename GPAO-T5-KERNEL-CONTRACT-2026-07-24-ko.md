@@ -115,7 +115,7 @@
   저장소에만(status 는 마스킹조차 없이 "ChatGPT 계정"). doctor 는 refresh 성공으로 검증(과금 0). 활성은 항상
   하나(키 연결이 오면 계정 연결 후퇴). **실 계정 로그인 E2E 는 오너 브라우저 승인 필요 — 미검증으로 남김.**
 - P-RT-4 반영(근거: `P-RT-4-MODEL-CONNECT-UX`, 조건부 반려 blocker 2건 해소 후 병합 + 전 여정 라이브 실측):
-  §6.24 Model Connect UX — 화면에서 키 연결. 검증 통과(usable)만 저장(0600, 덮어쓰기 포함 chmod 보장 —
+  §6.24 Model Connect UX — 화면에서 키 연결. 검증 결과에 따라 저장(0600, 덮어쓰기 포함 chmod 보장 —
   감사 B1)·활성화(핫스왑), 실패 키는 기존 연결 불가침. 우선순위 저장>env>stub. 저장 연결 복원은 **listen
   전**(감사 B2 — 재시작 직후 첫 요청부터 저장 모델, startLiveServer 로 추출·테스트). 원본 키·authSignal
   은 어떤 응답에도 미노출(마스킹만). baseUrl 은 http/https·자격증명 금지 검증. 후속: P-RT-3 OAuth·keychain.
@@ -781,14 +781,19 @@ beai(beai-8.6) 라이브 실측 — evidenceFacts 가 실모델 답변에 반영
 - **후속**: P-RT-3 OpenAI OAuth 플로우 · 키 입력·보관 UX(→ §6.24 로 착지) · overview(§6.19) 모델 상태
   통합 검토 · 주기 재검증(TTL) · 자격 실패 턴의 POST 500 사용자 언어화(§6.20 후속과 합류).
 
-### 6.24 Model Connect UX (P-RT-4, 구현됨 — 화면에서 키 연결, 검증 통과만 저장·활성화)
+### 6.24 Model Connect UX (P-RT-4, 구현됨 — 화면에서 키 연결)
+
+> ⚠️ **저장 정책 갱신(§6.27)**: 아래 "usable 만 저장"은 P-RT-4 당시 계약이다. 현재 정본은
+> **확실한 무효만 거절** — `usable`은 검증됨으로 저장·활성화, `unreachable`/`rate_limited`는 저장하되
+> `verified:false`와 "모델 확인 필요"로 표시, `auth_failed`/`model_missing`/`billing_blocked`는 저장하지 않는다.
 
 근거: 오너 지시 잔여분(연결 UX)·연결 전략(개발자-떠넘김 금지)·`P-RT-4-MODEL-CONNECT-UX`.
 감사 조건부 반려 blocker 2건(B1 권한·B2 부팅 순서) 해소 후 병합.
 
 - **핵심**: `model-connection.js` 관리자 — 활성 우선순위 **저장된 사용자 연결 > env(개발자) > stub**,
   respond 는 현재 client 위임(핫스왑 — 재시작 없이 교체). `POST /model/connect` 는 저장 전에
-  doctor(§6.23, 과금 0)로 실검증하고 **usable 만 저장·활성화** — 실패 키는 기존 연결을 깨지 않는다.
+  doctor(§6.23, 과금 0)로 실검증하고 그 결과에 따라 저장한다(정책은 위 갱신 주석·§6.27) — 확실한
+  무효는 저장하지 않으며, 어떤 경우에도 실패 키가 기존 연결을 깨지 않는다.
 - **키 위생**: 저장 파일은 소유자 전용 0600 — **기존 파일 덮어쓰기에서도** 임시 파일→chmod→rename 으로
   보장(B1: writeFile mode 는 생성 시에만 적용, 0644 실측 후 수정). 원본 키는 저장 파일·요청 본문에만
   존재하고 status/connect/health 어떤 응답에도 없다(마스킹 `beai…2790`). authSignal 미노출(§6.23 B2) 유지.
