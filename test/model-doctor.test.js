@@ -100,12 +100,47 @@ test('liveDeps.modelDoctor: 재검증으로 회복되면 표시도 회복된다(
   assert.equal(buildSelfState(d.env).modelAuthState, 'usable');
 });
 
-test('liveDeps.modelDoctor: model_missing 은 자격(authSignal)을 오염시키지 않는다', async () => {
+test('liveDeps.modelDoctor: model_missing — 자격은 오염 없이, 별도 축으로 "준비됨"을 막는다(감사 B1)', async () => {
   const { impl } = fakeFetch(200, { models: [{ name: 'models/gemini-flash-latest' }] });
   const d = liveDeps({ GEMINI_API_KEY: 'g-1', GPAO_T5_MODEL_ID: 'stale-model' }, { fetchImpl: impl });
   const report = await d.modelDoctor();
   assert.equal(report.state, 'model_missing');
-  assert.equal(buildSelfState(d.env).modelAuthState, 'usable'); // 자격은 유효 — 리포트로만 안내
+  const after = buildSelfState(d.env);
+  assert.equal(after.modelAuthState, 'usable');                 // 자격 축은 유효(오염 없음)
+  assert.equal(after.modelHealthState, 'model_missing');        // readiness 축이 진실을 나른다
+  assert.ok(after.limits.some((l) => l.includes('모델 확인 필요')), '한계로 정직 표시');
+  const { selfStateSummary } = await import('../src/kernel/l0-evidence/self-state.js');
+  const summary = selfStateSummary(after);
+  assert.equal(summary.modelHealthState, 'model_missing');      // 칩까지 도달 — "준비됨"으로 남지 못한다
+});
+
+test('칩 매핑: index.html 이 model_missing/unreachable 을 "모델 확인 필요"로 표시한다(감사 B1)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
+  assert.ok(html.includes('모델 확인 필요'), '칩 문구 존재');
+  assert.ok(html.includes('modelHealthState'), '칩이 검증 축을 실제로 읽는다');
+});
+
+test('공개 리포트 위생: provider 원문(키 조각 포함)·authSignal 이 /model/health 로 새지 않는다(감사 B2)', async () => {
+  const { impl } = fakeFetch(401, { error: { code: 'invalid_api_key', message: 'bad key sk-secret-abc leaked-internal-code' } });
+  const d = liveDeps({ OPENAI_API_KEY: 'sk-secret-abc' }, { fetchImpl: impl });
+  // 1) doctor 공개 리포트 자체가 깨끗해야 한다
+  const report = await d.modelDoctor();
+  const reportJson = JSON.stringify(report);
+  assert.ok(!reportJson.includes('sk-secret-abc'), '키 조각 미노출');
+  assert.ok(!('authSignal' in report), 'authSignal 은 내부 전용');
+  assert.equal(report.state, 'auth_failed'); // 상태·사용자 언어는 유지
+  // 2) 내부 갱신은 여전히 동작(env.model 로만)
+  assert.equal(buildSelfState(d.env).modelAuthState, 'auth_failed');
+  // 3) HTTP 표면에서도 동일
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-doc3-'));
+  const s = makeServer({ store: new SessionStore(dir), env: d.env, model: d.model, modelDoctor: d.modelDoctor });
+  await new Promise((r) => s.listen(0, r));
+  try {
+    const raw = await (await fetch(`http://127.0.0.1:${s.address().port}/model/health`)).text();
+    assert.ok(!raw.includes('sk-secret-abc'));
+    assert.ok(!raw.includes('authSignal'));
+  } finally { await new Promise((r) => s.close(r)); }
 });
 
 // ── 서버 표면 ─────────────────────────────────────────────────────────────

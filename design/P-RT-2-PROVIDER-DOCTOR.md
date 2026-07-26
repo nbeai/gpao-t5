@@ -29,15 +29,20 @@
 | `unreachable` | 네트워크/서비스 불가 | "연결이 안 돼요, 잠시 후 다시" |
 | `unverified` | doctor 미배선 구성(demo 등) | 검증 안 됨을 검증됨처럼 말하지 않는다 |
 
-- **단일 진실 승격**: liveDeps의 `modelDoctor()`가 검증 결과를 `env.model.authSignal`에 반영 →
-  턴마다 `buildSelfState(env)`가 읽으므로 **기존 칩(limits: "모델 상태: …")이 자동으로 진실을 표시**.
-  새 대시보드 없음(§5.5 안티 대시보드) — 표면은 기존 것 재사용.
+- **단일 진실 승격 — 두 축(감사 B1 보정)**: 자격 실패는 `env.model.authSignal`로, **모델 readiness
+  (model_missing/unreachable/usable)는 별도 축 `env.model.healthState`로** 반영한다(auth 오염 없이).
+  `buildSelfState → selfStateSummary.modelHealthState`까지 관통해 칩이 "준비됨" 대신
+  **"모델 확인 필요"**를 표시 — "모델 이름이 틀렸는데 화면은 준비됨" 금지(보이는 것=되는 것).
+  새 대시보드 없음(§5.5) — 표면은 기존 칩 재사용.
 - 서버: `GET /model/health`(요청 시 재검증) + **부팅 시 1회 비차단 점검**(실패해도 부팅 계속).
 
 ## 경계
 
 - 목록 조회만(GET) — 외부 효과 0, 토큰 과금 0. 자격은 여전히 어댑터/doctor가 소유하지 않는다.
-- model_missing 은 자격 문제가 아니므로 authSignal 을 오염시키지 않는다(리포트로만).
+- model_missing 은 자격 문제가 아니므로 authSignal 을 오염시키지 않는다 — 단 **별도 healthState 축으로
+  SelfState·칩에 반영**한다(감사 B1: "리포트로만"은 화면 준비됨 오표시를 남겼다).
+- **공개 리포트 위생(감사 B2)**: provider 원문 오류(`authSignal`)는 내부 진단값 — env 갱신에만 쓰고
+  `/model/health` 공개 응답에서는 제거한다(키 조각·내부 문구 유출 방지, diagnostic/사용자면 분리).
 - 검증 실패가 부팅·턴을 막지 않는다 — 정직한 표시가 목적, 게이트 추가가 아니다.
 - 목록 endpoint 가 없는 호환 서버(200 아닌 목록 미구현)는 "키는 통과, 모델 목록 확인 불가"로 정직하게.
 

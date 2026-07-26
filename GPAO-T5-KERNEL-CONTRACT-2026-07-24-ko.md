@@ -98,6 +98,12 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- P-RT-2 반영(근거: `P-RT-2-PROVIDER-DOCTOR`, 조건부 반려 blocker 2건 해소 후 병합 + 라이브 3종 실측): §6.23
+  Provider Doctor — "구성됨→검증됨" 승격. 과금 0 모델 목록 GET 으로 키 유효성·도달성·설정 모델 존재를 실검증.
+  두 축 반영: 자격은 authSignal(classifyModelAuth), readiness 는 별도 env.model.healthState →
+  buildSelfState/selfStateSummary.modelHealthState → 칩 "모델 확인 필요"(model_missing 인데 준비됨 금지, B1).
+  공개 /model/health 는 authSignal(원문 진단) 미노출(B2). GET /model/health + 부팅 비차단 점검, 미배선은
+  stub/unverified 정직 표시. 후속: P-RT-3 OAuth(이월)·키 입력 UX·주기 재검증 TTL.
 - P-RT-1 반영(근거: `P-RT-1-MODEL-PROVIDER-ADAPTER`, 조건부 통과 감사 + gemini·beai 라이브 검증): §6.22 Model
   Provider Adapter — 오너 지시(OpenAI OAuth·3사 API 키·오픈소스 호환) 착지. 선언형 어댑터 6종
   (anthropic/openai/openai_oauth/gemini/beai/openai_compatible), 자격 분류는 classifyModelAuth 단일 소스,
@@ -730,6 +736,29 @@ beai(beai-8.6) 라이브 실측 — evidenceFacts 가 실모델 답변에 반영
   unhandledRejection 으로 프로세스가 죽던 잠복 버그(stub 시절 미노출)를 반대 테스트 동반으로 수정.
 - **후속**: P-RT-2 OpenAI OAuth 플로우(로그인/PKCE/refresh/저장) · provider doctor/health-check(구성됨→
   검증됨 상시 승격) · 키 입력·보관 UX · 스트리밍 respond · openai/anthropic 실 키 실측.
+  (→ doctor 는 §6.23 으로 착지. OAuth 는 P-RT-3 으로 번호 이월.)
+
+### 6.23 Provider Doctor (P-RT-2, 구현됨 — 구성됨을 검증됨으로, 두 축의 정직한 표시)
+
+근거: §6.22 경계("authSignal:'ok'=구성됨일 뿐"), 윤 판정(doctor 우선), `P-RT-2-PROVIDER-DOCTOR`.
+감사 조건부 반려 blocker 2건(B1 준비됨 오표시·B2 원문 유출) 해소 후 병합.
+
+- **핵심**: `model-doctor.js` `checkModelHealth` — provider 의 **과금 없는 모델 목록 GET 하나**로
+  ①키 유효성 ②도달성 ③설정 모델의 실제 사용 가능 여부를 실검증. 스펙 선언(modelsEndpoint/listModels)만
+  추가(어댑터 일반형 유지), 분류는 classifyModelAuth 단일 소스.
+- **상태 언어**: stub / usable / model_missing(+사용 가능 대안 제시, 막다른 답 금지) / auth_failed /
+  billing_blocked / rate_limited / unreachable / unverified — 전부 사용자 언어 + 다음 안전 행동.
+- **두 축 반영(B1)**: 자격 실패는 `env.model.authSignal`, **readiness 는 별도 `env.model.healthState`**
+  (auth 오염 없음) → `buildSelfState.modelHealthState` → `selfStateSummary` → 칩. model_missing/
+  unreachable 이면 칩은 "준비됨"이 아니라 **"모델 확인 필요"** + limits "모델 확인 필요: …".
+  재검증으로 회복되면 표시도 회복. 라이브 실증: 낡은 모델 구성에서 clarify 턴이
+  modelHealthState=model_missing 을 실어 나옴.
+- **공개면 위생(B2)**: `authSignal`(provider 원문 진단)은 env 갱신 내부 전용 — `/model/health` 공개
+  응답에서 제거(키 조각·내부 문구 유출 방지). 테스트: 원문에 키 문자열을 심어 응답 미포함 확인.
+- **표면**: `GET /model/health`(요청 시 재검증) + 부팅 1회 비차단 점검(실패해도 부팅 계속 — 게이트가
+  아니라 정직한 표시). doctor 미배선 구성은 stub/unverified — 검증 안 됨을 검증됨처럼 말하지 않는다.
+- **후속**: P-RT-3 OpenAI OAuth 플로우 · 키 입력·보관 UX · overview(§6.19) 모델 상태 통합 검토 ·
+  주기 재검증(TTL) · 자격 실패 턴의 POST 500 사용자 언어화(§6.20 후속과 합류).
 
 ---
 
