@@ -1,7 +1,7 @@
 // L0 · SelfStateSnapshot 조립 (Operational Selfhood 계약, §6)
 // T5 는 매 턴 자기 가용 범위를 안다. 추정하지 않고 실제 연결·자격 신호로 채운다.
 import { AUTH_STATE } from '../contracts.js';
-import { toolLabel } from '../tool-labels.js';
+import { toolLabel, toolCapabilityLine } from '../tool-labels.js';
 
 /**
  * provider 자격 신호를 modelAuthState 로 분류한다.
@@ -135,6 +135,8 @@ export function selfStateSummary(selfState) {
     modelHealthState: selfState.modelHealthState, // 칩이 "준비됨" 대신 "모델 확인 필요"를 고를 근거
     // 사용자면에는 내부 도구 id 대신 라벨만 노출한다(안티 대시보드, 감사 지적).
     ready: selfState.connectedTools.filter((t) => t.executable).map((t) => toolLabel(t.id)),
+    // 모델 입력용: 라벨 + 실제로 하는 일 한 줄. 화면 칩은 위 ready(라벨만)를 그대로 쓴다.
+    readyCapabilities: selfState.connectedTools.filter((t) => t.executable).map((t) => toolCapabilityLine(t.id)),
     limits: selfState.limits,
     nextSafeAction: selfState.nextSafeAction,
   };
