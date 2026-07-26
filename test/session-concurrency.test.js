@@ -91,18 +91,24 @@ test('저장이 원자적이다 — 쓰는 도중에 읽어도 깨진 JSON 이 �
   const session = await store.create('원자성');
   const path = join(dir, `${session.id}.json`);
   // 큰 세션 = 한 번의 write 로 안 끝나는 크기. 비원자적 쓰기라면 이 틈에 잘린 파일이 보인다.
-  session.transcript = Array.from({ length: 400 }, (_, i) => ({ role: 'user', text: `${i}`.padEnd(4000, '가') }));
+  // 검사력은 **파일 크기**(쓰기 창이 길어야 그 틈에 읽힌다)에서 나오지 반복 횟수에서 나오지 않는다.
+  // 그래서 파일은 키우고 저장 횟수는 줄였다(§17 시간 기준선 5s — 예전엔 이 테스트 하나가 5.2s 였다).
+  // 반대 검증으로 확인함: 비원자적 쓰기로 되돌리면 이 설정에서도 깨진 JSON 이 잡힌다.
+  session.transcript = Array.from({ length: 900 }, (_, i) => ({ role: 'user', text: `${i}`.padEnd(4000, '가') }));
 
   let broken = 0;
+  let saving = true;
+  // 읽기는 **저장이 끝날 때까지** 돈다 — 고정 횟수보다 빠르고, 창을 놓치지 않는다.
   const readLoop = (async () => {
-    for (let i = 0; i < 400; i += 1) {
+    while (saving) {
       try { JSON.parse(await readFile(path, 'utf8')); }
       catch { broken += 1; }
       await new Promise((r) => setImmediate(r));
     }
   })();
   const saveLoop = (async () => {
-    for (let i = 0; i < 40; i += 1) { session.title = `저장 ${i}`; await store.save(session); }
+    for (let i = 0; i < 6; i += 1) { session.title = `저장 ${i}`; await store.save(session); }
+    saving = false;
   })();
   await Promise.all([readLoop, saveLoop]);
   assert.equal(broken, 0, '쓰는 도중 크래시하면 세션 파일이 통째로 못 읽는 상태로 남는다');
