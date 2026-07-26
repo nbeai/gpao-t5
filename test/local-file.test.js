@@ -219,3 +219,27 @@ test('되돌리기는 재시작 후에도 된다 — 표가 메모리에만 있�
   assert.equal(u.blocked, undefined, '재시작 뒤에도 되돌릴 수 있어야 한다');
   assert.equal(await readFile(join(root, '보관.md'), 'utf8'), '지키고 싶은 것');
 });
+
+// ── P0-1b 안전 hotfix (감사 지적: 조용한 덮어쓰기로 인한 데이터 손실) ──────
+test('기존 b.txt 가 있을 때 a.txt → b.txt 이동은 조용히 덮어쓰지 않는다', async () => {
+  const { root, tool } = await sandbox();
+  await tool.handler({ action: 'write', path: 'a.txt', text: '원본 A' });
+  await tool.handler({ action: 'write', path: 'b.txt', text: '지키고 싶은 B' });
+
+  const m = await tool.handler({ action: 'move', path: 'a.txt', to: 'b.txt' });
+  assert.equal(m.blocked, true, '덮어쓰지 않고 막는다');
+  assert.ok(m.userSafeSummary.includes('이미 있어서'));
+  assert.ok(m.nextSafeAction, '다음 행동을 준다(막다른 답 금지)');
+
+  // 둘 다 그대로여야 한다 — 하나라도 사라지면 사용자가 파일을 잃은 것이다
+  assert.equal(await readFile(join(root, 'a.txt'), 'utf8'), '원본 A');
+  assert.equal(await readFile(join(root, 'b.txt'), 'utf8'), '지키고 싶은 B');
+});
+
+test('대상이 없으면 이동은 그대로 동작한다(막기가 정상 경로를 깨지 않는다)', async () => {
+  const { root, tool } = await sandbox();
+  await tool.handler({ action: 'write', path: 'a.txt', text: 'x' });
+  const m = await tool.handler({ action: 'move', path: 'a.txt', to: '새이름.txt' });
+  assert.equal(m.blocked, undefined);
+  assert.equal(await readFile(join(root, '새이름.txt'), 'utf8'), 'x');
+});

@@ -126,6 +126,17 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'move') {
           const dest = await resolveInScope(args.to ?? '', { roots });
+          // **조용한 덮어쓰기 금지**(P0-1b): 대상이 이미 있으면 막고 확인을 요구한다.
+          // copyFile 은 대상을 말없이 덮어쓰는데, 그러면 undo(대상→원본)로도 대상의 원래 내용은
+          // 영영 사라진다 — 되돌릴 수 없는 손실이다. write 는 휴지통 백업이 있는데 move 만 빠져 있었다.
+          let destExists = false;
+          try { await stat(dest); destExists = true; } catch { /* 없으면 진행 */ }
+          if (destExists) {
+            return fail(
+              `${basename(dest)} 이(가) 이미 있어서 옮기지 않았어요(덮어쓰면 되돌릴 수 없어요).`,
+              '다른 이름으로 옮기거나, 기존 파일을 먼저 지울까요?',
+            );
+          }
           await mkdir(dirname(dest), { recursive: true });
           await copyFile(abs, dest);
           await rm(abs);
