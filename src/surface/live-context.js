@@ -5,6 +5,7 @@
 import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
+import { selectLiveModel } from '../runtime/model-provider.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
@@ -33,9 +34,10 @@ export function liveChannels(processEnv = {}) {
 
 /**
  * @param {Record<string,string|undefined>} [processEnv]  실제 자격(SLACK_BOT_TOKEN 등)
- * @returns {{env:object, tools:object, descriptors:object[], channels:object[]}}
+ * @param {{fetchImpl?:Function}} [deps]  테스트 주입용 — 기본은 실 fetch(라이브 서버만 실제 호출)
+ * @returns {{env:object, tools:object, descriptors:object[], channels:object[], model:object}}
  */
-export function liveDeps(processEnv = {}) {
+export function liveDeps(processEnv = {}, deps = {}) {
   const slackToken = processEnv.SLACK_BOT_TOKEN;
   const webTimeoutMs = Number(processEnv.GPAO_T5_WEB_TIMEOUT_MS ?? 15_000);
 
@@ -43,11 +45,16 @@ export function liveDeps(processEnv = {}) {
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
   const env = demoEnv({ factOverrides: { 'slack.post': { connected: Boolean(slackToken) } } });
 
+  // 모델도 실제 자격에서 파생한다(P-RT-1, 단일 진실). 구성되면 실 provider(OpenAI OAuth/API키·
+  // Anthropic·Gemini·OpenAI-호환), 아니면 stub — env.model 이 같은 판정을 SelfState 로 나른다.
+  const { model, envModel } = selectLiveModel(processEnv, { fetchImpl: deps.fetchImpl });
+  env.model = envModel;
+
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
   };
   const tools = demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
-  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv) };
+  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model };
 }
