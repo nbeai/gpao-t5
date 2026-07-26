@@ -16,6 +16,7 @@ import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
+import { ModelConnectionStore } from './model-connection.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
@@ -566,6 +567,21 @@ export function makeServer(deps = {}) {
         if (deps.modelDoctor) return sendJson(res, 200, await deps.modelDoctor());
         return sendJson(res, 200, describeUnprobedModel(env.model));
       }
+      // ── 모델 연결 (P-RT-4) ── 화면에서 키 연결. 검증 통과(usable)만 저장·활성화 — 실패 키는
+      //   기존 연결을 깨지 않는다. 응답에 원본 키·원문 진단 미노출(마스킹·사용자 언어만).
+      if (req.method === 'GET' && url === '/model/connection') {
+        if (deps.modelConnection) return sendJson(res, 200, deps.modelConnection.status());
+        return sendJson(res, 200, { connected: false, source: 'none', provider: null, modelId: null, keyMasked: null });
+      }
+      if (req.method === 'POST' && url === '/model/connect') {
+        if (!deps.modelConnection) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
+        const input = JSON.parse((await readBody(req)) || '{}');
+        return sendJson(res, 200, await deps.modelConnection.connect(input));
+      }
+      if (req.method === 'POST' && url === '/model/disconnect') {
+        if (!deps.modelConnection) return sendJson(res, 400, { error: '이 구성에서는 모델 연결을 바꿀 수 없어요.' });
+        return sendJson(res, 200, await deps.modelConnection.disconnect());
+      }
       // ── 채널 레지스트리 (P6-16 Slice-1) ── 사용자 안전 상태 + doctor 진단(사용자 언어). 정리·표면화만.
       //   내부 readiness 코드가 아니라 "받을 준비됨/로그인 필요/연결 필요"로. 미연결·미자격은 초록 아님.
       if (req.method === 'GET' && url === '/channels') {
@@ -754,12 +770,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
   // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영한다(단일 진실):
   // slack.post는 토큰이 있어야 도구함에서 사용 가능·실행 가능. 없으면 연결 필요(도구함·실행 일치, 2.0-A 보정).
-  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor } = liveDeps(process.env);
+  // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
+  const bootStore = new SessionStore();
+  const connectionStore = new ModelConnectionStore(bootStore.dir);
+  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection } =
+    liveDeps(process.env, { connectionStore });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
-  const server = makeServer({ env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor });
-  // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 실패해도 부팅은 계속 — 정직한 표시가 목적, 게이트가 아니다.
-  modelDoctor()
+  const server = makeServer({ store: bootStore, env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection });
+  // P-RT-4 저장 연결 복원 → P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 실패해도 부팅은 계속.
+  modelConnection.init()
+    .then(() => modelDoctor())
     .then((r) => console.log(`[model:doctor] ${r.state}${r.modelId ? ` (${r.modelId})` : ''} — ${r.userSafeSummary}`))
     .catch(() => {});
   server.listen(port, () => {

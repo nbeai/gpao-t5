@@ -182,6 +182,27 @@ export function resolveModelConfig(env = {}) {
 }
 
 /**
+ * 사용자 입력(화면 연결, P-RT-4)에서 provider 구성을 해석한다. env 해석과 같은 규칙:
+ * allowlist provider 만, 기본 모델/베이스 적용, compatible 은 baseUrl+modelId 필수.
+ * 유효하지 않으면 null — 호출부가 사용자 언어로 안내한다.
+ * @param {{provider?:string, key?:string, modelId?:string, baseUrl?:string}} input
+ */
+export function resolveModelConfigFromInput(input = {}) {
+  const spec = MODEL_PROVIDERS[input.provider];
+  if (!spec) return null;
+  const token = typeof input.key === 'string' && input.key.trim() ? input.key.trim() : undefined;
+  if (!token && input.provider !== 'openai_compatible') return null;
+  const modelId = (typeof input.modelId === 'string' && input.modelId.trim()) || spec.defaultModel;
+  const baseUrl = (typeof input.baseUrl === 'string' && input.baseUrl.trim()) || spec.defaultBase;
+  if (!modelId || !baseUrl) return null;
+  return {
+    provider: input.provider, token, modelId, baseUrl,
+    maxTokens: DEFAULT_MAX_TOKENS,
+    noSystemRole: Boolean(spec.noSystemRole),
+  };
+}
+
+/**
  * 실 provider ModelClient 를 만든다. respond 는 단발 요청(스트리밍은 후속).
  * @param {ReturnType<typeof resolveModelConfig>} cfg
  * @param {{fetchImpl?:Function, timeoutMs?:number}} [deps]

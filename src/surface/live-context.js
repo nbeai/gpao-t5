@@ -5,8 +5,7 @@
 import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
-import { selectLiveModel } from '../runtime/model-provider.js';
-import { checkModelHealth } from '../runtime/model-doctor.js';
+import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
@@ -46,29 +45,16 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
   const env = demoEnv({ factOverrides: { 'slack.post': { connected: Boolean(slackToken) } } });
 
-  // 모델도 실제 자격에서 파생한다(P-RT-1, 단일 진실). 구성되면 실 provider(OpenAI OAuth/API키·
-  // Anthropic·Gemini·OpenAI-호환), 아니면 stub — env.model 이 같은 판정을 SelfState 로 나른다.
-  const { model, envModel } = selectLiveModel(processEnv, { fetchImpl: deps.fetchImpl });
-  env.model = envModel;
-
-  // P-RT-2 doctor: "구성됨"을 실 검증으로 "검증됨"까지 승격한다. 자격 실패로 분류되면 env.model 에
-  // 반영 → 턴마다 buildSelfState 가 읽어 기존 칩(limits)이 자동으로 진실을 표시(새 대시보드 없음).
-  // model_missing 은 자격 문제가 아니므로 authSignal 을 오염시키지 않는다(리포트로만).
-  const modelDoctor = async () => {
-    const report = await checkModelHealth(processEnv, { fetchImpl: deps.fetchImpl });
-    // authSignal 은 내부 진단값 — env 갱신에만 쓰고 공개 리포트에서는 제거한다(감사 B2:
-    // provider 원문 에러에는 키 조각·내부 문구가 섞일 수 있어 사용자 표면으로 새면 안 된다).
-    const { authSignal, ...publicReport } = report;
-    if (['auth_failed', 'billing_blocked', 'rate_limited'].includes(report.state)) {
-      env.model.authSignal = authSignal;
-    } else if (report.state === 'usable') {
-      env.model.authSignal = 'ok'; // 재검증으로 회복되면 표시도 회복
-    }
-    // 자격과 별도의 readiness 축(감사 B1): model_missing/unreachable 도 SelfState·칩까지 실어
-    // "모델 이름이 틀렸는데 화면은 준비됨"을 막는다(보이는 것=되는 것).
-    env.model.healthState = report.state;
-    return publicReport;
-  };
+  // 모델(P-RT-1·2·4, 단일 진실): 연결 관리자가 소유한다 — 저장된 사용자 연결 > env(개발자) > stub.
+  // doctor(두 축 반영·공개면 위생)와 화면 연결(connect/disconnect, 검증 통과만 저장)이 한 곳에 있다.
+  const modelConnection = makeModelConnection({
+    env, processEnv,
+    store: deps.connectionStore, // 없으면 지속 없이 동작(demo·테스트)
+    fetchImpl: deps.fetchImpl,
+    timeoutMs: processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS ? Number(processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS) : undefined,
+  });
+  const model = modelConnection.model;
+  const modelDoctor = () => modelConnection.doctor();
 
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
@@ -76,5 +62,5 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const tools = demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
-  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor };
+  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor, modelConnection };
 }

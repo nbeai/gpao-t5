@@ -226,7 +226,9 @@ test('liveDeps: 모델 자격이 env.model(SelfState)과 model(실행)에 함께
   assert.ok(withKey.model);
   const without = liveDeps({});
   assert.equal(without.env.model.id, 'beai5-stub');
-  assert.ok(without.model instanceof StubModelClient);
+  // P-RT-4: model 은 핫스왑 위임 객체 — 구조(instanceof) 대신 동작으로 검증: stub 의 canned 응답.
+  const stubReply = await without.model.respond(TC); // TC 는 complex_work + evidenceFacts
+  assert.ok(stubReply.includes('확인한 것'));
 });
 
 // ── 안정성 회귀: 실 모델의 정직한 실패가 프로세스를 죽이면 안 된다 ─────────
