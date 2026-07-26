@@ -69,5 +69,12 @@ export function liveDeps(processEnv = {}, deps = {}) {
   });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
-  return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor, modelConnection, modelSupportsSearch };
+  // connectors 는 그 채널이 들고 있는 자격 그대로다. 따로 만들면 두 진실이 갈라지고, 안 넘기면
+  // 서버가 demo fixture(텔레그램 connected:true 하드코딩)로 폴백해 **토큰 없는 채널이 라이브에서
+  // 열린다** — Phase 0-5 에서 실제로 그렇게 새고 있었다.
+  const channels = liveChannels(processEnv);
+  return {
+    env, tools, descriptors: demoDescriptors(), channels, connectors: channels.map((c) => c.connector),
+    model, modelDoctor, modelConnection, modelSupportsSearch,
+  };
 }

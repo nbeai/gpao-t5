@@ -100,6 +100,9 @@ export async function runTurn(input, ctx) {
     source: input.source ?? 'user_chat',
     triggerSignals: input.triggerSignals,
     keepAsContext: input.keepAsContext,
+    // Phase 0-5: 채널이 선언한 수신 정책·연결 상태를 게이트가 실제로 소비한다(선언만 하면 장식이다).
+    channelPolicy: input.channelPolicy,
+    channelConnected: input.channelConnected,
   });
   if (gate.disposition !== 'respond') {
     return {

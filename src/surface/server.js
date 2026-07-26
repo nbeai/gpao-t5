@@ -880,11 +880,22 @@ export function makeServer(deps = {}) {
         const readiness = connectorReadiness(profile);
         if (readiness !== 'ok') return sendJson(res, 200, { kind: 'blocked', reason: 'channel_not_ready', readiness });
 
-        const event = normalizeInboundEvent(input); // 5: 단일 정규화 이벤트
+        // Phase 0-5: 채널이 선언한 수신 정책을 레지스트리에서 읽어 이벤트에 싣는다.
+        //   이게 없으면 게이트가 정책을 볼 수 없어 allowlist_only 채널도 mention 하나로 열린다.
+        const registered = (deps.channels ?? demoChannels()).find((c) => c.id === input.channel);
+        const event = normalizeInboundEvent({
+          ...input,
+          inboundPolicy: registered?.inboundPolicy,
+          connected: readiness === 'ok',
+        }); // 5: 단일 정규화 이벤트
         const memory = await memStore.load();
         const ctx = ctxForSession(session, memory);
         // 6·7: 같은 커널. source=external_channel → InboundEventGate → (respond면) turn.
-        const result = await runTurn({ text: input.text, source: 'external_channel', triggerSignals: event.triggerSignals }, ctx);
+        const result = await runTurn({
+          text: input.text, source: 'external_channel',
+          triggerSignals: event.triggerSignals,
+          channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
+        }, ctx);
         // 8: gated/blocked는 대화에 남기지 않는다(조용히, 알림 콘솔화 방지). respond면 지속.
         if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
           session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
@@ -930,11 +941,16 @@ export async function startLiveServer(opts = {}) {
   const bootStore = opts.sessionStore ?? new SessionStore();
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
-  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection, modelSupportsSearch } =
+  const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch } =
     liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
-  const server = makeServer({ store: bootStore, env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection, modelSupportsSearch });
+  const server = makeServer({
+    store: bootStore, env: liveEnv, tools: liveTools,
+    channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
+    model: liveModel, modelDoctor, modelConnection, modelSupportsSearch,
+  });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
   try { await server.loadSelfhood(); } catch { /* 문서 준비 실패 → 기본 정체로 계속(차단하지 않는다) */ }

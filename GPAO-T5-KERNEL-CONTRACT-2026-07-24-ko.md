@@ -98,6 +98,10 @@
 - P-STAB-1 반영(근거: `P-STAB-1-MODEL-TIMEOUT`, 코드 재감사 통과): §6.21 Stability Guard / Model Response Timeout —
   느린/멈춘 모델이 턴을 무한 매달지 않게 withModelTimeout으로 바운드(초과 시 recoverable_error+complete, 큐 풀림).
   ②장시간 안정성 첫 조각. §6.20과 별도 절(백엔드 안정성 vs 사용자 회복 표면).
+- Phase 0-5 반영(근거: v3.1 §21, 감사 검수 기준 10개, 라이브 실측): §6.34 Channel Admission — 채널이
+  선언한 `inboundPolicy` 를 게이트가 **실제로 소비한다**(그전엔 선언만 있고 allowlist_only 채널도
+  mention 하나로 열렸다). 라이브에서 커넥터가 demo fixture 로 폴백해 **토큰 없는 채널이 열리던**
+  결함도 함께 수정(절대원칙 1: 산출물 검증).
 - Phase 0-4 반영(근거: v3.1 §21, 계획서 v3.0 Phase 7): §6.33 Skill Effect — 승격된 스킬이 **실제로
   대화를 바꾼다**(그전엔 canInfluence 가 화면 표시에만 쓰여 승인해도 아무 일이 없었다). 배운 작업이
   말귀를 넓히되 **영향만** 준다 — 외부 행동은 여전히 A2, canAutoExecute() 는 계속 false.
@@ -899,6 +903,31 @@ T3 dist 실측으로 원리를 확인하고 T5 계약 안에서 재구현했다(
   나중에 연결해도 첫인사를 영영 못 받음)을 회귀 테스트로 고정.
 - **라이브 실증**: 빈 상태 부팅 → needed=true → 미연결 웰컴은 안내만(표식 안 켜짐) → 실키 연결 →
   needed=false → 모델이 만든 3문장 인사(실제 도구를 근거로, 마지막에 질문).
+
+### 6.34 Channel Admission (Phase 0-5, 구현됨 — 채널이 선언한 정책이 실제로 문을 지킨다)
+
+근거: v3.1 §21 Phase 0-5, 감사 검수 기준 10개. 계약 §1.5(InboundEventGate)의 완결.
+
+**정책이 장식이었다**: `ChannelRegistry` 는 채널마다 `inboundPolicy`(mention_required / dm_open /
+allowlist_only)를 선언했는데 `admitInboundEvent` 는 그걸 **읽지 않았다**. 일반 trigger 신호만 봤으므로
+`allowlist_only` 채널도 목록 밖 사람이 한 번 부르면 열렸다. 선언과 동작이 갈라져 있었다.
+
+- **정책 소비**: 게이트가 `channelPolicy` 로 판정한다. allowlist_only 는 `allowlisted` 신호가 없으면
+  mention 이어도 무시, dm_open 은 DM 자체가 입장 신호, 기본은 mention_required.
+- **이중 방어**: 커널도 `channelConnected` 를 본다. 서버가 미등록·미연결을 먼저 막지만(§blocked),
+  커널이 그 판단에 의존하지 않는다 — 다른 입구가 생겨도 정책은 살아 있다.
+- **관통**: 서버 `/channel/inbound` 가 레지스트리에서 정책을 읽어 이벤트에 싣는다. 이 배선이 없으면
+  커널 판정은 무용지물이다(테스트가 HTTP 로 관통 검사한다).
+- **무시는 조용히**: ignore 는 `userSafeReason` 을 만들지 않고 transcript 에 남기지 않는다. 외부
+  메시지가 대화창을 알림 콘솔로 만들지 않는다.
+- **외부라고 봐주지 않는다**: 외부에서 온 요청의 전송 답장도 A2 승인을 그대로 탄다. 채널 출처
+  (`channelMeta`)는 응답까지 보존된다 — 어느 방에서 온 말인지 잃지 않는다.
+- **라이브 결함 동반 수정**(절대원칙 1): `liveDeps` 가 채널은 실제 자격에서 파생하면서 **커넥터는 안
+  넘겨** 서버가 demo fixture(텔레그램 `connected:true` 하드코딩)로 폴백했다. 토큰이 없는데 라이브
+  `/connectors` 가 "연결됨"으로 보이고 수신까지 열렸다 — 개발 테스트는 전부 초록이었다. 커넥터를
+  채널과 같은 진실에서 파생하도록 고치고, 라이브 산출물로 재현·검증했다.
+- **반대 검증**: 정책 소비를 되돌리면 4건이 실제로 실패한다(게이트 3 + HTTP 관통 1). 라이브 커넥터
+  배선을 빼면 "토큰 없는 채널이 열린다" 2건이 실패한다.
 
 ### 6.33 Skill Effect (Phase 0-4, 구현됨 — 배운 작업이 실제로 질문을 줄인다)
 
