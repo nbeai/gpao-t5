@@ -121,6 +121,14 @@ export const MODEL_PROVIDERS = {
       [status, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
     modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/v1/models`,
     listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
+    // P0-3: 같은 endpoint 에 stream 을 켜면 SSE 로 온다. 텍스트는 content_block_delta 에만 담긴다
+    // (message_start·ping 등 다른 이벤트는 흘리지 않는다 — 사용자면 텍스트만).
+    streamBody: (cfg, m) => JSON.stringify({
+      model: cfg.modelId, max_tokens: cfg.maxTokens, system: m.system,
+      messages: [{ role: 'user', content: m.user }], stream: true,
+    }),
+    streamDelta: (ev) => (ev?.type === 'content_block_delta' && ev?.delta?.type === 'text_delta'
+      ? ev.delta.text : null),
   },
   openai: { ...OPENAI_WIRE, defaultModel: 'gpt-5.1', envKey: 'OPENAI_API_KEY' },
   // OAuth 는 와이어 동일, 토큰 출처만 다르다. 로그인/PKCE/refresh 플로우는 P-RT-2 — 여기는 주입 seam.
@@ -134,6 +142,12 @@ export const MODEL_PROVIDERS = {
     defaultBase: 'https://chat.beai.kr/api/external/v1',
     envKey: 'BEAI_API_KEY',
     noSystemRole: true,
+    // **스트리밍 미지원**(2026-07-26 실키 실측: 400 "Streaming is not supported in External API V1").
+    // OpenAI 와이어를 물려받으면 stream:true 가 켜져 응답 자체가 깨진다 — 선언을 지워 단발로 돈다.
+    // 서버가 지원하게 되면 이 두 줄을 지우기만 하면 된다(와이어는 이미 호환).
+    streaming: false,
+    streamBody: undefined,
+    streamDelta: undefined,
   },
   gemini: {
     // 안정 별칭 — 버전 고정은 "신규 사용자에게 미제공" 404 로 낡는다(2026-07-26 라이브 실측: 2.5-flash 가 그랬다)
@@ -158,6 +172,16 @@ export const MODEL_PROVIDERS = {
     },
     modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models?pageSize=1000`,
     listModels: (json) => json?.models?.map((m) => m.name?.replace(/^models\//, '')).filter(Boolean),
+    // P0-3: gemini 는 **다른 엔드포인트**로 스트리밍한다(:streamGenerateContent + alt=sse).
+    streamEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models/${cfg.modelId}:streamGenerateContent?alt=sse`,
+    streamBody: (cfg, m) => JSON.stringify({
+      system_instruction: { parts: [{ text: m.system }] },
+      contents: [{ role: 'user', parts: [{ text: m.user }] }],
+    }),
+    streamDelta: (ev) => {
+      const t = ev?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('');
+      return t || null;
+    },
   },
 };
 
@@ -202,9 +226,14 @@ export function resolveModelConfig(env = {}) {
  * OpenAI 계열 SSE 를 읽으며 조각을 흘린다(P-STR-1). 반환값(전체 텍스트)이 진실이고, 조각은 미리보기다.
  * 스트림이 텍스트를 하나도 못 주면 정직하게 오류로 던진다(빈 답을 성공처럼 돌려주지 않는다).
  */
-async function streamOpenAiStyle({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta }) {
+/**
+ * SSE 스트림을 읽으며 조각을 흘린다. **와이어는 spec 이 선언**하고 여기는 공통 읽기만 한다
+ * (P0-3: OpenAI 계열뿐 아니라 gemini·anthropic 도 같은 함수로 흐른다).
+ */
+async function streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta }) {
   const controller = new AbortController();
-  const url = spec.endpoint(cfg);
+  // provider 마다 스트림 엔드포인트가 다르다(gemini 는 :streamGenerateContent). 선언이 있으면 그걸 쓴다.
+  const url = (spec.streamEndpoint ?? spec.endpoint)(cfg);
   let out = '';
   let status;
   try {
@@ -297,7 +326,7 @@ export function makeProviderModelClient(cfg, deps = {}) {
       const messages = buildModelMessages(tc);
       // 스트리밍 가능한 와이어(OpenAI 계열)면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로.
       if (opts.onDelta && spec.streamBody) {
-        return streamOpenAiStyle({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
+        return streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
       }
       const url = spec.endpoint(cfg);
       const controller = new AbortController();
