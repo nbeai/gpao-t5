@@ -123,12 +123,20 @@
   .listtabs .spacer { flex:1; }
   .selbar { display:flex; align-items:center; gap:6px; padding:4px var(--sp-4) var(--sp-2);
     font-size:var(--fs-xs); color:var(--muted); }
+  /* class 규칙이 [hidden] 의 기본 display:none 을 이긴다 — 안 적으면 선택 바가 늘 떠 있다. */
+  .selbar[hidden] { display:none; }
   .selbar .spacer { flex:1; }
   .selbar button { background:none; border:1px solid var(--line); color:var(--fg); font:inherit; font-size:var(--fs-xs);
     cursor:pointer; padding:3px 8px; border-radius:var(--r-sm); }
   .selbar button:hover { background:var(--hover); }
   .selbar button.warn { color:var(--danger, #e5534b); }
   .sess .chk { flex:none; width:14px; height:14px; margin-right:2px; accent-color:var(--dot, #7a8); }
+  .sechead { display:flex; align-items:center; gap:6px; width:100%; background:none; border:0; cursor:pointer;
+    color:var(--faint); font:inherit; font-size:var(--fs-xs); letter-spacing:.04em; padding:var(--sp-2) var(--sp-3) 4px; }
+  .sechead:hover { color:var(--muted); }
+  .sechead .chev { width:10px; }
+  .sechead .lbl { flex:1; text-align:left; }
+  .sechead .cnt { opacity:.7; }
   .toastbox { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(8px); z-index:60;
     background:var(--elevated); border:1px solid var(--line); box-shadow:var(--sh-md); color:var(--fg);
     padding:10px 14px; border-radius:var(--r-md); font-size:var(--fs-sm); max-width:min(520px, 92vw);
@@ -748,7 +756,7 @@ function openSessMenu(item, s, anchor) {
       if (next === null) return;
       await sessionAction('/sessions/meta', { sessionId: s.id, title: next });
     });
-    add(s.pinned ? '고정 해제' : '고정', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    add(s.pinned ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
     add(s.archivedAt ? '목록으로 되돌리기' : '숨기기', () => sessionAction('/sessions/archive', { sessionId: s.id, archived: !s.archivedAt }));
     menu.appendChild(el('sep'));
     // 지우기는 휴지통으로 간다 — 무엇이 사라지고 무엇이 복구되는지는 서버 문구가 말한다(P2-3 계약).
@@ -823,16 +831,26 @@ document.getElementById('tidyMenu').onclick = async (ev) => {
   setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
 };
 
-async function loadSessions() {
-  const { sessions } = await (await fetch(listQuery())).json();
-  sessionsEl.innerHTML = '';
-  if (!sessions.length) {
-    const empty = el('seclabel', listView === 'archived' ? '숨긴 대화가 없어요'
-      : listView === 'deleted' ? '휴지통이 비어 있어요' : '대화가 없어요');
-    sessionsEl.appendChild(empty);
-    return;
-  }
-  for (const s of sessions) {
+// 구역 접기 상태는 화면만의 일이라 브라우저에 남긴다(서버 왕복 없음).
+const foldKey = (name) => `gpao-t5.fold.${name}`;
+const isFolded = (name) => localStorage.getItem(foldKey(name)) === '1';
+function sectionHeader(name, label, count, onToggle) {
+  const h = document.createElement('button');
+  h.className = 'sechead';
+  h.setAttribute('aria-expanded', String(!isFolded(name)));
+  h.innerHTML = '';
+  h.appendChild(el('chev', isFolded(name) ? '▸' : '▾'));
+  h.appendChild(el('lbl', label));
+  h.appendChild(el('cnt', String(count)));
+  h.onclick = () => {
+    localStorage.setItem(foldKey(name), isFolded(name) ? '0' : '1');
+    onToggle();
+  };
+  return h;
+}
+
+function sessionRow(s) {
+  {
     const item = el('sess'); if (s.id === currentSessionId) item.classList.add('active');
     // 목록 항목은 실제로 누를 수 있는 것이다 — 키보드·보조기기에서도 그렇게 보여야 한다.
     item.setAttribute('role', 'button'); item.tabIndex = 0;
@@ -871,7 +889,31 @@ async function loadSessions() {
       if (s.deletedAt) { toast('되돌린 뒤에 열 수 있어요.'); return; }
       selectSession(s.id);
     };
-    sessionsEl.appendChild(item);
+    return item;
+  }
+}
+
+async function loadSessions() {
+  const { sessions } = await (await fetch(listQuery())).json();
+  sessionsEl.innerHTML = '';
+  if (!sessions.length) {
+    sessionsEl.appendChild(el('seclabel', listView === 'archived' ? '숨긴 대화가 없어요'
+      : listView === 'deleted' ? '휴지통이 비어 있어요' : '대화가 없어요'));
+    return;
+  }
+  // 즐겨찾기는 **같은 개념(pinned)의 구역 표현**이다 — "위에 두기"를 두 개 만들지 않는다.
+  // 보관함·휴지통은 정리용 보기라 구역을 나누지 않는다(그 안에서 또 접으면 되레 헷갈린다).
+  const fav = listView === 'active' ? sessions.filter((s) => s.pinned) : [];
+  const rest = listView === 'active' ? sessions.filter((s) => !s.pinned) : sessions;
+
+  if (fav.length) {
+    sessionsEl.appendChild(sectionHeader('fav', '즐겨찾기', fav.length, loadSessions));
+    if (!isFolded('fav')) for (const s of fav) sessionsEl.appendChild(sessionRow(s));
+  }
+  if (rest.length) {
+    // 즐겨찾기가 없으면 굳이 "대화" 머리글로 한 줄 더 쓰지 않는다(빈 구역·군더더기 금지).
+    if (fav.length) sessionsEl.appendChild(sectionHeader('rest', '대화', rest.length, loadSessions));
+    if (!fav.length || !isFolded('rest')) for (const s of rest) sessionsEl.appendChild(sessionRow(s));
   }
 }
 
