@@ -34,6 +34,13 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   if (phantom.length) {
     bad(`선언만 있고 손이 없는 도구: ${phantom.map(([id, src]) => `${id}(${src})`).join(', ')} — 배선하거나 선언을 거둘 것`);
   }
+  // 1축: **반대 방향도 본다.** 손은 배선했는데 선언이 없으면 그 도구는 모델에게도 도구함에도
+  // 안 보인다 — 만들어 놓고 아무도 못 쓰는 상태다(`session.search` 가 정확히 그랬다: 손은 있는데
+  // 스키마가 없어서 모델이 "그 기능은 없습니다"라고 답했다). 선언⊆손 만으로는 이걸 못 잡는다.
+  const orphanHands = [...handlers].filter((id) => !declared.has(id));
+  if (orphanHands.length) {
+    bad(`손은 있는데 선언이 없는 도구: ${orphanHands.join(', ')} — 모델·도구함에 안 보인다(descriptor 를 만들 것)`);
+  }
   const fixtures = Object.entries(registry).filter(([, t]) => t?.isFixture).map(([id]) => id);
   if (fixtures.length) bad(`라이브에 스텁 등록: ${fixtures.join(', ')} — 등록된 도구는 실제로 동작해야 한다`);
 
