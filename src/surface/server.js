@@ -167,7 +167,10 @@ export function makeServer(deps = {}) {
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
     if (onAnswerDelta) ctx.onAnswerDelta = onAnswerDelta;
     if (hasText) {
-      if (!session.transcript.some((e) => e.role === 'user')) session.title = input.text.trim().slice(0, 30);
+      // 첫 발화로 제목을 붙이되, **사용자가 직접 붙인 이름은 덮어쓰지 않는다**(P2-4a).
+      if (!session.manualTitle && !session.transcript.some((e) => e.role === 'user')) {
+        session.title = input.text.trim().slice(0, 30);
+      }
       session.transcript.push({ role: 'user', text: input.text });
     }
     const result = await runTurn(input, ctx);
@@ -250,7 +253,50 @@ export function makeServer(deps = {}) {
       }
 
       if (req.method === 'GET' && url === '/sessions') {
-        return sendJson(res, 200, { sessions: await store.list() });
+        // 기본은 지운 것·숨긴 것을 뺀 목록. 별도 보기(보관함·휴지통)에서만 그것들을 본다.
+        // url 은 이미 질의를 떼어낸 경로다 — 질의는 원본(req.url)에서 읽는다.
+        const q = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+        return sendJson(res, 200, {
+          sessions: await store.list({ archived: q.get('archived') === '1', deleted: q.get('deleted') === '1' }),
+        });
+      }
+      // P2-4a 목록 메타 변경(제목·고정·그룹). 대화 내용·원장·승인은 건드리지 않는다.
+      if (req.method === 'POST' && url === '/sessions/meta') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '어떤 대화인지 알려주세요.' });
+        const updated = await store.updateMeta(input.sessionId, {
+          title: input.title, pinned: input.pinned, groupId: input.groupId,
+        });
+        if (!updated) return sendJson(res, 404, { error: '그 대화를 찾지 못했어요.' });
+        return sendJson(res, 200, {
+          ok: true, id: updated.id, title: updated.title, pinned: Boolean(updated.pinned), manualTitle: updated.manualTitle === true,
+        });
+      }
+      // 숨기기/되돌리기 — "정리"의 기본 동작은 삭제가 아니라 이것이다.
+      if (req.method === 'POST' && url === '/sessions/archive') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const updated = await store.setArchived(input.sessionId, input.archived !== false);
+        if (!updated) return sendJson(res, 404, { error: '그 대화를 찾지 못했어요.' });
+        return sendJson(res, 200, {
+          ok: true, id: updated.id, archived: Boolean(updated.archivedAt),
+          userSafeSummary: updated.archivedAt ? '목록에서 숨겼어요. 보관함에서 다시 꺼낼 수 있어요.' : '목록으로 되돌렸어요.',
+        });
+      }
+      // 지우기 — 바로 없애지 않고 휴지통으로. 무엇이 사라지고 무엇이 복구되는지 함께 말한다(P2-3 계약).
+      if (req.method === 'POST' && url === '/sessions/delete') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const deleted = await store.softDelete(input.sessionId);
+        if (!deleted) return sendJson(res, 404, { error: '그 대화를 찾지 못했어요.' });
+        return sendJson(res, 200, {
+          ok: true, id: deleted.id,
+          userSafeSummary: `"${deleted.title}" 을(를) 휴지통으로 옮겼어요. 30일 안에는 되돌릴 수 있어요.`,
+        });
+      }
+      if (req.method === 'POST' && url === '/sessions/restore') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const restored = await store.restore(input.sessionId);
+        if (!restored) return sendJson(res, 404, { error: '그 대화를 찾지 못했어요.' });
+        return sendJson(res, 200, { ok: true, id: restored.id, userSafeSummary: '대화를 되돌렸어요.' });
       }
       if (req.method === 'POST' && url === '/sessions') {
         const s = await store.create();
@@ -763,7 +809,8 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/search') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.query !== 'string' || !input.query.trim()) return sendJson(res, 400, { error: '검색어가 필요해요.' });
-        const sessions = await store.loadAll();
+        // 지운 대화는 검색·회수 후보에도 나오지 않는다. 목록만 막으면 "지웠는데 다시 나온다"가 된다.
+        const sessions = (await store.loadAll()).filter((s) => !s.deletedAt);
         const hits = searchTranscripts(sessions, input.query);
         const results = projectSearchCandidates(hits, () => randomUUID());
         // admitted:false를 명시적으로 보장(표면이 "이미 반영됨"으로 오해하지 않게).

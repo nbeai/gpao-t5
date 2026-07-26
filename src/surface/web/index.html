@@ -100,6 +100,31 @@
   .sess.active { background:var(--elevated); box-shadow:var(--sh-sm); }
   .sess .t { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
   .sess .age { color:var(--faint); font-size:var(--fs-xs); flex:none; }
+  /* P2-4a 목록 정리: 평소엔 조용히 있다가 마우스를 올리면 나타난다(설정판처럼 무겁지 않게) */
+  .sess .pin { flex:none; font-size:12px; opacity:.85; }
+  /* **숨기지 않는다.** opacity:0 으로 감추면 hover 가 없는 터치 기기에서는 메뉴를 열 방법이 아예 없다.
+     평소엔 옅게 두고 마우스를 올리거나 초점이 가면 또렷해진다. */
+  .sess .more { flex:none; color:var(--faint); cursor:pointer; opacity:.5; padding:0 4px; font-size:14px; line-height:1;
+    background:none; border:0; font-family:inherit; min-width:22px; min-height:22px; }
+  .sess .more:focus-visible, .sess:focus-visible { opacity:1; outline:2px solid var(--accent, #8a7); outline-offset:1px; }
+  .sess:hover .more, .sess.menu-open .more { opacity:1; }
+  .sess .more:hover { color:var(--fg); }
+  .sessmenu { position:absolute; z-index:40; background:var(--elevated); border:1px solid var(--line);
+    border-radius:var(--r-sm); box-shadow:var(--sh-md); padding:4px; min-width:148px; font-size:var(--fs-sm); }
+  .sessmenu button { display:block; width:100%; text-align:left; background:none; border:0; color:var(--fg);
+    padding:7px 10px; border-radius:var(--r-sm); cursor:pointer; font:inherit; }
+  .sessmenu button:hover { background:var(--hover); }
+  .sessmenu button.warn { color:var(--danger, #e5534b); }
+  .sessmenu .sep { height:1px; background:var(--line); margin:4px 2px; }
+  .listtabs { display:flex; gap:6px; padding:0 var(--sp-4) var(--sp-2); }
+  .listtabs button { background:none; border:0; color:var(--faint); font:inherit; font-size:var(--fs-xs);
+    cursor:pointer; padding:2px 6px; border-radius:var(--r-sm); }
+  .listtabs button.on { color:var(--fg); background:var(--hover); }
+  .toastbox { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(8px); z-index:60;
+    background:var(--elevated); border:1px solid var(--line); box-shadow:var(--sh-md); color:var(--fg);
+    padding:10px 14px; border-radius:var(--r-md); font-size:var(--fs-sm); max-width:min(520px, 92vw);
+    opacity:0; pointer-events:none; transition:opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .toastbox.on { opacity:1; transform:translateX(-50%) translateY(0); }
   .sidefoot { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
     border-top:1px solid var(--line); color:var(--muted); }
   .sidefoot .dot { width:8px; height:8px; border-radius:var(--r-full); background:var(--dot); box-shadow:0 0 0 3px var(--accent-glow); }
@@ -307,6 +332,11 @@
     </div>
     <button class="newchat" id="newchat">＋ 새 대화</button>
     <div class="seclabel">세션</div>
+    <div class="listtabs" id="listtabs">
+      <button data-view="active" class="on">대화</button>
+      <button data-view="archived">보관함</button>
+      <button data-view="deleted">휴지통</button>
+    </div>
     <div class="sessions" id="sessions"></div>
     <div class="sidefoot">
       <span class="dot" title="연결됨"></span>
@@ -637,6 +667,15 @@ tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
 tbSearch.oninput = () => renderToolbox(tbSearch.value);
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
+// 짧은 알림 — 무엇이 일어났고 되돌릴 수 있는지 한 줄로. 대화창을 알림 콘솔로 만들지 않는다.
+let toastTimer;
+function toast(text) {
+  let box = document.getElementById('toast');
+  if (!box) { box = el('toastbox'); box.id = 'toast'; document.body.appendChild(box); }
+  box.textContent = text; box.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => box.classList.remove('on'), 3200);
+}
 // 실제로 스크롤되는 건 #log 다(#wrap 은 안쪽 div — overflow 없음). 빈 상자에 scrollIntoView 를
 // 걸면 내용이 붙기 전 위치로 가서 아무 일도 안 일어난다(오너 실사용에서 "머무른다"의 원인).
 const logEl = document.getElementById('log');
@@ -655,17 +694,94 @@ function relAge(ts) {
   const h = Math.floor(m / 60); if (h < 24) return `${h}시간`;
   return `${Math.floor(h / 24)}일`;
 }
+// P2-4a: 목록 보기(대화 / 보관함 / 휴지통). 기본은 지운 것·숨긴 것이 빠진 목록이다.
+let listView = 'active';
+const listQuery = () => (listView === 'archived' ? '/sessions?archived=1'
+  : listView === 'deleted' ? '/sessions?deleted=1' : '/sessions');
+
+async function sessionAction(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const out = await r.json();
+  if (out.userSafeSummary) toast(out.userSafeSummary);
+  return out;
+}
+
+function closeSessMenu() {
+  document.querySelectorAll('.sessmenu').forEach((m) => m.remove());
+  document.querySelectorAll('.sess.menu-open').forEach((x) => x.classList.remove('menu-open'));
+}
+
+function openSessMenu(item, s, anchor) {
+  closeSessMenu();
+  item.classList.add('menu-open');
+  const menu = el('sessmenu');
+  menu.setAttribute('role', 'menu');
+  const add = (label, fn, cls) => {
+    const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls;
+    b.onclick = async (ev) => { ev.stopPropagation(); closeSessMenu(); await fn(); await loadSessions(); };
+    menu.appendChild(b);
+  };
+  if (s.deletedAt) {
+    add('되돌리기', () => sessionAction('/sessions/restore', { sessionId: s.id }));
+  } else {
+    add('이름 바꾸기', async () => {
+      const next = prompt('대화 이름', s.title || '');
+      if (next === null) return;
+      await sessionAction('/sessions/meta', { sessionId: s.id, title: next });
+    });
+    add(s.pinned ? '고정 해제' : '고정', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    add(s.archivedAt ? '목록으로 되돌리기' : '숨기기', () => sessionAction('/sessions/archive', { sessionId: s.id, archived: !s.archivedAt }));
+    menu.appendChild(el('sep'));
+    // 지우기는 휴지통으로 간다 — 무엇이 사라지고 무엇이 복구되는지는 서버 문구가 말한다(P2-3 계약).
+    add('지우기', async () => {
+      await sessionAction('/sessions/delete', { sessionId: s.id });
+      // 지금 열려 있는 대화를 지웠으면 빈 화면에 갇히지 않게 새 대화로 옮긴다.
+      if (s.id === currentSessionId) await newSession();
+    }, 'warn');
+  }
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
+  menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+  setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
+}
+
 async function loadSessions() {
-  const { sessions } = await (await fetch('/sessions')).json();
+  const { sessions } = await (await fetch(listQuery())).json();
   sessionsEl.innerHTML = '';
+  if (!sessions.length) {
+    const empty = el('seclabel', listView === 'archived' ? '숨긴 대화가 없어요'
+      : listView === 'deleted' ? '휴지통이 비어 있어요' : '대화가 없어요');
+    sessionsEl.appendChild(empty);
+    return;
+  }
   for (const s of sessions) {
     const item = el('sess'); if (s.id === currentSessionId) item.classList.add('active');
+    // 목록 항목은 실제로 누를 수 있는 것이다 — 키보드·보조기기에서도 그렇게 보여야 한다.
+    item.setAttribute('role', 'button'); item.tabIndex = 0;
+    item.setAttribute('aria-current', s.id === currentSessionId ? 'true' : 'false');
+    if (s.pinned) item.appendChild(el('pin', '📌'));
     const t = el('t', s.title || '새 대화'); const age = el('age', relAge(s.updatedAt));
-    item.appendChild(t); item.appendChild(age);
-    item.onclick = () => selectSession(s.id);
+    const more = document.createElement('button');
+    more.className = 'more'; more.textContent = '⋯';
+    more.setAttribute('aria-label', `${s.title || '새 대화'} 관리`);
+    more.onclick = (ev) => { ev.stopPropagation(); openSessMenu(item, s, more); };
+    item.appendChild(t); item.appendChild(age); item.appendChild(more);
+    item.onkeydown = (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); }
+    };
+    // 지운 대화는 열 수 없다(서버도 404). 되돌린 뒤에 열린다.
+    item.onclick = () => (s.deletedAt ? toast('되돌린 뒤에 열 수 있어요.') : selectSession(s.id));
     sessionsEl.appendChild(item);
   }
 }
+
+document.getElementById('listtabs').onclick = async (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  listView = b.dataset.view;
+  document.querySelectorAll('#listtabs button').forEach((x) => x.classList.toggle('on', x === b));
+  await loadSessions();
+};
 async function newSession() {
   const s = await (await fetch('/sessions', { method: 'POST' })).json();
   currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
