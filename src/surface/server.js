@@ -15,6 +15,7 @@ import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
+import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
@@ -559,6 +560,12 @@ export function makeServer(deps = {}) {
         }));
         return sendJson(res, 200, { connectors });
       }
+      // ── 모델 doctor (P-RT-2) ── "구성됨→검증됨". 요청 시 재검증(과금 없는 목록 GET), 사용자 언어 리포트.
+      //   doctor 미배선 구성(demo 등)은 검증 안 됨을 검증됨처럼 말하지 않는다(stub/unverified).
+      if (req.method === 'GET' && url === '/model/health') {
+        if (deps.modelDoctor) return sendJson(res, 200, await deps.modelDoctor());
+        return sendJson(res, 200, describeUnprobedModel(env.model));
+      }
       // ── 채널 레지스트리 (P6-16 Slice-1) ── 사용자 안전 상태 + doctor 진단(사용자 언어). 정리·표면화만.
       //   내부 readiness 코드가 아니라 "받을 준비됨/로그인 필요/연결 필요"로. 미연결·미자격은 초록 아님.
       if (req.method === 'GET' && url === '/channels') {
@@ -747,10 +754,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
   // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영한다(단일 진실):
   // slack.post는 토큰이 있어야 도구함에서 사용 가능·실행 가능. 없으면 연결 필요(도구함·실행 일치, 2.0-A 보정).
-  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel } = liveDeps(process.env);
+  const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor } = liveDeps(process.env);
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
-  const server = makeServer({ env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel });
+  const server = makeServer({ env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor });
+  // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 실패해도 부팅은 계속 — 정직한 표시가 목적, 게이트가 아니다.
+  modelDoctor()
+    .then((r) => console.log(`[model:doctor] ${r.state}${r.modelId ? ` (${r.modelId})` : ''} — ${r.userSafeSummary}`))
+    .catch(() => {});
   server.listen(port, () => {
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   });

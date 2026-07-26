@@ -74,6 +74,9 @@ const OPENAI_WIRE = {
   extract: (json) => json?.choices?.[0]?.message?.content,
   errorSignal: (status, json) =>
     [status, json?.error?.code, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
+  // doctor(P-RT-2): 과금 없는 모델 목록 GET — 키 유효성·도달성·설정 모델 존재를 한 번에 검증
+  modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models`,
+  listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
 };
 
 export const MODEL_PROVIDERS = {
@@ -99,6 +102,8 @@ export const MODEL_PROVIDERS = {
     },
     errorSignal: (status, json) =>
       [status, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
+    modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/v1/models`,
+    listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
   },
   openai: { ...OPENAI_WIRE, defaultModel: 'gpt-5.1', envKey: 'OPENAI_API_KEY' },
   // OAuth 는 와이어 동일, 토큰 출처만 다르다. 로그인/PKCE/refresh 플로우는 P-RT-2 — 여기는 주입 seam.
@@ -134,6 +139,8 @@ export const MODEL_PROVIDERS = {
       // 벤더 고유 표기 보강: classifyModelAuth 가 읽는 정규 토큰으로 번역(분류는 여전히 커널이 한다)
       return /API_KEY_INVALID|API key not valid/i.test(raw) ? `${raw} invalid_api_key` : raw;
     },
+    modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models?pageSize=1000`,
+    listModels: (json) => json?.models?.map((m) => m.name?.replace(/^models\//, '')).filter(Boolean),
   },
 };
 
