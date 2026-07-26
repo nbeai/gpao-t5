@@ -129,6 +129,10 @@ export function makeServer(deps = {}) {
     }
   }
 
+  // **경계(지금 만들지 않는다, 알고만 둔다)**: 이 큐는 **한 프로세스 안에서만** 유효하다.
+  // 지금은 웹 UI·채널 수신기·자동화 tick 이 모두 이 프로세스 안에 있어 충분하다. 나중에 CLI 나
+  // 두 번째 프로세스가 같은 데이터 디렉터리를 만지면 이것으로는 못 막는다 — 그때는 파일 락이
+  // 필요하다. 저장 자체는 원자적이라(session-store writeAtomic) 깨진 파일은 그때도 안 남는다.
   function withSessionQueue(sessionId, task) {
     const previous = sessionQueues.get(sessionId) ?? Promise.resolve();
     const run = previous.catch(() => {}).then(task);
@@ -1030,6 +1034,15 @@ export function makeServer(deps = {}) {
     const ok = (body) => ({ status: 200, body });
     if (typeof input.text !== 'string' || !input.text.trim()) return { status: 400, body: { error: '빈 발화' } };
     if (typeof input.sessionId !== 'string') return { status: 400, body: { error: '세션 없음' } };
+    // P2-7 0순위: **로드→실행→저장 전체**를 세션 큐에 넣는다. 웹 경로만 큐를 쓰고 여기가 빠져
+    // 있어서, 채널로 두 마디가 연달아 오면 앞 마디가 통째로 사라졌다(실측). 변경 구간이 모델
+    // 호출 전체를 가로지르므로 저장만 직렬화해서는 못 막는다 — 뒤 턴이 앞 턴의 저장 **전에**
+    // 세션을 읽으면 그대로 덮는다. 입구가 하나라도 큐 밖에 있으면 큐가 있는 쪽도 함께 무너진다.
+    // 대기는 거절이 아니라 순번이다 — T5 가 생각하는 동안 온 다음 메시지는 버려지지 않는다.
+    return withSessionQueue(input.sessionId, () => runChannelInboundTurn(input, ok));
+  }
+
+  async function runChannelInboundTurn(input, ok) {
     const session = await store.load(input.sessionId);
     if (!session) return { status: 404, body: { error: '세션을 찾지 못했어요.' } };
     if (typeof input.channel !== 'string' || !input.channel) return ok({ kind: 'blocked', reason: 'no_channel' });
@@ -1087,15 +1100,18 @@ export function makeServer(deps = {}) {
       return { kind: 'blocked', reason: 'invalid_message' };
     }
     const bindings = deps.bindingStore ?? bindingStoreDefault;
-    let sessionId = await bindings.get(msg.channel, msg.chatId);
-    let session = sessionId ? await store.load(sessionId) : null;
-    if (!session) {
+    // 방↔대화 연결을 **찾고 없으면 만드는** 구간도 경합한다(실측: 첫 두 마디가 거의 동시에 오면
+    // 둘 다 "연결 없음"을 보고 각자 대화를 만들어, 방 하나가 대화 둘로 쪼개졌다 — 앞 마디의
+    // 맥락이 미아가 된다). 세션 큐와 같은 도구로 방 단위로 직렬화한다.
+    const sessionId = await withSessionQueue(`room:${msg.channel}:${msg.chatId}`, async () => {
+      const bound = await bindings.get(msg.channel, msg.chatId);
+      if (bound && await store.load(bound)) return bound;
       // 이 방의 첫 메시지(또는 이어가던 대화가 사라졌다) → 새 대화를 만들어 묶는다.
       const label = (deps.channels ?? demoChannels()).find((c) => c.id === msg.channel)?.label ?? msg.channel;
-      session = await store.create(`${label} 대화`, { origin: { channel: msg.channel, chatId: msg.chatId } });
-      await bindings.set(msg.channel, msg.chatId, session.id);
-      sessionId = session.id;
-    }
+      const created = await store.create(`${label} 대화`, { origin: { channel: msg.channel, chatId: msg.chatId } });
+      await bindings.set(msg.channel, msg.chatId, created.id);
+      return created.id;
+    });
     const out = await processChannelInbound({ ...msg, sessionId });
     const result = out.body ?? {};
 

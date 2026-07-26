@@ -1,7 +1,7 @@
 // L4 · 세션 저장소 — 파일 기반 지속성. 의존성 0(node 내장만).
 // 세션 = 자기 완결 대화 컨텍스트: transcript + 자기 원장(ledgerEntries). env/model/tools는 프로세스
 // 공유이므로 세션에 담지 않는다 — P6 Project/Profile 격리가 그 위를 감싸는 seam(계약 정합).
-import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readdir, readFile, writeFile, mkdir, rm, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -32,6 +32,24 @@ export function sanitizeTitle(raw) {
 /** 목록 정렬: 고정 먼저 → 각 묶음 안에서 최근순. */
 export function sortSessions(list) {
   return list.sort((a, b) => (Boolean(b.pinned) - Boolean(a.pinned)) || (b.updatedAt - a.updatedAt));
+}
+
+/**
+ * 세션 파일을 **원자적으로** 쓴다. 제자리 writeFile 은 원자적이지 않다 — 큰 세션은 여러 번에
+ * 나눠 쓰이고, 그 틈에 읽으면 잘린 JSON 이 보인다(실측: 400회 읽기 중 79회). 그 순간 크래시하면
+ * 대화가 통째로 못 읽는 상태로 남는다.
+ * 임시 파일에 다 쓴 뒤 rename 한다 — rename 은 같은 파일시스템 안에서 원자적이다.
+ * 임시 이름은 `.json.tmp-*` 라 목록·검색의 `.json` + SAFE_ID 필터에 걸리지 않는다(유령 대화 방지).
+ */
+async function writeAtomic(path, text) {
+  const tmp = `${path}.tmp-${randomUUID()}`;
+  try {
+    await writeFile(tmp, text, 'utf8');
+    await rename(tmp, path);
+  } catch (e) {
+    await rm(tmp, { force: true }).catch(() => {}); // 실패한 임시본을 남기지 않는다
+    throw e;
+  }
 }
 
 export class SessionStore {
@@ -66,7 +84,7 @@ export class SessionStore {
       // 어디서 시작된 대화인가 — 메신저에서 온 대화는 목록에서 구분되어야 한다(오너 지적).
       origin: meta.origin ?? null,
     };
-    await writeFile(this._path(session.id), JSON.stringify(session), 'utf8');
+    await writeAtomic(this._path(session.id), JSON.stringify(session));
     return session;
   }
 
@@ -90,7 +108,7 @@ export class SessionStore {
   /** 세션 저장(updatedAt 갱신). */
   async save(session) {
     session.updatedAt = Date.now();
-    await writeFile(this._path(session.id), JSON.stringify(session), 'utf8');
+    await writeAtomic(this._path(session.id), JSON.stringify(session));
     return session;
   }
 
