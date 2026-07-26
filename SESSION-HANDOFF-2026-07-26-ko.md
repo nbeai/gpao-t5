@@ -114,21 +114,37 @@ T5의 권한·진실·맥락 계약 안으로 재구성한다([[gpao-t3-independ
 | 6.19 | P6-18-1~5 Status Overview | 조용한 요약+조치(안티 대시보드). 연결≠가능·추천≠활성·추정≠반영·실패≠완료. 반영↔되돌리기 대칭. 모바일 375px 회귀 해소 |
 | 6.20 | P6-19 Natural Governance | 회복 가능한 실패를 침묵 대신 같은 턴의 사용자 언어 안내로 |
 | 6.21 | P-STAB-1 Stability Guard | 모델 응답 타임아웃 — 느린/멈춘 모델이 턴·세션 큐를 무한 매달지 않게 |
+| 6.22 | P-RT-1 Model Provider | **실 두뇌 착지** — anthropic·openai·openai_oauth·gemini·beai·openai_compatible 선언형 어댑터. 분류는 커널 단일 소스, 타임아웃 시 fetch 실제 abort |
+| 6.23 | P-RT-2 Provider Doctor | 구성됨→검증됨. 과금 0 목록 GET 으로 실검증, **두 축**(자격/readiness) 분리 — model_missing 인데 "준비됨" 금지 |
+| 6.24 | P-RT-4 Model Connect UX | 화면에서 키 연결. 0600 저장(덮어쓰기 포함), 저장 연결 복원은 listen 전, 원본 키 미노출 |
+| 6.25 | P-RT-3 ChatGPT Account | 계정 로그인(PKCE·localhost:1455)으로 모델 사용. Codex 백엔드 와이어. **비공식 경로 고지**, 토큰 미노출 |
+| 6.26 | P-ONB-1 Multi Connection | 여러 연결 보관·기본 선택·역할별 바인딩. **선택이지 허용목록이 아니다**(T3 allowlist 사고 반대 계약) |
+| 6.27 | P-ONB-2 First-Run & Welcome | 설치 후 즉시 온보딩(서버측 단일 진실·영속 탈출구), 첫인사는 모델이 생성, 미연결이면 지어내지 않음. **확실한 무효만 거절** |
+| 6.28 | P-DIST-1 Install & Artifact Gate | **제1원칙이 게이트가 됨** — pack→펼침→실제 실행→health→온보딩 도달. 누락·과다 양방향 검사 |
+| 6.29 | P-STR-1 Answer Streaming | 답변 조각을 흘린다(첫 글자 32.7s→2.4s). 조각은 **durable 에 안 남긴다**(EventLog 폭증 금지) |
+| 6.30 | P-ID-1 Operational Selfhood | **어떤 모델이 붙든 자기가 GPAO-T5(AI OS)임을 안다.** SOUL.md·CAPABILITIES.md(사용자 경로), 상시엔 요약·물어볼 때만 상세 |
 
 (그 이전: §6.5~6.10 Tool/Web Descriptor, Connector/Channel, Toolbox 2.0-A/B/C, CapabilityResolution, DefaultTarget 학습.)
 
 ---
 
-## 7. 현재 상태 — 정직하게
+## 7. 현재 상태 — 정직하게 (2026-07-26 마무리 시점)
 
-**커널 계약은 촘촘히 봉인됐으나 몸(런타임)은 아직 데모/스텁이다:**
+**1차 개발 완료. 커널 계약과 몸(런타임)이 모두 실제로 돈다.**
 
-- ⚠️ **ModelClient = `StubModelClient`** (규칙 기반 canned 응답, 실제 LLM 아님). liveDeps env도 `model:beai5-stub`. → 모든 답이 정해진 문구. "실제 착지"의 최대 공백.
-- **channel-sender는 실제 HTTP**(api.telegram.org, slack chat.postMessage, 토큰 게이트) — send 계층은 진짜. 빠진 건 토큰/OAuth **설정** 흐름 + inbound webhook 수신.
-- **배포·설치·패키징 전무**(`scripts/` 없음). 이 프로젝트 제1원칙("배포가 가드를 먹는다")이 T5엔 **아직 미검증** — 잠복 위험.
-- **동시성 하드닝은 됨**(`withSessionQueue`). soak/재접속/느린 클라 등 장시간 차원은 일부만.
+- ✅ **실 모델로 동작한다** — ChatGPT 계정(gpt-5.5)·Gemini·beai 실키로 라이브 검증. stub 은 미연결일 때의 정직한 폴백일 뿐.
+- ✅ **설치본이 실행된다** — `npm run verify:package` 가 tarball 을 펼쳐 실제 실행하고 health·온보딩 도달까지 확인(CI 배선). 제1원칙이 처음으로 실제 게이트가 됨.
+- ✅ **첫 실행 온보딩 → 연결 → 첫인사 → 대화**가 이어진다. 건너뛰어도 설정에서 언제든 연결.
+- ✅ **자기인지** — 모델이 바뀌어도 자기가 GPAO-T5 임을 알고, 무엇을 어디까지 할 수 있는지 답한다.
+- ⚠️ **채널 inbound·실 provider 연동은 여전히 부분** — send 계층은 실 HTTP 이나 토큰/OAuth 설정 흐름과 수신은 P6-16 후속.
+- ⚠️ **장시간 안정성 잔여**(§6.21 후속): 재접속 중 미종료 스트림 re-attach · EventLog 성장 상한 · 느린 클라 backpressure · POST 경로 타임아웃 사용자 언어화.
+- ⚠️ **미검증**: openai·anthropic 실 키(와이어 단위테스트만), 모델 바꿔가며 정체성 일관성 라이브 확인.
 
-**워킹트리 미추적(커밋 금지 — 프로세스 산출물)**: `.beai-harness/`, `docs/`(03-verification 스크래치), `workspace-notes/`. `.beai-harness/`는 절대 커밋하지 않는다.
+**검증 상태**: 421/421 + `verify:package` 통과. 로컬·원격 브랜치는 `main` 하나로 정리됨.
+
+**워킹트리 미추적(커밋 금지 — 프로세스 산출물)**: `.beai-harness/`, `docs/`(스크래치), `workspace-notes/`.
+
+**사용자 데이터 경로**(`~/.local/state/gpao-t5/sessions/`): 세션·모델 연결(0600)·온보딩 상태·**SOUL.md·CAPABILITIES.md**. 재설치로 덮이지 않는다.
 
 ---
 
@@ -145,16 +161,15 @@ T5의 권한·진실·맥락 계약 안으로 재구성한다([[gpao-t3-independ
 
 ---
 
-## 9. 다음 로드맵 (윤 확정 순서)
+## 9. 다음 — 개발 계획서 v3.0
 
-큰 버킷 순서: **②안정성 → ①실 런타임 착지(모델 어댑터+연결 설정)+배포·설치 → ③P7 학습 심화.**
-(스텁·데모 위에 P7을 쌓으면 T3식 "미검증 위에 쌓기" 재발이라 P7이 마지막.)
+다음 단계는 오너가 작성한 **`GPAO-T5-DEVELOPMENT-PLAN-v3.0-2026-07-26-ko.md`** 를 따른다(저장소 루트).
 
-- **② 안정성 (진행 중)** — §6.21 후속: 재접속 중 미종료 스트림 re-attach · EventLog 장시간 성장(append O(n)) 상한/로테이션 · 느린 클라 backpressure · POST 경로 모델 타임아웃 사용자 언어 · 실 provider **AbortSignal(진짜 취소)**.
-- **① 실 런타임 착지** — `StubModelClient` → 실제 provider 어댑터(같은 `ModelClient.respond` 인터페이스로 교체, seam 이미 있음) · Slack/Telegram/메일/캘린더 **OAuth/토큰 설정 UX** · inbound webhook 수신 · 그리고 **배포·설치·pkg 파이프라인(제1원칙 검증)**.
-- **③ P7 학습 심화** — T-cell/π extraction · Skill/Workflow 승격 · 벡터/의미 검색 · user model 고도화.
+- §0 정체성 정본 — T5 는 AI 모델이 아니라 모델 능력을 최대치로 쓰게 하는 운영체제. (SOUL.md 시드가 이 원문을 그대로 쓴다)
+- §0.1 제품 포지션 · §4 개발 원칙 · §5 대화 품질 원칙
+- Phase 1 Current Branch Green → Phase 2 Conversational Quality → Phase 3 First Real Model Path → Phase 4 First-Run → Phase 5 One Real Channel → Phase 6 Install/Local Runtime → Phase 7 Learning Polish → Phase 8 Automation Polish
 
-각 버킷 첫 슬라이스는 **작게** 잡고, 위 워크플로(dev→감사→병합→봉인)를 그대로 탄다.
+⚠️ **Phase 2 와 자기인지의 긴장을 기억할 것**: Phase 2 는 "모델 입력 다이어트"를 요구하고 자기인지는 더 많은 사실을 요구한다. 해법은 §6.30 이 쓴 방식 — 문서에 두고 필요할 때만 꺼낸다.
 
 ---
 
