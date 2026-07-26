@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
+import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
+import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
@@ -400,7 +402,12 @@ export function makeServer(deps = {}) {
         const a = await autoStore.load();
         const cand = a.candidates.find((c) => c.candidateId === input.candidateId && !c.approved);
         if (!cand) return sendJson(res, 404, { error: '자동화 후보를 찾지 못했어요.' });
-        const external = env.connections.find((c) => c.id === cand.action?.tool)?.needsApproval === true;
+        // 만료를 강제할지는 **행동 종류**로 정한다. 도구 단위 needsApproval 로 보면 `local.file` 은
+        // 플래그가 없어 삭제 자동화가 무기한 승인으로 통과했다(도구 단위 kind 고정이 만든 사고의 재판).
+        const jobKind = toolActionKind({
+          toolId: cand.action?.tool, args: cand.action?.args, selfState: buildSelfState(env),
+        });
+        const external = isSafetyFloor(jobKind);
         const expiresAt = Number.isFinite(input.expiresAt) ? input.expiresAt : undefined;
         if (external && !expiresAt) {
           // 외부 전송은 만료 없는 승인을 허용하지 않는다(승인 경계 유지).

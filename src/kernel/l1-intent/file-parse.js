@@ -12,7 +12,7 @@
 const ACTION_PATTERNS = [
   { action: 'delete', re: /지워|삭제|없애/ },
   { action: 'undo', re: /되돌려|복구|취소해|undo/i },
-  { action: 'move', re: /옮겨|이동|이름.{0,4}바꿔|rename/i },
+  { action: 'move', re: /옮겨|이동|이름.*바꿔|rename/i },
   { action: 'write', re: /만들어|저장해|적어|써줘|쓰고|기록해|생성/ },
   { action: 'read', re: /읽어|열어|보여|내용/ },
   { action: 'list', re: /목록|뭐.?있|리스트|보여줘/ },

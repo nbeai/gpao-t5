@@ -36,7 +36,43 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
   const fixtures = Object.entries(registry).filter(([, t]) => t?.isFixture).map(([id]) => id);
   if (fixtures.length) bad(`라이브에 스텁 등록: ${fixtures.join(', ')} — 등록된 도구는 실제로 동작해야 한다`);
-  if (!phantom.length && !fixtures.length) ok(`선언 ${declared.size}개 = 라이브 손 ${handlers.size}개, 스텁 0`);
+
+  // **여기까지는 liveDeps 만 본 것이다.** 그걸 서버에 안 넘기면 서버는 demo fixture 로 폴백한다 —
+  // Phase 0-5 에서 실제로 그렇게 새서 토큰 없는 채널이 라이브에서 열렸다. 그래서 진짜 서버를 띄워
+  // **사용자에게 도달하는 화면**을 확인한다(절대원칙 1: 소스가 아니라 산출물).
+  const { startLiveServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-'));
+  const server = await startLiveServer({
+    port: 0, processEnv: {}, sessionStore: new SessionStore(dir), startScheduler: false,
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const { tools: shown } = await (await fetch(`${base}/toolbox`)).json();
+    const surfaced = (shown ?? []).map((t) => t.id);
+    const unbacked = surfaced.filter((id) => !handlers.has(id));
+    if (unbacked.length) bad(`도구함에 손 없는 도구가 보인다: ${unbacked.join(', ')} — liveDeps 를 서버에 안 넘겼는지 확인할 것`);
+
+    // 말귀도 같은 집합만 가리켜야 한다. 없는 도구로 라우팅하면 "연결이 필요해요/[연결 화면 열기]"
+    // 라는 **죽은 버튼**이 뜬다 — 연결할 대상이 없으므로 거짓 안내다(재감사 지적).
+    const { interpret } = await import('../src/kernel/l1-intent/intent.js');
+    const { buildSelfState: bss } = await import('../src/kernel/l0-evidence/self-state.js');
+    const liveSelf = bss(live.env);
+    for (const text of ['메일로 보내줘', '슬랙에 올려줘', '텔레그램으로 보내줘', '메모.md 지워줘', '뉴스 조사해줘']) {
+      const routed = interpret(text, { selfState: liveSelf }).neededTools ?? [];
+      const dead = routed.filter((id) => !handlers.has(id));
+      if (dead.length) bad(`"${text}" 가 손 없는 도구로 라우팅된다: ${dead.join(', ')} (죽은 연결 안내)`);
+    }
+
+    if (!unbacked.length && !phantom.length && !fixtures.length && failures.length === 0) {
+      ok(`선언 ${declared.size} = 손 ${handlers.size} = 화면 ${surfaced.length}, 스텁 0`);
+    }
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
 }
 
 // ── ② 위험 작업이 승인 없이 실행되지 않는다 (안전 바닥 불변식) ────────────
@@ -66,7 +102,26 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
       bad(`"${text}" 가 승인 없이 실행된다`);
     }
   }
-  if (failures.length === before) ok('안전 바닥 불변식 통과(파일 변경 전 종류 + 전송·결제·기억 승격)');
+  // (d) **사람 없는 실행(tick)** 도 같은 바닥을 지킨다. 승인 게이트를 한 층에서 고쳐도 다른 층으로
+  //     샌다 — 실제로 턴은 삭제를 막았는데 자동화 tick 이 같은 삭제를 무인 실행했다.
+  const { tickAutomation } = await import('../src/runtime/automation-engine.js');
+  const { approveAutomation } = await import('../src/kernel/l5-growth/automation.js');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { demoEnv } = await import('../src/surface/demo-context.js');
+  const irreversible = [
+    { tool: 'local.file', args: { action: 'delete', path: 'x.md' } },
+    { tool: 'slack.post', args: { text: '안녕' } },
+  ];
+  for (const action of irreversible) {
+    let called = false;
+    const job = approveAutomation({ action, statement: '매주' }, { id: 'gate', now: 0, nextRunAt: 0 });
+    await tickAutomation([job], {
+      tools: { run: async () => { called = true; return { failureState: 'none' }; } },
+      selfState: buildSelfState(demoEnv()), now: 1,
+    });
+    if (called && action.tool === 'local.file') bad(`자동화 tick 이 ${action.tool} 삭제를 무인 실행한다`);
+  }
+  if (failures.length === before) ok('안전 바닥 불변식 통과(파일 변경·전송·결제·기억 승격 + 무인 실행)');
 }
 
 // ── ③ 능력 설명의 부정 주장은 매번 눈에 띄게 한다 (감사 지적: 되는데 "못 한다"고 말했다) ──

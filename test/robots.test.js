@@ -19,6 +19,48 @@ Allow: /private/public
   assert.deepEqual(rules, [{ allow: false, path: '/private' }, { allow: true, path: '/private/public' }]);
 });
 
+// 감사 실측: 현실의 robots.txt(구글 등)는 `User-agent` 줄이 연달아 나오고 `*`·`$` 를 쓴다.
+// 합성 fixture(단일 UA)로만 테스트했더니 실제 본문에서 규칙을 **전량** 잃는 것을 못 잡았다.
+// 그래서 현실 형태를 그대로 재현한 본문으로 고정한다(절대원칙 1: 산출물 형태로 검증).
+// `User-agent: *` 뒤에 다른 UA 줄이 이어지는 형태가 핵심이다 — 이전 파서는 여기서 `*` 그룹을
+// 통째로 버렸다(뒤 UA 줄이 상태를 덮어썼다). 현실의 큰 사이트 robots.txt 가 이 모양이다.
+const REAL_SHAPED = `# robots.txt
+User-agent: *
+User-agent: Yandex
+Disallow: /search
+Allow: /search/about
+Disallow: /*.pdf$
+Disallow: /?hl=*&
+Sitemap: https://example.com/sitemap.xml
+
+User-agent: AdsBot-Google
+User-agent: AdsBot-Google-Mobile
+Disallow: /maps/api
+
+User-agent: Twitterbot
+Allow: /imgres
+`;
+
+test('연속된 User-agent 줄을 한 그룹으로 읽는다(현실 형태에서 규칙을 잃지 않는다)', () => {
+  const rules = parseRobots(REAL_SHAPED);
+  assert.ok(rules.length >= 4, `실제 형태에서 규칙을 잃었다: ${JSON.stringify(rules)}`);
+  assert.equal(robotsAllows(rules, '/search'), false);
+  assert.equal(robotsAllows(rules, '/search/about'), true, '더 긴 Allow 가 이긴다');
+  assert.equal(robotsAllows(rules, '/maps/api'), true, '다른 봇 그룹의 규칙을 우리 것으로 삼지 않는다');
+});
+
+test('`*`·`$` 와일드카드를 읽는다(못 읽으면 흔한 금지 규칙을 그냥 통과시킨다)', () => {
+  const rules = parseRobots(REAL_SHAPED);
+  assert.equal(robotsAllows(rules, '/docs/a.pdf'), false, '/*.pdf$ 가 걸려야 한다');
+  assert.equal(robotsAllows(rules, '/docs/a.pdf.html'), true, '$ 는 끝맞춤이다');
+  assert.equal(robotsAllows(rules, '/?hl=ko&q=1'), false);
+});
+
+test('Sitemap·Crawl-delay 같은 줄이 그룹을 끊지 않는다', () => {
+  const rules = parseRobots('User-agent: *\nSitemap: https://e.com/s.xml\nDisallow: /x');
+  assert.equal(robotsAllows(rules, '/x'), false);
+});
+
 test('가장 긴 일치가 이긴다', () => {
   const rules = parseRobots('User-agent: *\nDisallow: /a\nAllow: /a/b');
   assert.equal(robotsAllows(rules, '/a/x'), false);

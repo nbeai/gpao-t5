@@ -2,7 +2,7 @@
 // toolsToUse 는 SelfState 가 실행 가능 판정한 것만. needsApproval 은 A2·A3.
 import { isToolExecutable } from '../l0-evidence/self-state.js';
 import { toolLabel } from '../tool-labels.js';
-import { grantFor, UNKNOWN_KIND } from './authority.js';
+import { grantFor, UNKNOWN_KIND, isSafetyFloor } from './authority.js';
 
 // 도구 id → 권한 종류(범주). 실행 종류를 권한 등급으로 잇는다.
 /**
@@ -31,6 +31,21 @@ const TOOL_KIND = {
 };
 
 /**
+ * 이 실행이 **무슨 종류의 행동인가**. 도구 id 만으로는 답이 안 나온다 — `local.file` 은 같은 도구가
+ * 읽기도 삭제도 한다. 승인·자동화·tick 이 각자 자기 방식으로 판정하면 한 곳을 고쳐도 다른 곳으로
+ * 샌다(실제로 그렇게 샜다: 턴은 삭제를 막았는데 자동화 tick 이 같은 삭제를 무인 실행했다).
+ * @param {{toolId:string, args?:object, selfState?:object}} p  args 는 파일 도구의 fileOp({action,...})
+ */
+export function toolActionKind({ toolId, args, selfState }) {
+  const tool = selfState?.connectedTools?.find((t) => t.id === toolId);
+  let kind = tool?.toolKind ?? TOOL_KIND[toolId] ?? UNKNOWN_KIND;
+  if (toolId === 'local.file') kind = fileKind(args);
+  // descriptor 가 승인을 요구하면 등급이 낮게 나와도 최소 A2 로 올린다(하드코딩 우회 차단).
+  if (tool?.needsApproval && !isSafetyFloor(kind)) kind = 'send';
+  return kind;
+}
+
+/**
  * @param {Object} p
  * @param {import('../contracts.js').IntentPacket} p.intent
  * @param {import('../contracts.js').SelfStateSnapshot} p.selfState
@@ -51,13 +66,11 @@ export function buildActionPlan(p) {
     // 권한 종류는 descriptor(toolKind)를 먼저 믿는다 — 하드코딩 맵에 없어도 새 도구가 새지 않게.
     // toolKind가 아예 없으면(권한 종류 미상) read로 흘리지 않고 unknown으로 둔다 → 자동 진행 금지(감사 blocker).
     //   단, 기존 known id(web.collect 등)는 TOOL_KIND 맵으로 그대로 동작한다.
-    const tool = selfState.connectedTools.find((t) => t.id === id);
-    let kind = tool?.toolKind ?? TOOL_KIND[id] ?? UNKNOWN_KIND;
     // Phase 0-1: local.file 은 같은 도구가 보기·읽기·쓰기·삭제를 모두 한다. 작업으로 판정하지 않으면
     // 삭제가 organize 로 새어 승인 없이 실행된다(오너 실사용에서 실제로 새었다).
-    if (id === 'local.file') kind = fileKind(intent.fileOp);
-    // 감사 보정(보안): descriptor가 needsApproval=true면 등급이 낮게 나와도 승인 게이트로 올린다.
-    // "실행 가능"(availability)과 "실행해도 됨"(needsApproval) 두 축을 끝까지 살린다.
+    // 판정은 toolActionKind 하나로 모은다 — 승인·자동화·tick 이 같은 답을 봐야 한다.
+    const tool = selfState.connectedTools.find((t) => t.id === id);
+    let kind = toolActionKind({ toolId: id, args: intent.fileOp, selfState });
     const preview = (k) => ({
       impact: `${toolLabel(id)} 실행`,
       scope: '이번 요청',
