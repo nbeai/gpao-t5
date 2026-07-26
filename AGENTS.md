@@ -1,5 +1,9 @@
 # GPAO-T5 Agent Instructions
 
+> **최상위(2026-07-27 오너 지시)**: T5 성능 철학 — **사용자 발화 이해 → 대화 흐름 이해 →
+> 의도에 맞는 수행 → 기능**. 이 순서를 놓치면 아무리 대단한 코드도 의미가 없다.
+> 정본: `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md` §0.
+
 This folder is the official GPAO-T5 development root.
 
 Before any planning, implementation, review, verification, handoff, or release work, read these top authority documents:
