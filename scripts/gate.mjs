@@ -219,6 +219,46 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-c 로컬 보호 영역: **루트를 넓혀도 비밀은 안 열린다** ────────────────
+// T5 는 PC 기반 AI OS 라 로컬을 넓게 다뤄야 한다. 그러면 안전이 "좁은 루트"에서 나오던 구조가
+// 사라진다 — 보호 영역이 그 자리를 받는다. 이 검사는 **루트 설정과 독립임을 증명**한다.
+{
+  try {
+    const { protectionFor, protectionBlocks } = await import('../src/runtime/local-protection.js');
+    const { makeLocalFileTool } = await import('../src/runtime/local-file.js');
+    const { homedir, tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { mkdtemp } = await import('node:fs/promises');
+    const H = homedir();
+    const problems = [];
+
+    // 비밀은 읽기까지 막힌다 / 시스템은 변경만 막힌다 / 일반 자료는 안 막힌다.
+    for (const p of [join(H, '.ssh/id_rsa'), join(H, '.aws/credentials'), join(H, 'work/.env')]) {
+      if (!protectionBlocks(p, { write: false })) problems.push(`비밀이 읽기로 열린다: ${p}`);
+    }
+    if (protectionBlocks('/usr/bin/node', { write: false })) problems.push('시스템 읽기까지 막으면 아무것도 못 한다');
+    if (!protectionBlocks('/usr/bin/node', { write: true })) problems.push('시스템 변경이 열려 있다');
+    for (const p of [join(H, 'Desktop/a.md'), join(H, 'Documents/b.docx'), join(H, 'Downloads/c.png')]) {
+      if (protectionFor(p)) problems.push(`일반 자료가 막힌다(AI OS 가 아니게 된다): ${p}`);
+    }
+
+    // **핵심**: 홈 전체를 루트로 열어도 비밀은 안 열린다.
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-prot-'));
+    const wide = makeLocalFileTool({ roots: [H], dataDir: dir });
+    // **왜 막혔는지까지 본다.** `blocked` 만 보면 파일이 없어서 막힌 것(ENOENT)도 통과로 세어
+    // 보호가 꺼져 있어도 초록이 된다 — 실제로 그렇게 위양성이 났다(반대 검증에서 발견).
+    const r = await wide.handler({ action: 'list', path: join(H, '.ssh') });
+    if (r?.scopeState !== 'protected') {
+      problems.push(`루트를 넓히니 비밀이 열렸다 — 보호가 루트에 의존한다(scopeState=${r?.scopeState ?? 'none'})`);
+    }
+
+    if (problems.length) problems.forEach((p) => bad(p));
+    else ok('로컬 보호 영역: 루트를 넓혀도 비밀은 안 열린다');
+  } catch (e) {
+    bad(`로컬 보호 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ④ "후속/TODO" 가 늘지 않았다 (§16-B 후속 남용 방지) ───────────────────
 let deferred = 0;
 {

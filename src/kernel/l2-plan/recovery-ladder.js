@@ -26,6 +26,9 @@ const LADDER = {
   rate_limited: { rung: 'retry', why: '너무 자주 물어봐서 그 사이트가 잠시 쉬라고 했어요' },
   // 로컬: 범위 밖이면 **범위를 넓히자고 제안**한다(그냥 실패로 끝내지 않는다 — §22 로컬 지배력).
   out_of_scope: { rung: 'ask_user', requestScope: true, why: '제 작업 폴더 밖이에요' },
+  // 보호 영역은 **범위를 넓혀도 안 열린다** — "폴더를 열어 주세요"로 안내하면 거짓 희망이 된다.
+  // 되는 길은 사본을 안전한 자리에 두는 것이다(도구가 남긴 말이 우선하므로 여긴 폴백이다).
+  protected: { rung: 'ask_user', why: '거기는 조심해야 하는 자리예요' },
   needs_auth: { rung: 'ask_user', why: '연결이 필요해요' },
 };
 
