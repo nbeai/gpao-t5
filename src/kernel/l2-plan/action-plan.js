@@ -5,6 +5,19 @@ import { toolLabel } from '../tool-labels.js';
 import { grantFor, UNKNOWN_KIND } from './authority.js';
 
 // 도구 id → 권한 종류(범주). 실행 종류를 권한 등급으로 잇는다.
+/**
+ * 파일 작업 종류 → 권한 종류. **도구가 아니라 작업으로 판정한다** — 같은 도구가 읽기도 삭제도 하므로
+ * 도구 단위로 kind 를 고정하면 삭제가 organize 로 새어 안전 바닥(항상 승인)을 건너뛴다(실사용에서 확인).
+ */
+export function fileKind(fileOp) {
+  switch (fileOp?.action) {
+    case 'delete': return 'delete';
+    case 'write': return 'write';
+    case 'move': case 'undo': return 'organize';
+    default: return 'read'; // list·read
+  }
+}
+
 const TOOL_KIND = {
   'mail.send': 'send',
   'slack.post': 'send',
@@ -36,6 +49,9 @@ export function buildActionPlan(p) {
     //   단, 기존 known id(web.collect 등)는 TOOL_KIND 맵으로 그대로 동작한다.
     const tool = selfState.connectedTools.find((t) => t.id === id);
     let kind = tool?.toolKind ?? TOOL_KIND[id] ?? UNKNOWN_KIND;
+    // Phase 0-1: local.file 은 같은 도구가 보기·읽기·쓰기·삭제를 모두 한다. 작업으로 판정하지 않으면
+    // 삭제가 organize 로 새어 승인 없이 실행된다(오너 실사용에서 실제로 새었다).
+    if (id === 'local.file') kind = fileKind(intent.fileOp);
     // 감사 보정(보안): descriptor가 needsApproval=true면 등급이 낮게 나와도 승인 게이트로 올린다.
     // "실행 가능"(availability)과 "실행해도 됨"(needsApproval) 두 축을 끝까지 살린다.
     const preview = (k) => ({

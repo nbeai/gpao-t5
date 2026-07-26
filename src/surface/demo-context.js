@@ -86,7 +86,10 @@ export function demoTools(opts = {}) {
         return { result: { note: '공개 자료 기준 요약' }, sources, userSafeSummary: '공개 자료로 확인했어요.' };
       },
     },
-    'local.file': {
+    // 라이브는 실제 손발(makeLocalFileTool)을 주입한다. 여기 기본값은 **테스트/데모 전용 fixture** 이며
+    // 스텁 금지 게이트가 라이브에서 이게 쓰이면 실패시킨다(§16-C).
+    'local.file': opts.localFile ?? {
+      isFixture: true,
       async handler() {
         return { result: { scanned: true }, userSafeSummary: '로컬 파일을 확인했어요(변경 없음).' };
       },

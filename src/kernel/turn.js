@@ -19,6 +19,7 @@ import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend } from './l1-intent/send-parse.js';
+import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
@@ -183,7 +184,25 @@ export async function runTurn(input, ctx) {
 
   // P6-7: send류는 보낼 내용·대상을 지시 문장과 분리한다(문장 전체를 그대로 보내지 않는다).
   //   대상·내용이 애매하면 실행/승인 전에 짧게 확인한다. 명확하면 승인 preview를 어디에/무엇을로 채운다.
-  let sendArgs; // { [toolId]: { target, text } } — 승인 후 executePlan이 이 인자로 전송한다.
+  // toolArgs: { [toolId]: {...} } — 도구별 정밀 인자. send 는 parseSend, 파일은 parseFileRequest 가 채운다.
+  // 문장 전체를 그대로 도구에 넘기지 않는다(같은 원리를 도구 종류마다 반복 — 일반형).
+  let sendArgs;
+
+  // Phase 0-1: 파일 작업 인자. 도구만 만들면 커널이 "무엇을 하라"고 말해줄 수 없다(실사용에서 드러남).
+  if (plan.toolsToUse?.includes('local.file') || plan.needsApproval?.some((g) => g.action === 'local.file')) {
+    const parsedFile = parseFileRequest(input.text ?? '');
+    if (parsedFile.ambiguous) {
+      // 실행 전에 한 가지만 묻는다(막다른 답 금지).
+      return {
+        kind: 'clarify',
+        question: fileClarifyQuestion(parsedFile),
+        selfStateSummary: summary,
+        memorySuggestion,
+        followUp,
+      };
+    }
+    sendArgs = { ...(sendArgs ?? {}), 'local.file': parsedFile };
+  }
   const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
   if (sendGrant) {
     const parsed = parseSend(input.text ?? '', sendGrant.action);

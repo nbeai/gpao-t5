@@ -5,6 +5,7 @@
 import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
+import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
@@ -59,7 +60,12 @@ export function liveDeps(processEnv = {}, deps = {}) {
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
   };
-  const tools = demoTools({ webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }), senders });
+  // Phase 0-1: 로컬 파일은 **실제 손발**을 배선한다(스텁 금지 — 등록된 도구는 실제로 동작해야 한다).
+  const tools = demoTools({
+    webCollector: makeWebCollector({ timeoutMs: webTimeoutMs }),
+    senders,
+    localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
+  });
 
   // 채널도 실제 자격에서 파생해 함께 반환한다(단일 진실 — 라이브 표면이 fixture로 초록 오표시 안 하게).
   return { env, tools, descriptors: demoDescriptors(), channels: liveChannels(processEnv), model, modelDoctor, modelConnection };
