@@ -86,6 +86,17 @@ export function buildModelMessages(tc) {
   if (tc.evidenceFacts?.length) {
     usr.push(`[이번 턴 실행 사실]\n${tc.evidenceFacts
       .map((f) => `- ${f.summary}${f.failureState !== 'none' ? ` (미확인: ${f.failureState})` : ''}`
+        // P2-8: 검색으로 찾아 읽은 경우, **요청한 것과 읽은 것이 같지 않을 수 있다**는 사실을 준다.
+        // 이걸 안 주면 모델이 이유를 추측한다(실측: "검색 수집이 제한돼서" — 그런 일 없었다).
+        + (f.provenance
+          // "사용자가 준 주소가 아니다"를 먼저 못 박는다 — 실측에서 모델이 검색으로 찾은 블로그를
+          // "사용자가 준 글"이라고 말했다. 그리고 **후보 목록이 전부라는 사실**을 준다: 원하던 곳이
+          // 목록에 없으면 검색이 못 찾은 것이지 막힌 게 아니다(모델이 "제한돼서"라고 지어냈다).
+          ? `\n  이건 사용자가 준 주소가 아니에요. "${f.provenance.sought}"로 검색해서 나온 것 중 하나를 읽었어요.`
+            + `\n  읽은 곳: ${f.provenance.readUrl}`
+            + `\n  검색이 준 나머지 후보(이게 전부예요): ${f.provenance.others.length ? f.provenance.others.join(' , ') : '없음'}`
+            + '\n  찾던 곳이 이 목록에 없으면 검색이 그걸 못 찾은 거예요(막힌 게 아니에요). 주소를 받으면 바로 읽을 수 있어요.'
+          : '')
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }

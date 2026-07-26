@@ -14,6 +14,21 @@ export function compactResult(result, maxChars = 1200) {
   return json.length > maxChars ? `${json.slice(0, maxChars)}…(생략)` : json;
 }
 
+/**
+ * 이 결과를 **어떻게** 얻었는가. 주소를 직접 받아 읽었으면 출처가 곧 그 주소이므로 아무 것도 만들지
+ * 않는다(군더더기 금지). 검색해서 찾은 경우에만 "찾아서 읽었다"는 사실과 안 읽은 후보를 남긴다.
+ */
+export function provenanceOf(receipt) {
+  const via = receipt?.result?.foundVia;
+  if (!via?.query) return undefined;
+  const readUrl = receipt?.sources?.[0]?.sourceUrl;
+  const others = (via.candidates ?? [])
+    .map((c) => (typeof c === 'string' ? c : c?.url))
+    .filter((u) => u && u !== readUrl)
+    .slice(0, 4);
+  return { sought: via.query, readUrl, others };
+}
+
 /** 지금 시각·시간대·지역 — OS 가 아는 사실. 모델이 "오늘"을 알아야 오늘 일을 할 수 있다. */
 export function nowFacts(clock = () => new Date()) {
   const d = clock();
@@ -103,6 +118,13 @@ export function buildTaskContext(p) {
     packet.evidenceFacts = p.receipts.map((r) => ({
       intended: r.intended,
       failureState: r.failureState,
+      // P2-8: **주소를 직접 받아 읽은 것**과 **검색해서 찾아 읽은 것**을 구분한다.
+      // 실측(2026-07-27): 모델이 "부오상회 을지로점 **네이버 플레이스**"를 요청했는데 우리가 검색해서
+      // 나온 블로그를 읽고 failureState=none 으로 성공 기록했다. 모델은 플레이스를 못 받았다는 것만
+      // 알고 이유를 몰라 "검색 수집이 제한돼서"라고 **추측**했다 — 우리가 안 알려줬기 때문이다.
+      // 불일치 탐지기(토큰 휴리스틱)를 만들지 않는다. 그건 다음에 또 어긋난다(절대원칙 8).
+      // 사실만 준다: 무엇을 찾으려 했고, 무엇을 읽었고, 안 읽은 후보가 무엇인가. 판단은 모델이 한다(§24).
+      provenance: provenanceOf(r),
       summary: r.userSafeSummary, // diagnosticTrace 는 절대 넣지 않는다
       // 결과의 **알맹이**도 준다. 요약만 주면 모델이 "목록을 붙여달라"고 되묻는다(실측: 파일 목록을
       // 실제로 읽어 놓고 "도구가 없어 못 본다"고 답했다). 진단면은 여전히 안 넣는다.
