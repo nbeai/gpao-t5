@@ -765,28 +765,47 @@ export function makeServer(deps = {}) {
   return server;
 }
 
-// 직접 실행할 때만 listen 한다(import 시 부작용 없음).
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const port = Number(process.env.PORT ?? 4173);
-  // 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영한다(단일 진실):
-  // slack.post는 토큰이 있어야 도구함에서 사용 가능·실행 가능. 없으면 연결 필요(도구함·실행 일치, 2.0-A 보정).
+/**
+ * 라이브 서버 부팅(P-RT-4 감사 B2로 추출·테스트 가능화). **저장된 모델 연결 복원은 listen 전에
+ * 끝난다** — 재시작 직후 첫 요청이 잠깐 stub/env 로 처리되는 창을 없앤다(사용자 기대: 재시작해도
+ * 저장 연결 유지). 복원 실패는 부팅을 막지 않는다(정직 표시로 폴백).
+ * 라이브 서버는 실제 어댑터를 쓴다(P6-5 웹 · P6-6 채널). 자격 상태를 env·tools에 함께 반영(단일 진실).
+ * @param {{port?:number, processEnv?:Object, sessionStore?:SessionStore, connectionStore?:ModelConnectionStore,
+ *          fetchImpl?:Function, startScheduler?:boolean}} [opts]
+ */
+export async function startLiveServer(opts = {}) {
+  const processEnv = opts.processEnv ?? process.env;
+  const bootStore = opts.sessionStore ?? new SessionStore();
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
-  const bootStore = new SessionStore();
-  const connectionStore = new ModelConnectionStore(bootStore.dir);
+  const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection } =
-    liveDeps(process.env, { connectionStore });
+    liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
   const server = makeServer({ store: bootStore, env: liveEnv, tools: liveTools, channels: liveChannelList, model: liveModel, modelDoctor, modelConnection });
-  // P-RT-4 저장 연결 복원 → P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 실패해도 부팅은 계속.
-  modelConnection.init()
-    .then(() => modelDoctor())
+  // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
+  try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
+  const port = opts.port ?? Number(processEnv.PORT ?? 4173);
+  await new Promise((resolve) => server.listen(port, resolve));
+  // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
+  modelDoctor()
     .then((r) => console.log(`[model:doctor] ${r.state}${r.modelId ? ` (${r.modelId})` : ''} — ${r.userSafeSummary}`))
     .catch(() => {});
-  server.listen(port, () => {
+  if (opts.startScheduler !== false) {
+    // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
+    const tickMs = Number(processEnv.GPAO_T5_TICK_MS ?? 60_000);
+    new AutomationScheduler({ onTick: () => server.runtimeTick(), intervalMs: tickMs }).start();
+  }
+  return server;
+}
+
+// 직접 실행할 때만 listen 한다(import 시 부작용 없음).
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  startLiveServer().then((server) => {
+    const { port } = server.address();
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
+  }).catch((err) => {
+    console.error('[boot:diagnostic]', err?.stack ?? err);
+    process.exit(1);
   });
-  // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
-  const tickMs = Number(process.env.GPAO_T5_TICK_MS ?? 60_000);
-  new AutomationScheduler({ onTick: () => server.runtimeTick(), intervalMs: tickMs }).start();
 }

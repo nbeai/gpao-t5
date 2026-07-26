@@ -193,7 +193,16 @@ export function resolveModelConfigFromInput(input = {}) {
   const token = typeof input.key === 'string' && input.key.trim() ? input.key.trim() : undefined;
   if (!token && input.provider !== 'openai_compatible') return null;
   const modelId = (typeof input.modelId === 'string' && input.modelId.trim()) || spec.defaultModel;
-  const baseUrl = (typeof input.baseUrl === 'string' && input.baseUrl.trim()) || spec.defaultBase;
+  // 사용자 입력 주소는 서버가 직접 fetch 하는 경로 — scheme allowlist(http/https)·URL 자격증명 금지(감사 권고).
+  let baseUrl = spec.defaultBase;
+  if (typeof input.baseUrl === 'string' && input.baseUrl.trim()) {
+    const raw = input.baseUrl.trim();
+    try {
+      const u = new URL(raw);
+      if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) return null;
+      baseUrl = raw;
+    } catch { return null; }
+  }
   if (!modelId || !baseUrl) return null;
   return {
     provider: input.provider, token, modelId, baseUrl,

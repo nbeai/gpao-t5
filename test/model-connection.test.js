@@ -10,8 +10,9 @@ import { makeModelConnection, ModelConnectionStore, maskKey } from '../src/surfa
 import { resolveModelConfigFromInput } from '../src/runtime/model-provider.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { liveDeps } from '../src/surface/live-context.js';
-import { makeServer } from '../src/surface/server.js';
+import { makeServer, startLiveServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
+import { writeFile, stat } from 'node:fs/promises';
 
 const TC = {
   currentRequest: '안녕', selfStateFacts: {}, admittedContext: [],
@@ -45,6 +46,23 @@ test('resolveModelConfigFromInput: allowlist·기본값·필수 조건', () => {
   assert.equal(resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'llama3.3' }), null); // 주소 없음
   const compat = resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'llama3.3', baseUrl: 'http://localhost:11434/v1' });
   assert.equal(compat.provider, 'openai_compatible');
+});
+
+test('저장 파일 권한: 기존 0644 파일을 덮어써도 최종 0600 (감사 B1 — writeFile mode 는 생성 시에만)', async () => {
+  const store = await tmpStore();
+  await writeFile(store.file, '{}', { mode: 0o644 }); // 과거에 느슨한 권한으로 만들어진 파일
+  assert.equal((await stat(store.file)).mode & 0o777, 0o644); // 전제 확인
+  await store.save({ provider: 'beai', key: 'k' });
+  assert.equal((await stat(store.file)).mode & 0o777, 0o600, '덮어쓰기에서도 소유자 전용');
+});
+
+test('baseUrl 검증: http/https 만, URL 자격증명 금지 (감사 권고 — 서버가 직접 fetch 하는 사용자 입력)', () => {
+  const ok = resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'm', baseUrl: 'http://localhost:11434/v1' });
+  assert.ok(ok);
+  assert.equal(resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'm', baseUrl: 'file:///etc/passwd' }), null);
+  assert.equal(resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'm', baseUrl: 'javascript:alert(1)' }), null);
+  assert.equal(resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'm', baseUrl: 'http://user:pw@host/v1' }), null);
+  assert.equal(resolveModelConfigFromInput({ provider: 'openai_compatible', modelId: 'm', baseUrl: '주소아님' }), null);
 });
 
 test('maskKey: 원본 복원 불가한 마스킹만', () => {
@@ -181,6 +199,30 @@ test('서버: connect→턴이 실모델로, 응답 어디에도 원본 키·aut
     })).json();
     assert.equal(turn.reply, '연결된 모델의 답');           // 화면 연결 → 즉시 실모델 턴
     assert.equal(turn.selfStateSummary.model, 'beai-8.6'); // 단일 진실
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('부팅 순서: 저장 연결이 있으면 listen 전에 복원 — 첫 /turn 부터 저장 모델 (감사 B2)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-boot-'));
+  const connectionStore = new ModelConnectionStore(dir);
+  await connectionStore.save({ provider: 'beai', key: 'beai_sk_boot' });
+  const { impl, calls } = providerFetch({ reply: '재시작 후에도 저장 모델' });
+  const server = await startLiveServer({
+    port: 0, processEnv: {}, sessionStore: new SessionStore(dir), connectionStore,
+    fetchImpl: impl, startScheduler: false,
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // startLiveServer resolve 즉시(대기 없이) 첫 턴 — 복원이 listen 전에 끝났어야 통과한다.
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const turn = await (await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: s.id, text: '안녕' }),
+    })).json();
+    assert.equal(turn.reply, '재시작 후에도 저장 모델');
+    assert.equal(turn.selfStateSummary.model, 'beai-8.6');
+    const chat = calls.find((c) => c.url.includes('/chat/completions'));
+    assert.equal(chat.init.headers.authorization, 'Bearer beai_sk_boot');
   } finally { await new Promise((r) => server.close(r)); }
 });
 

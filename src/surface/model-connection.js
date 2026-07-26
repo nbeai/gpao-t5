@@ -6,7 +6,7 @@
 //   - 키는 저장 파일(0600)과 요청 본문에만 존재한다. status/health 등 어떤 응답에도 원본 키를
 //     싣지 않는다(마스킹만). authSignal(원문 진단)도 공개면 미노출(P-RT-2 B2 유지).
 //   - respond 는 현재 client 로 위임(핫스왑) — 재시작 없이 연결이 바뀐다.
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, chmod, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import {
@@ -30,8 +30,12 @@ export class ModelConnectionStore {
   }
   async save(conn) {
     await mkdir(this.dir, { recursive: true });
-    // 키가 담기는 파일 — 소유자 전용(0600). 소스 트리 밖(환경헌장).
-    await writeFile(this.file, JSON.stringify(conn), { encoding: 'utf8', mode: 0o600 });
+    // 키가 담기는 파일 — 소유자 전용(0600)을 **기존 파일 덮어쓰기에서도** 보장한다(감사 B1:
+    // writeFile 의 mode 는 새 파일 생성 시에만 적용된다). 임시 파일 → chmod → rename(원자 교체).
+    const tmp = `${this.file}.tmp`;
+    await writeFile(tmp, JSON.stringify(conn), { encoding: 'utf8', mode: 0o600 });
+    await chmod(tmp, 0o600); // umask 등과 무관하게 확정
+    await rename(tmp, this.file);
     return conn;
   }
   async clear() {
