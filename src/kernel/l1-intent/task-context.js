@@ -191,6 +191,20 @@ export function buildTaskContext(p) {
   // 3축: 응답 표면(웹/텔레그램/슬랙). 방 id·정책·도구명은 싣지 않는다 — 라벨과 성질만.
   if (p.surface) packet.surface = p.surface;
 
+  // P5-B-0.5: **외부 서비스 얘기가 나오면 지금 가능한 현실을 함께 놓는다.**
+  // 금지문("복붙 시키지 마라")을 더하지 않는다 — 실측에서 그런 규칙은 안 먹혔다(§24).
+  // 대신 "직접 연결은 이 상태이고, 이미 있는 손으로는 이런 게 된다"를 사실로 준다.
+  // 그 사실이 없으면 모델은 없는 자리를 상상으로 메우고, 가장 쉬운 상상이 복붙 요청이다.
+  // **분류기에 매달지 않는다.** 처음엔 fast_chat 턴에서 뺐는데, 오너가 든 네 시나리오 중 셋이
+  // fast_chat 으로 분류됐다(실측):
+  //   "너 내 노션 볼 수 있어?" · "구글에 연결하고 싶어" · "Gmail에서 견적서 찾아줘"
+  // 셋 다 현실을 못 받은 채 답했고, 그래서 있는 브라우저 손을 두고 복붙을 시켰다.
+  //
+  // 이건 사실이 분류에 좌우된 것이다 — **말귀를 intent 분류기로 축소하지 말라**(오너 지시).
+  // 이 블록은 T5 자기 손과 연결 상태에 대한 **능력 사실**이다(readyTools·limits 와 같은 급).
+  // 짧게 유지하는 것으로 소음을 다루고, 실을지 말지를 분류기가 정하게 두지 않는다.
+  if (p.externalReality) packet.externalReality = p.externalReality;
+
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
   if (p.receipts && p.receipts.length) {
     packet.evidenceFacts = p.receipts.map((r) => ({

@@ -122,6 +122,28 @@ export function buildModelMessages(tc) {
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }
+  // P5-B-0.5: **외부 자료에 닿는 현실.** 판정이 아니라 사실이다 — 어느 서비스 얘기인지,
+  // 한 번만 볼 건지 계속 쓸 건지, 어느 길이 자연스러운지는 **모델이 고른다**(§24).
+  // 이 블록이 없으면 모델은 없는 자리를 상상으로 메우고, 가장 쉬운 상상이 "복사해서 붙여주세요"다.
+  if (tc.externalReality) {
+    const e = tc.externalReality;
+    const lines = [];
+    // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
+    if (e.reach?.length) lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach.join(' · ')}`);
+    const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
+    const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
+    if (연결됨.length) lines.push(`직접 연결된 서비스: ${연결됨.map((s) => s.label).join(' · ')}`);
+    for (const s of 미연결) {
+      const 부르는말 = s.aliases?.length ? `(${s.aliases.slice(0, 4).join('/')})` : '';
+      // **connectable 과 planned 를 섞지 않는다.** planned 는 연결 흐름 자체가 없는 상태다 —
+      // 거기에 "연결하면 가능"을 붙이면 못 지킬 약속이 된다.
+      lines.push(`${s.label}${부르는말}: ${s.connectable ? '직접 연결 없음(연결하면 가능)' : '직접 연결 없음 · 연결 흐름도 아직 없음'}`
+        + (s.jobsWhenConnected?.length ? ` — 연결하면 ${s.jobsWhenConnected.join(' · ')}` : '')
+        + (s.plannedJobs?.length ? ` — 지원 예정: ${s.plannedJobs.join(' · ')}` : '')
+        + (s.setupGuide ? `\n  ${s.setupGuide}` : ''));
+    }
+    if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
+  }
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
   usr.push(tc.currentRequest); // 원문 보존

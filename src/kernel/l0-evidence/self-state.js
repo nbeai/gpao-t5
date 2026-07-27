@@ -147,6 +147,7 @@ export function buildSelfState(env, deps = {}) {
       // 1축: **이름과 하는 일은 descriptor 가 진실이다.** 여기서 흘리면 커널이 알 길이 없어
       // 손으로 관리하는 맵이 생긴다 — 실제로 그래서 LABELS·CAPABILITIES 두 맵이 있었다.
       label: t.label,
+      connector: t.connector,          // 어느 서비스의 손인가(커넥터 진실층이 여기서 파생한다)
       capability: t.capability,
       schema: t.schema,                   // 모델에게 보여줄 스키마도 descriptor 파생
       note: t.note,

@@ -86,6 +86,9 @@ export function toConnection(descriptor, facts = {}) {
     // 되돌리기 가능 여부도 함께. 여기서 떨어뜨리면 승인 카드가 다시 종류로 **추측**하게 된다.
     reversible: descriptor.reversible,
     reversibleNote: descriptor.reversibleNote,
+    // P5-B-0.5: **소속을 끝까지 들고 간다.** 여기서 떨어뜨리면 커넥터가 자기 도구를 못 찾아
+    // 연결돼 있는데도 "연결 안 됨"으로 말한다 — 검사가 실제로 그걸 잡았다.
+    connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };

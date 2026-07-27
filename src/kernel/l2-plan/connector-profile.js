@@ -32,6 +32,9 @@ export function defineConnector(p) {
     // toolActionKind·needsApproval)에서 파생한다. 양쪽에 두면 승인의 진실이 둘이 되고,
     // 그게 이 층을 만든 이유 그 자체다(2026-07-27 하루에 두 진실 사고가 세 번 났다).
     category: p.category,               // 'channel' | 'mail' | 'commerce' | 'calendar' …
+    // **사용자가 부르는 말.** 말귀가 별도 목록을 들면 커넥터가 늘 때 또 어긋난다 —
+    // 커넥터가 자기 별칭을 든다(P5-B-0.5).
+    aliases: p.aliases ?? [],
     userJobs: p.userJobs ?? [],          // 사용자 말로 "이걸로 뭘 할 수 있나"
     requiredSetup: p.requiredSetup ?? [],// 연결 전에 사용자가 갖춰야 하는 것(사람 말)
     scopes: p.scopes ?? [],              // 요청할 권한 범위

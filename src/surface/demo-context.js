@@ -11,16 +11,48 @@ import { makeSendPreview } from '../runtime/channel-sender.js';
 // P6-2 Slice-3: 채널 커넥터를 ConnectorProfile로 선언(멀티채널). 실제 adapter는 P6 후속.
 export function demoConnectors() {
   return [
-    defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true }),
-    defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false }),
+    // P5-B-0.5: 채널도 **미연결일 때 다음 길**을 들어야 한다. 없으면 "슬랙 안 됩니다"로 끝난다.
+    defineConnector({
+      id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true,
+      aliases: ['telegram', '텔레그램', '텔레'],
+      userJobs: ['텔레그램으로 말 걸면 T5가 일합니다', '결과를 그 방으로 돌려보내요'],
+      setupGuide: '텔레그램 봇 토큰을 연결하면 방에서 바로 일을 시킬 수 있어요.',
+    }),
+    defineConnector({
+      id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false,
+      aliases: ['slack', '슬랙'],
+      userJobs: ['슬랙 채널에 결과를 올려요'],
+      setupGuide: '슬랙 봇 토큰을 연결하면 채널에 바로 올릴 수 있어요.',
+    }),
     // P5-B-0: **연결 전 서비스도 선언한다.** 선언이 없으면 "연결하면 가능"을 말할 자리가 없어서
     // 모델이 그 자리를 상상으로 메운다. 연결 흐름(OAuth)은 다음 슬라이스 범위다.
     defineConnector({
       id: 'mail', label: '메일', kind: 'provider', category: 'mail', authState: 'oauth', connected: false,
+      aliases: ['gmail', '지메일', '메일로', '이메일'],
       userJobs: ['메일을 대신 보내요', '보낼 내용을 미리 보여드리고 확인받아요'],
       requiredSetup: ['Gmail 또는 Outlook 계정 연결'],
       setupGuide: '메일 계정을 연결하면 T5가 대신 보낼 수 있어요. 보내기 전에 받는 사람과 내용을 보여드려요.',
       limits: ['받은 메일을 읽는 기능은 아직 없어요'],
+      localeRelevance: 'kr',
+    }),
+    // P5-B-0.5: **사용자가 자주 부르는 서비스는 선언해 둔다.** 선언이 없으면 T5 는 그 이름을
+    // 듣고도 자기 상태를 말할 자리가 없어서 "복사해서 붙여주세요"로 끝낸다(실측).
+    // 선언만으로는 아무것도 실행되지 않는다 — 도구가 없으므로 model schema 에도 안 나온다.
+    // 여기 있는 건 "이 서비스를 안다, 지금은 직접 연결이 없다, 대신 이런 길이 있다"까지다.
+    defineConnector({
+      id: 'notion', label: '노션', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,
+      aliases: ['notion', '노션'],
+      userJobs: ['노션 문서를 읽어와 정리해요', '노션에 정리한 내용을 남겨요'],
+      requiredSetup: ['노션 계정 연결(API 또는 MCP)'],
+      setupGuide: '자주 쓰시면 노션 연결을 붙이는 게 가장 편해요. 한 번만 보실 거면 지금도 브라우저로 열어서 볼 수 있어요.',
+      localeRelevance: 'kr',
+    }),
+    defineConnector({
+      id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,
+      aliases: ['google', '구글', '드라이브', 'drive', '캘린더', 'calendar', '구글독스', '스프레드시트'],
+      userJobs: ['드라이브 자료를 찾아 읽어요', '캘린더 일정을 보고 정리해요'],
+      requiredSetup: ['구글 계정 연결(OAuth)'],
+      setupGuide: '구글 계정을 연결하면 드라이브·캘린더를 바로 다룰 수 있어요. 지금도 로그인해 두신 브라우저 화면은 열어서 볼 수 있어요.',
       localeRelevance: 'kr',
     }),
   ];
@@ -209,8 +241,18 @@ const DESCRIPTORS = [
   defineTool({
     id: 'browser.observe', label: '브라우저로 화면 보기', owner: 'core',
     availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    // **로그인 사실을 반드시 적는다.** 브라우저는 매번 **새 임시 프로필**로 연다
+    // (browser.js: `--user-data-dir=<임시폴더>`, 끝나면 삭제). 사용자의 로그인 세션이 없다.
+    //
+    // 이 사실이 빠져 있어서 실측(2026-07-27)에서 두 번 거짓 약속이 나왔다:
+    //   · "이 브라우저에 노션 로그인이 되어 있고 네가 화면을 열어 달라고 하면 볼 수 있어"
+    //   · "브라우저에서 Google 로그인만 해주세요. 끝나면 바로 Gmail에서 검색할게요"
+    // 둘 다 원리적으로 불가능하다 — 임시 프로필이라 사용자가 로그인해도 반영되지 않는다.
+    // 모델이 거짓말한 게 아니라, **로그인 여부라는 사실이 능력 문장에 없어서 합리적으로 추정**한 것이다.
     capability: '주소를 브라우저로 열어 **실제로 그려진 화면**을 본다. 자바스크립트로 그려지거나 탭 뒤에 있는 내용도 볼 수 있고,'
-      + ' 어디까지 봤고 얼마가 남았는지를 함께 남긴다. 보기만 하고 화면을 바꾸지 않는다.',
+      + ' 어디까지 봤고 얼마가 남았는지를 함께 남긴다. 보기만 하고 화면을 바꾸지 않는다.'
+      + ' **로그인은 안 되어 있다** — 매번 새 브라우저 자리로 열기 때문에 사용자가 평소 쓰는'
+      + ' 로그인 상태가 따라오지 않는다. 그래서 로그인이 필요한 화면은 로그인 페이지까지만 보인다.',
     schema: {
       description: '주소를 브라우저로 열어 실제 화면을 본다. `web.collect` 로 읽었는데 내용이 비어 있거나'
         + ' 자바스크립트로 그려지는 화면일 때 쓴다. 본 범위와 못 본 범위를 함께 돌려준다.'

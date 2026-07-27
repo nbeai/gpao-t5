@@ -4,6 +4,7 @@
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
+import { externalReality } from './l1-intent/external-service.js';
 import { selfhoodLookup, selectSelfhoodDetail, soulVoice } from './l1-intent/selfhood-lookup.js';
 import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
@@ -144,6 +145,12 @@ export async function runTurn(input, ctx) {
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
   const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
+  // P5-B-0.5: 외부 서비스 이야기인지 **한 번만** 판정하고 모든 조립부가 같은 사실을 쓴다.
+  // 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다(오늘 세 번 겪었다).
+  // P5-B-0.5: **판정하지 않고 현실만 싣는다.** 어느 서비스 얘기인지, 어느 길이 자연스러운지는
+  // 모델이 고른다(§24). 키워드로 우리가 맞히면 목록에 없는 서비스는 또 막다른 답이 된다.
+  // executePlan 은 input 을 안 받으므로 ctx 에 실어 둔다(askedFrom 과 같은 이유).
+  ctx.externalReality = externalReality({ connectors: ctx.connectors, selfState });
   const summary = selfStateSummary(selfState);
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).
@@ -269,6 +276,7 @@ export async function runTurn(input, ctx) {
   let earlyTc;
   {
     const tc = earlyTc = buildTaskContext({
+      externalReality: ctx.externalReality,
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
       surface: ctx.surface,
@@ -621,6 +629,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     blocked: ladder ? rungMessage(ladder) : undefined,
   });
   let tc = buildTaskContext({
+    externalReality: ctx.externalReality,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
@@ -762,6 +771,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
     workingState = deriveWorkingState(workingState, { receipts: [rec] });
     tc = buildTaskContext({
+      externalReality: ctx.externalReality,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
       surface: ctx.surface, recentTurns: ctx.recentTurns,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,

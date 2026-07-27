@@ -155,6 +155,8 @@ export function makeServer(deps = {}) {
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
     return {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
+      // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
+      connectors: deps.connectors ?? demoConnectors(),
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       modelProviderId: deps.modelProviderId?.(),
       memory, activeGoal: session.activeGoal ?? null,
