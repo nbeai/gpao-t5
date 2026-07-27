@@ -24,22 +24,43 @@ const LADDER = {
   // 429/503 은 "안 되는 곳"이 아니라 **잠시 뒤면 되는 일**이다. 다른 경로로 도망가지 말고 기다린다.
   // (우리가 너무 자주 물어서 생긴 경우가 대부분이다 — 실측 2026-07-27.)
   rate_limited: { rung: 'retry', why: '너무 자주 물어봐서 그 사이트가 잠시 쉬라고 했어요' },
-  // 로컬: 범위 밖이면 **범위를 넓히자고 제안**한다(그냥 실패로 끝내지 않는다 — §22 로컬 지배력).
-  out_of_scope: { rung: 'ask_user', requestScope: true, why: '제 작업 폴더 밖이에요' },
+  // 로컬: 파일 손의 범위 밖은 **T5 의 한계가 아니다.** 그 자리를 읽는 손이 따로 있으면
+  // 2단(다른 손)이지 3단(사용자에게 부탁)이 아니다. 라이브에서 이 계단을 3단으로 두는 바람에
+  // "폴더를 통째로 복사해 주세요"까지 갔다(c217a0c6) — 다음 턴에 터미널로 다 읽을 수 있었다.
+  //
+  // **다만 손이 있을 때만 그렇게 말한다.** 없는 손을 약속하면 거짓이고, 그때는 범위를 넓혀
+  // 달라고 부탁하는 것이 맞다(그건 사람만 할 수 있는 일이다 — 예전 계약 그대로 남긴다).
+  out_of_scope: {
+    rung: 'other_hand', needsHand: 'local.terminal',
+    why: '그 자리는 파일 도구의 작업 폴더 밖이에요',
+    없으면: { rung: 'ask_user', requestScope: true, why: '제 작업 폴더 밖이에요' },
+  },
   needs_auth: { rung: 'ask_user', why: '연결이 필요해요' },
 };
 
 /**
  * 이번 실패에서 다음에 무엇을 할지 정한다.
- * @param {Array<{failureState?:string, fetchState?:string, diagnosticTrace?:object, userSafeSummary?:string}>} receipts
+ *
+ * **지금 어떤 손이 있는지를 보고 정한다.** 표에 적힌 계단이라도 그 손이 없으면 그 계단은
+ * 없는 것이다 — 없는 손을 약속하면 "할 수 있다"는 거짓이 사용자에게 나간다.
+ * @param {Array<{failureState?:string, fetchState?:string, scopeState?:string}>} receipts
+ * @param {string[]} [hands] 지금 실제로 쓸 수 있는 도구 id 들(미지정이면 판정하지 않고 표대로)
  * @returns {{rung:string, useModelSearch?:boolean, requestScope?:boolean, why?:string}|null}
  */
-export function nextRung(receipts = []) {
+export function nextRung(receipts = [], hands) {
   for (const r of receipts) {
     if (!r || (r.failureState ?? 'none') === 'none') continue;
     const key = r.fetchState ?? r.scopeState ?? r.failureState;
     const step = LADDER[key];
-    if (step) return { ...step, from: key };
+    if (!step) continue;
+    const { needsHand, 없으면, ...본계단 } = step;
+    // **모르면 약속하지 않는다.** 손이 있다고 확인됐을 때만 "다른 손으로 이어서"라고 말한다 —
+    // 손 목록을 안 준 호출부(구형·단위 검사)는 보수적인 계단으로 간다. 없는 손을 약속하는 것이
+    // 부탁하는 것보다 나쁘다: 사용자는 기다리다가 아무 일도 안 일어난 걸 알게 된다.
+    if (needsHand && !(Array.isArray(hands) && hands.includes(needsHand))) {
+      return { ...(없으면 ?? 본계단), from: key };
+    }
+    return { ...본계단, from: key };
   }
   return null;
 }
@@ -53,6 +74,9 @@ export function rungMessage(step) {
   switch (step.rung) {
     case 'other_tool':
       return `${step.why}. 대신 제가 아는 경로로 찾아볼게요.`;
+    // 2단의 로컬 판 — 한 손이 안 닿으면 **다른 손으로 내가 이어서 한다.** 사용자를 시키지 않는다.
+    case 'other_hand':
+      return `${step.why}. 제 다른 손으로 이어서 볼게요.`;
     case 'ask_user':
       return step.requestScope
         ? `${step.why}. 그 폴더를 제 작업 범위에 넣어 주시면 바로 볼 수 있어요.`

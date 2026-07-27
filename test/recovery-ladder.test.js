@@ -30,11 +30,28 @@ test('로그인이 필요하면 사람만 할 수 있는 최소 단계를 부탁
   assert.match(rungMessage(step), /붙여 주시면 이어서/);
 });
 
-test('범위 밖이면 **범위를 넓히자고 제안**한다(그냥 실패로 끝내지 않는다)', () => {
+// 범위 밖은 **손이 있느냐에 따라 계단이 다르다.** 있으면 내가 이어서 하고(2단),
+// 없을 때만 사용자에게 부탁한다(3단). 라이브에서 이걸 늘 3단으로 두는 바람에
+// "폴더를 통째로 복사해 주세요"까지 갔다(c217a0c6) — 터미널로 읽을 수 있었는데도.
+test('범위 밖 + 그 자리를 읽는 손이 있으면 **내가 다른 손으로 이어서** 한다', () => {
+  const step = nextRung([{ failureState: 'blocked', scopeState: 'out_of_scope' }], ['local.terminal', 'local.file']);
+  assert.equal(step.rung, 'other_hand');
+  assert.match(rungMessage(step), /다른 손으로 이어서/);
+  assert.doesNotMatch(rungMessage(step), /옮기|복사|넣어 주시면/, '손이 있는데 사용자를 시키면 떠넘김이다');
+});
+
+test('범위 밖인데 그 손이 없으면 **범위를 넓히자고 제안**한다(없는 손을 약속하지 않는다)', () => {
+  for (const hands of [['local.file'], []]) {
+    const step = nextRung([{ failureState: 'blocked', scopeState: 'out_of_scope' }], hands);
+    assert.equal(step.rung, 'ask_user', `손 ${JSON.stringify(hands)}: 없는 손을 약속했다`);
+    assert.equal(step.requestScope, true);
+    assert.match(rungMessage(step), /작업 범위에 넣어 주시면/);
+  }
+});
+
+test('손을 모르면 약속하지 않는다(모름은 있음이 아니다)', () => {
   const step = nextRung([{ failureState: 'blocked', scopeState: 'out_of_scope' }]);
-  assert.equal(step.rung, 'ask_user');
-  assert.equal(step.requestScope, true);
-  assert.match(rungMessage(step), /작업 범위에 넣어 주시면/);
+  assert.equal(step.rung, 'ask_user', '손 목록을 안 준 호출부가 없는 손을 약속하면 안 된다');
 });
 
 test('성공한 실행에는 계단이 없다(멀쩡한 답에 사족 금지)', () => {
@@ -44,7 +61,7 @@ test('성공한 실행에는 계단이 없다(멀쩡한 답에 사족 금지)', 
 });
 
 // ── 턴 관통: 막혀도 다음 길이 함께 간다 ──────────────────────────────────
-test('관통: 범위 밖 요청에 내부 문구 대신 "범위를 넓힐까요?"가 간다', async () => {
+test('관통: 범위 밖 요청에 내부 문구 대신 되는 방법이 사실로 간다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ladder-'));
   let sawHint;
   const model = {
@@ -63,7 +80,9 @@ test('관통: 범위 밖 요청에 내부 문구 대신 "범위를 넓힐까요?
   // **도구가 남긴 말이 먼저다.** 예전엔 사용자에겐 도구 문장이, 모델에겐 사다리 문구가 가서
   // 같은 턴에 두 말이 돌았다(두 진실). 이제 하나다 — 검사할 것은 문장이 아니라 계약이다:
   // "되는 방법이 사실로 갔는가". 도구는 자기가 왜 막혔는지 더 정확히 안다.
-  assert.match(sawHint ?? '', /폴더|범위/, '모델에게 다음 길을 사실로 줘야 한다');
+  // **문장을 외우지 않는다.** 계단은 그때 있는 손에 따라 달라진다(다른 손으로 / 범위를 넓혀 달라).
+  // 검사할 것은 "무엇이 막혔고 다음이 무엇인지가 사실로 갔는가"다.
+  assert.match(sawHint ?? '', /파일 도구|폴더|범위/, '모델에게 다음 길을 사실로 줘야 한다');
   assert.doesNotMatch(sawHint ?? '', /실패 시 무엇이 안전하고/, '내부 계약 문구는 나가지 않는다');
   const shown = JSON.stringify({ reply: r.reply, next: r.nextSafeAction });
   assert.ok(!shown.includes('실패 시 무엇이 안전하고'), '내부 계획 문구가 나가면 안 된다');

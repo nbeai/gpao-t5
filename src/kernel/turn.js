@@ -78,10 +78,33 @@ const MAX_TOOL_STEPS = 4;
  * 내부 계획 문자열은 여기 오지 않는다 — 그게 화면에 찍히면 사용자는 무슨 말인지 알 수 없다.
  */
 export function userSafeNextAction(receipts = []) {
+  // **한 손이 막혔다고 턴이 막힌 게 아니다.**
+  // 라이브 실측(c217a0c6): 같은 턴에 local.locate 는 자료를 찾았고 local.file 만 범위 밖으로
+  // 막혔는데, 막힌 손의 다음 길이 턴 전체의 다음 길로 올라가 최종 답변을 지배했다 —
+  // T5 는 "폴더를 통째로 복사해 주세요"라고 답했고 다음 턴에 그 파일들을 전부 읽었다.
+  // 해낸 손이 있으면 막힌 손의 다음 길은 **이 턴의 다음 길이 아니다.** 무엇이 왜 막혔는지는
+  // 영수증에 그대로 남고(원장), 다음 계단은 사다리가 도구 종류를 보고 정한다.
+  const 해낸손 = receipts.some((r) => r && (r.failureState ?? 'none') === 'none');
+  if (해낸손) return undefined;
   const fromTool = receipts.map((r) => r.nextSafeAction).find((x) => typeof x === 'string' && x.trim());
   if (fromTool) return fromTool;
   const blocked = receipts.find((r) => r.failureState && r.failureState !== 'none');
   return blocked ? '다른 방법으로 이어가 볼까요?' : undefined;
+}
+
+/**
+ * 이번 턴의 **다음 길** 한 줄. 도구 말과 사다리 중 어느 쪽이 먼저인가 — 이걸 잘못 정해서
+ * 라이브에서 T5 가 "폴더를 통째로 복사해 주세요"라고 답했다(c217a0c6).
+ *
+ * 예전 규칙은 "도구 말이 무조건 먼저"였고, 그럴 이유가 있었다: 사다리가 도구 종류를 모른 채
+ * 웹 문구를 파일 실패에 씌웠다. 지금은 사다리가 **실패 종류와 지금 있는 손**을 함께 본다.
+ *   · 사다리가 종류를 알아본 계단이면(`from !== 'blocked'`) 그쪽이 더 정확하다 — 손까지 보고 골랐다.
+ *   · 종류를 못 알아본 일반 계단이면 예전대로 도구가 남긴 말이 먼저다(도구가 더 잘 안다).
+ */
+function 다음길(receipts, 있는손) {
+  const 계단 = nextRung(receipts, 있는손);
+  const 알아본계단 = 계단 && 계단.from !== 'blocked' ? rungMessage(계단) : undefined;
+  return 알아본계단 ?? userSafeNextAction(receipts) ?? rungMessage(계단);
 }
 
 export function fallbackReplyFrom(receipts = []) {
@@ -518,7 +541,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 비교하면 같은 명령인데 다른 지문이 나온다(그래서 첫 걸음을 그대로 또 밟았다).
   const 지문of = (toolId, args) => `${toolId}:${args?.command ?? args?.path ?? args?.request ?? JSON.stringify(args ?? {})}`;
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
-  const ladder = nextRung(turnReceipts);
+  // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
+  // "다른 손으로 이어서 볼게요"는 그 손이 실제로 있을 때만 참이다(없으면 거짓 약속이 된다).
+  const 있는손 = selfState.connectedTools.filter((t) => t.status === 'usable').map((t) => t.id);
+  const ladder = nextRung(turnReceipts, 있는손);
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = deriveWorkingState(ctx.workingState, {
@@ -535,7 +561,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
     // 못 찾았어요"). 사다리는 도구 종류를 모르는 일반 폴백이라, 앞세우면 파일 실패에 웹 문구가
     // 나간다 — 실측: 원장엔 정확한 문장이 있었는데 사다리가 덮어써서 모델이 터미널 명령을 시켰다.
-    recoveryHint: userSafeNextAction(turnReceipts) ?? rungMessage(ladder),
+    recoveryHint: 다음길(turnReceipts, 있는손),
     ...(ctx.selfhood ?? {}),
   });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
@@ -552,7 +578,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // P2-6 사다리: 막힌 게 있으면 **다음 계단을 정해** 최종 답변에 사실로 실어 준다.
   //   "안 됩니다"로 끝내지 않는다 — 우리 수집이 막혔으면 모델이 자기 경로로 찾고, 사람만 할 수
   //   있는 일이면 최소 단계를 부탁하고, 범위 밖이면 범위를 넓히자고 제안한다(오너 지시).
-  const step = nextRung(turnReceipts);
+  const step = nextRung(turnReceipts, 있는손);
   let finalOut = await ctx.model.respond(tc, {
     onDelta: ctx.onAnswerDelta,
     // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
@@ -609,7 +635,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       surface: ctx.surface, recentTurns: ctx.recentTurns,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState,
-      recoveryHint: userSafeNextAction(turnReceipts) ?? rungMessage(nextRung(turnReceipts)),
+      recoveryHint: 다음길(turnReceipts, 있는손),
       ...(ctx.selfhood ?? {}),
     });
     finalOut = await ctx.model.respond(tc, {
