@@ -14,7 +14,7 @@ import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
 import { runOAuth, refreshTokens } from './oauth-pkce.js';
 import { secretFields, missingFields, verifyApiKey } from './api-key.js';
 import { admitHttpTools, probeHttpTool } from './http-tool.js';
-import { admitCliTools, probeCli } from './cli-tool.js';
+import { admitCliTools, probeCli, probeCliTool } from './cli-tool.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
@@ -402,7 +402,19 @@ export function makeConnectorConnectTool(deps = {}) {
               : `이 컴퓨터에 ${m.command} 가 없어요`);
             continue;
           }
-          const 손 = admitCliTools({ connector: c, tools: m.tools, run: deps.runCommand }, ctx);
+          // **깔려 있다고 쓸 수 있는 게 아니다.** 손마다 실제로 한 번 돌려 보고 되는 것만 올린다
+          // (API 키에서 배운 것과 같은 자리 — 되는 척하는 손을 만들지 않는다).
+          const 결과 = await Promise.all((m.tools ?? []).map(async (t) => ({
+            tool: t, ...(await probeCliTool({ tool: t, run: deps.runCommand })),
+          })));
+          const 되는것 = 결과.filter((x) => x.ok).map((x) => x.tool);
+          if (!되는것.length) {
+            실패.push(m.blockedHint
+              ? `${m.command} 는 깔려 있는데 지금 T5 가 쓸 수 없어요 — ${m.blockedHint}`
+              : `${m.command} 는 깔려 있는데 지금 T5 가 쓸 수 없어요`);
+            continue;
+          }
+          const 손 = admitCliTools({ connector: c, tools: 되는것, run: deps.runCommand }, ctx);
           if (!손.length) { 실패.push(`${m.command} 는 있는데 쓸 수 있는 손이 없어요`); continue; }
           live.set(c.id, { admitted: 손 });
           c.connected = true;

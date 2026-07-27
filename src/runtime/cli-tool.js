@@ -69,7 +69,7 @@ export function makeCliToolHandler({ tool, connector, run = runCommand, timeoutM
     const mode = tool.toolKind === 'read' ? 'reach' : 'granted';
     let r;
     try {
-      r = await run(command, { mode, timeoutMs, cwd: tool.cwd });
+      r = await run(command, { mode, timeoutMs, cwd: tool.cwd, allowRead: tool.needsAccess });
     } catch {
       return { failed: true, userSafeSummary: `${connector.label}을(를) 실행하지 못했어요.`,
         nextSafeAction: '다른 방법으로 이어가 볼까요?' };
@@ -88,6 +88,21 @@ export function makeCliToolHandler({ tool, connector, run = runCommand, timeoutM
     try { result = JSON.parse(out); } catch { result = { text: out }; }
     return { result, userSafeSummary: `${connector.label}에서 ${tool.label ?? tool.name} 확인했어요.` };
   };
+}
+
+/**
+ * 손 하나를 **실제로 한 번 돌려 본다.** 깔려 있다고 쓸 수 있는 게 아니다 —
+ * 실측(오너 2026-07-28): `gh` 는 깔려 있고 로그인도 돼 있었지만, 토큰을 키체인에 두고 있어
+ * T5 가 지키는 경계 안에서는 읽을 수 없었다. 설치만 보고 손을 올리면 **되는 척하는 손**이 생긴다.
+ * (키체인은 열지 않는다. 거기엔 사용자의 모든 비밀이 있다.)
+ */
+export async function probeCliTool({ tool, run = runCommand, timeoutMs = 20_000 }) {
+  if (!tool?.probeArgs) return { ok: true }; // 두드릴 방법을 선언 안 했으면 통과
+  const r = await run(buildCommand(tool.run, { ...(tool.defaults ?? {}), ...tool.probeArgs }), {
+    mode: tool.toolKind === 'read' ? 'reach' : 'granted',
+    timeoutMs, cwd: tool.cwd, allowRead: tool.needsAccess,
+  }).catch(() => null);
+  return { ok: r?.exitCode === 0, why: String(r?.stderr ?? '').slice(0, 300) };
 }
 
 /**

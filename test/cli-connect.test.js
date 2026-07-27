@@ -187,3 +187,61 @@ test('실제 명령 존재 확인이 진짜로 동작한다', async () => {
   const 없는것 = await probeCli('듣도보도못한명령어xyz');
   assert.equal(없는것.installed, false, '없는 것을 있다고 했다');
 });
+
+// 실측(오너 2026-07-28): `gh` 는 **깔려 있고 로그인도 돼 있었는데** T5 경계 안에서는 못 썼다.
+// 토큰을 애플 키체인에 두기 때문이다. 키체인은 열지 않는다 — 거기엔 사용자의 모든 비밀이 있다.
+// 설치만 보고 손을 올리면 **되는 척하는 손**이 생기고, 사용자는 불러 보고서야 안다.
+test('깔려 있어도 실제로 안 되면 손을 올리지 않는다', async () => {
+  const 셸 = 가짜셸();
+  const 원래 = 셸.run;
+  const run = async (command, opts) => {
+    if (command.startsWith('command -v')) return 원래(command, opts);
+    return { exitCode: 1, stdout: '', stderr: '인증이 필요합니다' }; // 깔려 있지만 못 쓴다
+  };
+  const c = 커넥터();
+  c.authMethods[0].tools[0].probeArgs = { q: '확인' };
+  c.authMethods[0].blockedHint = '로그인 정보를 다른 곳에 두셨어요. 이렇게 하시면 돼요';
+  const ctx = 맥락();
+  const tool = makeConnectorConnectTool({ ctx: () => ctx, connectors: () => [c], runCommand: run });
+
+  const r = await tool.handler({ connector: '가가도구' });
+
+  assert.notEqual(r.result?.connected, true, '못 쓰는데 연결됐다고 했다');
+  assert.equal(Object.keys(ctx.tools.tools).length, 0, '되는 척하는 손이 올라왔다');
+  assert.match(r.userSafeSummary, /이렇게 하시면 돼요/, '왜 막혔고 뭘 하면 되는지를 말하지 않았다');
+  assert.ok(!/exitCode|stderr|인증이 필요합니다/.test(r.userSafeSummary), '명령 원문이 사용자면에 샜다');
+});
+
+test('되는 손과 안 되는 손이 섞여 있으면 되는 것만 올린다', async () => {
+  const c = 커넥터();
+  c.authMethods[0].tools = [
+    { name: 'ok', label: '되는 것', toolKind: 'read', run: { command: 'gagacmd', args: ['ok'] }, probeArgs: {} },
+    { name: 'no', label: '안 되는 것', toolKind: 'read', run: { command: 'gagacmd', args: ['no'] }, probeArgs: {} },
+  ];
+  const run = async (command) => {
+    if (command.startsWith('command -v')) return { exitCode: 0, stdout: '/bin/gagacmd\n', stderr: '' };
+    return command.includes("'no'")
+      ? { exitCode: 1, stdout: '', stderr: '안 됨' }
+      : { exitCode: 0, stdout: '{}', stderr: '' };
+  };
+  const ctx = 맥락();
+  const tool = makeConnectorConnectTool({ ctx: () => ctx, connectors: () => [c], runCommand: run });
+  const r = await tool.handler({ connector: '가가도구' });
+  assert.equal(r.result?.connected, true, `연결 실패: ${r.userSafeSummary}`);
+  assert.deepEqual(r.result.tools, ['gagacli.ok'], '안 되는 손까지 올렸다');
+});
+
+// 선언한 자리 하나만 열린다 — 넓히면 그게 곧 유출 경로다.
+test('선언한 자리만 읽기로 열리고, 나머지 비밀은 그대로 막힌다', () => {
+  const p = sandboxProfile('reach', {
+    secrets: ['/home/u/.ssh', '/home/u/.config/gh', '/home/u/Library/Keychains'],
+    allowRead: ['/home/u/.config/gh'],
+  });
+  assert.match(p, /allow file-read\*.*\/home\/u\/\.config\/gh/, '선언한 자리가 안 열렸다');
+  assert.match(p, /deny file-read\*.*\/home\/u\/\.ssh/, '선언 안 한 비밀이 열렸다');
+  assert.match(p, /deny file-read\*.*Keychains/, '키체인이 열렸다 — 거긴 모든 비밀이 있다');
+  // 허용은 금지 뒤에 와야 그 한 자리만 도로 열린다(순서가 곧 우선순위)
+  assert.ok(p.lastIndexOf('allow file-read*') > p.indexOf('deny file-read*'), '순서가 뒤집혀 허용이 먹히지 않는다');
+  // 아무것도 선언 안 하면 아무것도 안 열린다
+  assert.ok(!/allow file-read\*/.test(sandboxProfile('reach', { secrets: ['/home/u/.ssh'] })));
+});

@@ -1,5 +1,6 @@
 // 슬라이스-1 데모 환경. 실서비스 연결·자격은 밀도화 단계에서 실제 provider/connector 로 대체한다.
 // 여기서는 커널 흐름을 사람이 실제로 겪어 보게 하는 최소 실행 맥락만 만든다.
+import { homedir } from 'node:os';
 import { ToolRunner } from '../runtime/tool-runner.js';
 import { sameSiteLinks } from '../kernel/l0-evidence/working-state.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
@@ -171,6 +172,34 @@ export function demoConnectors() {
         }],
       }],
     }),
+    // 비밀이 하나도 필요 없는 CLI — 내줄 것도, 열어 줄 자리도 없다.
+    // 이 컴퓨터의 작업 폴더를 읽을 뿐이라 T5 의 경계와 부딪히지 않는다.
+    defineConnector({
+      id: 'workfolder', label: '작업 폴더 기록', kind: 'provider', category: 'dev', connected: false,
+      aliases: ['작업기록', '작업 기록', '변경내역', '커밋', 'git', '깃'],
+      userJobs: ['이 폴더에서 최근에 뭘 했는지 봐요', '지금 손대고 있는 게 뭔지 봐요'],
+      localSigns: [{ kind: 'cli', command: 'git', label: '작업 기록 도구' }],
+      authMethods: [{
+        kind: 'cli', command: 'git',
+        install: { steps: ['작업 기록 도구(git)를 먼저 설치해 주세요'] },
+        tools: [{
+          name: 'recent', label: '최근 작업', toolKind: 'read',
+          capability: '이 폴더에서 최근에 무엇을 했는지 시간 순으로 가져온다.',
+          description: '최근 작업 내역을 본다.',
+          parameters: { type: 'object', properties: { limit: { type: 'number', description: '몇 개까지(기본 10)' } } },
+          defaults: { limit: 10 },
+          run: { command: 'git', args: ['log', '--oneline', '-n', '{limit}'] },
+          probeArgs: { limit: 1 },
+        }, {
+          name: 'current', label: '지금 손댄 것', toolKind: 'read',
+          capability: '지금 바뀐 채로 남아 있는 파일들을 가져온다.',
+          description: '지금 작업 중인 변경을 본다.',
+          parameters: { type: 'object', properties: {} },
+          run: { command: 'git', args: ['status', '--short'] },
+          probeArgs: {},
+        }],
+      }],
+    }),
     // P5-B-1B: **이미 깔려 있는 프로그램으로 붙는 방식.** 토큰도 동의 화면도 없다 —
     // 다섯 방식 중 유일하게 사용자가 내줄 것이 하나도 없는 길이다.
     defineConnector({
@@ -181,6 +210,15 @@ export function demoConnectors() {
       authMethods: [{
         kind: 'cli', command: 'gh',
         install: { steps: ['깃허브 명령(gh)을 먼저 설치하고 로그인해 주세요'] },
+        // 실측(2026-07-28): 깔려 있고 로그인도 돼 있는데 T5 경계 안에서는 못 썼다.
+        // gh 가 토큰을 애플 키체인에 두기 때문이다. **키체인은 열지 않는다** — 거기엔 모든 비밀이 있다.
+        // 그래서 "못 한다"로 끝내지 않고, 사용자가 고를 수 있는 길을 사람 말로 준다.
+        blockedHint: '깃허브가 로그인 정보를 애플 키체인에 두고 있어요. 거긴 T5가 열지 않는 자리예요'
+          + '(그 안에 모든 비밀이 들어 있어서요). 터미널에서 gh auth login --insecure-storage 로'
+          + ' 다시 로그인하시면 바로 쓸 수 있어요',
+        // **그 명령이 자기 자격을 읽는 자리.** T5 의 비밀 보호가 여기를 막아서 `gh` 가
+        // 자기 토큰을 못 읽고 실패했다(실측 2026-07-28). 선언한 이 한 자리만 읽기로 열린다.
+        needsAccess: [`${homedir()}/.config/gh`],
         tools: [{
           name: 'repos', label: '저장소 목록', toolKind: 'read',
           capability: '내 깃허브 저장소 목록을 가져온다. 이름·설명·마지막 변경 시각을 본다.',
@@ -188,6 +226,7 @@ export function demoConnectors() {
           parameters: { type: 'object', properties: { limit: { type: 'number', description: '몇 개까지(기본 20)' } } },
           defaults: { limit: 20 },
           run: { command: 'gh', args: ['repo', 'list', '--limit', '{limit}', '--json', 'name,description,updatedAt'] },
+          probeArgs: { limit: 1 },
         }, {
           name: 'prs', label: '열린 PR', toolKind: 'read',
           capability: '지금 열려 있는 PR 목록을 가져온다. 어느 저장소인지는 지금 폴더를 따른다.',
@@ -195,6 +234,7 @@ export function demoConnectors() {
           parameters: { type: 'object', properties: { limit: { type: 'number' } } },
           defaults: { limit: 20 },
           run: { command: 'gh', args: ['pr', 'list', '--limit', '{limit}', '--json', 'number,title,author,updatedAt'] },
+          probeArgs: { limit: 1 },
         }],
       }],
     }),

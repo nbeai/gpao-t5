@@ -24,10 +24,14 @@ const lit = (p) => `"${String(p).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch } = {}) {
+export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [] } = {}) {
   const denySecrets = secrets.map((p) => `(deny file-read* (subpath ${lit(p)}))`).join('\n');
+  // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
+  // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
+  // 넓히지 않는다: 커넥터가 선언한 경로만, 그것도 읽기만 연다. 선언에 없으면 그대로 막힌다.
+  const 열어줄것 = allowRead.map((p) => `(allow file-read* (subpath ${lit(p)}))`).join('\n');
   if (mode === 'granted') {
-    return `(version 1)\n(allow default)\n${denySecrets}\n`;
+    return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }
   return [
     '(version 1)',
@@ -51,6 +55,8 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch } = {}) 
     // 파일 쓰기까지 열린다. **능력을 위해 안전을 푸는 게 아니라, 없던 칸에 이름을 붙인 것이다.**
     ...(mode === 'reach' ? [] : ['(deny network*)']),
     denySecrets,
+    // **금지 뒤에 온다** — 선언한 자리 하나만 도로 열기 위해서다(순서가 곧 우선순위).
+    열어줄것,
     '',
   ].join('\n');
 }

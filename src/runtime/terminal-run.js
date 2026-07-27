@@ -52,7 +52,8 @@ export async function runCommand(command, opts = {}) {
       // 프로파일의 subpath 가 실제 접근 경로와 안 맞아 조용히 안 열린다.
       scratch = await realpath(await mkdir(join(profileDir, 'tmp')).then(() => join(profileDir, 'tmp')));
     }
-    await writeFile(file, sandboxProfile(mode, { scratch }), 'utf8');
+    // allowRead: 커넥터가 선언한 자리만 도로 연다(그 명령의 자기 자격). 선언이 없으면 그대로 막힌다.
+    await writeFile(file, sandboxProfile(mode, { scratch, allowRead: opts.allowRead }), 'utf8');
     argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-c', command]];
   }
 
