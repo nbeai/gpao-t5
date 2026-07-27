@@ -78,7 +78,7 @@ export function makeHttpToolHandler({ tool, secrets, connector, fetchImpl = glob
         ...(req.body ? { body: 채우기(req.body, 값들) } : {}),
       });
     } catch {
-      return { failed: true, userSafeSummary: `${connector.label} 에 닿지 못했어요.`,
+      return { failed: true, userSafeSummary: `${connector.label}에 닿지 못했어요.`,
         nextSafeAction: '잠시 뒤 다시 해볼까요?' };
     } finally { clearTimeout(timer); }
 
@@ -88,8 +88,8 @@ export function makeHttpToolHandler({ tool, secrets, connector, fetchImpl = glob
       return {
         failed: true,
         userSafeSummary: res.status === 401 || res.status === 403
-          ? `${connector.label} 이(가) 이 요청을 거절했어요. 연결 권한을 다시 볼까요?`
-          : `${connector.label} 이(가) 지금 응답하지 못했어요(${res.status}).`,
+          ? `${connector.label} 쪽에서 이 요청을 거절했어요. 연결을 다시 확인해 볼까요?`
+          : `${connector.label} 이 지금은 응답하지 못했어요.`,
         nextSafeAction: '다른 방법으로 이어가 볼까요?',
       };
     }
@@ -128,7 +128,7 @@ export function admitHttpTools({ connector, tools, secrets, fetchImpl }, ctx) {
       previewOf(args = {}) {
         const 인자 = JSON.stringify(args ?? {});
         return {
-          impact: `${connector.label} 에서 ${d.label} 을(를) 해요`,
+          impact: `${connector.label}에서 ${을를(d.label)} 해요`,
           scope: `${connector.label} · 보낼 내용 ${인자.length > 200 ? `${인자.slice(0, 200)}…` : 인자}`,
           duration: '이번 한 번',
           cancel: '되돌리기는 이 서비스가 지원하는 범위에 따라요',

@@ -170,3 +170,55 @@ test('저장된 자격 복원을 켠 채로도 서버가 실제로 뜬다', asyn
     assert.equal(res.status, 200, '부팅은 됐는데 화면이 안 뜬다');
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// 오너 기준(2026-07-28): "지파오티는 모든 절대적 최우선 목표가 사용자 입장이야."
+// 이 검사는 그 기준을 **사용자가 실제로 읽는 문장**에 대고 재는 것이다. 커널이 옳아도
+// 사용자가 읽는 한 줄이 기계 말이면 그 자리에서 사람이 멈춘다.
+test('사용자가 읽는 문장에 상태 코드·기계 말이 없다', async () => {
+  const { verifyApiKey } = await import('../src/runtime/api-key.js');
+  const { makeHttpToolHandler } = await import('../src/runtime/http-tool.js');
+  const 문장들 = [];
+
+  for (const status of [401, 403, 429, 500]) {
+    const r = await verifyApiKey(
+      { verify: { url: 'https://x.test', okWhen: { status: 200 } } }, {},
+      { fetchImpl: async () => ({ status, ok: false, json: async () => ({}), text: async () => '' }) },
+    );
+    문장들.push(r.reason);
+    // 숫자는 진단면에만 — 사용자가 401 을 봐도 할 수 있는 일이 없다
+    assert.match(r.diagnostic, /\d{3}/, '진단면에는 코드가 남아야 원인을 좁힌다');
+  }
+  for (const status of [401, 500]) {
+    const h = makeHttpToolHandler({
+      tool: { label: '검색', request: { url: 'https://x.test' } }, secrets: {},
+      connector: { label: '가가상점' },
+      fetchImpl: async () => ({ status, ok: false, text: async () => '' }),
+    });
+    const r = await h({});
+    문장들.push(r.userSafeSummary, r.nextSafeAction);
+  }
+
+  for (const 문장 of 문장들.filter(Boolean)) {
+    assert.ok(!/\b[45]\d\d\b/.test(문장), `사용자 문장에 상태 코드가 있다: "${문장}"`);
+    assert.ok(!/을\(를\)|이\(가\)|은\(는\)/.test(문장), `조사를 안 골랐다: "${문장}"`);
+    for (const 기계말 of ['status', 'error', 'null', 'undefined', 'HTTP', 'API 키가 invalid']) {
+      assert.ok(!문장.includes(기계말), `사용자 문장에 기계 말: "${기계말}" — "${문장}"`);
+    }
+    assert.ok(문장.length < 120, `한 번에 읽기 너무 길다: "${문장}"`);
+  }
+});
+
+test('막힌 자리마다 다음 길이 함께 온다 — 막다른 답 금지', async () => {
+  const { makeHttpToolHandler } = await import('../src/runtime/http-tool.js');
+  for (const 상황 of [
+    async () => ({ status: 401, ok: false, text: async () => '' }),
+    async () => { throw new Error('network'); },
+  ]) {
+    const h = makeHttpToolHandler({
+      tool: { label: '검색', request: { url: 'https://x.test' } }, secrets: {},
+      connector: { label: '가가상점' }, fetchImpl: 상황,
+    });
+    const r = await h({});
+    assert.ok(r.nextSafeAction, '막혔다고만 하고 끝냈다');
+  }
+});

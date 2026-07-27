@@ -79,5 +79,7 @@ export async function verifyApiKey(method, 값들, { fetchImpl = globalThis.fetc
       diagnostic: 진단,
     };
   }
-  return { ok: false, reason: `서비스가 지금 이 요청을 받지 못했어요(${res.status}).`, diagnostic: 진단 };
+  // 숫자를 사용자 화면에 흘리지 않는다. 401 을 봐도 사용자가 할 수 있는 일이 없다 —
+  // 그 숫자는 진단면에 있고, 사용자에게는 다음에 뭘 하면 되는지만 말한다.
+  return { ok: false, reason: '그 서비스가 지금은 응답하지 못했어요. 잠시 뒤 다시 해볼게요.', diagnostic: 진단 };
 }
