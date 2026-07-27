@@ -69,10 +69,14 @@ export async function runCommand(command, opts = {}) {
     const onAbort = () => { killed = 'aborted'; child.kill('SIGTERM'); };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
 
+    // 실행 자체가 안 된 이유를 **버리지 않는다.** 예전엔 error 를 삼켜서 exitCode -1 에
+    // stderr 도 비어 있었다 — 모델도 사용자도 "왜 실패했는지" 알 방법이 없었다(라이브 실측).
+    let spawnError;
     const exitCode = await new Promise((res) => {
-      child.on('error', () => res(-1));
+      child.on('error', (e) => { spawnError = e; res(-1); });
       child.on('close', (code) => res(code ?? -1));
     });
+    if (spawnError) err += `${err ? '\n' : ''}실행을 시작하지 못했어요: ${spawnError.message}`;
     clearTimeout(timer);
     opts.signal?.removeEventListener('abort', onAbort);
 
