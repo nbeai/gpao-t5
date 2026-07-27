@@ -49,6 +49,31 @@ const DESCRIPTORS = [
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
+  // P6-T2 · 터미널. **사용자에게 명령을 치라고 하지 않는다** — T5 가 직접 돌린다.
+  // 등급은 고정이 아니다: 계획 단계 probe 가 "아무것도 안 바꿨다"를 증명하면 A0, 못 하면 A2.
+  defineTool({
+    id: 'local.terminal', label: '터미널 실행', owner: 'core', availability: [{ kind: 'connected' }],
+    toolKind: 'run_command', needsApproval: false, reversible: false,
+    capability: '이 컴퓨터에서 명령을 직접 실행한다. 확인·검사·테스트·빌드는 바로 하고,'
+      + ' 파일을 바꾸거나 인터넷에 연결하는 명령은 먼저 확인받는다. 비밀 자리는 승인해도 읽지 않는다.',
+    schema: {
+      description:
+        '셸 명령을 실행한다. 파이프·리다이렉션·&& 다 된다.'
+        + ' 사용자가 상태를 묻거나("테스트 돌려봐", "왜 안 되는지 봐줘") 확인이 필요하면 **직접 실행한다** —'
+        + ' 사용자에게 터미널을 켜서 붙여 달라고 하지 않는다.'
+        + ' 파일 변경·설치·네트워크가 필요한 명령도 그냥 쓰면 된다. 먼저 안전하게 시험해 보고'
+        + ' 필요하면 사용자에게 확인을 받는다. 오래 걸리는 서버 실행은 아직 이 도구로 하지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: '실행할 셸 명령 전체' },
+          cwd: { type: 'string', description: '실행할 폴더(비우면 현재 작업 폴더)' },
+          timeoutMs: { type: 'number', description: '최대 대기 시간(기본 120초, 최대 600초)' },
+        },
+        required: ['command'],
+      },
+    },
+  }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     capability: '메일을 보낸다(보내기 전 확인을 받는다).',
     // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
@@ -161,6 +186,7 @@ export function demoDescriptors(opts = {}) {
 const FACTS = {
   'web.collect': { connected: true },
   'local.file': { connected: true },
+  'local.terminal': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -225,6 +251,7 @@ export function demoTools(opts = {}) {
     // 라이브는 makeChannelSender 로 실제 전송을 주입한다. 여기 기본값은 데모/테스트 전용이다.
     // 지난 대화 찾기 — 라이브는 실제 세션 저장소를 주입한다(여기 기본값은 빈 결과).
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
+    ...(opts.localTerminal ? { 'local.terminal': opts.localTerminal } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {

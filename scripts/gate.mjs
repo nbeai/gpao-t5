@@ -131,6 +131,65 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   if (failures.length === before) ok('안전 바닥 불변식 통과(파일 변경·전송·결제·기억 승격 + 무인 실행)');
 }
 
+// ── ②-c 터미널: **미끼가 살아있는가** (P6-T2) ─────────────────────────
+// 셸을 통째로 열었으므로 여기가 가장 큰 구멍이다. 도구가 "막았어요"라고 말하는지 보지 않는다 —
+// 메시지는 거짓말할 수 있지만 파일시스템은 못 한다(어제 blocked 만 보다 ENOENT 를 보호로 셌다).
+{
+  const before = failures.length;
+  try {
+    const { runCommand } = await import('../src/runtime/terminal-run.js');
+    const { sandboxAvailable } = await import('../src/runtime/sandbox.js');
+    const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
+    const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+
+    if (!sandboxAvailable()) {
+      // 샌드박스가 없으면 **자동 실행을 열면 안 된다.** 여기서 통과시키면 무방비가 된다.
+      bad('이 컴퓨터에서 실행 샌드박스를 쓸 수 없다 — 터미널 자동 실행을 열지 말 것');
+    } else {
+      const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-term-'));
+      const 원본 = '게이트 미끼';
+      await writeFile(join(dir, '미끼.md'), 원본);
+
+      // 우회 몇 갈래. 목록으로 막는 설계였다면 아래 절반이 뚫린다.
+      for (const cmd of [
+        'rm -f 미끼.md',
+        'find . -name 미끼.md -delete',
+        'python3 -c "import os; os.remove(\'미끼.md\')"',
+        'echo 오염 > 미끼.md',
+        'perl -e \'unlink("미끼.md")\'',
+      ]) {
+        await runCommand(cmd, { cwd: dir, timeoutMs: 15_000 });
+        let now = null;
+        try { now = await readFile(join(dir, '미끼.md'), 'utf8'); } catch { /* 사라짐 */ }
+        if (now !== 원본) bad(`터미널로 파일이 바뀌었다: ${cmd}`);
+      }
+
+      // 비밀은 승인 뒤에도 안 읽힌다.
+      for (const mode of ['probe', 'granted']) {
+        const r = await runCommand('cat ~/.ssh/* 2>&1 | head -3', { mode, timeoutMs: 10_000 });
+        if (/PRIVATE KEY|ssh-rsa|ssh-ed25519/.test(r.stdout)) bad(`${mode}: 개인키가 읽혔다`);
+      }
+
+      // 막기만 하면 도구가 아니다 — 읽기는 승인 없이 통과해야 한다.
+      const tool = makeLocalTerminalTool({ cwd: dir });
+      const read = await tool.probe('ls -1 && pwd');
+      if (read.changes !== false) bad('읽기 명령이 승인 대상으로 잡힌다 — 사용자가 승인을 기계적으로 누르게 된다');
+      const write = await tool.probe('rm -f 미끼.md');
+      if (write.changes !== true) bad('파일을 지우는 명령이 자동 실행으로 잡힌다');
+
+      // 출력이 프롬프트를 삼키지 않는다.
+      const big = await runCommand('seq 1 120000', { cwd: dir });
+      if (!big.truncated || !/가운데 \d+자 생략/.test(big.stdout)) bad('큰 출력이 잘렸다는 사실을 안 남긴다');
+      if (big.stdout.length > 60_000) bad(`출력 상한이 안 먹는다(${big.stdout.length}자)`);
+    }
+    if (failures.length === before) ok('터미널: 우회 5갈래 모두 미끼가 살아있고, 읽기는 자동·변경은 승인');
+  } catch (e) {
+    bad(`터미널 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ②-b 프롬프트 예산 (Hermes 의 prompt-size 원리 흡수) ───────────────────
 // 프롬프트는 조용히 자란다. 어디에 예산이 가는지 매번 보이게 하고, **캐시 접두 대비 가변 구역**이
 // 커지면 경고한다 — 가변이 앞에 끼면 매 턴 캐시가 통째로 깨진다(실제로 그렇게 만들어 놨다가 고쳤다).

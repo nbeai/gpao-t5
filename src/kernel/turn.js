@@ -279,6 +279,29 @@ export async function runTurn(input, ctx) {
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
     planIntent = { ...planIntent, fileOp: parseFileRequest(input.text ?? '') };
   }
+  // P6-T2: 명령의 등급은 **돌려 봐야 안다.** 계획을 세우기 전에 probe 로 한 번 돌린다 —
+  // 쓰기·네트워크·비밀읽기가 커널에서 막힌 상태라 승인 없이 돌려도 영향이 0 이다(그래서 안전하다).
+  //   · 아무것도 안 바꿨다 → 그 자체가 증명이라 A0 로 그냥 진행한다.
+  //   · 뭔가 바꾸려다 막혔다 → A2 승인 카드로 간다. 승인 뒤에만 granted 로 실제 실행한다.
+  // 위험 명령 목록으로 알아맞히지 않는 이유는 실측이다 — 목록은 find -delete 하나에 뚫린다.
+  if (planIntent.neededTools?.includes('local.terminal')) {
+    const asked = modelToolArgs?.['local.terminal'];
+    const command = typeof asked?.command === 'string' ? asked.command.trim() : '';
+    if (command) {
+      const probed = await ctx.tools?.tools?.['local.terminal']?.probe?.(command, { cwd: asked.cwd });
+      planIntent = {
+        ...planIntent,
+        // probe 를 못 돌렸으면 `changes` 를 비워 둔다 — 미상은 승인으로 간다(read 로 흘리지 않는다).
+        // probe 결과를 **그대로 싣는다.** 안 그러면 도구가 같은 명령을 한 번 더 돌린다 —
+        // 느린 것보다, `date`·`ls` 처럼 두 번 돌리면 답이 달라지는 명령에서 사용자에게 보인 것과
+        // 원장에 남은 것이 갈라지는 게 문제다(두 진실 금지).
+        terminalOp: {
+          command, cwd: probed?.cwd ?? asked.cwd, changes: probed?.changes,
+          granted: probed?.changes === true, probeResult: probed?.probe,
+        },
+      };
+    }
+  }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
@@ -327,6 +350,11 @@ export async function runTurn(input, ctx) {
       };
     }
     sendArgs = { ...(sendArgs ?? {}), 'local.file': parsedFile };
+  }
+  // 승인 판정이 본 것과 **같은 사실**로 실행한다. granted 는 probe 가 막혔을 때만 참이고,
+  // 그 실행은 위 승인 게이트를 통과해야만 일어난다(여기서 참이라고 바로 도는 게 아니다).
+  if (planIntent.terminalOp) {
+    sendArgs = { ...(sendArgs ?? {}), 'local.terminal': planIntent.terminalOp };
   }
   const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
   if (sendGrant) {

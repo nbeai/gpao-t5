@@ -27,6 +27,11 @@ export function fileKind(fileOp) {
  * 도구가 늘어나면 여기에 한 줄씩 — 사례 전용이 아니라 도구별 서술이다.
  */
 export function describeAction(toolId, args) {
+  // 승인 카드는 **이번 명령의 원문**을 보여야 한다. "터미널 실행"으로는 무엇을 허락하는지 모른다.
+  if (toolId === 'local.terminal') {
+    if (!args?.command) return null;
+    return `${args.command}${args.cwd ? ` (${args.cwd} 에서)` : ''}`;
+  }
   if (toolId !== 'local.file' || !args?.action) return null;
   const name = args.path ? String(args.path) : '그 파일';
   switch (args.action) {
@@ -56,6 +61,12 @@ export function toolActionKind({ toolId, args, selfState }) {
   const tool = selfState?.connectedTools?.find((t) => t.id === toolId);
   let kind = tool?.toolKind ?? TOOL_KIND[toolId] ?? UNKNOWN_KIND;
   if (toolId === 'local.file') kind = fileKind(args);
+  // P6-T2: 명령은 **돌려 봐야 안다.** 계획 단계에서 probe(쓰기·네트워크·비밀읽기 차단)를 돌리고
+  // 그 결과가 등급을 정한다 — 위험 명령 목록으로 알아맞히지 않는다(목록은 항상 뚫린다).
+  // probe 결과가 없으면 '미상'으로 둔다: 모르면 승인으로 간다(read 로 흘리지 않는다).
+  if (toolId === 'local.terminal') {
+    kind = args?.changes === true ? 'write' : args?.changes === false ? 'read' : UNKNOWN_KIND;
+  }
   // descriptor 가 승인을 요구하면 등급이 낮게 나와도 최소 A2 로 올린다(하드코딩 우회 차단).
   if (tool?.needsApproval && !isSafetyFloor(kind)) kind = 'send';
   return kind;
@@ -86,7 +97,7 @@ export function buildActionPlan(p) {
     // 삭제가 organize 로 새어 승인 없이 실행된다(오너 실사용에서 실제로 새었다).
     // 판정은 toolActionKind 하나로 모은다 — 승인·자동화·tick 이 같은 답을 봐야 한다.
     const tool = selfState.connectedTools.find((t) => t.id === id);
-    let kind = toolActionKind({ toolId: id, args: intent.fileOp, selfState });
+    let kind = toolActionKind({ toolId: id, args: id === 'local.terminal' ? intent.terminalOp : intent.fileOp, selfState });
     // 승인 카드는 **이번 요청의 구체 사실**을 말해야 한다. "로컬 파일 실행"으로는 무엇이 사라지는지
     // 알 수 없다(실측). 되돌릴 수 있는지도 종류가 아니라 **도구가 밝힌 사실**을 쓴다.
     const reversible = tool?.reversible;
@@ -94,7 +105,7 @@ export function buildActionPlan(p) {
       : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
         : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
     const preview = () => ({
-      impact: describeAction(id, intent.fileOp) ?? `${toolLabel(id, selfState)} 실행`,
+      impact: describeAction(id, id === 'local.terminal' ? intent.terminalOp : intent.fileOp) ?? `${toolLabel(id, selfState)} 실행`,
       scope: '이번 요청',
       duration: '이번 한 번',
       cancel: cancelText,

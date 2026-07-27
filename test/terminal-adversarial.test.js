@@ -67,13 +67,15 @@ const 우회들 = [
 ];
 
 test('미끼밭: 어떤 우회로도 파일이 사라지거나 바뀌지 않는다', { skip: !sandboxAvailable() && '이 컴퓨터는 샌드박스 없음' }, async () => {
-  const 뚫린것 = [];
-  for (const [이름, 만들기] of 우회들) {
+  // 각 우회는 자기 미끼밭에서 돈다(서로 간섭 없음) → 나란히 돌린다.
+  // 순차로 돌리면 우회를 늘릴수록 게이트가 느려져서, 검사를 늘리기 싫어진다.
+  const 결과 = await Promise.all(우회들.map(async ([이름, 만들기]) => {
     const dir = await 미끼밭();
     await runCommand(만들기(dir), { cwd: dir, timeoutMs: 15_000 });
     const 피해 = await 그대로인가(dir);
-    if (피해.length) 뚫린것.push(`${이름} → ${피해.join(', ')}`);
-  }
+    return 피해.length ? `${이름} → ${피해.join(', ')}` : null;
+  }));
+  const 뚫린것 = 결과.filter(Boolean);
   assert.deepEqual(뚫린것, [], `우회 ${뚫린것.length}건이 뚫렸다:\n  ${뚫린것.join('\n  ')}`);
 });
 
@@ -119,20 +121,20 @@ test('읽기·확인 명령은 그대로 통과한다', { skip: !sandboxAvailabl
 });
 
 test('안 끝나는 명령은 시간에 걸려 끝나고, 그 사실을 남긴다', async () => {
-  const r = await runCommand('sleep 30', { timeoutMs: 1500 });
+  const r = await runCommand('sleep 30', { timeoutMs: 400 });
   assert.equal(r.stopped, 'timeout', '왜 끝났는지 안 남기면 "실패했다"와 구분이 안 된다');
-  assert.ok(r.durationMs < 8000, `제때 안 끊겼다(${r.durationMs}ms)`);
+  assert.ok(r.durationMs < 5000, `제때 안 끊겼다(${r.durationMs}ms)`);
 });
 
 test('입력을 기다리는 명령에 갇히지 않는다', async () => {
-  const r = await runCommand('read -r 답', { timeoutMs: 4000 });
+  const r = await runCommand('read -r 답', { timeoutMs: 2500 });
   assert.notEqual(r.stopped, 'timeout', 'stdin 이 열려 있어 프롬프트에서 멈췄다');
 });
 
 test('출력이 길면 가운데를 접고 접었다고 말한다', async () => {
-  const r = await runCommand('seq 1 200000');
+  const r = await runCommand('seq 1 120000');
   assert.equal(r.truncated, true);
   assert.match(r.stdout, /가운데 \d+자 생략/, '조용히 자르면 모델이 "이게 전부"로 읽는다');
   assert.match(r.stdout, /^1\n/, '앞을 남겨야 무슨 일이 시작됐는지 안다');
-  assert.match(r.stdout, /200000\n?$/, '뒤를 남겨야 어떻게 끝났는지 안다');
+  assert.match(r.stdout, /120000\n?$/, '뒤를 남겨야 어떻게 끝났는지 안다');
 });

@@ -72,6 +72,22 @@ function subjectFrom(receipt) {
     if (!path) return null;
     return { key: `file:${path}`, kind: 'file', label: String(path) };
   }
+  // P6-T2: 방금 돌린 명령은 **다음 턴의 대상이다.** 이게 없으면 "아까 그 오류 뭐였지",
+  // "다시 돌려봐"가 안 이어지고, 모델은 자기가 뭘 실행했는지도 모른 채 처음부터 다시 한다.
+  if (tool === 'local.terminal') {
+    const command = receipt.result?.command ?? args.command;
+    if (!command) return null;
+    const code = receipt.result?.exitCode;
+    return {
+      key: `cmd:${command}`,
+      kind: 'command',
+      label: String(command),
+      // 성공/실패를 라벨이 아니라 사실로 남긴다 — 실패한 명령을 성공처럼 이어받으면 안 된다.
+      detail: receipt.result?.cwd,
+      exitCode: code,
+      failed: typeof code === 'number' && code !== 0,
+    };
+  }
   if (tool === 'session.search') {
     const hits = (receipt.result?.hits ?? []).filter((h) => h?.title);
     if (!hits.length) return null;
