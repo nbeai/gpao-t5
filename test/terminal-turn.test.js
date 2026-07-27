@@ -87,3 +87,21 @@ test('실패한 명령은 실패로 이어받는다(성공처럼 넘기지 않�
   assert.equal(대상?.failed, true, '실패한 명령이 성공으로 남으면 다음 턴이 거짓 위에서 진행된다');
   assert.equal(대상?.exitCode, 3);
 });
+
+// ── 모델은 안 쓰는 칸도 빈 문자열로 채워 보낸다 ──────────────────────────
+// 실측 2회. local.scope 에서 `path:''` 가 `??` 를 통과해 이름으로 여는 길이 통째로 죽었고,
+// 여기서 `cwd:''` 가 통과해 기본 자리 대신 서버를 띄운 자리에서 돌았다 —
+// `find ..` 가 옆 프로젝트 dist 수백 줄을 긁어와 모델이 답을 못 냈다.
+// **`??` 를 쓸 때마다 빈 문자열을 의심할 것.**
+test('빈 문자열 인자는 없는 것으로 본다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
+  const { homedir } = await import('node:os');
+  const tool = makeLocalTerminalTool();
+  const 기본 = (await tool.handler({ command: 'pwd' })).result.stdout.trim();
+  assert.equal(기본, homedir(), '기본 자리가 홈이 아니면 find 로 프로젝트를 못 찾는다');
+  const 빈칸 = (await tool.handler({ command: 'pwd', cwd: '' })).result.stdout.trim();
+  assert.equal(빈칸, 기본, `cwd:'' 가 진짜 값 행세를 한다(${빈칸})`);
+  assert.equal((await tool.probe('pwd', { cwd: '' })).cwd, homedir(), 'probe 도 같은 자리를 봐야 승인 카드가 사실이 된다');
+  // 진짜 값은 그대로 쓴다 — 빈 값을 막느라 멀쩡한 인자까지 버리면 안 된다.
+  assert.match((await tool.handler({ command: 'pwd', cwd: '/tmp' })).result.stdout, /tmp/);
+});

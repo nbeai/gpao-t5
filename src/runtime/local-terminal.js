@@ -9,6 +9,18 @@
 import { runCommand } from './terminal-run.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
+import { homedir } from 'node:os';
+
+/**
+ * 빈 칸은 **없는 칸이다.** 모델은 안 쓰는 인자도 `''` 로 채워 보내므로 `??` 로 받으면
+ * 빈 문자열이 진짜 값 행세를 한다. 실측: `cwd: ''` 가 통과해서 기본 자리(홈) 대신
+ * 서버를 띄운 자리에서 돌았고, `find ..` 가 옆 프로젝트의 dist 수백 줄을 긁어와
+ * 모델이 답을 못 냈다(같은 실수를 local.scope 에서도 했다 — `??` 마다 빈 값을 의심할 것).
+ */
+const blank = (v) => {
+  const t = typeof v === 'string' ? v.trim() : v;
+  return t === '' || t == null ? undefined : t;
+};
 
 /**
  * probe 가 "권한에 막혔다"고 말하는가.
@@ -31,7 +43,10 @@ export function describeCommand(command, probe) {
 
 export function makeLocalTerminalTool(deps = {}) {
   const run = deps.run ?? runCommand;
-  const cwdOf = () => deps.cwd ?? process.cwd();
+  // 기본 자리는 **사용자의 홈**이다. process.cwd() 는 서버를 띄운 자리라 사용자와 무관하고,
+  // 거기가 빈 작업 폴더면 모델이 아무리 찾아도 안 나와서 결국 "경로를 알려줘"로 떠넘긴다(실측).
+  // 쓰기는 커널이 막으므로 넓게 둘러보는 것 자체는 안전하다 — 좁혀야 할 이유가 없다.
+  const cwdOf = () => deps.cwd ?? homedir();
 
   /**
    * 계획 단계에서 부른다(실행 아님). 등급을 정할 사실을 만든다.
@@ -39,8 +54,8 @@ export function makeLocalTerminalTool(deps = {}) {
    */
   async function probe(command, opts = {}) {
     const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
-    if (risk) return { command, cwd: opts.cwd ?? cwdOf(), lifecycle: risk, changes: true };
-    const cwd = opts.cwd ?? cwdOf();
+    if (risk) return { command, cwd: blank(opts.cwd) ?? cwdOf(), lifecycle: risk, changes: true };
+    const cwd = blank(opts.cwd) ?? cwdOf();
     const r = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs: opts.timeoutMs });
     return { command, cwd, probe: r, changes: looksBlocked(r) };
   }
@@ -58,7 +73,7 @@ export function makeLocalTerminalTool(deps = {}) {
       const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
       if (risk) return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
 
-      const cwd = args.cwd ? String(args.cwd) : cwdOf();
+      const cwd = blank(args.cwd) ?? cwdOf();
       // 작업 자리 자체가 보호 영역이면 아예 시작하지 않는다(커널도 막지만 여기서 사람 말로 먼저 답한다).
       const prot = protectionFor(cwd);
       if (prot?.kind === 'secret') {
