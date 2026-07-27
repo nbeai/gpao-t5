@@ -95,6 +95,39 @@ export async function runCommand(command, opts = {}) {
   }
 }
 
+/**
+ * 실행이 **왜** 끝났는가. 세 가지를 섞으면 사용자가 잘못된 결론을 낸다:
+ *   · sandbox   — 우리 안전 시험 실행이 막았다. **코드 문제가 아니다.**
+ *   · env       — 명령·런타임이 이 컴퓨터에 없다.
+ *   · code      — 명령이 자기 일을 하다 실패했다(단언 실패 등). 이것만 "실패했다"고 말한다.
+ *
+ * 실측: `npm test` 가 probe 에서 `EPERM listen` 으로 죽었는데 T5 가 "테스트가 실패했다"고
+ * 답했다. 사용자는 코드가 잘못된 줄 알았지만 원인은 우리 샌드박스였다.
+ *
+ * **이건 안전 판정의 근거가 아니다.** 안전은 커널이 이미 보장했다(막혔으니 아무 일도 안 났다).
+ * 여기서 정하는 것은 사용자에게 뭐라고 말할지와, 승인을 물을지뿐이다.
+ */
+export function executionBlock(r) {
+  if (!r || r.exitCode === 0) return undefined;
+  const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
+  // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
+  if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
+    return { kind: 'sandbox', why: 'network', userWhy: '포트를 열어야 하는 일이 있어서 안전 시험 실행에서는 막혔어요' };
+  }
+  // 밖으로 나가려다 막힌 것
+  if (/ENETUNREACH|ENOTFOUND|EAI_AGAIN|Could not resolve|Network is unreachable|Connection refused/i.test(t)) {
+    return { kind: 'sandbox', why: 'network', userWhy: '인터넷에 연결해야 해서 안전 시험 실행에서는 막혔어요' };
+  }
+  // 파일을 바꾸려다 막힌 것
+  if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
+    return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꿔야 해서 안전 시험 실행에서는 막혔어요' };
+  }
+  if (/command not found|No such file or directory: |ENOENT.*spawn|실행을 시작하지 못했어요/i.test(t)) {
+    return { kind: 'env', why: 'missing', userWhy: '그 명령이 이 컴퓨터에 없어요' };
+  }
+  return { kind: 'code', why: 'failed', userWhy: '명령이 오류로 끝났어요' };
+}
+
 /** 자식에게 넘기지 않을 환경변수. 명령 하나가 `env` 만 찍어도 토큰이 화면에 나온다. */
 function redactEnv(env) {
   const out = {};

@@ -6,7 +6,7 @@
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
-import { runCommand } from './terminal-run.js';
+import { runCommand, executionBlock } from './terminal-run.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
@@ -29,16 +29,14 @@ const blank = (v) => {
  * `npm test` 실패에 승인을 묻거나(불편) 안 묻고 결과를 보여주는 것(안전)이다.
  */
 function looksBlocked(r) {
-  if (r.exitCode === 0) return false;
-  return /operation not permitted|not permitted|Permission denied|sandbox/i.test(r.stderr);
+  return executionBlock(r)?.kind === 'sandbox';
 }
 
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
 export function describeCommand(command, probe) {
-  if (!probe || probe.exitCode === 0) return `\`${command}\` 실행`;
-  const 이유 = /network|resolve|Could not|커넥/i.test(probe.stderr) ? '인터넷에 연결하려고 해요'
-    : '파일을 바꾸려고 해요';
-  return `\`${command}\` — ${이유}`;
+  const block = executionBlock(probe);
+  if (!block || block.kind !== 'sandbox') return `\`${command}\` 실행`;
+  return `\`${command}\` — ${block.userWhy}`;
 }
 
 export function makeLocalTerminalTool(deps = {}) {
@@ -92,18 +90,28 @@ export function makeLocalTerminalTool(deps = {}) {
 
       if (mode === 'probe' && looksBlocked(r)) {
         // **여기서 실행하지 않는다.** 승인은 커널의 일이고, 도구는 사실만 돌려준다.
+        const block = executionBlock(r);
         return {
           blocked: true, needsGrant: true,
-          result: { command, cwd, probe: { exitCode: r.exitCode, stderr: r.stderr } },
-          userSafeSummary: `${describeCommand(command, r)} — 먼저 확인받을게요.`,
-          nextSafeAction: '진행해도 되면 승인해 주세요.',
+          result: {
+            command, cwd,
+            // **막힌 이유를 사실로 남긴다.** 이게 없으면 모델이 "테스트가 실패했다"고 단정한다
+            // (실측: npm test 가 EPERM listen 으로 죽었는데 코드 문제인 줄 알았다).
+            blockedBy: block?.kind, blockReason: block?.why,
+            probe: { exitCode: r.exitCode, stderr: r.stderr },
+          },
+          userSafeSummary: `${describeCommand(command, r)} — 아직 실제로 하진 않았어요.`,
+          nextSafeAction: '이대로 진행할까요?',
         };
       }
 
+      const 끝난이유 = executionBlock(r);
       return {
         result: {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
           stdout: r.stdout, stderr: r.stderr,
+          // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
+          ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: mode === 'granted',
@@ -111,7 +119,11 @@ export function makeLocalTerminalTool(deps = {}) {
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         userSafeSummary: r.stopped === 'timeout'
           ? `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? 120000) / 1000)}초).`
-          : r.exitCode === 0 ? '실행했어요.' : `실행했는데 오류로 끝났어요(코드 ${r.exitCode}).`,
+          : r.exitCode === 0 ? '실행했어요.'
+            // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.
+            : 끝난이유?.kind === 'sandbox' ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
+              : 끝난이유?.kind === 'env' ? `${끝난이유.userWhy}`
+                : `실행했는데 오류로 끝났어요(코드 ${r.exitCode}).`,
       };
     },
   };
