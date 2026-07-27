@@ -124,3 +124,30 @@ test('serviceStatus 는 결과 없는 커넥터에 localSigns 필드를 만들�
   assert.equal(s.localSigns, undefined);
   assert.equal(s.lastCheckedAt, undefined);
 });
+
+// ── 재확인: 신선도 기준, 낡은 것만 (오너 승인 설계) ───────────────────────
+import { refreshStaleSigns } from '../src/runtime/local-signs.js';
+
+test('낡은 커넥터만 다시 확인하고, 신선한 것은 건드리지 않는다', async () => {
+  const 낡음 = defineConnector({ id: 'a', label: 'A', connected: false, localSigns: [{ kind: 'cli', command: 'ls', label: 'c' }] });
+  const 신선 = defineConnector({ id: 'b', label: 'B', connected: false, localSigns: [{ kind: 'cli', command: 'ls', label: 'c' }] });
+  낡음.lastCheckedAt = 1000; 신선.lastCheckedAt = 9000;
+  const n = await refreshStaleSigns([낡음, 신선], { now: () => 10000, ttlMs: 5000 });
+  assert.equal(n, 1, '낡은 것 하나만');
+  assert.equal(낡음.lastCheckedAt, 10000, '재확인되면 시각이 갱신된다');
+  assert.equal(신선.lastCheckedAt, 9000, '신선한 것은 그대로 — 매 턴 전부 돌리지 않는다');
+});
+
+test('한 번도 확인 안 된 것은 낡은 것으로 본다', async () => {
+  const c = defineConnector({ id: 'c', label: 'C', connected: false, localSigns: [{ kind: 'cli', command: 'ls', label: 'c' }] });
+  await refreshStaleSigns([c], { now: () => 10000, ttlMs: 5000 });
+  assert.equal(c.lastCheckedAt, 10000);
+  assert.ok(c.localSignsResult.length);
+});
+
+test('흔적 무선언 커넥터는 재확인 대상이 아니다', async () => {
+  const c = defineConnector({ id: 'd', label: 'D', connected: false });
+  const n = await refreshStaleSigns([c], { now: () => 10000, ttlMs: 5000 });
+  assert.equal(n, 0);
+  assert.equal(c.lastCheckedAt, undefined);
+});

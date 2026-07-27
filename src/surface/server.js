@@ -14,7 +14,7 @@ import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
-import { checkConnectorSigns } from '../runtime/local-signs.js';
+import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
 import { AllowlistStore } from './allowlist-store.js';
@@ -403,6 +403,8 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/turn') {
         const body = await readBody(req);
         const input = body ? JSON.parse(body) : {};
+        // P5-B-1A 재확인: 낡은 로컬 흔적만 턴 입구에서 갱신(신선하면 no-op, 데몬 없음).
+        if (deps.connectors) await refreshStaleSigns(deps.connectors).catch(() => {});
         const hasText = typeof input.text === 'string' && input.text.trim();
         const hasControl = typeof input.approve === 'string' || typeof input.reject === 'string';
         if (!hasText && !hasControl) return sendJson(res, 400, { error: '빈 발화' });
@@ -1148,6 +1150,8 @@ export function makeServer(deps = {}) {
   }
 
   async function runChannelInboundTurn(input, ok) {
+    // 채널 입구도 같은 신선도 재확인을 탄다(웹과 채널이 다른 현실을 보면 안 된다).
+    if (deps.connectors) await refreshStaleSigns(deps.connectors).catch(() => {});
     const session = await store.load(input.sessionId);
     if (!session) return { status: 404, body: { error: '세션을 찾지 못했어요.' } };
     if (typeof input.channel !== 'string' || !input.channel) return ok({ kind: 'blocked', reason: 'no_channel' });

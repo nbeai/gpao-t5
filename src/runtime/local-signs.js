@@ -124,3 +124,19 @@ export async function checkConnectorSigns(connectors = [], deps = {}) {
   }
   return connectors;
 }
+
+// 흔적(앱 설치·MCP 설정·CLI)은 분 단위로 변하지 않는다 — 10분이면 충분히 신선하다.
+const SIGNS_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * P5-B-1A 재확인(오너 승인 설계): **낡은 것만, 턴 입구에서, 데몬 없이.**
+ * 신선도(lastCheckedAt)가 유일한 기준이다 — 어느 서비스 얘기인지 보지 않는다(분류기 금지).
+ */
+export async function refreshStaleSigns(connectors = [], deps = {}) {
+  const now = deps.now ?? (() => Date.now());
+  const ttl = deps.ttlMs ?? SIGNS_TTL_MS;
+  const stale = connectors.filter((c) => Array.isArray(c.localSigns) && c.localSigns.length
+    && (!c.lastCheckedAt || now() - c.lastCheckedAt > ttl));
+  if (stale.length) await checkConnectorSigns(stale, deps);
+  return stale.length;
+}
