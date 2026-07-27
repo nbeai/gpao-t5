@@ -173,16 +173,22 @@ test('붙었는데 쓸 도구가 하나도 없으면 연결이라 부르지 않�
   assert.equal(r.blocked, true, '토큰·악수만으로 성공이라 하지 않는다');
 });
 
-test('원격 MCP 는 아직 실행기가 없다고 정직하게 말한다(있는 척 금지)', async () => {
+// 여기엔 "원격은 실행기가 없다고 정직하게 말한다"는 검사가 있었다. **그 사실이 없어졌다** —
+// 원격 실행기가 생겼다(oauth-pkce.js + mcp-http.js, 검사는 remote-mcp-oauth.test.js).
+// 사실이 바뀌면 검사도 바뀐다. 남겨 두면 없어진 한계를 검사가 지키게 된다.
+test('원격 주소는 원격 통로로 간다 — stdio 통로가 처리한 척하지 않는다', async () => {
   const ctx = 빈컨텍스트();
-  const c = defineConnector({ id: 'notion', label: '노션', connected: false });
-  c.authMethods = [{ kind: 'mcp', server: 'notion' }];
-  const cfg = await 설정파일('notion', { url: 'https://mcp.notion.com/mcp' });
+  const c = defineConnector({ id: 'svc', label: '어떤서비스', connected: false });
+  c.authMethods = [{ kind: 'mcp', server: 'svc' }];
+  const cfg = await 설정파일('svc', { url: 'https://example-remote.test/mcp' });
   const r = await makeConnectorConnectTool({
     ctx: () => ctx, connectors: () => [c], mcpConfigPaths: [cfg], spawnImpl: 가짜서버(),
-  }).handler({ connector: 'notion' });
-  assert.equal(r.blocked, true);
-  assert.match(r.userSafeSummary, /인증을 대신 실행하는 손이 T5 에 없어요/, "왜 못 하는지를 사람 말로 — 없는 화면을 약속하지 않게");
+    // 바깥으로 나가지 않는다 — 이 검사는 **갈림길**만 본다(닿는지는 원격 검사가 본다).
+    fetchImpl: async () => { throw new Error('network_down'); },
+  }).handler({ connector: 'svc' });
+  assert.equal(r.blocked, true, '못 붙었는데 붙었다고 했다');
+  assert.equal(c.connected, false);
+  assert.equal(Object.keys(ctx.tools.tools).length, 0, '실패인데 손이 올라왔다');
 });
 
 test('모르는 서비스는 아는 척하지 않는다', async () => {

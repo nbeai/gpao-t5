@@ -17,6 +17,7 @@ import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
 import { makeConnectorConnectTool } from '../runtime/connector-connect.js';
+import { ConnectorCredentialStore } from './connector-credential-store.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
@@ -157,6 +158,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
   tools.tools['connector.connect'] = makeConnectorConnectTool({
     ctx: () => ({ tools, descriptors, env }),
     connectors: () => connectors,
+    // 원격 OAuth 로 받은 자격은 0600 파일에 남는다 — 껐다 켜도 다시 로그인시키지 않는다.
+    credentialStore: new ConnectorCredentialStore(),
   });
   descriptors.push(defineTool({
     id: 'connector.connect', label: '서비스 연결', owner: 'core',

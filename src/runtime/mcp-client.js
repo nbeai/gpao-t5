@@ -5,8 +5,9 @@
 //
 // 전송 두 가지가 실제로 쓰인다(이 컴퓨터 실측):
 //   stdio  — `command`/`args` 로 프로세스를 띄우고 stdin/stdout 으로 말한다(playwright)
-//   http   — 원격 서버 주소로 말한다(notion·figma). 대개 OAuth 가 붙는다 → 다음 kind
-// 이번 범위는 stdio 다. 인증 없이 **도구 편입 계약 전체**를 증명할 수 있기 때문이다.
+//   http   — 원격 서버 주소로 말한다(notion·figma). 대개 OAuth 가 붙는다 → mcp-http.js
+// 이 파일은 stdio 만 안다. 두 통로가 **같은 모양**(initialize·listTools·callTool)을 돌려주므로
+// 편입(tool-admission)과 연결 손은 어느 쪽으로 붙었는지 몰라도 된다.
 import { spawn } from 'node:child_process';
 
 const PROTOCOL_VERSION = '2024-11-05';
@@ -99,12 +100,9 @@ export function openStdioMcp(cfg) {
  * @returns {Promise<{ok:true, serverInfo:object, tools:Array, session:object}|{ok:false, reason:string}>}
  */
 export async function probeMcpServer(cfg, deps = {}) {
-  // 원격 서버는 대개 OAuth 가 붙는다. **왜 못 붙는지를 사람 말로** 돌려준다 —
-  // 'remote_needs_auth' 만 주면 모델이 "승인 화면이 뜨면 허용해 주세요"라고 말한다(실측).
-  // 화면을 띄울 손이 없다는 사실까지 줘야 모델이 못 지킬 약속을 안 한다.
-  if (cfg?.url) {
-    return { ok: false, reason: '원격 MCP 서버라 로그인 인증이 필요한데, 그 인증을 대신 실행하는 손이 T5 에 없어요(준비 중)' };
-  }
+  // 여기는 stdio 전용이다. 원격은 mcp-http.js + oauth-pkce.js 가 맡는다(connector-connect 가 가른다) —
+  // **"인증할 손이 없다"고 말하던 자리였다. 이제 있다.** 그 문장을 지운 것이 이번 작업의 핵심이다.
+  if (cfg?.url) return { ok: false, reason: '원격 주소는 이 통로가 아니라 원격 통로로 열어야 해요' };
   if (!cfg?.command) return { ok: false, reason: 'no_transport' };
   let session;
   try {

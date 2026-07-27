@@ -55,7 +55,10 @@ export function demoConnectors() {
         { kind: 'mcp', server: 'notion', label: 'MCP 설정의 노션 연결' },
       ],
       // P5-B-1B: **연결 방식 선언.** 실행기는 kind 만 안다 — 새 서비스는 이 줄 하나면 된다.
-      authMethods: [{ kind: 'mcp', server: 'notion' }],
+      // 등록된 MCP 설정이 있으면 그것부터(로그인이 이미 끝나 있다). 없으면 **원격으로 직접** 간다 —
+      // 실측(2026-07-27): 이 주소는 401 로 로그인 위치를 알려주고 동적 등록을 지원한다.
+      // 그래서 사용자가 준비할 것이 없다: 동의 화면에서 허용 한 번.
+      authMethods: [{ kind: 'mcp', server: 'notion' }, { kind: 'mcp', url: 'https://mcp.notion.com/mcp' }],
     }),
     defineConnector({
       id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,

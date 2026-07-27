@@ -10,6 +10,8 @@
 // 여기는 방식(kind)별 실행기만 안다 — previewOf·subjectOf·localSigns 와 같은 계약이다.
 // 새 서비스 = 선언 하나. 실행기는 **새 연결 방식**이 생길 때만 는다.
 import { probeMcpServer } from './mcp-client.js';
+import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
+import { runOAuth, refreshTokens } from './oauth-pkce.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
@@ -51,6 +53,69 @@ async function findMcpConfig(server, deps) {
     } catch { /* 깨진 설정은 없는 것으로 */ }
   }
   return undefined;
+}
+
+/**
+ * 원격 MCP 하나를 연다. **토큰은 이 함수 밖으로 나가지 않는다** — 세션 안에서만 쓰인다.
+ * 저장된 자격이 있으면 재로그인 없이 붙고(껐다 켜도 유지), 없거나 만료됐으면 그때 동의를 받는다.
+ * @returns {Promise<{ok:true, session:object, tools:Array}|{ok:false, reason:string}>}
+ */
+async function openRemoteMcp(connectorId, url, deps) {
+  const store = deps.credentialStore;
+  let saved = store ? await store.get(connectorId) : deps.savedCredential?.(connectorId) ?? null;
+
+  // 저장된 것이 이 주소용이 아니면 다시 받는다(주소가 바뀌면 토큰도 남의 것이다).
+  if (saved && saved.url !== url) saved = null;
+
+  const 로그인 = async () => {
+    const probe = await probeRemoteAuth(url, { fetchImpl: deps.fetchImpl });
+    if (!probe.needsAuth) return { none: true }; // 인증 없이 되는 서버 — 토큰 없이 간다
+    if (!probe.resourceMetadataUrl) return { reason: '로그인이 필요한데 어디서 하는지를 서버가 알려주지 않았어요' };
+    const r = await runOAuth({
+      resourceMetadataUrl: probe.resourceMetadataUrl,
+      fetchImpl: deps.fetchImpl, opener: deps.opener, timeoutMs: deps.oauthTimeoutMs,
+    });
+    if (!r.ok) return { reason: r.reason };
+    saved = { url, clientId: r.clientId, endpoints: r.endpoints, tokens: r.tokens };
+    if (store) await store.set(connectorId, saved);
+    return { ok: true };
+  };
+
+  if (!saved) {
+    const r = await 로그인();
+    if (r.reason) return { ok: false, reason: r.reason };
+  }
+
+  // 부를 때마다 유효한 토큰을 준다 — 만료 직전이면 조용히 갱신한다(사용자는 모른다).
+  const getToken = async () => {
+    if (!saved) return null;
+    const 이전 = saved.tokens?.access_token;
+    const t = await refreshTokens(saved, { fetchImpl: deps.fetchImpl });
+    // **바뀌었을 때만 쓴다.** 안 그러면 도구를 부를 때마다 자격 파일을 다시 쓴다(실측: 매 호출).
+    if (t && t !== 이전 && store) await store.set(connectorId, saved);
+    return t;
+  };
+
+  const 열기 = async () => {
+    const session = openHttpMcp({ url, getToken, fetchImpl: deps.fetchImpl, timeoutMs: deps.timeoutMs });
+    await session.initialize();
+    return { ok: true, session, tools: await session.listTools() };
+  };
+
+  try {
+    return await 열기();
+  } catch (e) {
+    // 저장된 자격이 서버에서 폐기됐을 수 있다 — 한 번만 다시 로그인하고 재시도한다.
+    if (e?.unauthorized && saved) {
+      saved = null;
+      if (store) await store.clear(connectorId);
+      const r = await 로그인();
+      if (r.reason) return { ok: false, reason: r.reason };
+      try { return await 열기(); } catch (e2) { return { ok: false, reason: e2?.message ?? 'mcp_failed' }; }
+    }
+    if (e?.unauthorized) return { ok: false, reason: '로그인이 필요한데 승인을 받지 못했어요' };
+    return { ok: false, reason: e?.message ?? 'mcp_failed' };
+  }
 }
 
 /**
@@ -124,6 +189,9 @@ export function makeConnectorConnectTool(deps = {}) {
       // ── 해제 ──────────────────────────────────────────────────────────
       if (args.action === 'disconnect') {
         const held = live.get(c.id);
+        // **저장된 자격은 세션과 무관하게 지운다.** 안 그러면 "끊었어요"라고 말하고 토큰은 남는다 —
+        // 사용자가 들은 말과 디스크의 사실이 어긋난다.
+        await deps.credentialStore?.clear(c.id).catch(() => {});
         if (!held) return { result: { connector: c.id, label: c.label, connected: false }, userSafeSummary: `${c.label} 은(는) 연결돼 있지 않아요.` };
         held.session?.close?.();
         revokeAdmitted(held.admitted, ctx);
@@ -142,9 +210,13 @@ export function makeConnectorConnectTool(deps = {}) {
       const 실패 = [];
       for (const m of methods) {
         if (m.kind !== 'mcp') { 실패.push(`${m.kind}: 아직 이 방식은 실행기가 없어요`); continue; }
-        const cfg = await findMcpConfig(m.server, deps);
+        // 커넥터가 주소를 선언했으면 그것이 먼저다(등록된 설정이 없어도 붙을 수 있다).
+        const cfg = m.url ? { url: m.url } : await findMcpConfig(m.server, deps);
         if (!cfg) { 실패.push(`mcp: ${m.server} 서버 설정을 못 찾았어요`); continue; }
-        const probe = await probeMcpServer(cfg, deps);
+        // 원격이면 로그인까지 우리가 실행한다 — 사용자가 하는 일은 동의 화면에서 허용 한 번뿐이다.
+        const probe = cfg.url
+          ? await openRemoteMcp(c.id, cfg.url, deps)
+          : await probeMcpServer(cfg, deps);
         if (!probe.ok) { 실패.push(`mcp: ${probe.reason}`); continue; }
 
         // **편입까지 끝나야 연결이다.** 도구가 하나도 안 올라오면 연결이라 부르지 않는다.
