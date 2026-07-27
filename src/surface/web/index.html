@@ -1330,6 +1330,18 @@ function renderSecretInput(box, req) {
   const card = el('card');
   card.appendChild(el('h4', `${req.label} 연결`));
   card.appendChild(el('row', '아래 값은 이 창에서 바로 안전한 곳에 저장돼요. 대화에는 남지 않아요.'));
+  // **값을 어디서 받아오는지까지 T5 가 안내한다.** 사용자가 주소를 찾아 헤매지 않게,
+  // 그리고 "개발자센터에서 앱을 등록하세요" 같은 말을 사용자가 해석하지 않아도 되게.
+  if (req.issue?.url || req.issue?.steps?.length) {
+    for (const s of req.issue.steps ?? []) card.appendChild(el('row', `· ${s}`));
+    if (req.issue.url) {
+      const open = document.createElement('button');
+      open.className = 'act'; open.type = 'button';
+      open.textContent = req.issue.buttonLabel ?? '받으러 가기';
+      open.onclick = () => window.open(req.issue.url, '_blank', 'noopener');
+      card.appendChild(open);
+    }
+  }
   const 칸들 = new Map();
   for (const f of req.fields ?? []) {
     const wrap = el('row');

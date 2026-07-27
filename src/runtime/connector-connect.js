@@ -13,6 +13,7 @@ import { probeMcpServer } from './mcp-client.js';
 import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
 import { runOAuth, refreshTokens } from './oauth-pkce.js';
 import { secretFields, missingFields, verifyApiKey } from './api-key.js';
+import { admitHttpTools, probeHttpTool } from './http-tool.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
@@ -139,6 +140,10 @@ async function connectApiKey(c, m, deps) {
         surfaceRequest: {
           kind: 'secret_input',
           connector: c.id, label: c.label, fields: secretFields(m),
+          // **값을 어디서 받아오는지까지 T5 가 안내한다.** 없으면 사용자가 주소를 찾아 헤매고,
+          // 모델은 "개발자센터에서 앱을 등록하세요" 같은 개발자 말을 만들어 낸다.
+          // 문장은 커넥터 선언에서 온다 — 실행기가 지어내면 서비스마다 또 어긋난다.
+          issue: m.issue,
         },
         userSafeSummary: `${c.label} 연결에는 ${secretFields(m).map((f) => f.label).join('·')}가 필요해요.`
           + ' 안전하게 입력할 창을 열게요. 여기 입력한 값은 대화에 남지 않고 연결 확인에만 써요.',
@@ -147,14 +152,35 @@ async function connectApiKey(c, m, deps) {
     };
   }
 
-  // **저장했다고 연결이 아니다.** 커넥터가 선언한 방법으로 한 번 불러 본다.
-  const v = await verifyApiKey(m, 값들, { fetchImpl: deps.fetchImpl });
-  if (!v.ok) return { ok: false, reason: v.reason };
-
-  const 손 = await deps.admitApiKeyTools?.(c, m, 값들);
-  if (deps.admitApiKeyTools && !(손?.length)) return { ok: false, reason: '확인은 됐는데 쓸 수 있는 손이 안 올라왔어요' };
+  // **저장했다고 연결이 아니다.** 손마다 실제로 한 번 두드려 보고 **되는 것만** 올린다.
+  //
+  // 실측(오너 2026-07-27): 그 서비스에서 어떤 기능을 켜 뒀는지를 T5 가 몰라서, 켜지 않은
+  // 기능을 두드려 놓고 "값이 틀렸다"고 말했다. 값은 맞았다. **사용자가 어느 기능을 켰는지는
+  // 사용자가 알아야 할 일이 아니라 T5 가 확인할 일이다** — 물어보면 그게 떠넘기는 것이다.
+  const ctx = deps.ctx?.();
+  let 손 = [];
+  if (m.tools?.length && ctx) {
+    const 결과 = await Promise.all((m.tools).map(async (t) => ({
+      tool: t, ...(await probeHttpTool({ tool: t, secrets: 값들, fetchImpl: deps.fetchImpl })),
+    })));
+    const 되는것 = 결과.filter((x) => x.ok).map((x) => x.tool);
+    if (!되는것.length) {
+      return {
+        ok: false,
+        reason: '입력하신 값으로는 접근이 거절됐어요. 값이 다르거나, 그 서비스에서 이 기능이 켜져 있지 않은 것 같아요.',
+        diagnostic: `no_tool_reachable(${m.tools.length})`,
+      };
+    }
+    손 = admitHttpTools({ connector: c, tools: 되는것, secrets: 값들, fetchImpl: deps.fetchImpl }, ctx);
+    if (!손.length) return { ok: false, reason: '확인은 됐는데 쓸 수 있는 손이 안 올라왔어요' };
+  } else {
+    // 손을 선언하지 않은 커넥터는 선언한 확인 방법으로 본다.
+    const v = await verifyApiKey(m, 값들, { fetchImpl: deps.fetchImpl });
+    if (!v.ok) return { ok: false, reason: v.reason, diagnostic: v.diagnostic };
+  }
 
   if (store) await store.set(c.id, { ...saved, kind: 'api_key', values: 값들, verifiedAt: Date.now() });
+  deps.remember?.(c.id, 손);
   c.connected = true;
   c.lastCheckedAt = Date.now();
   c.lastError = undefined;
@@ -164,7 +190,7 @@ async function connectApiKey(c, m, deps) {
       // 원장에 남는 것: 무엇을 채웠는가·확인됐는가. **값도 마스킹도 없다.**
       result: { connector: c.id, label: c.label, connected: true, method: 'api_key',
         tools: 손 ?? [], filled: Object.keys(값들), verified: true },
-      userSafeSummary: `${c.label} 에 연결했어요. 입력하신 값으로 실제로 확인까지 마쳤어요.`,
+      userSafeSummary: `${c.label}에 연결했어요. 지금 쓸 수 있는 건 ${손.length}가지예요.`,
     },
   };
 }
@@ -174,6 +200,33 @@ async function connectApiKey(c, m, deps) {
  * 그래서 편입(admission)까지 끝나야 성공이라 말한다.
  * @param {{ctx:()=>({tools:object, descriptors:Array, env:object}), connectors:()=>Array}} deps
  */
+/**
+ * 사용자가 부른 말 → 커넥터. **글자 그대로 일치만 보면 말귀가 아니다.**
+ *
+ * 실측(오너 2026-07-27): "네이버 검색조회 연결해줘" → "그런 이름의 연결 서비스는 목록에 없어요".
+ * 선언에는 '네이버'가 있었는데 사용자가 붙여 부른 말과 정확히 같지 않았다. 그리고 못 찾은
+ * 모델은 남은 길로 **"환경변수에 넣어두면 붙여 줄게요"** 를 골랐다 — 떠넘기기가 여기서 샜다.
+ *
+ * 키워드 분기가 아니다. 아는 이름은 여전히 **커넥터 선언에서만** 온다(id·label·aliases).
+ * 여기가 하는 일은 띄어쓰기·조사·덧말을 넘어 그 선언에 닿게 해 주는 것뿐이다.
+ */
+export function findConnector(connectors, 말) {
+  const 고르기 = (s) => String(s ?? '').toLowerCase().replace(/[\s\-_]/g, '');
+  const q = 고르기(말);
+  if (!q) return undefined;
+  let best;
+  for (const c of connectors ?? []) {
+    for (const 이름 of [c.id, c.label, ...(c.aliases ?? [])]) {
+      const n = 고르기(이름);
+      if (!n) continue;
+      // 정확히 같으면 그걸로 끝. 아니면 서로 품고 있는지 본다("네이버검색조회" ⊃ "네이버").
+      const 점수 = n === q ? 1000 : (q.includes(n) || n.includes(q)) ? n.length : 0;
+      if (점수 && (!best || 점수 > best.점수)) best = { c, 점수 };
+    }
+  }
+  return best?.c;
+}
+
 /** 연결 방식의 **표시 이름**. 내부 kind 를 화면에 그대로 흘리지 않되, 사실은 남긴다. */
 function 방식이름(kind) {
   switch (kind) {
@@ -188,13 +241,14 @@ function 방식이름(kind) {
 export function makeConnectorConnectTool(deps = {}) {
   // 붙어 있는 MCP 세션 — 끊을 때 닫아야 하므로 들고 있는다(프로세스가 남으면 그게 유령이다).
   const live = new Map(); // connectorId → { session, admitted:string[] }
+  // 편입한 손을 기억해 둔다 — 안 그러면 끊을 때 걷어낼 대상을 몰라 유령이 남는다.
+  const 기억붙임 = (d) => ({ ...d, remember: (id, 손) => live.set(id, { admitted: 손 ?? [] }) });
 
   return {
     toolKind: 'unknown_kind', // 외부 계정 접근 권한을 주는 일 — 기존 권한 층이 승인으로 다룬다
     previewOf(args = {}) {
       const id = String(args.connector ?? '').trim();
-      const c = (deps.connectors?.() ?? []).find((x) => x.id === id || x.label === id
-        || (x.aliases ?? []).includes(id));
+      const c = findConnector(deps.connectors?.() ?? [], id);
       const 이름 = c?.label ?? id;
       // 받침에 따라 조사를 고른다 — 작아 보이지만 "노션 를" 같은 문장은 사용자를 멈칫하게 한다.
       const 을를 = /[가-힣]$/.test(이름) && (이름.charCodeAt(이름.length - 1) - 0xac00) % 28 ? '을' : '를';
@@ -227,6 +281,31 @@ export function makeConnectorConnectTool(deps = {}) {
       return id ? { key: `connector:${id}`, kind: 'connector', label: String(rec.result.label ?? id) } : null;
     },
     /**
+     * 저장된 자격으로 **스스로 다시 붙는다.** 부팅 때 한 번만 — 감시도 폴링도 아니다.
+     *
+     * 실측(오너 2026-07-28): 연결에 성공하고 서버를 다시 띄웠더니 끊겨 있었다. 자격은
+     * 0600 파일에 그대로 있었는데 **부팅 때 아무도 다시 붙지 않았다.** 저장소만 검사하고
+     * 배선을 안 한 것이다. 사용자에게 이건 "껐다 켜니 사라졌다"와 똑같다.
+     * 사용자가 다시 할 일은 없어야 한다 — 값도 승인도 이미 받았다.
+     * @returns {Promise<Array<{connector:string, tools:number}>>}
+     */
+    async restoreSaved() {
+      const store = deps.credentialStore;
+      if (!store) return [];
+      const 저장된 = await store.load().catch(() => ({}));
+      const 살아난것 = [];
+      for (const id of Object.keys(저장된)) {
+        const c = findConnector(deps.connectors?.() ?? [], id);
+        if (!c || live.has(c.id)) continue;
+        // 실패해도 부팅을 막지 않는다 — 그 커넥터만 연결 전으로 남는다(정직한 상태).
+        try {
+          const r = await this.handler({ connector: c.id });
+          if (r.result?.connected) 살아난것.push({ connector: c.id, tools: (r.result.tools ?? []).length });
+        } catch { /* 이 커넥터는 다음에 사용자가 부를 때 다시 시도된다 */ }
+      }
+      return 살아난것;
+    },
+    /**
      * **비밀 통로.** 값은 여기로만 들어오고, 여기서 바로 0600 저장소로 간다 —
      * 턴·transcript·원장·모델 입력 어디도 지나지 않는다. 돌려주는 것에도 값이 없다.
      * 저장한 뒤 곧바로 확인·편입까지 해서, "저장됨"이 아니라 "연결됨"으로 끝낸다.
@@ -238,9 +317,13 @@ export function makeConnectorConnectTool(deps = {}) {
 
       const 받을것 = new Set(secretFields(m).map((f) => f.name));
       // **선언된 칸만 받는다.** 아무 이름이나 받으면 저장소가 남의 값을 담는 통이 된다.
+      // **붙여넣기에 딸려오는 것을 T5 가 걷어낸다.** 앞뒤 공백·줄바꿈·눈에 안 보이는 문자가
+      // 그대로 헤더에 들어가면 서비스는 401 을 준다 — 사용자는 값이 맞는데 왜 안 되는지
+      // 알아낼 방법이 없다. 이런 걸 사용자에게 떠넘기지 않는 것이 이 층의 일이다.
+      const 다듬기 = (v) => String(v ?? '').replace(/[​-‍﻿]/g, '').trim();
       const 값들 = Object.fromEntries(Object.entries(values)
-        .filter(([k, v]) => 받을것.has(k) && String(v ?? '').trim())
-        .map(([k, v]) => [k, String(v)]));
+        .filter(([k, v]) => 받을것.has(k) && 다듬기(v))
+        .map(([k, v]) => [k, 다듬기(v)]));
       const 빈칸 = missingFields(m, 값들);
       if (빈칸.length) {
         return { ok: false, missing: 빈칸, userSafeSummary: '빈 칸이 있어요. 채워 주시면 바로 확인할게요.' };
@@ -248,21 +331,30 @@ export function makeConnectorConnectTool(deps = {}) {
       const store = deps.credentialStore;
       if (store) await store.set(c.id, { kind: 'api_key', values: 값들 });
 
-      const r = await connectApiKey(c, m, deps);
+      const r = await connectApiKey(c, m, 기억붙임(deps));
       if (r.ok) return { ok: true, ...r.result };
       // **확인에 실패하면 저장해 둔 값을 지운다** — 안 되는 값을 들고 "연결됨"처럼 굴지 않는다.
       if (store) await store.clear(c.id);
       return { ok: false, userSafeSummary: `${c.label} 연결이 안 됐어요. ${r.reason ?? ''}`.trim(),
+        diagnostic: r.diagnostic, // 진단면 — 값은 없다. 서버 로그가 이걸 남겨 원인을 좁힌다
         nextSafeAction: '값을 다시 확인해서 넣어 주시면 바로 다시 해볼게요.' };
     },
     async handler(args = {}) {
       const ctx = deps.ctx?.();
       const connectors = deps.connectors?.() ?? [];
       const id = String(args.connector ?? '').trim();
-      const c = connectors.find((x) => x.id === id || x.label === id || (x.aliases ?? []).includes(id));
+      const c = findConnector(connectors, id);
       if (!c) {
-        return { blocked: true, userSafeSummary: `"${id}" 라는 서비스는 제가 아는 목록에 없어요.`,
-          nextSafeAction: '어떤 서비스인지 알려주시면 연결할 수 있는지 확인해 볼게요.' };
+        // **아는 목록을 사실로 준다.** 안 주면 모델이 빈자리를 상상으로 메운다 —
+        // 실측(오너 2026-07-27): 못 찾자 "키를 주거나 환경변수에 넣어두면 붙여 줄게요"라고
+        // 답했다. 그건 사용자를 개발자로 만드는 길이고, 우리가 없애려던 떠넘기기 그 자체다.
+        const 아는것 = connectors.filter((x) => x.kind !== 'channel').map((x) => x.label);
+        return {
+          blocked: true,
+          userSafeSummary: `"${id}" 는 제가 붙일 수 있는 목록에 없어요.`
+            + (아는것.length ? ` 지금 붙일 수 있는 건 ${아는것.join(' · ')} 예요.` : ''),
+          nextSafeAction: '이 중에 있으면 그 이름으로 말씀해 주세요. 없으면 지금 되는 다른 길로 도와드릴게요.',
+        };
       }
       if (!ctx) return { failed: true, userSafeSummary: '지금은 연결을 실행할 수 없어요.' };
 
@@ -272,7 +364,7 @@ export function makeConnectorConnectTool(deps = {}) {
         // **저장된 자격은 세션과 무관하게 지운다.** 안 그러면 "끊었어요"라고 말하고 토큰은 남는다 —
         // 사용자가 들은 말과 디스크의 사실이 어긋난다.
         await deps.credentialStore?.clear(c.id).catch(() => {});
-        if (!held) return { result: { connector: c.id, label: c.label, connected: false }, userSafeSummary: `${c.label} 은(는) 연결돼 있지 않아요.` };
+        if (!held) return { result: { connector: c.id, label: c.label, connected: false }, userSafeSummary: `${c.label}은(는) 연결돼 있지 않아요.` };
         held.session?.close?.();
         revokeAdmitted(held.admitted, ctx);
         live.delete(c.id);
@@ -284,7 +376,7 @@ export function makeConnectorConnectTool(deps = {}) {
       // ── 연결 ──────────────────────────────────────────────────────────
       const methods = c.authMethods ?? [];
       if (!methods.length) {
-        return { blocked: true, userSafeSummary: `${c.label} 은(는) 아직 연결 방법이 준비되지 않았어요.`,
+        return { blocked: true, userSafeSummary: `${c.label}은(는) 아직 연결 방법이 준비되지 않았어요.`,
           nextSafeAction: '지금 되는 다른 길로 먼저 도와드릴 수 있어요.' };
       }
       const 실패 = [];
@@ -293,7 +385,7 @@ export function makeConnectorConnectTool(deps = {}) {
         // **여기서 키를 받지 않는다.** 받으면 그 순간 대화 기록·원장·모델 입력에 남는다.
         // 대화는 "입력창이 필요하다"까지만 만들고, 값은 다른 통로로 저장소에 곧장 간다.
         if (m.kind === 'api_key') {
-          const r = await connectApiKey(c, m, deps);
+          const r = await connectApiKey(c, m, 기억붙임(deps));
           if (r.ok) return r.result;
           if (r.needsSecret) return r.needsSecret; // 사용자에게 안전 입력창을 열어 준다
           실패.push(`api_key: ${r.reason}`);
@@ -324,7 +416,7 @@ export function makeConnectorConnectTool(deps = {}) {
         c.lastError = undefined;
         return {
           result: { connector: c.id, label: c.label, connected: true, tools: admitted, method: m.kind, server: m.server },
-          userSafeSummary: `${c.label} 에 연결했어요. 이제 ${admitted.length}개를 바로 쓸 수 있어요.`,
+          userSafeSummary: `${c.label}에 연결했어요. 이제 ${admitted.length}개를 바로 쓸 수 있어요.`,
         };
       }
       c.lastError = 실패[0];

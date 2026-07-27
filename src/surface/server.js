@@ -740,6 +740,8 @@ export function makeServer(deps = {}) {
         let input;
         try { input = JSON.parse((await readBody(req)) || '{}'); } catch { input = {}; }
         const r = await 손.submitSecret(String(input.connector ?? ''), input.values ?? {});
+        // 진단면만 로그로. **값은 절대 아니다** — 왜 막혔는지 좁히려면 이 한 줄이 필요하다.
+        if (!r.ok) console.log(`[connector] ${input.connector} 연결 실패 — ${r.diagnostic ?? 'unknown'}`);
         // 상태 갱신을 화면이 바로 반영할 수 있게 커넥터 진실을 함께 낸다(값은 없다).
         return sendJson(res, r.ok ? 200 : 400, r);
       }
@@ -1318,6 +1320,17 @@ export async function startLiveServer(opts = {}) {
   // 이 배열을 읽으므로 다음 턴부터 모델 현실에 실린다. 비차단(부팅을 막지 않는다). 실패해도
   // 그냥 "확인 안 됨"으로 남는다 — lastCheckedAt 이 없으면 어떤 표면도 확인했다고 말하지 않는다.
   checkConnectorSigns(liveConnectorList).catch(() => {});
+  // P5-B-1B: 저장된 자격으로 **스스로 다시 붙는다.** 부팅 때 한 번만(감시·폴링 아님).
+  // 이게 없으면 사용자는 껐다 켤 때마다 다시 연결해야 한다 — 값도 승인도 이미 받았는데.
+  // **실제 실행에서만 켠다.** 검사·게이트도 이 함수를 쓰는데, 거기서 바깥 서비스를 두드리면
+  // 검사가 네트워크에 매달린다(실측: 게이트가 그대로 멈췄다). 검사는 바깥에 나가지 않는다.
+  if (opts.restoreConnections) {
+    liveTools?.tools?.['connector.connect']?.restoreSaved?.()
+    .then((살아난것) => {
+      for (const x of 살아난것 ?? []) console.log(`[connector] ${x.connector} 다시 연결됨 — 손 ${x.tools}개`);
+    })
+      .catch(() => {});
+  }
   modelDoctor()
     .then((r) => console.log(`[model:doctor] ${r.state}${r.modelId ? ` (${r.modelId})` : ''} — ${r.userSafeSummary}`))
     .catch(() => {});
@@ -1365,7 +1378,7 @@ export async function startLiveServer(opts = {}) {
 
 // 직접 실행할 때만 listen 한다(import 시 부작용 없음).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  startLiveServer().then((server) => {
+  startLiveServer({ restoreConnections: true }).then((server) => {
     const { port } = server.address();
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   }).catch((err) => {

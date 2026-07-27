@@ -41,6 +41,28 @@ test('저장 뒤 입력칸을 비운다 — 화면에 남은 값도 유출 경�
   assert.match(html, /for \(const input of 칸들\.values\(\)\) input\.value = ''/);
 });
 
+// 오너 질문(2026-07-27): "사용자들에게도 이렇게 안내 되는거지?"
+// 개발자 말로 안내하면 사용자를 개발자로 만든 것이다. 값을 **어디서 받아오는지**까지
+// T5 가 안내해야 하고, 그 문장은 커넥터 선언에서 와야 한다(실행기가 지어내면 서비스마다 어긋난다).
+test('카드가 발급 안내와 "받으러 가기" 를 그린다 — 주소를 사용자가 찾아 헤매지 않게', () => {
+  assert.match(html, /req\.issue\?\.url/, '발급 주소를 읽는 곳이 없다');
+  assert.match(html, /req\.issue\.steps/, '절차를 그리는 곳이 없다');
+  assert.match(html, /window\.open\(req\.issue\.url/, '열어 주는 버튼이 없다');
+});
+
+test('실제 선언에 개발자 말이 없다 — 리모컨 뒷면에 회로도를 적지 않는다', async () => {
+  const { demoConnectors } = await import('../src/surface/demo-context.js');
+  for (const c of demoConnectors()) {
+    for (const m of c.authMethods ?? []) {
+      const 안내 = [...(m.issue?.steps ?? []), m.issue?.buttonLabel ?? ''].join(' ');
+      for (const 개발자말 of ['애플리케이션 등록', 'REST API', '엔드포인트', 'OAuth', '콜백', '리다이렉트']) {
+        assert.ok(!안내.includes(개발자말),
+          `${c.label} 안내에 개발자 말: "${개발자말}" — 사용자가 해석하게 두면 안 된다`);
+      }
+    }
+  }
+});
+
 test('값은 대화 통로가 아니라 전용 통로로 간다', () => {
   assert.match(html, /fetch\('\/connectors\/secret'/, '전용 통로가 없다');
   // 대화 전송(turn)에 값이 실리면 그 순간 transcript 에 남는다
@@ -130,4 +152,21 @@ test('틀린 값이면 값을 지우고, 왜 막혔는지만 말한다', async (
   assert.ok(!r.body.includes(비밀), '서비스가 되비친 값을 사용자에게 그대로 옮겼다');
   assert.equal(await store.get('gagagg'), null, '안 되는 값을 그대로 들고 있다');
   assert.ok(JSON.parse(r.body).nextSafeAction, '막다른 답으로 끝났다');
+});
+
+// 실측(오너 2026-07-28): 검사 979건이 전부 초록인데 **실제 부팅이 죽었다**
+// (`deps is not defined`). 검사가 부팅 경로를 한 번도 지나가지 않았기 때문이다.
+// 절대원칙 1과 같은 자리다 — 소스가 아니라 **실제로 뜨는 것**을 본다.
+test('저장된 자격 복원을 켠 채로도 서버가 실제로 뜬다', async () => {
+  const { startLiveServer } = await import('../src/surface/server.js');
+  const dir = await mkdtemp(join(tmpdir(), 't5-boot-'));
+  // 자격 저장소가 비어 있으므로 바깥으로 나가지 않는다 — 검사는 네트워크에 매달리지 않는다.
+  const server = await startLiveServer({
+    port: 0, processEnv: {}, sessionStore: new SessionStore(dir),
+    startScheduler: false, restoreConnections: true,
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/connectors/truth`);
+    assert.equal(res.status, 200, '부팅은 됐는데 화면이 안 뜬다');
+  } finally { await new Promise((r) => server.close(r)); }
 });

@@ -60,6 +60,115 @@ export function demoConnectors() {
       // 그래서 사용자가 준비할 것이 없다: 동의 화면에서 허용 한 번.
       authMethods: [{ kind: 'mcp', server: 'notion' }, { kind: 'mcp', url: 'https://mcp.notion.com/mcp' }],
     }),
+    // P5-B-1B: **API 키 방식의 첫 실서비스.** 한국형 외부 도구(스마트스토어·카페24·카카오)는
+    // 대부분 이 모양이다 — Client ID + Client Secret 두 칸. 여기서 되면 그쪽은 선언만 바뀐다.
+    // 읽기 전용이라 첫 증명으로 안전하다(결제·판매로 첫 증명을 하지 않는다).
+    defineConnector({
+      id: 'naver', label: '네이버', kind: 'provider', category: 'search',
+      authState: 'api_key', connected: false,
+      aliases: ['네이버', 'naver', '네이버검색', '네이버 검색', '데이터랩', '키워드'],
+      userJobs: ['어떤 말을 사람들이 얼마나 찾는지 추이를 봐요', '네이버에서 국내 자료를 찾아와요'],
+      localeRelevance: 'kr',
+      authMethods: [{
+        kind: 'api_key',
+        // 사용자가 채울 칸. **이름은 그 화면에 적힌 글자 그대로** 쓴다 —
+        // 두 화면을 오가며 "이게 그건가?" 하지 않게.
+        fields: [
+          { name: 'client_id', label: 'Client ID', secret: false },
+          { name: 'client_secret', label: 'Client Secret', secret: true },
+        ],
+        // **값을 어디서 받아오는지까지 T5 가 안내한다.** 사람 말로 — "애플리케이션 등록",
+        // "REST API" 같은 개발자 말을 사용자가 해석하게 두지 않는다.
+        issue: {
+          url: 'https://developers.naver.com/apps/#/register',
+          buttonLabel: '네이버에서 받아오기',
+          // **어느 기능을 고르라고 시키지 않는다.** 무엇이 켜져 있는지는 연결할 때 T5 가
+          // 직접 두드려서 확인한다(실측 2026-07-27: 검색을 고르라고 안내했는데 오너는
+          // 키워드 조회를 고르셨고, T5 는 그걸 "값이 틀렸다"고 잘못 말했다).
+          steps: [
+            '네이버 로그인 후 필요해 보이는 기능을 고르세요. 어떤 걸 고르셔도 제가 확인해서 되는 것만 켜 드려요',
+            '환경은 "WEB 설정" 을 고르고 주소는 http://localhost 를 넣으면 돼요',
+            '등록하면 나오는 두 값을 아래에 붙여넣어 주세요',
+          ],
+        },
+        // 저장했다고 연결이 아니다 — T5 가 이 주소로 한 번 직접 불러 본다.
+        verify: {
+          url: 'https://openapi.naver.com/v1/search/blog.json?query=%ED%99%95%EC%9D%B8&display=1',
+          headers: { 'X-Naver-Client-Id': '{client_id}', 'X-Naver-Client-Secret': '{client_secret}' },
+          okWhen: { status: 200 },
+          // 이 서비스가 거절 이유를 어디에 담는지. **자격이 되비치지 않는 필드만** 고른다 —
+          // 상태 코드만으로는 "값이 틀렸다"와 "검색이 안 켜져 있다"를 못 가른다.
+          errorFields: ['errorCode', 'errorMessage'],
+        },
+        // API 키에는 tools/list 같은 발견 통로가 없다 — 손을 여기서 선언한다.
+        // **사용자가 그 서비스에서 무엇을 켜 뒀는지 묻지 않는다.** 여러 개를 선언해 두고
+        // 연결할 때 T5 가 각각 두드려서 되는 것만 올린다(probeArgs 가 그 두드림이다).
+        tools: [{
+          name: 'keywordtrend', label: '키워드 트렌드', toolKind: 'read',
+          capability: '어떤 말을 사람들이 언제 얼마나 많이 검색했는지 기간별 추이를 가져온다.'
+            + ' 요즘 뜨는지 지는지, 계절을 타는지 볼 때 쓴다.',
+          description: '검색어의 기간별 검색 추이를 조회한다. "요즘 얼마나 찾나", "언제 많이 찾나"에 쓴다.',
+          parameters: {
+            type: 'object',
+            properties: {
+              keyword: { type: 'string', description: '알아볼 말' },
+              startDate: { type: 'string', description: '시작일 YYYY-MM-DD' },
+              endDate: { type: 'string', description: '종료일 YYYY-MM-DD' },
+            },
+            required: ['keyword'],
+          },
+          defaults: { startDate: '2025-01-01', endDate: '2025-12-31', timeUnit: 'month' },
+          request: {
+            url: 'https://openapi.naver.com/v1/datalab/search', method: 'POST',
+            headers: {
+              'X-Naver-Client-Id': '{client_id}', 'X-Naver-Client-Secret': '{client_secret}',
+              'Content-Type': 'application/json',
+            },
+            body: '{"startDate":"{startDate}","endDate":"{endDate}","timeUnit":"{timeUnit}",'
+              + '"keywordGroups":[{"groupName":"{keyword}","keywords":["{keyword}"]}]}',
+          },
+          probeArgs: { keyword: '커피' },
+        }, {
+          name: 'shoppingkeyword', label: '쇼핑 키워드 트렌드', toolKind: 'read',
+          capability: '쇼핑에서 어떤 키워드가 얼마나 조회되는지 기간별 추이를 가져온다. 판매 아이템을 볼 때 쓴다.',
+          description: '쇼핑 분야에서 키워드별 조회 추이를 본다.',
+          parameters: {
+            type: 'object',
+            properties: { keyword: { type: 'string', description: '알아볼 말' } },
+            required: ['keyword'],
+          },
+          defaults: { startDate: '2025-01-01', endDate: '2025-12-31', timeUnit: 'month', category: '50000000' },
+          request: {
+            url: 'https://openapi.naver.com/v1/datalab/shopping/category/keywords', method: 'POST',
+            headers: {
+              'X-Naver-Client-Id': '{client_id}', 'X-Naver-Client-Secret': '{client_secret}',
+              'Content-Type': 'application/json',
+            },
+            body: '{"startDate":"{startDate}","endDate":"{endDate}","timeUnit":"{timeUnit}",'
+              + '"category":"{category}","keyword":[{"name":"{keyword}","param":["{keyword}"]}]}',
+          },
+          probeArgs: { keyword: '셔츠' },
+        }, {
+          name: 'search', label: '네이버 검색', toolKind: 'read',
+          capability: '네이버에서 블로그 글을 찾아 제목과 요약을 가져온다. 한국어 자료와 요즘 반응을 볼 때 쓴다.',
+          description: '네이버에서 검색한다. 한국 블로그처럼 국내 자료를 찾을 때 쓴다.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: '찾을 말' },
+              display: { type: 'number', description: '가져올 개수(기본 5)' },
+            },
+            required: ['query'],
+          },
+          defaults: { display: 5 },
+          request: {
+            url: 'https://openapi.naver.com/v1/search/blog.json?query={query}&display={display}',
+            headers: { 'X-Naver-Client-Id': '{client_id}', 'X-Naver-Client-Secret': '{client_secret}' },
+          },
+          probeArgs: { query: '확인' },
+        }],
+      }],
+    }),
     defineConnector({
       id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,
       aliases: ['google', '구글', '드라이브', 'drive', '캘린더', 'calendar', '구글독스', '스프레드시트'],

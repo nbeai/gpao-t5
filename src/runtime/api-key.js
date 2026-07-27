@@ -53,14 +53,31 @@ export async function verifyApiKey(method, 값들, { fetchImpl = globalThis.fetc
     });
   } catch {
     // 네트워크 실패와 키 오류를 섞지 않는다 — 사용자가 키를 의심하며 헤매게 된다.
-    return { ok: false, reason: '확인하러 갔는데 서비스에 닿지 못했어요. 잠시 뒤 다시 해볼게요.' };
+    return { ok: false, reason: '확인하러 갔는데 서비스에 닿지 못했어요. 잠시 뒤 다시 해볼게요.',
+      diagnostic: 'verify_unreachable' };
   } finally { clearTimeout(timer); }
 
   const 기대 = v.okWhen?.status ?? 200;
   if (res.status === 기대) return { ok: true };
-  // **응답 본문을 그대로 옮기지 않는다** — 키가 되비쳐 오는 서비스가 있다.
-  if (res.status === 401 || res.status === 403) {
-    return { ok: false, reason: '입력하신 값으로는 접근이 거절됐어요. 값이 다르거나 권한이 모자란 것 같아요.' };
+
+  // **서비스가 말해 준 이유를 버리지 않는다.** 상태 코드만으로는 "값이 틀렸다"와 "그 기능이
+  // 안 켜져 있다"를 못 가른다 — 사용자는 맞는 값을 들고 헤매게 된다(오너 실측 2026-07-27).
+  // 다만 본문을 통째로 옮기지 않는다. 자격이 되비쳐 오는 서비스가 있다.
+  // **어느 필드가 안전한지는 커넥터가 선언한다** — 실행기는 서비스를 모른다.
+  let 서비스이유;
+  if (v.errorFields?.length) {
+    const body = await res.json().catch(() => null);
+    const 조각 = v.errorFields.map((k) => (body?.[k] === undefined ? null : `${k}=${body[k]}`)).filter(Boolean);
+    if (조각.length) 서비스이유 = 조각.join(' ');
   }
-  return { ok: false, reason: `서비스가 지금 이 요청을 받지 못했어요(${res.status}).` };
+  const 진단 = `verify_status_${res.status}${서비스이유 ? ` · ${서비스이유}` : ''}`;
+  // 사용자면/진단면 분리(§7): 사람 말은 사용자에게, 코드는 진단면에. **값은 어느 쪽에도 없다.**
+  if (res.status === 401 || res.status === 403) {
+    return {
+      ok: false,
+      reason: '입력하신 값으로는 접근이 거절됐어요. 값이 다르거나, 그 서비스에서 이 기능이 켜져 있지 않은 것 같아요.',
+      diagnostic: 진단,
+    };
+  }
+  return { ok: false, reason: `서비스가 지금 이 요청을 받지 못했어요(${res.status}).`, diagnostic: 진단 };
 }

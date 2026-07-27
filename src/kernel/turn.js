@@ -656,13 +656,22 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   //   "안 됩니다"로 끝내지 않는다 — 우리 수집이 막혔으면 모델이 자기 경로로 찾고, 사람만 할 수
   //   있는 일이면 최소 단계를 부탁하고, 범위 밖이면 범위를 넓히자고 제안한다(오너 지시).
   const step = nextRung(turnReceipts, 있는손);
-  let finalOut = await ctx.model.respond(tc, {
-    onDelta: ctx.onAnswerDelta,
-    // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
-    search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
-    effort: 'medium',
-    tools: toolSchemasFor(selfState),
-  });
+
+  // **표면 요청이 나왔으면 여기서 끝난다.** 공은 사용자에게 넘어갔다 — 값을 넣기 전까지는
+  // 무엇을 더 물어도 같은 자리다. 실측(오너 2026-07-27): 여기서 모델에게 도구를 다시 쥐여
+  // 줬더니 같은 손을 또 골라 **승인 카드가 두 번** 떴다. 그리고 그 모델 왕복이 그대로
+  // **사용자가 멍하니 기다리는 공백**이었다. 도구가 낸 사람 말이 이미 있으니 그걸 쓴다
+  // (원장의 사실이지 주입한 문구가 아니다 — fallbackReplyFrom 과 같은 자리).
+  const 표면 = turnReceipts.find((r) => r.surfaceRequest);
+  let finalOut = 표면
+    ? { text: [표면.userSafeSummary, 표면.nextSafeAction].filter(Boolean).join(' ') }
+    : await ctx.model.respond(tc, {
+      onDelta: ctx.onAnswerDelta,
+      // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
+      search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
+      effort: 'medium',
+      tools: toolSchemasFor(selfState),
+    });
   // ── P6-L · 한 턴 안에서 손을 이어 쓴다 ────────────────────────────────
   // 예전엔 여기서 `finalOut.toolCalls` 를 **버렸다.** 그래서 모델이 다음 걸음을 정확히 알고도
   // 걷지 못했다 — 실측: "package.json 존재만 확인됐고, 실제 테스트 명령은 아직 실행되지
@@ -767,6 +776,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
     steps += 1;
+
+    // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
+    // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
+    // 다시 골랐다. 그래서 **승인 카드가 두 번** 떴다. 더 부른다고 될 일이 아니다 —
+    // 사용자가 값을 넣기 전까지는 무엇을 해도 같은 자리다.
+    if (rec.surfaceRequest) { 멈춘이유 = undefined; break; }
 
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
     workingState = deriveWorkingState(workingState, { receipts: [rec] });
