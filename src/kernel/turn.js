@@ -278,6 +278,9 @@ export async function runTurn(input, ctx) {
     if (parts.neededTools.length) {
       planIntent = { ...planIntent, neededTools: parts.neededTools, fileOp: parts.fileOp ?? planIntent.fileOp };
       modelToolArgs = parts.toolArgs;
+      // 등급 판정도 **모델이 고른 인자**를 본다. 안 실어 보내면 계획 단계가 빈 인자로 판정해
+      // 위험한 작업이 자동으로 새어 나간다(local.process 의 start 가 그렇게 승인 없이 실행됐다).
+      planIntent = { ...planIntent, toolArgs: parts.toolArgs };
     }
   }
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {

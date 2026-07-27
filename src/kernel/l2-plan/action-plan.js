@@ -109,7 +109,16 @@ export function buildActionPlan(p) {
     // 삭제가 organize 로 새어 승인 없이 실행된다(오너 실사용에서 실제로 새었다).
     // 판정은 toolActionKind 하나로 모은다 — 승인·자동화·tick 이 같은 답을 봐야 한다.
     const tool = selfState.connectedTools.find((t) => t.id === id);
-    let kind = toolActionKind({ toolId: id, args: id === 'local.terminal' ? intent.terminalOp : intent.fileOp, selfState });
+    // **모델이 고른 인자로 판정한다.** 도구마다 여기 분기를 늘리면 새 도구가 생길 때마다
+    // 조용히 새어 나간다 — 실측: local.process 를 안 넣어서 "서버 띄워봐"가 승인 없이 실행됐다.
+    // 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
+    // terminal 은 probe 를 거친 terminalOp 가, file 은 파싱을 거친 fileOp 가 더 정확하다.
+    // 그 둘이 없는 도구는 **모델이 고른 인자**로 판정한다 — 여기 분기가 없다고 빈 인자로
+    // 판정하면 위험한 작업이 조용히 새어 나간다(local.process 의 start 가 그렇게 실행됐다).
+    const 판정인자 = (id === 'local.terminal' ? intent.terminalOp
+      : id === 'local.file' ? intent.fileOp
+        : undefined) ?? intent.toolArgs?.[id];
+    let kind = toolActionKind({ toolId: id, args: 판정인자, selfState });
     // 승인 카드는 **이번 요청의 구체 사실**을 말해야 한다. "로컬 파일 실행"으로는 무엇이 사라지는지
     // 알 수 없다(실측). 되돌릴 수 있는지도 종류가 아니라 **도구가 밝힌 사실**을 쓴다.
     const reversible = tool?.reversible;
@@ -117,7 +126,7 @@ export function buildActionPlan(p) {
       : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
         : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
     const preview = () => ({
-      impact: describeAction(id, id === 'local.terminal' ? intent.terminalOp : intent.fileOp) ?? `${toolLabel(id, selfState)} 실행`,
+      impact: describeAction(id, 판정인자) ?? `${toolLabel(id, selfState)} 실행`,
       scope: '이번 요청',
       duration: '이번 한 번',
       cancel: cancelText,
