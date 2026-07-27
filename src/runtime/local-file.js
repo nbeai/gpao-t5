@@ -11,7 +11,7 @@
 import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots } from './file-scope.js';
+import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
@@ -86,6 +86,44 @@ export function makeLocalFileTool(deps = {}) {
     subjectOf(rec) {
       const path = rec?.result?.path ?? rec?.actualCall?.args?.path;
       return path ? { key: `file:${path}`, kind: 'file', label: String(path) } : null;
+    },
+    /**
+     * 승인 카드에 실릴 사실. **모델이 보낸 인자가 아니라 해석된 결과를 보여준다.**
+     *
+     * 예전엔 커널의 `describeAction` 이 `args.path` 를 그대로 실었다. 그래서 모델이
+     * `path: 'GPAO-T5/메모4.md'` 를 보내면 카드에도 그렇게 보였고, 실제로는 작업 루트 기준으로
+     * 풀려 `~/GPAO-T5/GPAO-T5/메모4.md` 에 생겼다 — 루트 이름이 두 번 들어간 것을 사용자가
+     * 승인 시점에 알 길이 없었다(2026-07-27 실측). 인자를 보여주는 승인은 승인이 아니다.
+     *
+     * 읽기(list·read)는 승인 카드가 없으므로 미리보기도 내지 않는다.
+     */
+    previewOf(args = {}) {
+      const action = args.action ?? (args.path ? 'read' : 'list');
+      if (action === 'list' || action === 'read') return undefined;
+      if (action === 'undo') {
+        return {
+          impact: '방금 한 파일 작업을 되돌려요',
+          scope: `${roots[0]} 안`,
+          duration: '이번 한 번',
+          cancel: '되돌리기를 되돌릴 수는 없어요 — 다시 하면 됩니다',
+        };
+      }
+      const abs = previewPathOf(args.path, roots);
+      const 이름 = basename(abs);
+      const impact = action === 'delete' ? `${이름} 을(를) 지워요`
+        : action === 'write' ? `${이름} 에 저장해요`
+          : action === 'move' ? `${이름} 을(를) ${previewPathOf(args.to, roots)} 로 옮겨요`
+            : `${이름} 을(를) ${action} 해요`;
+      return {
+        impact,
+        // **실제로 어디에 생기는가.** 인자가 아니라 이 줄이 사용자가 확인할 사실이다.
+        scope: abs,
+        duration: '이번 한 번',
+        // 되돌릴 수 있는지는 **이 작업에 대해** 말한다. 도구 전체 라벨로는 알 수 없다.
+        cancel: action === 'write' || action === 'delete'
+          ? '원본은 휴지통에 남아요 — "되돌려줘"로 되살릴 수 있어요'
+          : '"되돌려줘"로 되살릴 수 있어요',
+      };
     },
     async handler(args = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');

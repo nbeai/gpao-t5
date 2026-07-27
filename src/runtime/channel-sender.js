@@ -46,6 +46,31 @@ const CHANNELS = {
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 /**
+ * 전송 승인 카드에 실릴 사실을 만든다. **한 자리에서만 만든다** — 실제 어댑터와 데모 손이
+ * 각자 문구를 지으면 사용자가 보는 말이 갈라진다(§3-③ 단일 진실).
+ *
+ * 전송은 **되돌릴 수 없다.** 그래서 무엇이 어디로 가는지를 승인 **전에** 보여야 한다.
+ * 계약이 없던 동안은 `${라벨} 실행` 으로 떨어져서, 사용자는 받는 곳도 문면도 모른 채 눌렀다.
+ * @param {{channel:'telegram'|'slack', defaultTarget?:string}} p
+ */
+export function makeSendPreview({ channel, defaultTarget } = {}) {
+  const 채널이름 = channel === 'telegram' ? '텔레그램' : '슬랙';
+  return (args = {}) => {
+    const text = String(args?.text ?? args?.request ?? '').trim();
+    if (!text) return undefined;
+    const target = args?.target ?? defaultTarget;
+    // 문면은 **그대로** 보여준다(요약하면 승인한 것과 나간 것이 갈라진다). 길면 뒤만 자른다.
+    const 줄임 = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+    return {
+      impact: `${채널이름}으로 보내요 — "${줄임}"`,
+      scope: target ? `받는 곳: ${target}` : '받는 곳이 아직 정해지지 않았어요',
+      duration: '이번 한 번',
+      cancel: '보낸 뒤에는 되돌릴 수 없어요',
+    };
+  };
+}
+
+/**
  * 실제 채널 전송 도구 핸들러를 만든다. 전송은 A2 승인 뒤 실행자로만 불린다.
  * @param {{channel:'telegram'|'slack', token?:string, defaultTarget?:string, fetchImpl?:Function, timeoutMs?:number}} deps
  * @returns {{toolKind:'send', handler:(args:*)=>Promise<object>}}
@@ -57,6 +82,7 @@ export function makeChannelSender(deps = {}) {
   const spec = CHANNELS[channel];
   return {
     toolKind: 'send',
+    previewOf: makeSendPreview({ channel, defaultTarget }),
     async handler(args) {
       const text = String(args?.text ?? args?.request ?? '').trim();
       const target = args?.target ?? defaultTarget;

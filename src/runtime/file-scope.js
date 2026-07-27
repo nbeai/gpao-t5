@@ -80,6 +80,24 @@ export async function resolveInScope(target, opts = {}) {
   }
 }
 
+/**
+ * **승인 카드에 보여줄 자리**를 동기로 푼다. 판정이 아니라 표시용이다 —
+ * 경계 판정은 `resolveInScope` 가 하고(링크 해제·범위 검사), 여기는 사용자가 "어디에 생기는가"를
+ * 승인 **전에** 볼 수 있게만 한다.
+ *
+ * 왜 필요한가: 모델이 보낸 인자를 그대로 카드에 실으면 `path: 'GPAO-T5/메모.md'` 가
+ * `GPAO-T5/메모.md` 로만 보인다. 실제로는 작업 루트 기준으로 풀려
+ * `~/GPAO-T5/GPAO-T5/메모.md` 에 생긴다 — 루트 이름이 두 번 들어간 것을 사용자가 알 길이 없다
+ * (2026-07-27 실측). **인자가 아니라 결과를 보여줘야 승인이 승인이 된다.**
+ * @param {string} target @param {string[]} [roots]
+ */
+export function previewPathOf(target, roots = defaultFileRoots()) {
+  const base = resolve(roots[0]);
+  const t = typeof target === 'string' ? target.trim() : '';
+  if (!t) return base;
+  return isAbsolute(t) ? resolve(t) : resolve(base, t);
+}
+
 /** 첫 루트를 만들어 둔다(처음 쓸 때 폴더가 없어서 실패하지 않게). */
 export async function ensureRoot(roots = defaultFileRoots()) {
   await mkdir(roots[0], { recursive: true });

@@ -38,6 +38,9 @@ export function defineTool(d) {
     reversible: d.reversible,           // 미선언은 undefined — 모르면 안전하게 "어려울 수 있다"로 말한다
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
+    // 능력 설명이 "못 한다"고 말하면 **그 한계를 여기 선언한다.** 그래야 게이트가
+    // "이미 다른 손이 하고 있는 일을 못 한다고 말하는가"를 검사할 수 있다(§3-④ 반대 방향).
+    limits: d.limits,
     schema: d.schema,                   // 없으면 모델에게 안 보인다(고를 수 없는 것을 보여주지 않는다)
   };
 }

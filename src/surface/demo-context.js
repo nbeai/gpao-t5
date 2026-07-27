@@ -6,6 +6,7 @@ import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
+import { makeSendPreview } from '../runtime/channel-sender.js';
 
 // P6-2 Slice-3: 채널 커넥터를 ConnectorProfile로 선언(멀티채널). 실제 adapter는 P6 후속.
 export function demoConnectors() {
@@ -313,7 +314,9 @@ export function demoTools(opts = {}) {
         return { result: { scanned: true }, userSafeSummary: '로컬 파일을 확인했어요(변경 없음).' };
       },
     },
+    // 데모 손도 **같은 미리보기 계약**을 쓴다 — 문구를 따로 지으면 사용자가 보는 말이 갈라진다.
     'slack.post': senders['slack.post'] ?? {
+      previewOf: makeSendPreview({ channel: 'slack' }),
       async handler() {
         return { result: { posted: true }, userSafeSummary: '슬랙에 게시했어요.' };
       },
@@ -337,6 +340,7 @@ export function demoTools(opts = {}) {
     },
     'telegram.send': senders['telegram.send'] ?? {
       isFixture: true,
+      previewOf: makeSendPreview({ channel: 'telegram' }),
       async handler() {
         return { result: { sent: true }, userSafeSummary: '텔레그램으로 보냈어요.' };
       },

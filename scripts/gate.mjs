@@ -375,16 +375,64 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     } catch { return null; }
   })();
   if (CAPABILITY_LINES) {
-    // "아직 없다/지원하지 않는다/못 한다" 는 **사실일 수도 있다**. 그래서 막지 않고 **보이게** 한다 —
-    // 기능이 생기면 이 줄부터 고쳐야 한다는 걸 매 게이트마다 상기시킨다.
-    const negatives = Object.entries(CAPABILITY_LINES)
-      .filter(([, line]) => /아직 없|지원하지 않|못 한다|불가능/.test(line));
-    if (negatives.length) {
-      console.log(`  ⚠ 능력 설명에 "못 한다" 주장 ${negatives.length}건 — 기능이 생겼으면 먼저 고칠 것:`);
-      for (const [id, line] of negatives) console.log(`      · ${id}: ${line.slice(0, 60)}…`);
-    } else {
-      ok('능력 설명에 남은 "못 한다" 주장 없음');
+    // 예전엔 이게 **⚠ 경고**였다. "사실일 수도 있으니 보이게만 한다"는 이유였는데, 상시 노란불은
+    // 아무도 안 본다 — 실제로 `web.collect` 가 "브라우저를 띄워 조작하는 손은 아직 없다"고 말하는
+    // 동안 `browser.observe` 는 배선돼 있었고, 같은 능력 목록 안에서 두 도구가 서로 다른 말을 했다.
+    // 경고가 결함을 덮은 것이다. 그래서 **막는다.**
+    //
+    // 다만 부정 주장은 정말 사실일 수 있다(로그인벽·robots). 그래서 단어 사냥이 아니라 계약으로 본다:
+    //   · 능력 설명에 부재 주장이 있으면 → descriptor 가 `limits` 를 선언해야 한다
+    //   · limit 의 `coveredBy` 가 **배선된 도구**면 → 능력 설명이 그 손을 가리켜야 한다
+    //     (있는 손을 없다고 말하는 것을 여기서 막는다 — §3-④ 반대 방향)
+    const 부재주장 = /아직 없|지원하지 않|못\s*(한다|합니다|읽|봅)|불가능|손은 없/;
+    const { liveDeps } = await import('../src/surface/live-context.js');
+    const 배선됨 = new Set(Object.keys(liveDeps({}).tools?.tools ?? {}));
+    const byId = new Map((await import('../src/surface/demo-context.js')).demoDescriptors().map((d) => [d.id, d]));
+
+    const problems = [];
+    for (const [id, line] of Object.entries(CAPABILITY_LINES)) {
+      if (!부재주장.test(line)) continue;
+      const limits = byId.get(id)?.limits;
+      if (!Array.isArray(limits) || !limits.length) {
+        problems.push(`${id}: 능력 설명이 "못 한다"고 말하는데 limits 선언이 없다 — 검증할 수 없는 주장이다`);
+        continue;
+      }
+      for (const lim of limits) {
+        if (!lim?.coveredBy || !배선됨.has(lim.coveredBy)) continue;
+        // 덮는 손이 실제로 있다 → 능력 설명은 그 손을 **가리켜야** 한다.
+        if (!line.includes(lim.coveredBy)) {
+          problems.push(`${id}: "${lim.says}" 는 이미 ${lim.coveredBy} 가 한다 — 능력 설명이 그 손을 가리켜야 한다`);
+        }
+      }
     }
+    if (problems.length) for (const p of problems) bad(`능력 설명이 있는 손을 없다고 말한다 — ${p}`);
+    else ok('능력 설명의 "못 한다" 주장이 배선된 손과 어긋나지 않는다');
+  }
+}
+
+// ── ③-b 승인이 필요한 도구는 자기 미리보기를 낸다 (P5-B 진입 전 계약 게이트) ──
+// 사용자가 **무엇을 허락하는지 모르는 승인은 승인이 아니다.** previewOf 가 없으면 카드가
+// `${라벨} 실행` 으로 떨어진다(실측: "실행 중인 것 실행"). 전송은 되돌릴 수도 없다.
+//
+// 실측으로 드러난 더 나쁜 경우: `local.file` 이 계약을 안 내서 카드가 모델이 보낸 인자를 그대로
+// 실었고, `path:'GPAO-T5/메모4.md'` 가 작업 루트 기준으로 풀려 `~/GPAO-T5/GPAO-T5/메모4.md` 에
+// 생겼다. 카드에는 그 사실이 없었다 — **인자가 아니라 결과를 보여야 한다.**
+{
+  const { liveDeps } = await import('../src/surface/live-context.js');
+  const live = liveDeps({});
+  const hands = live.tools?.tools ?? {};
+  const 승인필요 = new Set((live.descriptors ?? []).filter((d) => d.needsApproval).map((d) => d.id));
+  // 도구 종류로 승인이 갈리는 것(local.file 의 write·delete)도 계약 대상이다.
+  const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
+  for (const id of Object.keys(hands)) {
+    const k = toolActionKind({ toolId: id, args: { action: 'write' }, selfState: { connectedTools: live.descriptors ?? [] } });
+    if (k === 'write' || k === 'delete' || k === 'send') 승인필요.add(id);
+  }
+  const 계약없음 = [...승인필요].filter((id) => typeof hands[id]?.previewOf !== 'function');
+  if (계약없음.length) {
+    bad(`승인이 필요한데 미리보기 계약이 없다: ${계약없음.join(', ')} — 무엇을 허락하는지 모르는 승인은 승인이 아니다`);
+  } else {
+    ok(`승인이 필요한 도구는 모두 previewOf 를 낸다 (${승인필요.size}개)`);
   }
 }
 
