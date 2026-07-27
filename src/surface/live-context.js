@@ -149,9 +149,13 @@ export function liveDeps(processEnv = {}, deps = {}) {
     env, tools, descriptors: demoDescriptors({ include: [...liveToolIds, ...연결전] }), channels,
     // P5-B-0: 채널 커넥터 + **연결 전 서비스 커넥터**. 선언이 없으면 "연결하면 가능"을 말할
     // 자리가 없다 — 그 자리가 비면 모델이 상상으로 메운다(§0).
+    // 채널 커넥터(실자격 파생) + **채널이 아닌 서비스 선언 전부**(메일·노션·구글…).
+    // 예전엔 "도구가 있는 커넥터"만 골랐는데, 그러면 도구 없는 서비스 선언(노션·구글)이
+    // 라이브에서 통째로 사라진다 — 사용자가 그 이름을 말해도 T5 는 상태를 말할 자리가 없고,
+    // 로컬 흔적 확인(P5-B-1A)도 그 서비스엔 영영 안 돈다(실측: /connectors/truth 에 메일만 남았다).
     connectors: [
       ...channels.map((c) => c.connector),
-      ...demoConnectors().filter((c) => 연결전.some((id) => demoDescriptors().find((d) => d.id === id)?.connector === c.id)),
+      ...demoConnectors().filter((c) => c.kind !== 'channel'),
     ],
     model, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
   };

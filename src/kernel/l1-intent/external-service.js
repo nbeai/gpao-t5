@@ -55,6 +55,9 @@ export function serviceStatus(connectors = [], selfState = {}) {
       label: c.label ?? c.id,
       aliases: c.aliases ?? [],
       connected,
+      // P5-B-1A: 이 컴퓨터에서 **직접 확인한** 흔적. 결과가 없으면 필드도 없다 —
+      // 확인 안 한 것을 확인했다고 말하지 않기 위해서다(시각이 그 근거다).
+      ...(c.localSignsResult?.length ? { localSigns: c.localSignsResult, lastCheckedAt: c.lastCheckedAt } : {}),
       ...(connected ? {} : (() => {
         const reason = 도구들[0]?.reason ?? (c.connected ? 'error' : 'needs_connection');
         // **연결 흐름이 없는데 "연결하면 가능"이라고 말하게 하지 않는다**(오너 금지).

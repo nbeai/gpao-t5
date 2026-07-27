@@ -205,3 +205,26 @@ test('env 가 손을 잘못 알고 있어도 서버는 실제 레지스트리를
       'env 가 착각해도 손이 없으면 모델에게 보이면 안 된다(레지스트리가 진실이다)');
   } finally { server.close(); }
 });
+
+// ── 능력 문장의 **긍정** 주장도 구현과 맞아야 한다 ────────────────────────
+// 실측(2026-07-27): 내가 "로그인해 둔 화면이면 그대로 보인다"를 현실로 넣었다. 거짓이었다 —
+// browser.js 는 매번 새 임시 프로필로 연다(`--user-data-dir=<임시폴더>`, 끝나면 삭제).
+// 그 문장 때문에 라이브가 "브라우저에서 Google 로그인만 해주세요"라고 **불가능한 약속**을 했다.
+//
+// 게이트 ③ 은 능력 설명의 **부정** 주장만 본다("못 한다"고 했는데 손이 있는 경우).
+// **긍정** 주장은 아무도 안 봤다 — 그게 이 구멍이었다. 사용자가 지적한 것을 불변식으로 바꾼다.
+test('브라우저 능력 문장이 로그인 상태를 실제 구현과 같게 말한다', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { fileURLToPath } = await import('node:url');
+  const src = await readFile(fileURLToPath(new URL('../src/runtime/browser.js', import.meta.url)), 'utf8');
+  // 구현 사실: 임시 프로필로 여는가(= 사용자 로그인 세션이 따라오지 않는가).
+  const 임시프로필 = /--user-data-dir=\$\{profileDir\}/.test(src) && /mkdtemp/.test(src);
+  const cap = demoDescriptors().find((d) => d.id === 'browser.observe')?.capability ?? '';
+  if (임시프로필) {
+    assert.match(cap, /로그인은 안 되어 있다|로그인 상태가 따라오지 않/,
+      '임시 프로필로 여는데 능력 문장이 그 사실을 말하지 않으면, 모델이 "로그인하면 된다"고 약속한다');
+  } else {
+    assert.doesNotMatch(cap, /로그인은 안 되어 있다/,
+      '사용자 프로필을 쓰게 됐으면 능력 문장도 함께 바뀌어야 한다(반대 방향도 거짓말이다)');
+  }
+});

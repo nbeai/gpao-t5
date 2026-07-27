@@ -140,7 +140,12 @@ export function buildModelMessages(tc) {
       lines.push(`${s.label}${부르는말}: ${s.connectable ? '직접 연결 없음(연결하면 가능)' : '직접 연결 없음 · 연결 흐름도 아직 없음'}`
         + (s.jobsWhenConnected?.length ? ` — 연결하면 ${s.jobsWhenConnected.join(' · ')}` : '')
         + (s.plannedJobs?.length ? ` — 지원 예정: ${s.plannedJobs.join(' · ')}` : '')
-        + (s.setupGuide ? `\n  ${s.setupGuide}` : ''));
+        + (s.setupGuide ? `\n  ${s.setupGuide}` : '')
+        // P5-B-1A: **T5 가 이 컴퓨터에서 직접 확인한 것.** 결과가 있을 때만 낸다 —
+        // 확인 안 했으면 이 줄 자체가 없다(확인한 척 금지). 있음·없음 둘 다 사실이라 둘 다 싣는다.
+        + (s.localSigns?.length
+          ? `\n  이 컴퓨터에서 직접 확인함: ${s.localSigns.map((x) => `${x.label} ${x.found ? `있음${x.where ? `(${x.where})` : ''}` : '없음'}`).join(' · ')}`
+          : ''));
     }
     if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
   }

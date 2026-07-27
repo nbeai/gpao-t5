@@ -71,6 +71,8 @@ export function connectorTruth(connectors = [], selfState = {}, descriptors = []
       setupGuide: c.setupGuide,
       limits: c.limits ?? [],
       localeRelevance: c.localeRelevance,
+      // P5-B-1A: 이 컴퓨터에서 직접 확인한 흔적 — 데이터 표면도 같은 사실을 본다(§8).
+      ...(c.localSignsResult?.length ? { localSigns: c.localSignsResult } : {}),
       lastCheckedAt: c.lastCheckedAt,
       lastError: c.lastError,
     };

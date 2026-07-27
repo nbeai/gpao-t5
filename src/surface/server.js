@@ -14,6 +14,7 @@ import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
+import { checkConnectorSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
 import { AllowlistStore } from './allowlist-store.js';
@@ -1293,6 +1294,11 @@ export async function startLiveServer(opts = {}) {
   const port = opts.port ?? Number(processEnv.PORT ?? 4173);
   await new Promise((resolve) => server.listen(port, resolve));
   // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
+  // P5-B-1A: **이미 설치·설정된 것은 사용자가 아니라 T5 가 확인한다.** 커넥터가 선언한 로컬
+  // 흔적(동기화 폴더·MCP 설정·CLI·앱)을 부팅 직후 확인해 같은 배열에 얹는다 — 매 턴 ctx 가
+  // 이 배열을 읽으므로 다음 턴부터 모델 현실에 실린다. 비차단(부팅을 막지 않는다). 실패해도
+  // 그냥 "확인 안 됨"으로 남는다 — lastCheckedAt 이 없으면 어떤 표면도 확인했다고 말하지 않는다.
+  checkConnectorSigns(liveConnectorList).catch(() => {});
   modelDoctor()
     .then((r) => console.log(`[model:doctor] ${r.state}${r.modelId ? ` (${r.modelId})` : ''} — ${r.userSafeSummary}`))
     .catch(() => {});

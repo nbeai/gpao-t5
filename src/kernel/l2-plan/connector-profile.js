@@ -40,6 +40,10 @@ export function defineConnector(p) {
     scopes: p.scopes ?? [],              // 요청할 권한 범위
     limits: p.limits ?? [],              // 이 서비스로도 못 하는 것(정직한 한계)
     setupGuide: p.setupGuide,            // 연결 방법 한 줄(사람 말)
+    // P5-B-1A: 이 컴퓨터에서 T5 가 **직접 확인할 수 있는** 흔적 선언(동기화 폴더·MCP 설정·
+    // CLI·앱·인증 파일의 존재). 확인은 러너(local-signs.js)가 하되 러너는 서비스를 모른다 —
+    // 서비스 지식은 이 선언에만 산다(previewOf·subjectOf 와 같은 계약 패턴).
+    localSigns: p.localSigns,
     localeRelevance: p.localeRelevance,  // 'kr' 등 — 한국 사용자에게 얼마나 가까운가
     lastCheckedAt: p.lastCheckedAt,      // 마지막 연결 확인 시각(추측 금지)
     lastError: p.lastError,              // 마지막 실패 이유(사람 말)

@@ -34,6 +34,9 @@ export function demoConnectors() {
       setupGuide: '메일 계정을 연결하면 T5가 대신 보낼 수 있어요. 보내기 전에 받는 사람과 내용을 보여드려요.',
       limits: ['받은 메일을 읽는 기능은 아직 없어요'],
       localeRelevance: 'kr',
+      localSigns: [
+        { kind: 'mcp', server: 'gmail', label: 'MCP 설정의 지메일 연결' },
+      ],
     }),
     // P5-B-0.5: **사용자가 자주 부르는 서비스는 선언해 둔다.** 선언이 없으면 T5 는 그 이름을
     // 듣고도 자기 상태를 말할 자리가 없어서 "복사해서 붙여주세요"로 끝낸다(실측).
@@ -46,14 +49,24 @@ export function demoConnectors() {
       requiredSetup: ['노션 계정 연결(API 또는 MCP)'],
       setupGuide: '자주 쓰시면 노션 연결을 붙이는 게 가장 편해요. 한 번만 보실 거면 지금도 브라우저로 열어서 볼 수 있어요.',
       localeRelevance: 'kr',
+      // P5-B-1A: 이 컴퓨터에서 T5 가 직접 확인할 수 있는 흔적(사용자에게 확인시키지 않는다).
+      localSigns: [
+        { kind: 'app', path: '/Applications/Notion.app', label: '노션 앱' },
+        { kind: 'mcp', server: 'notion', label: 'MCP 설정의 노션 연결' },
+      ],
     }),
     defineConnector({
       id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,
       aliases: ['google', '구글', '드라이브', 'drive', '캘린더', 'calendar', '구글독스', '스프레드시트'],
       userJobs: ['드라이브 자료를 찾아 읽어요', '캘린더 일정을 보고 정리해요'],
       requiredSetup: ['구글 계정 연결(OAuth)'],
-      setupGuide: '구글 계정을 연결하면 드라이브·캘린더를 바로 다룰 수 있어요. 지금도 로그인해 두신 브라우저 화면은 열어서 볼 수 있어요.',
+      setupGuide: '구글 계정을 연결하면 드라이브·캘린더를 바로 다룰 수 있어요.',
       localeRelevance: 'kr',
+      localSigns: [
+        { kind: 'dir', paths: ['~/Library/CloudStorage/GoogleDrive-*', '~/Google Drive'], label: '구글 드라이브 동기화 폴더' },
+        { kind: 'cli', command: 'gcloud', label: '구글 CLI(gcloud)' },
+        { kind: 'mcp', server: 'google', label: 'MCP 설정의 구글 연결' },
+      ],
     }),
   ];
 }
