@@ -483,8 +483,21 @@ export async function runTurn(input, ctx) {
     if (!멈춤설명 && earlyTc) {
       const 라벨 = toolLabel(pendingGrants[0].action, selfState);
       const out = await ctx.model.respond(
-        { ...earlyTc, recoveryHint: `${withParticle(라벨, '은')} 먼저 확인을 받아야 해서 아직 실행하지 않았어요.` },
-        { effort: 'medium' },
+        {
+          ...earlyTc,
+          // **"실행 전이다"가 "못 한다"로 번역되지 않게 사실을 끝까지 적는다.**
+          // 라이브 실측(56a6ae67 · f374fb16): 이 자리에서 모델이 이렇게 답했다 —
+          //   "확인받을 일은 아니고 … 지금 이 대화창에는 로컬 파일 실행 도구가 붙어 있지 않아서
+          //    제가 실제 생성까지는 못 했어요. 직접 만들면 내용은 이것만 넣으면 됩니다."
+          // 세 겹으로 틀렸다: 확인이 필요한데 아니라고 했고, 있는 손을 없다고 했고, 사용자에게 시켰다.
+          // 원인은 금지문 부족이 아니라 **현실 부족**이었다(아래 tools 와 이 문장이 그 현실이다).
+          recoveryHint: `${withParticle(라벨, '은')} 실행 전에 확인을 받는 일이에요.`
+            + ' 지금은 확인을 요청하는 중이고, 승인하면 **내가 직접 실행한다.**'
+            + ' 내 손으로 되는 일이다 — 사용자에게 대신 하라고 하지 않는다.',
+        },
+        // **손 목록을 함께 준다.** 안 주면 모델이 "이 경로에는 도구가 안 붙어 있다"고 읽는다
+        // (실측). 여기서 모델이 도구를 또 고르면 그 선택은 쓰지 않는다 — 우리는 문장만 가져간다.
+        { effort: 'medium', tools: toolSchemasFor(selfState) },
       ).catch(() => null);
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
     }
