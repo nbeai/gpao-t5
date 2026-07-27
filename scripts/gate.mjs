@@ -240,6 +240,41 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ②-e 위생: **소스 트리에 런타임 상태를 만들지 않는다** ────────────────
+// 실측: 프로세스 기록이 `src/surface/processes.json` 에 쌓이고 로그가 /tmp 로 흩어졌다.
+// 단위 테스트는 dataDir 을 직접 넘겨서 이 경로를 한 번도 안 지나갔다 — 라이브에서야 드러났다.
+// "커밋하지 마라"를 사람이 기억하게 두지 않고, 라이브 배선을 실제로 돌려 보고 확인한다.
+{
+  const before = failures.length;
+  try {
+    const { readdir } = await import('node:fs/promises');
+    const { liveDeps } = await import('../src/surface/live-context.js');
+    const 찍기 = async () => {
+      const out = [];
+      for (const d of ['src', 'src/surface', 'src/runtime', 'src/kernel', 'scripts']) {
+        for (const f of await readdir(new URL(`../${d}`, import.meta.url))) {
+          if (/\.(json|log|sqlite|db)$/.test(f)) out.push(`${d}/${f}`);
+        }
+      }
+      return out;
+    };
+    const 전 = await 찍기();
+    // 라이브 배선을 세우고 **실제로 기록이 일어나게** 한다. 읽기만 해서는 파일이 안 생겨
+    // 경로가 소스 트리로 잡혀 있어도 초록이 뜬다 — 반대 검증에서 실제로 그렇게 놓쳤다.
+    const live = liveDeps({});
+    const proc = live.tools?.tools?.['local.process'];
+    const 켠것 = await proc?.handler?.({ action: 'start', command: 'sleep 5', label: '위생검사', settleMs: 100 });
+    if (켠것?.result?.id) await proc.handler({ action: 'stop', target: 켠것.result.id });
+    const 후 = await 찍기();
+    const 새로생김 = 후.filter((f) => !전.includes(f));
+    if (새로생김.length) bad(`소스 트리에 런타임 상태가 생긴다: ${새로생김.join(', ')} — GPAO_T5_DATA_DIR 쪽으로 보낼 것`);
+    if (전.length) notes.push(`소스 트리에 이미 있는 데이터 파일: ${전.join(', ')}`);
+    if (failures.length === before) ok('위생: 라이브 배선이 소스 트리에 상태 파일을 만들지 않는다');
+  } catch (e) {
+    bad(`위생 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ②-b 프롬프트 예산 (Hermes 의 prompt-size 원리 흡수) ───────────────────
 // 프롬프트는 조용히 자란다. 어디에 예산이 가는지 매번 보이게 하고, **캐시 접두 대비 가변 구역**이
 // 커지면 경고한다 — 가변이 앞에 끼면 매 턴 캐시가 통째로 깨진다(실제로 그렇게 만들어 놨다가 고쳤다).

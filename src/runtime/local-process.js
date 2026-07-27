@@ -8,9 +8,15 @@
 import { spawn } from 'node:child_process';
 import { open, readFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { protectionFor } from './local-protection.js';
+
+/** dataDir 을 안 받았을 때의 자리. **소스 트리에는 절대 쓰지 않는다**(게이트가 검사한다). */
+function defaultStateDir() {
+  return process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
+}
 
 const LOG_TAIL_CHARS = 4000; // 로그를 통째로 던지지 않는다 — 모델도 사용자도 못 읽는다
 
@@ -39,7 +45,9 @@ async function tail(file, chars = LOG_TAIL_CHARS) {
  */
 export function makeLocalProcessTool(deps = {}) {
   const store = deps.store;
-  const logDir = deps.logDir ?? join(deps.dataDir ?? '/tmp', 'process-logs');
+  // 로그도 **사용자 데이터**다. dataDir 이 없다고 /tmp 로 흩어지면 다음 실행에서 못 찾고,
+  // 사용자는 "왜 안 켜졌는지" 답을 영영 못 듣는다(라이브에서 실제로 /tmp 로 샜다).
+  const logDir = deps.logDir ?? join(deps.dataDir ?? defaultStateDir(), 'process-logs');
   const guardCtx = () => ({ dataDir: deps.dataDir });
 
   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });

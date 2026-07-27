@@ -39,3 +39,10 @@ secrets/
 *.pfx
 *.jks
 *.keystore
+
+# 런타임 상태는 소스 트리에 두지 않는다(게이트가 검사한다 — §②-e)
+src/**/*.json
+!package.json
+!package-lock.json
+*.log
+process-logs/
