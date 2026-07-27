@@ -10,6 +10,7 @@ import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
 import { makeLocalLocateTool } from '../runtime/local-locate.js';
+import { makeLocalDiscoveryTool } from '../runtime/local-discovery.js';
 import { ProcessStore } from '../runtime/process-store.js';
 import { defaultSessionDir } from './session-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
@@ -67,6 +68,9 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 자기보존 경계(lifecycle guard)도 이 경로를 알아야 "내 기억을 지우는 명령"을 알아본다.
   const stateDir = processEnv.GPAO_T5_DATA_DIR ?? defaultSessionDir();
   const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
+  // discovery는 서버가 소유한 같은 커넥터 배열을 읽는다. 나중에 붙거나 끊긴 상태도 다음 턴에서
+  // 같은 진실을 본다. 도구가 서비스 목록을 따로 복제하지 않는다.
+  let connectors = [];
 
   const senders = {
     'slack.post': makeChannelSender({ channel: 'slack', token: slackToken, defaultTarget: processEnv.SLACK_DEFAULT_CHANNEL }),
@@ -86,6 +90,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
     localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
     localLocate: makeLocalLocateTool(),
+    localDiscovery: makeLocalDiscoveryTool({ connectors: () => connectors }),
     localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
@@ -149,7 +154,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 열린다** — Phase 0-5 에서 실제로 그렇게 새고 있었다.
   const channels = liveChannels(processEnv);
   const descriptors = demoDescriptors({ include: [...liveToolIds, ...연결전] });
-  const connectors = [
+  connectors = [
     ...channels.map((c) => c.connector),
     ...demoConnectors().filter((c) => c.kind !== 'channel'),
   ];

@@ -47,7 +47,7 @@ async function cli있나(command, deps) {
 }
 
 /** 설정 파일에서 **서버 이름 키만** 꺼낸다. 값(명령줄·env·토큰)은 여기서 버린다. */
-async function mcp서버이름들(deps) {
+export async function mcpServerNames(deps = {}) {
   const names = [];
   for (const raw of deps.mcpConfigPaths ?? MCP_CONFIG_PATHS) {
     const p = 홈풀기(raw);
@@ -96,7 +96,7 @@ export async function checkSign(sign, deps = {}) {
       const where = await cli있나(sign.command, deps);
       if (where) return { ...out, found: true, where };
     } else if (sign.kind === 'mcp') {
-      const names = await mcp서버이름들(deps);
+      const names = await mcpServerNames(deps);
       const hit = names.find((n) => n.name.toLowerCase().includes(String(sign.server).toLowerCase()));
       if (hit) return { ...out, found: true, where: hit.where };
     }

@@ -290,6 +290,21 @@ const DESCRIPTORS = [
     // 지우거나 덮어쓴 것은 휴지통에 남고 되돌리기 표가 있다(local-file.js) — 사실이므로 선언한다.
     reversible: true, reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
   }),
+  defineTool({
+    id: 'local.discovery', label: '연결 흔적 찾기', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read',
+    capability: '낯선 서비스나 도구의 기존 MCP 등록·설치된 명령·연결 단서를 비밀 없이 직접 확인한다.',
+    operatorFact: '아직 연결되지 않은 외부 일을 위해 이 컴퓨터의 기존 연결 단서를 먼저 확인한다.',
+    schema: {
+      description: '사용자가 부른 외부 서비스나 도구의 기존 연결 단서를 읽기 전용으로 확인한다.'
+        + ' 설정 값·토큰·비밀은 읽지 않는다. 후보가 없다는 결과는 연결이 불가능하다는 뜻이 아니다.',
+      parameters: {
+        type: 'object', properties: {
+          subject: { type: 'string', description: '사용자가 부른 대상 그대로' },
+          purpose: { type: 'string', description: '하려는 일의 짧은 표현' },
+        }, required: ['subject'],
+      },
+    },
+  }),
   // P6-T2 · 터미널. **사용자에게 명령을 치라고 하지 않는다** — T5 가 직접 돌린다.
   // 등급은 고정이 아니다: 계획 단계 probe 가 "아무것도 안 바꿨다"를 증명하면 A0, 못 하면 A2.
   defineTool({
@@ -521,6 +536,7 @@ const FACTS = {
   'local.terminal': { connected: true },
   'local.process': { connected: true },
   'local.locate': { connected: true },
+  'local.discovery': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -625,6 +641,7 @@ export function demoTools(opts = {}) {
     ...(opts.localTerminal ? { 'local.terminal': opts.localTerminal } : {}),
     ...(opts.localProcess ? { 'local.process': opts.localProcess } : {}),
     ...(opts.localLocate ? { 'local.locate': opts.localLocate } : {}),
+    ...(opts.localDiscovery ? { 'local.discovery': opts.localDiscovery } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
