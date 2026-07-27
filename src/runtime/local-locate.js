@@ -1,0 +1,188 @@
+// L3 · 작업 대상 찾기 (P6-W2) — **사용자는 경로를 말하지 않는다.**
+//
+// "정산 자료 봐줘", "계약서 찾아줘", "이 프로젝트 테스트 돌려봐".
+// W1 이 최근에 다룬 자리를 사실로 주지만, 대화에 **한 번도 안 나온** 대상은 그것으로 못 찾는다.
+//
+// terminal 의 `find` 로 안 되는 이유는 실측에 있다: 모델이 짠 `find ~ | head -20` 이
+// 닷폴더에 밀려 잘렸다. 필요한 건 탐색이 아니라 **랭킹과 근거**다 —
+// 후보 몇 개와 "왜 이게 후보인지"를 짧게 주면 고르는 건 모델이 한다(§24).
+//
+// **코드 프로젝트만 찾는 도구가 아니다.** T5 사용자의 작업 대상은 정산 엑셀·계약서 pdf·
+// 원고 폴더·디자인 시안일 때가 더 많다. 두 갈래 표식을 같은 무게로 본다.
+import { readdir, stat } from 'node:fs/promises';
+import { join, basename } from 'node:path';
+import { homedir } from 'node:os';
+import { protectionFor } from './local-protection.js';
+
+const MAX_CANDIDATES = 5;
+const MAX_DIRS = 4000;        // 한 번에 들여다볼 폴더 수(넘으면 멈추고 그 사실을 남긴다)
+const MAX_ENTRIES_PER_DIR = 400;
+
+/** 들어가지 않는 자리. 사용자의 자료가 아니라 도구·OS 가 만든 더미다. */
+const SKIP = new Set([
+  'node_modules', 'Library', 'Applications', '.Trash', 'venv', '.venv',
+  '__pycache__', 'dist', 'build', 'target', 'vendor', 'Pods', '.git',
+]);
+
+/** 코드 작업 자리의 표식. 있으면 거의 확실하다. */
+const PROJECT_MARKS = new Set([
+  '.git', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'pom.xml',
+  'build.gradle', 'Gemfile', 'composer.json', 'Makefile', 'CMakeLists.txt', 'README.md',
+]);
+
+/** 업무 자료의 표식 — 확장자로 본다. **T5 사용자에게는 이쪽이 더 흔하다.** */
+const DOC_EXT = /\.(xlsx?|xlsm|csv|pdf|docx?|hwpx?|pptx?|numbers|pages|key)$/i;
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|svg|ai|psd|sketch|fig)$/i;
+const TEXT_EXT = /\.(md|txt|rtf)$/i;
+
+/** 사람이 부른 말을 낱말로. "정산 자료 봐줘" → [정산, 자료] */
+function 낱말(text) {
+  return String(text ?? '')
+    .toLowerCase()
+    .split(/[\s,./\\_-]+/)
+    .map((w) => w.replace(/(자료|파일|폴더|봐줘|찾아줘|정리해줘|열어줘|보여줘)$/g, ''))
+    .filter((w) => w.length >= 2);
+}
+
+/** 폴더 하나가 무엇으로 보이는가. **파일을 열지 않는다** — 이름과 개수만 본다. */
+function 성격(entries) {
+  const counts = { doc: 0, image: 0, text: 0, code: 0, mark: 0 };
+  for (const e of entries) {
+    if (PROJECT_MARKS.has(e.name)) counts.mark += 1;
+    else if (DOC_EXT.test(e.name)) counts.doc += 1;
+    else if (IMAGE_EXT.test(e.name)) counts.image += 1;
+    else if (TEXT_EXT.test(e.name)) counts.text += 1;
+    else if (/\.(js|ts|jsx|tsx|py|go|rs|java|rb|php|c|cpp|swift|kt)$/i.test(e.name)) counts.code += 1;
+  }
+  if (counts.mark > 0 || counts.code >= 3) return { kind: 'project', counts };
+  if (counts.doc >= 2) return { kind: 'documents', counts };
+  if (counts.image >= 3) return { kind: 'images', counts };
+  if (counts.text >= 3) return { kind: 'notes', counts };
+  return { kind: undefined, counts };
+}
+
+const 종류이름 = { project: '작업 프로젝트', documents: '문서·자료', images: '이미지', notes: '글' };
+
+/**
+ * 사용자가 종류를 직접 부를 때가 있다 — "이 **프로젝트**", "그 **문서**", "**사진** 정리해줘".
+ * 이름이 안 맞아도 종류가 맞으면 후보로 볼 근거가 된다. 목록이 아니라 **부르는 말과 종류의 대응**이다.
+ */
+const 종류말 = [
+  [/프로젝트|프로젝|코드|개발|레포|repo|project/i, 'project'],
+  [/문서|자료|서류|파일들|doc/i, 'documents'],
+  [/사진|이미지|시안|디자인|image|photo/i, 'images'],
+  [/글|원고|메모|노트|note/i, 'notes'],
+];
+const 부른종류 = (말) => 종류말.find(([re]) => re.test(말))?.[1];
+
+/** 왜 이게 후보인지 사람 말로. 근거 없는 후보는 사용자가 고를 수 없다. */
+function 근거(성, 이름맞음, 최근일) {
+  const 조각 = [];
+  if (이름맞음) 조각.push('이름이 맞아요');
+  const c = 성.counts;
+  if (성.kind === 'project') 조각.push(c.mark > 0 ? '작업 폴더 표식이 있어요' : `코드 파일 ${c.code}개`);
+  if (성.kind === 'documents') 조각.push(`문서 ${c.doc}개`);
+  if (성.kind === 'images') 조각.push(`이미지 ${c.image}개`);
+  if (성.kind === 'notes') 조각.push(`글 ${c.text}개`);
+  if (최근일 != null) {
+    조각.push(최근일 === 0 ? '오늘 고쳤어요' : 최근일 <= 7 ? `${최근일}일 전에 고쳤어요` : `${Math.round(최근일 / 30)}달 전`);
+  }
+  return 조각.join(' · ');
+}
+
+/**
+ * @param {{home?:string}} [deps] home 을 주입할 수 있어야 가짜 홈으로 검사할 수 있다
+ *   (특정 사용자 경로를 하드코딩하면 그 순간 게이트에서 걸린다).
+ */
+export function makeLocalLocateTool(deps = {}) {
+  const homeOf = () => deps.home ?? homedir();
+
+  return {
+    async handler(args = {}) {
+      const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
+      const from = args.from ? String(args.from) : homeOf();
+      const depth = Math.min(Math.max(Number(args.depth) || 3, 1), 5);
+      const 낱말들 = 낱말(말);
+      const 찾는종류 = 부른종류(말);
+
+      const 후보 = [];
+      let 본폴더 = 0; let 멈춤 = false; const 안본자리 = [];
+      const 대기 = [{ dir: from, d: 0 }];
+      const 지금 = Date.now();
+
+      while (대기.length) {
+        const { dir, d } = 대기.shift();
+        if (본폴더 >= MAX_DIRS) { 멈춤 = true; break; }
+        let entries;
+        try { entries = (await readdir(dir, { withFileTypes: true })).slice(0, MAX_ENTRIES_PER_DIR); }
+        catch { continue; }
+        본폴더 += 1;
+
+        const 성 = 성격(entries);
+        const 이름 = basename(dir).toLowerCase();
+        const 이름맞음 = 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w));
+
+        if (d > 0 && (성.kind || 이름맞음)) {
+          let 최근일;
+          try { 최근일 = Math.floor((지금 - (await stat(dir)).mtimeMs) / 86_400_000); } catch { /* 못 보면 안 쓴다 */ }
+          후보.push({
+            path: dir,
+            kind: 성.kind ?? 'folder',
+            kindLabel: 종류이름[성.kind] ?? '폴더',
+            why: 근거(성, 이름맞음, 최근일),
+            // 확신도: 이름이 맞고 성격도 맞으면 높다. 성격만이면 낮다 — 모델이 이걸 보고 묻는다.
+            // 이름이 맞으면 높다. 이름 대신 **부른 종류**가 맞아도 볼 만하다.
+            // 둘 다 아니면 그냥 "이런 자리도 있다"일 뿐이라 낮게 둔다(모델이 이걸 보고 묻는다).
+            confidence: 이름맞음 && 성.kind ? 'high'
+              : 이름맞음 ? 'medium'
+                : (찾는종류 && 성.kind === 찾는종류) ? 'medium' : 'low',
+            modifiedDaysAgo: 최근일,
+            counts: 성.counts,
+          });
+        }
+
+        if (d >= depth) continue;
+        for (const e of entries) {
+          if (!e.isDirectory() || e.name.startsWith('.') || SKIP.has(e.name)) continue;
+          const full = join(dir, e.name);
+          // 보호 영역은 후보로도 올리지 않는다 — 열어 볼 자리가 아니다.
+          if (protectionFor(full)) { 안본자리.push(full); continue; }
+          대기.push({ dir: full, d: d + 1 });
+        }
+      }
+
+      // 확신도 → 최근 수정 순. "아까 그거"는 대개 방금 고친 것이다.
+      const 순서 = { high: 0, medium: 1, low: 2 };
+      후보.sort((a, b) => (순서[a.confidence] - 순서[b.confidence])
+        || ((a.modifiedDaysAgo ?? 9999) - (b.modifiedDaysAgo ?? 9999)));
+      // **못 찾은 것을 찾은 척하지 않는다.** 사용자가 뭔가를 특정해서 물었는데 이름도 종류도
+      // 안 맞으면, 낮은 후보를 잔뜩 늘어놓는 건 "찾았다"는 오해만 만든다(실측: "포토샵 파일"에
+      // 무관한 폴더 셋이 나왔다). 그럴 땐 몇 개만 곁들이고 못 찾았다고 말한다.
+      const 짚었나 = 후보.some((c) => c.confidence !== 'low');
+      const 물었나 = 낱말들.length > 0 || Boolean(찾는종류);
+      const 고른것 = 후보.slice(0, 물었나 && !짚었나 ? 2 : MAX_CANDIDATES);
+
+      return {
+        result: {
+          candidates: 고른것,
+          searched: { from, depth, folders: 본폴더 },
+          ...(후보.length > 고른것.length ? { moreCandidates: 후보.length - 고른것.length } : {}),
+          // 못 찾았으면 **넓힐 수 있다는 사실**을 준다 — 모델이 다시 부를 근거가 된다.
+          ...(고른것.length === 0 ? { canWiden: depth < 5, suggestDepth: Math.min(depth + 2, 5) } : {}),
+          ...(멈춤 ? { stoppedAtLimit: true } : {}),
+          ...(안본자리.length ? { skippedProtected: 안본자리.length } : {}),
+        },
+        userSafeSummary: 고른것.length === 0
+          ? (말 ? `"${말}"에 해당하는 자리를 못 찾았어요.` : '찾을 대상을 알려주시면 찾아볼게요.')
+          : (물었나 && !짚었나)
+            ? `"${말}"에 딱 맞는 자리는 못 찾았어요. 근처에 이런 자리는 있어요.`
+            : 고른것.length === 1
+            ? `${고른것[0].path} 인 것 같아요 (${고른것[0].why}).`
+            : `${고른것.length}곳이 후보예요.`,
+        ...(고른것.length === 0 || (물었나 && !짚었나)
+          ? { nextSafeAction: depth < 5 ? '더 넓게 찾아볼까요? 아니면 폴더를 직접 열어 주셔도 돼요.' : '그 자료가 있는 폴더를 열어 주시면 거기서 찾을게요.' }
+          : {}),
+      };
+    },
+  };
+}

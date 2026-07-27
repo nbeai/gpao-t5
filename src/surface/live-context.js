@@ -9,6 +9,7 @@ import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
+import { makeLocalLocateTool } from '../runtime/local-locate.js';
 import { ProcessStore } from '../runtime/process-store.js';
 import { defaultSessionDir } from './session-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
@@ -81,6 +82,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
     senders,
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
     localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
+    localLocate: makeLocalLocateTool(),
     localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,

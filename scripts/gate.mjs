@@ -275,6 +275,53 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ②-f 작업 대상 찾기: **가짜 홈에서 도는가** (P6-W2) ────────────────────
+// T5 는 특정 사용자의 개발 보조기가 아니다. 이 검사는 **남의 홈**에서 돌기 때문에,
+// 어딘가에 내 경로를 박으면 그 순간 여기서 깨진다 — 하드코딩 금지를 문장이 아니라 구조로 지킨다.
+// 그리고 코드 프로젝트만 찾는 도구가 아니라는 것도 여기서 잠근다(정산·계약서·원고·시안).
+{
+  const before = failures.length;
+  try {
+    const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+
+    const home = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-home-'));
+    const 심기 = async (p, files) => {
+      await mkdir(join(home, p), { recursive: true });
+      for (const f of files) await writeFile(join(home, p, f), 'x');
+    };
+    await 심기('회계/1분기-정산', ['매출.xlsx', '매입.xlsx', '증빙.pdf']);
+    await 심기('거래처/계약서', ['가-계약.pdf', '나-계약.pdf', '약관.docx']);
+    await 심기('원고', ['1화.md', '2화.md', '3화.md', '4화.md']);
+    await 심기('work/서버', ['package.json', 'a.js', 'b.js', 'c.js']);
+    const tool = makeLocalLocateTool({ home });
+
+    // 업무 자료가 코드와 같은 무게로 잡혀야 한다 — 여기가 T5 사용자의 실제 작업 대상이다.
+    for (const [말, 기대] of [['정산 자료', /정산/], ['계약서', /계약서/], ['원고', /원고/], ['이 프로젝트', /서버/]]) {
+      const [으뜸] = (await tool.handler({ what: 말 })).result.candidates;
+      if (!으뜸) { bad(`"${말}" 후보를 못 찾는다`); continue; }
+      if (!기대.test(으뜸.path)) bad(`"${말}" 이 엉뚱한 자리를 가리킨다: ${으뜸.path}`);
+      if (!으뜸.why) bad(`"${말}" 후보에 근거가 없다 — 사용자가 고를 수 없다`);
+      if (!['high', 'medium', 'low'].includes(으뜸.confidence)) bad(`"${말}" 확신도가 없다`);
+    }
+
+    // 못 찾은 것을 찾은 척하지 않는다.
+    const 없는것 = await tool.handler({ what: '세무서 제출용 홍보영상' });
+    if (!/못 찾았어요/.test(없는것.userSafeSummary)) bad('없는 것을 찾은 것처럼 말한다');
+    if (!없는것.nextSafeAction) bad('못 찾았는데 다음 길이 없다(막다른 답)');
+
+    // 긴 목록이 모델 입력으로 새지 않는다.
+    const 많이 = await tool.handler({ what: '자료' });
+    if ((많이.result.candidates ?? []).length > 5) bad('후보가 5개를 넘는다 — 프롬프트를 삼킨다');
+
+    if (failures.length === before) ok('작업 대상 찾기: 남의 홈에서도 업무 자료·코드를 근거와 함께 짚는다');
+  } catch (e) {
+    bad(`작업 대상 찾기 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ②-b 프롬프트 예산 (Hermes 의 prompt-size 원리 흡수) ───────────────────
 // 프롬프트는 조용히 자란다. 어디에 예산이 가는지 매번 보이게 하고, **캐시 접두 대비 가변 구역**이
 // 커지면 경고한다 — 가변이 앞에 끼면 매 턴 캐시가 통째로 깨진다(실제로 그렇게 만들어 놨다가 고쳤다).

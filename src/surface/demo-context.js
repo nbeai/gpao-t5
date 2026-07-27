@@ -104,6 +104,28 @@ const DESCRIPTORS = [
       },
     },
   }),
+  // P6-W2 · 작업 대상 찾기. 사용자는 경로를 말하지 않는다 — "정산 자료", "그 계약서", "이 프로젝트".
+  defineTool({
+    id: 'local.locate', label: '작업 대상 찾기', owner: 'core', availability: [{ kind: 'connected' }],
+    toolKind: 'read', needsApproval: false, reversible: true,
+    capability: '사용자가 말한 대상이 어느 폴더인지 후보와 근거를 찾는다(코드 폴더든 정산·계약서·원고든).',
+    schema: {
+      description:
+        '사용자가 부른 대상("정산 자료", "그 계약서", "이 프로젝트")이 어디인지 후보를 찾는다.'
+        + ' **최근에 다룬 자리로 알 수 있으면 이걸 부르지 않는다** — 이미 아는 것을 다시 찾지 않는다.'
+        + ' 후보가 하나면 그대로 쓰고, 여럿이면 짧게 보여주고 고르게 한다.'
+        + ' 못 찾으면 depth 를 늘리거나 from 을 바꿔 다시 부를 수 있다. 파일을 열지는 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          what: { type: 'string', description: '사용자가 부른 말 그대로 — "정산 자료", "이 프로젝트"' },
+          from: { type: 'string', description: '어디서부터 찾을지(비우면 홈)' },
+          depth: { type: 'number', description: '몇 단계까지(기본 3, 최대 5). 못 찾으면 늘려서 다시 부른다' },
+        },
+        required: ['what'],
+      },
+    },
+  }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     capability: '메일을 보낸다(보내기 전 확인을 받는다).',
     // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
@@ -218,6 +240,7 @@ const FACTS = {
   'local.file': { connected: true },
   'local.terminal': { connected: true },
   'local.process': { connected: true },
+  'local.locate': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -284,6 +307,7 @@ export function demoTools(opts = {}) {
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
     ...(opts.localTerminal ? { 'local.terminal': opts.localTerminal } : {}),
     ...(opts.localProcess ? { 'local.process': opts.localProcess } : {}),
+    ...(opts.localLocate ? { 'local.locate': opts.localLocate } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
