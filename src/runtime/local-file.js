@@ -12,6 +12,7 @@ import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 
 import { join, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots } from './file-scope.js';
+import { protectionBlocks, protectionMessage } from './local-protection.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 
@@ -107,6 +108,15 @@ export function makeLocalFileTool(deps = {}) {
         }
 
         const abs = await resolveInScope(target, { roots });
+        // P6-L1: **범위 안이어도 보호 영역은 막는다.** 루트를 넓혀도 여기는 안 열린다 —
+        // 안전이 "좁은 루트"에서 나오던 구조를 대체하는 자리다(게이트가 불변식으로 검사한다).
+        // secret 은 읽기까지, system 은 변경만 막는다(뭉뚱그리면 아무것도 못 하는 도구가 된다).
+        const writes = action !== 'list' && action !== 'read';
+        const prot = protectionBlocks(abs, { write: writes });
+        if (prot) {
+          const msg = protectionMessage(prot, { write: writes });
+          return { blocked: true, scopeState: 'protected', ...msg };
+        }
 
         if (action === 'list') {
           const entries = await readdir(abs, { withFileTypes: true });
@@ -143,6 +153,12 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'move') {
           const dest = await resolveInScope(args.to ?? '', { roots });
+          // 목적지도 본다 — 보호 영역으로 **옮겨 넣는 것**도 변경이다.
+          const destProt = protectionBlocks(dest, { write: true });
+          if (destProt) {
+            const msg = protectionMessage(destProt, { write: true });
+            return { blocked: true, scopeState: 'protected', ...msg };
+          }
           // **조용한 덮어쓰기 금지**(P0-1b): 대상이 이미 있으면 막고 확인을 요구한다.
           // copyFile 은 대상을 말없이 덮어쓰는데, 그러면 undo(대상→원본)로도 대상의 원래 내용은
           // 영영 사라진다 — 되돌릴 수 없는 손실이다. write 는 휴지통 백업이 있는데 move 만 빠져 있었다.
