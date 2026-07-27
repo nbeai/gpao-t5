@@ -114,3 +114,22 @@ test('⑥ 자기 기억을 지우거나 자동 실행을 거는 명령은 직접
     assert.ok(!lifecycleRisk(cmd, { dataDir: D }), `평범한 명령이 자기보존에 걸렸다: ${cmd}`);
   }
 });
+
+// ── 켜는 것은 사용자의 결정이다 ─────────────────────────────────────────
+// 라이브 실측: "9913 포트로 서버 띄워봐"에 승인 없이 떴다. 포트를 잡고 턴을 넘어
+// 살아남는 일이 사용자 모르게 일어나면 안 된다. 반대로 확인·로그까지 승인을 물으면
+// 사용자가 승인을 기계적으로 누르게 되어 오히려 더 위험해진다.
+test('켜기는 승인을 받고, 보기·로그는 그냥 되고, 끄기는 막지 않는다', async () => {
+  const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
+  const { decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { demoEnv } = await import('../src/surface/demo-context.js');
+  const self = buildSelfState(demoEnv());
+  const 자동 = (action) => decideAutoGrant({ kind: toolActionKind({ toolId: 'local.process', args: { action }, selfState: self }) }, 'smart');
+
+  assert.equal(자동('start'), false, '사용자 모르게 포트가 점유된다');
+  assert.equal(자동('status'), true, '확인마다 승인을 물으면 승인을 기계적으로 누르게 된다');
+  assert.equal(자동('logs'), true, '"왜 안 켜지지"를 물을 때마다 승인 카드가 뜨면 안 된다');
+  assert.equal(자동('stop'), true, '"꺼줘"라고 말한 것을 또 물으면 안 된다');
+  assert.equal(자동('처음보는작업'), false, '모르는 작업은 승인으로 간다');
+});

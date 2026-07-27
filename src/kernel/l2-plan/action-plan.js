@@ -61,6 +61,18 @@ export function toolActionKind({ toolId, args, selfState }) {
   const tool = selfState?.connectedTools?.find((t) => t.id === toolId);
   let kind = tool?.toolKind ?? TOOL_KIND[toolId] ?? UNKNOWN_KIND;
   if (toolId === 'local.file') kind = fileKind(args);
+  // P6-T3: 프로세스도 **작업으로 판정한다.** 도구 하나로 뭉뚱그리면 켜기까지 자동으로 새어
+  // 사용자가 모르는 사이 포트가 점유된다(라이브 실측: "서버 띄워봐"에 승인 없이 떴다).
+  if (toolId === 'local.process') {
+    const a = args?.action ?? 'status';
+    // 보기·로그는 읽기다 — 확인마다 승인을 물으면 사용자가 기계적으로 누르게 된다.
+    if (a === 'status' || a === 'list' || a === 'logs') kind = 'read';
+    // 켜기는 포트를 잡고 턴을 넘어 살아남는다 — 사용자의 결정이다.
+    else if (a === 'start') kind = 'write';
+    // 끄기는 사용자가 이미 "꺼줘"라고 말한 것이고 되돌릴 수 있다(다시 켜면 된다).
+    else if (a === 'stop') kind = 'organize';
+    else kind = UNKNOWN_KIND; // 모르는 작업은 승인으로
+  }
   // P6-T2: 명령은 **돌려 봐야 안다.** 계획 단계에서 probe(쓰기·네트워크·비밀읽기 차단)를 돌리고
   // 그 결과가 등급을 정한다 — 위험 명령 목록으로 알아맞히지 않는다(목록은 항상 뚫린다).
   // probe 결과가 없으면 '미상'으로 둔다: 모르면 승인으로 간다(read 로 흘리지 않는다).
