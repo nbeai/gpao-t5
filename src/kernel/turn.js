@@ -163,6 +163,9 @@ export async function runTurn(input, ctx) {
   const selfhood = { identity, capabilityCounts: capCounts, selfhoodDetail, voice };
   ctx.identityUpdate = identityUpdate; // executePlan 경계를 넘겨 결과에 함께 실린다
   ctx.selfhood = selfhood;
+  // **어느 자리에서 물었는가.** 실행 루프 중간에 승인이 필요해질 수도 있어서(executePlan 은
+  // input 을 안 받는다) 여기서 ctx 에 실어 둔다 — 결과가 요청이 온 자리로 돌아가는 계약(L9).
+  ctx.askedFrom = input.channel ? { channel: input.channel } : undefined;
 
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
   if (input.approve) {
@@ -177,6 +180,9 @@ export async function runTurn(input, ctx) {
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     ctx.pending.delete(input.approve);
+    // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
+    // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
+    ctx.askedFrom = saved.askedFrom ?? ctx.askedFrom;
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
   }
@@ -680,6 +686,69 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const kind = toolActionKind({ toolId, args: 판정인자, selfState });
     if (!decideAutoGrant({ kind }, ctx.approvalMode ?? 'smart')) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
+      //
+      // 예전엔 여기서 그냥 `break` 했다. 승인 대기를 만들지 않으니 **카드가 뜨지 않았고**,
+      // 멈췄다는 사실이 사용자에게도 다음 턴에도 남지 않았다. 그래서 한 걸음짜리 쓰기
+      // (메모 만들기)는 승인이 뜨는데 **읽고 나서 쓰는 일은 영원히 승인에 도달하지 못했다.**
+      //
+      // 사용자의 일은 거의 다 "읽고 나서 쓰기"다 — 찾아서 모으기, 훑어서 바꾸기, 읽어서 합치기.
+      // 라이브 실측(2026-07-27) 세 과업이 전부 이 자리에서 끊겼고, 모델은 매번 다른 말로
+      // 둘러댔다("복사 실행은 못 하지만" · "변환 도구가 연결되어 있지 않아" · "쓰기 실행 권한을
+      // 이 응답 안에서는 못 잡아서"). 셋 다 사실이 아니다 — 손은 있었고, 런타임이 조용히 멈췄을 뿐이다.
+      //
+      // 새 안전 체계를 만들지 않는다. **계획 단계와 똑같은 것을 한 번 더 한다** — 이 걸음 하나를
+      // 계획으로 만들어 봉인하고, 승인 재개가 그것을 그대로 이어받는다(executePlan 이 그 입구다).
+      const 걸음intent = {
+        ...intent,
+        neededTools: [toolId],
+        toolArgs: { ...(intent.toolArgs ?? {}), [toolId]: 판정인자 },
+        ...(toolId === 'local.terminal' ? { terminalOp: 판정인자 } : {}),
+        ...(toolId === 'local.file' ? { fileOp: 판정인자 } : {}),
+        // 도구가 낸 미리보기를 카드에 그대로 싣는다(무엇을·어디에가 없으면 승인이 아니다).
+        toolPreviews: (() => {
+          const pv = ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {});
+          return pv ? { [toolId]: pv } : undefined;
+        })(),
+      };
+      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
+      const grants = 걸음plan.needsApproval ?? [];
+      if (grants.length) {
+        const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
+        ctx.pending.set(pendingId, {
+          intent: 걸음intent, plan: 걸음plan, admitted,
+          // **판정한 인자를 그대로 실행 인자로 봉인한다.** executePlan 은 실행할 때 `sendArgs`
+          // 에서 인자를 꺼낸다(570줄) — 여기에 안 실으면 승인 뒤 `{request: 발화원문}` 으로
+          // 실행돼 엉뚱한 일이 된다. 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
+          sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
+          askedFrom: ctx.askedFrom,
+          grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
+        });
+        // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게
+        // 사용자 말이다(64a7634). 없으면 원장의 사실로 만든다 — 빈 카드만 뜨면 먹통으로 보인다.
+        const 지금까지 = (typeof finalOut === 'string' ? '' : finalOut?.text ?? '').trim();
+        return {
+          kind: 'approval',
+          pendingId,
+          ...(지금까지 ? { reply: 지금까지 } : {}),
+          approvalMode: ctx.approvalMode ?? 'smart',
+          pending: grants.map((g) => ({
+            action: g.action,
+            label: toolLabel(g.action, selfState),
+            tier: g.tier,
+            safetyFloor: g.safetyFloor ?? false,
+            preview: g.approvalPreview,
+            reason: g.reason,
+          })),
+          understoodTask: plan.understoodTask,
+          selfStateSummary: summary,
+          // 이미 한 걸음들은 원장에 남았다 — 승인 화면에서도 보여야 "찾긴 찾았구나"를 안다.
+          ledger: projectReceipts(turnReceipts),
+          goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+          workingState,
+          contextShown: workingStateFacts(workingState),
+        };
+      }
+      // 계획으로 못 만들면(도구가 승인 대상이 아니라고 나오면) 예전처럼 멈추되 사실은 남긴다.
       멈춘이유 = `${toolLabel(toolId, selfState)} 은(는) 먼저 확인을 받아야 해서 여기서 멈췄어요`;
       break;
     }
