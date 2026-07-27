@@ -8,6 +8,8 @@ import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
+import { makeLocalProcessTool } from '../runtime/local-process.js';
+import { ProcessStore } from '../runtime/process-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
@@ -73,7 +75,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
     }),
     senders,
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
-    localTerminal: makeLocalTerminalTool(),
+    localTerminal: makeLocalTerminalTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
+    localProcess: makeLocalProcessTool({
+      store: new ProcessStore(processEnv.GPAO_T5_DATA_DIR ?? new URL('.', import.meta.url).pathname),
+      dataDir: processEnv.GPAO_T5_DATA_DIR,
+    }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
     // P2-10: 이 컴퓨터에 브라우저가 있을 때만 손을 배선한다. 없으면 descriptor 도 안 딸려온다

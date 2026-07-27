@@ -8,6 +8,7 @@
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
 import { runCommand } from './terminal-run.js';
 import { protectionFor } from './local-protection.js';
+import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 
 /**
  * probe 가 "권한에 막혔다"고 말하는가.
@@ -37,6 +38,8 @@ export function makeLocalTerminalTool(deps = {}) {
    * @returns {Promise<{command:string, cwd:string, probe:object, changes:boolean}>}
    */
   async function probe(command, opts = {}) {
+    const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
+    if (risk) return { command, cwd: opts.cwd ?? cwdOf(), lifecycle: risk, changes: true };
     const cwd = opts.cwd ?? cwdOf();
     const r = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs: opts.timeoutMs });
     return { command, cwd, probe: r, changes: looksBlocked(r) };
@@ -50,6 +53,11 @@ export function makeLocalTerminalTool(deps = {}) {
         return { blocked: true, userSafeSummary: '무엇을 실행할지 알려주세요.',
           nextSafeAction: '하려는 일을 말씀해 주시면 제가 명령을 만들어 볼게요.' };
       }
+      // 자기보존은 커널 경계와 **별도**다 — 샌드박스는 파일 쓰기를 막지 시그널을 못 막는다.
+      // T5 가 자기를 끄면 껐다는 말을 할 주체가 사라진다(승인 카드도 원장도 못 남긴다).
+      const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
+      if (risk) return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
+
       const cwd = args.cwd ? String(args.cwd) : cwdOf();
       // 작업 자리 자체가 보호 영역이면 아예 시작하지 않는다(커널도 막지만 여기서 사람 말로 먼저 답한다).
       const prot = protectionFor(cwd);

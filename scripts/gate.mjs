@@ -190,6 +190,56 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ②-d 프로세스: **죽은 걸 살아있다고 하지 않는가** (P6-T3) ─────────────
+// 이 표면의 계약은 하나다. 기록에 running 이 남은 것과 실제로 도는 것은 다른 사실이고,
+// 그걸 섞으면 사용자는 켜진 줄 알고 기다리고 모델은 없는 서버 위에서 다음 일을 한다.
+{
+  const before = failures.length;
+  try {
+    const { makeLocalProcessTool, alive } = await import('../src/runtime/local-process.js');
+    const { ProcessStore } = await import('../src/runtime/process-store.js');
+    const { lifecycleRisk } = await import('../src/runtime/lifecycle-guard.js');
+    const { mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-gate-proc-'));
+    const tool = makeLocalProcessTool({ store: new ProcessStore(dir), dataDir: dir, cwd: dir });
+    const 오래 = 'node -e "setInterval(()=>console.log(1),200)"';
+
+    const s = await tool.handler({ action: 'start', command: 오래, label: '게이트서버', settleMs: 250 });
+    if (s.blocked || s.result?.status !== 'running') bad(`프로세스를 못 켠다: ${s.userSafeSummary}`);
+    else {
+      // 밖에서 죽인다 — T5 가 모르는 사이 죽는 실제 상황.
+      process.kill(s.result.pid, 'SIGKILL');
+      await new Promise((r) => setTimeout(r, 200));
+      const st = await tool.handler({ action: 'status' });
+      if (st.result?.procs?.[0]?.status === 'running') bad('죽은 프로세스를 살아있다고 말한다');
+      const sp = await tool.handler({ action: 'stop', target: '게이트서버' });
+      if (!sp.result?.alreadyStopped) bad('이미 죽은 것을 "제가 껐어요"라고 말한다');
+    }
+
+    // 시작하자마자 죽는 것을 켰다고 하지 않는다.
+    const d = await tool.handler({ action: 'start', command: 'node -e "process.exit(1)"', settleMs: 400 });
+    if (!d.blocked) bad('시작하자마자 죽은 것을 "켰어요"라고 말한다');
+
+    // 자기보존: 자기 프로세스·자기 기억·자동 실행 등록.
+    const D = '/Users/누구/.local/state/gpao-t5';
+    for (const cmd of [`kill ${process.pid}`, 'pkill -f gpao-t5', `rm -rf ${D}`, 'launchctl load x.plist']) {
+      if (!lifecycleRisk(cmd, { dataDir: D })) bad(`자기보존 경계를 통과한다: ${cmd}`);
+    }
+    // 막기만 하면 도구가 아니다.
+    for (const cmd of ['kill 999999', 'rm -rf /tmp/남의것', 'npm test']) {
+      if (lifecycleRisk(cmd, { dataDir: D })) bad(`평범한 명령이 자기보존에 걸린다: ${cmd}`);
+    }
+    if (alive(process.pid) !== true) bad('자기 프로세스 확인이 망가졌다');
+
+    if (failures.length === before) ok('프로세스: 죽은 건 죽었다고 말하고, 자기 자신은 끄지 않는다');
+  } catch (e) {
+    bad(`프로세스 검사 실패: ${e.message}`);
+  }
+}
+
 // ── ②-b 프롬프트 예산 (Hermes 의 prompt-size 원리 흡수) ───────────────────
 // 프롬프트는 조용히 자란다. 어디에 예산이 가는지 매번 보이게 하고, **캐시 접두 대비 가변 구역**이
 // 커지면 경고한다 — 가변이 앞에 끼면 매 턴 캐시가 통째로 깨진다(실제로 그렇게 만들어 놨다가 고쳤다).

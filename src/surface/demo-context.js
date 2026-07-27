@@ -74,6 +74,32 @@ const DESCRIPTORS = [
       },
     },
   }),
+  // P6-T3 · 장기 프로세스. terminal 과 나누는 이유는 **수명**이다 — 명령은 한 턴에 끝나지만
+  // 서버는 턴을 넘어 산다. 그래서 켠 것을 기억하고, 진짜 살아있는지 매번 확인하고, 말하면 끈다.
+  defineTool({
+    id: 'local.process', label: '실행 중인 것', owner: 'core', availability: [{ kind: 'connected' }],
+    toolKind: 'organize', needsApproval: false, reversible: true,
+    reversibleNote: '"꺼줘"라고 하시면 바로 꺼요',
+    capability: '서버처럼 계속 도는 것을 켜고, 지금 살아있는지 확인하고, 로그를 읽고, 끈다.'
+      + ' 기록에 남아 있어도 실제로 죽었으면 죽었다고 말한다.',
+    schema: {
+      description:
+        '오래 도는 것(서버·워치·데몬)을 켜고 관리한다. 한 번에 끝나는 명령은 local.terminal 을 쓴다.'
+        + ' 사용자가 "서버 켜줘"라고 하면 켜고, "아까 그거 꺼줘"라고 하면 target 으로 찾아 끈다 —'
+        + ' PID 를 사용자에게 묻지 않는다. 안 켜지는 이유를 물으면 logs 로 끝부분을 읽고 원인을 말한다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['start', 'status', 'logs', 'stop'] },
+          command: { type: 'string', description: 'start 일 때 실행할 명령' },
+          cwd: { type: 'string', description: 'start 일 때 실행할 폴더' },
+          label: { type: 'string', description: '나중에 사용자가 부를 이름(예: 개발 서버)' },
+          target: { type: 'string', description: 'status·logs·stop 에서 찾을 대상 — 이름·명령 일부·pid' },
+        },
+        required: ['action'],
+      },
+    },
+  }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     capability: '메일을 보낸다(보내기 전 확인을 받는다).',
     // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
@@ -187,6 +213,7 @@ const FACTS = {
   'web.collect': { connected: true },
   'local.file': { connected: true },
   'local.terminal': { connected: true },
+  'local.process': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -252,6 +279,7 @@ export function demoTools(opts = {}) {
     // 지난 대화 찾기 — 라이브는 실제 세션 저장소를 주입한다(여기 기본값은 빈 결과).
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
     ...(opts.localTerminal ? { 'local.terminal': opts.localTerminal } : {}),
+    ...(opts.localProcess ? { 'local.process': opts.localProcess } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
