@@ -84,6 +84,16 @@ export function makeLocalProcessTool(deps = {}) {
         cancel: '"꺼줘"라고 하시면 바로 꺼요',
       };
     },
+    /** 켜 둔 것도 현재 대상이다 — "그거 꺼줘"가 처음부터 다시 찾지 않게. */
+    subjectOf(rec) {
+      const r = rec?.result;
+      if (!r?.pid) return null;
+      return {
+        key: `proc:${r.id ?? r.pid}`, kind: 'process',
+        label: String(r.label ?? rec.actualCall?.args?.label ?? r.command ?? `pid ${r.pid}`),
+        detail: r.cwd, alive: r.status === 'running',
+      };
+    },
     async handler(args = {}) {
       if (!store) return fail('지금은 프로세스를 다루는 기능이 준비되지 않았어요.');
       const action = args.action ?? 'status';

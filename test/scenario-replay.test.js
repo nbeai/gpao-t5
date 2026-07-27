@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
 import { recentTurns } from '../src/kernel/l1-intent/conversation.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
+import { 계약of } from './subject-contract.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { buildModelMessages } from '../src/runtime/model-provider.js';
 import { workingStateFacts } from '../src/kernel/l0-evidence/working-state.js';
@@ -59,6 +60,7 @@ async function replay(turns, { tools, env = demoEnv(), modelSupportsSearch = tru
 
 const webReading = (title, url, markdown) => ({
   sourceLedgerRequired: true,
+  subjectOf: 계약of('web.collect'),
   async handler() {
     return {
       result: { title, markdown, excerpt: markdown.slice(0, 80) },
@@ -130,6 +132,7 @@ test('시나리오: 모델이 고른 주소 그대로 읽는다(발화 원문으
   const seenArgs = [];
   const webCollector = {
     sourceLedgerRequired: true,
+    subjectOf: 계약of('web.collect'),
     async handler(args) {
       seenArgs.push(args);
       const url = /^https?:/.test(args?.request ?? '') ? args.request : 'https://search.example/?q=' + encodeURIComponent(args?.request ?? '');

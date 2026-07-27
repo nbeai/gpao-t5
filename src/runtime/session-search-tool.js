@@ -12,6 +12,16 @@ import { searchTranscripts } from '../kernel/l5-growth/session-search.js';
 export function makeSessionSearchTool(deps) {
   const limit = deps.limit ?? 5;
   return {
+    /** 찾은 지난 대화가 다음 턴의 대상이다("그 세션 기준으로"가 이어진다). */
+    subjectOf(rec) {
+      const hits = (rec?.result?.hits ?? []).filter((h) => h?.title);
+      if (!hits.length) return null;
+      const args = rec?.actualCall?.args ?? {};
+      return {
+        key: `search:${args.query ?? args.request ?? ''}`, kind: 'session',
+        label: hits.map((h) => h.title).slice(0, 3).join(', '),
+      };
+    },
     async handler(args = {}) {
       const query = String(args.query ?? args.request ?? '').trim();
       if (!query) {

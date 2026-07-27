@@ -46,82 +46,21 @@ export function sameSiteLinks(pageUrl, links = []) {
 }
 
 /**
- * 영수증 하나 → 다음 턴에 필요한 **최소 사실**. 없는 것은 만들지 않는다.
- * 도구 종류마다 "대상"의 모양이 다르다 — 웹은 주소, 파일은 경로, 세션은 찾은 제목.
- * @returns {{key:string, kind:string, label:string, detail?:string, links?:string[]}|null}
+ * 영수증 하나 → 다음 턴에 이어야 할 대상.
+ *
+ * **커널은 도구 이름을 모른다.** 예전엔 여기가 `if (tool === 'web.collect') …
+ * if (tool === 'local.file') … if (tool === 'local.terminal') …` 사다리였다.
+ * 도구가 늘 때마다 커널을 고쳐야 했고, 안 고치면 그 도구만 조용히 안 이어졌다 —
+ * `local.locate` 가 정확히 그렇게 샜다(찾아 놓고 다음 손이 어디인지 몰랐다).
+ * 이미 세 번 새어 본 패턴이라 `previewOf(args)` 와 같은 계약으로 바꾼다:
+ * **도구가 자기 결과에서 subject 를 낸다**(runtime/tool-runner.js 의 withSubject).
+ *
+ * 여기서는 그걸 그대로 얹는다. 새 도구(채널·외부 API·MCP·CLI)가 붙어도 커널은 안 바뀐다.
  */
 function subjectFrom(receipt) {
-  const tool = receipt?.actualCall?.tool;
-  const args = receipt?.actualCall?.args ?? {};
-  if (tool === 'web.collect') {
-    const src = receipt.sources?.[0];
-    if (!src?.sourceUrl) return null;
-    return {
-      key: src.sourceUrl,
-      kind: 'web',
-      label: src.title || receipt.result?.title || src.sourceUrl,
-      detail: src.sourceUrl,
-      // **그 페이지에서 갈 수 있는 곳**도 남긴다. 이게 없으면 모델은 "읽었다"는 것만 알고 다음
-      // 페이지로 못 간다 — 실측: 팔식당을 읽고도 리뷰 주소를 몰라 "리뷰"를 검색해 엉뚱한 블로그를
-      // 읽었다. 그 페이지에 리뷰 링크가 있었는데 우리가 안 줬다. 이게 브라우징이다.
-      links: sameSiteLinks(src.sourceUrl, receipt.result?.links),
-    };
-  }
-  if (tool === 'local.file') {
-    const path = receipt.result?.path ?? args.path;
-    if (!path) return null;
-    return { key: `file:${path}`, kind: 'file', label: String(path) };
-  }
-  // P6-T2: 방금 돌린 명령은 **다음 턴의 대상이다.** 이게 없으면 "아까 그 오류 뭐였지",
-  // "다시 돌려봐"가 안 이어지고, 모델은 자기가 뭘 실행했는지도 모른 채 처음부터 다시 한다.
-  if (tool === 'local.terminal') {
-    const command = receipt.result?.command ?? args.command;
-    if (!command) return null;
-    const code = receipt.result?.exitCode;
-    return {
-      key: `cmd:${command}`,
-      kind: 'command',
-      label: String(command),
-      // 성공/실패를 라벨이 아니라 사실로 남긴다 — 실패한 명령을 성공처럼 이어받으면 안 된다.
-      detail: receipt.result?.cwd,
-      exitCode: code,
-      failed: typeof code === 'number' && code !== 0,
-    };
-  }
-  // P6-W1: 켜 둔 것도 **현재 작업 대상이다.** 서버가 돌고 있는데 모델이 모르면
-  // 사용자가 "그거 꺼줘"라고 할 때 처음부터 다시 찾는다.
-  if (tool === 'local.process') {
-    const r = receipt.result;
-    if (!r?.pid) return null;
-    return {
-      key: `proc:${r.id ?? r.pid}`,
-      kind: 'process',
-      label: String(r.label ?? args.label ?? r.command ?? `pid ${r.pid}`),
-      detail: r.cwd,
-      // 상태는 사실로 남긴다 — 꺼진 것을 "돌고 있다"고 이어받으면 안 된다.
-      alive: r.status === 'running',
-    };
-  }
-  // P6-W3: **찾은 자리는 다음 걸음의 자리다.** 이게 없으면 locate 가 `/Volumes/작업용SSD/2026 정산자료`
-  // 를 정확히 짚어 놓고도 그 사실이 상태에 안 남아서, 다음 손(터미널)이 어디서 무엇을 볼지 모른다 —
-  // 모델이 원장 문장에서 경로를 다시 주워 담아야 했다(라이브 실측: 그래서 같은 자리를 여러 번 훑었다).
-  // **찾은 자리는 다룬 자리와 같은 무게다.** detail 로 두면 "지금 자리"에도 그대로 올라간다.
-  if (tool === 'local.locate') {
-    const top = (receipt.result?.candidates ?? [])[0];
-    // 확신이 낮은 후보는 자리라고 말하지 않는다 — 아닌 것을 사실로 올리면 다음 턴이 오염된다.
-    if (!top?.path || top.confidence === 'low') return null;
-    return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
-  }
-  if (tool === 'session.search') {
-    const hits = (receipt.result?.hits ?? []).filter((h) => h?.title);
-    if (!hits.length) return null;
-    return {
-      key: `search:${args.query ?? args.request ?? ''}`,
-      kind: 'session',
-      label: hits.map((h) => h.title).slice(0, 3).join(', '),
-    };
-  }
-  return null;
+  const s = receipt?.subject;
+  if (!s || !s.key || !s.kind || !s.label) return null;
+  return s;
 }
 
 /**

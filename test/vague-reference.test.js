@@ -8,6 +8,7 @@
 //
 // 오너 지시: "말 해석은 기계적으로 접근하면 또 실패할 확률이 높다."
 // 그래서 정규식을 손보지 않았다(다음 단어에서 또 난다). **비켰다.**
+import { 계약of } from './subject-contract.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runTurn } from '../src/kernel/turn.js';
@@ -18,6 +19,7 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 const page = {
   sourceLedgerRequired: true,
+  subjectOf: 계약of('web.collect'),
   async handler() {
     return {
       result: { title: '팔식당 : 네이버', markdown: '청담동 돼지고기구이', links: [] },

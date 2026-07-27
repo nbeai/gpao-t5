@@ -162,6 +162,12 @@ export function makeLocalLocateTool(deps = {}) {
      * 그래서 자리 목록을 못 봤다. 도구 결과로는 못 푸는 자리였다.
      */
     async places() { return 볼수있는자리(homeOf(), deps.volumesDir); },
+    /** 찾은 자리가 다음 걸음의 자리다 — 확신 낮은 후보는 자리라고 말하지 않는다. */
+    subjectOf(rec) {
+      const top = (rec?.result?.candidates ?? [])[0];
+      if (!top?.path || top.confidence === 'low') return null;
+      return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
+    },
     async handler(args = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
       // 한 번만 읽고 두 곳(이름 승계·placesToLook)에서 같이 쓴다 — 모델이 본 이름과

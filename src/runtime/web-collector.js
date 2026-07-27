@@ -5,6 +5,7 @@
 // 안전 규율: fetchImpl 주입 가능 — 테스트는 실네트워크 대신 로컬 서버/스텁을 쓴다.
 import { validateWebInput, makeSourceEvidence, classifyWebFetch, MIN_READABLE_CHARS } from '../kernel/l2-plan/web-tool.js';
 import { withTimeout } from './with-timeout.js';
+import { sameSiteLinks } from '../kernel/l0-evidence/working-state.js';
 import { makeWebSearch, searchConnectionSuggestion } from './web-search.js';
 import { makeHostManners, waitPhrase } from './host-manners.js';
 import { extractTitle, extractDescription, extractReadable, extractLinks, extractHydrationText } from './readable.js';
@@ -106,6 +107,17 @@ export function makeWebCollector(deps = {}) {
   // 429 를 받으면 물러선다. 우회가 아니라 **우리가 429 를 만들지 않는 것**이다.
   const manners = deps.manners ?? makeHostManners();
   return {
+    /** 읽은 페이지가 다음 턴의 대상이다 — 이어갈 같은 사이트 길까지 함께(계약: subjectOf). */
+    subjectOf(rec) {
+      const src = rec?.sources?.[0];
+      if (!src?.sourceUrl) return null;
+      return {
+        key: src.sourceUrl, kind: 'web',
+        label: src.title || rec.result?.title || src.sourceUrl,
+        detail: src.sourceUrl,
+        links: sameSiteLinks(src.sourceUrl, rec.result?.links),
+      };
+    },
     sourceLedgerRequired: true, // ToolRunner가 출처 없는 성공·내용 담은 실패를 막는다
     robotsCheck,                // 배선됐는지 밖에서 확인할 수 있게 노출(안 넘기면 검사가 통째로 안 돈다)
     manners,                    // 브라우저 손과 **같은 예의를 공유**한다(두 손이 따로 놀지 않게)

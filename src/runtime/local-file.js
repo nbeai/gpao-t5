@@ -82,6 +82,11 @@ export function makeLocalFileTool(deps = {}) {
      * @param {{action?:string, path?:string, text?:string, to?:string}} args
      *   action: list | read | write | move | delete | undo (기본: path 있으면 read, 없으면 list)
      */
+    /** 방금 다룬 파일이 다음 턴의 대상이다("그거 정리해줘"가 이어진다). */
+    subjectOf(rec) {
+      const path = rec?.result?.path ?? rec?.actualCall?.args?.path;
+      return path ? { key: `file:${path}`, kind: 'file', label: String(path) } : null;
+    },
     async handler(args = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');
       const target = args.path ?? '.';

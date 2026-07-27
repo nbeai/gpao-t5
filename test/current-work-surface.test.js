@@ -6,8 +6,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveWorkingState, workingStateFacts } from '../src/kernel/l0-evidence/working-state.js';
+import { 계약태우기 } from './subject-contract.js';
 
-const R = (tool, result, args = {}) => ({ actualCall: { tool, args }, result, failureState: 'none' });
+// subject 는 도구가 낸다 — 여기서 손으로 적으면 계약이 깨져도 검사가 초록이다.
+const R = (tool, result, args = {}) => 계약태우기({ actualCall: { tool, args }, result, failureState: 'none' });
 const 턴 = (prev, ...receipts) => deriveWorkingState(prev, { receipts });
 
 test('업무 자료를 다루면 그 자리가 현재 자리가 된다(코드만이 아니다)', () => {
@@ -33,8 +35,8 @@ test('실패한 명령은 실패로 이어받는다', () => {
 
 test('열어 본 화면도 현재 대상이다(파일만이 아니다)', () => {
   const st = deriveWorkingState(null, {
-    receipts: [{ actualCall: { tool: 'web.collect', args: {} }, failureState: 'none',
-      sources: [{ sourceUrl: 'https://예시.kr/주문/12345', title: '주문 상세' }], result: {} }],
+    receipts: [계약태우기({ actualCall: { tool: 'web.collect', args: {} }, failureState: 'none',
+      sources: [{ sourceUrl: 'https://예시.kr/주문/12345', title: '주문 상세' }], result: {} })],
   });
   assert.match(workingStateFacts(st), /방금 읽은 자료: 주문 상세/);
 });

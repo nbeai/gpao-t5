@@ -384,6 +384,32 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-c 커널은 도구 이름을 모른다 (P5 진입 전 구조 게이트) ──────────────
+// 예전엔 working-state.js 가 `if (tool === 'web.collect') … if (tool === 'local.file') …`
+// 사다리였다. 도구가 늘 때마다 커널을 고쳐야 했고, 안 고치면 그 도구만 조용히 다음 턴으로
+// 안 이어졌다(local.locate 가 그랬다). 이미 세 번 샌 패턴이라 subjectOf 계약으로 바꿨다.
+// P5 에서 채널·외부 API·MCP·CLI 가 붙으면 같은 누수가 그만큼 커진다 — 여기서 못 박는다.
+{
+  const 이어받기커널 = ['src/kernel/l0-evidence/working-state.js'];
+  const 샌것 = [];
+  for (const f of 이어받기커널) {
+    const src = await readFile(new URL(`../${f}`, import.meta.url), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      const t = line.trim();
+      // 주석은 뺀다 — 왜 이렇게 됐는지 설명하려면 옛 코드를 인용해야 한다.
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (/\btool\s*===|actualCall\s*\?\.\s*tool|receipt\.actualCall\.tool/.test(line)) {
+        샌것.push(`${f}:${i + 1}  ${t.slice(0, 70)}`);
+      }
+    });
+  }
+  if (샌것.length) {
+    fail(`이어받기 커널이 도구 이름을 알아본다 — 새 도구는 subjectOf 계약으로 낸다(커널 수정 금지):\n      ${샌것.join('\n      ')}`);
+  } else {
+    ok('이어받기 커널이 도구 이름을 모른다(subjectOf 계약)');
+  }
+}
+
 // ── ③-b 1축: 도구의 이름·설명은 descriptor 하나에서만 나온다 ─────────────
 // 예전엔 tool-labels.js 에 LABELS·CAPABILITIES 수동 맵 두 개가 따로 있었다. 그래서 도구를 더해도
 // 이름·설명이 안 따라왔다(`session.search` 는 CAPABILITIES 에 없어서 자기파악에 이름만 나왔다).

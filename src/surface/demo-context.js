@@ -1,6 +1,7 @@
 // 슬라이스-1 데모 환경. 실서비스 연결·자격은 밀도화 단계에서 실제 provider/connector 로 대체한다.
 // 여기서는 커널 흐름을 사람이 실제로 겪어 보게 하는 최소 실행 맥락만 만든다.
 import { ToolRunner } from '../runtime/tool-runner.js';
+import { sameSiteLinks } from '../kernel/l0-evidence/working-state.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
@@ -276,6 +277,12 @@ export function demoTools(opts = {}) {
   const senders = opts.senders ?? {};
   return new ToolRunner({
     'web.collect': opts.webCollector ?? {
+      subjectOf(rec) {
+        const src = rec?.sources?.[0];
+        if (!src?.sourceUrl) return null;
+        return { key: src.sourceUrl, kind: 'web', label: src.title || src.sourceUrl, detail: src.sourceUrl,
+          links: sameSiteLinks(src.sourceUrl, rec.result?.links) };
+      },
       // 출처 원장 필수 — ToolRunner가 assertWebEvidence를 강제한다(handler 관례에 안 맡김).
       sourceLedgerRequired: true,
       async handler(args) {
@@ -297,6 +304,10 @@ export function demoTools(opts = {}) {
     // 라이브는 실제 손발(makeLocalFileTool)을 주입한다. 여기 기본값은 **테스트/데모 전용 fixture** 이며
     // 스텁 금지 게이트가 라이브에서 이게 쓰이면 실패시킨다(§16-C).
     'local.file': opts.localFile ?? {
+      subjectOf(rec) {
+        const path = rec?.result?.path ?? rec?.actualCall?.args?.path;
+        return path ? { key: `file:${path}`, kind: 'file', label: String(path) } : null;
+      },
       isFixture: true,
       async handler() {
         return { result: { scanned: true }, userSafeSummary: '로컬 파일을 확인했어요(변경 없음).' };
@@ -316,6 +327,12 @@ export function demoTools(opts = {}) {
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {
+      subjectOf(rec) {
+        const hits = (rec?.result?.hits ?? []).filter((h) => h?.title);
+        if (!hits.length) return null;
+        return { key: `search:${rec?.actualCall?.args?.query ?? ''}`, kind: 'session',
+          label: hits.map((h) => h.title).slice(0, 3).join(', ') };
+      },
       async handler() { return { result: { hits: [] }, userSafeSummary: '지난 대화에서 찾지 못했어요.' }; },
     },
     'telegram.send': senders['telegram.send'] ?? {

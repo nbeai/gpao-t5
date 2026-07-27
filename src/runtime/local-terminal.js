@@ -60,6 +60,17 @@ export function makeLocalTerminalTool(deps = {}) {
 
   return {
     probe,
+    /** 방금 돌린 명령이 다음 턴의 대상이다 — "아까 그 오류", "다시 돌려봐"가 여기서 이어진다. */
+    subjectOf(rec) {
+      const command = rec?.result?.command ?? rec?.actualCall?.args?.command;
+      if (!command) return null;
+      const code = rec.result?.exitCode;
+      return {
+        key: `cmd:${command}`, kind: 'command', label: String(command),
+        detail: rec.result?.cwd, exitCode: code,
+        failed: typeof code === 'number' && code !== 0,
+      };
+    },
     /** 승인 카드에 실릴 사실 — 명령 원문과 자리. 도구가 만든다(커널에 if 를 늘리지 않는다). */
     previewOf(args = {}) {
       const command = String(args.command ?? '').trim();

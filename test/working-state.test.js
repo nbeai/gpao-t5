@@ -6,6 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveWorkingState, workingStateFacts, MAX_FACTS_CHARS } from '../src/kernel/l0-evidence/working-state.js';
+// subject 는 **도구가 낸다**(계약). 손으로 적지 않고 진짜 도구의 subjectOf 를 태운다.
+import { 계약태우기 } from './subject-contract.js';
 
 const webReceipt = (url, title, links = []) => ({
   failureState: 'none',
@@ -17,7 +19,8 @@ const fileReceipt = (path) => ({
   failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path },
 });
 /** 여러 턴을 이어 돌린다 — 흐름은 한 턴으로 검사할 수 없다. */
-const run = (turns) => turns.reduce((s, t) => deriveWorkingState(s, t), null);
+const run = (turns) => turns.reduce((s, t) => deriveWorkingState(s,
+  t?.receipts ? { ...t, receipts: t.receipts.map(계약태우기) } : t), null);
 
 // ── 잇기 ────────────────────────────────────────────────────────────────
 test('방금 읽은 페이지가 현재 대상으로, 이어갈 링크와 함께 간다', () => {
@@ -130,7 +133,7 @@ test('찾은 자리가 다음 걸음의 자리로 이어진다(터미널이 거�
     failureState: 'none',
     result: { candidates: [{ path: '/볼륨/작업용SSD/2026 정산자료', confidence: 'high' }] },
   };
-  const st = deriveWorkingState(null, { receipts: [찾음] });
+  const st = deriveWorkingState(null, { receipts: [찾음].map(계약태우기) });
   const facts = workingStateFacts(st);
   assert.match(facts, /지금 자리: \/볼륨\/작업용SSD\/2026 정산자료/,
     `찾은 자리가 "지금 자리"로 안 올라가면 다음 손이 어디서 할지 모른다:\n${facts}`);
@@ -142,6 +145,6 @@ test('확신 없는 후보는 자리라고 말하지 않는다(아닌 것을 사
     actualCall: { tool: 'local.locate' }, failureState: 'none',
     result: { candidates: [{ path: '/어딘가/그냥폴더', confidence: 'low' }] },
   };
-  const st = deriveWorkingState(null, { receipts: [애매] });
+  const st = deriveWorkingState(null, { receipts: [애매].map(계약태우기) });
   assert.equal(workingStateFacts(st), undefined, '낮은 후보를 현재 자리로 올리면 다음 턴이 오염된다');
 });
