@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const baselineFile = new URL('./gate-baseline.json', import.meta.url);
+// 기준선은 **한 번만 읽는다**(단일 진실). 예전엔 ④ 와 마지막 쓰기가 따로 읽어서, 새 기준선을
+// 추가하면 조용히 덮여 사라질 수 있었다.
+let baseline = { deferred: Infinity, testCpuSeconds: Infinity, testWallSeconds: Infinity };
+try { baseline = { ...baseline, ...JSON.parse(await readFile(baselineFile, 'utf8')) }; } catch { /* 최초 실행 */ }
 const failures = [];
 const notes = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
@@ -455,8 +459,6 @@ let deferred = 0;
     `grep -rEh '^\\s*(//|\\*)' ${root}src --include='*.js' | grep -Eoc '후속|TODO|FIXME|아직 (안|없|구현)' || true`,
   ], { encoding: 'utf8' });
   deferred = Number(out.trim());
-  let baseline = { deferred: Infinity };
-  try { baseline = JSON.parse(await readFile(baselineFile, 'utf8')); } catch { /* 최초 실행 */ }
   if (deferred > (baseline.deferred ?? Infinity)) {
     bad(`"후속/아직" 표현이 늘었다: ${baseline.deferred} → ${deferred} (§16-B: 사용자가 부딪히는 것은 후속 불가)`);
   } else {
@@ -465,20 +467,56 @@ let deferred = 0;
 }
 
 // ── ⑤ 테스트 + 성능 기준선 (§17) ──────────────────────────────────────────
+// **벽시계로 판정하지 않는다.** `≤5s` 는 421건/0.86s 이던 2026-07-26 에 정한 선인데, 그 뒤 커널
+// 샌드박스가 생기면서 일부 검사가 실제 OS 프로세스를 띄운다(sandbox-exec·자식 노드·서버).
+// 그 시간은 우리 코드가 아니라 기계 부하가 정한다. 실측(2026-07-27, 같은 코드 7회):
+//
+//     벽시계  5.70s ~ 8.44s   (±48% — 부하만으로 통과/차단이 뒤집혔다: 5.08s BLOCKED, 3.87s PASS)
+//     CPU     30.7s ~ 33.0s   (±3%  — 부하를 걸어도 거의 안 움직인다)
+//
+// 뒤집히는 게이트는 진짜 회귀가 났을 때 "또 부하겠지"로 넘어가게 만든다. 그래서 **일한 양(CPU)**
+// 으로 판정한다 — 검사가 늘거나 무거워지면 정확히 잡히고, 옆에서 빌드가 돌아도 안 흔들린다.
+//
+// 다만 CPU 하나로는 **잠든 검사**를 못 잡는다(`sleep 30` 은 CPU 를 안 쓴다). 그래서 벽시계도
+// 남기되 역할을 나눈다: CPU 는 일한 양의 폭주를, 벽시계는 기다림을 막는다. 부하 변동(±48%)을
+// 흡수하고도 잠든 검사는 잡히도록 벽시계 선은 넉넉하게 둔다.
+//
+// 두 선 모두 **자동 갱신하지 않는다.** 넘겼으면 코드를 고치거나, 오너 결정으로 선을 옮긴다.
 {
-  const out = execFileSync('npm', ['test'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  // 검사는 **한 번만** 돌린다. CPU 시간은 자식의 rusage 라 Node 가 안 준다 — POSIX `time -p` 가
+  // stderr 로 내므로 `2>&1` 로 합쳐 한 번에 받는다(두 번 돌리면 게이트가 두 배로 느려진다).
+  const out = execFileSync('bash', ['-lc',
+    `cd ${root} && { /usr/bin/time -p npm test; } 2>&1`,
+  ], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+
   const pass = Number(out.match(/^ℹ pass (\d+)/m)?.[1] ?? 0);
   const fail = Number(out.match(/^ℹ fail (\d+)/m)?.[1] ?? 1);
-  const ms = Number(out.match(/^ℹ duration_ms ([\d.]+)/m)?.[1] ?? 0);
   if (fail > 0) bad(`테스트 실패 ${fail}건`);
-  else ok(`테스트 ${pass}건 통과 (${(ms / 1000).toFixed(2)}s)`);
-  if (ms > 5000) bad(`테스트가 기준선을 넘었다: ${(ms / 1000).toFixed(2)}s > 5s (§17)`);
+  else ok(`테스트 ${pass}건 통과`);
+
+  const num = (re) => { const m = out.match(re); return m ? Number(m[1]) : null; };
+  const user = num(/^user\s+([\d.]+)/m);
+  const sys = num(/^sys\s+([\d.]+)/m);
+  const wall = num(/^real\s+([\d.]+)/m);
+  const cpu = user === null || sys === null ? null : user + sys;
+  const { testCpuSeconds: cpuLimit, testWallSeconds: wallLimit } = baseline;
+
+  if (cpu === null || wall === null) {
+    // 못 쟀으면 **조용히 통과시키지 않는다** — 안 해 본 검사를 통과로 세는 것이 우리가 반복한 실패다.
+    bad('테스트 시간을 재지 못했다(`/usr/bin/time -p` 출력 없음) — 성능 기준선이 검사되지 않았다 (§17)');
+  } else {
+    if (cpu > cpuLimit) bad(`테스트가 일하는 양이 기준선을 넘었다: CPU ${cpu.toFixed(1)}s > ${cpuLimit}s (§17)`);
+    else ok(`테스트 CPU ${cpu.toFixed(1)}s (기준선 ${cpuLimit}s) · 벽시계 ${wall.toFixed(1)}s`);
+    if (wall > wallLimit) {
+      bad(`테스트가 기다리고 있다: 벽시계 ${wall.toFixed(1)}s > ${wallLimit}s — 잠든 검사·타임아웃 대기를 의심할 것 (§17)`);
+    }
+  }
 
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const deps = Object.keys(pkg.dependencies ?? {}).length;
   if (deps > 0) bad(`런타임 의존성이 생겼다: ${deps}개 (§17 의존성 0 유지)`);
   else ok('런타임 의존성 0');
-  notes.push(`테스트 ${pass}건 / ${(ms / 1000).toFixed(2)}s`);
+  notes.push(`테스트 ${pass}건 / CPU ${cpu === null ? '미측정' : `${cpu.toFixed(1)}s`}`);
 }
 
 // ── ⑥ 프로세스 산출물이 커밋되지 않았다 ───────────────────────────────────
@@ -499,11 +537,13 @@ if (failures.length) {
 }
 // 기준선은 **값이 바뀔 때만** 쓴다. 매번 timestamp 를 갱신하면 실행할 때마다 워킹트리가 더러워져
 // "이 변경이 의도된 것인가"를 매번 되묻게 된다(감사에서 실제로 지적됐다).
+// **자동 갱신은 `deferred` 뿐이다.** 성능 기준선(CPU·벽시계)은 여기서 안 쓴다 — 스스로 올리는
+// 기준선은 기준선이 아니다. 넘겼으면 코드를 고치거나, 오너 결정으로 이 파일을 손으로 옮긴다.
 {
   let prev = null;
   try { prev = JSON.parse(await readFile(baselineFile, 'utf8')); } catch { /* 최초 */ }
   if (prev?.deferred !== deferred) {
-    await writeFile(baselineFile, `${JSON.stringify({ deferred }, null, 2)}\n`);
+    await writeFile(baselineFile, `${JSON.stringify({ ...prev, deferred }, null, 2)}\n`);
   }
 }
 console.log(`[gate] PASS — ${notes.join(' · ')}`);
