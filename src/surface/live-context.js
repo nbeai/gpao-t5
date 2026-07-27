@@ -10,6 +10,7 @@ import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
 import { ProcessStore } from '../runtime/process-store.js';
+import { defaultSessionDir } from './session-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
@@ -57,6 +58,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // P2-11: **하나의 예의를 두 손이 나눠 쓴다.** 같은 IP 로 나가므로 web.collect 가 만든 제한에
   // 브라우저도 걸린다(실측). 따로 두면 한쪽이 절제해도 다른 쪽이 문을 닫는다.
   const manners = deps.manners ?? makeHostManners();
+  // 사용자 데이터는 **세션 저장소와 같은 자리**에 둔다. 여기를 안 맞춰서 켠 프로세스 기록이
+  // 소스 트리(src/surface/processes.json)에 쌓이고 로그가 /tmp 로 흩어졌다 — 라이브에서 드러났다.
+  // 자기보존 경계(lifecycle guard)도 이 경로를 알아야 "내 기억을 지우는 명령"을 알아본다.
+  const stateDir = processEnv.GPAO_T5_DATA_DIR ?? defaultSessionDir();
   const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
 
   const senders = {
@@ -75,11 +80,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
     }),
     senders,
     localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
-    localTerminal: makeLocalTerminalTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
-    localProcess: makeLocalProcessTool({
-      store: new ProcessStore(processEnv.GPAO_T5_DATA_DIR ?? new URL('.', import.meta.url).pathname),
-      dataDir: processEnv.GPAO_T5_DATA_DIR,
-    }),
+    localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
+    localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
     // P2-10: 이 컴퓨터에 브라우저가 있을 때만 손을 배선한다. 없으면 descriptor 도 안 딸려온다
