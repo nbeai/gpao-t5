@@ -83,12 +83,26 @@ test('못 찾으면 더 넓게 볼 수 있다는 사실을 준다(모델이 다�
 });
 
 // ── 안전 ────────────────────────────────────────────────────────────────
-test('비밀 자리는 후보로도 안 올린다', async () => {
+test('숨은 폴더는 후보로 올리지 않는다', async () => {
   const home = await 가짜홈();
   await mkdir(join(home, '.ssh'), { recursive: true });
   await writeFile(join(home, '.ssh/id_rsa'), 'PRIVATE KEY');
   const 후보 = await 찾기(home, 'ssh 키');
-  assert.ok(!후보.some((c) => c.path.includes('.ssh')), '비밀 자리를 후보로 보여주면 그리로 가게 된다');
+  assert.ok(!후보.some((c) => c.path.includes('.ssh')));
+});
+
+test('비밀 자리는 **보호 판정**으로도 걸러진다(닷폴더가 아니어도)', async () => {
+  // 앞 검사는 닷폴더 필터에 걸려서 통과한다 — 보호 판정을 통째로 빼도 초록이 뜬다
+  // (반대 검증에서 드러났다). 실제 보호 영역 이름으로 판정 자체를 확인한다.
+  const { protectionFor } = await import('../src/runtime/local-protection.js');
+  const { homedir } = await import('node:os');
+  for (const p of ['Library/Keychains', 'Library/Application Support/Google/Chrome']) {
+    assert.ok(protectionFor(join(homedir(), p)), `보호 판정이 ${p} 를 놓친다`);
+  }
+  // 그리고 locate 가 그 판정을 실제로 쓰는지 — 홈을 그대로 훑어 보호 자리가 안 나오는지 본다.
+  const r = await makeLocalLocateTool({ home: homedir() }).handler({ what: 'keychain', depth: 2 });
+  assert.ok(!(r.result.candidates ?? []).some((c) => protectionFor(c.path)),
+    '보호 영역이 후보로 나왔다 — 보여주면 그리로 가게 된다');
 });
 
 test('도구가 만든 더미는 후보를 오염시키지 않는다', async () => {

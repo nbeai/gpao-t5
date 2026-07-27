@@ -307,6 +307,16 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
       if (!['high', 'medium', 'low'].includes(으뜸.confidence)) bad(`"${말}" 확신도가 없다`);
     }
 
+    // **이름이 안 맞을 때**를 봐야 표식 판정을 실제로 검사한다. 위 검사는 폴더 이름만
+    // 맞아도 통과해서, 업무 자료 표식을 통째로 빼도 초록이 떴다(반대 검증에서 드러났다).
+    const 종류로 = await tool.handler({ what: '문서 좀 정리하고 싶은데' });
+    const 문서후보 = (종류로.result.candidates ?? []).filter((c) => c.kind === 'documents');
+    if (!문서후보.length) bad('이름이 안 맞으면 업무 자료를 못 찾는다 — 문서 표식 판정이 죽어 있다');
+    const 코드로 = await tool.handler({ what: '개발하던 거 이어서' });
+    if (!(코드로.result.candidates ?? []).some((c) => c.kind === 'project')) {
+      bad('이름이 안 맞으면 작업 프로젝트를 못 찾는다 — 코드 표식 판정이 죽어 있다');
+    }
+
     // 못 찾은 것을 찾은 척하지 않는다.
     const 없는것 = await tool.handler({ what: '세무서 제출용 홍보영상' });
     if (!/못 찾았어요/.test(없는것.userSafeSummary)) bad('없는 것을 찾은 것처럼 말한다');
