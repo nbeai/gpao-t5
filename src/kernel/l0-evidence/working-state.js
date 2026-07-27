@@ -88,6 +88,20 @@ function subjectFrom(receipt) {
       failed: typeof code === 'number' && code !== 0,
     };
   }
+  // P6-W1: 켜 둔 것도 **현재 작업 대상이다.** 서버가 돌고 있는데 모델이 모르면
+  // 사용자가 "그거 꺼줘"라고 할 때 처음부터 다시 찾는다.
+  if (tool === 'local.process') {
+    const r = receipt.result;
+    if (!r?.pid) return null;
+    return {
+      key: `proc:${r.id ?? r.pid}`,
+      kind: 'process',
+      label: String(r.label ?? args.label ?? r.command ?? `pid ${r.pid}`),
+      detail: r.cwd,
+      // 상태는 사실로 남긴다 — 꺼진 것을 "돌고 있다"고 이어받으면 안 된다.
+      alive: r.status === 'running',
+    };
+  }
   if (tool === 'session.search') {
     const hits = (receipt.result?.hits ?? []).filter((h) => h?.title);
     if (!hits.length) return null;
@@ -163,6 +177,12 @@ export function workingStateFacts(stateOrNull) {
   const older = subjects.filter((s) => !current.includes(s));
 
   const lines = [];
+  // P6-W1 · 지금 자리. **"이 프로젝트"의 "이"가 여기서 나온다.**
+  // 사용자는 경로를 안 말하고 "이 프로젝트", "그 폴더"라고 부른다. 최근에 실제로 뭔가를 한
+  // 자리가 있으면 그게 그 말의 뜻일 확률이 가장 높다 — 없으면 **말하지 않는다**(지어내지 않는다).
+  // 코드 폴더만이 아니다: 정산 자료를 읽었으면 그 폴더가, 서버를 켰으면 그 자리가 여기 온다.
+  const 자리 = [...current, ...older].find((s) => typeof s.detail === 'string' && s.detail.startsWith('/'))?.detail;
+  if (자리) lines.push(`지금 자리: ${자리}`);
   for (const s of current) {
     if (s.kind === 'web') {
       lines.push(`방금 읽은 자료: ${s.label} (${s.detail})`);
@@ -172,6 +192,11 @@ export function workingStateFacts(stateOrNull) {
       lines.push(`방금 다룬 파일: ${s.label}`);
     } else if (s.kind === 'session') {
       lines.push(`방금 찾은 지난 대화: ${s.label}`);
+    } else if (s.kind === 'command') {
+      // 실패를 성공처럼 이어받지 않는다. 그리고 **어디서** 돌렸는지가 다음 명령의 자리가 된다.
+      lines.push(`방금 실행: ${s.label}${s.failed ? ` — 실패(코드 ${s.exitCode})` : ''}`);
+    } else if (s.kind === 'process') {
+      lines.push(`방금 켠 것: ${s.label}${s.alive ? '' : ' — 지금은 꺼져 있음'}`);
     }
   }
   if (older.length) {
