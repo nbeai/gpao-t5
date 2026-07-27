@@ -102,6 +102,16 @@ function subjectFrom(receipt) {
       alive: r.status === 'running',
     };
   }
+  // P6-W3: **찾은 자리는 다음 걸음의 자리다.** 이게 없으면 locate 가 `/Volumes/작업용SSD/2026 정산자료`
+  // 를 정확히 짚어 놓고도 그 사실이 상태에 안 남아서, 다음 손(터미널)이 어디서 무엇을 볼지 모른다 —
+  // 모델이 원장 문장에서 경로를 다시 주워 담아야 했다(라이브 실측: 그래서 같은 자리를 여러 번 훑었다).
+  // **찾은 자리는 다룬 자리와 같은 무게다.** detail 로 두면 "지금 자리"에도 그대로 올라간다.
+  if (tool === 'local.locate') {
+    const top = (receipt.result?.candidates ?? [])[0];
+    // 확신이 낮은 후보는 자리라고 말하지 않는다 — 아닌 것을 사실로 올리면 다음 턴이 오염된다.
+    if (!top?.path || top.confidence === 'low') return null;
+    return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
+  }
   if (tool === 'session.search') {
     const hits = (receipt.result?.hits ?? []).filter((h) => h?.title);
     if (!hits.length) return null;
@@ -199,6 +209,9 @@ export function workingStateFacts(stateOrNull) {
       if (s.links?.length) lines.push(`그 페이지에서 이어갈 수 있는 곳: ${s.links.join(' , ')}`);
     } else if (s.kind === 'file') {
       lines.push(`방금 다룬 파일: ${s.label}`);
+    } else if (s.kind === 'place') {
+      // 자리를 찾았다는 사실 + **거기서 이어서 하면 된다**는 것. 사용자에게 경로를 되묻지 않는다.
+      lines.push(`방금 찾은 자리: ${s.label} — 여기서 이어서 보면 돼요`);
     } else if (s.kind === 'session') {
       lines.push(`방금 찾은 지난 대화: ${s.label}`);
     } else if (s.kind === 'command') {

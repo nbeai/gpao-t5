@@ -119,3 +119,29 @@ test('배경 목록에 같은 이름을 두 번 쓰지 않는다(모델이 서�
   const older = workingStateFacts(s).match(/앞서 다룬 것: (.*)/)[1];
   assert.equal(older.split(',').length, 1, `같은 이름이 두 번 나온다: ${older}`);
 });
+
+// P6-W3 ③ · **찾은 자리는 다음 걸음의 자리다.**
+// 라이브 실측: locate 가 `/Volumes/작업용SSD/2026 정산자료` 를 정확히 짚었는데 그 사실이
+// 상태에 안 남아서, 다음 손(터미널)이 어디를 볼지 모른 채 같은 자리를 여러 번 훑었다.
+// 찾아 놓고 안 이어주면 사용자에게 "경로를 알려주세요"로 새는 바로 그 구조다.
+test('찾은 자리가 다음 걸음의 자리로 이어진다(터미널이 거기서 이어서 한다)', () => {
+  const 찾음 = {
+    actualCall: { tool: 'local.locate', args: { what: '정산 자료', from: '작업용SSD' } },
+    failureState: 'none',
+    result: { candidates: [{ path: '/볼륨/작업용SSD/2026 정산자료', confidence: 'high' }] },
+  };
+  const st = deriveWorkingState(null, { receipts: [찾음] });
+  const facts = workingStateFacts(st);
+  assert.match(facts, /지금 자리: \/볼륨\/작업용SSD\/2026 정산자료/,
+    `찾은 자리가 "지금 자리"로 안 올라가면 다음 손이 어디서 할지 모른다:\n${facts}`);
+  assert.match(facts, /방금 찾은 자리/, `찾았다는 사실이 안 남는다:\n${facts}`);
+});
+
+test('확신 없는 후보는 자리라고 말하지 않는다(아닌 것을 사실로 올리지 않는다)', () => {
+  const 애매 = {
+    actualCall: { tool: 'local.locate' }, failureState: 'none',
+    result: { candidates: [{ path: '/어딘가/그냥폴더', confidence: 'low' }] },
+  };
+  const st = deriveWorkingState(null, { receipts: [애매] });
+  assert.equal(workingStateFacts(st), undefined, '낮은 후보를 현재 자리로 올리면 다음 턴이 오염된다');
+});
