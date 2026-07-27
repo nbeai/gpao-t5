@@ -178,8 +178,11 @@ test('같은 관용구라도 바꾸려 들면 여전히 막힌다(관용구가 �
 
 test('임시 자리는 이번 실행에만 있고 끝나면 남지 않는다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
   // 임시 자리에 쓴 것이 남으면 "아무것도 안 바꿨다"는 증명이 거짓이 된다.
-  const r = await runCommand('echo $TMPDIR; echo 남는가 > "$TMPDIR/흔적.txt"; ls "$TMPDIR"', { mode: 'probe' });
+  // `;` 로 이으면 마지막 명령의 코드만 남아 **쓰기 실패가 묻힌다**(이 검사가 실제로 그랬다 —
+  // 임시 자리를 빼고 돌렸는데도 초록이었다). `&&` 로 이어야 실패가 그대로 올라온다.
+  const r = await runCommand('echo $TMPDIR && echo 남는가 > "$TMPDIR/흔적.txt" && cat "$TMPDIR/흔적.txt"', { mode: 'probe' });
   assert.equal(r.exitCode, 0, `임시 자리에 쓰지 못했다:\n${r.stderr}`);
+  assert.match(r.stdout, /남는가/, '썼다고 했는데 읽히지 않는다');
   const 자리 = r.stdout.split('\n')[0].trim();
   assert.ok(자리 && 자리 !== tmpdir(), `probe 가 공용 임시 자리를 그대로 썼다: ${자리}`);
   await assert.rejects(() => readdir(자리), '실행이 끝났는데 임시 자리가 남아 있다');
