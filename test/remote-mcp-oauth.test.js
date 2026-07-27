@@ -114,7 +114,11 @@ function 가짜서비스(opts = {}) {
     await fetch(`${redirect}?code=${발급된코드}&state=${encodeURIComponent(state)}`).catch(() => {});
   };
 
-  return { fetchImpl, opener, 기록, get 토큰() { return 유효토큰; } };
+  return {
+    fetchImpl, opener, 기록, get 토큰() { return 유효토큰; },
+    /** 서버 쪽에서 자격을 폐기한다(사용자가 노션에서 앱 연결을 지운 경우가 이것이다). */
+    폐기() { 유효토큰 = 'tok_AFTER_REVOKE_0003'; },
+  };
 }
 
 function 맥락() {
@@ -239,6 +243,47 @@ test('만료된 토큰은 조용히 갱신한다 — 사용자에게 재로그�
   assert.equal(r.result?.connected, true, `갱신 실패: ${r.userSafeSummary}`);
   assert.equal(가짜.기록.refreshed, 1, 'refresh_token 을 안 썼다');
   assert.equal(가짜.기록.authorizeUrl, null, '갱신하면 되는데 사용자에게 다시 로그인시켰다');
+});
+
+// 사용자가 서비스 쪽에서 앱 연결을 지우면 저장된 토큰이 죽는다. 그때 T5 가 "연결돼 있는데
+// 왜 안 되지"로 멈추면 사용자는 원인을 알 수 없다 — **막힌 지점을 알고 스스로 다시 뚫어야** 한다.
+// 코드는 있었는데 검사가 없던 자리다(오너 감사에서 드러났다).
+test('서버가 자격을 폐기하면 스스로 재인증하고 이어간다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-cred-'));
+  const 가짜 = 가짜서비스();
+  await (await 손만들기(가짜, { dir })).tool.handler({ connector: 'gaja' });
+
+  가짜.폐기();               // 노션에서 "앱 연결 해제"를 누른 상태
+  가짜.기록.authorizeUrl = null;
+  const 등록전 = 가짜.기록.registered;
+
+  const 두번째 = await 손만들기(가짜, { dir });
+  const r = await 두번째.tool.handler({ connector: 'gaja' });
+
+  assert.equal(r.result?.connected, true, `폐기 후 재인증에 실패했다: ${r.userSafeSummary}`);
+  assert.ok(r.result.tools.length > 0, '재인증했다면서 손이 안 올라왔다');
+  assert.ok(가짜.기록.authorizeUrl, '죽은 토큰으로 계속 시도했다 — 다시 동의를 받아야 한다');
+  assert.equal(가짜.기록.registered, 등록전 + 1, '재인증 때 등록을 다시 하지 않았다');
+  // 새 자격으로 갈아탔는가 — 죽은 것을 그대로 들고 있으면 다음 턴에 또 막힌다
+  const saved = await 두번째.store.get('gaja');
+  assert.equal(saved.tokens.access_token, 가짜.토큰);
+});
+
+test('재인증도 실패하면 연결됐다고 하지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-cred-'));
+  const 성공 = 가짜서비스();
+  await (await 손만들기(성공, { dir })).tool.handler({ connector: 'gaja' });
+
+  // 폐기된 데다 사용자가 이번엔 허용하지 않는다 — 두 번 막힌 자리다
+  const 거절 = 가짜서비스({ deny: true });
+  거절.폐기();
+  const 두번째 = await 손만들기(거절, { dir });
+  const r = await 두번째.tool.handler({ connector: 'gaja' });
+
+  assert.notEqual(r.result?.connected, true, '재인증 실패인데 연결됐다고 했다');
+  assert.equal(Object.keys(두번째.ctx.tools.tools).length, 0, '실패인데 손이 올라왔다');
+  assert.equal(await 두번째.store.get('gaja'), null, '죽은 자격을 그대로 남겼다');
+  assert.ok(r.userSafeSummary?.length > 0, '왜 막혔는지 말하지 않았다');
 });
 
 test('www-authenticate 에서 로그인 위치를 읽는다 — 주소를 짐작하지 않는다', () => {

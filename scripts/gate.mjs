@@ -17,6 +17,7 @@ const baselineFile = new URL('./gate-baseline.json', import.meta.url);
 let baseline = { deferred: Infinity, testCpuSeconds: Infinity, testWallSeconds: Infinity };
 try { baseline = { ...baseline, ...JSON.parse(await readFile(baselineFile, 'utf8')) }; } catch { /* 최초 실행 */ }
 const failures = [];
+let 누수기준선 = null; // 커널 말귀 층의 서비스 이름 분기 — 줄어들 때만 따라 내려간다
 const notes = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
 const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
@@ -531,10 +532,92 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     });
   }
   if (샌것.length) {
-    fail(`이어받기 커널이 도구 이름을 알아본다 — 새 도구는 subjectOf 계약으로 낸다(커널 수정 금지):\n      ${샌것.join('\n      ')}`);
+    bad(`이어받기 커널이 도구 이름을 알아본다 — 새 도구는 subjectOf 계약으로 낸다(커널 수정 금지):\n      ${샌것.join('\n      ')}`);
   } else {
     ok('이어받기 커널이 도구 이름을 모른다(subjectOf 계약)');
   }
+}
+
+// ── ③-c2 실행기·커널은 서비스를 모른다 (P5-B-1B 안전핀) ─────────────────
+// 오너 기준(2026-07-27): 감사는 **"노션 됐나?"가 아니라 "노션이라는 단어를 빼도 구조가 남나?"**
+// 지금 이 순간 실행기 코드에 서비스 이름이 0건이다. **깨끗한 지금 박아야 한다** — 나중에 박으면
+// 이미 새어든 것을 정당화하게 된다. 노션·구글·카카오·스마트스토어가 들어올수록 값이 커지는 핀이다.
+//
+// 범위를 나눈다. 서비스 지식은 **선언층에는 있어야 한다** — 없으면 그게 상상으로 메우는 자리다.
+//   검사: 커널 전체 · 연결 실행기 · OAuth/PKCE · MCP 전송 · Tool Admission · 상태 해석층
+//   허용: connector 선언 · demo-context · fixture · docs · tests
+// 주석은 뺀다. "실측(2026-07-27, mcp.notion.com): 401 이 로그인 위치를 알려준다" 같은 근거는
+// 남아야 한다 — 금지하는 것은 **코드가 서비스 이름으로 갈라지는 것**이지 사실의 기록이 아니다.
+{
+  const { readdir } = await import('node:fs/promises');
+  const 훑기 = async (dir) => {
+    const out = [];
+    for (const e of await readdir(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+      if (e.isDirectory()) out.push(...await 훑기(`${dir}/${e.name}`));
+      else if (e.name.endsWith('.js')) out.push(`${dir}/${e.name}`);
+    }
+    return out;
+  };
+  const 검사대상 = [
+    ...await 훑기('src/kernel'),
+    'src/runtime/connector-connect.js',   // 연결 실행기
+    'src/runtime/oauth-pkce.js',          // OAuth/PKCE 실행기
+    'src/runtime/mcp-http.js',            // MCP 원격 전송
+    'src/runtime/mcp-client.js',          // MCP stdio 전송
+    'src/runtime/tool-admission.js',      // 도구 편입
+    'src/runtime/local-signs.js',         // 공통 상태 해석(로컬 흔적 확인)
+  ];
+
+  // **금지어를 선언층에서 파생한다.** 고정 목록은 썩는다 — 새 커넥터를 선언하면 그 이름이
+  // 자동으로 금지어가 되어야, 다음 사람이 목록을 손볼 일이 없다.
+  const { demoConnectors } = await import('../src/surface/demo-context.js');
+  // 일반어는 뺀다. 'mail'·'메일' 같은 건 서비스 이름이자 보통 명사라, 금지하면 정상 코드가 막힌다.
+  const 일반어 = new Set(['mail', '메일', 'web', '웹', 'local', '파일', 'file', 'chat', '채팅', 'core']);
+  const 금지어 = new Set();
+  for (const c of demoConnectors()) {
+    for (const w of [c.id, c.label, ...(c.aliases ?? [])]) {
+      const t = String(w ?? '').trim().toLowerCase();
+      if (t.length >= 3 && !일반어.has(t)) 금지어.add(t);
+    }
+  }
+  // 아직 선언되지 않았지만 들어올 것이 뻔한 이름들 — 선언보다 코드가 먼저 새는 것을 막는다.
+  for (const w of ['figma', 'kakao', '카카오', 'naver', '네이버', '스마트스토어', 'cafe24', 'shopify', 'dropbox', 'github']) 금지어.add(w);
+
+  // 두 층으로 나눈다. **연결 층은 0건 하드** — 이번에 깨끗하게 지었으므로 한 건도 못 샌다.
+  // 커널 말귀 층은 P5 이전부터 서비스 이름으로 갈라진다(`if (/슬랙|slack/) tools.push(…)` —
+  // 침범 목록 1번 "키워드 분기"가 여기 산다). 지금 뜯는 건 별개 작업이라 **기준선 이하**로 묶는다:
+  // 늘면 그 자리에서 막히고, 줄이면 기준선이 따라 내려간다("후속" 카운터와 같은 방식).
+  const 연결층 = new Set(검사대상.filter((f) => !f.startsWith('src/kernel/')
+    || /connector|self-state|external-service/.test(f)));
+  const 훑은것 = [];
+  for (const f of 검사대상) {
+    const src = await readFile(new URL(`../${f}`, import.meta.url), 'utf8');
+    // 주석을 지운 뒤에 본다 — 근거 기록은 살리고 분기만 잡는다.
+    const 코드 = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+      .map((l) => (l.trim().startsWith('//') ? '' : l.replace(/\/\/.*$/, '')));
+    코드.forEach((line, i) => {
+      const low = line.toLowerCase();
+      for (const w of 금지어) {
+        if (low.includes(w)) 훑은것.push({ f, 줄: `${f}:${i + 1}  "${w}" ← ${line.trim().slice(0, 60)}` });
+      }
+    });
+  }
+  const 연결층누수 = 훑은것.filter((x) => 연결층.has(x.f));
+  const 말귀층누수 = 훑은것.filter((x) => !연결층.has(x.f));
+  if (연결층누수.length) {
+    bad('연결 실행기·상태 해석층이 서비스를 알아본다 — 서비스 지식은 커넥터 선언에만 둔다'
+      + `(실행기는 방식(kind)만 안다):\n      ${연결층누수.slice(0, 8).map((x) => x.줄).join('\n      ')}`);
+  } else {
+    ok(`연결 실행기·상태 해석층에 서비스 이름 0건 (${연결층.size}개 파일 · 금지어 ${금지어.size})`);
+  }
+  const 말귀기준 = baseline.serviceNameLeaks ?? 말귀층누수.length;
+  if (말귀층누수.length > 말귀기준) {
+    bad(`커널 말귀 층의 서비스 이름 분기가 늘었다 ${말귀기준} → ${말귀층누수.length}`
+      + ` (키워드 분기는 침범 목록 1번이다):\n      ${말귀층누수.slice(0, 6).map((x) => x.줄).join('\n      ')}`);
+  } else {
+    ok(`커널 말귀 층의 서비스 이름 ${말귀층누수.length}건 (기준선 ${말귀기준} 이하 · 줄일 대상)`);
+  }
+  누수기준선 = Math.min(말귀층누수.length, 말귀기준);
 }
 
 // ── ③-b 1축: 도구의 이름·설명은 descriptor 하나에서만 나온다 ─────────────
@@ -665,8 +748,9 @@ if (failures.length) {
 {
   let prev = null;
   try { prev = JSON.parse(await readFile(baselineFile, 'utf8')); } catch { /* 최초 */ }
-  if (prev?.deferred !== deferred) {
-    await writeFile(baselineFile, `${JSON.stringify({ ...prev, deferred }, null, 2)}\n`);
+  const 다음 = { ...prev, deferred, ...(누수기준선 === null ? {} : { serviceNameLeaks: 누수기준선 }) };
+  if (prev?.deferred !== deferred || prev?.serviceNameLeaks !== 다음.serviceNameLeaks) {
+    await writeFile(baselineFile, `${JSON.stringify(다음, null, 2)}\n`);
   }
 }
 console.log(`[gate] PASS — ${notes.join(' · ')}`);
