@@ -187,6 +187,10 @@ export function makeServer(deps = {}) {
       }
       session.transcript.push({ role: 'user', text: input.text });
     }
+    // **이 승인이 어느 자리에서 온 요청이었나.** 커널이 봉인해 둔 것을 턴 전에 읽는다
+    // (승인 재개는 그 보류를 지우면서 시작한다).
+    const 물어본자리 = typeof input.approve === 'string'
+      ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
     const result = await runTurn(input, ctx);
     // P-ID-1: 사용자가 이름을 지어 줬으면 SOUL.md 에 남긴다(다음 대화에서도 그 이름으로 답한다).
     if (result.identityUpdate?.name) {
@@ -237,6 +241,17 @@ export function makeServer(deps = {}) {
       }
     } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
     await store.save(session);
+    // **방에서 시작한 일의 결과는 방으로 돌아간다.**
+    // 라이브 실측(56a6ae67 · 4:57~4:58): 방에서 "메모3.md 만들어줘" → 방으로 "T5 화면에서
+    // 확인해 주시면 이어서 할게요" → 화면에서 승인 → 실행은 됐는데(원장 write 성공) **방은
+    // 조용했다.** 승인 재개는 웹 경로로 들어오고, 채널 발송은 수신 경로에만 있었기 때문이다.
+    // 방에서 한 약속을 방에서 안 지킨 것이다.
+    //
+    // 요청이 온 자리로만 돌려보낸다(오너 결정 A) — 채널에 묶인 세션이라고 화면에서 하는
+    // 대화까지 방으로 밀지 않는다(폰이 계속 울린다).
+    if (물어본자리?.channel && result.kind === 'reply' && String(result.reply ?? '').trim()) {
+      await 요청이온자리로(session, 물어본자리.channel, result.reply);
+    }
     return result;
   }
 
@@ -1028,6 +1043,20 @@ export function makeServer(deps = {}) {
   };
   // 승인이 필요한 일은 채널에서 자동으로 실행하지 않는다. 무엇을 하려는지·왜 멈췄는지만 알린다 —
   // 승인은 T5 화면에서 받는다(밖에서 "네" 한 마디로 외부 효과가 나가면 안 된다).
+  /**
+   * 승인 재개처럼 **다른 표면에서 끝난 일**의 결과를, 요청이 온 자리로 돌려보낸다.
+   * 보낼 자리는 세션의 origin(방)이 안다. 못 보내면 못 보냈다고 원장에 남긴다(보낸 척 금지).
+   */
+  async function 요청이온자리로(session, channel, text) {
+    const target = session.origin?.chatId;
+    if (!target) return;
+    const sender = (deps.tools?.tools ?? {})[`${channel}.send`];
+    const sent = sender?.handler
+      ? await sender.handler({ text, target }).catch((e) => ({ blocked: true, userSafeSummary: e?.message }))
+      : { sendState: 'no_sender', userSafeSummary: '보낼 손이 없어요.' };
+    await 전달기록(session.id, channel, target, text, sent);
+  }
+
   /**
    * 채널 자동 답장의 전달 사실을 **전달 원장에 남긴다**(P6-14 와 같은 원장, 같은 모양).
    * 남기지 않으면 "보낸 척 금지"가 검사할 수 없는 약속이 된다 — 실제로 그랬다.

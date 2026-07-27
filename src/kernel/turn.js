@@ -472,7 +472,15 @@ export async function runTurn(input, ctx) {
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
     // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
-    ctx.pending.set(pendingId, { intent, plan, admitted, sendArgs, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
+    ctx.pending.set(pendingId, {
+      intent, plan, admitted, sendArgs,
+      // **결과는 요청이 온 자리로 돌아간다.** 승인은 표면을 건너뛸 수 있어도(방에서 시켰는데
+      // 화면에서 승인) 결과까지 건너뛰면 안 된다 — 라이브 실측: 방에서 시키고 방에서
+      // "확인해 주시면 이어서 할게요"를 들은 뒤 화면에서 승인했는데, 방은 영영 조용했다.
+      // 어느 표면이 물었는지만 봉인한다. 어디로 보낼지(방 id)와 보내는 일은 서버가 안다.
+      askedFrom: input.channel ? { channel: input.channel } : undefined,
+      grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
+    });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
     // 승인 카드만 뜨고 T5 는 한 마디도 안 했다 — 사용자에겐 먹통으로 보인다. 카드에는 명령
     // 원문이 있지만, 그건 "무엇을 이해했고 왜 멈췄는지"가 아니다.
