@@ -29,13 +29,14 @@ const blank = (v) => {
  * `npm test` 실패에 승인을 묻거나(불편) 안 묻고 결과를 보여주는 것(안전)이다.
  */
 function looksBlocked(r) {
-  return executionBlock(r)?.kind === 'sandbox';
+  const block = executionBlock(r);
+  return block?.kind === 'sandbox' || block?.kind === 'permission';
 }
 
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
 export function describeCommand(command, probe) {
   const block = executionBlock(probe);
-  if (!block || block.kind !== 'sandbox') return `\`${command}\` 실행`;
+  if (!block || (block.kind !== 'sandbox' && block.kind !== 'permission')) return `\`${command}\` 실행`;
   return `\`${command}\` — ${block.userWhy}`;
 }
 
@@ -80,7 +81,7 @@ export function makeLocalTerminalTool(deps = {}) {
         impact: `${command}`,
         scope: `${blank(args.cwd) ?? cwdOf()} 에서`,
         duration: '이번 한 번',
-        cancel: block?.kind === 'sandbox' ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
+        cancel: (block?.kind === 'sandbox' || block?.kind === 'permission') ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
           : '실행한 뒤에는 되돌리기 어려울 수 있어요',
       };
     },
@@ -145,7 +146,7 @@ export function makeLocalTerminalTool(deps = {}) {
           ? `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? 120000) / 1000)}초).`
           : r.exitCode === 0 ? '실행했어요.'
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.
-            : 끝난이유?.kind === 'sandbox' ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
+            : (끝난이유?.kind === 'sandbox' || 끝난이유?.kind === 'permission') ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
               : 끝난이유?.kind === 'env' ? `${끝난이유.userWhy}`
                 : `실행했는데 오류로 끝났어요(코드 ${r.exitCode}).`,
       };

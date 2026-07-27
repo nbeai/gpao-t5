@@ -63,6 +63,17 @@ test('네트워크가 필요한 명령도 승인에서 멈춘다', { skip: !sand
   assert.equal(r.kind, 'approval', '인터넷으로 나가는 명령이 승인 없이 실행된다');
 });
 
+test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는다', async () => {
+  const tool = makeLocalTerminalTool({
+    run: async () => ({ exitCode: 1, stdout: '', stderr: 'launchctl: Not privileged' }),
+  });
+  const planned = await tool.probe('launchctl setenv T5_X 1');
+  assert.equal(planned.changes, true, '권한 부족은 읽기 성공이 아니라 변경 시도다');
+  const result = await tool.handler({ command: planned.command, probeResult: planned.probe });
+  assert.equal(result.needsGrant, true, '사용자가 승인할 길이 사라지면 안 된다');
+  assert.match(result.userSafeSummary, /권한/, '막힌 이유는 개발자 오류가 아니라 권한 경계로 말한다');
+});
+
 test('probe 를 못 돌리면 승인으로 간다(모르면 막는다)', async () => {
   const dir = await 자리();
   const 손없음 = {
