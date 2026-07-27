@@ -44,6 +44,8 @@ export function defineConnector(p) {
     // CLI·앱·인증 파일의 존재). 확인은 러너(local-signs.js)가 하되 러너는 서비스를 모른다 —
     // 서비스 지식은 이 선언에만 산다(previewOf·subjectOf 와 같은 계약 패턴).
     localSigns: p.localSigns,
+    // P5-B-1B: **연결 방식 선언.** 실행기는 kind 만 안다 — 서비스 지식은 여기에만 산다.
+    authMethods: p.authMethods,
     localeRelevance: p.localeRelevance,  // 'kr' 등 — 한국 사용자에게 얼마나 가까운가
     lastCheckedAt: p.lastCheckedAt,      // 마지막 연결 확인 시각(추측 금지)
     lastError: p.lastError,              // 마지막 실패 이유(사람 말)

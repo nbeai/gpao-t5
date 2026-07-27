@@ -54,6 +54,8 @@ export function demoConnectors() {
         { kind: 'app', path: '/Applications/Notion.app', label: '노션 앱' },
         { kind: 'mcp', server: 'notion', label: 'MCP 설정의 노션 연결' },
       ],
+      // P5-B-1B: **연결 방식 선언.** 실행기는 kind 만 안다 — 새 서비스는 이 줄 하나면 된다.
+      authMethods: [{ kind: 'mcp', server: 'notion' }],
     }),
     defineConnector({
       id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,

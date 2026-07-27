@@ -16,8 +16,10 @@ import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
+import { makeConnectorConnectTool } from '../runtime/connector-connect.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
+import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 
 /**
@@ -145,18 +147,48 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 서버가 demo fixture(텔레그램 connected:true 하드코딩)로 폴백해 **토큰 없는 채널이 라이브에서
   // 열린다** — Phase 0-5 에서 실제로 그렇게 새고 있었다.
   const channels = liveChannels(processEnv);
+  const descriptors = demoDescriptors({ include: [...liveToolIds, ...연결전] });
+  const connectors = [
+    ...channels.map((c) => c.connector),
+    ...demoConnectors().filter((c) => c.kind !== 'channel'),
+  ];
+  // P5-B-1B: **연결을 실행하는 손.** 이게 없어서 "붙여줘"에 남의 도구 설정으로 떠넘겼다.
+  // 살아 있는 배열·객체를 그대로 넘긴다 — 편입은 제자리 갱신이라 그 턴부터 모델이 본다.
+  tools.tools['connector.connect'] = makeConnectorConnectTool({
+    ctx: () => ({ tools, descriptors, env }),
+    connectors: () => connectors,
+  });
+  descriptors.push(defineTool({
+    id: 'connector.connect', label: '서비스 연결', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'unknown_kind', needsApproval: true,
+    capability: '외부 서비스를 T5 에 실제로 연결한다(연결·해제). 연결되면 그 서비스의 도구가'
+      + ' 바로 쓸 수 있는 손으로 올라온다. 사용자는 승인 한 번만 하면 되고, 확인·등록·재연결은 T5 가 한다.',
+    schema: {
+      description: '외부 서비스를 연결하거나 해제한다. 사용자가 "노션 붙여줘", "구글 연결해줘",'
+        + ' "연결 끊어줘"처럼 말하면 이걸 쓴다. 연결 방법을 사용자에게 설명하는 대신 **직접 실행한다** —'
+        + ' 다른 도구(Codex·ChatGPT 등)의 설정 화면으로 사용자를 보내지 않는다.'
+        + ' 연결되면 그 서비스의 도구가 실제로 올라오고, 그때부터 바로 쓸 수 있다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          connector: { type: 'string', description: '서비스 이름 — 사용자가 부른 말 그대로("노션", "구글")' },
+          action: { type: 'string', enum: ['connect', 'disconnect'], description: '기본은 connect' },
+        },
+        required: ['connector'],
+      },
+    },
+  }));
+  env.connections.push({ ...toConnection(descriptors[descriptors.length - 1], { connected: true }), hasHandler: true });
+
   return {
-    env, tools, descriptors: demoDescriptors({ include: [...liveToolIds, ...연결전] }), channels,
+    env, tools, descriptors, channels,
     // P5-B-0: 채널 커넥터 + **연결 전 서비스 커넥터**. 선언이 없으면 "연결하면 가능"을 말할
     // 자리가 없다 — 그 자리가 비면 모델이 상상으로 메운다(§0).
     // 채널 커넥터(실자격 파생) + **채널이 아닌 서비스 선언 전부**(메일·노션·구글…).
     // 예전엔 "도구가 있는 커넥터"만 골랐는데, 그러면 도구 없는 서비스 선언(노션·구글)이
     // 라이브에서 통째로 사라진다 — 사용자가 그 이름을 말해도 T5 는 상태를 말할 자리가 없고,
     // 로컬 흔적 확인(P5-B-1A)도 그 서비스엔 영영 안 돈다(실측: /connectors/truth 에 메일만 남았다).
-    connectors: [
-      ...channels.map((c) => c.connector),
-      ...demoConnectors().filter((c) => c.kind !== 'channel'),
-    ],
+    connectors,
     model, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
   };
 }
