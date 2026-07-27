@@ -110,3 +110,39 @@ test('모든 손이 막힌 턴에서도 사용자에게 옮기라고 하지 않�
   for (const h of 힌트들) assert.doesNotMatch(h, 떠넘김, `모델에게 떠넘김을 사실로 줬다: ${h}`);
   assert.doesNotMatch(r.nextSafeAction ?? '', 떠넘김, `화면에 떠넘김이 나갔다: ${r.nextSafeAction}`);
 });
+
+// ── 경계는 도구 이름이 아니라 구조에 친다 ────────────────────────────────
+// W3 의 완료 조건(오너 재정의): "장소 승계가 됐는가"가 아니라
+// **사용자에게 경로 복사·폴더 이동·Finder 조작·터미널 실행을 요구하지 않고,
+// 가능한 다른 손으로 계속 가는가**이다.
+//
+// 그래서 이 검사는 local.file 을 모른다. **아무 도구나** 막히고 자기 문장으로 사용자를
+// 시키려 할 때, 다른 손이 있으면 그 문장이 턴의 다음 길이 되지 못하는지만 본다.
+// 새 도구가 생겨도 이 경계는 그대로다 — 같은 병이 이 흐름에서만 두 번 났다.
+import { 다음길 } from '../src/kernel/turn.js';
+
+const 막힌영수증 = (tool, next) => ({
+  actualCall: { tool }, failureState: 'blocked', scopeState: 'blocked',
+  userSafeSummary: '못 했어요.', nextSafeAction: next,
+});
+
+test('어떤 도구가 막혀도, 다른 손이 있으면 "네가 해라"가 다음 길이 되지 않는다', () => {
+  const 시키는말들 = [
+    '그 폴더로 옮겨 주세요.',
+    '경로를 복사해서 알려주세요.',
+    'Finder 에서 열어 주세요.',
+    '터미널에서 직접 실행해 주세요.',
+  ];
+  for (const 말 of 시키는말들) {
+    // 아직 존재하지도 않는 도구여도 똑같이 막혀야 한다(목록이 아니라 경계다).
+    const hint = 다음길([막힌영수증('아직.없는도구', 말)], ['아직.없는도구', 'local.terminal']);
+    assert.notEqual(hint, 말, `막힌 손의 "시키는 말"이 턴의 다음 길이 됐다: ${말}`);
+    assert.doesNotMatch(hint ?? '', 떠넘김, `다음 길이 떠넘김이다: ${hint}`);
+  }
+});
+
+test('다른 손이 없으면 도구가 부탁하는 것은 막지 않는다(부탁이 필요한 때가 있다)', () => {
+  const 말 = '화면 내용을 복사해서 붙여 주세요.';
+  const hint = 다음길([막힌영수증('web.collect', 말)], ['web.collect']);
+  assert.equal(hint, 말, '쓸 손이 그것뿐인데 부탁까지 막으면 막다른 답이 된다');
+});

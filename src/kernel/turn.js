@@ -101,10 +101,32 @@ export function userSafeNextAction(receipts = []) {
  *   · 사다리가 종류를 알아본 계단이면(`from !== 'blocked'`) 그쪽이 더 정확하다 — 손까지 보고 골랐다.
  *   · 종류를 못 알아본 일반 계단이면 예전대로 도구가 남긴 말이 먼저다(도구가 더 잘 안다).
  */
-function 다음길(receipts, 있는손) {
+/**
+ * 사용자에게 **일을 시키는** 말. 우리가 만든 문구에만 쓰는 자기 검열이다 — 사용자 말을 해석하는
+ * 게 아니라, 우리 손이 뱉은 문장이 경계를 넘었는지 본다.
+ */
+// 활용형을 놓치면 경계가 아니라 장식이 된다 — `옮기`만 넣었더니 "옮겨 주세요"가 그대로 샜다.
+const 시키는말 = /옮[기겨]|복사(해|하)|붙여넣|Finder|파인더|직접 (열어|실행해)|터미널에서/;
+
+export function 다음길(receipts, 있는손) {
   const 계단 = nextRung(receipts, 있는손);
   const 알아본계단 = 계단 && 계단.from !== 'blocked' ? rungMessage(계단) : undefined;
-  return 알아본계단 ?? userSafeNextAction(receipts) ?? rungMessage(계단);
+
+  // **한 도구의 한계를 T5 전체의 한계로 말하지 않는다.** 이 흐름에서 같은 병이 두 번 났다:
+  //   · locate 가 이름을 자리로 못 바꿔서 → "경로를 복사해서 알려주세요"
+  //   · file 이 범위 밖이라 막혀서       → "그 폴더로 옮겨 주세요"
+  // 둘 다 다음 턴에 다른 손으로 실제로 해냈다. 도구는 자기 한계만 알지 T5 를 모른다 —
+  // 그래서 **경계를 여기서 친다.** 도구가 늘어도, 새 도구가 무슨 문장을 뱉든 이 경계는 그대로다:
+  // 이번 턴에 막히지 않은 손이 하나라도 있으면, 사용자를 시키는 문장은 다음 길이 될 수 없다.
+  const 막힌손 = new Set(
+    receipts.filter((r) => r && (r.failureState ?? 'none') !== 'none')
+      .map((r) => r.actualCall?.tool).filter(Boolean),
+  );
+  const 다른손있음 = (있는손 ?? []).some((id) => !막힌손.has(id));
+  const 도구말 = userSafeNextAction(receipts);
+  const 쓸도구말 = 도구말 && 다른손있음 && 시키는말.test(도구말) ? undefined : 도구말;
+
+  return 알아본계단 ?? 쓸도구말 ?? rungMessage(계단);
 }
 
 export function fallbackReplyFrom(receipts = []) {
