@@ -1030,9 +1030,16 @@ export function makeServer(deps = {}) {
   // 승인은 T5 화면에서 받는다(밖에서 "네" 한 마디로 외부 효과가 나가면 안 된다).
   function approvalNoticeText(result) {
     const first = result.pending?.[0];
-    const what = first?.approvalPreview?.impact ?? first?.action ?? '그 작업';
-    const why = first?.reason?.why ?? '실행 전에 확인이 필요해요.';
-    return `${what} — ${why}\nT5 화면에서 확인해 주시면 이어서 할게요.`;
+    // **모델이 이미 한 말이 있으면 그게 사용자 말이다.** 채널이라고 말투가 바뀌지 않는다
+    // (같은 커널, 표면만 다르다). 승인 턴도 이제 사람 말을 싣는다.
+    const 사람말 = String(result.reply ?? '').trim();
+    // **내부 식별자는 사용자면에 안 나간다.** 여기서 `first.action`(= `local.terminal` 같은
+    // 도구 id)을 폴백으로 쓰고 있었고, 게다가 `approvalPreview` 는 커널이 내는 이름이 아니라
+    // (커널은 `preview` 로 준다) **항상** 그 폴백으로 떨어졌다 — 채널 사용자는 매 승인마다
+    // 도구 id 를 받았다. action 은 매칭용이고 사람에게 보일 이름은 label 이다(헌법 §7).
+    const 무엇 = first?.label ?? '그 작업';
+    const 왜 = first?.reason?.why ?? '실행 전에 확인이 필요해요.';
+    return `${사람말 || `${무엇} — ${왜}`}\nT5 화면에서 확인해 주시면 이어서 할게요.`;
   }
 
   // P5-1: 채널 인바운드 처리는 **한 곳**이다. HTTP 라우트와 수신기가 같은 길을 쓴다 — 두 벌이 되면
