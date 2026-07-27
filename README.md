@@ -19,6 +19,16 @@ These documents are mandatory first-read material before any GPAO-T5 planning, i
 3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
    - Defines how the discipline is enforced in the working environment: build artifacts stay out of the source tree, source and generated outputs are physically separated, builds are deterministic, and multi-agent work is isolated by worktree. Frictionless rules apply now; slow gates (hooks/CI/test gates) attach in Phase 5 when real code and a build pipeline exist. Zero friction for everyday local work.
 
+## Core Three-Axis Reading Order
+
+Every resumed or new T5 development session reads these before choosing work:
+
+1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md` — user purpose, performance philosophy, and 말귀.
+2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md` — model/runtime operating loop and judgment boundary.
+3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md` — current core work sequence, process audit, live scenarios, and completion evidence.
+
+They are deliberately complementary: purpose prevents developer-tool drift, the operating loop prevents model-control drift, and the work order prevents overbuilding or completion claims without actual user evidence.
+
 ## Foundational Reference Documents
 
 These documents do not sit above the top authority documents, but they are the source material the plan is built on. Consulting them is mandatory when designing the related GPAO-T5 systems — the plan draws its reasoning from them.

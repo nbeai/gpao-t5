@@ -28,6 +28,25 @@ Before any planning, implementation, review, verification, handoff, or release w
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
 
+## T5 Core Three-Axis Rule (2026-07-28 owner direction)
+
+The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
+
+1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+   - Axis 1: user purpose, performance philosophy, and the full meaning of 말귀.
+2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+   - Axis 2: model/runtime responsibility split, reality assembly, execution truth, and next-turn continuity.
+3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
+   - Axis 3: current core execution order, process audit, real-user scenarios, and completion evidence.
+
+Then read the current execution board and alignment audit when present. The axes cooperate and constrain one another:
+
+- Axis 1 prevents developer-centric, feature-count, or user-purpose drift.
+- Axis 2 prevents model control, invented reality, and missing ledger/continuity.
+- Axis 3 prevents overbuilding, endless work, single-case patching, and completion claims without real-model/user/surface evidence.
+
+No axis alone can justify a feature or completion claim. Do not advance the next core step while the current one still has a user-visible gap, unrun counter-verification, or live verification missing. Keep each step to one shared operating contract; defer scope that does not improve a current human scenario.
+
 For current (v3.x) development, also read — these define what "done" means now:
 
 4a. `GPAO-T5-DEVELOPMENT-PLAN-v3.0-2026-07-26-ko.md` (owner, canonical identity §0 and Phases 1-9)
