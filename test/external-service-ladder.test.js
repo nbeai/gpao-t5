@@ -92,7 +92,7 @@ test('현실은 프롬프트 문자열까지 도달한다(패킷에만 있으면
   const 전문 = 프롬프트(selfState);
   const r = 현실(selfState);
   for (const hand of r.reach) {
-    assert.ok(전문.includes(hand), `있는 손이 프롬프트에 없으면 모델은 못 본다: ${hand}`);
+    assert.ok(전문.includes(hand.label), `있는 손이 프롬프트에 없으면 모델은 못 본다: ${hand.label}`);
   }
 });
 
@@ -145,13 +145,29 @@ test('서비스의 별칭이 함께 간다 — 이름 맞추기는 모델이 한
 // 처음 만든 판은 "브라우저로 그 화면을 열어서 볼 수 있다(로그인해 둔 화면이면…)" 같은
 // **문장 목록**이었다. 라이브 답변 네 줄이 그 목록과 거의 1:1 이었다 — 모델이 판단한 게 아니라
 // 번역한 것이다. 사실만 주고 길은 모델이 고른다(오너 지시).
-test('닿는 손은 **이름**만 준다 — 어떻게 쓰라는 처방을 넣지 않는다', () => {
+test('닿는 손은 이름 + **선언된 한계**만 — 처방을 넣지 않는다', () => {
   const { selfState } = 손있는자리();
-  const 라벨 = new Set(selfState.connectedTools.map((t) => t.label));
+  const byLabel = new Map(selfState.connectedTools.map((t) => [t.label, t]));
   for (const h of reachingHands(selfState)) {
-    assert.ok(라벨.has(h), `손 이름이 아니라 서술이 들어갔다: ${h}`);
-    assert.ok(!/할 수 있다|하면 된다|열어서|주면/.test(h), `경로 처방이다: ${h}`);
+    assert.ok(byLabel.has(h.label), `손 이름이 아니라 서술이 들어갔다: ${h.label}`);
+    if (h.limit) {
+      // 한계는 지어내지 못한다 — descriptor 가 선언한 문장 그대로여야 한다.
+      const 선언 = (byLabel.get(h.label).limits ?? []).map((l) => l.says);
+      assert.ok(선언.includes(h.limit), `선언에 없는 한계를 지어냈다: ${h.limit}`);
+    }
+    assert.ok(!/하면 된다|열어서 보|주면 읽/.test(h.label), `경로 처방이다: ${h.label}`);
   }
+});
+
+test('로그인이 안 따라온다는 사실이 브라우저 손 이름과 함께 다닌다(거짓 약속 재발 방지)', () => {
+  // 라이브 3/4 재현: fast_chat 턴엔 능력 문장이 없어서 모델이 "로그인돼 있으면 볼 수 있다"고
+  // 지어냈다. 이름과 함께 다니는 한계가 그 빈 자리를 채운다.
+  const { selfState } = 손있는자리();
+  const b = reachingHands(selfState).find((h) => h.label === '브라우저로 화면 보기');
+  assert.ok(b?.limit, '브라우저 손의 한계가 이름과 함께 있어야 한다');
+  assert.match(b.limit, /로그인/);
+  const 전문 = 프롬프트(selfState, '너 내 노션 볼 수 있어?');
+  assert.ok(전문.includes(b.limit), '프롬프트까지 도달해야 모델이 본다');
 });
 
 // ── 불변식 ⑧: 연결 흐름이 없는데 "연결하면 가능"이라 하지 않는다 ──────────

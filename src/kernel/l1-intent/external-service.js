@@ -39,7 +39,13 @@ export function reachingHands(selfState = {}) {
   const 밖으로닿는손 = ['browser.observe', 'browser.act', 'web.collect', 'local.terminal', 'local.locate', 'local.file'];
   return (selfState.connectedTools ?? [])
     .filter((t) => t.executable && 밖으로닿는손.includes(t.id))
-    .map((t) => t.label ?? t.id);
+    .map((t) => {
+      // **선언된 한계는 이름과 함께 다닌다.** fast_chat 턴엔 능력 문장이 안 실려서, 이름만 보면
+      // 모델이 빈 자리를 상상으로 메운다(실측: "로그인돼 있으면 볼 수 있다" — 거짓). 다른 손이
+      // 덮는 한계(coveredBy)는 여기 안 싣는다 — 그건 그 손이 말한다.
+      const 한계 = (t.limits ?? []).find((l) => !l.coveredBy)?.says;
+      return { label: t.label ?? t.id, ...(한계 ? { limit: 한계 } : {}) };
+    });
 }
 
 /**

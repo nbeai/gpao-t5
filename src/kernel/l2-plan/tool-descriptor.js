@@ -90,6 +90,7 @@ export function toConnection(descriptor, facts = {}) {
     // 연결돼 있는데도 "연결 안 됨"으로 말한다 — 검사가 실제로 그걸 잡았다.
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
+    limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };
 }

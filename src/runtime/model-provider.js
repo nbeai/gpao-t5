@@ -129,7 +129,10 @@ export function buildModelMessages(tc) {
     const e = tc.externalReality;
     const lines = [];
     // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
-    if (e.reach?.length) lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach.join(' · ')}`);
+    if (e.reach?.length) {
+      lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach
+        .map((h) => (h.limit ? `${h.label}(${h.limit})` : h.label)).join(' · ')}`);
+    }
     const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
     const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
     if (연결됨.length) lines.push(`직접 연결된 서비스: ${연결됨.map((s) => s.label).join(' · ')}`);
