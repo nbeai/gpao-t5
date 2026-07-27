@@ -1028,6 +1028,25 @@ export function makeServer(deps = {}) {
   };
   // 승인이 필요한 일은 채널에서 자동으로 실행하지 않는다. 무엇을 하려는지·왜 멈췄는지만 알린다 —
   // 승인은 T5 화면에서 받는다(밖에서 "네" 한 마디로 외부 효과가 나가면 안 된다).
+  /**
+   * 채널 자동 답장의 전달 사실을 **전달 원장에 남긴다**(P6-14 와 같은 원장, 같은 모양).
+   * 남기지 않으면 "보낸 척 금지"가 검사할 수 없는 약속이 된다 — 실제로 그랬다.
+   * 기록 자체가 실패해도 답장을 막지 않는다(원장은 부가 사실이지 전달 조건이 아니다).
+   */
+  async function 전달기록(sessionId, channel, target, text, sent) {
+    try {
+      const 실패 = sent?.result?.sent ? 'none' : (sent?.sendState ?? 'failed');
+      const dl = await deliveryStore.load();
+      let rec = makeDelivery({
+        id: randomUUID(), sessionId, tool: `${channel}.send`, channel, target,
+        artifact: { text }, now: Date.now(),
+      });
+      rec = applyDeliveryResult(rec, 실패, sent?.userSafeSummary, Date.now());
+      dl.deliveries.push(rec);
+      await deliveryStore.save(dl);
+    } catch { /* 원장을 못 남겨도 답장은 이미 나갔다 — 그 사실을 지우지 않는다 */ }
+  }
+
   function approvalNoticeText(result) {
     const first = result.pending?.[0];
     // **모델이 이미 한 말이 있으면 그게 사용자 말이다.** 채널이라고 말투가 바뀌지 않는다
@@ -1150,8 +1169,15 @@ export function makeServer(deps = {}) {
         result.channelDelivery = sent?.result?.sent
           ? { sent: true, target: msg.chatId }
           : { sent: false, reason: sent?.sendState ?? 'failed', userSafeSummary: sent?.userSafeSummary };
+        // **이 줄이 없어서 전달 사실이 어디에도 안 남았다.** 위 `result` 는 processChannelInbound 가
+        // `ok({...result})` 로 만든 **복사본**이고 그 뒤에 저장이 없다 — 주석은 "원장에 남긴다"고
+        // 말하는데 코드는 안 남겼다. 실측(56a6ae67, 텔레그램 26턴): transcript 의 channelDelivery 가
+        // 전부 null, 전달 원장에 그 세션 건 0건. 그래서 "보낸 척 금지"를 **사후에 확인할 방법이 없었다.**
+        // 승인된 send(`sentVia`)만 원장에 남고, 채널 자동 답장은 통째로 빠져 있었다.
+        await 전달기록(sessionId, msg.channel, msg.chatId, answer, sent);
       } else {
         result.channelDelivery = { sent: false, reason: 'no_sender' };
+        await 전달기록(sessionId, msg.channel, msg.chatId, answer, { sendState: 'no_sender', userSafeSummary: '보낼 손이 없어요.' });
       }
     }
     return { ...result, sessionId };
