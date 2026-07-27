@@ -125,6 +125,12 @@ export function makeLocalLocateTool(deps = {}) {
   const homeOf = () => deps.home ?? homedir();
 
   return {
+    /**
+     * 지금 볼 수 있는 자리. **도구를 부르지 않아도** 매 턴 모델에게 사실로 간다 —
+     * 실측: "폴더를 어떻게 알려주면 돼?"에 모델이 도구를 안 부르고 답했고(원장 0건),
+     * 그래서 자리 목록을 못 봤다. 도구 결과로는 못 푸는 자리였다.
+     */
+    async places() { return 볼수있는자리(homeOf(), deps.volumesDir); },
     async handler(args = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
       const from = args.from ? String(args.from) : homeOf();

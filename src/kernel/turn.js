@@ -33,6 +33,16 @@ import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE } from './contracts.js';
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 
+/**
+ * P6-W3 · **지금 볼 수 있는 자리.** 매 턴 사실로 준다 — 도구를 부를 때만 알 수 있게 두면
+ * 사용자가 "폴더를 어떻게 알려주면 돼?"라고 물었을 때 모델이 도구를 안 부르고 답한다.
+ * 실측에서 그때 경로를 복사해 오라고 시켰다(원장: 그 턴 도구 호출 0건).
+ * 손이 없거나 못 읽으면 **아무 말도 안 한다**(지어내지 않는다).
+ */
+async function 볼수있는자리(ctx) {
+  try { return await ctx.tools?.tools?.['local.locate']?.places?.(); } catch { return undefined; }
+}
+
 // 한 턴에 손을 이어 쓸 수 있는 횟수. 찾기→확인→실행이면 3걸음이면 충분하고,
 // 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
 const MAX_TOOL_STEPS = 4;
@@ -237,7 +247,7 @@ export async function runTurn(input, ctx) {
     // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
     // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
     // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
-    const idleState = deriveWorkingState(ctx.workingState, { receipts: [] });
+    const idleState = deriveWorkingState(ctx.workingState, { receipts: [], places: await 볼수있는자리(ctx) });
     return {
       kind: 'reply',
       reply: earlyReply,
@@ -512,6 +522,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = deriveWorkingState(ctx.workingState, {
+    places: await 볼수있는자리(ctx),
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
   });

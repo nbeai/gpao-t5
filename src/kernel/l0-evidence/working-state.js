@@ -123,6 +123,9 @@ function subjectFrom(receipt) {
 export function deriveWorkingState(prevState, turn = {}) {
   const prev = prevState ?? {};
   const turnNo = (prev.turnNo ?? 0) + 1;
+  // P6-W3: **지금 볼 수 있는 자리.** 사용자는 경로를 모르고 알 필요도 없다 — 이름으로 고른다.
+  // 이번 턴에 새로 알아냈으면 갱신하고, 아니면 지난 것을 그대로 이어간다(사라지면 "거기"가 끊긴다).
+  const places = turn.places ?? prev.places;
   const receipts = turn.receipts ?? [];
 
   // 이번 턴에 실제로 다룬 대상들(성공분만).
@@ -151,6 +154,7 @@ export function deriveWorkingState(prevState, turn = {}) {
 
   return {
     turnNo,
+    ...(places?.length ? { places } : {}),
     subjects: merged,
     pendingApprovals: turn.pendingApprovals?.length ? turn.pendingApprovals : prev.pendingApprovals,
     blocked,
@@ -183,6 +187,11 @@ export function workingStateFacts(stateOrNull) {
   // 코드 폴더만이 아니다: 정산 자료를 읽었으면 그 폴더가, 서버를 켰으면 그 자리가 여기 온다.
   const 자리 = [...current, ...older].find((s) => typeof s.detail === 'string' && s.detail.startsWith('/'))?.detail;
   if (자리) lines.push(`지금 자리: ${자리}`);
+  // **볼 수 있는 자리는 이름만 준다.** 경로를 늘어놓으면 프롬프트를 먹고, 사용자도 경로로 말하지 않는다.
+  // 사용자가 "외장하드요", "거기"라고 하면 모델이 이 이름들 중에서 고른다(우리가 파싱하지 않는다 — §24).
+  if (state.places?.length) {
+    lines.push(`볼 수 있는 자리: ${state.places.map((p) => p.label).slice(0, 10).join(' · ')}`);
+  }
   for (const s of current) {
     if (s.kind === 'web') {
       lines.push(`방금 읽은 자료: ${s.label} (${s.detail})`);
