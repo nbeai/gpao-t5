@@ -120,3 +120,30 @@ test('찾아본 범위를 남긴다("없다"와 "여기까진 봤다"는 다른 
   assert.equal(r.result.searched.depth, 3);
   assert.ok(r.result.searched.folders > 0);
 });
+
+// ── 못 찾았을 때 경로를 복사해 오라고 하지 않는다 ────────────────────────
+// 실측(라이브): "폴더를 어떻게 알려주면 돼?"에 T5 가 "Finder 우클릭 → Option → 경로명 복사
+// → 붙여넣기"라고 답했다. 터미널 떠넘김의 GUI 판이다. 사용자는 경로를 모르고 알 필요도 없다 —
+// **부르는 이름으로 고를 수 있어야 한다**("외장하드요", "다운로드요").
+test('못 찾으면 볼 수 있는 자리를 이름으로 준다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-자리-'));
+  const vol = await mkdtemp(join(tmpdir(), 'gpao-t5-볼륨-'));
+  for (const d of ['Documents', 'Downloads', '회계']) await mkdir(join(home, d), { recursive: true });
+  for (const d of ['백업디스크', '작업용SSD']) await mkdir(join(vol, d), { recursive: true });
+
+  const r = await makeLocalLocateTool({ home, volumesDir: vol }).handler({ what: '외장하드에 있는 정산 자료' });
+  const 자리 = r.result.placesToLook ?? [];
+  assert.ok(자리.length > 0, '어디를 볼 수 있는지 안 주면 모델이 경로를 복사해 오라고 시킨다');
+  assert.ok(자리.some((p) => p.label === '백업디스크' && p.kind === 'volume'), '연결된 디스크를 이름으로 보여줘야 한다');
+  assert.ok(자리.some((p) => p.label === 'Downloads' && p.kind === 'folder'));
+  // 사용자가 이름을 고르면 그 자리에서 다시 찾는다 — 경로를 물어보지 않는다.
+  assert.ok(자리.every((p) => p.path && p.label), '이름과 자리가 짝지어져 있어야 골라서 이어갈 수 있다');
+  assert.doesNotMatch(r.nextSafeAction, /경로|복사|붙여/, '경로를 복사해 오라고 하면 안 된다');
+});
+
+test('찾았을 때는 자리 목록으로 지면을 채우지 않는다', async () => {
+  const [c] = await 찾기(await 가짜홈(), '정산');
+  assert.ok(c, '찾았어야 한다');
+  const r = await makeLocalLocateTool({ home: await 가짜홈() }).handler({ what: '정산' });
+  assert.equal(r.result.placesToLook, undefined, '이미 찾았는데 다른 자리를 늘어놓으면 헷갈린다');
+});

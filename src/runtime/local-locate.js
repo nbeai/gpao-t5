@@ -91,7 +91,34 @@ function 근거(성, 이름맞음, 최근일) {
 }
 
 /**
- * @param {{home?:string}} [deps] home 을 주입할 수 있어야 가짜 홈으로 검사할 수 있다
+ * 지금 이 컴퓨터에서 **볼 수 있는 자리들.** 사용자에게 경로를 물어보는 대신 이걸 보여준다.
+ *
+ * 실측(라이브): "폴더를 어떻게 알려주면 돼?"에 T5 가 "Finder 우클릭 → Option → 경로명 복사 →
+ * 붙여넣기"라고 답했다. 터미널 떠넘김의 GUI 판이다. 사용자는 경로를 모르고, 알 필요도 없다 —
+ * **부르는 이름으로 고를 수 있어야 한다**("외장하드요", "다운로드요").
+ */
+async function 볼수있는자리(home, volumesDir = '/Volumes') {
+  const 자리 = [];
+  try {
+    for (const name of await readdir(volumesDir)) {
+      if (name.startsWith('.')) continue;
+      const full = join(volumesDir, name);
+      // 시스템 디스크는 "다른 자리"로 제안할 대상이 아니다(홈이 이미 거기 있다).
+      if (/^Macintosh HD$/i.test(name)) continue;
+      자리.push({ label: name, path: full, kind: 'volume', hint: '연결된 디스크' });
+    }
+  } catch { /* 볼륨을 못 보면 그냥 안 넣는다 */ }
+  try {
+    for (const e of await readdir(home, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith('.') || SKIP.has(e.name)) continue;
+      자리.push({ label: e.name, path: join(home, e.name), kind: 'folder', hint: '내 폴더' });
+    }
+  } catch { /* 홈을 못 보면 넣지 않는다 */ }
+  return 자리.slice(0, 14); // 목록이 길면 고르기 어렵다
+}
+
+/**
+ * @param {{home?:string, volumesDir?:string}} [deps] 주입할 수 있어야 가짜 홈으로 검사할 수 있다
  *   (특정 사용자 경로를 하드코딩하면 그 순간 게이트에서 걸린다).
  */
 export function makeLocalLocateTool(deps = {}) {
@@ -169,6 +196,10 @@ export function makeLocalLocateTool(deps = {}) {
           ...(후보.length > 고른것.length ? { moreCandidates: 후보.length - 고른것.length } : {}),
           // 못 찾았으면 **넓힐 수 있다는 사실**을 준다 — 모델이 다시 부를 근거가 된다.
           ...(고른것.length === 0 ? { canWiden: depth < 5, suggestDepth: Math.min(depth + 2, 5) } : {}),
+          // 못 찾았으면 **어디를 더 볼 수 있는지**를 준다. 이게 없으면 모델이 사용자에게
+          // 경로를 복사해 오라고 시킨다(실측). 사용자는 "외장하드요"라고 부를 수 있으면 된다.
+          ...(고른것.length === 0 || (물었나 && !짚었나)
+            ? { placesToLook: await 볼수있는자리(homeOf(), deps.volumesDir) } : {}),
           ...(멈춤 ? { stoppedAtLimit: true } : {}),
           ...(안본자리.length ? { skippedProtected: 안본자리.length } : {}),
         },
@@ -180,7 +211,8 @@ export function makeLocalLocateTool(deps = {}) {
             ? `${고른것[0].path} 인 것 같아요 (${고른것[0].why}).`
             : `${고른것.length}곳이 후보예요.`,
         ...(고른것.length === 0 || (물었나 && !짚었나)
-          ? { nextSafeAction: depth < 5 ? '더 넓게 찾아볼까요? 아니면 폴더를 직접 열어 주셔도 돼요.' : '그 자료가 있는 폴더를 열어 주시면 거기서 찾을게요.' }
+          // **경로를 복사해 오라고 하지 않는다.** 이름으로 고르게 한다.
+          ? { nextSafeAction: '어느 자리에 있는지 이름으로 알려주시면(예: 외장하드, 다운로드) 거기서 찾아볼게요.' }
           : {}),
       };
     },
