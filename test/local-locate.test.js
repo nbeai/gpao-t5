@@ -141,6 +141,65 @@ test('못 찾으면 볼 수 있는 자리를 이름으로 준다', async () => {
   assert.doesNotMatch(r.nextSafeAction, /경로|복사|붙여/, '경로를 복사해 오라고 하면 안 된다');
 });
 
+// ── 이름으로 고른 자리가 실제로 그 자리에서 찾아진다 ──────────────────────
+//
+// W3 의 계약은 여기서 닫힌다. 라이브 실측(a36d4627·f735d724, 2026-07-27):
+// 사용자가 "작업용SSD"라고 답하자 모델은 `local.locate{ from: "작업용SSD" }` 를 골랐다.
+// **모델은 옳게 골랐다.** 런타임이 그 이름을 폴더 경로로 그대로 쓰는 바람에 `folders: 0`
+// 으로 끝났고, 실제 성공은 모델이 셸(`find`·`ls`·heredoc)로 우회해서 만들었다.
+//
+// 모델이 이름을 넘기는 건 **우리가 이름만 줬기 때문이다** — 화면에 나가는 "볼 수 있는 자리"는
+// 프롬프트를 아끼려고 label 만 싣는다. 그러면 경로를 승계하는 건 런타임의 일이다.
+// (§24 · 「모델이 고른 인자로 실행한다」)
+async function 이름으로고르는판() {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-이름-'));
+  const vol = await mkdtemp(join(tmpdir(), 'gpao-t5-볼륨-'));
+  for (const d of ['Documents', 'Downloads']) await mkdir(join(home, d), { recursive: true });
+  await mkdir(join(vol, '작업용SSD', '2026 정산자료'), { recursive: true });
+  for (const f of ['1분기-매입.xlsx', '1분기-매출.xlsx', '증빙.pdf', '부가세.pdf']) {
+    await writeFile(join(vol, '작업용SSD', '2026 정산자료', f), 'x');
+  }
+  return { home, vol, tool: makeLocalLocateTool({ home, volumesDir: vol }) };
+}
+
+test('자리를 이름으로 고르면 그 자리에서 찾는다(경로를 몰라도 된다)', async () => {
+  const { tool } = await 이름으로고르는판();
+  // 사용자가 "작업용SSD"라고 답했을 때 모델이 고르는 바로 그 인자.
+  const r = await tool.handler({ what: '정산 자료', from: '작업용SSD' });
+  assert.ok(r.result.searched.folders > 0,
+    `이름을 자리로 못 바꿔서 아무 데도 안 봤다 — searched=${JSON.stringify(r.result.searched)}`);
+  const [으뜸] = r.result.candidates;
+  assert.ok(으뜸, `"작업용SSD" 안의 정산 자료를 못 찾았다 — ${r.userSafeSummary}`);
+  assert.match(으뜸.path, /작업용SSD.*정산/, `엉뚱한 자리를 짚었다: ${으뜸.path}`);
+  assert.equal(으뜸.confidence, 'high');
+});
+
+test('이름을 자리로 바꿨다는 사실이 원장에 남는다(무엇을 어디로 읽었는지)', async () => {
+  const { vol, tool } = await 이름으로고르는판();
+  const r = await tool.handler({ what: '정산 자료', from: '작업용SSD' });
+  assert.equal(r.result.searched.from, join(vol, '작업용SSD'), '실제로 본 자리가 원장에 안 남는다');
+  assert.equal(r.result.searched.fromName, '작업용SSD', '어느 이름을 자리로 읽었는지 안 남으면 나중에 못 따진다');
+});
+
+test('없는 이름은 조용히 홈으로 떨어지지 않는다(엉뚱한 자리를 뒤진 걸 "못 찾았다"로 말하지 않는다)', async () => {
+  const { home, tool } = await 이름으로고르는판();
+  const r = await tool.handler({ what: '정산 자료', from: '없는외장하드' });
+  assert.notEqual(r.result.searched.from, home,
+    '모르는 이름을 홈으로 바꿔치기하면, 홈을 뒤진 결과를 그 자리 결과인 척 말하게 된다');
+  assert.equal(r.result.candidates.length, 0);
+  assert.match(r.userSafeSummary, /없는외장하드/, '어느 이름이 안 보이는지 말해야 사용자가 고쳐 부른다');
+  assert.ok((r.result.placesToLook ?? []).length > 0, '대신 볼 수 있는 자리를 줘야 이어갈 수 있다');
+  assert.doesNotMatch(r.nextSafeAction ?? '', /경로|복사|붙여/);
+});
+
+test('진짜 경로를 주면 그대로 쓴다(이름 승계가 경로를 가로채지 않는다)', async () => {
+  const { vol, tool } = await 이름으로고르는판();
+  const r = await tool.handler({ what: '정산 자료', from: join(vol, '작업용SSD') });
+  assert.equal(r.result.searched.from, join(vol, '작업용SSD'));
+  assert.equal(r.result.searched.fromName, undefined, '경로를 준 것을 이름으로 읽었다고 하면 거짓이다');
+  assert.ok(r.result.candidates.length > 0);
+});
+
 test('찾았을 때는 자리 목록으로 지면을 채우지 않는다', async () => {
   const [c] = await 찾기(await 가짜홈(), '정산');
   assert.ok(c, '찾았어야 한다');

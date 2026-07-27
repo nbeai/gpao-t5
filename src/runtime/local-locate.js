@@ -117,6 +117,32 @@ async function 볼수있는자리(home, volumesDir = '/Volumes') {
   return 자리.slice(0, 14); // 목록이 길면 고르기 어렵다
 }
 
+/** 경로를 복사해 오라고 하지 않는다. 이름으로 고르게 한다. */
+const 이름으로골라 = '어느 자리에 있는지 이름으로 알려주시면(예: 외장하드, 다운로드) 거기서 찾아볼게요.';
+
+/**
+ * 모델이 준 `from` 을 **실제 자리로 승계한다.**
+ *
+ * 라이브 실측(2026-07-27): 사용자가 "작업용SSD"라고 답하자 모델은 `from: "작업용SSD"` 를 골랐다.
+ * **모델은 옳게 골랐다** — 화면에 나가는 "볼 수 있는 자리"가 이름만 싣기 때문이다(경로를 늘어놓으면
+ * 프롬프트를 먹는다). 그런데 여기서 그 이름을 폴더 경로로 그대로 써서 아무 데도 못 봤다.
+ * 이름만 준 쪽이 우리이므로 **이름을 자리로 바꾸는 것도 우리 일이다.**
+ *
+ * 모르는 이름을 홈으로 바꿔치기하지 않는다 — 그러면 홈을 뒤진 결과를 그 자리 결과인 척 말하게 된다.
+ * @returns {{path?:string, name?:string, unknown?:string}}
+ */
+function 자리로(from, 자리들, home) {
+  // 빈 칸은 없는 칸이다 — 모델은 안 쓰는 인자도 `''` 로 채워 보낸다(같은 실수를 세 번 했다).
+  const 말 = typeof from === 'string' ? from.trim() : '';
+  if (!말) return { path: home };
+  if (말 === '~') return { path: home };
+  if (말.startsWith('~/')) return { path: join(home, 말.slice(2)) };
+  // 경로를 준 것을 이름으로 다시 해석하지 않는다(모델·스킬이 정확히 짚었을 때 가로채면 안 된다).
+  if (말.startsWith('/')) return { path: 말 };
+  const 맞음 = 자리들.find((p) => p.label.toLowerCase() === 말.toLowerCase());
+  return 맞음 ? { path: 맞음.path, name: 맞음.label } : { unknown: 말 };
+}
+
 /**
  * @param {{home?:string, volumesDir?:string}} [deps] 주입할 수 있어야 가짜 홈으로 검사할 수 있다
  *   (특정 사용자 경로를 하드코딩하면 그 순간 게이트에서 걸린다).
@@ -133,7 +159,26 @@ export function makeLocalLocateTool(deps = {}) {
     async places() { return 볼수있는자리(homeOf(), deps.volumesDir); },
     async handler(args = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
-      const from = args.from ? String(args.from) : homeOf();
+      // 한 번만 읽고 두 곳(이름 승계·placesToLook)에서 같이 쓴다 — 모델이 본 이름과
+      // 우리가 푸는 이름이 **같은 목록**에서 나와야 한다(두 진실 금지).
+      let 자리캐시;
+      const 자리목록 = async () => (자리캐시 ??= await 볼수있는자리(homeOf(), deps.volumesDir));
+      const 고른자리 = 자리로(args.from, await 자리목록(), homeOf());
+      // 모르는 이름이면 **찾지 않는다.** 엉뚱한 자리를 뒤지고 "못 찾았다"고 하면, 사용자는
+      // 자료가 없는 줄 알지만 사실은 우리가 그 자리를 못 연 것이다(다른 사실이다).
+      if (고른자리.unknown) {
+        return {
+          result: {
+            candidates: [],
+            searched: { from: null, folders: 0 },
+            unknownPlace: 고른자리.unknown,
+            placesToLook: await 자리목록(),
+          },
+          userSafeSummary: `"${고른자리.unknown}"라는 자리는 지금 안 보여요.`,
+          nextSafeAction: 이름으로골라,
+        };
+      }
+      const from = 고른자리.path;
       const depth = Math.min(Math.max(Number(args.depth) || 3, 1), 5);
       const 낱말들 = 낱말(말);
       const 찾는종류 = 부른종류(말);
@@ -198,14 +243,15 @@ export function makeLocalLocateTool(deps = {}) {
       return {
         result: {
           candidates: 고른것,
-          searched: { from, depth, folders: 본폴더 },
+          // 어느 이름을 어느 자리로 읽었는지 함께 남긴다 — 나중에 "왜 거기를 봤나"를 따질 수 있어야 한다.
+          searched: { from, ...(고른자리.name ? { fromName: 고른자리.name } : {}), depth, folders: 본폴더 },
           ...(후보.length > 고른것.length ? { moreCandidates: 후보.length - 고른것.length } : {}),
           // 못 찾았으면 **넓힐 수 있다는 사실**을 준다 — 모델이 다시 부를 근거가 된다.
           ...(고른것.length === 0 ? { canWiden: depth < 5, suggestDepth: Math.min(depth + 2, 5) } : {}),
           // 못 찾았으면 **어디를 더 볼 수 있는지**를 준다. 이게 없으면 모델이 사용자에게
           // 경로를 복사해 오라고 시킨다(실측). 사용자는 "외장하드요"라고 부를 수 있으면 된다.
           ...(고른것.length === 0 || (물었나 && !짚었나)
-            ? { placesToLook: await 볼수있는자리(homeOf(), deps.volumesDir) } : {}),
+            ? { placesToLook: await 자리목록() } : {}),
           ...(멈춤 ? { stoppedAtLimit: true } : {}),
           ...(안본자리.length ? { skippedProtected: 안본자리.length } : {}),
         },
@@ -216,10 +262,7 @@ export function makeLocalLocateTool(deps = {}) {
             : 고른것.length === 1
             ? `${고른것[0].path} 인 것 같아요 (${고른것[0].why}).`
             : `${고른것.length}곳이 후보예요.`,
-        ...(고른것.length === 0 || (물었나 && !짚었나)
-          // **경로를 복사해 오라고 하지 않는다.** 이름으로 고르게 한다.
-          ? { nextSafeAction: '어느 자리에 있는지 이름으로 알려주시면(예: 외장하드, 다운로드) 거기서 찾아볼게요.' }
-          : {}),
+        ...(고른것.length === 0 || (물었나 && !짚었나) ? { nextSafeAction: 이름으로골라 } : {}),
       };
     },
   };
