@@ -45,7 +45,11 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch } = {}) 
     // "아무것도 안 바꿨다"는 증명은 그대로다. $TMPDIR 전체를 열면 안 된다 — 거기엔 남의 것이
     // 있다(적대적 검증의 미끼밭이 바로 거기 있고, 넓히면 30건 중 여럿이 뚫린다 — 반대 검증함).
     ...(scratch ? [`(allow file-write* (subpath ${lit(scratch)}))`] : []),
-    '(deny network*)',
+    // P5-B-1B `reach`: **읽기만 하되 바깥에 닿는** 자리. 커넥터가 선언한 CLI 손(`gh pr list`,
+    // `aws s3 ls`)이 여기 산다 — 이 컴퓨터의 것은 하나도 못 바꾸는데 자기 서비스에는 물어봐야 한다.
+    // probe 로 돌리면 네트워크가 막혀 "설치돼 있는데 안 되는" 상태가 되고, granted 로 돌리면
+    // 파일 쓰기까지 열린다. **능력을 위해 안전을 푸는 게 아니라, 없던 칸에 이름을 붙인 것이다.**
+    ...(mode === 'reach' ? [] : ['(deny network*)']),
     denySecrets,
     '',
   ].join('\n');

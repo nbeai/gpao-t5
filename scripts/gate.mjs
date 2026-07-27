@@ -564,6 +564,7 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     'src/runtime/oauth-pkce.js',          // OAuth/PKCE 실행기
     'src/runtime/api-key.js',             // API 키 실행기
     'src/runtime/http-tool.js',           // 선언형 HTTP 도구(API 키 커넥터의 손)
+    'src/runtime/cli-tool.js',            // 선언형 CLI 도구(이미 깔린 명령)
     'src/runtime/mcp-http.js',            // MCP 원격 전송
     'src/runtime/mcp-client.js',          // MCP stdio 전송
     'src/runtime/tool-admission.js',      // 도구 편입

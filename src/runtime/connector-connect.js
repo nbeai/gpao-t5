@@ -14,6 +14,7 @@ import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
 import { runOAuth, refreshTokens } from './oauth-pkce.js';
 import { secretFields, missingFields, verifyApiKey } from './api-key.js';
 import { admitHttpTools, probeHttpTool } from './http-tool.js';
+import { admitCliTools, probeCli } from './cli-tool.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
@@ -390,6 +391,27 @@ export function makeConnectorConnectTool(deps = {}) {
           if (r.needsSecret) return r.needsSecret; // 사용자에게 안전 입력창을 열어 준다
           실패.push(`api_key: ${r.reason}`);
           continue;
+        }
+        // ── 이미 깔린 명령으로 붙는다 ─────────────────────────────────────
+        // 토큰도 동의 화면도 없다. **있으면 바로 쓰고, 없으면 어디서 받는지까지 말한다.**
+        if (m.kind === 'cli') {
+          const 있나 = await probeCli(m.command, { run: deps.runCommand });
+          if (!있나.installed) {
+            실패.push(m.install?.steps?.length
+              ? `이 컴퓨터에 ${m.command} 가 없어요 — ${m.install.steps[0]}`
+              : `이 컴퓨터에 ${m.command} 가 없어요`);
+            continue;
+          }
+          const 손 = admitCliTools({ connector: c, tools: m.tools, run: deps.runCommand }, ctx);
+          if (!손.length) { 실패.push(`${m.command} 는 있는데 쓸 수 있는 손이 없어요`); continue; }
+          live.set(c.id, { admitted: 손 });
+          c.connected = true;
+          c.lastCheckedAt = Date.now();
+          c.lastError = undefined;
+          return {
+            result: { connector: c.id, label: c.label, connected: true, tools: 손, method: 'cli', where: 있나.where },
+            userSafeSummary: `${c.label}에 연결했어요. 이 컴퓨터에 깔려 있어서 바로 쓸 수 있어요.`,
+          };
         }
         if (m.kind !== 'mcp') { 실패.push(`${m.kind}: 아직 이 방식은 실행기가 없어요`); continue; }
         // 커넥터가 주소를 선언했으면 그것이 먼저다(등록된 설정이 없어도 붙을 수 있다).

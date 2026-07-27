@@ -171,6 +171,33 @@ export function demoConnectors() {
         }],
       }],
     }),
+    // P5-B-1B: **이미 깔려 있는 프로그램으로 붙는 방식.** 토큰도 동의 화면도 없다 —
+    // 다섯 방식 중 유일하게 사용자가 내줄 것이 하나도 없는 길이다.
+    defineConnector({
+      id: 'github', label: '깃허브', kind: 'provider', category: 'dev', connected: false,
+      aliases: ['github', '깃허브', 'gh', '깃헙'],
+      userJobs: ['내 저장소 목록을 가져와요', '열려 있는 PR·이슈를 확인해요'],
+      localSigns: [{ kind: 'cli', command: 'gh', label: '깃허브 명령' }],
+      authMethods: [{
+        kind: 'cli', command: 'gh',
+        install: { steps: ['깃허브 명령(gh)을 먼저 설치하고 로그인해 주세요'] },
+        tools: [{
+          name: 'repos', label: '저장소 목록', toolKind: 'read',
+          capability: '내 깃허브 저장소 목록을 가져온다. 이름·설명·마지막 변경 시각을 본다.',
+          description: '깃허브에 있는 내 저장소들을 가져온다.',
+          parameters: { type: 'object', properties: { limit: { type: 'number', description: '몇 개까지(기본 20)' } } },
+          defaults: { limit: 20 },
+          run: { command: 'gh', args: ['repo', 'list', '--limit', '{limit}', '--json', 'name,description,updatedAt'] },
+        }, {
+          name: 'prs', label: '열린 PR', toolKind: 'read',
+          capability: '지금 열려 있는 PR 목록을 가져온다. 어느 저장소인지는 지금 폴더를 따른다.',
+          description: '열려 있는 PR 을 확인한다.',
+          parameters: { type: 'object', properties: { limit: { type: 'number' } } },
+          defaults: { limit: 20 },
+          run: { command: 'gh', args: ['pr', 'list', '--limit', '{limit}', '--json', 'number,title,author,updatedAt'] },
+        }],
+      }],
+    }),
     defineConnector({
       id: 'google', label: '구글', kind: 'provider', category: 'workspace', authState: 'oauth', connected: false,
       aliases: ['google', '구글', '드라이브', 'drive', '캘린더', 'calendar', '구글독스', '스프레드시트'],
