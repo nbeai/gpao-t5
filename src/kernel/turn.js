@@ -237,8 +237,10 @@ export async function runTurn(input, ctx) {
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
   let modelChosen = null;
   let earlyReply = null;
+  // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
+  let earlyTc;
   {
-    const tc = buildTaskContext({
+    const tc = earlyTc = buildTaskContext({
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
       surface: ctx.surface,
@@ -449,9 +451,26 @@ export async function runTurn(input, ctx) {
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
     // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
     ctx.pending.set(pendingId, { intent, plan, admitted, sendArgs, grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS } });
+    // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
+    // 승인 카드만 뜨고 T5 는 한 마디도 안 했다 — 사용자에겐 먹통으로 보인다. 카드에는 명령
+    // 원문이 있지만, 그건 "무엇을 이해했고 왜 멈췄는지"가 아니다.
+    //   · 모델이 도구를 고르며 이미 한 말이 있으면 **그걸 버리지 않는다**(toolCalls 를 버렸던
+    //     것과 같은 자리의 거울상이다 — 그때도 모델은 옳게 말했는데 우리가 버렸다).
+    //   · 없으면 손을 빼고 한 번 더 묻는다. 고를 것이 없으니 모델은 지금까지의 사실로 말한다.
+    let 멈춤설명 = (earlyReply ?? '').trim();
+    if (!멈춤설명 && earlyTc) {
+      const 라벨 = toolLabel(pendingGrants[0].action, selfState);
+      const out = await ctx.model.respond(
+        { ...earlyTc, recoveryHint: `${withParticle(라벨, '은')} 먼저 확인을 받아야 해서 아직 실행하지 않았어요.` },
+        { effort: 'medium' },
+      ).catch(() => null);
+      멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
+    }
     return {
       kind: 'approval',
       pendingId,
+      // 카드와 **함께** 나가는 사람 말. 없으면 필드 자체를 안 만든다(빈 말풍선 금지).
+      ...(멈춤설명 ? { reply: 멈춤설명 } : {}),
       approvalMode, // P6-15: 현재 승인 모드(조용한 표면 — 정책 아님, 판단을 보여줄 뿐)
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
       pending: pendingGrants.map((g) => ({

@@ -105,3 +105,29 @@ test('빈 문자열 인자는 없는 것으로 본다', { skip: !sandboxAvailabl
   // 진짜 값은 그대로 쓴다 — 빈 값을 막느라 멀쩡한 인자까지 버리면 안 된다.
   assert.match((await tool.handler({ command: 'pwd', cwd: '/tmp' })).result.stdout, /tmp/);
 });
+
+// **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
+// 승인 카드만 뜨고 T5 는 한 마디도 안 했다 — 원장엔 도구 0건, 화면엔 명령 원문뿐이었다.
+// 사용자에겐 먹통으로 보인다. 카드는 "무엇을 허락하느냐"고, 말은 "무엇을 이해했느냐"다.
+test('승인으로 멈춘 턴에도 T5 는 말을 한다(카드만 뜨고 침묵하지 않는다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const dir = await 자리();
+  const r = await runTurn({ text: '지워줘' }, ctx(dir, 명령('rm -f 있던.md')));
+  assert.equal(r.kind, 'approval', `승인에서 안 멈췄다(${r.kind})`);
+  assert.ok((r.reply ?? '').trim(), '승인 카드만 뜨고 아무 말도 안 했다 — 사용자에겐 먹통이다');
+});
+
+test('모델이 도구를 고르며 한 말을 버리지 않는다(승인으로 멈춰도)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const dir = await 자리();
+  let 물어본횟수 = 0;
+  const 말하며고른다 = {
+    async respond(_tc, opts = {}) {
+      물어본횟수 += 1;
+      if (opts.tools?.length) return { text: '있던.md 를 지우려고 해요.', toolCalls: 명령('rm -f 있던.md') };
+      return '했어요';
+    },
+  };
+  const r = await runTurn({ text: '지워줘' }, { env: demoEnv(), model: 말하며고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
+  assert.equal(r.kind, 'approval');
+  assert.match(r.reply ?? '', /있던\.md/, `모델이 이미 한 말을 버렸다: ${r.reply}`);
+  assert.equal(물어본횟수, 1, '이미 말이 있는데 모델을 또 불렀다(토큰 낭비)');
+});
