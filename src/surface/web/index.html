@@ -1148,9 +1148,19 @@ function renderResult(r, opts = {}) {
         const w = el('why'); w.innerHTML = `<b>왜 확인하나요</b> ${esc(p.reason.why)}`; card.appendChild(w);
       }
       // P6-7: send류는 어디에/무엇을을 사용자 언어로 분명히 보여준다(문장 전체가 아니라 분리된 내용).
-      if (p.preview?.what != null || p.preview?.where != null) {
+      //
+      // 2026-07-27 정정: 여기가 **도구 미리보기 계약(previewOf)의 `scope`·`duration` 을 안 그렸다.**
+      // 계약도 데이터도 맞았는데 화면만 빠져서, 실측에서 모델이 작업 루트 이름을 경로에 또 넣어
+      // `~/GPAO-T5/GPAO-T5/메모5.md` 에 파일이 생겼는데도 카드에는 `메모5.md 에 저장해요`만 떴다 —
+      // 누르기 전에 알 길이 없었다. `local.process` 의 "끌 때까지 계속 돌아요(이 대화를 닫아도
+      // 남아 있어요)" 도 같은 이유로 한 번도 화면에 못 나왔다. **소스가 아니라 산출물을 봐야 한다.**
+      const 자리 = p.preview?.where ?? p.preview?.scope;
+      const 기간 = p.preview?.duration;
+      if (p.preview?.what != null || 자리 != null || 기간 != null) {
         const d = el('why');
-        if (p.preview.where != null) d.appendChild(el(null, `어디에: ${p.preview.where}`));
+        // 어디에 일어나는가 + 얼마나 지속되는가를 한 줄로. 승인 카드가 길어지면 기계적으로 누르게 된다.
+        if (자리 != null) d.appendChild(el(null, `어디에: ${자리}${기간 != null ? ` · ${기간}` : ''}`));
+        else if (기간 != null) d.appendChild(el(null, `얼마나: ${기간}`));
         if (p.preview.what != null) d.appendChild(el(null, `무엇을: ${p.preview.what}`));
         card.appendChild(d);
       } else if (p.reason?.whatChanges) {
