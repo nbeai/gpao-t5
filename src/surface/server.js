@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
+import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
+import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
 import { AllowlistStore } from './allowlist-store.js';
 import { ChannelBindingStore } from './channel-binding-store.js';
@@ -120,7 +122,7 @@ export function makeServer(deps = {}) {
     ticking = true;
     try {
       const a = await autoStore.load();
-      const selfState = buildSelfState(env);
+      const selfState = buildSelfState(env, { tools });
       const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
       await autoStore.save(a);
       return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
@@ -530,7 +532,7 @@ export function makeServer(deps = {}) {
         // 만료를 강제할지는 **행동 종류**로 정한다. 도구 단위 needsApproval 로 보면 `local.file` 은
         // 플래그가 없어 삭제 자동화가 무기한 승인으로 통과했다(도구 단위 kind 고정이 만든 사고의 재판).
         const jobKind = toolActionKind({
-          toolId: cand.action?.tool, args: cand.action?.args, selfState: buildSelfState(env),
+          toolId: cand.action?.tool, args: cand.action?.args, selfState: buildSelfState(env, { tools }),
         });
         const external = isSafetyFloor(jobKind);
         const expiresAt = Number.isFinite(input.expiresAt) ? input.expiresAt : undefined;
@@ -690,7 +692,7 @@ export function makeServer(deps = {}) {
         if (d.sessionId !== sessionId) return sendJson(res, 403, { error: '다른 대화의 전달이라 여기서 다시 보낼 수 없어요.' });
         if (d.state === 'delivered') return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
         // 저장된 산출물을 그대로 재전달(재생성 없음). 실행 가능 게이트를 그대로 탄다.
-        const selfState = buildSelfState(env);
+        const selfState = buildSelfState(env, { tools });
         const rec = await tools.run(d.tool, { text: d.artifact?.text, target: d.target }, selfState);
         a.deliveries[idx] = applyDeliveryResult(d, rec.failureState, rec.userSafeSummary, Date.now());
         await deliveryStore.save(a);
@@ -701,7 +703,25 @@ export function makeServer(deps = {}) {
       if (req.method === 'GET' && url === '/toolbox') {
         const descriptors = deps.descriptors ?? demoDescriptors();
         const { tools: personalTools } = await personalStore.load(); // 2.0-C: 개인 도구 함께
-        return sendJson(res, 200, projectToolbox(buildSelfState(env), descriptors, personalTools));
+        return sendJson(res, 200, projectToolbox(buildSelfState(env, { tools }), descriptors, personalTools));
+      }
+
+      // ── 커넥터 진실 표면 (P5-B-0) ── **UI 가 아니라 데이터다.**
+      // 연결 센터 5탭은 다음 슬라이스다. 먼저 "진실이 한 곳에서 나오는 표면" 하나를 세운다 —
+      // 화면부터 만들면 움직이는 바닥 위에 짓게 된다(오늘 승인 카드가 그 사고였다: 커널은
+      // 맞는데 화면이 `scope` 를 안 그려서 사용자에겐 후퇴였다).
+      // 여기서 새로 판정하는 것은 없다. selfState(실행 가능성) · descriptor(소속·승인 필요) ·
+      // ConnectorDescriptor(서비스 정보)를 **합치기만** 한다.
+      if (req.method === 'GET' && url === '/connectors/truth') {
+        const descriptors = deps.descriptors ?? demoDescriptors();
+        const selfState = buildSelfState(env, { tools });
+        const connectors = deps.connectors ?? demoConnectors();
+        return sendJson(res, 200, {
+          connectors: connectorTruth(connectors, selfState, descriptors),
+          builtin: builtinTools(selfState, descriptors),
+          // 불변식을 데이터로도 확인할 수 있게 함께 낸다(게이트·검사가 같은 것을 본다).
+          modelSchema: toolSchemasFor(selfState).map((t) => t.name),
+        });
       }
 
       // ── 개인 도구 (2.0-C-1) ── 등록됨 ≠ 실행 가능. 설정 확인 통과 전에는 executable=false.
@@ -765,7 +785,7 @@ export function makeServer(deps = {}) {
           if (existing?.transcript?.length) return sendJson(res, 200, { state: 'skipped_existing' });
         }
         const connStatus = deps.modelConnection?.status?.() ?? {};
-        const selfState = buildSelfState(env);
+        const selfState = buildSelfState(env, { tools });
         let result;
         try {
           result = await makeWelcome({ model, selfState, connected: Boolean(connStatus.connected) });
@@ -1035,7 +1055,7 @@ export function makeServer(deps = {}) {
   // in-process 스케줄러가 부를 트러스트 tick(§8.3). HTTP를 거치지 않고 직접 실행 — 구성상 trusted.
   // P-ID-1: 문서를 읽고(없으면 오너 원문으로 시드) 능력 파생 구역을 지금 상태로 다시 만든다.
   server.loadSelfhood = async () => {
-    const capabilities = await selfhoodStore.refreshCapabilities(buildSelfState(env));
+    const capabilities = await selfhoodStore.refreshCapabilities(buildSelfState(env, { tools }));
     const loaded = await selfhoodStore.load();
     selfhoodDocs = { soul: loaded.soul, capabilities };
     identity = loaded.identity;

@@ -26,6 +26,20 @@ export function defineConnector(p) {
     kind: p.kind ?? 'channel',
     authState: p.authState ?? 'none',
     connected: p.connected ?? false,
+    // ── P5-B-0 진실층 최소판 ───────────────────────────────────────────────
+    // **커넥터는 자기만 아는 것을 든다**: 이 서비스가 무엇이고, 어떤 연결·자격·설정이 필요한가.
+    // 도구 목록과 승인 정책은 **여기 두지 않는다** — 도구 층(ToolDescriptor·handler·
+    // toolActionKind·needsApproval)에서 파생한다. 양쪽에 두면 승인의 진실이 둘이 되고,
+    // 그게 이 층을 만든 이유 그 자체다(2026-07-27 하루에 두 진실 사고가 세 번 났다).
+    category: p.category,               // 'channel' | 'mail' | 'commerce' | 'calendar' …
+    userJobs: p.userJobs ?? [],          // 사용자 말로 "이걸로 뭘 할 수 있나"
+    requiredSetup: p.requiredSetup ?? [],// 연결 전에 사용자가 갖춰야 하는 것(사람 말)
+    scopes: p.scopes ?? [],              // 요청할 권한 범위
+    limits: p.limits ?? [],              // 이 서비스로도 못 하는 것(정직한 한계)
+    setupGuide: p.setupGuide,            // 연결 방법 한 줄(사람 말)
+    localeRelevance: p.localeRelevance,  // 'kr' 등 — 한국 사용자에게 얼마나 가까운가
+    lastCheckedAt: p.lastCheckedAt,      // 마지막 연결 확인 시각(추측 금지)
+    lastError: p.lastError,              // 마지막 실패 이유(사람 말)
   };
 }
 

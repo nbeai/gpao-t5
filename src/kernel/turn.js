@@ -143,7 +143,7 @@ export async function runTurn(input, ctx) {
   ctx.surface = resolveResponseSurface(input);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
-  const selfState = buildSelfState(ctx.env);
+  const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
   const summary = selfStateSummary(selfState);
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).

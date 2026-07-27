@@ -13,6 +13,16 @@ export function demoConnectors() {
   return [
     defineConnector({ id: 'telegram', label: '텔레그램', kind: 'channel', authState: 'oauth', connected: true }),
     defineConnector({ id: 'slack.channel', label: '슬랙 채널', kind: 'channel', authState: 'oauth', connected: false }),
+    // P5-B-0: **연결 전 서비스도 선언한다.** 선언이 없으면 "연결하면 가능"을 말할 자리가 없어서
+    // 모델이 그 자리를 상상으로 메운다. 연결 흐름(OAuth)은 다음 슬라이스 범위다.
+    defineConnector({
+      id: 'mail', label: '메일', kind: 'provider', category: 'mail', authState: 'oauth', connected: false,
+      userJobs: ['메일을 대신 보내요', '보낼 내용을 미리 보여드리고 확인받아요'],
+      requiredSetup: ['Gmail 또는 Outlook 계정 연결'],
+      setupGuide: '메일 계정을 연결하면 T5가 대신 보낼 수 있어요. 보내기 전에 받는 사람과 내용을 보여드려요.',
+      limits: ['받은 메일을 읽는 기능은 아직 없어요'],
+      localeRelevance: 'kr',
+    }),
   ];
 }
 
@@ -145,7 +155,12 @@ const DESCRIPTORS = [
     },
   }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
-    capability: '메일을 보낸다(보내기 전 확인을 받는다).',
+    // P5-B-0 오너 결정(2026-07-27): **선언을 지우지 않고 연결 전 기능으로 낮춘다.**
+    // 실행할 손이 없으므로 실행 가능 도구가 아니다 — model schema·도구함·능력 문장 어디에도
+    // "지금 된다"로 나오지 않는다. 메일 커넥터가 붙고 handler·previewOf·receipt 가 닫히면
+    // 그때 실행 가능으로 올라온다(그 전에 올리지 않는다).
+    connector: 'mail',
+    capability: '메일 계정을 연결하면 메일을 보낼 수 있다(보내기 전 확인을 받는다).',
     // 지금은 실행 불가라 모델에게 안 보이지만, **연결되는 순간 보여야 한다.** 스키마가 없으면
     // 그때 `session.search` 와 똑같은 일이 난다 — 도구는 있는데 모델이 존재를 모른다.
     schema: {
@@ -159,7 +174,7 @@ const DESCRIPTORS = [
         required: ['text'],
       },
     } }),
-  defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
+  defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', connector: 'slack.channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
     capability: '슬랙에 글을 올린다(올리기 전 확인을 받는다).',
     schema: {
       description: '슬랙에 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
@@ -229,7 +244,7 @@ const DESCRIPTORS = [
       },
     },
   }),
-  defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
+  defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', connector: 'telegram', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
     capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).',
     schema: {
       description: '텔레그램으로 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
@@ -271,11 +286,36 @@ const FACTS = {
  *   factOverrides: 실제 자격 상태를 반영할 때 FACTS를 덮어쓴다(라이브).
  *   include: 그 도구만 자기 상태에 싣는다 — descriptor 선언과 같은 집합이어야 한다(단일 진실).
  */
+/**
+ * **선언과 손을 한 번에 만든다(P5-B-0).** 따로 만들면 어긋나고, 어긋난 쪽이 모델에게 노출된다 —
+ * demo 에서 `local.terminal`·`local.process`·`local.locate` 가 실제로 그랬다(손을 주입 안 하면
+ * 손은 없는데 schema 엔 있었다). 검사도 라이브와 같은 조합만 보게 한다.
+ * @param {object} [opts] demoTools 와 같은 주입 옵션(localTerminal·localFile·senders…)
+ * @returns {{env:object, tools:object, descriptors:object[]}}
+ */
+export function demoContext(opts = {}) {
+  const tools = demoTools(opts);
+  return {
+    tools,
+    env: demoEnv({ ...opts, hands: Object.keys(tools.tools ?? {}) }),
+    descriptors: demoDescriptors(opts),
+  };
+}
+
 export function demoEnv(opts = {}) {
   const facts = { ...FACTS, ...(opts.factOverrides ?? {}) };
+  // P5-B-0: **손이 있는지를 같은 자리에서 함께 판정한다.** 선언(descriptor)과 손(handler)을
+  // 따로 만들면 어긋나고, 어긋난 쪽이 모델에게 노출된다 — demo 에서 `local.terminal`·
+  // `local.process`·`local.locate` 가 실제로 그랬다(주입 안 하면 손이 없는데 schema 엔 있었다).
+  // `hasHandler` 를 실어 보내면 `toolReality` 가 그것부터 본다.
+  // 손 목록을 직접 아는 쪽(live)이 넘기면 그걸 쓰고, 아니면 같은 opts 로 만든 손에서 판정한다.
+  const hands = new Set(opts.hands ?? Object.keys(demoTools(opts).tools ?? {}));
   return {
     model: { id: 'beai5-stub', strengths: '자연 대화·판단', authSignal: 'ok' },
-    connections: demoDescriptors(opts).map((d) => toConnection(d, facts[d.id] ?? {})),
+    connections: demoDescriptors(opts).map((d) => ({
+      ...toConnection(d, facts[d.id] ?? {}),
+      hasHandler: hands.has(d.id),
+    })),
     grantedAuthorities: [],
   };
 }

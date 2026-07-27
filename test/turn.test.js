@@ -70,7 +70,13 @@ test('S15 실행 불가 도구는 쓴 척하지 않고 막힘으로 원장에 �
 
 // S20/S23: 외부 전송이 실행 가능해도 승인 전에는 멈춘다.
 test('S20 실행 가능한 발송은 승인 게이트에서 멈춘다', async () => {
-  const c = ctx({ connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }] });
+  // P5-B-0: **손이 있어야 실행 가능이다.** 예전엔 `executable:true` 만 적어 손 없는 발송을
+  // 흉내 냈는데, 이제 그 조합은 존재할 수 없다(그게 `mail.send` 유령의 정체였다).
+  // 시나리오의 뜻은 "실행 가능한 발송도 승인에서 멈춘다"이므로 **손을 실제로 붙여서** 본다.
+  const c = ctx({
+    connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler() { return { result: { sent: true } }; } } }),
+  });
   const r = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   assert.equal(r.kind, 'approval');
   assert.ok(r.pending.some((p) => p.tier === 'A2'));

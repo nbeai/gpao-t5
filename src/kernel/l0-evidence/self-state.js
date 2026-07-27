@@ -59,18 +59,73 @@ function deriveToolStatus(t) {
 }
 
 /**
+ * **P5-B-0 진실층: 상태는 enum 하나가 아니라 두 축이다.**
+ *
+ *   ① 지금 실행 가능한가 (executable: boolean)
+ *   ② 아니라면 왜인가     (reason)
+ *
+ * 왜 나누는가: 하나의 enum 으로 두면 소비자 다섯(selfState·도구함·model schema·능력 문장·
+ * 연결 센터)이 **각자 여러 값을 해석해야 하고 반드시 어긋난다.** 2026-07-27 하루에만 그
+ * 어긋남이 세 번 났다(능력 문장↔schema, 승인 카드↔인자, 보고↔원장). 두 축이면 불변식이
+ * 한 줄로 끝난다: **model tool schema ⊆ executable:true.** 이유가 늘어도 그 줄은 안 바뀐다.
+ *
+ * **손 없음이 최우선이다.** 자격이 채워져도 실행할 손이 없으면 실행 가능이 아니다 —
+ * `mail.send` 가 정확히 그랬다(descriptor 는 있고 handler 는 어디에도 없다). 예전엔
+ * `auth:false` 덕에 **우연히** schema 에서 빠져 있었을 뿐이라, 누가 자격만 채우면 곧바로
+ * "없는 손을 있다고 말하는 도구"가 됐다. 우연이 아니라 구조로 막는다.
+ *
+ * @param {{connected?:boolean, executable?:boolean, needs?:string, status?:string, hasHandler?:boolean}} t
+ * @returns {{executable:boolean, reason?:'needs_connection'|'needs_setup'|'needs_permission'|'planned'|'disabled'|'error'}}
+ */
+export function toolReality(t = {}) {
+  const status = t.status ?? deriveToolStatus(t);
+  // 손이 없다는 사실이 자격보다 깊다. 연결해도 실행할 것이 없으면 "연결하면 가능"이 거짓이 된다.
+  if (t.hasHandler === false) return { executable: false, reason: 'planned' };
+  if (t.disabled === true) return { executable: false, reason: 'disabled' };
+  if (status === 'usable') return { executable: true };
+  return {
+    executable: false,
+    reason: status === 'needs_auth' ? 'needs_permission'
+      : status === 'needs_config' ? 'needs_setup'
+        : status === 'needs_connection' ? 'needs_connection'
+          : 'error', // blocked = 연결됐는데 실행 불가(사유 미상) — 확인 실패로 다룬다
+  };
+}
+
+/** 실행 불가 이유를 **사용자 말로**. 내부 값이 화면·모델 입력에 그대로 새지 않게. */
+export function reasonLabel(reason) {
+  switch (reason) {
+    case 'needs_connection': return '연결하면 가능해요';
+    case 'needs_setup': return '설정을 마치면 가능해요';
+    case 'needs_permission': return '권한을 주면 가능해요';
+    case 'planned': return '아직 준비 중이에요(연결 흐름이 생기면 가능해져요)';
+    case 'disabled': return '꺼두셨어요';
+    case 'error': return '최근 확인에 실패했어요';
+    default: return undefined;
+  }
+}
+
+/**
  * @param {Object} env
  * @param {{id:string, strengths?:string, limits?:string, authSignal?:string}} env.model
  * @param {import('../contracts.js').ConnectedTool[]} [env.connections]
  * @param {string[]} [env.grantedAuthorities]
  * @returns {import('../contracts.js').SelfStateSnapshot}
  */
-export function buildSelfState(env) {
+export function buildSelfState(env, deps = {}) {
   const model = env.model ?? { id: 'unknown' };
   const modelAuthState = classifyModelAuth(model.authSignal);
+  // P5-B-0: **손이 있는지는 도구 레지스트리가 안다.** env 가 따로 관리하면 두 진실이 되고,
+  // 어긋난 쪽이 모델에게 노출된다(demo 에서 `local.terminal` 등 셋이 실제로 그랬다).
+  // 레지스트리를 받으면 그것이 진실이고, 없으면 env 가 실어 보낸 `hasHandler` 를 쓴다.
+  const hands = deps.tools?.tools ? new Set(Object.keys(deps.tools.tools)) : undefined;
   const connectedTools = (env.connections ?? []).map((t) => {
+    const hasHandler = hands ? hands.has(t.id) : t.hasHandler;
     // descriptor가 availability로 이미 판정한 status를 존중한다(P6-2). 없으면 파생(하위호환).
     const status = t.status ?? deriveToolStatus(t);
+    // P5-B-0: 실행 가능성과 그 이유를 **한 곳에서** 판정한다(toolReality). 아래 소비자들은
+    // 이 두 필드만 보면 되고, 새 이유가 생겨도 소비자를 고치지 않는다.
+    const reality = toolReality({ ...t, status, hasHandler });
     return {
       id: t.id,
       // 1축: **이름은 descriptor 가 진실이다.** 여기서 흘리면 화면·승인 카드가 이름을 다시
@@ -78,7 +133,11 @@ export function buildSelfState(env) {
       label: t.label,
       connected: Boolean(t.connected),
       status, // Phase 5.1: usable|needs_auth|needs_config|needs_connection|blocked
-      executable: status === 'usable', // 하위호환 파생(§6)
+      // **2축 진실(P5-B-0).** executable 은 model schema 노출의 유일한 기준이고,
+      // reason 은 "왜 아직 아닌가"만 말한다. 손이 없으면 자격과 무관하게 실행 불가다.
+      executable: reality.executable,
+      reason: reality.reason,
+      hasHandler,
       // P6-2 감사 보정: "실행 가능"과 "실행해도 됨"의 두 축을 끝까지 보존한다. descriptor의
       // needsApproval(행동 승인)·toolKind(권한 종류)를 버리지 않고 ActionPlan이 참조하게 실어 보낸다.
       needsApproval: t.needsApproval,
@@ -108,8 +167,10 @@ export function buildSelfState(env) {
   }
   for (const t of connectedTools) {
     // 목록에 있으나 실행 불가한 도구는 한계로 정직하게 표시한다(헌법 §3-3).
-    if (t.connected && !t.executable) limits.push(`${t.label ?? t.id}: 연결됨, 아직 실행 준비 안 됨`);
-    if (!t.connected) limits.push(`${t.label ?? t.id}: 연결하면 가능`);
+    // P5-B-0: **왜 못 쓰는지를 이유에서 말한다.** 예전엔 연결 여부만 보고 "연결하면 가능"이라
+    // 썼는데, 손이 아예 없는 도구(mail.send)에 그 문장이 붙으면 거짓 약속이 된다 —
+    // 연결해도 실행할 것이 없기 때문이다.
+    if (!t.executable) limits.push(`${t.label ?? t.id}: ${reasonLabel(t.reason) ?? '지금은 쓸 수 없어요'}`);
   }
 
   return {

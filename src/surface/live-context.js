@@ -105,6 +105,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
   const env = demoEnv({
     include: liveToolIds,
+    // P5-B-0: 실제 손 목록을 그대로 넘긴다 — env 가 손을 다시 추측하지 않게(두 진실 금지).
+    hands: liveToolIds,
     factOverrides: {
       'slack.post': { connected: Boolean(slackToken) },
       'telegram.send': { connected: Boolean(tgToken) },

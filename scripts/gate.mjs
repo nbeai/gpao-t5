@@ -410,6 +410,65 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-a2 커넥터 진실층 (P5-B-0) ────────────────────────────────────────────
+// 불변식은 **한 줄**이다: `model tool schema ⊆ executable:true`.
+// 이유(reason)가 몇 개로 늘어도 이 줄은 안 바뀐다 — 그래서 상태를 2축으로 나눴다.
+//
+// 그리고 **demo 도 검사한다.** 예전엔 게이트가 live 만 봐서, demo 에서 `local.terminal`·
+// `local.process`·`local.locate` 가 손 없이 모델 schema 에 있었고 `mail.send` 는 자격 설정
+// 덕에 우연히 빠져 있었을 뿐이었다. 컨텍스트가 다르면 진실도 달라진다는 뜻이라 사고다.
+{
+  const [{ buildSelfState }, { toolSchemasFor }, { connectorTruth }, demo, { liveDeps }] = await Promise.all([
+    import('../src/kernel/l0-evidence/self-state.js'),
+    import('../src/kernel/l2-plan/tool-schema.js'),
+    import('../src/kernel/l2-plan/connector-truth.js'),
+    import('../src/surface/demo-context.js'),
+    import('../src/surface/live-context.js'),
+  ]);
+  const live = liveDeps({});
+  const 컨텍스트 = [
+    ['demo', demo.demoContext(), demo.demoDescriptors(), demo.demoConnectors()],
+    ['live', { env: live.env, tools: live.tools }, live.descriptors ?? [], live.connectors ?? demo.demoConnectors()],
+  ];
+  let 문제 = 0;
+  for (const [이름, ctx, descriptors, connectors] of 컨텍스트) {
+    const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
+    const hands = new Set(Object.keys(ctx.tools?.tools ?? {}));
+    const schema = toolSchemasFor(selfState).map((t) => t.name);
+
+    // 7.1 schema ⊆ executable, 그리고 executable ⊆ 손
+    const 유령 = schema.filter((id) => !hands.has(id));
+    if (유령.length) { bad(`[${이름}] 손 없는 도구가 모델 schema 에 있다: ${유령.join(', ')}`); 문제 += 1; }
+    const 거짓실행가능 = selfState.connectedTools.filter((t) => t.executable && !hands.has(t.id)).map((t) => t.id);
+    if (거짓실행가능.length) { bad(`[${이름}] 손이 없는데 실행 가능이라고 한다: ${거짓실행가능.join(', ')}`); 문제 += 1; }
+
+    // 7.1 실행 불가인데 schema 에 남는 경우(2축이 어긋난 것)
+    const 새어나감 = selfState.connectedTools.filter((t) => !t.executable && schema.includes(t.id)).map((t) => t.id);
+    if (새어나감.length) { bad(`[${이름}] 실행 불가 도구가 모델 schema 에 있다: ${새어나감.join(', ')}`); 문제 += 1; }
+
+    // 7.1 실행 불가면 **왜 아닌지**가 있어야 한다. 이유 없는 불가는 사용자에게 설명할 말이 없다.
+    const 이유없음 = selfState.connectedTools.filter((t) => !t.executable && !t.reason).map((t) => t.id);
+    if (이유없음.length) { bad(`[${이름}] 실행 불가인데 이유가 없다: ${이유없음.join(', ')}`); 문제 += 1; }
+
+    // 7.2 커넥터의 도구 목록은 **파생**이다 — 수동 목록을 다시 만들면 막는다.
+    const 수동목록 = connectors.filter((c) => Array.isArray(c.availableTools)).map((c) => c.id);
+    if (수동목록.length) { bad(`[${이름}] 커넥터가 도구 목록을 손으로 든다: ${수동목록.join(', ')} — descriptor 에서 파생할 것`); 문제 += 1; }
+    // 7.2 승인 정책도 커넥터에 중복 저장하지 않는다(승인의 진실은 도구 층 하나다).
+    const 중복정책 = connectors.filter((c) => c.approvalPolicy || c.riskLevel).map((c) => c.id);
+    if (중복정책.length) { bad(`[${이름}] 커넥터에 승인 정책이 또 있다: ${중복정책.join(', ')} — 승인의 진실이 둘이 된다`); 문제 += 1; }
+
+    // 7.5 연결 안 된 커넥터의 도구가 "지금 되는 일"로 표시되면 막는다.
+    for (const c of connectorTruth(connectors, selfState, descriptors)) {
+      if (!c.executable && c.userJobs.length) {
+        bad(`[${이름}] ${c.id}: 실행 불가인데 "지금 되는 일"이 적혀 있다 — 연결하면 가능으로 말할 것`); 문제 += 1;
+      }
+      const 노출 = c.tools.filter((t) => t.inModelSchema && !t.executable).map((t) => t.id);
+      if (노출.length) { bad(`[${이름}] ${c.id}: 실행 불가 도구가 모델에 노출된다: ${노출.join(', ')}`); 문제 += 1; }
+    }
+  }
+  if (!문제) ok('커넥터 진실층: schema ⊆ 실행 가능 ⊆ 손 (demo·live 동일)');
+}
+
 // ── ③-b 승인이 필요한 도구는 자기 미리보기를 낸다 (P5-B 진입 전 계약 게이트) ──
 // 사용자가 **무엇을 허락하는지 모르는 승인은 승인이 아니다.** previewOf 가 없으면 카드가
 // `${라벨} 실행` 으로 떨어진다(실측: "실행 중인 것 실행"). 전송은 되돌릴 수도 없다.

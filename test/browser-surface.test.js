@@ -85,7 +85,11 @@ test('손이 없으면 모델에게 안 보이고, 있으면 보인다(선언 �
   assert.ok(!without.includes('browser.observe'), '브라우저 없는 컴퓨터에서 보이면 거짓말이다');
 
   // 손이 있는 환경 → 모델 스키마에 나타난다(1축: 스키마는 descriptor 파생).
+  // P5-B-0: 연결 표시만으로는 부족하다 — **손을 실제로 붙여야** 실행 가능이다.
+  // 예전엔 `connected:true` 만으로 보이게 했는데, 그건 손 없이 "된다"고 말하는 조합이었다.
+  const 손 = { async handler() { return { result: {} }; } };
   const withHand = toolSchemasFor(buildSelfState(demoEnv({
+    browserObserve: 손, browserAct: 손,
     factOverrides: { 'browser.observe': { connected: true }, 'browser.act': { connected: true } },
   }))).map((t) => t.name);
   assert.ok(withHand.includes('browser.observe'), `손이 있는데 안 보이면 존재를 모른다: ${withHand.join(',')}`);
