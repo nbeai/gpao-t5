@@ -114,8 +114,16 @@ export function makeLocalFileTool(deps = {}) {
         : action === 'write' ? `${이름} 에 저장해요`
           : action === 'move' ? `${이름} 을(를) ${previewPathOf(args.to, roots)} 로 옮겨요`
             : `${이름} 을(를) ${action} 해요`;
+      // **무엇이 적히는가.** 자리만 보여주면 사용자는 "무엇을 허락하는지" 절반만 안다 —
+      // 실측(2026-07-27): 오너가 "뭘 적을지도 같이 알려줘"라고 물었는데 카드에는 파일 이름과
+      // 자리만 있었고, 내용은 **승인한 뒤에야** 나왔다. 무엇이 적힐지 모르고 누른 것이다.
+      // 요약하지 않는다(승인한 것과 적힌 것이 갈라진다). 길면 뒤를 접되 접었다고 말한다.
+      const 적을것 = action === 'write' && typeof args.text === 'string' && args.text.trim()
+        ? (args.text.length > 400 ? `${args.text.slice(0, 400)}\n… (${args.text.length}자 중 앞부분)` : args.text)
+        : undefined;
       return {
         impact,
+        ...(적을것 ? { what: 적을것 } : {}),
         // **실제로 어디에 생기는가.** 인자가 아니라 이 줄이 사용자가 확인할 사실이다.
         scope: abs,
         duration: '이번 한 번',

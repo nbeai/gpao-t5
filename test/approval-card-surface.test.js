@@ -94,3 +94,34 @@ test('미리보기 계약이 없는 도구면 지어내지 않는다(안내는 �
   assert.match(안내, /T5 화면에서 확인/, '계약이 없어도 안내는 나간다');
   assert.doesNotMatch(안내, /undefined|null/, '없는 사실을 지어내거나 내부값을 흘리지 않는다');
 });
+
+// ── 무엇이 적히는가 — 자리만으로는 "무엇을 허락하는지" 절반만 안다 ──────────
+test('쓰기 승인 카드에 적힐 내용이 승인 전에 보인다', async () => {
+  const 루트 = await mkdtemp(join(tmpdir(), 'what-'));
+  const tool = makeLocalFileTool({ roots: [루트], dataDir: 루트 });
+  const p = tool.previewOf({ action: 'write', path: '메모.md', text: '# 오늘 할 일\n- 물 마시기\n- 쉬기' });
+  assert.ok(p.what, '무엇이 적힐지 없으면 사용자는 모르고 누른다');
+  assert.match(p.what, /물 마시기/);
+  assert.match(p.what, /쉬기/);
+});
+
+test('긴 내용은 접되 접었다고 말한다(요약하지 않는다)', async () => {
+  const 루트 = await mkdtemp(join(tmpdir(), 'what2-'));
+  const tool = makeLocalFileTool({ roots: [루트], dataDir: 루트 });
+  const 긴글 = '가'.repeat(900);
+  const p = tool.previewOf({ action: 'write', path: 'a.md', text: 긴글 });
+  assert.match(p.what, /900자 중 앞부분/, '접었으면 접었다고 말해야 한다');
+  assert.ok(p.what.length < 600);
+});
+
+test('지우기·옮기기는 적을 내용이 없으므로 지어내지 않는다', async () => {
+  const 루트 = await mkdtemp(join(tmpdir(), 'what3-'));
+  const tool = makeLocalFileTool({ roots: [루트], dataDir: 루트 });
+  assert.equal(tool.previewOf({ action: 'delete', path: 'a.md' }).what, undefined);
+  assert.equal(tool.previewOf({ action: 'move', path: 'a.md', to: 'b.md' }).what, undefined);
+});
+
+test('적힐 내용이 줄바꿈 그대로 보이게 화면이 처리한다', () => {
+  assert.match(html, /el\('pre',\s*`무엇을:/, 'textContent 로 넣으면 목록이 한 줄로 뭉개진다');
+  assert.match(html, /\.card \.why \.pre\s*\{[^}]*white-space:\s*pre-wrap/, 'pre-wrap 규칙이 있어야 한다');
+});

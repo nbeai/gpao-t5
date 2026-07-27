@@ -1091,7 +1091,8 @@ export function makeServer(deps = {}) {
     // 나가서, 방 사용자는 "로컬 파일 — 확인받아요"만 보고 무엇이 어디에 생기는지 몰랐다.
     // 실측(2026-07-27): 작업 루트 이름이 경로에 두 번 들어가 엉뚱한 자리에 파일이 생겼는데
     // 방에는 그 사실이 한 글자도 안 나갔다. 도구가 낸 미리보기를 그대로 싣는다(지어내지 않는다).
-    const 사실 = [first?.preview?.impact, first?.preview?.where ?? first?.preview?.scope]
+    // 무엇을(적힐 내용·보낼 문면)까지 싣는다 — 자리만 알려주면 절반만 아는 것이다.
+    const 사실 = [first?.preview?.impact, first?.preview?.where ?? first?.preview?.scope, first?.preview?.what]
       .filter((x) => typeof x === 'string' && x.trim())
       .map((x) => `· ${x}`);
     return [사람말 || `${무엇} — ${왜}`, ...사실, 'T5 화면에서 확인해 주시면 이어서 할게요.'].join('\n');

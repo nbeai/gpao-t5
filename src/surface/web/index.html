@@ -260,6 +260,9 @@
   /* P6-15: 조용한 승인 모드 표시 + 승인 이유(사용자 언어). 정책이 아니라 판단을 보여준다. */
   .card .mode { font-size:var(--fs-xs); color:var(--faint); margin-bottom:var(--sp-2); }
   .card .why { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-1) var(--sp-4); line-height:1.6; }
+  /* 적힐 내용은 **줄바꿈 그대로** 보여준다. textContent 로 넣으면 HTML 이 줄을 접어서
+     목록 세 줄이 한 줄로 뭉개진다 — 승인 전에 읽을 수 없으면 보여준 게 아니다. */
+  .card .why .pre { white-space:pre-wrap; word-break:break-word; }
   .card .why b { color:var(--fg); font-weight:600; }
   /* 기억 제안 — 조용한 info-톤, 대화를 막지 않는다. */
   .suggest { align-self:flex-start; max-width:86%; border:1px solid var(--line); border-left:3px solid var(--info);
@@ -1161,7 +1164,7 @@ function renderResult(r, opts = {}) {
         // 어디에 일어나는가 + 얼마나 지속되는가를 한 줄로. 승인 카드가 길어지면 기계적으로 누르게 된다.
         if (자리 != null) d.appendChild(el(null, `어디에: ${자리}${기간 != null ? ` · ${기간}` : ''}`));
         else if (기간 != null) d.appendChild(el(null, `얼마나: ${기간}`));
-        if (p.preview.what != null) d.appendChild(el(null, `무엇을: ${p.preview.what}`));
+        if (p.preview.what != null) d.appendChild(el('pre', `무엇을: ${p.preview.what}`));
         card.appendChild(d);
       } else if (p.reason?.whatChanges) {
         const c = el('why'); c.innerHTML = `<b>무엇이 바뀌나요</b> ${esc(p.reason.whatChanges)}`; card.appendChild(c);
