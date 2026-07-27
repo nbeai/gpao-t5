@@ -729,6 +729,21 @@ export function makeServer(deps = {}) {
         });
       }
 
+      // ── 비밀 통로 (P5-B-1B) ────────────────────────────────────────────
+      // **API 키는 대화로 받지 않는다.** 여기가 그 다른 길이다 — 값은 이 요청 하나로 들어와
+      // 0600 저장소로 곧장 가고, 세션 기록·원장·모델 입력 어디도 지나지 않는다.
+      // 그래서 이 핸들러는 **본문을 로그에 남기지 않고, 세션에 아무것도 쓰지 않는다.**
+      // 돌려주는 것에도 값이 없다(무엇을 채웠는가·확인됐는가만).
+      if (req.method === 'POST' && url === '/connectors/secret') {
+        const 손 = tools?.tools?.['connector.connect'];
+        if (!손?.submitSecret) return sendJson(res, 501, { ok: false, userSafeSummary: '지금은 값을 받을 수 없어요.' });
+        let input;
+        try { input = JSON.parse((await readBody(req)) || '{}'); } catch { input = {}; }
+        const r = await 손.submitSecret(String(input.connector ?? ''), input.values ?? {});
+        // 상태 갱신을 화면이 바로 반영할 수 있게 커넥터 진실을 함께 낸다(값은 없다).
+        return sendJson(res, r.ok ? 200 : 400, r);
+      }
+
       // ── 개인 도구 (2.0-C-1) ── 등록됨 ≠ 실행 가능. 설정 확인 통과 전에는 executable=false.
       if (req.method === 'POST' && url === '/personal-tools') {
         const input = JSON.parse((await readBody(req)) || '{}');

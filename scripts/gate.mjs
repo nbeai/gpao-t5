@@ -562,6 +562,7 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     ...await 훑기('src/kernel'),
     'src/runtime/connector-connect.js',   // 연결 실행기
     'src/runtime/oauth-pkce.js',          // OAuth/PKCE 실행기
+    'src/runtime/api-key.js',             // API 키 실행기
     'src/runtime/mcp-http.js',            // MCP 원격 전송
     'src/runtime/mcp-client.js',          // MCP stdio 전송
     'src/runtime/tool-admission.js',      // 도구 편입

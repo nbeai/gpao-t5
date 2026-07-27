@@ -49,13 +49,21 @@ export class ConnectorCredentialStore {
     return true;
   }
 
-  /** 화면·원장에 보여줄 때 쓰는 형태. **토큰은 어떤 형태로도 나가지 않는다.** */
+  /**
+   * 화면·원장에 보여줄 때 쓰는 형태. **비밀은 어떤 형태로도 나가지 않는다 — 마스킹조차 안 한다.**
+   * 끝 네 자리는 다른 유출과 합쳐지면 단서가 된다(오너 결정, 2026-07-27).
+   * 나가는 것은 "무엇을 채웠는가"와 "언제 확인됐는가"뿐이다.
+   */
   async describe() {
     const state = await this.load();
     return Object.fromEntries(Object.entries(state).map(([id, v]) => [id, {
-      connected: Boolean(v?.tokens?.access_token),
+      connected: Boolean(v?.tokens?.access_token) || Boolean(v?.verifiedAt),
+      method: v?.kind ?? (v?.tokens ? 'oauth' : undefined),
       canRefresh: Boolean(v?.tokens?.refresh_token),
       expiresAt: v?.tokens?.expires_at ?? null,
+      // 값이 아니라 **이름만** — 사용자가 "무엇을 넣었더라"를 확인할 수 있게.
+      filled: Object.keys(v?.values ?? {}),
+      verifiedAt: v?.verifiedAt ?? null,
       savedAt: v?.savedAt ?? null,
     }]));
   }

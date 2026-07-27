@@ -12,6 +12,7 @@
 import { probeMcpServer } from './mcp-client.js';
 import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
 import { runOAuth, refreshTokens } from './oauth-pkce.js';
+import { secretFields, missingFields, verifyApiKey } from './api-key.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
@@ -119,6 +120,56 @@ async function openRemoteMcp(connectorId, url, deps) {
 }
 
 /**
+ * API 키로 붙인다. 값이 비어 있으면 **입력창을 열어 달라는 요청**을 돌려주고 멈춘다.
+ * 값이 있으면 저장된 값으로 T5 가 직접 확인하고, 확인이 성공해야 손을 올린다.
+ * @returns {Promise<{ok:true,result:object}|{needsSecret:object}|{ok:false,reason:string}>}
+ */
+async function connectApiKey(c, m, deps) {
+  const store = deps.credentialStore;
+  const saved = store ? await store.get(c.id) : null;
+  const 값들 = saved?.values ?? {};
+  const 빈칸 = missingFields(m, 값들);
+
+  if (빈칸.length) {
+    // 무엇이 필요한지만 말한다 — 값은 이 경로로 오가지 않는다.
+    // **막힌 것으로 남긴다**(blocked). 아직 못 했으니까. 다만 막다른 답이 아니라 다음 길을 함께 낸다.
+    return {
+      needsSecret: {
+        blocked: true,
+        surfaceRequest: {
+          kind: 'secret_input',
+          connector: c.id, label: c.label, fields: secretFields(m),
+        },
+        userSafeSummary: `${c.label} 연결에는 ${secretFields(m).map((f) => f.label).join('·')}가 필요해요.`
+          + ' 안전하게 입력할 창을 열게요. 여기 입력한 값은 대화에 남지 않고 연결 확인에만 써요.',
+        nextSafeAction: '입력창에서 값을 넣어 주시면 바로 확인하고 연결할게요.',
+      },
+    };
+  }
+
+  // **저장했다고 연결이 아니다.** 커넥터가 선언한 방법으로 한 번 불러 본다.
+  const v = await verifyApiKey(m, 값들, { fetchImpl: deps.fetchImpl });
+  if (!v.ok) return { ok: false, reason: v.reason };
+
+  const 손 = await deps.admitApiKeyTools?.(c, m, 값들);
+  if (deps.admitApiKeyTools && !(손?.length)) return { ok: false, reason: '확인은 됐는데 쓸 수 있는 손이 안 올라왔어요' };
+
+  if (store) await store.set(c.id, { ...saved, kind: 'api_key', values: 값들, verifiedAt: Date.now() });
+  c.connected = true;
+  c.lastCheckedAt = Date.now();
+  c.lastError = undefined;
+  return {
+    ok: true,
+    result: {
+      // 원장에 남는 것: 무엇을 채웠는가·확인됐는가. **값도 마스킹도 없다.**
+      result: { connector: c.id, label: c.label, connected: true, method: 'api_key',
+        tools: 손 ?? [], filled: Object.keys(값들), verified: true },
+      userSafeSummary: `${c.label} 에 연결했어요. 입력하신 값으로 실제로 확인까지 마쳤어요.`,
+    },
+  };
+}
+
+/**
  * 연결 실행 손. **연결의 성공은 토큰이 아니라 부를 수 있는 손이 올라온 순간이다** —
  * 그래서 편입(admission)까지 끝나야 성공이라 말한다.
  * @param {{ctx:()=>({tools:object, descriptors:Array, env:object}), connectors:()=>Array}} deps
@@ -175,6 +226,35 @@ export function makeConnectorConnectTool(deps = {}) {
       const id = rec?.result?.connector;
       return id ? { key: `connector:${id}`, kind: 'connector', label: String(rec.result.label ?? id) } : null;
     },
+    /**
+     * **비밀 통로.** 값은 여기로만 들어오고, 여기서 바로 0600 저장소로 간다 —
+     * 턴·transcript·원장·모델 입력 어디도 지나지 않는다. 돌려주는 것에도 값이 없다.
+     * 저장한 뒤 곧바로 확인·편입까지 해서, "저장됨"이 아니라 "연결됨"으로 끝낸다.
+     */
+    async submitSecret(connectorId, values = {}) {
+      const c = (deps.connectors?.() ?? []).find((x) => x.id === connectorId);
+      const m = (c?.authMethods ?? []).find((x) => x.kind === 'api_key');
+      if (!c || !m) return { ok: false, userSafeSummary: '어떤 서비스의 값인지 확인하지 못했어요.' };
+
+      const 받을것 = new Set(secretFields(m).map((f) => f.name));
+      // **선언된 칸만 받는다.** 아무 이름이나 받으면 저장소가 남의 값을 담는 통이 된다.
+      const 값들 = Object.fromEntries(Object.entries(values)
+        .filter(([k, v]) => 받을것.has(k) && String(v ?? '').trim())
+        .map(([k, v]) => [k, String(v)]));
+      const 빈칸 = missingFields(m, 값들);
+      if (빈칸.length) {
+        return { ok: false, missing: 빈칸, userSafeSummary: '빈 칸이 있어요. 채워 주시면 바로 확인할게요.' };
+      }
+      const store = deps.credentialStore;
+      if (store) await store.set(c.id, { kind: 'api_key', values: 값들 });
+
+      const r = await connectApiKey(c, m, deps);
+      if (r.ok) return { ok: true, ...r.result };
+      // **확인에 실패하면 저장해 둔 값을 지운다** — 안 되는 값을 들고 "연결됨"처럼 굴지 않는다.
+      if (store) await store.clear(c.id);
+      return { ok: false, userSafeSummary: `${c.label} 연결이 안 됐어요. ${r.reason ?? ''}`.trim(),
+        nextSafeAction: '값을 다시 확인해서 넣어 주시면 바로 다시 해볼게요.' };
+    },
     async handler(args = {}) {
       const ctx = deps.ctx?.();
       const connectors = deps.connectors?.() ?? [];
@@ -209,6 +289,16 @@ export function makeConnectorConnectTool(deps = {}) {
       }
       const 실패 = [];
       for (const m of methods) {
+        // ── API 키 방식 ────────────────────────────────────────────────
+        // **여기서 키를 받지 않는다.** 받으면 그 순간 대화 기록·원장·모델 입력에 남는다.
+        // 대화는 "입력창이 필요하다"까지만 만들고, 값은 다른 통로로 저장소에 곧장 간다.
+        if (m.kind === 'api_key') {
+          const r = await connectApiKey(c, m, deps);
+          if (r.ok) return r.result;
+          if (r.needsSecret) return r.needsSecret; // 사용자에게 안전 입력창을 열어 준다
+          실패.push(`api_key: ${r.reason}`);
+          continue;
+        }
         if (m.kind !== 'mcp') { 실패.push(`${m.kind}: 아직 이 방식은 실행기가 없어요`); continue; }
         // 커넥터가 주소를 선언했으면 그것이 먼저다(등록된 설정이 없어도 붙을 수 있다).
         const cfg = m.url ? { url: m.url } : await findMcpConfig(m.server, deps);

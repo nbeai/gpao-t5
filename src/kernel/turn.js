@@ -823,6 +823,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     contextShown: workingStateFacts(workingState),
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
     connectionNeeded,
+    // P5-B-1B: 도구가 **사용자에게 열어 달라고 요청한 표면**(예: 비밀 입력창). 커널은 종류만 안다.
+    // 이게 없으면 모델이 남은 길로 "키를 여기 붙여넣어 주세요"를 고른다 — 그 순간 비밀이
+    // 대화 기록에 남는다. 길을 내주는 것이 금지문을 주입하는 것보다 확실하다.
+    surfaceRequest: turnReceipts.find((r) => r.surfaceRequest)?.surfaceRequest,
     // P6-11: 승인된 send 실행 사실 — 서버가 학습(TaskTrace·DefaultTarget 후보)에 쓴다.
     sentVia,
   };

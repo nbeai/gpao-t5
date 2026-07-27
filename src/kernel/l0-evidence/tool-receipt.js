@@ -54,6 +54,10 @@ export function receipt(r) {
     // 막힌 **종류**(사이트 차단·로그인벽·범위 밖…). 다음 계단을 이걸로 정한다(P2-6 사다리).
     // 진단 원문이 아니라 분류값이라 사용자면 판단에 써도 안전하다.
     fetchState: r.fetchState,
+    // 이 일을 마치려면 **사용자에게 열어 줘야 하는 표면**(예: 비밀 입력창).
+    // 커널은 종류만 안다 — 무엇을 묻는지·어떤 서비스인지는 도구가 채운다(previewOf 와 같은 계약).
+    // 비밀값이 여기 담기면 원장에 남는다. **요청만 담고 값은 절대 담지 않는다.**
+    surfaceRequest: r.surfaceRequest,
     scopeState: r.scopeState,
   };
 }
