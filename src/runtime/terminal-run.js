@@ -134,6 +134,13 @@ export function executionBlock(r) {
   if (/ENETUNREACH|ENOTFOUND|EAI_AGAIN|Could not resolve|Network is unreachable|Connection refused/i.test(t)) {
     return { kind: 'sandbox', why: 'network', userWhy: '인터넷에 연결해야 해서 안전 시험 실행에서는 막혔어요' };
   }
+  // `launchctl setenv`·`config`처럼 파일 오류는 없지만 **컴퓨터 상태를 바꾸려다** OS 권한에
+  // 막히는 경우. "아무 일도 안 바뀌었다"와 "읽기였다"를 섞으면 승인 경로가 사라진다.
+  // sandbox가 막은 쓰기와 달리 OS 권한 신호지만, 계획 단계에서는 둘 다 사용자 승인 뒤에만
+  // 실제 실행할 수 있는 변경 시도라는 사실이 같다.
+  if (/not privileged|requires root|must be run as root/i.test(t)) {
+    return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸려 했는데 권한이 필요해 안전 시험 실행에서 멈췄어요' };
+  }
   // 파일을 바꾸려다 막힌 것
   if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
     return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꿔야 해서 안전 시험 실행에서는 막혔어요' };
