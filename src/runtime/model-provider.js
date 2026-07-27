@@ -156,6 +156,24 @@ export function buildModelMessages(tc) {
     }
     if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
   }
+  if (tc.connectionAdmission) {
+    const a = tc.connectionAdmission;
+    const lines = [];
+    if (a.secretInput) {
+      lines.push(`안전한 비밀 입력면이 열려 있어요: ${a.secretInput.label ?? '연결 입력'}${a.secretInput.fields?.length ? ` (${a.secretInput.fields.join(' · ')})` : ''}`);
+    } else {
+      lines.push('안전한 비밀 입력면은 아직 열리지 않았어요. 이 대화에는 비밀값을 받을 통로가 없어요.');
+    }
+    if (a.discovery) {
+      const d = a.discovery;
+      const checked = d.checked?.join(' · ') ?? '연결 단서';
+      const candidates = d.candidates ?? [];
+      lines.push(candidates.length
+        ? `${d.subject}: ${checked}을 직접 확인했고, 맞는 단서: ${candidates.map((c) => `${c.label}(${c.kind})`).join(' · ')}`
+        : `${d.subject}: ${checked}을 직접 확인했지만 맞는 단서는 아직 찾지 못했어요.`);
+    }
+    usr.push(`[이번 턴의 연결 입력·확인 사실]\n${lines.join('\n')}`);
+  }
   // 사용자 발화의 분야를 미리 맞히지 않는다. 자료 찾기·컴퓨터 문제·연결·개발 작업 모두에서
   // 모델이 "사용자에게 무엇을 시킬까"보다 "T5가 먼저 무엇을 확인할까"를 판단할 수 있게 하는
   // 공통 운영 현실이다. 역할은 descriptor가 선언한 것만 실린다.

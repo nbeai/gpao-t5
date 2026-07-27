@@ -47,8 +47,10 @@ export function makeLocalDiscoveryTool(deps = {}) {
           add('connector', c.label ?? c.id, c.connected ? 'T5 연결 상태가 확인돼 있어요' : 'T5에 연결 선언은 있지만 현재 직접 연결은 아니에요');
         }
       }
+      const connectionDiscovery = { subject, checked: ['mcp', 'cli', 'known_connectors'], candidates };
       return {
-        result: { subject, checked: ['mcp', 'cli', 'known_connectors'], candidates, checkedAt: Date.now() },
+        result: { ...connectionDiscovery, checkedAt: Date.now() },
+        connectionDiscovery,
         userSafeSummary: candidates.length ? '기존 연결 단서를 찾았어요.' : '바로 쓸 연결 단서는 아직 찾지 못했어요.',
       };
     },

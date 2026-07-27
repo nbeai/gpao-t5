@@ -123,6 +123,33 @@ export function nowFacts(clock = () => new Date()) {
 }
 
 /**
+ * 이번 턴에 실제로 열린 연결 입력면과 직접 확인한 단서.
+ *
+ * 이건 특정 서비스나 도구를 분류하지 않는다. 도구가 영수증 계약으로 낸 사실을 읽을 뿐이다.
+ * 입력면이 열리지 않았으면 T5 는 비밀값을 받을 통로가 없다. 그 사실이 없으면 모델은
+ * "입력창에 넣어 달라"는, 실제로는 없는 길을 자연스럽게 상상한다.
+ */
+export function connectionAdmissionFacts(receipts = []) {
+  const requests = receipts
+    .map((r) => r?.surfaceRequest)
+    .filter((r) => r?.kind === 'secret_input');
+  const discovery = receipts
+    .map((r) => r?.connectionDiscovery)
+    .filter(Boolean)
+    .at(-1);
+
+  return {
+    secretInput: requests.length
+      ? {
+          label: requests.at(-1).label,
+          fields: (requests.at(-1).fields ?? []).map((f) => f.label ?? f.name).filter(Boolean),
+        }
+      : null,
+    ...(discovery ? { discovery } : {}),
+  };
+}
+
+/**
  * @param {Object} p
  * @param {import('../contracts.js').IntentPacket} p.intent
  * @param {import('../contracts.js').SelfStateSnapshot} p.selfState
@@ -205,6 +232,10 @@ export function buildTaskContext(p) {
   // 이 블록은 T5 자기 손과 연결 상태에 대한 **능력 사실**이다(readyTools·limits 와 같은 급).
   // 짧게 유지하는 것으로 소음을 다루고, 실을지 말지를 분류기가 정하게 두지 않는다.
   if (p.externalReality) packet.externalReality = p.externalReality;
+
+  // 연결·비밀 입력은 가능한지의 문제 이전에 **실제로 열린 표면이 있는지**의 문제다.
+  // 매 턴 같은 구조 사실을 싣되, 후보와 값은 영수증으로 확인된 것만 넣는다.
+  if (p.externalReality || p.receipts?.length) packet.connectionAdmission = connectionAdmissionFacts(p.receipts);
 
   // 대화 대상이 파일·웹·외부 서비스·개발 작업 중 무엇이든 같은 운영 현실을 본다.
   // 이건 "이 도구를 써라"가 아니라, T5가 이미 사용자 대신 직접 다룰 수 있는 일을 알려 주는

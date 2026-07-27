@@ -58,6 +58,9 @@ export function receipt(r) {
     // 커널은 종류만 안다 — 무엇을 묻는지·어떤 서비스인지는 도구가 채운다(previewOf 와 같은 계약).
     // 비밀값이 여기 담기면 원장에 남는다. **요청만 담고 값은 절대 담지 않는다.**
     surfaceRequest: r.surfaceRequest,
+    // 외부 연결 단서를 직접 확인한 읽기 결과. 어떤 도구가 확인했는지는 커널이 알 필요가 없다.
+    // 후보·확인 범위만 다음 판단으로 이어지고, 설정 위치·값·비밀은 애초에 계약에 넣지 않는다.
+    connectionDiscovery: r.connectionDiscovery,
     scopeState: r.scopeState,
   };
 }
