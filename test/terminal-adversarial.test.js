@@ -11,6 +11,7 @@ import { mkdtemp, writeFile, mkdir, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCommand } from '../src/runtime/terminal-run.js';
+import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { sandboxAvailable } from '../src/runtime/sandbox.js';
 
 const 원본 = '건드리면 안 되는 내용';
@@ -118,6 +119,70 @@ test('읽기·확인 명령은 그대로 통과한다', { skip: !sandboxAvailabl
     const r = await runCommand(cmd, { cwd: dir, timeoutMs: 15_000 });
     assert.equal(r.exitCode, 0, `읽기 명령이 막혔다: ${cmd}\n${r.stderr}`);
   }
+});
+
+// ── 셸 관용구를 쓴다는 이유로 등급이 오르지 않는다 ──────────────────────
+//
+// 라이브 실측(2026-07-27): 사용자가 "작업용SSD"라고만 답한 턴에서 모델이
+// `python3 - <<'PY' … os.walk … PY` 로 폴더를 **읽으려** 했는데 승인 카드가 떴다.
+// zsh 가 heredoc 을 위해 임시 파일을 만들고 그게 `deny file-write*` 에 막혔기 때문이다.
+// 읽기 하나를 못 해서 흐름이 통째로 멈췄다 — 안전과 무관한 자리에서 능력을 잃은 것이다.
+//
+// **판정 기준은 관용구가 아니라 결과다: 사용자의 자리를 바꿨는가.**
+// 그래서 "heredoc 은 허용"이라는 목록을 만들지 않는다. 아래 두 검사는 한 쌍이다 —
+// 같은 관용구라도 바꾸려 들면 여전히 막혀야 한다. 목록이었다면 두 번째가 뚫린다.
+const 셸관용구 = [
+  ['heredoc',        (d) => `python3 - <<'PY'\nimport os\nprint(len(os.listdir('${d}')))\nPY`],
+  ['heredoc(cat)',   (d) => `cat <<'EOF'\n${d}\nEOF`],
+  ['here-string',    (d) => `wc -c <<< "$(ls ${d})"`],
+  ['heredoc(sh)',    (d) => `sh <<'SH'\nls ${d}\nSH`],
+];
+
+test('읽기만 하는 명령은 셸 관용구를 써도 승인으로 올라가지 않는다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const tool = makeLocalTerminalTool();
+  const 잘못판정 = [];
+  const 피해난것 = [];
+  for (const [이름, 만들기] of 셸관용구) {
+    const dir = await 미끼밭();
+    const r = await tool.probe(만들기(dir), { cwd: dir, timeoutMs: 15_000 });
+    if (r.changes !== false) 잘못판정.push(`${이름} → changes=${r.changes} (${r.probe?.stderr?.trim() ?? ''})`);
+    const 피해 = await 그대로인가(dir);
+    if (피해.length) 피해난것.push(`${이름} → ${피해.join(', ')}`);
+  }
+  assert.deepEqual(피해난것, [], '읽기 명령이 미끼를 건드렸다');
+  assert.deepEqual(잘못판정, [],
+    `읽기만 하는데 "바꾼다"로 판정됐다 — 사용자는 읽기 하나에 승인을 눌러야 한다:\n  ${잘못판정.join('\n  ')}`);
+});
+
+test('같은 관용구라도 바꾸려 들면 여전히 막힌다(관용구가 아니라 결과로 판정한다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const tool = makeLocalTerminalTool();
+  const 샌것 = [];
+  const 피해난것 = [];
+  const 바꾸는것 = [
+    ['heredoc 으로 삭제',   (d) => `python3 - <<'PY'\nimport os\nos.remove('${d}/중요.md')\nPY`],
+    ['heredoc 으로 덮어쓰기', (d) => `cat <<'EOF' > ${d}/중요.md\n오염\nEOF`],
+    ['here-string 로 덮어쓰기', (d) => `cat > ${d}/중요.md <<< 오염`],
+    ['heredoc 안에서 rm',   (d) => `sh <<'SH'\nrm -f ${d}/중요.md\nSH`],
+  ];
+  for (const [이름, 만들기] of 바꾸는것) {
+    const dir = await 미끼밭();
+    const r = await tool.probe(만들기(dir), { cwd: dir, timeoutMs: 15_000 });
+    if (r.changes !== true) 샌것.push(`${이름} → changes=${r.changes}`);
+    const 피해 = await 그대로인가(dir);
+    if (피해.length) 피해난것.push(`${이름} → ${피해.join(', ')}`);
+  }
+  assert.deepEqual(피해난것, [], '임시 자리를 열어 준 것이 미끼밭까지 열었다');
+  assert.deepEqual(샌것, [],
+    `바꾸는 명령이 자동 실행으로 샜다:\n  ${샌것.join('\n  ')}`);
+});
+
+test('임시 자리는 이번 실행에만 있고 끝나면 남지 않는다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  // 임시 자리에 쓴 것이 남으면 "아무것도 안 바꿨다"는 증명이 거짓이 된다.
+  const r = await runCommand('echo $TMPDIR; echo 남는가 > "$TMPDIR/흔적.txt"; ls "$TMPDIR"', { mode: 'probe' });
+  assert.equal(r.exitCode, 0, `임시 자리에 쓰지 못했다:\n${r.stderr}`);
+  const 자리 = r.stdout.split('\n')[0].trim();
+  assert.ok(자리 && 자리 !== tmpdir(), `probe 가 공용 임시 자리를 그대로 썼다: ${자리}`);
+  await assert.rejects(() => readdir(자리), '실행이 끝났는데 임시 자리가 남아 있다');
 });
 
 test('안 끝나는 명령은 시간에 걸려 끝나고, 그 사실을 남긴다', async () => {

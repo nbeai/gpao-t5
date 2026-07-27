@@ -7,7 +7,7 @@
 //   ① probe 로 먼저 돌린다 — 성공하면 아무것도 안 바꿨다는 증명이라 그대로 쓴다.
 //   ② 막히면 승인을 받고 granted 로 다시 돌린다. 그때도 비밀 자리는 닫혀 있다.
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp, rm } from 'node:fs/promises';
+import { writeFile, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
@@ -39,13 +39,20 @@ export async function runCommand(command, opts = {}) {
   const timeoutMs = Math.min(Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
   const startedAt = Date.now();
 
-  let profileDir; let argv;
+  let profileDir; let argv; let scratch;
   if (mode === 'raw' || !sandboxAvailable()) {
     argv = ['/bin/zsh', ['-c', command]];
   } else {
     profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-sb-'));
     const file = join(profileDir, 'p.sb');
-    await writeFile(file, sandboxProfile(mode), 'utf8');
+    if (mode === 'probe') {
+      // 이번 실행만 쓰는 임시 자리. 셸의 heredoc·here-string 이 여기에 쓴다 — 이게 없으면
+      // 읽기만 하는 명령이 "파일을 바꾸려 했다"로 잡혀 승인 카드로 간다(sandbox.js 주석 참고).
+      // realpath 로 편다: macOS 의 /var 는 /private/var 로 가는 심볼릭 링크라, 편 경로가 아니면
+      // 프로파일의 subpath 가 실제 접근 경로와 안 맞아 조용히 안 열린다.
+      scratch = await realpath(await mkdir(join(profileDir, 'tmp')).then(() => join(profileDir, 'tmp')));
+    }
+    await writeFile(file, sandboxProfile(mode, { scratch }), 'utf8');
     argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-c', command]];
   }
 
@@ -53,7 +60,15 @@ export async function runCommand(command, opts = {}) {
     const child = spawn(argv[0], argv[1], {
       cwd,
       // 비밀은 자식에게 넘기지 않는다 — 명령이 `env` 만 찍어도 새어 나간다.
-      env: { ...redactEnv(opts.env ?? process.env), GPAO_T5_IN_TOOL: '1' },
+      // 임시 자리를 만들었으면 셸과 자식 프로그램에게 **거기를 쓰라고** 알려준다.
+      // TMPDIR 만으로는 부족하다 — zsh 의 TMPPREFIX 는 $TMPDIR 에서 나오지 않고 컴파일 시점
+      // 기본값(`/tmp/zsh`)을 쓴다. 실측으로 확인했다: TMPDIR 을 옮겨도 TMPPREFIX 는 /tmp/zsh 였고
+      // heredoc 은 그대로 막혔다. heredoc 임시 파일은 TMPPREFIX 를 따르므로 이걸 같이 옮겨야 한다.
+      env: {
+        ...redactEnv(opts.env ?? process.env),
+        GPAO_T5_IN_TOOL: '1',
+        ...(scratch ? { TMPDIR: scratch, TMP: scratch, TEMP: scratch, TMPPREFIX: join(scratch, 'zsh') } : {}),
+      },
       stdio: ['ignore', 'pipe', 'pipe'], // stdin 은 닫는다: 비밀번호·y/n 프롬프트에서 영원히 멈추지 않게
     });
 
