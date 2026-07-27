@@ -63,6 +63,16 @@ const within = (dir, p) => p === dir || p.startsWith(dir.endsWith(sep) ? dir : d
 const baseName = (p) => String(p).split(sep).pop() ?? '';
 
 /**
+ * 비밀 자리의 실제 경로들. **샌드박스 프로파일도 같은 목록을 쓴다** — 두 벌로 두면
+ * 한쪽에만 자리를 추가했을 때 다른 쪽이 조용히 열린다(그게 유출이다).
+ * 파일 이름 규칙(`SECRET_NAMES`)은 경로가 아니라 패턴이라 여기 안 들어간다 —
+ * 그건 도구 층에서 잡고, 커널 층은 자리로 막는다.
+ */
+export function secretPaths() {
+  return [...SECRET_DIRS];
+}
+
+/**
  * 이 경로가 보호 영역인가. **경로만 보고 판정한다**(파일을 열지 않는다 — 판정하려고 읽으면
  * 그 자체가 유출이다). 루트 설정과 무관하게 같은 답을 준다.
  * @param {string} absPath 이미 realpath 로 푼 절대 경로

