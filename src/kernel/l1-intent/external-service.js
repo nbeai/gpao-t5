@@ -44,7 +44,11 @@ export function reachingHands(selfState = {}) {
       // 모델이 빈 자리를 상상으로 메운다(실측: "로그인돼 있으면 볼 수 있다" — 거짓). 다른 손이
       // 덮는 한계(coveredBy)는 여기 안 싣는다 — 그건 그 손이 말한다.
       const 한계 = (t.limits ?? []).find((l) => !l.coveredBy)?.says;
-      return { label: t.label ?? t.id, ...(한계 ? { limit: 한계 } : {}) };
+      return {
+        label: t.label ?? t.id,
+        ...(t.operatorFact ? { operation: t.operatorFact } : {}),
+        ...(한계 ? { limit: 한계 } : {}),
+      };
     });
 }
 

@@ -166,6 +166,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
     availability: [{ kind: 'connected' }], toolKind: 'unknown_kind', needsApproval: true,
     capability: '외부 서비스를 T5 에 실제로 연결한다(연결·해제). 연결되면 그 서비스의 도구가'
       + ' 바로 쓸 수 있는 손으로 올라온다. 사용자는 승인 한 번만 하면 되고, 확인·등록·재연결은 T5 가 한다.',
+    operatorFact: '연결 상태를 직접 확인하고, 필요한 연결은 동의나 비밀 입력 경계에서 이어서 처리한다.',
     schema: {
       description: '외부 서비스를 연결하거나 해제한다. 사용자가 "노션 붙여줘", "구글 연결해줘",'
         + ' "연결 끊어줘"처럼 말하면 이걸 쓴다. 연결 방법을 사용자에게 설명하는 대신 **직접 실행한다** —'

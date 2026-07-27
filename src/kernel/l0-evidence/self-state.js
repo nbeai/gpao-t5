@@ -149,6 +149,7 @@ export function buildSelfState(env, deps = {}) {
       label: t.label,
       connector: t.connector,          // 어느 서비스의 손인가(커넥터 진실층이 여기서 파생한다)
       capability: t.capability,
+      operatorFact: t.operatorFact,
       limits: t.limits,               // 선언된 한계(이름과 함께 다닌다)
       schema: t.schema,                   // 모델에게 보여줄 스키마도 descriptor 파생
       note: t.note,

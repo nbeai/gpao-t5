@@ -101,11 +101,38 @@ export function deriveWorkingState(prevState, turn = {}) {
   // 다만 이번 턴에 뭔가 성공했으면 막힘은 푼다 — 되는 길을 찾았는데 "막혔다"고 남기면 거짓이다.
   const blocked = turn.blocked ?? (fresh.length ? undefined : prev.blocked);
 
+  // P5-B-1B · **하다 만 일은 다음 턴이 이어받는다.** 실측(오너 2026-07-28): 비밀 입력창을
+  // 띄우고 사용자가 창을 닫으면 그 사실이 어디에도 안 남았다 — 다음 턴에 "아까 네이버 붙이다
+  // 말았지?"를 T5 가 말할 자리가 없었다. 성공한 것만 기록하면 **중간에 멈춘 일이 통째로 사라진다.**
+  //
+  // 커널은 여기서도 도구 이름을 모른다: `surfaceRequest`(사용자에게 열어 줘야 하는 표면)와
+  // `subjectOf`(그 일의 대상)라는 기존 계약만 읽는다.
+  const 이번에멈춘것 = receipts.filter((r) => r?.surfaceRequest)
+    .map((r) => ({
+      key: subjectFrom(r)?.key ?? r.surfaceRequest.connector,
+      label: r.surfaceRequest.label ?? subjectFrom(r)?.label,
+      kind: r.surfaceRequest.kind,
+      // 무엇을 기다리는가 — 사용자가 채워야 하는 칸 이름까지(값은 아니다).
+      ...(r.surfaceRequest.fields?.length
+        ? { needs: r.surfaceRequest.fields.map((f) => f.label ?? f.name) } : {}),
+      lastTurn: turnNo,
+    }));
+  // 그 사이에 실제로 된 것이 있으면 푼다 — 됐는데 "하다 말았다"고 남기면 그게 거짓이다.
+  // 키 모양이 둘이다: 표면 요청은 대상 이름 그대로, subjectOf 는 `종류:이름` 으로 온다.
+  // 같은 것을 다르게 부르면 영원히 안 풀린다 — 앞의 종류를 떼고 맞춘다.
+  const 벗기기 = (k) => String(k ?? '').replace(/^[a-z_]+:/, '');
+  const 풀린것 = new Set(fresh.map((s) => 벗기기(s.key)));
+  const awaiting = [...이번에멈춘것, ...(prev.awaiting ?? [])]
+    .filter((a, i, all) => all.findIndex((x) => x.key === a.key) === i)
+    .filter((a) => !풀린것.has(벗기기(a.key)))
+    .filter((a) => turnNo - a.lastTurn <= FORGET_AFTER_TURNS);
+
   return {
     turnNo,
     ...(places?.length ? { places } : {}),
     subjects: merged,
     pendingApprovals: turn.pendingApprovals?.length ? turn.pendingApprovals : prev.pendingApprovals,
+    ...(awaiting.length ? { awaiting } : {}),
     blocked,
   };
 }
@@ -172,6 +199,13 @@ export function workingStateFacts(stateOrNull) {
       .map((s) => `${s.label}(${turnNo - s.lastTurn}턴 전)`).join(', ')}`);
   }
   if (state.pendingApprovals?.length) lines.push(`승인을 기다리는 일: ${state.pendingApprovals.join(', ')}`);
+  // **하다 만 연결.** 이게 없으면 다음 턴의 T5 는 처음부터 다시 시작한다 — 사용자는 이미
+  // 절반을 했는데. 사실만 준다(무엇을 기다리는지까지). 뭘 하라고는 말하지 않는다.
+  for (const a of state.awaiting ?? []) {
+    lines.push(`붙이다 멈춘 것: ${a.label ?? a.key}`
+      + (a.needs?.length ? ` — ${a.needs.join('·')} 입력을 기다리는 중` : ' — 사용자 쪽 차례')
+      + (turnNo - a.lastTurn > 0 ? ` (${turnNo - a.lastTurn}턴 전)` : ''));
+  }
   // 실패는 **결과 내용 없이** 사실로만 남긴다. 못 한 일의 내용물을 사실로 올리면 모델이 그걸
   // 답의 재료로 쓴다(실측: 엉뚱한 페이지 내용을 근거로 답했다).
   if (state.blocked) lines.push(`막혔던 것과 다음 길: ${state.blocked}`);

@@ -571,6 +571,23 @@ export async function runTurn(input, ctx) {
  * @param {TruthLedger} ledger
  * @param {Object} summary
  */
+
+/**
+ * **이미 붙은 것은 "하다 만 것"에서 뺀다.** 비밀 입력은 턴을 거치지 않고 전용 통로로 들어오므로
+ * (값이 대화에 남지 않게 하려고 그렇게 만들었다) 그 성공은 영수증으로 오지 않는다. 그래서
+ * 현재 연결 현실과 맞춰 봐야 한다 — 안 그러면 붙은 뒤에도 "붙이다 멈췄다"고 말하게 된다.
+ */
+function 이어받기정리(state, connectors = []) {
+  if (!state?.awaiting?.length) return state;
+  const 붙은것 = new Set((connectors ?? []).filter((c) => c.connected).map((c) => c.id));
+  const awaiting = state.awaiting.filter((a) => {
+    const id = String(a.key ?? "").replace(/^connector:/, "");
+    return !붙은것.has(id);
+  });
+  if (awaiting.length === state.awaiting.length) return state;
+  return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
+}
+
 async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs) {
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
@@ -627,11 +644,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const ladder = nextRung(turnReceipts, 있는손);
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
-  let workingState = deriveWorkingState(ctx.workingState, {
+  let workingState = 이어받기정리(deriveWorkingState(ctx.workingState, {
     places: await 볼수있는자리(ctx),
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
-  });
+  }), ctx.connectors);
   let tc = buildTaskContext({
     externalReality: ctx.externalReality,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
@@ -788,7 +805,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (rec.surfaceRequest) { 멈춘이유 = undefined; break; }
 
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
-    workingState = deriveWorkingState(workingState, { receipts: [rec] });
+    workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
     tc = buildTaskContext({
       externalReality: ctx.externalReality,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,

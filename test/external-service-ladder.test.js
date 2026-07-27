@@ -159,6 +159,21 @@ test('닿는 손은 이름 + **선언된 한계**만 — 처방을 넣지 않는
   }
 });
 
+test('닿는 손은 이름만이 아니라 T5가 사용자 대신 맡는 운영 사실을 함께 준다', () => {
+  const { selfState } = 손있는자리();
+  const terminal = reachingHands(selfState).find((h) => h.label === '터미널 실행');
+  assert.match(terminal?.operation ?? '', /직접 확인.*실행/, '손 이름만 있으면 짧은 턴에서 모델이 사용자를 터미널로 보낸다');
+  const 전문 = 프롬프트(selfState, '카페24 주문 자료 좀 가져와줘');
+  assert.ok(전문.includes(terminal.operation), '운영 사실이 모델 입력까지 도달해야 한다');
+});
+
+test('운영 사실을 선언하지 않은 새 손에는 역할을 지어내지 않는다', () => {
+  const hands = reachingHands({
+    connectedTools: [{ id: 'local.terminal', label: '새 실행 손', executable: true }],
+  });
+  assert.deepEqual(hands, [{ label: '새 실행 손' }], '런타임이 새 도구의 역할을 추측하면 또 다른 진실이 생긴다');
+});
+
 test('로그인이 안 따라온다는 사실이 브라우저 손 이름과 함께 다닌다(거짓 약속 재발 방지)', () => {
   // 라이브 3/4 재현: fast_chat 턴엔 능력 문장이 없어서 모델이 "로그인돼 있으면 볼 수 있다"고
   // 지어냈다. 이름과 함께 다니는 한계가 그 빈 자리를 채운다.

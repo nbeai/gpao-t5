@@ -131,7 +131,7 @@ export function buildModelMessages(tc) {
     // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
     if (e.reach?.length) {
       lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach
-        .map((h) => (h.limit ? `${h.label}(${h.limit})` : h.label)).join(' · ')}`);
+        .map((h) => `${h.label}${h.operation ? ` — ${h.operation}` : ''}${h.limit ? ` (${h.limit})` : ''}`).join(' · ')}`);
     }
     const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
     const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
@@ -155,6 +155,13 @@ export function buildModelMessages(tc) {
         + (s.paths?.length ? `\n  붙이는 길: ${s.paths.map(연결경로).join(' / ')}` : ''));
     }
     if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
+  }
+  // 사용자 발화의 분야를 미리 맞히지 않는다. 자료 찾기·컴퓨터 문제·연결·개발 작업 모두에서
+  // 모델이 "사용자에게 무엇을 시킬까"보다 "T5가 먼저 무엇을 확인할까"를 판단할 수 있게 하는
+  // 공통 운영 현실이다. 역할은 descriptor가 선언한 것만 실린다.
+  if (tc.operatorReality?.hands?.length) {
+    usr.push(`[T5가 먼저 맡을 수 있는 일]\n${tc.operatorReality.hands
+      .map((hand) => `- ${hand.label}: ${hand.operation}`).join('\n')}`);
   }
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);

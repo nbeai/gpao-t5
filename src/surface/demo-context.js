@@ -272,6 +272,7 @@ const DESCRIPTORS = [
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
     capability: '정해진 작업 폴더 안에서 파일을 보고·읽고·만들고·옮기고·지운다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
+    operatorFact: '작업 폴더 안의 자료를 직접 읽고 정리한다.',
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
       description: '정해진 작업 폴더 안의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. 되돌리기도 가능.',
@@ -307,6 +308,7 @@ const DESCRIPTORS = [
       + ' 파일을 바꾸거나 인터넷에 연결하는 명령은 그냥 실행하면 된다 —'
       + ' T5 가 실행 전에 사용자에게 확인 카드를 띄우고, 승인되면 T5 가 이어서 실행한다.'
       + ' 그러니 사용자에게 명령어를 보여주며 대신 치라고 하지 않는다. 비밀 자리는 승인해도 읽지 않는다.',
+    operatorFact: '이 컴퓨터의 상태·설정·설치된 도구를 직접 확인하고 필요한 명령을 실행한다.',
     schema: {
       description:
         '셸 명령을 실행한다. 파이프·리다이렉션·&& 다 된다.'
@@ -337,6 +339,7 @@ const DESCRIPTORS = [
     reversibleNote: '"꺼줘"라고 하시면 바로 꺼요',
     capability: '서버처럼 계속 도는 것을 켜고, 지금 살아있는지 확인하고, 로그를 읽고, 끈다.'
       + ' 기록에 남아 있어도 실제로 죽었으면 죽었다고 말한다.',
+    operatorFact: '서버처럼 오래 도는 작업을 직접 시작하고 상태와 로그를 확인해 관리한다.',
     schema: {
       description:
         '오래 도는 것(서버·워치·데몬)을 켜고 관리한다. 한 번에 끝나는 명령은 local.terminal 을 쓴다.'
@@ -360,6 +363,7 @@ const DESCRIPTORS = [
     id: 'local.locate', label: '작업 대상 찾기', owner: 'core', availability: [{ kind: 'connected' }],
     toolKind: 'read', needsApproval: false, reversible: true,
     capability: '사용자가 말한 대상이 어느 폴더인지 후보와 근거를 찾는다(코드 폴더든 정산·계약서·원고든).',
+    operatorFact: '사용자가 부른 자료나 폴더를 직접 찾아 후보와 근거를 확인한다.',
     schema: {
       description:
         '사용자가 부른 대상("정산 자료", "그 계약서", "이 프로젝트")이 어디인지 후보를 찾는다.'
@@ -421,6 +425,7 @@ const DESCRIPTORS = [
     // 능력 문장이 없어서 자기파악에서 이름만 보였다(1축에서 발견 — 맵에 안 적혀 있었다).
   defineTool({ id: 'session.search', label: '지난 대화 찾기', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
     capability: '지난 대화들에서 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
+    operatorFact: '지난 대화에서 관련된 일과 결정을 직접 찾아 현재 대화에 이어 쓴다.',
     schema: {
       description: '지난 대화들에서 찾는다. 사용자가 "전에 말했던", "그때 그거", "물어봤던 세션"처럼'
         + ' 과거 대화를 가리키면 이걸로 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.',
@@ -449,6 +454,7 @@ const DESCRIPTORS = [
       + ' 어디까지 봤고 얼마가 남았는지를 함께 남긴다. 보기만 하고 화면을 바꾸지 않는다.'
       + ' **로그인은 안 되어 있다** — 매번 새 브라우저 자리로 열기 때문에 사용자가 평소 쓰는'
       + ' 로그인 상태가 따라오지 않는다. 그래서 로그인이 필요한 화면은 로그인 페이지까지만 보인다.',
+    operatorFact: '새 브라우저 자리에서 실제 화면을 직접 확인한다.',
     // 이 한계는 **이름과 함께 다녀야 한다.** fast_chat 턴엔 능력 문장이 안 실려서(P2 다이어트)
     // 모델이 손 이름만 보고 "로그인돼 있으면 볼 수 있다"는 거짓 약속을 만들었다(라이브 3/4 재현).
     limits: [{ says: '로그인 상태는 따라오지 않는다(매번 새 브라우저 자리로 연다)' }],

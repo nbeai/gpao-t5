@@ -148,3 +148,74 @@ test('확신 없는 후보는 자리라고 말하지 않는다(아닌 것을 사
   const st = deriveWorkingState(null, { receipts: [애매].map(계약태우기) });
   assert.equal(workingStateFacts(st), undefined, '낮은 후보를 현재 자리로 올리면 다음 턴이 오염된다');
 });
+
+// ── 하다 만 연결의 다음 턴 승계 (오너 지시 2026-07-28) ────────────────────
+// 실측: 비밀 입력창을 띄우고 사용자가 창을 닫으면 그 사실이 어디에도 안 남았다.
+// 다음 턴의 T5 는 처음부터 다시 시작한다 — 사용자는 이미 절반을 했는데.
+// "아까 네이버 붙이다 말았지?" 가 되어야 한다.
+test('표면 요청이 나오면 다음 턴이 그걸 이어받는다', () => {
+  const 멈춘영수증 = {
+    intended: '연결', actualCall: { tool: 'connector.connect', args: {} },
+    failureState: 'blocked', userSafeSummary: '값이 필요해요',
+    surfaceRequest: {
+      kind: 'secret_input', connector: 'naver', label: '네이버',
+      fields: [{ name: 'client_id', label: 'Client ID' }, { name: 'client_secret', label: 'Client Secret' }],
+    },
+  };
+  const s1 = deriveWorkingState(undefined, { receipts: [멈춘영수증] });
+  assert.equal(s1.awaiting?.length, 1, '멈춘 일이 안 남았다');
+  assert.equal(s1.awaiting[0].label, '네이버');
+  assert.deepEqual(s1.awaiting[0].needs, ['Client ID', 'Client Secret']);
+
+  // 다음 턴에 아무 일이 없어도 계속 이어진다
+  const s2 = deriveWorkingState(s1, { receipts: [] });
+  assert.equal(s2.awaiting?.length, 1, '한 턴 지나니 잊었다');
+
+  // 모델이 그 사실을 본다
+  const facts = workingStateFacts(s2);
+  assert.match(facts, /붙이다 멈춘 것: 네이버/);
+  assert.match(facts, /Client ID·Client Secret 입력을 기다리는 중/);
+  assert.match(facts, /1턴 전/, '언제 멈췄는지가 없다');
+});
+
+test('멈춘 것에 비밀값은 담기지 않는다 — 칸 이름만', () => {
+  const s = deriveWorkingState(undefined, {
+    receipts: [{
+      intended: '연결', failureState: 'blocked', userSafeSummary: 'x',
+      surfaceRequest: { kind: 'secret_input', connector: 'sv', label: 'S', fields: [{ name: 'k', label: '열쇠' }] },
+    }],
+  });
+  const 전체 = JSON.stringify(s) + (workingStateFacts(s) ?? '');
+  assert.ok(!/value|secret_value|비밀값/.test(전체));
+  assert.deepEqual(s.awaiting[0].needs, ['열쇠']);
+});
+
+test('붙고 나면 "하다 말았다"고 하지 않는다', () => {
+  const s1 = deriveWorkingState(undefined, {
+    receipts: [{
+      intended: '연결', failureState: 'blocked', userSafeSummary: 'x',
+      surfaceRequest: { kind: 'secret_input', connector: 'naver', label: '네이버' },
+    }],
+  });
+  // 같은 대상이 성공하면 풀린다(원장이 그 근거다)
+  const s2 = deriveWorkingState(s1, {
+    receipts: [{
+      intended: '연결', actualCall: { tool: 'connector.connect', args: {} },
+      failureState: 'none', result: { connector: 'naver', label: '네이버', connected: true },
+      userSafeSummary: '연결했어요',
+      subject: { key: 'connector:naver', kind: 'connector', label: '네이버' },
+    }],
+  });
+  assert.ok(!s2.awaiting?.length, '붙었는데 아직 하다 만 것으로 남았다');
+});
+
+test('오래 지나면 내려간다 — 옛일을 영원히 현재로 주장하지 않는다', () => {
+  let s = deriveWorkingState(undefined, {
+    receipts: [{
+      intended: '연결', failureState: 'blocked', userSafeSummary: 'x',
+      surfaceRequest: { kind: 'secret_input', connector: 'sv', label: 'S' },
+    }],
+  });
+  for (let i = 0; i < 12; i += 1) s = deriveWorkingState(s, { receipts: [] });
+  assert.ok(!s.awaiting?.length, '열두 턴이 지나도 붙잡고 있다');
+});

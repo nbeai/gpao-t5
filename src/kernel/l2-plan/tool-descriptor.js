@@ -24,6 +24,8 @@ import { FAILURE } from '../contracts.js';
  *   (오너 실사용: `session.search` 가 이 자리에 없어서 "그 기능은 없습니다"라고 답했다.)
  * @param {string} [d.capability]  이 도구가 **실제로 하는 일** 한 줄(사용자 말). 라벨만 주면 모델이
  *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
+ * @param {string} [d.operatorFact]  T5가 사용자 대신 맡을 수 있는 운영 사실. 능력 설명과 달리
+ *   짧고, 현재 손을 고르는 판단 재료로만 쓴다. 경로나 순서를 처방하지 않는다.
  * @returns {import('../contracts.js').ToolDescriptor}
  */
 export function defineTool(d) {
@@ -38,6 +40,7 @@ export function defineTool(d) {
     reversible: d.reversible,           // 미선언은 undefined — 모르면 안전하게 "어려울 수 있다"로 말한다
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
+    operatorFact: d.operatorFact,
     // P5-B-0: **어느 서비스의 손인가.** 커넥터가 도구 목록을 손으로 들면(availableTools) 손발이
     // 늘거나 줄 때 또 어긋난다 — `선언 ⊆ 손` 이 이미 목록으로 새어 본 자리다. 방향을 뒤집는다:
     // 도구가 자기 서비스를 말하고, 커넥터의 도구 목록은 **거기서 파생**된다.
@@ -90,6 +93,7 @@ export function toConnection(descriptor, facts = {}) {
     // 연결돼 있는데도 "연결 안 됨"으로 말한다 — 검사가 실제로 그걸 잡았다.
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
+    operatorFact: descriptor.operatorFact,
     limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };

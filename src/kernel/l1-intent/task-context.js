@@ -3,6 +3,7 @@
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 import { sameSiteLinks } from '../l0-evidence/working-state.js';
+import { operatorReality } from './operator-reality.js';
 
 /**
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
@@ -204,6 +205,12 @@ export function buildTaskContext(p) {
   // 이 블록은 T5 자기 손과 연결 상태에 대한 **능력 사실**이다(readyTools·limits 와 같은 급).
   // 짧게 유지하는 것으로 소음을 다루고, 실을지 말지를 분류기가 정하게 두지 않는다.
   if (p.externalReality) packet.externalReality = p.externalReality;
+
+  // 대화 대상이 파일·웹·외부 서비스·개발 작업 중 무엇이든 같은 운영 현실을 본다.
+  // 이건 "이 도구를 써라"가 아니라, T5가 이미 사용자 대신 직접 다룰 수 있는 일을 알려 주는
+  // 사실이다. 서비스별 분기나 발화 분류에 매달리면 다음 낯선 요청에서 다시 빈칸이 생긴다.
+  const operating = operatorReality(selfState);
+  if (operating) packet.operatorReality = operating;
 
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
   if (p.receipts && p.receipts.length) {
