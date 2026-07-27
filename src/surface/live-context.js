@@ -2,7 +2,7 @@
 // 감사 보정(2.0-A §10.1): 도구함 상태 = 실제 실행 상태. slack.post는 SLACK_BOT_TOKEN이 있어야
 //   사용 가능(usable/green)이고, 없으면 연결 필요(needs_connection/yellow)로 보이며 실행도 불가하다.
 //   → 도구함(projectToolbox)과 실행 게이트(isToolExecutable)가 같은 env를 읽어 어긋나지 않는다.
-import { demoEnv, demoTools, demoDescriptors } from './demo-context.js';
+import { demoEnv, demoTools, demoDescriptors, demoConnectors } from './demo-context.js';
 import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
@@ -101,10 +101,18 @@ export function liveDeps(processEnv = {}, deps = {}) {
     .map((d) => d.id)
     .filter((id) => typeof tools?.tools?.[id]?.handler === 'function');
 
+  // P5-B-0: **연결 전 서비스도 선언한다.** 예전엔 손 없는 선언을 통째로 걸러냈다 — 그때는
+  // 그게 유령(`mail.send`)을 막는 유일한 방법이었기 때문이다. 이제 2축이 있으니 걸러낼 필요가
+  // 없다: 선언은 남기고 executable:false + reason 으로 표시하면 model schema 에는 안 나온다.
+  // 걸러내면 사용자는 그 서비스가 **존재한다는 것조차** 못 듣고, 모델은 빈 자리를 상상으로 메운다.
+  const 연결전 = demoDescriptors()
+    .filter((d) => d.connector && !liveToolIds.includes(d.id))
+    .map((d) => d.id);
+
   // 전송 도구의 연결 상태는 실제 토큰 유무로 결정한다. 토큰 없으면 도구함에서 "연결이 필요해요"(노랑),
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
   const env = demoEnv({
-    include: liveToolIds,
+    include: [...liveToolIds, ...연결전],
     // P5-B-0: 실제 손 목록을 그대로 넘긴다 — env 가 손을 다시 추측하지 않게(두 진실 금지).
     hands: liveToolIds,
     factOverrides: {
@@ -138,8 +146,13 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 열린다** — Phase 0-5 에서 실제로 그렇게 새고 있었다.
   const channels = liveChannels(processEnv);
   return {
-    env, tools, descriptors: demoDescriptors({ include: liveToolIds }), channels,
-    connectors: channels.map((c) => c.connector),
+    env, tools, descriptors: demoDescriptors({ include: [...liveToolIds, ...연결전] }), channels,
+    // P5-B-0: 채널 커넥터 + **연결 전 서비스 커넥터**. 선언이 없으면 "연결하면 가능"을 말할
+    // 자리가 없다 — 그 자리가 비면 모델이 상상으로 메운다(§0).
+    connectors: [
+      ...channels.map((c) => c.connector),
+      ...demoConnectors().filter((c) => 연결전.some((id) => demoDescriptors().find((d) => d.id === id)?.connector === c.id)),
+    ],
     model, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
   };
 }

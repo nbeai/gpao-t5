@@ -14,6 +14,7 @@ import { approveAutomation } from '../src/kernel/l5-growth/automation.js';
 import { toolActionKind } from '../src/kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../src/kernel/l2-plan/authority.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
+import { toolSchemasFor } from '../src/kernel/l2-plan/tool-schema.js';
 import { interpret } from '../src/kernel/l1-intent/intent.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
@@ -66,11 +67,22 @@ test('불변식: 행동 종류 판정이 도구가 아니라 작업으로 나온
   assert.equal(isSafetyFloor(toolActionKind({ toolId: 'local.file', args: { action: 'list' }, selfState: s })), false);
 });
 
-// ── D2: 손이 없는 도구는 연결을 권하지 않는다 ────────────────────────────
-test('D2: 라이브에 없는 도구는 말귀가 후보로 올리지 않는다(죽은 연결 버튼 금지)', () => {
-  const live = buildSelfState(liveDeps({}).env);
-  const i = interpret('김대리에게 메일로 보고서 보내줘', { selfState: live });
-  assert.ok(!(i.neededTools ?? []).includes('mail.send'), '연결할 대상이 없는데 연결을 권하면 거짓말이다');
+// ── D2: 연결 전 서비스는 **안내하되 실행 가능으로 노출하지 않는다** (P5-B-0) ──
+// 예전 이 검사는 "mail.send 를 후보로 올리지 마라"였다. 그때는 메일 커넥터 선언이 아예 없어서
+// 연결할 대상이 없었기 때문이다 — 연결을 권하면 죽은 버튼이 됐다.
+//
+// P5-B-0 에서 `mail` 커넥터를 선언했으므로 이제 **연결할 대상이 있다.** 바로 아래 형제 검사가
+// 말하는 원칙 그대로다: "연결이 안 된 것과 아예 없는 것은 다르다."
+// 그래서 잡아야 할 것이 바뀐다 — 안내는 하되, **실행 가능으로는 절대 새지 않아야 한다.**
+test('D2: 연결 전 서비스는 안내는 하되 모델에게 실행 도구로 보이지 않는다', () => {
+  const live = liveDeps({});
+  const s = buildSelfState(live.env, { tools: live.tools });
+  const i = interpret('김대리에게 메일로 보고서 보내줘', { selfState: s });
+  // 안내는 된다 — 사용자가 "메일 계정을 연결하면 가능해요"를 들을 수 있어야 한다.
+  assert.ok((i.neededTools ?? []).includes('mail.send'), '연결 대상이 있는데 숨기면 사용자가 길을 모른다');
+  // 그러나 실행 가능은 아니다 — 여기가 새면 모델이 "보냈다"고 약속한다.
+  assert.equal(s.connectedTools.find((t) => t.id === 'mail.send')?.executable, false);
+  assert.ok(!toolSchemasFor(s).some((t) => t.name === 'mail.send'), '모델 schema 에 새면 안 된다');
 });
 
 test('연결이 안 된 것과 아예 없는 것은 다르다 — 있는 도구는 계속 안내한다', () => {

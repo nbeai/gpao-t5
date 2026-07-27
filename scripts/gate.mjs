@@ -34,9 +34,16 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   for (const d of live.descriptors ?? []) declared.set(d.id, 'descriptor(도구함)');
   for (const c of live.channels ?? []) if (c.outboundTool) declared.set(c.outboundTool, `채널 ${c.id} 의 보내기`);
 
-  const phantom = [...declared].filter(([id]) => !handlers.has(id));
+  // P5-B-0: **선언 ≠ 실행 가능.** 예전엔 둘을 같은 것으로 봤기 때문에, 연결 전 서비스를
+  // 선언할 방법이 아예 없었다(그래서 라이브가 `mail.send` 를 통째로 걸러냈고, 사용자는 메일이
+  // 존재한다는 것조차 못 들었다). 이제 잡아야 할 것은 **"실행 가능하다고 말하는데 손이 없는"**
+  // 경우다. 연결 전 선언은 `executable:false + reason` 으로 정직하게 표시되면 정상이다.
+  const { buildSelfState: 자기상태 } = await import('../src/kernel/l0-evidence/self-state.js');
+  const 실행가능 = new Set(자기상태(live.env, { tools: live.tools }).connectedTools
+    .filter((t) => t.executable).map((t) => t.id));
+  const phantom = [...declared].filter(([id]) => 실행가능.has(id) && !handlers.has(id));
   if (phantom.length) {
-    bad(`선언만 있고 손이 없는 도구: ${phantom.map(([id, src]) => `${id}(${src})`).join(', ')} — 배선하거나 선언을 거둘 것`);
+    bad(`실행 가능하다면서 손이 없는 도구: ${phantom.map(([id, src]) => `${id}(${src})`).join(', ')} — 배선하거나 실행 불가로 표시할 것`);
   }
   // 1축: **반대 방향도 본다.** 손은 배선했는데 선언이 없으면 그 도구는 모델에게도 도구함에도
   // 안 보인다 — 만들어 놓고 아무도 못 쓰는 상태다(`session.search` 가 정확히 그랬다: 손은 있는데
@@ -64,8 +71,10 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     const base = `http://127.0.0.1:${server.address().port}`;
     const { tools: shown } = await (await fetch(`${base}/toolbox`)).json();
     const surfaced = (shown ?? []).map((t) => t.id);
-    const unbacked = surfaced.filter((id) => !handlers.has(id));
-    if (unbacked.length) bad(`도구함에 손 없는 도구가 보인다: ${unbacked.join(', ')} — liveDeps 를 서버에 안 넘겼는지 확인할 것`);
+    // P5-B-0: 도구함에 **보이는 것** 자체는 문제가 아니다(연결 전 서비스도 보여야 사용자가 안다).
+    // 문제는 **"지금 쓸 수 있다"고 보이는데 손이 없는** 경우다.
+    const unbacked = surfaced.filter((id) => 실행가능.has(id) && !handlers.has(id));
+    if (unbacked.length) bad(`도구함에 "쓸 수 있다"로 보이는데 손이 없다: ${unbacked.join(', ')} — liveDeps 를 서버에 안 넘겼는지 확인할 것`);
 
     // 말귀도 같은 집합만 가리켜야 한다. 없는 도구로 라우팅하면 "연결이 필요해요/[연결 화면 열기]"
     // 라는 **죽은 버튼**이 뜬다 — 연결할 대상이 없으므로 거짓 안내다(재감사 지적).
@@ -74,12 +83,14 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     const liveSelf = bss(live.env);
     for (const text of ['메일로 보내줘', '슬랙에 올려줘', '텔레그램으로 보내줘', '메모.md 지워줘', '뉴스 조사해줘']) {
       const routed = interpret(text, { selfState: liveSelf }).neededTools ?? [];
-      const dead = routed.filter((id) => !handlers.has(id));
-      if (dead.length) bad(`"${text}" 가 손 없는 도구로 라우팅된다: ${dead.join(', ')} (죽은 연결 안내)`);
+      // 연결 전 서비스로 라우팅되는 것은 **정상이다** — "메일 계정을 연결하면 가능해요"를
+      // 말할 수 있어야 하니까. 죽은 안내는 선언조차 없는 도구로 갈 때다.
+      const dead = routed.filter((id) => !handlers.has(id) && !declared.has(id));
+      if (dead.length) bad(`"${text}" 가 선언도 손도 없는 도구로 라우팅된다: ${dead.join(', ')} (죽은 연결 안내)`);
     }
 
     if (!unbacked.length && !phantom.length && !fixtures.length && failures.length === 0) {
-      ok(`선언 ${declared.size} = 손 ${handlers.size} = 화면 ${surfaced.length}, 스텁 0`);
+      ok(`선언 ${declared.size} · 손 ${handlers.size} · 화면 ${surfaced.length} · 실행 가능 ${실행가능.size}, 스텁 0`);
     }
   } finally {
     await new Promise((r) => server.close(r));
@@ -480,7 +491,12 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   const { liveDeps } = await import('../src/surface/live-context.js');
   const live = liveDeps({});
   const hands = live.tools?.tools ?? {};
-  const 승인필요 = new Set((live.descriptors ?? []).filter((d) => d.needsApproval).map((d) => d.id));
+  // P5-B-0: **실행 가능한** 승인 대상만 본다. 연결 전 도구는 승인 카드가 뜰 일이 없다 —
+  // 연결되는 슬라이스에서 handler·previewOf·receipt 를 함께 닫는다(그 전엔 요구하지 않는다).
+  const { buildSelfState: 자기상태2 } = await import('../src/kernel/l0-evidence/self-state.js');
+  const 실행가능ids = new Set(자기상태2(live.env, { tools: live.tools }).connectedTools
+    .filter((t) => t.executable).map((t) => t.id));
+  const 승인필요 = new Set((live.descriptors ?? []).filter((d) => d.needsApproval && 실행가능ids.has(d.id)).map((d) => d.id));
   // 도구 종류로 승인이 갈리는 것(local.file 의 write·delete)도 계약 대상이다.
   const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
   for (const id of Object.keys(hands)) {
