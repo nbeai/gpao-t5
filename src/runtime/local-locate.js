@@ -139,7 +139,12 @@ function 자리로(from, 자리들, home) {
   if (말.startsWith('~/')) return { path: join(home, 말.slice(2)) };
   // 경로를 준 것을 이름으로 다시 해석하지 않는다(모델·스킬이 정확히 짚었을 때 가로채면 안 된다).
   if (말.startsWith('/')) return { path: 말 };
-  const 맞음 = 자리들.find((p) => p.label.toLowerCase() === 말.toLowerCase());
+  // **눈에 같은 글자를 같게 본다.** macOS 는 마운트된 볼륨 이름을 NFD(자모 분해)로 돌려주고
+  // 모델은 사용자가 친 그대로 NFC 로 보낸다 — `===` 로는 다른 문자열이다. 라이브에서 볼륨이
+  // 붙어 있는데도 "작업용SSD라는 자리는 지금 안 보여요"가 나왔다(369d8d0d). 한글 이름의
+  // 외장 디스크는 전부 여기서 죽는다. 정규화는 판단이 아니라 **같은 이름을 같다고 읽는 것**이다.
+  const 같은이름 = (a, b) => a.normalize('NFC').toLowerCase() === b.normalize('NFC').toLowerCase();
+  const 맞음 = 자리들.find((p) => 같은이름(p.label, 말));
   return 맞음 ? { path: 맞음.path, name: 맞음.label } : { unknown: 말 };
 }
 

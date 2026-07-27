@@ -192,6 +192,27 @@ test('없는 이름은 조용히 홈으로 떨어지지 않는다(엉뚱한 자�
   assert.doesNotMatch(r.nextSafeAction ?? '', /경로|복사|붙여/);
 });
 
+// 라이브 실측(369d8d0d, 2026-07-27): 볼륨이 **붙어 있는데도** "작업용SSD라는 자리는 지금
+// 안 보여요"라고 답했다. 모델이 원인을 정확히 짚었다 — "글자는 같아 보이는데 내부 표기가 달라서".
+// macOS 는 마운트된 볼륨 이름을 **NFD(자모 분해)** 로 돌려주고, 모델은 **NFC** 로 보낸다.
+// 눈에 같은 글자가 `===` 로는 다르다. 한글 이름의 외장 디스크는 전부 여기서 죽는다.
+test('한글 자리 이름은 표기가 달라도 같은 자리로 읽는다(NFC/NFD)', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-정규화-'));
+  const vol = await mkdtemp(join(tmpdir(), 'gpao-t5-볼륨-'));
+  // 디스크에는 macOS 가 돌려주는 그 모양(NFD)으로 만든다.
+  const 분해된 = '작업용SSD'.normalize('NFD');
+  await mkdir(join(vol, 분해된, '2026 정산자료'), { recursive: true });
+  for (const f of ['매입.xlsx', '매출.xlsx', '증빙.pdf']) {
+    await writeFile(join(vol, 분해된, '2026 정산자료', f), 'x');
+  }
+  const tool = makeLocalLocateTool({ home, volumesDir: vol });
+  // 모델은 사용자가 친 그대로(NFC) 보낸다.
+  const r = await tool.handler({ what: '정산 자료', from: '작업용SSD'.normalize('NFC') });
+  assert.equal(r.result.unknownPlace, undefined,
+    `붙어 있는 자리를 "안 보인다"고 했다 — ${r.userSafeSummary}`);
+  assert.ok(r.result.candidates.length > 0, `그 자리에서 못 찾았다 — ${r.userSafeSummary}`);
+});
+
 test('진짜 경로를 주면 그대로 쓴다(이름 승계가 경로를 가로채지 않는다)', async () => {
   const { vol, tool } = await 이름으로고르는판();
   const r = await tool.handler({ what: '정산 자료', from: join(vol, '작업용SSD') });
