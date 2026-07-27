@@ -125,3 +125,73 @@ test('적힐 내용이 줄바꿈 그대로 보이게 화면이 처리한다', ()
   assert.match(html, /el\('pre',\s*`무엇을:/, 'textContent 로 넣으면 목록이 한 줄로 뭉개진다');
   assert.match(html, /\.card \.why \.pre\s*\{[^}]*white-space:\s*pre-wrap/, 'pre-wrap 규칙이 있어야 한다');
 });
+
+// ── L8 · 승인 안내는 모델이 무슨 말을 하든 사실을 담는다 ────────────────────
+// 실측 실패(2026-07-27 4:33, 실제 방):
+//   "승인 확인했어. 다만 지금 이 응답 경로에는 로컬 파일 실행 도구가 붙어 있지 않아서,
+//    내가 실제로 `메모.md`를 생성하진 못했어. 만들 위치는 …가 맞고, 내용은 아래처럼 넣으면 돼."
+// 승인을 **요청하는** 턴에서 승인했다고 했고, 있는 손을 없다고 했고, 사용자에게 시켰다.
+// 그때 안내는 `사람말 || 무엇—왜` 였다 — 모델 문장이 사실을 **대체**했다.
+//
+// 판정을 "모델이 정직하게 말했는가"에 걸면 확정이 안 된다(승인 턴의 reply 는 라이브 4회 연속
+// 비었다 — 모델은 승인 턴에서 도구만 고른다). 그래서 **사실이 늘 곁에 있는가**로 판정한다.
+const 말하는모델 = (문장, calls) => {
+  let used = false;
+  return { async respond(_tc, opts = {}) {
+    if (!used && opts.tools?.length) { used = true; return { text: 문장, toolCalls: calls }; }
+    return opts.tools?.length ? { text: '했어요', toolCalls: [] } : '했어요';
+  } };
+};
+
+test('모델이 "손이 없다"고 말해도 안내에 사실이 함께 남는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'l8-'));
+  const 루트 = await mkdtemp(join(tmpdir(), 'l8-root-'));
+  const store = new SessionStore(dir);
+  const allow = new AllowlistStore(dir);
+  await allow.allow('telegram', { userId: 'u1' });
+  const 방으로 = [];
+  const server = makeServer({
+    store, allowlistStore: allow, channels: demoChannels(), connectors: demoConnectors(),
+    tools: demoTools({
+      localFile: makeLocalFileTool({ roots: [루트], dataDir: dir }),
+      senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
+    }),
+    model: 말하는모델(
+      '승인 확인했어. 다만 로컬 파일 도구가 붙어 있지 않아서 내가 실제로 만들진 못했어.',
+      [{ name: 'local.file', args: { action: 'write', path: '메모.md', text: '할 일' } }],
+    ),
+  });
+  const r = await server.handleChannelMessage({
+    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘',
+  });
+  assert.equal(r.kind, 'approval');
+  const 안내 = 방으로.at(-1) ?? '';
+  // 모델 문장은 버리지 않는다(64a7634) — 다만 **혼자 서지 못하게** 한다.
+  assert.match(안내, /붙어 있지 않아서/, '모델이 한 말을 버리지 않는다');
+  assert.match(안내, /실행 전에 확인/, '왜 멈췄는지가 함께 있어야 그 문장이 반박된다');
+  assert.match(안내, /메모\.md/, '무엇이 생기는지');
+  assert.ok(안내.includes(루트), '어디에 생기는지');
+  assert.match(안내, /T5 화면에서 확인해 주시면 이어서 할게요/, 'T5 가 이어서 한다는 사실');
+});
+
+test('모델이 아무 말도 안 해도(reply 빈 턴) 안내는 온전하다 — 라이브 4회 연속 그랬다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'l8b-'));
+  const 루트 = await mkdtemp(join(tmpdir(), 'l8b-root-'));
+  const store = new SessionStore(dir);
+  const allow = new AllowlistStore(dir);
+  await allow.allow('telegram', { userId: 'u1' });
+  const 방으로 = [];
+  const server = makeServer({
+    store, allowlistStore: allow, channels: demoChannels(), connectors: demoConnectors(),
+    tools: demoTools({
+      localFile: makeLocalFileTool({ roots: [루트], dataDir: dir }),
+      senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
+    }),
+    model: 말하는모델('', [{ name: 'local.file', args: { action: 'write', path: '메모.md', text: '할 일' } }]),
+  });
+  await server.handleChannelMessage({ channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘' });
+  const 안내 = 방으로.at(-1) ?? '';
+  assert.match(안내, /실행 전에 확인/);
+  assert.match(안내, /메모\.md/);
+  assert.match(안내, /T5 화면에서 확인해 주시면 이어서 할게요/);
+});
