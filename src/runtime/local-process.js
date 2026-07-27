@@ -64,6 +64,26 @@ export function makeLocalProcessTool(deps = {}) {
   }
 
   return {
+    /**
+     * 승인 카드에 실릴 사실. **도구가 만든다** — 커널의 describeAction 에 도구별 if 를 늘리면
+     * 새 도구가 생길 때마다 "○○ 실행" 같은 빈 문구가 또 나온다(실측: "실행 중인 것 실행").
+     * 사용자가 무엇을 허락하는지 알아야 승인이 승인이 된다.
+     */
+    previewOf(args = {}) {
+      if ((args.action ?? 'status') !== 'start') return undefined;
+      const command = String(args.command ?? '').trim();
+      if (!command) return undefined;
+      const 이름 = String(args.label ?? '').trim() || command.slice(0, 40);
+      const 자리 = args.cwd ? String(args.cwd) : (deps.cwd ?? process.cwd());
+      const 포트 = args.port ?? command.match(/(?:^|\s|:)(\d{4,5})(?:\s|$)/)?.[1];
+      return {
+        impact: `${이름} 을(를) 켜요 — ${command}`,
+        scope: `${자리} 에서${포트 ? ` · ${포트} 포트를 씁니다` : ''}`,
+        // **계속 돈다는 것**이 이 승인의 핵심이다. 한 번 하고 끝나는 일이 아니다.
+        duration: '끌 때까지 계속 돌아요(이 대화를 닫아도 남아 있어요)',
+        cancel: '"꺼줘"라고 하시면 바로 꺼요',
+      };
+    },
     async handler(args = {}) {
       if (!store) return fail('지금은 프로세스를 다루는 기능이 준비되지 않았어요.');
       const action = args.action ?? 'status';

@@ -125,7 +125,11 @@ export function buildActionPlan(p) {
     const cancelText = reversible === true ? (tool.reversibleNote ?? '되돌릴 수 있어요')
       : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
         : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
-    const preview = () => ({
+    // **도구가 만든 미리보기가 먼저다.** 도구는 자기가 무엇을 하는지 가장 정확히 안다.
+    // 여기 도구별 if 를 늘리면 새 도구마다 "○○ 실행" 이라는 빈 문구가 또 나온다 —
+    // 사용자가 무엇을 허락하는지 모르는 승인은 승인이 아니다(실측: "실행 중인 것 실행").
+    const 도구미리보기 = intent.toolPreviews?.[id];
+    const preview = () => (도구미리보기 ? { cancel: cancelText, ...도구미리보기 } : {
       impact: describeAction(id, 판정인자) ?? `${toolLabel(id, selfState)} 실행`,
       scope: '이번 요청',
       duration: '이번 한 번',

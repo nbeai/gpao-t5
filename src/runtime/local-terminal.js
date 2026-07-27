@@ -60,6 +60,19 @@ export function makeLocalTerminalTool(deps = {}) {
 
   return {
     probe,
+    /** 승인 카드에 실릴 사실 — 명령 원문과 자리. 도구가 만든다(커널에 if 를 늘리지 않는다). */
+    previewOf(args = {}) {
+      const command = String(args.command ?? '').trim();
+      if (!command) return undefined;
+      const block = executionBlock(args.probeResult);
+      return {
+        impact: `${command}`,
+        scope: `${blank(args.cwd) ?? cwdOf()} 에서`,
+        duration: '이번 한 번',
+        cancel: block?.kind === 'sandbox' ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
+          : '실행한 뒤에는 되돌리기 어려울 수 있어요',
+      };
+    },
     async handler(args = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) {

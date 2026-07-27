@@ -309,6 +309,15 @@ export async function runTurn(input, ctx) {
       };
     }
   }
+  // 승인 카드에 실을 사실을 **도구에게 물어 둔다.** 도구별 if 가 아니라 계약 하나다 —
+  // 새 도구가 previewOf 를 내면 그대로 카드에 실린다(안 내면 예전 문구로 떨어진다).
+  const toolPreviews = {};
+  for (const id of planIntent.neededTools ?? []) {
+    const 인자 = id === 'local.terminal' ? planIntent.terminalOp : (planIntent.toolArgs?.[id] ?? planIntent.fileOp);
+    const pv = ctx.tools?.tools?.[id]?.previewOf?.(인자 ?? {});
+    if (pv) toolPreviews[id] = pv;
+  }
+  if (Object.keys(toolPreviews).length) planIntent = { ...planIntent, toolPreviews };
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
