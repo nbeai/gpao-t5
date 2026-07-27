@@ -44,8 +44,11 @@ export function lifecycleRisk(command, ctx = {}) {
       return { why: '대화·원장·연결 기록이 통째로 사라져요', what: dataDir };
     }
   }
-  // ④ 사용자가 모르는 사이 자동으로 뜨거나 사라지는 것
-  if (/\blaunchctl\b|LaunchAgents|LaunchDaemons/.test(cmd)) {
+  // ④ 부팅 자동 실행을 **바꾸는** launchctl 동작.
+  // 경로 이름만 읽는 것까지 막으면 "컴퓨터가 왜 느린지 봐줘"의 시작조차 승인으로 밀린다.
+  // 파일 쓰기는 probe 샌드박스가 실제로 막고, 여기서는 파일 경로가 아니라 서비스를 실제로
+  // 올리거나 내리는 명령만 별도 보호한다.
+  if (/\blaunchctl\s+(?:load|unload|bootstrap|bootout|enable|disable|kickstart|start|stop|submit|remove)\b/.test(cmd)) {
     return { why: '컴퓨터가 켜질 때마다 자동으로 도는 설정을 바꾸는 명령이에요', what: cmd.trim() };
   }
   return undefined;

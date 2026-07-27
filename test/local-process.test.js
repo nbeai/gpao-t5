@@ -110,7 +110,11 @@ test('⑥ 자기 기억을 지우거나 자동 실행을 거는 명령은 직접
     assert.ok(lifecycleRisk(cmd, { dataDir: D }), `자기보존 경계를 통과했다: ${cmd}`);
   }
   // 막기만 하면 도구가 아니다 — 남의 프로세스·남의 폴더는 그대로 다룬다.
-  for (const cmd of ['kill 999999', 'rm -rf /tmp/남의것', 'ls -la', 'npm test']) {
+  for (const cmd of [
+    'kill 999999', 'rm -rf /tmp/남의것', 'ls -la', 'npm test',
+    'ls ~/Library/LaunchAgents /Library/LaunchDaemons',
+    'launchctl list',
+  ]) {
     assert.ok(!lifecycleRisk(cmd, { dataDir: D }), `평범한 명령이 자기보존에 걸렸다: ${cmd}`);
   }
 });

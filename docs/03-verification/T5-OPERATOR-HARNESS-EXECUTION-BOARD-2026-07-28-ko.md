@@ -23,13 +23,13 @@
 |---|---|---|---|---|---|
 | 원문·대화 흐름 | `TaskContextPacket`, recent turns | 있음 | 일부 과거 라이브 | 웹 일부 | 변형 발화에서 현재 목적을 유지하는지 |
 | 작업 대상·다음 턴 | `subjectOf`, places, workingState | 있음 | 일부 과거 라이브 | 웹 일부 | 중단·완료·새 요청에서 잘못 되살리지 않는지 |
-| 터미널·파일·프로세스 | terminal/file/locate/process | 있음 | 과거 개별 라이브 | 승인 카드 일부 | A·B 시나리오에서 실제 모델이 먼저 조사하는지 |
+| 터미널·파일·프로세스 | terminal/file/locate/process | 있음 | A 읽기 진단 1회 확인 | API 원장 확인 | B의 탐색·승인·변경까지 확인 |
 | 웹·브라우저 | collect/observe/act | 있음 | 과거 개별 라이브 | 웹 일부 | 로그인 한계와 공개 자료 경로를 정직하게 쓰는지 |
 | 연결·권한 | MCP, OAuth, API key, CLI, admission | 있음 | 노션 과거 실계정 경로 | 연결/비밀 입력 일부 | D·E에서 현재 브랜치로 재검증 |
 | 승인·비밀 보호 | A0~A3, preview, secret surface | 있음 | 일부 과거 라이브 | 웹 카드 일부 | 승인·거절·재개가 원장과 같은지 |
 | 실행 사실·보고 | receipt, calledWith, ledger | 있음 | 과거 불일치 수정 후 일부 | 웹/채널 일부 | 답·카드·실행·원장 4자 대조 |
 | 복구·반복 방지 | recovery hint, sandbox, receipt | 일부 | 미확인 | 미확인 | 실패 손과 다른 손 전환을 라이브로 |
-| 운영 현실 | `operatorFact → SelfState → TaskContextPacket` | 있음 | **미확인** | 해당 없음 | P-OP-1 A·B·C 실제 모델 검증 |
+| 운영 현실 | `operatorFact → SelfState → TaskContextPacket` | 있음 | A 읽기 진단 1회 확인 | API 원장 확인 | B·C 실제 모델 검증 |
 | 하다 만 일 승계 | awaiting, pending approval, working state | 있음 | **미확인** | 해당 없음 | P-OP-2 B·D·G 실제 모델 검증 |
 | 일반 사용자 UX | Work Chat, 카드, 비밀 입력 | 부분 | 일부 | 일부 | 진행·복구·결과가 내부 용어 없이 도달하는지 |
 
@@ -128,6 +128,15 @@
 
 증거는 `docs/03-verification/evidence/core-harness/<단계>/`에 둔다. 비밀·토큰·개인 자료·전체 모델 사고 원문은 저장하지 않는다.
 
-## 6. 다음 착수
+## 6. P-OP-1 첫 라이브 증거
 
-다음 구현은 **P-OP-1**이다. 먼저 현재 `operatorReality`가 모든 실행 가능한 손을 그대로 싣는 문제를, 키워드 분기 없이 `고정 요약 + 현재 작업 관련 상세 + trace`라는 공통 계약으로 좁힌다. A·B·C의 실제 모델 검증이 끝나기 전에는 P-OP-2 이후 기능을 시작하지 않는다.
+- 시각: 2026-07-28
+- 문장: `컴퓨터가 요즘 느린데, 바꾸지 말고 원인만 봐줘.`
+- 환경: 현재 브랜치의 실제 모델(`gpt-5.5`) · 새 세션 · 요청 1회
+- 결과: `kind: reply`, 승인 대기 없음, 읽기 실행 영수증 5건, 미확인 실행 0건.
+- 확인한 경계: `LaunchAgents`/`LaunchDaemons`를 **읽는** 진단 명령이 자동 실행 변경으로 오인되어 승인 카드로 흐르던 결함을 수정했다. 실제 자동 실행 변경 `launchctl load` 등은 계속 보호한다.
+- 표면 한계: API 응답과 원장은 확인했지만, 이 회차에서 웹 화면을 눈으로 확인하지는 않았다. 개인 PC의 세부 진단 내용은 보관하지 않는다.
+
+## 7. 다음 착수
+
+P-OP-1은 아직 끝나지 않았다. B·C의 실제 모델 증거를 먼저 모은다. 그 결과가 `operatorReality`의 과다 노출·누락·잘못된 복구를 보일 때만, 키워드 분기 없이 공통 요약·상세·trace 계약을 보강한다. A 한 번의 성공만으로 프롬프트 구조를 넓게 다시 쓰지 않는다. B·C 전에는 P-OP-2 이후 기능을 시작하지 않는다.
