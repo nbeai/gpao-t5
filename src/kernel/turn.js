@@ -150,7 +150,11 @@ export async function runTurn(input, ctx) {
   // P5-B-0.5: **판정하지 않고 현실만 싣는다.** 어느 서비스 얘기인지, 어느 길이 자연스러운지는
   // 모델이 고른다(§24). 키워드로 우리가 맞히면 목록에 없는 서비스는 또 막다른 답이 된다.
   // executePlan 은 input 을 안 받으므로 ctx 에 실어 둔다(askedFrom 과 같은 이유).
-  ctx.externalReality = externalReality({ connectors: ctx.connectors, selfState });
+  // executableKinds 는 **런타임에서 온다** — 커널이 어떤 방식을 실행할 수 있는지 짐작하면
+  // 그 짐작이 곧 거짓말이 된다(모델은 그걸 현실로 읽는다).
+  ctx.externalReality = externalReality({
+    connectors: ctx.connectors, selfState, executableKinds: ctx.executableKinds,
+  });
   const summary = selfStateSummary(selfState);
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).

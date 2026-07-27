@@ -148,7 +148,11 @@ export function buildModelMessages(tc) {
         // 확인 안 했으면 이 줄 자체가 없다(확인한 척 금지). 있음·없음 둘 다 사실이라 둘 다 싣는다.
         + (s.localSigns?.length
           ? `\n  이 컴퓨터에서 직접 확인함: ${s.localSigns.map((x) => `${x.label} ${x.found ? `있음${x.where ? `(${x.where})` : ''}` : '없음'}`).join(' · ')}`
-          : ''));
+          : '')
+        // P5-B-1B: **연결 경로 현실.** 오너 지시(2026-07-28) — 모델이 판단하려면 판단할 현실이
+        // 있어야 한다. 어느 길로 가라고 말하지 않는다. 무엇이 있고 · T5 가 할 수 있고 ·
+        // 사용자가 뭘 해야 하는지만 준다. 고르는 건 모델이다(§24).
+        + (s.paths?.length ? `\n  붙이는 길: ${s.paths.map(연결경로).join(' / ')}` : ''));
     }
     if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
   }
@@ -161,6 +165,23 @@ export function buildModelMessages(tc) {
     .filter((t) => t && typeof t.text === 'string' && t.text.trim())
     .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
   return { system: sys.join('\n'), user: usr.join('\n\n'), history };
+}
+
+
+/**
+ * 연결 경로 하나를 **사실 한 줄**로. 처방이 아니다 — "이렇게 하세요"가 아니라
+ * "이 길은 이렇고, 사용자가 할 일은 이것뿐이다"까지만 말한다. 고르는 건 모델이다.
+ */
+function 연결경로(p) {
+  const 방식 = { mcp: "MCP", api_key: "API 키", cli: "설치된 명령", oauth_pkce: "계정 로그인" }[p.kind] ?? p.kind;
+  if (!p.executable) return `${방식}(T5에 이 방식 실행기가 없음)`;
+  const 할일 = {
+    none: "사용자가 할 일 없음",
+    consent_once: "사용자는 동의 화면에서 허용 한 번",
+    secret_input: `사용자는 비밀 입력창에 ${(p.needs ?? []).join("·")} 입력`,
+    install: `이 컴퓨터에 ${p.command ?? "그 명령"}이 없어 설치 필요`,
+  }[p.userAction] ?? p.userAction;
+  return `${방식} — ${할일}`;
 }
 
 /** 도구 이름은 서버마다 허용 문자가 다르다(점 불가 등). 와이어에서만 바꾸고 응답에서 되돌린다. */

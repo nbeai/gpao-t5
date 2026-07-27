@@ -17,6 +17,13 @@ import { admitHttpTools, probeHttpTool } from './http-tool.js';
 import { admitCliTools, probeCli, probeCliTool } from './cli-tool.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
 
+/**
+ * 이 런타임이 **실제로 실행할 수 있는** 연결 방식. 선언된 방식이 여기 없으면 그건 "실행기 없음"이고,
+ * 모델은 그 사실을 봐야 못 지킬 약속을 안 한다. 아래 handler 의 분기와 **같이 움직여야 하므로**
+ * 게이트가 둘이 어긋나는지 본다(목록이 코드보다 앞서거나 뒤처지면 그게 곧 거짓말이 된다).
+ */
+export const EXECUTABLE_KINDS = Object.freeze(['mcp', 'api_key', 'cli']);
+
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
 async function findMcpConfig(server, deps) {
   const { readFile } = await import('node:fs/promises');

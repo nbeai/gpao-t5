@@ -14,6 +14,7 @@ import { runTurn } from '../kernel/turn.js';
 import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
+import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
@@ -158,6 +159,9 @@ export function makeServer(deps = {}) {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
       connectors: deps.connectors ?? demoConnectors(),
+      // P5-B-1B: **T5 가 실제로 실행할 수 있는 연결 방식.** 런타임의 사실이 그대로 올라온다 —
+      // 커널이 짐작하면 그 짐작이 모델에게는 현실이 되고, 못 지킬 약속이 거기서 나온다.
+      executableKinds: EXECUTABLE_KINDS,
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       modelProviderId: deps.modelProviderId?.(),
       memory, activeGoal: session.activeGoal ?? null,

@@ -83,14 +83,58 @@ export function serviceStatus(connectors = [], selfState = {}) {
 }
 
 /**
+ * 한 서비스의 **연결 경로들.** 오너 지시(2026-07-28): 모델이 판단할 수 있으려면 판단할 현실이
+ * 있어야 한다 — 판단을 대신 하는 규칙이 아니라.
+ *
+ * **전부 선언에서 파생한다.** 어느 길이 나은지, 무엇을 골라야 하는지는 여기서 정하지 않는다.
+ * 사실만 준다: 이 방식이 무엇이고 · T5 가 실행할 수 있는지 · 사용자가 해야 할 일이 무엇인지.
+ *
+ * @param {object} c 커넥터 선언
+ * @param {{executableKinds?:string[]}} p 이 런타임이 실행할 수 있는 방식(런타임에서 온다 — 여기서 짐작하지 않는다)
+ * @returns {Array<{kind:string, executable:boolean, userAction:string, needs?:string[]}>}
+ */
+export function connectionPaths(c = {}, { executableKinds = [] } = {}) {
+  const 됨 = new Set(executableKinds);
+  const 흔적 = new Map((c.localSignsResult ?? []).map((s) => [s.kind ?? s.label, s]));
+  return (c.authMethods ?? []).map((m) => {
+    const executable = 됨.has(m.kind);
+    // **사용자가 해야 하는 최소 행동.** 선언에서 나온다 — 서비스 이름으로 갈라지지 않는다.
+    let userAction = 'none';
+    let needs;
+    if (!executable) userAction = 'unavailable';
+    else if (m.kind === 'api_key') {
+      userAction = 'secret_input';
+      needs = (m.fields ?? []).map((f) => f.label ?? f.name);
+    } else if (m.kind === 'mcp' && m.url) {
+      // 원격은 로그인 동의가 붙는다. 이미 붙어 있으면 사용자가 할 일은 없다.
+      userAction = c.connected ? 'none' : 'consent_once';
+    } else if (m.kind === 'cli') {
+      // 이 컴퓨터에서 이미 확인한 것이 있으면 그 사실을 쓴다(짐작하지 않는다).
+      const 본것 = 흔적.get('cli');
+      userAction = 본것 && 본것.found === false ? 'install' : 'none';
+    }
+    return {
+      kind: m.kind,
+      executable,
+      userAction,
+      ...(needs?.length ? { needs } : {}),
+      ...(m.command ? { command: m.command } : {}),
+    };
+  });
+}
+
+/**
  * 모델 앞에 놓을 외부 현실. **판정이 아니라 사실이다** — 어느 서비스인지, 어느 길이 맞는지는
  * 여기서 정하지 않는다.
- * @param {{connectors?:Array, selfState?:object}} p
+ * @param {{connectors?:Array, selfState?:object, executableKinds?:string[]}} p
  * @returns {{reach:string[], services:Array}|undefined} 줄 것이 없으면 undefined(빈 블록 금지)
  */
-export function externalReality({ connectors = [], selfState = {} } = {}) {
+export function externalReality({ connectors = [], selfState = {}, executableKinds = [] } = {}) {
   const reach = reachingHands(selfState);
-  const services = serviceStatus(connectors, selfState);
+  const services = serviceStatus(connectors, selfState).map((s, i) => {
+    const paths = connectionPaths(connectors[i], { executableKinds });
+    return paths.length ? { ...s, paths } : s;
+  });
   if (!reach.length && !services.length) return undefined;
   return { reach, services };
 }

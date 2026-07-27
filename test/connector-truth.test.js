@@ -228,3 +228,69 @@ test('브라우저 능력 문장이 로그인 상태를 실제 구현과 같게 
       '사용자 프로필을 쓰게 됐으면 능력 문장도 함께 바뀌어야 한다(반대 방향도 거짓말이다)');
   }
 });
+
+// ── 연결 경로 현실 (오너 지시 2026-07-28) ────────────────────────────────
+// "모델이 판단할 연결 경로 현실을 충분히 못 보고 있다" — 판단은 모델이 한다.
+// 이 검사는 **모델 앞에 놓이는 현실**을 재는 것이지 모델의 선택을 재는 것이 아니다.
+import { connectionPaths, externalReality } from '../src/kernel/l1-intent/external-service.js';
+import { EXECUTABLE_KINDS } from '../src/runtime/connector-connect.js';
+import { defineConnector as 커넥터선언 } from '../src/kernel/l2-plan/connector-profile.js';
+import { buildModelMessages } from '../src/runtime/model-provider.js';
+
+const 네방식 = () => 커넥터선언({
+  id: 'sv', label: '어떤서비스', kind: 'provider',
+  authMethods: [
+    { kind: 'mcp', url: 'https://x.test/mcp' },
+    { kind: 'api_key', fields: [{ name: 'k', label: '열쇠', secret: true }, { name: 'id', label: '아이디' }] },
+    { kind: 'cli', command: 'svcmd' },
+    { kind: '아직없는방식' },
+  ],
+});
+
+test('경로마다 사용자가 할 일이 사실로 나온다', () => {
+  const p = connectionPaths(네방식(), { executableKinds: EXECUTABLE_KINDS });
+  assert.deepEqual(p.map((x) => x.userAction),
+    ['consent_once', 'secret_input', 'none', 'unavailable']);
+  assert.deepEqual(p[1].needs, ['열쇠', '아이디'], '무엇을 넣어야 하는지가 없다');
+  assert.equal(p[3].executable, false, '실행기 없는 방식을 있다고 했다');
+  assert.equal(p[2].command, 'svcmd');
+});
+
+test('이미 붙어 있으면 사용자가 또 할 일은 없다', () => {
+  const c = 네방식(); c.connected = true;
+  assert.equal(connectionPaths(c, { executableKinds: EXECUTABLE_KINDS })[0].userAction, 'none');
+});
+
+test('이 컴퓨터에 명령이 없다고 확인됐으면 설치 필요라고 말한다', () => {
+  const c = 네방식();
+  c.localSignsResult = [{ kind: 'cli', label: '명령', found: false }];
+  assert.equal(connectionPaths(c, { executableKinds: EXECUTABLE_KINDS })[2].userAction, 'install');
+});
+
+test('실행기 목록이 실제 분기와 어긋나면 모델에게 거짓말이 된다', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../src/runtime/connector-connect.js', import.meta.url), 'utf8');
+    // 같다/다르다 둘 다 분기다 — `!== 'mcp'` 로 거르는 것도 mcp 를 다룬다는 뜻이다.
+  const 코드가다루는것 = new Set([...src.matchAll(/m\.kind [!=]== '(\w+)'/g)].map((m) => m[1]));
+  for (const k of EXECUTABLE_KINDS) {
+    assert.ok(코드가다루는것.has(k), `선언에는 ${k} 가 있는데 실행하는 분기가 없다`);
+  }
+  for (const k of 코드가다루는것) {
+    assert.ok(EXECUTABLE_KINDS.includes(k), `${k} 를 실행하는데 선언에 없다 — 모델이 못 본다`);
+  }
+});
+
+test('모델 프롬프트에 붙이는 길이 사람 말로 실린다(처방 아님)', () => {
+  const reality = externalReality({
+    connectors: [네방식()], selfState: { connectedTools: [] }, executableKinds: EXECUTABLE_KINDS,
+  });
+  const { user } = buildModelMessages({ currentRequest: '붙여줘', externalReality: reality });
+  assert.match(user, /붙이는 길:/, '연결 경로가 모델 앞에 없다');
+  assert.match(user, /사용자는 동의 화면에서 허용 한 번/);
+  assert.match(user, /비밀 입력창에 열쇠·아이디 입력/);
+  assert.match(user, /실행기가 없음/, '못 하는 방식을 못 한다고 말하지 않았다');
+  // **처방하지 않는다** — 무엇을 하라고 시키는 문장이 없어야 한다
+  for (const 처방 of ['하세요', '해야 한다', '먼저 ~를 시도', '권장']) {
+    assert.ok(!user.includes(처방), `모델에게 지시가 들어갔다: "${처방}"`);
+  }
+});
