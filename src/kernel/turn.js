@@ -12,8 +12,8 @@ import { blockedReceipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
-import { buildActionPlan } from './l2-plan/action-plan.js';
-import { isExecutionAllowed } from './l2-plan/authority.js';
+import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
+import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
@@ -32,6 +32,10 @@ import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
+
+// 한 턴에 손을 이어 쓸 수 있는 횟수. 찾기→확인→실행이면 3걸음이면 충분하고,
+// 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
+const MAX_TOOL_STEPS = 4;
 
 /**
  * @typedef {Object} TurnInput
@@ -487,14 +491,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
+  // 이번 턴에 이미 쓴 손+인자. 이어 쓰기가 같은 걸 또 밟지 않게 한다.
+  // **핵심 인자로 맞춘다** — 계획 단계 인자에는 probe 결과 같은 부수 필드가 붙어서, 통째로
+  // 비교하면 같은 명령인데 다른 지문이 나온다(그래서 첫 걸음을 그대로 또 밟았다).
+  const 지문of = (toolId, args) => `${toolId}:${args?.command ?? args?.path ?? args?.request ?? JSON.stringify(args ?? {})}`;
+  const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
   const ladder = nextRung(turnReceipts);
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
-  const workingState = deriveWorkingState(ctx.workingState, {
+  let workingState = deriveWorkingState(ctx.workingState, {
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
   });
-  const tc = buildTaskContext({
+  let tc = buildTaskContext({
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
@@ -521,14 +530,76 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   //   "안 됩니다"로 끝내지 않는다 — 우리 수집이 막혔으면 모델이 자기 경로로 찾고, 사람만 할 수
   //   있는 일이면 최소 단계를 부탁하고, 범위 밖이면 범위를 넓히자고 제안한다(오너 지시).
   const step = nextRung(turnReceipts);
-  const finalOut = await ctx.model.respond(tc, {
+  let finalOut = await ctx.model.respond(tc, {
     onDelta: ctx.onAnswerDelta,
     // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
     search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
     effort: 'medium',
     tools: toolSchemasFor(selfState),
   });
+  // ── P6-L · 한 턴 안에서 손을 이어 쓴다 ────────────────────────────────
+  // 예전엔 여기서 `finalOut.toolCalls` 를 **버렸다.** 그래서 모델이 다음 걸음을 정확히 알고도
+  // 걷지 못했다 — 실측: "package.json 존재만 확인됐고, 실제 테스트 명령은 아직 실행되지
+  // 않았습니다"라고 답하며 사용자에게 `npm test` 를 대신 치라고 했다. 게을러서가 아니라
+  // **손이 한 번밖에 안 나갔다.** 찾기→확인→실행이 말로 끊기는 자리가 여기였다.
+  //
+  // 새 안전 체계를 만들지 않는다. 걸음마다 기존 판정을 그대로 탄다:
+  // toolActionKind → decideAutoGrant. 승인이 필요하면 **실행하지 않고 멈춘다.**
+  let steps = 0;
+  let 멈춘이유;
+  while (steps < MAX_TOOL_STEPS) {
+    const next = typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []);
+    if (!next.length) break;
+    const parts = callsToIntentParts(next, selfState);
+    const toolId = parts.neededTools?.[0];
+    if (!toolId) break;
+    const args = parts.toolArgs?.[toolId] ?? { request: intent.currentRequest };
+
+    // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
+    const 지문 = 지문of(toolId, args);
+    if (rung.has(지문)) { 멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요'; break; }
+    rung.add(지문);
+
+    // 등급 판정도 기존 것 그대로. 명령은 돌려 봐야 아니까 계획 때와 똑같이 probe 를 먼저 탄다.
+    let 판정인자 = args;
+    if (toolId === 'local.terminal' && typeof args.command === 'string') {
+      const probed = await ctx.tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });
+      판정인자 = { ...args, changes: probed?.changes, granted: probed?.changes === true, probeResult: probed?.probe };
+    }
+    const kind = toolActionKind({ toolId, args: 판정인자, selfState });
+    if (!decideAutoGrant({ kind }, ctx.approvalMode ?? 'smart')) {
+      // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
+      멈춘이유 = `${toolLabel(toolId, selfState)} 은(는) 먼저 확인을 받아야 해서 여기서 멈췄어요`;
+      break;
+    }
+
+    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
+    const rec = await ctx.tools.run(toolId, 판정인자, selfState);
+    ledger.append(rec);          // 모든 걸음이 원장에 남는다
+    turnReceipts.push(rec);
+    steps += 1;
+
+    // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
+    workingState = deriveWorkingState(workingState, { receipts: [rec] });
+    tc = buildTaskContext({
+      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+      surface: ctx.surface, recentTurns: ctx.recentTurns,
+      nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
+      workingState,
+      recoveryHint: userSafeNextAction(turnReceipts) ?? rungMessage(nextRung(turnReceipts)),
+      ...(ctx.selfhood ?? {}),
+    });
+    finalOut = await ctx.model.respond(tc, {
+      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+      // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
+      ...(steps < MAX_TOOL_STEPS ? { tools: toolSchemasFor(selfState) } : {}),
+    });
+  }
+  // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
+  if (steps >= MAX_TOOL_STEPS && !멈춘이유) 멈춘이유 = '한 번에 할 수 있는 만큼 하고 멈췄어요';
+
   let reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
+  if (멈춘이유 && !reply.trim()) reply = '';
   if (!reply.trim()) {
     // 도구를 빼고 한 번 더. 이번엔 고를 것이 없으니 모델은 지금까지의 사실로 답한다.
     // 내장 검색은 켜 둔다 — 우리 수집이 막혔어도 모델은 자기 인프라로 찾을 수 있다(막다른 답 금지).
