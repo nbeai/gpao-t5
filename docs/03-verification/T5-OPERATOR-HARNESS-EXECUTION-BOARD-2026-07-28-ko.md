@@ -521,9 +521,11 @@ C(앱 등록 OAuth·API 키 실데이터) · D(전용 계정 실제 폐기·재�
 
 ### 동결 기준선 manifest (2026-07-29)
 
-- **코드 기준선: `57665a4`** (`claude/p-op-1-a-system-view`, origin 동기화 · UX Closure 포함) —
+- **코드 기준선: `4430b81`** (`claude/p-op-1-a-system-view`, UX Closure + 잠금 EPERM 정정 포함) —
   이후 문서-전용 커밋은 행동을 바꾸지 않는다. 검증 중 코드 수정은 동결 해제·재동결로만.
-- 검증 수치: 테스트 **1166건 통과** · 실서버 게이트 **PASS**(CPU 18.3s / 기준선 40s) ·
+  (감사 조건부 보류 P1 반영: 죽음 판정 ESRCH 한정 · 회수 rename 직렬화 · 잠금 스위트 20회
+  반복 0회 실패.)
+- 검증 수치: 테스트 **1168건 통과** · 실서버 게이트 **PASS**(CPU 18.3s / 기준선 40s) ·
   런타임 의존성 0 · 작업 트리 깨끗.
 - 실행 환경: macOS(darwin) · node v24.14.0 · `PORT=7332 node src/surface/server.js`
   (단일 writer 잠금 활성) · 데이터 자리 `~/.local/state/gpao-t5/sessions`.
@@ -536,7 +538,7 @@ C(앱 등록 OAuth·API 키 실데이터) · D(전용 계정 실제 폐기·재�
 
 ### 다음 착수
 
-**P-OP-7 진입** — 동결 기준선 `a696308` 위에서 GPT-5.6sol(Codex) · Fable 5(Claude) 의
+**P-OP-7 진입** — 동결 기준선 `4430b81`(위 manifest) 위에서 GPT-5.6sol(Codex) · Fable 5(Claude) 의
 독립 인간 시나리오 실사용 → 결과 공개 → 상호 반박·재현 → 결함 수정과 양쪽 회귀 →
 인간 사용자 테스트 진입 판정(계획서 §2 순서 그대로).
 E-1 은 시험 계정 환경이 준비되면 그때만 돌아와 닫는다. D 의 잔여(실제 폐기·재인증)도 같은 전용
