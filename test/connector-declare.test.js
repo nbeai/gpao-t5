@@ -450,3 +450,38 @@ test('도구 실행 뒤 모델이 죽어도 영수증은 정확히 한 번 남�
   assert.equal(웹영수증.length, 1, `영수증이 ${웹영수증.length}번 — 한 일은 한 번만, 그리고 반드시 남는다`);
   assert.equal(웹영수증[0].failureState, 'none', '성공한 일이 실패로 뒤집혔다');
 });
+
+// 실측(오너 라이브 2026-07-28, 병합 검증): 승인 카드가 `"연결 끊어줘"라고 하시면 지워요` 라고
+// 약속했는데, 재시작 뒤에는 선언만 살아나고 세션은 없어서 "연결돼 있지 않아요"로 끝났다.
+// 사용자가 올린 서비스를 **되돌릴 방법이 없었다** — 오늘 여섯 번째 못 지킬 약속이다.
+// 소스 선언은 우리 것이라 남기고, 사용자가 올린 것만 걷는다.
+test('올린 서비스는 "연결 끊어줘"로 실제로 지워진다 — 붙어 있지 않아도', async () => {
+  const { makeConnectorConnectTool } = await import('../src/runtime/connector-connect.js');
+  const connectors = [{ id: 'd-x', label: '올린서비스', declared: true, connected: false, authMethods: [{ kind: 'mcp', url: 'https://mcp.example.com/mcp' }] }];
+  const 지운것 = [];
+  const connect = makeConnectorConnectTool({
+    ctx: () => ({ tools: { tools: {} }, descriptors: [], env: { connections: [] } }),
+    connectors: () => connectors,
+    declaredStore: { remove: async (id) => { 지운것.push(id); } },
+  });
+
+  assert.equal((await connect.approvalEligibility({ connector: '올린서비스', action: 'disconnect' })).allowed, true,
+    '올린 서비스를 끊을 수 없으면 영영 못 지운다');
+  const r = await connect.handler({ connector: '올린서비스', action: 'disconnect' });
+  assert.deepEqual(지운것, ['d-x'], '선언이 저장소에 남았다');
+  assert.equal(connectors.length, 0, '선언이 이번 실행의 커넥터 목록에 남았다');
+  assert.match(r.userSafeSummary, /지웠어요/);
+});
+
+test('소스에 선언된 서비스는 끊어도 목록에서 사라지지 않는다', async () => {
+  const { makeConnectorConnectTool } = await import('../src/runtime/connector-connect.js');
+  const connectors = [{ id: 'notion', label: '노션', connected: true, authMethods: [{ kind: 'mcp', url: 'https://mcp.notion.com/mcp' }] }];
+  const connect = makeConnectorConnectTool({
+    ctx: () => ({ tools: { tools: {} }, descriptors: [], env: { connections: [] } }),
+    connectors: () => connectors,
+    declaredStore: { remove: async () => { throw new Error('소스 선언을 지우면 안 된다'); } },
+  });
+  const r = await connect.handler({ connector: '노션', action: 'disconnect' });
+  assert.equal(connectors.length, 1, '소스 선언이 사라졌다 — 다시 붙일 자리가 없어진다');
+  assert.ok(!/지웠어요/.test(r.userSafeSummary));
+});

@@ -267,7 +267,9 @@ export function makeConnectorConnectTool(deps = {}) {
       if (args.action === 'disconnect') {
         const 붙어있음 = Boolean(c?.connected) || live.has(c?.id);
         const 남은자격 = c?.id ? Boolean(await deps.credentialStore?.get?.(c.id).catch(() => null)) : false;
-        if (붙어있음 || 남은자격) return { allowed: true };
+        // 사용자가 올린 서비스는 **선언 자체가 지울 것**이다. 세션이 끊겨 있어도 되돌릴 수 있어야
+        // 한다 — 안 그러면 한 번 올린 서비스를 영영 못 지운다(실측 2026-07-28).
+        if (붙어있음 || 남은자격 || c?.declared === true) return { allowed: true };
         return {
           allowed: false,
           userSafeSummary: `${c?.label ?? (id || '그 서비스')}은(는) 지금 연결돼 있지 않아요.`,
@@ -413,13 +415,31 @@ export function makeConnectorConnectTool(deps = {}) {
         // **저장된 자격은 세션과 무관하게 지운다.** 안 그러면 "끊었어요"라고 말하고 토큰은 남는다 —
         // 사용자가 들은 말과 디스크의 사실이 어긋난다.
         await deps.credentialStore?.clear(c.id).catch(() => {});
-        if (!held) return { result: { connector: c.id, label: c.label, connected: false }, userSafeSummary: `${c.label}은(는) 연결돼 있지 않아요.` };
+        // **사용자가 올린 서비스는 선언까지 지운다.** 승인 카드가 그렇게 약속했다 —
+        // "연결 끊어줘"라고 하시면 지워요. 실측(오너 라이브 2026-07-28): 재시작 뒤 선언은
+        // 살아났지만 세션은 없어서 "연결돼 있지 않아요"로 끝났고, 사용자가 올린 서비스를
+        // **되돌릴 방법이 없었다.** 소스 선언은 우리 것이라 남기고, 올린 것만 걷는다.
+        const 올린것 = c.declared === true;
+        if (올린것) {
+          await deps.declaredStore?.remove(c.id).catch(() => {});
+          const i = connectors.findIndex((x) => x.id === c.id);
+          if (i >= 0) connectors.splice(i, 1);
+        }
+        if (!held) {
+          return {
+            result: { connector: c.id, label: c.label, connected: false, removedDeclaration: 올린것 },
+            userSafeSummary: 올린것
+              ? `${c.label}을(를) 지웠어요. 다시 붙이려면 말씀만 해 주세요.`
+              : `${c.label}은(는) 연결돼 있지 않아요.`,
+          };
+        }
         held.session?.close?.();
         revokeAdmitted(held.admitted, ctx);
         live.delete(c.id);
         c.connected = false;
-        return { result: { connector: c.id, label: c.label, connected: false, removed: held.admitted.length },
-          userSafeSummary: `${c.label} 연결을 끊었어요. 관련 도구도 내렸어요.` };
+        return { result: { connector: c.id, label: c.label, connected: false, removed: held.admitted.length, removedDeclaration: 올린것 },
+          userSafeSummary: `${c.label} 연결을 끊었어요. 관련 도구도 내렸어요.`
+            + (올린것 ? ' 올려 두신 서비스도 지웠어요.' : '') };
       }
 
       // ── 연결 ──────────────────────────────────────────────────────────

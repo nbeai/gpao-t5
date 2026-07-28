@@ -169,6 +169,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
     connectors: () => connectors,
     // 원격 OAuth 로 받은 자격은 0600 파일에 남는다 — 껐다 켜도 다시 로그인시키지 않는다.
     credentialStore: new ConnectorCredentialStore(),
+    // 사용자가 올린 서비스는 "연결 끊어줘" 로 선언까지 지워야 한다(승인 카드가 그렇게 약속했다).
+    declaredStore: deps.declaredConnectorStore ?? new DeclaredConnectorStore(stateDir),
   });
   tools.tools['connector.connect'] = connectHand;
   // P-OP C: **낯선 서비스도 커넥터가 되는 길.** 여기서 올라온 것은 소스 선언과 같은 배열에
