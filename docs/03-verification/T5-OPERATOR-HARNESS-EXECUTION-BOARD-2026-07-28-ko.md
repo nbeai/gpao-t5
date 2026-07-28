@@ -25,11 +25,11 @@
 | 작업 대상·다음 턴 | `subjectOf`, places, workingState | 있음 | 일부 과거 라이브 | 웹 일부 | 중단·완료·새 요청에서 잘못 되살리지 않는지 |
 | 터미널·파일·프로세스 | terminal/file/locate/process | 있음 | A 읽기 진단 · A 승인 후 실제 종료 | **웹 도달**(A·B 화면 확인) | B의 후보 공개 |
 | 웹·브라우저 | collect/observe/act | 있음 | 과거 개별 라이브 | 웹 일부 | 로그인 한계와 공개 자료 경로를 정직하게 쓰는지 |
-| 연결·권한 | MCP, OAuth, API key, CLI, admission, **declare** | 있음 | 노션 실계정 · **동적 MCP 전 구간** | 연결·비밀 입력면·해제 웹 확인 | D의 실제 사용·만료·재인증 |
+| 연결·권한 | MCP, OAuth, API key, CLI, admission, **declare** | 있음 | 노션 실계정 실사용 · 동적 MCP 전 구간 | 연결·비밀 입력면·해제·실제 호출 웹 확인 | 전용 계정에서 실제 폐기·재인증 |
 | 승인·비밀 보호 | A0~A3, preview, secret surface | 있음 | 승인·거절·재개·되돌리기 웹 확인 | 웹 카드 | 같은 요청 반복 승인 면제의 실사용 관찰 |
 | 실행 사실·보고 | receipt, calledWith, ledger | 있음 | 과거 불일치 수정 후 일부 | 웹/채널 일부 | 답·카드·실행·원장 4자 대조 |
 | 복구·반복 방지 | recovery hint, sandbox, receipt | 일부 | 미확인 | 미확인 | 실패 손과 다른 손 전환을 라이브로 |
-| 운영 현실 | `operatorFact → SelfState → TaskContextPacket` | 있음 | A 읽기 진단 1회 확인 | **미검증**(API 원장만) | B·C 실제 모델 검증 |
+| 운영 현실 | operatorReality, 능력 문장, 손 목록 | 있음 | A 진단 · B 정리 · C 선언 · D 실사용 라이브 | 웹 화면 | **미분류**: 편입된 손이 많을 때 적합한 손을 고르는가(D 관찰 2건) |
 | 하다 만 일 승계 | awaiting, pending approval, working state | 있음 | **미확인** | 해당 없음 | P-OP-2 B·D·G 실제 모델 검증 |
 | 일반 사용자 UX | Work Chat, 카드, 비밀 입력 | 부분 | 일부 | 일부 | 진행·복구·결과가 내부 용어 없이 도달하는지 |
 
