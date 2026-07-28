@@ -259,3 +259,32 @@ test('관찰. "다시 해볼게요" 계단 뒤 같은 인자 재시도 — 무�
   assert.equal(호출, 1, `타임아웃 재시도가 같은 턴에 실행됐다: ${호출}회`);
   assert.equal(r.kind, 'reply');
 });
+
+// ── P-OP-6 · 무효 선언은 "없음"이 아니라 상태와 이유로 보인다 ─────────────
+test('무효화된 저장 선언이 진실 표면에 이유와 함께 나타난다(수정 전 실패)', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { DeclaredConnectorStore } = await import('../src/surface/declared-connector-store.js');
+  const { makeConnectorDeclareTool } = await import('../src/runtime/connector-declare.js');
+  const { mkdtemp, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-inv-'));
+  // 저장 당시엔 유효했지만 지금 규칙(안쪽 주소 차단)에서 떨어지는 선언.
+  await writeFile(join(dir, 'declared-connectors.json'),
+    JSON.stringify([{ service: '옛서비스', authKind: 'mcp', url: 'https://127.0.0.1:9/mcp', id: 'd-old' }]), 'utf8');
+  const tools = demoTools();
+  tools.tools['connector.declare'] = makeConnectorDeclareTool({ connectors: () => [], store: new DeclaredConnectorStore(dir) });
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools });
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const t = await (await fetch(`http://127.0.0.1:${server.address().port}/connectors/truth`)).json();
+    const inv = (t.invalidDeclared ?? []).find((x) => x.label === '옛서비스');
+    assert.ok(inv, `무효 선언이 표면에서 사라졌다: ${JSON.stringify(t.invalidDeclared)}`);
+    assert.equal(inv.invalid, true);
+    assert.match(inv.userSafe ?? '', /붙일 수 없어요/, '이유가 사람 말로 없다');
+    // 유효한 커넥터 목록에는 섞이지 않는다(붙을 수 있는 척 금지).
+    assert.ok(!(t.connectors ?? []).some((c) => c.id === 'd-old'), '무효 선언이 유효 목록에 섞였다');
+  } finally { await new Promise((r) => server.close(r)); }
+});

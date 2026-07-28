@@ -23,6 +23,7 @@ import { AllowlistStore } from './allowlist-store.js';
 import { ChannelBindingStore } from './channel-binding-store.js';
 import { ChannelCredentialStore } from './channel-credential-store.js';
 import { makeTelegramReceiver } from '../runtime/telegram-receiver.js';
+import { checkDeclaration } from '../runtime/connector-declare.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -865,8 +866,24 @@ export function makeServer(deps = {}) {
         const descriptors = deps.descriptors ?? demoDescriptors();
         const selfState = buildSelfState(env, { tools });
         const connectors = deps.connectors ?? demoConnectors();
+        // P-OP-6 · **무효가 된 선언도 "없음"이 아니라 현재 상태와 이유로 보인다.**
+        // 재검사에서 떨어진 저장 선언은 커넥터 배열에 못 들어와 표면에서 통째로 사라졌다
+        // (P-OP-4 주입이 드러냄). 선언 파일은 사용자 것이다 — 붙일 수 없으면 왜인지 말한다.
+        const 무효선언 = [];
+        try {
+          const 살아있는 = new Set(connectors.map((c) => c.id));
+          for (const decl of await (tools?.tools?.['connector.declare']?.listStored?.() ?? [])) {
+            const 검사 = checkDeclaration(decl);
+            if (검사.ok) continue;
+            if (decl.id && 살아있는.has(decl.id)) continue;
+            무효선언.push({ id: decl.id ?? null, label: decl.service ?? '(이름 없음)',
+              invalid: true, connected: false, executable: false,
+              userSafe: `지금은 붙일 수 없어요 — ${검사.why}` });
+          }
+        } catch { /* 선언 저장소가 없으면(데모) 이 절은 비어 있다 */ }
         return sendJson(res, 200, {
           connectors: connectorTruth(connectors, selfState, descriptors),
+          ...(무효선언.length ? { invalidDeclared: 무효선언 } : {}),
           builtin: builtinTools(selfState, descriptors),
           // 불변식을 데이터로도 확인할 수 있게 함께 낸다(게이트·검사가 같은 것을 본다).
           modelSchema: toolSchemasFor(selfState).map((t) => t.name),

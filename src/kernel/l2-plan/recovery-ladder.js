@@ -82,7 +82,9 @@ export function rungMessage(step) {
         ? `${step.why}. 그 폴더를 제 작업 범위에 넣어 주시면 바로 볼 수 있어요.`
         : `${step.why}. 화면 내용을 붙여 주시면 이어서 정리할게요.`;
     case 'retry':
-      return `${step.why}. 다시 한 번 해볼게요.`;
+      // 시점을 정직하게(P-OP-6): 같은 턴의 같은 재시도는 지문이 막는다 — "해볼게요"라고
+      // 약속해 놓고 이 턴에 안 하는 모양이 된다. 되는 것은 잠시 뒤(다음 요청)의 재시도다.
+      return `${step.why}. 잠시 뒤에 다시 시도해 볼 수 있어요.`;
     default:
       return undefined;
   }

@@ -488,10 +488,23 @@ writer 안전 아님 — 배포 불변식은 위 누적 목록) · 손상 격리
 P-OP-6 연결 표면으로 이관. 관찰 2건(전송층 사망의 일반 failed 분류 · retry 문구와 지문의 결).
 **P-OP-4 봉인** — 기억 이중 기록 경계 봉인(주입 11건)과 합쳐서.
 
+### P-OP-6 · 사용자 표면 투영 계약 (2026-07-29) — 핵심 닫힘
+
+증거: `evidence/core-harness/p-op-1/P-OP6-SURFACE-PROJECTION-2026-07-29-ko.md`
+
+표시 경로 전수(10행)와 경로별 단일 변환 경계를 확정했다. Codex `e2ac91d` 를 의미 단위 검토
+후 전량 흡수(`c21dfad`): 원시 chat id → projectDefaultTarget 라벨 · 승인 카드 scope/where
+상충 제거(확정된전송미리보기, 두 경로 공통) · sentVia 라벨 승계 · 빈 답 말풍선 생략.
+추가로 닫음: 무효 선언을 /connectors/truth 의 invalidDeclared 로 상태·이유와 함께 표시(반대시험) ·
+retry 문구 시점 정직화. 웹·채널 교차는 기존 봉인 검사 + F 라이브 근거.
+라이브 대표: 전송 카드 생성 → where "오너" · scope 부재 · 원시 id 비노출 · 문면 그대로 → 거절
+→ 발송 0. 남은 소비 지점(연결 화면 UI 의 invalidDeclared 렌더)은 연결 센터 슬라이스로.
+
 ### 다음 착수
 
-**P-OP-6 전체 사용자 표면** — 식별자 투영 계약(raw ID → 사람말 라벨, 설치 전 필수) ·
-무효 선언/승인 카드 scope·where/기억 카드 문구 등 누적 표면 항목 → P-OP-7 두 실제 모델 최종 검증.
+**P-OP-7 두 실제 모델 최종 검증** — GPT-5.6sol(Codex) · Opus 5/Fable 5(Claude) 독립 실행과
+교차 감사. `T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md` 를 따른다.
+설치 전 필수 누적 목록(식별자 투영 라벨 소비·digest HMAC·단일 writer)은 패키지 전에 닫는다.
 E-1 은 시험 계정 환경이 준비되면 그때만 돌아와 닫는다. D 의 잔여(실제 폐기·재인증)도 같은 전용
 계정에서 함께 본다 — 검증을 줄이는 것이 아니라, 실제 프로토콜(refresh token 회전)을 존중하면서
 주계정을 fixture 로 쓰지 않는 더 정밀한 검증이다.

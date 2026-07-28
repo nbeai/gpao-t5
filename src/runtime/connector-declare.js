@@ -171,6 +171,10 @@ export function makeConnectorDeclareTool(deps = {}) {
      * **선언이 먼저 서 있어야** 저장된 자격이 붙을 자리를 찾는다.
      * @returns {Promise<string[]>} 되살린 커넥터 라벨
      */
+    /** 저장된 선언 원본(검사 없이) — 진실 표면이 무효 선언도 이유와 함께 보이게 한다(P-OP-6). */
+    async listStored() {
+      return (await (deps.store?.load?.() ?? [])) ?? [];
+    },
     async restoreDeclared() {
       const list = deps.connectors?.() ?? [];
       const 되살림 = [];
