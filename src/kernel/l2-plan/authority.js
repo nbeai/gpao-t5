@@ -34,6 +34,16 @@ export function isSafetyFloor(kind) {
  */
 export function classifyTier(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
+  const tier = tierOfKind(kind);
+  // 도구 선언이 "확인받고 하라"고 하면 등급이 낮게 나와도 최소 A2 다(하드코딩 우회 차단).
+  // **등급만 올리고 종류는 그대로 둔다** — 예전엔 여기 오기 전에 kind 자체를 send 로 바꿔
+  // 달았고, 그래서 조회·연결 카드에까지 "메시지를 실제로 밖으로 보내는 일이라"가 떴다
+  // (실측 2026-07-28). 바뀐 이름은 등급을 지키는 대신 사실을 버린다.
+  if (action?.needsApproval && (tier === TIER.A0 || tier === TIER.A1)) return TIER.A2;
+  return tier;
+}
+
+function tierOfKind(kind) {
   switch (kind) {
     case 'delete':
     case 'pay':
@@ -81,6 +91,7 @@ export const AUTO_SAFE_KINDS = Object.freeze({
  */
 export function decideAutoGrant(action, mode = DEFAULT_APPROVAL_MODE) {
   const kind = action?.kind ?? UNKNOWN_KIND;
+  if (action?.needsApproval) return false;   // 도구 선언이 확인을 요구하면 모드와 무관하게 승인
   if (isSafetyFloor(kind)) return false;                      // 안전 바닥 — 모드 무관 항상 승인(우회 불가)
   // 명시된 저위험 allowlist만 자연 진행 — 모르는 kind는 여기에 없으니 승인으로 간다(애매하면 높은 등급).
   if (AUTO_SAFE_KINDS.always.includes(kind)) return true;              // A0: 읽기·요약·검색·초안

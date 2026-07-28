@@ -444,7 +444,9 @@ export function makeConnectorConnectTool(deps = {}) {
 
         // **편입까지 끝나야 연결이다.** 도구가 하나도 안 올라오면 연결이라 부르지 않는다.
         const { admitted } = admitMcpTools(
-          { server: m.server, connector: c.id, tools: probe.tools, session: probe.session }, ctx,
+          // 주소로 붙은 원격 MCP 는 `server` 이름이 없다 — 사용자가 부르는 이름을 함께 준다
+          // (없으면 승인 카드에 `undefined` 가 뜬다. 실측 2026-07-28).
+          { server: m.server, connectorLabel: c.label, connector: c.id, tools: probe.tools, session: probe.session }, ctx,
         );
         if (!admitted.length) {
           probe.session.close();

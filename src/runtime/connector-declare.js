@@ -41,6 +41,19 @@ export function checkDeclaration(decl = {}) {
   const label = String(decl.service ?? decl.label ?? '').trim();
   if (!label) return { ok: false, why: '어떤 서비스인지가 없어요' };
 
+  // ── 원격 MCP ─────────────────────────────────────────────────────────
+  // **사용자 문턱이 다르다.** API 키는 그 서비스 개발자 화면에서 값을 받아 와야 하지만,
+  // 원격 MCP 는 T5 가 스스로 클라이언트 등록(RFC 7591)까지 하므로 사용자가 하는 일은
+  // 동의 화면에서 허용 한 번뿐이다(노션이 그렇게 붙었다 — 오너 라이브 2026-07-28).
+  // 그래서 받을 칸도, 부를 주소 목록도 여기서 필요하지 않다. 무엇을 할 수 있는지는
+  // 붙은 뒤 그쪽이 tools/list 로 알려 준다 — 우리가 미리 지어내지 않는다.
+  if (decl.authKind === 'mcp') {
+    if (!decl.url) return { ok: false, why: '어디에 붙는지(주소)가 없어요' };
+    const r = checkDeclaredTarget(decl.url);
+    if (!r.ok) return { ok: false, why: `연결 주소: ${r.why}` };
+    return { ok: true };
+  }
+
   const fields = decl.fields ?? [];
   if (!fields.length) return { ok: false, why: '무엇을 받아야 붙는지가 없어요' };
   if (!fields.every((f) => f?.name)) return { ok: false, why: '받을 값의 이름이 비어 있어요' };
@@ -85,17 +98,18 @@ export function checkDeclaration(decl = {}) {
 /** 선언을 커넥터 모양으로. 선언된 커넥터와 **같은 모양**이어야 그 뒤 길이 같아진다. */
 export function toConnectorDeclaration(decl = {}) {
   const label = String(decl.service ?? decl.label ?? '').trim();
+  const mcp = decl.authKind === 'mcp';
   return {
     id: decl.id ?? declaredId(label),
     label,
     kind: 'provider',
     category: 'declared',
-    authState: 'api_key',
+    authState: mcp ? 'oauth' : 'api_key',
     connected: false,
     declared: true, // 소스가 아니라 사용자 승인으로 올라온 것 — 화면·해제에서 이 사실을 쓴다
     aliases: [label, ...(decl.aliases ?? [])],
     ...(decl.userJobs?.length ? { userJobs: decl.userJobs } : {}),
-    authMethods: [{
+    authMethods: [mcp ? { kind: 'mcp', url: decl.url } : {
       kind: 'api_key',
       fields: decl.fields,
       ...(decl.issue ? { issue: decl.issue } : {}),
@@ -119,7 +133,19 @@ export function makeConnectorDeclareTool(deps = {}) {
       const 할일 = (args.tools ?? []).map((t) => t.label ?? t.name).filter(Boolean);
       const 받을것 = (args.fields ?? []).map((f) => f.label ?? f.name).filter(Boolean);
       let 어디 = '';
-      try { 어디 = new URL(args.verify?.url ?? args.tools?.[0]?.request?.url ?? '').host; } catch { /* 검사에서 막힌다 */ }
+      try { 어디 = new URL(args.url ?? args.verify?.url ?? args.tools?.[0]?.request?.url ?? '').host; } catch { /* 검사에서 막힌다 */ }
+      // 원격 MCP 는 사용자가 할 일이 다르다 — 받아 올 값이 없고 동의 한 번이다.
+      // 무엇을 할 수 있게 되는지도 아직 모른다(붙어야 그쪽이 알려 준다). 지어내지 않는다.
+      if (args.authKind === 'mcp') {
+        return {
+          impact: `${label}을(를) 연결할 수 있게 준비해요`,
+          what: `${label} 로그인 화면이 열리고, 거기서 허용 한 번만 눌러 주시면 돼요.`
+            + ' 받아 오실 값은 없어요. 무엇을 할 수 있게 되는지는 붙고 나서 알려드릴게요.',
+          scope: 어디 ? `${어디} 로 연결해요` : '외부 서비스로 연결해요',
+          duration: '끊을 때까지',
+          cancel: '"연결 끊어줘"라고 하시면 지워요 — 지금은 아무 값도 저장되지 않아요',
+        };
+      }
       return {
         impact: `${label}을(를) 연결할 수 있게 준비해요`,
         // **사용자가 넘을 문턱을 먼저 말한다.** 이게 이 카드의 핵심이다 —

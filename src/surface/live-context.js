@@ -209,20 +209,25 @@ export function liveDeps(processEnv = {}, deps = {}) {
   descriptors.push(defineTool({
     id: 'connector.declare', label: '새 서비스 붙이기', owner: 'core',
     availability: [{ kind: 'connected' }], toolKind: 'connect_account', needsApproval: true,
-    capability: '아직 T5 에 선언되지 않은 외부 서비스를, 그 서비스의 공개 API 로 연결할 수 있게'
-      + ' 준비한다. 준비되면 선언돼 있던 서비스와 똑같이 승인·안전 입력면·도구 편입을 거쳐 연결된다.'
-      + ' 비밀값은 이 도구가 받지 않는다 — 안전 입력면이 따로 열린다.',
+    capability: '아직 T5 에 선언되지 않은 외부 서비스를, 그 서비스의 원격 MCP 나 공개 API 로'
+      + ' 연결할 수 있게 준비한다. 준비되면 선언돼 있던 서비스와 똑같이 승인·동의·안전 입력면·'
+      + ' 도구 편입을 거쳐 연결된다. 비밀값은 이 도구가 받지 않는다 — 안전 입력면이 따로 열린다.',
     operatorFact: '아직 선언되지 않은 서비스라도, 붙는 방법을 확인해 연결 대상으로 직접 올린다.',
     schema: {
-      description: '사용자가 부른 서비스가 T5 에 아직 없을 때, 그 서비스의 공개 API 로 붙을 수 있게'
-        + ' 준비한다. **"제가 붙일 수 없으니 파일로 주세요"라고 답하기 전에 이걸 먼저 본다.**'
-        + ' 네가 그 서비스의 공개 API 를 알고 있거나 공개 문서에서 확인했다면, 받아야 할 값과'
-        + ' 부를 주소를 여기 채워 넣는다. 확실하지 않으면 먼저 공개 문서를 읽고 채운다.'
+      description: '사용자가 부른 서비스가 T5 에 아직 없을 때, 붙을 수 있게 준비한다.'
+        + ' **"제가 붙일 수 없으니 파일로 주세요"라고 답하기 전에 이걸 먼저 본다.**'
+        + ' 붙는 길은 둘이다.'
+        + ' (1) `authKind:"mcp"` — 그 서비스가 **원격 MCP 주소**를 열어 뒀다면 이게 먼저다.'
+        + ' 사용자가 받아 올 값이 없고 동의 한 번이면 끝나서 문턱이 가장 낮다. url 만 채운다.'
+        + ' (2) `authKind:"api_key"` — 그런 주소가 없을 때. 받아야 할 값의 **칸 이름**과 부를 주소를 채운다.'
+        + ' 확실하지 않으면 먼저 공개 문서를 읽고 채운다.'
         + ' 값 자체(키·토큰)는 절대 여기 넣지 않는다 — 받을 **칸 이름**만 적는다.',
       parameters: {
         type: 'object',
         properties: {
           service: { type: 'string', description: '서비스 이름 — 사용자가 부른 말 그대로' },
+          authKind: { type: 'string', enum: ['mcp', 'api_key'], description: '붙는 길. 원격 MCP 주소가 있으면 mcp 가 먼저다(기본 api_key)' },
+          url: { type: 'string', description: 'authKind 가 mcp 일 때 — 그 서비스의 원격 MCP 주소' },
           fields: {
             type: 'array', description: '연결에 필요한 값의 칸. 그 서비스 화면에 적힌 글자 그대로 label 을 쓴다.',
             items: {
@@ -274,7 +279,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
             },
           },
         },
-        required: ['service', 'fields', 'verify', 'tools'],
+        // mcp 길에는 fields·verify·tools 가 필요 없다(붙으면 그쪽이 tools/list 로 알려 준다).
+        // 그래서 여기서 강제하지 않고, 길마다 무엇이 있어야 하는지는 checkDeclaration 이 본다 —
+        // 스키마가 한쪽 길만 강제하면 모델은 문턱 낮은 길을 아예 못 고른다.
+        required: ['service'],
       },
     },
   }));

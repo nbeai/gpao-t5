@@ -14,8 +14,13 @@
 // `connector` 필드 한 줄로만 남는다.
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 
-/** MCP 도구 하나 → T5 도구 id. 서버 이름을 앞에 붙여 서로 안 부딪히게 한다. */
-export const mcpToolId = (server, name) => `mcp.${server}.${name}`;
+// MCP 도구 하나 → T5 도구 id. 서버 이름을 앞에 붙여 서로 안 부딪히게 한다.
+//
+// **이름이 없는 경우가 있다.** 설정에 등록된 서버는 이름으로 붙지만, 주소로 붙은 원격 MCP 는
+// 서버 이름이 없다. 실측(2026-07-28): 원장에 `mcp.undefined.ask_question` 이 남았다.
+// 보기 흉한 것으로 끝나지 않는다 — 주소로 붙은 서비스가 둘이 되면 **id 가 겹쳐** 나중 것이
+// 앞의 손을 덮어쓴다. 그래서 커넥터 id 로 떨어진다(그것도 없으면 그때만 `unknown`).
+export const mcpToolId = (server, name, connector) => `mcp.${server ?? connector ?? "unknown"}.${name}`;
 
 /**
  * MCP 도구 선언 → T5 ToolDescriptor. **읽기/쓰기 판정은 지어내지 않는다** —
@@ -24,7 +29,7 @@ export const mcpToolId = (server, name) => `mcp.${server}.${name}`;
  */
 export function mcpToolDescriptor({ server, connector, tool }) {
   return defineTool({
-    id: mcpToolId(server, tool.name),
+    id: mcpToolId(server, tool.name, connector),
     label: tool.title || tool.name,
     owner: 'mcp',
     connector,
@@ -33,7 +38,7 @@ export function mcpToolDescriptor({ server, connector, tool }) {
     toolKind: 'unknown_kind',
     needsApproval: true,
     reversible: undefined,
-    capability: tool.description || `${server} 의 ${tool.name}`,
+    capability: tool.description || `${server ?? connector ?? '연결된 서비스'} 의 ${tool.name}`,
     schema: {
       description: tool.description || tool.name,
       parameters: tool.inputSchema ?? { type: 'object', properties: {} },
@@ -61,9 +66,14 @@ export function admitMcpTools(p, ctx) {
       // 승인 카드가 무엇을 허락하는지 말해야 한다(게이트가 needsApproval 에 previewOf 를 요구).
       previewOf(args = {}) {
         const 인자 = JSON.stringify(args ?? {});
+        // **어디에 붙었는지는 두 모양이다.** 설정에 등록된 서버는 이름으로, 주소로 붙은
+        // 원격 MCP 는 이름이 없다. 실측(오너 라이브 2026-07-28): 주소로 붙은 서비스의
+        // 승인 카드에 `ask_question 실행 — undefined` · `undefined 서버에서` 가 떴다.
+        // 사용자는 무엇을 허락하는지 모르고, 그건 승인이 아니다.
+        const 어디 = p.server ?? p.connectorLabel ?? p.connector ?? '연결된 서비스';
         return {
-          impact: `${d.label} 실행 — ${p.server}`,
-          scope: `${p.server} 서버에서 · 인자 ${인자.length > 200 ? `${인자.slice(0, 200)}…` : 인자}`,
+          impact: `${d.label} 실행 — ${어디}`,
+          scope: `${어디} 에서 · 인자 ${인자.length > 200 ? `${인자.slice(0, 200)}…` : 인자}`,
           duration: '이번 한 번',
           cancel: '되돌리기는 이 서비스가 지원하는 범위에 따라요',
         };

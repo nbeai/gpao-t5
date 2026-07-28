@@ -169,3 +169,85 @@ test('연결 카드는 전송이 아니라 연결이라고 말한다', async () 
   assert.ok(!/보내는 일/.test(r.why), `없는 전송을 말했다: ${r.why}`);
   assert.match(r.why, /연결하는 일/);
 });
+
+// ── 원격 MCP 길 ──────────────────────────────────────────────────────────
+// **사용자 문턱이 다르다.** API 키는 그 서비스 개발자 화면에서 값을 받아 와야 하지만,
+// 원격 MCP 는 T5 가 클라이언트 등록까지 스스로 해서 사용자가 하는 일은 동의 한 번이다
+// (노션이 그렇게 붙었다 — 오너 라이브 2026-07-28). 문턱을 낮추는 게 이 제품의 목표라
+// 이 길이 열려 있으면 이게 먼저다.
+const mcp선언 = (over = {}) => ({ service: '어떤협업툴', authKind: 'mcp', url: 'https://mcp.example.com/mcp', ...over });
+
+test('원격 MCP 는 받아 올 값 없이도 선언이 선다', () => {
+  assert.equal(checkDeclaration(mcp선언()).ok, true);
+  const c = toConnectorDeclaration(mcp선언());
+  assert.equal(c.authState, 'oauth');
+  assert.deepEqual(c.authMethods, [{ kind: 'mcp', url: 'https://mcp.example.com/mcp' }]);
+  assert.equal(c.connected, false, '선언은 연결이 아니다');
+});
+
+test('MCP 선언도 주소 경계를 그대로 받는다', () => {
+  assert.equal(checkDeclaration(mcp선언({ url: 'http://mcp.example.com/mcp' })).ok, false);
+  assert.equal(checkDeclaration(mcp선언({ url: 'https://127.0.0.1/mcp' })).ok, false);
+  assert.equal(checkDeclaration(mcp선언({ url: undefined })).ok, false);
+});
+
+test('MCP 카드는 없는 값을 받아 오라고 하지 않는다', () => {
+  const p = makeConnectorDeclareTool({ connectors: () => [] }).previewOf(mcp선언());
+  assert.match(p.what, /허용 한 번/);
+  assert.match(p.what, /받아 오실 값은 없어요/);
+  // 무엇을 할 수 있게 되는지는 붙어야 안다 — 지어내지 않는다
+  assert.ok(!/할 수 있는 것:/.test(p.what), `안 붙었는데 능력을 약속했다: ${p.what}`);
+  assert.match(p.scope, /mcp\.example\.com/);
+});
+
+// 실측(오너 라이브 2026-07-28): 주소로 붙인 원격 MCP 의 도구를 쓰려 하자 승인 카드에
+//   `ask_question 실행 — undefined` · `어디에: undefined 서버에서`
+// 가 떴다. 설정에 등록된 서버는 이름이 있지만 주소로 붙은 것은 이름이 없다.
+// 무엇을 허락하는지 모르는 승인은 승인이 아니다.
+test('주소로 붙은 MCP 도구도 어디에 붙었는지 사람 말로 말한다', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+  admitMcpTools({
+    server: undefined, connectorLabel: '딥위키', connector: 'd-deepwiki',
+    tools: [{ name: 'ask_question', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+    session: { callTool: async () => ({ content: [] }) },
+  }, ctx);
+  const 손 = Object.values(ctx.tools.tools)[0];
+  const p = 손.previewOf({ q: 1 });
+  assert.ok(!/undefined/.test(`${p.impact} ${p.scope}`), `카드에 undefined 가 샜다: ${p.impact} · ${p.scope}`);
+  assert.match(p.impact, /딥위키/);
+  assert.match(p.scope, /딥위키/);
+});
+
+// 같은 카드에서 "메시지를 실제로 밖으로 보내는 일이라"도 떴다 — 조회였다.
+// 계획 층이 승인을 강제하려고 종류를 `send` 로 바꿔 달았고, 그 이름의 문구가 실렸다.
+test('승인을 강제하려고 바꾼 종류가 사용자에게 전송으로 보이지 않는다', async () => {
+  const { buildActionPlan } = await import('../src/kernel/l2-plan/action-plan.js');
+  const selfState = {
+    connectedTools: [{ id: 'x.read', label: '조회', connected: true, executable: true, toolKind: 'read', needsApproval: true }],
+    currentModel: { id: 'm' }, limits: [],
+  };
+  const plan = buildActionPlan({ intent: { neededTools: ['x.read'], toolArgs: { 'x.read': {} } }, selfState, mode: 'smart' });
+  const g = (plan.needsApproval ?? [])[0];
+  assert.ok(g, '승인 강제가 풀리면 안 된다');
+  assert.ok(!/보내는 일/.test(g.reason?.why ?? ''), `없는 전송을 말했다: ${g.reason?.why}`);
+});
+
+// 실측(오너 라이브 2026-07-28): 주소로 붙은 MCP 의 손이 원장에 `mcp.undefined.ask_question`
+// 으로 남았다. 보기 흉한 것으로 끝나지 않는다 — 주소로 붙은 서비스가 **둘**이 되면 id 가
+// 겹쳐서 나중에 붙은 것이 앞의 손을 조용히 덮어쓴다. 사용자는 A 서비스를 불렀는데 B 가 돈다.
+test('주소로 붙은 서비스가 둘이어도 손이 서로 덮어쓰지 않는다', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+  const 붙이기 = (connector, label) => admitMcpTools({
+    server: undefined, connector, connectorLabel: label,
+    tools: [{ name: 'ask_question', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+    session: { callTool: async () => ({ content: [{ type: 'text', text: label }] }) },
+  }, ctx);
+  붙이기('d-first', '첫째');
+  붙이기('d-second', '둘째');
+
+  const ids = Object.keys(ctx.tools.tools);
+  assert.equal(ids.length, 2, `손이 덮어써졌다: ${ids.join(' · ')}`);
+  assert.ok(!ids.some((id) => id.includes('undefined')), `id 에 undefined 가 샜다: ${ids.join(' · ')}`);
+});

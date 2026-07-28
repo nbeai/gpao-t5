@@ -79,8 +79,9 @@ export function toolActionKind({ toolId, args, selfState }) {
   if (toolId === 'local.terminal') {
     kind = args?.changes === true ? 'write' : args?.changes === false ? 'read' : UNKNOWN_KIND;
   }
-  // descriptor 가 승인을 요구하면 등급이 낮게 나와도 최소 A2 로 올린다(하드코딩 우회 차단).
-  if (tool?.needsApproval && !isSafetyFloor(kind)) kind = 'send';
+  // **여기서 종류를 바꾸지 않는다.** 예전엔 승인을 강제하려고 `kind = 'send'` 로 바꿔 달았고,
+  // 그래서 조회·연결 카드에까지 "메시지를 실제로 밖으로 보내는 일이라"가 떴다(실측 2026-07-28).
+  // 강제는 이제 authority 가 `needsApproval` 사실로 한다 — 등급만 올리고 이름은 사실대로 둔다.
   return kind;
 }
 
@@ -138,12 +139,10 @@ export function buildActionPlan(p) {
     const asAction = (k) => ({
       label: id, kind: k, preview: preview(),
       revocable: reversible, reversibleNote: tool?.reversibleNote,
+      // 도구 선언이 확인을 요구한다는 **사실**을 그대로 넘긴다 — 종류를 바꿔 흉내 내지 않는다.
+      needsApproval: tool?.needsApproval,
     });
-    let grant = grantFor(asAction(kind), mode);
-    if (tool?.needsApproval && !grant.approvalRequired) {
-      kind = 'send'; // 최소 A2로 승인 강제(하드코딩 우회 차단)
-      grant = grantFor(asAction(kind), mode);
-    }
+    const grant = grantFor(asAction(kind), mode);
     if (grant.approvalRequired) needsApproval.push(grant);
     else autoAllowed.push(id);
   }
