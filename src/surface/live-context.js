@@ -19,6 +19,8 @@ import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
 import { makeConnectorConnectTool } from '../runtime/connector-connect.js';
+import { DeclaredConnectorStore } from './declared-connector-store.js';
+import { makeConnectorDeclareTool } from '../runtime/connector-declare.js';
 import { ConnectorCredentialStore } from './connector-credential-store.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
@@ -162,15 +164,28 @@ export function liveDeps(processEnv = {}, deps = {}) {
   ];
   // P5-B-1B: **연결을 실행하는 손.** 이게 없어서 "붙여줘"에 남의 도구 설정으로 떠넘겼다.
   // 살아 있는 배열·객체를 그대로 넘긴다 — 편입은 제자리 갱신이라 그 턴부터 모델이 본다.
-  tools.tools['connector.connect'] = makeConnectorConnectTool({
+  const connectHand = makeConnectorConnectTool({
     ctx: () => ({ tools, descriptors, env }),
     connectors: () => connectors,
     // 원격 OAuth 로 받은 자격은 0600 파일에 남는다 — 껐다 켜도 다시 로그인시키지 않는다.
     credentialStore: new ConnectorCredentialStore(),
   });
+  tools.tools['connector.connect'] = connectHand;
+  // P-OP C: **낯선 서비스도 커넥터가 되는 길.** 여기서 올라온 것은 소스 선언과 같은 배열에
+  // 들어가고, 그 뒤로 발견·승인·비밀 입력면·편입이 전부 같다(갈래를 새로 만들지 않는다).
+  const declaredStore = deps.declaredConnectorStore ?? new DeclaredConnectorStore(stateDir);
+  tools.tools['connector.declare'] = makeConnectorDeclareTool({
+    connectors: () => connectors,
+    store: declaredStore,
+    connect: connectHand, // 선언 직후 같은 길로 이어 준다 — 사용자 승인은 한 번이다
+  });
   descriptors.push(defineTool({
     id: 'connector.connect', label: '서비스 연결', owner: 'core',
-    availability: [{ kind: 'connected' }], toolKind: 'unknown_kind', needsApproval: true,
+    // **하는 일의 이름으로 부른다.** `unknown_kind` 로 두면 위층이 승인을 강제하려고 종류를
+    // `send` 로 바꿔 달고, 카드에 "메시지를 실제로 밖으로 보내는 일이라"가 뜬다(라이브 실측
+    // 2026-07-28 — 연결 카드에 전송 문구). `connect_account` 는 이미 안전 바닥이라 승인은
+    // 그대로 강제되고, 사용자가 읽는 이유만 사실이 된다.
+    availability: [{ kind: 'connected' }], toolKind: 'connect_account', needsApproval: true,
     capability: '외부 서비스를 T5 에 실제로 연결한다(연결·해제). 연결되면 그 서비스의 도구가'
       + ' 바로 쓸 수 있는 손으로 올라온다. 사용자는 승인 한 번만 하면 되고, 확인·등록·재연결은 T5 가 한다.',
     operatorFact: '연결 상태를 직접 확인하고, 필요한 연결은 동의나 비밀 입력 경계에서 이어서 처리한다.',
@@ -186,6 +201,80 @@ export function liveDeps(processEnv = {}, deps = {}) {
           action: { type: 'string', enum: ['connect', 'disconnect'], description: '기본은 connect' },
         },
         required: ['connector'],
+      },
+    },
+  }));
+  env.connections.push({ ...toConnection(descriptors[descriptors.length - 1], { connected: true }), hasHandler: true });
+
+  descriptors.push(defineTool({
+    id: 'connector.declare', label: '새 서비스 붙이기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'connect_account', needsApproval: true,
+    capability: '아직 T5 에 선언되지 않은 외부 서비스를, 그 서비스의 공개 API 로 연결할 수 있게'
+      + ' 준비한다. 준비되면 선언돼 있던 서비스와 똑같이 승인·안전 입력면·도구 편입을 거쳐 연결된다.'
+      + ' 비밀값은 이 도구가 받지 않는다 — 안전 입력면이 따로 열린다.',
+    operatorFact: '아직 선언되지 않은 서비스라도, 붙는 방법을 확인해 연결 대상으로 직접 올린다.',
+    schema: {
+      description: '사용자가 부른 서비스가 T5 에 아직 없을 때, 그 서비스의 공개 API 로 붙을 수 있게'
+        + ' 준비한다. **"제가 붙일 수 없으니 파일로 주세요"라고 답하기 전에 이걸 먼저 본다.**'
+        + ' 네가 그 서비스의 공개 API 를 알고 있거나 공개 문서에서 확인했다면, 받아야 할 값과'
+        + ' 부를 주소를 여기 채워 넣는다. 확실하지 않으면 먼저 공개 문서를 읽고 채운다.'
+        + ' 값 자체(키·토큰)는 절대 여기 넣지 않는다 — 받을 **칸 이름**만 적는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          service: { type: 'string', description: '서비스 이름 — 사용자가 부른 말 그대로' },
+          fields: {
+            type: 'array', description: '연결에 필요한 값의 칸. 그 서비스 화면에 적힌 글자 그대로 label 을 쓴다.',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: '자리표시자로 쓸 이름(영문)' },
+                label: { type: 'string', description: '사용자가 볼 이름' },
+                secret: { type: 'boolean', description: '가려야 하는 값이면 true' },
+              },
+              required: ['name', 'label'],
+            },
+          },
+          issue: {
+            type: 'object', description: '값을 어디서 받는지. 사람 말로.',
+            properties: {
+              url: { type: 'string' },
+              steps: { type: 'array', items: { type: 'string' } },
+            },
+          },
+          verify: {
+            type: 'object', description: '값이 맞는지 T5 가 한 번 직접 불러 볼 주소(읽기만 하는 것으로).',
+            properties: {
+              url: { type: 'string' },
+              headers: { type: 'object', description: '{field_name} 으로 값을 끼워 넣는다' },
+            },
+            required: ['url'],
+          },
+          tools: {
+            type: 'array', description: '연결되면 할 수 있게 될 일들. 하나 이상.',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: '영문 이름' },
+                label: { type: 'string', description: '사용자가 볼 이름' },
+                description: { type: 'string' },
+                parameters: { type: 'object', description: 'JSON Schema' },
+                defaults: { type: 'object' },
+                request: {
+                  type: 'object',
+                  properties: {
+                    url: { type: 'string' }, method: { type: 'string' },
+                    headers: { type: 'object' }, body: { type: 'string' },
+                  },
+                  required: ['url'],
+                },
+                probeArgs: { type: 'object', description: '실제로 되는지 한 번 두드려 볼 인자' },
+              },
+              required: ['name', 'label', 'request'],
+            },
+          },
+        },
+        required: ['service', 'fields', 'verify', 'tools'],
       },
     },
   }));

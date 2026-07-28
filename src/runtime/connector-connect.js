@@ -253,7 +253,7 @@ export function makeConnectorConnectTool(deps = {}) {
   const 기억붙임 = (d) => ({ ...d, remember: (id, 손) => live.set(id, { admitted: 손 ?? [] }) });
 
   return {
-    toolKind: 'unknown_kind', // 외부 계정 접근 권한을 주는 일 — 기존 권한 층이 승인으로 다룬다
+    toolKind: 'connect_account', // 하는 일의 이름 그대로 — 안전 바닥이라 승인은 강제된다
     previewOf(args = {}) {
       const id = String(args.connector ?? '').trim();
       const c = findConnector(deps.connectors?.() ?? [], id);

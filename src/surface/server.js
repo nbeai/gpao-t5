@@ -1329,10 +1329,17 @@ export async function startLiveServer(opts = {}) {
   // **실제 실행에서만 켠다.** 검사·게이트도 이 함수를 쓰는데, 거기서 바깥 서비스를 두드리면
   // 검사가 네트워크에 매달린다(실측: 게이트가 그대로 멈췄다). 검사는 바깥에 나가지 않는다.
   if (opts.restoreConnections) {
-    liveTools?.tools?.['connector.connect']?.restoreSaved?.()
-    .then((살아난것) => {
-      for (const x of 살아난것 ?? []) console.log(`[connector] ${x.connector} 다시 연결됨 — 손 ${x.tools}개`);
-    })
+    // **선언이 먼저 선다.** 사용자가 올린 서비스가 배열에 없으면 저장된 자격이 붙을 자리를
+    // 못 찾는다 — 껐다 켜니 그 서비스만 통째로 사라진 것처럼 보인다.
+    Promise.resolve(liveTools?.tools?.['connector.declare']?.restoreDeclared?.() ?? [])
+      .then((되살림) => {
+        if (되살림?.length) console.log(`[connector] 사용자가 올린 서비스 ${되살림.join(' · ')}`);
+      })
+      .catch(() => {})
+      .then(() => liveTools?.tools?.['connector.connect']?.restoreSaved?.())
+      .then((살아난것) => {
+        for (const x of 살아난것 ?? []) console.log(`[connector] ${x.connector} 다시 연결됨 — 손 ${x.tools}개`);
+      })
       .catch(() => {});
   }
   modelDoctor()
