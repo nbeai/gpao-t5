@@ -58,6 +58,7 @@ import {
 } from '../kernel/l5-growth/task-trace.js';
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
+import { isSendTool } from '../kernel/contracts.js';
 import { SkillStore } from './skill-store.js';
 import { detectSkillCandidate, surfaceCandidate, markReplayRequired, replaySkill, approveSkill, admitSkill, rejectSkill, canInfluence, canAutoExecute } from '../kernel/l5-growth/skill-learning.js';
 import { AutomationStore } from './automation-store.js';
@@ -283,12 +284,14 @@ export function makeServer(deps = {}) {
     else if (result.goal === null) session.activeGoal = null;
     // 자기 파악 세 번째 축 — 이 대화에서 실제로 한 일을 지속한다(다음 턴의 "그거"가 여기서 풀린다).
     if (result.workingState) session.workingState = result.workingState;
-    if (result.sentVia?.tool && result.sentVia.target) {
+    // C7-ACTION-001 이중 방어: 커널이 걸러도, 원장·학습 직전에 같은 술어로 한 번 더 판정한다.
+    if (result.sentVia?.tool && result.sentVia.target
+      && isSendTool(result.sentVia.tool, buildSelfState(env, { tools }))) {
       const sv = result.sentVia;
       const delivered = sv.failureState === 'none' || sv.failureState === undefined;
       // P6-14: 전달 원장 — 생성(artifact)과 전달을 분리해 남긴다. 실패해도 산출물 보존 → 재전달 가능.
       const dl = await deliveryStore.load();
-      let rec = makeDelivery({ id: randomUUID(), sessionId: session.id, tool: sv.tool, target: sv.target, artifact: { text: sv.text }, now: Date.now() });
+      let rec = makeDelivery({ id: randomUUID(), sessionId: session.id, tool: sv.tool, target: sv.target, artifact: { text: sv.text }, args: sv.args, now: Date.now() });
       rec = applyDeliveryResult(rec, sv.failureState ?? 'none', sv.userSafeSummary, Date.now());
       dl.deliveries.push(rec);
       await deliveryStore.save(dl);
@@ -825,7 +828,9 @@ export function makeServer(deps = {}) {
         if (typeof sessionId !== 'string' || !sessionId) return sendJson(res, 400, { error: '세션 없음' });
         const a = await deliveryStore.load();
         const strip = (d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state, attempts: d.attempts, retriable: isRetriable(d), needsFix: d.needsFix ?? false, lastResult: d.lastError?.failureState ?? null });
-        return sendJson(res, 200, { deliveries: a.deliveries.filter((d) => d.sessionId === sessionId).map(strip) });
+        // C7-ACTION-001: 비전송 legacy 기록은 사용자 전달 목록에 나타나지 않는다.
+        const ss전달 = buildSelfState(env, { tools });
+        return sendJson(res, 200, { deliveries: a.deliveries.filter((d) => d.sessionId === sessionId && isSendTool(d.tool, ss전달)).map(strip) });
       }
       // 재전달: 이미 만든 산출물(artifact)을 그대로 다시 보낸다 — 재생성하지 않는다. 외부 전송은 원 승인 범위의
       //   재전달(A2 유지). 전달 확인(delivered) 이후에만 완료로 본다.
@@ -841,10 +846,14 @@ export function makeServer(deps = {}) {
         if (idx < 0) return sendJson(res, 404, { error: '전달 기록을 찾지 못했어요.' });
         const d = a.deliveries[idx];
         if (d.sessionId !== sessionId) return sendJson(res, 403, { error: '다른 대화의 전달이라 여기서 다시 보낼 수 없어요.' });
-        if (d.state === 'delivered') return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
-        // 저장된 산출물을 그대로 재전달(재생성 없음). 실행 가능 게이트를 그대로 탄다.
         const selfState = buildSelfState(env, { tools });
-        const rec = await tools.run(d.tool, { text: d.artifact?.text, target: d.target }, selfState);
+        // C7-ACTION-001: 과거/손상 기록이 비전송 도구를 담고 있어도 **재실행하지 않는다** —
+        // "다시 보내기"가 로컬 도구를 돌려 놓고 "전달됐어요"라고 말한 결함의 마지막 방어선.
+        if (!isSendTool(d.tool, selfState)) return sendJson(res, 409, { error: '전송 도구의 전달만 다시 보낼 수 있어요.' });
+        if (d.state === 'delivered') return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
+        // 저장된 산출물을 그대로 재전달(재생성 없음). **원 승인 인자를 그대로 보존한다** —
+        // {text,target} 재조립은 action 같은 필드를 잃는다(Codex 재현: action:'stop' 소실).
+        const rec = await tools.run(d.tool, d.args ?? { text: d.artifact?.text, target: d.target }, selfState);
         a.deliveries[idx] = applyDeliveryResult(d, rec.failureState, rec.userSafeSummary, Date.now());
         await deliveryStore.save(a);
         return sendJson(res, 200, { ok: rec.failureState === 'none', state: a.deliveries[idx].state, userSafeSummary: a.deliveries[idx].lastError?.userSafeSummary ?? '다시 보냈어요.' });

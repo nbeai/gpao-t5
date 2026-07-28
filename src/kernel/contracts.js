@@ -190,3 +190,16 @@ export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 승인 대기 30분 후 만료
  */
 export const APPROVAL_MODES = Object.freeze(['manual', 'smart', 'strict']);
 export const DEFAULT_APPROVAL_MODE = 'smart';
+
+/**
+ * P-OP-7 Pass 4 · C7-ACTION-001 — **전송 도구 판정의 단일 기준.**
+ * 일반 도구 인자에 `target`이 있다는 이유만으로 sentVia·전달 원장·기본 대상 학습에
+ * 편입되어, 로컬 프로세스 확인이 "전달됐어요"로 기록됐다(두 검증선 재현).
+ * `target` 필드가 아니라 **현재 도구 현실의 toolKind === 'send'** 만 전송이다.
+ * 커널(sentVia)·서버(원장 기록)·재시도·전달 목록이 전부 이 함수 하나로 판정한다.
+ * @param {string} toolId
+ * @param {{connectedTools?:Array<{id:string,toolKind?:string}>}} selfState
+ */
+export function isSendTool(toolId, selfState) {
+  return selfState?.connectedTools?.find((t) => t.id === toolId)?.toolKind === 'send';
+}

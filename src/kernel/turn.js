@@ -30,7 +30,7 @@ import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
 import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
-import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE } from './contracts.js';
+import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE , isSendTool } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -570,7 +570,7 @@ export async function runTurn(input, ctx) {
   if (planIntent.terminalOp) {
     sendArgs = { ...(sendArgs ?? {}), 'local.terminal': planIntent.terminalOp };
   }
-  const sendGrant = pendingGrants.find((g) => selfState.connectedTools.find((t) => t.id === g.action)?.toolKind === 'send');
+  const sendGrant = pendingGrants.find((g) => isSendTool(g.action, selfState));
   if (sendGrant) {
     // P2-5b: 모델이 보낼 내용·대상을 이미 골랐으면 그것을 쓴다(문장 재파싱보다 정확하다).
     const fromModel = modelToolArgs?.[sendGrant.action];
@@ -776,12 +776,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
     if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
     // P6-11 학습 + P6-14 전달 원장: 전달 수단·대상·산출물·전달 결과를 함께 실어 보낸다(생성≠전달 분리).
-    if (sendArgs?.[toolId]?.target && !sentVia) {
+    // C7-ACTION-001: target 필드가 아니라 **toolKind==='send'** 만 전달이다 — local.process 의
+    // {target}이 전달 원장에 "delivered"로 기록되고 기본 대상 학습까지 오염됐다(양 검증선 재현).
+    if (isSendTool(toolId, selfState) && sendArgs?.[toolId]?.target && !sentVia) {
       sentVia = {
         tool: toolId,
         target: sendArgs[toolId].target,
         targetLabel: sendArgs[toolId].targetLabel,
         text: sendArgs[toolId].text,
+        args: sendArgs[toolId], // 원 승인 인자 전체 — 재전달이 {text,target}로 재조립해 필드를 잃지 않게
         failureState: rec.failureState,
         userSafeSummary: rec.userSafeSummary,
       };
@@ -946,7 +949,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
     // 승인해도 실패 → 이어진 답이 뜨지 않을 승인 화면을 약속). 승인은 성공할 수 있는 일에만 청한다.
-    if (selfState.connectedTools.find((t) => t.id === toolId)?.toolKind === 'send') {
+    if (isSendTool(toolId, selfState)) {
       const 아는곳 = ctx.channelTargets?.[toolId] ?? [];
       const 내용 = String(판정인자.text ?? 판정인자.request ?? '').trim() || null;
       let 대상 = String(판정인자.target ?? '').trim() || null;
@@ -997,7 +1000,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 도구가 낸 미리보기를 카드에 그대로 싣는다(무엇을·어디에가 없으면 승인이 아니다).
         toolPreviews: (() => {
           const raw = ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {});
-          const pv = selfState.connectedTools.find((t) => t.id === toolId)?.toolKind === 'send'
+          const pv = isSendTool(toolId, selfState)
             ? 확정된전송미리보기(raw, 판정인자)
             : raw;
           return pv ? { [toolId]: pv } : undefined;
