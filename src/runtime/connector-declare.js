@@ -176,7 +176,15 @@ export function makeConnectorDeclareTool(deps = {}) {
       const 되살림 = [];
       for (const decl of await (deps.store?.load?.() ?? [])) {
         // 저장된 선언도 다시 검사한다 — 규칙이 엄해졌으면 옛 선언이 통과하면 안 된다.
-        if (!checkDeclaration(decl).ok) continue;
+        // 다만 **조용히 사라지게 두지는 않는다**(P-OP-4 실측: 무효가 된 선언이 로그 한 줄 없이
+        // 표면에서 소멸 — 사용자는 자기 서비스가 왜 없어졌는지 알 길이 없다). 선언 파일은
+        // 그대로라 지워진 것은 아니다 — 탈락 사실만 운영 로그로 남기고, 사용자 표면
+        // (연결 화면의 "붙일 수 없음·이유")은 P-OP-6 연결 표면 정리에서 닫는다.
+        const 검사 = checkDeclaration(decl);
+        if (!검사.ok) {
+          console.error(`[connector] 저장된 선언 재검사 탈락: ${decl.service ?? decl.id} — ${검사.why}`);
+          continue;
+        }
         const c = toConnectorDeclaration(decl);
         if (list.some((x) => x.id === c.id)) continue;
         list.push(c);
