@@ -11,6 +11,7 @@ import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
 import { makeLocalLocateTool } from '../runtime/local-locate.js';
 import { makeLocalDiscoveryTool } from '../runtime/local-discovery.js';
+import { makeLocalSystemTool } from '../runtime/local-system.js';
 import { ProcessStore } from '../runtime/process-store.js';
 import { defaultSessionDir } from './session-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
@@ -91,6 +92,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
     localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
     localLocate: makeLocalLocateTool(),
     localDiscovery: makeLocalDiscoveryTool({ connectors: () => connectors }),
+    localSystem: makeLocalSystemTool({}),
     localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,

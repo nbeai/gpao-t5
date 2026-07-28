@@ -349,6 +349,21 @@ const DESCRIPTORS = [
   // P6-T3 · 장기 프로세스. terminal 과 나누는 이유는 **수명**이다 — 명령은 한 턴에 끝나지만
   // 서버는 턴을 넘어 산다. 그래서 켠 것을 기억하고, 진짜 살아있는지 매번 확인하고, 말하면 끈다.
   defineTool({
+    id: "local.system", label: "컴퓨터 상태", owner: "core", availability: [{ kind: "connected" }],
+    toolKind: "read", needsApproval: false, reversible: true,
+    capability: "이 컴퓨터에서 지금 무엇이 돌고 있고 무엇이 자원을 많이 쓰는지 직접 본다."
+      + " 아무것도 바꾸지 않는다. 터미널이 못 보는 자리(setuid 도구)라 별도 손으로 본다.",
+    operatorFact: "컴퓨터가 느리거나 이상할 때 지금 무엇이 자원을 쓰는지 직접 확인한다.",
+    schema: {
+      description: "지금 돌고 있는 것을 자원 사용 순서로 본다. \"컴퓨터가 느려\", \"왜 이렇게 버벅여\","
+        + " \"뭐가 돌고 있어?\" 같은 말에 쓴다. 읽기만 하므로 승인이 필요 없다.",
+      parameters: {
+        type: "object",
+        properties: { limit: { type: "number", description: "몇 개까지 볼지(기본 10)" } },
+      },
+    },
+  }),
+  defineTool({
     id: 'local.process', label: '실행 중인 것', owner: 'core', availability: [{ kind: 'connected' }],
     toolKind: 'organize', needsApproval: false, reversible: true,
     reversibleNote: '"꺼줘"라고 하시면 바로 꺼요',
@@ -537,6 +552,7 @@ const FACTS = {
   'local.process': { connected: true },
   'local.locate': { connected: true },
   'local.discovery': { connected: true },
+  'local.system': { connected: true },
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
@@ -642,6 +658,7 @@ export function demoTools(opts = {}) {
     ...(opts.localProcess ? { 'local.process': opts.localProcess } : {}),
     ...(opts.localLocate ? { 'local.locate': opts.localLocate } : {}),
     ...(opts.localDiscovery ? { 'local.discovery': opts.localDiscovery } : {}),
+    ...(opts.localSystem ? { 'local.system': opts.localSystem } : {}),
     ...(opts.browserObserve ? { 'browser.observe': opts.browserObserve } : {}),
     ...(opts.browserAct ? { 'browser.act': opts.browserAct } : {}),
     'session.search': opts.sessionSearch ?? {

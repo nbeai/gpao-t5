@@ -123,6 +123,22 @@ export async function runCommand(command, opts = {}) {
  * **이건 안전 판정의 근거가 아니다.** 안전은 커널이 이미 보장했다(막혔으니 아무 일도 안 났다).
  * 여기서 정하는 것은 사용자에게 뭐라고 말할지와, 승인을 물을지뿐이다.
  */
+/**
+ * 막힌 이름이 **명령이 놓이는 자리**에 있었는가. 파이프·`&&`·`;` 뒤도 명령 자리다.
+ * 리다이렉트 대상(`> out`)은 명령 자리가 아니다 — 그래서 쓰기 시도와 안 섞인다.
+ */
+function 명령어자리인가(이름, command) {
+  const 조각들 = String(command ?? '').split(/\||&&|\|\||;|\bthen\b|\bdo\b|\$\(|`/);
+  const 이름끝 = 이름.split('/').pop();
+  return 조각들.some((조각) => {
+    const 첫단어 = 조각.trim().split(/\s+/)[0] ?? '';
+    if (!첫단어) return false;
+    // `env`·`command` 같은 앞말이 붙어도 뒤가 실제 명령이다. 앞 두 단어까지만 본다.
+    const 후보 = 조각.trim().split(/\s+/).slice(0, 2).map((w) => w.split('/').pop());
+    return 후보.includes(이름끝);
+  });
+}
+
 export function executionBlock(r) {
   if (!r || r.exitCode === 0) return undefined;
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
@@ -140,6 +156,25 @@ export function executionBlock(r) {
   // 실제 실행할 수 있는 변경 시도라는 사실이 같다.
   if (/not privileged|requires root|must be run as root/i.test(t)) {
     return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸려 했는데 권한이 필요해 안전 시험 실행에서 멈췄어요' };
+  }
+  // **실행 파일 자체를 못 띄운 것.** `ps`·`top` 같은 setuid 도구는 어느 샌드박스 모드에서도
+  // exec 이 거부된다(실측: `(allow default)` 만 있는 프로파일에서도 동일). 이건 "바꾸려다 막힌
+  // 것"이 아니라 **아무것도 돌지 않은 것**이다 — 승인해도 달라지지 않는다.
+  //
+  // 실측(오너 라이브 2026-07-28, 웹 화면): "컴퓨터가 왜 느린지 봐줘"의 다음 걸음 `ps -p …` 가
+  // 승인 카드로 갔고, 카드가 **"내용을 남기거나 덮어쓰는 일이라"**고 말했다. 거짓이다.
+  // 사용자는 일어나지도 않을 변경에 승인을 눌러야 했다.
+  //
+  // 가르는 근거는 목록이 아니라 사실이다: 셸이 막았다고 말한 **그 이름이 실행하려던 명령 자체**면
+  // exec 거부다. 리다이렉트 대상이면 쓰기 거부다 — `echo x > out` 도, `echo x > /usr/bin/ps` 도
+  // 명령 이름(`echo`)과 다르므로 쓰기로 남는다.
+  const 막힌이름 = t.match(/operation not permitted:\s*(\S+)/i)?.[1];
+  if (막힌이름 && 명령어자리인가(막힌이름, r.command)) {
+    return {
+      kind: 'env',
+      why: 'not_executable',
+      userWhy: `${막힌이름} 은(는) 이 자리에서는 띄울 수 없는 도구예요 — 아무것도 실행되지 않았어요`,
+    };
   }
   // 파일을 바꾸려다 막힌 것
   if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
