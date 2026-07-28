@@ -58,6 +58,17 @@ Mandatory final pre-human validation gate:
    - No final dual-model `PASS` means no installation-package production. Any product change after `PASS`
      requires impact analysis and the affected dual-model scenarios to run again.
 
+Mandatory independent audit and collaboration contract:
+
+9. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
+   - Every implementation, audit, resumed, handoff, and release session must read and obey it.
+   - Audit must classify findings as current blocker, designated follow-up, or observation; it must provide the
+     recommended solution, minimum sufficient verification, stop condition, and best next work order.
+   - Do not drip-feed findings, reopen a passed scenario for peripheral issues, lower product quality for a
+     deadline, or make the owner arbitrate technical scope between agents.
+   - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most
+     effective path. Do not co-edit the same files or turn independent audit into serial rework.
+
 ## T5 Core Three-Axis Rule (2026-07-28 owner direction)
 
 The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
