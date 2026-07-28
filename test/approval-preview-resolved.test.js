@@ -126,3 +126,20 @@ test('거절 문구는 실제로 하려던 일을 말한다 — 전부 전송으
   assert.match(r2.reply, /정산\.md/, '무엇을 건너뛰었는지가 없다');
   assert.ok(dir);
 });
+
+// 실측(오너 라이브 2026-07-28): 도구는 이미 정확한 문장을 냈는데 카드에는 도구 전체에 붙은
+// 고정 문구(`reversibleNote`)가 떴다. 없던 파일을 만드는 승인에 "휴지통에 남아 되살릴 수
+// 있어요" — 되살릴 원본이 없었다. 같은 카드에 두 개의 진실이 있었고 **덜 아는 쪽이 이겼다.**
+test('카드의 되돌리기 문구는 도구가 이 작업에 대해 낸 문장을 쓴다', async () => {
+  const { explainAuthority } = await import('../src/kernel/l2-plan/authority.js');
+  const r = explainAuthority({
+    kind: 'write', revocable: true,
+    reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
+    preview: { impact: 'x', cancel: '새로 만드는 거예요 — 만든 파일을 휴지통으로 보내요' },
+  });
+  assert.equal(r.reversible, '새로 만드는 거예요 — 만든 파일을 휴지통으로 보내요');
+
+  // 도구가 말이 없으면 기존 문구가 그대로 남는다(고치면서 다른 도구를 벗기지 않는다)
+  const 없을때 = explainAuthority({ kind: 'write', revocable: true, reversibleNote: '휴지통에 남아요' });
+  assert.equal(없을때.reversible, '휴지통에 남아요');
+});

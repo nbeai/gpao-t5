@@ -211,7 +211,8 @@ export async function runTurn(input, ctx) {
     ctx.pending.delete(input.reject);
     return {
       kind: 'reply',
-      reply: 건너뛴일 ? `안 했어요 — ${건너뛴일} 는 건너뛰었고, 아무것도 바뀌지 않았어요.`
+      // 인용문에 조사를 붙이지 않는다 — 도구 문장이 무엇으로 끝나든 어색해지지 않게.
+      reply: 건너뛴일 ? `안 했어요. 아무것도 바뀌지 않았어요. (건너뛴 일: ${건너뛴일})`
         : '안 했어요. 아무것도 바뀌지 않았어요.',
       selfStateSummary: summary,
     };

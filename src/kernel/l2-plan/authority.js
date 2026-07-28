@@ -170,9 +170,14 @@ export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
   const declared = action?.revocable;
   const irreversible = declared === false
     || (declared === undefined && (kind === 'delete' || kind === 'pay' || kind === 'publish' || tier === TIER.A3));
+  // 그리고 **이 작업에 대해** 도구가 낸 문장이 도구 전체 문구보다 먼저다. `reversibleNote` 는
+  // 도구에 하나만 붙어 있어 같은 write 라도 덮어쓰기와 새로 만들기를 구분하지 못한다.
+  // 실측(오너 라이브 2026-07-28): 없던 파일을 만드는 카드가 "휴지통에 남아 되살릴 수 있어요"라고
+  // 약속했다. 도구는 이미 정확한 문장을 냈는데 여기서 고정 문구가 그것을 덮었다 —
+  // 같은 카드에 두 개의 진실이 있었고 **덜 아는 쪽이 이겼다.**
   const reversible = irreversible
     ? '되돌리기 어려워요 — 그래서 미리 확인해요.'
-    : (action?.reversibleNote ?? '되돌릴 수 있어요.');
+    : (action?.preview?.cancel ?? action?.reversibleNote ?? '되돌릴 수 있어요.');
   let why;
   if (auto) {
     why = tier === TIER.A0
