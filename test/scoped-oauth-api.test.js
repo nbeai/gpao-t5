@@ -105,7 +105,7 @@ test('앱 아이디가 없으면 로그인 창을 열지 않는다', async () =>
   assert.equal(열렸나, false, '받아 온 값도 없이 사용자에게 로그인 창을 띄웠다');
 });
 
-test('만료된 토큰은 조용히 갱신한다 — 앱 비밀도 함께 보낸다', async () => {
+test('만료된 토큰은 조용히 갱신한다 — 저장된 앱 비밀이 있으면 함께 보낸다', async () => {
   const s = await 가짜인증서버();
   try {
     const 자격 = {
@@ -115,7 +115,36 @@ test('만료된 토큰은 조용히 갱신한다 — 앱 비밀도 함께 보낸
     const t = await refreshTokens(자격, { now: () => 1_000_000 });
     assert.equal(t, 'AT-1', '갱신이 안 됐다 — 사용자에게 재로그인을 시키게 된다');
     assert.equal(s.받은것.token.grant_type, 'refresh_token');
-    assert.equal(s.받은것.token.client_secret, 'CSEC', '앱 등록형은 갱신에도 앱 비밀이 필요하다');
+    assert.equal(s.받은것.token.client_secret, 'CSEC', '저장돼 있는 비밀이 갱신에 함께 안 나갔다');
+  } finally { s.close(); }
+});
+
+// 오너 감사 정정(2026-07-29): 설치형 앱은 공개 클라이언트 — 구글 공식 데스크톱 문서는 토큰
+// 교환·갱신 모두에서 client_secret 을 Optional 로 명시한다. secret 없이도 전 구간이 성공해야
+// 하고, 없는 값을 빈 문자열로라도 지어 보내면 안 된다.
+test('앱 비밀 없이 토큰 교환이 성공한다 — 없는 값을 지어 보내지 않는다', async () => {
+  const s = await 가짜인증서버();
+  try {
+    const r = await runDeclaredOAuth({
+      endpoints: s.endpoints, clientId: 'CID', // clientSecret 없음 — 공개 클라이언트
+      scopes: ['read'], opener: 브라우저열기(globalThis.fetch), timeoutMs: 8000,
+    });
+    assert.equal(r.ok, true, r.reason);
+    assert.equal(s.받은것.token.client_secret, undefined, '없는 비밀을 토큰 교환에 지어 보냈다');
+    assert.ok(s.받은것.token.code_verifier, 'PKCE 없이 교환했다 — 공개 클라이언트의 유일한 증명이 빠졌다');
+    assert.equal(r.tokens.client_secret, undefined, '없는 비밀이 저장 자격에 생겼다');
+  } finally { s.close(); }
+});
+
+test('앱 비밀 없이 갱신이 성공한다', async () => {
+  const s = await 가짜인증서버();
+  try {
+    const t = await refreshTokens({
+      clientId: 'CID', endpoints: s.endpoints,
+      tokens: { access_token: 'OLD', refresh_token: 'RT-1', expires_at: 1 }, // client_secret 없음
+    }, { now: () => 1_000_000 });
+    assert.equal(t, 'AT-1', 'secret 이 없다고 갱신을 못 하면 사용자가 재로그인하게 된다');
+    assert.equal(s.받은것.token.client_secret, undefined, '없는 비밀을 갱신에 지어 보냈다');
   } finally { s.close(); }
 });
 

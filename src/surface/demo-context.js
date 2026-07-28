@@ -262,9 +262,12 @@ export function demoConnectors() {
         // **읽기만.** `drive.readonly` 하나다. 쓰기 scope 를 미리 받아 두지 않는다 —
         // 필요해지면 그때 사용자가 다시 판단한다(승인은 미리 받아 쌓는 것이 아니다).
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        // **필수 입력은 클라이언트 ID 하나다.** 설치형 앱은 비밀을 안전하게 보관할 수 없는
+        // 공개 클라이언트이고, 구글 공식 데스크톱 문서는 토큰 교환·갱신 모두에서 client_secret
+        // 을 Optional 로 명시한다(오너 감사 정정 2026-07-29). 사용자에게 안 받아도 되는 값을
+        // 필수로 요구하는 것은 능력이 아니라 문턱이다.
         fields: [
           { name: 'client_id', label: '클라이언트 ID', secret: false },
-          { name: 'client_secret', label: '클라이언트 보안 비밀', secret: true },
         ],
         issue: {
           url: 'https://console.cloud.google.com/apis/credentials',
@@ -274,7 +277,7 @@ export function demoConnectors() {
           steps: [
             '구글 계정으로 들어가면 "사용자 인증 정보 만들기" 버튼이 있어요. 거기서 T5 가 쓸 열쇠를 만듭니다',
             '어떤 종류냐고 물으면 "데스크톱 앱"을 고르시면 돼요. 이 컴퓨터에서 쓰는 거라 그게 맞아요',
-            '만들면 값 두 개가 나와요. 그대로 아래에 붙여넣어 주세요 — 제가 확인하고 연결할게요',
+            '만들고 나오는 "클라이언트 ID" 하나만 아래에 붙여넣어 주세요 — 나머지는 제가 할게요',
           ],
         },
         // 손은 **읽기 둘**. 되는지는 붙일 때 T5 가 직접 두드려 확인한다(되는 척하는 손 금지).

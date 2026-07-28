@@ -188,7 +188,8 @@ export async function runOAuth({ resourceMetadataUrl: metaUrl, fetchImpl = globa
  * 조립 · PKCE · 콜백 수신 · 토큰 교환 · 갱신)는 전부 T5 가 한다.
  *
  * **서비스를 모르는 것은 그대로다.** 주소도 scope 도 커넥터 선언에서 온다 — 여기엔 서비스
- * 이름이 없다. 비밀값(client_secret)은 안전 입력면으로만 들어오고 여기서는 받아 쓰기만 한다.
+ * 이름이 없다. client_secret 은 **선택값**이다 — 설치형 앱은 공개 클라이언트라 표준·구글 공식
+ * 문서 모두 Optional 로 둔다. 선언이 요구한 경우에만 안전 입력면으로 들어와 여기서 받아 쓴다.
  *
  * @param {{endpoints:{authorize:string, token:string}, clientId:string, clientSecret?:string,
  *          scopes?:string[], opener?:Function, timeoutMs?:number, fetchImpl?:Function, now?:Function}} p
@@ -247,7 +248,8 @@ export async function refreshTokens(saved, { fetchImpl = globalThis.fetch, now =
   if (!saved.tokens.refresh_token || !saved.endpoints?.token) return null;
   const r = await postForm(saved.endpoints.token, {
     grant_type: 'refresh_token', refresh_token: saved.tokens.refresh_token, client_id: saved.clientId,
-    // 앱 등록형은 갱신에도 앱 비밀을 요구한다(동적 등록형은 이 값이 아예 없다).
+    // **있으면 함께 보낸다.** 설치형 앱은 공개 클라이언트라 client_secret 이 Optional 이다
+    // (구글 공식 데스크톱 문서 — 토큰 교환·갱신 모두). 요구하는 서버에 한해 저장돼 있을 뿐이다.
     ...(saved.tokens.client_secret ? { client_secret: saved.tokens.client_secret } : {}),
   }, fetchImpl);
   if (r.status !== 200 || !r.json?.access_token) return null;
