@@ -44,6 +44,16 @@ Mandatory T-cell implementation specification:
    - Do not claim T-cell self-growth from the P6-1 minimum gate alone. Follow the staged contracts, replay,
      migration, effect audit, and live evidence in this specification.
 
+Mandatory final pre-human validation gate:
+
+7. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
+   - Run only after P-OP A-H is sealed and before human user testing or installation-package production.
+   - Codex must use GPT-5.6sol. Claude must use Opus 5 or Fable 5. Record the exact provider-exposed model
+     identity; do not silently substitute a lower or auto-selected model.
+   - The two lanes run blind first, then cross-audit and reproduce each other's findings.
+   - No final dual-model `PASS` means no installation-package production. Any product change after `PASS`
+     requires impact analysis and the affected dual-model scenarios to run again.
+
 ## T5 Core Three-Axis Rule (2026-07-28 owner direction)
 
 The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
