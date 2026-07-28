@@ -102,3 +102,27 @@ test('보낼 내용이 없으면 미리보기를 지어내지 않는다', () => 
   const sender = makeChannelSender({ channel: 'slack', token: 't', defaultTarget: '#a' });
   assert.equal(sender.previewOf({ text: '   ' }), undefined);
 });
+
+// 실측(오너 라이브 2026-07-28, 웹 화면): 파일 저장 승인 카드를 거절했더니
+//   버튼  → "보내지 마"
+//   응답  → "보내지 않았어요. 초안은 그대로 있어요."
+// 보내는 일이 아니었고 초안도 없었다. 거절 문구가 커널에 한 줄로 박혀 있어서
+// 모든 승인을 전송으로 말한 것이다. 카드는 무엇을 하려는지 정확히 보여줬는데
+// 거절 응답만 다른 세계에 살고 있었다 — 같은 승인에 두 개의 진실.
+//
+// 커널은 무슨 도구였는지 몰라야 한다. 그래서 **도구가 카드에 쓴 자기 말**을 인용한다.
+test('거절 문구는 실제로 하려던 일을 말한다 — 전부 전송으로 말하지 않는다', async () => {
+  const { dir, tool } = await 작업루트();
+  const c = {
+    env: demoEnv(),
+    model: 고른다([{ name: 'local.file', args: { action: 'write', path: '정산.md', text: '합계' } }]),
+    tools: demoTools({ localFile: tool }),
+  };
+  const r1 = await runTurn({ text: '정산.md 로 저장해줘' }, c);
+  assert.equal(r1.kind, 'approval', '쓰기는 승인 경계다');
+  const r2 = await runTurn({ reject: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.ok(!/보내|초안/.test(r2.reply), `없는 전송을 말했다: ${r2.reply}`);
+  assert.match(r2.reply, /정산\.md/, '무엇을 건너뛰었는지가 없다');
+  assert.ok(dir);
+});

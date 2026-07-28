@@ -243,3 +243,30 @@ test('대상이 없으면 이동은 그대로 동작한다(막기가 정상 경�
   assert.equal(m.blocked, undefined);
   assert.equal(await readFile(join(root, '새이름.txt'), 'utf8'), 'x');
 });
+
+// 실측(오너 라이브 2026-07-28, 웹 화면): 승인 카드가 **"휴지통에 남아 '되돌려줘'로
+// 되살릴 수 있어요"** 라고 약속하고 파일을 새로 만들었는데, "되돌려줘" 에는
+// **"되돌릴 작업이 없어요"** 가 나왔다. 덮어쓸 원본이 없으면 되돌리기 표에 아무것도
+// 안 남기고 있었다 — 카드가 못 지킬 약속을 한 것이다.
+test('새로 만든 파일도 되돌릴 수 있다 — 카드의 약속이 지켜진다', async () => {
+  const { root, tool } = await sandbox();
+  const w = await tool.handler({ action: 'write', path: '정산.md', text: '합계 2,440,000' });
+  assert.equal(w.blocked, undefined);
+  assert.equal(await readFile(join(root, '정산.md'), 'utf8'), '합계 2,440,000');
+
+  const u = await tool.handler({ action: 'undo' });
+  assert.equal(u.blocked, undefined, `되돌릴 수 없다고 답했다: ${u.userSafeSummary}`);
+  assert.ok(!/되돌릴 작업이 없어요/.test(u.userSafeSummary ?? ''));
+  await assert.rejects(() => readFile(join(root, '정산.md'), 'utf8'), '만든 파일이 그대로 남아 있다');
+});
+
+test('승인 카드는 새로 만들기와 덮어쓰기를 다르게 약속한다', async () => {
+  const { root, tool } = await sandbox();
+  const 새로 = tool.previewOf({ action: 'write', path: '없던파일.md', text: 'x' });
+  assert.ok(!/원본/.test(새로.cancel), `없는 원본을 약속했다: ${새로.cancel}`);
+  assert.match(새로.cancel, /되돌려줘/);
+
+  await writeFile(join(root, '있던파일.md'), '원본');
+  const 덮어 = tool.previewOf({ action: 'write', path: '있던파일.md', text: 'y' });
+  assert.match(덮어.cancel, /원본은 휴지통에 남아요/);
+});

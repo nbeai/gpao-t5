@@ -115,7 +115,8 @@ test('S23 거부는 실행하지 않고 안전 정지', async () => {
   const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   const r2 = await runTurn({ reject: r1.pendingId }, c);
   assert.equal(r2.kind, 'reply');
-  assert.match(r2.reply, /보내지 않았어요/);
+  // 거절 문구는 이제 **하려던 일**을 말한다 — 모든 승인이 전송은 아니다.
+  assert.match(r2.reply, /안 했어요/);
   assert.equal(sent.length, 0, '거부 후 발송 없음');
   // 폐기 후 같은 id 재승인은 무효(재실행 방지).
   const r3 = await runTurn({ approve: r1.pendingId }, c);

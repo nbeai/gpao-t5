@@ -199,9 +199,22 @@ export async function runTurn(input, ctx) {
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
+  //
+  // **모든 거절을 전송 취소처럼 말하지 않는다.** 실측(오너 라이브 2026-07-28): 파일 저장을
+  // 거절했는데 "보내지 않았어요. 초안은 그대로 있어요"라고 답했다. 보내는 일이 아니었다.
+  // 커널은 무슨 도구였는지 몰라야 하므로, 건너뛴 일은 **도구가 승인 카드에 쓴 자기 말**
+  // (approvalPreview.impact)을 그대로 인용한다 — 여기서 문장을 새로 짓지 않는다.
   if (input.reject) {
+    const 거절된것 = ctx.pending.get(input.reject);
+    const 건너뛴일 = (거절된것?.plan?.needsApproval ?? [])
+      .map((g) => g.approvalPreview?.impact).filter(Boolean)[0];
     ctx.pending.delete(input.reject);
-    return { kind: 'reply', reply: '보내지 않았어요. 초안은 그대로 있어요.', selfStateSummary: summary };
+    return {
+      kind: 'reply',
+      reply: 건너뛴일 ? `안 했어요 — ${건너뛴일} 는 건너뛰었고, 아무것도 바뀌지 않았어요.`
+        : '안 했어요. 아무것도 바뀌지 않았어요.',
+      selfStateSummary: summary,
+    };
   }
 
   // C) Relevance Gate(§1.5) — 외부·비요청 이벤트만 거른다. user_chat(기본)·trusted_runtime_event은

@@ -1179,7 +1179,10 @@ function renderResult(r, opts = {}) {
     if (!stillActive) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
     const btns = el('btns');
     const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
-    const no = document.createElement('button'); no.className = 'act no'; no.textContent = '보내지 마';
+    const no = document.createElement('button'); no.className = 'act no';
+    // **모든 거절이 전송은 아니다.** 파일 저장·연결·실행에도 같은 버튼이 뜬다 —
+    // '보내지 마' 는 보내는 일에만 맞는 말이다(실측 2026-07-28: 파일 저장 카드에 이 말이 떴다).
+    no.textContent = '하지 마';
     yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); await loadSessions(); };
     no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); await loadSessions(); };
     btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);

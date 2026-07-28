@@ -11,6 +11,7 @@
 import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 
@@ -128,9 +129,14 @@ export function makeLocalFileTool(deps = {}) {
         scope: abs,
         duration: '이번 한 번',
         // 되돌릴 수 있는지는 **이 작업에 대해** 말한다. 도구 전체 라벨로는 알 수 없다.
-        cancel: action === 'write' || action === 'delete'
+        // 그리고 **같은 write 라도 되돌리는 방식이 다르다** — 덮어쓰기는 원본을 되살리는 것이고
+        // 새로 만들기는 만든 것을 치우는 것이다. 실측(오너 라이브 2026-07-28): 새 파일에도
+        // "원본은 휴지통에 남아요"라고 말했는데 원본이 없었다. 카드가 못 지킬 약속을 했다.
+        cancel: action === 'delete' || (action === 'write' && existsSync(abs))
           ? '원본은 휴지통에 남아요 — "되돌려줘"로 되살릴 수 있어요'
-          : '"되돌려줘"로 되살릴 수 있어요',
+          : action === 'write'
+            ? '새로 만드는 거예요 — "되돌려줘"라고 하시면 만든 파일을 휴지통으로 보내요'
+            : '"되돌려줘"로 되살릴 수 있어요',
       };
     },
     async handler(args = {}) {
@@ -143,6 +149,17 @@ export function makeLocalFileTool(deps = {}) {
           const list = await loadUndo();
           const last = list.pop();
           if (!last) return fail('되돌릴 작업이 없어요.');
+          // **만든 것을 되돌리는 길.** 되살릴 원본이 없으므로 복원이 아니라 치우는 것이다.
+          // 이 갈래가 없으면 새로 만든 파일은 영영 못 되돌린다(승인 카드는 된다고 말하는데).
+          if (!last.to) {
+            const 치움 = await toTrash(last.from);
+            await saveUndo(list);
+            return ok(
+              치움 ? `${basename(last.from)} 을(를) 되돌렸어요 — 만든 파일은 휴지통에 있어요.`
+                : `${basename(last.from)} 은(는) 이미 없어요.`,
+              { undone: last.op, path: last.from, trashed: Boolean(치움) },
+            );
+          }
           await mkdir(dirname(last.from), { recursive: true });
           // **되돌리는 자리에 지금 다른 파일이 있으면 그것부터 휴지통으로.** rename 은 말없이 덮어쓴다 —
           // move 의 copyFile 은 막아 놓고 undo 의 rename 을 열어 두면 같은 손실이 그대로 난다:
@@ -194,7 +211,11 @@ export function makeLocalFileTool(deps = {}) {
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
           await writeFile(abs, text, 'utf8');
-          if (parked) await pushUndo(undoEntry('write', abs, parked));
+          // **새로 만든 것도 되돌릴 수 있어야 한다.** 예전엔 덮어쓰기만 표에 남겼다 —
+          // 실측(오너 라이브 2026-07-28): 승인 카드가 "되돌려줘로 되살릴 수 있어요"라고 약속하고
+          // 저장했는데 "되돌릴 작업이 없다"가 나왔다. 카드가 못 지킬 약속을 한 것이다.
+          // 만들기의 되돌리기는 복원이 아니라 **만든 것을 치우는 것**이라 되살릴 원본(`to`)이 없다.
+          await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
           return ok(
             parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
               : `${basename(abs)} 을(를) 만들었어요.`,
