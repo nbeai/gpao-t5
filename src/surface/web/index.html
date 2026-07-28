@@ -309,9 +309,9 @@
   .statusrow .spacer { flex:1; min-width:8px; }
 
   /* ── 도구함 (2.0-A) ── */
-  #tbov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
-  #tbov.open { display:block; }
-  #tbpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
+  #tbov, #setov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
+  #tbov.open, #setov.open { display:block; }
+  #tbpanel, #setpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
     border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
   .tb-head { padding:var(--sp-5) var(--sp-5) var(--sp-3); border-bottom:1px solid var(--line); }
   .tb-head h2 { font-size:var(--fs-base); color:var(--fg-strong); display:flex; align-items:center; gap:var(--sp-2); }
@@ -364,14 +364,7 @@
   <aside id="side">
     <div class="brand">
       <span class="logo">T5</span><b>GPAO-T5</b>
-      <span class="ic" title="검색">⌕</span>
-    </div>
-    <div class="nav">
-      <a data-soon="더 보기"><span class="em">▾</span>더 보기</a>
-      <a data-soon="스킬"><span class="em">✦</span>스킬</a>
-      <a data-soon="배운 작업"><span class="em">✎</span>배운 작업</a>
-      <a id="nav-toolbox"><span class="em">🜁</span>연결</a>
-      <a data-soon="자동화"><span class="em">◷</span>자동화</a>
+      <span class="ic" id="brandSearch" title="지난 대화 찾기">⌕</span>
     </div>
     <button class="newchat" id="newchat">＋ 새 대화</button>
     <div class="seclabel">세션</div>
@@ -394,7 +387,7 @@
     <div class="sidefoot">
       <span class="dot" title="연결됨"></span>
       <span class="spacer"></span>
-      <span class="ic" title="설정" data-soon="설정">⚙</span>
+      <span class="ic" id="settingsbtn" title="설정">⚙</span>
       <span class="ic" id="theme" title="테마">◐</span>
     </div>
   </aside>
@@ -403,7 +396,7 @@
     <div class="crumb">
       <span class="hb" id="hb">☰</span>
       <span class="bc"><span class="appn">GPAO-T5 <span class="sep">›</span> </span>Work Chat</span>
-      <button id="searchbtn" title="과거 대화에서 기억 찾기">🔍<span class="sb-t"> 기억 찾기</span></button>
+      <button id="searchbtn" title="지난 대화 찾기">🔍<span class="sb-t"> 대화 찾기</span></button>
       <button id="chip" title="현재 상태 보기">준비됨</button>
     </div>
     <div id="state"></div>
@@ -442,6 +435,17 @@
     </div>
   </div>
 
+  <div id="setov">
+    <div id="setpanel">
+      <div class="tb-head">
+        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="대화로 돌아가기">✕</button></h2>
+        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">← 대화로 돌아가기</a></p>
+        <div id="set-tabs" class="tb-badges" style="margin-top:var(--sp-2);"></div>
+      </div>
+      <div class="tb-body" id="set-body"></div>
+    </div>
+  </div>
+
 <script type="module">
 // 모델 답변은 **여기 하나로만** 그린다 — 스트리밍 미리보기와 최종 답변이 같은 경로를 쓴다.
 import { renderMarkdownInto } from './markdown.js';
@@ -461,24 +465,34 @@ document.querySelectorAll('[data-soon]').forEach((n) => {
   n.addEventListener('click', () => sysline(`${n.dataset.soon} 화면은 다음 단계에서 준비됩니다. 지금은 채팅으로 이어가 주세요.`));
 });
 document.getElementById('hb').onclick = () => document.body.classList.toggle('nav-open');
-document.getElementById('theme').onclick = () => {
+function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark';
   if (next) document.documentElement.setAttribute('data-theme', next);
   else document.documentElement.removeAttribute('data-theme');
-};
+}
+document.getElementById('theme').onclick = toggleTheme;
 document.getElementById('newchat').onclick = () => newSession();
 chip.onclick = async () => {
   const open = statePanel.style.display !== 'block';
   statePanel.style.display = open ? 'block' : 'none';
-  // 열 때만 요약을 채운다(안티 대시보드 — 상시 폴링 없음).
-  if (open) { await refreshOverview(); await renderModelConnect(); }
+  // 열 때만 요약을 채운다(안티 대시보드). 모델 연결 **관리**는 설정 허브 한 곳에서만 —
+  // 같은 기능을 두 화면에서 따로 관리하지 않는다(Pre-P-OP-7 UX Closure).
+  if (open) { await refreshOverview(); renderModelSettingsLink(); }
 };
+function renderModelSettingsLink() {
+  let l = document.getElementById('mcLink');
+  if (l) return;
+  l = document.createElement('div'); l.id = 'mcLink'; l.className = 'ov';
+  l.innerHTML = '모델·메신저·연결·스킬 관리는 <a style="cursor:pointer; text-decoration:underline;">설정</a>에서 해요.';
+  l.querySelector('a').onclick = () => { statePanel.style.display = 'none'; openSettings('model'); };
+  statePanel.appendChild(l);
+}
 
 // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 칩 패널에서 키를 연결한다. 서버가 "확실한 무효만 거절"을
 //   보장한다: 확인된 것은 검증됨으로, 도달 못 한 것은 저장하되 "모델 확인 필요"로 표시한다.
 //   응답엔 마스킹 키·사용자 언어만 온다(원본 키·원문 진단 없음). 안티 대시보드: 열 때만.
-async function renderModelConnect() {
+async function renderModelConnect(target) {
   let box = document.getElementById('modelConnect');
   if (!box) {
     box = document.createElement('div'); box.id = 'modelConnect'; box.className = 'ov';
@@ -505,7 +519,7 @@ async function renderModelConnect() {
       </div>
       <div id="mcList" style="margin:4px 0;"></div>
       <div id="mcResult"></div>`;
-    statePanel.appendChild(box);
+    (target ?? statePanel).appendChild(box);
     box.querySelector('#mcProvider').onchange = (e) => {
       box.querySelector('#mcBase').style.display = e.target.value === 'openai_compatible' ? '' : 'none';
     };
@@ -538,6 +552,7 @@ async function renderModelConnect() {
       await refreshModelConnect();
     };
   }
+  if (target && box.parentNode !== target) target.appendChild(box); // 설정 허브로 이동(한 곳 관리)
   await refreshModelConnect();
 }
 
@@ -587,11 +602,16 @@ async function refreshModelConnect() {
 const searchPanel = document.getElementById('search');
 const qInput = document.getElementById('q');
 const qResults = document.getElementById('qresults');
-document.getElementById('searchbtn').onclick = () => {
-  const open = searchPanel.style.display !== 'block';
+const sbText = document.querySelector('#searchbtn .sb-t');
+function toggleSearch(force) {
+  const open = force ?? (searchPanel.style.display !== 'block');
   searchPanel.style.display = open ? 'block' : 'none';
+  if (sbText) sbText.textContent = open ? ' 닫기' : ' 대화 찾기';
+  document.getElementById('searchbtn').title = open ? '닫기' : '지난 대화 찾기';
   if (open) qInput.focus();
-};
+}
+document.getElementById('searchbtn').onclick = () => toggleSearch();
+document.getElementById('brandSearch').onclick = () => { document.body.classList.remove('nav-open'); toggleSearch(true); };
 async function doSearch() {
   const query = qInput.value.trim();
   if (!query) return;
@@ -606,14 +626,25 @@ qInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); }
 
 function renderQResults(results) {
   qResults.innerHTML = '';
-  if (!results.length) { qResults.textContent = '찾은 기억이 없어요.'; return; }
+  if (!results.length) { qResults.textContent = '찾은 대화가 없어요. 다른 말로 다시 찾아볼까요?'; return; }
   for (const r of results) {
     const card = el('qhit');
     const tag = el('qh-tag');
     const src = r.source || {};
     card.appendChild(tag);
-    if (src.title) card.appendChild(el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`));
-    card.appendChild(el('qh-body', r.statement));
+    const srcEl = src.title ? el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`) : null;
+    if (srcEl) card.appendChild(srcEl);
+    const bodyEl = el('qh-body', r.statement);
+    card.appendChild(bodyEl);
+    // 이동은 반영과 다른 행동이다 — 제목·본문 클릭은 그 대화로 가고, 반영·되돌리기는 버튼만 한다.
+    const 이동 = async () => {
+      if (!src.sessionId) { toast('이 결과의 원본 대화 정보가 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+      const ok = await fetch('/sessions/' + src.sessionId).then((x) => x.ok).catch(() => false);
+      if (!ok) { toast('그 대화가 지워졌거나 열 수 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+      await selectSession(src.sessionId);
+      toggleSearch(false);
+    };
+    for (const n of [srcEl, bodyEl]) if (n) { n.style.cursor = 'pointer'; n.title = '이 대화로 이동'; n.onclick = 이동; }
     const btn = document.createElement('button'); btn.className = 'qh-act';
     card.appendChild(btn);
     let admittedId = null;
@@ -666,6 +697,119 @@ async function openToolbox(focusId) {
 }
 function closeToolbox() { tbov.classList.remove('open'); }
 
+// ── 설정 허브 (Pre-P-OP-7 UX Closure) ── 새 관리 콘솔이 아니라 **이미 있는 기능의 정리**다.
+// 각 영역은 지금 실제로 조회·관리할 수 있는 범위만 보여준다 — 없는 기능을 약속하지 않는다.
+const setov = document.getElementById('setov');
+const setBody = document.getElementById('set-body');
+const setTabs = document.getElementById('set-tabs');
+const SET_SECTIONS = [
+  ['model', '모델'], ['messenger', '메신저'], ['tools', '도구와 연결'],
+  ['skills', '스킬'], ['memory', '기억과 개인정보'], ['looks', '모양'],
+];
+function closeSettings() { setov.classList.remove('open'); }
+async function openSettings(section = 'model') {
+  setov.classList.add('open');
+  document.body.classList.remove('nav-open');
+  setTabs.replaceChildren(...SET_SECTIONS.map(([id, label]) => {
+    const b = document.createElement('button'); b.className = 'tb-badge'; b.textContent = label;
+    b.style.cursor = 'pointer';
+    if (id === section) { b.style.borderColor = 'var(--accent)'; b.style.color = 'var(--fg-strong)'; }
+    b.onclick = () => openSettings(id);
+    return b;
+  }));
+  setBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
+  try { await SET_RENDER[section](); }
+  catch { setBody.replaceChildren(mk('div', 'tb-empty', '이 영역을 지금 불러오지 못했어요. 잠시 후 다시 열어 볼까요?')); }
+}
+const SET_RENDER = {
+  async model() {
+    setBody.replaceChildren();
+    await renderModelConnect(setBody);
+  },
+  async messenger() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '메신저 연결 상태'));
+    try {
+      const { channels } = await (await fetch('/channels')).json();
+      for (const c of channels ?? []) box.appendChild(mk('div', 'tb-hint', `${c.label} — ${c.userSafe}`));
+    } catch { box.appendChild(mk('div', 'tb-hint', '상태를 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+    await renderPendingSenders(setBody); // 허용목록 관리 — 도구함과 같은 렌더러(두 진실 금지)
+  },
+  async tools() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '도구와 연결'));
+    box.appendChild(mk('div', 'tb-hint', '도구함에서 실제 연결 상태를 보고, 눌러서 시험하고, 붙일 수 없게 된 선언을 정리할 수 있어요.'));
+    const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '도구함 열기';
+    b.onclick = () => { closeSettings(); openToolbox(); };
+    box.appendChild(b);
+    setBody.appendChild(box);
+  },
+  async skills() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '스킬'));
+    try {
+      const { skills } = await (await fetch('/skills')).json();
+      if (!skills?.length) box.appendChild(mk('div', 'tb-hint', '아직 배운 스킬이 없어요. 같은 작업이 반복되면 후보로 제안돼요 — 자동으로 켜지지는 않아요.'));
+      for (const sk of skills ?? []) {
+        const row = mk('div', 'tb-hint', `${sk.label ?? sk.id} — ${sk.state === 'admitted' ? '활성화됨' : sk.state === 'candidate' || sk.state === 'replay_required' ? '추천됨(아직 아님)' : sk.state}`);
+        if (sk.state === 'candidate' || sk.state === 'replay_required') {
+          const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '승인';
+          b.onclick = async () => { await fetch(`/skills/${sk.id}/approve`, { method: 'POST' }); SET_RENDER.skills(); };
+          row.appendChild(b);
+        }
+        box.appendChild(row);
+      }
+    } catch { box.appendChild(mk('div', 'tb-hint', '스킬 목록을 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+  },
+  async memory() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '기억과 개인정보'));
+    try {
+      const o = await (await fetch(`/overview?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
+      const rows = document.createElement('div');
+      const actsHtml = (items, pairs, key) => (items && items.length)
+        ? items.map((it) => `${esc(it[key])} ${pairs.map(([act, label]) => `<button class="ov-act" data-act="${esc(act)}" data-id="${esc(it.id)}">${esc(label)}</button>`).join('')}`).join('<br>')
+        : '없음';
+      rows.className = 'ov';
+      rows.innerHTML = [
+        `<div class="ov-row"><span class="ov-on">반영 중 선호</span> <span class="ov-k">${actsHtml(o.preferences.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-off">확인 대기</span> <span class="ov-k">${actsHtml(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+      ].join('');
+      box.appendChild(rows);
+      const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
+      box.appendChild(mk('div', 'tb-hint', `기억 기록 영수증 ${led.entries?.length ?? 0}건 — 내용 원문은 기록에 저장되지 않아요(지문만).`));
+      box.appendChild(mk('div', 'tb-hint', '기억은 확인한 것만 반영되고, 언제든 되돌릴 수 있어요. 확인 전 후보는 아무 영향이 없어요.'));
+    } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+  },
+  async looks() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '모양'));
+    const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '밝은·어두운 테마 전환';
+    b.onclick = toggleTheme;
+    box.appendChild(b);
+    setBody.appendChild(box);
+  },
+};
+document.getElementById('settingsbtn').onclick = () => openSettings();
+document.getElementById('set-x').onclick = closeSettings;
+document.getElementById('set-back').onclick = closeSettings;
+setov.onclick = (e) => { if (e.target === setov) closeSettings(); };
+// 기억 액션은 공통 통로(memAction·onOverviewAction)를 그대로 쓴다 — 표면마다 갈라지지 않게.
+setBody.addEventListener('click', async (e) => {
+  if (!e.target.closest('.ov-act')) return;
+  await onOverviewAction(e);
+  if (setov.classList.contains('open')) SET_RENDER.memory().catch(() => {});
+});
+
 // P-OP-6 · **무효가 된 선언도 "없음"이 아니다.** 붙일 수 없게 된 사용자 선언을 이유와 함께
 // 보여주고, 정리할 길을 준다(사용자가 만든 것은 사용자가 거둔다). 진실은 /connectors/truth 가 낸다.
 async function renderInvalidDeclared() {
@@ -698,7 +842,7 @@ async function renderInvalidDeclared() {
 // P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
 // 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —
 // 누가 언제 몇 번 말을 걸었는지만.
-async function renderPendingSenders() {
+async function renderPendingSenders(target = tbBody) {
   let data;
   try { data = await (await fetch('/channels/allowlist?channel=telegram')).json(); } catch { return; }
   const pending = data.pending ?? [];
@@ -717,7 +861,7 @@ async function renderPendingSenders() {
           body: JSON.stringify({ channel: 'telegram', userId: p.userId, username: p.username }),
         })).json();
         if (out.userSafeSummary) toast(out.userSafeSummary);
-        await renderPendingSenders();
+        await renderPendingSenders(target);
       };
       row.appendChild(btn);
       box.appendChild(row);
@@ -733,7 +877,7 @@ async function renderPendingSenders() {
         body: JSON.stringify({ channel: 'telegram', revoke: a.userId ?? a.username }),
       })).json();
       if (out.userSafeSummary) toast(out.userSafeSummary);
-      await renderPendingSenders();
+      await renderPendingSenders(target);
     };
     row.appendChild(btn);
     box.appendChild(row);
@@ -741,7 +885,7 @@ async function renderPendingSenders() {
   const old = document.getElementById('pendingSenders');
   if (old) old.remove();
   box.id = 'pendingSenders';
-  tbBody.prepend(box);
+  target.prepend(box);
 }
 
 function renderToolbox(q, focusId) {
@@ -797,7 +941,6 @@ function toolCard(t) {
   card.onclick = () => card.classList.toggle('open');
   return card;
 }
-document.getElementById('nav-toolbox').onclick = openToolbox;
 document.getElementById('tb-x').onclick = closeToolbox;
 tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
 tbSearch.oninput = () => renderToolbox(tbSearch.value);
@@ -1622,9 +1765,7 @@ text.addEventListener('keydown', (e) => {
 async function maybeRunOnboarding() {
   const ob = await (await fetch('/onboarding')).json().catch(() => null);
   if (!ob?.needed || !ob.canConnect) return false;
-  statePanel.style.display = 'block';
-  await refreshOverview();
-  await renderModelConnect();
+  await openSettings('model');
   const box = document.getElementById('modelConnect');
   if (box && !document.getElementById('obNote')) {
     const note = document.createElement('div');
@@ -1636,7 +1777,7 @@ async function maybeRunOnboarding() {
     document.getElementById('obSkip').onclick = async () => {
       await fetch('/onboarding/skip', { method: 'POST' });
       note.remove();
-      statePanel.style.display = 'none';
+      closeSettings();
     };
   }
   return true;
