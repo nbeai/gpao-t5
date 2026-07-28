@@ -88,6 +88,20 @@ export function makeServer(deps = {}) {
   // 주입된 기억 저장소가 dir 없는 가짜여도 **세션 저장소 경로로** 떨어진다 — 기본 경로(실사용자
   // 홈)로 떨어지면 검사가 실제 원장에 쓴다(실측: overview 테스트가 실원장에 confirmed 를 남겼다).
   const memLedger = deps.memoryLedger ?? new MemoryLedger(memStore.dir ?? store.dir);
+  // P-OP-4 · **기억 변경은 한 줄로 선다.** 확인과 철회가 거의 동시에 오면 둘 다 같은 사진(load)에서
+  // 출발해 마지막 저장이 이긴다 — 중복 승격·유령 상태가 그 틈에서 난다. 변경 구간을 직렬화한다.
+  let 기억변경중 = Promise.resolve();
+  const withMemory = (fn) => {
+    const run = 기억변경중.then(() => fn());
+    기억변경중 = run.catch(() => {});
+    return run;
+  };
+  // P-OP-4 · 원장 기록 실패는 **성공한 행동을 실패로 둔갑시키지 않는다.** 상태가 행동의 진실이고,
+  // 영수증이 빠졌다는 사실은 조용히 넘기지 않고 응답에 싣는다(화면·상태·원장이 다른 결론을 내지 않게).
+  async function 기억영수증(event, entry) {
+    try { await memLedger.append(event, entry); return true; }
+    catch (e) { console.error('[memory-ledger] 기록 실패:', e?.message ?? e); return false; }
+  }
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
@@ -284,13 +298,16 @@ export function makeServer(deps = {}) {
       await traceStore.save(learning);
     }
     if (result.memorySuggestion) {
-      const dup = [...memory.candidates, ...memory.promoted].some((e) => e.statement === result.memorySuggestion.statement);
-      if (dup) { result.memorySuggestion = undefined; }
-      else {
+      // P-OP-4: 턴 시작 사진(memory)으로 저장하면 긴 턴 동안 들어온 확인·철회를 통째로 되돌린다.
+      // 변경 줄에 서서 **현재 상태를 새로 읽고** 그 위에만 더한다.
+      await withMemory(async () => {
+        const now = await memStore.load();
+        const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
+        if (dup) { result.memorySuggestion = undefined; return; }
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
-        memory.candidates.push(c); await memStore.save(memory); result.memorySuggestion.candidateId = c.candidateId;
-        await memLedger.append('proposed', c); // 수명주기 영수증 — 후보가 생긴 사실
-      }
+        now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
+        await 기억영수증('proposed', c); // 수명주기 영수증 — 후보가 생긴 사실
+      });
     }
     if (result.automationSuggestion?.action) {
       const a = await autoStore.load();
@@ -653,21 +670,30 @@ export function makeServer(deps = {}) {
       }
       if (req.method === 'POST' && url === '/memory/confirm') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        const m = await memStore.load();
-        // 승격은 단일 통로(confirmCandidate) 하나다 — replay 게이트(운영 원리)도 그 안에 있다.
-        const r = confirmCandidate(m, input.candidateId);
-        if (!r.ok && r.reason === 'not_found') return sendJson(res, 404, { error: '후보를 찾지 못했어요.' });
-        if (!r.ok && r.reason === 'replay_failed') {
-          return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: '검토에서 과거와 충돌해 적용하지 않았어요.' });
-        }
-        if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
-        await memStore.save(m);
-        await memLedger.append('confirmed', r.entry); // 수명주기 영수증 — 사용자가 승인한 사실
-        // 권한 표면(감사 보정): 무엇을·어디에·되돌리기 가능한지 UI가 짧게 보여줄 근거.
-        return sendJson(res, 200, {
-          ok: true, kind: r.entry.kind, candidateId: r.entry.candidateId,
-          statement: r.entry.statement, influenceScope: r.entry.influenceScope,
-          reviewLevel: r.entry.reviewLevel, rollbackable: r.entry.rollbackable,
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          // 승격은 단일 통로(confirmCandidate) 하나다 — replay 게이트(운영 원리)도 그 안에 있다.
+          const r = confirmCandidate(m, input.candidateId);
+          if (!r.ok && r.reason === 'not_found') {
+            // 멱등 재시도(P-OP-4): 이미 승격돼 있으면 "없다"가 아니라 "이미 반영돼 있다"가 사실이다.
+            // 영수증도 다시 쓰지 않는다 — 재시도가 중복 승격·중복 영수증을 만들지 않는다.
+            const done = (m.promoted ?? []).find((e) => e.candidateId === input.candidateId);
+            if (done) return sendJson(res, 200, { ok: true, already: true, candidateId: done.candidateId, statement: done.statement });
+            return sendJson(res, 404, { error: '후보를 찾지 못했어요.' });
+          }
+          if (!r.ok && r.reason === 'replay_failed') {
+            return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: '검토에서 과거와 충돌해 적용하지 않았어요.' });
+          }
+          if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
+          await memStore.save(m); // 상태 저장이 행동의 진실 — 여기서 실패하면 아무 일도 없던 것
+          const receiptWritten = await 기억영수증('confirmed', r.entry);
+          // 권한 표면(감사 보정): 무엇을·어디에·되돌리기 가능한지 UI가 짧게 보여줄 근거.
+          return sendJson(res, 200, {
+            ok: true, kind: r.entry.kind, candidateId: r.entry.candidateId,
+            statement: r.entry.statement, influenceScope: r.entry.influenceScope,
+            reviewLevel: r.entry.reviewLevel, rollbackable: r.entry.rollbackable,
+            ...(receiptWritten ? {} : { receiptWritten: false }),
+          });
         });
       }
       // 수명주기 원장 조회 — 감사용. 내용 원문 없이 사건·시각·지문만.
@@ -678,29 +704,33 @@ export function makeServer(deps = {}) {
       // 승인 대기가 어느 턴에서도 정리 가능해야 죽은 후보가 쌓이지 않는다(H 감사 2026-07-29).
       if (req.method === 'POST' && url === '/memory/reject') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        const m = await memStore.load();
-        const idx = m.candidates.findIndex((e) => e.candidateId === (input.candidateId ?? input.id));
-        if (idx < 0) return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
-        const [removed] = m.candidates.splice(idx, 1);
-        await memStore.save(m);
-        await memLedger.append('rejected', removed); // 수명주기 영수증 — 후보를 정리한 사실
-        return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement });
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          const idx = m.candidates.findIndex((e) => e.candidateId === (input.candidateId ?? input.id));
+          if (idx < 0) return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
+          const [removed] = m.candidates.splice(idx, 1);
+          await memStore.save(m);
+          const receiptWritten = await 기억영수증('rejected', removed);
+          return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
+        });
       }
       if (req.method === 'POST' && url === '/memory/rollback') {
         // 반영 철회 — "반영하기"가 있으면 "잘못 반영 시 되돌릴 길"도 같은 수준(감사 지적). promoted에서 빼면
         //   다음 턴부터 admittedContext에 안 들어간다(영향 사라짐). rollbackable=false(고정 원칙 등)는 거부.
         const input = JSON.parse((await readBody(req)) || '{}');
         const cid = input.candidateId ?? input.id;
-        const m = await memStore.load();
-        const idx = m.promoted.findIndex((e) => e.candidateId === cid);
-        if (idx < 0) return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
-        if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
-        const [removed] = m.promoted.splice(idx, 1);
-        await memStore.save(m);
-        // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
-        // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
-        await memLedger.append('rolled_back', removed);
-        return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement });
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          const idx = m.promoted.findIndex((e) => e.candidateId === cid);
+          if (idx < 0) return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
+          if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
+          const [removed] = m.promoted.splice(idx, 1);
+          await memStore.save(m);
+          // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
+          // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
+          const receiptWritten = await 기억영수증('rolled_back', removed);
+          return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
+        });
       }
 
       // ── 학습(Learning-to-Workflow, P6-11) ── 후보 → 승인+replay → 승격(영향) → 되돌리기.
@@ -1017,6 +1047,7 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/search/admit') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '반영할 내용이 필요해요.' });
+        return await withMemory(async () => {
         const memory = await memStore.load();
         const stmt = input.statement.trim();
         // 이미 반영된 같은 회수 기억이면 중복 반영하지 않는다. **단 되돌리기용 candidateId는 반드시 함께 준다**
@@ -1030,10 +1061,11 @@ export function makeServer(deps = {}) {
         if (!result.ok) return sendJson(res, 200, { admitted: false, reason: result.reason });
         memory.promoted = [...(memory.promoted ?? []), result.entry];
         await memStore.save(memory);
-        await memLedger.append('confirmed', result.entry); // 검색 반영도 같은 수명주기 원장에
+        const receiptWritten = await 기억영수증('confirmed', result.entry); // 검색 반영도 같은 수명주기 원장에
 
         // candidateId를 함께 준다 — "반영하기"가 있으면 "되돌리기"(POST /memory/rollback)도 같은 수준으로(감사 지적).
-        return sendJson(res, 200, { admitted: true, candidateId: result.entry.candidateId, statement: result.entry.statement });
+        return sendJson(res, 200, { admitted: true, candidateId: result.entry.candidateId, statement: result.entry.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
+        });
       }
       // ── 스킬 학습 (P6-17 Slice-2) ── SkillCandidate lifecycle. **추천 ≠ 실행/승격. replay+확인 전 영향 0.**
       //   스킬은 자동 실행 권한이 없다(외부 행동은 여전히 A2). UI는 최소 표면.
@@ -1089,24 +1121,32 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/user-model/preferences') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '운영 선호 내용이 필요해요.' });
-        const memory = await memStore.load();
-        const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
-        memory.candidates = [...(memory.candidates ?? []), pref];
-        await memStore.save(memory);
-        await memLedger.append('proposed', pref); // 수명주기 영수증
-        return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false } });
+        return await withMemory(async () => {
+          const memory = await memStore.load();
+          const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
+          memory.candidates = [...(memory.candidates ?? []), pref];
+          await memStore.save(memory);
+          await 기억영수증('proposed', pref); // 수명주기 영수증
+          return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false } });
+        });
       }
       // 운영 선호 승인 — **주소만 남기고 승격 로직은 단일 통로(confirmCandidate)에 위임한다.**
       // 통로가 둘이면 replay·원장·필드가 한쪽에만 붙는 날 다시 갈라진다(H 감사 보강 2026-07-29).
       if (req.method === 'POST' && url.startsWith('/user-model/preferences/') && url.endsWith('/confirm')) {
         const id = url.slice('/user-model/preferences/'.length, -'/confirm'.length);
-        const memory = await memStore.load();
-        const r = confirmCandidate(memory, id);
-        if (!r.ok && r.reason === 'not_found') return sendJson(res, 404, { error: '운영 선호 후보를 찾지 못했어요.' });
-        if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
-        await memStore.save(memory);
-        await memLedger.append('confirmed', r.entry);
-        return sendJson(res, 200, { ok: true, status: 'admitted', statement: r.entry.statement });
+        return await withMemory(async () => {
+          const memory = await memStore.load();
+          const r = confirmCandidate(memory, id);
+          if (!r.ok && r.reason === 'not_found') {
+            const done = (memory.promoted ?? []).find((e) => e.candidateId === id);
+            if (done) return sendJson(res, 200, { ok: true, already: true, status: 'admitted', statement: done.statement });
+            return sendJson(res, 404, { error: '운영 선호 후보를 찾지 못했어요.' });
+          }
+          if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
+          await memStore.save(memory);
+          const receiptWritten = await 기억영수증('confirmed', r.entry);
+          return sendJson(res, 200, { ok: true, status: 'admitted', statement: r.entry.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
+        });
       }
       // 거절: 후보를 rejected로(영향 0 영구).
       if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/reject')) {

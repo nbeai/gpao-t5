@@ -3,10 +3,18 @@
 // preference/operating_principle은 kind로 섞이지 않게 한 목록 안에서 구분(계획서 §5.3).
 // observed = 추정된 사용자 성향(inferred_trait) 전용 레인 — **admittedContext가 읽지 않는다(영향 0)**.
 // "추정"과 "승인된 운영 선호"는 레인으로 분리한다: 추정은 observed(관찰), 승인 선호는 candidates→promoted(영향).
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
+
+// P-OP-4 · **기록 도중 중단이 파일을 반 토막 내지 못하게** — tmp 에 다 쓰고 rename 한 번으로
+// 바꾼다(rename 은 원자적). 채널 자격 저장소가 이미 쓰는 방식과 같다.
+async function atomicWrite(file, data) {
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, data, 'utf8');
+  await rename(tmp, file);
+}
 
 export function defaultMemoryDir() {
   return process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
@@ -30,7 +38,7 @@ export class MemoryStore {
   async save(memory) {
     await mkdir(this.dir, { recursive: true });
     // observed(추정 성향)를 함께 지속하되, 이 레인은 admittedContext가 읽지 않으므로 영향 0 유지.
-    await writeFile(this.file, JSON.stringify({ candidates: memory.candidates ?? [], promoted: memory.promoted ?? [], observed: memory.observed ?? [] }), 'utf8');
+    await atomicWrite(this.file, JSON.stringify({ candidates: memory.candidates ?? [], promoted: memory.promoted ?? [], observed: memory.observed ?? [] }));
     return memory;
   }
 }
@@ -52,13 +60,24 @@ export class MemoryLedger {
     this.file = join(dir, 'memory-ledger.json');
   }
 
+  // 손상은 **조용히 버리지 않는다**(P-OP-4). 예전엔 파싱 실패 → 빈 원장 → 다음 append 가
+  // 새 항목만 담아 덮어써서 감사 이력 전체가 소리 없이 사라졌다. 이제 읽기는 손상 사실을
+  // 함께 돌려주고, append 는 손상 파일을 옆으로 보존한 뒤 새로 시작한다(바이트를 잃지 않는다).
   async load() {
-    try { return JSON.parse(await readFile(this.file, 'utf8')); } catch { return { entries: [] }; }
+    let raw;
+    try { raw = await readFile(this.file, 'utf8'); } catch { return { entries: [] }; }
+    try { return JSON.parse(raw); } catch { return { entries: [], corrupted: true }; }
   }
 
   /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'} event */
   async append(event, entry, now = Date.now()) {
     const a = await this.load();
+    if (a.corrupted) {
+      // 손상 파일을 격리 보존 — 지우지도, 그 위에 덮어쓰지도 않는다.
+      await rename(this.file, `${this.file}.corrupt-${now}`).catch(() => {});
+      a.entries = [];
+      delete a.corrupted;
+    }
     a.entries.push({
       event,
       candidateId: entry?.candidateId ?? null,
@@ -67,7 +86,7 @@ export class MemoryLedger {
       digest: memoryDigest(entry?.statement),
     });
     await mkdir(this.dir, { recursive: true });
-    await writeFile(this.file, JSON.stringify(a), 'utf8');
+    await atomicWrite(this.file, JSON.stringify(a));
     return a.entries[a.entries.length - 1];
   }
 }
