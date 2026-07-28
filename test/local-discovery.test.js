@@ -40,6 +40,8 @@ test('실행 원장은 연결 탐색 계약을 버리지 않고 다음 판단까
   assert.equal(rec.failureState, 'none');
   assert.deepEqual(rec.connectionDiscovery, {
     subject: '낯선서비스', checked: ['mcp', 'cli', 'known_connectors'], candidates: [],
+    // 확인 범위와 연결 선언 여부도 같은 계약으로 실려 간다 — "못 찾음"과 "없음"을 가르는 사실.
+    scope: 'this_computer', declared: false,
   });
 });
 
@@ -65,4 +67,55 @@ test('짧은 명령 이름이 아무 말 안에 들어가서 단서가 되지 �
   // 막기만 하면 도구가 아니다 — 근거가 될 만큼 겹치면 그대로 단서다
   const 진짜 = (await 손.handler({ subject: 'notion' })).result?.candidates ?? [];
   assert.ok(진짜.some((x) => x.label === 'notion-cli'), '진짜 단서까지 사라졌다');
+});
+
+// 실측(오너 라이브 2026-07-28, C 시나리오 — "카페24 주문 가져와줘"):
+// T5 는 이 컴퓨터 안을 다섯 번 뒤졌고(단서 찾기·파일 찾기 2회·터미널·파일 읽기) 못 찾자
+//   "가장 빠른 길: 관리자에서 CSV 로 내려받아 주면 제가 정리할게요"
+//   "자동으로 가져오는 길: … 안전 입력면이 열려야 합니다"
+// 라고 답했다. 앞은 **일을 사용자에게 넘긴 것**이고, 뒤는 **열릴 수 없는 면을 약속한 것**이다
+// (선언되지 않은 대상은 비밀 입력면이 열리지 않는다).
+//
+// "못 찾음"과 "없음"은 다른 사실이다. 그 차이를 사실로 준다 — 어느 길로 가라고는 말하지 않는다.
+test('못 찾았을 때 확인 범위와 연결 선언 여부를 사실로 남긴다', async () => {
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => [], pathDirs: [], connectors: () => [],
+  });
+  const r = await tool.handler({ subject: '듣도보도못한상점ABC' });
+  assert.equal(r.connectionDiscovery.candidates.length, 0);
+  assert.equal(r.connectionDiscovery.scope, 'this_computer', '어디까지 봤는지가 없다');
+  assert.equal(r.connectionDiscovery.declared, false, '연결 선언 여부가 없다');
+});
+
+test('연결 선언이 있으면 declared 가 사실대로 선다', async () => {
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => [], pathDirs: [],
+    connectors: () => [{ id: 'somewhere', label: '어딘가', connected: false }],
+  });
+  const r = await tool.handler({ subject: '어딘가' });
+  assert.equal(r.connectionDiscovery.declared, true);
+});
+
+test('두 사실이 모델 입력까지 간다 — 없는 입력면을 약속하지 않게', async () => {
+  const { buildModelMessages } = await import('../src/runtime/model-provider.js');
+  const 기본 = { currentRequest: '가져와줘', selfStateFacts: {}, authorityFacts: {} };
+  const m = buildModelMessages({
+    ...기본,
+    connectionAdmission: {
+      secretInput: null,
+      discovery: { subject: '어떤상점', checked: ['mcp', 'cli'], candidates: [], scope: 'this_computer', declared: false },
+    },
+  });
+  assert.match(m.user, /이 컴퓨터 안만 본 것/, '확인 범위가 모델에 안 간다');
+  assert.match(m.user, /연결 선언이 아직 없어요/, '열릴 수 없는 면이라는 사실이 안 간다');
+
+  // 선언이 있으면 그 말은 하지 않는다(없는 벽을 세우지 않는다)
+  const 있을때 = buildModelMessages({
+    ...기본,
+    connectionAdmission: {
+      secretInput: null,
+      discovery: { subject: '어딘가', checked: ['mcp'], candidates: [{ kind: 'connector', label: '어딘가' }], scope: 'this_computer', declared: true },
+    },
+  });
+  assert.ok(!/연결 선언이 아직 없어요/.test(있을때.user));
 });

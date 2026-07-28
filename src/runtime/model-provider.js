@@ -172,7 +172,16 @@ export function buildModelMessages(tc) {
       const candidates = d.candidates ?? [];
       lines.push(candidates.length
         ? `${d.subject}: ${checked}을 직접 확인했고, 맞는 단서: ${candidates.map((c) => `${c.label}(${c.kind})`).join(' · ')}`
-        : `${d.subject}: ${checked}을 직접 확인했지만 맞는 단서는 아직 찾지 못했어요.`);
+        // **확인 범위를 함께 말한다.** 이 셋은 전부 이 컴퓨터 안이다. 범위를 안 밝히면
+        // "못 찾음"이 "없음"으로 읽히고, 다음 문장은 사용자에게 일을 넘기는 말이 된다
+        // (실측 2026-07-28: 다섯 번을 전부 이 컴퓨터 안에서만 찾고 "직접 내려받아 주세요"로 끝났다).
+        : `${d.subject}: ${checked}을 직접 확인했지만 맞는 단서는 아직 찾지 못했어요.`
+          + (d.scope === 'this_computer' ? ' 이 확인은 이 컴퓨터 안만 본 것이에요.' : ''));
+      // **없는 길을 약속하지 않게 하는 사실.** 선언이 없으면 비밀 입력면은 "아직"이 아니라
+      // 열릴 수 없다(실측: T5 가 열릴 수 없는 입력면을 사용자에게 약속했다).
+      if (d.declared === false) {
+        lines.push(`${d.subject}: T5에 이 대상에 대한 연결 선언이 아직 없어요 — 지금 비밀 입력면을 열 수 있는 대상이 아니에요.`);
+      }
     }
     usr.push(`[이번 턴의 연결 입력·확인 사실]\n${lines.join('\n')}`);
   }

@@ -60,7 +60,20 @@ export function makeLocalDiscoveryTool(deps = {}) {
           add('connector', c.label ?? c.id, c.connected ? 'T5 연결 상태가 확인돼 있어요' : 'T5에 연결 선언은 있지만 현재 직접 연결은 아니에요');
         }
       }
-      const connectionDiscovery = { subject, checked: ['mcp', 'cli', 'known_connectors'], candidates };
+      // **"못 찾았다"와 "없다"는 다른 사실이다.** 실측(오너 라이브 2026-07-28, C 시나리오):
+      // 이 셋을 보고 단서가 없자 T5 는 사용자에게 "관리자에서 CSV 로 내려받아 주세요"라고
+      // 일을 넘겼고, 동시에 "안전 입력면이 열려야 합니다"라며 **열릴 수 없는 면**을 약속했다.
+      //
+      // 두 사실을 함께 낸다. 어느 길로 가라고 말하지 않는다(§24) — 판단은 모델이 한다.
+      //   · scope        이 확인이 어디까지였나. 이 셋은 전부 **이 컴퓨터 안**이다.
+      //   · declared     T5 에 이 대상에 대한 연결 선언이 있나. 없으면 비밀 입력면 자체가
+      //                  열릴 수 없다 — 못 지킬 약속을 막는 사실이다.
+      // 대상 이름으로 갈리지 않는다. 선언이 있는지만 본다.
+      const declared = candidates.some((c) => c.kind === 'connector');
+      const connectionDiscovery = {
+        subject, checked: ['mcp', 'cli', 'known_connectors'], candidates,
+        scope: 'this_computer', declared,
+      };
       return {
         result: { ...connectionDiscovery, checkedAt: Date.now() },
         connectionDiscovery,
