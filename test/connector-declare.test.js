@@ -867,3 +867,96 @@ test('완료된 일은 "아까 그거 이어줘" 로 다시 실행되지 않는�
   assert.equal(ctx.ledger.entries.length, 완료뒤영수증, '완료된 일로 영수증이 또 남았다');
   assert.equal(ctx.pending.size, 0, '끝난 일이 다시 승인 대기로 되살아났다');
 });
+
+// ── 완료 상태 (오너 감사 2026-07-29) ─────────────────────────────────────
+//
+// 실측: 저장까지 실제로 끝낸 뒤 `아까 그거 이어줘` 하자 같은 파일을 다시 쓰는 승인 카드가 떴다.
+// T5 는 저장된 파일을 읽어 존재를 확인하고도 그랬다 — 현재 상태에 "방금 다룬 파일"은 있어도
+// **"그 요청은 완료됨"이 없었기 때문**이다. activeGoal 은 새 발화로 덮여 오히려 "진행 중"처럼
+// 말했다. 장기 학습층이 아니라 이 대화의 운용 상태라 `workingState` 에 얇게 둔다.
+//
+// 두 반대 방향을 **함께** 지킨다: 끝난 일은 되살아나지 않고, 정말 다시 하라면 막히지 않는다.
+const 완료틀 = async () => {
+  const [{ runTurn }, { TruthLedger }, { ToolRunner }, { StubModelClient }] = await Promise.all([
+    import('../src/kernel/turn.js'),
+    import('../src/kernel/l0-evidence/ledger.js'),
+    import('../src/runtime/tool-runner.js'),
+    import('../src/runtime/model-client.js'),
+  ]);
+  const 보낸것 = [];
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    },
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 보낸것.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    ledger: new TruthLedger(),
+    model: new StubModelClient(),
+  };
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  const done = await runTurn({ approve: r1.pendingId }, ctx);
+  return { runTurn, ctx, 보낸것, done };
+};
+
+test('완료 ① 끝난 일은 완료로 남고 현재 목표는 해제된다', async () => {
+  const { ctx, done, 보낸것 } = await 완료틀();
+  assert.equal(보낸것.length, 1, '시험이 성립하지 않았다 — 완료되지 않았다');
+  assert.equal(done.workingState?.recentOutcome?.status, 'completed', '끝났는데 완료로 안 남는다');
+  assert.equal(done.goal, null, '끝난 목표가 현재 목표로 남아 다음 턴을 붙든다');
+  assert.ok(ctx.pending.size === 0);
+});
+
+test('완료 ② 완료 사실이 모델 현실에 사람 말로 간다', async () => {
+  const { workingStateFacts } = await import('../src/kernel/l0-evidence/working-state.js');
+  const { done } = await 완료틀();
+  const 글 = workingStateFacts(done.workingState) ?? '';
+  assert.match(글, /최근 완료한 일/);
+  assert.match(글, /이 초안 메일로 보내줘/);
+  assert.match(글, /완료됨/);
+});
+
+test('완료 ③ 실패·차단된 작업은 완료로 기록되지 않는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { ToolRunner } = await import('../src/runtime/tool-runner.js');
+  const { StubModelClient } = await import('../src/runtime/model-client.js');
+  const ctx = {
+    env: { model: { id: 'x', authSignal: 'ok' }, connections: [{ id: 'web.collect', label: '웹 자료 수집', connected: true, executable: true }] },
+    tools: new ToolRunner({ 'web.collect': { async handler() { return { blocked: true, userSafeSummary: '그 사이트가 접근을 막고 있어요.' }; } } }),
+    ledger: new TruthLedger(), model: new StubModelClient(),
+  };
+  const r = await runTurn({ text: '이 페이지 조사해서 가져와줘' }, ctx);
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed', '막힌 일을 완료로 기록했다');
+  assert.notEqual(r.goal, null, '막혔는데 목표를 해제했다 — 이어갈 자리를 잃는다');
+});
+
+test('완료 ④ 승인 대기 중에는 완료가 아니다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { ToolRunner } = await import('../src/runtime/tool-runner.js');
+  const { StubModelClient } = await import('../src/runtime/model-client.js');
+  const ctx = {
+    env: { model: { id: 'x', authSignal: 'ok' }, connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }] },
+    tools: new ToolRunner({ 'mail.send': { async handler() { return { result: {} }; } } }),
+    ledger: new TruthLedger(), model: new StubModelClient(),
+  };
+  const r = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  assert.equal(r.kind, 'approval');
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed');
+});
+
+test('완료 ⑤ 완료 뒤에도 명시적 재작업은 막히지 않는다', async () => {
+  const { runTurn, ctx, 보낸것 } = await 완료틀();
+  // 사용자가 정말 다시 하라고 하면 정당한 새 승인이 생겨야 한다(끝났다고 능력을 닫지 않는다)
+  const r = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);   // 같은 일을 명시적으로 다시
+  assert.equal(r.kind, 'approval', '정당한 재작업 요청이 막혔다 — 능력 축소다');
+  await runTurn({ approve: r.pendingId }, ctx);
+  assert.equal(보낸것.length, 2, '승인했는데 실행되지 않았다');
+});
+
+test('완료 ⑥ 완료 사실은 오래 붙들지 않는다(감쇠)', async () => {
+  const { deriveWorkingState } = await import('../src/kernel/l0-evidence/working-state.js');
+  let ws = { turnNo: 1, subjects: [], recentOutcome: { status: 'completed', request: '옛 일', completedTurn: 1 } };
+  for (let i = 0; i < 40; i += 1) ws = deriveWorkingState(ws, { receipts: [] });
+  assert.equal(ws.recentOutcome, undefined, '오래된 완료가 계속 남아 다음 요청을 붙든다');
+});

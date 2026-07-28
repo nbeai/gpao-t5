@@ -1013,6 +1013,28 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   if (!reply.trim()) reply = fallbackReplyFrom(turnReceipts);
   const projection = projectReceipts(turnReceipts);
 
+  // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤
+  // `아까 그거 이어줘` 하자 같은 파일을 다시 쓰는 승인 카드가 떴다. 현재 상태에 "방금 다룬
+  // 파일"은 있어도 **"그 요청은 완료됨"이 없었기 때문**이다.
+  //
+  // 완료는 **실행 결과로** 정한다(모델 말이 아니라): 미확인 0 · 대기 승인 0 · 기다리는 표면 0 ·
+  // 막힘 없음 · 실제로 성공한 실행이 하나 이상. 하나라도 어긋나면 완료가 아니다 —
+  // 읽기만 일부 된 미완료를 완료로 부르면 그게 더 나쁜 거짓말이다.
+  const 실제로한일 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none');
+  const 끝났나 = projection.unconfirmed.length === 0
+    && (ctx.pending?.size ?? 0) === 0
+    && !(workingState.awaiting?.length)
+    && !workingState.blocked
+    && 실제로한일.length > 0;
+  const 완료 = 끝났나 ? {
+    status: 'completed',
+    request: intent.currentRequest,
+    completedTurn: workingState.turnNo,
+    subjects: (workingState.subjects ?? []).filter((s) => s.lastTurn === workingState.turnNo)
+      .map((s) => s.label).filter(Boolean).slice(0, 4),
+  } : undefined;
+  if (완료) workingState = { ...workingState, recentOutcome: 완료 };
+
   return {
     kind: 'reply',
     reply,
@@ -1032,7 +1054,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 같은 사실은 같은 경계를 지나야 한다 — 표면마다 다른 현실을 보게 하지 않는다.
     nextSafeAction: projection.unconfirmed.length ? 다음길(turnReceipts, 있는손()) : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
-    goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+    // **끝났으면 명시적으로 해제한다.** 안 그러면 끝난 일이 계속 "현재 목표"로 남아
+    // 다음 턴을 붙든다(실측: activeGoal 이 새 발화로 덮여 런타임이 "진행 중"처럼 말했다).
+    goal: 완료 ? null : { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
     workingState,
     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.

@@ -127,12 +127,25 @@ export function deriveWorkingState(prevState, turn = {}) {
     .filter((a) => !풀린것.has(벗기기(a.key)))
     .filter((a) => turnNo - a.lastTurn <= FORGET_AFTER_TURNS);
 
+  // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 파일을 저장해 실제로
+  // 끝낸 뒤 `아까 그거 이어줘` 하자 T5 가 같은 파일을 **다시 쓰는 승인 카드**를 띄웠다.
+  // 저장된 파일을 읽어 존재를 확인하고도 그랬다 — 현재 상태에 "방금 다룬 파일"은 있어도
+  // **"그 요청은 완료됨"이 없었기 때문**이다. 오히려 activeGoal 이 새 발화로 덮여
+  // 런타임이 "진행 중"처럼 말했다.
+  //
+  // 장기 학습층(TaskTrace)이 아니라 **이 대화의 운용 상태**다. 그래서 여기 얇게 둔다.
+  // 완료를 판정하지 않는다 — 부르는 쪽(커널)이 실행 결과로 정하고 여기서는 이어가고 감쇠시킨다.
+  const 지난완료 = prev.recentOutcome;
+  const recentOutcome = turn.outcome
+    ?? (지난완료 && turnNo - (지난완료.completedTurn ?? 0) <= FORGET_AFTER_TURNS ? 지난완료 : undefined);
+
   return {
     turnNo,
     ...(places?.length ? { places } : {}),
     subjects: merged,
     pendingApprovals: turn.pendingApprovals?.length ? turn.pendingApprovals : prev.pendingApprovals,
     ...(awaiting.length ? { awaiting } : {}),
+    ...(recentOutcome ? { recentOutcome } : {}),
     blocked,
   };
 }
@@ -167,6 +180,12 @@ export function workingStateFacts(stateOrNull) {
   // 사용자가 "외장하드요", "거기"라고 하면 모델이 이 이름들 중에서 고른다(우리가 파싱하지 않는다 — §24).
   if (state.places?.length) {
     lines.push(`볼 수 있는 자리: ${state.places.map((p) => p.label).slice(0, 10).join(' · ')}`);
+  }
+  // **끝난 일은 끝났다고 말한다.** 무엇을 할지는 모델이 정한다(§24) — "다시 하지 마"라고
+  // 시키지 않는다. 사용자가 정말 다시 하라고 하면 막히면 안 되기 때문이다.
+  const 끝난 = state.recentOutcome;
+  if (끝난?.status === 'completed') {
+    lines.push(`최근 완료한 일: ${끝난.request}${끝난.subjects?.length ? ` — ${끝난.subjects.join(' · ')}` : ''} (완료됨)`);
   }
   for (const s of current) {
     if (s.kind === 'web') {

@@ -235,7 +235,10 @@ export function makeServer(deps = {}) {
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
+    // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
+    // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;
+    else if (result.goal === null) session.activeGoal = null;
     // 자기 파악 세 번째 축 — 이 대화에서 실제로 한 일을 지속한다(다음 턴의 "그거"가 여기서 풀린다).
     if (result.workingState) session.workingState = result.workingState;
     if (result.sentVia?.tool && result.sentVia.target) {
@@ -1249,7 +1252,10 @@ export function makeServer(deps = {}) {
       session.transcript.push({ role: 'assistant', result });
       session.ledgerEntries = ctx.ledger.entries;
       session.pendingApprovals = Object.fromEntries(ctx.pending);
-      if (result.goal) session.activeGoal = result.goal;
+      // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
+    // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
+    if (result.goal) session.activeGoal = result.goal;
+    else if (result.goal === null) session.activeGoal = null;
       if (result.workingState) session.workingState = result.workingState;
       await store.save(session);
     }
