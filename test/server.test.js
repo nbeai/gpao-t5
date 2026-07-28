@@ -29,6 +29,15 @@ test('GET / 는 Work Chat 화면을 준다', async () => {
   });
 });
 
+test('Work Chat 승인 상태 모듈을 실제 서버가 제공한다', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/approval-state.js`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') ?? '', /text\/javascript/);
+    assert.match(await res.text(), /approvalIsActive/);
+  });
+});
+
 test('세션 생성 → 목록에 나타남', async () => {
   await withServer(async (base) => {
     assert.deepEqual((await getj(base, '/sessions')).sessions, []);

@@ -318,6 +318,12 @@ export function makeServer(deps = {}) {
         res.end(js);
         return;
       }
+      if (req.method === 'GET' && url === '/approval-state.js') {
+        const js = await readFile(join(__dirname, 'web', 'approval-state.js'), 'utf8');
+        res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        res.end(js);
+        return;
+      }
 
       if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
         const html = await readFile(join(__dirname, 'web', 'index.html'), 'utf8');
