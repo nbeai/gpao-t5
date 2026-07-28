@@ -153,6 +153,22 @@ test('확신 없는 후보는 자리라고 말하지 않는다(아닌 것을 사
 // 실측: 비밀 입력창을 띄우고 사용자가 창을 닫으면 그 사실이 어디에도 안 남았다.
 // 다음 턴의 T5 는 처음부터 다시 시작한다 — 사용자는 이미 절반을 했는데.
 // "아까 네이버 붙이다 말았지?" 가 되어야 한다.
+test('연결 단서가 없었던 사실도 다음 턴의 현실로 남는다', () => {
+  const receipt = {
+    intended: '연결 흔적 확인', actualCall: { tool: 'local.discovery', args: { subject: '카페24' } },
+    failureState: 'none', userSafeSummary: '바로 쓸 연결 단서를 아직 찾지 못했어요.',
+    connectionDiscovery: { subject: '카페24', checked: ['mcp', 'cli', 'known_connectors', 'apps', 'sync_folders', 'settings_names', 'local_files'], candidates: [] },
+    subject: {
+      key: 'discovery:카페24', kind: 'discovery', label: '카페24',
+      detail: 'mcp · cli · known_connectors · apps · sync_folders · settings_names · local_files을 확인했지만 맞는 연결 단서는 없음',
+    },
+  };
+  const first = deriveWorkingState(null, { receipts: [receipt] });
+  const second = deriveWorkingState(first, { receipts: [] });
+  assert.match(workingStateFacts(second), /방금 연결 단서를 확인한 대상: 카페24/);
+  assert.match(workingStateFacts(second), /맞는 연결 단서는 없음/);
+});
+
 test('표면 요청이 나오면 다음 턴이 그걸 이어받는다', () => {
   const 멈춘영수증 = {
     intended: '연결', actualCall: { tool: 'connector.connect', args: {} },

@@ -353,3 +353,100 @@ test('MCP 카드가 나가는 값을 "무엇을" 자리에 싣는다', async () 
   assert.match(p.what, /검색어: 회의/);
   assert.ok(!/[{}]/.test(`${p.impact} ${p.scope} ${p.what}`), '카드에 기계 말이 남았다');
 });
+
+// ── 병합 검토(오너, 2026-07-28)가 요구한 네 계약 ──────────────────────────
+//
+// ① **동적 선언의 진실 원천.** 붙일 수 있는 이름 목록은 부팅 시점의 사진이라 금세 낡는다.
+// 판단은 매 호출 시점의 커넥터 배열이 해야 한다 — 선언 직후 **재시작 없이** 붙어야 한다.
+test('선언한 서비스는 재시작 없이 그 자리에서 연결 대상이 된다', async () => {
+  const { makeConnectorConnectTool, findConnector } = await import('../src/runtime/connector-connect.js');
+  const connectors = [];
+  const connect = makeConnectorConnectTool({ connectors: () => connectors });
+
+  // 선언 전에는 없다 — 없는 연결을 승인으로 보내지 않는다
+  assert.equal(findConnector(connectors, '어떤상점'), undefined);
+  assert.equal((await connect.approvalEligibility({ connector: '어떤상점' })).allowed, false);
+
+  await makeConnectorDeclareTool({ connectors: () => connectors }).handler(선언());
+
+  // 선언 직후, 같은 프로세스에서 바로 찾을 수 있어야 한다(부팅 목록에 없어도)
+  assert.ok(findConnector(connectors, '어떤상점'), '선언했는데 그 자리에서 못 찾는다');
+  assert.equal((await connect.approvalEligibility({ connector: '어떤상점' })).allowed, true,
+    '선언했는데 승인으로 못 간다 — 부팅 시점 목록에 갇혔다');
+});
+
+// ② **`declared` 는 잘린 후보 목록이 아니라 커넥터 원장에서 센다.**
+// 후보는 다섯 개로 자르는 보여주기 목록이고, 선언 여부는 "비밀 입력면을 열 수 있나"를 정하는
+// 사실이다. 후보에서 세면 다른 단서가 다섯 칸을 먼저 채웠을 때 붙일 수 있는 서비스인데도
+// `declared:false` 가 나가고, T5 는 붙일 수 있는 것을 못 붙인다고 말한다.
+test('다른 단서가 후보 칸을 다 채워도 선언 여부는 정확하다', async () => {
+  const { makeLocalDiscoveryTool } = await import('../src/runtime/local-discovery.js');
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => ['카페24하나', '카페24둘', '카페24셋', '카페24넷', '카페24다섯', '카페24여섯'].map((n) => ({ name: n })),
+    pathDirs: [], appDirs: [], syncDirs: [], settingsDirs: [], fileRoots: [],
+    connectors: () => [{ id: 'cafe24', label: '카페24', connected: true }],
+  });
+  const r = await tool.handler({ subject: '카페24' });
+  assert.equal(r.connectionDiscovery.candidates.length, 5, '보여주기 목록은 잘린다');
+  assert.equal(r.connectionDiscovery.declared, true, '잘린 목록에서 세는 바람에 사실이 뒤집혔다');
+});
+
+// ③ **붙이는 일과 끊는 일은 조건이 다르다.** 둘 다 "실행 가능한 인증 방식"을 요구하면,
+// 인증 방식이 사라지거나 만료된 서비스를 사용자가 끊지도 못한다 — 붙은 것은 계정에 닿아
+// 있는데 T5 가 손을 뗄 방법을 막는 셈이다. 정리는 언제나 열려 있어야 한다.
+test('만료된 연결도 끊을 수 있다 — 붙이는 조건으로 끊기를 막지 않는다', async () => {
+  const { makeConnectorConnectTool } = await import('../src/runtime/connector-connect.js');
+  const 붙어있음 = makeConnectorConnectTool({
+    connectors: () => [{ id: 'svc', label: '어떤서비스', connected: true, authMethods: [] }],
+  });
+  assert.equal((await 붙어있음.approvalEligibility({ connector: '어떤서비스', action: 'disconnect' })).allowed, true);
+  assert.equal((await 붙어있음.approvalEligibility({ connector: '어떤서비스' })).allowed, false,
+    '연결은 여전히 실행 가능한 방식을 요구한다');
+
+  // 자격만 남아 있어도(재시작 뒤 connected:false) 정리는 열려 있다
+  const 자격만 = makeConnectorConnectTool({
+    connectors: () => [{ id: 'svc', label: '어떤서비스', connected: false, authMethods: [] }],
+    credentialStore: { get: async () => ({ kind: 'api_key' }) },
+  });
+  assert.equal((await 자격만.approvalEligibility({ connector: '어떤서비스', action: 'disconnect' })).allowed, true);
+
+  // 정말 아무것도 없으면 정직하게 "연결돼 있지 않아요"
+  const 없음 = makeConnectorConnectTool({
+    connectors: () => [{ id: 'svc', label: '어떤서비스', connected: false, authMethods: [] }],
+  });
+  const r = await 없음.approvalEligibility({ connector: '어떤서비스', action: 'disconnect' });
+  assert.equal(r.allowed, false);
+  assert.match(r.userSafeSummary, /연결돼 있지 않아요/);
+  assert.ok(!/승인받아 만들지는/.test(r.userSafeSummary), '끊기인데 붙이기 문구를 쓴다');
+});
+
+// ④ **실패해도 정확히 한 번.** 모델이 도구를 돌린 뒤에 죽으면, 이미 한 일(영수증)은 남아야
+// 하고 두 번 남으면 안 된다. 원장이 두 번 세면 사용자는 안 한 일을 했다고 듣고, 다음 턴은
+// 그 위에서 판단한다(나비: 원장은 다음 턴의 입력이다). 하나도 안 남아도 같은 크기의 거짓이다.
+test('도구 실행 뒤 모델이 죽어도 영수증은 정확히 한 번 남는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+
+  let 돌았나 = false;
+  const ledger = new TruthLedger();
+  const tools = demoTools({});
+  tools.tools['web.collect'] = {
+    async handler() { 돌았나 = true; return { result: { ok: true }, userSafeSummary: '읽었어요' }; },
+  };
+  const ctx = {
+    env: demoEnv(), tools, ledger,
+    // 도구를 한 번 고르고, 그것이 **실제로 돈 뒤** 다음 호출에서 죽는다
+    model: { async respond(_tc, opts = {}) {
+      if (돌았나) throw new Error('model exploded');
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: '확인' } }] };
+      return '';
+    } },
+  };
+
+  await runTurn({ text: '이 페이지 좀 봐줘' }, ctx).catch(() => {});
+  assert.equal(돌았나, true, '시험 자체가 성립하지 않았다 — 도구가 안 돌았다');
+  const 웹영수증 = ledger.entries.filter((e) => e.actualCall?.tool === 'web.collect');
+  assert.equal(웹영수증.length, 1, `영수증이 ${웹영수증.length}번 — 한 일은 한 번만, 그리고 반드시 남는다`);
+  assert.equal(웹영수증[0].failureState, 'none', '성공한 일이 실패로 뒤집혔다');
+});

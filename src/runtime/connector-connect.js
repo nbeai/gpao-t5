@@ -254,6 +254,47 @@ export function makeConnectorConnectTool(deps = {}) {
 
   return {
     toolKind: 'connect_account', // 하는 일의 이름 그대로 — 안전 바닥이라 승인은 강제된다
+    // 승인 카드는 "실행할 수 있는 일"에만 띄운다. 연결 방법이 전혀 선언되지 않은 이름까지
+    // 승인으로 보내면, 사용자는 존재하지 않는 연결을 허락하게 된다. 이 확인은 읽기 전용이며
+    // 서비스별 분기가 아니라 connector 선언을 그대로 본다.
+    async approvalEligibility(args = {}) {
+      const id = String(args.connector ?? '').trim();
+      const c = findConnector(deps.connectors?.() ?? [], id);
+      // **붙이는 일과 끊는 일은 조건이 다르다.** 예전엔 둘 다 "실행 가능한 인증 방식"을 요구했다.
+      // 그러면 인증 방식이 사라지거나 만료된 서비스를 **사용자가 끊지도 못한다** — 붙은 것은
+      // 사용자 계정에 닿아 있는데 T5 가 손을 뗄 방법을 막는 셈이다(실측 재현 2026-07-28).
+      // 끊기는 지금 붙어 있거나 남은 자격이 있으면 된다. 정리는 언제나 열려 있어야 한다.
+      if (args.action === 'disconnect') {
+        const 붙어있음 = Boolean(c?.connected) || live.has(c?.id);
+        const 남은자격 = c?.id ? Boolean(await deps.credentialStore?.get?.(c.id).catch(() => null)) : false;
+        if (붙어있음 || 남은자격) return { allowed: true };
+        return {
+          allowed: false,
+          userSafeSummary: `${c?.label ?? (id || '그 서비스')}은(는) 지금 연결돼 있지 않아요.`,
+          nextSafeAction: '끊을 것이 없어요. 다른 걸 도와드릴까요?',
+          diagnostic: { connector: id, reason: 'not_connected' },
+        };
+      }
+      // 서비스 이름을 안다는 것과 지금 T5가 연결을 시작할 수 있다는 것은 다르다.
+      // 선언만 있고 실행 방식이 없는 대상을 승인으로 보내면, 사용자는 없는 길을 허락하게 된다.
+      // 어떤 방식이 가능한지는 커넥터 선언과 실행기 목록의 교집합으로만 판단한다.
+      if (c && (c.authMethods ?? []).some((m) => EXECUTABLE_KINDS.includes(m.kind))) return { allowed: true };
+      // **막다른 답으로 끝내지 않는다.** 원래 이 문구는 "연결 방법은 아직 확인되지 않았어요"
+      // 였는데, 그건 이 손 하나만 보면 참이고 T5 전체로 보면 거짓이 됐다 — `connector.declare`
+      // 가 붙으면서 낯선 서비스도 붙는 방법을 확인해 올릴 수 있게 됐기 때문이다(두 갈래를
+      // 합치며 드러난 자리, 2026-07-28). 없는 연결을 승인받지 않는다는 경계는 그대로 두고,
+      // **되는 길을 가리킨다**(§22 — 막힘은 되는 방법을 제안할 수 있는 실패다).
+      return {
+        allowed: false,
+        userSafeSummary: `${id ? `“${id}”` : '그 서비스'}는 지금 바로 시작할 수 있는 연결 방식이 없어요. 없는 연결을 승인받아 만들지는 않을게요.`,
+        nextSafeAction: '붙는 방법부터 제가 확인해서 연결 대상으로 올려 볼게요.',
+        diagnostic: { connector: id, reason: 'undeclared_connector' },
+      };
+    },
+    cancelledSummary(args = {}) {
+      const c = findConnector(deps.connectors?.() ?? [], String(args.connector ?? '').trim());
+      return c ? `${c.label} 연결은 시작하지 않았어요.` : '그 연결은 시작하지 않았어요.';
+    },
     previewOf(args = {}) {
       const id = String(args.connector ?? '').trim();
       const c = findConnector(deps.connectors?.() ?? [], id);

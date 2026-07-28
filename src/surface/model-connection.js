@@ -420,10 +420,11 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
 
     /** 지금 연결된 모델이 **스스로 웹을 찾을 수 있는가**(1층). 자기인지·계획이 이걸 본다. */
     supportsSearch() {
-      const rec = activeConn();
-      // 실측(2026-07-26): ChatGPT 계정 경로는 web_search 도구를 지원한다. 다른 provider 는
-      // 확인된 것이 없으므로 **지원한다고 가정하지 않는다**(추정으로 능력을 부풀리지 않는다).
-      return rec?.kind === 'chatgpt_oauth';
+      // 계정 경로의 내장 검색은 응답 문장만 돌려준다 — 검색 과정·출처를 T5 원장으로 회수하는
+      // 계약이 없다. 그 상태에서 "공식 문서 기준"이라고 말하면 답변과 원장이 갈라진다.
+      // 웹 확인은 출처 영수증을 남기는 web.collect로만 진행한다. 내장 검색 근거를 구조화해
+      // 회수하는 계약이 생길 때까지 실행 가능 손으로 광고하지 않는다.
+      return false;
     },
 
     /** 마스킹된 현재 연결 상태 — 원본 키·토큰은 절대 내보내지 않는다. */

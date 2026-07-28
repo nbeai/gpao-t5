@@ -18,7 +18,7 @@ import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
-import { makeConnectorConnectTool } from '../runtime/connector-connect.js';
+import { EXECUTABLE_KINDS, makeConnectorConnectTool } from '../runtime/connector-connect.js';
 import { DeclaredConnectorStore } from './declared-connector-store.js';
 import { makeConnectorDeclareTool } from '../runtime/connector-declare.js';
 import { ConnectorCredentialStore } from './connector-credential-store.js';
@@ -179,6 +179,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
     store: declaredStore,
     connect: connectHand, // 선언 직후 같은 길로 이어 준다 — 사용자 승인은 한 번이다
   });
+  // 모델이 연결 도구에 넘길 수 있는 이름도 현재 실제로 시작할 수 있는 연결 방식에서 파생한다.
+  // 서비스 이름을 쓰는 목록이 아니라, 선언된 연결 방법과 이 런타임 실행기의 교집합이다.
+  const connectableNames = [...new Set(connectors
+    .filter((c) => (c.authMethods ?? []).some((m) => EXECUTABLE_KINDS.includes(m.kind)))
+    .flatMap((c) => [c.id, c.label, ...(c.aliases ?? [])]))];
   descriptors.push(defineTool({
     id: 'connector.connect', label: '서비스 연결', owner: 'core',
     // **하는 일의 이름으로 부른다.** `unknown_kind` 로 두면 위층이 승인을 강제하려고 종류를
@@ -197,7 +202,15 @@ export function liveDeps(processEnv = {}, deps = {}) {
       parameters: {
         type: 'object',
         properties: {
-          connector: { type: 'string', description: '서비스 이름 — 사용자가 부른 말 그대로("노션", "구글")' },
+          connector: {
+            type: 'string',
+            // **목록은 사실로 주되 자물쇠로 걸지 않는다.** `enum` 으로 굳히면 이 목록은 부팅
+            // 시점의 사진이 된다 — `connector.declare` 로 그 뒤에 올라온 서비스는 이름을 불러도
+            // 스키마가 막아서 영영 못 붙는다(두 갈래를 합치며 드러난 자리, 2026-07-28).
+            // 모르는 이름이 와도 안전하다: `findConnector` 가 못 찾으면 아는 목록을 사실로 돌려준다.
+            description: `연결할 서비스 이름. 지금 실제 연결 방식을 가진 것: ${connectableNames.join(' · ')}`
+              + ' (사용자가 올린 서비스는 이 목록 뒤에 늘어날 수 있다)',
+          },
           action: { type: 'string', enum: ['connect', 'disconnect'], description: '기본은 connect' },
         },
         required: ['connector'],
