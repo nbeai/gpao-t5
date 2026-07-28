@@ -251,3 +251,41 @@ test('주소로 붙은 서비스가 둘이어도 손이 서로 덮어쓰지 않�
   assert.equal(ids.length, 2, `손이 덮어써졌다: ${ids.join(' · ')}`);
   assert.ok(!ids.some((id) => id.includes('undefined')), `id 에 undefined 가 샜다: ${ids.join(' · ')}`);
 });
+
+// 실측(오너 라이브 2026-07-28, D 시나리오 — "내 노션에서 이번 주 회의록 찾아줘"):
+// 원장에 `{"results":[],"type":"workspace_search"}` 가 **확인한 사실**로 남았다.
+// 많은 MCP 서버가 JSON 을 text 로 담아 준다 — 그건 모델이 읽을 것이지 사용자가 읽을 것이
+// 아니다. 구조는 이미 result 로 모델에게 간다. 둘을 섞으면 원장이 로그가 된다.
+test('MCP 결과가 JSON 이면 사람 말 자리에 넣지 않는다', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const 붙여서실행 = async (text) => {
+    const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+    admitMcpTools({
+      server: undefined, connector: 'd-x', connectorLabel: '어떤서비스',
+      tools: [{ name: 'search', description: '찾는다', inputSchema: { type: 'object', properties: {} } }],
+      session: { callTool: async () => ({ content: [{ type: 'text', text }] }) },
+    }, ctx);
+    return Object.values(ctx.tools.tools)[0].handler({});
+  };
+
+  const 기계말 = await 붙여서실행('{"results":[],"type":"workspace_search"}');
+  assert.ok(!/results/.test(기계말.userSafeSummary), `원장에 기계 말이 샜다: ${기계말.userSafeSummary}`);
+  assert.ok(기계말.result, '구조는 모델에게 그대로 가야 한다');
+
+  const 사람말결과 = await 붙여서실행('회의록 3건을 찾았어요.');
+  assert.equal(사람말결과.userSafeSummary, '회의록 3건을 찾았어요.', '사람 말까지 버리면 안 된다');
+});
+
+// 같은 카드에 `어디에: notion 에서` 도 떴다 — 내부 이름이다. 사용자가 아는 이름은 "노션"이다.
+test('승인 카드는 내부 서버 이름 대신 사용자가 부르는 이름을 쓴다', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+  admitMcpTools({
+    server: 'notion', connector: 'notion', connectorLabel: '노션',
+    tools: [{ name: 'search', description: '찾는다', inputSchema: { type: 'object', properties: {} } }],
+    session: { callTool: async () => ({ content: [] }) },
+  }, ctx);
+  const p = Object.values(ctx.tools.tools)[0].previewOf({});
+  assert.match(p.scope, /노션/);
+  assert.ok(!/\bnotion\b/.test(p.scope), `내부 이름이 보인다: ${p.scope}`);
+});

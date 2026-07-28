@@ -23,6 +23,17 @@ import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 export const mcpToolId = (server, name, connector) => `mcp.${server ?? connector ?? "unknown"}.${name}`;
 
 /**
+ * MCP 가 돌려준 글이 **사람이 읽을 말인가.** 많은 서버가 JSON 을 text 로 담아 준다 —
+ * 그건 모델이 읽을 것이지 사용자가 읽을 것이 아니다. 아니면 undefined 를 준다(부르는 쪽이 대신 말한다).
+ */
+function 사람말(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return undefined;
+  if (/^[[{]/.test(t)) { try { JSON.parse(t); return undefined; } catch { /* JSON 이 아니면 사람 말이다 */ } }
+  return t.slice(0, 400);
+}
+
+/**
  * MCP 도구 선언 → T5 ToolDescriptor. **읽기/쓰기 판정은 지어내지 않는다** —
  * MCP 는 그 축을 안 주므로 `unknown_kind` 로 둔다. 그러면 기존 권한 층이
  * "모르면 승인"으로 다룬다(안전 쪽으로 떨어지는 기존 계약 그대로).
@@ -70,7 +81,9 @@ export function admitMcpTools(p, ctx) {
         // 원격 MCP 는 이름이 없다. 실측(오너 라이브 2026-07-28): 주소로 붙은 서비스의
         // 승인 카드에 `ask_question 실행 — undefined` · `undefined 서버에서` 가 떴다.
         // 사용자는 무엇을 허락하는지 모르고, 그건 승인이 아니다.
-        const 어디 = p.server ?? p.connectorLabel ?? p.connector ?? '연결된 서비스';
+        // 그리고 **사용자가 부르는 이름이 먼저다.** 서버 이름은 설정에 적힌 내부 이름이라
+        // 카드에 `notion 에서` 처럼 뜬다 — 사용자가 아는 이름은 "노션"이다(실측 2026-07-28).
+        const 어디 = p.connectorLabel ?? p.server ?? p.connector ?? '연결된 서비스';
         return {
           impact: `${d.label} 실행 — ${어디}`,
           scope: `${어디} 에서 · 인자 ${인자.length > 200 ? `${인자.slice(0, 200)}…` : 인자}`,
@@ -85,9 +98,12 @@ export function admitMcpTools(p, ctx) {
           .filter((c) => c?.type === 'text' && typeof c.text === 'string')
           .map((c) => c.text).join('\n');
         if (r?.isError) {
-          return { failed: true, userSafeSummary: text || `${d.label} 이(가) 실패했어요.`, result: r };
+          return { failed: true, userSafeSummary: 사람말(text) ?? `${d.label} 이(가) 실패했어요.`, result: r };
         }
-        return { result: r, userSafeSummary: text ? text.slice(0, 400) : `${d.label} 을(를) 실행했어요.` };
+        // **사람 말 자리에 기계 말을 넣지 않는다.** 실측(오너 라이브 2026-07-28): 노션 조회
+        // 결과가 원장에 `{"results":[],"type":"workspace_search"}` 로 남았다. 구조는 result
+        // 로 이미 모델에게 가고, 이 자리는 사용자가 읽는 자리다. 둘을 섞으면 원장이 로그가 된다.
+        return { result: r, userSafeSummary: 사람말(text) ?? `${d.label} 을(를) 실행했어요.` };
       },
     };
 
