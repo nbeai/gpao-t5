@@ -201,7 +201,8 @@ export function makeLocalProcessTool(deps = {}) {
             '이 컴퓨터에서 돌고 있는 것 중에는 있을 수 있어요 — 거기서 찾아볼까요?',
           );
         }
-        const risk = lifecycleRisk(`kill ${p.pid}`, guardCtx());
+        // T5 가 켠 것이다 — managed 로 알려 준다. 스스로 켠 것을 끄는 데 승인을 다시 받으면 능력 축소다.
+        const risk = lifecycleRisk(`kill ${p.pid}`, { ...guardCtx(), managed: p.pid });
         if (risk) return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
         if (!alive(p.pid)) {
           await store.update(p.id, { status: 'exited' });

@@ -109,9 +109,19 @@ test('⑥ 자기 기억을 지우거나 자동 실행을 거는 명령은 직접
   for (const cmd of [`kill ${process.pid}`, 'pkill -f gpao-t5', `rm -rf ${D}`, `rm -rf ${D}/sessions`, 'launchctl load ~/Library/LaunchAgents/x.plist']) {
     assert.ok(lifecycleRisk(cmd, { dataDir: D }), `자기보존 경계를 통과했다: ${cmd}`);
   }
-  // 막기만 하면 도구가 아니다 — 남의 프로세스·남의 폴더는 그대로 다룬다.
+  // **기대값이 바뀐 자리.** 예전엔 `kill 999999`(남의 프로세스)를 자유 통과로 뒀다 —
+  // 일반 승인 경로가 잡을 거라고 봤기 때문이다. 라이브가 그 전제를 깼다(2026-07-28):
+  // 모델이 `kill 4356 2>/dev/null || true` 를 썼고, 그 관용구가 **막혔다는 증거를 지워서**
+  // exitCode 0 → changes:false → 승인 없음 → granted 없음 → 다시 probe → 또 막힘의 고리가 됐다.
+  // 사용자는 승인을 눌러도 아무 일이 안 일어났다. 그 앞 회차에는 승인 없이 죽기까지 했다.
+  // 끄는 일은 되돌릴 수 없으므로 승인 경계가 맞다 — 승인 뒤에는 granted 로 실제 실행된다.
+  assert.ok(lifecycleRisk('kill 999999', { dataDir: D }), '남의 프로세스를 끄는데 승인 경계가 없다');
+  assert.ok(!lifecycleRisk('kill 999999', { dataDir: D, managed: 999999 }),
+    'T5 가 켠 것을 끄는 데까지 승인을 다시 받으면 그게 능력 축소다');
+
+  // 막기만 하면 도구가 아니다 — 남의 폴더·평범한 명령은 그대로 다룬다.
   for (const cmd of [
-    'kill 999999', 'rm -rf /tmp/남의것', 'ls -la', 'npm test',
+    'rm -rf /tmp/남의것', 'ls -la', 'npm test',
     'ls ~/Library/LaunchAgents /Library/LaunchDaemons',
     'launchctl list',
   ]) {

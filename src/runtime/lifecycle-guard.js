@@ -36,6 +36,24 @@ export function lifecycleRisk(command, ctx = {}) {
   if (/\b(pkill|killall)\b/.test(cmd) && /(gpao|t5|server\.js|node\b)/i.test(cmd)) {
     return { why: '저를 이름으로 찾아 끄는 명령이에요', what: cmd.trim() };
   }
+  // ②-b **남의 프로세스를 끄는 것.** probe 가 증거를 못 남길 수 있다.
+  // 실측(오너 라이브 2026-07-28): 모델이 `kill 4356 4354 2>/dev/null || true` 를 썼다.
+  // 방어적 셸 관용구인데 `2>/dev/null || true` 가 **막혔다는 증거를 지운다.** exitCode 0 이라
+  // 런타임은 "아무것도 안 막혔다 = 변경 없음"으로 읽고, 승인으로 안 보내고, granted 가 안 붙고,
+  // 다시 probe 로 돌아 또 막힌다. 사용자는 승인을 눌러도 아무 일이 안 일어난다.
+  //
+  // 이 파일이 존재하는 이유가 그것이다(머리말): **샌드박스가 못 잡는 종류는 여기서 잡는다.**
+  // 끄는 일은 되돌릴 수 없으므로 승인 경계가 맞다 — 능력을 없애는 게 아니라 승인 뒤
+  // granted 로 실제 실행된다. `managed` 는 T5 가 켠 것이다: 스스로 켠 것을 끄는 데 승인을
+  // 다시 받게 하면 그게 능력 축소다("꺼줘" 한 마디로 끄던 길을 유지한다).
+  if (/\b(kill|pkill|killall)\b/.test(cmd)) {
+    const 겨냥한pid = (cmd.match(/\b\d{2,}\b/g) ?? []).map(Number);
+    const managed = ctx.managed == null ? [] : [].concat(ctx.managed).map(Number);
+    const 전부내것 = 겨냥한pid.length > 0 && 겨냥한pid.every((n) => managed.includes(n));
+    if (!전부내것) {
+      return { why: '돌고 있는 프로그램을 끄는 일이에요', what: cmd.trim().slice(0, 120) };
+    }
+  }
   // ③ 기억이 통째로 사라지는 것 — 세션·원장·연결이 여기 있다
   const dataDir = ctx.dataDir;
   if (dataDir && /\b(rm|rmdir|unlink|shred|mv)\b/.test(cmd)) {

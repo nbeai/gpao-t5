@@ -244,8 +244,15 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
     for (const cmd of [`kill ${process.pid}`, 'pkill -f gpao-t5', `rm -rf ${D}`, 'launchctl load x.plist']) {
       if (!lifecycleRisk(cmd, { dataDir: D })) bad(`자기보존 경계를 통과한다: ${cmd}`);
     }
+    // **남의 프로세스를 끄는 것도 승인 경계다**(2026-07-28 라이브에서 전제가 깨졌다).
+    // 모델이 `kill <pid> 2>/dev/null || true` 를 쓰면 그 관용구가 막혔다는 증거를 지운다 —
+    // exitCode 0 → 변경 없음으로 읽혀 승인도 granted 도 안 붙고, 사용자는 승인을 눌러도
+    // 아무 일이 안 일어난다. 그 앞 회차에는 승인 없이 프로세스가 죽기까지 했다.
+    if (!lifecycleRisk('kill 999999', { dataDir: D })) bad('남의 프로세스를 끄는데 승인 경계가 없다');
+    // T5 가 켠 것은 "꺼줘" 한 마디로 끈다 — 거기까지 막으면 그게 능력 축소다.
+    if (lifecycleRisk('kill 999999', { dataDir: D, managed: 999999 })) bad('내가 켠 것을 끄는 데 또 승인을 받는다');
     // 막기만 하면 도구가 아니다.
-    for (const cmd of ['kill 999999', 'rm -rf /tmp/남의것', 'npm test']) {
+    for (const cmd of ['rm -rf /tmp/남의것', 'npm test']) {
       if (lifecycleRisk(cmd, { dataDir: D })) bad(`평범한 명령이 자기보존에 걸린다: ${cmd}`);
     }
     if (alive(process.pid) !== true) bad('자기 프로세스 확인이 망가졌다');
