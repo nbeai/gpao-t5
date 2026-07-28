@@ -94,22 +94,32 @@ export class MemoryLedger {
     try { return JSON.parse(raw); } catch { return { entries: [], corrupted: true }; }
   }
 
-  /** 지문 키 — 이 데이터 자리 전용 비밀(0600). 없으면 처음 한 번 만든다. */
+  /**
+   * 지문 키 — 이 데이터 자리 전용 비밀(0600). 없으면 처음 한 번 만든다.
+   * **손상된 키로 평문에 후퇴하지 않는다**(실측: 공백 키 파일 → trim → 빈 키 → 평문 sha256 과
+   * 동일한 지문). 형식이 아니면 손상 파일을 격리 보존하고 새 키를 만든다 — 이전 지문과의
+   * 연결은 키와 함께 잃지만, 그건 손상의 정직한 결과다. 격리가 실패하면 기록을 중단한다
+   * (원장 손상 격리와 같은 계약 — 부르는 쪽이 receiptWritten:false 로 넘긴다).
+   */
   async digestKey() {
     if (this._key) return this._key;
     const kf = join(this.dir, 'memory-ledger.key');
-    try {
-      this._key = (await readFile(kf, 'utf8')).trim();
-    } catch {
-      this._key = randomBytes(32).toString('hex');
-      await mkdir(this.dir, { recursive: true });
-      await writeFile(kf, this._key, { encoding: 'utf8', mode: 0o600 });
+    let raw = null;
+    try { raw = (await readFile(kf, 'utf8')).trim(); } catch { raw = null; }
+    if (raw && /^[0-9a-f]{64}$/.test(raw)) { this._key = raw; return this._key; }
+    if (raw !== null) {
+      await rename(kf, `${kf}.corrupt-${Date.now()}`);
+      console.error('[memory-ledger] 지문 키 손상 — 격리 보존 후 새 키 발급(이전 지문 연결은 끊김)');
     }
+    this._key = randomBytes(32).toString('hex');
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(kf, this._key, { encoding: 'utf8', mode: 0o600 });
     return this._key;
   }
 
   /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'} event */
   async append(event, entry, now = Date.now()) {
+    await this.digestKey(); // 키 확보 실패는 여기서 정직하게 던진다(평문 후퇴 금지)
     const a = await this.load();
     if (a.corrupted) {
       // 손상 파일을 격리 보존 — 지우지도, 그 위에 덮어쓰지도 않는다. **격리가 실패하면 새 기록을
@@ -124,7 +134,8 @@ export class MemoryLedger {
       candidateId: entry?.candidateId ?? null,
       kind: entry?.kind ?? null,
       at: now,
-      digest: memoryDigest(entry?.statement, await this.digestKey()),
+      // digestKey 는 항상 유효한 키를 주거나 던진다 — 평문 후퇴 없음(이중 방어).
+      digest: memoryDigest(entry?.statement, (() => { const k = this._key; if (!k) throw new Error('digest key missing'); return k; })()),
     });
     await mkdir(this.dir, { recursive: true });
     await atomicWrite(this.file, JSON.stringify(a));

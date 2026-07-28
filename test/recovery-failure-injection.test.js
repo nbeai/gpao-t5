@@ -360,3 +360,34 @@ test('무효 선언 정리: 사용자가 만든 것은 사용자가 거둔다(/c
     assert.equal((await store.load()).length, 0, '저장소에 선언이 남았다');
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── 감사 재현 2건(2026-07-29) — 수정 전 실제로 실패했다 ──────────────────
+test('잠금 동시 획득: 정확히 하나만 이긴다(원자적 wx — 수정 전 2/2 성공)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-race-'));
+  const rs = await Promise.allSettled([
+    acquireWriterLock(dir, { pid: process.pid }),
+    acquireWriterLock(dir, { pid: 1 }), // 살아 있는 다른 pid(launchd)
+  ]);
+  const wins = rs.filter((r) => r.status === 'fulfilled');
+  assert.equal(wins.length, 1, `동시 획득 ${wins.length}건 — 경합이 남아 있다`);
+  await wins[0].value.release();
+});
+
+test('손상된 지문 키로 평문에 후퇴하지 않는다(수정 전 평문 sha256 과 동일)', async () => {
+  const { MemoryLedger, memoryDigest } = await import('../src/surface/memory-store.js');
+  const { mkdtemp, writeFile, readdir, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-keyc-'));
+  await writeFile(join(dir, 'memory-ledger.key'), '   \n', 'utf8'); // 손상(형식 아님)
+  const e = await new MemoryLedger(dir).append('proposed', { candidateId: 'c', kind: 'preference', statement: '보고서는 목록으로' });
+  assert.notEqual(e.digest, memoryDigest('보고서는 목록으로'), '평문 sha256 으로 후퇴했다');
+  // 손상 키는 격리 보존됐고 새 키는 유효한 형식이다.
+  const files = await readdir(dir);
+  assert.ok(files.some((f) => f.startsWith('memory-ledger.key.corrupt-')), '손상 키가 보존되지 않았다');
+  assert.match((await readFile(join(dir, 'memory-ledger.key'), 'utf8')).trim(), /^[0-9a-f]{64}$/);
+});

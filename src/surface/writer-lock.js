@@ -15,20 +15,30 @@ const LOCK_NAME = '.writer-lock.json';
  * @returns {Promise<{release:()=>Promise<void>}>} 잠금 해제 함수(정상 종료 경로에서 부른다)
  * @throws 살아 있는 다른 writer 가 있으면 사람 말 메시지로 던진다.
  */
-export async function acquireWriterLock(dir, { pid = process.pid } = {}) {
+export async function acquireWriterLock(dir, { pid = process.pid, retries = 1 } = {}) {
   const file = join(dir, LOCK_NAME);
-  let prev = null;
-  try { prev = JSON.parse(await readFile(file, 'utf8')); } catch { /* 없거나 손상 → 새로 잡는다 */ }
-  if (prev?.pid && prev.pid !== pid) {
+  await mkdir(dir, { recursive: true });
+  // **읽고-쓰기가 아니라 원자적 생성(wx)으로 잡는다.** 읽어 보고 쓰면 그 틈에 둘 다 통과한다 —
+  // 실측(감사 재현): 동시 획득 2/2 성공. wx 는 파일이 없을 때만 성공하므로 정확히 하나만 이긴다.
+  try {
+    await writeFile(file, JSON.stringify({ pid, at: Date.now() }), { encoding: 'utf8', flag: 'wx' });
+  } catch (e) {
+    if (e?.code !== 'EEXIST') throw e;
+    let prev = null;
+    try { prev = JSON.parse(await readFile(file, 'utf8')); } catch { prev = null; }
     let alive = false;
-    try { process.kill(prev.pid, 0); alive = true; } catch { alive = false; }
+    if (prev?.pid && prev.pid !== pid) {
+      try { process.kill(prev.pid, 0); alive = true; } catch { alive = false; }
+    }
     if (alive) {
       throw new Error(`이미 다른 T5 서버(pid ${prev.pid})가 이 데이터 자리를 쓰고 있어요. `
         + '같은 자료를 두 서버가 쓰면 나중 저장이 앞의 것을 지워요 — 그 서버를 끄고 다시 시작해 주세요.');
     }
+    // 죽은/손상/내 잔여 잠금 — 걷고 한 번만 다시. 동시에 걷는 둘이 있어도 wx 는 하나만 이긴다.
+    if (retries <= 0) throw new Error('데이터 자리 잠금을 잡지 못했어요. 잠시 후 다시 시작해 주세요.');
+    await rm(file, { force: true });
+    return acquireWriterLock(dir, { pid, retries: retries - 1 });
   }
-  await mkdir(dir, { recursive: true });
-  await writeFile(file, JSON.stringify({ pid, at: Date.now() }), 'utf8');
   return {
     async release() {
       try {
