@@ -521,9 +521,9 @@ C(앱 등록 OAuth·API 키 실데이터) · D(전용 계정 실제 폐기·재�
 
 ### 동결 기준선 manifest (2026-07-29)
 
-- **코드 기준선: `a696308`** (`claude/p-op-1-a-system-view`, origin 동기화) —
+- **코드 기준선: `57665a4`** (`claude/p-op-1-a-system-view`, origin 동기화 · UX Closure 포함) —
   이후 문서-전용 커밋은 행동을 바꾸지 않는다. 검증 중 코드 수정은 동결 해제·재동결로만.
-- 검증 수치: 테스트 **1166건 통과** · 실서버 게이트 **PASS**(CPU 18.9s / 기준선 40s) ·
+- 검증 수치: 테스트 **1166건 통과** · 실서버 게이트 **PASS**(CPU 18.3s / 기준선 40s) ·
   런타임 의존성 0 · 작업 트리 깨끗.
 - 실행 환경: macOS(darwin) · node v24.14.0 · `PORT=7332 node src/surface/server.js`
   (단일 writer 잠금 활성) · 데이터 자리 `~/.local/state/gpao-t5/sessions`.
