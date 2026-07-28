@@ -179,6 +179,67 @@ export async function runOAuth({ resourceMetadataUrl: metaUrl, fetchImpl = globa
   } finally { loop.close(); }
 }
 
+/**
+ * **앱 등록형 OAuth.** 발견·동적 등록이 없는 서비스를 위한 길이다.
+ *
+ * 노션은 `registration_endpoint` 가 있어서 T5 가 스스로 client_id 를 받아 왔다(runOAuth).
+ * 구글·카페24 같은 곳은 그 통로가 없다 — **사용자가 그 서비스 개발자 화면에서 앱을 만들어
+ * client_id 를 받아야 한다.** 그게 이 길에서 사용자가 넘을 유일한 문턱이고, 나머지(동의 URL
+ * 조립 · PKCE · 콜백 수신 · 토큰 교환 · 갱신)는 전부 T5 가 한다.
+ *
+ * **서비스를 모르는 것은 그대로다.** 주소도 scope 도 커넥터 선언에서 온다 — 여기엔 서비스
+ * 이름이 없다. 비밀값(client_secret)은 안전 입력면으로만 들어오고 여기서는 받아 쓰기만 한다.
+ *
+ * @param {{endpoints:{authorize:string, token:string}, clientId:string, clientSecret?:string,
+ *          scopes?:string[], opener?:Function, timeoutMs?:number, fetchImpl?:Function, now?:Function}} p
+ * @returns {Promise<{ok:true, tokens:object, clientId:string, endpoints:object}|{ok:false, reason:string}>}
+ */
+export async function runDeclaredOAuth({ endpoints, clientId, clientSecret,
+  scopes, opener = defaultOpener, timeoutMs, fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+  if (!endpoints?.authorize || !endpoints?.token) {
+    return { ok: false, reason: '이 서비스의 로그인 주소가 선언돼 있지 않아요' };
+  }
+  if (!clientId) return { ok: false, reason: '그 서비스에서 받은 앱 아이디가 아직 없어요' };
+
+  // 수신기를 **한 번만** 연다 — 등록한 redirect_uri 와 동의 화면의 redirect_uri 가 같아야 한다.
+  const state = b64url(randomBytes(16));
+  const loop = await startLoopback({ state, timeoutMs });
+  try {
+    const { verifier, challenge } = makePkce();
+    const auth = new URL(endpoints.authorize);
+    // 선언이 이미 담은 질의(access_type 등)는 지우지 않는다 — 서비스별 요구를 커넥터가 말한다.
+    for (const [k, v] of Object.entries({
+      client_id: clientId, redirect_uri: loop.url, response_type: 'code', state,
+      code_challenge: challenge, code_challenge_method: 'S256',
+      ...(scopes?.length ? { scope: scopes.join(' ') } : {}),
+    })) auth.searchParams.set(k, v);
+    await opener(auth.toString());
+
+    let code;
+    try { code = await loop.code; } catch (e) {
+      // **거절은 실패가 아니라 사실이다.** 사용자가 안 하겠다고 한 것을 오류로 말하지 않는다.
+      return { ok: false, denied: Boolean(e?.denied), reason: e?.denied ? '연결을 허용하지 않으셨어요' : '승인 창에서 응답이 오지 않았어요' };
+    }
+    const tok = await postForm(endpoints.token, {
+      grant_type: 'authorization_code', code, code_verifier: verifier,
+      client_id: clientId, redirect_uri: loop.url,
+      ...(clientSecret ? { client_secret: clientSecret } : {}),
+    }, fetchImpl);
+    if (tok.status !== 200 || !tok.json?.access_token) {
+      return { ok: false, reason: '승인은 됐는데 토큰을 받지 못했어요' };
+    }
+    return {
+      ok: true, clientId, endpoints,
+      tokens: {
+        access_token: tok.json.access_token,
+        refresh_token: tok.json.refresh_token,
+        expires_at: now() + (tok.json.expires_in ?? 3600) * 1000,
+        ...(clientSecret ? { client_secret: clientSecret } : {}),
+      },
+    };
+  } finally { loop.close(); }
+}
+
 /** 만료됐으면 갱신 — 사용자에게 재로그인을 시키지 않는다(§18 지속성). 실패는 정직하게 null. */
 export async function refreshTokens(saved, { fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
   if (!saved?.tokens?.access_token) return null;
@@ -186,6 +247,8 @@ export async function refreshTokens(saved, { fetchImpl = globalThis.fetch, now =
   if (!saved.tokens.refresh_token || !saved.endpoints?.token) return null;
   const r = await postForm(saved.endpoints.token, {
     grant_type: 'refresh_token', refresh_token: saved.tokens.refresh_token, client_id: saved.clientId,
+    // 앱 등록형은 갱신에도 앱 비밀을 요구한다(동적 등록형은 이 값이 아예 없다).
+    ...(saved.tokens.client_secret ? { client_secret: saved.tokens.client_secret } : {}),
   }, fetchImpl);
   if (r.status !== 200 || !r.json?.access_token) return null;
   saved.tokens.access_token = r.json.access_token;

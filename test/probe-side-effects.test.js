@@ -133,3 +133,48 @@ test('승인 경계와 자기보존을 가른다 — 승인하면 실제로 실�
   assert.ok(!승인후.blocked, '승인했는데 아직도 막힌다');
   assert.equal(돌았나, true, '승인했는데 granted 로 안 돌았다');
 });
+
+// 실측(오너 라이브 2026-07-29, A): 대상이 **실제로 죽었는데** T5 가
+// `pgrep -af '<이름>'` 으로 확인하려다 그 명령을 실행하는 **셸 자신**을 후보로 잡아
+// "바로 다시 살아났어요" 라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
+//   실제 상태 종료 · 원장 해석 생존 · 사용자 보고 재실행 · 다음 제안 더 강한 조사
+// A~H 공통 계약(실행 결과·원장·답변이 같은 사실을 본다) 위반이다.
+//
+// 이름 패턴이 아니라 **승인받은 명령에 적힌 정확한 PID** 로 확인한다.
+test('끈 것은 이름이 아니라 그 PID 로 확인한다', async () => {
+  const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
+  const 죽은PID = 999_000_001; // 존재하지 않는 pid — alive() 가 false 를 준다
+  const tool = makeLocalTerminalTool({
+    // 이름 검색이 자기 자신을 잡아 "살아 있다" 처럼 보이는 상황을 그대로 재현한다
+    run: async (c) => ({ exitCode: 0, stdout: `${죽은PID}\n`, stderr: '', command: c }),
+  });
+  const r = await tool.handler({ command: `kill ${죽은PID} && pgrep -af 'mymemo-idle'`, granted: true });
+
+  assert.ok(r.result.terminated, '끈 대상의 상태가 사실로 안 남는다');
+  assert.deepEqual(r.result.terminated, [{ pid: 죽은PID, stillRunning: false }]);
+  assert.match(r.userSafeSummary, /껐어요/, `stdout 이 pid 를 뱉어도 살아있다고 말하면 안 된다: ${r.userSafeSummary}`);
+  assert.ok(!/다시|살아났/.test(r.userSafeSummary));
+});
+
+test('실제로 살아 있으면 껐다고 말하지 않는다', async () => {
+  const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
+  const tool = makeLocalTerminalTool({ run: async (c) => ({ exitCode: 0, stdout: '', stderr: '', command: c }) });
+  // `run` 이 대역이라 실제로는 아무 것도 안 죽는다 — `alive()` 만 진짜로 확인한다.
+  // 살아 있는 대상이 필요하니 진짜 자식을 하나 띄운다(자기 pid 는 자기보존 경계에 걸린다).
+  const { spawn } = await import('node:child_process');
+  const 자식 = spawn('/bin/sleep', ['30'], { stdio: 'ignore' });
+  자식.unref();
+  try {
+    const r2 = await tool.handler({ command: `kill ${자식.pid} 999000002`, granted: true });
+    assert.ok(r2.result.terminated.some((x) => x.pid === 자식.pid && x.stillRunning === true),
+      '살아 있는 대상을 죽었다고 말한다');
+    assert.match(r2.userSafeSummary, /아직 돌고 있어요/);
+  } finally { try { process.kill(자식.pid, 'SIGKILL'); } catch { /* 이미 없음 */ } }
+});
+
+test('승인 전(probe)이나 끄는 명령이 아니면 종료 확인을 붙이지 않는다', async () => {
+  const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
+  const tool = makeLocalTerminalTool({ run: async (c) => ({ exitCode: 0, stdout: 'ok', stderr: '', command: c }) });
+  const 읽기 = await tool.handler({ command: 'ls -la', granted: true });
+  assert.equal(읽기.result.terminated, undefined, '끄는 일이 아닌데 종료 확인을 붙였다');
+});

@@ -10,6 +10,7 @@ import { runCommand, executionBlock } from './terminal-run.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
+import { alive } from './local-process.js';
 
 /**
  * 빈 칸은 **없는 칸이다.** 모델은 안 쓰는 인자도 `''` 로 채워 보내므로 `??` 로 받으면
@@ -138,9 +139,25 @@ export function makeLocalTerminalTool(deps = {}) {
       }
 
       const 끝난이유 = executionBlock(r);
+      // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
+      // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
+      // "바로 다시 살아났어요"라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
+      //   실제 상태 종료 · 원장 해석 생존 · 사용자 보고 재실행 · 다음 제안 더 강한 조사
+      // A~H 공통 계약(실행 결과·원장·답변이 같은 사실을 본다) 위반이라 여기서 사실을 못 박는다.
+      //
+      // 이름 패턴이 아니라 **승인받은 명령에 적힌 정확한 PID**를 본다. 판정하지 않고 사실만
+      // 낸다 — 무엇을 말할지는 모델이 정한다(§24). 능력을 줄이지 않는다: 터미널은 그대로다.
+      const 끈PID = mode === 'granted' && /\b(kill|pkill|killall)\b/.test(command)
+        ? [...new Set((command.match(/\b\d{2,}\b/g) ?? []).map(Number))].filter((n) => n > 0)
+        : [];
+      const 종료확인 = 끈PID.length
+        ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
+        : undefined;
       return {
         result: {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
+          // 끈 대상의 **지금 상태**. 이름 검색 결과가 아니라 PID 로 직접 확인한 사실이다.
+          ...(종료확인 ? { terminated: 종료확인 } : {}),
           stdout: r.stdout, stderr: r.stderr,
           // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
           ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
@@ -149,7 +166,12 @@ export function makeLocalTerminalTool(deps = {}) {
           applied: mode === 'granted',
         },
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
-        userSafeSummary: r.stopped === 'timeout'
+        // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
+        userSafeSummary: 종료확인?.length && r.exitCode === 0
+          ? (종료확인.every((x) => !x.stillRunning)
+            ? `껐어요 — ${종료확인.map((x) => x.pid).join(', ')} 는 지금 없어요.`
+            : `일부는 아직 돌고 있어요 — 남은 것: ${종료확인.filter((x) => x.stillRunning).map((x) => x.pid).join(', ')}.`)
+          : r.stopped === 'timeout'
           ? `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? 120000) / 1000)}초).`
           : r.exitCode === 0 ? '실행했어요.'
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.

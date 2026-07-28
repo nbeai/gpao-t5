@@ -11,7 +11,7 @@
 // 새 서비스 = 선언 하나. 실행기는 **새 연결 방식**이 생길 때만 는다.
 import { probeMcpServer } from './mcp-client.js';
 import { openHttpMcp, probeRemoteAuth } from './mcp-http.js';
-import { runOAuth, refreshTokens } from './oauth-pkce.js';
+import { runOAuth, runDeclaredOAuth, refreshTokens } from './oauth-pkce.js';
 import { secretFields, missingFields, verifyApiKey } from './api-key.js';
 import { admitHttpTools, probeHttpTool } from './http-tool.js';
 import { admitCliTools, probeCli, probeCliTool } from './cli-tool.js';
@@ -22,7 +22,7 @@ import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
  * 모델은 그 사실을 봐야 못 지킬 약속을 안 한다. 아래 handler 의 분기와 **같이 움직여야 하므로**
  * 게이트가 둘이 어긋나는지 본다(목록이 코드보다 앞서거나 뒤처지면 그게 곧 거짓말이 된다).
  */
-export const EXECUTABLE_KINDS = Object.freeze(['mcp', 'api_key', 'cli']);
+export const EXECUTABLE_KINDS = Object.freeze(['mcp', 'api_key', 'cli', 'oauth_pkce']);
 
 /** 등록된 MCP 설정에서 이 서버의 전송 설정을 찾는다(설정 파일이 진실 — 우리가 지어내지 않는다). */
 async function findMcpConfig(server, deps) {
@@ -246,6 +246,82 @@ function 방식이름(kind) {
   }
 }
 
+/**
+ * **앱 등록형 OAuth 로 붙인다**(kind: `oauth_pkce`).
+ *
+ * 동적 등록이 없는 서비스가 있다 — 그런 곳은 사용자가 그 서비스 개발자 화면에서 앱을 만들어
+ * 앱 아이디를 받아야 한다. **그게 이 길에서 사용자가 넘을 유일한 문턱**이고, 동의 URL 조립·
+ * PKCE·콜백 수신·토큰 교환·갱신은 전부 T5 가 한다.
+ *
+ * 앱 아이디/비밀은 API 키와 **같은 안전 입력면**으로 받는다 — 대화·원장·모델 입력을 지나지 않는다.
+ * 서비스 지식은 여기 없다: 주소도 scope 도 커넥터 선언에서 온다.
+ */
+async function connectDeclaredOAuth(c, m, deps) {
+  const store = deps.credentialStore;
+  const saved = store ? await store.get(c.id) : null;
+  const 값들 = saved?.values ?? {};
+
+  // ① 앱 아이디를 못 받은 상태면 — 안전 입력면을 열어 달라고 하고 멈춘다.
+  const 빈칸 = missingFields(m, 값들);
+  if (빈칸.length && !saved?.tokens?.access_token) {
+    return {
+      needsSecret: {
+        blocked: true,
+        surfaceRequest: { kind: 'secret_input', connector: c.id, label: c.label, fields: secretFields(m), issue: m.issue },
+        userSafeSummary: `${c.label} 연결에는 ${secretFields(m).map((f) => f.label).join('·')}가 필요해요.`
+          + ' 안전하게 입력할 창을 열게요. 여기 입력한 값은 대화에 남지 않고 연결에만 써요.',
+        nextSafeAction: '입력창에서 값을 넣어 주시면 로그인 화면을 열어 드릴게요.',
+      },
+    };
+  }
+
+  // ② 토큰이 없으면 동의를 받는다. 로그인은 사용자가 자기 브라우저에서 한다.
+  let 자격 = saved;
+  if (!자격?.tokens?.access_token) {
+    const r = await runDeclaredOAuth({
+      endpoints: m.endpoints, clientId: 값들[m.clientIdField ?? 'client_id'],
+      clientSecret: 값들[m.clientSecretField ?? 'client_secret'],
+      scopes: m.scopes, fetchImpl: deps.fetchImpl, opener: deps.opener, timeoutMs: deps.oauthTimeoutMs,
+    });
+    // **거절은 실패가 아니라 사실이다.** 연결됐다고 말하지 않고, 사용자가 한 결정을 그대로 전한다.
+    if (!r.ok) return { ok: false, reason: r.reason, denied: r.denied };
+    자격 = { ...(saved ?? {}), clientId: r.clientId, endpoints: r.endpoints, tokens: r.tokens, values: 값들 };
+    if (store) await store.set(c.id, 자격);
+  }
+
+  // ③ 손을 두드려 본다 — 되는 것만 올린다(API 키와 같은 규율: 되는 척하는 손을 만들지 않는다).
+  const ctx = deps.ctx?.();
+  if (!m.tools?.length || !ctx) return { ok: false, reason: '연결은 됐는데 쓸 수 있는 손이 선언돼 있지 않아요' };
+
+  // 토큰은 부를 때마다 유효한 것으로. 만료면 조용히 갱신한다(사용자는 모른다).
+  const 비밀 = async () => {
+    const t = await refreshTokens(자격, { fetchImpl: deps.fetchImpl });
+    if (t && store) await store.set(c.id, 자격);
+    return { ...값들, access_token: t ?? 자격.tokens.access_token };
+  };
+  const 지금비밀 = await 비밀();
+  const 결과 = await Promise.all(m.tools.map(async (t) => ({
+    tool: t, ...(await probeHttpTool({ tool: t, secrets: 지금비밀, fetchImpl: deps.fetchImpl })),
+  })));
+  const 되는것 = 결과.filter((x) => x.ok).map((x) => x.tool);
+  if (!되는것.length) {
+    return { ok: false, reason: '연결은 됐는데 허용된 범위로는 아직 아무 것도 읽지 못했어요.', diagnostic: `no_tool_reachable(${m.tools.length})` };
+  }
+  const 손 = admitHttpTools({ connector: c, tools: 되는것, secrets: 지금비밀, fetchImpl: deps.fetchImpl }, ctx);
+  if (!손.length) return { ok: false, reason: '붙었지만 쓸 수 있는 손이 없었어요' };
+  deps.remember?.(c.id, 손);
+  c.connected = true;
+  c.lastCheckedAt = Date.now();
+  c.lastError = undefined;
+  return {
+    ok: true,
+    result: {
+      result: { connector: c.id, label: c.label, connected: true, tools: 손, method: 'oauth_pkce', scopes: m.scopes },
+      userSafeSummary: `${c.label}에 연결했어요. 이제 ${손.length}개를 바로 쓸 수 있어요.`,
+    },
+  };
+}
+
 export function makeConnectorConnectTool(deps = {}) {
   // 붙어 있는 MCP 세션 — 끊을 때 닫아야 하므로 들고 있는다(프로세스가 남으면 그게 유령이다).
   const live = new Map(); // connectorId → { session, admitted:string[] }
@@ -458,6 +534,15 @@ export function makeConnectorConnectTool(deps = {}) {
           if (r.ok) return r.result;
           if (r.needsSecret) return r.needsSecret; // 사용자에게 안전 입력창을 열어 준다
           실패.push(`api_key: ${r.reason}`);
+          continue;
+        }
+        // ── 앱 등록형 OAuth ───────────────────────────────────────────
+        // 동적 등록이 없는 서비스. 사용자는 앱 아이디를 받아 오는 문턱 하나만 넘는다.
+        if (m.kind === 'oauth_pkce') {
+          const r = await connectDeclaredOAuth(c, m, 기억붙임(deps));
+          if (r.ok) return r.result;
+          if (r.needsSecret) return r.needsSecret;
+          실패.push(`oauth_pkce: ${r.reason}`);
           continue;
         }
         // ── 이미 깔린 명령으로 붙는다 ─────────────────────────────────────

@@ -250,6 +250,60 @@ export function demoConnectors() {
         { kind: 'cli', command: 'gcloud', label: '구글 CLI(gcloud)' },
         { kind: 'mcp', server: 'google', label: 'MCP 설정의 구글 연결' },
       ],
+      // E · 범위 있는 API. **최소 읽기 scope 하나로 시작한다** — 쓰기는 그 자리에서 열지 않는다.
+      // 구글은 동적 등록이 없어서 사용자가 앱을 만들어 아이디를 받아야 한다. 그 문턱 하나만
+      // 사용자 몫이고, 동의 URL·PKCE·콜백·토큰 교환·갱신은 T5 가 한다(실행기 `oauth_pkce`).
+      authMethods: [{
+        kind: 'oauth_pkce',
+        endpoints: {
+          authorize: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent',
+          token: 'https://oauth2.googleapis.com/token',
+        },
+        // **읽기만.** `drive.readonly` 하나다. 쓰기 scope 를 미리 받아 두지 않는다 —
+        // 필요해지면 그때 사용자가 다시 판단한다(승인은 미리 받아 쌓는 것이 아니다).
+        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        fields: [
+          { name: 'client_id', label: '클라이언트 ID', secret: false },
+          { name: 'client_secret', label: '클라이언트 보안 비밀', secret: true },
+        ],
+        issue: {
+          url: 'https://console.cloud.google.com/apis/credentials',
+          buttonLabel: '구글에서 받아오기',
+          // 저쪽 화면에 적힌 글자는 바꿀 수 없다 — 대신 **무엇을 고르는 자리인지**를 사람 말로
+          // 앞에 둔다(네이버 선례). 개발자 말을 사용자가 해석하게 두지 않는다.
+          steps: [
+            '구글 계정으로 들어가면 "사용자 인증 정보 만들기" 버튼이 있어요. 거기서 T5 가 쓸 열쇠를 만듭니다',
+            '어떤 종류냐고 물으면 "데스크톱 앱"을 고르시면 돼요. 이 컴퓨터에서 쓰는 거라 그게 맞아요',
+            '만들면 값 두 개가 나와요. 그대로 아래에 붙여넣어 주세요 — 제가 확인하고 연결할게요',
+          ],
+        },
+        // 손은 **읽기 둘**. 되는지는 붙일 때 T5 가 직접 두드려 확인한다(되는 척하는 손 금지).
+        tools: [{
+          name: 'drive-search', label: '드라이브에서 찾기', toolKind: 'read',
+          capability: '구글 드라이브에서 이름으로 파일을 찾아 목록을 가져온다(읽기 전용).',
+          description: '드라이브에서 파일을 찾는다. "드라이브에서 … 찾아줘"에 쓴다.',
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string', description: '찾을 이름' }, pageSize: { type: 'number' } },
+            required: ['query'],
+          },
+          defaults: { pageSize: 10 },
+          request: {
+            url: 'https://www.googleapis.com/drive/v3/files?q=name+contains+%27{query}%27&pageSize={pageSize}&fields=files(id,name,mimeType,modifiedTime)',
+            headers: { Authorization: 'Bearer {access_token}' },
+          },
+          probeArgs: { query: 'a', pageSize: 1 },
+        }, {
+          name: 'drive-read', label: '드라이브 파일 읽기', toolKind: 'read',
+          capability: '구글 드라이브 파일 하나의 내용을 읽는다(읽기 전용).',
+          description: '드라이브 파일 하나를 읽는다. 먼저 찾기로 id 를 얻는다.',
+          parameters: { type: 'object', properties: { fileId: { type: 'string' } }, required: ['fileId'] },
+          request: {
+            url: 'https://www.googleapis.com/drive/v3/files/{fileId}?alt=media',
+            headers: { Authorization: 'Bearer {access_token}' },
+          },
+        }],
+      }],
     }),
   ];
 }
