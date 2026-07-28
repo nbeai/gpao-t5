@@ -45,6 +45,7 @@ These documents do not sit above the top authority documents, but they are the s
 
 2. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
    - Mandatory when touching P-OP, connectors, sessions, channel surfaces, delivery/recovery, automation, repair, or scope isolation. It records what T5 should absorb from OpenClaw and Hermes, why it matters, and how to translate it without drifting into dashboard/channel/CLI feature copying.
+   - Its post-P-OP source re-audit also separates what is already absorbed, what belongs to productization, what T-cell must govern, and what the current pure-JavaScript/zero-runtime-package choice does and does not mean.
 
 3. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
    - Mandatory implementation handoff for Memory, Context Mesh, POM, replay, Growth Loop, Automation learning,
