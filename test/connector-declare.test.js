@@ -289,3 +289,26 @@ test('승인 카드는 내부 서버 이름 대신 사용자가 부르는 이름
   assert.match(p.scope, /노션/);
   assert.ok(!/\bnotion\b/.test(p.scope), `내부 이름이 보인다: ${p.scope}`);
 });
+
+// 실측(오너 라이브 2026-07-28, D): "내 노션에서 이번 주 회의록 찾아줘" 한 마디에 승인
+// 카드가 **네 번** 떴다. 같은 손이 인자만 바꿔 다시 물었기 때문이다. 두 번째 카드는 첫
+// 번째와 같은 질문이라 사용자가 새로 판단할 것이 없다 — 그렇게 묻는 것은 확인이 아니라
+// 절차가 되고, 사용자는 읽지 않고 누르게 된다. 그 순간 승인은 안전장치이길 그만둔다.
+//
+// 면제 범위는 **이 요청 안, 같은 손**뿐이다. 손이 다르면 다른 결정이고, 요청이 바뀌면
+// 맥락도 바뀐다.
+test('빈 결과도 사실로 남는다 — 0건을 사람 말로', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const 실행 = async (text) => {
+    const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+    admitMcpTools({
+      server: 'svc', connector: 'svc', connectorLabel: '어떤서비스',
+      tools: [{ name: 'search', description: '찾는다', inputSchema: { type: 'object', properties: {} } }],
+      session: { callTool: async () => ({ content: [{ type: 'text', text }] }) },
+    }, ctx);
+    return Object.values(ctx.tools.tools)[0].handler({});
+  };
+  // 없음도 사실이다. 이걸 버리면 모델은 못 찾은 줄도 모르고 같은 손을 다시 시도한다.
+  assert.match((await 실행('{"results":[],"type":"workspace_search"}')).userSafeSummary, /찾은 게 없어요/);
+  assert.match((await 실행('{"results":[{"a":1},{"b":2}]}')).userSafeSummary, /2건/);
+});

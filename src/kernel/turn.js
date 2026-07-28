@@ -144,6 +144,9 @@ export async function runTurn(input, ctx) {
   ctx.surface = resolveResponseSurface(input);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
+  // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
+  // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
+  if (typeof input.text === 'string' && input.text.trim()) ctx.허락한손 = undefined;
   const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
   // P5-B-0.5: 외부 서비스 이야기인지 **한 번만** 판정하고 모든 조립부가 같은 사실을 쓴다.
   // 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다(오늘 세 번 겪었다).
@@ -194,6 +197,12 @@ export async function runTurn(input, ctx) {
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
     // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
     ctx.askedFrom = saved.askedFrom ?? ctx.askedFrom;
+    // **이 요청에서 이미 허락한 손을 기억한다.** 실측(오너 라이브 2026-07-28, D):
+    // "노션에서 회의록 찾아줘" 한 마디에 승인 카드가 네 번 떴다 — 같은 손이 인자만 바꿔
+    // 다시 물었기 때문이다. 두 번째 카드는 첫 번째와 **같은 질문**이라 사용자가 새로 판단할
+    // 것이 없다. 그렇게 묻는 것은 확인이 아니라 절차가 되고, 사용자는 읽지 않고 누르게 된다.
+    // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
+    ctx.허락한손 = new Set(saved.허락한손 ?? []);
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
   }
@@ -511,6 +520,9 @@ export async function runTurn(input, ctx) {
       // "확인해 주시면 이어서 할게요"를 들은 뒤 화면에서 승인했는데, 방은 영영 조용했다.
       // 어느 표면이 물었는지만 봉인한다. 어디로 보낼지(방 id)와 보내는 일은 서버가 안다.
       askedFrom: input.channel ? { channel: input.channel } : undefined,
+      // 이 요청에서 허락받은 손. 계획 경로와 걸음 경로가 **같은 규칙**을 써야 한다 —
+      // 한쪽만 면제하면 같은 요청인데 어느 길로 왔느냐에 따라 묻는 횟수가 달라진다.
+      허락한손: [...(ctx.허락한손 ?? []), ...pendingGrants.map((g) => g.action).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
     });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
@@ -764,7 +776,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         })(),
       };
       const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
-      const grants = 걸음plan.needsApproval ?? [];
+      // 이 요청에서 이미 허락받은 손이면 다시 묻지 않는다(같은 질문을 두 번 하지 않는다).
+      // 손이 **다르면** 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
+      const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
       if (grants.length) {
         const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
         ctx.pending.set(pendingId, {
@@ -774,6 +788,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           // 실행돼 엉뚱한 일이 된다. 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
           askedFrom: ctx.askedFrom,
+          // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
+          허락한손: [...(ctx.허락한손 ?? []), toolId],
           grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
         });
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게

@@ -258,3 +258,23 @@ test('S28 billing_blocked 는 결제 확인 안내(재시도 문구 아님)', as
   assert.equal(r.selfStateSummary.modelAuthState, 'billing_blocked');
   assert.match(r.selfStateSummary.nextSafeAction, /결제/);
 });
+
+// 실측(오너 라이브 2026-07-28, D 시나리오): "내 노션에서 이번 주 회의록 찾아줘" 한 마디에
+// 승인 카드가 **네 번** 떴다. 같은 손이 인자만 바꿔 다시 물었다 — 사용자가 새로 판단할 것이
+// 없는 질문을 반복하면 승인은 절차가 되고, 사용자는 읽지 않고 누른다.
+test('같은 요청 안에서 같은 손을 두 번 묻지 않는다', async () => {
+  const 부른횟수 = [];
+  const c = ctx({
+    connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 부른횟수.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+  });
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(r1.kind, 'approval', '첫 승인은 반드시 받는다');
+  await runTurn({ approve: r1.pendingId }, c);
+  assert.ok(c.허락한손?.has('mail.send'), '허락한 손이 이어지지 않는다');
+
+  // 새 요청이면 허락은 새로 받는다 — 면제가 다음 요청까지 조용히 넘어가면 안 된다
+  const r2 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(c.허락한손, undefined, '면제가 다음 요청까지 넘어갔다');
+  assert.equal(r2.kind, 'approval', '새 요청인데 안 물었다');
+});

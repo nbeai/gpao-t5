@@ -23,13 +23,37 @@ import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
 export const mcpToolId = (server, name, connector) => `mcp.${server ?? connector ?? "unknown"}.${name}`;
 
 /**
+ * 기계 말을 걷어내되 **몇 건인지는 버리지 않는다.**
+ *
+ * 실측(오너 라이브 2026-07-28): 노션 조회가 `{"results":[],...}` 를 돌려줬고 T5 는 그걸
+ * 그대로 원장에 실었다. JSON 을 빼기만 하면 이번엔 "실행했어요"만 남아 **0건이라는 사실이
+ * 사라진다** — 모델은 못 찾은 것도 모른 채 같은 도구를 다시 시도하고, 사용자는 승인 카드만
+ * 계속 누른다(그날 네 번 눌렀다). 없음도 사실이고, 사실은 사람 말로 남아야 한다.
+ */
+function 건수(t) {
+  try {
+    const v = JSON.parse(t);
+    const arr = Array.isArray(v) ? v
+      : [v?.results, v?.items, v?.data, v?.content].find(Array.isArray);
+    return Array.isArray(arr) ? arr.length : undefined;
+  } catch { return undefined; }
+}
+
+/**
  * MCP 가 돌려준 글이 **사람이 읽을 말인가.** 많은 서버가 JSON 을 text 로 담아 준다 —
  * 그건 모델이 읽을 것이지 사용자가 읽을 것이 아니다. 아니면 undefined 를 준다(부르는 쪽이 대신 말한다).
  */
 function 사람말(text) {
   const t = String(text ?? '').trim();
   if (!t) return undefined;
-  if (/^[[{]/.test(t)) { try { JSON.parse(t); return undefined; } catch { /* JSON 이 아니면 사람 말이다 */ } }
+  if (/^[[{]/.test(t)) {
+    try {
+      JSON.parse(t);
+      const n = 건수(t);
+      // 기계 말은 버리되, 세어지는 것은 세어서 준다. 0 건도 사실이다.
+      return n === undefined ? undefined : n === 0 ? '찾은 게 없어요.' : `${n}건을 찾았어요.`;
+    } catch { /* JSON 이 아니면 사람 말이다 */ }
+  }
   return t.slice(0, 400);
 }
 
