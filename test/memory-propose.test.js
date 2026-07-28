@@ -117,8 +117,28 @@ test('기억 검색 반영분(recalled_context)은 선호 투영에 섞이지 �
   assert.equal(um.operatingPreferences.length, 0);
 });
 
+// ── 통제 채널은 실행 도구가 아니다 (감사 보강 1) ──────────────────────────
+test('memory.propose 는 실행 등록부 어디에도 없다 — ToolRunner 로 도달 불가(수정 전 실패)', async () => {
+  const { demoDescriptors } = await import('../src/surface/demo-context.js');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { toolSchemasFor, callsToIntentParts } = await import('../src/kernel/l2-plan/tool-schema.js');
+  const { modelSchemasFor } = await import('../src/kernel/l2-plan/model-control.js');
+  const tools = demoTools();
+  // ① 손 없음 — 실행 경로가 애초에 없다(예비 handler 가 "적어뒀어요"라고 거짓 성공할 자리 제거).
+  assert.equal(tools.tools['memory.propose'], undefined, '실행 손이 등록돼 있다');
+  // ② 선언 없음 — descriptor·연결·도구함 어디에도 실행 도구로 나타나지 않는다.
+  assert.ok(!demoDescriptors().some((d) => d.id === 'memory.propose'), 'descriptor 에 실행 도구로 선언돼 있다');
+  const ss = buildSelfState(demoEnv(), { tools });
+  assert.ok(!toolSchemasFor(ss).some((t) => t.name === 'memory.propose'), '실행 스키마에 나타난다');
+  // ③ 그래도 모델에게는 보인다 — 통제 채널로.
+  assert.ok(modelSchemasFor(ss).some((t) => t.name === 'memory.propose'), '모델이 통제 채널을 못 본다');
+  // ④ 분리 경계를 우회해 계획 경로로 흘러도, 보여준 실행 도구가 아니므로 조용히 버려진다(이중 방어).
+  const parts = callsToIntentParts([{ name: 'memory.propose', args: { statement: 'x' } }], ss);
+  assert.deepEqual(parts.neededTools, [], '통제 호출이 계획 경로에 들어갔다');
+});
+
 // ── 서버 — 후보 정리(지우기)가 어느 턴에서도 가능하다 ────────────────────
-test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공통이다', async () => {
+test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공통이다 · 수명주기 영수증이 남는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mem-'));
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore: new MemoryStore(dir) });
   await new Promise((r) => server.listen(0, r));
@@ -133,7 +153,7 @@ test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공�
       ],
       promoted: [], observed: [],
     });
-    // 지우기 — 영향 0이었으니 흔적 없이 사라진다.
+    // 지우기 — 상태에서는 사라지고, 사라졌다는 사실은 원장에 남는다.
     const rj = await (await post('/memory/reject', { candidateId: 'c2' })).json();
     assert.equal(rj.rejected, true);
     // 확인 — 대화 후보(kind: preference)가 공통 통로로 승격된다.
@@ -143,5 +163,37 @@ test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공�
     assert.equal(after.candidates.length, 0);
     assert.equal(after.promoted.length, 1);
     assert.equal(after.promoted[0].statement, '목록으로');
+    // 철회 — 상태에서 제거되지만 "승인됐다가 철회됐다"는 감사 흔적은 원장에 남는다(감사 보강 2).
+    const rb = await (await post('/memory/rollback', { candidateId: 'c1' })).json();
+    assert.equal(rb.rolledBack, true);
+    const ledger = await (await fetch(`${base}/memory/ledger`)).json();
+    const events = ledger.entries.map((e) => e.event);
+    assert.deepEqual(events, ['rejected', 'confirmed', 'rolled_back'],
+      `수명주기 영수증이 빠졌다: ${JSON.stringify(events)}`);
+    // 원장에 기억 원문은 없다 — 철회로 지운 내용이 원장에 되살아나지 않는다. digest 는 있다.
+    const raw = JSON.stringify(ledger);
+    assert.ok(!raw.includes('목록으로') && !raw.includes('지울 것'), '원장에 기억 원문이 남았다');
+    assert.ok(ledger.entries.every((e) => /^[0-9a-f]{16}$/.test(e.digest)), '내용 지문이 없다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('옛 주소(/user-model/preferences/:id/confirm)도 같은 단일 통로로 승격한다(감사 보강 3)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mem2-'));
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore: new MemoryStore(dir) });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const mem = new MemoryStore(dir);
+    await mem.save({
+      candidates: [{ candidateId: 'op1', kind: 'operating_preference', statement: '표로 주세요', userConfirmed: false, rollbackable: true }],
+      promoted: [], observed: [],
+    });
+    const r = await (await fetch(`${base}/user-model/preferences/op1/confirm`, { method: 'POST' })).json();
+    assert.equal(r.ok, true);
+    const after = await mem.load();
+    assert.equal(after.promoted.length, 1);
+    // 어느 주소로 승격해도 같은 수명주기 원장에 남는다 — 통로가 갈라지면 여기서 잡힌다.
+    const ledger = await (await fetch(`${base}/memory/ledger`)).json();
+    assert.deepEqual(ledger.entries.map((e) => e.event), ['confirmed'], '옛 주소가 원장 밖에서 승격했다');
   } finally { await new Promise((r) => server.close(r)); }
 });

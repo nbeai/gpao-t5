@@ -21,7 +21,8 @@ import { detectCandidate, admittedContext, isRelevant } from './l1-intent/contex
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
-import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
+import { callsToIntentParts } from './l2-plan/tool-schema.js';
+import { modelSchemasFor, splitModelControlCalls } from './l2-plan/model-control.js';
 import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
 import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
 import { resolveResponseSurface } from './l0-evidence/response-surface.js';
@@ -47,22 +48,6 @@ async function 볼수있는자리(ctx) {
 // 한 턴에 손을 이어 쓸 수 있는 횟수. 찾기→확인→실행이면 3걸음이면 충분하고,
 // 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
 const MAX_TOOL_STEPS = 4;
-
-// H · 모델의 기억 후보 제출(memory.propose)을 도구 호출 목록에서 골라낸다. 후보는 실행이
-// 아니므로 계획·승인·원장에 태우지 않는다. 문장이 비었거나 종류가 틀리면 조용히 버린다 —
-// 잘못된 제안이 후보가 되는 것보다 안 되는 쪽이 안전하다(후보조차 사용자 확인 대상이므로).
-const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
-function 기억후보추출(toolCalls = []) {
-  const rest = [];
-  let suggestion = null;
-  for (const c of toolCalls) {
-    if (c?.name !== 'memory.propose') { rest.push(c); continue; }
-    const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
-    const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
-    if (statement) suggestion = { kind, statement };
-  }
-  return { suggestion, rest };
-}
 
 /**
  * @typedef {Object} TurnInput
@@ -178,7 +163,7 @@ function refreshRuntimeReality(ctx) {
   });
   const capCounts = capabilityCounts(buildCapabilityFacts(selfState));
   if (ctx.selfhood) ctx.selfhood = { ...ctx.selfhood, capabilityCounts: capCounts };
-  // 모델에게 가는 도구 스키마는 `toolSchemasFor(selfState)` 가 이 selfState 에서 파생한다.
+  // 모델에게 가는 도구 스키마는 `modelSchemasFor(selfState)` 가 이 selfState 에서 파생한다.
   return { selfState, summary: selfStateSummary(selfState), capCounts };
 }
 
@@ -397,14 +382,14 @@ export async function runTurn(input, ctx) {
       // 그냥 "리뷰"로 검색해 **책 리뷰 쓰는 방법**을 읽어 왔다. 잘못된 인자는 오염된 사실을 만들고,
       // 오염된 사실은 다음 턴까지 번진다. 속도보다 이해가 먼저다(절대 원칙 §0).
       effort: 'medium',
-      tools: toolSchemasFor(selfState),
+      tools: modelSchemasFor(selfState),
     });
     earlyReply = typeof out === 'string' ? out : out?.text ?? '';
-    let chosen = typeof out === 'string' ? [] : (out?.toolCalls ?? []);
-    // 기억 후보 제출은 실행이 아니다 — 계획·승인·원장에 태우지 않고 후보 채널로만 돌린다.
-    const 제안 = 기억후보추출(chosen);
-    if (제안.suggestion) { memorySuggestion = 제안.suggestion; chosen = 제안.rest; }
-    if (chosen.length) modelChosen = chosen;
+    // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
+    // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
+    const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+    if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
+    if (분리.rest.length) modelChosen = 분리.rest;
   }
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
@@ -675,9 +660,12 @@ export async function runTurn(input, ctx) {
         },
         // **손 목록을 함께 준다.** 안 주면 모델이 "이 경로에는 도구가 안 붙어 있다"고 읽는다
         // (실측). 여기서 모델이 도구를 또 고르면 그 선택은 쓰지 않는다 — 우리는 문장만 가져간다.
-        { effort: 'medium', tools: toolSchemasFor(selfState) },
+        { effort: 'medium', tools: modelSchemasFor(selfState) },
       ).catch(() => null);
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
+      // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
+      const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+      if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
     }
     return {
       kind: 'approval',
@@ -751,7 +739,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // **새 손이 모델에게 보이지 않았다.**
   //
   // `selfState` 는 턴 시작 때 한 번 만든 사진인데, 편입은 `ctx.env.connections` 를 제자리에서
-  // 갱신한다. 그래서 편입 뒤에도 `toolSchemasFor(selfState)` 는 옛 목록을 준다(재현 확인:
+  // 갱신한다. 그래서 편입 뒤에도 `modelSchemasFor(selfState)` 는 옛 목록을 준다(재현 확인:
   // 편입 전 5개 → 편입 후 사진 5개 → 다시 만들면 6개). live-context 의 주석은 "그 턴부터
   // 모델이 본다"고 적혀 있었다 — 그 약속이 지켜지지 않았다.
   //
@@ -863,7 +851,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
       search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
       effort: 'medium',
-      tools: toolSchemasFor(selfState),
+      tools: modelSchemasFor(selfState),
     });
   // ── P6-L · 한 턴 안에서 손을 이어 쓴다 ────────────────────────────────
   // 예전엔 여기서 `finalOut.toolCalls` 를 **버렸다.** 그래서 모델이 다음 걸음을 정확히 알고도
@@ -876,11 +864,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let steps = 0;
   let 멈춘이유;
   while (steps < MAX_TOOL_STEPS) {
-    let next = typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []);
-    // 기억 후보 제출(memory.propose)은 걸음이 아니다 — 실행·승인·원장에 태우지 않고 후보
-    // 채널로만 돌린다(영향 0). executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
-    const 제안 = 기억후보추출(next);
-    if (제안.suggestion) { ctx.제안된기억 = 제안.suggestion; next = 제안.rest; }
+    // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
+    // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
+    const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
+    if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
+    const next = 분리.rest;
     if (!next.length) break;
     const parts = callsToIntentParts(next, selfState);
     const toolId = parts.neededTools?.[0];
@@ -919,7 +907,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       });
       finalOut = await ctx.model.respond(tc, {
         onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-        ...(steps < MAX_TOOL_STEPS ? { tools: toolSchemasFor(selfState) } : {}),
+        ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState) } : {}),
       });
       continue;
     }
@@ -1073,7 +1061,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     finalOut = await ctx.model.respond(tc, {
       onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
       // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
-      ...(steps < MAX_TOOL_STEPS ? { tools: toolSchemasFor(selfState) } : {}),
+      ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState) } : {}),
     });
   }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.

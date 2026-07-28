@@ -35,9 +35,9 @@ import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
-import { MemoryStore } from './memory-store.js';
-import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
-import { makeInferredTrait, makeOperatingPreference, confirmOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
+import { MemoryStore, MemoryLedger } from './memory-store.js';
+import { makeCandidate, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
+import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
 import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js';
@@ -84,6 +84,8 @@ function sendJson(res, code, obj) {
 export function makeServer(deps = {}) {
   const store = deps.store ?? new SessionStore();
   const memStore = deps.memoryStore ?? new MemoryStore(store.dir);
+  // 기억 수명주기 영수증 — 상태 저장소와 분리된 감사 흔적(proposed/confirmed/rejected/rolled_back).
+  const memLedger = deps.memoryLedger ?? new MemoryLedger(memStore.dir);
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
@@ -285,6 +287,7 @@ export function makeServer(deps = {}) {
       else {
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
         memory.candidates.push(c); await memStore.save(memory); result.memorySuggestion.candidateId = c.candidateId;
+        await memLedger.append('proposed', c); // 수명주기 영수증 — 후보가 생긴 사실
       }
     }
     if (result.automationSuggestion?.action) {
@@ -649,29 +652,25 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/memory/confirm') {
         const input = JSON.parse((await readBody(req)) || '{}');
         const m = await memStore.load();
-        const idx = m.candidates.findIndex((e) => e.candidateId === input.candidateId);
-        if (idx < 0) return sendJson(res, 404, { error: '후보를 찾지 못했어요.' });
-        const entry = m.candidates[idx];
-        // operating_principle 은 replay 게이트를 통과해야 승격된다 — replay 전에는 행동 영향 0(§5).
-        let replayPassed = entry.kind !== 'operating_principle';
-        if (entry.kind === 'operating_principle') {
-          const past = [...m.promoted, ...m.candidates.filter((e) => e !== entry)].map((e) => e.statement);
-          replayPassed = runReplay(entry, past);
-          if (!replayPassed) {
-            return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: '검토에서 과거와 충돌해 적용하지 않았어요.' });
-          }
+        // 승격은 단일 통로(confirmCandidate) 하나다 — replay 게이트(운영 원리)도 그 안에 있다.
+        const r = confirmCandidate(m, input.candidateId);
+        if (!r.ok && r.reason === 'not_found') return sendJson(res, 404, { error: '후보를 찾지 못했어요.' });
+        if (!r.ok && r.reason === 'replay_failed') {
+          return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: '검토에서 과거와 충돌해 적용하지 않았어요.' });
         }
-        const r = promote(entry, { userConfirmed: true, replayPassed });
         if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
-        m.candidates.splice(idx, 1);
-        m.promoted.push(r.entry);
         await memStore.save(m);
+        await memLedger.append('confirmed', r.entry); // 수명주기 영수증 — 사용자가 승인한 사실
         // 권한 표면(감사 보정): 무엇을·어디에·되돌리기 가능한지 UI가 짧게 보여줄 근거.
         return sendJson(res, 200, {
-          ok: true, kind: entry.kind, candidateId: r.entry.candidateId,
+          ok: true, kind: r.entry.kind, candidateId: r.entry.candidateId,
           statement: r.entry.statement, influenceScope: r.entry.influenceScope,
           reviewLevel: r.entry.reviewLevel, rollbackable: r.entry.rollbackable,
         });
+      }
+      // 수명주기 원장 조회 — 감사용. 내용 원문 없이 사건·시각·지문만.
+      if (req.method === 'GET' && url === '/memory/ledger') {
+        return sendJson(res, 200, await memLedger.load());
       }
       // 후보 지우기 — 후보는 영향 0이므로 지우면 끝이다(승격분 철회는 /memory/rollback).
       // 승인 대기가 어느 턴에서도 정리 가능해야 죽은 후보가 쌓이지 않는다(H 감사 2026-07-29).
@@ -682,6 +681,7 @@ export function makeServer(deps = {}) {
         if (idx < 0) return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
         const [removed] = m.candidates.splice(idx, 1);
         await memStore.save(m);
+        await memLedger.append('rejected', removed); // 수명주기 영수증 — 후보를 정리한 사실
         return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement });
       }
       if (req.method === 'POST' && url === '/memory/rollback') {
@@ -695,6 +695,9 @@ export function makeServer(deps = {}) {
         if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
         const [removed] = m.promoted.splice(idx, 1);
         await memStore.save(m);
+        // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
+        // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
+        await memLedger.append('rolled_back', removed);
         return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement });
       }
 
@@ -1025,6 +1028,8 @@ export function makeServer(deps = {}) {
         if (!result.ok) return sendJson(res, 200, { admitted: false, reason: result.reason });
         memory.promoted = [...(memory.promoted ?? []), result.entry];
         await memStore.save(memory);
+        await memLedger.append('confirmed', result.entry); // 검색 반영도 같은 수명주기 원장에
+
         // candidateId를 함께 준다 — "반영하기"가 있으면 "되돌리기"(POST /memory/rollback)도 같은 수준으로(감사 지적).
         return sendJson(res, 200, { admitted: true, candidateId: result.entry.candidateId, statement: result.entry.statement });
       }
@@ -1086,20 +1091,20 @@ export function makeServer(deps = {}) {
         const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
         memory.candidates = [...(memory.candidates ?? []), pref];
         await memStore.save(memory);
+        await memLedger.append('proposed', pref); // 수명주기 영수증
         return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false } });
       }
-      // 운영 선호 승인 — userConfirmed로 승격(candidates→promoted). 이후 관련될 때만 좁게 입장.
+      // 운영 선호 승인 — **주소만 남기고 승격 로직은 단일 통로(confirmCandidate)에 위임한다.**
+      // 통로가 둘이면 replay·원장·필드가 한쪽에만 붙는 날 다시 갈라진다(H 감사 보강 2026-07-29).
       if (req.method === 'POST' && url.startsWith('/user-model/preferences/') && url.endsWith('/confirm')) {
         const id = url.slice('/user-model/preferences/'.length, -'/confirm'.length);
         const memory = await memStore.load();
-        const idx = (memory.candidates ?? []).findIndex((c) => c.candidateId === id && c.kind === 'operating_preference');
-        if (idx < 0) return sendJson(res, 404, { error: '운영 선호 후보를 찾지 못했어요.' });
-        const result = confirmOperatingPreference(memory.candidates[idx]);
-        if (!result.ok) return sendJson(res, 200, { ok: false, reason: result.reason });
-        memory.candidates = memory.candidates.filter((_, i) => i !== idx);
-        memory.promoted = [...(memory.promoted ?? []), result.entry];
+        const r = confirmCandidate(memory, id);
+        if (!r.ok && r.reason === 'not_found') return sendJson(res, 404, { error: '운영 선호 후보를 찾지 못했어요.' });
+        if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
         await memStore.save(memory);
-        return sendJson(res, 200, { ok: true, status: 'admitted', statement: result.entry.statement });
+        await memLedger.append('confirmed', r.entry);
+        return sendJson(res, 200, { ok: true, status: 'admitted', statement: r.entry.statement });
       }
       // 거절: 후보를 rejected로(영향 0 영구).
       if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/reject')) {

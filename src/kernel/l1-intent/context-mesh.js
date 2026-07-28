@@ -108,6 +108,31 @@ export function runReplay(entry, pastStatements = []) {
 }
 
 /**
+ * **후보 승격의 단일 통로** (H 감사 보강 2026-07-29). 승격 통로가 둘이면 replay·원장·필드가
+ * 한쪽에만 붙는 날 다시 갈라진다 — 모든 확인 엔드포인트는 이 함수 하나에 위임한다.
+ * memory 를 제자리에서 바꾼다(candidates→promoted). 저장·영수증은 부르는 쪽 몫.
+ * @param {{candidates?:object[], promoted?:object[]}} memory
+ * @param {string} candidateId
+ * @returns {{ok:boolean, entry?:object, reason?:string}}
+ */
+export function confirmCandidate(memory, candidateId) {
+  const idx = (memory.candidates ?? []).findIndex((e) => e.candidateId === candidateId);
+  if (idx < 0) return { ok: false, reason: 'not_found' };
+  const entry = memory.candidates[idx];
+  let replayPassed = entry.kind !== 'operating_principle';
+  if (entry.kind === 'operating_principle') {
+    const past = [...(memory.promoted ?? []), ...memory.candidates.filter((e) => e !== entry)].map((e) => e.statement);
+    replayPassed = runReplay(entry, past);
+    if (!replayPassed) return { ok: false, reason: 'replay_failed' };
+  }
+  const r = promote(entry, { userConfirmed: true, replayPassed });
+  if (!r.ok) return { ok: false, reason: r.reason };
+  memory.candidates.splice(idx, 1);
+  memory.promoted = [...(memory.promoted ?? []), r.entry];
+  return { ok: true, entry: r.entry };
+}
+
+/**
  * 승격 — 게이트를 코드로 강제한다. operating_principle은 replayPassed 없이 승격 불가.
  * @param {object} entry
  * @param {{userConfirmed?:boolean, replayPassed?:boolean}} approval
