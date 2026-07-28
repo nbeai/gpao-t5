@@ -459,3 +459,92 @@ test('죽은 잠금을 둘이 동시에 회수해도 정확히 하나만 획득�
     await wins[0].value.release();
   }
 });
+
+// ── 감사 재현(2026-07-29, 3차): 3자 경쟁 500회 중 1회 이중 획득 — 회수 게이트 직렬화 ──
+// rename+내용비교는 경로 기준이라 "죽은 것만 가져간다"는 보장이 없었다. 늦은 회수자가
+// 새 소유자의 살아 있는 잠금을 옮긴 빈자리에서 또 다른 획득이 성공했다. 이제 고정 게이트가
+// 재판정→제거→새 wx 전체를 직렬화한다. 아래는 압박 반복과 **결정적 지연 순서** 둘 다 고정한다.
+
+async function 압박경쟁(n, runs) {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const bad = [];
+  for (let i = 0; i < runs; i++) {
+    const dir = await mkdtemp(join(tmpdir(), `gpao-t5-press-${n}-`));
+    await writeFile(join(dir, '.writer-lock.json'), JSON.stringify({ pid: 99999999, ownerToken: 'dead', at: 0 }), 'utf8');
+    const rs = await Promise.allSettled(
+      Array.from({ length: n }, () => acquireWriterLock(dir, { pid: process.pid })),
+    );
+    const wins = rs.filter((r) => r.status === 'fulfilled');
+    if (wins.length !== 1) { bad.push({ i, wins: wins.length }); continue; }
+    const cur = JSON.parse(await readFile(join(dir, '.writer-lock.json'), 'utf8'));
+    if (cur.pid !== process.pid || cur.ownerToken === 'dead') bad.push({ i, cur });
+    await wins[0].value.release();
+  }
+  assert.deepEqual(bad, [], `${n}자 경쟁 ${runs}회: 이중 획득/오염 ${JSON.stringify(bad)}`);
+}
+
+test('죽은 잠금 회수 압박: 2자 경쟁 150회 — 매회 정확히 하나만 획득', async () => { await 압박경쟁(2, 150); });
+test('죽은 잠금 회수 압박: 3자 경쟁 400회 — 매회 정확히 하나만 획득(수정 전 500회 중 1회 이중)', async () => { await 압박경쟁(3, 400); });
+test('죽은 잠금 회수 압박: 5자 경쟁 150회 — 매회 정확히 하나만 획득', async () => { await 압박경쟁(5, 150); });
+
+test('지연 interleaving ①: 늦은 회수자는 새 소유자의 살아 있는 잠금을 건드리지 못한다(결정적)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const zzz = (ms) => new Promise((r) => setTimeout(r, ms));
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-late-'));
+  const lockFile = join(dir, '.writer-lock.json');
+  await writeFile(lockFile, JSON.stringify({ pid: 99999999, ownerToken: 'dead', at: 0 }), 'utf8');
+  // A: 죽었다고 판정한 직후(게이트 밖) 멈춰 있는 늦은 회수자.
+  let aResume; const aHold = new Promise((r) => { aResume = r; });
+  const A = acquireWriterLock(dir, {
+    pid: process.pid,
+    _pause: async (p) => { if (p === 'judged-dead') await aHold; },
+  });
+  await zzz(50); // A 가 judged-dead 에 도착할 시간
+  const B = await acquireWriterLock(dir, { pid: process.pid }); // B 가 게이트로 회수해 획득
+  const bLock = await readFile(lockFile, 'utf8');
+  aResume(); // 수정 전: 여기서 A 의 rename 이 B 의 살아 있는 잠금을 옮겼다
+  await assert.rejects(() => A, /다른 T5 서버/, '늦은 회수자가 획득했다');
+  assert.equal(await readFile(lockFile, 'utf8'), bLock, '새 소유자의 잠금이 변형/이동됐다');
+  // 빈자리가 생기지 않았으니 세 번째도 정직하게 거절된다.
+  await assert.rejects(() => acquireWriterLock(dir, { pid: process.pid }), /다른 T5 서버/);
+  await B.release();
+});
+
+test('지연 interleaving ②: 게이트 소유자는 빈자리를 먼저 채운 wx 에 정직하게 진다(결정적)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const zzz = (ms) => new Promise((r) => setTimeout(r, ms));
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-slot-'));
+  const lockFile = join(dir, '.writer-lock.json');
+  await writeFile(lockFile, JSON.stringify({ pid: 99999999, ownerToken: 'dead', at: 0 }), 'utf8');
+  // B: 게이트가 생기기 전에 게이트 검사를 통과하고 wx 직전에 멈춰 있는 통행자.
+  let bResume; const bHold = new Promise((r) => { bResume = r; });
+  const B = acquireWriterLock(dir, {
+    pid: process.pid,
+    _pause: async (p) => { if (p === 'gate-clear') await bHold; },
+  });
+  await zzz(50); // B 가 gate-clear 에 도착할 시간
+  // A: 게이트를 잡고 죽은 잠금을 걷어 빈자리를 만든 순간 멈춘다.
+  let aAtEmpty; const aEmptyP = new Promise((r) => { aAtEmpty = r; });
+  let aResume; const aHold = new Promise((r) => { aResume = r; });
+  const A = acquireWriterLock(dir, {
+    pid: process.pid,
+    _pause: async (p) => { if (p === 'slot-empty') { aAtEmpty(); await aHold; } },
+  });
+  await aEmptyP;            // A: 게이트 보유 + 빈자리
+  bResume();
+  const bWin = await B;      // B 의 wx 가 빈자리를 먼저 채운다(게이트는 회수 경쟁만 직렬화)
+  const bLock = await readFile(lockFile, 'utf8');
+  aResume();                 // A 재개 → wx EEXIST → 살아 있는 B 에게 정직하게 진다
+  await assert.rejects(() => A, /다른 T5 서버/, '게이트 소유자가 살아 있는 잠금 위에서 획득했다');
+  assert.equal(await readFile(lockFile, 'utf8'), bLock, '빈자리 승자의 잠금이 변형됐다');
+  await bWin.release();
+});
