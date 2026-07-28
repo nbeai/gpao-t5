@@ -592,7 +592,7 @@ const DESCRIPTORS = [
         type: 'object',
         properties: {
           text: { type: 'string', description: '보낼 내용' },
-          target: { type: 'string', description: '보낼 방(없으면 기본 대상)' },
+          target: { type: 'string', description: '보낼 방. 비워 두면 T5 가 아는 곳(허용된 대화·학습된 기본)으로 확정하거나, 정할 수 없으면 사용자에게 물어요' },
         },
         required: ['text'],
       },

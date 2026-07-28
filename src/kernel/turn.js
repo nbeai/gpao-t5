@@ -19,7 +19,7 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
-import { parseSend } from './l1-intent/send-parse.js';
+import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { toolSchemasFor, callsToIntentParts } from './l2-plan/tool-schema.js';
 import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
@@ -560,6 +560,15 @@ export async function runTurn(input, ctx) {
     const parsed = fromModel?.text
       ? { text: fromModel.text, message: fromModel.text, target: fromModel.target, ambiguous: !fromModel.target, clarifyReason: fromModel.target ? null : 'no_target' }
       : parseSend(input.text ?? '', sendGrant.action);
+    // P6-7 후반: 대상을 **실행할 수 있는 사실**로 확정한다. 라벨("오너")·자기 지칭("내 텔레그램")은
+    // 그 채널의 허용된 대화 목록(ctx.channelTargets — 서버가 공급하는 현실)으로만 풀린다. 이게 없어서
+    // 라이브(2026-07-29 F)에서 "내 텔레그램으로 보내줘"가 영원히 확정될 수 없었다.
+    const 아는곳 = ctx.channelTargets?.[sendGrant.action] ?? [];
+    const 확정 = resolveSendTarget({ target: parsed.target || null, text: input.text, known: 아는곳 });
+    if (확정) {
+      parsed.target = 확정.target; parsed.targetLabel = 확정.label;
+      if (parsed.clarifyReason === 'no_target') { parsed.ambiguous = false; parsed.clarifyReason = null; }
+    }
     // P6-11: 대상이 없지만 학습된 기본 대상(승인·replay 통과분)이 있으면 채운다 → 다음부터 "어디로?" 질문 축소.
     //   승인(A2)은 그대로다. broad memory, narrow influence: 승격된 좁은 것만 영향을 준다.
     if (parsed.clarifyReason === 'no_target') {
@@ -574,9 +583,12 @@ export async function runTurn(input, ctx) {
         //   "어디로 보낼지 알려주세요. (텔레그램 전송의 채널/받는 사람)"
         // 괄호 안에 **내부 구조가 그대로 노출**됐다. 완료 기준 ③("승인/복구 안내가 정책문처럼
         // 보이지 않는다") 위반이다. 멈추는 것 자체는 안전이므로 그대로 두고, **말만 사람 말로** 한다.
+        // 아는 곳(허용된 대화)이 있으면 **실제 선택지를 사실로** 준다 — 사용자가 이름을 지어내
+        // 맞히게 두지 않는다(막다른 질문 금지).
         question: parsed.clarifyReason === 'no_message'
           ? '어떤 내용을 보낼까요?'
-          : `${withParticle(toolLabel(sendGrant.action, selfState), '로')} 어디에 보낼까요?`,
+          : `${withParticle(toolLabel(sendGrant.action, selfState), '로')} 어디에 보낼까요?`
+            + (아는곳.length ? ` 지금 바로 보낼 수 있는 곳: ${아는곳.map((k) => k.label ?? k.target).join(' · ')}` : ''),
         selfStateSummary: summary,
         memorySuggestion,
         capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action, selfState), toolId: sendGrant.action } }),
@@ -584,11 +596,19 @@ export async function runTurn(input, ctx) {
       };
     }
     // 전송 인자만 갈아끼운다 — 통째로 덮으면 같은 턴의 다른 도구 인자(web.collect 등)가 사라진다.
-    sendArgs = { ...(sendArgs ?? {}), [sendGrant.action]: { target: parsed.target, text: parsed.message } };
+    // targetLabel 은 화면·미리보기용 사람 말이다 — 실행은 target(실행 값)만 쓴다.
+    sendArgs = {
+      ...(sendArgs ?? {}),
+      [sendGrant.action]: {
+        target: parsed.target, text: parsed.message,
+        ...(parsed.targetLabel ? { targetLabel: parsed.targetLabel } : {}),
+      },
+    };
     // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
-    sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: parsed.target, what: parsed.message };
+    const 보이는대상 = parsed.targetLabel ?? parsed.target;
+    sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: 보이는대상, what: parsed.message };
     // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
-    sendGrant.reason = { ...sendGrant.reason, whatChanges: `${parsed.target}에 "${parsed.message}"를 실제로 보내요.` };
+    sendGrant.reason = { ...sendGrant.reason, whatChanges: `${보이는대상}에 "${parsed.message}"를 실제로 보내요.` };
   }
 
   if (pendingGrants.length) {
@@ -883,6 +903,38 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       판정인자 = { ...args, changes: probed?.changes, granted: probed?.changes === true, probeResult: probed?.probe };
     }
     const kind = toolActionKind({ toolId, args: 판정인자, selfState });
+    // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
+    // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
+    // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
+    // 승인해도 실패 → 이어진 답이 뜨지 않을 승인 화면을 약속). 승인은 성공할 수 있는 일에만 청한다.
+    if (selfState.connectedTools.find((t) => t.id === toolId)?.toolKind === 'send') {
+      const 아는곳 = ctx.channelTargets?.[toolId] ?? [];
+      const 내용 = String(판정인자.text ?? 판정인자.request ?? '').trim() || null;
+      let 대상 = String(판정인자.target ?? '').trim() || null;
+      let 대상라벨;
+      // executePlan 은 input 을 받지 않는다 — 사용자 원문은 intent.currentRequest 로 온다.
+      const 확정 = resolveSendTarget({ target: 대상, text: intent.currentRequest ?? '', known: 아는곳 });
+      if (확정) { 대상 = 확정.target; 대상라벨 = 확정.label; }
+      if (!대상) {
+        const def = defaultTargetFor(ctx.defaults, toolId);
+        if (def) 대상 = def;
+      }
+      if (!내용 || !대상) {
+        return {
+          kind: 'clarify',
+          question: !내용
+            ? '어떤 내용을 보낼까요?'
+            : `${withParticle(toolLabel(toolId, selfState), '로')} 어디에 보낼까요?`
+              + (아는곳.length ? ` 지금 바로 보낼 수 있는 곳: ${아는곳.map((k) => k.label ?? k.target).join(' · ')}` : ''),
+          selfStateSummary: summary,
+          // 여기까지 걸은 사실은 버리지 않는다 — 다음 턴이 이어받는다.
+          ledger: projectReceipts(turnReceipts),
+          workingState,
+          usedSkill: ctx.usedSkill,
+        };
+      }
+      판정인자 = { ...판정인자, text: 내용, target: 대상, ...(대상라벨 ? { targetLabel: 대상라벨 } : {}) };
+    }
     if (!decideAutoGrant({ kind }, ctx.approvalMode ?? 'smart')) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
       //

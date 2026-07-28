@@ -58,7 +58,9 @@ export function makeSendPreview({ channel, defaultTarget } = {}) {
   return (args = {}) => {
     const text = String(args?.text ?? args?.request ?? '').trim();
     if (!text) return undefined;
-    const target = args?.target ?? defaultTarget;
+    // targetLabel: 커널이 확정한 **사람 말**(예: 허용 목록의 라벨). 실행 값(chat id)을 카드에
+    // 드러내지 않고, 사용자가 아는 이름으로 받는 곳을 보여준다. 실행은 target 만 쓴다.
+    const target = args?.targetLabel ?? args?.target ?? defaultTarget;
     // 문면은 **그대로** 보여준다(요약하면 승인한 것과 나간 것이 갈라진다). 길면 뒤만 자른다.
     const 줄임 = text.length > 200 ? `${text.slice(0, 200)}…` : text;
     return {

@@ -175,6 +175,24 @@ export function makeServer(deps = {}) {
     };
   }
 
+  // P6-7 후반 · **보낼 수 있는 곳은 런타임의 사실이다.** 각 채널의 허용된 대화(라벨 포함)를 커널에
+  // 공급한다 — 이게 없으면 "내 텔레그램으로"를 어느 경로도 영영 확정할 수 없다(라이브 실측 2026-07-29 F).
+  // 커널은 도구 id 와 {target, label} 만 본다 — 서비스 이름을 새로 알게 되는 것이 아니다.
+  async function channelTargetsFor() {
+    const out = {};
+    for (const ch of deps.channels ?? demoChannels()) {
+      if (!ch.outboundTool) continue;
+      const allowed = await allowlistStore.list(ch.connector?.id ?? ch.id).catch(() => []);
+      if (allowed?.length) {
+        out[ch.outboundTool] = allowed.map((a) => ({
+          target: String(a.userId ?? a.username ?? ''),
+          label: a.label ?? a.username ?? String(a.userId ?? ''),
+        })).filter((t) => t.target);
+      }
+    }
+    return out;
+  }
+
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
   async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
@@ -183,6 +201,7 @@ export function makeServer(deps = {}) {
     const learning = await traceStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
+    ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
     // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
     ctx.skills = (await skillStore.load()).skills ?? [];
@@ -1240,6 +1259,7 @@ export function makeServer(deps = {}) {
     });
     const memory = await memStore.load();
     const ctx = ctxForSession(session, memory);
+    ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
     const result = await runTurn({
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,
