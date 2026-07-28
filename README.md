@@ -36,6 +36,14 @@ These documents do not sit above the top authority documents, but they are the s
 1. `references/BEAI5-SYSTEM-PROMPT-REFERENCE-2026-07-24-ko.md`
    - Foundational. BEAI5 underlies the development plan itself: it is development domain 2 of 7, part of the first build slice, and the basis of the BEAI5 Dual-Implementation Principle (plan §5.6). This is the source material for BEAI5 Model Operation, the BEAI5 Integration Contract, naturalness regression gates, and the split between OS-implemented properties and model-held judgment. Read it before any BEAI5-related design, implementation, or audit.
 
+2. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+   - Mandatory when touching P-OP, connectors, sessions, channel surfaces, delivery/recovery, automation, repair, or scope isolation. It records what T5 should absorb from OpenClaw and Hermes, why it matters, and how to translate it without drifting into dashboard/channel/CLI feature copying.
+
+3. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
+   - Mandatory implementation handoff for Memory, Context Mesh, POM, replay, Growth Loop, Automation learning,
+     and authority-bounded self-development. It maps T-cell theory to exact T5 contracts, modules, storage,
+     migration, tests, scenarios, and completion evidence without changing the top-authority product philosophy.
+
 ## Phase 0 Working Protocols
 
 These documents govern the pre-code research seal. They are not product code, but they define what must be true before product code starts.
