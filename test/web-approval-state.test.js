@@ -33,4 +33,6 @@ test('Work Chat은 현재 표면과 승인 활성성을 각각의 사실로 배�
     '승인 버튼은 공통 활성 판정을 쓴다');
   assert.match(html, /!historical && r\.surfaceRequest\?\.kind === 'secret_input'/,
     '마지막 결과의 비밀 입력면은 현재성으로 유지한다');
+  assert.match(html, /if \(답문\.trim\(\)\)/,
+    '답문이 없는 기억 후보 턴은 빈 말풍선을 만들지 않는다');
 });

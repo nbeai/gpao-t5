@@ -51,7 +51,9 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
-import { makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget } from '../kernel/l5-growth/task-trace.js';
+import {
+  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
+} from '../kernel/l5-growth/task-trace.js';
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
 import { SkillStore } from './skill-store.js';
@@ -276,10 +278,29 @@ export function makeServer(deps = {}) {
       // 전달 실패면 채팅에서 "전달이 막혔어요 / 다시 보낼까요?"로 이어가게 표면화(처음부터 다시 아님).
       if (rec.state !== 'delivered') result.deliveryFailed = { deliveryId: rec.id, tool: rec.tool, target: rec.target, needsFix: rec.needsFix, userSafeSummary: rec.lastError?.userSafeSummary };
       // P6-11 학습: TaskTrace는 넓게 기록하되, DefaultTarget 후보는 **실제 전달된** 경우에만 제안(잘못 학습 방지).
-      learning.traces.push(makeTaskTrace({ id: randomUUID(), requestText: input.text ?? '', tool: sv.tool, target: sv.target, outcome: delivered ? 'delivered' : 'failed', now: Date.now() }));
+      learning.traces.push(makeTaskTrace({
+        id: randomUUID(),
+        requestText: input.text ?? '',
+        tool: sv.tool,
+        target: sv.target,
+        targetLabel: sv.targetLabel,
+        outcome: delivered ? 'delivered' : 'failed',
+        now: Date.now(),
+      }));
       if (delivered) {
-        const cand = proposeDefaultTarget({ tool: sv.tool, target: sv.target, promoted: learning.promoted, proposed: learning.proposed });
-        if (cand) { const withId = { patternId: randomUUID(), ...cand }; learning.proposed.push(withId); result.patternCandidate = withId; }
+        const cand = proposeDefaultTarget({
+          tool: sv.tool,
+          target: sv.target,
+          targetLabel: sv.targetLabel,
+          promoted: learning.promoted,
+          proposed: learning.proposed,
+        });
+        if (cand) {
+          const withId = { patternId: randomUUID(), ...cand };
+          learning.proposed.push(withId);
+          // 실행 값은 서버 저장소에만 둔다. 대화·브라우저에는 검증된 사람말 라벨만 투영한다.
+          result.patternCandidate = projectDefaultTarget(withId);
+        }
       }
       await traceStore.save(learning);
     }
@@ -707,8 +728,8 @@ export function makeServer(deps = {}) {
       if (req.method === 'GET' && url === '/patterns') {
         const a = await traceStore.load();
         return sendJson(res, 200, {
-          proposed: a.proposed.map((p) => ({ patternId: p.patternId, kind: p.kind, tool: p.tool, target: p.target, scope: p.scope ?? 'global' })),
-          promoted: a.promoted.map((p) => ({ kind: p.kind, tool: p.tool, target: p.target, scope: p.scope ?? 'global' })),
+          proposed: a.proposed.map(projectDefaultTarget),
+          promoted: a.promoted.map(projectDefaultTarget),
           traceCount: a.traces.length,
         });
       }
@@ -729,7 +750,7 @@ export function makeServer(deps = {}) {
         const prom = promoteDefaultTarget(pat, Date.now());
         a.promoted.push(prom);
         await traceStore.save(a);
-        return sendJson(res, 200, { ok: true, kind: pat.kind, tool: pat.tool, target: pat.target, scope: prom.scope });
+        return sendJson(res, 200, { ok: true, ...projectDefaultTarget(prom) });
       }
       // 되돌리기: 잘못 배운 기본 대상을 제거한다(영향 제거). 다음부터 다시 대상을 확인한다.
       if (req.method === 'POST' && url === '/patterns/rollback') {

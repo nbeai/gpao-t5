@@ -108,6 +108,9 @@ test('걸음 경로: 자기 지칭 + 허용된 대화 하나 → 확정된 카�
   const 카드 = r.pending?.[0];
   assert.ok(JSON.stringify(카드?.preview ?? {}).includes('오너'),
     `카드에 받는 곳이 없다: ${JSON.stringify(카드?.preview)}`);
+  assert.equal(카드.preview.where, '오너');
+  assert.equal(카드.preview.scope, undefined,
+    `확정 카드에 미확정 scope가 함께 남았다: ${JSON.stringify(카드.preview)}`);
   assert.equal(손.불린것.length, 0, '승인 전에 전송이 나갔다');
   // 승인 → 실행은 실행 값으로 나간다.
   const done = await runTurn({ approve: r.pendingId }, ctx);
