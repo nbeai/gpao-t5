@@ -1475,11 +1475,23 @@ export async function startLiveServer(opts = {}) {
   const bootStore = opts.sessionStore ?? new SessionStore();
   // 설치 전 필수(감사 2026-07-29): **같은 데이터 디렉터리에는 단일 writer.** 살아 있는 다른
   // 서버가 잡고 있으면 여기서 정직하게 멈춘다(반쪽으로 돌아 마지막 저장이 앞의 것을 지우지 않게).
-  if (opts.writerLock !== false) {
-    const lock = await acquireWriterLock(bootStore.dir);
-    process.once('SIGINT', () => { lock.release().finally(() => process.exit(130)); });
-    process.once('SIGTERM', () => { lock.release().finally(() => process.exit(143)); });
+  // 잠금 소유는 pid+ownerToken — 해제는 신호(SIGINT/SIGTERM)·서버 close·부팅 실패 모두에서.
+  if (opts.writerLock === false) return startLiveServerInner(opts, bootStore);
+  const lock = await acquireWriterLock(bootStore.dir);
+  process.once('SIGINT', () => { lock.release().finally(() => process.exit(130)); });
+  process.once('SIGTERM', () => { lock.release().finally(() => process.exit(143)); });
+  try {
+    const server = await startLiveServerInner(opts, bootStore);
+    server.once('close', () => { lock.release().catch(() => {}); });
+    return server;
+  } catch (e) {
+    // 부팅이 실패했는데 잠금이 남으면(같은 pid 가 살아 있는 한) 재시작이 스스로 막힌다.
+    await lock.release().catch(() => {});
+    throw e;
   }
+}
+
+async function startLiveServerInner(opts, bootStore) {
   // P5-1: 저장된 채널 자격을 **liveDeps 보다 먼저** 읽어 같은 env 키로 합친다. 안 그러면 수신기는
   // 도는데 채널 상태는 "연결 안 됨"이라 인바운드가 channel_not_ready 로 막힌다(실측).
   const channelCreds = opts.channelCredentialStore ?? new ChannelCredentialStore(bootStore.dir);

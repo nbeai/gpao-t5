@@ -391,3 +391,34 @@ test('손상된 지문 키로 평문에 후퇴하지 않는다(수정 전 평문
   assert.ok(files.some((f) => f.startsWith('memory-ledger.key.corrupt-')), '손상 키가 보존되지 않았다');
   assert.match((await readFile(join(dir, 'memory-ledger.key'), 'utf8')).trim(), /^[0-9a-f]{64}$/);
 });
+
+// ── 감사 재현(2026-07-29): 잠금 소유는 pid 가 아니라 pid+ownerToken ───────
+test('같은 pid 의 두 번째 획득은 차단되고, 늦은 해제가 남의 잠금을 지우지 않는다(수정 전 실패)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, readFile, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-own-'));
+  const lockPath = join(dir, '.writer-lock.json');
+
+  // ① 같은 pid 의 두 번째 획득 — "내 죽은 잔여"로 오인하지 않고 차단한다.
+  const first = await acquireWriterLock(dir);
+  await assert.rejects(() => acquireWriterLock(dir), /다른 T5 서버/, '같은 pid 라고 살아 있는 잠금을 걷었다');
+
+  // ② 늦은(중복) 해제가 새 소유자의 잠금을 지우지 않는다.
+  await first.release();
+  const second = await acquireWriterLock(dir); // 새 소유자
+  await first.release(); // 옛 소유자의 늦은 해제 — 신분(token)이 달라 아무것도 안 지운다
+  const cur = JSON.parse(await readFile(lockPath, 'utf8'));
+  assert.ok(cur?.ownerToken, '새 소유자의 잠금이 지워졌다(늦은 해제가 남의 잠금을 삭제)');
+  await second.release();
+
+  // ③ 해제 후 새 획득 정상.
+  const third = await acquireWriterLock(dir);
+  await third.release();
+
+  // ④ 죽은 pid 잔여는 여전히 스스로 걷는다.
+  await writeFile(lockPath, JSON.stringify({ pid: 99999999, ownerToken: 'x', at: 0 }), 'utf8');
+  const fourth = await acquireWriterLock(dir);
+  await fourth.release();
+});
