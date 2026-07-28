@@ -27,17 +27,21 @@ Before any planning, implementation, review, verification, handoff, or release w
 2. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+5. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
+   - Preserves the reusable method that turns owner philosophy into human scenarios, shared contracts,
+     implementation, live evidence, independent audit, and durable project knowledge.
+   - Use it as the operating cycle for new work. It does not replace the authority documents above.
 
 Mandatory reference absorption supplement:
 
-5. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+6. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
    - Defines what T5 should absorb from OpenClaw and Hermes for current and future P-OP work.
    - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
    - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
 
 Mandatory T-cell implementation specification:
 
-6. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
+7. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
    - Read before changing Memory, Context Mesh, POM, TaskTrace, SkillCandidate, Automation learning, Growth Loop,
      replay, admission, or self-development.
    - Keeps principle maturity, current-turn influence, and A0-A3 action authority separate.
@@ -46,7 +50,7 @@ Mandatory T-cell implementation specification:
 
 Mandatory final pre-human validation gate:
 
-7. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
+8. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
    - Run only after P-OP A-H is sealed and before human user testing or installation-package production.
    - Codex must use GPT-5.6sol. Claude must use Opus 5 or Fable 5. Record the exact provider-exposed model
      identity; do not silently substitute a lower or auto-selected model.

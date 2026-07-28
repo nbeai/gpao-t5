@@ -19,6 +19,13 @@ These documents are mandatory first-read material before any GPAO-T5 planning, i
 3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
    - Defines how the discipline is enforced in the working environment: build artifacts stay out of the source tree, source and generated outputs are physically separated, builds are deterministic, and multi-agent work is isolated by worktree. Frictionless rules apply now; slow gates (hooks/CI/test gates) attach in Phase 5 when real code and a build pipeline exist. Zero friction for everyday local work.
 
+## Development Method Asset
+
+`GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md` preserves the reusable way T5 is built: owner philosophy
+becomes human scenarios, one shared operating contract, isolated implementation, layered live evidence, independent
+Codex-Claude audit, incident-derived invariants, clean handoff, and durable project knowledge. It is mandatory operating
+guidance for new work and does not replace the authority documents above.
+
 ## Core Three-Axis Reading Order
 
 Every resumed or new T5 development session reads these before choosing work:
