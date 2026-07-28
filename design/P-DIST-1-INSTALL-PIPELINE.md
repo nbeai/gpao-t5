@@ -2,6 +2,18 @@
 
 날짜: 2026-07-26 · 브랜치: `p-dist-1-install-pipeline`
 
+## 착수 전 필수 관문
+
+이 문서의 설치 패키지 제작은
+`docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`의 최종
+이중 모델 실사용 판정이 `PASS`인 commit에서만 시작한다.
+
+- Codex / GPT-5.6sol 검증선과 Claude / Opus 5 또는 Fable 5 검증선이 각각 독립 실행되어야 한다.
+- 두 검증선의 블라인드 보고, 상호 반박, 결함 재현, 영향 회귀가 닫혀야 한다.
+- `RETEST`, `BLOCKED`, 미확인 또는 조건부 통과 상태에서는 패키지를 만들지 않는다.
+- 최종 `PASS` 뒤 제품 코드·프롬프트·스키마·실행 경계가 바뀌면 영향 시나리오를 다시 검증하고 새 SHA를
+  패키지 기준선으로 삼는다.
+
 ## 배경 (실측)
 
 - T5 에는 **설치가 없다**. `package.json` scripts 는 `test`·`start` 둘뿐, `bin` 도 `files` 도 없다.
