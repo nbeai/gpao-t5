@@ -170,7 +170,16 @@ export function makeLocalProcessTool(deps = {}) {
       // ── 로그 ────────────────────────────────────────────────────────
       if (action === 'logs') {
         const [p] = await store.find(args.target ?? args.id ?? args.name);
-        if (!p) return fail('그런 건 못 찾았어요.', '제가 켜 둔 것 목록부터 보여드릴까요?');
+        // **여기는 T5 가 켠 것만 안다.** 사용자가 직접 켠 프로그램은 이 목록에 없다.
+        // 실측(오너 라이브 2026-07-28): "t5demo-idle 꺼줘" 에 이 손이 "그런 건 못 찾았어요"로
+        // 끝났다. 정작 그 프로세스를 볼 수 있는 손이 따로 있는데 모델은 그 사실을 못 봤다.
+        // 없는 것을 지어내지 않되, **어디에 있을 수 있는지는 사실로** 준다(막다른 답 금지).
+        if (!p) {
+          return fail(
+            `제가 켠 것 중에는 "${args.target ?? args.id ?? args.name ?? '그것'}" 이 없어요.`,
+            '이 컴퓨터에서 돌고 있는 것 중에는 있을 수 있어요 — 거기서 찾아볼까요?',
+          );
+        }
         const now = await 지금상태(p);
         const 로그 = await tail(p.logFile, Number(args.chars) || LOG_TAIL_CHARS);
         return ok(
@@ -182,7 +191,16 @@ export function makeLocalProcessTool(deps = {}) {
       // ── 중지 ────────────────────────────────────────────────────────
       if (action === 'stop') {
         const [p] = await store.find(args.target ?? args.id ?? args.name);
-        if (!p) return fail('그런 건 못 찾았어요.', '제가 켜 둔 것 목록부터 보여드릴까요?');
+        // **여기는 T5 가 켠 것만 안다.** 사용자가 직접 켠 프로그램은 이 목록에 없다.
+        // 실측(오너 라이브 2026-07-28): "t5demo-idle 꺼줘" 에 이 손이 "그런 건 못 찾았어요"로
+        // 끝났다. 정작 그 프로세스를 볼 수 있는 손이 따로 있는데 모델은 그 사실을 못 봤다.
+        // 없는 것을 지어내지 않되, **어디에 있을 수 있는지는 사실로** 준다(막다른 답 금지).
+        if (!p) {
+          return fail(
+            `제가 켠 것 중에는 "${args.target ?? args.id ?? args.name ?? '그것'}" 이 없어요.`,
+            '이 컴퓨터에서 돌고 있는 것 중에는 있을 수 있어요 — 거기서 찾아볼까요?',
+          );
+        }
         const risk = lifecycleRisk(`kill ${p.pid}`, guardCtx());
         if (risk) return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
         if (!alive(p.pid)) {

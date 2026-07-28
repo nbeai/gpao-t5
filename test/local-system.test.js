@@ -122,3 +122,28 @@ test('못 띄운 이유를 사람 말로 말한다 — 없는 변경을 지어�
     assert.ok(!b.userWhy.includes(거짓), `없는 변경을 말했다: ${거짓}`);
   }
 });
+
+// 실측(오너 라이브 2026-07-28): "t5demo-idle 라는 게 돌고 있는데, 그거 꺼줘."
+// T5 는 `local.process` 만 써보고 "그런 건 못 찾았어요"로 끝냈다. 정작 그 프로세스를 볼 수
+// 있는 손(`local.system`)이 있는데 쓰지 않았다.
+// 원인은 모델이 아니라 **선언이 실제보다 넓었던 것**이다 — 그 손은 T5 가 켠 것만 아는데
+// 선언은 "계속 도는 것을 …끈다"로 읽혔다. 선언이 실제보다 넓으면 모델에게 하는 거짓말이다.
+test('local.process 선언이 자기 범위를 사실대로 말한다', () => {
+  const d = demoDescriptors().find((x) => x.id === 'local.process');
+  const 전문 = `${d.capability} ${d.schema.description} ${d.operatorFact}`;
+  assert.match(전문, /T5 가 켠 것/, '남의 프로세스까지 다루는 것처럼 읽힌다');
+  assert.match(전문, /local\.system/, '못 찾았을 때 어디를 봐야 하는지가 없다');
+});
+
+test('T5가 켠 것이 아니면 막다른 답 대신 다음 길을 준다', async () => {
+  const { makeLocalProcessTool } = await import('../src/runtime/local-process.js');
+  const tool = makeLocalProcessTool({
+    store: { find: async () => [], list: async () => [], update: async () => {} },
+  });
+  for (const action of ['stop', 'logs']) {
+    const r = await tool.handler({ action, target: '남이켠프로그램' });
+    assert.ok(r.failed || r.blocked, `${action}: 못 찾았는데 성공으로 남았다`);
+    assert.match(r.userSafeSummary, /제가 켠 것 중에는/, `${action}: 범위를 안 밝혔다`);
+    assert.ok(r.nextSafeAction?.includes('돌고 있는 것'), `${action}: 다음 길이 없다`);
+  }
+});
