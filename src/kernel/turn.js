@@ -48,6 +48,22 @@ async function 볼수있는자리(ctx) {
 // 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
 const MAX_TOOL_STEPS = 4;
 
+// H · 모델의 기억 후보 제출(memory.propose)을 도구 호출 목록에서 골라낸다. 후보는 실행이
+// 아니므로 계획·승인·원장에 태우지 않는다. 문장이 비었거나 종류가 틀리면 조용히 버린다 —
+// 잘못된 제안이 후보가 되는 것보다 안 되는 쪽이 안전하다(후보조차 사용자 확인 대상이므로).
+const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
+function 기억후보추출(toolCalls = []) {
+  const rest = [];
+  let suggestion = null;
+  for (const c of toolCalls) {
+    if (c?.name !== 'memory.propose') { rest.push(c); continue; }
+    const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
+    const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
+    if (statement) suggestion = { kind, statement };
+  }
+  return { suggestion, rest };
+}
+
 /**
  * @typedef {Object} TurnInput
  * @property {string} [text]                    사용자 발화
@@ -332,7 +348,10 @@ export async function runTurn(input, ctx) {
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedContext(ctx.memory ?? {}, input.text ?? ''),
   ];
-  const memorySuggestion = detectCandidate(input.text ?? '');
+  // H(오너 감사 2026-07-29): **의미 포착은 모델이 한다.** 모델이 memory.propose 로 제출한 후보가
+  // 우선이고, 아래 정규식(detectCandidate)은 모델이 도구를 못 고를 때(미연결·도구 미지원)의
+  // 보조 신호로 내려간다. 후보는 어느 쪽이든 영향 0 — 반영은 사용자 확인 뒤에만(§5).
+  let memorySuggestion = detectCandidate(input.text ?? '');
   // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
   const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
@@ -381,7 +400,10 @@ export async function runTurn(input, ctx) {
       tools: toolSchemasFor(selfState),
     });
     earlyReply = typeof out === 'string' ? out : out?.text ?? '';
-    const chosen = typeof out === 'string' ? [] : (out?.toolCalls ?? []);
+    let chosen = typeof out === 'string' ? [] : (out?.toolCalls ?? []);
+    // 기억 후보 제출은 실행이 아니다 — 계획·승인·원장에 태우지 않고 후보 채널로만 돌린다.
+    const 제안 = 기억후보추출(chosen);
+    if (제안.suggestion) { memorySuggestion = 제안.suggestion; chosen = 제안.rest; }
     if (chosen.length) modelChosen = chosen;
   }
 
@@ -684,6 +706,8 @@ export async function runTurn(input, ctx) {
   // 4b) 승인 필요 없음 → 바로 실행.
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
   result.followUp = followUp;
+  // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
+  if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
   result.memorySuggestion = memorySuggestion;
   result.automationSuggestion = automationSuggestion;
   result.toolCandidate = toolCandidate;
@@ -852,7 +876,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let steps = 0;
   let 멈춘이유;
   while (steps < MAX_TOOL_STEPS) {
-    const next = typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []);
+    let next = typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []);
+    // 기억 후보 제출(memory.propose)은 걸음이 아니다 — 실행·승인·원장에 태우지 않고 후보
+    // 채널로만 돌린다(영향 0). executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
+    const 제안 = 기억후보추출(next);
+    if (제안.suggestion) { ctx.제안된기억 = 제안.suggestion; next = 제안.rest; }
     if (!next.length) break;
     const parts = callsToIntentParts(next, selfState);
     const toolId = parts.neededTools?.[0];

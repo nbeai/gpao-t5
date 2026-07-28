@@ -673,6 +673,17 @@ export function makeServer(deps = {}) {
           reviewLevel: r.entry.reviewLevel, rollbackable: r.entry.rollbackable,
         });
       }
+      // 후보 지우기 — 후보는 영향 0이므로 지우면 끝이다(승격분 철회는 /memory/rollback).
+      // 승인 대기가 어느 턴에서도 정리 가능해야 죽은 후보가 쌓이지 않는다(H 감사 2026-07-29).
+      if (req.method === 'POST' && url === '/memory/reject') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const m = await memStore.load();
+        const idx = m.candidates.findIndex((e) => e.candidateId === (input.candidateId ?? input.id));
+        if (idx < 0) return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
+        const [removed] = m.candidates.splice(idx, 1);
+        await memStore.save(m);
+        return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement });
+      }
       if (req.method === 'POST' && url === '/memory/rollback') {
         // 반영 철회 — "반영하기"가 있으면 "잘못 반영 시 되돌릴 길"도 같은 수준(감사 지적). promoted에서 빼면
         //   다음 턴부터 admittedContext에 안 들어간다(영향 사라짐). rollbackable=false(고정 원칙 등)는 거부.

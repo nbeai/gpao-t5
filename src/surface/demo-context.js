@@ -528,6 +528,27 @@ const DESCRIPTORS = [
         required: ['query'],
       },
     } }),
+  // H · 기억 후보 제출 통로(오너 감사 2026-07-29). **자연어 선호를 정규식이 판정하지 않는다** —
+  // 모델이 이해한 선호·원칙을 구조화된 후보로 적는다. 후보는 영향 0이고(§5), 실제 기억은
+  // 사용자가 확인한 뒤에만 반영된다. 되돌리기도 같은 수준으로 가능하다.
+  defineTool({ id: 'memory.propose', label: '기억 후보 적기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    capability: '사용자가 밝힌 선호나 지켜 달라는 방식을 기억 후보로 적어 둔다. 후보는 아무 영향이'
+      + ' 없고, 사용자가 확인해야 그때부터 관련된 대화에만 반영된다.',
+    operatorFact: '사용자가 밝힌 선호를 기억 후보로 적고, 확인을 받아 반영한다.',
+    schema: {
+      description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 후보를 적는다.'
+        + ' **후보를 적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.** 적어도 자동으로'
+        + ' 기억되지 않는다 — 사용자가 확인해야 반영된다. 한 번 요청("이번만")은 적지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['preference', 'operating_principle'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle' },
+          statement: { type: 'string', description: '기억할 내용 — 사용자의 뜻을 보존한 한 문장(사람 말)' },
+        },
+        required: ['statement'],
+      },
+    } }),
   // P2-10: 브라우저 표면. **URL 읽기로 닿지 않는 화면**을 실제로 보는 손이다.
   // 보기(observe)와 조작(act)을 나눈다 — 조작이라 해도 이 슬라이스는 관찰 목적뿐이다.
   // 둘 다 읽기(A0): 입력·전송·구매는 만들지 않았으므로 실수로도 못 한다.
@@ -620,6 +641,7 @@ const FACTS = {
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
   'session.search': { connected: true },
+  'memory.propose': { connected: true },
 };
 
 /**
@@ -738,6 +760,13 @@ export function demoTools(opts = {}) {
       previewOf: makeSendPreview({ channel: 'telegram' }),
       async handler() {
         return { result: { sent: true }, userSafeSummary: '텔레그램으로 보냈어요.' };
+      },
+    },
+    // H · 기억 후보 제출 — 커널이 이 호출을 **실행 전에 가로채** 후보 채널(memorySuggestion)로
+    // 돌린다. 이 핸들러는 어떤 경로로든 실제 실행돼도 외부 효과가 없도록 하는 안전망일 뿐이다.
+    'memory.propose': {
+      async handler(args) {
+        return { result: { proposed: true, statement: String(args?.statement ?? '') }, userSafeSummary: '기억 후보로 적어뒀어요. 확인하시면 그때부터 기억해요.' };
       },
     },
   });
