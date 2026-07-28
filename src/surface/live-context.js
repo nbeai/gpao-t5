@@ -17,7 +17,7 @@ import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
 import { makeBrowserObserveTool, makeBrowserActTool } from '../runtime/browser-tool.js';
-import { makeConnectorConnectTool } from '../runtime/connector-connect.js';
+import { EXECUTABLE_KINDS, makeConnectorConnectTool } from '../runtime/connector-connect.js';
 import { ConnectorCredentialStore } from './connector-credential-store.js';
 import { makeModelConnection } from './model-connection.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
@@ -166,6 +166,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
     // 원격 OAuth 로 받은 자격은 0600 파일에 남는다 — 껐다 켜도 다시 로그인시키지 않는다.
     credentialStore: new ConnectorCredentialStore(),
   });
+  // 모델이 연결 도구에 넘길 수 있는 이름도 현재 실제로 시작할 수 있는 연결 방식에서 파생한다.
+  // 서비스 이름을 쓰는 목록이 아니라, 선언된 연결 방법과 이 런타임 실행기의 교집합이다.
+  const connectableNames = [...new Set(connectors
+    .filter((c) => (c.authMethods ?? []).some((m) => EXECUTABLE_KINDS.includes(m.kind)))
+    .flatMap((c) => [c.id, c.label, ...(c.aliases ?? [])]))];
   descriptors.push(defineTool({
     id: 'connector.connect', label: '서비스 연결', owner: 'core',
     availability: [{ kind: 'connected' }], toolKind: 'unknown_kind', needsApproval: true,
@@ -180,7 +185,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
       parameters: {
         type: 'object',
         properties: {
-          connector: { type: 'string', description: '서비스 이름 — 사용자가 부른 말 그대로("노션", "구글")' },
+          connector: {
+            type: 'string', enum: connectableNames,
+            description: '지금 실제 연결 방식을 가진 서비스 이름',
+          },
           action: { type: 'string', enum: ['connect', 'disconnect'], description: '기본은 connect' },
         },
         required: ['connector'],

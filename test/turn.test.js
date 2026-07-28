@@ -110,7 +110,10 @@ test('S23 거부는 실행하지 않고 안전 정지', async () => {
   const sent = [];
   const c = ctx({
     connections: [{ id: 'mail.send', connected: true, executable: true }],
-    tools: new ToolRunner({ 'mail.send': { async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    tools: new ToolRunner({ 'mail.send': {
+      cancelledSummary: () => '보내지 않았어요. 초안은 그대로 있어요.',
+      async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; },
+    } }),
   });
   const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   const r2 = await runTurn({ reject: r1.pendingId }, c);

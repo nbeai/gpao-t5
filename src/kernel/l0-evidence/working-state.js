@@ -180,6 +180,8 @@ export function workingStateFacts(stateOrNull) {
       lines.push(`방금 찾은 자리: ${s.label} — 여기서 이어서 보면 돼요`);
     } else if (s.kind === 'session') {
       lines.push(`방금 찾은 지난 대화: ${s.label}`);
+    } else if (s.kind === 'discovery') {
+      lines.push(`방금 연결 단서를 확인한 대상: ${s.label}${s.detail ? ` — ${s.detail}` : ''}`);
     } else if (s.kind === 'command') {
       // 실패를 성공처럼 이어받지 않는다. 그리고 **어디서** 돌렸는지가 다음 명령의 자리가 된다.
       lines.push(`방금 실행: ${s.label}${s.failed ? ` — 실패(코드 ${s.exitCode})` : ''}`);

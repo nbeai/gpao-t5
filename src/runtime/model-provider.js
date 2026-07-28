@@ -170,7 +170,7 @@ export function buildModelMessages(tc) {
       const candidates = d.candidates ?? [];
       lines.push(candidates.length
         ? `${d.subject}: ${checked}을 직접 확인했고, 맞는 단서: ${candidates.map((c) => `${c.label}(${c.kind})`).join(' · ')}`
-        : `${d.subject}: ${checked}을 직접 확인했지만 맞는 단서는 아직 찾지 못했어요.`);
+        : `${d.subject}: ${checked}을 직접 확인했지만 맞는 단서는 찾지 못했어요. 이 결과만으로 API·권한·입력 방식은 확인되지 않았어요.`);
     }
     usr.push(`[이번 턴의 연결 입력·확인 사실]\n${lines.join('\n')}`);
   }

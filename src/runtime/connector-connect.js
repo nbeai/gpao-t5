@@ -254,6 +254,27 @@ export function makeConnectorConnectTool(deps = {}) {
 
   return {
     toolKind: 'unknown_kind', // 외부 계정 접근 권한을 주는 일 — 기존 권한 층이 승인으로 다룬다
+    // 승인 카드는 "실행할 수 있는 일"에만 띄운다. 연결 방법이 전혀 선언되지 않은 이름까지
+    // 승인으로 보내면, 사용자는 존재하지 않는 연결을 허락하게 된다. 이 확인은 읽기 전용이며
+    // 서비스별 분기가 아니라 connector 선언을 그대로 본다.
+    approvalEligibility(args = {}) {
+      const id = String(args.connector ?? '').trim();
+      const c = findConnector(deps.connectors?.() ?? [], id);
+      // 서비스 이름을 안다는 것과 지금 T5가 연결을 시작할 수 있다는 것은 다르다.
+      // 선언만 있고 실행 방식이 없는 대상을 승인으로 보내면, 사용자는 없는 길을 허락하게 된다.
+      // 어떤 방식이 가능한지는 커넥터 선언과 실행기 목록의 교집합으로만 판단한다.
+      if (c && (c.authMethods ?? []).some((m) => EXECUTABLE_KINDS.includes(m.kind))) return { allowed: true };
+      return {
+        allowed: false,
+        userSafeSummary: `${id ? `“${id}”` : '그 서비스'}에 바로 쓸 수 있는 연결 방법은 아직 확인되지 않았어요. 존재하지 않는 연결을 승인받아 만들지는 않을게요.`,
+        nextSafeAction: '제가 실제 연결 경로를 더 확인한 뒤, 정말 필요한 권한만 요청할게요.',
+        diagnostic: { connector: id, reason: 'undeclared_connector' },
+      };
+    },
+    cancelledSummary(args = {}) {
+      const c = findConnector(deps.connectors?.() ?? [], String(args.connector ?? '').trim());
+      return c ? `${c.label} 연결은 시작하지 않았어요.` : '그 연결은 시작하지 않았어요.';
+    },
     previewOf(args = {}) {
       const id = String(args.connector ?? '').trim();
       const c = findConnector(deps.connectors?.() ?? [], id);

@@ -200,8 +200,15 @@ export async function runTurn(input, ctx) {
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
   if (input.reject) {
+    const saved = ctx.pending.get(input.reject);
     ctx.pending.delete(input.reject);
-    return { kind: 'reply', reply: '보내지 않았어요. 초안은 그대로 있어요.', selfStateSummary: summary };
+    const action = saved?.plan?.toolsToUse?.[0] ?? saved?.plan?.needsApproval?.[0]?.action;
+    const args = saved?.sendArgs?.[action] ?? saved?.intent?.toolArgs?.[action] ?? {};
+    const toolKind = selfState.connectedTools.find((t) => t.id === action)?.toolKind;
+    const reply = ctx.tools?.tools?.[action]?.cancelledSummary?.(args)
+      ?? (toolKind === 'send' ? '보내지 않았어요. 초안은 그대로 있어요.' : undefined)
+      ?? '그 요청은 실행하지 않았어요.';
+    return { kind: 'reply', reply, selfStateSummary: summary };
   }
 
   // C) Relevance Gate(§1.5) — 외부·비요청 이벤트만 거른다. user_chat(기본)·trusted_runtime_event은
@@ -393,6 +400,34 @@ export async function runTurn(input, ctx) {
     if (pv) toolPreviews[id] = pv;
   }
   if (Object.keys(toolPreviews).length) planIntent = { ...planIntent, toolPreviews };
+  // 승인보다 먼저, 그 도구가 **지금의 실제 선언과 상태에서 요청할 수 있는 일인지**만 확인한다.
+  // 이 계약은 실행이나 외부 확인을 하지 않는다. 도구가 "불가능"을 알리면 승인 카드로
+  // 포장하지 않고 그 사실을 원장과 모델에 넘긴다. 그래야 사용자는 존재하지 않는 일을
+  // 허락하지 않고, 모델은 그 사실 위에서 다음 길을 판단한다.
+  for (const id of planIntent.neededTools ?? []) {
+    const args = id === 'local.terminal' ? planIntent.terminalOp : (planIntent.toolArgs?.[id] ?? planIntent.fileOp ?? {});
+    const eligibility = await ctx.tools?.tools?.[id]?.approvalEligibility?.(args);
+    if (eligibility && eligibility.allowed === false) {
+      const rec = blockedReceipt(
+        `${toolLabel(id, selfState)} 실행`, id,
+        eligibility.userSafeSummary ?? '지금은 이 요청을 실행할 수 없어요.',
+        eligibility.nextSafeAction,
+        eligibility.diagnostic,
+      );
+      ledger.append(rec);
+      const workingState = deriveWorkingState(ctx.workingState, {
+        places: await 볼수있는자리(ctx), receipts: [rec],
+      });
+      // 이 자리는 모델에게 추론을 대신시키는 곳이 아니다. 아직 존재를 확인하지 못한 연결을
+      // 승인 카드로 꾸미지 않았다는 **실행 사실**을 먼저 보존한다. 그 사실은 다음 턴의
+      // TaskContext와 원장에 올라가므로 모델은 그 위에서 다음 길을 판단한다.
+      const reply = [rec.userSafeSummary, rec.nextSafeAction].filter(Boolean).join(' ');
+      return {
+        kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
+        selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion,
+      };
+    }
+  }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
@@ -715,6 +750,38 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 지문 = 지문of(toolId, args);
     if (rung.has(지문)) { 멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요'; break; }
     rung.add(지문);
+
+    // 첫 도구 호출과 마찬가지로, 이어 쓰는 도구도 승인 **전에** 현재 현실에서 가능한 요청인지
+    // 확인한다. 이 자리가 없으면 앞선 탐색 뒤 모델이 실재하지 않는 연결을 골랐을 때, 사용자는
+    // 존재하지 않는 연결을 승인하는 카드를 보게 된다. 도구가 낸 계약만 읽으므로 서비스별
+    // 예외가 아니며, 막힌 사실은 다음 모델 판단에도 그대로 건넨다.
+    const eligibility = await ctx.tools?.tools?.[toolId]?.approvalEligibility?.(args);
+    if (eligibility && eligibility.allowed === false) {
+      const rec = blockedReceipt(
+        `${toolLabel(toolId, selfState)} 실행`, toolId,
+        eligibility.userSafeSummary ?? '지금은 이 요청을 실행할 수 없어요.',
+        eligibility.nextSafeAction,
+        eligibility.diagnostic,
+      );
+      ledger.append(rec);
+      turnReceipts.push(rec);
+      steps += 1;
+      workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
+      tc = buildTaskContext({
+        externalReality: ctx.externalReality,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+        surface: ctx.surface, recentTurns: ctx.recentTurns,
+        nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
+        workingState,
+        recoveryHint: 다음길(turnReceipts, 있는손),
+        ...(ctx.selfhood ?? {}),
+      });
+      finalOut = await ctx.model.respond(tc, {
+        onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+        ...(steps < MAX_TOOL_STEPS ? { tools: toolSchemasFor(selfState) } : {}),
+      });
+      continue;
+    }
 
     // 등급 판정도 기존 것 그대로. 명령은 돌려 봐야 아니까 계획 때와 똑같이 probe 를 먼저 탄다.
     let 판정인자 = args;

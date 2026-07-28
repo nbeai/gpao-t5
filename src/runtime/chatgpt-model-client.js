@@ -90,23 +90,26 @@ export async function readTextStream(body, onDelta, collected) {
   let buf = '';
   let sawDelta = false;
   const out = [];
+  const consumeLine = (line) => {
+    // SSE 응답의 마지막 이벤트는 서버에 따라 개행 없이 끝날 수 있다.
+    // 그 조각도 정상 이벤트로 읽지 않으면 실제 답을 "빈 스트림"으로 오인한다.
+    const call = toolCallFromLine(line);
+    if (call && collected) collected.push(call);
+    const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
+    if (piece == null) return;
+    if (line.includes('output_text.delta')) sawDelta = true;
+    out.push(piece);
+    try { onDelta?.(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
+  };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
     buf = lines.pop() ?? ''; // 마지막 조각은 미완일 수 있다 — 다음 청크와 이어 붙인다
-    for (const line of lines) {
-      // P2-5b: 모델이 고른 도구 호출도 함께 거둔다(텍스트만 보던 것을 넓힌다).
-      const call = toolCallFromLine(line);
-      if (call && collected) collected.push(call);
-      const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
-      if (piece == null) continue;
-      if (line.includes('output_text.delta')) sawDelta = true;
-      out.push(piece);
-      try { onDelta?.(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
-    }
+    for (const line of lines) consumeLine(line);
   }
+  if (buf.trim()) consumeLine(buf);
   return out.join('');
 }
 

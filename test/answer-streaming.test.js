@@ -54,6 +54,14 @@ test('readTextStream: 줄이 청크 경계에서 잘려도 이어 붙여 파싱�
   assert.equal(text, '조각');
 });
 
+test('readTextStream: 마지막 SSE 이벤트에 개행이 없어도 버리지 않는다', async () => {
+  const seen = [];
+  const noTrailingNewline = ['data: {"type":"response.output_text.delta","delta":"마지막"}'];
+  const text = await readTextStream(bodyOf(noTrailingNewline), (t) => seen.push(t));
+  assert.equal(text, '마지막');
+  assert.deepEqual(seen, ['마지막']);
+});
+
 test('textDeltaFromLine: 사용자면 텍스트만 뽑는다(사고·도구 이벤트는 흘리지 않는다)', () => {
   assert.equal(textDeltaFromLine('data: {"type":"response.reasoning.delta","delta":"내부사고"}'), null);
   assert.equal(textDeltaFromLine('data: {"type":"response.function_call_arguments.delta","delta":"{\\"a\\":1}"}'), null);

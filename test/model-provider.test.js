@@ -235,7 +235,7 @@ test('liveDeps: 모델 자격이 env.model(SelfState)과 model(실행)에 함께
 // 라이브 실측(2026-07-26)에서 발견: withSessionQueue 의 체인 꼬리(tail)가 task 거부를 아무도 받지
 // 않는 promise 로 남겨 unhandledRejection → 서버 프로세스 사망. stub 은 라이브에서 안 던져 잠복했고,
 // 실 provider 의 첫 401 이 드러냈다. 수정 전 이 테스트는 실패한다(반대 검증).
-test('모델 오류(401 등)에 /turn 은 500 으로 답하고 프로세스는 산다 — 큐 꼬리 unhandledRejection 0', async () => {
+test('모델 오류(401 등)에도 /turn 은 사용자 발화와 미실행 사실을 남기고 프로세스는 산다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-prt1-'));
   const throwingModel = {
     async respond() {
@@ -254,7 +254,15 @@ test('모델 오류(401 등)에 /turn 은 500 으로 답하고 프로세스는 �
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: s.id, text: '안녕' }),
     });
-    assert.equal(r.status, 500); // 정직한 실패(사용자 언어화는 §6.20 후속)
+    assert.equal(r.status, 200);
+    const result = await r.json();
+    assert.equal(result.kind, 'reply');
+    assert.match(result.reply, /아직 실행하지 않았어요/);
+    assert.equal(result.modelUnavailable, true);
+    const restored = await (await fetch(`${base}/sessions/${s.id}`)).json();
+    assert.deepEqual(restored.transcript.map((entry) => entry.role), ['user', 'assistant']);
+    assert.match(restored.transcript[0].text, /안녕/);
+    assert.match(restored.transcript[1].result.reply, /아직 실행하지 않았어요/);
     await new Promise((r2) => setTimeout(r2, 50)); // 꼬리 rejection 이 돌 시간을 준다
     assert.deepEqual(rejections, [], '큐 꼬리가 unhandledRejection 을 만들면 프로세스가 죽는다');
   } finally {

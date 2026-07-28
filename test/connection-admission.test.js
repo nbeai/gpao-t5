@@ -41,7 +41,8 @@ test('직접 확인한 연결 단서 없음도 다음 판단에 사실로 간다
     intended: '연결 흔적 확인', failureState: 'none', userSafeSummary: '바로 쓸 연결 단서를 아직 찾지 못했어요.',
     connectionDiscovery: { subject: '낯선가게', checked: ['mcp', 'cli', 'known_connectors'], candidates: [] },
   }]);
-  assert.match(user, /낯선가게: mcp · cli · known_connectors을 직접 확인했지만 맞는 단서는 아직 찾지 못했어요/);
+  assert.match(user, /낯선가게: mcp · cli · known_connectors을 직접 확인했지만 맞는 단서는 찾지 못했어요/);
+  assert.match(user, /이 결과만으로 API·권한·입력 방식은 확인되지 않았어요/);
   assert.doesNotMatch(user, /입력면이 열려 있어요/);
 });
 

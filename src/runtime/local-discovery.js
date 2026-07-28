@@ -1,7 +1,8 @@
 // L3 · 공통 엔지니어링 탐색. 서비스 이름을 아는 것이 아니라, 이미 있는 연결 단서를 읽는다.
 // 비밀·설정 본문·자동 연결은 다루지 않는다. 후보는 다음 판단의 근거일 뿐 연결 성공이 아니다.
 import { readdir } from 'node:fs/promises';
-import { delimiter } from 'node:path';
+import { delimiter, join } from 'node:path';
+import { homedir } from 'node:os';
 import { mcpServerNames } from './local-signs.js';
 
 const norm = (v) => String(v ?? '').normalize('NFC').toLowerCase().replace(/[\s._-]+/g, '');
@@ -19,12 +20,58 @@ async function commandNames(deps = {}) {
   return [...out];
 }
 
+const HOME = () => homedir();
+const defaultRoots = (deps = {}) => ({
+  apps: deps.appDirs ?? ['/Applications', join(HOME(), 'Applications')],
+  sync: deps.syncDirs ?? [join(HOME(), 'Library', 'CloudStorage'), join(HOME(), 'Library', 'Mobile Documents')],
+  settings: deps.settingsDirs ?? [join(HOME(), '.config'), join(HOME(), 'Library', 'Application Support')],
+  files: deps.fileRoots ?? [join(HOME(), 'Desktop'), join(HOME(), 'Documents'), join(HOME(), 'Downloads')],
+});
+
+async function matchingEntries(dirs, subject, deps = {}) {
+  const found = [];
+  for (const dir of dirs) {
+    const entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (matches(entry.name, subject)) found.push({ name: entry.name, directory: entry.isDirectory() });
+    }
+  }
+  return found;
+}
+
+async function matchingLocalFiles(roots, subject, deps = {}) {
+  const found = [];
+  const visit = async (dir, depth) => {
+    if (depth > (deps.fileSearchDepth ?? 2) || found.length >= 5) return;
+    const entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (found.length >= 5) break;
+      const path = join(dir, entry.name);
+      if (matches(entry.name, subject)) found.push(entry.name);
+      if (entry.isDirectory() && !entry.name.startsWith('.')) await visit(path, depth + 1);
+    }
+  };
+  for (const root of roots) await visit(root, 0);
+  return found;
+}
+
 export function makeLocalDiscoveryTool(deps = {}) {
   const connectors = () => deps.connectors?.() ?? [];
   return {
     subjectOf(rec) {
-      const subject = rec?.actualCall?.args?.subject;
-      return subject ? { key: `discovery:${subject}`, kind: 'discovery', label: String(subject) } : null;
+      const subject = rec?.connectionDiscovery?.subject ?? rec?.actualCall?.args?.subject;
+      if (!subject) return null;
+      const found = rec?.connectionDiscovery?.candidates ?? [];
+      const checked = rec?.connectionDiscovery?.checked ?? [];
+      return {
+        key: `discovery:${subject}`,
+        kind: 'discovery',
+        label: String(subject),
+        // 다음 턴에 필요한 것은 설정 내용이 아니라, 무엇을 직접 확인했고 맞는 길이 있었는지다.
+        detail: found.length
+          ? `${checked.join(' · ')}에서 ${found.map((c) => c.label).join(' · ')} 단서를 찾음`
+          : `${checked.join(' · ')}을 확인했지만 맞는 연결 단서는 없음`,
+      };
     },
     async handler(args = {}) {
       const subject = String(args.subject ?? '').trim();
@@ -47,7 +94,24 @@ export function makeLocalDiscoveryTool(deps = {}) {
           add('connector', c.label ?? c.id, c.connected ? 'T5 연결 상태가 확인돼 있어요' : 'T5에 연결 선언은 있지만 현재 직접 연결은 아니에요');
         }
       }
-      const connectionDiscovery = { subject, checked: ['mcp', 'cli', 'known_connectors'], candidates };
+      const roots = defaultRoots(deps);
+      for (const entry of await matchingEntries(roots.apps, subject, deps)) {
+        add('app', entry.name, '이 컴퓨터에 설치된 앱 이름이 요청과 맞아요');
+      }
+      for (const entry of await matchingEntries(roots.sync, subject, deps)) {
+        add('sync_folder', entry.name, '동기화 폴더 이름이 요청과 맞아요');
+      }
+      for (const entry of await matchingEntries(roots.settings, subject, deps)) {
+        add('settings_trace', entry.name, '설정 자리 이름이 요청과 맞아요');
+      }
+      for (const name of await matchingLocalFiles(roots.files, subject, deps)) {
+        add('local_file', name, '이미 내려받은 자료 이름이 요청과 맞아요');
+      }
+      const connectionDiscovery = {
+        subject,
+        checked: ['mcp', 'cli', 'known_connectors', 'apps', 'sync_folders', 'settings_names', 'local_files'],
+        candidates,
+      };
       return {
         result: { ...connectionDiscovery, checkedAt: Date.now() },
         connectionDiscovery,

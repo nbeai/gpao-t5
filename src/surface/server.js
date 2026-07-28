@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
-import { TruthLedger } from '../kernel/l0-evidence/ledger.js';
+import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
+import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
@@ -200,7 +201,31 @@ export function makeServer(deps = {}) {
     // (승인 재개는 그 보류를 지우면서 시작한다).
     const 물어본자리 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
-    const result = await runTurn(input, ctx);
+    // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
+    // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
+    // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
+    const ledgerStart = ctx.ledger.entries.length;
+    let result;
+    try {
+      result = await runTurn(input, ctx);
+    } catch (err) {
+      const receipts = ctx.ledger.entries.slice(ledgerStart);
+      const workingState = deriveWorkingState(session.workingState, { receipts });
+      const attempted = receipts.length > 0;
+      result = {
+        kind: 'reply',
+        reply: attempted
+          ? '답을 정리하는 연결이 잠시 끊겼어요. 방금까지 한 일은 기록에 남겼어요. 같은 일은 이어서 확인할 수 있어요.'
+          : '지금은 답을 만드는 연결이 잠시 불안정해요. 방금 요청은 아직 실행하지 않았어요. 잠시 후 같은 요청을 다시 해볼까요?',
+        ledger: projectReceipts(receipts),
+        workingState,
+        contextShown: workingStateFacts(workingState),
+        nextSafeAction: '잠시 후 같은 요청을 다시 해볼까요?',
+        modelUnavailable: true,
+        modelFailure: err?.isModelTimeout ? 'timeout' : 'error',
+      };
+      console.error('[turn:diagnostic]', err?.stack ?? err);
+    }
     // P-ID-1: 사용자가 이름을 지어 줬으면 SOUL.md 에 남긴다(다음 대화에서도 그 이름으로 답한다).
     if (result.identityUpdate?.name) {
       const soul = await selfhoodStore.setName(result.identityUpdate.name);
@@ -495,11 +520,17 @@ export function makeServer(deps = {}) {
               };
               const result = await runAndPersistTurn(activeSession, { sessionId, text }, emit, onAnswerDelta);
               // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
-              if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
+              if (result.modelUnavailable) {
+                const text = result.modelFailure === 'timeout'
+                  ? '응답이 늦어 잠시 멈췄어요.'
+                  : '처리 중 문제가 있었어요.';
+                res.write(`event: recoverable_error\ndata: ${JSON.stringify({ text, nextSafeAction: result.nextSafeAction })}\n\n`);
+                await emit('complete', { kind: 'error' });
+              } else if (result.kind === 'approval') await emit('approval_required', { pendingId: result.pendingId, count: result.pending?.length ?? 0 });
               else if (result.capabilityResolution && ['connector', 'tool'].includes(result.capabilityResolution.capabilityType)) {
                 await emit('capability_needed', { capabilityType: result.capabilityResolution.capabilityType, missingCapability: result.capabilityResolution.missingCapability });
               }
-              await emit('complete', { kind: result.kind });
+              if (!result.modelUnavailable) await emit('complete', { kind: result.kind });
             } catch (err) {
               // 느린 모델은 그 원인을 사용자 언어로(진단 원문 아님). 어느 경우든 항상 complete로 닫아 큐를 푼다.
               const text = err?.isModelTimeout ? '응답이 늦어 잠시 멈췄어요.' : '처리 중 문제가 있었어요.';

@@ -19,6 +19,9 @@ import { admitMcpTools, revokeAdmitted, mcpToolId } from '../src/runtime/tool-ad
 import { defineConnector } from '../src/kernel/l2-plan/connector-profile.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../src/kernel/l2-plan/tool-schema.js';
+import { runTurn } from '../src/kernel/turn.js';
+import { ToolRunner } from '../src/runtime/tool-runner.js';
+import { TruthLedger } from '../src/kernel/l0-evidence/ledger.js';
 
 /** 진짜 JSON-RPC 를 말하는 가짜 MCP 서버 — 프로토콜을 실제로 태운다(모킹이 아니라 대역). */
 function 가짜서버({ tools = [{ name: 'search', description: '찾는다', inputSchema: { type: 'object' } }], failInit = false } = {}) {
@@ -51,6 +54,18 @@ function 가짜서버({ tools = [{ name: 'search', description: '찾는다', inp
 
 function 빈컨텍스트() {
   return { tools: { tools: {} }, descriptors: [], env: { model: { id: 'x', authSignal: 'ok' }, connections: [] } };
+}
+
+function 연결을고르는모델(connector) {
+  let calls = 0;
+  return {
+    async respond(_tc, opts = {}) {
+      calls += 1;
+      return calls === 1
+        ? { text: '', toolCalls: [{ name: 'connector.connect', args: { connector } }] }
+        : '확인했어요.';
+    },
+  };
 }
 
 async function 설정파일(server, body) {
@@ -101,6 +116,90 @@ test('승인이 필요한 편입 손은 미리보기를 낸다(게이트 계약)
   assert.equal(d.needsApproval, true, '종류 미상은 승인으로 — 지어내지 않는다');
   assert.ok(typeof t.previewOf === 'function', '무엇을 허락하는지 모르는 승인은 승인이 아니다');
   assert.match(t.previewOf({ q: 'x' }).impact, /svc/);
+});
+
+test('선언되지 않은 서비스 연결은 승인 카드가 아니라 확인 사실과 다음 길로 끝난다', async () => {
+  const connect = makeConnectorConnectTool({ ctx: 빈컨텍스트, connectors: () => [] });
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'connector.connect', label: '연결', connected: true, executable: true,
+        schema: { description: '외부 서비스를 연결해요', parameters: { type: 'object', properties: { connector: { type: 'string' } } } } }],
+    },
+    model: 연결을고르는모델('카페24'),
+    tools: new ToolRunner({ 'connector.connect': connect }),
+    ledger: new TruthLedger(),
+    connectors: [], executableKinds: [],
+  };
+  const r = await runTurn({ text: '카페24 연결해줘' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(r.pendingId, undefined, '없는 연결을 승인받게 하면 안 된다');
+  assert.match(r.reply, /연결 방법은 아직 확인되지 않았어요/);
+  assert.equal(r.ledger.confirmed.length, 0);
+  assert.ok(r.ledger.unconfirmed.length >= 1, '확인하지 못한 사실은 원장에 남긴다');
+});
+
+test('탐색 뒤에 나온 선언되지 않은 연결도 승인 카드로 만들지 않는다', async () => {
+  let calls = 0;
+  const connect = makeConnectorConnectTool({ ctx: 빈컨텍스트, connectors: () => [] });
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [
+        { id: 'local.discovery', label: '연결 단서 확인', connected: true, executable: true,
+          toolKind: 'read', schema: { description: '연결 단서를 확인한다', parameters: { type: 'object', properties: { subject: { type: 'string' } } } } },
+        { id: 'connector.connect', label: '연결', connected: true, executable: true,
+          toolKind: 'unknown_kind', schema: { description: '외부 서비스를 연결해요', parameters: { type: 'object', properties: { connector: { type: 'string' } } } } },
+      ],
+    },
+    model: {
+      async respond() {
+        calls += 1;
+        if (calls === 1) return { text: '', toolCalls: [{ name: 'local.discovery', args: { subject: '카페24' } }] };
+        if (calls === 2) return { text: '', toolCalls: [{ name: 'connector.connect', args: { connector: '카페24' } }] };
+        return '확인한 연결 단서로는 바로 붙일 방법이 없어요. 다른 경로를 더 찾아볼게요.';
+      },
+    },
+    tools: new ToolRunner({
+      'local.discovery': { async handler() { return { result: { candidates: [] }, connectionDiscovery: { subject: '카페24', checked: ['mcp'], candidates: [] }, userSafeSummary: '카페24 연결 단서를 확인했지만 바로 쓸 수 있는 건 찾지 못했어요.' }; } },
+      'connector.connect': connect,
+    }),
+    ledger: new TruthLedger(), pending: new Map(), connectors: [], executableKinds: [],
+  };
+
+  const r = await runTurn({ text: '카페24 주문 가져와줘' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(r.pendingId, undefined, '이어 쓰기 경로도 없는 연결을 승인으로 꾸미면 안 된다');
+  assert.match(r.reply, /바로 붙일 방법이 없어요/);
+  assert.ok(r.ledger.unconfirmed.some((x) => /연결 방법은 아직 확인되지 않았어요/.test(x)));
+});
+
+test('선언만 있고 실행 방식이 없는 연결도 승인 카드로 만들지 않는다', () => {
+  const declared = defineConnector({ id: 'planned', label: '준비 중 서비스', connected: false });
+  const connect = makeConnectorConnectTool({ ctx: 빈컨텍스트, connectors: () => [declared] });
+  const result = connect.approvalEligibility({ connector: '준비 중 서비스' });
+  assert.equal(result.allowed, false);
+  assert.match(result.userSafeSummary, /연결 방법은 아직 확인되지 않았어요/);
+});
+
+test('연결 승인을 거절하면 전송 취소가 아니라 연결을 시작하지 않았다고 말한다', async () => {
+  const declared = defineConnector({ id: 'svc', label: '가상서비스', connected: false });
+  declared.authMethods = [{ kind: 'mcp', server: 'svc' }];
+  const connect = makeConnectorConnectTool({ ctx: 빈컨텍스트, connectors: () => [declared] });
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'connector.connect', label: '연결', connected: true, executable: true,
+        schema: { description: '외부 서비스를 연결해요', parameters: { type: 'object', properties: { connector: { type: 'string' } } } } }],
+    },
+    model: 연결을고르는모델('가상서비스'),
+    tools: new ToolRunner({ 'connector.connect': connect }),
+    ledger: new TruthLedger(), pending: new Map(), connectors: [declared], executableKinds: ['mcp'],
+  };
+  const pending = await runTurn({ text: '가상서비스 연결해줘' }, ctx);
+  assert.equal(pending.kind, 'approval');
+  const rejected = await runTurn({ reject: pending.pendingId }, ctx);
+  assert.match(rejected.reply, /연결은 시작하지 않았어요/);
 });
 
 // ── ③ 해제 ────────────────────────────────────────────────────────────────
