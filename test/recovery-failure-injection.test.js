@@ -110,6 +110,135 @@ test('C2. 걸음 도중 모델이 죽으면 — 이미 한 일의 영수증은 �
   assert.ok(ledger.entries.length >= 1, '걸음의 영수증이 원장에 남지 않았다 — 서버가 구분할 근거가 없다');
 });
 
+// ── 감사 보충(2026-07-29): 봉인 증거 2건 ─────────────────────────────────
+
+// B'. **실제로 편입한 손의 전송 서버를 실제로 끊는다.** (주입 B 는 손 모양만 흉내냈다 —
+// 이 검사는 진짜 MCP 클라이언트·편입 기계·죽은 소켓을 관통한다. 로컬 루프백만 쓴다.)
+test("B'. 편입된 원격 손의 전송 사망: 호출 1회 · 거짓 성공 0 · 숨은 재시도 0", async () => {
+  const { createServer } = await import('node:http');
+  const { openHttpMcp } = await import('../src/runtime/mcp-http.js');
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+
+  // 진짜 HTTP MCP 서버(테스트 자산 — 루프백).
+  const srv = createServer(async (req, res) => {
+    let body = ''; for await (const c of req) body += c;
+    let msg = {}; try { msg = JSON.parse(body); } catch { /* notify */ }
+    const reply = (result) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id ?? null, result })); };
+    if (msg.method === 'initialize') return reply({ protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: '끊김', version: '0' } });
+    if (msg.method === 'tools/list') return reply({ tools: [{ name: 'lookup', description: '찾기', inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] } }] });
+    if (msg.method === 'tools/call') return reply({ content: [{ type: 'text', text: '뜻풀이' }] });
+    reply({});
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${srv.address().port}`;
+
+  const session = openHttpMcp({ url, timeoutMs: 3000 });
+  await session.initialize();
+  const mcpTools = await session.listTools();
+  const ctx = { tools: demoTools(), descriptors: [], env: demoEnv() };
+  const { admitted } = admitMcpTools({ connector: 'd-끊김', tools: mcpTools, session }, ctx);
+  assert.equal(admitted.length, 1, '편입 실패');
+  const toolId = admitted[0];
+
+  // 살아 있을 때 한 번 — 편입이 실제로 동작함을 먼저 확인(연결≠사용 구분).
+  const alive = await ctx.tools.tools[toolId].handler({ q: 'svelte' });
+  assert.ok(JSON.stringify(alive).includes('뜻풀이'));
+
+  // **전송 서버를 실제로 끊는다.**
+  srv.closeAllConnections?.();
+  await new Promise((r) => srv.close(r));
+
+  // 호출 횟수를 세는 투명 래퍼(runtime 동작은 그대로).
+  let 호출 = 0;
+  const 원핸들러 = ctx.tools.tools[toolId].handler;
+  ctx.tools.tools[toolId].handler = async (a) => { 호출 += 1; return 원핸들러(a); };
+
+  // 모델이 같은 호출을 두 번 고집 — 편입 손은 승인 경계라 카드가 먼저 선다.
+  const 모델 = 걸음모델([
+    { name: toolId, args: { q: 'svelte' } },
+    { name: toolId, args: { q: 'svelte' } },
+  ], '조회가 안 돼서 확인하지 못했어요');
+  const turnCtx = { env: ctx.env, tools: ctx.tools, model: 모델 };
+  const r1 = await runTurn({ text: '끊김 사전에서 svelte 찾아줘' }, turnCtx);
+  assert.equal(r1.kind, 'approval', `승인 경계가 안 섰다: ${r1.kind}`);
+  const r2 = await runTurn({ approve: r1.pendingId }, turnCtx);
+
+  assert.equal(호출, 1, `죽은 손이 ${호출}회 호출됐다 — 숨은 재시도`);
+  const 성공 = [...(r2.ledger?.confirmed ?? [])].filter((e) => JSON.stringify(e).includes(toolId));
+  assert.equal(성공.length, 0, `죽은 손이 성공으로 남았다: ${JSON.stringify(성공)}`);
+  const 전부 = JSON.stringify(r2);
+  assert.ok(!전부.includes('ECONNREFUSED') && !전부.includes('fetch failed'), '전송 진단이 사용자 결과에 샜다');
+  assert.equal(r2.kind, 'reply');
+});
+
+// C2'. **서버 표면 관통** — 걸음 하나 성공 뒤 모델이 죽으면, /turn 응답·원장·저장된 대화가
+// "이미 한 일은 보존됨"으로 **같은 이야기**를 해야 한다.
+test("C2'. /turn 관통: 걸음 성공 후 모델 사망 — 응답·원장·저장 일치", async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { readFile } = await import('node:fs/promises');
+
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-c2p-'));
+  const 손 = {
+    async probe(command) { return { command, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(args) { return { result: { command: args.command, exitCode: 0, stdout: '자료', cwd: '/x' }, userSafeSummary: '봤어요.' }; },
+  };
+  let 첫호출 = true;
+  const 도중죽는모델 = {
+    async respond(_tc, opts = {}) {
+      if (!opts.tools?.length) return '정리했어요';
+      if (첫호출) { 첫호출 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+      throw new Error('stream cut');
+    },
+  };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 도중죽는모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const r = await (await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: s.id, text: '폴더 보고 정리해줘' }),
+    })).json();
+    // 응답: 한 일이 있음을 구분한 정직한 안내(지어낸 정리 결과 없음).
+    assert.equal(r.kind, 'reply');
+    assert.match(r.reply ?? '', /기록에 남겼어요/, `한 일 있음 구분이 없다: ${r.reply}`);
+    // 저장: 세션에 영수증과 이 응답이 그대로 남았다.
+    const saved = JSON.parse(await readFile(join(dir, `${s.id}.json`), 'utf8'));
+    assert.ok((saved.ledgerEntries ?? []).length >= 1, '걸음 영수증이 세션에 없다');
+    const last = saved.transcript[saved.transcript.length - 1];
+    assert.equal(last.result.reply, r.reply, '응답과 저장된 대화가 다르다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+// 입력 사실 — **실패 영수증과 복구 단서가 다음 모델 입력에 실제로 실리는가.**
+// 런타임의 책임은 모델을 대본으로 교정하는 게 아니라 실패 현실을 공급하는 것이다(감사 지적).
+test('실패 뒤 다음 모델 입력에 실패 영수증과 다음 길이 실린다', async () => {
+  const 실패손 = {
+    async probe(command) { return { command, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler() { return { failed: true, userSafeSummary: '그 폴더를 읽지 못했어요.', nextSafeAction: '다른 자리에서 찾아볼까요?' }; },
+  };
+  const 입력들 = [];
+  let i = 0;
+  const 관찰모델 = {
+    async respond(tc, opts = {}) {
+      입력들.push(tc);
+      if (!opts.tools?.length) return '못 읽어서 확인하지 못했어요';
+      if (i === 0) { i += 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+      return { text: '못 읽어서 확인하지 못했어요', toolCalls: [] };
+    },
+  };
+  await runTurn({ text: '폴더 봐줘' }, { env: demoEnv(), tools: demoTools({ localTerminal: 실패손 }), model: 관찰모델 });
+  // 실패 뒤에 온 모델 입력(마지막 입력)에 실패 사실과 복구 단서가 있어야 한다.
+  const 뒤입력 = JSON.stringify(입력들[입력들.length - 1]);
+  assert.ok(뒤입력.includes('그 폴더를 읽지 못했어요'), '실패 영수증이 다음 모델 입력에 없다');
+  assert.ok(뒤입력.includes('다른') || 뒤입력.includes('recoveryHint') || 뒤입력.includes('다음'),
+    `복구 단서가 다음 모델 입력에 없다: ${뒤입력.slice(0, 200)}`);
+});
+
 // ── 판정 관찰: retry 계단과 같은-일-반복 금지의 교차 ─────────────────────
 test('관찰. "다시 해볼게요" 계단 뒤 같은 인자 재시도 — 무엇이 이기는지 기록', async () => {
   let 호출 = 0;
