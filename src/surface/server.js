@@ -85,7 +85,9 @@ export function makeServer(deps = {}) {
   const store = deps.store ?? new SessionStore();
   const memStore = deps.memoryStore ?? new MemoryStore(store.dir);
   // 기억 수명주기 영수증 — 상태 저장소와 분리된 감사 흔적(proposed/confirmed/rejected/rolled_back).
-  const memLedger = deps.memoryLedger ?? new MemoryLedger(memStore.dir);
+  // 주입된 기억 저장소가 dir 없는 가짜여도 **세션 저장소 경로로** 떨어진다 — 기본 경로(실사용자
+  // 홈)로 떨어지면 검사가 실제 원장에 쓴다(실측: overview 테스트가 실원장에 confirmed 를 남겼다).
+  const memLedger = deps.memoryLedger ?? new MemoryLedger(memStore.dir ?? store.dir);
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
