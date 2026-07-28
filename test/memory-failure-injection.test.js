@@ -161,7 +161,7 @@ test('거절: 응답 유실 뒤 재시도 → 원장 영수증으로 "이미 끝
   } finally { await close(); }
 });
 
-test('철회: 응답 유실 뒤 재시도 → "이미 되돌린 행동" · 원장 실패 시 receiptWritten:false', async () => {
+test('철회: 원장이 실패한 **같은 항목**의 재시도가 멱등이다(수정 전 실패)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi7-'));
   const real = new MemoryLedger(dir);
   let 원장고장 = false;
@@ -179,13 +179,30 @@ test('철회: 응답 유실 뒤 재시도 → "이미 되돌린 행동" · 원�
     assert.equal(r1.rolledBack, true);
     assert.equal(r1.receiptWritten, false, '영수증이 빠졌는데 응답이 조용하다');
     assert.equal((await mem.load()).promoted.length, 0);
-    // 원장 회복 뒤 다른 항목으로 정상 흐름 + 재시도 멱등(영수증 있는 갈래).
-    원장고장 = false;
-    await mem.save({ candidates: [], promoted: [{ ...후보('p2', '두번째'), userConfirmed: true, admitted: true }], observed: [] });
-    await (await post('/memory/rollback', { candidateId: 'p2' })).json();
-    const r2 = await (await post('/memory/rollback', { candidateId: 'p2' })).json();
-    assert.equal(r2.already, true, `재시도가 이미 끝난 행동을 못 알아봤다: ${JSON.stringify(r2)}`);
+    // **같은 p1 을, 원장이 여전히 고장난 채로** 재시도 — 상태 안의 종료 표식이 판정한다.
+    // 원장에서 판정하면 여기가 not_found 가 된다(감사가 잡은 구멍).
+    const r2 = await (await post('/memory/rollback', { candidateId: 'p1' })).json();
+    assert.equal(r2.already, true, `원장 실패한 항목의 재시도가 멱등이 아니다: ${JSON.stringify(r2)}`);
     assert.equal(r2.rolledBack, true);
+    // 원장이 회복돼도 판정은 같다(상태가 진실).
+    원장고장 = false;
+    const r3 = await (await post('/memory/rollback', { candidateId: 'p1' })).json();
+    assert.equal(r3.already, true);
+  } finally { await close(); }
+});
+
+test('거절: 원장이 실패한 같은 항목의 재시도도 멱등이다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi7b-'));
+  const 죽은원장2 = { async append() { throw new Error('down'); }, async load() { return { entries: [] }; } };
+  const { post, close } = await boot({ memoryStore: new MemoryStore(dir), memoryLedger: 죽은원장2 });
+  try {
+    const mem = new MemoryStore(dir);
+    await mem.save({ candidates: [후보('c1', '지울 것')], promoted: [], observed: [] });
+    const r1 = await (await post('/memory/reject', { candidateId: 'c1' })).json();
+    assert.equal(r1.rejected, true);
+    assert.equal(r1.receiptWritten, false);
+    const r2 = await (await post('/memory/reject', { candidateId: 'c1' })).json();
+    assert.equal(r2.already, true, `원장 실패한 거절의 재시도가 멱등이 아니다: ${JSON.stringify(r2)}`);
   } finally { await close(); }
 });
 
@@ -216,7 +233,9 @@ test('손상 격리가 실패하면 새 기록을 쓰지 않는다(보존 계약
   assert.equal(await readFile(join(sub, 'memory-ledger.json'), 'utf8'), '{"broken');
 });
 
-test('두 저장 주체가 동시에 써도 임시 파일이 충돌하지 않는다(고유 임시명)', async () => {
+// 주의: 이 검사가 증명하는 것은 **임시 파일 충돌 방지**뿐이다 — 마지막 쓰기만 남는 손실은 허용된다.
+// 다중 서버 안전이 아니다. 배포판 불변식: 같은 데이터 디렉터리에는 단일 writer(보드 누적 목록).
+test('두 저장 주체가 동시에 써도 임시 파일 충돌로 손상되지 않는다(다중 writer 안전 아님)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi10-'));
   const a = new MemoryLedger(dir); const b = new MemoryLedger(dir);
   await Promise.all([

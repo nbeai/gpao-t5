@@ -623,7 +623,7 @@ function renderQResults(results) {
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const a = await (await fetch('/search/admit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statement: r.statement, source: src }) })).json();
+          const a = await memAction('/search/admit', { statement: r.statement, source: src });
           // 되돌리기 id(candidateId)가 있을 때만 "반영됨"으로 — id 없이 반영됨으로 보이면 못 되돌린다(대칭 보장).
           if (a.admitted && a.candidateId) { admittedId = a.candidateId; setReflected(); } else btn.disabled = false;
         } catch { btn.disabled = false; }
@@ -634,7 +634,7 @@ function renderQResults(results) {
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const g = await (await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: admittedId }) })).json();
+          const g = await memAction('/memory/rollback', { candidateId: admittedId });
           if (g.rolledBack) setFound(); else btn.disabled = false; // 되돌리면 다시 "반영 안 됨"으로
         } catch { btn.disabled = false; }
       };
@@ -1118,29 +1118,36 @@ async function onOverviewAction(e) {
   const btn = e.target.closest('.ov-act'); if (!btn) return;
   const { act, id } = btn.dataset;
   btn.disabled = true;
-  const memPost = (path) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) }).then((r) => r.json());
   try {
-    let j = null;
     if (act === 'retry-delivery') await fetch(`/deliveries/${id}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) });
     else if (act === 'approve-skill') await fetch(`/skills/${id}/approve`, { method: 'POST' });
     // 확인은 종류 공통 통로(/memory/confirm) 하나로 — 운영 원리는 거기서 replay 게이트를 탄다.
-    else if (act === 'confirm-pref') j = await memPost('/memory/confirm');
-    else if (act === 'reject-memory') j = await memPost('/memory/reject');
-    else if (act === 'rollback-memory') j = await memPost('/memory/rollback');
+    // 기억 변경은 전부 memAction — 영수증 누락 표시가 표면마다 갈라지지 않게.
+    else if (act === 'confirm-pref') await memAction('/memory/confirm', { candidateId: id });
+    else if (act === 'reject-memory') await memAction('/memory/reject', { candidateId: id });
+    else if (act === 'rollback-memory') await memAction('/memory/rollback', { candidateId: id });
     await refreshOverview();
-    // P-OP-4: 서버가 "동작은 됐지만 기록 영수증은 못 남겼다"고 하면 그 사실을 사용자에게도 보인다.
-    // 조용히 넘기면 API·상태만 일치하고 화면은 다른 결론을 내는 셈이다(감사 지적).
-    if (j && j.receiptWritten === false) receiptNote();
   } catch { btn.disabled = false; }
 }
 
-// 영수증 누락 알림 — 요약 패널 맨 위에 한 줄. 다음 새로고침에서 지워진다(동작 자체는 성공했다).
+// P-OP-4 · **기억 변경은 화면 어디서든 이 함수 하나로.** 응답 해석(영수증 누락 표시)이 표면마다
+// 흩어지면, 서버만 정직하고 화면은 다른 결론을 내는 자리가 다시 생긴다(감사 지적).
+async function memAction(path, body) {
+  const j = await (await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) })).json().catch(() => null);
+  if (j && j.receiptWritten === false) receiptNote();
+  return j;
+}
+
+// 영수증 누락 알림 — 표면과 무관하게 화면 상단 한 곳. 동작(반영·철회)은 성공했다는 사실과 분리해 말한다.
 function receiptNote() {
-  const panel = document.getElementById('stateOv'); if (!panel) return;
-  const note = document.createElement('div');
-  note.className = 'ov-row'; note.style.color = 'var(--warn, #a15c00)';
-  note.textContent = '방금 동작은 됐지만, 기록 영수증은 남기지 못했어요. 동작에는 문제 없어요.';
-  panel.prepend(note);
+  let n = document.getElementById('receiptNote');
+  if (!n) {
+    n = document.createElement('div'); n.id = 'receiptNote';
+    n.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:var(--panel,#fff);border:1px solid #a15c00;color:#a15c00;padding:6px 12px;border-radius:8px;z-index:999;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.08)';
+    document.body.appendChild(n);
+  }
+  n.textContent = '반영은 됐지만 기록을 남기지 못했어요. 기록 상태를 확인해 주세요.';
+  clearTimeout(n._t); n._t = setTimeout(() => n.remove(), 8000);
 }
 
 function renderRecord(box, ledger) {
@@ -1450,11 +1457,16 @@ function renderSuggestion(box, sug) {
   const card = el('suggest');
   card.appendChild(el('sug-t', isPrin ? '운영 원칙으로 기억할까요? (검토 후 적용)' : '이걸 기본으로 기억할까요?'));
   card.appendChild(el('sug-s', `"${sug.statement}"`));
+  // 후보가 생길 때(proposed) 영수증이 빠졌으면 카드가 처음부터 그 사실을 보인다(감사 지적).
+  if (sug.receiptWritten === false) {
+    card.appendChild(el('sug-line', '후보는 적었지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+    receiptNote();
+  }
   const btns = el('btns');
   const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = isPrin ? '검토 후 적용' : '기억하기';
   const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
   yes.onclick = async () => {
-    const r = await (await fetch('/memory/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId }) })).json();
+    const r = await memAction('/memory/confirm', { candidateId: sug.candidateId });
     card.remove();
     if (!r.ok) {
       box.appendChild(el('sug-done', r.reason === 'replay_failed' ? '과거와 충돌해 적용하지 않았어요.' : '적용하지 않았어요.'));
@@ -1463,12 +1475,12 @@ function renderSuggestion(box, sug) {
     // 권한 표면(감사 보정): 무엇을·어디에 반영·되돌리기. 운영원리는 "기본 검토"로 정직하게.
     const done = el('sug-done');
     const head = isPrin ? '원칙으로 기억했어요 (기본 검토).' : '기억했어요.';
-    const 영수증꼬리 = r.receiptWritten === false ? ' (기록 영수증은 남기지 못했어요 — 기억에는 문제 없어요.)' : '';
+    const 영수증꼬리 = r.receiptWritten === false ? ' (기록은 남기지 못했어요 — 기록 상태를 확인해 주세요.)' : '';
     done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.${영수증꼬리}`));
     const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기';
     undo.style.marginTop = 'var(--sp-2)';
     undo.onclick = async () => {
-      await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: r.candidateId }) });
+      await memAction('/memory/rollback', { candidateId: r.candidateId });
       done.replaceChildren(el('sug-line', '되돌렸어요. 앞으로 반영하지 않아요.'));
     };
     done.appendChild(undo);

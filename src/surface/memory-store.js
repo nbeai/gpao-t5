@@ -30,18 +30,37 @@ export class MemoryStore {
   async load() {
     try {
       const m = JSON.parse(await readFile(this.file, 'utf8'));
-      return { candidates: m.candidates ?? [], promoted: m.promoted ?? [], observed: m.observed ?? [] };
+      return { candidates: m.candidates ?? [], promoted: m.promoted ?? [], observed: m.observed ?? [], closed: m.closed ?? {} };
     } catch {
-      return { candidates: [], promoted: [], observed: [] };
+      return { candidates: [], promoted: [], observed: [], closed: {} };
     }
   }
 
   async save(memory) {
     await mkdir(this.dir, { recursive: true });
     // observed(추정 성향)를 함께 지속하되, 이 레인은 admittedContext가 읽지 않으므로 영향 0 유지.
-    await atomicWrite(this.file, JSON.stringify({ candidates: memory.candidates ?? [], promoted: memory.promoted ?? [], observed: memory.observed ?? [] }));
+    // closed: 종료 표식(tombstone) — 거절·철회의 멱등 판정을 **상태 안에서** 한다(P-OP-4 감사).
+    // 원장으로 판정하면 "상태가 행동의 진실" 원칙과 충돌한다 — 원장은 실패할 수 있다.
+    await atomicWrite(this.file, JSON.stringify({
+      candidates: memory.candidates ?? [], promoted: memory.promoted ?? [],
+      observed: memory.observed ?? [], closed: memory.closed ?? {},
+    }));
     return memory;
   }
+}
+
+// 종료 표식 상한 — 감사용 무한 성장 금지(§18 계열). 오래된 것부터 걷는다. 원문은 담지 않는다.
+const CLOSED_CAP = 50;
+
+/** 거절·철회의 종료 표식을 상태에 남긴다(상태 저장과 같은 원자 쓰기에 실린다). */
+export function markClosed(memory, candidateId, outcome) {
+  const closed = { ...(memory.closed ?? {}) };
+  delete closed[candidateId]; // 재기입 시 순서 갱신
+  closed[candidateId] = outcome;
+  const keys = Object.keys(closed);
+  for (const k of keys.slice(0, Math.max(0, keys.length - CLOSED_CAP))) delete closed[k];
+  memory.closed = closed;
+  return memory;
 }
 
 /** 기억 수명주기 영수증용 내용 지문 — 원문은 남기지 않는다(철회로 지운 기억이 원장에 되살아나지 않게). */

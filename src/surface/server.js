@@ -35,7 +35,7 @@ import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
-import { MemoryStore, MemoryLedger } from './memory-store.js';
+import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
 import { makeCandidate, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
@@ -102,11 +102,7 @@ export function makeServer(deps = {}) {
     try { await memLedger.append(event, entry); return true; }
     catch (e) { console.error('[memory-ledger] 기록 실패:', e?.message ?? e); return false; }
   }
-  // 멱등 재시도 판정용 — 상태에서 사라진 항목의 마지막 수명주기 사건(응답 유실 뒤 재시도 구분).
-  async function 마지막기억사건(candidateId) {
-    const a = await memLedger.load().catch(() => ({ entries: [] }));
-    return [...(a.entries ?? [])].reverse().find((e) => e.candidateId === candidateId)?.event ?? null;
-  }
+
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
@@ -715,11 +711,13 @@ export function makeServer(deps = {}) {
           const cid = input.candidateId ?? input.id;
           const idx = m.candidates.findIndex((e) => e.candidateId === cid);
           if (idx < 0) {
-            // 멱등 재시도(P-OP-4): 상태에서 사라졌어도 원장에 거절 영수증이 있으면 "이미 끝난 행동"이다.
-            if ((await 마지막기억사건(cid)) === 'rejected') return sendJson(res, 200, { ok: true, rejected: true, already: true });
+            // 멱등 재시도(P-OP-4): 판정은 **상태 안의 종료 표식**으로 — 원장은 실패할 수 있어
+            // 판정 근거가 되면 "상태가 행동의 진실" 원칙과 충돌한다(감사 정정).
+            if (m.closed?.[cid] === 'rejected') return sendJson(res, 200, { ok: true, rejected: true, already: true });
             return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
           }
           const [removed] = m.candidates.splice(idx, 1);
+          markClosed(m, cid, 'rejected'); // 종료 표식 — 상태와 같은 원자 쓰기에 실린다
           await memStore.save(m);
           const receiptWritten = await 기억영수증('rejected', removed);
           return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
@@ -734,12 +732,13 @@ export function makeServer(deps = {}) {
           const m = await memStore.load();
           const idx = m.promoted.findIndex((e) => e.candidateId === cid);
           if (idx < 0) {
-            // 멱등 재시도(P-OP-4): 원장에 철회 영수증이 있으면 "이미 되돌린 행동"이다.
-            if ((await 마지막기억사건(cid)) === 'rolled_back') return sendJson(res, 200, { ok: true, rolledBack: true, already: true });
+            // 멱등 재시도(P-OP-4): 판정은 상태 안의 종료 표식으로(원장 실패와 무관하게 정확하다).
+            if (m.closed?.[cid] === 'rolled_back') return sendJson(res, 200, { ok: true, rolledBack: true, already: true });
             return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
           }
           if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
           const [removed] = m.promoted.splice(idx, 1);
+          markClosed(m, cid, 'rolled_back'); // 종료 표식 — 상태와 같은 원자 쓰기에 실린다
           await memStore.save(m);
           // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
           // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
