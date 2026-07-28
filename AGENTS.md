@@ -28,6 +28,22 @@ Before any planning, implementation, review, verification, handoff, or release w
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
 
+Mandatory reference absorption supplement:
+
+5. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+   - Defines what T5 should absorb from OpenClaw and Hermes for current and future P-OP work.
+   - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
+   - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
+
+Mandatory T-cell implementation specification:
+
+6. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
+   - Read before changing Memory, Context Mesh, POM, TaskTrace, SkillCandidate, Automation learning, Growth Loop,
+     replay, admission, or self-development.
+   - Keeps principle maturity, current-turn influence, and A0-A3 action authority separate.
+   - Do not claim T-cell self-growth from the P6-1 minimum gate alone. Follow the staged contracts, replay,
+     migration, effect audit, and live evidence in this specification.
+
 ## T5 Core Three-Axis Rule (2026-07-28 owner direction)
 
 The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
