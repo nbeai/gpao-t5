@@ -960,3 +960,42 @@ test('완료 ⑥ 완료 사실은 오래 붙들지 않는다(감쇠)', async () 
   for (let i = 0; i < 40; i += 1) ws = deriveWorkingState(ws, { receipts: [] });
   assert.equal(ws.recentOutcome, undefined, '오래된 완료가 계속 남아 다음 요청을 붙든다');
 });
+
+// 오너 감사(2026-07-29): 완료 판정에 `멈춘이유` 가 빠져 있었다. 일부 도구가 성공했어도
+// **중단한 것은 끝난 것이 아니다** — 다음 턴이 이어갈 자리를 잃는다.
+// 런타임은 왜 멈췄는지 이미 안다. 그 사실을 판정에 잇기만 한다(새 엔진이 아니다).
+const 중단틀 = async (도구수) => {
+  const [{ runTurn }, { TruthLedger }, { demoEnv, demoTools }] = await Promise.all([
+    import('../src/kernel/turn.js'),
+    import('../src/kernel/l0-evidence/ledger.js'),
+    import('../src/surface/demo-context.js'),
+  ]);
+  const env = demoEnv({ include: ['web.collect'], hands: ['web.collect'] });
+  const tools = demoTools({});
+  let 부른횟수 = 0;
+  tools.tools['web.collect'] = {
+    async handler() { 부른횟수 += 1; return { result: { ok: true }, userSafeSummary: '읽었어요' }; },
+  };
+  const ctx = { env, tools, ledger: new TruthLedger(), descriptors: [] };
+  ctx.model = { async respond(_tc, opts = {}) {
+    // 도구를 계속 고른다 — 같은 인자면 되풀이 감지, 다른 인자면 상한에 닿는다
+    if (opts.tools?.length) {
+      return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 도구수 === 'same' ? '같은 것' : `건 ${부른횟수}` } }] };
+    }
+    return '';
+  } };
+  return { r: await runTurn({ text: '이 페이지 조사해줘' }, ctx).catch(() => ({})), 부른횟수 };
+};
+
+test('중단 ① 같은 일을 되풀이해 멈추면 완료가 아니다', async () => {
+  const { r } = await 중단틀('same');
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed', '중단한 일을 완료로 기록했다');
+  assert.notEqual(r.goal, null, '중단했는데 목표를 해제했다 — 이어갈 자리를 잃는다');
+});
+
+test('중단 ② 도구 실행 상한에 닿아 멈추면 완료가 아니다', async () => {
+  const { r, 부른횟수 } = await 중단틀('vary');
+  assert.ok(부른횟수 > 1, '시험이 성립하지 않았다');
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed', '상한에 닿아 멈춘 일을 완료로 기록했다');
+  assert.notEqual(r.goal, null);
+});

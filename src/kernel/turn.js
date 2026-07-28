@@ -1021,7 +1021,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 막힘 없음 · 실제로 성공한 실행이 하나 이상. 하나라도 어긋나면 완료가 아니다 —
   // 읽기만 일부 된 미완료를 완료로 부르면 그게 더 나쁜 거짓말이다.
   const 실제로한일 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none');
-  const 끝났나 = projection.unconfirmed.length === 0
+  // **중단한 것은 끝난 것이 아니다.** 런타임은 왜 멈췄는지 이미 안다(같은 일 되풀이 · 도구 상한 ·
+  // 승인 대상으로 못 만듦). 그 사실을 완료 판정에 잇지 않으면, 일부 도구가 성공했다는 이유로
+  // 중간에 멈춘 일을 완료로 기록한다 — 그러면 다음 턴이 이어갈 자리를 잃는다(오너 감사 2026-07-29).
+  const 끝났나 = !멈춘이유
+    && projection.unconfirmed.length === 0
     && (ctx.pending?.size ?? 0) === 0
     && !(workingState.awaiting?.length)
     && !workingState.blocked
