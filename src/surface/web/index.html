@@ -1015,15 +1015,39 @@ async function newSession() {
   currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
   document.body.classList.remove('nav-open'); text.focus();
 }
+// 대화 한 벌을 **한 함수로만** 그린다.
+//
+// 실측(오너 라이브 2026-07-28, G-1B): 승인 없이 재시작한 뒤 `이어줘` 하면 서버는 유효한 승인을
+// 하나만 들고 있는데, 화면에는 승인 버튼이 둘 보였다. 실시간으로 받은 결과를 그 자리에 덧붙이기만
+// 해서 **이미 지난 카드가 계속 살아 보였다**(새로고침하면 맞게 나왔다 — 같은 화면에서만 틀렸다).
+// 누르면 "찾지 못했어요"로 끝나 실행은 안 되지만, 누르기 전까지 사용자는 어느 버튼이 유효한지
+// 알 수 없다. 죽은 버튼이다.
+//
+// 화면이 승인 상태를 따로 추측하지 않는다. **서버의 유효 승인 목록(activePendingIds)이 단일
+// 진실**이고, 턴·승인·거절이 끝나면 그 사실로 대화를 다시 투영한다.
+// 다만 **마지막 결과만 현재**로 그린다 — `historical` 은 비밀 입력면·기억 제안 같은 지금 필요한
+// 자리까지 숨기므로, 전부 과거로 그리면 방금 열린 입력창이 사라진다.
+async function 대화투영(s) {
+  const active = s.activePendingIds || [];
+  const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
+  wrap.innerHTML = '';
+  (s.transcript || []).forEach((e, i) => {
+    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
+    else if (e.role === 'assistant') renderResult(e.result, i === 마지막 ? {} : { historical: true, activePendingIds: active });
+  });
+  return s;
+}
+
+/** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
+async function 대화다시그리기() {
+  if (!currentSessionId) return;
+  await 대화투영(await (await fetch('/sessions/' + currentSessionId)).json());
+  scrollToBottom();
+}
+
 async function selectSession(id) {
   currentSessionId = id;
-  const s = await (await fetch('/sessions/' + id)).json();
-  const active = s.activePendingIds || [];
-  wrap.innerHTML = '';
-  for (const e of s.transcript || []) {
-    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
-    else if (e.role === 'assistant') { renderResult(e.result, { historical: true, activePendingIds: active }); }
-  }
+  await 대화투영(await (await fetch('/sessions/' + id)).json());
   await loadSessions();
   scrollToBottom(true); // 대화를 열면 마지막 대목부터 보인다(위에서부터 읽게 두지 않는다)
   document.body.classList.remove('nav-open');
@@ -1183,8 +1207,10 @@ function renderResult(r, opts = {}) {
     // **모든 거절이 전송은 아니다.** 파일 저장·연결·실행에도 같은 버튼이 뜬다 —
     // '보내지 마' 는 보내는 일에만 맞는 말이다(실측 2026-07-28: 파일 저장 카드에 이 말이 떴다).
     no.textContent = '하지 마';
-    yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); await loadSessions(); };
-    no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); await loadSessions(); };
+    // 승인·거절 뒤에도 **서버 사실로 다시 투영한다** — 부분적으로 DOM 카드만 고치면
+    // 이번 턴이 무효화한 옛 카드가 화면에 그대로 남는다(G-1B 실측).
+    yes.onclick = async () => { card.remove(); await turn({ approve: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
+    no.onclick = async () => { card.remove(); await turn({ reject: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
     btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
     box.appendChild(card); return;
   }
@@ -1445,9 +1471,9 @@ async function submit() {
       renderRecovery(box, recovery);
       return;
     }
-    const sess = await (await fetch(`/sessions/${currentSessionId}`)).json();
-    const last = (sess.transcript || []).filter((e) => e.role === 'assistant').at(-1);
-    if (last) renderResult(last.result); // 스트림이 실행·지속한 그 결과(중복 실행 없음)
+    // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
+    // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
+    await 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json());
     scrollToBottom(); // 최종 결과로 교체된 뒤에도 아래를 보고 있게
     await loadSessions();
   } catch {
