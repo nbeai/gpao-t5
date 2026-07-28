@@ -749,3 +749,39 @@ test('한 대화에 살아 있는 승인 요청은 하나다 — 이어달라고
   await runTurn({ approve: r2.pendingId }, ctx);
   assert.equal(보낸것.length, 1, '살아 있는 승인이 실행되지 않았다');
 });
+
+// ── G 잔여 행렬 (2026-07-29) ─────────────────────────────────────────────
+//
+// 실측(오너 라이브): `정산 파일 정리해줘` 에 런타임은 `5곳이 후보예요` 를 사실로 냈는데
+// T5 는 말없이 하나를 골라 그 달 숫자로 답을 끝냈다. 사용자는 다섯 곳 중 하나가 골라졌다는
+// 사실조차 듣지 못했다 — 다른 달 자료였다면 숫자가 통째로 틀린 채 끝난다.
+//
+// 원인은 모델 선택이 아니라 **사실이 잘려서 넘어간 것**이었다. `subjectOf` 가 `candidates[0]`
+// 하나만 다음 턴으로 넘겨서, 다음 턴에는 "정해진 자리 하나"만 남았다.
+// 여기서 "물어봐라"라고 시키지 않는다 — 고른 것과 나머지를 사실로 주고 판단은 모델이 한다(§24).
+test('후보는 후보다 — 고른 자리와 나머지가 함께 다음 턴으로 간다', async () => {
+  const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
+  const tool = makeLocalLocateTool();
+  const 다섯 = {
+    result: {
+      candidates: [
+        { path: '/a/2026-06 정산', confidence: 'high' },
+        { path: '/a/2026-05 정산', confidence: 'medium' },
+        { path: '/a/정산자료 백업', confidence: 'medium' },
+        { path: '/b/지난달 정산 파일', confidence: 'medium' },
+        { path: '/c/정산', confidence: 'low' },
+      ],
+    },
+  };
+  const s = tool.subjectOf(다섯);
+  assert.equal(s.label, '/a/2026-06 정산', '고른 자리가 자리다');
+  assert.match(s.detail, /후보 5곳 중 첫째/, '몇 곳 중 하나인지가 사라졌다');
+  assert.match(s.detail, /2026-05 정산/, '나머지 후보가 사라졌다');
+
+  // 하나뿐이면 군더더기를 붙이지 않는다(없는 선택을 만들지 않는다)
+  const 하나 = tool.subjectOf({ result: { candidates: [{ path: '/a/유일', confidence: 'high' }] } });
+  assert.equal(하나.detail, '/a/유일');
+
+  // 확신이 낮으면 여전히 자리라고 말하지 않는다(기존 계약 불변)
+  assert.equal(tool.subjectOf({ result: { candidates: [{ path: '/a/흐릿', confidence: 'low' }] } }), null);
+});

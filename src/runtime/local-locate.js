@@ -162,11 +162,29 @@ export function makeLocalLocateTool(deps = {}) {
      * 그래서 자리 목록을 못 봤다. 도구 결과로는 못 푸는 자리였다.
      */
     async places() { return 볼수있는자리(homeOf(), deps.volumesDir); },
-    /** 찾은 자리가 다음 걸음의 자리다 — 확신 낮은 후보는 자리라고 말하지 않는다. */
+    /**
+     * 찾은 자리가 다음 걸음의 자리다 — 확신 낮은 후보는 자리라고 말하지 않는다.
+     *
+     * **후보는 후보다.** 실측(오너 라이브 G 행렬 2026-07-29): `정산 파일 정리해줘` 에
+     * 런타임은 `5곳이 후보예요` 를 사실로 냈는데, 여기서 `candidates[0]` 하나만 자리로
+     * 넘기는 바람에 다음 턴에는 **고른 자리 하나만** 남았다. 모델은 그것을 정해진 자리로 읽고
+     * 말없이 진행했고, 사용자는 다섯 곳 중 하나가 골라졌다는 사실조차 듣지 못했다.
+     * 다른 달 자료였다면 숫자가 통째로 틀린 채 끝난다.
+     *
+     * 그래서 **고른 것과 나머지를 함께** 넘긴다. 여기서 "물어봐라"라고 시키지 않는다 —
+     * 사실만 주고 무엇을 할지는 모델이 정한다(§24).
+     */
     subjectOf(rec) {
-      const top = (rec?.result?.candidates ?? [])[0];
+      const 후보들 = (rec?.result?.candidates ?? []).filter((c) => c?.path);
+      const top = 후보들[0];
       if (!top?.path || top.confidence === 'low') return null;
-      return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
+      const 나머지 = 후보들.slice(1);
+      return {
+        key: `place:${top.path}`, kind: 'place', label: String(top.path),
+        detail: 나머지.length
+          ? `${top.path} — 후보 ${후보들.length}곳 중 첫째. 나머지: ${나머지.slice(0, 4).map((c) => c.path).join(' · ')}`
+          : String(top.path),
+      };
     },
     async handler(args = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
