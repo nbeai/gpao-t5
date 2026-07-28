@@ -7,7 +7,7 @@
 // 소유자는 pid 가 아니라 **pid + ownerToken** 이다(감사 재현 2026-07-29: pid 만 보면 같은
 // 프로세스의 두 번째 서버가 첫 잠금을 "내 죽은 잔여"로 오인해 걷고, 첫 서버의 release 가
 // 두 번째 서버의 잠금까지 지웠다). 죽은 프로세스의 잠금은 pid 생존 확인으로 걷는다.
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -31,15 +31,35 @@ export async function acquireWriterLock(dir, { pid = process.pid, retries = 1 } 
     let prev = null;
     try { prev = JSON.parse(await readFile(file, 'utf8')); } catch { prev = null; }
     // **pid 가 나와 같아도 남의 잠금이다** — 살아 있으면 막는다(같은 프로세스의 두 번째 서버 포함).
+    // 죽음의 증거는 **ESRCH 뿐이다**(감사 재현 2026-07-29: pid 1 은 EPERM 을 주는데 — 신호
+    // 권한이 없을 뿐 살아 있다 — 모든 예외를 죽음으로 읽어 잠금을 걷고 둘이 함께 잡았다).
     let alive = false;
-    if (prev?.pid) { try { process.kill(prev.pid, 0); alive = true; } catch { alive = false; } }
+    if (prev?.pid) {
+      try { process.kill(prev.pid, 0); alive = true; }
+      catch (err) { alive = err?.code !== 'ESRCH'; }
+    }
     if (alive) {
       throw new Error(`이미 다른 T5 서버(pid ${prev.pid})가 이 데이터 자리를 쓰고 있어요. `
         + '같은 자료를 두 서버가 쓰면 나중 저장이 앞의 것을 지워요 — 그 서버를 끄고 다시 시작해 주세요.');
     }
-    // 죽은/손상 잠금 — 걷고 한 번만 다시. 동시에 걷는 둘이 있어도 wx 는 하나만 이긴다.
+    // 죽은/손상 잠금 회수 — **한 명만 걷는다.** rm 은 그 사이 새로 생긴 잠금까지 지울 수 있다
+    // (A rm → B wx → A 의 늦은 rm 이 B 의 새 잠금을 삭제 → 둘 다 획득). rename 은 원자적이라
+    // 한 회수자만 성공하고, 걷어 온 것이 내가 본 그 죽은 잠금인지 **확인 후** 버린다.
     if (retries <= 0) throw new Error('데이터 자리 잠금을 잡지 못했어요. 잠시 후 다시 시작해 주세요.');
-    await rm(file, { force: true });
+    const claim = `${file}.stale-${ownerToken}`;
+    try {
+      await rename(file, claim);
+      let got = null;
+      try { got = JSON.parse(await readFile(claim, 'utf8')); } catch { got = null; }
+      if (got && prev && (got.pid !== prev.pid || got.ownerToken !== prev.ownerToken || got.at !== prev.at)) {
+        // 그 사이 새 주인이 생겼는데 내가 그 잠금을 집어 왔다 — 되돌리고 정직하게 멈춘다.
+        await rename(claim, file).catch(() => {});
+        throw new Error('이미 다른 T5 서버가 이 데이터 자리를 잡았어요. 그 서버를 끄고 다시 시작해 주세요.');
+      }
+      await rm(claim, { force: true });
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err; // ENOENT = 다른 회수자가 이미 걷었다 — 재시도만 한다
+    }
     return acquireWriterLock(dir, { pid, retries: retries - 1 });
   }
   return {

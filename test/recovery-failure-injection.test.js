@@ -422,3 +422,40 @@ test('같은 pid 의 두 번째 획득은 차단되고, 늦은 해제가 남의 
   const fourth = await acquireWriterLock(dir);
   await fourth.release();
 });
+
+// ── 감사 재현(2026-07-29, 2차): EPERM 은 생존이다 · 죽은 잠금 회수는 한 명만 ──
+test('EPERM 을 주는 pid(신호 권한 없음)는 살아 있는 잠금이다(수정 전: 죽음으로 오판해 회수)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-eperm-'));
+  // pid 1(launchd) 은 비루트에게 EPERM 을 준다 — 살아 있다는 뜻이다.
+  await writeFile(join(dir, '.writer-lock.json'), JSON.stringify({ pid: 1, ownerToken: 't', at: 0 }), 'utf8');
+  await assert.rejects(() => acquireWriterLock(dir), /다른 T5 서버/, 'EPERM 생존을 죽음으로 오판했다');
+  // 잠금 파일이 걷히지 않고 그대로 남아 있다.
+  const cur = JSON.parse(await readFile(join(dir, '.writer-lock.json'), 'utf8'));
+  assert.equal(cur.pid, 1, '살아 있는 잠금이 걷혔다');
+});
+
+test('죽은 잠금을 둘이 동시에 회수해도 정확히 하나만 획득한다(20회 반복 · 0회 실패)', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp, writeFile, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  for (let i = 0; i < 20; i++) {
+    const dir = await mkdtemp(join(tmpdir(), `gpao-t5-reclaim-${i}-`));
+    await writeFile(join(dir, '.writer-lock.json'), JSON.stringify({ pid: 99999999, ownerToken: 'dead', at: 0 }), 'utf8');
+    const rs = await Promise.allSettled([
+      acquireWriterLock(dir, { pid: process.pid }),
+      acquireWriterLock(dir, { pid: process.pid }),
+    ]);
+    const wins = rs.filter((r) => r.status === 'fulfilled');
+    assert.equal(wins.length, 1, `${i}회차: 동시 회수에서 ${wins.length}명이 획득했다`);
+    // 남은 잠금은 이긴 쪽 것이고 죽은 항목이 아니다.
+    const cur = JSON.parse(await readFile(join(dir, '.writer-lock.json'), 'utf8'));
+    assert.equal(cur.pid, process.pid);
+    assert.notEqual(cur.ownerToken, 'dead');
+    await wins[0].value.release();
+  }
+});
