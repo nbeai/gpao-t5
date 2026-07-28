@@ -485,3 +485,72 @@ test('소스에 선언된 서비스는 끊어도 목록에서 사라지지 않�
   assert.equal(connectors.length, 1, '소스 선언이 사라졌다 — 다시 붙일 자리가 없어진다');
   assert.ok(!/지웠어요/.test(r.userSafeSummary));
 });
+
+// 실측(오너 라이브 2026-07-28, G-1A): `컨텍스트세븐에서 리액트 훅 문서 찾아줘. MCP 주소는 …`
+// T5 는 선언·연결까지 정확히 해냈고(손 2개 편입) **그 손을 쓰지 않고 web.collect 로 답했다.**
+// 딥위키 재연결 회차에서도 같은 일이 났다. 모델이 익숙한 손을 고른 게 아니라 —
+// **새 손이 모델에게 보이지 않았다.**
+//
+// `selfState` 는 턴 시작 때 한 번 만든 사진인데 편입은 `ctx.env.connections` 를 제자리에서
+// 갱신한다. 능력을 방금 얻고도 그 턴에는 못 쓰면, 능력 획득 순환이 닫히지 않는다.
+test('턴 도중 편입된 손은 그 턴의 모델 목록에 바로 들어온다', async () => {
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { toolSchemasFor } = await import('../src/kernel/l2-plan/tool-schema.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+
+  const env = demoEnv();
+  const tools = demoTools({});
+  const ctx = { tools, descriptors: [], env };
+  const 전 = toolSchemasFor(buildSelfState(env, { tools })).length;
+
+  admitMcpTools({
+    server: undefined, connector: 'd-test', connectorLabel: '시험서비스',
+    tools: [{ name: 'ask', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+    session: { callTool: async () => ({ content: [] }) },
+  }, ctx);
+
+  // 편입 뒤 **다시 만들면** 보여야 한다 — 이게 깨지면 편입 자체가 모델에게 닿지 않는다
+  const 후 = toolSchemasFor(buildSelfState(env, { tools })).length;
+  assert.equal(후, 전 + 1, '편입한 손이 모델 목록에 없다');
+});
+
+test('연결로 손이 늘면 같은 턴의 다음 걸음에서 그 손을 고를 수 있다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+
+  const env = demoEnv();
+  const tools = demoTools({});
+  const ledger = new TruthLedger();
+  const ctx = { env, tools, ledger };
+
+  // 첫 걸음: 이 손이 돌면 새 손 하나가 편입된다(연결 손을 흉내 낸다)
+  let 붙였나 = false;
+  tools.tools['web.collect'] = {
+    async handler() {
+      붙였나 = true;
+      admitMcpTools({
+        server: undefined, connector: 'd-new', connectorLabel: '새서비스',
+        tools: [{ name: 'ask', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+        session: { callTool: async () => ({ content: [{ type: 'text', text: '새 손이 답했다' }] }) },
+      }, { tools, descriptors: ctx.descriptors ?? [], env });
+      return { result: { ok: true }, userSafeSummary: '붙였어요' };
+    },
+  };
+
+  const 본손목록 = [];
+  ctx.descriptors = [];
+  ctx.model = { async respond(_tc, opts = {}) {
+    if (opts.tools?.length) 본손목록.push(opts.tools.map((t) => t.name ?? t.function?.name));
+    if (!붙였나 && opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'x' } }] };
+    return '';
+  } };
+
+  await runTurn({ text: '붙이고 나서 그걸로 해줘' }, ctx).catch(() => {});
+  assert.equal(붙였나, true, '시험이 성립하지 않았다 — 편입이 안 일어났다');
+  const 마지막 = 본손목록.at(-1) ?? [];
+  assert.ok(마지막.some((n) => String(n).includes('d-new')),
+    `편입 뒤에도 모델이 새 손을 못 본다: ${마지막.join(', ')}`);
+});

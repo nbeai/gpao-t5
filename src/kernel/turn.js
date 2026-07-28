@@ -645,6 +645,26 @@ function 이어받기정리(state, connectors = []) {
 }
 
 async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs) {
+  // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
+  //
+  // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
+  // T5 는 선언·연결까지 정확히 해내고(손 2개 편입) **그 손을 쓰지 않고 web.collect 로 답했다.**
+  // 딥위키 재연결 회차에서도 같은 일이 났다. 모델이 익숙한 손을 고른 게 아니라 —
+  // **새 손이 모델에게 보이지 않았다.**
+  //
+  // `selfState` 는 턴 시작 때 한 번 만든 사진인데, 편입은 `ctx.env.connections` 를 제자리에서
+  // 갱신한다. 그래서 편입 뒤에도 `toolSchemasFor(selfState)` 는 옛 목록을 준다(재현 확인:
+  // 편입 전 5개 → 편입 후 사진 5개 → 다시 만들면 6개). live-context 의 주석은 "그 턴부터
+  // 모델이 본다"고 적혀 있었다 — 그 약속이 지켜지지 않았다.
+  //
+  // 도구 이름으로 갈리지 않는다. **손 목록이 달라졌는지만** 본다(편입도 해제도 같은 규칙).
+  const 손목록크기 = () => Object.keys(ctx.tools?.tools ?? {}).length;
+  let 지난크기 = 손목록크기();
+  const 손이바뀌었으면다시 = () => {
+    if (손목록크기() === 지난크기) return;
+    지난크기 = 손목록크기();
+    selfState = buildSelfState(ctx.env, { tools: ctx.tools });
+  };
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
@@ -654,6 +674,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
     const rec = await ctx.tools.run(toolId, args, selfState);
+    손이바뀌었으면다시();
     ledger.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
@@ -886,6 +907,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
     const rec = await ctx.tools.run(toolId, 판정인자, selfState);
+    손이바뀌었으면다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
     steps += 1;
