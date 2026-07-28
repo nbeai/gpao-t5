@@ -104,3 +104,32 @@ test('상한에 닿으면 그 사실이 모델 입력까지 간다', async () =>
   assert.equal(buildTaskContext(공통).toolBudgetSpent, undefined);
   assert.equal(buildTaskContext({ ...공통, toolBudgetSpent: true }).toolBudgetSpent, true);
 });
+
+// 실측(오너 라이브 2026-07-28): 승인 카드가 뜨고 사용자가 승인했는데 **아무 일도 안 일어났다.**
+// 두 종류를 섞었기 때문이다 — 자기보존(승인해도 안 함)과 승인 경계(승인하면 함).
+// 섞으면 "꺼줘"가 영영 안 된다. 그건 능력 축소다(절대원칙 §0-A).
+test('승인 경계와 자기보존을 가른다 — 승인하면 실제로 실행된다', async () => {
+  const { lifecycleRisk } = await import('../src/runtime/lifecycle-guard.js');
+
+  // 자기보존: 승인해도 하지 않는다
+  const 자기 = lifecycleRisk(`kill ${process.pid}`);
+  assert.ok(자기 && !자기.approvable, 'T5 가 자기를 끄는 것이 승인으로 열리면 안 된다');
+
+  // 승인 경계: 승인하면 한다
+  const 남의것 = lifecycleRisk('kill 999999');
+  assert.ok(남의것?.approvable, '남의 프로그램을 끄는 일이 영영 막히면 능력 축소다');
+
+  // 승인 없이는 여전히 막힌다
+  const tool = makeLocalTerminalTool({ run: async () => ({ exitCode: 0, stdout: '', stderr: '' }) });
+  const 승인전 = await tool.handler({ command: 'kill 999999' });
+  assert.equal(승인전.blocked, true, '승인 없이 지나갔다');
+
+  // 승인하면 실제로 돈다
+  let 돌았나 = false;
+  const 승인후도구 = makeLocalTerminalTool({
+    run: async (c, o) => { 돌았나 = o?.mode === 'granted'; return { exitCode: 0, stdout: '', stderr: '', command: c }; },
+  });
+  const 승인후 = await 승인후도구.handler({ command: 'kill 999999', granted: true });
+  assert.ok(!승인후.blocked, '승인했는데 아직도 막힌다');
+  assert.equal(돌았나, true, '승인했는데 granted 로 안 돌았다');
+});

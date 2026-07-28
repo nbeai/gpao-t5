@@ -93,8 +93,15 @@ export function makeLocalTerminalTool(deps = {}) {
       }
       // 자기보존은 커널 경계와 **별도**다 — 샌드박스는 파일 쓰기를 막지 시그널을 못 막는다.
       // T5 가 자기를 끄면 껐다는 말을 할 주체가 사라진다(승인 카드도 원장도 못 남긴다).
+      //
+      // **두 종류를 가른다.** 자기보존(자기 프로세스·자기 기억)은 승인해도 하지 않는다.
+      // 그런데 `approvable` 한 것 — 남의 프로그램을 끄는 일 — 은 사용자가 시킨 일이고,
+      // 승인하면 **실제로 해야 한다.** 둘을 섞으면 승인을 눌러도 아무 일이 안 난다
+      // (실측 2026-07-28: 승인 카드가 두 번 뜨고 대상은 끝내 안 꺼졌다).
       const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
-      if (risk) return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
+      if (risk && !(risk.approvable && args.granted)) {
+        return { blocked: true, lifecycleBlocked: true, ...lifecycleMessage(risk) };
+      }
 
       const cwd = blank(args.cwd) ?? cwdOf();
       // 작업 자리 자체가 보호 영역이면 아예 시작하지 않는다(커널도 막지만 여기서 사람 말로 먼저 답한다).

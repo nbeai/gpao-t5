@@ -51,7 +51,11 @@ export function lifecycleRisk(command, ctx = {}) {
     const managed = ctx.managed == null ? [] : [].concat(ctx.managed).map(Number);
     const 전부내것 = 겨냥한pid.length > 0 && 겨냥한pid.every((n) => managed.includes(n));
     if (!전부내것) {
-      return { why: '돌고 있는 프로그램을 끄는 일이에요', what: cmd.trim().slice(0, 120) };
+      // **`approvable` 이 이 항목을 다른 것들과 가른다.** 위의 ①②③은 자기보존이라
+      // 승인해도 하지 않는다(T5 가 자기를 죽이면 말할 주체가 사라진다). 이건 다르다 —
+      // 사용자가 시킨 일이고, 승인하면 실제로 해야 한다. 승인 경계일 뿐 금지가 아니다.
+      // 이 표시가 없으면 `kill` 이 영영 실행되지 않는다(실측: 승인해도 아무 일이 안 났다).
+      return { why: '돌고 있는 프로그램을 끄는 일이에요', what: cmd.trim().slice(0, 120), approvable: true };
     }
   }
   // ③ 기억이 통째로 사라지는 것 — 세션·원장·연결이 여기 있다
