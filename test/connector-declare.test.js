@@ -486,36 +486,83 @@ test('소스에 선언된 서비스는 끊어도 목록에서 사라지지 않�
   assert.ok(!/지웠어요/.test(r.userSafeSummary));
 });
 
-// 실측(오너 라이브 2026-07-28, G-1A): `컨텍스트세븐에서 리액트 훅 문서 찾아줘. MCP 주소는 …`
-// T5 는 선언·연결까지 정확히 해냈고(손 2개 편입) **그 손을 쓰지 않고 web.collect 로 답했다.**
-// 딥위키 재연결 회차에서도 같은 일이 났다. 모델이 익숙한 손을 고른 게 아니라 —
-// **새 손이 모델에게 보이지 않았다.**
+// ── 운영 현실 갱신 (G-1A) ────────────────────────────────────────────────
 //
-// `selfState` 는 턴 시작 때 한 번 만든 사진인데 편입은 `ctx.env.connections` 를 제자리에서
-// 갱신한다. 능력을 방금 얻고도 그 턴에는 못 쓰면, 능력 획득 순환이 닫히지 않는다.
-test('턴 도중 편입된 손은 그 턴의 모델 목록에 바로 들어온다', async () => {
-  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
-  const { toolSchemasFor } = await import('../src/kernel/l2-plan/tool-schema.js');
-  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
-  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+// 실측(오너 라이브 2026-07-28): `컨텍스트세븐에서 리액트 훅 문서 찾아줘. MCP 주소는 …`
+// T5 는 선언·연결까지 정확히 해냈고(손 2개 편입) **그 손을 쓰지 않고 web.collect 로 답했다.**
+// 모델이 익숙한 손을 고른 게 아니라 — **새 손이 모델에게 보이지 않았다.**
+// `selfState` 는 턴 시작 때 한 번 만든 사진인데 편입은 레지스트리를 제자리에서 갱신한다.
+//
+// 개수 비교로 막지 않는다: **교체를 놓친다.** 아래 넷이 그 이유다.
+const 편입 = (ctx, connector, label, name, 답) => {
+  const { admitMcpTools } = ctx.__admit;
+  admitMcpTools({
+    server: undefined, connector, connectorLabel: label,
+    tools: [{ name, description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+    session: { callTool: async () => ({ content: [{ type: 'text', text: 답 ?? label }] }) },
+  }, ctx);
+};
 
+async function 현실틀() {
+  const [{ buildSelfState }, { toolSchemasFor }, { demoEnv, demoTools }, { admitMcpTools }, { revokeAdmitted }] =
+    await Promise.all([
+      import('../src/kernel/l0-evidence/self-state.js'),
+      import('../src/kernel/l2-plan/tool-schema.js'),
+      import('../src/surface/demo-context.js'),
+      import('../src/runtime/tool-admission.js'),
+      import('../src/runtime/tool-admission.js'),
+    ]);
   const env = demoEnv();
   const tools = demoTools({});
-  const ctx = { tools, descriptors: [], env };
-  const 전 = toolSchemasFor(buildSelfState(env, { tools })).length;
+  const ctx = { tools, descriptors: [], env, __admit: { admitMcpTools } };
+  const 손이름들 = () => toolSchemasFor(buildSelfState(env, { tools }))
+    .map((t) => t.name ?? t.function?.name);
+  return { ctx, 손이름들, revokeAdmitted };
+}
 
-  admitMcpTools({
-    server: undefined, connector: 'd-test', connectorLabel: '시험서비스',
-    tools: [{ name: 'ask', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
-    session: { callTool: async () => ({ content: [] }) },
-  }, ctx);
-
-  // 편입 뒤 **다시 만들면** 보여야 한다 — 이게 깨지면 편입 자체가 모델에게 닿지 않는다
-  const 후 = toolSchemasFor(buildSelfState(env, { tools })).length;
-  assert.equal(후, 전 + 1, '편입한 손이 모델 목록에 없다');
+test('현실 갱신 ① 손 하나가 늘면 모델 목록에 나타난다', async () => {
+  const { ctx, 손이름들 } = await 현실틀();
+  const 전 = 손이름들();
+  편입(ctx, 'd-a', '가서비스', 'ask');
+  const 후 = 손이름들();
+  assert.equal(후.length, 전.length + 1);
+  assert.ok(후.some((n) => String(n).includes('d-a')), `새 손이 안 보인다: ${후.join(', ')}`);
 });
 
-test('연결로 손이 늘면 같은 턴의 다음 걸음에서 그 손을 고를 수 있다', async () => {
+test('현실 갱신 ② 손 하나가 내려가면 모델 목록에서 사라진다', async () => {
+  const { ctx, 손이름들, revokeAdmitted } = await 현실틀();
+  편입(ctx, 'd-a', '가서비스', 'ask');
+  const id = 손이름들().find((n) => String(n).includes('d-a'));
+  assert.ok(id, '시험이 성립하지 않았다');
+  revokeAdmitted([id], ctx);
+  assert.ok(!손이름들().some((n) => String(n).includes('d-a')), '내린 손이 아직 보인다');
+});
+
+test('현실 갱신 ③ 하나 내리고 하나 올리면 — 개수는 같지만 목록은 달라야 한다', async () => {
+  const { ctx, 손이름들, revokeAdmitted } = await 현실틀();
+  편입(ctx, 'd-a', '가서비스', 'ask');
+  const 개수전 = 손이름들().length;
+  const 가id = 손이름들().find((n) => String(n).includes('d-a'));
+  revokeAdmitted([가id], ctx);
+  편입(ctx, 'd-b', '나서비스', 'ask');
+  const 후 = 손이름들();
+  assert.equal(후.length, 개수전, '이 시험의 전제 — 개수는 같다');
+  assert.ok(!후.some((n) => String(n).includes('d-a')), '내린 손이 남았다');
+  assert.ok(후.some((n) => String(n).includes('d-b')), '올린 손이 안 보인다 — 개수 비교로는 못 잡는 자리다');
+});
+
+test('현실 갱신 ④ 같은 id 로 세션·스키마만 갈려도 새 것이 쓰인다', async () => {
+  const { ctx, 손이름들 } = await 현실틀();
+  편입(ctx, 'd-a', '가서비스', 'ask', '옛 세션');
+  const id = 손이름들().find((n) => String(n).includes('d-a'));
+  편입(ctx, 'd-a', '가서비스', 'ask', '새 세션');   // 같은 id 로 재연결
+  assert.equal(손이름들().filter((n) => n === id).length, 1, '같은 손이 두 번 실린다');
+  const r = await ctx.tools.tools[id].handler({});
+  assert.match(r.userSafeSummary, /새 세션/, '옛 세션이 그대로 남아 있다 — 재연결이 반영 안 됐다');
+});
+
+// 관통 검사 — 노출까지만 보지 않는다. 실제로 골라 실행되고, 영수증이 정확히 한 번인지까지.
+test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 새 손 실행 → 영수증 각 1건', async () => {
   const { runTurn } = await import('../src/kernel/turn.js');
   const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
   const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
@@ -524,9 +571,8 @@ test('연결로 손이 늘면 같은 턴의 다음 걸음에서 그 손을 고�
   const env = demoEnv();
   const tools = demoTools({});
   const ledger = new TruthLedger();
-  const ctx = { env, tools, ledger };
+  const ctx = { env, tools, ledger, descriptors: [] };
 
-  // 첫 걸음: 이 손이 돌면 새 손 하나가 편입된다(연결 손을 흉내 낸다)
   let 붙였나 = false;
   tools.tools['web.collect'] = {
     async handler() {
@@ -535,22 +581,35 @@ test('연결로 손이 늘면 같은 턴의 다음 걸음에서 그 손을 고�
         server: undefined, connector: 'd-new', connectorLabel: '새서비스',
         tools: [{ name: 'ask', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
         session: { callTool: async () => ({ content: [{ type: 'text', text: '새 손이 답했다' }] }) },
-      }, { tools, descriptors: ctx.descriptors ?? [], env });
+      }, { tools, descriptors: ctx.descriptors, env });
       return { result: { ok: true }, userSafeSummary: '붙였어요' };
     },
   };
 
-  const 본손목록 = [];
-  ctx.descriptors = [];
+  let 마지막목록 = [];
   ctx.model = { async respond(_tc, opts = {}) {
-    if (opts.tools?.length) 본손목록.push(opts.tools.map((t) => t.name ?? t.function?.name));
-    if (!붙였나 && opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'x' } }] };
+    const 이름들 = (opts.tools ?? []).map((t) => t.name ?? t.function?.name);
+    if (이름들.length) 마지막목록 = 이름들;
+    if (!붙였나 && 이름들.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'x' } }] };
+    const 새손 = 이름들.find((n) => String(n).includes('d-new'));
+    if (새손) return { text: '', toolCalls: [{ name: 새손, args: {} }] };
     return '';
   } };
 
-  await runTurn({ text: '붙이고 나서 그걸로 해줘' }, ctx).catch(() => {});
+  const r1 = await runTurn({ text: '붙이고 나서 그걸로 해줘' }, ctx).catch(() => ({}));
   assert.equal(붙였나, true, '시험이 성립하지 않았다 — 편입이 안 일어났다');
-  const 마지막 = 본손목록.at(-1) ?? [];
-  assert.ok(마지막.some((n) => String(n).includes('d-new')),
-    `편입 뒤에도 모델이 새 손을 못 본다: ${마지막.join(', ')}`);
+  assert.ok(마지막목록.some((n) => String(n).includes('d-new')),
+    `편입 뒤에도 모델이 새 손을 못 본다: ${마지막목록.join(', ')}`);
+
+  // 새 손은 승인 경계다(MCP 는 종류를 안 주므로 "모르면 승인"). 카드가 **그 손**을 가리키는지
+  // 보고, 승인 뒤에 실제로 도는지까지 본다 — 노출까지만 보면 절반이다.
+  assert.equal(r1.kind, 'approval', `새 손이 승인 없이 지나갔거나 안 골라졌다: ${r1.kind}`);
+  assert.ok((r1.pending ?? []).some((p) => String(p.action).includes('d-new')),
+    '승인 카드가 새 손을 가리키지 않는다');
+  await runTurn({ approve: r1.pendingId }, ctx).catch(() => {});
+
+  const 영수증 = ledger.entries.map((e) => e.actualCall?.tool);
+  const 새손영수증 = 영수증.filter((t) => String(t).includes('d-new'));
+  assert.equal(새손영수증.length, 1, `새 손 영수증이 ${새손영수증.length}건 — 실행됐고 한 번만이어야 한다`);
+  assert.equal(영수증.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
 });

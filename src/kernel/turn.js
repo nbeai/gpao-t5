@@ -138,6 +138,34 @@ export function fallbackReplyFrom(receipts = []) {
   return `${what}${next ? ` ${next}` : ''}`.trim();
 }
 
+/**
+ * **도구 현실이 바뀌면 그 현실에서 파생되는 표면을 한 번에 다시 만든다.**
+ *
+ * 판단하지 않고 도구를 추천하지도 않는다. 살아 있는 레지스트리와 연결 상태를 다시 읽어
+ * **같은 현실의 투영본들**을 함께 만드는 일만 한다. 하나만 갱신하면 같은 턴 안에서
+ * 표면마다 다른 현실을 보게 된다 — 그게 오늘 여러 번 겪은 병이다.
+ *
+ * 변화 감지를 두지 않는다. 도구 id 목록이나 **개수 비교는 교체를 놓친다**(하나 내리고 하나
+ * 올리면 개수가 같다. 같은 id 로 세션·스키마만 갈리는 재연결도 못 잡는다). 지금 손은 스무 개
+ * 남짓이고 한 턴의 실행 횟수도 상한이 있어 매번 다시 만드는 비용이 아주 작다 —
+ * 이 단계에서는 영리한 감지 장치보다 정확성이 낫다. 성능이 **실제로 측정될 때**
+ * 레지스트리에 `capabilityRevision` 을 두고 편입·교체·해제마다 올린다(오너 판정 2026-07-28).
+ *
+ * @returns {{selfState:object, summary:object}}
+ */
+function refreshRuntimeReality(ctx) {
+  const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
+  // executableKinds 는 **런타임에서 온다** — 커널이 어떤 방식을 실행할 수 있는지 짐작하면
+  // 그 짐작이 곧 거짓말이 된다(모델은 그걸 현실로 읽는다).
+  ctx.externalReality = externalReality({
+    connectors: ctx.connectors, selfState, executableKinds: ctx.executableKinds,
+  });
+  const capCounts = capabilityCounts(buildCapabilityFacts(selfState));
+  if (ctx.selfhood) ctx.selfhood = { ...ctx.selfhood, capabilityCounts: capCounts };
+  // 모델에게 가는 도구 스키마는 `toolSchemasFor(selfState)` 가 이 selfState 에서 파생한다.
+  return { selfState, summary: selfStateSummary(selfState), capCounts };
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -147,18 +175,10 @@ export async function runTurn(input, ctx) {
   // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
   // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
   if (typeof input.text === 'string' && input.text.trim()) ctx.허락한손 = undefined;
-  const selfState = buildSelfState(ctx.env, { tools: ctx.tools });
-  // P5-B-0.5: 외부 서비스 이야기인지 **한 번만** 판정하고 모든 조립부가 같은 사실을 쓴다.
-  // 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다(오늘 세 번 겪었다).
   // P5-B-0.5: **판정하지 않고 현실만 싣는다.** 어느 서비스 얘기인지, 어느 길이 자연스러운지는
-  // 모델이 고른다(§24). 키워드로 우리가 맞히면 목록에 없는 서비스는 또 막다른 답이 된다.
+  // 모델이 고른다(§24). 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다.
   // executePlan 은 input 을 안 받으므로 ctx 에 실어 둔다(askedFrom 과 같은 이유).
-  // executableKinds 는 **런타임에서 온다** — 커널이 어떤 방식을 실행할 수 있는지 짐작하면
-  // 그 짐작이 곧 거짓말이 된다(모델은 그걸 현실로 읽는다).
-  ctx.externalReality = externalReality({
-    connectors: ctx.connectors, selfState, executableKinds: ctx.executableKinds,
-  });
-  const summary = selfStateSummary(selfState);
+  const { selfState, summary } = refreshRuntimeReality(ctx);
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).
   //   · 이름을 지어 주면 **이번 턴부터** 그 이름으로 답한다(지속은 서버가 identityUpdate 로).
@@ -657,14 +677,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 편입 전 5개 → 편입 후 사진 5개 → 다시 만들면 6개). live-context 의 주석은 "그 턴부터
   // 모델이 본다"고 적혀 있었다 — 그 약속이 지켜지지 않았다.
   //
-  // 도구 이름으로 갈리지 않는다. **손 목록이 달라졌는지만** 본다(편입도 해제도 같은 규칙).
-  const 손목록크기 = () => Object.keys(ctx.tools?.tools ?? {}).length;
-  let 지난크기 = 손목록크기();
-  const 손이바뀌었으면다시 = () => {
-    if (손목록크기() === 지난크기) return;
-    지난크기 = 손목록크기();
-    selfState = buildSelfState(ctx.env, { tools: ctx.tools });
-  };
+  // 도구 이름으로도, 개수로도 갈리지 않는다. **매번 다시 만든다**(refreshRuntimeReality 머리말).
+  const 현실다시 = () => { ({ selfState, summary } = refreshRuntimeReality(ctx)); };
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
@@ -674,7 +688,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
     const rec = await ctx.tools.run(toolId, args, selfState);
-    손이바뀌었으면다시();
+    현실다시();
     ledger.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
@@ -907,7 +921,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
     const rec = await ctx.tools.run(toolId, 판정인자, selfState);
-    손이바뀌었으면다시();
+    현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
     steps += 1;
