@@ -660,10 +660,40 @@ async function openToolbox(focusId) {
     tbTools = r.tools || [];
     renderToolbox('', focusId);
     await renderPendingSenders();
+    await renderInvalidDeclared();
     if (!focusId) tbSearch.focus();
   } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
 }
 function closeToolbox() { tbov.classList.remove('open'); }
+
+// P-OP-6 · **무효가 된 선언도 "없음"이 아니다.** 붙일 수 없게 된 사용자 선언을 이유와 함께
+// 보여주고, 정리할 길을 준다(사용자가 만든 것은 사용자가 거둔다). 진실은 /connectors/truth 가 낸다.
+async function renderInvalidDeclared() {
+  let t;
+  try { t = await (await fetch('/connectors/truth')).json(); } catch { return; }
+  const 무효 = t.invalidDeclared ?? [];
+  if (!무효.length) return;
+  const box = mk('div', 'tb-card');
+  box.appendChild(mk('div', 'tb-name', '지금은 붙일 수 없는 서비스'));
+  for (const d of 무효) {
+    const row = mk('div', 'tb-hint', `${d.label} — ${d.userSafe ?? '지금은 붙일 수 없어요'}`);
+    const btn = document.createElement('button');
+    btn.className = 'tb-test'; btn.textContent = '정리';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        const out = await (await fetch('/connectors/declared/remove', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: d.id }),
+        })).json();
+        if (out.ok) { toast(`${d.label} 선언을 정리했어요.`); box.remove(); await renderInvalidDeclared(); }
+        else btn.disabled = false;
+      } catch { btn.disabled = false; }
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
+  tbBody.appendChild(box);
+}
 
 // P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
 // 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —

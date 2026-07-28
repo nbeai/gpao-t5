@@ -175,6 +175,18 @@ export function makeConnectorDeclareTool(deps = {}) {
     async listStored() {
       return (await (deps.store?.load?.() ?? [])) ?? [];
     },
+    /** 사용자가 만든 것은 사용자가 거둘 수 있어야 한다 — 무효가 된 선언의 정리 길(P-OP-6). */
+    async removeStored(id) {
+      if (!id) return { ok: false, reason: 'no_id' };
+      const before = await (deps.store?.load?.() ?? []);
+      if (!before.some((d) => d.id === id)) return { ok: true, removed: false };
+      await deps.store?.remove?.(id);
+      // 살아 있는 커넥터 배열에도 같은 id 가 있으면 함께 걷는다(두 진실 금지).
+      const list = deps.connectors?.() ?? [];
+      const i = list.findIndex((x) => x.id === id);
+      if (i >= 0) list.splice(i, 1);
+      return { ok: true, removed: true };
+    },
     async restoreDeclared() {
       const list = deps.connectors?.() ?? [];
       const 되살림 = [];

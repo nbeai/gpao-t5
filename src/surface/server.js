@@ -24,6 +24,7 @@ import { ChannelBindingStore } from './channel-binding-store.js';
 import { ChannelCredentialStore } from './channel-credential-store.js';
 import { makeTelegramReceiver } from '../runtime/telegram-receiver.js';
 import { checkDeclaration } from '../runtime/connector-declare.js';
+import { acquireWriterLock } from './writer-lock.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
@@ -890,6 +891,15 @@ export function makeServer(deps = {}) {
         });
       }
 
+      // 무효 선언 정리 — 사용자가 만든 선언은 사용자가 거둘 수 있어야 한다(P-OP-6 화면 소비).
+      if (req.method === 'POST' && url === '/connectors/declared/remove') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        const 손 = tools?.tools?.['connector.declare'];
+        if (!손?.removeStored) return sendJson(res, 501, { ok: false });
+        const r = await 손.removeStored(String(input.id ?? ''));
+        return sendJson(res, 200, r);
+      }
+
       // ── 비밀 통로 (P5-B-1B) ────────────────────────────────────────────
       // **API 키는 대화로 받지 않는다.** 여기가 그 다른 길이다 — 값은 이 요청 하나로 들어와
       // 0600 저장소로 곧장 가고, 세션 기록·원장·모델 입력 어디도 지나지 않는다.
@@ -1463,6 +1473,13 @@ export function makeServer(deps = {}) {
  */
 export async function startLiveServer(opts = {}) {
   const bootStore = opts.sessionStore ?? new SessionStore();
+  // 설치 전 필수(감사 2026-07-29): **같은 데이터 디렉터리에는 단일 writer.** 살아 있는 다른
+  // 서버가 잡고 있으면 여기서 정직하게 멈춘다(반쪽으로 돌아 마지막 저장이 앞의 것을 지우지 않게).
+  if (opts.writerLock !== false) {
+    const lock = await acquireWriterLock(bootStore.dir);
+    process.once('SIGINT', () => { lock.release().finally(() => process.exit(130)); });
+    process.once('SIGTERM', () => { lock.release().finally(() => process.exit(143)); });
+  }
   // P5-1: 저장된 채널 자격을 **liveDeps 보다 먼저** 읽어 같은 env 키로 합친다. 안 그러면 수신기는
   // 도는데 채널 상태는 "연결 안 됨"이라 인바운드가 channel_not_ready 로 막힌다(실측).
   const channelCreds = opts.channelCredentialStore ?? new ChannelCredentialStore(bootStore.dir);

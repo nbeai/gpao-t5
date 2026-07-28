@@ -6,7 +6,7 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 // P-OP-4 · **기록 도중 중단이 파일을 반 토막 내지 못하게** — tmp 에 다 쓰고 rename 한 번으로
 // 바꾼다(rename 은 원자적). 임시 이름은 고유하게 — 고정 `.tmp` 는 두 프로세스가 같은 파일을
@@ -63,9 +63,14 @@ export function markClosed(memory, candidateId, outcome) {
   return memory;
 }
 
-/** 기억 수명주기 영수증용 내용 지문 — 원문은 남기지 않는다(철회로 지운 기억이 원장에 되살아나지 않게). */
-export function memoryDigest(statement) {
-  return createHash('sha256').update(String(statement ?? '')).digest('hex').slice(0, 16);
+/**
+ * 기억 수명주기 영수증용 내용 지문 — 원문은 남기지 않는다(철회로 지운 기억이 원장에 되살아나지 않게).
+ * key 가 있으면 HMAC — 짧고 흔한 선호 문장은 평문 sha256 절단으로도 사전 대입 추측이 가능하다
+ * (설치 전 필수, 감사 관찰 2026-07-29). 키는 로컬 0600 파일에만 산다.
+ */
+export function memoryDigest(statement, key) {
+  const h = key ? createHmac('sha256', key) : createHash('sha256');
+  return h.update(String(statement ?? '')).digest('hex').slice(0, 16);
 }
 
 /**
@@ -89,6 +94,20 @@ export class MemoryLedger {
     try { return JSON.parse(raw); } catch { return { entries: [], corrupted: true }; }
   }
 
+  /** 지문 키 — 이 데이터 자리 전용 비밀(0600). 없으면 처음 한 번 만든다. */
+  async digestKey() {
+    if (this._key) return this._key;
+    const kf = join(this.dir, 'memory-ledger.key');
+    try {
+      this._key = (await readFile(kf, 'utf8')).trim();
+    } catch {
+      this._key = randomBytes(32).toString('hex');
+      await mkdir(this.dir, { recursive: true });
+      await writeFile(kf, this._key, { encoding: 'utf8', mode: 0o600 });
+    }
+    return this._key;
+  }
+
   /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'} event */
   async append(event, entry, now = Date.now()) {
     const a = await this.load();
@@ -105,7 +124,7 @@ export class MemoryLedger {
       candidateId: entry?.candidateId ?? null,
       kind: entry?.kind ?? null,
       at: now,
-      digest: memoryDigest(entry?.statement),
+      digest: memoryDigest(entry?.statement, await this.digestKey()),
     });
     await mkdir(this.dir, { recursive: true });
     await atomicWrite(this.file, JSON.stringify(a));

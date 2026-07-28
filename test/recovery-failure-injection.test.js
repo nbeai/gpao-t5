@@ -288,3 +288,75 @@ test('무효화된 저장 선언이 진실 표면에 이유와 함께 나타난�
     assert.ok(!(t.connectors ?? []).some((c) => c.id === 'd-old'), '무효 선언이 유효 목록에 섞였다');
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── 설치 전 필수(감사): 단일 writer · HMAC 지문 ──────────────────────────
+test('단일 writer: 살아 있는 다른 서버의 잠금이 있으면 정직하게 멈춘다 · 죽은 잠금은 스스로 걷는다', async () => {
+  const { acquireWriterLock } = await import('../src/surface/writer-lock.js');
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-lock-'));
+  const first = await acquireWriterLock(dir, { pid: process.pid });
+  // 살아 있는 pid(우리 자신)가 잡고 있는데 다른 주체가 또 잡으려 하면 — 멈춘다.
+  await assert.rejects(() => acquireWriterLock(dir, { pid: process.pid + 999999 }), /다른 T5 서버/);
+  await first.release();
+  // 해제 뒤엔 잡힌다.
+  const second = await acquireWriterLock(dir, { pid: process.pid });
+  await second.release();
+  // 죽은 pid 의 잠금은 스스로 걷는다(강제 종료 복구).
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(join(dir, '.writer-lock.json'), JSON.stringify({ pid: 99999999, at: 0 }), 'utf8');
+  const third = await acquireWriterLock(dir, { pid: process.pid });
+  await third.release();
+});
+
+test('기억 지문은 로컬 비밀키 HMAC — 사전 대입으로 평문을 추측할 수 없다', async () => {
+  const { MemoryLedger, memoryDigest } = await import('../src/surface/memory-store.js');
+  const { mkdtemp, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const a = await mkdtemp(join(tmpdir(), 'gpao-t5-hmac-a-'));
+  const b = await mkdtemp(join(tmpdir(), 'gpao-t5-hmac-b-'));
+  const 항목 = { candidateId: 'c1', kind: 'preference', statement: '보고서는 목록으로' };
+  const ea = await new MemoryLedger(a).append('proposed', 항목);
+  const eb = await new MemoryLedger(b).append('proposed', 항목);
+  // 같은 문장이라도 자리(키)가 다르면 지문이 다르다 — 평문 사전 대입이 성립하지 않는다.
+  assert.notEqual(ea.digest, eb.digest, '지문이 키와 무관하다 — 사전 대입 가능');
+  // 평문 sha256 절단과도 다르다(키 없는 옛 방식으로 추측 불가).
+  assert.notEqual(ea.digest, memoryDigest('보고서는 목록으로'), '평문 지문 그대로다');
+  // 같은 자리에서는 같은 문장 → 같은 지문(수명주기 연결은 유지).
+  const ea2 = await new MemoryLedger(a).append('rolled_back', 항목);
+  assert.equal(ea.digest, ea2.digest, '같은 자리의 수명주기 연결이 끊겼다');
+  // 키 파일은 0600.
+  const { statSync } = await import('node:fs');
+  assert.equal(statSync(join(a, 'memory-ledger.key')).mode & 0o777, 0o600, '키 파일 권한이 넓다');
+});
+
+test('무효 선언 정리: 사용자가 만든 것은 사용자가 거둔다(/connectors/declared/remove)', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { DeclaredConnectorStore } = await import('../src/surface/declared-connector-store.js');
+  const { makeConnectorDeclareTool } = await import('../src/runtime/connector-declare.js');
+  const { mkdtemp, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-rm-'));
+  await writeFile(join(dir, 'declared-connectors.json'),
+    JSON.stringify([{ service: '옛서비스', authKind: 'mcp', url: 'https://127.0.0.1:9/mcp', id: 'd-old' }]), 'utf8');
+  const tools = demoTools();
+  const store = new DeclaredConnectorStore(dir);
+  tools.tools['connector.declare'] = makeConnectorDeclareTool({ connectors: () => [], store });
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const r = await (await fetch(`${base}/connectors/declared/remove`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'd-old' }),
+    })).json();
+    assert.equal(r.removed, true);
+    // 진실 표면에서도 사라진다 — 정리했으니 이제 "없음"이 사실이다.
+    const t = await (await fetch(`${base}/connectors/truth`)).json();
+    assert.ok(!(t.invalidDeclared ?? []).length, '정리했는데 무효 선언이 남아 보인다');
+    assert.equal((await store.load()).length, 0, '저장소에 선언이 남았다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
