@@ -519,6 +519,89 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
   }
 }
 
+// ── ③-b2 **같은 사실을 두 층이 따로 계산하지 않는다** (구조 원칙 §1-B) ────
+//
+// 2026-07-28 하루에 같은 병을 다섯 번 만났다. 전부 위층이 아래층의 사실을 자기 말로 덮었고,
+// 매번 **덜 아는 쪽이 이겼다.** 사용자가 본 것:
+//   · 없던 파일을 만드는 카드에 "원본은 휴지통에 남아요"   (도구는 새 파일인 걸 알았다)
+//   · 파일 저장 거절에 "보내지 않았어요. 초안은 그대로 있어요"
+//   · 조회 승인에 "메시지를 실제로 밖으로 보내는 일이라"
+//   · 주소로 붙은 MCP 카드에 `undefined 서버에서` · 내부 id `notion 에서`
+//   · 원장에 `{"results":[],"type":"workspace_search"}`
+//
+// 회귀 테스트는 **그 자리**를 지킨다. 게이트는 **그 종류**를 지킨다(구조 원칙 §2-C).
+// 넷 다 예/아니오로 끝나므로 기계가 본다.
+{
+  const before = failures.length;
+  const { readFile: 읽기 } = await import('node:fs/promises');
+  const 소스 = async (p) => 읽기(new URL(`../${p}`, import.meta.url), 'utf8');
+  const 주석뺀줄 = (s) => s.split('\n')
+    .map((줄, i) => ({ n: i + 1, t: 줄 }))
+    .filter((x) => !/^\s*(\/\/|\*|\/\*)/.test(x.t));
+
+  // ① 도구가 이 작업에 대해 낸 문장이 도구 전체 고정 문구를 이긴다.
+  //    (`previewOf().cancel` > `reversibleNote`)
+  try {
+    const { explainAuthority } = await import('../src/kernel/l2-plan/authority.js');
+    const r = explainAuthority({
+      kind: 'write', revocable: true,
+      reversibleNote: '층 전체에 붙은 고정 문구',
+      preview: { impact: 'x', cancel: '이 작업에 대해 도구가 낸 문장' },
+    });
+    if (r.reversible !== '이 작업에 대해 도구가 낸 문장') {
+      bad('승인 카드가 도구의 문장 대신 층 전체 고정 문구를 쓴다 — 같은 카드에 두 진실이 생긴다'
+        + ` (나온 값: ${r.reversible})`);
+    }
+  } catch (e) { bad(`되돌리기 문구 우선순위 검사 실패: ${e.message}`); }
+
+  // ② 위층이 아래층의 **종류를 바꿔 부르지 않는다.** 승인 강제는 등급으로만 한다.
+  //    예전엔 계획 층이 `kind = 'send'` 로 갈아 달아서 조회·연결까지 전송으로 설명됐다.
+  try {
+    const { grantFor } = await import('../src/kernel/l2-plan/authority.js');
+    const g = grantFor({ label: 'x', kind: 'read', needsApproval: true, preview: { impact: 'x' } });
+    if (!g.approvalRequired) bad('도구가 확인을 요구하는데 승인이 강제되지 않는다');
+    if (g.kind !== 'read') bad(`승인을 강제하려고 종류를 바꿔 달았다: read → ${g.kind}`);
+    if (/보내는 일/.test(g.reason?.why ?? '')) bad(`조회인데 전송으로 설명한다: ${g.reason?.why}`);
+    for (const f of ['src/kernel/l2-plan/action-plan.js', 'src/kernel/turn.js']) {
+      const 갈아단곳 = 주석뺀줄(await 소스(f)).filter((x) => /\bkind\s*=\s*['"]send['"]/.test(x.t));
+      if (갈아단곳.length) bad(`${f}:${갈아단곳[0].n} 에서 종류를 send 로 갈아 단다 — 등급만 올릴 것`);
+    }
+  } catch (e) { bad(`종류 보존 검사 실패: ${e.message}`); }
+
+  // ③ **사람 말 자리에 기계 말을 넣지 않는다.** 승인 카드·원장 문구를 만드는 자리에서
+  //    JSON.stringify 로 값을 그대로 싣는 것을 막는다(그게 MCP 카드에 브레이스가 뜬 이유다).
+  try {
+    const 사람말자리 = /(userSafeSummary|impact|scope|what|cancel|nextSafeAction)\s*:/;
+    const 검사파일 = ['src/runtime/tool-admission.js', 'src/runtime/local-file.js',
+      'src/runtime/connector-declare.js', 'src/runtime/connector-connect.js', 'src/kernel/turn.js'];
+    for (const f of 검사파일) {
+      const 샌곳 = 주석뺀줄(await 소스(f)).filter((x) => 사람말자리.test(x.t) && /JSON\.stringify/.test(x.t));
+      if (샌곳.length) {
+        bad(`${f}:${샌곳[0].n} 사람이 읽는 자리에 기계 말을 싣는다 — 구조는 result 로 모델에게 간다`);
+      }
+    }
+  } catch (e) { bad(`사람 말 자리 검사 실패: ${e.message}`); }
+
+  // ④ **한 요청에서 같은 질문을 두 번 하지 않는다.** 승인을 만드는 자리가 둘인데 한쪽만
+  //    허락을 이어받으면, 같은 요청인데 어느 길로 왔느냐로 묻는 횟수가 달라진다(프랙탈 위반).
+  try {
+    const t = await 소스('src/kernel/turn.js');
+    const 자리 = [...t.matchAll(/ctx\.pending\.set\(/g)];
+    const 이어받는곳 = [...t.matchAll(/허락한손:/g)];
+    if (자리.length !== 이어받는곳.length) {
+      bad(`승인을 만드는 자리 ${자리.length}곳 중 ${이어받는곳.length}곳만 허락을 이어받는다`
+        + ' — 같은 요청인데 경로에 따라 묻는 횟수가 달라진다');
+    }
+    if (!/input\.text[^\n]*ctx\.허락한손 = undefined|ctx\.허락한손 = undefined/.test(t)) {
+      bad('새 요청에서 승인 면제를 비우지 않는다 — 면제가 다음 요청까지 조용히 넘어간다');
+    }
+  } catch (e) { bad(`승인 면제 범위 검사 실패: ${e.message}`); }
+
+  if (failures.length === before) {
+    ok('한 사실은 한 층에서만 — 도구 문장 우선 · 종류 보존 · 사람 말 자리 · 승인 면제 범위');
+  }
+}
+
 // ── ③-c 커널은 도구 이름을 모른다 (P5 진입 전 구조 게이트) ──────────────
 // 예전엔 working-state.js 가 `if (tool === 'web.collect') … if (tool === 'local.file') …`
 // 사다리였다. 도구가 늘 때마다 커널을 고쳐야 했고, 안 고치면 그 도구만 조용히 다음 턴으로
