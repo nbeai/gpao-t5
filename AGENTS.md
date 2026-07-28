@@ -69,6 +69,14 @@ Mandatory independent audit and collaboration contract:
    - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most
      effective path. Do not co-edit the same files or turn independent audit into serial rework.
 
+Mandatory current-session handoff:
+
+10. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
+   - Every new, resumed, or takeover session reads this after the audit contract and current execution board.
+   - It records the latest verified baseline, current file ownership, blockers, designated follow-ups, next work,
+     and stop condition. Verify it against Git before acting because active implementation may have advanced.
+   - Update this fixed-path document at each major P-OP handoff instead of creating disconnected handoff notes.
+
 ## T5 Core Three-Axis Rule (2026-07-28 owner direction)
 
 The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
