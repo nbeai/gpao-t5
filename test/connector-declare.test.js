@@ -753,35 +753,117 @@ test('한 대화에 살아 있는 승인 요청은 하나다 — 이어달라고
 // ── G 잔여 행렬 (2026-07-29) ─────────────────────────────────────────────
 //
 // 실측(오너 라이브): `정산 파일 정리해줘` 에 런타임은 `5곳이 후보예요` 를 사실로 냈는데
-// T5 는 말없이 하나를 골라 그 달 숫자로 답을 끝냈다. 사용자는 다섯 곳 중 하나가 골라졌다는
-// 사실조차 듣지 못했다 — 다른 달 자료였다면 숫자가 통째로 틀린 채 끝난다.
+// T5 는 말없이 하나를 골라 그 달 숫자로 답을 끝냈다. 다른 달 자료였다면 숫자가 통째로 틀린 채
+// 끝난다.
 //
-// 원인은 모델 선택이 아니라 **사실이 잘려서 넘어간 것**이었다. `subjectOf` 가 `candidates[0]`
-// 하나만 다음 턴으로 넘겨서, 다음 턴에는 "정해진 자리 하나"만 남았다.
-// 여기서 "물어봐라"라고 시키지 않는다 — 고른 것과 나머지를 사실로 주고 판단은 모델이 한다(§24).
-test('후보는 후보다 — 고른 자리와 나머지가 함께 다음 턴으로 간다', async () => {
+// 원인은 모델 습관이 아니라 **런타임 투영끼리의 충돌**이었다(오너 감사). 같은 모델 입력에
+// 두 사실이 함께 갔다: "후보는 5곳이다" · "지금 자리는 첫째이고 여기서 이어서 보면 된다".
+// 첫 후보를 확정된 `place` 로 올렸기 때문이다.
+//
+// 여기서 "물어봐라"라고 시키지 않는다 — **아직 고르지 않았다는 사실**만 정확히 준다(§24).
+test('여러 곳이면 아직 자리가 아니다 — 고른 척하지 않는다', async () => {
   const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
   const tool = makeLocalLocateTool();
-  const 다섯 = {
+  const s = tool.subjectOf({
     result: {
       candidates: [
         { path: '/a/2026-06 정산', confidence: 'high' },
         { path: '/a/2026-05 정산', confidence: 'medium' },
-        { path: '/a/정산자료 백업', confidence: 'medium' },
         { path: '/b/지난달 정산 파일', confidence: 'medium' },
-        { path: '/c/정산', confidence: 'low' },
       ],
     },
-  };
-  const s = tool.subjectOf(다섯);
-  assert.equal(s.label, '/a/2026-06 정산', '고른 자리가 자리다');
-  assert.match(s.detail, /후보 5곳 중 첫째/, '몇 곳 중 하나인지가 사라졌다');
+  });
+  assert.equal(s.kind, 'place_candidates', '복수 후보를 확정된 자리로 올렸다');
+  assert.ok(!s.detail.startsWith('/'), `detail 이 경로로 시작하면 "지금 자리" 로 승격된다: ${s.detail}`);
+  assert.match(s.detail, /아직 고른 자리 없음/);
   assert.match(s.detail, /2026-05 정산/, '나머지 후보가 사라졌다');
+  assert.equal(s.candidates.length, 3);
 
-  // 하나뿐이면 군더더기를 붙이지 않는다(없는 선택을 만들지 않는다)
+  // 하나뿐이면 예전처럼 자리다(없는 선택을 만들지 않는다)
   const 하나 = tool.subjectOf({ result: { candidates: [{ path: '/a/유일', confidence: 'high' }] } });
+  assert.equal(하나.kind, 'place');
   assert.equal(하나.detail, '/a/유일');
 
   // 확신이 낮으면 여전히 자리라고 말하지 않는다(기존 계약 불변)
   assert.equal(tool.subjectOf({ result: { candidates: [{ path: '/a/흐릿', confidence: 'low' }] } }), null);
+});
+
+test('복수 후보는 모델 현실에서도 "지금 자리" 가 되지 않는다', async () => {
+  const { workingStateFacts } = await import('../src/kernel/l0-evidence/working-state.js');
+  const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
+  const s = makeLocalLocateTool().subjectOf({
+    result: { candidates: [{ path: '/a/하나', confidence: 'high' }, { path: '/b/둘', confidence: 'medium' }] },
+  });
+  const 글 = workingStateFacts({ turnNo: 1, subjects: [{ ...s, lastTurn: 1 }] }) ?? '';
+  assert.ok(!/지금 자리:/.test(글), `아직 안 골랐는데 지금 자리로 말한다: ${글}`);
+  assert.ok(!/여기서 이어서 보면 돼요/.test(글), `고른 척한다: ${글}`);
+  assert.match(글, /아직 고르지 않음/);
+  assert.match(글, /\/b\/둘/, '나머지 후보가 모델에게 안 간다');
+});
+
+// 실측(같은 행렬): 승인 대기 중 `아, 잠깐. 그건 됐고 지금 몇 시야?` 에 시간은 정확히 답했는데
+// **이전 승인 카드가 그대로 살아 있었다.** 사용자는 그만두라고 했는데 누르면 실행되는 버튼이
+// 남은 것이다. 예전에는 새 승인을 만들 때만 지난 것으로 바꿨기 때문이다.
+test('새 발화는 이전 승인을 지난 것으로 만든다 — 승인 작업을 만들지 않는 발화라도', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { ToolRunner } = await import('../src/runtime/tool-runner.js');
+  const { StubModelClient } = await import('../src/runtime/model-client.js');
+
+  const 보낸것 = [];
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    },
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 보낸것.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    ledger: new TruthLedger(),
+    model: new StubModelClient(),
+  };
+
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  assert.equal(r1.kind, 'approval');
+
+  // 승인 작업을 만들지 않는 무관한 발화
+  const r2 = await runTurn({ text: '아, 잠깐. 그건 됐고 지금 몇 시야?' }, ctx);
+  assert.notEqual(r2.kind, 'approval');
+  assert.equal(ctx.pending.size, 0, '새 발화 뒤에도 옛 승인이 살아 있다 — 누르면 실행된다');
+
+  // 옛 id 로 승인해도 실행되지 않는다
+  const 옛것 = await runTurn({ approve: r1.pendingId }, ctx);
+  assert.equal(보낸것.length, 0, '지난 승인으로 실제 발송이 일어났다');
+  assert.match(옛것.reply, /찾지 못했어요/);
+});
+
+// 오너 감사(2026-07-29): `취소 → 다시 해줘 → 새 승인` 은 **재요청** 시험이지
+// **완료된 일을 되살리지 않는가** 시험이 아니다. 실제로 승인·완료한 뒤에 걸어야 한다.
+test('완료된 일은 "아까 그거 이어줘" 로 다시 실행되지 않는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { ToolRunner } = await import('../src/runtime/tool-runner.js');
+  const { StubModelClient } = await import('../src/runtime/model-client.js');
+
+  const 보낸것 = [];
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    },
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 보낸것.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    ledger: new TruthLedger(),
+    model: new StubModelClient(),
+  };
+
+  // 승인하고 **실제로 완료**한다
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  assert.equal(r1.kind, 'approval');
+  await runTurn({ approve: r1.pendingId }, ctx);
+  assert.equal(보낸것.length, 1, '시험이 성립하지 않았다 — 완료되지 않았다');
+  const 완료뒤영수증 = ctx.ledger.entries.length;
+
+  // 그 뒤 "이어줘" — 끝난 일을 되살리면 안 된다
+  await runTurn({ text: '아까 그거 이어줘.' }, ctx);
+  assert.equal(보낸것.length, 1, `완료된 일이 다시 실행됐다(${보낸것.length}회)`);
+  assert.equal(ctx.ledger.entries.length, 완료뒤영수증, '완료된 일로 영수증이 또 남았다');
+  assert.equal(ctx.pending.size, 0, '끝난 일이 다시 승인 대기로 되살아났다');
 });

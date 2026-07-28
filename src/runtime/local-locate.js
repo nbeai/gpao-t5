@@ -178,13 +178,26 @@ export function makeLocalLocateTool(deps = {}) {
       const 후보들 = (rec?.result?.candidates ?? []).filter((c) => c?.path);
       const top = 후보들[0];
       if (!top?.path || top.confidence === 'low') return null;
-      const 나머지 = 후보들.slice(1);
-      return {
-        key: `place:${top.path}`, kind: 'place', label: String(top.path),
-        detail: 나머지.length
-          ? `${top.path} — 후보 ${후보들.length}곳 중 첫째. 나머지: ${나머지.slice(0, 4).map((c) => c.path).join(' · ')}`
-          : String(top.path),
-      };
+
+      // **여러 곳이면 아직 자리가 아니다.** 앞선 회차에서는 나머지를 `detail` 에 붙여 놓고도
+      // 첫 후보를 그대로 `place` 로 올렸다. 그러면 같은 모델 입력에 두 사실이 함께 간다:
+      //   "후보는 5곳이다"  ·  "지금 자리는 첫째이고 여기서 이어서 보면 된다"
+      // 모델 습관 이전에 **런타임 투영끼리 충돌한 것**이다(오너 감사 2026-07-29).
+      // 그래서 복수 후보는 **선택되지 않은 후보 집합**으로 올린다. `detail` 도 경로로 시작하지
+      // 않게 한다 — working-state 가 `/` 로 시작하는 detail 을 `지금 자리` 로 승격하기 때문이다.
+      // 여기서 "물어봐라"라고 시키지 않는다. **아직 고르지 않았다는 사실**만 정확히 준다(§24).
+      if (후보들.length > 1) {
+        const 보일것 = 후보들.slice(0, 5);
+        return {
+          key: `place_candidates:${후보들.map((c) => c.path).join('|')}`,
+          kind: 'place_candidates',
+          label: `${후보들.length}곳`,
+          detail: `아직 고른 자리 없음 — ${보일것.map((c) => `${c.path}${c.why ? `(${c.why})` : ''}`).join(' · ')}`
+            + (후보들.length > 보일것.length ? ` 외 ${후보들.length - 보일것.length}곳` : ''),
+          candidates: 보일것.map((c) => c.path),
+        };
+      }
+      return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
     },
     async handler(args = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();

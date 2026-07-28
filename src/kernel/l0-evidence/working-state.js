@@ -178,6 +178,11 @@ export function workingStateFacts(stateOrNull) {
     } else if (s.kind === 'place') {
       // 자리를 찾았다는 사실 + **거기서 이어서 하면 된다**는 것. 사용자에게 경로를 되묻지 않는다.
       lines.push(`방금 찾은 자리: ${s.label} — 여기서 이어서 보면 돼요`);
+    } else if (s.kind === 'place_candidates') {
+      // **여러 곳이면 아직 자리가 아니다.** 하나를 고른 척하면 사용자는 다른 달 자료로 답을 받고도
+      // 그 사실을 모른다(오너 라이브 2026-07-29). 고르지 않았다는 것과 후보를 함께 준다 —
+      // 무엇을 할지(짧게 묻든, 근거로 좁히든)는 모델이 정한다(§24).
+      lines.push(`찾은 자리 후보 ${s.label}, 아직 고르지 않음: ${s.detail}`);
     } else if (s.kind === 'session') {
       lines.push(`방금 찾은 지난 대화: ${s.label}`);
     } else if (s.kind === 'discovery') {
