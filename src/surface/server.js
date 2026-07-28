@@ -102,6 +102,11 @@ export function makeServer(deps = {}) {
     try { await memLedger.append(event, entry); return true; }
     catch (e) { console.error('[memory-ledger] 기록 실패:', e?.message ?? e); return false; }
   }
+  // 멱등 재시도 판정용 — 상태에서 사라진 항목의 마지막 수명주기 사건(응답 유실 뒤 재시도 구분).
+  async function 마지막기억사건(candidateId) {
+    const a = await memLedger.load().catch(() => ({ entries: [] }));
+    return [...(a.entries ?? [])].reverse().find((e) => e.candidateId === candidateId)?.event ?? null;
+  }
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
@@ -306,7 +311,8 @@ export function makeServer(deps = {}) {
         if (dup) { result.memorySuggestion = undefined; return; }
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
-        await 기억영수증('proposed', c); // 수명주기 영수증 — 후보가 생긴 사실
+        // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
+        if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;
       });
     }
     if (result.automationSuggestion?.action) {
@@ -706,8 +712,13 @@ export function makeServer(deps = {}) {
         const input = JSON.parse((await readBody(req)) || '{}');
         return await withMemory(async () => {
           const m = await memStore.load();
-          const idx = m.candidates.findIndex((e) => e.candidateId === (input.candidateId ?? input.id));
-          if (idx < 0) return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
+          const cid = input.candidateId ?? input.id;
+          const idx = m.candidates.findIndex((e) => e.candidateId === cid);
+          if (idx < 0) {
+            // 멱등 재시도(P-OP-4): 상태에서 사라졌어도 원장에 거절 영수증이 있으면 "이미 끝난 행동"이다.
+            if ((await 마지막기억사건(cid)) === 'rejected') return sendJson(res, 200, { ok: true, rejected: true, already: true });
+            return sendJson(res, 200, { ok: true, rejected: false, reason: 'not_found' });
+          }
           const [removed] = m.candidates.splice(idx, 1);
           await memStore.save(m);
           const receiptWritten = await 기억영수증('rejected', removed);
@@ -722,7 +733,11 @@ export function makeServer(deps = {}) {
         return await withMemory(async () => {
           const m = await memStore.load();
           const idx = m.promoted.findIndex((e) => e.candidateId === cid);
-          if (idx < 0) return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
+          if (idx < 0) {
+            // 멱등 재시도(P-OP-4): 원장에 철회 영수증이 있으면 "이미 되돌린 행동"이다.
+            if ((await 마지막기억사건(cid)) === 'rolled_back') return sendJson(res, 200, { ok: true, rolledBack: true, already: true });
+            return sendJson(res, 200, { ok: true, rolledBack: false, reason: 'not_found' });
+          }
           if (m.promoted[idx].rollbackable === false) return sendJson(res, 200, { ok: false, rolledBack: false, reason: 'not_rollbackable' });
           const [removed] = m.promoted.splice(idx, 1);
           await memStore.save(m);
@@ -1126,8 +1141,8 @@ export function makeServer(deps = {}) {
           const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
           memory.candidates = [...(memory.candidates ?? []), pref];
           await memStore.save(memory);
-          await 기억영수증('proposed', pref); // 수명주기 영수증
-          return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false } });
+          const receiptWritten = await 기억영수증('proposed', pref); // 수명주기 영수증
+          return sendJson(res, 200, { preference: { id: pref.candidateId, statement: pref.statement, status: 'pending_confirm', admitted: false }, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
       }
       // 운영 선호 승인 — **주소만 남기고 승격 로직은 단일 통로(confirmCandidate)에 위임한다.**

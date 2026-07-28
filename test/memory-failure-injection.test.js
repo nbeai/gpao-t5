@@ -141,4 +141,91 @@ test('확인과 철회가 거의 동시에 — 끝 상태와 원장이 하나의
   } finally { await close(); }
 });
 
+// ── 감사 보강(2026-07-29): 멱등은 확인만이 아니다 — 거절·철회·후보 제안도 같은 계약 ──
+
+test('거절: 응답 유실 뒤 재시도 → 원장 영수증으로 "이미 끝난 행동"을 안다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi6-'));
+  const { post, close } = await boot({ memoryStore: new MemoryStore(dir) });
+  try {
+    const mem = new MemoryStore(dir);
+    await mem.save({ candidates: [후보('c1', '지울 것')], promoted: [], observed: [] });
+    const r1 = await (await post('/memory/reject', { candidateId: 'c1' })).json();
+    assert.equal(r1.rejected, true);
+    // 재시도(응답 유실 가정) — not_found 가 아니라 "이미 거절됨".
+    const r2 = await (await post('/memory/reject', { candidateId: 'c1' })).json();
+    assert.equal(r2.already, true, `재시도가 이미 끝난 행동을 못 알아봤다: ${JSON.stringify(r2)}`);
+    assert.equal(r2.rejected, true);
+    // 애초에 없던 것과는 구분된다.
+    const r3 = await (await post('/memory/reject', { candidateId: '유령' })).json();
+    assert.equal(r3.reason, 'not_found');
+  } finally { await close(); }
+});
+
+test('철회: 응답 유실 뒤 재시도 → "이미 되돌린 행동" · 원장 실패 시 receiptWritten:false', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi7-'));
+  const real = new MemoryLedger(dir);
+  let 원장고장 = false;
+  const 불안정원장 = {
+    load: () => real.load(),
+    append: (ev, en) => { if (원장고장) throw new Error('ledger down'); return real.append(ev, en); },
+  };
+  const { post, close } = await boot({ memoryStore: new MemoryStore(dir), memoryLedger: 불안정원장 });
+  try {
+    const mem = new MemoryStore(dir);
+    await mem.save({ candidates: [], promoted: [{ ...후보('p1', '반영된 것'), userConfirmed: true, admitted: true }], observed: [] });
+    // 원장 실패 갈래 — 행동은 성공, 누락은 정직.
+    원장고장 = true;
+    const r1 = await (await post('/memory/rollback', { candidateId: 'p1' })).json();
+    assert.equal(r1.rolledBack, true);
+    assert.equal(r1.receiptWritten, false, '영수증이 빠졌는데 응답이 조용하다');
+    assert.equal((await mem.load()).promoted.length, 0);
+    // 원장 회복 뒤 다른 항목으로 정상 흐름 + 재시도 멱등(영수증 있는 갈래).
+    원장고장 = false;
+    await mem.save({ candidates: [], promoted: [{ ...후보('p2', '두번째'), userConfirmed: true, admitted: true }], observed: [] });
+    await (await post('/memory/rollback', { candidateId: 'p2' })).json();
+    const r2 = await (await post('/memory/rollback', { candidateId: 'p2' })).json();
+    assert.equal(r2.already, true, `재시도가 이미 끝난 행동을 못 알아봤다: ${JSON.stringify(r2)}`);
+    assert.equal(r2.rolledBack, true);
+  } finally { await close(); }
+});
+
+test('후보 제안: 원장 실패가 조용히 지나가지 않는다(receiptWritten:false)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi8-'));
+  const 죽은원장 = { async append() { throw new Error('down'); }, async load() { return { entries: [] }; } };
+  const { post, close } = await boot({ memoryStore: new MemoryStore(dir), memoryLedger: 죽은원장 });
+  try {
+    const r = await (await post('/user-model/preferences', { statement: '표로 주세요' })).json();
+    assert.equal(r.preference.status, 'pending_confirm');
+    assert.equal(r.receiptWritten, false, `proposed 누락이 조용히 지나갔다: ${JSON.stringify(r)}`);
+  } finally { await close(); }
+});
+
+// ── 감사 보강: 격리 실패 시 새 기록 중단 · 고유 임시명 동시 쓰기 ─────────
+test('손상 격리가 실패하면 새 기록을 쓰지 않는다(보존 계약이 침묵 속에 깨지지 않게)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi9-'));
+  const sub = join(dir, 'led');
+  const { mkdir, chmod } = await import('node:fs/promises');
+  await mkdir(sub);
+  const ledger = new MemoryLedger(sub);
+  await writeFile(join(sub, 'memory-ledger.json'), '{"broken', 'utf8');
+  await chmod(sub, 0o500); // 격리(rename)가 실패하는 환경
+  try {
+    await assert.rejects(() => ledger.append('proposed', 후보('c1', 'x')), '격리 실패인데 기록을 계속했다');
+  } finally { await chmod(sub, 0o700); }
+  // 손상 바이트는 그대로 남아 있다.
+  assert.equal(await readFile(join(sub, 'memory-ledger.json'), 'utf8'), '{"broken');
+});
+
+test('두 저장 주체가 동시에 써도 임시 파일이 충돌하지 않는다(고유 임시명)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-fi10-'));
+  const a = new MemoryLedger(dir); const b = new MemoryLedger(dir);
+  await Promise.all([
+    ...Array.from({ length: 5 }, (_, i) => a.append('proposed', 후보(`a${i}`, `a${i}`))),
+    ...Array.from({ length: 5 }, (_, i) => b.append('proposed', 후보(`b${i}`, `b${i}`))),
+  ]);
+  const after = await a.load();
+  assert.equal(after.corrupted, undefined, '동시 쓰기가 원장을 손상시켰다');
+  assert.ok(after.entries.length >= 1); // 마지막 쓰기가 이긴다 — 손상만 아니면 된다(서버는 직렬화가 막는다)
+});
+
 // ── 주입 5: 화면·상태·원장의 일치(원장 실패 갈래 포함)는 위 각 검사에서 함께 확인했다 ──

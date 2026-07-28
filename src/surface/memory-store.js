@@ -9,9 +9,10 @@ import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 
 // P-OP-4 · **기록 도중 중단이 파일을 반 토막 내지 못하게** — tmp 에 다 쓰고 rename 한 번으로
-// 바꾼다(rename 은 원자적). 채널 자격 저장소가 이미 쓰는 방식과 같다.
+// 바꾼다(rename 은 원자적). 임시 이름은 고유하게 — 고정 `.tmp` 는 두 프로세스가 같은 파일을
+// 동시에 쓸 때 서로의 반쪽을 rename 하는 충돌이 된다(감사 지적).
 async function atomicWrite(file, data) {
-  const tmp = `${file}.tmp`;
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   await writeFile(tmp, data, 'utf8');
   await rename(tmp, file);
 }
@@ -73,8 +74,10 @@ export class MemoryLedger {
   async append(event, entry, now = Date.now()) {
     const a = await this.load();
     if (a.corrupted) {
-      // 손상 파일을 격리 보존 — 지우지도, 그 위에 덮어쓰지도 않는다.
-      await rename(this.file, `${this.file}.corrupt-${now}`).catch(() => {});
+      // 손상 파일을 격리 보존 — 지우지도, 그 위에 덮어쓰지도 않는다. **격리가 실패하면 새 기록을
+      // 중단한다**(감사 지적) — 조용히 계속 쓰면 "손상 바이트를 반드시 보존한다"는 계약이 깨진다.
+      // 이 throw 는 부르는 쪽(기억영수증)이 receiptWritten:false 로 정직하게 넘긴다.
+      await rename(this.file, `${this.file}.corrupt-${now}`);
       a.entries = [];
       delete a.corrupted;
     }

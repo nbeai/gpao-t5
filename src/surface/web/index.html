@@ -1118,15 +1118,29 @@ async function onOverviewAction(e) {
   const btn = e.target.closest('.ov-act'); if (!btn) return;
   const { act, id } = btn.dataset;
   btn.disabled = true;
+  const memPost = (path) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) }).then((r) => r.json());
   try {
+    let j = null;
     if (act === 'retry-delivery') await fetch(`/deliveries/${id}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) });
     else if (act === 'approve-skill') await fetch(`/skills/${id}/approve`, { method: 'POST' });
     // 확인은 종류 공통 통로(/memory/confirm) 하나로 — 운영 원리는 거기서 replay 게이트를 탄다.
-    else if (act === 'confirm-pref') await fetch('/memory/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) });
-    else if (act === 'reject-memory') await fetch('/memory/reject', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) });
-    else if (act === 'rollback-memory') await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) });
+    else if (act === 'confirm-pref') j = await memPost('/memory/confirm');
+    else if (act === 'reject-memory') j = await memPost('/memory/reject');
+    else if (act === 'rollback-memory') j = await memPost('/memory/rollback');
     await refreshOverview();
+    // P-OP-4: 서버가 "동작은 됐지만 기록 영수증은 못 남겼다"고 하면 그 사실을 사용자에게도 보인다.
+    // 조용히 넘기면 API·상태만 일치하고 화면은 다른 결론을 내는 셈이다(감사 지적).
+    if (j && j.receiptWritten === false) receiptNote();
   } catch { btn.disabled = false; }
+}
+
+// 영수증 누락 알림 — 요약 패널 맨 위에 한 줄. 다음 새로고침에서 지워진다(동작 자체는 성공했다).
+function receiptNote() {
+  const panel = document.getElementById('stateOv'); if (!panel) return;
+  const note = document.createElement('div');
+  note.className = 'ov-row'; note.style.color = 'var(--warn, #a15c00)';
+  note.textContent = '방금 동작은 됐지만, 기록 영수증은 남기지 못했어요. 동작에는 문제 없어요.';
+  panel.prepend(note);
 }
 
 function renderRecord(box, ledger) {
@@ -1449,7 +1463,8 @@ function renderSuggestion(box, sug) {
     // 권한 표면(감사 보정): 무엇을·어디에 반영·되돌리기. 운영원리는 "기본 검토"로 정직하게.
     const done = el('sug-done');
     const head = isPrin ? '원칙으로 기억했어요 (기본 검토).' : '기억했어요.';
-    done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.`));
+    const 영수증꼬리 = r.receiptWritten === false ? ' (기록 영수증은 남기지 못했어요 — 기억에는 문제 없어요.)' : '';
+    done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.${영수증꼬리}`));
     const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기';
     undo.style.marginTop = 'var(--sp-2)';
     undo.onclick = async () => {
