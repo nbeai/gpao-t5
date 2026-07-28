@@ -82,6 +82,38 @@ export function mcpToolDescriptor({ server, connector, tool }) {
 }
 
 /**
+ * 승인 카드에 실릴 **인자를 사람이 읽을 모양으로.**
+ *
+ * 실측(오너 라이브 2026-07-28, D): 카드에 이렇게 떴다.
+ *   `인자 {"filter":{"operator":"and","filters":[{"property":"created_time",…}]}}`
+ * 비개발자가 이걸 읽고 무엇을 허락하는지 판단할 방법이 없다. 그런데 이게 **밖으로 나가는
+ * 값**이라 가장 봐야 할 자리다(쓰기 도구면 여기 문서 내용이 실린다).
+ *
+ * 값을 바꾸거나 옮겨 적지 않는다 — 모델에게 사람 말로 다시 쓰게 하면 카드와 실제가 갈라진다.
+ * 여기서 하는 일은 모양뿐이다: 칸 이름을 스키마가 준 이름으로 바꾸고, 중첩은 한 겹만 펴고,
+ * 길면 접는다. 접었으면 접었다고 말한다.
+ */
+export function 읽는인자(args = {}, inputSchema = {}) {
+  const props = inputSchema?.properties ?? {};
+  const 이름 = (k) => props[k]?.title || k;
+  const 값 = (v, 깊이 = 0) => {
+    if (v == null) return '없음';
+    if (Array.isArray(v)) return v.length ? `${v.length}개` : '없음';
+    if (typeof v === 'object') {
+      if (깊이 >= 1) return '…';
+      const 안 = Object.entries(v).map(([k, x]) => `${k} ${값(x, 깊이 + 1)}`);
+      return 안.length ? 안.join(', ') : '없음';
+    }
+    const s = String(v);
+    return s.length > 60 ? `${s.slice(0, 60)}…` : s;
+  };
+  const 줄 = Object.entries(args ?? {}).map(([k, v]) => `${이름(k)}: ${값(v)}`);
+  if (!줄.length) return undefined;
+  const 다 = 줄.join(' · ');
+  return 다.length > 220 ? `${다.slice(0, 220)}… (${줄.length}개 중 앞부분)` : 다;
+}
+
+/**
  * 붙은 MCP 세션의 도구들을 T5 손으로 편입한다.
  *
  * @param {{server:string, connector?:string, tools:Array, session:{callTool:Function}}} p
@@ -100,7 +132,6 @@ export function admitMcpTools(p, ctx) {
       toolKind: 'unknown_kind',
       // 승인 카드가 무엇을 허락하는지 말해야 한다(게이트가 needsApproval 에 previewOf 를 요구).
       previewOf(args = {}) {
-        const 인자 = JSON.stringify(args ?? {});
         // **어디에 붙었는지는 두 모양이다.** 설정에 등록된 서버는 이름으로, 주소로 붙은
         // 원격 MCP 는 이름이 없다. 실측(오너 라이브 2026-07-28): 주소로 붙은 서비스의
         // 승인 카드에 `ask_question 실행 — undefined` · `undefined 서버에서` 가 떴다.
@@ -108,9 +139,13 @@ export function admitMcpTools(p, ctx) {
         // 그리고 **사용자가 부르는 이름이 먼저다.** 서버 이름은 설정에 적힌 내부 이름이라
         // 카드에 `notion 에서` 처럼 뜬다 — 사용자가 아는 이름은 "노션"이다(실측 2026-07-28).
         const 어디 = p.connectorLabel ?? p.server ?? p.connector ?? '연결된 서비스';
+        const 인자줄 = 읽는인자(args, tool.inputSchema);
         return {
-          impact: `${d.label} 실행 — ${어디}`,
-          scope: `${어디} 에서 · 인자 ${인자.length > 200 ? `${인자.slice(0, 200)}…` : 인자}`,
+          impact: `${어디}에서 ${d.label}`,
+          // **밖으로 나가는 값이 여기 있다.** 쓰기 도구면 이 자리에 실제로 적힐 내용이 실린다 —
+          // 파일 카드가 "무엇을"을 보여주는 것과 같은 자리다(오늘 아침에 세운 계약).
+          ...(인자줄 ? { what: 인자줄 } : {}),
+          scope: `${어디} 에서`,
           duration: '이번 한 번',
           cancel: '되돌리기는 이 서비스가 지원하는 범위에 따라요',
         };

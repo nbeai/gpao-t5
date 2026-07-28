@@ -312,3 +312,44 @@ test('빈 결과도 사실로 남는다 — 0건을 사람 말로', async () => 
   assert.match((await 실행('{"results":[],"type":"workspace_search"}')).userSafeSummary, /찾은 게 없어요/);
   assert.match((await 실행('{"results":[{"a":1},{"b":2}]}')).userSafeSummary, /2건/);
 });
+
+// 실측(오너 라이브 2026-07-28, D): 노션 조회 승인 카드에 이렇게 떴다.
+//   `인자 {"filter":{"operator":"and","filters":[{"property":"created_time",…}]}}`
+// 비개발자가 읽고 무엇을 허락하는지 판단할 방법이 없다. 그런데 이게 **밖으로 나가는 값**이라
+// 가장 봐야 할 자리다 — 쓰기 도구면 여기에 실제로 적힐 내용이 실린다.
+// 값을 바꾸거나 모델에게 다시 쓰게 하지 않는다(카드와 실제가 갈라진다). 모양만 바꾼다.
+test('MCP 승인 카드는 나가는 값을 사람이 읽을 모양으로 보여준다', async () => {
+  const { 읽는인자 } = await import('../src/runtime/tool-admission.js');
+  const schema = {
+    type: 'object',
+    properties: { query: { type: 'string', title: '검색어' }, page_size: { type: 'number' } },
+  };
+  const 줄 = 읽는인자({ query: '회의', page_size: 10, filters: { created_date_range: { start_date: '2026-07-27' } } }, schema);
+  assert.ok(!/[{}[\]"]/.test(줄), `아직 기계 말이다: ${줄}`);
+  assert.match(줄, /검색어: 회의/, '스키마가 준 이름을 안 쓴다');
+  assert.match(줄, /page_size: 10/, '이름이 없으면 키 그대로 쓴다');
+  assert.match(줄, /created_date_range/, '무엇이 나가는지가 사라지면 안 된다');
+
+  // 긴 값은 접되 접었다고 말한다 — 승인한 것과 실제가 갈라지지 않게
+  const 긴것 = 읽는인자({ body: 'ㄱ'.repeat(500) }, {});
+  assert.ok(긴것.length < 300);
+  assert.match(긴것, /…/);
+
+  assert.equal(읽는인자({}, {}), undefined, '빈 인자에 빈 줄을 만들지 않는다');
+});
+
+test('MCP 카드가 나가는 값을 "무엇을" 자리에 싣는다', async () => {
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+  const ctx = { tools: { tools: {} }, descriptors: [], env: { connections: [] } };
+  admitMcpTools({
+    server: 'notion', connector: 'notion', connectorLabel: '노션',
+    tools: [{
+      name: 'search', title: 'Search', description: '찾는다',
+      inputSchema: { type: 'object', properties: { query: { type: 'string', title: '검색어' } } },
+    }],
+    session: { callTool: async () => ({ content: [] }) },
+  }, ctx);
+  const p = Object.values(ctx.tools.tools)[0].previewOf({ query: '회의' });
+  assert.match(p.what, /검색어: 회의/);
+  assert.ok(!/[{}]/.test(`${p.impact} ${p.scope} ${p.what}`), '카드에 기계 말이 남았다');
+});
