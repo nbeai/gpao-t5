@@ -157,6 +157,22 @@ export function executionBlock(r) {
   if (/not privileged|requires root|must be run as root/i.test(t)) {
     return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸려 했는데 권한이 필요해 안전 시험 실행에서 멈췄어요' };
   }
+  // **남의 프로세스를 건드리려다 막힌 것.** 파일 쓰기와 섞으면 승인 카드가 "파일을 바꿔야
+  // 해서"라고 거짓을 말한다 — 사용자는 무엇을 허락하는지 모른 채 누르게 된다.
+  // 실측 사고(오너 라이브 2026-07-28): `killall openclaw` 가 probe 에서 **실제로 죽였다.**
+  // 이제 샌드박스가 막고(`deny signal`), 여기서 그 사실을 정확한 이름으로 부른다.
+  //
+  // 도구 이름이 아니라 **무엇을 하려다 막혔는지**로 잡는다 — 셋이 각각 다르게 말한다:
+  //   zsh:kill:1: kill 123 failed: operation not permitted
+  //   killall: warning: kill -term 123: Operation not permitted
+  //   pkill: signalling pid 123: Operation not permitted
+  if (/(?:\bkill\b|signalling)[^\n]*operation not permitted/i.test(t)) {
+    return {
+      kind: 'sandbox',
+      why: 'signal',
+      userWhy: '돌고 있는 프로그램을 끄는 일이라 안전 시험 실행에서는 막혔어요',
+    };
+  }
   // **실행 파일 자체를 못 띄운 것.** `ps`·`top` 같은 setuid 도구는 어느 샌드박스 모드에서도
   // exec 이 거부된다(실측: `(allow default)` 만 있는 프로파일에서도 동일). 이건 "바꾸려다 막힌
   // 것"이 아니라 **아무것도 돌지 않은 것**이다 — 승인해도 달라지지 않는다.

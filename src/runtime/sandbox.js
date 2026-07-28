@@ -54,6 +54,19 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     // probe 로 돌리면 네트워크가 막혀 "설치돼 있는데 안 되는" 상태가 되고, granted 로 돌리면
     // 파일 쓰기까지 열린다. **능력을 위해 안전을 푸는 게 아니라, 없던 칸에 이름을 붙인 것이다.**
     ...(mode === 'reach' ? [] : ['(deny network*)']),
+    // **probe 는 시험이어야 한다.** 실측 사고(오너 라이브 2026-07-28, 웹 화면):
+    // "그럼 그거 꺼줘" 에 `killall openclaw` 가 probe 로 돌았고 **프로세스가 실제로 죽었다.**
+    // 샌드박스가 아무것도 안 막았으니 런타임은 `changes:false` 로 읽었고, 승인 카드가 안 떴고,
+    // 사용자에게는 "적용 안 됐어요(applied:false)"라고 말했다. 셋 다 거짓이었다.
+    //
+    // 원인은 목록이 아니라 구조다. 이 프로파일은 `(allow default)` 에 몇 가지만 막는 꼴이라
+    // **명시적으로 안 막은 바깥 효과는 전부 통과한다.** 파일 쓰기와 네트워크만 막고 있었다.
+    // `killall` 을 목록에 더하면 다음엔 `pkill`, 그 다음엔 다른 것으로 뚫린다.
+    // 그래서 **효과의 종류**를 닫는다. 막히면 executionBlock 이 변경 시도로 읽고 승인으로 보낸다.
+    '(deny signal)',
+    // 다른 앱을 원격 조종하는 통로. `osascript -e 'tell application …'` 한 줄이면 파일도 지우고
+    // 메일도 보낸다 — 파일 쓰기가 아니라서 위 규칙에 안 걸린다.
+    '(deny appleevent-send)',
     denySecrets,
     // **금지 뒤에 온다** — 선언한 자리 하나만 도로 열기 위해서다(순서가 곧 우선순위).
     열어줄것,
