@@ -166,6 +166,23 @@ function refreshRuntimeReality(ctx) {
   return { selfState, summary: selfStateSummary(selfState), capCounts };
 }
 
+/**
+ * **한 대화에 살아 있는 승인 요청은 하나다.**
+ *
+ * 실측(오너 라이브 2026-07-28, G-1B): 승인하지 않고 서버를 재시작한 뒤 `아까 하던 거 이어줘`
+ * 라고 했더니 T5 는 원래 업무를 정확히 이어받았지만 **새 승인 카드를 하나 더** 만들었다.
+ * 화면에 같은 일을 묻는 카드가 둘 남았고, 둘 다 누르자 `connector.declare` 가 **두 번** 돌았다.
+ * 이번엔 선언이 같은 id 를 덮어써서 피해가 없었지만, 전송·생성처럼 되돌릴 수 없는 행동이면
+ * 그대로 두 번 나간다.
+ *
+ * 턴은 첫 승인에서 멈추므로 **동시에 둘이 살아 있을 이유가 없다.** 새 대기를 만들 때 이전
+ * 대기는 지난 것이 된다(화면은 이미 `지난 승인 요청`으로 표시할 줄 안다 — 죽은 버튼 금지).
+ * 한 계획 안의 여러 승인은 `needsApproval` 배열 하나에 들어가므로 이 규칙에 걸리지 않는다.
+ */
+function 이전대기를지난것으로(ctx) {
+  ctx.pending?.clear?.();
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -563,6 +580,7 @@ export async function runTurn(input, ctx) {
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
     // admitted를 pending에 함께 보존한다 — 승인 재개 실행에서 이미 계산한 맥락을 잃지 않게(감사 소보정).
+    이전대기를지난것으로(ctx);
     ctx.pending.set(pendingId, {
       intent, plan, admitted, sendArgs,
       // **결과는 요청이 온 자리로 돌아간다.** 승인은 표면을 건너뛸 수 있어도(방에서 시켰는데
@@ -881,6 +899,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
       if (grants.length) {
         const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
+        이전대기를지난것으로(ctx);
         ctx.pending.set(pendingId, {
           intent: 걸음intent, plan: 걸음plan, admitted,
           // **판정한 인자를 그대로 실행 인자로 봉인한다.** executePlan 은 실행할 때 `sendArgs`

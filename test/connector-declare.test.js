@@ -711,3 +711,41 @@ test('턴 안에서 손이 늘면 그 턴의 복구 안내도 따라 바뀐다',
   assert.ok(!/옮겨 주세요/.test(String(붙였을때.nextSafeAction ?? '')),
     `손이 늘었는데 그 턴의 안내가 아직 사용자를 시킨다: ${붙였을때.nextSafeAction}`);
 });
+
+// 실측(오너 라이브 2026-07-28, G-1B): 승인하지 않고 서버를 재시작한 뒤 `아까 하던 거 이어줘`
+// 라고 했더니 T5 는 원래 업무를 정확히 이어받았지만 **새 승인 카드를 하나 더** 만들었다.
+// 화면에 같은 일을 묻는 카드가 둘 남았고, 둘 다 누르자 그 행동이 **두 번** 실행됐다.
+// 이번엔 선언이 같은 id 를 덮어써서 피해가 없었지만, 전송·생성이면 그대로 두 번 나간다.
+test('한 대화에 살아 있는 승인 요청은 하나다 — 이어달라고 해도 둘이 되지 않는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { ToolRunner } = await import('../src/runtime/tool-runner.js');
+
+  const 보낸것 = [];
+  const ctx = {
+    env: {
+      model: { id: 'x', authSignal: 'ok' },
+      connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    },
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 보낸것.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    ledger: new TruthLedger(),
+    model: new (await import('../src/runtime/model-client.js')).StubModelClient(),
+  };
+
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  assert.equal(r1.kind, 'approval');
+  // 승인하지 않고 다시 부탁한다(중단·재개에서 실제로 일어나는 일)
+  const r2 = await runTurn({ text: '이 초안 메일로 보내줘' }, ctx);
+  assert.equal(r2.kind, 'approval');
+
+  assert.equal(ctx.pending.size, 1, `대기가 ${ctx.pending.size}건 — 같은 일을 묻는 카드가 둘이면 두 번 실행된다`);
+
+  // 옛 카드를 눌러도 다시 실행되지 않는다(죽은 버튼이 아니라 지난 요청으로 정직하게 답한다)
+  const 옛것 = await runTurn({ approve: r1.pendingId }, ctx);
+  assert.equal(보낸것.length, 0, '지난 승인으로 실제 발송이 일어났다');
+  assert.match(옛것.reply, /찾지 못했어요/);
+
+  // 살아 있는 카드는 정상 동작한다
+  await runTurn({ approve: r2.pendingId }, ctx);
+  assert.equal(보낸것.length, 1, '살아 있는 승인이 실행되지 않았다');
+});
