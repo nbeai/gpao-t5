@@ -1248,9 +1248,13 @@ function renderResult(r, opts = {}) {
   box.appendChild(el('who', 'GPAO-T5'));
   // 답변은 마크다운으로 그린다(원문 기호가 화면에 찍히지 않게). 안전은 renderMarkdown 이 진다 —
   // 먼저 전부 escape 하고 우리가 만든 태그만 넣는다(수집한 페이지의 HTML 이 섞여도 글자로 보인다).
-  const bot = el('msg bot');
-  renderMarkdownInto(bot, r.nextSafeAction ? `${r.reply ?? ''}\n\n다음: ${r.nextSafeAction}` : (r.reply ?? ''));
-  box.appendChild(bot);
+  const 답문 = r.nextSafeAction ? `${r.reply ?? ''}\n\n다음: ${r.nextSafeAction}` : (r.reply ?? '');
+  // 모델이 구조화 후보만 제출한 턴은 제안 카드가 곧 응답이다. 빈 답 말풍선을 먼저 만들지 않는다.
+  if (답문.trim()) {
+    const bot = el('msg bot');
+    renderMarkdownInto(bot, 답문);
+    box.appendChild(bot);
+  }
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
   // 거치지 않고 전용 통로로 저장소에 곧장 간다. 재접속 시엔 다시 띄우지 않는다(지난 요청이다).
@@ -1293,7 +1297,7 @@ function renderDeliveryFailed(box, df) {
 function renderPatternCandidate(box, pc) {
   const card = el('suggest');
   card.appendChild(el('sug-t', '이 도구의 기본 대상으로 기억할까요?'));
-  card.appendChild(el('sug-s', `${pc.target}`));
+  card.appendChild(el('sug-s', `${pc.targetLabel ?? '확인된 대상'}`));
   // 숨은 전역 영향 금지 — 범위를 사용자 언어로 정직하게(이 슬라이스는 모든 대화 공통).
   card.appendChild(el('sug-line', '모든 대화에서 이 도구의 기본 대상으로 기억해요. 다음엔 "어디로?"를 묻지 않아요. 보낼 때 승인은 계속 받고, 되돌릴 수 있어요.'));
   const btns = el('btns');
@@ -1303,7 +1307,7 @@ function renderPatternCandidate(box, pc) {
     card.remove();
     if (!r.ok) { box.appendChild(el('sug-done', r.userSafeReason ? `설정하지 않았어요. ${r.userSafeReason}` : '설정하지 않았어요.')); return; }
     const done = el('sug-done');
-    done.appendChild(el('sug-line', `모든 대화에서 이 도구는 ${r.target}로 보내요(기본 대상, 승인은 계속 받아요).`));
+    done.appendChild(el('sug-line', `모든 대화에서 이 도구는 ${r.targetLabel ?? '확인된 대상'}로 보내요(기본 대상, 승인은 계속 받아요).`));
     const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기'; undo.style.marginTop = 'var(--sp-2)';
     undo.onclick = async () => {
       await fetch('/patterns/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: r.tool }) });

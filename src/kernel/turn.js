@@ -49,6 +49,16 @@ async function 볼수있는자리(ctx) {
 // 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
 const MAX_TOOL_STEPS = 4;
 
+function 확정된전송미리보기(preview, args = {}) {
+  if (!preview) return preview;
+  const { scope: _미확정대상, ...rest } = preview;
+  return {
+    ...rest,
+    where: args.targetLabel ?? args.target,
+    what: args.text ?? args.request,
+  };
+}
+
 /**
  * @typedef {Object} TurnInput
  * @property {string} [text]                    사용자 발화
@@ -613,7 +623,13 @@ export async function runTurn(input, ctx) {
     };
     // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
     const 보이는대상 = parsed.targetLabel ?? parsed.target;
-    sendGrant.approvalPreview = { ...sendGrant.approvalPreview, where: 보이는대상, what: parsed.message };
+    // 대상이 확정되면 미확정 상태를 설명하던 scope는 폐기한다. 같은 카드에
+    // "받는 곳 미정"과 "오너"가 함께 있으면 표면이 어느 쪽을 그리든 객체에는 두 진실이 남는다.
+    sendGrant.approvalPreview = 확정된전송미리보기(sendGrant.approvalPreview, {
+      target: parsed.target,
+      targetLabel: parsed.targetLabel,
+      text: parsed.message,
+    });
     // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
     sendGrant.reason = { ...sendGrant.reason, whatChanges: `${보이는대상}에 "${parsed.message}"를 실제로 보내요.` };
   }
@@ -761,7 +777,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
     // P6-11 학습 + P6-14 전달 원장: 전달 수단·대상·산출물·전달 결과를 함께 실어 보낸다(생성≠전달 분리).
     if (sendArgs?.[toolId]?.target && !sentVia) {
-      sentVia = { tool: toolId, target: sendArgs[toolId].target, text: sendArgs[toolId].text, failureState: rec.failureState, userSafeSummary: rec.userSafeSummary };
+      sentVia = {
+        tool: toolId,
+        target: sendArgs[toolId].target,
+        targetLabel: sendArgs[toolId].targetLabel,
+        text: sendArgs[toolId].text,
+        failureState: rec.failureState,
+        userSafeSummary: rec.userSafeSummary,
+      };
     }
   }
   // 필요하지만 실행 불가한 도구는 조용히 넘기지 않는다(죽은 버튼 금지, 헌법 §4.2).
@@ -973,7 +996,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         ...(toolId === 'local.file' ? { fileOp: 판정인자 } : {}),
         // 도구가 낸 미리보기를 카드에 그대로 싣는다(무엇을·어디에가 없으면 승인이 아니다).
         toolPreviews: (() => {
-          const pv = ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {});
+          const raw = ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {});
+          const pv = selfState.connectedTools.find((t) => t.id === toolId)?.toolKind === 'send'
+            ? 확정된전송미리보기(raw, 판정인자)
+            : raw;
           return pv ? { [toolId]: pv } : undefined;
         })(),
       };
