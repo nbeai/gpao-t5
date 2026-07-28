@@ -813,6 +813,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState,
       recoveryHint: 다음길(turnReceipts, 있는손),
+      // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):
+      // "t5demo-idle 꺼줘" 에서 T5 가 대상을 정확히 찾아 놓고 **"터미널 손이 열리지 않아
+      // 제가 직접 끄지는 못했어요 — 터미널에서 kill 4356 실행하면 됩니다"** 라고 답했다.
+      // 터미널은 있었다. 같은 턴에 실제로 돌기까지 했다. 상한에 닿아 손을 뺐을 뿐이다.
+      // 같은 실패가 깃허브에서도 났다("저장소 목록 도구가 안 떠 있어").
+      //
+      // 없앤 것과 이번 턴에 못 쓰는 것은 다른 사실이다. 그 차이를 안 주면 모델은 빈칸을
+      // "능력 없음"으로 메우고, 그 다음 문장은 늘 사용자에게 떠넘기는 말이 된다.
+      ...(steps >= MAX_TOOL_STEPS ? { toolBudgetSpent: true } : {}),
       ...(ctx.selfhood ?? {}),
     });
     finalOut = await ctx.model.respond(tc, {
@@ -829,7 +838,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   if (!reply.trim()) {
     // 도구를 빼고 한 번 더. 이번엔 고를 것이 없으니 모델은 지금까지의 사실로 답한다.
     // 내장 검색은 켜 둔다 — 우리 수집이 막혔어도 모델은 자기 인프라로 찾을 수 있다(막다른 답 금지).
-    const retry = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
+    //
+    // **여기서도 손을 빼는 이유를 말해 준다.** 안 그러면 모델이 "손이 없다"고 답한다 —
+    // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
+    const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, { search: wantedWeb, effort: 'medium' });
     reply = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
   }
   if (!reply.trim()) reply = fallbackReplyFrom(turnReceipts);

@@ -72,3 +72,35 @@ test('진짜 프로세스를 만들어도 probe 는 죽이지 못한다', async 
     try { process.kill(pid, 'SIGKILL'); } catch { /* 이미 없음 */ }
   }
 });
+
+// 실측(오너 라이브 2026-07-28): "t5demo-idle 라는 게 돌고 있는데, 그거 꺼줘."
+// T5 가 대상을 정확히 찾아 놓고 **"터미널 손이 열리지 않아 제가 직접 끄지는 못했어요 —
+// 터미널에서 kill 4356 실행하면 됩니다"** 라고 답했다. 터미널은 있었고 같은 턴에 실제로
+// 돌기까지 했다. 턴의 도구 상한에 닿아 손을 뺐을 뿐이다.
+// 같은 실패가 깃허브에서도 났다("저장소 목록 도구가 안 떠 있어").
+//
+// **없앤 것과 이번 턴에 못 쓰는 것은 다른 사실이다.** 그 차이를 안 주면 모델은 빈칸을
+// "능력 없음"으로 메우고, 다음 문장은 늘 사용자에게 떠넘기는 말이 된다.
+test('손을 거둘 때는 이유를 준다 — "없다"로 읽히지 않게', async () => {
+  const { buildModelMessages } = await import('../src/runtime/model-provider.js');
+  const 기본 = { currentRequest: '꺼줘', selfStateFacts: {}, authorityFacts: {} };
+
+  const 없을때 = buildModelMessages(기본);
+  assert.ok(!/이번 턴에 쓸 수 있는 손/.test(없을때.system), '평소에도 이 말이 나오면 잡음이다');
+
+  const 다썼을때 = buildModelMessages({ ...기본, toolBudgetSpent: true });
+  assert.match(다썼을때.system, /손이 없어진 게 아니라/, '손이 없다고 오해할 자리가 그대로다');
+  assert.match(다썼을때.system, /다음 턴에는 다시/, '이어갈 수 있다는 사실이 없다');
+});
+
+test('상한에 닿으면 그 사실이 모델 입력까지 간다', async () => {
+  const { buildTaskContext } = await import('../src/kernel/l1-intent/task-context.js');
+  const 공통 = {
+    intent: { currentRequest: '꺼줘' },
+    selfState: { connectedTools: [], currentModel: { id: 'x' }, limits: [] },
+    plan: { understoodTask: '', successCriteria: [], needsApproval: [], forbidden: [], toolsToUse: [], blockedTools: [] },
+    receipts: [],
+  };
+  assert.equal(buildTaskContext(공통).toolBudgetSpent, undefined);
+  assert.equal(buildTaskContext({ ...공통, toolBudgetSpent: true }).toolBudgetSpent, true);
+});

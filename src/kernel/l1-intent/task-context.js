@@ -195,6 +195,9 @@ export function buildTaskContext(p) {
     recentTurns: p.recentTurns ?? [],
     // 모델이 스스로 찾을 수 있는가 — 사실이므로 알려준다. 모르면 "못 한다"고 답해 버린다.
     nativeSearch: Boolean(p.nativeSearch),
+    // 이번 턴에 손을 더 못 쓰는 상태. **없는 것과 다르다** — 그 차이를 안 주면 모델이
+    // 빈칸을 '능력 없음'으로 메우고 사용자에게 떠넘긴다(실측 2026-07-28).
+    ...(p.toolBudgetSpent ? { toolBudgetSpent: true } : {}),
     // 어느 provider 인가 — 모델 계열별 운영 보정을 고르는 데만 쓴다(정체성은 안 바뀐다).
     modelProviderId: p.modelProviderId,
     // 막힌 것이 있을 때 다음 계단(사다리). 지시가 아니라 **지금 쓸 수 있는 길**이라는 사실이다.
