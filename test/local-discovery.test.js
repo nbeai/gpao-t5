@@ -42,3 +42,27 @@ test('실행 원장은 연결 탐색 계약을 버리지 않고 다음 판단까
     subject: '낯선서비스', checked: ['mcp', 'cli', 'known_connectors'], candidates: [],
   });
 });
+
+// 실측(감사 2026-07-28): `듣도보도못한상점ABC` 에 `bc(cli)`·`ab(cli)` 가 단서로 나왔다.
+// 둘 다 실제로 설치된 명령이라(계산기·apache bench) 짧은 이름이 아무 말 안에나 들어간다.
+// `abc마켓` 도 같은 둘을 냈다. 모델은 그걸 "기존 연결 단서를 찾았어요"로 읽는다 —
+// 오탐이 아니라 **거짓 현실**이다(없는 연결을 사실로 주는 것).
+test('짧은 명령 이름이 아무 말 안에 들어가서 단서가 되지 않는다', async () => {
+  const { mkdtemp, writeFile, chmod } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const 명령자리 = await mkdtemp(join(tmpdir(), 't5-cmds-'));
+  for (const 이름 of ['bc', 'ab', 'ex', 'id', 'notion-cli']) {
+    await writeFile(join(명령자리, 이름), '#!/bin/sh\n');
+    await chmod(join(명령자리, 이름), 0o755);
+  }
+  const 손 = makeLocalDiscoveryTool({ connectors: () => [], mcpNames: async () => [], pathDirs: [명령자리] });
+
+  for (const 말 of ['듣도보도못한상점ABC', 'abc마켓', '우리동네떡볶이', 'ZZZ가게']) {
+    const c = (await 손.handler({ subject: 말 })).result?.candidates ?? [];
+    assert.equal(c.length, 0, `"${말}" 에 거짓 단서가 나왔다: ${c.map((x) => x.label).join(',')}`);
+  }
+  // 막기만 하면 도구가 아니다 — 근거가 될 만큼 겹치면 그대로 단서다
+  const 진짜 = (await 손.handler({ subject: 'notion' })).result?.candidates ?? [];
+  assert.ok(진짜.some((x) => x.label === 'notion-cli'), '진짜 단서까지 사라졌다');
+});

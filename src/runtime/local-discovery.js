@@ -5,9 +5,22 @@ import { delimiter } from 'node:path';
 import { mcpServerNames } from './local-signs.js';
 
 const norm = (v) => String(v ?? '').normalize('NFC').toLowerCase().replace(/[\s._-]+/g, '');
+// 실측(감사 2026-07-28): `듣도보도못한상점ABC` 에 `bc(cli)`·`ab(cli)` 가 단서로 나왔다.
+// `bc`(계산기)·`ab`(apache bench)는 실제로 설치된 명령이라 짧은 이름이 아무 말 안에나 들어간다.
+// `abc마켓` 도 같은 둘을 낸다. 모델은 이걸 **"기존 연결 단서를 찾았어요"** 로 읽는다 —
+// 오탐이 아니라 **거짓 현실**이다(없는 연결을 사실로 주는 것).
+//
+// 그래서 겹침이 **근거가 될 만큼 길 때만** 단서로 센다. 완전 일치는 길이와 무관하다.
+// 값: `gh` ↔ `github` 같은 두 글자 명령은 이제 못 잡는다. 그건 감수한다 — 그런 서비스는
+// 커넥터가 `localSigns` 로 직접 선언하고(깃허브가 그렇게 한다), 여기서 없다고 말하는 것은
+// 정직한 결과다("없음은 불가능이 아니다" — P-OP-3 설계).
+const MIN_CLUE_CHARS = 3;
 const matches = (name, subject) => {
   const a = norm(name); const b = norm(subject);
-  return Boolean(a && b && (a.includes(b) || b.includes(a)));
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) < MIN_CLUE_CHARS) return false;
+  return a.includes(b) || b.includes(a);
 };
 
 async function commandNames(deps = {}) {
