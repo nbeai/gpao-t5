@@ -494,11 +494,15 @@ test('소스에 선언된 서비스는 끊어도 목록에서 사라지지 않�
 // `selfState` 는 턴 시작 때 한 번 만든 사진인데 편입은 레지스트리를 제자리에서 갱신한다.
 //
 // 개수 비교로 막지 않는다: **교체를 놓친다.** 아래 넷이 그 이유다.
-const 편입 = (ctx, connector, label, name, 답) => {
+const 편입 = (ctx, connector, label, name, 답, 계약) => {
   const { admitMcpTools } = ctx.__admit;
   admitMcpTools({
     server: undefined, connector, connectorLabel: label,
-    tools: [{ name, description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+    tools: [{
+      name,
+      description: 계약?.description ?? '묻는다',
+      inputSchema: 계약?.inputSchema ?? { type: 'object', properties: {} },
+    }],
     session: { callTool: async () => ({ content: [{ type: 'text', text: 답 ?? label }] }) },
   }, ctx);
 };
@@ -551,14 +555,31 @@ test('현실 갱신 ③ 하나 내리고 하나 올리면 — 개수는 같지�
   assert.ok(후.some((n) => String(n).includes('d-b')), '올린 손이 안 보인다 — 개수 비교로는 못 잡는 자리다');
 });
 
-test('현실 갱신 ④ 같은 id 로 세션·스키마만 갈려도 새 것이 쓰인다', async () => {
+test('현실 갱신 ④ 같은 id 로 세션도 스키마도 갈리면 둘 다 새 것이 쓰인다', async () => {
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { toolSchemasFor } = await import('../src/kernel/l2-plan/tool-schema.js');
   const { ctx, 손이름들 } = await 현실틀();
-  편입(ctx, 'd-a', '가서비스', 'ask', '옛 세션');
+  const 모델스키마 = (id) => toolSchemasFor(buildSelfState(ctx.env, { tools: ctx.tools }))
+    .find((t) => (t.name ?? t.function?.name) === id);
+
+  편입(ctx, 'd-a', '가서비스', 'ask', '옛 세션',
+    { description: '옛 설명', inputSchema: { type: 'object', properties: { 옛칸: { type: 'string' } } } });
   const id = 손이름들().find((n) => String(n).includes('d-a'));
-  편입(ctx, 'd-a', '가서비스', 'ask', '새 세션');   // 같은 id 로 재연결
+  assert.match(JSON.stringify(모델스키마(id)), /옛칸/, '첫 계약이 모델 입력에 없다');
+
+  // 같은 id 로 재연결 — 세션도 스키마도 갈린다(재인증·서버 업데이트에서 실제로 일어난다)
+  편입(ctx, 'd-a', '가서비스', 'ask', '새 세션',
+    { description: '새 설명', inputSchema: { type: 'object', properties: { 새칸: { type: 'number' } } } });
+
   assert.equal(손이름들().filter((n) => n === id).length, 1, '같은 손이 두 번 실린다');
   const r = await ctx.tools.tools[id].handler({});
   assert.match(r.userSafeSummary, /새 세션/, '옛 세션이 그대로 남아 있다 — 재연결이 반영 안 됐다');
+
+  // **스키마까지 갈려야 한다.** 옛 칸이 남아 있으면 모델은 없는 인자를 계속 보낸다.
+  const 지금 = JSON.stringify(모델스키마(id));
+  assert.match(지금, /새칸/, '바뀐 스키마가 모델 입력에 없다');
+  assert.ok(!/옛칸/.test(지금), `옛 스키마가 남아 있다: ${지금}`);
+  assert.match(지금, /새 설명/, '바뀐 설명이 모델 입력에 없다');
 });
 
 // 관통 검사 — 노출까지만 보지 않는다. 실제로 골라 실행되고, 영수증이 정확히 한 번인지까지.
@@ -612,4 +633,81 @@ test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 �
   const 새손영수증 = 영수증.filter((t) => String(t).includes('d-new'));
   assert.equal(새손영수증.length, 1, `새 손 영수증이 ${새손영수증.length}건 — 실행됐고 한 번만이어야 한다`);
   assert.equal(영수증.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
+});
+
+// 오너 검토(2026-07-28): `있는손` 목록이 한 번만 만들어져, 뒤 걸음에서 손이 늘거나 줄어도
+// **복구 안내가 옛 목록으로 말한다.** 단일 현실 갱신을 끝까지 적용하는 문제다.
+//
+// 왜 사용자에게 중요한가: `다음길` 은 **다른 손이 하나라도 있으면** "직접 옮겨 주세요" 같은
+// 시키는 문장을 다음 길로 쓰지 않는다(한 도구의 한계를 T5 전체의 한계로 말하지 않는다).
+// 손 목록이 낡으면, 방금 붙인 손을 두고도 사용자에게 일을 시킨다.
+test('복구 안내도 지금 손을 본다 — 손이 늘면 사용자를 시키지 않는다', async () => {
+  const { 다음길 } = await import('../src/kernel/turn.js');
+  const 막힌영수증 = [{
+    actualCall: { tool: 'local.file', args: {} },
+    failureState: 'blocked',
+    userSafeSummary: '그 파일은 제가 다루는 폴더 밖이에요.',
+    nextSafeAction: '그 폴더로 옮겨 주세요.',
+  }];
+
+  // 막힌 손 하나뿐 — 도구가 남긴 말이 그대로 다음 길이 된다
+  const 손없을때 = 다음길(막힌영수증, ['local.file']);
+  assert.match(손없을때, /옮겨/, '이 시험의 전제가 깨졌다');
+
+  // 손이 하나 늘면 — 사용자를 시키는 문장은 다음 길이 될 수 없다
+  const 손생겼을때 = 다음길(막힌영수증, ['local.file', 'mcp.d-new.ask']);
+  assert.ok(!/옮겨 주세요/.test(손생겼을때),
+    `손이 늘었는데도 사용자에게 시킨다: ${손생겼을때}`);
+});
+
+// 위 검사는 `다음길` 계약만 본다 — 턴 안에서 목록이 낡는 것은 못 잡는다. 관통으로 확인한다.
+// 손이 **하나뿐인** 자리에서만 낡음이 드러난다(다른 손이 이미 많으면 경계가 어차피 걸린다).
+test('턴 안에서 손이 늘면 그 턴의 복구 안내도 따라 바뀐다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const { admitMcpTools } = await import('../src/runtime/tool-admission.js');
+
+  const 돌려보기 = async (손을붙일까) => {
+    // 손이 **그것 하나뿐인** 자리를 만든다 — 다른 손이 많으면 경계가 어차피 걸려 낡음이 안 드러난다.
+    const env = demoEnv({ include: ['local.file'], hands: ['local.file'] });
+    const tools = demoTools({});
+    const ctx = { env, tools, ledger: new TruthLedger(), descriptors: [] };
+    let 돌았나 = false;
+    Object.assign(tools.tools, {
+      'local.file': {
+        async handler() {
+          돌았나 = true;
+          if (손을붙일까) {
+            admitMcpTools({
+              server: undefined, connector: 'd-new', connectorLabel: '새서비스',
+              tools: [{ name: 'ask', description: '묻는다', inputSchema: { type: 'object', properties: {} } }],
+              session: { callTool: async () => ({ content: [] }) },
+            }, { tools, descriptors: ctx.descriptors, env });
+          }
+          return {
+            blocked: true,
+            userSafeSummary: '그 파일은 제가 다루는 폴더 밖이에요.',
+            nextSafeAction: '그 폴더로 옮겨 주세요.',
+          };
+        },
+      },
+    });
+    ctx.model = { async respond(_tc, opts = {}) {
+      if (!돌았나 && opts.tools?.length) {
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: 'x' } }] };
+      }
+      return '';
+    } };
+    return runTurn({ text: '그 파일 좀 봐줘' }, ctx).catch(() => ({}));
+  };
+
+  // 손이 그것 하나뿐이면 — 도구가 남긴 말이 그대로 다음 길이다(다른 길이 정말 없다)
+  const 안붙였을때 = await 돌려보기(false);
+  assert.match(String(안붙였을때.nextSafeAction ?? ''), /옮겨/, '이 시험의 전제가 깨졌다');
+
+  // 같은 턴에 손이 하나 늘면 — 그 턴의 안내부터 사용자를 시키지 않는다
+  const 붙였을때 = await 돌려보기(true);
+  assert.ok(!/옮겨 주세요/.test(String(붙였을때.nextSafeAction ?? '')),
+    `손이 늘었는데 그 턴의 안내가 아직 사용자를 시킨다: ${붙였을때.nextSafeAction}`);
 });

@@ -731,8 +731,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
   // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
   // "다른 손으로 이어서 볼게요"는 그 손이 실제로 있을 때만 참이다(없으면 거짓 약속이 된다).
-  const 있는손 = selfState.connectedTools.filter((t) => t.status === 'usable').map((t) => t.id);
-  const ladder = nextRung(turnReceipts, 있는손);
+  // **복구 안내도 지금 손을 본다.** 한 번 계산해 두면 뒤 걸음에서 손이 늘거나 줄어도
+  // "다음 길"이 옛 목록으로 안내한다 — 이미 붙은 손을 못 쓴다고 하거나 내린 손을 권한다.
+  // `refreshRuntimeReality` 가 만든 현재 selfState 에서 매번 뽑는다(같은 현실의 투영본).
+  const 있는손 = () => selfState.connectedTools.filter((t) => t.status === 'usable').map((t) => t.id);
+  const ladder = nextRung(turnReceipts, 있는손());
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = 이어받기정리(deriveWorkingState(ctx.workingState, {
@@ -750,7 +753,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
     // 못 찾았어요"). 사다리는 도구 종류를 모르는 일반 폴백이라, 앞세우면 파일 실패에 웹 문구가
     // 나간다 — 실측: 원장엔 정확한 문장이 있었는데 사다리가 덮어써서 모델이 터미널 명령을 시켰다.
-    recoveryHint: 다음길(turnReceipts, 있는손),
+    recoveryHint: 다음길(turnReceipts, 있는손()),
     ...(ctx.selfhood ?? {}),
   });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
@@ -767,7 +770,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // P2-6 사다리: 막힌 게 있으면 **다음 계단을 정해** 최종 답변에 사실로 실어 준다.
   //   "안 됩니다"로 끝내지 않는다 — 우리 수집이 막혔으면 모델이 자기 경로로 찾고, 사람만 할 수
   //   있는 일이면 최소 단계를 부탁하고, 범위 밖이면 범위를 넓히자고 제안한다(오너 지시).
-  const step = nextRung(turnReceipts, 있는손);
+  const step = nextRung(turnReceipts, 있는손());
 
   // **표면 요청이 나왔으면 여기서 끝난다.** 공은 사용자에게 넘어갔다 — 값을 넣기 전까지는
   // 무엇을 더 물어도 같은 자리다. 실측(오너 2026-07-27): 여기서 모델에게 도구를 다시 쥐여
@@ -829,7 +832,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         surface: ctx.surface, recentTurns: ctx.recentTurns,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState,
-        recoveryHint: 다음길(turnReceipts, 있는손),
+        recoveryHint: 다음길(turnReceipts, 있는손()),
         ...(ctx.selfhood ?? {}),
       });
       finalOut = await ctx.model.respond(tc, {
@@ -940,7 +943,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       surface: ctx.surface, recentTurns: ctx.recentTurns,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState,
-      recoveryHint: 다음길(turnReceipts, 있는손),
+      recoveryHint: 다음길(turnReceipts, 있는손()),
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):
       // "t5demo-idle 꺼줘" 에서 T5 가 대상을 정확히 찾아 놓고 **"터미널 손이 열리지 않아
       // 제가 직접 끄지는 못했어요 — 터미널에서 kill 4356 실행하면 됩니다"** 라고 답했다.
@@ -986,7 +989,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **영수증의 사용자면 문장을 쓴다.** 예전엔 계획의 `recoveryCriteria`(내부 문자열)를 그대로
     // 올려서 사용자 화면에 "다음: 실패 시 무엇이 안전하고 다음 안전 행동을 제시한다"가 찍혔다
     // (오너 실사용). 내부 계약 문구는 사용자면에 절대 나가지 않는다(§7 사용자면/진단면 분리).
-    nextSafeAction: projection.unconfirmed.length ? userSafeNextAction(turnReceipts) : undefined,
+    //
+    // 그리고 **경계를 지나서 나간다.** 예전엔 여기만 `userSafeNextAction` 원문을 그대로 썼다 —
+    // "한 도구의 한계를 T5 전체의 한계로 말하지 않는다"는 경계(`다음길`)가 모델 입력에만 걸리고
+    // **사용자 화면은 그 경계를 안 탔다.** 그래서 방금 다른 손이 붙었는데도 화면에는
+    // "그 폴더로 옮겨 주세요"가 그대로 남는다(관통 검사로 발견, 2026-07-28).
+    // 같은 사실은 같은 경계를 지나야 한다 — 표면마다 다른 현실을 보게 하지 않는다.
+    nextSafeAction: projection.unconfirmed.length ? 다음길(turnReceipts, 있는손()) : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     goal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
