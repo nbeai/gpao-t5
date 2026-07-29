@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   AGENT_RUN_STATES,
   AUTOMATION_SCHEMA_VERSION,
+  agentRunIdempotencyKey,
   authorityWithin,
+  claimAgentRun,
   childToolAllowlist,
   contentHash,
   markSkillStale,
@@ -21,6 +23,7 @@ import {
   validateAutomationJob,
   validateSkillDefinition,
   validateTriggerSpec,
+  validateAutomationReferences,
 } from '../src/kernel/l5-growth/automation-contracts.js';
 
 const now = 100;
@@ -120,7 +123,9 @@ const run = (patch = {}) => ({
   id: 'run-1',
   jobId: 'job-1',
   scheduledFor: 200,
-  idempotencyKey: 'job-1:200:1:hash',
+  idempotencyKey: agentRunIdempotencyKey({
+    jobId: 'job-1', scheduledFor: 200, skillVersion: 1, skillHash: skill().contentHash,
+  }),
   skillSnapshot: skill(),
   triggerSnapshot: trigger(),
   agentSnapshot: profile(),
@@ -152,6 +157,29 @@ test('AC-1: six contracts accept complete records and reject missing facts', () 
   assert.equal(validateAgentRun(run({ idempotencyKey: '' })).ok, false);
 });
 
+test('AC-1: validators are total for malformed JSON-like inputs', () => {
+  const validators = [
+    validateSkillDefinition,
+    validateTriggerSpec,
+    validateAgentProfile,
+    validateAutomationJob,
+    validateAgentRun,
+    validateAuthorityEnvelope,
+  ];
+  const malformed = [
+    null, undefined, '', 1, true, [], {},
+    { ceiling: 'A2', maxRuns: 2, allowedKinds: null, allowedTargets: null },
+    { schemaVersion: 2, contentHash: {} },
+  ];
+  for (const validator of validators) {
+    for (const value of malformed) {
+      assert.doesNotThrow(() => validator(value));
+      assert.equal(validator(value).ok, false);
+      assert.ok(Array.isArray(validator(value).errors));
+    }
+  }
+});
+
 test('AC-1: authority never admits A3 or an unbounded repeated A2 grant', () => {
   assert.equal(validateAuthorityEnvelope(envelope({ ceiling: 'A3' })).ok, false);
   const unbounded = envelope({
@@ -170,12 +198,23 @@ test('AC-1: authority never admits A3 or an unbounded repeated A2 grant', () => 
 test('AC-1: child tools are a strict subset and deny recursive, memory, automation, and send powers', () => {
   const parent = [
     'local.file', 'agent.delegate', 'automation.create',
-    'memory.propose', 'telegram.send', 'send.message',
+    'memory.propose', 'telegram.send', 'slack.post',
   ];
+  const selfState = {
+    connectedTools: [
+      { id: 'local.file', toolKind: 'read' },
+      { id: 'agent.delegate', toolKind: 'delegate' },
+      { id: 'automation.create', toolKind: 'create' },
+      { id: 'memory.propose', toolKind: 'memory' },
+      { id: 'telegram.send', toolKind: 'send' },
+      { id: 'slack.post', toolKind: 'send' },
+    ],
+  };
   assert.deepEqual(
-    childToolAllowlist(parent, [...parent, 'not-owned']),
+    childToolAllowlist(parent, [...parent, 'not-owned'], selfState),
     ['local.file'],
   );
+  assert.deepEqual(childToolAllowlist(parent, parent), [], 'tool reality absent means child authority absent');
 });
 
 test('AC-1: one transition boundary rejects shortcuts and terminal resurrection', () => {
@@ -185,6 +224,32 @@ test('AC-1: one transition boundary rejects shortcuts and terminal resurrection'
   const ended = run({ status: 'succeeded', finishedAt: 200 });
   assert.equal(transitionState('agentRun', ended, 'running', 300).ok, false);
   assert.ok(AGENT_RUN_STATES.includes('unknown'), 'unknown must remain distinct from failed');
+});
+
+test('AC-1: run claim requires owner identity and heartbeat, terminal requires finishedAt', () => {
+  const queued = run();
+  assert.equal(transitionState('agentRun', queued, 'claimed', 210).ok, false);
+  const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-token' }, 210);
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.record.status, 'claimed');
+  assert.equal(claimed.record.heartbeatAt, 210);
+  assert.equal(validateAgentRun(claimed.record).ok, true);
+
+  const running = transitionState('agentRun', claimed.record, 'running', 220, { heartbeatAt: 220 });
+  assert.equal(running.ok, true);
+  assert.equal(transitionState('agentRun', running.record, 'succeeded', 230).ok, false);
+  const ended = transitionState('agentRun', running.record, 'succeeded', 230, { finishedAt: 230 });
+  assert.equal(ended.ok, true);
+});
+
+test('AC-1: run idempotency key is derived from exact job and skill snapshots', () => {
+  const valid = run();
+  assert.equal(validateAgentRun(valid).ok, true);
+  assert.equal(validateAgentRun({ ...valid, idempotencyKey: 'arbitrary-non-empty' }).ok, false);
+  assert.equal(validateAgentRun({
+    ...valid,
+    skillSnapshot: { ...valid.skillSnapshot, version: 2 },
+  }).ok, false);
 });
 
 test('AC-1: a run envelope cannot be wider than its parent approval', () => {
@@ -221,6 +286,15 @@ test('AC-1: a job never drifts to a changed skill version or hash', () => {
   assert.equal(reviewed.ok, true);
   assert.equal(reviewed.record.state, 'needs_review');
   assert.equal(reviewed.reason, 'skill_binding_changed');
+});
+
+test('AC-1: content mutation with a stale hash is rejected and cannot satisfy job binding', () => {
+  const original = skill();
+  const mutated = { ...original, purpose: '몰래 바뀐 목적' };
+  assert.equal(validateSkillDefinition(mutated).ok, false);
+  const reviewed = reviewJobSkillBinding(job(), mutated, 300);
+  assert.equal(reviewed.ok, true);
+  assert.equal(reviewed.record.state, 'needs_review');
 });
 
 test('AC-1: skill revision is version/hash bound, stale is explicit, and rollback restores the snapshot', () => {
@@ -287,7 +361,8 @@ test('AC-1: legacy jobs migrate without losing action or receipts and bind a sta
   };
   const migrated = migrateAutomationJobV1(legacy, 30);
   assert.equal(migrated.schemaVersion, 2);
-  assert.equal(migrated.state, 'scheduled');
+  assert.equal(migrated.state, 'needs_review', 'standalone migration cannot claim missing references exist');
+  assert.equal(migrated.migrationIntendedState, 'scheduled');
   assert.equal(migrated.trigger.kind, 'interval');
   assert.equal(migrated.skillRef.version, 1);
   assert.equal(migrated.skillRef.contentHash.length, 64);
@@ -297,4 +372,6 @@ test('AC-1: legacy jobs migrate without losing action or receipts and bind a sta
   const state = migrateAutomationStateV1({ candidates: [{ id: 'c1' }], jobs: [legacy] }, 30);
   assert.deepEqual(state.candidates, [{ id: 'c1' }], 'unapproved candidates are not dropped');
   assert.deepEqual(state.jobs[0].legacyV1.executions, legacy.executions, 'run history remains available for audit');
+  assert.equal(validateAutomationReferences({ skills: [], profiles: [], jobs: state.jobs }).ok, true,
+    'needs_review is the explicit boundary while references are absent');
 });

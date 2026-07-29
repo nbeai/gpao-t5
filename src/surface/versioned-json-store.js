@@ -31,6 +31,7 @@ export async function atomicWritePrivate(file, value) {
 async function quarantine(file, raw) {
   const target = `${file}.corrupt-${randomUUID()}`;
   await rename(file, target);
+  await chmod(target, 0o600);
   return { corrupted: true, quarantinedFile: target, corruptBytes: Buffer.byteLength(raw) };
 }
 

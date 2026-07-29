@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import {
   AUTOMATION_SCHEMA_VERSION,
+  mergeSkillDefinitionV1,
   migrateSkillsStateV1,
+  projectSkillDefinitionV1,
   validateSkillDefinition,
 } from '../kernel/l5-growth/automation-contracts.js';
 import {
@@ -27,6 +29,13 @@ export class SkillStore {
   async load() {
     try {
       const a = JSON.parse(await readFile(this.file, 'utf8'));
+      if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+        return {
+          schemaVersion: AUTOMATION_SCHEMA_VERSION,
+          compatibility: 'v1',
+          skills: (a.skills ?? []).map(projectSkillDefinitionV1),
+        };
+      }
       return { skills: a.skills ?? [] };
     } catch {
       return { skills: [] };
@@ -34,6 +43,11 @@ export class SkillStore {
   }
 
   async save(a) {
+    if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+      const skills = (a.skills ?? []).map((skill) => mergeSkillDefinitionV1(skill, Date.now()));
+      await atomicWritePrivate(this.file, { schemaVersion: AUTOMATION_SCHEMA_VERSION, skills });
+      return a;
+    }
     await mkdir(this.dir, { recursive: true });
     await writeFile(this.file, JSON.stringify({ skills: a.skills ?? [] }), 'utf8');
     return a;

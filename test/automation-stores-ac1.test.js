@@ -3,15 +3,22 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SkillDefinitionStore } from '../src/surface/skill-store.js';
-import { AutomationJobStore } from '../src/surface/automation-store.js';
+import { SkillDefinitionStore, SkillStore } from '../src/surface/skill-store.js';
+import { AutomationJobStore, AutomationStore } from '../src/surface/automation-store.js';
 import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
 import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
+import { migrateAutomationWorkspaceV1 } from '../src/surface/automation-workspace-migration.js';
 import {
   AUTOMATION_SCHEMA_VERSION,
+  agentRunIdempotencyKey,
+  claimAgentRun,
   contentHash,
   migrateSkillDefinitionV1,
+  transitionState,
+  validateAutomationReferences,
 } from '../src/kernel/l5-growth/automation-contracts.js';
+import { canInfluence } from '../src/kernel/l5-growth/skill-learning.js';
+import { tickAutomation } from '../src/runtime/automation-engine.js';
 
 const privateMode = async (file) => (await stat(file)).mode & 0o777;
 
@@ -74,7 +81,9 @@ function run(id = 'run-1') {
     id,
     jobId: 'job-1',
     scheduledFor: 2,
-    idempotencyKey: `job-1:2:1:${skill.contentHash}`,
+    idempotencyKey: agentRunIdempotencyKey({
+      jobId: 'job-1', scheduledFor: 2, skillVersion: skill.version, skillHash: skill.contentHash,
+    }),
     skillSnapshot: skill,
     triggerSnapshot: {
       kind: 'once', timezone: 'UTC', at: 2, misfirePolicy: 'skip', nextRunAt: 2,
@@ -111,6 +120,11 @@ test('AC-1 stores migrate v1 files in place without dropping legacy bytes and wr
 
   const onDisk = JSON.parse(await readFile(join(dir, 'skills.json'), 'utf8'));
   assert.equal(onDisk.schemaVersion, 2, 'migration must persist before later writers see v1 again');
+  const oldSkills = await new SkillStore(dir).load();
+  assert.equal(canInfluence(oldSkills.skills[0]), true, 'old reader must preserve admitted influence during staged migration');
+  const oldAutomation = await new AutomationStore(dir).load();
+  assert.equal(oldAutomation.jobs[0].state, 'needs_review');
+  assert.deepEqual(oldAutomation.jobs[0].action, legacyJob.action, 'safe stop must not lose the old action');
 });
 
 test('AC-1 stores reject invalid records before replacing valid state', async () => {
@@ -138,6 +152,7 @@ test('AC-1 corrupted state is preserved in quarantine and reported instead of be
   assert.equal(loaded.skills.length, 0);
   assert.equal(loaded.recovery.corrupted, true);
   assert.equal(await readFile(loaded.recovery.quarantinedFile, 'utf8'), broken);
+  assert.equal(await privateMode(loaded.recovery.quarantinedFile), 0o600);
 });
 
 test('AC-1 agent profiles are validated and private on disk', async () => {
@@ -152,15 +167,58 @@ test('AC-1 agent profiles are validated and private on disk', async () => {
   );
 });
 
-test('AC-1 run ledger atomically appends validated snapshots and refuses duplicate run identity', async () => {
+test('AC-1 run ledger records lifecycle events and maintains a separate current snapshot', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-ac1-runs-'));
   const ledger = new AutomationRunLedger(dir);
-  await ledger.append(run());
-  assert.equal((await ledger.load()).runs.length, 1);
+  const queued = run();
+  await ledger.append(queued);
+  const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-token' }, 3).record;
+  await ledger.append(claimed);
+  const running = transitionState('agentRun', claimed, 'running', 4, { heartbeatAt: 4 }).record;
+  await ledger.append(running);
+  const succeeded = transitionState('agentRun', running, 'succeeded', 5, { finishedAt: 5 }).record;
+  await ledger.append(succeeded);
+  const loaded = await ledger.load();
+  assert.equal(loaded.runs.length, 1);
+  assert.equal(loaded.runs[0].status, 'succeeded');
+  assert.deepEqual(loaded.events.map((event) => event.to), ['queued', 'claimed', 'running', 'succeeded']);
+  const snapshot = JSON.parse(await readFile(join(dir, 'automation-run-state.json'), 'utf8'));
+  assert.equal(snapshot.runs[0].status, 'succeeded');
   assert.equal(await privateMode(join(dir, 'automation-runs.jsonl')), 0o600);
-  await assert.rejects(ledger.append(run()), /already exists/);
-  await assert.rejects(ledger.append({ ...run('run-same-occurrence') }), /idempotency key already exists/);
+  assert.equal(await privateMode(join(dir, 'automation-run-state.json')), 0o600);
   await assert.rejects(ledger.append({ ...run('run-2'), authorityEnvelope: { ...authority, ceiling: 'A3' } }), /agent run invalid/);
+});
+
+test('AC-1 run append is serialized: distinct runs are lossless and one occurrence is claimed once', async () => {
+  for (let i = 0; i < 30; i++) {
+    const dir = await mkdtemp(join(tmpdir(), 't5-ac1-run-race-'));
+    const ledger = new AutomationRunLedger(dir);
+    const a = run(`a-${i}`);
+    const b = {
+      ...run(`b-${i}`),
+      scheduledFor: 10 + i,
+    };
+    b.idempotencyKey = agentRunIdempotencyKey({
+      jobId: b.jobId,
+      scheduledFor: b.scheduledFor,
+      skillVersion: b.skillSnapshot.version,
+      skillHash: b.skillSnapshot.contentHash,
+    });
+    const distinct = await Promise.allSettled([ledger.append(a), ledger.append(b)]);
+    assert.deepEqual(distinct.map((item) => item.status), ['fulfilled', 'fulfilled']);
+    assert.equal((await ledger.load()).runs.length, 2);
+  }
+
+  for (let i = 0; i < 30; i++) {
+    const dir = await mkdtemp(join(tmpdir(), 't5-ac1-claim-race-'));
+    const ledger = new AutomationRunLedger(dir);
+    const a = run(`claim-a-${i}`);
+    const b = { ...run(`claim-b-${i}`) };
+    const same = await Promise.allSettled([ledger.append(a), ledger.append(b)]);
+    assert.equal(same.filter((item) => item.status === 'fulfilled').length, 1);
+    assert.equal(same.filter((item) => item.status === 'rejected').length, 1);
+    assert.equal((await ledger.load()).runs.length, 1);
+  }
 });
 
 test('AC-1 run ledger quarantines a torn line and does not append across unreviewed corruption', async () => {
@@ -176,7 +234,64 @@ test('AC-1 run ledger quarantines a torn line and does not append across unrevie
   const loaded = await ledger.load();
   assert.equal(loaded.recovery.corrupted, true);
   assert.equal(await readFile(loaded.recovery.quarantinedFile, 'utf8'), broken);
+  assert.equal(await privateMode(loaded.recovery.quarantinedFile), 0o600);
   assert.equal((await ledger.load()).runs.length, 0);
+});
+
+test('AC-1 workspace migration preserves old admitted influence and scheduled action consumption', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-ac1-compat-'));
+  await writeFile(join(dir, 'skills.json'), JSON.stringify({ skills: [legacySkill] }), 'utf8');
+  await writeFile(join(dir, 'automation.json'), JSON.stringify({ candidates: [], jobs: [legacyJob] }), 'utf8');
+
+  const migrated = await migrateAutomationWorkspaceV1(dir, 10);
+  assert.equal(migrated.skills.skills.some((entry) => entry.id === 'legacy-action:legacy-job'), true);
+  assert.equal(migrated.profiles.profiles.some((entry) => entry.id === 'legacy-default-agent'), true);
+  assert.equal(migrated.automation.jobs[0].state, 'scheduled');
+  assert.equal(validateAutomationReferences({
+    skills: migrated.skills.skills,
+    profiles: migrated.profiles.profiles,
+    jobs: migrated.automation.jobs,
+  }).ok, true);
+
+  const oldSkills = await new SkillStore(dir).load();
+  assert.equal(oldSkills.schemaVersion, 2);
+  assert.equal(oldSkills.skills[0].state, 'admitted');
+  assert.equal(canInfluence(oldSkills.skills[0]), true);
+  oldSkills.skills[0].state = 'rejected';
+  await new SkillStore(dir).save(oldSkills);
+  assert.equal((await new SkillDefinitionStore(dir).load()).skills
+    .find((entry) => entry.id === legacySkill.id).state, 'rejected',
+  'old skill writer must preserve the v2 envelope and lifecycle meaning');
+
+  const oldAutomation = await new AutomationStore(dir).load();
+  assert.equal(oldAutomation.schemaVersion, 2);
+  assert.equal(oldAutomation.jobs[0].state, 'scheduled');
+  assert.deepEqual(oldAutomation.jobs[0].action, legacyJob.action);
+  let calls = 0;
+  const receipt = {
+    intended: 'legacy read',
+    actualCall: { tool: 'local.file', args: legacyJob.action.args },
+    result: {},
+    userSafeSummary: '읽었어요.',
+    failureState: 'none',
+    diagnosticTrace: [],
+    lifecycle: 'executed',
+  };
+  await tickAutomation(oldAutomation.jobs, {
+    tools: { run: async () => { calls += 1; return receipt; } },
+    selfState: { connectedTools: [{ id: 'local.file', toolKind: 'read' }] },
+    now: 20,
+  });
+  assert.equal(calls, 1);
+  await new AutomationStore(dir).save(oldAutomation);
+  const reloaded = await new AutomationStore(dir).load();
+  assert.equal(reloaded.jobs[0].executions.length, 1);
+  const canonical = await new AutomationJobStore(dir).load();
+  assert.equal(canonical.jobs[0].legacyV1.executions.length, 1, 'old writer must save back without collapsing v2');
+  reloaded.jobs[0].state = 'cancelled';
+  await new AutomationStore(dir).save(reloaded);
+  assert.equal((await new AutomationJobStore(dir).load()).jobs[0].state, 'cancelled',
+    'old cancel path must remain effective after migration');
 });
 
 test('AC-1 deterministic content hashes do not depend on object key order', () => {

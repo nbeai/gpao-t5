@@ -11,7 +11,7 @@ SkillDefinition, TriggerSpec, AgentProfile, AutomationJob, AgentRun, AuthorityEn
 P-OP-7 제품 동작은 기준선 그대로 유지. `server.js`, `turn.js`, `live-context.js`와 기존 P-OP-7 수정 파일은 변경하지 않음.
 
 현재 차단:
-기능 차단 없음. 프로젝트 gate의 CPU 측정은 AC-1 없는 원본도 동일하게 49.2초로 40초 기준을 넘었으므로 AC-1 회귀가 아닌 실행 환경 불일치로 분류.
+독립 감사에서 확인된 Run 동시성·send deny·validator totality·migration 참조/호환·hash 일치·격리본 권한·Run identity 위반을 보강함. 재감사 대기.
 
 지정 후속:
 AC-2에서 v2 SkillDefinitionStore를 실제 lifecycle에 연결. AC-3 이후 scheduler/runner가 AutomationJobStore와 RunLedger를 소비.
@@ -22,11 +22,21 @@ AC-2에서 v2 SkillDefinitionStore를 실제 lifecycle에 연결. AC-3 이후 sc
 다음 작업과 종료 조건:
 Claude가 계약·migration·저장 원자성·권한 축소를 독립 감사하고, 통과한 커밋만 P-OP 기준선 이후에 병합. 실행기·스케줄러·UI는 이 커밋에서 열지 않음.
 
+## 독립 감사 보강
+
+- Run 저장을 직렬화된 append-only event와 별도 current snapshot으로 분리
+- 서로 다른 Run 무손실, 동일 occurrence 정확히 하나, 같은 Run lifecycle 전이 기록
+- descriptor `toolKind` 기반 send 기본 deny(`slack.post` 포함)
+- malformed input에서 모든 validator 비예외 `{ok:false, errors}`
+- v1 workspace migration은 synthetic Skill/Profile을 dependency-first로 설치하고 Job을 마지막에 전환
+- standalone Job migration은 참조가 없으면 `needs_review`
+- old/new reader compatibility projection과 기존 `canInfluence`/`tickAutomation` 관통
+- Skill 내용과 contentHash 재계산 일치 강제
+- claimed/running/waiting owner·heartbeat, terminal finishedAt, 정본 idempotency key 강제
+- 손상 격리본도 0600
+
 ## 자체 검증
 
-- AC-1 집중 반대시험: 16건 통과
-- 전체 회귀: 1,194건 통과, 실패 0
-- 원본 비교 게이트:
-  - AC-1 worktree: 테스트 1,194건 통과, CPU 49.2초
-  - 변경 없는 원본: 테스트 1,178건 통과, CPU 49.2초
-  - 판정: CPU 초과는 변경과 무관. 기준선은 올리지 않음.
+- AC-1 집중 반대시험: 22건 통과
+- 전체 회귀: 1,200건 통과, 실패 0
+- 프로젝트 gate: PASS, CPU 39.3초 / 40초, 벽시계 14.6초

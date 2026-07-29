@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isSendTool } from '../contracts.js';
 
 export const AUTOMATION_SCHEMA_VERSION = 2;
 
@@ -105,8 +106,8 @@ export function validateAuthorityEnvelope(envelope) {
     ['requiresFreshApprovalFor must be a string array', stringArray(e.requiresFreshApprovalFor)],
   ]);
   if (e.ceiling === 'A2' && e.maxRuns > 1) {
-    if (e.allowedKinds.length === 0) errors.push('repeated A2 requires fixed allowedKinds');
-    if (e.allowedTargets.length === 0) errors.push('repeated A2 requires fixed allowedTargets');
+    if (!Array.isArray(e.allowedKinds) || e.allowedKinds.length === 0) errors.push('repeated A2 requires fixed allowedKinds');
+    if (!Array.isArray(e.allowedTargets) || e.allowedTargets.length === 0) errors.push('repeated A2 requires fixed allowedTargets');
     if (!finite(e.expiresAt)) errors.push('repeated A2 requires expiresAt');
   }
   return result(errors);
@@ -146,14 +147,14 @@ export function validateTriggerSpec(trigger) {
 
 export function validateSkillDefinition(skill) {
   const s = skill ?? {};
-  return result(errorsFor([
+  const errors = errorsFor([
     ['skill must be an object', object(s)],
     ['skill schemaVersion must be 2', s.schemaVersion === AUTOMATION_SCHEMA_VERSION],
     ['skill id is required', string(s.id)],
     ['skill name is required', string(s.name)],
     ['skill purpose is required', string(s.purpose)],
     ['skill version must be a positive integer', Number.isInteger(s.version) && s.version > 0],
-    ['skill contentHash must be sha256 hex', /^[a-f0-9]{64}$/.test(s.contentHash ?? '')],
+    ['skill contentHash must be sha256 hex', typeof s.contentHash === 'string' && /^[a-f0-9]{64}$/.test(s.contentHash)],
     ['skill inputs must be an array', Array.isArray(s.inputs)],
     ['skill steps must be an array', Array.isArray(s.steps)],
     ['skill resultContract must be an object', object(s.resultContract)],
@@ -165,7 +166,15 @@ export function validateSkillDefinition(skill) {
     ['skill createdAt must be finite', finite(s.createdAt)],
     ['skill updatedAt must be finite', finite(s.updatedAt)],
     ['skill previousVersion must be an object or null', s.previousVersion === null || object(s.previousVersion)],
-  ]));
+  ]);
+  if (errors.length === 0) {
+    try {
+      if (contentHash(skillHashSource(s)) !== s.contentHash) errors.push('skill contentHash does not match content');
+    } catch {
+      errors.push('skill content cannot be hashed');
+    }
+  }
+  return result(errors);
 }
 
 export function validateAgentProfile(profile) {
@@ -200,7 +209,7 @@ export function validateAutomationJob(job) {
     ['automation job skillRef must be an object', object(j.skillRef)],
     ['automation job skillRef id is required', string(j.skillRef?.id)],
     ['automation job skillRef version must be positive', Number.isInteger(j.skillRef?.version) && j.skillRef.version > 0],
-    ['automation job skillRef hash must be sha256 hex', /^[a-f0-9]{64}$/.test(j.skillRef?.contentHash ?? '')],
+    ['automation job skillRef hash must be sha256 hex', typeof j.skillRef?.contentHash === 'string' && /^[a-f0-9]{64}$/.test(j.skillRef.contentHash)],
     ['automation job agentProfileId is required', string(j.agentProfileId)],
     ['automation job inputTemplate must be an object', object(j.inputTemplate)],
     ['automation job deliveryPolicy must be an object', object(j.deliveryPolicy)],
@@ -244,7 +253,25 @@ export function validateAgentRun(run) {
   errors.push(...trigger.errors.map((e) => `triggerSnapshot: ${e}`));
   errors.push(...agent.errors.map((e) => `agentSnapshot: ${e}`));
   errors.push(...authority.errors.map((e) => `authority: ${e}`));
-  if (r.status === 'succeeded' && r.finishedAt === null) errors.push('succeeded run requires finishedAt');
+  const active = ['claimed', 'running', 'waiting_approval'].includes(r.status);
+  const terminal = ['succeeded', 'failed', 'cancelled', 'unknown'].includes(r.status);
+  if (active) {
+    if (!(Number.isInteger(r.owner?.pid) && r.owner.pid > 0 && string(r.owner?.ownerToken))) {
+      errors.push('active run requires pid and ownerToken');
+    }
+    if (!finite(r.heartbeatAt)) errors.push('active run requires heartbeatAt');
+    if (!finite(r.startedAt)) errors.push('active run requires startedAt');
+  }
+  if (terminal && !finite(r.finishedAt)) errors.push('terminal run requires finishedAt');
+  if (object(r.skillSnapshot) && string(r.jobId) && finite(r.scheduledFor)) {
+    const expected = agentRunIdempotencyKey({
+      jobId: r.jobId,
+      scheduledFor: r.scheduledFor,
+      skillVersion: r.skillSnapshot.version,
+      skillHash: r.skillSnapshot.contentHash,
+    });
+    if (r.idempotencyKey !== expected) errors.push('agent run idempotencyKey does not match snapshots');
+  }
   return result(errors);
 }
 
@@ -254,14 +281,34 @@ export function assertValid(validator, value, label = 'record') {
   return value;
 }
 
-export function transitionState(kind, record, nextState, now) {
+export function transitionState(kind, record, nextState, now, patch = {}) {
   const key = kind === 'agentRun' ? 'status' : 'state';
   const allowed = TRANSITIONS[kind]?.[record?.[key]];
   if (!allowed || !allowed.includes(nextState)) {
     return { ok: false, record, reason: 'invalid_transition' };
   }
-  const next = { ...record, [key]: nextState, updatedAt: now };
+  const next = { ...record, ...patch, [key]: nextState, updatedAt: now };
+  const validator = {
+    skill: validateSkillDefinition,
+    agentProfile: validateAgentProfile,
+    automationJob: validateAutomationJob,
+    agentRun: validateAgentRun,
+  }[kind];
+  const checked = validator?.(next);
+  if (checked && !checked.ok) return { ok: false, record, reason: 'invalid_record', errors: checked.errors };
   return { ok: true, record: next };
+}
+
+export function agentRunIdempotencyKey({ jobId, scheduledFor, skillVersion, skillHash }) {
+  return `${jobId}:${scheduledFor}:${skillVersion}:${skillHash}`;
+}
+
+export function claimAgentRun(run, owner, now) {
+  return transitionState('agentRun', run, 'claimed', now, {
+    owner: { pid: owner?.pid, ownerToken: owner?.ownerToken },
+    heartbeatAt: now,
+    startedAt: run.startedAt ?? now,
+  });
 }
 
 function subset(child, parent) {
@@ -286,7 +333,9 @@ export function authorityWithin(parent, child) {
 }
 
 export function reviewJobSkillBinding(job, skill, now) {
-  const exact = job?.skillRef?.id === skill?.id
+  const skillValid = validateSkillDefinition(skill).ok;
+  const exact = skillValid
+    && job?.skillRef?.id === skill?.id
     && job?.skillRef?.version === skill?.version
     && job?.skillRef?.contentHash === skill?.contentHash;
   if (exact) return { ok: true, record: job, changed: false };
@@ -358,6 +407,20 @@ function legacySkillState(state) {
   })[state] ?? 'quarantined';
 }
 
+function v2SkillState(state) {
+  return ({
+    proposed: 'candidate',
+    replay_required: 'replay_required',
+    approved: 'approved',
+    active: 'admitted',
+    paused: 'admitted',
+    retired: 'rejected',
+    rejected: 'rejected',
+    quarantined: 'rejected',
+    stale: 'replay_required',
+  })[state] ?? 'rejected';
+}
+
 function legacyJobState(state) {
   return ({
     scheduled: 'scheduled',
@@ -367,6 +430,35 @@ function legacyJobState(state) {
     expired: 'expired',
     failed: 'needs_review',
   })[state] ?? 'needs_review';
+}
+
+export function projectSkillDefinitionV1(skill) {
+  const legacy = structuredClone(skill?.legacyV1 ?? {});
+  return {
+    ...legacy,
+    id: skill.id,
+    label: legacy.label ?? skill.name,
+    trigger: legacy.trigger ?? skill.purpose,
+    steps: legacy.steps ?? skill.steps,
+    tool: legacy.tool ?? skill.requiredCapabilities?.[0] ?? null,
+    state: v2SkillState(skill.state),
+    userConfirmed: legacy.userConfirmed ?? ['approved', 'active', 'paused'].includes(skill.state),
+    replayPassed: legacy.replayPassed ?? ['approved', 'active', 'paused'].includes(skill.state),
+    createdAt: legacy.createdAt ?? skill.createdAt,
+    __v2Definition: skill,
+  };
+}
+
+export function mergeSkillDefinitionV1(view, now = 0) {
+  if (!view?.__v2Definition) return migrateSkillDefinitionV1(view, now);
+  const { __v2Definition, ...legacy } = view;
+  const merged = {
+    ...__v2Definition,
+    state: legacySkillState(legacy.state),
+    updatedAt: finite(legacy.updatedAt) ? legacy.updatedAt : now,
+    legacyV1: structuredClone(legacy),
+  };
+  return assertValid(validateSkillDefinition, merged, 'compatible skill');
 }
 
 export function migrateSkillDefinitionV1(legacy, now = 0) {
@@ -416,7 +508,7 @@ function migrateTriggerV1(job) {
   };
 }
 
-export function migrateAutomationJobV1(legacy, now = 0) {
+export function migrateAutomationJobV1(legacy, now = 0, opts = {}) {
   if (legacy?.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
     return assertValid(validateAutomationJob, legacy, 'automation job');
   }
@@ -452,12 +544,97 @@ export function migrateAutomationJobV1(legacy, now = 0) {
     createdAt,
     updatedAt: finite(legacy?.updatedAt) ? legacy.updatedAt : createdAt,
     legacyV1: structuredClone(legacy ?? {}),
+    migrationIntendedState: legacyJobState(legacy?.state),
   };
+  if (!opts.referencesReady && ['approved', 'scheduled', 'paused'].includes(job.state)) {
+    job.state = 'needs_review';
+    job.migrationReview = 'exact skill and agent profile references are not installed yet';
+  }
   if (external && maxRuns > 1 && (!expiresAt || job.authorityEnvelope.allowedTargets.length === 0)) {
     job.state = 'needs_review';
     job.authorityEnvelope.ceiling = 'A1';
   }
   return assertValid(validateAutomationJob, job, 'migrated automation job');
+}
+
+export function projectAutomationJobV1(job) {
+  const legacy = structuredClone(job?.legacyV1 ?? {});
+  return {
+    ...legacy,
+    id: job.id,
+    statement: legacy.statement ?? job.name,
+    state: job.state,
+    nextRunAt: job.nextRunAt,
+    lastRunId: job.lastRunId,
+    executions: Array.isArray(legacy.executions) ? legacy.executions : [],
+    action: legacy.action ?? {
+      tool: job.authorityEnvelope?.allowedKinds?.[0] ?? null,
+      args: job.inputTemplate ?? {},
+    },
+    __v2Job: job,
+  };
+}
+
+export function mergeAutomationJobV1(view, now = 0) {
+  if (!view?.__v2Job) return migrateAutomationJobV1(view, now);
+  const { __v2Job, ...legacy } = view;
+  const state = AUTOMATION_JOB_STATES.includes(legacy.state)
+    ? legacy.state
+    : legacyJobState(legacy.state);
+  const merged = {
+    ...__v2Job,
+    state,
+    nextRunAt: finite(legacy.nextRunAt) ? legacy.nextRunAt : __v2Job.nextRunAt,
+    lastRunId: legacy.lastRunId ?? __v2Job.lastRunId,
+    updatedAt: finite(legacy.updatedAt) ? legacy.updatedAt : now,
+    legacyV1: structuredClone(legacy),
+  };
+  return assertValid(validateAutomationJob, merged, 'compatible automation job');
+}
+
+export function syntheticSkillForLegacyJob(legacy, now = 0) {
+  const action = object(legacy?.action) ? legacy.action : {};
+  const createdAt = finite(legacy?.createdAt) ? legacy.createdAt : now;
+  const skill = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: `legacy-action:${legacy?.id ?? ''}`,
+    name: String(legacy?.statement ?? legacy?.id ?? '이전 자동화 작업'),
+    purpose: String(legacy?.statement ?? '이전 자동화의 실행 방법을 보존'),
+    version: 1,
+    contentHash: '',
+    inputs: [],
+    steps: [{ kind: 'legacy_action', action: structuredClone(action) }],
+    resultContract: { kind: 'legacy_tool_receipt' },
+    requiredCapabilities: string(action.tool) ? [action.tool] : [],
+    authorityHints: [],
+    replayCases: [],
+    source: { kind: 'legacy_automation_v1', sessionId: null, traceIds: [] },
+    state: 'active',
+    createdAt,
+    updatedAt: createdAt,
+    previousVersion: null,
+    legacyV1: { sourceJobId: legacy?.id ?? null, action: structuredClone(action) },
+  };
+  skill.contentHash = contentHash(skillHashSource(skill));
+  return assertValid(validateSkillDefinition, skill, 'synthetic legacy skill');
+}
+
+export function syntheticAgentProfileForLegacyJobs(legacyJobs, now = 0) {
+  const toolAllowlist = [...new Set((legacyJobs ?? []).map((job) => job?.action?.tool).filter(string))];
+  return {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: 'legacy-default-agent',
+    name: '이전 자동화 실행 역할',
+    purpose: '이전 자동화의 승인 범위와 실행 도구를 그대로 보존',
+    modelRole: 'worker',
+    toolAllowlist,
+    workspaceScope: [],
+    defaultBudgets: {},
+    authorityCeiling: 'A2',
+    state: 'active',
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export function migrateSkillsStateV1(raw, now = 0) {
@@ -468,19 +645,98 @@ export function migrateSkillsStateV1(raw, now = 0) {
   };
 }
 
-export function migrateAutomationStateV1(raw, now = 0) {
+export function migrateAutomationStateV1(raw, now = 0, opts = {}) {
   if (raw?.schemaVersion === AUTOMATION_SCHEMA_VERSION) return raw;
   return {
     schemaVersion: AUTOMATION_SCHEMA_VERSION,
     candidates: structuredClone(raw?.candidates ?? []),
-    jobs: (raw?.jobs ?? []).map((job) => migrateAutomationJobV1(job, now)),
+    jobs: (raw?.jobs ?? []).map((job) => migrateAutomationJobV1(job, now, opts)),
   };
 }
 
-export function childToolAllowlist(parentAllowlist, requested = []) {
+export function migrateAutomationWorkspaceDataV1({
+  skills: skillRaw = { skills: [] },
+  profiles: profileRaw = { profiles: [] },
+  automation: automationRaw = { candidates: [], jobs: [] },
+}, now = 0) {
+  const skillState = migrateSkillsStateV1(skillRaw, now);
+  const legacyJobs = automationRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION
+    ? []
+    : (automationRaw?.jobs ?? []);
+  const skills = [...skillState.skills];
+  for (const legacy of legacyJobs) {
+    const synthetic = syntheticSkillForLegacyJob(legacy, now);
+    if (!skills.some((skill) => skill.id === synthetic.id)) skills.push(synthetic);
+  }
+
+  const profiles = profileRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION
+    ? structuredClone(profileRaw.profiles ?? [])
+    : (profileRaw?.profiles ?? []).map((profile) => ({
+      ...profile,
+      schemaVersion: AUTOMATION_SCHEMA_VERSION,
+      toolAllowlist: Array.isArray(profile.toolAllowlist) ? profile.toolAllowlist : [],
+      workspaceScope: Array.isArray(profile.workspaceScope) ? profile.workspaceScope : [],
+      defaultBudgets: object(profile.defaultBudgets) ? profile.defaultBudgets : {},
+      authorityCeiling: A.includes(profile.authorityCeiling) ? profile.authorityCeiling : 'A1',
+      state: AGENT_PROFILE_STATES.includes(profile.state) ? profile.state : 'proposed',
+      createdAt: finite(profile.createdAt) ? profile.createdAt : now,
+      updatedAt: finite(profile.updatedAt) ? profile.updatedAt : (profile.createdAt ?? now),
+      legacyV1: structuredClone(profile),
+    }));
+  if (legacyJobs.length && !profiles.some((profile) => profile.id === 'legacy-default-agent')) {
+    profiles.push(syntheticAgentProfileForLegacyJobs(legacyJobs, now));
+  }
+  for (const profile of profiles) assertValid(validateAgentProfile, profile, 'migrated agent profile');
+
+  let automation;
+  if (automationRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+    automation = structuredClone(automationRaw);
+  } else {
+    automation = migrateAutomationStateV1(automationRaw, now, { referencesReady: true });
+    automation.jobs = automation.jobs.map((job) => {
+      const skill = skills.find((entry) => entry.id === `legacy-action:${job.id}`);
+      const next = {
+        ...job,
+        skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+        agentProfileId: 'legacy-default-agent',
+      };
+      return assertValid(validateAutomationJob, next, 'workspace migrated job');
+    });
+  }
+  const references = validateAutomationReferences({ skills, profiles, jobs: automation.jobs });
+  if (!references.ok) throw new Error(`automation references invalid: ${references.errors.join('; ')}`);
+  return {
+    skills: { schemaVersion: AUTOMATION_SCHEMA_VERSION, skills },
+    profiles: { schemaVersion: AUTOMATION_SCHEMA_VERSION, profiles },
+    automation,
+  };
+}
+
+export function validateAutomationReferences({ skills = [], profiles = [], jobs = [] }) {
+  const skillById = new Map(skills.map((skill) => [skill.id, skill]));
+  const profileIds = new Set(profiles.map((profile) => profile.id));
+  const errors = [];
+  for (const job of jobs) {
+    if (['cancelled', 'expired', 'needs_review'].includes(job.state)) continue;
+    const skill = skillById.get(job.skillRef?.id);
+    if (!skill
+      || skill.version !== job.skillRef?.version
+      || skill.contentHash !== job.skillRef?.contentHash
+      || !validateSkillDefinition(skill).ok) {
+      errors.push(`job ${job.id} has no exact skill binding`);
+    }
+    if (!profileIds.has(job.agentProfileId)) errors.push(`job ${job.id} has no agent profile`);
+  }
+  return result(errors);
+}
+
+export function childToolAllowlist(parentAllowlist, requested = [], selfState) {
+  if (!Array.isArray(selfState?.connectedTools)) return [];
   const parent = new Set(parentAllowlist ?? []);
+  const visible = new Set(selfState.connectedTools.map((tool) => tool.id));
   return (requested ?? []).filter((tool) => parent.has(tool)
+    && visible.has(tool)
+    && !isSendTool(tool, selfState)
     && !CHILD_DENY.includes(tool)
-    && !tool.startsWith('send.')
-    && !tool.endsWith('.send'));
+  );
 }

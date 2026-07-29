@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import {
   AUTOMATION_SCHEMA_VERSION,
+  mergeAutomationJobV1,
   migrateAutomationStateV1,
+  projectAutomationJobV1,
   validateAutomationJob,
 } from '../kernel/l5-growth/automation-contracts.js';
 import {
@@ -26,6 +28,14 @@ export class AutomationStore {
   async load() {
     try {
       const a = JSON.parse(await readFile(this.file, 'utf8'));
+      if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+        return {
+          schemaVersion: AUTOMATION_SCHEMA_VERSION,
+          compatibility: 'v1',
+          candidates: a.candidates ?? [],
+          jobs: (a.jobs ?? []).map(projectAutomationJobV1),
+        };
+      }
       return { candidates: a.candidates ?? [], jobs: a.jobs ?? [] };
     } catch {
       return { candidates: [], jobs: [] };
@@ -33,6 +43,15 @@ export class AutomationStore {
   }
 
   async save(a) {
+    if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+      const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, Date.now()));
+      await atomicWritePrivate(this.file, {
+        schemaVersion: AUTOMATION_SCHEMA_VERSION,
+        candidates: a.candidates ?? [],
+        jobs,
+      });
+      return a;
+    }
     await mkdir(this.dir, { recursive: true });
     await writeFile(this.file, JSON.stringify({ candidates: a.candidates ?? [], jobs: a.jobs ?? [] }), 'utf8');
     return a;
