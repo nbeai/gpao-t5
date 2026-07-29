@@ -158,8 +158,12 @@ export class AutomationRunLedger {
     return serialize(this.file, async () => {
       const checked = validateAgentRun(run);
       if (!checked.ok) throw new Error(`agent run invalid: ${checked.errors.join('; ')}`);
-      const current = await this.load();
-      if (current.recovery) throw new Error('automation run ledger was corrupted; retry after reviewing the quarantined ledger');
+      const loaded = await this.readEvents();
+      if (loaded.recovery) throw new Error('automation run ledger was corrupted; retry after reviewing the quarantined ledger');
+      const current = {
+        events: loaded.events,
+        runs: currentRuns(loaded.events),
+      };
 
       const previous = current.runs.find((entry) => entry.id === run.id);
       const occurrence = current.runs.find((entry) => entry.idempotencyKey === run.idempotencyKey);

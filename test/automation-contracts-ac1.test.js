@@ -231,6 +231,8 @@ test('AC-1: one transition boundary rejects shortcuts and terminal resurrection'
 
 test('AC-1: run claim requires owner identity and heartbeat, terminal requires finishedAt', () => {
   const queued = run();
+  assert.equal(validateAgentRun({ ...queued, owner: { pid: 1, ownerToken: 'early' } }).ok, false);
+  assert.equal(validateAgentRun({ ...queued, startedAt: 1 }).ok, false);
   assert.equal(transitionState('agentRun', queued, 'claimed', 210).ok, false);
   const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-token' }, 210);
   assert.equal(claimed.ok, true);
@@ -243,6 +245,47 @@ test('AC-1: run claim requires owner identity and heartbeat, terminal requires f
   assert.equal(transitionState('agentRun', running.record, 'succeeded', 230).ok, false);
   const ended = transitionState('agentRun', running.record, 'succeeded', 230, { finishedAt: 230 });
   assert.equal(ended.ok, true);
+});
+
+test('AC-1: claim identity, monotonic time, and receipt history cannot be rewritten', () => {
+  const queued = run();
+  const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-A' }, 210).record;
+  const receipt1 = { id: 'receipt-1', lifecycle: 'executed' };
+  const running = transitionState('agentRun', claimed, 'running', 220, {
+    heartbeatAt: 220,
+    receipts: [receipt1],
+  }).record;
+  assert.equal(running.status, 'running');
+
+  const invalidPatches = [
+    { owner: { pid: 99, ownerToken: 'owner-B' }, heartbeatAt: 230 },
+    { startedAt: 999, heartbeatAt: 230 },
+    { heartbeatAt: 209 },
+    { heartbeatAt: 230, finishedAt: 999 },
+    { heartbeatAt: 230, receipts: [] },
+    { heartbeatAt: 230, receipts: [{ ...receipt1, lifecycle: 'changed' }] },
+  ];
+  for (const patch of invalidPatches) {
+    assert.equal(transitionState('agentRun', running, 'waiting_approval', 230, patch).ok, false);
+  }
+  assert.equal(transitionState('agentRun', running, 'waiting_approval', 219, {
+    heartbeatAt: 230,
+  }).ok, false, 'updatedAt cannot move backwards');
+
+  const receipt2 = { id: 'receipt-2', lifecycle: 'proposed' };
+  const waiting = transitionState('agentRun', running, 'waiting_approval', 230, {
+    heartbeatAt: 230,
+    receipts: [receipt1, receipt2],
+  });
+  assert.equal(waiting.ok, true);
+  assert.equal(transitionState('agentRun', running, 'succeeded', 240, {
+    heartbeatAt: 240,
+    finishedAt: 209,
+  }).ok, false);
+  assert.equal(transitionState('agentRun', running, 'succeeded', 240, {
+    heartbeatAt: 240,
+    finishedAt: 240,
+  }).ok, true);
 });
 
 test('AC-1: run transitions freeze snapshots and can only narrow authority and budgets', () => {

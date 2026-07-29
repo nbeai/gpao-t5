@@ -238,6 +238,39 @@ test('AC-1 run ledger independently rejects snapshot, authority, and budget expa
   assert.equal((await ledger.load()).events.length, 1);
 });
 
+test('AC-1 run ledger rejects owner theft, time rollback, and receipt rewriting', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-ac1-run-identity-'));
+  const ledger = new AutomationRunLedger(dir);
+  const queued = run();
+  await ledger.append(queued);
+  const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-A' }, 3).record;
+  await ledger.append(claimed);
+  const receipt = { id: 'receipt-1', lifecycle: 'executed' };
+  const running = transitionState('agentRun', claimed, 'running', 4, {
+    heartbeatAt: 4,
+    receipts: [receipt],
+  }).record;
+  await ledger.append(running);
+
+  const attempts = [
+    { ...running, status: 'waiting_approval', updatedAt: 5, heartbeatAt: 5,
+      owner: { pid: 99, ownerToken: 'owner-B' } },
+    { ...running, status: 'waiting_approval', updatedAt: 5, heartbeatAt: 5, startedAt: 999 },
+    { ...running, status: 'waiting_approval', updatedAt: 5, heartbeatAt: 2 },
+    { ...running, status: 'waiting_approval', updatedAt: 2, heartbeatAt: 5 },
+    { ...running, status: 'waiting_approval', updatedAt: 5, heartbeatAt: 5, receipts: [] },
+    { ...running, status: 'waiting_approval', updatedAt: 5, heartbeatAt: 5,
+      receipts: [{ ...receipt, lifecycle: 'changed' }] },
+  ];
+  for (const attempt of attempts) {
+    await assert.rejects(ledger.append(attempt));
+  }
+  const loaded = await ledger.load();
+  assert.equal(loaded.events.length, 3);
+  assert.deepEqual(loaded.runs[0].owner, { pid: 42, ownerToken: 'owner-A' });
+  assert.deepEqual(loaded.runs[0].receipts, [receipt]);
+});
+
 test('AC-1 run events remain truth when snapshot projection fails and rebuild idempotently', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-ac1-run-projection-'));
   const stateFile = join(dir, 'automation-run-state.json');

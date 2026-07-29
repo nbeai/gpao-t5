@@ -41,7 +41,7 @@ const TRANSITIONS = Object.freeze({
     cancelled: [], expired: [],
   },
   agentRun: {
-    queued: ['claimed', 'cancelled'],
+    queued: ['claimed'],
     claimed: ['running', 'cancelled', 'unknown'],
     running: ['waiting_approval', 'succeeded', 'failed', 'cancelled', 'unknown'],
     waiting_approval: ['running', 'failed', 'cancelled', 'unknown'],
@@ -245,6 +245,7 @@ export function validateAgentRun(run) {
     ['agent run deliveryState must be an object', object(r.deliveryState)],
     ['agent run startedAt must be finite or null', r.startedAt === null || finite(r.startedAt)],
     ['agent run finishedAt must be finite or null', r.finishedAt === null || finite(r.finishedAt)],
+    ['agent run updatedAt must be finite, null, or absent', r.updatedAt == null || finite(r.updatedAt)],
   ]);
   const skill = validateSkillDefinition(r.skillSnapshot);
   const trigger = validateTriggerSpec(r.triggerSnapshot);
@@ -255,14 +256,27 @@ export function validateAgentRun(run) {
   errors.push(...authority.errors.map((e) => `authority: ${e}`));
   const active = ['claimed', 'running', 'waiting_approval'].includes(r.status);
   const terminal = ['succeeded', 'failed', 'cancelled', 'unknown'].includes(r.status);
-  if (active) {
-    if (!(Number.isInteger(r.owner?.pid) && r.owner.pid > 0 && string(r.owner?.ownerToken))) {
-      errors.push('active run requires pid and ownerToken');
+  if (r.status === 'queued') {
+    if (r.owner !== null
+      || r.heartbeatAt !== null
+      || r.startedAt !== null
+      || r.finishedAt !== null) {
+      errors.push('queued run cannot have owner or lifecycle timestamps');
     }
-    if (!finite(r.heartbeatAt)) errors.push('active run requires heartbeatAt');
-    if (!finite(r.startedAt)) errors.push('active run requires startedAt');
+  } else {
+    if (!(Number.isInteger(r.owner?.pid) && r.owner.pid > 0 && string(r.owner?.ownerToken))) {
+      errors.push('claimed or finished run requires pid and ownerToken');
+    }
+    if (!finite(r.heartbeatAt)) errors.push('claimed or finished run requires heartbeatAt');
+    if (!finite(r.startedAt)) errors.push('claimed or finished run requires startedAt');
+    if (!finite(r.updatedAt)) errors.push('claimed or finished run requires updatedAt');
   }
-  if (terminal && !finite(r.finishedAt)) errors.push('terminal run requires finishedAt');
+  if (active && r.finishedAt !== null) errors.push('active run cannot have finishedAt');
+  if (terminal && (!finite(r.finishedAt)
+    || !finite(r.startedAt)
+    || r.finishedAt < r.startedAt)) {
+    errors.push('terminal run requires finishedAt at or after startedAt');
+  }
   if (object(r.skillSnapshot) && string(r.jobId) && finite(r.scheduledFor)) {
     const expected = agentRunIdempotencyKey({
       jobId: r.jobId,
@@ -352,6 +366,11 @@ function budgetsWithin(previous, next) {
   });
 }
 
+function receiptsExtend(previous, next) {
+  if (!Array.isArray(previous) || !Array.isArray(next) || next.length < previous.length) return false;
+  return previous.every((receipt, index) => sameValue(receipt, next[index]));
+}
+
 export function agentRunTransitionWithin(previous, next) {
   if (!object(previous) || !object(next)) return false;
   if (previous.id !== next.id
@@ -362,7 +381,17 @@ export function agentRunTransitionWithin(previous, next) {
   if (!sameValue(previous.triggerSnapshot, next.triggerSnapshot)) return false;
   if (!sameValue(previous.agentSnapshot, next.agentSnapshot)) return false;
   if (!authorityWithin(previous.authorityEnvelope, next.authorityEnvelope)) return false;
-  return budgetsWithin(previous.budgets, next.budgets);
+  if (!budgetsWithin(previous.budgets, next.budgets)) return false;
+  if (!receiptsExtend(previous.receipts, next.receipts)) return false;
+  if (previous.status === 'queued') {
+    if (next.status !== 'claimed') return false;
+  } else {
+    if (!sameValue(previous.owner, next.owner)) return false;
+    if (previous.startedAt !== next.startedAt) return false;
+  }
+  if (finite(previous.heartbeatAt) && next.heartbeatAt < previous.heartbeatAt) return false;
+  if (finite(previous.updatedAt) && next.updatedAt < previous.updatedAt) return false;
+  return true;
 }
 
 export function reviewJobSkillBinding(job, skill, now) {

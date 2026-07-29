@@ -11,7 +11,7 @@ SkillDefinition, TriggerSpec, AgentProfile, AutomationJob, AgentRun, AuthorityEn
 P-OP-7 제품 동작은 기준선 그대로 유지. `server.js`, `turn.js`, `live-context.js`와 기존 P-OP-7 수정 파일은 변경하지 않음.
 
 현재 차단:
-`bba6ed6` 재감사에서 확인된 Run 전이 확장·paused 호환·실행원장 반쪽 성공·부분 migration 순서·기존 승인 경로를 보강함. 새 커밋 독립 재감사 대기.
+`324f281` 재감사에서 확인된 Run claim 신분 탈취·시간 역행·영수증 변조를 보강함. 새 커밋 독립 재감사 대기.
 
 지정 후속:
 AC-2에서 v2 SkillDefinitionStore를 실제 lifecycle에 연결. AC-3 이후 scheduler/runner가 AutomationJobStore와 RunLedger를 소비.
@@ -47,8 +47,18 @@ Claude가 계약·migration·저장 원자성·권한 축소를 독립 감사하
 - 개별 AutomationJobStore가 먼저 만든 부분 이관 v2도 workspace migration이 synthetic 참조를 만들고 의도 상태를 복원
 - v2 이관 뒤 기존 승인 경로가 만든 새 v1 Job도 dependency-first migration을 거쳐 저장 전후 같은 scheduled 의미와 실행 가능성을 유지
 
+## 3차 독립 감사 보강
+
+- queued는 owner·heartbeatAt·startedAt·finishedAt이 모두 null
+- owner와 startedAt은 queued→claimed에서만 설정하고 이후 일반 전이에서 불변
+- heartbeatAt과 updatedAt은 비감소
+- active 상태는 finishedAt을 가질 수 없고 terminal은 finishedAt >= startedAt
+- receipts는 이전 배열을 동일 prefix로 보존하고 뒤에만 추가
+- 일반 전이에서 owner 교체 금지. stale recovery 소유권 교체는 AC 후속 전용 경계로 분리
+- append 내부의 중복 snapshot 정합화 I/O를 제거하고 event 기록 뒤 한 번만 투영
+
 ## 자체 검증
 
-- AC-1 집중 반대시험: 29건 통과
-- 전체 회귀: 1,207건 통과, 실패 0
-- 프로젝트 gate: PASS, CPU 40.0초 / 40초, 벽시계 15.4초
+- AC-1 집중 반대시험: 31건 통과
+- 전체 회귀: 1,209건 통과, 실패 0
+- 프로젝트 gate: PASS, CPU 38.0초 / 40초, 벽시계 14.7초
