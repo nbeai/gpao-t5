@@ -18,6 +18,7 @@ import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { buildAdmissionSnapshot, admitFromSnapshot } from './l1-intent/tcell-admission.js';
+import { buildTurnFacts } from './l1-intent/turn-facts.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -196,21 +197,18 @@ function 이전대기를지난것으로(ctx) {
 }
 
 /**
- * TG-5A · shadow admission 배선 — **실제 저장소를 읽어 계산하고 trace 만 남긴다.**
- * 모델 메시지·도구·계획에는 넣지 않는다(주입은 TG-5B). 실패는 답변에 닿지 않는다.
+ * TG-5A · shadow admission — **판단 재료가 갖춰진 뒤**(인텐트·계획·영수증) 모델 호출 전에 돈다.
+ * 감사 실측: 예전엔 인텐트보다 앞에서 불러 재료가 하나도 없었고, 실제 세포가 전부 거절됐다.
+ * 결과는 `result.principleTrace` 로만 나가고 모델·계획·실행에는 들어가지 않는다(주입은 TG-5B).
  */
-async function 원리입장계산(input, ctx) {
+async function 원리입장계산(ctx, 재료) {
   try {
     const sources = ctx.admissionSources;
     if (!sources) return null;
     const snap = await buildAdmissionSnapshot({ ...sources, sessionId: ctx.sessionId });
     const { trace } = admitFromSnapshot(snap, {
-      requestFacts: {
-        project: ctx.projectId ?? null, subject: ctx.subjectId ?? null,
-        facts: Array.isArray(ctx.turnFacts) ? ctx.turnFacts : [],
-        confirmationRefs: ctx.confirmationRefs ?? {},
-      },
-      authorityFacts: ctx.admissionAuthorityFacts ?? {},
+      requestFacts: 재료.requestFacts,
+      authorityFacts: 재료.authorityFacts,
       now: ctx.now ? ctx.now() : Date.now(),
     });
     return trace;
@@ -221,10 +219,8 @@ async function 원리입장계산(input, ctx) {
 }
 
 export async function runTurn(input, ctx) {
-  // **admission 은 모델 호출 전에 계산된다.** 결과는 trace 로만 나가고 어디에도 주입되지 않는다.
-  const principleTrace = await 원리입장계산(input, ctx);
   const 결과 = await runTurnInner(input, ctx);
-  return principleTrace ? { ...결과, principleTrace } : 결과;
+  return ctx.principleTrace ? { ...결과, principleTrace: ctx.principleTrace } : 결과;
 }
 
 async function runTurnInner(input, ctx) {
@@ -403,6 +399,18 @@ async function runTurnInner(input, ctx) {
   // P2-5b: **도구 선택을 모델에게.** 분기 전에 한 번 묻는다 — 정규식(answerMode)이 "행동이 아니다"라고
   // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
+  // TG-5A: **여기서** admission 을 돈다 — intent·plan·selfState·영수증이 모두 준비된 자리다.
+  // 결과는 ctx.principleTrace 로만 나가고 아래 tc(모델 입력)에는 들어가지 않는다.
+  if (ctx.admissionSources) {
+    const 재료 = buildTurnFacts({
+      intent, selfState, workingState: ctx.workingState, sessionId: ctx.sessionId,
+      workspaceId: ctx.workspaceId, surface: ctx.surface, receipts: ledger.entries,
+      ledgerStart: 0, memorySuggestion, pendingApprovals: ctx.pendingApprovals,
+      confirmationRefs: ctx.confirmationRefs,
+    });
+    ctx.principleTrace = await 원리입장계산(ctx, 재료);
+  }
+
   let modelChosen = null;
   let earlyReply = null;
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.

@@ -48,6 +48,7 @@ export const ADMISSION_REASONS = Object.freeze({
   trace: 'trace_not_descendable',
   storeError: 'store_read_failed',
   scopeUnknown: 'scope_unknown',
+  authorityUnknown: 'authority_tier_unknown',
 });
 
 const 문자열 = (v) => (typeof v === 'string' && v ? v : null);
@@ -128,12 +129,18 @@ function 범위판정(cell, requestFacts) {
 function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
   // **등급은 세포의 속성이 아니라 이번 턴 행동의 사실이다**(설계 정정 2026-07-29).
   // 세포가 스스로 "나는 A0" 이라고 말하게 두면 원리가 자기 권한을 주장하게 된다.
-  const tier = 문자열(authorityFacts?.actionTier) ?? 'A0';
+  // **모르는 권한을 저위험으로 간주하지 않는다**(감사 2026-07-29). 커널이 등급을 판정하지
+  // 않았으면 A0 가 아니라 **판정 불가**다 — 계획·값에 관여하는 역할은 막는다.
+  const 관여역할 = ['plan_hint', 'default_value', 'answer_anchor'].includes(role);
+  const 판정됨 = authorityFacts?.tierKnown === true;
+  const tier = 문자열(authorityFacts?.actionTier);
+  if (!판정됨 || tier === null) {
+    return 관여역할 ? { allowed: false, code: ADMISSION_REASONS.authorityUnknown, grantRef: null }
+      : { allowed: true, code: null, grantRef: null };
+  }
   if (tier === 'A0' || tier === 'A1') return { allowed: true, code: null, grantRef: null };
   // A2/A3 인 턴이라도, 계획·값에 관여하지 않는 역할(맥락 제공)은 권한을 여는 것이 아니다.
-  if (!['plan_hint', 'default_value', 'answer_anchor'].includes(role)) {
-    return { allowed: true, code: null, grantRef: null };
-  }
+  if (!관여역할) return { allowed: true, code: null, grantRef: null };
   const need = {
     action: 문자열(authorityFacts?.actionKind),
     target: 문자열(authorityFacts?.target),
@@ -309,6 +316,8 @@ export function explainAdmission(decision) {
     [ADMISSION_REASONS.invalidWhen]: '이 상황에서는 쓰지 않기로 한 원칙이에요.',
     [ADMISSION_REASONS.needsReview]: '한 번 더 살펴봐야 하는 상황이에요.',
     [ADMISSION_REASONS.authority]: '이 원칙이 여는 행동은 따로 승인이 필요해요.',
+    [ADMISSION_REASONS.authorityUnknown]: '이번 일의 권한 범위를 아직 확인하지 못했어요.',
+    [ADMISSION_REASONS.scopeUnknown]: '지금 작업 범위를 확인하지 못했어요.',
     [ADMISSION_REASONS.confirmation]: '아직 확인하지 않은 원칙이에요.',
     [ADMISSION_REASONS.trace]: '근거를 찾을 수 없어 쓰지 않았어요.',
   };
@@ -333,13 +342,18 @@ export async function buildAdmissionSnapshot(sources = {}) {
   } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
   // **후보가 없으면 근거를 읽지 않는다.** 입장할 원리가 하나도 없는데 관찰 로그를 통째로 읽는 것은
   // 매 턴 낭비다(실측: 게이트 CPU 초과). 없는 것을 확인하는 데 드는 비용도 비용이다.
+  // **근거는 참조로 조회한다**(감사 5): 장기 원리의 근거는 다른 세션에 있다. 현재 세션만 훑으면
+  // 과거 대화에서 자란 원리가 영원히 거절된다 — T-cell 의 목적과 정면 충돌이다. 이미 가진 참조를
+  // 확인하는 것이므로 범위 횡단 열람이 아니다.
   if (cells.size) {
+    const 필요참조 = new Set();
+    for (const c of cells.values()) {
+      for (const r of Array.isArray(c?.trace?.observationRefs) ? c.trace.observationRefs : []) 필요참조.add(r);
+    }
     try {
-      const o = await sources.observer?.load?.({ sessionId: sources.sessionId });
-      for (const e of Array.isArray(o?.events) ? o.events : []) {
-        for (const r of Array.isArray(e?.receiptRefs) ? e.receiptRefs : []) observations.set(r, e);
-      }
-      if (o?.error) errorCodes.push(ADMISSION_REASONS.storeError);
+      const byRef = await sources.observer?.getByRefs?.([...필요참조]);
+      for (const [r, e] of Object.entries(byRef?.found ?? {})) observations.set(r, e);
+      if (byRef?.error) errorCodes.push(ADMISSION_REASONS.storeError);
     } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
   }
   const 동기조회 = (m) => Object.freeze({ get: (k) => (m.has(k) ? m.get(k) : null) });

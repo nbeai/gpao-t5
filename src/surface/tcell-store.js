@@ -90,10 +90,11 @@ export class TCellObserver {
    * 턴 완료 후 투영 — **안정적 신분으로만.** receipt 참조는 원장 위치(ledger:세션:번호),
    * 승인/거절은 서버가 유효성을 판정해 넘긴 결정만(옛 승인 ID 는 여기 오지 않는다).
    */
-  async observeTurn({ sessionId, ledgerStart = 0, turnReceipts = [], approvalDecision = null, turnId = null, now = 0 } = {}) {
+  async observeTurn({ sessionId, ledgerStart = 0, turnReceipts = [], approvalDecision = null, turnId = null, anchor = null, now = 0 } = {}) {
     try {
       const jobs = [];
-      const base = { sessionId, now, sourceRefs: sessionId ? [`session:${sessionId}`] : [] };
+      // anchor 를 실제로 남긴다 — 이게 비어 있으면 세포의 범위 판정이 영원히 무의미하다.
+      const base = { sessionId, now, anchor: anchor ?? undefined, sourceRefs: sessionId ? [`session:${sessionId}`] : [] };
       turnReceipts.forEach((rec, i) => {
         // 명세 §5.1 생성자를 **단일 통로로** 쓴다 — 여기서 다시 조립하면 계약이 두 곳에 생긴다.
         const ctx = { ...base, turnId, ref: `ledger:${sessionId}:${ledgerStart + i}`, secretSummary: 비밀일반화 };
@@ -163,6 +164,24 @@ export class TCellObserver {
     const all = await this.#readAll();
     if (all.error) return all;
     return { ...all, events: all.events.filter((e) => e.sessionId === scope.sessionId) };
+  }
+
+  /**
+   * **참조로 조회한다** — 이미 가진 참조만 확인하므로 범위 횡단 열람이 아니다(TG-5A 감사).
+   * 장기 원리의 근거는 다른 세션에 있어서, 세션 훑기로는 영영 찾지 못한다.
+   * @param {string[]} refs
+   * @returns {Promise<{found:Record<string,object>, error?:string}>}
+   */
+  async getByRefs(refs = []) {
+    const want = new Set((Array.isArray(refs) ? refs : []).filter((r) => typeof r === 'string' && r));
+    if (!want.size) return { found: {} };
+    const all = await this.#readAll();
+    if (all.error) return { found: {}, error: all.error };
+    const found = {};
+    for (const e of all.events) {
+      for (const r of e.receiptRefs ?? []) if (want.has(r)) found[r] = e;
+    }
+    return { found };
   }
 
   /** 감사 전용 전체 읽기 — 일반 경로가 아니다. */
@@ -323,4 +342,70 @@ export function importLegacyMemory(memory, { storePath = 'memory.json' } = {}) {
     cells.push(cell);
   }
   return cells;
+}
+
+/**
+ * 원리 확인 원장 (TG-5A) — 사용자가 원리를 확인한 사실이 사는 곳.
+ * TG-4 계약과 같은 모양: `kind·tcellId·at·sourceRefs·confirmed`.
+ * **읽기는 지금 배선된다.** 쓰기(확인 UI)는 TG-5C 이므로 현재 기록 수는 0일 수 있다 —
+ * 그건 빈 stub 이 아니라 "아직 아무도 확인하지 않았다"는 정직한 사실이다.
+ */
+export class ConfirmationStore {
+  constructor(dir) {
+    this.dir = join(dir, 'growth');
+    this.file = join(this.dir, 'confirmations.jsonl');
+    this.cache = null;
+  }
+
+  async #all() {
+    if (this.cache) return this.cache;
+    const map = new Map();
+    try {
+      const raw = await readFile(this.file, 'utf8');
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        try { const r = JSON.parse(line); if (r?.id) map.set(r.id, r); } catch { /* 손상 줄은 건너뛴다 */ }
+      }
+    } catch { /* 파일 없음 = 아직 확인이 없다 */ }
+    this.cache = map;
+    return map;
+  }
+
+  /** 동기 조회기로 굳힌다 — admission 은 순수·동기 함수다. */
+  async snapshot() {
+    const m = await this.#all();
+    return Object.freeze({ get: (k) => m.get(k) ?? null });
+  }
+
+  /** 확인 1건 기록 — TG-5C 표면이 부른다. 계약 필드를 여기서 강제한다. */
+  async record({ id, tcellId, sourceRefs = [], now = 0 } = {}) {
+    if (!id || !tcellId || !sourceRefs.length) return { recorded: false };
+    await mkdir(this.dir, { recursive: true });
+    const rec = { kind: 'user_confirmation', id, tcellId, at: now, sourceRefs: [...sourceRefs], confirmed: true };
+    await appendFile(this.file, `${JSON.stringify(rec)}\n`, { encoding: 'utf8', mode: 0o600 });
+    this.cache = null;
+    return { recorded: true, rec };
+  }
+}
+
+/**
+ * bounded grant 조회기 (TG-5A) — **세션의 실제 승인 범위**에서 만든다.
+ * 현재 T5 의 승인은 대부분 `kind:'once'` 다. 그건 정확히 "재사용 불가"로 판정되어야 하고,
+ * 이 어댑터는 그 사실을 있는 그대로 넘긴다(없는 bounded 를 만들어내지 않는다).
+ */
+export function grantSnapshotFromSession(session) {
+  const m = new Map();
+  for (const [id, p] of Object.entries(session?.pendingApprovals ?? {})) {
+    const g = p?.grantScope;
+    if (!g) continue;
+    m.set(id, {
+      kind: g.kind === 'bounded' ? 'bounded' : 'once',
+      action: p?.plan?.toolsToUse?.[0] ?? null,
+      target: p?.sendArgs ? Object.values(p.sendArgs)[0]?.target ?? null : null,
+      scope: g.scope ?? null,
+      expiresAt: g.expiresAt ?? null,
+      revoked: p?.revoked === true,
+    });
+  }
+  return Object.freeze({ get: (k) => m.get(k) ?? null });
 }

@@ -53,7 +53,7 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
-import { TCellObserver, TCellRegistry } from './tcell-store.js';
+import { TCellObserver, TCellRegistry, ConfirmationStore, grantSnapshotFromSession } from './tcell-store.js';
 import { wakeSignal, groupObservations, buildEvidenceBundle, extractCandidate } from '../runtime/tcell-extractor.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -119,6 +119,7 @@ export function makeServer(deps = {}) {
   // 관찰 호출 공통 격리 — 동기·비동기 어느 실패도 호출부(답변·엔진)로 나오지 않는다(영향 0).
   const 관찰만 = (fn) => { try { Promise.resolve(fn()).catch(() => {}); } catch { /* 영향 0 */ } };
   const tcellRegistry = deps.tcellRegistry ?? new TCellRegistry(store.dir);
+  const confirmationStore = deps.confirmationStore ?? new ConfirmationStore(store.dir);
   let 추출중 = false; // 한 번에 하나만 — 대화가 빨라도 추출이 쌓이지 않는다
 
   /**
@@ -319,7 +320,14 @@ export function makeServer(deps = {}) {
     ctx.skills = (await skillStore.load()).skills ?? [];
     // TG-5A: shadow admission 이 **실제 저장소**를 읽도록 원천을 공급한다(영향 0 — trace 만 나간다).
     ctx.sessionId = session.id;
-    ctx.admissionSources = { registry: tcellRegistry, observer: tcellObserver };
+    ctx.workspaceId = store.dir;                      // 범위 식별자(작업 공간)
+    ctx.pendingApprovals = session.pendingApprovals;  // bounded grant 판정 재료
+    ctx.confirmationRefs = session.principleConfirmations ?? {};
+    ctx.admissionSources = {
+      registry: tcellRegistry, observer: tcellObserver,
+      confirmationStore: await confirmationStore.snapshot(),   // **실제 확인 원장**
+      grantStore: grantSnapshotFromSession(session),           // **실제 승인 범위**
+    };
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.

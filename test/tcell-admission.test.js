@@ -30,6 +30,8 @@ const 기본입력 = (cell, over = {}) => ({
   evidenceStore: 저장소({ 'ledger:s:1': { type: 'tool_result', turnId: '1' } }),
   confirmationStore: 저장소({}), grantStore: 저장소({}),
   requestFacts: { project: 'T5', subject: '정산', facts: [{ fact: '실패 직후', ref: 'ledger:s:1' }] },
+  // 커널이 등급을 판정한 정상 턴 — 판정 없음(tierKnown:false)은 별도 시험에서 본다.
+  authorityFacts: { actionTier: 'A0', tierKnown: true },
   now: 1000, ...over,
 });
 
@@ -86,7 +88,7 @@ test('6·16: A2/A3 원리는 유효한 bounded grant 없이는 참고 대상이 
   // 등급은 세포가 아니라 **이번 턴 행동의 사실**이다.
   const 전송원리 = () => 세포({ principle: { statement: '보낼 때 대상 확정 후 보낸다', type: 'execution' } });
   const base = (over) => 기본입력(전송원리(), {
-    authorityFacts: { actionTier: 'A2', actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
+    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
     ...over,
   });
   // grant 없음
@@ -109,7 +111,7 @@ test('6·16: A2/A3 원리는 유효한 bounded grant 없이는 참고 대상이 
   assert.equal(ok.admissions[0].reverifyAtExecution, true, '실행 경계 재검증 표시가 없다');
   // A2 턴이라도 계획·값에 관여하지 않는 역할(맥락)은 권한을 여는 것이 아니다.
   const 맥락만 = 세포({ state: 'M2_replayed' }); // 상한이 supporting_context 까지
-  const r맥락 = admitPrinciples(기본입력(맥락만, { authorityFacts: { actionTier: 'A3', actionKind: 'delete' } }));
+  const r맥락 = admitPrinciples(기본입력(맥락만, { authorityFacts: { actionTier: 'A3', tierKnown: true, actionKind: 'delete' } }));
   assert.equal(r맥락.admissions.length, 1, '맥락 역할이 A3 턴이라고 막혔다(과잉 차단)');
   assert.equal(r맥락.admissions[0].role, 'supporting_context');
 });
@@ -204,77 +206,133 @@ test('total function: 임의 입력에도 던지지 않는다', () => {
   assert.deepEqual(admitPrinciples(null).admissions, []);
 });
 
-// ── 11·20: **진짜 영향 0 관통** — admission 이 실제로 돌면서 trace 만 달라진다 ──
-test('11·20: admission 은 실제 저장소로 돌고, trace 만 다르며 나머지는 전부 같다', async () => {
+// ── 11·20: **진짜 관통** — 실제 입장까지 확인한다(retrieved 1 → admitted 1) ──
+async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐줘', '한 번 더 봐줘'] } = {}) {
   const { makeServer } = await import('../src/surface/server.js');
   const { SessionStore } = await import('../src/surface/session-store.js');
-  const { TCellRegistry } = await import('../src/surface/tcell-store.js');
+  const { TCellRegistry, TCellObserver, ConfirmationStore } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-adm-run-'));
+  const 실행기록 = [];
   const 손 = {
     async probe(c) { return { command: c, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
     async handler(a) { 실행기록.push(a); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: '/x' }, userSafeSummary: '봤어요.' }; },
   };
-  const 실행기록 = [];
-  const 돌리기 = async (원리있음) => {
-    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-adm-run-'));
-    if (원리있음) {
-      const c = 세포();
-      c.id = 'cell-1';
-      await new TCellRegistry(dir).upsert(c, null);
+  if (원리) {
+    // **과거 세션**의 근거를 심는다 — 장기 원리의 근거는 다른 대화에 있다(감사 5).
+    const ob = new TCellObserver(dir);
+    await ob.observeTurn({ sessionId: '과거세션', ledgerStart: 0, turnId: '1', now: 1,
+      turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none', action: 'local.terminal 실행' }] });
+    원리.trace.observationRefs = ['ledger:과거세션:0'];
+    원리.anchor = { ...원리.anchor, project: dir, subject: null };
+    await new TCellRegistry(dir).upsert(원리, null);
+    if (확인) await new ConfirmationStore(dir).record({ id: 확인, tcellId: 원리.id, sourceRefs: ['ledger:과거세션:0'], now: 1 });
+  }
+  const 본것 = [];
+  let 첫 = true;
+  const 모델 = { async respond(tc, opts = {}) {
+    본것.push({ tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>'), tools: JSON.stringify(opts.tools ?? []) });
+    if (!opts.tools?.length) return '네';
+    if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+    return { text: '봤어요', toolCalls: [] };
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    let r;
+    for (const t of texts) {
+      첫 = true; // 매 턴 도구를 한 번 고른다
+      r = await (await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: sess.id, text: t }) })).json();
     }
-    const 본것 = [];
-    let 첫 = true;
-    const 모델 = { async respond(tc, opts = {}) {
-      본것.push({ tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>'), tools: JSON.stringify(opts.tools ?? []) });
-      if (!opts.tools?.length) return '네';
-      if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
-      return { text: '봤어요', toolCalls: [] };
-    } };
-    실행기록.length = 0;
-    const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
-    await new Promise((r) => server.listen(0, r));
-    const base = `http://127.0.0.1:${server.address().port}`;
-    try {
-      const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
-      const r = await (await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: sess.id, text: '폴더 봐줘' }) })).json();
-      const regBytes = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
-      return { 본것, 실행: [...실행기록], reply: r.reply, trace: r.principleTrace, regBytes };
-    } finally { await new Promise((r2) => server.close(r2)); }
-  };
-  const 없음 = await 돌리기(false);
-  const 있음 = await 돌리기(true);
-  // **admission 이 실제로 돌았다** — 이게 없으면 "안 돌아서 영향 0" 이다.
-  assert.ok(없음.trace, 'admission 이 실행되지 않아 principleTrace 가 없다');
-  assert.ok(있음.trace, 'admission 이 실행되지 않아 principleTrace 가 없다');
-  assert.equal(있음.trace.retrievedIds.length, 1, '실제 registry 세포를 후보로 읽지 못했다');
-  assert.equal(없음.trace.retrievedIds.length, 0);
-  // trace 는 다르다(원리 유무가 반영됐다).
-  assert.notDeepEqual(있음.trace.retrievedIds, 없음.trace.retrievedIds);
-  // 그 외 모든 관측 지점은 같다.
+    const regBytes = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
+    return { dir, 본것, 실행: 실행기록, reply: r.reply, trace: r.principleTrace, regBytes };
+  } finally { await new Promise((r2) => server.close(r2)); }
+}
+
+/** 실제로 입장 가능한 세포 — 이번 턴 사실(`실행 성공 직후`)과 맞물리는 경계를 갖는다. */
+const 입장가능세포 = () => {
+  const c = 세포({
+    boundary: { validWhen: ['실행 성공 직후'], invalidWhen: ['재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+    authority: { allowedInfluence: ['none', 'candidate_context', 'supporting_context'], requiresUserConfirmation: false },
+  });
+  c.id = 'cell-live';
+  return c;
+};
+
+test('11·20 관통: 과거 세션 원리가 현재 턴에 실제로 입장하고, 그 외 모든 것은 동일하다', async () => {
+  const 없음 = await 관통서버({});
+  const 있음 = await 관통서버({ 원리: 입장가능세포() });
+  // ① admission 이 실제로 돌았고 ② **실제로 입장했다**(읽었다가 아니라).
+  assert.ok(있음.trace, 'principleTrace 가 없다 — admission 이 안 돌았다');
+  assert.equal(있음.trace.retrievedIds.length, 1, '실제 registry 세포를 읽지 못했다');
+  assert.equal(있음.trace.admitted.length, 1,
+    `입장하지 못했다(거절 사유: ${JSON.stringify(있음.trace.rejected)})`);
+  assert.equal(있음.trace.admitted[0].role, 'supporting_context');
+  assert.equal(있음.trace.status, 'ok');
+  assert.equal(없음.trace.admitted.length, 0);
+  // ③ 그 외 모든 관측 지점은 같다.
   assert.deepEqual(있음.본것, 없음.본것, '모델 메시지·도구 스키마가 달라졌다');
   assert.equal(있음.본것.length, 없음.본것.length, '모델 호출 횟수가 다르다');
   assert.deepEqual(있음.실행, 없음.실행, '도구 실행(외부 효과)이 달라졌다');
   assert.equal(있음.reply, 없음.reply, '사용자 답이 달라졌다');
-  // 원리 문장이 모델 입력 어디에도 없다.
   assert.ok(!JSON.stringify(있음.본것).includes('막힌 손은'), '원리 문장이 모델 입력에 실렸다');
-  // trace 는 계획·답에 영향을 남기지 않는다.
   assert.deepEqual(있음.trace.influencedPlan, []);
   assert.deepEqual(있음.trace.influencedAnswer, []);
+  // ④ registry 는 바이트 불변이다(보고만 하고 비교 안 하던 것 — 감사 7).
+  const 다시 = await (async () => {
+    const { TCellRegistry } = await import('../src/surface/tcell-store.js');
+    return JSON.stringify((await new TCellRegistry(있음.dir).load()).cells ?? []);
+  })();
+  assert.equal(다시, 있음.regBytes, 'admission 이 registry 를 바꿨다');
+});
+
+test('관통: 현재 지시와 충돌하는 원리는 입장하지 못한다', async () => {
+  const c = 입장가능세포();
+  // 사용자가 이번 턴에 **구조화된 지시**(operating_principle)로 같은 문장을 말하면 그 지시가 우선한다.
+  c.principle.statement = '반드시 실행 성공 직후에는 확인한다';
+  const r = await 관통서버({ 원리: c, texts: ['폴더 봐줘', '반드시 실행 성공 직후에는 확인한다'] });
+  assert.ok(r.trace, 'trace 없음');
+  assert.equal(r.trace.admitted.length, 0, '현재 지시와 충돌하는 원리가 입장했다');
+  assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.conflict);
+});
+
+test('관통: 확인이 필요한 원리는 실제 확인 원장이 있어야 입장한다', async () => {
+  const 확인필요 = () => { const c = 입장가능세포(); c.authority.requiresUserConfirmation = true; return c; };
+  const 없이 = await 관통서버({ 원리: 확인필요() });
+  assert.equal(없이.trace.admitted.length, 0, '확인 없이 입장했다');
+  assert.equal(없이.trace.rejected[0].reason, ADMISSION_REASONS.confirmation);
+});
+
+test('관통: A2 턴에서 계획 역할 원리는 유효 grant 없이 입장하지 못한다', async () => {
+  const 계획역할 = () => {
+    const c = 입장가능세포();
+    c.state = 'M3_limited';
+    c.authority.allowedInfluence = ['none', 'plan_hint'];
+    return c;
+  };
+  // "보내줘" 는 커널이 A2 로 판정하는 발화다 — grant 는 once 뿐이므로 입장 불가여야 한다.
+  const r = await 관통서버({ 원리: 계획역할(), texts: ['폴더 봐줘', '이 내용 오너한테 보내줘'] });
+  assert.ok(r.trace, 'trace 없음');
+  assert.equal(r.trace.admitted.length, 0, `A2 턴에서 grant 없이 계획 역할이 입장했다: ${JSON.stringify(r.trace.admitted)}`);
+  assert.ok([ADMISSION_REASONS.authority, ADMISSION_REASONS.authorityUnknown, ADMISSION_REASONS.boundary, ADMISSION_REASONS.conflict]
+    .includes(r.trace.rejected[0].reason), `예상 밖 사유: ${r.trace.rejected[0].reason}`);
 });
 
 test('스냅샷 경계: 실제 비동기 저장소를 읽고, 읽기 실패는 degraded 로 승계된다', async () => {
   const { buildAdmissionSnapshot, admitFromSnapshot } = await import('../src/kernel/l1-intent/tcell-admission.js');
   const { TCellRegistry, TCellObserver } = await import('../src/surface/tcell-store.js');
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-snap-'));
-  const c = 세포(); c.id = 'cell-1';
+  const c = 세포(); c.id = 'cell-1'; c.trace.observationRefs = ['ledger:과거:1'];
   await new TCellRegistry(dir).upsert(c, null);
   const ob = new TCellObserver(dir);
-  await ob.observeTurn({ sessionId: 's', ledgerStart: 0, turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none' }], turnId: '1', now: 1 });
-  // 실제 저장소가 동기 조회기로 바뀐다.
-  const snap = await buildAdmissionSnapshot({ registry: new TCellRegistry(dir), observer: ob, sessionId: 's' });
+  // **다른 세션**에 근거를 심는다 — 장기 원리의 근거는 과거 대화에 있다.
+  await ob.observeTurn({ sessionId: '과거', ledgerStart: 1, turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none' }], turnId: '1', now: 1 });
+  const snap = await buildAdmissionSnapshot({ registry: new TCellRegistry(dir), observer: ob, sessionId: '지금' });
   assert.equal(snap.status, 'ok');
   assert.deepEqual(snap.candidateIds, ['cell-1'], '실제 registry 세포를 읽지 못했다');
-  assert.ok(snap.evidenceStore.get('ledger:s:0'), '실제 관찰을 읽지 못했다');
+  assert.ok(snap.evidenceStore.get('ledger:과거:1'), '다른 세션의 근거를 참조로 찾지 못했다(장기 원리 차단)');
   assert.ok(Object.isFrozen(snap), '스냅샷이 불변이 아니다');
   // 읽기 실패 → degraded 가 trace 로 승계된다.
   const 깨진 = await buildAdmissionSnapshot({ registry: { load: () => { throw new Error('boom'); } }, observer: ob, sessionId: 's' });
@@ -321,7 +379,7 @@ test('재현 ③: sourceRefs 없는·계보 밖 확인 기록은 인정되지 �
 
 test('재현 ④: grant 는 정확히 bounded·미철회여야 한다', () => {
   const base = (g) => 기본입력(세포(), {
-    authorityFacts: { actionTier: 'A2', actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
+    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
     grantStore: 저장소({ g1: g }),
   });
   for (const [이름, g] of [
@@ -341,4 +399,14 @@ test('재현 ⑤: 같은 세포 ID 를 두 번 넣어도 한 번만 입장한다
   assert.equal(r.admissions.length, 1, `중복 ID 가 ${r.admissions.length}번 입장했다`);
   assert.equal(r.trace.retrievedIds.length, 1);
   assert.equal(r.trace.admitted.length + r.trace.rejected.length, 1);
+});
+
+test('감사 ③: 등급을 모르면 저위험이 아니다 — 계획 역할은 막고 맥락 역할은 허용한다', () => {
+  const 계획 = 세포({ authority: { allowedInfluence: ['none', 'plan_hint'] } });
+  const r = admitPrinciples(기본입력(계획, { authorityFacts: { } })); // tierKnown 없음
+  assert.equal(r.admissions.length, 0, '모르는 등급이 A0 로 취급됐다');
+  assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.authorityUnknown);
+  // 맥락 역할은 권한을 여는 것이 아니므로 과잉 차단하지 않는다.
+  const 맥락 = 세포({ state: 'M2_replayed' });
+  assert.equal(admitPrinciples(기본입력(맥락, { authorityFacts: {} })).admissions.length, 1, '맥락 역할이 과잉 차단됐다');
 });
