@@ -60,7 +60,46 @@ function surfaceLines(s) {
   return `\n  ${out.join('\n  ')}`;
 }
 
+/**
+ * T-cell 추출 전용 메시지 경계(TG-3) — **일반 대화 조립과 완전히 다른 길이다.**
+ * 감사 실측: 추출 호출이 일반 조립을 타서 실제 모델에게 `user:""` 가 갔다(번들 0건 전달).
+ * 여기서는 사실(관찰·기존 후보의 중심과 경계·권한)만 싣고 구조화 JSON 하나를 받는다.
+ * 대본·금지문을 늘리지 않는다(§0.1) — 판단은 모델이, 강제는 OS(extractCandidate)가 한다.
+ */
+export function buildExtractionMessages(bundle) {
+  const b = bundle ?? {};
+  const sys = [
+    '너는 관찰된 사실들에서 재사용 가능한 운영 원리 가설을 하나 뽑는다.',
+    '근거가 부족하면 insufficient_evidence 가 정상 답이다 — 지어내지 않는다.',
+    '관찰 목록에 없는 사실을 trace 에 넣지 않는다. 한 사례를 전역 규칙으로 만들지 않는다.',
+    '기존 후보와 같은 중심이면 새 원리 대신 relation 으로 답한다.',
+    'JSON 하나만 출력한다: {decision, principle{statement,type}, center{point,axis,horizontalSignals},'
+      + ' boundary{validWhen,invalidWhen,needsReviewWhen,mustNotOverride}, trace{observationRefs},'
+      + ' relation{kind,targetId}, counterexamples, suggestedRadius}',
+    `decision 은 ${['candidate', 'insufficient_evidence', 'duplicate', 'contradiction'].join(' | ')} 중 하나다.`,
+    b.authorityFacts?.note ?? '',
+  ].filter(Boolean);
+  const usr = [];
+  if (b.activeTarget) usr.push(`[지금 사용자가 한 말]\n${b.activeTarget}`);
+  usr.push(`[관찰된 사실 ${b.observations?.length ?? 0}건 — trace 는 이 참조만 쓴다]\n${
+    (b.observations ?? []).map((o) => `- (${o.receiptRefs?.[0] ?? o.id}) ${o.type}/${o.signal?.valence}: ${o.signal?.summary}`).join('\n')
+  }`);
+  if (b.existingCandidates?.length) {
+    usr.push(`[기존 원리 후보 — 중심과 경계를 비교해 같은 중심인지 판단한다]\n${
+      b.existingCandidates.map((c) => `- (${c.id}) ${c.statement}`
+        + `\n  중심: ${c.center?.point ?? ''} / 축: ${c.center?.axis ?? ''}`
+        + `\n  유효: ${(c.boundary?.validWhen ?? []).join(', ')} / 무효: ${(c.boundary?.invalidWhen ?? []).join(', ')}`).join('\n')
+    }`);
+  }
+  if (b.authorityFacts?.explicitInstructionScope) {
+    usr.push(`[사용자가 명시한 범위]\n${b.authorityFacts.explicitInstructionScope}`);
+  }
+  return { system: sys.join('\n'), user: usr.join('\n\n'), history: [] };
+}
+
 export function buildModelMessages(tc) {
+  // 추출 호출은 전용 경계로 빠진다 — 일반 조립을 타면 사실이 하나도 실리지 않는다(감사 실측).
+  if (tc?.tcellExtract) return buildExtractionMessages(tc.tcellExtract);
   const sys = [];
   const sf = tc.selfStateFacts ?? {};
   // P-ID-1: **정체성이 먼저다.** 이게 없으면 모델이 빈칸을 자기 출신으로 채운다(오너 실사용:

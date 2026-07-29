@@ -111,6 +111,21 @@ export class TCellObserver {
     }
   }
 
+  /**
+   * 현재 사용자 요청 관찰 — **명시 지시의 근거는 안정적인 참조여야 한다**(감사).
+   * 예전엔 생산 경로가 "첫 user_correction"을 지시 근거로 삼아, 정상 발화에는 근거가 없고
+   * 오래된 다른 정정과 잘못 결합될 수 있었다. 이제 지시는 자기 관찰과 자기 참조를 갖는다.
+   */
+  async observeUserRequest({ sessionId, text, turnIndex = 0, now = 0 } = {}) {
+    const ref = `request:${sessionId}:${turnIndex}`;
+    const r = await this.record(makeObservationEvent({
+      type: 'user_request', sessionId, occurredAt: now,
+      signal: { summary: text ?? '', valence: 'neutral' },
+      sourceRefs: sessionId ? [`session:${sessionId}`] : [], receiptRefs: [ref],
+    }));
+    return { ...r, ref };
+  }
+
   /** 사용자 정정(구조화 신호: 되돌리기·철회 행동) — 발화 원문이 아니라 행동 사실과 참조만. */
   async observeCorrection({ sessionId = null, what, ref, now = 0 } = {}) {
     return this.record(makeObservationEvent({

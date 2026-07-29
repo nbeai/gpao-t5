@@ -218,3 +218,54 @@ test('생산 경로: 턴 후처리가 wake 를 켜고 추출을 돌려 후보를
     assert.ok(cells[0].trace.observationRefs.length >= 1, 'trace 가 비었다');
   } finally { await new Promise((r2) => server.close(r2)); }
 });
+
+test('레인 분리·지시 근거·현재 턴 우선: 선호는 T-cell 로 가지 않고, 운영 원리만 자기 참조로 깨운다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { TCellRegistry, TCellObserver: OB } = await import('../src/surface/tcell-store.js');
+  const 만들기 = async (제안kind) => {
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-lane-'));
+    let 번들본 = null;
+    const 모델 = { async respond(tc, opts = {}) {
+      if (tc?.tcellExtract) { 번들본 = tc.tcellExtract; return JSON.stringify({
+        decision: 'candidate',
+        principle: { statement: '배포 전에는 게이트를 돌린다', type: 'workflow' },
+        center: { point: '배포 절차', axis: '검증 우선', horizontalSignals: [] },
+        boundary: { validWhen: ['배포 전'], invalidWhen: ['긴급 롤백'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+        trace: { observationRefs: tc.tcellExtract.observations.map((o) => o.receiptRefs[0]) },
+        suggestedRadius: 'task',
+      }); }
+      if (!opts.tools?.length) return '알겠어요';
+      return { text: '알겠어요', toolCalls: [] };
+    } };
+    // 커널의 정규식 판정을 흉내내지 않고, 서버가 보는 result.memorySuggestion 을 직접 만든다.
+    const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({}), model: 모델 });
+    return { dir, server, 번들: () => 번들본 };
+  };
+  // ① 명시적 "선호" 발화 — 기존 기억 레인이 담당, T-cell 후보 0
+  {
+    const { dir, server } = await 만들기('preference');
+    await new Promise((r) => server.listen(0, r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+      await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: s.id, text: '앞으로 짧게 요점만 말해줘' }) }); // preference 신호
+      await new Promise((rs) => setTimeout(rs, 250));
+      const cells = (await new TCellRegistry(dir).load()).cells ?? [];
+      assert.equal(cells.length, 0, '명시적 선호가 T-cell 로 변환됐다(정본 S-TG-1 위반)');
+    } finally { await new Promise((r) => server.close(r)); }
+  }
+  // ② 사용자 요청 관찰이 안정적 자기 참조로 남는다 — 지시 근거가 추측이 아니다
+  {
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-req-'));
+    const ob = new OB(dir);
+    const a = await ob.observeUserRequest({ sessionId: 's', text: '앞으로 배포 전에 게이트 돌려', turnIndex: 3, now: 1 });
+    assert.equal(a.ref, 'request:s:3');
+    const { events } = await ob.load({ sessionId: 's' });
+    assert.equal(events[0].type, 'user_request');
+    assert.deepEqual(events[0].receiptRefs, ['request:s:3']);
+    const b = await ob.observeUserRequest({ sessionId: 's', text: '같은 턴 재기록', turnIndex: 3, now: 2 });
+    assert.equal(b.recorded, false, '같은 턴 요청이 중복 관찰됐다');
+  }
+});

@@ -126,24 +126,29 @@ export function makeServer(deps = {}) {
    * 기존 정규식 경로(memorySuggestion)는 여기서 판단이 아니라 **wake 입력 하나**로 축소된다.
    * 결과는 registry 에 M1/격리로만 쌓이고 **TaskContext 에는 가지 않는다**(영향 0, TG-5 전까지).
    */
-  async function 원리후보추출({ sessionId, result, userText }) {
+  async function 원리후보추출({ sessionId, result, userText, instructionRef = null }) {
     if (추출중) return { skipped: 'in_flight' };
     const { events } = await tcellObserver.load({ sessionId });
-    const regexHit = result?.memorySuggestion ?? null;
+    // **레인 분리**(정본 S-TG-1): 명시적 *선호*는 기존 기억 레인이 담당한다 — T-cell 로 변환하지
+    // 않는다. 운영 원리만 추출 레인을 깨운다(TG-2 이관표와 같은 경계, 두 곳이 어긋나지 않게).
+    const 제안 = result?.memorySuggestion ?? null;
+    const regexHit = 제안?.kind === 'operating_principle' ? 제안 : null;
     const w = wakeSignal(events, { regexHit });
     if (!w.wake) return { skipped: 'no_wake' };
     추출중 = true;
     try {
       const groups = groupObservations(events);
       if (!groups.size) return { skipped: 'no_group' };
-      // 신호가 가장 많이 쌓인 묶음 하나만 — 한 턴에 한 번, 예산을 지킨다.
-      const [key, obs] = [...groups.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+      // **이번 턴이 만든 묶음이 먼저다**(감사): 과거의 큰 묶음이 현재 발화를 밀어내지 않는다.
+      const 이번턴참조 = new Set((result?.tcellTurnRefs ?? []));
+      const 점수 = ([, obs2]) => (obs2.some((o) => o.receiptRefs?.some((r) => 이번턴참조.has(r))) ? 1e6 : 0) + obs2.length;
+      const [key, obs] = [...groups.entries()].sort((a, b) => 점수(b) - 점수(a))[0];
       const 기존 = (await tcellRegistry.load()).cells ?? [];
       // 명시적 지시: 사용자 발화가 곧 그 범위의 확인이다. **근거 관찰과 문면을 함께** 묶어 넘긴다 —
       // 추출기는 근거·내용·권한 셋이 맞을 때만 재확인을 면제한다(지시 존재만으로는 면제 없음).
-      const 지시관찰 = events.find((e) => e.type === 'user_correction') ?? null;
-      const explicitInstruction = regexHit?.statement
-        ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: 지시관찰?.receiptRefs?.[0] ?? null }
+      // 지시 근거는 **이번 턴의 사용자 요청 관찰**이다(추측이 아니라 자기 참조).
+      const explicitInstruction = regexHit?.statement && instructionRef
+        ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: instructionRef }
         : null;
       const bundle = buildEvidenceBundle({
         id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
@@ -151,8 +156,12 @@ export function makeServer(deps = {}) {
       });
       const r = await extractCandidate({ model: deps.model ?? model, bundle, now: Date.now() });
       const cell = r.candidate ?? r.quarantined;
-      if (cell) await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
-      return { decision: r.decision, stored: Boolean(cell), group: key, wake: w };
+      if (cell) {
+        // 관계 결과도 후보와 함께 추적 가능하게 보존한다(감사) — 왜 이 후보가 남았는지의 근거.
+        if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
+        await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
+      }
+      return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
       추출중 = false;
     }
@@ -358,7 +367,16 @@ export function makeServer(deps = {}) {
         ? { ...result.approvalConsumed, summary: result.approvalConsumed.approved ? '승인' : '거절' } : null,
       now: Date.now(),
       // TG-3: 관찰이 남은 **뒤에** 추출을 깨운다(같은 후처리 줄에서, 응답과 무관하게).
-    }).then(() => 원리후보추출({ sessionId: session.id, result, userText: input.text })));
+    }).then(async () => {
+      const 지시 = hasText
+        ? await tcellObserver.observeUserRequest({ sessionId: session.id, text: input.text, turnIndex: session.transcript.length, now: Date.now() })
+        : null;
+      const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
+      return 원리후보추출({
+        sessionId: session.id, userText: input.text, instructionRef: 지시?.ref ?? null,
+        result: { ...result, tcellTurnRefs: [...이번턴, ...(지시?.ref ? [지시.ref] : [])] },
+      });
+    }));
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
