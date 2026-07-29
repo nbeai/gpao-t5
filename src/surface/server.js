@@ -371,6 +371,7 @@ export function makeServer(deps = {}) {
       sessionId: session.id,
       ledgerStart,
       turnReceipts: ctx.ledger.entries.slice(ledgerStart),
+      turnId: String(session.transcript.length), // 턴 신분(TG-4 의 서로 다른 turn 계산 근거)
       // 감사 재현(만료 승인): 대기 목록 존재 ≠ 유효 — **커널이 실제 소비한 결정만** 관찰한다.
       approvalDecision: result.approvalConsumed
         ? { ...result.approvalConsumed, summary: result.approvalConsumed.approved ? '승인' : '거절' } : null,

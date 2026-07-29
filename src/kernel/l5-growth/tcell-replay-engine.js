@@ -1,14 +1,16 @@
-// L5 · T-cell Replay 엔진 (TG-4, 명세 §9·§10) — 승격 전 재현 검증과 상태 전이.
+// L5 · T-cell Replay 엔진 (TG-4, 명세 §9·§10 + 감사 2026-07-29) — 검증된 사실 묶음만 판정한다.
 //
 // 이 파일의 절대 경계:
-//  · **replay 는 아무것도 실행하지 않는다.** 도구·손·네트워크를 받지 않는다(인자에 없다).
-//    계획과 authority 결정까지만 비교한다(§9.3). 실행이 필요한 검증은 replay 가 아니다.
-//  · 통계는 진리 점수도 권한 점수도 아니다(§10.1). 높은 점수가 A2/A3 를 자동 승인하지 않는다.
-//  · positive 만 통과한 원리는 승격하지 못한다 — 되는 곳만 본 원리는 검증된 것이 아니다.
-//  · authority case 실패는 격리다(점수와 무관).
-//  · 모든 판정 함수는 total function — 임의 입력에 던지지 않는다(TG-0~3 에서 배운 계약).
-import { validateTCell, influenceCeilingFor } from './tcell-core.js';
-import { makeReplayResult, validateReplayCase } from './tcell-replay.js';
+//  · **replay 는 아무것도 실행하지 않는다.** 도구·손·네트워크·파일을 인자로도 import 로도 받지
+//    않는다. 계획과 authority 결정까지만 비교한다(§9.3).
+//  · **자료가 없으면 통과가 아니라 `insufficient_evidence` 다.** 감사 재현: mustNotHappen 만 있는
+//    사례가 "안 돌려서 실패가 없다"로 통과했고, baseline·candidate 가 둘 다 없어도 counterfactual 이
+//    통과했다. 이제 실행 증거가 없는 사례는 판정 자체가 성립하지 않는다.
+//  · 통계는 진리 점수도 권한 점수도 아니다(§10.1). 점수가 A2/A3 를 자동 승인하지 않는다.
+//  · **상태는 한 계단씩만 오른다.** rolled_back·quarantined 는 자동 부활하지 않는다.
+//  · 모든 판정 함수는 total function — 임의 입력에 던지지 않는다.
+import { validateTCell, influenceCeilingFor, MATURITY_LEVELS } from './tcell-core.js';
+import { makeReplayResult, validateReplayCase, REPLAY_KINDS } from './tcell-replay.js';
 
 /** v1 보수적 초기값 — 한 곳에만 둔다. 변경은 replay 와 감사 근거를 요구한다(§10.2). */
 export const TCELL_THRESHOLDS = Object.freeze({
@@ -21,49 +23,153 @@ export const TCELL_THRESHOLDS = Object.freeze({
   compressionMinStableMembers: 3,
 });
 
+/** 성숙도 계단 — 한 번에 한 칸(§10.2). 이 순서 밖은 전이가 아니다. */
+export const MATURITY_LADDER = Object.freeze(['M0_observed', 'M1_candidate', 'M2_replayed', 'M3_limited', 'M4_stable', 'M5_compressed']);
+/** 자동으로 되살아나지 않는 종착 상태 — 부활은 새 근거로 다시 시작해야 한다. */
+export const TERMINAL_STATES = Object.freeze(['rolled_back', 'quarantined']);
+
+/** 마찰 지표 전체(§0.1 효과 판정) — 늘면 성장이 아니다. 하나라도 빠뜨리지 않는다. */
+export const FRICTION_METRICS = Object.freeze([
+  'unnecessaryQuestions', 'unnecessaryConfirmations', 'clicks', 'userInterventions',
+  'userCorrections', 'wrongContextIntrusions', 'wrongToolChoices', 'wrongTargetChoices',
+  'missedApprovals', 'turnsToSuccess', 'toolCalls',
+]);
+
+const 수 = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
 /** 관찰된 범위에서 얼마나 잘 예측했는가(§10.1). 외부 통계 라이브러리 없이. */
 export function wilsonLowerBound(successes, total, z = 1.96) {
-  const s = Number(successes); const n = Number(total);
-  if (!Number.isFinite(s) || !Number.isFinite(n) || n <= 0) return 0;
+  const s = 수(Number(successes)); const n = 수(Number(total)); const zz = 수(Number(z));
+  if (s === null || n === null || zz === null || zz <= 0 || n <= 0) return 0; // 잘못된 z 는 NaN 대신 0
   const hit = Math.min(Math.max(s, 0), n);
   const p = hit / n;
-  const z2 = z * z;
-  const v = (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
-  return Math.min(Math.max(v, 0), 1);
+  const z2 = zz * zz;
+  const v = (p + z2 / (2 * n) - zz * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
+  return Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0;
 }
 
 /**
- * 성공 판정(§10.1) — **단순 exit 0 이 아니다.** 원리가 예측한 개선이 실제로 일어났고,
- * 사용자 정정·권한 위반·wrong-anchor 가 없을 때만 성공이다.
- * @param {{predictedImprovement?:boolean, improvementObserved?:boolean, userCorrected?:boolean,
- *          authorityViolated?:boolean, wrongAnchor?:boolean, toolExitOk?:boolean}} outcome
+ * 성공 판정(§10.1) — **단순 exit 0 도, 개선 주장만도 아니다.**
+ * 원리가 개선을 예측했고, 그 개선이 실제로 관찰됐고, 정정·권한 위반·wrong-anchor 가 없어야 성공이다.
  */
 export function isSuccessfulOutcome(outcome = {}) {
   if (outcome?.authorityViolated === true) return false;
   if (outcome?.userCorrected === true) return false;
   if (outcome?.wrongAnchor === true) return false;
-  return outcome?.improvementObserved === true; // 도구 성공만으로는 성공이 아니다
+  if (outcome?.predictedImprovement !== true) return false; // 예측 없는 개선은 이 원리의 공이 아니다
+  return outcome?.improvementObserved === true;
+}
+
+/**
+ * 실사용 결과들을 effect counter 로 접는 **단일 통로**(감사 P2: 두 진실 금지).
+ * 성공 판정·집계·Wilson 이 한 함수에서 나온다.
+ */
+export function foldOutcomes(outcomes = []) {
+  const list = Array.isArray(outcomes) ? outcomes : [];
+  const effect = {
+    eligibleCount: 0, successCount: 0, failureCount: 0, userCorrectionCount: 0,
+    wilsonLowerBound: 0, sameFailureRecurrenceCount: 0, authorityViolationCount: 0,
+  };
+  const 실패지문 = new Map();
+  for (const o of list) {
+    if (!o || typeof o !== 'object') continue;
+    effect.eligibleCount += 1;
+    if (o.authorityViolated === true) effect.authorityViolationCount += 1;
+    if (o.userCorrected === true) effect.userCorrectionCount += 1;
+    if (isSuccessfulOutcome(o)) { effect.successCount += 1; continue; }
+    effect.failureCount += 1;
+    const key = String(o.failureKind ?? '');
+    if (key) {
+      const n = (실패지문.get(key) ?? 0) + 1;
+      실패지문.set(key, n);
+      if (n >= 2) effect.sameFailureRecurrenceCount += 1;
+    }
+  }
+  effect.wilsonLowerBound = wilsonLowerBound(effect.successCount, effect.eligibleCount);
+  return effect;
+}
+
+// ── 검증된 사실 묶음 ────────────────────────────────────────────────────
+/**
+ * VerifiedReplayPacket — **판정에 필요한 사실이 전부 갖춰졌음을 스스로 증명하는 묶음**(감사).
+ * 느슨한 불리언(overallPassed·transferPassed)을 받지 않는다. 실행 증거·근거 저장소·
+ * baseline/candidate·확인 근거를 함께 들고 온다.
+ */
+export function makeVerifiedReplayPacket(p = {}) {
+  return {
+    cases: Array.isArray(p.cases) ? p.cases : [],
+    // 실행 증거: {caseId, executedAt, facts:{held[],happened[],influenceRole,actionKind}}
+    executions: Array.isArray(p.executions) ? p.executions : [],
+    observations: Array.isArray(p.observations) ? p.observations : [], // 근거 ObservationEvent 원본
+    evidenceStore: p.evidenceStore ?? null,
+    baseline: p.baseline ?? null,
+    candidate: p.candidate ?? null,
+    transfer: p.transfer ?? null,                 // {executed:true, passed:boolean}
+    userConfirmation: p.userConfirmation ?? null, // {confirmed:true, at, ref}
+    now: 수(p.now) ?? 0,
+  };
+}
+
+/** 묶음 자체의 완결성 — 빠진 것은 실패가 아니라 **판정 불가**다. */
+export function validateReplayPacket(packet, cell) {
+  const missing = [];
+  const pk = packet ?? {};
+  if (!Array.isArray(pk.cases) || !pk.cases.length) missing.push('cases');
+  if (!Array.isArray(pk.executions)) missing.push('executions');
+  if (!pk.evidenceStore || typeof pk.evidenceStore.has !== 'function') missing.push('evidenceStore');
+  if (!pk.baseline || !pk.candidate) missing.push('baseline/candidate');
+  if (!Array.isArray(pk.observations)) missing.push('observations');
+  for (const rc of Array.isArray(pk.cases) ? pk.cases : []) {
+    if (!validateReplayCase(rc).ok) missing.push(`case:${rc?.id ?? '?'}`);
+    else if (!(Array.isArray(pk.executions) ? pk.executions : []).some((e) => e?.caseId === rc.id && 수(e?.executedAt) !== null)) {
+      missing.push(`execution:${rc.id}`); // **안 돌린 사례는 통과가 아니다**
+    }
+  }
+  if (!MATURITY_LEVELS.includes(cell?.state)) missing.push('cell.state');
+  return { ok: missing.length === 0, missing };
+}
+
+/** 서로 다른 turn 근거 수 — **영수증 개수가 아니라 턴 신분**으로 센다(감사 P1). */
+export function distinctTurnsOf(cell, observations = []) {
+  const refs = new Set(Array.isArray(cell?.trace?.observationRefs) ? cell.trace.observationRefs : []);
+  const turns = new Set();
+  let 신분없음 = 0;
+  for (const o of Array.isArray(observations) ? observations : []) {
+    if (!(o?.receiptRefs ?? []).some((r) => refs.has(r))) continue;
+    const id = o?.turnId ?? null;
+    if (id === null || id === undefined || id === '') { 신분없음 += 1; continue; }
+    turns.add(`${o.sessionId ?? ''}#${id}`);
+  }
+  return { count: turns.size, unidentified: 신분없음 };
 }
 
 // ── replay 종류(§9.1) — 전부 **판정만** 한다 ──────────────────────────────
-/** ① structural: 필수 필드·trace·boundary·authority 계약. */
-export function structuralReplay(cell) {
-  const v = validateTCell(cell);
+/** ① structural: 필수 필드·trace(실제 근거 존재)·boundary·authority 계약. */
+export function structuralReplay(cell, evidenceStore = null) {
+  // 근거 저장소가 없으면 trace 를 확인할 수 없다 — 확인 못 한 것은 통과가 아니다.
+  if (!evidenceStore || typeof evidenceStore.has !== 'function') {
+    return { kind: 'structural', passed: false, insufficient: true, errors: ['근거 저장소 없이는 trace 를 확인할 수 없어요'] };
+  }
+  const v = validateTCell(cell, evidenceStore);
   return { kind: 'structural', passed: v.ok, errors: v.errors ?? [] };
 }
 
-/** 한 사례의 기대 대조 — 기대는 사례가 들고 있고, 실행 사실은 호출자가 공급한다. */
-function 사례판정(rc, observedFacts = {}) {
+/** 한 사례 판정 — **실행 증거가 없으면 통과가 아니라 판정 불가**다. */
+function 사례판정(rc, execution) {
   const v = validateReplayCase(rc);
-  if (!v.ok) return { id: rc?.id ?? null, kind: rc?.kind ?? null, passed: false, errors: v.errors };
-  const facts = observedFacts?.[rc.id] ?? {};
+  if (!v.ok) return { id: rc?.id ?? null, kind: rc?.kind ?? null, passed: false, insufficient: true, errors: v.errors };
+  if (!execution || 수(execution.executedAt) === null) {
+    return { id: rc.id, kind: rc.kind, passed: false, insufficient: true, errors: ['이 사례는 실행되지 않았어요'] };
+  }
+  const facts = execution.facts ?? {};
+  const held = Array.isArray(facts.held) ? facts.held : null;
+  const happened = Array.isArray(facts.happened) ? facts.happened : null;
+  if (held === null || happened === null) {
+    return { id: rc.id, kind: rc.kind, passed: false, insufficient: true, errors: ['실행 사실(held/happened)이 기록되지 않았어요'] };
+  }
   const errors = [];
-  for (const must of rc.expected?.mustHold ?? []) {
-    if (!(facts.held ?? []).includes(must)) errors.push(`성립해야 할 것이 없다: ${must}`);
-  }
-  for (const never of rc.expected?.mustNotHappen ?? []) {
-    if ((facts.happened ?? []).includes(never)) errors.push(`일어나면 안 되는 일이 일어났다: ${never}`);
-  }
+  for (const must of rc.expected?.mustHold ?? []) if (!held.includes(must)) errors.push(`성립해야 할 것이 없다: ${must}`);
+  for (const never of rc.expected?.mustNotHappen ?? []) if (happened.includes(never)) errors.push(`일어나면 안 되는 일이 일어났다: ${never}`);
   if (rc.expected?.expectedInfluenceRole && facts.influenceRole !== rc.expected.expectedInfluenceRole) {
     errors.push(`영향 역할이 다르다: ${facts.influenceRole} ≠ ${rc.expected.expectedInfluenceRole}`);
   }
@@ -73,146 +179,185 @@ function 사례판정(rc, observedFacts = {}) {
   return { id: rc.id, kind: rc.kind, passed: errors.length === 0, errors };
 }
 
-/** ②③④⑤ historical/counterfactual/transfer/boundary — 사례 종류별 판정 묶음. */
-export function replayCases(cases = [], observedFacts = {}) {
-  return (Array.isArray(cases) ? cases : []).map((rc) => 사례판정(rc, observedFacts));
-}
-
 /**
- * ③ counterfactual — baseline(승격 원리만) vs candidate(+후보 shadow) 비교(§9.3).
- * **실행하지 않는다**: 계획·authority 결정 수치만 받는다. 나빠지면 통과가 아니다.
+ * ③ counterfactual — baseline vs candidate(§9.3). **둘 다 있어야 비교다.**
+ * 마찰 지표 전체를 본다. 하나라도 늘면 통과가 아니다(정확도가 올라도).
  */
-export function counterfactualReplay(baseline = {}, candidate = {}) {
-  const 나쁨 = ['wrongContextIntrusions', 'unnecessaryQuestions', 'missedApprovals', 'wrongTargetChoices', 'userCorrections', 'turnsToSuccess', 'toolCalls'];
+export function counterfactualReplay(baseline, candidate) {
+  if (!baseline || !candidate || typeof baseline !== 'object' || typeof candidate !== 'object') {
+    return { kind: 'counterfactual', passed: false, insufficient: true, regressions: [], errors: ['비교할 baseline/candidate 가 없어요'] };
+  }
   const regressions = [];
-  for (const k of 나쁨) {
-    const b = Number(baseline?.[k] ?? 0); const c = Number(candidate?.[k] ?? 0);
-    if (Number.isFinite(b) && Number.isFinite(c) && c > b) regressions.push({ metric: k, baseline: b, candidate: c });
+  for (const k of FRICTION_METRICS) {
+    const b = 수(baseline[k]); const c = 수(candidate[k]);
+    if (b === null || c === null) continue; // 없는 지표는 비교하지 않는다(있는 것만 정직하게)
+    if (c > b) regressions.push({ metric: k, baseline: b, candidate: c });
   }
-  const bAcc = Number(baseline?.activeTargetAccuracy ?? 0);
-  const cAcc = Number(candidate?.activeTargetAccuracy ?? 0);
-  if (Number.isFinite(bAcc) && Number.isFinite(cAcc) && cAcc < bAcc) {
-    regressions.push({ metric: 'activeTargetAccuracy', baseline: bAcc, candidate: cAcc });
-  }
-  // 마찰이 늘면 성장이 아니다(원칙 0-A-1·명세 §0.1 효과 판정).
+  const bAcc = 수(baseline.activeTargetAccuracy); const cAcc = 수(candidate.activeTargetAccuracy);
+  if (bAcc !== null && cAcc !== null && cAcc < bAcc) regressions.push({ metric: 'activeTargetAccuracy', baseline: bAcc, candidate: cAcc });
   return { kind: 'counterfactual', passed: regressions.length === 0, regressions };
 }
 
-// 행동과 연결되는 원리 종류 — 이 종류는 authority 사례 없이는 검증됐다고 하지 않는다.
+// 행동과 연결되는 원리 종류 — 이 종류는 authority 사례 없이 검증됐다고 하지 않는다.
 const 행동원리종류 = Object.freeze(['execution', 'automation', 'authority', 'workflow']);
 const 행동과연결된원리 = (cell) => 행동원리종류.includes(cell?.principle?.type);
+const authority사례인가 = (c) => Boolean(c?.expected?.expectedActionKind) || c?.authority === true;
 
 /** 최소 suite 요건(§9.2) — 행동과 연결되는 원리는 authority case 도 필수. */
 export function minimumSuiteGaps(cell, cases = []) {
-  const kinds = new Set((Array.isArray(cases) ? cases : []).map((c) => c?.kind));
+  const list = Array.isArray(cases) ? cases : [];
+  const kinds = new Set(list.map((c) => c?.kind).filter((k) => REPLAY_KINDS.includes(k)));
   const gaps = [];
   for (const need of ['positive', 'negative', 'boundary']) if (!kinds.has(need)) gaps.push(need);
-  const 행동연결 = 행동과연결된원리(cell);
-  const authorityCases = (Array.isArray(cases) ? cases : []).filter((c) => (c?.expected?.expectedActionKind) || c?.authority === true);
-  if (행동연결 && !authorityCases.length) gaps.push('authority');
+  if (행동과연결된원리(cell) && !list.some(authority사례인가)) gaps.push('authority');
   return gaps;
 }
 
 /**
- * 전체 suite 실행 — 다섯 축을 함께 채운다. **positive 만으로는 통과가 없다.**
- * @param {object} cell
- * @param {object[]} cases
- * @param {{observedFacts?:object, baseline?:object, candidate?:object, now?:number}} [ctx]
- * @returns {import('./tcell-replay.js').ReplayResult & {gaps:string[], caseResults:object[], counterfactual:object}}
+ * 전체 suite — **검증된 묶음만 받는다.** 자료가 없으면 verdict 는 `insufficient_evidence` 이고
+ * overallPassed 는 false 다(통과 아님).
+ * @returns {object & {verdict:'passed'|'failed'|'insufficient_evidence', gaps:string[]}}
  */
-export function runReplaySuite(cell, cases = [], ctx = {}) {
-  const st = structuralReplay(cell);
-  const gaps = minimumSuiteGaps(cell, cases);
-  const results = replayCases(cases, ctx.observedFacts ?? {});
+export function runReplaySuite(cell, packet) {
+  const pk = makeVerifiedReplayPacket(packet ?? {});
+  const 완결 = validateReplayPacket(pk, cell);
+  const gaps = minimumSuiteGaps(cell, pk.cases);
+  const st = structuralReplay(cell, pk.evidenceStore);
+  const results = pk.cases.map((rc) => 사례판정(rc, pk.executions.find((e) => e?.caseId === rc?.id)));
+  const cf = counterfactualReplay(pk.baseline, pk.candidate);
+  const authorityResults = results.filter((r, i) => authority사례인가(pk.cases[i]));
+  const 행동연결 = 행동과연결된원리(cell);
+
   const 종류통과 = (k) => {
     const 해당 = results.filter((r) => r.kind === k);
     return 해당.length > 0 && 해당.every((r) => r.passed);
   };
-  const 안전한사례 = Array.isArray(cases) ? cases : [];
-  const authorityResults = results.filter((r, i) => (안전한사례[i]?.expected?.expectedActionKind) || 안전한사례[i]?.authority === true);
-  const 행동연결 = 행동과연결된원리(cell);
-  const cf = counterfactualReplay(ctx.baseline ?? {}, ctx.candidate ?? {});
-
-  const result = makeReplayResult({
+  const base = makeReplayResult({
     tcellId: cell?.id ?? null,
     candidateVersionId: cell?.growth?.previousVersionId ?? null,
     caseResults: results,
-    // 사례가 없으면 통과가 아니다 — "안 돌려서 실패가 없다"는 통과가 아니다.
     positivePassed: 종류통과('positive') && cf.passed,
     negativePassed: 종류통과('negative'),
     boundaryPassed: 종류통과('boundary'),
-    // 행동과 연결되지 않는 원리는 authority case 가 없어도 되지만, 있으면 반드시 통과해야 한다.
     authorityPassed: (행동연결 ? authorityResults.length > 0 : true) && authorityResults.every((r) => r.passed),
     tracePassed: st.passed,
-    createdAt: ctx.now ?? 0,
+    createdAt: pk.now,
   });
-  // 빠진 사례가 있으면 전체 통과가 아니다(§9.2 최소 suite).
-  const overallPassed = result.overallPassed && gaps.length === 0;
-  return { ...result, overallPassed, gaps, structural: st, counterfactual: cf };
+  const 판정불가 = !완결.ok || st.insufficient === true || cf.insufficient === true || results.some((r) => r.insufficient === true);
+  const overallPassed = base.overallPassed && gaps.length === 0 && !판정불가;
+  return {
+    ...base,
+    overallPassed,
+    verdict: 판정불가 ? 'insufficient_evidence' : (overallPassed ? 'passed' : 'failed'),
+    gaps,
+    missing: 완결.missing,
+    structural: st,
+    counterfactual: cf,
+    transferPassed: pk.transfer?.executed === true && pk.transfer.passed === true,
+    caseRefs: pk.cases.map((c) => c?.id).filter(Boolean),
+  };
 }
 
 /**
- * 상태 전이(§10.2) — **점수가 권한을 만들지 않는다.**
- * authority 위반이 하나라도 있으면 점수와 무관하게 격리다.
+ * 상태 전이(§10.2) — **한 계단씩만.** 점수가 권한을 만들지 않고, 종착 상태는 자동 부활하지 않는다.
  * @param {object} cell
- * @param {{replay?:object, transferPassed?:boolean, userConfirmed?:boolean, distinctTurns?:number}} [facts]
- * @returns {{state:string, reason:string, allowedInfluence:string[]}}
+ * @param {object} packet VerifiedReplayPacket (느슨한 불리언은 받지 않는다)
  */
-export function decideTransition(cell, facts = {}) {
+export function decideTransition(cell, packet) {
+  const 머무름 = (reason, state) => ({ state, reason, allowedInfluence: influenceCeilingFor(state) });
   const 격리 = (reason) => ({ state: 'quarantined', reason, allowedInfluence: ['none'] });
+  const cur = cell?.state;
+  if (!MATURITY_LEVELS.includes(cur)) return 격리('상태가 계약 밖이에요');
+  // **종착 상태는 자동으로 되살아나지 않는다**(감사 P1).
+  if (TERMINAL_STATES.includes(cur)) {
+    return { state: cur, reason: '되돌렸거나 격리된 원리는 자동으로 되살아나지 않아요', allowedInfluence: ['none'] };
+  }
   const e = cell?.effect ?? {};
   const violations = Number(e.authorityViolationCount ?? 0);
   if (!Number.isFinite(violations) || violations > 0) return 격리('권한 위반이 있어요');
-  const st = structuralReplay(cell);
-  if (!st.passed) return 격리('계약 검증을 지나지 못했어요');
-  const replay = facts.replay ?? null;
-  if (replay && replay.authorityPassed === false) return 격리('authority 사례가 실패했어요');
 
+  const replay = runReplaySuite(cell, packet);
+  if (replay.verdict === 'insufficient_evidence') {
+    return { ...머무름(`판정에 필요한 자료가 없어요(${[...replay.missing, ...replay.gaps].slice(0, 3).join(', ')})`, cur), replay };
+  }
+  if (replay.authorityPassed === false) return { ...격리('authority 사례가 실패했어요'), replay };
+  if (!replay.overallPassed) return { ...머무름('replay 를 전원 통과하지 못했어요', cur), replay };
+  if (cell?.authority?.requiresUserConfirmation === true && packet?.userConfirmation?.confirmed !== true) {
+    return { ...머무름('사용자 확인이 필요해요', cur), replay };
+  }
+
+  const idx = MATURITY_LADDER.indexOf(cur);
+  if (idx < 0) return { ...격리('계단 밖의 상태예요'), replay };
+  const 다음 = MATURITY_LADDER[Math.min(idx + 1, MATURITY_LADDER.length - 1)];
+  const 한칸 = (reason) => ({ state: 다음, reason, allowedInfluence: influenceCeilingFor(다음), replay });
+
+  const T = TCELL_THRESHOLDS;
   const eligible = Number(e.eligibleCount ?? 0);
   const wilson = wilsonLowerBound(e.successCount ?? 0, eligible);
-  const correctionRate = eligible > 0 ? Number(e.userCorrectionCount ?? 0) / eligible : 0;
-  const T = TCELL_THRESHOLDS;
+  const correctionRate = eligible > 0 ? Number(e.userCorrectionCount ?? 0) / eligible : 1;
+  const { count: turns } = distinctTurnsOf(cell, packet?.observations);
 
-  // M1 → M2: replay 전원 통과 + (확인이 필요한 종류면) 사용자 확인까지.
-  if (!replay?.overallPassed) {
-    return { state: 'M1_candidate', reason: 'replay 전원 통과 전이에요', allowedInfluence: influenceCeilingFor('M1_candidate') };
+  if (cur === 'M1_candidate') {
+    if (turns < T.candidateDistinctTurns) return { ...머무름(`서로 다른 turn 근거가 ${turns}개예요`, cur), replay };
+    return 한칸('replay 를 전원 통과했어요');
   }
-  if (cell?.authority?.requiresUserConfirmation === true && facts.userConfirmed !== true) {
-    return { state: 'M1_candidate', reason: '사용자 확인이 필요해요', allowedInfluence: influenceCeilingFor('M1_candidate') };
+  if (cur === 'M2_replayed') {
+    if (!(eligible >= T.limitedMinEligibleOutcomes && wilson >= T.limitedMinWilsonLowerBound)) {
+      return { ...머무름('실사용 결과를 더 모으는 중이에요', cur), replay };
+    }
+    return 한칸('지정 범위에서 효과가 확인됐어요');
   }
-  // 서로 다른 2개 이상 turn 근거가 없으면 M1 까지만(§8).
-  const distinct = Number(facts.distinctTurns ?? new Set(cell?.trace?.observationRefs ?? []).size);
-  if (!(distinct >= T.candidateDistinctTurns)) {
-    return { state: 'M1_candidate', reason: '서로 다른 turn 근거가 아직 부족해요', allowedInfluence: influenceCeilingFor('M1_candidate') };
+  if (cur === 'M3_limited') {
+    if (!(eligible >= T.stableMinEligibleOutcomes && wilson >= T.stableMinWilsonLowerBound
+      && correctionRate <= T.stableMaxCorrectionRate && replay.transferPassed === true)) {
+      return { ...머무름('안정 원리 기준을 아직 못 채웠어요', cur), replay };
+    }
+    return 한칸('반복 실사용 효과가 확인됐어요');
   }
-  // M2 → M3 → M4 는 **관찰된 결과 수와 예측력**이 열지, 확신이 열지 않는다.
-  if (eligible >= T.stableMinEligibleOutcomes && wilson >= T.stableMinWilsonLowerBound
-    && correctionRate <= T.stableMaxCorrectionRate && facts.transferPassed === true) {
-    return { state: 'M4_stable', reason: '반복 실사용 효과가 확인됐어요', allowedInfluence: influenceCeilingFor('M4_stable') };
-  }
-  if (eligible >= T.limitedMinEligibleOutcomes && wilson >= T.limitedMinWilsonLowerBound) {
-    return { state: 'M3_limited', reason: '지정 범위에서 효과가 확인됐어요', allowedInfluence: influenceCeilingFor('M3_limited') };
-  }
-  return { state: 'M2_replayed', reason: 'replay 는 통과했고 실사용 결과를 모으는 중이에요', allowedInfluence: influenceCeilingFor('M2_replayed') };
+  // M4 → M5(압축)는 sphere 계약의 몫이다 — 여기서 혼자 올리지 않는다.
+  return { ...머무름('현재 단계를 유지해요', cur), replay };
 }
 
 /**
- * 전이를 세포에 적용(순수) — **authority tier 는 건드리지 않는다.**
- * 성숙도가 올라도 A2/A3 승인 요구는 그대로다(§4.3 불변식).
+ * 전이를 세포에 적용 — **결정이 오염돼도 여기서 한 번 더 막는다**(감사 P2: 임의 decision 금지).
+ * replay 상태·caseRefs·시각·effect 를 함께 갱신해 두 진실을 만들지 않는다.
+ * @param {{outcomes?:object[], now?:number}} [opts] outcomes 를 주면 effect 를 같은 통로로 접는다
  */
-export function applyTransition(cell, decision) {
+export function applyTransition(cell, decision, opts = {}) {
   const before = cell?.authority ?? {};
+  const cur = cell?.state;
+  const 목표 = MATURITY_LEVELS.includes(decision?.state) ? decision.state : cur;
+  const curIdx = MATURITY_LADDER.indexOf(cur);
+  const nextIdx = MATURITY_LADDER.indexOf(목표);
+  let state = cur;
+  if (TERMINAL_STATES.includes(cur)) state = TERMINAL_STATES.includes(목표) ? 목표 : cur; // 부활 금지
+  else if (TERMINAL_STATES.includes(목표)) state = 목표;                                  // 격리·철회는 언제나
+  else if (curIdx >= 0 && nextIdx >= 0 && nextIdx - curIdx <= 1) state = 목표;             // 한 칸까지만
+  const ceiling = influenceCeilingFor(state);
+  const 요청영향 = Array.isArray(decision?.allowedInfluence) ? decision.allowedInfluence : ['none'];
+  const effect = opts.outcomes ? foldOutcomes(opts.outcomes) : { ...(cell?.effect ?? {}) };
+  if (!opts.outcomes) effect.wilsonLowerBound = wilsonLowerBound(effect.successCount ?? 0, effect.eligibleCount ?? 0);
+  const replay = decision?.replay ?? null;
   return {
     ...cell,
-    state: decision?.state ?? cell?.state,
+    state,
     authority: {
       ...before,
-      allowedInfluence: [...(decision?.allowedInfluence ?? ['none'])],
-      // 승격이 승인 요구를 끄지 못한다. 사용자 확인은 사용자만 끈다.
-      requiresUserConfirmation: before.requiresUserConfirmation,
+      // 상한을 넘는 영향은 잘라낸다 — 결정이 answer_anchor 를 주장해도 성숙도가 허락해야 한다.
+      allowedInfluence: 요청영향.filter((r) => ceiling.includes(r)),
+      requiresUserConfirmation: before.requiresUserConfirmation, // 승격이 승인 요구를 끄지 못한다
       mustNotOverrideCurrentRequest: true,
       prohibitedActionKinds: [...(before.prohibitedActionKinds ?? [])],
     },
-    effect: { ...(cell?.effect ?? {}), wilsonLowerBound: wilsonLowerBound(cell?.effect?.successCount ?? 0, cell?.effect?.eligibleCount ?? 0) },
+    replay: replay
+      ? {
+        status: replay.verdict === 'passed'
+          ? (replay.transferPassed === true ? 'passed_transfer' : 'passed_basic')
+          : (replay.verdict === 'failed' ? 'failed' : 'untested'),
+        caseRefs: [...(replay.caseRefs ?? [])],
+        lastRunAt: 수(replay.createdAt) ?? 수(opts.now) ?? null,
+      }
+      : (cell?.replay ?? { status: 'untested', caseRefs: [], lastRunAt: null }),
+    effect,
   };
 }

@@ -89,7 +89,7 @@ export class TCellObserver {
    * 턴 완료 후 투영 — **안정적 신분으로만.** receipt 참조는 원장 위치(ledger:세션:번호),
    * 승인/거절은 서버가 유효성을 판정해 넘긴 결정만(옛 승인 ID 는 여기 오지 않는다).
    */
-  async observeTurn({ sessionId, ledgerStart = 0, turnReceipts = [], approvalDecision = null, now = 0 } = {}) {
+  async observeTurn({ sessionId, ledgerStart = 0, turnReceipts = [], approvalDecision = null, turnId = null, now = 0 } = {}) {
     try {
       const jobs = [];
       const base = { sessionId, now, sourceRefs: sessionId ? [`session:${sessionId}`] : [] };
@@ -97,14 +97,14 @@ export class TCellObserver {
         const ref = `ledger:${sessionId}:${ledgerStart + i}`;
         const secret = rec?.containsSecret === true;
         jobs.push(this.record(makeObservationEvent({
-          type: 'tool_result', sessionId, occurredAt: now,
+          type: 'tool_result', sessionId, turnId, occurredAt: now,
           signal: { summary: secret ? 비밀일반화 : (rec?.userSafeSummary ?? rec?.action ?? ''), valence: rec?.failureState && rec.failureState !== 'none' ? 'failure' : 'success' },
           sourceRefs: base.sourceRefs, receiptRefs: [ref],
           privacy: { containsSecret: secret },
         })));
         if (rec?.failureState && rec.failureState !== 'none') {
           jobs.push(this.record(makeObservationEvent({
-            type: 'recovery', sessionId, occurredAt: now,
+            type: 'recovery', sessionId, turnId, occurredAt: now,
             signal: { summary: secret ? 비밀일반화 : (rec?.nextSafeAction ?? '실패 후 다음 길'), valence: 'failure' },
             sourceRefs: base.sourceRefs, receiptRefs: [`${ref}:recovery`],
             privacy: { containsSecret: secret }, // 파생 관찰도 비밀 표식·비가독을 물려받는다
@@ -112,9 +112,9 @@ export class TCellObserver {
         }
       });
       if (approvalDecision?.pendingId) {
-        jobs.push(this.record(observationFromApproval(approvalDecision, {
+        jobs.push(this.record({ ...observationFromApproval(approvalDecision, {
           ...base, sourceRefs: [...base.sourceRefs, `approval:${sessionId}:${approvalDecision.pendingId}`],
-        })));
+        }), turnId }));
       }
       const done = await Promise.all(jobs);
       return { recorded: done.filter((d) => d.recorded).length };
@@ -136,7 +136,8 @@ export class TCellObserver {
     const ref = `request:${sessionId}:${turnIndex}`;
     const secret = looksLikeSecret(statement);
     const r = await this.record(makeObservationEvent({
-      type: 'user_request', sessionId, occurredAt: now,
+      // 턴 신분을 함께 남긴다 — TG-4 가 "서로 다른 turn 근거"를 영수증 수가 아니라 이걸로 센다.
+      type: 'user_request', sessionId, turnId: String(turnIndex), occurredAt: now,
       signal: { summary: secret ? '비밀이 섞인 지시(원문 비저장)' : (statement ?? ''), valence: 'neutral' },
       sourceRefs: sessionId ? [`session:${sessionId}`] : [], receiptRefs: [ref],
       privacy: { containsSecret: secret },

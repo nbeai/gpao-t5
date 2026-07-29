@@ -33,3 +33,34 @@ require(·import(·writeFile·appendFile·child_process) 문자열 0 · import �
 전이 계단(근거 turn·표본·정정률·transfer 각각의 상한).
 
 전체 회귀 **1276건 통과** · 게이트 **PASS**(CPU 23.2s · 벽시계 11.6s) — 자체 검증.
+
+---
+
+# 감사 반영 (2026-07-29 · 2차) — VerifiedReplayPacket 로 전면 재작성
+
+**공통 뿌리**: 느슨한 사실(불리언·부분 자료)을 받아 **없음을 통과로** 읽었다. 이제 판정에 필요한
+사실을 스스로 증명하는 묶음만 받고, 빠진 것은 실패가 아니라 **판정 불가**다.
+
+- **VerifiedReplayPacket**(cases·executions·observations·evidenceStore·baseline·candidate·
+  transfer·userConfirmation) + `validateReplayPacket` → `missing[]`.
+  `verdict: 'passed' | 'failed' | 'insufficient_evidence'` 세 값으로 분리 — 통과가 아닌 것이
+  통과로 접히지 않는다.
+- **P1-1 안 돌린 사례**: 사례마다 `executedAt` 실행 증거와 `held/happened` 기록이 있어야 판정한다.
+  mustNotHappen 만 있는 사례도 실행 증거 없이는 통과 불가. baseline·candidate 둘 다 없으면
+  counterfactual 은 `insufficient`. (대조군: 전부 실행하면 정상 통과 — 무조건 막는 게 아니다.)
+- **P1-2 상태 기계**: `MATURITY_LADDER` 한 계단씩만. `TERMINAL_STATES`(rolled_back·quarantined)는
+  **자동 부활 없음** — decideTransition 과 applyTransition 두 곳에서 막는다(결정이 오염돼도).
+  M1→M2→M3→M4 각 계단의 조건을 분리해 직행이 불가능하다.
+- **P1-3 trace·턴 신분**: `structuralReplay(cell, evidenceStore)` — 저장소 없으면 판정 불가,
+  존재하지 않는 참조는 실패. `distinctTurnsOf` 는 **ObservationEvent 의 turnId** 로 센다(영수증
+  개수 아님). TG-1 관찰에 turnId 를 실제로 채웠다(observeTurn·observeUserRequest·server 훅) —
+  계약이 실현 가능해야 계약이다. 턴 신분 없는 관찰은 근거로 세지 않는다.
+- **P2 두 진실 제거**: `isSuccessfulOutcome` 은 **예측된 개선**까지 요구(주장만으로 성공 아님).
+  `foldOutcomes` 단일 통로가 성공·정정·위반·같은실패재발·Wilson 을 한 번에 접는다.
+  `applyTransition` 이 replay 상태·caseRefs·lastRunAt·effect 를 함께 갱신하고, 성숙도 상한을
+  넘는 영향은 잘라낸다(임의 decision 의 answer_anchor·M5 차단). 잘못된 z 는 NaN 대신 0.
+  마찰 지표에 clicks·unnecessaryConfirmations·userInterventions·wrongToolChoices 추가(11종).
+- 구조 경계 검사 정밀화: 데이터 이름(`executions` = 실행 *증거*)이 아니라 **호출 패턴**과
+  import 화이트리스트로 판정.
+
+검사 10건(감사 재현 입력 전부 포함) · 전체 회귀 **1275건 통과** · 게이트 **PASS**(CPU 21.9s) — 자체 검증.
