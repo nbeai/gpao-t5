@@ -1,0 +1,257 @@
+# T5 T-cell 백그라운드 제어면 엔지니어링 결정
+
+- 상태: `normative_runtime_decision`
+- 날짜: 2026-07-30
+- 대상: TG-1~TG-5 생산 경로
+- 참고 구현: Hermes Agent `a61183b56fdb45b9d2a0f2f6b8482e665ccf702f`
+- T5 대조 기준선: `e1cb07a`
+- 제품 구현 소유자: Claude 단일 구현선
+- 독립 감사·통합 소유자: Codex
+
+이 문서는 경쟁 제품을 설명하는 조사 보고서가 아니다. Hermes의 실제 호출 경로와 실패 방어를
+실행해 보고, T5의 생산 코드가 어디서 같은 문제를 더 잘 풀어야 하는지 고정한 런타임 결정이다.
+
+## 1. 결론
+
+T-cell은 **사용자 턴 앞에서 판단을 단속하는 엔진**이 아니다.
+
+T-cell은 뒤에서 관찰·추출·replay·승격·효과 감사를 수행하는 **성장 제어면(control plane)** 이고,
+사용자 턴에는 이미 검증되어 메모리에 게시된 작은 스냅샷만 공급하는 **보조 데이터면(data plane)** 이다.
+
+```text
+사용자 턴
+  → 현재 요청·POM·명시 지시·도구 현실 조립
+  → 메모리의 T-cell 게시 스냅샷 조회(무 I/O, 무 모델, 무 replay)
+  → 최대 5개 soft principle을 모델 현실에 추가
+  → 기존 ActionPlan / Authority / Grant / ToolRunner
+  → 사용자 응답
+
+응답 완료 뒤
+  → Observation append
+  → 세션별 직렬 성장 큐
+  → 모델 추출
+  → replay case 생산·검증
+  → M1 → M2/M3 전이
+  → effect audit / rollback
+  → 범위별 불변 게시 스냅샷 교체
+```
+
+명시적 사용자 지시는 T-cell이 배울 때까지 기다리지 않는다. 현재 요청/POM 레인에서 즉시 효력이
+생긴다. T-cell은 그 경험을 뒤에서 일반화할 뿐이다.
+
+안전도 T-cell이 대화 앞에서 질문을 늘려 확보하지 않는다. 전송·삭제·결제·게시·권한 확대의
+실행 순간을 기존 Authority/Grant/Truth Ledger가 지킨다.
+
+## 2. 실제로 확인한 Hermes 실행 구조
+
+### 2.1 응답 이후 학습 fork
+
+Hermes는 턴 종료 뒤 memory/skill review를 별도 worker에서 실행한다.
+
+- `agent/turn_finalizer.py:641-654`: 외부 기억 sync/prefetch와 background review를 턴 종료 뒤 시작한다.
+- `agent/background_review.py:620-646`: background worker와 위험 명령 자동 거절.
+- `agent/background_review.py:675-689`: 외부 memory provider 접근을 끈다.
+- `agent/background_review.py:729-756`: 쓰기 출처를 background로 표시하고 사용자 세션 persistence를 끈다.
+- `agent/background_review.py:790-807`: 부모 세션 종료와 압축을 금지한다.
+- `agent/background_review.py:809-861`: runtime whitelist로 memory/skill 도구만 허용한다.
+- `agent/background_review.py:882-928`: 성공한 학습 결과만 요약하고 실패는 사용자 턴과 분리한다.
+
+이 구조가 해결하는 실제 결함도 코드 주석에 남아 있다. background review가 부모 세션에 harness
+문장을 기록해 다음 턴의 agent가 curator처럼 행동했던 결함, 외부 memory namespace를 오염시킨 결함,
+부모 세션을 중간에 finalize/compress한 결함이다.
+
+### 2.2 순서가 보장된 background memory 작업
+
+- `agent/memory_manager.py:597-622`: 다음 턴 prefetch를 background executor에 넣는다.
+- `agent/memory_manager.py:638-757`: sync와 prefetch를 단일 worker로 순서화하고 호출자를 막지 않는다.
+- `agent/memory_manager.py:760-780`: 종료 시 bounded drain.
+
+다만 `agent/memory_manager.py:525-592`의 현재 턴 external recall은 provider별 최대 8초를 기다린다.
+이 경로는 T5가 흡수하지 않는다. T5의 기본 턴은 외부 recall을 기다리지 않는다.
+
+### 2.3 prompt와 skill의 progressive disclosure
+
+- `AGENTS.md:19-27`: 대화 중 system prompt/toolset을 바꾸지 않고 core tool schema를 작게 유지한다.
+- `agent/system_prompt.py:160-162, 294-324`: session 시작의 skill index를 고정하고 prompt cache를 유지한다.
+- `agent/prompt_builder.py:1320-1536`: skill index snapshot과 on-demand `skill_view`.
+- `agent/subdirectory_hints.py`: 실제로 접근한 작업 경로에서만 하위 지시 문서를 발견한다.
+
+실제 skill 내용은 필요할 때만 읽는 구조는 흡수한다. 하지만
+`agent/prompt_builder.py:1740-1741`의 “부분적으로 관련돼도 반드시 skill을 읽어라”는 강제 문구는
+흡수하지 않는다. T5에서는 관련성·비용·현재 요청을 함께 보고 모델이 고르게 한다.
+
+### 2.4 실행한 Hermes 검사
+
+Hermes 저장소의 pinned 환경으로 다음 테스트를 직접 실행했다.
+
+```text
+background toolset / session isolation / async memory / write approval
+→ 62 passed
+
+background review / cost control / curator / memory tool
+→ 175 passed
+```
+
+검증한 계약은 persistence isolation, runtime tool whitelist, 비동기 sync 순서, 위험 명령 자동 거절,
+write approval, curator 보호 범위, memory atomic write다.
+
+## 3. T5 현재 생산 경로의 코드 사실
+
+`npm run audit:tcell-plane`은 다음을 현재 코드에서 직접 검출한다.
+
+```text
+GAP  foreground_no_durable_io
+     snapshot=true storeReads=true
+
+GAP  background_per_session_lane
+     detached=true perSession=false globalLock=true rawUserText=false
+
+GAP  m1_replay_m2_production_lifecycle
+     transitionConsumers=0 replayCaseConsumers=0 legacyImportConsumers=0
+```
+
+근거:
+
+- `src/kernel/turn.js:278-305, 530-534`
+  - 모델 호출 전에 `buildAdmissionSnapshot()`을 기다린다.
+- `src/kernel/l1-intent/tcell-admission.js:420-482`
+  - 그 호출은 registry, evidence, confirmation, grant 저장소를 읽는다.
+- `src/surface/server.js:127-190`
+  - 추출은 사용자 응답과 분리돼 있으나 서버 전체 전역 `추출중` 하나를 쓴다.
+  - 한 대화의 추출 중 다른 대화가 깨우면 `in_flight`로 버려진다.
+- `src/kernel/l5-growth/tcell-replay-engine.js:492`
+  - `transitionCell()`은 정의와 검사에만 있고 `src/` 생산 소비자는 없다.
+- `src/kernel/l5-growth/tcell-replay.js:30`
+  - `makeReplayCase()`도 생산 소비자가 없다.
+- `src/surface/tcell-store.js:388`
+  - `importLegacyMemory()`도 생산 소비자가 없다.
+
+따라서 현재 실제 수명주기는 `관찰 → M1 후보 저장 → 다음 턴 조회 → 성숙도 부족 거절`에서 끝난다.
+TG-5B를 열어도 성장한 원리가 들어오는 제품 경로가 없으므로, 입장 규칙만 더 복잡해지고 사용자
+성능은 좋아지지 않는다.
+
+2026-07-30 Claude dirty worktree도 같은 감사기로 별도 읽었다. 세션별 `Map`을 도입해 전역 추출
+잠금은 제거 중이지만, 대신 `input.text` 원문이 extraction bundle로 직접 들어가는 미검증 변경이
+있다. foreground durable I/O와 M1→M2 생산 소비자 0은 그대로다. 이 dirty 관찰은 구현 완료 증거가
+아니며, 제출 때 비밀·일반 원문 비유입 반대시험으로 판정해야 한다.
+
+## 4. 흡수할 것
+
+### A. 응답과 성장 작업의 생명주기 격리
+
+성장 worker는 사용자 session transcript를 쓰거나 finalize/compress하지 않는다. 실패·timeout·재시작은
+사용자 답을 실패시키지 않는다.
+
+### B. 세션별 직렬 큐
+
+같은 세션의 관찰 순서를 보존하고 다른 세션은 병렬 처리한다. 전역 잠금은 금지한다. wake를 합칠 때도
+관찰 참조를 잃지 않는다.
+
+### C. 능력 whitelist
+
+추출·replay worker는 terminal, send, file write, browser, connector를 호출할 수 없다. 읽기 전용
+evidence/registry와 전용 모델 호출만 가진다. replay는 실제 외부 행동을 실행하지 않는다.
+
+### D. prompt-cache 안정성과 progressive disclosure
+
+성장 결과 때문에 진행 중 대화의 system prompt와 tool schema를 다시 만들지 않는다. 게시 스냅샷은
+다음 턴의 작은 volatile context로 들어가고, skill 본문은 실제 선택 뒤에만 읽는다.
+
+### E. read-before-write, provenance, recoverable retirement
+
+원리를 바꾸거나 합칠 때 기존 원리와 근거를 먼저 읽는다. 사용자 pin과 원문 provenance를 보존한다.
+삭제 대신 rollback/archive를 기본으로 한다.
+
+### F. 별도 저비용 모델 선택
+
+성장 모델은 main model과 같을 수도, 별도 모델일 수도 있다. 어떤 경우든 실제 provider/model 신분을
+원장에 기록한다. 다른 모델이면 전체 대화 대신 비밀 제거 EvidenceBundle만 보낸다.
+
+## 5. 흡수하지 않을 것
+
+1. 현재 턴에서 external memory provider를 최대 8초 기다리는 경로.
+2. 부분적으로 관련되기만 해도 skill을 반드시 읽으라는 prompt 강제.
+3. write approval 기본 OFF를 근거로 memory/skill을 즉시 durable 반영하는 정책.
+4. “대부분의 세션은 skill을 고쳐야 한다”는 생산량 목표.
+5. T-cell 후보·trace·승격을 매번 카드로 노출하는 UI.
+
+T5의 우위는 더 많이 멈추는 데 있지 않다. 명시 지시는 즉시 따르고, 추정 학습만 뒤에서 검증하며,
+실행 안전선은 기존 authority가 지키는 데 있다.
+
+## 6. 런타임 불변식
+
+### 사용자 턴 데이터면
+
+1. 모델·네트워크·파일 파싱·replay·registry mutation 0.
+2. 서버 수명 안에서 게시된 immutable scope snapshot만 읽는다.
+3. snapshot miss/손상/만료는 T-cell 도움 0으로 끝나며 대화를 막지 않는다.
+4. 최대 5개, 사용자 현재 지시보다 낮은 `supporting_context/default_value/plan_hint`만 제공한다.
+5. T-cell은 승인 요구를 새로 만들지 않는다.
+6. A2/A3 실행은 기존 ActionPlan/Authority/Grant가 재검증한다.
+
+### 백그라운드 성장 제어면
+
+1. Observation append 성공 뒤에만 checkpoint를 전진한다.
+2. 세션별 FIFO, 세션 간 병렬.
+3. 중복 wake는 합칠 수 있지만 evidence ref는 합집합으로 보존한다.
+4. worker 재시작 뒤 미처리 checkpoint부터 재개한다.
+5. 비밀 원문과 일반 사용자 원문을 추출 모델에 보내지 않는다.
+6. M1 → replay case → verified packet → `transitionCell()` → M2/M3가 하나의 생산 계보로 이어진다.
+7. 승격 뒤 scope별 게시 스냅샷을 원자 교체한다.
+8. effect audit가 정확도와 마찰을 함께 보고 softened/rollback을 수행한다.
+
+## 7. TG-5 진입 순서
+
+TG-0~4를 폐기하지 않는다. 지금 만든 계약을 아래 생산 계보로 연결한다.
+
+1. 전역 `추출중`을 세션별 성장 큐와 지속 checkpoint로 교체.
+2. background worker의 session/tool/persistence 격리.
+3. replay case 생산자와 `transitionCell()` 소비자를 실제 계보에 연결.
+4. `importLegacyMemory()`를 1회성 migration 경계에 연결.
+5. M2/M3만 포함하는 scope별 immutable 게시 스냅샷 생산.
+6. 사용자 턴의 `buildAdmissionSnapshot()` durable I/O를 제거하고 게시 스냅샷 참조로 교체.
+7. TG-5A shadow에서 실제 `admittedPrinciples`를 모델 volatile context에 주입.
+8. 안전한 읽기·정리·도구 선택·초안에서 질문/클릭/완료 턴이 줄었는지 인간 시나리오로 검증.
+
+## 8. 종료 검사
+
+### 구조
+
+- foreground에서 model/network/fs/replay/mutation 호출 0.
+- 세션 A 성장 중 세션 B wake가 유실되지 않음.
+- worker가 terminal/send/file-write/browser tool을 호출하려 하면 runtime 거부.
+- background harness 문장이 user transcript와 external memory namespace에 0건.
+
+### 수명주기
+
+- 자연어 경험 → Observation → M1 → replay → M2 → 게시 snapshot → 다음 턴 admission.
+- negative/boundary case 실패 → 승격 0.
+- 재시작 중단 → 미처리 checkpoint부터 정확히 한 번.
+- rollback → 게시 snapshot에서 즉시 제거, 다음 턴 영향 0.
+
+### 인간 성능
+
+- T-cell OFF/ON으로 같은 10개 업무를 비교한다.
+- 안전 바닥 안 업무의 median turns, unnecessary confirmations, user intervention이 증가하면 실패.
+- 외부 행동 authority violation 0.
+- 긴 성장 작업 중 사용자 대화 첫 진행 표시와 최종 응답 지연이 기준선보다 악화되면 실패.
+
+## 9. 파일 소유권
+
+Claude 단일 구현선:
+
+- `src/kernel/l0-evidence/tcell-*`
+- `src/kernel/l1-intent/tcell-*`
+- `src/kernel/l5-growth/tcell-*`
+- `src/runtime/tcell-*`
+- `src/surface/tcell-*`
+- 관련 생산 배선과 제품 검사
+
+Codex 독립 감사선:
+
+- `scripts/audit-tcell-runtime-plane.mjs`
+- `test/tcell-runtime-plane-audit.test.js`
+- 이 결정과 정본 명세·인수인계의 사실 갱신
+- 구현 제출 뒤 실제 실행·성능·인간 시나리오 판정
+
+TG-5B는 이 문서 §8의 구조·수명주기 종료 조건이 닫히기 전에는 실제 영향 단계로 올리지 않는다.

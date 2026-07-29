@@ -15,6 +15,7 @@
     "src"
   ],
   "scripts": {
+    "audit:tcell-plane": "node scripts/audit-tcell-runtime-plane.mjs",
     "test": "node --test",
     "start": "node src/surface/server.js",
     "verify:package": "node scripts/verify-package.mjs",
