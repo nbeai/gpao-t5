@@ -18,7 +18,7 @@ import { makeObservationEvent } from '../src/kernel/l0-evidence/tcell-observatio
 import { buildTurnFacts } from '../src/kernel/l1-intent/turn-facts.js';
 import { admitPrinciples, ADMISSION_REASONS } from '../src/kernel/l1-intent/tcell-admission.js';
 import { ConfirmationStore, TCellRegistry } from '../src/surface/tcell-store.js';
-import { currentPlaceOf } from '../src/kernel/l0-evidence/working-state.js';
+import { currentPlaceOf, workingStateFacts } from '../src/kernel/l0-evidence/working-state.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 // ── 공용: 실제 wire 형식으로 답하는 로컬 모델 서버 ──────────────────────────
@@ -174,7 +174,7 @@ for (const [이름, provider, wire] of [
   });
 }
 
-test('§0-C-2: 지속된 반대 지시 correction 이 다음 턴 admission 을 정확히 막는다', async () => {
+test('§0-C-2 + 감사 P1: 반대 지시는 그 지시가 다시 올 때만 막고, 무관한 턴은 막지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-contra-'));
   const reg = new TCellRegistry(dir);
   const { makeTCellCandidate } = await import('../src/kernel/l5-growth/tcell-core.js');
@@ -190,32 +190,55 @@ test('§0-C-2: 지속된 반대 지시 correction 이 다음 턴 admission 을 �
   cell.authority = { ...cell.authority, allowedInfluence: ['none', 'supporting_context'], requiresUserConfirmation: false };
   await reg.upsert(cell, null);
 
-  // 추출기의 의미 판정 결과가 correction 으로 지속된다(서버 경로가 하는 일 그대로).
-  const rec = await reg.recordCorrection('cell-확인원리', {
-    kind: 'user_directive_contradicts', ref: 'request:s:5', at: 10,
+  // 추출기의 의미 판정 결과가 **그 지시 문장을 열쇠로** 지속된다(서버 경로가 하는 일 그대로).
+  const 반대지시 = '보낼 땐 확인하지 마';
+  const rec = await reg.recordDirectiveRelation('cell-확인원리', {
+    statement: 반대지시, relation: 'contradicts', ref: 'request:s:5', at: 10,
   });
   assert.equal(rec.ok, true);
-  // 같은 참조는 한 번만(멱등) — 재추출이 반복돼도 correction 이 쌓이지 않는다.
-  assert.equal((await reg.recordCorrection('cell-확인원리', { kind: 'user_directive_contradicts', ref: 'request:s:5', at: 11 })).already, true);
+  // 같은 (지시·관계)는 한 번만(멱등) — 재추출이 반복돼도 쌓이지 않는다.
+  assert.equal((await reg.recordDirectiveRelation('cell-확인원리', { statement: 반대지시, relation: 'contradicts', ref: 'request:s:5', at: 11 })).already, true);
 
   const 저장된 = (await reg.load()).cells.find((c) => c.id === 'cell-확인원리');
   assert.equal(저장된.trace.corrections.length, 1);
   assert.equal(저장된.effect.userCorrectionCount, 1);
 
-  // 다음 턴: 이 세포는 **정확히 conflict 사유**로 거절된다 — unknown 이 아니다(§0-C 재현의 역).
-  const 재료 = buildTurnFacts({
-    stage: 'pre_model', sessionId: 's', projectId: '/tmp/자리',
-    ledgerWindow: { previousTurn: [{ userSafeSummary: '성공', failureState: 'none' }], previousTurnStart: 0 },
-  });
-  const out = admitPrinciples({
-    candidateIds: ['cell-확인원리'], principleStore: { get: (k) => (k === 'cell-확인원리' ? 저장된 : null) },
-    evidenceStore: { get: () => ({ type: 'tool_result' }) },
-    confirmationStore: { get: () => null }, grantStore: { get: () => null },
-    stage: 'pre_model', requestFacts: 재료.requestFacts, authorityFacts: 재료.authorityFacts, now: 1000,
-  });
-  assert.equal(out.admissions.length, 0, '반대 지시가 지속됐는데 원리가 입장했다');
-  assert.equal(out.trace.rejected[0].reason, ADMISSION_REASONS.conflict,
-    `사유가 conflict 가 아니다: ${out.trace.rejected[0].reason}`);
+  const 판정 = (memorySuggestion) => {
+    const 재료 = buildTurnFacts({
+      stage: 'pre_model', sessionId: 's', projectId: '/tmp/자리', memorySuggestion,
+      ledgerWindow: { previousTurn: [{ userSafeSummary: '성공', failureState: 'none' }], previousTurnStart: 0 },
+    });
+    return admitPrinciples({
+      candidateIds: ['cell-확인원리'], principleStore: { get: (k) => (k === 'cell-확인원리' ? 저장된 : null) },
+      evidenceStore: { get: () => ({ type: 'tool_result' }) },
+      confirmationStore: { get: () => null }, grantStore: { get: () => null },
+      stage: 'pre_model', requestFacts: 재료.requestFacts, authorityFacts: 재료.authorityFacts, now: 1000,
+    });
+  };
+
+  // ① **그 지시가 다시 온 턴**: 정확히 conflict 로 거절된다(§0-C 재현의 역).
+  const 지시턴 = 판정({ kind: 'operating_principle', statement: 반대지시 }).trace;
+  assert.equal(지시턴.admitted.length, 0, '반대 지시가 온 턴인데 원리가 입장했다');
+  assert.equal(지시턴.rejected[0].reason, ADMISSION_REASONS.conflict,
+    `사유가 conflict 가 아니다: ${지시턴.rejected[0].reason}`);
+  // **한계(정직하게 고정한다)**: 열쇠는 정규화 후 **같은 문장**일 때만 맞는다. 표현이 크게
+  // 달라지면(`…마` ↔ `…마세요`) 다른 열쇠다. 그건 문자열 재주로 메울 일이 아니라 —
+  // 어미 목록을 늘리는 것은 오너가 금지한 "목록 확대"다 — 그 표현으로 지시가 다시 오면
+  // **추출기(모델)가 그때 다시 관계를 판정해 그 표현의 열쇠로도 남긴다.**
+  // 이 줄은 그 한계를 사실로 못 박는다(모르는 것을 아는 척하지 않는다).
+  assert.equal(판정({ kind: 'operating_principle', statement: '보낼 땐 확인하지 마세요' }).trace.admitted.length, 1,
+    '다른 표현이 우연히 같은 열쇠로 맞았다면, 이 한계 기록이 틀린 것이다');
+
+  // ② **무관한 미래 턴**(현재 지시 없음): 막지 않는다 — 감사 P1 의 핵심.
+  //    모델의 관계 판정 한 번이 원리를 영구히 죽이면 자동화·맥락 활용이 조용히 위축된다.
+  const { admissions: 무관입장, trace: 무관턴 } = 판정(null);
+  assert.equal(무관턴.admitted.length, 1,
+    `무관한 턴인데 과거 반대 지시가 원리를 막았다: ${JSON.stringify(무관턴.rejected)}`);
+  assert.equal(무관입장[0].directiveRelation, 'unknown', '관계가 unknown 으로 기록되지 않았다');
+
+  // ③ **다른 지시**가 온 턴도 막지 않는다(그 지시와의 관계는 아직 모른다).
+  const 다른지시턴 = 판정({ kind: 'operating_principle', statement: '보고서는 목록으로' }).trace;
+  assert.equal(다른지시턴.admitted.length, 1, '무관한 다른 지시가 원리를 막았다(과잉 차단)');
 });
 
 // ── §0-C-1 · 실제 project 신분: 서로 다른 프로젝트 2개의 생산 관통 ──────────
@@ -391,10 +414,13 @@ test('§0-C-3: [계속 허용] 버튼 → 소비 → 다음 턴 재확인 0 → 
     // 원장에 bounded 로 남았다.
     const g1 = await (await fetch(`${s.base}/grants?sessionId=${s.세션}`)).json();
     assert.equal(g1.grants.length, 1, `grant 가 기록되지 않았다: ${JSON.stringify(g1)}`);
-    assert.equal(g1.grants[0].action, 'slack.post');
-    assert.equal(g1.grants[0].target, '#general');
-    assert.ok(g1.grants[0].scope.includes(s.자리), `범위가 실제 자리가 아니다: ${g1.grants[0].scope}`);
+    // 감사 P1: 화면에 나가는 것은 **사람말**이다 — 도구 id·원시 대상 식별자가 아니다.
+    assert.equal(g1.grants[0].label, '슬랙 게시');
+    assert.equal(g1.grants[0].operation, 'send', '실제 행동 종류가 화면 사실에 없다');
+    assert.equal(g1.grants[0].targetLabel, '#general');
     assert.equal(g1.grants[0].active, true);
+    const 원문 = JSON.stringify(g1);
+    assert.ok(!원문.includes('slack.post'), `원시 도구 id 가 화면 응답에 남았다: ${원문}`);
 
     // 3) **다음 턴 같은 행동·같은 대상 — 다시 묻지 않고 실행된다.**
     const 재사용 = await s.턴({ text: '방금 그 내용 슬랙에 다시 올려줘' });
@@ -405,13 +431,86 @@ test('§0-C-3: [계속 허용] 버튼 → 소비 → 다음 턴 재확인 0 → 
     // 4) **철회 버튼** → 즉시 다시 묻는다.
     const rv = await (await fetch(`${s.base}/grants/revoke`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: s.세션, key: g1.grants[0].key }),
+      body: JSON.stringify({ sessionId: s.세션, id: g1.grants[0].id }),
     })).json();
     assert.equal(rv.revoked, true);
     const 철회후 = await s.턴({ text: '한 번 더 슬랙에 올려줘' });
     assert.ok(철회후.pendingId, '철회했는데 다시 묻지 않았다');
     assert.equal(s.발송기록.length, 2, '철회 후 승인 없이 발송됐다');
   } finally { await s.닫기(); }
+});
+
+// ── 감사 P0 · 같은 손이라도 **다른 행동은 다른 권한**이다 ────────────────────
+
+test('감사 P0: 파일 쓰기 허용이 같은 파일의 삭제를 열지 않는다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-p0-'));
+  const 자리 = join(dir, '작업자리');
+  const 파일경로 = join(자리, 'a.txt');   // **작업 자리 안의 파일** — 실제 사용의 모양이다
+  const 실행 = [];
+  const 터미널 = {
+    subjectOf(rec) {
+      const c = rec?.result?.command;
+      return c ? { key: `cmd:${c}`, kind: 'command', label: String(c), detail: rec.result?.cwd } : null;
+    },
+    async probe(c) { return { command: c, cwd: 자리, changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 자리 }, userSafeSummary: '봤어요.' }; },
+  };
+  // 같은 손(`local.file`)이 쓰기도 삭제도 한다 — 실제 제품과 같은 모양이다.
+  const 파일 = {
+    subjectOf(rec) {
+      const p = rec?.result?.path ?? rec?.actualCall?.args?.path;
+      return p ? { key: `file:${p}`, kind: 'file', label: String(p) } : null;
+    },
+    previewOf: (args) => ({ where: args?.path, what: args?.action, impact: `${args?.path} 을(를) ${args?.action}` }),
+    async handler(args) { 실행.push({ ...args }); return { result: { path: args?.path, action: args?.action }, userSafeSummary: '했어요.' }; },
+  };
+  let 대본 = 'terminal';
+  let 첫 = true;
+  const 모델 = { async respond(tc, opts = {}) {
+    if (!opts.tools?.length) return '네';
+    if (첫) {
+      첫 = false;
+      if (대본 === 'terminal') return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] };
+      return { text: '', toolCalls: [{ name: 'local.file', args: { action: 대본, path: 파일경로, text: 'x' } }] };
+    }
+    return { text: '했어요', toolCalls: [] };
+  } };
+  const server = makeServer({
+    store: new SessionStore(dir), env: demoEnv(),
+    tools: demoTools({ localTerminal: 터미널, localFile: 파일 }), model: 모델,
+  });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const 턴 = async (body, kind) => {
+      첫 = true; if (kind) 대본 = kind;
+      return (await (await fetch(`${base}/turn`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: sess.id, ...body }),
+      })).json());
+    };
+    await 턴({ text: '폴더 봐줘' }, 'terminal');           // 자리 확정
+    // ① 쓰기를 24시간 허용한다.
+    const 쓰기카드 = await 턴({ text: `${파일경로} 에 저장해줘` }, 'write');
+    assert.ok(쓰기카드.pendingId, `쓰기 승인 카드가 없다: ${JSON.stringify(쓰기카드).slice(0, 200)}`);
+    await 턴({ approve: 쓰기카드.pendingId, grantKind: 'session' });
+    const 실행수 = 실행.length;
+
+    // ② **같은 손·같은 파일이지만 삭제** — 감사 재현 입력 그대로.
+    const 삭제 = await 턴({ text: `${파일경로} 지워줘` }, 'delete');
+    assert.ok(삭제.pendingId,
+      `파일 쓰기 허용이 같은 파일의 삭제를 열었다(A2 승인이 A3 를 통과시켰다): ${JSON.stringify(삭제).slice(0, 300)}`);
+    assert.equal(삭제.grantsReused, undefined, '삭제가 쓰기 권한을 재사용했다');
+    assert.equal(실행.length, 실행수, '승인 없이 삭제가 실행됐다');
+
+    // ③ 같은 쓰기는 여전히 다시 묻지 않는다 — 과잉 차단으로 뒤집지 않았다.
+    const 같은쓰기 = await 턴({ text: `${파일경로} 에 다시 저장해줘` }, 'write');
+    assert.ok(!같은쓰기.pendingId, `허용한 쓰기인데 다시 물었다: ${JSON.stringify(같은쓰기).slice(0, 200)}`);
+    assert.ok(같은쓰기.grantsReused?.length, '재사용 사실이 결과에 없다');
+  } finally { await new Promise((r) => server.close(r)); }
 });
 
 test('§0-C-3: [이번만 승인]은 권한이 되지 않는다 — 다음 턴에 다시 묻는다', async () => {
@@ -504,4 +603,54 @@ test('§0-C-4: 손상 줄은 정상 줄을 막지 않되 degraded 로 표시된�
   await store.record({ id: 'ok-2', tcellId: 'c2', sourceRefs: ['r2'], now: 2 });
   assert.ok((await store.snapshot()).get('ok-2'));
   void appendFile; // (직접 조작은 위에서 writeFile 로 충분하다)
+});
+
+// ── 감사 P1 · 「지금 자리」는 현재 대상과 무관한 옛 경로를 집지 않는다 ────────
+
+test('감사 P1: 새 대상이 옛 경로와 무관하면 자리는 옛 경로가 아니다(모르면 null)', () => {
+  // 감사 재현 그대로: 현재 대상은 새로 찾은 지난 대화, 두 턴 전 대상이 옛 프로젝트 경로.
+  const 상태 = {
+    turnNo: 5,
+    subjects: [
+      { key: 'search:배포', kind: 'session', label: '지난 대화', lastTurn: 5 },
+      { key: 'cmd:ls', kind: 'command', label: 'ls', detail: '/Users/jyp/Developer/old-project', lastTurn: 3 },
+    ],
+  };
+  assert.equal(currentPlaceOf(상태), null,
+    '현재 대상과 무관한 옛 프로젝트 경로가 "지금 자리"로 올라왔다');
+  // 화면·모델 입력도 같은 사실을 본다(한 계산 자리) — 옛 경로를 지금 자리라고 말하지 않는다.
+  const 사실 = JSON.stringify(workingStateFacts(상태));
+  assert.ok(!사실.includes('지금 자리'), `옛 경로를 지금 자리로 말했다: ${사실}`);
+
+  // 반대 방향(과잉 차단 금지): 현재 대상이 그 자리 **안**이면 자리는 이어진다.
+  assert.equal(currentPlaceOf({
+    turnNo: 5,
+    subjects: [
+      { key: 'file:/Users/jyp/Developer/proj/a.txt', kind: 'file', label: '/Users/jyp/Developer/proj/a.txt', lastTurn: 5 },
+      { key: 'cmd:ls', kind: 'command', label: 'ls', detail: '/Users/jyp/Developer/proj', lastTurn: 3 },
+    ],
+  }), '/Users/jyp/Developer/proj', '같은 자리 안의 파일을 다루는데 자리가 끊겼다');
+
+  // 현재 대상이 자리를 직접 말하면 그것이 자리다(가장 강한 사실).
+  assert.equal(currentPlaceOf({
+    turnNo: 5,
+    subjects: [{ key: 'cmd:ls', kind: 'command', label: 'ls', detail: '/now/here', lastTurn: 5 }],
+  }), '/now/here');
+  assert.equal(currentPlaceOf(null), null);
+});
+
+// ── 감사 P2 · 확인 원장의 **구조 손상**도 손상이다 ──────────────────────────
+
+test('감사 P2: 계약이 틀린 확인 기록은 정상 항목으로 조회되지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-conf3-'));
+  await mkdir(join(dir, 'growth'), { recursive: true });
+  // 감사 주입 그대로 — 문법은 맞지만 **확인 기록 계약이 틀렸다**.
+  await writeFile(join(dir, 'growth', 'confirmations.jsonl'),
+    `${JSON.stringify({ id: 'x', kind: 'wrong', confirmed: 'yes', sourceRefs: 'not-array' })}\n`
+    + `${JSON.stringify({ kind: 'user_confirmation', id: 'ok-1', tcellId: 'c1', at: 1, sourceRefs: ['r'], confirmed: true })}\n`,
+    'utf8');
+  const snap = await new ConfirmationStore(dir).snapshot();
+  assert.equal(snap.get('x'), null, '계약이 틀린 줄이 정상 원장 항목으로 조회됐다');
+  assert.equal(snap.degraded, true, '구조 손상이 degraded 로 보고되지 않았다');
+  assert.ok(snap.get('ok-1'), '정상 줄이 함께 버려졌다');
 });

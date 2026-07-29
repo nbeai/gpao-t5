@@ -68,7 +68,7 @@ test('행렬 3: intent 의 등급 추정은 pre_model 에서 확정 권한이 �
   // 계획이 실제로 서면 그때 커널 판정이 사실이 된다.
   const post = buildTurnFacts({
     stage: 'post_plan', intent, sessionId: 's',
-    plan: { toolsToUse: [], needsApproval: [{ action: 'slack.post', tier: 'A2' }] },
+    plan: { toolsToUse: [], needsApproval: [{ action: 'slack.post', kind: 'send', tier: 'A2' }] },
   });
   assert.equal(post.authorityFacts.tierKnown, true);
   assert.equal(post.authorityFacts.actionTier, 'A2');
@@ -83,7 +83,7 @@ test('행렬 3: intent 의 등급 추정은 pre_model 에서 확정 권한이 �
 // ── 행렬 4 · pending 은 grant 가 아니다 ──
 
 test('행렬 4: once 승인은 소비돼도 권한 원장에 들어가지 않는다', () => {
-  const 계획 = { toolsToUse: ['slack.post'], needsApproval: [{ action: 'slack.post', tier: 'A2' }] };
+  const 계획 = { toolsToUse: ['slack.post'], needsApproval: [{ action: 'slack.post', kind: 'send', tier: 'A2' }] };
   const args = { 'slack.post': { target: '#general' } };
   // 제품의 일반 턴 승인은 전부 `once` 다(turn.js). 그건 재사용 불가이므로 권한이 아니다.
   assert.equal(
@@ -91,9 +91,10 @@ test('행렬 4: once 승인은 소비돼도 권한 원장에 들어가지 않는
     null, 'once 승인이 권한 원장에 들어갔다',
   );
   // 재사용 범위를 가진 승인만 bounded 로 승격한다.
-  const g = grantFromConsumedApproval({ grantScope: { kind: 'session', expiresAt: 9999 }, plan: 계획, sendArgs: args }, { scope: 'project:p', now: 1 });
+  const [g] = grantFromConsumedApproval({ grantScope: { kind: 'session', expiresAt: 9999 }, plan: 계획, sendArgs: args }, { scope: 'project:p', now: 1 });
   assert.equal(g.kind, 'bounded');
   assert.equal(g.action, 'slack.post');
+  assert.equal(g.operation, 'send', '실제 행동 종류가 권한 신분에 없다');
   assert.equal(g.target, '#general');
   assert.equal(g.scope, 'project:p');
   // 대상·범위 중 하나라도 모르면 남기지 않는다 — 무엇을 허락했는지 말할 수 없다.
@@ -102,9 +103,10 @@ test('행렬 4: once 승인은 소비돼도 권한 원장에 들어가지 않는
 });
 
 test('행렬 4: 조회 키는 admission 과 원장이 같은 규칙으로 만든다', () => {
-  const 요소 = { action: 'slack.post', target: '#general', scope: 'project:p' };
+  const 요소 = { action: 'slack.post', kind: 'send', target: '#general', scope: 'project:p' };
   assert.equal(grantKey(요소), grantLedgerKey(요소), '두 층이 서로 다른 키를 만든다(조회가 영영 실패한다)');
-  assert.equal(grantKey({ action: 'x', target: null, scope: 'y' }), null);
+  assert.equal(grantKey({ action: 'x', kind: 'send', target: null, scope: 'y' }), null);
+  assert.equal(grantKey({ action: 'x', kind: null, target: 't', scope: 'y' }), null, 'kind 없이 권한 신분이 만들어졌다');
   assert.equal(grantLedgerKey({}), null);
 });
 
@@ -124,7 +126,7 @@ test('행렬 4: 부여된 권한만 A2 계획 역할을 연다 — 철회·만�
   const ob = new TCellObserver(dir);
   await ob.observeTurn({ sessionId: '과거', ledgerStart: 0, turnId: '1', now: 1, turnReceipts: [영수증()] });
 
-  const 계획 = { toolsToUse: ['slack.post'], needsApproval: [{ action: 'slack.post', tier: 'A2' }] };
+  const 계획 = { toolsToUse: ['slack.post'], needsApproval: [{ action: 'slack.post', kind: 'send', tier: 'A2' }] };
   const args = { 'slack.post': { target: '#general' } };
   const 창 = { previousTurn: [영수증()], previousTurnStart: 0 };
   const 판정 = async (grants) => {
@@ -146,7 +148,7 @@ test('행렬 4: 부여된 권한만 A2 계획 역할을 연다 — 철회·만�
   assert.equal(없음.rejected[0].reason, ADMISSION_REASONS.authority);
 
   // ② 실제로 부여된 bounded grant 가 있으면 참고 가능해진다(실행 승인은 여전히 아니다).
-  const g = grantFromConsumedApproval(
+  const [g] = grantFromConsumedApproval(
     { grantScope: { kind: 'session', expiresAt: 9999 }, plan: 계획, sendArgs: args },
     { scope: `project:${dir}`, now: 1 },
   );

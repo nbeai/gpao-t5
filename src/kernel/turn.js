@@ -770,24 +770,36 @@ async function runTurnInner(input, ctx) {
   // 판정은 세 사실이 전부 조회로 맞아야 한다: 행동(계획) · 대상(확정 인자, 공통 신분 계약) ·
   // 범위(현재 확정 자리). 하나라도 모르면 키가 만들어지지 않아 **묻는 쪽으로 떨어진다.**
   // 통과하면 기존 매듭(`ctx.허락한손` — 이 요청에서 허락된 손)에 얹는다. 새 상태기계를 만들지 않는다.
+  // **재사용 신분은 손 하나가 아니라 (손 · 실제 행동 종류 · 대상 · 범위)** 다(감사 P0).
+  // 같은 `local.file` 이라도 `write` 허용이 `delete` 를 열면 A2 승인이 A3 를 연 것이다.
+  const 재사용키 = new Set();
   if (ctx.grantLookup && ctx.projectId && pendingGrants.length) {
     const 재사용 = [];
     for (const g of pendingGrants) {
       const target = grantTargetOf(sendArgs?.[g.action] ?? intent.toolArgs?.[g.action]);
-      const key = grantKey({ action: g.action, target, scope: `project:${ctx.projectId}` });
+      const key = grantKey({ action: g.action, kind: g.kind, target, scope: `project:${ctx.projectId}` });
       const rec = key ? ctx.grantLookup.get(key) : null;
       const 유효 = rec && rec.kind === 'bounded' && rec.revoked !== true
         && typeof rec.expiresAt === 'number' && rec.expiresAt > nowMs(ctx)
-        && rec.action === g.action && rec.target === target; // 키가 맞아도 내용을 다시 대조한다
+        // 키가 맞아도 내용을 **네 요소 모두** 다시 대조한다(키는 주장, 조회 내용이 사실).
+        && rec.action === g.action && rec.operation === g.kind && rec.target === target;
       if (유효) {
-        ctx.허락한손 = ctx.허락한손 ?? new Set();
-        ctx.허락한손.add(g.action);
-        재사용.push({ action: g.action, target, key });
+        재사용키.add(`${g.action}·${g.kind}`);
+        재사용.push({ action: g.action, operation: g.kind, target, key });
       }
     }
-    if (재사용.length) ctx.grantsReused = 재사용; // 답·원장이 "이전 허용 범위로 진행"을 말할 근거
+    if (재사용.length) {
+      ctx.grantsReused = 재사용;        // 답·원장이 "이전 허용 범위로 진행"을 말할 근거
+      // **면제 신분은 (손·행동)** 이다. 실행 게이트(걸음 경로)가 이걸 본다 —
+      // 손 단위 집합(`허락한손`)에 얹으면 write 허용이 delete 를 여는 P0 가 그대로 돌아온다.
+      ctx.grantExempt = new Set(재사용키);
+    }
   }
-  const 물을것 = pendingGrants.filter((g) => !ctx.허락한손?.has(g.action));
+  // 면제는 **이 경계 항목**에만 적용된다. `허락한손`(요청 안 재확인 면제)은 손 단위라
+  // 여기 섞으면 다른 행동까지 열린다 — 두 계약을 분리해 둔다.
+  const 물을것 = pendingGrants.filter(
+    (g) => !재사용키.has(`${g.action}·${g.kind}`) && !ctx.허락한손?.has(g.action),
+  );
 
   if (물을것.length) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
@@ -853,6 +865,24 @@ async function runTurnInner(input, ctx) {
         preview: g.approvalPreview,
         reason: g.reason, // P6-15: 왜 필요한지/무엇이 바뀌는지/되돌릴 수 있는지(사용자 언어)
       })),
+      // 감사 P1 · **화면은 지킬 수 있는 것만 약속한다.** 「계속 허용」은 (손·행동·대상·자리)
+      // 네 요소가 모두 확정될 때만 실제 권한이 된다. 터미널 명령처럼 대상 신분을 만들 수 없는
+      // 갈래, 자리를 아직 모르는 턴에서는 버튼을 내밀지 않는다 — 눌렀는데 아무 일도 안 일어나면
+      // 사용자는 허용했다고 믿은 채 다음 턴에 또 확인받는다(약속과 능력의 불일치).
+      grantOffer: (() => {
+        const 만들수있는것 = 물을것.filter((g) => grantKey({
+          action: g.action,
+          kind: g.kind,
+          target: grantTargetOf(sendArgs?.[g.action] ?? intent.toolArgs?.[g.action]),
+          scope: ctx.projectId ? `project:${ctx.projectId}` : null,
+        }));
+        if (만들수있는것.length === 물을것.length && 물을것.length) return { available: true };
+        return {
+          available: false,
+          // 왜 못 하는지는 사용자에게 사실로 말한다(정책문 아님).
+          reason: !ctx.projectId ? 'place_unknown' : 'target_unknown',
+        };
+      })(),
       understoodTask: plan.understoodTask,
       selfStateSummary: summary,
       followUp,
@@ -1164,7 +1194,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
       // 이 요청에서 이미 허락받은 손이면 다시 묻지 않는다(같은 질문을 두 번 하지 않는다).
       // 손이 **다르면** 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
-      const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
+      //
+      // 부여된 bounded grant 의 면제는 **(손·실제 행동 종류)** 단위다(감사 P0): 같은 손이라도
+      // `write` 허용이 `delete` 를 열면 A2 승인으로 A3 가 통과한다. 두 면제를 한 집합에
+      // 섞지 않는다 — 요청 안 재확인 면제(`허락한손`)와 24시간 범위 부여는 수명이 다르다.
+      const grants = ctx.허락한손?.has(toolId) ? []
+        : (걸음plan.needsApproval ?? []).filter((g) => !ctx.grantExempt?.has(`${g.action}·${g.kind}`));
       if (grants.length) {
         const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
         이전대기를지난것으로(ctx);

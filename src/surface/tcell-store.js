@@ -221,7 +221,9 @@ export class TCellObserver {
 // **여기 있는 어떤 것도 아직 TaskContext 에 들어가지 않는다** — TG-5 전까지 영향 0.
 import { writeFile, rename, stat } from 'node:fs/promises';
 import { validateTCell, makeTCellCandidate } from '../kernel/l5-growth/tcell-core.js';
-import { grantTargetOf } from '../kernel/l1-intent/turn-facts.js';
+import { grantTargetOf, grantKey } from '../kernel/l1-intent/turn-facts.js';
+// 지시 문장의 정규화는 **한 자리**에서 온다 — 저장 열쇠와 조회 열쇠가 갈리면 영원히 못 찾는다.
+import { normalizeStatement } from '../kernel/l1-intent/statement-text.js';
 
 export class TCellRegistry {
   constructor(dir) {
@@ -328,22 +330,37 @@ export class TCellRegistry {
   }
 
   /**
-   * §0-C-2 · **반대 지시의 지속** — 추출기의 의미 판정(관계 contradicts)을 대상 세포의
-   * correction 으로 남긴다. admission 의 `judgeDirective` 가 이것을 조회해 거절한다.
-   * 같은 지시 참조는 한 번만 남는다(멱등). 판정을 여기서 다시 하지 않는다 — 기록만 한다.
+   * §0-C-2 · **지시–원리 관계의 지속** — 추출기(모델)의 의미 판정을 **그 지시 문장을 열쇠로**
+   * 세포에 남긴다. admission 의 `judgeDirective` 가 **이번 턴에 같은 지시가 왔을 때만** 조회한다.
+   *
+   * 왜 문장이 열쇠인가(감사 P1): 플래그 하나로 남기면 판정 한 번이 이후 무관한 턴까지 원리를
+   * 영구히 죽인다. 열쇠를 지시 문장으로 두면 **수명을 지시가 정한다** — 그 지시가 다시 오면
+   * 다시 적용되고, 안 오면 아무 일도 없다. 근거(`ref`)와 시각은 감사용으로 함께 남긴다.
+   * 같은 (지시·관계)는 한 번만 기록한다(멱등).
    */
-  async recordCorrection(cellId, { kind, ref, at = 0 } = {}) {
-    if (!cellId || !kind || !ref) return { ok: false, why: 'invalid' };
+  async recordDirectiveRelation(cellId, { statement, relation, ref, at = 0 } = {}) {
+    const key = normalizeStatement(statement);
+    if (!cellId || !key || !['contradicts', 'reinforces'].includes(relation) || !ref) {
+      return { ok: false, why: 'invalid' };
+    }
     return this.#mutate(async (a) => {
       const cell = a.cells.find((c) => c.id === cellId);
       if (!cell) return { ok: false, why: 'not_found' };
+      cell.directiveRelations = (cell.directiveRelations && typeof cell.directiveRelations === 'object')
+        ? cell.directiveRelations : {};
+      const 이미 = cell.directiveRelations[key] === relation;
+      cell.directiveRelations[key] = relation;
+      // 근거는 trace 에 남긴다(원문 없이 참조만) — 왜 이 관계가 생겼는지 하강 가능해야 한다.
       cell.trace = cell.trace && typeof cell.trace === 'object' ? cell.trace : {};
       const 목록 = Array.isArray(cell.trace.corrections) ? cell.trace.corrections : [];
-      if (목록.some((c) => c?.kind === kind && c?.ref === ref)) return { ok: true, already: true };
-      cell.trace.corrections = [...목록, { kind, ref, at }];
-      cell.effect = cell.effect && typeof cell.effect === 'object' ? cell.effect : {};
-      cell.effect.userCorrectionCount = (cell.effect.userCorrectionCount ?? 0) + 1;
-      return { ok: true };
+      if (!목록.some((c) => c?.kind === `directive_${relation}` && c?.ref === ref)) {
+        cell.trace.corrections = [...목록, { kind: `directive_${relation}`, ref, at }];
+        if (relation === 'contradicts') {
+          cell.effect = cell.effect && typeof cell.effect === 'object' ? cell.effect : {};
+          cell.effect.userCorrectionCount = (cell.effect.userCorrectionCount ?? 0) + 1;
+        }
+      }
+      return { ok: true, ...(이미 ? { already: true } : {}) };
     });
   }
 
@@ -427,7 +444,20 @@ export class ConfirmationStore {
     }
     for (const line of (raw ?? '').split('\n')) {
       if (!line.trim()) continue;
-      try { const r = JSON.parse(line); if (r?.id) map.set(r.id, r); } catch { corrupt += 1; }
+      let r = null;
+      try { r = JSON.parse(line); } catch { corrupt += 1; continue; }
+      // **문법이 맞다고 기록이 맞는 것은 아니다**(감사 P2). 확인 기록 계약이 틀린 줄은
+      // 정상 항목으로 조회되면 안 된다 — 손상과 "확인 없음"이 구분되지 않으면, 확인이
+      // 필요한 원리가 조용히 거절되거나 **엉뚱한 기록으로 통과**할 수 있다.
+      const ok = r && typeof r === 'object' && !Array.isArray(r)
+        && r.kind === 'user_confirmation'
+        && typeof r.id === 'string' && r.id
+        && typeof r.tcellId === 'string' && r.tcellId
+        && r.confirmed === true
+        && typeof r.at === 'number' && Number.isFinite(r.at)
+        && Array.isArray(r.sourceRefs) && r.sourceRefs.every((x) => typeof x === 'string' && x);
+      if (!ok) { corrupt += 1; continue; }
+      map.set(r.id, r);
     }
     const out = { map, corrupt };
     // 손상이 있으면 캐시하지 않는다 — 복구(줄 정리)가 다음 읽기에 바로 반영돼야 한다.
@@ -471,11 +501,12 @@ export class ConfirmationStore {
  */
 export const GRANT_REUSABLE_KINDS = Object.freeze(['session', 'persist']);
 
-/** 조회 키 — `admission` 이 같은 규칙으로 만든 키로 찾는다(`l1-intent/turn-facts.js` `grantKey`). */
-export function grantLedgerKey({ action, target, scope } = {}) {
-  const s = (v) => (typeof v === 'string' && v ? v : null);
-  return (s(action) && s(target) && s(scope)) ? `grant:${action}:${target}:${scope}` : null;
-}
+/**
+ * 조회 키 — `admission` 이 같은 규칙으로 만든 키로 찾는다(`l1-intent/turn-facts.js` `grantKey`).
+ * **한 규칙, 한 자리**: 여기서 다시 만들지 않고 그 함수를 그대로 쓴다 — 두 층이 서로 다른 키를
+ * 만들면 조회가 영원히 실패하거나(무해), 더 나쁘게는 **다른 행동을 같은 권한으로 본다**(감사 P0).
+ */
+export const grantLedgerKey = grantKey;
 
 /**
  * 소비된 승인 하나 → 원장 기록(또는 `null`). **없는 bounded 를 만들어내지 않는다.**
@@ -485,19 +516,27 @@ export function grantLedgerKey({ action, target, scope } = {}) {
 export function grantFromConsumedApproval(saved, { scope = null, now = 0 } = {}) {
   const g = saved?.chosenGrantScope ?? saved?.grantScope; // 사용자가 버튼으로 고른 범위가 우선(§0-C-3)
   if (!g || !GRANT_REUSABLE_KINDS.includes(g.kind)) return null; // once 는 여기서 끝난다
-  const action = saved?.plan?.toolsToUse?.[0] ?? saved?.plan?.needsApproval?.[0]?.action ?? null;
-  // **공통 대상 신분**(§0-C-3) — 도구 종류가 아니라 인자 필드 계약 하나(target/path/to)로 묶는다.
-  const target = (action ? grantTargetOf(saved?.sendArgs?.[action]) : null)
-    ?? (action ? grantTargetOf(saved?.intent?.toolArgs?.[action]) : null)
-    ?? saved?.intent?.sendTarget?.target ?? null;
-  const key = grantLedgerKey({ action, target, scope });
-  if (!key) return null; // 무엇을·어디에·어느 범위에서 중 하나라도 모르면 권한으로 남기지 않는다
-  return {
-    key, kind: 'bounded', action, target, scope,
-    grantedAt: now,
-    expiresAt: typeof g.expiresAt === 'number' ? g.expiresAt : null,
-    revoked: false,
-  };
+  // **승인 경계 항목이 권한의 주체다** — 손 id 와 **실제 행동 종류**를 함께 든다(감사 P0).
+  // 경계가 여럿이면 여럿을 남긴다: 한 카드로 두 행동을 허락했으면 둘 다 사실이다.
+  const 경계 = (saved?.plan?.needsApproval ?? []).filter((x) => x?.action && x?.kind);
+  if (!경계.length) return null;   // 무슨 행동인지 모르면 권한으로 남기지 않는다
+  const out = [];
+  for (const b of 경계) {
+    // **공통 대상 신분**(§0-C-3) — 도구 종류가 아니라 인자 필드 계약 하나(target/path/to)로 묶는다.
+    const target = grantTargetOf(saved?.sendArgs?.[b.action])
+      ?? grantTargetOf(saved?.intent?.toolArgs?.[b.action])
+      ?? saved?.intent?.sendTarget?.target ?? null;
+    const key = grantLedgerKey({ action: b.action, kind: b.kind, target, scope });
+    if (!key) continue; // 무엇을·어떤 행동으로·어디에·어느 범위에서 중 하나라도 모르면 남기지 않는다
+    out.push({
+      key, kind: 'bounded', action: b.action, operation: b.kind, target, scope,
+      // 사람말 라벨은 저장하지 않는다 — 표면이 조회 시점의 사실로 투영한다(원시 ID 비노출은 표면 계약).
+      grantedAt: now,
+      expiresAt: typeof g.expiresAt === 'number' ? g.expiresAt : null,
+      revoked: false,
+    });
+  }
+  return out.length ? out : null;
 }
 
 /**

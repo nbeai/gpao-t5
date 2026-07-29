@@ -16,37 +16,10 @@ const BUNDLE_CAP = 12; // 명세 §7.3 — 추출 입력은 대화 전체가 아
 
 const 문자열배열 = (v) => (Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0) ? v : null);
 
-// 한국어 어미는 **토큰마다** 벗긴다 — 문장 끝만 처리하면 "않는다" 와 "않습니다" 가 갈린다(실측).
-const 어미 = /(습니다|ㅂ니다|입니다|합니다|하십시오|하세요|한다|는다|은다|ㄴ다|했다|해요|하죠|이다|예요|에요|다|요)$/;
-const 조사 = /(으로|로|에서|에게|한테|까지|부터|은|는|이|가|을|를|의|와|과|도|만)$/;
+// 문장 정규화·근접도는 **L1 단일 자리**에서 온다(추출기·admission·저장소가 같은 열쇠를 쓴다).
+import { normalizeStatement, statementAffinity } from '../kernel/l1-intent/statement-text.js';
 
-/** 의미 비교용 정규화 — 문자열이 달라도 같은 뜻이면 중복이다(§8 중복 수렴). */
-export function normalizeStatement(s) {
-  return String(s ?? '')
-    .toLowerCase()
-    .replace(/[.,!?~"'`()[\]{}·:;]/g, ' ')
-    .replace(/\b(the|a|an|is|are)\b/g, ' ')
-    .split(/\s+/)
-    .map((t) => {
-      let x = t.replace(어미, '');
-      if (!x) x = t;              // 어미만으로 된 토큰은 그대로 둔다
-      const y = x.replace(조사, '');
-      return y || x;
-    })
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-}
-
-/** 두 문장의 의미 근접도(0..1) — 정규화 토큰 자카드. 외부 의존 없이 결정적이다. */
-export function statementAffinity(a, b) {
-  const A = new Set(normalizeStatement(a).split(' ').filter(Boolean));
-  const B = new Set(normalizeStatement(b).split(' ').filter(Boolean));
-  if (!A.size || !B.size) return 0;
-  let inter = 0;
-  for (const t of A) if (B.has(t)) inter += 1;
-  return inter / (A.size + B.size - inter);
-}
+export { normalizeStatement, statementAffinity };
 
 /** 모델 입력 자격 — 플래그 하나가 아니라 schema 검증 + 비밀 없음 + 가독 셋 모두. */
 function 모델에게줄수있나(o) {

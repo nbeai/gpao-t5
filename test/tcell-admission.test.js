@@ -149,24 +149,24 @@ test('6·16: A2/A3 원리는 유효한 bounded grant 없이는 참고 대상이 
   // 등급은 세포가 아니라 **이번 턴 행동의 사실**이다.
   const 전송원리 = () => 세포({ principle: { statement: '보낼 때 대상 확정 후 보낸다', type: 'execution' } });
   const base = (over) => 기본입력(전송원리(), {
-    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
+    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'telegram.send', actionOperation: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
     ...over,
   });
   // grant 없음
   assert.equal(admitPrinciples(base({})).trace.rejected[0].reason, ADMISSION_REASONS.authority);
   for (const [이름, g] of [
-    ['일회성', { kind: 'once', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
-    ['만료', { kind: 'bounded', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 10 }],
-    ['다른 대상', { kind: 'bounded', action: 'send', target: '남', scope: 'project:T5', expiresAt: 9999 }],
-    ['다른 행동', { kind: 'bounded', action: 'delete', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
-    ['다른 범위', { kind: 'bounded', action: 'send', target: '오너', scope: 'project:X', expiresAt: 9999 }],
+    ['일회성', { kind: 'once', action: 'telegram.send', operation: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['만료', { kind: 'bounded', action: 'telegram.send', operation: 'send', target: '오너', scope: 'project:T5', expiresAt: 10 }],
+    ['다른 대상', { kind: 'bounded', action: 'telegram.send', operation: 'send', target: '남', scope: 'project:T5', expiresAt: 9999 }],
+    ['같은 손 다른 행동', { kind: 'bounded', action: 'telegram.send', operation: 'delete', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['다른 범위', { kind: 'bounded', action: 'telegram.send', operation: 'send', target: '오너', scope: 'project:X', expiresAt: 9999 }],
   ]) {
     const r = admitPrinciples(base({ grantStore: 저장소({ g1: g }) }));
     assert.equal(r.admissions.length, 0, `${이름} grant 가 A2 를 열었다`);
     assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.authority);
   }
   // 정확히 일치하는 유효 grant → 참고 가능. 단 실행 승인은 아니다.
-  const ok = admitPrinciples(base({ grantStore: 저장소({ g1: { kind: 'bounded', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 } }) }));
+  const ok = admitPrinciples(base({ grantStore: 저장소({ g1: { kind: 'bounded', action: 'telegram.send', operation: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 } }) }));
   assert.equal(ok.admissions.length, 1);
   assert.equal(ok.admissions[0].authorityAllowed, true);
   assert.equal(ok.admissions[0].reverifyAtExecution, true, '실행 경계 재검증 표시가 없다');
@@ -522,18 +522,22 @@ test('재현 ③: sourceRefs 없는·계보 밖 확인 기록은 인정되지 �
 
 test('재현 ④: grant 는 정확히 bounded·미철회여야 한다', () => {
   const base = (g) => 기본입력(세포(), {
-    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
+    authorityFacts: { actionTier: 'A2', tierKnown: true, actionKind: 'telegram.send', actionOperation: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
     grantStore: 저장소({ g1: g }),
   });
+  const 유효 = { kind: 'bounded', action: 'telegram.send', operation: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 };
   for (const [이름, g] of [
-    ['임의 kind', { kind: '아무거나', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
-    ['kind 없음', { action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
-    ['철회됨', { kind: 'bounded', revoked: true, action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
-    ['비활성', { kind: 'bounded', active: false, action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['임의 kind', { ...유효, kind: '아무거나' }],
+    ['kind 없음', { ...유효, kind: undefined }],
+    ['철회됨', { ...유효, revoked: true }],
+    ['비활성', { ...유효, active: false }],
+    // 감사 P0: 같은 손이라도 **행동 종류가 다르면 다른 권한**이다.
+    ['같은 손 다른 행동', { ...유효, operation: 'delete' }],
+    ['행동 종류 없음', { ...유효, operation: undefined }],
   ]) {
     assert.equal(admitPrinciples(base(g)).admissions.length, 0, `${이름} grant 가 인정됐다`);
   }
-  assert.equal(admitPrinciples(base({ kind: 'bounded', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 })).admissions.length, 1);
+  assert.equal(admitPrinciples(base(유효)).admissions.length, 1);
 });
 
 test('재현 ⑤: 같은 세포 ID 를 두 번 넣어도 한 번만 입장한다', () => {

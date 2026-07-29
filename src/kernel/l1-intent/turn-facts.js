@@ -97,13 +97,21 @@ function 사실들({ ledgerWindow, intent, plan, sessionId, surface, awaiting, s
 }
 
 /**
- * 행렬 4 · grant 조회 키 — **행동·대상·범위 세 요소로만** 만들어진다.
- * admission 은 이 키로 원장을 조회하고, 조회된 grant 의 세 요소를 **다시** 대조한다
+ * 행렬 4 · grant 조회 키 — **손·실제 행동 종류·대상·범위 네 요소가 모두 있어야** 만들어진다.
+ *
+ * `kind` 가 없으면 키도 없다(감사 P0 · 2026-07-29). 재현: `local.file` 하나가 `write` 도
+ * `delete` 도 한다. 손 id 만으로 신분을 만들면 **파일 쓰기 24시간 허용이 같은 파일의 삭제까지
+ * 열어** A2 승인으로 A3 성격의 행동이 통과한다. 이 코드베이스는 같은 병을 이미 한 번 치렀고
+ * (`action-plan.js` `fileKind`: "도구가 아니라 작업으로 판정한다"), 나는 그 매듭을 되돌렸다.
+ *
+ * `kind` 는 여기서 추정하지 않는다 — **authority 층이 판정한 `grant.kind` 사실**을 그대로 받는다.
+ * admission 은 이 키로 원장을 조회하고, 조회된 grant 의 네 요소를 **다시** 대조한다
  * (키가 맞아도 내용이 다르면 거절 — 키 자체는 주장이지 사실이 아니다).
  */
-export function grantKey({ action, target, scope } = {}) {
-  const a = 문자열(action); const t = 문자열(target); const s = 문자열(scope);
-  return (a && t && s) ? `grant:${a}:${t}:${s}` : null;
+export function grantKey({ action, kind, target, scope } = {}) {
+  const a = 문자열(action); const k = 문자열(kind);
+  const t = 문자열(target); const s = 문자열(scope);
+  return (a && k && t && s) ? `grant:${a}:${k}:${t}:${s}` : null;
 }
 
 /**
@@ -174,8 +182,12 @@ export function buildTurnFacts(p = {}) {
 
   const 등급 = 등급판정(stage, { intent: p.intent, plan: p.plan });
   // **대상·행동은 계획의 사실**이다. pre_model 에는 없다 — 없는 것을 지어내지 않는다.
+  // 승인 경계가 있으면 그 항목이 이번 턴 권한 판정의 주체다(손 id 와 **실제 행동 종류**를 함께 든다).
+  const 첫경계 = stage === 'post_plan' ? (p.plan?.needsApproval ?? [])[0] ?? null : null;
   const action = stage === 'post_plan'
-    ? 문자열((p.plan?.toolsToUse ?? [])[0]) ?? 문자열((p.plan?.needsApproval ?? [])[0]?.action) : null;
+    ? 문자열(첫경계?.action) ?? 문자열((p.plan?.toolsToUse ?? [])[0]) : null;
+  // authority 가 판정한 실제 행동 종류. 없으면 권한 신분을 만들지 않는다(모르면 다시 묻는다).
+  const actionOperation = 문자열(첫경계?.kind);
   const target = stage === 'post_plan'
     ? grantTargetOf(p.sendArgs?.[action]) ?? 문자열(p.intent?.sendTarget?.target) : null;
   const scope = project ? `project:${project}` : null;
@@ -193,11 +205,13 @@ export function buildTurnFacts(p = {}) {
       // (호출부가 이걸 보고 계획·값 역할을 막는다).
       ...등급,
       actionKind: action,
+      // 감사 P0: 손 id 와 **실제 행동 종류**는 다른 사실이다. 둘을 합쳐야 권한 신분이 된다.
+      actionOperation,
       target,
       scope,
       // **pending 은 grant 가 아니다**(행렬 4) — 조회 키만 만들고, 실제 부여 여부는
       // admission 이 **부여된 권한 원장**에서 확인한다.
-      grantRef: grantKey({ action, target, scope }),
+      grantRef: grantKey({ action, kind: actionOperation, target, scope }),
     },
   };
 }

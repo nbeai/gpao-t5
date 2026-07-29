@@ -1,0 +1,68 @@
+// 감사 P0~P2 가 보강 전(25242ef)에 실제로 재현되는지 — 기준선 API 만 쓴다.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { grantKey } from '../src/kernel/l1-intent/turn-facts.js';
+import { currentPlaceOf } from '../src/kernel/l0-evidence/working-state.js';
+import { ConfirmationStore, TCellRegistry } from '../src/surface/tcell-store.js';
+import { admitPrinciples, ADMISSION_REASONS } from '../src/kernel/l1-intent/tcell-admission.js';
+import { buildTurnFacts } from '../src/kernel/l1-intent/turn-facts.js';
+import { makeTCellCandidate } from '../src/kernel/l5-growth/tcell-core.js';
+
+test('[P0] write 권한 신분과 delete 권한 신분이 다르다', () => {
+  const w = grantKey({ action: 'local.file', kind: 'write', target: '/tmp/p/a.txt', scope: 'project:/p' });
+  const d = grantKey({ action: 'local.file', kind: 'delete', target: '/tmp/p/a.txt', scope: 'project:/p' });
+  assert.ok(w && d, '권한 신분이 만들어지지 않았다');
+  assert.notEqual(w, d, '쓰기와 삭제가 같은 권한으로 보인다(A2 승인이 A3 를 연다)');
+});
+
+test('[P1] 무관한 새 대상일 때 옛 프로젝트 경로를 자리로 집지 않는다', () => {
+  assert.equal(currentPlaceOf({
+    turnNo: 5,
+    subjects: [
+      { key: 'search:배포', kind: 'session', label: '지난 대화', lastTurn: 5 },
+      { key: 'cmd:ls', kind: 'command', label: 'ls', detail: '/Users/jyp/Developer/old-project', lastTurn: 3 },
+    ],
+  }), null, '무관한 옛 경로가 지금 자리로 올라왔다');
+});
+
+test('[P1] 과거 반대 지시가 무관한 미래 턴을 막지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'before-p1c-'));
+  const reg = new TCellRegistry(dir);
+  const c = makeTCellCandidate({
+    principle: { statement: '보낼 때는 대상을 확인한다', type: 'execution' },
+    boundary: { validWhen: ['실행 성공 직후'], invalidWhen: ['재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+    trace: { observationRefs: ['ledger:과거:0'], corrections: [] },
+    anchor: { project: '/tmp/자리', subject: null }, geometry: { radius: 'task', depth: 0, sphereStability: 0 },
+  });
+  c.id = 'c1'; c.state = 'M3_limited';
+  c.authority = { ...c.authority, allowedInfluence: ['none', 'supporting_context'], requiresUserConfirmation: false };
+  // 보강 전 계약(플래그 하나) — 있는 그대로 심는다.
+  c.trace.corrections = [{ kind: 'user_directive_contradicts', ref: 'request:s:5', at: 10 }];
+  await reg.upsert(c, null);
+  const 저장된 = (await reg.load()).cells.find((x) => x.id === 'c1');
+  const 재료 = buildTurnFacts({
+    stage: 'pre_model', sessionId: 's', workspaceId: '/tmp/자리', projectId: '/tmp/자리',
+    ledgerWindow: { previousTurn: [{ userSafeSummary: '성공', failureState: 'none' }], previousTurnStart: 0 },
+  });
+  const out = admitPrinciples({
+    candidateIds: ['c1'], principleStore: { get: (k) => (k === 'c1' ? 저장된 : null) },
+    evidenceStore: { get: () => ({ type: 'tool_result' }) },
+    confirmationStore: { get: () => null }, grantStore: { get: () => null },
+    stage: 'pre_model', requestFacts: 재료.requestFacts, authorityFacts: 재료.authorityFacts, now: 1000,
+  });
+  assert.equal(out.admissions.length, 1,
+    `현재 지시가 없는 무관한 턴인데 과거 반대 지시가 원리를 막았다: ${JSON.stringify(out.trace.rejected)}`);
+});
+
+test('[P2] 계약이 틀린 확인 기록은 정상 항목으로 조회되지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'before-p2-'));
+  await mkdir(join(dir, 'growth'), { recursive: true });
+  await writeFile(join(dir, 'growth', 'confirmations.jsonl'),
+    `${JSON.stringify({ id: 'x', kind: 'wrong', confirmed: 'yes', sourceRefs: 'not-array' })}\n`, 'utf8');
+  const snap = await new ConfirmationStore(dir).snapshot();
+  assert.equal(snap.get('x'), null, '계약이 틀린 줄이 정상 원장 항목으로 조회됐다');
+  assert.equal(snap.degraded, true, '구조 손상이 degraded 로 보고되지 않았다');
+});

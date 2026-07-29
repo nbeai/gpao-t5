@@ -13,6 +13,7 @@
 //  E. 실패는 빈 성공으로 위장하지 않는다 — status ok|degraded, 후보는 정확히 한 번 나타난다.
 //  F. 영향 0 은 말이 아니라 관통 검사로 증명한다(모델 메시지·스키마·호출·실행·registry 동일).
 import { influenceCeilingFor, INFLUENCE_ROLES } from '../l5-growth/tcell-core.js';
+import { normalizeStatement } from './statement-text.js';
 
 /** 역할의 고정 순서 — `max` 는 이 위의 결정적 최대값이지 휴리스틱이 아니다. */
 export const ROLE_ORDER = Object.freeze([
@@ -163,6 +164,9 @@ function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
   if (!관여역할) return { allowed: true, code: null, grantRef: null };
   const need = {
     action: 문자열(authorityFacts?.actionKind),
+    // 감사 P0: **실제 행동 종류**까지 같아야 같은 권한이다. 같은 손이라도 write 와 delete 는
+    // 다른 행동이고, 다른 등급이다(A2 승인이 A3 를 열면 안 된다).
+    operation: 문자열(authorityFacts?.actionOperation),
     target: 문자열(authorityFacts?.target),
     scope: 문자열(authorityFacts?.scope),
   };
@@ -178,8 +182,9 @@ function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
   const 유효종류 = g.kind === 'bounded';
   const 철회됨 = g.revoked === true || g.active === false;
   const 만료 = typeof g.expiresAt === 'number' ? g.expiresAt <= (typeof now === 'number' ? now : 0) : true;
-  const 일치 = 문자열(g.action) === need.action && 문자열(g.target) === need.target && 문자열(g.scope) === need.scope
-    && need.action !== null && need.target !== null && need.scope !== null;
+  const 일치 = 문자열(g.action) === need.action && 문자열(g.operation) === need.operation
+    && 문자열(g.target) === need.target && 문자열(g.scope) === need.scope
+    && need.action !== null && need.operation !== null && need.target !== null && need.scope !== null;
   if (!유효종류 || 철회됨 || 만료 || !일치) return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
   return { allowed: true, code: null, grantRef: ref };
 }
@@ -351,12 +356,26 @@ export function judgeDirective(cell, requestFacts = {}, facts = []) {
     }
   }
   // **의미 수준의 반대 지시**(§0-C-2): 자연어 부정("보낼 땐 확인하지 마")은 글자 비교로 잡히지
-  // 않는다. 그 의미 판정은 **모델이 있는 자리**(추출기의 관계 판정)에서 이미 내려졌고, 그 결과가
-  // 세포의 correction 으로 **근거 참조와 함께 지속**돼 있다. 여기서는 조회만 한다.
-  // 이 correction 은 사용자가 그 지시를 철회(TG-5C 표면)하기 전까지 유효하다.
-  const 반대지시 = (Array.isArray(cell?.trace?.corrections) ? cell.trace.corrections : [])
-    .find((c) => c?.kind === 'user_directive_contradicts' && c?.withdrawn !== true);
-  if (반대지시) return { relation: 'contradicts', ref: 문자열(반대지시.ref) };
+  // 않는다. 그 의미 판정은 **모델이 있는 자리**(추출기의 관계 판정)에서 내려졌고, 결과는
+  // 세포에 **지시 문장을 열쇠로** 저장돼 있다(`directiveRelations`). 경계 절의 `binding` 과
+  // 같은 모양이다 — 모델이 뜻을 잇고, 여기서는 조회만 한다(핫패스에 의미 판정 없음).
+  //
+  // **이번 턴의 지시에만 적용된다**(감사 P1 · 2026-07-29). 예전에는 correction 이 하나라도
+  // 있으면 이후 무관한 턴까지 영원히 막았다 — 모델의 관계 판정 한 번이 사용자의 일회성
+  // 변심인지 장기 철회인지 구분하지 않고 세포를 조용히 죽였다. 수명은 **지시가 정한다**:
+  //   · 일회성 — 그 턴에만 지시가 오므로 그 턴만 막힌다
+  //   · 범위 한정 — 세포 anchor(project)가 이미 범위를 가른다(다른 자리 세포는 조회조차 안 된다)
+  //   · 장기 철회 — 사용자가 확정한 운영 원리는 관련 턴마다 지시로 다시 공급된다
+  const 관계표 = (cell?.directiveRelations && typeof cell.directiveRelations === 'object')
+    ? cell.directiveRelations : null;
+  if (관계표) {
+    for (const d of 지시) {
+      // 열쇠는 저장할 때와 **같은 정규화**여야 한다(단일 자리 `statement-text.js`).
+      const key = normalizeStatement(d?.statement ?? d);
+      if (key && 관계표[key] === 'contradicts') return { relation: 'contradicts', ref: 문자열(d?.ref) };
+      if (key && 관계표[key] === 'reinforces') return { relation: 'reinforces', ref: 문자열(d?.ref) };
+    }
+  }
   // 원리가 스스로 "이건 덮지 않는다"고 선언한 것이 이번 턴 사실에 있고, 사용자가 지시한 턴이면 충돌이다.
   // 이 경로는 문장 비교가 아니라 **세포 자신의 선언**이므로 3값 판정과 독립적으로 유효하다.
   const 금지 = Array.isArray(cell?.boundary?.mustNotOverride) ? cell.boundary.mustNotOverride : [];

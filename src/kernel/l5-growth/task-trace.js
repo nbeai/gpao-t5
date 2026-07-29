@@ -5,7 +5,7 @@
 // 첫 슬라이스: DefaultTarget(같은 대상으로 반복 전송 → 다음부터 대상 확인 질문 축소). skill/blueprint/profile은 후속.
 
 export const PROMOTION_TYPES = Object.freeze(['default_target', 'skill', 'automation_blueprint', 'profile_rule']);
-const HUMAN_TARGET = /^#[\w가-힣_-]+$|^[\w.+-]+@[\w-]+\.[\w.-]+$|^[가-힣A-Za-z][\w가-힣_ -]{0,30}$/;
+export const HUMAN_TARGET = /^#[\w가-힣_-]+$|^[\w.+-]+@[\w-]+\.[\w.-]+$|^[가-힣A-Za-z][\w가-힣_ -]{0,30}$/;
 
 /** 한 번 수행한 작업 기록(넓게 관찰). 영향은 아직 0 — 승격돼야 행동에 반영된다. */
 export function makeTaskTrace(p) {

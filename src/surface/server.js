@@ -9,11 +9,12 @@ import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
 import { deriveWorkingState, workingStateFacts, currentPlaceOf } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
+import { toolLabel } from '../kernel/tool-labels.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
@@ -59,7 +60,7 @@ import {
 } from './tcell-store.js';
 import { wakeSignal, groupObservations, buildEvidenceBundle, extractCandidate } from '../runtime/tcell-extractor.js';
 import {
-  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
+  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget, HUMAN_TARGET,
 } from '../kernel/l5-growth/task-trace.js';
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
@@ -174,13 +175,14 @@ export function makeServer(deps = {}) {
         if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
         await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
       }
-      // §0-C-2 · **의미 수준 반대 지시의 지속.** 모델(추출기)이 "이 지시는 기존 원리의 반대"라고
-      // 판정하면 그 사실을 대상 세포의 correction 으로 남긴다 — 다음 턴부터 admission 의
-      // judgeDirective 가 조회해 거절한다. 근거는 이 지시의 관찰 참조다(추측이 아니라 자기 참조).
+      // §0-C-2 · **의미 수준 지시–원리 관계의 지속.** 모델(추출기)이 "이 지시는 기존 원리의
+      // 반대"라고 판정하면 그 사실을 **그 지시 문장을 열쇠로** 대상 세포에 남긴다.
+      // admission 은 **이번 턴에 같은 지시가 왔을 때만** 조회한다(감사 P1: 플래그 하나로
+      // 남기면 판정 한 번이 무관한 미래 턴까지 원리를 죽인다 — 수명은 지시가 정한다).
       // 지시가 있던 턴에만 남긴다 — 관찰 사이의 우연한 모순으로 사용자 지시를 지어내지 않는다.
-      if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef) {
-        await tcellRegistry.recordCorrection(r.relation.id, {
-          kind: 'user_directive_contradicts', ref: instructionRef, at: Date.now(),
+      if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef && regexHit?.statement) {
+        await tcellRegistry.recordDirectiveRelation(r.relation.id, {
+          statement: regexHit.statement, relation: 'contradicts', ref: instructionRef, at: Date.now(),
         }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
       }
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
@@ -353,11 +355,45 @@ export function makeServer(deps = {}) {
     // §0-C-1·3: 범위는 **실제 확정 자리**다. 자리를 모르면 grant 는 만들어지지 않는다 —
     // "어디까지 허락했는가"를 말할 수 없는 권한은 권한이 아니다(매번 다시 묻는 쪽이 정직하다).
     const place = currentPlaceOf(session.workingState);
-    const g = grantFromConsumedApproval(saved, { scope: place ? `project:${place}` : null, now });
-    if (!g) return;
+    const gs = grantFromConsumedApproval(saved, { scope: place ? `project:${place}` : null, now });
+    if (!gs?.length) return [];
     const 목록 = session.grants ?? [];
     // 같은 키의 옛 부여는 남겨 둔다 — 조회기가 가장 최근 것을 고르고, 이력은 감사 자산이다.
-    session.grants = [...목록, g].slice(-50); // 상한: 원장이 세션 파일을 무한히 키우지 않게
+    session.grants = [...목록, ...gs].slice(-50); // 상한: 원장이 세션 파일을 무한히 키우지 않게
+    return gs;
+  }
+
+  /**
+   * 감사 P1 · **부여 권한의 사용자면 투영** — 내부 실행은 원시 ID, 화면은 검증된 사람말 라벨.
+   * 실측 위험: `telegram.send → 8601204821` 이 그대로 보인다(도구 id·메신저 원시 식별자).
+   * 라벨은 **조회 시점의 사실**로 만든다(저장하지 않는다 — 라벨이 바뀌면 화면도 따라야 한다).
+   */
+  /** 조회 키 → 화면 손잡이. 되돌릴 수 있어야 하므로 결정적이되, 내부 id 를 담지 않는다. */
+  const grantHandle = (key) => createHash('sha256').update(String(key)).digest('hex').slice(0, 16);
+
+  async function projectGrantsForSurface(grants, now) {
+    const selfState = buildSelfState(env, { tools });
+    const targets = await channelTargetsFor().catch(() => ({}));
+    const 사람말대상 = (action, raw) => {
+      const 아는곳 = (targets[action] ?? []).find((t) => t.target === raw);
+      if (아는곳?.label) return 아는곳.label;
+      // 채널이 모르는 대상은 **사람이 읽을 수 있는 모양일 때만** 그대로 쓴다(경로·이름 등).
+      // 그 밖(숫자 id 같은 원시 식별자)은 사람 말이 아니므로 화면에 내보내지 않는다.
+      return HUMAN_TARGET.test(String(raw ?? '')) ? String(raw) : '확인된 대상';
+    };
+    return grants.map((g) => ({
+      // **화면 손잡이는 불투명하다.** 조회 키(`grant:도구id:행동:대상:자리`)를 그대로 내보내면
+      // 라벨을 아무리 잘 만들어도 id 가 그 안에 실려 나간다(감사 P1 재현). 되돌릴 수 있는
+      // 손잡이만 주고, 무엇을 가리키는지는 서버가 안다.
+      id: grantHandle(g.key),
+      label: toolLabel(g.action, selfState),      // 손의 사람말 이름(descriptor 단일 진실)
+      operation: g.operation,                     // 실제 행동 종류(권한 신분의 일부)
+      targetLabel: 사람말대상(g.action, g.target),
+      grantedAt: g.grantedAt,
+      expiresAt: g.expiresAt,
+      active: g.revoked !== true && typeof g.expiresAt === 'number' && g.expiresAt > now,
+      revoked: g.revoked === true,
+    }));
   }
 
   /**
@@ -460,7 +496,21 @@ export function makeServer(deps = {}) {
     session.ledgerEntries = ctx.ledger.entries;
     // 행렬 4: **실제로 소비된 승인만** 권한이 된다. 거절·만료·유령 ID 는 여기 오지 않는다.
     if (result.approvalConsumed?.approved === true && 승인대상) {
-      recordGrantIfBounded(session, 승인대상, Date.now());
+      const 부여됨 = recordGrantIfBounded(session, 승인대상, Date.now());
+      // 감사 P1 · **누른 결과를 숨기지 않는다.** [계속 허용]을 눌렀는데 권한이 만들어지지
+      // 않았다면(자리 미상·대상 미상·행동 종류 미상) 사용자는 허용했다고 믿은 채 다음 턴에
+      // 다시 확인받게 된다. 화면과 원장이 같은 사실을 보게 이유를 함께 싣는다.
+      if (input.grantKind === 'session') {
+        const place = currentPlaceOf(session.workingState);
+        result.grantOutcome = 부여됨.length
+          ? { granted: true, grants: await projectGrantsForSurface(부여됨, Date.now()) }
+          : {
+            granted: false,
+            reason: !place ? 'place_unknown'
+              : !(승인대상.plan?.needsApproval ?? []).some((b) => b?.action && b?.kind) ? 'action_unknown'
+                : 'target_unknown',
+          };
+      }
     }
     // 행렬 6: 이 턴이 만든 관찰이 살 자리. workingState 는 턴 결과로 갱신되므로 그것을 쓴다.
     const 이번턴anchor = anchorFor(
@@ -734,17 +784,13 @@ export function makeServer(deps = {}) {
         // 같은 키는 최신 것 하나만 보인다(조회기와 같은 규칙 — 두 진실 금지).
         const 최신 = new Map();
         for (const g of s.grants ?? []) if (g?.key) 최신.set(g.key, g);
-        const grants = [...최신.values()].map((g) => ({
-          key: g.key, action: g.action, target: g.target, scope: g.scope,
-          grantedAt: g.grantedAt, expiresAt: g.expiresAt,
-          active: g.revoked !== true && typeof g.expiresAt === 'number' && g.expiresAt > now,
-          revoked: g.revoked === true,
-        }));
-        return sendJson(res, 200, { grants });
+        // 감사 P1: 화면에는 **사람말만** 나간다 — 도구 id·원시 대상 식별자는 여기서 끝난다.
+        return sendJson(res, 200, { grants: await projectGrantsForSurface([...최신.values()], now) });
       }
       if (req.method === 'POST' && url === '/grants/revoke') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        if (typeof input.sessionId !== 'string' || typeof input.key !== 'string') {
+        // 화면은 불투명 손잡이만 안다 — 서버가 그것을 실제 키로 되돌린다.
+        if (typeof input.sessionId !== 'string' || typeof input.id !== 'string') {
           return sendJson(res, 400, { error: '세션과 대상이 필요해요.' });
         }
         const result = await withSessionQueue(input.sessionId, async () => {
@@ -752,7 +798,7 @@ export function makeServer(deps = {}) {
           if (!s) return null;
           let 철회수 = 0;
           for (const g of s.grants ?? []) {
-            if (g?.key === input.key && g.revoked !== true) { g.revoked = true; 철회수 += 1; }
+            if (g?.key && grantHandle(g.key) === input.id && g.revoked !== true) { g.revoked = true; 철회수 += 1; }
           }
           await store.save(s);
           return { revoked: 철회수 > 0 };
