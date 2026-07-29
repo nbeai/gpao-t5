@@ -1,6 +1,6 @@
 # GPAO-T5 현재 세션 인수인계
 
-- 갱신 시각: 2026-07-29 (Asia/Seoul) · **Codex 통합 진실 재대조**
+- 갱신 시각: 2026-07-30 (Asia/Seoul) · **Codex 통합 진실 재대조**
 - 성격: 새 세션이 현재 P-OP 작업을 바로 이어받기 위한 **고정 진입 문서**
 - 정본 상태: 이 문서는 계획과 계약을 대체하지 않는다. **§0은 Codex 통합 책임자만 갱신한다.**
   Claude·병렬 구현선은 구현 증거를 제출하고 §0을 직접 완료 상태로 바꾸지 않는다.
@@ -15,18 +15,26 @@
 현재 착수 위치를 판단하는 근거로 쓰지 않는다.
 
 - 현재 브랜치: `claude/p-op-1-a-system-view`
-- 현재 Git HEAD: **`97f03a4`** · 현재 코드 커밋: **`3b01f47`**
-- 원격 상태: `origin/claude/p-op-1-a-system-view`보다 **4커밋 앞**(2026-07-29 재대조 시점)
-- worktree 상태: **DIRTY** — Claude 구현선이 아래 3파일을 수정 중이다. Codex·병렬 에이전트는
+- 현재 Git HEAD: **`e1cb07a`**
+- 원격 상태: `origin/claude/p-op-1-a-system-view`와 동기화(2026-07-30 재대조 시점)
+- worktree 상태: **DIRTY** — Claude 구현선이 아래 7파일을 수정 중이다. Codex·병렬 에이전트는
   제출 전까지 이 파일을 공동 편집하지 않는다.
+  - `src/kernel/l0-evidence/tcell-observation.js`
   - `src/runtime/model-provider.js`
   - `src/runtime/tcell-extractor.js`
+  - `src/surface/server.js`
+  - `src/surface/tcell-store.js`
+  - `test/tcell-audit-closure.test.js`
   - `test/tcell-live-model-semantics.test.js`
+  - 미추적 구현 증거:
+    `docs/03-verification/evidence/tcell/tg-5/TG-5A-LIVE-GENEALOGY-EVIDENCE-2026-07-29-ko.md`
+  - `.beai-harness/`, `workspace-notes/`는 Codex 작업 중 생성된 비제품 보조 산출물이며 제품 변경 근거가 아니다.
 - 현재 단계: **TG-5A shadow admission**
-- 구현 상태: 감사 3회차 커밋까지 Claude 자체 검증. **실모델 생산 계보 재작성은 미커밋·미검증**.
+- 구현 상태: **실모델 생산 계보 재작성은 미커밋·미검증**. 구현자 보고만으로 봉인하지 않는다.
 - 독립 감사 상태: **TG-5A 미봉인**.
 - 현재 테스트 사실:
-  - 구현자 자체 검증: **1,336건 통과 · 실패 0 · 미실행 4**(실모델)
+  - 아래 1,336건 수치는 직전 커밋의 역사 기록이다. 현재 7파일 dirty 변경에는 새 전체 회귀·gate
+    독립 증거가 없으므로 현재 통과 수치로 승계하지 않는다.
   - 축소 재현: `b7ffa6a` 4/4 · `25242ef` 4/4 · `fd765d4` #1·#5·#6 실패 → 현재 전부 통과
   - T5 연결 저장소에는 **OpenAI API와 Anthropic API 연결이 실제로 존재**한다. 셸 환경변수 부재를
     자격 부재로 쓰지 않는다. 비밀값은 인수인계·로그·시험 파일에 기록하지 않는다.
@@ -42,9 +50,25 @@
   - `importLegacyMemory()`도 현재 `src/` 생산 코드의 소비자가 없고 시험에서만 호출된다.
   - 따라서 현재 생산 경로가 증명할 수 있는 끝은 **M1 후보 생성 → 다음 턴 조회 → 성숙도 부족으로
     영향 0 거절**이다. `M1 → replay → M2 → 실제 입장` 전체 수명주기는 아직 생산 배선·검증되지 않았다.
+- 2026-07-30 Hermes 코드 대조 감사:
+  - 별도 worktree/branch: `codex/hermes-tcell-engineering-audit`
+  - 감사 도구: `scripts/audit-tcell-runtime-plane.mjs`
+  - 정본 결정: `design/T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md`
+  - 현재 기준선 실측은 세 공백을 검출한다:
+    1. foreground admission이 durable registry/evidence/confirmation/grant 저장소를 읽음
+    2. background 추출이 서버 전역 잠금 하나라 세션 간 wake 유실 가능
+    3. `transitionCell`/`makeReplayCase`/`importLegacyMemory` 생산 소비자 0
+  - Claude의 현재 dirty `server.js`에는 세션별 추출 `Map`이 들어가 2번을 고치는 중이다. 같은 dirty
+    경로에서 `input.text` 원문이 extraction bundle로 직접 들어가는 새 프라이버시 공백이 자동 감사에
+    잡혔다. 제출 전까지 둘 다 미검증이며, 완료·회귀로 승계하지 않는다.
+  - TG-0~4를 폐기하지 않는다. 성장 루프를 응답 뒤 세션별 control plane으로 연결하고, 사용자 턴은
+    미리 게시된 scope snapshot만 읽는 data plane으로 만든다.
 - TG-5A 봉인 조건: 수동 상태·권한 변경과 admission 직접 호출 없이 실제 제품 입구에서 다음 실제
   서버 턴의 `principleTrace`까지 독립 실행하고, **현재 단계가 실제로 보장하는 끝을 과장 없이 기록**한다.
-- TG-5B 진입: **금지**. TG-5A 독립 봉인과 TG-2~4 수명주기 통합 공백의 명시적 처리 전에는 열지 않는다.
+- TG-5B 진입: **금지**. 다음 세 조건이 독립 실행으로 닫히기 전에는 실제 영향을 열지 않는다.
+  1. 세션별 background 성장 큐와 사용자 턴 격리
+  2. `M1 → replay → M2/M3 → scope snapshot 게시` 생산 수명주기
+  3. 사용자 턴의 T-cell model/network/fs/replay/registry mutation 0
 - P-OP-7: 최종 PASS·오너 승인 완료. C·D·E-1 지정 외부계정 검증은
   `OUT_OF_SCOPE_BY_OWNER`이며 현재 차단으로 되살리지 않는다.
 
@@ -72,10 +96,12 @@
 
 ### 역할별 다음 행동
 
-- **Claude 구현선**: 위 3개 dirty 파일의 실제 생산 계보 시험을 완결하고 구현 증거를 제출한다.
+- **Claude 구현선**: 위 7개 dirty 파일을 먼저 하나의 정직한 제출 단위로 정리한다. 그 뒤
+  background control plane 생산 계보를 정본 결정의 종료 조건에 맞춰 구현하고 증거를 제출한다.
   §0 현재 진실 패킷은 수정하지 않는다. TG-5B·다른 T-cell 영향 단계 착수 금지.
-- **Codex 감사선**: 같은 파일을 수정하지 않는다. 보강 전 전체 행렬을 확정하고, 제출 뒤 생산 경로·
-  반대시험·공식 gate를 한 번에 판정한다. Git·런타임·제품 연결 상태를 대조해 §0을 단독 갱신한다.
+- **Codex 감사선**: 같은 파일을 수정하지 않는다. Hermes 생산 코드·검사를 대조한 구조 결정과
+  자동 감사 도구를 유지한다. 제출 뒤 생산 경로·반대시험·공식 gate·인간 마찰 지표를 한 번에 판정한다.
+  Git·런타임·제품 연결 상태를 대조해 §0을 단독 갱신한다.
   새 인접 결함을 뒤늦게 나누어 전달하지 않으며, 감사 응답에는 문제·재현·영향·위반 계약·종료
   조건만 싣고 구현 해법은 제시하지 않는다.
 - **오너**: 기술 범위를 중재하지 않는다. 제품 철학·우선순위·실제 권한 결정만 맡는다.

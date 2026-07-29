@@ -1309,8 +1309,16 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 
 ### TG-5. POM admission과 실제 영향
 
+> **2026-07-30 런타임 결정**:
+> `T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md`는 이 절의
+> 생산 배선 정본이다. T-cell 성장(관찰·추출·replay·승격·효과 감사)은 사용자 응답 뒤의
+> 세션별 background control plane에서 수행한다. 사용자 턴은 미리 게시된 scope snapshot만 읽는
+> data plane이며 model/network/fs/replay/registry mutation을 수행하지 않는다. 명시적 사용자 지시는
+> T-cell을 기다리지 않고 현재 요청/POM 레인에서 즉시 효력을 가진다.
+
 작업:
 
+- M1 → replay → M2/M3 생산 계보와 scope snapshot 게시
 - 현재 요청/active target/project/authority 기준 admission
 - TaskContext `admittedPrinciples`
 - principleTrace
@@ -1320,6 +1328,10 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 
 검사:
 
+- 사용자 턴의 T-cell model/network/fs/replay/mutation 0
+- 한 세션의 성장 작업이 다른 세션의 wake를 유실시키지 않음
+- background worker가 user transcript·external memory namespace·실행 도구를 오염시키지 않음
+- M1 → replay → M2 → 게시 snapshot → 다음 턴 admission 관통
 - retrieved지만 미입장된 원리 영향 0
 - 오래된 project 원리가 현재 project를 덮지 않음
 - 현재 사용자 정정 즉시 우선
