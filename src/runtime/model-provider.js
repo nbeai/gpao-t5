@@ -241,6 +241,9 @@ export function buildModelMessages(tc) {
   }
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
+  // **왜 여기서 멈췄는가** — 런타임이 아는 사실이다(감사 2026-07-29: 이걸 안 줘서 시킨 일의
+  // 절반이 조용히 사라지고 답은 "네" 로 끝났다). 대본이 아니라 사실 한 줄이다.
+  if (tc.stoppedBecause) usr.push(`[이번 턴에 멈춘 이유]\n${tc.stoppedBecause}`);
   usr.push(tc.currentRequest); // 원문 보존
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.

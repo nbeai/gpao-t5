@@ -371,16 +371,33 @@ export function makeServer(deps = {}) {
   /** 조회 키 → 화면 손잡이. 되돌릴 수 있어야 하므로 결정적이되, 내부 id 를 담지 않는다. */
   const grantHandle = (key) => createHash('sha256').update(String(key)).digest('hex').slice(0, 16);
 
+  /**
+   * 감사 P1·#6 · **대상의 사람말 이름.** 원시 식별자는 내보내지 않되, 서로 다른 대상이
+   * 모두 「확인된 대상」으로 뭉개지면 사용자는 무엇을 철회해야 하는지 알 수 없다(감사 재현).
+   * 사람이 실제로 구별하는 이름을 준다: 채널 라벨 → 파일이면 이름(+상위 폴더) → 사람 말 모양 →
+   * 그래도 모르면 마지막 네 자만(전체 id 는 끝까지 내보내지 않는다).
+   */
+  function 대상라벨(targets, action, raw) {
+    const s = String(raw ?? '');
+    if (!s) return '확인된 대상';
+    const 아는곳 = (targets[action] ?? []).find((t) => t.target === s);
+    if (아는곳?.label) return 아는곳.label;
+    if (s.startsWith('/')) {
+      // 파일·폴더는 **이름으로** 구별한다. 전체 경로는 화면을 먹고, 이름만으론 동명이인이 생긴다.
+      const 조각 = s.replace(/\/$/, '').split('/').filter(Boolean);
+      const 이름 = 조각.at(-1) ?? s;
+      const 상위 = 조각.at(-2);
+      return 상위 ? `${상위}/${이름}` : `/${이름}`;
+    }
+    if (HUMAN_TARGET.test(s)) return s;
+    // 원시 식별자(숫자 id 등) — 그대로 내보내지 않는다. 다만 **구별은 되어야** 하므로 끝자리만.
+    return `번호 …${s.slice(-4)}`;
+  }
+
   async function projectGrantsForSurface(grants, now) {
     const selfState = buildSelfState(env, { tools });
     const targets = await channelTargetsFor().catch(() => ({}));
-    const 사람말대상 = (action, raw) => {
-      const 아는곳 = (targets[action] ?? []).find((t) => t.target === raw);
-      if (아는곳?.label) return 아는곳.label;
-      // 채널이 모르는 대상은 **사람이 읽을 수 있는 모양일 때만** 그대로 쓴다(경로·이름 등).
-      // 그 밖(숫자 id 같은 원시 식별자)은 사람 말이 아니므로 화면에 내보내지 않는다.
-      return HUMAN_TARGET.test(String(raw ?? '')) ? String(raw) : '확인된 대상';
-    };
+    const 사람말대상 = (action, raw) => 대상라벨(targets, action, raw);
     return grants.map((g) => ({
       // **화면 손잡이는 불투명하다.** 조회 키(`grant:도구id:행동:대상:자리`)를 그대로 내보내면
       // 라벨을 아무리 잘 만들어도 id 가 그 안에 실려 나간다(감사 P1 재현). 되돌릴 수 있는
@@ -491,6 +508,17 @@ export function makeServer(deps = {}) {
       const soul = await selfhoodStore.setName(result.identityUpdate.name);
       selfhoodDocs = { ...selfhoodDocs, soul };
       identity = { name: result.identityUpdate.name, named: true };
+    }
+    // 감사 #5 · **재사용 고지에도 원시 ID·내부 키를 두지 않는다.** 커널은 실행 신분으로
+    // (손·행동·대상·키)를 들고 있지만, 화면에 나가는 것은 사람 말뿐이다 — `/grants` 와 같은 계약.
+    if (result.grantsReused?.length) {
+      const targets = await channelTargetsFor().catch(() => ({}));
+      const selfState = buildSelfState(env, { tools });
+      result.grantsReused = result.grantsReused.map((g) => ({
+        label: toolLabel(g.action, selfState),
+        operation: g.operation,
+        targetLabel: 대상라벨(targets, g.action, g.target),
+      }));
     }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;

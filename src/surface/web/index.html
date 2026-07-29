@@ -1470,7 +1470,8 @@ function renderResult(r, opts = {}) {
   // §0-C-3: 이전에 허용한 범위로 진행했으면 그 사실을 조용히 밝힌다 — 몰래 실행처럼 보이면 안 된다.
   // 여기에도 원시 id 를 쓰지 않는다(감사 P1) — 어떤 일이었는지는 사람 말로.
   if (r.grantsReused?.length) {
-    const 일 = r.grantsReused.map((g) => OPERATION_WORD[g.operation] ?? '실행');
+    // 서버가 사람말로 투영해 준 것만 그린다(#5: 도구 id·원시 대상·내부 키 비노출).
+    const 일 = r.grantsReused.map((g) => `${g.label} · ${OPERATION_WORD[g.operation] ?? '실행'} → ${g.targetLabel}`);
     box.appendChild(el('why', `이전에 허용하신 범위라 다시 묻지 않고 진행했어요 (${[...new Set(일)].join(', ')}) — 철회는 요약의 '허용한 범위'에서.`));
   }
   // 감사 P1: 「계속 허용」을 눌렀는데 권한이 만들어지지 않았으면 **그 사실을 알린다.**
