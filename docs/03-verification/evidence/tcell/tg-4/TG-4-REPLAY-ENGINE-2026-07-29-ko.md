@@ -95,3 +95,36 @@ require(·import(·writeFile·appendFile·child_process) 문자열 0 · import �
 | replay 없는 한 단계 applyTransition | 공개 함수 부재 · 단일 통로는 자료 없으면 M1·`untested` 유지 |
 
 전체 회귀 **1281건 통과** · 게이트 **PASS**(CPU 21.9s · 벽시계 11.3s) — **자체 검증 완료·독립 감사 대기**.
+
+---
+
+# 재감사 차단 3건 (2026-07-29 · 4차) — 자체 검증 완료 · 독립 감사 대기
+
+**내 행동 결함의 정확한 이름**: 지적된 인스턴스만 고치고 **같은 모양의 나머지를 훑지 않았다.**
+확인·transfer 를 조회로 바꾸면서 바로 옆의 `executions` 는 주장 그대로 뒀고,
+`FRICTION_METRICS` 를 11종으로 정의하고 필수 지표를 7종으로 쓰면서 왜 다른지 자문하지 않았다.
+
+1. **실행 결과도 저장소가 말한다** — `executions` → `executionRefs`. 조회된 기록은
+   `kind:'replay_execution'` · `tcellId === cell.id` · `caseId` 일치 · `sourceRefs` 가 세포 계보 안 ·
+   `facts.held/happened` 배열을 모두 만족해야 한다. 하나라도 어긋나면 `insufficient_evidence`.
+2. **확인·transfer 의 필수 필드** — `계보검사()` 한 곳에서: 정확한 `kind` · `tcellId`(없으면 불일치와
+   동일) · 유효한 시각 · 원본 `sourceRefs`/`caseRefs` · 계보 일치. `{confirmed:true, at:1}` 처럼
+   tcellId 없는 기록은 이제 인정되지 않는다.
+3. **필수 비교 스키마 = `activeTargetAccuracy` + `FRICTION_METRICS` 전체(12종)** — 파생으로 정의해
+   둘이 다시 어긋날 수 없게 했다. 12종을 하나씩 빼거나 비수치로 만들면 각각 판정 불가.
+
+## 패킷 전 필드 전수 점검 (이번에 빠뜨리지 않기 위해 추가한 단계)
+| 필드 | 상태 |
+|---|---|
+| `executionRefs` · `evidenceStore` · `transferRef` · `userConfirmationRef` | **조회** ✓ |
+| `cases` | 정의는 호출자, **sourceRefs 조회 + 계보 검사 + 실행 기록 조회**로 판정 근거는 확보. 남은 표면: 사례 기대문 자체는 호출자가 쓴다(사례도 기록으로 올리는 것이 다음 단계 후보) |
+| `baseline` · `candidate` | **아직 호출자 측정값** — 감사 지정 범위 밖이라 이번에 바꾸지 않고 코드 주석과 여기에 드러낸다 |
+| `now` | 시각(무해) |
+
+## 반대시험 (감사 지정 입력 그대로)
+실행 기록 없이 성공 주장 → 판정 불가 · 실행 기록 tcellId/caseId/sourceRefs/kind/facts 불일치 5종 →
+각각 판정 불가 · 확인 기록 kind·tcellId·시각·참조 없음 4종 + 다른 세포 + 계보 밖 → 각각 M1 유지 ·
+transfer tcellId 없음/다른 세포 → M3 유지 · 필수 지표 12종 각각 결측·비수치 24경우 → 전부 판정 불가 ·
+**대조군**(모든 기록·지표 정상) → 정상 통과·M2·M3·M4 계단 정상.
+
+전체 회귀 **1282건 통과** · 게이트 **PASS**(CPU 22.1s) — **자체 검증 완료·독립 감사 대기**.

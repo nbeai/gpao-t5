@@ -39,10 +39,7 @@ export const FRICTION_METRICS = Object.freeze([
  * 비교에 **반드시 있어야 하는 측정값**(감사 2026-07-29): 하나라도 없거나 수가 아니면
  * "나빠진 게 없다"가 아니라 **판정 불가**다. 빈 baseline/candidate 가 통과하던 구멍을 닫는다.
  */
-export const REQUIRED_COMPARISON_METRICS = Object.freeze([
-  'activeTargetAccuracy', 'unnecessaryQuestions', 'unnecessaryConfirmations',
-  'userInterventions', 'userCorrections', 'missedApprovals', 'turnsToSuccess',
-]);
+export const REQUIRED_COMPARISON_METRICS = Object.freeze(['activeTargetAccuracy', ...FRICTION_METRICS]);
 
 const 수 = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -112,16 +109,44 @@ export function foldOutcomes(outcomes = []) {
 export function makeVerifiedReplayPacket(p = {}) {
   return {
     cases: Array.isArray(p.cases) ? p.cases : [],
-    // 실행 증거: {caseId, executedAt, facts:{held[],happened[],influenceRole,actionKind}}
-    executions: Array.isArray(p.executions) ? p.executions : [],
+    // **참조만 받는다.** 실행 결과·확인·transfer 의 내용은 전부 저장소가 말한다(감사 2026-07-29).
+    // 호출자가 `facts.held` 를 주장해 통과시키던 마지막 구멍을 닫는다.
+    executionRefs: Array.isArray(p.executionRefs) ? p.executionRefs.filter((r) => typeof r === 'string') : [],
     evidenceStore: p.evidenceStore ?? null,
+    // 주의(전수 점검 2026-07-29): baseline/candidate 는 **아직 호출자가 주는 측정값**이다.
+    // 감사 지정 범위 밖이라 이번에 바꾸지 않고 드러내 둔다 — 통합 시 기록 조회로 올릴 후보.
     baseline: p.baseline ?? null,
     candidate: p.candidate ?? null,
-    // **참조만 받는다.** 내용은 저장소에서 조회한다 — 호출자가 통과를 주장할 수 없다(감사).
     transferRef: typeof p.transferRef === 'string' ? p.transferRef : null,
     userConfirmationRef: typeof p.userConfirmationRef === 'string' ? p.userConfirmationRef : null,
     now: 수(p.now) ?? 0,
   };
+}
+
+/** 기록 종류 — 조회된 기록이 **무엇인지**까지 맞아야 인정한다(형태만 닮은 객체 차단). */
+export const EVIDENCE_KINDS = Object.freeze({
+  execution: 'replay_execution', confirmation: 'user_confirmation', transfer: 'transfer_replay',
+});
+
+/**
+ * 조회된 기록이 이 세포·이 계보의 것인지 확인한다 — **필드가 없으면 불일치와 같다**(감사).
+ * `tcellId` 없는 기록이 인정되던 구멍을 닫는다.
+ */
+function 계보검사(rec, { kind, cell, 계보, caseId }) {
+  const bad = [];
+  if (!rec || typeof rec !== 'object') return ['기록 없음'];
+  if (rec.kind !== kind) bad.push(`kind≠${kind}`);
+  if (typeof rec.tcellId !== 'string' || !rec.tcellId) bad.push('tcellId 없음');
+  else if (cell?.id && rec.tcellId !== cell.id) bad.push('다른 세포의 기록');
+  if (수(rec.at ?? rec.executedAt) === null) bad.push('시각 없음');
+  const refs = Array.isArray(rec.sourceRefs) ? rec.sourceRefs
+    : (Array.isArray(rec.caseRefs) ? rec.caseRefs : null);
+  if (!refs || !refs.length) bad.push('원본 참조 없음');
+  else if (계보 && 계보.size && rec.sourceRefs) {
+    for (const r of rec.sourceRefs) if (!계보.has(r)) bad.push(`계보 밖 근거:${r}`);
+  }
+  if (caseId !== undefined && rec.caseId !== caseId) bad.push('사례 불일치');
+  return bad;
 }
 
 /** 저장소 조회 — get 이 없으면 조회 불가(빈 결과가 아니라 불가다). */
@@ -137,7 +162,7 @@ export function validateReplayPacket(packet, cell) {
   const store = pk.evidenceStore;
   if (!store || typeof store.get !== 'function') missing.push('evidenceStore.get');
   if (!Array.isArray(pk.cases) || !pk.cases.length) missing.push('cases');
-  if (!Array.isArray(pk.executions)) missing.push('executions');
+  if (!Array.isArray(pk.executionRefs)) missing.push('executionRefs');
   if (!MATURITY_LEVELS.includes(cell?.state)) missing.push('cell.state');
 
   // 필수 측정값이 하나라도 없거나 수가 아니면 비교 자체가 성립하지 않는다.
@@ -158,23 +183,33 @@ export function validateReplayPacket(packet, cell) {
       if (!조회(store, sref)) missing.push(`case.sourceRef:${sref}`);       // 지어낸 사례 근거
       else if (계보.size && !계보.has(sref)) missing.push(`case.lineage:${sref}`); // 남의 근거로 만든 사례
     }
-    if (!(Array.isArray(pk.executions) ? pk.executions : []).some((e) => e?.caseId === rc.id && 수(e?.executedAt) !== null)) {
-      missing.push(`execution:${rc.id}`); // **안 돌린 사례는 통과가 아니다**
-    }
+    // **실행 결과도 저장소가 말한다**(감사 3차): packet 의 주장이 아니라 조회된 기록이어야 한다.
+    const 실행기록 = (pk.executionRefs ?? []).map((r) => 조회(store, r)).filter(Boolean)
+      .find((e) => e?.caseId === rc.id);
+    if (!실행기록) { missing.push(`execution:${rc.id}`); continue; } // 안 돌린 사례는 통과가 아니다
+    const bad = 계보검사(실행기록, { kind: EVIDENCE_KINDS.execution, cell, 계보, caseId: rc.id });
+    if (bad.length) missing.push(`execution.lineage:${rc.id}(${bad[0]})`);
+    const f = 실행기록.facts;
+    if (!f || !Array.isArray(f.held) || !Array.isArray(f.happened)) missing.push(`execution.facts:${rc.id}`);
   }
   // 사용자 확인·transfer 는 **참조로 조회된 기록**이어야 한다(주장 금지).
   if (pk.userConfirmationRef) {
     const rec = 조회(store, pk.userConfirmationRef);
     if (!rec) missing.push(`confirmation:${pk.userConfirmationRef}`);
-    else if (rec.confirmed !== true || 수(rec.at) === null || (cell?.id && rec.tcellId && rec.tcellId !== cell.id)) {
-      missing.push('confirmation.content');
+    else {
+      const bad = 계보검사(rec, { kind: EVIDENCE_KINDS.confirmation, cell, 계보 });
+      if (bad.length) missing.push(`confirmation.content(${bad[0]})`);
+      else if (rec.confirmed !== true) missing.push('confirmation.content(확인 아님)');
     }
   }
   if (pk.transferRef) {
     const rec = 조회(store, pk.transferRef);
     if (!rec) missing.push(`transfer:${pk.transferRef}`);
-    else if (rec.executed !== true || typeof rec.passed !== 'boolean' || 수(rec.at) === null
-      || (cell?.id && rec.tcellId && rec.tcellId !== cell.id)) missing.push('transfer.content');
+    else {
+      const bad = 계보검사(rec, { kind: EVIDENCE_KINDS.transfer, cell, 계보 });
+      if (bad.length) missing.push(`transfer.content(${bad[0]})`);
+      else if (rec.executed !== true || typeof rec.passed !== 'boolean') missing.push('transfer.content(실행 아님)');
+    }
   }
   return { ok: missing.length === 0, missing };
 }
@@ -286,7 +321,8 @@ export function runReplaySuite(cell, packet) {
   const 완결 = validateReplayPacket(pk, cell);
   const gaps = minimumSuiteGaps(cell, pk.cases);
   const st = structuralReplay(cell, pk.evidenceStore);
-  const results = pk.cases.map((rc) => 사례판정(rc, pk.executions.find((e) => e?.caseId === rc?.id)));
+  const 실행기록들 = (pk.executionRefs ?? []).map((r) => 조회(pk.evidenceStore, r)).filter(Boolean);
+  const results = pk.cases.map((rc) => 사례판정(rc, 실행기록들.find((e) => e?.caseId === rc?.id)));
   const cf = counterfactualReplay(pk.baseline, pk.candidate);
   const authorityResults = results.filter((r, i) => authority사례인가(pk.cases[i]));
   const 행동연결 = 행동과연결된원리(cell);
@@ -317,7 +353,11 @@ export function runReplaySuite(cell, packet) {
     structural: st,
     counterfactual: cf,
     // transfer 는 **조회된 기록**이 통과라고 말할 때만 통과다(호출자 주장 금지).
-    transferPassed: (() => { const t = 조회(pk.evidenceStore, pk.transferRef); return Boolean(t && t.executed === true && t.passed === true); })(),
+    transferPassed: (() => {
+      const t = 조회(pk.evidenceStore, pk.transferRef);
+      if (!t || 계보검사(t, { kind: EVIDENCE_KINDS.transfer, cell, 계보: new Set(cell?.trace?.observationRefs ?? []) }).length) return false;
+      return t.executed === true && t.passed === true;
+    })(),
     caseRefs: pk.cases.map((c) => c?.id).filter(Boolean),
   };
 }
@@ -348,7 +388,8 @@ function decideTransition(cell, packet) {
   if (!replay.overallPassed) return { ...머무름('replay 를 전원 통과하지 못했어요', cur), replay };
   if (cell?.authority?.requiresUserConfirmation === true) {
     const 확인 = 조회(packet?.evidenceStore, packet?.userConfirmationRef);
-    if (!확인 || 확인.confirmed !== true) return { ...머무름('사용자 확인이 필요해요', cur), replay };
+    const 나쁨 = 확인 ? 계보검사(확인, { kind: EVIDENCE_KINDS.confirmation, cell, 계보: new Set(cell?.trace?.observationRefs ?? []) }) : ['기록 없음'];
+    if (나쁨.length || 확인.confirmed !== true) return { ...머무름('사용자 확인이 필요해요', cur), replay };
   }
 
   const idx = MATURITY_LADDER.indexOf(cur);
