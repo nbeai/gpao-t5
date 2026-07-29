@@ -11,7 +11,7 @@ SkillDefinition, TriggerSpec, AgentProfile, AutomationJob, AgentRun, AuthorityEn
 P-OP-7 제품 동작은 기준선 그대로 유지. `server.js`, `turn.js`, `live-context.js`와 기존 P-OP-7 수정 파일은 변경하지 않음.
 
 현재 차단:
-독립 감사에서 확인된 Run 동시성·send deny·validator totality·migration 참조/호환·hash 일치·격리본 권한·Run identity 위반을 보강함. 재감사 대기.
+`bba6ed6` 재감사에서 확인된 Run 전이 확장·paused 호환·실행원장 반쪽 성공·부분 migration 순서·기존 승인 경로를 보강함. 새 커밋 독립 재감사 대기.
 
 지정 후속:
 AC-2에서 v2 SkillDefinitionStore를 실제 lifecycle에 연결. AC-3 이후 scheduler/runner가 AutomationJobStore와 RunLedger를 소비.
@@ -35,8 +35,20 @@ Claude가 계약·migration·저장 원자성·권한 축소를 독립 감사하
 - claimed/running/waiting owner·heartbeat, terminal finishedAt, 정본 idempotency key 강제
 - 손상 격리본도 0600
 
+## 2차 독립 감사 보강
+
+- 최초 queued 뒤 skill/trigger/agent snapshot은 불변
+- Run authority는 이전 봉투 안에서 축소만 허용하고 budget 수치는 증가 불가
+- 전이 함수와 실행원장이 같은 확장 거부 계약을 각각 확인
+- paused Skill은 구형 reader에서도 영향 0, admitted로 재개하면 v2 active로 왕복
+- 실행 event를 정본으로 두고 current snapshot은 load 때 정합 확인·재구축
+- event 성공 뒤 snapshot 실패는 성공을 실패로 뒤집지 않고 `snapshotWritten:false`로 표면화
+- 같은 정확 event 재시도는 이벤트를 중복하지 않고 snapshot만 복구
+- 개별 AutomationJobStore가 먼저 만든 부분 이관 v2도 workspace migration이 synthetic 참조를 만들고 의도 상태를 복원
+- v2 이관 뒤 기존 승인 경로가 만든 새 v1 Job도 dependency-first migration을 거쳐 저장 전후 같은 scheduled 의미와 실행 가능성을 유지
+
 ## 자체 검증
 
-- AC-1 집중 반대시험: 22건 통과
-- 전체 회귀: 1,200건 통과, 실패 0
-- 프로젝트 gate: PASS, CPU 39.3초 / 40초, 벽시계 14.6초
+- AC-1 집중 반대시험: 29건 통과
+- 전체 회귀: 1,207건 통과, 실패 0
+- 프로젝트 gate: PASS, CPU 40.0초 / 40초, 벽시계 15.4초

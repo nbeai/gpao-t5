@@ -44,12 +44,24 @@ export class AutomationStore {
 
   async save(a) {
     if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
-      const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, Date.now()));
+      const now = Date.now();
+      const hasNewLegacyJob = (a.jobs ?? []).some((job) => !job?.__v2Job);
+      const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, now));
       await atomicWritePrivate(this.file, {
         schemaVersion: AUTOMATION_SCHEMA_VERSION,
         candidates: a.candidates ?? [],
         jobs,
       });
+      if (hasNewLegacyJob) {
+        const { migrateAutomationWorkspaceV1 } = await import('./automation-workspace-migration.js');
+        const migrated = await migrateAutomationWorkspaceV1(this.dir, now);
+        return {
+          schemaVersion: AUTOMATION_SCHEMA_VERSION,
+          compatibility: 'v1',
+          candidates: migrated.automation.candidates,
+          jobs: migrated.automation.jobs.map(projectAutomationJobV1),
+        };
+      }
       return a;
     }
     await mkdir(this.dir, { recursive: true });

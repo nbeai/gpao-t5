@@ -1,8 +1,10 @@
 import { chmod, readFile, rename } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   AUTOMATION_SCHEMA_VERSION,
+  agentRunTransitionWithin,
   transitionState,
   validateAgentRun,
 } from '../kernel/l5-growth/automation-contracts.js';
@@ -56,6 +58,13 @@ function currentRuns(events) {
   return [...byId.values()];
 }
 
+function stateProjection(events) {
+  return {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    runs: currentRuns(events),
+  };
+}
+
 export class AutomationRunLedger {
   constructor(dir = defaultAutomationDir()) {
     this.dir = dir;
@@ -96,6 +105,9 @@ export class AutomationRunLedger {
           if (event.type !== 'transition' || event.from !== previous.status) {
             throw new Error('run event transition is discontinuous');
           }
+          if (!agentRunTransitionWithin(previous, event.snapshot)) {
+            throw new Error('run event widened its immutable envelope');
+          }
           const moved = transitionState(
             'agentRun',
             previous,
@@ -115,12 +127,31 @@ export class AutomationRunLedger {
 
   async load() {
     const loaded = await this.readEvents();
+    let snapshotProjection = { written: false, reason: 'event_ledger_corrupted' };
+    if (!loaded.recovery) snapshotProjection = await this.#syncSnapshot(loaded.events);
     return {
       schemaVersion: AUTOMATION_SCHEMA_VERSION,
       runs: currentRuns(loaded.events),
       events: loaded.events,
+      snapshotProjection,
       ...(loaded.recovery ? { recovery: loaded.recovery } : {}),
     };
+  }
+
+  async #syncSnapshot(events) {
+    const expected = stateProjection(events);
+    try {
+      const actual = JSON.parse(await readFile(this.stateFile, 'utf8'));
+      if (isDeepStrictEqual(actual, expected)) return { written: true, repaired: false };
+    } catch {
+      // Missing, malformed, stale, and unreadable projections all rebuild from events.
+    }
+    try {
+      await atomicWritePrivate(this.stateFile, expected);
+      return { written: true, repaired: true };
+    } catch {
+      return { written: false, repaired: false, reason: 'snapshot_projection_failed' };
+    }
   }
 
   async append(run) {
@@ -136,6 +167,17 @@ export class AutomationRunLedger {
 
       if (previous) {
         if (previous.idempotencyKey !== run.idempotencyKey) throw new Error('agent run identity changed');
+        if (isDeepStrictEqual(previous, run)) {
+          return {
+            record: previous,
+            eventWritten: true,
+            snapshotWritten: (await this.#syncSnapshot(current.events)).written,
+            idempotent: true,
+          };
+        }
+        if (!agentRunTransitionWithin(previous, run)) {
+          throw new Error('agent run immutable snapshots, authority, or budgets changed');
+        }
         const moved = transitionState(
           'agentRun',
           previous,
@@ -153,11 +195,13 @@ export class AutomationRunLedger {
       const events = [...current.events, event];
       const rows = events.map((entry) => JSON.stringify(entry)).join('\n');
       await atomicWritePrivate(this.file, `${rows}\n`);
-      await atomicWritePrivate(this.stateFile, {
-        schemaVersion: AUTOMATION_SCHEMA_VERSION,
-        runs: currentRuns(events),
-      });
-      return run;
+      const projection = await this.#syncSnapshot(events);
+      return {
+        record: run,
+        eventWritten: true,
+        snapshotWritten: projection.written,
+        idempotent: false,
+      };
     });
   }
 }

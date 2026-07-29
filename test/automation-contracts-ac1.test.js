@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import {
   AGENT_RUN_STATES,
   AUTOMATION_SCHEMA_VERSION,
+  agentRunTransitionWithin,
   agentRunIdempotencyKey,
   authorityWithin,
   claimAgentRun,
   childToolAllowlist,
   contentHash,
   markSkillStale,
+  mergeSkillDefinitionV1,
   migrateAutomationJobV1,
   migrateAutomationStateV1,
   migrateSkillDefinitionV1,
   migrateSkillsStateV1,
+  projectSkillDefinitionV1,
   reviseSkillDefinition,
   rollbackSkillDefinition,
   reviewJobSkillBinding,
@@ -242,6 +245,51 @@ test('AC-1: run claim requires owner identity and heartbeat, terminal requires f
   assert.equal(ended.ok, true);
 });
 
+test('AC-1: run transitions freeze snapshots and can only narrow authority and budgets', () => {
+  const queued = run();
+  const claimed = claimAgentRun(queued, { pid: 42, ownerToken: 'owner-token' }, 210).record;
+  assert.equal(agentRunTransitionWithin(queued, claimed), true);
+
+  const widerAuthority = {
+    ...claimed,
+    authorityEnvelope: {
+      ...claimed.authorityEnvelope,
+      ceiling: 'A2',
+      allowedKinds: [...claimed.authorityEnvelope.allowedKinds, 'send'],
+    },
+  };
+  const changedAgent = {
+    ...claimed,
+    agentSnapshot: {
+      ...claimed.agentSnapshot,
+      toolAllowlist: [...claimed.agentSnapshot.toolAllowlist, 'slack.post'],
+    },
+  };
+  const changedSkill = {
+    ...claimed,
+    skillSnapshot: skill({ purpose: '전이 도중 바뀐 목적' }),
+  };
+  const changedTrigger = {
+    ...claimed,
+    triggerSnapshot: trigger({ weekdays: [2] }),
+  };
+  const widerBudget = {
+    ...claimed,
+    budgets: { ...claimed.budgets, maxToolCalls: 999 },
+  };
+  for (const patch of [widerAuthority, changedSkill, changedTrigger, changedAgent, widerBudget]) {
+    assert.equal(agentRunTransitionWithin(queued, patch), false);
+    assert.equal(transitionState('agentRun', queued, 'claimed', 210, patch).ok, false);
+  }
+
+  const narrower = transitionState('agentRun', claimed, 'running', 220, {
+    heartbeatAt: 220,
+    authorityEnvelope: { ...claimed.authorityEnvelope, ceiling: 'A0' },
+    budgets: { ...claimed.budgets, maxToolCalls: 4 },
+  });
+  assert.equal(narrower.ok, true);
+});
+
 test('AC-1: run idempotency key is derived from exact job and skill snapshots', () => {
   const valid = run();
   assert.equal(validateAgentRun(valid).ok, true);
@@ -316,6 +364,14 @@ test('AC-1: skill revision is version/hash bound, stale is explicit, and rollbac
   assert.equal(rolled.record.version, 1);
   assert.equal(rolled.record.contentHash, first.contentHash);
   assert.equal(rolled.record.rolledBackFrom.version, 2);
+});
+
+test('AC-1: paused skills stay inactive for old readers and resume round-trips to active', () => {
+  const paused = skill({ state: 'paused' });
+  const legacyView = projectSkillDefinitionV1(paused);
+  assert.equal(legacyView.state, 'paused');
+  legacyView.state = 'admitted';
+  assert.equal(mergeSkillDefinitionV1(legacyView, 300).state, 'active');
 });
 
 test('AC-1: legacy skill migration is lossless and does not turn approval into execution authority', () => {

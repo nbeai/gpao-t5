@@ -296,6 +296,9 @@ export function transitionState(kind, record, nextState, now, patch = {}) {
   }[kind];
   const checked = validator?.(next);
   if (checked && !checked.ok) return { ok: false, record, reason: 'invalid_record', errors: checked.errors };
+  if (kind === 'agentRun' && !agentRunTransitionWithin(record, next)) {
+    return { ok: false, record, reason: 'run_envelope_expanded' };
+  }
   return { ok: true, record: next };
 }
 
@@ -330,6 +333,36 @@ export function authorityWithin(parent, child) {
   if (parent.maxCost !== null && (child.maxCost === null || child.maxCost > parent.maxCost)) return false;
   if (parent.expiresAt !== null && (child.expiresAt === null || child.expiresAt > parent.expiresAt)) return false;
   return true;
+}
+
+function sameValue(left, right) {
+  return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+function budgetsWithin(previous, next) {
+  if (!object(previous) || !object(next)) return false;
+  const before = Object.keys(previous).sort();
+  const after = Object.keys(next).sort();
+  if (!sameValue(before, after)) return false;
+  return before.every((key) => {
+    const oldValue = previous[key];
+    const newValue = next[key];
+    if (finite(oldValue) && finite(newValue)) return newValue <= oldValue;
+    return sameValue(oldValue, newValue);
+  });
+}
+
+export function agentRunTransitionWithin(previous, next) {
+  if (!object(previous) || !object(next)) return false;
+  if (previous.id !== next.id
+    || previous.jobId !== next.jobId
+    || previous.scheduledFor !== next.scheduledFor
+    || previous.idempotencyKey !== next.idempotencyKey) return false;
+  if (!sameValue(previous.skillSnapshot, next.skillSnapshot)) return false;
+  if (!sameValue(previous.triggerSnapshot, next.triggerSnapshot)) return false;
+  if (!sameValue(previous.agentSnapshot, next.agentSnapshot)) return false;
+  if (!authorityWithin(previous.authorityEnvelope, next.authorityEnvelope)) return false;
+  return budgetsWithin(previous.budgets, next.budgets);
 }
 
 export function reviewJobSkillBinding(job, skill, now) {
@@ -403,6 +436,7 @@ function legacySkillState(state) {
     replay_required: 'replay_required',
     approved: 'approved',
     admitted: 'active',
+    paused: 'paused',
     rejected: 'rejected',
   })[state] ?? 'quarantined';
 }
@@ -413,7 +447,7 @@ function v2SkillState(state) {
     replay_required: 'replay_required',
     approved: 'approved',
     active: 'admitted',
-    paused: 'admitted',
+    paused: 'paused',
     retired: 'rejected',
     rejected: 'rejected',
     quarantined: 'rejected',
@@ -660,8 +694,13 @@ export function migrateAutomationWorkspaceDataV1({
   automation: automationRaw = { candidates: [], jobs: [] },
 }, now = 0) {
   const skillState = migrateSkillsStateV1(skillRaw, now);
+  const partialJobs = automationRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION
+    ? (automationRaw?.jobs ?? []).filter((job) => object(job?.legacyV1)
+      && string(job?.migrationIntendedState)
+      && string(job?.migrationReview))
+    : [];
   const legacyJobs = automationRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION
-    ? []
+    ? partialJobs.map((job) => job.legacyV1)
     : (automationRaw?.jobs ?? []);
   const skills = [...skillState.skills];
   for (const legacy of legacyJobs) {
@@ -685,12 +724,41 @@ export function migrateAutomationWorkspaceDataV1({
     }));
   if (legacyJobs.length && !profiles.some((profile) => profile.id === 'legacy-default-agent')) {
     profiles.push(syntheticAgentProfileForLegacyJobs(legacyJobs, now));
+  } else if (legacyJobs.length) {
+    const index = profiles.findIndex((profile) => profile.id === 'legacy-default-agent');
+    const approvedTools = legacyJobs.map((job) => job?.action?.tool).filter(string);
+    profiles[index] = {
+      ...profiles[index],
+      toolAllowlist: [...new Set([...(profiles[index].toolAllowlist ?? []), ...approvedTools])],
+      updatedAt: now,
+    };
   }
   for (const profile of profiles) assertValid(validateAgentProfile, profile, 'migrated agent profile');
 
   let automation;
   if (automationRaw?.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
     automation = structuredClone(automationRaw);
+    automation.jobs = automation.jobs.map((job) => {
+      if (!object(job.legacyV1)
+        || !string(job.migrationIntendedState)
+        || !string(job.migrationReview)) return job;
+      const synthetic = skills.find((skill) => skill.id === `legacy-action:${job.id}`);
+      if (!synthetic) return job;
+      const recovered = migrateAutomationJobV1(job.legacyV1, now, { referencesReady: true });
+      const { migrationReview: _migrationReview, ...withoutReview } = job;
+      return assertValid(validateAutomationJob, {
+        ...withoutReview,
+        skillRef: {
+          id: synthetic.id,
+          version: synthetic.version,
+          contentHash: synthetic.contentHash,
+        },
+        agentProfileId: 'legacy-default-agent',
+        authorityEnvelope: recovered.authorityEnvelope,
+        state: recovered.state,
+        updatedAt: now,
+      }, 'partially migrated workspace job');
+    });
   } else {
     automation = migrateAutomationStateV1(automationRaw, now, { referencesReady: true });
     automation.jobs = automation.jobs.map((job) => {
