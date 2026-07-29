@@ -76,11 +76,6 @@ export function radiusCeilingFor(_cell) {
   return 'task';
 }
 
-/** @deprecated TG-0 감사로 대체 — 근거 수만으로 반경을 열지 않는다. */
-export function radiusCeilingForEvidence(trace) {
-  return radiusCeilingFor({ trace, replay: { status: 'untested' } });
-}
-
 const RADIUS_ORDER = { turn: 0, task: 1, project: 2, profile: 3, global: 4 };
 
 /** 원리 후보 생성 — 언제나 M1·영향 none·되돌리기 가능에서 시작한다. */

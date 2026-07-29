@@ -12,7 +12,8 @@
 import { appendFile, mkdir, readFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  makeObservationEvent, observationFromApproval, validateObservationEvent,
+  makeObservationEvent, observationFromApproval, observationFromReceipt,
+  observationFromRecovery, observationFromCorrection, validateObservationEvent,
 } from '../kernel/l0-evidence/tcell-observation.js';
 
 const 비밀일반화 = '비밀이 포함된 실행 사실(원문 비저장)';
@@ -94,21 +95,11 @@ export class TCellObserver {
       const jobs = [];
       const base = { sessionId, now, sourceRefs: sessionId ? [`session:${sessionId}`] : [] };
       turnReceipts.forEach((rec, i) => {
-        const ref = `ledger:${sessionId}:${ledgerStart + i}`;
-        const secret = rec?.containsSecret === true;
-        jobs.push(this.record(makeObservationEvent({
-          type: 'tool_result', sessionId, turnId, occurredAt: now,
-          signal: { summary: secret ? 비밀일반화 : (rec?.userSafeSummary ?? rec?.action ?? ''), valence: rec?.failureState && rec.failureState !== 'none' ? 'failure' : 'success' },
-          sourceRefs: base.sourceRefs, receiptRefs: [ref],
-          privacy: { containsSecret: secret },
-        })));
+        // 명세 §5.1 생성자를 **단일 통로로** 쓴다 — 여기서 다시 조립하면 계약이 두 곳에 생긴다.
+        const ctx = { ...base, turnId, ref: `ledger:${sessionId}:${ledgerStart + i}`, secretSummary: 비밀일반화 };
+        jobs.push(this.record(observationFromReceipt(rec, ctx)));
         if (rec?.failureState && rec.failureState !== 'none') {
-          jobs.push(this.record(makeObservationEvent({
-            type: 'recovery', sessionId, turnId, occurredAt: now,
-            signal: { summary: secret ? 비밀일반화 : (rec?.nextSafeAction ?? '실패 후 다음 길'), valence: 'failure' },
-            sourceRefs: base.sourceRefs, receiptRefs: [`${ref}:recovery`],
-            privacy: { containsSecret: secret }, // 파생 관찰도 비밀 표식·비가독을 물려받는다
-          })));
+          jobs.push(this.record(observationFromRecovery(rec, ctx))); // 파생도 비밀 표식·비가독 상속
         }
       });
       if (approvalDecision?.pendingId) {
@@ -147,10 +138,8 @@ export class TCellObserver {
 
   /** 사용자 정정(구조화 신호: 되돌리기·철회 행동) — 발화 원문이 아니라 행동 사실과 참조만. */
   async observeCorrection({ sessionId = null, what, ref, now = 0 } = {}) {
-    return this.record(makeObservationEvent({
-      type: 'user_correction', sessionId, occurredAt: now,
-      signal: { summary: what ?? '사용자가 이전 반영을 되돌렸어요', valence: 'correction' },
-      sourceRefs: sessionId ? [`session:${sessionId}`] : [], receiptRefs: ref ? [ref] : [],
+    return this.record(observationFromCorrection(what ?? '사용자가 이전 반영을 되돌렸어요', {
+      sessionId, now, ref, sourceRefs: sessionId ? [`session:${sessionId}`] : [],
     }));
   }
 

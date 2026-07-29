@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  makeTCellCandidate, validateTCell, influenceCeilingFor, radiusCeilingForEvidence,
+  makeTCellCandidate, validateTCell, influenceCeilingFor,
   assertAuthorityInvariant, assertCompressionSafe, MATURITY_LEVELS,
 } from '../src/kernel/l5-growth/tcell-core.js';
 import {
@@ -50,7 +50,7 @@ test('한 번의 정정으로 project/global 반경 원리가 생기지 않는�
   const r = validateTCell(한번);
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes('반경')), `단일 사례 전역화가 통과됐다: ${r.errors}`);
-  assert.equal(radiusCeilingForEvidence({ observationRefs: ['obs-1'] }), 'task');
+  assert.equal(radiusCeilingFor({ trace: { observationRefs: ['obs-1'] }, replay: { status: 'untested' } }), 'task');
 });
 
 // ── 계약 단위 검사 ──

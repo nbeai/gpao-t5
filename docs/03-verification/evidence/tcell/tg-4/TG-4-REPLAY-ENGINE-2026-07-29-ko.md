@@ -64,3 +64,34 @@ require(·import(·writeFile·appendFile·child_process) 문자열 0 · import �
   import 화이트리스트로 판정.
 
 검사 10건(감사 재현 입력 전부 포함) · 전체 회귀 **1275건 통과** · 게이트 **PASS**(CPU 21.9s) — 자체 검증.
+
+---
+
+# 재감사 차단 4건 (2026-07-29 · 3차) — 자체 검증 완료 · 독립 감사 대기
+
+**뿌리**: `VerifiedReplayPacket` 이라는 **이름**은 붙였으나 내부 필드가 여전히 **호출자 주장**이었다.
+"검증됐다"를 이름이 아니라 조회로 만든다 — 모든 내용은 근거 저장소에서 확인한다.
+
+1. **필수 측정 스키마**(`REQUIRED_COMPARISON_METRICS` 7종) — baseline/candidate 에 하나라도 없거나
+   수가 아니면 "나빠진 게 없다"가 아니라 `insufficient_evidence`. 빈 객체 통과 폐쇄.
+2. **근거 저장소 계약 격상**: `has(ref)` → `get(ref)` 로 **실제 기록**을 조회한다. 세포 trace 근거 ·
+   ReplayCase sourceRefs · 사용자 확인 · transfer 가 모두 조회되어야 하고, 사례 근거는 **세포의
+   계보 안**이어야 한다(남의 근거로 만든 사례 차단).
+3. **확인·transfer 는 참조만 받는다** — `userConfirmationRef` · `transferRef`. 내용(confirmed/
+   executed/passed·시각·대상 세포)은 저장소가 말한다. `{confirmed:true}` 주장 필드는 제거됐다.
+   턴 신분도 호출자가 건넨 객체가 아니라 **저장소에서 조회한 관찰**로 센다.
+4. **단일 공개 통로 `transitionCell(cell, packet, outcomes)`** — `decideTransition`·`applyTransition`
+   을 비공개로 내렸다. 결정은 통로 안에서 packet 으로부터 다시 계산되므로, 위조된 한 단계
+   decision 으로 replay 가 `untested` 인 채 승격되는 경로가 **존재하지 않는다**(검사가 export 부재를 확인).
+
+## 감사 재현 6건 → 반대시험 (수정 제거 시 전부 실패)
+| 재현 입력 | 이제 |
+|---|---|
+| 빈 counterfactual | `insufficient_evidence` (필수 지표 7종 각각 결측·비수치도 검사) |
+| 존재하지 않는 case sourceRefs | `case.sourceRef:` 판정 불가 · 계보 밖 근거는 `case.lineage:` |
+| 임의 turnId 두 개 | 인자가 저장소다 — 같은 턴은 1, 조회 실패는 0 |
+| ref 없는 `confirmed:true` | 필드 자체가 없음 · 없는 ref·다른 세포 확인은 판정 불가 |
+| ref 없는 transfer `passed:true` | M3 유지 · 정상 기록일 때만 M4 |
+| replay 없는 한 단계 applyTransition | 공개 함수 부재 · 단일 통로는 자료 없으면 M1·`untested` 유지 |
+
+전체 회귀 **1281건 통과** · 게이트 **PASS**(CPU 21.9s · 벽시계 11.3s) — **자체 검증 완료·독립 감사 대기**.

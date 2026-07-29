@@ -60,8 +60,13 @@ export function makeObservationEvent(input = {}) {
   };
 }
 
-/** ToolReceipt → 관찰. 원문 대신 userSafeSummary 만 담고 원장 위치를 참조로 남긴다. */
+/**
+ * ToolReceipt → 관찰(명세 §5.1 필수 생성자). 원문 대신 userSafeSummary 만 담는다.
+ * **신분은 호출자가 준다**(`context.ref`) — 실제 ToolReceipt 에는 id 가 없고, 원장 위치가 신분이다
+ * (TG-1 감사). 비밀 표식이 있으면 요약을 일반화해 원문이 남지 않게 한다.
+ */
 export function observationFromReceipt(receipt, context = {}) {
+  const secret = receipt?.containsSecret === true;
   return makeObservationEvent({
     type: 'tool_result',
     sessionId: context.sessionId ?? null,
@@ -69,25 +74,45 @@ export function observationFromReceipt(receipt, context = {}) {
     occurredAt: context.now ?? 0,
     anchor: context.anchor,
     signal: {
-      summary: receipt?.userSafeSummary ?? receipt?.action ?? '',
+      summary: secret ? context.secretSummary ?? '' : (receipt?.userSafeSummary ?? receipt?.action ?? ''),
       valence: receipt?.failureState && receipt.failureState !== 'none' ? 'failure' : 'success',
     },
     sourceRefs: context.sourceRefs ?? [],
-    receiptRefs: receipt?.id ? [receipt.id] : [],
-    privacy: { containsSecret: receipt?.containsSecret ?? false },
+    receiptRefs: context.ref ? [context.ref] : (receipt?.id ? [receipt.id] : []),
+    privacy: { containsSecret: secret },
   });
 }
 
-/** 사용자 정정 → 관찰. 정정은 가장 값진 신호지만, 원문 전체가 아니라 요약으로만 담는다. */
-export function observationFromCorrection(userText, context = {}) {
+/** 실패 영수증 → 복구 관찰(파생) — 비밀 표식·비가독을 그대로 물려받는다. */
+export function observationFromRecovery(receipt, context = {}) {
+  const secret = receipt?.containsSecret === true;
+  return makeObservationEvent({
+    type: 'recovery',
+    sessionId: context.sessionId ?? null,
+    turnId: context.turnId ?? null,
+    occurredAt: context.now ?? 0,
+    anchor: context.anchor,
+    signal: { summary: secret ? context.secretSummary ?? '' : (receipt?.nextSafeAction ?? '실패 후 다음 길'), valence: 'failure' },
+    sourceRefs: context.sourceRefs ?? [],
+    receiptRefs: context.ref ? [`${context.ref}:recovery`] : [],
+    privacy: { containsSecret: secret },
+  });
+}
+
+/**
+ * 사용자 정정 → 관찰(명세 §5.1 필수 생성자). 발화 원문이 아니라 **행동 사실**을 담는다
+ * (TG-1 감사: 원문 비저장). 신분은 호출자가 주는 구조화된 참조다.
+ */
+export function observationFromCorrection(what, context = {}) {
   return makeObservationEvent({
     type: 'user_correction',
     sessionId: context.sessionId ?? null,
     turnId: context.turnId ?? null,
     occurredAt: context.now ?? 0,
     anchor: context.anchor,
-    signal: { summary: userText, valence: 'correction' },
+    signal: { summary: what, valence: 'correction' },
     sourceRefs: context.sourceRefs ?? [],
+    receiptRefs: context.ref ? [context.ref] : [],
   });
 }
 
