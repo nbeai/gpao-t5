@@ -132,19 +132,25 @@ export const EVIDENCE_KINDS = Object.freeze({
  * 조회된 기록이 이 세포·이 계보의 것인지 확인한다 — **필드가 없으면 불일치와 같다**(감사).
  * `tcellId` 없는 기록이 인정되던 구멍을 닫는다.
  */
-function 계보검사(rec, { kind, cell, 계보, caseId }) {
+function 계보검사(rec, { kind, cell, 계보, caseId, caseIds }) {
   const bad = [];
   if (!rec || typeof rec !== 'object') return ['기록 없음'];
   if (rec.kind !== kind) bad.push(`kind≠${kind}`);
   if (typeof rec.tcellId !== 'string' || !rec.tcellId) bad.push('tcellId 없음');
   else if (cell?.id && rec.tcellId !== cell.id) bad.push('다른 세포의 기록');
   if (수(rec.at ?? rec.executedAt) === null) bad.push('시각 없음');
-  const refs = Array.isArray(rec.sourceRefs) ? rec.sourceRefs
-    : (Array.isArray(rec.caseRefs) ? rec.caseRefs : null);
-  if (!refs || !refs.length) bad.push('원본 참조 없음');
-  else if (계보 && 계보.size && rec.sourceRefs) {
+  const 문자열배열 = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string' && x);
+  const hasSource = 문자열배열(rec.sourceRefs);
+  const hasCase = 문자열배열(rec.caseRefs);
+  if (!hasSource && !hasCase) bad.push('원본 참조 없음');
+  if (hasSource && 계보?.size) {
     for (const r of rec.sourceRefs) if (!계보.has(r)) bad.push(`계보 밖 근거:${r}`);
   }
+  // **caseRefs 도 실제 사례여야 한다**(감사 재현: 무관한 caseRef 로 M4 가 됐다).
+  if (hasCase && caseIds) {
+    for (const r of rec.caseRefs) if (!caseIds.has(r)) bad.push(`계보 밖 사례:${r}`);
+  }
+  if (caseIds && !hasCase && kind === EVIDENCE_KINDS.transfer) bad.push('caseRefs 없음');
   if (caseId !== undefined && rec.caseId !== caseId) bad.push('사례 불일치');
   return bad;
 }
@@ -193,6 +199,11 @@ export function validateReplayPacket(packet, cell) {
     if (!f || !Array.isArray(f.held) || !Array.isArray(f.happened)) missing.push(`execution.facts:${rc.id}`);
   }
   // 사용자 확인·transfer 는 **참조로 조회된 기록**이어야 한다(주장 금지).
+  // 사례 집합 — transfer 의 caseRefs 는 **이 packet 의 실제 사례**여야 한다.
+  const caseIds = new Set((Array.isArray(pk.cases) ? pk.cases : []).map((c) => c?.id).filter(Boolean));
+
+  // **확인·transfer 판정은 여기 한 번뿐이다.** 다른 곳은 이 결과를 소비만 한다(두 진실 금지).
+  let confirmationOk = false;
   if (pk.userConfirmationRef) {
     const rec = 조회(store, pk.userConfirmationRef);
     if (!rec) missing.push(`confirmation:${pk.userConfirmationRef}`);
@@ -200,18 +211,21 @@ export function validateReplayPacket(packet, cell) {
       const bad = 계보검사(rec, { kind: EVIDENCE_KINDS.confirmation, cell, 계보 });
       if (bad.length) missing.push(`confirmation.content(${bad[0]})`);
       else if (rec.confirmed !== true) missing.push('confirmation.content(확인 아님)');
+      else confirmationOk = true;
     }
   }
+  let transferOk = false;
   if (pk.transferRef) {
     const rec = 조회(store, pk.transferRef);
     if (!rec) missing.push(`transfer:${pk.transferRef}`);
     else {
-      const bad = 계보검사(rec, { kind: EVIDENCE_KINDS.transfer, cell, 계보 });
+      const bad = 계보검사(rec, { kind: EVIDENCE_KINDS.transfer, cell, 계보, caseIds });
       if (bad.length) missing.push(`transfer.content(${bad[0]})`);
       else if (rec.executed !== true || typeof rec.passed !== 'boolean') missing.push('transfer.content(실행 아님)');
+      else transferOk = rec.passed === true;
     }
   }
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0, missing, confirmationOk, transferOk };
 }
 
 /** 서로 다른 turn 근거 수 — **영수증 개수가 아니라 턴 신분**으로 센다(감사 P1). */
@@ -353,11 +367,9 @@ export function runReplaySuite(cell, packet) {
     structural: st,
     counterfactual: cf,
     // transfer 는 **조회된 기록**이 통과라고 말할 때만 통과다(호출자 주장 금지).
-    transferPassed: (() => {
-      const t = 조회(pk.evidenceStore, pk.transferRef);
-      if (!t || 계보검사(t, { kind: EVIDENCE_KINDS.transfer, cell, 계보: new Set(cell?.trace?.observationRefs ?? []) }).length) return false;
-      return t.executed === true && t.passed === true;
-    })(),
+    // 느슨한 재판정 금지 — validateReplayPacket 이 내린 **하나의 판정**만 쓴다(감사).
+    transferPassed: 완결.transferOk === true,
+    confirmationOk: 완결.confirmationOk === true,
     caseRefs: pk.cases.map((c) => c?.id).filter(Boolean),
   };
 }
@@ -386,10 +398,9 @@ function decideTransition(cell, packet) {
   }
   if (replay.authorityPassed === false) return { ...격리('authority 사례가 실패했어요'), replay };
   if (!replay.overallPassed) return { ...머무름('replay 를 전원 통과하지 못했어요', cur), replay };
-  if (cell?.authority?.requiresUserConfirmation === true) {
-    const 확인 = 조회(packet?.evidenceStore, packet?.userConfirmationRef);
-    const 나쁨 = 확인 ? 계보검사(확인, { kind: EVIDENCE_KINDS.confirmation, cell, 계보: new Set(cell?.trace?.observationRefs ?? []) }) : ['기록 없음'];
-    if (나쁨.length || 확인.confirmed !== true) return { ...머무름('사용자 확인이 필요해요', cur), replay };
+  // 확인도 replay 가 이미 내린 판정을 그대로 쓴다 — 여기서 다시 판정하면 진실이 둘이 된다.
+  if (cell?.authority?.requiresUserConfirmation === true && replay.confirmationOk !== true) {
+    return { ...머무름('사용자 확인이 필요해요', cur), replay };
   }
 
   const idx = MATURITY_LADDER.indexOf(cur);

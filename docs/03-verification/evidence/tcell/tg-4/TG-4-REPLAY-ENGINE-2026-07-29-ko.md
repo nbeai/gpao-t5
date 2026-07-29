@@ -128,3 +128,32 @@ transfer tcellId 없음/다른 세포 → M3 유지 · 필수 지표 12종 각�
 **대조군**(모든 기록·지표 정상) → 정상 통과·M2·M3·M4 계단 정상.
 
 전체 회귀 **1282건 통과** · 게이트 **PASS**(CPU 22.1s) — **자체 검증 완료·독립 감사 대기**.
+
+---
+
+# 재감사 최종 1건 (2026-07-29 · 5차) — 자체 검증 완료 · 독립 감사 대기
+
+지적: transfer 의 `caseRefs` 가 비어 있지 않은지만 봤고 **실제 사례 집합과 대조하지 않았다**.
+같이 훑어 발견한 같은 모양 1건: `confirmation` 도 `decideTransition` 에서 **재판정**하고 있었다
+(지적은 transfer 만이었으나 같은 결함이므로 함께 닫는다).
+
+- `계보검사()` 에 `caseIds`(현재 packet 의 검증된 ReplayCase ID 집합) 대조 추가. transfer 는
+  `caseRefs` 가 **비어 있지 않은 문자열 배열**이고 **모든 ref 가 현재 사례 집합에 존재**해야 한다.
+  불일치·누락·비문자·부재는 전부 `insufficient_evidence`.
+- **판정은 `validateReplayPacket` 한 곳에서만** 내린다 — `{ok, missing, confirmationOk, transferOk}`.
+  `runReplaySuite.transferPassed` 와 `decideTransition` 의 확인 검사는 그 결과를 **소비만** 한다.
+  느슨한 재판정 경로가 코드에 남아 있지 않다.
+
+## 제출 전 전수 점검 출력 (이번부터 증거에 첨부)
+```
+패킷 필드      조회 ✓ executionRefs · transferRef · userConfirmationRef
+               주장 △ cases(정의) · baseline · candidate · now · evidenceStore(주입물)
+판정 단일성    transfer 1곳 · confirmation 1곳 · execution 1곳  — 전부 단일
+```
+`baseline`/`candidate` 는 감사 지정 범위 밖의 알려진 주장 표면으로 계속 드러내 둔다(숨기지 않음).
+
+반대시험: 무관한 caseRef · 없는 caseRef · 빈 caseRefs · caseRefs 부재 · 비문자 caseRefs →
+각각 M3 유지 + `transferPassed:false` + 판정 불가 / **대조군**(실제 caseRefs) → M4 ·
+판정 단일성 검사(두 값이 완결 판정과 정확히 일치, 한쪽만 참일 수 없음).
+
+전체 회귀 **1284건 통과** · 게이트 **PASS**(CPU 22.7s) — **자체 검증 완료·독립 감사 대기**.

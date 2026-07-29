@@ -275,3 +275,43 @@ test('구조 경계: replay 엔진은 실행 수단을 받지도 부르지도 �
   const imports = [...src.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
   assert.deepEqual(imports.sort(), ['./tcell-core.js', './tcell-replay.js']);
 });
+
+// ── 재감사 최종 1건: transfer 의 caseRefs 도 실제 계보여야 한다 ──
+test('종결 검사: transfer caseRefs 가 현재 사례 집합에 없으면 M4 가 없다', () => {
+  const m3 = () => 세포({ state: 'M3_limited', effect: { eligibleCount: 20, successCount: 20 }, authority: { requiresUserConfirmation: false } });
+  const t = (cell, over) => 저장소(기본기록(cell, { 'transfer:1': { kind: 'transfer_replay', tcellId: cell.id, at: 20, executed: true, passed: true, ...over } }));
+  // 감사 재현 그대로: 무관한 caseRef
+  for (const [이름, over] of [
+    ['무관한 caseRef', { caseRefs: ['COMPLETELY-UNRELATED'] }],
+    ['없는 caseRef', { caseRefs: ['p1', '없는사례'] }],
+    ['빈 caseRefs', { caseRefs: [] }],
+    ['caseRefs 없음', {}],
+    ['비문자 caseRefs', { caseRefs: [7] }],
+  ]) {
+    const c = m3();
+    assert.equal(상태(c, 완전묶음(c, { transferRef: 'transfer:1', evidenceStore: t(c, over) })), 'M3_limited',
+      `transfer ${이름} 로 M4 가 됐다`);
+    const r = runReplaySuite(c, 완전묶음(c, { transferRef: 'transfer:1', evidenceStore: t(c, over) }));
+    assert.equal(r.transferPassed, false, `${이름}: transferPassed 가 별도로 참이 됐다`);
+    assert.equal(r.verdict, 'insufficient_evidence', `${이름}: 판정 불가가 아니다`);
+  }
+  // 대조군: 실제 현재 caseRefs → M4
+  const c = m3();
+  assert.equal(상태(c, 완전묶음(c, { transferRef: 'transfer:1', evidenceStore: t(c, { caseRefs: ['p1', 'n1'] }) })), 'M4_stable');
+});
+
+test('종결 검사: transfer·확인 판정은 한 곳에서만 나온다(두 진실 금지)', () => {
+  const c = 세포({ authority: { requiresUserConfirmation: true } });
+  const pk = 완전묶음(c, { transferRef: 'transfer:1' });
+  const 완결 = validateReplayPacket(pk, c);
+  const r = runReplaySuite(c, pk);
+  // suite 의 두 값은 완결 판정과 **정확히 같다** — 어디서도 다시 판정하지 않는다.
+  assert.equal(r.transferPassed, 완결.transferOk);
+  assert.equal(r.confirmationOk, 완결.confirmationOk);
+  // 확인이 깨지면 두 곳이 함께 거짓이 된다(한쪽만 참일 수 없다).
+  const 깨진확인 = 저장소(기본기록(c, { 'confirm:1': { kind: 'user_confirmation', at: 1, sourceRefs: ['ledger:s:1'], confirmed: true } }));
+  const pk2 = 완전묶음(c, { evidenceStore: 깨진확인 });
+  assert.equal(validateReplayPacket(pk2, c).confirmationOk, false);
+  assert.equal(runReplaySuite(c, pk2).confirmationOk, false);
+  assert.equal(상태(c, pk2), 'M1_candidate');
+});
