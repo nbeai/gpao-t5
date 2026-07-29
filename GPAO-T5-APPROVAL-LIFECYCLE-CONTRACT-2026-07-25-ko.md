@@ -1,14 +1,16 @@
 # GPAO-T5 Approval Lifecycle Contract
 
-- Status: `초안 작성 완료 · 감사 전 (깊은 감사 대상 — 권한/외부실행 경계)`
+- Status: `current_approval_lifecycle_contract_needs_effect_granularity_alignment`
 - Date: 2026-07-25
 - Author: Claude Code (구현자)
 - Auditor: Codex (감사 대기)
-- Phase: P6 진입 선행 계약(오너 지시) — living 슬라이스·Tool&Connector Seal이 가리킨 동일 지점
+- Current role: P-OP에서 검증된 승인 지속·만료·재실행 방지의 기반. 현재 권위 지도와 절대 원칙
+  §0-A-1·§0-A-2가 이 문서의 과거 단계 문구보다 우선한다.
 - 근거: 봉인 Kernel Contract §3 AuthorityGrant / living 슬라이스 조건부 메모 / Tool&Connector Seal
   (승인 fail-closed, delivery lifecycle) / Hermes 승인 어휘(once/session/always/deny)·write_approval staging
 - 위상: Kernel Contract 아래. 승인의 **지속/만료/재승인 경계**를 계약으로 못박아 P6 권한/원장 진입 전
-  구조를 안정시킨다.
+  구조를 안정시킨다. 승인의 목적은 모든 변경을 멈추는 것이 아니라 실제 비가역 외부 효과와 새 권한만
+  정확히 경계 짓는 것이다.
 
 ## 0. 목적 + 문제
 
@@ -25,7 +27,7 @@ Tool&Connector Seal도 P6 전 이 경계의 계약화를 요구했다. 이 계�
 | 등급 | 뜻(정본) | 사용자 체감 |
 | --- | --- | --- |
 | **A0** | 즉시 자동 | 멈추지 않는다 |
-| **A1** | 조용한 확인 · 되돌릴 수 있는 자동 | 멈추지 않는다 |
+| **A1** | 되돌릴 수 있는 자동 + 원장·undo | 멈추지 않는다 |
 | **A2** | **짧은 승인** | 멈춘다 |
 | **A3** | **강한 승인 또는 차단** | 멈춘다 |
 
@@ -37,9 +39,14 @@ Tool&Connector Seal도 P6 전 이 경계의 계약화를 요구했다. 이 계�
 | --- | --- | --- |
 | 관찰 · 읽기 · 분석 · 초안 | `read`/`search`/`summarize`/`draft` → **A0** | 매번 묻지 않는다 |
 | 되돌릴 수 있는 정리 | `organize` → **A1** | undo 가 있어야 A1 이다 |
-| 변경 · 쓰기 · 이동 · 전송 | `write`/`send` → **A2** + 안전 바닥 | 실행 직전 승인 |
-| 삭제 · 덮어쓰기 · 결제 · 발행 · 권한 | `delete`/`pay`/`publish`/`grant_permission` → **A3** + 안전 바닥 | 강한 승인 |
-| 모르는 것 | **A2** | 자동으로 흐르지 않는다 |
+| 명시 범위의 새 파일·가역 수정·이동 | 실제 효과가 복구 가능하면 **A1** | 실행 뒤 결과·undo |
+| 외부 전송·복구 불명 쓰기·중대한 덮어쓰기 | `send`/고영향 write → **A2** | bounded grant가 없을 때만 짧은 승인 |
+| 삭제 · 결제 · 발행 · 권한 | `delete`/`pay`/`publish`/`grant_permission` → **A3** + 안전 바닥 | 강한 승인 |
+| 모르는 것 | 효과·대상 사실을 더 확인 | 모른다는 이유만으로 사용자 카드부터 만들지 않음 |
+
+"write" 같은 넓은 도구 종류만으로 등급을 정하지 않는다. 새 파일 생성과 기존 데이터 덮어쓰기,
+로컬 가역 변경과 외부 SaaS 변경은 효과가 다르다. 실제 대상·가역성·외부성·사용자의 명시 범위가
+Authority 입력이어야 한다.
 
 "A4 고위험"이 필요해 보이면 **등급을 늘리지 말고** `safetyFloor` 로 강도를 올린다. 등급은 판정 축이고
 안전 바닥은 **독립 이중화**다 — 등급 분류가 흔들려도 안전 바닥이 따로 막는다.
@@ -90,11 +97,14 @@ Tool&Connector Seal도 P6 전 이 경계의 계약화를 요구했다. 이 계�
 검증: 68개 테스트 통과(+만료 전/후 커널 2, 재시작 지속 HTTP 1). 반대 테스트 — 만료 체크 무력화 시
 지연 실행이 뚫려 테스트 실패(확증). 라이브 — 실제 서버 재시작 후 승인 이어실행 실증.
 
-## 4. P6로 넘길 것
+## 4. 현재 구현과 지정 정합화
 
-- `session`/`persist` grant kind + **grant registry**(부여된 권한 목록)·**revocation**(취소).
-- 프로젝트/프로필 격리 하에서 승인 범위(Tool&Connector Seal ConnectorProfile·auth≠approval).
-- 승인 원장(누가·언제·무엇을 승인/거부/만료)과 P6 Truth Ledger 통합.
+- `session`/`persist` grant registry와 revocation은 P-OP에서 제품 경로가 생겼다.
+- 남은 정합화는 도구 종류가 아니라 실제 효과로 A0~A3를 판정하는 것이다. 현재 코드의 모든 `write`,
+  `promote_memory`, unknown 일괄 A2는 절대 원칙 §0-A-1과 대조해야 한다.
+- 명시적 사용자 요청은 그 범위의 확인이다. 같은 내용을 카드로 다시 묻지 않는다.
+- 학습·기억·스킬의 가역 변경은 기본 자동 + rollback/archive/restore로 다루고, inferred 장기 모델이나
+  새 외부 권한만 별도 확인한다.
 
 ## 5. 제안하는 Kernel Contract 개정 (감사 후 반영)
 
@@ -112,4 +122,5 @@ Tool&Connector Seal도 P6 전 이 경계의 계약화를 요구했다. 이 계�
 
 ---
 
-*이 문서는 초안이다. Codex 깊은 감사 후 봉인하고 §5 개정을 Kernel Contract에 반영한다.*
+*이 문서의 지속·만료·정확히 한 번 계약은 유효하다. 행동 등급은 현재 효과 기반 정합화가 필요한
+지정 계약이며, 현재 구현 상태는 인수인계 §0을 따른다.*

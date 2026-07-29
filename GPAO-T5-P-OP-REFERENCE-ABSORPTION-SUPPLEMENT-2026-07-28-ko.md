@@ -2,8 +2,12 @@
 
 Date: 2026-07-28
 
-Status: `mandatory_reference_for_current_and_future_development`
+Status: `reference_contract_historical_p_op_current_reuse`
 Scope: OpenClaw/Hermes에서 T5가 추가로 흡수할 가치가 있는 운영 원리 정리
+
+P-OP의 현재 상태와 다음 작업을 정하지 않는다. 현재 Hermes T-cell 대조 결과는
+`design/T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md`가 우선하며,
+전체 착수 순서는 문서 권위 지도와 인수인계 §0을 따른다.
 
 이 문서는 OpenClaw와 Hermes를 기능 목록으로 베끼기 위한 문서가 아니다.
 

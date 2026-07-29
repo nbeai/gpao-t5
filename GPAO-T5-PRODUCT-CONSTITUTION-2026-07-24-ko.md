@@ -1,6 +1,6 @@
 # GPAO-T5 Product Constitution
 
-- Status: `Codex 감사 통과 · Phase 1 봉인`
+- Status: `historical_product_constitution_foundation`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (정본성·철학·금지선·Phase 2 연결성 감사 완료)
@@ -8,6 +8,8 @@
 - 근거: 계획서 §0·§5·§6.2·§8 / 절대원칙 / Phase 0 봉인 인벤토리 + 감사(`REFERENCE-INVENTORY-AUDIT`)
 - 위상: 이 문서는 T5가 "무엇이고 무엇이 아닌지"를 정하는 헌법이다. 세부 PRD·kernel spec·UI spec 보다
   위이고, 계획서·절대원칙·환경헌장 아래다(절대원칙 §12 순서).
+- 현재 적용: 정체성 조항은 유지한다. 당시 Phase·비범위·첫 슬라이스 문구는 역사 기록이며 현재 범위와
+  우선순위는 문서 권위 지도와 인수인계 §0이 정한다. 최신 절대 원칙 §0-A-1·§0-A-2가 충돌 시 우선한다.
 
 ## 0. 이 헌법의 작성 규율
 
