@@ -11,13 +11,65 @@ import { withTimeout } from './with-timeout.js';
 export const SEND_STATES = Object.freeze(['sent', 'needs_auth', 'auth_failed', 'rate_limited', 'timeout', 'blocked']);
 
 // 채널별 요청 빌더·응답 해석(선언형 — 와이어는 여기, 정책은 커널). 토큰 위치가 채널마다 다르다.
+
+// ── 텔레그램 서식 투영(단일 변환 경계) ─────────────────────────────────────
+// 모델은 마크다운으로 말한다. parse_mode 없이 보내면 **굵게** 의 부호가 그대로 사용자에게
+// 도착한다(오너 실사용 보고 2026-07-29). 여기 한 곳에서만 변환한다 — 승인된 전송과 채널
+// 자동 답장이 같은 손을 타므로 두 경로가 같은 서식을 본다.
+const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** 마크다운 → 텔레그램 HTML. 지원 밖 문법은 안전하게 이스케이프된 원문으로 남는다. */
+export function toTelegramHtml(text) {
+  const src = String(text ?? '');
+  const out = [];
+  // 코드 블록은 먼저 떼어낸다 — 안쪽에서는 어떤 서식도 해석하지 않는다.
+  const parts = src.split(/```(?:[a-zA-Z0-9_-]*\n)?/);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) { out.push(`<pre>${esc(parts[i].replace(/\n$/, ''))}</pre>`); continue; }
+    const lines = parts[i].split('\n').map((line) => {
+      const h = line.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+      if (h) line = `**${h[1]}**`; // 헤더 → 굵게(텔레그램에 헤더 없음)
+      line = line.replace(/^(\s*)[-*•]\s+/, '$1· '); // 목록 표식 — 기울임 해석 전에
+      let t = esc(line);
+      t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2">$1</a>');
+      t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      t = t.replace(/(^|[^*])\*([^*\n]+)\*(?=[^*]|$)/g, '$1<i>$2</i>');
+      return t;
+    });
+    out.push(lines.join('\n'));
+  }
+  return out.join('').trim();
+}
+
+/** 서식을 벗긴 순수 문자 — HTML 이 거부됐을 때의 후퇴. 서식보다 전달이 먼저다. */
+export function stripMarkdownForChat(text) {
+  return String(text ?? '')
+    .split(/```(?:[a-zA-Z0-9_-]*\n)?/).map((seg, i) => i % 2 === 1 ? seg.replace(/\n$/, '') : seg
+      .split('\n').map((line) => line
+        .replace(/^\s{0,3}#{1,6}\s+/, '')
+        .replace(/^(\s*)[-*•]\s+/, '$1· ')
+        .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1 ($2)')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/(^|[^*])\*([^*\n]+)\*(?=[^*]|$)/g, '$1$2'))
+      .join('\n'))
+    .join('').trim();
+}
+
 const CHANNELS = {
   telegram: {
     endpoint: (token) => `https://api.telegram.org/bot${token}/sendMessage`,
     build: (target, text) => ({
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: target, text }),
+      body: JSON.stringify({ chat_id: target, text: toTelegramHtml(text), parse_mode: 'HTML' }),
     }),
+    // HTML 이 거부되면(엔티티 파싱 실패) 서식 없이 한 번 더 — 서식 때문에 전달이 죽지 않는다.
+    fallbackBuild: (target, text) => ({
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: target, text: stripMarkdownForChat(text) }),
+    }),
+    fallbackWhen: (status, json) => status === 400 && /parse|entit|tag/i.test(String(json?.description ?? '')),
     interpret: (status, json) => {
       if (json?.ok === true) return { sendState: 'sent' };
       if (status === 401 || json?.error_code === 401) return { sendState: 'auth_failed', detail: json?.description };
@@ -95,16 +147,22 @@ export function makeChannelSender(deps = {}) {
       if (!target) return { blocked: true, sendState: 'blocked', userSafeSummary: '보낼 대상(채널/채팅)이 지정되지 않았어요.' };
 
       const url = spec.endpoint(token);
-      const { headers, body } = spec.build(target, text, token);
-      let status, json;
-      try {
+      const 한번 = async ({ headers, body }) => {
         const controller = new AbortController();
-        ({ status, json } = await withTimeout(async () => {
+        return withTimeout(async () => {
           const r = await fetchImpl(url, { method: 'POST', headers, body, signal: controller.signal });
           let j = null;
           try { j = await r.json(); } catch { /* 비JSON 응답은 null로 두고 상태코드로 해석 */ }
           return { status: r.status, json: j };
-        }, timeoutMs, controller));
+        }, timeoutMs, controller);
+      };
+      let status, json;
+      try {
+        ({ status, json } = await 한번(spec.build(target, text, token)));
+        // 서식 후퇴(텔레그램 HTML 거부): 같은 문면을 순수 문자로 정확히 한 번 재시도.
+        if (spec.fallbackBuild && spec.fallbackWhen?.(status, json)) {
+          ({ status, json } = await 한번(spec.fallbackBuild(target, text, token)));
+        }
       } catch (e) {
         // 네트워크·시간초과 → transient(백오프 재시도 여지). 보낸 척 안 함.
         return { failed: true, sendState: 'timeout', userSafeSummary: '채널에 연결하지 못했어요.', nextSafeAction: '잠시 후 다시 시도할까요?', diagnosticTrace: { message: e?.message } };
