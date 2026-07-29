@@ -260,12 +260,104 @@ test('레인 분리·지시 근거·현재 턴 우선: 선호는 T-cell 로 가�
   {
     const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-req-'));
     const ob = new OB(dir);
-    const a = await ob.observeUserRequest({ sessionId: 's', text: '앞으로 배포 전에 게이트 돌려', turnIndex: 3, now: 1 });
+    const a = await ob.observeUserRequest({ sessionId: 's', statement: '배포 전에는 게이트를 돌린다', turnIndex: 3, now: 1 });
     assert.equal(a.ref, 'request:s:3');
     const { events } = await ob.load({ sessionId: 's' });
     assert.equal(events[0].type, 'user_request');
     assert.deepEqual(events[0].receiptRefs, ['request:s:3']);
-    const b = await ob.observeUserRequest({ sessionId: 's', text: '같은 턴 재기록', turnIndex: 3, now: 2 });
+    const b = await ob.observeUserRequest({ sessionId: 's', statement: '같은 턴 재기록', turnIndex: 3, now: 2 });
     assert.equal(b.recorded, false, '같은 턴 요청이 중복 관찰됐다');
   }
+});
+
+// ── 재감사 P1 2건: 원문 비저장 · 선호 유입 차단(생산 경계) ──
+test('P1-1: 일반 발화 원문은 관찰 파일에 남지 않고, 비밀 모양 지시는 일반화·비가독이 된다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { TCellObserver: OB } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-raw-'));
+  const 모델 = { async respond(tc, opts = {}) {
+    if (tc?.tcellExtract) return JSON.stringify({ decision: 'insufficient_evidence' });
+    if (!opts.tools?.length) return '알겠어요';
+    return { text: '알겠어요', toolCalls: [] };
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({}), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const 비밀발화 = '이 키로 붙여줘 sk-proj-Q1hPNDMBbmQKmMV5MQeb4BhMHCOz0vY8KiyfOmtnRuM9PdBEFe';
+    for (const t of ['오늘 뭐 하지', 비밀발화, '내 주민번호는 900101-1234567 이야']) {
+      await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: s.id, text: t }) });
+    }
+    await new Promise((rs) => setTimeout(rs, 200));
+    const { readFile: rf } = await import('node:fs/promises');
+    const raw = await rf(join(dir, 'growth', 'observations.jsonl'), 'utf8').catch(() => '');
+    assert.ok(!raw.includes('sk-proj-'), '자격 문자열이 관찰 파일에 남았다');
+    assert.ok(!raw.includes('900101-1234567'), '개인정보 원문이 관찰 파일에 남았다');
+    assert.ok(!raw.includes('오늘 뭐 하지'), '일반 발화 원문이 관찰 파일에 남았다');
+  } finally { await new Promise((r) => server.close(r)); }
+  // 구조화 지시라도 비밀 모양이면 일반화되고 모델 가독이 닫힌다.
+  const dir2 = await mkdtemp(join(tmpdir(), 'gpao-t5-raw2-'));
+  const ob = new OB(dir2);
+  const r = await ob.observeUserRequest({ sessionId: 's', statement: '항상 sk-proj-AbCdEf0123456789AbCdEf0123456789 로 붙인다', turnIndex: 0, now: 1 });
+  assert.equal(r.secret, true, '비밀 모양이 걸러지지 않았다');
+  const { events } = await ob.load({ sessionId: 's' });
+  assert.equal(events[0].privacy.modelReadable, false);
+  assert.ok(!JSON.stringify(events[0]).includes('sk-proj-'));
+});
+
+test('P1-2: 과거 실패로 wake 가 켜져 있어도 명시적 선호는 T-cell 후보가 되지 않는다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { TCellRegistry } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-pref-'));
+  const 실패손 = {
+    async probe(c) { return { command: c, cwd: '/x', changes: false, probe: { exitCode: 1, stdout: '', stderr: 'no' } }; },
+    async handler() { return { failed: true, failureState: 'blocked', userSafeSummary: '못 했어요.', nextSafeAction: '다른 방법으로' }; },
+  };
+  let 손쓸차례 = false; let 추출입력 = null; let 추출호출 = 0;
+  const 모델 = { async respond(tc, opts = {}) {
+    if (tc?.tcellExtract) {
+      추출입력 = tc.tcellExtract; 추출호출 += 1;
+      // 실패 관찰에 맞는 복구 원리를 낸다(정상 동작). 선호는 애초에 입력에 없어야 한다.
+      return JSON.stringify({
+        decision: 'candidate',
+        principle: { statement: '막힌 손은 같은 인자로 반복하지 않는다', type: 'recovery' },
+        center: { point: '복구', axis: '전환', horizontalSignals: [] },
+        boundary: { validWhen: ['실패 직후'], invalidWhen: ['재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+        trace: { observationRefs: (tc.tcellExtract.observations ?? []).map((o) => o.receiptRefs[0]) },
+        suggestedRadius: 'task',
+      });
+    }
+    if (!opts.tools?.length) return '네';
+    if (손쓸차례) { 손쓸차례 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+    return { text: '알겠어요', toolCalls: [] };
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 실패손 }), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const turn = (text) => fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: sid, text }) }).then((r) => r.json());
+  let sid;
+  try {
+    sid = (await (await fetch(`${base}/sessions`, { method: 'POST' })).json()).id;
+    // ① 실패 2건을 먼저 쌓아 wake 를 켠다.
+    for (const t of ['폴더 봐줘', '다시 봐줘']) { 손쓸차례 = true; await turn(t); }
+    await new Promise((rs) => setTimeout(rs, 200));
+    const 사전 = (await new TCellRegistry(dir).load()).cells ?? [];
+    const 사전호출 = 추출호출;
+    assert.ok(사전.length >= 1, '실패 관찰에서 정상 후보가 만들어지지 않았다(대조군 실패)');
+    // ② 그 상태에서 명시적 "선호"를 말한다 — 감사가 지적한 바로 그 조건.
+    await turn('앞으로 나한테 설명할 때 짧게 요점만 말해줘');
+    await new Promise((rs) => setTimeout(rs, 250));
+    const 사후 = (await new TCellRegistry(dir).load()).cells ?? [];
+    assert.equal(사후.length, 사전.length, '선호 턴이 새 T-cell 후보를 만들었다');
+    assert.equal(추출호출, 사전호출, '선호 턴에서 추출이 돌았다(레인·새 근거 경계 통과 실패)');
+    // 선호 문면이 관찰 파일·추출 입력 어디에도 없다.
+    assert.ok(!JSON.stringify(추출입력 ?? {}).includes('요점만'), '선호 문면이 추출 입력에 유입됐다');
+    const { readFile: rf2 } = await import('node:fs/promises');
+    const raw = await rf2(join(dir, 'growth', 'observations.jsonl'), 'utf8').catch(() => '');
+    assert.ok(!raw.includes('요점만'), '선호 발화가 관찰 파일에 남았다');
+  } finally { await new Promise((r) => server.close(r)); }
 });

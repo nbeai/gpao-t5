@@ -17,6 +17,19 @@ import {
 
 const 비밀일반화 = '비밀이 포함된 실행 사실(원문 비저장)';
 
+/**
+ * 저장 직전 비밀 모양 선별 — **판단이 아니라 보관 안전망**이다(감사 2026-07-29).
+ * 사용자 발화에 자격 문자열이 섞여 들어오면 관찰 파일에 남을 수 있었다. 여기서 걸러
+ * containsSecret 로 표시하면 요약이 일반화되고 모델 가독도 자동으로 닫힌다.
+ * 목록으로 의미를 판정하지 않는다 — 길고 무작위한 자격 모양만 본다.
+ */
+export function looksLikeSecret(text) {
+  const t = String(text ?? '');
+  if (/\b(sk-|ghp_|gho_|xox[baprs]-|AKIA|ya29\.|Bearer\s+[\w-]{16,})/i.test(t)) return true;
+  // 20자 이상의 고엔트로피 토큰(영숫자+기호 혼합) — 사람 문장에는 잘 없다.
+  return /[A-Za-z0-9_\-]{28,}/.test(t) && /[0-9]/.test(t) && /[A-Za-z]/.test(t);
+}
+
 export class TCellObserver {
   constructor(dir) {
     this.dir = join(dir, 'growth');
@@ -112,18 +125,23 @@ export class TCellObserver {
   }
 
   /**
-   * 현재 사용자 요청 관찰 — **명시 지시의 근거는 안정적인 참조여야 한다**(감사).
-   * 예전엔 생산 경로가 "첫 user_correction"을 지시 근거로 삼아, 정상 발화에는 근거가 없고
-   * 오래된 다른 정정과 잘못 결합될 수 있었다. 이제 지시는 자기 관찰과 자기 참조를 갖는다.
+   * 명시 지시 관찰 — **일반 발화 원문은 저장하지 않는다**(감사 2026-07-29 P1).
+   * 예전엔 모든 사용자 원문이 최대 300자까지 모델 가독으로 남아 "원문·비밀 비저장" 계약을 깼다.
+   * 이제 **구조화된 운영 원리 문장만** 들어온다(부르는 쪽이 레인을 판정한다). 그마저도
+   * 비밀 모양이면 일반화 문장으로 바뀌고 모델 가독이 닫힌다.
+   * 지시 근거는 자기 참조(`request:세션:턴`)를 갖는다 — 추측으로 옛 정정을 집지 않는다.
+   * @param {{sessionId:string, statement:string, turnIndex?:number, now?:number}} p
    */
-  async observeUserRequest({ sessionId, text, turnIndex = 0, now = 0 } = {}) {
+  async observeUserRequest({ sessionId, statement, turnIndex = 0, now = 0 } = {}) {
     const ref = `request:${sessionId}:${turnIndex}`;
+    const secret = looksLikeSecret(statement);
     const r = await this.record(makeObservationEvent({
       type: 'user_request', sessionId, occurredAt: now,
-      signal: { summary: text ?? '', valence: 'neutral' },
+      signal: { summary: secret ? '비밀이 섞인 지시(원문 비저장)' : (statement ?? ''), valence: 'neutral' },
       sourceRefs: sessionId ? [`session:${sessionId}`] : [], receiptRefs: [ref],
+      privacy: { containsSecret: secret },
     }));
-    return { ...r, ref };
+    return { ...r, ref, secret };
   }
 
   /** 사용자 정정(구조화 신호: 되돌리기·철회 행동) — 발화 원문이 아니라 행동 사실과 참조만. */

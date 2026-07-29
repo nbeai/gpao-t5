@@ -132,6 +132,15 @@ export function makeServer(deps = {}) {
     // **레인 분리**(정본 S-TG-1): 명시적 *선호*는 기존 기억 레인이 담당한다 — T-cell 로 변환하지
     // 않는다. 운영 원리만 추출 레인을 깨운다(TG-2 이관표와 같은 경계, 두 곳이 어긋나지 않게).
     const 제안 = result?.memorySuggestion ?? null;
+    // **선호 턴은 추출 자체를 건너뛴다**(감사 P1): wake 가 이미 켜져 있어도 이번 발화가 선호면
+    // T-cell 레인을 넘지 않는다 — 레인 분리는 wake 뿐 아니라 유입도 막는다.
+    if (제안?.kind === 'preference') return { skipped: 'preference_lane' };
+    // **이번 턴이 새 근거를 만들지 않았으면 추출하지 않는다**(감사 P1의 뿌리).
+    // 옛 wake 플래그만으로 과거 관찰을 다시 처리하면, 정규식이 못 잡은 선호 발화 같은
+    // "T-cell 레인 밖 턴"까지 추출을 돌리게 된다. 성장은 새 사실에서만 자란다.
+    const 이번턴참조 = new Set(result?.tcellTurnRefs ?? []);
+    const 새근거 = events.filter((e) => e.receiptRefs?.some((r) => 이번턴참조.has(r)));
+    if (!새근거.length) return { skipped: 'no_new_evidence' };
     const regexHit = 제안?.kind === 'operating_principle' ? 제안 : null;
     const w = wakeSignal(events, { regexHit });
     if (!w.wake) return { skipped: 'no_wake' };
@@ -368,12 +377,16 @@ export function makeServer(deps = {}) {
       now: Date.now(),
       // TG-3: 관찰이 남은 **뒤에** 추출을 깨운다(같은 후처리 줄에서, 응답과 무관하게).
     }).then(async () => {
-      const 지시 = hasText
-        ? await tcellObserver.observeUserRequest({ sessionId: session.id, text: input.text, turnIndex: session.transcript.length, now: Date.now() })
+      // **일반 발화는 관찰하지 않는다**(감사 P1). 운영 원리로 구조화된 문장만, 그 자체로.
+      // 선호(preference)는 기존 기억 레인의 것이므로 T-cell 관찰에 들어오지 않는다(S-TG-1).
+      const 원리제안 = result?.memorySuggestion?.kind === 'operating_principle' ? result.memorySuggestion : null;
+      const 지시 = 원리제안?.statement
+        ? await tcellObserver.observeUserRequest({ sessionId: session.id, statement: 원리제안.statement, turnIndex: session.transcript.length, now: Date.now() })
         : null;
       const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
       return 원리후보추출({
-        sessionId: session.id, userText: input.text, instructionRef: 지시?.ref ?? null,
+        // activeTarget 도 원문이 아니라 **구조화된 문장만** — 없으면 관찰이 사실을 말한다.
+        sessionId: session.id, userText: 원리제안?.statement ?? '', instructionRef: 지시?.ref ?? null,
         result: { ...result, tcellTurnRefs: [...이번턴, ...(지시?.ref ? [지시.ref] : [])] },
       });
     }));
