@@ -117,3 +117,56 @@ test('영향 0 유지: 커널은 관찰 저장소를 참조하지 않는다', as
     assert.ok(!src.includes('observations.jsonl') && !src.includes('TCellObserver'), `커널(${f})이 관찰을 읽는다`);
   }
 });
+
+// ── TG-1 재감사(만료 승인) — 커널의 실제 소비 결과만 관찰한다 ──
+async function 승인시나리오() {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg1f-'));
+  const hand = { toolKind: 'send', previewOf: makeSendPreview({ channel: 'telegram' }),
+    async handler() { return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
+  let 첫 = true;
+  const 모델 = { async respond(_tc, opts = {}) {
+    if (!opts.tools?.length) return '네';
+    if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'telegram.send', args: { text: '시험', target: '111' } }] }; }
+    return { text: '끝', toolCalls: [] };
+  } };
+  const observer = new TCellObserver(dir);
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'telegram.send': hand } }), model: 모델, tcellObserver: observer });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const turn = (body) => fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+  const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+  const card = await turn({ sessionId: s.id, text: '오너한테 시험 보내줘' });
+  return { dir, server, observer, turn, sessionId: s.id, card };
+}
+const 결정관찰 = async (observer) => (await observer.loadAllForAudit()).events.filter((e) => e.type === 'approval' || e.type === 'rejection');
+
+test('만료된 승인 클릭 → 실행 거부 + 관찰 0 (커널 소비 결과만 관찰)', async () => {
+  const { dir, server, observer, turn, sessionId, card } = await 승인시나리오();
+  try {
+    assert.equal(card.kind, 'approval');
+    const sessPath = join(dir, `${sessionId}.json`);
+    const sess = JSON.parse(await readFile(sessPath, 'utf8'));
+    sess.pendingApprovals[card.pendingId].grantScope = { kind: 'once', expiresAt: 1 };
+    await writeFile(sessPath, JSON.stringify(sess), 'utf8');
+    const r = await turn({ sessionId, approve: card.pendingId });
+    assert.match(r.reply ?? '', /만료/, `만료 거부가 아니다: ${r.reply}`);
+    await new Promise((rs) => setTimeout(rs, 150));
+    assert.deepEqual(await 결정관찰(observer), [], '만료 승인이 관찰됐다');
+  } finally { await new Promise((r2) => server.close(r2)); }
+});
+
+test('실제 거절 소비 → rejection 정확 1 · 유령 거절 → 관찰 0', async () => {
+  const { server, observer, turn, sessionId, card } = await 승인시나리오();
+  try {
+    await turn({ sessionId, reject: 'ghost-reject' });
+    await turn({ sessionId, reject: card.pendingId });
+    await new Promise((rs) => setTimeout(rs, 150));
+    const obs = await 결정관찰(observer);
+    assert.equal(obs.length, 1, `결정 관찰 ${obs.length}건`);
+    assert.equal(obs[0].type, 'rejection');
+    assert.ok(obs[0].sourceRefs.some((x) => x.includes(card.pendingId)));
+    assert.ok(!obs.some((e) => e.sourceRefs.some((x) => x.includes('ghost'))));
+  } finally { await new Promise((r2) => server.close(r2)); }
+});

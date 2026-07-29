@@ -274,11 +274,7 @@ export function makeServer(deps = {}) {
     // (승인 재개는 그 보류를 지우면서 시작한다).
     const 물어본자리 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
-    // TG-1 보강: 관찰은 "입력에 approve 가 있었다"가 아니라 **실제 유효한 결정**만 본다.
-    const 유효한결정 = (typeof input.approve === 'string' && session.pendingApprovals?.[input.approve])
-      ? { approved: true, pendingId: input.approve, summary: '승인' }
-      : (typeof input.reject === 'string' && session.pendingApprovals?.[input.reject])
-        ? { approved: false, pendingId: input.reject, summary: '거절' } : null;
+
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
     // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
@@ -317,7 +313,9 @@ export function makeServer(deps = {}) {
       sessionId: session.id,
       ledgerStart,
       turnReceipts: ctx.ledger.entries.slice(ledgerStart),
-      approvalDecision: 유효한결정,
+      // 감사 재현(만료 승인): 대기 목록 존재 ≠ 유효 — **커널이 실제 소비한 결정만** 관찰한다.
+      approvalDecision: result.approvalConsumed
+        ? { ...result.approvalConsumed, summary: result.approvalConsumed.approved ? '승인' : '거절' } : null,
       now: Date.now(),
     }));
     session.pendingApprovals = Object.fromEntries(ctx.pending);

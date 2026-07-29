@@ -268,7 +268,10 @@ export async function runTurn(input, ctx) {
     // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
-    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
+    // TG-1: **실제로 소비된 승인만** 결과 사실로 싣는다 — 만료·미발견은 위에서 이미 돌아갔다.
+    // 관찰(T-cell)은 입력에 approve 가 있었다는 사실이 아니라 이 소비 사실만 본다(감사 2026-07-29).
+    const 재개결과 = await executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
+    return { ...재개결과, approvalConsumed: { pendingId: input.approve, approved: true } };
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -290,7 +293,8 @@ export async function runTurn(input, ctx) {
     const reply = ctx.tools?.tools?.[손]?.cancelledSummary?.(인자)
       ?? (건너뛴일 ? `안 했어요. 아무것도 바뀌지 않았어요. (건너뛴 일: ${건너뛴일})`
         : '안 했어요. 아무것도 바뀌지 않았어요.');
-    return { kind: 'reply', reply, selfStateSummary: summary };
+    // 실제 대기 항목을 소비한 거절만 사실이다 — 유령 ID 거절은 소비가 아니다(관찰 0).
+    return { kind: 'reply', reply, selfStateSummary: summary, ...(거절된것 ? { approvalConsumed: { pendingId: input.reject, approved: false } } : {}) };
   }
 
   // C) Relevance Gate(§1.5) — 외부·비요청 이벤트만 거른다. user_chat(기본)·trusted_runtime_event은
