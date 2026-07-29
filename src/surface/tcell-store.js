@@ -206,8 +206,14 @@ export class TCellRegistry {
   /** 변경은 한 줄로 직렬화된다. 손상 저장소는 옆으로 격리 보존 후 새로 시작(덮어쓰기 금지). */
   async #mutate(fn) {
     const run = this.queue.then(async () => {
+      // **읽기 실패를 '파일 없음'으로 취급하지 않는다**(감사 재현: 읽을 수 없는 저장소를
+      // 새 상태로 덮어썼다). 신규 저장소는 ENOENT 뿐이고, 그 밖의 오류는 변경 자체를 중단한다.
       let raw = null;
-      try { raw = await readFile(this.file, 'utf8'); } catch { raw = null; }
+      try { raw = await readFile(this.file, 'utf8'); }
+      catch (e) {
+        if (e?.code !== 'ENOENT') throw new Error(`저장소를 읽지 못해 변경을 중단했어요: ${e?.message ?? e}`);
+        raw = null;
+      }
       let a = { cells: [] };
       if (raw !== null) {
         try {

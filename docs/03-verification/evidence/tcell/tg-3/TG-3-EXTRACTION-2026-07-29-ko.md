@@ -26,3 +26,28 @@
 
 전체 회귀 **1254건 통과** · 게이트 **PASS**(CPU 21.7s · 벽시계 11.7s) — 자체 검증, 독립 감사 대기.
 명시적 잔여(병렬선 통합 시점): TG-2 의 POM read model · DefaultTarget/Skill/Automation `principleRefs`.
+
+---
+
+# 재감사 차단 3건 + TG-2 읽기 실패 (2026-07-29 · 2차)
+
+**공통 뿌리**: 계약의 *모양*은 만들었으나 *결합*을 하지 않았다 — 면제가 근거와, 관계가 재료와,
+전체가 생산 경로와 묶이지 않았다. 넷을 함께 묶어 닫았다.
+
+1. **명시 지시 면제를 세 증거로 결합** — 표식(scope)만으로는 면제 0. ① 근거 결합(후보 trace 가
+   그 지시를 기록한 관찰을 실제로 가리킴) ② 내용 결합(후보 문장이 지시 문면에서 나옴, affinity)
+   ③ **권한 경계**(principle.type 이 authority/automation 이면 내용이 맞아도 면제 없음 — A2/A3 는
+   원칙 0-A-1 상 authority gate). 감사 재현("보고서는 목록으로" → "외부 전송 자동화") 그대로 반대시험.
+2. **관계 판정에 재료를 되돌림** — 번들의 existingCandidates 가 center·boundary·anchor 를 싣는다
+   (버리고 있었기에 애초에 명세 판정이 불가능했다). 판정은 네 증거: 모델 제안(§7.1) · 문장 affinity ·
+   중심 근접 · anchor 일치 · 경계 모순. **경계 모순은 어떤 유사도보다 앞선다**(contradicts).
+   중심이 같고 자리가 같고 충돌이 없으면 same_center — 문장 표현 차이는 center 가 추상할 몫이다.
+   구조 수정 1건: **anchor 는 모델 주장이 아니라 OS 사실**(§7.2)이므로 근거 관찰에서 유도한다.
+3. **생산 경로 연결** — server 후처리에서 `관찰 기록 → wakeSignal(관찰 + 기존 정규식 memorySuggestion)
+   → groupObservations → buildEvidenceBundle → extractCandidate → registry.upsert`. 응답 뒤에만,
+   in-flight 하나만, 실패는 응답에 닿지 않는다. 저장은 M1/격리·영향 none — TaskContext 미접촉.
+   관통 검사: 실패 2회 턴 → 후보가 실제로 registry 에 남고 영향 0(제품 동작 검사).
+4. **TG-2 읽기 실패** — ENOENT 만 신규 저장소. 그 밖의 읽기 오류는 **변경 자체를 중단**하고 기존
+   저장소를 보존(0o000 재현 반대시험).
+
+검사 14+8+7건 · 전체 회귀 **1258건 통과** · 게이트 **PASS**(CPU 21.8s · 벽시계 11.3s) — 자체 검증.

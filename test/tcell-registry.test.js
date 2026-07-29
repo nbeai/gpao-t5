@@ -137,3 +137,17 @@ test('감사 P2: 문법만 맞고 구조가 깨진 저장소도 격리 경계다
   assert.ok((await readdir(join(dir, 'growth'))).some((f) => f.includes('corrupt')), '구조 손상 바이트가 보존되지 않았다');
   assert.equal((await reg.load()).cells.length, 1);
 });
+
+test('감사 추가: 읽기 실패는 파일 없음이 아니다 — 변경 중단, 기존 저장소 보존', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2h-'));
+  const reg = new TCellRegistry(dir);
+  await reg.upsert(온전한세포('keep-me'));
+  const { chmod } = await import('node:fs/promises');
+  const f = join(dir, 'growth', 'tcells.json');
+  await chmod(f, 0o000); // 읽을 수 없게
+  try {
+    await assert.rejects(() => reg.upsert(온전한세포('new')), /읽지 못해/, '읽기 실패인데 변경이 진행됐다');
+  } finally { await chmod(f, 0o600); }
+  const a = await reg.load();
+  assert.deepEqual(a.cells.map((c) => c.id), ['keep-me'], '읽기 실패가 기존 저장소를 덮어썼다');
+});

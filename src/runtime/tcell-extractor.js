@@ -88,8 +88,18 @@ export function buildEvidenceBundle({
     id: id ?? `bundle-${통과.length}`,
     activeTarget,
     observations: 통과.slice(-BUNDLE_CAP), // 최신 우선, 명세 상한
-    existingCandidates: (Array.isArray(existingCandidates) ? existingCandidates : [])
-      .map((c) => ({ id: c?.id, statement: c?.principle?.statement ?? c?.statement ?? '' })),
+    // **관계 판정의 재료를 버리지 않는다**(감사): 중심·경계·anchor 를 함께 실어 모델이
+    // 같은 중심 여부를 비교할 수 있게 하고, OS 도 구조로 대조한다(§7.1 모델 역할).
+    existingCandidates: (Array.isArray(existingCandidates) ? existingCandidates : []).map((c) => ({
+      id: c?.id,
+      statement: c?.principle?.statement ?? c?.statement ?? '',
+      center: { point: c?.center?.point ?? '', axis: c?.center?.axis ?? '' },
+      boundary: {
+        validWhen: 문자열배열(c?.boundary?.validWhen) ?? [],
+        invalidWhen: 문자열배열(c?.boundary?.invalidWhen) ?? [],
+      },
+      anchor: { project: c?.anchor?.project ?? null, subject: c?.anchor?.subject ?? null },
+    })),
     authorityFacts: {
       note: '성숙도·통계는 권한이 아니다. 현재 요청이 항상 우선한다.',
       // 명시적 지시가 있으면 그 범위는 이미 확인된 것이다(원칙 0-A-1).
@@ -115,17 +125,53 @@ export function wakeSignal(observations = [], opts = {}) {
   return { wake: 정정 >= 1 || 실패 >= 2 || 정규식, 정정, 실패, 정규식 };
 }
 
-/** 기존 후보들과의 관계 판정(§8 relation 수렴) — 같은 중심이면 새 세포를 만들지 않는다. */
-export function relateToExisting(statement, existingCandidates = []) {
-  let best = { kind: null, id: null, affinity: 0 };
-  for (const c of Array.isArray(existingCandidates) ? existingCandidates : []) {
-    const a = statementAffinity(statement, c?.statement ?? '');
-    if (a > best.affinity) {
-      const kind = a >= 0.8 ? 'same_center' : a >= 0.5 ? 'refines' : null;
-      best = { kind, id: c?.id ?? null, affinity: a };
+const 겹침 = (A = [], B = []) => {
+  const norm = (xs) => new Set(xs.map((x) => normalizeStatement(x)).filter(Boolean));
+  const a = norm(A); const b = norm(B);
+  for (const x of a) if (b.has(x)) return true;
+  return false;
+};
+
+/**
+ * 관계 판정(§8 수렴) — **네 가지 증거를 함께 본다.** 단어 겹침 하나로 판정하지 않는다(감사).
+ *   · 모델 제안(§7.1: 같은 중심의 후보 비교는 모델 몫) · 중심(center.point) · anchor(project/subject)
+ *   · 경계 모순(한쪽의 validWhen 이 다른 쪽의 invalidWhen 과 겹치면 contradicts)
+ * 모델 제안은 존중하되, 구조 증거가 모순을 말하면 구조가 이긴다(OS 가 강제, §7.2).
+ * @param {{statement:string, center?:object, boundary?:object, anchor?:object}} cand
+ * @param {object[]} existing 번들의 existingCandidates(중심·경계·anchor 포함)
+ * @param {{kind?:string, targetId?:string}|null} modelProposal
+ */
+export function relateToExisting(cand, existing = [], modelProposal = null) {
+  const c0 = typeof cand === 'string' ? { statement: cand } : (cand ?? {});
+  let best = { kind: null, id: null, affinity: 0, evidence: [] };
+  for (const e of Array.isArray(existing) ? existing : []) {
+    const aff = statementAffinity(c0.statement, e?.statement ?? '');
+    const centerAff = statementAffinity(c0.center?.point ?? '', e?.center?.point ?? '');
+    const 같은자리 = Boolean(e?.anchor?.project) && e.anchor.project === (c0.anchor?.project ?? null)
+      && (e?.anchor?.subject ?? null) === (c0.anchor?.subject ?? null);
+    const 모순 = 겹침(c0.boundary?.validWhen, e?.boundary?.invalidWhen)
+      || 겹침(c0.boundary?.invalidWhen, e?.boundary?.validWhen);
+    const evidence = [];
+    if (aff >= 0.8) evidence.push('statement');
+    if (centerAff >= 0.6) evidence.push('center');
+    if (같은자리) evidence.push('anchor');
+    if (모순) evidence.push('boundary_conflict');
+
+    let kind = null;
+    if (모순) kind = 'contradicts';                       // 경계 모순은 어떤 유사도보다 앞선다
+    // **중심이 같고 자리가 같고 경계가 충돌하지 않으면 같은 중심이다** — relation 이름 그대로다.
+    // 문장 표현 차이는 center 가 추상하라고 있는 것이지, 새 세포를 만들 이유가 아니다.
+    else if (aff >= 0.8 || (centerAff >= 0.8 && 같은자리)) kind = 'same_center';
+    else if (aff >= 0.45 || centerAff >= 0.6) kind = 'refines';
+    // 모델 제안 수용: 구조가 반박하지 않을 때만(§7.2 OS 강제).
+    if (!kind && modelProposal?.targetId === e?.id && TCELL_RELATIONS.includes(modelProposal?.kind)
+      && (aff > 0 || centerAff > 0 || 같은자리)) {
+      kind = modelProposal.kind; evidence.push('model');
     }
+    const score = Math.max(aff, centerAff) + (같은자리 ? 0.1 : 0);
+    if (kind && score >= best.affinity) best = { kind, id: e?.id ?? null, affinity: Math.max(aff, centerAff), evidence };
   }
-  return best.kind && TCELL_RELATIONS.includes(best.kind) ? best : { kind: null, id: null, affinity: best.affinity };
+  return best;
 }
 
 /**
@@ -161,8 +207,22 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
     const stmt = typeof out.principle?.statement === 'string' ? out.principle.statement.trim() : '';
     if (!stmt) return { decision: 'insufficient_evidence' };
 
-    // 의미 중복·관계 수렴(§8): 문자열이 달라도 같은 중심이면 새 세포를 만들지 않는다.
-    const rel = relateToExisting(stmt, bundle.existingCandidates);
+    const 후보경계 = {
+      validWhen: 문자열배열(out.boundary?.validWhen) ?? [],
+      invalidWhen: 문자열배열(out.boundary?.invalidWhen) ?? [],
+    };
+    // **anchor 는 OS 가 아는 사실이다**(§7.2) — 모델 주장이 아니라 근거 관찰에서 유도한다.
+    const 근거자리 = bundle.observations[bundle.observations.length - 1]?.anchor ?? {};
+    const anchor = {
+      workspace: 근거자리.workspace ?? null, project: 근거자리.project ?? null,
+      surface: 근거자리.surface ?? null, subject: 근거자리.subject ?? null,
+    };
+    // 의미 중복·관계 수렴(§8): 문장·중심·anchor·경계와 모델 제안을 함께 본다.
+    const rel = relateToExisting(
+      { statement: stmt, center: out.center, boundary: 후보경계, anchor },
+      bundle.existingCandidates,
+      out.relation ?? out.relatedTo ?? null,
+    );
     if (rel.kind === 'same_center') return { decision: 'duplicate', relation: rel };
 
     // sourceRefs 는 **번들 안 관찰의 참조만**(§7.2) — 밖의 사실을 낸 후보는 격리.
@@ -170,8 +230,18 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
     const refs = 문자열배열(out.trace?.observationRefs) ?? [];
     const 밖 = refs.filter((r) => !번들참조.has(r));
 
-    // 명시적 사용자 지시는 그 범위의 확인이다 — 같은 범위를 다시 확인받지 않는다(원칙 0-A-1).
-    const 명시확인됨 = Boolean(bundle.explicitInstruction?.scope) && (out.suggestedRadius ?? 'task') !== 'global';
+    // 명시적 사용자 지시는 **그 지시가 밝힌 범위**의 확인이다(원칙 0-A-1) — 지시가 있었다는
+    // 사실만으로 아무 원리나 면제되지 않는다(감사 재현: "보고서는 목록으로" 지시로
+    // "외부 전송은 묻지 않고 한다"가 면제됐다). 세 증거가 **모두** 있어야 면제한다:
+    //   ① 근거 결합 — 후보 trace 가 그 지시를 기록한 관찰을 실제로 가리킨다
+    //   ② 내용 결합 — 후보 문장이 지시 문면에서 나온 것이다(의미 근접)
+    //   ③ 권한 경계 — 권한·자동화 종류는 명시 지시로 면제되지 않는다(A2/A3 는 authority gate)
+    const 지시 = bundle.explicitInstruction;
+    const 근거결합 = Boolean(지시?.observationRef) && refs.includes(지시.observationRef);
+    const 내용결합 = statementAffinity(stmt, 지시?.text ?? '') >= 0.45;
+    const 권한종류 = out.principle?.type === 'authority' || out.principle?.type === 'automation';
+    const 명시확인됨 = Boolean(지시?.scope) && 근거결합 && 내용결합 && !권한종류
+      && (out.suggestedRadius ?? 'task') !== 'global';
 
     const cell = makeTCellCandidate({
       principle: {
@@ -199,7 +269,7 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
         requiresUserConfirmation: !명시확인됨,
         prohibitedActionKinds: [],
       },
-      anchor: { createdAt: now, lastObservedAt: now },
+      anchor: { ...anchor, createdAt: now, lastObservedAt: now },
     });
 
     const v = validateTCell(cell);

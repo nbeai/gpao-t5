@@ -137,11 +137,73 @@ test('감사 P1: 문자열이 달라도 같은 의미면 중복 — relation 으
   assert.equal(r.relation.kind, 'same_center');
 });
 
-test('감사 P1: 명시적 사용자 지시 범위는 재확인 후보로 강등되지 않는다', async () => {
-  const bundle = buildEvidenceBundle({ observations: [관찰(1)], explicitInstruction: { scope: 'project:T5', text: '보고서는 목록으로' } });
-  const r = await extractCandidate({ model: { async respond() { return 출력(); } }, bundle });
-  assert.equal(r.candidate.authority.requiresUserConfirmation, false, '명시 지시가 재확인 후보로 강등됐다');
-  // 추정(명시 지시 없음)은 그대로 확인 필요.
-  const r2 = await extractCandidate({ model: { async respond() { return 출력(); } }, bundle: buildEvidenceBundle({ observations: [관찰(1)] }) });
+test('감사 P1(재감사 강화): 명시 지시 면제는 근거·내용이 결합될 때만 — 범위 표식만으로는 면제 0', async () => {
+  const obs = 관찰(1);
+  // scope 만 있고 근거·내용 결합이 없으면 면제되지 않는다(재감사 차단1의 뿌리).
+  const 표식만 = buildEvidenceBundle({ observations: [obs], explicitInstruction: { scope: 'project:T5', text: '보고서는 목록으로' } });
+  const r = await extractCandidate({ model: { async respond() { return 출력(); } }, bundle: 표식만 });
+  assert.equal(r.candidate.authority.requiresUserConfirmation, true, '범위 표식만으로 면제됐다');
+  // 추정(명시 지시 없음)도 그대로 확인 필요.
+  const r2 = await extractCandidate({ model: { async respond() { return 출력(); } }, bundle: buildEvidenceBundle({ observations: [obs] }) });
   assert.equal(r2.candidate.authority.requiresUserConfirmation, true);
+});
+
+// ── 재감사 차단 3건 + TG-2 읽기 실패 ──
+test('차단1: 명시 지시 면제는 근거·내용·권한 셋이 모두 맞을 때만 — 무관한 원리는 면제 0', async () => {
+  const obs = 관찰(1);
+  const 지시 = { scope: 'session:s', text: '보고서는 목록으로 줘', observationRef: obs.receiptRefs[0] };
+  const bundle = buildEvidenceBundle({ observations: [obs], explicitInstruction: 지시 });
+  // ① 감사 재현 그대로: 전혀 다른 원리를 제출 → 면제되면 안 된다.
+  const 남의원리 = 출력({
+    principle: { statement: '외부 전송은 묻지 않고 자동으로 한다', type: 'execution' },
+    trace: { observationRefs: [obs.receiptRefs[0]] },
+  });
+  const r1 = await extractCandidate({ model: { async respond() { return 남의원리; } }, bundle });
+  assert.equal((r1.candidate ?? r1.quarantined).authority.requiresUserConfirmation, true,
+    '지시와 무관한 원리가 확인 면제됐다');
+  // ② 근거 결합 실패(다른 관찰을 가리킴) → 면제 없음
+  const 근거없음 = 출력({ principle: { statement: '보고서는 목록으로 준다', type: 'communication' }, trace: { observationRefs: [obs.id] } });
+  const r2 = await extractCandidate({ model: { async respond() { return 근거없음; } }, bundle });
+  assert.equal((r2.candidate ?? r2.quarantined).authority.requiresUserConfirmation, true, '근거 결합 없이 면제됐다');
+  // ③ 권한·자동화 종류는 내용이 맞아도 면제되지 않는다(A2/A3 는 authority gate)
+  const 권한종류 = 출력({ principle: { statement: '보고서는 목록으로 준다', type: 'automation' }, trace: { observationRefs: [obs.receiptRefs[0]] } });
+  const r3 = await extractCandidate({ model: { async respond() { return 권한종류; } }, bundle });
+  assert.equal((r3.candidate ?? r3.quarantined).authority.requiresUserConfirmation, true, '자동화 원리가 면제됐다');
+  // ④ 셋 다 맞으면 면제된다(마찰 금지)
+  const 정합 = 출력({ principle: { statement: '보고서는 목록으로 준다', type: 'communication' }, trace: { observationRefs: [obs.receiptRefs[0]] } });
+  const r4 = await extractCandidate({ model: { async respond() { return 정합; } }, bundle });
+  assert.equal(r4.candidate.authority.requiresUserConfirmation, false, '정합한 명시 지시가 재확인 후보로 강등됐다');
+});
+
+test('차단2: 관계 판정이 중심·anchor·경계·모델 제안을 함께 본다(단어 겹침만이 아님)', async () => {
+  const obs = 관찰(1, { anchor: { workspace: null, project: 'T5', surface: null, subject: '보고' } });
+  const 기존 = [{
+    id: 'c0', principle: { statement: '결과는 짧은 목록으로 전달' },
+    center: { point: '보고 형식', axis: '간결' },
+    boundary: { validWhen: ['보고 요청'], invalidWhen: ['상세 설명 요청'] },
+    anchor: { project: 'T5', subject: '보고' },
+  }];
+  const bundle = buildEvidenceBundle({ observations: [obs], existingCandidates: 기존 });
+  assert.ok(bundle.existingCandidates[0].center.point, '중심이 번들에서 버려졌다');
+  assert.ok(bundle.existingCandidates[0].boundary.validWhen.length, '경계가 번들에서 버려졌다');
+  // 단어는 거의 안 겹치지만 중심이 같다 → same_center 로 수렴(새 후보 생성 금지)
+  const 같은중심 = 출력({
+    principle: { statement: '보고 결과는 간결한 목록 형식으로 정리해서 준다', type: 'communication' },
+    center: { point: '보고 형식', axis: '간결', horizontalSignals: [] },
+    boundary: { validWhen: ['보고 요청'], invalidWhen: ['상세 설명 요청'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+    trace: { observationRefs: [obs.receiptRefs[0]] },
+  });
+  const r = await extractCandidate({ model: { async respond() { return 같은중심; } }, bundle });
+  assert.equal(r.decision, 'duplicate', `중심이 같은 후보가 새로 생성됐다(rel=${JSON.stringify(r.relation)})`);
+  assert.ok(r.relation.evidence.includes('center'), '중심 증거가 쓰이지 않았다');
+  // 경계 모순은 유사도보다 앞선다 → contradicts
+  const 모순 = 출력({
+    principle: { statement: '결과는 짧은 목록으로 전달', type: 'communication' },
+    center: { point: '보고 형식', axis: '간결', horizontalSignals: [] },
+    boundary: { validWhen: ['상세 설명 요청'], invalidWhen: ['보고 요청'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+    trace: { observationRefs: [obs.receiptRefs[0]] },
+  });
+  const r2 = await extractCandidate({ model: { async respond() { return 모순; } }, bundle });
+  assert.equal(r2.relation.kind, 'contradicts', `경계 모순이 같은 중심으로 삼켜졌다: ${JSON.stringify(r2.relation)}`);
+  assert.notEqual(r2.decision, 'duplicate');
 });

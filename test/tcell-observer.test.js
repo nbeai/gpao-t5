@@ -170,3 +170,51 @@ test('실제 거절 소비 → rejection 정확 1 · 유령 거절 → 관찰 0'
     assert.ok(!obs.some((e) => e.sourceRefs.some((x) => x.includes('ghost'))));
   } finally { await new Promise((r2) => server.close(r2)); }
 });
+
+// ── 차단3: wake → 묶음 → 추출이 실제 생산 경로에 연결됐는가(제품 동작 검사) ──
+test('생산 경로: 턴 후처리가 wake 를 켜고 추출을 돌려 후보를 registry 에 남긴다(영향 0)', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { TCellRegistry } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg3prod-'));
+  const 실패손 = {
+    async probe(c) { return { command: c, cwd: '/x', changes: false, probe: { exitCode: 1, stdout: '', stderr: 'no' } }; },
+    async handler() { return { failed: true, failureState: 'blocked', userSafeSummary: '못 했어요.', nextSafeAction: '다른 방법으로' }; },
+  };
+  let 첫 = true;
+  const 모델 = { async respond(tc, opts = {}) {
+    // 추출 호출은 tcellExtract 로 온다 — 구조화 후보를 돌려준다.
+    if (tc?.tcellExtract) return JSON.stringify({
+      decision: 'candidate',
+      principle: { statement: '막힌 손은 같은 인자로 반복하지 않는다', type: 'recovery' },
+      center: { point: '복구', axis: '전환', horizontalSignals: [] },
+      boundary: { validWhen: ['실패 직후'], invalidWhen: ['사용자 재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+      trace: { observationRefs: tc.tcellExtract.observations.map((o) => o.receiptRefs[0]) },
+      suggestedRadius: 'task',
+    });
+    if (!opts.tools?.length) return '네';
+    if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+    return { text: '못 했어요', toolCalls: [] };
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 실패손 }), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    // 실패 관찰 2건이 쌓이면 wake — 두 턴을 돌린다.
+    for (const t of ['폴더 봐줘', '다시 봐줘']) {
+      첫 = true;
+      await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: s.id, text: t }) });
+    }
+    // 후처리(비동기) 완료 대기
+    let cells = [];
+    for (let i = 0; i < 40 && !cells.length; i++) {
+      await new Promise((rs) => setTimeout(rs, 25));
+      cells = (await new TCellRegistry(dir).load()).cells ?? [];
+    }
+    assert.ok(cells.length >= 1, '생산 경로가 후보를 만들지 않았다 — wake→묶음→추출이 연결되지 않음');
+    assert.equal(cells[0].state, 'M1_candidate');
+    assert.deepEqual(cells[0].authority.allowedInfluence, ['none'], '생산된 후보에 영향이 있다');
+    assert.ok(cells[0].trace.observationRefs.length >= 1, 'trace 가 비었다');
+  } finally { await new Promise((r2) => server.close(r2)); }
+});
