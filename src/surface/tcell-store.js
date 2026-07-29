@@ -168,3 +168,77 @@ export class TCellObserver {
     return { events, corrupted };
   }
 }
+
+// ── TG-2 · TCell Registry + legacy adapter (명세 §6·§16 TG-2) ──────────────
+// growth/tcells.json 이 원리 세포의 현재 상태 문서다(원자 교체·미래 필드 보존·손상 격리).
+// **여기 있는 어떤 것도 아직 TaskContext 에 들어가지 않는다** — TG-5 전까지 영향 0.
+import { writeFile, rename } from 'node:fs/promises';
+import { validateTCell, makeTCellCandidate } from '../kernel/l5-growth/tcell-core.js';
+
+export class TCellRegistry {
+  constructor(dir) {
+    this.dir = join(dir, 'growth');
+    this.file = join(this.dir, 'tcells.json');
+  }
+
+  async load() {
+    try {
+      const a = JSON.parse(await readFile(this.file, 'utf8'));
+      // 알 수 없는 미래 필드는 보존하고 무시한다(명세 §6).
+      return { cells: Array.isArray(a.cells) ? a.cells : [], ...a, cells: Array.isArray(a.cells) ? a.cells : [] };
+    } catch { return { cells: [] }; }
+  }
+
+  async save(a) {
+    await mkdir(this.dir, { recursive: true });
+    const tmp = `${this.file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+    await writeFile(tmp, JSON.stringify({ ...a, cells: a.cells ?? [] }), { encoding: 'utf8', mode: 0o600 });
+    await rename(tmp, this.file);
+    return a;
+  }
+
+  /** 등록은 검증을 지나서만 — 실패는 던지지 않고 quarantined 사본으로 저장된다(영향 0). */
+  async upsert(cell, evidenceStore = null, opts = {}) {
+    const v = validateTCell(cell, evidenceStore, opts);
+    const a = await this.load();
+    const idx = a.cells.findIndex((c) => c.id === v.cell.id);
+    if (idx >= 0) a.cells[idx] = v.cell; else a.cells.push(v.cell);
+    await this.save(a);
+    return v;
+  }
+
+  /** rollback 은 삭제가 아니라 상태 전이다 — trace·이력을 지우지 않는다(명세 §6). */
+  async rollback(cellId) {
+    const a = await this.load();
+    const cell = a.cells.find((c) => c.id === cellId);
+    if (!cell) return { ok: false, why: 'not_found' };
+    cell.growth = { ...(cell.growth ?? {}), previousVersionId: cell.id, lastAuditAt: null };
+    cell.state = 'rolled_back';
+    cell.authority = { ...(cell.authority ?? {}), allowedInfluence: ['none'], mustNotOverrideCurrentRequest: true };
+    await this.save(a);
+    return { ok: true, cell };
+  }
+}
+
+/**
+ * legacy adapter — 기존 memory.json 의 promoted 항목을 **읽기 전용으로** 세포 후보로 투영한다.
+ * 기존 파일은 절대 쓰지 않는다. 사용자 승인은 성숙도가 아니다(§4.3: 승인이 낮은 maturity 를
+ * 사실로 만들지 않는다) — legacy 는 replay 를 통과한 적이 없으므로 **M1_candidate** 로만 들어온다.
+ */
+export function importLegacyMemory(memory) {
+  const cells = [];
+  for (const m of memory?.promoted ?? []) {
+    if (!m?.statement) continue;
+    cells.push(makeTCellCandidate({
+      id: `legacy-mem-${m.id ?? m.candidateId ?? cells.length}`,
+      principle: { statement: m.statement, type: 'communication', hypothesisConfidence: 0 },
+      boundary: {
+        validWhen: ['기존 기억이 승인된 범위 그대로'],
+        invalidWhen: ['사용자가 철회했거나 현재 지시와 충돌할 때'],
+        needsReviewWhen: ['replay 검증 전'], mustNotOverride: ['현재 요청'],
+      },
+      trace: { observationRefs: [`memory:promoted:${m.id ?? m.candidateId ?? 'unknown'}`], corrections: [] },
+    }));
+  }
+  return cells;
+}
