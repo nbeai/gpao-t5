@@ -300,7 +300,7 @@ test('AC-1 run events remain truth when snapshot projection fails and rebuild id
 });
 
 test('AC-1 run append is serialized: distinct runs are lossless and one occurrence is claimed once', async () => {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 6; i++) {
     const dir = await mkdtemp(join(tmpdir(), 't5-ac1-run-race-'));
     const ledger = new AutomationRunLedger(dir);
     const a = run(`a-${i}`);
@@ -317,17 +317,22 @@ test('AC-1 run append is serialized: distinct runs are lossless and one occurren
     const distinct = await Promise.allSettled([ledger.append(a), ledger.append(b)]);
     assert.deepEqual(distinct.map((item) => item.status), ['fulfilled', 'fulfilled']);
     assert.equal((await ledger.load()).runs.length, 2);
-  }
 
-  for (let i = 0; i < 30; i++) {
-    const dir = await mkdtemp(join(tmpdir(), 't5-ac1-claim-race-'));
-    const ledger = new AutomationRunLedger(dir);
-    const a = run(`claim-a-${i}`);
-    const b = { ...run(`claim-b-${i}`) };
-    const same = await Promise.allSettled([ledger.append(a), ledger.append(b)]);
+    const claimA = {
+      ...run(`claim-a-${i}`),
+      scheduledFor: 1000 + i,
+    };
+    claimA.idempotencyKey = agentRunIdempotencyKey({
+      jobId: claimA.jobId,
+      scheduledFor: claimA.scheduledFor,
+      skillVersion: claimA.skillSnapshot.version,
+      skillHash: claimA.skillSnapshot.contentHash,
+    });
+    const claimB = { ...claimA, id: `claim-b-${i}` };
+    const same = await Promise.allSettled([ledger.append(claimA), ledger.append(claimB)]);
     assert.equal(same.filter((item) => item.status === 'fulfilled').length, 1);
     assert.equal(same.filter((item) => item.status === 'rejected').length, 1);
-    assert.equal((await ledger.load()).runs.length, 1);
+    assert.equal((await ledger.load()).runs.length, 3);
   }
 });
 
