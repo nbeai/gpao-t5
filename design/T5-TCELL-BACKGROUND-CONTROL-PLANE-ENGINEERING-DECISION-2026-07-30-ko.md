@@ -95,6 +95,31 @@ background review / cost control / curator / memory tool
 검증한 계약은 persistence isolation, runtime tool whitelist, 비동기 sync 순서, 위험 명령 자동 거절,
 write approval, curator 보호 범위, memory atomic write다.
 
+### 2.5 학습 결과의 사용자 통제와 유지 관리
+
+추가로 `agent/learning_graph.py`, `agent/learning_mutations.py`, `agent/curator.py`,
+`tools/memory_tool.py`와 관련 검사를 실행했다.
+
+- learning graph와 mutation 전체: `37 passed`
+- curator의 learning/mutation/automatic/dry-run/pin/cron 선별: `43 passed`
+
+코드 사실:
+
+- `agent/learning_graph.py:193-321`: memory 조각과 learned skill을 같은 그래프의 노드로 투영한다.
+- `agent/learning_mutations.py:12-15, 124-200`: CLI/TUI/GUI가 같은 edit/delete 경계를 쓰고,
+  skill 삭제는 복구 가능한 archive다.
+- `tools/memory_tool.py:140, 814-815`: `MEMORY.md` 2,200자, `USER.md` 1,375자 active budget.
+- `tools/write_approval.py:234-274`: write 결과는 allow/block/stage 세 값이다. 단 기본 설정은
+  approval OFF라 자동 allow이고, gate를 켰을 때 stage/inline decision이 활성화된다.
+- `agent/curator.py:239-282`: 첫 관찰 시각부터 interval을 재고, 기본 7일 주기와 idle 조건으로 깨어난다.
+- `agent/curator.py:290-374`: pinned와 cron 참조는 자동 전이에서 제외하고, `use_count == 0`은
+  노후 증거로 쓰지 않는다.
+- `agent/curator.py:1499-1584`: dry-run은 같은 판정 경로와 보고서 형식을 사용하지만 실제 mutation과
+  시계 전진은 하지 않는다.
+
+T5는 이 표면을 그대로 복사하지 않는다. 대신 학습된 원리를 기본 화면을 방해하지 않는 설정의
+“배운 방식”에서 보고, 수정·고정·일시정지·범위 축소·되돌리기·복원할 수 있게 한다.
+
 ## 3. T5 현재 생산 경로의 코드 사실
 
 `npm run audit:tcell-plane`은 다음을 현재 코드에서 직접 검출한다.
@@ -167,13 +192,32 @@ evidence/registry와 전용 모델 호출만 가진다. replay는 실제 외부 
 성장 모델은 main model과 같을 수도, 별도 모델일 수도 있다. 어떤 경우든 실제 provider/model 신분을
 원장에 기록한다. 다른 모델이면 전체 대화 대신 비밀 제거 EvidenceBundle만 보낸다.
 
+### G. 학습 결과의 사용자 소유권
+
+학습된 원리는 숨은 내부 상태로만 남지 않는다. 사용자는 사람말 문장과 적용 범위로 원리를 보고,
+수정·고정·일시정지·되돌리기·복원할 수 있다. 일반 대화에는 카드를 남발하지 않고 설정의 한 표면이
+memory, learned principle, skill의 관계를 함께 보여준다.
+
+### H. bounded active set
+
+무한히 커지는 active registry를 허용하지 않는다. 모델 입력은 기존 계약대로 최대 5개이며, active
+원리 저장소도 명시적인 byte/count budget과 사용량을 가져야 한다. 근거 원장은 별도 보존하되 active
+budget을 넘는 항목은 자동 삭제가 아니라 archive/compaction 후보가 된다.
+
+### I. 증거에 근거한 curator
+
+사용되지 않음은 노후 증거가 아니다. first-seen grace, 사용자 pin, 자동화/cron 참조, 최근 효과,
+rollback 이력을 함께 본다. curator는 idle에서만 돌고, 실제 mutation 전 같은 판정 파이프라인의
+dry-run 보고서를 만들 수 있다.
+
 ## 5. 흡수하지 않을 것
 
 1. 현재 턴에서 external memory provider를 최대 8초 기다리는 경로.
 2. 부분적으로 관련되기만 해도 skill을 반드시 읽으라는 prompt 강제.
-3. write approval 기본 OFF를 근거로 memory/skill을 즉시 durable 반영하는 정책.
+3. write approval 기본 OFF를 그대로 복사해 모든 memory/skill 변경을 즉시 durable 반영하는 정책.
 4. “대부분의 세션은 skill을 고쳐야 한다”는 생산량 목표.
 5. T-cell 후보·trace·승격을 매번 카드로 노출하는 UI.
+6. `use_count == 0`이나 오래 보이지 않았다는 이유만으로 학습을 자동 삭제하는 정책.
 
 T5의 우위는 더 많이 멈추는 데 있지 않다. 명시 지시는 즉시 따르고, 추정 학습만 뒤에서 검증하며,
 실행 안전선은 기존 authority가 지키는 데 있다.
@@ -195,10 +239,17 @@ T5의 우위는 더 많이 멈추는 데 있지 않다. 명시 지시는 즉시 
 2. 세션별 FIFO, 세션 간 병렬.
 3. 중복 wake는 합칠 수 있지만 evidence ref는 합집합으로 보존한다.
 4. worker 재시작 뒤 미처리 checkpoint부터 재개한다.
-5. 비밀 원문과 일반 사용자 원문을 추출 모델에 보내지 않는다.
+5. secret은 어떤 성장 모델에도 보내지 않는다. 일반 사용자 문장은 **신뢰 경계별로** 다룬다.
+   - 현재 대화와 같은 provider/model/credential 경계: secret 제거 뒤 필요한 턴 범위의 원문을
+     일시적으로 사용할 수 있다. 저장되는 T-cell에는 원문 대신 refs·요약·digest만 남긴다.
+   - 다른 provider의 auxiliary model: 구조화 EvidenceBundle 또는 digest만 보낸다. 원문 전송은
+     별도 사용자 선택 없이는 금지한다.
+   - local model: 같은 로컬 데이터 경계 안에서 bounded 원문 사용 가능.
 6. M1 → replay case → verified packet → `transitionCell()` → M2/M3가 하나의 생산 계보로 이어진다.
 7. 승격 뒤 scope별 게시 스냅샷을 원자 교체한다.
 8. effect audit가 정확도와 마찰을 함께 보고 softened/rollback을 수행한다.
+9. active budget 초과는 삭제가 아니라 archive/compaction 제안으로 처리한다.
+10. `use_count == 0`, 첫 관찰 직후, pin, automation 참조 항목은 staleness 단독 근거로 내리지 않는다.
 
 ## 7. TG-5 진입 순서
 
@@ -211,7 +262,8 @@ TG-0~4를 폐기하지 않는다. 지금 만든 계약을 아래 생산 계보�
 5. M2/M3만 포함하는 scope별 immutable 게시 스냅샷 생산.
 6. 사용자 턴의 `buildAdmissionSnapshot()` durable I/O를 제거하고 게시 스냅샷 참조로 교체.
 7. TG-5A shadow에서 실제 `admittedPrinciples`를 모델 volatile context에 주입.
-8. 안전한 읽기·정리·도구 선택·초안에서 질문/클릭/완료 턴이 줄었는지 인간 시나리오로 검증.
+8. “배운 방식” 사용자 표면에서 원리 보기·수정·고정·일시정지·범위 축소·되돌리기·복원.
+9. 안전한 읽기·정리·도구 선택·초안에서 질문/클릭/완료 턴이 줄었는지 인간 시나리오로 검증.
 
 ## 8. 종료 검사
 
@@ -221,6 +273,8 @@ TG-0~4를 폐기하지 않는다. 지금 만든 계약을 아래 생산 계보�
 - 세션 A 성장 중 세션 B wake가 유실되지 않음.
 - worker가 terminal/send/file-write/browser tool을 호출하려 하면 runtime 거부.
 - background harness 문장이 user transcript와 external memory namespace에 0건.
+- 같은 provider 성장 호출은 secret 제거 원문을 사용할 수 있으나 저장 상태에는 원문 0건.
+- 다른 provider 성장 호출의 request body에는 원문 0건.
 
 ### 수명주기
 
@@ -228,6 +282,16 @@ TG-0~4를 폐기하지 않는다. 지금 만든 계약을 아래 생산 계보�
 - negative/boundary case 실패 → 승격 0.
 - 재시작 중단 → 미처리 checkpoint부터 정확히 한 번.
 - rollback → 게시 snapshot에서 즉시 제거, 다음 턴 영향 0.
+- active budget 초과 → archive/compaction 후보, 근거 삭제 0.
+- pin/automation 참조/never-used grace → 자동 archive 0.
+
+### 사용자 통제
+
+- 원리 목록에서 사람이 읽는 문장·범위·최근 효과를 확인.
+- 수정 뒤 새 버전과 이전 버전의 rollback trace 보존.
+- pause/rollback 뒤 다음 턴 snapshot에서 즉시 제외.
+- archive 뒤 restore 가능.
+- 일반 대화에서 후보 카드가 작업 흐름을 점유하지 않음.
 
 ### 인간 성능
 
