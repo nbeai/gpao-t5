@@ -192,7 +192,11 @@ export class TCellRegistry {
     }
     let a;
     try { a = JSON.parse(raw); } catch { return { cells: [], corrupted: true }; }
-    const cells = (Array.isArray(a.cells) ? a.cells : []).map((c) => {
+    // 문법만 맞고 **구조가 깨진** 저장소(cells 가 배열이 아님)도 같은 격리 경계다 — 빈 저장소가 아니다.
+    if (!a || typeof a !== 'object' || Array.isArray(a) || !Array.isArray(a.cells)) {
+      return { cells: [], corrupted: true };
+    }
+    const cells = a.cells.map((c) => {
       const v = validateTCell(c);
       return v.ok ? c : v.cell; // 잘못된 항목은 quarantined 투영(영향 0) — 원본 바이트는 저장소에 그대로
     });
@@ -206,7 +210,14 @@ export class TCellRegistry {
       try { raw = await readFile(this.file, 'utf8'); } catch { raw = null; }
       let a = { cells: [] };
       if (raw !== null) {
-        try { a = JSON.parse(raw); a.cells = Array.isArray(a.cells) ? a.cells : []; }
+        try {
+          const parsed = JSON.parse(raw);
+          // 구조 손상도 문법 손상과 같이 격리 보존한다(덮어쓰기 금지).
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.cells)) {
+            throw new Error('구조 손상');
+          }
+          a = parsed;
+        }
         catch {
           await mkdir(this.dir, { recursive: true });
           await rename(this.file, `${this.file}.corrupt-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);

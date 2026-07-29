@@ -120,3 +120,20 @@ test('갱신은 기존 항목의 미래 필드를 보존하고, rollback 은 실
   assert.notEqual(snap.state, 'rolled_back', '스냅샷이 이전 상태를 증명하지 못한다');
   assert.deepEqual(cell.trace.observationRefs, ['obs-1']);
 });
+
+test('감사 P2: 문법만 맞고 구조가 깨진 저장소도 격리 경계다(빈 상태 위장 금지)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2g-'));
+  const reg = new TCellRegistry(dir);
+  const { mkdir: mkd, readdir } = await import('node:fs/promises');
+  await mkd(join(dir, 'growth'), { recursive: true });
+  for (const 손상 of ['{"cells":"not-an-array"}', '[1,2,3]', '"문자열"', '{"cells":null}']) {
+    await writeFile(join(dir, 'growth', 'tcells.json'), 손상, 'utf8');
+    const r = await reg.load();
+    assert.equal(r.corrupted, true, `구조 손상이 빈 저장소로 읽혔다: ${손상}`);
+    assert.deepEqual(r.cells, []);
+  }
+  // 쓰기 경로도 덮어쓰지 않고 격리 보존한다.
+  await reg.upsert(온전한세포('c1'));
+  assert.ok((await readdir(join(dir, 'growth'))).some((f) => f.includes('corrupt')), '구조 손상 바이트가 보존되지 않았다');
+  assert.equal((await reg.load()).cells.length, 1);
+});
