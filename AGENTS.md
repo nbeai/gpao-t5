@@ -81,7 +81,19 @@ Mandatory current-session handoff:
    - Every new, resumed, or takeover session reads this after the audit contract and current execution board.
    - It records the latest verified baseline, current file ownership, blockers, designated follow-ups, next work,
      and stop condition. Verify it against Git before acting because active implementation may have advanced.
-   - Update this fixed-path document at each major P-OP handoff instead of creating disconnected handoff notes.
+   - **Current-truth ownership**: Codex is the integration owner for the handoff's `§0 현재 진실 패킷`.
+     Claude and parallel implementers do not rewrite §0 from their own completion reports. They update their
+     implementation evidence and submit the commit, test, live-run, limitation, and dirty-worktree facts to Codex.
+     Codex independently compares those facts with Git, the live runtime, and the delivered artifact before
+     updating §0. Historical sections remain append-only evidence and must not override §0.
+   - Truth precedence is fixed: **delivered artifact/live runtime and external state → Git/worktree →
+     independent execution evidence → implementation evidence → handoff prose**. A lower source never overrides
+     a higher one. If they disagree, mark the handoff `STALE` and stop completion/next-stage claims, not development.
+   - Before relying on §0, record `git rev-parse HEAD`, `git status --short --branch`, unpushed commits, dirty file
+     ownership, and the relevant live capability state. Never infer missing credentials from shell environment
+     alone when the product has a connection store.
+   - Update this fixed-path document at each independently verified milestone instead of creating disconnected
+     handoff notes. Implementer self-verification alone is not a verified milestone.
 
 Mandatory skill, scheduling, agent, and automation implementation plan:
 
