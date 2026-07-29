@@ -40,7 +40,9 @@ export function validateTSphere(sphere) {
   try {
     if (!TSPHERE_STATES.includes(sphere?.state)) errors.push(`상태가 계약 밖이에요: ${sphere?.state}`);
     if (!(typeof sphere?.centerPoint === 'string' && sphere.centerPoint)) errors.push('중심(centerPoint)이 비어 있어요');
-    if (!(Array.isArray(sphere?.memberIds) && sphere.memberIds.length)) errors.push('구성 세포가 없어요');
+    const strA = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0);
+    if (!(strA(sphere?.memberIds) && sphere.memberIds.length)) errors.push('구성 세포 목록은 비어 있지 않은 문자열 배열이에요');
+    if (!strA(sphere?.traceRefs ?? [])) errors.push('traceRefs 의 원소는 문자열이에요');
     if (!(typeof sphere?.stability === 'number' && Number.isFinite(sphere.stability) && sphere.stability >= 0 && sphere.stability <= 1)) errors.push('stability 는 0..1 이에요');
     const rels = Array.isArray(sphere?.relations) ? sphere.relations : (sphere?.relations == null ? [] : [{ kind: '배열아님' }]);
     for (const rel of rels) {

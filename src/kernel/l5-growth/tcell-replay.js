@@ -71,7 +71,9 @@ export function validateReplayCase(rc) {
   const errors = [];
   try {
     if (!REPLAY_KINDS.includes(rc?.kind)) errors.push(`replay 종류가 계약 밖이에요: ${rc?.kind}`);
-    if (!(Array.isArray(rc?.sourceRefs) && rc.sourceRefs.length)) errors.push('sourceRefs 없는 replay 는 재현이 아니라 상상이에요');
+    const strA = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0);
+    if (!(strA(rc?.sourceRefs) && rc.sourceRefs.length)) errors.push('sourceRefs 없는 replay 는 재현이 아니라 상상이에요');
+    if (!strA(rc?.expected?.mustHold ?? []) || !strA(rc?.expected?.mustNotHappen ?? [])) errors.push('기대 목록의 원소는 문자열이에요');
     const hold = Array.isArray(rc?.expected?.mustHold) ? rc.expected.mustHold : [];
     const not = Array.isArray(rc?.expected?.mustNotHappen) ? rc.expected.mustNotHappen : [];
     if (!hold.length && !not.length) errors.push('기대(mustHold/mustNotHappen)가 비어 있어요');

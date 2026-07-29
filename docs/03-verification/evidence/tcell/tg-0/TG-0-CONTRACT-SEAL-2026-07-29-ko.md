@@ -37,3 +37,21 @@
 5. **typedef 실제 선언** — 4파일 전부 전체 @typedef 명세 그대로 선언(자기 참조 import 제거).
 
 감사 재현 입력 그대로의 반대시험 4건 추가(총 11건). 전체 회귀 **1225건 통과** · 게이트 **PASS**(CPU 22.6s) — 자체 검증.
+
+---
+
+# 재감사 2차 반영 (2026-07-29 · 3차)
+
+핵심 우회 2건 + 원소 형식 봉인:
+1. **M5 검증 불능 = 격리** — 원본(sourceCells) 미제공 시 derivedFrom 만으로 통과 불가.
+   제공 시 **양방향 일치**: 존재하지 않는 원본을 가리키면 가짜 trace, 목록에 없는 원본은 소실 — 둘 다 거절.
+2. **TG-0 반경 상한 task 고정** — passed_transfer + M4 도 열지 못한다. requiresUserConfirmation 은
+   "확인 필요" 표시이지 "확인됨" 증거가 아니다. 확장은 이후 확인된 radius mutation(승인 영수증) 도입 시에만.
+3. **모든 참조·경계·행동 목록 = 비어 있지 않은 문자열 배열**(strArr) — trace/boundary/authority/replay/
+   observation/sphere 전체 적용. observationRefs:[null,{}] · validWhen:[7] · caseRefs:[42] 전부 격리.
+
+감사 지정 반대시험 3건 그대로 추가(파일 총 13건): 가짜 derivedFrom+원본 미제공 → 격리 ·
+미확인 M4/global/answer_anchor → 격리+영향 none · 비문자 원소 → 격리.
+전체 회귀 **1227건 통과** · 게이트 **PASS**(CPU 22.2s) — 자체 검증.
+
+T-cell 두 원칙이 계약으로 잠김: **trace 없는 성장 금지 · 통계·성숙도만으로 권한 획득 금지.**

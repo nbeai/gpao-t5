@@ -67,16 +67,13 @@ export function influenceCeilingFor(state) {
 }
 
 /**
- * 반경 상한 — **통계가 곧 권한이 되지 않는다**(감사 2026-07-29). 관찰이 아무리 쌓여도
- * 근거 수만으로는 task 를 넘지 못한다. project/profile 은 transfer replay 통과가,
- * global 은 거기에 M4 이상 성숙까지 필요하다. 한 번의 정정은 언제나 task 까지다(§8).
+ * 반경 상한 — **통계·성숙도만으로 권한을 얻지 못한다**(재감사 2026-07-29).
+ * passed_transfer + M4 도 반경을 열지 못한다: requiresUserConfirmation 은 "확인이 필요하다"는
+ * 표시이지 "확인됐다"는 증거가 아니다. TG-0 에서는 상한이 **task 고정**이며, 이후 단계에서
+ * 확인된 radius mutation(승인 영수증이 있는 확장 기록)이 생겼을 때만 그 영수증으로 넓어진다.
  */
-export function radiusCeilingFor(cell) {
-  const 관찰수 = new Set((Array.isArray(cell?.trace?.observationRefs) ? cell.trace.observationRefs : [])).size;
-  if (관찰수 <= 1) return 'task';
-  if (cell?.replay?.status !== 'passed_transfer') return 'task'; // 확대는 제안까지 — 승인은 replay 뒤
-  if (cell?.state === 'M4_stable' || cell?.state === 'M5_compressed') return 'global';
-  return 'profile';
+export function radiusCeilingFor(_cell) {
+  return 'task';
 }
 
 /** @deprecated TG-0 감사로 대체 — 근거 수만으로 반경을 열지 않는다. */
@@ -154,6 +151,8 @@ export function makeTCellCandidate(input = {}) {
 
 /** total-function 도우미 — 임의 JSON 이 와도 던지지 않는다(감사 1). */
 const arr = (v) => (Array.isArray(v) ? v : null);
+/** 모든 참조·경계·행동 목록의 계약: **비어 있지 않은 문자열의 배열**(재감사 3). */
+const strArr = (v) => (Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0) ? v : null);
 const num이상 = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 
 /** 경계 4묶음이 전부 **배열로** 존재해야 한다(비어 있는 경계는 "어디서나 유효"가 되기 쉽다). */
@@ -161,19 +160,22 @@ export function assertBoundaryComplete(cell) {
   const errors = [];
   const b = cell?.boundary;
   if (!b || typeof b !== 'object') return ['boundary 가 없어요'];
-  if (!arr(b.validWhen)?.length) errors.push('validWhen 이 비어 있어요');
-  if (!arr(b.invalidWhen)?.length) errors.push('invalidWhen 이 비어 있어요 — 반례 없는 원리는 원리가 아니에요');
-  if (!arr(b.needsReviewWhen)) errors.push('needsReviewWhen 이 없어요');
-  if (!arr(b.mustNotOverride)) errors.push('mustNotOverride 가 없어요');
+  if (!strArr(b.validWhen)?.length) errors.push('validWhen 은 비어 있지 않은 문자열 목록이에요');
+  if (!strArr(b.invalidWhen)?.length) errors.push('invalidWhen 은 비어 있지 않은 문자열 목록이에요 — 반례 없는 원리는 원리가 아니에요');
+  if (!strArr(b.needsReviewWhen ?? [])) errors.push('needsReviewWhen 의 원소는 문자열이에요');
+  if (!strArr(b.mustNotOverride ?? [])) errors.push('mustNotOverride 의 원소는 문자열이에요');
   return errors;
 }
 
 /** trace 로 근거까지 내려갈 수 있는가 — 근거 없는 원리는 격리 대상이다. */
 export function assertTraceDescendable(cell, evidenceStore = null) {
   const errors = [];
-  const refs = arr(cell?.trace?.observationRefs);
-  if (!refs) return ['trace(observationRefs)가 배열이 아니에요'];
+  const refs = strArr(cell?.trace?.observationRefs);
+  if (!refs) return ['trace(observationRefs)는 비어 있지 않은 문자열 배열이에요'];
   if (!refs.length) errors.push('필수 trace(observationRefs)가 없어요');
+  for (const k of ['rawSourceRefs', 'derivedFrom']) {
+    if (!strArr(cell?.trace?.[k] ?? [])) errors.push(`trace.${k} 의 원소는 비어 있지 않은 문자열이에요`);
+  }
   if (evidenceStore) {
     for (const ref of refs) {
       if (!evidenceStore.has?.(ref)) errors.push(`근거를 찾을 수 없어요: ${ref}`);
@@ -202,7 +204,7 @@ export function assertAuthorityInvariant(cell) {
   }
   if (a.mustNotOverrideCurrentRequest !== true) errors.push('현재 요청 우선 계약은 끌 수 없어요');
   if (typeof a.requiresUserConfirmation !== 'boolean') errors.push('requiresUserConfirmation 은 불리언이에요');
-  if (!arr(a.prohibitedActionKinds)) errors.push('prohibitedActionKinds 가 배열이 아니에요');
+  if (!strArr(a.prohibitedActionKinds ?? [])) errors.push('prohibitedActionKinds 의 원소는 문자열이에요');
   const 상한 = radiusCeilingFor(cell);
   if ((RADIUS_ORDER[cell?.geometry?.radius] ?? 99) > RADIUS_ORDER[상한]) {
     errors.push(`지금 근거·replay·성숙도로는 반경 ${cell?.geometry?.radius} 를 만들 수 없어요(상한 ${상한})`);
@@ -218,7 +220,7 @@ export function assertRangesValid(cell) {
   if (!num이상(cell?.geometry?.sphereStability, 0, 1)) errors.push('sphereStability 는 0..1 이에요');
   const REPLAY_STATUSES = ['untested', 'passed_basic', 'passed_transfer', 'failed'];
   if (!REPLAY_STATUSES.includes(cell?.replay?.status)) errors.push(`replay 상태가 계약 밖이에요: ${cell?.replay?.status}`);
-  if (!arr(cell?.replay?.caseRefs)) errors.push('replay.caseRefs 가 배열이 아니에요');
+  if (!strArr(cell?.replay?.caseRefs ?? [])) errors.push('replay.caseRefs 의 원소는 비어 있지 않은 문자열이에요');
   const e = cell?.effect ?? {};
   for (const k of ['eligibleCount', 'successCount', 'failureCount', 'userCorrectionCount', 'sameFailureRecurrenceCount', 'authorityViolationCount']) {
     if (!(Number.isInteger(e[k]) && e[k] >= 0)) errors.push(`effect.${k} 는 0 이상의 정수예요`);
@@ -228,14 +230,28 @@ export function assertRangesValid(cell) {
   return errors;
 }
 
-/** 압축(M5) 안전: 원본 세포들의 trace 가 압축본에서 끊기지 않아야 한다. */
+/**
+ * 압축(M5) 안전 — **원본 없이는 검증 불능이고, 검증 불능은 통과가 아니라 격리다**(재감사 1).
+ * derivedFrom 과 실제 원본은 양방향으로 일치해야 한다: 목록에 있는데 원본이 없으면 가짜 trace,
+ * 원본이 있는데 목록에 없으면 소실이다.
+ */
 export function assertCompressionSafe(cell, sourceCells = []) {
   const errors = [];
   if (cell?.state !== 'M5_compressed') return errors;
-  const derived = new Set(arr(cell?.trace?.derivedFrom) ?? []);
-  if (!derived.size) errors.push('압축본(M5)에 원본 trace(derivedFrom)가 없어요');
-  for (const src of sourceCells) {
-    if (!derived.has(src?.id)) errors.push(`압축이 원본 trace 를 잃었어요: ${src?.id}`);
+  const derived = strArr(cell?.trace?.derivedFrom) ?? [];
+  if (!derived.length) errors.push('압축본(M5)에 원본 trace(derivedFrom)가 없어요');
+  const sources = Array.isArray(sourceCells) ? sourceCells : [];
+  if (!sources.length) {
+    if (derived.length) errors.push('압축본(M5)의 원본 세포가 제공되지 않아 검증할 수 없어요 — 검증 불능은 격리예요');
+    return errors;
+  }
+  const srcIds = new Set(sources.map((c) => c?.id));
+  for (const ref of derived) {
+    if (!srcIds.has(ref)) errors.push(`압축본이 존재하지 않는 원본을 가리켜요: ${ref}`);
+  }
+  const derivedSet = new Set(derived);
+  for (const src of sources) {
+    if (!derivedSet.has(src?.id)) errors.push(`압축이 원본 trace 를 잃었어요: ${src?.id}`);
   }
   return errors;
 }

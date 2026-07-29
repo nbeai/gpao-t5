@@ -138,14 +138,47 @@ test('감사 3: M5 압축 trace 검사가 통합 검증에 연결됐다 — 원�
   assert.ok(r2.errors.some((e) => e.includes('b')));
 });
 
-test('감사 4: 관찰 수만으로는 global 이 열리지 않는다 — transfer replay 와 성숙이 함께 필요하다', () => {
+test('감사 4(재감사 2 강화): TG-0 반경 상한은 task 고정 — passed_transfer + M4 도 열지 못한다', () => {
   const 통계만 = 온전한후보({ trace: { observationRefs: ['1', '2', '3', '4', '5', '6'], corrections: [] } });
   assert.equal(radiusCeilingFor(통계만), 'task', '통계가 곧 권한이 됐다');
   통계만.geometry.radius = 'global';
   assert.equal(validateTCell(통계만).ok, false);
-  // transfer replay 통과 → profile 까지. global 은 M4 이상까지 함께.
-  통계만.replay.status = 'passed_transfer';
-  assert.equal(radiusCeilingFor(통계만), 'profile');
-  const 성숙 = { ...통계만, state: 'M4_stable' };
-  assert.equal(radiusCeilingFor(성숙), 'global');
+  // 재감사 2 재현 입력 그대로: 미확인 M4/global/answer_anchor → 격리.
+  const 미확인 = 온전한후보({ trace: { observationRefs: ['1', '2', '3', '4', '5', '6'], corrections: [] } });
+  미확인.state = 'M4_stable';
+  미확인.replay.status = 'passed_transfer';
+  미확인.geometry.radius = 'global';
+  미확인.authority.allowedInfluence = ['answer_anchor'];
+  const r = validateTCell(미확인);
+  assert.equal(r.ok, false, 'requiresUserConfirmation 표시만으로 global 영향이 열렸다');
+  assert.equal(r.cell.state, 'quarantined');
+  assert.deepEqual(r.cell.authority.allowedInfluence, ['none']);
+});
+
+test('재감사 1: 존재하지 않는 derivedFrom + 원본 미제공 → 검증 불능은 통과가 아니라 격리다', () => {
+  const 가짜 = 온전한후보(); 가짜.state = 'M5_compressed'; 가짜.trace.derivedFrom = ['does-not-exist'];
+  const r = validateTCell(가짜); // sourceCells 미제공
+  assert.equal(r.ok, false, '가짜 원본 trace 가 통과했다');
+  assert.equal(r.cell.state, 'quarantined');
+  // 원본을 주면 양방향 일치 검사: 목록에 없는 원본(소실)과 원본 없는 목록(가짜) 둘 다.
+  const r2 = validateTCell(가짜, null, { sourceCells: [{ id: 'real-1' }] });
+  assert.ok(r2.errors.some((e) => e.includes('does-not-exist')), `${r2.errors}`);
+  assert.ok(r2.errors.some((e) => e.includes('real-1')));
+});
+
+test('재감사 3: 비문자 배열 원소는 전부 격리된다', () => {
+  const 오염들 = [
+    온전한후보({ trace: { observationRefs: [null, {}], corrections: [] } }),
+    (() => { const c = 온전한후보(); c.boundary.validWhen = [7]; return c; })(),
+    (() => { const c = 온전한후보(); c.replay.caseRefs = [42]; return c; })(),
+    (() => { const c = 온전한후보(); c.authority.prohibitedActionKinds = ['']; return c; })(),
+  ];
+  for (const cell of 오염들) {
+    const r = validateTCell(cell);
+    assert.equal(r.ok, false, `비문자 원소가 통과했다: ${JSON.stringify(r.errors)}`);
+    assert.equal(r.cell.state, 'quarantined');
+  }
+  assert.equal(validateObservationEvent(makeObservationEvent({ type: 'tool_result', sourceRefs: [1] })).ok, false);
+  assert.equal(validateReplayCase(makeReplayCase({ kind: 'positive', sourceRefs: [{}], expected: { mustHold: ['x'] } })).ok, false);
+  assert.equal(validateTSphere(makeTSphere({ centerPoint: '중심', memberIds: [3], stability: 0.1 })).ok, false);
 });

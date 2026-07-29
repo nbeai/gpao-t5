@@ -114,7 +114,8 @@ export function validateObservationEvent(event) {
     if (!OBSERVATION_VALENCES.includes(event.signal?.valence)) errors.push('valence 가 계약 밖이에요');
     if (typeof event.signal?.summary !== 'string') errors.push('summary 가 없어요');
     else if (event.signal.summary.length > SUMMARY_MAX) errors.push('summary 가 원문 저장 수준으로 길어요');
-    if (!Array.isArray(event.sourceRefs) || !Array.isArray(event.receiptRefs)) errors.push('참조 목록이 배열이 아니에요');
+    const strA = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0);
+    if (!strA(event.sourceRefs) || !strA(event.receiptRefs)) errors.push('참조 목록은 비어 있지 않은 문자열 배열이에요');
     if (typeof event.privacy?.modelReadable !== 'boolean' || typeof event.privacy?.containsSecret !== 'boolean') {
       errors.push('privacy 플래그는 불리언이에요');
     } else if (event.privacy.containsSecret && event.privacy.modelReadable) {
