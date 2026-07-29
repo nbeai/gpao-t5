@@ -53,7 +53,10 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
-import { TCellObserver, TCellRegistry, ConfirmationStore, grantSnapshotFromSession } from './tcell-store.js';
+import {
+  TCellObserver, TCellRegistry, ConfirmationStore,
+  grantSnapshotFromLedger, grantFromConsumedApproval,
+} from './tcell-store.js';
 import { wakeSignal, groupObservations, buildEvidenceBundle, extractCandidate } from '../runtime/tcell-extractor.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -238,7 +241,7 @@ export function makeServer(deps = {}) {
         const job = a.jobs.find((j) => j.id === r.jobId);
         관찰만(() => tcellObserver.observeAutomationResult({
           jobId: r.jobId, executionIndex: Math.max(0, (job?.executions?.length ?? 1) - 1),
-          receipt: r.receipt, now: Date.now(),
+          receipt: r.receipt, anchor: anchorFor(null, { subject: r.jobId }), now: Date.now(),
         }));
       }
       return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
@@ -306,6 +309,59 @@ export function makeServer(deps = {}) {
     return out;
   }
 
+  /**
+   * TG-5A 행렬 5 · **admission 원천 공급의 단일 자리.**
+   * 웹(`/turn`·`/turn/stream`)과 채널 인바운드가 **같은 함수**를 지난다 — 예전에는 웹만 공급받아
+   * 채널 경로가 admission 을 통째로 건너뛰었다(감사 실측).
+   *
+   * 확인·권한 원장은 **함수로** 넘긴다(행렬 4 + 성능 예산 §19): 세포가 0건이면 admission 이
+   * 이 함수들을 부르지 않으므로 원장을 만들지도 않는다. 매 턴 저장소를 읽던 비용이 여기서 사라진다.
+   */
+  function supplyAdmissionSources(ctx, session) {
+    ctx.sessionId = session.id;
+    ctx.workspaceId = store.dir;                      // 범위 식별자(작업 공간)
+    ctx.confirmationRefs = session.principleConfirmations ?? {};
+    ctx.admissionSources = {
+      registry: tcellRegistry,
+      observer: tcellObserver,
+      confirmationStore: () => confirmationStore.snapshot(),       // **실제 확인 원장**
+      // **부여된 권한 원장**(행렬 4) — `pendingApprovals`(누르기 전의 카드)가 아니라
+      // 실제로 소비된 승인 중 재사용 가능한 범위만 담긴 목록이다.
+      grantStore: () => grantSnapshotFromLedger(session.grants ?? []),
+    };
+  }
+
+  /**
+   * 행렬 4 · 소비된 승인을 권한 원장에 남긴다. **재사용 가능한 범위만** 들어간다(`once` 는 제외).
+   * 승인이 소비되기 **전에** 대기 항목을 읽어 둬야 한다 — 커널이 소비하면서 지우기 때문이다.
+   */
+  function recordGrantIfBounded(session, saved, now) {
+    const g = grantFromConsumedApproval(saved, { scope: `project:${store.dir}`, now });
+    if (!g) return;
+    const 목록 = session.grants ?? [];
+    // 같은 키의 옛 부여는 남겨 둔다 — 조회기가 가장 최근 것을 고르고, 이력은 감사 자산이다.
+    session.grants = [...목록, g].slice(-50); // 상한: 원장이 세션 파일을 무한히 키우지 않게
+  }
+
+  /**
+   * 행렬 6 · **관찰의 anchor 는 OS 가 아는 사실이다.**
+   * 감사 실측: `observeTurn` 은 anchor 파라미터를 받는데 호출부가 안 넘겨서 모든 관찰의 anchor 가
+   * null 이었다. 그래서 추출된 세포의 anchor 도 null 이 됐고, admission 의 범위 판정이 영원히
+   * 무의미했다(관통 시험이 `원리.anchor` 를 손으로 심어 그 사실을 가리고 있었다).
+   * 네 생산 경로가 **모두** 이 함수를 지난다.
+   */
+  function anchorFor(session, extra = {}) {
+    const ws = session?.workingState ?? null;
+    const 이번턴대상 = (Array.isArray(ws?.subjects) ? ws.subjects : [])
+      .filter((s) => s?.lastTurn === ws?.turnNo);
+    return {
+      workspace: store.dir,
+      project: store.dir,                                   // admission 의 `requestFacts.project` 와 같은 값
+      surface: extra.surface ?? null,
+      subject: extra.subject ?? 이번턴대상[0]?.key ?? null,
+    };
+  }
+
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
   async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
@@ -319,15 +375,7 @@ export function makeServer(deps = {}) {
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
     ctx.skills = (await skillStore.load()).skills ?? [];
     // TG-5A: shadow admission 이 **실제 저장소**를 읽도록 원천을 공급한다(영향 0 — trace 만 나간다).
-    ctx.sessionId = session.id;
-    ctx.workspaceId = store.dir;                      // 범위 식별자(작업 공간)
-    ctx.pendingApprovals = session.pendingApprovals;  // bounded grant 판정 재료
-    ctx.confirmationRefs = session.principleConfirmations ?? {};
-    ctx.admissionSources = {
-      registry: tcellRegistry, observer: tcellObserver,
-      confirmationStore: await confirmationStore.snapshot(),   // **실제 확인 원장**
-      grantStore: grantSnapshotFromSession(session),           // **실제 승인 범위**
-    };
+    supplyAdmissionSources(ctx, session);
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -343,11 +391,19 @@ export function makeServer(deps = {}) {
     // (승인 재개는 그 보류를 지우면서 시작한다).
     const 물어본자리 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
+    // 행렬 4: 승인은 **소비되면서 지워진다.** 권한 원장에 남길 재료를 그 전에 읽어 둔다.
+    const 승인대상 = typeof input.approve === 'string'
+      ? session.pendingApprovals?.[input.approve] : undefined;
 
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
     // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
     const ledgerStart = ctx.ledger.entries.length;
+    // 행렬 1: admission 의 사실 창은 **이번 턴과 직전 턴**뿐이다. 경계는 서버가 아는 사실이다.
+    ctx.prevTurnLedgerStart = Number.isInteger(session.lastTurnLedgerStart)
+      ? session.lastTurnLedgerStart : ledgerStart;
+    ctx.turnLedgerStart = ledgerStart;
+    session.lastTurnLedgerStart = ledgerStart;
     let result;
     try {
       result = await runTurn(input, ctx);
@@ -377,10 +433,20 @@ export function makeServer(deps = {}) {
     }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
+    // 행렬 4: **실제로 소비된 승인만** 권한이 된다. 거절·만료·유령 ID 는 여기 오지 않는다.
+    if (result.approvalConsumed?.approved === true && 승인대상) {
+      recordGrantIfBounded(session, 승인대상, Date.now());
+    }
+    // 행렬 6: 이 턴이 만든 관찰이 살 자리. workingState 는 턴 결과로 갱신되므로 그것을 쓴다.
+    const 이번턴anchor = anchorFor(
+      { ...session, workingState: result.workingState ?? session.workingState },
+      { surface: result.surface ?? ctx.surface?.responseSurface ?? null },
+    );
     // TG-1: shadow 관찰 — 원장 위치가 곧 신분(ledger:세션:번호). 유효한 결정만 관찰.
     관찰만(() => tcellObserver.observeTurn({
       sessionId: session.id,
       ledgerStart,
+      anchor: 이번턴anchor,                       // 행렬 6 — 비어 있으면 범위 판정이 영원히 무의미하다
       turnReceipts: ctx.ledger.entries.slice(ledgerStart),
       turnId: String(session.transcript.length), // 턴 신분(TG-4 의 서로 다른 turn 계산 근거)
       // 감사 재현(만료 승인): 대기 목록 존재 ≠ 유효 — **커널이 실제 소비한 결정만** 관찰한다.
@@ -393,7 +459,7 @@ export function makeServer(deps = {}) {
       // 선호(preference)는 기존 기억 레인의 것이므로 T-cell 관찰에 들어오지 않는다(S-TG-1).
       const 원리제안 = result?.memorySuggestion?.kind === 'operating_principle' ? result.memorySuggestion : null;
       const 지시 = 원리제안?.statement
-        ? await tcellObserver.observeUserRequest({ sessionId: session.id, statement: 원리제안.statement, turnIndex: session.transcript.length, now: Date.now() })
+        ? await tcellObserver.observeUserRequest({ sessionId: session.id, statement: 원리제안.statement, turnIndex: session.transcript.length, anchor: 이번턴anchor, now: Date.now() })
         : null;
       const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
       return 원리후보추출({
@@ -895,7 +961,7 @@ export function makeServer(deps = {}) {
           // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
           const receiptWritten = await 기억영수증('rolled_back', removed);
           // TG-1: 구조화된 사용자 정정 신호 — 발화 원문이 아니라 행동 사실과 참조만.
-          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 기억 반영을 되돌렸어요', ref: `memory:rollback:${removed.candidateId ?? removed.id ?? 'unknown'}`, now: Date.now() }));
+          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 기억 반영을 되돌렸어요', ref: `memory:rollback:${removed.candidateId ?? removed.id ?? 'unknown'}`, anchor: anchorFor(null), now: Date.now() }));
           return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
       }
@@ -946,7 +1012,7 @@ export function makeServer(deps = {}) {
         if (a.promoted.length !== before) {
           await traceStore.save(a);
           // TG-1: 구조화된 사용자 정정 신호(잘못 배운 기본 대상의 철회).
-          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 학습된 기본 대상을 되돌렸어요', ref: `pattern:rollback:${input.tool}:${Date.now()}`, now: Date.now() }));
+          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 학습된 기본 대상을 되돌렸어요', ref: `pattern:rollback:${input.tool}:${Date.now()}`, anchor: anchorFor(null, { subject: input.tool }), now: Date.now() }));
         }
         return sendJson(res, 200, { ok: true });
       }
@@ -1529,6 +1595,14 @@ export function makeServer(deps = {}) {
     const memory = await memStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
+    // 행렬 5: **채널도 웹과 같은 admission 준비 경계를 지난다.** 감사 실측: 이 경로는 원천 공급이
+    // 아예 없어 admission 을 통째로 건너뛰었다 — 방에서 시킨 일만 원리가 안 보이는 상태였다.
+    supplyAdmissionSources(ctx, session);
+    const 채널원장시작 = ctx.ledger.entries.length;
+    ctx.prevTurnLedgerStart = Number.isInteger(session.lastTurnLedgerStart)
+      ? session.lastTurnLedgerStart : 채널원장시작;
+    ctx.turnLedgerStart = 채널원장시작;
+    session.lastTurnLedgerStart = 채널원장시작;
     const result = await runTurn({
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,

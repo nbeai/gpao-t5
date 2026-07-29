@@ -122,14 +122,16 @@ export class TCellObserver {
    * 이제 **구조화된 운영 원리 문장만** 들어온다(부르는 쪽이 레인을 판정한다). 그마저도
    * 비밀 모양이면 일반화 문장으로 바뀌고 모델 가독이 닫힌다.
    * 지시 근거는 자기 참조(`request:세션:턴`)를 갖는다 — 추측으로 옛 정정을 집지 않는다.
-   * @param {{sessionId:string, statement:string, turnIndex?:number, now?:number}} p
+   * @param {{sessionId:string, statement:string, turnIndex?:number, anchor?:object, now?:number}} p
    */
-  async observeUserRequest({ sessionId, statement, turnIndex = 0, now = 0 } = {}) {
+  async observeUserRequest({ sessionId, statement, turnIndex = 0, anchor = null, now = 0 } = {}) {
     const ref = `request:${sessionId}:${turnIndex}`;
     const secret = looksLikeSecret(statement);
     const r = await this.record(makeObservationEvent({
       // 턴 신분을 함께 남긴다 — TG-4 가 "서로 다른 turn 근거"를 영수증 수가 아니라 이걸로 센다.
       type: 'user_request', sessionId, turnId: String(turnIndex), occurredAt: now,
+      anchor: anchor ?? undefined,   // 행렬 6 — 이 지시가 어느 자리의 것인지
+
       signal: { summary: secret ? '비밀이 섞인 지시(원문 비저장)' : (statement ?? ''), valence: 'neutral' },
       sourceRefs: sessionId ? [`session:${sessionId}`] : [], receiptRefs: [ref],
       privacy: { containsSecret: secret },
@@ -138,17 +140,20 @@ export class TCellObserver {
   }
 
   /** 사용자 정정(구조화 신호: 되돌리기·철회 행동) — 발화 원문이 아니라 행동 사실과 참조만. */
-  async observeCorrection({ sessionId = null, what, ref, now = 0 } = {}) {
+  async observeCorrection({ sessionId = null, what, ref, anchor = null, now = 0 } = {}) {
     return this.record(observationFromCorrection(what ?? '사용자가 이전 반영을 되돌렸어요', {
-      sessionId, now, ref, sourceRefs: sessionId ? [`session:${sessionId}`] : [],
+      sessionId, now, ref, anchor: anchor ?? undefined,   // 행렬 6
+      sourceRefs: sessionId ? [`session:${sessionId}`] : [],
     }));
   }
 
   /** 자동화 결과 — 엔진 결과 경계에서 job+실행 번호로 투영한다. */
-  async observeAutomationResult({ jobId, executionIndex = 0, receipt, now = 0 } = {}) {
+  async observeAutomationResult({ jobId, executionIndex = 0, receipt, anchor = null, now = 0 } = {}) {
     const secret = receipt?.containsSecret === true;
     return this.record(makeObservationEvent({
       type: 'automation_result', occurredAt: now,
+      anchor: anchor ?? undefined,   // 행렬 6 — 자동화도 어느 작업 공간의 것인지 남긴다
+
       signal: { summary: secret ? 비밀일반화 : (receipt?.userSafeSummary ?? '자동화 실행'), valence: receipt?.failureState && receipt.failureState !== 'none' ? 'failure' : 'success' },
       sourceRefs: [`automation:${jobId}`], receiptRefs: [`automation:${jobId}:exec:${executionIndex}`],
       privacy: { containsSecret: secret },
@@ -214,7 +219,7 @@ export class TCellObserver {
 // ── TG-2 · TCell Registry + legacy adapter (명세 §6·§16 TG-2) ──────────────
 // growth/tcells.json 이 원리 세포의 현재 상태 문서다(원자 교체·미래 필드 보존·손상 격리).
 // **여기 있는 어떤 것도 아직 TaskContext 에 들어가지 않는다** — TG-5 전까지 영향 0.
-import { writeFile, rename } from 'node:fs/promises';
+import { writeFile, rename, stat } from 'node:fs/promises';
 import { validateTCell, makeTCellCandidate } from '../kernel/l5-growth/tcell-core.js';
 
 export class TCellRegistry {
@@ -222,14 +227,33 @@ export class TCellRegistry {
     this.dir = join(dir, 'growth');
     this.file = join(this.dir, 'tcells.json');
     this.queue = Promise.resolve(); // 저장 변경 직렬화(감사: 동시 저장 20건 중 1건만 남음)
+    // 서버 수명 캐시 — 아래 `load()` 참조. 변경(#mutate)은 자기 캐시를 직접 비운다.
+    this.cache = null;
   }
 
-  /** 손상은 빈 저장소로 위장하지 않는다. 읽을 때도 모든 세포를 검증해 격리 투영한다. */
+  /**
+   * 손상은 빈 저장소로 위장하지 않는다. 읽을 때도 모든 세포를 검증해 격리 투영한다.
+   *
+   * **읽기 캐시**(명세 §19 성능 예산 · 실측 2026-07-29): admission 이 매 턴 이 함수를 부른다.
+   * 세포가 0건인 세션에서도 파일을 열고 파싱하고 전수 검증하던 비용이 게이트 CPU 로 실측됐다
+   * (내 몫 +4.7s). 캐시 키는 **파일의 mtime+크기**다 — 우리 프로세스의 변경은 `#mutate` 가
+   * 직접 무효화하고, 밖에서 바뀐 파일은 키가 달라져 자동으로 다시 읽힌다.
+   * **정확성을 캐시로 바꾸지 않는다**: 파일이 조금이라도 달라지면 캐시는 쓰이지 않는다.
+   */
   async load() {
+    let st = null;
+    try { st = await stat(this.file); }
+    catch (e) {
+      if (e?.code === 'ENOENT') return { cells: [] };   // 아직 아무 원리도 없다(오류가 아니다)
+      return { cells: [], error: e?.message ?? String(e) };
+    }
+    const key = `${st.mtimeMs}:${st.size}`;
+    // 캐시는 **복사해서** 준다 — 호출자가 목록을 만지더라도 다음 호출의 진실이 오염되지 않는다.
+    if (this.cache?.key === key) return { ...this.cache.value, cells: [...this.cache.value.cells] };
     let raw;
     try { raw = await readFile(this.file, 'utf8'); }
     catch (e) {
-      if (e?.code === 'ENOENT') return { cells: [] };
+      if (e?.code === 'ENOENT') return { cells: [] };   // stat 과 read 사이에 지워졌다
       return { cells: [], error: e?.message ?? String(e) };
     }
     let a;
@@ -242,7 +266,10 @@ export class TCellRegistry {
       const v = validateTCell(c);
       return v.ok ? c : v.cell; // 잘못된 항목은 quarantined 투영(영향 0) — 원본 바이트는 저장소에 그대로
     });
-    return { ...a, cells };
+    const out = { ...a, cells };
+    // 손상 판정(`corrupted`)은 캐시하지 않는다 — 격리·복구가 파일을 바꾸면 다음 읽기가 진실이어야 한다.
+    this.cache = { key, value: out };
+    return { ...out, cells: [...cells] };
   }
 
   /** 변경은 한 줄로 직렬화된다. 손상 저장소는 옆으로 격리 보존 후 새로 시작(덮어쓰기 금지). */
@@ -277,6 +304,9 @@ export class TCellRegistry {
       const tmp = `${this.file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
       await writeFile(tmp, JSON.stringify(a), { encoding: 'utf8', mode: 0o600 });
       await rename(tmp, this.file);
+      // 우리가 쓴 변경은 **우리가 직접** 캐시를 버린다. mtime 해상도에 기대지 않는다 —
+      // 같은 밀리초 안의 연속 변경이 옛 목록을 되살리면 안 된다.
+      this.cache = null;
       return out;
     });
     this.queue = run.then(() => {}, () => {});
@@ -389,23 +419,58 @@ export class ConfirmationStore {
 }
 
 /**
- * bounded grant 조회기 (TG-5A) — **세션의 실제 승인 범위**에서 만든다.
- * 현재 T5 의 승인은 대부분 `kind:'once'` 다. 그건 정확히 "재사용 불가"로 판정되어야 하고,
- * 이 어댑터는 그 사실을 있는 그대로 넘긴다(없는 bounded 를 만들어내지 않는다).
+ * **부여된 권한 원장** (TG-5A · 종료 행렬 4) — 실제로 **소비된** 승인만 산다.
+ *
+ * 감사 재현: 예전 어댑터는 `session.pendingApprovals` 를 읽었다. 그건 **아직 누르지 않은 카드**다.
+ * 대기 목록에 있다는 사실이 권한이 되면 매듭 하나가 통째로 깨진다 — `승인 전 계획 ≠ 실제 실행`.
+ * 그래서 그 어댑터는 대체가 아니라 **제거**했고, 이 원장이 자리를 대신한다.
+ *
+ * 무엇이 들어오는가:
+ *  · 사용자가 실제로 승인해 커널이 **소비한** 결정만(`approvalConsumed.approved === true`)
+ *  · 그중 **재사용 가능한 범위**를 가진 것만 — 제품의 `grantScope.kind` 는 `once|session|persist` 이고
+ *    `session`/`persist` 만 bounded 로 승격한다. `once` 는 소비돼도 권한이 아니다(재사용 불가).
+ *  · 행동·대상·범위가 **모두** 있는 것만. 하나라도 없으면 무엇을 허락했는지 말할 수 없다.
  */
-export function grantSnapshotFromSession(session) {
+export const GRANT_REUSABLE_KINDS = Object.freeze(['session', 'persist']);
+
+/** 조회 키 — `admission` 이 같은 규칙으로 만든 키로 찾는다(`l1-intent/turn-facts.js` `grantKey`). */
+export function grantLedgerKey({ action, target, scope } = {}) {
+  const s = (v) => (typeof v === 'string' && v ? v : null);
+  return (s(action) && s(target) && s(scope)) ? `grant:${action}:${target}:${scope}` : null;
+}
+
+/**
+ * 소비된 승인 하나 → 원장 기록(또는 `null`). **없는 bounded 를 만들어내지 않는다.**
+ * @param {{grantScope?:object, plan?:object, sendArgs?:object, intent?:object}} saved 소비된 대기 항목
+ * @param {{scope?:string, now?:number}} ctx 범위 식별자와 시각(호출자가 사실로 준다)
+ */
+export function grantFromConsumedApproval(saved, { scope = null, now = 0 } = {}) {
+  const g = saved?.grantScope;
+  if (!g || !GRANT_REUSABLE_KINDS.includes(g.kind)) return null; // once 는 여기서 끝난다
+  const action = saved?.plan?.toolsToUse?.[0] ?? saved?.plan?.needsApproval?.[0]?.action ?? null;
+  const target = (action && saved?.sendArgs?.[action]?.target)
+    ?? saved?.intent?.sendTarget?.target ?? null;
+  const key = grantLedgerKey({ action, target, scope });
+  if (!key) return null; // 무엇을·어디에·어느 범위에서 중 하나라도 모르면 권한으로 남기지 않는다
+  return {
+    key, kind: 'bounded', action, target, scope,
+    grantedAt: now,
+    expiresAt: typeof g.expiresAt === 'number' ? g.expiresAt : null,
+    revoked: false,
+  };
+}
+
+/**
+ * 원장 → 동기 조회기. 같은 키가 여러 번 부여됐으면 **가장 최근 것**이 이긴다.
+ * 만료·철회 판정은 여기서 하지 않는다 — admission 의 권한판정이 `now` 를 들고 다시 본다
+ * (두 곳에서 같은 사실을 계산하면 덜 아는 쪽이 이긴다).
+ */
+export function grantSnapshotFromLedger(grants) {
   const m = new Map();
-  for (const [id, p] of Object.entries(session?.pendingApprovals ?? {})) {
-    const g = p?.grantScope;
-    if (!g) continue;
-    m.set(id, {
-      kind: g.kind === 'bounded' ? 'bounded' : 'once',
-      action: p?.plan?.toolsToUse?.[0] ?? null,
-      target: p?.sendArgs ? Object.values(p.sendArgs)[0]?.target ?? null : null,
-      scope: g.scope ?? null,
-      expiresAt: g.expiresAt ?? null,
-      revoked: p?.revoked === true,
-    });
+  for (const g of Array.isArray(grants) ? grants : []) {
+    if (!g?.key || g.kind !== 'bounded') continue;
+    const prev = m.get(g.key);
+    if (!prev || (g.grantedAt ?? 0) >= (prev.grantedAt ?? 0)) m.set(g.key, g);
   }
   return Object.freeze({ get: (k) => m.get(k) ?? null });
 }

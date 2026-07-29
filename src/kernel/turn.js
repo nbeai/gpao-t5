@@ -197,30 +197,91 @@ function 이전대기를지난것으로(ctx) {
 }
 
 /**
- * TG-5A · shadow admission — **판단 재료가 갖춰진 뒤**(인텐트·계획·영수증) 모델 호출 전에 돈다.
- * 감사 실측: 예전엔 인텐트보다 앞에서 불러 재료가 하나도 없었고, 실제 세포가 전부 거절됐다.
+ * 행렬 1 · **고정 시간창** — 직전 턴의 영수증만 사실이 된다.
+ * 세션 누적 원장 전체를 넘기면 세 턴 전 실패가 영원히 `실패 직후` 로 매치된다(감사 재현).
+ * 창의 경계는 서버가 준 사실(`turnLedgerStart`·`prevTurnLedgerStart`)이지 추정이 아니다.
+ * (admission 은 늘 실행 앞에서 도므로 "이번 턴 영수증" 창은 두지 않는다 — `turn-facts.js` 참조.)
+ */
+function 원장창(ctx, ledger) {
+  const all = ledger?.entries ?? [];
+  const start = Number.isInteger(ctx.turnLedgerStart) ? ctx.turnLedgerStart : all.length;
+  const prev = Number.isInteger(ctx.prevTurnLedgerStart) ? Math.min(ctx.prevTurnLedgerStart, start) : start;
+  return { previousTurn: all.slice(prev, start), previousTurnStart: prev };
+}
+
+/** admission 이 죽어도 답변은 죽지 않는다. 실패는 정직하게 degraded 로 남긴다. */
+const 실패trace = (stage) => ({
+  stage, status: 'degraded', errorCodes: ['admission_failed'],
+  retrievedIds: [], admitted: [], rejected: [], scopeFiltered: 0,
+  influencedPlan: [], influencedAnswer: [],
+});
+
+/**
+ * TG-5A · **공통 admission 준비 경계** (종료 행렬 3·5).
+ *
+ * 네 경로 — 웹 발화 · 채널 수신 · 승인 · 거절 — 이 **모두 이 한 자리를 지난다.**
+ * 감사 실측: 예전에는 승인·거절이 이 자리보다 앞에서 return 했고 채널은 원천 공급조차 없어서
+ * 세 경로가 admission 을 아예 지나지 않았다.
+ *
+ * 단계가 둘인 이유(행렬 3): 모델 호출 앞에는 계획이 없고 등급은 정규식 추정뿐이다.
+ * 그 자리에서 계획·값 역할을 열면 추정 위에서 권한을 판정하게 된다.
+ *  · `pre_model` — 맥락 역할만. `tierKnown:false`
+ *  · `post_plan` — 커널이 판정한 등급·실제 도구·대상 위에서 권한·값 역할까지
+ *
+ * 저장소 스냅샷은 **턴당 한 번**만 만들고 두 단계가 재사용한다(비용은 한 번뿐이다).
  * 결과는 `result.principleTrace` 로만 나가고 모델·계획·실행에는 들어가지 않는다(주입은 TG-5B).
  */
-async function 원리입장계산(ctx, 재료) {
+async function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySuggestion, awaiting }) {
+  if (!ctx.admissionSources) return null;
+  let trace;
   try {
-    const sources = ctx.admissionSources;
-    if (!sources) return null;
-    const snap = await buildAdmissionSnapshot({ ...sources, sessionId: ctx.sessionId });
-    const { trace } = admitFromSnapshot(snap, {
+    ctx.admissionSnapshot ??= await buildAdmissionSnapshot({
+      ...ctx.admissionSources,
+      sessionId: ctx.sessionId,
+      scope: { project: ctx.workspaceId },   // 범위 밖 원리는 읽지 않는다(명세 §6)
+    });
+    const 재료 = buildTurnFacts({
+      stage, intent, plan, sendArgs, memorySuggestion, awaiting,
+      selfState: ctx.selfState, workingState: ctx.workingState,
+      sessionId: ctx.sessionId, workspaceId: ctx.workspaceId, surface: ctx.surface,
+      ledgerWindow: 원장창(ctx, ledger),
+      confirmationRefs: ctx.confirmationRefs,
+    });
+    ({ trace } = admitFromSnapshot(ctx.admissionSnapshot, {
       requestFacts: 재료.requestFacts,
       authorityFacts: 재료.authorityFacts,
       now: ctx.now ? ctx.now() : Date.now(),
-    });
-    return trace;
+      stage,
+    }));
   } catch {
-    // 계산이 죽어도 답변은 죽지 않는다. 실패는 정직하게 degraded 로.
-    return { status: 'degraded', errorCodes: ['admission_failed'], retrievedIds: [], admitted: [], rejected: [], influencedPlan: [], influencedAnswer: [] };
+    trace = 실패trace(stage);
   }
+  (ctx.principlePasses ??= []).push(trace);
+  return trace;
+}
+
+/**
+ * 단계별 판정을 하나의 trace 로 합친다.
+ * **최상위는 마지막으로 실제 실행된 단계**다(계획이 안 서는 턴에는 `post_plan` 이 없다).
+ * 각 단계의 원본은 `passes` 에 그대로 남는다 — 합친 값만 남기면 감사가 두 판정을 구분할 수 없다.
+ */
+function trace합치기(passes) {
+  if (!passes?.length) return null;
+  const last = passes[passes.length - 1];
+  return {
+    ...last,
+    status: passes.some((p) => p.status === 'degraded') ? 'degraded' : 'ok',
+    errorCodes: [...new Set(passes.flatMap((p) => p.errorCodes ?? []))],
+    // TG-5A 는 shadow — 어느 단계도 계획·답에 영향을 주지 않는다. 빈 배열이 그 사실의 기록이다.
+    influencedPlan: [], influencedAnswer: [],
+    passes,
+  };
 }
 
 export async function runTurn(input, ctx) {
   const 결과 = await runTurnInner(input, ctx);
-  return ctx.principleTrace ? { ...결과, principleTrace: ctx.principleTrace } : 결과;
+  const trace = trace합치기(ctx.principlePasses);
+  return trace ? { ...결과, principleTrace: trace } : 결과;
 }
 
 async function runTurnInner(input, ctx) {
@@ -274,6 +335,13 @@ async function runTurnInner(input, ctx) {
   // input 을 안 받는다) 여기서 ctx 에 실어 둔다 — 결과가 요청이 온 자리로 돌아가는 계약(L9).
   ctx.askedFrom = input.channel ? { channel: input.channel } : undefined;
 
+  // 행렬 5 · **승인·거절도 같은 admission 준비 경계를 지난다.**
+  // 감사 실측: 이 두 분기는 아래 admission 자리보다 **앞에서 return** 했다. 그래서 사용자가
+  // 버튼으로만 진행한 턴은 원리 입장이 아예 계산되지 않았다 — 웹 발화만 지나는 경계는 경계가 아니다.
+  if (input.approve || input.reject) {
+    await 원리입장(ctx, ledger, { stage: 'pre_model', awaiting: true });
+  }
+
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
   if (input.approve) {
     const saved = ctx.pending.get(input.approve);
@@ -296,6 +364,12 @@ async function runTurnInner(input, ctx) {
     // 것이 없다. 그렇게 묻는 것은 확인이 아니라 절차가 되고, 사용자는 읽지 않고 누르게 된다.
     // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
+    // 행렬 3·5: **소비가 확정된 뒤** post_plan 판정을 돈다. 이 자리에는 보관된 실제 계획과
+    // 커널이 이미 판정한 등급이 있다 — 추정이 아니라 사실 위에서 권한·값 역할을 본다.
+    await 원리입장(ctx, ledger, {
+      stage: 'post_plan', plan: saved.plan, sendArgs: saved.sendArgs,
+      intent: { ...(saved.intent ?? {}), approvalOutcome: 'approved' }, awaiting: true,
+    });
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     // TG-1: **실제로 소비된 승인만** 결과 사실로 싣는다 — 만료·미발견은 위에서 이미 돌아갔다.
     // 관찰(T-cell)은 입력에 approve 가 있었다는 사실이 아니라 이 소비 사실만 본다(감사 2026-07-29).
@@ -319,6 +393,13 @@ async function runTurnInner(input, ctx) {
     const 건너뛴일 = (거절된것?.plan?.needsApproval ?? [])
       .map((g) => g.approvalPreview?.impact).filter(Boolean)[0];
     ctx.pending.delete(input.reject);
+    // 행렬 3·5: 실제로 대기 항목을 **소비한 거절**만 계획 사실을 갖는다(유령 ID 는 아니다).
+    if (거절된것) {
+      await 원리입장(ctx, ledger, {
+        stage: 'post_plan', plan: 거절된것.plan, sendArgs: 거절된것.sendArgs,
+        intent: { ...(거절된것.intent ?? {}), approvalOutcome: 'rejected' },
+      });
+    }
     const reply = ctx.tools?.tools?.[손]?.cancelledSummary?.(인자)
       ?? (건너뛴일 ? `안 했어요. 아무것도 바뀌지 않았어요. (건너뛴 일: ${건너뛴일})`
         : '안 했어요. 아무것도 바뀌지 않았어요.');
@@ -399,17 +480,11 @@ async function runTurnInner(input, ctx) {
   // P2-5b: **도구 선택을 모델에게.** 분기 전에 한 번 묻는다 — 정규식(answerMode)이 "행동이 아니다"라고
   // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
-  // TG-5A: **여기서** admission 을 돈다 — intent·plan·selfState·영수증이 모두 준비된 자리다.
-  // 결과는 ctx.principleTrace 로만 나가고 아래 tc(모델 입력)에는 들어가지 않는다.
-  if (ctx.admissionSources) {
-    const 재료 = buildTurnFacts({
-      intent, selfState, workingState: ctx.workingState, sessionId: ctx.sessionId,
-      workspaceId: ctx.workspaceId, surface: ctx.surface, receipts: ledger.entries,
-      ledgerStart: 0, memorySuggestion, pendingApprovals: ctx.pendingApprovals,
-      confirmationRefs: ctx.confirmationRefs,
-    });
-    ctx.principleTrace = await 원리입장계산(ctx, 재료);
-  }
+  // TG-5A 행렬 3 · **모델 호출 앞 단계**(`pre_model`). 여기엔 계획이 없고 등급은 정규식 추정뿐이다.
+  // 그래서 맥락 역할만 연다 — 계획·값 역할은 아래 `post_plan` 이 실제 계획 위에서 판정한다.
+  // 결과는 principleTrace 로만 나가고 아래 tc(모델 입력)에는 들어가지 않는다.
+  ctx.selfState = selfState;
+  await 원리입장(ctx, ledger, { stage: 'pre_model', intent, memorySuggestion, awaiting: Boolean(input.runningTask) });
 
   let modelChosen = null;
   let earlyReply = null;
@@ -678,6 +753,13 @@ async function runTurnInner(input, ctx) {
     // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
     sendGrant.reason = { ...sendGrant.reason, whatChanges: `${보이는대상}에 "${parsed.message}"를 실제로 보내요.` };
   }
+
+  // TG-5A 행렬 3 · **계획 뒤 단계**(`post_plan`) — 실행·승인 게이트 **앞**이다.
+  // 이 자리에는 커널이 판정한 등급(`needsApproval[].tier`), 실제 도구, 확정된 대상이 있다.
+  // 같은 스냅샷을 재사용하므로 저장소를 다시 읽지 않는다(성능 예산 §19).
+  await 원리입장(ctx, ledger, {
+    stage: 'post_plan', intent, plan, sendArgs, memorySuggestion, awaiting: Boolean(input.runningTask),
+  });
 
   if (pendingGrants.length) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.

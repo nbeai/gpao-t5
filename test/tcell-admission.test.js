@@ -5,8 +5,8 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  admitPrinciples, resolveRole, judgeClause, explainAdmission,
-  ADMISSION_REASONS, STAGE_ALLOWED_ROLES, ROLE_ORDER,
+  admitPrinciples, resolveRole, judgeClause, judgeDirective, explainAdmission,
+  ADMISSION_REASONS, STAGE_ROLES, ROLE_ORDER,
 } from '../src/kernel/l1-intent/tcell-admission.js';
 import { makeTCellCandidate } from '../src/kernel/l5-growth/tcell-core.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
@@ -29,6 +29,9 @@ const 기본입력 = (cell, over = {}) => ({
   candidateIds: [cell.id], principleStore: 저장소({ [cell.id]: cell }),
   evidenceStore: 저장소({ 'ledger:s:1': { type: 'tool_result', turnId: '1' } }),
   confirmationStore: 저장소({}), grantStore: 저장소({}),
+  // 단위 시험의 기본은 **계획 뒤**(`post_plan`)다 — 권한·값 역할까지 열리는 넓은 자리에서
+  // 각 계약을 본다. 단계 자체의 경계는 아래 「행렬 3」 시험이 따로 증명한다.
+  stage: 'post_plan',
   requestFacts: { project: 'T5', subject: '정산', facts: [{ fact: '실패 직후', ref: 'ledger:s:1' }] },
   // 커널이 등급을 판정한 정상 턴 — 판정 없음(tierKnown:false)은 별도 시험에서 본다.
   authorityFacts: { actionTier: 'A0', tierKnown: true },
@@ -61,23 +64,81 @@ test('2·15: 범위는 식별자로 판정한다 — 시간 경과는 불일치�
   assert.equal(admitPrinciples(기본입력(turn범위)).trace.rejected[0].reason, ADMISSION_REASONS.scope);
 });
 
-test('3: 현재 사용자 정정과 충돌하면 즉시 거절된다(현재 원문이 1순위)', () => {
+// ── 행렬 2 · 지시 관계는 세 값이다 — 같은 지시는 충돌이 아니다 ──
+test('행렬 2: 현재 지시 관계 3값 — 같은 지시는 강화, 부정만 충돌, 그 밖은 unknown', () => {
   const c = 세포();
-  const r = admitPrinciples(기본입력(c, {
-    requestFacts: { project: 'T5', subject: '정산', facts: [{ fact: '실패 직후' }], contradicts: ['막힌 손은 같은 인자로 반복하지 않는다'] },
+  const 문장 = '막힌 손은 같은 인자로 반복하지 않는다';
+  const 사실 = (directives) => ({
+    project: 'T5', subject: '정산', facts: [{ fact: '실패 직후' }],
+    directives, userDirective: directives.length > 0,
+  });
+
+  // ① 같은 지시 = 강화. **입장을 막지 않는다.**
+  //    명세 §21 은 「사용자가 명시한 선호를 같은 범위에서 다시 확인받기」를 금지 구현으로 못박았다.
+  //    예전 코드는 그보다 나빠서, 같은 문장을 다시 말하면 그 원리를 **거절**했다.
+  const 강화 = admitPrinciples(기본입력(c, { requestFacts: 사실([{ statement: 문장, ref: 'd1' }]) }));
+  assert.equal(강화.admissions.length, 1,
+    `같은 지시를 반복했더니 원리가 죽었다: ${JSON.stringify(강화.trace.rejected)}`);
+  assert.equal(강화.admissions[0].directiveRelation, 'reinforces');
+
+  // ② 명시적 부정 = 충돌. 현재 요청이 이긴다.
+  const 충돌 = admitPrinciples(기본입력(c, { requestFacts: 사실([{ statement: `!${문장}`, ref: 'd2' }]) }));
+  assert.equal(충돌.admissions.length, 0, '현재 지시의 부정을 원리가 이겼다');
+  assert.equal(충돌.trace.rejected[0].reason, ADMISSION_REASONS.conflict);
+
+  // ③ 무관한 지시 = unknown. 입장 근거도 아니고 **거절 근거도 아니다**(과잉 차단 금지).
+  const 무관 = admitPrinciples(기본입력(c, { requestFacts: 사실([{ statement: '보고서는 목록으로', ref: 'd3' }]) }));
+  assert.equal(무관.admissions.length, 1, '무관한 지시가 원리를 막았다(과잉 차단)');
+  assert.equal(무관.admissions[0].directiveRelation, 'unknown');
+
+  // ④ 세포가 스스로 "덮지 않는다"고 선언한 것이 이번 턴 사실이면, 지시 턴에서는 충돌이다.
+  const 금지 = admitPrinciples(기본입력(c, {
+    requestFacts: {
+      project: 'T5', subject: '정산',
+      facts: [{ fact: '실패 직후' }, { fact: '현재 요청', ref: 'r' }],
+      directives: [{ statement: '아무 말' }], userDirective: true,
+    },
   }));
-  assert.equal(r.admissions.length, 0);
-  assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.conflict);
+  assert.equal(금지.trace.rejected[0].reason, ADMISSION_REASONS.conflict);
+
+  // 순수 함수 자체도 세 값만 낸다.
+  assert.equal(judgeDirective(c, { directives: [{ statement: 문장 }] }).relation, 'reinforces');
+  assert.equal(judgeDirective(c, { directives: [] }).relation, 'unknown');
+  assert.equal(judgeDirective(null, null, null).relation, 'unknown');
+});
+
+// ── 행렬 3 · 모델 전 맥락 역할과 계획 뒤 권한·값 역할의 분리 ──
+test('행렬 3: pre_model 은 맥락 역할만 연다 — 계획 역할은 계획이 선 뒤에만', () => {
+  // 세포는 plan_hint 를 허용하고 성숙도 상한도 충분하다. 막는 것은 **단계**뿐이다.
+  const 계획역할 = 세포({ state: 'M4_stable', authority: { allowedInfluence: ['none', 'plan_hint'] } });
+  const pre = admitPrinciples(기본입력(계획역할, { stage: 'pre_model' }));
+  assert.equal(pre.admissions.length, 0, '모델 호출 앞에서 계획 역할이 열렸다');
+  assert.equal(pre.trace.rejected[0].reason, ADMISSION_REASONS.roleEmpty);
+  assert.equal(pre.trace.stage, 'pre_model');
+
+  const post = admitPrinciples(기본입력(계획역할, { stage: 'post_plan' }));
+  assert.equal(post.admissions.length, 1, '계획이 선 뒤에도 계획 역할이 막혔다');
+  assert.equal(post.admissions[0].role, 'plan_hint');
+  assert.equal(post.admissions[0].stage, 'post_plan');
+
+  // 맥락 역할은 두 단계 모두에서 열린다 — 단계 분리가 과잉 차단이 되지 않는다.
+  const 맥락 = 세포({ state: 'M2_replayed' });
+  assert.equal(admitPrinciples(기본입력(맥락, { stage: 'pre_model' })).admissions.length, 1);
+
+  // 집합 자체의 계약: 어느 단계도 answer_anchor 를 갖지 않는다. 모르는 단계는 가장 좁은 집합.
+  assert.ok(!STAGE_ROLES.pre_model.includes('plan_hint'));
+  assert.ok(!STAGE_ROLES.post_plan.includes('answer_anchor'));
+  assert.deepEqual(admitPrinciples(기본입력(계획역할, { stage: '있을 리 없는 단계' })).admissions, []);
 });
 
 test('5·17: role 은 세 집합의 교집합 최대값 — 상한·단계를 넘지 못하고 answer_anchor 는 불가', () => {
   // M2 상한은 supporting_context 까지 — plan_hint 를 허용해도 잘린다.
   const m2 = 세포({ state: 'M2_replayed' });
-  assert.equal(resolveRole(m2), 'supporting_context');
+  assert.equal(resolveRole(m2, STAGE_ROLES.post_plan), 'supporting_context');
   // M4 는 상한이 전체지만 이번 단계 집합이 answer_anchor 를 갖지 않는다.
   const m4 = 세포({ state: 'M4_stable', authority: { allowedInfluence: [...ROLE_ORDER] } });
-  assert.equal(resolveRole(m4), 'default_value', 'answer_anchor 로 자동 상승했다');
-  assert.ok(!STAGE_ALLOWED_ROLES.includes('answer_anchor'));
+  assert.equal(resolveRole(m4, STAGE_ROLES.post_plan), 'default_value', 'answer_anchor 로 자동 상승했다');
+  assert.ok(!STAGE_ROLES.post_plan.includes('answer_anchor'));
   // 세포가 아무 역할도 허용하지 않으면 입장 없음.
   const 없음 = 세포({ authority: { allowedInfluence: ['none'] } });
   assert.equal(resolveRole(없음), 'none');
@@ -207,7 +268,7 @@ test('total function: 임의 입력에도 던지지 않는다', () => {
 });
 
 // ── 11·20: **진짜 관통** — 실제 입장까지 확인한다(retrieved 1 → admitted 1) ──
-async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐줘', '한 번 더 봐줘'] } = {}) {
+async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐줘', '한 번 더 봐줘'], 마지막도구 = null } = {}) {
   const { makeServer } = await import('../src/surface/server.js');
   const { SessionStore } = await import('../src/surface/session-store.js');
   const { TCellRegistry, TCellObserver, ConfirmationStore } = await import('../src/surface/tcell-store.js');
@@ -223,16 +284,29 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
     await ob.observeTurn({ sessionId: '과거세션', ledgerStart: 0, turnId: '1', now: 1,
       turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none', action: 'local.terminal 실행' }] });
     원리.trace.observationRefs = ['ledger:과거세션:0'];
+    // 이 세포가 **이 작업 공간의 것**이라는 시험 설정이다. 같은 값을 생산 경로가 실제로
+    // 저장하는지는 아래 「행렬 6」 시험이 관찰 파일을 직접 읽어 따로 증명한다 —
+    // 그 시험이 없으면 이 한 줄이 미배선을 가리게 된다(예전에 정확히 그랬다).
     원리.anchor = { ...원리.anchor, project: dir, subject: null };
     await new TCellRegistry(dir).upsert(원리, null);
     if (확인) await new ConfirmationStore(dir).record({ id: 확인, tcellId: 원리.id, sourceRefs: ['ledger:과거세션:0'], now: 1 });
   }
+  // 행렬 7: **실행 전 바이트**. 사후에 두 번 읽어 비교하면 "안 바뀌었다"가 아니라
+  // "두 번 읽는 사이에 안 바뀌었다"만 증명된다(감사 지적).
+  const 실행전바이트 = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
   const 본것 = [];
   let 첫 = true;
+  let 마지막턴 = false;
   const 모델 = { async respond(tc, opts = {}) {
     본것.push({ tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>'), tools: JSON.stringify(opts.tools ?? []) });
     if (!opts.tools?.length) return '네';
-    if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+    if (첫) {
+      첫 = false;
+      // 마지막 턴에 **실제 A2 도구**를 고르게 할 수 있다 — 그래야 권한 경계를 진짜로 지난다.
+      // (예전 검사는 이 장치가 없어 A2 턴을 만들지 못한 채 "권한이 지켰다"고 읽었다.)
+      if (마지막턴 && 마지막도구) return { text: '', toolCalls: [마지막도구] };
+      return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] };
+    }
     return { text: '봤어요', toolCalls: [] };
   } };
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
@@ -240,18 +314,25 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const 턴 = async (body) => (await (await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: sess.id, ...body }),
+    })).json());
     let r;
-    for (const t of texts) {
+    for (const [i, t] of texts.entries()) {
       첫 = true; // 매 턴 도구를 한 번 고른다
-      r = await (await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: sess.id, text: t }) })).json();
+      마지막턴 = i === texts.length - 1;
+      r = await 턴({ text: t });
     }
-    const regBytes = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
-    return { dir, 본것, 실행: 실행기록, reply: r.reply, trace: r.principleTrace, regBytes };
+    const 실행후바이트 = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
+    // 관찰 파일 원문 — 행렬 6 이 anchor 를 여기서 직접 읽는다.
+    const 관찰원문 = await readFile(join(dir, 'growth', 'observations.jsonl'), 'utf8').catch(() => '');
+    void 턴;
+    return { dir, 본것, 실행: 실행기록, reply: r.reply, trace: r.principleTrace, 실행전바이트, 실행후바이트, 관찰원문 };
   } finally { await new Promise((r2) => server.close(r2)); }
 }
 
-/** 실제로 입장 가능한 세포 — 이번 턴 사실(`실행 성공 직후`)과 맞물리는 경계를 갖는다. */
+/** 실제로 입장 가능한 세포 — 직전 턴 사실(`실행 성공 직후`)과 맞물리는 경계를 갖는다. */
 const 입장가능세포 = () => {
   const c = 세포({
     boundary: { validWhen: ['실행 성공 직후'], invalidWhen: ['재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
@@ -280,22 +361,42 @@ test('11·20 관통: 과거 세션 원리가 현재 턴에 실제로 입장하�
   assert.ok(!JSON.stringify(있음.본것).includes('막힌 손은'), '원리 문장이 모델 입력에 실렸다');
   assert.deepEqual(있음.trace.influencedPlan, []);
   assert.deepEqual(있음.trace.influencedAnswer, []);
-  // ④ registry 는 바이트 불변이다(보고만 하고 비교 안 하던 것 — 감사 7).
-  const 다시 = await (async () => {
-    const { TCellRegistry } = await import('../src/surface/tcell-store.js');
-    return JSON.stringify((await new TCellRegistry(있음.dir).load()).cells ?? []);
-  })();
-  assert.equal(다시, 있음.regBytes, 'admission 이 registry 를 바꿨다');
+  // ④ 행렬 7: registry 는 **실행 전 바이트와 실행 후 바이트**가 같다.
+  //    예전 검사는 턴이 끝난 뒤 두 번 읽어 비교했다 — 그건 "두 번 읽는 사이에 안 바뀌었다"만 증명한다.
+  assert.equal(있음.실행후바이트, 있음.실행전바이트, 'admission 이 registry 를 바꿨다');
+  assert.ok(있음.실행전바이트.includes('cell-live'), '실행 전 바이트가 비어 있다(비교가 무의미해진다)');
+  // ⑤ 행렬 3: 두 단계가 실제로 돌았고 trace 에 남는다.
+  assert.deepEqual(있음.trace.passes.map((p) => p.stage), ['pre_model', 'post_plan'],
+    `두 단계가 돌지 않았다: ${JSON.stringify(있음.trace.passes?.map((p) => p.stage))}`);
 });
 
-test('관통: 현재 지시와 충돌하는 원리는 입장하지 못한다', async () => {
+// ── 행렬 6 · 관찰 생산 경로가 anchor 를 저장한다 ──
+test('행렬 6: 실제 생산 경로가 workspace/project/subject anchor 를 저장한다', async () => {
+  const r = await 관통서버({ 원리: 입장가능세포() });
+  const 관찰 = r.관찰원문.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.ok(관찰.length > 0, '관찰이 하나도 저장되지 않았다');
+  // 이번 세션이 만든 관찰만 본다(과거 세션 fixture 제외).
+  const 이번것 = 관찰.filter((e) => e.sessionId && e.sessionId !== '과거세션');
+  assert.ok(이번것.length > 0, '이번 세션의 관찰이 없다');
+  for (const e of 이번것) {
+    assert.equal(e.anchor?.workspace, r.dir, `관찰 anchor.workspace 가 비었다: ${e.type}`);
+    assert.equal(e.anchor?.project, r.dir, `관찰 anchor.project 가 비었다: ${e.type}`);
+  }
+  // **이 값이 admission 의 범위 식별자와 같은 값**이어야 세포의 범위 판정이 의미를 갖는다.
+  // 같지 않으면 위 11·20 관통이 scope_mismatch 로 깨진다 — 두 시험이 서로를 묶는다.
+  assert.equal(r.trace.admitted.length, 1, 'anchor 가 맞는데도 범위 판정에서 떨어졌다');
+});
+
+// ── 행렬 2 관통 · 같은 지시는 원리를 죽이지 않는다 ──
+test('관통: 같은 지시를 다시 말해도 원리는 살아 있다(강화이지 충돌이 아니다)', async () => {
   const c = 입장가능세포();
-  // 사용자가 이번 턴에 **구조화된 지시**(operating_principle)로 같은 문장을 말하면 그 지시가 우선한다.
   c.principle.statement = '반드시 실행 성공 직후에는 확인한다';
+  // 사용자가 **같은 문장**을 구조화된 지시로 다시 말한다. 명세 §21: 같은 범위의 재확인 금지.
   const r = await 관통서버({ 원리: c, texts: ['폴더 봐줘', '반드시 실행 성공 직후에는 확인한다'] });
   assert.ok(r.trace, 'trace 없음');
-  assert.equal(r.trace.admitted.length, 0, '현재 지시와 충돌하는 원리가 입장했다');
-  assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.conflict);
+  assert.equal(r.trace.admitted.length, 1,
+    `같은 지시를 반복했더니 원리가 죽었다: ${JSON.stringify(r.trace.rejected)}`);
+  assert.equal(r.trace.admitted[0].reason, ADMISSION_REASONS.admitted);
 });
 
 test('관통: 확인이 필요한 원리는 실제 확인 원장이 있어야 입장한다', async () => {
@@ -305,19 +406,44 @@ test('관통: 확인이 필요한 원리는 실제 확인 원장이 있어야 �
   assert.equal(없이.trace.rejected[0].reason, ADMISSION_REASONS.confirmation);
 });
 
-test('관통: A2 턴에서 계획 역할 원리는 유효 grant 없이 입장하지 못한다', async () => {
+// ── 행렬 8 · A2 무grant 관통은 **정확히 권한 경계**를 증명한다 ──
+test('행렬 8: A2 턴에서 계획 역할은 유효 grant 없이 못 들어오고, 사유는 정확히 권한이다', async () => {
   const 계획역할 = () => {
     const c = 입장가능세포();
     c.state = 'M3_limited';
-    c.authority.allowedInfluence = ['none', 'plan_hint'];
+    // 맥락 역할도 함께 허용한다 — 이렇게 해야 "역할이 없어서"가 아니라 **권한 때문에** 막혔음을
+    // 증명할 수 있다. plan_hint 만 두면 role_not_allowed 로 떨어져 권한 경계를 안 지난다.
+    c.authority.allowedInfluence = ['none', 'supporting_context', 'plan_hint'];
     return c;
   };
-  // "보내줘" 는 커널이 A2 로 판정하는 발화다 — grant 는 once 뿐이므로 입장 불가여야 한다.
-  const r = await 관통서버({ 원리: 계획역할(), texts: ['폴더 봐줘', '이 내용 오너한테 보내줘'] });
+  // **실제 A2 계획을 만든다** — `slack.post` 는 실행 가능하면서 `needsApproval:true` 라
+  // 커널이 A2 로 올린다. 부여된 권한 원장은 비어 있다(승인을 누른 적이 없다).
+  const r = await 관통서버({
+    원리: 계획역할(), texts: ['폴더 봐줘', '이 내용 오너한테 보내줘'],
+    마지막도구: { name: 'slack.post', args: { target: '#general', text: '보고' } },
+  });
   assert.ok(r.trace, 'trace 없음');
-  assert.equal(r.trace.admitted.length, 0, `A2 턴에서 grant 없이 계획 역할이 입장했다: ${JSON.stringify(r.trace.admitted)}`);
-  assert.ok([ADMISSION_REASONS.authority, ADMISSION_REASONS.authorityUnknown, ADMISSION_REASONS.boundary, ADMISSION_REASONS.conflict]
-    .includes(r.trace.rejected[0].reason), `예상 밖 사유: ${r.trace.rejected[0].reason}`);
+  const post = r.trace.passes.find((p) => p.stage === 'post_plan');
+  assert.ok(post, `post_plan 단계가 돌지 않았다: ${JSON.stringify(r.trace.passes?.map((p) => p.stage))}`);
+
+  // ① 계획 역할로는 못 들어온다. ② 그 사유는 **정확히 권한**이다 — 다른 사유를 허용하지 않는다.
+  //    예전 검사는 authority/authorityUnknown/boundary/conflict 중 아무거나 통과시켜서,
+  //    경계와 무관한 이유로 막혀도 "권한이 지켰다"고 읽혔다(감사 지적).
+  const 계획거절 = post.rejected.find((x) => x.id === 'cell-live');
+  const 계획입장 = post.admitted.find((x) => x.id === 'cell-live');
+  if (계획입장) {
+    // 들어왔다면 그것은 **맥락 역할**이어야 한다. 계획 역할이 열렸다면 권한 경계가 뚫린 것이다.
+    assert.equal(계획입장.role, 'supporting_context',
+      `A2 턴에서 grant 없이 계획 역할이 열렸다: ${JSON.stringify(계획입장)}`);
+  } else {
+    assert.equal(계획거절?.reason, ADMISSION_REASONS.authority,
+      `권한이 아닌 사유로 막혔다(경계를 증명하지 못한다): ${계획거절?.reason}`);
+  }
+
+  // ③ **pre_model 단계에서는 계획 역할이 애초에 없다**(행렬 3) — 추정 위에서 권한을 열지 않는다.
+  const pre = r.trace.passes.find((p) => p.stage === 'pre_model');
+  assert.ok(!pre.admitted.some((x) => ['plan_hint', 'default_value'].includes(x.role)),
+    '모델 호출 앞에서 계획·값 역할이 열렸다');
 });
 
 test('스냅샷 경계: 실제 비동기 저장소를 읽고, 읽기 실패는 degraded 로 승계된다', async () => {

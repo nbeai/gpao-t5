@@ -19,10 +19,22 @@ export const ROLE_ORDER = Object.freeze([
   'none', 'candidate_context', 'supporting_context', 'plan_hint', 'default_value', 'answer_anchor',
 ]);
 
-/** 이번 단계가 허용하는 역할 — `answer_anchor` 는 **집합에 없다**(TG-5C 이후 논의). */
-export const STAGE_ALLOWED_ROLES = Object.freeze([
-  'none', 'candidate_context', 'supporting_context', 'plan_hint', 'default_value',
-]);
+/**
+ * 행렬 3 · **단계별 허용 역할** — 재료가 다르면 열 수 있는 역할도 다르다.
+ *
+ * `pre_model` 은 모델 호출 **앞**이다. 계획이 없고 등급은 `intent.js` 의 정규식 추정뿐이므로
+ * **맥락 역할만** 연다. 계획·값에 관여하는 역할을 여기서 열면 추정 위에서 권한을 판정하게 된다.
+ * `post_plan` 은 `buildActionPlan` 뒤·실행 앞이다. 커널이 판정한 등급과 실제 도구·대상이 있다.
+ *
+ * `answer_anchor` 는 **어느 단계에도 없다**(TG-5C 이후 논의).
+ */
+export const STAGE_ROLES = Object.freeze({
+  pre_model: Object.freeze(['none', 'candidate_context', 'supporting_context']),
+  post_plan: Object.freeze(['none', 'candidate_context', 'supporting_context', 'plan_hint', 'default_value']),
+});
+
+/** 알 수 없는 단계는 **가장 좁은 집합**으로 떨어진다(모르면 덜 연다). */
+export const rolesForStage = (stage) => STAGE_ROLES[stage] ?? STAGE_ROLES.pre_model;
 
 /** 입장 후보가 될 수 있는 성숙도 — M2 이상, 종착·약화 상태 제외. */
 const 후보가능상태 = Object.freeze(['M2_replayed', 'M3_limited', 'M4_stable', 'M5_compressed']);
@@ -89,7 +101,7 @@ export function judgeClause(clause, facts = []) {
  * 계약 B · 역할 결정 — 세 집합의 교집합에서 고정 순서의 최대값. 교집합이 비면 'none'.
  * 가장 높은 역할을 임의로 고르지 않고, 단계 밖 역할로 자동 상승하지 않는다.
  */
-export function resolveRole(cell, stageAllowed = STAGE_ALLOWED_ROLES) {
+export function resolveRole(cell, stageAllowed = STAGE_ROLES.pre_model) {
   if (!cell || typeof cell !== 'object') return 'none';
   const 세포허용 = Array.isArray(cell?.authority?.allowedInfluence) ? cell.authority.allowedInfluence : [];
   const 상한 = influenceCeilingFor(cell?.state);
@@ -147,9 +159,14 @@ function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
     scope: 문자열(authorityFacts?.scope),
   };
   const ref = 문자열(authorityFacts?.grantRef);
+  // 행렬 4: 조회 대상은 **실제로 부여된 권한 원장**이다. `pendingApprovals`(아직 누르지 않은 카드)를
+  // grant 로 읽던 경로는 제거했다 — 대기 목록에 있다는 사실은 권한이 아니다(매듭: 승인 전 계획 ≠ 실행).
   const g = 조회(grantStore, ref, errors);
   if (!g || typeof g !== 'object') return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
-  // **정확히 bounded 만** 인정한다(감사 재현: 임의 kind 가 통과했다). 일회성 승인은 권한이 아니다.
+  // **정확히 bounded 만** 인정한다(감사 재현: 임의 kind 가 통과했다).
+  // 제품의 `grantScope.kind` 는 `once|session|persist` 다. 그중 **재사용 가능한 범위를 가진**
+  // session/persist 만 원장이 `bounded` 로 승격해 담는다. `once` 는 소비돼도 권한이 아니다 —
+  // 명세 §0.1 「bounded grant 안의 반복 실행은 다시 묻지 않는다」의 반대쪽 경계다.
   const 유효종류 = g.kind === 'bounded';
   const 철회됨 = g.revoked === true || g.active === false;
   const 만료 = typeof g.expiresAt === 'number' ? g.expiresAt <= (typeof now === 'number' ? now : 0) : true;
@@ -177,6 +194,8 @@ export function admitPrinciples(rawInput = {}) {
   const ids = [...new Set(Array.isArray(input.candidateIds) ? input.candidateIds.filter(문자열) : [])];
   const trace = {
     status: 'ok', errorCodes: [], retrievedIds: [...ids],
+    // 행렬 3: **어느 단계의 판정인지**가 trace 에 남아야 감사가 두 통과를 구분할 수 있다.
+    stage: 문자열(input.stage) ?? 'pre_model',
     admitted: [], rejected: [], influencedPlan: [], influencedAnswer: [],
   };
   const admissions = [];
@@ -223,13 +242,14 @@ function 하나판정(id, input, facts, errors) {
     const 종착 = ['quarantined', 'rolled_back', 'softened'].includes(cell.state);
     return 거절(종착 ? ADMISSION_REASONS.terminal : ADMISSION_REASONS.maturity);
   }
-  // 계약 B: 역할이 비면 입장 자체가 없다.
-  const role = resolveRole(cell, input.stageAllowedRoles ?? STAGE_ALLOWED_ROLES);
+  // 계약 B + 행렬 3: 역할이 비면 입장 자체가 없다. 허용 집합은 **단계**가 정한다.
+  const role = resolveRole(cell, rolesForStage(input.stage));
   if (role === 'none') return 거절(ADMISSION_REASONS.roleEmpty);
 
-  // 우선순위 1: 현재 사용자 원문과 충돌하면 즉시 거절(원리는 현재 요청을 덮지 못한다).
-  const conflict = 충돌판정(cell, input.requestFacts, facts);
-  if (conflict) return 거절(ADMISSION_REASONS.conflict);
+  // 우선순위 1 + 행렬 2: 현재 지시가 이 원리를 **부정**하면 즉시 거절(원리는 현재 요청을 덮지 못한다).
+  // `reinforces`·`unknown` 은 통과한다 — 같은 지시를 반복한 사용자가 자기 원칙을 죽이지 않는다.
+  const 지시관계 = judgeDirective(cell, input.requestFacts, facts);
+  if (지시관계.relation === 'contradicts') return 거절(ADMISSION_REASONS.conflict);
 
   const 범위 = 범위판정(cell, input.requestFacts);
   if (!범위.ok) return 거절(범위.code);
@@ -280,8 +300,12 @@ function 하나판정(id, input, facts, errors) {
       tcellId: id,
       role,
       reason: ADMISSION_REASONS.admitted,   // 코드만 — 사용자 원문 없음
+      stage: 문자열(input.stage) ?? 'pre_model',
       sourceRefs: [...refs],
       boundaryChecks,
+      // 행렬 2: 세 값을 그대로 남긴다. `reinforces` 는 입장을 **막지 않았다**는 사실의 기록이고,
+      // `unknown` 은 "몰랐다"의 기록이다 — 둘을 같은 칸에 뭉개면 다음 감사가 구분할 수 없다.
+      directiveRelation: 지시관계.relation,
       currentRequestConflict: false,
       authorityAllowed: true,               // **판단 참고 가능**이지 실행 승인이 아니다
       grantRef: 권한.grantRef,
@@ -290,14 +314,39 @@ function 하나판정(id, input, facts, errors) {
   };
 }
 
-/** 현재 요청과의 충돌 — 사용자가 이번 턴에 명시적으로 반대한 것은 즉시 이긴다. */
-function 충돌판정(cell, requestFacts, facts) {
-  const 반대 = Array.isArray(requestFacts?.contradicts) ? requestFacts.contradicts : [];
+/**
+ * 행렬 2 · **현재 지시와의 관계는 세 값이다.**
+ *
+ * 감사 재현: 예전에는 이번 턴의 지시가 있으면 문장이 **같아도** 충돌로 보고 거절했다.
+ * 사용자가 자기 원칙을 다시 말할수록 그 원칙이 죽는 구조였고, 명세 §21 이
+ * 「사용자가 명시한 선호를 같은 범위에서 다시 확인받기」를 금지 구현으로 못박은 바로 그 병이다.
+ *
+ *  `reinforces`  = 이번 턴 지시가 이 원리와 같다 → **충돌이 아니다**(오히려 근거가 는다)
+ *  `contradicts` = 이번 턴 지시가 이 원리를 부정한다 → 즉시 거절(현재 요청 우선)
+ *  `unknown`     = 관계를 모른다 → 거절 근거도, 입장 근거도 아니다
+ *
+ * @returns {{relation:'reinforces'|'contradicts'|'unknown', ref:string|null}}
+ */
+export function judgeDirective(cell, requestFacts = {}, facts = []) {
   const stmt = 정규화(cell?.principle?.statement);
-  if (반대.some((c) => 정규화(c) === stmt)) return true;
-  // 원리가 "덮지 않는다"고 선언한 것이 이번 턴 사실에 있으면 충돌이다.
+  const 지시 = Array.isArray(requestFacts?.directives) ? requestFacts.directives : [];
+  if (stmt) {
+    for (const d of 지시) {
+      const ds = 정규화(d?.statement ?? d);
+      if (!ds) continue;
+      const ref = 문자열(d?.ref) ?? null;
+      if (ds === stmt) return { relation: 'reinforces', ref };          // 같은 지시는 충돌이 아니다
+      if (ds === `!${stmt}` || stmt === `!${ds}`) return { relation: 'contradicts', ref }; // 명시적 부정
+    }
+  }
+  // 원리가 스스로 "이건 덮지 않는다"고 선언한 것이 이번 턴 사실에 있고, 사용자가 지시한 턴이면 충돌이다.
+  // 이 경로는 문장 비교가 아니라 **세포 자신의 선언**이므로 3값 판정과 독립적으로 유효하다.
   const 금지 = Array.isArray(cell?.boundary?.mustNotOverride) ? cell.boundary.mustNotOverride : [];
-  return 금지.some((m) => judgeClause(m, facts).verdict === 'matched' && requestFacts?.userDirective === true);
+  if (requestFacts?.userDirective === true) {
+    const hit = 금지.map((m) => judgeClause(m, facts)).find((r) => r.verdict === 'matched');
+    if (hit) return { relation: 'contradicts', ref: hit.evidenceRef };
+  }
+  return { relation: 'unknown', ref: null };
 }
 
 /** 사람 말 설명 — 사유 코드를 사용자 언어로. 원문·점수는 담지 않는다. */
@@ -335,9 +384,20 @@ export async function buildAdmissionSnapshot(sources = {}) {
   const errorCodes = [];
   const cells = new Map();
   const observations = new Map();
+  // **범위 격리**(명세 §6 · 흡수보충 §8): workspace/project 경계를 넘는 조회는 기본 차단이다.
+  // 다른 작업 공간의 원리는 거절하는 것이 아니라 **읽지 않는다** — 범위판정까지 끌고 가면
+  // 그 세포의 근거까지 읽게 되고, 그게 곧 경계를 넘는 열람이다.
+  const 현재범위 = 문자열(sources.scope?.project);
+  let scopeFiltered = 0;
   try {
     const a = await sources.registry?.load?.();
-    for (const c of Array.isArray(a?.cells) ? a.cells : []) if (문자열(c?.id)) cells.set(c.id, c);
+    for (const c of Array.isArray(a?.cells) ? a.cells : []) {
+      if (!문자열(c?.id)) continue;
+      const cp = 문자열(c?.anchor?.project);
+      // anchor 가 없는 세포(범위 미상)는 거르지 않는다 — 범위판정이 `scope_unknown` 으로 정직하게 막는다.
+      if (cp && 현재범위 && cp !== 현재범위) { scopeFiltered += 1; continue; }
+      cells.set(c.id, c);
+    }
     if (a?.error || a?.corrupted) errorCodes.push(ADMISSION_REASONS.storeError);
   } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
   // **후보가 없으면 근거를 읽지 않는다.** 입장할 원리가 하나도 없는데 관찰 로그를 통째로 읽는 것은
@@ -357,26 +417,43 @@ export async function buildAdmissionSnapshot(sources = {}) {
     } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
   }
   const 동기조회 = (m) => Object.freeze({ get: (k) => (m.has(k) ? m.get(k) : null) });
+  const 빈조회 = Object.freeze({ get: () => null });
+  // **없는 것을 확인하는 비용도 비용이다**(명세 §19: hot path 추가 동기 CPU p95 5ms).
+  // 후보가 하나도 없으면 확인 원장·권한 원장을 **만들지도 않는다** — 지연 공급자를 부르지 않는다.
+  const 지연 = async (v) => {
+    if (!cells.size) return 빈조회;
+    try { return (typeof v === 'function' ? await v() : v) ?? 빈조회; }
+    catch { errorCodes.push(ADMISSION_REASONS.storeError); return 빈조회; }
+  };
+  const confirmationStore = await 지연(sources.confirmationStore);
+  const grantStore = await 지연(sources.grantStore);
   return Object.freeze({
     principleStore: 동기조회(cells),
     evidenceStore: 동기조회(observations),
-    confirmationStore: sources.confirmationStore ?? Object.freeze({ get: () => null }),
-    grantStore: sources.grantStore ?? Object.freeze({ get: () => null }),
+    confirmationStore,
+    grantStore,
     candidateIds: [...cells.keys()],
+    // 범위 밖이라 **읽지 않은** 수. 0 이 아니면 "그런 원리가 없었다"가 아니라 "여기 것이 아니었다"다.
+    scopeFiltered,
     status: errorCodes.length ? 'degraded' : 'ok',
     errorCodes: Object.freeze(errorCodes),
   });
 }
 
-/** 스냅샷 + 이번 턴 사실 → admission. 스냅샷의 degraded 는 trace 로 승계된다. */
-export function admitFromSnapshot(snapshot, { requestFacts, authorityFacts, now } = {}) {
+/**
+ * 스냅샷 + 이번 턴 사실 → admission. 스냅샷의 degraded 는 trace 로 승계된다.
+ * **같은 스냅샷을 두 단계가 재사용한다**(행렬 3) — 저장소를 다시 읽지 않으므로 비용은 한 번뿐이다.
+ */
+export function admitFromSnapshot(snapshot, { requestFacts, authorityFacts, now, stage } = {}) {
   const snap = snapshot ?? {};
   const out = admitPrinciples({
     candidateIds: snap.candidateIds ?? [],
     principleStore: snap.principleStore, evidenceStore: snap.evidenceStore,
     confirmationStore: snap.confirmationStore, grantStore: snap.grantStore,
-    requestFacts, authorityFacts, now,
+    requestFacts, authorityFacts, now, stage,
   });
+  // 범위 밖이라 읽지 않은 수는 판정이 아니라 **사실**이므로 그대로 승계한다.
+  out.trace.scopeFiltered = snap.scopeFiltered ?? 0;
   if (snap.status === 'degraded') {
     out.trace.status = 'degraded';
     for (const c of snap.errorCodes ?? []) if (!out.trace.errorCodes.includes(c)) out.trace.errorCodes.push(c);
