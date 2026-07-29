@@ -50,7 +50,8 @@
 - 오너: 제품 목적·철학·우선순위·실제 권한 판단
 - 현재 편집 중인 파일(Claude·T-cell 전용): `src/kernel/l0-evidence/tcell-observation.js` ·
   `src/kernel/l5-growth/tcell-core.js` · `tcell-replay.js` · `t-sphere.js` · `test/tcell-contracts.test.js`
-  — TG-0 봉인됨(자체 검증), 다른 선은 이 파일들을 수정하지 않는다.
+  + `src/surface/tcell-store.js` · `test/tcell-observer.test.js` — TG-0 3차 반영·TG-1 구현(자체 검증),
+  다른 선은 이 파일들을 수정하지 않는다. server.js 에 TG-1 훅 3블록(추가만) — 통합 검토는 Codex.
 - 현재 병렬 개발선: 자동화 AC-1 공통 계약·migration이 정본에 편입됐고 독립 감사 통과.
 - AC-1 정본 편입: `a40a56b` → `c357cc7` → `3f23c93` → `357ae5d` → `c58bdea`.
 - 독립 증거: `docs/03-verification/evidence/automation-core/ac-1/CODEX-INTEGRATION-AUDIT-2026-07-29-ko.md`

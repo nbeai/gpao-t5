@@ -53,6 +53,7 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
+import { TCellObserver } from './tcell-store.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
 } from '../kernel/l5-growth/task-trace.js';
@@ -111,6 +112,9 @@ export function makeServer(deps = {}) {
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
+  // TG-1 · shadow 관찰자(영향 0): 턴 완료 후 영수증·승인 사실을 growth/observations.jsonl 에만 쌓는다.
+  // 어떤 코드도 이 파일을 읽어 TaskContext 에 넣지 않는다. 실패는 관찰자 안에 머문다.
+  const tcellObserver = deps.tcellObserver ?? new TCellObserver(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
@@ -293,6 +297,18 @@ export function makeServer(deps = {}) {
     }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
+    // TG-1: shadow 관찰 — **await 하지 않고, 동기·비동기 어느 실패도 여기 못 나온다**(영향 0).
+    // 반대시험이 잡은 실측: 동기 throw 하는 관찰자가 턴을 죽였다 — try 와 catch() 둘 다 필요하다.
+    try {
+      Promise.resolve(tcellObserver.observeTurn({
+        sessionId: session.id,
+        result: {
+          turnReceipts: ctx.ledger.entries.slice(ledgerStart), // 이번 턴의 새 영수증만
+          ...(input.approve || input.reject ? { approvalDecision: { approved: Boolean(input.approve), summary: input.approve ? '승인' : '거절' } } : {}),
+        },
+        now: Date.now(),
+      })).catch(() => { /* 관찰 실패는 관찰자 안의 사실(lastError)로만 남는다 */ });
+    } catch { /* 동기 throw 도 답변에 닿지 않는다 */ }
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
