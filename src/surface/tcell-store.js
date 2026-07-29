@@ -179,66 +179,108 @@ export class TCellRegistry {
   constructor(dir) {
     this.dir = join(dir, 'growth');
     this.file = join(this.dir, 'tcells.json');
+    this.queue = Promise.resolve(); // 저장 변경 직렬화(감사: 동시 저장 20건 중 1건만 남음)
   }
 
+  /** 손상은 빈 저장소로 위장하지 않는다. 읽을 때도 모든 세포를 검증해 격리 투영한다. */
   async load() {
-    try {
-      const a = JSON.parse(await readFile(this.file, 'utf8'));
-      // 알 수 없는 미래 필드는 보존하고 무시한다(명세 §6).
-      return { cells: Array.isArray(a.cells) ? a.cells : [], ...a, cells: Array.isArray(a.cells) ? a.cells : [] };
-    } catch { return { cells: [] }; }
+    let raw;
+    try { raw = await readFile(this.file, 'utf8'); }
+    catch (e) {
+      if (e?.code === 'ENOENT') return { cells: [] };
+      return { cells: [], error: e?.message ?? String(e) };
+    }
+    let a;
+    try { a = JSON.parse(raw); } catch { return { cells: [], corrupted: true }; }
+    const cells = (Array.isArray(a.cells) ? a.cells : []).map((c) => {
+      const v = validateTCell(c);
+      return v.ok ? c : v.cell; // 잘못된 항목은 quarantined 투영(영향 0) — 원본 바이트는 저장소에 그대로
+    });
+    return { ...a, cells };
   }
 
-  async save(a) {
-    await mkdir(this.dir, { recursive: true });
-    const tmp = `${this.file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
-    await writeFile(tmp, JSON.stringify({ ...a, cells: a.cells ?? [] }), { encoding: 'utf8', mode: 0o600 });
-    await rename(tmp, this.file);
-    return a;
+  /** 변경은 한 줄로 직렬화된다. 손상 저장소는 옆으로 격리 보존 후 새로 시작(덮어쓰기 금지). */
+  async #mutate(fn) {
+    const run = this.queue.then(async () => {
+      let raw = null;
+      try { raw = await readFile(this.file, 'utf8'); } catch { raw = null; }
+      let a = { cells: [] };
+      if (raw !== null) {
+        try { a = JSON.parse(raw); a.cells = Array.isArray(a.cells) ? a.cells : []; }
+        catch {
+          await mkdir(this.dir, { recursive: true });
+          await rename(this.file, `${this.file}.corrupt-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);
+          a = { cells: [] };
+        }
+      }
+      const out = await fn(a);
+      await mkdir(this.dir, { recursive: true });
+      const tmp = `${this.file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+      await writeFile(tmp, JSON.stringify(a), { encoding: 'utf8', mode: 0o600 });
+      await rename(tmp, this.file);
+      return out;
+    });
+    this.queue = run.then(() => {}, () => {});
+    return run;
   }
 
-  /** 등록은 검증을 지나서만 — 실패는 던지지 않고 quarantined 사본으로 저장된다(영향 0). */
+  async save(a) { return this.#mutate(async (cur) => { Object.assign(cur, a, { cells: a.cells ?? [] }); return a; }); }
+
+  /** 등록은 검증을 지나서만 — 기존 항목의 미래 필드는 병합으로 보존한다. */
   async upsert(cell, evidenceStore = null, opts = {}) {
     const v = validateTCell(cell, evidenceStore, opts);
-    const a = await this.load();
-    const idx = a.cells.findIndex((c) => c.id === v.cell.id);
-    if (idx >= 0) a.cells[idx] = v.cell; else a.cells.push(v.cell);
-    await this.save(a);
+    await this.#mutate(async (a) => {
+      const idx = a.cells.findIndex((c) => c.id === v.cell.id);
+      if (idx >= 0) a.cells[idx] = { ...a.cells[idx], ...v.cell }; // 알 수 없는 기존 필드 보존
+      else a.cells.push(v.cell);
+    });
     return v;
   }
 
-  /** rollback 은 삭제가 아니라 상태 전이다 — trace·이력을 지우지 않는다(명세 §6). */
+  /** rollback: 실제 이전 버전을 스냅샷으로 보존한다 — previousVersionId 는 그 스냅샷을 가리킨다. */
   async rollback(cellId) {
-    const a = await this.load();
-    const cell = a.cells.find((c) => c.id === cellId);
-    if (!cell) return { ok: false, why: 'not_found' };
-    cell.growth = { ...(cell.growth ?? {}), previousVersionId: cell.id, lastAuditAt: null };
-    cell.state = 'rolled_back';
-    cell.authority = { ...(cell.authority ?? {}), allowedInfluence: ['none'], mustNotOverrideCurrentRequest: true };
-    await this.save(a);
-    return { ok: true, cell };
+    return this.#mutate(async (a) => {
+      const cell = a.cells.find((c) => c.id === cellId);
+      if (!cell) return { ok: false, why: 'not_found' };
+      const 판 = (cell.versions?.length ?? 0) + 1;
+      const snapshot = { ...structuredClone(cell), id: `${cellId}@v${판}`, versions: undefined };
+      cell.versions = [...(cell.versions ?? []), snapshot];
+      cell.growth = { ...(cell.growth ?? {}), previousVersionId: snapshot.id, lastAuditAt: null };
+      cell.state = 'rolled_back';
+      cell.authority = { ...(cell.authority ?? {}), allowedInfluence: ['none'], mustNotOverrideCurrentRequest: true };
+      return { ok: true, cell };
+    });
   }
 }
 
 /**
- * legacy adapter — 기존 memory.json 의 promoted 항목을 **읽기 전용으로** 세포 후보로 투영한다.
- * 기존 파일은 절대 쓰지 않는다. 사용자 승인은 성숙도가 아니다(§4.3: 승인이 낮은 maturity 를
- * 사실로 만들지 않는다) — legacy 는 replay 를 통과한 적이 없으므로 **M1_candidate** 로만 들어온다.
+ * legacy adapter (감사 이관표 그대로) — **일반 선호(preference)는 T-cell 로 바꾸지 않는다**
+ * (기존 저장소가 계속 담당). replay(재검토)를 거쳐 승격된 **운영 원리만** M2_replayed 로
+ * 읽기 전용 투영한다. 원래 기억의 저장 위치를 trace(rawSourceRefs)에 보존한다.
  */
-export function importLegacyMemory(memory) {
+export function importLegacyMemory(memory, { storePath = 'memory.json' } = {}) {
   const cells = [];
   for (const m of memory?.promoted ?? []) {
     if (!m?.statement) continue;
-    cells.push(makeTCellCandidate({
-      id: `legacy-mem-${m.id ?? m.candidateId ?? cells.length}`,
-      principle: { statement: m.statement, type: 'communication', hypothesisConfidence: 0 },
+    if (m.kind !== 'operating_principle') continue; // 선호는 이관하지 않는다
+    const key = m.id ?? m.candidateId ?? String(cells.length);
+    const cell = makeTCellCandidate({
+      id: `legacy-mem-${key}`,
+      principle: { statement: m.statement, type: 'workflow', hypothesisConfidence: 0 },
       boundary: {
         validWhen: ['기존 기억이 승인된 범위 그대로'],
         invalidWhen: ['사용자가 철회했거나 현재 지시와 충돌할 때'],
-        needsReviewWhen: ['replay 검증 전'], mustNotOverride: ['현재 요청'],
+        needsReviewWhen: ['T-cell replay 재검증 전'], mustNotOverride: ['현재 요청'],
       },
-      trace: { observationRefs: [`memory:promoted:${m.id ?? m.candidateId ?? 'unknown'}`], corrections: [] },
-    }));
+      trace: {
+        observationRefs: [`memory:promoted:${key}`],
+        rawSourceRefs: [`store:${storePath}#promoted:${key}`], // 원 저장 위치 하강 경로
+        corrections: [],
+      },
+      replay: { status: 'passed_basic', caseRefs: [], lastRunAt: null }, // 승격 시 재검토(replay) 통과 사실
+    });
+    cell.state = 'M2_replayed'; // 검토된 운영 원리 — M1 강등도 M4 과장도 아니다(이관표)
+    cells.push(cell);
   }
   return cells;
 }

@@ -21,21 +21,22 @@ const 온전한세포 = (id) => ({
   growth: { mutationRefs: [], rollbackAvailable: true, previousVersionId: null, lastAuditAt: null },
 });
 
-test('legacy adapter: 기존 memory.json 무변경 읽기 + M4 로 과장되지 않음 + 검증 통과', async () => {
+test('legacy adapter(이관표): 선호는 변환 금지 · 운영 원리만 M2_replayed · 원 위치 보존 · 원본 무변경', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2a-'));
   const memPath = join(dir, 'memory.json');
-  const 원본 = JSON.stringify({ candidates: [], promoted: [{ id: 'p1', statement: '보고서는 목록으로', kind: 'preference', userConfirmed: true }], observed: [], closed: {} });
+  const 원본 = JSON.stringify({ candidates: [], promoted: [
+    { id: 'p1', statement: '보고서는 목록으로', kind: 'preference', userConfirmed: true },
+    { id: 'p2', statement: '배포 전에 게이트를 돌린다', kind: 'operating_principle', userConfirmed: true },
+  ], observed: [], closed: {} });
   await writeFile(memPath, 원본, 'utf8');
-  const memory = JSON.parse(await readFile(memPath, 'utf8'));
-  const cells = importLegacyMemory(memory);
-  assert.equal(cells.length, 1);
-  // 사용자 승인은 성숙도가 아니다 — replay 전이므로 M1 후보로만 들어온다(M4 과장 금지).
-  assert.equal(cells[0].state, 'M1_candidate');
+  const cells = importLegacyMemory(JSON.parse(await readFile(memPath, 'utf8')));
+  assert.equal(cells.length, 1, '일반 선호가 T-cell 로 변환됐다');
+  assert.equal(cells[0].id, 'legacy-mem-p2');
+  assert.equal(cells[0].state, 'M2_replayed', '검토된 운영 원리가 M2 가 아니다');
   assert.ok(!['M3_limited', 'M4_stable', 'M5_compressed'].includes(cells[0].state));
   assert.deepEqual(cells[0].authority.allowedInfluence, ['none']);
-  assert.deepEqual(cells[0].trace.observationRefs, ['memory:promoted:p1']);
-  assert.equal(validateTCell(cells[0]).ok, true, 'legacy 세포가 계약 검증을 못 지난다');
-  // 읽기 전용: 원본 바이트 그대로.
+  assert.ok(cells[0].trace.rawSourceRefs[0].includes('memory.json'), '원 저장 위치가 trace 에 없다');
+  assert.equal(validateTCell(cells[0]).ok, true, `검증 실패: ${JSON.stringify(validateTCell(cells[0]).errors)}`);
   assert.equal(await readFile(memPath, 'utf8'), 원본, '기존 파일이 변경됐다');
 });
 
@@ -67,4 +68,55 @@ test('rollback 은 상태 전이일 뿐 — trace·이력을 삭제하지 않는
   assert.deepEqual(cell.authority.allowedInfluence, ['none']);
   assert.equal((await reg.rollback('ghost')).ok, false);
   assert.equal(a.cells.length, 1, 'rollback 이 항목을 삭제했다');
+});
+
+// ── TG-2 독립 감사 반영 반대시험 ──
+test('손상 저장소는 빈 상태로 위장·덮어쓰지 않는다 — 격리 보존 후 새로 시작', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2d-'));
+  const reg = new TCellRegistry(dir);
+  const { mkdir: mkd } = await import('node:fs/promises');
+  await mkd(join(dir, 'growth'), { recursive: true });
+  await writeFile(join(dir, 'growth', 'tcells.json'), '{손상된 JSON', 'utf8');
+  const r = await reg.load();
+  assert.equal(r.corrupted, true, '손상이 빈 저장소로 위장됐다');
+  await reg.upsert(온전한세포('c1'));
+  const { readdir } = await import('node:fs/promises');
+  const files = await readdir(join(dir, 'growth'));
+  assert.ok(files.some((f) => f.includes('corrupt')), '손상 바이트가 보존되지 않았다');
+  assert.equal((await reg.load()).cells.length, 1);
+});
+
+test('동시 저장 20건이 전부 남는다(직렬화) · 읽기는 불량 세포를 격리 투영한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2e-'));
+  const reg = new TCellRegistry(dir);
+  await Promise.all(Array.from({ length: 20 }, (_, i) => reg.upsert(온전한세포(`c${i}`))));
+  const a = await reg.load();
+  assert.equal(a.cells.length, 20, `동시 저장에서 ${a.cells.length}건만 남았다`);
+  // 저장소에 불량 세포를 직접 심으면 읽기가 격리 투영한다.
+  const rawPath = join(dir, 'growth', 'tcells.json');
+  const stored = JSON.parse(await readFile(rawPath, 'utf8'));
+  stored.cells.push({ id: 'bad', state: 'M4_stable', authority: { allowedInfluence: ['answer_anchor'] } });
+  await writeFile(rawPath, JSON.stringify(stored), 'utf8');
+  const b = await reg.load();
+  const bad = b.cells.find((c) => c.id === 'bad');
+  assert.equal(bad.state, 'quarantined', '불량 세포가 정상으로 읽혔다');
+  assert.deepEqual(bad.authority.allowedInfluence, ['none']);
+});
+
+test('갱신은 기존 항목의 미래 필드를 보존하고, rollback 은 실제 이전 버전을 남긴다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tg2f-'));
+  const reg = new TCellRegistry(dir);
+  await reg.upsert({ ...온전한세포('c1'), 미래확장: '지켜야 함' });
+  await reg.upsert(온전한세포('c1')); // 미래확장 없는 갱신
+  let a = await reg.load();
+  assert.equal(a.cells[0].미래확장, '지켜야 함', '갱신이 미래 필드를 지웠다');
+  const r = await reg.rollback('c1');
+  assert.equal(r.ok, true);
+  a = await reg.load();
+  const cell = a.cells.find((c) => c.id === 'c1');
+  assert.notEqual(cell.growth.previousVersionId, 'c1', 'previousVersionId 가 자기 자신이다');
+  const snap = (cell.versions ?? []).find((v) => v.id === cell.growth.previousVersionId);
+  assert.ok(snap, '실제 이전 버전 스냅샷이 없다');
+  assert.notEqual(snap.state, 'rolled_back', '스냅샷이 이전 상태를 증명하지 못한다');
+  assert.deepEqual(cell.trace.observationRefs, ['obs-1']);
 });

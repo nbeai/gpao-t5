@@ -101,7 +101,7 @@ test('조건2·8: 옛 승인 ID 는 관찰 0, 실제 승인은 정확히 1 — �
     if (r1.kind === 'approval') {
       await turn({ sessionId: s.id, approve: r1.pendingId });
     }
-    await new Promise((rs) => setTimeout(rs, 200));
+    await new Promise((rs) => setTimeout(rs, 60));
     const { events } = await observer.loadAllForAudit();
     const approvals = events.filter((e) => e.type === 'approval');
     assert.equal(approvals.filter((e) => e.sourceRefs.some((x) => x.includes('ghost'))).length, 0, '가짜 승인이 관찰됐다');
@@ -152,7 +152,7 @@ test('만료된 승인 클릭 → 실행 거부 + 관찰 0 (커널 소비 결과
     await writeFile(sessPath, JSON.stringify(sess), 'utf8');
     const r = await turn({ sessionId, approve: card.pendingId });
     assert.match(r.reply ?? '', /만료/, `만료 거부가 아니다: ${r.reply}`);
-    await new Promise((rs) => setTimeout(rs, 150));
+    await new Promise((rs) => setTimeout(rs, 40));
     assert.deepEqual(await 결정관찰(observer), [], '만료 승인이 관찰됐다');
   } finally { await new Promise((r2) => server.close(r2)); }
 });
@@ -162,7 +162,7 @@ test('실제 거절 소비 → rejection 정확 1 · 유령 거절 → 관찰 0'
   try {
     await turn({ sessionId, reject: 'ghost-reject' });
     await turn({ sessionId, reject: card.pendingId });
-    await new Promise((rs) => setTimeout(rs, 150));
+    await new Promise((rs) => setTimeout(rs, 40));
     const obs = await 결정관찰(observer);
     assert.equal(obs.length, 1, `결정 관찰 ${obs.length}건`);
     assert.equal(obs[0].type, 'rejection');
