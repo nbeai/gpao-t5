@@ -13,18 +13,11 @@
 
 - 본진: `/Users/jyp/Developer/t5-p-op`
 - 브랜치: `claude/p-op-1-a-system-view`
-- HEAD: `e1cb07a2de61da90fd7e3a3a993d37e3c93f4ce2`
+- 제품 코드 기준선: `84c3c543a984f79fa8f6c15bb4ae09217e676e54`
 - 원격 차이: `origin/claude/p-op-1-a-system-view`와 0/0
-- 상태: **DIRTY**, Claude T-cell 구현선 작업 중
-  - `src/kernel/l0-evidence/tcell-observation.js`
-  - `src/runtime/model-provider.js`
-  - `src/runtime/tcell-extractor.js`
-  - `src/surface/server.js`
-  - `src/surface/tcell-store.js`
-  - `test/tcell-audit-closure.test.js`
-  - `test/tcell-live-model-semantics.test.js` 삭제 변경
-  - `.beai-harness/`, `workspace-notes/` 미추적
-- 위 파일은 Claude 제출 전 Codex·병렬 구현선이 공동 편집하지 않는다.
+- 상태: 추적 파일 깨끗 · `.beai-harness/`, `workspace-notes/` 기존 미추적
+- 구현 제출: `19a3633` · 자체 증거: `84c3c54`
+- 독립 감사: **RETEST · TG-5 봉인 보류**
 
 ### 0.2 제품 단계
 
@@ -37,27 +30,28 @@
 
 ### 0.3 T-cell의 실제 코드 간극
 
-현재 생산 경로가 증명한 끝은 M1 후보 생성과 영향 0까지다.
+현재 구현은 전경 durable I/O를 제거하고, 불변 게시본과 세션별 in-memory 성장 lane,
+replay·transition 생산 호출을 연결했다. 그러나 독립 감사에서 아래 차단이 확인됐다.
 
-- `transitionCell()` 생산 소비자 0
-- `makeReplayCase()` 생산 소비자 0
+- 모델이 추정한 `memory.propose`도 사용자 명시 지시로 취급돼 장기 선호로 자동 반영됨
+- 성장 lane에 지속 checkpoint와 재시작 후 미처리 관찰 재개가 없음
+- 구조 감사는 호출 횟수로 M1→M2를 PASS하지만 실제 생산 M2 전이는 아직 증명되지 않음
+- 생산 전이 세포의 게시 역할이 가장 낮은 `supporting_context`로 고정돼 M3 계획·기본값 역할이 도달 불가
 - `importLegacyMemory()` 생산 소비자 0
-- foreground admission이 durable registry/evidence/confirmation/grant 저장소를 읽음
-- 기준선 background extraction은 서버 전역 잠금이며 세션별 lane이 아님
-- Claude dirty 변경은 세션별 추출과 실모델 계보를 보강 중이나 아직 제출·독립 검증 전
+- T-cell 사용자 제어 표면과 active budget/curator 생산 경로 미완료
 
-따라서 완료해야 할 생산 계보:
+따라서 닫아야 할 생산 계보:
 
 ```text
 응답 완료
-→ 세션별 background observation/extraction
+→ 세션별 background observation/extraction + 지속 checkpoint/재시작 복구
 → M1 후보
 → replay case와 verified transition
 → M2/M3
 → scope별 immutable snapshot 게시
 → foreground는 무 I/O snapshot만 사용
 → effect/friction audit
-→ rollback/archive/restore
+→ 사용자 제어 + rollback/archive/restore
 ```
 
 ### 0.4 전 영역 최상위 제품 판정
@@ -116,27 +110,24 @@ Skill·Trigger·AgentRun·Automation 핵심 기능을 모두 연결한 뒤 **최
 
 ### 0.7 검증 기준선
 
-- 본진 마지막 독립 공식 gate: 테스트 1,336건, CPU 23.1s/40s PASS
-- 현재 dirty 변경에는 전체 회귀·gate 독립 증거가 없으므로 위 수치를 승계하지 않는다.
+- 본진 독립 공식 gate: 테스트 1,345건, CPU 23.7s/40s, 벽시계 19.9s PASS
+- 문서 감사: 18 documents PASS
+- T-cell 구조 감사: 4/4 PASS이나 실제 M1→M2·checkpoint·명시성 결함을 검출하지 못하므로 봉인 근거로 단독 사용 금지
 - 문서·Hermes 감사선: `codex/hermes-tcell-engineering-audit`
 - 구조 감사: `npm run audit:tcell-plane`
 - 문서 감사: `npm run audit:docs`
+- 독립 감사 증거:
+  `docs/03-verification/evidence/tcell/tg-5/TG-5-CODEX-INDEPENDENT-AUDIT-2026-07-30-ko.md`
 
 ## 1. 바로 다음 작업
 
 ### Claude 구현선
 
-1. 현재 dirty 변경의 아래 분류는 통합선이 승인했다.
-   - **유지 A:** `PRINCIPLE_TYPES` 공급, 세션별 성장 큐와 in-flight ref 승계, 관찰 대상 동봉,
-     정규식 관문 제거
-   - **유지 B:** `looksLikeSecret` 단일화, 같은 provider/credential의 secret 제거 bounded 원문,
-     다른 provider의 EvidenceBundle/digest 경계, 일반 회귀의 외부 호출 0
-   - **제외 C:** 라벨만 다른 모델 계약 행사, 사용자 성능을 재지 않는 반복 실모델 하네스와 증거
-2. A·B 안에서도 실제 diff가 위 계약보다 넓으면 그 부분만 제거한다. 재분류 결정을 다시 요청하지 않는다.
-3. admission 거절 규칙을 더 늘리지 않고 결정문 §10~§12 생산 계약을 구현한다.
-4. 세션별 background 수명주기, replay 소비자, scope snapshot 게시를 실제 제품 입구에 연결한다.
-5. 구현 커밋·집중 검사·전체 회귀·공식 gate·인간 마찰 비교를 제출한다.
-6. 이 문서 §0을 직접 완료 상태로 바꾸지 않는다.
+1. Codex 독립 감사 `TG5-CX-01`~`TG5-CX-04`의 종료 조건을 한 번에 재현한다.
+2. 문제 목록 밖의 구현 해법은 감사 문서에서 선제 지정하지 않는다.
+3. `TG5-CX-05`~`TG5-CX-06`과 공개 미완료 범위를 같은 제출에서 정합화한다.
+4. 구현 커밋·집중 검사·전체 회귀·공식 gate·실제 브라우저 사용자 시나리오를 제출한다.
+5. 이 문서 §0을 직접 PASS로 바꾸지 않는다.
 
 ### Codex 감사·통합선
 
