@@ -13,10 +13,10 @@
 
 - 본진: `/Users/jyp/Developer/t5-p-op`
 - 브랜치: `claude/p-op-1-a-system-view`
-- 제품 코드 기준선: `84c3c543a984f79fa8f6c15bb4ae09217e676e54`
+- 제품 코드 기준선: `a3ec00b`
 - 원격 차이: `origin/claude/p-op-1-a-system-view`와 0/0
 - 상태: 추적 파일 깨끗 · `.beai-harness/`, `workspace-notes/` 기존 미추적
-- 구현 제출: `19a3633` · 자체 증거: `84c3c54`
+- 구현 제출: `a3ec00b`
 - 독립 감사: **RETEST · TG-5 봉인 보류**
 
 ### 0.2 제품 단계
@@ -30,13 +30,15 @@
 
 ### 0.3 T-cell의 실제 코드 간극
 
-현재 구현은 전경 durable I/O를 제거하고, 불변 게시본과 세션별 in-memory 성장 lane,
-replay·transition 생산 호출을 연결했다. 그러나 독립 감사에서 아래 차단이 확인됐다.
+현재 구현은 전경 durable I/O를 제거하고, 불변 게시본과 세션별 성장 lane,
+replay·transition 생산 호출을 연결했다. `CX-04` 역할 선택과 `CX-05` 사용자 표면·되돌리기는
+독립 재감사에서 통과했다. 그러나 아래 차단이 남아 있다.
 
-- 모델이 추정한 `memory.propose`도 사용자 명시 지시로 취급돼 장기 선호로 자동 반영됨
-- 성장 lane에 지속 checkpoint와 재시작 후 미처리 관찰 재개가 없음
+- 모델 제안과 사용자 발화 출처는 분리됐지만, 질문·인용·부정 사용자 발화도 명시 선호로 자동 반영됨
+- 지속 checkpoint는 생겼지만 한 묶음만 처리한 뒤 전체 관찰 개수까지 전진해 다른 묶음을 유실함
 - 구조 감사는 호출 횟수로 M1→M2를 PASS하지만 실제 생산 M2 전이는 아직 증명되지 않음
-- 생산 전이 세포의 게시 역할이 가장 낮은 `supporting_context`로 고정돼 M3 계획·기본값 역할이 도달 불가
+- 게시 성숙도 범위를 M2/M3에서 M2~M5로 바꾸며 `오너 확정`이라 기록했으나 확정 근거가 없고
+  정본 문서 내부도 두 범위를 함께 말함
 - `importLegacyMemory()` 생산 소비자 0
 - T-cell 사용자 제어 표면과 active budget/curator 생산 경로 미완료
 
@@ -110,22 +112,23 @@ Skill·Trigger·AgentRun·Automation 핵심 기능을 모두 연결한 뒤 **최
 
 ### 0.7 검증 기준선
 
-- 본진 독립 공식 gate: 테스트 1,345건, CPU 23.7s/40s, 벽시계 19.9s PASS
+- 본진 독립 공식 gate: 테스트 1,348건, CPU 23.6s/40s, 벽시계 19.1s PASS
 - 문서 감사: 18 documents PASS
 - T-cell 구조 감사: 4/4 PASS이나 실제 M1→M2·checkpoint·명시성 결함을 검출하지 못하므로 봉인 근거로 단독 사용 금지
 - 문서·Hermes 감사선: `codex/hermes-tcell-engineering-audit`
 - 구조 감사: `npm run audit:tcell-plane`
 - 문서 감사: `npm run audit:docs`
 - 독립 감사 증거:
-  `docs/03-verification/evidence/tcell/tg-5/TG-5-CODEX-INDEPENDENT-AUDIT-2026-07-30-ko.md`
+  `docs/03-verification/evidence/tcell/tg-5/TG-5-CODEX-REAUDIT-A3EC00B-2026-07-30-ko.md`
 
 ## 1. 바로 다음 작업
 
 ### Claude 구현선
 
-1. Codex 독립 감사 `TG5-CX-01`~`TG5-CX-04`의 종료 조건을 한 번에 재현한다.
+1. Codex 재감사에서 열린 `TG5-CX-01`·`TG5-CX-02`·`TG5-CX-03`·`TG5-CX-06`의 종료 조건을
+   한 번에 재현한다.
 2. 문제 목록 밖의 구현 해법은 감사 문서에서 선제 지정하지 않는다.
-3. `TG5-CX-05`~`TG5-CX-06`과 공개 미완료 범위를 같은 제출에서 정합화한다.
+3. 독립 PASS가 난 `TG5-CX-04`·`TG5-CX-05`는 재개봉하지 않는다.
 4. 구현 커밋·집중 검사·전체 회귀·공식 gate·실제 브라우저 사용자 시나리오를 제출한다.
 5. 이 문서 §0을 직접 PASS로 바꾸지 않는다.
 
