@@ -7,8 +7,8 @@
 //  · 시간초과 타이머는 finally 에서 반드시 해제한다(누수가 프로세스를 20초 붙잡았다 — 실측).
 //  · 정규식은 판단이 아니라 **깨우기 신호**다. 기존 detectCandidate 결과도 wake 입력으로만 쓴다.
 //  · 명시적 사용자 지시는 그 범위의 확인이다(원칙 0-A-1·명세 §0.1) — 같은 범위를 다시 묻지 않는다.
-import { makeTCellCandidate, validateTCell } from '../kernel/l5-growth/tcell-core.js';
-import { validateObservationEvent } from '../kernel/l0-evidence/tcell-observation.js';
+import { makeTCellCandidate, validateTCell, PRINCIPLE_TYPES } from '../kernel/l5-growth/tcell-core.js';
+import { validateObservationEvent, looksLikeSecret } from '../kernel/l0-evidence/tcell-observation.js';
 import { TCELL_RELATIONS } from '../kernel/l5-growth/t-sphere.js';
 import { isFactAtom, atomVocabularyLines } from '../kernel/l1-intent/fact-atoms.js';
 
@@ -58,9 +58,23 @@ export function buildEvidenceBundle({
   explicitInstruction = null, tokenBudget = 4000,
 } = {}) {
   const 통과 = (Array.isArray(observations) ? observations : []).filter(모델에게줄수있나);
+  // **자유문은 여기 한 곳에서만 모델 앞에 놓인다** — 그러므로 비밀 경계도 여기 하나다(감사 6회차 P0).
+  // 관찰은 이미 `모델에게줄수있나` 로 두 겹(플래그+표식) 막혀 있었는데, 사람 발화와 지시 문면은
+  // 그 경계를 지나지 않고 곧장 모델 메시지로 갔다 — **저장은 막히고 송신은 안 막히는** 비대칭.
+  // 배선하는 쪽이 잊어도 새지 않게, 조립 지점에서 막는다. 판정이 아니라 안전망이다.
+  const 모델앞자유문 = (t) => {
+    const v = typeof t === 'string' ? t.trim() : '';
+    return v && !looksLikeSecret(v) ? v : '';
+  };
+  const 지시문면 = 모델앞자유문(explicitInstruction?.text);
+  const 지시 = explicitInstruction
+    // 범위·근거 참조는 내부 열쇠라 남기되, 문면이 막히면 **내용 결합이 성립하지 않는다** →
+    // `명시확인됨` 이 꺼져 재확인이 살아난다(안전한 방향으로 실패한다).
+    ? { ...explicitInstruction, text: 지시문면 }
+    : null;
   return {
     id: id ?? `bundle-${통과.length}`,
-    activeTarget,
+    activeTarget: 모델앞자유문(activeTarget),
     observations: 통과.slice(-BUNDLE_CAP), // 최신 우선, 명세 상한
     // **관계 판정의 재료를 버리지 않는다**(감사): 중심·경계·anchor 를 함께 실어 모델이
     // 같은 중심 여부를 비교할 수 있게 하고, OS 도 구조로 대조한다(§7.1 모델 역할).
@@ -82,8 +96,13 @@ export function buildEvidenceBundle({
     requiredOutputFields: ['decision', 'principle', 'boundary', 'trace'],
     // §0-C-2: 모델에게 OS 사실 어휘를 준다 — 자유문 경계를 여기 결합해야 admission 이 대조할 수 있다.
     factAtoms: atomVocabularyLines(),
+    // **계약의 어휘도 함께 준다**(실측 2026-07-29 · OpenAI·Anthropic 직접 관측): 예전엔
+    // `principle.type` 을 요구하면서 허용 종류를 알려주지 않았다. 실모델은 `operational` 같은
+    // 계약 밖 종류를 냈고, 뽑아낸 원리가 **격리**됐다 — 실모델 추출이 후보를 남기지 못했다.
+    // 칸이 비면 모델이 그 빈칸을 지어낸다. 강제는 그대로 OS(validateTCell)가 한다.
+    principleTypes: [...PRINCIPLE_TYPES],
     tokenBudget,
-    explicitInstruction,
+    explicitInstruction: 지시,
   };
 }
 

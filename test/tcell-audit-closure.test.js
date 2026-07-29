@@ -787,3 +787,136 @@ test('감사 #5·#6: 재사용 고지와 허용 범위 목록에 원시 ID·내�
     assert.ok(!라벨들.includes('확인된 대상'), `대상을 구별할 수 없는 이름이 남았다: ${JSON.stringify(라벨들)}`);
   } finally { await s.닫기(); }
 });
+
+// ── 감사 5회차 P1 · **일반 회귀가 사용자 실계정으로 외부 호출을 하면 안 된다** ─────────────
+// 실모델 검증선 파일이 `test/` 아래에 있고 제품의 연결 저장소(키가 든 파일)를 읽는다. 그것이
+// 기본 `npm test` 에서 돌면, 아무 생각 없이 회귀를 돌린 사람의 자격으로 유료 호출·rate limit·
+// 네트워크 실패가 일어난다. 그리고 연결이 없는 기계에서는 계열 0건이 되어 **조용히 초록**이 된다.
+// 그래서 경계를 사실로 못 박는다: 저장소를 읽는 시험 파일은 하나뿐이고, 그 파일은 명시적
+// 환경 스위치로만 켜진다.
+test('연결 저장소를 읽는 시험은 명시적으로 켤 때만 돈다(일반 회귀는 외부 호출 0)', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const dir = new URL('../test/', import.meta.url).pathname;
+  const 읽는파일 = [];
+  for (const name of await readdir(dir)) {
+    if (!name.endsWith('.js')) continue;
+    const src = await readFile(join(dir, name), 'utf8');
+    // **사용자의 실제 자리**를 여는 시험만 고른다 — 임시 폴더를 주는 단위 시험은 대상이 아니다.
+    // 조각을 붙여 만든다: 이 파일 자신이 그 문자열을 품어 스스로 걸리지 않게.
+    const 실자리 = ['.local', 'state', 'gpao-t5'].join('/');
+    const 연결층 = /ModelConnectionStore|makeModelConnection/.test(src);
+    if (연결층 && (src.includes(실자리) || /new ModelConnectionStore\(\s*\)/.test(src))) 읽는파일.push({ name, src });
+  }
+  assert.deepEqual(읽는파일.map((f) => f.name), ['tcell-live-model-semantics.test.js'],
+    `제품 연결 저장소를 읽는 시험이 늘었다 — 일반 회귀가 실계정 호출을 하게 된다: ${
+      JSON.stringify(읽는파일.map((f) => f.name))}`);
+  for (const f of 읽는파일) {
+    assert.match(f.src, /process\.env\.GPAO_T5_LIVE_MODELS === '1'/,
+      `${f.name} 이 환경 스위치 없이 실계정 저장소를 읽는다`);
+    // 스위치가 꺼졌을 때 저장소를 아예 열지 않아야 한다 — 열고 나서 건너뛰면 이미 늦다.
+    const 게이트 = f.src.indexOf('라이브허용');
+    assert.ok(게이트 >= 0 && f.src.search(/new ModelConnectionStore\(/) > 게이트,
+      `${f.name} 이 스위치 판정보다 먼저 저장소를 연다`);
+  }
+});
+
+// ── 감사 6회차 P0 · **원문·비밀이 추출 경로로 외부 모델에 도달하면 안 된다** ─────────────
+// 관찰은 두 겹(modelReadable 플래그 + containsSecret 표식)으로 막혀 있었는데, 사람 발화와
+// 지시 문면은 그 경계를 지나지 않고 곧장 모델 메시지로 갔다 — 저장은 막히고 송신은 안 막혔다.
+// 다른 근거(반복 실패)로 추출이 이미 깨어난 턴에, 그 턴의 발화에 자격 문자열이 섞인 경우를 본다.
+test('비밀이 섞인 발화는 추출 입력에도 모델 메시지에도 실리지 않는다', async () => {
+  const { buildExtractionMessages } = await import('../src/runtime/model-provider.js');
+  const 비밀 = 'sk-live-9f2Ka83Bx7Qw1Ee55Tz0Rr4Yy8Uu2Ii6';
+  const 발화 = `또 막혔네. 앞으로 이런 건 ${비밀} 키로 대신 해줘`;
+  const bundle = buildEvidenceBundle({
+    id: 'b-secret', activeTarget: 발화,
+    observations: [관찰(), 관찰({ receiptRefs: ['ledger:s:1'] })],
+    explicitInstruction: { scope: 'session:s', text: 발화, observationRef: 'ledger:s:0' },
+  });
+  assert.equal(bundle.activeTarget, '', '비밀이 섞인 발화가 추출 입력에 남았다');
+  assert.equal(bundle.explicitInstruction.text, '', '비밀이 섞인 지시 문면이 추출 입력에 남았다');
+  // 범위·근거 참조(내부 열쇠)는 남는다 — 사라지면 근거 결합이 거짓으로 끊긴다.
+  assert.equal(bundle.explicitInstruction.scope, 'session:s');
+  const m = buildExtractionMessages(bundle);
+  assert.ok(!`${m.system}\n${m.user}`.includes(비밀), '모델 메시지에 비밀이 실렸다');
+  // 그리고 비밀이 없는 같은 모양의 발화는 **그대로 간다**(반대 방향 — 과차단이 아니다).
+  const 정상 = buildEvidenceBundle({
+    id: 'b-plain', activeTarget: '또 막혔네. 앞으로 이런 건 다른 방법부터 찾아줘',
+    observations: [관찰()],
+    explicitInstruction: { scope: 'session:s', text: '앞으로 이런 건 다른 방법부터 찾아줘', observationRef: 'ledger:s:0' },
+  });
+  assert.match(정상.activeTarget, /다른 방법부터/);
+  assert.match(buildExtractionMessages(정상).user, /다른 방법부터/);
+});
+
+// ── 감사 6회차 P0/P1 · **두 세션이 겹쳐도 근거가 조용히 사라지지 않는다** ──────────────
+// 추출 진행 상태가 서버 전역 한 칸이면, 뒤에 온 세션이 앞 세션의 대기를 덮어써서 앞 세션의
+// 근거가 영영 모델에게 가지 않는다(격리 위반 + 조용한 손실). 세션마다 칸을 갖는지 본다.
+test('두 세션이 동시에 추출을 깨워도 서로의 근거를 덮어쓰지 않는다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'tcell-2sess-'));
+  const 자리 = join(dir, '자리');
+  /** 추출 호출을 세션별로 관측한다(주입이 아니라 지나가며 본다). */
+  const 추출본 = [];
+  let 첫추출풀기 = null;
+  const 첫추출대기 = new Promise((r) => { 첫추출풀기 = r; });
+  let 단계 = 0;
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.tcellExtract) {
+        추출본.push(tc.tcellExtract.observations.map((o) => o.sessionId));
+        // 첫 추출을 붙들어 **비행 중**에 두 번째 세션이 들어오게 만든다(경합 재현).
+        if (추출본.length === 1) await 첫추출대기;
+        return JSON.stringify({ decision: 'insufficient_evidence' });
+      }
+      if (!opts.tools?.length) return '알겠어요';
+      if (단계 === 0) { 단계 = 1; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: join(자리, 'x.csv') } }] }; }
+      return { text: '봤어요', toolCalls: [] };
+    },
+  };
+  const 던지는손 = {
+    subjectOf: () => null,
+    async handler(a) { throw new Error(`EACCES: permission denied, open '${a?.path}'`); },
+  };
+  const server = makeServer({
+    store: new SessionStore(dir), env: demoEnv(),
+    tools: demoTools({ localFile: 던지는손 }), model: 모델,
+  });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const 새세션 = async () => (await (await fetch(`${base}/sessions`, { method: 'POST' })).json()).id;
+    const 턴 = async (id, text) => { 단계 = 0; return (await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: id, text }),
+    })).json(); };
+    const 소유 = (묶음) => [...new Set(묶음)];
+    const 셈 = (id) => 추출본.filter((묶음) => 소유(묶음).includes(id)).length;
+    const 기다림 = async (조건, ms = 20_000) => {
+      const 마감 = Date.now() + ms;
+      while (Date.now() < 마감 && !조건()) await new Promise((r) => setTimeout(r, 25));
+      return 조건();
+    };
+
+    const A = await 새세션(); const B = await 새세션();
+    await 턴(A, '정산 파일 읽어줘');       // A 의 추출이 시작되고 **붙들린다**
+    await 턴(A, '다시 해볼래?');            // A 의 새 근거 → A 칸에 대기
+    await 턴(B, '정산 파일 읽어줘');       // B 는 A 의 혼잡과 무관해야 한다
+
+    // ① **격리**: A 가 비행 중이어도 B 의 추출은 지금 시작된다. 전역 한 칸이면 여기서 막힌다.
+    assert.ok(await 기다림(() => 셈(B) >= 1, 5_000),
+      'A 의 추출이 비행 중이라는 이유로 B 세션의 추출이 시작되지 못했다(세션 격리 위반)');
+    첫추출풀기();
+
+    // ② **조용한 손실 0**: A 가 비행 중에 만든 새 근거는 잊히지 않고 이어서 돌아야 한다.
+    //    전역 한 칸이면 B 의 요청이 A 의 대기를 덮어써서 A 는 영영 1회에 머문다.
+    assert.ok(await 기다림(() => 셈(A) >= 2),
+      `비행 중 도착한 A 의 새 근거가 조용히 사라졌다(A ${셈(A)}회 · B ${셈(B)}회)`);
+
+    // ③ **교차 오염 0**: 한 번의 추출 입력에 두 세션의 관찰이 섞이면 안 된다.
+    for (const 묶음 of 추출본) {
+      assert.equal(소유(묶음).length, 1,
+        `한 추출 입력에 서로 다른 세션의 관찰이 섞였다: ${JSON.stringify(소유(묶음))}`);
+    }
+  } finally { await new Promise((r) => server.close(r)); }
+});

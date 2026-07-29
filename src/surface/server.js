@@ -124,15 +124,32 @@ export function makeServer(deps = {}) {
   const 관찰만 = (fn) => { try { Promise.resolve(fn()).catch(() => {}); } catch { /* 영향 0 */ } };
   const tcellRegistry = deps.tcellRegistry ?? new TCellRegistry(store.dir);
   const confirmationStore = deps.confirmationStore ?? new ConfirmationStore(store.dir);
-  let 추출중 = false; // 한 번에 하나만 — 대화가 빨라도 추출이 쌓이지 않는다
+  // 추출 진행 상태는 **세션마다** 갖는다(감사 6회차 P0/P1). 서버 전역 한 칸이면 서로 다른 두
+  // 사용자·두 대화가 한 슬롯을 두고 다툰다 — 뒤에 온 세션이 앞 세션의 대기를 덮어써서
+  // **조용히 근거가 사라지고**, 한 세션의 혼잡이 다른 세션의 성장을 멈춘다(격리 위반).
+  // 한 세션 안에서는 여전히 한 번에 하나다: 대화가 빨라도 추출이 쌓이지 않는다.
+  //
+  // **비행 중 도착한 새 근거를 버리지 않는다**(실측 2026-07-29). 추출은 응답 뒤 비동기로 도는데,
+  // 예전엔 그 동안 들어온 턴을 `in_flight` 로 **그냥 버렸다**. 그 결과 실제 대화에서는 가장 이른
+  // 턴의 얇은 근거로만 추출이 돌고, 사람이 실제로 원리를 말한 뒤의 풍부한 근거는 한 번도 모델에게
+  // 가지 않았다. 쌓지 않되(세션마다 마지막 하나만) 잊지도 않는다 — 끝나면 그 한 건을 이어 돌린다.
+  /** @type {Map<string,{running:boolean, pending:object|null}>} sessionId → 추출 상태 */
+  const 추출상태 = new Map();
+  const 추출칸 = (sid) => {
+    let v = 추출상태.get(sid);
+    if (!v) { v = { running: false, pending: null }; 추출상태.set(sid, v); }
+    return v;
+  };
 
   /**
    * TG-3 생산 경로 — **응답을 보낸 뒤**(hot path 밖) wake 가 켜졌을 때만 한 번 돈다.
    * 기존 정규식 경로(memorySuggestion)는 여기서 판단이 아니라 **wake 입력 하나**로 축소된다.
    * 결과는 registry 에 M1/격리로만 쌓이고 **TaskContext 에는 가지 않는다**(영향 0, TG-5 전까지).
    */
-  async function 원리후보추출({ sessionId, result, userText, instructionRef = null }) {
-    if (추출중) return { skipped: 'in_flight' };
+  async function 원리후보추출(요청) {
+    const { sessionId, result, userText, instructionRef = null } = 요청;
+    const 칸 = 추출칸(sessionId);
+    if (칸.running) { 칸.pending = 요청; return { skipped: 'in_flight_requeued' }; }
     const { events } = await tcellObserver.load({ sessionId });
     // **레인 분리**(정본 S-TG-1): 명시적 *선호*는 기존 기억 레인이 담당한다 — T-cell 로 변환하지
     // 않는다. 운영 원리만 추출 레인을 깨운다(TG-2 이관표와 같은 경계, 두 곳이 어긋나지 않게).
@@ -149,7 +166,7 @@ export function makeServer(deps = {}) {
     const regexHit = 제안?.kind === 'operating_principle' ? 제안 : null;
     const w = wakeSignal(events, { regexHit });
     if (!w.wake) return { skipped: 'no_wake' };
-    추출중 = true;
+    칸.running = true;
     try {
       const groups = groupObservations(events);
       if (!groups.size) return { skipped: 'no_group' };
@@ -187,7 +204,14 @@ export function makeServer(deps = {}) {
       }
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
-      추출중 = false;
+      칸.running = false;
+      if (칸.pending) {
+        const 다음 = 칸.pending; 칸.pending = null;
+        // 응답을 붙들지 않는다(영향 0) — 실패해도 대화가 죽지 않는다.
+        queueMicrotask(() => { 원리후보추출(다음).catch(() => {}); });
+      } else {
+        추출상태.delete(sessionId); // 세션이 조용해지면 칸도 남기지 않는다(무한 증식 금지)
+      }
     }
   }
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
@@ -566,8 +590,15 @@ export function makeServer(deps = {}) {
         : null;
       const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
       return 원리후보추출({
-        // activeTarget 도 원문이 아니라 **구조화된 문장만** — 없으면 관찰이 사실을 말한다.
-        sessionId: session.id, userText: 원리제안?.statement ?? '', instructionRef: 지시?.ref ?? null,
+        // **지금 사용자가 한 말을 그대로 준다**(실측 2026-07-29). 예전엔 정규식(detectCandidate)이
+        // "운영 원리"라고 분류한 문장만 넘겼다. 그래서 "또 막혔네. 앞으로 이런 건 다른 방법부터
+        // 찾아줘"처럼 **사람이 실제로 원리를 말한 턴**에서도 모델은 관찰 2건만 받고 사람 문장은
+        // 한 글자도 못 봤다 — 그 입력에 Anthropic 은 일관되게 insufficient_evidence 로 답했고
+        // (그 입력에서는 그게 옳은 답이다), OpenAI 만 후보를 냈다. 즉 정규식이 말귀의 관문이었다.
+        // 말귀는 모델이 한다(§0.1·§24): OS 는 사실을 정확히 놓고, 판단은 모델이 한다.
+        // **권한은 여기서 생기지 않는다** — 확인 면제(explicitInstruction)는 그대로 구조화된
+        // 문장 + 근거 참조가 있을 때만이고, 추출을 깨우는 조건(wake)도 바뀌지 않는다.
+        sessionId: session.id, userText: input.text ?? '', instructionRef: 지시?.ref ?? null,
         result: { ...result, tcellTurnRefs: [...이번턴, ...(지시?.ref ? [지시.ref] : [])] },
       });
     }));

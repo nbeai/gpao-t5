@@ -13,23 +13,14 @@ import { appendFile, mkdir, readFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   makeObservationEvent, observationFromApproval, observationFromReceipt,
-  observationFromRecovery, observationFromCorrection, validateObservationEvent,
+  observationFromRecovery, observationFromCorrection, validateObservationEvent, looksLikeSecret,
 } from '../kernel/l0-evidence/tcell-observation.js';
 
 const 비밀일반화 = '비밀이 포함된 실행 사실(원문 비저장)';
 
-/**
- * 저장 직전 비밀 모양 선별 — **판단이 아니라 보관 안전망**이다(감사 2026-07-29).
- * 사용자 발화에 자격 문자열이 섞여 들어오면 관찰 파일에 남을 수 있었다. 여기서 걸러
- * containsSecret 로 표시하면 요약이 일반화되고 모델 가독도 자동으로 닫힌다.
- * 목록으로 의미를 판정하지 않는다 — 길고 무작위한 자격 모양만 본다.
- */
-export function looksLikeSecret(text) {
-  const t = String(text ?? '');
-  if (/\b(sk-|ghp_|gho_|xox[baprs]-|AKIA|ya29\.|Bearer\s+[\w-]{16,})/i.test(t)) return true;
-  // 20자 이상의 고엔트로피 토큰(영숫자+기호 혼합) — 사람 문장에는 잘 없다.
-  return /[A-Za-z0-9_\-]{28,}/.test(t) && /[0-9]/.test(t) && /[A-Za-z]/.test(t);
-}
+// 비밀 모양 선별은 **증거 계약 층**에 산다(l0-evidence) — 저장과 모델 입력이 같은 하나를 본다.
+// 여기서는 기존 소비자를 위해 다시 내보내기만 한다.
+export { looksLikeSecret };
 
 export class TCellObserver {
   constructor(dir) {

@@ -85,12 +85,18 @@ export function buildExtractionMessages(bundle) {
       `[OS 가 감지하는 상황 원자]\n${b.factAtoms.join('\n')}`,
     ] : []),
     `decision 은 ${['candidate', 'insufficient_evidence', 'duplicate', 'contradiction'].join(' | ')} 중 하나다.`,
+    // 계약 밖 종류를 내면 그 후보는 격리된다 — 어휘를 안 주고 요구하면 모델이 지어낸다(실측).
+    ...(b.principleTypes?.length ? [`principle.type 은 ${b.principleTypes.join(' | ')} 중 하나다.`] : []),
     b.authorityFacts?.note ?? '',
   ].filter(Boolean);
   const usr = [];
   if (b.activeTarget) usr.push(`[지금 사용자가 한 말]\n${b.activeTarget}`);
+  // **대상을 함께 준다.** 예전엔 요약만 실어서, 같은 파일이 두 번 막힌 것인지 서로 다른 일이
+  // 한 번씩 막힌 것인지를 모델이 알 수 없었다 — 반복이 근거인데 반복 여부를 감춘 셈이다(실측:
+  // 그 상태에서 Anthropic 은 일관되게 insufficient_evidence 로 답했다).
   usr.push(`[관찰된 사실 ${b.observations?.length ?? 0}건 — trace 는 이 참조만 쓴다]\n${
-    (b.observations ?? []).map((o) => `- (${o.receiptRefs?.[0] ?? o.id}) ${o.type}/${o.signal?.valence}: ${o.signal?.summary}`).join('\n')
+    (b.observations ?? []).map((o) => `- (${o.receiptRefs?.[0] ?? o.id}) ${o.type}/${o.signal?.valence}: ${o.signal?.summary}`
+      + (o.anchor?.subject ? ` · 대상: ${o.anchor.subject}` : '')).join('\n')
   }`);
   if (b.existingCandidates?.length) {
     usr.push(`[기존 원리 후보 — 중심과 경계를 비교해 같은 중심인지 판단한다]\n${
@@ -99,7 +105,12 @@ export function buildExtractionMessages(bundle) {
         + `\n  유효: ${(c.boundary?.validWhen ?? []).join(', ')} / 무효: ${(c.boundary?.invalidWhen ?? []).join(', ')}`).join('\n')
     }`);
   }
-  if (b.authorityFacts?.explicitInstructionScope) {
+  // **지시는 문장으로 준다.** 예전엔 `session:…` 이라는 내부 열쇠만 갔다 — 사실이 번들에
+  // 있는데 대용물을 넘긴 것이다. 사용자가 방금 못 박은 문장은 이 묶음에서 가장 강한 근거다.
+  if (b.explicitInstruction?.text) {
+    usr.push(`[사용자가 이번에 명시한 지시 — 이 범위는 이미 확인된 것이다]\n"${b.explicitInstruction.text}"`
+      + `\n범위: ${b.explicitInstruction.scope ?? '(없음)'} · 근거: ${b.explicitInstruction.observationRef ?? '(없음)'}`);
+  } else if (b.authorityFacts?.explicitInstructionScope) {
     usr.push(`[사용자가 명시한 범위]\n${b.authorityFacts.explicitInstructionScope}`);
   }
   return { system: sys.join('\n'), user: usr.join('\n\n'), history: [] };

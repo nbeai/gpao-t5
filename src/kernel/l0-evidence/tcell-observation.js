@@ -22,6 +22,19 @@ import { randomUUID } from 'node:crypto';
 
 export const TCELL_OBSERVATION_SCHEMA_VERSION = 1;
 
+/**
+ * 비밀 모양 선별 — **판단이 아니라 안전망**이다. 목록으로 의미를 판정하지 않는다(길고 무작위한
+ * 자격 모양만 본다). 예전엔 이 함수가 저장층(surface/tcell-store)에만 있었고, 그래서 **저장은
+ * 막히는데 모델로 나가는 길은 안 막히는** 비대칭이 생겼다(감사 6회차 P0). 사실이 하나면 층도
+ * 하나여야 한다 — 관찰 기록과 추출 입력이 같은 이 함수를 본다.
+ */
+export function looksLikeSecret(text) {
+  const t = String(text ?? '');
+  if (/\b(sk-|ghp_|gho_|xox[baprs]-|AKIA|ya29\.|Bearer\s+[\w-]{16,})/i.test(t)) return true;
+  // 20자 이상의 고엔트로피 토큰(영숫자+기호 혼합) — 사람 문장에는 잘 없다.
+  return /[A-Za-z0-9_\-]{28,}/.test(t) && /[0-9]/.test(t) && /[A-Za-z]/.test(t);
+}
+
 export const OBSERVATION_TYPES = Object.freeze([
   'user_request', 'user_correction', 'tool_result', 'approval', 'rejection',
   'recovery', 'delivery_result', 'context_outcome', 'automation_result',
