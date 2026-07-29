@@ -27,7 +27,11 @@ export const DOCUMENT_RULES = [
   },
   {
     file: 'GPAO-T5-APPROVAL-LIFECYCLE-CONTRACT-2026-07-25-ko.md',
-    require: ['current_approval_lifecycle_contract_needs_effect_granularity_alignment', '명시적 사용자 요청은 그 범위의 확인이다'],
+    require: [
+      'current_approval_lifecycle_contract_effect_aligned_code_gap_open',
+      '명시적 사용자 요청은 그 범위의 확인이다',
+      '기억·학습의 효과 기반 계약',
+    ],
     forbid: ['Status: `초안 작성 완료 · 감사 전'],
   },
   {
@@ -86,8 +90,17 @@ export const DOCUMENT_RULES = [
   },
   {
     file: 'design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md',
-    require: ['P-OP A~H와 P-OP-7은 완료됐다', '최소 안전을 보장하는 상태에서 최대 허용한다'],
+    require: [
+      'P-OP A~H와 P-OP-7은 완료됐다',
+      '최소 안전을 보장하는 상태에서 최대 허용한다',
+      'inferred 저위험 preference와 작업 방식',
+    ],
     forbid: ['현재 최우선 P-OP A~H를 계속 닫는다'],
+  },
+  {
+    file: 'design/T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md',
+    require: ['foreground_no_durable_io', 'Hermes의 기본 OFF가 주는 매끄러움은 흡수한다'],
+    forbid: ['write approval 기본 OFF를 그대로 복사해 모든 memory/skill 변경을 즉시 durable 반영'],
   },
   {
     file: 'docs/03-verification/T5-OPERATOR-HARNESS-EXECUTION-BOARD-2026-07-28-ko.md',

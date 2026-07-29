@@ -1,6 +1,6 @@
 # GPAO-T5 Approval Lifecycle Contract
 
-- Status: `current_approval_lifecycle_contract_needs_effect_granularity_alignment`
+- Status: `current_approval_lifecycle_contract_effect_aligned_code_gap_open`
 - Date: 2026-07-25
 - Author: Claude Code (구현자)
 - Auditor: Codex (감사 대기)
@@ -56,6 +56,30 @@ Authority 입력이어야 한다.
 
 ---
 
+## 0.6 기억·학습의 효과 기반 계약 — 저장 ≠ 외부 행동 ≠ 권한
+
+기억을 저장했다는 이유만으로 A2가 되지 않는다. 사전 확인 여부는 **어디에 저장됐는가**가 아니라
+그 기억이 어떤 영향과 권한을 만드는가로 판정한다.
+
+| 종류 | 기본 동작 | 사용자 표면 |
+|---|---|---|
+| 비밀 제거 관찰·영수증 | 응답 뒤 자동 기록, 영향 0 | 평소 조용함 |
+| 사용자가 명시한 기억·선호 | 밝힌 범위에 자동 반영 | 설정에서 확인·수정·고정·되돌리기 |
+| 추정한 저위험 선호·작업 방식 | replay·범위 검증 뒤 A0/A1 제한 영향 가능 | 조용한 반영 + pause/rollback |
+| 민감 정보·정체성·권한·외부 대상·project/profile/global 확장 추정 | 자동 영향 금지 | 실제 필요 경계에서만 확인하거나 비활성 유지 |
+| 비밀 원문 | 일반 기억/T-cell 저장 금지 | 별도 보안 입력·금고 경계 |
+
+불변식:
+
+- 현재 사용자 지시는 과거 기억보다 항상 우선한다.
+- 저위험 추정이 틀려도 질문 카드가 아니라 사후 수정·rollback으로 회복한다.
+- 영향이 보류된 항목을 학습 시점에 승인 카드로 올리지 않는다. 실제로 영향이나 권한이 필요한 순간에만
+  최소 질문을 한다.
+- 기억·원리·스킬의 사용자 관리 표면은 하나의 사람이 읽는 언어로 제공한다.
+- 카드 수·클릭 수·완료 턴·전경 대기가 늘면 기억 기능의 회귀다.
+
+---
+
 ## 1. 계약 — AuthorityGrant.grantScope 정형화
 
 `AuthorityGrant.grantScope = { kind: 'once' | 'session' | 'persist', expiresAt?: 시각 }`
@@ -100,11 +124,11 @@ Authority 입력이어야 한다.
 ## 4. 현재 구현과 지정 정합화
 
 - `session`/`persist` grant registry와 revocation은 P-OP에서 제품 경로가 생겼다.
-- 남은 정합화는 도구 종류가 아니라 실제 효과로 A0~A3를 판정하는 것이다. 현재 코드의 모든 `write`,
-  `promote_memory`, unknown 일괄 A2는 절대 원칙 §0-A-1과 대조해야 한다.
+- 남은 코드 정합화는 도구 종류가 아니라 실제 효과로 A0~A3를 판정하는 것이다. 현재 코드의 모든
+  `write`, `promote_memory`, unknown 일괄 A2는 위 §0.5·§0.6과 충돌한다.
 - 명시적 사용자 요청은 그 범위의 확인이다. 같은 내용을 카드로 다시 묻지 않는다.
-- 학습·기억·스킬의 가역 변경은 기본 자동 + rollback/archive/restore로 다루고, inferred 장기 모델이나
-  새 외부 권한만 별도 확인한다.
+- 학습·기억·스킬의 가역 변경은 기본 자동 + rollback/archive/restore로 다룬다. 추정했다는 이유만으로
+  전부 확인하지 않고, 민감 정보·정체성·권한·전역화·새 외부 권한만 자동 영향을 제한한다.
 
 ## 5. 제안하는 Kernel Contract 개정 (감사 후 반영)
 
