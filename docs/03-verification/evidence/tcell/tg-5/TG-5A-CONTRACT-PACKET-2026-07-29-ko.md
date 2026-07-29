@@ -108,5 +108,59 @@ TG-5A 에서 측정 가능한 것: `admitted/rejected` 수와 사유 분포 · �
 
 ---
 
-**합의 요청**: ①~⑩ 중 범위·조건·검사 목록에 수정이 필요한 곳을 알려 주시면 반영한 뒤 구현에
-들어가겠습니다. 특히 ③(입장 조건 8개)과 ⑨(선행 반대시험 12건)이 이번 단계의 실제 계약입니다.
+# 감사 보강 6건 반영 (2026-07-29 · 승인 조건) — 이 절이 구현의 실제 계약이다
+
+## A. 입력의 신분 — 호출자가 건넨 객체를 믿지 않는다
+- 세포는 **ID 로 `principleStore.get(id)` 조회**한다(호출자가 세포 객체를 건넬 수 없다).
+- 확인·bounded grant·근거도 **기존 저장소 조회**(TG-4 `계보검사` 와 같은 계약: kind·tcellId·시각·참조).
+- **현재 사용자 원문은 이번 턴의 휘발성 재료**다. `principleTrace` 와 저장소에는 원문을 남기지 않는다 —
+  trace 의 사유는 **자유 문장이 아니라 코드**(`scope_mismatch` 등)로만 적어 원문 유입 통로를 없앤다.
+
+## B. 역할 결정 규칙 (임의 선택·자동 상승 금지)
+```
+role = max( cell.authority.allowedInfluence
+          ∩ influenceCeilingFor(cell.state)
+          ∩ STAGE_ALLOWED_ROLES )        // 교집합이 비면 'none'
+STAGE_ALLOWED_ROLES(TG-5A) = none · candidate_context · supporting_context · plan_hint · default_value
+                              → answer_anchor 는 이 단계에서 **집합 자체에 없다**
+```
+`max` 는 고정된 `ROLE_ORDER` 위의 결정적 최대값이지 휴리스틱이 아니다. 세 집합 밖의 역할은 나올 수 없다.
+
+## C. 경계·충돌·범위의 3값 판정
+- 각 `validWhen`/`invalidWhen` 절은 `matched | not_matched | unknown` + **근거 참조**를 남긴다.
+  `matched` = 이번 턴의 구조화된 사실 집합에 그 절이 있다 / `not_matched` = 명시적 부정 사실이 있다 /
+  그 외 = `unknown`.
+- **입장 규칙**: `validWhen` 에 `matched ≥ 1`(unknown 은 세지 않는다) **그리고** `invalidWhen` 에
+  `matched = 0`. `unknown` 은 입장 근거로도, 단독 거절 근거로도 쓰지 않는다(과잉 차단 금지) —
+  전부 기록만 한다.
+- **"오래된 원리"는 시간이 아니라 식별자로 판정한다**: `anchor.project/subject` 불일치 또는 명시된
+  `stale` 상태. 같은 프로젝트에서 시간만 지난 것은 범위 불일치가 아니다.
+
+## D. 영향과 실행 권한의 분리
+- `authorityAllowed:true` = **판단에 참고될 수 있다**는 뜻이다. 실행 승인이 아니다.
+- 과거의 일회성 승인은 이후 A2/A3 권한이 **아니다**(`kind:'once'` grant 는 재사용 불가).
+- bounded grant 는 **행동·대상·범위·만료가 모두 일치**해야 하고, 그렇더라도 **실제 실행 경계에서
+  다시 검증**한다. admission 은 승인 카드를 소비하지 않고 새 실행 권한을 만들지 않는다.
+
+## E. 실패를 빈 성공으로 위장하지 않는다
+- `principleTrace.status: 'ok' | 'degraded'` + 사람에게 노출되지 않는 **오류 코드**.
+  "입장 대상이 정상적으로 없음"(ok, admitted 0)과 "계산이 실패함"(degraded)을 구분한다.
+- 후보 하나가 손상돼도 **다른 후보 판정은 계속**하고, 손상 후보는 정확히 `rejected(corrupt)`.
+- **모든 후보는 정확히 한 번** `admitted` 또는 `rejected` 에 나타난다(합계 = 후보 수).
+
+## F. 영향 0 증명의 범위
+on/off 두 실행에서 다음이 **전부 동일**해야 한다: 모델 메시지 · 도구 스키마 · 모델 호출 횟수와 순서 ·
+계획과 도구 실행 · 외부 효과 · registry 바이트 · 세포 상태. **허용되는 차이는 `principleTrace` 뿐.**
+비밀 모양 입력이 trace·세션 저장·진단에 남지 않는지도 함께 확인한다.
+
+## 선행 반대시험 20건 (기존 12 + 보강 8)
+13. 호출자가 위조한 세포·확인·authority 불리언 → 입장 불가(조회된 사실만 쓴다)
+14. 경계 판정 `unknown` → 입장 근거가 되지 않음(동시에 단독 거절 근거도 아님)
+15. 같은 project 의 단순 시간 경과 ≠ 범위 불일치 / 실제 식별자 불일치·stale 은 거절
+16. 과거 일회성 승인 · 만료 grant · 다른 대상 grant → A2/A3 를 열지 못함
+17. `role` 은 허용 역할·성숙도 상한을 넘지 못함(answer_anchor 는 이 단계에서 불가)
+18. 손상 후보 1건이 정상 후보 admission 을 막지 않고 `status:'degraded'` 가 남음
+19. 사용자 원문·비밀값이 trace 와 저장소에 남지 않음
+20. on/off 에서 메시지·도구 스키마·호출·실행·외부 효과·registry 동일, trace 만 다름
+
+**승인 조건 반영 완료 — 이 계약으로 구현에 착수한다.**
