@@ -236,6 +236,14 @@ const geminiHistory = (m) => (m.history ?? []).map((h) => ({
   role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }],
 }));
 
+function openaiTokenBudget(cfg) {
+  const needsCompletionTokens = cfg.provider === 'openai'
+    && /^(?:gpt-5|o[134](?:-|$))/i.test(cfg.modelId);
+  return needsCompletionTokens
+    ? { max_completion_tokens: cfg.maxTokens }
+    : { max_tokens: cfg.maxTokens };
+}
+
 // provider별 요청 빌더·응답 해석(선언형). 토큰 위치·본문 셰이프가 provider마다 다르다.
 // errorSignal 은 분류하지 않는다 — 원문을 모으고, 분류기가 못 읽는 벤더 고유 표기만 정규 토큰으로 보강.
 const OPENAI_WIRE = {
@@ -247,7 +255,7 @@ const OPENAI_WIRE = {
   }),
   body: (cfg, m, opts = {}) => JSON.stringify({
     model: cfg.modelId,
-    max_tokens: cfg.maxTokens,
+    ...openaiTokenBudget(cfg),
     // P2-5b-2: 도구 **선택**을 모델에게(집행은 런타임). 이름 제약이 있는 서버가 있어 와이어에서
     // 안전한 이름으로 바꾸고 응답에서 되돌린다(라이브에서 `local.file` 의 점이 400 을 냈다).
     ...(opts.tools?.length ? {

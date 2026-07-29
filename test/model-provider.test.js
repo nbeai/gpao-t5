@@ -94,6 +94,8 @@ test('openai 와이어: /chat/completions + Bearer, choices 추출', async () =>
   const body = JSON.parse(init.body);
   assert.equal(body.messages[0].role, 'system');
   assert.equal(body.messages[1].role, 'user');
+  assert.equal(body.max_completion_tokens, cfg.maxTokens);
+  assert.equal(body.max_tokens, undefined);
 });
 
 test('openai_oauth: 같은 와이어에 OAuth access token 을 Bearer 로 쓴다(주입 seam)', async () => {
@@ -102,6 +104,9 @@ test('openai_oauth: 같은 와이어에 OAuth access token 을 Bearer 로 쓴다
   assert.equal(cfg.provider, 'openai_oauth');
   await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC);
   assert.equal(calls[0].init.headers.authorization, 'Bearer oauth-t');
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.max_tokens, cfg.maxTokens, '현재 정상인 OAuth 요청 형식은 유지한다');
+  assert.equal(body.max_completion_tokens, undefined);
 });
 
 test('openai_compatible: 지정 baseUrl 로 가고, 토큰 없으면 authorization 헤더도 없다', async () => {
@@ -111,6 +116,9 @@ test('openai_compatible: 지정 baseUrl 로 가고, 토큰 없으면 authorizati
   assert.equal(reply, '로컬 응답');
   assert.equal(calls[0].url, 'http://localhost:11434/v1/chat/completions');
   assert.equal(calls[0].init.headers.authorization, undefined);
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.max_tokens, cfg.maxTokens, '호환 서버에 공식 OpenAI 전용 필드를 강제하지 않는다');
+  assert.equal(body.max_completion_tokens, undefined);
 });
 
 test('beai 와이어: 자사 V1 — Bearer + user/assistant 만(system 사실은 user 턴에 합침)', async () => {
