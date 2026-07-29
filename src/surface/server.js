@@ -136,6 +136,22 @@ export function makeServer(deps = {}) {
   const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 180_000);
   const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
+  // C7-ACTION-001 호환 정리(한 번, 멱등): 수정 전에 만들어진 **비전송** default_target
+  // 후보·승격만 걷는다. traces(감사 이력)와 전달 원장 기록은 보존한다 — 잘못 배운 영향만
+  // 제거하고 "무슨 일이 있었는가"는 남긴다. 진짜 send 후보·승격은 건드리지 않는다.
+  const 학습잔재정리 = (async () => {
+    try {
+      const a = await traceStore.load();
+      const ss = buildSelfState(env, { tools });
+      const 전송만 = (p) => p.kind !== 'default_target' || isSendTool(p.tool, ss);
+      const before = a.proposed.length + a.promoted.length;
+      a.proposed = a.proposed.filter(전송만);
+      a.promoted = a.promoted.filter(전송만);
+      const 걷은수 = before - (a.proposed.length + a.promoted.length);
+      if (걷은수 > 0) { await traceStore.save(a); console.error(`[patterns] 비전송 기본 대상 잔재 ${걷은수}건 정리(C7-ACTION-001)`); }
+    } catch { /* 정리 실패는 치명 아님 — 조회·승격 게이트가 같은 경계로 막는다 */ }
+  })();
+
   // tick 트러스트 토큰(§8.3): 런타임만 안다. 어떤 GET에도 노출하지 않는다 → 브라우저·사용자는 tick 불가.
   // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
   const runtimeToken = deps.runtimeToken ?? randomUUID();
@@ -776,9 +792,13 @@ export function makeServer(deps = {}) {
       // ── 학습(Learning-to-Workflow, P6-11) ── 후보 → 승인+replay → 승격(영향) → 되돌리기.
       if (req.method === 'GET' && url === '/patterns') {
         const a = await traceStore.load();
+        // C7-ACTION-001 잔재: 수정 전에 생성된 비전송 default_target 후보는 표면에 내지 않는다
+        // (같은 isSendTool 경계 — 생성·조회·승격이 다른 기준을 만들지 않는다).
+        const ss학습 = buildSelfState(env, { tools });
+        const 전송만 = (p) => p.kind !== 'default_target' || isSendTool(p.tool, ss학습);
         return sendJson(res, 200, {
-          proposed: a.proposed.map(projectDefaultTarget),
-          promoted: a.promoted.map(projectDefaultTarget),
+          proposed: a.proposed.filter(전송만).map(projectDefaultTarget),
+          promoted: a.promoted.filter(전송만).map(projectDefaultTarget),
           traceCount: a.traces.length,
         });
       }
@@ -789,6 +809,11 @@ export function makeServer(deps = {}) {
         const idx = a.proposed.findIndex((p) => p.patternId === input.patternId);
         if (idx < 0) return sendJson(res, 404, { error: '학습 후보를 찾지 못했어요.' });
         const pat = a.proposed[idx];
+        // C7-ACTION-001: 비전송 후보는 승격 자체를 거부한다(영향 0) — 조회에서 숨겨도
+        // patternId 를 아는 호출이 승격시키면 잘못 배운 기본 대상이 영향 레인에 들어간다.
+        if (pat.kind === 'default_target' && !isSendTool(pat.tool, buildSelfState(env, { tools }))) {
+          return sendJson(res, 409, { error: '전송 도구의 기본 대상만 기억할 수 있어요.' });
+        }
         const replay = replayDefaultTarget(pat); // 승격 전 재현 검증(영향 전 게이트)
         if (!replay.ok) {
           return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: replay.reason });

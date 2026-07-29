@@ -119,3 +119,44 @@ test('서버: 재시도는 원 승인 인자를 그대로 보존하고, 비전�
     assert.equal(불린것.length, 1, '거부됐는데 도구가 돌았다');
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── C7 잔재: 학습 표면·승격·정리도 같은 경계 하나(isSendTool)를 쓴다 ──
+const 잔재 = (tool, id) => ({ patternId: id, kind: 'default_target', tool, target: 'p-op7-pass4-test', targetLabel: null, scope: 'global' });
+
+test('학습 잔재: 비전송 default_target 은 조회에서 숨고, 승격은 409 로 거부되고(영향 0), 부팅 정리가 걷는다 — 진짜 send 는 무회귀', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-pat-'));
+  // 수정 전 서버가 남긴 잔재 모양 그대로 심는다: 비전송 후보 2 + 비전송 승격 1 + 진짜 send 후보 1.
+  await writeFile(join(dir, 'learning.json'), JSON.stringify({
+    traces: [{ id: 't1', requestText: '감사 이력', tool: 'local.terminal', target: 'p-op7-pass4-test', outcome: 'delivered', createdAt: 1 }],
+    proposed: [잔재('local.terminal', 'p1'), 잔재('local.process', 'p2'),
+      { patternId: 'p3', kind: 'default_target', tool: 'telegram.send', target: '오너', targetLabel: '오너', scope: 'global' }],
+    promoted: [{ ...잔재('local.process', 'p4'), promotedAt: 1 }],
+  }), 'utf8');
+  const hand = { toolKind: 'send', previewOf: makeSendPreview({ channel: 'telegram' }),
+    async handler() { return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
+  const { server, base } = await 서버띄우기({ async respond() { return '네'; } }, { senders: { 'telegram.send': hand } }, dir);
+  try {
+    await new Promise((r) => setTimeout(r, 50)); // 부팅 정리(비동기 멱등)가 지나갈 시간
+    // 조회: 비전송은 안 보이고 진짜 send 후보만 보인다.
+    const list = await (await fetch(`${base}/patterns`)).json();
+    assert.deepEqual(list.proposed.map((p) => p.tool), ['telegram.send'], `비전송 후보가 표면에 남았다: ${JSON.stringify(list.proposed)}`);
+    assert.equal(list.promoted.length, 0, '비전송 승격이 표면에 남았다');
+    assert.equal(list.traceCount, 1, '감사 이력(traces)이 정리로 사라졌다');
+    // 저장소: 정리는 비전송 proposed/promoted 만 걷고 traces·send 후보는 보존.
+    const saved = JSON.parse(await readFile(join(dir, 'learning.json'), 'utf8'));
+    assert.deepEqual(saved.proposed.map((p) => p.patternId), ['p3'], '정리가 잘못 걷었다');
+    assert.equal(saved.promoted.length, 0);
+    assert.equal(saved.traces.length, 1);
+    // 승격 거부: 정리를 우회해 patternId 로 직접 승격을 시도해도(다시 심기) 409 · 영향 0.
+    const again = JSON.parse(await readFile(join(dir, 'learning.json'), 'utf8'));
+    again.proposed.push(잔재('local.process', 'p5'));
+    await writeFile(join(dir, 'learning.json'), JSON.stringify(again), 'utf8');
+    const no = await fetch(`${base}/patterns/confirm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patternId: 'p5' }) });
+    assert.equal(no.status, 409, '비전송 승격이 거부되지 않았다');
+    const after = JSON.parse(await readFile(join(dir, 'learning.json'), 'utf8'));
+    assert.equal(after.promoted.filter((p) => p.tool !== 'telegram.send').length, 0, '거부됐는데 승격됐다');
+    // 진짜 send 후보는 그대로 승격된다(무회귀).
+    const ok = await (await fetch(`${base}/patterns/confirm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patternId: 'p3' }) })).json();
+    assert.equal(ok.ok, true, `send 승격이 막혔다: ${JSON.stringify(ok)}`);
+  } finally { await new Promise((r) => server.close(r)); }
+});
