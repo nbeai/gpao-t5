@@ -575,6 +575,9 @@ unknown
 
 ### AC-1. 공통 계약과 migration
 
+상태(2026-07-29): **정본 편입·독립 감사 통과.** 정본 커밋 `a40a56b`~`c58bdea`,
+독립 증거 `docs/03-verification/evidence/automation-core/ac-1/CODEX-INTEGRATION-AUDIT-2026-07-29-ko.md`.
+
 신규/변경 후보:
 
 - `src/kernel/contracts.js`
@@ -1031,17 +1034,13 @@ T-cell 성숙도가 높아져도 authority envelope를 확대하지 않는다. �
 
 ```text
 현재 P-OP-7 공통 결함 수정·양쪽 재검·잠금
-→ AC-1 공통 계약·migration
-→ AC-2 Skill Closure
-→ AC-3 Durable Trigger
-→ AC-4 Bounded Agent
-→ AC-5 Unified Automation
-→ AC-6 실제 사용자 표면
-→ AC-7 설치·상주
+→ AC-1 공통 계약·migration [완료]
+→ (최신 오너 병렬 결정) Claude T-cell TG-0~TG-8 단일선
+  ∥ Codex 통합 AC-2 Skill → AC-3 Trigger → AC-4 Agent → AC-5~7
+  (겹치는 파일은 단계별 소유권을 먼저 고정)
 → OpenAI API·Anthropic API 인간 시나리오
 → Codex·Claude 교차 감사
 → 실제 인간 사용자 테스트
-→ T-cell TG-0~TG-8
 → 외부 skill/plugin·팀 agent 생태계
 ```
 
