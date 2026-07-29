@@ -41,3 +41,46 @@
 
 전체 회귀 **1297건 통과** · 게이트 **PASS**(CPU 22.7s) — **자체 검증 완료 · 독립 감사 대기**.
 남은 비차단: `baseline/candidate` 측정값 경계(TG-4 공개 항목) · `importLegacyMemory` 배선(TG-2 통합).
+
+---
+
+# 감사 P1 3건 (2026-07-29 · 2차) — 자체 검증 완료 · 독립 감사 대기
+
+**가장 아픈 지적을 그대로 인정한다**: 내 검사가 *미배선을 성공 조건으로 고정*했다.
+"커널이 admission 을 부르지 않는다"를 단언했으니, 배선하지 않은 것을 계약으로 굳힌 것이다.
+그래서 그때의 "영향 0" 은 **admission 이 안 돌아서 0** 이었다. 잘못된 검사 2건을 삭제했다.
+
+1. **실제 배선** — `runTurn` 이 모델 호출 **전에** admission 을 계산하고 `result.principleTrace` 로만
+   내보낸다. 서버가 `ctx.admissionSources = { registry, observer }` 로 **실제 저장소**를 공급한다.
+   모델 메시지·도구·계획에는 넣지 않는다(TG-5B 전).
+2. **저장소 경계** — `buildAdmissionSnapshot()` 이 비동기 `registry.load()` · scoped `observer.load()` 를
+   한 경계에서 읽어 **불변 동기 조회기** 스냅샷을 만든다. `admitPrinciples()` 는 그 스냅샷만 소비하는
+   순수 함수로 남는다. 읽기 실패는 삼키지 않고 `degraded` 로 trace 에 승계된다.
+   비용 정정: **후보 세포가 0이면 관찰 로그를 읽지 않는다**(없는 것을 확인하는 비용도 비용이다).
+3. **재현 5건 폐쇄**
+   | 재현 입력 | 이제 |
+   |---|---|
+   | 저장소 예외 → ok | `store_read_failed` + `status:'degraded'`, 입장 0 |
+   | 현재 범위 없음 → 입장 | `scope_unknown` 미입장(project·subject 각각) |
+   | sourceRefs 없는 확인 → 인정 | TG-4 동일 계약(kind·tcellId·시각·sourceRefs·**계보**) 4종 차단 |
+   | 임의 grant kind → 인정 | 정확히 `kind:'bounded'` + 미철회(`revoked`/`active:false`) + 미만료 + 일치 |
+   | 중복 세포 ID → 2회 입장 | 후보 ID 중복 제거 — 1회 |
+
+## 진짜 on/off 관통 검사
+실제 서버 두 벌(원리 있는 registry / 없는 registry)로 같은 요청을 돌려서:
+**admission 이 실제로 돌았음**(`principleTrace` 존재 · `retrievedIds` 1 vs 0)을 먼저 확인하고,
+모델 메시지·도구 스키마·호출 횟수·도구 실행(외부 효과)·사용자 답이 **전부 동일**함을 단언한다.
+원리 문장이 모델 입력에 부재 · `influencedPlan/Answer` 빈 배열.
+
+## 제출 전 전수 점검 출력
+```
+조회   세포 ✓ · 확인 기록 ✓ · grant ✓ · 근거 ✓
+배선   runTurn 실제 호출 ✓ · principleTrace 로만 ✓ · 서버가 실제 저장소 공급 ✓ · 모델 주입 없음 ✓
+방어   저장소 오류 degraded ✓ · 범위 결측 미입장 ✓ · 확인 계보 ✓ · grant bounded ✓ · 중복 제거 ✓
+```
+
+## 게이트 — 정직한 측정 보고
+전체 회귀 **1302건 통과**. 게이트 CPU 는 현재 **기준선 초과**(50.8s)로 나오는데, **같은 시각
+같은 기계에서 봉인된 이전 기준선(1297건)도 52.8s** 다(stash 비교 실측). 즉 이 초과는 이번 변경이
+아니라 기계 부하다 — 오늘 오전 같은 코드가 22.7s 였다. 기준선은 손대지 않았고, **조용한 상태의
+게이트 재측정을 감사 판정 조건으로 남긴다.**

@@ -131,7 +131,7 @@ test('7·13: 확인·세포·권한은 조회된 사실만 쓴다 — 호출자 
   assert.equal(남의확인.admissions.length, 0);
   // 제대로 된 확인 기록이면 입장.
   const 정상 = admitPrinciples(기본입력(c, {
-    confirmationStore: 저장소({ ok: { kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1 } }),
+    confirmationStore: 저장소({ ok: { kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1, sourceRefs: ['ledger:s:1'] } }),
     requestFacts: { project: 'T5', subject: '정산', facts: [{ fact: '실패 직후' }], confirmationRefs: { [c.id]: 'ok' } },
   }));
   assert.equal(정상.admissions.length, 1);
@@ -204,63 +204,141 @@ test('total function: 임의 입력에도 던지지 않는다', () => {
   assert.deepEqual(admitPrinciples(null).admissions, []);
 });
 
-// ── 11·20: 영향 0 관통 — 실제 runTurn 을 지나며 모든 관측 가능한 것이 동일해야 한다 ──
-test('11·20: admission on/off 에서 메시지·스키마·호출·실행·외부효과·registry 동일, trace 만 다름', async () => {
-  const { runTurn } = await import('../src/kernel/turn.js');
+// ── 11·20: **진짜 영향 0 관통** — admission 이 실제로 돌면서 trace 만 달라진다 ──
+test('11·20: admission 은 실제 저장소로 돌고, trace 만 다르며 나머지는 전부 같다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
   const { TCellRegistry } = await import('../src/surface/tcell-store.js');
-  const 실행기록 = [];
   const 손 = {
     async probe(c) { return { command: c, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
     async handler(a) { 실행기록.push(a); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: '/x' }, userSafeSummary: '봤어요.' }; },
   };
-  const 돌리기 = async () => {
+  const 실행기록 = [];
+  const 돌리기 = async (원리있음) => {
+    const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-adm-run-'));
+    if (원리있음) {
+      const c = 세포();
+      c.id = 'cell-1';
+      await new TCellRegistry(dir).upsert(c, null);
+    }
     const 본것 = [];
     let 첫 = true;
     const 모델 = { async respond(tc, opts = {}) {
-      본것.push({ tc: JSON.stringify(tc), tools: JSON.stringify(opts.tools ?? []) });
+      본것.push({ tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>'), tools: JSON.stringify(opts.tools ?? []) });
       if (!opts.tools?.length) return '네';
       if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
       return { text: '봤어요', toolCalls: [] };
     } };
     실행기록.length = 0;
-    // 시계를 고정한다 — 밀리초 차이가 아니라 **admission 때문에** 달라지는지를 본다.
-    const r = await runTurn({ text: '폴더 봐줘' },
-      { env: demoEnv(), model: 모델, tools: demoTools({ localTerminal: 손 }), now: () => 1_700_000_000_000 });
-    return { 본것, 실행: [...실행기록], reply: r.reply, kind: r.kind };
+    const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
+    await new Promise((r) => server.listen(0, r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+      const r = await (await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: sess.id, text: '폴더 봐줘' }) })).json();
+      const regBytes = JSON.stringify((await new TCellRegistry(dir).load()).cells ?? []);
+      return { 본것, 실행: [...실행기록], reply: r.reply, trace: r.principleTrace, regBytes };
+    } finally { await new Promise((r2) => server.close(r2)); }
   };
-  const a = await 돌리기();
-  const b = await 돌리기();
-  // 표시용 시계(now.iso/local)는 실행 시각이라 매 실행 다르다 — **그것만** 정규화하고,
-  // 정규화 뒤에는 바이트 단위로 같아야 한다(차이가 시계 하나뿐임을 이 방식이 증명한다).
-  const 시계뺀것 = (xs) => xs.map((x) => ({ ...x, tc: x.tc.replace(/"now":\{[^}]*\}/g, '"now":<고정>') }));
-  const A = 시계뺀것(a.본것); const B = 시계뺀것(b.본것);
-  assert.deepEqual(A, B, '모델 메시지·도구 스키마가 시계 외의 이유로 달라졌다');
-  // 정규화 전 차이가 있었다면 그것은 시계 안에서만이어야 한다.
-  for (let i = 0; i < a.본것.length; i++) {
-    const 원차이 = a.본것[i].tc !== b.본것[i].tc;
-    if (원차이) assert.notEqual(a.본것[i].tc.match(/"now":\{[^}]*\}/)?.[0], b.본것[i].tc.match(/"now":\{[^}]*\}/)?.[0],
-      '시계 밖에서 차이가 났다');
-  }
-  assert.equal(a.본것.length, b.본것.length, '모델 호출 횟수가 다르다');
-  assert.deepEqual(a.실행, b.실행, '도구 실행(외부 효과)이 달라졌다');
-  assert.equal(a.reply, b.reply);
-  // registry 바이트 불변 — admission 은 저장소에 쓰지 않는다.
-  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-adm-'));
-  const reg = new TCellRegistry(dir);
-  const 전 = JSON.stringify(await reg.load());
-  admitPrinciples(기본입력(세포()));
-  assert.equal(JSON.stringify(await reg.load()), 전, 'admission 이 registry 를 건드렸다');
-  // 어댑터 경계에 원리가 실리지 않는다(TG-5B 전까지).
-  const { buildModelMessages } = await import('../src/runtime/model-provider.js');
-  const m = buildModelMessages({ currentRequest: '폴더 봐줘', identity: { name: 'T5' } });
-  assert.ok(!m.system.includes('admittedPrinciples') && !m.user.includes('admittedPrinciples'));
-  assert.ok(!m.system.includes('막힌 손은') && !m.user.includes('막힌 손은'), '원리 문장이 모델 입력에 실렸다');
+  const 없음 = await 돌리기(false);
+  const 있음 = await 돌리기(true);
+  // **admission 이 실제로 돌았다** — 이게 없으면 "안 돌아서 영향 0" 이다.
+  assert.ok(없음.trace, 'admission 이 실행되지 않아 principleTrace 가 없다');
+  assert.ok(있음.trace, 'admission 이 실행되지 않아 principleTrace 가 없다');
+  assert.equal(있음.trace.retrievedIds.length, 1, '실제 registry 세포를 후보로 읽지 못했다');
+  assert.equal(없음.trace.retrievedIds.length, 0);
+  // trace 는 다르다(원리 유무가 반영됐다).
+  assert.notDeepEqual(있음.trace.retrievedIds, 없음.trace.retrievedIds);
+  // 그 외 모든 관측 지점은 같다.
+  assert.deepEqual(있음.본것, 없음.본것, '모델 메시지·도구 스키마가 달라졌다');
+  assert.equal(있음.본것.length, 없음.본것.length, '모델 호출 횟수가 다르다');
+  assert.deepEqual(있음.실행, 없음.실행, '도구 실행(외부 효과)이 달라졌다');
+  assert.equal(있음.reply, 없음.reply, '사용자 답이 달라졌다');
+  // 원리 문장이 모델 입력 어디에도 없다.
+  assert.ok(!JSON.stringify(있음.본것).includes('막힌 손은'), '원리 문장이 모델 입력에 실렸다');
+  // trace 는 계획·답에 영향을 남기지 않는다.
+  assert.deepEqual(있음.trace.influencedPlan, []);
+  assert.deepEqual(있음.trace.influencedAnswer, []);
 });
 
-test('커널·서버가 admission 을 아직 소비하지 않는다(TG-5A 는 shadow)', async () => {
-  for (const f of ['src/kernel/turn.js', 'src/surface/server.js', 'src/runtime/model-provider.js']) {
-    const src = await readFile(f, 'utf8');
-    assert.ok(!src.includes('admitPrinciples') && !src.includes('admittedPrinciples'),
-      `${f} 가 admission 을 소비한다 — TG-5A 는 영향 0 이다`);
+test('스냅샷 경계: 실제 비동기 저장소를 읽고, 읽기 실패는 degraded 로 승계된다', async () => {
+  const { buildAdmissionSnapshot, admitFromSnapshot } = await import('../src/kernel/l1-intent/tcell-admission.js');
+  const { TCellRegistry, TCellObserver } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-snap-'));
+  const c = 세포(); c.id = 'cell-1';
+  await new TCellRegistry(dir).upsert(c, null);
+  const ob = new TCellObserver(dir);
+  await ob.observeTurn({ sessionId: 's', ledgerStart: 0, turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none' }], turnId: '1', now: 1 });
+  // 실제 저장소가 동기 조회기로 바뀐다.
+  const snap = await buildAdmissionSnapshot({ registry: new TCellRegistry(dir), observer: ob, sessionId: 's' });
+  assert.equal(snap.status, 'ok');
+  assert.deepEqual(snap.candidateIds, ['cell-1'], '실제 registry 세포를 읽지 못했다');
+  assert.ok(snap.evidenceStore.get('ledger:s:0'), '실제 관찰을 읽지 못했다');
+  assert.ok(Object.isFrozen(snap), '스냅샷이 불변이 아니다');
+  // 읽기 실패 → degraded 가 trace 로 승계된다.
+  const 깨진 = await buildAdmissionSnapshot({ registry: { load: () => { throw new Error('boom'); } }, observer: ob, sessionId: 's' });
+  assert.equal(깨진.status, 'degraded');
+  assert.equal(admitFromSnapshot(깨진, { requestFacts: {} }).trace.status, 'degraded');
+});
+
+// ── 감사 재현 5건: 이번 회차의 직접 재현 입력 ──
+test('재현 ①: 저장소가 던지면 ok 가 아니라 degraded 다', () => {
+  const c = 세포();
+  const 던지는저장소 = { get: () => { throw new Error('boom'); } };
+  const r = admitPrinciples(기본입력(c, { evidenceStore: 던지는저장소 }));
+  assert.equal(r.trace.status, 'degraded', '저장소 오류가 ok 로 처리됐다');
+  assert.ok(r.trace.errorCodes.includes(ADMISSION_REASONS.storeError));
+  assert.equal(r.admissions.length, 0);
+});
+
+test('재현 ②: 현재 project·subject 가 없으면 범위를 확인할 수 없어 입장하지 못한다', () => {
+  const c = 세포();
+  for (const rf of [{ facts: [{ fact: '실패 직후' }] }, { project: 'T5', facts: [{ fact: '실패 직후' }] },
+    { subject: '정산', facts: [{ fact: '실패 직후' }] }]) {
+    const r = admitPrinciples(기본입력(c, { requestFacts: rf }));
+    assert.equal(r.admissions.length, 0, `범위 식별자 없이 입장했다: ${JSON.stringify(rf)}`);
+    assert.equal(r.trace.rejected[0].reason, ADMISSION_REASONS.scopeUnknown);
   }
+});
+
+test('재현 ③: sourceRefs 없는·계보 밖 확인 기록은 인정되지 않는다', () => {
+  const c = 세포({ authority: { requiresUserConfirmation: true } });
+  const 입력 = (rec) => 기본입력(c, {
+    confirmationStore: 저장소({ ok: rec }),
+    requestFacts: { project: 'T5', subject: '정산', facts: [{ fact: '실패 직후' }], confirmationRefs: { [c.id]: 'ok' } },
+  });
+  for (const [이름, rec] of [
+    ['sourceRefs 없음', { kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1 }],
+    ['빈 sourceRefs', { kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1, sourceRefs: [] }],
+    ['계보 밖', { kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1, sourceRefs: ['ledger:s:9'] }],
+    ['시각 없음', { kind: 'user_confirmation', tcellId: c.id, confirmed: true, sourceRefs: ['ledger:s:1'] }],
+  ]) {
+    assert.equal(admitPrinciples(입력(rec)).admissions.length, 0, `확인 ${이름} 이 인정됐다`);
+  }
+  assert.equal(admitPrinciples(입력({ kind: 'user_confirmation', tcellId: c.id, confirmed: true, at: 1, sourceRefs: ['ledger:s:1'] })).admissions.length, 1);
+});
+
+test('재현 ④: grant 는 정확히 bounded·미철회여야 한다', () => {
+  const base = (g) => 기본입력(세포(), {
+    authorityFacts: { actionTier: 'A2', actionKind: 'send', target: '오너', scope: 'project:T5', grantRef: 'g1' },
+    grantStore: 저장소({ g1: g }),
+  });
+  for (const [이름, g] of [
+    ['임의 kind', { kind: '아무거나', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['kind 없음', { action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['철회됨', { kind: 'bounded', revoked: true, action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+    ['비활성', { kind: 'bounded', active: false, action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 }],
+  ]) {
+    assert.equal(admitPrinciples(base(g)).admissions.length, 0, `${이름} grant 가 인정됐다`);
+  }
+  assert.equal(admitPrinciples(base({ kind: 'bounded', action: 'send', target: '오너', scope: 'project:T5', expiresAt: 9999 })).admissions.length, 1);
+});
+
+test('재현 ⑤: 같은 세포 ID 를 두 번 넣어도 한 번만 입장한다', () => {
+  const c = 세포();
+  const r = admitPrinciples(기본입력(c, { candidateIds: [c.id, c.id, c.id] }));
+  assert.equal(r.admissions.length, 1, `중복 ID 가 ${r.admissions.length}번 입장했다`);
+  assert.equal(r.trace.retrievedIds.length, 1);
+  assert.equal(r.trace.admitted.length + r.trace.rejected.length, 1);
 });

@@ -38,10 +38,9 @@ const 유예 = new Map(Object.entries({
   // 제품에서 아무도 부르지 않아 기존 기억이 영원히 이관되지 않는 상태였다. 배선 자체는 감사가
   // 통합 단계로 지정한 범위라 임의로 붙이지 않고 여기에 드러낸다 — 통합 시 첫 항목으로 붙인다.
   importLegacyMemory: '제품 공백(감사 보고함) — TG-2 통합 배선의 첫 항목. 부팅 1회 이관 예정',
-  // TG-5A 는 **의도적 shadow** — 커널이 부르면 영향 0 계약이 깨진다. TG-5B 에서 배선한다.
-  // (커널 미소비 자체를 tcell-admission.test.js 가 별도로 검사한다.)
-  admitPrinciples: 'TG-5A shadow — 커널 미소비가 영향 0의 조건. TG-5B 에서 runTurn 배선',
-  explainAdmission: 'TG-5A shadow — 사용자 표면은 TG-5C 에서 소비',
+  // TG-5A 는 runTurn 에 **배선됐다**(admitFromSnapshot·buildAdmissionSnapshot 경유).
+  // 순수 함수 admitPrinciples 는 그 안에서 호출되므로 고아가 아니다.
+  explainAdmission: 'TG-5A — 사용자 표면 문구는 TG-5C 에서 소비(현재 표면 미노출이 계약)',
 }));
 
 test('T-cell 계약에 고아가 없다 — 소비되거나, 유예 원장에 사유가 적혀 있다', async () => {

@@ -46,15 +46,23 @@ export const ADMISSION_REASONS = Object.freeze({
   authority: 'authority_not_allowed',
   confirmation: 'user_confirmation_missing',
   trace: 'trace_not_descendable',
+  storeError: 'store_read_failed',
+  scopeUnknown: 'scope_unknown',
 });
 
 const 문자열 = (v) => (typeof v === 'string' && v ? v : null);
 const 정규화 = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 
-/** 저장소 조회 — get 이 없으면 조회 불가(빈 결과가 아니라 불가다). */
-function 조회(store, key) {
+/**
+ * 저장소 조회 — **부재와 오류를 구분한다**(감사 재현: 저장소가 던져도 status 가 ok 였다).
+ * 오류는 `errors` 에 코드를 남겨 호출자가 degraded 로 올린다.
+ */
+function 조회(store, key, errors) {
   if (!store || typeof store.get !== 'function' || !문자열(key)) return undefined;
-  try { return store.get(key) ?? null; } catch { return null; }
+  try { return store.get(key) ?? null; } catch {
+    if (Array.isArray(errors) && !errors.includes(ADMISSION_REASONS.storeError)) errors.push(ADMISSION_REASONS.storeError);
+    return undefined; // 오류는 "없음"이 아니다 — 판정 불가다
+  }
 }
 
 /**
@@ -97,9 +105,12 @@ export function resolveRole(cell, stageAllowed = STAGE_ALLOWED_ROLES) {
 function 범위판정(cell, requestFacts) {
   const cp = cell?.anchor?.project ?? null;
   const cs = cell?.anchor?.subject ?? null;
-  const rp = requestFacts?.project ?? null;
-  const rs = requestFacts?.subject ?? null;
+  const rp = 문자열(requestFacts?.project);
+  const rs = 문자열(requestFacts?.subject);
   if (cell?.anchor?.stale === true) return { ok: false, code: ADMISSION_REASONS.stale };
+  // **현재 범위 식별자가 없으면 범위를 확인할 수 없다** — 확인 못 한 것은 입장 근거가 아니다(감사).
+  if (cp !== null && rp === null) return { ok: false, code: ADMISSION_REASONS.scopeUnknown };
+  if (cs !== null && rs === null) return { ok: false, code: ADMISSION_REASONS.scopeUnknown };
   if (cp !== null && rp !== null && cp !== rp) return { ok: false, code: ADMISSION_REASONS.scope };
   if (cs !== null && rs !== null && cs !== rs) return { ok: false, code: ADMISSION_REASONS.scope };
   // radius 가 turn 이면 이번 턴에서 만들어진 것만, task 이상이면 현재 범위를 덮는다.
@@ -114,7 +125,7 @@ function 범위판정(cell, requestFacts) {
  * A0/A1 은 허용. A2/A3 는 **행동·대상·범위·만료가 모두 일치하는 유효한 bounded grant** 가
  * 조회될 때만 참고 가능이며, 그때도 실제 실행 경계에서 다시 검증한다.
  */
-function 권한판정(cell, authorityFacts, grantStore, now, role) {
+function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
   // **등급은 세포의 속성이 아니라 이번 턴 행동의 사실이다**(설계 정정 2026-07-29).
   // 세포가 스스로 "나는 A0" 이라고 말하게 두면 원리가 자기 권한을 주장하게 된다.
   const tier = 문자열(authorityFacts?.actionTier) ?? 'A0';
@@ -129,12 +140,15 @@ function 권한판정(cell, authorityFacts, grantStore, now, role) {
     scope: 문자열(authorityFacts?.scope),
   };
   const ref = 문자열(authorityFacts?.grantRef);
-  const g = 조회(grantStore, ref);
-  if (!g) return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
-  const 일회성 = g.kind === 'once'; // 과거의 일회성 승인은 이후 권한이 아니다
+  const g = 조회(grantStore, ref, errors);
+  if (!g || typeof g !== 'object') return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
+  // **정확히 bounded 만** 인정한다(감사 재현: 임의 kind 가 통과했다). 일회성 승인은 권한이 아니다.
+  const 유효종류 = g.kind === 'bounded';
+  const 철회됨 = g.revoked === true || g.active === false;
   const 만료 = typeof g.expiresAt === 'number' ? g.expiresAt <= (typeof now === 'number' ? now : 0) : true;
-  const 일치 = g.action === need.action && g.target === need.target && g.scope === need.scope;
-  if (일회성 || 만료 || !일치) return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
+  const 일치 = 문자열(g.action) === need.action && 문자열(g.target) === need.target && 문자열(g.scope) === need.scope
+    && need.action !== null && need.target !== null && need.scope !== null;
+  if (!유효종류 || 철회됨 || 만료 || !일치) return { allowed: false, code: ADMISSION_REASONS.authority, grantRef: null };
   return { allowed: true, code: null, grantRef: ref };
 }
 
@@ -152,7 +166,8 @@ function 권한판정(cell, authorityFacts, grantStore, now, role) {
  */
 export function admitPrinciples(rawInput = {}) {
   const input = (rawInput && typeof rawInput === 'object') ? rawInput : {};
-  const ids = Array.isArray(input.candidateIds) ? input.candidateIds.filter(문자열) : [];
+  // **후보 ID 는 중복 제거한다**(감사 재현: 같은 세포가 두 번 입장했다).
+  const ids = [...new Set(Array.isArray(input.candidateIds) ? input.candidateIds.filter(문자열) : [])];
   const trace = {
     status: 'ok', errorCodes: [], retrievedIds: [...ids],
     admitted: [], rejected: [], influencedPlan: [], influencedAnswer: [],
@@ -162,13 +177,19 @@ export function admitPrinciples(rawInput = {}) {
 
   for (const id of ids) {
     let 판정;
+    const errors = [];
     try {
-      판정 = 하나판정(id, input, facts);
+      판정 = 하나판정(id, input, facts, errors);
     } catch {
       // 계약 E: 손상 후보 하나가 나머지를 막지 않는다. 실패는 degraded 로 남긴다.
       trace.status = 'degraded';
       if (!trace.errorCodes.includes(ADMISSION_REASONS.corrupt)) trace.errorCodes.push(ADMISSION_REASONS.corrupt);
       판정 = { admitted: false, reason: ADMISSION_REASONS.corrupt, admission: null };
+    }
+    // 저장소 오류는 "없음"이 아니다 — 계산이 실패한 것이므로 degraded 다.
+    for (const code of errors) {
+      trace.status = 'degraded';
+      if (!trace.errorCodes.includes(code)) trace.errorCodes.push(code);
     }
     if (판정.admitted && 판정.admission) {
       admissions.push(판정.admission);
@@ -184,10 +205,10 @@ export function admitPrinciples(rawInput = {}) {
   return { admissions, trace };
 }
 
-function 하나판정(id, input, facts) {
+function 하나판정(id, input, facts, errors) {
   const 거절 = (reason) => ({ admitted: false, reason, admission: null });
   // 계약 A: 세포는 **저장소에서 ID 로 조회**한다(호출자가 건넨 객체는 쓰지 않는다).
-  const cell = 조회(input.principleStore, id);
+  const cell = 조회(input.principleStore, id, errors);
   if (cell === undefined || cell === null) return 거절(ADMISSION_REASONS.notFound);
   if (typeof cell !== 'object' || !문자열(cell.state)) return 거절(ADMISSION_REASONS.corrupt);
 
@@ -227,18 +248,22 @@ function 하나판정(id, input, facts) {
 
   // 계약 A: 사용자 확인은 **조회된 기록**이어야 한다(호출자 불리언 금지).
   if (cell.authority?.requiresUserConfirmation === true) {
-    const rec = 조회(input.confirmationStore, 문자열(input.requestFacts?.confirmationRefs?.[id]));
-    const ok = rec && rec.kind === 'user_confirmation' && rec.tcellId === cell.id
-      && rec.confirmed === true && typeof rec.at === 'number';
+    const rec = 조회(input.confirmationStore, 문자열(input.requestFacts?.confirmationRefs?.[id]), errors);
+    // TG-4 계보검사와 **같은 계약**: kind·tcellId·시각·sourceRefs·계보가 모두 맞아야 한다.
+    const 계보 = new Set(Array.isArray(cell.trace?.observationRefs) ? cell.trace.observationRefs : []);
+    const refs = Array.isArray(rec?.sourceRefs) ? rec.sourceRefs.filter(문자열) : [];
+    const ok = rec && typeof rec === 'object' && rec.kind === 'user_confirmation' && rec.tcellId === cell.id
+      && rec.confirmed === true && typeof rec.at === 'number' && Number.isFinite(rec.at)
+      && refs.length > 0 && refs.every((r) => 계보.has(r));
     if (!ok) return 거절(ADMISSION_REASONS.confirmation);
   }
 
   // trace 하강 가능성 — 근거가 실제로 있어야 한다.
   const refs = Array.isArray(cell.trace?.observationRefs) ? cell.trace.observationRefs : [];
-  if (!refs.length || refs.some((r) => !조회(input.evidenceStore, r))) return 거절(ADMISSION_REASONS.trace);
+  if (!refs.length || refs.some((r) => !조회(input.evidenceStore, r, errors))) return 거절(ADMISSION_REASONS.trace);
 
   // 계약 D: 참고 가능 여부(실행 승인 아님).
-  const 권한 = 권한판정(cell, input.authorityFacts ?? input.requestFacts, input.grantStore, input.now, role);
+  const 권한 = 권한판정(cell, input.authorityFacts ?? input.requestFacts, input.grantStore, input.now, role, errors);
   if (!권한.allowed) return { ...거절(권한.code), boundaryChecks };
 
   return {
@@ -288,4 +313,59 @@ export function explainAdmission(decision) {
     [ADMISSION_REASONS.trace]: '근거를 찾을 수 없어 쓰지 않았어요.',
   };
   return map[decision?.reason] ?? '이 원칙은 이번에 쓰지 않았어요.';
+}
+
+/**
+ * **실제 저장소 경계**(감사 지시 1~3) — 비동기 저장소를 여기서 한 번 읽어 불변 스냅샷을 만든다.
+ * `admitPrinciples` 는 이 스냅샷만 소비하는 순수·동기 함수로 남는다.
+ * 읽기 실패는 삼키지 않고 `status:'degraded'` + 코드로 남긴다.
+ * @param {{registry?:{load:()=>Promise<object>}, observer?:{load:(scope:object)=>Promise<object>},
+ *   confirmationStore?:object, grantStore?:object, sessionId?:string}} sources
+ */
+export async function buildAdmissionSnapshot(sources = {}) {
+  const errorCodes = [];
+  const cells = new Map();
+  const observations = new Map();
+  try {
+    const a = await sources.registry?.load?.();
+    for (const c of Array.isArray(a?.cells) ? a.cells : []) if (문자열(c?.id)) cells.set(c.id, c);
+    if (a?.error || a?.corrupted) errorCodes.push(ADMISSION_REASONS.storeError);
+  } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
+  // **후보가 없으면 근거를 읽지 않는다.** 입장할 원리가 하나도 없는데 관찰 로그를 통째로 읽는 것은
+  // 매 턴 낭비다(실측: 게이트 CPU 초과). 없는 것을 확인하는 데 드는 비용도 비용이다.
+  if (cells.size) {
+    try {
+      const o = await sources.observer?.load?.({ sessionId: sources.sessionId });
+      for (const e of Array.isArray(o?.events) ? o.events : []) {
+        for (const r of Array.isArray(e?.receiptRefs) ? e.receiptRefs : []) observations.set(r, e);
+      }
+      if (o?.error) errorCodes.push(ADMISSION_REASONS.storeError);
+    } catch { errorCodes.push(ADMISSION_REASONS.storeError); }
+  }
+  const 동기조회 = (m) => Object.freeze({ get: (k) => (m.has(k) ? m.get(k) : null) });
+  return Object.freeze({
+    principleStore: 동기조회(cells),
+    evidenceStore: 동기조회(observations),
+    confirmationStore: sources.confirmationStore ?? Object.freeze({ get: () => null }),
+    grantStore: sources.grantStore ?? Object.freeze({ get: () => null }),
+    candidateIds: [...cells.keys()],
+    status: errorCodes.length ? 'degraded' : 'ok',
+    errorCodes: Object.freeze(errorCodes),
+  });
+}
+
+/** 스냅샷 + 이번 턴 사실 → admission. 스냅샷의 degraded 는 trace 로 승계된다. */
+export function admitFromSnapshot(snapshot, { requestFacts, authorityFacts, now } = {}) {
+  const snap = snapshot ?? {};
+  const out = admitPrinciples({
+    candidateIds: snap.candidateIds ?? [],
+    principleStore: snap.principleStore, evidenceStore: snap.evidenceStore,
+    confirmationStore: snap.confirmationStore, grantStore: snap.grantStore,
+    requestFacts, authorityFacts, now,
+  });
+  if (snap.status === 'degraded') {
+    out.trace.status = 'degraded';
+    for (const c of snap.errorCodes ?? []) if (!out.trace.errorCodes.includes(c)) out.trace.errorCodes.push(c);
+  }
+  return out;
 }

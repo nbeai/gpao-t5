@@ -17,6 +17,7 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
+import { buildAdmissionSnapshot, admitFromSnapshot } from './l1-intent/tcell-admission.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -194,7 +195,39 @@ function 이전대기를지난것으로(ctx) {
   ctx.pending?.clear?.();
 }
 
+/**
+ * TG-5A · shadow admission 배선 — **실제 저장소를 읽어 계산하고 trace 만 남긴다.**
+ * 모델 메시지·도구·계획에는 넣지 않는다(주입은 TG-5B). 실패는 답변에 닿지 않는다.
+ */
+async function 원리입장계산(input, ctx) {
+  try {
+    const sources = ctx.admissionSources;
+    if (!sources) return null;
+    const snap = await buildAdmissionSnapshot({ ...sources, sessionId: ctx.sessionId });
+    const { trace } = admitFromSnapshot(snap, {
+      requestFacts: {
+        project: ctx.projectId ?? null, subject: ctx.subjectId ?? null,
+        facts: Array.isArray(ctx.turnFacts) ? ctx.turnFacts : [],
+        confirmationRefs: ctx.confirmationRefs ?? {},
+      },
+      authorityFacts: ctx.admissionAuthorityFacts ?? {},
+      now: ctx.now ? ctx.now() : Date.now(),
+    });
+    return trace;
+  } catch {
+    // 계산이 죽어도 답변은 죽지 않는다. 실패는 정직하게 degraded 로.
+    return { status: 'degraded', errorCodes: ['admission_failed'], retrievedIds: [], admitted: [], rejected: [], influencedPlan: [], influencedAnswer: [] };
+  }
+}
+
 export async function runTurn(input, ctx) {
+  // **admission 은 모델 호출 전에 계산된다.** 결과는 trace 로만 나가고 어디에도 주입되지 않는다.
+  const principleTrace = await 원리입장계산(input, ctx);
+  const 결과 = await runTurnInner(input, ctx);
+  return principleTrace ? { ...결과, principleTrace } : 결과;
+}
+
+async function runTurnInner(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
   ctx.surface = resolveResponseSurface(input);
