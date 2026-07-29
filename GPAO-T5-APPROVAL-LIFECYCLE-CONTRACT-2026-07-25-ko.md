@@ -124,6 +124,9 @@ Authority 입력이어야 한다.
 ## 4. 현재 구현과 지정 정합화
 
 - `session`/`persist` grant registry와 revocation은 P-OP에서 제품 경로가 생겼다.
+- 오너 순서 결정(2026-07-30): 아래 효과 기반 코드 정합화는 T-cell·Skill·Trigger·AgentRun·Automation
+  핵심 기능 연결 뒤 최종 전 제품 매끄러움 마감 패스에서 수행한다. 현재 기능 개발의 선행 차단으로
+  사용하지 않는다.
 - 남은 코드 정합화는 도구 종류가 아니라 실제 효과로 A0~A3를 판정하는 것이다. 현재 코드의 모든
   `write`, `promote_memory`, unknown 일괄 A2는 위 §0.5·§0.6과 충돌한다.
 - 명시적 사용자 요청은 그 범위의 확인이다. 같은 내용을 카드로 다시 묻지 않는다.
