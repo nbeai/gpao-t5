@@ -2,6 +2,28 @@
 // positive(되는 곳) · negative(안 되는 곳) · boundary(경계)를 **함께** 본다 — 효과와 침범을 같이.
 import { randomUUID } from 'node:crypto';
 
+/**
+ * @typedef {Object} ReplayCase
+ * @property {string} id
+ * @property {'positive'|'negative'|'boundary'} kind
+ * @property {string[]} sourceRefs
+ * @property {Object} inputFacts
+ * @property {{mustHold:string[], mustNotHappen:string[], expectedInfluenceRole:string|null, expectedActionKind:string|null}} expected
+ *
+ * @typedef {Object} ReplayResult
+ * @property {string} id
+ * @property {string|null} tcellId
+ * @property {string|null} candidateVersionId
+ * @property {Object[]} caseResults
+ * @property {boolean} positivePassed
+ * @property {boolean} negativePassed
+ * @property {boolean} boundaryPassed
+ * @property {boolean} authorityPassed
+ * @property {boolean} tracePassed
+ * @property {boolean} overallPassed
+ * @property {number} createdAt
+ */
+
 export const REPLAY_KINDS = Object.freeze(['positive', 'negative', 'boundary']);
 
 /** @returns {import('./tcell-replay.js').ReplayCase} */
@@ -47,10 +69,12 @@ export function makeReplayResult(input = {}) {
 /** @returns {{ok:boolean, errors:string[]}} */
 export function validateReplayCase(rc) {
   const errors = [];
-  if (!REPLAY_KINDS.includes(rc?.kind)) errors.push(`replay 종류가 계약 밖이에요: ${rc?.kind}`);
-  if (!(rc?.sourceRefs?.length)) errors.push('sourceRefs 없는 replay 는 재현이 아니라 상상이에요');
-  if (!(rc?.expected?.mustHold?.length) && !(rc?.expected?.mustNotHappen?.length)) {
-    errors.push('기대(mustHold/mustNotHappen)가 비어 있어요');
-  }
+  try {
+    if (!REPLAY_KINDS.includes(rc?.kind)) errors.push(`replay 종류가 계약 밖이에요: ${rc?.kind}`);
+    if (!(Array.isArray(rc?.sourceRefs) && rc.sourceRefs.length)) errors.push('sourceRefs 없는 replay 는 재현이 아니라 상상이에요');
+    const hold = Array.isArray(rc?.expected?.mustHold) ? rc.expected.mustHold : [];
+    const not = Array.isArray(rc?.expected?.mustNotHappen) ? rc.expected.mustNotHappen : [];
+    if (!hold.length && !not.length) errors.push('기대(mustHold/mustNotHappen)가 비어 있어요');
+  } catch (e) { errors.push(`검증기 내부 오류: ${e?.message ?? e}`); }
   return { ok: errors.length === 0, errors };
 }

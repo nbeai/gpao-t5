@@ -88,3 +88,64 @@ test('압축(M5)은 원본 trace 를 잃으면 실패하고, T-Sphere 는 중심
   assert.equal(validateTSphere(makeTSphere({ centerPoint: '복구는 반복이 아니라 전환', memberIds: ['a'], stability: 0.3 })).ok, true);
   assert.equal(MATURITY_LEVELS.length, 9);
 });
+
+// ── TG-0 재감사 반영(2026-07-29) — 감사가 재현한 실패 입력 그대로 ──
+import { radiusCeilingFor, assertRangesValid } from '../src/kernel/l5-growth/tcell-core.js';
+
+test('감사 1: 임의 JSON(allowedInfluence: 7 등)에도 검증기는 던지지 않고 격리한다(total function)', () => {
+  const 이상한것들 = [
+    (() => { const c = 온전한후보(); c.authority.allowedInfluence = 7; return c; })(),
+    (() => { const c = 온전한후보(); c.trace = '문자열'; return c; })(),
+    (() => { const c = 온전한후보(); c.boundary = 42; return c; })(),
+    null, 'JSON아님', 7, [], { 아무거나: true },
+  ];
+  for (const 입력 of 이상한것들) {
+    let r;
+    assert.doesNotThrow(() => { r = validateTCell(입력); }, `던졌다: ${JSON.stringify(입력)?.slice(0, 40)}`);
+    assert.equal(r.ok, false);
+    assert.equal(r.cell.state, 'quarantined');
+    assert.deepEqual(r.cell.authority.allowedInfluence, ['none']);
+  }
+  assert.doesNotThrow(() => validateObservationEvent({ signal: 7, privacy: 'x', sourceRefs: 3 }));
+  assert.doesNotThrow(() => validateTSphere({ relations: 5, memberIds: 'a' }));
+  assert.doesNotThrow(() => validateReplayCase({ expected: 9, sourceRefs: 1 }));
+});
+
+test('감사 2: 범위 밖 수치·상태는 전부 거절된다(confidence 2 · 음수 횟수 · stability 9 · 가짜 replay 상태)', () => {
+  const 오염 = 온전한후보();
+  오염.principle.hypothesisConfidence = 2;
+  오염.effect.failureCount = -3;
+  오염.geometry.sphereStability = 9;
+  오염.replay.status = '존재하지않는상태';
+  const errors = assertRangesValid(오염);
+  assert.ok(errors.some((e) => e.includes('confidence')), `confidence 2 통과: ${errors}`);
+  assert.ok(errors.some((e) => e.includes('failureCount')));
+  assert.ok(errors.some((e) => e.includes('sphereStability')));
+  assert.ok(errors.some((e) => e.includes('replay 상태')));
+  const r = validateTCell(오염);
+  assert.equal(r.ok, false);
+  assert.equal(r.cell.state, 'quarantined');
+});
+
+test('감사 3: M5 압축 trace 검사가 통합 검증에 연결됐다 — 원본 없는 압축본은 통과하지 못한다', () => {
+  const 압축 = 온전한후보(); 압축.state = 'M5_compressed'; 압축.trace.derivedFrom = [];
+  const r = validateTCell(압축);
+  assert.equal(r.ok, false, '원본 없는 M5 가 통과했다');
+  assert.ok(r.errors.some((e) => e.includes('derivedFrom')), `${r.errors}`);
+  // 원본 목록을 주면 소실도 잡는다.
+  const 소실 = 온전한후보(); 소실.state = 'M5_compressed'; 소실.trace.derivedFrom = ['a'];
+  const r2 = validateTCell(소실, null, { sourceCells: [{ id: 'a' }, { id: 'b' }] });
+  assert.ok(r2.errors.some((e) => e.includes('b')));
+});
+
+test('감사 4: 관찰 수만으로는 global 이 열리지 않는다 — transfer replay 와 성숙이 함께 필요하다', () => {
+  const 통계만 = 온전한후보({ trace: { observationRefs: ['1', '2', '3', '4', '5', '6'], corrections: [] } });
+  assert.equal(radiusCeilingFor(통계만), 'task', '통계가 곧 권한이 됐다');
+  통계만.geometry.radius = 'global';
+  assert.equal(validateTCell(통계만).ok, false);
+  // transfer replay 통과 → profile 까지. global 은 M4 이상까지 함께.
+  통계만.replay.status = 'passed_transfer';
+  assert.equal(radiusCeilingFor(통계만), 'profile');
+  const 성숙 = { ...통계만, state: 'M4_stable' };
+  assert.equal(radiusCeilingFor(성숙), 'global');
+});

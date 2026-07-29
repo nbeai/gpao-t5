@@ -19,3 +19,21 @@
 - 추가: 현재 요청 우선 계약 끄기 불가(생성자가 재강제) · 비밀 관찰 모델 차단 · 정정 요약 300자 제한 ·
   overallPassed 부분 통과 불인정 · 압축 trace 소실 검출 · TSphere 중심 필수.
 - 검사 7건 신규 · 전체 회귀 **1221건 통과** · 공식 게이트 **PASS**(CPU 21.4s/40s) — 자체 검증.
+
+---
+
+# 재감사 반영 (2026-07-29 · 2차)
+
+감사 5건 전부 닫음 — 새 구조 없이 검증 경계 보강 하나로:
+1. **total function** — 모든 validator 가 임의 JSON(allowedInfluence:7, trace:'문자열', null, 배열…)에
+   던지지 않고 quarantined 사본으로. 최후 방어선으로 validateTCell 내부 try/catch(내부 오류도 격리 사유).
+2. **범위·enum·불리언 총체 검증**(assertRangesValid, validateTCell 통합) — confidence 0..1 ·
+   effect 정수 ≥0 · wilson/sphereStability 0..1 · replay 상태 enum · privacy/rollback 불리언 ·
+   occurredAt ≥0 · 참조 목록 배열 검사.
+3. **M5 압축이 통합 검증에 연결** — validateTCell(cell, store, {sourceCells}) 이 assertCompressionSafe
+   호출. 원본 없는 M5(derivedFrom 0)는 sourceCells 없이도 거절.
+4. **반경: 통계 ≠ 권한** — radiusCeilingFor(cell): 근거 수만으로는 task 상한. project/profile 은
+   passed_transfer 필요, global 은 M4 이상까지 함께. (radiusCeilingForEvidence 는 deprecated 로 보존.)
+5. **typedef 실제 선언** — 4파일 전부 전체 @typedef 명세 그대로 선언(자기 참조 import 제거).
+
+감사 재현 입력 그대로의 반대시험 4건 추가(총 11건). 전체 회귀 **1225건 통과** · 게이트 **PASS**(CPU 22.6s) — 자체 검증.

@@ -4,6 +4,22 @@
 // 세션/원장 위치만 참조한다. 모델에게는 modelReadable === true 만 보낼 수 있다.
 import { randomUUID } from 'node:crypto';
 
+/**
+ * @typedef {Object} ObservationEvent
+ * @property {string} id
+ * @property {'user_request'|'user_correction'|'tool_result'|'approval'|'rejection'|'recovery'|'delivery_result'|'context_outcome'|'automation_result'} type
+ * @property {string|null} sessionId
+ * @property {string|null} turnId
+ * @property {string|null} taskId
+ * @property {number} occurredAt
+ * @property {{workspace:string|null, project:string|null, surface:string|null, subject:string|null}} anchor
+ * @property {{summary:string, valence:'success'|'failure'|'correction'|'neutral'}} signal
+ * @property {string[]} sourceRefs
+ * @property {string[]} receiptRefs
+ * @property {{modelReadable:boolean, containsSecret:boolean}} privacy
+ * @property {number} schemaVersion
+ */
+
 export const TCELL_OBSERVATION_SCHEMA_VERSION = 1;
 
 export const OBSERVATION_TYPES = Object.freeze([
@@ -92,14 +108,20 @@ export function observationFromApproval(decision, context = {}) {
 /** @returns {{ok:boolean, errors:string[]}} */
 export function validateObservationEvent(event) {
   const errors = [];
-  if (!event || typeof event !== 'object') return { ok: false, errors: ['관찰이 비어 있어요'] };
-  if (!OBSERVATION_TYPES.includes(event.type)) errors.push(`type 이 계약 밖이에요: ${event.type}`);
-  if (!OBSERVATION_VALENCES.includes(event.signal?.valence)) errors.push('valence 가 계약 밖이에요');
-  if (typeof event.signal?.summary !== 'string') errors.push('summary 가 없어요');
-  if (event.signal?.summary?.length > SUMMARY_MAX) errors.push('summary 가 원문 저장 수준으로 길어요');
-  if (event.privacy?.containsSecret && event.privacy?.modelReadable) {
-    errors.push('비밀이 섞인 관찰은 모델이 읽을 수 없어요');
-  }
-  if (event.schemaVersion !== TCELL_OBSERVATION_SCHEMA_VERSION) errors.push('schemaVersion 불일치');
+  try {
+    if (!event || typeof event !== 'object') return { ok: false, errors: ['관찰이 비어 있어요'] };
+    if (!OBSERVATION_TYPES.includes(event.type)) errors.push(`type 이 계약 밖이에요: ${event.type}`);
+    if (!OBSERVATION_VALENCES.includes(event.signal?.valence)) errors.push('valence 가 계약 밖이에요');
+    if (typeof event.signal?.summary !== 'string') errors.push('summary 가 없어요');
+    else if (event.signal.summary.length > SUMMARY_MAX) errors.push('summary 가 원문 저장 수준으로 길어요');
+    if (!Array.isArray(event.sourceRefs) || !Array.isArray(event.receiptRefs)) errors.push('참조 목록이 배열이 아니에요');
+    if (typeof event.privacy?.modelReadable !== 'boolean' || typeof event.privacy?.containsSecret !== 'boolean') {
+      errors.push('privacy 플래그는 불리언이에요');
+    } else if (event.privacy.containsSecret && event.privacy.modelReadable) {
+      errors.push('비밀이 섞인 관찰은 모델이 읽을 수 없어요');
+    }
+    if (!(typeof event.occurredAt === 'number' && Number.isFinite(event.occurredAt) && event.occurredAt >= 0)) errors.push('occurredAt 은 0 이상 수예요');
+    if (event.schemaVersion !== TCELL_OBSERVATION_SCHEMA_VERSION) errors.push('schemaVersion 불일치');
+  } catch (e) { errors.push(`검증기 내부 오류: ${e?.message ?? e}`); }
   return { ok: errors.length === 0, errors };
 }
