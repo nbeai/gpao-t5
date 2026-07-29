@@ -135,7 +135,7 @@ test('행렬 4: 부여된 권한만 A2 계획 역할을 연다 — 철회·만�
     });
     const 재료 = buildTurnFacts({
       stage: 'post_plan', plan: 계획, sendArgs: args, sessionId: 's',
-      workspaceId: dir, ledgerWindow: 창,
+      projectId: dir, ledgerWindow: 창,
     });
     return admitFromSnapshot(snap, { ...재료, stage: 'post_plan', now: 1000 }).trace;
   };
@@ -259,7 +259,7 @@ test('행렬 9: 다른 작업 공간의 원리는 거절이 아니라 조회 자
   assert.ok(snap.candidateIds.includes('범위미상'));
 
   const 재료 = buildTurnFacts({
-    stage: 'pre_model', sessionId: 's', workspaceId: dir,
+    stage: 'pre_model', sessionId: 's', projectId: dir,
     ledgerWindow: { previousTurn: [영수증()], previousTurnStart: 0 },
   });
   const trace = admitFromSnapshot(snap, { ...재료, stage: 'pre_model', now: 1000 }).trace;

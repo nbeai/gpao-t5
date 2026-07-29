@@ -72,10 +72,18 @@ export function buildExtractionMessages(bundle) {
     '너는 관찰된 사실들에서 재사용 가능한 운영 원리 가설을 하나 뽑는다.',
     '근거가 부족하면 insufficient_evidence 가 정상 답이다 — 지어내지 않는다.',
     '관찰 목록에 없는 사실을 trace 에 넣지 않는다. 한 사례를 전역 규칙으로 만들지 않는다.',
-    '기존 후보와 같은 중심이면 새 원리 대신 relation 으로 답한다.',
+    '기존 후보와 같은 중심이면 새 원리 대신 relation 으로 답한다.'
+      + ' 기존 후보와 반대되는 지시·경험이면 decision:contradiction 과 relation{kind:"contradicts",targetId} 로 답한다.',
     'JSON 하나만 출력한다: {decision, principle{statement,type}, center{point,axis,horizontalSignals},'
       + ' boundary{validWhen,invalidWhen,needsReviewWhen,mustNotOverride}, trace{observationRefs},'
       + ' relation{kind,targetId}, counterexamples, suggestedRadius}',
+    // §0-C-2 · 의미 결합: 경계 절은 자유문이되, OS 가 실제로 감지하는 상황이면 그 원자 id 를 붙인다.
+    // 이 결합이 없으면 그 절은 글자가 똑같을 때만 매칭된다 — 원리가 실전에서 영영 잠들 수 있다.
+    ...(b.factAtoms?.length ? [
+      'boundary 의 각 절은 "문장" 또는 {text:"문장", atom:"원자id"} 로 쓴다.'
+        + ' atom 은 아래 목록의 id 만 쓴다 — 뜻이 맞는 것이 없으면 atom 을 생략한다(지어내지 않는다).',
+      `[OS 가 감지하는 상황 원자]\n${b.factAtoms.join('\n')}`,
+    ] : []),
     `decision 은 ${['candidate', 'insufficient_evidence', 'duplicate', 'contradiction'].join(' | ')} 중 하나다.`,
     b.authorityFacts?.note ?? '',
   ].filter(Boolean);

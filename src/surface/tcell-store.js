@@ -221,6 +221,7 @@ export class TCellObserver {
 // **여기 있는 어떤 것도 아직 TaskContext 에 들어가지 않는다** — TG-5 전까지 영향 0.
 import { writeFile, rename, stat } from 'node:fs/promises';
 import { validateTCell, makeTCellCandidate } from '../kernel/l5-growth/tcell-core.js';
+import { grantTargetOf } from '../kernel/l1-intent/turn-facts.js';
 
 export class TCellRegistry {
   constructor(dir) {
@@ -326,6 +327,26 @@ export class TCellRegistry {
     return v;
   }
 
+  /**
+   * §0-C-2 · **반대 지시의 지속** — 추출기의 의미 판정(관계 contradicts)을 대상 세포의
+   * correction 으로 남긴다. admission 의 `judgeDirective` 가 이것을 조회해 거절한다.
+   * 같은 지시 참조는 한 번만 남는다(멱등). 판정을 여기서 다시 하지 않는다 — 기록만 한다.
+   */
+  async recordCorrection(cellId, { kind, ref, at = 0 } = {}) {
+    if (!cellId || !kind || !ref) return { ok: false, why: 'invalid' };
+    return this.#mutate(async (a) => {
+      const cell = a.cells.find((c) => c.id === cellId);
+      if (!cell) return { ok: false, why: 'not_found' };
+      cell.trace = cell.trace && typeof cell.trace === 'object' ? cell.trace : {};
+      const 목록 = Array.isArray(cell.trace.corrections) ? cell.trace.corrections : [];
+      if (목록.some((c) => c?.kind === kind && c?.ref === ref)) return { ok: true, already: true };
+      cell.trace.corrections = [...목록, { kind, ref, at }];
+      cell.effect = cell.effect && typeof cell.effect === 'object' ? cell.effect : {};
+      cell.effect.userCorrectionCount = (cell.effect.userCorrectionCount ?? 0) + 1;
+      return { ok: true };
+    });
+  }
+
   /** rollback: 실제 이전 버전을 스냅샷으로 보존한다 — previousVersionId 는 그 스냅샷을 가리킨다. */
   async rollback(cellId) {
     return this.#mutate(async (a) => {
@@ -387,24 +408,41 @@ export class ConfirmationStore {
     this.cache = null;
   }
 
+  /**
+   * §0-C-4 · **읽기 실패는 빈 원장이 아니다.** ENOENT 만 "아직 확인이 없다"이고,
+   * 그 밖의 읽기 오류(권한·디렉터리·I/O)는 **던진다** — 확인이 있는데 못 읽은 상태를
+   * 확인이 없는 상태로 위장하면, 확인이 필요한 원리가 조용히 거절되고 아무도 모른다.
+   * 손상 줄은 건너뛰되 개수를 세서 degraded 로 표시한다. 바이트는 재작성하지 않는다(보존).
+   */
   async #all() {
     if (this.cache) return this.cache;
     const map = new Map();
+    let corrupt = 0;
+    let raw = null;
     try {
-      const raw = await readFile(this.file, 'utf8');
-      for (const line of raw.split('\n')) {
-        if (!line.trim()) continue;
-        try { const r = JSON.parse(line); if (r?.id) map.set(r.id, r); } catch { /* 손상 줄은 건너뛴다 */ }
-      }
-    } catch { /* 파일 없음 = 아직 확인이 없다 */ }
-    this.cache = map;
-    return map;
+      raw = await readFile(this.file, 'utf8');
+    } catch (e) {
+      if (e?.code !== 'ENOENT') throw new Error(`확인 원장을 읽지 못했어요: ${e?.message ?? e}`);
+      raw = null; // 파일 없음 = 아직 확인이 없다(이것만 정상 부재다)
+    }
+    for (const line of (raw ?? '').split('\n')) {
+      if (!line.trim()) continue;
+      try { const r = JSON.parse(line); if (r?.id) map.set(r.id, r); } catch { corrupt += 1; }
+    }
+    const out = { map, corrupt };
+    // 손상이 있으면 캐시하지 않는다 — 복구(줄 정리)가 다음 읽기에 바로 반영돼야 한다.
+    if (corrupt === 0) this.cache = out;
+    return out;
   }
 
-  /** 동기 조회기로 굳힌다 — admission 은 순수·동기 함수다. */
+  /**
+   * 동기 조회기로 굳힌다 — admission 은 순수·동기 함수다.
+   * 읽기 오류는 여기서 던져 스냅샷 경계가 degraded 로 승계하고, 손상 줄이 있었으면
+   * `degraded:true` 로 표시한다(정상 줄은 그대로 쓴다 — 일부 손상이 전체를 막지 않는다).
+   */
   async snapshot() {
-    const m = await this.#all();
-    return Object.freeze({ get: (k) => m.get(k) ?? null });
+    const { map, corrupt } = await this.#all();
+    return Object.freeze({ get: (k) => map.get(k) ?? null, degraded: corrupt > 0 });
   }
 
   /** 확인 1건 기록 — TG-5C 표면이 부른다. 계약 필드를 여기서 강제한다. */
@@ -445,10 +483,12 @@ export function grantLedgerKey({ action, target, scope } = {}) {
  * @param {{scope?:string, now?:number}} ctx 범위 식별자와 시각(호출자가 사실로 준다)
  */
 export function grantFromConsumedApproval(saved, { scope = null, now = 0 } = {}) {
-  const g = saved?.grantScope;
+  const g = saved?.chosenGrantScope ?? saved?.grantScope; // 사용자가 버튼으로 고른 범위가 우선(§0-C-3)
   if (!g || !GRANT_REUSABLE_KINDS.includes(g.kind)) return null; // once 는 여기서 끝난다
   const action = saved?.plan?.toolsToUse?.[0] ?? saved?.plan?.needsApproval?.[0]?.action ?? null;
-  const target = (action && saved?.sendArgs?.[action]?.target)
+  // **공통 대상 신분**(§0-C-3) — 도구 종류가 아니라 인자 필드 계약 하나(target/path/to)로 묶는다.
+  const target = (action ? grantTargetOf(saved?.sendArgs?.[action]) : null)
+    ?? (action ? grantTargetOf(saved?.intent?.toolArgs?.[action]) : null)
     ?? saved?.intent?.sendTarget?.target ?? null;
   const key = grantLedgerKey({ action, target, scope });
   if (!key) return null; // 무엇을·어디에·어느 범위에서 중 하나라도 모르면 권한으로 남기지 않는다

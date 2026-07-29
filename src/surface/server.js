@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
-import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
+import { deriveWorkingState, workingStateFacts, currentPlaceOf } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
@@ -174,6 +174,15 @@ export function makeServer(deps = {}) {
         if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
         await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
       }
+      // §0-C-2 · **의미 수준 반대 지시의 지속.** 모델(추출기)이 "이 지시는 기존 원리의 반대"라고
+      // 판정하면 그 사실을 대상 세포의 correction 으로 남긴다 — 다음 턴부터 admission 의
+      // judgeDirective 가 조회해 거절한다. 근거는 이 지시의 관찰 참조다(추측이 아니라 자기 참조).
+      // 지시가 있던 턴에만 남긴다 — 관찰 사이의 우연한 모순으로 사용자 지시를 지어내지 않는다.
+      if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef) {
+        await tcellRegistry.recordCorrection(r.relation.id, {
+          kind: 'user_directive_contradicts', ref: instructionRef, at: Date.now(),
+        }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
+      }
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
       추출중 = false;
@@ -319,15 +328,20 @@ export function makeServer(deps = {}) {
    */
   function supplyAdmissionSources(ctx, session) {
     ctx.sessionId = session.id;
-    ctx.workspaceId = store.dir;                      // 범위 식별자(작업 공간)
+    // §0-C-1 · **project 는 실제 작업의 확정 자리다** — 세션 저장 폴더가 아니다.
+    // 예전엔 store.dir(기본 `~/.local/state/gpao-t5/sessions`)을 project 로 써서 서로 다른
+    // 실제 프로젝트가 전부 같은 범위로 뭉개졌다. 자리가 확정되지 않았으면 **null(모름)** 이다.
+    ctx.projectId = currentPlaceOf(session.workingState) ?? null;
     ctx.confirmationRefs = session.principleConfirmations ?? {};
+    // 재사용 판정(§0-C-3)이 같은 원장을 동기 조회한다 — admission 과 같은 진실 하나.
+    ctx.grantLookup = grantSnapshotFromLedger(session.grants ?? []);
     ctx.admissionSources = {
       registry: tcellRegistry,
       observer: tcellObserver,
       confirmationStore: () => confirmationStore.snapshot(),       // **실제 확인 원장**
       // **부여된 권한 원장**(행렬 4) — `pendingApprovals`(누르기 전의 카드)가 아니라
       // 실제로 소비된 승인 중 재사용 가능한 범위만 담긴 목록이다.
-      grantStore: () => grantSnapshotFromLedger(session.grants ?? []),
+      grantStore: () => ctx.grantLookup,
     };
   }
 
@@ -336,7 +350,10 @@ export function makeServer(deps = {}) {
    * 승인이 소비되기 **전에** 대기 항목을 읽어 둬야 한다 — 커널이 소비하면서 지우기 때문이다.
    */
   function recordGrantIfBounded(session, saved, now) {
-    const g = grantFromConsumedApproval(saved, { scope: `project:${store.dir}`, now });
+    // §0-C-1·3: 범위는 **실제 확정 자리**다. 자리를 모르면 grant 는 만들어지지 않는다 —
+    // "어디까지 허락했는가"를 말할 수 없는 권한은 권한이 아니다(매번 다시 묻는 쪽이 정직하다).
+    const place = currentPlaceOf(session.workingState);
+    const g = grantFromConsumedApproval(saved, { scope: place ? `project:${place}` : null, now });
     if (!g) return;
     const 목록 = session.grants ?? [];
     // 같은 키의 옛 부여는 남겨 둔다 — 조회기가 가장 최근 것을 고르고, 이력은 감사 자산이다.
@@ -355,8 +372,10 @@ export function makeServer(deps = {}) {
     const 이번턴대상 = (Array.isArray(ws?.subjects) ? ws.subjects : [])
       .filter((s) => s?.lastTurn === ws?.turnNo);
     return {
-      workspace: store.dir,
-      project: store.dir,                                   // admission 의 `requestFacts.project` 와 같은 값
+      workspace: store.dir,                        // 이 T5 인스턴스의 신분(사용자 한 명의 설치)
+      // §0-C-1: project 는 **실제 확정 자리**다(admission 의 `requestFacts.project` 와 같은 원천).
+      // 자리를 모르는 관찰은 null 로 남는다 — 추측한 범위는 격리를 거짓으로 만든다.
+      project: currentPlaceOf(ws) ?? null,
       surface: extra.surface ?? null,
       subject: extra.subject ?? 이번턴대상[0]?.key ?? null,
     };
@@ -394,6 +413,12 @@ export function makeServer(deps = {}) {
     // 행렬 4: 승인은 **소비되면서 지워진다.** 권한 원장에 남길 재료를 그 전에 읽어 둔다.
     const 승인대상 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve] : undefined;
+    // §0-C-3 · **범위 있는 부여는 사용자가 버튼으로 고른다.** `이번만`(기본)이면 once 그대로 —
+    // 소비돼도 권한이 아니다. `계속 허용`(grantKind:'session')이면 24시간 bounded 로 승격된다.
+    // 카드의 만료 검사(grantScope.expiresAt)는 건드리지 않는다 — 선택은 별도 칸에 봉인한다.
+    if (승인대상 && input.grantKind === 'session') {
+      승인대상.chosenGrantScope = { kind: 'session', expiresAt: Date.now() + 24 * 3600 * 1000 };
+    }
 
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
@@ -696,6 +721,44 @@ export function makeServer(deps = {}) {
           await store.save(s);
         }
         return sendJson(res, 200, { id: s.id, title: s.title, transcript: s.transcript, activePendingIds });
+      }
+
+      // ── §0-C-3 · 부여된 권한 범위 — 사용자가 보고 거둘 수 있어야 한다("만든 것은 거둘 수 있다") ──
+      // 목록은 사람 말 재료(행동·대상·범위·만료)만 준다. 원문·비밀이 들어갈 자리가 없다.
+      if (req.method === 'GET' && url === '/grants') {
+        // url 은 질의를 뗀 경로다 — 질의는 원본(req.url)에서 읽는다(/sessions 와 같은 규칙).
+        const sessionId = new URLSearchParams((req.url ?? '').split('?')[1] ?? '').get('sessionId');
+        const s = sessionId ? await store.load(sessionId) : null;
+        if (!s) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        const now = Date.now();
+        // 같은 키는 최신 것 하나만 보인다(조회기와 같은 규칙 — 두 진실 금지).
+        const 최신 = new Map();
+        for (const g of s.grants ?? []) if (g?.key) 최신.set(g.key, g);
+        const grants = [...최신.values()].map((g) => ({
+          key: g.key, action: g.action, target: g.target, scope: g.scope,
+          grantedAt: g.grantedAt, expiresAt: g.expiresAt,
+          active: g.revoked !== true && typeof g.expiresAt === 'number' && g.expiresAt > now,
+          revoked: g.revoked === true,
+        }));
+        return sendJson(res, 200, { grants });
+      }
+      if (req.method === 'POST' && url === '/grants/revoke') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.sessionId !== 'string' || typeof input.key !== 'string') {
+          return sendJson(res, 400, { error: '세션과 대상이 필요해요.' });
+        }
+        const result = await withSessionQueue(input.sessionId, async () => {
+          const s = await store.load(input.sessionId);
+          if (!s) return null;
+          let 철회수 = 0;
+          for (const g of s.grants ?? []) {
+            if (g?.key === input.key && g.revoked !== true) { g.revoked = true; 철회수 += 1; }
+          }
+          await store.save(s);
+          return { revoked: 철회수 > 0 };
+        });
+        if (!result) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
+        return sendJson(res, 200, result);
       }
 
       if (req.method === 'POST' && url === '/turn') {

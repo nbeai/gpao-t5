@@ -10,6 +10,7 @@
 import { makeTCellCandidate, validateTCell } from '../kernel/l5-growth/tcell-core.js';
 import { validateObservationEvent } from '../kernel/l0-evidence/tcell-observation.js';
 import { TCELL_RELATIONS } from '../kernel/l5-growth/t-sphere.js';
+import { isFactAtom, atomVocabularyLines } from '../kernel/l1-intent/fact-atoms.js';
 
 const BUNDLE_CAP = 12; // 명세 §7.3 — 추출 입력은 대화 전체가 아니라 제한된 묶음이다
 
@@ -106,6 +107,8 @@ export function buildEvidenceBundle({
       explicitInstructionScope: explicitInstruction?.scope ?? null,
     },
     requiredOutputFields: ['decision', 'principle', 'boundary', 'trace'],
+    // §0-C-2: 모델에게 OS 사실 어휘를 준다 — 자유문 경계를 여기 결합해야 admission 이 대조할 수 있다.
+    factAtoms: atomVocabularyLines(),
     tokenBudget,
     explicitInstruction,
   };
@@ -201,16 +204,41 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
 
     if (out.decision !== 'candidate') {
       const ok = ['insufficient_evidence', 'duplicate', 'contradiction'].includes(out.decision);
-      return { decision: ok ? out.decision : 'insufficient_evidence' };
+      // §0-C-2: **비후보 결정도 관계는 돌려준다.** 모델이 "이 지시는 기존 원리의 반대"라고
+      // 판정했으면(contradiction) 그 대상이 누구인지가 소비 가능한 사실이다 — 버리면
+      // 의미 판정이 턴과 함께 증발하고 다음 턴 admission 이 아무것도 모른다.
+      // 대상 id 는 번들의 기존 후보 안에서만 인정한다(§7.2 — 모델이 지어낸 id 는 사실이 아니다).
+      const 제안 = out.relation ?? out.relatedTo ?? null;
+      const 유효대상 = 제안?.targetId
+        && (bundle.existingCandidates ?? []).some((c) => c?.id === 제안.targetId)
+        && TCELL_RELATIONS.includes(제안?.kind);
+      return {
+        decision: ok ? out.decision : 'insufficient_evidence',
+        relation: 유효대상 ? { kind: 제안.kind, id: 제안.targetId, evidence: ['model'] } : null,
+      };
     }
 
     const stmt = typeof out.principle?.statement === 'string' ? out.principle.statement.trim() : '';
     if (!stmt) return { decision: 'insufficient_evidence' };
 
-    const 후보경계 = {
-      validWhen: 문자열배열(out.boundary?.validWhen) ?? [],
-      invalidWhen: 문자열배열(out.boundary?.invalidWhen) ?? [],
+    // §0-C-2 · **의미 결합 수용** — 경계 절은 문자열 또는 {text, atom} 으로 온다.
+    // atom 은 OS 사실 어휘(fact-atoms)에 있는 id 만 인정한다. 모르는 id 는 결합이 아니라 주장이다.
+    const binding = {};
+    const 절수용 = (arr) => {
+      if (!Array.isArray(arr)) return [];
+      const texts = [];
+      for (const item of arr) {
+        if (typeof item === 'string' && item) { texts.push(item); continue; }
+        const text = typeof item?.text === 'string' && item.text ? item.text : null;
+        if (!text) continue;
+        texts.push(text);
+        if (isFactAtom(item?.atom)) binding[text] = item.atom;
+      }
+      return texts;
     };
+    const validWhen절 = 절수용(out.boundary?.validWhen);
+    const invalidWhen절 = 절수용(out.boundary?.invalidWhen);
+    const 후보경계 = { validWhen: validWhen절, invalidWhen: invalidWhen절 };
     // **anchor 는 OS 가 아는 사실이다**(§7.2) — 모델 주장이 아니라 근거 관찰에서 유도한다.
     const 근거자리 = bundle.observations[bundle.observations.length - 1]?.anchor ?? {};
     const anchor = {
@@ -255,9 +283,9 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
         horizontalSignals: 문자열배열(out.center?.horizontalSignals) ?? [],
       },
       boundary: {
-        validWhen: 문자열배열(out.boundary?.validWhen) ?? [],
-        invalidWhen: 문자열배열(out.boundary?.invalidWhen) ?? [],
-        needsReviewWhen: 문자열배열(out.boundary?.needsReviewWhen) ?? [],
+        validWhen: validWhen절,
+        invalidWhen: invalidWhen절,
+        needsReviewWhen: 절수용(out.boundary?.needsReviewWhen),
         mustNotOverride: 문자열배열(out.boundary?.mustNotOverride) ?? ['현재 요청'],
       },
       trace: { observationRefs: refs, corrections: [] },
@@ -271,6 +299,9 @@ export async function extractCandidate({ model, bundle, now = 0, timeoutMs = 20_
       },
       anchor: { ...anchor, createdAt: now, lastObservedAt: now },
     });
+    // §0-C-2: 원자 결합을 세포에 지속한다 — admission 이 조회할 자유문↔사실 어휘의 다리.
+    // 결합의 근거는 이 추출 자체다(번들 관찰 참조가 세포 trace 에 이미 있다).
+    if (Object.keys(binding).length) cell.binding = binding;
 
     const v = validateTCell(cell);
     if (밖.length) {

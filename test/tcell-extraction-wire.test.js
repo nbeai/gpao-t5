@@ -57,7 +57,17 @@ for (const [provider, modelId] of [['openai', 'gpt-5.1'], ['anthropic', 'claude-
   });
 }
 
-test('전용 경계는 대본을 늘리지 않는다 — 지시문 예산 상한', () => {
+test('전용 경계는 대본을 늘리지 않는다 — 지시문 예산 상한', async () => {
   const m = buildExtractionMessages(번들());
-  assert.ok(m.system.length < 900, `추출 지시문이 비대해졌다: ${m.system.length}자`);
+  // §0-C-2 로 **사실 어휘**(OS 상황 원자)가 지시문에 실리게 됐다. 어휘는 대본이 아니라 사실
+  // 공급이므로 예산을 갈라 지킨다 — 지시문(어휘 제외)은 기존 상한 그대로, 어휘는 원자 수에
+  // 비례한 상한(원자당 60자). 이렇게 두면 "지시문이 비대해진다"와 "어휘가 비대해진다"가
+  // 서로를 가리지 않는다.
+  const { FACT_ATOMS, atomVocabularyLines } = await import('../src/kernel/l1-intent/fact-atoms.js');
+  const 어휘 = atomVocabularyLines().join('\n');
+  assert.ok(m.system.includes(어휘), '사실 어휘가 지시문에 실리지 않았다(§0-C-2 미배선)');
+  const 지시문만 = m.system.replace(어휘, '');
+  assert.ok(지시문만.length < 1000, `추출 지시문(어휘 제외)이 비대해졌다: ${지시문만.length}자`);
+  assert.ok(어휘.length <= Object.keys(FACT_ATOMS).length * 60,
+    `사실 어휘가 원자당 60자를 넘었다: ${어휘.length}자 / ${Object.keys(FACT_ATOMS).length}원자`);
 });

@@ -157,6 +157,19 @@ export function deriveWorkingState(prevState, turn = {}) {
  * 시제를 정확히 쓴다 — 방금 다룬 것만 "방금"이라고 한다. 이게 대상을 **푸는** 장치다:
  * 사용자가 화제를 바꾸면 옛 대상은 자연히 "몇 턴 전"으로 내려가고 현재를 주장하지 않는다.
  */
+/**
+ * **지금 자리** — "이 프로젝트"의 "이"가 가리키는 실제 경로 (P6-W1 · §0-C-1 project 신분).
+ *
+ * 이 사실의 **단일 계산 자리**다. 프롬프트의 `지금 자리:` 줄과 T-cell admission 의
+ * project 신분이 둘 다 여기서 나온다 — 같은 질문의 답을 두 층이 따로 계산하면
+ * 덜 아는 쪽이 이긴다(프랙탈). 자리가 확정되지 않았으면 **null 이다. 추측하지 않는다** —
+ * 세션 저장 폴더 같은 기술적 경로를 project 로 쓰면 서로 다른 실제 프로젝트가 뭉개진다.
+ */
+export function currentPlaceOf(stateOrNull) {
+  const subjects = stateOrNull?.subjects ?? [];
+  return subjects.find((s) => typeof s?.detail === 'string' && s.detail.startsWith('/'))?.detail ?? null;
+}
+
 export function workingStateFacts(stateOrNull) {
   const state = stateOrNull ?? {};
   const turnNo = state.turnNo ?? 0;
@@ -174,7 +187,8 @@ export function workingStateFacts(stateOrNull) {
   // 사용자는 경로를 안 말하고 "이 프로젝트", "그 폴더"라고 부른다. 최근에 실제로 뭔가를 한
   // 자리가 있으면 그게 그 말의 뜻일 확률이 가장 높다 — 없으면 **말하지 않는다**(지어내지 않는다).
   // 코드 폴더만이 아니다: 정산 자료를 읽었으면 그 폴더가, 서버를 켰으면 그 자리가 여기 온다.
-  const 자리 = [...current, ...older].find((s) => typeof s.detail === 'string' && s.detail.startsWith('/'))?.detail;
+  // (subjects 는 최신이 앞이므로 currentPlaceOf 와 같은 순서다 — 한 사실, 한 계산 자리.)
+  const 자리 = currentPlaceOf(state);
   if (자리) lines.push(`지금 자리: ${자리}`);
   // **볼 수 있는 자리는 이름만 준다.** 경로를 늘어놓으면 프롬프트를 먹고, 사용자도 경로로 말하지 않는다.
   // 사용자가 "외장하드요", "거기"라고 하면 모델이 이 이름들 중에서 고른다(우리가 파싱하지 않는다 — §24).

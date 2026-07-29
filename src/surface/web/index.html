@@ -1278,11 +1278,21 @@ function renderOverview(o) {
     sec('전달', row('ov-on', `보냄 ${o.deliveries.deliveredCount}건`, '') + row('ov-off', '전달 실패(다시 보낼 수 있어요)', acts(o.deliveries.failed, 'retry-delivery', (d) => d.target || d.label, '다시 보내기'))),
     // 검색으로 반영한 기억도 같은 자리서 되돌린다(선호 되돌리기와 같은 수준).
     sec('기억', row('ov-on', '반영 중', acts(o.memories.reflected, 'rollback-memory', (m) => m.statement, '되돌리기'))),
+    // §0-C-3 · 허용한 범위 — 사용자가 [계속 허용]으로 부여한 것. 만든 것은 여기서 거둘 수 있다.
+    sec('허용한 범위', row('ov-on', '다시 묻지 않음', acts(
+      (window.__grants ?? []).filter((g) => g.active).map((g) => ({ ...g, id: g.key })),
+      'revoke-grant', (g) => `${g.action} → ${g.target}`, '철회',
+    ))),
   ].join('');
 }
 
 async function refreshOverview() {
   try {
+    // 허용 범위(§0-C-3)는 세션의 사실이다 — 요약과 같은 리듬으로 새로 받는다(추측 없음).
+    try {
+      const g = await (await fetch(`/grants?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
+      window.__grants = g.grants ?? [];
+    } catch { window.__grants = []; }
     const o = await (await fetch(`/overview?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
     renderOverview(o);
   } catch { /* 요약 실패해도 자기상태 텍스트는 남는다 */ }
@@ -1301,6 +1311,8 @@ async function onOverviewAction(e) {
     else if (act === 'confirm-pref') await memAction('/memory/confirm', { candidateId: id });
     else if (act === 'reject-memory') await memAction('/memory/reject', { candidateId: id });
     else if (act === 'rollback-memory') await memAction('/memory/rollback', { candidateId: id });
+    // §0-C-3: 철회는 즉시다 — 다음 같은 요청부터 다시 묻는다.
+    else if (act === 'revoke-grant') await fetch('/grants/revoke', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, key: id }) });
     await refreshOverview();
   } catch { btn.disabled = false; }
 }
@@ -1406,7 +1418,11 @@ function renderResult(r, opts = {}) {
     const stillActive = approvalIsActive(r.pendingId, activePendingIds, historical);
     if (!stillActive) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
     const btns = el('btns');
-    const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
+    // §0-C-3 · **범위·기간은 사용자가 버튼으로 고른다.** 기본은 이번 한 번(once — 권한이 되지
+    // 않는다). "24시간 계속 허용"은 같은 행동·같은 대상·같은 자리에 한해 오늘 하루 다시 묻지
+    // 않는 범위 부여이고, 아래 허용 범위 목록에서 언제든 철회할 수 있다.
+    const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '이번만 승인';
+    const keep = document.createElement('button'); keep.className = 'act'; keep.textContent = '승인하고 24시간 계속 허용';
     const no = document.createElement('button'); no.className = 'act no';
     // **모든 거절이 전송은 아니다.** 파일 저장·연결·실행에도 같은 버튼이 뜬다 —
     // '보내지 마' 는 보내는 일에만 맞는 말이다(실측 2026-07-28: 파일 저장 카드에 이 말이 떴다).
@@ -1414,8 +1430,9 @@ function renderResult(r, opts = {}) {
     // 승인·거절 뒤에도 **서버 사실로 다시 투영한다** — 부분적으로 DOM 카드만 고치면
     // 이번 턴이 무효화한 옛 카드가 화면에 그대로 남는다(G-1B 실측).
     yes.onclick = async () => { card.remove(); await turn({ approve: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
+    keep.onclick = async () => { card.remove(); await turn({ approve: r.pendingId, grantKind: 'session' }); await 대화다시그리기(); await loadSessions(); };
     no.onclick = async () => { card.remove(); await turn({ reject: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
-    btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
+    btns.appendChild(yes); btns.appendChild(keep); btns.appendChild(no); card.appendChild(btns);
     box.appendChild(card); return;
   }
 
@@ -1429,6 +1446,12 @@ function renderResult(r, opts = {}) {
     const bot = el('msg bot');
     renderMarkdownInto(bot, 답문);
     box.appendChild(bot);
+  }
+  // §0-C-3: 이전에 허용한 범위로 진행했으면 그 사실을 조용히 밝힌다 — 몰래 실행처럼 보이면 안 된다.
+  if (r.grantsReused?.length) {
+    const gr = el('why');
+    gr.textContent = `이전에 허용하신 범위라 다시 묻지 않고 진행했어요 (${r.grantsReused.map((g) => g.action).join(', ')}) — 철회는 요약의 '허용한 범위'에서.`;
+    box.appendChild(gr);
   }
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을

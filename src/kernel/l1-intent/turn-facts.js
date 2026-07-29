@@ -12,6 +12,8 @@
 //  3. **모델 전 맥락 역할과 계획 뒤 권한·값 역할을 분리한다.** `intent.authorityBoundary` 는
 //     정규식 추정이다 — 확정 권한으로 쓰지 않는다. 계획이 실제로 선 뒤에만 등급이 사실이 된다.
 
+import { FACT_ATOMS } from './fact-atoms.js';
+
 /** 행동 등급 — 커널이 이미 판정한 이번 턴의 authority 경계를 그대로 쓴다(별도 판정 금지). */
 const TIER = Object.freeze(['A0', 'A1', 'A2', 'A3']);
 
@@ -49,11 +51,15 @@ function 영수증사실(out, receipts, sessionId, base) {
   receipts.forEach((rec, i) => {
     const ref = `ledger:${sessionId ?? ''}:${base + i}`;
     const 실패 = Boolean(rec?.failureState && rec.failureState !== 'none');
-    const push = (fact) => out.push({ fact, ref, window: 'previous_turn' });
-    push(실패 ? '실패 직후' : '실행 성공 직후');          // 원리가 쓰는 어휘
-    push(실패 ? '직전 턴 실패' : '직전 턴 실행 성공');     // 창이 쓰는 어휘
-    if (문자열(rec?.action)) push(`${rec.action}`);
-    if (실패 && 문자열(rec?.failureState)) push(`실패 종류:${rec.failureState}`);
+    // **원자 id 를 함께 생산한다**(§0-C-2) — 추출 모델이 자유문 경계를 이 id 에 결합하고,
+    // admission 은 문구가 아니라 id 로 대조한다. 문구와 id 의 단일 원천은 FACT_ATOMS 다.
+    const push = (atomId) => out.push({
+      fact: FACT_ATOMS[atomId].fact, atom: atomId, ref, window: 'previous_turn',
+    });
+    push(실패 ? 'after_failure' : 'after_success');            // 원리가 쓰는 어휘
+    push(실패 ? 'prev_turn_failure' : 'prev_turn_success');    // 창이 쓰는 어휘
+    if (문자열(rec?.action)) out.push({ fact: `${rec.action}`, atom: null, ref, window: 'previous_turn' });
+    if (실패 && 문자열(rec?.failureState)) out.push({ fact: `실패 종류:${rec.failureState}`, atom: null, ref, window: 'previous_turn' });
   });
 }
 
@@ -63,7 +69,8 @@ function 영수증사실(out, receipts, sessionId, base) {
  */
 function 사실들({ ledgerWindow, intent, plan, sessionId, surface, awaiting, stage }) {
   const out = [];
-  const push = (fact, ref) => { if (fact) out.push({ fact, ref: ref ?? null, window: 'this_turn' }); };
+  const push = (fact, ref, atom = null) => { if (fact) out.push({ fact, atom, ref: ref ?? null, window: 'this_turn' }); };
+  const 원자push = (atomId, ref) => push(FACT_ATOMS[atomId].fact, ref, atomId);
 
   // 행렬 1: 창 밖은 아예 만들지 않는다(필터가 아니라 생산 자체를 막는다).
   영수증사실(out, ledgerWindow?.previousTurn ?? [], sessionId, ledgerWindow?.previousTurnStart ?? 0);
@@ -79,12 +86,13 @@ function 사실들({ ledgerWindow, intent, plan, sessionId, surface, awaiting, s
     for (const t of Array.isArray(plan?.toolsToUse) ? plan.toolsToUse : []) {
       push(`도구 사용:${t}`, `plan:${sessionId ?? ''}`);
     }
-    if ((plan?.needsApproval ?? []).length) push('승인 대기', `plan:${sessionId ?? ''}`);
+    if ((plan?.needsApproval ?? []).length) 원자push('approval_pending', `plan:${sessionId ?? ''}`);
   }
-  if (awaiting) push('이어받은 작업 있음', `session:${sessionId ?? ''}`);
+  if (awaiting) 원자push('work_resumed', `session:${sessionId ?? ''}`);
   if (문자열(surface?.responseSurface)) push(`표면:${surface.responseSurface}`, `session:${sessionId ?? ''}`);
   // 행렬 5: 승인·거절도 같은 경계를 지난다 — 그 턴의 사실은 "무엇이 소비됐는가"다.
-  if (문자열(intent?.approvalOutcome)) push(`승인 결정:${intent.approvalOutcome}`, `session:${sessionId ?? ''}`);
+  if (intent?.approvalOutcome === 'approved') 원자push('approval_approved', `session:${sessionId ?? ''}`);
+  else if (intent?.approvalOutcome === 'rejected') 원자push('approval_rejected', `session:${sessionId ?? ''}`);
   return out;
 }
 
@@ -96,6 +104,15 @@ function 사실들({ ledgerWindow, intent, plan, sessionId, surface, awaiting, s
 export function grantKey({ action, target, scope } = {}) {
   const a = 문자열(action); const t = 문자열(target); const s = 문자열(scope);
   return (a && t && s) ? `grant:${a}:${t}:${s}` : null;
+}
+
+/**
+ * §0-C-3 · **공통 대상 신분** — 도구 종류로 갈라 붙이는 대신, 인자의 대상 필드 하나의 계약이다.
+ * 전송류는 `target`, 파일류는 `path`, 수신자형은 `to` — 이 셋 밖의 도구는 대상 신분을 만들 수
+ * 없고, 그러면 grant 키도 만들어지지 않아 **매번 다시 묻는다**(모르는 대상에 권한을 열지 않는다).
+ */
+export function grantTargetOf(args = {}) {
+  return 문자열(args?.target) ?? 문자열(args?.path) ?? 문자열(args?.to) ?? null;
 }
 
 /**
@@ -125,7 +142,7 @@ function 등급판정(stage, { intent, plan }) {
  *   stage?:'pre_model'|'post_plan',
  *   ledgerWindow?:{previousTurn?:object[], previousTurnStart?:number},
  *   intent?:object, plan?:object, selfState?:object, workingState?:object,
- *   sessionId?:string, workspaceId?:string, surface?:object, awaiting?:boolean,
+ *   sessionId?:string, projectId?:string|null, surface?:object, awaiting?:boolean,
  *   memorySuggestion?:object, sendArgs?:object, confirmationRefs?:object
  * }} p
  * @returns {{requestFacts:object, authorityFacts:object}}
@@ -133,9 +150,11 @@ function 등급판정(stage, { intent, plan }) {
 export function buildTurnFacts(p = {}) {
   const stage = ADMISSION_STAGES.includes(p.stage) ? p.stage : 'pre_model';
   const sessionId = 문자열(p.sessionId);
-  // **범위 식별자** — project 는 이 데이터 자리(작업 공간), subject 는 이번 턴의 주 대상.
-  // 둘 다 실제 값이 없으면 null 로 둔다(모르면서 아는 척하지 않는다 — scope_unknown 이 옳다).
-  const project = 문자열(p.workspaceId);
+  // **범위 식별자**(§0-C-1) — project 는 세션 저장 폴더가 아니라 **실제 작업의 확정 자리**다
+  // (`currentPlaceOf(workingState)` — G 행렬이 확정한 「지금 자리」 사실). 자리가 확정되지 않은
+  // 턴은 **null 로 둔다.** 추측으로 채우면 서로 다른 실제 프로젝트가 같은 project 로 뭉개지고,
+  // 그 위의 범위 격리·anchor·admission 판정 전체가 거짓 위에 선다(나비).
+  const project = 문자열(p.projectId);
   const 이번턴대상 = (Array.isArray(p.workingState?.subjects) ? p.workingState.subjects : [])
     .filter((s) => s?.lastTurn === p.workingState?.turnNo);
   const subject = 문자열(이번턴대상[0]?.key) ?? 문자열(p.intent?.subjectOf?.key) ?? null;
@@ -158,7 +177,7 @@ export function buildTurnFacts(p = {}) {
   const action = stage === 'post_plan'
     ? 문자열((p.plan?.toolsToUse ?? [])[0]) ?? 문자열((p.plan?.needsApproval ?? [])[0]?.action) : null;
   const target = stage === 'post_plan'
-    ? 문자열(p.sendArgs?.[action]?.target) ?? 문자열(p.intent?.sendTarget?.target) : null;
+    ? grantTargetOf(p.sendArgs?.[action]) ?? 문자열(p.intent?.sendTarget?.target) : null;
   const scope = project ? `project:${project}` : null;
 
   return {

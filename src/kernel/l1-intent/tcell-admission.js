@@ -80,19 +80,27 @@ function 조회(store, key, errors) {
 
 /**
  * 계약 C · 3값 경계 판정 — 이번 턴의 **구조화된 사실 집합**과 대조한다.
- *  matched     = 그 절이 사실 집합에 있다
+ *  matched     = 그 절이 사실 집합에 있다 (문구 일치 **또는** 결합된 원자 일치)
  *  not_matched = 명시적 부정(`!절`)이 사실 집합에 있다
  *  unknown     = 그 외(모른다) — 입장 근거도, 단독 거절 근거도 아니다
- * @returns {{clause:string, verdict:'matched'|'not_matched'|'unknown', evidenceRef:string|null}}
+ *
+ * **원자 결합**(§0-C-2): `atom` 은 추출 시점에 **모델**이 자유문 절을 OS 사실 어휘에 결합해
+ * 세포에 저장한 것이다(`cell.binding`). 여기서는 그 결합을 조회해 대조만 한다 — 핫패스에
+ * 의미 판정(모델·정규식)이 없다. 결합이 없는 절은 문구 일치로만 판정된다(기존 세포 호환).
+ * @returns {{clause:string, verdict:'matched'|'not_matched'|'unknown', evidenceRef:string|null, via?:'text'|'atom'}}
  */
-export function judgeClause(clause, facts = []) {
+export function judgeClause(clause, facts = [], atom = null) {
   const c = 정규화(clause);
+  const boundAtom = 문자열(atom);
   const list = Array.isArray(facts) ? facts : [];
   for (const f of list) {
     const nf = 정규화(f?.fact ?? f);
     const ref = 문자열(f?.ref) ?? null;
-    if (nf === c) return { clause, verdict: 'matched', evidenceRef: ref };
-    if (nf === `!${c}`) return { clause, verdict: 'not_matched', evidenceRef: ref };
+    if (nf === c) return { clause, verdict: 'matched', evidenceRef: ref, via: 'text' };
+    if (nf === `!${c}`) return { clause, verdict: 'not_matched', evidenceRef: ref, via: 'text' };
+    if (boundAtom && 문자열(f?.atom) === boundAtom) {
+      return { clause, verdict: 'matched', evidenceRef: ref, via: 'atom' };
+    }
   }
   return { clause, verdict: 'unknown', evidenceRef: null };
 }
@@ -255,13 +263,16 @@ function 하나판정(id, input, facts, errors) {
   if (!범위.ok) return 거절(범위.code);
 
   // 계약 C: 3값 경계 판정 — unknown 은 세지 않고, 기록만 한다.
+  // 절마다 추출 시점의 원자 결합(`cell.binding`)을 함께 넘긴다 — 자유문과 사실 어휘가 다르더라도
+  // 모델이 이미 결합해 뒀으면 매칭된다(§0-C-2). 결합이 없으면 문구 일치로만 본다.
+  const 결합 = (cell.binding && typeof cell.binding === 'object') ? cell.binding : {};
   const boundaryChecks = [
     ...(Array.isArray(cell.boundary?.validWhen) ? cell.boundary.validWhen : [])
-      .map((c) => ({ kind: 'validWhen', ...judgeClause(c, facts) })),
+      .map((c) => ({ kind: 'validWhen', ...judgeClause(c, facts, 결합[c]) })),
     ...(Array.isArray(cell.boundary?.invalidWhen) ? cell.boundary.invalidWhen : [])
-      .map((c) => ({ kind: 'invalidWhen', ...judgeClause(c, facts) })),
+      .map((c) => ({ kind: 'invalidWhen', ...judgeClause(c, facts, 결합[c]) })),
     ...(Array.isArray(cell.boundary?.needsReviewWhen) ? cell.boundary.needsReviewWhen : [])
-      .map((c) => ({ kind: 'needsReviewWhen', ...judgeClause(c, facts) })),
+      .map((c) => ({ kind: 'needsReviewWhen', ...judgeClause(c, facts, 결합[c]) })),
   ];
   if (boundaryChecks.some((b) => b.kind === 'invalidWhen' && b.verdict === 'matched')) {
     return { ...거절(ADMISSION_REASONS.invalidWhen), boundaryChecks };
@@ -339,6 +350,13 @@ export function judgeDirective(cell, requestFacts = {}, facts = []) {
       if (ds === `!${stmt}` || stmt === `!${ds}`) return { relation: 'contradicts', ref }; // 명시적 부정
     }
   }
+  // **의미 수준의 반대 지시**(§0-C-2): 자연어 부정("보낼 땐 확인하지 마")은 글자 비교로 잡히지
+  // 않는다. 그 의미 판정은 **모델이 있는 자리**(추출기의 관계 판정)에서 이미 내려졌고, 그 결과가
+  // 세포의 correction 으로 **근거 참조와 함께 지속**돼 있다. 여기서는 조회만 한다.
+  // 이 correction 은 사용자가 그 지시를 철회(TG-5C 표면)하기 전까지 유효하다.
+  const 반대지시 = (Array.isArray(cell?.trace?.corrections) ? cell.trace.corrections : [])
+    .find((c) => c?.kind === 'user_directive_contradicts' && c?.withdrawn !== true);
+  if (반대지시) return { relation: 'contradicts', ref: 문자열(반대지시.ref) };
   // 원리가 스스로 "이건 덮지 않는다"고 선언한 것이 이번 턴 사실에 있고, 사용자가 지시한 턴이면 충돌이다.
   // 이 경로는 문장 비교가 아니라 **세포 자신의 선언**이므로 3값 판정과 독립적으로 유효하다.
   const 금지 = Array.isArray(cell?.boundary?.mustNotOverride) ? cell.boundary.mustNotOverride : [];
@@ -422,8 +440,13 @@ export async function buildAdmissionSnapshot(sources = {}) {
   // 후보가 하나도 없으면 확인 원장·권한 원장을 **만들지도 않는다** — 지연 공급자를 부르지 않는다.
   const 지연 = async (v) => {
     if (!cells.size) return 빈조회;
-    try { return (typeof v === 'function' ? await v() : v) ?? 빈조회; }
-    catch { errorCodes.push(ADMISSION_REASONS.storeError); return 빈조회; }
+    try {
+      const s = (typeof v === 'function' ? await v() : v) ?? 빈조회;
+      // §0-C-4: 원장이 부분 손상을 스스로 표시하면(degraded) 그 사실을 승계한다 —
+      // 정상 줄은 그대로 쓰되, "전부 읽었다"는 거짓 ok 를 만들지 않는다.
+      if (s?.degraded === true) errorCodes.push(ADMISSION_REASONS.storeError);
+      return s;
+    } catch { errorCodes.push(ADMISSION_REASONS.storeError); return 빈조회; }
   };
   const confirmationStore = await 지연(sources.confirmationStore);
   const grantStore = await 지연(sources.grantStore);

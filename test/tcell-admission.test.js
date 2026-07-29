@@ -273,10 +273,19 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
   const { SessionStore } = await import('../src/surface/session-store.js');
   const { TCellRegistry, TCellObserver, ConfirmationStore } = await import('../src/surface/tcell-store.js');
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-adm-run-'));
+  // §0-C-1: project 는 세션 저장 폴더가 아니라 **실제 작업 자리**다. 첫 턴의 터미널 실행이
+  // 이 자리를 확정하고(workingState 「지금 자리」), 그 다음 턴부터 admission 의 범위가 된다.
+  const 자리 = join(dir, '작업자리');
   const 실행기록 = [];
   const 손 = {
-    async probe(c) { return { command: c, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
-    async handler(a) { 실행기록.push(a); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: '/x' }, userSafeSummary: '봤어요.' }; },
+    // 실제 `local-terminal` 과 같은 subject 계약 — 명령이 대상, cwd 가 자리(detail).
+    subjectOf(rec) {
+      const command = rec?.result?.command;
+      if (!command) return null;
+      return { key: `cmd:${command}`, kind: 'command', label: String(command), detail: rec.result?.cwd };
+    },
+    async probe(c) { return { command: c, cwd: 자리, changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(a) { 실행기록.push(a); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 자리 }, userSafeSummary: '봤어요.' }; },
   };
   if (원리) {
     // **과거 세션**의 근거를 심는다 — 장기 원리의 근거는 다른 대화에 있다(감사 5).
@@ -284,10 +293,10 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
     await ob.observeTurn({ sessionId: '과거세션', ledgerStart: 0, turnId: '1', now: 1,
       turnReceipts: [{ userSafeSummary: '봤어요.', failureState: 'none', action: 'local.terminal 실행' }] });
     원리.trace.observationRefs = ['ledger:과거세션:0'];
-    // 이 세포가 **이 작업 공간의 것**이라는 시험 설정이다. 같은 값을 생산 경로가 실제로
+    // 이 세포가 **이 작업 자리의 것**이라는 시험 설정이다. 같은 값을 생산 경로가 실제로
     // 저장하는지는 아래 「행렬 6」 시험이 관찰 파일을 직접 읽어 따로 증명한다 —
     // 그 시험이 없으면 이 한 줄이 미배선을 가리게 된다(예전에 정확히 그랬다).
-    원리.anchor = { ...원리.anchor, project: dir, subject: null };
+    원리.anchor = { ...원리.anchor, project: 자리, subject: null };
     await new TCellRegistry(dir).upsert(원리, null);
     if (확인) await new ConfirmationStore(dir).record({ id: 확인, tcellId: 원리.id, sourceRefs: ['ledger:과거세션:0'], now: 1 });
   }
@@ -298,7 +307,11 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
   let 첫 = true;
   let 마지막턴 = false;
   const 모델 = { async respond(tc, opts = {}) {
-    본것.push({ tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>'), tools: JSON.stringify(opts.tools ?? []) });
+    // 임시 폴더 경로는 실행마다 다르다 — 비교 가능한 형태로 정규화한다(사실 손실 없음: 자리 유무는 남는다).
+    본것.push({
+      tc: JSON.stringify(tc).replace(/"now":\{[^}]*\}/g, '"now":<고정>').split(dir).join('<루트>'),
+      tools: JSON.stringify(opts.tools ?? []),
+    });
     if (!opts.tools?.length) return '네';
     if (첫) {
       첫 = false;
@@ -328,7 +341,9 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
     // 관찰 파일 원문 — 행렬 6 이 anchor 를 여기서 직접 읽는다.
     const 관찰원문 = await readFile(join(dir, 'growth', 'observations.jsonl'), 'utf8').catch(() => '');
     void 턴;
-    return { dir, 본것, 실행: 실행기록, reply: r.reply, trace: r.principleTrace, 실행전바이트, 실행후바이트, 관찰원문 };
+    // 실행 인자도 같은 정규화 — 임시 경로 차이가 "외부 효과 차이"로 오독되지 않게.
+    const 실행 = 실행기록.map((a) => JSON.parse(JSON.stringify(a).split(dir).join('<루트>')));
+    return { dir, 자리, 본것, 실행, reply: r.reply, trace: r.principleTrace, 실행전바이트, 실행후바이트, 관찰원문 };
   } finally { await new Promise((r2) => server.close(r2)); }
 }
 
@@ -370,7 +385,7 @@ test('11·20 관통: 과거 세션 원리가 현재 턴에 실제로 입장하�
     `두 단계가 돌지 않았다: ${JSON.stringify(있음.trace.passes?.map((p) => p.stage))}`);
 });
 
-// ── 행렬 6 · 관찰 생산 경로가 anchor 를 저장한다 ──
+// ── 행렬 6 + §0-C-1 · 관찰 생산 경로가 **실제 자리** anchor 를 저장한다 ──
 test('행렬 6: 실제 생산 경로가 workspace/project/subject anchor 를 저장한다', async () => {
   const r = await 관통서버({ 원리: 입장가능세포() });
   const 관찰 = r.관찰원문.split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -380,7 +395,9 @@ test('행렬 6: 실제 생산 경로가 workspace/project/subject anchor 를 저
   assert.ok(이번것.length > 0, '이번 세션의 관찰이 없다');
   for (const e of 이번것) {
     assert.equal(e.anchor?.workspace, r.dir, `관찰 anchor.workspace 가 비었다: ${e.type}`);
-    assert.equal(e.anchor?.project, r.dir, `관찰 anchor.project 가 비었다: ${e.type}`);
+    // §0-C-1: project 는 세션 저장 폴더(store.dir)가 아니라 **실제 작업 자리**다.
+    assert.equal(e.anchor?.project, r.자리, `관찰 anchor.project 가 실제 자리가 아니다: ${e.type} → ${e.anchor?.project}`);
+    assert.notEqual(e.anchor?.project, r.dir, 'project 가 아직 세션 저장 폴더다(§0-C-1 미해소)');
   }
   // **이 값이 admission 의 범위 식별자와 같은 값**이어야 세포의 범위 판정이 의미를 갖는다.
   // 같지 않으면 위 11·20 관통이 scope_mismatch 로 깨진다 — 두 시험이 서로를 묶는다.

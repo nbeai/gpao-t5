@@ -18,7 +18,7 @@ import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { buildAdmissionSnapshot, admitFromSnapshot } from './l1-intent/tcell-admission.js';
-import { buildTurnFacts } from './l1-intent/turn-facts.js';
+import { buildTurnFacts, grantKey, grantTargetOf } from './l1-intent/turn-facts.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -238,12 +238,13 @@ async function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memory
     ctx.admissionSnapshot ??= await buildAdmissionSnapshot({
       ...ctx.admissionSources,
       sessionId: ctx.sessionId,
-      scope: { project: ctx.workspaceId },   // 범위 밖 원리는 읽지 않는다(명세 §6)
+      // §0-C-1: 범위는 실제 확정 자리다. 자리를 모르면 null — 필터 없이 범위판정이 정직하게 막는다.
+      scope: { project: ctx.projectId ?? null },   // 범위 밖 원리는 읽지 않는다(명세 §6)
     });
     const 재료 = buildTurnFacts({
       stage, intent, plan, sendArgs, memorySuggestion, awaiting,
       selfState: ctx.selfState, workingState: ctx.workingState,
-      sessionId: ctx.sessionId, workspaceId: ctx.workspaceId, surface: ctx.surface,
+      sessionId: ctx.sessionId, projectId: ctx.projectId, surface: ctx.surface,
       ledgerWindow: 원장창(ctx, ledger),
       confirmationRefs: ctx.confirmationRefs,
     });
@@ -281,7 +282,9 @@ function trace합치기(passes) {
 export async function runTurn(input, ctx) {
   const 결과 = await runTurnInner(input, ctx);
   const trace = trace합치기(ctx.principlePasses);
-  return trace ? { ...결과, principleTrace: trace } : 결과;
+  // §0-C-3: 이전에 허용한 범위로 진행한 사실은 숨기지 않는다 — 답·카드·원장이 같은 사실을 본다.
+  const 부가 = ctx.grantsReused?.length ? { grantsReused: ctx.grantsReused } : {};
+  return trace ? { ...결과, ...부가, principleTrace: trace } : { ...결과, ...부가 };
 }
 
 async function runTurnInner(input, ctx) {
@@ -761,7 +764,32 @@ async function runTurnInner(input, ctx) {
     stage: 'post_plan', intent, plan, sendArgs, memorySuggestion, awaiting: Boolean(input.runningTask),
   });
 
-  if (pendingGrants.length) {
+  // §0-C-3 · **bounded grant 재사용** — 사용자가 이미 [계속 허용]으로 부여한 범위 안의 같은
+  // 행동·대상은 다시 묻지 않는다(원칙 0-A-1: 승인된 bounded grant 안의 매 실행은 재확인 금지).
+  //
+  // 판정은 세 사실이 전부 조회로 맞아야 한다: 행동(계획) · 대상(확정 인자, 공통 신분 계약) ·
+  // 범위(현재 확정 자리). 하나라도 모르면 키가 만들어지지 않아 **묻는 쪽으로 떨어진다.**
+  // 통과하면 기존 매듭(`ctx.허락한손` — 이 요청에서 허락된 손)에 얹는다. 새 상태기계를 만들지 않는다.
+  if (ctx.grantLookup && ctx.projectId && pendingGrants.length) {
+    const 재사용 = [];
+    for (const g of pendingGrants) {
+      const target = grantTargetOf(sendArgs?.[g.action] ?? intent.toolArgs?.[g.action]);
+      const key = grantKey({ action: g.action, target, scope: `project:${ctx.projectId}` });
+      const rec = key ? ctx.grantLookup.get(key) : null;
+      const 유효 = rec && rec.kind === 'bounded' && rec.revoked !== true
+        && typeof rec.expiresAt === 'number' && rec.expiresAt > nowMs(ctx)
+        && rec.action === g.action && rec.target === target; // 키가 맞아도 내용을 다시 대조한다
+      if (유효) {
+        ctx.허락한손 = ctx.허락한손 ?? new Set();
+        ctx.허락한손.add(g.action);
+        재사용.push({ action: g.action, target, key });
+      }
+    }
+    if (재사용.length) ctx.grantsReused = 재사용; // 답·원장이 "이전 허용 범위로 진행"을 말할 근거
+  }
+  const 물을것 = pendingGrants.filter((g) => !ctx.허락한손?.has(g.action));
+
+  if (물을것.length) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
@@ -776,7 +804,7 @@ async function runTurnInner(input, ctx) {
       askedFrom: input.channel ? { channel: input.channel } : undefined,
       // 이 요청에서 허락받은 손. 계획 경로와 걸음 경로가 **같은 규칙**을 써야 한다 —
       // 한쪽만 면제하면 같은 요청인데 어느 길로 왔느냐에 따라 묻는 횟수가 달라진다.
-      허락한손: [...(ctx.허락한손 ?? []), ...pendingGrants.map((g) => g.action).filter(Boolean)],
+      허락한손: [...(ctx.허락한손 ?? []), ...물을것.map((g) => g.action).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
     });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
@@ -787,7 +815,7 @@ async function runTurnInner(input, ctx) {
     //   · 없으면 손을 빼고 한 번 더 묻는다. 고를 것이 없으니 모델은 지금까지의 사실로 말한다.
     let 멈춤설명 = (earlyReply ?? '').trim();
     if (!멈춤설명 && earlyTc) {
-      const 라벨 = toolLabel(pendingGrants[0].action, selfState);
+      const 라벨 = toolLabel(물을것[0].action, selfState);
       const out = await ctx.model.respond(
         {
           ...earlyTc,
@@ -817,7 +845,7 @@ async function runTurnInner(input, ctx) {
       ...(멈춤설명 ? { reply: 멈춤설명 } : {}),
       approvalMode, // P6-15: 현재 승인 모드(조용한 표면 — 정책 아님, 판단을 보여줄 뿐)
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
-      pending: pendingGrants.map((g) => ({
+      pending: 물을것.map((g) => ({
         action: g.action,
         label: toolLabel(g.action, selfState),
         tier: g.tier,
@@ -830,7 +858,7 @@ async function runTurnInner(input, ctx) {
       followUp,
       memorySuggestion,
       automationSuggestion,
-      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
+      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(물을것[0].action, selfState), action: 물을것[0].action } }),
     };
   }
 

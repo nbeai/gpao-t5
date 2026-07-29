@@ -1,0 +1,82 @@
+// §0-C 4건이 보강 전(b7ffa6a) 코드에서 실제로 실패하는지 — 기준선에 존재하는 API 만 쓴다.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { admitPrinciples } from '../src/kernel/l1-intent/tcell-admission.js';
+import { makeTCellCandidate } from '../src/kernel/l5-growth/tcell-core.js';
+import { ConfirmationStore } from '../src/surface/tcell-store.js';
+import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+
+test('[§0-C-1] 관찰 anchor.project 가 실제 자리다(세션 저장 폴더가 아니다)', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'before-c1-'));
+  const 자리 = join(dir, '작업자리');
+  let 첫 = true;
+  const 손 = {
+    subjectOf(rec) { const c = rec?.result?.command; return c ? { key: `cmd:${c}`, kind: 'command', label: c, detail: rec.result?.cwd } : null; },
+    async probe(c) { return { command: c, cwd: 자리, changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 자리 }, userSafeSummary: '봤어요.' }; },
+  };
+  const 모델 = { async respond(tc, opts = {}) {
+    if (!opts.tools?.length) return '네';
+    if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+    return { text: '봤어요', toolCalls: [] };
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    첫 = true;
+    await (await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: sess.id, text: '폴더 봐줘' }) })).json();
+    await new Promise((r) => setTimeout(r, 300));
+    const raw = await readFile(join(dir, 'growth', 'observations.jsonl'), 'utf8').catch(() => '');
+    const ev = raw.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(ev.length > 0);
+    for (const e of ev) assert.equal(e.anchor?.project, 자리, `project 가 실제 자리가 아니다: ${e.anchor?.project}`);
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('[§0-C-2] 같은 뜻의 자유문 경계(원자 결합)가 매칭된다', () => {
+  const c = makeTCellCandidate({
+    principle: { statement: '파일 읽기에 실패하면 다른 방법을 찾는다', type: 'recovery' },
+    boundary: { validWhen: ['파일 읽기에 실패했을 때'], invalidWhen: ['재시도 지시'], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+    trace: { observationRefs: ['ledger:s:0'], corrections: [] },
+    anchor: { project: '/tmp/자리', subject: null }, geometry: { radius: 'task', depth: 0, sphereStability: 0 },
+  });
+  c.id = 'c1'; c.state = 'M2_replayed';
+  c.authority = { ...c.authority, allowedInfluence: ['none', 'supporting_context'], requiresUserConfirmation: false };
+  c.binding = { '파일 읽기에 실패했을 때': 'after_failure' }; // 보강 후 계약 — 옛 코드는 이걸 소비하지 않는다
+  const out = admitPrinciples({
+    candidateIds: ['c1'], principleStore: { get: (k) => (k === 'c1' ? c : null) },
+    evidenceStore: { get: () => ({ type: 'tool_result' }) }, confirmationStore: { get: () => null }, grantStore: { get: () => null },
+    stage: 'pre_model',
+    requestFacts: { project: '/tmp/자리', subject: null, facts: [{ fact: '실패 직후', atom: 'after_failure', ref: 'r' }] },
+    authorityFacts: { actionTier: null, tierKnown: false }, now: 1000,
+  });
+  assert.equal(out.admissions.length, 1, `의미가 같은데 글자 불일치로 거절됐다: ${JSON.stringify(out.trace.rejected)}`);
+});
+
+test('[§0-C-3] /grants 가 존재한다(부여·철회 표면)', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'before-c3-'));
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), model: { async respond() { return '네'; } } });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const g = await fetch(`${base}/grants?sessionId=${sess.id}`);
+    assert.equal(g.status, 200, `/grants 가 없다: ${g.status}`);
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('[§0-C-4] 확인 원장 읽기 불능은 던진다(빈 원장으로 위장하지 않는다)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'before-c4-'));
+  await mkdir(join(dir, 'growth', 'confirmations.jsonl'), { recursive: true }); // EISDIR 주입
+  const store = new ConfirmationStore(dir);
+  await assert.rejects(() => store.snapshot(), '읽기 불능이 빈 원장으로 위장했다');
+});
