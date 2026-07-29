@@ -14,11 +14,18 @@
 //   · 게시본은 동결되고 제자리 수정되지 않는다. 새 revision 은 **완성된 한 벌을 원자 교체**한다.
 
 import { normalizeStatement } from './statement-text.js';
+import { judgeRoleAuthority, rolesForStage, ROLE_ORDER } from './tcell-admission.js';
 
 export const PRINCIPLE_SNAPSHOT_SCHEMA_VERSION = 1;
 
-/** 전경이 쓸 수 있는 역할 — 현재 요청보다 낮은 보조 역할만(§6 데이터면 4). */
-export const SNAPSHOT_ROLES = Object.freeze(['supporting_context', 'default_value', 'plan_hint']);
+/**
+ * 전경이 쓸 수 있는 역할 — 현재 요청보다 낮은 보조 역할만(§6 데이터면 4).
+ * **순서는 손으로 적지 않고 `ROLE_ORDER` 에서 가져온다.** 손으로 적었더니 `default_value` 와
+ * `plan_hint` 의 높낮이가 계약과 뒤바뀌어 "가장 높은 역할"이 실제로는 아니었다(실측 2026-07-30).
+ * 같은 순서를 두 곳에 적으면 언젠가 갈라진다.
+ */
+const 전경역할 = new Set(['supporting_context', 'default_value', 'plan_hint']);
+export const SNAPSHOT_ROLES = Object.freeze(ROLE_ORDER.filter((r) => 전경역할.has(r)));
 
 /** 한 scope 에 실릴 수 있는 최대 개수. 이 상한은 성능이 아니라 **영향 상한**이다. */
 export const SNAPSHOT_MAX = 5;
@@ -121,7 +128,22 @@ export function selectPrinciples(snapshot, turn = {}) {
     if (지금발화 && (p.contradictedBy ?? []).includes(지금발화)) {
       skipped.push({ cellId: p.cellId, reason: 'superseded_by_current' }); continue;
     }
-    admitted.push(p);
+    // **이번 턴이 허용하는 최고 역할**을 고른다. 게시본은 자격(성숙도·경계)을 말하고,
+    // 단계와 권한 등급은 **이번 턴의 사실**이라 여기서만 알 수 있다. 판정은 새로 짜지 않고
+    // 데이터면의 권한 판정기를 그대로 부른다 — 같은 사실을 두 곳에서 다르게 계산하지 않는다.
+    const 단계허용 = rolesForStage(turn.stage);
+    const 후보역할 = (p.roles ?? [p.role]).filter((r) => r && 단계허용.includes(r));
+    let 고른역할 = null;
+    for (let i = 후보역할.length - 1; i >= 0; i -= 1) {
+      const r = 후보역할[i];
+      const 판정 = judgeRoleAuthority({
+        cell: null, authorityFacts: turn.authorityFacts, grantStore: turn.grantStore,
+        now: turn.now ?? 0, role: r,
+      });
+      if (판정.allowed) { 고른역할 = r; break; }
+    }
+    if (!고른역할) { skipped.push({ cellId: p.cellId, reason: 'authority_not_allowed' }); continue; }
+    admitted.push({ ...p, role: 고른역할 });
   }
   return {
     principles: admitted,

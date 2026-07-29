@@ -302,6 +302,11 @@ function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySugges
       // **이번 발화 원문 그대로** 넘긴다. 정규식이 이 말을 '운영 원리'로 분류했는지에 기대지
       // 않는다 — 분류에 실패한 발화에서 과거 원리가 살아남는 일이 없어야 한다.
       utterance: ctx.currentUtterance ?? '',
+      // 단계·권한·권한 원장은 **이번 턴의 사실**이다 — 전부 메모리에 이미 있다(저장소 읽기 0).
+      stage,
+      authorityFacts: 재료.authorityFacts,
+      grantStore: ctx.grantLookup,
+      now: ctx.now ? ctx.now() : Date.now(),
       max: 5,
     });
     trace = {

@@ -147,6 +147,10 @@ function 범위판정(cell, requestFacts) {
  * A0/A1 은 허용. A2/A3 는 **행동·대상·범위·만료가 모두 일치하는 유효한 bounded grant** 가
  * 조회될 때만 참고 가능이며, 그때도 실제 실행 경계에서 다시 검증한다.
  */
+export function judgeRoleAuthority({ cell = null, authorityFacts, grantStore, now = 0, role, errors = [] } = {}) {
+  return 권한판정(cell, authorityFacts, grantStore, now, role, errors);
+}
+
 function 권한판정(cell, authorityFacts, grantStore, now, role, errors) {
   // **등급은 세포의 속성이 아니라 이번 턴 행동의 사실이다**(설계 정정 2026-07-29).
   // 세포가 스스로 "나는 A0" 이라고 말하게 두면 원리가 자기 권한을 주장하게 된다.

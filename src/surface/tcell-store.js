@@ -9,7 +9,7 @@
 //    상한 없는 Set 이지만 관찰 수에 비례할 뿐이고, 키를 버리면 중복이 돌아온다). 쓰기는 직렬화.
 // ③ privacy — 비밀 표식이 있으면 저장 **전에** 일반화 문장으로 교체하고 파생 관찰까지 비가독.
 //    파일은 0600. 읽기는 schema 검증을 통과한 것만, 기본 조회는 scope(sessionId) 필수.
-import { appendFile, mkdir, readFile, chmod } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, chmod, writeFile, rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   makeObservationEvent, observationFromApproval, observationFromReceipt,
@@ -21,6 +21,55 @@ const 비밀일반화 = '비밀이 포함된 실행 사실(원문 비저장)';
 // 비밀 모양 선별은 **증거 계약 층**에 산다(l0-evidence) — 저장과 모델 입력이 같은 하나를 본다.
 // 여기서는 기존 소비자를 위해 다시 내보내기만 한다.
 export { looksLikeSecret };
+
+/**
+ * 성장 checkpoint — **재시작 경계에서 근거를 잃지 않기 위한 지속 사실**(감사 TG5-CX-02).
+ *
+ * 예전엔 진행 상태가 서버 수명의 `Map` 하나뿐이었다. 관찰이 append 된 뒤 추출 전에 프로세스가
+ * 끝나면, 새 서버는 그 관찰을 **다시 깨우지 않았다** — 사용자는 실패를 알 수 없고, 같은 경험을
+ * 반복해도 성장이 시작되지 않는다. 조용한 유실이다.
+ *
+ * 계약(§6 백그라운드 불변식 1·4): append **뒤에만** checkpoint 를 전진하고, 부팅에서 미처리
+ * 지점부터 정확히 한 번 재개한다. 파일 하나에 세션별 마지막 처리 지점만 담는다(원자 교체).
+ */
+export class GrowthCheckpointStore {
+  constructor(dir) {
+    this.dir = join(dir, 'growth');
+    this.file = join(this.dir, 'growth-checkpoint.json');
+    this.queue = Promise.resolve();
+  }
+
+  async load() {
+    try { return JSON.parse(await readFile(this.file, 'utf8')); } catch { return { sessions: {} }; }
+  }
+
+  /** 세션의 처리 완료 지점을 전진시킨다. **뒤로 가지 않는다** — 재처리는 유실보다 낫지만 역행은 아니다. */
+  async advance(sessionId, processedCount) {
+    if (!sessionId || !Number.isFinite(processedCount)) return null;
+    this.queue = this.queue.then(async () => {
+      const cur = await this.load();
+      const 이전 = Number(cur.sessions?.[sessionId] ?? 0);
+      if (processedCount <= 이전) return cur;
+      const next = { sessions: { ...(cur.sessions ?? {}), [sessionId]: processedCount } };
+      await mkdir(this.dir, { recursive: true });
+      const tmp = `${this.file}.tmp`;
+      await writeFile(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 });
+      await rename(tmp, this.file);
+      return next;
+    }).catch(() => ({ sessions: {} }));
+    return this.queue;
+  }
+
+  /** 부팅 재개 대상 — 관찰 수가 checkpoint 보다 많은 세션들. */
+  async pending(countsBySession = {}) {
+    const cur = await this.load();
+    const out = [];
+    for (const [sid, n] of Object.entries(countsBySession)) {
+      if (Number(n) > Number(cur.sessions?.[sid] ?? 0)) out.push(sid);
+    }
+    return out;
+  }
+}
 
 export class TCellObserver {
   constructor(dir) {
@@ -210,7 +259,6 @@ export class TCellObserver {
 // ── TG-2 · TCell Registry + legacy adapter (명세 §6·§16 TG-2) ──────────────
 // growth/tcells.json 이 원리 세포의 현재 상태 문서다(원자 교체·미래 필드 보존·손상 격리).
 // **여기 있는 어떤 것도 아직 TaskContext 에 들어가지 않는다** — TG-5 전까지 영향 0.
-import { writeFile, rename, stat } from 'node:fs/promises';
 import { validateTCell, makeTCellCandidate } from '../kernel/l5-growth/tcell-core.js';
 import { grantTargetOf, grantKey } from '../kernel/l1-intent/turn-facts.js';
 // 지시 문장의 정규화는 **한 자리**에서 온다 — 저장 열쇠와 조회 열쇠가 갈리면 영원히 못 찾는다.

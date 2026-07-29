@@ -56,7 +56,10 @@ export function splitModelControlCalls(toolCalls = []) {
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
-      if (statement) memorySuggestion = { kind, statement };
+      // **출처를 함께 남긴다**(감사 TG5-CX-01). 이건 모델이 제안한 것이지 사용자가 말한 것이
+      // 아니다. 이 사실이 없으면 뒤에서 "사용자가 명시했다"를 상수로 선언하게 되고,
+      // 실제로 그렇게 돼서 모델 추측이 장기 기억으로 자동 반영됐다.
+      if (statement) memorySuggestion = { kind, statement, source: 'model_proposal' };
     }
   }
   return { memorySuggestion, rest };

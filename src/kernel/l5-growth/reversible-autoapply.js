@@ -23,8 +23,8 @@ const 자동가능종류 = new Set(['preference']);
 
 /**
  * @param {object} entry 기억 후보(makeCandidate 결과)
- * @param {{explicit?:boolean, rollbackable?:boolean}} [ctx]
- *   `explicit` — 이번 턴 사용자 발화에서 나온 **구조화된 지시**인가(추정 학습이 아니라).
+ * @param {{rollbackable?:boolean}} [ctx]
+ *   명시 여부는 ctx 가 아니라 `entry.source` 에서 온다 — 호출자가 주장할 수 없다.
  * @returns {{ok:boolean, reason:string}} 사유는 추적용 코드다(사용자 카드가 아니다).
  */
 export function autoApplicable(entry, ctx = {}) {
@@ -32,7 +32,11 @@ export function autoApplicable(entry, ctx = {}) {
   // ② 영향 한계 — 운영 원리·자동화는 여기로 오지 않는다.
   if (!자동가능종류.has(entry.kind)) return { ok: false, reason: 'kind_needs_verification' };
   // ③ 범위 확정 — 사용자가 이번 턴에 **직접 말한** 것만. 추정은 뒤에서 replay 를 거친다.
-  if (ctx.explicit !== true) return { ok: false, reason: 'inferred_not_explicit' };
+  //
+  // **"명시했다"는 상수로 선언하지 않는다**(감사 TG5-CX-01). 예전엔 호출자가 `explicit: true` 를
+  // 그냥 넘겼고, 그래서 모델이 `memory.propose` 로 지어낸 선호까지 사용자가 말한 것으로 취급돼
+  // 장기 기억에 자동 반영됐다. 이제 **기록된 출처**만 명시로 인정한다 — 모르면 명시가 아니다.
+  if (entry.source !== 'user_utterance') return { ok: false, reason: 'not_user_utterance' };
   const 문장 = typeof entry.statement === 'string' ? entry.statement.trim() : '';
   if (!문장) return { ok: false, reason: 'empty_statement' };
   // 비밀·민감은 자동 영향 금지(§12 금지 1항). 카드로 올리지도 않는다 — 그냥 담지 않는다.

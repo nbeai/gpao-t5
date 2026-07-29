@@ -952,14 +952,21 @@ test('두 세션이 동시에 추출을 깨워도 서로의 근거를 덮어쓰�
 // **카드도 띄우지 않는다**(§12: 금지된 항목은 학습 순간에 승인 카드로 올리지 않는다).
 test('§12: 자동 반영은 명시·가역·비밀 아님·선호일 때만이다(그 밖은 조용히 후보로 남는다)', async () => {
   const { autoApplicable } = await import('../src/kernel/l5-growth/reversible-autoapply.js');
-  const 후보 = (over = {}) => ({ candidateId: 'c', kind: 'preference', statement: '보고서는 목록으로', rollbackable: true, ...over });
-  const 기본 = { explicit: true, rollbackable: true };
+  const 후보 = (over = {}) => ({
+    candidateId: 'c', kind: 'preference', statement: '보고서는 목록으로',
+    rollbackable: true, source: 'user_utterance', ...over,
+  });
+  const 기본 = { rollbackable: true };
 
   assert.equal(autoApplicable(후보(), 기본).ok, true, '명시·가역 선호가 자동 반영되지 않았다');
 
-  // ① 추정 학습은 자동이 아니다 — replay·범위 검증을 지나야 한다.
-  assert.deepEqual(autoApplicable(후보(), { ...기본, explicit: false }),
-    { ok: false, reason: 'inferred_not_explicit' });
+  // ① **모델이 제안한 것은 사용자가 말한 것이 아니다**(감사 TG5-CX-01의 뿌리).
+  //    호출자가 "명시했다"고 주장할 수 있으면 그 주장이 곧 사실이 된다 — 그래서 출처만 본다.
+  assert.deepEqual(autoApplicable(후보({ source: 'model_proposal' }), 기본),
+    { ok: false, reason: 'not_user_utterance' });
+  // 출처를 모르는 것도 명시가 아니다(모름은 허락이 아니다).
+  assert.deepEqual(autoApplicable(후보({ source: 'unknown' }), 기본),
+    { ok: false, reason: 'not_user_utterance' });
   // ② 운영 원리는 자동이 아니다 — 행동에 닿으므로 replay 게이트가 있다.
   assert.equal(autoApplicable(후보({ kind: 'operating_principle' }), 기본).reason, 'kind_needs_verification');
   // ③ 되돌릴 수 없으면 자동이 아니다 — 자동성은 되돌림으로 사는 것이지 그 반대가 아니다.
@@ -968,4 +975,137 @@ test('§12: 자동 반영은 명시·가역·비밀 아님·선호일 때만이�
   // ④ 비밀 모양은 자동도 아니고 카드도 아니다 — 애초에 담지 않는다.
   assert.equal(autoApplicable(후보({ statement: '토큰은 sk-live-9f2Ka83Bx7Qw1Ee55Tz0Rr4Yy8' }), 기본).reason,
     'secret_shaped');
+});
+
+// ── 감사 TG5-CX-01 · **모델 제안이 사용자 명시로 둔갑하지 않는다**(생산 관통) ──────────────
+// 재현: 사용자는 `안녕`만 말했는데 모델이 `memory.propose` 를 냈다. 예전엔 그것이 그대로
+// 장기 기억으로 자동 반영됐다 — 호출자가 `explicit: true` 를 상수로 넘겼기 때문이다.
+test('TG5-CX-01: 모델이 제안한 선호는 자동 반영되지 않고, 사용자가 말한 선호는 자동 반영된다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'cx01-'));
+  let 제안할까 = false;
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.tcellExtract) return JSON.stringify({ decision: 'insufficient_evidence' });
+      if (제안할까 && opts.tools?.length) {
+        제안할까 = false;
+        return { text: '네', toolCalls: [{ name: 'memory.propose', args: { kind: 'preference', statement: '사용자는 항상 답을 한 문장으로 원한다' } }] };
+      }
+      return '네';
+    },
+  };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const 턴 = async (text) => (await (await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: s.id, text }),
+    })).json());
+
+    // ① 모델 제안 — 사용자는 `안녕`만 말했다. 장기 기억에 들어가면 안 된다.
+    제안할까 = true;
+    const 모델턴 = await 턴('안녕');
+    assert.equal(모델턴.memoryAutoApplied, undefined, '모델이 지어낸 선호가 자동 반영됐다');
+    const m1 = await (await fetch(`${base}/memory`)).json();
+    assert.equal(m1.promoted.length, 0, `모델 제안이 장기 기억에 저장됐다: ${JSON.stringify(m1.promoted)}`);
+
+    // ② 같은 내용을 **사용자가 직접 말하면** 자동 반영된다(과잉 차단이 아니다 — 반대 방향).
+    const 사용자턴 = await 턴('보고서는 항상 글로 받는 게 좋아');
+    assert.ok(사용자턴.memoryAutoApplied?.statement, '사용자가 직접 말한 선호가 반영되지 않았다');
+    const m2 = await (await fetch(`${base}/memory`)).json();
+    assert.equal(m2.promoted.length, 1, '사용자 명시 선호가 저장되지 않았다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+// ── 감사 TG5-CX-04 · **게시 역할은 허용된 것 중 가장 높은 것이다** ────────────────────────
+// 예전엔 세포 배열에서 처음 걸리는 값을 써서 언제나 최저 역할(`supporting_context`)이었다.
+// M3·M4 가 검증돼도 계획·기본값에 도달할 수 없었다 — TG-5B 를 열어도 성능이 안 나오는 상태.
+// ── 감사 TG5-CX-06 · 게시 성숙도는 **손으로 적은 목록이 아니라 계약에서 유도**한다 ─────────
+test('TG5-CX-04·06: 성숙도별로 허용된 최고 역할이 게시되고, M0/M1 은 게시되지 않는다', async () => {
+  const { projectScopeSnapshot } = await import('../src/kernel/l5-growth/principle-publish.js');
+  const { makeTCellCandidate, influenceCeilingFor } = await import('../src/kernel/l5-growth/tcell-core.js');
+  const 세포 = (state, allowed) => {
+    const c = makeTCellCandidate({
+      principle: { statement: `${state} 원리`, type: 'recovery' },
+      boundary: { validWhen: ['직전 실행이 실패한 상태'], invalidWhen: [], needsReviewWhen: [], mustNotOverride: ['현재 요청'] },
+      trace: { observationRefs: ['ledger:s:1'], corrections: [] },
+      anchor: { project: '/자리', subject: null },
+      geometry: { radius: 'task', depth: 0, sphereStability: 0 },
+    });
+    c.id = `cell-${state}`; c.state = state;
+    c.binding = { '직전 실행이 실패한 상태': 'after_failure' };
+    c.authority = { ...c.authority, allowedInfluence: allowed ?? influenceCeilingFor(state), requiresUserConfirmation: false };
+    return c;
+  };
+  const 게시 = (cells) => projectScopeSnapshot({ cells, scope: { project: '/자리' }, now: 1, revision: 1 });
+  const 역할 = (state) => 게시([세포(state)]).principles[0]?.role ?? null;
+
+  // ① M0·M1 은 게시되지 않는다 — 영향 상한에 전경 역할이 없다.
+  assert.equal(역할('M0_observed'), null, 'M0 이 게시됐다');
+  assert.equal(역할('M1_candidate'), null, 'M1 이 게시됐다(전경에 후보가 왔다)');
+  // ② M2 이상은 **허용된 것 중 가장 높은 역할**로 게시된다.
+  assert.equal(역할('M2_replayed'), 'supporting_context');
+  assert.equal(역할('M3_limited'), 'default_value', 'M3 가 최저 역할로 게시됐다');
+  assert.equal(역할('M4_stable'), 'default_value', 'M4 가 최저 역할로 게시됐다');
+  assert.equal(역할('M5_compressed'), 'default_value', 'M5 가 최저 역할로 게시됐다');
+  // ③ 게시 상한 밖(answer_anchor)은 성숙도가 아무리 높아도 게시되지 않는다.
+  assert.ok(!['answer_anchor'].includes(역할('M5_compressed')), '게시 상한 밖 역할이 실렸다');
+  // ④ 세포가 세 역할 중 아무것도 허용하지 않으면 성숙도와 무관하게 게시되지 않는다.
+  assert.equal(게시([세포('M4_stable', ['none', 'candidate_context'])]).principles.length, 0,
+    '전경 역할이 없는데 게시됐다');
+  // ⑤ 되돌려졌거나 격리된 상태는 게시 대상이 아니다.
+  for (const 죽은 of ['softened', 'quarantined', 'rolled_back']) {
+    assert.equal(역할(죽은), null, `${죽은} 이 게시됐다`);
+  }
+});
+
+// ── 감사 TG5-CX-02 · **재시작 경계에서 학습 근거가 조용히 사라지지 않는다** ──────────────
+// 예전엔 성장 진행 상태가 서버 수명의 Map 하나였다. 관찰이 남은 뒤 추출 전에 프로세스가 끝나면
+// 새 서버는 그 관찰을 다시 깨우지 않았다 — 사용자는 실패를 알 수 없다.
+test('TG5-CX-02: 중단 뒤 새 서버가 미처리 관찰부터 정확히 한 번 재개한다', async () => {
+  const { makeServer } = await import('../src/surface/server.js');
+  const { SessionStore } = await import('../src/surface/session-store.js');
+  const { GrowthCheckpointStore, TCellObserver } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'cx02-'));
+
+  // 관찰만 남기고 추출 전에 프로세스가 끝난 상태를 만든다(= checkpoint 없음).
+  // 실제 재시작과 같은 조건: **세션 파일이 있고** 그 세션의 관찰이 남아 있는데 처리 기록이 없다.
+  const { SessionStore: SS } = await import('../src/surface/session-store.js');
+  const 세션 = await new SS(dir).create();
+  const ob = new TCellObserver(dir);
+  for (const i of [0, 1]) {
+    await ob.observeTurn({
+      sessionId: 세션.id, ledgerStart: i, turnId: String(i), now: i + 1,
+      turnReceipts: [{ userSafeSummary: '막혔어요.', failureState: 'failed', action: 'local.file 실행' }],
+    });
+  }
+  const { events } = await ob.load({ sessionId: 세션.id });
+  assert.ok(events.length >= 2, '중단 상황을 만들지 못했다');
+  assert.deepEqual(await new GrowthCheckpointStore(dir).pending({ [세션.id]: events.length }), [세션.id],
+    '미처리 관찰이 재개 대상으로 잡히지 않았다');
+
+  // 새 서버가 뜨고 그 세션의 턴이 오면 뒤에서 재개한다.
+  const 추출본 = [];
+  const 모델 = { async respond(tc) {
+    if (tc?.tcellExtract) { 추출본.push(tc.tcellExtract.observations.length); return JSON.stringify({ decision: 'insufficient_evidence' }); }
+    return '네';
+  } };
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), model: 모델 });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // 서버가 뜨는 것만으로 재개가 걸린다 — 사용자가 다시 말하기를 기다리지 않는다.
+    const 마감 = Date.now() + 10_000;
+    while (Date.now() < 마감 && !추출본.length) await new Promise((r) => setTimeout(r, 25));
+    // ① checkpoint 가 전진했다 — 처리한 만큼만, 처리 뒤에.
+    const cp = await new GrowthCheckpointStore(dir).load();
+    assert.ok(Object.keys(cp.sessions ?? {}).length > 0, '처리 뒤에도 checkpoint 가 전진하지 않았다');
+    // ② 같은 지점을 두 번 처리하지 않는다 — 재개는 정확히 한 번이다.
+    const 처리수 = Object.values(cp.sessions).reduce((a, b) => a + b, 0);
+    assert.deepEqual(await new GrowthCheckpointStore(dir).pending({ [Object.keys(cp.sessions)[0]]: 처리수 }), [],
+      '처리한 지점이 다시 미처리로 남았다');
+  } finally { await new Promise((r) => server.close(r)); }
 });

@@ -55,6 +55,7 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
+import { GrowthCheckpointStore } from './tcell-store.js';
 import {
   TCellObserver, TCellRegistry, ConfirmationStore,
   grantSnapshotFromLedger, grantFromConsumedApproval,
@@ -146,10 +147,38 @@ export function makeServer(deps = {}) {
   // ── 제어면 · 게시 스냅샷(결정문 §10.2) ────────────────────────────────────
   // 서버 수명 동안 메모리에 산다. 전경은 여기서 **읽기만** 하고, 쓰는 것은 응답 뒤 성장 경로뿐이다.
   const principleSnapshotStore = deps.principleSnapshotStore ?? makePrincipleSnapshotStore();
+  // §6 불변식 1·4 · 성장 checkpoint. 관찰 append **뒤에만** 전진하고, 부팅에서 미처리부터 재개한다.
+  const growthCheckpoint = deps.growthCheckpoint ?? new GrowthCheckpointStore(store.dir);
+
   /** scopeKey → 마지막 revision. 새 한 벌을 만들 때마다 전진한다(부분 갱신 없음). */
   const 게시판번호 = new Map();
   /** 자리마다 bootstrap 게시를 한 번만 건다(매 턴 재게시하지 않는다). */
   const 부팅게시 = new Set();
+  // §6 불변식 4 · **재시작 재개.** 중단은 세션 하나가 아니라 **프로세스**에 일어난다. 그러니
+  // 재개도 부팅에서 한 번, 미처리 관찰이 남은 **모든 세션**에 대해 돈다. 전경은 기다리지 않는다.
+  // (예전엔 진행 상태가 서버 수명의 Map 뿐이라, 관찰 append 뒤 추출 전에 끝나면 그 근거는
+  //  새 서버가 다시 깨우지 않았다 — 조용한 유실. 감사 TG5-CX-02)
+  const 부팅재개 = (async () => {
+    // 관찰 조회는 **범위(sessionId) 필수**다(명세 §6) — 그래서 세션 목록을 먼저 세션 저장소에서
+    // 얻고, 세션마다 자기 관찰만 센다. 전역 훑기로 경계를 넘지 않는다.
+    const 세션들 = await store.list?.({}) ?? [];
+    const 세션별 = {};
+    for (const meta of 세션들) {
+      const sid = meta?.id ?? meta;
+      if (typeof sid !== 'string') continue;
+      const { events: ev } = await tcellObserver.load({ sessionId: sid });
+      if (ev?.length) 세션별[sid] = ev.length;
+    }
+    const 남은 = await growthCheckpoint.pending(세션별);
+    for (const sid of 남은) {
+      const { events: 그세션 } = await tcellObserver.load({ sessionId: sid });
+      await 원리후보추출({
+        sessionId: sid, userText: '', instructionRef: null,
+        // 재개는 저장된 관찰을 새 근거로 본다 — 어디까지 처리했는지는 checkpoint 가 안다.
+        result: { tcellTurnRefs: 그세션.flatMap((e) => e.receiptRefs ?? []) },
+      }).catch(() => {});
+    }
+  })().catch((e) => console.error('[tcell] 부팅 재개 실패:', e?.message ?? e));
 
   /**
    * registry 를 읽어 한 scope 의 게시본을 **원자 교체**한다. 응답 뒤에만 불린다.
@@ -184,7 +213,6 @@ export function makeServer(deps = {}) {
         cells: a?.cells ?? [], scope, now: Date.now(), revision,
         registryRevision: a?.updatedAt ?? null, publishable: 자격,
       }));
-      if (process.env.T5_DEBUG_PUBLISH) console.error('[게시]', scopeKey, '세포', (a?.cells??[]).length, '자격', 자격.size, '실린것', principleSnapshotStore.read(scopeKey)?.principles?.length);
     } catch (e) {
       console.error('[tcell] 게시 실패:', e?.message ?? e);
     }
@@ -282,9 +310,18 @@ export function makeServer(deps = {}) {
       const explicitInstruction = regexHit?.statement && instructionRef
         ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: instructionRef }
         : null;
+      // **명시 지시 관찰을 번들에 함께 싣는다.** 추출기는 확인 면제를 위해 세 증거를 요구하는데
+      // 그 첫째가 "후보 trace 가 그 지시를 기록한 관찰을 실제로 가리킨다"이다. 그런데 지시 관찰은
+      // 실패 관찰과 **다른 묶음**(주제·신호군이 다르다)에 있어서 번들에 들어온 적이 없었고,
+      // 그래서 근거결합이 구조적으로 영원히 실패했다 — 사용자가 원리를 직접 말해도 그 원리는
+      // 늘 "확인 필요"로 남고 승격이 일어나지 않았다(실측 2026-07-30 · 감사 TG5-CX-03).
+      const 지시관찰 = explicitInstruction
+        ? events.find((e) => (e.receiptRefs ?? []).includes(explicitInstruction.observationRef))
+        : null;
       const bundle = buildEvidenceBundle({
         id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
-        observations: obs, existingCandidates: 기존, explicitInstruction,
+        observations: 지시관찰 ? [...obs, 지시관찰] : obs,
+        existingCandidates: 기존, explicitInstruction,
       });
       // **신분과 실제 호출은 같아야 한다.** identityFor(GROWTH_ROLE) 가 말한 그 자격으로 부른다 —
       // 어긋나면 신뢰경계의 판정이 거짓이 된다(라벨을 신분으로 쓰던 감사 P0 와 같은 병).
@@ -314,6 +351,8 @@ export function makeServer(deps = {}) {
         // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
         await 게시({ project: cell.anchor?.project ?? null });
       }
+      // **처리 지점은 실제 처리 뒤에 전진한다.** 앞서 올리면 그 사이의 근거가 조용히 사라진다.
+      await growthCheckpoint.advance(sessionId, events.length);
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
       칸.running = false;
@@ -776,7 +815,8 @@ export function makeServer(deps = {}) {
         const now = await memStore.load();
         const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
         if (dup) { result.memorySuggestion = undefined; return; }
-        const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
+        const c = makeCandidate(randomUUID(), result.memorySuggestion.kind,
+          result.memorySuggestion.statement, result.memorySuggestion.source ?? 'unknown');
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
         // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
         if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;
@@ -785,7 +825,7 @@ export function makeServer(deps = {}) {
         // 묻는 것은 어느 경계도 지키지 않는 마찰이었다(절대원칙 §0-A-2). 되돌리기·영수증·
         // "반영 중 기억" 표면이 이미 있으므로 자동성은 **되돌림**으로 지킨다.
         // 승격은 그대로 단일 통로(`confirmCandidate`)를 지난다 — 게이트를 우회하지 않는다.
-        const 자동 = autoApplicable(c, { explicit: true, rollbackable: c.rollbackable === true });
+        const 자동 = autoApplicable(c, { rollbackable: c.rollbackable === true });
         if (자동.ok) {
           const r2 = confirmCandidate(now, c.candidateId);
           if (r2.ok) {

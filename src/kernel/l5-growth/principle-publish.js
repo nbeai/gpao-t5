@@ -4,7 +4,7 @@
 // 예전엔 `buildAdmissionSnapshot()` 이 데이터면(`tcell-admission.js`)에 살면서 사용자 턴이 그것을
 // `await` 했다 — 저장소 읽기가 모델 호출 앞에 서 있었다. 층을 옮긴 것이 곧 계약이다:
 // **읽는 것은 뒤, 쓰는 것은 앞이 아니라 게시본**.
-import { ADMISSION_REASONS, admitFromSnapshot } from '../l1-intent/tcell-admission.js';
+import { ADMISSION_REASONS, admitFromSnapshot, resolveRole } from '../l1-intent/tcell-admission.js';
 import {
   PRINCIPLE_SNAPSHOT_SCHEMA_VERSION, SNAPSHOT_MAX, SNAPSHOT_ROLES, emptySnapshot, scopeKeyOf,
 } from '../l1-intent/principle-snapshot.js';
@@ -166,16 +166,26 @@ export function projectScopeSnapshot({ cells = [], scope = {}, now = 0, revision
     if (publishable && !publishable.has(cell.id)) continue;
     const cp = 문자열(cell?.anchor?.project);
     if (현재범위 && cp && cp !== 현재범위) continue;                // 다른 자리 것은 읽지도 싣지도 않는다
-    // **역할 상한**(§6 데이터면 4): 전경이 쓸 수 있는 세 보조 역할만 게시한다. 세포가 그 밖의
-    // 영향을 선언해도 여기서 걸러진다 — 상한을 세포 선언에 맡기면 상한이 아니다.
-    const role = (cell?.authority?.allowedInfluence ?? []).find((r) => SNAPSHOT_ROLES.includes(r)) ?? null;
-    if (!role) continue;
+    // **역할은 허용된 것 중 가장 높은 것**이다(감사 TG5-CX-04).
+    // 예전엔 세포의 `allowedInfluence` 배열에서 **처음 걸리는 값**을 썼다. 그 배열은 낮은 역할부터
+    // 나열되므로 결과는 언제나 `supporting_context` 였고, M3·M4 가 검증돼도 `plan_hint`·
+    // `default_value` 는 생산 게시본에서 **도달 불가능**했다.
+    // 판정 자체는 새로 짜지 않는다 — 데이터면의 `resolveRole` 이 이미 "세포 허용 ∩ 성숙도 상한 ∩
+    // 단계 허용의 고정 순서 최대값"을 계산한다. 여기서는 그것을 **게시 상한(세 보조 역할)** 안에서
+    // 부를 뿐이다. 같은 판정을 두 곳에서 다르게 계산하면 덜 아는 쪽이 이긴다.
+    // 게시본은 **자격 있는 역할 목록**을 싣는다. 하나로 접어 두면 "이번 턴의 권한 등급"이라는
+    // 턴 사실을 게시 시점에 알 수 없어, A2 턴에서도 계획 역할이 그대로 실린다(감사 TG5-CX-04 를
+    // 고치다 새로 만든 구멍 — 실측으로 잡았다). 자격은 게시가, 이번 턴 선택은 전경이 한다.
+    const roles = SNAPSHOT_ROLES.filter((r) => resolveRole(cell, [r]) === r);
+    if (!roles.length) continue;
+    const role = roles[roles.length - 1];   // 표시용 최고 역할(계약 호환)
     const statement = 문자열(cell?.principle?.statement);
     if (!statement) continue;
     principles.push(Object.freeze({
       cellId: cell.id,
       cellVersion: cell?.version ?? cell?.candidateVersionId ?? null,
       role,
+      roles: Object.freeze(roles),
       principle: statement,                                       // 모델이 스스로 쓴 문장(사용자 원문 아님)
       binding: Object.freeze(Object.entries(cell?.binding ?? {})
         .filter(([, a]) => isFactAtom(a)).map(([k, a]) => Object.freeze([k, a]))),

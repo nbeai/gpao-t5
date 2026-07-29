@@ -787,7 +787,7 @@ const SET_RENDER = {
       box.appendChild(rows);
       const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
       box.appendChild(mk('div', 'tb-hint', `기억 기록 영수증 ${led.entries?.length ?? 0}건 — 내용 원문은 기록에 저장되지 않아요(지문만).`));
-      box.appendChild(mk('div', 'tb-hint', '기억은 확인한 것만 반영되고, 언제든 되돌릴 수 있어요. 확인 전 후보는 아무 영향이 없어요.'));
+      box.appendChild(mk('div', 'tb-hint', '직접 말씀하신 건 바로 기억하고, 여기서 언제든 되돌릴 수 있어요. 제가 짐작한 건 확인 전까지 아무 영향이 없어요.'));
     } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
     setBody.appendChild(box);
   },
@@ -1486,6 +1486,9 @@ function renderResult(r, opts = {}) {
   if (!historical && r.surfaceRequest?.kind === 'secret_input') renderSecretInput(box, r.surfaceRequest);
   // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
   if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
+  // §12 · **자동으로 반영한 것은 그 자리에서 말한다.** 카드를 없앤 대신 침묵하면
+  // 사용자는 무엇이 기억됐는지 그때 알 수 없다(감사 TG5-CX-05). 묻지는 않되 숨기지도 않는다.
+  if (!historical && r.memoryAutoApplied) renderAutoApplied(box, r.memoryAutoApplied);
   // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
   if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
   // 능력 부족 통합 안내(2.0-C-0) — 커넥터(연결)·도구(준비)를 하나의 카드로. 제안과 달리 "작업 복귀 경로"라
@@ -1679,6 +1682,21 @@ function renderSecretInput(box, req) {
   card.appendChild(save);
   card.appendChild(결과);
   box.appendChild(card);
+}
+
+/**
+ * 자동 반영 알림 — **카드가 아니다.** 버튼도 대기도 없고, 무엇을 기억했는지와 어디서 되돌리는지만
+ * 조용히 한 줄로 말한다(§12 사용자 소유권). 대화를 막지 않는다.
+ */
+function renderAutoApplied(box, m) {
+  const row = mk('div', 'sug');
+  row.appendChild(mk('div', 'sug-t', `기억했어요 — ${m.statement}`));
+  const 끝 = mk('div', 'sug-b');
+  끝.appendChild(mk('span', 'sug-hint', m.rollbackable
+    ? '설정 › 기억과 개인정보에서 고치거나 되돌릴 수 있어요.'
+    : '설정 › 기억과 개인정보에서 확인할 수 있어요.'));
+  row.appendChild(끝);
+  box.appendChild(row);
 }
 
 function renderSuggestion(box, sug) {

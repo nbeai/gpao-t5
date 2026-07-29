@@ -122,10 +122,19 @@ export function executeReplayCases(cell, cases = [], { now = 0, evidence = new M
   // 할 수 있고, 그 관문은 아래 실행 기록을 저장소로 다시 확인한다.
   // 승격은 상태만 바꾸는 게 아니라 **그 성숙도가 허용하는 역할을 함께 연다**(`applyTransition`).
   // 그러니 반사실도 같은 모양이어야 한다 — 역할 없이 돌리면 positive 는 영원히 실패한다.
+  // 확인(`requiresUserConfirmation`)도 반사실에서 내린다. 재현이 묻는 것은 **행동 정확성**이지
+  // 사용자 동의가 아니다 — 갓 뽑힌 후보는 늘 확인이 필요하므로, 그대로 두면 positive 사례가
+  // 언제나 `user_confirmation_missing` 으로 막혀 승격이 영원히 일어나지 않는다(실측 2026-07-30).
+  // **동의 관문은 사라지지 않는다.** 게시 자격 판정(`publishableIds`)이 실제 확인 원장으로 그대로
+  // 막고, 그 보장은 별도 검사가 양방향으로 고정한다. 두 축을 한 관문에 겹쳐 놓지 않는다.
   const 반사실 = {
     ...cell,
     state: targetState,
-    authority: { ...(cell?.authority ?? {}), allowedInfluence: influenceCeilingFor(targetState) },
+    authority: {
+      ...(cell?.authority ?? {}),
+      allowedInfluence: influenceCeilingFor(targetState),
+      requiresUserConfirmation: false,
+    },
   };
   const principleStore = { get: (id) => (id === cell?.id ? 반사실 : null) };
   const evidenceStore = { get: (ref) => evidence.get(ref) ?? null };
