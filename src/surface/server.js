@@ -115,6 +115,8 @@ export function makeServer(deps = {}) {
   // TG-1 · shadow 관찰자(영향 0): 턴 완료 후 영수증·승인 사실을 growth/observations.jsonl 에만 쌓는다.
   // 어떤 코드도 이 파일을 읽어 TaskContext 에 넣지 않는다. 실패는 관찰자 안에 머문다.
   const tcellObserver = deps.tcellObserver ?? new TCellObserver(store.dir);
+  // 관찰 호출 공통 격리 — 동기·비동기 어느 실패도 호출부(답변·엔진)로 나오지 않는다(영향 0).
+  const 관찰만 = (fn) => { try { Promise.resolve(fn()).catch(() => {}); } catch { /* 영향 0 */ } };
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
@@ -172,6 +174,14 @@ export function makeServer(deps = {}) {
       const selfState = buildSelfState(env, { tools });
       const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
       await autoStore.save(a);
+      // TG-1: 자동화 결과 관찰 — job+실행 번호가 신분. 실패해도 tick 에 닿지 않는다(영향 0).
+      for (const r of ran) {
+        const job = a.jobs.find((j) => j.id === r.jobId);
+        관찰만(() => tcellObserver.observeAutomationResult({
+          jobId: r.jobId, executionIndex: Math.max(0, (job?.executions?.length ?? 1) - 1),
+          receipt: r.receipt, now: Date.now(),
+        }));
+      }
       return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
     } finally {
       ticking = false;
@@ -264,6 +274,11 @@ export function makeServer(deps = {}) {
     // (승인 재개는 그 보류를 지우면서 시작한다).
     const 물어본자리 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
+    // TG-1 보강: 관찰은 "입력에 approve 가 있었다"가 아니라 **실제 유효한 결정**만 본다.
+    const 유효한결정 = (typeof input.approve === 'string' && session.pendingApprovals?.[input.approve])
+      ? { approved: true, pendingId: input.approve, summary: '승인' }
+      : (typeof input.reject === 'string' && session.pendingApprovals?.[input.reject])
+        ? { approved: false, pendingId: input.reject, summary: '거절' } : null;
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
     // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
@@ -297,18 +312,14 @@ export function makeServer(deps = {}) {
     }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
-    // TG-1: shadow 관찰 — **await 하지 않고, 동기·비동기 어느 실패도 여기 못 나온다**(영향 0).
-    // 반대시험이 잡은 실측: 동기 throw 하는 관찰자가 턴을 죽였다 — try 와 catch() 둘 다 필요하다.
-    try {
-      Promise.resolve(tcellObserver.observeTurn({
-        sessionId: session.id,
-        result: {
-          turnReceipts: ctx.ledger.entries.slice(ledgerStart), // 이번 턴의 새 영수증만
-          ...(input.approve || input.reject ? { approvalDecision: { approved: Boolean(input.approve), summary: input.approve ? '승인' : '거절' } } : {}),
-        },
-        now: Date.now(),
-      })).catch(() => { /* 관찰 실패는 관찰자 안의 사실(lastError)로만 남는다 */ });
-    } catch { /* 동기 throw 도 답변에 닿지 않는다 */ }
+    // TG-1: shadow 관찰 — 원장 위치가 곧 신분(ledger:세션:번호). 유효한 결정만 관찰.
+    관찰만(() => tcellObserver.observeTurn({
+      sessionId: session.id,
+      ledgerStart,
+      turnReceipts: ctx.ledger.entries.slice(ledgerStart),
+      approvalDecision: 유효한결정,
+      now: Date.now(),
+    }));
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
@@ -801,6 +812,8 @@ export function makeServer(deps = {}) {
           // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
           // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
           const receiptWritten = await 기억영수증('rolled_back', removed);
+          // TG-1: 구조화된 사용자 정정 신호 — 발화 원문이 아니라 행동 사실과 참조만.
+          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 기억 반영을 되돌렸어요', ref: `memory:rollback:${removed.candidateId ?? removed.id ?? 'unknown'}`, now: Date.now() }));
           return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
       }
@@ -848,7 +861,11 @@ export function makeServer(deps = {}) {
         const a = await traceStore.load();
         const before = a.promoted.length;
         a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === input.tool));
-        if (a.promoted.length !== before) await traceStore.save(a);
+        if (a.promoted.length !== before) {
+          await traceStore.save(a);
+          // TG-1: 구조화된 사용자 정정 신호(잘못 배운 기본 대상의 철회).
+          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 학습된 기본 대상을 되돌렸어요', ref: `pattern:rollback:${input.tool}:${Date.now()}`, now: Date.now() }));
+        }
         return sendJson(res, 200, { ok: true });
       }
 
