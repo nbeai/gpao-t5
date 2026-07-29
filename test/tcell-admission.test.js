@@ -322,7 +322,11 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
     }
     return { text: '봤어요', toolCalls: [] };
   } };
-  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
+  // 게시 저장소를 시험이 들고 서버에 넘긴다 — 상태를 손으로 넣는 게 아니라, **제어면이 실제로
+  // 게시한 결과**를 같은 객체로 관찰하기 위해서다. 게시는 여전히 서버의 성장 경로가 한다.
+  const { makePrincipleSnapshotStore, scopeKeyOf } = await import('../src/kernel/l1-intent/principle-snapshot.js');
+  const 게시본저장소 = makePrincipleSnapshotStore();
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델, principleSnapshotStore: 게시본저장소 });
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -331,6 +335,17 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: sess.id, ...body }),
     })).json());
+    // §10.2 · 부팅 게시는 **자리가 확정된 뒤** 뒤에서 걸린다. 그래서 의미 있는 턴들 앞에
+    // 예열 턴 하나를 둔다 — 실제 제품에서도 첫 턴은 게시본 없이(미스로) 도는 것이 계약이다.
+    // 있음·없음 두 경우 모두 같은 조건이 되도록 **무조건** 돈다.
+    첫 = true; 마지막턴 = false;
+    await 턴({ text: '폴더 봐줘' });
+    if (원리) {
+      const key = scopeKeyOf({ project: 자리 });
+      for (let n = 0; n < 300 && !게시본저장소.read(key); n += 1) {
+        await new Promise((done) => setTimeout(done, 10));
+      }
+    }
     let r;
     for (const [i, t] of texts.entries()) {
       첫 = true; // 매 턴 도구를 한 번 고른다
@@ -343,7 +358,7 @@ async function 관통서버({ 원리 = null, 확인 = null, texts = ['폴더 봐
     void 턴;
     // 실행 인자도 같은 정규화 — 임시 경로 차이가 "외부 효과 차이"로 오독되지 않게.
     const 실행 = 실행기록.map((a) => JSON.parse(JSON.stringify(a).split(dir).join('<루트>')));
-    return { dir, 자리, 본것, 실행, reply: r.reply, trace: r.principleTrace, 실행전바이트, 실행후바이트, 관찰원문 };
+    return { dir, 자리, 본것, 실행, reply: r.reply, trace: r.principleTrace, 실행전바이트, 실행후바이트, 관찰원문, 게시본저장소 };
   } finally { await new Promise((r2) => server.close(r2)); }
 }
 
@@ -354,6 +369,8 @@ const 입장가능세포 = () => {
     authority: { allowedInfluence: ['none', 'candidate_context', 'supporting_context'], requiresUserConfirmation: false },
   });
   c.id = 'cell-live';
+  // M1 은 전경에 오지 않는다(§10.1) — 입장을 보려면 게시 가능한 성숙도여야 한다.
+  c.state = 'M2_replayed';
   return c;
 };
 
@@ -418,9 +435,30 @@ test('관통: 같은 지시를 다시 말해도 원리는 살아 있다(강화�
 
 test('관통: 확인이 필요한 원리는 실제 확인 원장이 있어야 입장한다', async () => {
   const 확인필요 = () => { const c = 입장가능세포(); c.authority.requiresUserConfirmation = true; return c; };
+  const { scopeKeyOf } = await import('../src/kernel/l1-intent/principle-snapshot.js');
+
+  // ① 확인 없이는 **전경에 도달하지 못한다.** 판정이 게시층으로 옮겨갔으므로 증명도 거기서 한다 —
+  //    보장은 그대로다: 확인되지 않은 원리는 사용자 턴에 영향 0 이다.
   const 없이 = await 관통서버({ 원리: 확인필요() });
   assert.equal(없이.trace.admitted.length, 0, '확인 없이 입장했다');
-  assert.equal(없이.trace.rejected[0].reason, ADMISSION_REASONS.confirmation);
+  const 게시본 = 없이.게시본저장소.read(scopeKeyOf({ project: 없이.자리 }));
+  assert.equal(게시본?.principles?.length ?? 0, 0, '확인되지 않은 원리가 게시본에 실렸다');
+
+  // ② 그 사유가 **정확히 확인 부재**인지는 게시 자격 판정기에 직접 묻는다(아무 이유로나 막힌 것이
+  //    아님을 증명해야 한다 — 예전 검사가 사유를 뭉뚱그려 통과시키던 자리다).
+  const { buildAdmissionSnapshot, publishableIds } = await import('../src/kernel/l5-growth/principle-publish.js');
+  const { TCellRegistry, TCellObserver } = await import('../src/surface/tcell-store.js');
+  const snap = await buildAdmissionSnapshot({
+    registry: new TCellRegistry(없이.dir), observer: new TCellObserver(없이.dir),
+    scope: { project: 없이.자리 },
+  });
+  assert.ok((snap.candidateIds ?? []).includes('cell-live'), '세포가 저장소에 없다(시험 전제 붕괴)');
+  assert.equal(publishableIds(snap, { scope: { project: 없이.자리 }, confirmationRefs: {} }).size, 0,
+    '확인 없는 원리가 게시 자격을 얻었다');
+  // ③ **반대 방향** — 확인 원장이 있으면 같은 원리가 게시 자격을 얻는다(과잉 차단이 아니다).
+  assert.equal(publishableIds(snap, {
+    scope: { project: 없이.자리 }, confirmationRefs: { 'cell-live': 'confirm-1' },
+  }).size, 0, '확인 id 만으로 통과하면 안 된다 — 원장 기록이 있어야 한다');
 });
 
 // ── 행렬 8 · A2 무grant 관통은 **정확히 권한 경계**를 증명한다 ──
@@ -464,7 +502,8 @@ test('행렬 8: A2 턴에서 계획 역할은 유효 grant 없이 못 들어오�
 });
 
 test('스냅샷 경계: 실제 비동기 저장소를 읽고, 읽기 실패는 degraded 로 승계된다', async () => {
-  const { buildAdmissionSnapshot, admitFromSnapshot } = await import('../src/kernel/l1-intent/tcell-admission.js');
+  const { buildAdmissionSnapshot } = await import('../src/kernel/l5-growth/principle-publish.js');
+  const { admitFromSnapshot } = await import('../src/kernel/l1-intent/tcell-admission.js');
   const { TCellRegistry, TCellObserver } = await import('../src/surface/tcell-store.js');
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-snap-'));
   const c = 세포(); c.id = 'cell-1'; c.trace.observationRefs = ['ledger:과거:1'];

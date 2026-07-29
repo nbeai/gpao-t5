@@ -33,6 +33,9 @@ export function makeReplayCase(input = {}) {
     kind: input.kind,
     sourceRefs: [...(input.sourceRefs ?? [])],
     inputFacts: input.inputFacts ?? {},
+    // **권한 사례 표식**(§9.2). `minimumSuiteGaps` 가 `c.authority === true` 를 읽는데 공장이 그걸
+    // 버리고 있었다 — 검사기가 요구하는 것을 생산자가 만들 수 없는 상태였다. 표식을 보존한다.
+    ...(input.authority === true ? { authority: true } : {}),
     expected: {
       mustHold: [...(input.expected?.mustHold ?? [])],
       mustNotHappen: [...(input.expected?.mustNotHappen ?? [])],

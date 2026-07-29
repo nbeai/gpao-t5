@@ -179,19 +179,29 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
 });
 
 // P6-1 기억: 선호 발화 → 후보(자동 승격 아님) → confirm → 승격.
-test('선호 발화는 후보로만 저장되고 confirm 후에만 승격된다', async () => {
+// §12 · **사용자가 직접 말한 가역 선호는 묻지 않고 반영한다.**
+// 예전 계약은 이 자리에서 카드를 띄우고 클릭을 요구했다. 그 확인이 지키는 경계를 따져보면
+// 없었다 — 로컬 저장이고, 되돌리기·영수증·"반영 중 기억" 표면이 이미 있고, 기억은 권한이 아니다.
+// 절대원칙 §0-A-2: 어느 경계를 지키는지 설명할 수 없는 확인은 마찰 회귀다.
+// **보장은 사라지지 않았다.** 자리가 바뀌었을 뿐이다: 사전 승인 → 사후 교정(되돌리기).
+test('명시한 가역 선호는 카드 없이 바로 반영되고, 되돌릴 수 있다', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' });
+    const t = await (await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' })).json();
+    // ① 카드가 없다 — 같은 내용을 다시 묻지 않는다.
+    assert.equal(t.memorySuggestion, undefined, '직접 말한 선호를 카드로 다시 물었다');
+    // ② 무엇이 반영됐는지는 숨기지 않는다.
+    assert.ok(t.memoryAutoApplied?.statement, '무엇을 기억했는지 사용자에게 말하지 않았다');
+    assert.equal(t.memoryAutoApplied.rollbackable, true, '되돌릴 수 없는 것을 자동 반영했다');
+    // ③ 실제로 반영돼 있고 후보로 남아 있지 않다.
     const m1 = await getj(base, '/memory');
-    assert.equal(m1.promoted.length, 0, '자동 승격 금지');
-    assert.equal(m1.candidates.length, 1);
-    assert.equal(m1.candidates[0].kind, 'preference');
-    const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
-    assert.equal(r.ok, true);
+    assert.equal(m1.promoted.length, 1, '말한 대로 반영되지 않았다');
+    assert.equal(m1.candidates.length, 0);
+    // ④ **사후 교정** — 사용자가 언제든 되돌린다. 자동성을 지키는 것은 승인이 아니라 이것이다.
+    const back = await (await post(base, '/memory/rollback', { candidateId: m1.promoted[0].candidateId })).json();
+    assert.equal(back.ok, true, `되돌리기가 실패했다: ${JSON.stringify(back)}`);
     const m2 = await getj(base, '/memory');
-    assert.equal(m2.promoted.length, 1);
-    assert.equal(m2.candidates.length, 0);
+    assert.equal(m2.promoted.length, 0, '되돌렸는데 반영이 남아 있다');
   });
 });
 

@@ -283,7 +283,11 @@ async function 자리서버(자리) {
     if (첫) { 첫 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
     return { text: '봤어요', toolCalls: [] };
   } };
-  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델 });
+  // 게시 저장소를 시험이 들고 넘긴다 — 상태 주입이 아니라 **제어면이 실제로 게시한 결과**를
+  // 같은 객체로 관찰하기 위해서다(§10.2 부팅 게시는 자리 확정 뒤 뒤에서 걸린다).
+  const { makePrincipleSnapshotStore, scopeKeyOf } = await import('../src/kernel/l1-intent/principle-snapshot.js');
+  const 게시본저장소 = makePrincipleSnapshotStore();
+  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 모델, principleSnapshotStore: 게시본저장소 });
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const sess = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
@@ -294,7 +298,14 @@ async function 자리서버(자리) {
       body: JSON.stringify({ sessionId: sess.id, ...body }),
     })).json());
   };
-  return { dir, base, 세션: sess.id, 턴, 닫기: () => new Promise((r) => server.close(r)) };
+  const 게시대기 = async () => {
+    const key = scopeKeyOf({ project: 자리 });
+    for (let n = 0; n < 300 && !게시본저장소.read(key); n += 1) {
+      await new Promise((done) => setTimeout(done, 10));
+    }
+    return 게시본저장소.read(key);
+  };
+  return { dir, base, 세션: sess.id, 턴, 게시본저장소, 게시대기, 닫기: () => new Promise((r) => server.close(r)) };
 }
 
 test('§0-C-1: project 는 실제 자리다 — 서로 다른 두 프로젝트가 생산 경로에서 격리된다', async () => {
@@ -323,15 +334,21 @@ test('§0-C-1: project 는 실제 자리다 — 서로 다른 두 프로젝트�
     await reg.upsert(만들('원리A', 자리A), null);
     await reg.upsert(만들('원리B', 자리B), null);
 
-    // 턴 1: 자리 A 확정(터미널 실행). 턴 2: admission 이 자리 A 범위로 돈다.
+    // 턴 1: 자리 A 확정(터미널 실행) → **뒤에서** 게시가 걸린다(전경은 기다리지 않는다).
+    // 턴 2: 게시가 끝난 뒤 그 게시본을 동기 조회한다.
     await sA.턴({ text: '폴더 봐줘' });
-    const r = await sA.턴({ text: '한 번 더 봐줘' });
+    await sA.턴({ text: '한 번 더 봐줘' });
+    await sA.게시대기();
+    const r = await sA.턴({ text: '이어서 봐줘' });
 
     // ① 자리 A 세션은 원리A 만 본다 — 원리B 는 **읽지도 않는다**(scopeFiltered).
     assert.ok(r.principleTrace, 'trace 없음');
     assert.ok(r.principleTrace.retrievedIds.includes('원리A'), '자기 자리의 원리를 읽지 못했다');
     assert.ok(!r.principleTrace.retrievedIds.includes('원리B'), '다른 프로젝트의 원리를 읽었다(격리 실패)');
-    assert.equal(r.principleTrace.scopeFiltered, 1);
+    // 범위 밖 세포는 **게시본에 실리지 않는다** — 전경이 거르는 게 아니라 애초에 오지 않는다.
+    const 게시본 = sA.게시본저장소.read((await import('../src/kernel/l1-intent/principle-snapshot.js')).scopeKeyOf({ project: 자리A }));
+    assert.deepEqual((게시본?.principles ?? []).map((x) => x.cellId), ['원리A'],
+      '게시본이 자기 자리 원리만 담지 않았다');
     assert.ok(r.principleTrace.admitted.some((a) => a.id === '원리A'),
       `자기 자리의 원리가 입장하지 못했다: ${JSON.stringify(r.principleTrace.rejected)}`);
 
@@ -364,9 +381,15 @@ test('§0-C-1: project 는 실제 자리다 — 서로 다른 두 프로젝트�
     const 첫턴 = await sB.턴({ text: '안녕' }); // 도구 없음 → 자리 미확정
     const pre = 첫턴.principleTrace?.passes?.find((p) => p.stage === 'pre_model');
     assert.ok(pre, 'trace 없음');
-    const 거절 = pre.rejected.find((x) => x.id === '자리원리');
-    assert.equal(거절?.reason, ADMISSION_REASONS.scopeUnknown,
-      `자리를 모르는 턴이 추측으로 판정했다: ${JSON.stringify(pre.admitted)} ${JSON.stringify(pre.rejected)}`);
+    // 보장은 그대로다: **자리를 모르면 원리를 쓰지 않는다.** 다만 그 일이 일어나는 자리가 바뀌었다 —
+    // 예전엔 전경이 저장소를 읽어 `scope_unknown` 으로 거절했고, 이제는 **애초에 조회하지 않는다**.
+    // 미상을 `project:unknown` 이라는 공용 칸으로 보내면 서로 다른 프로젝트가 그 칸에서 섞이므로,
+    // 미상은 게시도 조회도 하지 않는 것이 계약이다(§0-C-1 · 명세 §6).
+    assert.deepEqual(pre.admitted, [], '자리를 모르는 턴이 추측으로 원리를 썼다');
+    assert.deepEqual(pre.retrievedIds, [], '자리를 모르는 턴이 원리를 조회했다');
+    assert.equal(pre.scopeKey, null, '미상 자리에 열쇠가 생겼다(공용 칸으로 새는 경로)');
+    assert.equal(pre.reason, 'snapshot_miss',
+      `자리를 모르는 턴의 사유가 미스가 아니다: ${JSON.stringify(pre)}`);
   } finally { await sB.닫기(); }
 });
 
@@ -574,7 +597,7 @@ test('§0-C-4: 확인 원장 읽기 불능은 빈 원장이 아니라 degraded �
     '읽기 불능이 빈 원장으로 위장했다');
 
   // 스냅샷 경계가 이 실패를 degraded 로 승계한다 — 세포가 있어야 원장을 읽으므로 세포를 둔다.
-  const { buildAdmissionSnapshot } = await import('../src/kernel/l1-intent/tcell-admission.js');
+  const { buildAdmissionSnapshot } = await import('../src/kernel/l5-growth/principle-publish.js');
   const { makeTCellCandidate } = await import('../src/kernel/l5-growth/tcell-core.js');
   const { TCellRegistry: Reg2, TCellObserver: Ob2 } = await import('../src/surface/tcell-store.js');
   const c = makeTCellCandidate({
@@ -807,8 +830,11 @@ test('연결 저장소를 읽는 시험은 명시적으로 켤 때만 돈다(일
     const 연결층 = /ModelConnectionStore|makeModelConnection/.test(src);
     if (연결층 && (src.includes(실자리) || /new ModelConnectionStore\(\s*\)/.test(src))) 읽는파일.push({ name, src });
   }
-  assert.deepEqual(읽는파일.map((f) => f.name), ['tcell-live-model-semantics.test.js'],
-    `제품 연결 저장소를 읽는 시험이 늘었다 — 일반 회귀가 실계정 호출을 하게 된다: ${
+  // 지금은 **하나도 없다**(실모델 계약 하네스는 방향 전환으로 제외됐다). 목록이 비어 있다는 것이
+  // 곧 일반 회귀가 사용자 자격을 건드리지 않는다는 뜻이다. 나중에 다시 생기면 아래 게이트 검사가
+  // 그 파일마다 환경 스위치를 요구한다 — 파일 이름을 정답으로 고정하지 않는다.
+  assert.deepEqual(읽는파일.map((f) => f.name), [],
+    `제품 연결 저장소를 읽는 시험이 생겼다 — 일반 회귀가 실계정 호출을 하게 된다: ${
       JSON.stringify(읽는파일.map((f) => f.name))}`);
   for (const f of 읽는파일) {
     assert.match(f.src, /process\.env\.GPAO_T5_LIVE_MODELS === '1'/,
@@ -919,4 +945,27 @@ test('두 세션이 동시에 추출을 깨워도 서로의 근거를 덮어쓰�
         `한 추출 입력에 서로 다른 세션의 관찰이 섞였다: ${JSON.stringify(소유(묶음))}`);
     }
   } finally { await new Promise((r) => server.close(r)); }
+});
+
+// ── §12 · 가역 학습 자동 반영의 **경계** — 자동이 아무 데나 번지지 않는다 ──────────────
+// 자동성을 늘렸으니 그 반대 방향을 같은 힘으로 못 박는다. 하나라도 어긋나면 자동으로 하지 않고,
+// **카드도 띄우지 않는다**(§12: 금지된 항목은 학습 순간에 승인 카드로 올리지 않는다).
+test('§12: 자동 반영은 명시·가역·비밀 아님·선호일 때만이다(그 밖은 조용히 후보로 남는다)', async () => {
+  const { autoApplicable } = await import('../src/kernel/l5-growth/reversible-autoapply.js');
+  const 후보 = (over = {}) => ({ candidateId: 'c', kind: 'preference', statement: '보고서는 목록으로', rollbackable: true, ...over });
+  const 기본 = { explicit: true, rollbackable: true };
+
+  assert.equal(autoApplicable(후보(), 기본).ok, true, '명시·가역 선호가 자동 반영되지 않았다');
+
+  // ① 추정 학습은 자동이 아니다 — replay·범위 검증을 지나야 한다.
+  assert.deepEqual(autoApplicable(후보(), { ...기본, explicit: false }),
+    { ok: false, reason: 'inferred_not_explicit' });
+  // ② 운영 원리는 자동이 아니다 — 행동에 닿으므로 replay 게이트가 있다.
+  assert.equal(autoApplicable(후보({ kind: 'operating_principle' }), 기본).reason, 'kind_needs_verification');
+  // ③ 되돌릴 수 없으면 자동이 아니다 — 자동성은 되돌림으로 사는 것이지 그 반대가 아니다.
+  assert.deepEqual(autoApplicable(후보(), { ...기본, rollbackable: false }),
+    { ok: false, reason: 'not_reversible' });
+  // ④ 비밀 모양은 자동도 아니고 카드도 아니다 — 애초에 담지 않는다.
+  assert.equal(autoApplicable(후보({ statement: '토큰은 sk-live-9f2Ka83Bx7Qw1Ee55Tz0Rr4Yy8' }), 기본).reason,
+    'secret_shaped');
 });

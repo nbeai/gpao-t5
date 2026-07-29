@@ -40,6 +40,7 @@ import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
 import { makeCandidate, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
+import { autoApplicable } from '../kernel/l5-growth/reversible-autoapply.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
@@ -59,6 +60,13 @@ import {
   grantSnapshotFromLedger, grantFromConsumedApproval,
 } from './tcell-store.js';
 import { wakeSignal, groupObservations, buildEvidenceBundle, extractCandidate } from '../runtime/tcell-extractor.js';
+import { buildGrowthInput } from '../runtime/growth-input.js';
+import { makePrincipleSnapshotStore, scopeKeyOf } from '../kernel/l1-intent/principle-snapshot.js';
+import { projectScopeSnapshot, publishableIds, buildAdmissionSnapshot } from '../kernel/l5-growth/principle-publish.js';
+import { produceReplayCases, executeReplayCases } from '../kernel/l5-growth/tcell-replay-produce.js';
+import { measureFriction, measureIntrusions, candidateFromBaseline } from '../kernel/l5-growth/friction-meter.js';
+import { makeVerifiedReplayPacket, transitionCell } from '../kernel/l5-growth/tcell-replay-engine.js';
+import { GROWTH_ROLE } from './model-connection.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget, HUMAN_TARGET,
 } from '../kernel/l5-growth/task-trace.js';
@@ -135,6 +143,99 @@ export function makeServer(deps = {}) {
   // 가지 않았다. 쌓지 않되(세션마다 마지막 하나만) 잊지도 않는다 — 끝나면 그 한 건을 이어 돌린다.
   /** @type {Map<string,{running:boolean, pending:object|null}>} sessionId → 추출 상태 */
   const 추출상태 = new Map();
+  // ── 제어면 · 게시 스냅샷(결정문 §10.2) ────────────────────────────────────
+  // 서버 수명 동안 메모리에 산다. 전경은 여기서 **읽기만** 하고, 쓰는 것은 응답 뒤 성장 경로뿐이다.
+  const principleSnapshotStore = deps.principleSnapshotStore ?? makePrincipleSnapshotStore();
+  /** scopeKey → 마지막 revision. 새 한 벌을 만들 때마다 전진한다(부분 갱신 없음). */
+  const 게시판번호 = new Map();
+  /** 자리마다 bootstrap 게시를 한 번만 건다(매 턴 재게시하지 않는다). */
+  const 부팅게시 = new Set();
+
+  /**
+   * registry 를 읽어 한 scope 의 게시본을 **원자 교체**한다. 응답 뒤에만 불린다.
+   * 실패는 대화로 새지 않는다 — 게시가 안 되면 그 scope 는 도움 0 으로 남을 뿐이다.
+   */
+  /** 세포 → 확인 id 맵(게시 자격 판정용). 원장을 못 읽으면 빈 맵 — 확인된 척하지 않는다. */
+  async function 확인참조맵() {
+    try {
+      const by = await confirmationStore.byCell();
+      const out = {};
+      for (const id of (await tcellRegistry.load())?.cells ?? []) {
+        const ref = by.get(id?.id);
+        if (ref) out[id.id] = ref;
+      }
+      return out;
+    } catch { return {}; }
+  }
+
+  async function 게시(scope) {
+    const scopeKey = scopeKeyOf(scope);
+    try {
+      const a = await tcellRegistry.load();
+      const revision = (게시판번호.get(scopeKey) ?? 0) + 1;
+      게시판번호.set(scopeKey, revision);
+      // 게시 자격은 **데이터면과 같은 판정기**로 본다(제어면이 따로 필터를 만들지 않는다).
+      const 자격 = publishableIds(await buildAdmissionSnapshot({
+        registry: tcellRegistry, observer: tcellObserver,
+        confirmationStore: () => confirmationStore.snapshot(),
+        scope,
+      }), { now: Date.now(), scope, confirmationRefs: await 확인참조맵() });
+      principleSnapshotStore.publish(scopeKey, projectScopeSnapshot({
+        cells: a?.cells ?? [], scope, now: Date.now(), revision,
+        registryRevision: a?.updatedAt ?? null, publishable: 자격,
+      }));
+      if (process.env.T5_DEBUG_PUBLISH) console.error('[게시]', scopeKey, '세포', (a?.cells??[]).length, '자격', 자격.size, '실린것', principleSnapshotStore.read(scopeKey)?.principles?.length);
+    } catch (e) {
+      console.error('[tcell] 게시 실패:', e?.message ?? e);
+    }
+  }
+
+  /**
+   * §11 생산선 — 방금 저장된 후보 하나를 재현하고, 통과하면 승격해 registry 에 되돌려 놓는다.
+   * **응답 뒤에만** 돌고, 실패는 대화로 새지 않는다(영향 0).
+   */
+  async function 승격시도(cell, 요청세션 = null) {
+    try {
+      const { cases, gaps } = produceReplayCases(cell);
+      if (gaps.length) return { skipped: 'no_cases', gaps };   // 결합 없는 원리는 재현할 수 없다
+      // 근거 조회기 — **저장된 관찰**과 이번 재현의 실행 기록을 같은 참조 공간에서 본다.
+      const 관찰 = await tcellObserver.getByRefs(cell?.trace?.observationRefs ?? []);
+      const 근거 = new Map(Object.entries(관찰?.found ?? {}));
+      const execs = executeReplayCases(cell, cases, { now: Date.now(), evidence: 근거 });
+      for (const e of execs) 근거.set(e.id, e);
+      // 이 원리가 자란 그 자리의 **실제 관찰**에서 마찰을 센다(같은 세션·같은 자리의 사실).
+      const { events: 자리관찰 } = await tcellObserver.load({ sessionId: 요청세션 });
+      const 마찰기준 = measureFriction(자리관찰);
+      const packet = makeVerifiedReplayPacket({
+        cases, executionRefs: execs.map((e) => e.id),
+        evidenceStore: { get: (r) => 근거.get(r) ?? null },
+        // **측정값은 저장된 관찰에서 센다**(§8 · friction-meter). 지어내지 않는다.
+        // 영향이 0 인 동안 candidate 가 baseline 과 다른 곳은 **끼어듦 하나뿐**이고, 그 수는
+        // negative·boundary 재현의 실행 기록에서 실제로 센다. 그러므로 이 비교가 증명하는 것은
+        // 개선이 아니라 **무해**다 — 증거 문서에도 그렇게 적는다.
+        baseline: 마찰기준, candidate: candidateFromBaseline(마찰기준, { intrusions: measureIntrusions(cases, execs) }),
+        now: Date.now(),
+      });
+      const { cell: 다음, decision } = transitionCell(cell, packet);
+      if (다음?.state && 다음.state !== cell.state) await tcellRegistry.upsert(다음);
+      return { state: 다음?.state ?? cell.state, reason: decision?.reason ?? null };
+    } catch (e) {
+      console.error('[tcell] 승격 시도 실패:', e?.message ?? e);
+      return { skipped: 'error' };
+    }
+  }
+
+  /**
+   * 대화를 처리한 자격과 성장을 처리할 자격을 물어 **휘발성 원문 허용 여부**를 판정한다.
+   * 연결 관리자가 없는 구성(demo·시험)은 같은 클라이언트 하나가 둘을 다 하므로 같은 자격이다.
+   */
+  const 성장입력 = (text) => {
+    const 신분 = deps.modelConnection?.identityFor;
+    const 대화신분 = 신분 ? deps.modelConnection.identityFor('default') : { connectionId: null, provider: 'inline', modelId: null };
+    const 성장신분 = 신분 ? deps.modelConnection.identityFor(GROWTH_ROLE) : { connectionId: null, provider: 'inline', modelId: null };
+    return buildGrowthInput({ text, sourceModelIdentity: 대화신분, growthModelIdentity: 성장신분 }).ephemeralText;
+  };
+
   const 추출칸 = (sid) => {
     let v = 추출상태.get(sid);
     if (!v) { v = { running: false, pending: null }; 추출상태.set(sid, v); }
@@ -185,7 +286,10 @@ export function makeServer(deps = {}) {
         id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
         observations: obs, existingCandidates: 기존, explicitInstruction,
       });
-      const r = await extractCandidate({ model: deps.model ?? model, bundle, now: Date.now() });
+      // **신분과 실제 호출은 같아야 한다.** identityFor(GROWTH_ROLE) 가 말한 그 자격으로 부른다 —
+      // 어긋나면 신뢰경계의 판정이 거짓이 된다(라벨을 신분으로 쓰던 감사 P0 와 같은 병).
+      const 성장모델 = deps.modelConnection?.modelFor?.(GROWTH_ROLE) ?? deps.model ?? model;
+      const r = await extractCandidate({ model: 성장모델, bundle, now: Date.now() });
       const cell = r.candidate ?? r.quarantined;
       if (cell) {
         // 관계 결과도 후보와 함께 추적 가능하게 보존한다(감사) — 왜 이 후보가 남았는지의 근거.
@@ -201,6 +305,14 @@ export function makeServer(deps = {}) {
         await tcellRegistry.recordDirectiveRelation(r.relation.id, {
           statement: regexHit.statement, relation: 'contradicts', ref: instructionRef, at: Date.now(),
         }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
+      }
+      // §11 · **M1 → ReplayCase → transitionCell → registry → snapshot.** 여기가 오래 비어 있던
+      // 자리다. replay 는 외부 행동을 하지 않는다 — 결합된 원자를 사실로 실체화해 admission 을
+      // 다시 판정할 뿐이다. 실패·근거 부족은 조용히 M1 에 남는 것이지 사용자에게 카드를 띄우지 않는다.
+      if (cell) {
+        await 승격시도(cell, sessionId);
+        // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
+        await 게시({ project: cell.anchor?.project ?? null });
       }
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
@@ -352,8 +464,13 @@ export function makeServer(deps = {}) {
    * 확인·권한 원장은 **함수로** 넘긴다(행렬 4 + 성능 예산 §19): 세포가 0건이면 admission 이
    * 이 함수들을 부르지 않으므로 원장을 만들지도 않는다. 매 턴 저장소를 읽던 비용이 여기서 사라진다.
    */
-  function supplyAdmissionSources(ctx, session) {
+  function supplyAdmissionSources(ctx, session, input = {}) {
     ctx.sessionId = session.id;
+    // 이번 발화 원문 — 데이터면이 "현재 지시 우선"을 판정할 때 쓴다(정규식 분류에 기대지 않는다).
+    // 저장되지 않는다: ctx 는 턴과 함께 사라진다.
+    ctx.currentUtterance = typeof input.text === 'string' ? input.text : '';
+    // 데이터면(§10.3): 전경은 **게시본 하나**만 동기로 본다. 저장소는 아래 제어면이 읽는다.
+    ctx.principleSnapshotStore = principleSnapshotStore;
     // §0-C-1 · **project 는 실제 작업의 확정 자리다** — 세션 저장 폴더가 아니다.
     // 예전엔 store.dir(기본 `~/.local/state/gpao-t5/sessions`)을 project 로 써서 서로 다른
     // 실제 프로젝트가 전부 같은 범위로 뭉개졌다. 자리가 확정되지 않았으면 **null(모름)** 이다.
@@ -361,6 +478,13 @@ export function makeServer(deps = {}) {
     ctx.confirmationRefs = session.principleConfirmations ?? {};
     // 재사용 판정(§0-C-3)이 같은 원장을 동기 조회한다 — admission 과 같은 진실 하나.
     ctx.grantLookup = grantSnapshotFromLedger(session.grants ?? []);
+    // §10.2 bootstrap — **자리가 정해진 뒤에** 건다(예전엔 projectId 대입 앞에 있어 항상 null 이었다).
+    // 이번 턴은 기다리지 않는다: 게시 전 턴은 미스로 동작하고, 다음 턴부터 게시본을 본다.
+    const 자리 = ctx.projectId ?? null;
+    if (자리 && !principleSnapshotStore.read(scopeKeyOf({ project: 자리 })) && !부팅게시.has(자리)) {
+      부팅게시.add(자리);
+      게시({ project: 자리 }).catch(() => {});
+    }
     ctx.admissionSources = {
       registry: tcellRegistry,
       observer: tcellObserver,
@@ -471,7 +595,7 @@ export function makeServer(deps = {}) {
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
     ctx.skills = (await skillStore.load()).skills ?? [];
     // TG-5A: shadow admission 이 **실제 저장소**를 읽도록 원천을 공급한다(영향 0 — trace 만 나간다).
-    supplyAdmissionSources(ctx, session);
+    supplyAdmissionSources(ctx, session, input);
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -590,15 +714,11 @@ export function makeServer(deps = {}) {
         : null;
       const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
       return 원리후보추출({
-        // **지금 사용자가 한 말을 그대로 준다**(실측 2026-07-29). 예전엔 정규식(detectCandidate)이
-        // "운영 원리"라고 분류한 문장만 넘겼다. 그래서 "또 막혔네. 앞으로 이런 건 다른 방법부터
-        // 찾아줘"처럼 **사람이 실제로 원리를 말한 턴**에서도 모델은 관찰 2건만 받고 사람 문장은
-        // 한 글자도 못 봤다 — 그 입력에 Anthropic 은 일관되게 insufficient_evidence 로 답했고
-        // (그 입력에서는 그게 옳은 답이다), OpenAI 만 후보를 냈다. 즉 정규식이 말귀의 관문이었다.
-        // 말귀는 모델이 한다(§0.1·§24): OS 는 사실을 정확히 놓고, 판단은 모델이 한다.
+        // 사람이 한 말은 **신뢰경계 하나**(결정문 §11.2)를 지나서만 성장 모델 앞에 선다.
+        // 정규식이 말귀의 관문이던 것도, 원문이 경계 없이 나가던 것도 여기서 함께 닫힌다.
         // **권한은 여기서 생기지 않는다** — 확인 면제(explicitInstruction)는 그대로 구조화된
         // 문장 + 근거 참조가 있을 때만이고, 추출을 깨우는 조건(wake)도 바뀌지 않는다.
-        sessionId: session.id, userText: input.text ?? '', instructionRef: 지시?.ref ?? null,
+        sessionId: session.id, userText: 성장입력(input.text), instructionRef: 지시?.ref ?? null,
         result: { ...result, tcellTurnRefs: [...이번턴, ...(지시?.ref ? [지시.ref] : [])] },
       });
     }));
@@ -660,6 +780,26 @@ export function makeServer(deps = {}) {
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
         // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
         if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;
+
+        // §12 · **가역 학습은 묻지 않고 반영한다.** 사용자가 방금 직접 말한 것을 카드로 다시
+        // 묻는 것은 어느 경계도 지키지 않는 마찰이었다(절대원칙 §0-A-2). 되돌리기·영수증·
+        // "반영 중 기억" 표면이 이미 있으므로 자동성은 **되돌림**으로 지킨다.
+        // 승격은 그대로 단일 통로(`confirmCandidate`)를 지난다 — 게이트를 우회하지 않는다.
+        const 자동 = autoApplicable(c, { explicit: true, rollbackable: c.rollbackable === true });
+        if (자동.ok) {
+          const r2 = confirmCandidate(now, c.candidateId);
+          if (r2.ok) {
+            await memStore.save(now);
+            await 기억영수증('confirmed', r2.entry);
+            // 카드를 띄우지 않는다. 대신 **무엇이 반영됐는지**는 숨기지 않는다 —
+            // 답 옆의 조용한 한 줄과 설정의 통합 표면이 같은 사실을 본다.
+            result.memoryAutoApplied = {
+              candidateId: r2.entry.candidateId, statement: r2.entry.statement,
+              influenceScope: r2.entry.influenceScope, rollbackable: r2.entry.rollbackable === true,
+            };
+            result.memorySuggestion = undefined;
+          }
+        }
       });
     }
     if (result.automationSuggestion?.action) {
@@ -1765,7 +1905,7 @@ export function makeServer(deps = {}) {
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
     // 행렬 5: **채널도 웹과 같은 admission 준비 경계를 지난다.** 감사 실측: 이 경로는 원천 공급이
     // 아예 없어 admission 을 통째로 건너뛰었다 — 방에서 시킨 일만 원리가 안 보이는 상태였다.
-    supplyAdmissionSources(ctx, session);
+    supplyAdmissionSources(ctx, session, { text: input.text });
     const 채널원장시작 = ctx.ledger.entries.length;
     ctx.prevTurnLedgerStart = Number.isInteger(session.lastTurnLedgerStart)
       ? session.lastTurnLedgerStart : 채널원장시작;

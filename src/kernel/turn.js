@@ -17,7 +17,7 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { buildAdmissionSnapshot, admitFromSnapshot } from './l1-intent/tcell-admission.js';
+import { scopeKeyOf, selectPrinciples } from './l1-intent/principle-snapshot.js';
 import { buildTurnFacts, grantKey, grantTargetOf } from './l1-intent/turn-facts.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
@@ -272,19 +272,22 @@ const 실패trace = (stage) => ({
  *  · `pre_model` — 맥락 역할만. `tierKnown:false`
  *  · `post_plan` — 커널이 판정한 등급·실제 도구·대상 위에서 권한·값 역할까지
  *
- * 저장소 스냅샷은 **턴당 한 번**만 만들고 두 단계가 재사용한다(비용은 한 번뿐이다).
+ * **데이터면 계약**(결정문 §10.3 · 실측 2026-07-30): 여기서 저장소를 읽지 않는다.
+ * 예전엔 이 자리가 제어면의 스냅샷 생산 함수를 `await` 해서 registry 파일 열기·전수 검증·관찰
+ * 참조 조회·확인 원장·권한 원장 읽기가 **모델 호출 앞**에 서 있었다. 그리고 그 결과는 trace 로만
+ * 나가고 답에는 들어가지도 않았다 — 이득 0, 대기만. 성장이 자랄수록 대화가 느려지는 구조였다.
+ * 이제 판정은 게시 시점에 끝나 있고, 전경은 **게시본 한 벌을 동기로 읽어 충돌만 뺀다.**
+ * 게시본이 없으면(부팅 직후·아직 승격 0) 도움이 0 일 뿐, 대화는 그대로 간다.
+ *
  * 결과는 `result.principleTrace` 로만 나가고 모델·계획·실행에는 들어가지 않는다(주입은 TG-5B).
  */
-async function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySuggestion, awaiting }) {
-  if (!ctx.admissionSources) return null;
+function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySuggestion, awaiting }) {
+  if (!ctx.principleSnapshotStore) return null;
   let trace;
   try {
-    ctx.admissionSnapshot ??= await buildAdmissionSnapshot({
-      ...ctx.admissionSources,
-      sessionId: ctx.sessionId,
-      // §0-C-1: 범위는 실제 확정 자리다. 자리를 모르면 null — 필터 없이 범위판정이 정직하게 막는다.
-      scope: { project: ctx.projectId ?? null },   // 범위 밖 원리는 읽지 않는다(명세 §6)
-    });
+    const scopeKey = scopeKeyOf({ project: ctx.projectId ?? null });
+    // **동기 조회.** 여기에 await 가 붙으면 데이터면 계약이 깨진다(구조 감사가 그걸 본다).
+    const 게시본 = ctx.principleSnapshotStore.read(scopeKey);
     const 재료 = buildTurnFacts({
       stage, intent, plan, sendArgs, memorySuggestion, awaiting,
       selfState: ctx.selfState, workingState: ctx.workingState,
@@ -292,12 +295,29 @@ async function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memory
       ledgerWindow: 원장창(ctx, ledger),
       confirmationRefs: ctx.confirmationRefs,
     });
-    ({ trace } = admitFromSnapshot(ctx.admissionSnapshot, {
-      requestFacts: 재료.requestFacts,
-      authorityFacts: 재료.authorityFacts,
-      now: ctx.now ? ctx.now() : Date.now(),
+    const { principles, trace: 고른것 } = selectPrinciples(게시본, {
+      scopeKey,
+      // 이번 턴 사실이 실제로 켠 원자들 — 게시본의 결합 절과 대조할 유일한 열쇠다.
+      atoms: (재료.requestFacts?.facts ?? []).map((f) => f?.atom).filter(Boolean),
+      // **이번 발화 원문 그대로** 넘긴다. 정규식이 이 말을 '운영 원리'로 분류했는지에 기대지
+      // 않는다 — 분류에 실패한 발화에서 과거 원리가 살아남는 일이 없어야 한다.
+      utterance: ctx.currentUtterance ?? '',
+      max: 5,
+    });
+    trace = {
       stage,
-    }));
+      scopeKey: 고른것.scopeKey,
+      snapshotRevision: 고른것.revision,
+      retrievedIds: 고른것.admitted,
+      rejected: 고른것.skipped.map((s) => ({ id: s.cellId, reason: s.reason })),
+      // TG-5A shadow — 고른 것도 계획·답에 넣지 않는다. 실제 주입은 TG-5B 다.
+      // 이름은 기존 계약 그대로다(`admitted: [{id, role}]`) — 층이 바뀌었다고 어휘까지 갈아치우면
+      // 같은 사실을 두 이름으로 부르게 된다.
+      admitted: principles.map((p) => ({ id: p.cellId, role: p.role, reason: 'admitted' })),
+      reason: 고른것.reason,
+      status: 'ok',
+      errorCodes: [],
+    };
   } catch {
     trace = 실패trace(stage);
   }
@@ -386,7 +406,7 @@ async function runTurnInner(input, ctx) {
   // 감사 실측: 이 두 분기는 아래 admission 자리보다 **앞에서 return** 했다. 그래서 사용자가
   // 버튼으로만 진행한 턴은 원리 입장이 아예 계산되지 않았다 — 웹 발화만 지나는 경계는 경계가 아니다.
   if (input.approve || input.reject) {
-    await 원리입장(ctx, ledger, { stage: 'pre_model', awaiting: true });
+    원리입장(ctx, ledger, { stage: 'pre_model', awaiting: true });
   }
 
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
@@ -413,7 +433,7 @@ async function runTurnInner(input, ctx) {
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
     // 행렬 3·5: **소비가 확정된 뒤** post_plan 판정을 돈다. 이 자리에는 보관된 실제 계획과
     // 커널이 이미 판정한 등급이 있다 — 추정이 아니라 사실 위에서 권한·값 역할을 본다.
-    await 원리입장(ctx, ledger, {
+    원리입장(ctx, ledger, {
       stage: 'post_plan', plan: saved.plan, sendArgs: saved.sendArgs,
       intent: { ...(saved.intent ?? {}), approvalOutcome: 'approved' }, awaiting: true,
     });
@@ -442,7 +462,7 @@ async function runTurnInner(input, ctx) {
     ctx.pending.delete(input.reject);
     // 행렬 3·5: 실제로 대기 항목을 **소비한 거절**만 계획 사실을 갖는다(유령 ID 는 아니다).
     if (거절된것) {
-      await 원리입장(ctx, ledger, {
+      원리입장(ctx, ledger, {
         stage: 'post_plan', plan: 거절된것.plan, sendArgs: 거절된것.sendArgs,
         intent: { ...(거절된것.intent ?? {}), approvalOutcome: 'rejected' },
       });
@@ -531,7 +551,7 @@ async function runTurnInner(input, ctx) {
   // 그래서 맥락 역할만 연다 — 계획·값 역할은 아래 `post_plan` 이 실제 계획 위에서 판정한다.
   // 결과는 principleTrace 로만 나가고 아래 tc(모델 입력)에는 들어가지 않는다.
   ctx.selfState = selfState;
-  await 원리입장(ctx, ledger, { stage: 'pre_model', intent, memorySuggestion, awaiting: Boolean(input.runningTask) });
+  원리입장(ctx, ledger, { stage: 'pre_model', intent, memorySuggestion, awaiting: Boolean(input.runningTask) });
 
   let modelChosen = null;
   let earlyReply = null;
@@ -804,7 +824,7 @@ async function runTurnInner(input, ctx) {
   // TG-5A 행렬 3 · **계획 뒤 단계**(`post_plan`) — 실행·승인 게이트 **앞**이다.
   // 이 자리에는 커널이 판정한 등급(`needsApproval[].tier`), 실제 도구, 확정된 대상이 있다.
   // 같은 스냅샷을 재사용하므로 저장소를 다시 읽지 않는다(성능 예산 §19).
-  await 원리입장(ctx, ledger, {
+  원리입장(ctx, ledger, {
     stage: 'post_plan', intent, plan, sendArgs, memorySuggestion, awaiting: Boolean(input.runningTask),
   });
 

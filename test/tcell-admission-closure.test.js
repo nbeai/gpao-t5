@@ -10,8 +10,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildTurnFacts, grantKey } from '../src/kernel/l1-intent/turn-facts.js';
 import {
-  buildAdmissionSnapshot, admitFromSnapshot, ADMISSION_REASONS,
+  admitFromSnapshot, ADMISSION_REASONS,
 } from '../src/kernel/l1-intent/tcell-admission.js';
+// 스냅샷 **생산**은 제어면으로 옮겼다(결정문 §10.2) — 계약은 그대로, 층만 바뀌었다.
+import { buildAdmissionSnapshot } from '../src/kernel/l5-growth/principle-publish.js';
 import {
   TCellRegistry, TCellObserver,
   grantFromConsumedApproval, grantSnapshotFromLedger, grantLedgerKey,
@@ -219,7 +221,11 @@ test('행렬 5: 승인·거절 경로도 admission 준비 경계를 지난다', 
   assert.ok(r.승인.principleTrace, '승인 턴이 admission 을 지나지 않았다');
   assert.deepEqual(r.승인.principleTrace.passes.map((p) => p.stage), ['pre_model', 'post_plan'],
     '승인 턴이 두 단계를 지나지 않았다');
-  assert.equal(r.승인.principleTrace.retrievedIds.length, 1, '승인 턴이 실제 registry 를 읽지 않았다');
+  // 이 경로가 **경계를 지났다**는 증거는 이제 게시본 조회 흔적이다(§10.3). 저장소를 읽지 않는 것이
+  // 계약이므로 "registry 를 읽었다"로는 더 이상 증명하지 않는다 — 보장은 그대로다:
+  // 승인·거절 턴도 웹 발화와 **같은 자리**를 지나고, 지나지 않으면 이 필드가 없다.
+  assert.ok('scopeKey' in r.승인.principleTrace, '승인 턴이 게시본 조회 경계를 지나지 않았다');
+  assert.ok('snapshotRevision' in r.승인.principleTrace, '승인 턴이 게시본 판(revision)을 보지 않았다');
   // shadow: 승인 턴에서도 영향은 0이다.
   assert.deepEqual(r.승인.principleTrace.influencedPlan, []);
   assert.deepEqual(r.승인.principleTrace.influencedAnswer, []);

@@ -26,20 +26,17 @@ const T셀모듈 = [
  * 여기 적히지 않은 고아는 검사가 실패시킨다. 배선되면 여기서 지운다.
  */
 const 유예 = new Map(Object.entries({
-  // TG-4 는 감사 지시로 배선 없이 자체 검증만 한다("TG-2 저장소·TG-3 후보 미소비").
-  // 성숙도·replay·영향을 바꾸는 **유일한 공개 통로** — TG-5 admission 통합에서 소비한다.
-  transitionCell: 'TG-4 배선 보류(감사 지시) — TG-5A admission 통합의 유일한 진입점',
+  // transitionCell·makeReplayCase 는 **배선됐다**(2026-07-30, 결정문 §11):
+  // 서버 성장 경로가 `produceReplayCases → executeReplayCases → transitionCell` 을 실제로 부른다.
   // sphere 는 TG-6(압축) 단계의 계약이다. 그 전에는 소비자가 없는 것이 정상이다.
   makeTSphere: 'TG-6 압축 단계 계약 — 그 단계에서 소비',
   validateTSphere: 'TG-6 압축 단계 계약 — 그 단계에서 소비',
-  // replay 사례는 TG-5 이후 실제 사례 생성기가 만든다. 지금은 계약과 검사만 있다.
-  makeReplayCase: 'TG-5 이후 사례 생성기가 소비 — 현재는 계약·검사만',
   // **발견된 제품 공백(2026-07-29 자기점검)**: TG-2 에서 만들고 검사·증거까지 봉인했으나
   // 제품에서 아무도 부르지 않아 기존 기억이 영원히 이관되지 않는 상태였다. 배선 자체는 감사가
   // 통합 단계로 지정한 범위라 임의로 붙이지 않고 여기에 드러낸다 — 통합 시 첫 항목으로 붙인다.
   importLegacyMemory: '제품 공백(감사 보고함) — TG-2 통합 배선의 첫 항목. 부팅 1회 이관 예정',
-  // TG-5A 는 runTurn 에 **배선됐다**(admitFromSnapshot·buildAdmissionSnapshot 경유).
-  // 순수 함수 admitPrinciples 는 그 안에서 호출되므로 고아가 아니다.
+  // TG-5A 는 배선됐다 — 데이터면은 게시본을 동기 조회하고(§10.3), 제어면은 같은 판정기
+  // `admitFromSnapshot` 으로 게시 자격을 본다(§10.2). 두 층이 같은 판정기를 쓴다.
   explainAdmission: 'TG-5A — 사용자 표면 문구는 TG-5C 에서 소비(현재 표면 미노출이 계약)',
 }));
 

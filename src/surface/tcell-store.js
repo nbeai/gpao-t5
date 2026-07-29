@@ -466,6 +466,21 @@ export class ConfirmationStore {
     return Object.freeze({ get: (k) => map.get(k) ?? null, degraded: corrupt > 0 });
   }
 
+  /**
+   * 세포 → 확인 id. **게시 시점**(§10.2)이 "이 원리는 확인됐는가"를 물으려면 id 를 먼저 알아야 한다.
+   * 확인은 세션 사실이 아니라 사용자 사실이므로 자리·세션과 무관하게 원장 전체에서 찾는다.
+   */
+  async byCell() {
+    const { map, corrupt } = await this.#all();
+    const out = new Map();
+    for (const [id, rec] of map) {
+      if (rec?.kind === 'user_confirmation' && rec?.confirmed === true && typeof rec.tcellId === 'string') {
+        out.set(rec.tcellId, id);
+      }
+    }
+    return { get: (cellId) => out.get(cellId) ?? null, degraded: corrupt > 0 };
+  }
+
   /** 확인 1건 기록 — TG-5C 표면이 부른다. 계약 필드를 여기서 강제한다. */
   async record({ id, tcellId, sourceRefs = [], now = 0 } = {}) {
     if (!id || !tcellId || !sourceRefs.length) return { recorded: false };
