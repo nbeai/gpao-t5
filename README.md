@@ -26,6 +26,12 @@ becomes human scenarios, one shared operating contract, isolated implementation,
 Codex-Claude audit, incident-derived invariants, clean handoff, and durable project knowledge. It is mandatory operating
 guidance for new work and does not replace the authority documents above.
 
+`GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md` governs both independent audit and
+parallel development. T5 may run a canonical verification line and isolated sidecar implementation lines at the same
+time, but only after one shared contract is stable. Each sidecar owns disjoint files in its own worktree; one integration
+owner audits and admits contract-sized changes so the product grows faster without making the owner resolve technical
+conflicts.
+
 ## Core Three-Axis Reading Order
 
 Every resumed or new T5 development session reads these before choosing work:

@@ -68,6 +68,9 @@ Mandatory independent audit and collaboration contract:
      deadline, or make the owner arbitrate technical scope between agents.
    - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most
      effective path. Do not co-edit the same files or turn independent audit into serial rework.
+   - Its parallel-development contract is also mandatory: stabilize one shared contract first, isolate sidecar
+     work by worktree and disjoint file ownership, and let one integration owner admit audited contract units.
+     Parallel agents never merge directly into the canonical line or make the owner arbitrate technical choices.
 
 Mandatory current-session handoff:
 
