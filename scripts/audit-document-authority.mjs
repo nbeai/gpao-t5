@@ -99,7 +99,14 @@ export const DOCUMENT_RULES = [
   },
   {
     file: 'design/T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md',
-    require: ['foreground_no_durable_io', 'Hermes의 기본 OFF가 주는 매끄러움은 흡수한다'],
+    require: [
+      'foreground_no_durable_io',
+      'Hermes의 기본 OFF가 주는 매끄러움은 흡수한다',
+      '## 10. 게시 스냅샷 생산·소비 계약',
+      '## 11. ReplayCase 생산과 M1→M2/M3 계약',
+      '## 12. 가역 학습 자동 반영 계약',
+      'runTurn`의 fs/model/replay 호출 증가 0',
+    ],
     forbid: ['write approval 기본 OFF를 그대로 복사해 모든 memory/skill 변경을 즉시 durable 반영'],
   },
   {

@@ -21,6 +21,33 @@ test('감사기가 사용자 턴의 durable 저장소 읽기를 검출한다', (
   assert.equal(report.foreground.durableStoreReads, true);
 });
 
+test('게시 스냅샷은 background producer와 동기 foreground consumer가 모두 있어야 한다', () => {
+  const good = inspectSources(sources({
+    turn: 'const snap = ctx.principleSnapshotStore.read(scopeKey);',
+    productionSources: [{
+      path: 'src/runtime/tcell-growth-worker.js',
+      source: 'principleSnapshotStore.publish(scopeKey, frozenSnapshot);',
+    }],
+  }));
+  assert.equal(good.foreground.passes, true);
+  assert.equal(good.publishedSnapshot.passes, true);
+
+  const noProducer = inspectSources(sources({
+    turn: 'const snap = ctx.principleSnapshotStore.read(scopeKey);',
+  }));
+  assert.equal(noProducer.publishedSnapshot.passes, false);
+
+  const awaited = inspectSources(sources({
+    turn: 'const snap = await ctx.principleSnapshotStore.read(scopeKey);',
+    productionSources: [{
+      path: 'src/runtime/tcell-growth-worker.js',
+      source: 'principleSnapshotStore.publish(scopeKey, frozenSnapshot);',
+    }],
+  }));
+  assert.equal(awaited.foreground.passes, false);
+  assert.equal(awaited.publishedSnapshot.passes, false);
+});
+
 test('감사기가 응답 뒤 세션별 추출과 전역 추출 잠금을 구분한다', () => {
   const good = inspectSources(sources({
     server: `

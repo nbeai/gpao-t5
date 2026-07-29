@@ -37,6 +37,7 @@ export function inspectSources({
       && !path.endsWith('tcell-store.js'))
     .map(({ source }) => source)
     .join('\n');
+  const allProduction = productionSources.map(({ source }) => source).join('\n');
 
   const foregroundBuildsSnapshot = /\bbuildAdmissionSnapshot\s*\(/.test(turn);
   const snapshotReadsDurableStores = /\bsources\.registry\?\.load\?\.\(/.test(admission)
@@ -49,12 +50,23 @@ export function inspectSources({
   const globalExtractionLock = /let\s+(?:추출중|extractionRunning)\s*=\s*false/.test(server);
   const rawUserTextInBundle = /activeTarget\s*:\s*input\.text/.test(server)
     || /userText\s*:\s*input\.text/.test(server);
+  const publishedSnapshotRead = /\bprincipleSnapshotStore(?:\?\.|\.)read\s*\(/.test(turn);
+  const awaitedPublishedSnapshotRead = /await\s+[^;\n]*\bprincipleSnapshotStore(?:\?\.|\.)read\s*\(/.test(turn);
+  const publishedSnapshotWrite = /\bprincipleSnapshotStore(?:\?\.|\.)publish\s*\(/.test(allProduction);
 
   return {
     foreground: {
       buildsSnapshot: foregroundBuildsSnapshot,
       durableStoreReads: snapshotReadsDurableStores,
-      passes: !foregroundBuildsSnapshot && !snapshotReadsDurableStores,
+      publishedSnapshotRead,
+      awaitedPublishedSnapshotRead,
+      passes: !foregroundBuildsSnapshot && !snapshotReadsDurableStores
+        && publishedSnapshotRead && !awaitedPublishedSnapshotRead,
+    },
+    publishedSnapshot: {
+      producer: publishedSnapshotWrite,
+      consumer: publishedSnapshotRead,
+      passes: publishedSnapshotWrite && publishedSnapshotRead && !awaitedPublishedSnapshotRead,
     },
     backgroundExtraction: {
       detachedFromResponse: extractionDetached,
@@ -91,7 +103,9 @@ export async function inspectRepository() {
 function format(report) {
   const rows = [
     ['foreground_no_durable_io', report.foreground.passes,
-      `snapshot=${report.foreground.buildsSnapshot} storeReads=${report.foreground.durableStoreReads}`],
+      `builds=${report.foreground.buildsSnapshot} storeReads=${report.foreground.durableStoreReads} publishedRead=${report.foreground.publishedSnapshotRead} awaitedRead=${report.foreground.awaitedPublishedSnapshotRead}`],
+    ['published_snapshot_data_plane', report.publishedSnapshot.passes,
+      `producer=${report.publishedSnapshot.producer} consumer=${report.publishedSnapshot.consumer}`],
     ['background_per_session_lane', report.backgroundExtraction.passes,
       `detached=${report.backgroundExtraction.detachedFromResponse} perSession=${report.backgroundExtraction.perSessionLane} globalLock=${report.backgroundExtraction.globalLock} rawUserText=${report.backgroundExtraction.rawUserTextInBundle}`],
     ['m1_replay_m2_production_lifecycle', report.lifecycle.passes,
@@ -105,7 +119,8 @@ if (process.argv[1] && basename(process.argv[1]) === basename(fileURLToPath(impo
   process.stdout.write(`${format(report)}\n`);
   if (process.argv.includes('--json')) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (process.argv.includes('--strict')
-    && (!report.foreground.passes || !report.backgroundExtraction.passes || !report.lifecycle.passes)) {
+    && (!report.foreground.passes || !report.publishedSnapshot.passes
+      || !report.backgroundExtraction.passes || !report.lifecycle.passes)) {
     process.exitCode = 1;
   }
 }
