@@ -52,6 +52,11 @@ These documents do not sit above the top authority documents, but they are the s
      and authority-bounded self-development. It maps T-cell theory to exact T5 contracts, modules, storage,
      migration, tests, scenarios, and completion evidence without changing the top-authority product philosophy.
 
+4. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
+   - Mandatory before changing skills, scheduling, background work, agent creation/delegation, or automation
+     surfaces. It translates audited OpenClaw and Hermes contracts into one T5 structure and separates the
+     pre-package automation core from later plugin ecosystems and agent swarms.
+
 ## Phase 0 Working Protocols
 
 These documents govern the pre-code research seal. They are not product code, but they define what must be true before product code starts.

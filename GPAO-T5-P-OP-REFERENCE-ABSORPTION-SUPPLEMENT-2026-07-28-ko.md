@@ -446,7 +446,12 @@ T5에서 구현할 것은 그 둘의 복제물이 아니라 다음 세 계약이
 
 이 항목들은 OpenClaw/Hermes 기능의 축소 복사본이 아니라 T5 공통 운영 계약으로 흡수된 것이다.
 
-### 14.2 P-OP-7과 인간 테스트 뒤 제품화 단계에서 흡수할 것
+### 14.2 P-OP-7 현재 회차를 닫은 뒤 제품화 단계에서 흡수할 것
+
+오너 우선순위 갱신(2026-07-29): 현재 P-OP-7의 공통 결함 수정·양쪽 재검은 먼저 닫는다. 그 직후,
+실제 인간 베타와 설치 패키지 제작 전에 **내장 Skill Closure·Durable Trigger·Bounded Agent**를 하나의
+자동화 기관으로 완성한다. 구현 정본은
+`design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`다.
 
 #### A. OpenClaw에서: 설치·상시 운영·진단 체력
 
@@ -523,12 +528,14 @@ T-cell 구현 순서:
 ### 14.4 생태계 확장 단계에서만 검토할 것
 
 - 채널 adapter SDK와 최소 connector 개발 규약
-- 검증된 skill/plugin 설치·업데이트·철회 수명주기
+- 외부 skill/plugin 설치·업데이트·철회 생태계
 - 모바일·음성·다중 장치 node
 - 외부 기억 backend와 대규모 검색
 - 팀·조직·다중 profile 격리
 
-이 항목은 P-OP-7, 인간 사용자 테스트, 설치 패키지, T-cell 안전 바닥보다 먼저 시작하지 않는다.
+여기서 말하는 외부 skill/plugin 생태계는 T5 내장 스킬 생성·replay·승격과 다르다. 내장 스킬과
+지속 스케줄·제한된 에이전트는 위 자동화 구현 계획에 따라 인간 베타·설치 패키지 전에 완성한다.
+이 절의 생태계 항목은 Core Closure와 T-cell 안전 바닥보다 먼저 시작하지 않는다.
 
 ## 15. 순수 JavaScript·런타임 의존성 0의 정확한 의미
 
@@ -597,9 +604,11 @@ T5 본체는 TypeScript나 Python 소스를 별도 변환해 실행하지 않고
 ```text
 P-OP-7 이중 모델 인간 시나리오 검증
 → 발견 결함 공통 원인 수정과 양쪽 재검
-→ 실제 인간 사용자 테스트
-→ 설치·업데이트·doctor·background service
+→ Skill Closure · Durable Trigger · Bounded Agent
+→ 설치·업데이트·doctor·background service와 자동화 상주
 → 모델 qualification / degraded mode
+→ OpenAI API · Anthropic API 자동화 인간 시나리오와 이중 감사
+→ 실제 인간 사용자 테스트
 → T-cell TG-0~TG-8
 → 채널·실행 backend·plugin 생태계 확장
 ```

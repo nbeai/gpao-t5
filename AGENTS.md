@@ -77,6 +77,16 @@ Mandatory current-session handoff:
      and stop condition. Verify it against Git before acting because active implementation may have advanced.
    - Update this fixed-path document at each major P-OP handoff instead of creating disconnected handoff notes.
 
+Mandatory skill, scheduling, agent, and automation implementation plan:
+
+11. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
+   - Read before changing skills, recurring or scheduled work, background execution, agent creation/delegation,
+     automation UI, scheduler persistence, or T-cell automation learning.
+   - Defines one shared structure: Skill is how, Trigger is when, AgentRun is the bounded executor, and
+     AutomationJob binds them under the existing P-OP authority, ledger, recovery, and delivery contracts.
+   - Core user-created skills, durable scheduling, and bounded agents are pre-human-beta and pre-package work.
+     External skill/plugin ecosystems, agent swarms, and recursive multi-agent orchestration are not.
+
 ## T5 Core Three-Axis Rule (2026-07-28 owner direction)
 
 The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
