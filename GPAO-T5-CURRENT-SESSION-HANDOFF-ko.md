@@ -1,11 +1,52 @@
 # GPAO-T5 현재 세션 인수인계
 
-- 갱신 시각: 2026-07-29 (Asia/Seoul) · P-OP-7 최종 PASS·오너 승인과 개발선 분업 결정 반영
+- 갱신 시각: 2026-07-29 (Asia/Seoul) · T-cell TG-5A `6d214ad` 독립 감사 판정 반영
 - 성격: 새 세션이 현재 P-OP 작업을 바로 이어받기 위한 **고정 진입 문서**
 - 정본 상태: 이 문서는 계획과 계약을 대체하지 않는다. 최신 실행 보드와 실제 Git 상태가 다르면
   실제 상태를 먼저 확인하고 이 문서를 갱신한다.
 - 인계 전담 에이전트: `Linnaeus` (`019fa944-9508-7060-a24c-20fdf92b562b`)
   - 보조 수단이다. 새 세션의 연속성은 에이전트 기억이 아니라 이 문서와 저장소 증거가 보장한다.
+
+## 0. 현재 진실 패킷 (Claude·Codex 공통)
+
+이 절이 아래의 과거 P-OP 상세보다 우선한다. 아래 §5~10은 P-OP를 닫은 과정의 역사 기록이며,
+현재 착수 위치를 판단하는 근거로 쓰지 않는다.
+
+- 현재 브랜치: `claude/p-op-1-a-system-view`
+- 현재 구현 HEAD: `6d214ad` (`fix(tcell): supply real judgment materials to shadow admission`)
+- 현재 단계: **TG-5A shadow admission**
+- 구현 상태: Claude 자체 검증 완료
+- 독립 감사 상태: **BLOCKED — TG-5A 봉인 보류**
+- 현재 테스트 사실:
+  - 구현자 보고: 1,306건 통과
+  - Codex 표적 독립 재검증: T-cell admission/observer/orphan 36건 통과
+  - 공식 gate: **BLOCKED**. 구현자 측 CPU 53.3s/40s. 기준선은 올리지 않는다.
+- TG-5B 진입: **금지**. 아래 TG-5A 종료 행렬을 모두 닫고 공식 gate PASS가 난 뒤에만 진입한다.
+- P-OP-7: 최종 PASS·오너 승인 완료. C·D·E-1 지정 외부계정 검증은
+  `OUT_OF_SCOPE_BY_OWNER`이며 현재 차단으로 되살리지 않는다.
+
+### TG-5A 현재 차단 — 한 번의 종료 행렬
+
+1. 누적 원장 전체가 아니라 시간 범위가 고정된 턴 사실만 사용한다.
+2. 현재 지시 관계를 `reinforces / contradicts / unknown`으로 분리한다. 같은 지시는 충돌이 아니다.
+3. 모델 전 맥락 역할과 실제 계획 뒤 권한·값 역할을 분리한다. 인텐트 정규식 추정을 확정 권한으로 쓰지 않는다.
+4. pending approval을 grant로 보지 않는다. 실제 소비·부여된 권한 원장에서 bounded grant를 조회한다.
+5. 웹·채널·승인·거절이 같은 admission 준비 경계를 지난다.
+6. 실제 관찰 생산 경로가 workspace/project/subject anchor를 저장한다.
+7. registry 불변 검사는 실행 **전 바이트**와 실행 후 바이트를 비교한다.
+8. A2 무grant 관통은 다른 거절 사유를 허용하지 않고 정확히 권한 경계를 증명한다.
+9. 오래된 실패 감쇠, 과거 세션 근거, 현재 지시 우선, 확인·철회·grant를 반대시험으로 함께 고정한다.
+10. 조용한 환경의 공식 gate PASS 후 이 문서와 실행 보드를 같은 흐름에서 갱신한다.
+
+### 역할별 다음 행동
+
+- **Claude 구현선**: 위 10개 종료 조건을 부분 보고로 나누지 않고 하나의 보강 단위로 닫는다.
+  TG-5B나 다른 T-cell 영향 단계는 착수하지 않는다.
+- **Codex 감사선**: 같은 파일을 수정하지 않는다. 보강 전 전체 행렬을 확정하고, 제출 뒤 생산 경로·
+  반대시험·공식 gate를 한 번에 판정한다. 새 인접 결함을 뒤늦게 나누어 전달하지 않는다.
+- **오너**: 기술 범위를 중재하지 않는다. 제품 철학·우선순위·실제 권한 결정만 맡는다.
+- **새 세션**: 먼저 실제 Git 상태를 확인한다. HEAD가 `6d214ad`보다 앞서면 새 diff와 증거를 읽고,
+  이 절을 갱신하기 전에는 완료·봉인·TG-5B 진입을 선언하지 않는다.
 
 ## 1. 새 세션의 첫 행동
 
@@ -19,7 +60,7 @@
 ## 2. 현재 기준선
 
 - 작업 브랜치: `claude/p-op-1-a-system-view`
-- 최신 기능 구현 기준선: `6ce88bf`
+- 최신 기능 구현 기준선: `6d214ad`
 - P-OP-7 최종 판정·오너 승인 기준선: `7c75cdc`
 - 현재 `HEAD`는 시작 시 `git status`와 최신 커밋으로 확인
 - 핵심 구현 커밋:
@@ -33,8 +74,9 @@
   - `ec0b176`: 아직 안 고른 자리는 자리가 아니다(`place_candidates`) · 새 발화가 이전 승인 무효화
   - `4523f36`: 끝난 일은 끝났다고 남긴다(`recentOutcome`) · 완료 시 목표 명시 해제 · **G 봉인**
   - `5180eb0`: 중단한 것은 끝난 것이 아니다(`멈춘이유` 를 완료 판정에 연결)
-- 검증 기준선: 테스트 **1178건 통과**, 실제 서버 게이트 **PASS**
-  (CPU 39.2s/40s · 벽시계 14.6s/20s, Codex 독립 측정)
+- 현재 검증 수치: 구현자 자체 검증 **1,306건 통과**. 공식 서버 gate는
+  **BLOCKED**(CPU 53.3s/40s, 구현자 측 측정). Codex 표적 독립 재검증은 36건 통과.
+  이 수치는 TG-5A 독립 PASS가 아니며, 조용한 환경의 공식 gate 재측정이 종료 조건이다.
 - P-OP-7: **최종 PASS · 오너 JYP 윤 승인 완료**. 인간 사용자 테스트 진입 허용.
   설치 패키지 제작은 인간 사용자 테스트와 후속 보강 뒤까지 보류.
 - `32e7718`의 `Dual-Role` 구간은 독립 감사와 반대시험을 마쳤고 G 봉인에 포함됐다.
@@ -48,11 +90,21 @@
 - T-cell 독립 감사자: Codex
 - 그 밖의 영역: 공통 계약 확정 뒤 Codex가 에이전트 worktree 병렬 개발·감사·통합
 - 오너: 제품 목적·철학·우선순위·실제 권한 판단
-- 현재 편집 중인 파일(Claude·T-cell 전용): `src/kernel/l0-evidence/tcell-observation.js` ·
-  `src/kernel/l5-growth/tcell-core.js` · `tcell-replay.js` · `t-sphere.js` · `test/tcell-contracts.test.js`
-  + `src/surface/tcell-store.js` · `test/tcell-observer.test.js` — TG-0 3차 반영·TG-1 구현(자체 검증),
-  다른 선은 이 파일들을 수정하지 않는다. server.js 에 TG-1 훅(추가만)·turn.js 에 approvalConsumed
-  (추가만) — 통합 검토는 Codex. 상태: TG-0·TG-1·TG-2 자체 검증 완료 · **독립 감사 대기**(병렬).
+- 현재 Claude·T-cell 전용 파일:
+  - `src/kernel/l0-evidence/tcell-observation.js`
+  - `src/kernel/l1-intent/tcell-admission.js`
+  - `src/kernel/l1-intent/turn-facts.js`
+  - `src/kernel/l5-growth/tcell-core.js`
+  - `src/kernel/l5-growth/tcell-replay.js`
+  - `src/kernel/l5-growth/tcell-replay-engine.js`
+  - `src/kernel/l5-growth/t-sphere.js`
+  - `src/runtime/tcell-extractor.js`
+  - `src/surface/tcell-store.js`
+  - 위 계약의 관련 T-cell 테스트
+- 공유 접착 파일 `src/kernel/turn.js`, `src/surface/server.js`, `src/runtime/model-provider.js`의
+  T-cell 배선 구간도 TG-5A 종료 전에는 Claude가 구현하고 Codex가 읽기 전용으로 감사한다.
+- 단계 상태: TG-0~TG-4 기반 구현이 존재하며 TG-4는 독립 감사 봉인. TG-5A는
+  `6d214ad` 구현 뒤 **독립 감사 차단 상태**다.
 - 현재 병렬 개발선: 자동화 AC-1 공통 계약·migration이 정본에 편입됐고 독립 감사 통과.
 - AC-1 정본 편입: `a40a56b` → `c357cc7` → `3f23c93` → `357ae5d` → `c58bdea`.
 - 독립 증거: `docs/03-verification/evidence/automation-core/ac-1/CODEX-INTEGRATION-AUDIT-2026-07-29-ko.md`
@@ -159,7 +211,9 @@
 
 ### 현재 차단
 
-- **없음.** G 는 전 구간 봉인됐다(`4523f36` · 마감 보강 `5180eb0`).
+- **TG-5A shadow admission 종료 행렬 10건.** 상세는 이 문서 §0을 단일 진입점으로 쓴다.
+- 공식 gate CPU 기준선 초과. 기준선을 완화하지 않고 조용한 환경에서 재측정한다.
+- 인수인계·실행 보드는 TG-5A가 닫힐 때 같은 흐름에서 다시 동기화한다.
 
 ### 지정 후속
 
@@ -203,9 +257,11 @@
 5. ~~E 실행기·선언·격리 검증~~ — **E-0 통과로 기록. E-1 은 외부 권한 대기(시험 계정 준비 시에만 재개), E-2 는 배포 과제**
 6. ~~F 실제 외부 전달 라이브~~ — **통과(축소형, 2026-07-29).** 1회차 매듭 둘(`c9dba32` 수정) 포함 증거 봉인
 7. ~~H 기억·성장 P-OP 라이브~~ — **통과(행렬 9단계, 2026-07-29).** 1회차 결함 둘(`54ebb9b` 수정) 포함 증거 봉인
-8. P-OP-4 복구 변수 ← **여기부터** — 이어서 P-OP-6 전체 표면(식별자 투영 계약 포함, raw ID 는 설치 패키지 전 필수 종료 조건)
-9. P-OP-7 GPT-5.6sol/Opus 5 또는 Fable 5 이중 검증
-10. 이중 검증 PASS 뒤 인간 사용자 시험, 그 뒤 설치 패키지
+8. ~~P-OP-4·P-OP-6·P-OP-7~~ — **완료. P-OP-7 최종 PASS·오너 승인**
+9. T-cell TG-0~TG-4 기반 구현·감사
+10. **현재: TG-5A 종료 행렬 10건 폐쇄 → 공식 gate PASS → 독립 봉인**
+11. TG-5B 이후 영향 단계
+12. T-cell 완료와 자동화·스킬·에이전트 통합 뒤 인간 사용자 시험, 그 뒤 설치 패키지
 
 G 잔여 변수는 한 건씩 발견·수정·재보고하지 않는다. 관련 범위를 먼저 끝까지 실행하고 종합 감사한다.
 
@@ -222,19 +278,15 @@ G 잔여 변수는 한 건씩 발견·수정·재보고하지 않는다. 관련 
 ## 11. 새 세션 시작용 여섯 줄
 
 ```text
-현재 작업: P-OP-7 공식 종결 뒤 Automation Closure AC-1 정본 편입·독립 감사까지 완료.
-
-T-cell TG-0 감사 이력(2026-07-29): Codex가 대표 반대입력 중심으로 감사를 잘라 수행해, 첫 보강 뒤
-M5 ghost trace·실제 승인 없는 global 영향·배열 원소 형식 우회를 뒤늦게 발견했다. 이는 구현자 문제가
-아니라 감사 범위 설계 실패다. TG-0의 다음 보강 지시는 단건 추가가 아니라 네 계약 파일 전체 감사 행렬을
-완성한 뒤 한 번만 전달한다. 그 행렬을 독립 실행하기 전 `마지막`, `봉인`, `완료`라고 표현하지 않는다.
-단, 독립 감사 대기는 다음 비중첩 TG 단계의 구현 착수를 막지 않는다. 재현 가능한 현재 차단이 그 단계의
-토대를 직접 무효화할 때만 해당 경로를 멈춘다.
-이미 통과한 범위: P-OP-7 PASS · A/B/G/H 봉인 · E-0/F 통과 · AC-1 여섯 계약/migration/원장·동시성 바닥(1,209건, gate PASS).
-현재 차단: 없음. C·D·E-1 지정 항목은 OUT_OF_SCOPE_BY_OWNER이며 다시 차단으로 올리지 않는다.
-지정 후속: Claude 단일선 T-cell TG-0~ · Codex 통합선 Automation Closure AC-2~AC-7 · 비차단 인간 UX 백로그. E-2는 배포 과제.
-원인 미분류 관찰: 자기 도구함 대신 웹 검색(노션) 1건 — 두 번째 재현 전까지 코드로 확대하지 않는다.
-다음 작업과 종료 조건: TG-0과 Automation 후속의 파일 소유권을 먼저 고정해 병렬 착수. 각 슬라이스는 반대시험·전체 회귀·공식 gate·실제 사용자 표면 증거를 닫은 뒤에만 정본 편입.
+현재 작업: T-cell TG-5A shadow admission. 구현 HEAD `6d214ad`.
+역할: Claude 단일 구현선, Codex 독립 감사선. 같은 파일을 공동 수정하지 않는다.
+현재 판정: 구현자 자체 검증 1,306건 통과. 독립 감사 BLOCKED. 공식 gate도 CPU 53.3s/40s로 BLOCKED.
+현재 차단: §0의 TG-5A 종료 행렬 10건. 특히 시간 범위 턴 사실, 지시 관계 3값, 실제 권한 원장,
+웹·채널·승인·거절 공통 경계, anchor 생산, 정확한 전후 불변 검사가 닫혀야 한다.
+진입 금지: TG-5B. 위 행렬과 공식 gate PASS 뒤 Codex가 한 번에 재감사해 봉인할 때만 진행한다.
+이미 닫힌 범위: P-OP-7 최종 PASS·오너 승인, C·D·E-1 지정 항목은 OUT_OF_SCOPE_BY_OWNER.
+병렬선: Automation Closure와 Owner Ops 준비 패키지는 T-cell 파일을 건드리지 않는다.
+다음 세션 첫 행동: Git HEAD·diff 확인 → 이 문서 §0 확인 → 역할에 맞는 구현 또는 독립 감사만 수행.
 ```
 
 ## 12. 이 문서를 갱신하는 규칙
