@@ -47,6 +47,9 @@ Mandatory T-cell implementation specification:
    - Keeps principle maturity, current-turn influence, and A0-A3 action authority separate.
    - Do not claim T-cell self-growth from the P6-1 minimum gate alone. Follow the staged contracts, replay,
      migration, effect audit, and live evidence in this specification.
+   - Owner routing decision: Claude is the single T-cell implementer and Codex is the independent auditor.
+     Do not split T-cell product-code implementation across subagents or parallel branches. Other development
+     areas should use isolated parallel agents when the collaboration contract's eligibility rules are met.
 
 Mandatory final pre-human validation gate:
 

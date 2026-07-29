@@ -4,6 +4,12 @@
 - 상태: `implementation_ready_handoff` (구현 완료 문서가 아니라 구현 착수 명세)
 - 독자: T5 구현 담당 AI, 코드 감사 담당 AI, 제품 오너
 - 목적: T-cell 이론을 T5의 Memory / Context / POM / Growth / Automation에 실제로 작동하는 공통 구조로 내린다.
+- 구현 운영(오너 결정 2026-07-29):
+  - Claude가 TG 단계의 제품 코드를 한 정본 구현선에서 순서대로 작성한다.
+  - Codex가 각 단계의 전체 계획 정합성, 반대시험, migration, 효과 감사, 라이브 증거를 독립 감사한다.
+  - T-cell 상태 기계·저장·승격·영향·rollback 구현은 에이전트별 병렬 개발로 분할하지 않는다.
+  - 다른 제품 영역의 에이전트 병렬 개발 결과가 T-cell 계약을 바꿔야 하면 직접 수정하지 않고 이 구현선에
+    변경 제안으로 돌려보낸다.
 - 상위 정본:
   - `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
   - `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
