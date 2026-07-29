@@ -111,6 +111,37 @@ test('AC-2A: positive, negative, and boundary cases are all mandatory', () => {
   }
 });
 
+test('AC-2A: proposal normalization rejects all-succeeded replay semantics', () => {
+  const allSucceeded = proposal({
+    replayCases: proposal().replayCases.map((replayCase) => ({
+      ...replayCase,
+      expected: { ...replayCase.expected, status: 'succeeded' },
+    })),
+  });
+  const result = normalizeSkillProposal(allSucceeded, { now: 1 });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('negative') && error.includes('not_applicable')));
+  assert.ok(result.errors.some((error) => error.includes('boundary') && error.includes('blocked')));
+});
+
+test('AC-2A: proposal normalization enforces every kind/status semantic pair', () => {
+  const wrongStatus = {
+    positive: 'blocked',
+    negative: 'succeeded',
+    boundary: 'not_applicable',
+  };
+  for (const [kind, status] of Object.entries(wrongStatus)) {
+    const result = normalizeSkillProposal(proposal({
+      replayCases: proposal().replayCases.map((replayCase) => replayCase.kind === kind
+        ? { ...replayCase, expected: { ...replayCase.expected, status } }
+        : replayCase),
+    }), { now: 1 });
+    assert.equal(result.ok, false, `${kind} accepted ${status}`);
+    assert.ok(result.errors.some((error) => error.includes(kind) && error.includes('requires')));
+  }
+});
+
 test('AC-2A: caller-supplied lifecycle, hash, version, and authority are ignored', () => {
   const result = normalizeSkillProposal(proposal({
     id: 'attacker-id',

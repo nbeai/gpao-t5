@@ -213,6 +213,74 @@ test('AC-2A: malformed replay case internals are rejected without calling the ex
   assert.equal(calls, 0);
 });
 
+test('AC-2A: runner rejects all-succeeded kind/status semantics before executor calls', async () => {
+  const malformed = skill();
+  malformed.replayCases = malformed.replayCases.map((replayCase) => ({
+    ...replayCase,
+    expected: { ...replayCase.expected, status: 'succeeded' },
+  }));
+  malformed.contentHash = contentHash({
+    name: malformed.name,
+    purpose: malformed.purpose,
+    inputs: malformed.inputs,
+    steps: malformed.steps,
+    resultContract: malformed.resultContract,
+    requiredCapabilities: malformed.requiredCapabilities,
+    authorityHints: malformed.authorityHints,
+    replayCases: malformed.replayCases,
+  });
+  let calls = 0;
+  const result = await runSkillReplay(malformed, {
+    execute: async () => {
+      calls += 1;
+      return {
+        status: 'succeeded',
+        usedCapabilities: [],
+        externalEffects: [],
+      };
+    },
+    runAt: 100,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid_replay_contract');
+  assert.equal(calls, 0);
+  assert.ok(result.errors.some((error) => error.includes('negative') && error.includes('not_applicable')));
+  assert.ok(result.errors.some((error) => error.includes('boundary') && error.includes('blocked')));
+});
+
+test('AC-2A: runner independently rejects every kind/status mismatch before execution', async () => {
+  const wrongStatus = {
+    positive: 'blocked',
+    negative: 'succeeded',
+    boundary: 'not_applicable',
+  };
+  for (const [kind, status] of Object.entries(wrongStatus)) {
+    const malformed = skill();
+    malformed.replayCases = malformed.replayCases.map((replayCase) => replayCase.kind === kind
+      ? { ...replayCase, expected: { ...replayCase.expected, status } }
+      : replayCase);
+    malformed.contentHash = contentHash({
+      name: malformed.name,
+      purpose: malformed.purpose,
+      inputs: malformed.inputs,
+      steps: malformed.steps,
+      resultContract: malformed.resultContract,
+      requiredCapabilities: malformed.requiredCapabilities,
+      authorityHints: malformed.authorityHints,
+      replayCases: malformed.replayCases,
+    });
+    let calls = 0;
+    const result = await runSkillReplay(malformed, {
+      execute: async () => { calls += 1; return {}; },
+      runAt: 100,
+    });
+    assert.equal(result.reason, 'invalid_replay_contract');
+    assert.equal(calls, 0, `${kind} mismatch reached executor`);
+    assert.ok(result.errors.some((error) => error.includes(kind) && error.includes('requires')));
+  }
+});
+
 function memoryStore() {
   let state = { schemaVersion: 2, skills: [] };
   return {

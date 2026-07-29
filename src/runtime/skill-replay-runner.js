@@ -5,6 +5,11 @@ import {
 
 const STATUSES = new Set(['succeeded', 'not_applicable', 'blocked', 'execution_failed']);
 const CASE_KINDS = new Set(['positive', 'negative', 'boundary']);
+const STATUS_FOR_KIND = Object.freeze({
+  positive: 'succeeded',
+  negative: 'not_applicable',
+  boundary: 'blocked',
+});
 
 function jsonValue(value) {
   try {
@@ -87,6 +92,11 @@ function validateReplayContract(cases) {
       || !STATUSES.has(replayCase.expected.status)
       || replayCase.expected.status === 'execution_failed') {
       errors.push('replay case expected status is invalid');
+    }
+    if (CASE_KINDS.has(replayCase.kind)
+      && replayCase.expected
+      && STATUS_FOR_KIND[replayCase.kind] !== replayCase.expected.status) {
+      errors.push(`${replayCase.kind} replay case requires expected.status ${STATUS_FOR_KIND[replayCase.kind]}`);
     }
   }
   for (const kind of CASE_KINDS) {

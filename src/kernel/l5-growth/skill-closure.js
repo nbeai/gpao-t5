@@ -6,6 +6,11 @@ import {
 
 const REPLAY_KINDS = Object.freeze(['positive', 'negative', 'boundary']);
 const REPLAY_STATUSES = Object.freeze(['succeeded', 'not_applicable', 'blocked']);
+const REPLAY_STATUS_FOR_KIND = Object.freeze({
+  positive: 'succeeded',
+  negative: 'not_applicable',
+  boundary: 'blocked',
+});
 
 export const SKILL_PROPOSE_CONTROL_SCHEMA = Object.freeze({
   name: 'skill.propose',
@@ -82,6 +87,11 @@ function normalizeReplayCases(value, errors) {
     if (!request.ok) errors.push(`replay case ${id || '(unknown)'} request must be JSON`);
     if (!expected.ok || !object(expected.value) || !REPLAY_STATUSES.includes(status)) {
       errors.push(`replay case ${id || '(unknown)'} expected.status is invalid`);
+    }
+    if (REPLAY_KINDS.includes(kind)
+      && REPLAY_STATUSES.includes(status)
+      && status !== REPLAY_STATUS_FOR_KIND[kind]) {
+      errors.push(`replay case ${id || '(unknown)'} ${kind} requires expected.status ${REPLAY_STATUS_FOR_KIND[kind]}`);
     }
     if (!id || ids.has(id) || !REPLAY_KINDS.includes(kind)
       || !request.ok || !expected.ok || !object(expected.value)
