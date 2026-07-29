@@ -1262,6 +1262,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 작업:
 
 - tcell-store와 POM read model
+- active registry의 명시적 byte/count budget과 사용량
+- budget 초과 시 삭제가 아닌 archive/compaction 후보
 - 기존 memory promoted 항목 읽기 adapter
 - DefaultTarget / Skill / Automation에 optional principleRefs
 
@@ -1277,6 +1279,9 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 
 - EvidenceBundle builder
 - tcell extractor model call
+- 성장 모델 신뢰 경계 분리:
+  같은 provider/model은 secret 제거 bounded 원문 사용 가능,
+  다른 provider는 EvidenceBundle/digest만
 - structured output validation
 - duplicate/relation 판정
 - 정규식 감지를 wake signal로 축소
@@ -1365,6 +1370,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - simulate/replay/admit/apply/audit/rollback
 - 자동 허용 mutation과 승인 필요 mutation 분리
 - 허용 범위 안의 자동 적용·복구·재시도 최적화
+- first-seen grace, pin, automation 참조, never-used 보호를 포함한 staleness 판정
+- 같은 판정 파이프라인의 dry-run 보고서와 실제 mutation 분리
 
 검사:
 
@@ -1374,6 +1381,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - 효과가 없으면 안정화하지 않음
 - 정확도가 올라도 사용자 개입이 줄지 않으면 안정 성장으로 판정하지 않음
 - 검증된 bounded grant 안의 반복 행동을 매번 다시 묻지 않음
+- 사용되지 않았다는 사실 하나로 archive/rollback하지 않음
+- pin·automation 참조 원리는 자동 전이하지 않음
 
 ### TG-8. 사용자 표면과 라이브 실증
 
@@ -1382,6 +1391,7 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - 필요한 경우에만 후보 카드
 - 영향 설명
 - 기억·성장 상세
+- 배운 원리의 수정·고정·일시정지·archive·restore
 - 범위 축소와 rollback
 
 검사:
@@ -1391,6 +1401,7 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - 별도 확인이 필요한 항목은 확인 전 영향 0이 화면·원장·실제 행동에서 일치
 - 재시작 후 상태 지속
 - 일반 작업에서 후보·원리 카드가 대화를 점유하지 않음
+- 설정의 “배운 방식”에서 active/pending/paused/archived를 사람말로 관리 가능
 - 성장 전후 동일 시나리오의 질문·클릭·턴·개입 수를 비교해 감소 또는 비증가
 - A0/A1 자동 수행과 A2/A3 실제 권한 경계가 인간 사용자의 버튼 흐름에서 구분됨
 

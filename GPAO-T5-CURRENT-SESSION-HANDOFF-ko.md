@@ -59,16 +59,29 @@
     2. background 추출이 서버 전역 잠금 하나라 세션 간 wake 유실 가능
     3. `transitionCell`/`makeReplayCase`/`importLegacyMemory` 생산 소비자 0
   - Claude의 현재 dirty `server.js`에는 세션별 추출 `Map`이 들어가 2번을 고치는 중이다. 같은 dirty
-    경로에서 `input.text` 원문이 extraction bundle로 직접 들어가는 새 프라이버시 공백이 자동 감사에
-    잡혔다. 제출 전까지 둘 다 미검증이며, 완료·회귀로 승계하지 않는다.
+    경로에서 `input.text` 원문이 extraction bundle로 직접 들어간다. 이를 무조건 결함으로 판정하지
+    않는다. 같은 provider/model/credential 경계에서는 secret 제거·bounded 원문을 휘발성 입력으로
+    쓸 수 있고, 다른 provider의 auxiliary model에는 구조화 EvidenceBundle/digest만 보낸다. 어느
+    경로든 저장되는 T-cell에는 사용자 원문을 남기지 않는다. 제출 전까지 실제 신뢰 경계·비밀 제거·
+    비저장 계약은 미검증이며 완료로 승계하지 않는다.
   - TG-0~4를 폐기하지 않는다. 성장 루프를 응답 뒤 세션별 control plane으로 연결하고, 사용자 턴은
     미리 게시된 scope snapshot만 읽는 data plane으로 만든다.
+  - Hermes의 learning graph·mutation·curator를 실제 코드와 검사로 추가 대조했다. T5는 학습된 원리를
+    숨은 내부 상태로만 두지 않고 설정의 **배운 방식**에서 사람말로 보고, 수정·고정·일시정지·범위
+    축소·되돌리기·archive·restore할 수 있어야 한다.
+  - active registry에는 byte/count budget을 둔다. `use_count == 0`은 노후 증거가 아니며 first-seen
+    grace·pin·automation 참조 항목은 자동 archive/rollback에서 보호한다. 실제 변경 전에 같은 판정
+    경로의 dry-run 보고를 제공한다.
 - TG-5A 봉인 조건: 수동 상태·권한 변경과 admission 직접 호출 없이 실제 제품 입구에서 다음 실제
   서버 턴의 `principleTrace`까지 독립 실행하고, **현재 단계가 실제로 보장하는 끝을 과장 없이 기록**한다.
 - TG-5B 진입: **금지**. 다음 세 조건이 독립 실행으로 닫히기 전에는 실제 영향을 열지 않는다.
   1. 세션별 background 성장 큐와 사용자 턴 격리
   2. `M1 → replay → M2/M3 → scope snapshot 게시` 생산 수명주기
   3. 사용자 턴의 T-cell model/network/fs/replay/registry mutation 0
+- T-cell 완료 조건은 내부 배선만이 아니다. 명시 지시는 T-cell을 기다리지 않고 현재 요청/POM에서
+  즉시 효력이 생기며, replay를 통과한 저위험 원리는 불필요한 확인 없이 제한 범위에서 돕는다.
+  외부 전송·삭제·결제·권한 확대의 안전선은 T-cell 입장이 아니라 실제 행동 authority가 지킨다.
+  사용자는 **배운 방식** 표면에서 성장 결과를 소유하고 통제할 수 있어야 한다.
 - P-OP-7: 최종 PASS·오너 승인 완료. C·D·E-1 지정 외부계정 검증은
   `OUT_OF_SCOPE_BY_OWNER`이며 현재 차단으로 되살리지 않는다.
 
