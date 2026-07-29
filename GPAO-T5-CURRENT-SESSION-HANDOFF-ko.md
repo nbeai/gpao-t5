@@ -48,6 +48,112 @@
 - **새 세션**: 먼저 실제 Git 상태를 확인한다. HEAD가 `6d214ad`보다 앞서면 새 diff와 증거를 읽고,
   이 절을 갱신하기 전에는 완료·봉인·TG-5B 진입을 선언하지 않는다.
 
+### 0-A. 이번 세션(Claude)이 남기는 인계 사실 — 2026-07-29 종료 시점
+
+§0의 감사 판정과 10개 종료 행렬이 **정본**이다. 이 절은 그 행렬을 닫으러 들어오는 새 세션이
+같은 함정을 다시 밟지 않도록 **실측 사실과 지도**만 남긴다. 판정을 바꾸지 않는다.
+
+#### (1) 게이트 CPU — 정확한 실측과 원인 특정
+
+같은 부하 조건에서 임시 worktree 로 A/B 측정했다(방법: `git worktree add --detach /tmp/… 1a84495`).
+
+| 대상 | 테스트 | CPU |
+|---|---|---|
+| TG-4 봉인 기준선 `1a84495` | 1,284건 | **42.9s** |
+| 현재 `6d214ad` | 1,306건 | **47.6s** |
+
+- **기준선 코드도 40s 를 넘는다** → 초과의 지배적 원인은 기계 부하다(같은 스위트가 이날 오전
+  조용한 상태에서 21.9~22.7s 였다).
+- 그 위에 **내 몫 +4.7s 가 실재한다.** 새 시험 파일 자체는 CPU 0.34s 로 무시할 수준이므로,
+  **+4.7s 는 모든 서버 시험의 매 턴마다 admission 준비가 도는 비용**이다
+  (`registry.load()` + `confirmationStore.snapshot()` + `grantSnapshotFromSession`).
+- **다음 조치(미착수)**: 세포가 0건인 세션에서 매 턴 저장소를 읽지 않도록 서버 수명 캐시나
+  조기 종료를 넣는다. 기준선 40s 는 건드리지 않는다.
+- 조용한 환경 재측정은 여전히 종료 조건이다.
+
+#### (2) 이번 세션에서 내가 **잘못 보고한 것**(정정)
+
+새 세션은 아래를 사실로 인용하지 말 것.
+
+- ❌ "게이트 초과는 openclaw 93.6% 때문" — 순간 `ps` 값 하나로 원인을 단정했다. 오너 확인 결과
+  openclaw 는 켜져 있지 않았다. **부하 주장은 반드시 A/B 측정으로만 한다.**
+- ❌ "stash 로 봉인 기준선과 A/B 했다"(3차 보고) — 이미 커밋된 상태라 stash 가 비어
+  **같은 코드를 두 번 측정**했다. 위 (1) 표가 유효한 측정이다.
+
+#### (3) T-cell 코드 지도 (TG-0~5A)
+
+| 파일 | 역할 |
+|---|---|
+| `src/kernel/l5-growth/tcell-core.js` | TCellCore 계약·3축 불변식·`validateTCell`(실패는 quarantine) |
+| `src/kernel/l0-evidence/tcell-observation.js` | ObservationEvent 계약·§5.1 생성자(관찰자가 이 통로만 씀) |
+| `src/kernel/l5-growth/tcell-replay.js` / `tcell-replay-engine.js` | replay 계약 / 판정·전이. 공개 통로는 **`transitionCell` 하나** |
+| `src/kernel/l5-growth/t-sphere.js` | TSphere 계약(TG-6 에서 소비) |
+| `src/runtime/tcell-extractor.js` | EvidenceBundle·모델 추출·의미 중복 수렴 |
+| `src/runtime/model-provider.js` `buildExtractionMessages` | **추출 전용 메시지 경계**(일반 조립과 분리) |
+| `src/surface/tcell-store.js` | 관찰자(JSONL·0600·중복 방지·`getByRefs`) · `TCellRegistry` · `ConfirmationStore` · `grantSnapshotFromSession` · `importLegacyMemory` |
+| `src/kernel/l1-intent/turn-facts.js` | **턴 사실 조립기** — admission 의 판단 재료 생산(이번 세션 신규) |
+| `src/kernel/l1-intent/tcell-admission.js` | 입장 판정 · `buildAdmissionSnapshot`(비동기 저장소→불변 동기 조회기) · `admitFromSnapshot` |
+| `src/kernel/turn.js` | admission 호출 위치 = **intent 뒤 · 첫 모델 호출 앞**. 결과는 `result.principleTrace` 로만 |
+| `src/surface/server.js` | `ctx.admissionSources`(registry·observer·confirmation·grant) 공급 |
+
+검사: `test/tcell-{contracts,observer,registry,extractor,extraction-wire,replay-engine,admission,no-orphan-contracts}.test.js`
+증거: `docs/03-verification/evidence/tcell/tg-0…tg-5/`
+
+#### (4) 반드시 유지해야 할 계약(깨면 감사에서 즉시 잡힌다)
+
+- **판정은 세 값**이다: 통과 / 실패 / `insufficient_evidence`. 자료 없음은 통과가 아니다.
+- **내용은 조회로 확인**한다. 호출자가 준 객체·불리언(`confirmed:true`, `passed:true`)을 믿지 않는다.
+- **상태는 한 계단씩**, `rolled_back`·`quarantined` 는 자동 부활 없음. 판정·적용 두 곳에서 막는다.
+- **모르는 권한은 저위험이 아니다** — `tierKnown:false` 는 A0 가 아니라 `authority_tier_unknown`.
+- **경계 판정 `unknown` 은 입장 근거도 단독 거절 근거도 아니다**(과잉 차단 금지).
+- **trace 에는 사유 코드만** — 사용자 원문·비밀이 들어갈 자리를 만들지 않는다.
+- TG-5A 는 **shadow**: 모델 메시지·도구 스키마·호출 수·실행·답·registry 가 admission 유무와 무관하게
+  동일해야 한다. 다른 것은 `principleTrace` 뿐.
+
+#### (5) 이 세션에서 반복된 내 실패 패턴 — 새 세션은 착수 전에 이걸 먼저 읽을 것
+
+TG-0~5A 에서 `feat` 5건에 `fix` 12건이 났고, 감사 왕복이 단계마다 2~5회였다. 원인은 하나다:
+**확인하지 않은 것을 확인된 것으로 취급했다.** 다섯 얼굴로 반복됐다.
+
+1. **없음을 통과로 읽음** — 사례 0건 suite 통과, 안 돌린 사례 통과, baseline 없는 비교 통과.
+2. **계약의 모양만 만들고 결합하지 않음** — `assertCompressionSafe` 를 통합 검증이 안 부름,
+   wake/추출이 생산 경로 미연결, `turnId` 세는 계약을 만들고 `turnId` 를 안 채움,
+   `importLegacyMemory` 를 아무도 안 부름.
+3. **검사가 제품이 지나는 길을 안 지남** — 가짜 receipt id, `tcellExtract` 를 직접 읽는 가짜 모델
+   (실제 어댑터엔 `user:""` 가 갔다), 그리고 최악: **"커널이 admission 을 부르지 않는다"를
+   단언해 미배선을 성공 조건으로 고정**했다.
+4. **지속 저장의 실패 모드를 안 봄** — append 실패 후 영구 소실, 재시작 중복, 손상 덮어쓰기,
+   동시 저장 19/20 소실, 읽기 실패를 파일 없음으로.
+5. **숫자·확신이 권한을 엶** — 관찰 수만으로 global 반경, 확인 표식을 성숙도로, 점수로 계단 건너뜀.
+
+**대응 절차(반드시 지킬 것)**
+
+- 착수 전에 세 줄을 적는다: `이 계약을 소비하는 지점은 ___ / 그 지점을 지나는 검사는 ___ /
+  지금 배선하지 않는다면 이유와 시점은 ___`. 세 번째가 비면 착수하지 않는다.
+- **지적된 인스턴스만 고치지 말고 같은 모양을 전부 훑는다.** 이번 세션의 마지막 두 왕복이
+  정확히 이걸 안 해서 났다(확인은 조회로 바꾸고 옆의 `executions` 는 주장으로 뒀다).
+- **제출 전 전수 점검 출력을 증거에 첨부한다** — 필드별 `조회/주장`, 같은 사실의 판정 지점 수.
+- 규율 문서: `docs/03-verification/T5-IMPLEMENTER-SELF-CHECK-2026-07-29-ko.md`
+- 기계 강제: `test/tcell-no-orphan-contracts.test.js` — T-cell export 는 소비되거나 **유예 원장에
+  사유·시점**이 적혀야 한다. 유예 원장이 곧 "만들었지만 안 붙인 것"의 정직한 목록이다.
+
+#### (6) 알려진 비차단 잔여
+
+- `baseline`/`candidate` 측정값은 아직 호출자 공급이다(TG-4 감사에서 공개된 항목).
+- `importLegacyMemory` 미배선 — **제품 공백**(기존 기억이 이관되지 않음). 유예 원장 기록됨,
+  TG-2 통합 배선의 첫 항목.
+- `explainAdmission` 미소비 — 사용자 표면은 TG-5C.
+- `ConfirmationStore` 쓰기 경로는 구현돼 있으나 확인 UI 는 TG-5C 몫이라 현재 기록 0건일 수 있다.
+
+#### (7) 새 세션 첫 명령
+
+```bash
+cd /Users/jyp/Developer/t5-p-op   # ← 작업대. gpao-t5 는 worktree 기반 폴더이니 건드리지 않는다
+git log --oneline -3 && git status --short
+npm test                          # 전체 회귀
+node scripts/gate.mjs             # 조용한 상태에서만 의미 있는 측정
+```
+
 ## 1. 새 세션의 첫 행동
 
 1. `AGENTS.md`의 필수 문서 순서를 읽는다.
