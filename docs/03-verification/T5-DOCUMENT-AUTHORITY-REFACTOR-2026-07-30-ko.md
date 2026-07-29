@@ -62,7 +62,17 @@
 
 - 문서 권위 감사: 18개 문서 PASS
 - 문서 감사 반대시험: 낡은 P-OP 현재 지시 재삽입 시 실패 확인
-- 전체 회귀: 1,341건 통과 · 실패 0 · 미실행 4
-- 공식 gate: PASS · CPU 23.4s/40s · 벽시계 11.8s
+- 전체 회귀: 1,342건 통과 · 실패 0 · 미실행 4
+- 공식 gate: PASS · CPU 23.9s/40s · 벽시계 11.8s
 - 런타임 의존성: 0
 - 문서 감사 worktree에서만 변경했으며 Claude 본진 dirty 파일은 수정하지 않음
+
+구조 감사는 현재 본진에 아래 네 생산 간극을 명시적으로 보고한다.
+
+- foreground durable I/O
+- published snapshot producer/consumer 부재
+- background per-session lane 부재
+- replay case/transition 생산 소비자 부재
+
+이 네 항목은 문서 작업의 실패가 아니라 TG 구현이 닫아야 할 현재 코드 사실이다. 함수 선언이나 단위
+검사만으로는 통과하지 않고 실제 생산 호출 양쪽이 연결돼야 한다.

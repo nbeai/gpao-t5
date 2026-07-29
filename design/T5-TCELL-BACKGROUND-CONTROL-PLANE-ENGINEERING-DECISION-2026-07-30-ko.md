@@ -337,3 +337,200 @@ Codex 독립 감사선:
 - 구현 제출 뒤 실제 실행·성능·인간 시나리오 판정
 
 TG-5B는 이 문서 §8의 구조·수명주기 종료 조건이 닫히기 전에는 실제 영향 단계로 올리지 않는다.
+
+## 10. 게시 스냅샷 생산·소비 계약
+
+이 절은 §6의 “게시된 immutable scope snapshot”을 실제 코드로 연결하는 정본이다.
+
+### 10.1 데이터
+
+```js
+PublishedPrincipleSnapshot = {
+  schemaVersion,
+  revision,
+  scope: { kind, id },
+  publishedAt,
+  sourceRegistryRevision,
+  principles: [{
+    cellId,
+    cellVersion,
+    role,             // supporting_context | default_value | plan_hint
+    principle,        // 비밀 제거된 사람말
+    binding,          // 검증된 FACT_ATOM id
+    validWhen,
+    invalidWhen,
+    sourceRefs,       // 저장 근거 참조, 원문 아님
+  }],
+}
+```
+
+불변식:
+
+- `principles`는 M2/M3 중 현재 scope에 입장 가능한 항목 최대 5개다.
+- A2/A3 권한·새 외부 대상·비밀 원문·사용자 원문·모델 자격은 싣지 않는다.
+- 객체와 내부 배열은 게시 전에 동결하고, 게시 뒤 제자리 수정하지 않는다.
+- 같은 scope의 새 revision은 **완성된 한 벌을 원자 교체**한다. 부분 갱신은 없다.
+
+### 10.2 생산자와 교체 시점
+
+소유자는 **응답 뒤 세션별 background growth worker 하나**다.
+
+```text
+Observation append 성공
+→ extraction/M1 저장
+→ replay/transition 완료
+→ rollback·pause·archive·restore 반영
+→ registry를 scope별로 투영
+→ publish(scopeKey, frozenSnapshot)
+```
+
+다음 사건에서만 새 revision을 게시한다.
+
+- M2/M3 진입 또는 내용·범위·role 변경
+- pause·rollback·archive·restore
+- 사용자 수정·고정·범위 축소
+- 시작 시 background bootstrap이 durable registry를 복원한 뒤
+
+bootstrap 완료 전 첫 턴을 기다리게 하지 않는다. 그동안 snapshot miss로 동작한다.
+
+### 10.3 전경 소비자
+
+`runTurn`은 실제 project/subject anchor로 `scopeKey`를 만든 뒤 서버 메모리의
+`principleSnapshotStore.read(scopeKey)`를 **동기 조회**한다.
+
+```text
+runTurn
+→ in-memory read(scopeKey)
+→ current request/POM/explicit instruction과 충돌 제거
+→ 최대 5개 soft principle을 volatile model context에 추가
+→ 기존 ActionPlan/Authority/ToolRunner
+```
+
+전경에서 금지:
+
+- `TCellRegistry.load()`
+- observation/confirmation/grant 파일 읽기
+- replay·transition·snapshot mutation
+- 성장 모델 호출
+- snapshot 준비를 기다리는 `await`
+
+miss·stale·schema 불량·scope 불일치는 `principles: []`로 끝나며 `principleTrace.reason`에 코드만
+남긴다. 대화 실패·사용자 카드·복구 질문을 만들지 않는다.
+
+### 10.4 구현 관통 검사
+
+- 세포가 있어도 `runTurn`의 fs/model/replay 호출 증가 0
+- 서버 시작 직후 snapshot miss에서도 답 정상
+- M2 게시 뒤 다음 턴에만 원리 입장
+- rollback/pause 뒤 다음 턴 입장 0
+- project A snapshot이 project B에 입장 0
+- ON/OFF에서 원리와 무관한 요청의 메시지·도구·답 동일
+
+## 11. ReplayCase 생산과 M1→M2/M3 계약
+
+`makeReplayCase()`와 `transitionCell()`은 검사 전용 함수가 아니다. background growth worker가 아래
+생산 경로에서 실제로 소비한다.
+
+```text
+새 ObservationEvent refs
+→ M1 후보
+→ ReplayCaseProducer
+→ positive / negative / boundary 사례
+→ VerifiedReplayPacket
+→ transitionCell()
+→ registry 원자 저장
+→ §10 snapshot 재게시
+```
+
+### 11.1 사례의 근거
+
+- 모든 case는 observation/effect/confirmation/authority 원장의 **실재 ref**를 가진다.
+- 호출자가 준 `passed`, `confirmed`, `executed` 불리언을 증거로 쓰지 않는다.
+- positive: 원리가 성립해야 하는 같은 scope의 저장 관찰.
+- negative: 원리가 적용되지 않아야 하는 다른 대상·조건 또는 사용자 정정·rollback 근거.
+- boundary: 비밀·민감·권한·외부 효과·scope 경계를 넘지 않아야 하는 저장 근거와 결정적 fixture.
+- 최소 사례가 없으면 `insufficient_evidence`이고 M1에 남는다. 사용자에게 보강 카드를 띄우지 않는다.
+
+### 11.2 FACT_ATOMS의 역할
+
+`FACT_ATOMS`는 한국어 키워드 분류기가 아니다.
+
+- OS가 실제 턴 사실을 만들 때 안정된 atom id를 생산한다.
+- extraction 모델은 자연어 `validWhen/invalidWhen`을 허용된 atom id에 결합한다.
+- OS는 모델이 새 atom을 만들지 않았는지와 ref 계보만 검증한다.
+- atom 추가는 `turn-facts` 생산자·추출 어휘·replay fixture·admission 소비자를 한 변경으로 잇는다.
+- 문장 완전 일치나 정규식으로 의미 결합을 대신하지 않는다.
+
+사용자 문장은 `server.js`에서 extraction bundle로 직접 복사하지 않는다.
+`buildGrowthInput({text, sourceModelIdentity, growthModelIdentity})` 한 경계가 다음을 판정한다.
+
+- 같은 provider/model/credential: secret 제거 bounded `ephemeralText` 허용
+- 다른 provider: `EvidenceBundle`/digest만, 원문 0
+- 저장 상태: 두 경우 모두 사용자 원문 0
+
+모델 신분은 역할 이름이 아니라 실제 요청 대상과 provider 응답으로 확인한다.
+
+### 11.3 실행 격리
+
+replay는 실제 terminal/send/file-write/browser/connector를 실행하지 않는다. 저장된 사실과 결정적
+counterfactual만 평가한다. 실제 효과 평가는 이후 정상 사용자 실행의 Truth Ledger가 Observation으로
+돌아와 갱신한다.
+
+### 11.4 구현 관통 검사
+
+- 자연어 경험 하나가 실제 M1을 만들고, 근거 부족이면 그대로 유지
+- 충분한 positive/negative/boundary refs가 생기면 `transitionCell()` 생산 호출 1회
+- 위조 ref·다른 세포 계보·실행 증거 부재면 승격 0
+- M2/M3 전이 뒤 registry revision과 snapshot revision이 함께 전진
+- 재시작 뒤 checkpoint에서 정확히 한 번 재개
+- 외부 도구 실행 0
+
+## 12. 가역 학습 자동 반영 계약
+
+다음 네 조건을 **모두** 만족하면 기억·원리·스킬 변경은 사전 승인 없이 자동 반영한다.
+
+1. **가역성**: 이전 버전·원장·rollback 또는 archive/restore 경로가 실제로 존재한다.
+2. **영향 한계**: A0/A1의 읽기·정리·초안·도구 선택·표현 선호 안이며 외부 전송·삭제·결제·게시·
+   새 권한을 만들지 않는다.
+3. **범위 확정**: 사용자가 밝힌 scope이거나 replay로 검증된 좁은 task/project scope다.
+4. **사용자 소유권**: 설정의 통합 “배운 방식” 표면에서 사람말로 보고 수정·고정·일시정지·범위 축소·
+   되돌리기·복원할 수 있다.
+
+자동 영향을 금지하는 것은 다음뿐이다.
+
+- 비밀 원문·민감 개인정보를 일반 기억에 저장
+- 정체성·권한·외부 대상·project/profile/global 범위를 근거 없이 추정
+- A2/A3 행동 권한을 학습 상태가 새로 만듦
+- 현재 명시 지시와 충돌
+
+금지된 항목은 학습 순간 승인 카드로 올리지 않는다. 영향 0 관찰/M1로 남기거나 폐기하고, 실제
+행동·권한 경계가 나타날 때만 기존 Authority가 최소 확인한다.
+
+### 12.1 명시 기억의 첫 제품 슬라이스
+
+```text
+"이건 기억해둬 / 앞으로 보고서는 목록으로 줘"
+→ 비밀·민감 경계 확인
+→ 밝힌 scope에 durable 반영
+→ 원장 기록
+→ 다음 관련 요청에 적용
+→ 설정 › 배운 방식에서 수정·pause·rollback
+```
+
+같은 내용을 후보 카드로 다시 묻지 않는다. 완료 증거는 “승인 0”만이 아니라 실제 다음 요청 반영,
+현재 지시 우선, rollback 뒤 영향 0까지다.
+
+### 12.2 옛 검사 재분류 행렬
+
+기존 승인 검사는 삭제부터 하지 않는다. 각 시나리오를 아래 네 축으로 기록한다.
+
+| 축 | 값 |
+|---|---|
+| 외부성 | local / external |
+| 가역성 | reversible / destructive / unknown |
+| 지시 | explicit / inferred |
+| 권한 | unchanged / expanded |
+
+`local + reversible + explicit + unchanged`는 A1 자동으로 재분류한다. `external`, `destructive`,
+`expanded` 중 하나가 있으면 실제 행동 경계를 유지한다. `unknown`은 사용자 카드가 아니라 사실
+수집으로 해소한다.
