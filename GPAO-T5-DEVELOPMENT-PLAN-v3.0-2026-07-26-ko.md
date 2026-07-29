@@ -1,9 +1,13 @@
 # GPAO-T5 개발 계획서 v3.0
 
-상태: `development_plan_v3`
+상태: `historical_phase_plan_v3`
 날짜: 2026-07-26
 목적: 이미 개발된 T5 고유 커널을 재작성하지 않고, OpenClaw/Hermes의 장점 중 현재 T5 실사용 경로에서 부족한 부분만 흡수해 완성도를 높인다.
 주의: 이 계획은 과잉 설계, 기능 수 경쟁, 문서만 복잡해지는 개발을 금지한다.
+
+현재 단계와 다음 작업은 이 문서의 Phase 표가 아니라
+`GPAO-T5-DOCUMENT-AUTHORITY-MAP-2026-07-30-ko.md`와 `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md` §0이
+정한다. 이 문서는 제품 정체성과 당시 간극의 역사적 근거다.
 
 ---
 

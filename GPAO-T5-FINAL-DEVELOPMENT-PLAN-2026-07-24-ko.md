@@ -1,10 +1,12 @@
 # GPAO-T5 AI OS 최종 개발 계획서
 
 - 날짜: 2026-07-24
-- 상태: `final_development_plan`
+- 상태: `historical_foundation_plan`
 - 작성 범위: T5 본체 개발 기준 / 경쟁 기능 연구 / GPAO-T3·BEAI 노하우 접목 / 첫 개발 착수 기준
 - 비범위: 설치·온보딩, 라이브본 변경, 외부 계정 실제 연결, 실제 배포
-- 정본 용도: 이 문서는 GPAO-T5 본체 개발의 최초 기준 문서다. 이후 세부 PRD, kernel spec, UI spec, scenario benchmark는 이 문서를 상위 기준으로 삼는다.
+- 현재 용도: GPAO-T5 본체 개발의 최초 제품 기반을 보존한다. 현재 착수 순서·완료 상태·차단 판단은
+  `GPAO-T5-DOCUMENT-AUTHORITY-MAP-2026-07-30-ko.md`와 현재 인수인계 §0을 따른다. 이 문서의
+  당시 비범위와 단계 문구는 현재 개발을 제한하지 않는다.
 
 ## 0. 결론
 

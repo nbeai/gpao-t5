@@ -1,8 +1,8 @@
 # T5 T-cell Governance Engine 구현 명세
 
 - 작성: 2026-07-28
-- 원칙 보강: 2026-07-29 — 오너 지시 “최소 안전 보장, 최대 허용·최대 자동화”를 전 단계 종료 계약으로 반영
-- 상태: `implementation_ready_handoff` (구현 완료 문서가 아니라 구현 착수 명세)
+- 원칙 보강: 2026-07-30 — 오너 지시 “최소 안전 보장, 최대 허용·최대 자동화”와 background control plane 반영
+- 상태: `active_tcell_implementation_spec` (구현 완료 문서가 아니라 현재 정본 명세)
 - 독자: T5 구현 담당 AI, 코드 감사 담당 AI, 제품 오너
 - 목적: T-cell 이론을 T5의 Memory / Context / POM / Growth / Automation에 실제로 작동하는 공통 구조로 내린다.
 - 구현 운영(오너 결정 2026-07-29):
@@ -1738,11 +1738,11 @@ trace_descent_failure for admitted principle = 0
 
 ## 24. 착수 순서
 
-현재 최우선 P-OP A~H를 계속 닫는다. 동시에 가능한 것은 TG-0 계약 봉인과 TG-1의 영향 0 관찰 설계까지다.
-실제 원리 영향 활성화는 다음 순서로 진행한다.
+P-OP A~H와 P-OP-7은 완료됐다. 현재 T-cell은 background control plane 결정과 인수인계 §0을 따라
+생산 수명주기를 완성한다. 아래 TG 순서는 구조 계보이며 현재 완료·차단 상태는 인수인계 §0만 정한다.
 
 ```text
-P-OP 핵심 시나리오와 원장 신뢰성 확보
+완료된 P-OP 시나리오와 원장 신뢰성 재사용
 → TG-0 계약
 → TG-1 shadow observation
 → TG-2 registry/legacy adapter

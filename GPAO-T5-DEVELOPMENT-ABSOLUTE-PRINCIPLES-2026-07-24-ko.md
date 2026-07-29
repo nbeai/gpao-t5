@@ -3,7 +3,8 @@
 - 날짜: 2026-07-24
 - 상태: `top_authority_development_principles`
 - 적용 범위: GPAO-T5 전체 개발
-- 관계: `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`와 함께 GPAO-T5 개발의 최상위 기준 문서다.
+- 관계: GPAO-T5 개발의 최상위 제품·개발 원칙이다. 문서 계층과 현재 정본은
+  `GPAO-T5-DOCUMENT-AUTHORITY-MAP-2026-07-30-ko.md`가 안내한다.
 - 목적: LLM 개발 중 과신, 조용한 가정, 과잉설계, 이해하지 못한 코드 수정, 혼란 상태 지속을 막는다.
 
 카파시의 LLM 코딩 원칙을 뼈대로, **이 프로젝트에서 실제로 터진 사고**를 근거로 삼는다.
