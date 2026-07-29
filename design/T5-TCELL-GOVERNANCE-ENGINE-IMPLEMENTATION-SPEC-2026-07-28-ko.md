@@ -1,6 +1,7 @@
 # T5 T-cell Governance Engine 구현 명세
 
 - 작성: 2026-07-28
+- 원칙 보강: 2026-07-29 — 오너 지시 “최소 안전 보장, 최대 허용·최대 자동화”를 전 단계 종료 계약으로 반영
 - 상태: `implementation_ready_handoff` (구현 완료 문서가 아니라 구현 착수 명세)
 - 독자: T5 구현 담당 AI, 코드 감사 담당 AI, 제품 오너
 - 목적: T-cell 이론을 T5의 Memory / Context / POM / Growth / Automation에 실제로 작동하는 공통 구조로 내린다.
@@ -49,10 +50,49 @@ T5는 경험을 많이 저장해서 성장하지 않는다. 경험에서 **더 �
 검색됨 ≠ 입장됨
 신뢰도 ≠ 권한
 replay 통과 ≠ 자동 실행
+replay + admission + authority 허용 = 해당 범위 자동 수행 가능
 사용자 승인 ≠ 사실 검증
 성공 횟수 ≠ 전역 적용 자격
 자가성장 ≠ 라이브 규칙의 숨은 변경
 ```
+
+### 0.1 인간 자율성·마찰 절대 계약
+
+> **최소 안전을 보장하는 상태에서 최대 허용한다.**
+
+T-cell 거버넌스의 목적은 모델과 사용자를 더 많이 멈추게 하는 것이 아니다. 사용자가 맡긴 일을 T5가
+더 정확하게 이해하고, 안전 바닥 안에서는 더 적게 묻고 더 많이 스스로 끝내게 하는 것이다. 안전은
+자율성을 줄이는 일반 명분이 아니라, 넘어서는 안 되는 **최소 바닥**이다.
+
+불변식:
+
+```text
+최소 안전 바닥 밖                     → 차단·승인·범위 축소
+최소 안전 바닥 안                     → 최대 허용·최대 자동 수행
+사용자의 명시적 현재 지시             → 그 범위의 확인으로 인정
+추정·전역화·새 외부 권한              → 별도 근거 또는 사용자 확인
+이미 허용된 범위의 반복 실행           → 매번 다시 묻지 않음
+성장 후 질문·클릭·개입이 늘어남        → 성장 실패
+```
+
+구체 계약:
+
+- 사용자가 “앞으로 이 프로젝트 보고서는 목록으로 줘”라고 명시하면 그 발화가 해당 범위의 확인이다.
+  같은 내용을 후보 카드로 다시 확인받지 않는다.
+- A0/A1의 읽기·검색·정리·도구 선택·작업 순서·초안·가역적 로컬 처리는 replay와 범위 검증을 통과한
+  원리가 자동으로 도울 수 있다.
+- A2/A3의 외부 전송·삭제·결제·공개·지속 권한은 기존 authority 경계를 지킨다. 단, 사용자가 이미
+  승인한 bounded grant 안의 반복 실행은 같은 판단을 매번 다시 묻지 않는다.
+- inferred preference, POM confirmed model, project/profile/global 확장처럼 사용자의 장기 운영 모델을
+  새로 정하는 경우에만 별도 확인을 요구한다.
+- T-cell은 모델의 답변 대본이나 금지문을 늘리지 않는다. 사실·근거·범위·현재 손발을 공급하고,
+  안전 바닥 안의 해석·추론·도구 선택은 모델이 수행한다.
+- 사용자 표면은 기본적으로 조용하다. 후보·원리·trace를 매번 카드로 띄우지 않고, 판단이 필요하거나
+  사용자가 묻거나 되돌리려 할 때만 설명한다.
+
+효과 판정:
+
+> 같은 일을 더 정확하게, 더 적은 질문·클릭·턴·사용자 개입으로 끝내야 성장이다.
 
 ---
 
@@ -62,7 +102,9 @@ replay 통과 ≠ 자동 실행
 
 1. `context-mesh.js`
    - preference와 operating_principle을 구분한다.
-   - operating_principle은 `replayPassed && userConfirmed` 전 영향이 0이다.
+   - operating_principle은 replay와 범위 검증 전 영향이 0이다.
+   - `userConfirmed`가 필요한 항목은 추정된 장기 선호·POM 변경·범위 확장이다. 명시적 현재 지시는
+     그 발화 자체를 해당 범위의 확인으로 인정한다.
    - 승격된 항목도 현재 요청과 관련될 때만 입장한다.
 2. `task-trace.js`
    - 실제 완료 작업을 넓게 관찰한다.
@@ -249,6 +291,9 @@ AuthorityTier  = 그 판단이 실제로 어떤 행동을 할 수 있는가
 높은 maturity가 A2/A3를 자동 승인하지 않는다.
 사용자 승인이 낮은 maturity를 사실로 만들지 않는다.
 높은 activation score가 현재 요청 또는 authority를 덮지 않는다.
+A0/A1을 불필요하게 A2로 올리지 않는다.
+사용자가 승인한 bounded grant는 만료·대상·행동 범위 안에서 반복 실행을 다시 묻지 않는다.
+authority가 허용한 범위에서는 maturity가 정밀도와 자동 수행률을 높인다.
 ```
 
 ---
@@ -809,6 +854,9 @@ POM 규칙:
 - 민감한 성향·건강·정치·종교·신용·도덕성 추론은 기본 생성 금지.
 - current state는 `reviewAt`을 가져야 하며 만료 후 stale 처리한다.
 - OperatingPrinciple은 연결된 TCellCore가 M2 이상이고 필요한 사용자 확인을 거쳐야 한다.
+- `origin:'explicit'`인 현재 사용자 지시는 그 지시가 명시한 task/project 범위의 확인으로 인정한다.
+  같은 내용을 별도 카드로 재확인하지 않는다.
+- `origin:'inferred'`인 장기 선호와 confirmed model, 명시 범위를 넘어서는 확장만 별도 확인을 요구한다.
 - POM은 current request, active target, authority를 덮지 않는다.
 
 필수 함수:
@@ -970,16 +1018,22 @@ export const MUTATION_TYPES = Object.freeze([
 - 로컬 성장 원장 기록
 - future outcome 감사 예약
 - rollback 권고
+- replay를 통과한 A0/A1 원리의 task/project 제한 입장
+- 현재 요청에 맞는 도구·작업 순서·출력 형식의 자동 선택
+- 이미 승인된 bounded grant 안의 예약 실행과 실패 복구
 
 ### 12.4 사용자 확인이 필요한 것
 
-- durable operating principle 승격
-- workflow-level 기본 행동 변경
+- inferred durable operating principle의 최초 영향
+- inferred workflow-level 기본 행동 변경
 - 사용자 preference 또는 POM confirmed model 변경
 - project/profile/global radius 확장
 - identity-critical sphere 병합
 - authority policy 변경
-- live automation 활성화
+- A2/A3 live automation의 최초 bounded grant 또는 범위 확대
+
+명시적 사용자 지시를 같은 범위의 durable 원리로 보존하는 일과 A0/A1 제한 자동화는 별도 확인 카드를
+요구하지 않는다. 사용자는 T-cell 후보를 관리하는 운영자가 되어서는 안 된다.
 
 mutation 후보가 자기 권한을 스스로 높일 수 없다.
 
@@ -1031,7 +1085,10 @@ operating_principle + reviewLevel: basic
 
 - ScheduledJob은 그대로 실행 기관이다.
 - T-cell은 반복 주기·대상·복구 방식의 근거가 된다.
-- 자동화 활성화 A2는 maturity와 무관하게 유지한다.
+- 자동화는 행동의 실제 AuthorityTier를 따른다. 모든 자동화를 일괄 A2로 올리지 않는다.
+- A0/A1의 읽기·정리·초안·가역 작업은 검증된 범위에서 자동 활성화할 수 있다.
+- A2/A3 자동화는 최초 bounded grant와 범위 확대 때 확인하고, grant 안의 매 실행은 다시 묻지 않는다.
+- maturity는 새 권한을 만들지 않지만, 허용된 범위 안에서 실행 선택·복구·정확도를 높인다.
 - 실행 결과는 다시 ObservationEvent가 되어 원리 효과 감사로 돌아온다.
 
 ### 13.6 마이그레이션 순서
@@ -1072,7 +1129,8 @@ GET    /growth/effect-audits/:tcellId
 
 - GET은 A0.
 - replay 요청은 로컬 dry-run이면 A0.
-- durable 승격·radius 확장·preference/POM confirmed model 변경은 A2.
+- 명시적 사용자 지시의 같은 범위 보존과 replay를 통과한 A0/A1 제한 입장은 별도 승인을 요구하지 않는다.
+- inferred durable 승격의 최초 영향·radius 확장·preference/POM confirmed model 변경은 A2.
 - rollback은 영향 제거이므로 기본 A1, 단 외부 자동화/권한 상태를 함께 바꾸면 기존 authority 판정을 따른다.
 - API는 raw evidence 전체를 기본 응답하지 않는다.
 
@@ -1082,11 +1140,12 @@ Work Chat 중심을 유지한다. 대형 성장 대시보드를 첫 화면에 �
 
 필요한 표면:
 
-1. 조용한 후보 카드
+1. 필요한 경우에만 보이는 조용한 후보 카드
    - “이 방식을 다음에도 참고할까요?”
    - 근거가 된 작업 수
    - 적용 범위
    - 확인 / 이번만 / 사용하지 않기
+   - 명시적 지시와 검증된 A0/A1 원리에는 기본적으로 띄우지 않는다.
 2. 영향 설명
    - “지난번 승인한 정산 방식이 이 프로젝트와 맞아 참고했어요.”
 3. 기억·성장 상세
@@ -1228,6 +1287,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - insufficient evidence가 정상 결과
 - 한 사례 전역화 차단
 - 모델 실패/timeout이 기본 대화를 막지 않음
+- 추출 프롬프트가 모델 답변 대본·서비스별 금지문으로 비대해지지 않음
+- 명시적 사용자 지시를 별도 확인이 필요한 추정으로 강등하지 않음
 
 ### TG-4. Replay와 통계
 
@@ -1244,6 +1305,7 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - negative 정상 흐름을 망치면 실패
 - authority case 실패면 격리
 - 점수가 높아도 A2 자동 승인 0
+- replay를 통과한 A0/A1 원리가 불필요한 승인 없이 제한 범위에서 입장 가능
 
 ### TG-5. POM admission과 실제 영향
 
@@ -1253,6 +1315,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - TaskContext `admittedPrinciples`
 - principleTrace
 - operating principle과 DefaultTarget부터 실제 제한 영향
+- 안전 바닥 안에서 자동 실행되는 A0/A1 원리와 bounded grant 재사용
+- 마찰 측정(불필요 확인·완료 턴·사용자 개입·자동 완료)
 
 검사:
 
@@ -1260,6 +1324,9 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - 오래된 project 원리가 현재 project를 덮지 않음
 - 현재 사용자 정정 즉시 우선
 - 영향 후에도 외부 행동 authority 유지
+- 명시적 선호를 다시 확인하지 않음
+- 같은 안전한 일을 원리 적용 전보다 더 많은 질문·클릭으로 끝내지 않음
+- 허용된 범위에서 도구 선택·작업 순서·초안이 실제로 자동 수행됨
 
 ### TG-6. T-sphere
 
@@ -1285,6 +1352,7 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - 제한된 mutation proposal
 - simulate/replay/admit/apply/audit/rollback
 - 자동 허용 mutation과 승인 필요 mutation 분리
+- 허용 범위 안의 자동 적용·복구·재시도 최적화
 
 검사:
 
@@ -1292,12 +1360,14 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 - authority policy 자동 변경 불가
 - 같은 실패 재발 시 soften/rollback
 - 효과가 없으면 안정화하지 않음
+- 정확도가 올라도 사용자 개입이 줄지 않으면 안정 성장으로 판정하지 않음
+- 검증된 bounded grant 안의 반복 행동을 매번 다시 묻지 않음
 
 ### TG-8. 사용자 표면과 라이브 실증
 
 작업:
 
-- 후보 카드
+- 필요한 경우에만 후보 카드
 - 영향 설명
 - 기억·성장 상세
 - 범위 축소와 rollback
@@ -1306,8 +1376,11 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 
 - 모바일 340px 포함 잘림/겹침 없음
 - 내부 용어 기본 노출 없음
-- 승인 전 영향 0이 화면·원장·실제 행동에서 일치
+- 별도 확인이 필요한 항목은 확인 전 영향 0이 화면·원장·실제 행동에서 일치
 - 재시작 후 상태 지속
+- 일반 작업에서 후보·원리 카드가 대화를 점유하지 않음
+- 성장 전후 동일 시나리오의 질문·클릭·턴·개입 수를 비교해 감소 또는 비증가
+- A0/A1 자동 수행과 A2/A3 실제 권한 경계가 인간 사용자의 버튼 흐름에서 구분됨
 
 ---
 
@@ -1320,7 +1393,7 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 기대:
   기존 preference 후보(TCellCore 아님)
   project radius
-  사용자 확인
+  사용자 원문 자체가 project 범위 확인 — 별도 확인 카드 0
   다음 관련 요청에서 supporting_context 또는 plan_hint
   다른 프로젝트에는 영향 0
 ```
@@ -1370,8 +1443,9 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
 기대:
   workflow T-sphere
   skill candidate와 principleRefs 연결
-  다음 요청에서 계획 질문 감소
-  파일 쓰기 승인은 그대로
+  다음 요청에서 계획 질문·클릭·턴 감소
+  읽기·계산·초안은 자동
+  파일 쓰기는 기존 A2 또는 이미 승인된 bounded grant 적용
 ```
 
 ### S-TG-6. 오래된 맥락 배제
@@ -1393,7 +1467,8 @@ L5: 원리 생명주기·sphere·replay·통계·mutation·감사.
   "매주 월요일 정산 초안을 준비한다."
 기대:
   초안 준비는 검증 후 제한 자동화 가능
-  이메일 발송은 별도 A2 승인/지속 grant 필요
+  이메일 발송은 최초 A2 승인 또는 bounded 지속 grant 필요
+  grant 범위 안의 매 실행은 다시 묻지 않음
   maturity가 높아도 발송 권한 자동 획득 0
 ```
 
@@ -1492,10 +1567,18 @@ stale_context_override_rate
 same_failure_recurrence_rate
 user_correction_rate
 unnecessary_clarification_rate
+unnecessary_confirmation_rate
+median_turns_to_completion
+user_intervention_rate
+auto_completion_rate_a0_a1
+reused_bounded_grant_rate
 authority_violation_rate
 rollback_success_rate
 approved_principle_effect_rate
 ```
+
+성장 판정은 정확도와 마찰을 함께 본다. 정확도가 올라도 불필요한 확인·턴·클릭·사용자 개입이 늘면
+`M4_stable`의 효과 근거로 인정하지 않는다.
 
 ### 비용 지표
 
@@ -1533,6 +1616,11 @@ trace_descent_failure for admitted principle = 0
 - 효과 감사 없이 M4 stable 유지
 - rollback 시 trace까지 삭제
 - 원리 설명을 모델 시스템 프롬프트의 영구 금지문으로 변환
+- 모든 durable 원리와 자동화를 일괄 A2로 올리기
+- 사용자가 명시한 선호를 같은 범위에서 다시 확인받기
+- A0/A1의 도구 선택·정리·초안까지 후보 카드와 승인으로 막기
+- 승인된 bounded grant의 매 실행을 반복 확인하기
+- 정확도만 보고 질문·클릭·턴 증가를 성장으로 판정하기
 - 실제 모델·실제 UI 없이 완료 선언
 
 ---
@@ -1566,7 +1654,10 @@ trace_descent_failure for admitted principle = 0
 - 현재 요청 우선
 - broad memory, narrow influence
 - A0~A3 권한 경계
-- durable 승격의 사용자 확인
+- 최소 안전 바닥 안의 최대 허용·최대 자동 수행
+- 명시적 사용자 지시는 그 범위의 확인이라는 계약
+- inferred 장기 모델·범위 확장·새 A2/A3 권한의 사용자 확인
+- bounded grant 안의 반복 실행은 재확인하지 않는 계약
 - trace/replay/rollback 의무
 - P-OP 우선순위
 - 모델 판단과 OS 사실 공급의 역할 분리
@@ -1589,6 +1680,11 @@ trace_descent_failure for admitted principle = 0
 [ ] 실사용 결과가 원리의 통계와 상태를 갱신한다.
 [ ] 반복 실패는 soften/mutation/rollback으로 이어진다.
 [ ] 압축된 원리에서 원 근거로 내려갈 수 있다.
+[ ] A0/A1의 검증된 원리는 불필요한 승인 없이 실제 자동 수행된다.
+[ ] 명시적 사용자 지시를 같은 범위에서 다시 확인하지 않는다.
+[ ] bounded grant 안의 반복 실행은 매번 다시 묻지 않는다.
+[ ] 성장 후 동일 시나리오의 질문·클릭·턴·사용자 개입이 감소하거나 늘지 않는다.
+[ ] 모델 입력은 사실·근거·범위를 공급하되 답변 대본과 금지문으로 경직되지 않는다.
 [ ] 기존 memory/skill/default target/automation 흐름이 회귀하지 않는다.
 [ ] 실제 모델·실제 UI·재시작·rollback 시나리오를 통과한다.
 [ ] authority violation, 숨은 durable promotion, current request override가 0이다.
