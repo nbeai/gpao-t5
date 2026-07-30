@@ -101,17 +101,31 @@ def chmod_owned(record: dict, mode: int) -> bool:
         return False
 
 
-def cleanup_owned(records: list[dict], snapshot_dir: Path) -> tuple[list[str], list[dict]]:
+def cleanup_owned(
+    records: list[dict], snapshot_dir: Path,
+) -> tuple[list[str], list[dict], list[dict]]:
     """경로를 격리 이름으로 원자 이동한 뒤 anchor와 같은 파일일 때만 삭제한다."""
     removed: list[str] = []
     preserved: list[dict] = []
-    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    outcomes: list[dict] = []
+    if not records:
+        return removed, preserved, outcomes
     for record in records:
         path = Path(record["path"])
         anchor = Path(record["anchor"])
         if not path.exists():
             anchor.unlink(missing_ok=True)
-            preserved.append({"path": str(path), "reason": "missing_or_replaced"})
+            item = {"path": str(path), "reason": "missing_by_product"}
+            preserved.append(item)
+            outcomes.append({**item, "disposition": "observed"})
+            continue
+
+        # 이미 다른 inode면 손대지 않는다. 경로는 소유권이 아니다.
+        if not _same_identity(record, path):
+            anchor.unlink(missing_ok=True)
+            item = {"path": str(path), "reason": "identity_replaced_untouched"}
+            preserved.append(item)
+            outcomes.append({**item, "disposition": "observed"})
             continue
 
         quarantine = path.with_name(f".{path.name}.gpao-fixture-{uuid.uuid4().hex}")
@@ -121,24 +135,41 @@ def cleanup_owned(records: list[dict], snapshot_dir: Path) -> tuple[list[str], l
             preserved.append({"path": str(path), "reason": f"quarantine_failed:{exc}"})
             continue
 
-        if _same_owned(record, quarantine):
+        if _same_identity(record, quarantine):
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+            changed = _digest(quarantine) != record["sha256"]
             shutil.copy2(quarantine, snapshot_dir / path.name)
             quarantine.unlink()
             anchor.unlink(missing_ok=True)
             removed.append(str(path))
+            outcomes.append({
+                "path": str(path),
+                "reason": "content_modified_by_product" if changed else "fixture_unchanged",
+                "disposition": "snapshotted_and_removed",
+            })
             continue
 
-        # 이동한 것이 우리 fixture가 아니면 삭제하지 않는다. 원래 자리가 비어 있을 때만 되돌린다.
+        # 검사와 rename 사이에 교체됐다. 삭제하지 않고 원래 자리로 되돌린다.
         try:
             if not path.exists():
                 quarantine.rename(path)
-                preserved.append({"path": str(path), "reason": "identity_changed_restored"})
+                item = {"path": str(path), "reason": "identity_changed_restored"}
+                preserved.append(item)
+                outcomes.append({**item, "disposition": "observed"})
             else:
-                preserved.append({
+                snapshot_dir.mkdir(parents=True, exist_ok=True)
+                evidence_path = snapshot_dir / f"race-{uuid.uuid4().hex}-{path.name}"
+                quarantine.rename(evidence_path)
+                item = {
                     "path": str(quarantine),
+                    "evidencePath": str(evidence_path),
                     "reason": "identity_changed_original_path_occupied",
-                })
+                }
+                preserved.append(item)
+                outcomes.append({**item, "disposition": "preserved_in_evidence"})
         except OSError as exc:
-            preserved.append({"path": str(quarantine), "reason": f"restore_failed:{exc}"})
+            item = {"path": str(quarantine), "reason": f"restore_failed:{exc}"}
+            preserved.append(item)
+            outcomes.append({**item, "disposition": "unsafe_cleanup_failure"})
         anchor.unlink(missing_ok=True)
-    return removed, preserved
+    return removed, preserved, outcomes

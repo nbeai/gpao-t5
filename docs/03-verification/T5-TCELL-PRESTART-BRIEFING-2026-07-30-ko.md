@@ -99,7 +99,8 @@
 - 비교군 라이브 측정: `CODEX_INSTRUMENT_TAKEOVER_IN_PROGRESS` —
   유료 호출과 오너 자격 요청은 아직 열지 않는다. H01~H10 원문은
   `scripts/compare-live/h-scenarios.json`, 분기·순서는 `h-branches.json` 한 곳에서만 읽는다.
-  회차당 18턴·제품당 3회이며, fixture는 생성 inode·anchor·내용 해시가 모두 일치할 때만 정리한다.
+  회차당 21턴·제품당 3회이며, fixture는 생성 inode·anchor를 기준으로 안전하게 정산한다.
+  제품의 fixture 수정·삭제·교체는 회차 무효가 아니라 측정 결과로 보존한다.
   Hermes는 제품의 작업 프롬프트→입력 프롬프트 복귀를 완료 신호로 쓰고, OpenClaw는 설치된 실제
   실행 파일의 버전·`agent` 옵션 활주로를 무과금 확인한 뒤 그 신분을 영수증에 남긴다.
   pinned `2026.7.2` 소스는 코드 비교 자료이고 라이브 실행 제품으로 가장하지 않는다.

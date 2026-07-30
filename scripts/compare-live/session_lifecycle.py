@@ -25,6 +25,27 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+USER_HOME = Path(os.environ.get("T5_COMPARE_USER_HOME") or Path.home()).resolve()
+HERMES_REPO = Path("/Users/jyp/Developer/lab_un/hermes-agent")
+HERMES_BIN = HERMES_REPO / ".venv/bin/hermes"
+VISIBLE_DIRS = ("Downloads", "Developer")
+
+
+def prepare_user_view(home: Path) -> dict[str, dict[str, str]]:
+    """격리 HOME 안에서 사용자 파일 폴더 두 개만 실제 대상으로 연결한다."""
+    home.mkdir(parents=True, exist_ok=True)
+    links: dict[str, dict[str, str]] = {}
+    for name in VISIBLE_DIRS:
+        target = (USER_HOME / name).resolve(strict=True)
+        link = home / name
+        if os.path.lexists(link):
+            if not link.is_symlink() or link.resolve() != target:
+                raise RuntimeError(f"격리 홈의 사용자 시야 경로가 다른 대상을 가리킨다: {link}")
+        else:
+            link.symlink_to(target, target_is_directory=True)
+        links[name] = {"link": str(link), "target": str(target)}
+    return links
+
 _ANSI = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]|\x1b\[[0-?]*[ -/]*[@-~]")
 # 입력 가능 표식: TUI 의 입력 프롬프트. 이게 보이기 전에는 프롬프트를 넣지 않는다.
 _READY = re.compile(r"❯|Type your message")
@@ -61,12 +82,11 @@ def disk_session_ids(home: Path) -> list[str]:
 
 
 def sanitized_env(home: Path) -> dict[str, str]:
-    """제품 자식 프로세스의 환경을 명시적으로 만든다 — 상속하지 않는다.
+    """제품 자식 프로세스의 환경을 명시적으로 만들되 사용자 파일 시야는 보존한다.
 
     이유(실측 2026-07-30): 오너의 실제 `~/.hermes` 자격 풀에 openai-api 키가 있다.
-    HOME 을 그대로 상속하면 `HERMES_HOME` 배선이 한 번이라도 새는 순간 오너 키로 과금된다.
-    "자격 파일이 없으면 과금 없음"은 약속이 아니라 이 함수로 구조가 된다. 자격은 오직
-    secret 파일의 명시적 주입으로만 들어간다."""
+    HOME·HERMES_HOME은 함께 격리한다. Downloads·Developer만 prepare_user_view()가 실제 사용자
+    폴더로 연결한다. 따라서 제품 자격은 보지 못하지만 사용자 작업 현실은 본다."""
     return {
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "HOME": str(home),
@@ -127,7 +147,8 @@ class Session:
                  resume: str | None = None) -> None:
         self.home = home
         self.resume_of = resume
-        base = f"./.venv/bin/hermes --cli -m {model} --provider openai-api"
+        prepare_user_view(home)
+        base = f"'{HERMES_BIN}' --cli -m {model} --provider openai-api"
         if resume:
             base += f" --resume {resume} --no-restore-cwd"
         inner = ("set -a; "
@@ -136,7 +157,7 @@ class Session:
         self.master, slave = pty.openpty()
         os.set_blocking(self.master, False)
         self.proc = subprocess.Popen(
-            ["bash", "-c", inner], cwd="/Users/jyp/Developer/lab_un/hermes-agent",
+            ["bash", "-c", inner], cwd=str(home),
             stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
             env=sanitized_env(home),
         )

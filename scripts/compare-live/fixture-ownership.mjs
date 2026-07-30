@@ -69,12 +69,23 @@ export const chmodOwned = (record, mode) => {
 export const cleanupOwned = (records, snapshotDir) => {
   const removed = [];
   const preserved = [];
-  mkdirSync(snapshotDir, { recursive: true });
+  const outcomes = [];
+  if (!records.length) return { removed, preserved, outcomes };
   for (const record of records) {
     const path = record.path;
     if (!existsSync(path)) {
       try { unlinkSync(record.anchor); } catch { /* already absent */ }
-      preserved.push({ path, reason: 'missing_or_replaced' });
+      const item = { path, reason: 'missing_by_product' };
+      preserved.push(item);
+      outcomes.push({ ...item, disposition: 'observed' });
+      continue;
+    }
+
+    if (!sameIdentity(record, path)) {
+      try { unlinkSync(record.anchor); } catch { /* already absent */ }
+      const item = { path, reason: 'identity_replaced_untouched' };
+      preserved.push(item);
+      outcomes.push({ ...item, disposition: 'observed' });
       continue;
     }
 
@@ -89,25 +100,48 @@ export const cleanupOwned = (records, snapshotDir) => {
       continue;
     }
 
-    if (sameOwned(record, quarantine)) {
+    if (sameIdentity(record, quarantine)) {
+      mkdirSync(snapshotDir, { recursive: true });
+      const changed = digest(quarantine) !== record.sha256;
       copyFileSync(quarantine, join(snapshotDir, basename(path)));
       unlinkSync(quarantine);
       try { unlinkSync(record.anchor); } catch { /* already absent */ }
       removed.push(path);
+      outcomes.push({
+        path,
+        reason: changed ? 'content_modified_by_product' : 'fixture_unchanged',
+        disposition: 'snapshotted_and_removed',
+      });
       continue;
     }
 
     try {
       if (!existsSync(path)) {
         renameSync(quarantine, path);
-        preserved.push({ path, reason: 'identity_changed_restored' });
+        const item = { path, reason: 'identity_changed_restored' };
+        preserved.push(item);
+        outcomes.push({ ...item, disposition: 'observed' });
       } else {
-        preserved.push({ path: quarantine, reason: 'identity_changed_original_path_occupied' });
+        mkdirSync(snapshotDir, { recursive: true });
+        const evidencePath = join(
+          snapshotDir,
+          `race-${randomUUID()}-${basename(path)}`,
+        );
+        renameSync(quarantine, evidencePath);
+        const item = {
+          path: quarantine,
+          evidencePath,
+          reason: 'identity_changed_original_path_occupied',
+        };
+        preserved.push(item);
+        outcomes.push({ ...item, disposition: 'preserved_in_evidence' });
       }
     } catch (error) {
-      preserved.push({ path: quarantine, reason: `restore_failed:${error.message}` });
+      const item = { path: quarantine, reason: `restore_failed:${error.message}` };
+      preserved.push(item);
+      outcomes.push({ ...item, disposition: 'unsafe_cleanup_failure' });
     }
     try { unlinkSync(record.anchor); } catch { /* already absent */ }
   }
-  return { removed, preserved };
+  return { removed, preserved, outcomes };
 };

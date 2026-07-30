@@ -101,7 +101,7 @@ T5 현재 코어 실측 제출본이 있다(실제 서버·브라우저·`gpt-5.
 상세 증거: `evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md`
 비교군은 아직 측정하지 않았다. **수치를 추정해 채우지 않는다.**
 비교군 라이브는 Codex가 계측기 구현을 직접 인수해 무과금 반증 검증 중이다. H01~H10 원문은
-`scripts/compare-live/h-scenarios.json`, 분기·순서는 `h-branches.json`에서만 읽으며 회차당 18턴이다.
+`scripts/compare-live/h-scenarios.json`, 분기·순서는 `h-branches.json`에서만 읽으며 회차당 21턴이다.
 OpenClaw 라이브는 이 기계에 실제 설치된 실행 파일의 신분을 매 회차 기록하고, pinned 소스는
 코드 비교 자료로만 쓴다. fixture는 경로 이름이 아니라 생성 신분이 일치할 때만 정리한다.
 호출 수·비용은 추정하지 않고 독립 감사 뒤 회차 1에서 측정한다.

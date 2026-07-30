@@ -49,6 +49,31 @@ def main() -> int:
           f"{len(rows)}/{spec['turnsPerRun']}")
     seqs = [r["seq"] for r in rows]
     check(len(set(seqs)) == len(seqs), "턴 번호 중복 없음")
+    expected_rows = {
+        turn["seq"]: (branch["id"], turn)
+        for branch in spec["branches"]
+        for turn in branch["turns"]
+    }
+    runtime_drift = []
+    for row in rows:
+        expected = expected_rows.get(row["seq"])
+        if expected is None:
+            runtime_drift.append((row["seq"], "unknown_seq"))
+            continue
+        branch_id, turn = expected
+        fields = {
+            "branch": branch_id,
+            "id": turn["id"],
+            "session": turn["session"],
+            "prompt": turn["prompt"],
+            "promptStatus": turn["promptStatus"],
+            "promptSource": turn["promptSource"],
+        }
+        for field, value in fields.items():
+            if row.get(field) != value:
+                runtime_drift.append((row["seq"], field))
+    check(not runtime_drift, "실행 영수증의 21턴 원문·출처·분기가 정본과 전부 일치한다",
+          str(runtime_drift))
 
     # 2. 분기별 홈이 서로 다르고 실제로 생겼는가 (조건 1·2·3)
     homes = {r["branch"]: r["home"] for r in rows}
@@ -125,10 +150,14 @@ def main() -> int:
                   "resumedFrom 도 restartEvidence 도 없음 — 실행표 복사만으로는 인정하지 않는다")
     new = next((r for r in rows if r["id"] == "H05-new"), None)
     work = next((r for r in rows if r["id"] == "H05-work"), None)
-    check(bool(new and work) and new["session"] != work["session"],
+    seeds = [r for r in rows if r["id"] == "H05-restart-seed"]
+    check(bool(new and work) and new["branch"] == work["branch"]
+          and new["session"] != work["session"],
           "H05 새 대화가 작업 대화와 다른 세션이다")
-    check(bool(rst and work) and rst["session"] == work["session"],
-          "H05 재시작이 원래 작업 대화를 재개했다")
+    check(len(seeds) == 3 and bool(rst)
+          and all(seed["branch"] == rst["branch"]
+                  and seed["session"] == rst["session"] for seed in seeds),
+          "H05 재시작이 봉인 기준선의 숫자 정리 대화를 재개했다")
 
     # 8. 영수증: 세션 ID·fixture 정확 경로 (조건 7·8)
     rc_path = root / "receipt.json"
@@ -142,9 +171,18 @@ def main() -> int:
         man_paths = [m.get("path") if isinstance(m, dict) else m for m in man]
         rem = rc.get("fixtureRemoved") or []
         preserved = rc.get("fixturePreserved") or []
-        check(not preserved, "fixture 신분 변경·보존 항목이 없다", str(preserved))
-        check(sorted(man_paths) == sorted(rem), "fixture manifest 와 삭제 목록이 일치한다",
-              f"manifest {len(man_paths)} / removed {len(rem)}")
+        outcomes = rc.get("fixtureOutcomes") or []
+        outcome_paths = [item.get("path") for item in outcomes]
+        unsafe = [item for item in outcomes
+                  if item.get("disposition") == "unsafe_cleanup_failure"]
+        check(sorted(man_paths) == sorted(outcome_paths),
+              "모든 fixture가 삭제 또는 제품 행동 증거로 정확히 한 번 정산된다",
+              f"manifest {len(man_paths)} / outcomes {len(outcome_paths)}")
+        check(not unsafe, "fixture 정리 자체의 실패가 없다", str(unsafe))
+        changed = [item for item in outcomes if item.get("reason") != "fixture_unchanged"]
+        if changed:
+            notes.append("INFO · 제품의 fixture 변경·삭제·교체 행동: "
+                         + json.dumps(changed, ensure_ascii=False))
         prod = rc.get("productCreated") or []
         if prod:
             notes.append(f"INFO · 제품이 만든 파일 {len(prod)}건 (지우지 않고 보고): " + ", ".join(prod))

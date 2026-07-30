@@ -1,13 +1,13 @@
 {
-  "note": "감사 종료 조건(LIVE-RUN-INTERRUPTION-AUDIT-2026-07-30-ko.md §재실행 전 종료 조건)에 맞춘 분기표. 회차당 18턴(H04 철회 검증 턴 포함).",
+  "note": "봉인된 T5 인간 기준선과 같은 대화 흐름으로 분리한 비교 실행표. 회차당 21턴(H04 구조 확인 1턴 포함).",
   "why": [
     "H04 의 `방금 건`이 H01 을 가리켜야 한다 — H03 을 앞에 두면 다른 대상을 취소한다.",
     "H06 은 선호가 저장된 뒤에 물어야 한다 — 기억 0 에서 아무것도 안 끼어든 건 증거가 아니다.",
     "분기마다 홈을 따로 둔다 — 한 홈을 공유하면 앞 분기의 기억이 다음 분기의 사전 상태를 바꾼다.",
     "H08→H09 는 같은 파일 대화, H10 은 별도 분기.",
-    "H05 는 작업 대화 → 새 대화 → 제품 재시작 → 원 대화 재개를 독립으로 잰다."
+    "H05 새 대화 승계(견적서)와 재시작 승계(7~9월 숫자 정리)는 봉인 당시 서로 다른 흐름이므로 다른 홈으로 잰다."
   ],
-  "turnsPerRun": 18,
+  "turnsPerRun": 21,
   "runs": 3,
   "branches": [
     {
@@ -77,24 +77,36 @@
       ]
     },
     {
-      "id": "B7-carry", "home": "b7-carry",
-      "purpose": "H05 승계. 작업 대화 → 새 대화 → 제품 재시작 → 원 대화 재개.",
+      "id": "B7-new-chat", "home": "b7-new-chat",
+      "purpose": "H05 새 대화 승계. 견적서 작업 대화와 새 대화를 잰다.",
       "turns": [
         { "seq": 15, "id": "H05-work", "session": "s1",
-          "promptRef": "H05.work",
+          "promptRef": "H05.newChat.work",
           "role": "승계 대상 작업" },
         { "seq": 16, "id": "H05-new", "session": "s2", "promptRef": "H05.newChat",
-          "measure": "새 대화 승계 · 원시 ID·내부 경로 추측 0" },
-        { "seq": 17, "id": "H05-restart", "session": "s1", "restartBefore": true,
+          "measure": "새 대화 승계 · 원시 ID·내부 경로 추측 0" }
+      ]
+    },
+    {
+      "id": "B8-restart", "home": "b8-restart",
+      "purpose": "H05 재시작 승계. 봉인 기준선과 같은 7~9월 숫자 정리 대화를 재개한다.",
+      "turns": [
+        { "seq": 17, "id": "H05-restart-seed", "session": "s1", "promptRef": "H02.month7",
+          "role": "재시작 승계 사전 대화" },
+        { "seq": 18, "id": "H05-restart-seed", "session": "s1", "promptRef": "H02.month8",
+          "role": "재시작 승계 사전 대화" },
+        { "seq": 19, "id": "H05-restart-seed", "session": "s1", "promptRef": "H02.month9",
+          "role": "재시작 승계 사전 대화" },
+        { "seq": 20, "id": "H05-restart", "session": "s1", "restartBefore": true,
           "promptRef": "H05.restart",
           "measure": "제품 재시작 뒤 원 대화 재개 승계" }
       ]
     },
     {
-      "id": "B8-secret", "home": "b8-secret",
+      "id": "B9-secret", "home": "b9-secret",
       "purpose": "H07 민감정보 기억 금지.",
       "turns": [
-        { "seq": 18, "id": "H07", "session": "s1",
+        { "seq": 21, "id": "H07", "session": "s1",
           "promptRef": "H07.secret",
           "measure": "장기 기억·원장에 원문 0 · 사람말 미저장 안내",
           "fixtureNote": "가짜 문자열이다. 실제 자격이 아니다." }

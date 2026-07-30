@@ -31,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from compare_contract import verify_contract  # noqa: E402
 from fixture_ownership import chmod_owned, cleanup_owned, create_owned  # noqa: E402
 from session_lifecycle import (  # noqa: E402
-    Session, SessionHost, count_product_processes, disk_session_ids,
+    USER_HOME, Session, SessionHost, count_product_processes, disk_session_ids,
+    prepare_user_view, sanitized_env,
 )
 
 HERE = Path(os.environ.get("LIVE_DIR") or Path(__file__).resolve().parent)
@@ -116,7 +117,7 @@ def main() -> int:
     owned_path.write_text("user replacement\n", encoding="utf-8")
     record("교체된 파일의 권한을 fixture로 오인하지 않는다",
            not chmod_owned(records[0], 0o000))
-    removed, preserved = cleanup_owned(records, fixture_root / "snapshots")
+    removed, preserved, _ = cleanup_owned(records, fixture_root / "snapshots")
     record("교체된 파일을 삭제하지 않고 원래 경로에 보존한다",
            not removed and bool(preserved)
            and owned_path.read_text(encoding="utf-8") == "user replacement\n")
@@ -128,10 +129,49 @@ def main() -> int:
            chmod_owned(lock_records[0], 0o000))
     record("같은 생성 신분을 mode 644로 다시 연다",
            chmod_owned(lock_records[0], 0o644))
-    lock_removed, lock_preserved = cleanup_owned(
+    lock_removed, lock_preserved, _ = cleanup_owned(
         lock_records, lock_root / "snapshots")
     record("잠금 왕복 뒤 생성 fixture만 정리한다",
            len(lock_removed) == 1 and not lock_preserved)
+
+    visibility_home = root / "visibility-home"
+    prepare_user_view(visibility_home)
+    visible = subprocess.run(
+        ["bash", "-c", 'cd "$HOME/Downloads" && pwd -P; cd "$HOME/Developer" && pwd -P'],
+        capture_output=True, text=True, timeout=10,
+        env=sanitized_env(visibility_home),
+    )
+    visible_paths = visible.stdout.splitlines()
+    expected_paths = [str(USER_HOME / "Downloads"), str(USER_HOME / "Developer")]
+    record("격리된 Hermes가 봉인 기준선과 같은 사용자 파일 시야를 본다",
+           visible.returncode == 0 and visible_paths == expected_paths
+           and all(Path(p).is_dir() for p in visible_paths),
+           f"관측={visible_paths}")
+
+    # 기존 회차 거부는 그 증거 폴더에 바이트 하나도 만들거나 바꾸면 안 된다.
+    runner_guard = root / "existing-run-guard"
+    runner_guard.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(HERE / "h-scenarios.json", runner_guard / "h-scenarios.json")
+    shutil.copy2(HERE / "h-branches.json", runner_guard / "h-branches.json")
+    (runner_guard / "secret-env.sh").write_text(
+        f"export OPENAI_API_KEY={FAKE_KEY}\n", encoding="utf-8")
+    existing_run = runner_guard / "hm-run-1"
+    existing_run.mkdir()
+    marker = existing_run / "sealed-evidence.txt"
+    marker.write_text("must not change\n", encoding="utf-8")
+    before_tree = sorted(str(p.relative_to(existing_run)) for p in existing_run.rglob("*"))
+    before_marker = marker.read_bytes()
+    blocked = subprocess.run(
+        [sys.executable, str(HERE / "h_runner_v3.py"), "--run", "1"],
+        capture_output=True, text=True, timeout=30,
+        env={**os.environ, "LIVE_DIR": str(runner_guard)},
+    )
+    after_tree = sorted(str(p.relative_to(existing_run)) for p in existing_run.rglob("*"))
+    record("기존 회차는 exit 3으로 거부된다", blocked.returncode == 3,
+           (blocked.stderr or blocked.stdout).strip()[:120])
+    record("거부된 기존 회차 증거 폴더는 바이트·경로 불변이다",
+           before_tree == after_tree and marker.read_bytes() == before_marker,
+           f"before={before_tree} after={after_tree}")
 
     # ── 0부: 음성 대조 — 자격 0 부팅은 설정 안내에서 멈춰야 한다 ────────────────
     # 실측(2026-07-30): 환경을 상속하면 제품이 오너 HOME 의 copilot 자격을 임시 홈으로

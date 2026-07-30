@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from compare_contract import load_contract  # noqa: E402
 from fixture_ownership import chmod_owned, cleanup_owned, create_owned  # noqa: E402
 from session_lifecycle import (  # noqa: E402
-    SessionHost, count_product_processes, disk_session_ids,
+    USER_HOME, SessionHost, count_product_processes, disk_session_ids,
 )
 
 HERE = Path(os.environ.get("LIVE_DIR") or Path(__file__).resolve().parent)
@@ -187,7 +187,9 @@ def main() -> int:
     runroot = HERE / f"hm-run-{args.run}"
     out = runroot / "turns.jsonl"
     receipt: dict = {"product": "Hermes(대화형 PTY)", "run": args.run,
-                     "model": args.model, "branches": [], "abortedBranches": []}
+                     "model": args.model, "userHome": str(USER_HOME),
+                     "workingDirectory": str(USER_HOME),
+                     "branches": [], "abortedBranches": []}
     manifest: list[dict] = []
     before = downloads_listing()
     runroot_created = False
@@ -263,6 +265,8 @@ def main() -> int:
                         # 재시작 증거: 실행표 복사가 아니라 실제 --resume 대상(디스크 ID)
                         "resumedFrom": resumed_from,
                         "role": t.get("role"), "prompt": t["prompt"],
+                        "promptStatus": t["promptStatus"],
+                        "promptSource": t["promptSource"],
                         "measure": t.get("measure"),
                         **m,
                         # 사람이 채운다. 자동 판정하지 않는다.
@@ -296,18 +300,20 @@ def main() -> int:
                 {"id": br["id"], "home": br["home"], "sessionIds": ids,
                  "lifecycle": host.history})
     finally:
-        if manifest:
-            locked = fixture_record(manifest, LOCKED)
-            chmod_owned(locked, 0o644)
-        removed, preserved = cleanup_owned(manifest, runroot / "fixtures-final")
-        after = downloads_listing()
-        new_files = sorted(after - before)
-        receipt["fixtureManifest"] = manifest
-        receipt["fixtureRemoved"] = removed
-        receipt["fixturePreserved"] = preserved
-        # 제품이 만든 파일은 지우지 않고 정확한 경로로 보고한다.
-        receipt["productCreated"] = [str(DOWNLOADS / n) for n in new_files]
         if runroot_created:
+            if manifest:
+                locked = fixture_record(manifest, LOCKED)
+                chmod_owned(locked, 0o644)
+            removed, preserved, outcomes = cleanup_owned(
+                manifest, runroot / "fixtures-final")
+            after = downloads_listing()
+            new_files = sorted(after - before)
+            receipt["fixtureManifest"] = manifest
+            receipt["fixtureRemoved"] = removed
+            receipt["fixturePreserved"] = preserved
+            receipt["fixtureOutcomes"] = outcomes
+            # 제품이 만든 파일은 지우지 않고 정확한 경로로 보고한다.
+            receipt["productCreated"] = [str(DOWNLOADS / n) for n in new_files]
             (runroot / "receipt.json").write_text(
                 json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"\nfixture 삭제 {len(removed)}건")

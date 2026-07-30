@@ -24,13 +24,14 @@
 //   node h-runner.mjs --run 1 --model gpt-5.3-chat-latest
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync,
-  readdirSync,
+  mkdirSync, mkdtempSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync,
+  readdirSync, rmSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { chmodOwned, cleanupOwned, createOwned } from './fixture-ownership.mjs';
+import { prepareUserView } from './user-view.mjs';
 
 const HERE = process.env.LIVE_DIR ?? dirname(fileURLToPath(import.meta.url));
 const SPEC = JSON.parse(readFileSync(join(HERE, 'h-branches.json'), 'utf8'));
@@ -40,11 +41,23 @@ for (const branch of SPEC.branches) {
     if ('prompt' in turn) throw new Error(`${turn.id}: 실행표에 원문을 다시 쓰지 않는다`);
     const prompt = SCENARIOS.prompts?.[turn.promptRef];
     if (typeof prompt !== 'string') throw new Error(`${turn.id}: 알 수 없는 promptRef ${turn.promptRef}`);
+    const provenance = SCENARIOS.provenance?.[turn.promptRef];
+    if (!provenance) throw new Error(`${turn.id}: provenance 없는 promptRef ${turn.promptRef}`);
     turn.prompt = prompt;
+    turn.promptStatus = provenance.status;
+    turn.promptSource = provenance.source;
   }
 }
+const contractProbe = spawnSync('python3', [join(HERE, 'compare_contract.py')], {
+  encoding: 'utf8',
+  timeout: 30_000,
+});
+if (contractProbe.status !== 0) {
+  throw new Error(`비교 정본 계약 실패:\n${contractProbe.stdout || contractProbe.stderr || ''}`);
+}
 const SECRET = join(HERE, 'secret-env.sh');
-const DOWNLOADS = join(homedir(), 'Downloads');
+const USER_HOME = process.env.T5_COMPARE_USER_HOME || homedir();
+const DOWNLOADS = join(USER_HOME, 'Downloads');
 // Hermes v3 와 같은 lock 파일 — 두 제품이 같은 Downloads fixture 를 공유하므로
 // 어떤 조합의 동시 회차도 막는다.
 const LOCK = join(HERE, 'run.lock');
@@ -73,22 +86,41 @@ const resolveOpenClaw = () => {
   const requested = process.env.OPENCLAW_COMPARE_BIN;
   const found = requested || spawnSync('which', ['openclaw'], { encoding: 'utf8' }).stdout?.trim();
   if (!found) throw new Error('OpenClaw 실행 파일을 찾지 못했다');
-  const probe = spawnSync(found, ['--version'], { encoding: 'utf8', timeout: 30_000 });
-  if (probe.status !== 0) {
-    throw new Error(`OpenClaw 실행 불가: ${(probe.stderr || probe.error?.message || '').trim()}`);
+  const probeHome = mkdtempSync(join(tmpdir(), 'gpao-openclaw-probe-'));
+  const probeEnv = {
+    PATH: `${dirname(found)}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    HOME: probeHome,
+    OPENCLAW_HOME: probeHome,
+    OPENCLAW_STATE_DIR: join(probeHome, '.openclaw'),
+    OPENCLAW_CONFIG_PATH: join(probeHome, '.openclaw', 'openclaw.json'),
+    LANG: 'en_US.UTF-8',
+    LC_ALL: 'en_US.UTF-8',
+  };
+  mkdirSync(join(probeHome, '.openclaw'), { recursive: true });
+  try {
+    const probe = spawnSync(found, ['--version'], {
+      encoding: 'utf8', timeout: 30_000, env: probeEnv,
+    });
+    if (probe.status !== 0) {
+      throw new Error(`OpenClaw 실행 불가: ${(probe.stderr || probe.error?.message || '').trim()}`);
+    }
+    const label = (probe.stdout || probe.stderr || '').trim();
+    if (!label) throw new Error('OpenClaw가 실행 신분을 보고하지 않았다');
+    const agentProbe = spawnSync(found, ['agent', '--help'], {
+      encoding: 'utf8', timeout: 30_000, env: probeEnv,
+    });
+    const help = `${agentProbe.stdout || ''}\n${agentProbe.stderr || ''}`;
+    const required = ['--local', '--json', '--message', '--model', '--session-key'];
+    const missing = required.filter((option) => !help.includes(option));
+    if (agentProbe.status !== 0 || missing.length) {
+      throw new Error(
+        `OpenClaw agent 활주로 불완전: status=${agentProbe.status}, missing=${missing.join(',')}`,
+      );
+    }
+    return { bin: found, label };
+  } finally {
+    rmSync(probeHome, { recursive: true, force: true });
   }
-  const label = (probe.stdout || probe.stderr || '').trim();
-  if (!label) throw new Error('OpenClaw가 실행 신분을 보고하지 않았다');
-  const agentProbe = spawnSync(found, ['agent', '--help'], { encoding: 'utf8', timeout: 30_000 });
-  const help = `${agentProbe.stdout || ''}\n${agentProbe.stderr || ''}`;
-  const required = ['--local', '--json', '--message', '--model', '--session-key'];
-  const missing = required.filter((option) => !help.includes(option));
-  if (agentProbe.status !== 0 || missing.length) {
-    throw new Error(
-      `OpenClaw agent 활주로 불완전: status=${agentProbe.status}, missing=${missing.join(',')}`,
-    );
-  }
-  return { bin: found, label };
 };
 const OC = resolveOpenClaw();
 
@@ -188,7 +220,7 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
   let err = '';
   const ms = (a, b) => Number(b - a) / 1e6;
 
-  const child = spawn(file, spawnArgs, { cwd: process.cwd(), env, detached: true });
+  const child = spawn(file, spawnArgs, { cwd: stateDir, env, detached: true });
   let settled = false;
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -223,6 +255,8 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
       sessionKey: key,
       role: turn.role ?? null,
       prompt: turn.prompt,
+      promptStatus: turn.promptStatus,
+      promptSource: turn.promptSource,
       measure: turn.measure ?? null,
       exitCode: code,
       timedOut,
@@ -259,6 +293,8 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
       sessionKey: key,
       role: turn.role ?? null,
       prompt: turn.prompt,
+      promptStatus: turn.promptStatus,
+      promptSource: turn.promptSource,
       measure: turn.measure ?? null,
       exitCode: null,
       timedOut: false,
@@ -286,6 +322,12 @@ const main = async () => {
     console.error(`분기표 불일치: ${total}턴 vs ${SPEC.turnsPerRun} 선언`);
     process.exit(2);
   }
+  for (const required of [DOWNLOADS, join(USER_HOME, 'Developer')]) {
+    if (!existsSync(required)) {
+      console.error(`봉인 기준선의 사용자 파일 시야가 없다: ${required}`);
+      process.exit(3);
+    }
+  }
   if (!dryRun) {
     const clash = fixtureCollision();
     if (clash.length) {
@@ -303,6 +345,8 @@ const main = async () => {
   const receipt = {
     product: OC.label,
     executable: OC.bin,
+    userHome: USER_HOME,
+    workingDirectory: 'per-branch isolated home',
     run,
     model,
     branches: [],
@@ -313,6 +357,7 @@ const main = async () => {
   let lockHeld = false;
 
   console.log(`[${OC.label}] 회차 ${run} · ${total}턴 · ${model}${dryRun ? ' · DRY RUN' : ''}`);
+  console.log(`사용자 파일 시야: 격리 HOME의 Downloads·Developer → ${USER_HOME} 실제 폴더`);
   console.log(`모델 주의: ${SPEC.modelCaveat}`);
 
   if (!dryRun) {
@@ -340,7 +385,16 @@ const main = async () => {
     for (const br of branches) {
       const stateDir = join(runroot, br.home);
       console.log(`\n── ${br.id}  home=${br.home}  (${br.purpose})`);
-      if (!dryRun) mkdirSync(join(stateDir, '.openclaw'), { recursive: true });
+      if (!dryRun) {
+        mkdirSync(join(stateDir, '.openclaw'), { recursive: true });
+        receipt.branches.push({
+          id: br.id,
+          home: br.home,
+          stateDir,
+          userView: prepareUserView(stateDir, USER_HOME),
+          processesAfter: null,
+        });
+      }
 
       for (const step of br.fixture ?? []) {
         if (dryRun) console.log(`     fixture:${step}`);
@@ -418,12 +472,7 @@ const main = async () => {
       }
 
       if (!dryRun) {
-        receipt.branches.push({
-          id: br.id,
-          home: br.home,
-          stateDir,
-          processesAfter: countProcesses(join(stateDir, '.openclaw')),
-        });
+        receipt.branches.at(-1).processesAfter = countProcesses(join(stateDir, '.openclaw'));
       }
     }
   } finally {
@@ -431,13 +480,14 @@ const main = async () => {
       if (manifest.length) {
         chmodOwned(fixtureRecord(manifest, LOCKED), 0o644);
       }
-      const { removed, preserved } = cleanupOwned(
+      const { removed, preserved, outcomes } = cleanupOwned(
         manifest, join(runroot, 'fixtures-final'));
       const after = listDownloads();
       const created = [...after].filter((n) => !before.has(n)).sort();
       receipt.fixtureManifest = manifest;
       receipt.fixtureRemoved = removed;
       receipt.fixturePreserved = preserved;
+      receipt.fixtureOutcomes = outcomes;
       // 제품이 만든 파일은 지우지 않고 정확한 경로로 보고한다.
       receipt.productCreated = created.map((n) => join(DOWNLOADS, n));
       writeFileSync(join(runroot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`);
