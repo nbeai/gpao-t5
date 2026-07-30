@@ -107,6 +107,14 @@
     정리했다. H01·H05·H07·H08·H09·H10의 한 회차 결과는 탐색 관찰로만 보존하며 3회 비교 판정에
     쓰지 않는다. 증거:
     `docs/03-verification/evidence/human-baseline/LIVE-RUN-INTERRUPTION-AUDIT-2026-07-30-ko.md`
+  - 위 중단 뒤 만든 `h_runner_v2.py` 수정 1회차도 재중단됐다. 분기별 홈은 분리했지만 B1·B7에서
+    `s1`을 닫지 않은 채 같은 홈의 `s2`를 시작해 실제 Hermes 프로세스 두 개가 동시에 살아 있었다.
+    전역 회차 lock은 러너 내부의 같은-home 다중 writer를 막지 못했다. `Session.close()`도 강제 종료
+    뒤 실제 종료를 확인하지 않았고, H05는 세션 ID가 없어도 새 대화를 시작해 재시작으로 기록할 수
+    있었다. 부모 러너·Hermes·로그 감시는 종료했고 fixture 3개 부재와 프로세스 0을 확인했으며 stale
+    lock을 제거했다. `v2-run-1/`은 보존하되 비교 판정에는 쓰지 않는다. 다음 실행은 홈별 단일 writer,
+    종료 확인, resume fail-fast, 실제 ready 판정, 무과금 프로세스 전실행 검사를 먼저 통과해야 한다.
+    같은 감사 문서의 `수정 1회차 재중단` 절이 정본이다.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
