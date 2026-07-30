@@ -208,11 +208,11 @@ class Session:
 # B1·B7 에서 같은 홈에 s1·s2 가 동시에 살아 있었고, 감사가 회차를 무효 판정했다.
 # 홈만 나누고 writer 수를 안 나눈 반쪽 수정이었다.
 #
-# 판정 재료·감사 대조용으로만 남긴다. `session_lifecycle.SessionHost` 위로 옮기고
-# `preflight.py` 증명이 감사를 통과한 뒤에 이 차단을 푼다.
+# 판정 재료·감사 대조용으로만 남긴다. SessionHost 이관본은 `h_runner_v3.py`다.
+# 이 판의 차단은 풀지 않는다 — 실행은 v3 로만 한다.
 BLOCKED = (
     "h_runner_v2.py 는 다중 writer 결함으로 실행이 차단됐다. "
-    "session_lifecycle.SessionHost 로 옮기고 preflight.py 증명을 감사받은 뒤에 풀어라."
+    "SessionHost 이관본 h_runner_v3.py 를 사용하라. 이 판은 감사 대조용으로만 남는다."
 )
 
 

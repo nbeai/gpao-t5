@@ -4,7 +4,8 @@
 // Hermes 는 여기 없다. `hermes -z` 는 승계 표면이 아니다 — `run_oneshot()` 이 세션 인자를 받지
 // 않고(`oneshot.py:170`) `--resume` 은 TUI 전용 플래그다(`main.py:2322`). 실제로 재보니 H04 가
 // `이 터미널 세션과는 별개의 이전 세션`이라고 답하고 입력 토큰이 212(1턴 5,746)였다. 같은 파일에
-// 두면 또 오용되므로 뺐다. Hermes 는 `h_runner_v2.py`(대화형 PTY + SessionHost)로 잰다.
+// 두면 또 오용되므로 뺐다. Hermes 는 `h_runner_v3.py`(SessionHost 위의 대화형 PTY)로 잰다.
+// (`h_runner_v2.py` 는 다중 writer 결함으로 차단됐고 감사 대조용으로만 남는다.)
 //
 // OpenClaw `agent --local --json --session-key` 는 2턴 시험에서 승계가 확인됐다
 // (`내 이름은 종윤이야.` → 다음 턴 `내 이름 뭐라고 했지?` → `종윤`).
@@ -51,6 +52,9 @@ const FIXTURE_FILES = {
   '견적서_B사_v1.csv': '품목,수량,단가\n모니터,1,350000\n',
 };
 const LOCKED = '견적서_A사_최종.csv';
+// 턴 하나가 이 시간을 넘기면 프로세스 그룹을 죽이고 timedOut 으로 기록한다.
+// 유료 회차가 멈춘 제품을 무한히 기다리면 안 된다. (v2 의 240s 를 승계)
+const TURN_TIMEOUT_MS = 240_000;
 
 const OC = {
   label: 'OpenClaw 2026.7.2',
@@ -148,7 +152,14 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
   let err = '';
   const ms = (a, b) => Number(b - a) / 1e6;
 
-  const child = spawn(file, spawnArgs, { cwd: OC.cwd, env });
+  const child = spawn(file, spawnArgs, { cwd: OC.cwd, env, detached: true });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    try { process.kill(-child.pid, 'SIGKILL'); } catch {
+      try { child.kill('SIGKILL'); } catch { /* 이미 죽었다 */ }
+    }
+  }, TURN_TIMEOUT_MS);
   const onChunk = (buf, sink) => {
     const now = process.hrtime.bigint();
     if (firstOut === null) firstOut = now;
@@ -160,6 +171,7 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
   child.stderr.on('data', (b) => onChunk(b, 'err'));
 
   child.on('close', (code) => {
+    clearTimeout(timer);
     const t1 = process.hrtime.bigint();
     longestGap = Math.max(longestGap, ms(lastAt, t1));
     resolve({
@@ -174,6 +186,10 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
       prompt: turn.prompt,
       measure: turn.measure ?? null,
       exitCode: code,
+      timedOut,
+      // CLI 는 턴마다 새 프로세스다 — 재시작 자체는 표면에 내재하고,
+      // 이 턴이 재는 것은 재시작 뒤 `--session-key` 로 원 대화가 재개되는가다.
+      restarted: turn.restartBefore ?? null,
       // 표면별 의미가 다르다. T5 UI 수치와 나란히 놓지 않는다.
       surfaceFirstPaintMs: firstOut === null ? null : Math.round(ms(t0, firstOut)),
       surfaceQuietGapMs: Math.round(longestGap),

@@ -126,11 +126,13 @@ def main() -> int:
           "T5 와 같은 이름의 시간 칸이 없다")
 
     # 10. 비밀 유출: 기록의 sk- 문자열은 시험용 가짜뿐인가
+    #     (PTY 회차는 transcript, CLI 회차는 stdout/stderr 에 대화가 있다 — 셋 다 본다)
     leaked = []
     for r in rows:
-        for hit in SECRETISH.findall(r.get("transcript", "")):
-            if hit != FAKE_KEY:
-                leaked.append((r["seq"], hit[:6] + "…"))
+        for field in ("transcript", "stdout", "stderr"):
+            for hit in SECRETISH.findall(r.get(field) or ""):
+                if hit != FAKE_KEY:
+                    leaked.append((r["seq"], field, hit[:6] + "…"))
     check(not leaked, "기록에 시험용 가짜 외의 키 문자열이 없다", str(leaked))
 
     # 11. 사람 판정 칸이 비어 있음을 숨기지 않는가
