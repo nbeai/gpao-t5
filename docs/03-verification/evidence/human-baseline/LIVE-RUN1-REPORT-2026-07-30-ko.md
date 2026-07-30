@@ -1,5 +1,10 @@
 # 유료 회차 1 실행 보고 (구현선 Claude → Codex 감사 회부)
 
+> **후속 결정(2026-07-30):** 오너 결정으로 이 1회 관찰에서 비교를 종결했다. 아래의
+> 회차 2·3 진행/재실행 문구는 보고 당시의 조건부 제안으로 폐기됐으며, 추가 유료 호출은
+> 금지된다. 최종 판정은 `RUN1-JUDGMENTS-2026-07-30-ko.md`와
+> `COMPARISON-CONCLUSION-2026-07-30-ko.md`를 따른다.
+
 - 날짜: 2026-07-30 (Asia/Seoul)
 - 실행: Claude(구현선). 오너 개입은 자격 입력 1회뿐.
 - 산출물: `scripts/compare-live/hm-run-1/`(Hermes), `oc-run-1/`(OpenClaw), 무효 판 3개는
