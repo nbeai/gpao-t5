@@ -60,6 +60,21 @@
   세 제품 모델이 서로 다르므로(T5·Hermes gpt-5.1 / OpenClaw gpt-5.5) 제품 구조 우열로
   보고하지 않는다. Codex 감사 회부 정본:
   `docs/03-verification/evidence/human-baseline/LIVE-RUN1-REPORT-2026-07-30-ko.md`
+- **오너 결정(2026-07-30)으로 비교를 1회로 종결한다.** 회차 2·3 유료 실행 중단, 추가 유료
+  호출 금지. 비교군 결과는 1회 관찰로만 쓰며 우열·일반화 성능 주장에 쓰지 않는다. 종결
+  목적은 순위가 아니라 T-cell 개발 요구사항 확정이다. 실행표 `runs`는 1로 정정(사유 병기).
+- 구현선이 오너 결정 4·5·6항을 수행했다:
+  - 42턴 사람 판정을 기록·상태 근거만으로 채웠다(원시 행 무변조, 추정 0, 미판정 명시):
+    `docs/03-verification/evidence/human-baseline/RUN1-JUDGMENTS-2026-07-30-ko.md`
+    오염 공시 포함 — 이전 무효 판의 산출물 2건이 Downloads에 잔존한 채 최종 회차가 돌아
+    Hermes H09가 불성립(잠금 우회). OpenClaw 재시작 승계는 디스크 기록으로 성공 판정.
+  - 비교 종결 정본(공백 6·흡수 5·비흡수 4, 순위 없음):
+    `docs/03-verification/evidence/human-baseline/COMPARISON-CONCLUSION-2026-07-30-ko.md`
+    핵심 실측: 두 비교군 모두 H01 무마찰 저장·H04 1턴 철회 성공(T5만 실패), OpenClaw는
+    H07에서 비밀 원문을 durable 기억에 저장(자동 기억의 admission 경계 필요성 실증),
+    H05 새 대화 승계는 세 제품 공통 미해결(T5 차별 목표).
+- 다음: Codex 최종 감사(오너 결정 7항) → 통과 시 새 T-cell 계획 작성 착수. 이 마무리가
+  끝날 때까지 T-cell 구현 금지(8항).
 - 이후 새 T-cell 계획과 개발은 Claude가 구현하고 Codex가 독립 감사하는 원래 역할로 복귀한다.
   같은 시나리오가 세 번째 재개봉되면 패치 왕복을 중단하고 역할 교대·구조 재설계 회복 절차를 발동한다.
 
