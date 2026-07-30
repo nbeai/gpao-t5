@@ -237,3 +237,39 @@ test('S1: 손상 상태에서는 새 자동 반영을 하지 않는다', async (
     assert.ok(r.memoryStoreWarning, '사람 말로 알린다');
   } finally { server.close(); }
 });
+
+// ── H04 사용자 표면 완결: 무관 파일 승인 카드 0 ──────────────────────────────
+// 오너 판정(2026-07-31): 기억은 지워졌어도 "파일 되돌릴까요?" 가 뜨면 말귀는 여전히
+// 어긋난 것이다. 도구 선택 정책 전체를 바꾸지 않고, **같은 발화에서 기억 철회가 더 구체적인
+// 의도로 확정된 경우에만** 파일 undo 오탐을 억누르는 충돌 해소로 닫는다.
+
+test('S1/H04: 철회가 성립한 턴에는 무관한 파일 승인 카드가 뜨지 않는다', async () => {
+  const { server, base, mem } = await standUp([
+    propose(H01, declared(H01)),
+    { name: 'memory.withdraw', args: { target: H01, reason: '사용자가 취소를 말함' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: H01 });
+    const r = await post(base, '/turn', { sessionId: s.id, text: H04 });
+
+    assert.ok(r.memoryWithdrawn, '기억은 지워졌다');
+    const 파일승인 = (r.pending ?? []).filter((p) => p.action === 'local.file');
+    assert.equal(파일승인.length, 0, '요청하지 않은 파일 되돌리기 승인이 없다');
+    assert.notEqual(r.kind, 'approval', '철회 턴이 승인 대기로 끝나지 않는다');
+    assert.equal((await mem.load()).promoted.length, 0);
+  } finally { server.close(); }
+});
+
+test('S1: 진짜 파일 되돌리기 요청은 그대로 승인을 거친다(억제가 번지지 않는다)', async () => {
+  // 억제는 기억 철회가 성립한 턴에만 걸린다. 파일 undo 자체를 없애면 그건 능력 삭제다.
+  const { server, base } = await standUp([
+    { name: 'local.file', args: { action: 'undo' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: '방금 만든 파일 되돌려줘' });
+    assert.equal(r.kind, 'approval', '파일 되돌리기는 여전히 승인을 거친다');
+    assert.ok((r.pending ?? []).some((p) => p.action === 'local.file'));
+  } finally { server.close(); }
+});

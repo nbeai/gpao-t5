@@ -520,6 +520,17 @@ export async function runTurn(input, ctx) {
       };
     }
   }
+  // S1 충돌 해소(오너 판정 2026-07-31) — **같은 발화에서 더 구체적인 의도가 확정된 경우에만**
+  // 정규식 폴백의 파일 undo 오탐을 걷는다. "방금 기억한 선호는 취소해줘"는 기억 철회인데
+  // `취소해` 가 파일 도구 신호로도 읽혀, 기억을 지우고도 "파일 작업을 되돌릴까요?" 승인이
+  // 함께 떴다(봉인 실측 H04 오라우팅의 잔재, S1 라이브 3/3 재현).
+  // 범위: 모델이 memory.withdraw 를 실제로 부른 턴 + 모델이 파일 도구를 직접 고르지 않은 경우뿐.
+  // 파일 되돌리기 능력 자체는 그대로다 — 모델이 고르거나 다른 발화면 평소처럼 승인을 거친다.
+  if (memoryWithdrawal && !modelChosen?.length
+      && planIntent.neededTools?.includes('local.file') && planIntent.fileOp?.action === 'undo') {
+    const 남은손 = planIntent.neededTools.filter((x) => x !== 'local.file');
+    planIntent = { ...planIntent, neededTools: 남은손, fileOp: undefined };
+  }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
@@ -721,6 +732,7 @@ export async function runTurn(input, ctx) {
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
   result.memorySuggestion = memorySuggestion;
+  result.memoryWithdrawal = memoryWithdrawal; // 제안과 같은 자리에서 철회도 전달한다
   result.automationSuggestion = automationSuggestion;
   result.toolCandidate = toolCandidate;
   // 2.0-C-0: 부족 능력 신호(연결/도구)를 통합 패킷으로. 커넥터가 우선(작업 직접 차단), 없으면 도구 준비.
