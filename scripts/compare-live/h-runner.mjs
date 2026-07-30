@@ -139,6 +139,20 @@ const listDownloads = () => {
   try { return new Set(readdirSync(DOWNLOADS)); } catch { return new Set(); }
 };
 
+// 세션 신분의 디스크 진실 — 실측(회차 1): `--json` 은 sessionId 를 보고하지 않지만
+// 상태 디렉터리 sessions.json 이 세션키→sessionId 를 기록한다(제품이 키를 소문자화한다).
+const readDiskSessionId = (stateDir, key) => {
+  try {
+    const map = JSON.parse(readFileSync(
+      join(stateDir, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json'), 'utf8'));
+    const want = `:${key.toLowerCase()}`;
+    for (const [k, v] of Object.entries(map)) {
+      if (k.toLowerCase().endsWith(want)) return v?.sessionId ?? null;
+    }
+  } catch { /* 아직 세션 기록 없음 */ }
+  return null;
+};
+
 // ── 상태 폴더당 살아있는 제품 프로세스 수를 OS 에게 직접 묻는다 ───────────────
 // 내부 장부를 믿지 않는다. 같은 홈에 두 writer 가 붙은 것이 지난 두 판을 무효로 만들었다.
 const countProcesses = (stateDir) => {
@@ -158,16 +172,19 @@ const countProcesses = (stateDir) => {
 const readUsage = (stdout) => {
   const parse = (value) => {
     const r = value.result ?? value;
-    const u = r.usage ?? r.tokenUsage ?? value.usage ?? {};
+    // 실측(회차 1): 설치본 2026.6.11 의 `--json` 은 usage 를
+    // meta.agentMeta.usage {input, output, total} 로 보고한다.
+    const am = value.meta?.agentMeta ?? {};
+    const u = r.usage ?? r.tokenUsage ?? value.usage ?? am.usage ?? {};
     const n = (v) => (typeof v === 'number' ? v : null);
     return {
       apiCalls: n(u.apiCalls ?? u.api_calls ?? r.apiCalls),
       costUsd: n(u.costUsd ?? u.cost_usd ?? r.costUsd),
-      tokensIn: n(u.inputTokens ?? u.input_tokens ?? u.promptTokens),
-      tokensOut: n(u.outputTokens ?? u.output_tokens ?? u.completionTokens),
-      totalTokens: n(u.totalTokens ?? u.total_tokens),
+      tokensIn: n(u.inputTokens ?? u.input_tokens ?? u.promptTokens ?? u.input),
+      tokensOut: n(u.outputTokens ?? u.output_tokens ?? u.completionTokens ?? u.output),
+      totalTokens: n(u.totalTokens ?? u.total_tokens ?? u.total),
       toolCalls: Array.isArray(r.toolCalls) ? r.toolCalls.length : n(r.toolCalls),
-      model: r.model ?? null,
+      model: r.model ?? am.model ?? null,
       sessionId: r.sessionId ?? r.session_id ?? null,
       source: 'agent --json',
     };
@@ -436,14 +453,17 @@ const main = async () => {
 
         const rec = await runTurn({ ...t, branchId: br.id, home: br.home }, stateDir);
         const key = `${br.id}-${t.session}`;
-        // 재시작 증거: 실행표 불리언이 아니라 제품이 보고한 session identity 로 남긴다(P1-3).
+        // 재시작 증거: 실행표 불리언이 아니라 제품이 기록한 session identity 로 남긴다(P1-3).
+        // --json 미보고 실측에 따라 디스크(sessions.json)를 1차 진실로 쓴다.
+        rec.diskSessionId = readDiskSessionId(stateDir, key);
         if (t.restartBefore) {
           rec.restartEvidence = {
             expectedSessionId: firstSessionId[key] ?? null,
-            gotSessionId: rec.usage.sessionId ?? null,
+            gotSessionId: rec.diskSessionId ?? rec.usage.sessionId ?? null,
           };
         }
-        if (rec.usage.sessionId && !firstSessionId[key]) firstSessionId[key] = rec.usage.sessionId;
+        const seenId = rec.diskSessionId ?? rec.usage.sessionId;
+        if (seenId && !firstSessionId[key]) firstSessionId[key] = seenId;
         appendFileSync(outPath, `${JSON.stringify(rec)}\n`);
 
         // 턴 뒤에도 남아 있으면 즉시 중단한다. 다중 writer 를 다음 턴으로 넘기지 않는다.
