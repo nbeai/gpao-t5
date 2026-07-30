@@ -1,5 +1,10 @@
 # GPAO-T5 Agent Instructions
 
+> **STOP — HISTORICAL GIT ADMIN WORKTREE.**
+> The official development folder is `/Users/jyp/Developer/t5-p-op`.
+> Do not plan, implement, audit, or update handoff state in this folder. Its `.git` directory remains only because
+> it hosts Git metadata for the canonical worktree.
+
 > **최상위(2026-07-27 오너 지시)**: T5 성능 철학 — **사용자 발화 이해 → 대화 흐름 이해 →
 > 모델 앞 현실 구성 → 실제 결과 구분 → 다음 턴 승계 → 기능**. 이 순서를 놓치면 아무리 대단한 코드도 의미가 없다.
 > 정본 원문: `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md` §0.

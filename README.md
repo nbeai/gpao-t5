@@ -1,5 +1,9 @@
 # GPAO-T5
 
+> **Historical Git-admin worktree. Do not develop here.**
+> Use `/Users/jyp/Developer/t5-p-op` and begin with
+> `/Users/jyp/Developer/t5-p-op/docs/PROJECT-AUTHORITY-MAP-ko.md`.
+
 Status: `official_development_root`
 
 This folder is the formal development root for GPAO-T5.
