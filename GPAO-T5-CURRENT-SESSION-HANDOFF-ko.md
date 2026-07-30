@@ -116,6 +116,18 @@
   `audit:docs`가 현재 작업·다음 행동의 낡은 투영을 놓치고 PASS한 것은 `REPEAT_PREVENTABLE`로
   기록했다. 정본:
   `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-V2-CODEX-REAUDIT-2026-07-31-ko.md`
+- 구현선이 동결 범위만으로 **계획 v3 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V3`).
+  F1: 전 표면 공통 TurnRef(세션 내 단조 turnSeq)와 세션별 watermark 지도 — S0 신설.
+  F2: 의미 검증기 대신 **구성적 결합** — auto 승격의 statement는 사용자 원문 인용 그 자체이며
+  요약·확장은 확인 통로로 강등. F3: ReplayCase 스키마와 전이의 OS 가드(계보 실존·실행 receipt·
+  신분 검증·표본 p≥2/n=0/b≥2·허공 인용 금지). F4: `appliedMemoryRefs` 철회 —
+  보임(shown)·주장(cited)·상관(≥2회 통계 감쇠)의 3층 추적으로 교체, 이름이 사실을 앞서지
+  않는다는 불변식을 중단 신호에 추가. F5: 성장 호출마다 요청·응답 모델 신분 대조, 불일치 시
+  산출물 격리·성장 중단. F6: scopeRef를 userRef·workspaceRef(receipt 파생)·artifactRefs
+  (경로+digest)로 완결, activeGoal은 추정 라벨로 강등. §3 항목: 수치 고정표(상한·TTL·pin·
+  미사용≠노후·p95 +5%)·tick 실패 격리·S2 착수 승인 문구 철회. RP-1 대응으로 `audit:docs`를
+  검사 7종으로 확장(사본 일치+상태-단계 연동, 반증 시험 7건) — 확장 직후 실전 인수인계의
+  사본 드리프트를 검출·정정했다.
 
 ## 1. 제품 철학
 
@@ -183,7 +195,7 @@
 
 ## 4. 현재 작업 상태
 
-- 현재 작업: 새 T-cell 계획 v2의 동결 차단 F1~F6 전체 반영과 고정 범위 재감사
+- 현재 작업: 새 T-cell 개발계획 v3(동결 F1~F6 반영)의 고정 범위 재감사와 오너 확인
 - 현재 제품 코드 편집: 기억 민감정보 저장 경계만 좁게 보강 완료(`겸임 구현`, 독립 재감사 PASS)
   - 범위는 장기 기억 저장이다. 사용자 대화 원문 transcript는 현재 맥락 복원 계약대로 보존되며,
     범용 비밀 금고·transcript 마스킹 완료를 주장하지 않는다.
@@ -463,9 +475,9 @@
 ## 10. 새 세션 시작용 여섯 줄
 
 ```text
-현재 작업: 새 T-cell 개발계획 v2의 동결 차단 F1~F6 전체 반영.
+현재 작업: 새 T-cell 개발계획 v3(동결 F1~F6 반영)의 고정 범위 재감사와 오너 확인.
 이미 통과한 범위: 현재 T5 코어, P-OP-7, Automation AC-1, 인간 기준선과 비교군 1회 종결.
-현재 차단: turn 신분·내용 결합·replay 실행 증거·applied 식별·모델 호출 신분·lane scope.
+현재 차단: 계획 v3(F1~F6 반영본)의 고정 범위 재감사 대기.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.
 원인 미분류 관찰: 없음. 낮은 부하 공식 gate CPU 22.9s로 환경 변동 분리 완료.
 다음 작업과 종료 조건: Claude F1~F6 전체 반영 → Codex 고정 범위 재감사 → 오너 확인 → S1 구현.

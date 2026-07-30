@@ -82,3 +82,33 @@ test('정본 투영: 퇴역 토큰이 현재 사실로 남으면 잡는다', () 
     assert.ok(errors.some((e) => e.includes('퇴역 토큰')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });
+
+test('정본 투영: 현재 작업 사본 드리프트를 잡는다', () => {
+  const repo = scaffold();
+  try {
+    const p = join(repo, ENTRY[0]);
+    writeFileSync(p, [
+      '# 인수인계', '## 0-A. 상태',
+      '- 현재 상태는 `SOME_STATE`이다.', '- 지위 DRAFT_X 반영.',
+      '## 4.', '- 현재 작업: 새 일',
+      '## 10.', '현재 작업: 옛날 일',
+    ].join('\n'));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('서로 다르다')), String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('정본 투영: 상태-단계 연동으로 공유 노후를 잡는다', () => {
+  const repo = scaffold();
+  try {
+    const p = join(repo, ENTRY[0]);
+    writeFileSync(p, [
+      '# 인수인계', '## 0-A. 상태',
+      '- 현재 상태는 `TCELL_PLAN_AUDIT_BLOCKED`이다.', '- 지위 DRAFT_X 반영.',
+      '## 4.', '- 현재 작업: 기준선 측정 계량 정립',
+      '## 10.', '현재 작업: 기준선 측정 계량 정립',
+    ].join('\n'));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('낡은 투영')), String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});

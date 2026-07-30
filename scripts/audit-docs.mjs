@@ -10,6 +10,10 @@
 //  2. 상태 단일성 — 인수인계 §0-A의 "현재 상태는 `…`" 선언이 정확히 하나인가
 //  3. 지위 투영 — 계획 문서의 `지위` 토큰이 인수인계 §0-A에 투영돼 있는가
 //  4. 퇴역 잔재 — 전역 퇴역 토큰이 허용 구역 밖 활성 문서에 남아 있지 않은가
+//  5. 현재 작업 사본 일치 — 인수인계 안의 모든 "현재 작업:" 줄이 같은 내용인가
+//     (v2 재감사 RP-1: 사본 드리프트를 잡는다)
+//  6. 상태-단계 연동 — §0-A 상태 토큰이 요구하는 단계 문구가 "현재 작업:" 줄에 있는가
+//     (RP-1: 사본이 전부 낡은 공유 노후도 잡는다. 상태가 바뀌면 이 표도 함께 바뀐다)
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +35,13 @@ const RETIRED_TOKENS = [
 ];
 
 const PATH_REF = /(?:docs|design|scripts|src|test)\/[\w가-힣/.\-]+\.(?:json|mjs|md|js|py)(?![\w])/g;
+
+// 상태 토큰 접두 → "현재 작업:" 줄이 반드시 담아야 하는 단계 문구.
+// 상태가 다음 단계로 넘어가면 이 표에 행을 추가한다 — 표 갱신 자체가 투영 갱신을 강제한다.
+const STATUS_PHASE = [
+  { prefix: 'TCELL_PLAN', mustContain: '계획' },
+  { prefix: 'TCELL_IMPL', mustContain: '구현' },
+];
 
 export function auditDocs(repo = REPO) {
   const errors = [];
@@ -76,6 +87,20 @@ export function auditDocs(repo = REPO) {
       if (st && !handoff.includes(st[1])) {
         errors.push(`계획 지위 '${st[1]}'가 인수인계에 투영되지 않았다`);
       }
+    }
+
+    // 5. 현재 작업 사본 일치 (§4·§10 등 어디에 있든 전부 같아야 한다)
+    const workLines = [...handoff.matchAll(/^[-\s]*현재 작업:\s*(.+)$/gm)]
+      .map((m) => m[1].trim().replace(/[.。]$/, ''));
+    if (new Set(workLines).size > 1) {
+      errors.push(`인수인계: '현재 작업:' 사본 ${workLines.length}개가 서로 다르다 — ${JSON.stringify([...new Set(workLines)])}`);
+    }
+
+    // 6. 상태-단계 연동 (사본이 전부 낡은 경우를 잡는다)
+    const status = statusDecls[0]?.[1] ?? '';
+    const phase = STATUS_PHASE.find((p) => status.startsWith(p.prefix));
+    if (phase && workLines.length && !workLines.every((l) => l.includes(phase.mustContain))) {
+      errors.push(`인수인계: 상태 '${status}'인데 '현재 작업:' 줄에 '${phase.mustContain}'이 없다 — 낡은 투영`);
     }
   }
 
