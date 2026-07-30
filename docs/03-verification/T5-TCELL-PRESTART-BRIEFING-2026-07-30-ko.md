@@ -96,9 +96,10 @@
 - H01~H10 실제 인간 기준선: `실행 완료 · 독립 감사 PASS` (3회 + 보강 측정)
 - OpenClaw·Hermes 코드 사실 대조: `감사 통과`
 - Claude Code·Codex 운용 대조: `제출`
-- 비교군 라이브 측정: `키 입력 직전까지 준비 완료` —
-  Hermes 는 `--provider openai-api` 로 `gpt-5.1` 경로가 열려 있고 `OPENAI_API_KEY` 만 없다.
-  OpenClaw 는 Node `>=24.15.0` 요구에 이 기계 `v24.14.0` 로 실행 자체가 막혀 있다.
+- 비교군 라이브 측정: `독립 감사 보강 중` —
+  Hermes 는 `--provider openai-api` 경로까지 확인했으나 실제 `gpt-5.1` 허용은 자격 뒤 검증한다.
+  OpenClaw pinned 소스 `2026.7.2`는 Node 요구에 막히지만 설치본 `2026.6.11`은 실행된다.
+  라이브 기준 버전과 H10 포함 실행표를 확정한 뒤에만 자격을 요청한다.
   상세: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`
 - 새 T-cell 계획: 미작성
 - 현재 보강 커밋: `dab56f6`

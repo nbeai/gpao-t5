@@ -98,6 +98,9 @@
     Hermes의 응답 뒤 자기평가·유휴 큐레이터·기억 기본 자동 흐름, OpenClaw의 워크스페이스 기억과
     위임 도구를 확인했다. OpenClaw `agents_wait`는 `tools.swarm` 활성 조건부다.
     라이브 H01~H10은 두 제품의 모델 자격이 없어 미실행이며 코드 사실로 대체하지 않는다.
+  - 라이브 준비 `22929ca`는 독립 감사 `REWORK_REQUIRED_BEFORE_CREDENTIAL`이다. H10이 일정에서
+    누락됐고, OpenClaw 설치본 `2026.6.11`은 실행 가능한데 pinned 소스 `2026.7.2`의 Node 차단을
+    제품 전체 차단으로 확대했다. Hermes의 자격 오류도 실제 `gpt-5.1` 허용 증거는 아니다.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
@@ -174,7 +177,7 @@
 
 ### 다음 작업
 
-1. OpenClaw·Hermes 라이브 H01~H10 실행표와 격리 환경 준비
+1. OpenClaw 라이브 기준 버전 확정과 H10 포함 H01~H10 실행표·격리 환경 보강
 2. 실제 provider의 `gpt-5.1` 지원, 독립 회차 fixture schedule, 호출 수·비용 범위 확인
 3. 준비 완료 뒤 오너에게 자격 입력을 한 번만 요청하고 라이브 비교
 4. 현재 T5 기준선과 비교 결과로 새 T-cell 개발 계획 작성
