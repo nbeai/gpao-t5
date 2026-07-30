@@ -24,21 +24,29 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     type: 'object',
     properties: {
       kind: { type: 'string', enum: ['preference', 'operating_principle'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle' },
-      statement: { type: 'string', description: '기억할 내용. 지금 선언한 선호를 바로 반영하려면 사용자 원문 조각 그대로 적는다(요약하면 확인을 거친다).' },
+      statement: {
+        type: 'string',
+        description: '기억할 내용. **`evidence.utteranceQuote` 와 글자까지 똑같이 적으면**'
+          + ' 확인 카드 없이 바로 반영되고 사용자는 되돌리기만 보면 된다.'
+          + ' 한 글자라도 다르게 요약·정리하면 사용자에게 확인 클릭이 생긴다.'
+          + ' 사용자의 말을 다듬고 싶어도, 지금 한 선언이면 그대로 옮기는 편이 사용자에게 낫다.',
+      },
       evidence: {
         type: 'object',
-        description: '이번 턴 사용자 원문의 근거. 지금 선언인지 아닌지는 네가 판단한다.',
+        description: '이번 턴 사용자 원문의 근거 — **항상 채운다.** 이게 없으면 사용자가 방금'
+          + ' 분명히 말한 선호도 확인 카드를 거쳐야 해서 사용자에게 불필요한 클릭이 생긴다.',
         properties: {
-          utteranceQuote: { type: 'string', description: '이번 턴 사용자 원문에서 그대로 따온 조각' },
+          utteranceQuote: { type: 'string', description: '이번 턴 사용자 원문에서 **글자 그대로** 따온 조각. 바꿔 쓰지 않는다.' },
           speechAct: {
             type: 'string',
             enum: ['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown'],
             description: '지금 선언이면 declaration. 묻는 말·남의 말 인용·부정·과거 회상이면 그에 맞게.',
           },
         },
+        required: ['utteranceQuote', 'speechAct'],
       },
     },
-    required: ['statement'],
+    required: ['statement', 'evidence'],
   },
 }, {
   name: 'memory.withdraw',

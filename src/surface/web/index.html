@@ -1355,6 +1355,11 @@ function renderResult(r, opts = {}) {
 
   if (r.kind === 'approval') {
     const box = turnBox();
+    // 기억을 지운 사실은 승인 턴에서도 말한다. 상태만 바뀌고 화면이 침묵하면 사용자에게는
+    // "안 지워졌다"와 구분되지 않는다(S1 라이브 실측: 철회는 됐는데 표면이 말하지 않았다).
+    if (!historical && r.memoryApplied) renderMemoryApplied(box, r.memoryApplied);
+    if (!historical && r.memoryWithdrawn) renderMemoryWithdrawn(box, r.memoryWithdrawn);
+    if (r.memoryStoreWarning) box.appendChild(el('sug-line', r.memoryStoreWarning));
     // 멈출 때도 말한다 — 카드만 뜨고 아무 말이 없으면 사용자에겐 먹통으로 보인다(라이브 실측).
     if (r.reply) {
       box.appendChild(el('who', 'GPAO-T5'));
