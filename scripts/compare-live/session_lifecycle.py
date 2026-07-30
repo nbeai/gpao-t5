@@ -29,6 +29,50 @@ _ANSI = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]|\x1b\[[0-?
 # 입력 가능 표식: TUI 의 입력 프롬프트. 이게 보이기 전에는 프롬프트를 넣지 않는다.
 _READY = re.compile(r"❯|Type your message")
 _SESSION_ID = re.compile(r"Session:\s*(\S+)|--resume\s+(\S+)")
+# 재개 실패 마커(실측 2026-07-30): 없는 ID 로 --resume 하면 제품이 이 줄을 찍고 **조용히 새
+# 대화를 시작한다.** 배너는 요청한 ID 를 그대로 에코하므로 "ID 가 화면에 있는가"는 판별력이
+# 없다. 판별자는 이 마커의 부재다. 프롬프트 0건 세션은 저장되지 않아 재개가 항상 실패한다.
+_RESUME_FAILED = re.compile(r"Session not found")
+# 세션 ID 의 디스크 진실: <home>/sessions/request_dump_<sid>_<ts>.json
+_DUMP_NAME = re.compile(r"^request_dump_(\d{8}_\d{6}_[0-9a-f]+)_\d{8}_\d{6}_\d+\.json$")
+
+
+def disk_session_ids(home: Path) -> list[str]:
+    """디스크가 기억하는 세션 ID 를 최신순으로 돌려준다. TUI 화면 스크래핑은 2차원 박스
+    레이아웃 때문에 옆 칸 텍스트를 잡을 수 있다(실측: `sid=email:`). 디스크가 진실이다."""
+    sess = home / "sessions"
+    if not sess.is_dir():
+        return []
+    found: list[tuple[float, str]] = []
+    for p in sess.iterdir():
+        m = _DUMP_NAME.match(p.name)
+        if m:
+            try:
+                found.append((p.stat().st_mtime, m.group(1)))
+            except OSError:
+                continue
+    out: list[str] = []
+    for _, sid in sorted(found, reverse=True):
+        if sid not in out:
+            out.append(sid)
+    return out
+
+
+def sanitized_env(home: Path) -> dict[str, str]:
+    """제품 자식 프로세스의 환경을 명시적으로 만든다 — 상속하지 않는다.
+
+    이유(실측 2026-07-30): 오너의 실제 `~/.hermes` 자격 풀에 openai-api 키가 있다.
+    HOME 을 그대로 상속하면 `HERMES_HOME` 배선이 한 번이라도 새는 순간 오너 키로 과금된다.
+    "자격 파일이 없으면 과금 없음"은 약속이 아니라 이 함수로 구조가 된다. 자격은 오직
+    secret 파일의 명시적 주입으로만 들어간다."""
+    return {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(home),
+        "HERMES_HOME": str(home),
+        "TERM": "xterm-256color",
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8",
+    }
 
 READY_TIMEOUT_S = 90.0
 EXIT_GRACE_S = 15.0
@@ -92,6 +136,7 @@ class Session:
         self.proc = subprocess.Popen(
             ["bash", "-c", inner], cwd="/Users/jyp/Developer/lab_un/hermes-agent",
             stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
+            env=sanitized_env(home),
         )
         os.close(slave)
         self.buf = bytearray()
@@ -214,9 +259,17 @@ class SessionHost:
             raise RuntimeError(
                 f"{self.home.name}: 이전 세션이 아직 살아 있다 — 먼저 close() 로 종료를 증명하라")
         # ① OS 에게 직접 물어 홈당 프로세스가 0 인지 확인한다.
+        #    계측 실패(-1)는 안전한 0 이 아니다 — 잴 수 없으면 열지 않는다(fail-closed).
         n = count_product_processes(self.home)
-        if n > 0:
-            raise RuntimeError(f"{self.home.name}: 이 홈에 제품 프로세스가 {n}개 살아 있다")
+        if n != 0:
+            reason = "프로세스 계측 불능(ps 실패)" if n < 0 else f"제품 프로세스가 {n}개 살아 있다"
+            raise RuntimeError(f"{self.home.name}: {reason}")
+
+        # ④-a 재개 대상은 디스크에 실존해야 한다. 프롬프트 0건 세션은 저장되지 않고,
+        #     배너는 요청 ID 를 그대로 에코하므로 화면이 아니라 디스크를 먼저 본다.
+        if resume and resume not in disk_session_ids(self.home):
+            raise RuntimeError(
+                f"{self.home.name}/{label}: --resume {resume} — 디스크에 그 세션이 없다")
 
         s = Session(self.home, self.model, self.secret, resume=resume)
         if not s.wait_ready():
@@ -224,12 +277,12 @@ class SessionHost:
             raise RuntimeError(
                 f"{self.home.name}/{label}: 입력 가능 상태에 도달하지 못했다 "
                 f"(종료단계={rep.stage}, 확인={rep.verified_dead})")
-        # ④ resume 이면 실제로 그 세션으로 열렸는지 확인한다.
-        if resume:
-            seen = s.text()
-            if resume not in seen and not _READY.search(seen):
-                rep = s.close()
-                raise RuntimeError(f"{self.home.name}/{label}: --resume {resume} 검증 실패")
+        # ④-b 제품이 재개 실패를 알리면 조용한 새 대화를 재개로 인정하지 않는다.
+        if resume and _RESUME_FAILED.search(s.text()):
+            rep = s.close()
+            raise RuntimeError(
+                f"{self.home.name}/{label}: --resume {resume} — 제품이 세션을 찾지 못했다"
+                f"(Session not found)")
         self.live = s
         self.history.append({"label": label, "resumeOf": resume, "opened": True,
                              "processes": count_product_processes(self.home)})

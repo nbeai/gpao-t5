@@ -24,8 +24,8 @@
 //   node h-runner.mjs --run 1 --model gpt-5.3-chat-latest
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  mkdirSync, rmSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync,
-  chmodSync, readdirSync,
+  mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync,
+  chmodSync, readdirSync, copyFileSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
@@ -35,6 +35,9 @@ const HERE = process.env.LIVE_DIR ?? dirname(fileURLToPath(import.meta.url));
 const SPEC = JSON.parse(readFileSync(join(HERE, 'h-branches.json'), 'utf8'));
 const SECRET = join(HERE, 'secret-env.sh');
 const DOWNLOADS = join(homedir(), 'Downloads');
+// Hermes v3 와 같은 lock 파일 — 두 제품이 같은 Downloads fixture 를 공유하므로
+// 어떤 조합의 동시 회차도 막는다.
+const LOCK = join(HERE, 'run.lock');
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -65,11 +68,25 @@ const OC = {
 };
 
 // ── fixture: 정확한 경로만 ───────────────────────────────────────────────────
-const fixtureMake = () => Object.entries(FIXTURE_FILES).map(([name, body]) => {
-  const p = join(DOWNLOADS, name);
-  writeFileSync(p, body);
-  return p;
-});
+// 감사 P0-2: 같은 이름의 기존 사용자 파일은 덮어쓰지 않는다. 회차 시작 전 충돌 검사 +
+// 배타 생성('wx') 이중 방어. 삭제 전에는 스냅샷을 남긴다.
+const fixtureCollision = () =>
+  Object.keys(FIXTURE_FILES).map((n) => join(DOWNLOADS, n)).filter((p) => existsSync(p));
+const fixtureMake = () => {
+  const made = [];
+  try {
+    for (const [name, body] of Object.entries(FIXTURE_FILES)) {
+      const p = join(DOWNLOADS, name);
+      writeFileSync(p, body, { flag: 'wx' });
+      made.push(p);
+    }
+  } catch (e) {
+    // 전부 아니면 0: 이 호출이 만든 것만 되돌린다. 부분 생성물을 남기지 않는다.
+    for (const p of made) { try { unlinkSync(p); } catch { /* 이미 없다 */ } }
+    throw e;
+  }
+  return made;
+};
 const fixtureLock = () => chmodSync(join(DOWNLOADS, LOCKED), 0o000);
 const fixtureUnlock = () => {
   const p = join(DOWNLOADS, LOCKED);
@@ -127,14 +144,16 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
     '--model', model,
     '--session-key', key,
   ];
+  // 환경은 상속하지 않고 명시 구성한다 — 부모 셸의 키 변수·실제 HOME 이 제품에 새지 않는다.
   const env = {
-    ...process.env,
+    PATH: `${OC.nodeBin ? `${OC.nodeBin}:` : ''}/usr/bin:/bin:/usr/sbin:/sbin`,
     HOME: stateDir,
     OPENCLAW_HOME: stateDir,
     OPENCLAW_STATE_DIR: join(stateDir, '.openclaw'),
     OPENCLAW_CONFIG_PATH: join(stateDir, '.openclaw', 'openclaw.json'),
+    LANG: 'en_US.UTF-8',
+    LC_ALL: 'en_US.UTF-8',
   };
-  if (OC.nodeBin) env.PATH = `${OC.nodeBin}:${env.PATH}`;
 
   // 자격은 오너가 입력한 파일에서 자식 프로세스 안으로만 들어간다.
   // 계측기는 값을 읽지 않고, 출력·기록에도 남지 않는다.
@@ -214,6 +233,13 @@ const main = async () => {
     console.error(`분기표 불일치: ${total}턴 vs ${SPEC.turnsPerRun} 선언`);
     process.exit(2);
   }
+  if (!dryRun) {
+    const clash = fixtureCollision();
+    if (clash.length) {
+      console.error(`Downloads 에 같은 이름의 기존 파일이 있다 — 덮어쓰지 않는다:\n  ${clash.join('\n  ')}`);
+      process.exit(3);
+    }
+  }
   if (!dryRun && !existsSync(SECRET)) {
     console.error('자격 파일이 없다. 키 입력 창을 먼저 실행하라.');
     process.exit(2);
@@ -221,18 +247,34 @@ const main = async () => {
 
   const runroot = join(HERE, `oc-run-${run}`);
   const outPath = join(runroot, 'turns.jsonl');
-  const receipt = { product: OC.label, run, model, branches: [] };
+  const receipt = { product: OC.label, run, model, branches: [], abortedBranches: [] };
   const manifest = [];
   const before = listDownloads();
+  let lockHeld = false;
 
   console.log(`[${OC.label}] 회차 ${run} · ${total}턴 · ${model}${dryRun ? ' · DRY RUN' : ''}`);
   console.log(`모델 주의: ${SPEC.modelCaveat}`);
 
   if (!dryRun) {
-    rmSync(runroot, { recursive: true, force: true });
+    // 기존 회차 산출물은 증거다 — 재귀 삭제로 시작하지 않는다.
+    if (existsSync(runroot)) {
+      console.error(`기존 산출물이 있다 — 덮어쓰지 않는다: ${runroot}`);
+      process.exit(3);
+    }
+    // 회차 lock: Hermes 회차와도 겹치지 않는다(같은 Downloads 를 쓴다).
+    try {
+      writeFileSync(LOCK, `run=${run} pid=${process.pid} runner=openclaw\n`, { flag: 'wx' });
+      lockHeld = true;
+    } catch {
+      console.error(`다른 회차가 실행 중이다: ${readFileSync(LOCK, 'utf8').trim()}`);
+      process.exit(3);
+    }
     mkdirSync(runroot, { recursive: true });
     writeFileSync(outPath, '');
   }
+
+  // 재시작 증거용: 대화(session-key)별로 제품이 처음 보고한 sessionId 를 기억한다.
+  const firstSessionId = {};
 
   try {
     for (const br of branches) {
@@ -263,20 +305,48 @@ const main = async () => {
         }
 
         // 턴 전에 이 상태 폴더에 붙은 프로세스가 없어야 한다.
+        // 계측 실패(-1)는 안전한 0 이 아니다 — 잴 수 없으면 실행하지 않는다(P1-4).
         const busy = countProcesses(join(stateDir, '.openclaw'));
-        if (busy > 0) throw new Error(`${br.id}: 이 상태 폴더에 제품 프로세스 ${busy}개가 살아 있다`);
+        if (busy !== 0) {
+          throw new Error(busy < 0
+            ? `${br.id}: 프로세스 계측 불능(ps 실패) — 실행하지 않는다`
+            : `${br.id}: 이 상태 폴더에 제품 프로세스 ${busy}개가 살아 있다`);
+        }
 
         const rec = await runTurn({ ...t, branchId: br.id, home: br.home }, stateDir);
+        const key = `${br.id}-${t.session}`;
+        // 재시작 증거: 실행표 불리언이 아니라 제품이 보고한 session identity 로 남긴다(P1-3).
+        if (t.restartBefore) {
+          rec.restartEvidence = {
+            expectedSessionId: firstSessionId[key] ?? null,
+            gotSessionId: rec.usage.sessionId ?? null,
+          };
+        }
+        if (rec.usage.sessionId && !firstSessionId[key]) firstSessionId[key] = rec.usage.sessionId;
         appendFileSync(outPath, `${JSON.stringify(rec)}\n`);
 
         // 턴 뒤에도 남아 있으면 즉시 중단한다. 다중 writer 를 다음 턴으로 넘기지 않는다.
         const left = countProcesses(join(stateDir, '.openclaw'));
-        if (left > 0) throw new Error(`${br.id}/${t.id}: 턴 뒤 제품 프로세스 ${left}개가 남았다`);
+        if (left !== 0) {
+          throw new Error(left < 0
+            ? `${br.id}/${t.id}: 턴 뒤 프로세스 계측 불능(ps 실패)`
+            : `${br.id}/${t.id}: 턴 뒤 제품 프로세스 ${left}개가 남았다`);
+        }
 
         console.log(`  ${String(rec.seq).padStart(2)} ${rec.id.padEnd(13)} ${rec.session} ` +
           `exit=${rec.exitCode} 총=${rec.totalMs}ms 호출=${rec.usage.apiCalls ?? '기록없음'}`);
-        if (rec.exitCode !== 0) {
+
+        // 실패·시간초과 턴이 섞인 분기는 판정 재료가 아니다 — 그 분기만 중단하고
+        // 다음 분기(홈 분리)로 간다. 기록은 남긴다(P1-1).
+        if (rec.exitCode !== 0 || rec.timedOut) {
           console.log(`     ! ${(rec.stderr.trim().split('\n').pop() ?? '').slice(0, 160)}`);
+          receipt.abortedBranches.push({
+            id: br.id,
+            atTurn: t.id,
+            reason: rec.timedOut ? 'timeout' : `exitCode=${rec.exitCode}`,
+          });
+          console.log(`     ! 분기 중단: ${br.id} (${rec.timedOut ? '시간초과' : `exit=${rec.exitCode}`})`);
+          break;
         }
       }
 
@@ -293,8 +363,15 @@ const main = async () => {
     if (!dryRun) {
       fixtureUnlock();
       const removed = [];
+      const snapDir = join(runroot, 'fixtures-final');
       for (const p of manifest) {
-        if (existsSync(p)) { unlinkSync(p); removed.push(p); }
+        if (existsSync(p)) {
+          // 삭제 전 스냅샷 — 제품이 fixture 를 고쳤어도 증거가 남는다(P0-2)
+          mkdirSync(snapDir, { recursive: true });
+          copyFileSync(p, join(snapDir, p.split('/').pop()));
+          unlinkSync(p);
+          removed.push(p);
+        }
       }
       const after = listDownloads();
       const created = [...after].filter((n) => !before.has(n)).sort();
@@ -310,6 +387,7 @@ const main = async () => {
       }
       console.log(`기록: ${outPath}\n영수증: ${join(runroot, 'receipt.json')}`);
     }
+    if (lockHeld) { try { unlinkSync(LOCK); } catch { /* 이미 없다 */ } }
   }
 };
 

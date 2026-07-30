@@ -180,6 +180,31 @@
     프로세스 계측 `-1`에서 실행을 여는 문제를 확인했다. “모델 호출 0”도 측정값이 아니라 상수다.
     오너 자격 요청과 유료 회차 1은 열지 않는다. 정본 감사:
     `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-PREFLIGHT-AUDIT-2026-07-30-ko.md`
+  - 구현선이 위 감사에 대응했다. 정본 응답:
+    `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-AUDIT-RESPONSE-2026-07-30-ko.md`
+    - 근본 원인을 명시했다: P0-1·P1-3·P2는 같은 병 — 증거 칸을 관측이 아니라 의도로 채웠고,
+      교차 확인이 자기 쪽 코드에는 반대 검증을 적용하지 않았다. 재발 차단은 구조로 했다:
+      증거는 다르게 나올 수 있었던 관측만, 계측 불능은 차단, preflight에 반대 검증 내장.
+    - 수정 전 실측으로 감사가 몰랐던 사실을 확인했다: 프롬프트 0건 세션은 저장되지 않아
+      기존 재개 PASS는 행복 경로부터 허구였다. 배너는 요청 ID를 에코해 화면의 ID 존재는
+      판별력이 없다. TUI 스크래핑은 옆 칸을 잡는다(`sid=email:`) — 디스크가 진실이다.
+      상속 환경 부팅은 오너 HOME의 copilot 자격을 임시 홈으로 자동 임포트하고 있었고,
+      오너 실제 `~/.hermes` 풀에 openai-api 키가 있어 배선이 새면 자격 파일 없이도 과금
+      가능한 상태였다 — 자식 환경을 `sanitized_env()` 명시 구성으로 바꿨다.
+    - P0-1: 재개는 디스크 선검사 + `Session not found` 마커 이중 검증. 유령·가짜 ID 재개가
+      **차단되어야** preflight PASS(반대 검증 내장). 가짜 키 401 경로로 세션을 영속시켜
+      실제 재개 성공(실패 마커 없음·이전 원문 재생)을 과금 0으로 처음 증명했다.
+    - P0-2: 회차 시작 전 기존 파일 충돌 검사(두 계측기 exit 3 반증 확인) + 배타 생성 +
+      전부-아니면-0 롤백(반증 중 부분 생성 비원자성을 추가 발견해 고침) + 삭제 전 스냅샷.
+    - P1-1: 실패·시간초과 턴은 분기 중단·영수증 기록, verify_run이 INVALID 판정.
+      P1-2: OpenClaw도 같은 `run.lock`·기존 산출물 덮어쓰기 금지. P1-3: `resumedFrom`(디스크
+      진실)·`restartEvidence`(제품 보고 identity 일치) 없이는 재시작 인정 안 함.
+      P1-4: 계측 `-1`은 전 소비처 fail-closed. P2: 상수 제거, `promptsSent`·토큰 미터 0
+      관측·자격 0 부팅의 설정 안내 멈춤(음성 대조)으로 대체.
+    - 재검증: preflight 23검사 PASS, fixture 반증 통과, dry-run 부작용 0, 전체 회귀
+      1,219건 통과·실패 0, 제품 코드 변경 없음. 남은 경계는 응답 문서 §4에 정직 표기
+      (OpenClaw 재시작 증거는 회차 1에서만 실측, 마커는 pinned 소스 기준).
+    - 다음: 이 응답의 Codex 재감사 → 통과 시 오너 자격 → 유료 회차 1 → 실측 게이트.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과

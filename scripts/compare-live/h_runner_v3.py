@@ -26,12 +26,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from session_lifecycle import SessionHost, count_product_processes  # noqa: E402
+from session_lifecycle import (  # noqa: E402
+    SessionHost, count_product_processes, disk_session_ids,
+)
 
 HERE = Path(os.environ.get("LIVE_DIR") or Path(__file__).resolve().parent)
 SECRET = HERE / "secret-env.sh"
@@ -55,12 +58,27 @@ class BranchAbort(RuntimeError):
 
 
 # ── fixture: 정확한 경로만 만들고, 정확한 경로만 지운다 ────────────────────────
+# 감사 P0-2: 정확한 경로 규율은 glob 오삭제만 막는다. 같은 이름의 **기존 사용자 파일**은
+# 생성 전 존재 검사(배타 생성)로 지키고, 삭제 전에는 스냅샷을 남긴다.
+def fixture_collision() -> list[str]:
+    """이미 존재하는 fixture 경로. 하나라도 있으면 회차를 시작하지 않는다."""
+    return [str(DOWNLOADS / name) for name in FIXTURES if (DOWNLOADS / name).exists()]
+
+
 def fixture_make() -> list[str]:
     made = []
-    for name, body in FIXTURES.items():
-        p = DOWNLOADS / name
-        p.write_text(body, encoding="utf-8")
-        made.append(str(p))
+    try:
+        for name, body in FIXTURES.items():
+            p = DOWNLOADS / name
+            # 'x': 기존 파일이 있으면 덮어쓰지 않고 예외 — 사용자 파일 보호
+            with p.open("x", encoding="utf-8") as f:
+                f.write(body)
+            made.append(str(p))
+    except OSError:
+        # 전부 아니면 0: 이 호출이 만든 것만 되돌린다. 부분 생성물을 남기지 않는다.
+        for path in made:
+            Path(path).unlink(missing_ok=True)
+        raise
     return made
 
 
@@ -132,6 +150,12 @@ def main() -> int:
     if total != spec["turnsPerRun"]:
         print(f"분기표 불일치: {total}턴 vs {spec['turnsPerRun']} 선언", file=sys.stderr)
         return 2
+    if not args.dry_run:
+        clash = fixture_collision()
+        if clash:
+            print("Downloads 에 같은 이름의 기존 파일이 있다 — 덮어쓰지 않는다:\n  "
+                  + "\n  ".join(clash), file=sys.stderr)
+            return 3
     if not args.dry_run and not SECRET.exists():
         print("자격 파일이 없다. 키 입력 창을 먼저 실행하라.", file=sys.stderr)
         return 2
@@ -208,24 +232,27 @@ def main() -> int:
 
                     key = t["session"]
                     restarted = False
+                    resumed_from = None
                     if t.get("restartBefore"):
                         # 재시작 승계: 이전 세션들을 종료 증명하고, 원 대화의 ID 로만 재개한다.
+                        # ID 는 화면 스크래핑이 아니라 디스크 진실이다(TUI 박스는 옆 칸을 잡는다).
                         if live is not None:
-                            rep = host.close(live)
-                            ids[live] = rep.session_id or ids.get(live)
+                            host.close(live)
                             live = None
                         sid = ids.get(key)
                         if not sid:
                             raise BranchAbort(
-                                f"{t['id']}: 원 대화 세션 ID 가 없다 — 재시작 승계를 잴 수 없다")
+                                f"{t['id']}: 원 대화 세션 ID 가 디스크에 없다 — 재시작 승계를 잴 수 없다")
                         host.open(f"{key}-resumed", resume=sid)
                         live = key
                         restarted = True
+                        resumed_from = sid
                         print(f"     제품 재시작 → --resume {sid}")
                     elif key != live:
                         if live is not None:
-                            rep = host.close(live)
-                            ids[live] = rep.session_id or ids.get(live)
+                            host.close(live)
+                            # 닫힌 직후의 최신 디스크 세션이 방금 그 대화다.
+                            ids[live] = next(iter(disk_session_ids(home)), None)
                         host.open(key)
                         live = key
 
@@ -239,6 +266,8 @@ def main() -> int:
                         "run": args.run, "branch": br["id"], "home": br["home"],
                         "seq": t["seq"], "id": t["id"], "session": key,
                         "restarted": restarted,
+                        # 재시작 증거: 실행표 복사가 아니라 실제 --resume 대상(디스크 ID)
+                        "resumedFrom": resumed_from,
                         "role": t.get("role"), "prompt": t["prompt"],
                         "measure": t.get("measure"),
                         **m,
@@ -261,8 +290,8 @@ def main() -> int:
                 receipt["abortedBranches"].append({"id": br["id"], "reason": str(e)})
             finally:
                 if live is not None:
-                    rep = host.close(live)
-                    ids[live] = rep.session_id or ids.get(live)
+                    host.close(live)
+                    ids[live] = ids.get(live) or next(iter(disk_session_ids(home)), None)
                     live = None
                 left = count_product_processes(home)
                 if left != 0:
@@ -275,9 +304,13 @@ def main() -> int:
     finally:
         fixture_unlock()
         removed = []
+        snap = runroot / "fixtures-final"
         for path in manifest:
             p = Path(path)
             if p.exists():
+                # 삭제 전 스냅샷 — 제품이 fixture 를 고쳤어도 증거가 남는다(P0-2)
+                snap.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, snap / p.name)
                 p.unlink()
                 removed.append(path)
         after = downloads_listing()

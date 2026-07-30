@@ -95,10 +95,31 @@ def main() -> int:
     check(bool(h10 and h8) and h10["branch"] != h8["branch"],
           "H10 이 별도 분기다")
 
-    # 7. H05 재시작 승계가 실제로 재시작을 거쳤는가 (조건 5)
+    # 6.5 실패·시간초과 턴이 섞인 회차는 판정 재료가 아니다 (감사 P1-1)
+    bad = [(r["seq"], "timeout") for r in rows if r.get("timedOut") is True]
+    bad += [(r["seq"], f"exit={r['exitCode']}") for r in rows
+            if r.get("exitCode") not in (0, None)]
+    bad += [(r["seq"], "제품 사망") for r in rows if r.get("alive") is False]
+    check(not bad, "실패·시간초과·제품 사망 턴이 없다", str(bad))
+
+    # 7. H05 재시작 승계가 실제로 재시작을 거쳤는가 (조건 5 · 감사 P1-3)
+    #    실행표 불리언 복사가 아니라 실행 증거를 요구한다:
+    #    PTY 회차는 resumedFrom(디스크에서 확인된 --resume 대상),
+    #    CLI 회차는 제품이 보고한 session identity 의 전후 일치.
     rst = next((r for r in rows if r["id"] == "H05-restart"), None)
     check(bool(rst) and rst.get("restarted") is True,
           "H05 재시작 턴이 재시작을 기록했다")
+    if rst:
+        ev = rst.get("restartEvidence")
+        if rst.get("resumedFrom"):
+            notes.append(f"INFO · H05 재시작 증거: --resume {rst['resumedFrom']}")
+        elif ev is not None:
+            check(bool(ev.get("expectedSessionId")) and bool(ev.get("gotSessionId"))
+                  and ev["expectedSessionId"] == ev["gotSessionId"],
+                  "H05 재시작 전후의 제품 session identity 가 일치한다", str(ev))
+        else:
+            check(False, "H05 재시작 증거가 없다",
+                  "resumedFrom 도 restartEvidence 도 없음 — 실행표 복사만으로는 인정하지 않는다")
     new = next((r for r in rows if r["id"] == "H05-new"), None)
     work = next((r for r in rows if r["id"] == "H05-work"), None)
     check(bool(new and work) and new["session"] != work["session"],
@@ -112,6 +133,8 @@ def main() -> int:
     if rc_path.exists():
         rc = json.loads(rc_path.read_text(encoding="utf-8"))
         check(bool(rc.get("branches")), "영수증에 분기별 세션 ID 가 있다")
+        aborted = rc.get("abortedBranches") or []
+        check(not aborted, "중단된 분기가 없다", str(aborted))
         man = rc.get("fixtureManifest") or []
         rem = rc.get("fixtureRemoved") or []
         check(sorted(man) == sorted(rem), "fixture manifest 와 삭제 목록이 일치한다",
