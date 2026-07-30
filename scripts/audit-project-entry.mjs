@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { readdirSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,22 +31,13 @@ for (const path of retiredAtOldPath) {
   if (existsSync(resolve(root, path))) fail(`퇴역 문서가 현재 위치에 남음: ${path}`);
 }
 
-// 활성 문서 목록 — **외부 바이너리에 기대지 않는다.**
-// 예전엔 `rg` 를 spawn 했는데, ripgrep 이 없는 환경에서 `spawnSync rg ENOENT` 로 이 감사가
-// 죽고 공식 게이트가 BLOCKED 됐다(실측 2026-07-30). 재발 방지용 감사가 환경에 따라 게이트를
-// 막으면 그건 방지가 아니라 새 차단이다. Node 표준 순회로 같은 목록을 만든다.
+// 활성 문서 목록 — 선택 설치된 rg에 기대지 않는다. Git은 아래 worktree 감사도 이미 요구한다.
+// cached+untracked(비무시) 목록은 기존 rg의 gitignore 경계를 보존해 로컬 메모가 정본에 섞이지 않는다.
 const 제외경로 = ['docs/archive', 'docs/03-verification/evidence', 'design/evidence', 'node_modules', '.git'];
-function 마크다운모으기(dir, base = '') {
-  const out = [];
-  for (const entry of readdirSync(resolve(root, dir), { withFileTypes: true })) {
-    const rel = base ? `${base}/${entry.name}` : entry.name;
-    if (제외경로.some((p) => rel === p || rel.startsWith(`${p}/`))) continue;
-    if (entry.isDirectory()) out.push(...마크다운모으기(rel, rel));
-    else if (entry.name.endsWith('.md')) out.push(rel);
-  }
-  return out;
-}
-const activeMarkdown = 마크다운모으기('.');
+const activeMarkdown = execFileSync('git', [
+  'ls-files', '--cached', '--others', '--exclude-standard', '--', '*.md',
+], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+  .filter((path) => !제외경로.some((p) => path === p || path.startsWith(`${p}/`)));
 
 const forbiddenReferences = [
   'design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md',

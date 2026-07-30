@@ -60,6 +60,14 @@ T-cell hold:
    - Also read `docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md` for the verified pre-start facts,
      restored current-core safety boundary, gate-calibration rule, exact next sequence, and prohibited shortcuts.
 
+Owner-operation boundary:
+   - The development and audit teams operate the terminal, browser, local UI, tests, fixtures, screenshots, and
+     routine verification themselves.
+   - Ask the owner to act only when the action cannot be delegated: account login, consent, secret entry, irreversible
+     external authority, spending, or a genuinely subjective final product choice.
+   - Never make the owner run commands, click routine test UI, reproduce engineering defects, or arbitrate technical
+     scope between agents merely because the team has not completed its own investigation.
+
 Mandatory final pre-human validation gate:
 
 8. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
