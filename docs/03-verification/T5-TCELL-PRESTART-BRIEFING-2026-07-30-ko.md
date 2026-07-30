@@ -93,6 +93,12 @@
 - 작업장 정본 감사: `PASS` (활성 문서 93개 · worktree 2개)
 - 공식 게이트: `PASS` · 1,219건 · CPU 22.9s/40s · 벽시계 12.1s
 - 통제 반복 측정: CPU median 24.05s · p95 24.44s
-- H01~H10 실제 인간 기준선: 미실행
+- H01~H10 실제 인간 기준선: `실행 완료 · 독립 감사 PASS` (3회 + 보강 측정)
+- OpenClaw·Hermes 코드 사실 대조: `감사 통과`
+- Claude Code·Codex 운용 대조: `제출`
+- 비교군 라이브 측정: `키 입력 직전까지 준비 완료` —
+  Hermes 는 `--provider openai-api` 로 `gpt-5.1` 경로가 열려 있고 `OPENAI_API_KEY` 만 없다.
+  OpenClaw 는 Node `>=24.15.0` 요구에 이 기계 `v24.14.0` 로 실행 자체가 막혀 있다.
+  상세: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`
 - 새 T-cell 계획: 미작성
 - 현재 보강 커밋: `dab56f6`
