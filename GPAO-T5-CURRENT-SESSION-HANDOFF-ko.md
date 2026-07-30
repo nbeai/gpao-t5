@@ -237,6 +237,24 @@
     - 다음은 Claude의 문제 중심 독립 감사다. 해법을 주지 않고 정본 drift, fixture 교체 경쟁,
       거짓 완료, 실행 활주로 부재, 문서 잔재를 적대적으로 재현하게 한다. 통과 전에는 오너 자격
       요청·유료 회차 1을 열지 않는다.
+  - Claude 독립 감사 판정은 **`BLOCKED_BEFORE_CREDENTIAL`**이다. 자체 수치(31검사 VALID·
+    1,221 회귀·계약 PASS)는 전부 독립 재현됐지만 P0 2건이 유료 결과의 유효성을 막는다.
+    1. **P0 `REPEAT_PREVENTABLE`**: 제품 자식의 `HOME`이 샌드박스 홈이라 제품의
+       `~/Downloads`·`~/Developer`가 fixture·시나리오 현실과 분리된다. fixture는 오너 실제
+       Downloads에 생기고 제품은 볼 수 없다(재현: sanitized_env에서 `echo ~/Downloads`).
+       18턴 중 6턴(H05·H08·H09·H10)이 제품 능력이 아니라 격리 설계를 잰다. 기원은 교대 전
+       자격 격리 수정이며 두 구현선 모두 제품 시야 끝단을 검증하지 않았다.
+    2. **P0 `REPEAT_PREVENTABLE`**: H04.undo·H05.restart 원문/조건이 봉인 실측과 다르고
+       (`방금 기억한 보고서 형식 선호는 취소해줘` vs `아니, 방금 건 취소해줘.`; 재시작 성공
+       11.6s는 H02 숫자 대화에서 측정), H04.verify는 봉인에 없는 신조 원문이다. 계약 검사는
+       16개 중 3개만 하드코딩 대조라 H04·H08 원문을 변조해도 PASS다(재현 완료).
+    3. P1: 기존 `hm-run-1` 존재 시 덮어쓰기 거부 경로가 그 폴더 안에 `fixtures-final/`을
+       만든다(재현 완료). P1: 제품이 fixture를 건드리면(H08이 측정하려는 바로 그 행동) 회차
+       18턴 전체가 구조 INVALID로 폐기된다.
+    4. 공격 범위 2·3·5·6·10은 반대 재현에서 성립 확인. 완료 신호는 무과금 경로에서 조기 발화
+       미재현(실 턴은 회차 1에서만 실측 가능). dry-run의 오너 HOME 상속 실행은 상태 변경 0 관측.
+    정본: `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-CLAUDE-AUDIT-2026-07-30-ko.md`
+    오너 자격 요청·유료 회차 1은 계속 열지 않는다.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
