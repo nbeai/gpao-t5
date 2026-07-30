@@ -10,12 +10,13 @@
 //     (이 비요구를 계약에 적어 둔다. 숨은 가정으로 두면 나중에 "전역 순서가 있다"고 착각한다.)
 //   · 한 턴의 user·assistant transcript 항목과 그 턴의 ledger 항목은 같은 TurnRef 를 공유한다.
 //   · 발급은 세션 저장과 같은 직렬화 경계(withSessionQueue) 안에서 일어난다.
-//   · 기존 세션은 저장 순서로 소급 부여하되 `migrated: true` 를 남긴다. 어느 턴 것인지 알 수
+//   · 기존 세션은 저장 순서로 소급 부여하되 `migratedTurnRef: true` 를 남긴다. 어느 턴 것인지 알 수
 //     없는 과거 항목(ledger)에는 **seq 를 지어내지 않는다** — 소급 표시만 남긴다.
 
 /**
- * 세션 하나의 턴 신분.
- * @typedef {{sessionId: string, turnSeq: number, migrated?: boolean}} TurnRef
+ * 세션 하나의 턴 신분. 소급 표시는 계획 §4.1 이 정한 이름(`migratedTurnRef`)을 쓴다 —
+ * 워커가 어느 필드를 정본으로 읽을지 갈리면 그 자리가 곧 오독이 된다(S0 감사 P2).
+ * @typedef {{sessionId: string, turnSeq: number, migratedTurnRef?: boolean}} TurnRef
  */
 
 /**
@@ -37,20 +38,20 @@ export function nextTurnSeq(session) {
  * 턴 신분을 만든다.
  * @param {string} sessionId
  * @param {number} turnSeq
- * @param {{migrated?: boolean}} [opts]
+ * @param {{migratedTurnRef?: boolean}} [opts]
  * @returns {TurnRef}
  */
 export function makeTurnRef(sessionId, turnSeq, opts = {}) {
   if (typeof sessionId !== 'string' || !sessionId) throw new Error('TurnRef 에는 sessionId 가 필요하다');
   if (!Number.isInteger(turnSeq) || turnSeq < 1) throw new Error('turnSeq 는 1 이상의 정수여야 한다');
-  return opts.migrated ? { sessionId, turnSeq, migrated: true } : { sessionId, turnSeq };
+  return opts.migratedTurnRef ? { sessionId, turnSeq, migratedTurnRef: true } : { sessionId, turnSeq };
 }
 
 /**
  * 기존(신분 없는) 세션에 소급 신분을 부여한다. 반복 호출해도 결과가 같다(멱등).
  *
  * transcript 는 저장 순서가 곧 대화 순서이므로 user 발화를 턴 경계로 삼아 소급한다.
- * ledger 항목은 어느 턴에 속했는지 저장된 사실이 없다 — seq 없이 `migrated` 표시만 남긴다.
+ * ledger 항목은 어느 턴에 속했는지 저장된 사실이 없다 — seq 없이 소급 표시만 남긴다.
  * @param {{id?: string, transcript?: any[], ledgerEntries?: any[]}} session
  * @returns {typeof session}
  */
@@ -75,14 +76,14 @@ export function migrateTurnRefs(session) {
       seq += 1;
       sawAssistantForSeq = false;
     }
-    entry.turnRef = makeTurnRef(sessionId, seq, { migrated: true });
+    entry.turnRef = makeTurnRef(sessionId, seq, { migratedTurnRef: true });
     if (entry?.role === 'assistant') sawAssistantForSeq = true;
   }
 
   for (const entry of session.ledgerEntries ?? []) {
     if (!entry || typeof entry !== 'object' || entry.turnRef) continue;
     // 귀속 불가 — 사실을 지어내지 않는다. 소급 표시만 남겨 워커가 "옛 항목"으로 건너뛰게 한다.
-    entry.turnRef = { sessionId, migrated: true };
+    entry.turnRef = { sessionId, migratedTurnRef: true };
   }
   return session;
 }

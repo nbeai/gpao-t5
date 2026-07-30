@@ -14,6 +14,8 @@
 //     (v2 재감사 RP-1: 사본 드리프트를 잡는다)
 //  6. 상태-단계 연동 — §0-A 상태 토큰이 요구하는 단계 문구가 "현재 작업:" 줄에 있는가
 //     (RP-1: 사본이 전부 낡은 공유 노후도 잡는다. 상태가 바뀌면 이 표도 함께 바뀐다)
+//  7. 여섯 줄 블록 노후 — §10 의 "현재 차단:"·"다음 작업과 종료 조건:" 이 이미 끝난 단계를
+//     현재 사실로 말하지 않는가 (S0 감사 REPEAT: 검사 범위보다 문서가 넓었다)
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +43,12 @@ const PATH_REF = /(?:docs|design|scripts|src|test)\/[\w가-힣/.\-]+\.(?:json|mj
 const STATUS_PHASE = [
   { prefix: 'TCELL_PLAN', mustContain: '계획' },
   { prefix: 'TCELL_IMPL', mustContain: '구현' },
+];
+
+// 상태 토큰이 지난 단계 — 여섯 줄 블록이 이 문구를 현재 사실로 말하면 낡은 것이다.
+// 단계가 넘어갈 때 이 표에 한 줄을 더하는 것이 곧 투영 갱신 강제다.
+const STATUS_PAST_PHRASES = [
+  { prefix: 'TCELL_IMPL', past: ['오너 확인 → S0', '전체본', 'F3 replay', 'F5 실제 호출 신분', 'F6 웹/채널'] },
 ];
 
 export function auditDocs(repo = REPO) {
@@ -101,6 +109,17 @@ export function auditDocs(repo = REPO) {
     const phase = STATUS_PHASE.find((p) => status.startsWith(p.prefix));
     if (phase && workLines.length && !workLines.every((l) => l.includes(phase.mustContain))) {
       errors.push(`인수인계: 상태 '${status}'인데 '현재 작업:' 줄에 '${phase.mustContain}'이 없다 — 낡은 투영`);
+    }
+
+    // 7. 여섯 줄 블록(§10)의 현재 차단·다음 작업이 지난 단계를 말하는가
+    const sixLines = handoff.split(/^## 10\./m)[1] ?? '';
+    const claims = [...sixLines.matchAll(/^(?:현재 차단|다음 작업과 종료 조건):\s*(.+)$/gm)].map((m) => m[1]);
+    const pastSpec = STATUS_PAST_PHRASES.find((p) => status.startsWith(p.prefix));
+    if (pastSpec) {
+      for (const claim of claims) {
+        const hit = pastSpec.past.find((phrase) => claim.includes(phrase));
+        if (hit) errors.push(`인수인계 §10: 상태 '${status}'인데 지난 단계 '${hit}'를 현재 사실로 말한다`);
+      }
     }
   }
 

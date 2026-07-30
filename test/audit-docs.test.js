@@ -112,3 +112,22 @@ test('정본 투영: 상태-단계 연동으로 공유 노후를 잡는다', () 
     assert.ok(errors.some((e) => e.includes('낡은 투영')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });
+
+test('정본 투영: 여섯 줄 블록이 지난 단계를 현재 사실로 말하면 잡는다', () => {
+  const repo = scaffold();
+  try {
+    writeFileSync(join(repo, ENTRY[0]), [
+      '# 인수인계', '## 0-A. 상태',
+      '- 현재 상태는 `TCELL_IMPL_S0_SUBMITTED`이다.', '- 지위 DRAFT_X 반영.',
+      '## 4.', '- 현재 작업: S0 구현 제출',
+      '## 10. 새 세션 시작용 여섯 줄', '```text',
+      '현재 작업: S0 구현 제출',
+      '현재 차단: F3 replay 결합 · F5 실제 호출 신분.',
+      '다음 작업과 종료 조건: 오너 확인 → S0 구현.',
+      '```',
+    ].join('\n'));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('지난 단계')), String(errors));
+    assert.ok(errors.filter((e) => e.includes('지난 단계')).length >= 2, '차단·다음작업 둘 다 잡는다');
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});

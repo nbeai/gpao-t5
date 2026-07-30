@@ -21,6 +21,7 @@ import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { EventLog } from '../src/surface/event-log.js';
 import { makeModelConnection, ModelConnectionStore } from '../src/surface/model-connection.js';
+import { demoTools } from '../src/surface/demo-context.js';
 import { migrateTurnRefs, nextTurnSeq } from '../src/kernel/l0-evidence/turn-ref.js';
 
 /** 스트리밍되는 가짜 provider 본문. */
@@ -39,17 +40,23 @@ const REPLY_LINES = [
   'data: [DONE]\n',
 ];
 
-async function standUp() {
+async function standUp(opts = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-turnref-'));
-  const nonStream = JSON.stringify({ choices: [{ message: { content: '네' } }] });
+  // 기본은 평범한 답변. `toolCalls` 를 주면 첫 호출에서 도구를 부르게 해 원장 항목을 만든다
+  // (손 fixture 로 receipt 를 만들지 않는다 — 제품의 도구 실행 경로를 그대로 탄다).
+  const queue = [...(opts.toolCalls ?? [])];
+  const plain = JSON.stringify({ choices: [{ message: { content: '네' } }] });
   const fetchImpl = async (url) => {
     if (String(url).includes('/models')) return { status: 200, json: async () => ({ data: [{ id: 'llama3.3' }] }) };
-    // 스트림 경로는 SSE 조각을, 비스트림 경로(채널·일반 /turn)는 완성 JSON을 준다.
+    const call = queue.shift();
+    const payload = call
+      ? JSON.stringify({ choices: [{ message: { content: '', tool_calls: [call] } }] })
+      : plain;
     return {
       status: 200,
       body: bodyOf(REPLY_LINES),
-      json: async () => JSON.parse(nonStream),
-      text: async () => nonStream,
+      json: async () => JSON.parse(payload),
+      text: async () => payload,
     };
   };
   const env = {};
@@ -62,6 +69,32 @@ async function standUp() {
   const base = `http://127.0.0.1:${server.address().port}`;
   return { dir, store, eventLog, server, base, mc, env };
 }
+
+/** 첫 턴마다 지정한 도구를 부르는 모델 스텁(기존 서버 검사 관례). */
+const 고른다 = (perTurn) => {
+  // 한 턴은 [도구 호출 → 답변] 두 번의 모델 호출이다. 턴마다 그 쌍을 흘린다.
+  const script = perTurn.flatMap((c) => [c, null]);
+  return {
+    async respond() {
+      const next = script.shift();
+      return next ? { text: '', toolCalls: [next] } : '했어요';
+    },
+  };
+};
+
+/** 도구를 실제 실행시켜 원장 receipt 를 남기는 서버(외부 효과 0 인 읽기 도구). */
+async function standUpWithTool(calls) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-turnref-tool-'));
+  const store = new SessionStore(dir);
+  const eventLog = new EventLog(dir);
+  const server = makeServer({
+    store, eventLog, tools: demoTools(), model: 고른다(calls),
+  });
+  await new Promise((r) => server.listen(0, r));
+  return { dir, store, eventLog, server, base: `http://127.0.0.1:${server.address().port}` };
+}
+
+const readCall = (q) => ({ name: 'web.collect', args: { request: q } });
 
 const post = (base, path, body) => fetch(`${base}${path}`, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}),
@@ -207,10 +240,10 @@ test('S0: 기존 세션 migration 은 소급 표시를 남기고 멱등이다', 
   const once = migrateTurnRefs(legacy);
   const refs = once.transcript.map((e) => e.turnRef);
   assert.deepEqual(refs.map((r) => r.turnSeq), [1, 1, 2, 2], '저장 순서로 소급 부여');
-  assert.ok(refs.every((r) => r.migrated === true), '소급임을 표시한다');
+  assert.ok(refs.every((r) => r.migratedTurnRef === true), '소급임을 표시한다');
   // 과거 ledger 는 어느 턴 것인지 알 수 없다 — seq 를 지어내지 않는다.
   assert.equal(once.ledgerEntries[0].turnRef?.turnSeq, undefined, '귀속 불가 항목에 seq 를 만들지 않는다');
-  assert.equal(once.ledgerEntries[0].turnRef?.migrated, true, '대신 소급 표시만 남긴다');
+  assert.equal(once.ledgerEntries[0].turnRef?.migratedTurnRef, true, '대신 소급 표시만 남긴다');
 
   const twice = migrateTurnRefs(structuredClone(once));
   assert.deepEqual(twice.transcript.map((e) => e.turnRef), refs, 'migration 반복은 결과가 같다');
@@ -235,8 +268,89 @@ test('S0: migration 된 세션에 새 턴이 붙어도 seq 가 겹치지 않는�
     await post(base, '/turn', { sessionId: LEGACY_ID, text: '새 발화' });
     const saved = await store.load(LEGACY_ID);
     const refs = refsOf(saved);
-    assert.equal(refs.filter((r) => r?.migrated).length, 2, '옛 항목 2개는 소급 표시');
-    const fresh = refs.filter((r) => r && !r.migrated).map((r) => r.turnSeq);
+    assert.equal(refs.filter((r) => r?.migratedTurnRef).length, 2, '옛 항목 2개는 소급 표시');
+    const fresh = refs.filter((r) => r && !r.migratedTurnRef).map((r) => r.turnSeq);
     assert.deepEqual([...new Set(fresh)], [2], '새 턴은 2 — 옛 seq 1 과 겹치지 않는다');
   } finally { server.close(); }
+});
+
+// ── 감사 P1·P2 대응: 계약이 주장한 범위를 실제로 검사한다 ───────────────────
+// 주석이 검사보다 넓게 주장하면 그 자리가 곧 구멍이 된다(감사 지적).
+
+test('S0: 이 턴의 새 ledger 항목도 같은 TurnRef 를 갖는다', async () => {
+  const { store, server, base } = await standUpWithTool([readCall('첫턴')]);
+  try {
+    const s = await post(base, '/sessions');
+    // 도구를 실제로 실행시켜 receipt 를 만든다(손 fixture 아님 — 제품 경로).
+    await post(base, '/turn', { sessionId: s.id, text: '아까 그거 찾아줘' });
+    const saved = await store.load(s.id);
+    const turnSeq = saved.transcript[0].turnRef.turnSeq;
+    const entries = saved.ledgerEntries ?? [];
+    assert.ok(entries.length >= 1, '이 턴이 원장 항목을 남겼다');
+    for (const e of entries) {
+      assert.equal(e.turnRef?.sessionId, s.id, '원장 항목에도 TurnRef 가 있다');
+      assert.equal(e.turnRef?.turnSeq, turnSeq, '원장 항목이 그 턴의 seq 를 공유한다');
+    }
+  } finally { server.close(); }
+});
+
+test('S0: 두 턴의 ledger 항목은 각자 자기 턴의 seq 를 갖는다', async () => {
+  const { store, server, base } = await standUpWithTool([readCall('첫턴'), readCall('둘째턴')]);
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: '아까 그거 찾아줘' });
+    const afterFirst = ((await store.load(s.id)).ledgerEntries ?? []).length;
+    await post(base, '/turn', { sessionId: s.id, text: '다른 것도 찾아줘' });
+    const entries = (await store.load(s.id)).ledgerEntries ?? [];
+    assert.ok(entries.length > afterFirst, '둘째 턴도 원장 항목을 남겼다');
+    assert.ok(entries.slice(0, afterFirst).every((e) => e.turnRef.turnSeq === 1), '앞 턴 항목은 1');
+    assert.ok(entries.slice(afterFirst).every((e) => e.turnRef.turnSeq === 2), '뒤 턴 항목은 2');
+  } finally { server.close(); }
+});
+
+test('S0: SSE TurnEvent 가 그 턴의 TurnRef 와 같은 신분을 쓴다', async () => {
+  const { store, eventLog, server, base } = await standUp();
+  try {
+    const s = await post(base, '/sessions');
+    const start = await post(base, '/turn/stream-start', { sessionId: s.id, text: '스트림' });
+    await (await fetch(`${base}/turn/stream?sessionId=${s.id}&streamId=${start.streamId}`)).text();
+
+    const turnSeq = (await store.load(s.id)).transcript[0].turnRef.turnSeq;
+    const events = await eventLog.since(s.id, 0);
+    assert.ok(events.length > 0, 'durable 이벤트가 있다');
+    for (const ev of events) {
+      assert.equal(ev.turnRef?.sessionId, s.id, 'TurnEvent 에 TurnRef 가 있다');
+      assert.equal(ev.turnRef?.turnSeq, turnSeq, 'TurnEvent 가 transcript 와 같은 seq 를 쓴다');
+    }
+  } finally { server.close(); }
+});
+
+test('S0: 두 스트림 턴의 TurnEvent 는 각자 자기 턴의 seq 를 쓴다', async () => {
+  const { eventLog, server, base } = await standUp();
+  try {
+    const s = await post(base, '/sessions');
+    for (const text of ['첫 스트림', '둘째 스트림']) {
+      const start = await post(base, '/turn/stream-start', { sessionId: s.id, text });
+      await (await fetch(`${base}/turn/stream?sessionId=${s.id}&streamId=${start.streamId}`)).text();
+    }
+    const seqs = [...new Set((await eventLog.since(s.id, 0)).map((e) => e.turnRef?.turnSeq))].sort();
+    assert.deepEqual(seqs, [1, 2], '이벤트가 턴별로 갈린다');
+  } finally { server.close(); }
+});
+
+test('S0: migration 표시는 계획이 정한 이름을 쓴다(migratedTurnRef)', () => {
+  const legacy = {
+    id: LEGACY_ID,
+    transcript: [
+      { role: 'user', text: '옛 발화' },
+      { role: 'assistant', result: { kind: 'reply', reply: '옛 답' } },
+    ],
+    ledgerEntries: [{ intended: '옛 실행' }],
+  };
+  const out = migrateTurnRefs(legacy);
+  for (const e of out.transcript) {
+    assert.equal(e.turnRef.migratedTurnRef, true, '계획의 필드명으로 소급을 표시한다');
+  }
+  assert.equal(out.ledgerEntries[0].turnRef.migratedTurnRef, true);
+  assert.equal(out.ledgerEntries[0].turnRef.turnSeq, undefined, '귀속 불가엔 seq 를 만들지 않는다');
 });

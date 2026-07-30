@@ -265,7 +265,9 @@ export function makeServer(deps = {}) {
     // S0 · TurnRef(§4.1): 저장된 턴에 불변 신분을 준다. 발급은 세션 저장과 같은 직렬화 경계
     // (withSessionQueue) 안이라 동시 턴이 같은 seq 를 받지 않는다. 소급은 사실을 지어내지 않는다.
     migrateTurnRefs(session);
-    const turnRef = makeTurnRef(session.id, nextTurnSeq(session));
+    // 스트림 경로는 첫 이벤트부터 같은 신분을 써야 하므로 진입 시점에 이미 발급해 넘겨준다.
+    // 두 경로 모두 발급은 같은 세션 큐 안이라 동시 턴이 같은 seq 를 받지 않는다.
+    const turnRef = input.turnRef ?? makeTurnRef(session.id, nextTurnSeq(session));
     const stampFrom = {
       transcriptFrom: (session.transcript ?? []).length,
       ledgerFrom: (session.ledgerEntries ?? []).length,
@@ -638,9 +640,15 @@ export function makeServer(deps = {}) {
               }
               const turnId = randomUUID();
               let seq = (await eventLog.nextEventId(sessionId)) - 1;
+              // 이 스트림이 어느 저장된 턴인지 — 첫 이벤트 전에 확정한다(§4.1).
+              migrateTurnRefs(activeSession);
+              const streamTurnRef = makeTurnRef(sessionId, nextTurnSeq(activeSession));
               const emit = async (type, payload) => {
                 seq += 1;
-                const ev = makeTurnEvent({ turnId, eventId: seq, type, payload: payload ?? {}, now: Date.now() });
+                const ev = makeTurnEvent({
+                  turnId, turnRef: streamTurnRef,
+                  eventId: seq, type, payload: payload ?? {}, now: Date.now(),
+                });
                 await eventLog.append(sessionId, ev); // durable만 남는다(안전 척추)
                 writeEvent(ev);
               };
@@ -649,7 +657,9 @@ export function makeServer(deps = {}) {
               const onAnswerDelta = (piece) => {
                 res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: piece, _turnId: turnId })}\n\n`);
               };
-              const result = await runAndPersistTurn(activeSession, { sessionId, text }, emit, onAnswerDelta);
+              const result = await runAndPersistTurn(
+                activeSession, { sessionId, text, turnRef: streamTurnRef }, emit, onAnswerDelta,
+              );
               // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
               if (result.modelUnavailable) {
                 const text = result.modelFailure === 'timeout'

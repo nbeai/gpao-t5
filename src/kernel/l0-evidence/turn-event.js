@@ -28,14 +28,18 @@ export function isDurable(type) {
 }
 
 /**
- * @param {{turnId:string, eventId:number, type:string, payload?:*, now?:number}} p
- * @returns {{turnId:string, eventId:number, type:string, payload:*, durable:boolean, createdAt:number}}
+ * `turnRef`(S0 · 계획 §4.1)는 저장된 턴과 이 이벤트를 잇는 **불변 신분**이다. `turnId` 는
+ * 스트림 한 회의 상관 ID 일 뿐이라 저장된 transcript·ledger 와 이어지지 않았다 — 그래서
+ * 관찰 워커가 "이 이벤트가 어느 저장된 턴의 것인가"를 물을 수 없었다(S0 감사 P1).
+ * @param {{turnId:string, eventId:number, type:string, payload?:*, now?:number,
+ *   turnRef?:{sessionId:string, turnSeq:number}}} p
  */
 export function makeTurnEvent(p) {
   if (!EVENT_TYPES.includes(p.type)) throw new Error(`알 수 없는 이벤트 유형: ${p.type}`);
   if (!Number.isInteger(p.eventId)) throw new Error('eventId는 정수여야 한다(단조 증가).');
   return {
     turnId: p.turnId,
+    ...(p.turnRef ? { turnRef: p.turnRef } : {}),
     eventId: p.eventId,
     type: p.type,
     payload: p.payload ?? null,
