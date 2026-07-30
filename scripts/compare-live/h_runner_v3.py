@@ -219,6 +219,14 @@ def main() -> int:
 
             ids: dict[str, str | None] = {}
             live: str | None = None
+
+            def close_and_record(label: str) -> None:
+                # 종료하면 반드시 디스크 ID 를 기록한다 — 경로별로 기억하는 규칙이 아니라
+                # 종료 지점 하나에 붙은 구조다. (회차 1 실측: 같은 세션 재시작(B8)이
+                # 전환 경로에만 있던 캡처를 비켜가 분기가 중단됐다.)
+                host.close(label)
+                ids[label] = ids.get(label) or next(iter(disk_session_ids(home)), None)
+
             try:
                 for t in br["turns"]:
                     for step in t.get("setup", []):
@@ -233,7 +241,7 @@ def main() -> int:
                         # 재시작 승계: 이전 세션들을 종료 증명하고, 원 대화의 ID 로만 재개한다.
                         # ID 는 화면 스크래핑이 아니라 디스크 진실이다(TUI 박스는 옆 칸을 잡는다).
                         if live is not None:
-                            host.close(live)
+                            close_and_record(live)
                             live = None
                         sid = ids.get(key)
                         if not sid:
@@ -246,9 +254,7 @@ def main() -> int:
                         print(f"     제품 재시작 → --resume {sid}")
                     elif key != live:
                         if live is not None:
-                            host.close(live)
-                            # 닫힌 직후의 최신 디스크 세션이 방금 그 대화다.
-                            ids[live] = next(iter(disk_session_ids(home)), None)
+                            close_and_record(live)
                         host.open(key)
                         live = key
 
@@ -288,8 +294,7 @@ def main() -> int:
                 receipt["abortedBranches"].append({"id": br["id"], "reason": str(e)})
             finally:
                 if live is not None:
-                    host.close(live)
-                    ids[live] = ids.get(live) or next(iter(disk_session_ids(home)), None)
+                    close_and_record(live)
                     live = None
                 left = count_product_processes(home)
                 if left != 0:
