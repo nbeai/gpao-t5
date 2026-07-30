@@ -14,22 +14,50 @@ import { toolSchemasFor } from './tool-schema.js';
 // 통제 호출 선언 — 실행 손이 아니므로 ToolDescriptor 가 아니라 여기 산다.
 export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
   name: 'memory.propose',
-  description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 후보를 적는다.'
-    + ' **후보를 적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.** 적어도 자동으로'
-    + ' 기억되지 않는다 — 사용자가 확인해야 반영된다. 한 번 요청("이번만")은 적지 않는다.'
-    + ' API 키·토큰·비밀번호·주민번호 같은 민감한 값은 후보로 제출하거나 기억했다고 말하지 않는다.',
+  description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 적는다.'
+    + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
+    + ' 사용자가 지금 말로 선언한 선호는 `evidence` 를 함께 내면 확인 카드 없이 바로 반영되고'
+    + ' 사용자가 나중에 되돌릴 수 있다. 그 밖(요약한 문장·운영 원칙)은 사용자 확인을 거친다.'
+    + ' 한 번 요청("이번만")은 적지 않는다.'
+    + ' API 키·토큰·비밀번호·주민번호 같은 민감한 값은 적거나 기억했다고 말하지 않는다.',
   parameters: {
     type: 'object',
     properties: {
       kind: { type: 'string', enum: ['preference', 'operating_principle'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle' },
-      statement: { type: 'string', description: '기억할 내용 — 사용자의 뜻을 보존한 한 문장(사람 말)' },
+      statement: { type: 'string', description: '기억할 내용. 지금 선언한 선호를 바로 반영하려면 사용자 원문 조각 그대로 적는다(요약하면 확인을 거친다).' },
+      evidence: {
+        type: 'object',
+        description: '이번 턴 사용자 원문의 근거. 지금 선언인지 아닌지는 네가 판단한다.',
+        properties: {
+          utteranceQuote: { type: 'string', description: '이번 턴 사용자 원문에서 그대로 따온 조각' },
+          speechAct: {
+            type: 'string',
+            enum: ['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown'],
+            description: '지금 선언이면 declaration. 묻는 말·남의 말 인용·부정·과거 회상이면 그에 맞게.',
+          },
+        },
+      },
     },
     required: ['statement'],
+  },
+}, {
+  name: 'memory.withdraw',
+  description: '사용자가 방금 기억한 것을 취소·철회해 달라고 하면 이걸로 지운다.'
+    + ' 파일 되돌리기가 아니다 — 기억만 지운다. 무엇을 지울지는 저장된 문장으로 지목한다.'
+    + ' 지울 대상이 분명하지 않으면 부르지 말고 사용자에게 무엇을 말하는지 물어본다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      target: { type: 'string', description: '지울 기억의 문장(저장된 그대로) 또는 그 일부' },
+      reason: { type: 'string', description: '사용자가 왜 취소했는지 — 원장에 남는다' },
+    },
+    required: ['target'],
   },
 }]);
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
 const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
+const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown']);
 
 /**
  * 모델에게 보여줄 전체 스키마 = 실행 가능한 손 + 통제 채널. 모든 모델 호출 자리가 이걸 쓴다.
@@ -52,13 +80,26 @@ export function modelSchemasFor(selfState) {
 export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
   let memorySuggestion = null;
+  let memoryWithdrawal = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
-      if (statement) memorySuggestion = { kind, statement };
+      // evidence 는 자동 반영 판정의 재료다. 여기서 판정하지 않고 **그대로 전달**한다 —
+      // 판정 자리를 하나(서버의 자동 반영 게이트)로 두어야 두 진실이 생기지 않는다.
+      const quote = String(c?.args?.evidence?.utteranceQuote ?? '').trim();
+      const act = SPEECH_ACTS.has(c?.args?.evidence?.speechAct) ? c.args.evidence.speechAct : 'unknown';
+      if (statement) {
+        memorySuggestion = { kind, statement };
+        if (quote) memorySuggestion.evidence = { utteranceQuote: quote, speechAct: act };
+      }
+    }
+    if (c.name === 'memory.withdraw') {
+      const target = String(c?.args?.target ?? '').trim().slice(0, 300);
+      const reason = String(c?.args?.reason ?? '').trim().slice(0, 200);
+      if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, rest };
+  return { memorySuggestion, memoryWithdrawal, rest };
 }

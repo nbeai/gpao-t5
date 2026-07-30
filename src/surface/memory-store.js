@@ -27,16 +27,38 @@ export class MemoryStore {
     this.file = join(dir, 'memory.json');
   }
 
+  /**
+   * 없는 파일만 새 저장소다. 파싱·권한·I/O 오류를 빈 상태로 돌려주면 "기억이 없다"와
+   * "기억을 못 읽는다"가 같은 얼굴이 되고, 그 위에서 새 기억을 쓰면 기존 기억이 사라진다
+   * (T-cell 계획 §4.9). 손상은 격리 사본으로 보존하고 상태로 말한다.
+   */
   async load() {
+    let raw;
     try {
-      const m = JSON.parse(await readFile(this.file, 'utf8'));
+      raw = await readFile(this.file, 'utf8');
+    } catch (e) {
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {} };
+      return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
+    }
+    try {
+      const m = JSON.parse(raw);
       return { candidates: m.candidates ?? [], promoted: m.promoted ?? [], observed: m.observed ?? [], closed: m.closed ?? {} };
-    } catch {
-      return { candidates: [], promoted: [], observed: [], closed: {} };
+    } catch (e) {
+      const quarantine = `${this.file}.corrupt-${Date.now()}`;
+      try {
+        await mkdir(this.dir, { recursive: true });
+        await writeFile(quarantine, raw, 'utf8');
+      } catch { /* 격리 실패도 상태로만 말한다 — 여기서 던지면 대화가 멈춘다 */ }
+      return {
+        candidates: [], promoted: [], observed: [], closed: {},
+        corrupted: true, corruptionReason: 'parse_failed', corruptionQuarantine: quarantine,
+      };
     }
   }
 
   async save(memory) {
+    // 손상을 읽은 상태 위에 쓰면 기존 기억이 그 순간 사라진다. 복구 전에는 쓰지 않는다(§4.9).
+    if (memory?.corrupted) throw new Error('기억 저장소가 손상 상태다 — 복구 전에는 쓰지 않는다');
     await mkdir(this.dir, { recursive: true });
     // observed(추정 성향)를 함께 지속하되, 이 레인은 admittedContext가 읽지 않으므로 영향 0 유지.
     // closed: 종료 표식(tombstone) — 거절·철회의 멱등 판정을 **상태 안에서** 한다(P-OP-4 감사).

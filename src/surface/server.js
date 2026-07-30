@@ -38,7 +38,7 @@ import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
-import { makeCandidate, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
+import { makeCandidate, makeAutoReversible, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
@@ -133,6 +133,24 @@ export function makeServer(deps = {}) {
     reason: 'sensitive_value',
     stored: false,
   });
+
+  const 기억손상안내 = '기억 저장소에 문제가 있어 복구 전까지 새 기억을 반영하지 않아요.';
+
+  /**
+   * 자동 가역 반영 게이트(계획 §4.2) — **판정 자리는 여기 하나뿐이다.**
+   * 의미 판단(지금 선언인가)은 모델의 것이고, 런타임은 그 주장이 이번 턴 원문에 실제로
+   * 붙어 있는지만 기계로 대조한다. statement 가 인용 그 자체여야 하므로 요약·확장은
+   * 이 통로로 올 수 없다(인용과 내용이 갈릴 자유도 제거).
+   */
+  const 자동반영가능 = (suggestion, 이번원문) => {
+    const ev = suggestion?.evidence;
+    if (!ev || ev.speechAct !== 'declaration') return false;
+    if (suggestion.kind !== 'preference') return false;
+    if (suggestion.statement !== ev.utteranceQuote) return false;
+    const 원문 = String(이번원문 ?? '');
+    if (!원문 || !원문.includes(ev.utteranceQuote)) return false;
+    return 기억저장가능(suggestion.statement);
+  };
 
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
@@ -379,17 +397,54 @@ export function makeServer(deps = {}) {
       }
       await traceStore.save(learning);
     }
+    // 철회를 말한 턴에 정규식 감지가 같은 뜻의 문장을 새 후보로 만들면, 방금 지운 것을 그
+    // 자리에서 다시 쌓는다(봉인 실측 H04 1회차에서 실제로 그랬다). 모델이 근거와 함께 명시
+    // 제출한 제안만 남기고, 근거 없는 감지 후보는 이 턴에서 버린다.
+    if (result.memoryWithdrawal && result.memorySuggestion && !result.memorySuggestion.evidence) {
+      result.memorySuggestion = undefined;
+    }
     if (result.memorySuggestion) {
       // P-OP-4: 턴 시작 사진(memory)으로 저장하면 긴 턴 동안 들어온 확인·철회를 통째로 되돌린다.
       // 변경 줄에 서서 **현재 상태를 새로 읽고** 그 위에만 더한다.
       await withMemory(async () => {
         const now = await memStore.load();
+        if (now.corrupted) { // §4.9 — 못 읽는 상태 위에 새 기억을 쌓지 않는다
+          result.memorySuggestion = undefined;
+          result.memoryStoreWarning = 기억손상안내;
+          return;
+        }
         const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
         if (dup) { result.memorySuggestion = undefined; return; }
+        // S1(§4.2): 지금 말로 선언한 선호는 카드 없이 반영한다. 그 밖은 기존 확인 통로 그대로.
+        if (자동반영가능(result.memorySuggestion, input.text)) {
+          const e = makeAutoReversible(randomUUID(), result.memorySuggestion.statement, result.memorySuggestion.evidence);
+          now.promoted = [...(now.promoted ?? []), e];
+          await memStore.save(now);
+          result.memorySuggestion = undefined; // 확인 대기 카드가 아니다
+          result.memoryApplied = { statement: e.statement, undoId: e.candidateId };
+          if (!(await 기억영수증('auto_applied', e))) result.memoryApplied.receiptWritten = false;
+          return;
+        }
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
         // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
         if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;
+      });
+    }
+    if (result.memoryWithdrawal) {
+      // H04(봉인 실측 실패 3/3): 기억 취소가 파일 되돌리기 승인으로 새던 자리. 이제 기억만 지운다.
+      await withMemory(async () => {
+        const now = await memStore.load();
+        if (now.corrupted) { result.memoryStoreWarning = 기억손상안내; return; }
+        const target = result.memoryWithdrawal.target;
+        const hit = (now.promoted ?? []).find((e) => e.statement === target)
+          ?? (now.promoted ?? []).find((e) => e.statement.includes(target) || target.includes(e.statement));
+        if (!hit) return; // 없는 것을 지웠다고 말하지 않는다
+        now.promoted = now.promoted.filter((e) => e !== hit);
+        markClosed(now, hit.candidateId, 'withdrawn');
+        await memStore.save(now);
+        result.memoryWithdrawn = { statement: hit.statement, reason: result.memoryWithdrawal.reason };
+        if (!(await 기억영수증('withdrawn', hit))) result.memoryWithdrawn.receiptWritten = false;
       });
     }
     if (result.automationSuggestion?.action) {

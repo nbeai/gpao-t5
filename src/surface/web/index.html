@@ -1436,6 +1436,11 @@ function renderResult(r, opts = {}) {
   if (!historical && r.surfaceRequest?.kind === 'secret_input') renderSecretInput(box, r.surfaceRequest);
   // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
   if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
+  // S1: 선언한 선호는 카드 없이 이미 반영됐다. 확인을 구하지 않고, 되돌릴 길만 곁에 둔다
+  // (봉인 실측: 그 확인 카드가 지킨 실제 위험은 0 이었다).
+  if (!historical && r.memoryApplied) renderMemoryApplied(box, r.memoryApplied);
+  if (!historical && r.memoryWithdrawn) renderMemoryWithdrawn(box, r.memoryWithdrawn);
+  if (r.memoryStoreWarning) box.appendChild(el('sug-line', r.memoryStoreWarning));
   // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
   if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
   // 능력 부족 통합 안내(2.0-C-0) — 커넥터(연결)·도구(준비)를 하나의 카드로. 제안과 달리 "작업 복귀 경로"라
@@ -1628,6 +1633,41 @@ function renderSecretInput(box, req) {
   };
   card.appendChild(save);
   card.appendChild(결과);
+  box.appendChild(card);
+}
+
+// 반영 알림 — 묻지 않는다. "이렇게 기억해 뒀어요"와 되돌리기 한 번.
+function renderMemoryApplied(box, applied) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', '이렇게 기억해 뒀어요'));
+  card.appendChild(el('sug-s', `"${applied.statement}"`));
+  if (applied.receiptWritten === false) {
+    card.appendChild(el('sug-line', '반영은 했지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+  }
+  const btns = el('btns');
+  const undo = document.createElement('button');
+  undo.className = 'act'; undo.textContent = '되돌리기';
+  undo.onclick = async () => {
+    undo.disabled = true;
+    const res = await fetch('/memory/rollback', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ candidateId: applied.undoId }),
+    }).then((x) => x.json()).catch(() => null);
+    card.replaceChildren(el('sug-t', res?.rolledBack ? '되돌렸어요' : '되돌리지 못했어요'));
+  };
+  btns.appendChild(undo);
+  card.appendChild(btns);
+  box.appendChild(card);
+}
+
+// 철회 알림 — 무엇을 지웠는지 사람 말로. 승인 절차를 늘리지 않는다.
+function renderMemoryWithdrawn(box, w) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', '그 기억은 지웠어요'));
+  card.appendChild(el('sug-s', `"${w.statement}"`));
+  if (w.receiptWritten === false) {
+    card.appendChild(el('sug-line', '지웠지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+  }
   box.appendChild(card);
 }
 

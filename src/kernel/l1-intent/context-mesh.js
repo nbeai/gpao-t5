@@ -94,6 +94,33 @@ export function makeCandidate(candidateId, kind, statement) {
 }
 
 /**
+ * 사용자가 **지금 말로 선언한 선호**를 확인 카드 없이 반영한 항목.
+ *
+ * 왜 카드가 없나: 봉인 실측에서 그 카드가 지킨 실제 위험은 0 이었다(H01 3/3 카드1·클릭1).
+ * 가역 로컬 기억은 승인이 아니라 되돌리기로 지킨다 — 안전은 마찰이 아니라 복구로 만든다.
+ * 저장 내용은 **사용자 원문 인용 그 자체**다(계획 §4.2). 요약·확장 문장은 이 통로로 오지
+ * 못한다 — 인용과 내용이 갈릴 자유도 자체를 없앤다.
+ * @param {string} entryId
+ * @param {string} statement 사용자 원문 조각 그대로
+ * @param {{utteranceQuote:string, speechAct:string}} evidence
+ */
+export function makeAutoReversible(entryId, statement, evidence) {
+  return {
+    candidateId: entryId,
+    kind: 'preference',
+    tier: 'auto_reversible',
+    statement,
+    evidence,
+    admitted: true,
+    userConfirmed: true, // 선언 자체가 확인이다 — 별도 클릭을 요구하지 않는다
+    replayPassed: true,  // preference 는 replay 불요(기존 계약)
+    rollbackable: true,
+    influenceScope: '관련된 이후 대화',
+    reviewLevel: 'auto_reversible',
+  };
+}
+
+/**
  * replay 검증(운영 원리 전용). P6-1은 최소 — 과거 turn과 명시 충돌만 없으면 통과.
  * 핵심은 "replay 없이는 승격 불가"라는 게이트 자체. replay 로직은 밀도화 단계에서 깊어진다.
  * @param {object} entry

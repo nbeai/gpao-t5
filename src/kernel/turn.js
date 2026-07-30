@@ -347,6 +347,8 @@ export async function runTurn(input, ctx) {
   // 우선이고, 아래 정규식(detectCandidate)은 모델이 도구를 못 고를 때(미연결·도구 미지원)의
   // 보조 신호로 내려간다. 후보는 어느 쪽이든 영향 0 — 반영은 사용자 확인 뒤에만(§5).
   let memorySuggestion = detectCandidate(input.text ?? '');
+  // S1: 기억 철회는 모델의 통제 호출로만 온다(정규식 감지 없음 — 의미 판단은 모델의 것).
+  let memoryWithdrawal = null;
   // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
   const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
@@ -399,6 +401,7 @@ export async function runTurn(input, ctx) {
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
+    if (분리.memoryWithdrawal) memoryWithdrawal = 분리.memoryWithdrawal;
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -417,6 +420,7 @@ export async function runTurn(input, ctx) {
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
+      memoryWithdrawal,
       toolCandidate,
       capabilityResolution: resolveCapability({ text: input.text, toolCandidate }),
       followUp,
@@ -512,7 +516,7 @@ export async function runTurn(input, ctx) {
       const reply = [rec.userSafeSummary, rec.nextSafeAction].filter(Boolean).join(' ');
       return {
         kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
-        selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion,
+        selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion, memoryWithdrawal,
       };
     }
   }
@@ -559,6 +563,7 @@ export async function runTurn(input, ctx) {
         question: fileClarifyQuestion(parsedFile),
         selfStateSummary: summary,
         memorySuggestion,
+      memoryWithdrawal,
         followUp,
         usedSkill: ctx.usedSkill, // 스킬이 도구를 골랐으면 묻는 자리에서도 그 사실을 숨기지 않는다
       };
@@ -608,6 +613,7 @@ export async function runTurn(input, ctx) {
             + (아는곳.length ? ` 지금 바로 보낼 수 있는 곳: ${아는곳.map((k) => k.label ?? k.target).join(' · ')}` : ''),
         selfStateSummary: summary,
         memorySuggestion,
+      memoryWithdrawal,
         capabilityResolution: resolveCapability({ text: input.text, sendClarify: { reason: parsed.clarifyReason, label: toolLabel(sendGrant.action, selfState), toolId: sendGrant.action } }),
         followUp,
       };
@@ -682,6 +688,7 @@ export async function runTurn(input, ctx) {
       // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
       const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
       if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
+      if (분리멈춤.memoryWithdrawal) memoryWithdrawal = 분리멈춤.memoryWithdrawal;
     }
     return {
       kind: 'approval',
@@ -702,6 +709,7 @@ export async function runTurn(input, ctx) {
       selfStateSummary: summary,
       followUp,
       memorySuggestion,
+      memoryWithdrawal,
       automationSuggestion,
       capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
