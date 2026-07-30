@@ -60,6 +60,7 @@
 - 작업장 정리 뒤 자체 검증: 테스트 **1,214건 통과**, 공식 gate **PASS**
   (CPU 36.8s/40s · 벽시계 14.2s).
 - 준비 보강 착수 기준 HEAD: `e486a15` (`chore(project): establish one canonical T5 workspace`).
+- 현재 제품·준비 보강 HEAD: `dab56f6` (`fix(core): restore memory safety before T-cell replanning`).
 - T-cell과 분리된 현재 코어 안전 복구를 마쳤다. 기억 후보·검색 반영·사용자 모델의 민감정보
   공통 저장 경계와 반대시험을 추가했으며, T-cell 코드는 다시 넣지 않았다.
 - 현재 변경의 전체 회귀는 **1,219건 통과·실패 0**, 작업장 정본 감사는 PASS다.
