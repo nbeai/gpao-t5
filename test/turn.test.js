@@ -275,10 +275,7 @@ test('같은 요청 안에서 같은 손을 두 번 묻지 않는다', async () 
   const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   assert.equal(r1.kind, 'approval', '첫 승인은 반드시 받는다');
   await runTurn({ approve: r1.pendingId }, c);
-  // 허락의 신분은 (손·실제 행동)이다(감사 P0) — 여기서는 **그 손이 기억됐다**는 사실만 본다.
-  // 정확한 표현을 시험이 못 박으면 신분 계약을 고칠 때마다 시험이 계약을 붙잡는다.
-  assert.ok([...(c.허락한손 ?? [])].some((x) => String(x).startsWith('mail.send')),
-    `허락한 손이 이어지지 않는다: ${JSON.stringify([...(c.허락한손 ?? [])])}`);
+  assert.ok(c.허락한손?.has('mail.send'), '허락한 손이 이어지지 않는다');
 
   // 새 요청이면 허락은 새로 받는다 — 면제가 다음 요청까지 조용히 넘어가면 안 된다
   const r2 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);

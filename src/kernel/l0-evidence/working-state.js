@@ -157,65 +157,6 @@ export function deriveWorkingState(prevState, turn = {}) {
  * 시제를 정확히 쓴다 — 방금 다룬 것만 "방금"이라고 한다. 이게 대상을 **푸는** 장치다:
  * 사용자가 화제를 바꾸면 옛 대상은 자연히 "몇 턴 전"으로 내려가고 현재를 주장하지 않는다.
  */
-/**
- * **현재 대상 집합** — 가장 최근 턴이 실제로 다룬 것들, 그리고 그것이 아직 오래되지 않았을 때만.
- * 이 판정의 **단일 계산 자리**다(아래 `workingStateFacts` 와 `currentPlaceOf` 가 함께 쓴다).
- */
-function currentSubjects(state) {
-  const subjects = state?.subjects ?? [];
-  const turnNo = state?.turnNo ?? 0;
-  const newest = subjects.reduce((n, s) => Math.max(n, s.lastTurn ?? 0), 0);
-  const hasCurrent = newest > 0 && turnNo - newest <= CURRENT_WITHIN_TURNS;
-  return hasCurrent ? subjects.filter((s) => s.lastTurn === newest) : [];
-}
-
-/**
- * **지금 자리** — "이 프로젝트"의 "이"가 가리키는 실제 경로 (P6-W1 · §0-C-1 project 신분).
- *
- * 이 사실의 **단일 계산 자리**다. 프롬프트의 `지금 자리:` 줄과 T-cell admission 의
- * project 신분이 둘 다 여기서 나온다 — 같은 질문의 답을 두 층이 따로 계산하면
- * 덜 아는 쪽이 이긴다(프랙탈).
- *
- * **현재 대상 집합에서만 찾는다.** 감사 재현(2026-07-29): `subjects` 전체에서 처음 나오는
- * 절대경로를 집으면, 현재 대상이 지난 대화·웹 페이지처럼 경로가 없는 것일 때 **두 턴 전
- * 프로젝트 경로가 "지금 자리"로 올라온다.** 그러면 새 주제의 T-cell 입장·관찰 anchor·권한
- * 범위가 통째로 옛 프로젝트에 묶인다 — 작은 신분 오류 하나가 뒤의 모든 판단을 오염시킨다(나비).
- * 현재 대상에 자리가 없으면 **null 이다. 추측하지 않는다.**
- */
-/** 이 대상이 딛고 있는 절대경로(있으면). 대상이 스스로 말한 것만 본다 — 지어내지 않는다. */
-function pathOfSubject(s) {
-  for (const v of [s?.detail, s?.label, String(s?.key ?? '').replace(/^[a-z_]+:/, '')]) {
-    if (typeof v === 'string' && v.startsWith('/')) return v;
-  }
-  return null;
-}
-
-export function currentPlaceOf(stateOrNull) {
-  const state = stateOrNull ?? {};
-  const current = currentSubjects(state);
-  // ① 현재 대상이 자리를 직접 말하면 그것이다(터미널의 cwd 등).
-  const 직접 = current.find((s) => typeof s?.detail === 'string' && s.detail.startsWith('/'))?.detail;
-  if (직접) return 직접;
-  // ② 현재 대상이 자리를 말하지 않으면, **그 대상이 옛 자리 안에 있을 때만** 그 자리를 이어간다.
-  //    파일 하나를 다루는 턴은 자리를 새로 말하지 않지만 그 자리를 떠난 것도 아니다 —
-  //    경로 포함은 확인 가능한 사실이지 추측이 아니다.
-  const 현재경로 = current.map(pathOfSubject).filter(Boolean);
-  if (현재경로.length) {
-    const 옛자리 = (state.subjects ?? [])
-      .filter((s) => !current.includes(s))
-      .map((s) => (typeof s?.detail === 'string' && s.detail.startsWith('/') ? s.detail : null))
-      .filter(Boolean);
-    const 이어지는자리 = 옛자리.find((p) => 현재경로.some((c) => c === p || c.startsWith(`${p.replace(/\/$/, '')}/`)));
-    if (이어지는자리) return 이어지는자리;
-    // **여기서 폴더를 유도하지 않는다.** 파일 경로에서 상위 폴더를 짐작하는 것은 추측이고,
-    // 실제로 후보가 여러 곳인 턴(`place_candidates`)에서 아직 고르지도 않은 자리를
-    // "지금 자리"로 만들어 냈다(회귀 검사가 잡았다). 선언된 자리가 없으면 모르는 것이다.
-  }
-  // ③ 현재 대상이 경로와 무관하면(지난 대화·웹 페이지 등) **모르는 것이다.**
-  //    옛 프로젝트 경로를 집어 오면 새 주제가 통째로 옛 범위에 묶인다(감사 P1 재현).
-  return null;
-}
-
 export function workingStateFacts(stateOrNull) {
   const state = stateOrNull ?? {};
   const turnNo = state.turnNo ?? 0;
@@ -223,7 +164,9 @@ export function workingStateFacts(stateOrNull) {
   // 현재 대상은 **가장 최근에 다룬 것들뿐**이다. 새 대상이 오면 이전 것은 그 즉시 물러난다 —
   // 둘 다 "방금"이라고 하면 모델이 어느 쪽이 지금 이야기인지 모른다.
   // 그리고 그 최근조차 오래됐으면(안 쓰인 턴이 쌓이면) 아무 것도 현재가 아니다(고집 금지).
-  const current = currentSubjects(state);
+  const newest = subjects.reduce((n, s) => Math.max(n, s.lastTurn), 0);
+  const hasCurrent = newest > 0 && turnNo - newest <= CURRENT_WITHIN_TURNS;
+  const current = hasCurrent ? subjects.filter((s) => s.lastTurn === newest) : [];
   const older = subjects.filter((s) => !current.includes(s));
 
   const lines = [];
@@ -231,8 +174,7 @@ export function workingStateFacts(stateOrNull) {
   // 사용자는 경로를 안 말하고 "이 프로젝트", "그 폴더"라고 부른다. 최근에 실제로 뭔가를 한
   // 자리가 있으면 그게 그 말의 뜻일 확률이 가장 높다 — 없으면 **말하지 않는다**(지어내지 않는다).
   // 코드 폴더만이 아니다: 정산 자료를 읽었으면 그 폴더가, 서버를 켰으면 그 자리가 여기 온다.
-  // (subjects 는 최신이 앞이므로 currentPlaceOf 와 같은 순서다 — 한 사실, 한 계산 자리.)
-  const 자리 = currentPlaceOf(state);
+  const 자리 = [...current, ...older].find((s) => typeof s.detail === 'string' && s.detail.startsWith('/'))?.detail;
   if (자리) lines.push(`지금 자리: ${자리}`);
   // **볼 수 있는 자리는 이름만 준다.** 경로를 늘어놓으면 프롬프트를 먹고, 사용자도 경로로 말하지 않는다.
   // 사용자가 "외장하드요", "거기"라고 하면 모델이 이 이름들 중에서 고른다(우리가 파싱하지 않는다 — §24).

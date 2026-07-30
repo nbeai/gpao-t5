@@ -1,14 +1,9 @@
 # GPAO-T5 Kernel Contract
 
-- Status: `living_kernel_contract_historical_change_log`
+- Status: `Codex 감사 통과 · Phase 2 봉인` · **Phase 5.1(2026-07-24) · Approval Lifecycle · P6-2 · P6-3 · P6-3b · P6-4 · P6-5 · P6-6 · 2.0-A · 2.0-B · P6-7 · 2.0-C-0 · P6-11 · P6-12 · P6-13 · P6-14 · P6-15 · P6-16 · P6-17(Slice-1·2·3) · P6-18(Slice-1~5) · P6-19(Slice-1) · P-STAB-1 개정(2026-07-25~26)**
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (계약 정합성·경계·Phase 3 연결성 감사 완료 / Phase 5.1 개정 감사)
-- Current authority: 이 문서는 커널 계약의 계보와 필드 의미를 보존한다. 현재 런타임 사실은 제품 코드와
-  인수인계 §0이 우선하며, 제품 철학은 절대 원칙 §0-A-1·§0-A-2가 우선한다. 과거 단계별 “봉인”은
-  전체 현재 구현의 완료 주장이 아니다.
-- Current approval note: 모든 `write`·기억·스킬 변경을 일괄 승인 대상으로 읽지 않는다. 실제 외부성,
-  가역성, 대상, 명시 지시, bounded grant로 효과를 판정한다. 저위험 가역 작업은 자동 + 원장·undo가 기본이다.
 - Phase: `GPAO-T5-FINAL-DEVELOPMENT-PLAN` Phase 2 Kernel Contract (+ Phase 5.1 Reference Absorption Hardening)
 - Phase 5.1 개정 반영(근거: `GPAO-T5-PHASE-5-1-REFERENCE-ABSORPTION-HARDENING`, 감사 보정 4건 포함):
   ① §1.5 InboundEventGate 신규 ② §6 connectedTools `status` 세분화 ③ §7 ToolReceipt `lifecycle`

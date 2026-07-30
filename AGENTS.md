@@ -21,53 +21,106 @@
 
 This folder is the official GPAO-T5 development root.
 
-Before any planning, implementation, review, verification, handoff, or release work, read:
+Before any planning, implementation, review, verification, handoff, or release work, read these top authority documents:
 
-1. `GPAO-T5-DOCUMENT-AUTHORITY-MAP-2026-07-30-ko.md`
-2. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
-3. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
-4. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
-5. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
-6. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
+1. `README.md`
+2. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
+3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
+4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+5. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
+   - Preserves the reusable method that turns owner philosophy into human scenarios, shared contracts,
+     implementation, live evidence, independent audit, and durable project knowledge.
+   - Use it as the operating cycle for new work. It does not replace the authority documents above.
 
-Then read only the current task-specific specification named by the authority map. Historical plans, completed gates,
-old seals, and evidence are not universal first-read material and never override the current handoff.
+Mandatory reference absorption supplement:
 
-## Universal Product Gate
+6. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+   - Defines what T5 should absorb from OpenClaw and Hermes for current and future P-OP work.
+   - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
+   - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
 
-- Minimum safety floor, maximum autonomy applies to every T5 area.
-- Reading, research, organization, reasoning, tool choice, drafts, reversible work, and already bounded repeated work
-  proceed automatically by default.
-- Cards and confirmation are only for irreversible external effects, new authority, or materially ambiguous targets.
-- Current user intent outranks learned principles, memory, automation, and historical plans.
-- Runtime supplies reality; the model interprets meaning. Do not replace model judgment with regexes or scripts.
-- Background learning, audit, replay, and storage never make the foreground user turn wait.
-- More questions, cards, clicks, turns, or latency without a real safety boundary is a product regression.
-- Prefer verified reference absorption over reinvention, while translating it into T5's contracts and user experience.
+Mandatory T-cell implementation specification:
 
-## Task-Specific Reading
+7. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
+   - Read before changing Memory, Context Mesh, POM, TaskTrace, SkillCandidate, Automation learning, Growth Loop,
+     replay, admission, or self-development.
+   - Keeps principle maturity, current-turn influence, and A0-A3 action authority separate.
+   - Do not claim T-cell self-growth from the P6-1 minimum gate alone. Follow the staged contracts, replay,
+     migration, effect audit, and live evidence in this specification.
+   - Owner routing decision: Claude is the single T-cell implementer and Codex is the independent auditor.
+     Do not split T-cell product-code implementation across subagents or parallel branches. Other development
+     areas should use isolated parallel agents when the collaboration contract's eligibility rules are met.
 
-- T-cell, Memory, Context, POM, Growth:
-  `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md` and
-  `design/T5-TCELL-BACKGROUND-CONTROL-PLANE-ENGINEERING-DECISION-2026-07-30-ko.md`.
-- Skill, Trigger, AgentRun, Automation:
-  `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`.
-- Tool, connector, channel reference contracts:
-  `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`.
-- Environment, build, or multi-agent mechanics:
-  `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md` and
-  `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`.
-- Release or package work:
-  `design/P-DIST-1-INSTALL-PIPELINE.md` and the affected validation evidence.
+Mandatory final pre-human validation gate:
 
-## Audit and Handoff
+8. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
+   - Run only after P-OP A-H is sealed and before human user testing or installation-package production.
+   - Codex must use GPT-5.6sol. Claude must use Opus 5 or Fable 5. Record the exact provider-exposed model
+     identity; do not silently substitute a lower or auto-selected model.
+   - The two lanes run blind first, then cross-audit and reproduce each other's findings.
+   - No final dual-model `PASS` means no installation-package production. Any product change after `PASS`
+     requires impact analysis and the affected dual-model scenarios to run again.
 
-- Audit reports all related problems in one pass as blocker, designated follow-up, or observation.
-- Audit reports problem, reproduction, impact, violated contract, severity, and closure condition. It does not prescribe
-  implementation structure or patch order unless the owner explicitly asks for a design proposal.
-- Development continues in parallel except where a current blocker invalidates the next action's foundation.
-- Codex owns the handoff's current-truth §0. Implementers submit evidence and do not rewrite verified current state.
-- Delivered behavior and Git outrank prose. If they differ, mark prose stale rather than freezing unrelated development.
+Mandatory independent audit and collaboration contract:
+
+9. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
+   - Every implementation, audit, resumed, handoff, and release session must read and obey it.
+   - Audit must classify findings as current blocker, designated follow-up, or observation; it must provide the
+     recommended solution, minimum sufficient verification, stop condition, and best next work order.
+   - Do not drip-feed findings, reopen a passed scenario for peripheral issues, lower product quality for a
+     deadline, or make the owner arbitrate technical scope between agents.
+   - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most
+     effective path. Do not co-edit the same files or turn independent audit into serial rework.
+   - Its parallel-development contract is also mandatory: stabilize one shared contract first, isolate sidecar
+     work by worktree and disjoint file ownership, and let one integration owner admit audited contract units.
+     Parallel agents never merge directly into the canonical line or make the owner arbitrate technical choices.
+
+Mandatory current-session handoff:
+
+10. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
+   - Every new, resumed, or takeover session reads this after the audit contract and current execution board.
+   - It records the latest verified baseline, current file ownership, blockers, designated follow-ups, next work,
+     and stop condition. Verify it against Git before acting because active implementation may have advanced.
+   - Update this fixed-path document at each major P-OP handoff instead of creating disconnected handoff notes.
+
+Mandatory skill, scheduling, agent, and automation implementation plan:
+
+11. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
+   - Read before changing skills, recurring or scheduled work, background execution, agent creation/delegation,
+     automation UI, scheduler persistence, or T-cell automation learning.
+   - Defines one shared structure: Skill is how, Trigger is when, AgentRun is the bounded executor, and
+     AutomationJob binds them under the existing P-OP authority, ledger, recovery, and delivery contracts.
+   - Core user-created skills, durable scheduling, and bounded agents are pre-human-beta and pre-package work.
+     External skill/plugin ecosystems, agent swarms, and recursive multi-agent orchestration are not.
+
+## T5 Core Three-Axis Rule (2026-07-28 owner direction)
+
+The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
+
+1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+   - Axis 1: user purpose, performance philosophy, and the full meaning of 말귀.
+2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+   - Axis 2: model/runtime responsibility split, reality assembly, execution truth, and next-turn continuity.
+3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
+   - Axis 3: current core execution order, process audit, real-user scenarios, and completion evidence.
+
+Then read the current execution board and alignment audit when present. The axes cooperate and constrain one another:
+
+- Axis 1 prevents developer-centric, feature-count, or user-purpose drift.
+- Axis 2 prevents model control, invented reality, and missing ledger/continuity.
+- Axis 3 prevents overbuilding, endless work, single-case patching, and completion claims without real-model/user/surface evidence.
+
+No axis alone can justify a feature or completion claim. Do not advance the next core step while the current one still has a user-visible gap, unrun counter-verification, or live verification missing. Keep each step to one shared operating contract; defer scope that does not improve a current human scenario.
+
+For current (v3.x) development, also read — these define what "done" means now:
+
+4a. `GPAO-T5-DEVELOPMENT-PLAN-v3.0-2026-07-26-ko.md` (owner, canonical identity §0 and Phases 1-9)
+4b. `GPAO-T5-DEVELOPMENT-PLAN-v3.1-SUPPLEMENT-2026-07-26-ko.md` (completion definition, target list,
+    performance floor, Phase 0 debt). **A slice is not done while any "다만 ~는 아직" remains.**
+
+For Phase 0 reference inventory, also read:
+
+5. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
 
 Core rule:
 
@@ -84,9 +137,7 @@ Development discipline:
 - Gate destructive, external, irreversible, public, paid, secret, or account-affecting actions.
 - Prefer reference-first absorption over reinvention, while preserving GPAO-T5 identity and license boundaries.
 - Keep changes surgical and simple.
-- Every behavioral regression fix should include a reproduction that fails before the fix. New capabilities use the
-  smallest end-to-end human scenario that proves the real path; do not manufacture a failing unit test for code that
-  did not previously exist.
+- Every fix should include a failing reproduction or scenario gate.
 - Completion means the real user path works.
 
 Working-environment rules (see the Engineering Environment Charter):
@@ -99,5 +150,4 @@ Working-environment rules (see the Engineering Environment Charter):
 - Exception: when the implementer (Claude Code) is unavailable, the other may take over implementation — but must consciously note that hand and eye are now one, apply artifact-execution verification and failure tests more strictly, re-audit that stretch independently when the implementer returns, and never push irreversible/external actions solo (user approval becomes the gate). The reverse applies when Codex is unavailable.
 - Dual-role marking (mandatory): any work where one actor both implemented and audited must be tagged so it can be found and re-audited later. Add a commit trailer `Dual-Role: <actor> (impl+audit — needs independent audit)` and mark the stretch as `겸임 구현` in the ledger/notes. The returning independent auditor reviews these first and clears the mark on pass.
 - Remote sync: local commits are frequent and free; push to origin at each major milestone (charter/spec sealed, roadmap phase done, first build slice complete, a domain closed, merge after audit passes). Do not let origin trail local for long. `main` stays green — never push a half-done or unaudited state. Force pushes / history rewrites / tags / releases need user approval; ordinary fast-forward pushes proceed at milestones.
-- Fast hooks, CI, and test/document gates now exist. Keep everyday local work frictionless: use focused tests while
-  editing and run full gates at integration, seal, release, or when a change becomes another lane's foundation.
+- Enforcement gates (hooks/CI/test gates) are intentionally deferred to Phase 5, when real code and a build pipeline exist. Everyday local work stays frictionless.

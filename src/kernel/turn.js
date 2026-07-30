@@ -17,9 +17,6 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { scopeKeyOf, selectPrinciples } from './l1-intent/principle-snapshot.js';
-import { normalizeStatement } from './l1-intent/statement-text.js';
-import { buildTurnFacts, grantKey, grantTargetOf } from './l1-intent/turn-facts.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -37,50 +34,6 @@ import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE , isSendTool } from './contracts
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
-
-/**
- * **허락의 신분** — 손 하나가 아니라 (손 · 실제 행동 종류)다.
- *
- * 감사 재현(2026-07-29): 같은 요청에서 `local.file` **쓰기**를 승인받은 뒤 모델이 같은 손의
- * **삭제**를 고르면, 손 단위 면제가 그 삭제를 "이미 허락받은 질문"으로 삼켰다. 카드도 안 뜨고
- * 실행도 안 되어 조용히 끝났다(그 자리에서 멈추는 쪽이라 사고는 아니었지만, 사용자는 시킨 일이
- * 왜 안 됐는지 알 수 없었다). 면제의 뜻은 「사용자가 새로 판단할 것이 없는 같은 질문」이고,
- * 쓰기와 삭제는 **다른 질문**이다 — 이 코드베이스가 `fileKind` 에서 이미 배운 것과 같은 매듭이다.
- */
-const 손행동 = (action, kind) => `${action}·${kind ?? ''}`;
-
-/**
- * 행동 종류를 사용자 말로. 권한 신분의 일부이므로 **멈춤 설명·승인 카드에도 사람 말로** 나가야
- * 한다("무엇을 못 했는지"가 도구 id 로 나가면 사용자는 이해할 수 없다). 모르는 종류는
- * 지어내지 않고 일반어로 둔다 — 목록이 판단을 하지 않는다.
- */
-/**
- * 감사 P1·#7 · **범위 허용 표면 계약 — 계획 승인과 걸음 승인이 같은 자리에서 나온다.**
- *
- * 「24시간 계속 허용」은 (손·행동·대상·자리) 네 요소가 모두 확정될 때만 실제 권한이 된다.
- * 이 판정이 두 경로에 따로 있으면 **같은 일인데 어느 길로 왔느냐에 따라 버튼이 달라진다** —
- * 사용자에게는 그것이 곧 "될 때도 있고 안 될 때도 있는" 제품이다.
- * @param {(action:string)=>object|undefined} 인자of 그 손의 확정 인자를 주는 함수
- */
-function 범위허용가능(ctx, 물을것, 인자of) {
-  if (!물을것?.length) return { available: false, reason: 'target_unknown' };
-  const 만들수있는것 = 물을것.filter((g) => grantKey({
-    action: g.action,
-    kind: g.kind,
-    target: grantTargetOf(인자of(g.action)),
-    scope: ctx.projectId ? `project:${ctx.projectId}` : null,
-  }));
-  if (만들수있는것.length === 물을것.length) return { available: true };
-  // 왜 못 하는지는 사용자에게 사실로 말한다(정책문 아님).
-  return { available: false, reason: !ctx.projectId ? 'place_unknown' : 'target_unknown' };
-}
-
-const 행동말 = (kind) => ({
-  send: '보내기', write: '쓰기·저장', delete: '삭제', publish: '공개 게시', pay: '결제',
-  automate: '자동 실행', promote_memory: '오래 기억', access_secret: '비밀 접근',
-  connect_account: '계정 연결', grant_permission: '권한 변경', escalate: '권한 상승',
-  export_sensitive: '민감정보 내보내기', organize: '정리', read: '읽기',
-}[kind] ?? '이 작업');
 
 /**
  * P6-W3 · **지금 볼 수 있는 자리.** 매 턴 사실로 준다 — 도구를 부를 때만 알 수 있게 두면
@@ -241,142 +194,7 @@ function 이전대기를지난것으로(ctx) {
   ctx.pending?.clear?.();
 }
 
-/**
- * 행렬 1 · **고정 시간창** — 직전 턴의 영수증만 사실이 된다.
- * 세션 누적 원장 전체를 넘기면 세 턴 전 실패가 영원히 `실패 직후` 로 매치된다(감사 재현).
- * 창의 경계는 서버가 준 사실(`turnLedgerStart`·`prevTurnLedgerStart`)이지 추정이 아니다.
- * (admission 은 늘 실행 앞에서 도므로 "이번 턴 영수증" 창은 두지 않는다 — `turn-facts.js` 참조.)
- */
-function 원장창(ctx, ledger) {
-  const all = ledger?.entries ?? [];
-  const start = Number.isInteger(ctx.turnLedgerStart) ? ctx.turnLedgerStart : all.length;
-  const prev = Number.isInteger(ctx.prevTurnLedgerStart) ? Math.min(ctx.prevTurnLedgerStart, start) : start;
-  return { previousTurn: all.slice(prev, start), previousTurnStart: prev };
-}
-
-/** admission 이 죽어도 답변은 죽지 않는다. 실패는 정직하게 degraded 로 남긴다. */
-const 실패trace = (stage) => ({
-  stage, status: 'degraded', errorCodes: ['admission_failed'],
-  retrievedIds: [], admitted: [], rejected: [], scopeFiltered: 0,
-  influencedPlan: [], influencedAnswer: [],
-});
-
-/**
- * TG-5A · **공통 admission 준비 경계** (종료 행렬 3·5).
- *
- * 네 경로 — 웹 발화 · 채널 수신 · 승인 · 거절 — 이 **모두 이 한 자리를 지난다.**
- * 감사 실측: 예전에는 승인·거절이 이 자리보다 앞에서 return 했고 채널은 원천 공급조차 없어서
- * 세 경로가 admission 을 아예 지나지 않았다.
- *
- * 단계가 둘인 이유(행렬 3): 모델 호출 앞에는 계획이 없고 등급은 정규식 추정뿐이다.
- * 그 자리에서 계획·값 역할을 열면 추정 위에서 권한을 판정하게 된다.
- *  · `pre_model` — 맥락 역할만. `tierKnown:false`
- *  · `post_plan` — 커널이 판정한 등급·실제 도구·대상 위에서 권한·값 역할까지
- *
- * **데이터면 계약**(결정문 §10.3 · 실측 2026-07-30): 여기서 저장소를 읽지 않는다.
- * 예전엔 이 자리가 제어면의 스냅샷 생산 함수를 `await` 해서 registry 파일 열기·전수 검증·관찰
- * 참조 조회·확인 원장·권한 원장 읽기가 **모델 호출 앞**에 서 있었다. 그리고 그 결과는 trace 로만
- * 나가고 답에는 들어가지도 않았다 — 이득 0, 대기만. 성장이 자랄수록 대화가 느려지는 구조였다.
- * 이제 판정은 게시 시점에 끝나 있고, 전경은 **게시본 한 벌을 동기로 읽어 충돌만 뺀다.**
- * 게시본이 없으면(부팅 직후·아직 승격 0) 도움이 0 일 뿐, 대화는 그대로 간다.
- *
- * 결과는 `result.principleTrace` 로만 나가고 모델·계획·실행에는 들어가지 않는다(주입은 TG-5B).
- */
-/**
- * 정규식 신호와 모델 판단을 합친다 — **자동 반영은 둘이 같은 문장을 가리킬 때만.**
- *
- * · 사용자 발화에서 나왔다(출처) — 정규식이 사용자 문장에서 후보를 봤다.
- * · 사용자가 그것을 선언했다(말귀) — 모델도 같은 문장을 기억 후보로 제출했다.
- * 둘 중 하나뿐이면 후보로만 남는다. 질문·인용·부정은 모델이 선언으로 읽지 않으므로 여기서 걸린다.
- * 정규식 목록을 늘려 의도를 판정하지 않는다(최상위 원칙).
- */
-function 제안합치기(정규식제안, 모델제안) {
-  if (!모델제안) return 정규식제안;
-  if (!정규식제안) return 모델제안;
-  const 같은문장 = normalizeStatement(정규식제안.statement) === normalizeStatement(모델제안.statement);
-  if (!같은문장) return 모델제안;   // 모델이 다른 것을 봤다 — 그건 모델 제안이다
-  // 문장이 같다는 것은 "사용자 문장에서 나왔다"는 뜻이지 "선언했다"는 뜻이 아니다.
-  // **선언인지는 모델이 밝힌 의도가 말한다**(감사 TG5-CX-01: 질문도 문장은 같았다).
-  if (모델제안.intent !== 'declared') return { ...모델제안, source: 'user_utterance' };
-  return { ...모델제안, source: 'user_declared' };
-}
-
-function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySuggestion, awaiting }) {
-  if (!ctx.principleSnapshotStore) return null;
-  let trace;
-  try {
-    const scopeKey = scopeKeyOf({ project: ctx.projectId ?? null });
-    // **동기 조회.** 여기에 await 가 붙으면 데이터면 계약이 깨진다(구조 감사가 그걸 본다).
-    const 게시본 = ctx.principleSnapshotStore.read(scopeKey);
-    const 재료 = buildTurnFacts({
-      stage, intent, plan, sendArgs, memorySuggestion, awaiting,
-      selfState: ctx.selfState, workingState: ctx.workingState,
-      sessionId: ctx.sessionId, projectId: ctx.projectId, surface: ctx.surface,
-      ledgerWindow: 원장창(ctx, ledger),
-      confirmationRefs: ctx.confirmationRefs,
-    });
-    const { principles, trace: 고른것 } = selectPrinciples(게시본, {
-      scopeKey,
-      // 이번 턴 사실이 실제로 켠 원자들 — 게시본의 결합 절과 대조할 유일한 열쇠다.
-      atoms: (재료.requestFacts?.facts ?? []).map((f) => f?.atom).filter(Boolean),
-      // **이번 발화 원문 그대로** 넘긴다. 정규식이 이 말을 '운영 원리'로 분류했는지에 기대지
-      // 않는다 — 분류에 실패한 발화에서 과거 원리가 살아남는 일이 없어야 한다.
-      utterance: ctx.currentUtterance ?? '',
-      // 단계·권한·권한 원장은 **이번 턴의 사실**이다 — 전부 메모리에 이미 있다(저장소 읽기 0).
-      stage,
-      authorityFacts: 재료.authorityFacts,
-      grantStore: ctx.grantLookup,
-      now: ctx.now ? ctx.now() : Date.now(),
-      max: 5,
-    });
-    trace = {
-      stage,
-      scopeKey: 고른것.scopeKey,
-      snapshotRevision: 고른것.revision,
-      retrievedIds: 고른것.admitted,
-      rejected: 고른것.skipped.map((s) => ({ id: s.cellId, reason: s.reason })),
-      // TG-5A shadow — 고른 것도 계획·답에 넣지 않는다. 실제 주입은 TG-5B 다.
-      // 이름은 기존 계약 그대로다(`admitted: [{id, role}]`) — 층이 바뀌었다고 어휘까지 갈아치우면
-      // 같은 사실을 두 이름으로 부르게 된다.
-      admitted: principles.map((p) => ({ id: p.cellId, role: p.role, reason: 'admitted' })),
-      reason: 고른것.reason,
-      status: 'ok',
-      errorCodes: [],
-    };
-  } catch {
-    trace = 실패trace(stage);
-  }
-  (ctx.principlePasses ??= []).push(trace);
-  return trace;
-}
-
-/**
- * 단계별 판정을 하나의 trace 로 합친다.
- * **최상위는 마지막으로 실제 실행된 단계**다(계획이 안 서는 턴에는 `post_plan` 이 없다).
- * 각 단계의 원본은 `passes` 에 그대로 남는다 — 합친 값만 남기면 감사가 두 판정을 구분할 수 없다.
- */
-function trace합치기(passes) {
-  if (!passes?.length) return null;
-  const last = passes[passes.length - 1];
-  return {
-    ...last,
-    status: passes.some((p) => p.status === 'degraded') ? 'degraded' : 'ok',
-    errorCodes: [...new Set(passes.flatMap((p) => p.errorCodes ?? []))],
-    // TG-5A 는 shadow — 어느 단계도 계획·답에 영향을 주지 않는다. 빈 배열이 그 사실의 기록이다.
-    influencedPlan: [], influencedAnswer: [],
-    passes,
-  };
-}
-
 export async function runTurn(input, ctx) {
-  const 결과 = await runTurnInner(input, ctx);
-  const trace = trace합치기(ctx.principlePasses);
-  // §0-C-3: 이전에 허용한 범위로 진행한 사실은 숨기지 않는다 — 답·카드·원장이 같은 사실을 본다.
-  const 부가 = ctx.grantsReused?.length ? { grantsReused: ctx.grantsReused } : {};
-  return trace ? { ...결과, ...부가, principleTrace: trace } : { ...결과, ...부가 };
-}
-
-async function runTurnInner(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
   ctx.surface = resolveResponseSurface(input);
@@ -427,13 +245,6 @@ async function runTurnInner(input, ctx) {
   // input 을 안 받는다) 여기서 ctx 에 실어 둔다 — 결과가 요청이 온 자리로 돌아가는 계약(L9).
   ctx.askedFrom = input.channel ? { channel: input.channel } : undefined;
 
-  // 행렬 5 · **승인·거절도 같은 admission 준비 경계를 지난다.**
-  // 감사 실측: 이 두 분기는 아래 admission 자리보다 **앞에서 return** 했다. 그래서 사용자가
-  // 버튼으로만 진행한 턴은 원리 입장이 아예 계산되지 않았다 — 웹 발화만 지나는 경계는 경계가 아니다.
-  if (input.approve || input.reject) {
-    원리입장(ctx, ledger, { stage: 'pre_model', awaiting: true });
-  }
-
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
   if (input.approve) {
     const saved = ctx.pending.get(input.approve);
@@ -456,17 +267,8 @@ async function runTurnInner(input, ctx) {
     // 것이 없다. 그렇게 묻는 것은 확인이 아니라 절차가 되고, 사용자는 읽지 않고 누르게 된다.
     // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
-    // 행렬 3·5: **소비가 확정된 뒤** post_plan 판정을 돈다. 이 자리에는 보관된 실제 계획과
-    // 커널이 이미 판정한 등급이 있다 — 추정이 아니라 사실 위에서 권한·값 역할을 본다.
-    원리입장(ctx, ledger, {
-      stage: 'post_plan', plan: saved.plan, sendArgs: saved.sendArgs,
-      intent: { ...(saved.intent ?? {}), approvalOutcome: 'approved' }, awaiting: true,
-    });
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
-    // TG-1: **실제로 소비된 승인만** 결과 사실로 싣는다 — 만료·미발견은 위에서 이미 돌아갔다.
-    // 관찰(T-cell)은 입력에 approve 가 있었다는 사실이 아니라 이 소비 사실만 본다(감사 2026-07-29).
-    const 재개결과 = await executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
-    return { ...재개결과, approvalConsumed: { pendingId: input.approve, approved: true } };
+    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -485,18 +287,10 @@ async function runTurnInner(input, ctx) {
     const 건너뛴일 = (거절된것?.plan?.needsApproval ?? [])
       .map((g) => g.approvalPreview?.impact).filter(Boolean)[0];
     ctx.pending.delete(input.reject);
-    // 행렬 3·5: 실제로 대기 항목을 **소비한 거절**만 계획 사실을 갖는다(유령 ID 는 아니다).
-    if (거절된것) {
-      원리입장(ctx, ledger, {
-        stage: 'post_plan', plan: 거절된것.plan, sendArgs: 거절된것.sendArgs,
-        intent: { ...(거절된것.intent ?? {}), approvalOutcome: 'rejected' },
-      });
-    }
     const reply = ctx.tools?.tools?.[손]?.cancelledSummary?.(인자)
       ?? (건너뛴일 ? `안 했어요. 아무것도 바뀌지 않았어요. (건너뛴 일: ${건너뛴일})`
         : '안 했어요. 아무것도 바뀌지 않았어요.');
-    // 실제 대기 항목을 소비한 거절만 사실이다 — 유령 ID 거절은 소비가 아니다(관찰 0).
-    return { kind: 'reply', reply, selfStateSummary: summary, ...(거절된것 ? { approvalConsumed: { pendingId: input.reject, approved: false } } : {}) };
+    return { kind: 'reply', reply, selfStateSummary: summary };
   }
 
   // C) Relevance Gate(§1.5) — 외부·비요청 이벤트만 거른다. user_chat(기본)·trusted_runtime_event은
@@ -552,12 +346,7 @@ async function runTurnInner(input, ctx) {
   // H(오너 감사 2026-07-29): **의미 포착은 모델이 한다.** 모델이 memory.propose 로 제출한 후보가
   // 우선이고, 아래 정규식(detectCandidate)은 모델이 도구를 못 고를 때(미연결·도구 미지원)의
   // 보조 신호로 내려간다. 후보는 어느 쪽이든 영향 0 — 반영은 사용자 확인 뒤에만(§5).
-  // 정규식은 **깨우기 신호 하나**다(§0.1: 말귀를 정규식으로 되돌리지 않는다).
-  // 이 값만으로는 자동 반영하지 않는다 — 사용자가 "선언"했는지 "묻거나 인용"했는지는
-  // 정규식이 알 수 없다(실측: `「…가 좋아」라고 내가 말한 적 있어?` 가 선호로 저장됐다).
-  // 의도 판정은 아래에서 **모델의 `memory.propose`** 가 같은 문장을 내놓는지로 확인한다.
-  const 정규식제안 = detectCandidate(input.text ?? '');
-  let memorySuggestion = 정규식제안;
+  let memorySuggestion = detectCandidate(input.text ?? '');
   // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
   const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
@@ -577,12 +366,6 @@ async function runTurnInner(input, ctx) {
   // P2-5b: **도구 선택을 모델에게.** 분기 전에 한 번 묻는다 — 정규식(answerMode)이 "행동이 아니다"라고
   // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
-  // TG-5A 행렬 3 · **모델 호출 앞 단계**(`pre_model`). 여기엔 계획이 없고 등급은 정규식 추정뿐이다.
-  // 그래서 맥락 역할만 연다 — 계획·값 역할은 아래 `post_plan` 이 실제 계획 위에서 판정한다.
-  // 결과는 principleTrace 로만 나가고 아래 tc(모델 입력)에는 들어가지 않는다.
-  ctx.selfState = selfState;
-  원리입장(ctx, ledger, { stage: 'pre_model', intent, memorySuggestion, awaiting: Boolean(input.runningTask) });
-
   let modelChosen = null;
   let earlyReply = null;
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
@@ -597,11 +380,6 @@ async function runTurnInner(input, ctx) {
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
-      // **오래 기억할 말이 있어 보인다는 사실**을 놓는다(감사 TG5-CX-01의 뿌리).
-      // 예전엔 모델이 스스로 `memory.propose` 를 낼 때만 의도를 알 수 있었고, 그래서 같은 사용자
-      // 발화가 모델의 호출 습관에 따라 무마찰 반영과 카드·클릭으로 갈렸다. 우리가 대신 판정하지
-      // 않고(정규식은 신호일 뿐), **판단해야 할 자리라는 사실**만 놓아 말귀를 모델에게 되돌린다.
-      memoryHint: 정규식제안 ? { statement: 정규식제안.statement, kind: 정규식제안.kind } : null,
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
@@ -620,7 +398,7 @@ async function runTurnInner(input, ctx) {
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
-    memorySuggestion = 제안합치기(정규식제안, 분리.memorySuggestion);
+    if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -856,51 +634,7 @@ async function runTurnInner(input, ctx) {
     sendGrant.reason = { ...sendGrant.reason, whatChanges: `${보이는대상}에 "${parsed.message}"를 실제로 보내요.` };
   }
 
-  // TG-5A 행렬 3 · **계획 뒤 단계**(`post_plan`) — 실행·승인 게이트 **앞**이다.
-  // 이 자리에는 커널이 판정한 등급(`needsApproval[].tier`), 실제 도구, 확정된 대상이 있다.
-  // 같은 스냅샷을 재사용하므로 저장소를 다시 읽지 않는다(성능 예산 §19).
-  원리입장(ctx, ledger, {
-    stage: 'post_plan', intent, plan, sendArgs, memorySuggestion, awaiting: Boolean(input.runningTask),
-  });
-
-  // §0-C-3 · **bounded grant 재사용** — 사용자가 이미 [계속 허용]으로 부여한 범위 안의 같은
-  // 행동·대상은 다시 묻지 않는다(원칙 0-A-1: 승인된 bounded grant 안의 매 실행은 재확인 금지).
-  //
-  // 판정은 세 사실이 전부 조회로 맞아야 한다: 행동(계획) · 대상(확정 인자, 공통 신분 계약) ·
-  // 범위(현재 확정 자리). 하나라도 모르면 키가 만들어지지 않아 **묻는 쪽으로 떨어진다.**
-  // 통과하면 기존 매듭(`ctx.허락한손` — 이 요청에서 허락된 손)에 얹는다. 새 상태기계를 만들지 않는다.
-  // **재사용 신분은 손 하나가 아니라 (손 · 실제 행동 종류 · 대상 · 범위)** 다(감사 P0).
-  // 같은 `local.file` 이라도 `write` 허용이 `delete` 를 열면 A2 승인이 A3 를 연 것이다.
-  const 재사용키 = new Set();
-  if (ctx.grantLookup && ctx.projectId && pendingGrants.length) {
-    const 재사용 = [];
-    for (const g of pendingGrants) {
-      const target = grantTargetOf(sendArgs?.[g.action] ?? intent.toolArgs?.[g.action]);
-      const key = grantKey({ action: g.action, kind: g.kind, target, scope: `project:${ctx.projectId}` });
-      const rec = key ? ctx.grantLookup.get(key) : null;
-      const 유효 = rec && rec.kind === 'bounded' && rec.revoked !== true
-        && typeof rec.expiresAt === 'number' && rec.expiresAt > nowMs(ctx)
-        // 키가 맞아도 내용을 **네 요소 모두** 다시 대조한다(키는 주장, 조회 내용이 사실).
-        && rec.action === g.action && rec.operation === g.kind && rec.target === target;
-      if (유효) {
-        재사용키.add(손행동(g.action, g.kind));
-        재사용.push({ action: g.action, operation: g.kind, target, key });
-      }
-    }
-    if (재사용.length) {
-      ctx.grantsReused = 재사용;        // 답·원장이 "이전 허용 범위로 진행"을 말할 근거
-      // **면제 신분은 (손·행동)** 이다. 실행 게이트(걸음 경로)가 이걸 본다 —
-      // 손 단위 집합(`허락한손`)에 얹으면 write 허용이 delete 를 여는 P0 가 그대로 돌아온다.
-      ctx.grantExempt = new Set(재사용키);
-    }
-  }
-  // 면제는 **이 경계 항목**에만 적용된다. `허락한손`(요청 안 재확인 면제)은 손 단위라
-  // 여기 섞으면 다른 행동까지 열린다 — 두 계약을 분리해 둔다.
-  const 물을것 = pendingGrants.filter(
-    (g) => !재사용키.has(손행동(g.action, g.kind)) && !ctx.허락한손?.has(손행동(g.action, g.kind)),
-  );
-
-  if (물을것.length) {
+  if (pendingGrants.length) {
     // 고유 pendingId: 서버가 newId(예: UUID)를 주입하면 지속 pending 간 충돌 없음.
     // 미주입 시(단위 테스트) 카운터 폴백. Approval Lifecycle: 만료 시각을 함께 보관.
     const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
@@ -915,7 +649,7 @@ async function runTurnInner(input, ctx) {
       askedFrom: input.channel ? { channel: input.channel } : undefined,
       // 이 요청에서 허락받은 손. 계획 경로와 걸음 경로가 **같은 규칙**을 써야 한다 —
       // 한쪽만 면제하면 같은 요청인데 어느 길로 왔느냐에 따라 묻는 횟수가 달라진다.
-      허락한손: [...(ctx.허락한손 ?? []), ...물을것.map((g) => 손행동(g.action, g.kind))],
+      허락한손: [...(ctx.허락한손 ?? []), ...pendingGrants.map((g) => g.action).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
     });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
@@ -926,7 +660,7 @@ async function runTurnInner(input, ctx) {
     //   · 없으면 손을 빼고 한 번 더 묻는다. 고를 것이 없으니 모델은 지금까지의 사실로 말한다.
     let 멈춤설명 = (earlyReply ?? '').trim();
     if (!멈춤설명 && earlyTc) {
-      const 라벨 = toolLabel(물을것[0].action, selfState);
+      const 라벨 = toolLabel(pendingGrants[0].action, selfState);
       const out = await ctx.model.respond(
         {
           ...earlyTc,
@@ -947,7 +681,7 @@ async function runTurnInner(input, ctx) {
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
       // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
       const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
-      memorySuggestion = 제안합치기(정규식제안, 분리멈춤.memorySuggestion);
+      if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
     }
     return {
       kind: 'approval',
@@ -956,7 +690,7 @@ async function runTurnInner(input, ctx) {
       ...(멈춤설명 ? { reply: 멈춤설명 } : {}),
       approvalMode, // P6-15: 현재 승인 모드(조용한 표면 — 정책 아님, 판단을 보여줄 뿐)
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
-      pending: 물을것.map((g) => ({
+      pending: pendingGrants.map((g) => ({
         action: g.action,
         label: toolLabel(g.action, selfState),
         tier: g.tier,
@@ -964,17 +698,12 @@ async function runTurnInner(input, ctx) {
         preview: g.approvalPreview,
         reason: g.reason, // P6-15: 왜 필요한지/무엇이 바뀌는지/되돌릴 수 있는지(사용자 언어)
       })),
-      // 감사 P1 · **화면은 지킬 수 있는 것만 약속한다.** 「계속 허용」은 (손·행동·대상·자리)
-      // 네 요소가 모두 확정될 때만 실제 권한이 된다. 터미널 명령처럼 대상 신분을 만들 수 없는
-      // 갈래, 자리를 아직 모르는 턴에서는 버튼을 내밀지 않는다 — 눌렀는데 아무 일도 안 일어나면
-      // 사용자는 허용했다고 믿은 채 다음 턴에 또 확인받는다(약속과 능력의 불일치).
-      grantOffer: 범위허용가능(ctx, 물을것, (a) => sendArgs?.[a] ?? intent.toolArgs?.[a]),
       understoodTask: plan.understoodTask,
       selfStateSummary: summary,
       followUp,
       memorySuggestion,
       automationSuggestion,
-      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(물을것[0].action, selfState), action: 물을것[0].action } }),
+      capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
   }
 
@@ -982,7 +711,7 @@ async function runTurnInner(input, ctx) {
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
-  if (ctx.제안된기억) { memorySuggestion = 제안합치기(정규식제안, ctx.제안된기억); ctx.제안된기억 = undefined; }
+  if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
   result.memorySuggestion = memorySuggestion;
   result.automationSuggestion = automationSuggestion;
   result.toolCandidate = toolCandidate;
@@ -1090,19 +819,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴에 이미 쓴 손+인자. 이어 쓰기가 같은 걸 또 밟지 않게 한다.
   // **핵심 인자로 맞춘다** — 계획 단계 인자에는 probe 결과 같은 부수 필드가 붙어서, 통째로
   // 비교하면 같은 명령인데 다른 지문이 나온다(그래서 첫 걸음을 그대로 또 밟았다).
-  // **되풀이 판정의 신분** — 계약 문구 그대로 「같은 손을 **같은 인자**로」다.
-  //
-  // 감사 재현(2026-07-29): 예전엔 `command ?? path ?? request` 한 칸만 봤다. 그래서
-  // `local.file{action:'write',path:P}` 와 `{action:'delete',path:P}` 가 **같은 지문**이 됐고,
-  // 쓰기 뒤 삭제가 "같은 일을 되풀이"로 막혀 실행도 승인도 없이 조용히 끝났다.
-  // 한 칸만 보는 것은 인자가 아니라 인자의 대용물이다 — 전부 보되 키 순서에 흔들리지 않게 한다.
-  // 대상 한 칸(무엇에 대해)과 **작업 한 칸(무엇을 하는지)** 을 함께 본다. 대상만 보면 위 사고가
-  // 나고, 인자 전체를 보면 probe 가 덧붙인 부수 칸 때문에 같은 명령이 서로 달라진다(회귀가 잡았다).
-  const 지문of = (toolId, args) => {
-    const 대상 = args?.command ?? args?.path ?? args?.request ?? JSON.stringify(args ?? {});
-    const 작업 = args?.action ?? '';
-    return `${toolId}:${대상}:${작업}`;
-  };
+  const 지문of = (toolId, args) => `${toolId}:${args?.command ?? args?.path ?? args?.request ?? JSON.stringify(args ?? {})}`;
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
   // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
   // "다른 손으로 이어서 볼게요"는 그 손이 실제로 있을 때만 참이다(없으면 거짓 약속이 된다).
@@ -1292,13 +1009,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
       // 이 요청에서 이미 허락받은 손이면 다시 묻지 않는다(같은 질문을 두 번 하지 않는다).
       // 손이 **다르면** 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
-      //
-      // 부여된 bounded grant 의 면제는 **(손·실제 행동 종류)** 단위다(감사 P0): 같은 손이라도
-      // `write` 허용이 `delete` 를 열면 A2 승인으로 A3 가 통과한다. 두 면제를 한 집합에
-      // 섞지 않는다 — 요청 안 재확인 면제(`허락한손`)와 24시간 범위 부여는 수명이 다르다.
-      const grants = (걸음plan.needsApproval ?? []).filter(
-        (g) => !ctx.허락한손?.has(손행동(g.action, g.kind)) && !ctx.grantExempt?.has(손행동(g.action, g.kind)),
-      );
+      const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
       if (grants.length) {
         const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
         이전대기를지난것으로(ctx);
@@ -1310,7 +1021,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
           askedFrom: ctx.askedFrom,
           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
-          허락한손: [...(ctx.허락한손 ?? []), 손행동(toolId, kind)],
+          허락한손: [...(ctx.허락한손 ?? []), toolId],
           grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
         });
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게
@@ -1329,8 +1040,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
             preview: g.approvalPreview,
             reason: g.reason,
           })),
-          // #7: 걸음 승인도 **계획 승인과 같은 계약**을 낸다 — 같은 판정 자리를 쓴다.
-          grantOffer: 범위허용가능(ctx, grants, () => 판정인자),
           understoodTask: plan.understoodTask,
           selfStateSummary: summary,
           // 이미 한 걸음들은 원장에 남았다 — 승인 화면에서도 보여야 "찾긴 찾았구나"를 안다.
@@ -1341,8 +1050,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         };
       }
       // 계획으로 못 만들면(도구가 승인 대상이 아니라고 나오면) 예전처럼 멈추되 사실은 남긴다.
-      멈춘이유 = `${toolLabel(toolId, selfState)} 으로 ${행동말(kind)} 은(는) 먼저 확인을 받아야 하는데,`
-        + ' 이번 요청에서 그 확인을 만들지 못해 여기서 멈췄어요';
+      멈춘이유 = `${toolLabel(toolId, selfState)} 은(는) 먼저 확인을 받아야 해서 여기서 멈췄어요`;
       break;
     }
 
@@ -1396,21 +1104,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     //
     // **여기서도 손을 빼는 이유를 말해 준다.** 안 그러면 모델이 "손이 없다"고 답한다 —
     // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
-    //
-    // **왜 멈췄는지도 함께 준다**(감사 2026-07-29): 런타임은 이유를 알고 있는데 모델에게도
-    // 사용자에게도 주지 않아, 시킨 일의 절반이 조용히 사라지고 답은 "네" 로 끝났다.
-    // 칸이 비면 모델이 그 빈칸을 상상으로 메운다 — 사실을 주는 자리이지 대본이 아니다.
-    const retry = await ctx.model.respond(
-      { ...tc, toolBudgetSpent: true, ...(멈춘이유 ? { stoppedBecause: 멈춘이유 } : {}) },
-      { search: wantedWeb, effort: 'medium' },
-    );
+    const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, { search: wantedWeb, effort: 'medium' });
     reply = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
   }
   if (!reply.trim()) reply = fallbackReplyFrom(turnReceipts);
-  // 모델도 폴백도 그 사실을 말하지 않으면 **런타임이 직접 덧붙인다.** 멈춘 것을 끝난 것처럼
-  // 보이게 두지 않는다(§16-A). **폴백 뒤에** 붙인다 — 앞에 붙이면 빈 답이 아니게 되어
-  // 실제로 막힌 사실(무엇이 왜 막혔는지)이 통째로 사라진다(회귀가 잡았다).
-  if (멈춘이유 && !reply.includes('멈췄')) reply = `${reply}\n\n${멈춘이유}`.trim();
   const projection = projectReceipts(turnReceipts);
 
   // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤

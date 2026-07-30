@@ -9,12 +9,11 @@ import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
-import { deriveWorkingState, workingStateFacts, currentPlaceOf } from '../kernel/l0-evidence/working-state.js';
+import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
-import { toolLabel } from '../kernel/tool-labels.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
@@ -40,7 +39,6 @@ import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
 import { makeCandidate, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
-import { autoApplicable } from '../kernel/l5-growth/reversible-autoapply.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
@@ -55,21 +53,8 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
-import { GrowthLedgerStore } from './tcell-store.js';
 import {
-  TCellObserver, TCellRegistry, ConfirmationStore,
-  grantSnapshotFromLedger, grantFromConsumedApproval,
-} from './tcell-store.js';
-import { wakeSignal, groupObservations, buildEvidenceBundle, extractCandidate } from '../runtime/tcell-extractor.js';
-import { buildGrowthInput } from '../runtime/growth-input.js';
-import { makePrincipleSnapshotStore, scopeKeyOf } from '../kernel/l1-intent/principle-snapshot.js';
-import { projectScopeSnapshot, publishableIds, buildAdmissionSnapshot } from '../kernel/l5-growth/principle-publish.js';
-import { produceReplayCases, executeReplayCases } from '../kernel/l5-growth/tcell-replay-produce.js';
-import { measureFriction, measureIntrusions, candidateFromBaseline } from '../kernel/l5-growth/friction-meter.js';
-import { makeVerifiedReplayPacket, transitionCell } from '../kernel/l5-growth/tcell-replay-engine.js';
-import { GROWTH_ROLE } from './model-connection.js';
-import {
-  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget, HUMAN_TARGET,
+  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
 } from '../kernel/l5-growth/task-trace.js';
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
@@ -126,318 +111,6 @@ export function makeServer(deps = {}) {
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
-  // TG-1 · shadow 관찰자(영향 0): 턴 완료 후 영수증·승인 사실을 growth/observations.jsonl 에만 쌓는다.
-  // 어떤 코드도 이 파일을 읽어 TaskContext 에 넣지 않는다. 실패는 관찰자 안에 머문다.
-  const tcellObserver = deps.tcellObserver ?? new TCellObserver(store.dir);
-  // 관찰 호출 공통 격리 — 동기·비동기 어느 실패도 호출부(답변·엔진)로 나오지 않는다(영향 0).
-  const 관찰만 = (fn) => { try { Promise.resolve(fn()).catch(() => {}); } catch { /* 영향 0 */ } };
-  const tcellRegistry = deps.tcellRegistry ?? new TCellRegistry(store.dir);
-  const confirmationStore = deps.confirmationStore ?? new ConfirmationStore(store.dir);
-  // 추출 진행 상태는 **세션마다** 갖는다(감사 6회차 P0/P1). 서버 전역 한 칸이면 서로 다른 두
-  // 사용자·두 대화가 한 슬롯을 두고 다툰다 — 뒤에 온 세션이 앞 세션의 대기를 덮어써서
-  // **조용히 근거가 사라지고**, 한 세션의 혼잡이 다른 세션의 성장을 멈춘다(격리 위반).
-  // 한 세션 안에서는 여전히 한 번에 하나다: 대화가 빨라도 추출이 쌓이지 않는다.
-  //
-  // **비행 중 도착한 새 근거를 버리지 않는다**(실측 2026-07-29). 추출은 응답 뒤 비동기로 도는데,
-  // 예전엔 그 동안 들어온 턴을 `in_flight` 로 **그냥 버렸다**. 그 결과 실제 대화에서는 가장 이른
-  // 턴의 얇은 근거로만 추출이 돌고, 사람이 실제로 원리를 말한 뒤의 풍부한 근거는 한 번도 모델에게
-  // 가지 않았다. 쌓지 않되(세션마다 마지막 하나만) 잊지도 않는다 — 끝나면 그 한 건을 이어 돌린다.
-  /** @type {Map<string,{running:boolean, pending:object|null}>} sessionId → 추출 상태 */
-  const 추출상태 = new Map();
-  // ── 제어면 · 게시 스냅샷(결정문 §10.2) ────────────────────────────────────
-  // 서버 수명 동안 메모리에 산다. 전경은 여기서 **읽기만** 하고, 쓰는 것은 응답 뒤 성장 경로뿐이다.
-  const principleSnapshotStore = deps.principleSnapshotStore ?? makePrincipleSnapshotStore();
-  // §6 불변식 1·4 · 성장 checkpoint. 관찰 append **뒤에만** 전진하고, 부팅에서 미처리부터 재개한다.
-  const growthLedger = deps.growthLedger ?? new GrowthLedgerStore(store.dir);
-
-  /** scopeKey → 마지막 revision. 새 한 벌을 만들 때마다 전진한다(부분 갱신 없음). */
-  const 게시판번호 = new Map();
-  /** 자리마다 bootstrap 게시를 한 번만 건다(매 턴 재게시하지 않는다). */
-  const 부팅게시 = new Set();
-  // §6 불변식 4 · **재시작 재개.** 중단은 세션 하나가 아니라 **프로세스**에 일어난다. 그러니
-  // 재개도 부팅에서 한 번, 미처리 관찰이 남은 **모든 세션**에 대해 돈다. 전경은 기다리지 않는다.
-  // (예전엔 진행 상태가 서버 수명의 Map 뿐이라, 관찰 append 뒤 추출 전에 끝나면 그 근거는
-  //  새 서버가 다시 깨우지 않았다 — 조용한 유실. 감사 TG5-CX-02)
-  const 부팅재개 = (async () => {
-    // **관찰이 하나도 없으면 아무것도 훑지 않는다.** 없는 것을 확인하는 비용도 비용이다
-    // (명세 §19). 이 짧은 차단이 없으면 서버가 뜰 때마다 세션 목록과 관찰 로그를 읽어,
-    // 성장 이력이 없는 설치·시험에서도 매번 값을 낸다(실측: 게이트 CPU +10s · 벽시계 +2s).
-    const { stat: 파일확인 } = await import('node:fs/promises');
-    try { await 파일확인(join(store.dir, 'growth', 'observations.jsonl')); } catch { return; }
-    // 관찰 조회는 **범위(sessionId) 필수**다(명세 §6) — 그래서 세션 목록을 먼저 세션 저장소에서
-    // 얻고, 세션마다 자기 관찰만 센다. 전역 훑기로 경계를 넘지 않는다.
-    const 세션들 = await store.list?.({}) ?? [];
-    for (const meta of 세션들) {
-      const sid = meta?.id ?? meta;
-      if (typeof sid !== 'string') continue;
-      const { events: 그세션 } = await tcellObserver.load({ sessionId: sid });
-      if (!그세션?.length) continue;
-      const 처리됨 = await growthLedger.processedRefs(sid);
-      if (!처리됨.ok) { console.error('[tcell] 성장 원장을 읽을 수 없어 재개를 건너뜁니다:', 처리됨.reason); continue; }
-      const 미처리참조 = 그세션.flatMap((e) => e.receiptRefs ?? []).filter((r) => !처리됨.refs.has(r));
-      if (!미처리참조.length) continue;
-      // 재개는 **미처리 참조만** 새 근거로 본다 — 이미 처리한 묶음을 다시 깨우지 않는다.
-      await 원리후보추출({ sessionId: sid, userText: '', instructionRef: null, result: { tcellTurnRefs: 미처리참조 } }).catch(() => {});
-    }
-  })().catch((e) => console.error('[tcell] 부팅 재개 실패:', e?.message ?? e));
-
-  /**
-   * registry 를 읽어 한 scope 의 게시본을 **원자 교체**한다. 응답 뒤에만 불린다.
-   * 실패는 대화로 새지 않는다 — 게시가 안 되면 그 scope 는 도움 0 으로 남을 뿐이다.
-   */
-  /** 세포 → 확인 id 맵(게시 자격 판정용). 원장을 못 읽으면 빈 맵 — 확인된 척하지 않는다. */
-  async function 확인참조맵() {
-    try {
-      const by = await confirmationStore.byCell();
-      const out = {};
-      for (const id of (await tcellRegistry.load())?.cells ?? []) {
-        const ref = by.get(id?.id);
-        if (ref) out[id.id] = ref;
-      }
-      return out;
-    } catch { return {}; }
-  }
-
-  async function 게시(scope) {
-    const scopeKey = scopeKeyOf(scope);
-    try {
-      const a = await tcellRegistry.load();
-      const revision = (게시판번호.get(scopeKey) ?? 0) + 1;
-      게시판번호.set(scopeKey, revision);
-      // 게시 자격은 **데이터면과 같은 판정기**로 본다(제어면이 따로 필터를 만들지 않는다).
-      const 자격 = publishableIds(await buildAdmissionSnapshot({
-        registry: tcellRegistry, observer: tcellObserver,
-        confirmationStore: () => confirmationStore.snapshot(),
-        scope,
-      }), { now: Date.now(), scope, confirmationRefs: await 확인참조맵() });
-      principleSnapshotStore.publish(scopeKey, projectScopeSnapshot({
-        cells: a?.cells ?? [], scope, now: Date.now(), revision,
-        registryRevision: a?.updatedAt ?? null, publishable: 자격,
-      }));
-    } catch (e) {
-      console.error('[tcell] 게시 실패:', e?.message ?? e);
-    }
-  }
-
-  /**
-   * §11 생산선 — 방금 저장된 후보 하나를 재현하고, 통과하면 승격해 registry 에 되돌려 놓는다.
-   * **응답 뒤에만** 돌고, 실패는 대화로 새지 않는다(영향 0).
-   */
-  async function 승격시도(cell, 요청세션 = null) {
-    try {
-      const { cases, gaps } = produceReplayCases(cell);
-      if (gaps.length) return { skipped: 'no_cases', gaps };   // 결합 없는 원리는 재현할 수 없다
-      // 근거 조회기 — **저장된 관찰**과 이번 재현의 실행 기록을 같은 참조 공간에서 본다.
-      const 관찰 = await tcellObserver.getByRefs(cell?.trace?.observationRefs ?? []);
-      const 근거 = new Map(Object.entries(관찰?.found ?? {}));
-      const execs = executeReplayCases(cell, cases, { now: Date.now(), evidence: 근거 });
-      for (const e of execs) 근거.set(e.id, e);
-      // 이 원리가 자란 그 자리의 **실제 관찰**에서 마찰을 센다(같은 세션·같은 자리의 사실).
-      const { events: 자리관찰 } = await tcellObserver.load({ sessionId: 요청세션 });
-      const 마찰기준 = measureFriction(자리관찰);
-      // **확인 기록도 근거다.** 승격 관문은 확인이 필요한 세포에 `userConfirmationRef` 를 요구하고,
-      // 그 참조를 저장소로 다시 확인한다(호출자 불리언 금지). 원장에 있으면 실어 주고, 없으면
-      // 없는 그대로 둔다 — 있는 척하면 확인 없이 승격된다.
-      let 확인참조 = null;
-      try {
-        const by = await confirmationStore.byCell();
-        확인참조 = by.get(cell.id);
-        if (확인참조) {
-          const snap = await confirmationStore.snapshot();
-          const rec = snap.get(확인참조);
-          if (rec) 근거.set(확인참조, rec);
-          else 확인참조 = null;
-        }
-      } catch { 확인참조 = null; }
-      const packet = makeVerifiedReplayPacket({
-        cases, executionRefs: execs.map((e) => e.id),
-        evidenceStore: { get: (r) => 근거.get(r) ?? null },
-        userConfirmationRef: 확인참조,
-        // **측정값은 저장된 관찰에서 센다**(§8 · friction-meter). 지어내지 않는다.
-        // 영향이 0 인 동안 candidate 가 baseline 과 다른 곳은 **끼어듦 하나뿐**이고, 그 수는
-        // negative·boundary 재현의 실행 기록에서 실제로 센다. 그러므로 이 비교가 증명하는 것은
-        // 개선이 아니라 **무해**다 — 증거 문서에도 그렇게 적는다.
-        baseline: 마찰기준, candidate: candidateFromBaseline(마찰기준, { intrusions: measureIntrusions(cases, execs) }),
-        now: Date.now(),
-      });
-      const { cell: 다음, decision } = transitionCell(cell, packet);
-      if (다음?.state && 다음.state !== cell.state) await tcellRegistry.upsert(다음);
-      return { state: 다음?.state ?? cell.state, reason: decision?.reason ?? null };
-    } catch (e) {
-      console.error('[tcell] 승격 시도 실패:', e?.message ?? e);
-      return { skipped: 'error' };
-    }
-  }
-
-  /**
-   * 대화를 처리한 자격과 성장을 처리할 자격을 물어 **휘발성 원문 허용 여부**를 판정한다.
-   * 연결 관리자가 없는 구성(demo·시험)은 같은 클라이언트 하나가 둘을 다 하므로 같은 자격이다.
-   */
-  const 성장입력 = (text) => {
-    const 신분 = deps.modelConnection?.identityFor;
-    const 대화신분 = 신분 ? deps.modelConnection.identityFor('default') : { connectionId: null, provider: 'inline', modelId: null };
-    const 성장신분 = 신분 ? deps.modelConnection.identityFor(GROWTH_ROLE) : { connectionId: null, provider: 'inline', modelId: null };
-    return buildGrowthInput({ text, sourceModelIdentity: 대화신분, growthModelIdentity: 성장신분 }).ephemeralText;
-  };
-
-  const 추출칸 = (sid) => {
-    let v = 추출상태.get(sid);
-    if (!v) { v = { running: false, pending: null }; 추출상태.set(sid, v); }
-    return v;
-  };
-
-  /**
-   * TG-3 생산 경로 — **응답을 보낸 뒤**(hot path 밖) wake 가 켜졌을 때만 한 번 돈다.
-   * 기존 정규식 경로(memorySuggestion)는 여기서 판단이 아니라 **wake 입력 하나**로 축소된다.
-   * 결과는 registry 에 M1/격리로만 쌓이고 **TaskContext 에는 가지 않는다**(영향 0, TG-5 전까지).
-   */
-  async function 원리후보추출(요청) {
-    const { sessionId, result, userText, instructionRef = null } = 요청;
-    const 칸 = 추출칸(sessionId);
-    if (칸.running) { 칸.pending = 요청; return { skipped: 'in_flight_requeued' }; }
-    const { events } = await tcellObserver.load({ sessionId });
-    // **레인 분리**(정본 S-TG-1): 명시적 *선호*는 기존 기억 레인이 담당한다 — T-cell 로 변환하지
-    // 않는다. 운영 원리만 추출 레인을 깨운다(TG-2 이관표와 같은 경계, 두 곳이 어긋나지 않게).
-    const 제안 = result?.memorySuggestion ?? null;
-    // **선호 턴은 추출 자체를 건너뛴다**(감사 P1): wake 가 이미 켜져 있어도 이번 발화가 선호면
-    // T-cell 레인을 넘지 않는다 — 레인 분리는 wake 뿐 아니라 유입도 막는다.
-    if (제안?.kind === 'preference') return { skipped: 'preference_lane' };
-    // **이번 턴이 새 근거를 만들지 않았으면 추출하지 않는다**(감사 P1의 뿌리).
-    // 옛 wake 플래그만으로 과거 관찰을 다시 처리하면, 정규식이 못 잡은 선호 발화 같은
-    // "T-cell 레인 밖 턴"까지 추출을 돌리게 된다. 성장은 새 사실에서만 자란다.
-    const 이번턴참조 = new Set(result?.tcellTurnRefs ?? []);
-    const 새근거 = events.filter((e) => e.receiptRefs?.some((r) => 이번턴참조.has(r)));
-    if (!새근거.length) return { skipped: 'no_new_evidence' };
-    const regexHit = 제안?.kind === 'operating_principle' ? 제안 : null;
-    const w = wakeSignal(events, { regexHit });
-    if (!w.wake) return { skipped: 'no_wake' };
-    칸.running = true;
-    try {
-      const groups = groupObservations(events);
-      if (!groups.size) return { skipped: 'no_group' };
-      // **이번 턴이 만든 묶음이 먼저다**(감사): 과거의 큰 묶음이 현재 발화를 밀어내지 않는다.
-      const 이번턴참조 = new Set((result?.tcellTurnRefs ?? []));
-      const 점수 = ([, obs2]) => (obs2.some((o) => o.receiptRefs?.some((r) => 이번턴참조.has(r))) ? 1e6 : 0) + obs2.length;
-      // **묶음 선택은 "무엇을 처리했는가"라는 기록된 사실로 한다**(감사 TG5-CX-02 두 판 실패 뒤).
-      // 개수로는 어느 묶음을 처리했는지 담을 수 없어서, 한 판은 나머지를 영구히 건너뛰고 다음
-      // 판은 같은 묶음만 무한 재처리하며 나머지를 굶겼다. 이제 처리한 **참조 집합**을 보고
-      // 아직 처리 안 된 참조가 있는 묶음만 후보로 둔다 — 누락·중복·기아가 함께 사라진다.
-      // 원장이 손상됐으면 '아무 것도 처리 안 함'처럼 굴지 않는다(그건 무한 재처리다).
-      const 처리됨 = await growthLedger.processedRefs(sessionId);
-      if (!처리됨.ok) return { skipped: 'ledger_unreadable', reason: 처리됨.reason };
-      const 미처리 = (obs2) => obs2.some((o) => (o.receiptRefs ?? []).some((r) => !처리됨.refs.has(r)));
-      const 후보묶음 = [...groups.entries()].filter(([, obs2]) => 미처리(obs2)).sort((a, b) => 점수(b) - 점수(a));
-      if (!후보묶음.length) return { skipped: 'all_groups_processed' };
-      // **후보 묶음을 전부 돈다.** 앞선 판들은 한 묶음만 돌리고 나머지를 '다음 기회'에 맡겼는데
-      // 그 기회가 오지 않아 한쪽이 굶었다. 사람은 정산 파일에서 막히고 며칠 뒤 다른 파일에서도
-      // 막힌다 — 두 경험 모두 학습 기회를 얻어야 한다. 한 묶음의 실패는 그 묶음에서 끝난다.
-      const 처리결과 = [];
-      for (const [key, obs] of 후보묶음) {
-        try {
-        const 기존 = (await tcellRegistry.load()).cells ?? [];
-        // 명시적 지시: 사용자 발화가 곧 그 범위의 확인이다. **근거 관찰과 문면을 함께** 묶어 넘긴다 —
-        // 추출기는 근거·내용·권한 셋이 맞을 때만 재확인을 면제한다(지시 존재만으로는 면제 없음).
-        // 지시 근거는 **이번 턴의 사용자 요청 관찰**이다(추측이 아니라 자기 참조).
-        const explicitInstruction = regexHit?.statement && instructionRef
-          ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: instructionRef }
-          : null;
-        // **명시 지시 관찰을 번들에 함께 싣는다.** 추출기는 확인 면제를 위해 세 증거를 요구하는데
-        // 그 첫째가 "후보 trace 가 그 지시를 기록한 관찰을 실제로 가리킨다"이다. 그런데 지시 관찰은
-        // 실패 관찰과 **다른 묶음**(주제·신호군이 다르다)에 있어서 번들에 들어온 적이 없었고,
-        // 그래서 근거결합이 구조적으로 영원히 실패했다 — 사용자가 원리를 직접 말해도 그 원리는
-        // 늘 "확인 필요"로 남고 승격이 일어나지 않았다(실측 2026-07-30 · 감사 TG5-CX-03).
-        const 지시관찰 = explicitInstruction
-          ? events.find((e) => (e.receiptRefs ?? []).includes(explicitInstruction.observationRef))
-          : null;
-        const bundle = buildEvidenceBundle({
-          id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
-          observations: 지시관찰 ? [...obs, 지시관찰] : obs,
-          existingCandidates: 기존, explicitInstruction,
-        });
-        // **신분과 실제 호출은 같아야 한다.** identityFor(GROWTH_ROLE) 가 말한 그 자격으로 부른다 —
-        // 어긋나면 신뢰경계의 판정이 거짓이 된다(라벨을 신분으로 쓰던 감사 P0 와 같은 병).
-        const 성장모델 = deps.modelConnection?.modelFor?.(GROWTH_ROLE) ?? deps.model ?? model;
-        const r = await extractCandidate({ model: 성장모델, bundle, now: Date.now() });
-        const cell = r.candidate ?? r.quarantined;
-        if (cell) {
-          // 관계 결과도 후보와 함께 추적 가능하게 보존한다(감사) — 왜 이 후보가 남았는지의 근거.
-          if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
-          await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
-        }
-        // §0-C-2 · **의미 수준 지시–원리 관계의 지속.** 모델(추출기)이 "이 지시는 기존 원리의
-        // 반대"라고 판정하면 그 사실을 **그 지시 문장을 열쇠로** 대상 세포에 남긴다.
-        // admission 은 **이번 턴에 같은 지시가 왔을 때만** 조회한다(감사 P1: 플래그 하나로
-        // 남기면 판정 한 번이 무관한 미래 턴까지 원리를 죽인다 — 수명은 지시가 정한다).
-        // 지시가 있던 턴에만 남긴다 — 관찰 사이의 우연한 모순으로 사용자 지시를 지어내지 않는다.
-        if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef && regexHit?.statement) {
-          await tcellRegistry.recordDirectiveRelation(r.relation.id, {
-            statement: regexHit.statement, relation: 'contradicts', ref: instructionRef, at: Date.now(),
-          }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
-        }
-        // §12·§11 · **나중에 한 선언이 이미 있는 후보를 확인한다.**
-        //
-        // 사람의 순서는 이렇다: 먼저 벽에 부딪히고, 몇 번 더 부딪힌 다음에 "앞으로 이렇게 해"라고
-        // 말한다. 그래서 후보는 **선언보다 먼저** 생긴다 — 그건 결함이 아니라 현실이다. 그런데
-        // 예전 코드에서는 나중의 선언이 담긴 추출이 `duplicate` 로 끝나 그 후보를 확인해 주지
-        // 못했고, 그래서 확인이 필요한 후보는 영원히 M1 에 머물렀다(감사 TG5-CX-03:
-        // `ConfirmationStore.record()` 생산 소비자 0).
-        //
-        // 사용자가 이번 턴에 **선언**했고 그것이 기존 후보를 강화한다면, 그 선언이 곧 그 후보의
-        // 확인이다("명시적 사용자 요청은 그 범위의 확인이다"). 근거는 지어내지 않는다 — 확인
-        // 기록의 `sourceRefs` 는 그 후보가 실제로 가진 근거 참조이고(계보 검사와 같은 계약),
-        // 왜 확인됐는지는 지시 관계로 함께 남긴다.
-        const 강화대상 = (r.relation?.kind === 'reinforces' || r.decision === 'duplicate')
-          ? r.relation?.id ?? null : null;
-        if (강화대상 && instructionRef && regexHit?.statement && regexHit?.source === 'user_declared') {
-          const 대상세포 = 기존.find((c) => c?.id === 강화대상);
-          const 계보 = (대상세포?.trace?.observationRefs ?? []).filter((x) => typeof x === 'string' && x);
-          if (계보.length) {
-            const rec = await confirmationStore.record({
-              id: `confirm:${강화대상}:${instructionRef}`, tcellId: 강화대상,
-              sourceRefs: 계보, now: Date.now(),
-            }).catch(() => ({ recorded: false }));
-            await tcellRegistry.recordDirectiveRelation(강화대상, {
-              statement: regexHit.statement, relation: 'reinforces', ref: instructionRef, at: Date.now(),
-            }).catch(() => {});
-            // 확인이 생겼으니 **그 세포도** 승격 판정을 받는다(이번 추출이 만든 세포와 별도로).
-            if (rec?.recorded && 대상세포) {
-              await 승격시도(대상세포, sessionId);
-              await 게시({ project: 대상세포.anchor?.project ?? null });
-            }
-          }
-        }
-        // §11 · **M1 → ReplayCase → transitionCell → registry → snapshot.** 여기가 오래 비어 있던
-        // 자리다. replay 는 외부 행동을 하지 않는다 — 결합된 원자를 사실로 실체화해 admission 을
-        // 다시 판정할 뿐이다. 실패·근거 부족은 조용히 M1 에 남는 것이지 사용자에게 카드를 띄우지 않는다.
-        if (cell) {
-          await 승격시도(cell, sessionId);
-          // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
-          await 게시({ project: cell.anchor?.project ?? null });
-        }
-        // **기록은 실제로 처리한 그 묶음의 참조만.** 다른 묶음 몫을 함께 올리면 그 묶음이 굶는다.
-        // 쓰기 실패·원장 손상은 성공으로 돌려주지 않는다 — 그러면 "처리했다"가 거짓이 되고,
-        // 다음 재개가 그 사실을 믿어 근거를 잃는다(감사 TG5-CX-02).
-        const 이묶음참조 = obs.flatMap((o) => o.receiptRefs ?? []);
-        const 기록 = await growthLedger.markProcessed(sessionId, 이묶음참조);
-        if (!기록.ok) console.error('[tcell] 처리 기록 실패:', 기록.reason);
-          처리결과.push({ decision: r.decision, stored: Boolean(cell), group: key });
-        } catch (e) {
-          console.error('[tcell] 묶음 처리 실패:', key, e?.message ?? e);
-        }
-      }
-      const 첫결과 = 처리결과[0] ?? { decision: 'insufficient_evidence', stored: false, group: null };
-      return { ...첫결과, groups: 처리결과.length, wake: w };
-    } finally {
-      칸.running = false;
-      if (칸.pending) {
-        const 다음 = 칸.pending; 칸.pending = null;
-        // 응답을 붙들지 않는다(영향 0) — 실패해도 대화가 죽지 않는다.
-        queueMicrotask(() => { 원리후보추출(다음).catch(() => {}); });
-      } else {
-        추출상태.delete(sessionId); // 세션이 조용해지면 칸도 남기지 않는다(무한 증식 금지)
-      }
-    }
-  }
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   const skillStore = deps.skillStore ?? new SkillStore(store.dir);
@@ -495,14 +168,6 @@ export function makeServer(deps = {}) {
       const selfState = buildSelfState(env, { tools });
       const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
       await autoStore.save(a);
-      // TG-1: 자동화 결과 관찰 — job+실행 번호가 신분. 실패해도 tick 에 닿지 않는다(영향 0).
-      for (const r of ran) {
-        const job = a.jobs.find((j) => j.id === r.jobId);
-        관찰만(() => tcellObserver.observeAutomationResult({
-          jobId: r.jobId, executionIndex: Math.max(0, (job?.executions?.length ?? 1) - 1),
-          receipt: r.receipt, anchor: anchorFor(null, { subject: r.jobId }), now: Date.now(),
-        }));
-      }
       return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
     } finally {
       ticking = false;
@@ -568,132 +233,6 @@ export function makeServer(deps = {}) {
     return out;
   }
 
-  /**
-   * TG-5A 행렬 5 · **admission 원천 공급의 단일 자리.**
-   * 웹(`/turn`·`/turn/stream`)과 채널 인바운드가 **같은 함수**를 지난다 — 예전에는 웹만 공급받아
-   * 채널 경로가 admission 을 통째로 건너뛰었다(감사 실측).
-   *
-   * 확인·권한 원장은 **함수로** 넘긴다(행렬 4 + 성능 예산 §19): 세포가 0건이면 admission 이
-   * 이 함수들을 부르지 않으므로 원장을 만들지도 않는다. 매 턴 저장소를 읽던 비용이 여기서 사라진다.
-   */
-  function supplyAdmissionSources(ctx, session, input = {}) {
-    ctx.sessionId = session.id;
-    // 이번 발화 원문 — 데이터면이 "현재 지시 우선"을 판정할 때 쓴다(정규식 분류에 기대지 않는다).
-    // 저장되지 않는다: ctx 는 턴과 함께 사라진다.
-    ctx.currentUtterance = typeof input.text === 'string' ? input.text : '';
-    // 데이터면(§10.3): 전경은 **게시본 하나**만 동기로 본다. 저장소는 아래 제어면이 읽는다.
-    ctx.principleSnapshotStore = principleSnapshotStore;
-    // §0-C-1 · **project 는 실제 작업의 확정 자리다** — 세션 저장 폴더가 아니다.
-    // 예전엔 store.dir(기본 `~/.local/state/gpao-t5/sessions`)을 project 로 써서 서로 다른
-    // 실제 프로젝트가 전부 같은 범위로 뭉개졌다. 자리가 확정되지 않았으면 **null(모름)** 이다.
-    ctx.projectId = currentPlaceOf(session.workingState) ?? null;
-    ctx.confirmationRefs = session.principleConfirmations ?? {};
-    // 재사용 판정(§0-C-3)이 같은 원장을 동기 조회한다 — admission 과 같은 진실 하나.
-    ctx.grantLookup = grantSnapshotFromLedger(session.grants ?? []);
-    // §10.2 bootstrap — **자리가 정해진 뒤에** 건다(예전엔 projectId 대입 앞에 있어 항상 null 이었다).
-    // 이번 턴은 기다리지 않는다: 게시 전 턴은 미스로 동작하고, 다음 턴부터 게시본을 본다.
-    const 자리 = ctx.projectId ?? null;
-    if (자리 && !principleSnapshotStore.read(scopeKeyOf({ project: 자리 })) && !부팅게시.has(자리)) {
-      부팅게시.add(자리);
-      게시({ project: 자리 }).catch(() => {});
-    }
-    ctx.admissionSources = {
-      registry: tcellRegistry,
-      observer: tcellObserver,
-      confirmationStore: () => confirmationStore.snapshot(),       // **실제 확인 원장**
-      // **부여된 권한 원장**(행렬 4) — `pendingApprovals`(누르기 전의 카드)가 아니라
-      // 실제로 소비된 승인 중 재사용 가능한 범위만 담긴 목록이다.
-      grantStore: () => ctx.grantLookup,
-    };
-  }
-
-  /**
-   * 행렬 4 · 소비된 승인을 권한 원장에 남긴다. **재사용 가능한 범위만** 들어간다(`once` 는 제외).
-   * 승인이 소비되기 **전에** 대기 항목을 읽어 둬야 한다 — 커널이 소비하면서 지우기 때문이다.
-   */
-  function recordGrantIfBounded(session, saved, now) {
-    // §0-C-1·3: 범위는 **실제 확정 자리**다. 자리를 모르면 grant 는 만들어지지 않는다 —
-    // "어디까지 허락했는가"를 말할 수 없는 권한은 권한이 아니다(매번 다시 묻는 쪽이 정직하다).
-    const place = currentPlaceOf(session.workingState);
-    const gs = grantFromConsumedApproval(saved, { scope: place ? `project:${place}` : null, now });
-    if (!gs?.length) return [];
-    const 목록 = session.grants ?? [];
-    // 같은 키의 옛 부여는 남겨 둔다 — 조회기가 가장 최근 것을 고르고, 이력은 감사 자산이다.
-    session.grants = [...목록, ...gs].slice(-50); // 상한: 원장이 세션 파일을 무한히 키우지 않게
-    return gs;
-  }
-
-  /**
-   * 감사 P1 · **부여 권한의 사용자면 투영** — 내부 실행은 원시 ID, 화면은 검증된 사람말 라벨.
-   * 실측 위험: `telegram.send → 8601204821` 이 그대로 보인다(도구 id·메신저 원시 식별자).
-   * 라벨은 **조회 시점의 사실**로 만든다(저장하지 않는다 — 라벨이 바뀌면 화면도 따라야 한다).
-   */
-  /** 조회 키 → 화면 손잡이. 되돌릴 수 있어야 하므로 결정적이되, 내부 id 를 담지 않는다. */
-  const grantHandle = (key) => createHash('sha256').update(String(key)).digest('hex').slice(0, 16);
-
-  /**
-   * 감사 P1·#6 · **대상의 사람말 이름.** 원시 식별자는 내보내지 않되, 서로 다른 대상이
-   * 모두 「확인된 대상」으로 뭉개지면 사용자는 무엇을 철회해야 하는지 알 수 없다(감사 재현).
-   * 사람이 실제로 구별하는 이름을 준다: 채널 라벨 → 파일이면 이름(+상위 폴더) → 사람 말 모양 →
-   * 그래도 모르면 마지막 네 자만(전체 id 는 끝까지 내보내지 않는다).
-   */
-  function 대상라벨(targets, action, raw) {
-    const s = String(raw ?? '');
-    if (!s) return '확인된 대상';
-    const 아는곳 = (targets[action] ?? []).find((t) => t.target === s);
-    if (아는곳?.label) return 아는곳.label;
-    if (s.startsWith('/')) {
-      // 파일·폴더는 **이름으로** 구별한다. 전체 경로는 화면을 먹고, 이름만으론 동명이인이 생긴다.
-      const 조각 = s.replace(/\/$/, '').split('/').filter(Boolean);
-      const 이름 = 조각.at(-1) ?? s;
-      const 상위 = 조각.at(-2);
-      return 상위 ? `${상위}/${이름}` : `/${이름}`;
-    }
-    if (HUMAN_TARGET.test(s)) return s;
-    // 원시 식별자(숫자 id 등) — 그대로 내보내지 않는다. 다만 **구별은 되어야** 하므로 끝자리만.
-    return `번호 …${s.slice(-4)}`;
-  }
-
-  async function projectGrantsForSurface(grants, now) {
-    const selfState = buildSelfState(env, { tools });
-    const targets = await channelTargetsFor().catch(() => ({}));
-    const 사람말대상 = (action, raw) => 대상라벨(targets, action, raw);
-    return grants.map((g) => ({
-      // **화면 손잡이는 불투명하다.** 조회 키(`grant:도구id:행동:대상:자리`)를 그대로 내보내면
-      // 라벨을 아무리 잘 만들어도 id 가 그 안에 실려 나간다(감사 P1 재현). 되돌릴 수 있는
-      // 손잡이만 주고, 무엇을 가리키는지는 서버가 안다.
-      id: grantHandle(g.key),
-      label: toolLabel(g.action, selfState),      // 손의 사람말 이름(descriptor 단일 진실)
-      operation: g.operation,                     // 실제 행동 종류(권한 신분의 일부)
-      targetLabel: 사람말대상(g.action, g.target),
-      grantedAt: g.grantedAt,
-      expiresAt: g.expiresAt,
-      active: g.revoked !== true && typeof g.expiresAt === 'number' && g.expiresAt > now,
-      revoked: g.revoked === true,
-    }));
-  }
-
-  /**
-   * 행렬 6 · **관찰의 anchor 는 OS 가 아는 사실이다.**
-   * 감사 실측: `observeTurn` 은 anchor 파라미터를 받는데 호출부가 안 넘겨서 모든 관찰의 anchor 가
-   * null 이었다. 그래서 추출된 세포의 anchor 도 null 이 됐고, admission 의 범위 판정이 영원히
-   * 무의미했다(관통 시험이 `원리.anchor` 를 손으로 심어 그 사실을 가리고 있었다).
-   * 네 생산 경로가 **모두** 이 함수를 지난다.
-   */
-  function anchorFor(session, extra = {}) {
-    const ws = session?.workingState ?? null;
-    const 이번턴대상 = (Array.isArray(ws?.subjects) ? ws.subjects : [])
-      .filter((s) => s?.lastTurn === ws?.turnNo);
-    return {
-      workspace: store.dir,                        // 이 T5 인스턴스의 신분(사용자 한 명의 설치)
-      // §0-C-1: project 는 **실제 확정 자리**다(admission 의 `requestFacts.project` 와 같은 원천).
-      // 자리를 모르는 관찰은 null 로 남는다 — 추측한 범위는 격리를 거짓으로 만든다.
-      project: currentPlaceOf(ws) ?? null,
-      surface: extra.surface ?? null,
-      subject: extra.subject ?? 이번턴대상[0]?.key ?? null,
-    };
-  }
-
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
   async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
@@ -706,8 +245,6 @@ export function makeServer(deps = {}) {
     // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
     ctx.skills = (await skillStore.load()).skills ?? [];
-    // TG-5A: shadow admission 이 **실제 저장소**를 읽도록 원천을 공급한다(영향 0 — trace 만 나간다).
-    supplyAdmissionSources(ctx, session, input);
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -723,25 +260,10 @@ export function makeServer(deps = {}) {
     // (승인 재개는 그 보류를 지우면서 시작한다).
     const 물어본자리 = typeof input.approve === 'string'
       ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
-    // 행렬 4: 승인은 **소비되면서 지워진다.** 권한 원장에 남길 재료를 그 전에 읽어 둔다.
-    const 승인대상 = typeof input.approve === 'string'
-      ? session.pendingApprovals?.[input.approve] : undefined;
-    // §0-C-3 · **범위 있는 부여는 사용자가 버튼으로 고른다.** `이번만`(기본)이면 once 그대로 —
-    // 소비돼도 권한이 아니다. `계속 허용`(grantKind:'session')이면 24시간 bounded 로 승격된다.
-    // 카드의 만료 검사(grantScope.expiresAt)는 건드리지 않는다 — 선택은 별도 칸에 봉인한다.
-    if (승인대상 && input.grantKind === 'session') {
-      승인대상.chosenGrantScope = { kind: 'session', expiresAt: Date.now() + 24 * 3600 * 1000 };
-    }
-
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
     // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
     const ledgerStart = ctx.ledger.entries.length;
-    // 행렬 1: admission 의 사실 창은 **이번 턴과 직전 턴**뿐이다. 경계는 서버가 아는 사실이다.
-    ctx.prevTurnLedgerStart = Number.isInteger(session.lastTurnLedgerStart)
-      ? session.lastTurnLedgerStart : ledgerStart;
-    ctx.turnLedgerStart = ledgerStart;
-    session.lastTurnLedgerStart = ledgerStart;
     let result;
     try {
       result = await runTurn(input, ctx);
@@ -769,71 +291,8 @@ export function makeServer(deps = {}) {
       selfhoodDocs = { ...selfhoodDocs, soul };
       identity = { name: result.identityUpdate.name, named: true };
     }
-    // 감사 #5 · **재사용 고지에도 원시 ID·내부 키를 두지 않는다.** 커널은 실행 신분으로
-    // (손·행동·대상·키)를 들고 있지만, 화면에 나가는 것은 사람 말뿐이다 — `/grants` 와 같은 계약.
-    if (result.grantsReused?.length) {
-      const targets = await channelTargetsFor().catch(() => ({}));
-      const selfState = buildSelfState(env, { tools });
-      result.grantsReused = result.grantsReused.map((g) => ({
-        label: toolLabel(g.action, selfState),
-        operation: g.operation,
-        targetLabel: 대상라벨(targets, g.action, g.target),
-      }));
-    }
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
-    // 행렬 4: **실제로 소비된 승인만** 권한이 된다. 거절·만료·유령 ID 는 여기 오지 않는다.
-    if (result.approvalConsumed?.approved === true && 승인대상) {
-      const 부여됨 = recordGrantIfBounded(session, 승인대상, Date.now());
-      // 감사 P1 · **누른 결과를 숨기지 않는다.** [계속 허용]을 눌렀는데 권한이 만들어지지
-      // 않았다면(자리 미상·대상 미상·행동 종류 미상) 사용자는 허용했다고 믿은 채 다음 턴에
-      // 다시 확인받게 된다. 화면과 원장이 같은 사실을 보게 이유를 함께 싣는다.
-      if (input.grantKind === 'session') {
-        const place = currentPlaceOf(session.workingState);
-        result.grantOutcome = 부여됨.length
-          ? { granted: true, grants: await projectGrantsForSurface(부여됨, Date.now()) }
-          : {
-            granted: false,
-            reason: !place ? 'place_unknown'
-              : !(승인대상.plan?.needsApproval ?? []).some((b) => b?.action && b?.kind) ? 'action_unknown'
-                : 'target_unknown',
-          };
-      }
-    }
-    // 행렬 6: 이 턴이 만든 관찰이 살 자리. workingState 는 턴 결과로 갱신되므로 그것을 쓴다.
-    const 이번턴anchor = anchorFor(
-      { ...session, workingState: result.workingState ?? session.workingState },
-      { surface: result.surface ?? ctx.surface?.responseSurface ?? null },
-    );
-    // TG-1: shadow 관찰 — 원장 위치가 곧 신분(ledger:세션:번호). 유효한 결정만 관찰.
-    관찰만(() => tcellObserver.observeTurn({
-      sessionId: session.id,
-      ledgerStart,
-      anchor: 이번턴anchor,                       // 행렬 6 — 비어 있으면 범위 판정이 영원히 무의미하다
-      turnReceipts: ctx.ledger.entries.slice(ledgerStart),
-      turnId: String(session.transcript.length), // 턴 신분(TG-4 의 서로 다른 turn 계산 근거)
-      // 감사 재현(만료 승인): 대기 목록 존재 ≠ 유효 — **커널이 실제 소비한 결정만** 관찰한다.
-      approvalDecision: result.approvalConsumed
-        ? { ...result.approvalConsumed, summary: result.approvalConsumed.approved ? '승인' : '거절' } : null,
-      now: Date.now(),
-      // TG-3: 관찰이 남은 **뒤에** 추출을 깨운다(같은 후처리 줄에서, 응답과 무관하게).
-    }).then(async () => {
-      // **일반 발화는 관찰하지 않는다**(감사 P1). 운영 원리로 구조화된 문장만, 그 자체로.
-      // 선호(preference)는 기존 기억 레인의 것이므로 T-cell 관찰에 들어오지 않는다(S-TG-1).
-      const 원리제안 = result?.memorySuggestion?.kind === 'operating_principle' ? result.memorySuggestion : null;
-      const 지시 = 원리제안?.statement
-        ? await tcellObserver.observeUserRequest({ sessionId: session.id, statement: 원리제안.statement, turnIndex: session.transcript.length, anchor: 이번턴anchor, now: Date.now() })
-        : null;
-      const 이번턴 = ctx.ledger.entries.slice(ledgerStart).map((_, i) => `ledger:${session.id}:${ledgerStart + i}`);
-      return 원리후보추출({
-        // 사람이 한 말은 **신뢰경계 하나**(결정문 §11.2)를 지나서만 성장 모델 앞에 선다.
-        // 정규식이 말귀의 관문이던 것도, 원문이 경계 없이 나가던 것도 여기서 함께 닫힌다.
-        // **권한은 여기서 생기지 않는다** — 확인 면제(explicitInstruction)는 그대로 구조화된
-        // 문장 + 근거 참조가 있을 때만이고, 추출을 깨우는 조건(wake)도 바뀌지 않는다.
-        sessionId: session.id, userText: 성장입력(input.text), instructionRef: 지시?.ref ?? null,
-        result: { ...result, tcellTurnRefs: [...이번턴, ...(지시?.ref ? [지시.ref] : [])] },
-      });
-    }));
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
@@ -888,32 +347,10 @@ export function makeServer(deps = {}) {
         const now = await memStore.load();
         const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
         if (dup) { result.memorySuggestion = undefined; return; }
-        const c = makeCandidate(randomUUID(), result.memorySuggestion.kind,
-          result.memorySuggestion.statement, result.memorySuggestion.source ?? 'unknown',
-          result.memorySuggestion.intent ?? 'unknown');
+        const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
         // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
         if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;
-
-        // §12 · **가역 학습은 묻지 않고 반영한다.** 사용자가 방금 직접 말한 것을 카드로 다시
-        // 묻는 것은 어느 경계도 지키지 않는 마찰이었다(절대원칙 §0-A-2). 되돌리기·영수증·
-        // "반영 중 기억" 표면이 이미 있으므로 자동성은 **되돌림**으로 지킨다.
-        // 승격은 그대로 단일 통로(`confirmCandidate`)를 지난다 — 게이트를 우회하지 않는다.
-        const 자동 = autoApplicable(c, { rollbackable: c.rollbackable === true });
-        if (자동.ok) {
-          const r2 = confirmCandidate(now, c.candidateId);
-          if (r2.ok) {
-            await memStore.save(now);
-            await 기억영수증('confirmed', r2.entry);
-            // 카드를 띄우지 않는다. 대신 **무엇이 반영됐는지**는 숨기지 않는다 —
-            // 답 옆의 조용한 한 줄과 설정의 통합 표면이 같은 사실을 본다.
-            result.memoryAutoApplied = {
-              candidateId: r2.entry.candidateId, statement: r2.entry.statement,
-              influenceScope: r2.entry.influenceScope, rollbackable: r2.entry.rollbackable === true,
-            };
-            result.memorySuggestion = undefined;
-          }
-        }
       });
     }
     if (result.automationSuggestion?.action) {
@@ -1084,40 +521,6 @@ export function makeServer(deps = {}) {
           await store.save(s);
         }
         return sendJson(res, 200, { id: s.id, title: s.title, transcript: s.transcript, activePendingIds });
-      }
-
-      // ── §0-C-3 · 부여된 권한 범위 — 사용자가 보고 거둘 수 있어야 한다("만든 것은 거둘 수 있다") ──
-      // 목록은 사람 말 재료(행동·대상·범위·만료)만 준다. 원문·비밀이 들어갈 자리가 없다.
-      if (req.method === 'GET' && url === '/grants') {
-        // url 은 질의를 뗀 경로다 — 질의는 원본(req.url)에서 읽는다(/sessions 와 같은 규칙).
-        const sessionId = new URLSearchParams((req.url ?? '').split('?')[1] ?? '').get('sessionId');
-        const s = sessionId ? await store.load(sessionId) : null;
-        if (!s) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        const now = Date.now();
-        // 같은 키는 최신 것 하나만 보인다(조회기와 같은 규칙 — 두 진실 금지).
-        const 최신 = new Map();
-        for (const g of s.grants ?? []) if (g?.key) 최신.set(g.key, g);
-        // 감사 P1: 화면에는 **사람말만** 나간다 — 도구 id·원시 대상 식별자는 여기서 끝난다.
-        return sendJson(res, 200, { grants: await projectGrantsForSurface([...최신.values()], now) });
-      }
-      if (req.method === 'POST' && url === '/grants/revoke') {
-        const input = JSON.parse((await readBody(req)) || '{}');
-        // 화면은 불투명 손잡이만 안다 — 서버가 그것을 실제 키로 되돌린다.
-        if (typeof input.sessionId !== 'string' || typeof input.id !== 'string') {
-          return sendJson(res, 400, { error: '세션과 대상이 필요해요.' });
-        }
-        const result = await withSessionQueue(input.sessionId, async () => {
-          const s = await store.load(input.sessionId);
-          if (!s) return null;
-          let 철회수 = 0;
-          for (const g of s.grants ?? []) {
-            if (g?.key && grantHandle(g.key) === input.id && g.revoked !== true) { g.revoked = true; 철회수 += 1; }
-          }
-          await store.save(s);
-          return { revoked: 철회수 > 0 };
-        });
-        if (!result) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
-        return sendJson(res, 200, result);
       }
 
       if (req.method === 'POST' && url === '/turn') {
@@ -1382,8 +785,6 @@ export function makeServer(deps = {}) {
           // 수명주기 영수증 — "승인·반영됐다가 철회됐다"는 감사 흔적. 저장소에서 지워도 이 사실은 남는다
           // (원문은 안 남긴다 — digest 만. 철회로 지운 기억이 원장에 되살아나지 않게).
           const receiptWritten = await 기억영수증('rolled_back', removed);
-          // TG-1: 구조화된 사용자 정정 신호 — 발화 원문이 아니라 행동 사실과 참조만.
-          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 기억 반영을 되돌렸어요', ref: `memory:rollback:${removed.candidateId ?? removed.id ?? 'unknown'}`, anchor: anchorFor(null), now: Date.now() }));
           return sendJson(res, 200, { ok: true, rolledBack: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
       }
@@ -1431,11 +832,7 @@ export function makeServer(deps = {}) {
         const a = await traceStore.load();
         const before = a.promoted.length;
         a.promoted = a.promoted.filter((p) => !(p.kind === 'default_target' && p.tool === input.tool));
-        if (a.promoted.length !== before) {
-          await traceStore.save(a);
-          // TG-1: 구조화된 사용자 정정 신호(잘못 배운 기본 대상의 철회).
-          관찰만(() => tcellObserver.observeCorrection({ what: '사용자가 학습된 기본 대상을 되돌렸어요', ref: `pattern:rollback:${input.tool}:${Date.now()}`, anchor: anchorFor(null, { subject: input.tool }), now: Date.now() }));
-        }
+        if (a.promoted.length !== before) await traceStore.save(a);
         return sendJson(res, 200, { ok: true });
       }
 
@@ -2017,14 +1414,6 @@ export function makeServer(deps = {}) {
     const memory = await memStore.load();
     const ctx = ctxForSession(session, memory);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
-    // 행렬 5: **채널도 웹과 같은 admission 준비 경계를 지난다.** 감사 실측: 이 경로는 원천 공급이
-    // 아예 없어 admission 을 통째로 건너뛰었다 — 방에서 시킨 일만 원리가 안 보이는 상태였다.
-    supplyAdmissionSources(ctx, session, { text: input.text });
-    const 채널원장시작 = ctx.ledger.entries.length;
-    ctx.prevTurnLedgerStart = Number.isInteger(session.lastTurnLedgerStart)
-      ? session.lastTurnLedgerStart : 채널원장시작;
-    ctx.turnLedgerStart = 채널원장시작;
-    session.lastTurnLedgerStart = 채널원장시작;
     const result = await runTurn({
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,

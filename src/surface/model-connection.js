@@ -24,10 +24,6 @@ import {
 import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL } from '../runtime/chatgpt-model-client.js';
 
 export const DEFAULT_ROLE = 'default';
-// 성장(T-cell 추출·replay) 전용 역할. 바인딩이 없으면 기본 연결로 떨어진다 — 그때는 대화와
-// **같은 자격**이므로 신뢰경계가 휘발성 원문을 허용한다. 별도 저비용 모델을 붙이면 자동으로
-// 다른 자격이 되어 원문 0 · 근거 번들만 가는 쪽으로 바뀐다(결정문 §11.2·흡수 F).
-export const GROWTH_ROLE = 'growth';
 
 /** 저장을 거절하는 "확실한 무효"만. 불확실(unreachable·rate_limited)은 저장하되 미검증으로 둔다. */
 export const CERTAINLY_INVALID = Object.freeze(['auth_failed', 'model_missing', 'billing_blocked']);
@@ -234,21 +230,6 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     /** 역할별 ModelClient — 에이전트·자동화가 생기면 role 만 넘기면 된다(커널 변경 없이 확장). */
     modelFor(role) {
       return { respond: (tc, opts) => clientForRole(role).respond(tc, opts) };
-    },
-
-    /**
-     * 역할이 **실제로 어느 연결로 나가는지**(비밀값 없이). 결정문 §11.2 의 신뢰경계가 이걸 본다 —
-     * 같은 자격이면 비밀 제거 원문을 휘발성으로 실을 수 있고, 다른 자격이면 원문 0 이다.
-     * 라벨이 아니라 **자격 신분**이 판정 근거다: `connectionId` 하나가 provider·model·키를 함께
-     * 가리킨다(감사 실측: 역할 이름으로 판정하면 바인딩이 없을 때 전부 활성 연결로 떨어진다).
-     * 연결이 없으면 개발자 env 또는 stub 신분을 그대로 말한다 — 모른다고 지어내지 않는다.
-     */
-    identityFor(role = DEFAULT_ROLE) {
-      const boundId = roleBindings[role];
-      const rec = (boundId && findConn(boundId)) || activeConn();
-      if (rec) return { connectionId: rec.id, provider: rec.provider, modelId: rec.modelId ?? null };
-      if (envCfg) return { connectionId: null, provider: `env:${envCfg.provider ?? 'unknown'}`, modelId: envCfg.modelId ?? null };
-      return { connectionId: null, provider: 'stub', modelId: null };
     },
 
     /** 부팅 시 저장된 사용자 연결 복원(프로브 없음 — 부팅 doctor 가 뒤에서 검증·표시). */

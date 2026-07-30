@@ -1,6 +1,6 @@
 # GPAO-T5 UX Architecture
 
-- Status: `historical_ux_architecture_foundation`
+- Status: `Codex 감사 통과 · Phase 3 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)
 - Auditor: Codex (표면 정합성·계약 번역·자연스러움·Phase 4 연결성 감사 완료)
@@ -8,9 +8,6 @@
 - 근거: 계획서 §4(표면)·§7(UX 방향) / Kernel Contract(봉인) / Product Constitution(봉인) / 두 감사 문서
 - 위상: 이 문서는 헌법·Kernel Contract 아래에서 계약을 사용자 표면으로 번역한다. UI 구현·컴포넌트
   위, Kernel Contract 아래(절대원칙 §12 순서).
-- 현재 적용: 정보 구조의 기반으로 보존한다. 현재 UI와 사용자 흐름은 전달된 제품·인수인계 §0·최신
-  인간 시나리오가 우선한다. 내부 후보·원리·검사 상태는 기본 대화를 점유하지 않고, 승인 카드는 실제
-  비가역 외부 효과·새 권한·중대한 대상 불확정에만 사용한다.
 
 ## 0. 작성 규율 + 번역의 성격
 

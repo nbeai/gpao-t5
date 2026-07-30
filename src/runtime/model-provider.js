@@ -60,65 +60,7 @@ function surfaceLines(s) {
   return `\n  ${out.join('\n  ')}`;
 }
 
-/**
- * T-cell 추출 전용 메시지 경계(TG-3) — **일반 대화 조립과 완전히 다른 길이다.**
- * 감사 실측: 추출 호출이 일반 조립을 타서 실제 모델에게 `user:""` 가 갔다(번들 0건 전달).
- * 여기서는 사실(관찰·기존 후보의 중심과 경계·권한)만 싣고 구조화 JSON 하나를 받는다.
- * 대본·금지문을 늘리지 않는다(§0.1) — 판단은 모델이, 강제는 OS(extractCandidate)가 한다.
- */
-export function buildExtractionMessages(bundle) {
-  const b = bundle ?? {};
-  const sys = [
-    '너는 관찰된 사실들에서 재사용 가능한 운영 원리 가설을 하나 뽑는다.',
-    '근거가 부족하면 insufficient_evidence 가 정상 답이다 — 지어내지 않는다.',
-    '관찰 목록에 없는 사실을 trace 에 넣지 않는다. 한 사례를 전역 규칙으로 만들지 않는다.',
-    '기존 후보와 같은 중심이면 새 원리 대신 relation 으로 답한다.'
-      + ' 기존 후보와 반대되는 지시·경험이면 decision:contradiction 과 relation{kind:"contradicts",targetId} 로 답한다.',
-    'JSON 하나만 출력한다: {decision, principle{statement,type}, center{point,axis,horizontalSignals},'
-      + ' boundary{validWhen,invalidWhen,needsReviewWhen,mustNotOverride}, trace{observationRefs},'
-      + ' relation{kind,targetId}, counterexamples, suggestedRadius}',
-    // §0-C-2 · 의미 결합: 경계 절은 자유문이되, OS 가 실제로 감지하는 상황이면 그 원자 id 를 붙인다.
-    // 이 결합이 없으면 그 절은 글자가 똑같을 때만 매칭된다 — 원리가 실전에서 영영 잠들 수 있다.
-    ...(b.factAtoms?.length ? [
-      'boundary 의 각 절은 "문장" 또는 {text:"문장", atom:"원자id"} 로 쓴다.'
-        + ' atom 은 아래 목록의 id 만 쓴다 — 뜻이 맞는 것이 없으면 atom 을 생략한다(지어내지 않는다).',
-      `[OS 가 감지하는 상황 원자]\n${b.factAtoms.join('\n')}`,
-    ] : []),
-    `decision 은 ${['candidate', 'insufficient_evidence', 'duplicate', 'contradiction'].join(' | ')} 중 하나다.`,
-    // 계약 밖 종류를 내면 그 후보는 격리된다 — 어휘를 안 주고 요구하면 모델이 지어낸다(실측).
-    ...(b.principleTypes?.length ? [`principle.type 은 ${b.principleTypes.join(' | ')} 중 하나다.`] : []),
-    b.authorityFacts?.note ?? '',
-  ].filter(Boolean);
-  const usr = [];
-  if (b.activeTarget) usr.push(`[지금 사용자가 한 말]\n${b.activeTarget}`);
-  // **대상을 함께 준다.** 예전엔 요약만 실어서, 같은 파일이 두 번 막힌 것인지 서로 다른 일이
-  // 한 번씩 막힌 것인지를 모델이 알 수 없었다 — 반복이 근거인데 반복 여부를 감춘 셈이다(실측:
-  // 그 상태에서 Anthropic 은 일관되게 insufficient_evidence 로 답했다).
-  usr.push(`[관찰된 사실 ${b.observations?.length ?? 0}건 — trace 는 이 참조만 쓴다]\n${
-    (b.observations ?? []).map((o) => `- (${o.receiptRefs?.[0] ?? o.id}) ${o.type}/${o.signal?.valence}: ${o.signal?.summary}`
-      + (o.anchor?.subject ? ` · 대상: ${o.anchor.subject}` : '')).join('\n')
-  }`);
-  if (b.existingCandidates?.length) {
-    usr.push(`[기존 원리 후보 — 중심과 경계를 비교해 같은 중심인지 판단한다]\n${
-      b.existingCandidates.map((c) => `- (${c.id}) ${c.statement}`
-        + `\n  중심: ${c.center?.point ?? ''} / 축: ${c.center?.axis ?? ''}`
-        + `\n  유효: ${(c.boundary?.validWhen ?? []).join(', ')} / 무효: ${(c.boundary?.invalidWhen ?? []).join(', ')}`).join('\n')
-    }`);
-  }
-  // **지시는 문장으로 준다.** 예전엔 `session:…` 이라는 내부 열쇠만 갔다 — 사실이 번들에
-  // 있는데 대용물을 넘긴 것이다. 사용자가 방금 못 박은 문장은 이 묶음에서 가장 강한 근거다.
-  if (b.explicitInstruction?.text) {
-    usr.push(`[사용자가 이번에 명시한 지시 — 이 범위는 이미 확인된 것이다]\n"${b.explicitInstruction.text}"`
-      + `\n범위: ${b.explicitInstruction.scope ?? '(없음)'} · 근거: ${b.explicitInstruction.observationRef ?? '(없음)'}`);
-  } else if (b.authorityFacts?.explicitInstructionScope) {
-    usr.push(`[사용자가 명시한 범위]\n${b.authorityFacts.explicitInstructionScope}`);
-  }
-  return { system: sys.join('\n'), user: usr.join('\n\n'), history: [] };
-}
-
 export function buildModelMessages(tc) {
-  // 추출 호출은 전용 경계로 빠진다 — 일반 조립을 타면 사실이 하나도 실리지 않는다(감사 실측).
-  if (tc?.tcellExtract) return buildExtractionMessages(tc.tcellExtract);
   const sys = [];
   const sf = tc.selfStateFacts ?? {};
   // P-ID-1: **정체성이 먼저다.** 이게 없으면 모델이 빈칸을 자기 출신으로 채운다(오너 실사용:
@@ -252,18 +194,6 @@ export function buildModelMessages(tc) {
   }
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
-  // **왜 여기서 멈췄는가** — 런타임이 아는 사실이다(감사 2026-07-29: 이걸 안 줘서 시킨 일의
-  // 절반이 조용히 사라지고 답은 "네" 로 끝났다). 대본이 아니라 사실 한 줄이다.
-  if (tc.stoppedBecause) usr.push(`[이번 턴에 멈춘 이유]\n${tc.stoppedBecause}`);
-  // **판단해야 할 자리라는 사실 하나.** 지시가 아니다 — "적어라"가 아니라 "이런 말이 보였다"다.
-  // 이게 없으면 모델이 기억 후보를 낼지 말지가 그때그때 달라지고, 그 습관 차이가 곧 사용자
-  // 마찰 차이가 된다(같은 말인데 어떤 날은 카드가 뜨고 어떤 날은 안 뜬다 · 감사 TG5-CX-01).
-  if (tc.memoryHint?.statement) {
-    usr.push(`[오래 기억할 말이 있어 보이는 문장]\n"${tc.memoryHint.statement}"\n`
-      + '이번 발화가 이 내용을 **선언**한 것인지, 묻거나 인용하거나 부정·철회한 것인지는 너가'
-      + ' 판단한다. 기억할 만하면 memory.propose 로 적고 intent 를 정확히 고른다.'
-      + ' 선언이 아니면 적지 않거나 그 intent 를 그대로 쓴다.');
-  }
   usr.push(tc.currentRequest); // 원문 보존
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.

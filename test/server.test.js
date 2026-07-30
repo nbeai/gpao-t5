@@ -179,36 +179,21 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
 });
 
 // P6-1 기억: 선호 발화 → 후보(자동 승격 아님) → confirm → 승격.
-// §12 · **사용자가 직접 말한 가역 선호는 묻지 않고 반영한다.**
-// 예전 계약은 이 자리에서 카드를 띄우고 클릭을 요구했다. 그 확인이 지키는 경계를 따져보면
-// 없었다 — 로컬 저장이고, 되돌리기·영수증·"반영 중 기억" 표면이 이미 있고, 기억은 권한이 아니다.
-// 절대원칙 §0-A-2: 어느 경계를 지키는지 설명할 수 없는 확인은 마찰 회귀다.
-// **보장은 사라지지 않았다.** 자리가 바뀌었을 뿐이다: 사전 승인 → 사후 교정(되돌리기).
-test('말귀 확인이 없으면 선호는 후보로만 남는다(자동 반영은 두 사실이 겹칠 때만)', async () => {
-  // §12 자동 반영의 조건은 **출처 + 말귀** 둘이다(감사 TG5-CX-01):
-  //   · 사용자 문장에서 나왔다 — 정규식이 사용자 발화에서 후보를 봤다.
-  //   · 사용자가 그것을 선언했다 — 모델도 같은 문장을 기억 후보로 읽었다.
-  // 여기 스텁 모델은 통제 호출을 하지 않으므로 **말귀 확인이 없다.** 그러면 후보로 남는 것이
-  // 계약이다 — 그래야 `「…가 좋아」라고 내가 말한 적 있어?` 같은 질문이 장기 기억이 되지 않는다.
-  // 두 사실이 겹쳤을 때 실제로 자동 반영되는 관통은 `tcell-audit-closure` 의 TG5-CX-01 이 증명한다.
+test('선호 발화는 후보로만 저장되고 confirm 후에만 승격된다', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    const t = await (await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' })).json();
-    assert.equal(t.memoryAutoApplied, undefined, '말귀 확인 없이 자동 반영됐다');
+    await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' });
     const m1 = await getj(base, '/memory');
-    assert.equal(m1.promoted.length, 0, '확인 없이 승격됐다');
+    assert.equal(m1.promoted.length, 0, '자동 승격 금지');
     assert.equal(m1.candidates.length, 1);
     assert.equal(m1.candidates[0].kind, 'preference');
-    // 사용자가 눌러서 확인하면 승격되고, 되돌릴 수도 있다(사후 교정은 그대로 산다).
     const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
     assert.equal(r.ok, true);
     const m2 = await getj(base, '/memory');
     assert.equal(m2.promoted.length, 1);
-    const back = await (await post(base, '/memory/rollback', { candidateId: m2.promoted[0].candidateId })).json();
-    assert.equal(back.ok, true, `되돌리기가 실패했다: ${JSON.stringify(back)}`);
+    assert.equal(m2.candidates.length, 0);
   });
 });
-
 
 // P6-1 핵심 안전: 운영원리는 confirm 시 replay 게이트를 거쳐야 승격된다(replay 전 행동 영향 0).
 test('운영원리는 replay 게이트를 통과해야 승격된다', async () => {
