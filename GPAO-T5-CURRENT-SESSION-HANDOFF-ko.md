@@ -65,7 +65,8 @@
 - 작업장 정리 뒤 자체 검증: 테스트 **1,214건 통과**, 공식 gate **PASS**
   (CPU 36.8s/40s · 벽시계 14.2s).
 - 준비 보강 착수 기준 HEAD: `e486a15` (`chore(project): establish one canonical T5 workspace`).
-- 현재 제품·준비 보강 HEAD: `dab56f6` (`fix(core): restore memory safety before T-cell replanning`).
+- 현재 제품 코어 기준: `dab56f6` (`fix(core): restore memory safety before T-cell replanning`).
+- 비교 계측기 재감사 대상 구현 HEAD: `7d8624a`.
 - T-cell과 분리된 현재 코어 안전 복구를 마쳤다. 기억 후보·검색 반영·사용자 모델의 민감정보
   공통 저장 경계와 반대시험을 추가했으며, T-cell 코드는 다시 넣지 않았다.
 - 현재 변경의 전체 회귀는 **1,219건 통과·실패 0**, 작업장 정본 감사는 PASS다.
@@ -204,7 +205,20 @@
     - 재검증: preflight 23검사 PASS, fixture 반증 통과, dry-run 부작용 0, 전체 회귀
       1,219건 통과·실패 0, 제품 코드 변경 없음. 남은 경계는 응답 문서 §4에 정직 표기
       (OpenClaw 재시작 증거는 회차 1에서만 실측, 마커는 pinned 소스 기준).
-    - 다음: 이 응답의 Codex 재감사 → 통과 시 오너 자격 → 유료 회차 1 → 실측 게이트.
+    - Codex 재감사 판정은 다시 `BLOCKED_BEFORE_CREDENTIAL`, 과정은 `REPEAT_PREVENTABLE`이다.
+      원래 지적한 resume·실패 턴·계측 불능 보강은 실제로 확인됐지만, 유료 결과의 유효성과
+      사용자 파일 안전을 막는 재발이 남았다.
+      1. H02·H10 실행 원문이 봉인된 T5 인간 기준선과 달라 같은 ID 결과를 직접 비교할 수 없다.
+         두 항목은 이전 기준선에서도 잘못 측정했다가 감사로 정정된 항목이다.
+      2. fixture 소유권이 경로 문자열뿐이라, 실행 중 같은 경로의 파일이 교체되면 사용자 파일을
+         fixture로 오인해 권한을 바꾸고 삭제할 수 있다. 이전 P0의 경로≠소유권 재발이다.
+      3. Hermes는 4초 무출력을 실제 턴 완료의 대용물로 써 다음 프롬프트를 보낼 수 있다.
+      4. 정본 폴더에는 OpenClaw 기본 실행 대상 `oc-2026.7.2`와 `node-bin.txt`가 없어
+         문서의 기본 명령으로 실제 회차를 시작할 수 없다.
+      5. 필독 준비 문서에는 폐기된 14턴 실행표가 현재 사실로 남아 18턴 정본과 충돌한다.
+      독립 재검증은 preflight 23/23, dry-run 2종, 전체 회귀 1,219/1,219 PASS다. 이 통과가
+      위 차단을 상쇄하지 않는다. 오너 자격 요청과 유료 회차 1은 계속 열지 않는다. 정본:
+      `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-REAUDIT-2026-07-30-ko.md`
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
