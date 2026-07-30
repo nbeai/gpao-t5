@@ -82,6 +82,15 @@
   **정본 투영 누락**이었다. Codex가 재실행 없이 문서를 직접 정정했다. 감사 정본:
   `docs/03-verification/evidence/human-baseline/COMPARISON-FINAL-CODEX-AUDIT-2026-07-31-ko.md`
 - 다음: 새 T-cell 계획 작성. 오너 확인 전 제품 T-cell 구현 금지는 유지한다.
+- 오너 지시로 **새 T-cell 계획 초안을 작성했다**(`0db4005`):
+  `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md` — 지위 `DRAFT_FOR_INDEPENDENT_AUDIT`,
+  Codex 감사 → 보강 → 오너 확인 뒤에만 구현. 계획은 2026-07-31 코어 접점 실측 지도 위에
+  섰다: 접점 5곳(runReplay `context-mesh.js:103`, 입장 관문 `:33/:71`, 모델 통제 채널
+  `model-control.js:15`, 턴 후 직렬 지점 `server.js:370-382`, 증거 계약 `tool-receipt.js:30`)
+  밖의 코어 수정 금지를 감사 가능 경계로 선언했다. 슬라이스 5개(무마찰 가역 기억 → shadow
+  관찰 → 대화 경계 승계 → 반복 학습·실질 replay → 사후 교정)는 각각 사용자 문장 하나의
+  실측 변화로만 닫는다. H04 실패 원인은 접점에서 특정했다 — 모델 통제 채널에
+  `memory.withdraw`가 없다. H07·H03·H06은 전 슬라이스 회귀 금지선이다.
 - 이후 새 T-cell 계획과 개발은 Claude가 구현하고 Codex가 독립 감사하는 원래 역할로 복귀한다.
   같은 시나리오가 세 번째 재개봉되면 패치 왕복을 중단하고 역할 교대·구조 재설계 회복 절차를 발동한다.
 
