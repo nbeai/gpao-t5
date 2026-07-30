@@ -98,6 +98,17 @@
   백그라운드 모델 신뢰 경계가 닫히지 않아 구현 가능한 계획이 아니다. 제품 코드 변경은 0이며
   오너 확인·S1 구현은 계속 금지한다. 정본:
   `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-CODEX-AUDIT-2026-07-31-ko.md`
+- 구현선이 차단 전체를 반영해 **계획 v2 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V2`,
+  같은 파일 전면 재작성). 재발 4건의 교정: ① "응답 뒤"를 코드 위치가 아니라 불변식으로 재정의
+  — 관찰은 durable 산출물의 소비자(tick 워커·watermark·멱등), 턴 경로 diff 0을 기계 증명
+  (전제는 SSE·동기 꼬리 실측 P1·P2로 검증) ② 발화 신분 계약 — utteranceQuote 원문 대조 +
+  speechAct(모델 판단) + 질문·인용·부정·회상 반대시험 4형 ③ 생산 상태기계·재시작 checkpoint
+  계약(§4-3) ④ 정본 투영 누락을 기계 검사로 종결 — `npm run audit:docs`
+  (`scripts/audit-docs.mjs`, 반증 시험 5건, 즉시 실전 끊긴 참조 1건 검출·회귀 통과).
+  신규 차단 교정: 적용 추적(appliedMemoryRefs), MemoryStore 손상 정직성(격리+경고, 조용한
+  빈 상태 금지), 백그라운드 모델 신뢰 경계(도구 0·민감 검출·예산·원장), ActiveWorkLane
+  scope 완결, 수정 허용·금지 구역 재정의(§4-8), POM→Skill/Trigger/Agent 데이터 계약(§7).
+  다음: Codex 재감사 → 오너 확인. 구현 금지 유지.
 
 ## 1. 제품 철학
 

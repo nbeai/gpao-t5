@@ -20,6 +20,7 @@
     "start": "node src/surface/server.js",
     "audit:workspace": "node scripts/audit-project-entry.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "gate": "node scripts/gate.mjs"
+    "gate": "node scripts/gate.mjs",
+    "audit:docs": "node scripts/audit-docs.mjs"
   }
 }
