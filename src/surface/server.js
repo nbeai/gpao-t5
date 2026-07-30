@@ -201,6 +201,20 @@ export function makeServer(deps = {}) {
   // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
   const runtimeToken = deps.runtimeToken ?? randomUUID();
 
+  // 자동화 워커 — 자기 오류 경계를 갖는다. 여기서 터져도 관찰은 같은 tick 에서 계속 돈다.
+  async function 자동화워커() {
+    try {
+      const a = await autoStore.load();
+      const selfState = buildSelfState(env, { tools });
+      const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
+      await autoStore.save(a);
+      return { ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+    } catch (e) {
+      console.error('[automation:tick] 실패 — 관찰과 사용자 턴은 그대로 돕니다:', e?.message ?? e);
+      return { failed: true, error: e?.message ?? String(e) };
+    }
+  }
+
   // S2 · 관찰 워커. tick 과 같은 스케줄러를 쓰되 오류 경계는 따로 둔다(§4.8).
   // 연속 실패 3회면 워커만 끄고 사람 말로 남긴다 — 성장이 멈춰도 대화와 자동화는 돈다.
   const 관찰상태 = { 연속실패: 0, 격리됨: false, 마지막오류: null };
@@ -229,16 +243,15 @@ export function makeServer(deps = {}) {
     if (ticking) return { ok: true, skipped: 'in_flight', ran: [] };
     ticking = true;
     try {
-      const a = await autoStore.load();
-      const selfState = buildSelfState(env, { tools });
-      const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
-      await autoStore.save(a);
-      // S2 · T-cell 관찰(§4.8) — **독립 오류 경계.** 자동화가 터져도 관찰이 멈추지 않고,
-      // 관찰이 터져도 자동화·사용자 턴이 멈추지 않는다. 연속 실패가 쌓이면 워커만 격리한다.
+      // S2 · §4.8 상호 실패 격리 — **한 tick 안에서 두 기관이 서로의 실행 기회를 뺏지 않는다.**
+      // 예전에는 자동화가 먼저 예외를 던지면 관찰워커까지 도달하지 못했다(감사 P1). 각자
+      // 자기 오류 경계 안에서 돌고, 실패는 숨기지 않고 결과에 실어 보낸다.
+      const 자동화 = await 자동화워커();
       const 관찰 = await 관찰워커();
       return {
         ok: true,
-        ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })),
+        ran: 자동화.ran ?? [],
+        ...(자동화.failed ? { automation: { failed: true, error: 자동화.error } } : {}),
         ...(관찰 ? { observe: 관찰 } : {}),
       };
     } finally {

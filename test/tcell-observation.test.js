@@ -253,26 +253,65 @@ test('S2/제품: tick 이 돌면 그때 관찰이 쌓인다', async () => {
   } finally { server.close(); }
 });
 
-test('S2/제품: 자동화가 터져도 관찰은 돌고, 관찰이 터져도 자동화는 돈다', async () => {
-  // 자동화 실패 주입 — tick 전체가 죽으면 관찰도 못 돈다(그 반대도 마찬가지).
-  const 터지는자동화 = { load: async () => { throw new Error('자동화 저장소 실패'); }, save: async () => {} };
-  const a = await 서버세우기({ automationStore: 터지는자동화 });
+test('S2/제품: 같은 tick 안에서 자동화가 터져도 관찰은 실행된다', async () => {
+  // 이전 검사는 자동화 실패 뒤 observeSessions 를 **따로** 불러 통과했다 — 그건 "관찰 함수가
+  // 따로 돌 수 있다"는 증명이지 "같은 tick 안에서 서로의 실행 기회를 뺏지 않는다"가 아니다.
+  // 여기서는 한 번의 runtimeTick 안에서 두 쪽이 각자 도는지만 본다.
+  const { server, base, mem } = await 서버세우기({
+    automationStore: { load: async () => { throw new Error('자동화 저장소 실패'); }, save: async () => {} },
+  });
   try {
-    await assert.rejects(() => a.server.runtimeTick(), '자동화 실패는 그대로 드러난다');
-    // 관찰 자체는 독립적으로 호출 가능하다(같은 tick 실패에 묶이지 않는다).
-    const s = await post(a.base, '/sessions');
-    await post(a.base, '/turn', { sessionId: s.id, text: 'A' });
-    const r = await observeSessions({ store: a.store, memStore: a.mem });
-    assert.equal(r.observed, 1, '관찰은 자동화 실패와 무관하게 돈다');
-  } finally { a.server.close(); }
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: '보고서 정리해줘' });
 
-  // 관찰 실패 주입 — 자동화 tick 은 정상 완료되어야 한다.
-  const b = await 서버세우기({ memoryStore: { load: async () => { throw new Error('기억 저장소 실패'); }, save: async () => {} } });
+    const r = await server.runtimeTick();
+    assert.equal(r.observe?.observed, 1, '자동화가 터진 같은 tick 에서도 관찰은 돌았다');
+    assert.equal(r.automation?.failed, true, '자동화 실패는 숨기지 않는다');
+    assert.equal((await mem.load()).observations.length, 1, '관찰이 실제로 저장됐다');
+  } finally { server.close(); }
+});
+
+test('S2/제품: 같은 tick 안에서 관찰이 터져도 자동화 결과는 보존된다', async () => {
+  let 자동화저장 = 0;
+  const { server, base } = await 서버세우기({
+    automationStore: { load: async () => ({ jobs: [], candidates: [] }), save: async () => { 자동화저장 += 1; } },
+    memoryStore: { load: async () => { throw new Error('기억 저장소 실패'); }, save: async () => {} },
+  });
   try {
-    const r = await b.server.runtimeTick();
-    assert.equal(r.ok, true, '관찰이 터져도 tick 은 정상 종료');
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: 'A' });
+
+    const r = await server.runtimeTick();
+    assert.equal(r.ok, true, 'tick 은 정상 종료');
+    assert.ok(Array.isArray(r.ran), '자동화 결과가 보존된다');
+    assert.equal(자동화저장, 1, '자동화 저장이 실제로 일어났다');
     assert.equal(r.observe?.failed, true, '관찰 실패는 숨기지 않는다');
-  } finally { b.server.close(); }
+  } finally { server.close(); }
+});
+
+test('S2/제품: 양쪽이 동시에 터져도 tick 은 두 실패를 모두 보고한다', async () => {
+  const { server } = await 서버세우기({
+    automationStore: { load: async () => { throw new Error('자동화 실패'); }, save: async () => {} },
+    memoryStore: { load: async () => { throw new Error('기억 실패'); }, save: async () => {} },
+  });
+  try {
+    const r = await server.runtimeTick();
+    assert.equal(r.ok, true, 'tick 자체는 닫힌다(무한 대기 금지)');
+    assert.equal(r.automation?.failed, true);
+    assert.equal(r.observe?.failed, true);
+  } finally { server.close(); }
+});
+
+test('S2/제품: 자동화가 터진 tick 뒤에도 사용자 턴은 정상이다', async () => {
+  const { server, base } = await 서버세우기({
+    automationStore: { load: async () => { throw new Error('자동화 실패'); }, save: async () => {} },
+  });
+  try {
+    await server.runtimeTick();
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: '안녕' });
+    assert.equal(r.kind, 'reply', '사용자 턴은 무영향');
+  } finally { server.close(); }
 });
 
 test('S2/제품: 관찰이 연속 실패하면 워커만 격리된다', async () => {
