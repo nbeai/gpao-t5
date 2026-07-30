@@ -1072,50 +1072,111 @@ test('TG5-CX-04·06: 성숙도별로 허용된 최고 역할이 게시되고, M0
   }
 });
 
-// ── 감사 TG5-CX-02 · **재시작 경계에서 학습 근거가 조용히 사라지지 않는다** ──────────────
-// 예전엔 성장 진행 상태가 서버 수명의 Map 하나였다. 관찰이 남은 뒤 추출 전에 프로세스가 끝나면
-// 새 서버는 그 관찰을 다시 깨우지 않았다 — 사용자는 실패를 알 수 없다.
-test('TG5-CX-02: 중단 뒤 새 서버가 미처리 관찰부터 정확히 한 번 재개한다', async () => {
+// ── 감사 TG5-CX-02 · **여러 묶음이 누락·기아·중복 없이 처리된다** ─────────────────────────
+// 두 판이 같은 뿌리로 실패했다: 기록해야 할 사실("어느 묶음을 처리했나")을 기록하지 않고
+// 옆에 있는 값(관찰 개수)으로 판정했다. 1판은 나머지 묶음을 영구히 건너뛰고, 2판은 같은 묶음만
+// 무한 재처리하며 나머지를 굶겼다. 이제 처리한 **참조 집합**이 사실이다.
+//
+// 사용자 관점: 정산 파일에서 막히고, 며칠 뒤 다른 파일에서도 막힌다. 앱을 껐다 켠다.
+// 두 경험 **모두** 학습 기회를 얻어야 하고, 같은 경험을 무한히 다시 씹지 않아야 한다.
+test('TG5-CX-02: 서로 다른 두 묶음이 재시작을 반복해도 각각 한 번씩 처리된다', async () => {
   const { makeServer } = await import('../src/surface/server.js');
   const { SessionStore } = await import('../src/surface/session-store.js');
-  const { GrowthCheckpointStore, TCellObserver } = await import('../src/surface/tcell-store.js');
+  const { GrowthLedgerStore, TCellObserver } = await import('../src/surface/tcell-store.js');
   const dir = await mkdtemp(join(tmpdir(), 'cx02-'));
+  const 세션 = await new SessionStore(dir).create();
 
-  // 관찰만 남기고 추출 전에 프로세스가 끝난 상태를 만든다(= checkpoint 없음).
-  // 실제 재시작과 같은 조건: **세션 파일이 있고** 그 세션의 관찰이 남아 있는데 처리 기록이 없다.
-  const { SessionStore: SS } = await import('../src/surface/session-store.js');
-  const 세션 = await new SS(dir).create();
+  // 실패 경험 두 갈래 — 파일-A 2건, 파일-B 2건. 서로 다른 subject 라 **다른 묶음**이다.
   const ob = new TCellObserver(dir);
-  for (const i of [0, 1]) {
+  let 번호 = 0;
+  for (const 대상 of ['파일-A', '파일-A', '파일-B', '파일-B']) {
     await ob.observeTurn({
-      sessionId: 세션.id, ledgerStart: i, turnId: String(i), now: i + 1,
-      turnReceipts: [{ userSafeSummary: '막혔어요.', failureState: 'failed', action: 'local.file 실행' }],
+      sessionId: 세션.id, ledgerStart: 번호, turnId: String(번호), now: 번호 + 1,
+      anchor: { workspace: dir, project: '/자리', surface: 'web', subject: `file:${대상}` },
+      turnReceipts: [{ userSafeSummary: `${대상} 이 막혔어요.`, failureState: 'failed', action: 'local.file 실행' }],
     });
+    번호 += 1;
   }
-  const { events } = await ob.load({ sessionId: 세션.id });
-  assert.ok(events.length >= 2, '중단 상황을 만들지 못했다');
-  assert.deepEqual(await new GrowthCheckpointStore(dir).pending({ [세션.id]: events.length }), [세션.id],
-    '미처리 관찰이 재개 대상으로 잡히지 않았다');
 
-  // 새 서버가 뜨고 그 세션의 턴이 오면 뒤에서 재개한다.
-  const 추출본 = [];
-  const 모델 = { async respond(tc) {
-    if (tc?.tcellExtract) { 추출본.push(tc.tcellExtract.observations.length); return JSON.stringify({ decision: 'insufficient_evidence' }); }
-    return '네';
-  } };
-  const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), model: 모델 });
-  await new Promise((r) => server.listen(0, r));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    // 서버가 뜨는 것만으로 재개가 걸린다 — 사용자가 다시 말하기를 기다리지 않는다.
-    const 마감 = Date.now() + 10_000;
-    while (Date.now() < 마감 && !추출본.length) await new Promise((r) => setTimeout(r, 25));
-    // ① checkpoint 가 전진했다 — 처리한 만큼만, 처리 뒤에.
-    const cp = await new GrowthCheckpointStore(dir).load();
-    assert.ok(Object.keys(cp.sessions ?? {}).length > 0, '처리 뒤에도 checkpoint 가 전진하지 않았다');
-    // ② 같은 지점을 두 번 처리하지 않는다 — 재개는 정확히 한 번이다.
-    const 처리수 = Object.values(cp.sessions).reduce((a, b) => a + b, 0);
-    assert.deepEqual(await new GrowthCheckpointStore(dir).pending({ [Object.keys(cp.sessions)[0]]: 처리수 }), [],
-      '처리한 지점이 다시 미처리로 남았다');
-  } finally { await new Promise((r) => server.close(r)); }
+  // 한 턴이 관찰을 여러 건(실행 사실 + 회복 사실) 만든다 — 개수를 손으로 적지 않고 실제로 센다.
+  const { events: 전체 } = await ob.load({ sessionId: 세션.id });
+  const 전체참조수 = new Set(전체.flatMap((e) => e.receiptRefs ?? [])).size;
+
+  /** 서버를 새로 띄운다 = 앱을 껐다 켠 것. 추출이 실제로 무엇을 받았는지만 관찰한다. */
+  const 재시작 = async () => {
+    const 받은대상 = [];
+    const 모델 = { async respond(tc) {
+      if (tc?.tcellExtract) {
+        받은대상.push([...new Set((tc.tcellExtract.observations ?? []).map((o) => o.anchor?.subject))].join(','));
+        return JSON.stringify({ decision: 'insufficient_evidence' });
+      }
+      return '네';
+    } };
+    const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), model: 모델 });
+    await new Promise((r) => server.listen(0, r));
+    const 마감 = Date.now() + 8_000;
+    while (Date.now() < 마감) {
+      await new Promise((r) => setTimeout(r, 25));
+      const 처리 = await new GrowthLedgerStore(dir).processedRefs(세션.id);
+      if (처리.ok && 처리.refs.size >= 전체참조수) break;
+    }
+    await new Promise((r) => server.close(r));
+    return 받은대상;
+  };
+
+  // ① 첫 부팅 — 두 묶음이 **모두** 처리된다(하나가 다른 하나를 굶기지 않는다).
+  const 첫부팅 = await 재시작();
+  assert.ok(첫부팅.some((x) => x.includes('파일-A')), `파일-A 가 처리되지 않았다: ${JSON.stringify(첫부팅)}`);
+  assert.ok(첫부팅.some((x) => x.includes('파일-B')), `파일-B 가 굶었다: ${JSON.stringify(첫부팅)}`);
+
+  // ② 원장이 실제로 기록됐다 — 완료 사실이 지속된다.
+  const 원장 = await new GrowthLedgerStore(dir).processedRefs(세션.id);
+  assert.ok(원장.ok, `원장을 읽을 수 없다: ${원장.reason}`);
+  assert.equal(원장.refs.size, 전체참조수,
+    `처리한 참조가 다 기록되지 않았다: ${원장.refs.size}/${전체참조수}`);
+
+  // ③ 다시 두 번 재시작 — **아무 것도 다시 씹지 않는다**(무한 재처리 없음).
+  for (const 회차 of [2, 3]) {
+    const 받은 = await 재시작();
+    assert.deepEqual(받은, [], `${회차}회차에서 이미 처리한 묶음을 다시 처리했다: ${JSON.stringify(받은)}`);
+  }
 });
+
+// ── 같은 감사 · **실패를 빈 사실로 위장하지 않는다** ────────────────────────────────────
+// 손상된 원장을 "아무 것도 처리 안 함"으로 읽으면 무한 재처리가 된다. 쓰기 실패를 성공으로
+// 돌려주면 "처리했다"가 거짓이 되어 다음 재개가 근거를 잃는다. 둘을 구분해 말해야 한다.
+test('TG5-CX-02: 성장 원장의 손상과 쓰기 실패는 성공으로 위장되지 않는다', async () => {
+  const { GrowthLedgerStore } = await import('../src/surface/tcell-store.js');
+  const dir = await mkdtemp(join(tmpdir(), 'cx02b-'));
+  const 원장 = new GrowthLedgerStore(dir);
+
+  // ① 아직 아무 것도 없는 것은 **오류가 아니다**.
+  const 처음 = await 원장.load();
+  assert.equal(처음.ok, true, '파일 없음을 오류로 봤다');
+  assert.deepEqual(처음.processed, {});
+
+  // ② 기록하면 남는다.
+  assert.equal((await 원장.markProcessed('s1', ['ledger:s1:0'])).ok, true);
+  assert.deepEqual([...(await 원장.processedRefs('s1')).refs], ['ledger:s1:0']);
+
+  // ③ **손상은 빈 원장이 아니다** — 그렇게 읽으면 이미 처리한 것을 다시 처리한다.
+  await mkdir(join(dir, 'growth'), { recursive: true });
+  await writeFile(join(dir, 'growth', 'growth-processed.json'), '{ 이건 JSON 이 아니다', 'utf8');
+  const 손상 = await 원장.load();
+  assert.equal(손상.ok, false, '손상된 원장이 정상으로 보였다');
+  assert.ok(손상.reason, '손상 사유가 없다');
+  const 손상조회 = await 원장.processedRefs('s1');
+  assert.equal(손상조회.ok, false, '손상인데 "처리한 적 없음"으로 답했다');
+
+  // ④ 손상 위에 덮어쓰지 않는다 — 남의 처리 기록을 지우게 된다.
+  const 덮어쓰기 = await 원장.markProcessed('s1', ['ledger:s1:1']);
+  assert.equal(덮어쓰기.ok, false, '손상 위에 기록했다');
+
+  // ⑤ 쓰기 실패도 성공으로 돌려주지 않는다(디렉터리를 파일로 막아 실패를 실제로 주입).
+  const dir2 = await mkdtemp(join(tmpdir(), 'cx02c-'));
+  await writeFile(join(dir2, 'growth'), '이 자리는 파일이라 폴더를 만들 수 없다', 'utf8');
+  const 실패 = await new GrowthLedgerStore(dir2).markProcessed('s1', ['ledger:s1:0']);
+  assert.equal(실패.ok, false, '쓰기 실패가 성공으로 보고됐다');
+  assert.ok(실패.reason, '쓰기 실패 사유가 없다');
+});
+

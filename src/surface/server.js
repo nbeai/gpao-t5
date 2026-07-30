@@ -55,7 +55,7 @@ import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/com
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TaskTraceStore } from './task-trace-store.js';
-import { GrowthCheckpointStore } from './tcell-store.js';
+import { GrowthLedgerStore } from './tcell-store.js';
 import {
   TCellObserver, TCellRegistry, ConfirmationStore,
   grantSnapshotFromLedger, grantFromConsumedApproval,
@@ -148,7 +148,7 @@ export function makeServer(deps = {}) {
   // 서버 수명 동안 메모리에 산다. 전경은 여기서 **읽기만** 하고, 쓰는 것은 응답 뒤 성장 경로뿐이다.
   const principleSnapshotStore = deps.principleSnapshotStore ?? makePrincipleSnapshotStore();
   // §6 불변식 1·4 · 성장 checkpoint. 관찰 append **뒤에만** 전진하고, 부팅에서 미처리부터 재개한다.
-  const growthCheckpoint = deps.growthCheckpoint ?? new GrowthCheckpointStore(store.dir);
+  const growthLedger = deps.growthLedger ?? new GrowthLedgerStore(store.dir);
 
   /** scopeKey → 마지막 revision. 새 한 벌을 만들 때마다 전진한다(부분 갱신 없음). */
   const 게시판번호 = new Map();
@@ -167,21 +167,17 @@ export function makeServer(deps = {}) {
     // 관찰 조회는 **범위(sessionId) 필수**다(명세 §6) — 그래서 세션 목록을 먼저 세션 저장소에서
     // 얻고, 세션마다 자기 관찰만 센다. 전역 훑기로 경계를 넘지 않는다.
     const 세션들 = await store.list?.({}) ?? [];
-    const 세션별 = {};
     for (const meta of 세션들) {
       const sid = meta?.id ?? meta;
       if (typeof sid !== 'string') continue;
-      const { events: ev } = await tcellObserver.load({ sessionId: sid });
-      if (ev?.length) 세션별[sid] = ev.length;
-    }
-    const 남은 = await growthCheckpoint.pending(세션별);
-    for (const sid of 남은) {
       const { events: 그세션 } = await tcellObserver.load({ sessionId: sid });
-      await 원리후보추출({
-        sessionId: sid, userText: '', instructionRef: null,
-        // 재개는 저장된 관찰을 새 근거로 본다 — 어디까지 처리했는지는 checkpoint 가 안다.
-        result: { tcellTurnRefs: 그세션.flatMap((e) => e.receiptRefs ?? []) },
-      }).catch(() => {});
+      if (!그세션?.length) continue;
+      const 처리됨 = await growthLedger.processedRefs(sid);
+      if (!처리됨.ok) { console.error('[tcell] 성장 원장을 읽을 수 없어 재개를 건너뜁니다:', 처리됨.reason); continue; }
+      const 미처리참조 = 그세션.flatMap((e) => e.receiptRefs ?? []).filter((r) => !처리됨.refs.has(r));
+      if (!미처리참조.length) continue;
+      // 재개는 **미처리 참조만** 새 근거로 본다 — 이미 처리한 묶음을 다시 깨우지 않는다.
+      await 원리후보추출({ sessionId: sid, userText: '', instructionRef: null, result: { tcellTurnRefs: 미처리참조 } }).catch(() => {});
     }
   })().catch((e) => console.error('[tcell] 부팅 재개 실패:', e?.message ?? e));
 
@@ -239,9 +235,24 @@ export function makeServer(deps = {}) {
       // 이 원리가 자란 그 자리의 **실제 관찰**에서 마찰을 센다(같은 세션·같은 자리의 사실).
       const { events: 자리관찰 } = await tcellObserver.load({ sessionId: 요청세션 });
       const 마찰기준 = measureFriction(자리관찰);
+      // **확인 기록도 근거다.** 승격 관문은 확인이 필요한 세포에 `userConfirmationRef` 를 요구하고,
+      // 그 참조를 저장소로 다시 확인한다(호출자 불리언 금지). 원장에 있으면 실어 주고, 없으면
+      // 없는 그대로 둔다 — 있는 척하면 확인 없이 승격된다.
+      let 확인참조 = null;
+      try {
+        const by = await confirmationStore.byCell();
+        확인참조 = by.get(cell.id);
+        if (확인참조) {
+          const snap = await confirmationStore.snapshot();
+          const rec = snap.get(확인참조);
+          if (rec) 근거.set(확인참조, rec);
+          else 확인참조 = null;
+        }
+      } catch { 확인참조 = null; }
       const packet = makeVerifiedReplayPacket({
         cases, executionRefs: execs.map((e) => e.id),
         evidenceStore: { get: (r) => 근거.get(r) ?? null },
+        userConfirmationRef: 확인참조,
         // **측정값은 저장된 관찰에서 센다**(§8 · friction-meter). 지어내지 않는다.
         // 영향이 0 인 동안 candidate 가 baseline 과 다른 곳은 **끼어듦 하나뿐**이고, 그 수는
         // negative·boundary 재현의 실행 기록에서 실제로 센다. 그러므로 이 비교가 증명하는 것은
@@ -307,65 +318,115 @@ export function makeServer(deps = {}) {
       // **이번 턴이 만든 묶음이 먼저다**(감사): 과거의 큰 묶음이 현재 발화를 밀어내지 않는다.
       const 이번턴참조 = new Set((result?.tcellTurnRefs ?? []));
       const 점수 = ([, obs2]) => (obs2.some((o) => o.receiptRefs?.some((r) => 이번턴참조.has(r))) ? 1e6 : 0) + obs2.length;
-      const [key, obs] = [...groups.entries()].sort((a, b) => 점수(b) - 점수(a))[0];
-      const 기존 = (await tcellRegistry.load()).cells ?? [];
-      // 명시적 지시: 사용자 발화가 곧 그 범위의 확인이다. **근거 관찰과 문면을 함께** 묶어 넘긴다 —
-      // 추출기는 근거·내용·권한 셋이 맞을 때만 재확인을 면제한다(지시 존재만으로는 면제 없음).
-      // 지시 근거는 **이번 턴의 사용자 요청 관찰**이다(추측이 아니라 자기 참조).
-      const explicitInstruction = regexHit?.statement && instructionRef
-        ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: instructionRef }
-        : null;
-      // **명시 지시 관찰을 번들에 함께 싣는다.** 추출기는 확인 면제를 위해 세 증거를 요구하는데
-      // 그 첫째가 "후보 trace 가 그 지시를 기록한 관찰을 실제로 가리킨다"이다. 그런데 지시 관찰은
-      // 실패 관찰과 **다른 묶음**(주제·신호군이 다르다)에 있어서 번들에 들어온 적이 없었고,
-      // 그래서 근거결합이 구조적으로 영원히 실패했다 — 사용자가 원리를 직접 말해도 그 원리는
-      // 늘 "확인 필요"로 남고 승격이 일어나지 않았다(실측 2026-07-30 · 감사 TG5-CX-03).
-      const 지시관찰 = explicitInstruction
-        ? events.find((e) => (e.receiptRefs ?? []).includes(explicitInstruction.observationRef))
-        : null;
-      const bundle = buildEvidenceBundle({
-        id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
-        observations: 지시관찰 ? [...obs, 지시관찰] : obs,
-        existingCandidates: 기존, explicitInstruction,
-      });
-      // **신분과 실제 호출은 같아야 한다.** identityFor(GROWTH_ROLE) 가 말한 그 자격으로 부른다 —
-      // 어긋나면 신뢰경계의 판정이 거짓이 된다(라벨을 신분으로 쓰던 감사 P0 와 같은 병).
-      const 성장모델 = deps.modelConnection?.modelFor?.(GROWTH_ROLE) ?? deps.model ?? model;
-      const r = await extractCandidate({ model: 성장모델, bundle, now: Date.now() });
-      const cell = r.candidate ?? r.quarantined;
-      if (cell) {
-        // 관계 결과도 후보와 함께 추적 가능하게 보존한다(감사) — 왜 이 후보가 남았는지의 근거.
-        if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
-        await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
+      // **묶음 선택은 "무엇을 처리했는가"라는 기록된 사실로 한다**(감사 TG5-CX-02 두 판 실패 뒤).
+      // 개수로는 어느 묶음을 처리했는지 담을 수 없어서, 한 판은 나머지를 영구히 건너뛰고 다음
+      // 판은 같은 묶음만 무한 재처리하며 나머지를 굶겼다. 이제 처리한 **참조 집합**을 보고
+      // 아직 처리 안 된 참조가 있는 묶음만 후보로 둔다 — 누락·중복·기아가 함께 사라진다.
+      // 원장이 손상됐으면 '아무 것도 처리 안 함'처럼 굴지 않는다(그건 무한 재처리다).
+      const 처리됨 = await growthLedger.processedRefs(sessionId);
+      if (!처리됨.ok) return { skipped: 'ledger_unreadable', reason: 처리됨.reason };
+      const 미처리 = (obs2) => obs2.some((o) => (o.receiptRefs ?? []).some((r) => !처리됨.refs.has(r)));
+      const 후보묶음 = [...groups.entries()].filter(([, obs2]) => 미처리(obs2)).sort((a, b) => 점수(b) - 점수(a));
+      if (!후보묶음.length) return { skipped: 'all_groups_processed' };
+      // **후보 묶음을 전부 돈다.** 앞선 판들은 한 묶음만 돌리고 나머지를 '다음 기회'에 맡겼는데
+      // 그 기회가 오지 않아 한쪽이 굶었다. 사람은 정산 파일에서 막히고 며칠 뒤 다른 파일에서도
+      // 막힌다 — 두 경험 모두 학습 기회를 얻어야 한다. 한 묶음의 실패는 그 묶음에서 끝난다.
+      const 처리결과 = [];
+      for (const [key, obs] of 후보묶음) {
+        try {
+        const 기존 = (await tcellRegistry.load()).cells ?? [];
+        // 명시적 지시: 사용자 발화가 곧 그 범위의 확인이다. **근거 관찰과 문면을 함께** 묶어 넘긴다 —
+        // 추출기는 근거·내용·권한 셋이 맞을 때만 재확인을 면제한다(지시 존재만으로는 면제 없음).
+        // 지시 근거는 **이번 턴의 사용자 요청 관찰**이다(추측이 아니라 자기 참조).
+        const explicitInstruction = regexHit?.statement && instructionRef
+          ? { scope: `session:${sessionId}`, text: regexHit.statement, observationRef: instructionRef }
+          : null;
+        // **명시 지시 관찰을 번들에 함께 싣는다.** 추출기는 확인 면제를 위해 세 증거를 요구하는데
+        // 그 첫째가 "후보 trace 가 그 지시를 기록한 관찰을 실제로 가리킨다"이다. 그런데 지시 관찰은
+        // 실패 관찰과 **다른 묶음**(주제·신호군이 다르다)에 있어서 번들에 들어온 적이 없었고,
+        // 그래서 근거결합이 구조적으로 영원히 실패했다 — 사용자가 원리를 직접 말해도 그 원리는
+        // 늘 "확인 필요"로 남고 승격이 일어나지 않았다(실측 2026-07-30 · 감사 TG5-CX-03).
+        const 지시관찰 = explicitInstruction
+          ? events.find((e) => (e.receiptRefs ?? []).includes(explicitInstruction.observationRef))
+          : null;
+        const bundle = buildEvidenceBundle({
+          id: `bundle:${sessionId}:${key}`, activeTarget: userText ?? '',
+          observations: 지시관찰 ? [...obs, 지시관찰] : obs,
+          existingCandidates: 기존, explicitInstruction,
+        });
+        // **신분과 실제 호출은 같아야 한다.** identityFor(GROWTH_ROLE) 가 말한 그 자격으로 부른다 —
+        // 어긋나면 신뢰경계의 판정이 거짓이 된다(라벨을 신분으로 쓰던 감사 P0 와 같은 병).
+        const 성장모델 = deps.modelConnection?.modelFor?.(GROWTH_ROLE) ?? deps.model ?? model;
+        const r = await extractCandidate({ model: 성장모델, bundle, now: Date.now() });
+        const cell = r.candidate ?? r.quarantined;
+        if (cell) {
+          // 관계 결과도 후보와 함께 추적 가능하게 보존한다(감사) — 왜 이 후보가 남았는지의 근거.
+          if (r.relation?.kind) cell.growth = { ...(cell.growth ?? {}), relation: r.relation };
+          await tcellRegistry.upsert(cell); // 영향 0 — 저장만 한다
+        }
+        // §0-C-2 · **의미 수준 지시–원리 관계의 지속.** 모델(추출기)이 "이 지시는 기존 원리의
+        // 반대"라고 판정하면 그 사실을 **그 지시 문장을 열쇠로** 대상 세포에 남긴다.
+        // admission 은 **이번 턴에 같은 지시가 왔을 때만** 조회한다(감사 P1: 플래그 하나로
+        // 남기면 판정 한 번이 무관한 미래 턴까지 원리를 죽인다 — 수명은 지시가 정한다).
+        // 지시가 있던 턴에만 남긴다 — 관찰 사이의 우연한 모순으로 사용자 지시를 지어내지 않는다.
+        if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef && regexHit?.statement) {
+          await tcellRegistry.recordDirectiveRelation(r.relation.id, {
+            statement: regexHit.statement, relation: 'contradicts', ref: instructionRef, at: Date.now(),
+          }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
+        }
+        // §12·§11 · **나중에 한 선언이 이미 있는 후보를 확인한다.**
+        //
+        // 사람의 순서는 이렇다: 먼저 벽에 부딪히고, 몇 번 더 부딪힌 다음에 "앞으로 이렇게 해"라고
+        // 말한다. 그래서 후보는 **선언보다 먼저** 생긴다 — 그건 결함이 아니라 현실이다. 그런데
+        // 예전 코드에서는 나중의 선언이 담긴 추출이 `duplicate` 로 끝나 그 후보를 확인해 주지
+        // 못했고, 그래서 확인이 필요한 후보는 영원히 M1 에 머물렀다(감사 TG5-CX-03:
+        // `ConfirmationStore.record()` 생산 소비자 0).
+        //
+        // 사용자가 이번 턴에 **선언**했고 그것이 기존 후보를 강화한다면, 그 선언이 곧 그 후보의
+        // 확인이다("명시적 사용자 요청은 그 범위의 확인이다"). 근거는 지어내지 않는다 — 확인
+        // 기록의 `sourceRefs` 는 그 후보가 실제로 가진 근거 참조이고(계보 검사와 같은 계약),
+        // 왜 확인됐는지는 지시 관계로 함께 남긴다.
+        const 강화대상 = (r.relation?.kind === 'reinforces' || r.decision === 'duplicate')
+          ? r.relation?.id ?? null : null;
+        if (강화대상 && instructionRef && regexHit?.statement && regexHit?.source === 'user_declared') {
+          const 대상세포 = 기존.find((c) => c?.id === 강화대상);
+          const 계보 = (대상세포?.trace?.observationRefs ?? []).filter((x) => typeof x === 'string' && x);
+          if (계보.length) {
+            const rec = await confirmationStore.record({
+              id: `confirm:${강화대상}:${instructionRef}`, tcellId: 강화대상,
+              sourceRefs: 계보, now: Date.now(),
+            }).catch(() => ({ recorded: false }));
+            await tcellRegistry.recordDirectiveRelation(강화대상, {
+              statement: regexHit.statement, relation: 'reinforces', ref: instructionRef, at: Date.now(),
+            }).catch(() => {});
+            // 확인이 생겼으니 **그 세포도** 승격 판정을 받는다(이번 추출이 만든 세포와 별도로).
+            if (rec?.recorded && 대상세포) {
+              await 승격시도(대상세포, sessionId);
+              await 게시({ project: 대상세포.anchor?.project ?? null });
+            }
+          }
+        }
+        // §11 · **M1 → ReplayCase → transitionCell → registry → snapshot.** 여기가 오래 비어 있던
+        // 자리다. replay 는 외부 행동을 하지 않는다 — 결합된 원자를 사실로 실체화해 admission 을
+        // 다시 판정할 뿐이다. 실패·근거 부족은 조용히 M1 에 남는 것이지 사용자에게 카드를 띄우지 않는다.
+        if (cell) {
+          await 승격시도(cell, sessionId);
+          // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
+          await 게시({ project: cell.anchor?.project ?? null });
+        }
+        // **기록은 실제로 처리한 그 묶음의 참조만.** 다른 묶음 몫을 함께 올리면 그 묶음이 굶는다.
+        // 쓰기 실패·원장 손상은 성공으로 돌려주지 않는다 — 그러면 "처리했다"가 거짓이 되고,
+        // 다음 재개가 그 사실을 믿어 근거를 잃는다(감사 TG5-CX-02).
+        const 이묶음참조 = obs.flatMap((o) => o.receiptRefs ?? []);
+        const 기록 = await growthLedger.markProcessed(sessionId, 이묶음참조);
+        if (!기록.ok) console.error('[tcell] 처리 기록 실패:', 기록.reason);
+          처리결과.push({ decision: r.decision, stored: Boolean(cell), group: key });
+        } catch (e) {
+          console.error('[tcell] 묶음 처리 실패:', key, e?.message ?? e);
+        }
       }
-      // §0-C-2 · **의미 수준 지시–원리 관계의 지속.** 모델(추출기)이 "이 지시는 기존 원리의
-      // 반대"라고 판정하면 그 사실을 **그 지시 문장을 열쇠로** 대상 세포에 남긴다.
-      // admission 은 **이번 턴에 같은 지시가 왔을 때만** 조회한다(감사 P1: 플래그 하나로
-      // 남기면 판정 한 번이 무관한 미래 턴까지 원리를 죽인다 — 수명은 지시가 정한다).
-      // 지시가 있던 턴에만 남긴다 — 관찰 사이의 우연한 모순으로 사용자 지시를 지어내지 않는다.
-      if (r.relation?.kind === 'contradicts' && r.relation.id && instructionRef && regexHit?.statement) {
-        await tcellRegistry.recordDirectiveRelation(r.relation.id, {
-          statement: regexHit.statement, relation: 'contradicts', ref: instructionRef, at: Date.now(),
-        }).catch(() => {}); // 기록 실패가 추출·응답을 죽이지 않는다(영향 0)
-      }
-      // §11 · **M1 → ReplayCase → transitionCell → registry → snapshot.** 여기가 오래 비어 있던
-      // 자리다. replay 는 외부 행동을 하지 않는다 — 결합된 원자를 사실로 실체화해 admission 을
-      // 다시 판정할 뿐이다. 실패·근거 부족은 조용히 M1 에 남는 것이지 사용자에게 카드를 띄우지 않는다.
-      if (cell) {
-        await 승격시도(cell, sessionId);
-        // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
-        await 게시({ project: cell.anchor?.project ?? null });
-      }
-      // **전진은 실제로 처리한 만큼만.**(감사 TG5-CX-02 재현) 예전엔 점수 높은 묶음 하나만 돌리고
-      // 처리 지점을 `events.length` 까지 밀었다. 그래서 나머지 묶음은 재시작 뒤에도 **영구히**
-      // 건너뛰어졌다 — 전진한 만큼 처리하지 않은 것이다.
-      // 새 근거가 있는 묶음이 둘 이상이면 전진하지 않는다: 남은 묶음은 다음 깨움·재개에서 다시
-      // 잡혀야 한다. 재처리는 유실보다 낫고, 역행이 아니라 **전진 보류**다.
-      const 새근거참조 = new Set(새근거.flatMap((e) => e.receiptRefs ?? []));
-      const 새근거묶음수 = [...groups.values()]
-        .filter((obs2) => obs2.some((o) => (o.receiptRefs ?? []).some((r) => 새근거참조.has(r)))).length;
-      if (새근거묶음수 <= 1) await growthCheckpoint.advance(sessionId, events.length);
-      return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
+      const 첫결과 = 처리결과[0] ?? { decision: 'insufficient_evidence', stored: false, group: null };
+      return { ...첫결과, groups: 처리결과.length, wake: w };
     } finally {
       칸.running = false;
       if (칸.pending) {

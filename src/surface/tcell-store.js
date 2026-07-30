@@ -23,51 +23,86 @@ const 비밀일반화 = '비밀이 포함된 실행 사실(원문 비저장)';
 export { looksLikeSecret };
 
 /**
- * 성장 checkpoint — **재시작 경계에서 근거를 잃지 않기 위한 지속 사실**(감사 TG5-CX-02).
+ * 성장 원장 — **무엇을 처리했는지를 참조로 기록하는 지속 사실**(감사 TG5-CX-02 두 판 실패 뒤).
  *
- * 예전엔 진행 상태가 서버 수명의 `Map` 하나뿐이었다. 관찰이 append 된 뒤 추출 전에 프로세스가
- * 끝나면, 새 서버는 그 관찰을 **다시 깨우지 않았다** — 사용자는 실패를 알 수 없고, 같은 경험을
- * 반복해도 성장이 시작되지 않는다. 조용한 유실이다.
+ * 두 번 틀렸고 원인은 같았다: **기록해야 할 사실을 기록하지 않고 옆에 있는 값으로 판정했다.**
+ *   1판 — 진행 상태가 서버 수명의 `Map` 하나. 재시작하면 근거가 조용히 사라졌다.
+ *   2판 — 세션별 "처리한 관찰 개수". 묶음이 둘이면 하나만 돌고 개수는 전체까지 올라가,
+ *          나머지 묶음이 영구히 건너뛰어졌다. 개수를 안 올리게 막으니 이번엔 **같은 묶음만
+ *          무한 재처리하고 다른 묶음은 굶었다** — 개수는 "어느 묶음을 처리했는가"를 담을 수 없다.
  *
- * 계약(§6 백그라운드 불변식 1·4): append **뒤에만** checkpoint 를 전진하고, 부팅에서 미처리
- * 지점부터 정확히 한 번 재개한다. 파일 하나에 세션별 마지막 처리 지점만 담는다(원자 교체).
+ * 그래서 담는 것을 바꾼다: **처리한 관찰의 참조 집합**. 참조는 원장 위치라 이미 신분이고
+ * (`ledger:세션:번호`), 집합이면 누락·중복·기아가 동시에 사라진다 —
+ * 처리 안 된 참조가 있으면 재개하고, 있으면 그 묶음이 다음 차례가 된다.
+ *
+ * 실패를 성공으로 위장하지 않는다(감사): 읽기 손상과 쓰기 실패는 `ok:false` 와 사유로 나온다.
+ * 손상된 파일을 빈 원장으로 위장하면 "처리한 적 없음"이 되어 무한 재처리가 된다.
  */
-export class GrowthCheckpointStore {
+export class GrowthLedgerStore {
   constructor(dir) {
     this.dir = join(dir, 'growth');
-    this.file = join(this.dir, 'growth-checkpoint.json');
+    this.file = join(this.dir, 'growth-processed.json');
     this.queue = Promise.resolve();
   }
 
+  /**
+   * @returns {Promise<{ok:boolean, processed:Record<string,string[]>, reason?:string}>}
+   *   파일이 없으면 `ok:true` + 빈 원장(아직 아무것도 처리 안 했다 — 오류가 아니다).
+   *   **손상은 빈 원장이 아니다** — `ok:false` 로 나오고, 호출자는 그때 재개를 멈춘다.
+   */
   async load() {
-    try { return JSON.parse(await readFile(this.file, 'utf8')); } catch { return { sessions: {} }; }
+    let raw;
+    try { raw = await readFile(this.file, 'utf8'); }
+    catch (e) {
+      if (e?.code === 'ENOENT') return { ok: true, processed: {} };
+      return { ok: false, processed: {}, reason: `읽을 수 없어요: ${e?.code ?? e?.message ?? e}` };
+    }
+    try {
+      const a = JSON.parse(raw);
+      const p = a?.processed;
+      if (!p || typeof p !== 'object' || Array.isArray(p)) return { ok: false, processed: {}, reason: '구조가 계약과 달라요' };
+      const out = {};
+      for (const [sid, refs] of Object.entries(p)) {
+        if (!Array.isArray(refs) || !refs.every((r) => typeof r === 'string' && r)) {
+          return { ok: false, processed: {}, reason: `세션 ${sid} 의 참조 목록이 손상됐어요` };
+        }
+        out[sid] = refs;
+      }
+      return { ok: true, processed: out };
+    } catch { return { ok: false, processed: {}, reason: '읽을 수 있는 JSON 이 아니에요' }; }
   }
 
-  /** 세션의 처리 완료 지점을 전진시킨다. **뒤로 가지 않는다** — 재처리는 유실보다 낫지만 역행은 아니다. */
-  async advance(sessionId, processedCount) {
-    if (!sessionId || !Number.isFinite(processedCount)) return null;
+  /** 이 세션에서 이미 처리한 참조 집합. 손상이면 `ok:false` — 모른다는 사실을 그대로 준다. */
+  async processedRefs(sessionId) {
+    const r = await this.load();
+    if (!r.ok) return { ok: false, refs: new Set(), reason: r.reason };
+    return { ok: true, refs: new Set(r.processed[sessionId] ?? []) };
+  }
+
+  /**
+   * 실제로 처리한 참조들을 원장에 더한다. **처리 뒤에만** 부른다.
+   * @returns {Promise<{ok:boolean, added:number, reason?:string}>} 쓰기 실패를 성공으로 돌려주지 않는다.
+   */
+  async markProcessed(sessionId, refs = []) {
+    const 새것 = [...new Set((Array.isArray(refs) ? refs : []).filter((r) => typeof r === 'string' && r))];
+    if (!sessionId || !새것.length) return { ok: true, added: 0 };
     this.queue = this.queue.then(async () => {
       const cur = await this.load();
-      const 이전 = Number(cur.sessions?.[sessionId] ?? 0);
-      if (processedCount <= 이전) return cur;
-      const next = { sessions: { ...(cur.sessions ?? {}), [sessionId]: processedCount } };
-      await mkdir(this.dir, { recursive: true });
-      const tmp = `${this.file}.tmp`;
-      await writeFile(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 });
-      await rename(tmp, this.file);
-      return next;
-    }).catch(() => ({ sessions: {} }));
+      // 손상 위에 덮어쓰면 남의 처리 기록을 지운다 — 모르는 상태에서 쓰지 않는다.
+      if (!cur.ok) return { ok: false, added: 0, reason: cur.reason };
+      const 합집합 = [...new Set([...(cur.processed[sessionId] ?? []), ...새것])];
+      const next = { version: 1, processed: { ...cur.processed, [sessionId]: 합집합 } };
+      try {
+        await mkdir(this.dir, { recursive: true });
+        const tmp = `${this.file}.tmp`;
+        await writeFile(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 });
+        await rename(tmp, this.file);
+        return { ok: true, added: 합집합.length - (cur.processed[sessionId] ?? []).length };
+      } catch (e) {
+        return { ok: false, added: 0, reason: `기록할 수 없어요: ${e?.code ?? e?.message ?? e}` };
+      }
+    }).catch((e) => ({ ok: false, added: 0, reason: e?.message ?? String(e) }));
     return this.queue;
-  }
-
-  /** 부팅 재개 대상 — 관찰 수가 checkpoint 보다 많은 세션들. */
-  async pending(countsBySession = {}) {
-    const cur = await this.load();
-    const out = [];
-    for (const [sid, n] of Object.entries(countsBySession)) {
-      if (Number(n) > Number(cur.sessions?.[sid] ?? 0)) out.push(sid);
-    }
-    return out;
   }
 }
 
