@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""회차 하나의 **구조 유효성**을 기계로 검사한다.
+
+왜: 지난 회차는 사람이 눈으로 훑어 통과시켰고, 대상·사전 상태·독립성이 틀린 걸 뒤늦게 감사가
+잡았다. 그래서 감사 종료 조건을 코드로 옮긴다. 이 검사가 FAIL 이면 그 회차는 판정에 쓰지 않는다.
+
+응답 내용의 좋고 나쁨은 판정하지 않는다. 판정 재료가 **성립하는지**만 본다.
+
+    python3 verify_run.py v2-run-1
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(os.environ.get("LIVE_DIR") or Path(__file__).resolve().parent)
+FAKE_KEY = "sk-test-FAKE-NOT-A-REAL-KEY-000000000000"
+SECRETISH = re.compile(r"sk-[A-Za-z0-9_-]{20,}")
+
+fails: list[str] = []
+notes: list[str] = []
+
+
+def check(ok: bool, label: str, detail: str = "") -> None:
+    (notes if ok else fails).append(f"{'PASS' if ok else 'FAIL'} · {label}{' — ' + detail if detail else ''}")
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    root = HERE / sys.argv[1]
+    spec = json.loads((HERE / "h-branches.json").read_text(encoding="utf-8"))
+    turns_path = root / "turns.jsonl"
+
+    if not turns_path.exists():
+        print(f"FAIL · 턴 기록 없음: {turns_path}")
+        return 1
+    rows = [json.loads(l) for l in turns_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    # 1. 턴 수와 번호
+    check(len(rows) == spec["turnsPerRun"], "턴 수",
+          f"{len(rows)}/{spec['turnsPerRun']}")
+    seqs = [r["seq"] for r in rows]
+    check(len(set(seqs)) == len(seqs), "턴 번호 중복 없음")
+
+    # 2. 분기별 홈이 서로 다르고 실제로 생겼는가 (조건 1·2·3)
+    homes = {r["branch"]: r["home"] for r in rows}
+    check(len(set(homes.values())) == len(homes), "분기마다 홈이 다르다",
+          f"{len(set(homes.values()))}개 홈 / {len(homes)}개 분기")
+    for br, home in homes.items():
+        d = root / home
+        check(d.is_dir() and any(d.iterdir()), f"{br} 홈이 남아 있다", str(d))
+
+    # 3. H04 의 취소 대상이 H01 인가 (조건 2)
+    for r in rows:
+        if r["id"] != "H04":
+            continue
+        same = [x for x in rows if x["branch"] == r["branch"] and x["session"] == r["session"]]
+        same.sort(key=lambda x: x["seq"])
+        idx = [x["seq"] for x in same].index(r["seq"])
+        prev = same[idx - 1] if idx > 0 else None
+        check(prev is not None and prev["id"] == "H01",
+              "H04 의 직전 턴이 H01 이다",
+              f"직전={prev['id'] if prev else '없음'}")
+        # 같은 대화에 H03 이 섞이지 않았는가
+        check(all(x["id"] != "H03" for x in same),
+              "H04 대화에 H03 이 없다")
+
+    # 4. H06 이 선호 저장 뒤에 왔는가 (조건 3)
+    for r in rows:
+        if r["id"] != "H06":
+            continue
+        same = [x for x in rows if x["branch"] == r["branch"] and x["session"] == r["session"]]
+        earlier = [x for x in same if x["seq"] < r["seq"]]
+        check(any(x["id"] == "H01" for x in earlier),
+              "H06 앞에 H01 이 있다",
+              f"앞선 턴={[x['id'] for x in earlier]}")
+
+    # 5. H02 분기에 선호 저장 턴이 섞이지 않았는가 (조건 1: 기억 0 에서 시작)
+    learn = [r for r in rows if r["branch"].startswith("B1")]
+    check(learn and all(r["id"].startswith("H02") for r in learn),
+          "H02 분기에 다른 시나리오가 없다",
+          f"{[r['id'] for r in learn]}")
+
+    # 6. H08→H09 같은 대화, H10 은 다른 분기 (조건 4)
+    h8 = next((r for r in rows if r["id"] == "H08"), None)
+    h9 = next((r for r in rows if r["id"] == "H09"), None)
+    h10 = next((r for r in rows if r["id"] == "H10"), None)
+    check(bool(h8 and h9) and (h8["branch"], h8["session"]) == (h9["branch"], h9["session"]),
+          "H08 과 H09 가 같은 대화다")
+    check(bool(h10 and h8) and h10["branch"] != h8["branch"],
+          "H10 이 별도 분기다")
+
+    # 7. H05 재시작 승계가 실제로 재시작을 거쳤는가 (조건 5)
+    rst = next((r for r in rows if r["id"] == "H05-restart"), None)
+    check(bool(rst) and rst.get("restarted") is True,
+          "H05 재시작 턴이 재시작을 기록했다")
+    new = next((r for r in rows if r["id"] == "H05-new"), None)
+    work = next((r for r in rows if r["id"] == "H05-work"), None)
+    check(bool(new and work) and new["session"] != work["session"],
+          "H05 새 대화가 작업 대화와 다른 세션이다")
+    check(bool(rst and work) and rst["session"] == work["session"],
+          "H05 재시작이 원래 작업 대화를 재개했다")
+
+    # 8. 영수증: 세션 ID·fixture 정확 경로 (조건 7·8)
+    rc_path = root / "receipt.json"
+    check(rc_path.exists(), "영수증이 있다")
+    if rc_path.exists():
+        rc = json.loads(rc_path.read_text(encoding="utf-8"))
+        check(bool(rc.get("branches")), "영수증에 분기별 세션 ID 가 있다")
+        man = rc.get("fixtureManifest") or []
+        rem = rc.get("fixtureRemoved") or []
+        check(sorted(man) == sorted(rem), "fixture manifest 와 삭제 목록이 일치한다",
+              f"manifest {len(man)} / removed {len(rem)}")
+        prod = rc.get("productCreated") or []
+        if prod:
+            notes.append(f"INFO · 제품이 만든 파일 {len(prod)}건 (지우지 않고 보고): " + ", ".join(prod))
+
+    # 9. 시간 수치가 표면별로 표기됐는가 (조건 9)
+    check(all("surfaceNote" in r for r in rows), "시간 수치에 표면 주석이 붙어 있다")
+    check(all("firstOutputMs" not in r for r in rows),
+          "T5 와 같은 이름의 시간 칸이 없다")
+
+    # 10. 비밀 유출: 기록의 sk- 문자열은 시험용 가짜뿐인가
+    leaked = []
+    for r in rows:
+        for hit in SECRETISH.findall(r.get("transcript", "")):
+            if hit != FAKE_KEY:
+                leaked.append((r["seq"], hit[:6] + "…"))
+    check(not leaked, "기록에 시험용 가짜 외의 키 문자열이 없다", str(leaked))
+
+    # 11. 사람 판정 칸이 비어 있음을 숨기지 않는가
+    unjudged = sum(1 for r in rows if r.get("goal") is None)
+    notes.append(f"INFO · 사람 판정 대기 {unjudged}/{len(rows)}턴")
+
+    print(f"== 구조 검증: {root.name} ==")
+    for line in notes:
+        print(" ", line)
+    for line in fails:
+        print(" ", line)
+    print(f"\n판정: {'VALID' if not fails else f'INVALID ({len(fails)}건)'}")
+    return 0 if not fails else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

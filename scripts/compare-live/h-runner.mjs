@@ -1,302 +1,300 @@
 #!/usr/bin/env node
-// 비교군 H01~H10 라이브 계측기.
+// 비교군 H01~H10 라이브 계측기 — **OpenClaw 전용**.
 //
-// 왜 새로 만드는가: T5 3회는 브라우저 안에 MutationObserver를 주입해 어시스턴트 턴을 셌다.
-// 비교군은 CLI라 같은 자를 쓸 수 없다. 같은 지표(첫 표시·가장 긴 공백·총 소요·질문·승인·
-// 도구·에이전트·모델 호출)를 CLI 표면에서 재는 계측기가 필요하다.
+// Hermes 는 여기 없다. `hermes -z` 는 승계 표면이 아니다 — `run_oneshot()` 이 세션 인자를 받지
+// 않고(`oneshot.py:170`) `--resume` 은 TUI 전용 플래그다(`main.py:2322`). 실제로 재보니 H04 가
+// `이 터미널 세션과는 별개의 이전 세션`이라고 답하고 입력 토큰이 212(1턴 5,746)였다. 같은 파일에
+// 두면 또 오용되므로 뺐다. Hermes 는 `h_runner_v2.py`(대화형 PTY + SessionHost)로 잰다.
 //
-// 재지 않는 것: 모델 호출 수를 추정하지 않는다. 제품이 남긴 usage 기록의 증분만 센다.
-// 기록이 없으면 `null`로 남긴다. 빈 칸을 숫자로 채우지 않는다.
+// OpenClaw `agent --local --json --session-key` 는 2턴 시험에서 승계가 확인됐다
+// (`내 이름은 종윤이야.` → 다음 턴 `내 이름 뭐라고 했지?` → `종윤`).
+//
+// 실행표는 `h-branches.json` 이다. 무효 판정된 14턴 표는 삭제했다.
+// 분기마다 상태 폴더를 따로 두고(앞 분기의 기억이 다음 분기의 사전 상태를 바꾸지 못한다),
+// 대화는 `--session-key` 로 가른다.
+//
+// 재지 않는 것: 모델·도구·에이전트 호출 수를 추정하지 않는다. `--json` 이 준 값만 옮기고,
+// 없으면 `null` 로 남긴다. 빈 칸을 숫자로 채우지 않는다.
+//
+// 시간은 `surface*` 로 적는다. 표면마다 의미가 달라 T5 UI 수치와 나란히 놓지 않는다.
 //
 // 사용:
-//   node h-runner.mjs --product hermes   --run 1 --dry-run   (자격 없이 배선 확인)
-//   node h-runner.mjs --product openclaw --run 1
-import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, readFileSync, writeFileSync, appendFileSync, existsSync, statSync } from 'node:fs';
+//   node h-runner.mjs --run 1 --dry-run
+//   node h-runner.mjs --run 1 --model gpt-5.3-chat-latest
+import { spawn, spawnSync } from 'node:child_process';
+import {
+  mkdirSync, rmSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync,
+  chmodSync, readdirSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-// 작업 디렉터리: 임시 홈·런타임·fixture 가 모여 있는 곳. LIVE_DIR 로 지정한다.
 const HERE = process.env.LIVE_DIR ?? dirname(fileURLToPath(import.meta.url));
-const TURNS = JSON.parse(readFileSync(join(HERE, 'h-turns.json'), 'utf8'));
-const FIXTURES = join(HERE, 'prepare-fixtures.sh');
+const SPEC = JSON.parse(readFileSync(join(HERE, 'h-branches.json'), 'utf8'));
+const SECRET = join(HERE, 'secret-env.sh');
+const DOWNLOADS = join(homedir(), 'Downloads');
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i === -1 ? fallback : process.argv[i + 1];
 };
-const has = (name) => process.argv.includes(`--${name}`);
-
-const product = arg('product');
+const dryRun = process.argv.includes('--dry-run');
 const run = Number(arg('run', '1'));
-const dryRun = has('dry-run');
-const model = arg('model', 'gpt-5.1');
+// OpenClaw 카탈로그에 gpt-5.1 이 없다. 모델이 다르면 제품 구조 우열로 보고하지 않는다.
+const model = arg('model', 'gpt-5.3-chat-latest');
 
-// ── 제품 정의 ────────────────────────────────────────────────────────────────
-// 각 제품은 (1) 격리 홈, (2) 한 턴 명령, (3) usage 증분 읽는 법을 제공한다.
-const PRODUCTS = {
-  hermes: {
-    label: 'Hermes',
-    cwd: '/Users/jyp/Developer/lab_un/hermes-agent',
-    home: join(HERE, 'hermes-home'),
-    homeEnv: 'HERMES_HOME',
-    // `--usage-file` 은 1턴 JSON 을 덮어쓴다(`oneshot.py:127`). 누적 파일이 아니므로
-    // 턴마다 별 파일로 받아 뒤에서 합친다. 실패해도 기록되므로 지출이 새지 않는다.
-    usageDir: join(HERE, 'usage-hermes'),
-    // 실증한 플래그만 쓴다(`hermes --help`): -z · -m · --provider · --usage-file · --resume
-    // 어느 대화를 잇는지는 실행표의 `session` 이 정한다. 계측기가 문장을 해석하지 않는다.
-    // 세션 ID 는 제품이 usage 보고서의 `session_id` 로 알려준다(`oneshot.py:149`).
-    // 그 값을 그대로 --resume 에 넘긴다. 이름을 지어내지 않는다.
-    turnCmd(turn, ctx) {
-      const known = ctx.sessionIds.get(turn.session);
+// fixture 는 이 정확한 세 경로뿐이다. 정리도 이 목록만 지운다. glob 으로 넓히지 않는다.
+const FIXTURE_FILES = {
+  '견적서_A사_v1.csv': '품목,수량,단가\n모니터,2,320000\n키보드,3,45000\n',
+  '견적서_A사_최종.csv': '품목,수량,단가\n모니터,2,310000\n키보드,3,42000\n마우스,3,28000\n',
+  '견적서_B사_v1.csv': '품목,수량,단가\n모니터,1,350000\n',
+};
+const LOCKED = '견적서_A사_최종.csv';
+
+const OC = {
+  label: 'OpenClaw 2026.7.2',
+  cwd: join(HERE, 'oc-2026.7.2'),
+  nodeBin: existsSync(join(HERE, 'node-bin.txt'))
+    ? readFileSync(join(HERE, 'node-bin.txt'), 'utf8').trim()
+    : null,
+};
+
+// ── fixture: 정확한 경로만 ───────────────────────────────────────────────────
+const fixtureMake = () => Object.entries(FIXTURE_FILES).map(([name, body]) => {
+  const p = join(DOWNLOADS, name);
+  writeFileSync(p, body);
+  return p;
+});
+const fixtureLock = () => chmodSync(join(DOWNLOADS, LOCKED), 0o000);
+const fixtureUnlock = () => {
+  const p = join(DOWNLOADS, LOCKED);
+  if (existsSync(p)) chmodSync(p, 0o644);
+};
+const listDownloads = () => {
+  try { return new Set(readdirSync(DOWNLOADS)); } catch { return new Set(); }
+};
+
+// ── 상태 폴더당 살아있는 제품 프로세스 수를 OS 에게 직접 묻는다 ───────────────
+// 내부 장부를 믿지 않는다. 같은 홈에 두 writer 가 붙은 것이 지난 두 판을 무효로 만들었다.
+const countProcesses = (stateDir) => {
+  const ps = spawnSync('ps', ['-eo', 'pid=,command='], { encoding: 'utf8' });
+  if (ps.error) return -1;
+  let n = 0;
+  for (const line of (ps.stdout ?? '').split('\n')) {
+    if (!line.includes('openclaw.mjs')) continue;
+    const pid = line.trim().split(/\s+/)[0];
+    const env = spawnSync('ps', ['-p', pid, '-wwE', '-o', 'command='], { encoding: 'utf8' });
+    if ((env.stdout ?? '').includes(`OPENCLAW_STATE_DIR=${stateDir}`)) n += 1;
+  }
+  return n;
+};
+
+// ── usage: 제품이 `--json` 으로 준 값만 옮긴다 ───────────────────────────────
+const readUsage = (stdout) => {
+  const lines = stdout.trim().split('\n').filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    try {
+      const r = JSON.parse(lines[i]);
+      const u = r.usage ?? r.tokenUsage ?? {};
+      const n = (v) => (typeof v === 'number' ? v : null);
       return {
-        file: './.venv/bin/hermes',
-        args: [
-          '-z', turn.prompt,
-          '-m', model,
-          '--provider', 'openai-api',
-          '--usage-file', ctx.turnUsagePath,
-          ...(known ? ['--resume', known] : []),
-        ],
+        apiCalls: n(u.apiCalls ?? u.api_calls ?? r.apiCalls),
+        costUsd: n(u.costUsd ?? u.cost_usd ?? r.costUsd),
+        tokensIn: n(u.inputTokens ?? u.input_tokens ?? u.promptTokens),
+        tokensOut: n(u.outputTokens ?? u.output_tokens ?? u.completionTokens),
+        totalTokens: n(u.totalTokens ?? u.total_tokens),
+        toolCalls: Array.isArray(r.toolCalls) ? r.toolCalls.length : n(r.toolCalls),
+        model: r.model ?? null,
+        sessionId: r.sessionId ?? r.session_id ?? null,
+        source: 'agent --json',
       };
-    },
-  },
-  // pinned 2026.7.2 를 임시 로컬 Node v24.18.1 로 돌린다. 시스템 Node(v24.14.0)는 안 건드린다.
-  // 설치본 2026.6.11 은 쓰지 않는다 — pinned 가 섰으므로 결과를 섞을 이유가 없다.
-  openclaw: {
-    label: 'OpenClaw 2026.7.2',
-    cwd: join(HERE, 'oc-2026.7.2'),
-    home: join(HERE, 'oc-state'),
-    homeEnv: 'OPENCLAW_STATE_DIR',
-    usageDir: join(HERE, 'usage-openclaw'),
-    nodeBin: existsSync(join(HERE, 'node-bin.txt'))
-      ? readFileSync(join(HERE, 'node-bin.txt'), 'utf8').trim()
-      : null,
-    extraEnv(P) {
-      return { OPENCLAW_CONFIG_PATH: join(P.home, 'config.json') };
-    },
-    // 실증한 계약(`openclaw agent --help`): --local 임베디드 · --json 구조 결과 ·
-    // --session-key 로 같은 대화/새 대화를 직접 가른다. Gateway 를 띄우지 않는다.
-    turnCmd(turn, ctx) {
-      // --session-key 가 대화를 직접 가른다. 실행표의 session 이름을 그대로 쓴다.
-      const key = `h-${turn.session}`;
-      return {
-        file: 'node',
-        args: [
-          'openclaw.mjs', 'agent', '--local', '--json',
-          '--message', turn.prompt,
-          '--model', model,
-          '--session-key', key,
-        ],
-      };
-    },
-    // OpenClaw 는 usage 파일 옵션이 없다. --json 결과에서 제품이 준 값만 옮긴다.
-    usageFromStdout: true,
-  },
-};
-
-const P = PRODUCTS[product];
-if (!P) {
-  console.error(`--product 를 지정하라: ${Object.keys(PRODUCTS).join(' | ')}`);
-  process.exit(2);
-}
-
-// ── 격리 홈: 회차마다 새로 만든다(기억 0) ────────────────────────────────────
-const freshHome = () => {
-  rmSync(P.home, { recursive: true, force: true });
-  mkdirSync(P.home, { recursive: true });
-};
-
-const fixture = (verb) =>
-  new Promise((resolve) => {
-    const c = spawn('bash', [FIXTURES, verb], { stdio: 'inherit' });
-    c.on('close', () => resolve());
-  });
-
-// ── usage: 제품이 남긴 보고서를 그대로 읽는다. 없는 칸은 null 로 남긴다 ─────
-// 모델 호출 수(`api_calls`)와 비용(`estimated_cost_usd`)은 제품이 계산한 값이다.
-// 계측기는 세지 않고 옮긴다. 파일이 없으면 숫자를 만들지 않는다.
-const readTurnUsage = (path) => {
-  if (!existsSync(path)) {
-    return { apiCalls: null, costUsd: null, tokensIn: null, tokensOut: null, source: 'absent' };
+    } catch { /* JSON 아닌 진단 줄은 건너뛴다 */ }
   }
-  try {
-    const r = JSON.parse(readFileSync(path, 'utf8'));
-    return {
-      apiCalls: r.api_calls ?? null,
-      costUsd: r.estimated_cost_usd ?? null,
-      costStatus: r.cost_status ?? null,
-      tokensIn: r.input_tokens ?? null,
-      tokensOut: r.output_tokens ?? null,
-      cacheRead: r.cache_read_tokens ?? null,
-      reasoning: r.reasoning_tokens ?? null,
-      totalTokens: r.total_tokens ?? null,
-      model: r.model ?? null,
-      provider: r.provider ?? null,
-      serviceTier: r.service_tier ?? null,
-      sessionId: r.session_id ?? null,
-      completed: r.completed ?? null,
-      failed: r.failed ?? null,
-      failure: r.failure ?? null,
-      source: 'usage-file',
-    };
-  } catch (e) {
-    return { apiCalls: null, costUsd: null, source: `unreadable: ${e.message}` };
-  }
+  return { apiCalls: null, costUsd: null, source: 'json-absent' };
 };
 
-// OpenClaw: `agent --json` 결과에서 제품이 준 사용량만 옮긴다. 이름을 추측해 만들지 않는다.
-const readStdoutUsage = (stdout) => {
-  try {
-    const r = JSON.parse(stdout.trim().split('\n').filter(Boolean).pop() ?? '');
-    const u = r.usage ?? r.tokenUsage ?? {};
-    const n = (v) => (typeof v === 'number' ? v : null);
-    return {
-      apiCalls: n(u.apiCalls ?? u.api_calls ?? r.apiCalls),
-      costUsd: n(u.costUsd ?? u.cost_usd ?? r.costUsd),
-      tokensIn: n(u.inputTokens ?? u.input_tokens ?? u.promptTokens),
-      tokensOut: n(u.outputTokens ?? u.output_tokens ?? u.completionTokens),
-      totalTokens: n(u.totalTokens ?? u.total_tokens),
-      model: r.model ?? null,
-      // 도구·에이전트 후속 호출: 제품이 결과에 남긴 것만
-      toolCalls: Array.isArray(r.toolCalls) ? r.toolCalls.length : n(r.toolCalls),
-      raw: u,
-      source: 'agent --json',
-    };
-  } catch (e) {
-    return { apiCalls: null, costUsd: null, source: `json-unreadable: ${e.message}` };
-  }
-};
+// ── 한 턴 = 프로세스 하나. 끝나면 확실히 죽는다 ──────────────────────────────
+const runTurn = (turn, stateDir) => new Promise((resolve) => {
+  const key = `${turn.branchId}-${turn.session}`;
+  const args = [
+    'openclaw.mjs', 'agent', '--local', '--json',
+    '--message', turn.prompt,
+    '--model', model,
+    '--session-key', key,
+  ];
+  const env = {
+    ...process.env,
+    HOME: stateDir,
+    OPENCLAW_HOME: stateDir,
+    OPENCLAW_STATE_DIR: join(stateDir, '.openclaw'),
+    OPENCLAW_CONFIG_PATH: join(stateDir, '.openclaw', 'openclaw.json'),
+  };
+  if (OC.nodeBin) env.PATH = `${OC.nodeBin}:${env.PATH}`;
 
-const sumNums = (rows, key) => {
-  const vals = rows.map((r) => r[key]).filter((v) => typeof v === 'number');
-  return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
-};
+  // 자격은 오너가 입력한 파일에서 자식 프로세스 안으로만 들어간다.
+  // 계측기는 값을 읽지 않고, 출력·기록에도 남지 않는다.
+  const useSecret = existsSync(SECRET);
+  const file = useSecret ? 'bash' : 'node';
+  const spawnArgs = useSecret
+    ? ['-c', 'set -a; . "$0"; exec "$@"', SECRET, 'node', ...args]
+    : args;
 
-// ── 한 턴 실행: 첫 출력·가장 긴 공백·총 소요를 실측 ──────────────────────────
-const runTurn = (turn, ctx) =>
-  new Promise((resolve) => {
-    const { file, args } = P.turnCmd(turn, ctx);
-    const env = { ...process.env, [P.homeEnv]: P.home, ...(P.extraEnv?.(P) ?? {}) };
-    if (P.nodeBin) env.PATH = `${P.nodeBin}:${env.PATH}`;
+  const t0 = process.hrtime.bigint();
+  let firstOut = null;
+  let lastAt = t0;
+  let longestGap = 0;
+  let out = '';
+  let err = '';
+  const ms = (a, b) => Number(b - a) / 1e6;
 
-    const t0 = process.hrtime.bigint();
-    let firstOutputAt = null;
-    let lastChunkAt = t0;
-    let longestGapMs = 0;
-    let out = '';
-    let err = '';
+  const child = spawn(file, spawnArgs, { cwd: OC.cwd, env });
+  const onChunk = (buf, sink) => {
+    const now = process.hrtime.bigint();
+    if (firstOut === null) firstOut = now;
+    longestGap = Math.max(longestGap, ms(lastAt, now));
+    lastAt = now;
+    if (sink === 'out') out += buf.toString(); else err += buf.toString();
+  };
+  child.stdout.on('data', (b) => onChunk(b, 'out'));
+  child.stderr.on('data', (b) => onChunk(b, 'err'));
 
-    const ms = (a, b) => Number(b - a) / 1e6;
-    const child = spawn(file, args, { cwd: P.cwd, env });
-
-    const onChunk = (buf, sink) => {
-      const now = process.hrtime.bigint();
-      if (firstOutputAt === null) firstOutputAt = now;
-      const gap = ms(lastChunkAt, now);
-      if (gap > longestGapMs) longestGapMs = gap;
-      lastChunkAt = now;
-      if (sink === 'out') out += buf.toString(); else err += buf.toString();
-    };
-    child.stdout.on('data', (b) => onChunk(b, 'out'));
-    child.stderr.on('data', (b) => onChunk(b, 'err'));
-
-    child.on('close', (code) => {
-      const t1 = process.hrtime.bigint();
-      const finalGap = ms(lastChunkAt, t1);
-      if (finalGap > longestGapMs) longestGapMs = finalGap;
-      const usage = P.usageFromStdout ? readStdoutUsage(out) : readTurnUsage(ctx.turnUsagePath);
-
-      resolve({
-        seq: turn.seq,
-        id: turn.id,
-        state: turn.state,
-        prompt: turn.prompt,
-        measure: turn.measure ?? null,
-        exitCode: code,
-        // 공통 측정값 — 실측만
-        firstOutputMs: firstOutputAt === null ? null : Math.round(ms(t0, firstOutputAt)),
-        longestGapMs: Math.round(longestGapMs),
-        totalMs: Math.round(ms(t0, t1)),
-        // 모델·도구·에이전트 후속 호출 전부: 제품 usage 보고서 그대로. 추정 0.
-        usage,
-        // 아래 네 칸은 사람이 출력을 읽고 채운다. 자동 판정하지 않는다.
-        goal: null,
-        unnecessaryQuestions: null,
-        approvals: null,
-        agentDelegation: null,
-        stdout: out,
-        stderr: err,
-      });
+  child.on('close', (code) => {
+    const t1 = process.hrtime.bigint();
+    longestGap = Math.max(longestGap, ms(lastAt, t1));
+    resolve({
+      run,
+      branch: turn.branchId,
+      home: turn.home,
+      seq: turn.seq,
+      id: turn.id,
+      session: turn.session,
+      sessionKey: key,
+      role: turn.role ?? null,
+      prompt: turn.prompt,
+      measure: turn.measure ?? null,
+      exitCode: code,
+      // 표면별 의미가 다르다. T5 UI 수치와 나란히 놓지 않는다.
+      surfaceFirstPaintMs: firstOut === null ? null : Math.round(ms(t0, firstOut)),
+      surfaceQuietGapMs: Math.round(longestGap),
+      surfaceNote: 'CLI 1턴: 진단 로그가 먼저 나오고 응답은 끝에 한 번에 나온다',
+      totalMs: Math.round(ms(t0, t1)),
+      usage: readUsage(out),
+      stdout: out,
+      stderr: err,
+      // 사람이 채운다. 자동 판정하지 않는다.
+      goal: null,
+      unnecessaryQuestions: null,
+      approvals: null,
+      agentDelegation: null,
     });
   });
+});
 
-// ── 회차 ─────────────────────────────────────────────────────────────────────
 const main = async () => {
-  const outPath = join(HERE, `run-${product}-${run}.jsonl`);
-  const usageDir = join(P.usageDir, `run-${run}`);
-  const ctx = { sessionIds: new Map() };
-  const rows = [];
-
-  console.log(`[${P.label}] 회차 ${run} · ${TURNS.turnsPerRun}턴 · 모델 ${model}${dryRun ? ' · DRY RUN' : ''}`);
-  if (TURNS.turns.length !== TURNS.turnsPerRun) {
-    console.error(`실행표 불일치: ${TURNS.turns.length}턴 정의 vs ${TURNS.turnsPerRun} 선언`);
+  const branches = SPEC.branches;
+  const total = branches.reduce((a, b) => a + b.turns.length, 0);
+  if (total !== SPEC.turnsPerRun) {
+    console.error(`분기표 불일치: ${total}턴 vs ${SPEC.turnsPerRun} 선언`);
+    process.exit(2);
+  }
+  if (!dryRun && !existsSync(SECRET)) {
+    console.error('자격 파일이 없다. 키 입력 창을 먼저 실행하라.');
     process.exit(2);
   }
 
-  freshHome();
-  rmSync(usageDir, { recursive: true, force: true });
-  mkdirSync(usageDir, { recursive: true });
-  writeFileSync(outPath, '');
+  const runroot = join(HERE, `oc-run-${run}`);
+  const outPath = join(runroot, 'turns.jsonl');
+  const receipt = { product: OC.label, run, model, branches: [] };
+  const manifest = [];
+  const before = listDownloads();
 
-  for (const turn of TURNS.turns) {
-    ctx.turnUsagePath = join(usageDir, `t${String(turn.seq).padStart(2, '0')}-${turn.id}.json`);
-    for (const step of turn.setup ?? []) {
-      if (step === 'home:fresh') continue; // 이미 회차 시작에서 했다
-      if (step.startsWith('fixture:')) await fixture(step.split(':')[1]);
-    }
+  console.log(`[${OC.label}] 회차 ${run} · ${total}턴 · ${model}${dryRun ? ' · DRY RUN' : ''}`);
+  console.log(`모델 주의: ${SPEC.modelCaveat}`);
 
-    if (dryRun) {
-      const { file, args } = P.turnCmd(turn, ctx);
-      console.log(`  ${String(turn.seq).padStart(2)} ${turn.id.padEnd(8)} ${turn.state ?? 'independent'}`);
-      console.log(`     ${file} ${args.map((a) => (a.includes(' ') ? JSON.stringify(a) : a)).join(' ')}`);
-      continue;
-    }
-
-    const r = await runTurn(turn, ctx);
-    // 제품이 알려준 세션 ID 를 기억해 다음 턴이 같은 대화를 잇게 한다.
-    if (r.usage.sessionId && !ctx.sessionIds.has(turn.session)) {
-      ctx.sessionIds.set(turn.session, r.usage.sessionId);
-    }
-    rows.push(r.usage);
-    appendFileSync(outPath, `${JSON.stringify(r)}\n`);
-    const calls = r.usage.apiCalls ?? '기록없음';
-    console.log(
-      `  ${String(r.seq).padStart(2)} ${r.id.padEnd(8)} exit=${r.exitCode} ` +
-      `첫표시=${r.firstOutputMs ?? '-'}ms 최장공백=${r.longestGapMs}ms 총=${r.totalMs}ms 호출=${calls}`,
-    );
-    if (r.exitCode !== 0) console.log(`     ! ${r.stderr.trim().split('\n')[0] ?? ''}`);
+  if (!dryRun) {
+    rmSync(runroot, { recursive: true, force: true });
+    mkdirSync(runroot, { recursive: true });
+    writeFileSync(outPath, '');
   }
 
-  await fixture('clean');
-  if (!dryRun) {
-    // 회차 합계도 제품 값의 합일 뿐이다. 빈 칸은 채우지 않는다.
-    const calls = sumNums(rows, 'apiCalls');
-    const cost = sumNums(rows, 'costUsd');
-    const tin = sumNums(rows, 'tokensIn');
-    const tout = sumNums(rows, 'tokensOut');
-    const tiers = [...new Set(rows.map((r) => r.serviceTier).filter(Boolean))];
-    console.log(
-      `\n회차 ${run} 실측 — 모델 호출 ${calls ?? '기록없음'} · 비용 ` +
-      `${cost === null ? '기록없음' : `$${cost.toFixed(4)}`} · in ${tin ?? '-'} · out ${tout ?? '-'}` +
-      (tiers.length ? ` · tier ${tiers.join(',')}` : ''),
-    );
-    console.log(`턴 기록: ${outPath}`);
-    console.log(`제품 usage 원본: ${usageDir}`);
+  try {
+    for (const br of branches) {
+      const stateDir = join(runroot, br.home);
+      console.log(`\n── ${br.id}  home=${br.home}  (${br.purpose})`);
+      if (!dryRun) mkdirSync(join(stateDir, '.openclaw'), { recursive: true });
+
+      for (const step of br.fixture ?? []) {
+        if (dryRun) console.log(`     fixture:${step}`);
+        else if (step === 'make') {
+          manifest.push(...fixtureMake());
+          console.log('     fixture make → 3개');
+        } else if (step === 'unlock') fixtureUnlock();
+      }
+
+      for (const t of br.turns) {
+        for (const step of t.setup ?? []) {
+          if (step === 'fixture:lock') {
+            if (dryRun) console.log('     fixture:lock');
+            else fixtureLock();
+          }
+        }
+
+        if (dryRun) {
+          console.log(`  ${String(t.seq).padStart(2)} ${t.id.padEnd(13)} ${t.session} ` +
+            `key=${br.id}-${t.session}  ${(t.role ?? t.measure ?? '').slice(0, 40)}`);
+          continue;
+        }
+
+        // 턴 전에 이 상태 폴더에 붙은 프로세스가 없어야 한다.
+        const busy = countProcesses(join(stateDir, '.openclaw'));
+        if (busy > 0) throw new Error(`${br.id}: 이 상태 폴더에 제품 프로세스 ${busy}개가 살아 있다`);
+
+        const rec = await runTurn({ ...t, branchId: br.id, home: br.home }, stateDir);
+        appendFileSync(outPath, `${JSON.stringify(rec)}\n`);
+
+        // 턴 뒤에도 남아 있으면 즉시 중단한다. 다중 writer 를 다음 턴으로 넘기지 않는다.
+        const left = countProcesses(join(stateDir, '.openclaw'));
+        if (left > 0) throw new Error(`${br.id}/${t.id}: 턴 뒤 제품 프로세스 ${left}개가 남았다`);
+
+        console.log(`  ${String(rec.seq).padStart(2)} ${rec.id.padEnd(13)} ${rec.session} ` +
+          `exit=${rec.exitCode} 총=${rec.totalMs}ms 호출=${rec.usage.apiCalls ?? '기록없음'}`);
+        if (rec.exitCode !== 0) {
+          console.log(`     ! ${(rec.stderr.trim().split('\n').pop() ?? '').slice(0, 160)}`);
+        }
+      }
+
+      if (!dryRun) {
+        receipt.branches.push({
+          id: br.id,
+          home: br.home,
+          stateDir,
+          processesAfter: countProcesses(join(stateDir, '.openclaw')),
+        });
+      }
+    }
+  } finally {
+    if (!dryRun) {
+      fixtureUnlock();
+      const removed = [];
+      for (const p of manifest) {
+        if (existsSync(p)) { unlinkSync(p); removed.push(p); }
+      }
+      const after = listDownloads();
+      const created = [...after].filter((n) => !before.has(n)).sort();
+      receipt.fixtureManifest = manifest;
+      receipt.fixtureRemoved = removed;
+      // 제품이 만든 파일은 지우지 않고 정확한 경로로 보고한다.
+      receipt.productCreated = created.map((n) => join(DOWNLOADS, n));
+      writeFileSync(join(runroot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`);
+      console.log(`\nfixture 삭제 ${removed.length}건`);
+      if (created.length) {
+        console.log('제품이 만든 파일 (지우지 않았다. 정확한 경로로 보고한다):');
+        for (const n of created) console.log(`  ${join(DOWNLOADS, n)}`);
+      }
+      console.log(`기록: ${outPath}\n영수증: ${join(runroot, 'receipt.json')}`);
+    }
   }
 };
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().catch((e) => { console.error(e.message ?? e); process.exit(1); });

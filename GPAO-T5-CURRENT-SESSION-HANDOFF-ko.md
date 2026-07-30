@@ -115,6 +115,36 @@
     lock을 제거했다. `v2-run-1/`은 보존하되 비교 판정에는 쓰지 않는다. 다음 실행은 홈별 단일 writer,
     종료 확인, resume fail-fast, 실제 ready 판정, 무과금 프로세스 전실행 검사를 먼저 통과해야 한다.
     같은 감사 문서의 `수정 1회차 재중단` 절이 정본이다.
+  - 재중단 뒤 구현선이 만든 것과 현재 상태(문서에 아직 없던 진행 중 판단):
+    - 수명주기를 규칙에서 **자료구조**로 옮겼다. `scripts/compare-live/session_lifecycle.py`의
+      `SessionHost`는 홈 하나당 살아있는 세션을 하나로 강제하며, 두 번째 `open()`은 예외다.
+      프로세스 수는 내부 장부가 아니라 `ps -wwE`로 `HERMES_HOME` 일치 프로세스를 세어 확인한다.
+      `close()`는 정상 종료 → SIGTERM → SIGKILL 3단계를 거치고 종료 단계·확인 결과·세션 ID를
+      기록하며, 확인 실패나 잔여 프로세스가 있으면 예외로 중단한다. `wait_ready()`는 입력 프롬프트
+      표식을 본 뒤에만 통과하고, 그 전에 프롬프트를 쓰면 예외다. `--resume`은 검증 실패 시 예외다.
+      같은 결함이 두 판 연속 재발한 이유가 `닫는 것을 잊지 않기`에 의존했기 때문이라는 판단이다.
+    - `scripts/compare-live/preflight.py`는 프롬프트를 보내지 않는 **무과금 전실행**이다. 열기 전 0개 →
+      열린 뒤 1개 → 같은 홈 두 번째 세션 차단 → 정상 종료 확인 → 세션 ID 확보 → 닫은 뒤 0개 →
+      `--resume` 재개 → 재개 종료 확인 → 잔여 0개를 찍는다. 12개 검사 전부 PASS, 모델 호출 0건,
+      세션 ID `20260730_201854_4c6acc`, 종료 단계 `graceful`. 보고서는 스크래치패드
+      `preflight/preflight-report.json`이며 유료 실행 판정에는 쓰지 않는다.
+    - `scripts/compare-live/h-branches.json`이 새 실행표다. 분기 8개·18턴이며 `H01→H03`(B2)과
+      `H01→H04`(B3)를 다른 홈·다른 대화로 나누고, H04 철회가 저장에 반영됐는지 확인하는 턴을
+      더했다. H06은 선호 저장 뒤에 묻고, H08→H09는 같은 파일 대화, H10은 별도 분기, H05는
+      작업 대화 → 새 대화 → 제품 재시작 → 원 대화 재개다. 무효 판정된 14턴 표는 삭제했다.
+    - `scripts/compare-live/verify_run.py`는 회차의 **구조 유효성**을 기계로 검사한다(턴 수, 분기별
+      홈 분리, H04 직전 턴이 H01인지, H06 앞의 H01, H08·H09 동일 대화, H10 분리, H05 재시작 기록,
+      영수증의 fixture manifest 일치, 표면 시간 표기, 기록의 가짜 외 키 문자열 0). 응답의 좋고 나쁨은
+      판정하지 않는다. 지난 회차를 사람 눈으로 통과시킨 실패를 되풀이하지 않기 위한 것이다.
+    - `h-runner.mjs`는 **OpenClaw 전용**으로 남긴다. Hermes `-z`는 승계 표면이 아니어서
+      (`run_oneshot()`이 세션 인자를 받지 않고 `--resume`은 TUI 전용) 같은 파일에 두면 다시 오용된다.
+      OpenClaw `agent --local --json --session-key`는 2턴 시험에서 승계가 확인됐다.
+    - 현재 상태: 제품·러너·감시 프로세스 0개, `~/Downloads` fixture 잔여 0건, stale lock 없음,
+      오너의 실제 `~/.hermes`·`~/.openclaw` 변경 0건. 무효 산출물은
+      `INVALID-multiwriter-v2-run-1/`과 `PARTIAL-killed-at-turn9-v2-run-1/`로 격리했고 판정에 쓰지 않는다.
+      `gpt-5.1`은 실제 호출 성공이 확인됐고, 제품 단가표가 없어 금액은 미확정이다.
+    - 유료 회차는 이 전실행 검사가 감사를 통과한 뒤에만 실행한다. 본 계측기를 `SessionHost` 위로
+      옮기는 배선도 무과금 dry-run으로 먼저 증명해 함께 제출한다.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
