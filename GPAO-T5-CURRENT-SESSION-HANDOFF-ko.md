@@ -23,6 +23,7 @@
 
 - Codex가 비교 계측기 구현을 직접 인수했다. 현재 상태는
   `CODEX_SELF_VERIFIED / ONE_BOUNDED_CLAUDE_AUDIT_PENDING`이다.
+- 고정 종료 범위 구현 커밋: `3413c6d` (`fix(compare): close frozen credential-preflight scope`).
 - 현재 실행 정본은 `h-scenarios.json` 16개 원문·출처와 `h-branches.json`
   **9분기·회차당 21턴**이다. 아래 14턴·18턴·31검사 기록은 실패 원인과 수정 계보를 보존한
   역사 기록이며 현재 실행 근거가 아니다.

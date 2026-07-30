@@ -2,6 +2,7 @@
 
 - 날짜: 2026-07-30 (Asia/Seoul)
 - 구현선: Codex
+- 구현 커밋: `3413c6d`
 - 상태: `CODEX_SELF_VERIFIED / ONE_BOUNDED_CLAUDE_AUDIT_PENDING`
 - 유료 호출: 0건
 - 실제 오너 자격 사용: 0건
