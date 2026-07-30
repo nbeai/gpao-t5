@@ -2,6 +2,7 @@
 
 - 날짜: 2026-07-30 (Asia/Seoul)
 - 범위: OpenClaw·Hermes H01~H10 라이브 비교 계측기와 준비 문서
+- 구현 커밋: `1c23a2b`
 - 제품 코드 변경: **0건**
 - 판정: **CODEX_SELF_VERIFIED / CLAUDE_INDEPENDENT_AUDIT_PENDING**
 - 유료 호출·실제 오너 자격 사용: **0건**
