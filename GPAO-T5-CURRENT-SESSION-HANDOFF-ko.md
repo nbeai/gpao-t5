@@ -94,7 +94,11 @@
     증거:
     `docs/03-verification/evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md`,
     `docs/03-verification/evidence/human-baseline/H-GAP-CLOSURE-2026-07-30-ko.md`
-  - 비교군(OpenClaw·Hermes·Claude Code·Codex) 측정 미실행
+  - OpenClaw·Hermes 1차 코드 사실 대조는 독립 감사 `PASS_WITH_SCOPE_LIMIT`다.
+    Hermes의 응답 뒤 자기평가·유휴 큐레이터·기억 기본 자동 흐름, OpenClaw의 워크스페이스 기억과
+    위임 도구를 확인했다. OpenClaw `agents_wait`는 `tools.swarm` 활성 조건부다.
+    라이브 H01~H10은 두 제품의 모델 자격이 없어 미실행이며 코드 사실로 대체하지 않는다.
+  - Claude Code·Codex 작동 방식 대조 미실행
   - 새 T-cell 개발 계획 미작성
 - 지정 후속:
   - 새 T-cell 계획 작성·독립 감사·오너 확인
@@ -126,6 +130,7 @@
 | 과거 TG/CX 구현선 | 폐기 | 오너 결정으로 전면 롤백 | Git 역사만 보존 |
 | T-cell 준비 문서 감사 | 채택 | Codex 보조 에이전트 Franklin, 읽기 전용. 정본·모순·갱신 위치 확인 | 이번 준비 문서에 반영 |
 | 기억 비밀 유입 감사 | 채택 | Codex 보조 에이전트 Helmholtz, 읽기 전용. 웹·채널·메타·과거 후보·오탐 범위 재감사 PASS | 현재 코어 보장으로 유지, Claude 교차 확인 |
+| OpenClaw·Hermes 비교 1차 | 채택 | `084dfa3`, pinned 소스 코드 사실 대조. 독립 감사 `PASS_WITH_SCOPE_LIMIT` | Claude Code·Codex 대조 뒤 라이브 필요 범위를 최소화 |
 
 새 에이전트를 열 때 이 표에 목적·브랜치·소유 파일·종료 조건을 먼저 기록한다. 에이전트 결과가 끝나면
 커밋·검증·정본 접점과 함께 상태를 갱신한다.
@@ -165,12 +170,13 @@
 
 ### 다음 작업
 
-1. 같은 시나리오로 OpenClaw·Hermes 실제 소스·동작 비교
-2. Claude Code·Codex의 검증된 작동 방식 비교
-3. 현재 T5 기준선과 비교 결과로 새 T-cell 개발 계획 작성
-4. 독립 감사에서 문제 전체만 제출
-5. 계획 보강 뒤 오너 확인
-6. 그때 T-cell 구현 재개
+1. Claude Code·Codex의 검증된 작동 방식 비교
+2. OpenClaw·Hermes 라이브 비교가 꼭 필요한 H 시나리오와 자격 범위를 최소화
+3. 필요한 경우 오너에게 자격 제공 여부를 한 번만 요청하고 라이브 비교
+4. 현재 T5 기준선과 비교 결과로 새 T-cell 개발 계획 작성
+5. 독립 감사에서 문제 전체만 제출
+6. 계획 보강 뒤 오너 확인
+7. 그때 T-cell 구현 재개
 
 ### 준비 단계 종료 조건
 
@@ -189,8 +195,8 @@
 ```text
 현재 작업: T-cell 재착수 전 현재 코어 안전 복구·인간 기준선·성능 측정 준비.
 이미 통과한 범위: 현재 T5 코어, P-OP-7 최종 PASS·오너 승인, Automation AC-1.
-현재 차단: 비교군 측정과 새 T-cell 계획. H01~H10 현재 T5 기준선은 감사 봉인 완료.
+현재 차단: Claude Code·Codex 대조, 비교군 라이브 필요 범위 결정, 새 T-cell 계획.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.
 원인 미분류 관찰: 없음. 낮은 부하 공식 gate CPU 22.9s로 환경 변동 분리 완료.
-다음 작업과 종료 조건: OpenClaw·Hermes·Claude Code·Codex 비교 → 새 계획 → 독립 감사 → 오너 확인.
+다음 작업과 종료 조건: Claude Code·Codex 대조 → 필요한 라이브 비교 최소화 → 새 계획 → 독립 감사 → 오너 확인.
 ```

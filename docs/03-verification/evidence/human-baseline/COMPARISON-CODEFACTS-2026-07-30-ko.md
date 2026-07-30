@@ -47,10 +47,10 @@ T5 의 H02 공백은 "모델이 못 해서"가 아니라 그 기관이 없어서
 | | 사실 |
 |---|---|
 | **T5** | 위임을 명시 허락해도 에이전트 언급 0 · 갈래 나눔 0 · 통합 0. 계획만 세우고 다음 턴으로 미룬다. |
-| **OpenClaw** | 도구로 존재한다: `agents-list-tool.ts:88` — `List ids allowed for sessions_spawn(runtime:"subagent")`, `agents-wait-tool.ts:198` — `name: "agents_wait"`, `:200` `Wait until one collector child completes, or until timeout.` **띄우고(spawn) 기다려 회수(wait)하는 계약이 실제 도구다.** `src/agents/acp-spawn.ts`, `src/cron/isolated-agent` 도 있다. |
+| **OpenClaw** | 도구로 존재한다: `agents-list-tool.ts:88` — `List ids allowed for sessions_spawn(runtime:"subagent")`, `agents-wait-tool.ts:198` — `name: "agents_wait"`, `:200` `Wait until one collector child completes, or until timeout.` **띄우고(spawn) 기다려 회수(wait)하는 계약이 구현돼 있다.** 단 `agents_wait` 노출은 `tools.swarm` 설정에 의해 켜지는 기능이다(`openclaw-tools.swarm.test.ts`). `src/agents/acp-spawn.ts`, `src/cron/isolated-agent` 도 있다. |
 | **Hermes** | `background_review.py` 가 **fork 한 AIAgent** 를 쓰고 `moa_loop.py`(mixture-of-agents)가 있다. 다만 사용자 작업을 여러 갈래로 나누는 범용 위임 도구는 이번 범위에서 확인하지 못했다 — **미확인.** |
 
-**대조 결론(재료)**: OpenClaw 는 위임·회수를 **모델이 부를 수 있는 도구**로 노출한다.
+**대조 결론(재료)**: OpenClaw 는 위임을 모델 도구로 노출하고, swarm 사용 시 회수 대기 도구까지 제공한다.
 T5 는 그 손이 없다. H10 은 말귀 문제가 아니라 손 문제다.
 
 ### H01 · H04 · 기억 입출구 마찰 — T5 **카드 1 · 클릭 1** (3/3)
@@ -82,6 +82,7 @@ T5 만 기억에 승인 절차를 얹었고, 그 카드가 지키는 위험은 �
 - Hermes 새 세션마다 기억·프로필 프롬프트 적재(`system_prompt.py:18,488`)
 - OpenClaw 기억 = 워크스페이스 `MEMORY.md`(`root-memory-files.ts`, `workspace.ts`)
 - OpenClaw 위임·회수 도구 존재(`agents-list-tool.ts:88`, `agents-wait-tool.ts:198-200`)
+  - 단 `agents_wait`는 `tools.swarm` 활성 조건이 있다. 구현 존재와 기본 활성은 구분한다.
 
 못 한 것(추정하지 않는다):
 - 두 비교군의 **라이브 H01~H10 행동 측정** (자격 미구성 · 오너 결정 필요)
@@ -89,3 +90,12 @@ T5 만 기억에 승인 절차를 얹었고, 그 카드가 지키는 위험은 �
 - Hermes 범용 위임 도구 유무
 - 두 비교군의 파일 도구 허용 경계
 - Claude Code · Codex 대조(다음 순서 2번, 미착수)
+
+## 3. 독립 감사 판정
+
+- 판정: `PASS_WITH_SCOPE_LIMIT`
+- 코드 인용은 실제 pinned 소스와 일치한다.
+- 이 문서는 능력 구조의 비교 재료다. 라이브 H01~H10 성과를 통과로 대신하지 않는다.
+- OpenClaw의 `agents_wait`는 swarm 기능 조건부임을 반영했다.
+- 비교 전체를 자격 결정 때문에 멈추지 않는다. 다음은 Claude Code·Codex의 코드·실행 근거 대조이며,
+  OpenClaw·Hermes 라이브 비교는 필요한 최소 시나리오와 자격 범위를 확정한 뒤 오너에게 한 번만 요청한다.
