@@ -24,7 +24,7 @@
 ## 0-A. 현재 최우선 실행 상태
 
 - 비교 계측기 준비와 유료 회차 1은 종료됐다. 현재 상태는
-  `TCELL_PLAN_FINAL_COMPLETENESS_AUDIT_PENDING`이다.
+  `TCELL_IMPL_S0_SUBMITTED / AWAITING_SLICE_AUDIT`이다.
 - **작업장 위생 정리(2026-07-31)**: 비교 결과의 판정·요약 문서는 Git에 보존하되,
   `scripts/compare-live/{hm-run-1,oc-run-1,INVALID-*,preflight}` 원시 실행 홈(약 1.8GB,
   75,000파일)과 저장소 안의 `secret-env.sh`·복제 `auth.json`, Downloads의 시험 생성물
@@ -122,6 +122,15 @@
   기록했다. 정본:
   `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-V2-CODEX-REAUDIT-2026-07-31-ko.md`
 - 구현선이 동결 범위만으로 **계획 v3 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V3`).
+- **오너 착수 지시로 문서 단계를 종료하고 S0 구현을 제출했다.** 계획 §7 프로토콜대로:
+  ① 반대시험 10건을 먼저 쓰고 수정 전 실패(모듈 부재)를 실측 ② `turn-ref.js` 신설 +
+  웹·SSE·채널 세 경로 배선(server.js +19줄) ③ 돌연변이 반증 2종(스탬프 제거·seq 고정)에서
+  각각 7건 실패, 복원 시 10/10 통과 ④ 전체 회귀 **1,244/0**, `audit:docs`·`audit:workspace`·
+  공식 gate PASS(CPU 23.3s) ⑤ 사용자 가시 변화 0(기존 1,234건 무변경). 계약 준수: seq는
+  세션 내 단조·저장 직렬화 경계 발급(동시 턴 중복 0), 한 턴의 user·assistant·ledger가 같은
+  신분 공유, 세션 간 전역 순서 비요구, migration은 소급 표시를 남기고 귀속 불가 ledger에
+  seq를 지어내지 않으며 멱등. 다음: Codex의 S0 완료 조건 1회 감사 → S1 착수.
+
 - 오너 B 결정(문서 왕복 종료, 심판을 코드로) 뒤, 위생 정리로 원복된 상태에서 구현선이
   **최종 완결본을 한 파일로 완성했다**(지위 `FINAL_FOR_COMPLETENESS_AUDIT`, 90분 상자 안).
   v3의 압축 참조를 전부 인라인 전개하고 v3 재감사의 동결 4건을 완결했다: ① replay 영수증-케이스
@@ -217,7 +226,7 @@
 
 ## 4. 현재 작업 상태
 
-- 현재 작업: 새 T-cell 최종 계획(동결 4건 완결본)의 Codex 완결성 1회 감사와 오너 확인 1회
+- 현재 작업: T-cell S0(TurnRef) 구현 제출과 슬라이스 감사
 - 현재 제품 코드 편집: 기억 민감정보 저장 경계만 좁게 보강 완료(`겸임 구현`, 독립 재감사 PASS)
   - 범위는 장기 기억 저장이다. 사용자 대화 원문 transcript는 현재 맥락 복원 계약대로 보존되며,
     범용 비밀 금고·transcript 마스킹 완료를 주장하지 않는다.
@@ -497,7 +506,7 @@
 ## 10. 새 세션 시작용 여섯 줄
 
 ```text
-현재 작업: 새 T-cell 최종 계획(동결 4건 완결본)의 Codex 완결성 1회 감사와 오너 확인 1회.
+현재 작업: T-cell S0(TurnRef) 구현 제출과 슬라이스 감사.
 이미 통과한 범위: 현재 T5 코어, P-OP-7, Automation AC-1, 인간 기준선과 비교군 1회 종결.
 현재 차단: F3 replay 결합 · F5 실제 호출 신분 · F6 웹/채널 오너 신분 결합 · 독립 실행 가능한 전체본.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.

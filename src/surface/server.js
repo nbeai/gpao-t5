@@ -52,6 +52,7 @@ import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/pers
 import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/completion-contract.js';
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
+import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
@@ -261,6 +262,14 @@ export function makeServer(deps = {}) {
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
   async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
+    // S0 · TurnRef(§4.1): 저장된 턴에 불변 신분을 준다. 발급은 세션 저장과 같은 직렬화 경계
+    // (withSessionQueue) 안이라 동시 턴이 같은 seq 를 받지 않는다. 소급은 사실을 지어내지 않는다.
+    migrateTurnRefs(session);
+    const turnRef = makeTurnRef(session.id, nextTurnSeq(session));
+    const stampFrom = {
+      transcriptFrom: (session.transcript ?? []).length,
+      ledgerFrom: (session.ledgerEntries ?? []).length,
+    };
     const hasText = typeof input.text === 'string' && input.text.trim();
     const memory = await memStore.load();
     const learning = await traceStore.load();
@@ -321,6 +330,7 @@ export function makeServer(deps = {}) {
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
+    stampTurn(session, turnRef, stampFrom); // 이 턴의 user·assistant·ledger 는 같은 신분이다
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;
@@ -1455,6 +1465,14 @@ export function makeServer(deps = {}) {
       connected: readiness === 'ok',
     });
     const memory = await memStore.load();
+    // S0 · TurnRef(§4.1): 채널 턴도 같은 신분 계약을 탄다 — 관찰 워커가 표면별로 다른 규칙을
+    // 갖지 않게 한다. 발급은 아래 저장과 같은 방 단위 직렬화 안이다.
+    migrateTurnRefs(session);
+    const channelTurnRef = makeTurnRef(session.id, nextTurnSeq(session));
+    const channelStampFrom = {
+      transcriptFrom: (session.transcript ?? []).length,
+      ledgerFrom: (session.ledgerEntries ?? []).length,
+    };
     const ctx = ctxForSession(session, memory);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
     const result = await runTurn({
@@ -1470,6 +1488,7 @@ export function makeServer(deps = {}) {
       session.transcript.push({ role: 'assistant', result });
       session.ledgerEntries = ctx.ledger.entries;
       session.pendingApprovals = Object.fromEntries(ctx.pending);
+      stampTurn(session, channelTurnRef, channelStampFrom);
       // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;
