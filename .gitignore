@@ -46,3 +46,7 @@ src/**/*.json
 !package-lock.json
 *.log
 process-logs/
+
+# Local agent/harness state. Disposable working notes are not project truth.
+.beai-harness/
+workspace-notes/

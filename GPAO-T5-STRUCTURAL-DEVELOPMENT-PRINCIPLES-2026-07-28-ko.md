@@ -1,7 +1,7 @@
 # GPAO-T5 구조 개발 원칙 — 나비·프랙탈·매듭
 
 - 날짜: 2026-07-28
-- 상태: `proposed`(오너 승인 전). 승인되면 `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md` 의 하위 정본이 된다.
+- 상태: `CURRENT`(오너의 반복 적용 지시로 확정). `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`의 하위 정본이다.
 - 강제 수단: `scripts/gate.mjs` ③-b2. 이 문서의 §2-C 를 이 문서 자신이 먼저 지킨 뒤에 올렸다.
 - 적용 범위: GPAO-T5 의 모든 수정·보강·신규 개발
 - 관계: 절대 원칙(§0 이해가 먼저다)이 **무엇을 만드는가**를 정한다면, 이 문서는 **어떻게 고치는가**를 정한다.

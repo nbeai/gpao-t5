@@ -22,6 +22,14 @@ const notes = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
 const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
 
+// ── ⓪ 정본 진입 경로가 과거 계획·worktree로 갈라지지 않는다 ─────────────
+try {
+  execFileSync(process.execPath, ['scripts/audit-project-entry.mjs'], { cwd: root, stdio: 'pipe' });
+  ok('프로젝트 정본·퇴역 문서·worktree 경계');
+} catch (error) {
+  bad(`프로젝트 진입 감사 실패: ${error.stdout?.toString() || error.stderr?.toString() || error.message}`);
+}
+
 // ── ① 선언한 도구는 라이브에 실제 손이 있다 (§16-C 불변식) ────────────────
 // 예전엔 `isFixture` 플래그가 붙은 것만 셌다 — 플래그 없는 유령 선언(`telegram.send`·`mail.send`)은
 // 그대로 통과했다. 목록이 아니라 **선언 ⊆ 손** 불변식을 본다.

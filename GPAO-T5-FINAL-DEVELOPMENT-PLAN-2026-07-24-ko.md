@@ -221,7 +221,7 @@ Reference inventory
 | 도구/앱 연결 | ChatGPT Apps, Claude MCP, OpenHands tools | 읽기, 쓰기, 전송, 삭제, 비용, 외부 공개를 분리한 Connection Center |
 | 로컬 PC 실행 | Codex CLI, Claude Code, OpenHands | 파일, 브라우저, 터미널, 앱 제어를 권한·receipt와 함께 실행 |
 | 멀티 표면 | ChatGPT web/mobile/desktop, Claude terminal/IDE/desktop/web, OpenHands CLI/web/SDK | Chat, Today, Project, Canvas, Task, Connector, Ledger가 같은 상태 언어 사용 |
-| 자동화/스케줄 | ChatGPT Tasks, Claude scheduled/background work, hooks | 자동화는 기본적으로 review queue에서 시작하고, 외부 효과는 명시 승인 |
+| 자동화/스케줄 | ChatGPT Tasks, Claude scheduled/background work, hooks | 명시 범위 안의 가역 작업은 자동 진행하고, 되돌리기 어려운 외부 효과·새 지속 권한만 실행 경계에서 확인 |
 | 승인/권한 | Codex approval modes, Claude permission modes, ChatGPT write confirmations | T5식 A0-A3 authority tier로 통합 |
 | 세션 연속성 | Claude continue/resume, Codex threads, ChatGPT projects | 세션이 바뀌어도 현재 목표, 미완료 일, 승인 경계, 증거만 좁게 회수 |
 | 개발 작업 | Codex/Claude/OpenHands | 코딩 전용이 아니라 문서, 사업, 고객응대, 조사, 로컬 업무까지 같은 ActionPlan으로 처리 |
@@ -291,7 +291,7 @@ T5는 사용자 요청을 다음처럼 정리해야 한다.
 | --- | --- | --- |
 | A0 | 즉시 자동 | 읽기, 요약, 검색, 로컬 진단, 초안 생성 |
 | A1 | 조용한 확인 또는 되돌릴 수 있는 자동 | 제목 정리, 보관 제안, 로컬 초안 정리 |
-| A2 | 짧은 승인 필요 | 외부 전송, SaaS 쓰기, 자동화 활성화, 장기 기억 승격 |
+| A2 | 짧은 승인 필요 | 되돌리기 어려운 외부 전송·SaaS 쓰기, 새 지속 자동화 권한 |
 | A3 | 강한 승인 또는 차단 | 삭제, 결제, 공개 게시, 권한 상승, 민감정보 내보내기 |
 
 ### 5.3 Context Mesh / T-cell Kernel
@@ -503,7 +503,8 @@ T5는 목적 달성을 위해 움직이되, 사용자 권한과 위험 경계를
 수용 기준:
 
 - 읽기·요약·진단·초안은 빠르게 진행한다.
-- 외부 쓰기·전송·삭제·자동화 활성화·장기 기억 승격은 승인 경계를 지난다.
+- 되돌리기 어려운 외부 쓰기·전송·삭제와 새 지속 자동화 권한은 승인 경계를 지난다. 명시된 가역 로컬
+  기억·정리·초안은 자동 진행하고 사후 교정·rollback으로 지킨다.
 - 승인 요청은 길고 무서운 경고가 아니라 영향과 선택이 분명한 한 번의 확인이어야 한다.
 
 #### 6.1.5 Model / Tool / Connection / Execution Router
@@ -884,7 +885,8 @@ Phase 7의 비타협 원칙:
 - 많이 관찰하고 저장하되, 행동 영향은 admitted context만 허용한다.
 - `memory != permission`, `retrieved != admitted`, `admitted support != answer anchor`를 유지한다.
 - `embedding retrieval != admitted context`, `retrieved memory != action authority`를 유지한다.
-- `operating_principle`은 replay와 사용자 확인 전에는 행동 영향 0이다.
+- 사용자가 현재 범위에서 명시한 원리는 즉시 효력을 가진다. 추정된 장기 원리는 뒤에서 검증하고,
+  가역적·제한적 영향부터 자동 적용하며 고영향·권한 확대만 실제 영향 경계에서 확인한다.
 - 사용자의 현재 요청은 과거 T-cell보다 우선한다.
 - 잘못 배운 작동원리는 demotion/rollback 가능해야 한다.
 - 자연스러운 응답 능력을 훼손하는 과잉 분류, 과잉 템플릿, 과잉 통제는 실패다.
@@ -909,7 +911,7 @@ Human Scenario Qualification을 통과한 뒤, T5를 장기적으로 수정·보
    - "웹에서 확인했다고 하는데 출처가 없음", "미등록 채널이 응답함", "기억이 무관한 답변에 영향",
      "승인 없이 전송", "원장에는 없는데 UI가 완료 표시" 같은 실사용 증상 기준으로 작성한다.
 5. **핵심 불변식 목록**
-   - 승인 전 실행 0, 출처 없는 웹 확인 금지, replay 전 T-cell 영향 0, unknown/disconnected channel 응답 금지,
+   - 치명적 외부 효과 승인 전 실행 0, 출처 없는 웹 확인 금지, 추정 T-cell의 무검증 고영향 금지, unknown/disconnected channel 응답 금지,
      gated/blocked 이벤트 미기록, 도구 실행 가능성과 실행 허가 분리, 모델 자연스러움 훼손 금지.
 6. **테스트/검증 지도**
    - 각 불변식을 어느 테스트와 어떤 실제 사용자 경로가 지키는지 연결한다.
@@ -928,7 +930,8 @@ T5의 초기 성공 기준은 다음이다.
 3. 도구를 쓰지 못했는데 쓴 척하지 않는다.
 4. 사용자가 길게 설명하지 않아도 프로젝트 맥락, 미완료 작업, 승인 경계를 좁게 이어 간다.
 5. 대화 중 새 지시가 들어와도 현재 목표가 흐트러지지 않는다.
-6. 외부 전송, 삭제, 결제, 공개, 장기 기억 승격은 확실히 멈춘다.
+6. 외부 전송, 중대한 삭제, 결제, 공개, 새 지속 권한은 확실히 멈추고, 가역 기억·학습은 조용히 반영한 뒤
+   사용자가 보고 고치고 되돌릴 수 있다.
 7. 단순 대화는 빠르고 자연스럽다.
 8. 복잡한 작업은 계획·실행·검증·복구가 보인다.
 9. 오류가 나도 사용자는 "무엇이 안전하고 다음에 무엇을 하면 되는지"를 안다.

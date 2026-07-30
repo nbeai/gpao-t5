@@ -523,7 +523,9 @@ T-cell 구현 순서:
 7. 적용 뒤 실제 효과, 사용자 정정, 비용, 재발을 다시 감사한다.
 8. 나빠지면 자동으로 영향도를 낮추거나 격리하고, 사용자 표면에서 철회할 수 있게 한다.
 
-정본 구현 명세는 `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`다. 이 문서는 그 명세를 복제하지 않고 OpenClaw/Hermes 흡수 관점의 위치만 고정한다.
+과거 구현 명세는 `docs/archive/retired-plans/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`로
+퇴역했다. 현재 T-cell 정본은 아직 없으며, 새 계획은 실제 OpenClaw/Hermes 소스 재분석과 최신 오너 철학을
+기준으로 다시 작성한다. 이 문서는 역사적 흡수 기록일 뿐 새 T-cell 구현 지시가 아니다.
 
 ### 14.4 생태계 확장 단계에서만 검토할 것
 
@@ -602,14 +604,14 @@ T5 본체는 TypeScript나 Python 소스를 별도 변환해 실행하지 않고
 ## 16. 후속 개발 순서
 
 ```text
-P-OP-7 이중 모델 인간 시나리오 검증
-→ 발견 결함 공통 원인 수정과 양쪽 재검
+P-OP-7 이중 모델 인간 시나리오 검증 [완료]
+→ AC-1 공통 자동화 계약 [완료]
+→ 현재 T5 코어 보존 + 새 T-cell 계획·구현·인간 시나리오 검증
 → Skill Closure · Durable Trigger · Bounded Agent
 → 설치·업데이트·doctor·background service와 자동화 상주
 → 모델 qualification / degraded mode
 → OpenAI API · Anthropic API 자동화 인간 시나리오와 이중 감사
 → 실제 인간 사용자 테스트
-→ T-cell TG-0~TG-8
 → 채널·실행 backend·plugin 생태계 확장
 ```
 

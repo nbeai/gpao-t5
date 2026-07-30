@@ -1,4 +1,8 @@
-# T5 T-cell Governance Engine 구현 명세
+# [퇴역] T5 T-cell Governance Engine 구현 명세
+
+> **퇴역 상태 (2026-07-30):** 현재 구현 명세가 아니다. 이 문서를 바탕으로 진행한 TG/CX 구현은
+> 오너 결정으로 전면 롤백됐다. 새 계획은 현재 T5 코어를 보존하고 최소 안전 제약·최대 자동화·말귀·
+> 백그라운드 성장·실제 OpenClaw/Hermes 비교를 기준으로 다시 작성한다.
 
 - 작성: 2026-07-28
 - 상태: `implementation_ready_handoff` (구현 완료 문서가 아니라 구현 착수 명세)

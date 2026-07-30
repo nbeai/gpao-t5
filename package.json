@@ -17,6 +17,7 @@
   "scripts": {
     "test": "node --test",
     "start": "node src/surface/server.js",
+    "audit:workspace": "node scripts/audit-project-entry.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "gate": "node scripts/gate.mjs"
   }

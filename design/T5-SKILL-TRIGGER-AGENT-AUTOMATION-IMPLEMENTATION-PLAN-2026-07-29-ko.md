@@ -1,8 +1,8 @@
 # T5 Skill·Trigger·Agent Automation 구현 계획
 
 - 작성: 2026-07-29
-- 지위: **오너 결정 기반 필수 후속 개발 정본**
-- 적용 시점: 현재 진행 중인 P-OP-7 차단 결함 수정과 양쪽 재검을 닫은 직후
+- 지위: **AC-1 채택 이력 + 후속 재계획 입력**
+- 적용 시점: AC-1은 정본 편입 완료. AC-2 이후는 새 T-cell 계획 성공 뒤 현재 코어와 다시 대조해 재개
 - 출시 경계: 인간 베타와 설치 패키지 제작 전에 이 문서의 Core Closure를 통과해야 한다
 - 구현 원칙: 스킬, 크론, 에이전트를 세 기능으로 덧붙이지 않고 하나의 실행 원리로 만든다
 - 상위 정본:
@@ -10,15 +10,15 @@
   - `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
   - `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
   - `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
-  - `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
+  - 새 T-cell 계획(현재 미발행). 과거 명세는 `docs/archive/retired-plans/`에 있으며 구현 근거로 쓰지 않는다.
 
 > **새 개발 세션은 이 문서를 스쳐 지나가면 안 된다.**
 >
 > 스킬, 반복 실행, 예약 실행, 장기 작업 위임, 에이전트 생성, 자동화 UI, background service,
 > T-cell의 automation learning 가운데 하나라도 건드리기 전에 이 문서를 읽는다.
 >
-> 이 문서는 T-cell 명세를 대체하지 않는다. 먼저 실제로 작동하는 자동화 기관을 만들고, T-cell은 이후
-> 그 기관에 어떤 원리를 승격·약화·철회할지 판단하는 거버넌스 층으로 붙는다.
+> 이 문서는 새 T-cell 계획을 대체하지 않는다. AC-1 이후 순서는 과거 병렬 결정을 그대로 실행하지 않고,
+> 새 T-cell 계획이 자동화·스킬·에이전트와 만나는 경계를 확정한 뒤 다시 고정한다.
 
 ---
 
@@ -68,14 +68,14 @@ RunLedger       = 그 회차에서 실제로 일어난 일
 
 ### 1.1 지금 즉시 섞지 않을 것
 
-현재 P-OP-7에서 재현된 공통 결함의 수정과 양쪽 회귀가 진행 중이다. 이 회차가 닫히기 전에는 자동화
-제품 코드를 같은 변경 묶음에 섞지 않는다.
+P-OP-7은 최종 PASS와 오너 승인을 마쳤고 AC-1도 정본에 편입됐다. 현재는 T-cell 전면 롤백 뒤 새 계획
+작성 전이므로 AC-2 이후 제품 코드를 같은 변경 묶음에 섞지 않는다.
 
 ```text
-현재 P-OP-7 차단 결함 수정
-→ Codex·Claude 양쪽 재현과 회귀
-→ 현재 P-OP-7 판정 잠금
-→ Automation Core Closure 착수
+P-OP-7 최종 PASS [완료]
+→ AC-1 공통 계약·migration [완료]
+→ 새 T-cell 계획·구현·검증
+→ AC-2 이후 스킬·트리거·에이전트·자동화 재개
 ```
 
 이는 자동화를 미루는 결정이 아니다. 자동화가 반복해서 사용할 P-OP의 승인·실행·전달·복구 바닥을 먼저
@@ -1033,11 +1033,11 @@ T-cell 성숙도가 높아져도 authority envelope를 확대하지 않는다. �
 ## 17. 최종 작업 순서
 
 ```text
-현재 P-OP-7 공통 결함 수정·양쪽 재검·잠금
+P-OP-7 최종 PASS·오너 승인 [완료]
 → AC-1 공통 계약·migration [완료]
-→ (최신 오너 병렬 결정) Claude T-cell TG-0~TG-8 단일선
-  ∥ Codex 통합 AC-2 Skill → AC-3 Trigger → AC-4 Agent → AC-5~7
-  (겹치는 파일은 단계별 소유권을 먼저 고정)
+→ 현재 T5 코어 보존 + 새 T-cell 계획·구현·인간 시나리오 검증
+→ AC-2 Skill → AC-3 Trigger → AC-4 Agent → AC-5~7
+  (격리 worktree·분리 파일 소유권·Codex 통합 감사)
 → OpenAI API·Anthropic API 인간 시나리오
 → Codex·Claude 교차 감사
 → 실제 인간 사용자 테스트

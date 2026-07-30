@@ -4,6 +4,9 @@ Status: `official_development_root`
 
 This folder is the formal development root for GPAO-T5.
 
+Start with `docs/PROJECT-AUTHORITY-MAP-ko.md`. It identifies the current canonical entry points, official working
+folder, retired plans, comparison sources, and the boundary between current truth and history.
+
 GPAO-T5 is an Original AI Operating System: the user feels they are only chatting, while T5 understands the user's purpose, knows its own available models/tools/permissions/context, operates the necessary means, and produces the desired result through a safe, traceable, recoverable flow.
 
 ## Top Authority Documents
@@ -53,10 +56,9 @@ These documents do not sit above the top authority documents, but they are the s
    - Mandatory when touching P-OP, connectors, sessions, channel surfaces, delivery/recovery, automation, repair, or scope isolation. It records what T5 should absorb from OpenClaw and Hermes, why it matters, and how to translate it without drifting into dashboard/channel/CLI feature copying.
    - Its post-P-OP source re-audit also separates what is already absorbed, what belongs to productization, what T-cell must govern, and what the current pure-JavaScript/zero-runtime-package choice does and does not mean.
 
-3. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
-   - Mandatory implementation handoff for Memory, Context Mesh, POM, replay, Growth Loop, Automation learning,
-     and authority-bounded self-development. It maps T-cell theory to exact T5 contracts, modules, storage,
-     migration, tests, scenarios, and completion evidence without changing the top-authority product philosophy.
+3. T-cell implementation plan: **not yet issued**
+   - The previous specification is retired under `docs/archive/retired-plans/`.
+   - Do not resume TG/CX work from it. Preserve the current T5 core and wait for the new owner-approved plan.
 
 4. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
    - Mandatory before changing skills, scheduling, background work, agent creation/delegation, or automation

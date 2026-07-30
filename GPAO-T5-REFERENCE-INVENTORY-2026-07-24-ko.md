@@ -1,5 +1,9 @@
 # GPAO-T5 Reference Inventory
 
+> **역사적 조사 자산:** 각 행의 당시 흡수 판정은 현재 제품 정책이 아니다. 특히 review queue·기억 승인·
+> 자동화 승인 기본값은 최신 `docs/PROJECT-AUTHORITY-MAP-ko.md`와 현재 인수인계의 최소 제약·최대 자동화
+> 원칙으로 다시 판정한다.
+
 - Status: `Codex 감사 통과 · Phase 0 봉인`
 - Date: 2026-07-24
 - Author: Claude Code (구현자)

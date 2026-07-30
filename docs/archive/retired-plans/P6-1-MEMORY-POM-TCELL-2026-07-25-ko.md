@@ -1,4 +1,6 @@
-# P6-1 Memory / POM / T-cell (최소 슬라이스)
+# [퇴역] P6-1 Memory / POM / T-cell (최소 슬라이스)
+
+> 현재 T-cell 구현 지시가 아니다. 새 계획은 현재 T5 코어와 최신 오너 철학을 기준으로 다시 작성한다.
 
 - Date: 2026-07-25
 - Author: Claude Code (구현자)

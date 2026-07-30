@@ -21,6 +21,12 @@
 
 This folder is the official GPAO-T5 development root.
 
+Canonical entry map: `docs/PROJECT-AUTHORITY-MAP-ko.md`.
+Official working folder: `/Users/jyp/Developer/t5-p-op`.
+Do not treat another T5 worktree, an archived handoff, or local harness notes as current project truth.
+Run `npm run audit:workspace` before starting a new implementation line and after changing authority, handoff,
+archive, or worktree state.
+
 Before any planning, implementation, review, verification, handoff, or release work, read these top authority documents:
 
 1. `README.md`
@@ -39,17 +45,14 @@ Mandatory reference absorption supplement:
    - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
    - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
 
-Mandatory T-cell implementation specification:
+T-cell hold:
 
-7. `design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md`
-   - Read before changing Memory, Context Mesh, POM, TaskTrace, SkillCandidate, Automation learning, Growth Loop,
-     replay, admission, or self-development.
-   - Keeps principle maturity, current-turn influence, and A0-A3 action authority separate.
-   - Do not claim T-cell self-growth from the P6-1 minimum gate alone. Follow the staged contracts, replay,
-     migration, effect audit, and live evidence in this specification.
-   - Owner routing decision: Claude is the single T-cell implementer and Codex is the independent auditor.
-     Do not split T-cell product-code implementation across subagents or parallel branches. Other development
-     areas should use isolated parallel agents when the collaboration contract's eligibility rules are met.
+7. The previous T-cell specification is retired under `docs/archive/retired-plans/`.
+   - TG/CX product work was rolled back and is not current product truth.
+   - Preserve the current T5 core.
+   - Do not implement Memory/Context/POM/self-growth changes under the retired plan.
+   - T-cell resumes only after a new plan is written from owner philosophy, current core, actual OpenClaw/Hermes
+     source, and Claude Code/Codex operating assets, then explicitly confirmed by the owner.
 
 Mandatory final pre-human validation gate:
 
@@ -65,8 +68,10 @@ Mandatory independent audit and collaboration contract:
 
 9. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
    - Every implementation, audit, resumed, handoff, and release session must read and obey it.
-   - Audit must classify findings as current blocker, designated follow-up, or observation; it must provide the
-     recommended solution, minimum sufficient verification, stop condition, and best next work order.
+   - Audit must inspect the whole relevant range and submit the complete problem set together: reproduction,
+     impact, shared structural scope, classification, preserved behavior, and stop condition.
+   - Do not prescribe implementation patches in the audit handoff. The implementer reasons over the whole
+     structure; the auditor independently verifies the resulting design and behavior.
    - Do not drip-feed findings, reopen a passed scenario for peripheral issues, lower product quality for a
      deadline, or make the owner arbitrate technical scope between agents.
    - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most

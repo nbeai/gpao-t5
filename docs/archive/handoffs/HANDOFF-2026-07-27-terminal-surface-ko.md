@@ -1,4 +1,6 @@
-# 인수인계 — 2026-07-27 (Terminal / Process / Work Surface)
+# [역사 보관] 인수인계 — 2026-07-27 (Terminal / Process / Work Surface)
+
+> 현재 인수인계가 아니다. 저장소 루트의 `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`를 사용한다.
 
 HEAD `fd9ce1a` · 브랜치 `p2-conversational-quality` · tracked 변경 없음
 `npm test` 834건 통과 · `npm run gate` PASS (3.1초)
