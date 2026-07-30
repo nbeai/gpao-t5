@@ -52,6 +52,7 @@ import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/pers
 import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/completion-contract.js';
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
+import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -107,6 +108,30 @@ export function makeServer(deps = {}) {
     try { await memLedger.append(event, entry); return true; }
     catch (e) { console.error('[memory-ledger] 기록 실패:', e?.message ?? e); return false; }
   }
+
+  const 민감기억안내 = '민감한 값으로 보여 장기 기억에는 남기지 않았어요.';
+  const 기억저장가능 = (statement) => !containsSensitiveValue(statement);
+  const 기억값들저장가능 = (values) => values
+    .filter((value) => value !== undefined && value !== null)
+    .every((value) => typeof value === 'string' && 기억저장가능(value));
+  const 기억항목저장가능 = (entry) => 기억값들저장가능([
+    entry?.statement,
+    ...(Array.isArray(entry?.evidence) ? entry.evidence : []),
+    entry?.source?.sessionId,
+    entry?.source?.title,
+    entry?.source?.role,
+  ]);
+  const 민감기억후처리 = (result) => {
+    if (!result?.memorySuggestion || 기억저장가능(result.memorySuggestion.statement)) return result;
+    result.memorySuggestion = undefined;
+    result.reply = [String(result.reply ?? '').trim(), 민감기억안내].filter(Boolean).join('\n');
+    return result;
+  };
+  const 민감기억응답 = (res) => sendJson(res, 422, {
+    error: 민감기억안내,
+    reason: 'sensitive_value',
+    stored: false,
+  });
 
   const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
@@ -285,6 +310,8 @@ export function makeServer(deps = {}) {
       };
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
+    // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
+    민감기억후처리(result);
     // P-ID-1: 사용자가 이름을 지어 줬으면 SOUL.md 에 남긴다(다음 대화에서도 그 이름으로 답한다).
     if (result.identityUpdate?.name) {
       const soul = await selfhoodStore.setName(result.identityUpdate.name);
@@ -716,6 +743,8 @@ export function makeServer(deps = {}) {
         const input = JSON.parse((await readBody(req)) || '{}');
         return await withMemory(async () => {
           const m = await memStore.load();
+          const pending = (m.candidates ?? []).find((entry) => entry.candidateId === input.candidateId);
+          if (pending && !기억항목저장가능(pending)) return 민감기억응답(res);
           // 승격은 단일 통로(confirmCandidate) 하나다 — replay 게이트(운영 원리)도 그 안에 있다.
           const r = confirmCandidate(m, input.candidateId);
           if (!r.ok && r.reason === 'not_found') {
@@ -1143,6 +1172,12 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/search/admit') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '반영할 내용이 필요해요.' });
+        if (!기억값들저장가능([
+          input.statement,
+          input.source?.sessionId,
+          input.source?.title,
+          input.source?.role,
+        ])) return 민감기억응답(res);
         return await withMemory(async () => {
         const memory = await memStore.load();
         const stmt = input.statement.trim();
@@ -1207,6 +1242,11 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/user-model/traits') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '추정 내용이 필요해요.' });
+        if (input.evidence !== undefined
+          && (!Array.isArray(input.evidence) || !input.evidence.every((item) => typeof item === 'string'))) {
+          return sendJson(res, 400, { error: '추정 근거는 문장 목록이어야 해요.' });
+        }
+        if (!기억값들저장가능([input.statement, ...(input.evidence ?? [])])) return 민감기억응답(res);
         const memory = await memStore.load();
         const trait = makeInferredTrait(randomUUID(), input.statement.trim(), input.evidence ?? []);
         memory.observed = [...(memory.observed ?? []), trait];
@@ -1217,6 +1257,7 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/user-model/preferences') {
         const input = JSON.parse((await readBody(req)) || '{}');
         if (typeof input.statement !== 'string' || !input.statement.trim()) return sendJson(res, 400, { error: '운영 선호 내용이 필요해요.' });
+        if (!기억저장가능(input.statement)) return 민감기억응답(res);
         return await withMemory(async () => {
           const memory = await memStore.load();
           const pref = makeOperatingPreference(randomUUID(), input.statement.trim());
@@ -1232,6 +1273,8 @@ export function makeServer(deps = {}) {
         const id = url.slice('/user-model/preferences/'.length, -'/confirm'.length);
         return await withMemory(async () => {
           const memory = await memStore.load();
+          const pending = (memory.candidates ?? []).find((entry) => entry.candidateId === id);
+          if (pending && !기억항목저장가능(pending)) return 민감기억응답(res);
           const r = confirmCandidate(memory, id);
           if (!r.ok && r.reason === 'not_found') {
             const done = (memory.promoted ?? []).find((e) => e.candidateId === id);
@@ -1421,6 +1464,7 @@ export function makeServer(deps = {}) {
       // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
+    민감기억후처리(result);
     if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
       session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
       session.transcript.push({ role: 'assistant', result });

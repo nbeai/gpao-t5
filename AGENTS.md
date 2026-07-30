@@ -53,6 +53,12 @@ T-cell hold:
    - Do not implement Memory/Context/POM/self-growth changes under the retired plan.
    - T-cell resumes only after a new plan is written from owner philosophy, current core, actual OpenClaw/Hermes
      source, and Claude Code/Codex operating assets, then explicitly confirmed by the owner.
+   - Before writing that plan, read and execute
+     `docs/03-verification/T5-TCELL-CURRENT-CORE-HUMAN-BASELINE-2026-07-30-ko.md`.
+     The ten human scenarios, not an internal contract matrix, are the measurement ruler for current-core comparison
+     and the new plan's success criteria.
+   - Also read `docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md` for the verified pre-start facts,
+     restored current-core safety boundary, gate-calibration rule, exact next sequence, and prohibited shortcuts.
 
 Mandatory final pre-human validation gate:
 
