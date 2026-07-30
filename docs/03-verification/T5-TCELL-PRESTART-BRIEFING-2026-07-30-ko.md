@@ -96,13 +96,15 @@
 - H01~H10 실제 인간 기준선: `실행 완료 · 독립 감사 PASS` (3회 + 보강 측정)
 - OpenClaw·Hermes 코드 사실 대조: `감사 통과`
 - Claude Code·Codex 운용 대조: `제출`
-- 비교군 라이브 측정: `READY_EXCEPT_CREDENTIAL` (두 제품) —
-  pinned `2026.7.2`를 임시 로컬 Node `v24.18.1`로 install·build·실행했다. 시스템 Node는
-  바꾸지 않았고 설치본 `2026.6.11`은 쓰지 않는다(결과를 섞지 않는다).
-  Hermes는 `Set OPENAI_API_KEY`에서, OpenClaw는 `401 Missing bearer`(`reason=auth`)에서 멈춘다.
-  `gpt-5.1` 지원은 자격 호출 전까지 미확인이며, OpenClaw 카탈로그에는 `gpt-5.1`이 0건이다.
-  회차당 14턴(H10 포함) 실행표와 계측기를 만들어 14턴 전체를 자격 없이 실동작 검증했다.
-  호출 수·비용은 추정을 철회하고 1회차 usage로 측정한다.
-  상세: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`
+- 비교군 라이브 측정: `CODEX_INSTRUMENT_TAKEOVER_IN_PROGRESS` —
+  유료 호출과 오너 자격 요청은 아직 열지 않는다. H01~H10 원문은
+  `scripts/compare-live/h-scenarios.json`, 분기·순서는 `h-branches.json` 한 곳에서만 읽는다.
+  회차당 18턴·제품당 3회이며, fixture는 생성 inode·anchor·내용 해시가 모두 일치할 때만 정리한다.
+  Hermes는 제품의 작업 프롬프트→입력 프롬프트 복귀를 완료 신호로 쓰고, OpenClaw는 설치된 실제
+  실행 파일의 버전·`agent` 옵션 활주로를 무과금 확인한 뒤 그 신분을 영수증에 남긴다.
+  pinned `2026.7.2` 소스는 코드 비교 자료이고 라이브 실행 제품으로 가장하지 않는다.
+  Codex 구현·무과금 반증 검증 뒤 Claude 독립 감사가 통과해야 회차 1을 연다.
+  현재 스케줄: `evidence/human-baseline/LIVE-CALL-SCHEDULE-2026-07-30-ko.md`
+  폐기 준비 이력: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`
 - 새 T-cell 계획: 미작성
 - 현재 보강 커밋: `dab56f6`

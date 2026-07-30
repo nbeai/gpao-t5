@@ -3,6 +3,7 @@
 - 작성: 2026-07-30 (Asia/Seoul)
 - 성격: `a34efc4`에서 무효 판정된 "제품당 34턴·총 68턴" 계산의 정정본.
   키 요청 전에 오너에게 알릴 실제 실행 규모와, 추정 대신 실측으로 채우는 항목의 경계를 고정한다.
+- 사용자 원문 정본: `scripts/compare-live/h-scenarios.json`
 - 실행표 정본: `scripts/compare-live/h-branches.json` (분기 8개 · 회차당 18턴)
 - 계측기: OpenClaw `scripts/compare-live/h-runner.mjs` · Hermes `scripts/compare-live/h_runner_v3.py`
   (`h_runner_v2.py`는 다중 writer 결함으로 차단, 감사 대조용)
@@ -28,7 +29,9 @@
 1. B5 시작: `~/Downloads`에 견적서 3개 생성 (`견적서_A사_v1.csv`, `견적서_A사_최종.csv`, `견적서_B사_v1.csv`)
 2. 턴 13(H09) 전: `견적서_A사_최종.csv` 읽기 잠금(chmod 000)
 3. B6 시작: 잠금 해제
-4. 회차 종료: manifest의 정확한 3경로만 삭제. 제품이 만든 파일은 지우지 않고 정확한 경로로 보고.
+4. 회차 종료: 생성 때 만든 hard-link anchor·device·inode·내용 해시가 모두 일치하는 fixture만
+   원자 격리 후 스냅샷하고 삭제. 같은 경로가 다른 파일로 교체됐으면 보존하고 회차를 무효로 판정.
+   제품이 만든 파일은 지우지 않고 정확한 경로로 보고.
 
 dry-run은 fixture를 만들지 않는다(인쇄만). 두 계측기 모두 2026-07-30 dry-run에서
 Downloads·작업 디렉터리·프로세스 변화 0을 확인했다.
@@ -38,7 +41,9 @@ Downloads·작업 디렉터리·프로세스 변화 0을 확인했다.
 프롬프트 1건이 유발하는 API 호출 수는 제품 에이전트 루프에 달려 있어 사전 확정이 불가능하다.
 빈 칸을 숫자로 채우지 않는다. 대신:
 
-- OpenClaw: `agent --json`이 주는 `apiCalls`·`tokens`·`costUsd`를 턴마다 기록한다. 없으면 `null`.
+- OpenClaw: 설치된 실제 실행 파일을 사용하고 경로·`--version` 응답을 영수증에 기록한다.
+  `agent --help`에서 `--local`·`--json`·`--message`·`--model`·`--session-key`가 확인되지 않으면
+  시작하지 않는다. `agent --json`이 주는 `apiCalls`·`tokens`·`costUsd`만 기록하며 없으면 `null`.
 - Hermes: TUI가 표시하는 토큰 수치가 transcript에 남으면 옮기고, 없으면 `null`.
 - 관측 앵커(참고용, 판정 근거 아님): Hermes oneshot(`-z`) 1턴 입력 5,746토큰.
   TUI 세션은 맥락 누적으로 턴이 갈수록 이보다 커진다.
@@ -53,16 +58,20 @@ Downloads·작업 디렉터리·프로세스 변화 0을 확인했다.
 ## 5. 폭주 억제 장치 (이미 계측기에 있음)
 
 - 턴 타임아웃 240s — 초과 시 프로세스 그룹 종료, 해당 분기 중단(다른 분기 유효 유지)
+- Hermes 턴 완료는 무출력 시간으로 판정하지 않는다. 제품의 작업 상태 표식 뒤 입력 프롬프트
+  복귀를 관측하고, 그 뒤 화면 안정 시간을 확인한다. 완료 신호가 없으면 시간초과로 중단한다.
 - 홈별 단일 writer(`SessionHost` 구조 강제) · 두 제품 공용 회차 lock · 턴 전후 프로세스 수
   검사(계측 불능 `-1`도 차단)
 - 자식 프로세스 환경은 명시 구성(`sanitized_env`) — 부모 셸의 키 변수·실제 HOME 이 제품에
   새지 않는다. 자격은 `secret-env.sh` 명시 주입으로만 들어간다.
 - 기존 Downloads 동명 파일이 있으면 시작하지 않음(exit 3) · 기존 회차 산출물 덮어쓰기 금지
+- 실행 중 fixture 경로가 교체돼도 생성 신분이 다르면 chmod·삭제하지 않고 보존하며 구조 판정 실패
 - 유료 실행 전제: 자격 파일이 없으면 시작하지 않음(exit 2), preflight 는 실제 자격을 읽지
   않고 가짜 키만 사용
 
 ## 6. 회차 1 게이트
 
+Codex 무과금 반증 검증과 Claude 독립 감사가 모두 통과한 뒤에만 회차 1을 연다.
 회차 1이 끝나면 `verify_run.py` 구조 판정 VALID와 usage 집계(호출 수·토큰·비용)를 보고하고,
 그 실측으로 회차 2·3 계속 여부를 판정한다. 실측 없이 3회차 연속 실행을 예약하지 않는다.
 

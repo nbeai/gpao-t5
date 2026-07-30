@@ -22,11 +22,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from compare_contract import verify_contract  # noqa: E402
+from fixture_ownership import chmod_owned, cleanup_owned, create_owned  # noqa: E402
 from session_lifecycle import (  # noqa: E402
     Session, SessionHost, count_product_processes, disk_session_ids,
 )
@@ -58,24 +61,29 @@ def must_fail(label: str, fn) -> None:
         record(label, True, str(e)[:90])
 
 
-def ask_quiet(session, prompt: str, quiet_s: float = 5.0, timeout_s: float = 120.0) -> str:
+def ask_until_complete(
+    session, prompt: str, stable_s: float = 4.0, timeout_s: float = 120.0,
+) -> tuple[str, bool]:
     mark = len(session.buf)
     report["measured"]["promptsSent"] += 1
     session.write(prompt)
     t0 = time.monotonic()
     first = None
     last = t0
+    completion_seen = False
     while time.monotonic() - t0 < timeout_s:
         if session.drain():
             if first is None:
                 first = time.monotonic()
             last = time.monotonic()
-        if first is not None and time.monotonic() - last >= quiet_s:
+        completion_seen = completion_seen or session.turn_completion_observed(mark)
+        if completion_seen and time.monotonic() - last >= stable_s:
+            session.ready = True
             break
         if session.proc.poll() is not None:
             break
         time.sleep(0.2)
-    return session.text(mark)
+    return session.text(mark), completion_seen
 
 
 def main() -> int:
@@ -86,6 +94,44 @@ def main() -> int:
     fake_secret.write_text(f"export OPENAI_API_KEY={FAKE_KEY}\n", encoding="utf-8")
 
     print(f"[무과금 전실행] 모델 선택 {MODEL} · 실제 자격 주입 0건 · 가짜 키만 사용\n")
+
+    contract_errors = verify_contract(HERE, HERE.parent.parent)
+    record("비교 실행표·활성 문서 정본 일치", not contract_errors,
+           "; ".join(contract_errors[:3]))
+
+    oc = subprocess.run(
+        ["node", str(HERE / "h-runner.mjs"), "--run", "99", "--dry-run"],
+        capture_output=True, text=True, timeout=60,
+    )
+    record("정본 폴더 기본 명령으로 OpenClaw 무과금 활주로가 열린다", oc.returncode == 0,
+           (oc.stdout or oc.stderr).splitlines()[0][:120] if (oc.stdout or oc.stderr) else "출력 없음")
+
+    # 경로가 아니라 생성한 파일 신분을 정리하는지 반증한다.
+    fixture_root = root / "fixture-identity"
+    fixture_root.mkdir(parents=True, exist_ok=True)
+    records = create_owned(
+        fixture_root, {"owned.txt": "runner fixture\n"}, fixture_root / "anchors")
+    owned_path = fixture_root / "owned.txt"
+    owned_path.unlink()
+    owned_path.write_text("user replacement\n", encoding="utf-8")
+    record("교체된 파일의 권한을 fixture로 오인하지 않는다",
+           not chmod_owned(records[0], 0o000))
+    removed, preserved = cleanup_owned(records, fixture_root / "snapshots")
+    record("교체된 파일을 삭제하지 않고 원래 경로에 보존한다",
+           not removed and bool(preserved)
+           and owned_path.read_text(encoding="utf-8") == "user replacement\n")
+    lock_root = root / "fixture-lock-cycle"
+    lock_root.mkdir(parents=True, exist_ok=True)
+    lock_records = create_owned(
+        lock_root, {"locked.txt": "runner fixture\n"}, lock_root / "anchors")
+    record("생성 fixture를 mode 000으로 잠근다",
+           chmod_owned(lock_records[0], 0o000))
+    record("같은 생성 신분을 mode 644로 다시 연다",
+           chmod_owned(lock_records[0], 0o644))
+    lock_removed, lock_preserved = cleanup_owned(
+        lock_records, lock_root / "snapshots")
+    record("잠금 왕복 뒤 생성 fixture만 정리한다",
+           len(lock_removed) == 1 and not lock_preserved)
 
     # ── 0부: 음성 대조 — 자격 0 부팅은 설정 안내에서 멈춰야 한다 ────────────────
     # 실측(2026-07-30): 환경을 상속하면 제품이 오너 HOME 의 copilot 자격을 임시 홈으로
@@ -161,7 +207,8 @@ def main() -> int:
     host2 = SessionHost(home2, MODEL, fake_secret)
     try:
         sa = host2.open("resume-proof")
-        seen = ask_quiet(sa, "안녕")
+        seen, completed = ask_until_complete(sa, "안녕")
+        record("가짜 키 턴도 제품 완료 신호 뒤에만 닫힌다", completed)
         record("가짜 키 프롬프트의 토큰 미터 0(과금 없음 관측)", "0/400K" in seen,
                "미터 표식 관측" if "0/400K" in seen else "미터 표식 없음")
         rep_a = host2.close("resume-proof")

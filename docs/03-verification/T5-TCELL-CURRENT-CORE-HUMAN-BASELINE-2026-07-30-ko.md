@@ -100,10 +100,12 @@
 T5 현재 코어 실측 제출본이 있다(실제 서버·브라우저·`gpt-5.1`, 오너 조작 0, 제품 코드 변경 0).
 상세 증거: `evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md`
 비교군은 아직 측정하지 않았다. **수치를 추정해 채우지 않는다.**
-비교군 라이브 준비는 두 제품 모두 키 입력 직전까지 끝났다. pinned `2026.7.2`를 임시 로컬 Node로
-세워 실행 화면까지 열었고, 회차당 14턴(H10 포함) 실행표와 계측기를 14턴 전체로 검증했다.
-`gpt-5.1` 지원은 미확인이며 OpenClaw 카탈로그에는 없다. 호출 수·비용은 1회차 usage로 측정한다.
-상세: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`.
+비교군 라이브는 Codex가 계측기 구현을 직접 인수해 무과금 반증 검증 중이다. H01~H10 원문은
+`scripts/compare-live/h-scenarios.json`, 분기·순서는 `h-branches.json`에서만 읽으며 회차당 18턴이다.
+OpenClaw 라이브는 이 기계에 실제 설치된 실행 파일의 신분을 매 회차 기록하고, pinned 소스는
+코드 비교 자료로만 쓴다. fixture는 경로 이름이 아니라 생성 신분이 일치할 때만 정리한다.
+호출 수·비용은 추정하지 않고 독립 감사 뒤 회차 1에서 측정한다.
+현재 정본: `evidence/human-baseline/LIVE-CALL-SCHEDULE-2026-07-30-ko.md`.
 
 독립 감사에서 확인한 H02·H05·H10의 측정 오류와 공통 계측 공백은
 `evidence/human-baseline/H-GAP-CLOSURE-2026-07-30-ko.md`에서 다시 측정했다.

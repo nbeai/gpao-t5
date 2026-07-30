@@ -219,6 +219,23 @@
       독립 재검증은 preflight 23/23, dry-run 2종, 전체 회귀 1,219/1,219 PASS다. 이 통과가
       위 차단을 상쇄하지 않는다. 오너 자격 요청과 유료 회차 1은 계속 열지 않는다. 정본:
       `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-REAUDIT-2026-07-30-ko.md`
+  - 오너 결정에 따라 위 반복 뒤 **Codex가 비교 계측기 구현을 직접 인수**했다. 현재 상태는
+    `CODEX_SELF_VERIFIED / CLAUDE_INDEPENDENT_AUDIT_PENDING`이며 유료 호출·실제 자격 사용은 0건이다.
+    - H01~H10 원문은 `h-scenarios.json`, 8분기·18턴 실행은 `h-branches.json` 단일 정본으로
+      분리했다. 실행표의 원문 재입력, 중복·누락 번호, 핵심 봉인 원문 변조, 활성 문서의 폐기
+      14턴 잔재는 `audit:compare-live`가 시작 전에 막는다.
+    - fixture는 hard-link anchor·device·inode·SHA-256 생성 신분이 모두 맞을 때만 chmod·정리한다.
+      실행 중 같은 경로가 다른 파일로 교체되면 사용자 파일을 보존하고 회차를 무효로 남긴다.
+    - Hermes는 작업 상태→입력 프롬프트 복귀를 실제 완료 신호로 요구한다. OpenClaw는 설치된 실제
+      실행 파일의 `--version`·필수 `agent` 옵션을 무과금 확인하고 그 경로와 신분을 영수증에 남긴다.
+      현재 확인 신분은 `OpenClaw 2026.6.11 (e085fa1)`이며 pinned `2026.7.2`는 코드 비교 자료다.
+    - 무과금 preflight **31검사 VALID**, 두 dry-run PASS, 전체 회귀 **1,221건 PASS**, 작업장 감사
+      PASS, 공식 gate **CPU 22.0s/40s·벽시계 12.1s PASS**. 제품 코드 변경 0건.
+    - 정본 증거:
+      `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-CODEX-TAKEOVER-2026-07-30-ko.md`
+    - 다음은 Claude의 문제 중심 독립 감사다. 해법을 주지 않고 정본 drift, fixture 교체 경쟁,
+      거짓 완료, 실행 활주로 부재, 문서 잔재를 적대적으로 재현하게 한다. 통과 전에는 오너 자격
+      요청·유료 회차 1을 열지 않는다.
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과

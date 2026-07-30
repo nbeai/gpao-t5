@@ -1,4 +1,9 @@
-# 비교군 라이브 측정 준비 — 두 제품 실행 화면 개방, 키 입력만 남음
+# 비교군 라이브 측정 준비 — 퇴역한 14턴 준비 이력
+
+> **RETIRED / 실행 금지.** 이 문서는 당시 준비 과정의 역사 증거다. 원문·턴 수·런타임·정리 계약이
+> 현재 정본과 다르므로 여기 적힌 명령이나 `READY_EXCEPT_CREDENTIAL` 판정을 사용하지 않는다.
+> 현재 실행 정본은 `LIVE-CALL-SCHEDULE-2026-07-30-ko.md`,
+> `scripts/compare-live/h-scenarios.json`, `scripts/compare-live/h-branches.json`이다.
 
 - 상태: `READY_EXCEPT_CREDENTIAL` (두 제품 모두)
 - 비밀값을 읽거나 옮기지 않았다. Codex 기록은 도구·정책 메타데이터만 인용했다.

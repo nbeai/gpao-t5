@@ -17,6 +17,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(os.environ.get("LIVE_DIR") or Path(__file__).resolve().parent)
+sys.path.insert(0, str(HERE))
+from compare_contract import load_contract  # noqa: E402
+
 FAKE_KEY = "sk-test-FAKE-NOT-A-REAL-KEY-000000000000"
 SECRETISH = re.compile(r"sk-[A-Za-z0-9_-]{20,}")
 
@@ -33,7 +36,7 @@ def main() -> int:
         print(__doc__)
         return 2
     root = HERE / sys.argv[1]
-    spec = json.loads((HERE / "h-branches.json").read_text(encoding="utf-8"))
+    _, spec = load_contract(HERE)
     turns_path = root / "turns.jsonl"
 
     if not turns_path.exists():
@@ -136,9 +139,12 @@ def main() -> int:
         aborted = rc.get("abortedBranches") or []
         check(not aborted, "중단된 분기가 없다", str(aborted))
         man = rc.get("fixtureManifest") or []
+        man_paths = [m.get("path") if isinstance(m, dict) else m for m in man]
         rem = rc.get("fixtureRemoved") or []
-        check(sorted(man) == sorted(rem), "fixture manifest 와 삭제 목록이 일치한다",
-              f"manifest {len(man)} / removed {len(rem)}")
+        preserved = rc.get("fixturePreserved") or []
+        check(not preserved, "fixture 신분 변경·보존 항목이 없다", str(preserved))
+        check(sorted(man_paths) == sorted(rem), "fixture manifest 와 삭제 목록이 일치한다",
+              f"manifest {len(man_paths)} / removed {len(rem)}")
         prod = rc.get("productCreated") or []
         if prod:
             notes.append(f"INFO · 제품이 만든 파일 {len(prod)}건 (지우지 않고 보고): " + ", ".join(prod))
@@ -147,6 +153,10 @@ def main() -> int:
     check(all("surfaceNote" in r for r in rows), "시간 수치에 표면 주석이 붙어 있다")
     check(all("firstOutputMs" not in r for r in rows),
           "T5 와 같은 이름의 시간 칸이 없다")
+    pty_rows = [r for r in rows if "transcript" in r]
+    check(all(r.get("completionEvidence") == "working_prompt_to_idle_prompt"
+              for r in pty_rows),
+          "Hermes 턴마다 제품 완료 신호가 있다")
 
     # 10. 비밀 유출: 기록의 sk- 문자열은 시험용 가짜뿐인가
     #     (PTY 회차는 transcript, CLI 회차는 stdout/stderr 에 대화가 있다 — 셋 다 본다)

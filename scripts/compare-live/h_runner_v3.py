@@ -26,12 +26,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from compare_contract import load_contract  # noqa: E402
+from fixture_ownership import chmod_owned, cleanup_owned, create_owned  # noqa: E402
 from session_lifecycle import (  # noqa: E402
     SessionHost, count_product_processes, disk_session_ids,
 )
@@ -49,7 +50,7 @@ FIXTURES = {
 }
 LOCKED = "견적서_A사_최종.csv"
 
-QUIET_S = 4.0
+COMPLETION_STABLE_S = 4.0
 TURN_TIMEOUT_S = 240.0
 
 
@@ -65,31 +66,12 @@ def fixture_collision() -> list[str]:
     return [str(DOWNLOADS / name) for name in FIXTURES if (DOWNLOADS / name).exists()]
 
 
-def fixture_make() -> list[str]:
-    made = []
-    try:
-        for name, body in FIXTURES.items():
-            p = DOWNLOADS / name
-            # 'x': 기존 파일이 있으면 덮어쓰지 않고 예외 — 사용자 파일 보호
-            with p.open("x", encoding="utf-8") as f:
-                f.write(body)
-            made.append(str(p))
-    except OSError:
-        # 전부 아니면 0: 이 호출이 만든 것만 되돌린다. 부분 생성물을 남기지 않는다.
-        for path in made:
-            Path(path).unlink(missing_ok=True)
-        raise
-    return made
-
-
-def fixture_lock() -> None:
-    (DOWNLOADS / LOCKED).chmod(0o000)
-
-
-def fixture_unlock() -> None:
-    p = DOWNLOADS / LOCKED
-    if p.exists():
-        p.chmod(0o644)
+def fixture_record(records: list[dict], name: str) -> dict:
+    path = str(DOWNLOADS / name)
+    found = next((r for r in records if r["path"] == path), None)
+    if found is None:
+        raise RuntimeError(f"소유권 기록이 없는 fixture: {path}")
+    return found
 
 
 def downloads_listing() -> set[str]:
@@ -99,7 +81,7 @@ def downloads_listing() -> set[str]:
         return set()
 
 
-# ── 한 턴: 프롬프트를 보내고 조용해질 때까지 걷는다 ────────────────────────────
+# ── 한 턴: 제품이 작업 상태에서 입력 가능 상태로 돌아올 때까지 걷는다 ─────────
 def ask(session, prompt: str) -> dict:
     mark = len(session.buf)
     t0 = time.monotonic()
@@ -108,6 +90,7 @@ def ask(session, prompt: str) -> dict:
     longest_gap = 0.0
     last_at = t0
     timed_out = False
+    completion_seen = False
     while True:
         got = session.drain()
         now = time.monotonic()
@@ -118,7 +101,9 @@ def ask(session, prompt: str) -> dict:
             last_at = now
         if session.proc.poll() is not None:
             break
-        if first_out is not None and now - last_at >= QUIET_S:
+        completion_seen = completion_seen or session.turn_completion_observed(mark)
+        if completion_seen and now - last_at >= COMPLETION_STABLE_S:
+            session.ready = True
             break
         if now - t0 > TURN_TIMEOUT_S:
             timed_out = True
@@ -134,6 +119,10 @@ def ask(session, prompt: str) -> dict:
         "transcript": session.text(mark),
         "timedOut": timed_out,
         "alive": session.proc.poll() is None,
+        "completionEvidence": (
+            "working_prompt_to_idle_prompt"
+            if completion_seen else "not_observed"
+        ),
     }
 
 
@@ -144,7 +133,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    spec = json.loads((HERE / "h-branches.json").read_text(encoding="utf-8"))
+    _, spec = load_contract(HERE)
     branches = spec["branches"]
     total = sum(len(b["turns"]) for b in branches)
     if total != spec["turnsPerRun"]:
@@ -199,14 +188,16 @@ def main() -> int:
     out = runroot / "turns.jsonl"
     receipt: dict = {"product": "Hermes(대화형 PTY)", "run": args.run,
                      "model": args.model, "branches": [], "abortedBranches": []}
-    manifest: list[str] = []
+    manifest: list[dict] = []
     before = downloads_listing()
+    runroot_created = False
 
     try:
         if runroot.exists():
             print(f"기존 산출물이 있다 — 덮어쓰지 않는다: {runroot}", file=sys.stderr)
             return 3
         runroot.mkdir(parents=True)
+        runroot_created = True
         out.write_text("", encoding="utf-8")
 
         for br in branches:
@@ -217,10 +208,12 @@ def main() -> int:
 
             for step in br.get("fixture", []):
                 if step == "make":
-                    manifest.extend(fixture_make())
+                    manifest.extend(create_owned(
+                        DOWNLOADS, FIXTURES, runroot / "fixture-anchors"))
                     print(f"     fixture make → {len(FIXTURES)}개")
                 elif step == "unlock":
-                    fixture_unlock()
+                    if not chmod_owned(fixture_record(manifest, LOCKED), 0o644):
+                        raise RuntimeError("잠금 해제 대상의 fixture 신분이 바뀌었다")
 
             ids: dict[str, str | None] = {}
             live: str | None = None
@@ -228,7 +221,8 @@ def main() -> int:
                 for t in br["turns"]:
                     for step in t.get("setup", []):
                         if step == "fixture:lock":
-                            fixture_lock()
+                            if not chmod_owned(fixture_record(manifest, LOCKED), 0o000):
+                                raise BranchAbort("잠금 대상의 fixture 신분이 바뀌었다")
 
                     key = t["session"]
                     restarted = False
@@ -302,24 +296,18 @@ def main() -> int:
                 {"id": br["id"], "home": br["home"], "sessionIds": ids,
                  "lifecycle": host.history})
     finally:
-        fixture_unlock()
-        removed = []
-        snap = runroot / "fixtures-final"
-        for path in manifest:
-            p = Path(path)
-            if p.exists():
-                # 삭제 전 스냅샷 — 제품이 fixture 를 고쳤어도 증거가 남는다(P0-2)
-                snap.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(p, snap / p.name)
-                p.unlink()
-                removed.append(path)
+        if manifest:
+            locked = fixture_record(manifest, LOCKED)
+            chmod_owned(locked, 0o644)
+        removed, preserved = cleanup_owned(manifest, runroot / "fixtures-final")
         after = downloads_listing()
         new_files = sorted(after - before)
         receipt["fixtureManifest"] = manifest
         receipt["fixtureRemoved"] = removed
+        receipt["fixturePreserved"] = preserved
         # 제품이 만든 파일은 지우지 않고 정확한 경로로 보고한다.
         receipt["productCreated"] = [str(DOWNLOADS / n) for n in new_files]
-        if runroot.exists():
+        if runroot_created:
             (runroot / "receipt.json").write_text(
                 json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"\nfixture 삭제 {len(removed)}건")

@@ -28,6 +28,8 @@ from pathlib import Path
 _ANSI = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]|\x1b\[[0-?]*[ -/]*[@-~]")
 # 입력 가능 표식: TUI 의 입력 프롬프트. 이게 보이기 전에는 프롬프트를 넣지 않는다.
 _READY = re.compile(r"❯|Type your message")
+_TURN_WORKING = "msg=interrupt"
+_TURN_IDLE = re.compile(r"(?:^|\n)❯(?:\n|$)")
 _SESSION_ID = re.compile(r"Session:\s*(\S+)|--resume\s+(\S+)")
 # 재개 실패 마커(실측 2026-07-30): 없는 ID 로 --resume 하면 제품이 이 줄을 찍고 **조용히 새
 # 대화를 시작한다.** 배너는 요청한 ID 를 그대로 에코하므로 "ID 가 화면에 있는가"는 판별력이
@@ -181,7 +183,21 @@ class Session:
     def write(self, line: str) -> None:
         if not self.ready:
             raise RuntimeError("입력 가능 상태가 아니다 — wait_ready() 를 먼저 통과해야 한다")
+        self.ready = False
         os.write(self.master, (line + "\n").encode())
+
+    def turn_completion_observed(self, since: int) -> bool:
+        """작업 프롬프트를 거쳐 정상 입력 프롬프트로 돌아온 사실을 확인한다.
+
+        무출력 시간은 완료 신호가 아니다. 다만 prompt_toolkit은 화면을 여러 번 다시 그리므로,
+        호출자는 이 전이 뒤 출력 안정 시간도 함께 확인해야 한다.
+        """
+        text = self.text(since)
+        working_at = text.rfind(_TURN_WORKING)
+        if working_at < 0:
+            return False
+        idle = list(_TURN_IDLE.finditer(text))
+        return bool(idle and idle[-1].start() > working_at)
 
     # ── ③ 정상 종료 → 강제 종료 → 종료 확인 ─────────────────────────────────
     def close(self) -> CloseReport:

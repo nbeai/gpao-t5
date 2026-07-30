@@ -15,6 +15,7 @@
     "src"
   ],
   "scripts": {
+    "audit:compare-live": "python3 scripts/compare-live/compare_contract.py",
     "test": "node --test",
     "start": "node src/surface/server.js",
     "audit:workspace": "node scripts/audit-project-entry.mjs",
