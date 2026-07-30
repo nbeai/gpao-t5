@@ -169,6 +169,14 @@
       확대하지 않는다.
     - 다음: 이 배선 증거 일체(preflight·dry-run·교차 확인·산출 정본)를 Codex 감사에 제출하고,
       감사 통과 뒤에만 자격을 받아 유료 회차 1을 실행한다.
+  - 위 배선(`e60ed88..8aa2198`)의 Codex 독립 감사 판정은 `BLOCKED_BEFORE_CREDENTIAL`이다.
+    `preflight.py`는 12/12 PASS를 냈지만 존재하지 않는 session ID도 resume 성공으로 인정하는
+    거짓 양성이 독립 재현됐다. 같은 범위에서 fixture가 같은 이름의 기존 Downloads 사용자 파일을
+    덮어쓴 뒤 삭제할 수 있는 P0, OpenClaw 실패·시간초과를 `verify_run.py`가 VALID로 받을 수 있는
+    공백, OpenClaw 회차 lock·기존 증거 보호 부재, 실행표 불리언을 실제 재시작 증거로 쓰는 문제,
+    프로세스 계측 `-1`에서 실행을 여는 문제를 확인했다. “모델 호출 0”도 측정값이 아니라 상수다.
+    오너 자격 요청과 유료 회차 1은 열지 않는다. 정본 감사:
+    `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-PREFLIGHT-AUDIT-2026-07-30-ko.md`
   - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
     보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
     제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
