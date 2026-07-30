@@ -13,10 +13,10 @@
 
 - 본진: `/Users/jyp/Developer/t5-p-op`
 - 브랜치: `claude/p-op-1-a-system-view`
-- 제품 코드 기준선: `a3ec00b`
+- 제품 코드 기준선: `3b102b4`
 - 원격 차이: `origin/claude/p-op-1-a-system-view`와 0/0
 - 상태: 추적 파일 깨끗 · `.beai-harness/`, `workspace-notes/` 기존 미추적
-- 구현 제출: `a3ec00b`
+- 구현 제출: `3b102b4`
 - 독립 감사: **RETEST · TG-5 봉인 보류**
 
 ### 0.2 제품 단계
@@ -34,11 +34,13 @@
 replay·transition 생산 호출을 연결했다. `CX-04` 역할 선택과 `CX-05` 사용자 표면·되돌리기는
 독립 재감사에서 통과했다. 그러나 아래 차단이 남아 있다.
 
-- 모델 제안과 사용자 발화 출처는 분리됐지만, 질문·인용·부정 사용자 발화도 명시 선호로 자동 반영됨
-- 지속 checkpoint는 생겼지만 한 묶음만 처리한 뒤 전체 관찰 개수까지 전진해 다른 묶음을 유실함
+- 명시 선호는 모델이 같은 `memory.propose`를 내야만 자동 반영되고, 그렇지 않으면 카드·클릭이
+  되살아난다. 반대로 모델이 질문 전체를 제안하면 질문이 자동 장기 기억됨
+- 다중 묶음에서 checkpoint 전진을 멈췄지만, 재시작마다 같은 최고점 묶음만 다시 처리해 다른 묶음은
+  영구 기아 상태가 된다. checkpoint 손상·쓰기 실패도 빈 상태로 위장됨
 - 구조 감사는 호출 횟수로 M1→M2를 PASS하지만 실제 생산 M2 전이는 아직 증명되지 않음
-- 게시 성숙도 범위를 M2/M3에서 M2~M5로 바꾸며 `오너 확정`이라 기록했으나 확정 근거가 없고
-  정본 문서 내부도 두 범위를 함께 말함
+- 게시 성숙도 범위의 근거 없는 `오너 확정` 표현은 철회했지만 M2~M5 구현과 M2/M3 정본 표현이
+  여전히 함께 있고, 명시적 범위 결정은 아직 없음
 - `importLegacyMemory()` 생산 소비자 0
 - T-cell 사용자 제어 표면과 active budget/curator 생산 경로 미완료
 
@@ -112,14 +114,15 @@ Skill·Trigger·AgentRun·Automation 핵심 기능을 모두 연결한 뒤 **최
 
 ### 0.7 검증 기준선
 
-- 본진 독립 공식 gate: 테스트 1,348건, CPU 23.6s/40s, 벽시계 19.1s PASS
+- 본진 독립 회귀: 테스트 1,348건 통과 · 실패 0
+- 현재 공식 gate 재측정: BLOCKED · CPU 45.4s/40s · 벽시계 21.8s/20s
 - 문서 감사: 18 documents PASS
 - T-cell 구조 감사: 4/4 PASS이나 실제 M1→M2·checkpoint·명시성 결함을 검출하지 못하므로 봉인 근거로 단독 사용 금지
 - 문서·Hermes 감사선: `codex/hermes-tcell-engineering-audit`
 - 구조 감사: `npm run audit:tcell-plane`
 - 문서 감사: `npm run audit:docs`
 - 독립 감사 증거:
-  `docs/03-verification/evidence/tcell/tg-5/TG-5-CODEX-REAUDIT-A3EC00B-2026-07-30-ko.md`
+  `docs/03-verification/evidence/tcell/tg-5/TG-5-CODEX-REAUDIT-3B102B4-2026-07-30-ko.md`
 
 ## 1. 바로 다음 작업
 
