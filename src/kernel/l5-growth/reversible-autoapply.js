@@ -42,6 +42,9 @@ export function autoApplicable(entry, ctx = {}) {
   // 그래서 `user_declared` 만 인정한다 — 사용자 문장에서 나왔고(출처) 모델도 같은 문장을
   // 기억 후보로 읽었다(말귀). 정규식 목록을 늘려 의도를 판정하지 않는다.
   if (entry.source !== 'user_declared') return { ok: false, reason: 'not_user_declared' };
+  // 의도까지 함께 본다 — 출처만 보면 질문이 선언이 되고, 의도만 보면 모델 추측이 선언이 된다.
+  // 모르면(`unknown`) 선언이 아니다. 두 사실이 겹칠 때만 사용자를 대신해 반영한다.
+  if (entry.intent !== 'declared') return { ok: false, reason: 'not_declared_intent' };
   const 문장 = typeof entry.statement === 'string' ? entry.statement.trim() : '';
   if (!문장) return { ok: false, reason: 'empty_statement' };
   // 비밀·민감은 자동 영향 금지(§12 금지 1항). 카드로 올리지도 않는다 — 그냥 담지 않는다.

@@ -954,7 +954,7 @@ test('§12: 자동 반영은 명시·가역·비밀 아님·선호일 때만이�
   const { autoApplicable } = await import('../src/kernel/l5-growth/reversible-autoapply.js');
   const 후보 = (over = {}) => ({
     candidateId: 'c', kind: 'preference', statement: '보고서는 목록으로',
-    rollbackable: true, source: 'user_declared', ...over,
+    rollbackable: true, source: 'user_declared', intent: 'declared', ...over,
   });
   const 기본 = { rollbackable: true };
 
@@ -970,6 +970,11 @@ test('§12: 자동 반영은 명시·가역·비밀 아님·선호일 때만이�
   // **사용자 발화이기만 하면 안 된다** — 질문·인용은 발화이지 선언이 아니다(감사 TG5-CX-01).
   assert.deepEqual(autoApplicable(후보({ source: 'user_utterance' }), 기본),
     { ok: false, reason: 'not_user_declared' });
+  // 의도가 선언이 아니면 막힌다 — 질문·인용·부정·철회 전부(모델이 그 사실을 밝힌다).
+  for (const 의도 of ['asked', 'quoted', 'negated', 'withdrawn', 'unknown']) {
+    assert.deepEqual(autoApplicable(후보({ intent: 의도 }), 기본),
+      { ok: false, reason: 'not_declared_intent' }, `의도 ${의도} 가 통과했다`);
+  }
   // ② 운영 원리는 자동이 아니다 — 행동에 닿으므로 replay 게이트가 있다.
   assert.equal(autoApplicable(후보({ kind: 'operating_principle' }), 기본).reason, 'kind_needs_verification');
   // ③ 되돌릴 수 없으면 자동이 아니다 — 자동성은 되돌림으로 사는 것이지 그 반대가 아니다.
@@ -989,12 +994,13 @@ test('TG5-CX-01: 모델이 제안한 선호는 자동 반영되지 않고, 사�
   const dir = await mkdtemp(join(tmpdir(), 'cx01-'));
   let 제안할까 = false;
   let 지어낼문장 = '사용자는 항상 답을 한 문장으로 원한다';
+  let 지어낼의도 = 'declared';
   const 모델 = {
     async respond(tc, opts = {}) {
       if (tc?.tcellExtract) return JSON.stringify({ decision: 'insufficient_evidence' });
       if (제안할까 && opts.tools?.length) {
         제안할까 = false;
-        return { text: '네', toolCalls: [{ name: 'memory.propose', args: { kind: 'preference', statement: 지어낼문장 } }] };
+        return { text: '네', toolCalls: [{ name: 'memory.propose', args: { kind: 'preference', statement: 지어낼문장, intent: 지어낼의도 } }] };
       }
       return '네';
     },
@@ -1016,13 +1022,18 @@ test('TG5-CX-01: 모델이 제안한 선호는 자동 반영되지 않고, 사�
     const m1 = await (await fetch(`${base}/memory`)).json();
     assert.equal(m1.promoted.length, 0, `모델 제안이 장기 기억에 저장됐다: ${JSON.stringify(m1.promoted)}`);
 
-    // ② **감사 재현 원문은 아직 닫히지 않았다.** 모델이 질문 전체를 기억 후보로 읽는 최악의
-    //    경우는 여기서 막히지 않는다 — 정규식도, 의도 층(`interpret`)도 "선언인가 질문인가"라는
-    //    사실을 갖고 있지 않다(실측 2026-07-30). 그 사실을 새로 만들지 않고 검사를 통과시키면
-    //    결함을 정답으로 굳히게 되므로, 여기에 거짓 통과를 적지 않는다. 미종료로 보고한다.
+    // ② **감사 재현 원문** — 사용자 발화이고 정규식도 걸리지만 **묻는 말**이다.
+    //    이제 모델이 의도를 밝히는 칸이 계약에 있으므로, `asked` 는 장기 기억이 되지 않는다.
+    const 질문 = '「보고서는 항상 글로 받는 게 좋아」라고 내가 말한 적 있어?';
+    제안할까 = true; 지어낼문장 = 질문; 지어낼의도 = 'asked';
+    const 질문턴 = await 턴(질문);
+    assert.equal(질문턴.memoryAutoApplied, undefined, '질문이 자동 반영됐다');
+    const m질문 = await (await fetch(`${base}/memory`)).json();
+    assert.equal(m질문.promoted.length, 0,
+      `질문·인용이 장기 기억이 됐다: ${JSON.stringify(m질문.promoted)}`);
 
     // ③ 사용자가 선언하고 모델도 같은 문장으로 읽으면 자동 반영된다(반대 방향 — 과잉 차단 아님).
-    제안할까 = true; 지어낼문장 = '보고서는 항상 글로 받는 게 좋아';
+    제안할까 = true; 지어낼문장 = '보고서는 항상 글로 받는 게 좋아'; 지어낼의도 = 'declared';
     const 사용자턴 = await 턴('보고서는 항상 글로 받는 게 좋아');
     assert.ok(사용자턴.memoryAutoApplied?.statement, '사용자가 직접 말한 선호가 반영되지 않았다');
     const m2 = await (await fetch(`${base}/memory`)).json();

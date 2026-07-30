@@ -889,7 +889,8 @@ export function makeServer(deps = {}) {
         const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
         if (dup) { result.memorySuggestion = undefined; return; }
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind,
-          result.memorySuggestion.statement, result.memorySuggestion.source ?? 'unknown');
+          result.memorySuggestion.statement, result.memorySuggestion.source ?? 'unknown',
+          result.memorySuggestion.intent ?? 'unknown');
         now.candidates.push(c); await memStore.save(now); result.memorySuggestion.candidateId = c.candidateId;
         // 영수증 실패를 버리지 않는다 — 제안 카드가 그 사실을 함께 싣는다(감사 지적).
         if (!(await 기억영수증('proposed', c))) result.memorySuggestion.receiptWritten = false;

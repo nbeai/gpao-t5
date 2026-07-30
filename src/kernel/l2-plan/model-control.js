@@ -15,20 +15,35 @@ import { toolSchemasFor } from './tool-schema.js';
 export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
   name: 'memory.propose',
   description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 후보를 적는다.'
-    + ' **후보를 적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.** 적어도 자동으로'
-    + ' 기억되지 않는다 — 사용자가 확인해야 반영된다. 한 번 요청("이번만")은 적지 않는다.',
+    + ' **후보를 적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
+    + ' 한 번 요청("이번만")은 적지 않는다.'
+    + ' `intent` 는 이번 발화가 **어떤 말인지**다 — 이걸 정확히 고르는 것이 이 호출의 핵심이다.'
+    + ' `declared` 만 사용자가 확인 없이 바로 반영되고, 나머지는 반영되지 않는다.',
   parameters: {
     type: 'object',
     properties: {
       kind: { type: 'string', enum: ['preference', 'operating_principle'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle' },
       statement: { type: 'string', description: '기억할 내용 — 사용자의 뜻을 보존한 한 문장(사람 말)' },
+      // **의도는 OS 가 문자열로 알아낼 수 없다**(감사 TG5-CX-01 두 판 실패):
+      // `「…가 좋아」라고 내가 말한 적 있어?` 는 사용자 발화이고 문장도 같지만 **묻는 말**이다.
+      // 정규식·문자열 일치로는 선언과 질문·인용·부정·철회를 구분할 수 없다. 말귀는 모델이 한다 —
+      // 그래서 그 판단을 **칸으로 요구**한다. 빈 칸을 두면 모델이 그 빈칸을 지어낸다.
+      intent: {
+        type: 'string',
+        enum: ['declared', 'asked', 'quoted', 'negated', 'withdrawn'],
+        description: '사용자가 지금 이것을 **선언**했으면 declared.'
+          + ' 물었으면 asked(예: "…라고 내가 말한 적 있어?"), 남의 말·과거 말을 인용했으면 quoted,'
+          + ' 아니라고 했으면 negated, 전에 한 말을 거뒀으면 withdrawn.',
+      },
     },
-    required: ['statement'],
+    required: ['statement', 'intent'],
   },
 }]);
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
 const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
+/** 발화 의도 — 선언만 무마찰 반영 대상이다. 나머지는 장기 영향 0(§12 · 감사 TG5-CX-01). */
+const INTENTS = new Set(['declared', 'asked', 'quoted', 'negated', 'withdrawn']);
 
 /**
  * 모델에게 보여줄 전체 스키마 = 실행 가능한 손 + 통제 채널. 모든 모델 호출 자리가 이걸 쓴다.
@@ -56,10 +71,12 @@ export function splitModelControlCalls(toolCalls = []) {
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
-      // **출처를 함께 남긴다**(감사 TG5-CX-01). 이건 모델이 제안한 것이지 사용자가 말한 것이
-      // 아니다. 이 사실이 없으면 뒤에서 "사용자가 명시했다"를 상수로 선언하게 되고,
-      // 실제로 그렇게 돼서 모델 추측이 장기 기억으로 자동 반영됐다.
-      if (statement) memorySuggestion = { kind, statement, source: 'model_proposal' };
+      // **출처와 의도를 함께 남긴다**(감사 TG5-CX-01). 출처는 "누가 냈나", 의도는 "어떤 말인가"다.
+      // 둘 중 하나만 있으면 판정이 대용물로 흐른다 — 출처만 보면 질문이 선언이 되고,
+      // 의도만 보면 모델 추측이 사용자 선언이 된다.
+      // 의도를 안 밝히면 `unknown` 이고, 모르는 것은 선언으로 치지 않는다.
+      const intent = INTENTS.has(c?.args?.intent) ? c.args.intent : 'unknown';
+      if (statement) memorySuggestion = { kind, statement, source: 'model_proposal', intent };
     }
   }
   return { memorySuggestion, rest };

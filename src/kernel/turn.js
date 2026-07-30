@@ -295,6 +295,9 @@ function 제안합치기(정규식제안, 모델제안) {
   if (!정규식제안) return 모델제안;
   const 같은문장 = normalizeStatement(정규식제안.statement) === normalizeStatement(모델제안.statement);
   if (!같은문장) return 모델제안;   // 모델이 다른 것을 봤다 — 그건 모델 제안이다
+  // 문장이 같다는 것은 "사용자 문장에서 나왔다"는 뜻이지 "선언했다"는 뜻이 아니다.
+  // **선언인지는 모델이 밝힌 의도가 말한다**(감사 TG5-CX-01: 질문도 문장은 같았다).
+  if (모델제안.intent !== 'declared') return { ...모델제안, source: 'user_utterance' };
   return { ...모델제안, source: 'user_declared' };
 }
 
@@ -594,6 +597,11 @@ async function runTurnInner(input, ctx) {
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
+      // **오래 기억할 말이 있어 보인다는 사실**을 놓는다(감사 TG5-CX-01의 뿌리).
+      // 예전엔 모델이 스스로 `memory.propose` 를 낼 때만 의도를 알 수 있었고, 그래서 같은 사용자
+      // 발화가 모델의 호출 습관에 따라 무마찰 반영과 카드·클릭으로 갈렸다. 우리가 대신 판정하지
+      // 않고(정규식은 신호일 뿐), **판단해야 할 자리라는 사실**만 놓아 말귀를 모델에게 되돌린다.
+      memoryHint: 정규식제안 ? { statement: 정규식제안.statement, kind: 정규식제안.kind } : null,
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).

@@ -22,8 +22,9 @@ export function detectCandidate(text) {
   if (!t) return null;
   // 운영 원리가 선호보다 강한 신호 — 먼저 검사.
   // 출처는 **사용자 발화 그 자체**다 — statement 가 사용자가 방금 한 말이다(감사 TG5-CX-01).
-  if (PRINCIPLE_SIGNAL.test(t)) return { kind: 'operating_principle', statement: t, source: 'user_utterance' };
-  if (PREFERENCE_SIGNAL.test(t)) return { kind: 'preference', statement: t, source: 'user_utterance' };
+  // 정규식은 **신호**다. 의도는 모르므로 `unknown` 이고, 모델이 밝힌 의도로만 채워진다.
+  if (PRINCIPLE_SIGNAL.test(t)) return { kind: 'operating_principle', statement: t, source: 'user_utterance', intent: 'unknown' };
+  if (PREFERENCE_SIGNAL.test(t)) return { kind: 'preference', statement: t, source: 'user_utterance', intent: 'unknown' };
   return null;
 }
 
@@ -82,14 +83,15 @@ export function admittedContext(memory, requestText) {
  * @param {'preference'|'operating_principle'} kind
  * @param {string} statement
  */
-export function makeCandidate(candidateId, kind, statement, source = 'unknown') {
+export function makeCandidate(candidateId, kind, statement, source = 'unknown', intent = 'unknown') {
   return {
     candidateId,
     kind,
     statement,
-    // **출처는 지속 사실이다.** 자동 반영 판정이 이걸 본다 — 없으면 `unknown` 이고,
-    // 모르는 것은 명시로 치지 않는다(감사 TG5-CX-01).
+    // **출처와 의도는 지속 사실이다.** 자동 반영 판정이 둘을 함께 본다 — 없으면 `unknown` 이고,
+    // 모르는 것은 선언으로 치지 않는다(감사 TG5-CX-01). 출처는 "누가 냈나", 의도는 "어떤 말인가".
     source,
+    intent,
     admitted: false,
     replayPassed: false,
     userConfirmed: false,
