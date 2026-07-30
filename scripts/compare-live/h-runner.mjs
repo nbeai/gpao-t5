@@ -228,7 +228,7 @@ const runTurn = (turn, stateDir) => new Promise((resolve) => {
     try { process.kill(-child.pid, 'SIGKILL'); } catch {
       try { child.kill('SIGKILL'); } catch { /* 이미 죽었다 */ }
     }
-  }, TURN_TIMEOUT_MS);
+  }, (turn.timeoutS ? turn.timeoutS * 1000 : TURN_TIMEOUT_MS));
   const onChunk = (buf, sink) => {
     const now = process.hrtime.bigint();
     if (firstOut === null) firstOut = now;

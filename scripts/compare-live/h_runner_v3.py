@@ -82,7 +82,7 @@ def downloads_listing() -> set[str]:
 
 
 # ── 한 턴: 제품이 작업 상태에서 입력 가능 상태로 돌아올 때까지 걷는다 ─────────
-def ask(session, prompt: str) -> dict:
+def ask(session, prompt: str, timeout_s: float = TURN_TIMEOUT_S) -> dict:
     mark = len(session.buf)
     t0 = time.monotonic()
     session.write(prompt)
@@ -105,7 +105,7 @@ def ask(session, prompt: str) -> dict:
         if completion_seen and now - last_at >= COMPLETION_STABLE_S:
             session.ready = True
             break
-        if now - t0 > TURN_TIMEOUT_S:
+        if now - t0 > timeout_s:
             timed_out = True
             break
         time.sleep(0.1)
@@ -263,7 +263,8 @@ def main() -> int:
                     if n != 1:
                         raise BranchAbort(f"{t['id']}: 턴 전 프로세스 {n}개 (정확히 1이어야 한다)")
 
-                    m = ask(host.live, t["prompt"])
+                    m = ask(host.live, t["prompt"],
+                            timeout_s=float(t.get("timeoutS", TURN_TIMEOUT_S)))
                     rec = {
                         "run": args.run, "branch": br["id"], "home": br["home"],
                         "seq": t["seq"], "id": t["id"], "session": key,

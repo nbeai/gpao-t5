@@ -60,9 +60,31 @@ _RESUME_FAILED = re.compile(r"Session not found")
 _DUMP_NAME = re.compile(r"^request_dump_(\d{8}_\d{6}_[0-9a-f]+)_\d{8}_\d{6}_\d+\.json$")
 
 
+_SID_TOKEN = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]+)\b")
+
+
 def disk_session_ids(home: Path) -> list[str]:
-    """디스크가 기억하는 세션 ID 를 최신순으로 돌려준다. TUI 화면 스크래핑은 2차원 박스
-    레이아웃 때문에 옆 칸 텍스트를 잡을 수 있다(실측: `sid=email:`). 디스크가 진실이다."""
+    """디스크가 기억하는 세션 ID(최근 활동순). 진실 원천은 제품 CLI(state.db)다.
+
+    실측(2026-07-30 유료 회차 1): 실제 키 성공 경로의 세션은 `state.db`에만 남고
+    `sessions/` 요청 덤프는 **오류 경로(가짜 키 401)에서만** 생긴다. 덤프 파일명 스캔은
+    무과금 관측 체계에서만 유효했고 유료 경로에서 빈 목록을 돌려줘 B8이 두 번 중단됐다.
+    `hermes sessions list`는 두 체계 모두에서 세션을 보여준다. 덤프 스캔은 fallback."""
+    out: list[str] = []
+    try:
+        r = subprocess.run(
+            [str(HERMES_BIN), "sessions", "list"],
+            capture_output=True, text=True, timeout=30,
+            env=sanitized_env(home), cwd=str(home),
+        )
+        for line in r.stdout.splitlines():
+            hits = _SID_TOKEN.findall(line)
+            if hits and hits[-1] not in out:
+                out.append(hits[-1])
+    except (subprocess.SubprocessError, OSError):
+        pass
+    if out:
+        return out
     sess = home / "sessions"
     if not sess.is_dir():
         return []
@@ -74,7 +96,6 @@ def disk_session_ids(home: Path) -> list[str]:
                 found.append((p.stat().st_mtime, m.group(1)))
             except OSError:
                 continue
-    out: list[str] = []
     for _, sid in sorted(found, reverse=True):
         if sid not in out:
             out.append(sid)
