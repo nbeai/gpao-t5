@@ -100,10 +100,10 @@
 T5 현재 코어 실측 제출본이 있다(실제 서버·브라우저·`gpt-5.1`, 오너 조작 0, 제품 코드 변경 0).
 상세 증거: `evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md`
 비교군은 아직 측정하지 않았다. **수치를 추정해 채우지 않는다.**
-비교군 라이브 준비는 독립 감사 보강 중이다. Hermes provider 경로는 확인했으나 실제 모델 허용은
-자격 뒤 확인해야 하고, OpenClaw는 설치본 `2026.6.11`과 pinned 소스 `2026.7.2`의 실행 기준을
-확정해야 한다. H10 누락도 실행표에 복원했다. 상세:
-`evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`.
+비교군 라이브 준비는 두 제품 모두 키 입력 직전까지 끝났다. pinned `2026.7.2`를 임시 로컬 Node로
+세워 실행 화면까지 열었고, 회차당 14턴(H10 포함) 실행표와 계측기를 14턴 전체로 검증했다.
+`gpt-5.1` 지원은 미확인이며 OpenClaw 카탈로그에는 없다. 호출 수·비용은 1회차 usage로 측정한다.
+상세: `evidence/human-baseline/LIVE-PREP-2026-07-30-ko.md`.
 
 독립 감사에서 확인한 H02·H05·H10의 측정 오류와 공통 계측 공백은
 `evidence/human-baseline/H-GAP-CLOSURE-2026-07-30-ko.md`에서 다시 측정했다.

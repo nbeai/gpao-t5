@@ -1,162 +1,190 @@
-# 비교군 라이브 측정 준비 — 독립 감사 보강 필요
+# 비교군 라이브 측정 준비 — 두 제품 실행 화면 개방, 키 입력만 남음
 
-- 상태: `REWORK_REQUIRED_BEFORE_CREDENTIAL`
+- 상태: `READY_EXCEPT_CREDENTIAL` (두 제품 모두)
 - 비밀값을 읽거나 옮기지 않았다. Codex 기록은 도구·정책 메타데이터만 인용했다.
+- 시스템 Node(`v24.14.0`)를 변경하지 않았다. 오너의 실제 `~/.openclaw`·`~/.hermes` 는 0건 변경이다.
 - T-cell 계획·구현에는 들어가지 않았다.
 
-## 1. provider 경로에서 `gpt-5.1` 선택·호출 가능 여부
+## 1. 런타임 — pinned `2026.7.2` 를 임시 로컬 Node 로 세웠다
 
-### Hermes — **provider 경로 확인. 실제 모델 허용은 자격 입력 뒤 확인 필요.**
-
-실행 진입점과 격리가 실제로 확인됐다.
-
-| 확인 항목 | 결과 |
+| 항목 | 사실 |
 |---|---|
-| 실행 파일 | `.venv/bin/hermes` (`pyproject.toml:309` → `hermes_cli.main:main`) · Python 3.11.15 |
-| 격리 변수 | `HERMES_HOME` (`hermes_cli/config.py:215` — 지속 불가 변수로 명시) |
-| 비대화 1턴 | `hermes -z "<발화>" -m <모델> --provider <provider>` |
-| provider 식별자 | **`openai-api`** — `openai` 는 별칭이며 `openrouter` 로 우회된다(`providers.py:266`). 그래서 `--provider openai` 는 `Unknown provider 'openai'` 로 실패했다. |
-| `openai-api` 경로 | `base_url_override: https://api.openai.com/v1`, 자격 변수 `OPENAI_API_KEY`, base URL 변수 `OPENAI_BASE_URL` |
-| 실제 시도 결과 | `hermes -z "안녕" -m gpt-5.1 --provider openai-api` → **`No usable credentials found for provider 'openai-api'. Set OPENAI_API_KEY.`** |
+| 요구 | `engines.node: ">=22.22.3 <23 \|\| >=24.15.0 <25 \|\| >=25.9.0"` |
+| 시스템 Node | `v24.14.0` (요구 미달, **변경하지 않음**) |
+| 임시 런타임 | `node-v24.18.1-darwin-arm64` 를 스크래치패드에 풀었다 |
+| 무결성 | `SHASUMS256.txt` 대조 — `1d60b703…3fac3` 실측 해시 일치 |
+| 설치·빌드 | `corepack pnpm@11.2.2` 로 `install`(28.4s) → `build`(3m 17.4s) 성공 |
+| 격리 | pnpm store·corepack 홈도 스크래치패드. 원본 `lab_un` 은 rsync 사본으로 대신해 무침해 |
+| 실행 확인 | `OpenClaw 2026.7.2` · `agent --help` 정상 |
 
-provider와 모델 문자열을 받는 경로는 열려 있다. 그러나 자격 검사에서 먼저 멈췄으므로 OpenAI API가
-이 자격에 `gpt-5.1` 사용을 실제 허용하는지는 아직 증명되지 않았다. 격리 홈은 이미 만들어져 동작한다.
+**설치본 `2026.6.11` 은 쓰지 않는다.** pinned 가 실제로 섰으므로 대체 조건이 성립하지 않는다.
+두 버전의 결과를 섞지 않는다.
 
-부수 확인: `hermes` 하위 명령에 `journey` · `memory` · `memory-graph` · `curator` · `learning` ·
-`insights` · `sessions` 가 있다. H02·H04 측정 시 학습·철회 결과를 CLI 로 직접 확인할 수 있다.
+## 2. 두 제품의 정확한 정지 지점 (자격 벽과 그 앞의 벽을 분리)
 
-### OpenClaw — **pinned 소스는 런타임 차단, 설치본은 실행 가능.**
+### Hermes — 자격 벽
 
 ```
-openclaw: Node.js >=22.22.3 <23, >=24.15.0 <25, or >=25.9.0 is required (current: v24.14.0).
+hermes -z "안녕" -m gpt-5.1 --provider openai-api
+→ No usable credentials found for provider 'openai-api'. Set OPENAI_API_KEY.
 ```
 
-- 일반 PATH와 Codex 번들 node는 `v24.14.0`이다. nvm은 없다.
-- `node_modules` 없음, `dist` 없음 → `npm install`(deps 63 · devDeps 38) + `build` 필요.
-- 위 차단은 pinned 소스 `2026.7.2`를 직접 실행할 때의 사실이다.
-- `/Users/jyp/.local/bin/openclaw` 설치본 **`2026.6.11`은 현재 Node에서 실행된다.** 따라서
-  "OpenClaw 전체가 실행 불가"는 틀렸다. 라이브 비교를 설치본으로 할지, 임시 로컬 Node와 의존성을
-  준비해 pinned 소스로 할지 먼저 확정해야 한다. 두 버전의 결과를 섞지 않는다.
+`openai` 는 별칭이며 `openrouter` 로 우회된다(`providers.py:266`). 실제 식별자는 **`openai-api`**,
+경로는 `https://api.openai.com/v1`, 자격 변수 `OPENAI_API_KEY` 다.
 
-## 2. 임시 홈·워크스페이스·fixture 생성/정리 경로 (확정)
+### OpenClaw — 자격 벽에 실제로 닿았다. 그 앞에 **모델 벽**이 따로 있다
 
-| 대상 | 생성 | 정리 |
-|---|---|---|
-| Hermes 홈 | `HERMES_HOME=<임시>/hermes-home` (생성·동작 확인 완료) | 측정 뒤 디렉터리 삭제 |
-| OpenClaw 워크스페이스 | `<임시>/openclaw-ws` (Node 해결 뒤) | 측정 뒤 디렉터리 삭제 |
-| H08·H09 fixture | `prepare-fixtures.sh make` → `~/Downloads/견적서_A사_v1.csv` · `견적서_A사_최종.csv` · `견적서_B사_v1.csv` | `prepare-fixtures.sh clean` (권한 복구 후 삭제) |
-| H09 접근 불가 | `prepare-fixtures.sh lock` (`chmod 000`) | `unlock` 또는 `clean` 이 복구 |
+`gpt-5.1` 로 호출하면 네트워크에 나가기 전 로컬에서 막힌다:
 
-스크립트는 **생성 → 삭제 왕복을 실제로 돌려 검증했다**(`fixture 3개 생성` → `fixture 삭제`).
-T5 3회 측정에서 쓴 것과 같은 파일·같은 경로다.
+```
+FailoverError: Unknown model: openai/gpt-5.1
+decision=candidate_failed reason=model_not_found next=none
+```
 
-## 3. fixture schedule — 독립 3회와 상태 재사용 범위 구분
+카탈로그를 실제로 조회하면 `gpt-5.1` 이 **0건**이고 OpenAI 계열은 `gpt-5.3-chat-latest` 부터
+`gpt-5.6-terra` 까지다(기본 `gpt-5.6-sol`). `models list --all` 에도 없다.
 
-핵심 구분: **선호 상태를 요구하는 시나리오는 독립 3회를 따로 돌릴 수 없다.**
-H03·H04 는 H01 의 저장 결과를 전제로 하고, H05 는 앞선 작업 대화를 전제로 한다.
-그래서 **회차(run) 단위로 상태를 새로 만들고, 회차 안에서는 상태를 재사용한다.**
+카탈로그에 있는 모델로 바꾸면 **진짜 자격 벽까지 간다**:
 
-### 회차 구조 (3회 반복 = 이 블록을 3번)
+```
+openclaw agent --local --json --message "안녕" --model gpt-5.6-sol
+→ 401 Unauthorized: Missing bearer or basic authentication in header,
+  url: https://api.openai.com/v1/responses   ·   reason=auth  next=none
+```
 
-각 회차 시작 시: 홈 삭제·재생성(기억 0) → fixture `make`
+즉 OpenClaw 는 **키만 넣으면 도는 상태**이고, 남은 문제는 자격이 아니라 **모델 동일성**이다.
 
-| 순서 | ID | 상태 | 턴 | 비고 |
-|---|---|---|---|---|
-| 1 | **H02** | **독립**(기억 0에서 시작) | 3 | 반복 3턴. 자가학습 측정이므로 H01 저장 **전에** 해야 한다 |
-| 2 | H02-새대화 | H02 상태 재사용 | 1 | 새 대화에서 같은 축약 표현 |
-| 3 | **H06** | 독립(선호 없음 상태 확인) | 1 | 무관 요청 |
-| 4 | **H01** | 독립(기억 0) | 1 + 카드 클릭 | 카드·클릭 수 측정 |
-| 5 | H03 | **H01 재사용** | 1 | `이번만` — 선호 저장이 전제 |
-| 6 | H04 | **H01 재사용** | 1 + 승인 처리 | 철회 — 저장이 전제 |
-| 7 | **H07** | 독립 | 1 | 민감정보 |
-| 8 | **H08** | fixture 필요 | 1 | 파일 찾기 |
-| 9 | **H09** | fixture `lock` | 1 | 접근 불가 |
-| 10 | **H05** | 앞선 대화 재사용 + **서버/세션 재시작** | 2 | 새 대화 1턴 + 재시작 뒤 같은 대화 1턴 |
-| 11 | **H10** | 독립 | 1 | 위임·회수·통합과 진행감 |
+### `gpt-5.1` 지원은 미확인으로 유지한다
 
-회차 종료 시: fixture `clean` → 홈 삭제
+- Hermes 의 모델 목록은 **provider 의 live `/v1/models`** 에서 온다(`hermes model` 도움말).
+  자격 전에는 확인할 방법이 없다. 그래서 `지원됨`으로 적지 않는다.
+- OpenClaw 는 자격과 무관하게 카탈로그에 `gpt-5.1` 이 없다는 것까지만 확정됐다.
 
-**독립 3회가 성립하는 것**: H01 · H02 · H06 · H07 · H08 · H09 · H10 (회차마다 상태를 새로 만든다)
-**회차 안 상태 재사용**: H03 · H04(H01 의 저장), H05(앞선 대화), H02-새대화(H02 의 대화)
+## 3. 격리 홈·워크스페이스·fixture (전부 왕복 검증)
 
-이 구분을 지키지 않으면 H02 가 H01 의 명시 저장을 재사용해 **자가학습을 잘못 측정한다** —
-T5 측정에서 내가 실제로 저질렀던 오류다.
-
-## 4. 정확한 모델 호출 수와 비용 범위
-
-### 턴 수 (회차당)
-
-| ID | 턴 | 모델 호출 | 비고 |
+| 대상 | 생성 | 정리 | 검증 |
 |---|---|---|---|
-| H02 | 3 | 3 | |
-| H02-새대화 | 1 | 1 | |
-| H06 | 1 | 1 | |
-| H01 | 1 | 1 이상 | 카드·기억 경로의 후속 호출은 제품별 실측 |
-| H03 | 1 | 1 | |
-| H04 | 1 | 1 이상 | 철회·승인 처리의 후속 호출은 제품별 실측 |
-| H07 | 1 | 1 | |
-| H08 | 1 | 1 이상 | 도구 후속 호출은 제품별 실측 |
-| H09 | 1 | 1 이상 | 동일 |
-| H05 | 2 | 2 | |
-| H10 | 1 | 1 이상 | 에이전트 사용 여부에 따라 추가 호출 가능 |
-| **합계** | **14턴** | **최소 14 호출, 상한 미확정** | 승인·도구·에이전트 호출은 제품별 실측 필요 |
+| Hermes 홈 | `HERMES_HOME=<임시>/hermes-home` | 디렉터리 삭제 | 대시보드 기동·세션 0 확인 |
+| OpenClaw 홈 | `OPENCLAW_HOME` + `OPENCLAW_STATE_DIR` + `OPENCLAW_CONFIG_PATH` + `HOME` | 디렉터리 삭제 | 게이트웨이 기동 확인 |
+| fixture | `prepare-fixtures.sh make` → `~/Downloads/견적서_A사_v1.csv`·`견적서_A사_최종.csv`·`견적서_B사_v1.csv` | `clean`(권한 복구 후 삭제) | 14턴 실행 뒤 잔여 **0건** |
+| H09 접근 불가 | `lock`(`chmod 000`) | `unlock`/`clean` | 실행 중 자동 적용·복구 확인 |
 
-Hermes·OpenClaw 모두 기본 대화는 회차당 최소 14호출이다. 그러나 승인 처리, 도구 후속 호출,
-H10 하위 에이전트 호출을 T5의 호출 수로 대신 계산하지 않는다.
+**격리 누수를 한 번 잡았다.** `OPENCLAW_STATE_DIR` 만 주었을 때 OpenClaw 가 오너의 실제
+`~/.openclaw/workspace` 를 읽고 `openclaw doctor --fix` 를 요구했다. `doctor --fix` 는 돌리지 않고
+`OPENCLAW_HOME`(`utils.ts:96`)과 `HOME` 까지 스크래치패드로 옮겨 뿌리부터 격리했다.
+이후 오너의 실제 상태는 **0건 변경**이다.
 
-여기에 Hermes 의 **응답 뒤 background review fork** 가 더해질 수 있다
-(`background_review.py` — 턴 종료 뒤 별도 모델 호출). 최악의 경우 턴마다 1회가 추가되어
-Hermes background review가 매 턴 한 번 붙는 경우 기본 대화 42호출에 최대 42호출이 추가될 수 있다.
-도구 후속 호출까지 포함한 최종 상한은 1회차 usage 파일로 실측한다. 이건 Hermes의 설계이므로
-끄지 않고 그대로 잰다(끄면 H02 자가학습을 측정할 수 없다).
+## 4. 실행 화면 — 두 제품 모두 열려 있다
 
-### 비용 범위
+| 제품 | 화면 | 상태 |
+|---|---|---|
+| Hermes | `hermes dashboard --port 9219 --host 127.0.0.1` → `http://127.0.0.1:9219` | **HTTP 200 · 화면 확인**. `Hermes Agent v0.19.0`, 격리 홈이라 세션 0·메시지 0 |
+| OpenClaw | `gateway --port 19301 --allow-unconfigured` → Control UI `http://127.0.0.1:19301` | **화면 확인**. 게이트웨이 `http server listening`(14 plugins), UI 는 로컬 게이트웨이 토큰 입력을 요구 — 토큰은 건드리지 않았다 |
 
-T5 3회 측정은 사용자 시나리오 기준선으로만 쓴다. 같은 원문·모델이어도 제품별 시스템 프롬프트,
-도구 호출, background review가 달라 토큰 규모를 T5와 같다고 가정하지 않는다.
+측정 표면은 UI 가 아니라 CLI 다(`hermes -z`, `openclaw agent --local --json`). 두 CLI 모두 위
+§2 의 지점까지 실제로 도달했다.
 
-- 현재 확정 가능한 하한: 제품당 기본 대화 **42호출**, 두 제품 **84호출**
-- Hermes background review 상한 후보: 기본 대화에 최대 **42호출 추가**
-- OpenClaw H10 하위 에이전트와 양쪽 도구 후속 호출은 1회차 실측 전 상한을 단정하지 않는다.
+## 5. 계측기 — 만들고, 14턴 전체를 실제로 돌려 검증했다
 
-**금액은 단정하지 않는다.** 오너 계정의 `gpt-5.1` 단가와 실제 토큰 수에 달려 있고, 내가 그 단가를
-모른다. 필요하면 Hermes 1회차만 먼저 돌려 실측 토큰을 확보하고 나머지 2회를 결정하는 방식을 권한다
-(Hermes 는 `--usage-file PATH` 옵션이 있어 사용량을 파일로 남길 수 있다 — 이걸 켜서 실측을 남긴다).
+T5 3회는 브라우저에 `MutationObserver` 를 주입해 어시스턴트 턴을 셌다. 비교군은 CLI라 같은 자를
+쓸 수 없다. 그래서 같은 지표를 CLI 표면에서 재는 계측기를 만들었다.
 
-## 5. 오너에게 드리는 단일 요청
+- `scripts/compare-live/h-turns.json` — 회차당 **14턴** 실행표. **H10 을 포함한다.**
+- `scripts/compare-live/h-runner.mjs` — 턴별 첫 표시·가장 긴 공백·총 소요를 실측하고,
+  제품이 남긴 usage 를 그대로 옮긴다.
+- `scripts/compare-live/prepare-fixtures.sh` — fixture make/lock/unlock/clean.
 
-**자격 요청 전에 먼저 닫을 것**
-- OpenClaw 설치본 `2026.6.11`과 pinned 소스 `2026.7.2` 중 라이브 기준 선택
-- H10을 포함한 14턴 회차표로 계측기와 fixture schedule 재검증
-- 두 제품의 자격 입력 화면 또는 환경 경계를 격리 홈에서 실제로 열기
+계측 원칙:
 
-**그 뒤 필요한 것 (하나)**
-- Hermes 격리 홈에 `OPENAI_API_KEY` 를 넣어 주십시오. 방법은 오너가 편한 쪽으로:
-  - (a) 그 셸 세션에 `export OPENAI_API_KEY=...` 후 제가 이어받아 실행, 또는
-  - (b) `HERMES_HOME=<임시>/hermes-home hermes login` / `hermes model` 로 직접 설정
-- 모델은 **`gpt-5.1`**, provider 는 **`openai-api`** 로 맞춥니다(T5 기준선과 동일 모델).
+- **모델·도구·승인·에이전트 후속 호출 수를 추정하지 않는다.** Hermes 는 `--usage-file` 이
+  `api_calls`·`estimated_cost_usd`·`input/output/cache/reasoning_tokens`·`service_tier` 를
+  직접 남긴다(`oneshot.py:127`). 계측기는 세지 않고 **옮긴다**.
+- 기록이 없으면 `null` 로 남긴다. 빈 칸을 숫자로 채우지 않는다.
+- 목표 달성·불필요한 질문·승인·에이전트 위임 네 칸은 사람이 출력을 읽고 채운다. 자동 판정하지 않는다.
+- 어느 대화를 잇는지는 실행표의 `session` 이 정한다. 계측기가 문장을 해석하지 않는다.
+  Hermes 는 제품이 준 `session_id` 를 `--resume` 에 그대로 넘기고, OpenClaw 는 `--session-key` 를 쓴다.
 
-**같이 정해 주실 것**
-1. **비용 방식**: 3회 전체를 한 번에 돌릴지, 1회차 실측 뒤 결정할지.
-2. **OpenClaw**: 실행 가능한 설치본을 쓸지 pinned 소스를 임시 로컬 런타임으로 준비할지, 준비 결과와
-   비교 가능성을 근거로 한 안을 제출합니다. 시스템 전역 Node 변경은 하지 않습니다.
+**검증 실행(자격 없이, 비용 0):** 14턴 전부 실행됐고 첫 표시 709~881ms·총 984~1182ms 를 실측했다.
+usage 파일이 실패에도 14/14 기록됐고(`failed: true`, `failure` 사유 보존), 숫자 칸은 전부 `null` 로
+남았다. fixture 는 자동 생성·잠금·복구·삭제됐고 잔여 0건이다.
 
-**제가 하지 않은 것 / 하지 않을 것**
+## 6. 14턴 실행표 (회차당) — 독립 3회와 회차 내 재사용
+
+회차 시작마다 홈을 지우고 새로 만든다(기억 0). 회차 종료 시 fixture 정리.
+
+| 순서 | ID | 대화 | 상태 |
+|---|---|---|---|
+| 1~3 | **H02** | `work` | 독립. 표현을 바꿔 3턴 |
+| 4 | H02-new | `new-a` | 새 대화에서 같은 요청 — 자가학습 확인 |
+| 5 | **H06** | `new-b` | 독립 |
+| 6 | **H01** | `pref` | 독립. 카드·클릭 측정 |
+| 7 | H03 | `pref` | H01 저장 재사용 |
+| 8 | H04 | `pref` | H01 저장 재사용 |
+| 9 | **H07** | `new-c` | 독립. 가짜 키 문자열 |
+| 10 | **H08** | `files` | fixture 필요 |
+| 11 | H09 | `files` | H08 대상 재사용 + `lock` |
+| 12 | **H10** | `files` | 두 폴더 조사·비교. 위임·회수·통합 측정 |
+| 13 | H05 | `new-d` | 새 대화 승계 |
+| 14 | H05 | `files` | 앞선 작업 대화 재개 |
+
+**H02 는 H01 저장보다 먼저 온다.** 순서를 뒤집으면 명시 저장을 자가학습으로 잘못 읽는다 —
+T5 측정에서 실제로 저지른 오류다.
+
+**독립 3회 성립**: H01·H02·H06·H07·H08·H09·H10 (회차마다 상태를 새로 만든다)
+**회차 내 재사용**: H03·H04(H01 저장), H09(H08 대상), H02-new·H05(앞선 대화)
+
+계측기 한계 하나를 적어 둔다: 14턴의 `재시작 승계`는 T5 의 서버 재시작과 같은 계측기가 아니다.
+CLI 는 턴마다 프로세스가 끝나므로 `앞선 작업 대화를 다시 열었을 때의 승계`를 잰다. 이 차이를
+결과표에 그대로 쓴다.
+
+## 7. 호출 수와 비용 — 추정하지 않는다
+
+이전 제출의 `회차당 13~15 호출 · 3회 최대 약 90` 추정을 **철회한다.** 오너 지시대로 1회차
+usage 로 측정한다. 측정 경로는 §5 에 준비됐다.
+
+- 확정된 것: **회차당 14턴**, 3회차 = 42턴.
+- 한 턴이 몇 번의 모델 호출·도구 호출·에이전트 후속 호출을 일으키는지는 제품 설계에 달렸고
+  (예: Hermes 의 응답 뒤 `background_review.py` fork), 이는 1회차 usage 에서 그대로 나온다.
+- 비용도 같다. `estimated_cost_usd`·`cost_status`·`service_tier` 를 제품이 남긴다.
+
+## 8. 오너에게 드리는 단일 요청
+
+**필요한 것 하나 — `OPENAI_API_KEY`.** 두 제품이 같은 변수를 쓴다.
+
+```bash
+export OPENAI_API_KEY=...
+```
+
+이 셸에 넣어 주시면 제가 이어서 1회차를 돌립니다. 또는 오너가 직접 넣기를 원하시면
+`hermes login` / `openclaw setup` 경로로 하셔도 됩니다.
+
+**정해 주실 것 둘**
+
+1. **모델 동일성.** T5 기준선은 `gpt-5.1` 입니다. Hermes 는 자격 뒤에 확인되고, **OpenClaw 는
+   카탈로그에 `gpt-5.1` 이 없습니다.** 셋 중 하나를 골라 주십시오.
+   - (a) OpenClaw 는 가장 가까운 `gpt-5.3-chat-latest` 로 돌리고 **모델 차이를 결과표에 명시**
+   - (b) 두 비교군을 OpenClaw 가 아는 모델(예: `gpt-5.6-sol`)로 맞추고, T5 기준선과의 모델 차이를 명시
+   - (c) OpenClaw 는 라이브에서 빼고 코드 사실로만 남긴다
+2. **비용 방식.** 1회차(14턴)만 먼저 돌려 실측 usage 를 확인한 뒤 2·3회차를 결정할지,
+   3회차를 한 번에 갈지.
+
+**제가 하지 않은 것**
 - 비밀값을 읽거나 옮기거나 T5 에서 복사하지 않았다.
-- 시스템 전역 Node 변경을 하지 않았다.
-- Codex 기록에서 도구 이름·정책값 외에는 인용하지 않았다.
-- 코드 사실을 라이브 성과로 적지 않는다.
+- 시스템 Node 를 바꾸지 않았다. 오너의 실제 제품 상태를 바꾸지 않았다(`doctor --fix` 미실행).
+- 호출 수·비용을 추정해 적지 않았다.
+- 코드 사실을 라이브 성과로 적지 않았다.
 
-## 6. 준비 완료 목록 (검증된 것만)
+## 9. 준비 완료 목록 (검증된 것만)
 
-- [x] Hermes 실행 진입점·버전 확인 (`.venv/bin/hermes`, Python 3.11.15)
-- [x] Hermes 격리 홈 생성·동작 확인 (`HERMES_HOME`)
-- [x] Hermes provider·모델 문자열 경로 확인 (`--provider openai-api`, `api.openai.com/v1`)
-- [ ] 실제 자격의 `gpt-5.1` 허용 확인
-- [x] Hermes 자격 부재 지점 확인 (`Set OPENAI_API_KEY` — 여기가 키 입력 직전 지점)
-- [x] fixture 생성·잠금·복구·삭제 스크립트 작성 및 왕복 검증
-- [x] fixture schedule 확정(독립 3회 6개 / 회차 내 재사용 4개)
-- [ ] H10 포함 호출 수 산출 — 최소 14턴, 제품별 후속 호출 상한은 1회차 실측 필요
-- [x] 사용량 실측 수단 확인(`--usage-file`)
-- [ ] OpenClaw 라이브 기준 확정 — 설치본 `2026.6.11` 실행 가능 / pinned `2026.7.2` 런타임 미준비
+- [x] pinned `2026.7.2` 임시 로컬 Node `v24.18.1` 로 install·build·실행 (해시 대조)
+- [x] 시스템 Node 무변경 · 오너 실제 상태 0건 변경 · 격리 누수 1건 발견 후 뿌리부터 차단
+- [x] Hermes CLI 자격 벽 도달 (`Set OPENAI_API_KEY`)
+- [x] OpenClaw CLI 자격 벽 도달 (`401 Missing bearer`, `reason=auth`)
+- [x] OpenClaw 모델 벽 별도 확정 (`gpt-5.1` 카탈로그 0건)
+- [x] 두 제품 실행 화면 개방 (`:9219` · `:19301`)
+- [x] fixture make/lock/unlock/clean 왕복 검증 · 잔여 0
+- [x] 14턴 실행표 확정 (**H10 포함**) · 계측기 작성 · 14턴 전체 실동작 검증
+- [x] usage 실측 경로 확보 (`api_calls`·비용·토큰·`service_tier`)
+- [ ] `gpt-5.1` 지원 — **자격 호출 전까지 미확인**
+- [ ] 호출 수·비용 — **1회차 usage 로 측정 예정**
 - [ ] 자격 입력 — **오너 전용**
