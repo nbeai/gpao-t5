@@ -22,7 +22,14 @@
 ## 0-A. 현재 최우선 실행 상태
 
 - Codex가 비교 계측기 구현을 직접 인수했다. 현재 상태는
-  `CODEX_SELF_VERIFIED / ONE_BOUNDED_CLAUDE_AUDIT_PENDING`이다.
+  `BOUNDED_CLAUDE_AUDIT_PASS / READY_FOR_OWNER_CREDENTIAL`이다.
+- Claude 고정 범위 감사(대상 `3413c6d`·`5493ade`)는 **PASS**다. 네 항목 전부 반대 재현으로
+  성립을 확인했고(시야·위조 링크 차단, 원문 해시 변조 탐지, 거부 경로 바이트 불변, 제품
+  fixture 접촉의 제품 결과 기록), 성립 회귀(계약 9/21, 회귀 1,227/0, dry-run 부작용 0,
+  preflight 34/34 독립 재실행)도 재현됐다. 재개봉 4조건 해당 없음. 후속 관찰 3건은
+  감사 문서에 기록(분기 순서 의미의 사후 탐지, Developer 실물 쓰기 시야의 기준선 동등성,
+  실 턴 완료 신호의 회차 1 실측). 정본:
+  `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-BOUNDED-AUDIT-2026-07-30-ko.md`
 - 고정 종료 범위 구현 커밋: `3413c6d` (`fix(compare): close frozen credential-preflight scope`).
 - 현재 실행 정본은 `h-scenarios.json` 16개 원문·출처와 `h-branches.json`
   **9분기·회차당 21턴**이다. 아래 14턴·18턴·31검사 기록은 실패 원인과 수정 계보를 보존한
