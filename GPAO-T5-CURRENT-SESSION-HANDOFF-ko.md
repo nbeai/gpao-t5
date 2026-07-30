@@ -98,9 +98,10 @@
     Hermes의 응답 뒤 자기평가·유휴 큐레이터·기억 기본 자동 흐름, OpenClaw의 워크스페이스 기억과
     위임 도구를 확인했다. OpenClaw `agents_wait`는 `tools.swarm` 활성 조건부다.
     라이브 H01~H10은 두 제품의 모델 자격이 없어 미실행이며 코드 사실로 대체하지 않는다.
-  - Claude Code·Codex 작동 방식 대조는 `e9bef9a`로 제출됐으나 독립 감사 `REWORK_REQUIRED`다.
-    Codex 실행 파일과 `/Users/jyp/.codex` 부재라는 사실 오류, 저장소 산출물의 과대 일반화,
-    코드 기능 존재를 H01·H05·H10 라이브 성공으로 대신한 범위 축소가 확인됐다.
+  - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
+    보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
+    제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
+    실제 호출 수·비용 범위를 다시 산출한다.
   - 새 T-cell 개발 계획 미작성
 - 지정 후속:
   - 새 T-cell 계획 작성·독립 감사·오너 확인
@@ -133,7 +134,7 @@
 | T-cell 준비 문서 감사 | 채택 | Codex 보조 에이전트 Franklin, 읽기 전용. 정본·모순·갱신 위치 확인 | 이번 준비 문서에 반영 |
 | 기억 비밀 유입 감사 | 채택 | Codex 보조 에이전트 Helmholtz, 읽기 전용. 웹·채널·메타·과거 후보·오탐 범위 재감사 PASS | 현재 코어 보장으로 유지, Claude 교차 확인 |
 | OpenClaw·Hermes 비교 1차 | 채택 | `084dfa3`, pinned 소스 코드 사실 대조. 독립 감사 `PASS_WITH_SCOPE_LIMIT` | Claude Code·Codex 대조 뒤 라이브 필요 범위를 최소화 |
-| Claude Code·Codex 비교 1차 | 보강 필요 | `e9bef9a`, 유효한 운용 재료와 함께 사실 오류·과대 일반화·라이브 축소 오류 확인 | 실제 로컬 Codex 근거로 정정하고 코드 사실과 인간 성과 분리 |
+| Claude Code·Codex 비교 | 채택 | `a34efc4`, 실제 Codex 실행 메타데이터와 Claude Code 실행 근거. 감사 `PASS_WITH_PREP_CORRECTION` | 라이브 fixture schedule 계산만 준비 단계에서 정정 |
 
 새 에이전트를 열 때 이 표에 목적·브랜치·소유 파일·종료 조건을 먼저 기록한다. 에이전트 결과가 끝나면
 커밋·검증·정본 접점과 함께 상태를 갱신한다.
@@ -173,8 +174,8 @@
 
 ### 다음 작업
 
-1. Claude Code·Codex 비교의 사실 오류와 과대 일반화 보강
-2. OpenClaw·Hermes 라이브 H01~H10 실행표와 격리 환경 준비
+1. OpenClaw·Hermes 라이브 H01~H10 실행표와 격리 환경 준비
+2. 실제 provider의 `gpt-5.1` 지원, 독립 회차 fixture schedule, 호출 수·비용 범위 확인
 3. 준비 완료 뒤 오너에게 자격 입력을 한 번만 요청하고 라이브 비교
 4. 현재 T5 기준선과 비교 결과로 새 T-cell 개발 계획 작성
 5. 독립 감사에서 문제 전체만 제출
@@ -198,8 +199,8 @@
 ```text
 현재 작업: T-cell 재착수 전 현재 코어 안전 복구·인간 기준선·성능 측정 준비.
 이미 통과한 범위: 현재 T5 코어, P-OP-7 최종 PASS·오너 승인, Automation AC-1.
-현재 차단: Claude Code·Codex 비교 보강, OpenClaw·Hermes 라이브 H01~H10, 새 T-cell 계획.
+현재 차단: OpenClaw·Hermes 라이브 준비·자격 입력·H01~H10 실행, 새 T-cell 계획.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.
 원인 미분류 관찰: 없음. 낮은 부하 공식 gate CPU 22.9s로 환경 변동 분리 완료.
-다음 작업과 종료 조건: Claude Code·Codex 대조 보강 → OpenClaw·Hermes 라이브 비교 → 새 계획 → 독립 감사 → 오너 확인.
+다음 작업과 종료 조건: 라이브 격리·fixture 준비 → 오너 자격 입력 1회 → H01~H10 비교 → 새 계획 → 독립 감사 → 오너 확인.
 ```
