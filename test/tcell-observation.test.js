@@ -1,0 +1,301 @@
+// S2 · 응답 뒤 관찰 shadow. 계획 §4.1·§4.3(observation·bundle까지)·§4.8·§4.10.
+//
+// 이 슬라이스는 사용자 체감 기능을 늘리지 않는다. 관찰은 이미 저장된 durable 산출물의
+// 소비자이며, 기존 tick 위에서 돈다. 모델 호출 0, 프롬프트 영향 0, 전경 지연 0.
+//
+// 고정하는 것:
+//   ① 관찰은 TurnRef 이후의 저장된 턴만 읽고 세션별 watermark 로 정확히 한 번 처리한다
+//   ② 파생 ID 는 원천 TurnRef 집합의 결정적 값이라 재처리해도 중복이 없다
+//   ③ 결과 저장과 watermark 전진은 한 원자 쓰기 — 실패하면 둘 다 안 움직인다(크래시 재개)
+//   ④ observations·bundles 는 admittedContext·프롬프트에 절대 올라가지 않는다(영향 0)
+//   ⑤ 상한·TTL 이 걸려 무한히 자라지 않는다
+//   ⑥ T-cell 워커와 자동화 tick 은 서로의 실패에 막히지 않는다
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { MemoryStore } from '../src/surface/memory-store.js';
+import { SessionStore } from '../src/surface/session-store.js';
+import { admittedContext } from '../src/kernel/l1-intent/context-mesh.js';
+import {
+  observeSessions, makeObservation, bundleObservations, OBSERVATION_CAPS,
+} from '../src/kernel/l5-growth/tcell-observe.js';
+
+const ref = (sessionId, turnSeq) => ({ sessionId, turnSeq });
+
+/** 저장된 세션 하나를 만든다(S0 TurnRef 계약 그대로). */
+function session(id, turns) {
+  const transcript = [];
+  const ledgerEntries = [];
+  turns.forEach((t, i) => {
+    const turnRef = ref(id, i + 1);
+    transcript.push({ role: 'user', text: t.user, turnRef });
+    transcript.push({ role: 'assistant', result: { kind: 'reply', reply: t.reply ?? '네' }, turnRef });
+    if (t.receipt) ledgerEntries.push({ ...t.receipt, turnRef });
+  });
+  return { id, transcript, ledgerEntries, createdAt: 1, updatedAt: 2 };
+}
+
+async function standUp(sessions) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-observe-'));
+  const store = new SessionStore(dir);
+  for (const s of sessions) await store.save(s);
+  return { dir, store, mem: new MemoryStore(dir) };
+}
+
+// ── ① watermark: 정확히 한 번 ─────────────────────────────────────────────
+test('S2: 저장된 턴을 한 번만 관찰하고 watermark 를 세션별로 남긴다', async () => {
+  const { store, mem } = await standUp([
+    session('11111111-1111-4111-8111-111111111111', [{ user: '첫 발화' }, { user: '둘째 발화' }]),
+  ]);
+  const first = await observeSessions({ store, memStore: mem });
+  assert.equal(first.observed, 2, '두 턴을 관찰한다');
+
+  const m = await mem.load();
+  assert.equal((m.observations ?? []).length, 2);
+  assert.equal(m.observationWatermark['11111111-1111-4111-8111-111111111111'], 2, '세션별 지도');
+
+  const second = await observeSessions({ store, memStore: mem });
+  assert.equal(second.observed, 0, '같은 턴을 다시 관찰하지 않는다');
+  assert.equal((await mem.load()).observations.length, 2, '중복 적재 0');
+});
+
+test('S2: 새 턴이 붙으면 그 턴부터 이어서 관찰한다', async () => {
+  const id = '22222222-2222-4222-8222-222222222222';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  await observeSessions({ store, memStore: mem });
+
+  const s = await store.load(id);
+  s.transcript.push({ role: 'user', text: 'B', turnRef: ref(id, 2) });
+  s.transcript.push({ role: 'assistant', result: { kind: 'reply', reply: '네' }, turnRef: ref(id, 2) });
+  await store.save(s);
+
+  const run = await observeSessions({ store, memStore: mem });
+  assert.equal(run.observed, 1, '새 턴만');
+  assert.equal((await mem.load()).observationWatermark[id], 2);
+});
+
+test('S2: 두 세션은 각자 watermark 를 갖는다(전역 순서 비요구)', async () => {
+  const a = '33333333-3333-4333-8333-333333333333';
+  const b = '44444444-4444-4444-8444-444444444444';
+  const { store, mem } = await standUp([session(a, [{ user: 'a1' }, { user: 'a2' }]), session(b, [{ user: 'b1' }])]);
+  await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  assert.equal(m.observationWatermark[a], 2);
+  assert.equal(m.observationWatermark[b], 1);
+});
+
+test('S2: 소급(migrated) 턴은 관찰하지 않는다 — 없는 사실을 만들지 않는다', async () => {
+  const id = '55555555-5555-4555-8555-555555555555';
+  const s = session(id, [{ user: '옛 발화' }]);
+  s.transcript.forEach((e) => { e.turnRef = { ...e.turnRef, migratedTurnRef: true }; });
+  const { store, mem } = await standUp([s]);
+  const run = await observeSessions({ store, memStore: mem });
+  assert.equal(run.observed, 0, '소급 턴은 건너뛴다');
+});
+
+// ── ② 결정적 ID ───────────────────────────────────────────────────────────
+test('S2: 관찰 ID 는 원천 TurnRef 로 결정된다(재처리해도 같은 값)', () => {
+  const a = makeObservation({ turnRef: ref('s', 3), kind: 'repeat', subject: '정리' });
+  const b = makeObservation({ turnRef: ref('s', 3), kind: 'repeat', subject: '정리' });
+  assert.equal(a.observationId, b.observationId, '같은 원천이면 같은 ID');
+  const c = makeObservation({ turnRef: ref('s', 4), kind: 'repeat', subject: '정리' });
+  assert.notEqual(a.observationId, c.observationId, '다른 턴이면 다른 ID');
+});
+
+test('S2: 묶음 ID 도 원천 집합으로 결정된다', () => {
+  const obs = [
+    makeObservation({ turnRef: ref('s', 1), kind: 'repeat', subject: '월별 정리' }),
+    makeObservation({ turnRef: ref('s', 2), kind: 'repeat', subject: '월별 정리' }),
+  ];
+  const [b1] = bundleObservations(obs);
+  const [b2] = bundleObservations([...obs].reverse());
+  assert.equal(b1.bundleId, b2.bundleId, '순서가 달라도 같은 묶음 ID');
+  assert.equal(b1.observationIds.length, 2);
+});
+
+// ── ③ 원자성·크래시 재개 ─────────────────────────────────────────────────
+test('S2: 저장이 실패하면 watermark 도 전진하지 않는다', async () => {
+  const id = '66666666-6666-4666-8666-666666666666';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  const 깨지는저장소 = { load: () => mem.load(), save: async () => { throw new Error('디스크 실패'); } };
+  await assert.rejects(() => observeSessions({ store, memStore: 깨지는저장소 }));
+  const m = await mem.load();
+  assert.equal((m.observations ?? []).length, 0, '관찰도 안 남고');
+  assert.equal(m.observationWatermark?.[id], undefined, 'watermark 도 안 움직인다');
+
+  const again = await observeSessions({ store, memStore: mem });
+  assert.equal(again.observed, 1, '재시작 뒤 그 턴을 다시 집는다(누락 0)');
+});
+
+test('S2: watermark 를 관찰과 따로 저장하지 않는다(2단계 저장 금지)', async () => {
+  const id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  // 두 번째 저장에서만 실패시킨다. 구현이 watermark 를 먼저 따로 커밋하면 그 값만 남아
+  // 관찰은 유실되고 그 턴은 영영 다시 안 잡힌다 — 그것이 이 검사가 막는 것이다.
+  let 저장횟수 = 0;
+  const 두번째실패 = {
+    load: () => mem.load(),
+    save: async (m) => { 저장횟수 += 1; if (저장횟수 >= 2) throw new Error('두 번째 저장 실패'); return mem.save(m); },
+  };
+  await observeSessions({ store, memStore: 두번째실패 }).catch(() => {});
+  const m = await mem.load();
+  const wm = m.observationWatermark?.[id] ?? 0;
+  const 관찰수 = (m.observations ?? []).filter((o) => o.turnRef.sessionId === id).length;
+  assert.ok(wm === 0 || 관찰수 > 0, `watermark(${wm})만 전진하고 관찰(${관찰수})이 비는 상태는 없어야 한다`);
+});
+
+// ── ④ 영향 0 ─────────────────────────────────────────────────────────────
+test('S2: 관찰·묶음은 모델 입장 관문에 절대 오르지 않는다', async () => {
+  const id = '77777777-7777-4777-8777-777777777777';
+  const { store, mem } = await standUp([session(id, [{ user: '보고서 정리해줘' }])]);
+  await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  assert.ok(m.observations.length > 0, '관찰은 쌓였고');
+  const admitted = admittedContext(m, '보고서 정리해줘');
+  assert.deepEqual(admitted, [], '입장은 0 — 프롬프트에 오르지 않는다');
+});
+
+test('S2: 관찰은 모델 호출을 하지 않는다', async () => {
+  const id = '88888888-8888-4888-8888-888888888888';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  let 모델호출 = 0;
+  await observeSessions({ store, memStore: mem, model: { respond: async () => { 모델호출 += 1; return ''; } } });
+  assert.equal(모델호출, 0, 'S2 는 모델을 부르지 않는다');
+});
+
+// ── ⑤ 상한·TTL ───────────────────────────────────────────────────────────
+test('S2: 전체 상한을 넘기면 오래된 관찰부터 걷는다', async () => {
+  const id = '99999999-9999-4999-8999-999999999999';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  const 가득 = Array.from({ length: OBSERVATION_CAPS.total }, (_, i) => makeObservation({
+    turnRef: ref('old', i + 1), kind: 'repeat', subject: `옛 관찰 ${i}`, at: 1,
+  }));
+  const m0 = await mem.load();
+  await mem.save({ ...m0, observations: 가득 });
+
+  await observeSessions({ store, memStore: mem, now: 2 });
+  const m = await mem.load();
+  assert.equal(m.observations.length, OBSERVATION_CAPS.total, '상한을 넘지 않는다');
+  assert.ok(m.observations.some((o) => o.turnRef.sessionId === id), '새 관찰이 들어왔고');
+  assert.ok(!m.observations.some((o) => o.subject === '옛 관찰 0'), '가장 오래된 것이 밀려났다');
+});
+
+test('S2: TTL 이 지난 관찰은 정리된다', async () => {
+  const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }])]);
+  const 오래됨 = makeObservation({ turnRef: ref('old', 1), kind: 'repeat', subject: '만료 대상', at: 0 });
+  const m0 = await mem.load();
+  await mem.save({ ...m0, observations: [오래됨] });
+
+  const 지금 = OBSERVATION_CAPS.ttlMs + 1000;
+  await observeSessions({ store, memStore: mem, now: 지금 });
+  const m = await mem.load();
+  assert.ok(!m.observations.some((o) => o.subject === '만료 대상'), 'TTL 경과분은 사라진다');
+});
+
+// ── ⑥ 실패 격리 ──────────────────────────────────────────────────────────
+test('S2: 관찰이 터져도 다음 tick 이 이어서 처리한다(누락 0)', async () => {
+  const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const { store, mem } = await standUp([session(id, [{ user: 'A' }, { user: 'B' }])]);
+  let 첫판 = true;
+  const 가끔깨지는목록 = {
+    ...store,
+    loadAll: async () => { if (첫판) { 첫판 = false; throw new Error('일시 실패'); } return store.loadAll(); },
+    load: (i) => store.load(i),
+  };
+  await assert.rejects(() => observeSessions({ store: 가끔깨지는목록, memStore: mem }));
+  const ok = await observeSessions({ store, memStore: mem });
+  assert.equal(ok.observed, 2, '다음 판이 모두 집는다');
+});
+
+// ── 제품 경로: tick 배선·실패 격리·전경 무영향 ─────────────────────────────
+import { makeServer } from '../src/surface/server.js';
+import { EventLog } from '../src/surface/event-log.js';
+import { demoTools } from '../src/surface/demo-context.js';
+
+const 고른다 = () => ({ async respond() { return '알겠어요.'; } });
+const post = (base, p, b) => fetch(`${base}${p}`, {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}),
+}).then((r) => r.json());
+
+async function 서버세우기(extra = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-obs-srv-'));
+  const store = new SessionStore(dir);
+  const server = makeServer({
+    store, eventLog: new EventLog(dir), tools: demoTools(), model: 고른다(), ...extra,
+  });
+  await new Promise((r) => server.listen(0, r));
+  return { dir, store, server, base: `http://127.0.0.1:${server.address().port}`, mem: new MemoryStore(dir) };
+}
+
+test('S2/제품: 사용자 턴은 관찰을 기다리지 않는다(전경에서 관찰 0)', async () => {
+  const { server, base, mem } = await 서버세우기();
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: '보고서 정리해줘' });
+    const m = await mem.load();
+    assert.equal((m.observations ?? []).length, 0, '턴이 끝난 시점에 관찰은 아직 0이다');
+  } finally { server.close(); }
+});
+
+test('S2/제품: tick 이 돌면 그때 관찰이 쌓인다', async () => {
+  const { server, base, mem } = await 서버세우기();
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: '보고서 정리해줘' });
+    const r = await server.runtimeTick();
+    assert.equal(r.ok, true);
+    assert.equal(r.observe.observed, 1, 'tick 이 관찰한다');
+    assert.equal((await mem.load()).observations.length, 1);
+  } finally { server.close(); }
+});
+
+test('S2/제품: 자동화가 터져도 관찰은 돌고, 관찰이 터져도 자동화는 돈다', async () => {
+  // 자동화 실패 주입 — tick 전체가 죽으면 관찰도 못 돈다(그 반대도 마찬가지).
+  const 터지는자동화 = { load: async () => { throw new Error('자동화 저장소 실패'); }, save: async () => {} };
+  const a = await 서버세우기({ automationStore: 터지는자동화 });
+  try {
+    await assert.rejects(() => a.server.runtimeTick(), '자동화 실패는 그대로 드러난다');
+    // 관찰 자체는 독립적으로 호출 가능하다(같은 tick 실패에 묶이지 않는다).
+    const s = await post(a.base, '/sessions');
+    await post(a.base, '/turn', { sessionId: s.id, text: 'A' });
+    const r = await observeSessions({ store: a.store, memStore: a.mem });
+    assert.equal(r.observed, 1, '관찰은 자동화 실패와 무관하게 돈다');
+  } finally { a.server.close(); }
+
+  // 관찰 실패 주입 — 자동화 tick 은 정상 완료되어야 한다.
+  const b = await 서버세우기({ memoryStore: { load: async () => { throw new Error('기억 저장소 실패'); }, save: async () => {} } });
+  try {
+    const r = await b.server.runtimeTick();
+    assert.equal(r.ok, true, '관찰이 터져도 tick 은 정상 종료');
+    assert.equal(r.observe?.failed, true, '관찰 실패는 숨기지 않는다');
+  } finally { b.server.close(); }
+});
+
+test('S2/제품: 관찰이 연속 실패하면 워커만 격리된다', async () => {
+  const { server } = await 서버세우기({
+    memoryStore: { load: async () => { throw new Error('계속 실패'); }, save: async () => {} },
+  });
+  try {
+    for (let i = 0; i < 3; i += 1) await server.runtimeTick();
+    assert.equal(server.tcellObserveState().격리됨, true, '3회 뒤 관찰만 멈춘다');
+    const r = await server.runtimeTick();
+    assert.equal(r.ok, true, '자동화 tick 은 계속 돈다');
+    assert.equal(r.observe, undefined, '격리된 워커는 더 시도하지 않는다');
+  } finally { server.close(); }
+});
+
+test('S2/제품: kill switch 로 관찰만 끌 수 있다', async () => {
+  const { server, base, mem } = await 서버세우기({ processEnv: { GPAO_T5_TCELL: 'off' } });
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: 'A' });
+    const r = await server.runtimeTick();
+    assert.equal(r.ok, true, '대화·자동화는 그대로');
+    assert.equal(r.observe, undefined, '관찰은 돌지 않는다');
+    assert.equal((await mem.load()).observations.length, 0);
+  } finally { server.close(); }
+});

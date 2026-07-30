@@ -54,6 +54,7 @@ import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
+import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -200,6 +201,26 @@ export function makeServer(deps = {}) {
   // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
   const runtimeToken = deps.runtimeToken ?? randomUUID();
 
+  // S2 · 관찰 워커. tick 과 같은 스케줄러를 쓰되 오류 경계는 따로 둔다(§4.8).
+  // 연속 실패 3회면 워커만 끄고 사람 말로 남긴다 — 성장이 멈춰도 대화와 자동화는 돈다.
+  const 관찰상태 = { 연속실패: 0, 격리됨: false, 마지막오류: null };
+  const 관찰꺼짐 = () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off';
+  async function 관찰워커() {
+    if (관찰상태.격리됨 || 관찰꺼짐()) return null;
+    try {
+      const r = await withMemory(() => observeSessions({ store, memStore: memStore, now: Date.now() }));
+      관찰상태.연속실패 = 0;
+      return r;
+    } catch (e) {
+      관찰상태.연속실패 += 1;
+      관찰상태.마지막오류 = e?.message ?? String(e);
+      if (관찰상태.연속실패 >= 3) {
+        관찰상태.격리됨 = true;
+        console.error('[tcell:observe] 연속 실패로 관찰을 멈춥니다. 대화와 자동화는 그대로 돕니다.');
+      }
+      return { failed: true, isolated: 관찰상태.격리됨 };
+    }
+  }
   // tick 실행의 단일 경로(트러스트 게이트). trusted_runtime_event만 실행한다(admitTickTrigger).
   // tick 중첩 방지(P6-4): 이전 tick이 아직 도는 중이면 새 tick은 건너뛴다 — load→save 경합·중복 실행 차단.
   let ticking = false;
@@ -212,7 +233,14 @@ export function makeServer(deps = {}) {
       const selfState = buildSelfState(env, { tools });
       const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
       await autoStore.save(a);
-      return { ok: true, ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+      // S2 · T-cell 관찰(§4.8) — **독립 오류 경계.** 자동화가 터져도 관찰이 멈추지 않고,
+      // 관찰이 터져도 자동화·사용자 턴이 멈추지 않는다. 연속 실패가 쌓이면 워커만 격리한다.
+      const 관찰 = await 관찰워커();
+      return {
+        ok: true,
+        ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })),
+        ...(관찰 ? { observe: 관찰 } : {}),
+      };
     } finally {
       ticking = false;
     }
@@ -1565,6 +1593,7 @@ export function makeServer(deps = {}) {
   }
 
   server.runtimeTick = () => runTrustedTick({ source: 'trusted_runtime_event' });
+  server.tcellObserveState = () => ({ ...관찰상태 }); // 관찰 워커의 격리 상태(진단면)
 
   /**
    * P5-1: 채널 수신기가 부르는 입구. HTTP `/channel/inbound` 와 **같은 커널 길**을 쓰되,

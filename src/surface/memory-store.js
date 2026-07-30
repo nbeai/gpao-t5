@@ -37,12 +37,18 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {} };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {} };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
       const m = JSON.parse(raw);
-      return { candidates: m.candidates ?? [], promoted: m.promoted ?? [], observed: m.observed ?? [], closed: m.closed ?? {} };
+      return {
+        candidates: m.candidates ?? [], promoted: m.promoted ?? [],
+        observed: m.observed ?? [], closed: m.closed ?? {},
+        // S2 · T-cell 관찰 레인. `admittedContext` 가 읽지 않는다 — 행동 영향 0.
+        observations: m.observations ?? [], bundles: m.bundles ?? [],
+        observationWatermark: m.observationWatermark ?? {},
+      };
     } catch (e) {
       const quarantine = `${this.file}.corrupt-${Date.now()}`;
       try {
@@ -66,6 +72,8 @@ export class MemoryStore {
     await atomicWrite(this.file, JSON.stringify({
       candidates: memory.candidates ?? [], promoted: memory.promoted ?? [],
       observed: memory.observed ?? [], closed: memory.closed ?? {},
+      observations: memory.observations ?? [], bundles: memory.bundles ?? [],
+      observationWatermark: memory.observationWatermark ?? {},
     }));
     return memory;
   }
