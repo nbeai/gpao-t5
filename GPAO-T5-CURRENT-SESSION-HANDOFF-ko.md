@@ -203,7 +203,7 @@
 | P-OP-6 surface sidecar | 채택 이력 | 필요한 변경은 정본에 반영됨 | 남은 worktree 정리 |
 | 과거 TG/CX 구현선 | 폐기 | 오너 결정으로 전면 롤백 | Git 역사만 보존 |
 | T-cell 준비 문서 감사 | 채택 | Codex 보조 에이전트 Franklin, 읽기 전용. 정본·모순·갱신 위치 확인 | 이번 준비 문서에 반영 |
-| 기억 비밀 유입 감사 | 채택 | Codex 보조 에이전트 Helmholtz, 읽기 전용. 웹·채널·메타·과거 후보·오탐 범위 재감사 PASS | 현재 코어 보장으로 유지, Claude 교차 확인 |
+| 기억 비밀 유입 감사 | 채택 | Codex 보조 에이전트 Helmholtz, 읽기 전용. 웹·채널·메타·과거 후보·오탐 범위 재감사 PASS | 현재 코어 보장으로 유지. Claude 교차 확인 완료(2026-07-30): 경계 위치·저장 선행 순서·삭제 보존 확인, 탐지기 무력화 반대 검증으로 테스트 실효 재현. 한계 관찰 — 라벨 없는 소문자 전용 긴 토큰은 fallback 밖(모델 지침이 담당), 28자+ 혼합 정상 토큰은 오탐 가능(선언된 범위와 일치) |
 | OpenClaw·Hermes 비교 1차 | 채택 | `084dfa3`, pinned 소스 코드 사실 대조. 독립 감사 `PASS_WITH_SCOPE_LIMIT` | Claude Code·Codex 대조 뒤 라이브 필요 범위를 최소화 |
 | Claude Code·Codex 비교 | 채택 | `a34efc4`, 실제 Codex 실행 메타데이터와 Claude Code 실행 근거. 감사 `PASS_WITH_PREP_CORRECTION` | 라이브 fixture schedule 계산만 준비 단계에서 정정 |
 
