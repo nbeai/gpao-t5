@@ -24,7 +24,7 @@
 ## 0-A. 현재 최우선 실행 상태
 
 - 비교 계측기 준비와 유료 회차 1은 종료됐다. 현재 상태는
-  `TCELL_PLAN_V3_AUDIT_BLOCKED / IMPLEMENTATION_FORBIDDEN`이다.
+  `TCELL_PLAN_FINAL_COMPLETENESS_AUDIT_PENDING`이다.
 - **작업장 위생 정리(2026-07-31)**: 비교 결과의 판정·요약 문서는 Git에 보존하되,
   `scripts/compare-live/{hm-run-1,oc-run-1,INVALID-*,preflight}` 원시 실행 홈(약 1.8GB,
   75,000파일)과 저장소 안의 `secret-env.sh`·복제 `auth.json`, Downloads의 시험 생성물
@@ -122,6 +122,16 @@
   기록했다. 정본:
   `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-V2-CODEX-REAUDIT-2026-07-31-ko.md`
 - 구현선이 동결 범위만으로 **계획 v3 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V3`).
+- 오너 B 결정(문서 왕복 종료, 심판을 코드로) 뒤, 위생 정리로 원복된 상태에서 구현선이
+  **최종 완결본을 한 파일로 완성했다**(지위 `FINAL_FOR_COMPLETENESS_AUDIT`, 90분 상자 안).
+  v3의 압축 참조를 전부 인라인 전개하고 v3 재감사의 동결 4건을 완결했다: ① replay 영수증-케이스
+  결합(caseInputDigest·requestDigest·outputDigest·저장소 조회 — 영수증 재사용 구조적 불가)
+  ② 실제 모델 호출 신분(connectionInstanceId·credentialRef·ModelSelection·응답 신분
+  responseIdentitySource, not_reported는 검증됨을 주장하지 않음) ③ 오너 principal 결합
+  (localOwnerPrincipalRef + connector binding store 조회, payload 위조 무효) ④ 한 파일
+  완결성(v1~v3·Git 과거본 참조 불요). 다음: Codex 완결성 1회 감사 → 오너 확인 1회 → 문서
+  단계 영구 종료, S0 구현 직진. 이후 보고는 코드 diff·수정 전 실패 반대시험·실제 사용자
+  시나리오 결과로만 한다.
   F1: 전 표면 공통 TurnRef(세션 내 단조 turnSeq)와 세션별 watermark 지도 — S0 신설.
   F2: 의미 검증기 대신 **구성적 결합** — auto 승격의 statement는 사용자 원문 인용 그 자체이며
   요약·확장은 확인 통로로 강등. F3: ReplayCase 스키마와 전이의 OS 가드(계보 실존·실행 receipt·
@@ -207,7 +217,7 @@
 
 ## 4. 현재 작업 상태
 
-- 현재 작업: 새 T-cell 개발계획 v3의 고정 종료 4건 반영과 오너 확인
+- 현재 작업: 새 T-cell 최종 계획(동결 4건 완결본)의 Codex 완결성 1회 감사와 오너 확인 1회
 - 현재 제품 코드 편집: 기억 민감정보 저장 경계만 좁게 보강 완료(`겸임 구현`, 독립 재감사 PASS)
   - 범위는 장기 기억 저장이다. 사용자 대화 원문 transcript는 현재 맥락 복원 계약대로 보존되며,
     범용 비밀 금고·transcript 마스킹 완료를 주장하지 않는다.
@@ -487,7 +497,7 @@
 ## 10. 새 세션 시작용 여섯 줄
 
 ```text
-현재 작업: 새 T-cell 개발계획 v3의 고정 종료 4건 반영과 오너 확인.
+현재 작업: 새 T-cell 최종 계획(동결 4건 완결본)의 Codex 완결성 1회 감사와 오너 확인 1회.
 이미 통과한 범위: 현재 T5 코어, P-OP-7, Automation AC-1, 인간 기준선과 비교군 1회 종결.
 현재 차단: F3 replay 결합 · F5 실제 호출 신분 · F6 웹/채널 오너 신분 결합 · 독립 실행 가능한 전체본.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.
