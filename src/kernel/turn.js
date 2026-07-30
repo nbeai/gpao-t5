@@ -18,6 +18,7 @@ import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { scopeKeyOf, selectPrinciples } from './l1-intent/principle-snapshot.js';
+import { normalizeStatement } from './l1-intent/statement-text.js';
 import { buildTurnFacts, grantKey, grantTargetOf } from './l1-intent/turn-facts.js';
 import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
@@ -281,6 +282,22 @@ const 실패trace = (stage) => ({
  *
  * 결과는 `result.principleTrace` 로만 나가고 모델·계획·실행에는 들어가지 않는다(주입은 TG-5B).
  */
+/**
+ * 정규식 신호와 모델 판단을 합친다 — **자동 반영은 둘이 같은 문장을 가리킬 때만.**
+ *
+ * · 사용자 발화에서 나왔다(출처) — 정규식이 사용자 문장에서 후보를 봤다.
+ * · 사용자가 그것을 선언했다(말귀) — 모델도 같은 문장을 기억 후보로 제출했다.
+ * 둘 중 하나뿐이면 후보로만 남는다. 질문·인용·부정은 모델이 선언으로 읽지 않으므로 여기서 걸린다.
+ * 정규식 목록을 늘려 의도를 판정하지 않는다(최상위 원칙).
+ */
+function 제안합치기(정규식제안, 모델제안) {
+  if (!모델제안) return 정규식제안;
+  if (!정규식제안) return 모델제안;
+  const 같은문장 = normalizeStatement(정규식제안.statement) === normalizeStatement(모델제안.statement);
+  if (!같은문장) return 모델제안;   // 모델이 다른 것을 봤다 — 그건 모델 제안이다
+  return { ...모델제안, source: 'user_declared' };
+}
+
 function 원리입장(ctx, ledger, { stage, intent, plan, sendArgs, memorySuggestion, awaiting }) {
   if (!ctx.principleSnapshotStore) return null;
   let trace;
@@ -532,7 +549,12 @@ async function runTurnInner(input, ctx) {
   // H(오너 감사 2026-07-29): **의미 포착은 모델이 한다.** 모델이 memory.propose 로 제출한 후보가
   // 우선이고, 아래 정규식(detectCandidate)은 모델이 도구를 못 고를 때(미연결·도구 미지원)의
   // 보조 신호로 내려간다. 후보는 어느 쪽이든 영향 0 — 반영은 사용자 확인 뒤에만(§5).
-  let memorySuggestion = detectCandidate(input.text ?? '');
+  // 정규식은 **깨우기 신호 하나**다(§0.1: 말귀를 정규식으로 되돌리지 않는다).
+  // 이 값만으로는 자동 반영하지 않는다 — 사용자가 "선언"했는지 "묻거나 인용"했는지는
+  // 정규식이 알 수 없다(실측: `「…가 좋아」라고 내가 말한 적 있어?` 가 선호로 저장됐다).
+  // 의도 판정은 아래에서 **모델의 `memory.propose`** 가 같은 문장을 내놓는지로 확인한다.
+  const 정규식제안 = detectCandidate(input.text ?? '');
+  let memorySuggestion = 정규식제안;
   // 2.0-C: "이거 쓸 수 있게 준비해줘" → 개인 도구 후보(자동 등록 아님). 원래 요청을 보존(복귀 경로).
   const toolCandidate = detectPersonalToolRequest(input.text ?? '');
 
@@ -590,7 +612,7 @@ async function runTurnInner(input, ctx) {
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
-    if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
+    memorySuggestion = 제안합치기(정규식제안, 분리.memorySuggestion);
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -917,7 +939,7 @@ async function runTurnInner(input, ctx) {
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
       // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
       const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
-      if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
+      memorySuggestion = 제안합치기(정규식제안, 분리멈춤.memorySuggestion);
     }
     return {
       kind: 'approval',
@@ -952,7 +974,7 @@ async function runTurnInner(input, ctx) {
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
-  if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
+  if (ctx.제안된기억) { memorySuggestion = 제안합치기(정규식제안, ctx.제안된기억); ctx.제안된기억 = undefined; }
   result.memorySuggestion = memorySuggestion;
   result.automationSuggestion = automationSuggestion;
   result.toolCandidate = toolCandidate;

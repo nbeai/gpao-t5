@@ -159,6 +159,11 @@ export function makeServer(deps = {}) {
   // (예전엔 진행 상태가 서버 수명의 Map 뿐이라, 관찰 append 뒤 추출 전에 끝나면 그 근거는
   //  새 서버가 다시 깨우지 않았다 — 조용한 유실. 감사 TG5-CX-02)
   const 부팅재개 = (async () => {
+    // **관찰이 하나도 없으면 아무것도 훑지 않는다.** 없는 것을 확인하는 비용도 비용이다
+    // (명세 §19). 이 짧은 차단이 없으면 서버가 뜰 때마다 세션 목록과 관찰 로그를 읽어,
+    // 성장 이력이 없는 설치·시험에서도 매번 값을 낸다(실측: 게이트 CPU +10s · 벽시계 +2s).
+    const { stat: 파일확인 } = await import('node:fs/promises');
+    try { await 파일확인(join(store.dir, 'growth', 'observations.jsonl')); } catch { return; }
     // 관찰 조회는 **범위(sessionId) 필수**다(명세 §6) — 그래서 세션 목록을 먼저 세션 저장소에서
     // 얻고, 세션마다 자기 관찰만 센다. 전역 훑기로 경계를 넘지 않는다.
     const 세션들 = await store.list?.({}) ?? [];
@@ -351,8 +356,15 @@ export function makeServer(deps = {}) {
         // 성장이 registry 를 바꿨으면 그 자리의 게시본을 **완성된 한 벌로 교체**한다(§10.2).
         await 게시({ project: cell.anchor?.project ?? null });
       }
-      // **처리 지점은 실제 처리 뒤에 전진한다.** 앞서 올리면 그 사이의 근거가 조용히 사라진다.
-      await growthCheckpoint.advance(sessionId, events.length);
+      // **전진은 실제로 처리한 만큼만.**(감사 TG5-CX-02 재현) 예전엔 점수 높은 묶음 하나만 돌리고
+      // 처리 지점을 `events.length` 까지 밀었다. 그래서 나머지 묶음은 재시작 뒤에도 **영구히**
+      // 건너뛰어졌다 — 전진한 만큼 처리하지 않은 것이다.
+      // 새 근거가 있는 묶음이 둘 이상이면 전진하지 않는다: 남은 묶음은 다음 깨움·재개에서 다시
+      // 잡혀야 한다. 재처리는 유실보다 낫고, 역행이 아니라 **전진 보류**다.
+      const 새근거참조 = new Set(새근거.flatMap((e) => e.receiptRefs ?? []));
+      const 새근거묶음수 = [...groups.values()]
+        .filter((obs2) => obs2.some((o) => (o.receiptRefs ?? []).some((r) => 새근거참조.has(r)))).length;
+      if (새근거묶음수 <= 1) await growthCheckpoint.advance(sessionId, events.length);
       return { decision: r.decision, stored: Boolean(cell), group: key, wake: w, relation: r.relation ?? null };
     } finally {
       칸.running = false;

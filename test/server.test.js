@@ -184,26 +184,31 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
 // 없었다 — 로컬 저장이고, 되돌리기·영수증·"반영 중 기억" 표면이 이미 있고, 기억은 권한이 아니다.
 // 절대원칙 §0-A-2: 어느 경계를 지키는지 설명할 수 없는 확인은 마찰 회귀다.
 // **보장은 사라지지 않았다.** 자리가 바뀌었을 뿐이다: 사전 승인 → 사후 교정(되돌리기).
-test('명시한 가역 선호는 카드 없이 바로 반영되고, 되돌릴 수 있다', async () => {
+test('말귀 확인이 없으면 선호는 후보로만 남는다(자동 반영은 두 사실이 겹칠 때만)', async () => {
+  // §12 자동 반영의 조건은 **출처 + 말귀** 둘이다(감사 TG5-CX-01):
+  //   · 사용자 문장에서 나왔다 — 정규식이 사용자 발화에서 후보를 봤다.
+  //   · 사용자가 그것을 선언했다 — 모델도 같은 문장을 기억 후보로 읽었다.
+  // 여기 스텁 모델은 통제 호출을 하지 않으므로 **말귀 확인이 없다.** 그러면 후보로 남는 것이
+  // 계약이다 — 그래야 `「…가 좋아」라고 내가 말한 적 있어?` 같은 질문이 장기 기억이 되지 않는다.
+  // 두 사실이 겹쳤을 때 실제로 자동 반영되는 관통은 `tcell-audit-closure` 의 TG5-CX-01 이 증명한다.
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
     const t = await (await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' })).json();
-    // ① 카드가 없다 — 같은 내용을 다시 묻지 않는다.
-    assert.equal(t.memorySuggestion, undefined, '직접 말한 선호를 카드로 다시 물었다');
-    // ② 무엇이 반영됐는지는 숨기지 않는다.
-    assert.ok(t.memoryAutoApplied?.statement, '무엇을 기억했는지 사용자에게 말하지 않았다');
-    assert.equal(t.memoryAutoApplied.rollbackable, true, '되돌릴 수 없는 것을 자동 반영했다');
-    // ③ 실제로 반영돼 있고 후보로 남아 있지 않다.
+    assert.equal(t.memoryAutoApplied, undefined, '말귀 확인 없이 자동 반영됐다');
     const m1 = await getj(base, '/memory');
-    assert.equal(m1.promoted.length, 1, '말한 대로 반영되지 않았다');
-    assert.equal(m1.candidates.length, 0);
-    // ④ **사후 교정** — 사용자가 언제든 되돌린다. 자동성을 지키는 것은 승인이 아니라 이것이다.
-    const back = await (await post(base, '/memory/rollback', { candidateId: m1.promoted[0].candidateId })).json();
-    assert.equal(back.ok, true, `되돌리기가 실패했다: ${JSON.stringify(back)}`);
+    assert.equal(m1.promoted.length, 0, '확인 없이 승격됐다');
+    assert.equal(m1.candidates.length, 1);
+    assert.equal(m1.candidates[0].kind, 'preference');
+    // 사용자가 눌러서 확인하면 승격되고, 되돌릴 수도 있다(사후 교정은 그대로 산다).
+    const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
+    assert.equal(r.ok, true);
     const m2 = await getj(base, '/memory');
-    assert.equal(m2.promoted.length, 0, '되돌렸는데 반영이 남아 있다');
+    assert.equal(m2.promoted.length, 1);
+    const back = await (await post(base, '/memory/rollback', { candidateId: m2.promoted[0].candidateId })).json();
+    assert.equal(back.ok, true, `되돌리기가 실패했다: ${JSON.stringify(back)}`);
   });
 });
+
 
 // P6-1 핵심 안전: 운영원리는 confirm 시 replay 게이트를 거쳐야 승격된다(replay 전 행동 영향 0).
 test('운영원리는 replay 게이트를 통과해야 승격된다', async () => {

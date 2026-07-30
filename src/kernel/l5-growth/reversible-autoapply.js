@@ -36,7 +36,12 @@ export function autoApplicable(entry, ctx = {}) {
   // **"명시했다"는 상수로 선언하지 않는다**(감사 TG5-CX-01). 예전엔 호출자가 `explicit: true` 를
   // 그냥 넘겼고, 그래서 모델이 `memory.propose` 로 지어낸 선호까지 사용자가 말한 것으로 취급돼
   // 장기 기억에 자동 반영됐다. 이제 **기록된 출처**만 명시로 인정한다 — 모르면 명시가 아니다.
-  if (entry.source !== 'user_utterance') return { ok: false, reason: 'not_user_utterance' };
+  // 출처가 사용자 발화라는 것만으로는 부족하다 — 그 발화가 **선언**이어야 한다.
+  // 실측(감사 TG5-CX-01): `「보고서는 항상 글로 받는 게 좋아」라고 내가 말한 적 있어?` 는
+  // 사용자 발화이고 정규식도 걸리지만 **묻는 말**이다. 그게 장기 기억이 됐다.
+  // 그래서 `user_declared` 만 인정한다 — 사용자 문장에서 나왔고(출처) 모델도 같은 문장을
+  // 기억 후보로 읽었다(말귀). 정규식 목록을 늘려 의도를 판정하지 않는다.
+  if (entry.source !== 'user_declared') return { ok: false, reason: 'not_user_declared' };
   const 문장 = typeof entry.statement === 'string' ? entry.statement.trim() : '';
   if (!문장) return { ok: false, reason: 'empty_statement' };
   // 비밀·민감은 자동 영향 금지(§12 금지 1항). 카드로 올리지도 않는다 — 그냥 담지 않는다.

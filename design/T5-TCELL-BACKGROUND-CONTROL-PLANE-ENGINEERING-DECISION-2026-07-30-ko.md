@@ -31,7 +31,7 @@ T-cell은 뒤에서 관찰·추출·replay·승격·효과 감사를 수행하�
   → 세션별 직렬 성장 큐
   → 모델 추출
   → replay case 생산·검증
-  → M1 → M2/M3 전이
+  → M1 → M2 이상 전이
   → effect audit / rollback
   → 범위별 불변 게시 스냅샷 교체
 ```
@@ -263,7 +263,7 @@ T5의 우위는 더 많이 멈추는 데 있지 않다. 명시 지시는 즉시 
    - 다른 provider의 auxiliary model: 구조화 EvidenceBundle 또는 digest만 보낸다. 원문 전송은
      별도 사용자 선택 없이는 금지한다.
    - local model: 같은 로컬 데이터 경계 안에서 bounded 원문 사용 가능.
-6. M1 → replay case → verified packet → `transitionCell()` → M2/M3가 하나의 생산 계보로 이어진다.
+6. M1 → replay case → verified packet → `transitionCell()` → M2 이상이 하나의 생산 계보로 이어진다.
 7. 승격 뒤 scope별 게시 스냅샷을 원자 교체한다.
 8. effect audit가 정확도와 마찰을 함께 보고 softened/rollback을 수행한다.
 9. active budget 초과는 삭제가 아니라 archive/compaction 제안으로 처리한다.
@@ -277,7 +277,7 @@ TG-0~4를 폐기하지 않는다. 지금 만든 계약을 아래 생산 계보�
 2. background worker의 session/tool/persistence 격리.
 3. replay case 생산자와 `transitionCell()` 소비자를 실제 계보에 연결.
 4. `importLegacyMemory()`를 1회성 migration 경계에 연결.
-5. M2/M3만 포함하는 scope별 immutable 게시 스냅샷 생산.
+5. 게시 자격을 얻은 성숙도(M2 이상 · §10.1)만 포함하는 scope별 immutable 게시 스냅샷 생산.
 6. 사용자 턴의 `buildAdmissionSnapshot()` durable I/O를 제거하고 게시 스냅샷 참조로 교체.
 7. TG-5A shadow에서 실제 `admittedPrinciples`를 모델 volatile context에 주입.
 8. “배운 방식” 사용자 표면에서 원리 보기·수정·고정·일시정지·범위 축소·되돌리기·복원.
@@ -367,9 +367,14 @@ PublishedPrincipleSnapshot = {
 불변식:
 
 - `principles`는 **전경 세 역할 중 하나라도 허용하는 성숙도**의 원리 중 현재 scope에 입장 가능한
-  항목 최대 5개다. M0/M1은 게시하지 않는다. M2/M3/M4/M5는 역할 판정상 하나 이상의 역할에서
-  허용될 때 게시할 수 있다 — `M2/M3`는 최소 게시 가능 성숙도의 **예시이지 상한이 아니다**
-  (오너 확정 2026-07-30 · 감사 TG5-CX-06). 이 집합은 손으로 적지 않고 영향 상한 계약에서 유도한다.
+  항목 최대 5개다. M0/M1은 게시하지 않는다. M2 이상은 역할 판정상 하나 이상의 역할에서 허용될 때
+  게시할 수 있다 — 이 절의 다른 곳에 나오는 `M2/M3`는 **최소 게시 가능 성숙도의 예시**이며 상한이
+  아니다. 집합은 손으로 적지 않고 영향 상한 계약(`influenceCeilingFor`)에서 유도한다.
+
+  **근거의 지위**(감사 TG5-CX-06 정정): 이 확장은 2026-07-30 세션 대화에서 오너가 판단한 것이고,
+  이 문서 밖에 기록된 근거는 없다. 그래서 앞선 판에서 "오너 확정"이라고만 적은 것은 근거 없는
+  권위 인용이었다 — **정정한다.** 정본으로 굳히는 것은 Codex 통합선의 확인 뒤이며, 그때까지 이
+  문구는 구현이 따르고 있는 **현재 규칙의 기록**이다. 아래 §6·§7의 `M2/M3` 표현도 같은 뜻이다.
 - A2/A3 권한·새 외부 대상·비밀 원문·사용자 원문·모델 자격은 싣지 않는다.
 - 객체와 내부 배열은 게시 전에 동결하고, 게시 뒤 제자리 수정하지 않는다.
 - 같은 scope의 새 revision은 **완성된 한 벌을 원자 교체**한다. 부분 갱신은 없다.
@@ -389,7 +394,7 @@ Observation append 성공
 
 다음 사건에서만 새 revision을 게시한다.
 
-- M2/M3 진입 또는 내용·범위·role 변경
+- 게시 자격 성숙도(M2 이상) 진입 또는 내용·범위·role 변경
 - pause·rollback·archive·restore
 - 사용자 수정·고정·범위 축소
 - 시작 시 background bootstrap이 durable registry를 복원한 뒤
