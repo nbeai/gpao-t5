@@ -376,6 +376,7 @@ export async function runTurn(input, ctx) {
     const tc = earlyTc = buildTaskContext({
       externalReality: ctx.externalReality,
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
+      carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
       surface: ctx.surface,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
@@ -856,6 +857,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     blocked: ladder ? rungMessage(ladder) : undefined,
   }), ctx.connectors);
   let tc = buildTaskContext({
+      carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
     externalReality: ctx.externalReality,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
@@ -943,6 +945,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       steps += 1;
       workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
       tc = buildTaskContext({
+      carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
         externalReality: ctx.externalReality,
         intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
         surface: ctx.surface, recentTurns: ctx.recentTurns,
@@ -1090,6 +1093,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
     workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
     tc = buildTaskContext({
+      carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       externalReality: ctx.externalReality,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
       surface: ctx.surface, recentTurns: ctx.recentTurns,

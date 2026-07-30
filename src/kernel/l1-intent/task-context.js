@@ -210,6 +210,9 @@ export function buildTaskContext(p) {
     now: p.now ?? nowFacts(),
     selfStateFacts,
     admittedContext: p.admittedContext ?? [],
+    // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). 사실 나열이며 지시가 아니다 —
+    // "아까 그거"가 무엇인지는 모델이 이 사실 위에서 판단한다. 후보가 여럿이면 여럿 그대로.
+    carryableWork: p.carryableWork ?? [],
     authorityFacts,
     answerMode: intent.answerMode,
     // 방법·언어는 모델에 열어둔다(§10.2). 이 문자열은 지시문이 아니라 규칙 표식이다.

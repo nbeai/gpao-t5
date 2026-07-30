@@ -24,7 +24,7 @@
 ## 0-A. 현재 최우선 실행 상태
 
 - 비교 계측기 준비와 유료 회차 1은 종료됐다. 현재 상태는
-  `TCELL_IMPL_S2_SUBMITTED / AWAITING_SLICE_AUDIT`이다.
+  `TCELL_IMPL_S3_SUBMITTED / AWAITING_SLICE_AUDIT`이다.
 - **작업장 위생 정리(2026-07-31)**: 비교 결과의 판정·요약 문서는 Git에 보존하되,
   `scripts/compare-live/{hm-run-1,oc-run-1,INVALID-*,preflight}` 원시 실행 홈(약 1.8GB,
   75,000파일)과 저장소 안의 `secret-env.sh`·복제 `auth.json`, Downloads의 시험 생성물
@@ -134,6 +134,22 @@
   검증: 전용 반대시험 15/15(수정 전 7건 실패 실측), 돌연변이 4종(원문 대조·인용 결합·
   speechAct·저장 정직성)에서 각각 1~4건 실패하고 복원 시 전량 통과, 전체 회귀 **1,265/0**,
   `audit:docs`·`audit:workspace`·gate PASS(CPU 22.6s).
+- **S3(대화 경계 승계) 구현 제출.** 봉인 기준선에서 3/3 실패하고 비교군 두 제품도 못 한
+  H05 "아까 그 최종본 이어서 정리해줘"가 **라이브 3/3 승계 성공**(되물음 0, 원시 경로 노출 0).
+  세션에 저장된 `carryableWork` 로 lane 이 실제 공급됐음을 확인했다 — 모델이 스스로 폴더를
+  뒤진 것이 아니라 OS 가 사실을 먼저 놓았다.
+  - lane 은 성공한 receipt 에서만 파생하고, scope 는 principalRef(로컬 오너 상수 / 채널은
+    허용목록 binding)·workspaceRef(허용 루트 상대화)·artifactRefs(경로+내용 digest)로 갈린다.
+    `activeGoal` 은 `assumedLabel` 로만 부기한다. 후보가 둘이면 둘 다 사실로 나열하고 OS 가
+    고르지 않는다. 사실 문장에 내부 ID·원시 경로·digest 는 넣지 않는다.
+  - **첫 라이브에서 lane 이 3회 모두 아무것도 공급하지 않았다** — 검사 픽스처가 제품이 만들지
+    않는 `receipt.artifact` 필드를 지어냈기 때문이다. 파생과 픽스처를 실제 형태(`result.path`)로
+    맞춘 뒤 재측정에서 3/3 성공했다. 라이브가 아니면 못 잡을 결함이라 증거에 그대로 남겼다.
+  - 계약 검사 18건(수정 전 전부 실패), 반증 3종에서 각각 1~2건 실패·복원 시 전량 통과,
+    전체 회귀 **1,306/0**, `audit:docs`·`audit:workspace` PASS. 남은 한계 2건은 증거 §5.
+    증거: `docs/03-verification/evidence/human-baseline/S3-LANE-2026-07-31-ko.md`
+- **S2 감사 판정: `PASS`(2026-07-31, `9c93f5d`).** 같은 tick 안의 상호 실패 격리, 실패의
+  정직한 보고, 사용자 턴 무영향, 소스 텍스트 복구, 전용 검사 21/21, S3 선행 구현 0 확인.
 - **S2(응답 뒤 관찰 shadow) 구현 제출.** 사용자 체감 기능 0, 모델 호출 0, 프롬프트 영향 0.
   범위는 observation·bundle 까지이며 candidate·replay·admitted·성장 호출은 구현하지 않았다.
   - 구조 증명: 턴 경로(`runAndPersistTurn`·`runChannelInboundTurn`)에 관찰 코드 **0줄**.
@@ -287,7 +303,7 @@
 
 ## 4. 현재 작업 상태
 
-- 현재 작업: T-cell S2(응답 뒤 관찰 shadow) 구현 제출과 슬라이스 감사
+- 현재 작업: T-cell S3(대화 경계 승계) 구현 제출과 슬라이스 감사
 - 현재 제품 코드 편집: 기억 민감정보 저장 경계만 좁게 보강 완료(`겸임 구현`, 독립 재감사 PASS)
   - 범위는 장기 기억 저장이다. 사용자 대화 원문 transcript는 현재 맥락 복원 계약대로 보존되며,
     범용 비밀 금고·transcript 마스킹 완료를 주장하지 않는다.
@@ -567,10 +583,10 @@
 ## 10. 새 세션 시작용 여섯 줄
 
 ```text
-현재 작업: T-cell S2(응답 뒤 관찰 shadow) 구현 제출과 슬라이스 감사.
+현재 작업: T-cell S3(대화 경계 승계) 구현 제출과 슬라이스 감사.
 이미 통과한 범위: 현재 T5 코어, P-OP-7, Automation AC-1, 인간 기준선과 비교군 1회 종결, T-cell S0.
-현재 차단: 없음. S1은 PASS_WITH_RECORDED_LIMIT로 닫혔다.
+현재 차단: 없음. S2는 `9c93f5d` 기준 PASS.
 지정 후속: T-cell 성공 뒤 스킬·크론·에이전트·자동화, 마지막 전체 제품 다듬기.
 원인 미분류 관찰: 없음. 낮은 부하 공식 gate CPU 22.9s로 환경 변동 분리 완료.
-다음 작업과 종료 조건: S2 감사 → 통과 시 S3(대화 경계 승계) 구현.
+다음 작업과 종료 조건: S3 감사 → 통과 시 S4(반복 학습·실질 replay) 구현.
 ```

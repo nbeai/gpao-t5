@@ -83,6 +83,9 @@ export class SessionStore {
       manualTitle: false, pinned: false, archivedAt: null, deletedAt: null, groupId: null,
       // 어디서 시작된 대화인가 — 메신저에서 온 대화는 목록에서 구분되어야 한다(오너 지적).
       origin: meta.origin ?? null,
+      // S3 · 누구의 작업인가(§4.7). 승계는 이 신분이 같을 때만 공급된다. payload 가 주장하는
+      // 값이 아니라 **생성 시점에 서버가 정한 값**만 남는다(위조 무효).
+      principalRef: meta.principalRef ?? null,
     };
     await writeAtomic(this._path(session.id), JSON.stringify(session));
     return session;

@@ -111,6 +111,8 @@ export function buildModelMessages(tc) {
   if (tc.now?.local) sys.push(`[지금] ${tc.now.local}`);
 
   const usr = [];
+  // 이어받을 수 있는 작업이 있으면 사실로 놓는다. 어느 것을 이어받을지는 모델이 정한다.
+  if (tc.carryableWork?.length) usr.push(`[다른 대화에서 이어받을 수 있는 작업]\n${tc.carryableWork.map((c) => `- ${c}`).join('\n')}`);
   if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);
   if (tc.evidenceFacts?.length) {
     usr.push(`[이번 턴 실행 사실]\n${tc.evidenceFacts

@@ -55,6 +55,8 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
+import { defaultFileRoots } from '../runtime/file-scope.js';
+import { deriveLanes, carryableLanes, laneFacts } from '../kernel/l5-growth/tcell-lane.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -134,6 +136,34 @@ export function makeServer(deps = {}) {
     reason: 'sensitive_value',
     stored: false,
   });
+
+  // S3 · 이 설치의 로컬 오너 신분(§4.7). 로컬 설치는 사용자 한 명이라는 사실을 상수로 새긴다 —
+  // 웹 표면에 사용자 신분이 없다는 공백을 없앤다. 채널 계정은 connector binding 이 있을 때만
+  // 같은 오너로 해석한다(그 결정은 이미 오너가 한 것이다 — 매 턴 다시 묻지 않는다).
+  // 이 대화에 공급할 "이어받을 수 있는 작업" 사실. 성공한 receipt 에서만 파생하고,
+  // 같은 principal·다른 대화·TTL 안의 것만 남긴다. 모델 호출 0.
+  async function 이어받을작업(session) {
+    if (!session?.principalRef) return [];
+    try {
+      const all = await store.loadAll();
+      // 파일 산출물의 workspace 신분은 **파일 손이 실제로 허용한 루트** 기준으로만 만든다.
+      const lanes = deriveLanes(all, { roots: defaultFileRoots(env ?? process.env), includeResponses: true });
+      return laneFacts(carryableLanes(lanes, {
+        principalRef: session.principalRef, sessionId: session.id, now: Date.now(),
+      }));
+    } catch { return []; } // 승계는 편의다 — 실패해도 대화를 막지 않는다
+  }
+
+  const LOCAL_OWNER = 'local-owner';
+  async function principalFor(msg) {
+    if (!msg?.channel) return LOCAL_OWNER;
+    // 채널 사용자 → 오너 연결은 허용목록에 남은 결정으로만 해석한다. payload 주장은 무효다.
+    try {
+      const allowed = await allowlistStore.list(msg.channel);
+      const hit = (allowed ?? []).find((a) => a.userId && a.userId === msg.userId);
+      return hit ? LOCAL_OWNER : null;
+    } catch { return null; }
+  }
 
   const 기억손상안내 = '기억 저장소에 문제가 있어 복구 전까지 새 기억을 반영하지 않아요.';
 
@@ -296,6 +326,9 @@ export function makeServer(deps = {}) {
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
       recentTurns: recentTurns(session.transcript ?? []),
+      // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). **사실만 나열한다** — 무엇을 이어받을지는
+      // 모델이 정한다. 같은 대화는 recentTurns 가 이미 잇고, 다른 사용자 것은 오지 않는다.
+      carryableWork: session.carryableWork ?? [],
       newId: () => randomUUID(), now: () => Date.now(),
     };
   }
@@ -334,6 +367,7 @@ export function makeServer(deps = {}) {
     const hasText = typeof input.text === 'string' && input.text.trim();
     const memory = await memStore.load();
     const learning = await traceStore.load();
+    session.carryableWork = await 이어받을작업(session);
     const ctx = ctxForSession(session, memory);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
     ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
@@ -637,7 +671,7 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, { ok: true, id: restored.id, userSafeSummary: '대화를 되돌렸어요.' });
       }
       if (req.method === 'POST' && url === '/sessions') {
-        const s = await store.create();
+        const s = await store.create(undefined, { principalRef: LOCAL_OWNER });
         return sendJson(res, 200, { id: s.id, title: s.title });
       }
       if (req.method === 'GET' && url.startsWith('/sessions/')) {
@@ -1627,7 +1661,10 @@ export function makeServer(deps = {}) {
       if (bound && await store.load(bound)) return bound;
       // 이 방의 첫 메시지(또는 이어가던 대화가 사라졌다) → 새 대화를 만들어 묶는다.
       const label = (deps.channels ?? demoChannels()).find((c) => c.id === msg.channel)?.label ?? msg.channel;
-      const created = await store.create(`${label} 대화`, { origin: { channel: msg.channel, chatId: msg.chatId } });
+      const created = await store.create(`${label} 대화`, {
+        origin: { channel: msg.channel, chatId: msg.chatId },
+        principalRef: await principalFor(msg), // binding 이 있는 계정만 오너로 해석(없으면 null)
+      });
       await bindings.set(msg.channel, msg.chatId, created.id);
       return created.id;
     });
