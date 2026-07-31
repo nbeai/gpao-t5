@@ -71,6 +71,7 @@ function 회차반응모델() {
           && (q.includes('forbidden_fact_occurred') || q.includes('negative:'));
         return JSON.stringify({ statement: 앞실패봤나 ? 좁은원리 : 넓은원리, cases: 사례들 });
       }
+      if (q.includes('사례 유효성')) return '{"invalid":[]}'; // 유효성 게이트(H02 성과 계열) — 이 대역의 사례는 전부 실물이다
       if (q.includes('이번 답에 한해 적용할 원리')) {
         const 제외있음 = q.includes('다른 형식을 지정하면');
         const 사용자가지정 = q.includes('문장 요약');

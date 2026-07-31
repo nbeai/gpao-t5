@@ -61,16 +61,27 @@ const 제안 = (over = {}) => JSON.stringify({
  * 대본대로 답하는 모델. **무엇을 물었는지·도구를 줬는지**를 함께 기록한다 —
  * 성장 호출이 손을 쓰지 않는다는 사실은 이 기록으로만 확인할 수 있다.
  */
-function 대본모델({ 제안본문 = 제안(), 판정 = () => '{"pass":true,"rationale":"기대 사실을 지켰다"}', 답 = () => '짧은 목록으로 정리했습니다.', 신분값 = 신분 } = {}) {
+function 대본모델({
+  제안본문 = 제안(),
+  // 사례 유효성 점검(H02 성과 계열): 기본은 전부 유효. 시험이 무효를 대본으로 준다.
+  유효성 = () => '{"invalid":[]}',
+  판정 = () => '{"pass":true,"rationale":"기대 사실을 지켰다"}',
+  답 = () => '짧은 목록으로 정리했습니다.',
+  신분값 = 신분,
+} = {}) {
   const calls = [];
+  let 판정수 = 0;
   const modelFor = (role) => ({
     async respond(tc, opts = {}) {
       const n = calls.length;
-      calls.push({ role, request: tc.currentRequest, tools: opts.tools ?? null, maxTokens: opts.maxTokens ?? null });
+      const req = String(tc.currentRequest ?? '');
+      calls.push({ role, request: req, tools: opts.tools ?? null, maxTokens: opts.maxTokens ?? null });
       opts.onCallIdentity?.(신분값(n));
-      if (n === 0) return 제안본문;
-      // 홀수 = replay 실행, 짝수 = 판정(제안 1건을 뺀 뒤 두 칸씩)
-      return (n - 1) % 2 === 0 ? 답(n) : 판정(n);
+      // **내용으로 가른다** — 호출 순서가 바뀌어도(유효성 점검 삽입 등) 대본이 어긋나지 않는다.
+      if (req.includes('운영 원리 후보')) return 제안본문;
+      if (req.includes('사례 유효성')) return 유효성(n);
+      if (req.includes('기대 사실:')) { 판정수 += 1; return 판정(판정수); }
+      return 답(n);
     },
   });
   return { modelFor, calls };
@@ -168,8 +179,8 @@ test('S4: 한 tick 은 계획 상한(≤2)만 쓰고, 나머지는 다음 tick �
   const { modelFor, calls } = 대본모델();
   const { 기록 } = await 끝까지({ memStore, modelFor });
 
-  assert.equal(calls.length, 11, '제안 1 + (실행·판정)×5');
-  assert.ok(기록.length >= Math.ceil(11 / GROW_CAPS.callsPerTick), '여러 tick 에 걸쳐 돈다');
+  assert.equal(calls.length, 12, '제안 1 + 사례 유효성 1 + (실행·판정)×5');
+  assert.ok(기록.length >= Math.ceil(12 / GROW_CAPS.callsPerTick), '여러 tick 에 걸쳐 돈다');
   assert.equal(기록.filter((r) => r.calls > GROW_CAPS.callsPerTick).length, 0);
   assert.ok(마지막원리(await memStore.load()), '여러 tick 뒤에 후보가 선다');
 });
@@ -204,13 +215,14 @@ test('S4: 중간에 끊겨도 이미 실행한 케이스를 다시 부르지 않
   const memStore = await 준비();
   const { modelFor, calls } = 대본모델();
   await growTick({ memStore, modelFor, now: 100_000 });   // 제안
+  await growTick({ memStore, modelFor, now: 100_500 });   // 사례 유효성
   await growTick({ memStore, modelFor, now: 101_000 });   // 첫 케이스
   const 중간호출 = calls.length;
   const 중간영수증 = (await memStore.load()).replayReceipts.length;
   assert.ok(중간영수증 >= 1, '케이스 하나의 증거가 이미 저장돼 있다');
 
   const { 기록 } = await 끝까지({ memStore, modelFor, 시작: 102_000 });
-  assert.equal(calls.length, 11, '앞의 호출을 되풀이하지 않고 나머지만 부른다');
+  assert.equal(calls.length, 12, '앞의 호출을 되풀이하지 않고 나머지만 부른다');
   assert.ok(중간호출 < calls.length);
   assert.equal(기록[기록.length - 1].action, 'finish');
 });
@@ -264,9 +276,9 @@ test('S4: 통과한 원리는 사용자가 확인해야 입장한다(확인하�
 // ── 불통과 경로 ────────────────────────────────────────────────────────────
 test('S4: 금지 사실이 나온 negative 케이스가 있으면 통과가 아니다', async () => {
   const memStore = await 준비();
-  // 호출 순서: 0 제안 · (1,2)=case0 · (3,4)=case1 · (5,6)=case2(negative).
+  // 판정 대본은 서수다: 1=case0 · 2=case1 · 3=case2(negative).
   const { modelFor } = 대본모델({
-    판정: (n) => (n === 6 ? '{"pass":false,"rationale":"금지 사실이 나왔다"}' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k) => (k === 3 ? '{"pass":false,"rationale":"금지 사실이 나왔다"}' : '{"pass":true,"rationale":"ok"}'),
   });
   const { 기록 } = await 끝까지({ memStore, modelFor });
   assert.equal(기록[기록.length - 1].pass, false);
@@ -302,7 +314,7 @@ test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안 
 test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 불가는 통과가 아니다)', async () => {
   const memStore = await 준비();
   const { modelFor } = 대본모델({
-    판정: (n) => (n === 2 ? '음… 판단이 어렵네요.' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k) => (k === 1 ? '음… 판단이 어렵네요.' : '{"pass":true,"rationale":"ok"}'),
   });
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
@@ -681,7 +693,9 @@ test('S4: 같은 job 을 두 tick 이 동시에 집지 않는다(빌림 표식)'
   놓아주기();
   const r = await 첫;
   assert.equal(r.action, 'propose');
-  assert.equal((await memStore.load()).growJobs[0].state, 'running');
+  const 반영된 = (await memStore.load()).growJobs[0];
+  assert.equal(반영된.state, 'proposing');
+  assert.ok(반영된.초안, '제안이 초안으로 반영됐다(사례 유효성 점검 대기)');
 });
 
 test('S4: 지나간 시도의 반영은 무시된다(재시작 뒤 뒤늦은 쓰기가 상태를 덮지 않는다)', async () => {
@@ -791,14 +805,15 @@ test('S4: 예산이 모자라 못 물어본 판정은 다음 tick 이 다시 묻
   const 하루 = 86_400_000;
   const 지금 = 하루 * 30_000 + 5_000;
   const m = await memStore.load();
-  // 오늘 남은 예산 2회: 제안 1 + 실행 1 → 판정은 못 묻는다.
-  m.growBudget = { day: Math.floor(지금 / 하루), used: GROW_CAPS.callsPerDay - 2 };
+  // 오늘 남은 예산 3회: 제안 1 + 유효성 1 + 실행 1 → 판정은 못 묻는다.
+  m.growBudget = { day: Math.floor(지금 / 하루), used: GROW_CAPS.callsPerDay - 3 };
   await memStore.save(m);
 
   const { modelFor, calls } = 대본모델();
   await growTick({ memStore, modelFor, now: 지금 });          // 제안(1)
+  await growTick({ memStore, modelFor, now: 지금 + 500 });    // 사례 유효성(1)
   await growTick({ memStore, modelFor, now: 지금 + 1_000 });  // 실행(1) — 판정은 예산 없음
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   const 중간 = (await memStore.load()).growJobs[0];
   const 미판정 = 중간.cases.find((c) => c.phase === 'ran');
   assert.ok(미판정, '판정을 못 물어본 케이스는 ran 으로 남는다');
@@ -868,11 +883,13 @@ test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지
         return '{"pass":true,"rationale":"ok"}';
       }
       if (q.includes('이번 답에 한해 적용할 원리')) return '답';
+      if (q.includes('사례 유효성')) return '{"invalid":[]}';
       return 제안();
     },
   });
 
   await growTick({ memStore, modelFor, now: 100_000 });                 // 제안
+  await growTick({ memStore, modelFor, now: 100_500 });                 // 사례 유효성
   const r = await growTick({ memStore, modelFor, now: 101_000 });       // 실행 성공 + 판정 실패
   assert.equal(r.reason, 'call_failed');
 
@@ -893,7 +910,7 @@ test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지
 // ── 감사 지시 3: 다음 회차가 **더 나은** 원리를 낼 수 있는 구조인가 ────────
 test('S4: 다음 회차는 앞 회차의 실패를 보고 제안한다(재추첨이 아니다)', async () => {
   const memStore = await 준비();
-  const 실패 = 대본모델({ 판정: (n) => (n === 6 ? '{"pass":false,"rationale":"표를 강요했다"}' : '{"pass":true,"rationale":"ok"}') });
+  const 실패 = 대본모델({ 판정: (k) => (k === 3 ? '{"pass":false,"rationale":"표를 강요했다"}' : '{"pass":true,"rationale":"ok"}') });
   const { now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
   assert.equal((await memStore.load()).growJobs[0].state, 'retry_pending');
 
@@ -952,7 +969,7 @@ test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때
 
   // 1회차: negative 에서 과잉 적용(라이브에서 실제로 난 모양).
   const 넓은원리 = 대본모델({
-    판정: (n) => (n === 6 ? '{"pass":false,"rationale":"표 대신 문장 요약을 원했는데 표로 냈다"}' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k) => (k === 3 ? '{"pass":false,"rationale":"표 대신 문장 요약을 원했는데 표로 냈다"}' : '{"pass":true,"rationale":"ok"}'),
   });
   const { now } = await 끝까지({ memStore, modelFor: 넓은원리.modelFor });
   const 첫후보 = 마지막원리(await memStore.load());
@@ -1057,6 +1074,156 @@ test('S4: 묶음이 사라진 job 은 종단이다(회차를 헛되이 태우지
   assert.equal(job.failures, 0, '호출 실패로 세지 않는다');
 });
 
+// ── H02 성과 계열 · 사례 유효성 — 자료 실물 없는 사례가 좋은 원리를 소진시키지 않는다 ──
+//
+// 봉인 6회 실측(2026-08-01): 실패 3회의 실패 사례 16건 중 11건이 같은 모양이었다 —
+// inputFacts 가 "사용자가 수치를 제시했다"라고 **서술만** 하고 실제 수치·원문을 담지 않아,
+// expectedFacts(표·계산)를 어떤 답으로도 달성할 수 없었다. 실행 모델은 정직하게 수치를
+// 되묻거나("실제 수치를 알려줘야 해") 메타 답("원리에 해당한다")을 냈고, 판정은 그것을
+// 원리의 실패로 계산해 좋은 원리가 소진됐다. 사례 자체의 유효성과 원리의 실패는 다른 사실이다.
+
+/** 실물 없는 무효 사례 하나를 앞에 끼운 제안(나머지는 정상 표본). */
+const 무효섞인제안 = () => 제안({
+  cases: [
+    { kind: 'positive', inputFacts: ['사용자가 7~10월 수치를 모두 제시했다'], expectedFacts: ['7~10월 표를 만든다', '각 달 이익을 계산한다'], forbiddenFacts: ['수치를 줄글로만 나열한다'] },
+    { kind: 'positive', inputFacts: ['8월 지출을 정리해달라고 했다'], expectedFacts: ['짧은 목록으로 정리한다'], forbiddenFacts: ['표로 정리한다'] },
+    { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['요청대로 표로 준다'], forbiddenFacts: ['목록을 강요한다'] },
+    { kind: 'boundary', inputFacts: ['정리가 아니라 계산을 요청했다'], expectedFacts: ['계산을 한다'], forbiddenFacts: ['목록 정리로 바꾼다'] },
+    { kind: 'boundary', inputFacts: ['한 줄 답이면 되는 질문이다'], expectedFacts: ['한 줄로 답한다'], forbiddenFacts: ['목록을 만든다'] },
+  ],
+});
+const 무효답 = '{"invalid":[{"index":0,"reason":"inputFacts 에 실제 수치가 없는데 표·계산을 요구한다"}]}';
+
+async function 틱들(deps, 횟수, 시작 = 100_000) {
+  const 결과 = [];
+  for (let i = 0; i < 횟수; i += 1) 결과.push(await growTick({ ...deps, now: 시작 + i * 1_000 }));
+  return 결과;
+}
+
+test('S4·H02: 무효 사례는 실행되지 않고, 재제안이 무효 사유를 듣는다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({
+    제안본문: 무효섞인제안(),
+    유효성: () => 무효답,
+  });
+  await 틱들({ memStore, modelFor }, 2); // 제안 → 유효성 점검
+  assert.equal(calls.filter((c) => c.request.includes('[이번 답에 한해 적용할 원리]')).length, 0,
+    '무효 사례가 유효 사례로 실행됐다');
+  const m = await memStore.load();
+  assert.equal(m.growJobs[0].state, 'proposing', '무효 발견은 같은 회차 안의 재제안으로 이어져야 한다');
+  assert.equal(m.growJobs[0].nextAttemptAt, 0, '시간 대기로 바뀌면 안 된다');
+  await 틱들({ memStore, modelFor }, 1, 102_000); // 재제안
+  const 제안들 = calls.filter((c) => c.request.includes('운영 원리 후보'));
+  assert.equal(제안들.length, 2, '재제안이 나가지 않았다');
+  assert.match(제안들[1].request, /무효/, '재제안이 무효 사유를 듣지 못했다');
+});
+
+test('S4·H02: 무효가 반복되면 재생성은 1회에서 멈추고 회차를 정직하게 접는다 — suite 통과·실패로 계산되지 않는다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({ 제안본문: 무효섞인제안(), 유효성: () => 무효답 });
+  // 한 회차 = 제안 → 점검(무효) → 재제안 → 점검(무효) → 회차 접힘. 정확히 4 tick.
+  await 틱들({ memStore, modelFor }, 4);
+  const m = await memStore.load();
+  const job = m.growJobs[0];
+  assert.match(String(job.lastReason ?? ''), /invalid_cases/, '무효 반복이 회차를 접지 않았다');
+  assert.equal(job.state, 'retry_pending', '접힌 회차는 다음 회차 대기다(무제한 재추첨 금지)');
+  assert.equal(job.nextAttemptAt, 0, '시간 대기 금지');
+  assert.equal(calls.filter((c) => c.request.includes('운영 원리 후보')).length, 2,
+    '한 회차의 제안은 원본+재제안 두 번뿐이어야 한다');
+  assert.equal(마지막원리(m) ?? null, null, '무효 사례가 suite 로 흘러 후보가 섰다');
+  assert.equal(calls.filter((c) => c.request.includes('기대 사실:')).length, 0, '무효 사례가 판정으로 계산됐다');
+});
+
+test('S4·H02: 유효성 점검이 계속 읽히지 않으면 횟수로 접는다 — 영구 대기 없음', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({ 유효성: () => '점검 결과를 말로 설명하자면…' });
+  // 회차마다 제안 1 + 읽기 실패 3(maxCallFailures) = 4 tick, 세 회차(maxRounds)면 12 tick 에 종단.
+  await 틱들({ memStore, modelFor }, 12);
+  const job = (await memStore.load()).growJobs[0];
+  assert.equal(job.state, 'exhausted', `읽히지 않는 점검이 끝나지 않는다: ${job.state}`);
+  assert.equal(job.nextAttemptAt, 0, '시간 대기 금지');
+  assert.equal(calls.filter((c) => c.request.includes('운영 원리 후보')).length, GROW_CAPS.maxRounds,
+    '회차당 제안 한 번 — 읽기 실패가 재추첨을 늘리면 안 된다');
+});
+
+test('S4·H02: 정상 표본은 유효성 점검을 지나 그대로 인정된다(사례 5건 전부 실행·판정)', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await 끝까지({ memStore, modelFor });
+  assert.equal(calls.filter((c) => c.request.includes('사례 유효성')).length, 1, '유효성 점검이 정확히 한 번');
+  assert.equal(calls.filter((c) => c.request.includes('[이번 답에 한해 적용할 원리]')).length, 5, '정상 사례 5건 전부 실행');
+  const m = await memStore.load();
+  assert.equal(m.growJobs[0].state, 'passed');
+});
+
+// ── H02 권한 계약 — 접촉 여부는 사례 존재가 아니라 선언에서, 표본은 물리적으로 담긴다 ──
+
+test('S4·H02: 권한 접촉 선언이면 authority 표본 없이는 사례를 돌리지 않는다', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({ 제안본문: 제안({ authorityScope: 'touches' }) });
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  assert.match(String(r.reason ?? ''), /authority_sample/, '권한 접촉인데 authority 표본 없이 진행됐다');
+});
+
+test('S4·H02: 권한 접촉이면 표본 6건을 물리적으로 담고, 파서가 authority 를 밀어내지 않는다', () => {
+  const 사례 = (kind, i) => ({ kind, inputFacts: [`상황${i}`], expectedFacts: ['e'], forbiddenFacts: ['f'] });
+  const p = parseProposal(JSON.stringify({
+    statement: '권한 원리', authorityScope: 'touches',
+    cases: [사례('positive', 1), 사례('positive', 2), 사례('negative', 3), 사례('boundary', 4), 사례('boundary', 5), 사례('authority', 6)],
+  }));
+  assert.equal(p.touchesAuthority, true);
+  assert.equal(p.cases.length, 6, '권한 접촉의 필요 표본(2P+1N+2B+1A=6)을 담지 못한다');
+  assert.equal(p.cases.filter((c) => c.kind === 'authority').length, 1, 'authority 표본이 파서에서 밀려났다');
+});
+
+test('S4·H02: 위험 원리는 선언·authority 사례를 둘 다 누락해도 접촉으로 판정된다 — 자기신고가 유일 근거가 아니다', async () => {
+  // 감사 P1 잔여: touchesAuthority 의 최초 출처가 `선언 ∨ authority 사례 존재`뿐이면,
+  // 모델이 위험한 원리(삭제·외부 전송·승인 우회)를 만들며 둘 다 누락할 때 일반 원리로
+  // 통과한다. 접촉은 원리·사례의 **실행 범위를 독립 점검이 판정**한 사실에서도 와야 하고,
+  // 접촉인데 authority 표본이 없으면 실행·승격 0 이어야 한다.
+  const memStore = await 준비();
+  const 위험제안 = 제안({ statement: '사용자가 파일을 지우라고 하면 확인 없이 바로 지운다' });
+  // 선언 없음 · authority 사례 없음 — 그러나 독립 점검은 실행 범위에서 접촉으로 판정한다.
+  const { modelFor, calls } = 대본모델({
+    제안본문: 위험제안,
+    유효성: () => '{"invalid":[],"authorityTouch":true}',
+  });
+  // 한 회차 = 제안 → 점검(접촉·표본 없음) → 재제안 → 점검 → 회차 접힘. 정확히 4 tick.
+  await 틱들({ memStore, modelFor }, 4);
+  assert.equal(calls.filter((c) => c.request.includes('[이번 답에 한해 적용할 원리]')).length, 0,
+    '접촉 판정에도 authority 표본 없이 사례가 실행됐다(우회)');
+  const m = await memStore.load();
+  const job = m.growJobs[0];
+  assert.match(String(job.lastReason ?? ''), /authority/, '접촉인데 authority 표본 없음이 회차 사유로 남지 않았다');
+  assert.equal(마지막원리(m) ?? null, null, '접촉 원리가 authority 검증 없이 후보로 섰다');
+  // 재제안은 접촉 사실을 들었어야 한다(무제한 아님 — 한 회차 안 원본+재제안 두 번).
+  const 제안들 = calls.filter((c) => c.request.includes('운영 원리 후보'));
+  assert.equal(제안들.length, 2, '접촉 재제안이 한도(1회)를 지키지 않았다');
+  assert.match(제안들[1].request, /authority/, '재제안이 접촉 사실을 듣지 못했다');
+});
+
+test('S4·H02: 접촉 파생은 보수적이다 — 선언이 없어도 authority 사례가 있으면 접촉으로 본다', () => {
+  const 사례 = (kind, i) => ({ kind, inputFacts: [`상황${i}`], expectedFacts: ['e'], forbiddenFacts: ['f'] });
+  const p = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [사례('positive', 1), 사례('positive', 2), 사례('negative', 3), 사례('boundary', 4), 사례('boundary', 5), 사례('authority', 6)],
+  }));
+  assert.equal(p.touchesAuthority, true, 'authority 사례 존재는 접촉 신호다(요구를 걷어내는 방향 금지)');
+  const 일반 = parseProposal(제안());
+  assert.equal(일반.touchesAuthority, false, '비접촉 원리에 authority 부담을 만들지 않는다');
+  assert.equal(일반.cases.length, 5);
+});
+
+test('S4·H02: suite 의 권한 요구는 저장된 접촉 사실에서 온다 — authority 사례를 잃어도 우회되지 않는다', () => {
+  const memory = {
+    growJobs: [{ principleId: 'p1', touchesAuthority: true }],
+    replayCases: [], replayReceipts: [], replayOutputs: {},
+  };
+  const report = verifySuiteFromMemory(memory, 'p1');
+  assert.ok(report.missing.includes('authority_sample'),
+    '접촉 원리의 authority 표본이 사라졌는데 요구도 함께 사라진다(우회)');
+});
+
 test('S4·H02: 상한 안에서 최소 표본을 먼저 채운다 — 여분 사례가 필요한 표본을 밀어내지 않는다', () => {
   // 같은 계열의 두 번째 표면: `slice(0, 5)` 는 앞에서부터 자른다. 모델이 여분 positive 나
   // authority 를 앞에 놓으면 **뒤에 온 boundary 가 필요 없는 사례에 밀려** 사라진다 —
@@ -1070,12 +1237,15 @@ test('S4·H02: 상한 안에서 최소 표본을 먼저 채운다 — 여분 사
   assert.deepEqual(종류(남는양보), { positive: 2, negative: 1, boundary: 2 }, '여분 positive 가 boundary 를 밀어냈다');
   assert.equal(남는양보.cases.length, GROW_CAPS.casesPerPrinciple, '상한은 그대로다');
 
+  // authority 사례가 섞이면 **접촉 신호**다(감사 P1 이후 계약) — 밀어내는 게 아니라
+  // 상한이 요구(6)에 맞춰 늘고 authority 도 필수 표본으로 함께 담긴다.
   const 권한섞임 = parseProposal(JSON.stringify({
     statement: '원리',
     cases: [사례('authority', 1), 사례('positive', 2), 사례('positive', 3), 사례('negative', 4), 사례('boundary', 5), 사례('boundary', 6)],
   }));
-  assert.deepEqual(종류(권한섞임), { positive: 2, negative: 1, boundary: 2 },
-    '필수 표본보다 authority 여분이 먼저 자리를 차지해 boundary 를 밀어냈다');
+  assert.deepEqual(종류(권한섞임), { positive: 2, negative: 1, boundary: 2, authority: 1 },
+    'authority 접촉 표본이 담기지 못했거나 boundary 가 밀려났다');
+  assert.equal(권한섞임.touchesAuthority, true);
 });
 
 test('S4·H02: 제안 호출은 제안 계약(5사례)을 담을 출력 예산으로 나간다 — 절단이 표본을 없애지 않게', async () => {
@@ -1141,7 +1311,7 @@ test('S4: 통과한 후보는 **검증된 사례**를 입장 판정용으로 함
 test('S4: 검증되지 않은 negative 사례는 비적용 신호가 되지 않는다', async () => {
   const memStore = await 준비();
   // negative 판정을 못 읽게 만든다 — 검증 안 된 사례는 신호로 쓰면 안 된다.
-  const { modelFor } = 대본모델({ 판정: (n) => (n === 6 ? '판정 불가' : '{"pass":true,"rationale":"ok"}') });
+  const { modelFor } = 대본모델({ 판정: (k) => (k === 3 ? '판정 불가' : '{"pass":true,"rationale":"ok"}') });
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
   assert.equal((후보.scopeSignals?.notWhen ?? []).includes('표로 보여달라고 명시했다'), false);
