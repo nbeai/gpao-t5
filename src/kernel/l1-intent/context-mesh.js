@@ -9,6 +9,7 @@
 // 후보 감지 신호(범주 — 특정 대화 전용 규칙이 아니라 일반 언어 범주). 모델이 뒷단에서 정교화한다.
 // 운영원리 = T5 행동을 규율하는 규칙(확인/금지 의미). 선호 = 사용자가 좋아하는 방식.
 // 주의: '받'(수신)은 선호에도 흔하므로 원리 신호에서 제외한다.
+import { bestShapeOverlap, bestShapeMatch, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
 const PRINCIPLE_SIGNAL = /무조건|반드시.*확인|절대.*(마|말|하지)|(할|보낼|전송할|올릴) ?땐|전에.*확인|확인받/;
 const PREFERENCE_SIGNAL = /(좋아|선호|받고 싶|줬으면|앞으로.*(로|으로|기본)|항상.*(로|으로) 받|글로 받|표로 받)/;
 
@@ -43,13 +44,46 @@ export function isInfluenceEligible(entry) {
   return entry.userConfirmed === true;
 }
 
-// 이번 요청에 "관련" 있는지(좁게 입장). P6-1은 statement 단어가 요청에 걸치는지로 판정 —
+// 이번 요청에 "관련" 있는지(좁게 입장). 검증 사례가 있으면 그걸로, 없으면 낱말로 —
 // 뒷단 임베딩/모델 회수는 밀도화 단계. "많이 기억함"이 아니라 "이번 행동에 필요함".
 /**
  * 이 문장이 이번 요청에 관련 있는가(좁게 입장 판정). activeGoal·기억 공통 사용.
  * @param {string} statement
  * @param {string} requestText
  */
+/**
+ * 검증된 원리의 입장 판정 — **낱말이 아니라 suite 가 검증한 사례로 본다.**
+ *
+ * 라이브에서 막혔던 자리다: 원리를 좁힐수록 문장이 길고 구체적이 되는데, 낱말 겹침으로 재면
+ * 축약된 실제 발화(`12월 것도. 1800 / 1100 / …`)와 안 겹쳐 **입장 자체를 못 했다.** 그렇다고
+ * 낱말 판정을 느슨하게 풀면 과잉 적용이 열린다.
+ *
+ * 그래서 이미 있는 사실을 쓴다. 그 원리는 **어떤 상황에서 통과했고 어떤 상황에서 떨어졌는지**
+ * suite 가 검증했다 — positive·boundary 사례는 적용되는 상황, negative 사례는 적용하면 안 되는
+ * 상황이다. 지금 발화가 앞엣것과 같은 모양이고 뒤엣것과 덜 닮았을 때만 보인다.
+ *
+ * 두 쪽 다 걸리면 **적용하면 안 되는 쪽**을 따른다 — 잘못 든 원리가 안 든 원리보다 나쁘다.
+ * 판단 자체는 여전히 모델의 것이다. 여기서 정하는 것은 "무엇을 모델 앞에 놓을지"뿐이다.
+ */
+function 사례로관련(entry, requestText) {
+  const s = entry?.scopeSignals;
+  if (!s?.appliesWhen?.length) return null; // 검증 사례가 없으면 이 판정을 쓰지 않는다
+  const 적용 = bestShapeMatch(requestText, s.appliesWhen);
+  // 같은 종류의 말인가(겹침) **그리고** 그 본보기를 실제로 덮는가 — 짧고 흔한 말이 우연히
+  // 걸리는 것을 덮음이 막는다.
+  if (적용.overlap < SHAPE_SIMILARITY || 적용.coverage < SHAPE_SIMILARITY) return false;
+  // 검증된 비적용 상황에 더 가까우면 들지 않는다 — 잘못 든 원리가 안 든 원리보다 나쁘다.
+  //
+  // 여기에 "여유(margin)"를 두어 아슬아슬한 것까지 막아 볼까 했는데, 실측한 어떤 발화에서도
+  // 판정이 달라지지 않았다. 일하지 않는 장치는 두지 않는다.
+  //
+  // 사용자가 같은 요청에 **명시적으로 다른 형식**을 덧붙이면(`…근데 표 대신 문장 요약으로 줘`)
+  // 원리는 그대로 든다. 감추지 않는 것이 맞다 — 모델이 현재 지시와 함께 보고 판단할 일이지,
+  // Runtime 이 대신 지워 줄 일이 아니다(그건 모델 판단을 규칙으로 대체하는 것이다).
+  const 비적용 = bestShapeOverlap(requestText, s.notWhen ?? []);
+  return 비적용 < 적용.overlap;
+}
+
 export function isRelevant(statement, requestText) {
   const req = String(requestText ?? '');
   const words = String(statement ?? '').split(/\s+/).filter((w) => w.length >= 2);
@@ -60,7 +94,11 @@ export function isRelevant(statement, requestText) {
     return stem.length >= 2 && req.includes(stem);
   });
 }
-const relevant = (entry, requestText) => isRelevant(entry.statement, requestText);
+const relevant = (entry, requestText) => {
+  // 검증 사례가 있으면 그것이 진실이다. 없으면(선호 기억 등) 예전 낱말 판정 그대로.
+  const 사례판정 = 사례로관련(entry, requestText);
+  return 사례판정 ?? isRelevant(entry.statement, requestText);
+};
 
 /**
  * 이번 턴 admitted context — 승격되어 영향 가능한 것 중, 이번 요청에 관련된 것만 좁게.

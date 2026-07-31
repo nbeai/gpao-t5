@@ -11,6 +11,7 @@
 // 세션 간 전역 순서는 요구하지 않는다 — 파생 ID 가 원천 TurnRef 로 결정되므로 세션 횡단
 // 묶음도 재처리에서 같은 값이 된다. 결과 저장과 watermark 전진은 **한 번의 save** 로 나간다.
 import { createHash } from 'node:crypto';
+import { shapeOf, shapeOverlap, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
 
 /** 무한 성장 금지(§4.10). 이 수치는 계획이 고정한 값이다. */
 export const OBSERVATION_CAPS = Object.freeze({
@@ -40,39 +41,6 @@ export function makeObservation(p) {
   };
 }
 
-/**
- * 요청 문장의 **모양**. 숫자·기호를 지우고 글자 2음절 집합으로 남긴다 — 언어별 형태소 분석기
- * 없이도 "같은 일을 표현만 바꿔 말한 것"을 잡는다. 모델은 부르지 않는다(관찰 계약).
- */
-function 이음절(text) {
-  const t = String(text ?? '').toLowerCase()
-    .replace(/[0-9]+/g, ' ')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const out = new Set();
-  for (let i = 0; i < t.length - 1; i += 1) {
-    const g = t.slice(i, i + 2);
-    if (!g.includes(' ')) out.add(g);
-  }
-  return out;
-}
-
-/**
- * 겹침 계수(교집합 / 작은 쪽 크기). Jaccard 를 쓰면 **긴 문장과 짧은 문장이 절대 안 묶인다** —
- * H02 는 첫 문장이 길고 뒤 문장이 축약형이라 그게 바로 결함이 된다(라이브 실측).
- */
-function 겹침(a, b) {
-  if (!a.size || !b.size) return 0;
-  let n = 0;
-  for (const g of a) if (b.has(g)) n += 1;
-  return n / Math.min(a.size, b.size);
-}
-
-/**
- * 같은 현상으로 볼 문턱. 실측(2026-07-31): 같은 요청의 다른 표현 0.50~0.67 ·
- * 무관한 요청 0.00~0.20. 그 사이에 둔다.
- */
 export const BUNDLE_SIMILARITY = 0.45;
 
 /**
@@ -86,12 +54,15 @@ export const BUNDLE_SIMILARITY = 0.45;
  * 하나로 뭉치고, 뭉친 묶음에서 나온 원리는 거짓이 된다.
  */
 export function bundleObservations(observations = []) {
-  // 결정적: 입력 순서와 무관하게 같은 군집이 나와야 재처리에서 같은 ID 가 나온다.
-  const sorted = [...observations].sort((a, b) => a.observationId.localeCompare(b.observationId));
+  // 결정적이면서 **시간 순**이어야 한다. 관찰 ID 는 digest 라 정렬 순서가 도착 순서와 무관하다 —
+  // id 순으로 씨앗을 잡으면 나중에 온 관찰이 앞자리를 차지해 묶음 신분이 갈린다(라이브에서
+  // `bundle_gone` 으로 두 번 났다). 먼저 온 것이 씨앗이면, 나중 것이 붙어도 신분은 그대로다.
+  const sorted = [...observations].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)
+    || a.observationId.localeCompare(b.observationId));
   const clusters = [];
   for (const o of sorted) {
-    const grams = 이음절(o.subject);
-    const hit = clusters.find((c) => c.kind === o.kind && 겹침(c.grams, grams) >= BUNDLE_SIMILARITY);
+    const grams = shapeOf(o.subject);
+    const hit = clusters.find((c) => c.kind === o.kind && shapeOverlap(c.grams, grams) >= BUNDLE_SIMILARITY);
     if (hit) hit.members.push(o);
     else clusters.push({ kind: o.kind, grams, members: [o] });
   }

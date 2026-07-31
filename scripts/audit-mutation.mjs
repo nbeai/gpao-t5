@@ -34,6 +34,9 @@ const T_OBS = 'test/tcell-observation.test.js';
 const T_LANE = 'test/tcell-lane.test.js';
 const T_IDN = 'test/tcell-model-identity.test.js';
 const T_ROUND = 'test/tcell-round-retry.test.js';
+const T_ADMIT = 'test/tcell-admission.test.js';
+const MESH = 'src/kernel/l1-intent/context-mesh.js';
+const SHAPE = 'src/kernel/l0-evidence/text-shape.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -127,11 +130,34 @@ export const MUTATIONS = [
     찾기: "    if (!계획.bundle) return { kind: 'propose', 묶음없음: true };",
     바꾸기: "    if (!계획.bundle) return { kind: 'propose', fail: 'bundle_gone' };" },
 
+  // ── 검증된 원리의 입장 판정(사례 기반) ─────────────────────────────────
+  { 이름: '입장 판정이 다시 낱말 겹침으로만(축약 발화를 못 알아봄)', 파일: MESH, 검사: T_ADMIT,
+    찾기: '  if (!s?.appliesWhen?.length) return null; // 검증 사례가 없으면 이 판정을 쓰지 않는다',
+    바꾸기: '  if (true) return null;' },
+  { 이름: '비적용 사례를 안 봄(과잉 적용이 열림)', 파일: MESH, 검사: T_ADMIT,
+    찾기: '  return 비적용 < 적용.overlap;', 바꾸기: '  return true;' },
+  { 이름: '본보기 덮음을 안 봄(짧고 흔한 말이 걸림)', 파일: MESH, 검사: T_ADMIT,
+    찾기: '  if (적용.overlap < SHAPE_SIMILARITY || 적용.coverage < SHAPE_SIMILARITY) return false;',
+    바꾸기: '  if (적용.overlap < SHAPE_SIMILARITY) return false;' },
+  { 이름: '입장 문턱을 0으로(아무 말에나 원리가 듦)', 파일: SHAPE, 검사: T_ADMIT,
+    찾기: 'export const SHAPE_SIMILARITY = 0.45;', 바꾸기: 'export const SHAPE_SIMILARITY = 0;' },
+  { 이름: '입장 문턱을 1로(축약 발화가 영영 못 듦)', 파일: SHAPE, 검사: T_ADMIT,
+    찾기: 'export const SHAPE_SIMILARITY = 0.45;', 바꾸기: 'export const SHAPE_SIMILARITY = 1.01;' },
+  { 이름: '검증 안 된 사례까지 비적용 신호로 씀', 파일: GROW, 검사: T_GROW,
+    찾기: '  const 검증된 = job.cases.filter((c) => c.verdict?.pass === true);',
+    바꾸기: '  const 검증된 = job.cases;' },
+  { 이름: '적용 신호를 사례 서술문으로(사람 말과 결이 다름)', 파일: GROW, 검사: T_GROW,
+    찾기: '    appliesWhen: [...new Set(반복발화)],',
+    바꾸기: "    appliesWhen: 검증된.filter((c) => c.kind !== 'negative').flatMap((c) => c.inputFacts ?? [])," },
+
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,
     찾기: 'export const BUNDLE_SIMILARITY = 0.45;', 바꾸기: 'export const BUNDLE_SIMILARITY = 1.01;' },
   { 이름: '무관한 것까지 한 묶음으로(문턱 0)', 파일: OBSERVE, 검사: T_OBS,
     찾기: 'export const BUNDLE_SIMILARITY = 0.45;', 바꾸기: 'export const BUNDLE_SIMILARITY = 0;' },
+  { 이름: '군집 씨앗을 id 순으로(나중 관찰이 앞자리를 뺏어 신분이 갈림)', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '  const sorted = [...observations].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)\n    || a.observationId.localeCompare(b.observationId));',
+    바꾸기: '  const sorted = [...observations].sort((a, b) => a.observationId.localeCompare(b.observationId));' },
   { 이름: '묶음 신분을 구성원 전체로(관찰 하나에 신분이 바뀜)', 파일: OBSERVE, 검사: T_OBS,
     찾기: "      bundleId: digest(['bundle', c.kind, c.members[0].observationId]),",
     바꾸기: "      bundleId: digest(['bundle', c.kind, ...ids])," },

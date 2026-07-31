@@ -25,7 +25,9 @@ import {
 
 // 원리 문장과 실제로 겹치는 요청 — 이걸 안 주면 `admittedContext` 는 무조건 0을 돌려주고,
 // "입장 0" 검사가 통과해도 아무 것도 증명하지 못한다(검사가 자기 의도만 확인하는 자리).
-const 관련요청 = '월별 정리 좀 해줘';
+// 픽스처 사례(`7월 지출을 정리해달라고 했다`)와 **같은 상황**의 발화여야 한다 —
+// 입장 판정이 낱말이 아니라 검증된 사례를 보기 때문이다.
+const 관련요청 = '7월 지출 정리해줘';
 
 const 신분 = (over = {}) => ({
   callId: 'call-1',
@@ -972,7 +974,7 @@ test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때
   // **여기까지 와야 학습이다** — 확인하면 다음 턴부터 실제로 행동에 든다.
   const 확인 = confirmCandidate(memory, 둘째후보.candidateId);
   assert.equal(확인.ok, true);
-  assert.equal(admittedContext(memory, '월별 수치 정리해줘').length, 1, '승격된 원리가 실제로 입장한다');
+  assert.equal(admittedContext(memory, '7월 지출 정리해줘').length, 1, '승격된 원리가 실제로 입장한다');
   assert.equal(memory.promoted.find((e) => e.statement === 좁은문장).replayPassed, true);
 });
 
@@ -1077,4 +1079,30 @@ test('S4: 최소 표본을 못 채운 제안은 사례를 돌리기 전에 접�
   const 다음 = 대본모델();
   await growTick({ memStore, modelFor: 다음.modelFor, now: 101_000 });
   assert.match(다음.calls[0].request, /boundary_sample/, '모자랐던 표본을 다음 회차에 전한다');
+});
+
+test('S4: 통과한 후보는 **검증된 사례**를 입장 판정용으로 함께 들고 나온다', async () => {
+  // 입장 판정이 낱말이 아니라 사례를 보려면, 그 사례가 후보에 붙어 있어야 한다.
+  // 지어내는 게 아니라 suite 가 이미 검증한 것을 그대로 옮긴다.
+  const memStore = await 준비();
+  const { modelFor } = 대본모델();
+  await 끝까지({ memStore, modelFor });
+  const 후보 = 마지막원리(await memStore.load());
+  assert.equal(후보.replayReport.pass, true);
+
+  const s = 후보.scopeSignals;
+  assert.ok(s, '입장 신호가 후보에 붙는다');
+  // 적용 신호 = 그 원리를 낳은 **반복 발화 원문**(사람이 실제로 친 말).
+  assert.deepEqual([...new Set(s.appliesWhen)].sort(), ['지출 정리']);
+  // 비적용 신호 = suite 가 검증한 negative 사례.
+  assert.ok(s.notWhen.includes('표로 보여달라고 명시했다'), 'negative 는 적용하면 안 되는 자리다');
+});
+
+test('S4: 검증되지 않은 negative 사례는 비적용 신호가 되지 않는다', async () => {
+  const memStore = await 준비();
+  // negative 판정을 못 읽게 만든다 — 검증 안 된 사례는 신호로 쓰면 안 된다.
+  const { modelFor } = 대본모델({ 판정: (n) => (n === 6 ? '판정 불가' : '{"pass":true,"rationale":"ok"}') });
+  await 끝까지({ memStore, modelFor });
+  const 후보 = 마지막원리(await memStore.load());
+  assert.equal((후보.scopeSignals?.notWhen ?? []).includes('표로 보여달라고 명시했다'), false);
 });

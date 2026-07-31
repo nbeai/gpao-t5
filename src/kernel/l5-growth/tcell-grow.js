@@ -629,6 +629,19 @@ function 반영(m, job, 계획, 나온것, now) {
   }
   const report = verifySuiteFromMemory(m, job.principleId);
 
+  // **입장 판정에 쓸 검증된 사례.** 이 원리가 어떤 상황에서 통과했고 어떤 상황에서 적용되면
+  // 안 되는지는 suite 가 이미 확인했다 — 그 사실을 그대로 옮긴다(지어내지 않는다).
+  // 판정을 못 받았거나 떨어진 사례는 신호로 쓰지 않는다.
+  const 검증된 = job.cases.filter((c) => c.verdict?.pass === true);
+  // 적용 신호는 **그 원리를 낳은 반복 발화 그대로**다. 사례 서술문("사용자가 …라고 말했다")은
+  // 사람이 실제로 치는 말과 결이 달라, 짧고 흔한 말이 거기에 우연히 걸린다(실측 0.60).
+  // 같은 결의 말끼리 비교해야 한다 — 그래서 묶음 구성원의 원문을 쓴다.
+  const 반복발화 = (계획.관찰들 ?? []).map((o) => o.subject).filter(Boolean);
+  const scopeSignals = {
+    appliesWhen: [...new Set(반복발화)],
+    notWhen: 검증된.filter((c) => c.kind === 'negative').flatMap((c) => c.inputFacts ?? []),
+  };
+
   m.candidates = [...(m.candidates ?? []).filter((c) => c.candidateId !== job.principleId), {
     candidateId: job.principleId,
     kind: 'operating_principle',
@@ -641,6 +654,7 @@ function 반영(m, job, 계획, 나온것, now) {
     userConfirmed: false,
     replayPassed: false,
     replayReport: { ...report, at: now, round: job.round },
+    ...(scopeSignals.appliesWhen.length ? { scopeSignals } : {}),
     reviewLevel: 'replay_suite',
     createdAt: now,
   }].slice(-GROW_CAPS.candidates);

@@ -391,13 +391,22 @@ test('S2: 같은 현상에 관찰이 하나 더 붙어도 묶음 신분은 그�
     '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
     '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
   ];
-  const obs = 문장.map((s, i) => makeObservation({ turnRef: ref('s', i + 1), kind: 'request', subject: s }));
+  const obs = 문장.map((s, i) => makeObservation({ turnRef: ref('s', i + 1), kind: 'request', subject: s, at: 10 * (i + 1) }));
   const [처음] = bundleObservations(obs);
   assert.equal(처음.count, 3);
 
-  const 더붙음 = [...obs, makeObservation({ turnRef: ref('s', 9), kind: 'request', subject: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' })];
+  // **id 정렬 순서에 기대면 안 된다.** 관찰 ID 는 digest 라 새 관찰이 정렬 앞에 올 수 있고,
+  // 그러면 씨앗이 바뀌어 신분이 갈린다(라이브에서 `bundle_gone` 으로 두 번 났다).
+  // 나중에 온 것이 **먼저 온 것보다 앞서지 않게** 하려면 시간 순이어야 한다.
+  let 더붙음 = null;
+  for (let i = 20; i < 200; i += 1) {
+    const 새것 = makeObservation({ turnRef: ref('s', i), kind: 'request', subject: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4', at: 999 });
+    if (새것.observationId < obs[0].observationId && 새것.observationId < obs[1].observationId
+      && 새것.observationId < obs[2].observationId) { 더붙음 = [...obs, 새것]; break; }
+  }
+  assert.ok(더붙음, 'id 가 기존 것보다 앞서는 새 관찰을 찾았다');
   const [나중] = bundleObservations(더붙음);
-  assert.equal(나중.bundleId, 처음.bundleId, '구성원이 늘어도 같은 묶음이다');
+  assert.equal(나중.bundleId, 처음.bundleId, 'id 가 앞서는 관찰이 붙어도 같은 묶음이다');
   assert.equal(나중.count, 4, '반복 횟수만 늘어난다');
 });
 
