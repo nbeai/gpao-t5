@@ -45,6 +45,8 @@ const CONTROL = 'src/kernel/l2-plan/model-control.js';
 const CORR = 'src/kernel/l5-growth/tcell-correction.js';
 const T_CORR = 'test/tcell-correction.test.js';
 const T_CORR2 = 'test/tcell-correction-target.test.js';
+const DECAY = 'src/kernel/l5-growth/tcell-decay.js';
+const T_DECAY = 'test/tcell-decay.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -209,6 +211,31 @@ export const MUTATIONS = [
   { 이름: '지목할 목록을 안 줌(모델이 지어내게 됨)', 파일: SERVER, 검사: T_CORR2,
     찾기: '    return (직전.refs ?? []).map((r) => r.statement).filter(Boolean);',
     바꾸기: '    return [];' },
+
+  // ── S5-4 가역 감쇠(잘못 내리지 않는 것이 먼저다) ───────────────────────
+  { 이름: '상관 1회로도 내림(문턱 붕괴)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '    if (셀것.length < CORRELATION_MIN) continue;',
+    바꾸기: '    if (셀것.length < 1) continue;' },
+  { 이름: 'cite 확신이 있으면 문턱을 낮춤(뒷문)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '    if (셀것.length < CORRELATION_MIN) continue;',
+    바꾸기: "    if (셀것.length < (셀것.some((t) => t.confidence === 'cited') ? 1 : CORRELATION_MIN)) continue;" },
+  { 이름: 'pin 도 자동으로 내림(사용자가 붙든 것을 OS 가 뗌)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '    if (e.pinned) continue; // 사용자가 붙들어 둔 것은 OS 가 내리지 않는다', 바꾸기: '' },
+  { 이름: '한 번에 몰아서 내림(상한 제거)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '    if (decayed.length >= DECAY_CAPS.perRun) break;', 바꾸기: '' },
+  { 이름: '감쇠를 삭제로 바꿈(되돌릴 수 없게)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '    e.decayedAt = now;',
+    바꾸기: '    e.decayedAt = now;\n    memory.promoted = memory.promoted.filter((x) => x !== e);' },
+  { 이름: '복원해도 입장하지 않음(표식이 안 걷힘)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '  delete e.decayedAt;', 바꾸기: '' },
+  { 이름: '복원 뒤 같은 근거로 다시 내림(무한 왕복)', 파일: DECAY, 검사: T_DECAY,
+    찾기: '  e.decayJudgedUpTo = now;', 바꾸기: '' },
+  { 이름: '내려간 기억이 여전히 모델 입장(게이트 무력화)', 파일: MESH, 검사: T_DECAY,
+    찾기: '  if (Number.isFinite(entry.decayedAt)) return false;', 바꾸기: '' },
+  { 이름: '내려간 것을 표면에서 감춤(사용자가 되돌릴 수 없게)', 파일: SERVER, 검사: T_DECAY,
+    찾기: '          decayed: 내려감,', 바꾸기: '          decayed: [],' },
+  { 이름: '감쇠를 원장에 안 남김', 파일: SERVER, 검사: T_DECAY,
+    찾기: "        await 기억영수증('decayed', e ?? { candidateId: d.ref, kind: d.kind });", 바꾸기: '' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

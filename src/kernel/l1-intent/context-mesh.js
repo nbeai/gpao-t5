@@ -33,6 +33,9 @@ export function detectCandidate(text) {
  */
 export function isInfluenceEligible(entry) {
   if (!entry) return false;
+  // S5-4: 내려간 기억은 행동에 들지 않는다. **삭제가 아니라 표식**이라 복원하면 그대로 돌아온다 —
+  // 그래서 이 게이트 하나만 보면 "지금 영향 가능한가"가 결정된다(레인을 늘리지 않는다).
+  if (Number.isFinite(entry.decayedAt)) return false;
   // 추정된 성향(inferred_trait, P6-17 Slice-3)은 **관찰 전용 — 어떤 경우에도 영향 0**. tier·userConfirmed와
   //   독립된 불변식(안전 바닥과 같은 방어적 이중화). 레인이 뚫려도(promoted에 잘못 들어가도) 여기서 막힌다.
   if (entry.kind === 'inferred_trait') return false;

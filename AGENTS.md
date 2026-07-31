@@ -147,6 +147,9 @@ Core rule:
 - GPAO-T5 is an Original AI Operating System.
 - User purpose comes before method listing.
 - Operational Selfhood, BEAI5 Model Operation, Intent/Context/T-cell, ActionPlan/Authority, Router/Execution, Work Surface, and Truth Ledger/Recovery/Growth are the seven body-development domains.
+- The seven domains must work as one user flow: user utterance → self-state and available hands → natural model judgment → memory/context/growth → automatic/approval boundary → execution → surface → ledger/recovery.
+- T-cell belongs to Intent/Context, but its success must improve model operation, authority boundaries, work surface, and ledger/recovery rather than only adding memory state.
+- Never forget the owner’s six product laws: 말귀 first; do not harass people with cards/clicks; minimum safety and maximum automation; do not make the model dumb; be useful on the user’s real computer; memory should become natural, not merely larger.
 - Installation and onboarding are out of scope for the current body-development phase.
 
 Development discipline:

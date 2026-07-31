@@ -57,6 +57,7 @@ import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js'
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
 import { correlateCorrection } from '../kernel/l5-growth/tcell-correction.js';
+import { applyDecay, restoreDecayed, decayedEntries } from '../kernel/l5-growth/tcell-decay.js';
 import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { deriveLanes, carryableLanes, laneFactEntries } from '../kernel/l5-growth/tcell-lane.js';
@@ -318,6 +319,33 @@ export function makeServer(deps = {}) {
     }
   }
 
+  // S5-4 · 감쇠 워커. **자동으로 돌되 되돌릴 수 있다** — 승인을 요구하지 않는 대신(자동성이
+  // 의무다) 무엇이 왜 내려갔는지를 원장과 표면에 남긴다. 근거는 독립 정정 상관뿐이고,
+  // 미사용·오래됨은 근거가 아니다. 실패해도 대화는 그대로 돈다.
+  async function 감쇠워커() {
+    if (관찰꺼짐()) return null;
+    try {
+      let 내린것 = [];
+      await withMemory(async () => {
+        const m = await memStore.load();
+        if (m.corrupted) return;
+        const r = applyDecay(m, { now: Date.now() });
+        if (!r.decayed.length) return;
+        내린것 = r.decayed;
+        await memStore.save(m);
+      });
+      // 원장은 저장 뒤에 남긴다 — 상태가 행동의 진실이고, 원장 실패가 감쇠를 되돌리지 않는다.
+      for (const d of 내린것) {
+        const e = (await memStore.load()).promoted.find((x) => (x.candidateId ?? x.principleId) === d.ref);
+        await 기억영수증('decayed', e ?? { candidateId: d.ref, kind: d.kind });
+      }
+      return { decayed: 내린것 };
+    } catch (e) {
+      console.error('[tcell:decay] 실패 — 대화는 그대로 돕니다:', e?.message ?? e);
+      return { failed: true };
+    }
+  }
+
   // tick 실행의 단일 경로(트러스트 게이트). trusted_runtime_event만 실행한다(admitTickTrigger).
   // tick 중첩 방지(P6-4): 이전 tick이 아직 도는 중이면 새 tick은 건너뛴다 — load→save 경합·중복 실행 차단.
   let ticking = false;
@@ -333,9 +361,12 @@ export function makeServer(deps = {}) {
       const 관찰 = await 관찰워커();
       // 성장은 관찰이 만든 묶음을 먹으므로 같은 tick 의 **뒤**에 온다. 실패해도 앞의 둘은 이미 끝났다.
       const 성장 = await 성장워커();
+      // 감쇠는 관찰·성장이 남긴 상관 위에서 돈다 — 같은 tick 의 맨 뒤다.
+      const 감쇠 = await 감쇠워커();
       return {
         ok: true,
         ran: 자동화.ran ?? [],
+        ...(감쇠 ? { decay: 감쇠 } : {}),
         ...(자동화.failed ? { automation: { failed: true, error: 자동화.error } } : {}),
         ...(관찰 ? { observe: 관찰 } : {}),
         ...(성장 ? { grow: 성장 } : {}),
@@ -976,7 +1007,15 @@ export function makeServer(deps = {}) {
       if (req.method === 'GET' && url === '/memory') {
         const m = await memStore.load();
         const strip = (e) => ({ candidateId: e.candidateId, kind: e.kind, statement: e.statement });
-        return sendJson(res, 200, { candidates: m.candidates.map(strip), promoted: m.promoted.map(strip) });
+        // S5-4: 내려간 것은 **반영 목록에서 빠지되 사라지지 않는다.** 사용자가 보고 되돌릴 수
+        // 있어야 한다 — 안 보이면 왜 안 되는지 알 수 없고, 그건 조용히 죽이는 것과 같다.
+        const 내려감 = decayedEntries(m);
+        const 살아있는 = m.promoted.filter((e) => !Number.isFinite(e.decayedAt));
+        return sendJson(res, 200, {
+          candidates: m.candidates.map(strip),
+          promoted: 살아있는.map(strip),
+          decayed: 내려감,
+        });
       }
       if (req.method === 'POST' && url === '/memory/confirm') {
         const input = JSON.parse((await readBody(req)) || '{}');
@@ -1039,6 +1078,22 @@ export function makeServer(deps = {}) {
           await memStore.save(m);
           const receiptWritten = await 기억영수증('rejected', removed);
           return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
+        });
+      }
+      if (req.method === 'POST' && url === '/memory/restore') {
+        // S5-4 복원 — 표식만 걷는다. 그리고 "이 근거로는 내리지 말라"는 사용자의 답을 기억한다.
+        const input = JSON.parse((await readBody(req)) || '{}');
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          if (m.corrupted) return sendJson(res, 409, { ok: false, error: 기억손상안내 });
+          const r = restoreDecayed(m, input.candidateId, { now: Date.now() });
+          if (!r.ok) return sendJson(res, 404, { ok: false, reason: r.reason });
+          await memStore.save(m);
+          const receiptWritten = await 기억영수증('restored', r.entry);
+          return sendJson(res, 200, {
+            ok: true, statement: r.entry.statement,
+            ...(receiptWritten ? {} : { receiptWritten: false }),
+          });
         });
       }
       if (req.method === 'POST' && url === '/memory/rollback') {

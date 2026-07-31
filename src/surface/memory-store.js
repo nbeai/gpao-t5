@@ -162,7 +162,7 @@ export class MemoryLedger {
     return this._key;
   }
 
-  /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'} event */
+  /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'|'decayed'|'restored'} event */
   async append(event, entry, now = Date.now()) {
     await this.digestKey(); // 키 확보 실패는 여기서 정직하게 던진다(평문 후퇴 금지)
     const a = await this.load();
