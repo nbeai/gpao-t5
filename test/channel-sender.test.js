@@ -102,7 +102,7 @@ test('A2 경계: 슬랙 전송 요청은 실행 전 승인(approval)을 거친�
   // 실제 sender를 붙이되, 승인 없이 실행되면 fetch가 호출되어 sent=true가 될 것 — 그러면 안 된다.
   const sender = makeChannelSender({ channel: 'slack', token: 'x', defaultTarget: '#g', fetchImpl: async () => { sent = true; return fakeFetch(200, { ok: true })(); } });
   const server = makeServer({ store: new SessionStore(dir), tools: demoTools({ senders: { 'slack.post': sender } }), env: demoEnv() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
   try {

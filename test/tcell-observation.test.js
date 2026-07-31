@@ -270,7 +270,7 @@ async function 서버세우기(extra = {}) {
   const server = makeServer({
     store, eventLog: new EventLog(dir), tools: demoTools(), model: 고른다(), ...extra,
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, server, base: `http://127.0.0.1:${server.address().port}`, mem: new MemoryStore(dir) };
 }
 

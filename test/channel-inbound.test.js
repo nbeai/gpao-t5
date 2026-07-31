@@ -71,7 +71,7 @@ async function withServer(fn, deps = {}) {
   const allowlistStore = new AllowlistStore(dir);
   await allowlistStore.allow('telegram', { userId: 'u-allowed', label: '오너' });
   const server = makeServer({ store, allowlistStore, ...deps });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const session = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
   const inbound = async (body) => (await fetch(`${base}/channel/inbound`, {

@@ -66,7 +66,7 @@ async function withLearnServer(fn) {
   const sender = { toolKind: 'send', async handler(args) { calls.push(args); return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
   const traceStore = new TaskTraceStore(dir);
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': sender } }), traceStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, calls); }
   finally { await new Promise((r) => server.close(r)); }
@@ -132,7 +132,7 @@ test('학습 루프: replay 실패면 승격하지 않는다(잘못된 대상 �
     const ts = new TaskTraceStore(dir);
     await ts.save({ traces: [], proposed: [{ patternId: 'bad', kind: 'default_target', tool: 'slack.post', target: '' }], promoted: [] });
     const srv = makeServer({ store: new SessionStore(dir), traceStore: ts });
-    await new Promise((r) => srv.listen(0, r));
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
     const { port } = srv.address();
     try {
       const r = await (await post(`http://127.0.0.1:${port}`, '/patterns/confirm', { patternId: 'bad' })).json();

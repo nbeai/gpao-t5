@@ -65,7 +65,7 @@ async function standUp(opts = {}) {
   const store = new SessionStore(dir);
   const eventLog = new EventLog(dir);
   const server = makeServer({ store, eventLog, env, model: mc.model, modelConnection: mc });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   return { dir, store, eventLog, server, base, mc, env };
 }
@@ -90,7 +90,7 @@ async function standUpWithTool(calls) {
   const server = makeServer({
     store, eventLog, tools: demoTools(), model: 고른다(calls),
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, eventLog, server, base: `http://127.0.0.1:${server.address().port}` };
 }
 
@@ -216,7 +216,7 @@ test('S0: 서버 재시작 뒤에도 seq 가 이어서 발급된다', async () =
   const server2 = makeServer({
     store: store2, eventLog: new EventLog(dir), env, model: mc.model, modelConnection: mc,
   });
-  await new Promise((r) => server2.listen(0, r));
+  await new Promise((r) => server2.listen(0, '127.0.0.1', r));
   const base2 = `http://127.0.0.1:${server2.address().port}`;
   try {
     await post(base2, '/turn', { sessionId: s.id, text: '재시작 후' });

@@ -97,7 +97,7 @@ async function withServer(traces, fn) {
   const traceStore = memStore({ traces, proposed: [], promoted: [] });
   const skillStore = memStore({ skills: [] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), traceStore, skillStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }

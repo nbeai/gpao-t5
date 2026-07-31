@@ -71,7 +71,7 @@ async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-um-'));
   const store = new SessionStore(dir);
   const server = makeServer({ store, env: demoEnv(), tools: demoTools() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, store); }
   finally { await new Promise((r) => server.close(r)); }

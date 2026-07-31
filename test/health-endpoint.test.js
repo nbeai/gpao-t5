@@ -20,7 +20,7 @@ function providerFetch() {
 async function withServer(fn, deps = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-health-'));
   const server = makeServer({ store: new SessionStore(dir), onboardingStore: new OnboardingStore(dir), ...deps(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try { return await fn(`http://127.0.0.1:${server.address().port}`); }
   finally { await new Promise((r) => server.close(r)); }
 }
@@ -44,7 +44,7 @@ test('/health: 연결되면 connected:true 와 실제 모델 id 가 실리고 �
     store: new SessionStore(dir), onboardingStore: new OnboardingStore(dir),
     env, model: mc.model, modelConnection: mc,
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
     const h = await (await fetch(`http://127.0.0.1:${server.address().port}/health`)).json();
     assert.equal(h.ok, true);
@@ -62,7 +62,7 @@ test('/health: 검증 안 된 구성은 healthState 를 검증됨이라 말하�
   const mc = makeModelConnection({ env, processEnv: {}, store: new ModelConnectionStore(dir), fetchImpl: async () => { throw new Error('ECONNREFUSED'); } });
   await mc.connect({ provider: 'beai', key: 'k' });
   const server = makeServer({ store: new SessionStore(dir), onboardingStore: new OnboardingStore(dir), env, model: mc.model, modelConnection: mc });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
     const h = await (await fetch(`http://127.0.0.1:${server.address().port}/health`)).json();
     assert.equal(h.ok, true);

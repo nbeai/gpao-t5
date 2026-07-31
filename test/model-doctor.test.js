@@ -135,7 +135,7 @@ test('공개 리포트 위생: provider 원문(키 조각 포함)·authSignal �
   // 3) HTTP 표면에서도 동일
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-doc3-'));
   const s = makeServer({ store: new SessionStore(dir), env: d.env, model: d.model, modelDoctor: d.modelDoctor });
-  await new Promise((r) => s.listen(0, r));
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
   try {
     const raw = await (await fetch(`http://127.0.0.1:${s.address().port}/model/health`)).text();
     assert.ok(!raw.includes('sk-secret-abc'));
@@ -150,7 +150,7 @@ test('GET /model/health: doctor 배선 시 실 리포트, 미배선(demo)은 stu
   const { impl } = fakeFetch(200, { data: [{ id: 'beai-8.6' }] });
   const d = liveDeps({ BEAI_API_KEY: 'k' }, { fetchImpl: impl });
   const s1 = makeServer({ store: new SessionStore(dir1), env: d.env, model: d.model, modelDoctor: d.modelDoctor });
-  await new Promise((r) => s1.listen(0, r));
+  await new Promise((r) => s1.listen(0, '127.0.0.1', r));
   try {
     const r = await (await fetch(`http://127.0.0.1:${s1.address().port}/model/health`)).json();
     assert.equal(r.state, 'usable');
@@ -158,7 +158,7 @@ test('GET /model/health: doctor 배선 시 실 리포트, 미배선(demo)은 stu
   // 미배선(demo 기본) 서버 — 검증 안 됨을 검증됨처럼 말하지 않는다
   const dir2 = await mkdtemp(join(tmpdir(), 'gpao-t5-doc2-'));
   const s2 = makeServer({ store: new SessionStore(dir2) });
-  await new Promise((r) => s2.listen(0, r));
+  await new Promise((r) => s2.listen(0, '127.0.0.1', r));
   try {
     const r = await (await fetch(`http://127.0.0.1:${s2.address().port}/model/health`)).json();
     assert.equal(r.state, 'stub'); // demo env 는 beai5-stub

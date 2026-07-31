@@ -76,7 +76,7 @@ test('채널은 inbound 정책·outbound 도구 바인딩을 선언으로 싣는
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ch-'));
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }
@@ -123,7 +123,7 @@ test('GET /channels(라이브 자격 주입): 토큰 없으면 telegram ready �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-chlive-'));
   const { env, tools, channels } = liveDeps({}); // 토큰 없음 → 라이브 채널
   const server = makeServer({ store: new SessionStore(dir), env, tools, channels });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const { channels: view } = await (await fetch(`http://127.0.0.1:${port}/channels`)).json();

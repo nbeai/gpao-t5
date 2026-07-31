@@ -272,7 +272,7 @@ test('활성은 항상 하나: 계정 연결 상태에서 키 연결이 오면 �
 test('서버: 계정 연결 미배선(demo)이면 로그인 라우트는 400으로 정직하게 거절', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-oauthsrv-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     assert.equal((await fetch(`${base}/model/chatgpt/login`, { method: 'POST' })).status, 400);
@@ -288,7 +288,7 @@ test('서버: 계정 연결 상태의 /model/connection 은 비공식 고지 포
   const mc = makeModelConnection({ env, processEnv: {}, store, fetchImpl: async () => ({ status: 200, text: async () => SSE }) });
   await mc.init();
   const server = makeServer({ store: new SessionStore(dir), env, model: mc.model, modelConnection: mc, modelDoctor: () => mc.doctor() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const raw = await (await fetch(`${base}/model/connection`)).text();

@@ -437,7 +437,7 @@ async function 서버세우기(extra = {}) {
     model: { async respond() { return '알겠어요.'; } },
     ...extra,
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, server, base: `http://127.0.0.1:${server.address().port}`, mem: new MemoryStore(dir) };
 }
 
@@ -501,7 +501,7 @@ test('S4/제품: 실제 서버 배선에서 성장 호출과 전경 기억 쓰�
     memoryStore: 감시기억,
     modelConnection: { modelFor: 걸린모델 },
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
 
   try {

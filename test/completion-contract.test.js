@@ -85,7 +85,7 @@ test('기준 없으면 완료로 단정하지 않는다', () => {
 test('서버 POST /verify: 기준+산출물 → 검증 receipt', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-cc-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const pass = await (await fetch(`http://127.0.0.1:${port}/verify`, {

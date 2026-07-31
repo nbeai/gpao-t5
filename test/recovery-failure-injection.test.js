@@ -195,7 +195,7 @@ test("C2'. /turn 관통: 걸음 성공 후 모델 사망 — 응답·원장·저
     },
   };
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ localTerminal: 손 }), model: 도중죽는모델 });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
@@ -277,7 +277,7 @@ test('무효화된 저장 선언이 진실 표면에 이유와 함께 나타난�
   const tools = demoTools();
   tools.tools['connector.declare'] = makeConnectorDeclareTool({ connectors: () => [], store: new DeclaredConnectorStore(dir) });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
     const t = await (await fetch(`http://127.0.0.1:${server.address().port}/connectors/truth`)).json();
     const inv = (t.invalidDeclared ?? []).find((x) => x.label === '옛서비스');
@@ -347,7 +347,7 @@ test('무효 선언 정리: 사용자가 만든 것은 사용자가 거둔다(/c
   const store = new DeclaredConnectorStore(dir);
   tools.tools['connector.declare'] = makeConnectorDeclareTool({ connectors: () => [], store });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const r = await (await fetch(`${base}/connectors/declared/remove`, {

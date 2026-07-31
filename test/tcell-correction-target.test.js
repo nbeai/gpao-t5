@@ -150,7 +150,7 @@ test('S5-3/제품: 다음 턴 모델 입력에 직전 답이 놓고 쓴 문장�
     store: new SessionStore(dir), eventLog: new EventLog(dir), tools: demoTools(),
     model: { async respond(tc) { 받은것.push(tc); return '표로 정리했어요.'; } },
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, b) => fetch(`${base}${p}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}),

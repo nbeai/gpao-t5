@@ -41,7 +41,7 @@ async function withSendServer(fn) {
   const calls = [];
   const recSender = { toolKind: 'send', async handler(args) { calls.push(args); return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': recSender } }) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, calls); }
   finally { await new Promise((r) => server.close(r)); }

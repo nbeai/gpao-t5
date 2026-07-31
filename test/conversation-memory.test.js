@@ -130,7 +130,7 @@ test('서버 /turn: 두 번째 턴의 모델 입력에 첫 턴이 들어 있다'
     },
   };
   const server = makeServer({ store: new SessionStore(dir), model });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (path, body) => fetch(`${base}${path}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),

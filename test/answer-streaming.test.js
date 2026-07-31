@@ -148,7 +148,7 @@ test('실제 스트림 턴: 조각은 화면으로 흐르지만 EventLog(durable
   const sessionStore = new SessionStore(dir);
   const eventLog = new EventLog(dir);
   const server = makeServer({ store: sessionStore, eventLog, env, model: mc.model, modelConnection: mc });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();

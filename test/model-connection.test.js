@@ -182,7 +182,7 @@ test('서버: connect→턴이 실모델로, 응답 어디에도 원본 키·aut
   const { impl } = providerFetch({ reply: '연결된 모델의 답' });
   const d = liveDeps({}, { fetchImpl: impl, connectionStore: new ModelConnectionStore(dir) });
   const server = makeServer({ store: new SessionStore(dir), env: d.env, tools: d.tools, model: d.model, modelDoctor: d.modelDoctor, modelConnection: d.modelConnection });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const raw = await (await fetch(`${base}/model/connect`, {
@@ -234,7 +234,7 @@ test('부팅 순서: 저장 연결이 있으면 listen 전에 복원 — 첫 /tu
 test('서버: 연결 관리자 미배선(demo)이면 connect 는 400, connection 은 미연결 정직 표시', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-connsrv2-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const r = await fetch(`${base}/model/connect`, { method: 'POST', body: '{}' });

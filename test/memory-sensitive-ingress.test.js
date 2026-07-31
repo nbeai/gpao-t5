@@ -25,7 +25,7 @@ async function withServer(model, fn) {
   const store = new SessionStore(dir);
   const memoryStore = new MemoryStore(dir);
   const server = makeServer({ store, memoryStore, env: demoEnv(), tools: demoTools(), model });
-  await new Promise((resolve) => server.listen(0, resolve));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try { return await fn({ base, memoryStore }); }
   finally { await new Promise((resolve) => server.close(resolve)); }
@@ -194,7 +194,7 @@ test('채널 턴도 transcript 저장 전에 민감한 모델 기억 제안을 �
       id: 'telegram', connector, inboundPolicy: 'allowlist_only', outboundTool: 'telegram.send',
     })],
   });
-  await new Promise((resolve) => server.listen(0, resolve));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const session = await (await post(base, '/sessions')).json();

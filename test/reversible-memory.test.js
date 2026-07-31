@@ -49,7 +49,7 @@ async function standUp(perTurn) {
   const server = makeServer({
     store, eventLog: new EventLog(dir), tools: demoTools(), model: 고른다(perTurn),
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, server, base: `http://127.0.0.1:${server.address().port}`, mem: new MemoryStore(dir) };
 }
 

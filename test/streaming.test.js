@@ -25,7 +25,7 @@ function parseSSE(text) {
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-sse-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }
@@ -130,7 +130,7 @@ test('스트림 내부 오류도 recoverable_error + complete로 닫고 멈추�
     async lastIsTerminal() { return false; },
   };
   const server = makeServer({ store: new SessionStore(dir), eventLog });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
   const originalError = console.error;

@@ -62,7 +62,7 @@ async function 서버띄우기(model, toolsOpts, dir) {
   const { makeServer } = await import('../src/surface/server.js');
   const { SessionStore } = await import('../src/surface/session-store.js');
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(toolsOpts), model });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { server, base: `http://127.0.0.1:${server.address().port}` };
 }
 

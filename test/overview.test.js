@@ -87,7 +87,7 @@ test('GET /overview: 스토어 조합 + 전달은 sessionId 스코프(§6.13)', 
     { sessionId: 'other', tool: 'slack.post', target: '#x', state: 'failed' }, // 다른 세션 — 안 보여야
   ] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), skillStore, memoryStore, deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const o = await (await fetch(`http://127.0.0.1:${port}/overview?sessionId=s1`)).json();
@@ -117,7 +117,7 @@ test('액션이 항목을 "아직 아님"→"완료"로 옮긴다(액션 전엔 
   const memoryStore = mem({ candidates: [{ candidateId: 'p1', kind: 'operating_preference', statement: '표로 주세요', admitted: false, userConfirmed: false }], promoted: [], observed: [] });
   const deliveryStore = mem({ deliveries: [{ id: 'd1', sessionId: 's1', tool: 'slack.post', target: '#g', artifact: { text: '회의' }, state: 'failed', retriable: true }] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': okSender } }), skillStore, memoryStore, deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const b = `http://127.0.0.1:${server.address().port}`;
   try {
     // 액션 전: 전부 "아직 아님"
@@ -141,7 +141,7 @@ test('GET /overview: 반영한 검색 기억이 memories.reflected에 뜨고, �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ovm-'));
   const memoryStore = mem({ candidates: [], promoted: [], observed: [] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const b = `http://127.0.0.1:${server.address().port}`;
   try {
     // 검색 기억 반영
@@ -160,7 +160,7 @@ test('GET /overview: sessionId 없으면 전달은 비어 있음(다른 세션 �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ov2-'));
   const deliveryStore = mem({ deliveries: [{ sessionId: 's1', tool: 'slack.post', target: '#g', state: 'failed' }] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const o = await (await fetch(`http://127.0.0.1:${port}/overview`)).json();

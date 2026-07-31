@@ -48,7 +48,7 @@ async function withServer(fn) {
     },
   };
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': sender } }) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, calls, ctl); }
   finally { await new Promise((r) => server.close(r)); }

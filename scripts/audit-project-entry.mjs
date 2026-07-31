@@ -80,6 +80,20 @@ for (const path of worktrees) {
   fail(`인수인계에 없는 sidecar worktree가 열려 있음: ${relative(root, path)}`);
 }
 
+// 시험 서버는 **루프백에만 붙는다.** 주소를 안 주면 와일드카드(`::`)로 붙는데, macOS·BSD 는
+// 다른 프로세스가 이미 `127.0.0.1:P` 를 쥐고 있어도 그 바인딩을 **성공시킨다**(SO_REUSEADDR).
+// 그러면 시험은 포트 P 가 제 것이라 믿지만 `127.0.0.1:P` 로 보낸 요청은 전부 남의 프로세스가
+// 받는다 — 실제로 그렇게 나서, JSON 을 기대한 자리에 남의 SPA 가 준 `<!doctype html>` 이 왔다.
+// 주소를 주면 OS 가 그 주소에서 **정말 빈 포트**를 고르고, 겹치면 조용한 오답 대신 EADDRINUSE 로
+// 시끄럽게 실패한다. 조용히 틀리는 것보다 시끄럽게 멈추는 것이 낫다.
+// `git grep` 은 걸린 것이 없으면 1 로 끝난다 — 그건 실패가 아니라 **깨끗하다는 뜻**이다.
+let 바인딩줄 = '';
+try {
+  바인딩줄 = execFileSync('git', ['grep', '-n', 'listen(0', '--', 'test/'], { cwd: root, encoding: 'utf8' });
+} catch (e) { if (e.status !== 1) throw e; }
+const 바인딩샌곳 = 바인딩줄.split('\n').filter((l) => l.trim() && !l.includes("'127.0.0.1'"));
+for (const line of 바인딩샌곳) fail(`시험 서버가 주소 없이 붙는다(남의 프로세스와 겹칠 수 있다): ${line.trim()}`);
+
 if (failures.length) {
   console.error('PROJECT ENTRY AUDIT: FAIL');
   for (const message of failures) console.error(`- ${message}`);

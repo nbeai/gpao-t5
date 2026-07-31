@@ -98,7 +98,7 @@ test('서버 GET /toolbox(라이브, 토큰 없음): slack.post 초록 오표시
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tbl-'));
   const { env, tools, descriptors } = liveDeps({});
   const server = makeServer({ store: new SessionStore(dir), env, tools, descriptors });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const r = await (await fetch(`http://127.0.0.1:${port}/toolbox`)).json();
@@ -113,7 +113,7 @@ test('서버 GET /toolbox(라이브, 토큰 없음): slack.post 초록 오표시
 test('서버 GET /toolbox: 실제 상태 카드 반환', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-tb-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const r = await (await fetch(`http://127.0.0.1:${port}/toolbox`)).json();

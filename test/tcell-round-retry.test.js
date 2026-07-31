@@ -219,7 +219,7 @@ async function 빈서버(원리상태) {
     store: new SessionStore(dir), eventLog: new EventLog(dir), tools: demoTools(),
     model: { async respond(tc) { 받은것.push(tc); return '알겠어요.'; } },
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   // 승격은 **제품 경로**로 한다. 이 호출은 대화를 만들지 않으므로 lane 은 여전히 비어 있다.
   if (원리상태 === 'promoted') {

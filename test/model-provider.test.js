@@ -251,7 +251,7 @@ test('모델 오류(401 등)에도 /turn 은 사용자 발화와 미실행 사�
     },
   };
   const server = makeServer({ store: new SessionStore(dir), model: throwingModel });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const rejections = [];
   const onRej = (err) => rejections.push(err);

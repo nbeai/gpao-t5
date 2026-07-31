@@ -151,7 +151,7 @@ async function 서버세우기(상관목록) {
     store: new SessionStore(dir), eventLog: new EventLog(dir), tools: demoTools(),
     model: { async respond(tc) { 받은것.push(tc); return '알겠어요.'; } },
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, b) => fetch(`${base}${p}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}),

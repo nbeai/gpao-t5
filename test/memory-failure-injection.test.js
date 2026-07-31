@@ -22,7 +22,7 @@ async function boot(opts = {}) {
   const memoryStore = opts.memoryStore ?? new MemoryStore(dir);
   const memoryLedger = opts.memoryLedger ?? new MemoryLedger(dir);
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore, memoryLedger });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, b) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
   return { dir, base, post, server, close: () => new Promise((r) => server.close(r)) };

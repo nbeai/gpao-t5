@@ -50,7 +50,7 @@ async function 세우기() {
       },
     },
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, b) => fetch(`${base}${p}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}),

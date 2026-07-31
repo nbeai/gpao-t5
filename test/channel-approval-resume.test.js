@@ -48,7 +48,7 @@ async function 판() {
     store, allowlistStore, deliveryStore, tools,
     channels: demoChannels(), connectors: demoConnectors(), model: 파일쓰기모델,
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const turn = async (body) => (await fetch(`${base}/turn`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),

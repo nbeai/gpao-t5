@@ -117,7 +117,7 @@ async function withServer(fn) {
   const { makeServer } = await import('../src/surface/server.js');
   const store = await newStore();
   const server = makeServer({ store, model: { respond: async () => '네' } });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = async (path, body) => (await fetch(`${base}${path}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}),

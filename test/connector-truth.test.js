@@ -148,7 +148,7 @@ async function 서버(opts = {}) {
     store: new SessionStore(dir), env: c.env, tools: c.tools,
     descriptors: demoDescriptors(opts), connectors: demoConnectors(),
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   return { server, base, ctx: c };
 }
@@ -198,7 +198,7 @@ test('env 가 손을 잘못 알고 있어도 서버는 실제 레지스트리를
     store: new SessionStore(dir), env: 낡은env, tools,
     descriptors: demoDescriptors(), connectors: demoConnectors(),
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
     const j = await (await fetch(`http://127.0.0.1:${server.address().port}/connectors/truth`)).json();
     assert.ok(!j.modelSchema.includes('local.terminal'),

@@ -219,7 +219,7 @@ async function 서버(deps = {}) {
   const server = makeServer({
     store, eventLog: new EventLog(dir), tools: demoTools(), model: 엿보는모델(받은것), ...deps,
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, server, 받은것, base: `http://127.0.0.1:${server.address().port}` };
 }
 
@@ -318,7 +318,7 @@ async function 채널서버() {
     store, eventLog: new EventLog(dir), tools: demoTools(),
     allowlistStore: allow, model: 엿보는모델(받은것),
   });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, allow, server, 받은것, base: `http://127.0.0.1:${server.address().port}` };
 }
 

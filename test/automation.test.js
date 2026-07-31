@@ -126,30 +126,53 @@ async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-auto-'));
   const autoStore = new AutomationStore(dir);
   const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore, runtimeToken: TICK_TOKEN });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
   try { return await fn(base, autoStore, server); }
   finally { await new Promise((r) => server.close(r)); }
 }
+/**
+ * 응답을 JSON 으로 읽되, **아니면 무엇을 받았는지 말하고 죽는다.**
+ *
+ * 예전에는 그냥 `.json()` 이었다. 병렬 부하에서 한 번씩 `<!doctype …>` 이 와서 파싱이
+ * 터졌는데, 남는 것이 "JSON.parse 실패"뿐이라 **어느 요청이 무엇을 받았는지 알 수 없었다.**
+ * 원인을 못 찾으면 남는 선택은 직렬화로 숨기거나 재시도로 넘기는 것뿐인데, 둘 다 사실을
+ * 지우는 짓이다. 그래서 실패한 그 순간을 통째로 남긴다.
+ */
+async function json응답(res, 무엇) {
+  const 본문 = await res.text();
+  try { return JSON.parse(본문); } catch {
+    throw new Error([
+      `JSON 이 아니다 — ${무엇}`,
+      `  status=${res.status} ${res.statusText}`,
+      `  content-type=${res.headers.get('content-type')}`,
+      `  server=${res.headers.get('x-t5-server') ?? '(표식 없음)'} date=${res.headers.get('date')}`,
+      `  body(0..200)=${JSON.stringify(본문.slice(0, 200))}`,
+    ].join('\n'));
+  }
+}
+
 const post = (base, path, body) =>
   fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-const getj = async (base, path) => (await fetch(`${base}${path}`)).json();
+const postj = async (base, path, body) => json응답(await post(base, path, body), `POST ${base}${path}`);
+const getj = async (base, path) => json응답(await fetch(`${base}${path}`), `GET ${base}${path}`);
 // tick은 런타임 이벤트로만(§8.3) — 트러스트 토큰을 실어 호출. 사용자 요청은 이 토큰이 없다.
 const tick = (base) =>
   fetch(`${base}/automation/tick`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-runtime-token': TICK_TOKEN } });
+const tickj = async (base) => json응답(await tick(base), `POST ${base}/automation/tick`);
 
 test('서버: 후보 승인 → tick 실행 → 원장 기록', async () => {
   await withServer(async (base, autoStore) => {
     await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
-    const approved = await (await post(base, '/automation/approve', { candidateId: 'c1' })).json();
+    const approved = await postj(base, '/automation/approve', { candidateId: 'c1' });
     assert.equal(approved.ok, true);
     assert.equal(approved.external, false);
     let view = await getj(base, '/automation');
     assert.equal(view.jobs.length, 1);
     assert.equal(view.jobs[0].state, 'scheduled');
     assert.equal(view.candidates.length, 0, '승인된 후보는 후보 목록에서 빠진다');
-    const ticked = await (await tick(base)).json();
+    const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].failureState, 'none');
     view = await getj(base, '/automation');
@@ -163,8 +186,8 @@ test('서버: 외부 전송 자동화는 만료 없는 승인을 거부한다(A2
     await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c2', statement: '매일 슬랙', action: sendAction })], jobs: [] });
     const rej = await post(base, '/automation/approve', { candidateId: 'c2' });
     assert.equal(rej.status, 400, '외부 전송은 만료 필요');
-    assert.equal((await rej.json()).needsExpiry, true);
-    const ok = await (await post(base, '/automation/approve', { candidateId: 'c2', expiresAt: Date.now() + 3600_000 })).json();
+    assert.equal((await json응답(rej, `POST ${base}/automation/approve (만료 없음)`)).needsExpiry, true);
+    const ok = await postj(base, '/automation/approve', { candidateId: 'c2', expiresAt: Date.now() + 3600_000 });
     assert.equal(ok.ok, true);
     assert.equal(ok.external, true);
     assert.ok(ok.grantScope.expiresAt, '승인 범위에 만료 있음');
@@ -174,10 +197,10 @@ test('서버: 외부 전송 자동화는 만료 없는 승인을 거부한다(A2
 test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async () => {
   await withServer(async (base, autoStore) => {
     await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c3', statement: '매주 정리', action: localAction })], jobs: [] });
-    const { jobId } = await (await post(base, '/automation/approve', { candidateId: 'c3' })).json();
-    const cancelled = await (await post(base, '/automation/cancel', { jobId })).json();
+    const { jobId } = await postj(base, '/automation/approve', { candidateId: 'c3' });
+    const cancelled = await postj(base, '/automation/cancel', { jobId });
     assert.equal(cancelled.state, 'cancelled');
-    const ticked = await (await tick(base)).json();
+    const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 0, '취소된 job은 실행 안 함');
   });
 });
@@ -185,15 +208,15 @@ test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async (
 // 산출물 검증(원칙 1): /turn 실경로가 반복 신호 → 후보를 만들어 저장하는지. (dedupKey 버그를 잡는 경로)
 test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', async () => {
   await withServer(async (base) => {
-    const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
+    const s = await postj(base, '/sessions');
+    const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' });
     assert.ok(r.automationSuggestion, '반복 신호 → 제안 카드');
     assert.ok(r.automationSuggestion.candidateId, 'UI 승인용 candidateId');
     assert.ok(r.automationSuggestion.action?.tool, '실행할 action 도구');
     const view = await getj(base, '/automation');
     assert.equal(view.candidates.length, 1, '후보로 저장됨(자동 승인 아님)');
     // 같은 발화 재입력 → 중복 제안 안 함
-    const r2 = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
+    const r2 = await postj(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' });
     assert.equal(r2.automationSuggestion, undefined, '이미 제안한 것은 다시 제안하지 않는다');
     assert.equal((await getj(base, '/automation')).candidates.length, 1);
   });
@@ -202,13 +225,13 @@ test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', 
 // 전체 경로 회귀(감사 보정): /sessions → /turn 반복 → approve → tick → runs 1 을 한 줄 흐름으로 고정.
 test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1', async () => {
   await withServer(async (base) => {
-    const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' })).json();
+    const s = await postj(base, '/sessions');
+    const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' });
     const candidateId = r.automationSuggestion.candidateId;
-    const appr = await (await post(base, '/automation/approve', { candidateId })).json();
+    const appr = await postj(base, '/automation/approve', { candidateId });
     assert.equal(appr.ok, true);
     assert.equal(appr.external, false);
-    const ticked = await (await tick(base)).json();
+    const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].failureState, 'none');
     const view = await getj(base, '/automation');
@@ -222,8 +245,8 @@ test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1'
 
 test('서버: 일반 대화 turn은 자동화 후보를 만들지 않는다(흐름 미교란)', async () => {
   await withServer(async (base) => {
-    const s = await (await post(base, '/sessions')).json();
-    const r = await (await post(base, '/turn', { sessionId: s.id, text: '안녕' })).json();
+    const s = await postj(base, '/sessions');
+    const r = await postj(base, '/turn', { sessionId: s.id, text: '안녕' });
     assert.equal(r.kind, 'reply');
     assert.equal(r.automationSuggestion, undefined, '반복 신호 없으면 제안 0');
     assert.deepEqual((await getj(base, '/automation')).candidates, []);
@@ -250,12 +273,12 @@ test('서버: 트러스트 토큰 없는 tick은 거부되고 실행 0(not_trust
     // 토큰 없이 일반 POST(=사용자 요청 흉내) → 403, job은 scheduled 그대로.
     const res = await post(base, '/automation/tick');
     assert.equal(res.status, 403);
-    assert.equal((await res.json()).reason, 'not_trusted');
+    assert.equal((await json응답(res, `POST ${base}/automation/tick (토큰 없음)`)).reason, 'not_trusted');
     const view = await getj(base, '/automation');
     assert.equal(view.jobs[0].state, 'scheduled', '거부됐으니 실행 안 됨');
     assert.equal(view.jobs[0].runs, 0);
     // 트러스트 토큰을 실으면 정상 실행(대조).
-    const ok = await (await tick(base)).json();
+    const ok = await tickj(base);
     assert.equal(ok.ran.length, 1);
     assert.equal((await getj(base, '/automation')).jobs[0].runs, 1);
   });

@@ -34,7 +34,7 @@ test('실브라우징: 로컬 http 서버를 실제 fetch로 수집 → 출처 �
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end('<title>테스트 문서</title><body>공개 본문 내용입니다.</body>');
   });
-  await new Promise((r) => srv.listen(0, r));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   const { port } = srv.address();
   try {
     const collector = makeWebCollector(); // 실제 global fetch — 진짜 브라우징(로컬 대상)

@@ -141,7 +141,7 @@ test('memory.propose 는 실행 등록부 어디에도 없다 — ToolRunner 로
 test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공통이다 · 수명주기 영수증이 남는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mem-'));
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore: new MemoryStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, b) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
   try {
@@ -180,7 +180,7 @@ test('/memory/reject 는 후보를 지운다 · /memory/confirm 은 종류 공�
 test('옛 주소(/user-model/preferences/:id/confirm)도 같은 단일 통로로 승격한다(감사 보강 3)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mem2-'));
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore: new MemoryStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const mem = new MemoryStore(dir);
