@@ -14,10 +14,12 @@
 //      알 수 없으므로 오류로 본다.
 //   ② 주입 뒤 지정한 검사 파일이 **반드시 실패**해야 한다. 통과하면 그 계약은 지금 무방비다.
 //   ③ 무슨 일이 있어도 원본을 되돌린다. 되돌리기에 실패하면 크게 소리친다.
-import { readFile, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { readFile, writeFile, cp, rm, mkdtemp, readdir, stat } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -94,9 +96,13 @@ export const MUTATIONS = [
   { 이름: '현재 상태 가드 제거(지나간 시도도 반영)', 파일: GROW, 검사: T_GROW,
     찾기: "    if (!job || job.attemptId !== 계획.job.attemptId) return { calls, reason: 'superseded' };",
     바꾸기: "    if (!job) return { calls, reason: 'superseded' };" },
+  // 주입은 **반드시 파싱되는 코드**여야 한다. 예전 이 줄은 여는 괄호만 더해 문법 오류를
+  // 만들었다. 그러면 `server.js` 를 불러오는 **모든** 검사가 파싱 단계에서 죽는다 — 잡히긴
+  // 잡히지만 무엇을 쟀는지는 알 수 없고(계약이 아니라 문법을 쟀다), 그동안 그 파일을 읽은
+  // 다른 실행까지 함께 무너진다. 감사가 본 회귀 실패의 기전이 정확히 이것이었다.
   { 이름: '성장 호출을 자물쇠 안으로', 파일: SERVER, 검사: T_GROW,
-    찾기: '      const r = await growTick({\n        memStore, store, withMemory,',
-    바꾸기: '      const r = await withMemory(() => growTick({\n        memStore, store,' },
+    찾기: '      const r = await growTick({\n        memStore, store, withMemory,\n        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).\n        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),\n      });',
+    바꾸기: '      const r = await withMemory(async () => growTick({\n        memStore, store,\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),\n      }));' },
 
   // ── §4.3 상태기계 · 회차 ────────────────────────────────────────────────
   { 이름: '신분 미확인 호출로도 계속 진행', 파일: GROW, 검사: T_GROW,
@@ -291,6 +297,12 @@ async function 한번(m, repo) {
   }
   try {
     await writeFile(path, 원본.replace(m.찾기, m.바꾸기), 'utf8');
+    // **주입은 돌아가는 코드여야 한다.** 문법이 깨지면 그 파일을 불러오는 검사는 전부 파싱
+    // 단계에서 죽는다 — 잡히긴 잡히지만 무엇을 쟀는지 알 수 없다(계약이 아니라 문법을 쟀다).
+    // 실제로 한 건이 그랬고, 그 주입이 붙어 있는 동안 저장소를 읽은 다른 실행까지 무너졌다.
+    if (spawnSync('node', ['--check', path], { cwd: repo }).status !== 0) {
+      return { ...m, 결과: 'anchor', 메모: '주입 결과가 문법 오류 — 계약이 아니라 문법을 재게 된다' };
+    }
     const r = spawnSync('node', ['--test', '--test-timeout=30000', m.검사], { cwd: repo, encoding: 'utf8' });
     // 종료코드 0 = 검사가 전부 통과 = **주입이 빠져나갔다**.
     return { ...m, 결과: r.status === 0 ? 'escaped' : 'caught' };
@@ -315,7 +327,67 @@ export async function auditMutation(repo = REPO, 목록 = MUTATIONS) {
   return 결과;
 }
 
-const 결과 = await auditMutation();
+// ── 격리 ────────────────────────────────────────────────────────────────
+//
+// 예전에는 **활성 저장소의 실제 소스를 직접 변조**했다. 스윕은 늘 원본을 되돌렸고 스윕
+// 자신의 판정도 옳았지만, 되돌리기 전 그 짧은 순간에 **다른 실행이 그 파일을 읽으면** 그쪽이
+// 무너진다. 실제로 그렇게 났다: 감사가 돌린 전체 회귀에서 성장 예산 검사 3건이 깨졌는데,
+// 수치가 그때 주입돼 있던 "쓴 호출을 예산에 안 적음" 돌연변이와 정확히 일치했다. 제품에는
+// 아무 결함이 없었다. **검증 도구가 검증 결과를 만들어 낸 것이다.**
+//
+// 그래서 변조는 임시 사본에서만 한다. 활성 저장소는 읽기 전용이다 — 잠금으로 순서를 맞추는
+// 대신, 애초에 다툴 대상을 없앤다. 잠금은 잊거나 새 진입점이 생기면 뚫리지만, 사본은
+// 뚫릴 것이 없다.
+const 건너뛸것 = new Set(['.git', 'node_modules', '.claude']);
+
+async function 작업사본(repo) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mutation-'));
+  const work = join(dir, 'repo');
+  await cp(repo, work, {
+    recursive: true,
+    filter: (src) => !건너뛸것.has(relative(repo, src)),
+  });
+  return { dir, work };
+}
+
+/** 지금 이 순간 소스의 지문. 실행 전후가 같아야 "안 건드렸다"가 사실이 된다. */
+async function 소스지문(repo) {
+  const h = createHash('sha256');
+  const 훑기 = async (d) => {
+    for (const 이름 of (await readdir(d)).sort()) {
+      const p = join(d, 이름);
+      if ((await stat(p)).isDirectory()) await 훑기(p);
+      else if (/\.(js|mjs)$/.test(이름)) h.update(relative(repo, p)).update(await readFile(p));
+    }
+  };
+  for (const 칸 of ['src', 'scripts', 'test']) await 훑기(join(repo, 칸));
+  return h.digest('hex');
+}
+
+// **불러오기만 해서는 아무 일도 일어나지 않는다.** 예전에는 이 파일을 import 하는 순간
+// 스윕 전체가 돌았다 — 목록만 읽으려던 실험이 저장소를 변조하는 실행을 시작해 버린다.
+// 도구를 조사하는 일이 도구를 발동시키면, 조사한 결과를 믿을 수 없다.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await 스윕실행();
+
+async function 스윕실행() {
+const 실행전 = await 소스지문(REPO);
+const { dir: 임시, work } = await 작업사본(REPO);
+let 결과;
+try {
+  결과 = await auditMutation(work);
+} finally {
+  await rm(임시, { recursive: true, force: true });
+}
+
+// 활성 저장소가 실행 전과 **한 바이트도 다르지 않아야** 한다. 이 확인이 없으면 격리는
+// 주장일 뿐이고, 주장은 언젠가 조용히 틀린다.
+const 실행후 = await 소스지문(REPO);
+if (실행전 !== 실행후) {
+  console.error('\n치명: 스윕이 활성 저장소를 바꿨다. 격리가 뚫렸다 — git 으로 확인하라.');
+  console.error(`  전: ${실행전}\n  후: ${실행후}`);
+  process.exit(2);
+}
+
 const 샌것 = 결과.filter((r) => r.결과 !== 'caught');
 if (샌것.length) {
   console.error(`\nMUTATION SWEEP: FAIL — ${샌것.length}/${결과.length} 건이 검사에 안 걸린다`);
@@ -323,3 +395,5 @@ if (샌것.length) {
   process.exit(1);
 }
 console.log(`\nMUTATION SWEEP: PASS (${결과.length}건 전부 검사가 물었다)`);
+console.log(`활성 저장소 무변경 확인 — 소스 지문 ${실행전.slice(0, 16)} (실행 전후 동일)`);
+}
