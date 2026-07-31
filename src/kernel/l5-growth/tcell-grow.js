@@ -32,13 +32,44 @@ export const GROW_CAPS = Object.freeze({
 
 const sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 24);
 
+/**
+ * 잘린 응답에서 **완전히 적힌 것만** 건진다(라이브 실측 2026-07-31: 1024 토큰에서 끊겨
+ * JSON 이 안 닫히자 제안 전체가 버려졌다). 반쪽 사례는 버린다 — 모자란 칸을 채워 넣지 않는다.
+ * 건진 게 최소 표본에 못 미치면 그건 그대로 불통과다(적게 읽는 것과 지어내는 것은 다르다).
+ */
+function 잘린것에서건지기(raw) {
+  const s = /"statement"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(raw);
+  if (!s) return null;
+  let statement;
+  try { statement = JSON.parse(`"${s[1]}"`); } catch { return null; }
+
+  const at = raw.indexOf('"cases"');
+  if (at < 0) return null;
+  const cases = [];
+  let depth = 0;
+  let start = -1;
+  for (let i = at; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (ch === '{') { if (depth === 0) start = i; depth += 1; }
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        try { cases.push(JSON.parse(raw.slice(start, i + 1))); } catch { /* 깨진 조각은 버린다 */ }
+        start = -1;
+      }
+    }
+  }
+  return cases.length ? { statement, cases } : null;
+}
+
 /** 모델이 코드펜스로 감싸도 읽는다. **읽히지 않으면 지어내지 않고 포기한다.** */
 export function parseProposal(text) {
   const raw = String(text ?? '');
   const 안 = raw.replace(/^[\s\S]*?```(?:json)?\s*/, '').replace(/```[\s\S]*$/, '');
   for (const 후보 of [raw, 안]) {
     let j;
-    try { j = JSON.parse(후보.trim()); } catch { continue; }
+    try { j = JSON.parse(후보.trim()); } catch { j = 잘린것에서건지기(후보); }
+    if (!j) continue;
     const statement = typeof j?.statement === 'string' ? j.statement.trim() : '';
     const cases = Array.isArray(j?.cases) ? j.cases : null;
     if (!statement || !cases?.length) continue;
@@ -89,6 +120,19 @@ function 제안요청(bundle, 원문들) {
     `필수 표본: positive ${SUITE_MINIMUM.positive}건 이상, negative ${SUITE_MINIMUM.negative}건 이상,`,
     `boundary ${SUITE_MINIMUM.boundary}건 이상. negative 는 **그 원리를 적용하면 안 되는 상황**이고,`,
     'boundary 는 **원리를 과잉 적용하기 쉬운 인접 상황**이다.',
+    '',
+    // 라이브 실측(2026-07-31)에서 사례가 "앞서 7월을 정리했던 맥락이 유지된다"처럼 **앞 대화를
+    // 가정**했다. replay 는 그 사례 하나만 놓고 도는 격리 호출이라 그 맥락이 없다 — 그래서
+    // 원리가 옳아도 positive 가 전부 실패했다. 사례는 그 자체로 완결돼야 한다.
+    '각 사례는 **그 자체로 완결**돼야 한다. 앞 대화·다른 사례·이전 답을 가정하지 마라.',
+    '필요한 값은 전부 inputFacts 안에 적고, expectedFacts 는 **그 한 번의 답만 보고**',
+    '지켜졌는지 판정할 수 있는 것만 써라.',
+    // 응답 상한(실측 1024 토큰)에서 잘리면 뒤쪽 사례가 통째로 날아간다 — 짧게 쓰게 한다.
+    '각 사실은 **한 문장, 40자 이내**로 쓴다. 사례는 5건을 넘기지 마라.',
+    // 라이브 2회차: 원리가 "앞의 형식을 이어간다"류였는데 사례는 앞의 답을 *말로만* 가리켜
+    // (`도우미가 표로 답했다`) replay 호출에 그 답이 없었다. 그러면 옳은 원리도 판정 불가다.
+    '원리가 앞의 답을 이어가는 성질이면, inputFacts 에 **앞의 답 원문을 그대로** 넣어라',
+    '("도우미가 표로 답했다" 같은 요약은 안 된다 — 이어갈 대상이 실제로 있어야 한다).',
   ].join('\n');
 }
 
@@ -98,8 +142,13 @@ function 실행요청(statement, c) {
     '',
     사례문장(c),
     '',
-    `[검토 중인 원리] ${statement}`,
-    '이 원리는 아직 확정되지 않았다 — 이 상황에 맞으면 따르고, 맞지 않으면 따르지 마라.',
+    // §4.4 "원리를 **제한 역할로 주입**한다". 처음엔 "맞으면 따르고 아니면 말라"로 썼는데,
+    // 그건 주입이 아니라 힌트다 — 라이브에서 옳은 원리인데도 모델이 그냥 안 따라 positive 가
+    // 실패했다. 적용 범위는 좁히되, 해당하면 따르게 한다. 넘치는 적용은 boundary·negative
+    // 사례가 잡는다(그게 그 사례들의 일이다).
+    `[이번 답에 한해 적용할 원리] ${statement}`,
+    '이 상황이 원리에 해당하면 원리를 따라 답하라. 원리가 요구하지 않는 것까지 넓히지 말고,',
+    '사용자가 명시적으로 다르게 요청했다면 사용자 요청이 우선한다.',
   ].join('\n');
 }
 

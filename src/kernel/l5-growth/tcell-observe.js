@@ -40,26 +40,74 @@ export function makeObservation(p) {
   };
 }
 
-/** 같은 현상을 묶는다. 원문과 반례는 관찰 쪽에 그대로 남는다(묶음은 참조만 갖는다). */
-export function bundleObservations(observations = []) {
-  const bySubject = new Map();
-  for (const o of observations) {
-    const key = `${o.kind}\0${o.subject}`;
-    if (!bySubject.has(key)) bySubject.set(key, []);
-    bySubject.get(key).push(o);
+/**
+ * 요청 문장의 **모양**. 숫자·기호를 지우고 글자 2음절 집합으로 남긴다 — 언어별 형태소 분석기
+ * 없이도 "같은 일을 표현만 바꿔 말한 것"을 잡는다. 모델은 부르지 않는다(관찰 계약).
+ */
+function 이음절(text) {
+  const t = String(text ?? '').toLowerCase()
+    .replace(/[0-9]+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const out = new Set();
+  for (let i = 0; i < t.length - 1; i += 1) {
+    const g = t.slice(i, i + 2);
+    if (!g.includes(' ')) out.add(g);
   }
+  return out;
+}
+
+/**
+ * 겹침 계수(교집합 / 작은 쪽 크기). Jaccard 를 쓰면 **긴 문장과 짧은 문장이 절대 안 묶인다** —
+ * H02 는 첫 문장이 길고 뒤 문장이 축약형이라 그게 바로 결함이 된다(라이브 실측).
+ */
+function 겹침(a, b) {
+  if (!a.size || !b.size) return 0;
+  let n = 0;
+  for (const g of a) if (b.has(g)) n += 1;
+  return n / Math.min(a.size, b.size);
+}
+
+/**
+ * 같은 현상으로 볼 문턱. 실측(2026-07-31): 같은 요청의 다른 표현 0.50~0.67 ·
+ * 무관한 요청 0.00~0.20. 그 사이에 둔다.
+ */
+export const BUNDLE_SIMILARITY = 0.45;
+
+/**
+ * 같은 현상을 묶는다. 원문과 반례는 관찰 쪽에 그대로 남는다(묶음은 참조만 갖는다).
+ *
+ * 예전에는 `주제 문자열이 완전히 같을 때`만 묶었다. 그건 "같은 말을 그대로 반복했을 때"만
+ * 반복으로 세는 것이라, **표현을 바꾼 반복은 영원히 안 묶인다** — H02 라이브에서 세 번
+ * 반복해도 묶음 0이었다. 지금은 문장의 모양이 충분히 겹치면 같은 현상으로 본다.
+ *
+ * 군집의 기준은 **첫 구성원(seed)** 이다. 구성원을 더할 때마다 기준을 넓히면 먼 것까지
+ * 하나로 뭉치고, 뭉친 묶음에서 나온 원리는 거짓이 된다.
+ */
+export function bundleObservations(observations = []) {
+  // 결정적: 입력 순서와 무관하게 같은 군집이 나와야 재처리에서 같은 ID 가 나온다.
+  const sorted = [...observations].sort((a, b) => a.observationId.localeCompare(b.observationId));
+  const clusters = [];
+  for (const o of sorted) {
+    const grams = 이음절(o.subject);
+    const hit = clusters.find((c) => c.kind === o.kind && 겹침(c.grams, grams) >= BUNDLE_SIMILARITY);
+    if (hit) hit.members.push(o);
+    else clusters.push({ kind: o.kind, grams, members: [o] });
+  }
+
   const out = [];
-  for (const [key, group] of bySubject) {
-    if (group.length < 2) continue; // 한 번은 반복이 아니다
-    const ids = group.map((o) => o.observationId).sort();
+  for (const c of clusters) {
+    if (c.members.length < 2) continue; // 한 번은 반복이 아니다
+    const ids = c.members.map((o) => o.observationId).sort();
     out.push({
-      bundleId: digest(['bundle', key, ...ids]),
-      kind: group[0].kind,
-      subject: group[0].subject,
+      bundleId: digest(['bundle', c.kind, ...ids]),
+      kind: c.kind,
+      subject: c.members[0].subject,
       observationIds: ids,
       count: ids.length,
-      firstAt: Math.min(...group.map((o) => o.at ?? 0)),
-      lastAt: Math.max(...group.map((o) => o.at ?? 0)),
+      firstAt: Math.min(...c.members.map((o) => o.at ?? 0)),
+      lastAt: Math.max(...c.members.map((o) => o.at ?? 0)),
     });
   }
   return out.sort((a, b) => a.bundleId.localeCompare(b.bundleId));

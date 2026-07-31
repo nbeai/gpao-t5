@@ -19,7 +19,9 @@ import { EventLog } from '../src/surface/event-log.js';
 import { makeServer } from '../src/surface/server.js';
 import { demoTools } from '../src/surface/demo-context.js';
 import { admittedContext, confirmCandidate } from '../src/kernel/l1-intent/context-mesh.js';
-import { growOnce, GROW_CAPS, verifySuiteFromMemory } from '../src/kernel/l5-growth/tcell-grow.js';
+import {
+  growOnce, GROW_CAPS, verifySuiteFromMemory, parseProposal,
+} from '../src/kernel/l5-growth/tcell-grow.js';
 
 // 원리 문장과 실제로 겹치는 요청 — 이걸 안 주면 `admittedContext` 는 무조건 0을 돌려주고,
 // "입장 0" 검사가 통과해도 아무 것도 증명하지 못한다(검사가 자기 의도만 확인하는 자리).
@@ -401,3 +403,36 @@ test('S4/제품: 성장이 연속 실패하면 성장만 격리된다(대화·�
 });
 
 const 答또는답 = (r) => typeof r?.reply === 'string' && r.reply.length > 0;
+
+// ── 잘린 응답 ──────────────────────────────────────────────────────────────
+test('S4: 잘린 제안에서 완전한 사례만 건진다(모자란 조각을 채워 넣지 않는다)', () => {
+  // 라이브 실측(2026-07-31): 응답이 1024 토큰에서 잘려 JSON 이 안 닫혔고, 제안 전체가 버려졌다.
+  const 잘림 = '{"statement":"월별 지표는 항목별로 정리한다","cases":['
+    + '{"kind":"positive","inputFacts":["7월 수치를 줬다"],"expectedFacts":["항목별로 정리한다"],"forbiddenFacts":["표로 바꾼다"]},'
+    + '{"kind":"negative","inputFacts":["표로 달라고 했다"],"expectedFacts":["표로 준다"],"forbiddenFacts":["목록을 강요한다"]},'
+    + '{"kind":"boundary","inputFacts":["계산을 요청했다"],"expectedFacts":["답변';
+  const r = parseProposal(잘림);
+  assert.ok(r, '읽을 수 있는 만큼은 읽는다');
+  assert.equal(r.statement, '월별 지표는 항목별로 정리한다');
+  assert.equal(r.cases.length, 2, '완전한 사례 둘만 건진다 — 잘린 셋째는 버린다');
+  assert.deepEqual(r.cases.map((c) => c.kind), ['positive', 'negative']);
+});
+
+test('S4: 원리 문장 자체가 잘렸으면 아무 것도 만들지 않는다', () => {
+  assert.equal(parseProposal('{"statement":"월별 지표는 항'), null);
+  assert.equal(parseProposal('{"cases":[{"kind":"positive","inputFacts":["a"]}]}'), null, '원리 없는 사례는 원리가 아니다');
+});
+
+test('S4: 건진 사례가 최소 표본에 못 미치면 통과가 아니다', async () => {
+  const memStore = await 준비();
+  const 잘림 = '{"statement":"월별 지표는 항목별로 정리한다","cases":['
+    + '{"kind":"positive","inputFacts":["7월 수치를 줬다"],"expectedFacts":["항목별로 정리한다"],"forbiddenFacts":["표로 바꾼다"]},'
+    + '{"kind":"negative","inputFacts":["표로 달라고 했다"],"expectedFacts":["표로 준다"],"forbiddenFacts":["목록을';
+  const { modelFor } = 대본모델({ 제안본문: 잘림 });
+  const r = await growOnce({ memStore, modelFor, now: 100 });
+  assert.equal(r.pass, false);
+  const memory = await memStore.load();
+  const 후보 = memory.candidates.find((c) => c.kind === 'operating_principle');
+  assert.ok(후보.replayReport.missing.includes('positive_sample'));
+  assert.ok(후보.replayReport.missing.includes('boundary_sample'));
+});

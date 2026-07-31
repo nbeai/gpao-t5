@@ -116,6 +116,49 @@ test('S2: 묶음 ID 도 원천 집합으로 결정된다', () => {
   assert.equal(b1.observationIds.length, 2);
 });
 
+test('S2: 표현이 달라도 같은 현상이면 묶인다(H02 라이브가 잡은 결함)', () => {
+  // 라이브 실측(2026-07-31): 주제를 원문 앞 40자로 잡아 이 세 문장이 하나도 안 묶였다.
+  // "표현만 바꿔 세 번"이 H02 시나리오의 정의인데, 그러면 성장이 구조적으로 못 돈다.
+  const 문장 = [
+    '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 이거 좀 정리해줘.',
+    '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
+    '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
+  ];
+  const obs = 문장.map((s, i) => makeObservation({ turnRef: ref('s', i + 1), kind: 'request', subject: s }));
+  const bundles = bundleObservations(obs);
+  assert.equal(bundles.length, 1, '세 번의 같은 요청은 한 묶음이다');
+  assert.equal(bundles[0].count, 3);
+});
+
+test('S2: 무관한 요청은 같은 묶음에 들어가지 않는다(뭉뚱그리면 원리가 거짓이 된다)', () => {
+  const obs = [
+    makeObservation({ turnRef: ref('s', 1), kind: 'request', subject: '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 정리해줘.' }),
+    makeObservation({ turnRef: ref('s', 2), kind: 'request', subject: '8월 것도. 1350 / 900 / 신규 11 / 이탈 5' }),
+    makeObservation({ turnRef: ref('s', 3), kind: 'request', subject: '오늘 날씨 어때?' }),
+    makeObservation({ turnRef: ref('s', 4), kind: 'request', subject: '파일 하나 만들어줘. 회의록.txt' }),
+  ];
+  const bundles = bundleObservations(obs);
+  assert.equal(bundles.length, 1, '반복인 것만 묶인다');
+  assert.equal(bundles[0].count, 2);
+  const 묶인것 = new Set(bundles[0].observationIds);
+  assert.equal(묶인것.has(obs[2].observationId), false, '날씨는 같은 현상이 아니다');
+  assert.equal(묶인것.has(obs[3].observationId), false, '파일 요청도 아니다');
+});
+
+test('S2: 묶기는 결정적이다(입력 순서를 섞어도 같은 묶음이 나온다)', () => {
+  const 문장 = [
+    '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 정리해줘.',
+    '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
+    '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
+    '오늘 날씨 어때?',
+  ];
+  const obs = 문장.map((s, i) => makeObservation({ turnRef: ref('s', i + 1), kind: 'request', subject: s }));
+  const a = bundleObservations(obs);
+  const b = bundleObservations([...obs].reverse());
+  assert.deepEqual(a.map((x) => x.bundleId), b.map((x) => x.bundleId));
+  assert.deepEqual(a[0].observationIds, b[0].observationIds);
+});
+
 // ── ③ 원자성·크래시 재개 ─────────────────────────────────────────────────
 test('S2: 저장이 실패하면 watermark 도 전진하지 않는다', async () => {
   const id = '66666666-6666-4666-8666-666666666666';
