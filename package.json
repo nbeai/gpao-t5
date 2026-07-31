@@ -21,6 +21,7 @@
     "audit:workspace": "node scripts/audit-project-entry.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "gate": "node scripts/gate.mjs",
-    "audit:docs": "node scripts/audit-docs.mjs"
+    "audit:docs": "node scripts/audit-docs.mjs",
+    "audit:plan": "node scripts/audit-plan.mjs"
   }
 }
