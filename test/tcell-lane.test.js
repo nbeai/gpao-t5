@@ -302,3 +302,80 @@ test('S3/제품: 승계 계산이 실패해도 대화는 막히지 않는다', a
     assert.equal(r.kind, 'reply', '승계는 편의다 — 실패해도 대화는 돈다');
   } finally { server.close(); }
 });
+
+// ── 감사 P1: 채널 경로에도 lane 이 공급되는가 ──────────────────────────────
+// 웹 /turn 만 배선하고 채널 입구를 빠뜨리면, 허용된 채널 사용자는 웹에서 만든 산출물을
+// 새 채널 대화에서 이어받지 못한다(계획 §4.7 "같은 오너 웹↔binding 채널 승계" 미충족).
+import { AllowlistStore } from '../src/surface/allowlist-store.js';
+
+async function 채널서버() {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-lane-ch-'));
+  const store = new SessionStore(dir);
+  const allow = new AllowlistStore(dir);
+  await allow.allow('telegram', { userId: 'owner-1', label: '오너' });
+  const 받은것 = [];
+  const server = makeServer({
+    store, eventLog: new EventLog(dir), tools: demoTools(),
+    allowlistStore: allow, model: 엿보는모델(받은것),
+  });
+  await new Promise((r) => server.listen(0, r));
+  return { dir, store, allow, server, 받은것, base: `http://127.0.0.1:${server.address().port}` };
+}
+
+/** 웹에서 산출물을 남긴 대화 하나를 심는다(성공한 receipt — lane 의 유일한 출처). */
+async function 웹산출물(store, name = '웹정리본.md') {
+  const s = await store.create('웹에서 만든 정리', { principalRef: 'local-owner' });
+  s.transcript.push({ role: 'user', text: '정리해줘', turnRef: ref(s.id, 1) });
+  s.transcript.push({ role: 'assistant', result: { kind: 'reply', reply: '했어요' }, turnRef: ref(s.id, 1) });
+  s.ledgerEntries.push({
+    intended: '정리본 작성', lifecycle: 'executed', failureState: 'none',
+    userSafeSummary: '만들었어요.', turnRef: ref(s.id, 1),
+    actualCall: { tool: 'local.file', args: { action: 'write' } },
+    result: { path: join(process.env.HOME ?? '', 'GPAO-T5', name), digest: 'dg' },
+  });
+  await store.save(s);
+  return s;
+}
+
+test('S3/P1: 허용된 채널 사용자는 웹에서 만든 산출물을 채널 대화에서 이어받는다', async () => {
+  const { store, server, 받은것 } = await 채널서버();
+  try {
+    await 웹산출물(store);
+    받은것.length = 0;
+    const r = await server.handleChannelMessage({
+      channel: 'telegram', chatId: 'room-1', userId: 'owner-1',
+      text: '아까 그 최종본 이어서 정리해줘', isDirectMessage: true,
+    });
+    assert.ok(r, '채널 턴이 돌았다');
+    const 본것 = JSON.stringify(받은것);
+    assert.ok(본것.includes('웹정리본.md'), '채널 대화의 모델 입력에 웹 산출물이 사실로 온다');
+    assert.ok(!본것.includes(join(process.env.HOME ?? '', 'GPAO-T5')), '원시 절대경로는 없다');
+  } finally { server.close(); }
+});
+
+test('S3/P1: 허용목록에 없는 채널 사용자에게는 공급 0', async () => {
+  const { store, server, 받은것 } = await 채널서버();
+  try {
+    await 웹산출물(store, '오너만의정리본.md');
+    받은것.length = 0;
+    await server.handleChannelMessage({
+      channel: 'telegram', chatId: 'room-9', userId: '낯선사람',
+      text: '아까 그거 이어서', isDirectMessage: true,
+    });
+    assert.ok(!JSON.stringify(받은것).includes('오너만의정리본'), '남에게는 절대 안 간다');
+  } finally { server.close(); }
+});
+
+test('S3/P1: payload 가 principalRef 를 주장해도 서버 저장 신분만 쓴다', async () => {
+  const { store, server, 받은것 } = await 채널서버();
+  try {
+    await 웹산출물(store, '위조표적.md');
+    받은것.length = 0;
+    await server.handleChannelMessage({
+      channel: 'telegram', chatId: 'room-8', userId: '낯선사람',
+      principalRef: 'local-owner', // 위조 시도
+      text: '아까 그거 이어서', isDirectMessage: true,
+    });
+    assert.ok(!JSON.stringify(받은것).includes('위조표적'), 'payload 주장은 무효다');
+  } finally { server.close(); }
+});

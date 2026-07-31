@@ -1605,6 +1605,9 @@ export function makeServer(deps = {}) {
       connected: readiness === 'ok',
     });
     const memory = await memStore.load();
+    // S3 · 채널 턴도 같은 승계 사실을 본다(§4.7). 웹만 배선하면 허용된 채널 사용자가 웹에서
+    // 만든 산출물을 새 채널 대화에서 못 이어받는다 — 표면마다 다른 현실이 생긴다(감사 P1).
+    session.carryableWork = await 이어받을작업(session);
     // S0 · TurnRef(§4.1): 채널 턴도 같은 신분 계약을 탄다 — 관찰 워커가 표면별로 다른 규칙을
     // 갖지 않게 한다. 발급은 아래 저장과 같은 방 단위 직렬화 안이다.
     migrateTurnRefs(session);
