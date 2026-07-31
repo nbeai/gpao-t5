@@ -16,6 +16,8 @@
 //     (RP-1: 사본이 전부 낡은 공유 노후도 잡는다. 상태가 바뀌면 이 표도 함께 바뀐다)
 //  7. 여섯 줄 블록 노후 — §10 의 "현재 차단:"·"다음 작업과 종료 조건:" 이 이미 끝난 단계를
 //     현재 사실로 말하지 않는가 (S0 감사 REPEAT: 검사 범위보다 문서가 넓었다)
+//  8. 진입 문서 노후 — README·AGENTS·권위 지도·H 보드가 이미 끝난 준비 상태를 현재로 말하지 않는가
+//  9. 제품 메타 노후 — package.json 이 첫 슬라이스를 현재 제품 이름·버전으로 계속 주장하지 않는가
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +30,16 @@ const ENTRY_DOCS = [
   'docs/PROJECT-AUTHORITY-MAP-ko.md',
   'docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md',
   'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
+  'README.md',
+  'AGENTS.md',
+  'docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md',
+];
+
+const STALE_CURRENT_PHRASES = [
+  'T-cell implementation plan: **not yet issued**',
+  '새 T-cell 계획은 아직 작성 전이다',
+  'T-cell hold:',
+  'H0_FROZEN · 제품 H 미실행',
 ];
 
 // 전역 퇴역 토큰: {token, allow: 경로 부분 문자열(역사·감사 기록은 허용)}
@@ -79,6 +91,11 @@ export function auditDocs(repo = REPO) {
       const lines = text.split('\n').filter((l) => l.includes(token)
         && !/삭제|퇴역|폐기|역사|무효 판정|기록이며/.test(l));
       if (lines.length) errors.push(`${rel}: 퇴역 토큰 '${token}'이 현재 사실로 남아 있다 (${lines.length}줄)`);
+    }
+
+    // 8. 이미 끝난 준비 상태를 현재 진입 문서가 다시 지시하지 않는가.
+    for (const phrase of STALE_CURRENT_PHRASES) {
+      if (text.includes(phrase)) errors.push(`${rel}: 끝난 준비 상태 '${phrase}'를 현재 사실로 말한다`);
     }
   }
 
@@ -142,6 +159,20 @@ export function auditDocs(repo = REPO) {
         const hit = pastSpec.past.find((phrase) => claim.includes(phrase));
         if (hit) errors.push(`인수인계 §10: 상태 '${status}'인데 지난 단계 '${hit}'를 현재 사실로 말한다`);
       }
+    }
+  }
+
+  // 9. package 메타는 사용자에게 실제로 도달하는 산출물의 이름이다. README만 고쳐서는 부족하다.
+  const packagePath = join(repo, 'package.json');
+  if (!existsSync(packagePath)) {
+    errors.push('package.json: 제품 메타가 없다');
+  } else {
+    try {
+      const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));
+      if (String(pkg.version ?? '').includes('slice1')) errors.push('package.json: version이 첫 슬라이스에 머물러 있다');
+      if (/First Build Slice/i.test(String(pkg.description ?? ''))) errors.push('package.json: description이 첫 슬라이스를 현재 제품으로 말한다');
+    } catch {
+      errors.push('package.json: JSON을 읽을 수 없다');
     }
   }
 

@@ -36,12 +36,13 @@
 - T5 코어는 유지한다.
 - 과거 TG/CX 구현은 전면 롤백됐으며 현재 제품 사실이 아니다.
 - 옛 T-cell 명세는 `docs/archive/retired-plans/`로 퇴역했다.
-- 새 T-cell 계획은 아직 작성 전이다.
-- 새 계획은 오너 철학, 현재 코어, 실제 OpenClaw·Hermes 소스, Claude Code·Codex의 검증된 작동
-  방식을 대조해 작성하고 오너 확인 뒤에만 구현한다.
-- 새 계획 작성 전에 현재 코어에서 잃은 안전 보장을 복구하고,
-  `docs/03-verification/T5-TCELL-CURRENT-CORE-HUMAN-BASELINE-2026-07-30-ko.md`의 인간 시나리오
-  10개를 실제로 실행해 현재 사용 비용과 성능을 고정한다.
+- 새 T-cell 단일 구현 계약은 `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md`로 발행·동결됐고,
+  S0~S5 구현과 생산 경로·라이브 관통을 마쳤다.
+- 현재는 `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`의 H 단계다. S0~S5를 다시
+  설계하는 단계가 아니라 H01~H07 반복성·순수 기여를 봉인하고, 이어 H08~H09 PC 손발,
+  Agent Core와 H10, 전체 제품 봉인으로 진행한다.
+- 가장 최신의 세부 상태와 활성 작업은 이 문서에 복제하지 않는다. Git과
+  `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`, H 단계 진행표를 순서대로 대조한다.
 - 비교 자산과 퇴역 계획은 기준선의 원인 분석 자료이지 현재 구현 명령이 아니다.
 
 ## 3.1 T5 7개 코어 지도
@@ -61,6 +62,24 @@ T5는 기능 묶음이 아니라 아래 일곱 부분이 한 흐름으로 이어
 
 T-cell은 3번 코어에 속하지만 3번만의 프로젝트가 아니다. 성공한 T-cell은 2번 모델 운용, 4번 권한
 판단, 6번 사용자 표면, 7번 원장·복구·성장까지 실제로 좋아지게 해야 한다.
+
+### 3.2 현재 완성도 지도
+
+`구현됨`은 코드가 있다는 뜻이고, `봉인`은 동결된 실제 사용자 조건에서 반복성까지 판정됐다는 뜻이다.
+둘을 같은 말로 쓰지 않는다.
+
+| 코어 | 현재 상태 | 다음 완료 경계 |
+|---|---|---|
+| Selfhood | 실제 손·연결·자격·한계 판정 구현됨 | 전체 제품 봉인에서 회귀 확인 |
+| Model Operation | 다중 provider·역할 선택·현실 공급 구현됨 | 주 모델 H 봉인 + 보조 모델 교차 |
+| Intent / Context / T-cell | S0~S5 구현·라이브 관통, H 보완·봉인 중 | H01~H07 동결 회차 통과 |
+| ActionPlan / Authority | A0~A3·실행 시점 승인·안전 바닥 구현됨 | H08~H10과 전체 여정에서 회귀 확인 |
+| Router / Execution | 파일·웹·터미널·브라우저·채널·동적 커넥터 구현됨 | H08~H09 PC 손발 봉인 |
+| Work Surface / UX | 대화·승인·기억·성장·연결·자동화 표면 구현됨 | 전체 제품 여정·모바일·복구 봉인 |
+| Truth / Recovery / Growth | TurnRef·영수증·원장·원자 저장·T-cell 성장 구현됨 | Durable Trigger·Bounded Agent와 H10 |
+
+이후 순서는 Skill·Trigger·Durable Cron·Bounded Agent Core, 한국 사장님용 도구, 최소 제약·최대
+자동화 마감, 설치·업데이트·제거 수명주기, 첫 완성본 봉인, 행동 보존형 구조 건전화다.
 
 ### 상위 판정 여섯 줄
 

@@ -2,7 +2,7 @@
 
 - 작성: 2026-07-29
 - 지위: **AC-1 채택 이력 + 후속 재계획 입력**
-- 적용 시점: AC-1은 정본 편입 완료. AC-2 이후는 새 T-cell 계획 성공 뒤 현재 코어와 다시 대조해 재개
+- 적용 시점: AC-1은 정본 편입 완료. AC-2 이후는 T-cell H 봉인과 현재 코어 대조 뒤 재개
 - 출시 경계: 인간 베타와 설치 패키지 제작 전에 이 문서의 Core Closure를 통과해야 한다
 - 구현 원칙: 스킬, 크론, 에이전트를 세 기능으로 덧붙이지 않고 하나의 실행 원리로 만든다
 - 상위 정본:
@@ -10,15 +10,16 @@
   - `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
   - `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
   - `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
-  - 새 T-cell 계획(현재 미발행). 과거 명세는 `docs/archive/retired-plans/`에 있으며 구현 근거로 쓰지 않는다.
+  - `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md`(S0~S5 구현 계약). 과거 명세는
+    `docs/archive/retired-plans/`에 있으며 구현 근거로 쓰지 않는다.
 
 > **새 개발 세션은 이 문서를 스쳐 지나가면 안 된다.**
 >
 > 스킬, 반복 실행, 예약 실행, 장기 작업 위임, 에이전트 생성, 자동화 UI, background service,
 > T-cell의 automation learning 가운데 하나라도 건드리기 전에 이 문서를 읽는다.
 >
-> 이 문서는 새 T-cell 계획을 대체하지 않는다. AC-1 이후 순서는 과거 병렬 결정을 그대로 실행하지 않고,
-> 새 T-cell 계획이 자동화·스킬·에이전트와 만나는 경계를 확정한 뒤 다시 고정한다.
+> 이 문서는 T-cell 구현 계약을 대체하지 않는다. AC-1 이후 순서는 과거 병렬 결정을 그대로 실행하지
+> 않고, H 봉인된 T-cell 스키마와 현재 권한·원장·복구 경계를 다시 대조한 뒤 고정한다.
 
 ---
 

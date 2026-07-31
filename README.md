@@ -9,6 +9,10 @@ folder, retired plans, comparison sources, and the boundary between current trut
 
 GPAO-T5 is an Original AI Operating System: the user feels they are only chatting, while T5 understands the user's purpose, knows its own available models/tools/permissions/context, operates the necessary means, and produces the desired result through a safe, traceable, recoverable flow.
 
+Current development stage: the seven-core local runtime is implemented, T-cell S0-S5 has completed its production
+and live path, and H-stage remediation/sealing is in progress. This is not a public release claim. Durable scheduling,
+bounded agents, H08-H10, full installation lifecycle, and the final product seal remain explicit work.
+
 ## Top Authority Documents
 
 These documents are mandatory first-read material before any GPAO-T5 planning, implementation, review, verification, or handoff.
@@ -56,9 +60,11 @@ These documents do not sit above the top authority documents, but they are the s
    - Mandatory when touching P-OP, connectors, sessions, channel surfaces, delivery/recovery, automation, repair, or scope isolation. It records what T5 should absorb from OpenClaw and Hermes, why it matters, and how to translate it without drifting into dashboard/channel/CLI feature copying.
    - Its post-P-OP source re-audit also separates what is already absorbed, what belongs to productization, what T-cell must govern, and what the current pure-JavaScript/zero-runtime-package choice does and does not mean.
 
-3. T-cell implementation plan: **not yet issued**
-   - The previous specification is retired under `docs/archive/retired-plans/`.
-   - Do not resume TG/CX work from it. Preserve the current T5 core and wait for the new owner-approved plan.
+3. `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md`
+   - The owner-approved, frozen T-cell implementation contract. S0-S5 are implemented; the current execution line is
+     the H-stage board, not a reopening of the retired TG/CX specification.
+   - Current status belongs to `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md` and
+     `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`.
 
 4. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
    - Mandatory before changing skills, scheduling, background work, agent creation/delegation, or automation
@@ -72,32 +78,36 @@ These documents govern the pre-code research seal. They are not product code, bu
 1. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
    - Defines the Reference Inventory table schema, reuse classification rules, lab_un/OpenClaw boundary, coverage bar, and Codex audit criteria for Phase 0.
 
-## Non-Scope For Current Body Development
+## Release Boundary
 
-Installation and onboarding are intentionally excluded from the current GPAO-T5 body-development plan. Packaging lessons from GPAO-T3 still remain binding as regression-prevention knowledge when T5 later enters release/distribution work.
+The repository already verifies an `npm pack` artifact by unpacking and booting what would ship. That is an artifact
+gate, not a completed consumer installation lifecycle. Signed macOS packaging, background-service installation,
+updates, uninstall/recovery, and public distribution remain after the H and Agent Core seals.
 
-## Current First Build Slice
+## Current Product Body
 
 ```text
 Work Chat
-+ SelfStateSnapshot
-+ BEAI5 Task Context Packet
-+ ActionPlan
-+ Authority A0-A3
-+ Truth Ledger
-+ Connection status
-+ Follow-up Queue
++ Operational Selfhood and model/context reality
++ Intent / Context / T-cell memory, continuity, learning, and correction
++ ActionPlan / Authority A0-A3
++ File, web, browser, terminal, channel, MCP/API/CLI/OAuth execution
++ Work Surface for sessions, approvals, memory, growth, tools, and connections
++ TurnRef, receipts, Truth Ledger, recovery, and in-process automation
 ```
 
-This slice is the first heart of GPAO-T5. If this flow does not feel natural, truthful, capability-aware, and goal-directed, T5 is not yet an AI OS.
+The current body is a working local product line, not the 2026-07-24 first slice. It becomes a first completed T5
+only after the frozen H sets, Agent Core, designated follow-up capabilities, release lifecycle, and final owner journey
+are sealed.
 
-## Running the First Build Slice (Phase 5)
+## Running the Current Development Build
 
 Plain ESM JavaScript, zero build step, zero runtime dependencies. There is no compile/transform layer, so what the tests run is exactly what ships — this deliberately closes the GPAO-T3 "source is fine but the distribution is broken" failure class (absolute principle 1). Node 20+.
 
 ```bash
 npm test     # node --test — 계약 불변식 + 시나리오 재생 테스트
-npm start    # http://localhost:4173 — Work Chat (데모 환경)
+npm start    # http://localhost:4173 — local T5 Work Surface
+npm run verify:package  # pack → unpack → boot → health/onboarding artifact gate
 ```
 
 Enforcement gates (Phase 5, 환경헌장): enable the fast pre-commit guard with
@@ -113,7 +123,7 @@ src/kernel/l0-evidence/          SelfStateSnapshot · ToolReceipt · Truth Ledge
 src/kernel/l1-intent/            IntentPacket(말귀) · Task Context Packet
 src/kernel/l2-plan/              ActionPlan · Authority(A0-A3) · Follow-up
 src/kernel/turn.js               한 턴 오케스트레이터(L0-L2 배선)
-src/runtime/                     ModelClient · ToolRunner (L3, 슬라이스-1 스텁)
+src/runtime/                     실제 모델·도구·커넥터·자동화 실행(L3)
 src/surface/                     Work Chat 서버 + 웹 UI (L4)
 test/                            실패-우선 시나리오 테스트
 ```

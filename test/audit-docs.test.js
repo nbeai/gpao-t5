@@ -11,6 +11,9 @@ const ENTRY = [
   'docs/PROJECT-AUTHORITY-MAP-ko.md',
   'docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md',
   'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
+  'README.md',
+  'AGENTS.md',
+  'docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md',
 ];
 
 function scaffold() {
@@ -36,11 +39,17 @@ function scaffold() {
     [ENTRY[1]]: '# 지도',
     [ENTRY[2]]: '# 브리핑',
     [ENTRY[3]]: plan,
+    [ENTRY[4]]: '# README\n현재 제품 본문',
+    [ENTRY[5]]: '# AGENTS\n현재 작업 규칙',
+    [ENTRY[6]]: '# H 진행표\n- 상태: `TCELL_H_REMEDIATION`',
   };
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(join(repo, dirname(rel)), { recursive: true });
     writeFileSync(join(repo, rel), body);
   }
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({
+    name: 'gpao-t5', version: '0.1.0-development', description: 'GPAO-T5 local development build',
+  }));
   return repo;
 }
 
@@ -138,5 +147,28 @@ test('정본 투영: 여섯 줄 블록이 지난 단계를 현재 사실로 말�
     const errors = auditDocs(repo);
     assert.ok(errors.some((e) => e.includes('지난 단계')), String(errors));
     assert.ok(errors.filter((e) => e.includes('지난 단계')).length >= 2, '차단·다음작업 둘 다 잡는다');
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('정본 투영: README·AGENTS·H 보드의 끝난 준비 상태를 잡는다', () => {
+  const repo = scaffold();
+  try {
+    writeFileSync(join(repo, 'README.md'), 'T-cell implementation plan: **not yet issued**');
+    writeFileSync(join(repo, 'AGENTS.md'), 'T-cell hold:');
+    writeFileSync(join(repo, ENTRY[6]), '- 상태: `H0_FROZEN · 제품 H 미실행`');
+    const errors = auditDocs(repo);
+    assert.ok(errors.filter((e) => e.includes('끝난 준비 상태')).length >= 3, String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('정본 투영: package 메타가 첫 슬라이스에 머물면 잡는다', () => {
+  const repo = scaffold();
+  try {
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({
+      version: '0.0.0-slice1', description: 'GPAO-T5 First Build Slice',
+    }));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('version이 첫 슬라이스')), String(errors));
+    assert.ok(errors.some((e) => e.includes('description이 첫 슬라이스')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });

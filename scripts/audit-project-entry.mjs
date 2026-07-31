@@ -53,7 +53,9 @@ for (const path of activeMarkdown) {
 const handoff = read('GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md');
 for (const phrase of [
   'T-cell 구현은 전면 롤백',
-  '새 T-cell 계획',
+  'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
+  'IMPLEMENTATION_CONTRACT_FROZEN',
+  'TCELL_H_REMEDIATION',
   '최소 안전 제약, 최대 자동화',
   '/Users/jyp/Developer/t5-p-op',
 ]) {

@@ -45,20 +45,17 @@ Mandatory reference absorption supplement:
    - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
    - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
 
-T-cell hold:
+Current T-cell and H-stage boundary:
 
-7. The previous T-cell specification is retired under `docs/archive/retired-plans/`.
+7. `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md` is the frozen current T-cell implementation contract.
+   - The previous T-cell specification is retired under `docs/archive/retired-plans/` and never regains authority.
    - TG/CX product work was rolled back and is not current product truth.
-   - Preserve the current T5 core.
-   - Do not implement Memory/Context/POM/self-growth changes under the retired plan.
-   - T-cell resumes only after a new plan is written from owner philosophy, current core, actual OpenClaw/Hermes
-     source, and Claude Code/Codex operating assets, then explicitly confirmed by the owner.
-   - Before writing that plan, read and execute
-     `docs/03-verification/T5-TCELL-CURRENT-CORE-HUMAN-BASELINE-2026-07-30-ko.md`.
-     The ten human scenarios, not an internal contract matrix, are the measurement ruler for current-core comparison
-     and the new plan's success criteria.
-   - Also read `docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md` for the verified pre-start facts,
-     restored current-core safety boundary, gate-calibration rule, exact next sequence, and prohibited shortcuts.
+   - S0-S5 are implemented and have production/live path evidence. Do not reopen their design from retired plans.
+   - The active line is `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`: remediate diagnosed defect
+     families, then seal H01-H07, H08-H09, Agent Core/H10, and the final product journey.
+   - Verify the exact live state against Git and `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`; do not copy a volatile
+     status into a new plan or infer completion from test counts.
+   - Retired plans and the pre-start briefing are history and causal evidence, not current implementation commands.
 
 Owner-operation boundary:
    - The development and audit teams operate the terminal, browser, local UI, tests, fixtures, screenshots, and
@@ -150,7 +147,8 @@ Core rule:
 - The seven domains must work as one user flow: user utterance → self-state and available hands → natural model judgment → memory/context/growth → automatic/approval boundary → execution → surface → ledger/recovery.
 - T-cell belongs to Intent/Context, but its success must improve model operation, authority boundaries, work surface, and ledger/recovery rather than only adding memory state.
 - Never forget the owner’s six product laws: 말귀 first; do not harass people with cards/clicks; minimum safety and maximum automation; do not make the model dumb; be useful on the user’s real computer; memory should become natural, not merely larger.
-- Installation and onboarding are out of scope for the current body-development phase.
+- The `npm pack` artifact gate exists. Signed installation, background service, update, uninstall/recovery, and public
+  distribution remain release work after the H and Agent Core seals; do not call the artifact gate a finished installer.
 
 Development discipline:
 
