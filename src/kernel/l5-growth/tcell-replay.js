@@ -107,12 +107,18 @@ function verifyCallIdentity(idn) {
 }
 
 /**
- * 이 케이스의 실행 증거가 성립하는가. **저장소 조회가 진실이다.**
+ * 이 케이스의 실행 증거가 성립하는가. **계보와 저장소 조회가 진실이다.**
+ *
+ * 조회 대상은 **케이스가 들고 있는 `runReceiptRef`** 다. 호출자가 고른 영수증을 조회하면,
+ * 계보가 비어 있는 케이스도 남의 정상 영수증을 가리켜 통과할 수 있다 — 계획 §4.4 의
+ * "계보 부재" 반대시험이 막는 자리다(S4 중간 감사 P1).
  * @param {object} replayCase
- * @param {{runReceiptRef:string, store:{get:Function}, outputDigest:string}} ctx
+ * @param {{store:{get:Function}, outputDigest:string}} ctx
  */
 export function verifyReplayEvidence(replayCase, ctx) {
-  const stored = ctx?.store?.get?.(ctx.runReceiptRef);
+  const ref = replayCase?.runReceiptRef;
+  if (!ref) return { ok: false, reason: 'run_receipt_ref_missing' };
+  const stored = ctx?.store?.get?.(ref);
   // 호출자가 영수증 객체를 함께 넘겨도 쓰지 않는다 — 저장되지 않은 실행은 실행이 아니다.
   if (!stored) return { ok: false, reason: 'receipt_not_stored' };
   if (stored.purpose !== 'tcell_replay') return { ok: false, reason: 'purpose_mismatch' };

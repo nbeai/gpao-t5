@@ -65,11 +65,14 @@ function 영수증(c, over = {}) {
 
 const 저장소 = (receipts) => ({ get: (id) => receipts.find((r) => r.receiptId === id) ?? null });
 
+/** 케이스에 실행 계보를 붙인다 — 실제 흐름에서는 replay 실행이 이 값을 채운다. */
+const 계보붙임 = (c, receiptId) => ({ ...c, runReceiptRef: receiptId });
+
 // ── ① 영수증-케이스 결합 ─────────────────────────────────────────────────
 test('S4: 그 케이스를 실제로 돌린 영수증만 실행 증거다', () => {
   const c = 케이스();
   const r = 영수증(c);
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
   assert.equal(v.ok, true, v.reason);
 });
 
@@ -77,17 +80,40 @@ test('S4: 무관한 정상 영수증을 붙이면 증거로 인정하지 않는�
   const c = 케이스();
   const 남의케이스 = 케이스({ caseId: 'c-다른', inputFacts: ['전혀 다른 입력'] });
   const 남의영수증 = 영수증(남의케이스, { receiptId: 'r-남' });
-  const v = verifyReplayEvidence(c, { runReceiptRef: 'r-남', store: 저장소([남의영수증]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, 'r-남'), { store: 저장소([남의영수증]), outputDigest: 'out-1' });
   assert.equal(v.ok, false);
   assert.match(v.reason, /case|digest/i);
+});
+
+test('S4: 계보 없는 케이스는 정상 영수증이 있어도 증거가 아니다', () => {
+  // 감사 P1: 전이 함수가 **케이스에 결합된** runReceiptRef 를 조회해야 한다. 호출자가 고른
+  // 영수증을 쓰면, 계보가 비어 있는 케이스도 남의 정상 영수증으로 통과할 수 있다.
+  const c = 케이스(); // runReceiptRef 없음(makeReplayCase 는 null 로 시작한다)
+  assert.equal(c.runReceiptRef, null, '새 케이스는 계보가 비어 있다');
+  const r = 영수증(c); // 저장소에는 이 케이스의 정상 영수증이 실제로 있다
+  // 호출자가 ctx 로 영수증을 가리켜도, 케이스에 계보가 없으면 통과하면 안 된다.
+  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  assert.equal(v.ok, false, '계보가 없으면 통과하지 않는다');
+  assert.equal(v.reason, 'run_receipt_ref_missing');
+});
+
+test('S4: 케이스에 결합된 계보로만 조회한다(ctx 로 다른 영수증을 가리켜도 무효)', () => {
+  const c = 케이스();
+  const 내영수증 = 영수증(c, { receiptId: 'r-내것' });
+  const 남의영수증 = 영수증(케이스({ caseId: 'c-남', inputFacts: ['남의 입력'] }), { receiptId: 'r-남' });
+  const 결합된 = 계보붙임(c, 'r-내것');
+  // ctx 가 남의 영수증을 가리켜도 케이스의 계보(r-내것)로 조회해야 한다.
+  const v = verifyReplayEvidence(결합된, {
+    runReceiptRef: 'r-남', store: 저장소([내영수증, 남의영수증]), outputDigest: 'out-1',
+  });
+  assert.equal(v.ok, true, '케이스 계보의 영수증으로 판정한다');
 });
 
 test('S4: 호출자가 넘긴 영수증 객체를 믿지 않고 저장소에서 조회한다', () => {
   const c = 케이스();
   const 위조 = 영수증(c, { receiptId: 'r-위조' });
   // 저장소에는 없는 영수증을 객체로 넘긴다 — 통과하면 안 된다.
-  const v = verifyReplayEvidence(c, {
-    runReceiptRef: 'r-위조', store: 저장소([]), receipt: 위조, outputDigest: 'out-1',
+  const v = verifyReplayEvidence(계보붙임(c, 'r-위조'), { store: 저장소([]), receipt: 위조, outputDigest: 'out-1',
   });
   assert.equal(v.ok, false, '저장되지 않은 영수증은 증거가 아니다');
 });
@@ -101,7 +127,7 @@ for (const [이름, over] of [
   test(`S4: ${이름} 하나만 달라도 증거가 아니다`, () => {
     const c = 케이스();
     const r = 영수증(c, over);
-    const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+    const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
     assert.equal(v.ok, false, `${이름} 불일치가 통과했다`);
   });
 }
@@ -109,14 +135,14 @@ for (const [이름, over] of [
 test('S4: 저장된 출력이 영수증의 outputDigest 와 다르면 증거가 아니다', () => {
   const c = 케이스();
   const r = 영수증(c);
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-바뀜' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-바뀜' });
   assert.equal(v.ok, false, '출력 교체가 통과했다');
 });
 
 test('S4: 미완료 영수증은 증거가 아니다', () => {
   const c = 케이스();
   const r = 영수증(c, { state: 'running', finishedAt: null });
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
   assert.equal(v.ok, false);
 });
 
@@ -129,7 +155,7 @@ for (const [이름, over] of [
   test(`S4: ${이름} 이면 산출물을 격리한다`, () => {
     const c = 케이스();
     const r = 영수증(c, { modelCallIdentity: 신분(over) });
-    const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+    const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
     assert.equal(v.ok, false, `${이름} 이 통과했다`);
   });
 }
@@ -139,7 +165,7 @@ test('S4: 응답 모델을 보고하지 않는 provider 는 "검증됨"을 주�
   const r = 영수증(c, {
     modelCallIdentity: 신분({ responseModelId: null, responseIdentitySource: 'not_reported' }),
   });
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
   assert.equal(v.ok, true, '요청 신분이 검증되면 실행 증거 자격은 있다');
   assert.equal(v.responseIdentityVerified, false, '응답 신분은 검증됐다고 말하지 않는다');
 });
@@ -156,7 +182,7 @@ test('S4: 역할 이름이나 provider:model 문자열은 호출 신분이 아�
     },
   });
   const r = 영수증(c, { modelCallIdentity: 신분없음 });
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
   assert.equal(v.ok, false, 'connectionInstanceId·credentialRef 없이는 신분이 아니다');
   assert.equal(v.reason, 'identity_not_instance_scoped', '떨어진 이유가 신분 문제여야 한다');
 });
@@ -167,7 +193,7 @@ test('S4: 같은 provider·model 이라도 다른 자격이면 다른 신분이�
     selection: { ...신분().selection, connectionInstanceId: 'conn-B', credentialRef: 'cred-B' },
   });
   const r = 영수증(c, { modelCallIdentity: 다른자격 });
-  const v = verifyReplayEvidence(c, { runReceiptRef: r.receiptId, store: 저장소([r]), outputDigest: 'out-1' });
+  const v = verifyReplayEvidence(계보붙임(c, r.receiptId), { store: 저장소([r]), outputDigest: 'out-1' });
   assert.equal(v.ok, true, '자격이 달라도 그 호출 자체가 일관되면 증거 자격은 있다');
   assert.notEqual(다른자격.selection.credentialRef, 신분().selection.credentialRef, '신분은 구분된다');
 });
