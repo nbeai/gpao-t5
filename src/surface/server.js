@@ -38,7 +38,7 @@ import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
-import { makeCandidate, makeAutoReversible, promote, confirmCandidate } from '../kernel/l1-intent/context-mesh.js';
+import { makeCandidate, makeAutoReversible, promote, confirmCandidate, 물러남 } from '../kernel/l1-intent/context-mesh.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
@@ -58,6 +58,9 @@ import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
 import { correlateCorrection } from '../kernel/l5-growth/tcell-correction.js';
 import { applyDecay, restoreDecayed, decayedEntries } from '../kernel/l5-growth/tcell-decay.js';
+import {
+  상태목록, setPinned, archive as 치우기, unarchiveOrRestore, laneAllowed,
+} from '../kernel/l5-growth/tcell-surface.js';
 import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { deriveLanes, carryableLanes, laneFactEntries } from '../kernel/l5-growth/tcell-lane.js';
@@ -153,9 +156,11 @@ export function makeServer(deps = {}) {
       // 파일 산출물의 workspace 신분은 **파일 손이 실제로 허용한 루트** 기준으로만 만든다.
       const lanes = deriveLanes(all, { roots: defaultFileRoots(env ?? process.env), includeResponses: true });
       // S5-1: 문장과 신분을 함께 만든다. 문장만 만들고 나중에 신분을 다시 찾으면 갈린다.
+      // S5-5: 사용자가 치워 둔 lane 은 공급하지 않는다 — 표면에서 치웠는데 계속 오면 거짓말이다.
+      const 기억now = await memStore.load();
       return laneFactEntries(carryableLanes(lanes, {
         principalRef: session.principalRef, sessionId: session.id, now: Date.now(),
-      }));
+      })).filter((e) => laneAllowed(기억now, e.ref));
     } catch { return []; } // 승계는 편의다 — 실패해도 대화를 막지 않는다
   }
 
@@ -167,6 +172,15 @@ export function makeServer(deps = {}) {
     if (!앞선.length) return [];
     const 직전 = 앞선.reduce((a, b) => (b.turnRef.turnSeq > a.turnRef.turnSeq ? b : a));
     return (직전.refs ?? []).map((r) => r.statement).filter(Boolean);
+  }
+
+  /** 이 신분이 지금 파생되는 lane 중 하나인가 — 없는 것을 조작하지 않기 위해. */
+  async function 알려진lane(id) {
+    try {
+      const all = await store.loadAll();
+      return deriveLanes(all, { roots: defaultFileRoots(env ?? process.env), includeResponses: true })
+        .some((l) => l.laneId === id);
+    } catch { return false; }
   }
 
   const LOCAL_OWNER = 'local-owner';
@@ -1080,18 +1094,56 @@ export function makeServer(deps = {}) {
           return sendJson(res, 200, { ok: true, rejected: true, statement: removed.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
       }
+      if (req.method === 'GET' && url === '/memory/state') {
+        // S5-5 · **하나의 목록.** 화면도 API 도 이걸 그대로 쓴다 — 상태를 두 군데서 말하지 않는다.
+        const m = await memStore.load();
+        const all = await store.loadAll();
+        const lanes = deriveLanes(all, { roots: defaultFileRoots(env ?? process.env), includeResponses: true });
+        const 문장붙임 = laneFactEntries(lanes).map((e, i) => ({ laneId: e.ref, statement: e.statement, ...lanes[i] }));
+        return sendJson(res, 200, { items: 상태목록(m, 문장붙임) });
+      }
+      if (req.method === 'POST' && url === '/memory/pin') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          if (m.corrupted) return sendJson(res, 409, { ok: false, error: 기억손상안내 });
+          const 있나 = 상태목록(m, []).some((x) => x.id === input.id) || m.laneState?.[input.id]
+            || (await 알려진lane(input.id));
+          if (!있나) return sendJson(res, 404, { ok: false, reason: 'not_found' });
+          const r = setPinned(m, input.id, Boolean(input.pinned));
+          await memStore.save(m);
+          await 기억영수증(input.pinned ? 'pinned' : 'unpinned', r.entry ?? { candidateId: input.id, kind: r.kind });
+          return sendJson(res, 200, { ok: true, pinned: Boolean(input.pinned) });
+        });
+      }
+      if (req.method === 'POST' && url === '/memory/archive') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        return await withMemory(async () => {
+          const m = await memStore.load();
+          if (m.corrupted) return sendJson(res, 409, { ok: false, error: 기억손상안내 });
+          const 있나 = 상태목록(m, []).some((x) => x.id === input.id) || (await 알려진lane(input.id));
+          if (!있나) return sendJson(res, 404, { ok: false, reason: 'not_found' });
+          const r = 치우기(m, input.id, { now: Date.now() });
+          if (!r.ok) return sendJson(res, 409, r);
+          await memStore.save(m);
+          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });
+          return sendJson(res, 200, { ok: true });
+        });
+      }
       if (req.method === 'POST' && url === '/memory/restore') {
         // S5-4 복원 — 표식만 걷는다. 그리고 "이 근거로는 내리지 말라"는 사용자의 답을 기억한다.
         const input = JSON.parse((await readBody(req)) || '{}');
         return await withMemory(async () => {
           const m = await memStore.load();
           if (m.corrupted) return sendJson(res, 409, { ok: false, error: 기억손상안내 });
-          const r = restoreDecayed(m, input.candidateId, { now: Date.now() });
+          // 치운 것이든 내려간 것이든 같은 문 하나로 되돌린다 — 사용자에게는 같은 일이다.
+          const 대상 = input.id ?? input.candidateId;
+          const r = unarchiveOrRestore(m, 대상, { now: Date.now() });
           if (!r.ok) return sendJson(res, 404, { ok: false, reason: r.reason });
           await memStore.save(m);
-          const receiptWritten = await 기억영수증('restored', r.entry);
+          const receiptWritten = await 기억영수증('restored', r.entry ?? { candidateId: 대상, kind: r.kind });
           return sendJson(res, 200, {
-            ok: true, statement: r.entry.statement,
+            ok: true, ...(r.statement ? { statement: r.statement } : {}),
             ...(receiptWritten ? {} : { receiptWritten: false }),
           });
         });
@@ -1451,7 +1503,8 @@ export function makeServer(deps = {}) {
         const memoryState = await memStore.load();
         const userModel = projectUserModel(memoryState);
         // 반영된 검색 기억(recalled_context)도 "반영 중"으로 함께 표면화 — 선호와 같은 자리서 보고 되돌린다.
-        const memories = (memoryState.promoted ?? []).filter((e) => e.kind === 'recalled_context').map((e) => ({ candidateId: e.candidateId, statement: e.statement }));
+        // 물러난 것(내려감·치워 둠)은 빼고 — 이 자리엔 상태 칸이 없어 "반영 중"으로만 보인다.
+        const memories = (memoryState.promoted ?? []).filter((e) => e.kind === 'recalled_context' && !물러남(e)).map((e) => ({ candidateId: e.candidateId, statement: e.statement }));
         const dl = await deliveryStore.load();
         // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다. id는 재전달 액션에 쓴다.
         const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state })) : [];

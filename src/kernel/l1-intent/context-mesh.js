@@ -28,14 +28,21 @@ export function detectCandidate(text) {
 }
 
 /**
+ * 지금 물러나 있는가 — 내려간 것(OS 판단)이든 치워 둔 것(사용자 판단)이든.
+ *
+ * 둘 다 **삭제가 아니라 표식**이라 되돌리면 그대로 돌아온다. 이 판정이 여기 한 곳에만
+ * 사는 이유는, 영향 게이트와 사용자 표면이 각자 재면 언젠가 **같은 항목을 두고 다르게
+ * 말하기** 때문이다 — 화면은 "반영 중"이라는데 실제로는 들지 않는 상태가 그것이다.
+ */
+export const 물러남 = (entry) => Number.isFinite(entry?.decayedAt) || Number.isFinite(entry?.archivedAt);
+
+/**
  * 승격 항목이 지금 행동에 영향을 줄 자격이 있는가(핵심 안전 게이트).
  * @param {object} entry ContextAdmissionPacket 형태
  */
 export function isInfluenceEligible(entry) {
   if (!entry) return false;
-  // S5-4: 내려간 기억은 행동에 들지 않는다. **삭제가 아니라 표식**이라 복원하면 그대로 돌아온다 —
-  // 그래서 이 게이트 하나만 보면 "지금 영향 가능한가"가 결정된다(레인을 늘리지 않는다).
-  if (Number.isFinite(entry.decayedAt)) return false;
+  if (물러남(entry)) return false;
   // 추정된 성향(inferred_trait, P6-17 Slice-3)은 **관찰 전용 — 어떤 경우에도 영향 0**. tier·userConfirmed와
   //   독립된 불변식(안전 바닥과 같은 방어적 이중화). 레인이 뚫려도(promoted에 잘못 들어가도) 여기서 막힌다.
   if (entry.kind === 'inferred_trait') return false;

@@ -785,6 +785,33 @@ const SET_RENDER = {
         `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
       ].join('');
       box.appendChild(rows);
+      // S5-5 · **하나의 목록**을 그대로 그린다. 상태를 화면에서 다시 계산하지 않는다 —
+      // 그러면 서버와 화면이 다른 말을 하게 된다.
+      try {
+        const st = await (await fetch('/memory/state')).json();
+        const 이름 = { preference: '선호', operating_principle: '원리', lane: '이어받을 작업' };
+        const 상태말 = {
+          active: '쓰이는 중', pinned: '붙들어 둠', archived: '치워 둠', decayed: '내려감',
+        };
+        const 버튼 = (it) => {
+          const b = [];
+          if (it.state === 'archived' || it.state === 'decayed') b.push(['restore-memory', '되돌리기']);
+          else {
+            b.push(it.state === 'pinned' ? ['unpin-memory', '붙듦 해제'] : ['pin-memory', '붙들어 두기']);
+            b.push(['archive-memory', '치워 두기']);
+          }
+          return b.map(([a, l]) => `<button class="ov-act" data-act="${a}" data-id="${esc(it.id)}">${esc(l)}</button>`).join('');
+        };
+        const 성장 = document.createElement('div');
+        성장.className = 'ov';
+        성장.innerHTML = (st.items ?? []).length
+          ? (st.items ?? []).map((it) => `<div class="ov-row"><span class="${it.state === 'active' || it.state === 'pinned' ? 'ov-on' : 'ov-off'}">${esc(이름[it.kind] ?? it.kind)} · ${esc(상태말[it.state] ?? it.state)}</span> <span class="ov-k">${esc(it.statement ?? '')} ${버튼(it)}</span></div>`).join('')
+          : '<div class="ov-row"><span class="ov-off">아직 없음</span></div>';
+        box.appendChild(mk('div', 'tb-name', '기억·원리·이어받을 작업'));
+        box.appendChild(성장);
+        box.appendChild(mk('div', 'tb-hint', '치우거나 내려간 것은 지워지지 않아요 — 언제든 되돌릴 수 있고, 붙들어 두면 자동으로 내려가지 않아요.'));
+      } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
+
       const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
       box.appendChild(mk('div', 'tb-hint', `기억 기록 영수증 ${led.entries?.length ?? 0}건 — 내용 원문은 기록에 저장되지 않아요(지문만).`));
       box.appendChild(mk('div', 'tb-hint', '기억은 확인한 것만 반영되고, 언제든 되돌릴 수 있어요. 확인 전 후보는 아무 영향이 없어요.'));
@@ -1301,6 +1328,11 @@ async function onOverviewAction(e) {
     else if (act === 'confirm-pref') await memAction('/memory/confirm', { candidateId: id });
     else if (act === 'reject-memory') await memAction('/memory/reject', { candidateId: id });
     else if (act === 'rollback-memory') await memAction('/memory/rollback', { candidateId: id });
+    // S5-5 · 성장 표면. 붙들기·치우기·되돌리기 — 카드도 승인도 만들지 않는다.
+    else if (act === 'pin-memory') await memAction('/memory/pin', { id, pinned: true });
+    else if (act === 'unpin-memory') await memAction('/memory/pin', { id, pinned: false });
+    else if (act === 'archive-memory') await memAction('/memory/archive', { id });
+    else if (act === 'restore-memory') await memAction('/memory/restore', { id });
     await refreshOverview();
   } catch { btn.disabled = false; }
 }

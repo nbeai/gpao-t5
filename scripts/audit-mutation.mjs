@@ -47,6 +47,9 @@ const T_CORR = 'test/tcell-correction.test.js';
 const T_CORR2 = 'test/tcell-correction-target.test.js';
 const DECAY = 'src/kernel/l5-growth/tcell-decay.js';
 const T_DECAY = 'test/tcell-decay.test.js';
+const SURFACE = 'src/kernel/l5-growth/tcell-surface.js';
+const USERMODEL = 'src/kernel/l1-intent/user-model.js';
+const T_SURFACE = 'test/tcell-surface.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -231,11 +234,31 @@ export const MUTATIONS = [
   { 이름: '복원 뒤 같은 근거로 다시 내림(무한 왕복)', 파일: DECAY, 검사: T_DECAY,
     찾기: '  e.decayJudgedUpTo = now;', 바꾸기: '' },
   { 이름: '내려간 기억이 여전히 모델 입장(게이트 무력화)', 파일: MESH, 검사: T_DECAY,
-    찾기: '  if (Number.isFinite(entry.decayedAt)) return false;', 바꾸기: '' },
+    찾기: '  if (물러남(entry)) return false;', 바꾸기: '' },
   { 이름: '내려간 것을 표면에서 감춤(사용자가 되돌릴 수 없게)', 파일: SERVER, 검사: T_DECAY,
     찾기: '          decayed: 내려감,', 바꾸기: '          decayed: [],' },
   { 이름: '감쇠를 원장에 안 남김', 파일: SERVER, 검사: T_DECAY,
     찾기: "        await 기억영수증('decayed', e ?? { candidateId: d.ref, kind: d.kind });", 바꾸기: '' },
+
+  // ── S5-5 성장 표면(보이고, 고치고, 되돌릴 수 있는가) ────────────────────
+  { 이름: '치워 둔 것이 여전히 모델 입장(사용자가 치웠는데 계속 씀)', 파일: MESH, 검사: T_SURFACE,
+    찾기: 'export const 물러남 = (entry) => Number.isFinite(entry?.decayedAt) || Number.isFinite(entry?.archivedAt);',
+    바꾸기: 'export const 물러남 = (entry) => Number.isFinite(entry?.decayedAt);' },
+  { 이름: '물러난 것을 옛 요약이 "반영 중"이라 말함(표면끼리 다른 현실)', 파일: USERMODEL, 검사: T_SURFACE,
+    찾기: '    .filter((p) => !물러남(p))\n', 바꾸기: '' },
+  { 이름: '치워 둔 lane 을 계속 공급', 파일: SERVER, 검사: T_SURFACE,
+    찾기: '.filter((e) => laneAllowed(기억now, e.ref));', 바꾸기: ';' },
+  { 이름: '치우기를 삭제로 바꿈(되돌릴 자리가 사라짐)', 파일: SURFACE, 검사: T_SURFACE,
+    찾기: '    e.archivedAt = now;\n    return { ok: true, kind: e.kind, statement: e.statement, entry: e };',
+    바꾸기: '    memory.promoted = memory.promoted.filter((x) => x !== e);\n    return { ok: true, kind: e.kind, statement: e.statement, entry: e };' },
+  { 이름: '상태를 뭉개서 한 칸으로(무엇이 왜 안 드는지 알 수 없게)', 파일: SURFACE, 검사: T_SURFACE,
+    찾기: "  if (Number.isFinite(e?.archivedAt)) return 'archived';", 바꾸기: '' },
+  { 이름: '붙듦이 표식으로 남지 않음(자동 감쇠 면제가 무너짐)', 파일: SURFACE, 검사: T_SURFACE,
+    찾기: '    if (pinned) e.pinned = true; else delete e.pinned;', 바꾸기: '    delete e.pinned;' },
+  { 이름: '치운 것을 되돌릴 수 없음(표식이 안 걷힘)', 파일: SURFACE, 검사: T_SURFACE,
+    찾기: '    delete e.archivedAt;\n', 바꾸기: '' },
+  { 이름: '붙듦·치우기를 원장에 안 남김', 파일: SERVER, 검사: T_SURFACE,
+    찾기: "          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });", 바꾸기: '' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

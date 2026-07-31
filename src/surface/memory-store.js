@@ -37,7 +37,7 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [], correctionCorrelation: [] };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [], correctionCorrelation: [], laneState: {} };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
@@ -58,6 +58,8 @@ export class MemoryStore {
         shownRefs: m.shownRefs ?? [],
         // S5-3 · 정정 상관(통계). 이것만으로는 아무 것도 내리지 않는다.
         correctionCorrelation: m.correctionCorrelation ?? [],
+        // S5-5 · lane 은 파생물이라 자기 자리가 없다 — 붙듦·치움 상태만 여기 든다.
+        laneState: m.laneState ?? {},
       };
     } catch (e) {
       const quarantine = `${this.file}.corrupt-${Date.now()}`;
@@ -89,6 +91,7 @@ export class MemoryStore {
       growJobs: memory.growJobs ?? [], growBudget: memory.growBudget ?? null,
       shownRefs: memory.shownRefs ?? [],
       correctionCorrelation: memory.correctionCorrelation ?? [],
+      laneState: memory.laneState ?? {},
     }));
     return memory;
   }
@@ -162,7 +165,7 @@ export class MemoryLedger {
     return this._key;
   }
 
-  /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'|'decayed'|'restored'} event */
+  /** @param {'proposed'|'confirmed'|'rejected'|'rolled_back'|'decayed'|'restored'|'pinned'|'unpinned'|'archived'} event */
   async append(event, entry, now = Date.now()) {
     await this.digestKey(); // 키 확보 실패는 여기서 정직하게 던진다(평문 후퇴 금지)
     const a = await this.load();
