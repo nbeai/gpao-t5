@@ -56,6 +56,7 @@ import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
+import { correlateCorrection } from '../kernel/l5-growth/tcell-correction.js';
 import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { deriveLanes, carryableLanes, laneFactEntries } from '../kernel/l5-growth/tcell-lane.js';
@@ -476,11 +477,17 @@ export function makeServer(deps = {}) {
     // S5-1(§4.5): **모델 앞에 실제로 놓인 것**을 그 턴의 신분과 함께 남긴다. 커널이 렌더한
     // 배열에서 뽑아 온 값을 그대로 저장할 뿐, 여기서 다시 판정하지 않는다.
     // 기록 실패가 대화를 막지 않는다 — 보임 기록은 통계의 재료지 이번 답의 조건이 아니다.
-    if (result.shownMemoryRefs?.refs?.length) {
+    if (result.shownMemoryRefs?.refs?.length || result.memoryCorrection) {
       try {
         await withMemory(async () => {
           const m = await memStore.load();
           if (m.corrupted) return;
+          // S5-3: 모델이 정정이라고 알려준 턴에서만, 직전 관련 턴의 `shown ∩ cited` 에 표식.
+          // **아무 것도 내리지 않는다** — 독립 상관이 쌓여야 들여다볼 후보가 될 뿐이다.
+          if (result.memoryCorrection) {
+            m.correctionCorrelation = correlateCorrection(m, { turnRef, at: Date.now() });
+          }
+          if (!result.shownMemoryRefs?.refs?.length) { await memStore.save(m); return; }
           m.shownRefs = recordShown(m, {
             ...result.shownMemoryRefs,
             turnRef,

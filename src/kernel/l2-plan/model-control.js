@@ -66,6 +66,18 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['used'],
   },
 }, {
+  name: 'memory.correction',
+  description: '사용자가 **방금 내가 한 답을 고치고 있으면** 이걸 부른다.'
+    + ' 새 요청이나 추가 부탁은 정정이 아니다 — 앞 답이 사용자 뜻과 달라서 바로잡는 경우만이다.'
+    + ' 부르지 않아도 아무 문제 없다. 확신이 없으면 부르지 않는다.'
+    + ' 이건 기억을 지우거나 바꾸지 않는다 — 나중에 사람이 들여다볼 표식만 남는다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      reason: { type: 'string', description: '무엇이 사용자 뜻과 달랐는지 한 줄 — 표식에 남는다' },
+    },
+  },
+}, {
   name: 'memory.withdraw',
   description: '사용자가 방금 기억한 것을 취소·철회해 달라고 하면 이걸로 지운다.'
     + ' 파일 되돌리기가 아니다 — 기억만 지운다. 무엇을 지울지는 저장된 문장으로 지목한다.'
@@ -101,7 +113,7 @@ export function modelSchemasFor(selfState) {
  * 안 되는 쪽이 안전하다(후보조차 사용자 확인 대상이므로).
  * @param {Array<{name:string, args?:object}>} [toolCalls]
  * @returns {{memorySuggestion:object|null, memoryWithdrawal:object|null,
- *   memoryCitation:{used:string[]}|null, rest:Array}}
+ *   memoryCitation:{used:string[]}|null, memoryCorrection:object|null, rest:Array}}
  */
 export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
@@ -109,6 +121,8 @@ export function splitModelControlCalls(toolCalls = []) {
   let memoryWithdrawal = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
   let memoryCitation = null;
+  // S5-3: 정정 여부는 **모델이 알려준다.** Runtime 에 낱말 규칙을 두지 않는다.
+  let memoryCorrection = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
     if (c.name === 'memory.propose') {
@@ -129,11 +143,15 @@ export function splitModelControlCalls(toolCalls = []) {
         : [];
       if (used.length) memoryCitation = { used };
     }
+    if (c.name === 'memory.correction') {
+      const reason = String(c?.args?.reason ?? '').trim().slice(0, 200);
+      memoryCorrection = { ...(reason ? { reason } : {}) };
+    }
     if (c.name === 'memory.withdraw') {
       const target = String(c?.args?.target ?? '').trim().slice(0, 300);
       const reason = String(c?.args?.reason ?? '').trim().slice(0, 200);
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, rest };
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, rest };
 }

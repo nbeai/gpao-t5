@@ -37,7 +37,7 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [] };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [], correctionCorrelation: [] };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
@@ -56,6 +56,8 @@ export class MemoryStore {
         growJobs: m.growJobs ?? [], growBudget: m.growBudget ?? null,
         // S5-1 · 보임 기록. 내부 신분만 있고 사용자면·모델 입력에는 나가지 않는다.
         shownRefs: m.shownRefs ?? [],
+        // S5-3 · 정정 상관(통계). 이것만으로는 아무 것도 내리지 않는다.
+        correctionCorrelation: m.correctionCorrelation ?? [],
       };
     } catch (e) {
       const quarantine = `${this.file}.corrupt-${Date.now()}`;
@@ -86,6 +88,7 @@ export class MemoryStore {
       replayOutputs: memory.replayOutputs ?? {}, grownBundles: memory.grownBundles ?? [],
       growJobs: memory.growJobs ?? [], growBudget: memory.growBudget ?? null,
       shownRefs: memory.shownRefs ?? [],
+      correctionCorrelation: memory.correctionCorrelation ?? [],
     }));
     return memory;
   }

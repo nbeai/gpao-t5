@@ -354,6 +354,9 @@ export async function runTurn(input, ctx) {
   };
   // S5-2: 모델이 "이걸 참고했다"고 주장하면 여기에 담긴다. **사실이 아니라 주장이다.**
   let modelCitedRefs = null;
+  // S5-3: 모델이 "지금 사용자가 앞 답을 고치고 있다"고 알려주면 여기에 담긴다.
+  // Runtime 은 낱말로 판정하지 않는다 — 모델이 안 알려주면 아무 일도 일어나지 않는다.
+  let memoryCorrection = null;
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
@@ -424,6 +427,7 @@ export async function runTurn(input, ctx) {
       const 대조 = citedFromShown({ ...렌더재료, used: 분리.memoryCitation.used });
       if (대조.refs.length) modelCitedRefs = 대조.refs;
     }
+    if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -438,6 +442,7 @@ export async function runTurn(input, ctx) {
       reply: earlyReply,
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
+      memoryCorrection, // S5-3: 정정 신호(상관의 재료)
       workingState: idleState,
       contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
@@ -541,7 +546,7 @@ export async function runTurn(input, ctx) {
       return {
         kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
         selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion, memoryWithdrawal,
-        shownMemoryRefs, modelCitedRefs,
+        shownMemoryRefs, modelCitedRefs, memoryCorrection,
       };
     }
   }
@@ -757,6 +762,7 @@ export async function runTurn(input, ctx) {
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
   result.modelCitedRefs = modelCitedRefs;
+  result.memoryCorrection = memoryCorrection;
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
