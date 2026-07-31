@@ -119,3 +119,14 @@ test/                            실패-우선 시나리오 테스트
 ```
 
 Build artifacts are never committed; releases are generated out-of-tree per the Engineering Charter.
+
+## Reserved Post-Completion Structural Hardening
+
+After T-cell, H-stage verification and remediation, the designated follow-up capabilities, and the full T5 product
+finish are complete, T5 enters a separate behavior-preserving structural hardening track. This work simplifies
+responsibilities, removes duplicate judgments, isolates verification tooling, and preserves existing user behavior,
+stored data, authority boundaries, and recovery paths. It must not delay or reopen the current product-development
+sequence.
+
+Canonical scope and entry conditions:
+`docs/03-product-plan/T5-POST-COMPLETION-STRUCTURAL-HARDENING-ko.md`.
