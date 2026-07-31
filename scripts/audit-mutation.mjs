@@ -53,6 +53,7 @@ const SURFACE = 'src/kernel/l5-growth/tcell-surface.js';
 const USERMODEL = 'src/kernel/l1-intent/user-model.js';
 const T_SURFACE = 'test/tcell-surface.test.js';
 const T_BIND = 'test/server-bind.test.js';
+const T_REVMEM = 'test/reversible-memory.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -269,6 +270,26 @@ export const MUTATIONS = [
     찾기: '    delete e.archivedAt;\n', 바꾸기: '' },
   { 이름: '붙듦·치우기를 원장에 안 남김', 파일: SERVER, 검사: T_SURFACE,
     찾기: "          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });", 바꾸기: '' },
+
+  // ── H 진단 계열 ② 현재 턴 예외가 영구 기억이 되지 않는다 ────────────────
+  { 이름: '범위를 안 보고 자동 반영(이번만이 영구 선호가 됨)', 파일: SERVER, 검사: T_REVMEM,
+    찾기: "    if (ev.appliesTo !== 'from_now_on') return false;", 바꾸기: '' },
+  { 이름: '범위 미상을 앞으로로 가정(Runtime 이 범위를 추측)', 파일: SERVER, 검사: T_REVMEM,
+    찾기: "    if (ev.appliesTo !== 'from_now_on') return false;",
+    바꾸기: "    if (ev.appliesTo === 'this_turn_only') return false;" },
+  { 이름: '현재 턴 예외를 확인 후보로 남김(기억이 아닌 것을 기억 대기로)', 파일: SERVER, 검사: T_REVMEM,
+    찾기: "        if (result.memorySuggestion.evidence?.appliesTo === 'this_turn_only') {\n          result.memorySuggestion = undefined;\n          return;\n        }",
+    바꾸기: '' },
+  { 이름: '통제 채널이 범위를 떨어뜨림(모델이 말해도 안 실림)', 파일: CONTROL, 검사: T_REVMEM,
+    찾기: '          if (범위) memorySuggestion.evidence.appliesTo = 범위;', 바꾸기: '' },
+
+  // ── H 진단 계열 ① 민감정보가 관찰 레인으로 새지 않는다 ──────────────────
+  { 이름: '민감한 발화를 관찰에 원문으로 저장', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '      if (containsSensitiveValue(entry.text)) { 최대 = Math.max(최대, r.turnSeq); continue; }',
+    바꾸기: '' },
+  { 이름: '민감 턴에서 watermark 를 멈춤(매 tick 다시 읽는 무한 반복)', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '      if (containsSensitiveValue(entry.text)) { 최대 = Math.max(최대, r.turnSeq); continue; }',
+    바꾸기: '      if (containsSensitiveValue(entry.text)) continue;' },
 
   // ── 노출 경계(고르지 않은 것을 열어 두지 않는다) ───────────────────────
   // 계약은 둘뿐이다: 기본은 루프백에만 붙는다 · 비루프백은 뜨지 않는다.

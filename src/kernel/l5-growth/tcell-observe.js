@@ -12,6 +12,8 @@
 // 묶음도 재처리에서 같은 값이 된다. 결과 저장과 watermark 전진은 **한 번의 save** 로 나간다.
 import { createHash } from 'node:crypto';
 import { shapeOf, shapeOverlap, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
+// 민감정보 판정은 **승격 레인과 같은 경계**를 쓴다(별도 축소 탐지기 금지).
+import { containsSensitiveValue } from '../l0-evidence/sensitive-text.js';
 
 /** 무한 성장 금지(§4.10). 이 수치는 계획이 고정한 값이다. */
 export const OBSERVATION_CAPS = Object.freeze({
@@ -121,6 +123,16 @@ export async function observeSessions({ store, memStore, now = Date.now() }) {
       if (r.turnSeq <= last) continue;
       if (entry.role !== 'user') { 최대 = Math.max(최대, r.turnSeq); continue; }
       if (세션건수 >= OBSERVATION_CAPS.perSession) { 최대 = Math.max(최대, r.turnSeq); continue; }
+      // 민감한 값이 든 발화는 **관찰로도 남기지 않는다.** 승격 레인에는 이 경계가 서 있었는데
+      // 여기에는 없어서, 카드번호·비밀번호가 `subject` 에 원문 그대로 durable 저장됐다
+      // (H 진단 계열 ① · P0). 모델은 정확히 거절했고 저장만 뚫렸다 — 답만 보면 통과로 읽힌다.
+      //
+      // 판정은 **승격 레인과 같은 경계**를 쓴다. 관찰용 축소 탐지기를 따로 두면 두 경계가
+      // 언젠가 다르게 말하고, 그때 어느 쪽이 진실인지 아무도 모른다.
+      //
+      // 그래도 `최대` 는 전진한다. 거른 턴에서 watermark 를 멈추면 매 tick 마다 그 턴을 다시
+      // 읽고 다시 거른다 — 조용히 도는 무한 반복이다. **거른 것도 "처리했다"가 사실이다.**
+      if (containsSensitiveValue(entry.text)) { 최대 = Math.max(최대, r.turnSeq); continue; }
       const o = makeObservation({
         turnRef: { sessionId: r.sessionId, turnSeq: r.turnSeq },
         kind: 'request',

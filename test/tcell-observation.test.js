@@ -424,3 +424,63 @@ test('S2: 다른 현상은 여전히 다른 묶음이고, 재처리해도 같은
   assert.notEqual(a[0].bundleId, a[1].bundleId);
   assert.deepEqual(a.map((x) => x.bundleId).sort(), b.map((x) => x.bundleId).sort(), '재처리해도 같은 신분');
 });
+
+// ── 민감 턴은 관찰에 남지 않는다 (H 진단 계열 ① · P0) ─────────────────────
+//
+// 라이브 진단에서 카드번호·비밀번호가 든 발화가 `observations[].subject` 에 **원문 그대로**
+// 남았다. 승격 레인(`candidates`·`promoted`)에는 민감정보 게이트가 서 있는데 관찰 축적에는
+// 없었다 — 모델은 정확히 거절했고 저장만 뚫렸다. 답만 보면 통과로 읽혔을 자리다.
+//
+// 판정은 **기존 공통 경계**(`containsSensitiveValue`)를 그대로 쓴다. 관찰용 축소 탐지기를
+// 따로 만들면 두 경계가 언젠가 다르게 말하고, 그때 어느 쪽이 진실인지 아무도 모른다.
+test('민감한 발화는 관찰에 남지 않되, watermark 는 함께 전진한다', async () => {
+  const sid = '55555555-5555-4555-8555-555555555555';
+  const { store, mem } = await standUp([
+    session(sid, [
+      { user: '7월 매출 정리해줘' },
+      { user: '내 카드번호는 4111-1111-1111-1111 이고 비밀번호는 hunter2 야' },
+      { user: '8월 매출도 정리해줘' },
+    ]),
+  ]);
+
+  const r = await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  const 통째로 = JSON.stringify(m);
+
+  assert.equal(통째로.includes('4111'), false, '카드번호가 관찰에 남았다');
+  assert.equal(통째로.includes('hunter2'), false, '비밀번호가 관찰에 남았다');
+  assert.equal(r.observed, 2, '민감 턴만 빠지고 나머지는 그대로 관찰된다');
+
+  // **watermark 는 끝까지 전진한다.** 안 그러면 그 턴을 매 tick 마다 다시 읽고, 매번 다시
+  // 걸러 낸다 — 조용히 도는 무한 반복이다. 거른 것도 "처리했다"가 사실이어야 한다.
+  assert.equal(m.observationWatermark[sid], 3, 'watermark 가 민감 턴을 넘어 전진해야 한다');
+
+  const 두번째 = await observeSessions({ store, memStore: mem });
+  assert.equal(두번째.observed, 0, '다시 읽지 않는다');
+});
+
+// 답이 아직(또는 영영) 없는 민감 턴 — **여기가 진짜 위험한 자리다.**
+// 보통은 조수 항목이 watermark 를 대신 밀어 준다. 그런데 턴이 답 없이 끝나면(중단·크래시)
+// 그 자리를 밀어 줄 것이 없다. 거른 턴에서 watermark 를 멈추면 매 tick 마다 같은 발화를
+// 다시 읽고 다시 거른다 — 아무 것도 안 남기면서 조용히 도는 무한 반복이다.
+test('답 없이 끝난 민감 턴도 watermark 를 넘긴다(무한 재처리 금지)', async () => {
+  const sid = '66666666-6666-4666-8666-666666666666';
+  const { store, mem } = await standUp([{
+    id: sid,
+    transcript: [
+      { role: 'user', text: '7월 매출 정리해줘', turnRef: ref(sid, 1) },
+      { role: 'assistant', result: { kind: 'reply', reply: '네' }, turnRef: ref(sid, 1) },
+      // 답이 없다 — 조수 항목이 없으므로 이 턴을 밀어 줄 것은 민감 분기뿐이다.
+      { role: 'user', text: '비밀번호는 hunter2 야', turnRef: ref(sid, 2) },
+    ],
+    ledgerEntries: [], createdAt: 1, updatedAt: 2,
+  }]);
+
+  await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  assert.equal(JSON.stringify(m).includes('hunter2'), false, '민감값이 남았다');
+  assert.equal(m.observationWatermark[sid], 2, '거른 턴을 넘어가야 다시 안 읽는다');
+
+  const 두번째 = await observeSessions({ store, memStore: mem });
+  assert.equal(두번째.observed, 0, '같은 턴을 매 tick 다시 읽지 않는다');
+});

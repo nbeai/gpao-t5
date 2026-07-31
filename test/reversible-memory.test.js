@@ -41,7 +41,11 @@ const propose = (statement, evidence) => ({
   name: 'memory.propose',
   args: { kind: 'preference', statement, evidence },
 });
-const declared = (quote) => ({ utteranceQuote: quote, speechAct: 'declaration' });
+// 아래 시나리오들은 전부 **앞으로도 지킬 선언**이다("앞으로 보고서는…"). 그 사실을 모델이
+// 말한 것으로 둔다 — 범위를 말하지 않은 경우는 따로 잰다(맨 아래).
+const declared = (quote) => ({ utteranceQuote: quote, speechAct: 'declaration', appliesTo: 'from_now_on' });
+/** 범위를 말하지 않은 모델 — 자동 반영 대상이 아니다. */
+const 범위없음 = (quote) => ({ utteranceQuote: quote, speechAct: 'declaration' });
 
 async function standUp(perTurn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-revmem-'));
@@ -272,4 +276,58 @@ test('S1: 진짜 파일 되돌리기 요청은 그대로 승인을 거친다(억
     assert.equal(r.kind, 'approval', '파일 되돌리기는 여전히 승인을 거친다');
     assert.ok((r.pending ?? []).some((p) => p.action === 'local.file'));
   } finally { server.close(); }
+});
+
+// ── 현재 턴 예외는 기억이 되지 않는다 (H 진단 계열 ② · P0) ────────────────
+//
+// 라이브 진단에서 `"이번만 줄글로 길게 써줘."` 가 **영구 선호로 승격**(`admitted: true`)되고,
+// 그 뒤 **무관한 다른 대화의 모델 입력에 실제로 보였다.** 일회성 예외가 규칙이 되고 대화를
+// 넘어 샌 것이다 — 판정표 H03 안전 문장과 무관 과잉 적용 금지의 정면 위반(P0).
+//
+// 스키마에는 이미 "한 번 요청(`이번만`)은 적지 않는다"고 **산문으로** 적혀 있었다. 모델은
+// 그걸 지키지 않았다. cite 때와 같은 모양이다 — 산문 금지는 계약이 아니다.
+//
+// 그래서 낱말 규칙을 Runtime 에 두지 않는다(그건 의미 판단을 정규식으로 대체하는 것이고,
+// "이번엔 짧게"·"오늘만"·"방금 것만" 앞에서 바로 무너진다). 대신 **모델이 범위를 말하게**
+// 하고 Runtime 은 그 결과만 집행한다.
+const 범위 = (quote, appliesTo) => ({ utteranceQuote: quote, speechAct: 'declaration', appliesTo });
+const 이번만 = '이번만 줄글로 길게 써줘.';
+
+test('S1/H03: 현재 턴 범위로 말한 지시는 승격도 카드도 만들지 않는다', async () => {
+  const { server, base, mem } = await standUp([propose(이번만, 범위(이번만, 'this_turn_only'))]);
+  try {
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: 이번만 });
+
+    assert.equal(r.memoryApplied, undefined, '현재 턴 예외가 영구 반영됐다');
+    assert.equal(r.memorySuggestion, undefined, '현재 턴 예외로 확인 카드를 만들지 않는다');
+
+    const m = await mem.load();
+    assert.equal(m.promoted.length, 0, '승격 레인에 남았다');
+    assert.equal(m.candidates.length, 0, '후보 레인에 남았다');
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('S1/H03: 앞으로 지킬 범위로 말하면 예전처럼 즉시 반영된다(마찰 0 유지)', async () => {
+  const { server, base, mem } = await standUp([propose(H01, 범위(H01, 'from_now_on'))]);
+  try {
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: H01 });
+    assert.ok(r.memoryApplied, '앞으로 지킬 선언은 그대로 즉시 반영');
+    assert.equal(r.memorySuggestion, undefined, '카드 0');
+    assert.equal((await mem.load()).promoted.length, 1);
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('S1/H03: 범위를 말하지 않으면 자동 반영하지 않고 기존 확인 통로로 보낸다', async () => {
+  // 모르는 것을 "앞으로"로 가정하지 않는다. Runtime 이 범위를 추측하는 순간 같은 구멍이
+  // 다시 열린다. 새 카드 종류를 만들지 않고 **이미 있는** 확인 통로를 쓴다.
+  const { server, base, mem } = await standUp([propose(H01, 범위없음(H01))]);
+  try {
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: H01 });
+    assert.equal(r.memoryApplied, undefined, '범위 미상인데 자동 반영했다');
+    assert.ok(r.memorySuggestion, '기존 확인 통로로 간다');
+    assert.equal((await mem.load()).promoted.length, 0);
+  } finally { await new Promise((r) => server.close(r)); }
 });

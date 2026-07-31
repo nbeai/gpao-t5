@@ -205,6 +205,17 @@ export function makeServer(deps = {}) {
   const 자동반영가능 = (suggestion, 이번원문) => {
     const ev = suggestion?.evidence;
     if (!ev || ev.speechAct !== 'declaration') return false;
+    // **범위는 모델이 말한다.** 라이브에서 `"이번만 줄글로"` 가 영구 선호로 올라가 다른
+    // 대화까지 샜다(H 진단 계열 ② · P0). 스키마 산문("이번만은 적지 않는다")은 지켜지지
+    // 않았다 — 산문 금지는 계약이 아니다.
+    //
+    // 그렇다고 낱말 규칙을 여기 두지 않는다. "이번엔"·"오늘만"·"방금 것만" 앞에서 바로
+    // 무너지고, 무엇보다 의미 판단을 정규식으로 대체하는 것이다. 판단은 모델의 것이고
+    // Runtime 은 그 결과만 집행한다.
+    //
+    // 범위를 말하지 않았으면 **모르는 것이다.** 모르는 것을 "앞으로"로 가정하는 순간 같은
+    // 구멍이 다시 열린다 — 기존 확인 통로로 보낸다(새 카드 종류를 만들지 않는다).
+    if (ev.appliesTo !== 'from_now_on') return false;
     if (suggestion.kind !== 'preference') return false;
     if (suggestion.statement !== ev.utteranceQuote) return false;
     const 원문 = String(이번원문 ?? '');
@@ -624,6 +635,12 @@ export function makeServer(deps = {}) {
         }
         const dup = [...now.candidates, ...now.promoted].some((e) => e.statement === result.memorySuggestion.statement);
         if (dup) { result.memorySuggestion = undefined; return; }
+        // 이번 답에만 해당한다고 모델이 말했으면 **기억이 아니다.** 후보로도 남기지 않는다 —
+        // 그 지시는 이미 이번 대화 안에 있어 이번 답에는 그대로 반영된다. 남길 이유가 없다.
+        if (result.memorySuggestion.evidence?.appliesTo === 'this_turn_only') {
+          result.memorySuggestion = undefined;
+          return;
+        }
         // S1(§4.2): 지금 말로 선언한 선호는 카드 없이 반영한다. 그 밖은 기존 확인 통로 그대로.
         if (자동반영가능(result.memorySuggestion, input.text)) {
           const e = makeAutoReversible(randomUUID(), result.memorySuggestion.statement, result.memorySuggestion.evidence);

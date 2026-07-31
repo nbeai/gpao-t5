@@ -18,7 +18,8 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
     + ' 사용자가 지금 말로 선언한 선호는 `evidence` 를 함께 내면 확인 카드 없이 바로 반영되고'
     + ' 사용자가 나중에 되돌릴 수 있다. 그 밖(요약한 문장·운영 원칙)은 사용자 확인을 거친다.'
-    + ' 한 번 요청("이번만")은 적지 않는다.'
+    + ' 사용자의 말이 **앞으로도 지킬 것인지 이번 답에만 해당하는지**는 네가 판단해'
+    + ' `evidence.appliesTo` 로 알려 준다 — T5 는 그 말을 들었을 뿐 범위를 알지 못한다.'
     + ' API 키·토큰·비밀번호·주민번호 같은 민감한 값은 적거나 기억했다고 말하지 않는다.',
   parameters: {
     type: 'object',
@@ -42,8 +43,17 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
             enum: ['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown'],
             description: '지금 선언이면 declaration. 묻는 말·남의 말 인용·부정·과거 회상이면 그에 맞게.',
           },
+          appliesTo: {
+            type: 'string',
+            enum: ['from_now_on', 'this_turn_only'],
+            description: '이 말이 **앞으로도 지킬 것**이면 from_now_on,'
+              + ' **이번 답에만** 해당하면 this_turn_only.'
+              + ' "이번만"·"오늘만"·"방금 것만"처럼 한 번짜리 요청은 this_turn_only 다 —'
+              + ' 그렇게 적으면 이번 답에는 그대로 반영되고 기억으로는 남지 않는다.'
+              + ' 이 칸이 비면 T5 는 범위를 모르므로 사용자에게 확인을 한 번 묻게 된다.',
+          },
         },
-        required: ['utteranceQuote', 'speechAct'],
+        required: ['utteranceQuote', 'speechAct', 'appliesTo'],
       },
     },
     required: ['statement', 'evidence'],
@@ -110,6 +120,7 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
 const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
+const APPLIES_TO = new Set(['from_now_on', 'this_turn_only']);
 const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown']);
 
 /**
@@ -148,9 +159,15 @@ export function splitModelControlCalls(toolCalls = []) {
       // 판정 자리를 하나(서버의 자동 반영 게이트)로 두어야 두 진실이 생기지 않는다.
       const quote = String(c?.args?.evidence?.utteranceQuote ?? '').trim();
       const act = SPEECH_ACTS.has(c?.args?.evidence?.speechAct) ? c.args.evidence.speechAct : 'unknown';
+      // 범위는 모델이 말한 것만 싣는다 — 모르는 값은 **비워 둔다.** 여기서 기본값을 채우면
+      // Runtime 이 범위를 추측하는 것이 되고, 그게 "이번만"이 영구 선호가 된 구멍이었다.
+      const 범위 = APPLIES_TO.has(c?.args?.evidence?.appliesTo) ? c.args.evidence.appliesTo : null;
       if (statement) {
         memorySuggestion = { kind, statement };
-        if (quote) memorySuggestion.evidence = { utteranceQuote: quote, speechAct: act };
+        if (quote) {
+          memorySuggestion.evidence = { utteranceQuote: quote, speechAct: act };
+          if (범위) memorySuggestion.evidence.appliesTo = 범위;
+        }
       }
     }
     if (c.name === 'memory.cite') {
