@@ -1,10 +1,12 @@
-# YOON Vibe Engineering Manifesto
+# YOON Flow Manifesto
 
 AI로 개발할 때 가장 위험한 착각은 "코드가 빨리 나왔다"를 "제품이 좋아졌다"로 착각하는 것이다.
 
 바이브코딩은 개발의 문을 열었다. 이제 필요한 것은 그 속도를 실제 제품 완성으로 끌고 가는 운영법이다.
 
 나는 이것을 **YOON Flow-Governed Vibe Engineering**이라고 부른다.
+
+짧게는 **YOON Flow**다. 새로운 컴퓨터과학 이론이 아니라, AI-native 제품 개발을 위한 실무 운영 모델이다.
 
 ## 한 문장
 
@@ -134,6 +136,21 @@ AI에게 "이 파일 고쳐"만 말하지 말고, 다음 구조를 준다.
 
 Verify와 Audit는 다르다. Verify는 **구현이 동작하는지 증명**하고, Audit는 **그 동작이 사용자 목표와 실제 흐름을 만족하는지 판단**한다.
 
+## 언제 얼마나 적용할까
+
+| 작업 | 모드 |
+|---|---|
+| 작은 스크립트·간단 수정 | Lite Loop |
+| 일반 기능·버그 수정 | Standard Loop |
+| 데이터·결제·권한·삭제·외부 전송 | Full Loop |
+| AI 기억·자가학습·자동화·장기 에이전트 | Full Loop + 독립 감사 |
+
+작으면 줄이고, 되돌리기 어렵거나 AI가 스스로 배우고 행동하면 줄이지 않는다.
+
+## 간단한 Flow Friction 점수
+
+불필요한 질문, 카드, 클릭은 각각 +1. 같은 맥락 재설명은 +2. 복구 경로 없는 실패는 +5. 한 슬라이스에서 0~2점은 양호, 3~5점은 개선 필요, 6점 이상은 사용성 결함이다.
+
 ## 프로젝트에 바로 넣는 규칙
 
 `YOON.md`, `AGENTS.md`, `CLAUDE.md` 같은 파일에 아래를 붙여 넣어도 된다.
@@ -155,7 +172,7 @@ Verify와 Audit는 다르다. Verify는 **구현이 동작하는지 증명**하�
 Development loop: Frame -> Locate -> Baseline -> Counter-Test -> Implement -> Verify -> Audit -> Handoff.
 ```
 
-이 규칙은 특정 모델이나 IDE에 묶이지 않는다. LLM이 코드를 만들고 파일, 터미널, 브라우저, 테스트 환경을 다루는 곳이라면 어떤 agentic coding 도구에도 적용할 수 있다.
+이 규칙은 특정 모델이나 IDE에 묶이지 않는다. LLM이 코드를 만들고 파일, 터미널, 브라우저, 테스트 환경을 다루는 곳이라면 어떤 agentic coding 도구에도 적용할 수 있다. 실제 채택을 위해서는 `YOON.md`, `AGENTS.md`, `CLAUDE.md`, Cursor Rules, Gemini/Codex용 프롬프트처럼 도구별 운영 파일로 내려가야 한다.
 
 ## 끝내는 질문
 

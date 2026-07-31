@@ -6,6 +6,8 @@ Use this file as persistent context for AI-assisted software development.
 
 The goal is not to generate more code. The goal is to make the user's intent become useful, natural, and verifiable product behavior.
 
+YOON Flow is a practical operating model for AI-native product development, not a new computer science theory or a replacement for software engineering.
+
 ## Core Concepts
 
 - Flow Governance: keep user intent from distorting across requirements, implementation, verification, user surface, and handoff.
@@ -69,6 +71,28 @@ Then start the next Frame from the updated truth.
 
 Verify proves that the implementation works. Audit judges whether the working implementation satisfies the user goal, safety boundary, evidence integrity, and real flow.
 
+## Mode Selection
+
+Use the smallest loop that fits the risk.
+
+| Task | Mode | Requirement |
+|---|---|---|
+| Small script or simple edit | Lite Loop | Frame, Locate, Implement, Verify, short Handoff |
+| Normal feature or bug fix | Standard Loop | Full 8-step loop, checklist-level audit |
+| Data, payment, permission, deletion, external send | Full Loop | Counter-tests, live verification, explicit handoff |
+| AI memory, self-learning, automation, long-running agents | Full Loop + Independent Audit | Separate implementer/auditor roles when possible |
+| Public release or org-wide standard | Release Loop | Full Loop plus rollback and documentation consistency |
+
+## Flow Friction Starter Score
+
+- Unnecessary question: +1
+- Unnecessary confirmation card: +1
+- Unnecessary click: +1
+- User re-explains the same context: +2
+- Failure with no usable recovery path: +5
+
+For one slice: 0-2 is healthy, 3-5 needs improvement, 6+ is a usability defect.
+
 ## Slice Template
 
 ```text
@@ -127,3 +151,14 @@ Can the next session continue from the same facts?
 ## Tool Independence
 
 These rules are not tied to any model, IDE, vendor, or framework. Use them with any agentic coding tool that can write code and work with files, terminals, browsers, or tests.
+
+Recommended reference files:
+
+- `YOON.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.cursor/rules/yoon-flow.mdc`
+- `GEMINI.md`
+- `issue-template.md`
+- `handoff-template.md`
+- `audit-checklist.md`

@@ -1,10 +1,12 @@
-# YOON Vibe Engineering Manifesto
+# YOON Flow Manifesto
 
 The most dangerous illusion in AI-assisted development is mistaking "the code was generated quickly" for "the product got better."
 
 Vibe coding opened the door. The next step is a method that turns AI speed into finished product quality.
 
 I call this **YOON Flow-Governed Vibe Engineering**.
+
+In short: **YOON Flow**. It is not a new computer science theory. It is a practical operating model for AI-native product development.
 
 ## One Sentence
 
@@ -134,6 +136,21 @@ Keep the loop thin. Do not create documents or gates unless they help the next i
 
 Verify and Audit are different. Verify **proves that the implementation works**. Audit **judges whether that working implementation satisfies the user goal and real flow**.
 
+## How Much Loop To Use
+
+| Work | Mode |
+|---|---|
+| Small script or simple edit | Lite Loop |
+| Normal feature or bug fix | Standard Loop |
+| Data, payment, permission, deletion, or external send | Full Loop |
+| AI memory, self-learning, automation, or long-running agents | Full Loop + independent audit |
+
+Shrink the loop when the task is small. Do not shrink it when impact is hard to reverse or the AI learns and acts over time.
+
+## Lightweight Flow Friction Score
+
+Unnecessary question, card, or click: +1 each. User re-explains the same context: +2. Failure with no recovery path: +5. For one slice, 0-2 is healthy, 3-5 needs improvement, and 6+ is a usability defect.
+
 ## Drop-In Project Rules
 
 Paste this into `YOON.md`, `AGENTS.md`, or `CLAUDE.md`.
@@ -155,7 +172,7 @@ Paste this into `YOON.md`, `AGENTS.md`, or `CLAUDE.md`.
 Development loop: Frame -> Locate -> Baseline -> Counter-Test -> Implement -> Verify -> Audit -> Handoff.
 ```
 
-These rules are not tied to any single model or IDE. They can be used with any agentic coding tool where an LLM writes code and works with files, terminals, browsers, or tests.
+These rules are not tied to any single model or IDE. They can be used with any agentic coding tool where an LLM writes code and works with files, terminals, browsers, or tests. For adoption, the method should become tool-specific operating files: `YOON.md`, `AGENTS.md`, `CLAUDE.md`, Cursor Rules, and Gemini/Codex prompts.
 
 ## Final Questions Before Calling Work Done
 

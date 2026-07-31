@@ -2,8 +2,8 @@
 
 - Status: Draft
 - Date: 2026-07-31
-- Purpose: A public development theory for building software, web apps, automation tools, and AI-native products with AI agents
-- One-line definition: An AI-native development method grounded in YOON's owner-led user judgment, preserving the speed and creativity of vibe coding while adding the roles, verification, user-flow discipline, and handoff structure required to finish real products
+- Purpose: A public operating methodology for building software, web apps, automation tools, and AI-native products with AI agents
+- One-line definition: An AI-native product development operating framework grounded in YOON's owner-led user judgment, preserving the speed and creativity of vibe coding while adding the roles, verification, user-flow discipline, and handoff structure required to finish real products
 
 ## 1. Why This Whitepaper Exists
 
@@ -19,7 +19,7 @@ But real product development exposes recurring failure modes:
 - Safety turns into excessive cards, confirmations, and user friction.
 - Automation moves too fast and lets bad learning affect real behavior.
 
-AI-assisted development therefore needs more than prompting tricks or code-generation speed. It needs an operating theory.
+AI-assisted development therefore needs more than prompting tricks or code-generation speed. It needs an operating methodology.
 
 **YOON Flow-Governed Vibe Engineering** is one such theory.
 
@@ -43,6 +43,8 @@ Official Claude Code and Codex materials point in the same direction: agentic co
 This whitepaper's contribution is the next layer:
 
 > It describes how a human owner, an AI implementer, and an AI auditor can work together as a development system that turns AI speed into product quality.
+
+This paper does not claim to introduce a new computer science theory or replace software engineering. Its more precise position is a **practical operating model for AI-native product development**. It recombines proven development principles around the new failure modes of AI agents: context drift, false completion, test illusion, damaged user flow, and broken handoff truth.
 
 ## 3. Core Concepts and Principles
 
@@ -332,6 +334,18 @@ YOON Flow should not claim improvement by feeling alone. At minimum, watch these
 
 Small personal projects do not need to quantify every metric at first. They should still record questions, cards, clicks, waiting, rework, and repeated defect types.
 
+A lightweight starter score for Flow Friction:
+
+| Item | Score |
+|---|---:|
+| Unnecessary question | +1 |
+| Unnecessary confirmation card | +1 |
+| Unnecessary click | +1 |
+| User must re-explain the same context | +2 |
+| Failure has no usable recovery path | +5 |
+
+For one slice, 0-2 is healthy, 3-5 needs improvement, and 6+ should be treated as a usability defect. These are calibration defaults, not universal constants.
+
 ## 10. Relationship to Existing Methods
 
 | Method | Center Unit | Main Judgment | Difference From YOON Flow |
@@ -359,7 +373,21 @@ Developers focus on structure and code. AI agents follow implementable paths. Th
 
 In the AI era, ownership is not only the ability to write code. It is the ability to keep the product attached to human intent.
 
-## 12. Practical Checklist
+## 12. Decision Matrix: How Much Loop To Use
+
+Not every task needs the full loop at the same weight. YOON Flow is an operating tool, not a ritual. Shrink it or strengthen it based on risk and complexity.
+
+| Task Type | Recommended Mode | How to Apply |
+|---|---|---|
+| One-off script or small edit under 30 minutes | Lite Loop | Make Frame, Locate, Implement, and Verify explicit; keep Handoff brief |
+| Normal feature or bug fix | Standard Loop | Use all 8 steps; audit can be checklist-level |
+| User data, payment, permissions, deletion, or external send | Full Loop | Require counter-tests, independent audit, live verification, and handoff |
+| AI memory, self-learning, automation, or long-running agents | Full Loop + Independent Audit | Separate implementer and auditor; judge repeated defects and user flow explicitly |
+| Public release or organization-wide standard | Release Loop | Add documentation consistency, rollback plan, and operating criteria to Full Loop |
+
+If the task is small, the loop can shrink. If the impact is hard to reverse or the AI learns and acts over time, the loop should not shrink.
+
+## 13. Practical Checklist
 
 Before starting an AI-built software project, define:
 
@@ -396,7 +424,7 @@ Audit: Check that tests are not narrower than the claim and that user friction d
 Handoff: Record commit, verification, known limits, and next action.
 ```
 
-## 13. Anonymous Field Cases
+## 14. Anonymous Field Cases
 
 This method was distilled from repeated failures and repairs observed during long-running AI product development. The public version does not expose any specific product name or internal architecture. It preserves only the reusable patterns.
 
@@ -411,7 +439,24 @@ This method was distilled from repeated failures and repairs observed during lon
 
 These cases are not product promotion. They are patterns that can appear in web apps, internal tools, automation systems, personal AI operating systems, agentic workflows, and AI-native SaaS products.
 
-## 14. Scope and Limits
+## 15. Reference Implementation Direction
+
+A methodology is weak if it ends as a document. To become adoptable, it should be distributed as tool-readable operating files.
+
+| File | Purpose |
+|---|---|
+| `YOON.md` | Tool-independent operating rules |
+| `AGENTS.md` | Repository rules for Codex-style agentic coding |
+| `CLAUDE.md` | Project context for Claude Code |
+| `.cursor/rules/yoon-flow.mdc` | Cursor Rules integration |
+| `GEMINI.md` | Gemini CLI-style environments |
+| `issue-template.md` | Work request template with Frame and Baseline |
+| `handoff-template.md` | Session transfer and long-running work handoff |
+| `audit-checklist.md` | Verify/Audit separation checklist |
+
+This reference implementation turns YOON Flow from a readable framework into a usable operating model.
+
+## 16. Scope and Limits
 
 This method does not depend on a specific model, IDE, vendor, or framework. If an LLM can generate code or operate over files, terminals, browsers, and tests, the same principles can apply in Claude Code, Codex, Gemini CLI, Cursor, Copilot, internal agentic harnesses, or future tools.
 
@@ -424,7 +469,7 @@ It also has limits.
 
 The method should remain a flow for judgment, not a ritual. Shrink it when the task is small. Strengthen it when risk is high.
 
-## 15. Conclusion
+## 17. Conclusion
 
 Vibe coding opened the door. Finishing real products requires another layer.
 
