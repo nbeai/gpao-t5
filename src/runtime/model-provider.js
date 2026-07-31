@@ -114,6 +114,18 @@ export function buildModelMessages(tc) {
   // 이어받을 수 있는 작업이 있으면 사실로 놓는다. 어느 것을 이어받을지는 모델이 정한다.
   if (tc.carryableWork?.length) usr.push(`[다른 대화에서 이어받을 수 있는 작업]\n${tc.carryableWork.map((c) => `- ${c}`).join('\n')}`);
   if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);
+  // S5-2 보강: **쓸 자리에서** 알려 준다. 스키마 설명만으로는 모델이 이 채널을 한 번도 부르지
+  // 않았다(라이브 실측). 위 목록 중 무엇이 실제로 도움이 됐는지는 답을 쓴 쪽만 아는 사실이다.
+  if (tc.admittedContext?.length || tc.carryableWork?.length) {
+    usr.push('T5 는 위 목록을 보여준 것만 알고, 그중 무엇이 이번 답에 실제로 도움이 됐는지는'
+      + ' 모른다. 참고한 항목이 있으면 `memory.cite` 로 그 문장을 그대로 알려 준다.');
+  }
+  // S5-3 보강: 정정이 일어날 수 있는 자리는 **직전 답이 기억을 참고한 다음 턴**이다.
+  // 그 자리에서만 알려 준다 — 아무 턴에나 붙이면 없는 정정을 만들어 내게 된다.
+  if (tc.priorTurnCited) {
+    usr.push('직전 답은 반영된 기억을 참고해 썼다. 지금 사용자가 그 답을 바로잡고 있으면'
+      + ' `memory.correction` 으로 알려 준다.');
+  }
   if (tc.evidenceFacts?.length) {
     usr.push(`[이번 턴 실행 사실]\n${tc.evidenceFacts
       .map((f) => `- ${f.summary}${f.failureState !== 'none' ? ` (미확인: ${f.failureState})` : ''}`

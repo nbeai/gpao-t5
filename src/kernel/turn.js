@@ -354,6 +354,17 @@ export async function runTurn(input, ctx) {
   };
   // S5-2: 모델이 "이걸 참고했다"고 주장하면 여기에 담긴다. **사실이 아니라 주장이다.**
   let modelCitedRefs = null;
+  // S5-3: 직전 답이 기억을 참고했는가 — **정정이 가능한 자리인지**의 사실. 이 자리에서만
+  // 정정 통제 채널을 안내한다(아무 턴에나 알리면 없는 정정을 만들어 내게 된다).
+  ctx.priorTurnCited = (() => {
+    const 기록 = ctx.memory?.shownRefs ?? [];
+    const sid = input.turnRef?.sessionId;
+    const seq = input.turnRef?.turnSeq;
+    if (!sid || !Number.isInteger(seq)) return false;
+    return 기록.some((x) => x.turnRef?.sessionId === sid
+      && Number.isInteger(x.turnRef?.turnSeq) && x.turnRef.turnSeq < seq
+      && (x.modelCitedRefs ?? []).length > 0);
+  })();
   // S5-3: 모델이 "지금 사용자가 앞 답을 고치고 있다"고 알려주면 여기에 담긴다.
   // Runtime 은 낱말로 판정하지 않는다 — 모델이 안 알려주면 아무 일도 일어나지 않는다.
   let memoryCorrection = null;
@@ -396,6 +407,7 @@ export async function runTurn(input, ctx) {
       externalReality: ctx.externalReality,
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
+      priorTurnCited: ctx.priorTurnCited, // S5-3 · 정정이 가능한 자리인가
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
       surface: ctx.surface,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
@@ -892,6 +904,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   }), ctx.connectors);
   let tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
+      priorTurnCited: ctx.priorTurnCited, // S5-3 · 정정이 가능한 자리인가
     externalReality: ctx.externalReality,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
@@ -980,6 +993,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
       tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
+      priorTurnCited: ctx.priorTurnCited, // S5-3 · 정정이 가능한 자리인가
         externalReality: ctx.externalReality,
         intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
         surface: ctx.surface, recentTurns: ctx.recentTurns,
@@ -1128,6 +1142,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
     tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
+      priorTurnCited: ctx.priorTurnCited, // S5-3 · 정정이 가능한 자리인가
       externalReality: ctx.externalReality,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
       surface: ctx.surface, recentTurns: ctx.recentTurns,
