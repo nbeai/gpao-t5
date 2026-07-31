@@ -15,11 +15,20 @@ const ENTRY = [
 
 function scaffold() {
   const repo = mkdtempSync(join(tmpdir(), 't5-docs-audit-'));
+  // 깨끗한 상태 = 게이트가 요구하는 모든 구역이 **같은 상태 토큰**을 말하는 문서다.
+  // 검사 7(§4·§9·§10 상태 토큰 연동, 12533ac)이 추가될 때 이 fixture 가 함께 갱신되지 않아
+  // "깨끗한 상태" 시험이 실패하고 있었다 — 게이트와 그 게이트의 깨끗한 본보기는 같이 움직인다.
   const handoff = [
     '# 인수인계', '## 0-A. 상태',
     '- 현재 상태는 `SOME_STATE`이다.',
     '- 계획: `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md` 지위 DRAFT_X 반영.',
     '## 1. 다음',
+    '## 4. 현재 작업 상태',
+    '- 상태 토큰: `SOME_STATE`',
+    '## 9. 다음 작업과 종료 조건',
+    '상태 토큰: `SOME_STATE`',
+    '## 10. 새 세션 시작용 여섯 줄',
+    '현재 상태: `SOME_STATE`',
   ].join('\n');
   const plan = ['# 계획', '- 지위: `DRAFT_X`'].join('\n');
   const files = {

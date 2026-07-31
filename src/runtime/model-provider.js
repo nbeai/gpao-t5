@@ -296,11 +296,17 @@ const OPENAI_WIRE = {
   modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models`,
   listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
   // P-STR-1: 같은 요청에 stream 을 켠 본문. 조각은 `chat.completion.chunk` 의 delta.content.
-  streamBody: (cfg, m) => JSON.stringify({
-    ...JSON.parse(OPENAI_WIRE.body(cfg, m)),
+  // 계열 ④: opts 를 그대로 받아 **비스트리밍과 같은 본문**(도구 스키마 포함)에 stream 만 켠다.
+  // 예전엔 opts 를 안 받아서, 게이트만 걷으면 스트리밍 요청에서 도구 스키마가 사라졌다.
+  streamBody: (cfg, m, opts = {}) => JSON.stringify({
+    ...JSON.parse(OPENAI_WIRE.body(cfg, m, opts)),
     stream: true,
   }),
   streamDelta: (ev) => (typeof ev?.choices?.[0]?.delta?.content === 'string' ? ev.choices[0].delta.content : null),
+  // 계열 ④: `chat.completion.chunk` 의 tool_calls 조각. name·arguments 가 여러 청크로 나뉘어
+  // 오므로 streamSse 가 index 별로 누적해 완성한다. 이 선언이 있는 와이어만 도구 턴을 스트리밍한다
+  // — 없는 provider(anthropic·gemini)는 가장하지 않고 단발을 유지한다.
+  streamToolCalls: (ev) => (Array.isArray(ev?.choices?.[0]?.delta?.tool_calls) ? ev.choices[0].delta.tool_calls : null),
 };
 
 export const MODEL_PROVIDERS = {
@@ -458,19 +464,25 @@ export function resolveModelConfig(env = {}) {
 /**
  * SSE 스트림을 읽으며 조각을 흘린다. **와이어는 spec 이 선언**하고 여기는 공통 읽기만 한다
  * (P0-3: OpenAI 계열뿐 아니라 gemini·anthropic 도 같은 함수로 흐른다).
+ *
+ * 계열 ④: 텍스트 조각은 즉시 onDelta 로 흘리고, 도구 호출 조각(`streamToolCalls` 선언이 있는
+ * 와이어만)은 index 별로 name·arguments 를 누적해 스트림이 끝난 뒤 **완성된 호출로 정확히 한 번**
+ * 돌려준다. 완료 이벤트가 중복돼도 누적 지도는 같은 자리를 다시 채울 뿐 호출이 늘지 않는다.
+ * 빈 스트림 판정은 여기서 하지 않는다 — 도구만 고른 응답은 빈 답이 아니므로 respond 가
+ * 텍스트·도구를 함께 보고 한 자리에서 판정한다.
  */
-async function streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta }) {
+async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDelta }) {
   const controller = new AbortController();
   // provider 마다 스트림 엔드포인트가 다르다(gemini 는 :streamGenerateContent). 선언이 있으면 그걸 쓴다.
   const url = (spec.streamEndpoint ?? spec.endpoint)(cfg);
   let out = '';
-  let status;
+  const 조각들 = new Map(); // index → { name, args } 문자열 누적(청크 분할 견딤)
   try {
-    status = await withTimeout(async () => {
+    await withTimeout(async () => {
       const r = await fetchImpl(url, {
         method: 'POST',
         headers: { ...spec.headers(cfg), accept: 'text/event-stream' },
-        body: spec.streamBody(cfg, messages),
+        body: spec.streamBody(cfg, messages, opts),
         signal: controller.signal,
       });
       if (r.status < 200 || r.status >= 300 || !r.body?.getReader) {
@@ -493,9 +505,17 @@ async function streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta })
           let ev;
           try { ev = JSON.parse(payload); } catch { continue; }
           const piece = spec.streamDelta(ev);
-          if (!piece) continue;
-          out += piece;
-          try { onDelta(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
+          if (piece) {
+            out += piece;
+            try { onDelta(piece); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
+          }
+          for (const c of spec.streamToolCalls?.(ev) ?? []) {
+            const i = Number.isInteger(c?.index) ? c.index : 0;
+            const cur = 조각들.get(i) ?? { name: '', args: '' };
+            if (typeof c?.function?.name === 'string') cur.name += c.function.name;
+            if (typeof c?.function?.arguments === 'string') cur.args += c.function.arguments;
+            조각들.set(i, cur);
+          }
         }
       }
       return r.status;
@@ -505,8 +525,12 @@ async function streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta })
     if (e instanceof ModelProviderError) throw e;
     throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });
   }
-  if (!out) throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty response stream' });
-  return out;
+  // 완성한 뒤에만 호출로 만든다. 인자가 깨졌으면 그 호출만 버린다(반쪽 인자로 실행하지 않는다).
+  const toolCalls = [...조각들.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, c]) => parseWireCall(c.name, c.args))
+    .filter(Boolean);
+  return { text: out, toolCalls };
 }
 
 /**
@@ -585,11 +609,28 @@ export function makeProviderModelClient(cfg, deps = {}) {
      */
     async respond(tc, opts = {}) {
       const messages = buildModelMessages(tc);
-      // 스트리밍 가능한 와이어(OpenAI 계열)면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로.
-      // 도구를 준 턴은 단발로 받는다 — 조각 스트림 중간의 도구 호출까지 다루는 것은 이 슬라이스 범위 밖이고,
-      // 반쪽으로 만들면 "고른 줄 알았는데 실행 안 됨"이 된다(§16-D 능력 완결).
-      if (opts.onDelta && spec.streamBody && !opts.tools?.length) {
-        return streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
+      // 스트리밍 가능한 와이어면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로 단발.
+      // 계열 ④: 도구를 준 턴도 **tool_call 조각 파서를 선언한 와이어(OpenAI 계열)** 는 스트리밍한다
+      // — T5 는 거의 모든 턴에 통제 채널을 실으므로, 여기서 막으면 answer_delta 가 영원히 0 이다
+      // (라이브 25턴 실측). 파서가 없는 와이어(anthropic·gemini)는 가장하지 않고 단발을 유지한다:
+      // 반쪽으로 흉내 내면 "고른 줄 알았는데 실행 안 됨"이 된다(§16-D 능력 완결).
+      if (opts.onDelta && spec.streamBody && (!opts.tools?.length || spec.streamToolCalls)) {
+        const streamed = await streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDelta: opts.onDelta });
+        if (!opts.tools?.length) {
+          // 도구 없는 호출의 계약은 그대로 문자열이다. 빈 스트림은 성공처럼 돌려주지 않는다.
+          if (streamed.text) return streamed.text;
+          throw new ModelProviderError({ provider: cfg.provider, authSignal: 'empty response stream' });
+        }
+        // 단발 경로와 같은 규칙: 와이어 이름을 커널 이름으로 되돌리고, 못 되돌리면 버린다.
+        const byWire = new Map(opts.tools.map((t) => [wireToolName(t.name), t.name]));
+        const toolCalls = streamed.toolCalls
+          .map((c) => (byWire.has(c.name) ? { ...c, name: byWire.get(c.name) } : null))
+          .filter(Boolean);
+        // 도구만 고른 응답은 빈 답이 아니다 — 텍스트도 도구도 없을 때만 빈 스트림이다.
+        if (!streamed.text && !toolCalls.length) {
+          throw new ModelProviderError({ provider: cfg.provider, authSignal: 'empty response stream' });
+        }
+        return { text: streamed.text, toolCalls };
       }
       const url = spec.endpoint(cfg);
       // 실제로 보낸 본문을 한 번만 만들어 붙잡는다 — 신분은 이 값에서 읽는다(다시 만들면

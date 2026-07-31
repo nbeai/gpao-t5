@@ -218,10 +218,56 @@ async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
   return 다시 || fallbackReplyFrom(receipts);
 }
 
+/**
+ * **화면에 이미 나간 조각과 지속되는 최종 답은 같은 사실이어야 한다**(H 진단 계열 ④).
+ *
+ * 도구 턴이 스트리밍되면 한 턴 안의 여러 모델 호출이 조각을 흘릴 수 있다 — 모델이 도구를
+ * 고르며 이미 한 말("잠깐 볼게요")도 사용자 화면에 나갔다. 나간 말은 물릴 수 없으므로 버리지
+ * 않는다(승인 카드의 `지금까지` 와 같은 원리). 이 원장이 그 누적을 들고 있다가, 최종 답이
+ * 정해지는 자리에서 `미리보기정렬` 로 둘을 하나의 사실로 만든다.
+ */
+function 미리보기원장(ctx) {
+  if (!ctx.onAnswerDelta || ctx.미리보기) return;
+  const raw = ctx.onAnswerDelta;
+  const pv = {
+    shown: '',
+    emit(piece) {
+      const p = String(piece ?? '');
+      if (!p) return;
+      pv.shown += p;
+      try { raw(p); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
+    },
+  };
+  ctx.onAnswerDelta = (piece) => pv.emit(piece);
+  ctx.미리보기 = pv;
+}
+
+/**
+ * 최종 답과 미리보기 누적을 정렬한다. 네 경우뿐이다:
+ *   · 같다 → 그대로 · 아직 아무 것도 안 나감 → 답 전체를 한 조각으로 내보냄(완료 전에 도착)
+ *   · 답이 누적을 이어 감 → 남은 꼬리만 내보냄 · 누적이 답으로 끝남(중간 말 + 최종 답이 전부
+ *     흐른 경우) → 나간 말을 버리지 않고 누적 전체가 답이 된다
+ * 그 밖(중간에 흐른 말과 무관한 답이 계산된 경우)은 나간 말 뒤에 답을 잇는다 — 화면을 물릴 수
+ * 없으므로 답이 화면을 따라온다.
+ */
+function 미리보기정렬(reply, pv) {
+  const 답 = String(reply ?? '');
+  if (!pv) return 답;
+  if (!pv.shown) { pv.emit(답); return 답; }
+  if (답 === pv.shown) return 답;
+  if (답.startsWith(pv.shown)) { pv.emit(답.slice(pv.shown.length)); return 답; }
+  if (pv.shown.endsWith(답)) return pv.shown;
+  const 이은답 = 답.trim() ? `${pv.shown}\n\n${답.trim()}` : pv.shown;
+  pv.emit(이은답.slice(pv.shown.length));
+  return 이은답;
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
   ctx.surface = resolveResponseSurface(input);
+  // 계열 ④: 이 턴에 화면으로 나가는 조각을 한 원장이 든다 — 최종 답이 그 누적을 따라온다.
+  미리보기원장(ctx);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
   // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
@@ -464,8 +510,8 @@ export async function runTurn(input, ctx) {
     const idleState = deriveWorkingState(ctx.workingState, { receipts: [], places: await 볼수있는자리(ctx) });
     return {
       kind: 'reply',
-      // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1).
-      reply: await 답완성({ reply: earlyReply, tc: earlyTc, ctx, search: earlyWantedWeb }),
+      // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
+      reply: 미리보기정렬(await 답완성({ reply: earlyReply, tc: earlyTc, ctx, search: earlyWantedWeb }), ctx.미리보기),
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
@@ -1189,6 +1235,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 손을 빼는 이유는 `toolBudgetSpent` 로 함께 간다. 안 그러면 모델이 "손이 없다"고 답한다 —
   // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
   reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts });
+  // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
+  reply = 미리보기정렬(reply, ctx.미리보기);
   const projection = projectReceipts(turnReceipts);
 
   // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤

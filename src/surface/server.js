@@ -935,12 +935,21 @@ export function makeServer(deps = {}) {
               };
               await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
               // 답변 조각은 EventLog 를 거치지 않고 바로 화면으로만 흘린다(비지속 미리보기).
+              let 미리보기누적 = '';
               const onAnswerDelta = (piece) => {
+                미리보기누적 += String(piece ?? '');
                 res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: piece, _turnId: turnId })}\n\n`);
               };
               const result = await runAndPersistTurn(
                 activeSession, { sessionId, text, turnRef: streamTurnRef }, emit, onAnswerDelta,
               );
+              // 계열 ④: 커널은 반환 전에 답과 미리보기를 정렬하지만, 서버 후처리(민감 기억 안내 등)가
+              // **지속 직전에** 답을 늘릴 수 있다. 그 꼬리도 완료 전에 흘려 미리보기 누적 = 지속된 답을
+              // 유지한다. 이어 가는 경우만 — 갈린 답을 여기서 지어 붙이지 않는다.
+              const 지속된답 = typeof result.reply === 'string' ? result.reply : '';
+              if (미리보기누적 && 지속된답 !== 미리보기누적 && 지속된답.startsWith(미리보기누적)) {
+                onAnswerDelta(지속된답.slice(미리보기누적.length));
+              }
               // 결과 → 사용자 상태 이벤트(사고 원문 아님). 그리고 항상 complete로 닫는다.
               if (result.modelUnavailable) {
                 const text = result.modelFailure === 'timeout'

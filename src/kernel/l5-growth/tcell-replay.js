@@ -67,7 +67,7 @@ export function outputDigestOf(text) {
  * 저장소에서 다시 조회한다(§4.4) — 그래서 이 함수는 저장 형태를 만들 뿐이다.
  *
  * `outputDigest` 는 인자로 받지 않고 **산출물 원문에서 만든다**. 받는 순간 "무엇을 봤는지"와
- * "무엇을 봤다고 적었는지"가 갈릴 자유도가 생긴다(중간 감사 후속 조건).
+ * "무엇을 봤다고 적었는지"가 갈릴 자유도가 생긴다(중간 감사가 못박은 조건).
  */
 export function makeReplayCallReceipt(p) {
   return {
@@ -138,7 +138,7 @@ export function verifyReplayEvidence(replayCase, ctx) {
   if (stored.caseInputDigest !== replayCase.caseInputDigest) return { ok: false, reason: 'case_input_digest_mismatch' };
   if (stored.requestDigest !== replayCase.caseInputDigest) return { ok: false, reason: 'request_not_bound_to_case' };
   // 저장된 출력 ↔ 영수증 출력: **저장소가 진실이다.** 호출자가 digest 를 넘겨도 보지 않는다 —
-  // 넘겨받은 값으로 대조하면 "무엇을 판정했는가"를 호출자가 정하게 된다(중간 감사 후속 조건).
+  // 넘겨받은 값으로 대조하면 "무엇을 판정했는가"를 호출자가 정하게 된다(중간 감사가 못박은 조건).
   const 산출물 = ctx?.store?.output?.(ref);
   if (typeof 산출물 !== 'string') return { ok: false, reason: 'output_not_stored' };
   if (stored.outputDigest !== outputDigestOf(산출물)) return { ok: false, reason: 'output_mismatch' };
