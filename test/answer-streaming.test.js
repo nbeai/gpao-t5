@@ -252,3 +252,64 @@ test('onDelta 없이 호출하면 provider 무관하게 단발 경로를 쓴다(
     assert.notEqual(bodies[0].stream, true, `${provider}: onDelta 없으면 stream 을 켜지 않는다`);
   }
 });
+
+// ── 빈 답을 사용자에게 돌려주지 않는다 (H 진단 계열 ③ · P1) ────────────────
+//
+// 라이브 진단에서 25턴 중 7턴이 **빈 답**이었다. `kind: reply` 인데 본문이 없고, 도구·능력·
+// 승인 경로도 아니었다. 그리고 그 요청은 **다음 턴 답에 합쳐져** 나왔다 — 사용자는 한 번
+// 무시당하고, 다음 턴에 엉뚱하게 두 개를 한꺼번에 받는다.
+//
+// 원인은 하나다. 빠른 경로가 모델이 준 텍스트를 **빈 것인지 보지 않고 그대로 돌려줬다.**
+// 모델이 그 턴을 통제 호출(기억 제안·철회 등)에만 쓰고 텍스트를 안 내면 그대로 빈 답이 된다.
+// 도구 경로에는 재시도가 있었는데 빠른 경로에는 없었다 — **최종 답을 만드는 자리가 둘인데
+// 계약이 하나가 아니었다.**
+import { test as 시험 } from 'node:test';
+import assert2 from 'node:assert/strict';
+import { mkdtemp as mkdtemp2 } from 'node:fs/promises';
+import { tmpdir as tmpdir2 } from 'node:os';
+import { join as join2 } from 'node:path';
+import { makeServer as makeServer2 } from '../src/surface/server.js';
+import { SessionStore as SessionStore2 } from '../src/surface/session-store.js';
+import { demoTools as demoTools2 } from '../src/surface/demo-context.js';
+
+시험('통제 호출만 낸 턴도 사용자에게 빈 답을 주지 않는다', async () => {
+  const dir = await mkdtemp2(join2(tmpdir2(), 'gpao-t5-empty-'));
+  const 받은옵션 = [];
+  let 호출 = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      호출 += 1;
+      받은옵션.push({ 도구있음: Boolean(opts.tools?.length), onDelta있음: Boolean(opts.onDelta) });
+      // 첫 호출: 기억만 적고 **텍스트는 안 낸다**(라이브에서 실제로 이렇게 왔다).
+      if (호출 === 1) {
+        return { text: '', toolCalls: [{ name: 'memory.propose', args: {
+          kind: 'preference', statement: '이번만 줄글로 길게 써줘.',
+          evidence: { utteranceQuote: '이번만 줄글로 길게 써줘.', speechAct: 'declaration', appliesTo: 'this_turn_only' },
+        } }] };
+      }
+      return '알겠어요, 줄글로 길게 쓸게요.';
+    },
+  };
+  const server = makeServer2({ store: new SessionStore2(dir), tools: demoTools2(), model });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (p, b) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}) }).then((r) => r.json());
+  try {
+    const s = await post('/sessions');
+    const r = await post('/turn', { sessionId: s.id, text: '이번만 줄글로 길게 써줘.' });
+    assert2.ok(String(r.reply ?? '').trim(), '사용자가 빈 답을 받았다');
+    assert2.ok(호출 >= 2, '텍스트가 없으면 한 번 더 물어야 한다');
+
+    // **재시도는 도구 없이 간다.** 다시 쥐여 주면 또 고르고 또 텍스트가 없을 수 있다.
+    assert2.equal(받은옵션.at(-1).도구있음, false, '재시도에 도구를 다시 줬다');
+
+    // **그리고 같은 스트리밍 계약을 쓴다.** `/turn` 에는 조각 통로가 아예 없으니(단발 경로)
+    // 계약은 조각이 흐르는 자리에서 재야 한다 — 화면이 쓰는 스트림 경로다. 여기서 빠지면
+    // 하필 제일 오래 기다린 답만 조각으로 안 흐른다.
+    호출 = 0; 받은옵션.length = 0;
+    const s2 = await post('/sessions');
+    const st = await post('/turn/stream-start', { sessionId: s2.id, text: '이번만 줄글로 길게 써줘.' });
+    await fetch(`${base}/turn/stream?sessionId=${s2.id}&streamId=${st.streamId}`).then((r) => r.text());
+    assert2.equal(받은옵션.at(-1).onDelta있음, true, '재시도가 스트리밍 계약 밖에 있다');
+  } finally { await new Promise((r) => server.close(r)); }
+});

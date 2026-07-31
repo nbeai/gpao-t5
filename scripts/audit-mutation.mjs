@@ -54,6 +54,8 @@ const USERMODEL = 'src/kernel/l1-intent/user-model.js';
 const T_SURFACE = 'test/tcell-surface.test.js';
 const T_BIND = 'test/server-bind.test.js';
 const T_REVMEM = 'test/reversible-memory.test.js';
+const TURNJS = 'src/kernel/turn.js';
+const T_STREAM = 'test/answer-streaming.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -270,6 +272,17 @@ export const MUTATIONS = [
     찾기: '    delete e.archivedAt;\n', 바꾸기: '' },
   { 이름: '붙듦·치우기를 원장에 안 남김', 파일: SERVER, 검사: T_SURFACE,
     찾기: "          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });", 바꾸기: '' },
+
+  // ── H 진단 계열 ③ 빈 답을 사용자에게 돌려주지 않는다 ────────────────────
+  { 이름: '빠른 경로가 빈 답을 그대로 돌려줌', 파일: TURNJS, 검사: T_STREAM,
+    찾기: '      reply: await 답완성({ reply: earlyReply, tc: earlyTc, ctx, search: earlyWantedWeb }),',
+    바꾸기: '      reply: earlyReply,' },
+  { 이름: '재시도가 스트리밍 계약 밖으로 나감', 파일: TURNJS, 검사: T_STREAM,
+    찾기: '    onDelta: ctx.onAnswerDelta, search, effort: \'medium\',',
+    바꾸기: "    search, effort: 'medium'," },
+  { 이름: '재시도에 도구를 다시 쥐여 줌(또 고르고 또 빈 답)', 파일: TURNJS, 검사: T_STREAM,
+    찾기: '  const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, {',
+    바꾸기: '  const retry = await ctx.model.respond({ ...tc }, { tools: [{ name: \'x\' }],' },
 
   // ── H 진단 계열 ② 현재 턴 예외가 영구 기억이 되지 않는다 ────────────────
   { 이름: '범위를 안 보고 자동 반영(이번만이 영구 선호가 됨)', 파일: SERVER, 검사: T_REVMEM,

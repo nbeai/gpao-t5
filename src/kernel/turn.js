@@ -195,6 +195,29 @@ function 이전대기를지난것으로(ctx) {
   ctx.pending?.clear?.();
 }
 
+/**
+ * **빈 답을 사용자에게 돌려주지 않는다 — 최종 답을 만드는 모든 경로가 여기를 지난다.**
+ *
+ * 라이브에서 25턴 중 7턴이 빈 답이었다. 모델이 그 턴을 통제 호출(기억 제안·철회)에만 쓰고
+ * 텍스트를 안 내면 그대로 사용자에게 갔고, 그 요청은 **다음 턴 답에 합쳐져** 나왔다 —
+ * 사용자는 한 번 무시당하고 다음 턴에 두 개를 한꺼번에 받는다.
+ *
+ * 원인은 답을 만드는 자리가 둘인데 **계약이 하나가 아니었던 것**이다. 도구 경로에는 재시도가
+ * 있었고 빠른 경로에는 없었다. 그래서 재시도를 늘리는 대신 자리를 하나로 모은다.
+ *
+ * 재시도는 **도구 없이** 간다(다시 쥐여 주면 또 고르고 또 텍스트가 없을 수 있다) 그리고
+ * **같은 스트리밍 계약**으로 간다 — 하필 이 답만 조각으로 안 흐르면 사용자는 제일 오래
+ * 기다린 자리에서 제일 늦게 본다.
+ */
+async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
+  if (String(reply ?? '').trim()) return reply;
+  const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, {
+    onDelta: ctx.onAnswerDelta, search, effort: 'medium',
+  });
+  const 다시 = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
+  return 다시 || fallbackReplyFrom(receipts);
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -391,6 +414,7 @@ export async function runTurn(input, ctx) {
   let earlyReply = null;
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
   let earlyTc;
+  let earlyWantedWeb = false;
   {
     const tc = earlyTc = buildTaskContext({
       externalReality: ctx.externalReality,
@@ -406,7 +430,7 @@ export async function runTurn(input, ctx) {
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
-    const wantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
+    const wantedWeb = earlyWantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
     const out = await ctx.model.respond(tc, {
       onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
       search: wantedWeb,
@@ -440,7 +464,8 @@ export async function runTurn(input, ctx) {
     const idleState = deriveWorkingState(ctx.workingState, { receipts: [], places: await 볼수있는자리(ctx) });
     return {
       kind: 'reply',
-      reply: earlyReply,
+      // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1).
+      reply: await 답완성({ reply: earlyReply, tc: earlyTc, ctx, search: earlyWantedWeb }),
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
@@ -1160,16 +1185,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   let reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
   if (멈춘이유 && !reply.trim()) reply = '';
-  if (!reply.trim()) {
-    // 도구를 빼고 한 번 더. 이번엔 고를 것이 없으니 모델은 지금까지의 사실로 답한다.
-    // 내장 검색은 켜 둔다 — 우리 수집이 막혔어도 모델은 자기 인프라로 찾을 수 있다(막다른 답 금지).
-    //
-    // **여기서도 손을 빼는 이유를 말해 준다.** 안 그러면 모델이 "손이 없다"고 답한다 —
-    // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
-    const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, { search: wantedWeb, effort: 'medium' });
-    reply = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
-  }
-  if (!reply.trim()) reply = fallbackReplyFrom(turnReceipts);
+  // 도구를 빼고 한 번 더 묻는 자리 — **빠른 경로와 같은 계약을 쓴다**(`답완성`).
+  // 손을 빼는 이유는 `toolBudgetSpent` 로 함께 간다. 안 그러면 모델이 "손이 없다"고 답한다 —
+  // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
+  reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts });
   const projection = projectReceipts(turnReceipts);
 
   // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤
