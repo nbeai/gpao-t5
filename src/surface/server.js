@@ -1965,6 +1965,23 @@ async function startLiveServerInner(opts, bootStore) {
     liveDeps(processEnv, { connectionStore, fetchImpl: opts.fetchImpl, sessionStore: bootStore });
   // 채널도 실제 자격에서 파생한 것을 넘긴다 — /channels가 fixture(demoChannels)로 초록 오표시 하지 않게(P6-16 보정).
   // 모델도 같은 원칙(P-RT-1): 자격이 구성되면 실 provider, 아니면 stub — env.model과 단일 진실.
+  // ── 어디까지 열 것인가 — **고르지 않은 노출은 없다.** ──────────────────
+  // 예전에는 주소 없이 붙어서(`listen(port)`) 같은 망의 다른 기기가 이 사람의 기억·대화·연결을
+  // 그대로 볼 수 있었다. 아무도 그걸 고른 적이 없다 — 기본값이 그랬을 뿐이다.
+  //
+  // 이번에 하는 일은 그 **고르지 않은 노출을 없애는 것 하나**다. 원격 접속을 만드는 것이
+  // 아니다. 그래서 비루프백 주소를 지정하면 지금은 **뜨지 않는다** — 인증 없이 여는 길을
+  // 남겨 두면 그게 곧 기본값이 되고, 그러면 없앤 것이 되돌아온다.
+  const host = opts.host ?? processEnv.GPAO_T5_BIND ?? '127.0.0.1';
+  if (!['127.0.0.1', '::1', 'localhost'].includes(host)) {
+    const 안내 = new Error(
+      `원격 접속(GPAO_T5_BIND=${host})은 아직 열 수 없어요. `
+      + 'T5 는 지금 이 컴퓨터에서만 쓸 수 있어요(127.0.0.1) — '
+      + '인증 없이 열면 같은 망의 다른 기기가 대화와 기억을 그대로 볼 수 있어요.',
+    );
+    안내.안내 = true; // 고장이 아니라 안내다 — 스택 없이 이 한 줄만 보여 준다
+    throw 안내;
+  }
   const server = makeServer({
     store: bootStore, env: liveEnv, tools: liveTools,
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
@@ -1975,7 +1992,7 @@ async function startLiveServerInner(opts, bootStore) {
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
   try { await server.loadSelfhood(); } catch { /* 문서 준비 실패 → 기본 정체로 계속(차단하지 않는다) */ }
   const port = opts.port ?? Number(processEnv.PORT ?? 4173);
-  await new Promise((resolve) => server.listen(port, resolve));
+  await new Promise((resolve) => server.listen(port, host, resolve));
   // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
   // P5-B-1A: **이미 설치·설정된 것은 사용자가 아니라 T5 가 확인한다.** 커넥터가 선언한 로컬
   // 흔적(동기화 폴더·MCP 설정·CLI·앱)을 부팅 직후 확인해 같은 배열에 얹는다 — 매 턴 ctx 가
@@ -2051,7 +2068,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const { port } = server.address();
     console.log(`GPAO-T5 Work Chat (slice-2 living) → http://localhost:${port}`);
   }).catch((err) => {
-    console.error('[boot:diagnostic]', err?.stack ?? err);
+    // 설정을 어떻게 하라는 안내는 **진단이 아니다.** 사람이 고칠 수 있는 일에 스택을 얹으면
+    // 정작 읽어야 할 한 줄이 묻힌다. 스택은 우리가 모르는 고장에만 붙인다.
+    if (err?.안내) console.error(err.message);
+    else console.error('[boot:diagnostic]', err?.stack ?? err);
     process.exit(1);
   });
 }

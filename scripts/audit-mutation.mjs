@@ -52,6 +52,7 @@ const T_DECAY = 'test/tcell-decay.test.js';
 const SURFACE = 'src/kernel/l5-growth/tcell-surface.js';
 const USERMODEL = 'src/kernel/l1-intent/user-model.js';
 const T_SURFACE = 'test/tcell-surface.test.js';
+const T_BIND = 'test/server-bind.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -268,6 +269,14 @@ export const MUTATIONS = [
     찾기: '    delete e.archivedAt;\n', 바꾸기: '' },
   { 이름: '붙듦·치우기를 원장에 안 남김', 파일: SERVER, 검사: T_SURFACE,
     찾기: "          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });", 바꾸기: '' },
+
+  // ── 노출 경계(고르지 않은 것을 열어 두지 않는다) ───────────────────────
+  // 계약은 둘뿐이다: 기본은 루프백에만 붙는다 · 비루프백은 뜨지 않는다.
+  { 이름: '주소 없이 붙어 같은 망에 열림(기본값이 노출을 고름)', 파일: SERVER, 검사: T_BIND,
+    찾기: '  await new Promise((resolve) => server.listen(port, host, resolve));',
+    바꾸기: '  await new Promise((resolve) => server.listen(port, resolve));' },
+  { 이름: '비루프백 지정을 조용히 받아들임', 파일: SERVER, 검사: T_BIND,
+    찾기: "  if (!['127.0.0.1', '::1', 'localhost'].includes(host)) {", 바꾸기: '  if (false) {' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,
