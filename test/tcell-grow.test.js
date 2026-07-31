@@ -469,6 +469,80 @@ test('S4/제품: 사용자 턴은 성장을 부르지 않는다(전경 비용 0)
   } finally { server.close(); }
 });
 
+test('S4/제품: 실제 서버 배선에서 성장 호출과 전경 기억 쓰기가 겹친다(구조로 판정)', async () => {
+  // 앞의 lock depth 검사는 **검사용 wrapper** 를 봤다. 여기서는 제품이 실제로 쓰는
+  // `withMemory` 경계를 본다 — 성장 호출이 도는 **동안** 전경 기억 쓰기가 실제로 끝나는지.
+  // "안 막혔다(시간)"가 아니라 "겹쳤다(순서)"를 판정한다.
+  const 흐름 = [];
+  let 놓아주기 = () => {};
+  const 매달림 = new Promise((r) => { 놓아주기 = r; });
+  const 걸린모델 = () => ({
+    async respond(tc, opts) {
+      opts?.onCallIdentity?.(신분(0));
+      흐름.push('성장호출 시작');
+      await 매달림;
+      흐름.push('성장호출 끝');
+      return 제안();
+    },
+  });
+
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-grow-srv-'));
+  const mem = new MemoryStore(dir);
+  const 감시기억 = {
+    dir,
+    load: (...a) => mem.load(...a),
+    save: async (m) => { const r = await mem.save(m); 흐름.push('전경 기억 저장'); return r; },
+  };
+  const store = new SessionStore(dir);
+  const server = makeServer({
+    store, eventLog: new EventLog(dir), tools: demoTools(),
+    model: { async respond() { return '알겠어요.'; } },
+    memoryStore: 감시기억,
+    modelConnection: { modelFor: 걸린모델 },
+  });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    await 익은묶음심기(mem);
+    // 전경에서 **실제로 저장이 일어나는** 일을 하나 심어 둔다(없는 후보를 확인하면 저장이 없다).
+    const m0 = await mem.load();
+    m0.candidates = [...(m0.candidates ?? []), {
+      candidateId: 'c-전경', kind: 'preference', statement: '보고서는 짧은 목록으로',
+      admitted: false, userConfirmed: false, replayPassed: true, rollbackable: true,
+    }];
+    await mem.save(m0);
+    const 심은뒤 = 흐름.length;
+
+    const tick = server.runtimeTick();
+    // 성장이 모델에 매달릴 때까지 기다린다(폴링 — 시간 상한이 아니라 상태를 본다).
+    for (let i = 0; i < 200 && !흐름.includes('성장호출 시작'); i += 1) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.ok(흐름.includes('성장호출 시작'), '성장 호출이 시작됐다');
+
+    // 이제 전경에서 기억을 쓴다 — 제품의 `withMemory` 를 그대로 탄다.
+    const 확인 = await fetch(`${base}/memory/confirm`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ candidateId: 'c-전경' }),
+    }).then((r) => r.json()).catch(() => null);
+    assert.equal(확인?.ok, true, '전경 기억 승격이 실제로 끝났다');
+
+    놓아주기();
+    await tick;
+
+    const 시작 = 흐름.indexOf('성장호출 시작');
+    const 끝 = 흐름.indexOf('성장호출 끝');
+    assert.ok(심은뒤 >= 0);
+    // 성장 호출이 시작된 **뒤에** 일어난 전경 저장을 본다(그 앞의 저장은 관찰 워커 몫이다).
+    const 전경 = 흐름.indexOf('전경 기억 저장', 시작);
+    assert.ok(시작 >= 0 && 끝 > 시작, `성장 호출 구간이 있다: ${흐름.join(' → ')}`);
+    // 자물쇠를 들고 모델을 기다렸다면 전경 저장은 **끝난 뒤에만** 올 수 있다.
+    assert.ok(전경 > 시작 && 전경 < 끝,
+      `전경 기억 쓰기가 성장 호출 중에 끝나야 한다: ${흐름.join(' → ')}`);
+  } finally { 놓아주기(); server.close(); }
+});
+
 test('S4/제품: 성장 모델이 매달려 있어도 전경 기억 작업은 막히지 않는다(계획 §4.8)', async () => {
   // `withMemory` 는 기억 쓰기 직렬화 자물쇠다. 성장 **호출**을 그 안에서 기다리면,
   // 모델이 느린 동안 사용자의 기억 저장·철회가 통째로 멈춘다(감사 지적 — 수정 전 실패 확인).
@@ -652,4 +726,165 @@ test('S4: 빌림이 만료되면 다시 집을 수 있다(끊긴 작업이 영�
   const r = await growTick({ memStore, modelFor: 만료뒤.modelFor, now: 100_000 + GROW_CAPS.leaseMs + 1 });
   assert.equal(r.action, 'propose', '빌림이 끝나면 다른 tick 이 이어받는다');
   assert.equal(만료뒤.calls.length, 1);
+});
+
+// ── 감사 확인 1: 빌림이 모든 상태에서 풀리는가 ─────────────────────────────
+const 빌림풀림 = (job, now) => (job.nextAttemptAt ?? 0) - now < GROW_CAPS.leaseMs;
+
+test('S4: 어떤 끝에서도 빌림이 영구화되지 않는다(성공·실패·신분실패·예산·종단)', async () => {
+  const 확인 = async (이름, 만들기) => {
+    const { memStore, now } = await 만들기();
+    const jobs = (await memStore.load()).growJobs ?? [];
+    for (const j of jobs) {
+      assert.ok(빌림풀림(j, now), `${이름}: job(${j.state}) 의 빌림이 안 풀렸다`);
+    }
+    return jobs;
+  };
+
+  // ① 정상 진행 — 전이마다 곧바로 풀린다.
+  await 확인('전이 성공', async () => {
+    const memStore = await 준비();
+    const { modelFor } = 대본모델();
+    const r = await growTick({ memStore, modelFor, now: 100_000 });
+    assert.equal(r.action, 'propose');
+    return { memStore, now: 100_000 };
+  });
+
+  // ② 호출 실패 — backoff 로 물러나지만 빌림 시간보다 짧다.
+  await 확인('호출 실패', async () => {
+    const memStore = await 준비();
+    const r = await growTick({ memStore, modelFor: () => ({ async respond() { throw new Error('x'); } }), now: 100_000 });
+    assert.equal(r.reason, 'call_failed');
+    return { memStore, now: 100_000 };
+  });
+
+  // ③ 신분 미확인 — 같은 계열로 물러난다.
+  await 확인('신분 미확인', async () => {
+    const memStore = await 준비();
+    const { modelFor } = 대본모델({ 신분값: () => 신분({ selection: { requestedRole: 'growth', resolution: 'stub' } }) });
+    const r = await growTick({ memStore, modelFor, now: 100_000 });
+    assert.equal(r.reason, 'call_identity_unverified');
+    return { memStore, now: 100_000 };
+  });
+
+  // ④ 통과 종단 — 빌림이 남지 않는다.
+  await 확인('통과 종단', async () => {
+    const memStore = await 준비();
+    const { modelFor } = 대본모델();
+    const { now } = await 끝까지({ memStore, modelFor });
+    return { memStore, now };
+  });
+
+  // ⑤ 불통과 → cooldown. 이건 빌림이 아니라 **회차 대기**다 — 그 사실을 구분해 확인한다.
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({ 판정: () => '{"pass":false,"rationale":"x"}' });
+  const { now } = await 끝까지({ memStore, modelFor });
+  const job = (await memStore.load()).growJobs[0];
+  assert.equal(job.state, 'cooldown');
+  assert.equal(job.nextAttemptAt - now > GROW_CAPS.leaseMs, true, 'cooldown 은 빌림보다 길다(의도된 대기)');
+  assert.ok(job.nextAttemptAt - now <= GROW_CAPS.retryCooldownMs, '그래도 유한하다');
+});
+
+test('S4: 예산이 모자라 못 물어본 판정은 다음 tick 이 다시 묻는다(판정 불가로 굳지 않는다)', async () => {
+  const memStore = await 준비();
+  const 하루 = 86_400_000;
+  const 지금 = 하루 * 30_000 + 5_000;
+  const m = await memStore.load();
+  // 오늘 남은 예산 2회: 제안 1 + 실행 1 → 판정은 못 묻는다.
+  m.growBudget = { day: Math.floor(지금 / 하루), used: GROW_CAPS.callsPerDay - 2 };
+  await memStore.save(m);
+
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 지금 });          // 제안(1)
+  await growTick({ memStore, modelFor, now: 지금 + 1_000 });  // 실행(1) — 판정은 예산 없음
+  assert.equal(calls.length, 2);
+  const 중간 = (await memStore.load()).growJobs[0];
+  const 미판정 = 중간.cases.find((c) => c.phase === 'ran');
+  assert.ok(미판정, '판정을 못 물어본 케이스는 ran 으로 남는다');
+  assert.equal(미판정.verdict ?? null, null);
+
+  // 예산이 없어 미룬 것은 **실패가 아니다** — 물러나지 않고 곧바로 이어갈 수 있어야 한다.
+  assert.equal(중간.failures, 0, '예산 소진을 실패로 세면 안 된다');
+  assert.equal(중간.nextAttemptAt, 0, '예산 소진에 backoff 를 걸면 안 된다(다음 tick 이 바로 잇는다)');
+
+  // 다음 날 예산이 서면 그 케이스부터 판정한다.
+  const r = await growTick({ memStore, modelFor, now: 지금 + 하루 });
+  assert.equal(r.action, 'judge_case', '못 물어본 판정을 이어서 묻는다');
+  const 판정됨 = (await memStore.load()).growJobs[0].cases.find((c) => c.caseId === 미판정.caseId);
+  assert.equal(판정됨.phase, 'judged');
+  assert.equal(판정됨.verdict?.pass, true);
+});
+
+// ── 감사 확인 2: 동시 tick 에서도 일일 예산이 새지 않는가 ──────────────────
+test('S4: 동시 tick 이 여러 job 을 집어도 일일 예산을 넘기지 않는다', async () => {
+  const memStore = await 준비();
+  const 하루 = 86_400_000;
+  const 지금 = 하루 * 40_000 + 5_000;
+  const m = await memStore.load();
+  // 익은 묶음 셋 — 동시에 세 tick 이 각자 다른 job 을 집을 수 있는 상황.
+  m.bundles = ['b-1', 'b-2', 'b-3'].map((id) => ({
+    bundleId: id, kind: 'request', subject: `주제 ${id}`,
+    observationIds: ['o-1', 'o-2', 'o-3'], count: 3, firstAt: 10, lastAt: 30,
+  }));
+  m.growBudget = { day: Math.floor(지금 / 하루), used: GROW_CAPS.callsPerDay - 2 }; // 오늘 2회만 남았다
+  await memStore.save(m);
+
+  let 순서 = Promise.resolve();
+  const withMemory = (fn) => { const run = 순서.then(fn); 순서 = run.catch(() => {}); return run; };
+  const 센다 = { n: 0 };
+  const modelFor = () => ({
+    async respond(tc, opts) {
+      센다.n += 1;
+      await new Promise((r) => setTimeout(r, 20));
+      opts?.onCallIdentity?.(신분(0));
+      return 제안();
+    },
+  });
+
+  await Promise.all([
+    growTick({ memStore, withMemory, modelFor, now: 지금 }),
+    growTick({ memStore, withMemory, modelFor, now: 지금 + 1 }),
+    growTick({ memStore, withMemory, modelFor, now: 지금 + 2 }),
+  ]);
+
+  assert.ok(센다.n <= 2, `남은 예산 2 인데 실제 호출 ${센다.n} 회 — 동시 tick 에서 예산이 샌다`);
+  const 뒤 = await memStore.load();
+  assert.ok(뒤.growBudget.used <= GROW_CAPS.callsPerDay, '장부도 상한을 넘지 않는다');
+  assert.equal(뒤.growBudget.used, GROW_CAPS.callsPerDay - 2 + 센다.n, '장부가 실제 호출과 같다');
+});
+
+test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지 않고 다시 묻는다', async () => {
+  const memStore = await 준비();
+  // 호출 순번이 아니라 **무엇을 물었는지**로 답한다 — 판정이 한 번 실패하면 순번 규칙이
+  // 어긋나서, 순번 기반 대본은 재시도 경로를 엉뚱하게 재게 된다.
+  let 판정실패남음 = 1;
+  const modelFor = () => ({
+    async respond(tc, opts) {
+      opts?.onCallIdentity?.(신분(0));
+      const q = String(tc.currentRequest);
+      if (q.includes('기대 사실:')) {
+        if (판정실패남음 > 0) { 판정실패남음 -= 1; throw new Error('판정 호출만 죽는다'); }
+        return '{"pass":true,"rationale":"ok"}';
+      }
+      if (q.includes('이번 답에 한해 적용할 원리')) return '답';
+      return 제안();
+    },
+  });
+
+  await growTick({ memStore, modelFor, now: 100_000 });                 // 제안
+  const r = await growTick({ memStore, modelFor, now: 101_000 });       // 실행 성공 + 판정 실패
+  assert.equal(r.reason, 'call_failed');
+
+  const job = (await memStore.load()).growJobs[0];
+  const c = job.cases.find((x) => x.runReceiptRef);
+  assert.equal(c.phase, 'ran', '판정을 못 받았으면 ran 으로 남는다');
+  assert.equal(c.verdict ?? null, null);
+  assert.ok(job.failures >= 1, '호출 실패는 실패로 센다');
+
+  // 물러난 시간이 지나면 **그 케이스의 판정부터** 다시 묻는다.
+  const 다시 = await growTick({ memStore, modelFor, now: job.nextAttemptAt + 1 });
+  assert.equal(다시.action, 'judge_case');
+  const 뒤 = (await memStore.load()).growJobs[0].cases.find((x) => x.caseId === c.caseId);
+  assert.equal(뒤.phase, 'judged');
+  assert.equal(뒤.verdict?.pass, true, '되살아난 판정은 진짜 판정이다');
 });

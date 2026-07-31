@@ -280,14 +280,28 @@ function 다음작업(memory, now) {
   return { job: 새job(익은[0], 0, now), 교체할것: null };
 }
 
-/** 이 job 이 지금 할 일. 사례가 남았으면 사례, 다 끝났으면 마감(호출 0). */
+/**
+ * 이 job 이 지금 할 일. **벌여 놓은 것부터 닫는다** — 실행만 하고 판정을 못 물어본 케이스가
+ * 있으면 그것부터 묻는다. 새 케이스를 먼저 벌이면 미판정이 쌓이고, 그 사이 예산이 끊기면
+ * 실행 증거만 있고 판정이 없는 반쪽이 남는다.
+ */
 function 다음행동(job) {
   if (job.state === 'proposing') return 'propose';
-  const 실행전 = job.cases.find((c) => c.phase === 'pending');
-  if (실행전) return 'run_case';
   const 판정전 = job.cases.find((c) => c.phase === 'ran');
   if (판정전) return 'judge_case';
+  const 실행전 = job.cases.find((c) => c.phase === 'pending');
+  if (실행전) return 'run_case';
   return 'finish';
+}
+
+/**
+ * 이번엔 못 했다. **왜 못 했는지가 다르면 다르게 다룬다.**
+ * 예산이 없어 안 부른 것은 실패가 아니다 — 빌림만 풀고 다음 tick 이 그대로 이어서 한다.
+ * 그걸 실패로 세면 상한이 곧 표본 상실이 되고, 결국 원리가 서지 못하는 이유가 예산이 된다.
+ */
+function 미룸(job, reason, now) {
+  if (reason === 'tick_cap') { job.nextAttemptAt = 0; job.updatedAt = now; return; }
+  실패기록(job, reason, now);
 }
 
 /** 호출이 안 됐다. 물러났다가 다시 온다 — 그리고 계속 안 되면 이 회차는 접는다. */
@@ -338,9 +352,9 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
     const m = await memStore.load();
     if (m.corrupted) return { reason: 'corrupted' };
     const 예산 = 오늘예산(m, now);
-    const 남은예산 = GROW_CAPS.callsPerDay - 예산.used;
-    if (남은예산 <= 0) return { reason: 'daily_cap' };
+    if (GROW_CAPS.callsPerDay - 예산.used <= 0) return { reason: 'daily_cap' };
 
+    const 남은예산 = GROW_CAPS.callsPerDay - 예산.used;
     const 고름 = 다음작업(m, now);
     if (!고름) return { reason: 'idle' };
     const { job, 교체할것 } = 고름;
@@ -351,19 +365,22 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
     job.nextAttemptAt = now + GROW_CAPS.leaseMs;
     job.updatedAt = now;
     m.growJobs = job정리(m.growJobs, job, 교체할것);
-    m.growBudget = 예산;
+    // **예산을 미리 잡는다.** 자물쇠 밖에서 부르는 동안 다른 tick 이 같은 잔량을 보고 또 부르면
+    // 일일 상한이 샌다(job 이 여럿이면 빌림으로도 못 막는다). 실제로 쓴 만큼은 반영에서 정산한다.
+    const 예약 = Math.min(GROW_CAPS.callsPerTick, 남은예산);
+    m.growBudget = { day: 예산.day, used: 예산.used + 예약 };
     await memStore.save(m);
 
     const bundle = (m.bundles ?? []).find((b) => b.bundleId === job.bundleId) ?? null;
     const 관찰들 = bundle
       ? (m.observations ?? []).filter((o) => bundle.observationIds.includes(o.observationId))
       : [];
-    return { job: 복제(job), action, 남은예산, bundle: bundle ? 복제(bundle) : null, 관찰들: 복제(관찰들) };
+    return { job: 복제(job), action, 예약, bundle: bundle ? 복제(bundle) : null, 관찰들: 복제(관찰들) };
   });
   if (계획.reason) return { calls: 0, reason: 계획.reason };
 
   // ② 부르기 — **자물쇠 밖.** 여기서 모델이 아무리 오래 걸려도 전경 기억 작업은 그대로 돈다.
-  const 한도 = Math.min(GROW_CAPS.callsPerTick, 계획.남은예산);
+  const 한도 = 계획.예약; // 잡아 둔 만큼만 쓴다
   let calls = 0;
   async function 성장호출(request) {
     if (calls >= 한도) return { ok: false, reason: 'tick_cap' };
@@ -393,8 +410,10 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
     // 내가 고른 그 시도가 아니면 아무 것도 쓰지 않는다 — 남의 전이를 덮지 않는다.
     if (!job || job.attemptId !== 계획.job.attemptId) return { calls, reason: 'superseded' };
 
+    // 예약해 둔 만큼을 되돌리고 **실제로 쓴 만큼**만 남긴다. 반영에 못 오면(크래시) 예약이
+    // 그대로 남는데, 그건 덜 쓰는 쪽 오차다 — 상한을 넘기는 쪽으로는 틀리지 않는다.
     const 예산 = 오늘예산(m, now);
-    m.growBudget = { day: 예산.day, used: 예산.used + calls };
+    m.growBudget = { day: 예산.day, used: Math.max(0, 예산.used - 계획.예약) + calls };
 
     const r = 반영(m, job, 계획, 나온것, now);
     m.growJobs = job정리(m.growJobs, job, null);
@@ -424,13 +443,19 @@ async function 수행(계획, 성장호출, 원문) {
       caseId: c.caseId,
       output: 실행.text,
       identity: 실행.identity,
-      verdict: 판정.ok ? 판정읽기(판정.text) : undefined, // undefined = 아직 안 물어봤다
+      // undefined = 아직 **못 물어봤다**(판정 불가와 다르다). 실행 증거는 이미 났으니 버리지 않는다.
+      verdict: 판정.ok ? 판정읽기(판정.text) : undefined,
+      // 못 물어본 이유가 예산이면 미룬 것이고, 호출이 깨진 것이면 실패다 — 갈라서 전한다.
+      ...(판정.ok ? {} : { judgeFail: 판정.reason }),
     };
   }
   if (action === 'judge_case') {
     const c = job.cases.find((x) => x.phase === 'ran');
     const 판정 = await 성장호출(판정요청(c, c.outputPreview ?? '', 원문[0]?.baseline ?? null));
-    return { kind: 'judge_case', caseId: c.caseId, verdict: 판정.ok ? 판정읽기(판정.text) : null };
+    // **못 물어본 것**(예산 소진·호출 실패)과 물어봤는데 못 읽은 것은 다른 사실이다.
+    // 앞엣것을 "판정 불가"로 굳히면 예산 상한이 그대로 표본 상실이 된다.
+    if (!판정.ok) return { kind: 'judge_case', caseId: c.caseId, fail: 판정.reason };
+    return { kind: 'judge_case', caseId: c.caseId, verdict: 판정읽기(판정.text) };
   }
   return { kind: 'finish' };
 }
@@ -438,7 +463,7 @@ async function 수행(계획, 성장호출, 원문) {
 /** 결과를 상태에 반영한다. 모델을 부르지 않는다(자물쇠 안이다). */
 function 반영(m, job, 계획, 나온것, now) {
   if (나온것.kind === 'propose') {
-    if (나온것.fail) { 실패기록(job, 나온것.fail, now); return { reason: 나온것.fail }; }
+    if (나온것.fail) { 미룸(job, 나온것.fail, now); return { reason: 나온것.fail }; }
     const principleId = sha(['principle', job.bundleId, String(job.round), 나온것.초안.statement].join('\0'));
     const sourceRefs = (계획.관찰들 ?? []).map((o) => o.turnRef);
     job.statement = 나온것.초안.statement;
@@ -461,7 +486,7 @@ function 반영(m, job, 계획, 나온것, now) {
   if (나온것.kind === 'run_case') {
     const c = job.cases.find((x) => x.caseId === 나온것.caseId);
     if (!c) return { reason: 'case_gone' };
-    if (나온것.fail) { 실패기록(job, 나온것.fail, now); return { reason: 나온것.fail }; }
+    if (나온것.fail) { 미룸(job, 나온것.fail, now); return { reason: 나온것.fail }; }
     const receiptId = sha(['receipt', c.caseId, c.caseInputDigest].join('\0'));
     m.replayReceipts = [...(m.replayReceipts ?? []), makeReplayCallReceipt({
       receiptId, caseId: c.caseId, principleId: job.principleId, principleVersion: job.principleVersion,
@@ -476,9 +501,10 @@ function 반영(m, job, 계획, 나온것, now) {
     m.replayOutputs = { ...(m.replayOutputs ?? {}), [receiptId]: 나온것.output };
     c.runReceiptRef = receiptId;
     if (나온것.verdict === undefined) {
-      // 판정을 아직 안 물어봤다(이번 tick 예산 소진). 다음 tick 이 이어서 묻는다.
+      // 판정을 아직 못 물어봤다. 다음 tick 이 이어서 묻는다 — 실행 증거는 이미 저장됐다.
       c.phase = 'ran';
       c.outputPreview = 나온것.output;
+      if (나온것.judgeFail) { 미룸(job, 나온것.judgeFail, now); return { ran: 1, reason: 나온것.judgeFail }; }
     } else {
       c.phase = 'judged';
       c.verdict = 나온것.verdict; // 판정 불가는 null 로 남고, null 은 표본으로 세지 않는다
@@ -492,6 +518,7 @@ function 반영(m, job, 계획, 나온것, now) {
   if (나온것.kind === 'judge_case') {
     const c = job.cases.find((x) => x.caseId === 나온것.caseId);
     if (!c) return { reason: 'case_gone' };
+    if (나온것.fail) { 미룸(job, 나온것.fail, now); return { reason: 나온것.fail }; }
     c.phase = 'judged';
     c.verdict = 나온것.verdict;
     delete c.outputPreview;
