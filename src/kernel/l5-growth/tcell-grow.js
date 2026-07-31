@@ -30,6 +30,7 @@ export const GROW_CAPS = Object.freeze({
   casesPerPrinciple: 5,
   jobs: 5,                     // 동시에 들고 있는 성장 작업
   maxRounds: 3,                // 한 묶음에 허용하는 재시도 회차
+  priorAttempts: 2,            // 다음 회차에 들려 보낼 앞선 실패 개수(무한히 쌓지 않는다)
   retryCooldownMs: 6 * 60 * 60 * 1000,
   callBackoffMs: 60 * 1000,    // 호출 실패 뒤 물러나는 시간(실패 수에 비례)
   maxCallFailures: 3,          // 이만큼 연속 실패하면 그 회차는 접는다
@@ -124,13 +125,27 @@ function 봉투(request) {
 
 const 사례문장 = (c) => `상황: ${c.inputFacts.join(' / ')}`;
 
-function 제안요청(bundle, 원문들) {
+function 제안요청(bundle, 원문들, priorAttempts = []) {
+  // 앞 회차가 있으면 **그 실패를 그대로 들려 보낸다.** 없으면 아무 말도 하지 않는다
+  // (없는 이력을 지어내면 모델이 있지도 않은 실패를 피하려 든다).
+  const 앞선것 = priorAttempts.length ? [
+    '',
+    '앞선 회차에서 아래 원리가 검증을 통과하지 못했다. 같은 실패를 되풀이하지 마라.',
+    ...priorAttempts.flatMap((a) => [
+      `- 떨어진 원리: ${a.statement}`,
+      ...(a.reasons ?? []).map((r) => `  · 사유: ${r}`),
+      ...(a.missing?.length ? [`  · 부족: ${a.missing.join(', ')}`] : []),
+    ]),
+    '이번에는 원리를 **더 좁게** 쓰고, **적용하지 않을 상황**을 원리 문장 안에 함께 적어라.',
+  ] : [];
+
   return [
     '아래는 같은 사용자가 여러 번 반복한 요청이다. 반복에서 **운영 원리 후보 하나**와,',
     '그 원리를 검증할 사례들을 뽑아라.',
     '',
     `반복 주제: ${bundle.subject} (${bundle.count}회)`,
     ...(원문들.length ? ['관련 발화:', ...원문들.map((t) => `- ${t}`)] : []),
+    ...앞선것,
     '',
     'JSON 하나만 답하라(설명 문장 없이):',
     '{"statement":"한 문장 원리","cases":[{"kind":"positive|negative|boundary|authority",',
@@ -238,9 +253,11 @@ function 원문찾기(sessions, turnRef) {
 
 const 종단 = new Set(['passed', 'exhausted']);
 
-function 새job(bundle, round, now) {
+function 새job(bundle, round, now, priorAttempts = []) {
   return {
     jobId: sha(['job', bundle.bundleId, String(round)]),
+    // 앞 회차가 왜 떨어졌는지. 이게 없으면 다음 회차는 **재추첨**일 뿐 개선이 아니다.
+    priorAttempts: priorAttempts.slice(-GROW_CAPS.priorAttempts),
     bundleId: bundle.bundleId,
     round,
     state: 'proposing',
@@ -264,7 +281,8 @@ function 다음작업(memory, now) {
   if (준비된) {
     if (준비된.state === 'cooldown') {
       // 다음 회차 — 앞 회차의 원리·사례는 버리고 처음부터 다시 세운다.
-      const 다음 = 새job({ bundleId: 준비된.bundleId }, 준비된.round + 1, now);
+      const 다음 = 새job({ bundleId: 준비된.bundleId }, 준비된.round + 1, now,
+        [...(준비된.priorAttempts ?? []), ...(준비된.실패요약 ? [준비된.실패요약] : [])]);
       다음.jobId = sha(['job', 준비된.bundleId, String(준비된.round + 1)]);
       return { job: 다음, 교체할것: 준비된.jobId };
     }
@@ -427,7 +445,7 @@ async function 수행(계획, 성장호출, 원문) {
   const { job, action } = 계획;
   if (action === 'propose') {
     if (!계획.bundle) return { kind: 'propose', fail: 'bundle_gone' };
-    const r = await 성장호출(제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean)));
+    const r = await 성장호출(제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? []));
     if (!r.ok) return { kind: 'propose', fail: r.reason };
     const 초안 = parseProposal(r.text);
     return 초안 ? { kind: 'propose', 초안 } : { kind: 'propose', fail: 'proposal_unreadable' };
@@ -559,6 +577,15 @@ function 반영(m, job, 계획, 나온것, now) {
     job.updatedAt = now;
     m.grownBundles = [...new Set([...(m.grownBundles ?? []), job.bundleId])];
   } else {
+    // 왜 떨어졌는지를 다음 회차에 들려 보낸다 — 이게 있어야 재추첨이 아니라 개선이 된다.
+    job.실패요약 = {
+      statement: job.statement,
+      missing: report.missing,
+      reasons: job.cases
+        .filter((c) => c.verdict && c.verdict.pass === false)
+        .map((c) => `${c.kind}: ${String(c.verdict.rationale ?? '').slice(0, 120)}`)
+        .slice(0, 3),
+    };
     // **묶음을 닫지 않는다.** 이번 회차의 원리로는 증거가 안 섰을 뿐이다(감사 지적).
     회차종료(job, `suite_failed:${report.missing.join(',')}`, now);
     if (job.state === 'exhausted') m.grownBundles = [...new Set([...(m.grownBundles ?? []), job.bundleId])];

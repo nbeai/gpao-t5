@@ -888,3 +888,91 @@ test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지
   assert.equal(뒤.phase, 'judged');
   assert.equal(뒤.verdict?.pass, true, '되살아난 판정은 진짜 판정이다');
 });
+
+// ── 감사 지시 3: 다음 회차가 **더 나은** 원리를 낼 수 있는 구조인가 ────────
+test('S4: 다음 회차는 앞 회차의 실패를 보고 제안한다(재추첨이 아니다)', async () => {
+  const memStore = await 준비();
+  const 실패 = 대본모델({ 판정: (n) => (n === 6 ? '{"pass":false,"rationale":"표를 강요했다"}' : '{"pass":true,"rationale":"ok"}') });
+  const { now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
+  assert.equal((await memStore.load()).growJobs[0].state, 'cooldown');
+
+  const 다음 = 대본모델();
+  await growTick({ memStore, modelFor: 다음.modelFor, now: now + GROW_CAPS.retryCooldownMs + 1 });
+  const 제안요청 = 다음.calls[0].request;
+
+  assert.match(제안요청, /앞선 회차/, '앞 회차가 있었다는 사실을 전한다');
+  assert.ok(제안요청.includes('월별 정리는 짧은 목록으로 한다'), '어떤 원리가 떨어졌는지 그대로 전한다');
+  assert.match(제안요청, /표를 강요했다/, '왜 떨어졌는지도 전한다');
+  assert.match(제안요청, /좁게|적용하지 않을/, '더 좁게 쓰라고 요구한다');
+});
+
+test('S4: 첫 회차에는 앞선 회차 이야기를 지어내지 않는다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_000 });
+  assert.equal(/앞선 회차/.test(calls[0].request), false, '없는 이력을 만들지 않는다');
+});
+
+test('S4: 실패 이력은 상한이 있고, 최근 것만 남는다(무한히 쌓지 않는다)', async () => {
+  const memStore = await 준비();
+  const m = await memStore.load();
+  // 이미 이력이 상한보다 많이 쌓인 job 을 놓고 다음 회차로 넘긴다.
+  const 옛것 = [1, 2, 3, 4].map((i) => ({ statement: `옛 원리 ${i}`, missing: [], reasons: [`사유 ${i}`] }));
+  m.growJobs = [{
+    jobId: 'j-옛', bundleId: 'b-1', round: 0, state: 'cooldown', attemptId: null,
+    statement: '떨어진 원리', principleId: 'p-옛', principleVersion: 1, cases: [],
+    failures: 0, nextAttemptAt: 100_000, lastReason: 'suite_failed',
+    priorAttempts: 옛것,
+    실패요약: { statement: '떨어진 원리', missing: ['positive_failed'], reasons: ['최근 사유'] },
+    createdAt: 0, updatedAt: 0,
+  }];
+  await memStore.save(m);
+
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_001 });
+  const 새것 = (await memStore.load()).growJobs.find((j) => j.round === 1);
+  assert.ok(새것);
+  assert.equal(새것.priorAttempts.length, GROW_CAPS.priorAttempts, `이력은 ${GROW_CAPS.priorAttempts}건까지만`);
+  assert.equal(새것.priorAttempts.at(-1).statement, '떨어진 원리', '가장 최근 실패가 남는다');
+  assert.equal(새것.priorAttempts.some((a) => a.statement === '옛 원리 1'), false, '오래된 것부터 걷는다');
+  // 제안 요청에도 상한만큼만 실린다 — 최근 둘만 있고 오래된 것은 없다.
+  assert.ok(calls[0].request.includes('옛 원리 4'));
+  assert.ok(calls[0].request.includes('최근 사유'));
+  for (const 오래된 of ['옛 원리 1', '옛 원리 2', '사유1']) {
+    assert.equal(calls[0].request.includes(오래된), false, `${오래된} 은 실리지 않는다`);
+  }
+});
+
+test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때 실제로 입장한다', async () => {
+  // 감사 지시 3. 시간을 조작해 제품을 속이는 게 아니라, **격리 환경에서 회차 구조가
+  // 개선을 실어 나르는지**를 본다: 1회차 과잉 일반화로 불통과 → 2회차에 좁힌 원리 →
+  // suite 통과 → 사용자 확인 → 행동에 실제 입장.
+  const memStore = await 준비();
+
+  // 1회차: negative 에서 과잉 적용(라이브에서 실제로 난 모양).
+  const 넓은원리 = 대본모델({
+    판정: (n) => (n === 6 ? '{"pass":false,"rationale":"표 대신 문장 요약을 원했는데 표로 냈다"}' : '{"pass":true,"rationale":"ok"}'),
+  });
+  const { now } = await 끝까지({ memStore, modelFor: 넓은원리.modelFor });
+  const 첫후보 = 마지막원리(await memStore.load());
+  assert.equal(첫후보.replayReport.pass, false);
+  assert.deepEqual(confirmCandidate(await memStore.load(), 첫후보.candidateId), { ok: false, reason: 'replay_failed' });
+
+  // 2회차: 앞 회차 실패를 보고 **적용 범위를 명시한** 원리를 낸다.
+  const 좁은문장 = '월별 수치 정리를 요청하면 짧은 목록으로 한다(사용자가 다른 형식을 지정하면 그 요청을 따른다)';
+  const 좁은원리 = 대본모델({ 제안본문: 제안({ statement: 좁은문장 }) });
+  const r2 = await 끝까지({ memStore, modelFor: 좁은원리.modelFor, 시작: now + GROW_CAPS.retryCooldownMs + 1 });
+  assert.equal(r2.기록[r2.기록.length - 1].pass, true, '좁힌 원리는 suite 를 통과한다');
+
+  const memory = await memStore.load();
+  const 둘째후보 = memory.candidates.find((c) => c.statement === 좁은문장);
+  assert.ok(둘째후보, '2회차 후보가 따로 선다');
+  assert.equal(둘째후보.principleVersion, 2, '회차가 다르면 원리 판도 다르다');
+  assert.notEqual(둘째후보.candidateId, 첫후보.candidateId, '앞 회차 후보를 덮어쓰지 않는다');
+
+  // **여기까지 와야 학습이다** — 확인하면 다음 턴부터 실제로 행동에 든다.
+  const 확인 = confirmCandidate(memory, 둘째후보.candidateId);
+  assert.equal(확인.ok, true);
+  assert.equal(admittedContext(memory, '월별 수치 정리해줘').length, 1, '승격된 원리가 실제로 입장한다');
+  assert.equal(memory.promoted.find((e) => e.statement === 좁은문장).replayPassed, true);
+});
