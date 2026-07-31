@@ -33,6 +33,7 @@ const T_REPLAY = 'test/tcell-replay.test.js';
 const T_OBS = 'test/tcell-observation.test.js';
 const T_LANE = 'test/tcell-lane.test.js';
 const T_IDN = 'test/tcell-model-identity.test.js';
+const T_ROUND = 'test/tcell-round-retry.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -106,6 +107,16 @@ export const MUTATIONS = [
   { 이름: '복원할 사실이 없어도 껍데기를 만듦', 파일: GROW, 검사: T_GROW,
     찾기: '  if (!job.statement || !job.principleId) return null;',
     바꾸기: '  if (!job.statement || !job.principleId) return { statement: job.statement ?? \'(모름)\', missing: [], reasons: [] };' },
+
+  // ── 회차 재시도가 학습 품질을 개선하는가(격리 시간 주입 증명) ──────────
+  { 이름: '만료 전에도 회차를 염(cooldown 무시)', 파일: GROW, 검사: T_ROUND,
+    찾기: '  const 준비된 = jobs.find((j) => !종단.has(j.state) && (j.nextAttemptAt ?? 0) <= now);',
+    바꾸기: '  const 준비된 = jobs.find((j) => !종단.has(j.state));' },
+  { 이름: 'replay·승인 없이 원리가 모델 입력에 듦', 파일: 'src/kernel/l1-intent/context-mesh.js', 검사: T_ROUND,
+    찾기: '    return entry.replayPassed === true && entry.userConfirmed === true;',
+    바꾸기: '    return true;' },
+  { 이름: '무관한 요청에도 원리를 넣음(과잉 적용)', 파일: 'src/kernel/l1-intent/context-mesh.js', 검사: T_ROUND,
+    찾기: '    .filter((e) => relevant(e, requestText))', 바꾸기: '' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,
