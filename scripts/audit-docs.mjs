@@ -109,6 +109,25 @@ export function auditDocs(repo = REPO) {
 
     // 6. 상태-단계 연동 (사본이 전부 낡은 경우를 잡는다)
     const status = statusDecls[0]?.[1] ?? '';
+
+    // 7. 상태 토큰이 **본문 구역에도** 서 있는가.
+    //
+    // 왜 생겼나: 2026-08-01 교대 준비에서 §0-A 는 H 단계를 말하는데 §9 는 "v3 감사 고정 종료
+    // 4건 → S1 제품 구현 시작"을, §10 은 `S4_PASS / S5_IN_PROGRESS` 를 말하고 있었다.
+    // **이 검사는 그걸 통과시켰다.** §0-A 한 곳만 봤기 때문이다 — 상태를 한 자리에서만 재면
+    // 나머지 구역은 얼마든지 낡을 수 있고, 새 세션은 그 낡은 구역을 읽고 지난 일을 다시 한다.
+    // 상태가 바뀌면 §4·§9·§10 이 **같은 토큰을 말해야** 한다.
+    const 구역 = [['4', '현재 작업 상태'], ['9', '다음 작업과 종료 조건'], ['10', '새 세션 시작용']];
+    for (const [번호, 이름] of 구역) {
+      const 시작 = handoff.indexOf(`## ${번호}. `);
+      if (시작 < 0) { errors.push(`인수인계: §${번호}(${이름}) 구역이 없다`); continue; }
+      const 다음 = handoff.indexOf('\n## ', 시작 + 1);
+      const 본문 = handoff.slice(시작, 다음 < 0 ? undefined : 다음);
+      if (!본문.includes(status)) {
+        errors.push(`인수인계 §${번호}(${이름}): 상태 '${status}' 를 말하지 않는다 — 낡은 구역`);
+      }
+    }
+
     const phase = STATUS_PHASE.find((p) => status.startsWith(p.prefix));
     if (phase && workLines.length && !workLines.every((l) => l.includes(phase.mustContain))) {
       errors.push(`인수인계: 상태 '${status}'인데 '현재 작업:' 줄에 '${phase.mustContain}'이 없다 — 낡은 투영`);
