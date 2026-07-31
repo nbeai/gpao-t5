@@ -44,11 +44,41 @@ This whitepaper's contribution is the next layer:
 
 > It describes how a human owner, an AI implementer, and an AI auditor can work together as a development system that turns AI speed into product quality.
 
-## 3. Core Claims
+## 3. Core Concepts and Principles
 
-### 3.1 Intent Understanding Is the First Development Skill
+### 3.1 Core Concepts
 
-The most important AI development capability is not raw code generation. It is understanding what the human actually means.
+| Term | Definition |
+|---|---|
+| Flow Governance | An operating structure that connects evidence and responsibility so user intent does not distort as it moves through requirements, implementation, verification, user surface, and handoff |
+| Intent Fidelity | The degree to which the user's real goal, pain, and context survive inside the implementation process and product behavior |
+| Flow Loop | The recurring work cycle: Frame -> Locate -> Baseline -> Counter-Test -> Implement -> Verify -> Audit -> Handoff |
+| Counter-Test | A test that makes forbidden paths, repeat risks, forged evidence, or overgeneralization fail before implementation |
+| Flow Friction | Unnecessary questions, cards, clicks, waiting, re-explanation, or recovery cost imposed on the user |
+| Direction Audit | An audit that judges whether implementation satisfies user goals, safety boundaries, evidence integrity, and real product flow, not only code correctness |
+
+### 3.2 The 5 Principles of YOON Flow
+
+1. **Intent First**  
+   User intent comes before code and internal structure.
+
+2. **Flow over Features**  
+   Improving the user flow matters more than increasing feature count.
+
+3. **Negative First**  
+   Counter-tests come first to prevent false success.
+
+4. **Reality over Mocks**  
+   Real models, browsers, files, terminals, and user flows sit closer to final judgment than mocks and unit tests.
+
+5. **Shared Truth**  
+   Code, tests, documents, commits, and handoff must describe the same current reality.
+
+## 4. Core Claims
+
+### 4.1 Intent Understanding Is the First Development Skill
+
+In AI-native development, accurately interpreting the user's intent can have more impact on total productivity than raw code generation. **Intent Fidelity** means the user's original goal, pain, and context remain intact through implementation, verification, and product surface.
 
 A strong development flow keeps asking:
 
@@ -59,7 +89,7 @@ A strong development flow keeps asking:
 
 When intent understanding fails, AI can quickly finish the wrong thing.
 
-### 3.2 Vibe Is the Beginning; Flow Governance Is the Completion Layer
+### 4.2 Vibe Is the Beginning; Flow Governance Is the Completion Layer
 
 Vibe coding brings speed, creativity, and accessibility. Product completion requires additional structure:
 
@@ -73,7 +103,7 @@ Vibe coding brings speed, creativity, and accessibility. Product completion requ
 
 The method preserves free creation but pairs it with strict outcome judgment.
 
-### 3.3 Green Tests Are Not Product Success
+### 4.3 Green Tests Are Not Product Success
 
 Tests are necessary. They are not sufficient.
 
@@ -92,7 +122,7 @@ Completion evidence should be layered:
 3. full regression
 4. live user scenario
 
-### 3.4 Minimum Safety, Maximum Automation
+### 4.4 Minimum Safety, Maximum Automation
 
 AI products must protect people. But protection that turns into constant friction is product failure.
 
@@ -104,7 +134,7 @@ The rule is:
 - Do not ask again when the user has already explicitly declared a reversible preference.
 - For reversible local actions, help first and provide correction, rollback, or withdrawal afterward.
 
-### 3.5 Do Not Make the Model Dumber
+### 4.5 Do Not Make the Model Dumber
 
 A common AI product mistake is to add so many rules, gates, and templates that the model becomes stiff and less capable.
 
@@ -120,7 +150,7 @@ A good OS or harness should not behave like a bureaucratic checkpoint. It should
 
 The better the system supplies reality, the more naturally the model can act. The more it merely constrains the model, the more brittle the product becomes.
 
-## 4. Role Architecture
+## 5. Role Architecture
 
 YOON Flow-Governed Vibe Engineering avoids letting one agent play every role at once. Role separation reduces self-confirmation and context contamination.
 
@@ -135,9 +165,48 @@ YOON Flow-Governed Vibe Engineering avoids letting one agent play every role at 
 
 One person may coordinate multiple roles, but implementation and audit should not collapse into the same unexamined momentum.
 
-## 5. The Development Protocol
+## 6. The Development Protocol
 
-### 5.1 Establish the Baseline
+The basic execution unit of this method is the **8-Step Flow Loop**. Keep the loop thin. Do not create documents or gates unless they help the next implementation step or prevent a real repeat failure.
+
+There are eight steps because AI development often fails at eight different responsibility boundaries. Frame preserves intent. Locate reads existing reality. Baseline reproduces current behavior. Counter-Test prevents false success. Implement changes the product path. Verify gathers evidence that the implementation works. Audit judges whether that evidence satisfies the product goal. Handoff lets the next loop start from the same truth. Remove any one of these, and the agent may still move quickly while losing direction.
+
+```text
+Frame
+  ↓
+Locate
+  ↓
+Baseline
+  ↓
+Counter-Test
+  ↓
+Implement
+  ↓
+Verify
+  ↓
+Audit
+  ↓
+Handoff
+  ↓
+next Frame
+```
+
+| Step | Name | Question |
+|---|---|---|
+| 1 | Frame | What real outcome should the user get? |
+| 2 | Locate | What do the existing code, docs, tests, and handoff say? |
+| 3 | Baseline | How does the current product behave on the same user utterance? |
+| 4 | Counter-Test | Have we made the wrong path or repeat risk fail first? |
+| 5 | Implement | Did we make the smallest product-path change? |
+| 6 | Verify | Have we gathered evidence that the implementation works? |
+| 7 | Audit | Can we judge that the implementation satisfies the product goal and user flow? |
+| 8 | Handoff | Can the next session continue from the same facts? |
+
+The purpose of the loop is not to trap AI in process. It lets AI move quickly without repeatedly losing direction, trusting weak tests, polishing documents instead of product behavior, or collapsing at context boundaries.
+
+Verify and Audit are different. Verify **proves that the implementation works**. Audit **judges whether that working implementation satisfies the user goal, safety boundary, evidence integrity, and real flow**.
+
+### 6.1 Establish the Baseline
 
 Before improving a system, measure what it currently does:
 
@@ -150,7 +219,7 @@ Before improving a system, measure what it currently does:
 
 Without a baseline, teams can only say that the product feels better.
 
-### 5.2 Build Vertical Slices Around User Utterances
+### 6.2 Build Vertical Slices Around User Utterances
 
 Do not build a large subsystem all at once. Close one real user utterance at a time.
 
@@ -169,7 +238,7 @@ Each slice should include:
 - counter-tests
 - live verification
 
-### 5.3 Counter-Test First
+### 6.3 Counter-Test First
 
 AI agents are good at making the happy path work. They need explicit negative boundaries.
 
@@ -183,7 +252,7 @@ Examples:
 
 Counter-tests are not brakes on velocity. They are rails that let the team move faster without reopening the same failures.
 
-### 5.4 Verify Live
+### 6.4 Verify Live
 
 Verify with the real model, real browser, real files, and real terminal whenever the user experience depends on them.
 
@@ -198,7 +267,7 @@ Unit tests and mocks protect structure. Live verification catches:
 
 AI products often fail only when they touch the real environment.
 
-### 5.5 Treat Handoff as Current Truth
+### 6.5 Treat Handoff as Current Truth
 
 AI development breaks down when context gets long. Handoff is not paperwork. It is part of the runtime of the project.
 
@@ -216,7 +285,7 @@ A useful handoff contains:
 
 If handoff is not updated after major decisions or completed work, the next agent will revive obsolete assumptions.
 
-## 6. Audit Principles
+## 7. Audit Principles
 
 Audit is not bug hunting for its own sake. Audit preserves product direction.
 
@@ -233,7 +302,7 @@ Good audit follows these rules:
 
 The purpose of audit is not to slow implementers down. It is to prevent repeated reopenings and protect product velocity.
 
-## 7. Using Comparisons Correctly
+## 8. Using Comparisons Correctly
 
 Reference products should not be used for shallow ranking. They should be used to identify patterns to absorb and risks to reject.
 
@@ -247,7 +316,35 @@ A useful comparison separates:
 
 If another system handles automatic memory well but stores secrets in durable memory, the lesson is not "copy automatic memory." The lesson is "absorb the low-friction memory flow while adding stronger admission and sensitivity boundaries."
 
-## 8. The Non-Developer Owner Advantage
+## 9. Metrics and Maturity
+
+YOON Flow should not claim improvement by feeling alone. At minimum, watch these indicators.
+
+| Metric | Meaning |
+|---|---|
+| User Outcome Rate | Share of real user utterances that reach the intended result |
+| Flow Friction | Unnecessary questions, cards, clicks, waiting, re-explanation, or recovery cost |
+| First-Pass Success | Share of goals completed on the first attempt |
+| Recovery Honesty | Share of failures that are reported truthfully with a usable recovery path |
+| Test-Live Gap | Rate at which passing tests disagree with real-environment behavior |
+| Repeat Preventable Defect Rate | Rate at which already-learned defect types recur |
+| Handoff Rework Rate | Work repeated after session transfer because current truth was not preserved |
+
+Small personal projects do not need to quantify every metric at first. They should still record questions, cards, clicks, waiting, rework, and repeated defect types.
+
+## 10. Relationship to Existing Methods
+
+| Method | Center Unit | Main Judgment | Difference From YOON Flow |
+|---|---|---|---|
+| Agile | Iteration | Team and customer feedback | Does not directly address AI context drift, false completion, or session handoff truth |
+| Lean UX | Hypothesis and user learning | Fast experiment | Has weaker AI implementer/auditor separation and code-evidence layering |
+| TDD | Code behavior | Automated tests | Does not fully cover real models, browsers, user flow, and test-live gaps |
+| BDD | Behavior scenarios | Specified behavior | Does not separately manage AI fixture illusion, long-session context, and handoff truth |
+| DevOps/DORA | Delivery system | Deployment, stability, flow | Does not make user utterance and AI role architecture the unit of development |
+| Vibe Coding | Natural-language generation | Fast result | Has weaker verification, audit, handoff, and user-flow governance |
+| YOON Flow | Productization of user intent | User flow plus layered evidence | Integrates generation speed and product governance in one loop |
+
+## 11. The Non-Developer Owner Advantage
 
 A non-developer owner is not automatically disadvantaged in AI-native development. In some situations, the owner holds the most important signal: lived user judgment.
 
@@ -262,7 +359,7 @@ Developers focus on structure and code. AI agents follow implementable paths. Th
 
 In the AI era, ownership is not only the ability to write code. It is the ability to keep the product attached to human intent.
 
-## 9. Practical Checklist
+## 12. Practical Checklist
 
 Before starting an AI-built software project, define:
 
@@ -286,22 +383,48 @@ At the end of each slice, ask:
 - Do fixtures match real product artifacts?
 - Do documents, commits, and handoff tell the same truth?
 
-## 10. Case Study: Lessons From T5
+When assigning work to an AI agent, paste this execution loop:
 
-T5 is one source case for this method. The lessons are general:
+```text
+Frame: Restate the goal and the real user utterances.
+Locate: Read the relevant code, docs, tests, and latest handoff.
+Baseline: Reproduce current behavior or explain why it cannot be reproduced yet.
+Counter-Test: Create failing counter-tests before implementation.
+Implement: Make the smallest product-path change.
+Verify: Separate targeted tests, needed regression, and real-environment verification.
+Audit: Check that tests are not narrower than the claim and that user friction decreased.
+Handoff: Record commit, verification, known limits, and next action.
+```
 
-- Confirmation cards on reversible local memory create unnecessary friction.
-- If "forget that preference" triggers file rollback, intent understanding has failed.
-- Post-response observation must not block the foreground.
-- Cross-conversation carryover should be supplied by the OS as facts, not guessed by the model.
-- Repeated learning must generate principles, but replay must prevent overgeneralization.
-- Passing tests can still miss defects that appear only with the real model and real screen.
-- AI implementers create quickly; AI auditors preserve direction and fact.
-- A non-developer owner's user sense can be the strongest guardrail for product quality.
+## 13. Anonymous Field Cases
 
-T5 is not the scope of the theory. The method applies to web apps, internal tools, automation systems, personal AI operating systems, agentic workflows, and AI-native SaaS products.
+This method was distilled from repeated failures and repairs observed during long-running AI product development. The public version does not expose any specific product name or internal architecture. It preserves only the reusable patterns.
 
-## 11. Conclusion
+| Anonymous case | Original failure | What the method requires |
+|---|---|---|
+| Reversible local preference memory | The user explicitly said "from now on, do it this way," but the product still asked for a confirmation card and click | Auto-apply reversible local memory, then protect it with rollback and ledger |
+| Memory withdrawal | "Forget that preference" was misrouted as a different tool rollback request | Strengthen intent taxonomy around Intent Fidelity; withdrawal must align state, surface, and record in one turn |
+| Post-response observation | Learning or observation risked blocking foreground response time | Background workers must not hold the foreground queue; model calls and storage transitions must be separated |
+| Cross-conversation carryover | "Continue from that final version" failed because the system could not supply the prior artifact | Do not make the model guess; the OS should supply verified artifact facts into the next conversation |
+| Repeated learning | Repeated patterns could produce candidate principles, but overgeneralization remained dangerous | Candidate principles must not affect behavior until replay passes positive, negative, and boundary cases |
+| Test illusion | A fixture invented fields the real product never produced | Tests must use real product artifact shapes, and live verification must catch mock-reality gaps |
+
+These cases are not product promotion. They are patterns that can appear in web apps, internal tools, automation systems, personal AI operating systems, agentic workflows, and AI-native SaaS products.
+
+## 14. Scope and Limits
+
+This method does not depend on a specific model, IDE, vendor, or framework. If an LLM can generate code or operate over files, terminals, browsers, and tests, the same principles can apply in Claude Code, Codex, Gemini CLI, Cursor, Copilot, internal agentic harnesses, or future tools.
+
+It also has limits.
+
+- For tiny one-off scripts, full role separation may be too heavy.
+- Using a different model for audit does not automatically guarantee independence.
+- Live verification costs time and money, and sensitive environments need isolation.
+- The Flow Loop is an operating structure for product completion; it does not automatically create good product taste.
+
+The method should remain a flow for judgment, not a ritual. Shrink it when the task is small. Strengthen it when risk is high.
+
+## 15. Conclusion
 
 Vibe coding opened the door. Finishing real products requires another layer.
 

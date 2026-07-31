@@ -269,6 +269,7 @@ export function makeServer(deps = {}) {
   // S4 · 성장 워커. 관찰과 **또 다른** 오류 경계를 갖는다 — 성장이 죽어도 관찰은 계속 돈다.
   // 성장은 모델을 부르므로 실패가 더 잦다(자격·요금·형식). 그래서 격리가 더 중요하다.
   const 성장상태 = { 연속실패: 0, 격리됨: false, 마지막오류: null };
+  const 성장실패사유 = new Set(['call_failed', 'call_identity_unverified', 'corrupted']);
   async function 성장워커() {
     if (성장상태.격리됨 || 관찰꺼짐()) return null;
     try {
@@ -280,7 +281,18 @@ export function makeServer(deps = {}) {
         // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.
         modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),
       });
-      성장상태.연속실패 = 0;
+      // 성장 워커는 실패를 예외가 아니라 **사유**로 돌려준다(§4.8 격리 판정의 입력).
+      // 할 일이 없어서 쉰 tick(`idle`)은 성공도 실패도 아니다 — 세지 않는다.
+      if (성장실패사유.has(r?.reason)) {
+        성장상태.연속실패 += 1;
+        성장상태.마지막오류 = r.reason;
+        if (성장상태.연속실패 >= 3) {
+          성장상태.격리됨 = true;
+          console.error('[tcell:grow] 연속 실패로 성장을 멈춥니다. 대화·관찰·자동화는 그대로 돕니다.');
+        }
+        return { failed: true, reason: r.reason, isolated: 성장상태.격리됨 };
+      }
+      if (r?.action) 성장상태.연속실패 = 0;
       return r;
     } catch (e) {
       성장상태.연속실패 += 1;

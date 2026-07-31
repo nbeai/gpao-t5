@@ -33,6 +33,10 @@ export const GROW_CAPS = Object.freeze({
   retryCooldownMs: 6 * 60 * 60 * 1000,
   callBackoffMs: 60 * 1000,    // 호출 실패 뒤 물러나는 시간(실패 수에 비례)
   maxCallFailures: 3,          // 이만큼 연속 실패하면 그 회차는 접는다
+  // 집어 간 job 을 그동안 남이 못 집게 하는 빌림 시간. `attemptId` 는 **덮어쓰기**만 막고
+  // 중복 착수는 못 막는다 — 그러면 두 tick 이 같은 일에 호출을 두 번 쓴다(예산은 하나다).
+  // 모델 상한(계정 경로 150s)보다 넉넉히 잡되, 끊긴 작업이 영원히 잠기지 않게 유한하다.
+  leaseMs: 5 * 60 * 1000,
   candidates: 20,
   receipts: 300,
   ttlMs: 14 * 24 * 60 * 60 * 1000,
@@ -323,6 +327,11 @@ function job정리(jobs = [], job, 교체할것) {
  */
 export async function growTick({ memStore, withMemory, modelFor, store, now = Date.now() }) {
   const 잠금 = withMemory ?? ((fn) => fn());
+  // 연결부터 세운다. **못 부를 것을 집어 두면** 그 job 이 빌림에 잠긴 채로 아무 일도 안 일어난다.
+  let client;
+  try { client = modelFor('growth'); } catch (e) {
+    return { calls: 0, reason: 'call_failed', error: e?.message ?? String(e) };
+  }
 
   // ① 고르기 — 자물쇠 안. **모델을 부르지 않는다.**
   const 계획 = await 잠금(async () => {
@@ -338,6 +347,8 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
     const action = 다음행동(job);
     // 시도 표식 — 반영 때 "내가 고른 그 상태 그대로인가"를 이걸로 판정한다(§4.3 현재 상태 가드).
     job.attemptId = sha(['attempt', job.jobId, action, String(now), String(job.failures ?? 0)]);
+    // 빌림 — 이 시도가 도는 동안 다른 tick 이 같은 job 을 집지 않는다. 만료되면 자동으로 풀린다.
+    job.nextAttemptAt = now + GROW_CAPS.leaseMs;
     job.updatedAt = now;
     m.growJobs = job정리(m.growJobs, job, 교체할것);
     m.growBudget = 예산;
@@ -352,7 +363,6 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
   if (계획.reason) return { calls: 0, reason: 계획.reason };
 
   // ② 부르기 — **자물쇠 밖.** 여기서 모델이 아무리 오래 걸려도 전경 기억 작업은 그대로 돈다.
-  const client = modelFor('growth');
   const 한도 = Math.min(GROW_CAPS.callsPerTick, 계획.남은예산);
   let calls = 0;
   async function 성장호출(request) {
@@ -443,7 +453,7 @@ function 반영(m, job, 계획, 나온것, now) {
     }));
     job.state = 'running';
     job.failures = 0;
-    job.nextAttemptAt = 0;
+    job.nextAttemptAt = 0; // 빌림 해제 — 다음 tick 이 곧바로 이어서 한다
     job.updatedAt = now;
     return { proposed: 1 };
   }
@@ -474,6 +484,7 @@ function 반영(m, job, 계획, 나온것, now) {
       c.verdict = 나온것.verdict; // 판정 불가는 null 로 남고, null 은 표본으로 세지 않는다
     }
     job.failures = 0;
+    job.nextAttemptAt = 0; // 빌림 해제
     job.updatedAt = now;
     return { ran: 1 };
   }
@@ -485,6 +496,7 @@ function 반영(m, job, 계획, 나온것, now) {
     c.verdict = 나온것.verdict;
     delete c.outputPreview;
     job.failures = 0;
+    job.nextAttemptAt = 0; // 빌림 해제
     job.updatedAt = now;
     return { judged: 1 };
   }

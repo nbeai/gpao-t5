@@ -534,3 +534,122 @@ test('S4/제품: 성장이 연속 실패하면 성장만 격리된다(대화·�
     assert.ok((await mem.load()).observations.length >= 3);
   } finally { server.close(); }
 });
+
+// ── 감사 확인 1: 모델 호출이 정말 자물쇠 밖에서 도는가 ─────────────────────
+test('S4: 모델을 부르는 동안 기억 자물쇠를 들고 있지 않다(구조로 판정)', async () => {
+  // 앞의 제품 검사는 "전경이 안 막혔다"를 **시간**으로 봤다. 시간은 빠른 기계에서 통과할 수
+  // 있다. 여기서는 자물쇠 보유 깊이를 직접 세고, 모델 호출 순간의 깊이가 0인지 본다.
+  const memStore = await 준비();
+  let 깊이 = 0;
+  const 최대깊이 = [];
+  let 순서 = Promise.resolve();
+  const withMemory = (fn) => {
+    const run = 순서.then(async () => { 깊이 += 1; try { return await fn(); } finally { 깊이 -= 1; } });
+    순서 = run.catch(() => {});
+    return run;
+  };
+
+  const { modelFor: 원래 } = 대본모델();
+  const modelFor = (role) => {
+    const c = 원래(role);
+    return {
+      async respond(tc, opts) {
+        최대깊이.push(깊이);       // **이 순간** 자물쇠를 몇 겹 들고 있나
+        return c.respond(tc, opts);
+      },
+    };
+  };
+
+  const { 기록 } = await 끝까지({ memStore, withMemory, modelFor });
+  assert.equal(기록[기록.length - 1].action, 'finish');
+  assert.ok(최대깊이.length >= 11, '실제로 모델을 여러 번 불렀다');
+  assert.deepEqual([...new Set(최대깊이)], [0], `모델 호출 중 자물쇠 보유 깊이는 0이어야 한다(관측: ${[...new Set(최대깊이)].join(',')})`);
+});
+
+test('S4: 고르기와 반영은 자물쇠 안에서 한다(밖에서 상태를 만지지 않는다)', async () => {
+  const memStore = await 준비();
+  let 깊이 = 0;
+  const 저장깊이 = [];
+  let 순서 = Promise.resolve();
+  const withMemory = (fn) => {
+    const run = 순서.then(async () => { 깊이 += 1; try { return await fn(); } finally { 깊이 -= 1; } });
+    순서 = run.catch(() => {});
+    return run;
+  };
+  const 원래저장 = memStore.save.bind(memStore);
+  memStore.save = async (m) => { 저장깊이.push(깊이); return 원래저장(m); };
+
+  const { modelFor } = 대본모델();
+  await 끝까지({ memStore, withMemory, modelFor });
+  assert.ok(저장깊이.length > 0);
+  assert.deepEqual([...new Set(저장깊이)], [1], '상태 저장은 전부 자물쇠 안에서 일어난다');
+});
+
+// ── 감사 확인 2: 동시 tick·재시작에서 덮어쓰기가 막히는가 ──────────────────
+test('S4: 같은 job 을 두 tick 이 동시에 집지 않는다(빌림 표식)', async () => {
+  const memStore = await 준비();
+  let 순서 = Promise.resolve();
+  const withMemory = (fn) => { const run = 순서.then(fn); 순서 = run.catch(() => {}); return run; };
+
+  // 첫 tick 의 모델을 붙잡아 둔 채로 두 번째 tick 을 돌린다.
+  let 놓아주기 = () => {};
+  const 매달림 = new Promise((r) => { 놓아주기 = r; });
+  const 느린 = { modelFor: () => ({ async respond(tc, opts) { opts?.onCallIdentity?.(신분(0)); await 매달림; return 제안(); } }) };
+  const 빠른 = 대본모델();
+
+  const 첫 = growTick({ memStore, withMemory, modelFor: 느린.modelFor, now: 100_000 });
+  await new Promise((r) => setTimeout(r, 50));
+  const 둘 = await growTick({ memStore, withMemory, modelFor: 빠른.modelFor, now: 100_100 });
+
+  assert.equal(빠른.calls.length, 0, '앞 tick 이 집어 간 job 을 다시 집지 않는다');
+  assert.equal(둘.reason, 'idle');
+  놓아주기();
+  const r = await 첫;
+  assert.equal(r.action, 'propose');
+  assert.equal((await memStore.load()).growJobs[0].state, 'running');
+});
+
+test('S4: 지나간 시도의 반영은 무시된다(재시작 뒤 뒤늦은 쓰기가 상태를 덮지 않는다)', async () => {
+  const memStore = await 준비();
+  let 순서 = Promise.resolve();
+  const withMemory = (fn) => { const run = 순서.then(fn); 순서 = run.catch(() => {}); return run; };
+
+  let 놓아주기 = () => {};
+  const 매달림 = new Promise((r) => { 놓아주기 = r; });
+  const 느린 = { modelFor: () => ({ async respond(tc, opts) { opts?.onCallIdentity?.(신분(0)); await 매달림; return 제안(); } }) };
+  const 뒤에온것 = 대본모델();
+
+  // ① 느린 tick 이 job 을 집는다.
+  const 첫 = growTick({ memStore, withMemory, modelFor: 느린.modelFor, now: 100_000 });
+  await new Promise((r) => setTimeout(r, 50));
+
+  // ② 그 사이 프로세스가 다시 떠서(빌림 만료 뒤) 같은 job 을 집고 끝까지 간다.
+  await 끝까지({ memStore, withMemory, modelFor: 뒤에온것.modelFor, 시작: 100_000 + GROW_CAPS.leaseMs + 1 });
+  const 나중상태 = await memStore.load();
+  const 나중케이스수 = 나중상태.replayReceipts.length;
+  assert.ok(나중케이스수 >= 5, '뒤에 온 쪽이 제 일을 다 했다');
+
+  // ③ 이제야 느린 tick 이 결과를 들고 온다 — 덮으면 안 된다.
+  놓아주기();
+  const r = await 첫;
+  assert.equal(r.reason, 'superseded', '지나간 시도의 결과는 반영하지 않는다');
+  const 최종 = await memStore.load();
+  assert.equal(최종.replayReceipts.length, 나중케이스수, '영수증이 늘거나 중복되지 않는다');
+  assert.equal(최종.growJobs.filter((j) => j.bundleId === 'b-1').length, 1, 'job 이 갈라지지 않는다');
+});
+
+test('S4: 빌림이 만료되면 다시 집을 수 있다(끊긴 작업이 영원히 잠기지 않는다)', async () => {
+  const memStore = await 준비();
+  const 죽은 = () => ({ async respond() { await new Promise(() => {}); } }); // 영원히 안 돌아옴
+  growTick({ memStore, modelFor: 죽은, now: 100_000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 50));
+
+  const 잠긴동안 = 대본모델();
+  assert.equal((await growTick({ memStore, modelFor: 잠긴동안.modelFor, now: 100_100 })).reason, 'idle');
+  assert.equal(잠긴동안.calls.length, 0);
+
+  const 만료뒤 = 대본모델();
+  const r = await growTick({ memStore, modelFor: 만료뒤.modelFor, now: 100_000 + GROW_CAPS.leaseMs + 1 });
+  assert.equal(r.action, 'propose', '빌림이 끝나면 다른 tick 이 이어받는다');
+  assert.equal(만료뒤.calls.length, 1);
+});
