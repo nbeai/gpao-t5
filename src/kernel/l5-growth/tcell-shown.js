@@ -40,3 +40,37 @@ export function recordShown(memory, record) {
   const 남길것 = (memory.shownRefs ?? []).filter((x) => !같은턴(x));
   return [...남길것, record].slice(-SHOWN_CAP);
 }
+
+/**
+ * 모델이 **썼다고 주장한** 것들의 신분(S5-2 §4.5).
+ *
+ * 모델에게는 내부 신분을 주지 않는다 — 모델은 자기가 본 **문장**으로 지목하고, 여기서 그
+ * 턴에 실제로 렌더된 것과 대조해 신분으로 바꾼다. 그래서 "인용은 보인 것의 부분집합"이
+ * 검사로 지켜지는 게 아니라 **구조로** 지켜진다: 대조에 실패한 인용은 애초에 신분을 못 얻는다.
+ *
+ * 이름을 조심한다. 여기 남는 것은 **주장**이지 사용 사실이 아니다 — 모델 내부에서 무엇이
+ * 실제로 쓰였는지는 관측 불가다(불변식 9). 그래서 `applied`·`verified` 같은 말을 쓰지 않는다.
+ *
+ * @param {{렌더된:string[], 후보들:Array<{ref:string,kind:string,statement:string}>, used?:string[]}} p
+ * @returns {{refs:Array<{ref:string,kind:string}>, rejected:string[]}}
+ */
+export function citedFromShown({ 렌더된 = [], 후보들 = [], used = [] }) {
+  const 보인것 = shownFromRendered({ turnRef: null, 렌더된, 후보들 });
+  const 문장에서신분 = new Map();
+  for (const e of 후보들) {
+    if (e?.ref && 보인것.refs.some((r) => r.ref === e.ref)) 문장에서신분.set(e.statement, e);
+  }
+  const refs = [];
+  const rejected = [];
+  const 본것 = new Set();
+  for (const 지목 of used) {
+    const 문장 = String(지목 ?? '').trim();
+    if (!문장) continue; // 빈 인용은 인용이 아니다 — 거부로도 세지 않는다
+    const e = 문장에서신분.get(문장);
+    if (!e) { rejected.push(문장.slice(0, 120)); continue; } // 허공 인용
+    if (본것.has(e.ref)) continue; // 같은 것을 두 번 말해도 하나다
+    본것.add(e.ref);
+    refs.push({ ref: e.ref, kind: e.kind });
+  }
+  return { refs, rejected };
+}

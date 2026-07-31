@@ -49,6 +49,23 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['statement', 'evidence'],
   },
 }, {
+  name: 'memory.cite',
+  description: '이번 답에 **실제로 참고한** 반영된 기억·이어받을 작업이 있으면 그 문장을 그대로 적는다.'
+    + ' 참고하지 않았으면 부르지 않는다 — 안 부르는 것이 정상이고, 부르지 않아도 아무 문제 없다.'
+    + ' 보여주지 않은 것은 적지 않는다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      used: {
+        type: 'array',
+        description: '이번 턴에 보여준 `[반영된 기억]`·`[다른 대화에서 이어받을 수 있는 작업]`'
+          + ' 항목의 문장을 **그대로** 적는다. 요약하거나 바꿔 쓰면 대조되지 않는다.',
+        items: { type: 'string' },
+      },
+    },
+    required: ['used'],
+  },
+}, {
   name: 'memory.withdraw',
   description: '사용자가 방금 기억한 것을 취소·철회해 달라고 하면 이걸로 지운다.'
     + ' 파일 되돌리기가 아니다 — 기억만 지운다. 무엇을 지울지는 저장된 문장으로 지목한다.'
@@ -83,12 +100,15 @@ export function modelSchemasFor(selfState) {
  * 문장이 비었거나 종류가 틀리면 조용히 버린다 — 잘못된 제안이 후보가 되는 것보다
  * 안 되는 쪽이 안전하다(후보조차 사용자 확인 대상이므로).
  * @param {Array<{name:string, args?:object}>} [toolCalls]
- * @returns {{memorySuggestion:{kind:string,statement:string}|null, rest:Array}}
+ * @returns {{memorySuggestion:object|null, memoryWithdrawal:object|null,
+ *   memoryCitation:{used:string[]}|null, rest:Array}}
  */
 export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
   let memorySuggestion = null;
   let memoryWithdrawal = null;
+  // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
+  let memoryCitation = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
     if (c.name === 'memory.propose') {
@@ -103,11 +123,17 @@ export function splitModelControlCalls(toolCalls = []) {
         if (quote) memorySuggestion.evidence = { utteranceQuote: quote, speechAct: act };
       }
     }
+    if (c.name === 'memory.cite') {
+      const used = Array.isArray(c?.args?.used)
+        ? c.args.used.map((x) => String(x ?? '').trim().slice(0, 300)).filter(Boolean)
+        : [];
+      if (used.length) memoryCitation = { used };
+    }
     if (c.name === 'memory.withdraw') {
       const target = String(c?.args?.target ?? '').trim().slice(0, 300);
       const reason = String(c?.args?.reason ?? '').trim().slice(0, 200);
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, rest };
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, rest };
 }

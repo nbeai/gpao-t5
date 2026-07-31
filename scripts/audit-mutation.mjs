@@ -40,6 +40,8 @@ const SHAPE = 'src/kernel/l0-evidence/text-shape.js';
 const TURN = 'src/kernel/turn.js';
 const SHOWN = 'src/kernel/l5-growth/tcell-shown.js';
 const T_SHOWN = 'test/tcell-shown.test.js';
+const T_CITE = 'test/tcell-cite.test.js';
+const CONTROL = 'src/kernel/l2-plan/model-control.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -161,10 +163,23 @@ export const MUTATIONS = [
   // 걸러내서 **행동이 바뀌지 않는다.** 안 무는 것이 결함이 아니라 가드가 일한 것이라 뺀다.
   // 가드 자체는 바로 아래 주입이 지킨다.
   { 이름: '보임 기록을 턴 신분과 안 묶음', 파일: SERVER, 검사: T_SHOWN,
-    찾기: '          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef, at: Date.now() });',
-    바꾸기: '          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef: { sessionId: null, turnSeq: null }, at: Date.now() });' },
+    찾기: '            turnRef,\n            at: Date.now(),',
+    바꾸기: '            turnRef: { sessionId: null, turnSeq: null },\n            at: Date.now(),' },
   { 이름: '보임 기록 상한 제거', 파일: SHOWN, 검사: T_SHOWN,
     찾기: '  return [...남길것, record].slice(-SHOWN_CAP);', 바꾸기: '  return [...남길것, record];' },
+
+  // ── S5-2 인용(주장이지 사용 사실이 아니다) ─────────────────────────────
+  { 이름: '보인 것과 대조하지 않고 인용을 그대로 받음(허공 인용 통과)', 파일: SHOWN, 검사: T_CITE,
+    찾기: '    if (!e) { rejected.push(문장.slice(0, 120)); continue; } // 허공 인용',
+    바꾸기: '    if (!e) { refs.push({ ref: 문장, kind: \'unknown\' }); continue; }' },
+  { 이름: '렌더 안 된 것도 인용 대상으로(보여준 적 없는 기억을 인용 가능하게)', 파일: SHOWN, 검사: T_CITE,
+    찾기: '    if (e?.ref && 보인것.refs.some((r) => r.ref === e.ref)) 문장에서신분.set(e.statement, e);',
+    바꾸기: '    if (e?.ref) 문장에서신분.set(e.statement, e);' },
+  { 이름: '인용을 실행 도구로 흘려보냄(통제 채널 분리 실패)', 파일: CONTROL, 검사: T_CITE,
+    찾기: "    if (c.name === 'memory.cite') {", 바꾸기: '    if (false) {' },
+  { 이름: '주장을 shown 사실 자리에 합쳐 넣음', 파일: SERVER, 검사: T_CITE,
+    찾기: '            ...(result.modelCitedRefs?.length ? { modelCitedRefs: result.modelCitedRefs } : {}),',
+    바꾸기: '            ...(result.modelCitedRefs?.length ? { refs: [...result.shownMemoryRefs.refs, ...result.modelCitedRefs] } : {}),' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

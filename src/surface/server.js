@@ -481,7 +481,13 @@ export function makeServer(deps = {}) {
         await withMemory(async () => {
           const m = await memStore.load();
           if (m.corrupted) return;
-          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef, at: Date.now() });
+          m.shownRefs = recordShown(m, {
+            ...result.shownMemoryRefs,
+            turnRef,
+            at: Date.now(),
+            // S5-2: 모델이 참고했다고 **주장한** 것. 이름이 사실을 앞지르지 않게 여기 둔다.
+            ...(result.modelCitedRefs?.length ? { modelCitedRefs: result.modelCitedRefs } : {}),
+          });
           await memStore.save(m);
         });
       } catch (e) { console.error('[tcell:shown] 기록 실패 — 대화는 계속됩니다:', e?.message ?? e); }

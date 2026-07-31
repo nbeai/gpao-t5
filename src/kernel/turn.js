@@ -18,7 +18,7 @@ import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedEntries, isRelevant } from './l1-intent/context-mesh.js';
-import { shownFromRendered } from './l5-growth/tcell-shown.js';
+import { shownFromRendered, citedFromShown } from './l5-growth/tcell-shown.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
@@ -348,10 +348,15 @@ export async function runTurn(input, ctx) {
     ...admittedRich.map((e) => e.statement),
   ];
   // 이 턴에 **실제로 모델 앞에 놓인** 것들의 신분. 현재 목표는 기억이 아니므로 세지 않는다.
-  const shownMemoryRefs = shownFromRendered({
-    turnRef: input.turnRef ?? null,
+  const 렌더재료 = {
     렌더된: [...admitted, ...(ctx.carryableWork ?? [])],
     후보들: [...admittedRich, ...(ctx.carryableWorkEntries ?? [])],
+  };
+  // S5-2: 모델이 "이걸 참고했다"고 주장하면 여기에 담긴다. **사실이 아니라 주장이다.**
+  let modelCitedRefs = null;
+  const shownMemoryRefs = shownFromRendered({
+    turnRef: input.turnRef ?? null,
+    ...렌더재료,
     at: ctx.now ?? 0,
   });
   // H(오너 감사 2026-07-29): **의미 포착은 모델이 한다.** 모델이 memory.propose 로 제출한 후보가
@@ -414,6 +419,11 @@ export async function runTurn(input, ctx) {
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
     if (분리.memoryWithdrawal) memoryWithdrawal = 분리.memoryWithdrawal;
+    // 주장을 **보인 것에 대조**해 신분으로 바꾼다. 대조 못 한 것은 신분을 얻지 못한다.
+    if (분리.memoryCitation) {
+      const 대조 = citedFromShown({ ...렌더재료, used: 분리.memoryCitation.used });
+      if (대조.refs.length) modelCitedRefs = 대조.refs;
+    }
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -427,6 +437,7 @@ export async function runTurn(input, ctx) {
       kind: 'reply',
       reply: earlyReply,
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
+      modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       workingState: idleState,
       contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
@@ -530,7 +541,7 @@ export async function runTurn(input, ctx) {
       return {
         kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
         selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion, memoryWithdrawal,
-        shownMemoryRefs,
+        shownMemoryRefs, modelCitedRefs,
       };
     }
   }
@@ -745,6 +756,7 @@ export async function runTurn(input, ctx) {
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
+  result.modelCitedRefs = modelCitedRefs;
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
