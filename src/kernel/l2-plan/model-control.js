@@ -79,12 +79,19 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     + ' 새 요청이나 추가 부탁은 정정이 아니다 — 앞 답이 사용자 뜻과 달라서 고치는 경우다.'
     + ' T5 는 이 표식으로 **어떤 기억이 자꾸 어긋나는지**를 본다. 한 번으로는 아무 것도'
     + ' 바뀌지 않는다 — 같은 기억이 여러 번 걸릴 때만 사람이 들여다본다.'
-    + ' 기억을 지우거나 바꾸지 않는다.',
+    + ' 기억을 지우거나 바꾸지 않는다.'
+    + ' 무엇이 어긋났는지 **지목**해야 표식이 선다 — 직전 답에 놓였던 문장 중 하나를 그대로 적는다.',
   parameters: {
     type: 'object',
     properties: {
+      target: {
+        type: 'string',
+        description: '직전 답이 놓고 썼던 기억·이어받을 작업 문장 중 사용자 뜻과 어긋난 것'
+          + ' **하나를 그대로**. 요약하거나 바꿔 쓰면 대조되지 않는다.',
+      },
       reason: { type: 'string', description: '무엇이 사용자 뜻과 달랐는지 한 줄 — 표식에 남는다' },
     },
+    required: ['target'],
   },
 }, {
   name: 'memory.withdraw',
@@ -153,8 +160,9 @@ export function splitModelControlCalls(toolCalls = []) {
       if (used.length) memoryCitation = { used };
     }
     if (c.name === 'memory.correction') {
+      const target = String(c?.args?.target ?? '').trim().slice(0, 300);
       const reason = String(c?.args?.reason ?? '').trim().slice(0, 200);
-      memoryCorrection = { ...(reason ? { reason } : {}) };
+      memoryCorrection = { ...(target ? { target } : {}), ...(reason ? { reason } : {}) };
     }
     if (c.name === 'memory.withdraw') {
       const target = String(c?.args?.target ?? '').trim().slice(0, 300);

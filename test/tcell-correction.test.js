@@ -21,41 +21,41 @@ const 보임기록 = (seq, { refs = [], cited = null, sessionId = 's-1' } = {}) 
   ...(cited ? { modelCitedRefs: cited } : {}),
   at: seq,
 });
-const 원리 = { ref: 'p-원리', kind: 'operating_principle' };
-const 선호 = { ref: 'pref-1', kind: 'preference' };
+const 원리 = { ref: 'p-원리', kind: 'operating_principle', statement: '월별 수치는 표로 정리한다' };
+const 선호 = { ref: 'pref-1', kind: 'preference', statement: '보고서는 짧은 목록으로 정리한다' };
+// 범위 판정(2026-07-31): 상관의 근거는 **정정의 지목**이다. 인용(cite)은 확신을 높이는 보조다.
+const 지목 = (t) => ({ target: t });
 
-test('S5-3: 보이기만 하고 인용되지 않은 항목에는 상관을 남기지 않는다', () => {
-  const memory = { shownRefs: [보임기록(2, { refs: [원리, 선호] })] }; // cited 없음
-  const 상관 = correlateCorrection(memory, { turnRef: 턴(4) });
-  assert.deepEqual(상관, [], 'shown-only 는 상관 0');
+test('S5-3: 지목이 없으면 인용이 있어도 상관 0(무엇을 고치는지 모르면 표식하지 않는다)', () => {
+  const memory = { shownRefs: [보임기록(2, { refs: [원리, 선호], cited: [원리] })] };
+  assert.deepEqual(correlateCorrection(memory, { turnRef: 턴(4) }), []);
 });
 
-test('S5-3: 인용된 항목에만 상관이 하나 남는다', () => {
+test('S5-3: 지목한 항목에만 상관이 하나 남는다', () => {
   const memory = { shownRefs: [보임기록(2, { refs: [원리, 선호], cited: [원리] })] };
-  const 상관 = correlateCorrection(memory, { turnRef: 턴(4) });
+  const 상관 = correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) });
   assert.equal(상관.length, 1);
   assert.equal(상관[0].ref, 'p-원리');
   assert.equal(상관[0].turns.length, 1, '독립 상관 1회');
   assert.equal(상관.some((x) => x.ref === 'pref-1'), false, '보이기만 한 것은 빠진다');
 });
 
-test('S5-3: 인용은 보인 것의 부분집합이라 cited-only 는 구조상 생기지 않는다', () => {
-  // 저장이 어쩌다 어긋나도(보인 적 없는 것이 cited 에 있어도) 상관은 붙지 않는다.
+test('S5-3: 보인 적 없는 것을 지목하면 상관이 붙지 않는다', () => {
   const memory = { shownRefs: [보임기록(2, { refs: [선호], cited: [원리] })] };
-  const 상관 = correlateCorrection(memory, { turnRef: 턴(4) });
+  const 상관 = correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) });
   assert.deepEqual(상관, [], '보인 적 없는 것에는 상관을 남기지 않는다');
 });
 
 test('S5-3: 같은 턴에서 여러 번 정정해도 1회로 센다', () => {
   let memory = { shownRefs: [보임기록(2, { refs: [원리], cited: [원리] })] };
-  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4) }) };
-  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4) }) };
+  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }) };
+  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }) };
   assert.equal(memory.correctionCorrelation[0].turns.length, 1, '같은 정정 턴은 하나다');
 });
 
 test('S5-3: 상관 1회로는 감쇠 후보가 되지 않는다', () => {
   let memory = { shownRefs: [보임기록(2, { refs: [원리], cited: [원리] })] };
-  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4) }) };
+  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }) };
   assert.deepEqual(decayCandidates(memory), [], `상관 ${CORRELATION_MIN} 회 전에는 후보 0`);
 });
 
@@ -66,9 +66,9 @@ test('S5-3: 독립된 두 턴에서 정정되면 그때 감쇠 후보가 된다'
       보임기록(6, { refs: [원리], cited: [원리] }),
     ],
   };
-  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4) }) };
+  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }) };
   // 두 번째 정정은 그 사이에 다시 보이고 인용된 턴(6)을 가리킨다.
-  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(8) }) };
+  memory = { ...memory, correctionCorrelation: correlateCorrection(memory, { turnRef: 턴(8), ...지목(원리.statement) }) };
 
   assert.equal(memory.correctionCorrelation[0].turns.length, 2, '독립 상관 2회');
   assert.deepEqual(decayCandidates(memory).map((x) => x.ref), ['p-원리']);
@@ -76,10 +76,10 @@ test('S5-3: 독립된 두 턴에서 정정되면 그때 감쇠 후보가 된다'
 
 test('S5-3: 무관한 정정(직전에 보이고 인용된 것이 없음)은 상관 0', () => {
   const memory = { shownRefs: [보임기록(2, { refs: [], cited: null })] };
-  assert.deepEqual(correlateCorrection(memory, { turnRef: 턴(4) }), []);
+  assert.deepEqual(correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }), []);
   // 다른 대화의 기록은 이 대화의 정정과 묶이지 않는다.
   const 다른대화 = { shownRefs: [보임기록(2, { refs: [원리], cited: [원리], sessionId: 's-다른' })] };
-  assert.deepEqual(correlateCorrection(다른대화, { turnRef: 턴(4, 's-1') }), []);
+  assert.deepEqual(correlateCorrection(다른대화, { turnRef: 턴(4, 's-1'), ...지목(원리.statement) }), []);
 });
 
 test('S5-3: 정정보다 나중 턴은 가리키지 않는다(직전 관련 턴만)', () => {
@@ -89,13 +89,13 @@ test('S5-3: 정정보다 나중 턴은 가리키지 않는다(직전 관련 턴�
       보임기록(9, { refs: [선호], cited: [선호] }), // 정정 턴(4)보다 뒤
     ],
   };
-  const 상관 = correlateCorrection(memory, { turnRef: 턴(4) });
+  const 상관 = correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) });
   assert.deepEqual(상관.map((x) => x.ref), ['p-원리'], '앞선 턴만 가리킨다');
 });
 
 test('S5-3: 상관은 위험 신호로만 저장한다(적용 사실로 이름 붙이지 않는다)', () => {
   const memory = { shownRefs: [보임기록(2, { refs: [원리], cited: [원리] })] };
-  const 저장 = JSON.stringify(correlateCorrection(memory, { turnRef: 턴(4) }));
+  const 저장 = JSON.stringify(correlateCorrection(memory, { turnRef: 턴(4), ...지목(원리.statement) }));
   for (const 금지 of ['applied', 'verified', 'wrong', 'invalid']) {
     assert.equal(저장.includes(금지), false, `${금지} 라는 이름을 쓰지 않는다`);
   }
@@ -183,7 +183,7 @@ async function 서버세우기(대본) {
 }
 
 const 인용 = [{ name: 'memory.cite', args: { used: [원리문장] } }];
-const 정정 = [{ name: 'memory.correction', args: { reason: '앞 답이 사용자 뜻과 달랐다' } }];
+const 정정 = [{ name: 'memory.correction', args: { target: 원리문장, reason: '앞 답이 사용자 뜻과 달랐다' } }];
 
 test('S5-3/제품: 인용된 턴 뒤의 정정만 상관으로 남고, 감쇠는 일어나지 않는다', async () => {
   const { mem, server, post } = await 서버세우기([인용, 정정]);
@@ -196,6 +196,7 @@ test('S5-3/제품: 인용된 턴 뒤의 정정만 상관으로 남고, 감쇠는
     assert.equal(m.correctionCorrelation.length, 1);
     assert.equal(m.correctionCorrelation[0].ref, 'p-원리');
     assert.equal(m.correctionCorrelation[0].turns.length, 1, '독립 상관 1회');
+    assert.equal(m.correctionCorrelation[0].turns[0].confidence, 'cited', '인용이 있으면 확신이 붙는다');
     assert.deepEqual(decayCandidates(m), [], '1회로는 감쇠 후보가 아니다');
     // 기억은 그대로다 — 아무 것도 내리지 않았다.
     assert.equal(m.promoted.length, 1);
@@ -203,7 +204,7 @@ test('S5-3/제품: 인용된 턴 뒤의 정정만 상관으로 남고, 감쇠는
   } finally { server.close(); }
 });
 
-test('S5-3/제품: 인용이 없던 턴 뒤의 정정은 상관 0', async () => {
+test('S5-3/제품: 인용이 없어도 지목이 맞으면 상관이 선다(cite 는 보조 근거다)', async () => {
   const { mem, server, post } = await 서버세우기([[], 정정]); // 첫 턴에 cite 없음
   try {
     const s = await post('/sessions');
@@ -211,7 +212,8 @@ test('S5-3/제품: 인용이 없던 턴 뒤의 정정은 상관 0', async () => 
     await post('/turn', { sessionId: s.id, text: '그건 그렇게 말고 다르게 해줘' });
 
     const m = await mem.load();
-    assert.deepEqual(m.correctionCorrelation, [], 'shown 만 있고 cited 가 없으면 상관 0');
+    assert.equal(m.correctionCorrelation.length, 1, '보인 것을 지목했으므로 상관이 선다');
+    assert.equal(m.correctionCorrelation[0].turns[0].confidence, 'claimed', '인용이 없으면 주장 근거');
     assert.ok(m.shownRefs.length >= 1, 'shown 사실은 그대로 남는다');
   } finally { server.close(); }
 });

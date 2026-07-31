@@ -120,11 +120,13 @@ export function buildModelMessages(tc) {
     usr.push('T5 는 위 목록을 보여준 것만 알고, 그중 무엇이 이번 답에 실제로 도움이 됐는지는'
       + ' 모른다. 참고한 항목이 있으면 `memory.cite` 로 그 문장을 그대로 알려 준다.');
   }
-  // S5-3 보강: 정정이 일어날 수 있는 자리는 **직전 답이 기억을 참고한 다음 턴**이다.
-  // 그 자리에서만 알려 준다 — 아무 턴에나 붙이면 없는 정정을 만들어 내게 된다.
-  if (tc.priorTurnCited) {
-    usr.push('직전 답은 반영된 기억을 참고해 썼다. 지금 사용자가 그 답을 바로잡고 있으면'
-      + ' `memory.correction` 으로 알려 준다.');
+  // S5-3 보정: 정정이 일어날 수 있는 자리는 **직전 답이 무엇인가를 놓고 쓴 다음 턴**이다.
+  // 그리고 지목하려면 **지목할 목록**이 있어야 한다 — 목록 없이 지목하라고만 하면 모델은
+  // 기억으로 지어내고, 지어낸 것은 전부 대조에서 떨어진다(cite 가 죽어 있던 것과 같은 모양).
+  if (tc.priorShown?.length) {
+    usr.push(`[직전 답이 놓고 쓴 것]\n${tc.priorShown.map((c) => `- ${c}`).join('\n')}\n`
+      + '지금 사용자가 그 답을 바로잡고 있다면, 위에서 어긋난 문장 하나를 `memory.correction`'
+      + ' 으로 그대로 지목한다.');
   }
   if (tc.evidenceFacts?.length) {
     usr.push(`[이번 턴 실행 사실]\n${tc.evidenceFacts

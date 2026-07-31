@@ -25,7 +25,9 @@ export function shownFromRendered({ turnRef, 렌더된 = [], 후보들 = [], at 
   const 놓인것 = new Set(렌더된);
   const refs = 후보들
     .filter((e) => e?.ref && 놓인것.has(e.statement))
-    .map((e) => ({ ref: e.ref, kind: e.kind }));
+    // 문장도 함께 든다. 정정이 **무엇을** 고치는지 지목할 때 대조할 것이 필요하다(S5-3 보정).
+    // 사람이 이미 본 문장이라 새로 새어 나가는 것이 없다 — 내부 신분만 밖으로 안 나간다.
+    .map((e) => ({ ref: e.ref, kind: e.kind, statement: e.statement }));
   return { turnRef, refs, at };
 }
 

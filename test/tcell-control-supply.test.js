@@ -71,17 +71,15 @@ test('S5-2: 안내가 사실 목록을 밀어내지 않는다(기억 문장이 �
   assert.equal(m.user.includes('p-원리'), false, '내부 ID 는 여전히 안 나간다');
 });
 
-test('S5-3: 직전 답이 기억을 참고했으면, 그 사실을 이번 턴에 준다', () => {
-  // cite 는 **보여주는 자리**에서 안내하니 호출이 생겼다(0/1 → 4/9). correction 은 그런 자리가
-  // 없어 여전히 0/3 이었다. 정정이 일어날 수 있는 자리는 **직전 답이 기억을 참고한 다음 턴**이다.
-  const m = buildModelMessages(tc({ priorTurnCited: true }));
+test('S5-3: 직전 답이 놓고 쓴 문장을 이번 턴에 사실로 준다(지목할 목록)', () => {
+  const m = buildModelMessages(tc({ priorShown: ['월별 수치는 표로 정리한다'] }));
   assert.match(m.user, /memory\.correction/, '정정이 가능한 자리에서 알려 준다');
-  assert.match(m.user, /직전 답/);
+  assert.ok(m.user.includes('월별 수치는 표로 정리한다'), '지목할 대상을 실제로 보여준다');
 });
 
-test('S5-3: 직전 답이 기억을 참고하지 않았으면 그 안내를 주지 않는다', () => {
+test('S5-3: 직전 턴에 보인 것이 없으면 그 안내를 주지 않는다', () => {
   assert.equal(/memory\.correction/.test(buildModelMessages(tc({})).user), false);
-  assert.equal(/memory\.correction/.test(buildModelMessages(tc({ priorTurnCited: false })).user), false);
+  assert.equal(/memory\.correction/.test(buildModelMessages(tc({ priorShown: [] })).user), false);
 });
 
 test('S5-2: 인용 안내에 면제 문구를 두지 않는다(쉬운 출구를 만들지 않는다)', () => {

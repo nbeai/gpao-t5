@@ -195,7 +195,8 @@ test('S5-1: 렌더된 배열에 없는 것은 후보로 들고 있어도 shown �
       { ref: 'b', kind: 'operating_principle', statement: '안 보인 문장' },
     ],
   });
-  assert.deepEqual(r.refs, [{ ref: 'a', kind: 'preference' }], '렌더된 것만 남는다');
+  assert.deepEqual(r.refs, [{ ref: 'a', kind: 'preference', statement: '보인 문장' }],
+    '렌더된 것만 남는다(문장도 함께 — 정정이 지목할 대상이 된다)');
 });
 
 test('S5-1: 신분 없는 항목은 shown 에 남기지 않는다(무엇을 가리키는지 모르는 기록은 쓸모없다)', async () => {

@@ -44,6 +44,7 @@ const T_CITE = 'test/tcell-cite.test.js';
 const CONTROL = 'src/kernel/l2-plan/model-control.js';
 const CORR = 'src/kernel/l5-growth/tcell-correction.js';
 const T_CORR = 'test/tcell-correction.test.js';
+const T_CORR2 = 'test/tcell-correction-target.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -184,14 +185,17 @@ export const MUTATIONS = [
     바꾸기: '            ...(result.modelCitedRefs?.length ? { refs: [...result.shownMemoryRefs.refs, ...result.modelCitedRefs] } : {}),' },
 
   // ── S5-3 정정 상관(통계지 사실이 아니다) ───────────────────────────────
-  { 이름: '보이기만 한 것에도 상관을 남김(shown-only 오염)', 파일: CORR, 검사: T_CORR,
-    찾기: '  const 교집합 = (관련.modelCitedRefs ?? []).filter((r) => 보인것.has(r.ref));',
-    바꾸기: '  const 교집합 = [...(관련.refs ?? [])];' },
-  { 이름: '보인 적 없는 인용에도 상관을 남김(교차 제거)', 파일: CORR, 검사: T_CORR,
-    찾기: '  const 교집합 = (관련.modelCitedRefs ?? []).filter((r) => 보인것.has(r.ref));',
-    바꾸기: '  const 교집합 = (관련.modelCitedRefs ?? []);' },
+  { 이름: '지목을 대조하지 않고 아무 shown 에나 상관을 남김', 파일: CORR, 검사: T_CORR,
+    찾기: '  const 맞은것 = (관련.refs ?? []).find((r) => r.statement === 지목);',
+    바꾸기: '  const 맞은것 = (관련.refs ?? [])[0];' },
+  // (뺀 주입) "지목 없이도 상관을 남김" — 빈 지목은 아래 문장 대조에서 어차피 아무 것도
+  // 맞히지 못해 **행동이 바뀌지 않는다.** 안 무는 것이 결함이 아니라 대조가 일한 것이라 뺀다.
+  { 이름: '인용이 있으면 문턱을 낮춤(cite 가 뒷문으로 감쇠 조건이 됨)', 파일: CORR, 검사: T_CORR,
+    찾기: '    .filter((x) => (x.turns?.length ?? 0) >= min)',
+    바꾸기: "    .filter((x) => (x.turns?.length ?? 0) >= (x.turns?.some((t) => t.confidence === 'cited') ? 1 : min))" },
   { 이름: '같은 정정 턴을 여러 번 셈(통계 부풀리기)', 파일: CORR, 검사: T_CORR,
-    찾기: '    if (칸.turns.some((t) => 같은턴(t, turnRef))) continue;', 바꾸기: '' },
+    찾기: '  if (!칸.turns.some((t) => 같은턴(t, turnRef))) {',
+    바꾸기: '  if (true) {' },
   { 이름: '상관 1회로 감쇠 후보가 됨', 파일: CORR, 검사: T_CORR,
     찾기: 'export const CORRELATION_MIN = 2;', 바꾸기: 'export const CORRELATION_MIN = 1;' },
   { 이름: '정정보다 뒤의 턴도 가리킴(직전 관련 턴이 아님)', 파일: CORR, 검사: T_CORR,
@@ -201,7 +205,10 @@ export const MUTATIONS = [
     찾기: '    .filter((x) => x.turnRef?.sessionId === turnRef?.sessionId)', 바꾸기: '' },
   { 이름: '모델 신호 없이도 상관을 만듦(낱말 규칙으로 되돌림)', 파일: SERVER, 검사: T_CORR,
     찾기: '          if (result.memoryCorrection) {',
-    바꾸기: "          if (result.memoryCorrection || /아니|틀렸/.test(String(input.text ?? ''))) {" },
+    바꾸기: "          if (result.memoryCorrection || /아니|틀렸/.test(String(input.text ?? ''))) {\n            result.memoryCorrection = result.memoryCorrection ?? { target: (result.shownMemoryRefs?.refs ?? [])[0]?.statement };" },
+  { 이름: '지목할 목록을 안 줌(모델이 지어내게 됨)', 파일: SERVER, 검사: T_CORR2,
+    찾기: '    return (직전.refs ?? []).map((r) => r.statement).filter(Boolean);',
+    바꾸기: '    return [];' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

@@ -158,6 +158,16 @@ export function makeServer(deps = {}) {
     } catch { return []; } // 승계는 편의다 — 실패해도 대화를 막지 않는다
   }
 
+  /** 같은 대화에서 이 턴보다 앞선, 무엇인가 보인 가장 최근 턴의 문장들. */
+  function 직전에보인것(memory, turnRef) {
+    const 앞선 = (memory?.shownRefs ?? []).filter((x) => x.turnRef?.sessionId === turnRef?.sessionId
+      && Number.isInteger(x.turnRef?.turnSeq) && x.turnRef.turnSeq < turnRef.turnSeq
+      && (x.refs ?? []).length);
+    if (!앞선.length) return [];
+    const 직전 = 앞선.reduce((a, b) => (b.turnRef.turnSeq > a.turnRef.turnSeq ? b : a));
+    return (직전.refs ?? []).map((r) => r.statement).filter(Boolean);
+  }
+
   const LOCAL_OWNER = 'local-owner';
   async function principalFor(msg) {
     if (!msg?.channel) return LOCAL_OWNER;
@@ -417,6 +427,10 @@ export function makeServer(deps = {}) {
     const learning = await traceStore.load();
     session.carryableWork = await 이어받을작업(session);
     const ctx = ctxForSession(session, memory);
+    // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
+    // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
+    // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
+    ctx.priorShown = 직전에보인것(memory, turnRef);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
     ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
     // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
@@ -485,7 +499,9 @@ export function makeServer(deps = {}) {
           // S5-3: 모델이 정정이라고 알려준 턴에서만, 직전 관련 턴의 `shown ∩ cited` 에 표식.
           // **아무 것도 내리지 않는다** — 독립 상관이 쌓여야 들여다볼 후보가 될 뿐이다.
           if (result.memoryCorrection) {
-            m.correctionCorrelation = correlateCorrection(m, { turnRef, at: Date.now() });
+            m.correctionCorrelation = correlateCorrection(m, {
+              turnRef, target: result.memoryCorrection.target, at: Date.now(),
+            });
           }
           if (!result.shownMemoryRefs?.refs?.length) { await memStore.save(m); return; }
           m.shownRefs = recordShown(m, {
@@ -1698,6 +1714,10 @@ export function makeServer(deps = {}) {
       ledgerFrom: (session.ledgerEntries ?? []).length,
     };
     const ctx = ctxForSession(session, memory);
+    // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
+    // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
+    // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
+    ctx.priorShown = 직전에보인것(memory, channelTurnRef);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
     const result = await runTurn({
       text: input.text, source: 'external_channel',

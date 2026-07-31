@@ -213,8 +213,8 @@ export function buildTaskContext(p) {
     // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). 사실 나열이며 지시가 아니다 —
     // "아까 그거"가 무엇인지는 모델이 이 사실 위에서 판단한다. 후보가 여럿이면 여럿 그대로.
     carryableWork: p.carryableWork ?? [],
-    // S5-3: 직전 답이 기억을 참고했는가(정정이 가능한 자리인지의 사실).
-    priorTurnCited: Boolean(p.priorTurnCited),
+    // S5-3: 직전 답이 놓고 쓴 문장들 — 정정이 무엇을 고치는지 지목할 대상.
+    priorShown: p.priorShown ?? [],
     authorityFacts,
     answerMode: intent.answerMode,
     // 방법·언어는 모델에 열어둔다(§10.2). 이 문자열은 지시문이 아니라 규칙 표식이다.
