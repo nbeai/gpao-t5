@@ -43,12 +43,15 @@ const PATH_REF = /(?:docs|design|scripts|src|test)\/[\w가-힣/.\-]+\.(?:json|mj
 const STATUS_PHASE = [
   { prefix: 'TCELL_PLAN', mustContain: '계획' },
   { prefix: 'TCELL_IMPL', mustContain: '구현' },
+  { prefix: 'TCELL_H', mustContain: 'H 단계' },
 ];
 
 // 상태 토큰이 지난 단계 — 여섯 줄 블록이 이 문구를 현재 사실로 말하면 낡은 것이다.
 // 단계가 넘어갈 때 이 표에 한 줄을 더하는 것이 곧 투영 갱신 강제다.
 const STATUS_PAST_PHRASES = [
   { prefix: 'TCELL_IMPL', past: ['오너 확인 → S0', '전체본', 'F3 replay', 'F5 실제 호출 신분', 'F6 웹/채널'] },
+  // 구현이 끝났는데 "S5 진행 중"이라 말하면 낡은 것이다.
+  { prefix: 'TCELL_H', past: ['S5 구현 완료 · 봉인 감사 제출', 'S5_IN_PROGRESS'] },
 ];
 
 export function auditDocs(repo = REPO) {
