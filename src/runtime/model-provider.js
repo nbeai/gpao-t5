@@ -373,6 +373,8 @@ export const MODEL_PROVIDERS = {
       const parts = json?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean);
       return parts?.length ? parts.join('') : undefined;
     },
+    // gemini 는 `model` 이 아니라 `modelVersion` 으로 응답 신분을 준다(§4.6).
+    responseModel: (json) => json?.modelVersion ?? null,
     extractToolCalls: (json) => (json?.candidates?.[0]?.content?.parts ?? [])
       .filter((p) => p.functionCall)
       .map((p) => parseWireCall(p.functionCall.name, p.functionCall.args))
@@ -529,12 +531,44 @@ export function resolveModelConfigFromInput(input = {}) {
  * @param {{fetchImpl?:Function, timeoutMs?:number}} [deps]
  * @returns {import('./model-client.js').ModelClient}
  */
+/**
+ * 이 호출이 **실제로** 무엇에 붙었는가(계획 §4.6). 선택값을 되읽는 것이 아니라 fetch 에 넘긴
+ * url·본문과 provider 가 돌려준 원문에서만 뽑는다 — 그래야 "고른 것"과 "부른 것"이 갈릴 때
+ * 갈린 사실이 남는다. 응답이 model 을 보고하지 않으면 보고하지 않았다고 남긴다(주장 금지).
+ */
+export function actualCallFacts({ url, bodyText, json, spec }) {
+  let requestModelId = null;
+  try { requestModelId = JSON.parse(bodyText)?.model ?? null; } catch { /* 본문이 JSON 이 아니면 URL 로 간다 */ }
+  // 모델이 주소에 실리는 provider(gemini) — 요청 모델의 진실은 URL 이다.
+  const 주소모델 = /\/models\/([^:/?]+)/.exec(String(url ?? ''))?.[1] ?? null;
+  if (!requestModelId) requestModelId = 주소모델;
+
+  const 보고된 = spec?.responseModel ? spec.responseModel(json) : (json?.model ?? null);
+  let responseIdentitySource = 'not_reported';
+  let responseModelId = null;
+  if (보고된) { responseIdentitySource = 'response_field'; responseModelId = 보고된; }
+  else if (주소모델) { responseIdentitySource = 'model_addressed_endpoint'; responseModelId = 주소모델; }
+
+  let endpointOrigin = null;
+  try { endpointOrigin = new URL(String(url)).origin; } catch { /* 해석 불가는 신분 없음 */ }
+  return {
+    endpointOrigin, requestModelId, responseModelId, responseIdentitySource,
+    usage: json?.usage ?? json?.usageMetadata ?? null,
+  };
+}
+
 export function makeProviderModelClient(cfg, deps = {}) {
   const spec = MODEL_PROVIDERS[cfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
   return {
-    /** @param {*} tc @param {{onDelta?:(t:string)=>void}} [opts] 조각은 화면용 미리보기(저장 안 함) */
+    /**
+     * @param {*} tc
+     * @param {{onDelta?:(t:string)=>void, onCallIdentity?:(f:object)=>void}} [opts]
+     *   onDelta 조각은 화면용 미리보기(저장 안 함) · onCallIdentity 는 §4.6 실제 호출 사실.
+     *   **스트리밍 경로는 신분을 내지 않는다** — 못 만든 증거를 만든 척하지 않는다(성장 호출은
+     *   조각을 쓰지 않으므로 이 경로로만 온다).
+     */
     async respond(tc, opts = {}) {
       const messages = buildModelMessages(tc);
       // 스트리밍 가능한 와이어(OpenAI 계열)면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로.
@@ -544,6 +578,9 @@ export function makeProviderModelClient(cfg, deps = {}) {
         return streamSse({ spec, cfg, messages, fetchImpl, timeoutMs, onDelta: opts.onDelta });
       }
       const url = spec.endpoint(cfg);
+      // 실제로 보낸 본문을 한 번만 만들어 붙잡는다 — 신분은 이 값에서 읽는다(다시 만들면
+      // "보낸 것"이 아니라 "만들 수 있었던 것"을 증거라 부르게 된다).
+      const bodyText = spec.body(cfg, messages, opts);
       const controller = new AbortController();
       let status, json;
       try {
@@ -551,7 +588,7 @@ export function makeProviderModelClient(cfg, deps = {}) {
           const r = await fetchImpl(url, {
             method: 'POST',
             headers: spec.headers(cfg),
-            body: spec.body(cfg, messages, opts),
+            body: bodyText,
             signal: controller.signal,
           });
           let j = null;
@@ -563,6 +600,7 @@ export function makeProviderModelClient(cfg, deps = {}) {
         throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });
       }
       if (status >= 200 && status < 300) {
+        opts.onCallIdentity?.(actualCallFacts({ url, bodyText, json, spec }));
         const text = spec.extract(json);
         if (!opts.tools?.length) {
           if (typeof text === 'string' && text.length) return text;

@@ -83,7 +83,7 @@ export function makeReplayCallReceipt(p) {
  * provider 가 보고할 때만 검증했다고 말한다 — 보고하지 않는 provider 를 두고 "검증됨"이라
  * 부르지 않는다(이름이 사실보다 앞서지 않는다).
  */
-function verifyCallIdentity(idn) {
+export function verifyCallIdentity(idn) {
   if (!idn) return { ok: false, reason: 'model_call_identity_missing' };
   const sel = idn.selection ?? {};
   // 역할 이름이나 provider:model 문자열은 신분이 아니다 — 자격과 endpoint 를 구분하지 못한다.

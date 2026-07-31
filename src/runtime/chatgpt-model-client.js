@@ -65,6 +65,19 @@ export function toolCallFromLine(line) {
   return { name: item.name, args, callId: item.call_id };
 }
 
+/**
+ * SSE 한 줄에서 **provider 가 보고한 응답 모델**을 뽑는다(§4.6 응답 신분).
+ * 보고가 없으면 null 이고, 그때는 "검증됨"이라 부르지 않는다.
+ */
+export function responseModelFromLine(line) {
+  if (!line.startsWith('data:')) return null;
+  const payload = line.slice(5).trim();
+  if (!payload || payload === '[DONE]') return null;
+  let ev;
+  try { ev = JSON.parse(payload); } catch { return null; }
+  return ev?.response?.model ?? null;
+}
+
 /** 전체 SSE 본문에서 최종 텍스트를 누적한다(비스트리밍 경로·테스트용). */
 export function accumulateResponsesText(raw) {
   const out = [];
@@ -83,7 +96,7 @@ export function accumulateResponsesText(raw) {
  * 조각은 **화면용 미리보기**다 — 저장하지 않는다. 최종 텍스트는 반환값이 진실.
  * @param {ReadableStream|null} body @param {(t:string)=>void} [onDelta]
  */
-export async function readTextStream(body, onDelta, collected) {
+export async function readTextStream(body, onDelta, collected, meta) {
   if (!body?.getReader) return '';
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -95,6 +108,8 @@ export async function readTextStream(body, onDelta, collected) {
     // 그 조각도 정상 이벤트로 읽지 않으면 실제 답을 "빈 스트림"으로 오인한다.
     const call = toolCallFromLine(line);
     if (call && collected) collected.push(call);
+    // §4.6: 응답 신분은 흘려 보내는 조각과 무관하게 **provider 가 보고한 값**에서만 남긴다.
+    if (meta && meta.responseModel == null) meta.responseModel = responseModelFromLine(line);
     const piece = textDeltaFromLine(line, { allowCompleted: !sawDelta });
     if (piece == null) return;
     if (line.includes('output_text.delta')) sawDelta = true;
@@ -143,6 +158,9 @@ export function makeChatGptModelClient(deps) {
         } catch { /* 진단 실패가 응답을 막지 않는다 */ }
       }
       const controller = new AbortController();
+      // §4.6: 응답 신분은 이 지도 하나로만 흐른다 — 스트림·통본문 어느 경로든 provider 가
+      // 실제로 보고한 값만 담긴다(보고가 없으면 비어 있고, 비어 있음이 곧 미보고다).
+      const 응답신분 = {};
       let status, raw, whole;
       try {
         ({ status, raw, whole } = await withTimeout(async () => {
@@ -184,7 +202,7 @@ export function makeChatGptModelClient(deps) {
           // 성공이면 **읽으면서 흘린다**(다 모으고 넘기지 않는다 — 체감 지연의 원인이었다).
           // 실패면 진단을 위해 본문을 통째로 읽는다(짧다).
           if (r.status >= 200 && r.status < 300 && r.body?.getReader) {
-            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta, toolCalls) };
+            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta, toolCalls, 응답신분) };
           }
           return { status: r.status, raw: await r.text(), whole: true };
         }, timeoutMs, controller));
@@ -200,6 +218,23 @@ export function makeChatGptModelClient(deps) {
         throw new ModelProviderError({
           provider: 'chatgpt_oauth', status,
           authSignal: `${modelRejected ? 'model_missing ' : ''}${status} ${raw.slice(0, 300)}`,
+        });
+      }
+      // §4.6 실제 호출 사실. **여기서만** 만든다 — 요청 본문의 model 과 실제 붙은 주소가 진실이고,
+      // 응답 model 은 provider 가 보고했을 때만 채운다(P10: 안 준 것을 검증했다고 하지 않는다).
+      if (typeof opts.onCallIdentity === 'function') {
+        if (whole && 응답신분.responseModel == null) {
+          for (const line of String(raw).split('\n')) {
+            응답신분.responseModel = responseModelFromLine(line);
+            if (응답신분.responseModel != null) break;
+          }
+        }
+        opts.onCallIdentity({
+          endpointOrigin: new URL(CHATGPT_BACKEND_URL).origin,
+          requestModelId: modelId,
+          responseModelId: 응답신분.responseModel ?? null,
+          responseIdentitySource: 응답신분.responseModel ? 'response_field' : 'not_reported',
+          usage: null, // 이 백엔드는 사용량을 이 경로로 주지 않는다 — 없는 값을 지어내지 않는다
         });
       }
       // 스트리밍 경로면 raw 가 이미 누적된 텍스트다. 통째로 읽은 경우(테스트·비스트림 응답)만 파싱.

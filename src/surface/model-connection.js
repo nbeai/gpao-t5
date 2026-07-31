@@ -13,6 +13,7 @@
 import { readFile, writeFile, mkdir, rm, chmod, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   resolveModelConfig, resolveModelConfigFromInput, makeProviderModelClient, ModelProviderError,
 } from '../runtime/model-provider.js';
@@ -21,7 +22,7 @@ import { StubModelClient } from '../runtime/model-client.js';
 import {
   createPkce, buildAuthorizeUrl, exchangeCode, refreshCredential, isExpired, startCallbackListener,
 } from '../runtime/chatgpt-oauth.js';
-import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL } from '../runtime/chatgpt-model-client.js';
+import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL, CHATGPT_BACKEND_URL } from '../runtime/chatgpt-model-client.js';
 
 export const DEFAULT_ROLE = 'default';
 
@@ -59,6 +60,33 @@ export function migrateConnectionFile(saved) {
 
 export function connectionId(rec) {
   return `${rec.provider}:${rec.modelId ?? 'default'}`;
+}
+
+/**
+ * 자격·주소가 바뀌었는가(§4.6). **비밀 원문을 밖으로 내지 않고** 안에서만 비교한다 —
+ * 이 값은 어디에도 저장·전송되지 않는다(영수증에 들어가는 것은 불투명 참조뿐이다).
+ */
+function credentialFingerprint(rec) {
+  const 원문 = JSON.stringify([
+    rec.kind ?? 'api_key', rec.baseUrl ?? null,
+    rec.kind === 'chatgpt_oauth' ? (rec.credential?.access ?? null) : (rec.key ?? null),
+  ]);
+  // 지문만 남긴다 — 비밀 원문을 필드 하나 더 만들어 복제하지 않는다.
+  return createHash('sha256').update(원문).digest('hex').slice(0, 32);
+}
+
+/**
+ * 연결에 **불투명 신분**을 붙인다. `provider:model` 은 신분이 아니다 — 같은 provider·model
+ * 이라도 자격이나 endpoint 가 다르면 다른 instance 다(§4.6).
+ * 이미 신분이 있고 자격·주소가 그대로면 유지한다(부팅마다 바뀌면 신분이 아니다).
+ */
+function stampIdentity(rec, prev) {
+  const fp = credentialFingerprint(rec);
+  const 그대로 = prev?.instanceId && prev?.credentialFp === fp;
+  rec.credentialFp = fp;
+  rec.instanceId = 그대로 ? prev.instanceId : randomUUID();
+  rec.credentialRef = 그대로 ? prev.credentialRef : randomUUID();
+  return rec;
 }
 
 export function connectionLabel(rec) {
@@ -182,11 +210,67 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     return new StubModelClient();
   }
 
+  // env(개발자) 폴백의 불투명 자격 참조. **비밀 원문·그 조각을 참조로 쓰지 않는다** — 지문은
+  // 이 프로세스 메모리 안의 지도 열쇠로만 쓰고, 밖으로 나가는 값은 난수다.
+  const envRefs = new Map();
+  function envIdentity() {
+    if (!envCfg) return null;
+    const fp = credentialFingerprint({ kind: 'api_key', baseUrl: envCfg.baseUrl, key: envCfg.token });
+    if (!envRefs.has(fp)) envRefs.set(fp, { instanceId: randomUUID(), credentialRef: randomUUID() });
+    return envRefs.get(fp);
+  }
+
+  const originOf = (u) => { try { return new URL(String(u)).origin; } catch { return null; } };
+
+  /**
+   * 이번 호출이 **무엇을 고른 것인가**(§4.6 ModelSelection). 역할 이름은 요청일 뿐이고,
+   * 실제 해석 결과(bound·active·env·stub)를 사실대로 남긴다 — 배경 호출의 증거는 요청
+   * 라벨이 아니라 실제 selection 이다.
+   */
+  function selectionFor(role = DEFAULT_ROLE) {
+    const boundId = roleBindings[role];
+    const bound = boundId ? findConn(boundId) : null;
+    const rec = bound || activeConn();
+    if (rec) {
+      const base = rec.kind === 'chatgpt_oauth' ? CHATGPT_BACKEND_URL : configOf(rec)?.baseUrl;
+      return {
+        requestedRole: role,
+        resolution: bound ? 'bound' : 'active',
+        connectionInstanceId: rec.instanceId ?? null,
+        credentialRef: rec.credentialRef ?? null,
+        providerId: rec.provider,
+        endpointOrigin: originOf(base),
+        requestModelId: rec.modelId ?? null,
+      };
+    }
+    if (envCfg) {
+      const idn = envIdentity();
+      return {
+        requestedRole: role,
+        resolution: 'env',
+        connectionInstanceId: idn.instanceId,
+        credentialRef: idn.credentialRef,
+        providerId: envCfg.provider,
+        endpointOrigin: originOf(envCfg.baseUrl),
+        requestModelId: envCfg.modelId,
+      };
+    }
+    // stub 은 자격이 없다 — 그래서 replay 증거 자격도 없다(§4.4). 여기서 이름을 지어내면
+    // 자격 없는 실행으로 원리가 서게 된다.
+    return {
+      requestedRole: role, resolution: 'stub',
+      connectionInstanceId: null, credentialRef: null,
+      providerId: 'stub', endpointOrigin: null, requestModelId: null,
+    };
+  }
+
   /** 검증 통과분을 목록에 넣고(같은 조합이면 갱신) 기본으로 세운다. */
   async function upsertAndActivate(rec) {
     rec.id = connectionId(rec);
     rec.label = connectionLabel(rec);
     const at = connections.findIndex((c) => c.id === rec.id);
+    // 같은 자리(provider:model)를 덮어써도 **자격·주소가 바뀌었으면 다른 instance** 다.
+    stampIdentity(rec, at >= 0 ? connections[at] : null);
     if (at >= 0) connections[at] = { ...connections[at], ...rec };
     else connections.push(rec);
     clients.delete(rec.id); // 자격이 바뀌었을 수 있다 — 클라이언트 재생성
@@ -229,8 +313,39 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
 
     /** 역할별 ModelClient — 에이전트·자동화가 생기면 role 만 넘기면 된다(커널 변경 없이 확장). */
     modelFor(role) {
-      return { respond: (tc, opts) => clientForRole(role).respond(tc, opts) };
+      return {
+        /**
+         * @param {*} tc
+         * @param {{onCallIdentity?:(idn:object)=>void}} [opts] 성장(replay)은 이걸로 신분을 받는다.
+         */
+        async respond(tc, opts = {}) {
+          if (typeof opts.onCallIdentity !== 'function') return clientForRole(role).respond(tc, opts);
+          // 선택은 **호출 시점**에 읽는다(핫스왑 뒤에도 실제로 쓰인 연결이 남게).
+          const selection = selectionFor(role);
+          const startedAt = Date.now();
+          let 실제 = null;
+          const out = await clientForRole(role)
+            .respond(tc, { ...opts, onCallIdentity: (f) => { 실제 = f; } });
+          // 어댑터가 사실을 내지 않았으면(스텁·스트리밍) 지어내지 않는다 — 빈 신분은
+          // §4.4 검증에서 그대로 떨어진다.
+          opts.onCallIdentity({
+            callId: randomUUID(),
+            selection,
+            actualEndpointOrigin: 실제?.endpointOrigin ?? null,
+            actualRequestModelId: 실제?.requestModelId ?? null,
+            responseModelId: 실제?.responseModelId ?? null,
+            responseIdentitySource: 실제?.responseIdentitySource ?? 'not_reported',
+            usage: 실제?.usage ?? null,
+            startedAt,
+            finishedAt: Date.now(),
+          });
+          return out;
+        },
+      };
     },
+
+    /** 이번 역할이 실제로 무엇을 고르는가(§4.6). 호출 없이 선택 증거만 본다. */
+    selectionFor,
 
     /** 부팅 시 저장된 사용자 연결 복원(프로브 없음 — 부팅 doctor 가 뒤에서 검증·표시). */
     async init() {
@@ -252,6 +367,13 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
           }
           migrated = true;
         }
+      }
+      // §4.6 이관: 신분 없이 저장된 옛 연결에 **1회** 부여한다. 이미 있으면 그대로 둔다 —
+      // 부팅마다 새로 만들면 그건 신분이 아니라 난수다.
+      for (const c of connections) {
+        if (c.instanceId && c.credentialRef && c.credentialFp) continue;
+        stampIdentity(c, null);
+        migrated = true;
       }
       activeId = saved.activeId ?? connections[0]?.id ?? null;
       roleBindings = saved.roleBindings ?? {};
