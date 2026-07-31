@@ -55,9 +55,10 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
+import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
 import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
-import { deriveLanes, carryableLanes, laneFacts } from '../kernel/l5-growth/tcell-lane.js';
+import { deriveLanes, carryableLanes, laneFactEntries } from '../kernel/l5-growth/tcell-lane.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
   makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
@@ -149,7 +150,8 @@ export function makeServer(deps = {}) {
       const all = await store.loadAll();
       // 파일 산출물의 workspace 신분은 **파일 손이 실제로 허용한 루트** 기준으로만 만든다.
       const lanes = deriveLanes(all, { roots: defaultFileRoots(env ?? process.env), includeResponses: true });
-      return laneFacts(carryableLanes(lanes, {
+      // S5-1: 문장과 신분을 함께 만든다. 문장만 만들고 나중에 신분을 다시 찾으면 갈린다.
+      return laneFactEntries(carryableLanes(lanes, {
         principalRef: session.principalRef, sessionId: session.id, now: Date.now(),
       }));
     } catch { return []; } // 승계는 편의다 — 실패해도 대화를 막지 않는다
@@ -371,7 +373,9 @@ export function makeServer(deps = {}) {
       recentTurns: recentTurns(session.transcript ?? []),
       // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). **사실만 나열한다** — 무엇을 이어받을지는
       // 모델이 정한다. 같은 대화는 recentTurns 가 이미 잇고, 다른 사용자 것은 오지 않는다.
-      carryableWork: session.carryableWork ?? [],
+      carryableWork: (session.carryableWork ?? []).map((e) => e.statement ?? e),
+      // S5-1: 같은 것들의 신분(모델·사용자면에 나가지 않는다).
+      carryableWorkEntries: (session.carryableWork ?? []).filter((e) => e?.ref),
       newId: () => randomUUID(), now: () => Date.now(),
     };
   }
@@ -469,6 +473,19 @@ export function makeServer(deps = {}) {
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
     stampTurn(session, turnRef, stampFrom); // 이 턴의 user·assistant·ledger 는 같은 신분이다
+    // S5-1(§4.5): **모델 앞에 실제로 놓인 것**을 그 턴의 신분과 함께 남긴다. 커널이 렌더한
+    // 배열에서 뽑아 온 값을 그대로 저장할 뿐, 여기서 다시 판정하지 않는다.
+    // 기록 실패가 대화를 막지 않는다 — 보임 기록은 통계의 재료지 이번 답의 조건이 아니다.
+    if (result.shownMemoryRefs?.refs?.length) {
+      try {
+        await withMemory(async () => {
+          const m = await memStore.load();
+          if (m.corrupted) return;
+          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef, at: Date.now() });
+          await memStore.save(m);
+        });
+      } catch (e) { console.error('[tcell:shown] 기록 실패 — 대화는 계속됩니다:', e?.message ?? e); }
+    }
     // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;

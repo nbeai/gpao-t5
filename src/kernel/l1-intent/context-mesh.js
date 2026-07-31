@@ -107,10 +107,21 @@ const relevant = (entry, requestText) => {
  * @returns {string[]} 입장된 맥락 statement (사실만)
  */
 export function admittedContext(memory, requestText) {
+  return admittedEntries(memory, requestText).map((e) => e.statement);
+}
+
+/**
+ * 입장한 항목을 **신분과 함께** 준다(S5-1 §4.5).
+ *
+ * `admittedContext` 는 이걸 문장으로 얇게 감싼 것이다 — 두 함수가 따로 판정하면 언젠가
+ * 다른 답을 낸다. 판정은 한 곳에만 둔다. 신분은 OS 안에서만 쓰이고 모델·사용자면에는
+ * 나가지 않는다.
+ */
+export function admittedEntries(memory, requestText) {
   return (memory?.promoted ?? [])
     .filter(isInfluenceEligible)
     .filter((e) => relevant(e, requestText))
-    .map((e) => e.statement);
+    .map((e) => ({ ref: e.candidateId ?? e.principleId ?? null, kind: e.kind, statement: e.statement }));
 }
 
 /**

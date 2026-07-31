@@ -37,7 +37,7 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [] };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
@@ -54,6 +54,8 @@ export class MemoryStore {
         replayOutputs: m.replayOutputs ?? {}, grownBundles: m.grownBundles ?? [],
         // 성장은 여러 tick 에 걸쳐 돈다(§4.10 tick당 ≤2) — 진행 상태와 예산이 저장에 산다.
         growJobs: m.growJobs ?? [], growBudget: m.growBudget ?? null,
+        // S5-1 · 보임 기록. 내부 신분만 있고 사용자면·모델 입력에는 나가지 않는다.
+        shownRefs: m.shownRefs ?? [],
       };
     } catch (e) {
       const quarantine = `${this.file}.corrupt-${Date.now()}`;
@@ -83,6 +85,7 @@ export class MemoryStore {
       replayCases: memory.replayCases ?? [], replayReceipts: memory.replayReceipts ?? [],
       replayOutputs: memory.replayOutputs ?? {}, grownBundles: memory.grownBundles ?? [],
       growJobs: memory.growJobs ?? [], growBudget: memory.growBudget ?? null,
+      shownRefs: memory.shownRefs ?? [],
     }));
     return memory;
   }

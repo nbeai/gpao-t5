@@ -37,6 +37,9 @@ const T_ROUND = 'test/tcell-round-retry.test.js';
 const T_ADMIT = 'test/tcell-admission.test.js';
 const MESH = 'src/kernel/l1-intent/context-mesh.js';
 const SHAPE = 'src/kernel/l0-evidence/text-shape.js';
+const TURN = 'src/kernel/turn.js';
+const SHOWN = 'src/kernel/l5-growth/tcell-shown.js';
+const T_SHOWN = 'test/tcell-shown.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -149,6 +152,19 @@ export const MUTATIONS = [
   { 이름: '적용 신호를 사례 서술문으로(사람 말과 결이 다름)', 파일: GROW, 검사: T_GROW,
     찾기: '    appliesWhen: [...new Set(반복발화)],',
     바꾸기: "    appliesWhen: 검증된.filter((c) => c.kind !== 'negative').flatMap((c) => c.inputFacts ?? [])," },
+
+  // ── S5-1 보임 기록(렌더된 것만) ────────────────────────────────────────
+  { 이름: '렌더 여부를 안 보고 후보 전부를 shown 으로', 파일: SHOWN, 검사: T_SHOWN,
+    찾기: '    .filter((e) => e?.ref && 놓인것.has(e.statement))',
+    바꾸기: '    .filter((e) => e?.ref)' },
+  // (뺀 주입) "관련성과 무관하게 승격 기억 전부를 후보로" — 렌더 대조 가드가 그걸 그대로
+  // 걸러내서 **행동이 바뀌지 않는다.** 안 무는 것이 결함이 아니라 가드가 일한 것이라 뺀다.
+  // 가드 자체는 바로 아래 주입이 지킨다.
+  { 이름: '보임 기록을 턴 신분과 안 묶음', 파일: SERVER, 검사: T_SHOWN,
+    찾기: '          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef, at: Date.now() });',
+    바꾸기: '          m.shownRefs = recordShown(m, { ...result.shownMemoryRefs, turnRef: { sessionId: null, turnSeq: null }, at: Date.now() });' },
+  { 이름: '보임 기록 상한 제거', 파일: SHOWN, 검사: T_SHOWN,
+    찾기: '  return [...남길것, record].slice(-SHOWN_CAP);', 바꾸기: '  return [...남길것, record];' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

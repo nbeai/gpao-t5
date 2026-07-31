@@ -139,11 +139,23 @@ export function carryableLanes(lanes = [], ctx = {}) {
  * 사람이 아는 이름과 언제 무엇을 했는지만 — 어느 것을 이어받을지는 모델이 판단한다.
  */
 export function laneFacts(lanes = []) {
+  return laneFactEntries(lanes).map((e) => e.statement);
+}
+
+/**
+ * 같은 사실을 **신분과 함께** 준다(S5-1 §4.5). `laneFacts` 는 이걸 문장으로 감싼 것이다 —
+ * 문장을 만드는 자리를 둘로 두면 보인 것과 기록한 것이 갈린다.
+ */
+export function laneFactEntries(lanes = []) {
   return lanes.map((l) => {
     const 이름 = [...new Set(l.artifactRefs.map((a) => a.name))].join(' · ');
     const 파일 = l.artifactRefs.some((a) => a.kind === 'file');
     // 제목과 산출물 이름이 같으면 한 번만 말한다(실측: 두 번 반복돼 사실이 지저분했다).
     const 앞 = l.subject && l.subject !== 이름 ? `${l.subject} — ` : '';
-    return 파일 ? `${앞}만든 파일: ${이름}` : `${앞}정리한 답이 남아 있음`;
+    return {
+      ref: l.laneId,
+      kind: 'lane',
+      statement: 파일 ? `${앞}만든 파일: ${이름}` : `${앞}정리한 답이 남아 있음`,
+    };
   });
 }

@@ -17,7 +17,8 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { detectCandidate, admittedContext, isRelevant } from './l1-intent/context-mesh.js';
+import { detectCandidate, admittedEntries, isRelevant } from './l1-intent/context-mesh.js';
+import { shownFromRendered } from './l5-growth/tcell-shown.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
@@ -339,10 +340,20 @@ export async function runTurn(input, ctx) {
   // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
   // 위반이다(감사 보정). broad memory, narrow influence.
   const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
+  // S5-1(§4.5): 신분을 단 채로 만들고, 렌더에는 문장만 쓴다. **같은 배열**이라 보인 것과
+  // 기록한 것이 갈릴 수 없다 — 렌더 뒤에 다시 계산하면 언젠가 다른 답이 나온다.
+  const admittedRich = admittedEntries(ctx.memory ?? {}, input.text ?? '');
   const admitted = [
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
-    ...admittedContext(ctx.memory ?? {}, input.text ?? ''),
+    ...admittedRich.map((e) => e.statement),
   ];
+  // 이 턴에 **실제로 모델 앞에 놓인** 것들의 신분. 현재 목표는 기억이 아니므로 세지 않는다.
+  const shownMemoryRefs = shownFromRendered({
+    turnRef: input.turnRef ?? null,
+    렌더된: [...admitted, ...(ctx.carryableWork ?? [])],
+    후보들: [...admittedRich, ...(ctx.carryableWorkEntries ?? [])],
+    at: ctx.now ?? 0,
+  });
   // H(오너 감사 2026-07-29): **의미 포착은 모델이 한다.** 모델이 memory.propose 로 제출한 후보가
   // 우선이고, 아래 정규식(detectCandidate)은 모델이 도구를 못 고를 때(미연결·도구 미지원)의
   // 보조 신호로 내려간다. 후보는 어느 쪽이든 영향 0 — 반영은 사용자 확인 뒤에만(§5).
@@ -415,6 +426,7 @@ export async function runTurn(input, ctx) {
     return {
       kind: 'reply',
       reply: earlyReply,
+      shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       workingState: idleState,
       contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
@@ -518,6 +530,7 @@ export async function runTurn(input, ctx) {
       return {
         kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
         selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion, memoryWithdrawal,
+        shownMemoryRefs,
       };
     }
   }
@@ -729,6 +742,9 @@ export async function runTurn(input, ctx) {
 
   // 4b) 승인 필요 없음 → 바로 실행.
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
+  // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
+  // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
+  result.shownMemoryRefs = shownMemoryRefs;
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
