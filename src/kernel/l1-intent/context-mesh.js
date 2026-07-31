@@ -127,11 +127,19 @@ export function makeAutoReversible(entryId, statement, evidence) {
  * @param {string[]} pastStatements
  * @returns {boolean} replay 통과 여부
  */
-export function runReplay(entry, pastStatements = []) {
+export function runReplay(entry, pastStatements = [], suiteReport = null) {
   if (entry.kind !== 'operating_principle') return true; // preference는 replay 불요
-  // 명시적 모순(같은 문장의 부정형)이 과거에 있으면 실패. 없으면 통과.
+  // S4(§4.4): 실질 replay 는 **실행 증거가 결합된 suite 판정**이다. 보고서가 있으면 그것이
+  // 진실이고, 문자열 검사로 그것을 덮지 않는다. 보고서가 없으면 통과가 아니다 —
+  // "표본 없음은 통과가 아니다"(계획). 예전의 부정형 검사는 그 아래의 얕은 방어로만 남는다.
+  if (suiteReport) return suiteReport.pass === true;
+  return false;
+}
+
+/** 옛 얕은 검사(부정형 충돌). suite 가 없을 때 사람이 확인 통로로 쓰던 경로에서만 참고한다. */
+export function contradictsPast(entry, pastStatements = []) {
   const negated = `안 ${entry.statement}`;
-  return !pastStatements.some((s) => s.includes(negated));
+  return pastStatements.some((s) => s.includes(negated));
 }
 
 /**
@@ -149,7 +157,14 @@ export function confirmCandidate(memory, candidateId) {
   let replayPassed = entry.kind !== 'operating_principle';
   if (entry.kind === 'operating_principle') {
     const past = [...(memory.promoted ?? []), ...memory.candidates.filter((e) => e !== entry)].map((e) => e.statement);
-    replayPassed = runReplay(entry, past);
+    // 과거와 명시적으로 충돌하면 suite 를 볼 것도 없다.
+    if (contradictsPast(entry, past)) return { ok: false, reason: 'replay_failed' };
+    // S4: 그 원리에 붙은 suite 보고서로만 통과한다. 사람이 확인 버튼을 눌러도 실행 증거 없이는
+    // 원리가 행동에 들어가지 않는다(§4.4 "표본 없음·판정 불가는 통과가 아니다").
+    // 다만 **아직 검증 전**과 **검증에서 떨어짐**은 다른 사실이다 — 사용자에게 같은 말을 하면
+    // "왜 안 되는지"를 알 수 없다.
+    if (!entry.replayReport) return { ok: false, reason: 'replay_pending' };
+    replayPassed = runReplay(entry, past, entry.replayReport);
     if (!replayPassed) return { ok: false, reason: 'replay_failed' };
   }
   const r = promote(entry, { userConfirmed: true, replayPassed });

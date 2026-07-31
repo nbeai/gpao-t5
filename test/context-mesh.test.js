@@ -55,9 +55,11 @@ test('promote 게이트: 승인 없으면 needs_user_confirm, 원리는 replay �
   assert.equal(ok.entry.replayPassed, true);
 });
 
-test('runReplay: 명시적 과거 모순이 없으면 통과, preference는 replay 불요', () => {
+test('runReplay(S4): 실행 증거가 결합된 suite 보고서로만 통과한다', () => {
   const prin = makeCandidate('c8', 'operating_principle', '외부 전송 전 확인');
-  assert.equal(runReplay(prin, []), true);
-  assert.equal(runReplay(prin, ['안 외부 전송 전 확인']), false); // 명시적 모순
-  assert.equal(runReplay(makeCandidate('c9', 'preference', 'z'), ['안 z']), true); // 선호는 항상 통과
+  // 예전 계약은 "명시적 모순이 없으면 통과"였다 — 그건 replay 가 아니라 문자열 검사였다.
+  assert.equal(runReplay(prin, []), false, '보고서 없음은 통과가 아니다(표본 없음)');
+  assert.equal(runReplay(prin, [], { pass: false }), false, 'suite 미통과는 통과가 아니다');
+  assert.equal(runReplay(prin, [], { pass: true }), true, 'suite 통과만 통과다');
+  assert.equal(runReplay(makeCandidate('c9', 'preference', 'z'), ['안 z']), true, '선호는 replay 불요');
 });

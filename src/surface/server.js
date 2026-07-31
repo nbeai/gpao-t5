@@ -907,6 +907,14 @@ export function makeServer(deps = {}) {
           if (!r.ok && r.reason === 'replay_failed') {
             return sendJson(res, 200, { ok: false, reason: 'replay_failed', userSafeReason: '검토에서 과거와 충돌해 적용하지 않았어요.' });
           }
+          // S4: 원칙은 실제 사례로 확인한 뒤에 행동에 들어간다. 아직 확인 전이면 그 사실을
+          // 그대로 말한다 — 조용히 실패하면 사용자는 눌렀는데 아무 일도 안 난 것으로 본다.
+          if (!r.ok && r.reason === 'replay_pending') {
+            return sendJson(res, 200, {
+              ok: false, reason: 'replay_pending',
+              userSafeReason: '이건 원칙이라 지난 대화 사례로 먼저 확인한 뒤에 적용해요. 확인이 끝나면 알려드릴게요.',
+            });
+          }
           if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
           await memStore.save(m); // 상태 저장이 행동의 진실 — 여기서 실패하면 아무 일도 없던 것
           const receiptWritten = await 기억영수증('confirmed', r.entry);

@@ -203,10 +203,14 @@ test('운영원리는 replay 게이트를 통과해야 승격된다', async () =
     const m1 = await getj(base, '/memory');
     assert.equal(m1.candidates[0].kind, 'operating_principle');
     assert.equal(m1.promoted.length, 0, 'confirm 전 승격 없음(영향 0)');
+    // S4(§4.4): 원칙은 **실행 증거가 결합된 replay suite** 를 통과해야 행동에 들어간다.
+    // 사용자가 눌러도 확인 전이면 승격하지 않고, 조용히 실패하는 대신 그 사실을 말한다.
     const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
-    assert.equal(r.ok, true, 'replay 통과 시 승격');
+    assert.equal(r.ok, false, '확인 전에는 승격하지 않는다');
+    assert.equal(r.reason, 'replay_pending');
+    assert.match(r.userSafeReason, /사례로 먼저 확인/, '왜 안 됐는지 사람 말로 말한다');
     const m2 = await getj(base, '/memory');
-    assert.equal(m2.promoted.length, 1);
+    assert.equal(m2.promoted.length, 0, 'replay 전 입장 0');
   });
 });
 
