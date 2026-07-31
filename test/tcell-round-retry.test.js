@@ -135,19 +135,12 @@ test('S4/격리: 앞 회차 실패를 본 round 1 이 더 좁은 원리를 만�
   assert.deepEqual(confirmCandidate(await memStore.load(), 후보0.candidateId), { ok: false, reason: 'replay_failed' });
 
   const job0 = 기억0.growJobs[0];
-  assert.equal(job0.state, 'cooldown');
+  assert.equal(job0.state, 'retry_pending', '불통과는 종단이 아니다 — 다음 회차가 남았다');
   assert.equal(job0.round, 0);
+  assert.equal(job0.nextAttemptAt, 0, '다음 회차를 시계로 늦추지 않는다');
 
-  // **시간 주입은 만료를 앞당기지 않는다.** 만료 **전** 시각을 주면 아무 일도 없어야 한다 —
-  // 이게 없으면 "주입한 시계로 통과시켰다"와 "회차가 열려서 통과했다"가 구분되지 않는다.
-  const 아직 = 회차반응모델();
-  const 이른tick = await growTick({ memStore, modelFor: 아직.modelFor, now: job0.nextAttemptAt - 1 });
-  assert.equal(이른tick.reason, 'idle', '만료 전에는 회차가 열리지 않는다');
-  assert.equal(아직.calls.length, 0, '만료 전에는 모델을 부르지도 않는다');
-
-  // **시간 주입** — 자연 대기 대신 cooldown 만료 시각을 직접 준다.
-  const 만료뒤 = job0.nextAttemptAt + 1;
-  const r1 = await 회차돌리기(memStore, 모델.modelFor, 만료뒤);
+  // 다음 tick 에 그대로 이어서 연다. 시각을 앞당기지 않는다.
+  const r1 = await 회차돌리기(memStore, 모델.modelFor, r0.now);
   const 마지막1 = r1.기록[r1.기록.length - 1];
 
   // ② 앞 회차 실패가 **실제 후보 생성 입력**에 들어갔나.
@@ -274,4 +267,95 @@ test('S4/격리: 승격된 원리만 새 대화 모델 입력에 든다 — lane
     await post(승격됨.base, '/turn', { sessionId: c.id, text: '오늘 점심 뭐 먹을지 하나만 골라줘.' });
     assert.deepEqual(승격됨.받은것.at(-1).admittedContext, [], '무관한 요청에는 원리가 들어가지 않는다');
   } finally { 미승격.server.close(); 승격됨.server.close(); }
+});
+
+// ── 시계가 아니라 횟수 ─────────────────────────────────────────────────────
+//
+// suite 불통과는 일시적 장애가 아니다. 같은 입력이면 같은 결과다 — 시계를 기다린다고
+// 달라질 게 없다. 다음 회차를 늦추는 것은 아무것도 지키지 못하면서 학습만 늦춘다.
+// 페이싱은 이미 예산(tick당 ≤2 · 일일 ≤50)이 하고, 멈추는 것은 회차 **상한**이 한다.
+test('S4: 불통과한 회차는 시계를 기다리지 않고 다음 tick 에 다시 연다', async () => {
+  const memStore = await 격리기억();
+  const 모델 = 회차반응모델();
+  const r0 = await 회차돌리기(memStore, 모델.modelFor, 100_000);
+  assert.equal(r0.기록[r0.기록.length - 1].pass, false);
+
+  const job0 = (await memStore.load()).growJobs[0];
+  assert.equal(job0.round, 0);
+  // **바로 다음 tick** — 시각을 앞당기지 않았는데도 회차가 열려야 한다.
+  const 다음tick = r0.now;
+  const r1 = await growTick({ memStore, modelFor: 모델.modelFor, now: 다음tick });
+  assert.equal(r1.action, 'propose', '불통과 직후 다음 tick 에 다음 회차가 열린다');
+  assert.equal((await memStore.load()).growJobs.some((j) => j.round === 1), true);
+});
+
+test('S4: 멈추는 것은 시간이 아니라 회차 상한이다', async () => {
+  const memStore = await 격리기억();
+  let now = 100_000;
+  // 항상 떨어지는 대본으로 상한까지 곧바로 돌린다 — 사이에 어떤 대기도 없다.
+  for (let i = 0; i < GROW_CAPS.maxRounds; i += 1) {
+    const 늘실패 = 회차반응모델();
+    // 좁혀도 떨어지게: 판정을 무조건 실패로 준다.
+    const modelFor = (role) => ({
+      async respond(tc, opts) {
+        const q = String(tc.currentRequest);
+        if (q.includes('기대 사실:')) { opts?.onCallIdentity?.(신분()); return '{"pass":false,"rationale":"안 지켰다"}'; }
+        return 늘실패.modelFor(role).respond(tc, opts);
+      },
+    });
+    const r = await 회차돌리기(memStore, modelFor, now);
+    now = r.now;
+  }
+  const m = await memStore.load();
+  const 끝난것 = m.growJobs.find((j) => j.state === 'exhausted');
+  assert.ok(끝난것, `회차 ${GROW_CAPS.maxRounds} 를 쓰면 종단이다 — 지금: ${JSON.stringify(m.growJobs.map((j) => `${j.state}/r${j.round}`))}`);
+  assert.equal((m.grownBundles ?? []).includes('b-월별'), true, '종단이면 묶음을 닫는다');
+
+  // 종단은 시간이 지나도 저절로 안 열린다(§4.3).
+  const 나중 = 회차반응모델();
+  assert.equal((await growTick({ memStore, modelFor: 나중.modelFor, now: now + 1_000_000_000 })).reason, 'idle');
+  assert.equal(나중.calls.length, 0);
+});
+
+test('S4: 호출이 실패해도 시계로 물러나지 않는다 — 다음 tick 이 다시 시도하고, 연속 실패 횟수가 회차를 접는다', async () => {
+  const memStore = await 격리기억();
+  const 죽은모델 = () => ({ async respond() { throw new Error('연결 실패'); } });
+  let now = 100_000;
+
+  for (let i = 0; i < GROW_CAPS.maxCallFailures; i += 1) {
+    const r = await growTick({ memStore, modelFor: 죽은모델, now });
+    assert.equal(r.reason, 'call_failed');
+    now += 1_000; // 다음 tick 일 뿐, 앞당긴 시간이 아니다
+  }
+  const job = (await memStore.load()).growJobs[0];
+  assert.notEqual(job.state, 'running', '연속 실패는 그 회차를 접는다');
+  assert.equal((await memStore.load()).grownBundles?.includes('b-월별') ?? false, false, '묶음은 살아 있다');
+});
+
+test('S4: 시계는 빌림에만 남는다(죽은 워커는 시계 말고 알 방법이 없다)', () => {
+  assert.equal(GROW_CAPS.retryCooldownMs, undefined, '회차 간 대기 시간은 없다');
+  assert.equal(GROW_CAPS.callBackoffMs, undefined, '호출 실패 대기 시간도 없다');
+  assert.equal(typeof GROW_CAPS.leaseMs, 'number', '빌림만 시간으로 남는다');
+  assert.equal(typeof GROW_CAPS.maxRounds, 'number');
+  assert.equal(typeof GROW_CAPS.maxCallFailures, 'number');
+});
+
+test('S4: 옛 cooldown 저장본의 대기 시각은 무효다(없어진 메커니즘이 학습을 막지 않는다)', async () => {
+  // 시계로 기다리던 시절의 job 이 **먼 미래** 시각을 들고 저장돼 있다. 그 메커니즘은 이제
+  // 없는데 값만 남아 회차를 막으면, 사라진 규칙이 계속 학습을 늦추는 셈이다.
+  // `nextAttemptAt` 은 이제 **빌림 전용**이다 — 재시도 상태에는 대기가 없다.
+  const memStore = await 격리기억();
+  const m = await memStore.load();
+  m.growJobs = [{
+    jobId: 'j-옛시계', bundleId: 'b-월별', round: 0, state: 'cooldown', attemptId: null,
+    statement: 넓은원리, principleId: 'p-옛', principleVersion: 1, cases: [],
+    failures: 0, nextAttemptAt: Date.now() + 6 * 60 * 60 * 1000, // 옛 6시간 대기
+    lastReason: 'suite_failed:forbidden_fact_occurred', createdAt: 0, updatedAt: 0,
+  }];
+  await memStore.save(m);
+
+  const 모델 = 회차반응모델();
+  const r = await growTick({ memStore, modelFor: 모델.modelFor, now: 100_000 });
+  assert.equal(r.action, 'propose', '옛 대기 시각에 막히지 않고 다음 회차가 열린다');
+  assert.equal((await memStore.load()).growJobs.some((j) => j.round === 1), true);
 });

@@ -101,7 +101,11 @@ export function bundleObservations(observations = []) {
     if (c.members.length < 2) continue; // 한 번은 반복이 아니다
     const ids = c.members.map((o) => o.observationId).sort();
     out.push({
-      bundleId: digest(['bundle', c.kind, ...ids]),
+      // **신분은 씨앗으로 정한다.** 구성원 전체로 만들면 관찰이 하나 붙을 때마다 ID 가 바뀌어,
+      // 그 묶음을 배우던 job 이 고아가 되고 배운 표식도 무의미해진다 — 같은 현상을 처음부터
+      // 다시 배우게 된다(라이브에서 `bundle_gone` 으로 드러났다). 씨앗은 정렬 첫 구성원이라
+      // 재처리해도 같고, 반복이 늘면 `count` 만 늘어난다.
+      bundleId: digest(['bundle', c.kind, c.members[0].observationId]),
       kind: c.kind,
       subject: c.members[0].subject,
       observationIds: ids,

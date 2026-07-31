@@ -277,7 +277,7 @@ test('S4: 금지 사실이 나온 negative 케이스가 있으면 통과가 아�
   assert.equal(admittedContext(memory, 관련요청).length, 0);
 });
 
-test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안)', async () => {
+test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안 — 돌리기 전에 접는다)', async () => {
   const memStore = await 준비();
   const { modelFor } = 대본모델({
     제안본문: 제안({
@@ -289,8 +289,12 @@ test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안)
       ],
     }),
   });
-  await 끝까지({ memStore, modelFor });
-  assert.ok(마지막원리(await memStore.load()).replayReport.missing.includes('positive_sample'));
+  const r = await growTick({ memStore, modelFor, now: 100_000 }); // 첫 tick = 제안
+  assert.match(r.reason ?? '', /proposal_short/);
+  assert.match(r.reason, /positive_sample/);
+  // 채우지 못한 제안으로는 후보를 세우지 않는다 — 그게 "표본 없음은 통과가 아니다"의 실제 모습이다.
+  assert.equal(마지막원리(await memStore.load()) ?? null, null);
+  assert.equal((await memStore.load()).growJobs[0].실패요약.missing.includes('positive_sample'), true);
 });
 
 test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 불가는 통과가 아니다)', async () => {
@@ -305,7 +309,7 @@ test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 �
 });
 
 // ── 감사 지적 3: 실패한 묶음을 영구히 닫지 않는다 ──────────────────────────
-test('S4: suite 불통과는 묶음을 닫지 않는다(쉬었다가 다음 회차를 연다)', async () => {
+test('S4: suite 불통과는 묶음을 닫지 않는다(다음 tick 에 다음 회차를 연다)', async () => {
   const memStore = await 준비();
   const 실패 = 대본모델({ 판정: () => '{"pass":false,"rationale":"안 지켰다"}' });
   const { 기록, now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
@@ -313,17 +317,13 @@ test('S4: suite 불통과는 묶음을 닫지 않는다(쉬었다가 다음 회�
 
   const 중간 = await memStore.load();
   const job = 중간.growJobs[0];
-  assert.equal(job.state, 'cooldown', '실패는 종단이 아니다');
+  assert.equal(job.state, 'retry_pending', '실패는 종단이 아니다');
+  assert.equal(job.nextAttemptAt, 0, '다음 회차를 시계로 늦추지 않는다');
   assert.equal((중간.grownBundles ?? []).includes('b-1'), false, '묶음을 소비하지 않는다');
 
-  // 쉬는 동안에는 부르지 않는다.
-  const 쉬는중 = 대본모델();
-  assert.equal((await growTick({ memStore, modelFor: 쉬는중.modelFor, now: now + 1_000 })).reason, 'idle');
-  assert.equal(쉬는중.calls.length, 0);
-
-  // 쉬는 시간이 지나면 **새 회차**가 열린다 — 같은 묶음에서 다시 배울 기회.
+  // **다음 tick** 에 새 회차가 열린다 — 같은 묶음에서 다시 배울 기회.
   const 다음회차 = 대본모델();
-  const r = await growTick({ memStore, modelFor: 다음회차.modelFor, now: now + GROW_CAPS.retryCooldownMs + 1 });
+  const r = await growTick({ memStore, modelFor: 다음회차.modelFor, now });
   assert.equal(r.action, 'propose');
   assert.equal(다음회차.calls.length, 1);
   assert.equal((await memStore.load()).growJobs.some((j) => j.round === 1), true);
@@ -335,7 +335,7 @@ test('S4: 회차를 다 쓰면 종단이고, 종단은 저절로 되살아나지
   for (let round = 0; round < GROW_CAPS.maxRounds; round += 1) {
     const 실패 = 대본모델({ 판정: () => '{"pass":false,"rationale":"안 지켰다"}' });
     const r = await 끝까지({ memStore, modelFor: 실패.modelFor, 시작: now });
-    now = r.now + GROW_CAPS.retryCooldownMs + 1;
+    now = r.now; // 회차 사이에 어떤 대기도 없다
   }
   const m = await memStore.load();
   const job = m.growJobs.find((j) => j.bundleId === 'b-1' && j.state === 'exhausted');
@@ -344,12 +344,12 @@ test('S4: 회차를 다 쓰면 종단이고, 종단은 저절로 되살아나지
 
   // 아무리 시간이 지나도 저절로 다시 시작하지 않는다(§4.3 terminal 자동 부활 금지).
   const 나중 = 대본모델();
-  const r = await growTick({ memStore, modelFor: 나중.modelFor, now: now + GROW_CAPS.retryCooldownMs * 100 });
+  const r = await growTick({ memStore, modelFor: 나중.modelFor, now: now + 1_000_000_000 });
   assert.equal(r.reason, 'idle');
   assert.equal(나중.calls.length, 0);
 });
 
-test('S4: 호출이 실패하면 물러났다가 다시 오고, 계속 실패하면 그 회차를 접는다', async () => {
+test('S4: 호출이 실패해도 시계로 물러나지 않고, 연속 실패 횟수가 그 회차를 접는다', async () => {
   const memStore = await 준비();
   const 죽은모델 = () => ({ async respond() { throw new Error('연결 실패'); } });
   let now = 100_000;
@@ -358,17 +358,14 @@ test('S4: 호출이 실패하면 물러났다가 다시 오고, 계속 실패하
   assert.equal(첫.reason, 'call_failed');
   let job = (await memStore.load()).growJobs[0];
   assert.equal(job.failures, 1);
-  assert.ok(job.nextAttemptAt > now, '바로 다시 부르지 않는다(backoff)');
-
-  // 물러난 동안에는 아무 것도 안 한다.
-  assert.equal((await growTick({ memStore, modelFor: 죽은모델, now: now + 1_000 })).reason, 'idle');
+  assert.equal(job.nextAttemptAt, 0, 'tick 자체가 간격이다 — 시계로 더 물러나지 않는다');
 
   for (let i = 1; i < GROW_CAPS.maxCallFailures; i += 1) {
-    now = job.nextAttemptAt + 1;
+    now += 1_000; // 다음 tick 일 뿐
     await growTick({ memStore, modelFor: 죽은모델, now });
     job = (await memStore.load()).growJobs[0];
   }
-  assert.equal(job.state, 'cooldown', '연속 실패는 그 회차를 접는다(묶음은 살아 있다)');
+  assert.equal(job.state, 'retry_pending', '연속 실패는 그 회차를 접는다(묶음은 살아 있다)');
   assert.equal(((await memStore.load()).grownBundles ?? []).includes('b-1'), false);
 });
 
@@ -415,12 +412,14 @@ test('S4: 건진 사례가 최소 표본에 못 미치면 통과가 아니다', 
   const 잘림 = '{"statement":"월별 지표는 항목별로 정리한다","cases":['
     + '{"kind":"positive","inputFacts":["7월 수치를 줬다"],"expectedFacts":["항목별로 정리한다"],"forbiddenFacts":["표로 바꾼다"]},'
     + '{"kind":"negative","inputFacts":["표로 달라고 했다"],"expectedFacts":["표로 준다"],"forbiddenFacts":["목록을';
-  const { modelFor } = 대본모델({ 제안본문: 잘림 });
-  await 끝까지({ memStore, modelFor });
-  const 후보 = 마지막원리(await memStore.load());
-  assert.equal(후보.replayReport.pass, false);
-  assert.ok(후보.replayReport.missing.includes('positive_sample'));
-  assert.ok(후보.replayReport.missing.includes('boundary_sample'));
+  const { modelFor, calls } = 대본모델({ 제안본문: 잘림 });
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  // 건진 게 최소 표본에 못 미치면 **사례를 돌리지 않고** 접는다.
+  assert.match(r.reason ?? '', /proposal_short/);
+  assert.equal(calls.length, 1, '제안 한 번에서 멈춘다');
+  const 부족 = (await memStore.load()).growJobs[0].실패요약.missing;
+  assert.ok(부족.includes('positive_sample'));
+  assert.ok(부족.includes('boundary_sample'));
 });
 
 // ── 제품 경로: 전경 비용 0 · tick 안 상호 격리 · 자물쇠 분리 ────────────────
@@ -775,14 +774,14 @@ test('S4: 어떤 끝에서도 빌림이 영구화되지 않는다(성공·실패
     return { memStore, now };
   });
 
-  // ⑤ 불통과 → cooldown. 이건 빌림이 아니라 **회차 대기**다 — 그 사실을 구분해 확인한다.
+  // ⑤ 불통과 → 다음 회차 대기. **이것도 시계가 아니다** — 다음 tick 에 그대로 열린다.
   const memStore = await 준비();
   const { modelFor } = 대본모델({ 판정: () => '{"pass":false,"rationale":"x"}' });
   const { now } = await 끝까지({ memStore, modelFor });
   const job = (await memStore.load()).growJobs[0];
-  assert.equal(job.state, 'cooldown');
-  assert.equal(job.nextAttemptAt - now > GROW_CAPS.leaseMs, true, 'cooldown 은 빌림보다 길다(의도된 대기)');
-  assert.ok(job.nextAttemptAt - now <= GROW_CAPS.retryCooldownMs, '그래도 유한하다');
+  assert.equal(job.state, 'retry_pending');
+  assert.equal(job.nextAttemptAt, 0, '회차 사이에 남는 시계가 없다');
+  assert.ok(빌림풀림(job, now));
 });
 
 test('S4: 예산이 모자라 못 물어본 판정은 다음 tick 이 다시 묻는다(판정 불가로 굳지 않는다)', async () => {
@@ -894,10 +893,10 @@ test('S4: 다음 회차는 앞 회차의 실패를 보고 제안한다(재추첨
   const memStore = await 준비();
   const 실패 = 대본모델({ 판정: (n) => (n === 6 ? '{"pass":false,"rationale":"표를 강요했다"}' : '{"pass":true,"rationale":"ok"}') });
   const { now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
-  assert.equal((await memStore.load()).growJobs[0].state, 'cooldown');
+  assert.equal((await memStore.load()).growJobs[0].state, 'retry_pending');
 
   const 다음 = 대본모델();
-  await growTick({ memStore, modelFor: 다음.modelFor, now: now + GROW_CAPS.retryCooldownMs + 1 });
+  await growTick({ memStore, modelFor: 다음.modelFor, now });
   const 제안요청 = 다음.calls[0].request;
 
   assert.match(제안요청, /앞선 회차/, '앞 회차가 있었다는 사실을 전한다');
@@ -919,7 +918,7 @@ test('S4: 실패 이력은 상한이 있고, 최근 것만 남는다(무한히 �
   // 이미 이력이 상한보다 많이 쌓인 job 을 놓고 다음 회차로 넘긴다.
   const 옛것 = [1, 2, 3, 4].map((i) => ({ statement: `옛 원리 ${i}`, missing: [], reasons: [`사유 ${i}`] }));
   m.growJobs = [{
-    jobId: 'j-옛', bundleId: 'b-1', round: 0, state: 'cooldown', attemptId: null,
+    jobId: 'j-옛', bundleId: 'b-1', round: 0, state: 'cooldown', attemptId: null, // 옛 이름 그대로
     statement: '떨어진 원리', principleId: 'p-옛', principleVersion: 1, cases: [],
     failures: 0, nextAttemptAt: 100_000, lastReason: 'suite_failed',
     priorAttempts: 옛것,
@@ -961,7 +960,7 @@ test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때
   // 2회차: 앞 회차 실패를 보고 **적용 범위를 명시한** 원리를 낸다.
   const 좁은문장 = '월별 수치 정리를 요청하면 짧은 목록으로 한다(사용자가 다른 형식을 지정하면 그 요청을 따른다)';
   const 좁은원리 = 대본모델({ 제안본문: 제안({ statement: 좁은문장 }) });
-  const r2 = await 끝까지({ memStore, modelFor: 좁은원리.modelFor, 시작: now + GROW_CAPS.retryCooldownMs + 1 });
+  const r2 = await 끝까지({ memStore, modelFor: 좁은원리.modelFor, 시작: now });
   assert.equal(r2.기록[r2.기록.length - 1].pass, true, '좁힌 원리는 suite 를 통과한다');
 
   const memory = await memStore.load();
@@ -1032,4 +1031,50 @@ test('S4: 복원할 사실이 없으면 아무 것도 지어내지 않는다', a
   await growTick({ memStore, modelFor, now: 100_001 });
   assert.equal(/앞선 회차/.test(calls[0].request), false, '없는 이력을 만들지 않는다');
   assert.equal((await memStore.load()).growJobs.find((j) => j.round === 1).priorAttempts.length, 0);
+});
+
+test('S4: 묶음이 사라진 job 은 종단이다(회차를 헛되이 태우지 않는다)', async () => {
+  // 라이브에서 실제로 났다: 묶음 신분이 바뀌자 그걸 배우던 job 이 고아가 됐고,
+  // `bundle_gone` 이 **호출 실패**로 세어져 회차만 축났다. 부를 것도 없었는데.
+  const memStore = await 준비();
+  const m = await memStore.load();
+  m.growJobs = [{
+    jobId: 'j-고아', bundleId: 'b-사라짐', round: 0, state: 'proposing', attemptId: null,
+    statement: null, principleId: null, principleVersion: 1, cases: [],
+    failures: 0, nextAttemptAt: 0, lastReason: null, createdAt: 0, updatedAt: 0,
+  }];
+  await memStore.save(m);
+
+  const { modelFor, calls } = 대본모델();
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  assert.equal(r.reason, 'bundle_gone');
+  assert.equal(calls.length, 0, '부를 것이 없으니 모델을 부르지 않는다');
+
+  const job = (await memStore.load()).growJobs.find((j) => j.jobId === 'j-고아');
+  assert.equal(job.state, 'exhausted', '배울 대상이 없어진 job 은 종단이다');
+  assert.equal(job.failures, 0, '호출 실패로 세지 않는다');
+});
+
+test('S4: 최소 표본을 못 채운 제안은 사례를 돌리기 전에 접는다(호출을 헛되이 쓰지 않는다)', async () => {
+  // 라이브 round 1·2 가 이렇게 떨어졌다: 원리는 좁아졌는데 사례가 모자라 `boundary_sample`.
+  // 그런데 그 사실을 **10호출을 다 쓴 뒤에야** 알았다. 제안 단계에서 셀 수 있는 것이다.
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({
+    제안본문: 제안({
+      cases: [
+        { kind: 'positive', inputFacts: ['a'], expectedFacts: ['b'], forbiddenFacts: ['c'] },
+        { kind: 'positive', inputFacts: ['a2'], expectedFacts: ['b'], forbiddenFacts: ['c'] },
+        { kind: 'negative', inputFacts: ['a3'], expectedFacts: ['b'], forbiddenFacts: ['c'] },
+        { kind: 'boundary', inputFacts: ['a4'], expectedFacts: ['b'], forbiddenFacts: ['c'] },
+      ], // boundary 가 1건뿐 — 최소 2건을 못 채운다
+    }),
+  });
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  assert.equal(r.reason, 'proposal_short:boundary_sample');
+  assert.equal(calls.length, 1, '제안 한 번에서 멈춘다 — 사례 실행 0');
+
+  // 다음 회차는 **무엇이 모자랐는지**를 듣는다.
+  const 다음 = 대본모델();
+  await growTick({ memStore, modelFor: 다음.modelFor, now: 101_000 });
+  assert.match(다음.calls[0].request, /boundary_sample/, '모자랐던 표본을 다음 회차에 전한다');
 });

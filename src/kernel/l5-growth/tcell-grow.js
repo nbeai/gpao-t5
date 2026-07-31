@@ -29,14 +29,12 @@ export const GROW_CAPS = Object.freeze({
   minBundleCount: 3,           // 두 번은 반복이지 원리가 아니다
   casesPerPrinciple: 5,
   jobs: 5,                     // 동시에 들고 있는 성장 작업
-  maxRounds: 3,                // 한 묶음에 허용하는 재시도 회차
+  maxRounds: 3,                // 한 묶음에 허용하는 재시도 회차 — **멈추는 건 시간이 아니라 이 횟수다**
   priorAttempts: 2,            // 다음 회차에 들려 보낼 앞선 실패 개수(무한히 쌓지 않는다)
-  retryCooldownMs: 6 * 60 * 60 * 1000,
-  callBackoffMs: 60 * 1000,    // 호출 실패 뒤 물러나는 시간(실패 수에 비례)
-  maxCallFailures: 3,          // 이만큼 연속 실패하면 그 회차는 접는다
-  // 집어 간 job 을 그동안 남이 못 집게 하는 빌림 시간. `attemptId` 는 **덮어쓰기**만 막고
-  // 중복 착수는 못 막는다 — 그러면 두 tick 이 같은 일에 호출을 두 번 쓴다(예산은 하나다).
-  // 모델 상한(계정 경로 150s)보다 넉넉히 잡되, 끊긴 작업이 영원히 잠기지 않게 유한하다.
+  maxCallFailures: 3,          // 이만큼 연속 실패하면 그 회차는 접는다(역시 횟수)
+  // **이 파일에 남은 유일한 시계.** 죽거나 멈춘 워커는 경과 시간 말고는 알 방법이 없다.
+  // 집어 간 job 을 그동안 남이 못 집게 하고, 만료되면 저절로 풀린다. `attemptId` 는
+  // 덮어쓰기만 막고 중복 착수는 못 막는다 — 그래서 이건 횟수로 대체할 수 없다.
   leaseMs: 5 * 60 * 1000,
   candidates: 20,
   receipts: 300,
@@ -109,6 +107,20 @@ export function parseProposal(text) {
     return { statement, cases: 정리 };
   }
   return null;
+}
+
+/**
+ * 이 사례 묶음이 최소 표본을 채우는가 — **사례를 돌리기 전에** 센다.
+ * 못 채운 채로 열 번을 부르면 결과는 어차피 불통과인데 호출만 날린다(라이브 round 1·2 실측).
+ * 무엇이 모자랐는지는 그대로 다음 회차에 들려 보낸다.
+ */
+function 표본부족(cases) {
+  const 센다 = (kind) => cases.filter((c) => c.kind === kind).length;
+  const 부족 = [];
+  if (센다('positive') < SUITE_MINIMUM.positive) 부족.push('positive_sample');
+  if (센다('negative') < SUITE_MINIMUM.negative) 부족.push('negative_sample');
+  if (센다('boundary') < SUITE_MINIMUM.boundary) 부족.push('boundary_sample');
+  return 부족;
 }
 
 /** 성장용 최소 입력 봉투. 도구를 주지 않는다 — 이 호출은 손을 쓰지 않는다. */
@@ -244,9 +256,10 @@ function 원문찾기(sessions, turnRef) {
 // ── job 상태기계 ───────────────────────────────────────────────────────────
 //
 //   proposing ──제안──▶ running ──사례마다 실행·판정──▶ (전부 판정) ──suite──┬─ passed(종단)
-//        ▲                                                                  └─ cooldown
-//        └────────────── 대기 시간이 지나면 다음 회차 ───────────────────────────┘
+//        ▲                                                                  └─ retry_pending
+//        └───────────────── 다음 tick 에 다음 회차 ─────────────────────────────┘
 //   회차를 다 쓰면 exhausted(종단). **종단은 자동으로 되살아나지 않는다**(§4.3).
+//   **어디에도 대기 시간이 없다.** 페이싱은 예산이 하고, 멈추는 것은 회차 상한이다.
 //
 // 왜 회차가 있나: suite 불통과는 "이 묶음에서 배울 게 없다"가 아니라 "이번에 세운 원리로는
 // 증거가 안 섰다"이다. 실패 후보 하나로 묶음을 영구히 닫으면 개선 기회 자체가 사라진다(감사 지적).
@@ -296,12 +309,22 @@ function 실패요약복원(memory, job) {
   return { statement: job.statement, missing, reasons };
 }
 
-/** 지금 손댈 수 있는 job 하나. 없으면 익은 묶음에서 새로 만든다. */
+/** 재시도를 기다리는 상태. `cooldown` 은 시계로 기다리던 시절의 옛 이름이다(저장본 이관). */
+const 재시도대기 = new Set(['retry_pending', 'cooldown']);
+
+/**
+ * 지금 손댈 수 있는 job 하나. 없으면 익은 묶음에서 새로 만든다.
+ *
+ * `nextAttemptAt` 은 **빌림 전용**이다 — 지금 누가 집어 가 있는가만 뜻한다. 재시도 대기
+ * 상태에는 대기가 없다. 옛 저장본은 이 칸에 6시간짜리 대기 시각을 들고 있는데, 그 메커니즘은
+ * 이제 없다. 값만 남아 회차를 막으면 **사라진 규칙이 계속 학습을 늦추는 셈**이라 무효로 본다.
+ */
 function 다음작업(memory, now) {
   const jobs = memory.growJobs ?? [];
-  const 준비된 = jobs.find((j) => !종단.has(j.state) && (j.nextAttemptAt ?? 0) <= now);
+  const 준비된 = jobs.find((j) => !종단.has(j.state)
+    && (재시도대기.has(j.state) || (j.nextAttemptAt ?? 0) <= now));
   if (준비된) {
-    if (준비된.state === 'cooldown') {
+    if (재시도대기.has(준비된.state)) {
       // 다음 회차 — 앞 회차의 원리·사례는 버리고 처음부터 다시 세운다.
       const 요약 = 실패요약복원(memory, 준비된);
       const 다음 = 새job({ bundleId: 준비된.bundleId }, 준비된.round + 1, now,
@@ -345,27 +368,36 @@ function 미룸(job, reason, now) {
   실패기록(job, reason, now);
 }
 
-/** 호출이 안 됐다. 물러났다가 다시 온다 — 그리고 계속 안 되면 이 회차는 접는다. */
+/**
+ * 호출이 안 됐다. **다음 tick 이 다시 시도한다** — 시계로 물러나지 않는다.
+ * tick 자체가 이미 간격이고(기본 60초), 페이싱은 예산이 한다. 계속 안 되면 **횟수**로 접는다.
+ */
 function 실패기록(job, reason, now) {
   job.failures = (job.failures ?? 0) + 1;
   job.lastReason = reason;
-  job.nextAttemptAt = now + GROW_CAPS.callBackoffMs * job.failures;
+  job.nextAttemptAt = 0; // 빌림 해제 — 다음 tick 에 다시 온다
   job.updatedAt = now;
   if (job.failures >= GROW_CAPS.maxCallFailures) 회차종료(job, `call_failed:${reason}`, now);
 }
 
-/** 이 회차는 여기까지. 회차가 남았으면 쉬었다 다시, 다 썼으면 종단이다(자동 부활 없음). */
+/**
+ * 이 회차는 여기까지.
+ *
+ * **다음 회차를 시계로 늦추지 않는다.** suite 불통과는 일시적 장애가 아니라 같은 입력이면
+ * 같은 결과다 — 기다린다고 나아지는 게 없고, 나아지게 하는 것은 앞 회차 실패 이력뿐이며
+ * 그건 지금 손에 있다. 페이싱은 예산(tick당 ≤2 · 일일 ≤50)이 하고, 멈추는 것은 회차 상한이다.
+ * 회차를 다 쓰면 종단이고, 종단은 자동으로 부활하지 않는다(§4.3).
+ */
 function 회차종료(job, reason, now) {
   job.lastReason = reason;
   job.updatedAt = now;
+  job.nextAttemptAt = 0;
   if (job.round + 1 >= GROW_CAPS.maxRounds) {
     job.state = 'exhausted';
-    job.nextAttemptAt = 0;
     return;
   }
-  job.state = 'cooldown';
+  job.state = 'retry_pending';
   job.failures = 0;
-  job.nextAttemptAt = now + GROW_CAPS.retryCooldownMs;
 }
 
 function job정리(jobs = [], job, 교체할것) {
@@ -467,11 +499,15 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
 async function 수행(계획, 성장호출, 원문) {
   const { job, action } = 계획;
   if (action === 'propose') {
-    if (!계획.bundle) return { kind: 'propose', fail: 'bundle_gone' };
+    // 배울 대상이 사라졌다. **부를 것도 없다** — 호출 실패로 세지 않는다.
+    if (!계획.bundle) return { kind: 'propose', 묶음없음: true };
     const r = await 성장호출(제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? []));
     if (!r.ok) return { kind: 'propose', fail: r.reason };
     const 초안 = parseProposal(r.text);
-    return 초안 ? { kind: 'propose', 초안 } : { kind: 'propose', fail: 'proposal_unreadable' };
+    if (!초안) return { kind: 'propose', fail: 'proposal_unreadable' };
+    const 부족 = 표본부족(초안.cases);
+    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement };
+    return { kind: 'propose', 초안 };
   }
   if (action === 'run_case') {
     const c = job.cases.find((x) => x.phase === 'pending');
@@ -504,6 +540,21 @@ async function 수행(계획, 성장호출, 원문) {
 /** 결과를 상태에 반영한다. 모델을 부르지 않는다(자물쇠 안이다). */
 function 반영(m, job, 계획, 나온것, now) {
   if (나온것.kind === 'propose') {
+    if (나온것.묶음없음) {
+      // 묶음이 없어진 job 은 회차를 더 써도 배울 게 없다 — 종단으로 닫는다(자동 부활 없음).
+      job.state = 'exhausted';
+      job.lastReason = 'bundle_gone';
+      job.nextAttemptAt = 0;
+      job.updatedAt = now;
+      return { reason: 'bundle_gone' };
+    }
+    if (나온것.표본부족) {
+      // 사례를 하나도 돌리지 않고 이 회차를 접는다. 무엇이 모자랐는지는 다음 회차가 듣는다.
+      job.statement = 나온것.statement;
+      job.실패요약 = { statement: 나온것.statement, missing: 나온것.표본부족, reasons: ['제안이 최소 표본을 채우지 못했다'] };
+      회차종료(job, `proposal_short:${나온것.표본부족.join(',')}`, now);
+      return { reason: `proposal_short:${나온것.표본부족.join(',')}` };
+    }
     if (나온것.fail) { 미룸(job, 나온것.fail, now); return { reason: 나온것.fail }; }
     const principleId = sha(['principle', job.bundleId, String(job.round), 나온것.초안.statement].join('\0'));
     const sourceRefs = (계획.관찰들 ?? []).map((o) => o.turnRef);

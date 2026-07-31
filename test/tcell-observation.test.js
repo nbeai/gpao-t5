@@ -381,3 +381,37 @@ test('S2/제품: kill switch 로 관찰만 끌 수 있다', async () => {
     assert.equal((await mem.load()).observations.length, 0);
   } finally { server.close(); }
 });
+
+test('S2: 같은 현상에 관찰이 하나 더 붙어도 묶음 신분은 그대로다(학습이 누적된다)', () => {
+  // 라이브가 잡은 결함: 묶음 ID 를 구성원 전체로 만들었더니, 관찰이 하나 붙을 때마다 ID 가
+  // 바뀌어 **그 묶음을 배우던 job 이 고아가 됐다**(`bundle_gone`). 그러면 배운 표식도 무의미해지고
+  // 같은 현상을 처음부터 다시 배운다 — 학습이 쌓이지 않는다.
+  const 문장 = [
+    '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 정리해줘.',
+    '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
+    '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
+  ];
+  const obs = 문장.map((s, i) => makeObservation({ turnRef: ref('s', i + 1), kind: 'request', subject: s }));
+  const [처음] = bundleObservations(obs);
+  assert.equal(처음.count, 3);
+
+  const 더붙음 = [...obs, makeObservation({ turnRef: ref('s', 9), kind: 'request', subject: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' })];
+  const [나중] = bundleObservations(더붙음);
+  assert.equal(나중.bundleId, 처음.bundleId, '구성원이 늘어도 같은 묶음이다');
+  assert.equal(나중.count, 4, '반복 횟수만 늘어난다');
+});
+
+test('S2: 다른 현상은 여전히 다른 묶음이고, 재처리해도 같은 신분이다', () => {
+  const 만들기 = (텍스트, i) => makeObservation({ turnRef: ref('s', i), kind: 'request', subject: 텍스트 });
+  const obs = [
+    만들기('7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 정리해줘.', 1),
+    만들기('8월 것도. 1350 / 900 / 신규 11 / 이탈 5', 2),
+    만들기('회의록 파일 하나 만들어줘', 3),
+    만들기('회의록 파일 또 하나 만들어줘', 4),
+  ];
+  const a = bundleObservations(obs);
+  const b = bundleObservations([...obs].reverse());
+  assert.equal(a.length, 2, '두 현상은 따로 묶인다');
+  assert.notEqual(a[0].bundleId, a[1].bundleId);
+  assert.deepEqual(a.map((x) => x.bundleId).sort(), b.map((x) => x.bundleId).sort(), '재처리해도 같은 신분');
+});
