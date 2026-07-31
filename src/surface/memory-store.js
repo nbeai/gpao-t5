@@ -37,7 +37,7 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {} };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [] };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
@@ -48,6 +48,10 @@ export class MemoryStore {
         // S2 · T-cell 관찰 레인. `admittedContext` 가 읽지 않는다 — 행동 영향 0.
         observations: m.observations ?? [], bundles: m.bundles ?? [],
         observationWatermark: m.observationWatermark ?? {},
+        // S4 · replay 증거 레인. 후보(candidates)는 승격 게이트가 막고, 이 레인은 그 게이트가
+        // 읽는 **실행 사실**이다 — 여기 있는 것만으로는 행동에 영향이 없다.
+        replayCases: m.replayCases ?? [], replayReceipts: m.replayReceipts ?? [],
+        replayOutputs: m.replayOutputs ?? {}, grownBundles: m.grownBundles ?? [],
       };
     } catch (e) {
       const quarantine = `${this.file}.corrupt-${Date.now()}`;
@@ -74,6 +78,8 @@ export class MemoryStore {
       observed: memory.observed ?? [], closed: memory.closed ?? {},
       observations: memory.observations ?? [], bundles: memory.bundles ?? [],
       observationWatermark: memory.observationWatermark ?? {},
+      replayCases: memory.replayCases ?? [], replayReceipts: memory.replayReceipts ?? [],
+      replayOutputs: memory.replayOutputs ?? {}, grownBundles: memory.grownBundles ?? [],
     }));
     return memory;
   }

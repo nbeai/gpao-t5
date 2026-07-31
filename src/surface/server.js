@@ -55,6 +55,7 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
+import { growOnce } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { deriveLanes, carryableLanes, laneFacts } from '../kernel/l5-growth/tcell-lane.js';
 import { TaskTraceStore } from './task-trace-store.js';
@@ -265,6 +266,30 @@ export function makeServer(deps = {}) {
       return { failed: true, isolated: 관찰상태.격리됨 };
     }
   }
+  // S4 · 성장 워커. 관찰과 **또 다른** 오류 경계를 갖는다 — 성장이 죽어도 관찰은 계속 돈다.
+  // 성장은 모델을 부르므로 실패가 더 잦다(자격·요금·형식). 그래서 격리가 더 중요하다.
+  const 성장상태 = { 연속실패: 0, 격리됨: false, 마지막오류: null };
+  async function 성장워커() {
+    if (성장상태.격리됨 || 관찰꺼짐()) return null;
+    try {
+      const r = await withMemory(() => growOnce({
+        memStore, store, // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
+        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.
+        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),
+      }));
+      성장상태.연속실패 = 0;
+      return r;
+    } catch (e) {
+      성장상태.연속실패 += 1;
+      성장상태.마지막오류 = e?.message ?? String(e);
+      if (성장상태.연속실패 >= 3) {
+        성장상태.격리됨 = true;
+        console.error('[tcell:grow] 연속 실패로 성장을 멈춥니다. 대화·관찰·자동화는 그대로 돕니다.');
+      }
+      return { failed: true, isolated: 성장상태.격리됨 };
+    }
+  }
+
   // tick 실행의 단일 경로(트러스트 게이트). trusted_runtime_event만 실행한다(admitTickTrigger).
   // tick 중첩 방지(P6-4): 이전 tick이 아직 도는 중이면 새 tick은 건너뛴다 — load→save 경합·중복 실행 차단.
   let ticking = false;
@@ -278,11 +303,14 @@ export function makeServer(deps = {}) {
       // 자기 오류 경계 안에서 돌고, 실패는 숨기지 않고 결과에 실어 보낸다.
       const 자동화 = await 자동화워커();
       const 관찰 = await 관찰워커();
+      // 성장은 관찰이 만든 묶음을 먹으므로 같은 tick 의 **뒤**에 온다. 실패해도 앞의 둘은 이미 끝났다.
+      const 성장 = await 성장워커();
       return {
         ok: true,
         ran: 자동화.ran ?? [],
         ...(자동화.failed ? { automation: { failed: true, error: 자동화.error } } : {}),
         ...(관찰 ? { observe: 관찰 } : {}),
+        ...(성장 ? { grow: 성장 } : {}),
       };
     } finally {
       ticking = false;
