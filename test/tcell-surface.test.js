@@ -211,15 +211,18 @@ test('S5-5: 기존 확인·거절·되돌리기 경로와 부딪히지 않는다
   } finally { server.close(); }
 });
 
-// 두 표면이 같은 항목을 두고 다르게 말하면, 사용자는 어느 쪽을 믿어야 할지 모른다.
-// 옛 요약(`/overview`)은 상태 칸이 없어 "반영 중"이라고만 말한다 — 내려간 것·치운 것이
-// 거기 남으면 그건 거짓말이다. 상태를 아는 목록에만 두고, 요약에서는 빠진다.
-test('S5-5: 내려간 것·치운 것은 옛 요약에서 "반영 중"으로 보이지 않는다', async () => {
+// 읽는 자리가 여럿이면 언젠가 서로 다른 말을 한다. `/overview` 도 `/memory` 도 상태 칸이
+// 없어 "반영 중"이라고만 말할 수 있으니, 물러난 항목이 거기 남으면 그건 거짓말이다.
+// **모든 읽기 표면이 같은 판정(`물러남`)을 봐야 한다** — 하나라도 따로 재면 갈라진다.
+test('S5-5: 내려간 것·치운 것은 어떤 읽기 표면에서도 "반영 중"이 아니다', async () => {
   const { mem, server, post, get } = await 서버세우기();
   try {
     const 반영중 = async () => {
       const o = await get('/overview');
-      return [...o.preferences.reflected, ...o.memories.reflected].map((x) => x.statement);
+      const mm = await get('/memory');
+      return [
+        ...o.preferences.reflected, ...o.memories.reflected, ...mm.promoted,
+      ].map((x) => x.statement);
     };
     assert.ok((await 반영중()).includes(원리문장), '기본은 반영 중으로 보인다');
 

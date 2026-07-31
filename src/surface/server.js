@@ -1023,8 +1023,11 @@ export function makeServer(deps = {}) {
         const strip = (e) => ({ candidateId: e.candidateId, kind: e.kind, statement: e.statement });
         // S5-4: 내려간 것은 **반영 목록에서 빠지되 사라지지 않는다.** 사용자가 보고 되돌릴 수
         // 있어야 한다 — 안 보이면 왜 안 되는지 알 수 없고, 그건 조용히 죽이는 것과 같다.
+        // S5-5: 빠지는 판정은 입장 게이트와 **같은 것**을 쓴다(`물러남`). 여기 상태 칸이 없어
+        // "반영 중"이라고만 말할 수 있으므로, 치워 둔 것도 함께 빠진다 — 상태와 되돌리기는
+        // 그걸 아는 자리(`/memory/state`)에 있다.
         const 내려감 = decayedEntries(m);
-        const 살아있는 = m.promoted.filter((e) => !Number.isFinite(e.decayedAt));
+        const 살아있는 = m.promoted.filter((e) => !물러남(e));
         return sendJson(res, 200, {
           candidates: m.candidates.map(strip),
           promoted: 살아있는.map(strip),
