@@ -57,9 +57,17 @@ export function makeReplayCase(p) {
   return { ...base, caseInputDigest: caseInputDigestOf(base), runReceiptRef: null, verdict: null };
 }
 
+/** 저장된 replay 산출물의 digest. **출력 원문에서만 나온다** — 고를 수 있는 값이 아니다. */
+export function outputDigestOf(text) {
+  return sha(`out\0${String(text ?? '')}`);
+}
+
 /**
  * 모델 어댑터 경계가 호출 **직후** 남기는 영수증. 전이 함수는 이 객체를 인자로 믿지 않고
  * 저장소에서 다시 조회한다(§4.4) — 그래서 이 함수는 저장 형태를 만들 뿐이다.
+ *
+ * `outputDigest` 는 인자로 받지 않고 **산출물 원문에서 만든다**. 받는 순간 "무엇을 봤는지"와
+ * "무엇을 봤다고 적었는지"가 갈릴 자유도가 생긴다(중간 감사 후속 조건).
  */
 export function makeReplayCallReceipt(p) {
   return {
@@ -70,7 +78,7 @@ export function makeReplayCallReceipt(p) {
     principleVersion: p.principleVersion,
     caseInputDigest: p.caseInputDigest,
     requestDigest: p.requestDigest,
-    outputDigest: p.outputDigest,
+    outputDigest: outputDigestOf(p.outputText),
     modelCallIdentity: p.modelCallIdentity ?? null,
     startedAt: p.startedAt ?? null,
     finishedAt: p.finishedAt ?? null,
@@ -113,7 +121,7 @@ export function verifyCallIdentity(idn) {
  * 계보가 비어 있는 케이스도 남의 정상 영수증을 가리켜 통과할 수 있다 — 계획 §4.4 의
  * "계보 부재" 반대시험이 막는 자리다(S4 중간 감사 P1).
  * @param {object} replayCase
- * @param {{store:{get:Function}, outputDigest:string}} ctx
+ * @param {{store:{get:Function, output:Function}}} ctx  출력 원문도 저장소가 준다
  */
 export function verifyReplayEvidence(replayCase, ctx) {
   const ref = replayCase?.runReceiptRef;
@@ -129,8 +137,11 @@ export function verifyReplayEvidence(replayCase, ctx) {
   // 케이스 신분 ↔ 요청 결합: 그 케이스 입력으로 만들어진 요청이었는가.
   if (stored.caseInputDigest !== replayCase.caseInputDigest) return { ok: false, reason: 'case_input_digest_mismatch' };
   if (stored.requestDigest !== replayCase.caseInputDigest) return { ok: false, reason: 'request_not_bound_to_case' };
-  // 저장된 출력 ↔ 영수증 출력: 다른 호출의 출력을 붙일 수 없다.
-  if (stored.outputDigest !== ctx.outputDigest) return { ok: false, reason: 'output_mismatch' };
+  // 저장된 출력 ↔ 영수증 출력: **저장소가 진실이다.** 호출자가 digest 를 넘겨도 보지 않는다 —
+  // 넘겨받은 값으로 대조하면 "무엇을 판정했는가"를 호출자가 정하게 된다(중간 감사 후속 조건).
+  const 산출물 = ctx?.store?.output?.(ref);
+  if (typeof 산출물 !== 'string') return { ok: false, reason: 'output_not_stored' };
+  if (stored.outputDigest !== outputDigestOf(산출물)) return { ok: false, reason: 'output_mismatch' };
 
   const idn = verifyCallIdentity(stored.modelCallIdentity);
   if (!idn.ok) return { ok: false, reason: idn.reason };
