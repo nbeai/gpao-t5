@@ -96,10 +96,16 @@ export const MUTATIONS = [
   { 이름: '종단이 저절로 되살아남', 파일: GROW, 검사: T_GROW,
     찾기: "const 종단 = new Set(['passed', 'exhausted']);", 바꾸기: "const 종단 = new Set(['passed']);" },
   { 이름: '앞 회차 실패를 다음 회차에 안 넘김(재추첨)', 파일: GROW, 검사: T_GROW,
-    찾기: '        [...(준비된.priorAttempts ?? []), ...(준비된.실패요약 ? [준비된.실패요약] : [])]);',
+    찾기: '        [...(준비된.priorAttempts ?? []), ...(요약 ? [요약] : [])]);',
     바꾸기: '        []);' },
   { 이름: '첫 회차에도 없는 이력을 붙임', 파일: GROW, 검사: T_GROW,
     찾기: '  const 앞선것 = priorAttempts.length ? [', 바꾸기: '  const 앞선것 = true ? [' },
+  { 이름: '옛 job 의 실패 이력을 복원하지 않음(통로가 안 닿음)', 파일: GROW, 검사: T_GROW,
+    찾기: '      const 요약 = 실패요약복원(memory, 준비된);',
+    바꾸기: '      const 요약 = 준비된.실패요약 ?? null;' },
+  { 이름: '복원할 사실이 없어도 껍데기를 만듦', 파일: GROW, 검사: T_GROW,
+    찾기: '  if (!job.statement || !job.principleId) return null;',
+    바꾸기: '  if (!job.statement || !job.principleId) return { statement: job.statement ?? \'(모름)\', missing: [], reasons: [] };' },
 
   // ── §4.3 묶음 · §4.7 lane ───────────────────────────────────────────────
   { 이름: '표현이 달라도 안 묶이게(문턱을 1.0 으로)', 파일: OBSERVE, 검사: T_OBS,

@@ -976,3 +976,60 @@ test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때
   assert.equal(admittedContext(memory, '월별 수치 정리해줘').length, 1, '승격된 원리가 실제로 입장한다');
   assert.equal(memory.promoted.find((e) => e.statement === 좁은문장).replayPassed, true);
 });
+
+// ── 옛 저장본 이관: 실패 이력이 없던 시절의 job ────────────────────────────
+test('S4: 실패요약이 없던 옛 job 도 저장된 사실에서 복원해 다음 회차에 넘긴다', async () => {
+  // 실패 이력 전달이 들어오기 전 코드가 쓴 cooldown job 이 실제 데이터에 남아 있다.
+  // 그대로 두면 다음 회차가 앞 실패를 못 보고 **재추첨**으로 돈다 — 통로가 안 닿는다.
+  const memStore = await 준비();
+  const m = await memStore.load();
+  m.growJobs = [{
+    jobId: 'j-옛코드', bundleId: 'b-1', round: 0, state: 'cooldown', attemptId: null,
+    statement: '여러 달 수치를 주면 표로 정리한다',
+    principleId: 'p-옛', principleVersion: 1, cases: [],
+    failures: 0, nextAttemptAt: 100_000,
+    lastReason: 'suite_failed:positive_failed,forbidden_fact_occurred',
+    createdAt: 0, updatedAt: 0, // 실패요약 없음 — 그 시절엔 이 칸이 없었다
+  }];
+  m.candidates = [{
+    candidateId: 'p-옛', kind: 'operating_principle', statement: '여러 달 수치를 주면 표로 정리한다',
+    principleId: 'p-옛', principleVersion: 1, admitted: false, userConfirmed: false, replayPassed: false,
+    replayReport: { pass: false, missing: ['positive_failed', 'forbidden_fact_occurred'], counted: 4 },
+  }];
+  m.replayCases = [
+    { caseId: 'c-1', principleId: 'p-옛', kind: 'negative', verdict: { pass: false, rationale: '표 대신 문장 요약을 원했는데 표로 냈다' } },
+    { caseId: 'c-2', principleId: 'p-옛', kind: 'positive', verdict: { pass: true, rationale: 'ok' } },
+  ];
+  await memStore.save(m);
+
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_001 });
+
+  const 요청 = calls[0].request;
+  assert.match(요청, /앞선 회차/, '옛 job 도 앞 회차 이야기를 들고 간다');
+  assert.ok(요청.includes('여러 달 수치를 주면 표로 정리한다'), '떨어진 원리를 그대로 전한다');
+  assert.ok(요청.includes('표 대신 문장 요약을 원했는데 표로 냈다'), '실패 사유도 전한다');
+  assert.ok(요청.includes('forbidden_fact_occurred'), '무엇이 부족했는지도 전한다');
+
+  const 새것 = (await memStore.load()).growJobs.find((j) => j.round === 1);
+  assert.equal(새것.priorAttempts.length, 1);
+  assert.equal(새것.priorAttempts[0].statement, '여러 달 수치를 주면 표로 정리한다');
+});
+
+test('S4: 복원할 사실이 없으면 아무 것도 지어내지 않는다', async () => {
+  const memStore = await 준비();
+  const m = await memStore.load();
+  // 원리 문장도 보고서도 사례도 없는 job — 남길 게 없다.
+  m.growJobs = [{
+    jobId: 'j-빈', bundleId: 'b-1', round: 0, state: 'cooldown', attemptId: null,
+    statement: null, principleId: null, principleVersion: 1, cases: [],
+    failures: 0, nextAttemptAt: 100_000, lastReason: 'call_failed:network',
+    createdAt: 0, updatedAt: 0,
+  }];
+  await memStore.save(m);
+
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_001 });
+  assert.equal(/앞선 회차/.test(calls[0].request), false, '없는 이력을 만들지 않는다');
+  assert.equal((await memStore.load()).growJobs.find((j) => j.round === 1).priorAttempts.length, 0);
+});

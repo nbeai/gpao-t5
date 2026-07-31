@@ -31,6 +31,10 @@
     `/memory/confirm` 이 거부했고 반영 0이다.
   - H02 라이브에서 나온 **새 대화 재질문 0 은 S4 원리 승격이 아니라 S3 lane 승계와 모델
     해석 덕분**이다. 이 둘을 같은 칸에 적지 않는다.
+  - **round 1 대기(2026-07-31 15:02 KST 확인)**: 성장 job 2건 모두 `cooldown round 0/3`,
+    실행 가능 시각 **19:41:52 / 19:42:37 KST**(남은 4.7h). 시간을 앞당기지 않는다.
+    두 job 은 실패 이력 전달 이전 코드가 쓴 것이라 `실패요약` 이 비어 있었고, 저장된 사실
+    (원리 문장·`replayReport.missing`·케이스 판정 사유)에서 복원하게 했다 — 없으면 만들지 않는다.
   - 정본 증거: `docs/03-verification/evidence/human-baseline/S4-REPLAY-2026-07-31-ko.md`
 - **작업장 위생 정리(2026-07-31)**: 비교 결과의 판정·요약 문서는 Git에 보존하되,
   `scripts/compare-live/{hm-run-1,oc-run-1,INVALID-*,preflight}` 원시 실행 홈(약 1.8GB,

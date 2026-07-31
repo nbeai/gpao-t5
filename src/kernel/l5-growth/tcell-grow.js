@@ -274,6 +274,28 @@ function 새job(bundle, round, now, priorAttempts = []) {
   };
 }
 
+/**
+ * 이 job 이 왜 떨어졌는지. **저장된 사실에서만** 만든다 — 없으면 null 이고, 없는 걸 지어내지 않는다.
+ *
+ * 실패 이력 전달이 들어오기 전 코드가 쓴 cooldown job 에는 `실패요약` 칸이 아예 없다. 그대로
+ * 두면 그 job 의 다음 회차는 앞 실패를 못 보고 재추첨으로 돈다 — 통로를 만들어 놓고 정작
+ * 실제 job 에는 안 닿는다. 필요한 사실(원리 문장·부족 항목·실패 사유)은 후보와 케이스에
+ * 이미 남아 있으므로 거기서 복원한다.
+ */
+function 실패요약복원(memory, job) {
+  if (job.실패요약) return job.실패요약;
+  if (!job.statement || !job.principleId) return null;
+  const 후보 = (memory.candidates ?? []).find((c) => c.principleId === job.principleId);
+  const missing = 후보?.replayReport?.missing
+    ?? String(job.lastReason ?? '').replace(/^suite_failed:/, '').split(',').filter(Boolean);
+  const reasons = (memory.replayCases ?? [])
+    .filter((c) => c.principleId === job.principleId && c.verdict && c.verdict.pass === false)
+    .map((c) => `${c.kind}: ${String(c.verdict.rationale ?? '').slice(0, 120)}`)
+    .slice(0, 3);
+  if (!missing.length && !reasons.length) return null; // 남길 사실이 없다
+  return { statement: job.statement, missing, reasons };
+}
+
 /** 지금 손댈 수 있는 job 하나. 없으면 익은 묶음에서 새로 만든다. */
 function 다음작업(memory, now) {
   const jobs = memory.growJobs ?? [];
@@ -281,8 +303,9 @@ function 다음작업(memory, now) {
   if (준비된) {
     if (준비된.state === 'cooldown') {
       // 다음 회차 — 앞 회차의 원리·사례는 버리고 처음부터 다시 세운다.
+      const 요약 = 실패요약복원(memory, 준비된);
       const 다음 = 새job({ bundleId: 준비된.bundleId }, 준비된.round + 1, now,
-        [...(준비된.priorAttempts ?? []), ...(준비된.실패요약 ? [준비된.실패요약] : [])]);
+        [...(준비된.priorAttempts ?? []), ...(요약 ? [요약] : [])]);
       다음.jobId = sha(['job', 준비된.bundleId, String(준비된.round + 1)]);
       return { job: 다음, 교체할것: 준비된.jobId };
     }
