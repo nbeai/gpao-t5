@@ -55,7 +55,7 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
-import { growOnce } from '../kernel/l5-growth/tcell-grow.js';
+import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { deriveLanes, carryableLanes, laneFacts } from '../kernel/l5-growth/tcell-lane.js';
 import { TaskTraceStore } from './task-trace-store.js';
@@ -272,11 +272,14 @@ export function makeServer(deps = {}) {
   async function 성장워커() {
     if (성장상태.격리됨 || 관찰꺼짐()) return null;
     try {
-      const r = await withMemory(() => growOnce({
-        memStore, store, // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
+      // **`withMemory` 로 감싸지 않는다**(계획 §4.8). 성장 워커가 자물쇠를 직접 들고 고르기·반영에만
+      // 잠깐 쓴다 — 모델을 기다리는 동안 사용자의 기억 저장이 멈추면 안 된다.
+      const r = await growTick({
+        memStore, store, withMemory,
+        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
         // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.
         modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),
-      }));
+      });
       성장상태.연속실패 = 0;
       return r;
     } catch (e) {
