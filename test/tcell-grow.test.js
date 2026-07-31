@@ -66,7 +66,7 @@ function 대본모델({ 제안본문 = 제안(), 판정 = () => '{"pass":true,"r
   const modelFor = (role) => ({
     async respond(tc, opts = {}) {
       const n = calls.length;
-      calls.push({ role, request: tc.currentRequest, tools: opts.tools ?? null });
+      calls.push({ role, request: tc.currentRequest, tools: opts.tools ?? null, maxTokens: opts.maxTokens ?? null });
       opts.onCallIdentity?.(신분값(n));
       if (n === 0) return 제안본문;
       // 홀수 = replay 실행, 짝수 = 판정(제안 1건을 뺀 뒤 두 칸씩)
@@ -1055,6 +1055,46 @@ test('S4: 묶음이 사라진 job 은 종단이다(회차를 헛되이 태우지
   const job = (await memStore.load()).growJobs.find((j) => j.jobId === 'j-고아');
   assert.equal(job.state, 'exhausted', '배울 대상이 없어진 job 은 종단이다');
   assert.equal(job.failures, 0, '호출 실패로 세지 않는다');
+});
+
+test('S4·H02: 상한 안에서 최소 표본을 먼저 채운다 — 여분 사례가 필요한 표본을 밀어내지 않는다', () => {
+  // 같은 계열의 두 번째 표면: `slice(0, 5)` 는 앞에서부터 자른다. 모델이 여분 positive 나
+  // authority 를 앞에 놓으면 **뒤에 온 boundary 가 필요 없는 사례에 밀려** 사라진다 —
+  // 모델은 표본을 냈는데 파서가 버리는 자리다. 기준은 그대로: 상한(5)도 최소 표본도 안 바꾼다.
+  const 사례 = (kind, i) => ({ kind, inputFacts: [`상황${i}`], expectedFacts: ['e'], forbiddenFacts: ['f'] });
+  const 남는양보 = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [사례('positive', 1), 사례('positive', 2), 사례('positive', 3), 사례('negative', 4), 사례('boundary', 5), 사례('boundary', 6)],
+  }));
+  const 종류 = (r) => r.cases.reduce((m, c) => ({ ...m, [c.kind]: (m[c.kind] ?? 0) + 1 }), {});
+  assert.deepEqual(종류(남는양보), { positive: 2, negative: 1, boundary: 2 }, '여분 positive 가 boundary 를 밀어냈다');
+  assert.equal(남는양보.cases.length, GROW_CAPS.casesPerPrinciple, '상한은 그대로다');
+
+  const 권한섞임 = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [사례('authority', 1), 사례('positive', 2), 사례('positive', 3), 사례('negative', 4), 사례('boundary', 5), 사례('boundary', 6)],
+  }));
+  assert.deepEqual(종류(권한섞임), { positive: 2, negative: 1, boundary: 2 },
+    '필수 표본보다 authority 여분이 먼저 자리를 차지해 boundary 를 밀어냈다');
+});
+
+test('S4·H02: 제안 호출은 제안 계약(5사례)을 담을 출력 예산으로 나간다 — 절단이 표본을 없애지 않게', async () => {
+  // 라이브 H02 종단(`proposal_short:boundary_sample`)의 원인 실측(2026-08-01): 같은 번들·
+  // 같은 실패 이력·같은 gpt-5.1 에서 제품 기본 상한 1024 는 **3/3 절단**(건진 것 2P/1N/1B →
+  // boundary_sample), 4096 은 **3/3 완결**(2P/1N/2B·부족 0). 모델은 표본을 낼 수 있다 —
+  // 출력 상한이 마지막 사례를 자르고, 생성 순서상 boundary 가 마지막이라 boundary_sample 로
+  // 특이하게 떨어진다. 실패 이력 반영으로 원리 문장이 회차마다 길어져 절단 위험은 커진다.
+  // 기준(SUITE_MINIMUM·maxRounds)은 그대로 두고 **공급**을 고친다: 제안 호출만 자기 계약을
+  // 담을 예산을 말한다. 사례 실행·판정 호출은 기존 기본 그대로다.
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await 끝까지({ memStore, modelFor });
+  const 제안호출 = calls[0];
+  assert.equal(제안호출.maxTokens, GROW_CAPS.proposalMaxTokens, '제안 호출이 자기 예산을 말하지 않는다');
+  assert.ok(GROW_CAPS.proposalMaxTokens >= 4096, '실측상 4096 미만은 같은 절단이 재발한다');
+  for (const c of calls.slice(1)) {
+    assert.equal(c.maxTokens, null, '사례 실행·판정 호출은 기본 예산 그대로다(조용한 확대 금지)');
+  }
 });
 
 test('S4: 최소 표본을 못 채운 제안은 사례를 돌리기 전에 접는다(호출을 헛되이 쓰지 않는다)', async () => {

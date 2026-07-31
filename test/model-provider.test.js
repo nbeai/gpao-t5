@@ -83,6 +83,30 @@ test('anthropic 와이어: /v1/messages + x-api-key + system/messages, text 블�
   assert.ok(body.messages[0].content.includes('내일 회의 준비 도와줘'));
 });
 
+test('opts.maxTokens: 계약이 큰 호출은 자기 출력 예산을 넓힐 수 있다(H02 절단 원인)', async () => {
+  // H02 실측(2026-08-01): 성장 제안 호출이 기본 상한 1024 에서 **3/3 절단**돼 마지막 boundary
+  // 사례가 잘렸고(`proposal_short:boundary_sample`), 4096 에서는 3/3 완결·표본부족 0 이었다.
+  // 모델이 못 낸 게 아니라 제품이 계약(5사례)을 담을 공간을 안 준 것이다 — 호출 하나가
+  // 자기 예산을 말할 수 있어야 한다. provider 별 토큰 필드는 각자의 형식을 유지한다.
+  for (const [env, field] of [
+    [{ OPENAI_API_KEY: 'sk-o' }, 'max_completion_tokens'],
+    [{ OPENAI_OAUTH_ACCESS_TOKEN: 'oauth-t' }, 'max_tokens'],
+    [{ ANTHROPIC_API_KEY: 'sk-a' }, 'max_tokens'],
+  ]) {
+    const { impl, calls } = fakeFetch(200, {
+      choices: [{ message: { content: 'ok' } }],
+      content: [{ type: 'text', text: 'ok' }],
+    });
+    const cfg = resolveModelConfig(env);
+    await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC, { maxTokens: 4096 });
+    const body = JSON.parse(calls[0].init.body);
+    assert.equal(body[field], 4096, `${cfg.provider}: opts.maxTokens 가 요청 예산에 실려야 한다`);
+    // 옵션이 없으면 기존 그대로다 — 기본 상한을 조용히 올리지 않는다.
+    await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC);
+    assert.equal(JSON.parse(calls[1].init.body)[field], cfg.maxTokens, `${cfg.provider}: 기본은 그대로`);
+  }
+});
+
 test('openai 와이어: /chat/completions + Bearer, choices 추출', async () => {
   const { impl, calls } = fakeFetch(200, { choices: [{ message: { content: '네, 준비할게요' } }] });
   const cfg = resolveModelConfig({ OPENAI_API_KEY: 'sk-o' });

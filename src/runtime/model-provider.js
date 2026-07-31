@@ -595,8 +595,8 @@ export function actualCallFacts({ url, bodyText, json, spec }) {
   };
 }
 
-export function makeProviderModelClient(cfg, deps = {}) {
-  const spec = MODEL_PROVIDERS[cfg.provider];
+export function makeProviderModelClient(baseCfg, deps = {}) {
+  const spec = MODEL_PROVIDERS[baseCfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
   return {
@@ -608,6 +608,11 @@ export function makeProviderModelClient(cfg, deps = {}) {
      *   조각을 쓰지 않으므로 이 경로로만 온다).
      */
     async respond(tc, opts = {}) {
+      // H02 절단 원인: 계약이 큰 호출(성장 제안 = statement + 5사례 JSON)이 기본 상한(1024)에서
+      // 잘려 마지막 표본이 사라졌다. 호출 하나가 자기 출력 예산을 말할 수 있다 — 기본은 그대로다.
+      const cfg = Number.isFinite(opts.maxTokens) && opts.maxTokens > 0
+        ? { ...baseCfg, maxTokens: opts.maxTokens }
+        : baseCfg;
       const messages = buildModelMessages(tc);
       // 스트리밍 가능한 와이어면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로 단발.
       // 계열 ④: 도구를 준 턴도 **tool_call 조각 파서를 선언한 와이어(OpenAI 계열)** 는 스트리밍한다

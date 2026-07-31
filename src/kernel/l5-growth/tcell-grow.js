@@ -32,6 +32,12 @@ export const GROW_CAPS = Object.freeze({
   maxRounds: 3,                // 한 묶음에 허용하는 재시도 회차 — **멈추는 건 시간이 아니라 이 횟수다**
   priorAttempts: 2,            // 다음 회차에 들려 보낼 앞선 실패 개수(무한히 쌓지 않는다)
   maxCallFailures: 3,          // 이만큼 연속 실패하면 그 회차는 접는다(역시 횟수)
+  // H02 원인 종결(2026-08-01): 제안 호출의 출력 예산. 기본 상한(1024)은 제안 계약
+  // (statement + 5사례 JSON)을 물리적으로 못 담아 마지막 boundary 사례가 절단됐다 —
+  // 같은 번들·같은 이력·같은 gpt-5.1 실측에서 1024 는 3/3 절단(boundary_sample),
+  // 4096 은 3/3 완결(2P/1N/2B·부족 0). 표본 기준을 낮추는 게 아니라 담을 공간을 준다.
+  // 사례 실행·판정 호출은 기본 그대로다(조용한 확대 금지).
+  proposalMaxTokens: 4096,
   // **이 파일에 남은 유일한 시계.** 죽거나 멈춘 워커는 경과 시간 말고는 알 방법이 없다.
   // 집어 간 job 을 그동안 남이 못 집게 하고, 만료되면 저절로 풀린다. `attemptId` 는
   // 덮어쓰기만 막고 중복 착수는 못 막는다 — 그래서 이건 횟수로 대체할 수 없다.
@@ -101,10 +107,23 @@ export function parseProposal(text) {
         inputFacts: c.inputFacts.map(String),
         expectedFacts: (c.expectedFacts ?? []).map(String),
         forbiddenFacts: (c.forbiddenFacts ?? []).map(String),
-      }))
-      .slice(0, GROW_CAPS.casesPerPrinciple);
-    if (!정리.length) continue;
-    return { statement, cases: 정리 };
+      }));
+    // 상한 안에서 **최소 표본을 먼저 채운다**(H02 계열). 앞에서부터 자르면(slice) 모델이 낸
+    // 여분 positive·authority 가 뒤에 온 boundary 를 밀어내 — 모델은 표본을 냈는데 파서가
+    // 버린다. 상한도 최소 기준도 그대로다: 채우는 순서만 필수 표본이 먼저다.
+    const 필수몫 = { positive: SUITE_MINIMUM.positive, negative: SUITE_MINIMUM.negative, boundary: SUITE_MINIMUM.boundary };
+    const 뽑힌 = new Set();
+    const 담기 = [];
+    for (const c of 정리) {
+      if (담기.length >= GROW_CAPS.casesPerPrinciple) break;
+      if ((필수몫[c.kind] ?? 0) > 0) { 필수몫[c.kind] -= 1; 뽑힌.add(c); 담기.push(c); }
+    }
+    for (const c of 정리) {
+      if (담기.length >= GROW_CAPS.casesPerPrinciple) break;
+      if (!뽑힌.has(c)) 담기.push(c);
+    }
+    if (!담기.length) continue;
+    return { statement, cases: 담기 };
   }
   return null;
 }
@@ -455,13 +474,13 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
   // ② 부르기 — **자물쇠 밖.** 여기서 모델이 아무리 오래 걸려도 전경 기억 작업은 그대로 돈다.
   const 한도 = 계획.예약; // 잡아 둔 만큼만 쓴다
   let calls = 0;
-  async function 성장호출(request) {
+  async function 성장호출(request, 호출옵션 = {}) {
     if (calls >= 한도) return { ok: false, reason: 'tick_cap' };
     calls += 1;
     let idn = null;
     let text;
     try {
-      text = await client.respond(봉투(request), { onCallIdentity: (i) => { idn = i; } });
+      text = await client.respond(봉투(request), { ...호출옵션, onCallIdentity: (i) => { idn = i; } });
     } catch (e) {
       return { ok: false, reason: 'call_failed', error: e?.message ?? String(e) };
     }
@@ -501,7 +520,11 @@ async function 수행(계획, 성장호출, 원문) {
   if (action === 'propose') {
     // 배울 대상이 사라졌다. **부를 것도 없다** — 호출 실패로 세지 않는다.
     if (!계획.bundle) return { kind: 'propose', 묶음없음: true };
-    const r = await 성장호출(제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? []));
+    // 제안은 계약(5사례)이 큰 유일한 호출이다 — 자기 예산을 말한다(H02 절단 원인 종결).
+    const r = await 성장호출(
+      제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? []),
+      { maxTokens: GROW_CAPS.proposalMaxTokens },
+    );
     if (!r.ok) return { kind: 'propose', fail: r.reason };
     const 초안 = parseProposal(r.text);
     if (!초안) return { kind: 'propose', fail: 'proposal_unreadable' };

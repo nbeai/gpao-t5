@@ -57,6 +57,7 @@ const T_REVMEM = 'test/reversible-memory.test.js';
 const TURNJS = 'src/kernel/turn.js';
 const T_STREAM = 'test/answer-streaming.test.js';
 const PROVIDER = 'src/runtime/model-provider.js';
+const T_PROVIDER = 'test/model-provider.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -304,6 +305,17 @@ export const MUTATIONS = [
   { 이름: '서버 후처리 꼬리를 미리보기로 안 흘림(지속된 답이 화면보다 김)', 파일: SERVER, 검사: T_STREAM,
     찾기: '              if (미리보기누적 && 지속된답 !== 미리보기누적 && 지속된답.startsWith(미리보기누적)) {\n                onAnswerDelta(지속된답.slice(미리보기누적.length));\n              }',
     바꾸기: '' },
+
+  // ── H02 제안 절단 — 표본 기준은 그대로, 공급(출력 예산)을 고쳤다 ─────────
+  { 이름: '제안 호출이 자기 예산을 말하지 않음(1024 절단 → boundary_sample 재발)', 파일: GROW, 검사: T_GROW,
+    찾기: '      { maxTokens: GROW_CAPS.proposalMaxTokens },',
+    바꾸기: '      {},' },
+  { 이름: '필수 표본 우선 선택을 앞자르기로 되돌림(여분이 boundary 를 밀어냄)', 파일: GROW, 검사: T_GROW,
+    찾기: '      if ((필수몫[c.kind] ?? 0) > 0) { 필수몫[c.kind] -= 1; 뽑힌.add(c); 담기.push(c); }',
+    바꾸기: '      if (true) { 뽑힌.add(c); 담기.push(c); }' },
+  { 이름: 'opts.maxTokens 를 조용히 무시(호출별 예산 계약 무력화)', 파일: PROVIDER, 검사: T_PROVIDER,
+    찾기: '      const cfg = Number.isFinite(opts.maxTokens) && opts.maxTokens > 0\n        ? { ...baseCfg, maxTokens: opts.maxTokens }\n        : baseCfg;',
+    바꾸기: '      const cfg = baseCfg;' },
 
   // ── H 진단 계열 ② 현재 턴 예외가 영구 기억이 되지 않는다 ────────────────
   { 이름: '범위를 안 보고 자동 반영(이번만이 영구 선호가 됨)', 파일: SERVER, 검사: T_REVMEM,
