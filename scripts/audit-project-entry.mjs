@@ -55,11 +55,20 @@ for (const phrase of [
   'T-cell 구현은 전면 롤백',
   'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
   'IMPLEMENTATION_CONTRACT_FROZEN',
-  'TCELL_H_REMEDIATION',
   '최소 안전 제약, 최대 자동화',
   '/Users/jyp/Developer/t5-p-op',
 ]) {
   if (!handoff.includes(phrase)) fail(`현재 인수인계 핵심 사실 누락: ${phrase}`);
+}
+// 상태 토큰은 **가변값이다 — 여기 하드코딩하지 않는다.** 단계가 전진하면 하드코딩된 게이트가
+// 낡아 참 진행을 막는다(실측: `TCELL_H_REMEDIATION` 고정이 `TCELL_H_SEAL_1` 전진을 FAIL 로
+// 판정했다 — 12533ac 의 fixture 누락과 같은 계열). 진실은 H 진행표가 들고, 인수인계는 그
+// 토큰을 그대로 담아야 한다(§0-A·§4·§9·§10 상호 일치는 audit:docs 가 본다).
+const hBoard = read('docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md');
+const boardToken = /상태: `([A-Z0-9_]+)/.exec(hBoard)?.[1];
+if (!boardToken) fail('H 진행표에 상태 토큰이 없음');
+else if (!handoff.includes(boardToken)) {
+  fail(`인수인계가 H 진행표의 현재 상태 토큰(${boardToken})을 담지 않음`);
 }
 
 const agents = read('AGENTS.md');
