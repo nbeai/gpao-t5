@@ -145,3 +145,26 @@ test('평범한 중첩 구조는 계속 저장 가능하다(과잉 차단 0)', a
   const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
   assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'web.collect', args: { request: '뉴스', options: { limit: 5, tags: ['경제', '기술'] } } } }), true);
 });
+
+// ── R2b 3차(S 공정감시 지적 2026-08-02) · 라벨-키 아래 컨테이너와 Map/Set ──
+// 계약은 `args?: *` 다. 2차는 키 이름 규칙에 `typeof v === 'string'` 을 걸어, 라벨 아래에
+// 컨테이너가 오면(`{password:{v:'hunter2'}}`) 재귀가 **라벨을 잃은 맨 값**만 텍스트 경계에
+// 넘겨 통과했다. Map/Set 은 Object.entries 가 비어 순회조차 안 됐다. 둘 다 정의역 안이다.
+test('민감 키 아래에 컨테이너가 와도 막는다(라벨이 값에서 떨어지지 않는다)', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  const 후보 = (args) => ({ statement: '매주 정리', action: { tool: 'x', args } });
+  assert.equal(자동화후보저장가능(후보({ password: { v: 'hunter2machine' } })), false, '라벨 아래 object 가 통과했다');
+  assert.equal(자동화후보저장가능(후보({ token: ['hunter2machine'] })), false, '라벨 아래 배열이 통과했다');
+  assert.equal(자동화후보저장가능(후보({ auth: { basic: { pw: 'hunter2machine' } } })), false, '두 겹 아래가 통과했다');
+  // 라벨 아래가 비어 있으면 지킬 값이 없다 — 과잉 차단하지 않는다.
+  assert.equal(자동화후보저장가능(후보({ auth: {} })), true);
+  assert.equal(자동화후보저장가능(후보({ token: [] })), true);
+});
+
+test('Map·Set 컨테이너 안의 민감값도 막는다', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  const 후보 = (args) => ({ statement: '매주 정리', action: { tool: 'x', args } });
+  assert.equal(자동화후보저장가능(후보({ m: new Map([['password', 'hunter2machine']]) })), false, 'Map 이 순회되지 않았다');
+  assert.equal(자동화후보저장가능(후보({ s: new Set(['sk-abcdef1234567890abcdef']) })), false, 'Set 이 순회되지 않았다');
+  assert.equal(자동화후보저장가능(후보({ m: new Map([['limit', 5]]) })), true, '평범한 Map 까지 막았다');
+});

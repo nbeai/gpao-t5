@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isSendTool } from '../contracts.js';
+import { AUTHORITY_KINDS, isAuthorityKind } from '../l2-plan/authority.js';
+import { toolActionKind } from '../l2-plan/action-plan.js';
 
 export const AUTOMATION_SCHEMA_VERSION = 2;
 
@@ -98,6 +100,10 @@ export function validateAuthorityEnvelope(envelope) {
     ['authority ceiling must be A0, A1, or A2', A.includes(e.ceiling)],
     ['A3 unattended authority is forbidden', e.ceiling !== 'A3'],
     ['allowedKinds must be a string array', stringArray(e.allowedKinds)],
+    // W2·R1: 행동 종류 어휘만 받는다. 도구 id 가 이 칸에 들어가면 부모⊇자식 비교가
+    // 의미 없는 문자열 비교가 된다 — 도구 신분은 allowedTools 다.
+    ['allowedKinds must use authority kinds', !stringArray(e.allowedKinds) || e.allowedKinds.every(isAuthorityKind)],
+    ['allowedTools must be a string array', e.allowedTools === undefined || stringArray(e.allowedTools)],
     ['allowedTargets must be a string array', stringArray(e.allowedTargets)],
     ['workspaceRoots must be a string array', stringArray(e.workspaceRoots)],
     ['expiresAt must be finite or null', e.expiresAt === null || finite(e.expiresAt)],
@@ -406,7 +412,7 @@ export function reviewJobSkillBinding(job, skill, now) {
   return { ...moved, changed: true, reason: 'skill_binding_changed' };
 }
 
-function skillHashSource(skill) {
+export function skillHashSource(skill) {
   return {
     name: skill.name,
     purpose: skill.purpose,
@@ -456,6 +462,12 @@ export function rollbackSkillDefinition(skill, now) {
     rolledBackFrom: { version: skill.version, contentHash: skill.contentHash },
   };
   return { ok: true, record: assertValid(validateSkillDefinition, restored, 'skill rollback') };
+}
+
+/** 레거시 action → 행동 종류. selfState 없이도 descriptor 맵·파일/프로세스/명령 규칙이 답한다. */
+function 종류로(action) {
+  const kind = toolActionKind({ toolId: action?.tool, args: action?.args });
+  return isAuthorityKind(kind) ? [kind] : [];
 }
 
 function legacySkillState(state) {
@@ -512,12 +524,29 @@ export function projectSkillDefinitionV1(skill) {
   };
 }
 
-export function mergeSkillDefinitionV1(view, now = 0) {
+/**
+ * v1 뷰 → v2 레코드. **`base` 는 지금 디스크에 있는 레코드다.**
+ *
+ * Codex 중간 감사(2026-08-02): 예전엔 뷰가 들고 있던 `__v2Definition`(로드 시점 스냅샷)을
+ * 통째로 되썼다. 그래서 T0 로드 → T1 다른 저장선의 갱신 → T2 저장이 T1 을 지웠다(lost update).
+ * 한 프로세스 안에서도 난다 — 자동화 워커와 라우트가 같은 저장소를 번갈아 쓴다.
+ *
+ * 규칙: **v1 은 자기가 소유한 칸만 쓴다**(state·legacy 블록). 나머지는 현재 레코드가 진실이다.
+ * 스냅샷은 디스크에 그 레코드가 없을 때(새로 만드는 경우)만 바탕이 된다.
+ */
+export function mergeSkillDefinitionV1(view, now = 0, base = null) {
   if (!view?.__v2Definition) return migrateSkillDefinitionV1(view, now);
-  const { __v2Definition, ...legacy } = view;
+  const { __v2Definition: 스냅샷, ...legacy } = view;
+  const __v2Definition = base ?? 스냅샷;
+  // W2·R4 · **v1 투영은 읽기용이다.** v1 어휘(6종)는 v2 아홉 상태를 다 표현하지 못해서
+  // (stale·retired·quarantined 가 replay_required·rejected 로 뭉개진다), 왕복만 해도 상태가
+  // 조용히 낮아졌다 — 그리고 저장은 배열 전체를 다시 쓰므로 무관한 스킬까지 낮아졌다.
+  // 규칙: v1 이 **실제로 상태를 바꿨을 때만** 그 결정을 받는다. 안 바꿨으면 아는 층(v2)이 이긴다.
+  // 상태 결정은 **v1 이 본 것**(스냅샷)과 비교한다 — 그래야 "v1 이 바꿨나"가 참말이 된다.
+  const v1이바꿨나 = legacy.state !== v2SkillState(스냅샷.state);
   const merged = {
     ...__v2Definition,
-    state: legacySkillState(legacy.state),
+    state: v1이바꿨나 ? legacySkillState(legacy.state) : __v2Definition.state,
     updatedAt: finite(legacy.updatedAt) ? legacy.updatedAt : now,
     legacyV1: structuredClone(legacy),
   };
@@ -592,7 +621,10 @@ export function migrateAutomationJobV1(legacy, now = 0, opts = {}) {
     inputTemplate: object(action.args) ? structuredClone(action.args) : {},
     authorityEnvelope: {
       ceiling: external ? 'A2' : 'A1',
-      allowedKinds: string(action.tool) ? [action.tool] : [],
+      // W2·R1: 행동 종류는 **제품 전체와 같은 판정 함수**로 뽑는다(승인·자동화·tick 한 답).
+      // 도구 id 를 여기 넣던 옛 판이 두 어휘를 한 칸에 섞었다.
+      allowedKinds: string(action.tool) ? 종류로(action) : [],
+      allowedTools: string(action.tool) ? [action.tool] : [],
       allowedTargets: string(target) ? [String(target)] : [],
       workspaceRoots: [],
       expiresAt,
@@ -631,24 +663,32 @@ export function projectAutomationJobV1(job) {
     lastRunId: job.lastRunId,
     executions: Array.isArray(legacy.executions) ? legacy.executions : [],
     action: legacy.action ?? {
-      tool: job.authorityEnvelope?.allowedKinds?.[0] ?? null,
+      tool: job.authorityEnvelope?.allowedTools?.[0] ?? null,
       args: job.inputTemplate ?? {},
     },
     __v2Job: job,
   };
 }
 
-export function mergeAutomationJobV1(view, now = 0) {
+/** v1 뷰 → v2 job. `base` 는 지금 디스크의 레코드(위 mergeSkillDefinitionV1 과 같은 계약). */
+export function mergeAutomationJobV1(view, now = 0, base = null) {
   if (!view?.__v2Job) return migrateAutomationJobV1(view, now);
-  const { __v2Job, ...legacy } = view;
-  const state = AUTOMATION_JOB_STATES.includes(legacy.state)
-    ? legacy.state
-    : legacyJobState(legacy.state);
+  const { __v2Job: 스냅샷, ...legacy } = view;
+  const __v2Job = base ?? 스냅샷;
+  // skills 와 같은 계약: **v1 이 자기가 본 값에서 실제로 바꾼 칸만** 받는다. 안 바꾼 칸은
+  // 현재 레코드가 이긴다 — 안 그러면 오래된 뷰가 그 사이의 갱신을 덮는다(동시 저장 실측).
+  const 본상태 = AUTOMATION_JOB_STATES.includes(스냅샷.state) ? 스냅샷.state : legacyJobState(스냅샷.state);
+  const 뷰상태 = AUTOMATION_JOB_STATES.includes(legacy.state) ? legacy.state : legacyJobState(legacy.state);
+  const state = 뷰상태 === 본상태 ? __v2Job.state : 뷰상태;
+  const nextRunAt = (finite(legacy.nextRunAt) && legacy.nextRunAt !== 스냅샷.nextRunAt)
+    ? legacy.nextRunAt : __v2Job.nextRunAt;
+  const lastRunId = (legacy.lastRunId !== undefined && legacy.lastRunId !== 스냅샷.lastRunId)
+    ? legacy.lastRunId : __v2Job.lastRunId;
   const merged = {
     ...__v2Job,
     state,
-    nextRunAt: finite(legacy.nextRunAt) ? legacy.nextRunAt : __v2Job.nextRunAt,
-    lastRunId: legacy.lastRunId ?? __v2Job.lastRunId,
+    nextRunAt,
+    lastRunId,
     updatedAt: finite(legacy.updatedAt) ? legacy.updatedAt : now,
     legacyV1: structuredClone(legacy),
   };
@@ -708,8 +748,29 @@ export function migrateSkillsStateV1(raw, now = 0) {
   };
 }
 
+/**
+ * W2·R1 복구 · 이미 v2 로 저장된 레코드가 **옛 어휘**(allowedKinds 에 도구 id)를 갖고 있으면
+ * 격리하지 않고 제자리로 옮긴다. 검증만 조이면 멀쩡한 사용자 자동화가 통째로 격리된다 —
+ * 계약을 조일 때는 이미 디스크에 있는 것을 어떻게 할지가 계약의 일부다.
+ */
+function 어휘복구(job) {
+  const env = job?.authorityEnvelope;
+  if (!object(env) || !Array.isArray(env.allowedKinds)) return job;
+  const 옛어휘 = env.allowedKinds.filter((k) => !isAuthorityKind(k));
+  if (옛어휘.length === 0) return job;
+  const 종류 = env.allowedKinds.filter(isAuthorityKind);
+  const 도구 = [...new Set([...(Array.isArray(env.allowedTools) ? env.allowedTools : []), ...옛어휘])];
+  // 종류를 잃었으면 legacy action 에서 다시 뽑는다(지어내지 않는다 — 못 뽑으면 빈 채로 둔다).
+  const 되찾은 = 종류.length ? 종류 : 종류로(job?.legacyV1?.action ?? { tool: 도구[0] });
+  return { ...job, authorityEnvelope: { ...env, allowedKinds: 되찾은, allowedTools: 도구 } };
+}
+
 export function migrateAutomationStateV1(raw, now = 0, opts = {}) {
-  if (raw?.schemaVersion === AUTOMATION_SCHEMA_VERSION) return raw;
+  if (raw?.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+    const jobs = (raw.jobs ?? []).map(어휘복구);
+    const 바뀜 = jobs.some((job, i) => job !== (raw.jobs ?? [])[i]);
+    return 바뀜 ? { ...raw, jobs } : raw;
+  }
   return {
     schemaVersion: AUTOMATION_SCHEMA_VERSION,
     candidates: structuredClone(raw?.candidates ?? []),

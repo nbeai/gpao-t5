@@ -65,3 +65,15 @@ export function assertStateRecords(records, validator, label) {
     if (!checked.ok) throw new Error(`${label} invalid: ${checked.errors.join('; ')}`);
   }
 }
+
+// **파일 하나에 대한 읽기-병합-쓰기를 직렬화한다.** 병합만으로는 경쟁이 안 닫힌다 —
+// 두 저장이 각자 현재를 읽고 각자 쓰면 나중 것이 앞 것을 지운다(오너 지적 2026-08-02).
+// 같은 원리가 automation-run-ledger 에도 있다. 여기 한 자리로 모아 두 저장선이 같이 쓴다.
+const 파일큐 = new Map();
+
+export function serializeByFile(file, task) {
+  const 앞 = 파일큐.get(file) ?? Promise.resolve();
+  const 지금 = 앞.catch(() => {}).then(task);
+  파일큐.set(file, 지금);
+  return 지금.finally(() => { if (파일큐.get(file) === 지금) 파일큐.delete(file); });
+}

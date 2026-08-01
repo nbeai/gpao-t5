@@ -33,7 +33,10 @@ const now = 100;
 
 const envelope = (patch = {}) => ({
   ceiling: 'A1',
-  allowedKinds: ['local.file'],
+  // W2·R1: 이 fixture 는 원래 도구 id 를 행동 종류 칸에 넣고 있었다 — 계약이 고친 바로 그
+  // 혼용이다. 종류는 authority 어휘로, 도구 신분은 allowedTools 로 나눠 적는다.
+  allowedKinds: ['read'],
+  allowedTools: ['local.file'],
   allowedTargets: [],
   workspaceRoots: ['/tmp/work'],
   expiresAt: null,

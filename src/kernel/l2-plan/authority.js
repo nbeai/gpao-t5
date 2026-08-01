@@ -20,9 +20,30 @@ export const SAFETY_FLOOR_KINDS = Object.freeze([
   'grant_permission', 'access_secret', 'connect_account',
 ]);
 
+// 저위험 어휘의 원천. `AUTO_SAFE_KINDS`(자동 진행 판정)와 `AUTHORITY_KINDS`(어휘 전체)가
+// **같은 목록에서 파생**된다 — 두 곳에 손으로 적으면 언젠가 갈린다.
+const LOW_RISK_ALWAYS = Object.freeze(['read', 'summarize', 'search', 'draft']);
+const LOW_RISK_REVERSIBLE = Object.freeze(['organize', 'title', 'archive']);
+
 /** 이 행동이 안전 바닥인가(항상 승인). */
 export function isSafetyFloor(kind) {
   return SAFETY_FLOOR_KINDS.includes(kind);
+}
+
+/**
+ * **행동 종류 어휘의 단일 진실**(W2·R1). 자동화 envelope 의 `allowedKinds` 도 이 목록만 받는다 —
+ * 예전엔 검증이 "문자열 배열"뿐이라 migration 이 거기에 **도구 id** 를 넣었고(`['local.file']`),
+ * 같은 칸을 한쪽은 행동 종류로 다른 쪽은 도구로 읽었다. 그러면 부모⊇자식 비교(authorityWithin)가
+ * 의미 없는 문자열 비교가 된다. 도구 신분은 `allowedTools` 로 따로 선다.
+ * `UNKNOWN_KIND` 는 판정 결과일 뿐 **승인 범위로 저장할 값이 아니다** — 여기 넣지 않는다.
+ */
+export const AUTHORITY_KINDS = Object.freeze([
+  ...LOW_RISK_ALWAYS, ...LOW_RISK_REVERSIBLE, ...SAFETY_FLOOR_KINDS,
+]);
+
+/** 이 문자열이 행동 종류 어휘인가(도구 id·자유 문자열 배제). */
+export function isAuthorityKind(kind) {
+  return AUTHORITY_KINDS.includes(kind);
 }
 
 /**
@@ -78,8 +99,8 @@ function tierOfKind(kind) {
 // 자동 진행 저위험 allowlist — **명시된 것만** 자연 진행한다. 모르는 kind는 여기에 없으므로 자동 진행 안 함.
 //   tier가 낮게 나와도(회귀·오분류) 이 allowlist가 독립적으로 auto를 막는다(안전 바닥과 같은 방어적 이중화).
 export const AUTO_SAFE_KINDS = Object.freeze({
-  always: ['read', 'summarize', 'search', 'draft'],   // A0 — 모든 모드 자연 진행(읽기·요약·검색·초안)
-  reversibleLocal: ['organize', 'title', 'archive'],  // A1 — manual/smart 진행, strict는 확인
+  always: LOW_RISK_ALWAYS,          // A0 — 모든 모드 자연 진행(읽기·요약·검색·초안)
+  reversibleLocal: LOW_RISK_REVERSIBLE, // A1 — manual/smart 진행, strict는 확인
 });
 
 /**

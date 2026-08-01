@@ -10,6 +10,7 @@ import {
   validateAutomationJob,
 } from '../kernel/l5-growth/automation-contracts.js';
 import {
+  serializeByFile,
   atomicWritePrivate,
   assertStateRecords,
   loadVersionedJson,
@@ -42,15 +43,39 @@ export class AutomationStore {
     }
   }
 
+  /** 지금 디스크의 v2 job(id → record). 없으면 빈 지도. */
+  async #현재잡() {
+    try {
+      const a = JSON.parse(await readFile(this.file, 'utf8'));
+      if (a?.schemaVersion !== AUTOMATION_SCHEMA_VERSION) return new Map();
+      return new Map((a.jobs ?? []).filter((j) => j?.id).map((j) => [j.id, j]));
+    } catch { return new Map(); }
+  }
+
   async save(a) {
     if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
+      // skill-store 와 같은 계약: 읽기-병합-쓰기를 파일 단위로 직렬화한다.
+      return serializeByFile(this.file, () => this.#병합저장(a));
+    }
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(this.file, JSON.stringify({ candidates: a.candidates ?? [], jobs: a.jobs ?? [] }), 'utf8');
+    return a;
+  }
+
+  async #병합저장(a) {
+    {
       const now = Date.now();
       const hasNewLegacyJob = (a.jobs ?? []).some((job) => !job?.__v2Job);
-      const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, now));
+      // skill-store 와 같은 계약: 오래된 뷰가 최신 갱신을 덮지 않는다(Codex 감사 2026-08-02).
+      // v1 이 소유한 칸(state·nextRunAt·lastRunId·실행 이력)만 현재 레코드 위에 얹는다.
+      const 현재 = await this.#현재잡();
+      const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, now, 현재.get(job?.id) ?? null));
+      const 본뷰 = new Set(jobs.map((j) => j.id));
+      const 남은것 = [...현재.entries()].filter(([id]) => !본뷰.has(id)).map(([, rec]) => rec);
       await atomicWritePrivate(this.file, {
         schemaVersion: AUTOMATION_SCHEMA_VERSION,
         candidates: a.candidates ?? [],
-        jobs,
+        jobs: [...jobs, ...남은것],
       });
       if (hasNewLegacyJob) {
         const { migrateAutomationWorkspaceV1 } = await import('./automation-workspace-migration.js');
@@ -64,9 +89,6 @@ export class AutomationStore {
       }
       return a;
     }
-    await mkdir(this.dir, { recursive: true });
-    await writeFile(this.file, JSON.stringify({ candidates: a.candidates ?? [], jobs: a.jobs ?? [] }), 'utf8');
-    return a;
   }
 }
 

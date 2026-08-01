@@ -13,6 +13,51 @@ import { toolSchemasFor } from './tool-schema.js';
 
 // 통제 호출 선언 — 실행 손이 아니므로 ToolDescriptor 가 아니라 여기 산다.
 export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
+  // ── W2 사전 배선 · Automation 통제 3슬롯 ──────────────────────────────
+  // 왜 본선이 미리 뚫는가: AC-2·AC-3·AC-4 세 작업선이 같은 배열과 같은 분리 경계를 동시에
+  // 고치면 그 자리가 최대 충돌면이 된다(AC1-RECHECK §4). 슬롯을 미리 두면 작업선은 자기
+  // 파일만 만진다. **소비자가 붙기 전에는 모델에게 보이지 않는다**(아래 준비된통제) —
+  // 보이면 모델이 "스킬로 등록했어요" 같은 못 지킬 약속을 한다(memory.propose 와 같은 계약).
+  name: 'skill.propose',
+  description: '사용자가 "이걸 다음에도 이렇게 해줘"처럼 반복할 작업 방식을 맡기면 이걸로 적는다.'
+    + ' 적지 않았다면 "다음부터 그렇게 할게요" 같은 약속을 하지 않는다.'
+    + ' 이건 실행이 아니다 — 사용자 확인과 실제 replay 를 거쳐야 쓰인다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: '사람이 부를 이름' },
+      purpose: { type: 'string', description: '이 작업이 무엇을 이루는가' },
+      steps: { type: 'array', items: { type: 'string' }, description: '작업 원리와 확인 지점. 강제 대본이 아니다 — 현재 지시와 실제 환경이 늘 우선한다.' },
+    },
+    required: ['name', 'purpose'],
+  },
+}, {
+  name: 'automation.propose',
+  description: '사용자가 "매주 금요일에", "매일 아침" 처럼 **시점**을 정해 반복을 맡기면 이걸로 적는다.'
+    + ' 실행이 아니다 — 승인 전에는 아무 일도 예약되지 않는다.'
+    + ' 외부로 나가는 일(전송·공개·결제)은 매 실행마다 사용자 확인이 남는다는 사실을 함께 말한다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      statement: { type: 'string', description: '무엇을 언제 반복하는지 사람 말로' },
+      kind: { type: 'string', enum: ['once', 'interval', 'daily', 'weekly'], description: '반복의 종류' },
+    },
+    required: ['statement'],
+  },
+}, {
+  name: 'agent.propose',
+  description: '사용자가 "이 폴더만 보는 분석 담당을 만들어줘" 처럼 **역할**을 맡기면 이걸로 적는다.'
+    + ' 실행이 아니고 권한도 아니다 — 실행 때마다 현재 권한과 교집합으로 다시 제한된다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: '사람이 부를 이름' },
+      purpose: { type: 'string', description: '이 역할이 맡는 일' },
+      workspaceScope: { type: 'array', items: { type: 'string' }, description: '다룰 자리(사용자가 말한 범위)' },
+    },
+    required: ['name', 'purpose'],
+  },
+}, {
   name: 'memory.propose',
   description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 적는다.'
     + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
@@ -132,9 +177,15 @@ const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation',
  * (model-provider: 도구를 준 턴은 단발) 도구 호출 자체를 처리하지 않는 경로라, 통제 스키마만
  * 얹으면 조각 스트림이 꺼지고 제안은 어차피 소비되지 않는다.
  */
+// 소비자가 실제로 붙은 통제 채널만 모델에게 보인다. 선언은 배열 하나(두 진실 금지)이고,
+// **노출은 소비 배선이 끝난 뒤 본선이 연다** — 선언과 노출을 같은 순간에 묶으면, 아직 아무도
+// 받지 않는 제안을 모델이 하고 사용자에게는 된 것처럼 들린다.
+const 준비된통제 = new Set(['memory.propose', 'memory.cite', 'memory.correction', 'memory.withdraw']);
+
 export function modelSchemasFor(selfState) {
   const hands = toolSchemasFor(selfState);
-  return hands.length ? [...hands, ...MODEL_CONTROL_SCHEMAS] : hands;
+  const controls = MODEL_CONTROL_SCHEMAS.filter((sch) => 준비된통제.has(sch.name));
+  return hands.length ? [...hands, ...controls] : hands;
 }
 
 /**
@@ -147,6 +198,11 @@ export function modelSchemasFor(selfState) {
  */
 export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
+  // W2 사전 배선: 세 슬롯의 반환 자리. 지금은 걷어내기만 하고(실행 경로로 안 샌다) 소비는
+  // 각 작업선이 자기 파일에서 붙인다 — 이 파일을 다시 열지 않게 하는 것이 사전 배선의 목적이다.
+  let skillProposal = null;
+  let automationProposal = null;
+  let agentProposal = null;
   let memorySuggestion = null;
   let memoryWithdrawal = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
@@ -155,6 +211,9 @@ export function splitModelControlCalls(toolCalls = []) {
   let memoryCorrection = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
+    if (c.name === 'skill.propose') { skillProposal = c.args ?? null; continue; }
+    if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
+    if (c.name === 'agent.propose') { agentProposal = c.args ?? null; continue; }
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
@@ -190,5 +249,5 @@ export function splitModelControlCalls(toolCalls = []) {
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, rest };
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, rest };
 }

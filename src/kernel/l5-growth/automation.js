@@ -53,20 +53,38 @@ const 인자순회최대깊이 = 32;
 // 때문이다. 파일 손의 SECRET_NAMES 와 같은 원리로 **구조의 이름**을 본다(임의 낱말 추측 아님).
 const 민감키 = /^(password|passwd|pass|pw|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|authorization|auth|credential|credentials|비밀번호|암호|인증키)$/i;
 
+/** 이 가지 안에 **비어 있지 않은 값**이 하나라도 있는가(라벨 아래 지킬 것이 실재하는가). */
+function 값이있나(value, depth, seen) {
+  if (typeof value === 'string') return value.trim().length >= 4;
+  if (typeof value === 'number' || typeof value === 'bigint') return true;
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value) || depth > 인자순회최대깊이) return false;
+  seen.add(value);
+  return 자식들(value).some((v) => 값이있나(v, depth + 1, seen));
+}
+
+/** 컨테이너의 자식 값들. object·배열만 보면 Map·Set 이 통째로 순회에서 빠진다. */
+function 자식들(value) {
+  if (Array.isArray(value)) return value;
+  if (value instanceof Map) return [...value.keys(), ...value.values()];
+  if (value instanceof Set) return [...value];
+  return Object.values(value);
+}
+
 function 인자에민감값(value, depth, seen) {
   if (typeof value === 'string') return containsSensitiveValue(value);
   if (value === null || typeof value !== 'object') return false;
   if (seen.has(value)) return false;      // 순환 — 이미 본 가지다
   if (depth > 인자순회최대깊이) return true; // 못 본 깊이를 안전하다고 말하지 않는다
   seen.add(value);
-  if (Array.isArray(value)) {
-    return value.some((v) => 인자에민감값(v, depth + 1, seen));
+  // 키가 라벨인 구조는 **라벨과 값이 떨어지지 않게** 본다. 값이 컨테이너여도 마찬가지다 —
+  // 아래로 내려가면 라벨을 잃은 맨 값이 되어 텍스트 경계가 못 잡는다(S 공정감시 실측).
+  const 엔트리 = value instanceof Map ? [...value.entries()]
+    : (Array.isArray(value) || value instanceof Set) ? [] : Object.entries(value);
+  for (const [k, v] of 엔트리) {
+    if (민감키.test(String(k)) && 값이있나(v, depth + 1, new WeakSet())) return true;
   }
-  for (const [k, v] of Object.entries(value)) {
-    if (민감키.test(String(k)) && typeof v === 'string' && v.trim().length >= 4) return true;
-    if (인자에민감값(v, depth + 1, seen)) return true;
-  }
-  return false;
+  return 자식들(value).some((v) => 인자에민감값(v, depth + 1, seen));
 }
 
 export function 자동화후보저장가능(candidate) {

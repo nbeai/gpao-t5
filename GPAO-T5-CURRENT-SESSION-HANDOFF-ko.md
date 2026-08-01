@@ -844,12 +844,18 @@ W1 순서: 배치 1 실제 종결 확인 → AC-1 재대조(재사용/재구현/
 ```text
 D-W1 | AC-2/3/4 delta·소유권 조사 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 전체 | 재사용/재구현/폐기 표 + 소유권 표 초안 제출 | **완료·채택** — AC-1 v2 소비자 0(런타임은 v1선), ac2 재사용 6·부분 폐기 2·폐기 5, 위험 11건(R1~R11). 채택 결과 정본: evidence/automation-core/ac-1/AC1-RECHECK-2026-08-01-ko.md
 S-W1 | 공정감시(W1 착수 검토) | 없음(읽기 전용) | 없음 | 미션 §9 + 현재 계획 | 계속/조정/중단 권고 제출 | **완료·조정 권고 반영** — §3 기준선 실측 갱신·진행표 §6 소급 1행·본선 소유 파일 명시·봉인 커밋 구간(fcb6f48..a7f839e) 독립 감사를 W1 패키지에 포함
-본선 | AC-1 대조·AgentRun 계약 동결·통합 | claude/p-op-1-a-system-view | server.js·turn.js·tool-runner.js·live-context.js·공통 descriptor·authority·migration·contracts.js·정본 문서 | — | 배치 2 기준선 커밋 | R2b 종결(민감 후보 게이트+반대시험+돌연변이 154)·AgentRun 계약 9항 동결·소유권 표 동결 — AC1-RECHECK 정본
+본선 | AC-1 대조·AgentRun 계약 동결·통합 | claude/p-op-1-a-system-view | server.js·turn.js·tool-runner.js·live-context.js·공통 descriptor·authority·migration·contracts.js·정본 문서 | — | 배치 2 기준선 커밋 | R2b 자체검증 완료(감사 재확인 대기 — 3판·반대시험 9·돌연변이 154~157)·AgentRun 계약 9항 동결·소유권 표 동결 — AC1-RECHECK 정본
 ```
 
-**W2 서두 본선 직렬 선행(병렬 개방 전, AC1-RECHECK §5)**: ① v1/v2 이중 저장 절단(R4·R5)
-② R1 allowedKinds 어휘 확정(automation-contracts 본선 재봉인) ③ model-control 통제 3슬롯
-사전 배선 → 그 뒤 A(AC-2)·B(AC-3)·B′(AC-4) 병렬 개방.
+**W2 서두 본선 직렬 선행(병렬 개방 전, AC1-RECHECK §5)**: ① **v1/v2 절단은 미완** —
+런타임(`server.js`)은 여전히 v1 호환층을 쓴다. 이번에 한 것은 절단이 아니라 **stale overwrite·
+동시 저장 경쟁 차단**이다(오너·Codex 지적으로 이름 정정). 절단은 AC-2·AC-3 종료 조건으로 이월.
+② R1 allowedKinds 어휘 확정 ③ model-control 통제 3슬롯 사전 배선 — ①은 부분 이행, ②③은
+자체검증 완료. **전부 감사 대기이며 W2 병렬 개방 여부는 감사가 정한다.** 상세 AC1-RECHECK §5-A. 다음: A(AC-2)·B(AC-3)·B′(AC-4) 병렬 개방.
+
+**W1 보완 수치 착지(S 지적 ⑤)**: R2b 3판 종료 시점 회귀 **1693** → W2 직렬 3항 반영 후
+**1708** · 돌연변이 **164종** · plan/docs/workspace PASS. 각 수치는 그 시점 HEAD 에서 본선이
+직접 실행한 값이다.
 
 ### 작업선 원장 (병렬 배치 1 · 2026-08-01 — 완료)
 
