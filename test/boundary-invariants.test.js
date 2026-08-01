@@ -59,7 +59,8 @@ test('불변식: 읽기·목록 외의 모든 파일 작업은 승인을 받는�
   for (const action of FILE_ACTIONS) {
     const kind = toolActionKind({ toolId: 'local.file', args: { action }, selfState });
     const auto = decideAutoGrant({ kind }, 'smart');
-    if (action === 'read' || action === 'list') assert.equal(auto, true, `${action} 은 자연스럽게 진행돼야 한다`);
+    // versions 는 읽기 전용 최종본 판별(H08) — read 등급이 계약이다.
+    if (action === 'read' || action === 'list' || action === 'versions') assert.equal(auto, true, `${action} 은 자연스럽게 진행돼야 한다`);
     else assert.equal(auto, false, `${action} 이 승인 없이 실행된다`);
   }
 });

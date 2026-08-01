@@ -42,7 +42,7 @@ test('실행할 수 없는 도구는 모델에게 보여주지 않는다(되는 
 test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려면 알아야 한다)', () => {
   const file = toolSchemasFor(selfState).find((t) => t.name === 'local.file');
   assert.match(file.description, /파일/);
-  assert.deepEqual(file.parameters.properties.action.enum, ['list', 'read', 'write', 'move', 'delete', 'undo']);
+  assert.deepEqual(file.parameters.properties.action.enum, ['list', 'read', 'write', 'move', 'delete', 'undo', 'versions']);
 });
 
 // ── 호출 → 커널 형태 변환 ────────────────────────────────────────────────
