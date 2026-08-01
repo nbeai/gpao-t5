@@ -256,7 +256,7 @@ function 제안요청(bundle, 원문들, priorAttempts = [], 무효피드백 = n
     '아래는 같은 사용자가 여러 번 반복한 요청이다. 반복에서 **운영 원리 후보 하나**와,',
     '그 원리를 검증할 사례들을 뽑아라.',
     '',
-    `반복 주제: ${bundle.subject} (${bundle.count}회)`,
+    `반복 주제: ${bundle.subject ?? '같은 종류의 요청'} (${bundle.count}회)`,
     ...(원문들.length ? ['관련 발화:', ...원문들.map((t) => `- ${t}`)] : []),
     ...앞선것,
     ...무효사유,
@@ -798,7 +798,9 @@ export async function growTick({ memStore, withMemory, modelFor, store, approval
     return { ok: true, text: typeof text === 'string' ? text : (text?.text ?? ''), identity: idn };
   }
 
-  const sessions = 계획.action === 'propose' ? (await store?.loadAll?.().catch(() => []) ?? []) : [];
+  // 관찰 저장본은 원문을 복제하지 않는다. 제안과 최종 scope 신호를 만들 때만 원천 TurnRef에서 읽는다.
+  const 원문필요 = 계획.action === 'propose' || 계획.action === 'finish';
+  const sessions = 원문필요 ? (await store?.loadAll?.().catch(() => []) ?? []) : [];
   const 원문 = 계획.관찰들?.map((o) => 원문찾기(sessions, o.turnRef)) ?? [];
   // OS 기계 사실(원천 턴 승인 실행)은 제안 단계에서 한 번 계산해 job 에 저장된다.
   const 기계접촉 = 계획.action === 'propose'
@@ -818,7 +820,7 @@ export async function growTick({ memStore, withMemory, modelFor, store, approval
     const 예산 = 오늘예산(m, now);
     m.growBudget = { day: 예산.day, used: Math.max(0, 예산.used - 계획.예약) + calls };
 
-    const r = 반영(m, job, 계획, 나온것, now);
+    const r = 반영(m, job, 계획, 나온것, now, 원문);
     m.growJobs = job정리(m.growJobs, job, null);
     await memStore.save(m);
     return { calls, action: 계획.action, state: job.state, ...r };
@@ -850,6 +852,9 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   if (action === 'propose') {
     // 배울 대상이 사라졌다. **부를 것도 없다** — 호출 실패로 세지 않는다.
     if (!계획.bundle) return { kind: 'propose', 묶음없음: true };
+    // 옛 저장본의 민감 관찰 참조가 남아 있어도 모델 앞에는 놓지 않는다. 정상 tick은 관찰 정리가
+    // 먼저지만, 관찰 워커 실패·격리 중에도 성장 경계가 독립적으로 막아야 한다.
+    if (원문.some((x) => containsSensitiveValue(x.user))) return { kind: 'propose', 민감원천: true };
     // 제안은 계약(5사례)이 큰 유일한 호출이다 — 자기 예산을 말한다(H02 절단 원인 종결).
     const r = await 성장호출(
       제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? [],
@@ -935,12 +940,23 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
 }
 
 /** 결과를 상태에 반영한다. 모델을 부르지 않는다(자물쇠 안이다). */
-function 반영(m, job, 계획, 나온것, now) {
+function 반영(m, job, 계획, 나온것, now, 원문 = []) {
   // 관측은 결말과 무관하게 먼저 남는다 — 접힌 회차(proposal_short·판정 불가)일수록 이 기록이
   // 존재 이유다. 판정에는 쓰지 않는다(행동 변화 0).
   if (나온것.관측) 관측기록(m, { jobId: job.jobId, round: job.round ?? 0, ...나온것.관측 }, now);
   if (나온것.판정관측) 관측기록(m, { jobId: job.jobId, round: job.round ?? 0, ...나온것.판정관측 }, now);
   if (나온것.kind === 'propose') {
+    if (나온것.민감원천) {
+      const bundle = (m.bundles ?? []).find((b) => b.bundleId === job.bundleId);
+      const ids = new Set(bundle?.observationIds ?? []);
+      m.observations = (m.observations ?? []).filter((o) => !ids.has(o.observationId));
+      m.bundles = (m.bundles ?? []).filter((b) => b.bundleId !== job.bundleId);
+      job.state = 'exhausted';
+      job.lastReason = 'sensitive_source';
+      job.nextAttemptAt = 0;
+      job.updatedAt = now;
+      return { reason: 'sensitive_source' };
+    }
     if (나온것.묶음없음) {
       // 묶음이 없어진 job 은 회차를 더 써도 배울 게 없다 — 종단으로 닫는다(자동 부활 없음).
       job.state = 'exhausted';
@@ -1146,7 +1162,11 @@ function 반영(m, job, 계획, 나온것, now) {
   // 적용 신호는 **그 원리를 낳은 반복 발화 그대로**다. 사례 서술문("사용자가 …라고 말했다")은
   // 사람이 실제로 치는 말과 결이 달라, 짧고 흔한 말이 거기에 우연히 걸린다(실측 0.60).
   // 같은 결의 말끼리 비교해야 한다 — 그래서 묶음 구성원의 원문을 쓴다.
-  const 반복발화 = (계획.관찰들 ?? []).map((o) => o.subject).filter(Boolean);
+  const 원천발화 = 원문.map((x) => x.user).filter(Boolean);
+  // subject가 있는 옛 저장본·격리 fixture는 이관 호환용 fallback이다.
+  const 반복발화 = 원천발화.length
+    ? 원천발화
+    : (계획.관찰들 ?? []).map((o) => o.subject).filter(Boolean);
   const scopeSignals = {
     appliesWhen: [...new Set(반복발화)],
     notWhen: 검증된.filter((c) => c.kind === 'negative').flatMap((c) => c.inputFacts ?? []),

@@ -223,7 +223,8 @@ test('S2: 전체 상한을 넘기면 오래된 관찰부터 걷는다', async ()
   const m = await mem.load();
   assert.equal(m.observations.length, OBSERVATION_CAPS.total, '상한을 넘지 않는다');
   assert.ok(m.observations.some((o) => o.turnRef.sessionId === id), '새 관찰이 들어왔고');
-  assert.ok(!m.observations.some((o) => o.subject === '옛 관찰 0'), '가장 오래된 것이 밀려났다');
+  assert.ok(!m.observations.some((o) => o.turnRef.sessionId === 'old' && o.turnRef.turnSeq === 1),
+    '가장 오래된 것이 밀려났다');
 });
 
 test('S2: TTL 이 지난 관찰은 정리된다', async () => {
@@ -236,7 +237,8 @@ test('S2: TTL 이 지난 관찰은 정리된다', async () => {
   const 지금 = OBSERVATION_CAPS.ttlMs + 1000;
   await observeSessions({ store, memStore: mem, now: 지금 });
   const m = await mem.load();
-  assert.ok(!m.observations.some((o) => o.subject === '만료 대상'), 'TTL 경과분은 사라진다');
+  assert.ok(!m.observations.some((o) => o.turnRef.sessionId === 'old' && o.turnRef.turnSeq === 1),
+    'TTL 경과분은 사라진다');
 });
 
 // ── ⑥ 실패 격리 ──────────────────────────────────────────────────────────
@@ -457,6 +459,68 @@ test('민감한 발화는 관찰에 남지 않되, watermark 는 함께 전진�
 
   const 두번째 = await observeSessions({ store, memStore: mem });
   assert.equal(두번째.observed, 0, '다시 읽지 않는다');
+});
+
+test('라벨 없는 카드번호와 구분자 없는 비밀번호 표현도 관찰에 남지 않는다', async () => {
+  const sid = '77777777-7777-4777-8777-777777777777';
+  const { store, mem } = await standUp([
+    session(sid, [
+      { user: '4111-1111-1111-1111' },
+      { user: '비밀번호 abc123!' },
+      { user: '비밀번호 huntertwo' },
+    ]),
+  ]);
+
+  const r = await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  assert.equal(r.observed, 0, '민감 턴은 관찰로 세지 않는다');
+  assert.equal(JSON.stringify(m).includes('4111'), false, '라벨 없는 카드번호가 남았다');
+  assert.equal(JSON.stringify(m).includes('abc123'), false, '자연스러운 비밀번호 표현이 남았다');
+  assert.equal(JSON.stringify(m).includes('huntertwo'), false, '문자형 비밀번호가 남았다');
+  assert.equal(m.observationWatermark[sid], 3, '거른 턴도 처리한 것으로 기록한다');
+});
+
+test('정상 발화도 관찰 저장소에 원문을 복제하지 않으면서 반복 묶음은 유지한다', async () => {
+  const sid = '88888888-8888-4888-8888-888888888888';
+  const 원문들 = [
+    '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 정리해줘.',
+    '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
+    '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
+  ];
+  const { store, mem } = await standUp([session(sid, 원문들.map((user) => ({ user })))]);
+
+  const r = await observeSessions({ store, memStore: mem });
+  const m = await mem.load();
+  const 저장본 = JSON.stringify(m);
+  for (const 원문 of 원문들) assert.equal(저장본.includes(원문), false, `관찰 저장소에 원문이 복제됐다: ${원문}`);
+  assert.equal((m.observations ?? []).some((o) => Object.hasOwn(o, 'subject')), false,
+    '관찰에는 원문 subject 칸 자체가 없어야 한다');
+  assert.equal((m.bundles ?? []).some((b) => Object.hasOwn(b, 'subject')), false,
+    '묶음에도 대표 원문을 복제하지 않는다');
+  assert.equal(r.observed, 3);
+  assert.equal(m.bundles.length, 1, '원문을 복제하지 않아도 같은 반복은 묶여야 한다');
+  assert.equal(m.bundles[0].count, 3);
+});
+
+test('옛 저장본의 민감 관찰과 그 묶음 참조도 다음 관찰에서 제거한다', async () => {
+  const sid = '99999999-9999-4999-8999-999999999999';
+  const { store, mem } = await standUp([session(sid, [
+    { user: '4111-1111-1111-1111' },
+    { user: '4111 1111 1111 1111' },
+  ])]);
+  const m0 = await mem.load();
+  m0.observations = [1, 2].map((turnSeq) => makeObservation({
+    turnRef: ref(sid, turnSeq), kind: 'request', subject: '4111-1111-1111-1111', at: 1,
+  }));
+  m0.bundles = bundleObservations(m0.observations);
+  m0.observationWatermark = { [sid]: 2 };
+  await mem.save(m0);
+
+  await observeSessions({ store, memStore: mem, now: 2 });
+  const m = await mem.load();
+  assert.deepEqual(m.observations, [], '과거 민감 관찰 참조가 남았다');
+  assert.deepEqual(m.bundles, [], '과거 민감 묶음이 남았다');
+  assert.equal(JSON.stringify(m).includes('4111'), false, '과거 민감 원문이 이관 뒤에도 남았다');
 });
 
 // 답이 아직(또는 영영) 없는 민감 턴 — **여기가 진짜 위험한 자리다.**

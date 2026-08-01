@@ -26,6 +26,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GROW = 'src/kernel/l5-growth/tcell-grow.js';
 const REPLAY = 'src/kernel/l5-growth/tcell-replay.js';
 const OBSERVE = 'src/kernel/l5-growth/tcell-observe.js';
+const SENSITIVE = 'src/kernel/l0-evidence/sensitive-text.js';
 const LANE = 'src/kernel/l5-growth/tcell-lane.js';
 const CONN = 'src/surface/model-connection.js';
 const SERVER = 'src/surface/server.js';
@@ -33,6 +34,7 @@ const SERVER = 'src/surface/server.js';
 const T_GROW = 'test/tcell-grow.test.js';
 const T_REPLAY = 'test/tcell-replay.test.js';
 const T_OBS = 'test/tcell-observation.test.js';
+const T_SENSITIVE = 'test/memory-sensitive-ingress.test.js';
 const T_LANE = 'test/tcell-lane.test.js';
 const T_IDN = 'test/tcell-model-identity.test.js';
 const T_ROUND = 'test/tcell-round-retry.test.js';
@@ -403,12 +405,30 @@ export const MUTATIONS = [
     찾기: '          if (범위) memorySuggestion.evidence.appliesTo = 범위;', 바꾸기: '' },
 
   // ── H 진단 계열 ① 민감정보가 관찰 레인으로 새지 않는다 ──────────────────
+  { 이름: '라벨 없는 카드번호와 자연스러운 비밀번호 표현을 민감값에서 제외', 파일: SENSITIVE, 검사: T_SENSITIVE,
+    찾기: '    || KOREAN_BARE_CREDENTIAL.test(text) || hasPaymentCard(text)',
+    바꾸기: '' },
   { 이름: '민감한 발화를 관찰에 원문으로 저장', 파일: OBSERVE, 검사: T_OBS,
     찾기: '      if (containsSensitiveValue(entry.text)) { 최대 = Math.max(최대, r.turnSeq); continue; }',
     바꾸기: '' },
   { 이름: '민감 턴에서 watermark 를 멈춤(매 tick 다시 읽는 무한 반복)', 파일: OBSERVE, 검사: T_OBS,
     찾기: '      if (containsSensitiveValue(entry.text)) { 최대 = Math.max(최대, r.turnSeq); continue; }',
     바꾸기: '      if (containsSensitiveValue(entry.text)) continue;' },
+  { 이름: '관찰 저장본에 사용자 원문 subject 를 다시 복제', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '  const 저장관찰 = 정리됨.map(withoutSubject);',
+    바꾸기: '  const 저장관찰 = 정리됨;' },
+  { 이름: '묶음 저장본에 대표 사용자 원문을 다시 복제', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '  const bundles = bundleObservations(계산용)\n    .slice(0, OBSERVATION_CAPS.bundles)\n    .map(withoutSubject);',
+    바꾸기: '  const bundles = bundleObservations(계산용).slice(0, OBSERVATION_CAPS.bundles);' },
+  { 이름: '옛 저장본의 민감 관찰 참조를 이관에서 유지', 파일: OBSERVE, 검사: T_OBS,
+    찾기: '    return !containsSensitiveValue(text);',
+    바꾸기: '    return true;' },
+  { 이름: '최종 입장 신호를 만들 때 원천 발화를 읽지 않음', 파일: GROW, 검사: T_GROW,
+    찾기: "  const 원문필요 = 계획.action === 'propose' || 계획.action === 'finish';",
+    바꾸기: "  const 원문필요 = 계획.action === 'propose';" },
+  { 이름: '옛 민감 관찰 원천을 성장 모델에 그대로 보냄', 파일: GROW, 검사: T_GROW,
+    찾기: "    if (원문.some((x) => containsSensitiveValue(x.user))) return { kind: 'propose', 민감원천: true };",
+    바꾸기: '' },
 
   // ── 노출 경계(고르지 않은 것을 열어 두지 않는다) ───────────────────────
   // 계약은 둘뿐이다: 기본은 루프백에만 붙는다 · 비루프백은 뜨지 않는다.
