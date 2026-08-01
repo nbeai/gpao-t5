@@ -38,9 +38,9 @@
 - 옛 T-cell 명세는 `docs/archive/retired-plans/`로 퇴역했다.
 - 새 T-cell 단일 구현 계약은 `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md`로 발행·동결됐고,
   S0~S5 구현과 생산 경로·라이브 관통을 마쳤다.
-- 현재는 `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`의 H 단계다. S0~S5를 다시
-  설계하는 단계가 아니라 H01~H07 반복성·순수 기여를 봉인하고, 이어 H08~H09 PC 손발,
-  Agent Core와 H10, 전체 제품 봉인으로 진행한다.
+- `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`에서 T-cell H01~H07을 최종 봉인했다.
+  S0~S5나 H02를 다시 여는 단계가 아니라 H08~H09 PC 손발, Agent Core와 H10, 전체 제품
+  봉인으로 진행한다.
 - 가장 최신의 세부 상태와 활성 작업은 이 문서에 복제하지 않는다. Git과
   `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`, H 단계 진행표를 순서대로 대조한다.
 - 비교 자산과 퇴역 계획은 기준선의 원인 분석 자료이지 현재 구현 명령이 아니다.
@@ -72,7 +72,7 @@ T-cell은 3번 코어에 속하지만 3번만의 프로젝트가 아니다. 성�
 |---|---|---|
 | Selfhood | 실제 손·연결·자격·한계 판정 구현됨 | 전체 제품 봉인에서 회귀 확인 |
 | Model Operation | 다중 provider·역할 선택·현실 공급 구현됨 | 주 모델 H 봉인 + 보조 모델 교차 |
-| Intent / Context / T-cell | S0~S5 구현·라이브 관통, H 보완·봉인 중 | H01~H07 동결 회차 통과 |
+| Intent / Context / T-cell | S0~S5 구현·라이브 관통, H01~H07 최종 봉인 | 전체 제품 봉인에서 회귀 확인 |
 | ActionPlan / Authority | A0~A3·실행 시점 승인·안전 바닥 구현됨 | H08~H10과 전체 여정에서 회귀 확인 |
 | Router / Execution | 파일·웹·터미널·브라우저·채널·동적 커넥터 구현됨 | H08~H09 PC 손발 봉인 |
 | Work Surface / UX | 대화·승인·기억·성장·연결·자동화 표면 구현됨 | 전체 제품 여정·모바일·복구 봉인 |
