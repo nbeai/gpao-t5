@@ -102,6 +102,9 @@ test('이름의 "최종"보다 더 최근이고 내용도 다른 파일이 있�
   assert.match(r.userSafeSummary, /견적서-최종\.pdf/);
   assert.match(r.userSafeSummary, /견적서-v2\.pdf/);
   assert.ok(r.nextSafeAction, '모호하면 최소 질문으로 이어질 근거를 줘야 한다');
+  assert.equal(r.result.files.find((f) => f.name === '견적서-v2.pdf')?.contentPreview, '새 금액',
+    '실제 내용을 읽고도 해시 차이만 주면 모델이 무엇이 바뀌었는지 판단할 수 없다');
+  assert.equal(r.result.files.find((f) => f.name === '견적서-최종.pdf')?.contentPreview, '옛 금액');
 });
 
 test('이름은 갈려도 내용이 같으면 같은 판이다 — 질문하지 않는다(자동성)', async () => {

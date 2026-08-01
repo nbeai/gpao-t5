@@ -16,6 +16,8 @@ import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previe
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
+const VERSION_PREVIEW_FILES = 6;
+const VERSION_PREVIEW_CHARS = 1200;
 
 /** 되돌리기 표 한 줄. 휴지통 경로와 원래 자리를 함께 남긴다. */
 function undoEntry(op, from, to) {
@@ -330,7 +332,11 @@ export function makeLocalFileTool(deps = {}) {
             // 내용은 같음/다름을 가리는 데만 쓴다(해시). 못 읽으면 **못 읽었다고 남긴다** —
             // 안 읽고 같다/다르다를 말하면 그게 추측이다(모름을 사실로 전달).
             if (s.size <= MAX_READ_BYTES) {
-              try { 한판.hash = createHash('sha256').update(await readFile(full)).digest('hex'); }
+              try {
+                const 내용 = await readFile(full, 'utf8');
+                한판.hash = createHash('sha256').update(내용).digest('hex');
+                한판.내용 = 내용;
+              }
               catch { 한판.contentUnread = true; }
             } else 한판.contentUnread = true;
             식구.push(한판);
@@ -339,6 +345,14 @@ export function makeLocalFileTool(deps = {}) {
             return fail(`${basename(폴더)} 안에서 "${이름낱말}" 이름의 파일을 찾지 못했어요.`, '이름이나 폴더를 다시 알려주시겠어요?');
           }
           식구.sort((a, b) => b.mtimeMs - a.mtimeMs);
+          // 모델이 "내용이 다르다"는 해시 사실만 보고 내용을 상상하지 않게, 최신 후보 몇 개의
+          // 실제 내용을 제한해서 함께 준다. 이미 허용 범위 안에서 읽은 파일이고, 파일 수·글자 수
+          // 상한으로 프롬프트 폭주를 막는다.
+          for (const f of 식구.slice(0, VERSION_PREVIEW_FILES)) {
+            if (typeof f.내용 !== 'string') continue;
+            f.contentPreview = f.내용.slice(0, VERSION_PREVIEW_CHARS);
+            if (f.내용.length > VERSION_PREVIEW_CHARS) f.contentPreviewTruncated = true;
+          }
           // 같은 내용은 같은 판이다 — 최신 쪽을 대표로 두고, 나머지에 "누구와 같은지"를 남긴다.
           const 본해시 = new Map();
           for (const f of 식구) {
@@ -359,7 +373,7 @@ export function makeLocalFileTool(deps = {}) {
           // 그 밖(이름은 최종인데 더 최근 파일이 있고, 내용이 다르거나 못 읽었다)은 고르지 않는다.
 
           const 못읽음 = 식구.filter((f) => f.contentUnread).length;
-          const files = 식구.map(({ mtimeMs, hash, ...공개 }) => 공개);
+          const files = 식구.map(({ mtimeMs, hash, 내용, ...공개 }) => 공개);
           if (최종본) {
             return ok(
               `최종본은 ${최종본.name} 으로 보여요 — ${왜}.`,

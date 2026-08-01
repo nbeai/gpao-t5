@@ -78,6 +78,10 @@ try {
     && receipt.actualCall?.args?.action === 'write'
     && receipt.failureState === 'none'
     && typeof receipt.result?.digest === 'string');
+  const createdHasLatestContent = created.length === 1
+    && /배송비 200원 포함|총액 1200원/.test(await readFile(join(files, created[0]), 'utf8'));
+  const writeUsesLatestSource = writeReceipts.some((receipt) =>
+    String(receipt.actualCall?.args?.source ?? '').endsWith('견적서-v3.md'));
   const originalsUnchanged = (await Promise.all([...before].map(async ([path, hash]) => (await digest(path)) === hash))).every(Boolean);
   const report = {
     model: publicState.connections.find((c) => c.active)?.modelId ?? publicState.envFallback?.modelId,
@@ -96,7 +100,10 @@ try {
     })),
     reply: String(result.reply ?? '').slice(0, 500),
     originalsUnchanged,
-    passed: result.kind === 'reply' && created.length > 0 && writeReceipts.length > 0 && originalsUnchanged,
+    createdHasLatestContent,
+    writeUsesLatestSource,
+    passed: result.kind === 'reply' && created.length === 1 && writeReceipts.length === 1
+      && originalsUnchanged && createdHasLatestContent && writeUsesLatestSource,
   };
   console.log(JSON.stringify(report));
   if (!report.passed) process.exitCode = 1;
