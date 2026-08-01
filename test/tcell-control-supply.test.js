@@ -49,7 +49,8 @@ const tc = (over = {}) => ({
 
 test('S5-2: 기억을 보여준 자리에서 인용 안내를 함께 준다', () => {
   const m = buildModelMessages(tc({ admittedContext: ['월별 수치는 표로 정리한다'] }));
-  assert.match(m.user, /\[반영된 기억\]/);
+  // §5-J 렌더 격리(감사 승인): 블록 이름이 [반영된 기억] → [저장된 기본값 …] 으로 바뀌었다.
+  assert.match(m.user, /\[저장된 기본값/);
   assert.match(m.user, /memory\.cite/, '보여준 그 자리에서 안내한다');
 });
 

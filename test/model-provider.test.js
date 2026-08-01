@@ -324,19 +324,44 @@ test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 �
   assert.ok(!m.system.includes('반드시'));                   // 장문 지시문 주입 아님(사실 표식만)
 });
 
-test('buildModelMessages: 반영 기억에 현재 발화 우선 계약이 붙는다 — "이번만"이 기억에 지지 않는다', () => {
-  // r41 실측(H03b): [반영된 기억]이 우선순위 계약 없이 맨 목록으로 실려, "이번 보고서만 표로
-  // 만들어줘"라는 명시 요구가 저장된 목록 선호에 밀렸다(정본 입력·실자료·표 기호 0).
-  // 이 계약은 특정 낱말 규칙이 아니라 동결 판정 문장(H03: 이번만이라고 말하면 이번 답이
-  // 그대로 달라진다)이 요구하는 일반 우선순위 규칙이다.
+test('buildModelMessages: 기억 채널에 충돌 시 현재 요청 우선이 구조로 실린다 — "이번만"이 기억에 지지 않는다', () => {
+  // v1(r41): 한 줄 우선순위 계약 — 쌍 2 실측에서 모델이 우선순위를 뒤집어 패배(§5-J).
+  // v2(감사 승인): 기억을 인용된 기본값 데이터로 격리 — 충돌 시 미적용이 블록 이름에 있다.
   const m = buildModelMessages(TC);
-  assert.ok(m.user.includes('[반영된 기억]'));
-  assert.ok(/기본값.*이번 발화가 우선|이번 발화.*기본값.*우선|이번 요청이 우선/.test(m.user),
-    '기억은 기본값이고 이번 발화의 명시 요구가 우선한다는 계약이 기억 목록 자리에 있어야 한다');
+  assert.ok(m.user.includes('저장된 기본값'));
+  assert.ok(m.user.includes('현재 요청과 충돌하면 적용하지 않음'),
+    '충돌 시 현재 요청이 우선한다는 사실이 기억 블록의 이름이어야 한다');
 });
 
-test('buildModelMessages: 반영 기억이 없으면 우선 계약 줄도 없다(빈 채널에 지시문을 싣지 않는다)', () => {
+test('buildModelMessages: 반영 기억이 없으면 기본값 블록도 없다(빈 채널에 지시문을 싣지 않는다)', () => {
   const m = buildModelMessages({ ...TC, admittedContext: [] });
-  assert.ok(!m.user.includes('[반영된 기억]'));
-  assert.ok(!/이번 발화가 우선/.test(m.user));
+  assert.ok(!m.user.includes('저장된 기본값'));
+});
+
+// ── 감사 승인 렌더 수정(1회 한정): 기억은 명령이 아니라 **인용된 기본값 데이터**로 격리 ──
+// §5-J 원시: 저장된 명령형 원문("앞으로 …정리해줘")이 현재 명령과 같은 층위에서 경쟁했고,
+// 쌍 2에서 모델이 "이번 요청을 우선할 수가 없어"라고 우선순위를 뒤집었다. 의미 재서술은
+// 금지 — 원문은 따옴표 인용으로 보존하고, 명령이 아님을 채널 문법으로 격리한다.
+
+test('기억 렌더: 저장 원문이 벌거벗은 명령이 아니라 인용된 기록으로 격리된다', () => {
+  const m = buildModelMessages({ ...TC, admittedContext: ['앞으로 보고서는 표보다 짧은 목록으로 정리해줘.'] });
+  assert.ok(m.user.includes('저장된 기본값'), '기본값 데이터 블록 이름이 있어야 한다');
+  assert.ok(m.user.includes('지금 실행할 명령이 아니다'), '명령 아님 격리 문장이 있어야 한다');
+  assert.ok(m.user.includes('기록 원문: "앞으로 보고서는 표보다 짧은 목록으로 정리해줘."'),
+    '원문은 의미 재서술 없이 따옴표 인용으로 보존된다');
+  assert.ok(!/^- 앞으로 보고서는/m.test(m.user), '원문이 벌거벗은 명령 줄로 나오면 안 된다');
+  assert.ok(m.user.includes('현재 요청과 충돌하면 적용하지 않음'), '충돌 시 현재 요청 우선이 블록 이름에 있다');
+});
+
+test('기억 렌더: 현재 요청은 마지막 독립 블록이다 — 기본값 데이터가 그 뒤에 오지 않는다', () => {
+  const m = buildModelMessages({ ...TC, admittedContext: ['사용자는 오전 회의를 선호'] });
+  const 요청위치 = m.user.lastIndexOf('내일 회의 준비 도와줘');
+  const 기본값위치 = m.user.lastIndexOf('저장된 기본값');
+  assert.ok(요청위치 > 기본값위치, '현재 요청이 기본값 블록 뒤(마지막)여야 한다');
+});
+
+test('기억 렌더: 기억이 없는 턴의 입력은 기본값 블록이 없다(불변)', () => {
+  const m = buildModelMessages({ ...TC, admittedContext: [] });
+  assert.ok(!m.user.includes('저장된 기본값'));
+  assert.ok(!m.user.includes('지금 실행할 명령이 아니다'));
 });
