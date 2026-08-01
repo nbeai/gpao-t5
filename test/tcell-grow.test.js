@@ -1930,22 +1930,27 @@ test('관측①: 라벨 없는 맨 카드번호가 제안 응답에 있어도 du
     '맨 카드번호 원문이 관측 어디에도 없어야 한다');
 });
 
-test('관측①: 판정 근거에 든 맨 번호는 가려져 저장된다 — 근거 구조는 남는다', async () => {
+test('관측①: 판정 근거의 민감값은 두 층으로 가려진다 — 탐지기 층·숫자 가림 층 각각', async () => {
+  // 층 1(공용 탐지기): Luhn 유효 카드번호 → 근거 전체 [민감값](773760e). 층 2(숫자 가림):
+  // 탐지기 밖 긴 숫자열(Luhn 무효)도 #### 로 가린다. 층 1이 세지면서 층 2 검사가 Luhn 유효
+  // 입력으로는 물리지 않게 됐다(스윕 탈출 실측) — 두 층은 서로를 대신하지 못하므로 각각 잰다.
   const memStore = await 준비();
+  let n = 0;
   const { modelFor } = 대본모델({
     판정: () => JSON.stringify({
-      required: [{ i: 0, met: true, evidence: '카드 4111-1111-1111-1111 정리' }],
+      required: [{ i: 0, met: true, evidence: (n += 1) % 2 ? '카드 4111-1111-1111-1111 정리' : '번호 9999-9999-9999-9999 정리' }],
       forbidden: [{ i: 0, appeared: false }],
       rationale: '지켰다',
     }),
   });
   await 끝까지({ memStore, modelFor });
   const m = await memStore.load();
-  const o = (m.growObservations ?? []).find((x) => x.용도 === 'judge');
-  assert.ok(o, '판정 불가 관측은 남는다');
-  assert.equal(JSON.stringify(m.growObservations).includes('4111-1111'), false, '맨 번호는 가려진다');
-  assert.equal(String(o.항목?.required?.[0]?.evidence ?? ''), '[민감값]',
-    '공통 경계가 카드번호를 잡으면 근거 전체를 민감값으로 가린다');
+  const 전체 = JSON.stringify(m.growObservations ?? []);
+  assert.ok((m.growObservations ?? []).some((x) => x.용도 === 'judge'), '판정 불가 관측은 남는다');
+  assert.equal(전체.includes('4111-1111'), false, '층 1: Luhn 유효 번호는 탐지기가 통째로 가린다');
+  assert.equal(전체.includes('9999-9999'), false, '층 2: 탐지기 밖 숫자열도 #### 가림이 잡는다');
+  assert.ok(전체.includes('[민감값]'), '층 1 표식');
+  assert.ok(전체.includes('####'), '층 2 표식이 남아 구조는 읽힌다');
 });
 
 // ── 오너 승인 순서 4: 미결합 exact 는 강등이 아니라 **사례 무효 → 재제안**이다 ────────────
