@@ -24,13 +24,24 @@ const matches = (name, subject) => {
   return a.includes(b) || b.includes(a);
 };
 
+// H09 · **"못 봤다"와 "없다"는 다른 사실이다 — 읽기에서도.** ENOENT(자리 자체가 없음)는
+// "확인했고 없더라"가 맞지만, 권한 거부(EACCES 등)는 확인하지 못한 것이다. 예전엔 모든 오류를
+// `.catch(() => [])` 로 삼켜서, 한 곳도 못 읽고도 "일곱 자리를 확인했지만 없음"이라고 말했다
+// (거짓 성공 — H09 반대시험으로 실측). 오류 종류만 세고 원문은 여기서 버린다(비노출).
+const 못본오류 = (e) => e && e.code !== 'ENOENT' && e.code !== 'ENOTDIR';
+
 async function commandNames(deps = {}) {
   const dirs = deps.pathDirs ?? String(deps.path ?? process.env.PATH ?? '').split(delimiter);
   const out = new Set();
+  let 읽음 = 0; let 거부 = 0;
+  const rd = deps.readdirImpl ?? readdir;
   for (const dir of dirs.slice(0, 24)) {
-    for (const entry of await readdir(dir).catch(() => [])) out.add(entry);
+    try {
+      for (const entry of await rd(dir)) out.add(typeof entry === 'string' ? entry : entry.name);
+      읽음 += 1;
+    } catch (e) { if (못본오류(e)) 거부 += 1; }
   }
-  return [...out];
+  return { names: [...out], 못봄: 읽음 === 0 && 거부 > 0 };
 }
 
 const HOME = () => homedir();
@@ -43,20 +54,33 @@ const defaultRoots = (deps = {}) => ({
 
 async function matchingEntries(dirs, subject, deps = {}) {
   const found = [];
+  let 읽음 = 0; let 거부 = 0;
   for (const dir of dirs) {
-    const entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }).catch(() => []);
+    let entries;
+    try { entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }); 읽음 += 1; }
+    catch (e) { if (못본오류(e)) 거부 += 1; continue; }
     for (const entry of entries) {
       if (matches(entry.name, subject)) found.push({ name: entry.name, directory: entry.isDirectory() });
     }
   }
-  return found;
+  return { found, 못봄: 읽음 === 0 && 거부 > 0 };
 }
 
 async function matchingLocalFiles(roots, subject, deps = {}) {
   const found = [];
+  let 읽음 = 0; let 거부 = 0;
   const visit = async (dir, depth) => {
     if (depth > (deps.fileSearchDepth ?? 2) || found.length >= 5) return;
-    const entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }).catch(() => []);
+    let entries;
+    try {
+      entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true });
+      if (depth === 0) 읽음 += 1;
+    } catch (e) {
+      // 뿌리(루트)를 못 연 것만 "그 자리를 못 봤다"로 센다 — 깊은 하위 하나가 막힌 것은
+      // 탐색 자체가 안 된 것이 아니다(과장 금지).
+      if (depth === 0 && 못본오류(e)) 거부 += 1;
+      return;
+    }
     for (const entry of entries) {
       if (found.length >= 5) break;
       const path = join(dir, entry.name);
@@ -65,7 +89,7 @@ async function matchingLocalFiles(roots, subject, deps = {}) {
     }
   };
   for (const root of roots) await visit(root, 0);
-  return found;
+  return { found, 못봄: 읽음 === 0 && 거부 > 0 };
 }
 
 export function makeLocalDiscoveryTool(deps = {}) {
@@ -76,14 +100,20 @@ export function makeLocalDiscoveryTool(deps = {}) {
       if (!subject) return null;
       const found = rec?.connectionDiscovery?.candidates ?? [];
       const checked = rec?.connectionDiscovery?.checked ?? [];
+      const unchecked = rec?.connectionDiscovery?.unchecked ?? [];
+      // H09: 못 본 자리는 다음 턴에도 못 본 자리로 이어진다 — "확인했지만 없음"으로 뭉개면
+      // 다음 턴의 모델이 그 자리에 없다는 거짓 사실 위에서 판단한다.
+      const 못본꼬리 = unchecked.length ? ` (${unchecked.join(' · ')}은 읽지 못해 못 봤음)` : '';
       return {
         key: `discovery:${subject}`,
         kind: 'discovery',
         label: String(subject),
         // 다음 턴에 필요한 것은 설정 내용이 아니라, 무엇을 직접 확인했고 맞는 길이 있었는지다.
-        detail: found.length
+        detail: (found.length
           ? `${checked.join(' · ')}에서 ${found.map((c) => c.label).join(' · ')} 단서를 찾음`
-          : `${checked.join(' · ')}을 확인했지만 맞는 연결 단서는 없음`,
+          : checked.length
+            ? `${checked.join(' · ')}을 확인했지만 맞는 연결 단서는 없음`
+            : '확인할 수 있는 자리가 없었음') + 못본꼬리,
       };
     },
     async handler(args = {}) {
@@ -95,10 +125,20 @@ export function makeLocalDiscoveryTool(deps = {}) {
         const key = `${kind}:${label}`;
         if (!seen.has(key) && candidates.length < 5) { seen.add(key); candidates.push({ kind, label, evidence }); }
       };
-      for (const entry of await (deps.mcpNames ?? mcpServerNames)(deps)) {
+      // H09: 자리마다 "실제로 봤는가"를 함께 기록한다. 못 본 자리를 checked 에 넣으면
+      // "한 곳도 못 봤는데 다 확인했다"는 거짓 성공이 된다(수정 전 실측).
+      const 확인한자리 = [];
+      const 못본자리 = [];
+      const 자리기록 = (name, 못봄) => (못봄 ? 못본자리 : 확인한자리).push(name);
+      let mcp목록 = []; let mcp못봄 = false;
+      try { mcp목록 = await (deps.mcpNames ?? mcpServerNames)(deps); } catch { mcp못봄 = true; }
+      자리기록('mcp', mcp못봄);
+      for (const entry of mcp목록) {
         if (matches(entry.name, subject)) add('mcp', entry.name, 'MCP 등록 이름이 요청과 맞아요');
       }
-      for (const name of await commandNames(deps)) {
+      const cli = await commandNames(deps);
+      자리기록('cli', cli.못봄);
+      for (const name of cli.names) {
         if (matches(name, subject)) add('cli', name, '설치된 명령 이름이 요청과 맞아요');
       }
       // **선언 여부는 후보 목록이 아니라 커넥터 원장에서 센다.** 후보는 다섯 개로 자르는
@@ -108,6 +148,7 @@ export function makeLocalDiscoveryTool(deps = {}) {
       // 2026-07-28: 카페24 이름의 MCP 단서 다섯 개 뒤에 커넥터가 있으면 false 였다).
       // 잘라도 되는 것과 잘리면 안 되는 것을 같은 목록에서 세지 않는다.
       let declared = false;
+      자리기록('known_connectors', false); // 커넥터 원장은 메모리 안 사실이다 — 읽기가 막힐 자리가 없다
       for (const c of connectors()) {
         const names = [c.id, c.label, ...(c.aliases ?? [])];
         if (names.some((name) => matches(name, subject))) {
@@ -119,16 +160,24 @@ export function makeLocalDiscoveryTool(deps = {}) {
       // 아는 것"이라, 웹으로만 쓰는 서비스는 어디에도 안 걸린다. 설치된 앱·동기화 폴더·설정
       // 자리·이미 내려받은 자료까지 읽기 전용으로 본다.
       const roots = defaultRoots(deps);
-      for (const entry of await matchingEntries(roots.apps, subject, deps)) {
+      const apps = await matchingEntries(roots.apps, subject, deps);
+      자리기록('apps', apps.못봄);
+      for (const entry of apps.found) {
         add('app', entry.name, '이 컴퓨터에 설치된 앱 이름이 요청과 맞아요');
       }
-      for (const entry of await matchingEntries(roots.sync, subject, deps)) {
+      const sync = await matchingEntries(roots.sync, subject, deps);
+      자리기록('sync_folders', sync.못봄);
+      for (const entry of sync.found) {
         add('sync_folder', entry.name, '동기화 폴더 이름이 요청과 맞아요');
       }
-      for (const entry of await matchingEntries(roots.settings, subject, deps)) {
+      const settings = await matchingEntries(roots.settings, subject, deps);
+      자리기록('settings_names', settings.못봄);
+      for (const entry of settings.found) {
         add('settings_trace', entry.name, '설정 자리 이름이 요청과 맞아요');
       }
-      for (const name of await matchingLocalFiles(roots.files, subject, deps)) {
+      const files = await matchingLocalFiles(roots.files, subject, deps);
+      자리기록('local_files', files.못봄);
+      for (const name of files.found) {
         add('local_file', name, '이미 내려받은 자료 이름이 요청과 맞아요');
       }
       // **그리고 "못 찾았다"와 "없다"는 다른 사실이다.** 실측(오너 라이브 2026-07-28, C):
@@ -140,16 +189,25 @@ export function makeLocalDiscoveryTool(deps = {}) {
       //   · declared  T5 에 이 대상에 대한 연결 선언이 있나(위에서 원장으로 셌다). 없으면
       //               비밀 입력면 자체가 열릴 수 없다 — 못 지킬 약속을 막는 사실이다.
       // 대상 이름으로 갈리지 않는다. 선언이 있는지만 본다.
+      // H09: checked 는 **실제로 읽은 자리만** 담는다. 못 본 자리(권한 거부 등)는 unchecked 로
+      // 따로 남긴다 — "확인했지만 없음"과 "못 봐서 모름"은 다음 판단을 가르는 다른 사실이다.
+      // 자리가 없어서(ENOENT) 못 읽은 것은 "확인했고 없더라"이므로 checked 다.
       const connectionDiscovery = {
         subject,
-        checked: ['mcp', 'cli', 'known_connectors', 'apps', 'sync_folders', 'settings_names', 'local_files'],
+        checked: 확인한자리,
+        ...(못본자리.length ? { unchecked: 못본자리 } : {}),
         candidates,
         scope: 'this_computer', declared,
       };
+      const 못봄꼬리 = 못본자리.length ? ' 일부 자리는 읽지 못해서 다 확인하지 못했어요.' : '';
       return {
         result: { ...connectionDiscovery, checkedAt: Date.now() },
         connectionDiscovery,
-        userSafeSummary: candidates.length ? '기존 연결 단서를 찾았어요.' : '바로 쓸 연결 단서는 아직 찾지 못했어요.',
+        userSafeSummary: candidates.length
+          ? `기존 연결 단서를 찾았어요.${못봄꼬리}`
+          : 못본자리.length
+            ? `일부 자리를 읽지 못해서 다 확인하지 못했어요. 본 곳에서는 맞는 단서가 없었어요.`
+            : '바로 쓸 연결 단서는 아직 찾지 못했어요.',
       };
     },
   };
