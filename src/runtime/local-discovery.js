@@ -4,6 +4,11 @@ import { readdir } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { homedir } from 'node:os';
 import { mcpServerNames } from './local-signs.js';
+// C 감사 F7.4★: discovery 는 **제2의 읽기 손이 되면 안 된다.** 예전엔 file-scope 도
+// local-protection 도 쓰지 않아, 파일 손이 막는 자리를 이름 수준에서 그대로 훑었다.
+// 같은 보호 판정(local-protection)과 같은 파일 루트 진실(file-scope)을 쓴다.
+import { protectionBlocks } from './local-protection.js';
+import { defaultFileRoots } from './file-scope.js';
 
 const norm = (v) => String(v ?? '').normalize('NFC').toLowerCase().replace(/[\s._-]+/g, '');
 // 실측(감사 2026-07-28): `듣도보도못한상점ABC` 에 `bc(cli)`·`ab(cli)` 가 단서로 나왔다.
@@ -45,21 +50,34 @@ async function commandNames(deps = {}) {
 }
 
 const HOME = () => homedir();
+
+/** 파일 탐색 루트 — 파일 손과 **같은 진실**(file-scope). 두 손이 다른 루트를 보면 제2 읽기 손이 된다. */
+export function discoveryFileRoots() {
+  return defaultFileRoots();
+}
+
 const defaultRoots = (deps = {}) => ({
   apps: deps.appDirs ?? ['/Applications', join(HOME(), 'Applications')],
   sync: deps.syncDirs ?? [join(HOME(), 'Library', 'CloudStorage'), join(HOME(), 'Library', 'Mobile Documents')],
   settings: deps.settingsDirs ?? [join(HOME(), '.config'), join(HOME(), 'Library', 'Application Support')],
-  files: deps.fileRoots ?? [join(HOME(), 'Desktop'), join(HOME(), 'Documents'), join(HOME(), 'Downloads')],
+  files: deps.fileRoots ?? discoveryFileRoots(),
 });
+
+// **보호 판정은 파일 손과 같은 것을 쓴다.** 이름만 보는 손이라도 secret 자리는 읽지 않는다 —
+// 읽지 못한 자리는 "못 본 곳"으로 남긴다(없는 곳과 구분, 아래 못본오류와 같은 축).
+const 보호로막힘 = (path) => Boolean(protectionBlocks(path, { write: false }));
 
 async function matchingEntries(dirs, subject, deps = {}) {
   const found = [];
   let 읽음 = 0; let 거부 = 0;
   for (const dir of dirs) {
+    // 보호 자리는 읽지 않는다 — 그리고 "확인했지만 없음"이 아니라 "못 본 곳"으로 남긴다(F7.4).
+    if (보호로막힘(dir)) { 거부 += 1; continue; }
     let entries;
     try { entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true }); 읽음 += 1; }
     catch (e) { if (못본오류(e)) 거부 += 1; continue; }
     for (const entry of entries) {
+      if (보호로막힘(join(dir, entry.name))) continue; // 비밀 이름은 후보로도 안 낸다
       if (matches(entry.name, subject)) found.push({ name: entry.name, directory: entry.isDirectory() });
     }
   }
@@ -71,6 +89,8 @@ async function matchingLocalFiles(roots, subject, deps = {}) {
   let 읽음 = 0; let 거부 = 0;
   const visit = async (dir, depth) => {
     if (depth > (deps.fileSearchDepth ?? 2) || found.length >= 5) return;
+    // 보호 자리는 들어가지 않는다 — 루트 자체가 보호면 "못 본 곳"이다(F7.4).
+    if (보호로막힘(dir)) { if (depth === 0) 거부 += 1; return; }
     let entries;
     try {
       entries = await (deps.readdirImpl ?? readdir)(dir, { withFileTypes: true });
@@ -83,9 +103,13 @@ async function matchingLocalFiles(roots, subject, deps = {}) {
     }
     for (const entry of entries) {
       if (found.length >= 5) break;
+      // 숨은 항목은 사용자의 "이미 내려받은 자료"가 아니다 — 폴더만이 아니라 파일도 걸러야
+      // 최상위 닷파일 이름이 후보로 새지 않는다(F7.4 실측).
+      if (entry.name.startsWith('.')) continue;
       const path = join(dir, entry.name);
+      if (보호로막힘(path)) continue; // 비밀 이름은 후보로도 안 낸다
       if (matches(entry.name, subject)) found.push(entry.name);
-      if (entry.isDirectory() && !entry.name.startsWith('.')) await visit(path, depth + 1);
+      if (entry.isDirectory()) await visit(path, depth + 1);
     }
   };
   for (const root of roots) await visit(root, 0);

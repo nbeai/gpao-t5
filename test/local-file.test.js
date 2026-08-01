@@ -276,3 +276,100 @@ test('승인 카드는 새로 만들기와 덮어쓰기를 다르게 약속한�
   const 덮어 = tool.previewOf({ action: 'write', path: '있던파일.md', text: 'y' });
   assert.match(덮어.cancel, /원본은 휴지통에 남아요/);
 });
+
+// ── C 감사 F5.1★ · undo 는 저장된 경로라도 범위·보호를 지나야 실행된다 ────
+// 실측(감사 2026-08-01): undo 블록이 resolveInScope·protectionBlocks 보다 앞에 있어,
+// undo-log.json 에 적힌 절대 경로가 검사 없이 mkdir·rename 으로 실행됐다. 로그 파일은
+// 범위 안(.trash)이라 write/move 로 정당하게 변조 가능했다 — 범위 밖 이동이 undo 한 번에 열린다.
+test('F5.1: 범위 밖 경로가 적힌 undo 기록은 실행하지 않는다(재시작 뒤 낡은 기록)', async () => {
+  const { root, tool } = await sandbox();
+  const 밖 = await mkdtemp(join(tmpdir(), 'gpao-t5-범위밖-'));
+  await writeFile(join(밖, '남의파일.md'), '건드리면 안 된다');
+  await mkdir(join(root, '.trash'), { recursive: true });
+  // 재시작 뒤 남은(또는 변조된) 로그 — from 이 현재 범위 밖을 가리킨다.
+  await writeFile(join(root, '.trash/undo-log.json'), JSON.stringify([
+    { id: 'x', op: 'delete', from: join(밖, '남의파일.md'), to: join(root, '.trash/미끼'), at: new Date().toISOString() },
+  ]));
+  await writeFile(join(root, '.trash/미끼'), '엉뚱한 내용');
+  const r = await tool.handler({ action: 'undo' });
+  assert.ok(r.blocked, `범위 밖 undo 가 실행됐다: ${JSON.stringify(r)}`);
+  assert.equal(await readFile(join(밖, '남의파일.md'), 'utf8'), '건드리면 안 된다', '범위 밖 원본이 움직였다');
+});
+
+test('F5.1: 보호 영역(비밀 이름)을 향한 undo 기록은 실행하지 않는다', async () => {
+  const { root, tool } = await sandbox();
+  await mkdir(join(root, '.trash'), { recursive: true });
+  await writeFile(join(root, '.trash/담긴것'), '비밀로 위장한 내용');
+  await writeFile(join(root, '.trash/undo-log.json'), JSON.stringify([
+    { id: 'x', op: 'delete', from: join(root, 'api-token.txt'), to: join(root, '.trash/담긴것'), at: new Date().toISOString() },
+  ]));
+  const r = await tool.handler({ action: 'undo' });
+  assert.ok(r.blocked, '보호 영역을 향한 undo 가 실행됐다');
+});
+
+test('F5.1: 심볼릭 링크로 범위를 빠져나가는 undo 기록도 막힌다', async () => {
+  const { root, tool } = await sandbox();
+  const 밖 = await mkdtemp(join(tmpdir(), 'gpao-t5-링크밖-'));
+  await symlink(밖, join(root, '지름길'));
+  await mkdir(join(root, '.trash'), { recursive: true });
+  await writeFile(join(root, '.trash/담긴것'), 'x');
+  await writeFile(join(root, '.trash/undo-log.json'), JSON.stringify([
+    { id: 'x', op: 'delete', from: join(root, '지름길/새파일.md'), to: join(root, '.trash/담긴것'), at: new Date().toISOString() },
+  ]));
+  const r = await tool.handler({ action: 'undo' });
+  assert.ok(r.blocked, '링크를 지나 범위 밖으로 되돌렸다');
+  const 밖에생김 = await readdir(밖);
+  assert.deepEqual(밖에생김, [], `범위 밖에 파일이 생겼다: ${밖에생김}`);
+});
+
+test('F5.1: 정상 undo 는 그대로 된다(보호가 기능을 죽이면 안 된다)', async () => {
+  const { root, tool } = await sandbox();
+  await tool.handler({ action: 'write', path: '메모.md', text: '원래 내용' });
+  await tool.handler({ action: 'write', path: '메모.md', text: '새 내용' });
+  const u = await tool.handler({ action: 'undo' });
+  assert.equal(u.blocked, undefined, `정상 undo 가 막혔다: ${u.userSafeSummary}`);
+  assert.equal(await readFile(join(root, '메모.md'), 'utf8'), '원래 내용');
+});
+
+test('F5.1: 되돌리기 도중 실패하면 지금 파일도 원본도 잃지 않는다', async () => {
+  const { root, tool } = await sandbox();
+  await mkdir(join(root, '.trash'), { recursive: true });
+  // to(휴지통 사본)가 이미 사라진 기록 — rename 이 실패한다.
+  await writeFile(join(root, '현재본.md'), '지금 내용');
+  await writeFile(join(root, '.trash/undo-log.json'), JSON.stringify([
+    { id: 'x', op: 'write', from: join(root, '현재본.md'), to: join(root, '.trash/이미없음'), at: new Date().toISOString() },
+  ]));
+  const r = await tool.handler({ action: 'undo' });
+  assert.ok(r.blocked, '없는 사본을 되돌렸다고 말했다(거짓 성공)');
+  assert.equal(await readFile(join(root, '현재본.md'), 'utf8'), '지금 내용',
+    '실패한 undo 가 지금 파일을 치웠다 — 실패 시 모두 보존이 계약이다');
+});
+
+// ── C 감사 F5.2 · undo 승인 카드는 실제 대상을 말한다 ───────────────────
+test('F5.2: undo 미리보기가 로그의 실제 대상을 보여준다(강제되지 않는 범위 단언 금지)', async () => {
+  const { root, tool } = await sandbox();
+  await tool.handler({ action: 'write', path: '보고서.md', text: '내용' });
+  const pv = tool.previewOf({ action: 'undo' });
+  assert.ok(String(pv.scope).includes('보고서.md'),
+    `카드가 실제 대상 대신 뭉뚱그린 범위를 말한다: ${JSON.stringify(pv)}`);
+});
+
+// ── C 감사 F5.4 · move 부분 실패가 조용한 사본을 남기면 안 된다 ──────────
+test('F5.4: 옮기기 도중 원본 삭제가 실패하면 사본을 되물리고 정직하게 말한다', async () => {
+  const { root, tool } = await sandbox();
+  const src디렉 = join(root, '잠긴폴더');
+  await mkdir(src디렉, { recursive: true });
+  await writeFile(join(src디렉, '자료.md'), '내용');
+  const { chmod } = await import('node:fs/promises');
+  await chmod(src디렉, 0o555); // 부모가 읽기 전용 → copyFile 은 되고 rm 이 실패한다
+  try {
+    const r = await tool.handler({ action: 'move', path: '잠긴폴더/자료.md', to: '옮긴자료.md' });
+    assert.ok(r.blocked, '부분 실패가 성공처럼 답했다');
+    let 사본있음 = true;
+    try { await stat(join(root, '옮긴자료.md')); } catch { 사본있음 = false; }
+    assert.equal(사본있음, false, '실패했는데 사본이 남았다 — 재시도가 destExists 에 영영 막힌다');
+    assert.equal(await readFile(join(src디렉, '자료.md'), 'utf8'), '내용', '원본이 사라졌다');
+  } finally {
+    await chmod(src디렉, 0o755);
+  }
+});

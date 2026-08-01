@@ -878,6 +878,55 @@ P0 유형 54회차 누적 0. **다음 단계: PC 손발 H08~H09.** H10 은 Agent
 
 ---
 
+### 5-P. PC 손발 배치 1 — C 감사 전건 처분 (2026-08-01, 이 세션)
+
+에이전트 C 적대 감사(대상 `a059dca`, 원문 30건 = 오너 지시의 20건 + 회색 4건 + 병합 계열)를
+현재 HEAD 에서 전건 대조·처분했다. 상태: `FIXED`(코드+수정 전 실패 반대시험) ·
+`ALREADY_GUARDED`(기존 방어 재현) · `RECORDED_LIMIT`(제한 수용·영향 명시) ·
+`FOLLOWUP_BLOCKED`(배치 밖·현재 위험 차단). 전체 회귀 **1664/1664**.
+
+| 건 | 위치 | 처분 | 근거(재현→코드·검사) | 봉인 차단 |
+|---|---|---|---|---|
+| F1.1 보호검사 공허 | test/local-locate | `FIXED` | 가짜 홈에서 이름 기준 보호 판정 경로를 실제로 밟는 검사 2건 추가(제거 시 빨강 — 스윕에서 재확인) | 아니오 |
+| F1.2 검사 실홈 스캔 | test/local-discovery | `FIXED`(선행) | A/B 통합 전 이미 루트 주입으로 전환됨(21·30·50행) | 아니오 |
+| F1.3 tmp 루트 커버리지(회색) | test 전반 | `RECORDED_LIMIT` | 루트=홈 조합은 protection 단위검사+F5.1 계열이 커버. 커버리지 성질이며 결함 아님 | 아니오 |
+| F2.1 digest 생산자 부재 | local-file.js write | `FIXED` | write 결과에 내용 sha256 — lane 이 실제 내용 신분을 받는다. 과거 기록·read 산출물은 폴백 유지(제한 병기) | 아니오 |
+| F2.2 basename 축약 | tcell-lane.js | `RECORDED_LIMIT` | 원시 경로 비노출 정책과 충돌 — T-cell 봉인 영역이라 배치 1에서 안 연다. 동명 파일 축약 영향 기록, lane 통합 창 후속 | 아니오 |
+| F2.3 mtime 부재 | local-file.js | `FIXED`(범위) | `versions` 가 mtime+내용 해시로 최종본 판별(A `3e75928`). list/read 의 mtime 부재는 제한 기록 | 아니오 |
+| F2.4 locate 확신도 | local-locate.js | `RECORDED_LIMIT` | 파일 후보는 이름=대상이라 high 정당(A). 폴더 mtime 이 폴더 기준인 것은 기록 | 아니오 |
+| F3.1 지문 정규화 부재 | turn.js:957 | `FIXED` | `호출지문`(키 정렬·빈값 제거·probe 부산물/cwd 제외) — 키 순서 반대시험 | 아니오 |
+| F3.2 지문 action 누락 | turn.js:957 | `FIXED` | 지문에 action(기본값 규칙 포함) — read→write 승인 도달 반대시험(수정 전 실패 실측) | 아니오 |
+| F3.3 probe 이중 실행(회색) | turn.js | `ALREADY_GUARDED` | 같은 명령은 걸음 지문 검사(≈1042행)가 probe(≈1083행)보다 먼저 차단 — 같은 명령 재probe 없음 | 아니오 |
+| F4.1 답-영수증 대조 부재 | recovery-ladder.js | `FIXED`(B) | `읽은척차단` — 전실패 턴 내용 서술 차단(H09 P0). 부분 성공 귀속 불가는 계약에 명시된 제한 | 아니오 |
+| F4.2 fold 줄 구조 파괴 | task-context.js | `FIXED` | 파일 본문 갈래: 줄 보존·접기 표식·앞뒤 보존 — 반대시험 2건(수정 전 실패 실측) | 아니오 |
+| F4.3 자료/지시 경계 부재 | model-provider.js | `FIXED` | 실행 사실 블록에 자료 신분 한 줄(금지문 아닌 출처 사실) | 아니오 |
+| F4.4 읽은 양 불명(회색) | local-file.js | `RECORDED_LIMIT` | bytes+생략 표식으로 추론 가능. F4.2 갈래가 크기·생략자수를 명시해 개선 | 아니오 |
+| F5.1★ undo 범위 밖 실행 | local-file.js undo | `FIXED` | 범위(realpath)·보호 판정 + to 는 루트∪휴지통 경계 + 실패 시 모두 보존 — 반대시험 5건(범위 밖·비밀 이름·심볼릭 링크·실패 보존·정상 보존, 수정 전 4건 실패 실측) | 아니오 |
+| F5.2 undo 카드 허위 범위 | local-file.js preview | `FIXED` | 미리보기가 undo 로그의 실제 대상 경로를 싣는다 — 반대시험 | 아니오 |
+| F5.3 성공 불가 카드 | file-scope/turn | `FIXED`(반) | `approvalEligibility` 로 범위 밖·보호행 쓰기 카드를 계획·걸음 양쪽에서 사전 차단. 미리보기의 링크 미해제 표시는 표시용 제한 기록 | 아니오 |
+| F5.4 move 부분 실패 | local-file.js move | `FIXED` | rm 실패 시 사본 되물림+정직 보고(막다른 destExists 소멸) — 반대시험(권한 실주입) | 아니오 |
+| F5.5 경로 노출 정책 충돌 | local-locate vs lane | `RECORDED_LIMIT` | locate 의 경로 제시는 "경로 묻지 않기"와 짝인 설계. lane 통합 창에서 단일 정책 결정(후속) | 아니오 |
+| F5.6 걸음별 순차 카드 | turn.js | `RECORDED_LIMIT` | 동시 살아있는 승인 1개 계약은 유지. 순차 횟수가 걸음 수에 비례하는 것은 설계 사실 | 아니오 |
+| F6.1★ turnNo 인플레 | working-state.js:74 | `FIXED` | 턴 신분은 turn.js 경계가 결정(`withinTurn`) — 걸음 파생은 turnNo 불변. 반대시험 2건(수정 전 실패 실측: 같은 턴 안 "1턴 전" 강등) | 아니오 |
+| F6.2★ 걸음 blocked 미전달 | turn.js 걸음 루프 | `FIXED` | `걸음막힘` — 실패 걸음의 사다리를 상태에 전달, 성공 걸음은 기존 해소 계약. 반대시험 2건(남음+풀림) | 아니오 |
+| F6.3 requestScope 막다른 요청 | recovery-ladder.js | `FIXED` | 문구를 실행 가능한 행동(볼 수 있는 자리 안 사본)으로 교체+검사 갱신. 범위 확장 표면 자체는 `FOLLOWUP_BLOCKED`(배치 밖, 현재 위험 없음) | 아니오 |
+| F6.4 read→write 끊김 | turn.js | `FIXED` | F3.2 와 같은 뿌리 — 같은 반대시험이 덮는다 | 아니오 |
+| F7.1★ ~/Library 무보호 | local-protection.js | `FIXED` | 홈 Library 기본 차단(secret) + CloudStorage·Mobile Documents 허용 + 이름 규칙 유지 — 반대시험 3건. Documents·Downloads·Desktop 무영향 확인. 터미널 sandbox `secretPaths` 는 SECRET_DIRS 유지(후속 관찰) | 아니오 |
+| F7.2 평문 자격 누락 | local-protection.js | `FIXED` | `.git-credentials`·`.credentials*`·닷 `_history`·`rclone.conf` 추가 — 오탐 반대시험 포함 | 아니오 |
+| F7.3 SCRATCH 순서(회색) | local-protection.js | `FIXED`(구조) | 시스템 자리를 품는 SCRATCH 항목 제외 — TMPDIR=/ 자식 프로세스 실측 | 아니오 |
+| F7.4★ discovery 무경계 | local-discovery.js | `FIXED` | 같은 보호 판정(protectionBlocks)+같은 파일 루트 진실(defaultFileRoots)+닷파일 제외+보호 자리는 "못 본 곳" — 반대시험 4건. export 추가는 본선 통합 창에서 수행(계약 준수) | 아니오 |
+| F7.5 루트 파싱 | file-scope.js | `FIXED`(부분) | 상대 경로를 cwd 아닌 홈 기준 해석. `:` 포함 경로 미지원은 제한 기록 | 아니오 |
+| F7.6 locate pre-realpath(회색) | local-locate.js | `RECORDED_LIMIT` | `readdir withFileTypes` 가 링크 디렉터리를 안 따라가 실탈출 미확인(감사와 동일 판단). 순회 조건 변경 시 재검토를 조건으로 기록 | 아니오 |
+
+**측정기 결함 1건(이 세션)**: F6.1 반대시험 초판이 `ledger.confirmed` 의 사용자 문구 개수를
+걸음 실행의 대용물로 썼다(confirmed 는 문자열 투영이라 0건에서도 조용히 통과) — 오너 지적으로
+도구 경계의 실제 handler 호출 기록으로 교체, 결함 도달을 선행 단언으로 고정했다. F1.1 과 같은
+병(검사가 결함 자리에 도달 못 함)이며, 제품 코드는 측정기 교정에 맞춰 바꾸지 않았다.
+
+봉인을 막는 잔여 건: **0**. 다음: H08 실제 제품 관통(§3.2 동결 문장) → H09 실패 주입.
+
+---
+
 ## 6. 동결 이후 바뀐 것
 
 판정 문장이나 회차 규칙을 고쳤다면 **여기에 남긴다** — 무엇을, 왜, 결과를 보기 전인지 후인지.

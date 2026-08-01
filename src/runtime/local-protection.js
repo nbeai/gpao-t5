@@ -25,7 +25,9 @@ const h = (p) => `${HOME}/${p}`;
 // 시스템에서 지켜야 할 것은 OS·앱이 쓰는 자리이지 사용자의 임시 작업 공간이 아니다.
 // macOS 는 `/var` 가 `/private/var` 로 가는 링크라 **realpath 뒤 형태가 다르다.**
 // 우리는 realpath 로 푼 경로를 받으므로 두 형태를 다 담는다(이걸 빠뜨려 임시 폴더가 막혔다).
-const SCRATCH = [...new Set([
+// F7.3 방어: TMPDIR 이 `/` 처럼 오염되면 SCRATCH 면제가 SYSTEM 보호를 통째로 끈다 —
+// 시스템 자리를 **품는** 임시 경로는 임시 경로가 아니므로 면제 목록에서 뺀다.
+const SCRATCH_RAW = [...new Set([
   tmpdir(), `/private${tmpdir()}`, tmpdir().replace(/^\/private/, ''),
   '/tmp', '/private/tmp',
 ])];
@@ -50,6 +52,21 @@ const SECRET_NAMES = [
   /^id_(rsa|dsa|ecdsa|ed25519)$/i, /^.*\.(pem|key|p12|pfx|keystore|jks)$/i,
   /^credentials$/i, /^service-account.*\.json$/i, /(^|[-_.])secret/i, /(^|[-_.])token/i,
   /^wallet\.dat$/i, /\.kdbx$/i,
+  // F7.2: 흔한 **평문 자격증명**이 정확일치 규칙 사이로 빠져 있었다(감사 2026-08-01).
+  //   `.git-credentials` 는 `/^credentials$/` 정확일치에 안 걸렸고, 셸 히스토리는 입력한
+  //   토큰이 그대로 남는 자리다. 이름 규칙이라 어느 폴더에 있든 잡는다.
+  /^\.git-credentials$/i, /^\.credentials(\..+)?$/i, /^\..*_history$/i, /^rclone\.conf$/i,
+];
+
+// F7.1: **홈의 Library 는 앱의 내부 저장소다** — iMessage 전문(chat.db)·Mail·Containers·
+// 목록에 없는 브라우저·앱 세션이 전부 여기 산다. 절대 경로 `/Library`(시스템)와 별개로,
+// 홈 아래 Library 는 **내용을 보지 않는 자리**로 막는다. 목록 열거로는 새 앱마다 새는
+// 자리가 생긴다(감사 실측: Edge·Arc·Slack·Notion 전부 목록 밖이었다) — 기본을 닫고,
+// **사용자 파일이 실제로 사는 동기화 자리만** 연다. 루트 확장과 독립이다.
+const USER_LIBRARY = h('Library');
+const USER_LIBRARY_OPEN = [
+  h('Library/CloudStorage'),       // Dropbox·Google Drive 등 — 사용자의 문서가 산다
+  h('Library/Mobile Documents'),   // iCloud Drive — 사용자의 문서가 산다
 ];
 
 /** 시스템 — 읽기는 되고 변경은 안 된다. */
@@ -61,6 +78,9 @@ const SYSTEM_DIRS = [
 
 const within = (dir, p) => p === dir || p.startsWith(dir.endsWith(sep) ? dir : dir + sep);
 const baseName = (p) => String(p).split(sep).pop() ?? '';
+
+// F7.3: 시스템 자리를 품는 SCRATCH 항목은 면제로 쓰지 않는다(위 선언의 실제 적용).
+const SCRATCH = SCRATCH_RAW.filter((d) => d && !SYSTEM_DIRS.some((s) => within(d, s)));
 
 /**
  * 비밀 자리의 실제 경로들. **샌드박스 프로파일도 같은 목록을 쓴다** — 두 벌로 두면
@@ -86,6 +106,11 @@ export function protectionFor(absPath) {
   }
   if (SECRET_NAMES.some((re) => re.test(baseName(p)))) {
     return { kind: 'secret', why: '비밀번호나 접근 열쇠가 담긴 파일로 보여요' };
+  }
+  // F7.1: 홈의 Library — 동기화된 사용자 파일 자리(CloudStorage·Mobile Documents)만 열고
+  // 나머지는 내용을 보지 않는다(위 USER_LIBRARY 선언 참고).
+  if (within(USER_LIBRARY, p) && !USER_LIBRARY_OPEN.some((d) => within(d, p))) {
+    return { kind: 'secret', why: '앱이 대화·메일·세션 같은 개인 데이터를 보관하는 자리예요' };
   }
   if (SCRATCH.some((d) => within(d, p))) return undefined; // 임시 작업 공간은 지킬 대상이 아니다
   if (SYSTEM_DIRS.some((d) => within(d, p))) {

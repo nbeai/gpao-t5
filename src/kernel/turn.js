@@ -24,7 +24,7 @@ import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from './l2-plan/model-control.js';
-import { nextRung, rungMessage, 읽은척차단 } from './l2-plan/recovery-ladder.js';
+import { nextRung, rungMessage, 읽은척차단, 호출지문 } from './l2-plan/recovery-ladder.js';
 import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
 import { resolveResponseSurface } from './l0-evidence/response-surface.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
@@ -140,6 +140,17 @@ export function 다음길(receipts, 있는손) {
   const 쓸도구말 = 도구말 && 다른손있음 && 시키는말.test(도구말) ? undefined : 도구말;
 
   return 알아본계단 ?? 쓸도구말 ?? rungMessage(계단);
+}
+
+/**
+ * C 감사 F6.2 · 걸음 하나의 실패를 상태에 남길 막힘 문장으로.
+ * 성공 걸음은 undefined — 그때 deriveWorkingState 의 기존 계약(성공하면 막힘을 푼다)이 돈다.
+ * 이 걸음의 실패를 앞세우되, 되풀이 확전 판정은 이번 턴 전체 원장으로 한다.
+ */
+function 걸음막힘(rec, turnReceipts, hands) {
+  if ((rec?.failureState ?? 'none') === 'none') return undefined;
+  const ladder = nextRung([rec, ...(turnReceipts ?? []).filter((r) => r && r !== rec)], hands);
+  return ladder ? rungMessage(ladder) : rec.userSafeSummary;
 }
 
 export function fallbackReplyFrom(receipts = []) {
@@ -952,9 +963,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 실행 사실만 모델 입력에 사실로 담아 답을 만든다(진단면 제외, 이전 턴 비혼입).
   await ctx.emit?.('trace_status', { text: '답변을 정리하고 있어요' }); // P6-12: 사용자 언어 상태
   // 이번 턴에 이미 쓴 손+인자. 이어 쓰기가 같은 걸 또 밟지 않게 한다.
-  // **핵심 인자로 맞춘다** — 계획 단계 인자에는 probe 결과 같은 부수 필드가 붙어서, 통째로
-  // 비교하면 같은 명령인데 다른 지문이 나온다(그래서 첫 걸음을 그대로 또 밟았다).
-  const 지문of = (toolId, args) => `${toolId}:${args?.command ?? args?.path ?? args?.request ?? JSON.stringify(args ?? {})}`;
+  // C 감사 F3.1/F3.2: 예전 지문(`command ?? path ?? request`)은 probe 부수 필드·키 순서에
+  // 흔들렸고(과소 차단), `local.file` 의 action 을 못 봐 **읽고 나서 쓰는 정상 걸음**을
+  // "같은 일 되풀이"로 끊었다(과대 차단). 사다리의 실패지문과 **같은 정규화 지문**을 쓴다.
+  const 지문of = (toolId, args) => 호출지문(toolId, args);
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
   // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
   // "다른 손으로 이어서 볼게요"는 그 손이 실제로 있을 때만 참이다(없으면 거짓 약속이 된다).
@@ -1058,7 +1070,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ledger.append(rec);
       turnReceipts.push(rec);
       steps += 1;
-      workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
+      // F6.1: 같은 사용자 턴 안의 파생이다 — turnNo 를 늙게 하지 않는다.
+      // F6.2: 이 걸음은 막혔다 — 그 사실과 다음 길이 상태에 남아야 다음 턴이 이어받는다.
+      workingState = 이어받기정리(deriveWorkingState(workingState, {
+        receipts: [rec], withinTurn: true, blocked: 걸음막힘(rec, turnReceipts, 있는손()),
+      }), ctx.connectors);
       tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
@@ -1207,7 +1223,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (rec.surfaceRequest) { 멈춘이유 = undefined; break; }
 
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
-    workingState = 이어받기정리(deriveWorkingState(workingState, { receipts: [rec] }), ctx.connectors);
+    // F6.1: 걸음 파생은 같은 사용자 턴이다(turnNo 불변). F6.2: 이 걸음이 실패면 그 실패의
+    // 사다리를 blocked 로 남긴다 — 성공 걸음이면 blocked 를 넘기지 않아, 앞선 막힘이 실제로
+    // 풀렸을 때 상태도 함께 풀린다(거짓 막힘 금지 — deriveWorkingState 의 기존 계약 그대로).
+    workingState = 이어받기정리(deriveWorkingState(workingState, {
+      receipts: [rec], withinTurn: true, blocked: 걸음막힘(rec, turnReceipts, 있는손()),
+    }), ctx.connectors);
     tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상

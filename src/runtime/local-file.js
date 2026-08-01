@@ -11,7 +11,7 @@
 import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 
@@ -85,6 +85,34 @@ export function makeLocalFileTool(deps = {}) {
   return {
     toolKind: 'organize',
     /**
+     * C 감사 F5.3 · **승인은 성공할 수 있는 일에만 청한다.** 범위 밖·보호 영역을 향한
+     * 쓰기/옮기기/지우기는 승인 뒤 반드시 실패한다 — 누를 수 있지만 성공 불가능한 카드는
+     * 카드가 아니라 함정이다. 읽기 계열은 카드가 없으므로 여기서 판정하지 않는다(존재 검사도
+     * 하지 않는다 — ENOENT 는 실행 경로의 정직한 실패·사다리가 다룬다).
+     */
+    async approvalEligibility(args = {}) {
+      const action = args.action ?? (args.path ? 'read' : 'list');
+      if (action === 'list' || action === 'read' || action === 'versions') return { allowed: true };
+      // undo 는 여기서 막지 않는다 — "되돌릴 것 없음"은 승인 뒤의 정직한 결과이고, 카드는
+      // F5.2 미리보기가 이미 실제 대상(또는 없음)을 말한다. 승인 불변식(모델이 고른 되돌리기는
+      // 승인 대기로 멈춘다)은 동결 계약이라 여기서 갈래를 만들지 않는다.
+      if (action === 'undo') return { allowed: true };
+      try {
+        const abs = await resolveInScope(args.path ?? '', { roots });
+        const prot = protectionBlocks(abs, { write: true });
+        if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
+        if (action === 'move') {
+          const dest = await resolveInScope(args.to ?? '', { roots });
+          const destProt = protectionBlocks(dest, { write: true });
+          if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
+        }
+        return { allowed: true };
+      } catch (e) {
+        if (e?.isScopeError) return { allowed: false, ...outOfScopeMessage(e) };
+        return { allowed: true }; // 판정 불능은 실행 경로가 정직하게 실패하게 둔다(여기서 추측 금지)
+      }
+    },
+    /**
      * @param {{action?:string, path?:string, text?:string, to?:string, name?:string, source?:string}} args
      *   action: list | read | write | move | delete | undo | versions (기본: path 있으면 read, 없으면 list)
      *   versions: path(폴더나 파일) 안에서 name 이 들어간 파일들의 최종본을 시각·내용으로 판별한다.
@@ -110,9 +138,16 @@ export function makeLocalFileTool(deps = {}) {
       // versions 도 읽기다 — 비교만 하고 아무것도 바꾸지 않는다.
       if (action === 'list' || action === 'read' || action === 'versions') return undefined;
       if (action === 'undo') {
+        // C 감사 F5.2 · 카드는 **강제되지 않는 범위를 단언하지 않는다.** "roots[0] 안"이라고
+        // 말해 놓고 로그의 실제 대상은 안 보여줬다 — 인자가 아니라 결과를 보여줘야 승인이
+        // 승인이 된다(write/move/delete 카드와 같은 계약). 미리보기는 표시용이라 동기로 읽는다.
+        let 마지막;
+        try { 마지막 = JSON.parse(readFileSync(undoFile, 'utf8')).at(-1); } catch { /* 기록 없음 */ }
         return {
-          impact: '방금 한 파일 작업을 되돌려요',
-          scope: `${roots[0]} 안`,
+          impact: 마지막
+            ? `${basename(마지막.from)} 을(를) 이전 상태로 되돌려요`
+            : '되돌릴 파일 작업이 없어요',
+          scope: 마지막 ? String(마지막.from) : `${roots[0]} 안`,
           duration: '이번 한 번',
           cancel: '되돌리기를 되돌릴 수는 없어요 — 다시 하면 됩니다',
         };
@@ -159,29 +194,69 @@ export function makeLocalFileTool(deps = {}) {
           const list = await loadUndo();
           const last = list.pop();
           if (!last) return fail('되돌릴 작업이 없어요.');
+          // C 감사 F5.1★ · **저장된 경로도 지금의 범위·보호를 지나야 실행된다.** 예전엔 이 블록이
+          // resolveInScope·protectionBlocks 보다 앞에 있어, undo-log.json 에 적힌 절대 경로가
+          // 검사 없이 mkdir·rename 됐다 — 로그 파일 자체가 범위 안(.trash)이라 write/move 로
+          // 변조 가능했고, 재시작 뒤 낡은 기록·바뀐 범위·심볼릭 링크가 전부 열린 문이었다.
+          // "모든 경로는 범위 안에서만"(위 계약 §)에 undo 만 예외일 이유가 없다.
+          // resolveInScope 는 realpath 로 판정하므로 링크 탈출도 여기서 잡힌다.
+          let 되돌릴곳; let 담긴곳;
+          try {
+            되돌릴곳 = await resolveInScope(last.from, { roots });
+            // 사본(to)도 경계를 지난다 — from 만 검사하면 로그 변조로 임의 경로의 파일(비밀 포함)을
+            // 범위 안으로 "되돌려" 끌어올 수 있다. 정당한 to 는 두 곳뿐이다: 휴지통(쓰기·삭제가
+            // 담근 자리 — 라이브 GPAO_T5_DATA_DIR 격리에서는 파일 루트 밖일 수 있다)과
+            // 범위 안(move 의 목적지). 같은 realpath 판정이라 링크 탈출도 막힌다.
+            담긴곳 = last.to
+              ? await resolveInScope(last.to, { roots }).catch((e) => {
+                if (!e?.isScopeError) throw e;
+                return resolveInScope(last.to, { roots: [trashDir] });
+              })
+              : null;
+          } catch (e) {
+            if (e?.isScopeError) {
+              return fail('그 되돌리기 기록은 지금 작업 범위 밖을 가리키고 있어서 실행하지 않았어요.', '되돌릴 파일이 범위 안에 있으면 이름을 알려 주세요.');
+            }
+            throw e;
+          }
+          const 되돌림보호 = protectionBlocks(되돌릴곳, { write: true });
+          if (되돌림보호) {
+            const msg = protectionMessage(되돌림보호, { write: true });
+            return { blocked: true, scopeState: 'protected', ...msg };
+          }
           // **만든 것을 되돌리는 길.** 되살릴 원본이 없으므로 복원이 아니라 치우는 것이다.
           // 이 갈래가 없으면 새로 만든 파일은 영영 못 되돌린다(승인 카드는 된다고 말하는데).
-          if (!last.to) {
-            const 치움 = await toTrash(last.from);
+          if (!담긴곳) {
+            const 치움 = await toTrash(되돌릴곳);
             await saveUndo(list);
             return ok(
-              치움 ? `${basename(last.from)} 을(를) 되돌렸어요 — 만든 파일은 휴지통에 있어요.`
-                : `${basename(last.from)} 은(는) 이미 없어요.`,
-              { undone: last.op, path: last.from, trashed: Boolean(치움) },
+              치움 ? `${basename(되돌릴곳)} 을(를) 되돌렸어요 — 만든 파일은 휴지통에 있어요.`
+                : `${basename(되돌릴곳)} 은(는) 이미 없어요.`,
+              { undone: last.op, path:되돌릴곳, trashed: Boolean(치움) },
             );
           }
-          await mkdir(dirname(last.from), { recursive: true });
+          // 되살릴 사본이 실제로 있는지 먼저 본다 — 없는 사본을 "되돌렸어요"라고 말하면 거짓 성공이고,
+          // 지금 자리의 파일을 먼저 치웠다면 실패가 사용자 파일 손실이 된다(실패 시 모두 보존).
+          try { await stat(담긴곳); }
+          catch { return fail('되돌릴 사본이 휴지통에 남아 있지 않아요.', '지금 파일은 그대로 두었어요.'); }
+          await mkdir(dirname(되돌릴곳), { recursive: true });
           // **되돌리는 자리에 지금 다른 파일이 있으면 그것부터 휴지통으로.** rename 은 말없이 덮어쓴다 —
           // move 의 copyFile 은 막아 놓고 undo 의 rename 을 열어 두면 같은 손실이 그대로 난다:
           // 옮기고 → 사용자가 그 이름으로 새로 쓰고 → 되돌리면 새 내용이 영영 사라졌다(감사에서 실증).
-          const parked = await toTrash(last.from);
-          await rename(last.to, last.from);
+          const parked = await toTrash(되돌릴곳);
+          try {
+            await rename(담긴곳, 되돌릴곳);
+          } catch (e) {
+            // 실패하면 방금 치운 지금 파일을 제자리로 — 원본도 지금 파일도 잃지 않는다.
+            if (parked) { try { await rename(parked, 되돌릴곳); } catch { /* 사본은 휴지통에 남아 있다 */ } }
+            throw e;
+          }
           await saveUndo(list); // 성공한 뒤에 표에서 지운다(중간에 실패하면 되돌릴 기회가 남아야 한다)
           return ok(
             parked
-              ? `${basename(last.from)} 을(를) 되돌렸어요(그 자리에 있던 파일은 휴지통에 있어요).`
-              : `${basename(last.from)} 을(를) 되돌렸어요.`,
-            { undone: last.op, path: last.from, parked: Boolean(parked) },
+              ? `${basename(되돌릴곳)} 을(를) 되돌렸어요(그 자리에 있던 파일은 휴지통에 있어요).`
+              : `${basename(되돌릴곳)} 을(를) 되돌렸어요.`,
+            { undone: last.op, path: 되돌릴곳, parked: Boolean(parked) },
           );
         }
 
@@ -322,6 +397,10 @@ export function makeLocalFileTool(deps = {}) {
               : `${basename(abs)} 을(를) 만들었어요.`,
             {
               path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked),
+              // C 감사 F2.1 · **산출물의 내용 신분.** lane 은 digest 가 있으면 그것을 신분으로
+              // 쓰는데 생산자가 없어 항상 경로+턴 폴백이었다 — 같은 경로가 나중에 바뀌어도
+              // "같은 산출물"로 이어지는 병. 쓰기가 자기 내용의 digest 를 낸다.
+              digest: createHash('sha256').update(text).digest('hex'),
               // 원본을 안 건드렸다는 건 **말할 수 있는 사실**이어야 한다 — 결과에 남긴다.
               ...(원본 ? { originalUntouched: true, source: 원본 } : {}),
             },
@@ -349,7 +428,21 @@ export function makeLocalFileTool(deps = {}) {
           }
           await mkdir(dirname(dest), { recursive: true });
           await copyFile(abs, dest);
-          await rm(abs);
+          // C 감사 F5.4 · **부분 실패는 사본을 남기지 않는다.** copyFile 뒤 rm 이 실패하면
+          // 예전엔 dest 사본이 조용히 남고("문제가 있었어요"만 나감) 재시도는 destExists 에
+          // 영영 막혔다 — 막다른 자리. 사본을 되물려 원래 상태로 돌리고 정직하게 말한다.
+          try {
+            await rm(abs);
+          } catch (e) {
+            let 사본정리 = true;
+            try { await rm(dest); } catch { 사본정리 = false; }
+            return fail(
+              사본정리
+                ? `${basename(abs)} 을(를) 옮기지 못했어요 — 원본은 그대로 있어요.`
+                : `${basename(abs)} 을(를) 옮기다 멈췄어요 — 원본은 그대로 있고, ${basename(dest)} 자리에 사본이 남았어요.`,
+              '원본이 있는 폴더의 권한을 확인한 뒤 다시 할까요?',
+            );
+          }
           await pushUndo(undoEntry('move', abs, dest));
           return ok(`${basename(abs)} 을(를) ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
         }

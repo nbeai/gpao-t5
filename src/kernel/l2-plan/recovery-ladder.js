@@ -136,12 +136,36 @@ export function 실패종류(rec) {
  * @param {string[]} [hands] 지금 실제로 쓸 수 있는 도구 id 들(미지정이면 판정하지 않고 표대로)
  * @returns {{rung:string, useModelSearch?:boolean, requestScope?:boolean, why?:string}|null}
  */
-/** 같은 실패인지 가르는 지문 — 턴 실행부(turn.js 지문of)와 같은 핵심 인자 기준. */
+// ── 호출 지문 — "같은 일"의 기계 신분(턴 실행부와 사다리가 같은 규칙을 쓴다) ──
+// C 감사 F3.1/F3.2: 예전 지문은 `command ?? path ?? request` 라 ① 키 순서·부수 필드가 다르면
+// 같은 일이 다른 지문이 됐고(과소 차단) ② `local.file` 의 action 이 지문에 없어 **읽고 나서
+// 쓰는 정상 걸음**이 "같은 일 되풀이"로 차단됐다(과대 차단 — H08→H09 를 잇는 가장 흔한 경로).
+// 정규화 규칙: 의미 있는 인자만, 키 정렬, 빈 값 제거. probe 부산물은 지문이 아니다.
+// `cwd` 도 뺀다 — 계획 단계의 probe 가 채워 넣는 값이라, 모델이 같은 명령을 다시 고르면
+// 한쪽에만 cwd 가 붙어 같은 일이 다른 지문이 된다(예전 계약도 command 만 봤다 — 보존).
+const 지문제외 = new Set(['probeResult', 'granted', 'changes', 'targetLabel', 'cwd']);
+
+/**
+ * 도구 호출의 정규화 지문. 같은 일 = 같은 지문, 다른 일(다른 action·다른 대상) = 다른 지문.
+ * @param {string} toolId @param {object} [args]
+ */
+export function 호출지문(toolId, args) {
+  const a = args && typeof args === 'object' ? { ...args } : {};
+  // local.file 의 기본 action 을 지문에도 똑같이 적는다(도구 handler 의 기본 규칙과 한 진실).
+  // 이게 없으면 `{path}` 와 `{action:'read', path}` 가 같은 읽기인데 다른 지문이 된다.
+  if (toolId === 'local.file' && a.action === undefined) a.action = a.path ? 'read' : 'list';
+  const kv = Object.entries(a)
+    .filter(([k, v]) => !지문제외.has(k) && v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)])
+    .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
+  return `${toolId}:${kv.map(([k, v]) => `${k}=${v}`).join('')}`;
+}
+
+/** 같은 실패인지 가르는 지문 — 턴 실행부(turn.js)와 같은 정규화 지문을 쓴다. */
 function 실패지문(rec) {
   const call = rec?.actualCall;
   if (!call?.tool) return null;
-  const a = call.args ?? {};
-  return `${call.tool}:${a.command ?? a.path ?? a.request ?? JSON.stringify(a)}`;
+  return 호출지문(call.tool, call.args ?? {});
 }
 
 export function nextRung(receipts = [], hands) {
@@ -196,7 +220,12 @@ export function rungMessage(step) {
     case 'other_hand':
       return `${step.why}. 제 다른 손으로 이어서 볼게요.`;
     case 'ask_user':
-      if (step.requestScope) return `${step.why}. 그 폴더를 제 작업 범위에 넣어 주시면 바로 볼 수 있어요.`;
+      // C 감사 F6.3: "작업 범위에 넣어 주시면"은 제품에 그 수단이 없어(기동 시 환경변수뿐)
+      // 사용자가 할 수 없는 행동을 약속하는 말이었다. 지금 실제로 되는 다음 행동만 청한다 —
+      // 볼 수 있는 자리(작업 폴더·Downloads·Documents·Desktop) 안의 사본을 알려 주는 것.
+      if (step.requestScope) {
+        return `${step.why}. 제가 볼 수 있는 자리(작업 폴더·다운로드·문서·바탕화면) 안에 사본이 있으면 알려 주세요 — 바로 볼게요.`;
+      }
       // 계단이 종류에 맞는 다음 한 걸음(next)을 스스로 말하면 그것을 쓴다 — 기본 문구
       // ("화면 내용을 붙여 주시면")는 로그인벽에서 나온 말이라 파일 없음·형식 미지원에는 거짓이다.
       if (step.next) return `${step.why}. ${step.next}`;

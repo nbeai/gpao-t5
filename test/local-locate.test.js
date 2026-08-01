@@ -253,3 +253,26 @@ test('찾았을 때는 자리 목록으로 지면을 채우지 않는다', async
   const r = await makeLocalLocateTool({ home: await 가짜홈() }).handler({ what: '정산' });
   assert.equal(r.result.placesToLook, undefined, '이미 찾았는데 다른 자리를 늘어놓으면 헷갈린다');
 });
+
+// ── C 감사 F1.1 · 보호 필터 검사의 실효성 — 가짜 홈에서 판정을 실제로 밟는다 ──
+// 기존 검사는 실제 홈을 훑는데, locate 는 닷폴더·SKIP(Library …)을 먼저 걸러서
+// protectionFor 호출에 도달하는 후보가 없었다 — 판정 줄을 지워도 초록이었다(반대 검증 실측).
+// 이름 기준 비밀 규칙은 가짜 홈에서도 걸리므로, 여기서 판정 경로를 실제로 밟게 한다.
+test('F1.1: 이름이 비밀 규칙에 걸리는 파일은 후보로 나오지 않는다(판정 경로 실효)', async () => {
+  const home = await 가짜홈();
+  await writeFile(join(home, '회계/정산-token.txt'), '비밀값');
+  const r = await makeLocalLocateTool({ home }).handler({ what: '정산' });
+  assert.ok(!(r.result.candidates ?? []).some((c) => c.path.includes('정산-token')),
+    '비밀 이름 파일이 후보로 나갔다 — 보여주면 그리로 가게 된다');
+  assert.ok((r.result.skippedProtected ?? 0) >= 1,
+    '보호로 건너뛴 사실이 안 남았다 — 판정이 실제로 돌았다는 증거가 없다');
+});
+
+test('F1.1: 이름이 비밀 규칙에 걸리는 폴더는 들어가지 않는다', async () => {
+  const home = await 가짜홈();
+  await mkdir(join(home, '회계/정산-secrets'), { recursive: true });
+  await writeFile(join(home, '회계/정산-secrets/정산표.xlsx'), 'x');
+  const r = await makeLocalLocateTool({ home }).handler({ what: '정산' });
+  assert.ok(!(r.result.candidates ?? []).some((c) => c.path.includes('정산-secrets')),
+    '비밀 이름 폴더(또는 그 안)가 후보로 나갔다');
+});

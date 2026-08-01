@@ -17,7 +17,16 @@ import { homedir } from 'node:os';
 
 export function defaultFileRoots(env = process.env) {
   const raw = env.GPAO_T5_FILE_ROOTS;
-  if (raw && raw.trim()) return raw.split(':').map((p) => resolve(p.trim())).filter(Boolean);
+  if (raw && raw.trim()) {
+    // C 감사 F7.5 · 상대 경로는 **cwd 가 아니라 홈** 기준으로 푼다 — 서버를 어디서 켰는지에
+    // 따라 루트가 조용히 달라지면, 사용자가 넓히려던 범위와 실제 범위가 갈린다.
+    // (`:` 구분은 PATH 관례 그대로 둔다 — 경로에 콜론을 쓰는 구성은 지원하지 않는 기록된 제한.)
+    const home = homedir();
+    const roots = raw.split(':')
+      .map((p) => p.trim()).filter(Boolean)
+      .map((p) => (isAbsolute(p) ? resolve(p) : p.startsWith('~/') ? resolve(home, p.slice(2)) : resolve(home, p)));
+    if (roots.length) return roots;
+  }
   // 작업 루트가 첫째다 — 상대 경로·휴지통·새 파일의 기준은 그대로 유지된다.
   // 그 위에 **표준 사용자 폴더**를 얹는다. H08 실측(인간 기준선 실패 3/3): "다운로드 폴더에
   // 방금 받은 견적서"가 루트 1개에 막혀 시작도 못 했다. 사용자의 파일은 대부분 여기에 온다.

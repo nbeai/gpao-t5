@@ -40,12 +40,15 @@ test('범위 밖 + 그 자리를 읽는 손이 있으면 **내가 다른 손으�
   assert.doesNotMatch(rungMessage(step), /옮기|복사|넣어 주시면/, '손이 있는데 사용자를 시키면 떠넘김이다');
 });
 
-test('범위 밖인데 그 손이 없으면 **범위를 넓히자고 제안**한다(없는 손을 약속하지 않는다)', () => {
+test('범위 밖인데 그 손이 없으면 사용자가 할 수 있는 다음 행동을 청한다(없는 손을 약속하지 않는다)', () => {
+  // C 감사 F6.3 로 문구가 바뀌었다: "작업 범위에 넣어 주시면"은 제품에 그 수단이 없어
+  // (범위는 기동 시 환경변수로만 정해진다) 사용자가 할 수 없는 행동을 약속하는 말이었다.
+  // 지금은 실제로 되는 행동 — 볼 수 있는 자리 안의 사본을 알려 주는 것 — 만 청한다.
   for (const hands of [['local.file'], []]) {
     const step = nextRung([{ failureState: 'blocked', scopeState: 'out_of_scope' }], hands);
     assert.equal(step.rung, 'ask_user', `손 ${JSON.stringify(hands)}: 없는 손을 약속했다`);
     assert.equal(step.requestScope, true);
-    assert.match(rungMessage(step), /작업 범위에 넣어 주시면/);
+    assert.match(rungMessage(step), /사본이 있으면 알려 주세요/);
   }
 });
 
@@ -109,4 +112,16 @@ test('관통: 우리 수집이 막히면 모델 내장 검색을 켜서 이어�
   });
   assert.equal(searchOnFinal, true, '막혔으면 모델이 자기 경로로 찾게 켜 준다');
   assert.ok((r.reply ?? '').trim().length > 0);
+});
+
+// ── C 감사 F6.3 · 제품에 없는 사용자 행동을 요청하지 않는다 ──────────────
+// 실측(감사 2026-08-01): "그 폴더를 제 작업 범위에 넣어 주시면"이라 말했지만 범위를
+// 넓히는 수단은 기동 시 환경변수뿐이라, 사용자가 할 수 없는 일을 약속하고 끝났다.
+test('F6.3: 범위 밖 + 다른 손 없음일 때, 사용자가 실제로 할 수 있는 다음 행동만 청한다', () => {
+  const step = nextRung([{ failureState: 'blocked', scopeState: 'out_of_scope' }], []);
+  assert.equal(step.rung, 'ask_user');
+  const msg = rungMessage(step);
+  assert.doesNotMatch(msg, /작업 범위에 넣어/,
+    '제품에 그 수단이 없다 — 할 수 없는 행동을 청하면 막다른 자리가 된다');
+  assert.match(msg, /알려\s*주/, '다음 행동이 없다 — 막다른 답 금지');
 });

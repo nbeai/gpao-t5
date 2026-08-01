@@ -67,11 +67,15 @@ function subjectFrom(receipt) {
  * 이번 턴의 영수증을 이전 뷰 위에 얹는다. **성공한 실행만** 대상이 된다 —
  * 못 한 것은 대상이 아니라 "막힌 것"이다(실패 결과를 사실로 올리면 모델을 오염시킨다).
  * @param {object|null} prevState 이전 운용 상태(세션에 없으면 null 로 온다 — 실측에서 터졌다)
- * @param {{receipts?:Array, pendingApprovals?:string[], blocked?:string}} turn
+ * @param {{receipts?:Array, pendingApprovals?:string[], blocked?:string, withinTurn?:boolean}} turn
  */
 export function deriveWorkingState(prevState, turn = {}) {
   const prev = prevState ?? {};
-  const turnNo = (prev.turnNo ?? 0) + 1;
+  // **turnNo 의 단위는 사용자 턴이다.** 턴 신분은 부르는 쪽(turn.js — 턴의 시작을 아는 유일한
+  // 경계)이 정한다: 한 턴의 첫 파생만 전진하고, 같은 턴 안의 걸음·차단 파생은 `withinTurn` 으로
+  // 온다. 이게 없어서 걸음마다 +1 되어 **같은 턴 안에서 방금 찾은 자리가 "2턴 전"으로 늙었고**,
+  // 감쇠(CURRENT_WITHIN_TURNS·FORGET_AFTER_TURNS)·"N턴 전" 문구가 전부 틀어졌다(C 감사 F6.1).
+  const turnNo = turn.withinTurn ? Math.max(prev.turnNo ?? 0, 1) : (prev.turnNo ?? 0) + 1;
   // P6-W3: **지금 볼 수 있는 자리.** 사용자는 경로를 모르고 알 필요도 없다 — 이름으로 고른다.
   // 이번 턴에 새로 알아냈으면 갱신하고, 아니면 지난 것을 그대로 이어간다(사라지면 "거기"가 끊긴다).
   const places = turn.places ?? prev.places;

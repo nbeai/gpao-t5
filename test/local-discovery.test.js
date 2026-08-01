@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalDiscoveryTool } from '../src/runtime/local-discovery.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
+import { join } from 'node:path';
 
 test('미선언 대상도 MCP·CLI 이름 근거로 후보를 돌려준다', async () => {
   const tool = makeLocalDiscoveryTool({
@@ -143,4 +144,61 @@ test('두 사실이 모델 입력까지 간다 — 없는 입력면을 약속하
     },
   });
   assert.ok(!/연결 선언이 아직 없어요/.test(있을때.user));
+});
+
+// ── C 감사 F7.4★ · discovery 는 제2의 읽기 손이 아니어야 한다 ────────────
+// 실측(감사 2026-08-01): local-discovery 는 file-scope 도 local-protection 도 쓰지 않아
+// local.file 이 막힌 자리를 그대로 훑고, 최상위 닷파일 이름을 후보로 낼 수 있었다.
+test('F7.4: 보호 이름이 걸린 자리는 읽지 않고 "못 본 곳"으로 남긴다(없는 곳과 구분)', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const 부모 = await mkdtemp(join(tmpdir(), 'gpao-t5-disc-'));
+  // 폴더 이름 자체가 비밀 규칙에 걸린다(auth-secrets) — 같은 판정을 discovery 도 써야 한다.
+  const 비밀자리 = join(부모, 'auth-secrets');
+  await mkdir(비밀자리, { recursive: true });
+  await writeFile(join(비밀자리, '정산-연결.txt'), 'x');
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => [], pathDirs: [], appDirs: [], syncDirs: [], settingsDirs: [비밀자리], fileRoots: [],
+  });
+  const r = await tool.handler({ subject: '정산' });
+  assert.ok(!r.result.candidates.some((c) => c.label.includes('정산-연결')),
+    '보호 자리 안의 이름이 후보로 나갔다 — 파일 손이 막는 자리를 discovery 가 우회한다');
+  assert.ok((r.result.unchecked ?? []).includes('settings_names'),
+    `보호로 못 본 자리가 "확인했지만 없음"으로 뭉개졌다: ${JSON.stringify(r.result)}`);
+});
+
+test('F7.4: 이름이 비밀 규칙에 걸리는 항목은 후보로 올리지 않는다', async () => {
+  const { mkdtemp, mkdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-disc2-'));
+  await mkdir(join(dir, '정산자료-token'), { recursive: true });
+  await mkdir(join(dir, '정산자료-도구'), { recursive: true });
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => [], pathDirs: [], appDirs: [], syncDirs: [], settingsDirs: [dir], fileRoots: [],
+  });
+  const r = await tool.handler({ subject: '정산자료' });
+  assert.ok(!r.result.candidates.some((c) => c.label === '정산자료-token'), '비밀 이름이 후보로 나갔다');
+  assert.ok(r.result.candidates.some((c) => c.label === '정산자료-도구'), '평범한 이름까지 막았다 — 과잉 차단');
+});
+
+test('F7.4: 파일 루트의 닷파일은 후보로 내지 않는다', async () => {
+  const { mkdtemp, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-disc3-'));
+  await writeFile(join(dir, '.정산자료환경'), 'x');
+  await writeFile(join(dir, '정산자료.csv'), 'x');
+  const tool = makeLocalDiscoveryTool({
+    mcpNames: async () => [], pathDirs: [], appDirs: [], syncDirs: [], settingsDirs: [], fileRoots: [dir],
+  });
+  const r = await tool.handler({ subject: '정산자료' });
+  assert.ok(!r.result.candidates.some((c) => c.label === '.정산자료환경'), '숨은 파일 이름이 후보로 나갔다');
+  assert.ok(r.result.candidates.some((c) => c.label === '정산자료.csv'));
+});
+
+test('F7.4: 파일 탐색 루트는 파일 손과 같은 진실(file-scope)에서 나온다', async () => {
+  const { defaultFileRoots } = await import('../src/runtime/file-scope.js');
+  const { discoveryFileRoots } = await import('../src/runtime/local-discovery.js');
+  // 같은 계약을 쓰는지 — 두 손이 서로 다른 루트 진실을 갖지 않는다(두 진실 금지).
+  assert.deepEqual(discoveryFileRoots(), defaultFileRoots(),
+    'discovery 의 파일 루트가 file-scope 와 다른 곳을 본다 — 제2 읽기 손이 된다');
 });

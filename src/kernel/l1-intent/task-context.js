@@ -64,7 +64,22 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n본문: ${body}`;
   }
 
-  // ③ 그 밖(작은 결과) — 통째로 주되, 넘치면 가운데를 접는다(앞부분만 남기지 않는다).
+  // ③ 파일 본문 — **줄 구조를 지운 채 주지 않는다**(C 감사 F4.2). `fold` 의 `\s+` 접기는
+  // 웹 본문용 규칙인데 파일 읽기 결과가 JSON 갈래로 떨어져 CSV·정산표의 행 경계가 모델
+  // 입력에서 통째로 사라졌다 — 모델은 행을 근거 없이 재구성해야 했다. 줄바꿈은 남기고,
+  // 넘치면 앞뒤를 남기며 접었다는 표식을 단다(모름을 사실로 전달).
+  if (typeof result.text === 'string' && typeof result.path === 'string') {
+    const lines = [`파일: ${result.path}`];
+    if (result.bytes != null) lines.push(`크기: ${result.bytes}바이트`);
+    const keep = Math.max(maxChars - lines.join('\n').length - 40, 200);
+    const t = String(result.text).replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    const body = t.length <= keep
+      ? t
+      : `${t.slice(0, Math.ceil(keep * 0.7))}\n…(가운데 ${t.length - keep}자 생략)…\n${t.slice(-(keep - Math.ceil(keep * 0.7)))}`;
+    return `${lines.join('\n')}\n내용:\n${body}`;
+  }
+
+  // ④ 그 밖(작은 결과) — 통째로 주되, 넘치면 가운데를 접는다(앞부분만 남기지 않는다).
   const json = JSON.stringify(result);
   if (!json || json === '{}') return undefined;
   return fold(json, maxChars);
