@@ -781,6 +781,10 @@ AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유�
    (r49 원시 — 승격·입장·A/B 는 성립) ② suite boundary 위반 소진 2회(r44·r47)의 사례 내용
    ③ H03 복귀 1턴 관성(비파괴·영구화 0).
 3. H02 종결 후 보조 모델 교차 → PC 손발(H08~H09). 문턱·표본·maxRounds·6회 기준 완화 금지.
+4. (환경 기록 2026-08-01) `audit:workspace` 는 감사 측이 열어 둔 sidecar worktree
+   (`/private/tmp/t5-p0-audit` · `codex/tcell-sensitive-observation` @773760e) 때문에 FAIL
+   이다 — 게이트는 등록 메커니즘 없이 모든 sidecar 를 차단한다. 남의 작업 트리는 닫지
+   않는다. 감사 작업 종료 후 재확인.
 
 
 ### (역사) 준비 단계 종료 조건 — 이미 통과, 현재 지시 아님
