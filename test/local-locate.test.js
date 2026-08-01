@@ -276,3 +276,53 @@ test('F1.1: 이름이 비밀 규칙에 걸리는 폴더는 들어가지 않는�
   assert.ok(!(r.result.candidates ?? []).some((c) => c.path.includes('정산-secrets')),
     '비밀 이름 폴더(또는 그 안)가 후보로 나갔다');
 });
+
+// ── H08 실측 · 같은 날 파일들의 최신성이 사실로 구분돼야 한다 ─────────────
+// 라이브 실측(2026-08-01): "방금 받은 견적서 최종본" 요청에서 후보 셋이 전부
+// "오늘 고쳤어요"로 나와, 모델 앞에 남은 유일한 판별 신호가 이름('최종')뿐이었다 —
+// 모델은 이름으로 옛 판을 골랐다. 지시가 아니라 시각 사실의 정밀도가 부족했던 것이다.
+test('H08: 같은 날 고친 파일 후보는 시·분 단위 사실로 구분된다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-시각-'));
+  await mkdir(join(home, 'Downloads'), { recursive: true });
+  const 옛 = join(home, 'Downloads/견적서_최종.csv');
+  const 새 = join(home, 'Downloads/견적서_v3.csv');
+  await writeFile(옛, 'a'); await writeFile(새, 'b');
+  const now = Date.now();
+  await utimes(옛, new Date(now - 2 * 3600_000), new Date(now - 2 * 3600_000));
+  await utimes(새, new Date(now - 5 * 60_000), new Date(now - 5 * 60_000));
+  const r = await makeLocalLocateTool({ home }).handler({ what: '견적서', from: '다운로드' });
+  const byName = Object.fromEntries(r.result.candidates.map((c) => [c.path.split('/').pop(), c]));
+  assert.ok(byName['견적서_최종.csv'] && byName['견적서_v3.csv'], '두 파일이 후보로 나와야 한다');
+  assert.notEqual(byName['견적서_최종.csv'].why, byName['견적서_v3.csv'].why,
+    `같은 날 파일의 시각 사실이 같다 — 이름만 남는다: ${byName['견적서_v3.csv'].why}`);
+  assert.ok(byName['견적서_v3.csv'].modifiedAt, '기계 대조 가능한 수정 시각(modifiedAt)이 없다');
+});
+
+// ── H08 실측 · 부른 말 자체가 자리 이름이면 그 자리가 후보다 ──────────────
+// 라이브(2026-08-01): 모델이 what 에 'Downloads'·'다운로드 폴더'를 넣어 두 걸음을 허비했다 —
+// 자리 이름으로 자리를 찾는 말에 "못 찾았어요"는 사실이지만 쓸모가 없다. 파일·폴더 매치가
+// 없고 부른 말이 볼 수 있는 자리의 이름이면, 그 자리를 후보로 준다(추측이 아니라 이름 대조).
+test('H08: what 이 자리 이름이면 그 자리를 후보로 낸다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-자리이름-'));
+  await mkdir(join(home, 'Downloads'), { recursive: true });
+  await writeFile(join(home, 'Downloads/무관자료.csv'), 'x');
+  for (const 말 of ['Downloads', '다운로드 폴더', '다운로드']) {
+    const r = await makeLocalLocateTool({ home }).handler({ what: 말 });
+    const [c] = r.result.candidates;
+    assert.ok(c?.path?.endsWith('/Downloads'), `"${말}" → 자리 후보가 없다: ${JSON.stringify(r.result.candidates)}`);
+  }
+});
+
+test('H08: 자리 이름 승계가 파일 매치를 가리지 않는다(파일이 맞으면 파일이 먼저다)', async () => {
+  const home = await 가짜홈();
+  const r = await makeLocalLocateTool({ home }).handler({ what: '정산' });
+  assert.ok(r.result.candidates.length > 0);
+  assert.ok(!r.result.candidates[0].path.endsWith('/Downloads'), '파일 매치가 자리 이름에 밀렸다');
+});
+
+test('H08: 무관한 낮은 후보가 자리 이름 승계를 가리지 않는다', async () => {
+  const home = await 가짜홈(); // Downloads 있음 + 여러 무관 폴더(낮은 후보로 잡힐 수 있음)
+  const r = await makeLocalLocateTool({ home }).handler({ what: '다운로드 폴더' });
+  assert.ok(r.result.candidates[0]?.path?.endsWith('/Downloads'),
+    `자리 이름이 낮은 후보에 밀렸다: ${JSON.stringify(r.result.candidates.map((c) => c.path))}`);
+});

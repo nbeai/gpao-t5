@@ -13,6 +13,7 @@
 //   · 범위 밖은 막다른 답을 주지 않는다 — "이 폴더를 열어줄까요?"로 다음 행동을 준다.
 import { resolve, sep, join, isAbsolute } from 'node:path';
 import { realpath, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 export function defaultFileRoots(env = process.env) {
@@ -76,8 +77,24 @@ export async function resolveInScope(target, opts = {}) {
   const roots = await realRoots(declared);
   if (typeof target !== 'string' || !target.trim()) throw new ScopeError(String(target), roots);
   const base = roots[0];
+  // `~/` 는 홈이다 — locate 의 자리 해석과 같은 규칙(두 진실 금지). H08 라이브 실측(2026-08-01):
+  // 모델이 `~/Downloads` 를 골랐는데 이걸 루트 상대로 붙여 ENOENT 를 내니, 모델은 실제로
+  // 있는 표준 폴더 대신 빈 작업 루트를 보고 "폴더가 비어 있다"고 답했다.
+  const home = opts.home ?? homedir();
+  const t = target.trim() === '~' ? home
+    : target.trim().startsWith('~/') ? resolve(home, target.trim().slice(2)) : target;
   // 상대 경로는 첫 루트 기준으로 푼다(사용자가 "메모.md"라고만 말해도 되게).
-  const abs = isAbsolute(target) ? resolve(target) : resolve(base, target);
+  let abs = isAbsolute(t) ? resolve(t) : resolve(base, t);
+  // **루트 이름으로 시작하는 상대 경로는 그 루트를 부르는 말이다.** H08 라이브 실측(2026-08-01):
+  // 모델이 `Downloads/견적서.csv` 를 골랐는데 첫 루트(작업 폴더) 기준으로만 풀려 ENOENT 가 났다.
+  // 첫 루트 해석이 실재하면 그대로 두고(행동 보존), 없을 때만 이름이 맞는 다른 루트로 푼다.
+  if (!isAbsolute(t)) {
+    const 첫말 = String(t.split(/[/\\]/)[0] ?? '').normalize('NFC').toLowerCase();
+    if (첫말 && !existsSync(abs)) {
+      const 맞는루트 = roots.find((r) => String(r.split(sep).pop()).normalize('NFC').toLowerCase() === 첫말);
+      if (맞는루트) abs = resolve(맞는루트, t.split(/[/\\]/).slice(1).join(sep));
+    }
+  }
 
   // **판정의 기준은 실제 경로다.** 문자열로 먼저 끊으면 `/var/...` 처럼 링크를 지나는 형태가
   // 실제로는 루트 안(`/private/var/...`)인데도 범위 밖으로 오판된다(다중 루트 검사에서 실측).
@@ -114,10 +131,12 @@ export async function resolveInScope(target, opts = {}) {
  * (2026-07-27 실측). **인자가 아니라 결과를 보여줘야 승인이 승인이 된다.**
  * @param {string} target @param {string[]} [roots]
  */
-export function previewPathOf(target, roots = defaultFileRoots()) {
+export function previewPathOf(target, roots = defaultFileRoots(), home = homedir()) {
   const base = resolve(roots[0]);
-  const t = typeof target === 'string' ? target.trim() : '';
-  if (!t) return base;
+  const raw = typeof target === 'string' ? target.trim() : '';
+  if (!raw) return base;
+  // `~/` 해석도 실행 경로(resolveInScope)와 같은 규칙 — 카드가 다른 자리를 말하면 안 된다.
+  const t = raw === '~' ? home : raw.startsWith('~/') ? resolve(home, raw.slice(2)) : raw;
   return isAbsolute(t) ? resolve(t) : resolve(base, t);
 }
 

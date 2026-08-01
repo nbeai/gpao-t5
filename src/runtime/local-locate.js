@@ -51,9 +51,19 @@ function 이름이맞나(name, 낱말들) {
   return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w));
 }
 
-/** 수정 시각을 사람 말로. 후보의 "왜"에 붙는다. */
-function 시각말(최근일) {
+/**
+ * 수정 시각을 사람 말로. 후보의 "왜"에 붙는다.
+ * H08 실측(2026-08-01): 하루 단위로만 말하면 같은 날 파일들이 전부 "오늘 고쳤어요"가 되어
+ * 모델 앞의 유일한 판별 신호가 이름('최종')만 남는다 — "방금 받은"의 방금은 분 단위 사실이다.
+ * @param {number} [최근일] @param {number} [mtimeMs]
+ */
+function 시각말(최근일, mtimeMs) {
   if (최근일 == null) return undefined;
+  if (최근일 === 0 && mtimeMs) {
+    const 분 = Math.max(1, Math.round((Date.now() - mtimeMs) / 60_000));
+    if (분 < 60) return `${분}분 전에 고쳤어요`;
+    return `${Math.round(분 / 60)}시간 전에 고쳤어요`;
+  }
   return 최근일 === 0 ? '오늘 고쳤어요' : 최근일 <= 7 ? `${최근일}일 전에 고쳤어요` : `${Math.round(최근일 / 30)}달 전`;
 }
 
@@ -148,6 +158,8 @@ function 자리로(from, 자리들, home) {
   const 말 = typeof from === 'string' ? from.trim() : '';
   if (!말) return { path: home };
   if (말 === '~') return { path: home };
+  // 사용자·모델은 홈을 "홈"이라고 부른다(H08 실측: from='홈' 이 모르는 자리로 떨어져 걸음 낭비).
+  if (/^(홈|홈\s*폴더|home)$/i.test(말)) return { path: home };
   if (말.startsWith('~/')) return { path: join(home, 말.slice(2)) };
   // 경로를 준 것을 이름으로 다시 해석하지 않는다(모델·스킬이 정확히 짚었을 때 가로채면 안 된다).
   if (말.startsWith('/')) return { path: 말 };
@@ -294,15 +306,17 @@ export function makeLocalLocateTool(deps = {}) {
           const full = join(dir, e.name);
           // 비밀 이름 파일(.env·토큰·키)은 후보로도 안 올린다 — 보여주면 그리로 가게 된다.
           if (protectionFor(full)) { 안본자리.push(full); continue; }
-          let 최근일;
-          try { 최근일 = Math.floor((지금 - (await stat(full)).mtimeMs) / 86_400_000); } catch { /* 못 보면 안 쓴다 */ }
+          let 최근일; let mtimeMs;
+          try { mtimeMs = (await stat(full)).mtimeMs; 최근일 = Math.floor((지금 - mtimeMs) / 86_400_000); } catch { /* 못 보면 안 쓴다 */ }
           후보.push({
             path: full,
             kind: 'file',
             kindLabel: '파일',
-            why: ['이름이 맞아요', 시각말(최근일)].filter(Boolean).join(' · '),
+            why: ['이름이 맞아요', 시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
             confidence: 'high', // 파일은 이름이 곧 대상이다 — 성격 추측이 낄 자리가 없다
             modifiedDaysAgo: 최근일,
+            // 기계 대조 가능한 시각 — "최종본" 판단은 이름이 아니라 이 사실 위에서 선다(H08).
+            ...(mtimeMs ? { modifiedAt: new Date(mtimeMs).toISOString() } : {}),
           });
         }
 
@@ -320,6 +334,24 @@ export function makeLocalLocateTool(deps = {}) {
       const 순서 = { high: 0, medium: 1, low: 2 };
       후보.sort((a, b) => (순서[a.confidence] - 순서[b.confidence])
         || ((a.modifiedDaysAgo ?? 9999) - (b.modifiedDaysAgo ?? 9999)));
+
+      // **부른 말 자체가 자리 이름이면 그 자리가 답이다.** H08 라이브 실측(2026-08-01):
+      // 모델이 what 에 'Downloads'·'다운로드 폴더'를 넣어 "못 찾았어요"를 두 번 받고 걸음을
+      // 허비했다. 파일·폴더 매치가 하나도 없을 때, 부른 말이 볼 수 있는 자리의 이름과 맞으면
+      // 그 자리를 후보로 준다 — 추측이 아니라 이름 대조다(자리로()와 같은 정규화).
+      // 이름·종류가 맞은 후보가 없을 때만 — 실제 파일 매치를 자리 이름이 가리면 안 된다.
+      if (말 && !후보.some((c) => c.confidence !== 'low')) {
+        const 통말 = 말.normalize('NFC').replace(/\s+/g, '').toLowerCase().replace(/(폴더|자리)$/, '');
+        const 이름들 = [통말, 표준폴더말[통말]].filter(Boolean);
+        const 같은 = (a, b) => a.normalize('NFC').toLowerCase() === b.normalize('NFC').toLowerCase();
+        const 자리 = (await 자리목록()).find((p) => 이름들.some((n) => 같은(p.label, n)));
+        if (자리) {
+          후보.unshift({
+            path: 자리.path, kind: 'folder', kindLabel: '폴더',
+            why: '부르신 이름의 자리예요', confidence: 'high',
+          });
+        }
+      }
       // **못 찾은 것을 찾은 척하지 않는다.** 사용자가 뭔가를 특정해서 물었는데 이름도 종류도
       // 안 맞으면, 낮은 후보를 잔뜩 늘어놓는 건 "찾았다"는 오해만 만든다(실측: "포토샵 파일"에
       // 무관한 폴더 셋이 나왔다). 그럴 땐 몇 개만 곁들이고 못 찾았다고 말한다.

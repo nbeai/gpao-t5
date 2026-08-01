@@ -373,3 +373,49 @@ test('F5.4: 옮기기 도중 원본 삭제가 실패하면 사본을 되물리�
     await chmod(src디렉, 0o755);
   }
 });
+
+// ── C 감사 F2.3 완결 · 목록·읽기에도 수정 시각이 사실로 남는다 ────────────
+test('F2.3: list 항목과 read 결과에 수정 시각이 있다(최종본 판단의 재료)', async () => {
+  const { root, tool } = await sandbox();
+  await writeFile(join(root, '자료.md'), '내용');
+  const l = await tool.handler({ action: 'list' });
+  const item = l.result.items.find((i) => i.name === '자료.md');
+  assert.ok(item?.modifiedAt, `list 항목에 modifiedAt 이 없다: ${JSON.stringify(item)}`);
+  const r = await tool.handler({ action: 'read', path: '자료.md' });
+  assert.ok(r.result.modifiedAt, 'read 결과에 modifiedAt 이 없다');
+});
+
+// ── H08 실측 · `~/` 경로를 파일 손도 푼다(locate 와 같은 해석 — 두 진실 금지) ──
+// 라이브(2026-08-01): 모델이 list {path:'~/Downloads'} 를 골랐는데 resolveInScope 가
+// `~` 를 문자 그대로 루트에 붙여 ENOENT — 모델은 실제로 있는 표준 폴더를 못 보고
+// 빈 작업 루트를 보고는 "폴더가 비어 있다"고 답했다.
+test('H08: ~/ 경로는 홈 기준으로 풀린다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-틸다-'));
+  const dl = join(home, 'Downloads');
+  await mkdir(dl, { recursive: true });
+  await writeFile(join(dl, '자료.csv'), 'x');
+  const tool = makeLocalFileTool({ roots: [join(home, 'GPAO-T5'), dl], homeDir: home });
+  const r = await tool.handler({ action: 'list', path: '~/Downloads' });
+  assert.equal(r.blocked, undefined, `~/Downloads 가 안 풀렸다: ${r.userSafeSummary}`);
+  assert.ok(r.result.items.some((i) => i.name === '자료.csv'));
+});
+
+// ── H08 실측 · 루트 이름으로 시작하는 상대 경로는 그 루트에서 푼다 ────────
+// 라이브(2026-08-01): 모델이 `Downloads/견적서.csv` 를 골랐는데 상대 경로가 루트0
+// (GPAO-T5) 기준으로만 풀려 ENOENT — 실제로 열려 있는 둘째 루트를 부르는 자연스러운
+// 표기가 죽었고, 모델은 "만들었다고 보고 설명"하는 거짓 서술로 밀렸다.
+test('H08: "Downloads/파일" 상대 경로가 Downloads 루트에서 풀린다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-루트명-'));
+  const 작업 = join(home, 'GPAO-T5'); const dl = join(home, 'Downloads');
+  await mkdir(작업, { recursive: true }); await mkdir(dl, { recursive: true });
+  await writeFile(join(dl, '자료.csv'), '내용');
+  const tool = makeLocalFileTool({ roots: [작업, dl], homeDir: home });
+  const r = await tool.handler({ action: 'read', path: 'Downloads/자료.csv' });
+  assert.equal(r.blocked, undefined, `루트 이름 상대 경로가 안 풀렸다: ${r.userSafeSummary}`);
+  assert.equal(r.result.text, '내용');
+  // 루트0 안에 같은 이름 폴더가 실제로 있으면 **기존 해석이 이긴다**(행동 보존).
+  await mkdir(join(작업, 'Downloads'), { recursive: true });
+  await writeFile(join(작업, 'Downloads/자료.csv'), '작업루트쪽');
+  const r2 = await tool.handler({ action: 'read', path: 'Downloads/자료.csv' });
+  assert.equal(r2.result.text, '작업루트쪽');
+});

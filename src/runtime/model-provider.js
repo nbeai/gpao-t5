@@ -92,6 +92,9 @@ export function buildModelMessages(tc) {
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
   // **사실 한 줄.** 손이 없어진 게 아니라 이번 턴 몫을 다 썼다는 것 — 다음 턴에는 다시 쓴다.
   if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
+  // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
+  // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).
+  if (tc.toolStepsLeft) sys.push(`이번 턴에 손을 아직 ${tc.toolStepsLeft}번 더 이어 쓸 수 있다 — 지금 끝낼 수 있는 일을 다음 턴으로 미룰 이유가 없다.`);
   // 3축: 지금 답이 어디로 나가는지. **지시가 아니라 사실 한 줄**이다 — 텔레그램은 서식이 안 먹는다는
   // 성질을 알려주면 모델이 스스로 조절한다("짧게 써라"라고 시키지 않는다, §24).
   const surfaceFact = responseSurfaceFacts(tc.surface);

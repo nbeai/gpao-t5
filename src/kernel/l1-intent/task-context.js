@@ -64,12 +64,32 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n본문: ${body}`;
   }
 
+  // ②-b 폴더 목록 — 이름 옆에 **사람 말 상대시각**을 붙인다. H08 라이브 실측(2026-08-01):
+  // ISO 시각이 JSON 덩어리 속에 있으면 모델이 "방금 받은" 판단에 못 잇고 이름표("최종")로
+  // 골랐다. 같은 사실을 판단이 닿는 형태로 준다(며칠·몇 분 전 — 지시가 아니라 사실이다).
+  if (typeof result.path === 'string' && Array.isArray(result.items)) {
+    const 지금 = Date.now();
+    const 시각말 = (iso) => {
+      const ms = 지금 - Date.parse(iso);
+      if (!Number.isFinite(ms)) return '';
+      const 분 = Math.max(1, Math.round(ms / 60_000));
+      if (분 < 60) return ` — ${분}분 전 고침`;
+      if (분 < 60 * 24) return ` — ${Math.round(분 / 60)}시간 전 고침`;
+      return ` — ${Math.round(분 / (60 * 24))}일 전 고침`;
+    };
+    const lines = result.items.slice(0, 40).map((i) =>
+      `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}`);
+    const out = `자리: ${result.path}\n${lines.join('\n')}`;
+    return out.length <= maxChars ? out : `${out.slice(0, maxChars)}…`;
+  }
+
   // ③ 파일 본문 — **줄 구조를 지운 채 주지 않는다**(C 감사 F4.2). `fold` 의 `\s+` 접기는
   // 웹 본문용 규칙인데 파일 읽기 결과가 JSON 갈래로 떨어져 CSV·정산표의 행 경계가 모델
   // 입력에서 통째로 사라졌다 — 모델은 행을 근거 없이 재구성해야 했다. 줄바꿈은 남기고,
   // 넘치면 앞뒤를 남기며 접었다는 표식을 단다(모름을 사실로 전달).
   if (typeof result.text === 'string' && typeof result.path === 'string') {
     const lines = [`파일: ${result.path}`];
+    if (result.modifiedAt) lines.push(`고침: ${result.modifiedAt}`); // 최신 판단의 재료(F2.3·H08)
     if (result.bytes != null) lines.push(`크기: ${result.bytes}바이트`);
     const keep = Math.max(maxChars - lines.join('\n').length - 40, 200);
     const t = String(result.text).replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
@@ -213,6 +233,10 @@ export function buildTaskContext(p) {
     // 이번 턴에 손을 더 못 쓰는 상태. **없는 것과 다르다** — 그 차이를 안 주면 모델이
     // 빈칸을 '능력 없음'으로 메우고 사용자에게 떠넘긴다(실측 2026-07-28).
     ...(p.toolBudgetSpent ? { toolBudgetSpent: true } : {}),
+    // 반대 방향의 같은 사실 — **아직 이어 쓸 수 있는 손이 남아 있다.** H08 라이브 실측
+    // (2026-08-01): 손이 3걸음 남았는데 모델이 "지금 손은 다 써서"라며 일을 다음 턴과
+    // 사용자에게 미뤘다. 남았다는 사실이 어디에도 없으니 빈칸을 소진으로 메운 것이다.
+    ...(Number.isInteger(p.toolStepsLeft) && p.toolStepsLeft > 0 ? { toolStepsLeft: p.toolStepsLeft } : {}),
     // 어느 provider 인가 — 모델 계열별 운영 보정을 고르는 데만 쓴다(정체성은 안 바뀐다).
     modelProviderId: p.modelProviderId,
     // 막힌 것이 있을 때 다음 계단(사다리). 지시가 아니라 **지금 쓸 수 있는 길**이라는 사실이다.

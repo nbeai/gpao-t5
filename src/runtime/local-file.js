@@ -27,6 +27,7 @@ function undoEntry(op, from, to) {
  */
 export function makeLocalFileTool(deps = {}) {
   const roots = deps.roots ?? defaultFileRoots();
+  const home = deps.homeDir; // 검사 주입용 — 미지정이면 file-scope 가 실제 홈을 쓴다
   const trashDir = deps.trashDir ?? join(deps.dataDir ?? roots[0], '.trash');
   // 되돌리기 표는 **파일에 남긴다**. 메모리에만 두면 재시작 뒤 휴지통 파일은 있는데 되돌릴 방법이
   // 없어진다 — "되돌릴 수 있어요"라고 말해놓고 다음 날 못 되돌리는 거짓말이 된다(§18 지속성 계약).
@@ -98,11 +99,11 @@ export function makeLocalFileTool(deps = {}) {
       // 승인 대기로 멈춘다)은 동결 계약이라 여기서 갈래를 만들지 않는다.
       if (action === 'undo') return { allowed: true };
       try {
-        const abs = await resolveInScope(args.path ?? '', { roots });
+        const abs = await resolveInScope(args.path ?? '', { roots, home });
         const prot = protectionBlocks(abs, { write: true });
         if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
         if (action === 'move') {
-          const dest = await resolveInScope(args.to ?? '', { roots });
+          const dest = await resolveInScope(args.to ?? '', { roots, home });
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
         }
@@ -202,15 +203,15 @@ export function makeLocalFileTool(deps = {}) {
           // resolveInScope 는 realpath 로 판정하므로 링크 탈출도 여기서 잡힌다.
           let 되돌릴곳; let 담긴곳;
           try {
-            되돌릴곳 = await resolveInScope(last.from, { roots });
+            되돌릴곳 = await resolveInScope(last.from, { roots, home });
             // 사본(to)도 경계를 지난다 — from 만 검사하면 로그 변조로 임의 경로의 파일(비밀 포함)을
             // 범위 안으로 "되돌려" 끌어올 수 있다. 정당한 to 는 두 곳뿐이다: 휴지통(쓰기·삭제가
             // 담근 자리 — 라이브 GPAO_T5_DATA_DIR 격리에서는 파일 루트 밖일 수 있다)과
             // 범위 안(move 의 목적지). 같은 realpath 판정이라 링크 탈출도 막힌다.
             담긴곳 = last.to
-              ? await resolveInScope(last.to, { roots }).catch((e) => {
+              ? await resolveInScope(last.to, { roots, home }).catch((e) => {
                 if (!e?.isScopeError) throw e;
-                return resolveInScope(last.to, { roots: [trashDir] });
+                return resolveInScope(last.to, { roots: [trashDir], home });
               })
               : null;
           } catch (e) {
@@ -260,7 +261,7 @@ export function makeLocalFileTool(deps = {}) {
           );
         }
 
-        const abs = await resolveInScope(target, { roots });
+        const abs = await resolveInScope(target, { roots, home });
         // P6-L1: **범위 안이어도 보호 영역은 막는다.** 루트를 넓혀도 여기는 안 열린다 —
         // 안전이 "좁은 루트"에서 나오던 구조를 대체하는 자리다(게이트가 불변식으로 검사한다).
         // secret 은 읽기까지, system 은 변경만 막는다(뭉뚱그리면 아무것도 못 하는 도구가 된다).
@@ -273,9 +274,15 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'list') {
           const entries = await readdir(abs, { withFileTypes: true });
-          const items = entries
-            .filter((e) => !e.name.startsWith('.'))
-            .map((e) => ({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file' }));
+          const items = [];
+          for (const e of entries) {
+            if (e.name.startsWith('.')) continue;
+            // C 감사 F2.3 · 수정 시각도 사실이다 — 이게 없으면 "어느 게 최신이야"에 런타임이
+            // 줄 수 있는 것이 이름뿐이라, 이름의 '최종' 문자열이 판단을 대신하게 된다(H08 실측).
+            let modifiedAt;
+            try { modifiedAt = new Date((await stat(join(abs, e.name))).mtimeMs).toISOString(); } catch { /* 못 보면 안 쓴다 */ }
+            items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', ...(modifiedAt ? { modifiedAt } : {}) });
+          }
           return ok(
             items.length ? `${items.length}개를 찾았어요.` : '그 폴더는 비어 있어요.',
             { path: abs, items },
@@ -288,7 +295,10 @@ export function makeLocalFileTool(deps = {}) {
             return fail('파일이 너무 커서 통째로 읽지 못했어요.', '필요한 부분을 알려주시면 그 부분만 볼게요.');
           }
           const text = await readFile(abs, 'utf8');
-          return ok(`${basename(abs)} 을(를) 읽었어요.`, { path: abs, text, bytes: info.size });
+          return ok(`${basename(abs)} 을(를) 읽었어요.`, {
+            path: abs, text, bytes: info.size,
+            modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
+          });
         }
 
         // H08 · **최종본 판별.** "견적서 최종본만 정리해줘" — 이름의 "최종/final"은 판별 근거가
@@ -375,7 +385,7 @@ export function makeLocalFileTool(deps = {}) {
           // 원본을 밝히면(어디서 만든 결과물인지), 그 자리로는 저장하지 않는다.
           let 원본;
           if (typeof args.source === 'string' && args.source.trim()) {
-            try { 원본 = await resolveInScope(args.source, { roots }); }
+            try { 원본 = await resolveInScope(args.source, { roots, home }); }
             catch { /* 원본 표시가 틀렸다고 저장까지 막지는 않는다 — 같은 자리일 수 없으면 지킬 것도 없다 */ }
           }
           if (원본 && 원본 === abs) {
@@ -408,7 +418,7 @@ export function makeLocalFileTool(deps = {}) {
         }
 
         if (action === 'move') {
-          const dest = await resolveInScope(args.to ?? '', { roots });
+          const dest = await resolveInScope(args.to ?? '', { roots, home });
           // 목적지도 본다 — 보호 영역으로 **옮겨 넣는 것**도 변경이다.
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) {

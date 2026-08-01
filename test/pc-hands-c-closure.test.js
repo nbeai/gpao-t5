@@ -151,3 +151,4 @@ test('실패 뒤 실제로 성공하면 blocked 는 풀린다(거짓 막힘 금�
   assert.equal(r.workingState?.blocked, undefined,
     `되는 길을 찾았는데 막혔다고 남았다: ${r.workingState?.blocked}`);
 });
+

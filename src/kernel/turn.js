@@ -46,9 +46,12 @@ async function 볼수있는자리(ctx) {
   try { return await ctx.tools?.tools?.['local.locate']?.places?.(); } catch { return undefined; }
 }
 
-// 한 턴에 손을 이어 쓸 수 있는 횟수. 찾기→확인→실행이면 3걸음이면 충분하고,
-// 넘기면 한 턴이 길어져 사용자가 무슨 일이 일어나는지 못 따라온다(그리고 비용이 는다).
-const MAX_TOOL_STEPS = 4;
+// 한 턴에 손을 이어 쓸 수 있는 횟수. 상한의 목적은 무한 루프·비용 폭주 방지다.
+// H08 라이브 실측(2026-08-01): 실제 파일 목적은 자리 찾기(이름 승계 실패 포함 1~2걸음) →
+// 최종본 판별 → 읽기 → 별도 결과물 쓰기로 4걸음을 정직하게 넘는다. 4에서는 모델이 일을
+// 정확히 알고도 "손을 다 써서 다음 턴에 하겠다"며 멈췄다 — t5demo-idle 과 같은 병(손 부족).
+// 되풀이는 지문(호출지문)이 따로 막으므로, 상한은 목적 완주가 걸리지 않는 6으로 둔다.
+const MAX_TOOL_STEPS = 6;
 
 function 확정된전송미리보기(preview, args = {}) {
   if (!preview) return preview;
@@ -990,6 +993,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState,
+    toolStepsLeft: MAX_TOOL_STEPS, // 자기 상태 사실 — 거짓 소진("손 다 써서") 방지, H08 실측
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
     // 못 찾았어요"). 사다리는 도구 종류를 모르는 일반 폴백이라, 앞세우면 파일 실패에 웹 문구가
@@ -1038,6 +1042,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // toolActionKind → decideAutoGrant. 승인이 필요하면 **실행하지 않고 멈춘다.**
   let steps = 0;
   let 멈춘이유;
+  // (2026-08-01 실측 기록) 모델이 "저장해 두겠다"고 말만 하고 도구 없이 턴을 끝내는 변동이
+  // 있다. 한때 문구 정규식으로 재촉하는 배선을 넣었다가 걷어냈다(오너 경계 판정) — 미완료는
+  // 낱말이 아니라 **계획의 산출물 의무와 영수증의 불일치**로 판정해야 한다. 지금 ActionPlan
+  // 에는 기계 검증 가능한 산출물 의무 계약이 없어 그 판정을 세울 수 없으므로, 이 변동은 판정
+  // 회차에서 모델 이행 변동으로 분리 기록하고, 산출물 의무 계약은 후속 창의 구조 작업으로 남긴다.
   while (steps < MAX_TOOL_STEPS) {
     // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
     // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
@@ -1084,6 +1093,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState,
         recoveryHint: 다음길(turnReceipts, 있는손()),
+        toolStepsLeft: Math.max(MAX_TOOL_STEPS - steps, 0),
         ...(ctx.selfhood ?? {}),
       });
       finalOut = await ctx.model.respond(tc, {
@@ -1238,6 +1248,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState,
       recoveryHint: 다음길(turnReceipts, 있는손()),
+      toolStepsLeft: Math.max(MAX_TOOL_STEPS - steps, 0), // 남았으면 남았다는 사실(H08 실측)
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):
       // "t5demo-idle 꺼줘" 에서 T5 가 대상을 정확히 찾아 놓고 **"터미널 손이 열리지 않아
       // 제가 직접 끄지는 못했어요 — 터미널에서 kill 4356 실행하면 됩니다"** 라고 답했다.
