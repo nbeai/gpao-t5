@@ -1,4 +1,4 @@
-// L5 · Automation (P6-3). GrowthCandidate → 승인 → ScheduledJob → tick 실행 → ToolReceipt/원장 → 취소/만료.
+// L5 · Automation. GrowthCandidate and field-level AutomationJob commands.
 // 핵심 원칙(깊은 감사):
 //   1. 자동화는 절대 몰래 실행하지 않는다. 2. 후보는 실행이 아니다(승인 전 영향 0).
 //   3. 승인된 자동화도 권한 범위·만료·취소·원장 기록을 가진다.
@@ -93,6 +93,37 @@ export function 자동화후보저장가능(candidate) {
   return !인자에민감값(candidate?.action?.args, 0, new WeakSet());
 }
 
+/** One-record candidate command for the parent-owned store adapter. */
+export function automationCandidateAddDelta(candidate) {
+  if (!candidate?.candidateId) throw new TypeError('automation candidate id is required');
+  if (!자동화후보저장가능(candidate)) throw new TypeError('automation candidate contains sensitive data');
+  return {
+    kind: 'automation_candidate.add',
+    candidateId: candidate.candidateId,
+    dedupKey: candidate.dedupKey ?? null,
+    expected: { candidateIdAbsent: true, dedupKeyAbsent: candidate.dedupKey ?? null },
+    record: structuredClone(candidate),
+  };
+}
+
+/** Field-level job command; never carries or rewrites the jobs array. */
+export function automationJobPatchDelta(job, changes, { reason, now }) {
+  if (!job?.id) throw new TypeError('automation job id is required');
+  if (!Number.isFinite(now)) throw new TypeError('automation job delta time must be finite');
+  return {
+    kind: 'automation_job.patch',
+    jobId: job.id,
+    expected: {
+      state: job.state,
+      updatedAt: job.updatedAt,
+      nextRunAt: job.nextRunAt,
+      triggerNextRunAt: job.trigger?.nextRunAt,
+    },
+    changes: { ...structuredClone(changes), updatedAt: now },
+    reason,
+  };
+}
+
 /**
  * 후보 승인 → ScheduledJob. grantScope(범위·만료)와 external(외부 전송 승인 경계)을 가진다.
  * @param {object} candidate
@@ -111,7 +142,7 @@ export function approveAutomation(candidate, opts) {
     intervalMs: opts.intervalMs, // 있으면 반복, 없으면 1회
     grantScope: opts.grantScope ?? { kind: 'persist' },
     external: opts.external ?? false, // 외부 전송 자동화는 승인 경계(A2)를 유지
-    executions: [], // 실행 원장(ToolReceipt)
+    executions: [], // v1 compatibility only; AC-3 scheduler never reads or writes this array
     // 신뢰성(P6-4): 연속 실패 카운트·재시도 상한·백오프 파라미터.
     failureCount: 0,
     maxAttempts: opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
@@ -188,14 +219,7 @@ export function admitTickTrigger(trigger) {
   return trigger?.source === 'trusted_runtime_event';
 }
 
-/**
- * AutomationLedger — 자동화 실행 진실 원장(§8). 세션 TruthLedger와 **분리된** job별 원장이다.
- * 자동화는 세션 밖 백그라운드에서 돌기 때문에 세션 원장에 섞지 않는다. 실행 기록은 TruthLedger와
- * 동일한 ToolReceipt 계약을 쓴다(성공·실패·차단을 정직하게). 원장 추가는 이 함수로만 한다.
- * @param {object} job   ScheduledJob (executions = AutomationLedger)
- * @param {import('../contracts.js').ToolReceipt} receipt
- * @returns {import('../contracts.js').ToolReceipt}
- */
+/** @deprecated v1 runtime compatibility until the parent switches RunLedger wiring. */
 export function appendAutomationLedger(job, receipt) {
   job.executions.push(receipt);
   return receipt;

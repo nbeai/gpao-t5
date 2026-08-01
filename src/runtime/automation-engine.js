@@ -1,53 +1,234 @@
-// L3 · Automation Engine — in-process scheduler tick(최소). 실제 cron/daemon은 P6 후속.
-// 실행 가능한 job만 실행한다. 취소·만료·완료는 실행 0(몰래 실행 금지). 결과는 job.executions(원장)에.
-import { isJobRunnable, jobExpired, appendAutomationLedger, resolveAfterRun } from '../kernel/l5-growth/automation.js';
+import { createHash } from 'node:crypto';
+import {
+  AUTOMATION_SCHEMA_VERSION,
+  agentRunIdempotencyKey,
+  validateAgentProfile,
+  validateAgentRun,
+  validateAutomationJob,
+  validateSkillDefinition,
+} from '../kernel/l5-growth/automation-contracts.js';
+import {
+  appendAutomationLedger,
+  automationJobPatchDelta,
+  isJobRunnable,
+  jobExpired,
+  resolveAfterRun,
+} from '../kernel/l5-growth/automation.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { classifyTier } from '../kernel/l2-plan/authority.js';
 import { blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
 import { TIER } from '../kernel/contracts.js';
+import { BuiltinTriggerProvider } from './trigger-provider.js';
+
+function runIdFor(idempotencyKey) {
+  const digest = createHash('sha256').update(idempotencyKey).digest('hex');
+  return `run-${digest.slice(0, 32)}`;
+}
+
+function exactSkill(job, skill) {
+  return skill?.id === job.skillRef.id
+    && skill.version === job.skillRef.version
+    && skill.contentHash === job.skillRef.contentHash;
+}
+
+function queuedRunFor(job, skill, profile, scheduledFor) {
+  const idempotencyKey = agentRunIdempotencyKey({
+    jobId: job.id,
+    scheduledFor,
+    skillVersion: skill.version,
+    skillHash: skill.contentHash,
+  });
+  const run = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: runIdFor(idempotencyKey),
+    jobId: job.id,
+    scheduledFor,
+    idempotencyKey,
+    skillSnapshot: structuredClone(skill),
+    triggerSnapshot: structuredClone(job.trigger),
+    agentSnapshot: structuredClone(profile),
+    authorityEnvelope: structuredClone(job.authorityEnvelope),
+    status: 'queued',
+    owner: null,
+    heartbeatAt: null,
+    budgets: structuredClone(profile.defaultBudgets),
+    receipts: [],
+    result: null,
+    deliveryState: {
+      status: job.deliveryPolicy?.mode === 'none' ? 'not_requested' : 'pending',
+    },
+    startedAt: null,
+    finishedAt: null,
+  };
+  const checked = validateAgentRun(run);
+  if (!checked.ok) throw new Error(`prepared agent run invalid: ${checked.errors.join('; ')}`);
+  return run;
+}
+
+function jobGuard(job) {
+  return {
+    jobId: job.id,
+    state: job.state,
+    updatedAt: job.updatedAt,
+    nextRunAt: job.nextRunAt,
+    triggerNextRunAt: job.trigger.nextRunAt,
+  };
+}
+
+function failed(failures, job, reason, errors = []) {
+  failures.push({ jobId: job?.id ?? null, reason, errors });
+}
 
 /**
- * @param {object[]} jobs   ScheduledJob 목록(변경됨 — state·executions 갱신)
- * @param {{tools:object, selfState:object, now:number}} ctx
- * @returns {Promise<Array<{jobId:string, receipt:object}>>} 이번 tick에 실행된 것
+ * Derive AgentRun-compatible work and field-level store commands. This function
+ * has no ToolRunner dependency and never mutates jobs, skills, or profiles.
  */
-export async function tickAutomation(jobs, ctx) {
-  const { tools, selfState, now } = ctx;
+export function prepareAutomationRuns({
+  jobs = [],
+  skills = [],
+  profiles = [],
+  now,
+  recovering = false,
+  triggerProvider = new BuiltinTriggerProvider({ clock: () => now }),
+} = {}) {
+  if (!Number.isFinite(now)) throw new TypeError('automation preparation time must be finite');
+  const skillById = new Map(skills.map((skill) => [skill.id, skill]));
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const entries = [];
+  const ignored = [];
+  const failures = [];
+
+  for (const job of jobs) {
+    const checkedJob = validateAutomationJob(job);
+    if (!checkedJob.ok) {
+      failed(failures, job, 'invalid_job', checkedJob.errors);
+      continue;
+    }
+    if (job.state !== 'scheduled') {
+      ignored.push({ jobId: job.id, reason: `job_${job.state}` });
+      continue;
+    }
+    if (Number.isFinite(job.authorityEnvelope.expiresAt)
+      && now > job.authorityEnvelope.expiresAt) {
+      entries.push({
+        jobId: job.id,
+        run: null,
+        jobGuard: jobGuard(job),
+        jobDelta: automationJobPatchDelta(job, { state: 'expired' }, {
+          reason: 'authority_expired', now,
+        }),
+        reason: 'authority_expired',
+      });
+      continue;
+    }
+
+    const skill = skillById.get(job.skillRef.id);
+    const checkedSkill = validateSkillDefinition(skill);
+    if (!checkedSkill.ok || !exactSkill(job, skill) || skill.state !== 'active') {
+      entries.push({
+        jobId: job.id,
+        run: null,
+        jobGuard: jobGuard(job),
+        jobDelta: automationJobPatchDelta(job, { state: 'needs_review' }, {
+          reason: 'skill_binding_changed', now,
+        }),
+        reason: 'skill_binding_changed',
+      });
+      continue;
+    }
+
+    const profile = profileById.get(job.agentProfileId);
+    const checkedProfile = validateAgentProfile(profile);
+    if (!checkedProfile.ok || profile.state !== 'active') {
+      ignored.push({ jobId: job.id, reason: 'agent_profile_inactive' });
+      continue;
+    }
+
+    let triggerPlan;
+    try {
+      triggerPlan = triggerProvider.plan(job, { now, recovering });
+    } catch (error) {
+      failed(failures, job, 'trigger_failed', [error.message]);
+      continue;
+    }
+    if (triggerPlan.reason === 'cursor_conflict') {
+      failed(failures, job, 'trigger_cursor_conflict');
+      continue;
+    }
+    if (triggerPlan.dueCount === 0) {
+      ignored.push({ jobId: job.id, reason: triggerPlan.reason });
+      continue;
+    }
+
+    if (triggerPlan.occurrences.length === 0) {
+      entries.push({
+        jobId: job.id,
+        run: null,
+        jobGuard: jobGuard(job),
+        jobDelta: automationJobPatchDelta(job, {
+          nextRunAt: triggerPlan.nextRunAt,
+          triggerNextRunAt: triggerPlan.nextRunAt,
+        }, { reason: triggerPlan.reason, now }),
+        triggerPlan,
+        reason: triggerPlan.reason,
+      });
+      continue;
+    }
+
+    const scheduledFor = triggerPlan.occurrences[0];
+    const run = queuedRunFor(job, skill, profile, scheduledFor);
+    entries.push({
+      jobId: job.id,
+      scheduledFor,
+      run,
+      jobGuard: jobGuard(job),
+      jobDelta: automationJobPatchDelta(job, {
+        nextRunAt: triggerPlan.nextRunAt,
+        triggerNextRunAt: triggerPlan.nextRunAt,
+        lastRunId: run.id,
+      }, { reason: triggerPlan.reason, now }),
+      triggerPlan,
+      reason: triggerPlan.reason,
+    });
+  }
+
+  return { at: now, recovering, entries, ignored, failures };
+}
+
+/**
+ * @deprecated v1 server compatibility until the parent runtime cut. Durable
+ * schedulers never call this function; they call prepareAutomationRuns above.
+ */
+export async function tickAutomation(jobs, context) {
+  const { tools, selfState, now } = context;
   const ran = [];
   for (const job of jobs) {
-    // 만료된 scheduled는 실행하지 않고 expired로 정직하게 남긴다(재승인 필요).
     if (job.state === 'scheduled' && jobExpired(job, now)) {
       job.state = 'expired';
       continue;
     }
-    if (!isJobRunnable(job, now)) continue; // 취소/완료/만료/미도달은 실행 0
+    if (!isJobRunnable(job, now)) continue;
 
-    // **되돌릴 수 없는 행동(A3)은 사람 없이 실행하지 않는다.** tick 에는 확인해 줄 사람이 없다.
-    // 승인은 "이 일을 반복해도 좋다"는 뜻이지 "삭제·결제·게시를 무인으로 해도 좋다"가 아니다.
-    // 실제로 샜다: 턴이 삭제를 승인 카드로 막았는데, 같은 삭제가 자동화 후보로 저장돼 tick 에서
-    // 그대로 실행됐다. 도구가 아니라 **행동 종류**로 판정한다(승인 경로와 같은 함수).
     const kind = toolActionKind({ toolId: job.action.tool, args: job.action.args, selfState });
     if (classifyTier({ kind }) === TIER.A3) {
-      const rec = blockedReceipt(
+      const receipt = blockedReceipt(
         `${job.action.tool} 자동 실행`,
         job.action.tool,
         '되돌리기 어려운 일이라 자동으로는 하지 않았어요.',
         '지금 확인해 주시면 이번 것만 실행할게요.',
       );
-      appendAutomationLedger(job, rec);
-      job.state = 'paused'; // 조용히 사라지지 않는다 — 사용자가 다시 켜거나 취소한다
+      appendAutomationLedger(job, receipt);
+      job.state = 'paused';
       continue;
     }
 
-    const rec = await tools.run(job.action.tool, job.action.args ?? {}, selfState);
-    appendAutomationLedger(job, rec); // AutomationLedger(§8) — ToolReceipt 계약, 세션 원장과 분리
-
-    // 상태·다음 실행 계획을 순수 전이 함수로 결정(P6-4): 성공 리셋 / permanent 즉시 포기 / transient 백오프.
-    const next = resolveAfterRun(job, rec.failureState, now);
+    const receipt = await tools.run(job.action.tool, job.action.args ?? {}, selfState);
+    appendAutomationLedger(job, receipt);
+    const next = resolveAfterRun(job, receipt.failureState, now);
     job.state = next.state;
     job.failureCount = next.failureCount;
     if (next.nextRunAt !== undefined) job.nextRunAt = next.nextRunAt;
-    ran.push({ jobId: job.id, receipt: rec });
+    ran.push({ jobId: job.id, receipt });
   }
   return ran;
 }
