@@ -331,3 +331,25 @@ test('S1/H03: 범위를 말하지 않으면 자동 반영하지 않고 기존 �
     assert.equal((await mem.load()).promoted.length, 0);
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── H04 채널 교통 — 철회 발화가 새 기억으로 쌓이지 않게 하는 사실 공급 ────────
+//
+// 재봉인 r14 실측: "아 그 짧은 목록 규칙은 이제 그만할래"(선언 5턴 뒤)에서 모델이
+// `memory.withdraw` 대신 `memory.propose` 를 골라, 철회 발화가 **새 선호로 저장**되고
+// 원래 선호도 남았다(모순 공존). withdraw 설명이 "**방금** 기억한 것"으로 범위를 좁혀
+// 오래된 기억의 철회에서 채널 선택을 오도한 것 — 도구 설명은 모델에게 공급되는 현실이다.
+import { test as h04시험 } from 'node:test';
+import assert3 from 'node:assert/strict';
+import { MODEL_CONTROL_SCHEMAS as 통제스키마 } from '../src/kernel/l2-plan/model-control.js';
+
+h04시험('H04: withdraw 설명은 저장된 기억 전체를 대상으로 말한다 — "방금"으로 좁혀 오도하지 않는다', () => {
+  const w = 통제스키마.find((s) => s.name === 'memory.withdraw');
+  assert3.ok(w, 'withdraw 통제 채널이 없다');
+  assert3.doesNotMatch(w.description, /방금 기억한 것/, '설명이 최근 기억으로 범위를 좁혀 오래된 철회를 오도한다');
+  assert3.match(w.description, /저장된|기억해 둔/, '저장된 기억 일반이 대상임을 말하지 않는다');
+});
+
+h04시험('H04: propose 설명이 취소·중단 발화의 교통(withdraw)을 말한다 — 철회가 새 기억으로 쌓이지 않게', () => {
+  const p = 통제스키마.find((s) => s.name === 'memory.propose');
+  assert3.match(p.description, /withdraw/, '취소 발화가 propose 로 흘러 새 기억이 되는 길이 열려 있다');
+});
