@@ -144,6 +144,63 @@ async function 준비(bundleOver = {}) {
   return memStore;
 }
 
+test('S4: 원문 없는 관찰 저장본에서도 성장 제안은 원천 TurnRef의 실제 발화를 읽는다', async () => {
+  const memStore = new MemoryStore(await mkdtemp(join(tmpdir(), 'gpao-t5-grow-source-')));
+  const memory = await memStore.load();
+  memory.observations = [2, 4, 6].map((turnSeq, i) => ({
+    observationId: `o-${i + 1}`, turnRef: { sessionId: 's-source', turnSeq }, kind: 'request', at: 10 + i,
+  }));
+  memory.bundles = [{
+    bundleId: 'b-source', kind: 'request', observationIds: ['o-1', 'o-2', 'o-3'],
+    count: 3, firstAt: 10, lastAt: 12,
+  }];
+  await memStore.save(memory);
+  const 발화 = ['7월 매출 정리해줘', '8월 매출도 정리해줘', '9월 매출도 부탁'];
+  const store = { loadAll: async () => [{
+    id: 's-source', transcript: [
+      { role: 'user', text: 발화[0], turnRef: { sessionId: 's-source', turnSeq: 2 } },
+      { role: 'user', text: 발화[1], turnRef: { sessionId: 's-source', turnSeq: 4 } },
+      { role: 'user', text: 발화[2], turnRef: { sessionId: 's-source', turnSeq: 6 } },
+    ], ledgerEntries: [],
+  }] };
+  const { modelFor, calls } = 대본모델();
+
+  await 끝까지({ memStore, modelFor, store, 시작: 100_000 });
+  assert.ok(calls.length >= 1);
+  for (const text of 발화) assert.ok(calls[0].request.includes(text), `원천 발화를 못 읽었다: ${text}`);
+  const 저장됨 = await memStore.load();
+  assert.equal(JSON.stringify(저장됨.observations).includes('7월 매출'), false,
+    '성장 호출을 위해 관찰 저장본에 원문을 되살리면 안 된다');
+  assert.deepEqual(마지막원리(저장됨).scopeSignals.appliesWhen, 발화,
+    '최종 입장 신호는 저장 복제본이 아니라 원천 TurnRef의 발화를 써야 한다');
+});
+
+test('S4: 옛 민감 관찰 참조는 관찰 워커가 못 치웠어도 성장 모델 앞에서 다시 차단된다', async () => {
+  const memStore = new MemoryStore(await mkdtemp(join(tmpdir(), 'gpao-t5-grow-sensitive-source-')));
+  const memory = await memStore.load();
+  memory.observations = [1, 2, 3].map((turnSeq, i) => ({
+    observationId: `secret-${i}`, turnRef: { sessionId: 's-secret', turnSeq }, kind: 'request', at: i + 1,
+  }));
+  memory.bundles = [{
+    bundleId: 'b-secret', kind: 'request', observationIds: ['secret-0', 'secret-1', 'secret-2'],
+    count: 3, firstAt: 1, lastAt: 3,
+  }];
+  await memStore.save(memory);
+  const store = { loadAll: async () => [{
+    id: 's-secret', transcript: [1, 2, 3].map((turnSeq) => ({
+      role: 'user', text: '4111-1111-1111-1111', turnRef: { sessionId: 's-secret', turnSeq },
+    })), ledgerEntries: [],
+  }] };
+  const { modelFor, calls } = 대본모델();
+
+  const r = await growTick({ memStore, modelFor, store, now: 100_000 });
+  const m = await memStore.load();
+  assert.equal(calls.length, 0, '민감 원천을 성장 모델에 보내면 안 된다');
+  assert.equal(r.reason, 'sensitive_source');
+  assert.deepEqual(m.observations, [], '민감 관찰 참조를 정리한다');
+  assert.deepEqual(m.bundles, [], '민감 묶음 참조를 정리한다');
+});
+
 // ── 아무 일도 하지 않아야 하는 자리 ────────────────────────────────────────
 test('S4: 묶음이 없으면 모델을 부르지 않는다(성장은 할 일이 있을 때만 돈다)', async () => {
   const memStore = new MemoryStore(await mkdtemp(join(tmpdir(), 'gpao-t5-grow-')));
@@ -1887,7 +1944,8 @@ test('관측①: 판정 근거에 든 맨 번호는 가려져 저장된다 — �
   const o = (m.growObservations ?? []).find((x) => x.용도 === 'judge');
   assert.ok(o, '판정 불가 관측은 남는다');
   assert.equal(JSON.stringify(m.growObservations).includes('4111-1111'), false, '맨 번호는 가려진다');
-  assert.match(String(o.항목?.required?.[0]?.evidence ?? ''), /####/, '가림 표식이 남아 구조는 읽힌다');
+  assert.equal(String(o.항목?.required?.[0]?.evidence ?? ''), '[민감값]',
+    '공통 경계가 카드번호를 잡으면 근거 전체를 민감값으로 가린다');
 });
 
 // ── 오너 승인 순서 4: 미결합 exact 는 강등이 아니라 **사례 무효 → 재제안**이다 ────────────

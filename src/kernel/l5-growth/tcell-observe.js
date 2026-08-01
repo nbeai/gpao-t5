@@ -95,6 +95,31 @@ function subjectOf(text) {
   return String(text ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
 }
 
+const turnKey = (r) => `${r?.sessionId ?? ''}#${r?.turnSeq ?? ''}`;
+
+/** 관찰 저장본은 원천 TurnRef만 가진다. 원문은 이미 세션에 있으므로 두 번째 사본을 만들지 않는다. */
+function withoutSubject(entry) {
+  const { subject, ...rest } = entry;
+  return rest;
+}
+
+/** 묶는 동안만 원천 세션에서 문장을 다시 놓는다. 옛 저장본의 subject는 이관용 fallback이다. */
+function sourceTexts(sessions) {
+  const source = new Map();
+  for (const s of sessions ?? []) {
+    for (const e of s?.transcript ?? []) {
+      if (e?.role === 'user' && e.turnRef) source.set(turnKey(e.turnRef), String(e.text ?? ''));
+    }
+  }
+  return source;
+}
+
+function subjectsFor(observations, source) {
+  return observations.map((o) => ({
+    ...o, subject: subjectOf(source.get(turnKey(o.turnRef)) ?? o.subject ?? ''),
+  }));
+}
+
 /**
  * 저장된 세션들에서 아직 보지 않은 턴을 관찰한다.
  *
@@ -107,7 +132,13 @@ export async function observeSessions({ store, memStore, now = Date.now() }) {
   if (memory.corrupted) return { observed: 0, bundles: 0, skipped: 'corrupted' };
 
   const watermark = { ...(memory.observationWatermark ?? {}) };
-  const 기존 = memory.observations ?? [];
+  const 원천 = sourceTexts(sessions);
+  // 옛 코드가 저장한 민감 관찰도 다음 실행에서 제거한다. 참조만 남겨 두면 성장 단계가
+  // TurnRef로 원문을 다시 읽어 민감 발화를 모델 앞에 놓을 수 있다.
+  const 기존 = (memory.observations ?? []).filter((o) => {
+    const text = 원천.get(turnKey(o.turnRef)) ?? o.subject ?? '';
+    return !containsSensitiveValue(text);
+  });
   const 본것 = new Set(기존.map((o) => o.observationId));
   const 새관찰 = [];
 
@@ -150,9 +181,13 @@ export async function observeSessions({ store, memStore, now = Date.now() }) {
     .filter((o) => now - (o.at ?? 0) <= OBSERVATION_CAPS.ttlMs)
     .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
   const 정리됨 = 살아있는.slice(Math.max(0, 살아있는.length - OBSERVATION_CAPS.total));
-  const bundles = bundleObservations(정리됨).slice(0, OBSERVATION_CAPS.bundles);
+  const 계산용 = subjectsFor(정리됨, 원천);
+  const bundles = bundleObservations(계산용)
+    .slice(0, OBSERVATION_CAPS.bundles)
+    .map(withoutSubject);
+  const 저장관찰 = 정리됨.map(withoutSubject);
 
   // **한 번의 저장**: 관찰·묶음·watermark 가 같이 나간다. 실패하면 셋 다 전진하지 않는다.
-  await memStore.save({ ...memory, observations: 정리됨, bundles, observationWatermark: watermark });
+  await memStore.save({ ...memory, observations: 저장관찰, bundles, observationWatermark: watermark });
   return { observed: 새관찰.length, bundles: bundles.length };
 }
