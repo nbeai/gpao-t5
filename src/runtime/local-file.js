@@ -10,7 +10,7 @@
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
 import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
@@ -47,11 +47,16 @@ export function makeLocalFileTool(deps = {}) {
     await saveUndo(list);
   }
 
-  /** 원본을 휴지통으로 옮긴다(덮어쓰기·삭제 전 필수). 없으면 아무 것도 안 한다. */
+  /**
+   * 원본을 휴지통으로 옮긴다(덮어쓰기·삭제 전 필수). 없으면 아무 것도 안 한다.
+   * 이름에 시각만 쓰면 **같은 밀리초에 두 번 담글 때 겹친다** — 덮어쓰기 직후의 undo 가
+   * 정확히 그랬다: 새 내용을 담그는 이름이 방금 담근 원본과 겹쳐 원본이 조용히 사라졌고,
+   * "되돌렸어요"가 새 내용을 되돌려 놓았다(집중 검사에서 실측). 겹치지 않는 조각을 붙인다.
+   */
   async function toTrash(abs) {
     try { await stat(abs); } catch { return null; }
     await mkdir(trashDir, { recursive: true });
-    const parked = join(trashDir, `${Date.now()}-${basename(abs)}`);
+    const parked = join(trashDir, `${Date.now()}-${randomUUID().slice(0, 8)}-${basename(abs)}`);
     await rename(abs, parked);
     return parked;
   }
@@ -80,8 +85,10 @@ export function makeLocalFileTool(deps = {}) {
   return {
     toolKind: 'organize',
     /**
-     * @param {{action?:string, path?:string, text?:string, to?:string}} args
-     *   action: list | read | write | move | delete | undo (기본: path 있으면 read, 없으면 list)
+     * @param {{action?:string, path?:string, text?:string, to?:string, name?:string, source?:string}} args
+     *   action: list | read | write | move | delete | undo | versions (기본: path 있으면 read, 없으면 list)
+     *   versions: path(폴더나 파일) 안에서 name 이 들어간 파일들의 최종본을 시각·내용으로 판별한다.
+     *   write 의 source: 이 결과물의 원본 — 그 자리로는 저장하지 않는다(원본 보호, H08).
      */
     /** 방금 다룬 파일이 다음 턴의 대상이다("그거 정리해줘"가 이어진다). */
     subjectOf(rec) {
@@ -100,7 +107,8 @@ export function makeLocalFileTool(deps = {}) {
      */
     previewOf(args = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');
-      if (action === 'list' || action === 'read') return undefined;
+      // versions 도 읽기다 — 비교만 하고 아무것도 바꾸지 않는다.
+      if (action === 'list' || action === 'read' || action === 'versions') return undefined;
       if (action === 'undo') {
         return {
           impact: '방금 한 파일 작업을 되돌려요',
@@ -112,6 +120,8 @@ export function makeLocalFileTool(deps = {}) {
       const abs = previewPathOf(args.path, roots);
       const 이름 = basename(abs);
       const impact = action === 'delete' ? `${이름} 을(를) 지워요`
+        : action === 'write' && typeof args.source === 'string' && args.source.trim()
+          ? `${이름} 에 저장해요(원본은 그대로 두어요)`
         : action === 'write' ? `${이름} 에 저장해요`
           : action === 'move' ? `${이름} 을(를) ${previewPathOf(args.to, roots)} 로 옮겨요`
             : `${이름} 을(를) ${action} 해요`;
@@ -179,7 +189,7 @@ export function makeLocalFileTool(deps = {}) {
         // P6-L1: **범위 안이어도 보호 영역은 막는다.** 루트를 넓혀도 여기는 안 열린다 —
         // 안전이 "좁은 루트"에서 나오던 구조를 대체하는 자리다(게이트가 불변식으로 검사한다).
         // secret 은 읽기까지, system 은 변경만 막는다(뭉뚱그리면 아무것도 못 하는 도구가 된다).
-        const writes = action !== 'list' && action !== 'read';
+        const writes = action !== 'list' && action !== 'read' && action !== 'versions';
         const prot = protectionBlocks(abs, { write: writes });
         if (prot) {
           const msg = protectionMessage(prot, { write: writes });
@@ -206,8 +216,99 @@ export function makeLocalFileTool(deps = {}) {
           return ok(`${basename(abs)} 을(를) 읽었어요.`, { path: abs, text, bytes: info.size });
         }
 
+        // H08 · **최종본 판별.** "견적서 최종본만 정리해줘" — 이름의 "최종/final"은 판별 근거가
+        // 못 된다(사람들은 최종을 만들고 나서도 v2 를 또 만든다). **수정 시각과 실제 내용**으로
+        // 판별하고, 시각과 이름이 갈리는데 내용도 다르면 추측하지 않는다 — 그때가 최소 질문의 자리다.
+        if (action === 'versions') {
+          const info = await stat(abs);
+          const 폴더 = info.isDirectory() ? abs : dirname(abs);
+          // 이름 낱말: 인자로 받거나, 파일을 짚어 줬으면 그 이름의 머리로 삼는다.
+          let 이름낱말 = String(args.name ?? '').trim().normalize('NFC').toLowerCase();
+          if (!이름낱말 && !info.isDirectory()) {
+            이름낱말 = basename(abs).replace(/\.[^.]*$/, '').split(/[-_\s(]/)[0].normalize('NFC').toLowerCase();
+          }
+          if (!이름낱말) return fail('어떤 이름의 파일들을 비교할지 알려주시면 최종본을 찾아볼게요.');
+
+          const 식구 = [];
+          for (const e of await readdir(폴더, { withFileTypes: true })) {
+            if (!e.isFile() || e.name.startsWith('.')) continue;
+            if (!e.name.normalize('NFC').toLowerCase().includes(이름낱말)) continue;
+            const full = join(폴더, e.name);
+            if (protectionBlocks(full, { write: false })) continue; // 비밀 이름은 비교 대상에도 안 올린다
+            const s = await stat(full);
+            const 한판 = {
+              name: e.name, path: full, bytes: s.size,
+              modifiedAt: new Date(s.mtimeMs).toISOString(), mtimeMs: s.mtimeMs,
+              nameSaysFinal: /최종|final/i.test(e.name),
+            };
+            // 내용은 같음/다름을 가리는 데만 쓴다(해시). 못 읽으면 **못 읽었다고 남긴다** —
+            // 안 읽고 같다/다르다를 말하면 그게 추측이다(모름을 사실로 전달).
+            if (s.size <= MAX_READ_BYTES) {
+              try { 한판.hash = createHash('sha256').update(await readFile(full)).digest('hex'); }
+              catch { 한판.contentUnread = true; }
+            } else 한판.contentUnread = true;
+            식구.push(한판);
+          }
+          if (식구.length === 0) {
+            return fail(`${basename(폴더)} 안에서 "${이름낱말}" 이름의 파일을 찾지 못했어요.`, '이름이나 폴더를 다시 알려주시겠어요?');
+          }
+          식구.sort((a, b) => b.mtimeMs - a.mtimeMs);
+          // 같은 내용은 같은 판이다 — 최신 쪽을 대표로 두고, 나머지에 "누구와 같은지"를 남긴다.
+          const 본해시 = new Map();
+          for (const f of 식구) {
+            if (!f.hash) continue;
+            const 먼저 = 본해시.get(f.hash);
+            if (먼저) f.sameContentAs = 먼저; else 본해시.set(f.hash, f.name);
+          }
+
+          const 최신 = 식구[0];
+          const 이름최종 = 식구.find((f) => f.nameSaysFinal); // 최신순이라 첫 것이 가장 최근의 "최종"
+          let 최종본 = null; let 왜 = '';
+          if (식구.length === 1) { 최종본 = 최신; 왜 = '이 이름으로는 이 파일 하나예요'; }
+          else if (!이름최종) { 최종본 = 최신; 왜 = '가장 최근에 고친 파일이에요'; }
+          else if (이름최종 === 최신) { 최종본 = 최신; 왜 = '이름에 최종 표시가 있고, 가장 최근에 고친 파일이기도 해요'; }
+          else if (이름최종.hash && 최신.hash && 이름최종.hash === 최신.hash) {
+            최종본 = 최신; 왜 = `최종 표시가 붙은 ${이름최종.name} 과 내용이 같고 더 최근이에요`;
+          }
+          // 그 밖(이름은 최종인데 더 최근 파일이 있고, 내용이 다르거나 못 읽었다)은 고르지 않는다.
+
+          const 못읽음 = 식구.filter((f) => f.contentUnread).length;
+          const files = 식구.map(({ mtimeMs, hash, ...공개 }) => 공개);
+          if (최종본) {
+            return ok(
+              `최종본은 ${최종본.name} 으로 보여요 — ${왜}.`,
+              {
+                path: 폴더, name: 이름낱말, files,
+                final: { name: 최종본.name, path: 최종본.path, why: 왜 },
+                ...(못읽음 ? { unreadCount: 못읽음 } : {}),
+              },
+            );
+          }
+          return {
+            result: { path: 폴더, name: 이름낱말, files, final: null, ambiguous: true, ...(못읽음 ? { unreadCount: 못읽음 } : {}) },
+            userSafeSummary: (이름최종.contentUnread || 최신.contentUnread)
+              ? `이름은 ${이름최종.name} 이 최종이라는데 ${최신.name} 이 더 최근이에요. 내용은 읽지 못해 비교하지 못했어요.`
+              : `이름은 ${이름최종.name} 이 최종이라는데, ${최신.name} 이 더 최근이고 내용도 달라요.`,
+            nextSafeAction: '어느 쪽을 최종본으로 볼지 알려주시면 그것만 정리할게요.',
+          };
+        }
+
         if (action === 'write') {
           const text = String(args.text ?? '');
+          // H08 · **원본 보호.** "정리해줘, 원본은 건드리지 마" — 결과물은 별도 파일이어야 한다.
+          // 휴지통 백업이 있어도 원본 자리를 덮으면 원본을 건드린 것이다. 모델이 `source` 로
+          // 원본을 밝히면(어디서 만든 결과물인지), 그 자리로는 저장하지 않는다.
+          let 원본;
+          if (typeof args.source === 'string' && args.source.trim()) {
+            try { 원본 = await resolveInScope(args.source, { roots }); }
+            catch { /* 원본 표시가 틀렸다고 저장까지 막지는 않는다 — 같은 자리일 수 없으면 지킬 것도 없다 */ }
+          }
+          if (원본 && 원본 === abs) {
+            return fail(
+              `${basename(abs)} 은(는) 원본이라 덮어쓰지 않았어요.`,
+              `정리 결과는 다른 이름(예: ${basename(abs).replace(/\.[^.]*$/, '')}-정리본)으로 저장할까요?`,
+            );
+          }
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
           await writeFile(abs, text, 'utf8');
@@ -219,7 +320,11 @@ export function makeLocalFileTool(deps = {}) {
           return ok(
             parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
               : `${basename(abs)} 을(를) 만들었어요.`,
-            { path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked) },
+            {
+              path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked),
+              // 원본을 안 건드렸다는 건 **말할 수 있는 사실**이어야 한다 — 결과에 남긴다.
+              ...(원본 ? { originalUntouched: true, source: 원본 } : {}),
+            },
           );
         }
 
@@ -256,7 +361,7 @@ export function makeLocalFileTool(deps = {}) {
           return ok(`${basename(abs)} 을(를) 지웠어요(되돌릴 수 있어요).`, { path: abs, recoverable: true });
         }
 
-        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·읽기·저장·옮기기·지우기·되돌리기가 가능해요.');
+        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·읽기·저장·옮기기·지우기·되돌리기·최종본 확인(versions)이 가능해요.');
       } catch (e) {
         return failureOf(e, target);
       }

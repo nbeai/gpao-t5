@@ -5,7 +5,9 @@
 // 그래서 등급 위에 범위를 얹는다.
 //
 // 경계:
-//   · 기본 루트는 좁게(`~/GPAO-T5`). env 로 넓힐 수 있지만 기본값이 홈 전체가 되지 않는다.
+//   · 기본 루트는 작업 루트(`~/GPAO-T5`) + 표준 사용자 폴더(Downloads·Documents·Desktop)까지.
+//     env 로 넓힐 수 있지만 기본값이 홈 전체가 되지 않는다 — 위험 자리는 local-protection 이
+//     루트와 독립으로 막으므로, 루트를 넓혀도 보호는 풀리지 않는다.
 //   · `../` 만 막으면 **심볼릭 링크로 뚫린다** — realpath 로 다시 판정한다.
 //   · 읽기도 범위를 지킨다(범위 밖 읽기 = 정보 유출).
 //   · 범위 밖은 막다른 답을 주지 않는다 — "이 폴더를 열어줄까요?"로 다음 행동을 준다.
@@ -16,7 +18,13 @@ import { homedir } from 'node:os';
 export function defaultFileRoots(env = process.env) {
   const raw = env.GPAO_T5_FILE_ROOTS;
   if (raw && raw.trim()) return raw.split(':').map((p) => resolve(p.trim())).filter(Boolean);
-  return [join(homedir(), 'GPAO-T5')];
+  // 작업 루트가 첫째다 — 상대 경로·휴지통·새 파일의 기준은 그대로 유지된다.
+  // 그 위에 **표준 사용자 폴더**를 얹는다. H08 실측(인간 기준선 실패 3/3): "다운로드 폴더에
+  // 방금 받은 견적서"가 루트 1개에 막혀 시작도 못 했다. 사용자의 파일은 대부분 여기에 온다.
+  // 홈 전체는 열지 않는다 — 넓힘은 이 세 폴더까지이고, `~/.ssh` 같은 위험 자리는
+  // local-protection 이 루트와 독립으로 막는다(루트 확장이 보호를 풀지 않는다).
+  const home = homedir();
+  return [join(home, 'GPAO-T5'), join(home, 'Downloads'), join(home, 'Documents'), join(home, 'Desktop')];
 }
 
 /** 경로가 루트 안인가(문자열 기준). 경계에서 접두사만 비교하면 `/a/bc` 가 `/a/b` 안으로 오인된다. */
@@ -61,9 +69,11 @@ export async function resolveInScope(target, opts = {}) {
   const base = roots[0];
   // 상대 경로는 첫 루트 기준으로 푼다(사용자가 "메모.md"라고만 말해도 되게).
   const abs = isAbsolute(target) ? resolve(target) : resolve(base, target);
-  if (!roots.some((r) => isWithin(r, abs))) throw new ScopeError(abs, roots);
 
-  // 실제 경로(링크 해제)로 재판정 — 여기가 없으면 링크 한 줄로 범위를 벗어난다.
+  // **판정의 기준은 실제 경로다.** 문자열로 먼저 끊으면 `/var/...` 처럼 링크를 지나는 형태가
+  // 실제로는 루트 안(`/private/var/...`)인데도 범위 밖으로 오판된다(다중 루트 검사에서 실측).
+  // 그래서 존재하는 경로는 realpath 로만 판정하고 — 링크 탈출(안→밖)은 여기서 그대로 잡힌다 —
+  // 문자열 판정은 **아무것도 존재하지 않을 때의 마지막 근거**로만 쓴다.
   let probe = abs;
   for (;;) {
     try {
@@ -74,7 +84,11 @@ export async function resolveInScope(target, opts = {}) {
     } catch (e) {
       if (e?.isScopeError) throw e;
       const parent = resolve(probe, '..');
-      if (parent === probe) return abs; // 루트까지 올라가도 없으면 문자열 판정으로 통과된 abs
+      if (parent === probe) {
+        // 루트까지 올라가도 아무것도 없다 — 실제 경로가 없으니 문자열로 판정한다.
+        if (!roots.some((r) => isWithin(r, abs))) throw new ScopeError(abs, roots);
+        return abs;
+      }
       probe = parent;
     }
   }
