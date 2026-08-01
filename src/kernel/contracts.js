@@ -91,6 +91,7 @@
  * @property {*} [result]
  * @property {FailureState} failureState
  * @property {ReceiptLifecycle} lifecycle  실행·전달 수명주기(Phase 5.1 §7). 승인 상태는 불허
+ * @property {string[]} [deliverableRefs]  이 실행이 실제로 충족한 ActionPlan 산출물 계약 신분
  * @property {Array<{sourceUrl:string, fetchedAt:number, title:string, excerptHash:string, confidence:number}>} [sources]  출처 근거(P6-2 Slice-2). 웹 도구는 출처 없이 "확인"을 주장하지 못한다
  * @property {string} userSafeSummary     내부 용어 제외, 사용자면 전용
  * @property {*} [diagnosticTrace]        내부 진단·스택·provider 상태. 사용자면 노출 금지

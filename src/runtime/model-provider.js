@@ -94,7 +94,7 @@ export function buildModelMessages(tc) {
   if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
   // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
   // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).
-  if (tc.toolStepsLeft) sys.push(`이번 턴에 손을 아직 ${tc.toolStepsLeft}번 더 이어 쓸 수 있다 — 지금 끝낼 수 있는 일을 다음 턴으로 미룰 이유가 없다.`);
+  if (tc.toolStepsLeft) sys.push(`이번 턴에 손을 아직 ${tc.toolStepsLeft}번 더 이어 쓸 수 있다.`);
   // 3축: 지금 답이 어디로 나가는지. **지시가 아니라 사실 한 줄**이다 — 텔레그램은 서식이 안 먹는다는
   // 성질을 알려주면 모델이 스스로 조절한다("짧게 써라"라고 시키지 않는다, §24).
   const surfaceFact = responseSurfaceFacts(tc.surface);
@@ -226,11 +226,14 @@ export function buildModelMessages(tc) {
   }
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
+  if (tc.workContractAssessment?.kind === 'file') {
+    usr.push('[완료 계약 판단]\n사용자의 요청을 성공했다고 말하려면 대화 답변과 별개인 새 파일 또는 변경된 파일이 반드시 남아야 하는지 판단한다. 자료를 읽거나 비교하기만 하고 답은 대화로 주면 되는 일은 CHAT, 파일 생성·저장 자체가 요청 결과인 일은 FILE이다. 다른 설명 없이 FILE 또는 CHAT 하나만 답한다.');
+  }
   usr.push(tc.currentRequest); // 원문 보존
-  // 산출물 의무 대조(턴 실행부) — 낱말이 아니라 **네 선언(work.deliverable)과 원장**의 불일치.
+  // 산출물 의무 대조(턴 실행부) — 낱말이 아니라 **ActionPlan 완료 계약과 원장**의 불일치.
   // 매 호출 변하는 사실이라 맨 뒤(캐시 경계 계약).
   if (tc.unmetDeliverable) {
-    usr.push('[원장 대조]\n이 요청의 산출물로 파일을 만들기로 네가 선언했는데, 파일을 만든 실행이 아직 원장에 없다. 손이 남아 있다 — 지금 만들 수 있고, 만들지 않고 끝나면 이 일은 완료로 기록되지 않는다.');
+    usr.push('[원장 대조]\nActionPlan의 완료 계약에는 파일 산출물이 필요한데, local.file write의 경로와 내용 digest가 있는 성공 영수증이 아직 없다. 손은 남아 있다.');
   }
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
@@ -259,6 +262,11 @@ function 연결경로(p) {
 
 /** 도구 이름은 서버마다 허용 문자가 다르다(점 불가 등). 와이어에서만 바꾸고 응답에서 되돌린다. */
 export const wireToolName = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+function requiredWireTool(opts = {}) {
+  if (!opts.requiredTool || !opts.tools?.some((tool) => tool.name === opts.requiredTool)) return null;
+  return wireToolName(opts.requiredTool);
+}
 
 /** 와이어가 준 이름·인자 → 커널 호출. 인자가 깨졌으면 버린다(반쪽 인자로 실행하지 않는다). */
 function parseWireCall(name, rawArgs) {
@@ -300,6 +308,9 @@ const OPENAI_WIRE = {
         type: 'function',
         function: { name: wireToolName(t.name), description: t.description, parameters: t.parameters },
       })),
+    } : {}),
+    ...(requiredWireTool(opts) ? {
+      tool_choice: { type: 'function', function: { name: requiredWireTool(opts) } },
     } : {}),
     // 일부 호환 서버는 user/assistant 만 허용(beai V1 실측 2026-07-26). 그 경우 system 사실을
     // user 턴 앞에 합쳐 보낸다 — 사실 전달은 유지, 셰이프만 서버 제약에 맞춘다.
@@ -350,6 +361,9 @@ export const MODEL_PROVIDERS = {
         tools: opts.tools.map((t) => ({
           name: wireToolName(t.name), description: t.description, input_schema: t.parameters,
         })),
+      } : {}),
+      ...(requiredWireTool(opts) ? {
+        tool_choice: { type: 'tool', name: requiredWireTool(opts), disable_parallel_tool_use: true },
       } : {}),
     }),
     extract: (json) => {
@@ -408,6 +422,13 @@ export const MODEL_PROVIDERS = {
             name: wireToolName(t.name), description: t.description, parameters: t.parameters,
           })),
         }],
+      } : {}),
+      ...(requiredWireTool(opts) ? {
+        tool_config: {
+          function_calling_config: {
+            mode: 'ANY', allowed_function_names: [requiredWireTool(opts)],
+          },
+        },
       } : {}),
     }),
     extract: (json) => {

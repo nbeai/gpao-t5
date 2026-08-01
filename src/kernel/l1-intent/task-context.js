@@ -258,6 +258,7 @@ export function buildTaskContext(p) {
     answerMode: intent.answerMode,
     // 방법·언어는 모델에 열어둔다(§10.2). 이 문자열은 지시문이 아니라 규칙 표식이다.
     naturalness: 'method_and_language_open',
+    ...(p.workContractAssessment ? { workContractAssessment: p.workContractAssessment } : {}),
   };
 
   // SOUL 말투 — 매 턴 고정 접두에 얹힌다(캐시에 붙는다).

@@ -338,6 +338,7 @@ const DESCRIPTORS = [
         properties: {
           action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'delete', 'undo', 'versions'] },
           path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로 또는 허용 폴더의 절대 경로)' },
+          name: { type: 'string', description: 'versions 로 폴더 안의 같은 이름 식구를 비교할 때 공통 이름(예: 견적서)' },
           to: { type: 'string', description: 'move 일 때 옮길 위치' },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
           source: { type: 'string', description: 'write 가 어떤 원본을 정리한 결과물이면 그 원본 경로 — 원본 자리 덮어쓰기를 막고 별도 결과물임을 기록한다' },

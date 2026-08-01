@@ -8,7 +8,7 @@
 //   · 덮어쓰기·삭제는 **되돌릴 수 있다** — 원본을 휴지통으로 옮기고 되돌리기 표를 남긴다.
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
-import { readFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
+import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -23,9 +23,10 @@ function undoEntry(op, from, to) {
 }
 
 /**
- * @param {{roots?:string[], trashDir?:string, dataDir?:string}} [deps]
+ * @param {{roots?:string[], trashDir?:string, dataDir?:string, readFile?:Function}} [deps]
  */
 export function makeLocalFileTool(deps = {}) {
+  const readFile = deps.readFile ?? nodeReadFile; // 실패 주입도 실제 파일 손 경계를 타게 한다.
   const roots = deps.roots ?? defaultFileRoots();
   const home = deps.homeDir; // 검사 주입용 — 미지정이면 file-scope 가 실제 홈을 쓴다
   const trashDir = deps.trashDir ?? join(deps.dataDir ?? roots[0], '.trash');

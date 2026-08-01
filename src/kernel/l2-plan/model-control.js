@@ -13,25 +13,6 @@ import { toolSchemasFor } from './tool-schema.js';
 
 // 통제 호출 선언 — 실행 손이 아니므로 ToolDescriptor 가 아니라 여기 산다.
 export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
-  // 산출물 의무 (2026-08-01, H08 라이브 실측 → 오너 구조 지시) — **판단은 모델, 대조는 원장.**
-  // 모델이 "파일로 남겨야 하는 일"이라고 정확히 판단하고도 실행 없이 턴을 끝내는 변동이
-  // 반복됐다(8회 중 6회). 그 판단을 산문이 아니라 **구조**로 받는 채널이다: 선언이 있으면
-  // 런타임은 산출물 영수증(내용 digest 를 가진 실행)이 실제로 남았는지 원장으로 대조하고,
-  // 없이 답이 끝나려 하면 이 턴 안에서 마칠 기회를 한 번 준다. 낱말 규칙이 아니다 —
-  // 선언하지 않으면 아무것도 달라지지 않고, 무엇을 실행할지는 끝까지 모델이 고른다.
-  name: 'work.deliverable',
-  description: '이 요청을 이루는 데 **파일로 남는 산출물**이 필요하다고 판단되면, 일을 시작할 때'
-    + ' 이걸로 선언한다. 그러면 T5 가 "산출물을 만든 실행이 실제로 있었는가"를 원장으로 함께'
-    + ' 지켜봐 준다 — 선언만 하고 파일을 만들지 않은 채 답이 끝나는 실수를 T5 가 잡아 준다.'
-    + ' 대화 답으로 끝나는 일이면 부르지 않는다.',
-  parameters: {
-    type: 'object',
-    properties: {
-      kind: { type: 'string', enum: ['file'], description: '지금은 파일 산출물만 선언한다.' },
-    },
-    required: ['kind'],
-  },
-}, {
   name: 'memory.propose',
   description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 적는다.'
     + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
@@ -168,18 +149,12 @@ export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
   let memorySuggestion = null;
   let memoryWithdrawal = null;
-  // 산출물 의무 — 모델의 구조 선언. 실행이 아니므로 계획·승인·원장에 안 탄다.
-  let deliverable = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
   let memoryCitation = null;
   // S5-3: 정정 여부는 **모델이 알려준다.** Runtime 에 낱말 규칙을 두지 않는다.
   let memoryCorrection = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
-    if (c.name === 'work.deliverable') {
-      if (c?.args?.kind === 'file') deliverable = { kind: 'file' };
-      continue;
-    }
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
@@ -215,5 +190,5 @@ export function splitModelControlCalls(toolCalls = []) {
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, deliverable, rest };
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, rest };
 }

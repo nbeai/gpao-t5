@@ -24,6 +24,9 @@ import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from './l2-plan/model-control.js';
+import {
+  bindDeliverableReceipt, fileWorkIsInPlay, parseDeliverableJudgment, unsatisfiedDeliverables,
+} from './l2-plan/work-contract.js';
 import { nextRung, rungMessage, 읽은척차단, 호출지문 } from './l2-plan/recovery-ladder.js';
 import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
 import { resolveResponseSurface } from './l0-evidence/response-surface.js';
@@ -52,6 +55,33 @@ async function 볼수있는자리(ctx) {
 // 정확히 알고도 "손을 다 써서 다음 턴에 하겠다"며 멈췄다 — t5demo-idle 과 같은 병(손 부족).
 // 되풀이는 지문(호출지문)이 따로 막으므로, 상한은 목적 완주가 걸리지 않는 6으로 둔다.
 const MAX_TOOL_STEPS = 6;
+
+async function fileDeliverablesFor({ model, tc, calls, intent }) {
+  const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
+  if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
+  // 모델이 처음부터 쓰기를 골랐다면 그 호출 자체가 결과 형태의 구조 판단이다.
+  if (calls.some((call) => call?.name === 'local.file' && call?.args?.action === 'write')) {
+    return {
+      assessment: 'file',
+      deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }],
+    };
+  }
+  // 읽기·찾기는 결과물이 아니라 재료일 수도 있다. 사용자 문구 규칙으로 맞히지 않고
+  // 요청 전체를 본 모델에게 전용 구조 판단을 맡긴다. 형식을 못 지키면 한 번만 다시 묻는다.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const out = await model.respond({ ...tc, workContractAssessment: { kind: 'file' } }, { effort: 'medium' });
+    const judgment = parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
+    if (judgment === 'file') {
+      return {
+        assessment: 'file',
+        deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'derived' }],
+      };
+    }
+    if (judgment === 'chat') return { assessment: 'chat', deliverables: [] };
+  }
+  // 판단 불능을 CHAT 으로 꾸미지 않는다. 사용자 답은 막지 않되 완료 상태는 만들지 않는다.
+  return { assessment: 'unknown', deliverables: [] };
+}
 
 function 확정된전송미리보기(preview, args = {}) {
   if (!preview) return preview;
@@ -521,13 +551,18 @@ export async function runTurn(input, ctx) {
       if (대조.refs.length) modelCitedRefs = 대조.refs;
     }
     if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
-    // 산출물 의무 — 모델의 구조 선언을 턴 문맥에 싣는다(집행은 executePlan 의 대조가 한다).
-    if (분리.deliverable) ctx.선언산출물 = 분리.deliverable;
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
+  // 완료 형태 판단은 fast path 보다 먼저 선다. 모델이 첫 응답에서 손을 고르지 않았다는 이유로
+  // 파일 산출물 요청이 대화 답만 남기고 빠져나가면, 바로 막으려던 H08 실패가 재발한다.
+  const completionContract = await fileDeliverablesFor({
+    model: ctx.model, tc: earlyTc, calls: modelChosen ?? [], intent,
+  });
+
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
-  if (!modelChosen && intent.answerMode === 'fast_chat' && !influence) {
+  if (!modelChosen && intent.answerMode === 'fast_chat' && !influence
+      && (completionContract.assessment === 'not_applicable' || completionContract.assessment === 'chat')) {
     // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
     // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
     // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
@@ -582,6 +617,11 @@ export async function runTurn(input, ctx) {
       planIntent = { ...planIntent, toolArgs: parts.toolArgs };
     }
   }
+  planIntent = {
+    ...planIntent,
+    deliverableAssessment: completionContract.assessment,
+    ...(completionContract.deliverables.length ? { deliverables: completionContract.deliverables } : {}),
+  };
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
     planIntent = { ...planIntent, fileOp: parseFileRequest(input.text ?? '') };
   }
@@ -920,7 +960,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
-    const rec = await ctx.tools.run(toolId, args, selfState);
+    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState));
     현실다시();
     ledger.append(rec);
     turnReceipts.push(rec);
@@ -1044,30 +1084,51 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // toolActionKind → decideAutoGrant. 승인이 필요하면 **실행하지 않고 멈춘다.**
   let steps = 0;
   let 멈춘이유;
-  // 산출물 의무 대조 (2026-08-01, 오너 구조 지시) — 미완료는 낱말이 아니라 **계획(모델의
-  // 구조 선언 work.deliverable)·영수증·남은 손의 불일치**로 판정한다. 한때 "할게요" 문구
-  // 정규식 재촉이 있었으나 걷어냈다(낱말 판정 금지). 산출물 영수증 = 성공 실행이 내용
-  // digest 를 남긴 것(쓰기의 산출물 신분, F2.1). 선언이 없으면 아무것도 달라지지 않는다.
-  const 산출물영수증 = () => turnReceipts.some((r) => (r?.failureState ?? 'none') === 'none' && typeof r?.result?.digest === 'string');
-  let 산출물재확인 = false;
+  // ActionPlan 의 결과 형태와 실제 실행 영수증을 한 자리에서 대조한다. 다른 도구가 우연히
+  // 남긴 digest 는 파일 산출물이 아니며, local.file write 의 path+digest 만 충족으로 센다.
+  const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
+  let 산출물요청수 = 0;
+  const 산출물이어가기 = async () => {
+    if (!산출물미충족() || steps >= MAX_TOOL_STEPS || 산출물요청수 >= MAX_TOOL_STEPS) return false;
+    const derived = (plan.deliverables ?? []).some((wanted) => wanted.binding === 'derived');
+    // ActionPlan 이 요구한 것은 파일 손 일반이 아니라 **성공한 write 영수증**이다. 같은 전체
+    // 스키마를 다시 주면 모델이 방금 끝낸 versions/read 를 되풀이한다. 작업 종류만 계약과
+    // 맞추고, 경로·내용·원본 선택은 모델에 남긴다.
+    const fileTools = modelSchemasFor(selfState).filter((tool) => tool.name === 'local.file').map((tool) => ({
+      ...tool,
+      parameters: {
+        ...tool.parameters,
+        properties: {
+          ...tool.parameters.properties,
+          action: { ...tool.parameters.properties.action, enum: ['write'] },
+        },
+        required: ['action', 'path', 'text', ...(derived ? ['source'] : [])],
+      },
+    }));
+    if (!fileTools.length) { 멈춘이유 = '파일 결과물을 남길 손이 없어 멈췄어요'; return false; }
+    산출물요청수 += 1;
+    finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
+      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+      tools: fileTools, requiredTool: 'local.file',
+    });
+    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) {
+      멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
+      return false;
+    }
+    return true;
+  };
   while (steps < MAX_TOOL_STEPS) {
     // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
     // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
     const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
     if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
-    if (분리.deliverable) ctx.선언산출물 = 분리.deliverable;
     const next = 분리.rest;
     if (!next.length) {
-      // 선언한 파일 산출물이 원장에 없는데 손이 남았다 — 이 턴 안에서 마칠 기회를 한 번 준다.
-      // 무엇을 실행할지는 모델이 고른다(기회이지 강제가 아니다).
-      if (!산출물재확인 && ctx.선언산출물?.kind === 'file' && steps < MAX_TOOL_STEPS && !산출물영수증()) {
-        산출물재확인 = true;
-        finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
-          onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-          tools: modelSchemasFor(selfState),
-        });
-        continue;
-      }
+      // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
+      // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
+      // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
+      // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
+      if (await 산출물이어가기()) continue;
       break;
     }
     const parts = callsToIntentParts(next, selfState);
@@ -1077,7 +1138,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     const 지문 = 지문of(toolId, args);
-    if (rung.has(지문)) { 멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요'; break; }
+    if (rung.has(지문)) {
+      // 반복 읽기는 실행하지 않는다. 다만 별도 파일 완료 계약까지 같이 버리지는 않는다.
+      // 중복 방지와 완료 판정은 서로 다른 경계다.
+      if (await 산출물이어가기()) continue;
+      멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요';
+      break;
+    }
     rung.add(지문);
 
     // 첫 도구 호출과 마찬가지로, 이어 쓰는 도구도 승인 **전에** 현재 현실에서 가능한 요청인지
@@ -1174,6 +1241,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 계획으로 만들어 봉인하고, 승인 재개가 그것을 그대로 이어받는다(executePlan 이 그 입구다).
       const 걸음intent = {
         ...intent,
+        deliverables: plan.deliverables ?? [],
         neededTools: [toolId],
         toolArgs: { ...(intent.toolArgs ?? {}), [toolId]: 판정인자 },
         ...(toolId === 'local.terminal' ? { terminalOp: 판정인자 } : {}),
@@ -1236,7 +1304,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
-    const rec = await ctx.tools.run(toolId, 판정인자, selfState);
+    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, 판정인자, selfState));
     현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
@@ -1284,8 +1352,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (steps >= MAX_TOOL_STEPS && !멈춘이유) 멈춘이유 = '한 번에 할 수 있는 만큼 하고 멈췄어요';
-  // 산출물 의무 미이행은 완료가 아니다 — 선언(계획)과 원장(영수증)의 불일치가 기계 사실이다.
-  if (!멈춘이유 && ctx.선언산출물?.kind === 'file' && !산출물영수증()) {
+  // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.
+  if (!멈춘이유 && 산출물미충족()) {
     멈춘이유 = '만들기로 한 파일 산출물이 아직 만들어지지 않았어요';
   }
 
@@ -1315,6 +1383,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 승인 대상으로 못 만듦). 그 사실을 완료 판정에 잇지 않으면, 일부 도구가 성공했다는 이유로
   // 중간에 멈춘 일을 완료로 기록한다 — 그러면 다음 턴이 이어갈 자리를 잃는다(오너 감사 2026-07-29).
   const 끝났나 = !멈춘이유
+    && plan.deliverableAssessment !== 'unknown'
     && projection.unconfirmed.length === 0
     && (ctx.pending?.size ?? 0) === 0
     && !(workingState.awaiting?.length)

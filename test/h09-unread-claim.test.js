@@ -79,12 +79,14 @@ import { MemoryStore } from '../src/surface/memory-store.js';
 import { mkdtemp as mkdtemp2 } from 'node:fs/promises';
 import { tmpdir as tmpdir2 } from 'node:os';
 import { join as join2 } from 'node:path';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
 
 test('관통: 읽기 전패 턴에서 모델이 내용을 서술하면 정직한 답으로 대체된다', async () => {
   const { demoTools, demoEnv } = await import('../src/surface/demo-context.js');
   const dir = await mkdtemp2(join2(tmpdir2(), 'gpao-h09-wire-'));
+  const store = new SessionStore(dir);
   const server = makeServer({
-    store: new SessionStore(dir), eventLog: new EventLog(dir), memStore: new MemoryStore(dir), env: demoEnv(),
+    store, eventLog: new EventLog(dir), memStore: new MemoryStore(dir), env: demoEnv(),
     tools: demoTools({
       localFile: {
         isFixture: true,
@@ -112,4 +114,46 @@ test('관통: 읽기 전패 턴에서 모델이 내용을 서술하면 정직한
     assert.ok(String(답.reply ?? '').trim().length > 0, '빈 답 금지');
     assert.match(String(답.reply ?? ''), /열지 못했|다른 폴더/, '영수증의 정직한 사실로 답한다');
   } finally { server.close(); }
+});
+
+test('관통: 실제 local.file 경계의 EACCES 호출이 원장에 남고 거짓 성공은 차단된다', async () => {
+  const { demoTools, demoEnv } = await import('../src/surface/demo-context.js');
+  const dir = await mkdtemp2(join2(tmpdir2(), 'gpao-h09-eacces-'));
+  await writeFile(join2(dir, '잠긴-견적서.csv'), '읽히면 안 되는 내용', 'utf8');
+  const calls = [];
+  const localFile = makeLocalFileTool({
+    roots: [dir], dataDir: dir,
+    async readFile(path, encoding) {
+      calls.push({ action: 'read', path });
+      throw Object.assign(new Error(`EACCES: permission denied, open ${path}`), { code: 'EACCES' });
+    },
+  });
+  let mainCalls = 0;
+  const store = new SessionStore(dir);
+  const server = makeServer({
+    store, eventLog: new EventLog(dir), memStore: new MemoryStore(dir), env: demoEnv(),
+    tools: demoTools({ localFile }),
+    model: {
+      async respond(tc, opts = {}) {
+        if (tc?.workContractAssessment) return 'CHAT';
+        if (!opts.tools?.length) return '파일 내용을 읽어 보니 매출은 1200입니다.';
+        mainCalls += 1;
+        if (mainCalls === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '잠긴-견적서.csv' } }] };
+        return { text: '파일 내용을 읽어 보니 매출은 1200입니다.', toolCalls: [] };
+      },
+    },
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (p, b) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}) }).then((r) => r.json());
+  try {
+    const s = await post('/sessions');
+    const 답 = await post('/turn', { sessionId: s.id, text: '잠긴-견적서.csv 읽어서 알려줘' });
+    assert.equal(calls.length, 1, `EACCES 경계가 실제로 호출되지 않았다(${calls.length})`);
+    assert.equal(String(답.reply ?? '').includes('매출은 1200'), false, '실패 뒤 지어낸 내용이 사용자에게 나갔다');
+    assert.match(String(답.reply ?? ''), /권한|접근|읽지|다른 파일/, '실제 실패의 사람 말이 답에 없다');
+    const saved = await store.load(s.id);
+    assert.ok((saved.ledgerEntries ?? []).some((r) => r.actualCall?.tool === 'local.file'
+      && r.failureState !== 'none'), 'EACCES 실행 영수증이 지속 원장에 없다');
+  } finally { await new Promise((r) => server.close(r)); }
 });

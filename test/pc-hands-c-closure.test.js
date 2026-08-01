@@ -153,40 +153,40 @@ test('실패 뒤 실제로 성공하면 blocked 는 풀린다(거짓 막힘 금�
 });
 
 
-// ── 산출물 의무 계약 (2026-08-01, 오너 구조 지시) ─────────────────────────
-// "할게요" 낱말 정규식이 아니라 **계획(모델의 구조 선언)·완료계약·영수증의 불일치**로
-// 미완료를 판정한다. 라이브 실측: 모델이 파일 산출물 일을 정확히 판단하고도 실행 없이 턴을
-// 끝내는 변동이 8회 중 6회였다 — 선언 채널이 없어 그 판단이 구조에 남지 않았기 때문이다.
-// 무엇을 실행할지는 여전히 모델이 고른다. 선언 없으면 아무 일도 달라지지 않는다.
-test('산출물 의무: 선언했는데 산출물 영수증이 없으면 이 턴 안에서 한 번 더 기회를 준다', async () => {
+// ── 산출물 완료 계약 ────────────────────────────────────────────────────────
+// 사용자 문구를 코드가 맞히지 않는다. 전용 모델 판단(FILE/CHAT)이 ActionPlan 에 들어가고,
+// OS 는 실제 local.file write 영수증만 완료로 인정한다.
+test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안에서 계속 걷는다', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
-  let 부름 = 0;
+  let 도구응답 = 0;
   const model = {
-    async respond(_tc, opts = {}) {
-      부름 += 1;
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return 'FILE';
       if (!opts.tools?.length) return '정리했어요';
-      if (부름 === 1) {
-        return { text: '', toolCalls: [
-          { name: 'work.deliverable', args: { kind: 'file' } },
-          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
-        ] };
-      }
-      if (부름 === 2) return { text: '내용을 확인했고 정리 방향을 잡았다.', toolCalls: [] };
+      도구응답 += 1;
+      if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
+      if (도구응답 === 2) return { text: '내용을 확인했고 정리 방향을 잡았다.', toolCalls: [] };
+      assert.equal(opts.requiredTool, 'local.file', '미충족 완료 계약이 파일 손을 구조로 요구하지 않았다');
+      assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write'],
+        '완료 계약이 write 영수증을 요구하는데 읽기 손까지 다시 열었다');
+      assert.ok(opts.tools[0].parameters.required.includes('source'),
+        '변환 산출물인데 원본 결합 근거를 요구하지 않았다');
       return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '견적서-정리.md', text: '정리', source: '견적서.md' } }] };
     },
   };
   const r = await runTurn({ text: '해줘' }, ctx(model));
   assert.equal(r.kind, 'approval',
-    `선언-영수증 불일치가 기회로 이어지지 않았다(kind=${r.kind})`);
+    `선언-영수증 불일치가 실제 쓰기로 이어지지 않았다(kind=${r.kind})`);
 });
 
-test('산출물 의무: 선언이 없으면 어떤 재확인도 일어나지 않는다(기본 무변화)', async () => {
+test('산출물 의무: CHAT 판단이면 어떤 재확인도 일어나지 않는다(읽기 기본 무변화)', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
   let 도구응답 = 0;
   const model = {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return 'CHAT';
       if (!opts.tools?.length) return '정리했어요';
       도구응답 += 1;
       if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
@@ -197,20 +197,18 @@ test('산출물 의무: 선언이 없으면 어떤 재확인도 일어나지 않
   assert.equal(도구응답, 2, `선언 없는 턴에 재확인이 갔다(도구 응답 ${도구응답}회)`);
 });
 
-test('산출물 의무: 산출물이 이미 계획·승인 경로에 있으면 재확인 왕복이 없다', async () => {
+test('산출물 의무: 모델이 처음부터 write 를 고르면 추가 판단·재확인 없이 승인 경로에 오른다', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
   let 도구응답 = 0; let 재확인수 = 0;
   const model = {
     async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) throw new Error('write 호출 자체가 완료 계약인데 다시 판단했다');
       if (tc?.unmetDeliverable) 재확인수 += 1;
       if (!opts.tools?.length) return '정리했어요';
       도구응답 += 1;
       if (도구응답 === 1) {
-        return { text: '', toolCalls: [
-          { name: 'work.deliverable', args: { kind: 'file' } },
-          { name: 'local.file', args: { action: 'write', path: '정리.md', text: '정리' } },
-        ] };
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '정리.md', text: '정리' } }] };
       }
       return { text: '다 만들었다.', toolCalls: [] };
     },
@@ -221,20 +219,16 @@ test('산출물 의무: 산출물이 이미 계획·승인 경로에 있으면 �
   assert.equal(재확인수, 0, `산출물이 계획에 있는데도 재확인이 갔다(${재확인수})`);
 });
 
-test('산출물 의무: 재확인 뒤에도 안 만들면 완료로 기록하지 않는다(거짓 완료 금지)', async () => {
+test('산출물 의무: FILE 판단 뒤에도 안 만들면 완료로 기록하지 않는다(거짓 완료 금지)', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
-  let 부름 = 0;
+  let 도구응답 = 0;
   const model = {
-    async respond(_tc, opts = {}) {
-      부름 += 1;
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return 'FILE';
       if (!opts.tools?.length) return '정리했어요';
-      if (부름 === 1) {
-        return { text: '', toolCalls: [
-          { name: 'work.deliverable', args: { kind: 'file' } },
-          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
-        ] };
-      }
+      도구응답 += 1;
+      if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
       return { text: '방향만 잡았다.', toolCalls: [] };
     },
   };
@@ -242,4 +236,41 @@ test('산출물 의무: 재확인 뒤에도 안 만들면 완료로 기록하지
   assert.equal(r.kind, 'reply');
   assert.notEqual(r.workingState?.recentOutcome?.status, 'completed',
     '산출물 의무가 미이행인데 완료로 남았다 — 다음 턴이 이어갈 자리를 잃는다');
+});
+
+test('산출물 의무: 첫 응답이 도구를 고르지 않아도 Intent 의 파일 작업이면 판단을 우회하지 않는다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let contractCalls = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) { contractCalls += 1; return 'FILE'; }
+      if (!opts.tools?.length) return '정리본을 만들 예정입니다.';
+      return { text: '정리본을 만들 예정입니다.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({ text: '견적서를 읽어서 별도 정리본 파일로 만들어줘' }, ctx(model));
+  assert.equal(contractCalls, 1, '모델이 파일 손을 안 골랐다는 이유로 완료 계약 판단을 건너뛰었다');
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed');
+});
+
+test('산출물 의무: 전용 판단 형식이 두 번 깨지면 CHAT 으로 꾸미지 않고 완료를 보류한다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let contractCalls = 0; let 도구응답 = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) { contractCalls += 1; return '아마 파일일 것 같아요'; }
+      if (!opts.tools?.length) return '확인했어요.';
+      도구응답 += 1;
+      if (도구응답 === 1) {
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
+      }
+      return { text: '견적서를 확인했어요.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({ text: '견적서를 읽어서 별도 정리본 파일로 만들어줘' }, ctx(model));
+  assert.equal(contractCalls, 2);
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed',
+    '판단 불능을 CHAT 으로 꾸며 완료 처리했다');
 });

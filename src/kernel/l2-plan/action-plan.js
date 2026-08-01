@@ -164,5 +164,9 @@ export function buildActionPlan(p) {
       : '실패 시 무엇이 안전하고 다음 안전 행동을 제시한다',
     // 실행 불가로 계획에서 빠진 도구를 정직하게 남긴다(죽은 버튼 금지, 복구 근거).
     blockedTools,
+    // 요청의 결과 형태는 모델이 판단하고, 충족 여부는 실제 영수증으로만 판정한다.
+    deliverables: intent.deliverables ?? [],
+    // 전용 판단이 형식을 지키지 못한 경우 CHAT 으로 꾸미지 않고 완료 상태만 보류한다.
+    deliverableAssessment: intent.deliverableAssessment ?? 'not_applicable',
   };
 }

@@ -159,6 +159,36 @@ test('Gemini: function_declarations 로 싣고 functionCall 을 읽는다', () =
   assert.deepEqual(calls, [{ name: 'local_file', args: { action: 'list' } }]);
 });
 
+test('완료 계약 도구 선택: 지원 provider 세 곳이 지정된 손만 요구한다', () => {
+  const opts = { tools: TOOLS, requiredTool: 'local.file' };
+  const openai = JSON.parse(MODEL_PROVIDERS.openai.body(
+    { provider: 'openai', modelId: 'x', maxTokens: 1 }, { system: 's', user: 'u' }, opts));
+  assert.deepEqual(openai.tool_choice, { type: 'function', function: { name: 'local_file' } });
+
+  const anthropic = JSON.parse(MODEL_PROVIDERS.anthropic.body(
+    { modelId: 'x', maxTokens: 1 }, { system: 's', user: 'u' }, opts));
+  assert.deepEqual(anthropic.tool_choice,
+    { type: 'tool', name: 'local_file', disable_parallel_tool_use: true });
+
+  const gemini = JSON.parse(MODEL_PROVIDERS.gemini.body(
+    { modelId: 'x', baseUrl: 'https://b' }, { system: 's', user: 'u' }, opts));
+  assert.deepEqual(gemini.tool_config,
+    { function_calling_config: { mode: 'ANY', allowed_function_names: ['local_file'] } });
+});
+
+test('완료 계약 도구가 제공 목록에 없으면 강제 선택을 싣지 않는다', () => {
+  const body = JSON.parse(MODEL_PROVIDERS.openai.body(
+    { provider: 'openai', modelId: 'x', maxTokens: 1 }, { system: 's', user: 'u' },
+    { tools: TOOLS, requiredTool: 'local.terminal' }));
+  assert.equal(body.tool_choice, undefined);
+});
+
+test('파일 versions 손은 폴더 비교에 필요한 공통 이름 인자를 모델에게 공개한다', () => {
+  const localFile = toolSchemasFor(selfState).find((tool) => tool.name === 'local.file');
+  assert.equal(localFile.parameters.properties.name.type, 'string');
+  assert.match(localFile.parameters.properties.name.description, /versions/);
+});
+
 test('provider 경로: 이름을 되돌려 커널 도구 id 로 준다', async () => {
   const client = makeProviderModelClient(
     { provider: 'anthropic', token: 'k', modelId: 'claude-x', baseUrl: 'https://api.anthropic.com' },
