@@ -916,4 +916,6 @@ H10은 실제 `/turn`에서 OS 범위 대조→2개 제한 자식→각 영수�
 최종 게이트: 회귀 1824/1824 · 돌연변이 187/187 · plan/docs/workspace PASS.
 `npm pack` 산출물 151개 파일도 압축 해제 뒤 실제 부팅·health·온보딩 진입 PASS.
 다음 순서: 오너가 설치본 또는 구조 보강을 선택한다. 외부 공개·설치·배포는 아직 선언하지 않는다.
+선택 정본: `docs/03-product-plan/T5-INSTALL-VS-STRUCTURAL-HARDENING-DECISION-2026-08-02-ko.md`.
+기본 기술 권고는 A(설치본 우선)이며, B는 여러 개발자가 코어를 동시에 수정할 계획이 확정된 경우다.
 ```

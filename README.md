@@ -85,6 +85,10 @@ The repository already verifies an `npm pack` artifact by unpacking and booting 
 gate, not a completed consumer installation lifecycle. Signed macOS packaging, background-service installation,
 updates, uninstall/recovery, and public distribution remain after the H and Agent Core seals.
 
+The owner-facing next-step comparison is
+`docs/03-product-plan/T5-INSTALL-VS-STRUCTURAL-HARDENING-DECISION-2026-08-02-ko.md`. It keeps installation work and
+behavior-preserving structural hardening as separate choices instead of mixing both into one risky change.
+
 ## Current Product Body
 
 ```text
