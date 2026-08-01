@@ -77,12 +77,19 @@ function 회차반응모델() {
         const 사용자가지정 = q.includes('문장 요약');
         return 제외있음 && 사용자가지정 ? '문장 요약으로 드립니다.' : '표로 정리했습니다.';
       }
-      // 판정 — 답에 기대 낱말이 다 있고 금지 낱말이 없으면 통과.
-      const 답 = /\[원리를 놓고 나온 답\] ([\s\S]*?)\n\nJSON/.exec(q)?.[1] ?? '';
-      const 기대 = (/기대 사실: (.*)/.exec(q)?.[1] ?? '').split(' / ').filter((x) => x && x !== '(없음)');
-      const 금지 = (/금지 사실: (.*)/.exec(q)?.[1] ?? '').split(' / ').filter((x) => x && x !== '(없음)');
-      const pass = 기대.every((f) => 답.includes(f)) && !금지.some((f) => 답.includes(f));
-      return JSON.stringify({ pass, rationale: pass ? '기대를 지켰다' : '금지 사실이 나왔다' });
+      // 판정 — v3 계약: 항목별 충족/출현 + 답 원문 근거만 낸다. 최종 pass 는 OS 가 계산한다.
+      const 답 = /\[원리를 놓고 나온 답\] ([\s\S]*?)\n\n/.exec(q)?.[1] ?? '';
+      const 기대들 = [...q.matchAll(/^필수 (\d+)\. (.*)$/gm)];
+      const 금지들 = [...q.matchAll(/^금지 (\d+)\. (.*)$/gm)];
+      return JSON.stringify({
+        required: 기대들.map(([, i, f]) => (답.includes(f)
+          ? { i: Number(i), met: true, evidence: f }
+          : { i: Number(i), met: false })),
+        forbidden: 금지들.map(([, i, f]) => (답.includes(f)
+          ? { i: Number(i), appeared: true, evidence: f }
+          : { i: Number(i), appeared: false })),
+        rationale: '낱말 대조',
+      });
     },
   });
   return { modelFor, calls };
@@ -148,7 +155,7 @@ test('S4/격리: 앞 회차 실패를 본 round 1 이 더 좁은 원리를 만�
   const 제안요청 = 모델.calls.find((c) => c.request.includes('운영 원리 후보 하나') && c.request.includes('앞선 회차'));
   assert.ok(제안요청, 'round 1 제안 요청에 앞 회차 이야기가 실렸다');
   assert.ok(제안요청.request.includes(넓은원리), '떨어진 원리 문장이 그대로 전달됐다');
-  assert.match(제안요청.request, /금지 사실이 나왔다/, '왜 떨어졌는지도 전달됐다');
+  assert.match(제안요청.request, /금지 출현/, '왜 떨어졌는지도 전달됐다');
   assert.match(제안요청.request, /적용하지 않을 상황/, '더 좁게 쓰라는 요구가 실렸다');
 
   // ③ 새 원리가 더 좁아졌고 적용 제외가 들어갔나.

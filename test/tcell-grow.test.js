@@ -21,7 +21,7 @@ import { demoTools } from '../src/surface/demo-context.js';
 import { admittedContext, confirmCandidate } from '../src/kernel/l1-intent/context-mesh.js';
 import { caseInputDigestOf } from '../src/kernel/l5-growth/tcell-replay.js';
 import {
-  growTick, GROW_CAPS, verifySuiteFromMemory, parseProposal,
+  growTick, GROW_CAPS, verifySuiteFromMemory, parseProposal, computeCaseVerdict,
 } from '../src/kernel/l5-growth/tcell-grow.js';
 
 // 원리 문장과 실제로 겹치는 요청 — 이걸 안 주면 `admittedContext` 는 무조건 0을 돌려주고,
@@ -62,11 +62,28 @@ const 제안 = (over = {}) => JSON.stringify({
  * 대본대로 답하는 모델. **무엇을 물었는지·도구를 줬는지**를 함께 기록한다 —
  * 성장 호출이 손을 쓰지 않는다는 사실은 이 기록으로만 확인할 수 있다.
  */
+/** 판정 요청에서 답·항목 수를 읽어 항목별 판정을 만든다 — v3 계약(항목·근거·OS 계산)용. */
+function 판정대본(req, { 미충족필수 = [], 출현금지 = [] } = {}) {
+  const 답 = /\[원리를 놓고 나온 답\] ([\s\S]*?)\n\n/.exec(req)?.[1] ?? '';
+  const ev = 답.replace(/\s+/g, ' ').trim().slice(0, 24);
+  const 필수수 = (req.match(/^필수 \d+\./gm) ?? []).length;
+  const 금지수 = (req.match(/^금지 \d+\./gm) ?? []).length;
+  return JSON.stringify({
+    required: Array.from({ length: 필수수 }, (_, i) => (미충족필수.includes(i)
+      ? { i, met: false }
+      : { i, met: true, evidence: ev })),
+    forbidden: Array.from({ length: 금지수 }, (_, i) => (출현금지.includes(i)
+      ? { i, appeared: true, evidence: ev }
+      : { i, appeared: false })),
+    rationale: 미충족필수.length || 출현금지.length ? '계약 위반' : '기대를 지켰다',
+  });
+}
+
 function 대본모델({
   제안본문 = 제안(),
   // 사례 유효성 점검(H02 성과 계열): 기본은 전부 유효. 시험이 무효를 대본으로 준다.
   유효성 = () => '{"invalid":[]}',
-  판정 = () => '{"pass":true,"rationale":"기대 사실을 지켰다"}',
+  판정 = (k, req) => 판정대본(req),
   답 = () => '짧은 목록으로 정리했습니다.',
   신분값 = 신분,
 } = {}) {
@@ -81,7 +98,7 @@ function 대본모델({
       // **내용으로 가른다** — 호출 순서가 바뀌어도(유효성 점검 삽입 등) 대본이 어긋나지 않는다.
       if (req.includes('운영 원리 후보')) return 제안본문;
       if (req.includes('사례 유효성')) return 유효성(n);
-      if (req.includes('기대 사실:')) { 판정수 += 1; return 판정(판정수); }
+      if (req.includes('기대 사실:')) { 판정수 += 1; return 판정(판정수, req); }
       return 답(n);
     },
   });
@@ -279,7 +296,7 @@ test('S4: 금지 사실이 나온 negative 케이스가 있으면 통과가 아�
   const memStore = await 준비();
   // 판정 대본은 서수다: 1=case0 · 2=case1 · 3=case2(negative).
   const { modelFor } = 대본모델({
-    판정: (k) => (k === 3 ? '{"pass":false,"rationale":"금지 사실이 나왔다"}' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k, req) => 판정대본(req, k === 3 ? { 출현금지: [0] } : {}),
   });
   const { 기록 } = await 끝까지({ memStore, modelFor });
   assert.equal(기록[기록.length - 1].pass, false);
@@ -315,7 +332,7 @@ test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안 
 test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 불가는 통과가 아니다)', async () => {
   const memStore = await 준비();
   const { modelFor } = 대본모델({
-    판정: (k) => (k === 1 ? '음… 판단이 어렵네요.' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k, req) => (k === 1 ? '음… 판단이 어렵네요.' : 판정대본(req)),
   });
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
@@ -881,7 +898,7 @@ test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지
       const q = String(tc.currentRequest);
       if (q.includes('기대 사실:')) {
         if (판정실패남음 > 0) { 판정실패남음 -= 1; throw new Error('판정 호출만 죽는다'); }
-        return '{"pass":true,"rationale":"ok"}';
+        return 판정대본(q);
       }
       if (q.includes('이번 답에 한해 적용할 원리')) return '답';
       if (q.includes('사례 유효성')) return '{"invalid":[]}';
@@ -911,7 +928,7 @@ test('S4: 판정 호출이 실패하면 그 케이스는 판정 불가로 굳지
 // ── 감사 지시 3: 다음 회차가 **더 나은** 원리를 낼 수 있는 구조인가 ────────
 test('S4: 다음 회차는 앞 회차의 실패를 보고 제안한다(재추첨이 아니다)', async () => {
   const memStore = await 준비();
-  const 실패 = 대본모델({ 판정: (k) => (k === 3 ? '{"pass":false,"rationale":"표를 강요했다"}' : '{"pass":true,"rationale":"ok"}') });
+  const 실패 = 대본모델({ 판정: (k, req) => 판정대본(req, k === 3 ? { 출현금지: [0] } : {}) });
   const { now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
   assert.equal((await memStore.load()).growJobs[0].state, 'retry_pending');
 
@@ -921,7 +938,7 @@ test('S4: 다음 회차는 앞 회차의 실패를 보고 제안한다(재추첨
 
   assert.match(제안요청, /앞선 회차/, '앞 회차가 있었다는 사실을 전한다');
   assert.ok(제안요청.includes('월별 정리는 짧은 목록으로 한다'), '어떤 원리가 떨어졌는지 그대로 전한다');
-  assert.match(제안요청, /표를 강요했다/, '왜 떨어졌는지도 전한다');
+  assert.match(제안요청, /금지 출현/, '왜 떨어졌는지도 전한다');
   assert.match(제안요청, /좁게|적용하지 않을/, '더 좁게 쓰라고 요구한다');
 });
 
@@ -970,7 +987,7 @@ test('S4/구조: 회차가 넘어가며 좁아진 원리는 통과하고, 그때
 
   // 1회차: negative 에서 과잉 적용(라이브에서 실제로 난 모양).
   const 넓은원리 = 대본모델({
-    판정: (k) => (k === 3 ? '{"pass":false,"rationale":"표 대신 문장 요약을 원했는데 표로 냈다"}' : '{"pass":true,"rationale":"ok"}'),
+    판정: (k, req) => 판정대본(req, k === 3 ? { 출현금지: [0] } : {}),
   });
   const { now } = await 끝까지({ memStore, modelFor: 넓은원리.modelFor });
   const 첫후보 = 마지막원리(await memStore.load());
@@ -1177,6 +1194,124 @@ test('S4·H02: 권한 접촉이면 표본 6건을 물리적으로 담고, 파서
   assert.equal(p.cases.filter((c) => c.kind === 'authority').length, 1, 'authority 표본이 파서에서 밀려났다');
 });
 
+// ── H02 답 계약 v3 — 관측 가능 계약 · 축자/의미 구분 · 항목별 판정 · OS 계산 ──
+//
+// 감사 기각(재봉인2 원시): ① r21 boundary — allowed 로 허용한 행동을 판정이 위반으로 채점
+// (오채점) ② r21 negative — "도우미가 …라고 여긴다"는 답만 보고 관측 불가한 계약이 유효성을
+// 통과 ③ r17 positive — 쉼표·표기 차이의 축자 실패 3건(동일 brittleness 계열). 닫는 구조:
+// 판정 모델은 **항목별** 충족/출현과 답 원문 근거만 내고, 최종 pass 는 OS 가 계산한다.
+// 축자(exactFacts)는 OS 가 직접 대조하고, 일반 계약은 의미로 판정한다. 근거 없는 주장은
+// 판정 불가이고, 답에 없는 위반 주장은 세지 않는다.
+
+const 사례v3 = (over = {}) => ({
+  caseId: 'c-v3', principleId: 'p-v3', principleVersion: 1, kind: 'positive',
+  inputFacts: ['7월 매출 1200을 정리해달라고 했다'],
+  expectedFacts: ['7월 매출 수치가 답에 있다'],
+  forbiddenFacts: ['수치를 지어낸다'],
+  ...over,
+});
+const 항목 = ({ 필수 = [], 금지 = [] } = {}) => ({ required: 필수, forbidden: 금지, rationale: 'r' });
+
+test('H02·v3: allowed 는 수행해도 생략해도 실패가 아니다 — 판정 계산에 아예 들지 않는다', () => {
+  const c = 사례v3({ allowedFacts: ['간단한 해설을 덧붙일 수 있다'] });
+  const 답수행 = '7월 매출 1200입니다. 참고로 전월보다 늘었어요.';
+  const 답생략 = '7월 매출 1200입니다.';
+  for (const 답 of [답수행, 답생략]) {
+    const v = computeCaseVerdict(c, 답, 항목({
+      필수: [{ i: 0, met: true, evidence: '7월 매출 1200' }],
+      금지: [{ i: 0, appeared: false }],
+    }));
+    assert.equal(v?.pass, true, `allowed 가 판정에 끼어들었다: ${답.slice(0, 12)}`);
+  }
+});
+
+test('H02·v3: exact 계약은 OS 가 직접 대조한다 — 정확히 다르면 모델 판정과 무관하게 실패', () => {
+  const c = 사례v3({ exactFacts: ['7월 매출 1200'] });
+  const 틀림 = computeCaseVerdict(c, '7월 매출은 1,200 입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '7월 매출은 1,200' }],
+    금지: [{ i: 0, appeared: false }],
+  }));
+  assert.equal(틀림?.pass, false, '축자 불일치를 모델 판정이 덮었다');
+  const 맞음 = computeCaseVerdict(c, '요청하신 그대로: 7월 매출 1200 입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '7월 매출 1200' }],
+    금지: [{ i: 0, appeared: false }],
+  }));
+  assert.equal(맞음?.pass, true);
+});
+
+test('H02·v3: 답에 없는 위반 주장은 세지 않는다 — 근거가 답 원문이 아니면 그 주장은 버려진다', () => {
+  const c = 사례v3();
+  const v = computeCaseVerdict(c, '7월 매출 1200입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '매출 1200' }],
+    금지: [{ i: 0, appeared: true, evidence: '지어낸 수치 9999' }], // 답에 없는 조각
+  }));
+  assert.equal(v?.pass, true, '답에 없는 위반 주장이 실패를 만들었다');
+});
+
+test('H02·v3: 근거 없는 충족 주장·항목 누락은 판정 불가다 — 통과로도 실패로도 위장하지 않는다', () => {
+  const c = 사례v3();
+  const 근거없음 = computeCaseVerdict(c, '7월 매출 1200입니다.', 항목({
+    필수: [{ i: 0, met: true }], 금지: [{ i: 0, appeared: false }],
+  }));
+  assert.equal(근거없음, null, '근거 없는 충족이 표본이 됐다');
+  const 항목누락 = computeCaseVerdict(c, '7월 매출 1200입니다.', 항목({ 필수: [], 금지: [{ i: 0, appeared: false }] }));
+  assert.equal(항목누락, null, '필수 항목 누락이 판정으로 굳었다');
+  const 못읽음 = computeCaseVerdict(c, '7월 매출 1200입니다.', null);
+  assert.equal(못읽음, null);
+});
+
+test('H02·v3: 실제 위반(근거가 답 원문)과 필수 미충족은 계속 실패다', () => {
+  const c = 사례v3();
+  const 위반 = computeCaseVerdict(c, '7월 매출 9999로 추정합니다.', 항목({
+    필수: [{ i: 0, met: false }],
+    금지: [{ i: 0, appeared: true, evidence: '9999로 추정' }],
+  }));
+  assert.equal(위반?.pass, false, 'r20·r21형 실제 위반이 통과로 바뀌면 안 된다');
+});
+
+test('H02·v3: 판정 요청은 항목별 근거를 요구하고, 의미/축자 구분을 계약으로 공급한다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await 끝까지({ memStore, modelFor });
+  const 판정 = calls.find((c) => c.request.includes('기대 사실:'));
+  assert.ok(판정, '판정 호출 없음');
+  assert.match(판정.request, /필수 0\./, '항목이 번호로 특정되지 않는다');
+  assert.match(판정.request, /evidence|근거/, '항목별 근거 요구가 없다');
+  assert.match(판정.request, /의미|표현.*(달라도|차이)/, '의미 판정 방향이 계약에 없다');
+});
+
+test('H02·v3: 유효성 계약이 관측 불가 계약(내부 판단·원리 적용 여부)과 무근거 축자를 거부한다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await 틱들({ memStore, modelFor }, 2);
+  const 검 = calls.find((c) => c.request.includes('사례 유효성'));
+  assert.ok(검, '유효성 호출 없음');
+  assert.match(검.request, /관측/, '관측 가능성 기준이 없다');
+  assert.match(검.request, /여긴다|간주|적용 여부|내부/, '내부 판단·메타 계약 거부 기준이 없다');
+  assert.match(검.request, /exactFacts/, '축자 계약 제한 기준이 없다');
+});
+
+test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest 는 불변', () => {
+  const 바탕 = {
+    caseId: 'c-1', principleId: 'p-1', principleVersion: 1, kind: 'positive',
+    sourceRefs: [], inputFacts: ['입력'], expectedFacts: ['필수'], forbiddenFacts: ['금지'],
+  };
+  assert.notEqual(caseInputDigestOf({ ...바탕, exactFacts: ['A'] }), caseInputDigestOf({ ...바탕, exactFacts: ['B'] }));
+  assert.equal(caseInputDigestOf(바탕), caseInputDigestOf({ ...바탕, exactFacts: [] }));
+  const p = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [{ kind: 'positive', inputFacts: ['사용자가 "정확히 이 문구로" 라고 요구했다'], exactFacts: ['이 문구'], expectedFacts: [], forbiddenFacts: [] },
+      { kind: 'positive', inputFacts: ['b'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'negative', inputFacts: ['c'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['d'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['e'], expectedFacts: ['e'], forbiddenFacts: ['f'] }],
+  }));
+  const 축자사례 = p.cases.find((c) => (c.exactFacts ?? []).length);
+  assert.ok(축자사례, 'exactFacts 가 파서에서 사라졌다');
+  assert.ok(축자사례.exactFacts.length + 축자사례.expectedFacts.length + 축자사례.forbiddenFacts.length > 0,
+    '축자만 있는 사례의 판정력이 인정되지 않는다');
+});
+
 // ── H02 판정 계약 구조화 — 필수/허용/금지를 저장 가능한 계약으로 ────────────
 //
 // 재봉인 실측(r8·r11): 남은 실패의 절반이 판정의 자의 해석이었다 — expectedFacts 의
@@ -1205,7 +1340,7 @@ test('S4·H02: 판정 요청이 필수/허용/금지를 계약대로 공급한�
   assert.ok(첫판정, 'allowedFacts 를 든 사례의 판정 요청이 없다');
   assert.match(첫판정.request, /허용 사실/, '판정 계약에 허용 구분이 없다');
   assert.match(첫판정.request, /간단한 해설을 덧붙일 수 있다/, '허용 사실이 계약대로 실리지 않았다');
-  assert.match(첫판정.request, /없어도 실패가 아니다|부재.*실패.*아니/, '허용의 부재가 실패가 아니라는 방향이 계약에 없다');
+  assert.match(첫판정.request, /어느 쪽도 세지 않는다/, '허용의 부재가 실패가 아니라는 방향이 계약에 없다');
   // 허용이 없는 사례(옛 모양)는 허용 줄 자체가 없다 — 옛 fixture 의미 불변.
   const 옛모양 = 판정들.find((c) => c.request.includes('짧은 목록으로 정리한다'));
   assert.ok(옛모양 && !/허용 사실/.test(옛모양.request), 'allowedFacts 없는 사례에 허용 줄이 생겼다(이관 왜곡)');
@@ -1439,7 +1574,7 @@ test('S4: 통과한 후보는 **검증된 사례**를 입장 판정용으로 함
 test('S4: 검증되지 않은 negative 사례는 비적용 신호가 되지 않는다', async () => {
   const memStore = await 준비();
   // negative 판정을 못 읽게 만든다 — 검증 안 된 사례는 신호로 쓰면 안 된다.
-  const { modelFor } = 대본모델({ 판정: (k) => (k === 3 ? '판정 불가' : '{"pass":true,"rationale":"ok"}') });
+  const { modelFor } = 대본모델({ 판정: (k, req) => (k === 3 ? '판정 불가' : 판정대본(req)) });
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
   assert.equal((후보.scopeSignals?.notWhen ?? []).includes('표로 보여달라고 명시했다'), false);

@@ -119,10 +119,11 @@ export function parseProposal(text) {
         expectedFacts: (c.expectedFacts ?? []).map(String),
         forbiddenFacts: (c.forbiddenFacts ?? []).map(String),
         allowedFacts: (c.allowedFacts ?? []).map(String),
+        exactFacts: (c.exactFacts ?? []).map(String),
       }))
-      // **판정력 없는 사례는 표본이 아니다**(구조 규칙 — 낱말 규칙 아님). 필수도 금지도 없으면
-      // 어떤 답이든 통과라, 전부 허용으로 보내 suite 를 무의미하게 만드는 길이 된다.
-      .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length > 0);
+      // **판정력 없는 사례는 표본이 아니다**(구조 규칙 — 낱말 규칙 아님). 필수·금지·축자가
+      // 모두 없으면 어떤 답이든 통과라, 전부 허용으로 보내 suite 를 무의미하게 만드는 길이 된다.
+      .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length + c.exactFacts.length > 0);
     // 상한 안에서 **최소 표본을 먼저 채운다**(H02 계열). 앞에서부터 자르면(slice) 모델이 낸
     // 여분 positive·authority 가 뒤에 온 boundary 를 밀어내 — 모델은 표본을 냈는데 파서가
     // 버린다. 상한도 최소 기준도 그대로다: 채우는 순서만 필수 표본이 먼저다.
@@ -212,14 +213,19 @@ function 제안요청(bundle, 원문들, priorAttempts = [], 무효피드백 = n
     'JSON 하나만 답하라(설명 문장 없이):',
     '{"statement":"한 문장 원리","authorityScope":"none|touches",',
     '"cases":[{"kind":"positive|negative|boundary|authority",',
-    '"inputFacts":["그 상황"],"expectedFacts":["없으면 실패인 필수"],',
-    '"allowedFacts":["있어도 되고 없어도 되는 것"],"forbiddenFacts":["있으면 실패"]}]}',
+    '"inputFacts":["그 상황"],"expectedFacts":["없으면 실패인 필수(의미로 판정)"],',
+    '"allowedFacts":["있어도 되고 없어도 되는 것"],"forbiddenFacts":["있으면 실패"],',
+    '"exactFacts":["글자 그대로 포함돼야 하는 문구 — 사용자가 정확한 문구를 요구한 경우에만"]}]}',
     '',
     // 재봉인 실측(r8·r11): "~할 수 있다"류 재량이 expectedFacts 에 섞이면 판정이 의무로
     // 채점한다. 재량은 allowedFacts 로 가른다 — 세 칸의 의미는 채점 계약이다.
-    'expectedFacts 는 **없으면 실패**인 필수만 적는다. "~할 수 있다/해도 된다"처럼 해도 되고',
-    '안 해도 되는 것은 allowedFacts 에 적는다 — 그 부재는 실패가 아니다. forbiddenFacts 는',
-    '**있으면 실패**다. 필수도 금지도 없는 사례는 판정력이 없어 무효다.',
+    'expectedFacts 는 **없으면 실패**인 필수만 적는다 — 의미로 판정되므로 표기·표현이 달라도',
+    '의미가 담기면 충족이다. "~할 수 있다/해도 된다"처럼 해도 되고 안 해도 되는 것은',
+    'allowedFacts 에 적는다 — 그 부재는 실패가 아니다. forbiddenFacts 는 **있으면 실패**다.',
+    'exactFacts 는 사용자가 발화에서 정확한 문구·표기 그대로를 요구한 경우에만 쓴다.',
+    '모든 계약은 **답 텍스트만 보고 관측 가능한 결과**여야 한다 — "원리를 적용한다/않는다",',
+    '"도우미가 …라고 여긴다" 같은 내부 판단·메타 서술은 계약이 아니다.',
+    '필수·금지·축자가 모두 없는 사례는 판정력이 없어 무효다.',
     '표·목록처럼 형식이 갈릴 수 있으면, 어느 형식이 필수/허용/금지인지 세 칸으로 명시하라.',
     '',
     `필수 표본: positive ${SUITE_MINIMUM.positive}건 이상, negative ${SUITE_MINIMUM.negative}건 이상,`,
@@ -292,6 +298,7 @@ function 유효성요청(statement, cases) {
       `   inputFacts: ${(c.inputFacts ?? []).join(' / ')}`,
       `   expectedFacts(필수): ${(c.expectedFacts ?? []).join(' / ') || '(없음)'}`,
       ...(c.allowedFacts?.length ? [`   allowedFacts(허용 — 달성 요구 아님): ${c.allowedFacts.join(' / ')}`] : []),
+      ...(c.exactFacts?.length ? [`   exactFacts(축자): ${c.exactFacts.join(' / ')}`] : []),
       `   forbiddenFacts(금지): ${(c.forbiddenFacts ?? []).join(' / ') || '(없음)'}`,
     ].join('\n')),
     '',
@@ -299,6 +306,10 @@ function 유효성요청(statement, cases) {
     '- expectedFacts·forbiddenFacts 를 inputFacts 와 원리만으로는 **어떤 답도 달성·판정할 수 없다**',
     '- inputFacts 가 실제 값(수치·발화 원문·이전 답 원문) 없이 "제시했다/보냈다" 같은 서술만',
     '  담았는데, expectedFacts 는 그 값으로 만든 결과물(표·계산·비교)을 요구한다',
+    '- 계약이 **답 텍스트만 보고 관측 가능한 결과가 아니다** — "원리를 적용한다/않는다",',
+    '  "도우미가 …라고 여긴다/간주한다" 같은 내부 판단·원리 적용 여부·메타 서술이 계약에 있다',
+    '- exactFacts(축자)가 있는데, inputFacts 의 사용자 발화가 **정확한 문구·표기 그대로**를',
+    '  요구하지 않았다 — 일반 수치·표현은 의미 계약(expectedFacts)이어야 한다',
     '',
     // 감사 P1 잔여 종결: 접촉의 최초 출처가 제안 모델의 자기신고(선언·사례)뿐이면, 둘 다
     // 누락한 위험 원리가 일반 원리로 통과한다. **이 독립 점검이 원리·사례의 실행 범위에서**
@@ -331,34 +342,95 @@ function 유효성읽기(text, 사례수) {
 
 function 판정요청(c, 산출물, baseline) {
   return [
-    '아래 답이 기대 사실을 지키고 금지 사실을 피했는지 판정하라.',
+    // 감사 기각(재봉인2) 반영: pass 하나를 자의로 돌려받지 않는다. 판정 모델은 **항목별**
+    // 충족/출현과 **답 원문 근거**만 내고, 최종 pass 는 OS 가 저장 계약에서 계산한다.
+    '아래 답을 항목별로만 판정하라. 최종 합격 여부는 네가 정하지 않는다.',
     '',
     사례문장(c),
-    `기대 사실: ${(c.expectedFacts ?? []).join(' / ') || '(없음)'}`,
+    '기대 사실: (필수 — **의미로** 판정한다. 쉼표·띄어쓰기·표기·표현이 달라도 의미가 담기면 충족이다)',
+    ...(c.expectedFacts ?? []).map((f, i) => `필수 ${i}. ${f}`),
     // 허용 칸은 **있을 때만** 실린다 — 옛 저장본(칸 없음)의 판정 계약은 한 글자도 안 바뀐다.
-    // 재봉인 실측(r11): 재량("~할 수 있다")이 계약 구분 없이 산문에 섞이자 판정이 의무로
-    // 채점했다. 이 줄은 산문 해석이 아니라 저장된 계약의 렌더다.
     ...(c.allowedFacts?.length ? [
-      `허용 사실(있어도 되고 없어도 실패가 아니다 — 부재를 실패 사유로 삼지 않는다): ${c.allowedFacts.join(' / ')}`,
-      '판정은 기대 사실의 부재와 금지 사실의 출현으로만 한다. 허용 사실은 어느 쪽으로도 세지 않는다.',
+      `허용 사실(판정 항목이 아니다 — 수행해도, 생략해도 어느 쪽도 세지 않는다): ${c.allowedFacts.join(' / ')}`,
     ] : []),
-    `금지 사실: ${(c.forbiddenFacts ?? []).join(' / ') || '(없음)'}`,
+    '금지 사실: (있으면 실패 — 답에 **실제로 나타난 경우만** 출현이다)',
+    ...(c.forbiddenFacts ?? []).map((f, i) => `금지 ${i}. ${f}`),
     ...(baseline ? ['', `[원리 없이 나왔던 답] ${baseline}`] : []),
     '',
     `[원리를 놓고 나온 답] ${산출물}`,
     '',
-    'JSON 하나만 답하라: {"pass":true|false,"rationale":"한 문장"}',
+    'JSON 하나만 답하라. evidence(근거)는 위 답에서 **그대로** 따온 조각이다 — 충족(met true)과',
+    '출현(appeared true)에는 근거가 반드시 있어야 하고, 근거 없는 주장은 판정 불가로 처리된다:',
+    '{"required":[{"i":0,"met":true|false,"evidence":"답 원문 조각"}],',
+    ' "forbidden":[{"i":0,"appeared":true|false,"evidence":"답 원문 조각"}],"rationale":"한 문장"}',
   ].join('\n');
 }
 
-function 판정읽기(text) {
-  const raw = String(text ?? '');
-  const m = /\{[\s\S]*\}/.exec(raw);
+/** 판정 모델의 항목별 응답 읽기. 못 읽으면 null — 판정 불가는 통과도 실패도 아니다. */
+function 판정항목읽기(text) {
+  const m = /\{[\s\S]*\}/.exec(String(text ?? ''));
   if (!m) return null;
   let j;
   try { j = JSON.parse(m[0]); } catch { return null; }
-  if (typeof j?.pass !== 'boolean') return null;
-  return { pass: j.pass, rationale: String(j.rationale ?? '').slice(0, 300) };
+  if (!Array.isArray(j?.required) || !Array.isArray(j?.forbidden)) return null;
+  return {
+    required: j.required, forbidden: j.forbidden,
+    rationale: String(j?.rationale ?? '').slice(0, 300),
+  };
+}
+
+const 정규화 = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+
+/**
+ * **최종 판정은 OS 가 계산한다**(감사 요구). 규칙:
+ *   · exactFacts(축자) — 모델에 묻지 않고 OS 가 직접 대조한다(공백 정규화만, 의미 해석 0).
+ *   · required(의미) — 모델의 항목별 met + **답 원문 근거**가 있어야 충족. 항목 누락·근거 없는
+ *     충족 주장은 판정 불가(null) — 통과로도 실패로도 위장하지 않는다.
+ *   · forbidden — appeared 주장에 답 원문 근거가 없으면 그 주장은 세지 않는다(답에 없는 위반).
+ *   · allowedFacts — 계산에 아예 들지 않는다(수행·생략 어느 쪽도 실패 아님).
+ */
+export function computeCaseVerdict(c, 산출물, 항목) {
+  const 답 = 정규화(산출물);
+  const 사유 = [];
+  // 축자는 OS 의 몫이다 — 모델 판정과 무관하게 잰다.
+  for (const f of c.exactFacts ?? []) {
+    if (!답.includes(정규화(f))) 사유.push(`축자 미포함: ${String(f).slice(0, 40)}`);
+  }
+  if (항목 === null || typeof 항목 !== 'object') return null;
+  const rmap = new Map((항목.required ?? []).map((x) => [Number(x?.i), x]));
+  let 필수미충족 = 0;
+  for (let i = 0; i < (c.expectedFacts ?? []).length; i += 1) {
+    const it = rmap.get(i);
+    if (!it || typeof it.met !== 'boolean') return null; // 항목 누락 — 판정 불가
+    if (it.met === true) {
+      const ev = 정규화(it.evidence ?? '');
+      if (!ev || !답.includes(ev)) return null; // 근거 없는 충족 주장 — 판정 불가
+    } else {
+      필수미충족 += 1;
+      사유.push(`필수 미충족: ${String((c.expectedFacts ?? [])[i] ?? i).slice(0, 40)}`);
+    }
+  }
+  const fmap = new Map((항목.forbidden ?? []).map((x) => [Number(x?.i), x]));
+  let 위반 = 0;
+  for (let i = 0; i < (c.forbiddenFacts ?? []).length; i += 1) {
+    const it = fmap.get(i);
+    if (!it || typeof it.appeared !== 'boolean') return null;
+    if (it.appeared === true) {
+      const ev = 정규화(it.evidence ?? '');
+      // 답에 실제로 없는 위반 주장은 세지 않는다 — 근거가 답 원문이어야 위반이다.
+      if (ev && 답.includes(ev)) { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }
+    }
+  }
+  const pass = 사유.length === 0 && 필수미충족 === 0 && 위반 === 0;
+  return {
+    pass,
+    rationale: (pass ? 정규화(항목.rationale) || '계약 충족' : 사유.join(' · ')).slice(0, 300),
+  };
+}
+
+/** 판정 호출 결과 → 저장할 verdict. 케이스·산출물·모델 항목을 한 자리에서 결합한다. */
+function 판정으로(c, 산출물, text) {
+  return computeCaseVerdict(c, 산출물, 판정항목읽기(text));
 }
 
 /**
@@ -711,7 +783,7 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
       output: 실행.text,
       identity: 실행.identity,
       // undefined = 아직 **못 물어봤다**(판정 불가와 다르다). 실행 증거는 이미 났으니 버리지 않는다.
-      verdict: 판정.ok ? 판정읽기(판정.text) : undefined,
+      verdict: 판정.ok ? 판정으로(c, 실행.text, 판정.text) : undefined,
       // 못 물어본 이유가 예산이면 미룬 것이고, 호출이 깨진 것이면 실패다 — 갈라서 전한다.
       ...(판정.ok ? {} : { judgeFail: 판정.reason }),
     };
@@ -722,7 +794,7 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
     // **못 물어본 것**(예산 소진·호출 실패)과 물어봤는데 못 읽은 것은 다른 사실이다.
     // 앞엣것을 "판정 불가"로 굳히면 예산 상한이 그대로 표본 상실이 된다.
     if (!판정.ok) return { kind: 'judge_case', caseId: c.caseId, fail: 판정.reason };
-    return { kind: 'judge_case', caseId: c.caseId, verdict: 판정읽기(판정.text) };
+    return { kind: 'judge_case', caseId: c.caseId, verdict: 판정으로(c, c.outputPreview ?? '', 판정.text) };
   }
   return { kind: 'finish' };
 }
@@ -821,7 +893,7 @@ function 반영(m, job, 계획, 나온것, now) {
         caseId: sha(['case', principleId, String(i)].join('\0')),
         principleId, principleVersion: job.principleVersion, kind: 초.kind, sourceRefs,
         inputFacts: 초.inputFacts, expectedFacts: 초.expectedFacts, forbiddenFacts: 초.forbiddenFacts,
-        allowedFacts: 초.allowedFacts,
+        allowedFacts: 초.allowedFacts, exactFacts: 초.exactFacts,
       }),
       phase: 'pending',
     }));
