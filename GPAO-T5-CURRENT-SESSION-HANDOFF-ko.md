@@ -793,7 +793,7 @@ AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유�
 ```text
 A-H08 | 파일 탐색·최종본 판별·원본 보존 | worktree-agent-a0585b451f0f633f3 | local-locate.js local-file.js file-scope.js + 해당 test + 신규 H08 검사 | local-protection.js recovery-ladder.js(서명 동결) | H08 종료 조건 §5 | 작업 중
 B-H09 | 실패 분류·손 전환·거짓 성공 차단 | worktree-agent-aa656316cf7a90bf7 | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | 작업 중
-C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | 작업 중
+C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | **완료·채택** — 7항목 전수 발견, ★5(undo 범위 밖 실행·turnNo 인플레·걸음 blocked 미기록·~/Library 무보호·discovery 무경계). 분류: A범위 5건·B범위 4건·본선 파일 5건(turn.js 지문·답-영수증 대조·fold·turnNo·blocked)·통합 후 후속 6건·회색 4건 — A·B 통합 창에서 소화
 D-AC2 | AC-2 delta 표 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 | delta 표 1장 | **완료·채택** — 텍스트 충돌 0·의미 드리프트 3축(replay 증거는 tcell-replay 계약으로 재구현, 민감 2층·authority 대조 부재), skills.json v1/v2 이중 저장 절단은 본선 소유, 즉시 폐기 5건 목록 확보
 본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | server.js tool-runner.js turn.js live-context.js descriptor·authority 진행표 인수인계 | — | 배치 1 봉인 | 작업 중
 ```
