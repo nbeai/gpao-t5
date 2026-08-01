@@ -791,8 +791,8 @@ AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유�
    병합 상태를 확정했다. 브랜치와 커밋 이력은 보존했다.
 4. H08~H09 착수 전
    `docs/03-product-plan/T5-REMAINING-DEVELOPMENT-PARALLEL-EXECUTION-PROPOSAL-2026-08-01-ko.md`를
-   Claude와 검토한다. 현재 지위는 `FOR_OWNER_CLAUDE_REVIEW`이며, 합의 전에는 실행 계약이나
-   정본 대체 문서로 간주하지 않는다.
+   Claude와 검토했다. 현재 지위는 `CLAUDE_REVIEWED_OWNER_APPROVAL_PENDING`이며, 기술 협의 결과와
+   수정된 소유 경계를 반영했다. 오너 승인 전에는 실행 계약이나 정본 대체 문서로 간주하지 않는다.
 
 
 ### (역사) 준비 단계 종료 조건 — 이미 통과, 현재 지시 아님

@@ -1,11 +1,11 @@
 # T5 잔여 개발·에이전트 병렬 실행 제안서
 
 - 작성: 2026-08-01
-- 상태: `FOR_OWNER_CLAUDE_REVIEW`
+- 상태: `CLAUDE_REVIEWED_OWNER_APPROVAL_PENDING`
 - 독자: 오너, Claude 구현 본선, Codex 감사선, 병렬 작업 에이전트
 - 목적: T-cell H 봉인 이후의 잔여 개발을 빠르게 진행하되, 정본 충돌·중복 판정·검증 오염을 막는다.
-- 효력: 현재 정본을 대체하지 않는 협의안이다. 오너와 Claude가 범위·소유권을 확인한 뒤 실행 계약으로
-  승격한다.
+- 효력: 현재 정본을 대체하지 않는 협의안이다. Claude의 코드 실측 검토를 반영했으며, 오너 승인 뒤
+  `APPROVED_FOR_EXECUTION`으로 승격한다.
 
 ---
 
@@ -55,7 +55,7 @@ H08~H09가 봉인되기 전 Automation 제품 코드를 정본에 합치지 않�
 2. H08 원본 무변경과 별도 결과물 생성
 3. H09 접근 실패 분류, 다른 손 전환, 정확한 다음 행동
 4. 읽지 못한 내용의 거짓 성공 0
-5. 주 모델 제품 경로와 보조 모델 교차
+5. 주 모델 제품 경로 봉인과 전체 제품 봉인용 보조 모델 교차 preflight
 6. PC 손발 H08~H09 독립 봉인
 
 ### Wave 2. Automation 재개 기준선
@@ -169,7 +169,8 @@ Wave 10은 첫 완성본을 막지 않는다.
 - Claude 본선 외 **활성 에이전트 최대 4개**.
 - 구현 에이전트는 최대 3개, 나머지 1개는 읽기 전용 감사 또는 다음 파동 준비다.
 - 같은 파일을 두 작업선이 동시에 소유하지 않는다.
-- `src/surface/server.js`, 공통 계약, 인수인계, 진행표는 Claude 본선만 편집한다.
+- `src/surface/server.js`, `src/kernel/turn.js`, `src/surface/live-context.js`, 공통 계약, 인수인계,
+  진행표는 Claude 본선만 편집한다.
 - 전체 회귀·돌연변이·workspace 감사는 정본 통합창에서 직렬로 한 번 실행한다.
 - sidecar는 집중 검사만 실행한다. 정본과 동시에 전체 회귀를 경쟁시키지 않는다.
 
@@ -190,7 +191,7 @@ Wave 10은 첫 완성본을 막지 않는다.
 2. 에이전트는 별도 worktree에서 수정 전 실패를 확인한다.
 3. 에이전트는 소유 범위의 최소 구현·집중 검사·커밋을 제출한다.
 4. 감사 에이전트는 해법 없이 문제·재현·영향·보존 조건을 제출한다.
-5. Claude가 커밋을 하나씩 검토·통합한다.
+5. Claude가 B(보호·복구) → A(파일 손발) 순서로 커밋을 검토·통합한다.
 6. shared file 배선은 Claude가 직접 한다.
 7. 제품 경로를 한 번 관통한다.
 8. 전체 회귀 → 돌연변이 → plan/docs/workspace 순서로 직렬 실행한다.
@@ -207,15 +208,20 @@ Wave 10은 첫 완성본을 막지 않는다.
 
 - `src/surface/server.js`
 - `src/runtime/tool-runner.js`
+- `src/kernel/turn.js`
+- `src/surface/live-context.js`
+- `src/surface/memory-store.js`의 schema 변경
 - 공통 descriptor·authority 배선
 - H 진행표·인수인계
 
 해야 할 일:
 
 1. H08~H09 대본과 결과 판정 문장을 실행 전에 고정한다.
-2. fixture는 사용자 원본이 아닌 소유권이 확인된 복제본으로 만든다.
+2. fixture는 스크래치 전용 폴더의 소유권이 확인된 복제본으로 만든다. 사용자의 실제 Downloads와
+   Documents는 읽기 전용 확인만 허용한다.
 3. 에이전트 A·B의 결과를 제품 HTTP/SSE 경로에 연결한다.
-4. 주 모델과 보조 모델 실측을 수행한다.
+4. 주 모델은 H 진행표 §1.2의 독립 6회 규칙으로 실측한다. 보조 모델은 자격·잔량·비용을 비밀값
+   미열람 preflight로 확인하고, 현재 정본 §3.4에 따라 전체 제품 봉인 교차를 준비한다.
 5. 사용자 결과·원본 보존·거짓 성공 0을 함께 판정한다.
 
 ### 에이전트 A — H08 파일 손발
@@ -228,6 +234,11 @@ Wave 10은 첫 완성본을 막지 않는다.
 - `test/local-locate.test.js`
 - `test/local-file.test.js`
 - 신규 H08 집중 검사
+
+읽기 전용 의존:
+
+- `src/runtime/local-protection.js`
+- `src/kernel/l2-plan/recovery-ladder.js`
 
 목표:
 
@@ -246,6 +257,11 @@ Wave 10은 첫 완성본을 막지 않는다.
 - `test/recovery-ladder.test.js`
 - `test/recovery-failure-injection.test.js`
 - 신규 H09 집중 검사
+
+경계:
+
+- `local-protection.js`와 `recovery-ladder.js`의 기존 export 서명은 동결한다.
+- export 서명 변경이 필요하면 B가 직접 바꾸지 않고 Claude 본선의 공통 접점 변경으로 회부한다.
 
 목표:
 
@@ -280,6 +296,11 @@ Wave 10은 첫 완성본을 막지 않는다.
 
 산출물은 짧은 delta 표 하나다. 새 설계 문서를 만들지 않는다.
 
+선행 실측 사실: 기존 작업선은 신규 파일 5개·약 946줄로 텍스트 충돌 가능성은 낮지만, 기반이
+TG-1 시대(`6c5efa8`)라 T-cell S0~S5·H 이후의 의미 계약과는 드리프트가 있다. `skill-definition`과
+store 계열은 재사용 후보, `skill-replay-runner`는 현재 T-cell replay 영수증·신분 결합과 중복 가능성이
+큰 재구현 후보로 보고 D가 확정한다.
+
 ### H08~H09 종료 조건
 
 - H08 실제 사용자 목적 달성
@@ -288,7 +309,8 @@ Wave 10은 첫 완성본을 막지 않는다.
 - H09 거짓 성공 0
 - 카드·필수 클릭 증가 0
 - 주 모델 제품 경로 PASS
-- 지정 보조 모델 교차 결과 기록
+- 주 모델 독립 6회 판정 기록
+- 보조 모델 자격·잔량·비용 preflight와 전체 제품 봉인 교차 실행 경로 기록
 - 집중 검사·전체 회귀·돌연변이·문서·작업장 게이트 PASS
 - Codex 독립 감사 PASS 또는 명시된 제한부 PASS
 
@@ -354,52 +376,47 @@ AC-5 이전에는 Skill·Trigger·Agent 각각의 성공을 “자동화 완료�
 
 ---
 
-## 8. Claude와 합의할 질문
+## 8. Claude 협의 결과
 
-Claude는 착수 전에 아래에 짧게 답한다.
+| 질문 | 합의 |
+|---|---|
+| H08·H09 코드 경계 | 분리 가능. B의 `local-protection`·`recovery-ladder`는 A의 의존이므로 B 소유를 유지하고 export 서명을 동결한다. |
+| shared file 본선 전담 | 동의. `turn.js`·`live-context.js`를 명시적으로 추가한다. |
+| 활성 에이전트 최대 4개 | 동의. 구현 2개 + 읽기 전용 감사 1개 + 다음 파동 준비 1개로 시작한다. |
+| AC-2 재사용·폐기 | D의 delta 표에서 확정. store·definition은 재사용 후보, replay runner는 재구현 후보다. |
+| H08~H09 중 AC-2 제한 | 읽기 전용 delta 감사만 허용. 제품 코드 정본 통합 금지. |
+| 빠진 의존성 | export 서명 동결, 보조 모델 비용 preflight, scratch fixture·실제 Downloads 읽기 전용 경계를 추가한다. |
 
-1. H08·H09의 실제 코드 경계를 위 소유 후보대로 나눌 수 있는가.
-2. shared file을 Claude 본선만 편집하는 데 동의하는가.
-3. 활성 에이전트 최대 4개가 현재 통합 비용에 적절한가.
-4. AC-2 기존 작업선은 무엇을 재사용하고 무엇을 폐기해야 하는가.
-5. H08~H09 중 AC-2는 읽기 전용 준비로 제한하는 데 동의하는가.
-6. 이 제안에서 빠진 실제 의존성이나 더 안전한 병렬 경계가 있는가.
+Codex 검토에서 보조 모델 회차에 관한 한 점을 정정했다. 현재 H 진행표는 H08~H09 보조 교차를
+**전체 제품 봉인 조건**으로 두고 있으므로, 결과를 보기 전에 새 3회 기준을 PC 손발 봉인 조건으로
+추가하지 않는다. 지금은 자격·잔량·비용과 실행 경로를 확인하고, 정본에 이미 동결된 시점에 실행한다.
 
-Claude가 수정안을 내면 오너 목적과 현재 정본을 보존하는 범위에서 이 문서를 한 번 갱신한다. 합의 뒤
-상태를 `APPROVED_FOR_EXECUTION`으로 바꾸고 첫 병렬 배치를 연다.
+기술 협의는 끝났다. 오너 승인 뒤 상태를 `APPROVED_FOR_EXECUTION`으로 바꾸고 첫 병렬 배치를 연다.
 
 ---
 
-## 9. Claude에게 보내는 착수 지시 초안
+## 9. 오너 승인 뒤 Claude에게 보내는 착수 지시
 
 ```text
-T-cell H01~H07 최종 봉인을 유지하고 다음 단계인 PC 손발 H08~H09를 시작한다.
-
-먼저
-docs/03-product-plan/T5-REMAINING-DEVELOPMENT-PARALLEL-EXECUTION-PROPOSAL-2026-08-01-ko.md
-를 읽고, §8의 여섯 질문에 답하라. 동의하지 않는 부분은 실제 코드 의존성과 충돌 근거를 들어
-수정안을 제시하라. 새 설계 문서를 만들지 말고 이 문서 한 곳에서 합의한다.
-
-합의 후 Claude 본선은 통합 책임을 맡고 에이전트 작업선을 최대 4개 연다.
+기술 협의가 끝났다. T-cell H01~H07 최종 봉인을 유지하고 다음 단계인 PC 손발 H08~H09를 시작한다.
+Claude 본선은 통합 책임을 맡고 에이전트 작업선 4개를 연다.
 - A: H08 파일 탐색·최종본 판별·원본 보존
 - B: H09 실패 분류·다른 손 전환·거짓 성공 차단
 - C: 읽기 전용 적대 감사
 - D: 기존 AC-2 작업선의 읽기 전용 delta 감사
 
 각 작업선은 별도 worktree, 분리 파일 소유권, 수정 전 실패, 집중 검사, 단일 커밋을 갖는다.
-server.js·공통 계약·인수인계·진행표는 Claude 본선만 편집한다. sidecar에서는 전체 회귀와
-돌연변이를 경쟁 실행하지 않는다. Claude가 하나씩 통합한 뒤 제품 경로 관통 → 전체 회귀 →
+server.js·tool-runner.js·turn.js·live-context.js·공통 계약·인수인계·진행표는 Claude 본선만
+편집한다. B의 export 서명을 동결하고 B → A 순서로 통합한다. fixture는 scratch 전용 복제본을
+쓰며 실제 Downloads·Documents는 읽기 전용 확인만 한다. sidecar에서는 전체 회귀와 돌연변이를
+경쟁 실행하지 않는다. Claude가 하나씩 통합한 뒤 제품 경로 관통 → 전체 회귀 →
 돌연변이 → plan/docs/workspace → Codex 독립 감사 순서로 닫는다.
 
 H08~H09가 봉인되기 전 AC-2 제품 코드는 정본에 합치지 않는다. H02 추가 반복 금지.
 Agent Core 전 H10 금지. 완성 전 광범위 구조 정리 금지.
 
-첫 응답은 장문 계획이 아니라 다음만 보고하라.
-1. 여섯 질문 답
-2. 작업선별 소유 파일
-3. 열 작업선 수
-4. 첫 통합 순서
-5. 즉시 발견된 충돌 또는 없음
+첫 응답은 장문 계획이 아니라 작업선 등록표, worktree·branch, 소유 파일, 첫 실행 명령만 보고하고
+즉시 병렬 작업을 시작하라.
 ```
 
 ---
