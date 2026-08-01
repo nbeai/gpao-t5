@@ -548,7 +548,7 @@ export async function runTurn(input, ctx) {
       // 그냥 "리뷰"로 검색해 **책 리뷰 쓰는 방법**을 읽어 왔다. 잘못된 인자는 오염된 사실을 만들고,
       // 오염된 사실은 다음 턴까지 번진다. 속도보다 이해가 먼저다(절대 원칙 §0).
       effort: 'medium',
-      tools: modelSchemasFor(selfState),
+      tools: modelSchemasFor(selfState, ctx.modelControls),
     });
     earlyReply = typeof out === 'string' ? out : out?.text ?? '';
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
@@ -872,7 +872,7 @@ export async function runTurn(input, ctx) {
         },
         // **손 목록을 함께 준다.** 안 주면 모델이 "이 경로에는 도구가 안 붙어 있다"고 읽는다
         // (실측). 여기서 모델이 도구를 또 고르면 그 선택은 쓰지 않는다 — 우리는 문장만 가져간다.
-        { effort: 'medium', tools: modelSchemasFor(selfState) },
+        { effort: 'medium', tools: modelSchemasFor(selfState, ctx.modelControls) },
       ).catch(() => null);
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
       // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
@@ -1092,7 +1092,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
       search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
       effort: 'medium',
-      tools: modelSchemasFor(selfState),
+      tools: modelSchemasFor(selfState, ctx.modelControls),
     });
   // ── P6-L · 한 턴 안에서 손을 이어 쓴다 ────────────────────────────────
   // 예전엔 여기서 `finalOut.toolCalls` 를 **버렸다.** 그래서 모델이 다음 걸음을 정확히 알고도
@@ -1114,7 +1114,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // ActionPlan 이 요구한 것은 파일 손 일반이 아니라 **성공한 write 영수증**이다. 같은 전체
     // 스키마를 다시 주면 모델이 방금 끝낸 versions/read 를 되풀이한다. 작업 종류만 계약과
     // 맞추고, 경로·내용·원본 선택은 모델에 남긴다.
-    const fileTools = modelSchemasFor(selfState).filter((tool) => tool.name === 'local.file').map((tool) => ({
+    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((tool) => tool.name === 'local.file').map((tool) => ({
       ...tool,
       parameters: {
         ...tool.parameters,
@@ -1204,7 +1204,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       });
       finalOut = await ctx.model.respond(tc, {
         onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-        ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState) } : {}),
+        ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
       });
       continue;
     }
@@ -1370,7 +1370,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     finalOut = await ctx.model.respond(tc, {
       onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
       // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
-      ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState) } : {}),
+      ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
     });
   }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.

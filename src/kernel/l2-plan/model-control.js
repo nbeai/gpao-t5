@@ -182,9 +182,12 @@ const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation',
 // 받지 않는 제안을 모델이 하고 사용자에게는 된 것처럼 들린다.
 const 준비된통제 = new Set(['memory.propose', 'memory.cite', 'memory.correction', 'memory.withdraw']);
 
-export function modelSchemasFor(selfState) {
+export function modelSchemasFor(selfState, enabledControls = []) {
   const hands = toolSchemasFor(selfState);
-  const controls = MODEL_CONTROL_SCHEMAS.filter((sch) => 준비된통제.has(sch.name));
+  // 런타임 소비자가 실제로 설치된 채널만 턴 단위로 더 연다. 호출자가 이름을 넘기는 것만으로는
+  // 충분하지 않다 — 선언된 통제 채널과의 교집합이어야 하며, 기본값은 기존 기억 채널뿐이다.
+  const enabled = new Set([...준비된통제, ...(enabledControls ?? [])]);
+  const controls = MODEL_CONTROL_SCHEMAS.filter((sch) => enabled.has(sch.name));
   return hands.length ? [...hands, ...controls] : hands;
 }
 

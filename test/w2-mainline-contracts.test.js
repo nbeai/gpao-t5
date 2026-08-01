@@ -215,6 +215,15 @@ test('소비자가 붙기 전에는 모델 스키마에 노출되지 않는다',
   assert.ok(names.includes('memory.propose'), '기존 통제 채널까지 가리면 안 된다');
 });
 
+test('통제 채널은 설치된 소비자를 명시한 턴에만 선택적으로 열린다', () => {
+  const selfState = buildSelfState(demoEnv());
+  const names = modelSchemasFor(selfState, ['skill.propose', '알수없는.통제']).map((s) => s.name);
+  assert.ok(names.includes('skill.propose'), '설치된 skill 소비자 채널이 열리지 않았다');
+  assert.ok(!names.includes('automation.propose'), '설치하지 않은 automation 소비자까지 열렸다');
+  assert.ok(!names.includes('agent.propose'), '설치하지 않은 agent 소비자까지 열렸다');
+  assert.ok(!names.includes('알수없는.통제'), '선언되지 않은 통제 이름이 스키마가 됐다');
+});
+
 test('세 통제 호출은 실행 경로로 새지 않는다', () => {
   const 분리 = splitModelControlCalls([
     { name: 'skill.propose', args: { name: '주간 정산' } },
