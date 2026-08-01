@@ -55,9 +55,17 @@ function replayRuntime(options = {}) {
     async run(request) {
       await options.beforeRun?.(request, sequence);
       sequence += 1;
-      const outputText = JSON.stringify({ verdict: { pass: true, rationale: 'checked' } });
+      const answer = request.replayCase.expectedFacts.join(' / ') || 'ok';
+      const outputText = JSON.stringify({
+        answer,
+        judgement: {
+          required: request.replayCase.expectedFacts.map((_, i) => ({ i, met: true, evidence: answer })),
+          forbidden: request.replayCase.forbiddenFacts.map((_, i) => ({ i, appeared: false, evidence: '' })),
+          rationale: 'checked',
+        },
+      });
       const receiptId = `receipt-${sequence}`;
-      receipts.set(receiptId, makeReplayCallReceipt({
+      const receipt = makeReplayCallReceipt({
         receiptId,
         caseId: request.replayCase.caseId,
         principleId: request.replayCase.principleId,
@@ -76,7 +84,16 @@ function replayRuntime(options = {}) {
         startedAt: 1,
         finishedAt: 2,
         state: 'completed',
-      }));
+      });
+      receipt.judgeModelCallIdentity = {
+        selection: {
+          connectionInstanceId: 'conn-1', credentialRef: 'cred-1',
+          endpointOrigin: 'https://models.example', requestModelId: 'model-1',
+        },
+        actualEndpointOrigin: 'https://models.example', actualRequestModelId: 'model-1',
+        responseModelId: 'model-1', responseIdentitySource: 'response_field',
+      };
+      receipts.set(receiptId, receipt);
       outputs.set(receiptId, outputText);
       const runId = `run-${sequence}`;
       const jobId = `skill-replay:${request.replayCase.caseId}`;

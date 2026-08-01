@@ -46,6 +46,7 @@ function queuedRunFor(job, skill, profile, scheduledFor) {
     idempotencyKey,
     skillSnapshot: structuredClone(skill),
     triggerSnapshot: structuredClone(job.trigger),
+    inputSnapshot: structuredClone(job.inputTemplate),
     agentSnapshot: structuredClone(profile),
     authorityEnvelope: structuredClone(job.authorityEnvelope),
     status: 'queued',

@@ -10,6 +10,7 @@ import {
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { SkillDefinitionStore } from '../src/surface/skill-store.js';
 
 // P6-17 Slice-2 SkillCandidate lifecycle — 추천 ≠ 실행/승격. replay+확인 전 영향 0. 스킬은 자동 실행 권한 없음.
 
@@ -95,7 +96,7 @@ function memStore(initial) { let d = initial; return { async load() { return d; 
 async function withServer(traces, fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-skill-'));
   const traceStore = memStore({ traces, proposed: [], promoted: [] });
-  const skillStore = memStore({ skills: [] });
+  const skillStore = new SkillDefinitionStore(dir);
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), traceStore, skillStore });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
@@ -108,24 +109,19 @@ const twoSlackTraces = [
   { id: 't2', tool: 'slack.post', requestText: '슬랙에 요약 올려줘' },
 ];
 
-test('서버: detect→candidate(영향 0)→approve→admitted(영향 가능, 자동실행 아님)', async () => {
+test('서버: detect→proposed(영향 0), 중복 감지는 새 후보를 만들지 않는다', async () => {
   await withServer(twoSlackTraces, async (base) => {
     const det = await (await post(base, '/skills/detect')).json();
     assert.equal(det.detected, true);
-    assert.equal(det.skill.state, 'candidate', '추천으로 표면화');
+    assert.equal(det.skill.state, 'proposed', '추천으로 표면화');
     assert.equal(det.skill.canInfluence, false, '추천은 영향 0');
     assert.equal(det.skill.canAutoExecute, false);
     const id = det.skill.id;
     // 중복 감지는 새로 제안하지 않는다
     assert.equal((await (await post(base, '/skills/detect')).json()).detected, false);
-    // 승인 → admitted
-    const appr = await (await post(base, `/skills/${id}/approve`)).json();
-    assert.equal(appr.ok, true);
-    assert.equal(appr.state, 'admitted');
-    assert.equal(appr.skill.canInfluence, true, 'admitted만 영향');
-    assert.equal(appr.skill.canAutoExecute, false, 'admitted 스킬도 자동 실행 금지');
     const list = await getj(base, '/skills');
-    assert.equal(list.skills.find((s) => s.id === id).state, 'admitted');
+    assert.equal(list.skills.find((s) => s.id === id).state, 'proposed');
+    assert.equal(list.skills.find((s) => s.id === id).canInfluence, false);
   });
 });
 
@@ -136,10 +132,31 @@ test('서버: reject하면 rejected(영향 0), 승인 안 된 후보는 GET에�
     const list1 = await getj(base, '/skills');
     assert.equal(list1.skills[0].canInfluence, false, '승인 전 영향 0');
     const rej = await (await post(base, `/skills/${id}/reject`)).json();
-    assert.equal(rej.state, 'rejected');
+    assert.equal(rej.skill.state, 'rejected');
     const list2 = await getj(base, '/skills');
     assert.equal(list2.skills.find((s) => s.id === id).state, 'rejected');
     assert.equal(list2.skills.find((s) => s.id === id).canInfluence, false);
+  });
+});
+
+test('서버: 부족한 후보는 revise 표면에서 replay 사례를 보강할 수 있다', async () => {
+  await withServer(twoSlackTraces, async (base) => {
+    const detected = await (await post(base, '/skills/detect')).json();
+    const replayCases = [
+      { id: 'p1', kind: 'positive', inputFacts: ['보고'], expectedFacts: [], forbiddenFacts: [] },
+      { id: 'p2', kind: 'positive', inputFacts: ['요약'], expectedFacts: [], forbiddenFacts: [] },
+      { id: 'n1', kind: 'negative', inputFacts: ['무관'], expectedFacts: [], forbiddenFacts: [] },
+      { id: 'b1', kind: 'boundary', inputFacts: ['범위 밖'], expectedFacts: [], forbiddenFacts: [] },
+      { id: 'b2', kind: 'boundary', inputFacts: ['입력 없음'], expectedFacts: [], forbiddenFacts: [] },
+      { id: 'a1', kind: 'authority', inputFacts: ['전송'], expectedFacts: [], forbiddenFacts: [] },
+    ];
+    const revised = await (await post(base, `/skills/${detected.skill.id}/revise`, {
+      patch: { replayCases, resultContract: { kind: 'summary' } },
+    })).json();
+    assert.equal(revised.ok, true, JSON.stringify(revised));
+    assert.equal(revised.skill.version, 2);
+    assert.equal(revised.skill.state, 'proposed');
+    assert.equal(revised.skill.replayCases.length, 6);
   });
 });
 

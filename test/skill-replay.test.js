@@ -67,8 +67,14 @@ function replayHarness(options = {}) {
     async run(request) {
       requests.push(structuredClone(request));
       sequence += 1;
+      const answer = request.replayCase.expectedFacts.join(' / ') || 'ok';
       const outputText = JSON.stringify({
-        verdict: { pass: options.pass !== false, rationale: options.rationale ?? 'checked' },
+        answer,
+        judgement: {
+          required: request.replayCase.expectedFacts.map((_, i) => ({ i, met: options.pass !== false, evidence: answer })),
+          forbidden: request.replayCase.forbiddenFacts.map((_, i) => ({ i, appeared: false, evidence: '' })),
+          rationale: options.rationale ?? 'checked',
+        },
       });
       const receiptId = `receipt-${sequence}`;
       let receipt = makeReplayCallReceipt({
@@ -84,6 +90,7 @@ function replayHarness(options = {}) {
         finishedAt: 2,
         state: 'completed',
       });
+      receipt.judgeModelCallIdentity = callIdentity({ callId: `judge-${sequence}` });
       receipt = options.mutateReceipt?.(receipt, request) ?? receipt;
       if (!options.omitStoredReceipt) receipts.set(receiptId, receipt);
       outputs.set(receiptId, options.storedOutput?.(outputText, request) ?? outputText);
@@ -130,7 +137,7 @@ function replayHarness(options = {}) {
       return {
         runId,
         receipt: { forged: true },
-        outputText: JSON.stringify({ verdict: { pass: true } }),
+        outputText: JSON.stringify({ answer: 'caller value', judgement: { required: [], forbidden: [] } }),
       };
     },
     async get(runId) { return structuredClone(runs.get(runId) ?? null); },
@@ -219,7 +226,7 @@ test('AC-2 replay ignores caller-returned evidence and re-reads the receipt stor
 });
 
 test('AC-2 replay rejects stored output digest substitution', async () => {
-  const harness = replayHarness({ storedOutput: () => JSON.stringify({ verdict: { pass: true }, changed: true }) });
+  const harness = replayHarness({ storedOutput: () => JSON.stringify({ answer: 'changed', judgement: { required: [], forbidden: [] } }) });
   const result = await runSkillReplay(skill(), harness);
   assert.equal(result.ok, false);
   assert.ok(result.cases.every((entry) => entry.evidenceReason === 'output_mismatch'));

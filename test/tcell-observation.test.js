@@ -316,10 +316,8 @@ test('S2/제품: 같은 tick 안에서 자동화가 터져도 관찰은 실행�
   } finally { server.close(); }
 });
 
-test('S2/제품: 같은 tick 안에서 관찰이 터져도 자동화 결과는 보존된다', async () => {
-  let 자동화저장 = 0;
+test('S2/제품: 같은 tick 안에서 관찰이 터져도 canonical 자동화 결과는 보존된다', async () => {
   const { server, base } = await 서버세우기({
-    automationStore: { load: async () => ({ jobs: [], candidates: [] }), save: async () => { 자동화저장 += 1; } },
     memoryStore: { load: async () => { throw new Error('기억 저장소 실패'); }, save: async () => {} },
   });
   try {
@@ -329,7 +327,6 @@ test('S2/제품: 같은 tick 안에서 관찰이 터져도 자동화 결과는 �
     const r = await server.runtimeTick();
     assert.equal(r.ok, true, 'tick 은 정상 종료');
     assert.ok(Array.isArray(r.ran), '자동화 결과가 보존된다');
-    assert.equal(자동화저장, 1, '자동화 저장이 실제로 일어났다');
     assert.equal(r.observe?.failed, true, '관찰 실패는 숨기지 않는다');
   } finally { server.close(); }
 });

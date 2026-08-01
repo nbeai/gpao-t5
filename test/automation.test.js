@@ -14,7 +14,13 @@ import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
-import { AutomationStore } from '../src/surface/automation-store.js';
+import { AutomationJobStore } from '../src/surface/automation-store.js';
+import { SkillDefinitionStore } from '../src/surface/skill-store.js';
+import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
+import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
+import {
+  AUTOMATION_SCHEMA_VERSION, contentHash, skillHashSource,
+} from '../src/kernel/l5-growth/automation-contracts.js';
 
 const selfState = buildSelfState(demoEnv());
 const tools = demoTools();
@@ -122,14 +128,63 @@ test('일반 대화: 반복 신호 없으면 자동화 후보 0', () => {
 
 // ── 서버 통합: 후보 → 승인 → tick → 원장 → 취소. 외부는 만료 없는 승인 거부. ──
 const TICK_TOKEN = 'test-tick-token';
+function canonicalSkill() {
+  const record = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: 'test-skill', name: '로컬 파일 정리', purpose: '로컬 파일 목록을 읽어 정리한다',
+    version: 1, contentHash: '', inputs: [],
+    steps: [{ kind: 'organize', instruction: '로컬 파일 목록을 확인한다' }],
+    resultContract: { kind: 'summary' }, requiredCapabilities: ['local.file'],
+    authorityHints: ['organize'], replayCases: [],
+    source: { kind: 'test', sessionId: null, traceIds: [] }, state: 'active',
+    createdAt: 0, updatedAt: 0, previousVersion: null,
+  };
+  record.contentHash = contentHash(skillHashSource(record));
+  return record;
+}
+
+function canonicalProfile() {
+  return {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: 'test-agent', name: '로컬 정리 담당', purpose: '로컬 파일 정리를 수행한다',
+    modelRole: 'worker', toolAllowlist: ['local.file'], workspaceScope: ['/tmp'],
+    defaultBudgets: { maxToolCalls: 4, timeoutMs: 30_000, maxCost: 1, maxConcurrency: 1 },
+    authorityCeiling: 'A1', state: 'active', createdAt: 0, updatedAt: 0,
+  };
+}
+
+function canonicalApproval(candidateId, overrides = {}) {
+  const now = Date.now();
+  return {
+    candidateId, skillId: 'test-skill', agentProfileId: 'test-agent',
+    trigger: { kind: 'once', timezone: 'UTC', at: now, nextRunAt: now, misfirePolicy: 'catch_up_once' },
+    authorityEnvelope: {
+      ceiling: 'A1', allowedKinds: ['organize'], allowedTools: ['local.file'],
+      allowedTargets: [], workspaceRoots: ['/tmp'], expiresAt: null, maxRuns: 1, maxCost: 1,
+      requiresFreshApprovalFor: [],
+    },
+    inputTemplate: { operation: 'read', path: '/tmp/t5-automation-fixture.txt' },
+    deliveryPolicy: { mode: 'none' },
+    ...overrides,
+  };
+}
+
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-auto-'));
-  const autoStore = new AutomationStore(dir);
-  const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore, runtimeToken: TICK_TOKEN });
+  const autoStore = new AutomationJobStore(dir);
+  const skillStore = new SkillDefinitionStore(dir);
+  const profileStore = new AgentProfileStore(dir);
+  const runLedger = new AutomationRunLedger(dir);
+  await skillStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, skills: [canonicalSkill()] });
+  await profileStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, profiles: [canonicalProfile()] });
+  const server = makeServer({
+    store: new SessionStore(dir), automationStore: autoStore, skillStore,
+    agentProfileStore: profileStore, automationRunLedger: runLedger, runtimeToken: TICK_TOKEN,
+  });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
-  try { return await fn(base, autoStore, server); }
+  try { return await fn(base, autoStore, server, runLedger); }
   finally { await new Promise((r) => server.close(r)); }
 }
 /**
@@ -164,40 +219,50 @@ const tickj = async (base) => json응답(await tick(base), `POST ${base}/automat
 
 test('서버: 후보 승인 → tick 실행 → 원장 기록', async () => {
   await withServer(async (base, autoStore) => {
-    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
-    const approved = await postj(base, '/automation/approve', { candidateId: 'c1' });
+    await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
+    const approved = await postj(base, '/automation/approve', canonicalApproval('c1'));
     assert.equal(approved.ok, true);
-    assert.equal(approved.external, false);
     let view = await getj(base, '/automation');
     assert.equal(view.jobs.length, 1);
     assert.equal(view.jobs[0].state, 'scheduled');
     assert.equal(view.candidates.length, 0, '승인된 후보는 후보 목록에서 빠진다');
     const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
-    assert.equal(ticked.ran[0].failureState, 'none');
+    assert.equal(ticked.ran[0].status, 'succeeded', JSON.stringify(ticked));
     view = await getj(base, '/automation');
-    assert.equal(view.jobs[0].state, 'completed');
-    assert.equal(view.jobs[0].runs, 1, '실행 원장에 1회');
+    assert.equal(view.jobs[0].state, 'scheduled', '반복 계약과 실행 결과는 다른 상태다');
+    assert.equal(view.runs.length, 1, '실행 원장에 1회');
+    assert.equal(view.runs[0].status, 'succeeded');
   });
 });
 
 test('서버: 외부 전송 자동화는 만료 없는 승인을 거부한다(A2)', async () => {
   await withServer(async (base, autoStore) => {
-    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c2', statement: '매일 슬랙', action: sendAction })], jobs: [] });
-    const rej = await post(base, '/automation/approve', { candidateId: 'c2' });
-    assert.equal(rej.status, 400, '외부 전송은 만료 필요');
-    assert.equal((await json응답(rej, `POST ${base}/automation/approve (만료 없음)`)).needsExpiry, true);
-    const ok = await postj(base, '/automation/approve', { candidateId: 'c2', expiresAt: Date.now() + 3600_000 });
+    await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [makeGrowthCandidate({ candidateId: 'c2', statement: '매일 슬랙', action: sendAction })], jobs: [] });
+    const external = {
+      ceiling: 'A2', allowedKinds: ['send'], allowedTools: ['slack.post'],
+      allowedTargets: ['channel:test'], workspaceRoots: [], expiresAt: null,
+      maxRuns: 2, maxCost: 1, requiresFreshApprovalFor: [],
+    };
+    const rej = await post(base, '/automation/approve', canonicalApproval('c2', {
+      authorityEnvelope: external,
+    }));
+    assert.equal(rej.status, 422, '반복 외부 전송은 만료 필요');
+    const rejected = await json응답(rej, `POST ${base}/automation/approve (만료 없음)`);
+    assert.match(JSON.stringify(rejected), /expiresAt/);
+    const expiresAt = Date.now() + 3600_000;
+    const ok = await postj(base, '/automation/approve', canonicalApproval('c2', {
+      authorityEnvelope: { ...external, expiresAt },
+    }));
     assert.equal(ok.ok, true);
-    assert.equal(ok.external, true);
-    assert.ok(ok.grantScope.expiresAt, '승인 범위에 만료 있음');
+    assert.equal(ok.state, 'scheduled');
   });
 });
 
 test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async () => {
   await withServer(async (base, autoStore) => {
-    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c3', statement: '매주 정리', action: localAction })], jobs: [] });
-    const { jobId } = await postj(base, '/automation/approve', { candidateId: 'c3' });
+    await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [makeGrowthCandidate({ candidateId: 'c3', statement: '매주 정리', action: localAction })], jobs: [] });
+    const { jobId } = await postj(base, '/automation/approve', canonicalApproval('c3'));
     const cancelled = await postj(base, '/automation/cancel', { jobId });
     assert.equal(cancelled.state, 'cancelled');
     const ticked = await tickj(base);
@@ -228,18 +293,16 @@ test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1'
     const s = await postj(base, '/sessions');
     const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 로컬 파일 목록 정리해줘' });
     const candidateId = r.automationSuggestion.candidateId;
-    const appr = await postj(base, '/automation/approve', { candidateId });
+    const appr = await postj(base, '/automation/approve', canonicalApproval(candidateId));
     assert.equal(appr.ok, true);
-    assert.equal(appr.external, false);
     const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
-    assert.equal(ticked.ran[0].failureState, 'none');
+    assert.equal(ticked.ran[0].status, 'succeeded');
     const view = await getj(base, '/automation');
     assert.equal(view.jobs.length, 1);
-    assert.equal(view.jobs[0].state, 'completed');
-    assert.equal(view.jobs[0].runs, 1);
-    assert.equal(view.jobs[0].ledger.length, 1, 'AutomationLedger에 실행 1건');
-    assert.equal(view.jobs[0].ledger[0].failureState, 'none');
+    assert.equal(view.jobs[0].state, 'scheduled');
+    assert.equal(view.runs.length, 1, 'AutomationRunLedger에 실행 1건');
+    assert.equal(view.runs[0].status, 'succeeded');
   });
 });
 
@@ -268,32 +331,32 @@ test('불변식: admitTickTrigger는 trusted_runtime_event만 허용', () => {
 // 핵심 경계: 사용자가 누르듯 토큰 없이 tick을 치면 실행 0(403). "사용자 버튼 아님"을 산출물에서 고정.
 test('서버: 트러스트 토큰 없는 tick은 거부되고 실행 0(not_trusted)', async () => {
   await withServer(async (base, autoStore) => {
-    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
-    await post(base, '/automation/approve', { candidateId: 'c1' });
+    await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
+    await post(base, '/automation/approve', canonicalApproval('c1'));
     // 토큰 없이 일반 POST(=사용자 요청 흉내) → 403, job은 scheduled 그대로.
     const res = await post(base, '/automation/tick');
     assert.equal(res.status, 403);
     assert.equal((await json응답(res, `POST ${base}/automation/tick (토큰 없음)`)).reason, 'not_trusted');
     const view = await getj(base, '/automation');
     assert.equal(view.jobs[0].state, 'scheduled', '거부됐으니 실행 안 됨');
-    assert.equal(view.jobs[0].runs, 0);
+    assert.equal(view.runs.length, 0);
     // 트러스트 토큰을 실으면 정상 실행(대조).
     const ok = await tickj(base);
     assert.equal(ok.ran.length, 1);
-    assert.equal((await getj(base, '/automation')).jobs[0].runs, 1);
+    assert.equal((await getj(base, '/automation')).runs.length, 1);
   });
 });
 
 // in-process 스케줄러는 trusted_runtime_event로 발화하고, server.runtimeTick 경로로 실제 실행한다.
 test('서버: 스케줄러 발화(runtimeTick)로 tick이 실제 실행된다', async () => {
   await withServer(async (base, autoStore, server) => {
-    await autoStore.save({ candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
-    await post(base, '/automation/approve', { candidateId: 'c1' });
+    await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [makeGrowthCandidate({ candidateId: 'c1', statement: '매주 정리', action: localAction })], jobs: [] });
+    await post(base, '/automation/approve', canonicalApproval('c1'));
     const scheduler = new AutomationScheduler({ onTick: server.runtimeTick });
     const out = await scheduler.fire(); // 실타이머 없이 1회 발화(결정적)
     assert.equal(out.ok, true);
     assert.equal(out.ran.length, 1, '스케줄러 발화로 실행됨');
-    assert.equal((await getj(base, '/automation')).jobs[0].runs, 1);
+    assert.equal((await getj(base, '/automation')).runs.length, 1);
   });
 });
 
@@ -409,17 +472,39 @@ test('신뢰성: 백오프 대기 중 만료되면 expired(만료가 재시도�
 
 test('신뢰성: tick 중첩 방지 — 겹친 tick은 skip되고 job은 1회만 실행', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-lock-'));
-  const autoStore = new AutomationStore(dir);
+  const autoStore = new AutomationJobStore(dir);
+  const skillStore = new SkillDefinitionStore(dir);
+  const profileStore = new AgentProfileStore(dir);
+  const runLedger = new AutomationRunLedger(dir);
   let release; const gate = new Promise((r) => { release = r; });
-  let calls = 0;
-  const tools = new ToolRunner({ slow: { async handler() { calls++; await gate; return { result: {}, userSafeSummary: 'ok' }; } } });
-  const env = { model: { authSignal: 'ok' }, connections: [{ id: 'slow', status: 'usable', connected: true }], grantedAuthorities: [] };
-  const server = makeServer({ store: new SessionStore(dir), automationStore: autoStore, runtimeToken: TICK_TOKEN, tools, env });
-  await autoStore.save({ candidates: [], jobs: [approveAutomation({ statement: 'x', action: { tool: 'slow', args: {} } }, { id: 's1', now: 0, nextRunAt: 0 })] });
+  let modelCalls = 0;
+  const model = { async respond() { modelCalls++; await gate; return '완료'; } };
+  const now = Date.now();
+  const skill = canonicalSkill();
+  const profile = canonicalProfile();
+  const scheduled = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION, id: 's1', name: '겹침 검사',
+    skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+    trigger: { kind: 'once', timezone: 'UTC', at: now, nextRunAt: now, misfirePolicy: 'catch_up_once' },
+    agentProfileId: profile.id,
+    inputTemplate: { operation: 'read', path: '/tmp/t5-automation-fixture.txt' },
+    authorityEnvelope: canonicalApproval('unused').authorityEnvelope,
+    deliveryPolicy: { mode: 'none' }, state: 'scheduled', nextRunAt: now,
+    lastRunId: null, createdAt: now, updatedAt: now,
+  };
+  await skillStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, skills: [skill] });
+  await profileStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, profiles: [profile] });
+  await autoStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [], jobs: [scheduled] });
+  const server = makeServer({
+    store: new SessionStore(dir), automationStore: autoStore, skillStore,
+    agentProfileStore: profileStore, automationRunLedger: runLedger,
+    runtimeToken: TICK_TOKEN, model,
+  });
   const p1 = server.runtimeTick(); // 첫 tick이 gate에서 대기
   const p2 = server.runtimeTick(); // 겹침 → skip
   release();
   const [r1, r2] = await Promise.all([p1, p2]);
   assert.equal([r1, r2].filter((r) => r.skipped === 'in_flight').length, 1, '하나는 in_flight로 skip');
-  assert.equal(calls, 1, 'job은 1회만 실행(중복 실행 방지)');
+  assert.ok(modelCalls >= 1, '실행 모델은 호출된다');
+  assert.equal((await runLedger.load()).runs.length, 1, '발생 1건은 AgentRun 하나만 가진다');
 });

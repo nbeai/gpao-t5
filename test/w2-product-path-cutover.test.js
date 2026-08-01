@@ -23,6 +23,7 @@ import { SkillDefinitionStore } from '../src/surface/skill-store.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const serverFile = join(here, '..', 'src', 'surface', 'server.js');
+const runtimeFile = join(here, '..', 'src', 'runtime', 'canonical-automation-runtime.js');
 const freshDir = () => mkdtemp(join(tmpdir(), 't5-w2-product-cutover-'));
 
 function skill() {
@@ -119,7 +120,9 @@ async function post(base, path, body) {
 }
 
 test('W2 product entry uses only canonical stores and has no legacy execution consumer', async () => {
-  const source = await readFile(serverFile, 'utf8');
+  const serverSource = await readFile(serverFile, 'utf8');
+  const runtimeSource = await readFile(runtimeFile, 'utf8');
+  const source = `${serverSource}\n${runtimeSource}`;
   const facts = {
     legacySkillImport: /import\s*\{\s*SkillStore\s*\}\s*from/u.test(source),
     legacyAutomationImport: /import\s*\{\s*AutomationStore\s*\}\s*from/u.test(source),
@@ -132,6 +135,7 @@ test('W2 product entry uses only canonical stores and has no legacy execution co
     canonicalRunLedger: /\bAutomationRunLedger\b/u.test(source),
     soleExecutionAdapter: /\bAgentRunRunner\b/u.test(source),
     legacySchedulerCallback: /new\s+AutomationScheduler\s*\(\s*\{\s*onTick\s*:/u.test(source),
+    compositionRoot: /new\s+CanonicalAutomationRuntime\s*\(/u.test(serverSource),
   };
   assert.deepEqual(facts, {
     legacySkillImport: false,
@@ -145,6 +149,7 @@ test('W2 product entry uses only canonical stores and has no legacy execution co
     canonicalRunLedger: true,
     soleExecutionAdapter: true,
     legacySchedulerCallback: false,
+    compositionRoot: true,
   }, 'the product entry has not completed the canonical W2 cutover');
 });
 

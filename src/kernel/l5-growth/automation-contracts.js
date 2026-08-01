@@ -242,6 +242,7 @@ export function validateAgentRun(run) {
     ['agent run idempotencyKey is required', string(r.idempotencyKey)],
     ['agent run skillSnapshot must be an object', object(r.skillSnapshot)],
     ['agent run triggerSnapshot must be an object', object(r.triggerSnapshot)],
+    ['agent run inputSnapshot must be an object when present', r.inputSnapshot === undefined || object(r.inputSnapshot)],
     ['agent run agentSnapshot must be an object', object(r.agentSnapshot)],
     ['agent run status is invalid', AGENT_RUN_STATES.includes(r.status)],
     ['agent run owner must be an object or null', r.owner === null || object(r.owner)],
@@ -386,6 +387,7 @@ export function agentRunTransitionWithin(previous, next) {
     || previous.idempotencyKey !== next.idempotencyKey) return false;
   if (!sameValue(previous.skillSnapshot, next.skillSnapshot)) return false;
   if (!sameValue(previous.triggerSnapshot, next.triggerSnapshot)) return false;
+  if (!sameValue(previous.inputSnapshot ?? {}, next.inputSnapshot ?? {})) return false;
   if (!sameValue(previous.agentSnapshot, next.agentSnapshot)) return false;
   if (!authorityWithin(previous.authorityEnvelope, next.authorityEnvelope)) return false;
   if (!budgetsWithin(previous.budgets, next.budgets)) return false;

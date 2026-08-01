@@ -9,10 +9,15 @@ import {
   judgeSuite,
   makeReplayCase,
   outputDigestOf,
+  verifyCallIdentity,
   verifyReplayEvidence,
 } from './tcell-replay.js';
 import { AUTO_SAFE_KINDS, decideAutoGrant } from '../l2-plan/authority.js';
 import { toolActionKind } from '../l2-plan/action-plan.js';
+import {
+  computeReplayVerdict,
+  parseReplayJudgement,
+} from './replay-verdict.js';
 
 function replayEnvelope(skill) {
   return {
@@ -23,7 +28,7 @@ function replayEnvelope(skill) {
     workspaceRoots: [],
     expiresAt: null,
     maxRuns: 1,
-    maxCost: null,
+    maxCost: 0,
     requiresFreshApprovalFor: [],
   };
 }
@@ -97,17 +102,23 @@ function runEvidence(run, runId, request, selfState) {
   return { ok: true, replayReceiptRef: run.result.replayReceiptRef };
 }
 
-function storedVerdict(output) {
+function storedVerdict(output, replayCase, receipt) {
   try {
     const parsed = JSON.parse(output);
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)
-      || parsed.verdict === null || typeof parsed.verdict !== 'object'
-      || typeof parsed.verdict.pass !== 'boolean') {
+      || typeof parsed.answer !== 'string') {
       return { ok: false, reason: 'replay_output_invalid' };
     }
+    const judgeIdentity = verifyCallIdentity(receipt?.judgeModelCallIdentity);
+    if (!judgeIdentity.ok) return { ok: false, reason: judgeIdentity.reason };
+    const judgement = parseReplayJudgement(parsed.judgement);
+    const verdict = computeReplayVerdict(replayCase, parsed.answer, judgement);
+    if (!verdict) return { ok: false, reason: 'replay_judgement_undecidable' };
     return {
       ok: true,
-      verdict: { pass: parsed.verdict.pass },
+      // Item evidence and rationale stay in the bound replay output. The lifecycle record
+      // needs only the computed fact, and must not duplicate potentially sensitive text.
+      verdict: { pass: verdict.pass },
     };
   } catch {
     return { ok: false, reason: 'replay_output_invalid' };
@@ -150,7 +161,7 @@ function sameVerdict(left, right) {
   }
 }
 
-export function verifyStoredSkillReplay(skill, replay, options = {}) {
+export async function verifyStoredSkillReplay(skill, replay, options = {}) {
   const checked = validateSkillDefinition(skill);
   if (!checked.ok) return { ok: false, reason: 'invalid_skill', errors: checked.errors };
   const suiteContract = validateSkillReplayCases(skill.replayCases);
@@ -194,16 +205,22 @@ export function verifyStoredSkillReplay(skill, replay, options = {}) {
       return { ok: false, reason: 'replay_case_binding_mismatch' };
     }
     const bound = { ...expected, runReceiptRef: record.runReceiptRef };
-    const evidence = verifyReplayEvidence(bound, { store: options.evidenceStore });
+    const evidenceStore = {
+      get: (id) => options.evidenceStore.get(id),
+      output: (id) => options.evidenceStore.output(id),
+    };
+    const receipt = await evidenceStore.get(record.runReceiptRef);
+    const output = await evidenceStore.output(record.runReceiptRef);
+    const evidence = verifyReplayEvidence(bound, {
+      store: { get: () => receipt, output: () => output },
+    });
     if (!evidence.ok) return { ok: false, reason: evidence.reason };
-    const output = options.evidenceStore.output(record.runReceiptRef);
-    const receipt = options.evidenceStore.get(record.runReceiptRef);
     if (typeof output !== 'string'
       || !receipt
       || receipt.outputDigest !== outputDigestOf(output)) {
       return { ok: false, reason: 'output_mismatch' };
     }
-    const verdict = storedVerdict(output);
+    const verdict = storedVerdict(output, expected, receipt);
     if (!verdict.ok) return verdict;
     if (record.outputDigest !== receipt.outputDigest
       || !sameVerdict(record.verdict, verdict.verdict)) {
@@ -280,7 +297,11 @@ export async function runSkillReplay(skill, options = {}) {
     }
 
     const bound = { ...request.replayCase, runReceiptRef: runCheck.replayReceiptRef };
-    const evidence = verifyReplayEvidence(bound, { store: options.evidenceStore });
+    const receipt = await options.evidenceStore.get(runCheck.replayReceiptRef);
+    const output = await options.evidenceStore.output(runCheck.replayReceiptRef);
+    const evidence = verifyReplayEvidence(bound, {
+      store: { get: () => receipt, output: () => output },
+    });
     if (!evidence.ok) {
       cases.push(failedCase(bound, evidence.reason, {
         runId,
@@ -288,8 +309,6 @@ export async function runSkillReplay(skill, options = {}) {
       }));
       continue;
     }
-    const output = options.evidenceStore.output(runCheck.replayReceiptRef);
-    const receipt = options.evidenceStore.get(runCheck.replayReceiptRef);
     if (typeof output !== 'string'
       || !receipt
       || receipt.outputDigest !== outputDigestOf(output)) {
@@ -299,7 +318,7 @@ export async function runSkillReplay(skill, options = {}) {
       }));
       continue;
     }
-    const verdict = storedVerdict(output);
+    const verdict = storedVerdict(output, bound, receipt);
     if (!verdict.ok) {
       cases.push(failedCase(bound, verdict.reason, {
         runId,

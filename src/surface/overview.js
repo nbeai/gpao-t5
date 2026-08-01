@@ -27,8 +27,9 @@ export function buildOverview(p = {}) {
     // 추천된 스킬 ↔ 활성화된 스킬(§6.17). 추천은 실행/설치 아님 — 승인 액션으로만 활성으로 이동.
     //   recommended는 id를 실어 "승인" 액션이 가능(활성 아님 상태 유지, 승인해야 이동).
     skills: {
-      recommended: skills.filter((s) => s.state === 'candidate' || s.state === 'replay_required').map((s) => ({ id: s.id, label: s.label })),
-      active: skills.filter((s) => s.state === 'admitted').map((s) => ({ label: s.label })),
+      recommended: skills.filter((s) => ['candidate', 'proposed', 'replay_required', 'approved', 'stale'].includes(s.state))
+        .map((s) => ({ id: s.id, label: s.label })),
+      active: skills.filter((s) => s.state === 'admitted' || s.state === 'active').map((s) => ({ label: s.label })),
     },
     // 추정된 성향(관찰만, 영향 0) ↔ 대기 선호(확인 필요) ↔ 반영 중(admitted, §6.18).
     //   **추정(inferred)은 액션 없이 읽기 전용** — 추정→승인 자동 승격 금지 경계 보존. 확인 액션은 pending에만.

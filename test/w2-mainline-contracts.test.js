@@ -206,6 +206,17 @@ test('통제 3슬롯이 한 배열에 선언돼 있다', () => {
   }
 });
 
+test('스킬 제안 스키마가 replay와 결과 계약을 실어 막다른 후보를 만들지 않는다', () => {
+  const schema = MODEL_CONTROL_SCHEMAS.find((entry) => entry.name === 'skill.propose');
+  assert.ok(schema.parameters.properties.replayCases);
+  assert.ok(schema.parameters.required.includes('replayCases'));
+  assert.ok(schema.parameters.required.includes('resultContract'));
+  assert.deepEqual(
+    schema.parameters.properties.replayCases.items.properties.kind.enum,
+    ['positive', 'negative', 'boundary', 'authority'],
+  );
+});
+
 test('소비자가 붙기 전에는 모델 스키마에 노출되지 않는다', () => {
   const selfState = buildSelfState(demoEnv());
   const names = modelSchemasFor(selfState).map((s) => s.name);

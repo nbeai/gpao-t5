@@ -25,8 +25,6 @@ import { ChannelCredentialStore } from './channel-credential-store.js';
 import { makeTelegramReceiver } from '../runtime/telegram-receiver.js';
 import { checkDeclaration } from '../runtime/connector-declare.js';
 import { acquireWriterLock } from './writer-lock.js';
-import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
-import { isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { StubModelClient } from '../runtime/model-client.js';
 import { withModelTimeout } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
@@ -71,12 +69,10 @@ import {
 import { DeliveryStore } from './delivery-store.js';
 import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-growth/delivery.js';
 import { isSendTool } from '../kernel/contracts.js';
-import { SkillStore } from './skill-store.js';
-import { detectSkillCandidate, surfaceCandidate, markReplayRequired, replaySkill, approveSkill, admitSkill, rejectSkill, canInfluence, canAutoExecute } from '../kernel/l5-growth/skill-learning.js';
-import { AutomationStore } from './automation-store.js';
-import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
-import { tickAutomation } from '../runtime/automation-engine.js';
-import { AutomationScheduler } from '../runtime/automation-scheduler.js';
+import { detectSkillCandidate } from '../kernel/l5-growth/skill-learning.js';
+import { admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
+import { transitionState } from '../kernel/l5-growth/automation-contracts.js';
+import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -223,12 +219,10 @@ export function makeServer(deps = {}) {
     return 기억저장가능(suggestion.statement);
   };
 
-  const autoStore = deps.automationStore ?? new AutomationStore(store.dir);
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
-  const skillStore = deps.skillStore ?? new SkillStore(store.dir);
   // P5-1 채널: 누가 말을 걸 수 있는지(허용목록)와 어느 방이 어느 대화와 이어지는지(연결).
   const allowlistStore = deps.allowlistStore ?? new AllowlistStore(store.dir);
   const bindingStoreDefault = new ChannelBindingStore(store.dir);
@@ -251,6 +245,81 @@ export function makeServer(deps = {}) {
   const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 180_000);
   const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
+  const automationRuntime = deps.automationRuntime ?? new CanonicalAutomationRuntime({
+    dir: store.dir,
+    env,
+    tools,
+    memStore,
+    withMemory,
+    modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model,
+    ...(deps.skillStore ? { skillStore: deps.skillStore } : {}),
+    ...(deps.automationStore ? { jobStore: deps.automationStore } : {}),
+    ...(deps.agentProfileStore ? { profileStore: deps.agentProfileStore } : {}),
+    ...(deps.automationRunLedger ? { runLedger: deps.automationRunLedger } : {}),
+    migrate: !deps.skillStore && !deps.automationStore && !deps.agentProfileStore,
+  });
+  const automationReady = () => automationRuntime.ready();
+  const skillStore = automationRuntime.skillStore;
+  const autoStore = automationRuntime.jobStore;
+  const profileStore = automationRuntime.profileStore;
+  const runLedger = automationRuntime.runLedger;
+
+  async function 통제후보저장(result, session) {
+    await automationReady();
+    if (result.skillProposal) {
+      const proposed = await automationRuntime.skillService.propose(result.skillProposal, {
+        now: Date.now(), sessionId: session.id, sourceKind: 'model_proposal', traceIds: [],
+      });
+      result.skillProposal = proposed.ok
+        ? { id: proposed.skill.id, name: proposed.skill.name, state: proposed.skill.state }
+        : { rejected: true, reason: proposed.reason ?? proposed.errors?.[0] ?? 'invalid_skill_proposal' };
+    }
+    if (result.automationProposal) {
+      const proposal = result.automationProposal;
+      if (!자동화후보저장가능({
+        statement: proposal.statement ?? 'automation proposal',
+        action: { tool: 'automation.propose', args: proposal },
+      })) {
+        result.automationProposal = { rejected: true, reason: 'sensitive_input' };
+      } else {
+        let stored;
+        await autoStore.update((state) => {
+          const duplicate = (state.candidates ?? []).find((entry) =>
+            entry.statement === proposal.statement && entry.kind === proposal.kind);
+          if (duplicate) { stored = duplicate; return state; }
+          stored = {
+            candidateId: randomUUID(),
+            statement: proposal.statement,
+            kind: proposal.kind,
+            state: 'proposed',
+            approved: false,
+            createdAt: Date.now(),
+          };
+          return { ...state, candidates: [...(state.candidates ?? []), stored] };
+        });
+        result.automationProposal = {
+          candidateId: stored.candidateId, statement: stored.statement, state: 'proposed',
+        };
+      }
+    }
+    if (result.agentProposal) {
+      const proposal = result.agentProposal;
+      const existing = (await profileStore.load()).profiles.find((entry) =>
+        entry.name === proposal.name && entry.purpose === proposal.purpose
+        && entry.state === 'proposed');
+      const profile = existing ?? await profileStore.propose({
+        id: randomUUID(),
+        name: proposal.name,
+        purpose: proposal.purpose,
+        modelRole: 'worker',
+        toolAllowlist: [],
+        workspaceScope: Array.isArray(proposal.workspaceScope) ? proposal.workspaceScope : [],
+        defaultBudgets: { maxToolCalls: 6, timeoutMs: 120_000, maxCost: 1, maxConcurrency: 1 },
+        authorityCeiling: 'A0',
+      }, Date.now());
+      result.agentProposal = { id: profile.id, name: profile.name, state: profile.state };
+    }
+  }
   // C7-ACTION-001 호환 정리(한 번, 멱등): 수정 전에 만들어진 **비전송** default_target
   // 후보·승격만 걷는다. traces(감사 이력)와 전달 원장 기록은 보존한다 — 잘못 배운 영향만
   // 제거하고 "무슨 일이 있었는가"는 남긴다. 진짜 send 후보·승격은 건드리지 않는다.
@@ -274,11 +343,13 @@ export function makeServer(deps = {}) {
   // 자동화 워커 — 자기 오류 경계를 갖는다. 여기서 터져도 관찰은 같은 tick 에서 계속 돈다.
   async function 자동화워커() {
     try {
-      const a = await autoStore.load();
-      const selfState = buildSelfState(env, { tools });
-      const ran = await tickAutomation(a.jobs, { tools, selfState, now: Date.now() });
-      await autoStore.save(a);
-      return { ran: ran.map((r) => ({ jobId: r.jobId, failureState: r.receipt.failureState })) };
+      await automationReady();
+      const tick = await automationRuntime.tick();
+      return {
+        ran: tick.runs.map((run) => ({ runId: run.id, jobId: run.jobId, status: run.status })),
+        claimed: tick.claimed.length,
+        duplicates: tick.duplicates.length,
+      };
     } catch (e) {
       console.error('[automation:tick] 실패 — 관찰과 사용자 턴은 그대로 돕니다:', e?.message ?? e);
       return { failed: true, error: e?.message ?? String(e) };
@@ -487,6 +558,8 @@ export function makeServer(deps = {}) {
     const learning = await traceStore.load();
     session.carryableWork = await 이어받을작업(session);
     const ctx = ctxForSession(session, memory);
+    await automationReady();
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -495,7 +568,7 @@ export function makeServer(deps = {}) {
     ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
     // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
-    ctx.skills = (await skillStore.load()).skills ?? [];
+    ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -538,6 +611,12 @@ export function makeServer(deps = {}) {
     }
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
     민감기억후처리(result);
+    try {
+      await 통제후보저장(result, session);
+    } catch (error) {
+      result.controlProposalWarning = error?.message ?? 'control_proposal_not_stored';
+      console.error('[control-proposal] 후보 저장 실패:', error?.message ?? error);
+    }
     // P-ID-1: 사용자가 이름을 지어 줬으면 SOUL.md 에 남긴다(다음 대화에서도 그 이름으로 답한다).
     if (result.identityUpdate?.name) {
       const soul = await selfhoodStore.setName(result.identityUpdate.name);
@@ -687,7 +766,11 @@ export function makeServer(deps = {}) {
       const dedupKey = result.automationSuggestion.statement;
       if (a.candidates.some((c) => c.statement === dedupKey && !c.approved)) { result.automationSuggestion = undefined; }
       else {
-        const c = makeGrowthCandidate({ candidateId: randomUUID(), statement: result.automationSuggestion.statement, action: result.automationSuggestion.action, dedupKey });
+        const c = {
+          candidateId: randomUUID(), statement: result.automationSuggestion.statement,
+          action: structuredClone(result.automationSuggestion.action), dedupKey,
+          state: 'proposed', approved: false, createdAt: Date.now(),
+        };
         a.candidates.push(c); await autoStore.save(a); result.automationSuggestion.candidateId = c.candidateId;
       }
     } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
@@ -988,50 +1071,71 @@ export function makeServer(deps = {}) {
 
       // ── 자동화 (P6-3) ── 후보 → 승인 → 예약 → tick 실행 → 원장 → 취소/만료.
       if (req.method === 'GET' && url === '/automation') {
+        await automationReady();
         const a = await autoStore.load();
-        // ledger: AutomationLedger 투영(세션 TruthLedger와 분리). runs·lastResult는 그 요약.
-        const stripJob = (j) => ({
-          id: j.id, statement: j.statement, state: j.state, external: j.external,
-          nextRunAt: j.nextRunAt, grantScope: j.grantScope, runs: j.executions.length,
-          failureCount: j.failureCount ?? 0, // 신뢰성(P6-4): 연속 실패 카운트 표면화
-          lastResult: j.executions.at(-1)?.failureState ?? null,
-          ledger: j.executions.map((r) => ({ failureState: r.failureState, lifecycle: r.lifecycle, summary: r.userSafeSummary })),
+        const runs = await runLedger.load();
+        const stripJob = (job) => ({
+          id: job.id, name: job.name, state: job.state,
+          skillRef: job.skillRef, agentProfileId: job.agentProfileId,
+          trigger: job.trigger, nextRunAt: job.nextRunAt,
+          lastRunId: job.lastRunId, authorityEnvelope: job.authorityEnvelope,
         });
         return sendJson(res, 200, {
-          candidates: a.candidates.filter((c) => !c.approved).map((c) => ({ candidateId: c.candidateId, statement: c.statement })),
+          candidates: a.candidates.filter((c) => !c.approved),
           jobs: a.jobs.map(stripJob),
+          runs: runs.runs.map((run) => ({
+            id: run.id, jobId: run.jobId, status: run.status,
+            scheduledFor: run.scheduledFor, finishedAt: run.finishedAt,
+          })),
         });
       }
-      // 후보 승인 → ScheduledJob. external(외부 전송) 여부는 도구 descriptor에서 파생(사용자 입력 불신).
-      // 외부 전송 자동화는 반드시 만료(bounded) 승인 범위를 요구한다 — 몰래·무기한 권한 금지(A2 경계).
+      // 후보 승인 → canonical Skill+AgentProfile에 결합된 ScheduledJob. 후보 문장만으로는
+      // 실행 계약을 지어내지 않는다 — 정확한 스킬·역할·권한·트리거를 사용자가 확인해야 한다.
       if (req.method === 'POST' && url === '/automation/approve') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        const a = await autoStore.load();
+        await automationReady();
+        const [a, skills, profiles] = await Promise.all([
+          autoStore.load(), skillStore.load(), profileStore.load(),
+        ]);
         const cand = a.candidates.find((c) => c.candidateId === input.candidateId && !c.approved);
         if (!cand) return sendJson(res, 404, { error: '자동화 후보를 찾지 못했어요.' });
-        // 만료를 강제할지는 **행동 종류**로 정한다. 도구 단위 needsApproval 로 보면 `local.file` 은
-        // 플래그가 없어 삭제 자동화가 무기한 승인으로 통과했다(도구 단위 kind 고정이 만든 사고의 재판).
-        const jobKind = toolActionKind({
-          toolId: cand.action?.tool, args: cand.action?.args, selfState: buildSelfState(env, { tools }),
-        });
-        const external = isSafetyFloor(jobKind);
-        const expiresAt = Number.isFinite(input.expiresAt) ? input.expiresAt : undefined;
-        if (external && !expiresAt) {
-          // 외부 전송은 만료 없는 승인을 허용하지 않는다(승인 경계 유지).
-          return sendJson(res, 400, { error: '외부 전송 자동화는 만료가 있는 승인이 필요해요.', needsExpiry: true });
+        const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
+        const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
+        if (!skill || !profile) {
+          return sendJson(res, 409, { error: '활성 스킬과 활성 담당 역할이 모두 필요해요.' });
         }
-        const grantScope = { kind: external ? 'session' : (input.persist ? 'persist' : 'session'), ...(expiresAt ? { expiresAt } : {}) };
-        const job = approveAutomation(cand, {
+        const now = Date.now();
+        const trigger = input.trigger;
+        const proposed = {
+          schemaVersion: 2,
           id: randomUUID(),
-          grantScope, external,
-          now: Date.now(),
-          nextRunAt: Number.isFinite(input.nextRunAt) ? input.nextRunAt : Date.now(),
-          intervalMs: Number.isFinite(input.intervalMs) ? input.intervalMs : undefined,
-        });
-        cand.approved = true;
-        a.jobs.push(job);
-        await autoStore.save(a);
-        return sendJson(res, 200, { ok: true, jobId: job.id, state: job.state, external, grantScope });
+          name: input.name ?? cand.statement,
+          skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+          trigger,
+          agentProfileId: profile.id,
+          inputTemplate: input.inputTemplate ?? {},
+          authorityEnvelope: input.authorityEnvelope,
+          deliveryPolicy: input.deliveryPolicy ?? { mode: 'none' },
+          state: 'proposed',
+          nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
+          lastRunId: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const approved = transitionState('automationJob', proposed, 'approved', now);
+        const scheduled = approved.ok
+          ? transitionState('automationJob', approved.record, 'scheduled', now)
+          : approved;
+        if (!scheduled.ok) {
+          return sendJson(res, 422, { error: '자동화 계약이 완전하지 않아요.', reason: scheduled.reason, errors: scheduled.errors });
+        }
+        await autoStore.update((state) => ({
+          ...state,
+          candidates: state.candidates.map((entry) => entry.candidateId === cand.candidateId
+            ? { ...entry, approved: true, approvedAt: now } : entry),
+          jobs: [...state.jobs, scheduled.record],
+        }));
+        return sendJson(res, 200, { ok: true, jobId: scheduled.record.id, state: scheduled.record.state });
       }
       // tick은 런타임 이벤트로만 실행된다(§8.3). 사용자 버튼이 아니다 — 트러스트 토큰 없으면 거부.
       // 정상 구동은 in-process 스케줄러(server.runtimeTick). 이 라우트는 런타임/운영·테스트 전용.
@@ -1044,12 +1148,11 @@ export function makeServer(deps = {}) {
       // 취소(되돌리기). 이후 tick에서 실행되지 않는다.
       if (req.method === 'POST' && url === '/automation/cancel') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        const a = await autoStore.load();
-        const idx = a.jobs.findIndex((j) => j.id === input.jobId);
-        if (idx < 0) return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
-        a.jobs[idx] = cancelJob(a.jobs[idx]);
-        await autoStore.save(a);
-        return sendJson(res, 200, { ok: true, state: 'cancelled' });
+        await automationReady();
+        const outcome = await automationRuntime.cancelJob(input.jobId, Date.now());
+        if (outcome?.reason === 'job_not_found') return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
+        if (!outcome.ok) return sendJson(res, 409, { error: '이미 끝난 자동화예요.', reason: outcome.reason });
+        return sendJson(res, 200, { ok: true, state: outcome.record.state });
       }
 
       // ── 기억(Context Mesh) ──
@@ -1537,7 +1640,7 @@ export function makeServer(deps = {}) {
         const sessionId = new URL(req.url, 'http://x').searchParams.get('sessionId');
         const channels = projectChannels(deps.channels ?? demoChannels());
         const skillsData = await skillStore.load();
-        const skills = skillsData.skills.map((s) => ({ id: s.id, label: s.label, state: s.state }));
+        const skills = skillsData.skills.map((s) => ({ id: s.id, label: s.name ?? s.label, state: s.state }));
         const memoryState = await memStore.load();
         const userModel = projectUserModel(memoryState);
         // 반영된 검색 기억(recalled_context)도 "반영 중"으로 함께 표면화 — 선호와 같은 자리서 보고 되돌린다.
@@ -1593,37 +1696,75 @@ export function makeServer(deps = {}) {
       }
       // ── 스킬 학습 (P6-17 Slice-2) ── SkillCandidate lifecycle. **추천 ≠ 실행/승격. replay+확인 전 영향 0.**
       //   스킬은 자동 실행 권한이 없다(외부 행동은 여전히 A2). UI는 최소 표면.
-      const skillView = (s) => ({ id: s.id, label: s.label, state: s.state, trigger: s.trigger, steps: s.steps, tool: s.tool, canInfluence: canInfluence(s), canAutoExecute: canAutoExecute() });
+      const skillView = (skill) => ({
+        id: skill.id,
+        name: skill.name,
+        purpose: skill.purpose,
+        state: skill.state,
+        version: skill.version,
+        requiredCapabilities: skill.requiredCapabilities,
+        replay: skill.lastReplay ? { ok: skill.lastReplay.ok, replayDigest: skill.lastReplay.replayDigest } : null,
+        canInfluence: skill.state === 'active',
+        canAutoExecute: false,
+      });
       if (req.method === 'GET' && url === '/skills') {
-        const a = await skillStore.load();
-        return sendJson(res, 200, { skills: a.skills.map(skillView) });
+        await automationReady();
+        const state = await automationRuntime.skillService.list();
+        return sendJson(res, 200, { skills: state.skills.map(skillView) });
       }
       // 반복 신호에서 스킬 후보를 감지해 표면화(candidate 상태, 영향 0). 자동 승격 아님.
       if (req.method === 'POST' && url === '/skills/detect') {
+        await automationReady();
         const learning = await traceStore.load();
         const detected = detectSkillCandidate(learning.traces, { id: randomUUID(), now: Date.now() });
         if (!detected) return sendJson(res, 200, { detected: false });
-        const a = await skillStore.load();
-        // 같은 도구의 미종료(비 rejected) 후보가 이미 있으면 중복 제안하지 않는다.
-        if (a.skills.some((s) => s.tool === detected.tool && s.state !== 'rejected')) return sendJson(res, 200, { detected: false, reason: 'already_proposed' });
-        const surfaced = surfaceCandidate(detected); // detected → candidate(추천 표면화)
-        a.skills.push(surfaced);
-        await skillStore.save(a);
-        return sendJson(res, 200, { detected: true, skill: skillView(surfaced) });
+        const proposed = await automationRuntime.skillService.propose({
+          name: detected.label,
+          purpose: detected.trigger || detected.label,
+          inputs: [],
+          steps: detected.steps,
+          resultContract: { kind: 'unspecified' },
+          requiredCapabilities: detected.tool ? [detected.tool] : [],
+          authorityHints: [],
+          replayCases: [],
+        }, {
+          now: Date.now(), sourceKind: 'observed_pattern',
+          traceIds: detected.fromTraceIds, sessionId: null,
+        });
+        if (!proposed.ok) return sendJson(res, 422, { detected: false, reason: proposed.reason, errors: proposed.errors });
+        if (proposed.created === false) {
+          return sendJson(res, 200, { detected: false, already: true, skill: skillView(proposed.skill) });
+        }
+        return sendJson(res, 200, { detected: true, skill: skillView(proposed.skill) });
       }
-      // 승인: 사용자 확인 + replay 통과해야 admitted. replay 실패면 rejected(영향 0). lifecycle을 코드가 강제.
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/revise')) {
+        const id = url.slice('/skills/'.length, -'/revise'.length);
+        const input = JSON.parse((await readBody(req)) || '{}');
+        await automationReady();
+        const revised = await automationRuntime.skillService.revise(id, input.patch ?? input, { now: Date.now() });
+        return sendJson(res, revised.ok ? 200 : 409, revised);
+      }
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/replay')) {
+        const id = url.slice('/skills/'.length, -'/replay'.length);
+        await automationReady();
+        const replay = await automationRuntime.skillService.replay(id, { now: Date.now() });
+        return sendJson(res, replay.ok ? 200 : 409, replay);
+      }
+      // 승인과 활성화를 나눈다. replay와 결합된 명시 승인 없이는 active가 될 수 없다.
       if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/approve')) {
         const id = url.slice('/skills/'.length, -'/approve'.length);
-        const a = await skillStore.load();
-        const idx = a.skills.findIndex((s) => s.id === id);
-        if (idx < 0) return sendJson(res, 404, { error: '스킬 후보를 찾지 못했어요.' });
-        let sk = markReplayRequired(a.skills[idx]);       // candidate → replay_required
-        const appr = approveSkill(sk, { userConfirmed: true, replayResult: replaySkill(sk) });
-        if (!appr.ok) { a.skills[idx] = appr.sk; await skillStore.save(a); return sendJson(res, 200, { ok: false, state: appr.sk.state, reason: appr.reason }); }
-        const adm = admitSkill(appr.sk);                  // approved → admitted
-        a.skills[idx] = adm.sk;
-        await skillStore.save(a);
-        return sendJson(res, 200, { ok: true, state: adm.sk.state, skill: skillView(adm.sk) });
+        const input = JSON.parse((await readBody(req)) || '{}');
+        await automationReady();
+        const approved = await automationRuntime.skillService.approve(id, {
+          now: Date.now(), approval: input.approval,
+        });
+        return sendJson(res, approved.ok ? 200 : 409, approved);
+      }
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/activate')) {
+        const id = url.slice('/skills/'.length, -'/activate'.length);
+        await automationReady();
+        const activated = await automationRuntime.skillService.activate(id, { now: Date.now() });
+        return sendJson(res, activated.ok ? 200 : 409, activated);
       }
       // ── 사용자 모델 (P6-17 Slice-3) ── "추정된 성향"과 "승인된 운영 선호"를 분리. **추정은 관찰만(영향 0)**,
       //   운영 선호만 userConfirmed 후 admittedContext에 좁게 입장. UI는 최소 API(표면 분리는 P6-18).
@@ -1683,12 +1824,15 @@ export function makeServer(deps = {}) {
       // 거절: 후보를 rejected로(영향 0 영구).
       if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/reject')) {
         const id = url.slice('/skills/'.length, -'/reject'.length);
-        const a = await skillStore.load();
-        const idx = a.skills.findIndex((s) => s.id === id);
-        if (idx < 0) return sendJson(res, 404, { error: '스킬 후보를 찾지 못했어요.' });
-        a.skills[idx] = rejectSkill(a.skills[idx], 'user_rejected');
-        await skillStore.save(a);
-        return sendJson(res, 200, { ok: true, state: 'rejected' });
+        await automationReady();
+        const rejected = await automationRuntime.skillService.reject(id, { now: Date.now() });
+        return sendJson(res, rejected.ok ? 200 : 409, rejected);
+      }
+      if (req.method === 'POST' && url.startsWith('/skills/') && url.endsWith('/rollback')) {
+        const id = url.slice('/skills/'.length, -'/rollback'.length);
+        await automationReady();
+        const rolledBack = await automationRuntime.skillService.rollback(id, { now: Date.now() });
+        return sendJson(res, rolledBack.ok ? 200 : 409, rolledBack);
       }
       // 채널 인바운드 — 채널이 달라도 같은 OS 흐름을 탄다. 게이트 순서(감사 보정):
       //   1 sessionId 존재 → 2 channel 필드 → 3 registry 확인 → 4 readiness==ok → 5 정규화
@@ -1860,6 +2004,9 @@ export function makeServer(deps = {}) {
       ledgerFrom: (session.ledgerEntries ?? []).length,
     };
     const ctx = ctxForSession(session, memory);
+    await automationReady();
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose'];
+    ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -1873,6 +2020,11 @@ export function makeServer(deps = {}) {
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
     민감기억후처리(result);
+    try { await 통제후보저장(result, session); }
+    catch (error) {
+      result.controlProposalWarning = error?.message ?? 'control_proposal_not_stored';
+      console.error('[control-proposal] 채널 후보 저장 실패:', error?.message ?? error);
+    }
     if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
       session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
       session.transcript.push({ role: 'assistant', result });
@@ -1890,6 +2042,11 @@ export function makeServer(deps = {}) {
   }
 
   server.runtimeTick = () => runTrustedTick({ source: 'trusted_runtime_event' });
+  server.runtimeReconcile = async () => {
+    await automationReady();
+    return automationRuntime.tick({ recovering: true });
+  };
+  server.automationRuntime = automationRuntime;
   server.tcellObserveState = () => ({ ...관찰상태 }); // 관찰 워커의 격리 상태(진단면)
 
   /**
@@ -2026,6 +2183,8 @@ async function startLiveServerInner(opts, bootStore) {
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }
   try { await server.loadSelfhood(); } catch { /* 문서 준비 실패 → 기본 정체로 계속(차단하지 않는다) */ }
+  try { await server.runtimeReconcile(); }
+  catch (error) { console.error('[automation:reconcile]', error?.message ?? error); }
   const port = opts.port ?? Number(processEnv.PORT ?? 4173);
   await new Promise((resolve) => server.listen(port, host, resolve));
   // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
@@ -2058,7 +2217,11 @@ async function startLiveServerInner(opts, bootStore) {
   if (opts.startScheduler !== false) {
     // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
     const tickMs = Number(processEnv.GPAO_T5_TICK_MS ?? 60_000);
-    new AutomationScheduler({ onTick: () => server.runtimeTick(), intervalMs: tickMs }).start();
+    const timer = setInterval(() => {
+      server.runtimeTick().catch((error) => console.error('[runtime:tick]', error?.message ?? error));
+    }, tickMs);
+    timer.unref?.();
+    server.once('close', () => clearInterval(timer));
   }
 
   // P5-1 자기 교정: 채널에 묶인 대화인데 출처 표시가 없는 것들을 채운다. 출처 필드가 생기기 전에

@@ -201,7 +201,7 @@ export class SkillService {
       if (!approvalMatches(skill, options.approval)) {
         return { state, outcome: { ok: false, reason: 'explicit_approval_required' } };
       }
-      const storedReplay = verifyStoredSkillReplay(skill, skill.lastReplay, this.replayContext);
+      const storedReplay = await verifyStoredSkillReplay(skill, skill.lastReplay, this.replayContext);
       if (!storedReplay.ok) {
         return {
           state,
@@ -242,7 +242,7 @@ export class SkillService {
       if (!approvalMatches(skill, skill.approval) || skill.lastReplay?.ok !== true) {
         return { state, outcome: { ok: false, reason: 'approval_binding_invalid' } };
       }
-      const storedReplay = verifyStoredSkillReplay(skill, skill.lastReplay, this.replayContext);
+      const storedReplay = await verifyStoredSkillReplay(skill, skill.lastReplay, this.replayContext);
       if (!storedReplay.ok) {
         return {
           state,
