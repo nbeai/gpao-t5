@@ -37,7 +37,7 @@ export class MemoryStore {
     try {
       raw = await readFile(this.file, 'utf8');
     } catch (e) {
-      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, shownRefs: [], correctionCorrelation: [], laneState: {} };
+      if (e?.code === 'ENOENT') return { candidates: [], promoted: [], observed: [], closed: {}, observations: [], bundles: [], observationWatermark: {}, replayCases: [], replayReceipts: [], replayOutputs: {}, grownBundles: [], growJobs: [], growBudget: null, growObservations: [], shownRefs: [], correctionCorrelation: [], laneState: {} };
       return { candidates: [], promoted: [], observed: [], closed: {}, corrupted: true, corruptionReason: e?.code ?? 'read_failed' };
     }
     try {
@@ -54,6 +54,8 @@ export class MemoryStore {
         replayOutputs: m.replayOutputs ?? {}, grownBundles: m.grownBundles ?? [],
         // 성장은 여러 tick 에 걸쳐 돈다(§4.10 tick당 ≤2) — 진행 상태와 예산이 저장에 산다.
         growJobs: m.growJobs ?? [], growBudget: m.growBudget ?? null,
+        // 성장 관측(행동 변화 0) — 제안·판정의 원시 사실. 어떤 판정도 이걸 읽지 않는다.
+        growObservations: m.growObservations ?? [],
         // S5-1 · 보임 기록. 내부 신분만 있고 사용자면·모델 입력에는 나가지 않는다.
         shownRefs: m.shownRefs ?? [],
         // S5-3 · 정정 상관(통계). 이것만으로는 아무 것도 내리지 않는다.
@@ -89,6 +91,7 @@ export class MemoryStore {
       replayCases: memory.replayCases ?? [], replayReceipts: memory.replayReceipts ?? [],
       replayOutputs: memory.replayOutputs ?? {}, grownBundles: memory.grownBundles ?? [],
       growJobs: memory.growJobs ?? [], growBudget: memory.growBudget ?? null,
+      growObservations: memory.growObservations ?? [],
       shownRefs: memory.shownRefs ?? [],
       correctionCorrelation: memory.correctionCorrelation ?? [],
       laneState: memory.laneState ?? {},

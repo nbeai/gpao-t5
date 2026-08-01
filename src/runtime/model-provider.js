@@ -592,6 +592,10 @@ export function actualCallFacts({ url, bodyText, json, spec }) {
   return {
     endpointOrigin, requestModelId, responseModelId, responseIdentitySource,
     usage: json?.usage ?? json?.usageMetadata ?? null,
+    // 종료 사유는 관측 사실이다 — 절단(length)과 정상(stop)을 원시로 가른다. 와이어별
+    // 자리(openai/gemini/anthropic)의 기계적 합집합이고, 없으면 지어내지 않는다(null).
+    finishReason: json?.choices?.[0]?.finish_reason
+      ?? json?.candidates?.[0]?.finishReason ?? json?.stop_reason ?? null,
   };
 }
 

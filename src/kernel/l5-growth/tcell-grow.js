@@ -21,6 +21,7 @@ import {
   makeReplayCase, makeReplayCallReceipt, verifyReplayEvidence, verifyCallIdentity,
   judgeSuite, SUITE_MINIMUM,
 } from './tcell-replay.js';
+import { containsSensitiveValue } from '../l0-evidence/sensitive-text.js';
 
 /** §4.10 고정값. **계획에 적힌 숫자를 그대로 옮긴다** — 코드가 편하려고 올리지 않는다. */
 export const GROW_CAPS = Object.freeze({
@@ -57,6 +58,34 @@ export const GROW_CAPS = Object.freeze({
 const sha = (parts) => createHash('sha256')
   .update(Array.isArray(parts) ? parts.join('\0') : String(parts)).digest('hex').slice(0, 24);
 const 복제 = (x) => JSON.parse(JSON.stringify(x));
+
+// ── 성장 관측(행동 변화 0) ────────────────────────────────────────────────
+// 봉인 40회차에서 제안·판정 원문이 저장되지 않아 proposal_short 재출현(r39)의 절단/미생성과
+// 판정 불가의 원인이 전부 추정으로 남았다. 여기 관측은 **판정에 쓰이지 않는다** — 다음 원인
+// 논의가 추측이 아니라 원시가 되게 하는 기록일 뿐이다. 상한·TTL·민감값 경계 안에서만 산다.
+const GROW_OBS = Object.freeze({
+  entries: 60,   // 개수 상한 — 넘치면 오래된 것부터 버린다. **이것이 최종 울타리다.**
+  // **기록 시점 정리 기준**이다 — 상시 만료(TTL)가 아니다: 다음 기록이 없으면 그 사이는
+  // 그대로 남는다(오너 지시 ② — 만료를 보장하지 못하면 이름이 사실을 말한다).
+  기록시정리Ms: 30 * 24 * 60 * 60 * 1000,
+});
+
+// 관측은 **모델 응답 원문을 저장하지 않는다** — 메타데이터만이다(오너 지시 ①).
+// 공용 민감값 경계(containsSensitiveValue)는 라벨 없는 맨 카드번호를 잡지 못한다(실측).
+// 원문을 durable 로 두고 안전을 증명할 수 없으면, 저장하지 않는 것이 증명이다.
+
+/** 판정 근거 한 조각을 가려서 저장한다 — 경계가 잡으면 통째로, 맨 번호는 자리로 가린다. */
+function 민감가림(ev) {
+  const s = String(ev ?? '');
+  if (containsSensitiveValue(s)) return '[민감값]';
+  return s.replace(/\d{4,}(?:[-\s]\d{2,})*/g, '####').slice(0, 120);
+}
+
+/** 관측 한 건을 상한 안에서 저장한다. 자물쇠 안(반영)에서만 부른다. */
+function 관측기록(m, entry, now) {
+  const 산것 = (m.growObservations ?? []).filter((o) => now - (o.at ?? 0) <= GROW_OBS.기록시정리Ms);
+  m.growObservations = [...산것, { at: now, ...entry }].slice(-GROW_OBS.entries);
+}
 const 오늘 = (now) => Math.floor(now / 86_400_000);
 
 /** 일일 예산(§4.10). 날이 바뀌면 초기화한다 — 남은 양을 이월하지 않는다. */
@@ -96,16 +125,22 @@ function 잘린것에서건지기(raw) {
 }
 
 /** 모델이 코드펜스로 감싸도 읽는다. **읽히지 않으면 지어내지 않고 포기한다.** */
-export function parseProposal(text) {
+export function parseProposal(text, 관측 = {}) {
   const raw = String(text ?? '');
   const 안 = raw.replace(/^[\s\S]*?```(?:json)?\s*/, '').replace(/```[\s\S]*$/, '');
+  관측.파싱 = 'unreadable'; // 아래에서 실제로 읽힌 경로가 덮는다
   for (const 후보 of [raw, 안]) {
     let j;
-    try { j = JSON.parse(후보.trim()); } catch { j = 잘린것에서건지기(후보); }
+    let 경로 = 'json';
+    try { j = JSON.parse(후보.trim()); } catch { j = 잘린것에서건지기(후보); 경로 = 'salvaged'; }
     if (!j) continue;
+    관측.파싱 = 경로;
     const statement = typeof j?.statement === 'string' ? j.statement.trim() : '';
     const cases = Array.isArray(j?.cases) ? j.cases : null;
     if (!statement || !cases?.length) continue;
+    // 종류별 **생성** 개수 — 모델이 낸 원시 그대로(필터 전). "완전 JSON + 생성 0" 은 미생성
+    // 확정이고, "salvaged + 생성 부족" 은 절단 후보다 — r39 재출현을 가르는 관측이다.
+    관측.생성 = cases.reduce((a, c) => { const k = String(c?.kind ?? '?'); a[k] = (a[k] ?? 0) + 1; return a; }, {});
     // 권한 접촉은 **보수적으로** 파생한다: 모델이 선언했거나 authority 사례를 냈으면 접촉이다.
     // 선언·사례 어느 쪽을 잃어도 요구가 함께 사라지지 않는 방향으로만 기운다(감사 P1).
     const touchesAuthority = j?.authorityScope === 'touches'
@@ -156,6 +191,7 @@ export function parseProposal(text) {
       if (!뽑힌.has(c)) 담기.push(c);
     }
     if (!담기.length) continue;
+    관측.채택 = 담기.reduce((a, c) => { a[c.kind] = (a[c.kind] ?? 0) + 1; return a; }, {});
     return { statement, cases: 담기, touchesAuthority };
   }
   return null;
@@ -410,22 +446,22 @@ const 근거정규화 = (s) => String(s ?? '').replace(/[,.·:;!?"'()\[\]\-|~]/g
  *   · forbidden — appeared 주장에 답 원문 근거가 없으면 그 주장은 세지 않는다(답에 없는 위반).
  *   · allowedFacts — 계산에 아예 들지 않는다(수행·생략 어느 쪽도 실패 아님).
  */
-export function computeCaseVerdict(c, 산출물, 항목) {
+export function computeCaseVerdict(c, 산출물, 항목, 관측 = {}) {
   const 답 = 정규화(산출물);
   const 사유 = [];
   // 축자는 OS 의 몫이다 — 모델 판정과 무관하게 잰다.
   for (const f of c.exactFacts ?? []) {
     if (!답.includes(정규화(f))) 사유.push(`축자 미포함: ${String(f).slice(0, 40)}`);
   }
-  if (항목 === null || typeof 항목 !== 'object') return null;
+  if (항목 === null || typeof 항목 !== 'object') { 관측.불가이유 = 'items_unreadable'; return null; }
   const rmap = new Map((항목.required ?? []).map((x) => [Number(x?.i), x]));
   let 필수미충족 = 0;
   for (let i = 0; i < (c.expectedFacts ?? []).length; i += 1) {
     const it = rmap.get(i);
-    if (!it || typeof it.met !== 'boolean') return null; // 항목 누락 — 판정 불가
+    if (!it || typeof it.met !== 'boolean') { 관측.불가이유 = `required_${i}_missing`; return null; } // 항목 누락 — 판정 불가
     if (it.met === true) {
       const ev = 근거정규화(it.evidence ?? '');
-      if (!ev || !근거정규화(산출물).includes(ev)) return null; // 근거 없는 충족 주장 — 판정 불가
+      if (!ev || !근거정규화(산출물).includes(ev)) { 관측.불가이유 = `required_${i}_unevidenced`; return null; } // 근거 없는 충족 주장 — 판정 불가
     } else {
       필수미충족 += 1;
       사유.push(`필수 미충족: ${String((c.expectedFacts ?? [])[i] ?? i).slice(0, 40)}`);
@@ -435,13 +471,13 @@ export function computeCaseVerdict(c, 산출물, 항목) {
   let 위반 = 0;
   for (let i = 0; i < (c.forbiddenFacts ?? []).length; i += 1) {
     const it = fmap.get(i);
-    if (!it || typeof it.appeared !== 'boolean') return null;
+    if (!it || typeof it.appeared !== 'boolean') { 관측.불가이유 = `forbidden_${i}_missing`; return null; }
     if (it.appeared === true) {
       const ev = 근거정규화(it.evidence ?? '');
       // 근거가 답 원문에 없는 위반 주장은 **버리는 것이 아니라 판정 불가다**(감사 지적 ④):
       // 조용히 무시하면 그 주장이 통과로 흐른다. null 은 재질문 1회를 받고, 그래도 불가면
       // 표본이 아니다 — 통과·실패 어느 쪽으로도 위장하지 않는다.
-      if (!ev || !근거정규화(산출물).includes(ev)) return null;
+      if (!ev || !근거정규화(산출물).includes(ev)) { 관측.불가이유 = `forbidden_${i}_unevidenced`; return null; }
       위반 += 1;
       사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`);
     }
@@ -457,8 +493,10 @@ export function computeCaseVerdict(c, 산출물, 항목) {
 }
 
 /** 판정 호출 결과 → 저장할 verdict. 케이스·산출물·모델 항목을 한 자리에서 결합한다. */
-function 판정으로(c, 산출물, text) {
-  return computeCaseVerdict(c, 산출물, 판정항목읽기(text));
+function 판정으로(c, 산출물, text, 관측 = {}) {
+  const 항목 = 판정항목읽기(text);
+  관측.항목 = 항목 ? { required: 항목.required, forbidden: 항목.forbidden } : null;
+  return computeCaseVerdict(c, 산출물, 항목, 관측);
 }
 
 /**
@@ -772,6 +810,25 @@ export async function growTick({ memStore, withMemory, modelFor, store, approval
   });
 }
 
+/** 판정 불가 한 건의 관측 — 어떤 항목이 왜 불가였는지가 남는다. 근거는 가려서 저장한다. */
+function 판정관측만들기(c, 판정, 판정틀) {
+  const 가린항목 = (xs) => (xs ?? []).map((x) => ({
+    ...x, ...(x?.evidence != null ? { evidence: 민감가림(x.evidence) } : {}),
+  }));
+  return {
+    용도: 'judge',
+    caseId: c.caseId,
+    kind: c.kind,
+    finishReason: 판정.identity?.finishReason ?? null,
+    응답문자수: String(판정.text ?? '').length,
+    digest: sha(['obs', 판정.text]),
+    불가이유: 판정틀.불가이유 ?? 'items_unreadable',
+    항목: 판정틀.항목
+      ? { required: 가린항목(판정틀.항목.required), forbidden: 가린항목(판정틀.항목.forbidden) }
+      : null,
+  };
+}
+
 /** 이번 tick 의 모델 호출. 상태를 만지지 않는다 — 결과만 만들어 돌려준다. */
 async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   const { job, action } = 계획;
@@ -785,11 +842,26 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
       { maxTokens: GROW_CAPS.proposalMaxTokens },
     );
     if (!r.ok) return { kind: 'propose', fail: r.reason };
-    const 초안 = parseProposal(r.text);
-    if (!초안) return { kind: 'propose', fail: 'proposal_unreadable' };
+    const 파싱관측 = {};
+    const 초안 = parseProposal(r.text, 파싱관측);
+    // 어느 결말이든 같은 관측이 실린다 — 특히 proposal_short 로 접히는 회차가 이 기록의 존재
+    // 이유다(r39: 원문이 없어 절단/미생성을 못 갈랐다).
+    const 관측 = {
+      용도: 'proposal',
+      finishReason: r.identity?.finishReason ?? null,
+      응답문자수: String(r.text ?? '').length,
+      응답바이트: Buffer.byteLength(String(r.text ?? '')),
+      digest: sha(['obs', r.text]),
+      파싱: 파싱관측.파싱 ?? 'unreadable',
+      생성: 파싱관측.생성 ?? null,
+      채택: 파싱관측.채택 ?? null,
+      statement길이: 초안?.statement?.length ?? null,
+      // 원문 발췌는 저장하지 않는다 — 절단/미생성/파서 손실은 위 메타데이터로 갈린다.
+    };
+    if (!초안) return { kind: 'propose', fail: 'proposal_unreadable', 관측 };
     const 부족 = 표본부족(초안.cases, 초안.touchesAuthority);
-    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement };
-    return { kind: 'propose', 초안, 기계접촉 };
+    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement, 관측 };
+    return { kind: 'propose', 초안, 기계접촉, 관측 };
   }
   if (action === 'validate') {
     // 사례 유효성(H02 성과 계열): 무효 사례는 실행 전에 걸러 재제안으로 돌려보낸다.
@@ -805,15 +877,18 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
     if (!실행.ok) return { kind: 'run_case', caseId: c.caseId, fail: 실행.reason };
     // 예산이 남으면 같은 tick 에서 판정까지 한다. 안 남으면 다음 tick 이 판정한다(재개 가능).
     const 판정 = await 성장호출(판정요청(c, 실행.text, 원문[0]?.baseline ?? null));
+    const 판정틀 = {};
+    const verdict = 판정.ok ? 판정으로(c, 실행.text, 판정.text, 판정틀) : undefined;
     return {
       kind: 'run_case',
       caseId: c.caseId,
       output: 실행.text,
       identity: 실행.identity,
       // undefined = 아직 **못 물어봤다**(판정 불가와 다르다). 실행 증거는 이미 났으니 버리지 않는다.
-      verdict: 판정.ok ? 판정으로(c, 실행.text, 판정.text) : undefined,
+      verdict,
       // 못 물어본 이유가 예산이면 미룬 것이고, 호출이 깨진 것이면 실패다 — 갈라서 전한다.
       ...(판정.ok ? {} : { judgeFail: 판정.reason }),
+      ...(verdict === null ? { 판정관측: 판정관측만들기(c, 판정, 판정틀) } : {}),
     };
   }
   if (action === 'judge_case') {
@@ -822,13 +897,24 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
     // **못 물어본 것**(예산 소진·호출 실패)과 물어봤는데 못 읽은 것은 다른 사실이다.
     // 앞엣것을 "판정 불가"로 굳히면 예산 상한이 그대로 표본 상실이 된다.
     if (!판정.ok) return { kind: 'judge_case', caseId: c.caseId, fail: 판정.reason };
-    return { kind: 'judge_case', caseId: c.caseId, verdict: 판정으로(c, c.outputPreview ?? '', 판정.text) };
+    const 판정틀 = {};
+    const verdict = 판정으로(c, c.outputPreview ?? '', 판정.text, 판정틀);
+    return {
+      kind: 'judge_case',
+      caseId: c.caseId,
+      verdict,
+      ...(verdict === null ? { 판정관측: 판정관측만들기(c, 판정, 판정틀) } : {}),
+    };
   }
   return { kind: 'finish' };
 }
 
 /** 결과를 상태에 반영한다. 모델을 부르지 않는다(자물쇠 안이다). */
 function 반영(m, job, 계획, 나온것, now) {
+  // 관측은 결말과 무관하게 먼저 남는다 — 접힌 회차(proposal_short·판정 불가)일수록 이 기록이
+  // 존재 이유다. 판정에는 쓰지 않는다(행동 변화 0).
+  if (나온것.관측) 관측기록(m, { jobId: job.jobId, round: job.round ?? 0, ...나온것.관측 }, now);
+  if (나온것.판정관측) 관측기록(m, { jobId: job.jobId, round: job.round ?? 0, ...나온것.판정관측 }, now);
   if (나온것.kind === 'propose') {
     if (나온것.묶음없음) {
       // 묶음이 없어진 job 은 회차를 더 써도 배울 게 없다 — 종단으로 닫는다(자동 부활 없음).

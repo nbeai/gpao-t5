@@ -1728,3 +1728,161 @@ test('S4: 검증되지 않은 negative 사례는 비적용 신호가 되지 않�
   const 후보 = 마지막원리(await memStore.load());
   assert.equal((후보.scopeSignals?.notWhen ?? []).includes('표로 보여달라고 명시했다'), false);
 });
+
+// ── 관측 배선(오너 승인 순서 2) — 행동 변화 0, 제안·판정의 원시 사실을 남긴다 ──────────
+// 봉인 4세트(r1~r40)에서 proposal_short 재출현(r39)과 판정 불가 잔존의 원인을 원시로
+// 가를 수 없었다: 제안·판정 원문이 저장되지 않아 절단/미생성/파서 손실이 전부 추정이었다.
+// 여기 검사들은 관측이 **없으면 실패**한다 — 관측 없이 다음 원인 논의를 다시 열지 않는다.
+
+test('관측: 완전 JSON 제안이 파싱·생성·채택·digest·발췌와 함께 남는다', async () => {
+  const memStore = await 준비();
+  const 본문 = 제안();
+  const { modelFor } = 대본모델({ 제안본문: 본문, 신분값: (n) => 신분({ finishReason: 'stop' }) });
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const m = await memStore.load();
+  const 관측 = (m.growObservations ?? []).filter((o) => o.용도 === 'proposal');
+  assert.equal(관측.length, 1, '제안 1회에 관측 1건이 남아야 한다');
+  const o = 관측[0];
+  assert.equal(o.파싱, 'json', '완전 JSON 은 json 으로 분류된다');
+  assert.equal(o.생성?.positive, 2);
+  assert.equal(o.생성?.boundary, 2);
+  assert.equal(o.채택?.boundary, 2);
+  assert.equal(o.응답문자수, 본문.length);
+  assert.ok(o.digest, '원문 digest 가 있어야 한다');
+  // 오너 지시 ① 재계약: 원문 발췌는 저장하지 않는다 — 공용 경계가 맨 번호를 못 잡는 것이
+  // 실측이라, durable 원문의 안전을 증명할 수 없다. 메타데이터가 곧 관측이다.
+  assert.equal(o.원문발췌, undefined, '원문 발췌는 durable 에 없다');
+  assert.equal(o.finishReason, 'stop', '신분의 finishReason 이 관측에 실린다');
+});
+
+test('관측: 절단된 제안은 파싱=salvaged 로 남는다 — 절단과 미생성이 원시로 갈린다', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({ 제안본문: 제안().slice(0, -2) }); // 닫는 "]}" 를 자른 절단
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const m = await memStore.load();
+  const o = (m.growObservations ?? []).find((x) => x.용도 === 'proposal');
+  assert.ok(o, '절단 제안도 관측은 남는다');
+  assert.equal(o.파싱, 'salvaged');
+});
+
+test('관측: proposal_short 회차에 종류별 생성 0 이 남는다 — r39 재출현의 구분 근거', async () => {
+  const memStore = await 준비();
+  // boundary 를 아예 내지 않은 완전 응답 — "완전 JSON + 생성 0" 은 미생성 확정이다.
+  const 본문 = JSON.stringify({
+    statement: '월별 정리는 짧은 목록으로 한다',
+    cases: [
+      { kind: 'positive', inputFacts: ['7월 지출 정리 요청'], expectedFacts: ['짧은 목록'] },
+      { kind: 'positive', inputFacts: ['8월 지출 정리 요청'], expectedFacts: ['짧은 목록'] },
+      { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['표로 준다'] },
+    ],
+  });
+  const { modelFor } = 대본모델({ 제안본문: 본문 });
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  assert.match(String(r.reason ?? ''), /proposal_short/);
+  const m = await memStore.load();
+  const o = (m.growObservations ?? []).find((x) => x.용도 === 'proposal');
+  assert.ok(o, 'proposal_short 로 접힌 회차에도 관측은 남아야 한다');
+  assert.equal(o.파싱, 'json');
+  assert.equal(o.생성?.boundary ?? 0, 0, '완전 응답에 boundary 생성 0 — 미생성 확정');
+});
+
+test('관측: 판정 불가(무근거 충족 주장)의 원문·항목·불가 이유가 남는다', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({
+    판정: () => JSON.stringify({
+      required: [{ i: 0, met: true, evidence: '지어낸근거조각' }],
+      forbidden: [{ i: 0, appeared: false }],
+      rationale: '지켰다',
+    }),
+  });
+  await 끝까지({ memStore, modelFor });
+  const m = await memStore.load();
+  const 관측 = (m.growObservations ?? []).filter((o) => o.용도 === 'judge');
+  assert.ok(관측.length >= 1, '판정 불가가 났으면 판정 관측이 남아야 한다');
+  const o = 관측[0];
+  assert.match(String(o.불가이유 ?? ''), /required_0_unevidenced/);
+  // 원문 발췌 대신 항목별 응답(가림 적용)이 남는다 — 지어낸 근거가 무엇이었는지는 여기서 읽는다.
+  assert.equal(String(o.항목?.required?.[0]?.evidence ?? ''), '지어낸근거조각');
+  assert.ok(Array.isArray(o.항목?.required), '항목별 응답이 남는다');
+});
+
+test('관측: 민감값이 든 원문은 발췌를 보존하지 않는다 — digest·개수는 남는다', async () => {
+  const memStore = await 준비();
+  // 민감 경계는 승격·관찰 레인과 **같은 탐지기**다(축소도 확대도 금지) — 그 경계가 실제로
+  // 잡는 형태(자격 라벨 + 값)로 검사한다. 맨 카드번호는 이 공용 경계 밖이라는 사실도
+  // 이 시험이 기록하는 진실의 일부다.
+  const 본문 = 제안({
+    cases: [
+      { kind: 'positive', inputFacts: ['비밀번호는 hunter2xx 라고 말했다'], expectedFacts: ['정리한다'] },
+      { kind: 'positive', inputFacts: ['8월 지출 정리 요청'], expectedFacts: ['짧은 목록'] },
+      { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['표로 준다'] },
+      { kind: 'boundary', inputFacts: ['계산 요청이다'], expectedFacts: ['계산한다'] },
+      { kind: 'boundary', inputFacts: ['한 줄 질문이다'], expectedFacts: ['한 줄로 답한다'] },
+    ],
+  });
+  const { modelFor } = 대본모델({ 제안본문: 본문 });
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const m = await memStore.load();
+  const o = (m.growObservations ?? []).find((x) => x.용도 === 'proposal');
+  assert.ok(o);
+  assert.equal(JSON.stringify(m.growObservations).includes('hunter2xx'), false, '민감 원문은 관측 어디에도 없다');
+  assert.ok(o.digest, 'digest 는 남는다');
+  assert.equal(o.생성?.positive, 2, '개수는 남는다');
+});
+
+test('관측: 저장은 개수 상한 + 기록 시점 정리 기준 안에서만 산다(상시 만료 아님)', async () => {
+  const memStore = await 준비();
+  const memory = await memStore.load();
+  const 하루 = 24 * 60 * 60 * 1000;
+  memory.growObservations = [
+    // 60건 상한을 채운 신선한 항목 + 기록 시 정리 기준(30일)을 넘긴 1건
+    ...Array.from({ length: 60 }, (_, i) => ({ at: 100_000 - i, 용도: 'proposal', digest: `d${i}` })),
+    { at: 100_000 - 40 * 하루, 용도: 'proposal', digest: 'too-old' },
+  ];
+  await memStore.save(memory);
+  const { modelFor } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const m = await memStore.load();
+  const obs = m.growObservations ?? [];
+  assert.ok(obs.length <= 60, `상한 60 을 넘었다: ${obs.length}`);
+  assert.equal(obs.some((o) => o.digest === 'too-old'), false, '기록 시점에 기준 지난 관측은 지워진다');
+  assert.ok(obs.some((o) => o.용도 === 'proposal' && o.파싱), '새 관측은 남는다');
+});
+
+test('관측①: 라벨 없는 맨 카드번호가 제안 응답에 있어도 durable 관측에 원문이 없다', async () => {
+  const memStore = await 준비();
+  // 공용 경계(containsSensitiveValue)는 라벨 없는 맨 번호를 잡지 못한다 — 실측. 그래서 관측은
+  // 원문을 저장하지 않는다(메타데이터만). 이 시험이 그 계약이다(오너 지시 ①).
+  const 본문 = 제안({
+    cases: [
+      { kind: 'positive', inputFacts: ['카드 4111-1111-1111-1111 로 결제했다'], expectedFacts: ['정리한다'] },
+      { kind: 'positive', inputFacts: ['8월 지출 정리 요청'], expectedFacts: ['짧은 목록'] },
+      { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['표로 준다'] },
+      { kind: 'boundary', inputFacts: ['계산 요청이다'], expectedFacts: ['계산한다'] },
+      { kind: 'boundary', inputFacts: ['한 줄 질문이다'], expectedFacts: ['한 줄로 답한다'] },
+    ],
+  });
+  const { modelFor } = 대본모델({ 제안본문: 본문 });
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const m = await memStore.load();
+  assert.ok((m.growObservations ?? []).length >= 1, '관측은 남는다');
+  assert.equal(JSON.stringify(m.growObservations).includes('4111-1111'), false,
+    '맨 카드번호 원문이 관측 어디에도 없어야 한다');
+});
+
+test('관측①: 판정 근거에 든 맨 번호는 가려져 저장된다 — 근거 구조는 남는다', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({
+    판정: () => JSON.stringify({
+      required: [{ i: 0, met: true, evidence: '카드 4111-1111-1111-1111 정리' }],
+      forbidden: [{ i: 0, appeared: false }],
+      rationale: '지켰다',
+    }),
+  });
+  await 끝까지({ memStore, modelFor });
+  const m = await memStore.load();
+  const o = (m.growObservations ?? []).find((x) => x.용도 === 'judge');
+  assert.ok(o, '판정 불가 관측은 남는다');
+  assert.equal(JSON.stringify(m.growObservations).includes('4111-1111'), false, '맨 번호는 가려진다');
+  assert.match(String(o.항목?.required?.[0]?.evidence ?? ''), /####/, '가림 표식이 남아 구조는 읽힌다');
+});

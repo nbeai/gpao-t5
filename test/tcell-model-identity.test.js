@@ -274,3 +274,27 @@ test('S4: 계정 경로가 응답 model 을 보고하지 않으면 미보고로 
   assert.equal(verifyCallIdentity(idn).ok, true, '실행 자체는 유효하다');
   assert.equal(verifyCallIdentity(idn).responseIdentityVerified, false, '응답 신분은 검증됐다고 하지 않는다');
 });
+
+// ── 관측 배선(오너 승인 순서 2): finish_reason 은 실제 응답 원문에서 나온다 ──────────
+test('관측: 어댑터가 응답의 finish_reason 을 호출 사실에 싣는다', async () => {
+  const store = await tmp();
+  const calls = [];
+  const impl = async (url, init) => {
+    calls.push({ url, init });
+    if (url.includes('/models') && !url.includes(':generateContent')) {
+      return { status: 200, json: async () => ({ data: [{ id: 'gpt-5.1' }] }) };
+    }
+    return {
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: '응답' }, finish_reason: 'length' }],
+        model: 'gpt-5.1', usage: { total_tokens: 7 },
+      }),
+    };
+  };
+  const mc = makeModelConnection({ env: {}, processEnv: {}, store, fetchImpl: impl });
+  const 연결 = await mc.connect({ provider: 'openai', key: 'sk-x' });
+  assert.equal(연결.connected, true, '픽스처 연결이 서야 신분 검사가 의미 있다');
+  const idn = await 신분받기(mc, 'growth');
+  assert.equal(idn.finishReason, 'length', '절단(length)이 신분 사실로 보고된다');
+});

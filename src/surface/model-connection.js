@@ -336,6 +336,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
             responseModelId: 실제?.responseModelId ?? null,
             responseIdentitySource: 실제?.responseIdentitySource ?? 'not_reported',
             usage: 실제?.usage ?? null,
+            finishReason: 실제?.finishReason ?? null,
             startedAt,
             finishedAt: Date.now(),
           });
