@@ -791,16 +791,14 @@ AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유�
 ### 작업선 원장 (병렬 배치 1 · 2026-08-01)
 
 ```text
-A-H08 | 파일 탐색·최종본 판별·원본 보존 | 활성 worktree 2개 중 역할 매핑 대기 | local-locate.js local-file.js file-scope.js + 해당 test + 신규 H08 검사 | local-protection.js recovery-ladder.js(서명 동결) | H08 종료 조건 §5 | 작업 중
-B-H09 | 실패 분류·손 전환·거짓 성공 차단 | 활성 worktree 2개 중 역할 매핑 대기 | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | 작업 중
+A-H08 | 파일 탐색·최종본 판별·원본 보존 | worktree-agent-a0585b451f0f633f3 | local-locate.js local-file.js file-scope.js + 해당 test + 신규 H08 검사 | local-protection.js recovery-ladder.js(서명 동결) | H08 종료 조건 §5 | 작업 중
+B-H09 | 실패 분류·손 전환·거짓 성공 차단 | worktree-agent-aa656316cf7a90bf7 | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | 작업 중
 C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | 작업 중
 D-AC2 | AC-2 delta 표 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 | delta 표 1장 | **완료·채택** — 텍스트 충돌 0·의미 드리프트 3축(replay 증거는 tcell-replay 계약으로 재구현, 민감 2층·authority 대조 부재), skills.json v1/v2 이중 저장 절단은 본선 소유, 즉시 폐기 5건 목록 확보
 본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | server.js tool-runner.js turn.js live-context.js descriptor·authority 진행표 인수인계 | — | 배치 1 봉인 | 작업 중
 ```
-실제 활성 worktree 는 `worktree-agent-a0585b451f0f633f3`와
-`worktree-agent-aa656316cf7a90bf7`이다. 현재 둘 다 첫 커밋 전의 깨끗한 상태라 A-H08/B-H09를
-증거로 구분할 수 없다. 본선은 첫 커밋을 받기 전에 실제 브랜치와 역할을 이 원장에 매핑하며,
-매핑 전에는 어느 쪽도 통합하지 않는다.
+실제 작업 파일로 역할을 확인했다. A-H08은 신규 `h08-quote-final` 검사와 H08 소유 파일을,
+B-H09는 H09 소유 파일만 다룬다. 본선은 이 매핑과 파일 소유권을 대조한 뒤에만 통합한다.
 
 3. H07 민감정보 관찰 경계 보강은 정본에 병합됐다(`773760e` → `7a07233`). 감사 sidecar 를
    닫은 뒤 회귀 **1598/1598** · 돌연변이 **135/135** · plan/docs/workspace 게이트 PASS로
