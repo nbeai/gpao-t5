@@ -928,6 +928,14 @@ function 반영(m, job, 계획, 나온것, now) {
       c.phase = 'ran';
       c.outputPreview = 나온것.output;
       if (나온것.judgeFail) { 미룸(job, 나온것.judgeFail, now); return { ran: 1, reason: 나온것.judgeFail }; }
+    } else if (나온것.verdict === null && (c.재판정수 ?? 0) < 1) {
+      // 판정 불가(근거 불량)는 **한 번 다시 묻는다**(횟수 1·시계 0). 호출 실패는 다시 묻는데
+      // 근거 불량은 곧바로 굳는 비대칭이 표본을 잠식했다(진단 r22~r24 실측 — r24 는 boundary
+      // 판정 불가 하나가 표본 부족 소진을 만들었다). 판정 불가를 표본으로 인정하는 것이 아니라
+      // 물을 기회를 한 번 더 주는 것이다 — 재판정도 불가면 그대로 굳는다.
+      c.재판정수 = (c.재판정수 ?? 0) + 1;
+      c.phase = 'ran';
+      c.outputPreview = 나온것.output;
     } else {
       c.phase = 'judged';
       c.verdict = 나온것.verdict; // 판정 불가는 null 로 남고, null 은 표본으로 세지 않는다
@@ -942,6 +950,13 @@ function 반영(m, job, 계획, 나온것, now) {
     const c = job.cases.find((x) => x.caseId === 나온것.caseId);
     if (!c) return { reason: 'case_gone' };
     if (나온것.fail) { 미룸(job, 나온것.fail, now); return { reason: 나온것.fail }; }
+    if (나온것.verdict === null && (c.재판정수 ?? 0) < 1) {
+      c.재판정수 = (c.재판정수 ?? 0) + 1; // 판정 불가 1회 재질문 — run_case 쪽과 같은 계약
+      job.failures = 0;
+      job.nextAttemptAt = 0;
+      job.updatedAt = now;
+      return { rejudge: 1 };
+    }
     c.phase = 'judged';
     c.verdict = 나온것.verdict;
     delete c.outputPreview;

@@ -307,7 +307,16 @@ test('S4: 멈추는 것은 시간이 아니라 회차 상한이다', async () =>
     const modelFor = (role) => ({
       async respond(tc, opts) {
         const q = String(tc.currentRequest);
-        if (q.includes('기대 사실:')) { opts?.onCallIdentity?.(신분()); return '{"pass":false,"rationale":"안 지켰다"}'; }
+        if (q.includes('기대 사실:')) {
+          opts?.onCallIdentity?.(신분());
+          const 필수수 = (q.match(/^필수 \d+\./gm) ?? []).length;
+          const 금지수 = (q.match(/^금지 \d+\./gm) ?? []).length;
+          return JSON.stringify({
+            required: Array.from({ length: 필수수 }, (_, i) => ({ i, met: false })),
+            forbidden: Array.from({ length: 금지수 }, (_, i) => ({ i, appeared: false })),
+            rationale: '안 지켰다',
+          });
+        }
         return 늘실패.modelFor(role).respond(tc, opts);
       },
     });

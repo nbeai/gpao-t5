@@ -341,6 +341,10 @@ export const MUTATIONS = [
     찾기: "      if (ev && 답.includes(ev)) { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }",
     바꾸기: "      { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }" },
 
+  { 이름: '판정 불가 재질문 제거(근거 불량이 곧바로 표본 상실)', 파일: GROW, 검사: T_GROW,
+    찾기: "    } else if (나온것.verdict === null && (c.재판정수 ?? 0) < 1) {",
+    바꾸기: '    } else if (false) {' },
+
   // ── H02 판정 계약 구조화 — 필수/허용/금지 ────────────────────────────────
   { 이름: '허용 계약을 판정에 안 실음(재량이 다시 산문 해석으로 돌아감)', 파일: GROW, 검사: T_GROW,
     찾기: "    ...(c.allowedFacts?.length ? [\n      `허용 사실(판정 항목이 아니다 — 수행해도, 생략해도 어느 쪽도 세지 않는다): ${c.allowedFacts.join(' / ')}`,\n    ] : []),",

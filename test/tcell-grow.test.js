@@ -332,7 +332,7 @@ test('S4: 표본이 모자라면 통과가 아니다(positive 1건짜리 제안 
 test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 불가는 통과가 아니다)', async () => {
   const memStore = await 준비();
   const { modelFor } = 대본모델({
-    판정: (k, req) => (k === 1 ? '음… 판단이 어렵네요.' : 판정대본(req)),
+    판정: (k, req) => (k <= 2 ? '음… 판단이 어렵네요.' : 판정대본(req)), // 재판정 1회까지 불가여야 굳는다
   });
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
@@ -343,7 +343,7 @@ test('S4: 판정을 못 읽으면 그 케이스는 표본이 아니다(판정 �
 // ── 감사 지적 3: 실패한 묶음을 영구히 닫지 않는다 ──────────────────────────
 test('S4: suite 불통과는 묶음을 닫지 않는다(다음 tick 에 다음 회차를 연다)', async () => {
   const memStore = await 준비();
-  const 실패 = 대본모델({ 판정: () => '{"pass":false,"rationale":"안 지켰다"}' });
+  const 실패 = 대본모델({ 판정: (k, req) => 판정대본(req, { 미충족필수: [0] }) });
   const { 기록, now } = await 끝까지({ memStore, modelFor: 실패.modelFor });
   assert.equal(기록[기록.length - 1].pass, false);
 
@@ -365,7 +365,7 @@ test('S4: 회차를 다 쓰면 종단이고, 종단은 저절로 되살아나지
   const memStore = await 준비();
   let now = 100_000;
   for (let round = 0; round < GROW_CAPS.maxRounds; round += 1) {
-    const 실패 = 대본모델({ 판정: () => '{"pass":false,"rationale":"안 지켰다"}' });
+    const 실패 = 대본모델({ 판정: (k, req) => 판정대본(req, { 미충족필수: [0] }) });
     const r = await 끝까지({ memStore, modelFor: 실패.modelFor, 시작: now });
     now = r.now; // 회차 사이에 어떤 대기도 없다
   }
@@ -1312,6 +1312,40 @@ test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest �
     '축자만 있는 사례의 판정력이 인정되지 않는다');
 });
 
+test('H02·v3: 판정 불가는 한 번 다시 묻는다 — 근거 불량이 곧바로 표본 상실이 되지 않는다', async () => {
+  // 진단 r22~r24 실측: 판정 모델이 근거를 빠뜨린 항목(판정 불가)이 회차마다 1~2건 나왔고,
+  // 재판정 기회 없이 null 로 굳어 표본을 잠식했다(r24 는 boundary 표본 부족으로 소진).
+  // 호출 실패는 다시 묻는데 근거 불량은 안 묻는 비대칭 — 재판정 1회(횟수, 시계 0)로 닫는다.
+  const memStore = await 준비();
+  let 근거누락남음 = 1;
+  const { modelFor, calls } = 대본모델({
+    판정: (k, req) => {
+      if (근거누락남음 > 0) { 근거누락남음 -= 1; return '{"required":[{"i":0,"met":true}],"forbidden":[{"i":0,"appeared":false}],"rationale":"근거 없음"}'; }
+      return 판정대본(req);
+    },
+  });
+  await 끝까지({ memStore, modelFor });
+  const m = await memStore.load();
+  assert.equal(m.growJobs[0].state, 'passed', '근거 불량 한 번이 표본 상실로 굳었다');
+  assert.equal(calls.filter((c) => c.request.includes('기대 사실:')).length, 6, '판정 불가를 한 번 다시 묻는다(5+1)');
+});
+
+test('H02·v3: 재판정도 불가면 굳는다 — 무한 재질문 없음, 판정 불가는 표본이 아니다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({
+    판정: (k, req) => (k <= 2
+      ? '{"required":[{"i":0,"met":true}],"forbidden":[{"i":0,"appeared":false}],"rationale":"근거 없음"}'
+      : 판정대본(req)),
+  });
+  await 끝까지({ memStore, modelFor });
+  const m = await memStore.load();
+  const nulls = m.growJobs.flatMap((j) => j.cases ?? []).filter((c) => c.phase === 'judged' && c.verdict === null);
+  const 저장null = (m.replayCases ?? []).filter((c) => c.verdict === null);
+  assert.ok(nulls.length + 저장null.length >= 1, '두 번 연속 판정 불가가 굳지 않고 계속 물었다');
+  const 판정호출 = calls.filter((c) => c.request.includes('기대 사실:')).length;
+  assert.ok(판정호출 <= 7, `재판정이 1회 한정을 넘었다: ${판정호출}`);
+});
+
 // ── H02 판정 계약 구조화 — 필수/허용/금지를 저장 가능한 계약으로 ────────────
 //
 // 재봉인 실측(r8·r11): 남은 실패의 절반이 판정의 자의 해석이었다 — expectedFacts 의
@@ -1574,7 +1608,7 @@ test('S4: 통과한 후보는 **검증된 사례**를 입장 판정용으로 함
 test('S4: 검증되지 않은 negative 사례는 비적용 신호가 되지 않는다', async () => {
   const memStore = await 준비();
   // negative 판정을 못 읽게 만든다 — 검증 안 된 사례는 신호로 쓰면 안 된다.
-  const { modelFor } = 대본모델({ 판정: (k, req) => (k === 3 ? '판정 불가' : 판정대본(req)) });
+  const { modelFor } = 대본모델({ 판정: (k, req) => (k === 3 || k === 4 ? '판정 불가' : 판정대본(req)) }); // 재판정까지 불가
   await 끝까지({ memStore, modelFor });
   const 후보 = 마지막원리(await memStore.load());
   assert.equal((후보.scopeSignals?.notWhen ?? []).includes('표로 보여달라고 명시했다'), false);
