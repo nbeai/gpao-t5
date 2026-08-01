@@ -69,3 +69,47 @@ test('읽기사실: 무엇을 실제로 봤고 무엇을 못 봤는지가 사용
   assert.match(사실.못본것[0].왜 ?? '', /못했|않았|없|문제/, '못 본 이유가 사람 말로 없다');
   assert.doesNotMatch(JSON.stringify(사실), /ENOENT|stack/, '진단면이 사실 공급에 샜다');
 });
+
+// ── 본선 배선(통합 창): 경계 함수가 실제 턴 답 확정 지점을 관통하는가 ──────────────
+// B 작업선은 경계와 검사만 만들 수 있었다(turn.js 는 본선 전담). 이 시험이 관통을 못박는다.
+import { makeServer } from '../src/surface/server.js';
+import { SessionStore } from '../src/surface/session-store.js';
+import { EventLog } from '../src/surface/event-log.js';
+import { MemoryStore } from '../src/surface/memory-store.js';
+import { mkdtemp as mkdtemp2 } from 'node:fs/promises';
+import { tmpdir as tmpdir2 } from 'node:os';
+import { join as join2 } from 'node:path';
+
+test('관통: 읽기 전패 턴에서 모델이 내용을 서술하면 정직한 답으로 대체된다', async () => {
+  const { demoTools, demoEnv } = await import('../src/surface/demo-context.js');
+  const dir = await mkdtemp2(join2(tmpdir2(), 'gpao-h09-wire-'));
+  const server = makeServer({
+    store: new SessionStore(dir), eventLog: new EventLog(dir), memStore: new MemoryStore(dir), env: demoEnv(),
+    tools: demoTools({
+      localFile: {
+        isFixture: true,
+        async handler() {
+          return { blocked: true, userSafeSummary: '그 파일은 열지 못했어요.', nextSafeAction: '다른 폴더를 짚어 주세요.' };
+        },
+      },
+    }),
+    model: {
+      async respond(tc, opts = {}) {
+        // 1차: 도구 선택 → 2차: 실패에도 내용을 지어냄(거짓 성공 시도)
+        if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.csv' } }] };
+        return '파일 내용은 다음과 같습니다: 매출 1200, 비용 800 입니다.';
+      },
+    },
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (p, b) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}) }).then((r) => r.json());
+  try {
+    const s = await post('/sessions');
+    const 답 = await post('/turn', { sessionId: s.id, text: '견적서.csv 읽어서 내용 알려줘' });
+    if (String(답.reply ?? '').includes('매출 1200') || !/열지 못했|다른 폴더/.test(String(답.reply ?? ''))) console.log('실제 답:', JSON.stringify(답.reply).slice(0, 200));
+    assert.equal(String(답.reply ?? '').includes('매출 1200'), false, '읽지 못한 내용 서술이 그대로 나가면 P0 다');
+    assert.ok(String(답.reply ?? '').trim().length > 0, '빈 답 금지');
+    assert.match(String(답.reply ?? ''), /열지 못했|다른 폴더/, '영수증의 정직한 사실로 답한다');
+  } finally { server.close(); }
+});

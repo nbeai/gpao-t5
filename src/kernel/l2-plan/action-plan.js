@@ -15,7 +15,8 @@ export function fileKind(fileOp) {
     // 옮기기·되돌리기도 **사용자 파일을 바꾼다**. organize(A1 자동 진행)로 두었더니 "옮겨줘" 한 마디에
     // 승인 없이 파일이 사라졌다(감사 실증). 사용자 체감은 삭제와 같다 — 안전 바닥으로 올린다.
     case 'write': case 'move': case 'undo': return 'write';
-    case 'read': case 'list': return 'read';
+    // versions 는 읽기 전용 판별(같은 이름 식구의 시각·내용 대조)이다 — 파일을 바꾸지 않는다.
+    case 'read': case 'list': case 'versions': return 'read';
     // **모르면 read 로 흘리지 않는다.** fileOp 가 없는 경로(스킬이 도구만 밀어 넣는 경우)에서
     // read 로 떨어져 삭제가 승인 없이 실행됐다. 미상은 승인으로 간다.
     default: return UNKNOWN_KIND;

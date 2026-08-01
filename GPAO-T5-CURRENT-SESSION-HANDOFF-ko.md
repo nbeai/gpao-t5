@@ -795,7 +795,9 @@ A-H08 | 파일 탐색·최종본 판별·원본 보존 | worktree-agent-a0585b45
 B-H09 | 실패 분류·손 전환·거짓 성공 차단 | worktree-agent-aa656316cf7a90bf7 | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | 작업 중
 C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | **완료·채택** — 7항목 전수 발견, ★5(undo 범위 밖 실행·turnNo 인플레·걸음 blocked 미기록·~/Library 무보호·discovery 무경계). 분류: A범위 5건·B범위 4건·본선 파일 5건(turn.js 지문·답-영수증 대조·fold·turnNo·blocked)·통합 후 후속 6건·회색 4건 — A·B 통합 창에서 소화
 D-AC2 | AC-2 delta 표 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 | delta 표 1장 | **완료·채택** — 텍스트 충돌 0·의미 드리프트 3축(replay 증거는 tcell-replay 계약으로 재구현, 민감 2층·authority 대조 부재), skills.json v1/v2 이중 저장 절단은 본선 소유, 즉시 폐기 5건 목록 확보
-본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | server.js tool-runner.js turn.js live-context.js descriptor·authority 진행표 인수인계 | — | 배치 1 봉인 | 작업 중
+본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | turn.js action-plan.js demo-context.js 문서 | — | 배치 1 봉인 | **배선 완료** — fileKind versions→read · descriptor(versions·source·루트) · 읽은척차단 관통(답완성 + 미리보기정렬 후 재차단: P0 가 화면 정렬보다 셈) · 집중 109/109
+
+**배치 1 잔여(다음 세션)**: ① 전체 회귀·스윕 결과 확인(백그라운드 실행 중이었음 — 반드시 재확인) ② H08 제품 관통 1회 실측: Downloads 탐색·읽기 성공(기준선 3/3 실패 대비 최초)·원본 무변경·카드 0, 회색 2건 — 모델이 versions 대신 이름('최종')으로 선택 + 결과물 별도 파일 미생성(인라인 정리) → 판정 회차 설계에 반영 ③ C 감사 잔여(본선 파일: turn.js 지문 action 미포함 F3.2·걸음 blocked 미전달 F6.2·turnNo F6.1 / A파일 후속: undo 범위 밖 F5.1★) ④ H08~H09 판정 회차 + Codex 독립 감사
 ```
 실제 작업 파일로 역할을 확인했다. A-H08은 신규 `h08-quote-final` 검사와 H08 소유 파일을,
 B-H09는 H09 소유 파일만 다룬다. 본선은 이 매핑과 파일 소유권을 대조한 뒤에만 통합한다.

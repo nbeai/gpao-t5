@@ -24,7 +24,7 @@ import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from './l2-plan/model-control.js';
-import { nextRung, rungMessage } from './l2-plan/recovery-ladder.js';
+import { nextRung, rungMessage, 읽은척차단 } from './l2-plan/recovery-ladder.js';
 import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
 import { resolveResponseSurface } from './l0-evidence/response-surface.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
@@ -210,6 +210,11 @@ function 이전대기를지난것으로(ctx) {
  * 기다린 자리에서 제일 늦게 본다.
  */
 async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
+  // H09 P0(거짓 성공): 이번 턴 읽기가 전패했는데 답이 내용을 서술하면, 그 답 대신 영수증의
+  // 정직한 사실이 나간다. 판정 근거는 원장이다 — 성공 영수증이 하나라도 있으면 개입하지 않는다
+  // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
+  const 거짓성공 = 읽은척차단(receipts, reply);
+  if (거짓성공?.blocked) return 거짓성공.정직한답;
   if (String(reply ?? '').trim()) return reply;
   const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
@@ -1240,6 +1245,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts });
   // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
   reply = 미리보기정렬(reply, ctx.미리보기);
+  // H09 P0 는 화면 정렬보다 세다: 스트리밍으로 이미 나간 거짓 서술을 정렬이 되살리면, 지속되는
+  // 답에서만큼은 원장의 정직한 사실이 이긴다(나간 조각 보존 계약의 유일한 예외 — 거짓 성공).
+  const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply);
+  if (거짓성공정렬후?.blocked) reply = 거짓성공정렬후.정직한답;
   const projection = projectReceipts(turnReceipts);
 
   // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤
