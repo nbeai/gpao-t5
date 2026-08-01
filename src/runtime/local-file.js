@@ -190,9 +190,15 @@ export function makeLocalFileTool(deps = {}) {
             : '"되돌려줘"로 되살릴 수 있어요',
       };
     },
-    async handler(args = {}) {
+    async handler(args = {}, executionContext = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');
       const target = args.path ?? '.';
+      // locate·자식 authority가 확인한 범위는 읽기 계열에만 합친다. 쓰기·이동·삭제·undo는
+      // 기존 정적 roots만 보므로 탐색 성공이 파일 변경 권한으로 승격되지 않는다.
+      const readOnly = action === 'list' || action === 'read' || action === 'versions';
+      const activeRoots = readOnly
+        ? [...new Set([...roots, ...(executionContext.readScopeRoots ?? [])])]
+        : roots;
       try {
         await ensureRoot(roots);
 
@@ -266,7 +272,7 @@ export function makeLocalFileTool(deps = {}) {
           );
         }
 
-        const abs = await resolveInScope(target, { roots, home });
+        const abs = await resolveInScope(target, { roots: activeRoots, home });
         // P6-L1: **범위 안이어도 보호 영역은 막는다.** 루트를 넓혀도 여기는 안 열린다 —
         // 안전이 "좁은 루트"에서 나오던 구조를 대체하는 자리다(게이트가 불변식으로 검사한다).
         // secret 은 읽기까지, system 은 변경만 막는다(뭉뚱그리면 아무것도 못 하는 도구가 된다).

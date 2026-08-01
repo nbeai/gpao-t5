@@ -21,6 +21,15 @@ function withSubject(rec, tool) {
   if (!s || !s.key || !s.kind || !s.label) return rec;
   return { ...rec, subject: s };
 }
+
+/** 도구가 실제 결과에서 파생한 같은 턴 읽기 범위를 영수증에 붙인다. */
+async function withReadScope(rec, tool, executionContext) {
+  let roots;
+  try { roots = await tool.readScopeOf?.(rec, executionContext); } catch { return rec; }
+  if (!Array.isArray(roots)) return rec;
+  const clean = [...new Set(roots.filter((root) => typeof root === 'string' && root.trim()))];
+  return clean.length ? { ...rec, readScopeRoots: clean } : rec;
+}
 import { isToolExecutable } from '../kernel/l0-evidence/self-state.js';
 import { assertWebEvidence } from '../kernel/l2-plan/web-tool.js';
 import { FAILURE } from '../kernel/contracts.js';
@@ -39,7 +48,7 @@ export class ToolRunner {
    * @param {import('../kernel/contracts.js').SelfStateSnapshot} selfState
    * @returns {Promise<import('../kernel/contracts.js').ToolReceipt>}
    */
-  async run(toolId, args, selfState) {
+  async run(toolId, args, selfState, executionContext = {}) {
     const intended = `${toolId} 실행`;
 
     // 1) SelfState 실행 가능 게이트: 목록에 있어도 executable=false 면 호출하지 않는다.
@@ -59,7 +68,7 @@ export class ToolRunner {
 
     // 2) 실제 호출. 실패는 failureState 로 정직하게, 원인은 진단면으로 분리.
     try {
-      const out = await tool.handler(args);
+      const out = await tool.handler(args, executionContext);
       // 출처 원장 필수 도구(웹 등)는 계약을 런타임이 강제한다 — handler 관례에 맡기지 않는다(감사 보정 1).
       // 출처 없는 성공·내용 담은 실패는 계약 위반이므로 failed로 떨어뜨린다("못 본 걸 본 척" 차단).
       if (tool.sourceLedgerRequired) {
@@ -101,7 +110,7 @@ export class ToolRunner {
           nextSafeAction: out.nextSafeAction ?? '잠시 후 다시 시도할까요?',
         });
       }
-      return withSubject(receipt({
+      const rec = withSubject(receipt({
         intended,
         actualCall: { tool: toolId, args },
         result: out?.result ?? out,
@@ -111,6 +120,7 @@ export class ToolRunner {
         connectionDiscovery: out?.connectionDiscovery,
         userSafeSummary: out?.userSafeSummary ?? `${toolId} 실행 완료.`,
       }), tool);
+      return withReadScope(rec, tool, executionContext);
     } catch (err) {
       return receipt({
         intended,

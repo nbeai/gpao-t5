@@ -170,7 +170,11 @@ export function scopedAgentTools(base, scope, budget, signal, heartbeat, runtime
       const estimatedCost = Number(implementation?.estimatedCost ?? implementation?.cost ?? 0);
       budget.consumeStep({ cost: Number.isFinite(estimatedCost) && estimatedCost >= 0 ? estimatedCost : 0 });
       await heartbeat();
-      return base.run(id, args, selfState);
+      return base.run(id, args, selfState, {
+        // 부모가 봉인한 workspaceRoots는 자식의 읽기 손에만 전달된다. local.file은 이 값을
+        // write/move/delete 범위로 사용하지 않는다.
+        readScopeRoots: scope.workspaceRoots,
+      });
     },
   };
 }

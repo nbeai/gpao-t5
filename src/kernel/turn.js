@@ -975,12 +975,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   const turnReceipts = [];
+  const 실행문맥 = () => ({
+    currentRequest: intent.currentRequest,
+    readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],
+  });
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
   for (const toolId of plan.toolsToUse) {
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
-    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState));
+    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState, 실행문맥()));
     현실다시();
     ledger.append(rec);
     turnReceipts.push(rec);
@@ -1327,7 +1331,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
-    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, 판정인자, selfState));
+    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, 판정인자, selfState, 실행문맥()));
     현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);

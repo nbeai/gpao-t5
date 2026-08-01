@@ -2,7 +2,7 @@
 
 - 작성: 2026-08-02
 - 상태: `OWNER_DECISION_REQUIRED`
-- 제품 기준선: `f1270da` (W1~W6 개발 종결)
+- 제품 기준선: 현재 브랜치 HEAD (W1~W6 개발 종결 + OAuth H10 라이브 보강)
 - 목적: 기능을 다시 논의하지 않고, **설치본을 먼저 만들지 구조를 먼저 정리할지** 결정한다.
 
 ## 1. 지금 확정된 사실
@@ -10,9 +10,9 @@
 | 항목 | 현재 증거 |
 |---|---|
 | T-cell·PC 손발 | H01~H09 봉인 |
-| Automation·Agent | AC-2~AC-7 canonical 경로와 H10 제한 위임 제품 관통 |
+| Automation·Agent | AC-2~AC-7 canonical 경로와 OAuth `gpt-5.5` H10 제한 위임 2자식 제품 관통 |
 | 실전 업무 | 문서·보고서·커뮤니케이션·조사·반복업무 등 7개 흐름 |
-| 전체 개발 게이트 | 회귀 1824/1824 · 돌연변이 187/187 · 공식 gate PASS |
+| 전체 개발 게이트 | 회귀 1830/1830 · 돌연변이 195/195 · 공식 gate PASS(CPU 42.0s/45.75s · 벽시계 19.6s) |
 | 최소 배포 산출물 | `npm pack` 151개 파일을 펼쳐 실제 부팅·health·온보딩 PASS |
 | 아직 아닌 것 | 서명 설치본 · background service · update · uninstall/recovery · 공개 배포 |
 

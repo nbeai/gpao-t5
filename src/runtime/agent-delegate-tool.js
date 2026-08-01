@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { resolveInScope } from './file-scope.js';
+import { protectionBlocks } from './local-protection.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 
 function blocked(userSafeSummary, nextSafeAction) {
@@ -9,12 +10,15 @@ function blocked(userSafeSummary, nextSafeAction) {
 export function makeAgentDelegateTool({ runtime, localFile }) {
   return {
     toolKind: 'read',
-    async handler(args = {}) {
+    async handler(args = {}, executionContext = {}) {
       const partitions = Array.isArray(args.partitions) ? args.partitions : [];
       if (partitions.length < 2 || partitions.length > 3) {
         return blocked('이 작업은 두세 갈래로 나눌 범위가 필요해요.', '조사할 폴더를 두세 개로 정해 주세요.');
       }
-      const roots = localFile?.scopeRoots ?? [];
+      const roots = [...new Set([
+        ...(localFile?.scopeRoots ?? []),
+        ...(executionContext.readScopeRoots ?? []),
+      ])];
       if (!roots.length) {
         return blocked('에이전트가 안전하게 볼 수 있는 파일 범위를 확인하지 못했어요.', '먼저 작업 폴더를 찾아볼게요.');
       }
@@ -22,6 +26,7 @@ export function makeAgentDelegateTool({ runtime, localFile }) {
       try {
         for (const [index, partition] of partitions.entries()) {
           const folder = await resolveInScope(partition?.folder ?? '', { roots });
+          if (protectionBlocks(folder, { write: false })) throw new Error('protected_read_scope');
           normalized.push({
             label: String(partition?.label ?? `갈래 ${index + 1}`).slice(0, 80),
             folder,

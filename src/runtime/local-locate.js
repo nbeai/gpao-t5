@@ -9,7 +9,7 @@
 //
 // **코드 프로젝트만 찾는 도구가 아니다.** T5 사용자의 작업 대상은 정산 엑셀·계약서 pdf·
 // 원고 폴더·디자인 시안일 때가 더 많다. 두 갈래 표식을 같은 무게로 본다.
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, realpath, stat } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { protectionFor } from './local-protection.js';
@@ -99,8 +99,9 @@ const 종류말 = [
 const 부른종류 = (말) => 종류말.find(([re]) => re.test(말))?.[1];
 
 /** 왜 이게 후보인지 사람 말로. 근거 없는 후보는 사용자가 고를 수 없다. */
-function 근거(성, 이름맞음, 최근일) {
+function 근거(성, 이름맞음, 최근일, 요청에서부름 = false) {
   const 조각 = [];
+  if (요청에서부름) 조각.push('이번 요청에서 이름을 직접 부른 폴더예요');
   if (이름맞음) 조각.push('이름이 맞아요');
   const c = 성.counts;
   if (성.kind === 'project') 조각.push(c.mark > 0 ? '작업 폴더 표식이 있어요' : `코드 파일 ${c.code}개`);
@@ -195,6 +196,43 @@ export function makeLocalLocateTool(deps = {}) {
 
   return {
     /**
+     * 같은 사용자 턴에서 **사용자가 직접 부르고**, locate 가 실제로 연 폴더만 제한 읽기
+     * 범위가 된다. 모델이 임의로 고른 시작점이나 검색 중 발견한 후보 전체를 권한으로 바꾸지
+     * 않는다. 시작 폴더를 직접 불렀으면 그 루트 하나, 하위 폴더를 직접 불렀으면 그 폴더만 연다.
+     */
+    async readScopeOf(rec, executionContext = {}) {
+      const currentRequest = String(executionContext.currentRequest ?? '').normalize('NFC');
+      if (!currentRequest.trim()) return [];
+      if (rec?.failureState !== 'none' || rec?.actualCall?.tool !== 'local.locate') return [];
+      const searched = rec.result?.searched;
+      const roots = [];
+
+      // `from` 은 locate 가 실제로 연 자리다. 모델이 임의로 고른 것만으로는 부족하고, 사용자
+      // 원문에도 그 자리 이름(또는 절대 경로)이 있어야 한다. Developer·외장 디스크처럼 사용자가
+      // 직접 지목한 루트를 열되 홈 전체를 조용히 여는 일은 없다.
+      const selected = String(searched?.from ?? '');
+      const selectedName = String(searched?.fromName ?? rec.actualCall.args?.from ?? '').normalize('NFC');
+      const selectedMentioned = selected && selectedName
+        && currentRequest.includes(selectedName);
+      if (selectedMentioned) {
+        try {
+          const actual = await realpath(selected);
+          if ((await stat(actual)).isDirectory() && !protectionFor(actual)) roots.push(actual);
+        } catch { /* 실제로 확인할 수 없는 시작점은 범위가 아니다 */ }
+      }
+
+      // 시작 루트를 부르지 않았더라도 사용자가 하위 폴더 이름을 직접 말했다면 그 후보만 연다.
+      for (const candidate of rec.result?.candidates ?? []) {
+        if (!candidate?.explicitlyRequested || !candidate?.path || candidate.kind === 'file') continue;
+        try {
+          const actual = await realpath(candidate.path);
+          if (!(await stat(actual)).isDirectory() || protectionFor(actual)) continue;
+          roots.push(actual);
+        } catch { /* 확인할 수 없는 후보는 범위가 아니다 */ }
+      }
+      return [...new Set(roots)];
+    },
+    /**
      * 지금 볼 수 있는 자리. **도구를 부르지 않아도** 매 턴 모델에게 사실로 간다 —
      * 실측: "폴더를 어떻게 알려주면 돼?"에 모델이 도구를 안 부르고 답했고(원장 0건),
      * 그래서 자리 목록을 못 봤다. 도구 결과로는 못 푸는 자리였다.
@@ -237,8 +275,9 @@ export function makeLocalLocateTool(deps = {}) {
       }
       return { key: `place:${top.path}`, kind: 'place', label: String(top.path), detail: String(top.path) };
     },
-    async handler(args = {}) {
+    async handler(args = {}, executionContext = {}) {
       const 말 = String(args.what ?? args.query ?? args.request ?? '').trim();
+      const 현재요청 = String(executionContext.currentRequest ?? '').normalize('NFC');
       // 한 번만 읽고 두 곳(이름 승계·placesToLook)에서 같이 쓴다 — 모델이 본 이름과
       // 우리가 푸는 이름이 **같은 목록**에서 나와야 한다(두 진실 금지).
       let 자리캐시;
@@ -278,21 +317,28 @@ export function makeLocalLocateTool(deps = {}) {
 
         const 성 = 성격(entries);
         const 이름맞음 = 이름이맞나(basename(dir), 낱말들);
+        // 모델이 locate 질의를 한 대상으로 좁혀 쓰더라도, 같은 사용자 요청에서 이름을 직접 부른
+        // 형제 폴더는 놓치지 않는다. 실제 탐색으로 연 폴더의 basename 과 사용자 원문을 정확히
+        // 대조할 뿐이며, 경로를 추측하거나 홈 전체를 권한으로 올리지 않는다.
+        const 요청에서부름 = d > 0 && basename(dir).length >= 2
+          && 현재요청.includes(basename(dir).normalize('NFC'));
 
-        if (d > 0 && (성.kind || 이름맞음)) {
+        if (d > 0 && (성.kind || 이름맞음 || 요청에서부름)) {
           let 최근일;
           try { 최근일 = Math.floor((지금 - (await stat(dir)).mtimeMs) / 86_400_000); } catch { /* 못 보면 안 쓴다 */ }
           후보.push({
             path: dir,
             kind: 성.kind ?? 'folder',
             kindLabel: 종류이름[성.kind] ?? '폴더',
-            why: 근거(성, 이름맞음, 최근일),
+            why: 근거(성, 이름맞음, 최근일, 요청에서부름),
             // 확신도: 이름이 맞고 성격도 맞으면 높다. 성격만이면 낮다 — 모델이 이걸 보고 묻는다.
             // 이름이 맞으면 높다. 이름 대신 **부른 종류**가 맞아도 볼 만하다.
             // 둘 다 아니면 그냥 "이런 자리도 있다"일 뿐이라 낮게 둔다(모델이 이걸 보고 묻는다).
-            confidence: 이름맞음 && 성.kind ? 'high'
+            confidence: 요청에서부름 ? 'high'
+              : 이름맞음 && 성.kind ? 'high'
               : 이름맞음 ? 'medium'
                 : (찾는종류 && 성.kind === 찾는종류) ? 'medium' : 'low',
+            ...(요청에서부름 ? { explicitlyRequested: true } : {}),
             modifiedDaysAgo: 최근일,
             counts: 성.counts,
           });
@@ -332,7 +378,8 @@ export function makeLocalLocateTool(deps = {}) {
 
       // 확신도 → 최근 수정 순. "아까 그거"는 대개 방금 고친 것이다.
       const 순서 = { high: 0, medium: 1, low: 2 };
-      후보.sort((a, b) => (순서[a.confidence] - 순서[b.confidence])
+      후보.sort((a, b) => (Boolean(b.explicitlyRequested) - Boolean(a.explicitlyRequested))
+        || (순서[a.confidence] - 순서[b.confidence])
         || ((a.modifiedDaysAgo ?? 9999) - (b.modifiedDaysAgo ?? 9999)));
 
       // **부른 말 자체가 자리 이름이면 그 자리가 답이다.** H08 라이브 실측(2026-08-01):

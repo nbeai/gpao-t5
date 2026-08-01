@@ -56,7 +56,7 @@ test('범위 밖 안내 자체가 사용자에게 옮기라고 시키지 않는�
   assert.doesNotMatch(m.nextSafeAction ?? '', 떠넘김, `다음 길이 떠넘김이 됐다: ${m.nextSafeAction}`);
 });
 
-test('한 손이 범위 밖으로 막혀도, 다른 손이 해낸 턴은 "옮겨 달라"로 끝나지 않는다', async () => {
+test('찾기 손이 확인한 외장 폴더는 같은 턴 파일 읽기로 이어지고 "옮겨 달라"고 하지 않는다', async () => {
   const { home, vol, 자료 } = await 범위밖자료();
   const model = 붙잡는모델([
     { name: 'local.locate', args: { what: '정산 자료', from: '작업용SSD' } },
@@ -74,24 +74,20 @@ test('한 손이 범위 밖으로 막혀도, 다른 손이 해낸 턴은 "옮겨
 
   // 판이 실제로 그 모양이었는지 먼저 확인한다 — 아니면 이 검사는 아무것도 안 본 것이다.
   const 원장 = r.ledger?.confirmed?.join(' ') ?? '';
-  const 막힌것 = (r.ledger?.unconfirmed ?? []).join(' ');
   assert.match(원장, /정산자료/, `다른 손이 못 찾았다 — 이 판은 검사 대상이 아니다: ${원장}`);
-  assert.ok(막힌것, `범위 밖으로 막힌 손이 없다 — 이 판은 검사 대상이 아니다: ${JSON.stringify(r.ledger)}`);
+  assert.match(원장, /3개를 찾았어요/, `확인한 범위가 파일 읽기로 이어지지 않았다: ${원장}`);
+  assert.equal((r.ledger?.unconfirmed ?? []).length, 0,
+    `같은 턴에서 확인한 읽기 범위를 파일 손이 다른 진실로 거부했다: ${JSON.stringify(r.ledger)}`);
 
   // ① 모델 앞에 놓인 현실에 "네가 옮겨라"가 없어야 한다.
   const 힌트들 = model.본것.map((tc) => tc?.recoveryHint).filter(Boolean);
   for (const h of 힌트들) assert.doesNotMatch(h, 떠넘김, `모델에게 떠넘김을 사실로 줬다: ${h}`);
   // ② 사용자에게 보이는 줄도 마찬가지.
   assert.doesNotMatch(r.nextSafeAction ?? '', 떠넘김, `화면에 떠넘김이 나갔다: ${r.nextSafeAction}`);
-  // ③ **그리고 다음 길이 막힌 손의 한계 문장이면 안 된다.**
-  //   문구를 안 고치고 우선순위만 되돌려도 ①②는 초록이다(실제로 그랬다 — 이 검사가 없을 때
-  //   반대 검증에서 우선순위 수정을 통째로 빼도 안 잡혔다). 턴의 다음 길은 **이어갈 길**이어야지
-  //   "그 손은 여기까지예요"의 반복이면 안 된다 — 그게 모델을 막다른 답으로 민다.
+  // ③ 읽기까지 성공했으므로 막힌 손의 한계나 추가 이동 안내가 남으면 안 된다.
   const 마지막힌트 = 힌트들.at(-1) ?? '';
   assert.doesNotMatch(마지막힌트, /안에서만 다뤄요/,
     `막힌 손의 한계가 턴의 다음 길이 됐다 — 해낸 손이 있는데도: ${마지막힌트}`);
-  assert.match(마지막힌트, /이어서|이어갈/,
-    `이어갈 길을 안 줬다(막다른 답): ${마지막힌트}`);
 });
 
 test('모든 손이 막힌 턴에서도 사용자에게 옮기라고 하지 않는다', async () => {

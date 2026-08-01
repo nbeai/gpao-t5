@@ -51,6 +51,8 @@ export function receipt(r) {
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,
+    // 같은 턴에서 실제 확인한 폴더만 싣는 읽기 범위 사실. 영구 권한도 쓰기 권한도 아니다.
+    readScopeRoots: r.readScopeRoots,
     // 막힌 **종류**(사이트 차단·로그인벽·범위 밖…). 다음 계단을 이걸로 정한다(P2-6 사다리).
     // 진단 원문이 아니라 분류값이라 사용자면 판단에 써도 안전하다.
     fetchState: r.fetchState,
