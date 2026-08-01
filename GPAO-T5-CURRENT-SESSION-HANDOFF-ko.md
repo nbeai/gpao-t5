@@ -785,7 +785,18 @@ AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유�
 1-2. 민감 관찰 P0(`773760e`) 본선 반영 **완료**(§5-O): 독립 감사·병합(충돌 0), 원문 사례
    4/4 탐지·도메인 오탐 0, H07 라이브 결정적 검사 통과(원문 노출 0·subject 사본 0),
    스윕 135/135·회귀 1598/0. **T-cell H01~H07 최종 봉인.**
-2. **다음 단계: PC 손발(H08~H09).** H10 은 Agent Core 전까지 금지. H02 추가 수정·반복 금지.
+2. **다음 단계: PC 손발(H08~H09) — 병렬 배치 1 가동**(제안서 `APPROVED_FOR_EXECUTION`).
+   H10 은 Agent Core 전까지 금지. H02 추가 수정·반복 금지.
+
+### 작업선 원장 (병렬 배치 1 · 2026-08-01)
+
+```text
+A-H08 | 파일 탐색·최종본 판별·원본 보존 | agent/h08 worktree | local-locate.js local-file.js file-scope.js + 해당 test + 신규 H08 검사 | local-protection.js recovery-ladder.js(서명 동결) | H08 종료 조건 §5 | 작업 중
+B-H09 | 실패 분류·손 전환·거짓 성공 차단 | agent/h09 worktree | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | 작업 중
+C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | 작업 중
+D-AC2 | AC-2 delta 표 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 | delta 표 1장 | 작업 중
+본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | server.js tool-runner.js turn.js live-context.js descriptor·authority 진행표 인수인계 | — | 배치 1 봉인 | 작업 중
+```
 3. H07 민감정보 관찰 경계 보강은 정본에 병합됐다(`773760e` → `7a07233`). 감사 sidecar 를
    닫은 뒤 회귀 **1598/1598** · 돌연변이 **135/135** · plan/docs/workspace 게이트 PASS로
    병합 상태를 확정했다. 브랜치와 커밋 이력은 보존했다.
