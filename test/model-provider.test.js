@@ -323,3 +323,20 @@ test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 �
   assert.ok(m.system.includes('slack.post'));                // 승인 필요(아직 실행 안 됨)
   assert.ok(!m.system.includes('반드시'));                   // 장문 지시문 주입 아님(사실 표식만)
 });
+
+test('buildModelMessages: 반영 기억에 현재 발화 우선 계약이 붙는다 — "이번만"이 기억에 지지 않는다', () => {
+  // r41 실측(H03b): [반영된 기억]이 우선순위 계약 없이 맨 목록으로 실려, "이번 보고서만 표로
+  // 만들어줘"라는 명시 요구가 저장된 목록 선호에 밀렸다(정본 입력·실자료·표 기호 0).
+  // 이 계약은 특정 낱말 규칙이 아니라 동결 판정 문장(H03: 이번만이라고 말하면 이번 답이
+  // 그대로 달라진다)이 요구하는 일반 우선순위 규칙이다.
+  const m = buildModelMessages(TC);
+  assert.ok(m.user.includes('[반영된 기억]'));
+  assert.ok(/기본값.*이번 발화가 우선|이번 발화.*기본값.*우선|이번 요청이 우선/.test(m.user),
+    '기억은 기본값이고 이번 발화의 명시 요구가 우선한다는 계약이 기억 목록 자리에 있어야 한다');
+});
+
+test('buildModelMessages: 반영 기억이 없으면 우선 계약 줄도 없다(빈 채널에 지시문을 싣지 않는다)', () => {
+  const m = buildModelMessages({ ...TC, admittedContext: [] });
+  assert.ok(!m.user.includes('[반영된 기억]'));
+  assert.ok(!/이번 발화가 우선/.test(m.user));
+});

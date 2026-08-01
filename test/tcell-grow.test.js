@@ -1322,8 +1322,10 @@ test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest �
 // 구조 봉합: exact 는 사용자 발화 안 **따옴표 인용 literal** 일 때만(기계 검증, 아니면
 // semantic 강등 — 모델이 뭐라 하든 OS 경계), forbidden 무근거 주장은 null(재질문 1회).
 
-test('H02·v4: 요청 문구는 exact 출력 literal 이 아니다 — 인용 결합이 없으면 semantic 으로 강등된다', () => {
+test('H02·v4→v5 재계약: 요청 문구는 exact 출력 literal 이 아니다 — 강등이 아니라 무효 표식이 남는다', () => {
   // r28 실물 그대로: exact 가 사용자 요청 발화의 일부일 뿐, 출력하라고 인용된 문구가 아니다.
+  // v4 는 semantic 강등이었다 — 오너 지적: 강등은 계약의 칸만 바꾸고, '숫자만 다시 써줘'를
+  // expectedFacts 로 옮겨도 관측 가능한 출력 계약이 되지 않는다. v5: 사례 무효 → 재제안.
   const p = parseProposal(JSON.stringify({
     statement: '원리',
     cases: [
@@ -1336,7 +1338,8 @@ test('H02·v4: 요청 문구는 exact 출력 literal 이 아니다 — 인용 �
   }));
   const c0 = p.cases[0];
   assert.equal((c0.exactFacts ?? []).length, 0, '무근거 exact 가 살아남아 정상 답을 실패시킨다(r28 재발)');
-  assert.ok(c0.expectedFacts.includes('숫자만 다시 써줘'), '강등이 계약을 버리면 안 된다 — semantic 으로 남긴다');
+  assert.deepEqual(c0.미결합exact, ['숫자만 다시 써줘'], '무효 표식이 남아 재제안이 사유를 듣는다');
+  assert.equal(c0.expectedFacts.includes('숫자만 다시 써줘'), false, '강등으로 계약 칸을 바꾸지 않는다');
 });
 
 test('H02·v4: 사용자가 따옴표로 출력 문구를 명시한 경우에만 exact 가 유지된다 — 유효성 모델이 뭐라 해도 OS 경계다', () => {
@@ -1885,4 +1888,39 @@ test('관측①: 판정 근거에 든 맨 번호는 가려져 저장된다 — �
   assert.ok(o, '판정 불가 관측은 남는다');
   assert.equal(JSON.stringify(m.growObservations).includes('4111-1111'), false, '맨 번호는 가려진다');
   assert.match(String(o.항목?.required?.[0]?.evidence ?? ''), /####/, '가림 표식이 남아 구조는 읽힌다');
+});
+
+// ── 오너 승인 순서 4: 미결합 exact 는 강등이 아니라 **사례 무효 → 재제안**이다 ────────────
+// 강등은 계약의 칸만 바꾼다 — '숫자만 다시 써줘'를 expectedFacts 로 옮겨도 관측 가능한 출력
+// 계약이 되지 않고, 돌아간 사례는 모델이 설계한 사례가 아니게 된다(계약 저작권 훼손).
+
+const 미결합exact제안 = () => JSON.stringify({
+  statement: '원리',
+  cases: [
+    { kind: 'positive', inputFacts: ['사용자가 말한다: 7월 매출 1200. 이거 숫자만 다시 써줘.'], exactFacts: ['숫자만 다시 써줘'], expectedFacts: ['숫자만 나열한다'], forbiddenFacts: ['설명을 붙인다'] },
+    { kind: 'positive', inputFacts: ['b'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+    { kind: 'negative', inputFacts: ['c'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+    { kind: 'boundary', inputFacts: ['d'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+    { kind: 'boundary', inputFacts: ['e'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+  ],
+});
+
+test('H02·v5: 미결합 exact 는 사례 무효 — 실행 없이 재제안이 인용 규칙을 듣는다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({ 제안본문: 미결합exact제안() });
+  await 틱들({ memStore, modelFor }, 2); // 제안 → (무효exact) 재제안
+  const 제안들 = calls.filter((c) => c.request.includes('운영 원리 후보'));
+  assert.equal(제안들.length, 2, '미결합 exact 발견은 같은 회차 안의 재제안으로 이어져야 한다');
+  assert.match(제안들[1].request, /인용|exact/i, '재제안이 인용 결합 규칙을 듣지 못했다');
+  assert.equal(calls.filter((c) => c.request.includes('[이번 답에 한해 적용할 원리]')).length, 0,
+    '무효 사례가 실행됐다');
+});
+
+test('H02·v5: 미결합 exact 가 반복되면 재제안 1회 후 회차를 정직하게 접는다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({ 제안본문: 미결합exact제안() });
+  await 틱들({ memStore, modelFor }, 2); // tick1: 제안→재제안 표식 · tick2: 재제안→접힘
+  const job = (await memStore.load()).growJobs[0];
+  assert.match(String(job.lastReason ?? ''), /invalid_cases:unbound_exact/, '접힌 사유가 남아야 한다');
+  assert.equal(calls.filter((c) => c.request.includes('운영 원리 후보')).length, 2, '재제안은 1회다');
 });

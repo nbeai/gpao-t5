@@ -158,19 +158,22 @@ export function parseProposal(text, 관측 = {}) {
       }))
       // exact 출처 결합(감사 원시 결함 ① — r28): exact 는 사용자 발화 원문 안에서 **따옴표로
       // 인용된 출력 literal** 일 때만이다. 요청 문구("숫자만 다시 써줘")는 출력 계약이 아니다.
-      // 결합을 기계로 증명 못 하면 semantic(expectedFacts)으로 강등한다 — 계약을 버리지 않되
-      // 축자 강제만 걷는다. 이것은 OS 경계다: 제안·유효성 모델이 뭐라 답해도 대신할 수 없다.
+      // 결합을 기계로 증명 못 하면 그 사례는 **무효다**(오너 승인 순서 4) — 강등은 계약의 칸만
+      // 바꿀 뿐 관측 가능한 출력 계약을 만들지 못하고, 돌아간 사례가 모델이 설계한 사례가
+      // 아니게 된다. 여기서는 표식만 남기고, 무효 처리(재제안 1회)는 반영이 한다. OS 경계다.
       .map((c) => {
         if (!c.exactFacts.length) return c;
         const 인용됨 = (f) => c.inputFacts.some((line) => [['"', '"'], ["'", "'"], ['“', '”'], ['‘', '’'], ['「', '」'], ['『', '』']]
           .some(([o, q]) => String(line).includes(o + f + q)));
         const 유지 = c.exactFacts.filter(인용됨);
-        const 강등 = c.exactFacts.filter((f) => !인용됨(f));
-        return { ...c, exactFacts: 유지, expectedFacts: [...c.expectedFacts, ...강등] };
+        const 미결합 = c.exactFacts.filter((f) => !인용됨(f));
+        return 미결합.length ? { ...c, exactFacts: 유지, 미결합exact: 미결합 } : c;
       })
       // **판정력 없는 사례는 표본이 아니다**(구조 규칙 — 낱말 규칙 아님). 필수·금지·축자가
       // 모두 없으면 어떤 답이든 통과라, 전부 허용으로 보내 suite 를 무의미하게 만드는 길이 된다.
-      .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length + c.exactFacts.length > 0);
+      // 미결합 exact 표식이 있는 사례는 남긴다 — 조용히 사라지면 무효 사유가 재제안에 못 간다.
+      .filter((c) => (c.미결합exact?.length ?? 0) > 0
+        || c.expectedFacts.length + c.forbiddenFacts.length + c.exactFacts.length > 0);
     // 상한 안에서 **최소 표본을 먼저 채운다**(H02 계열). 앞에서부터 자르면(slice) 모델이 낸
     // 여분 positive·authority 가 뒤에 온 boundary 를 밀어내 — 모델은 표본을 냈는데 파서가
     // 버린다. 상한도 최소 기준도 그대로다: 채우는 순서만 필수 표본이 먼저다.
@@ -859,6 +862,16 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
       // 원문 발췌는 저장하지 않는다 — 절단/미생성/파서 손실은 위 메타데이터로 갈린다.
     };
     if (!초안) return { kind: 'propose', fail: 'proposal_unreadable', 관측 };
+    // 미결합 exact = 사례 무효. 표본을 세기 전에 돌려보낸다 — 무효 사례는 표본이 아니다.
+    const 미결합들 = 초안.cases.filter((c) => c.미결합exact?.length);
+    if (미결합들.length) {
+      return {
+        kind: 'propose',
+        statement: 초안.statement,
+        무효exact: 미결합들.map((c) => ({ kind: c.kind, facts: c.미결합exact })),
+        관측,
+      };
+    }
     const 부족 = 표본부족(초안.cases, 초안.touchesAuthority);
     if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement, 관측 };
     return { kind: 'propose', 초안, 기계접촉, 관측 };
@@ -923,6 +936,31 @@ function 반영(m, job, 계획, 나온것, now) {
       job.nextAttemptAt = 0;
       job.updatedAt = now;
       return { reason: 'bundle_gone' };
+    }
+    if (나온것.무효exact) {
+      // 미결합 exact = 사례 무효(오너 승인 순서 4). 유효성 무효와 같은 경로 — 재제안 1회,
+      // 그래도면 회차를 접는다. 강등해서 계속 돌리는 길은 없다(계약 저작권 보존).
+      const 사유 = 나온것.무효exact.map((x) => `${x.kind}: exactFacts ${JSON.stringify(x.facts)} 는 사용자 발화에 따옴표로 인용된 출력 literal 이 아니다`);
+      if (재제안가능(job)) {
+        job.재제안수 = (job.재제안수 ?? 0) + 1;
+        job.무효피드백 = [
+          ...사유.slice(0, 4),
+          'exactFacts 는 사용자가 발화에서 따옴표로 인용해 출력을 요구한 문구일 때만 쓴다. 아니면 expectedFacts(의미 계약)로 적어라.',
+        ];
+        job.초안 = null;
+        job.failures = 0;
+        job.nextAttemptAt = 0;
+        job.updatedAt = now;
+        return { invalidExact: 나온것.무효exact.length, reproposing: true };
+      }
+      job.실패요약 = {
+        statement: 나온것.statement,
+        missing: [],
+        reasons: ['exact 계약이 사용자 발화의 인용 literal 에 결합되지 않았다', ...사유.slice(0, 2)],
+      };
+      job.초안 = null;
+      회차종료(job, 'invalid_cases:unbound_exact', now);
+      return { reason: 'invalid_cases:unbound_exact' };
     }
     if (나온것.표본부족) {
       // 사례를 하나도 돌리지 않고 이 회차를 접는다. 무엇이 모자랐는지는 다음 회차가 듣는다.

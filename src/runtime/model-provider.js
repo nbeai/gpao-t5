@@ -113,7 +113,14 @@ export function buildModelMessages(tc) {
   const usr = [];
   // 이어받을 수 있는 작업이 있으면 사실로 놓는다. 어느 것을 이어받을지는 모델이 정한다.
   if (tc.carryableWork?.length) usr.push(`[다른 대화에서 이어받을 수 있는 작업]\n${tc.carryableWork.map((c) => `- ${c}`).join('\n')}`);
-  if (tc.admittedContext?.length) usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}`);
+  // 우선순위 계약(H03 동결 문장의 구조 자리): 기억은 **기본값**이다. 사용자의 이번 발화가
+  // 명시적으로 다르게 요구하면("이번만 …") 그 발화가 우선하고 기억은 이번 턴에 적용하지
+  // 않는다 — r41 실측: 이 계약이 없으면 "이번 보고서만 표로"가 저장된 목록 선호에 밀린다.
+  // 특정 낱말 규칙이 아니라 채널의 일반 우선순위다(예외의 영구화 금지는 성장 쪽이 이미 막는다).
+  if (tc.admittedContext?.length) {
+    usr.push(`[반영된 기억]\n${tc.admittedContext.map((c) => `- ${c}`).join('\n')}\n`
+      + '위 기억은 기본값이다 — 사용자의 이번 발화가 명시적으로 다르게 요구하면 이번 발화가 우선한다.');
+  }
   // S5-2 보강: **쓸 자리에서** 알려 준다. 스키마 설명만으로는 모델이 이 채널을 한 번도 부르지
   // 않았다(라이브 실측). 위 목록 중 무엇이 실제로 도움이 됐는지는 답을 쓴 쪽만 아는 사실이다.
   if (tc.admittedContext?.length || tc.carryableWork?.length) {
