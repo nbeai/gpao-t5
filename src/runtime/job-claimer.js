@@ -2,6 +2,7 @@ import {
   claimAgentRun,
   validateAgentRun,
 } from '../kernel/l5-growth/automation-contracts.js';
+import { applyAutomationJobPatch } from '../kernel/l5-growth/automation.js';
 
 function assertQueuedRun(run) {
   const checked = validateAgentRun(run);
@@ -88,19 +89,48 @@ export function prepareRunClaim(run, { owner, now, jobGuard }) {
 }
 
 export class JobClaimer {
-  constructor({ owner, runLedger, clock = Date.now }) {
+  constructor({ owner, runLedger, jobStore = null, clock = Date.now }) {
     assertOwner(owner);
     if (typeof runLedger?.append !== 'function' || typeof runLedger?.load !== 'function') {
       throw new TypeError('runLedger with append and load is required');
     }
     this.owner = { pid: owner.pid, ownerToken: owner.ownerToken };
     this.runLedger = runLedger;
+    this.jobStore = jobStore;
     this.clock = clock;
   }
 
-  async claim(run, { jobGuard, now = this.clock() } = {}) {
+  async claim(run, { jobGuard, jobDelta, now = this.clock() } = {}) {
     const delta = prepareRunClaim(run, { owner: this.owner, now, jobGuard });
-    const result = await commitClaimToRunLedger(this.runLedger, delta);
+    let result;
+    if (this.jobStore) {
+      if (typeof this.jobStore.update !== 'function') {
+        throw new TypeError('jobStore must provide canonical update');
+      }
+      await this.jobStore.update(async (state) => {
+        const current = (state.jobs ?? []).find((job) => job.id === jobGuard.jobId);
+        const guardMatches = current
+          && current.state === jobGuard.state
+          && current.updatedAt === jobGuard.updatedAt
+          && current.nextRunAt === jobGuard.nextRunAt
+          && current.trigger?.nextRunAt === jobGuard.triggerNextRunAt;
+        if (!guardMatches) {
+          result = { ok: false, claimed: false, duplicate: false, reason: 'job_guard_changed' };
+          return state;
+        }
+        const committed = await commitClaimToRunLedger(this.runLedger, delta);
+        if (!committed?.ok) { result = committed; return state; }
+        const applied = applyAutomationJobPatch(state, jobDelta);
+        if (!applied.ok) {
+          result = { ok: false, claimed: false, duplicate: false, reason: applied.reason };
+          return state;
+        }
+        result = { ...committed, jobApplied: true };
+        return applied.state;
+      });
+    } else {
+      result = await commitClaimToRunLedger(this.runLedger, delta);
+    }
     if (!result || result.ok !== true) {
       return {
         ok: false,
@@ -120,6 +150,7 @@ export class JobClaimer {
       duplicate: result.duplicate === true,
       record: result.record,
       delta,
+      jobApplied: result.jobApplied === true,
     };
   }
 }

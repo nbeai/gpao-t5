@@ -125,6 +125,39 @@ export function automationJobPatchDelta(job, changes, { reason, now }) {
 }
 
 /**
+ * Apply one guarded job patch to canonical automation state. The guard and the write use the
+ * same snapshot; callers that run this inside AutomationJobStore.update close cancel/pause races.
+ */
+export function applyAutomationJobPatch(state, delta) {
+  if (delta?.kind !== 'automation_job.patch') {
+    return { ok: false, applied: 0, reason: 'unsupported_delta', state };
+  }
+  const jobs = Array.isArray(state?.jobs) ? state.jobs : [];
+  const index = jobs.findIndex((job) => job?.id === delta.jobId);
+  if (index < 0) return { ok: false, applied: 0, reason: 'job_not_found', state };
+  const job = jobs[index];
+  const expected = delta.expected ?? {};
+  const same = job.state === expected.state
+    && job.updatedAt === expected.updatedAt
+    && job.nextRunAt === expected.nextRunAt
+    && job.trigger?.nextRunAt === expected.triggerNextRunAt;
+  if (!same) return { ok: false, applied: 0, reason: 'job_guard_changed', state };
+  const changes = structuredClone(delta.changes ?? {});
+  const triggerNextRunAt = changes.triggerNextRunAt;
+  delete changes.triggerNextRunAt;
+  const changed = {
+    ...job,
+    ...changes,
+    ...(triggerNextRunAt === undefined
+      ? {}
+      : { trigger: { ...job.trigger, nextRunAt: triggerNextRunAt } }),
+  };
+  const nextJobs = [...jobs];
+  nextJobs[index] = changed;
+  return { ok: true, applied: 1, state: { ...state, jobs: nextJobs }, record: changed };
+}
+
+/**
  * 후보 승인 → ScheduledJob. grantScope(범위·만료)와 external(외부 전송 승인 경계)을 가진다.
  * @param {object} candidate
  * @param {{id:string, grantScope?:object, nextRunAt?:number, intervalMs?:number, external?:boolean, now?:number}} opts

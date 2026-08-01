@@ -20,6 +20,7 @@ import { BuiltinTriggerProvider } from '../src/runtime/trigger-provider.js';
 import { prepareAutomationRuns } from '../src/runtime/automation-engine.js';
 import { AutomationScheduler } from '../src/runtime/automation-scheduler.js';
 import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
+import { AutomationJobStore } from '../src/surface/automation-store.js';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -308,4 +309,39 @@ test('concurrent schedulers persist one queued occurrence, and restart cannot du
   assert.equal(heartbeats.length, 3);
   assert.ok(heartbeats.every((heartbeat) => heartbeat.at === HOUR
     && heartbeat.kind === 'automation_scheduler.heartbeat'));
+});
+
+test('job cancellation between preparation and claim prevents a durable run', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ac3-cancel-race-'));
+  const jobStore = new AutomationJobStore(dir);
+  await jobStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [], jobs: [intervalJob()] });
+  let prepared = false;
+  const scheduler = new AutomationScheduler({
+    stateSource: async () => {
+      const state = await jobStore.load();
+      if (!prepared) {
+        prepared = true;
+        await jobStore.update((current) => ({
+          ...current,
+          jobs: current.jobs.map((job) => job.id === 'job-1'
+            ? { ...job, state: 'cancelled', updatedAt: 1 }
+            : job),
+        }));
+      }
+      return { ...state, skills: [skill()], profiles: [profile()] };
+    },
+    jobStore,
+    runLedger: new AutomationRunLedger(dir),
+    applyJobDeltas: async () => { throw new Error('stale delta must not apply outside the store guard'); },
+    recordHeartbeat: async () => ({ ok: true }),
+    owner: { pid: process.pid, ownerToken: 'cancel-race-owner' },
+    clock: () => HOUR,
+  });
+
+  const result = await scheduler.reconcile();
+  assert.deepEqual(result.claimed, []);
+  assert.equal(result.claimFailures[0]?.reason, 'job_guard_changed');
+  assert.equal((await new AutomationRunLedger(dir).load()).runs.length, 0,
+    'cancelled job must not leave a queued or claimed run');
+  assert.equal((await jobStore.load()).jobs[0].state, 'cancelled');
 });

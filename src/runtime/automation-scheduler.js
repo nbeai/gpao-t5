@@ -16,6 +16,7 @@ export class AutomationScheduler {
   constructor({
     stateSource,
     runLedger,
+    jobStore,
     applyJobDeltas,
     recordHeartbeat,
     owner,
@@ -39,7 +40,8 @@ export class AutomationScheduler {
     this.applyJobDeltas = requiredFunction(applyJobDeltas, 'applyJobDeltas');
     this.recordHeartbeat = requiredFunction(recordHeartbeat, 'recordHeartbeat');
     this.triggerProvider = triggerProvider ?? new BuiltinTriggerProvider({ clock });
-    this.claimer = new JobClaimer({ owner, runLedger, clock });
+    this.claimer = new JobClaimer({ owner, runLedger, jobStore, clock });
+    this.atomicJobClaims = Boolean(jobStore);
     this.owner = { pid: owner.pid, ownerToken: owner.ownerToken };
   }
 
@@ -66,6 +68,7 @@ export class AutomationScheduler {
       }
       const outcome = await this.claimer.claim(entry.run, {
         jobGuard: entry.jobGuard,
+        jobDelta: entry.jobDelta,
         now,
       });
       if (!outcome.ok) {
@@ -74,7 +77,7 @@ export class AutomationScheduler {
       }
       if (outcome.claimed) claimed.push(outcome.record);
       if (outcome.duplicate) duplicates.push(outcome.record);
-      jobDeltas.push(entry.jobDelta);
+      if (!outcome.jobApplied) jobDeltas.push(entry.jobDelta);
     }
 
     const deltaResult = jobDeltas.length > 0
