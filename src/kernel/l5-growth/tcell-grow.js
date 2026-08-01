@@ -121,6 +121,18 @@ export function parseProposal(text) {
         allowedFacts: (c.allowedFacts ?? []).map(String),
         exactFacts: (c.exactFacts ?? []).map(String),
       }))
+      // exact 출처 결합(감사 원시 결함 ① — r28): exact 는 사용자 발화 원문 안에서 **따옴표로
+      // 인용된 출력 literal** 일 때만이다. 요청 문구("숫자만 다시 써줘")는 출력 계약이 아니다.
+      // 결합을 기계로 증명 못 하면 semantic(expectedFacts)으로 강등한다 — 계약을 버리지 않되
+      // 축자 강제만 걷는다. 이것은 OS 경계다: 제안·유효성 모델이 뭐라 답해도 대신할 수 없다.
+      .map((c) => {
+        if (!c.exactFacts.length) return c;
+        const 인용됨 = (f) => c.inputFacts.some((line) => [['"', '"'], ["'", "'"], ['“', '”'], ['‘', '’'], ['「', '」'], ['『', '』']]
+          .some(([o, q]) => String(line).includes(o + f + q)));
+        const 유지 = c.exactFacts.filter(인용됨);
+        const 강등 = c.exactFacts.filter((f) => !인용됨(f));
+        return { ...c, exactFacts: 유지, expectedFacts: [...c.expectedFacts, ...강등] };
+      })
       // **판정력 없는 사례는 표본이 아니다**(구조 규칙 — 낱말 규칙 아님). 필수·금지·축자가
       // 모두 없으면 어떤 답이든 통과라, 전부 허용으로 보내 suite 를 무의미하게 만드는 길이 된다.
       .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length + c.exactFacts.length > 0);
@@ -426,14 +438,21 @@ export function computeCaseVerdict(c, 산출물, 항목) {
     if (!it || typeof it.appeared !== 'boolean') return null;
     if (it.appeared === true) {
       const ev = 근거정규화(it.evidence ?? '');
-      // 답에 실제로 없는 위반 주장은 세지 않는다 — 근거가 답 원문이어야 위반이다.
-      if (ev && 근거정규화(산출물).includes(ev)) { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }
+      // 근거가 답 원문에 없는 위반 주장은 **버리는 것이 아니라 판정 불가다**(감사 지적 ④):
+      // 조용히 무시하면 그 주장이 통과로 흐른다. null 은 재질문 1회를 받고, 그래도 불가면
+      // 표본이 아니다 — 통과·실패 어느 쪽으로도 위장하지 않는다.
+      if (!ev || !근거정규화(산출물).includes(ev)) return null;
+      위반 += 1;
+      사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`);
     }
   }
   const pass = 사유.length === 0 && 필수미충족 === 0 && 위반 === 0;
   return {
     pass,
     rationale: (pass ? 정규화(항목.rationale) || '계약 충족' : 사유.join(' · ')).slice(0, 300),
+    // 항목별 원시 판정을 함께 저장한다 — 나중에 판정 불가와 실행 위반을 기록으로 구분할 수
+    // 있어야 한다(감사 원시 결함 ③: null 소진이 "실행 위반"으로 잘못 기록됐다).
+    items: { required: 항목.required ?? [], forbidden: 항목.forbidden ?? [] },
   };
 }
 

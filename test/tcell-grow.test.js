@@ -1239,13 +1239,15 @@ test('H02·v3: exact 계약은 OS 가 직접 대조한다 — 정확히 다르�
   assert.equal(맞음?.pass, true);
 });
 
-test('H02·v3: 답에 없는 위반 주장은 세지 않는다 — 근거가 답 원문이 아니면 그 주장은 버려진다', () => {
+test('H02·v4(계약 개정): 답에 없는 위반 주장은 실패도 통과도 아니다 — 판정 불가(null)다', () => {
+  // v3 는 무근거 위반 주장을 "버려서" 통과로 흘렸다(감사 지적 ④). 개정: 실패를 만들지 않는
+  // 것은 유지하되, 통과로도 흐르지 않는다 — null 로 재질문 1회를 받는다.
   const c = 사례v3();
   const v = computeCaseVerdict(c, '7월 매출 1200입니다.', 항목({
     필수: [{ i: 0, met: true, evidence: '매출 1200' }],
     금지: [{ i: 0, appeared: true, evidence: '지어낸 수치 9999' }], // 답에 없는 조각
   }));
-  assert.equal(v?.pass, true, '답에 없는 위반 주장이 실패를 만들었다');
+  assert.equal(v, null, '무근거 위반 주장이 통과나 실패로 위장됐다');
 });
 
 test('H02·v3: 근거 없는 충족 주장·항목 누락은 판정 불가다 — 통과로도 실패로도 위장하지 않는다', () => {
@@ -1300,7 +1302,7 @@ test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest �
   assert.equal(caseInputDigestOf(바탕), caseInputDigestOf({ ...바탕, exactFacts: [] }));
   const p = parseProposal(JSON.stringify({
     statement: '원리',
-    cases: [{ kind: 'positive', inputFacts: ['사용자가 "정확히 이 문구로" 라고 요구했다'], exactFacts: ['이 문구'], expectedFacts: [], forbiddenFacts: [] },
+    cases: [{ kind: 'positive', inputFacts: ['사용자가 답에 "이 문구" 그대로 넣으라고 했다'], exactFacts: ['이 문구'], expectedFacts: [], forbiddenFacts: [] },
       { kind: 'positive', inputFacts: ['b'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
       { kind: 'negative', inputFacts: ['c'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
       { kind: 'boundary', inputFacts: ['d'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
@@ -1310,6 +1312,84 @@ test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest �
   assert.ok(축자사례, 'exactFacts 가 파서에서 사라졌다');
   assert.ok(축자사례.exactFacts.length + 축자사례.expectedFacts.length + 축자사례.forbiddenFacts.length > 0,
     '축자만 있는 사례의 판정력이 인정되지 않는다');
+});
+
+// ── H02 답 계약 v4 — 감사 재개(원시 4결함): exact 출처 결합 · forbidden 무근거 null ──
+//
+// 감사 원시 확인: ① r28 — 요청 문구("숫자만 다시 써줘")가 exact 출력 계약이 되어 정상 답을
+// 실패시킴 ② r29 — 메타 계약("…라고 간주한다")이 유효 사례로 잔존 ③ r31 — null 소진을
+// "실행 위반"으로 기록 ④ forbidden 무근거 출현 주장을 구현이 조용히 무시(→통과 가능).
+// 구조 봉합: exact 는 사용자 발화 안 **따옴표 인용 literal** 일 때만(기계 검증, 아니면
+// semantic 강등 — 모델이 뭐라 하든 OS 경계), forbidden 무근거 주장은 null(재질문 1회).
+
+test('H02·v4: 요청 문구는 exact 출력 literal 이 아니다 — 인용 결합이 없으면 semantic 으로 강등된다', () => {
+  // r28 실물 그대로: exact 가 사용자 요청 발화의 일부일 뿐, 출력하라고 인용된 문구가 아니다.
+  const p = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [
+      { kind: 'positive', inputFacts: ['사용자가 말한다: 7월 매출 1200. 이거 숫자만 다시 써줘.'], exactFacts: ['숫자만 다시 써줘'], expectedFacts: ['숫자만 나열한다'], forbiddenFacts: ['설명을 붙인다'] },
+      { kind: 'positive', inputFacts: ['b'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'negative', inputFacts: ['c'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['d'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['e'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+    ],
+  }));
+  const c0 = p.cases[0];
+  assert.equal((c0.exactFacts ?? []).length, 0, '무근거 exact 가 살아남아 정상 답을 실패시킨다(r28 재발)');
+  assert.ok(c0.expectedFacts.includes('숫자만 다시 써줘'), '강등이 계약을 버리면 안 된다 — semantic 으로 남긴다');
+});
+
+test('H02·v4: 사용자가 따옴표로 출력 문구를 명시한 경우에만 exact 가 유지된다 — 유효성 모델이 뭐라 해도 OS 경계다', () => {
+  const p = parseProposal(JSON.stringify({
+    statement: '원리',
+    cases: [
+      { kind: 'positive', inputFacts: ['사용자: 답에 정확히 "7월 매출 1200"이라고 써줘.'], exactFacts: ['7월 매출 1200'], expectedFacts: [], forbiddenFacts: ['다른 표기로 바꾼다'] },
+      { kind: 'positive', inputFacts: ['b'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'negative', inputFacts: ['c'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['d'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+      { kind: 'boundary', inputFacts: ['e'], expectedFacts: ['e'], forbiddenFacts: ['f'] },
+    ],
+  }));
+  assert.deepEqual(p.cases[0].exactFacts, ['7월 매출 1200'], '인용 결합된 exact 가 강등되면 안 된다');
+});
+
+test('H02·v4: forbidden 출현 주장의 근거가 답에 없으면 무시(통과)가 아니라 판정 불가다', () => {
+  const c = 사례v3();
+  const v = computeCaseVerdict(c, '7월 매출 1200입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '매출 1200' }],
+    금지: [{ i: 0, appeared: true, evidence: '답에 없는 조각 9999' }],
+  }));
+  assert.equal(v, null, '무근거 위반 주장이 조용히 무시되어 통과로 흘렀다(감사 지적 ④)');
+});
+
+test('H02·v4: 무근거 forbidden 주장으로 생긴 판정 불가도 재질문 1회를 받는다', async () => {
+  const memStore = await 준비();
+  let 첫판정 = true;
+  const 재질문 = [];
+  const { modelFor } = 대본모델({
+    판정: (k, req) => {
+      if (req.includes('직전 판정')) 재질문.push(req);
+      if (첫판정) {
+        첫판정 = false;
+        const 기본 = JSON.parse(판정대본(req));
+        if (기본.forbidden.length) 기본.forbidden[0] = { i: 0, appeared: true, evidence: '지어낸 근거' };
+        return JSON.stringify(기본);
+      }
+      return 판정대본(req);
+    },
+  });
+  await 끝까지({ memStore, modelFor });
+  assert.ok(재질문.length >= 1, '무근거 위반 주장의 판정 불가가 재질문 없이 굳었다');
+  assert.equal((await memStore.load()).growJobs[0].state, 'passed');
+});
+
+test('H02·v4: verdict 는 항목별 판정을 저장한다 — null 을 실행 위반으로 오분류할 수 없는 기록', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델();
+  await 끝까지({ memStore, modelFor });
+  const m = await memStore.load();
+  const 저장 = (m.replayCases ?? []).find((c) => c.verdict?.pass === true);
+  assert.ok(저장?.verdict?.items, '항목별 판정이 저장되지 않으면 나중에 null/위반을 원시로 구분할 수 없다');
 });
 
 test('H02·v3: 근거 대조는 구두점·공백에 관대하다 — 인용 표기 차이가 판정 불가를 만들지 않는다', () => {
