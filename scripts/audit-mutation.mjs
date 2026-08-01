@@ -107,8 +107,11 @@ export const MUTATIONS = [
   // 잡히지만 무엇을 쟀는지는 알 수 없고(계약이 아니라 문법을 쟀다), 그동안 그 파일을 읽은
   // 다른 실행까지 함께 무너진다. 감사가 본 회귀 실패의 기전이 정확히 이것이었다.
   { 이름: '성장 호출을 자물쇠 안으로', 파일: SERVER, 검사: T_GROW,
-    찾기: '      const r = await growTick({\n        memStore, store, withMemory,\n        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).\n        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),\n      });',
-    바꾸기: '      const r = await withMemory(async () => growTick({\n        memStore, store,\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),\n      }));' },
+    찾기: '      const r = await growTick({\n        memStore, store, withMemory,\n        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).\n        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),',
+    바꾸기: '      const r = await withMemory(async () => growTick({\n        memStore, store,\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),',
+    // 주입 뒤에도 파싱이 성립해야 한다 — 여는 쪽만 바꾸면 닫는 괄호가 모자란다. 닫는 쪽도 함께.
+    추가찾기: '          .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),\n      });',
+    추가바꾸기: '          .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),\n      }));' },
 
   // ── §4.3 상태기계 · 회차 ────────────────────────────────────────────────
   { 이름: '신분 미확인 호출로도 계속 진행', 파일: GROW, 검사: T_GROW,
@@ -321,8 +324,22 @@ export const MUTATIONS = [
     찾기: 'const 재제안가능 = (job) => (job.재제안수 ?? 0) < GROW_CAPS.proposalRetries;',
     바꾸기: 'const 재제안가능 = () => true;' },
   { 이름: '접촉을 자기신고(선언·사례)만으로 판정(독립 점검 무시 — 둘 다 누락한 위험 원리가 일반 통과)', 파일: GROW, 검사: T_GROW,
-    찾기: '    const 접촉 = Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);',
-    바꾸기: '    const 접촉 = Boolean(job.초안.touchesAuthority);' },
+    찾기: '    const 접촉 = Boolean(job.기계접촉) || Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);',
+    바꾸기: '    const 접촉 = Boolean(job.기계접촉) || Boolean(job.초안.touchesAuthority);' },
+  { 이름: '기계 접촉(원천 턴 승인 실행)을 무시 — 원장 사실이 접촉이어도 일반 원리로 통과', 파일: GROW, 검사: T_GROW,
+    찾기: '    const 접촉 = Boolean(job.기계접촉) || Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);',
+    바꾸기: '    const 접촉 = Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);' },
+
+  // ── H02 판정 계약 구조화 — 필수/허용/금지 ────────────────────────────────
+  { 이름: '허용 계약을 판정에 안 실음(재량이 다시 산문 해석으로 돌아감)', 파일: GROW, 검사: T_GROW,
+    찾기: "    ...(c.allowedFacts?.length ? [\n      `허용 사실(있어도 되고 없어도 실패가 아니다 — 부재를 실패 사유로 삼지 않는다): ${c.allowedFacts.join(' / ')}`,\n      '판정은 기대 사실의 부재와 금지 사실의 출현으로만 한다. 허용 사실은 어느 쪽으로도 세지 않는다.',\n    ] : []),",
+    바꾸기: '' },
+  { 이름: '판정력 0(필수·금지 없음) 사례를 표본으로 받음', 파일: GROW, 검사: T_GROW,
+    찾기: '      .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length > 0);',
+    바꾸기: '      ;' },
+  { 이름: '허용 계약을 digest 에서 뺌(바꿔 끼워도 같은 계약)', 파일: REPLAY, 검사: T_GROW,
+    찾기: '    ...(c.allowedFacts?.length ? { allowedFacts: [...c.allowedFacts].sort() } : {}),',
+    바꾸기: '' },
   { 이름: '권한 접촉을 저장 사실이 아니라 남은 사례 존재로 판정(사례를 잃으면 요구도 사라짐)', 파일: GROW, 검사: T_GROW,
     찾기: "  const touchesAuthority = (memory?.growJobs ?? []).find((j) => j.principleId === principleId)?.touchesAuthority\n    ?? (memory?.candidates ?? []).find((c) => c.principleId === principleId)?.touchesAuthority\n    ?? 판정된.some((c) => c.kind === 'authority');",
     바꾸기: "  const touchesAuthority = 판정된.some((c) => c.kind === 'authority');" },
@@ -394,8 +411,15 @@ async function 한번(m, repo) {
   if (자리수 !== 1) {
     return { ...m, 결과: 'anchor', 메모: `주입 지점이 ${자리수}곳 — 정확히 한 자리여야 한다` };
   }
+  // 한 의미의 주입이 여는 괄호와 닫는 괄호처럼 **두 자리를 함께** 바꿔야 문법이 성립하는 경우.
+  // 각 자리 모두 정확히 한 곳이어야 한다는 규칙은 그대로다.
+  if (m.추가찾기 && 원본.split(m.추가찾기).length - 1 !== 1) {
+    return { ...m, 결과: 'anchor', 메모: '추가 주입 지점이 정확히 한 자리가 아니다' };
+  }
   try {
-    await writeFile(path, 원본.replace(m.찾기, m.바꾸기), 'utf8');
+    let 변조 = 원본.replace(m.찾기, m.바꾸기);
+    if (m.추가찾기) 변조 = 변조.replace(m.추가찾기, m.추가바꾸기);
+    await writeFile(path, 변조, 'utf8');
     // **주입은 돌아가는 코드여야 한다.** 문법이 깨지면 그 파일을 불러오는 검사는 전부 파싱
     // 단계에서 죽는다 — 잡히긴 잡히지만 무엇을 쟀는지 알 수 없다(계약이 아니라 문법을 쟀다).
     // 실제로 한 건이 그랬고, 그 주입이 붙어 있는 동안 저장소를 읽은 다른 실행까지 무너졌다.

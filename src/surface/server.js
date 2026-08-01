@@ -319,6 +319,10 @@ export function makeServer(deps = {}) {
         // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
         // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.
         modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),
+        // **OS 기계 사실 공급** — 명시 승인 도구 집합(descriptor 단일 진실). 원리를 낳은 원천
+        // 턴의 영수증에 이 도구의 실행이 있으면 성장은 그 원리를 무조건 권한 접촉으로 다룬다.
+        approvalTools: (buildSelfState(env, { tools }).connectedTools ?? [])
+          .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),
       });
       // 성장 워커는 실패를 예외가 아니라 **사유**로 돌려준다(§4.8 격리 판정의 입력).
       // 할 일이 없어서 쉰 tick(`idle`)은 성공도 실패도 아니다 — 세지 않는다.

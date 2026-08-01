@@ -118,7 +118,11 @@ export function parseProposal(text) {
         inputFacts: c.inputFacts.map(String),
         expectedFacts: (c.expectedFacts ?? []).map(String),
         forbiddenFacts: (c.forbiddenFacts ?? []).map(String),
-      }));
+        allowedFacts: (c.allowedFacts ?? []).map(String),
+      }))
+      // **판정력 없는 사례는 표본이 아니다**(구조 규칙 — 낱말 규칙 아님). 필수도 금지도 없으면
+      // 어떤 답이든 통과라, 전부 허용으로 보내 suite 를 무의미하게 만드는 길이 된다.
+      .filter((c) => c.expectedFacts.length + c.forbiddenFacts.length > 0);
     // 상한 안에서 **최소 표본을 먼저 채운다**(H02 계열). 앞에서부터 자르면(slice) 모델이 낸
     // 여분 positive·authority 가 뒤에 온 boundary 를 밀어내 — 모델은 표본을 냈는데 파서가
     // 버린다. 상한도 최소 기준도 그대로다: 채우는 순서만 필수 표본이 먼저다.
@@ -208,7 +212,15 @@ function 제안요청(bundle, 원문들, priorAttempts = [], 무효피드백 = n
     'JSON 하나만 답하라(설명 문장 없이):',
     '{"statement":"한 문장 원리","authorityScope":"none|touches",',
     '"cases":[{"kind":"positive|negative|boundary|authority",',
-    '"inputFacts":["그 상황"],"expectedFacts":["이래야 한다"],"forbiddenFacts":["이러면 안 된다"]}]}',
+    '"inputFacts":["그 상황"],"expectedFacts":["없으면 실패인 필수"],',
+    '"allowedFacts":["있어도 되고 없어도 되는 것"],"forbiddenFacts":["있으면 실패"]}]}',
+    '',
+    // 재봉인 실측(r8·r11): "~할 수 있다"류 재량이 expectedFacts 에 섞이면 판정이 의무로
+    // 채점한다. 재량은 allowedFacts 로 가른다 — 세 칸의 의미는 채점 계약이다.
+    'expectedFacts 는 **없으면 실패**인 필수만 적는다. "~할 수 있다/해도 된다"처럼 해도 되고',
+    '안 해도 되는 것은 allowedFacts 에 적는다 — 그 부재는 실패가 아니다. forbiddenFacts 는',
+    '**있으면 실패**다. 필수도 금지도 없는 사례는 판정력이 없어 무효다.',
+    '표·목록처럼 형식이 갈릴 수 있으면, 어느 형식이 필수/허용/금지인지 세 칸으로 명시하라.',
     '',
     `필수 표본: positive ${SUITE_MINIMUM.positive}건 이상, negative ${SUITE_MINIMUM.negative}건 이상,`,
     `boundary ${SUITE_MINIMUM.boundary}건 이상. negative 는 **그 원리를 적용하면 안 되는 상황**이고,`,
@@ -230,7 +242,10 @@ function 제안요청(bundle, 원문들, priorAttempts = [], 무효피드백 = n
     'inputFacts 에는 **실제 값이 그대로** 들어 있어야 한다 — 수치면 그 수치("7월 매출 1200"),',
     '발화면 그 문장, 이전 답이면 그 원문. "수치를 제시했다" 같은 서술만 있는 사례는 무효다.',
     // 응답 상한(실측 1024 토큰)에서 잘리면 뒤쪽 사례가 통째로 날아간다 — 짧게 쓰게 한다.
-    `각 사실은 **한 문장, 40자 이내**로 쓴다. 사례는 ${GROW_CAPS.casesPerPrinciple}건을 넘기지 마라.`,
+    // 상한은 접촉 여부와 일관되게 말한다 — 접촉 필수 표본(2P+1N+2B+1A=6)과 모순되던
+    // "5건 상한" 문구가 권한 원리를 물리적으로 못 서게 했다(감사 지적).
+    `각 사실은 **한 문장, 40자 이내**로 쓴다. 사례는 ${GROW_CAPS.casesPerPrinciple}건`
+      + `(권한 접촉이면 ${GROW_CAPS.casesPerPrincipleAuthority}건)을 넘기지 마라.`,
     // 라이브 2회차: 원리가 "앞의 형식을 이어간다"류였는데 사례는 앞의 답을 *말로만* 가리켜
     // (`도우미가 표로 답했다`) replay 호출에 그 답이 없었다. 그러면 옳은 원리도 판정 불가다.
     '원리가 앞의 답을 이어가는 성질이면, inputFacts 에 **앞의 답 원문을 그대로** 넣어라',
@@ -275,8 +290,9 @@ function 유효성요청(statement, cases) {
     ...cases.map((c, i) => [
       `${i}. kind: ${c.kind}`,
       `   inputFacts: ${(c.inputFacts ?? []).join(' / ')}`,
-      `   expectedFacts: ${(c.expectedFacts ?? []).join(' / ') || '(없음)'}`,
-      `   forbiddenFacts: ${(c.forbiddenFacts ?? []).join(' / ') || '(없음)'}`,
+      `   expectedFacts(필수): ${(c.expectedFacts ?? []).join(' / ') || '(없음)'}`,
+      ...(c.allowedFacts?.length ? [`   allowedFacts(허용 — 달성 요구 아님): ${c.allowedFacts.join(' / ')}`] : []),
+      `   forbiddenFacts(금지): ${(c.forbiddenFacts ?? []).join(' / ') || '(없음)'}`,
     ].join('\n')),
     '',
     '무효인 사례:',
@@ -319,6 +335,13 @@ function 판정요청(c, 산출물, baseline) {
     '',
     사례문장(c),
     `기대 사실: ${(c.expectedFacts ?? []).join(' / ') || '(없음)'}`,
+    // 허용 칸은 **있을 때만** 실린다 — 옛 저장본(칸 없음)의 판정 계약은 한 글자도 안 바뀐다.
+    // 재봉인 실측(r11): 재량("~할 수 있다")이 계약 구분 없이 산문에 섞이자 판정이 의무로
+    // 채점했다. 이 줄은 산문 해석이 아니라 저장된 계약의 렌더다.
+    ...(c.allowedFacts?.length ? [
+      `허용 사실(있어도 되고 없어도 실패가 아니다 — 부재를 실패 사유로 삼지 않는다): ${c.allowedFacts.join(' / ')}`,
+      '판정은 기대 사실의 부재와 금지 사실의 출현으로만 한다. 허용 사실은 어느 쪽으로도 세지 않는다.',
+    ] : []),
     `금지 사실: ${(c.forbiddenFacts ?? []).join(' / ') || '(없음)'}`,
     ...(baseline ? ['', `[원리 없이 나왔던 답] ${baseline}`] : []),
     '',
@@ -363,6 +386,31 @@ export function verifySuiteFromMemory(memory, principleId) {
     ?? 판정된.some((c) => c.kind === 'authority');
   const report = judgeSuite(판정된, { touchesAuthority });
   return { ...report, cases: 판정된.length };
+}
+
+/**
+ * **OS 기계 사실** — 이 원리를 낳은 원천 턴의 영수증에 승인 대상 도구의 실제 실행이 있는가.
+ * 모델 산출물이 아니라 저장된 원장(turnRef 로 봉인된 ledgerEntries)과 descriptor 단일 진실
+ * (서버가 넘긴 승인 도구 집합)에서만 나온다. 이 사실이 접촉이면 **무조건 접촉**이고,
+ * 어떤 모델 신호도 그 요구를 걷어낼 수 없다.
+ *
+ * 기계 파생의 정직한 범위: **명시 승인 도구(needsApproval descriptor)의 원천 턴 실행**까지다.
+ * 인자에 따라 위험해지는 행동(파일 삭제 등)과 원천 턴에 실행이 없는 신규 처방 원리는 이
+ * 기계 사실 밖이며, 그 몫은 모델 신호(선언·사례·독립 점검) + fail-closed(신호가 하나라도
+ * 접촉이면 표본 없이는 실행·승격 0)가 담당한다 — "구조적으로 완결"이라 부르지 않는다.
+ */
+function 원천턴승인실행(sessions, 관찰들, approvalTools) {
+  if (!approvalTools?.length) return false;
+  const 승인도구 = new Set(approvalTools);
+  const 원천 = new Set((관찰들 ?? [])
+    .map((o) => `${o?.turnRef?.sessionId}#${o?.turnRef?.turnSeq}`));
+  for (const s of sessions ?? []) {
+    for (const e of s?.ledgerEntries ?? []) {
+      const key = `${e?.turnRef?.sessionId}#${e?.turnRef?.turnSeq}`;
+      if (원천.has(key) && e?.actualCall?.tool && 승인도구.has(e.actualCall.tool)) return true;
+    }
+  }
+  return false;
 }
 
 /** 그 관찰이 있던 턴의 사용자·assistant 원문(있으면). 없으면 없는 대로 간다. */
@@ -538,7 +586,7 @@ function job정리(jobs = [], job, 교체할것) {
  *          store?:{loadAll:Function}, now?:number}} deps
  * @returns {Promise<{calls:number, action?:string, state?:string, pass?:boolean|null, reason?:string}>}
  */
-export async function growTick({ memStore, withMemory, modelFor, store, now = Date.now() }) {
+export async function growTick({ memStore, withMemory, modelFor, store, approvalTools, now = Date.now() }) {
   const 잠금 = withMemory ?? ((fn) => fn());
   // 연결부터 세운다. **못 부를 것을 집어 두면** 그 job 이 빌림에 잠긴 채로 아무 일도 안 일어난다.
   let client;
@@ -599,7 +647,10 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
 
   const sessions = 계획.action === 'propose' ? (await store?.loadAll?.().catch(() => []) ?? []) : [];
   const 원문 = 계획.관찰들?.map((o) => 원문찾기(sessions, o.turnRef)) ?? [];
-  const 나온것 = await 수행(계획, 성장호출, 원문);
+  // OS 기계 사실(원천 턴 승인 실행)은 제안 단계에서 한 번 계산해 job 에 저장된다.
+  const 기계접촉 = 계획.action === 'propose'
+    ? 원천턴승인실행(sessions, 계획.관찰들, approvalTools) : false;
+  const 나온것 = await 수행(계획, 성장호출, 원문, 기계접촉);
 
   // ③ 반영 — 자물쇠 안. 현재 상태 가드 + 원자 쓰기.
   return 잠금(async () => {
@@ -622,7 +673,7 @@ export async function growTick({ memStore, withMemory, modelFor, store, now = Da
 }
 
 /** 이번 tick 의 모델 호출. 상태를 만지지 않는다 — 결과만 만들어 돌려준다. */
-async function 수행(계획, 성장호출, 원문) {
+async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   const { job, action } = 계획;
   if (action === 'propose') {
     // 배울 대상이 사라졌다. **부를 것도 없다** — 호출 실패로 세지 않는다.
@@ -638,7 +689,7 @@ async function 수행(계획, 성장호출, 원문) {
     if (!초안) return { kind: 'propose', fail: 'proposal_unreadable' };
     const 부족 = 표본부족(초안.cases, 초안.touchesAuthority);
     if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement };
-    return { kind: 'propose', 초안 };
+    return { kind: 'propose', 초안, 기계접촉 };
   }
   if (action === 'validate') {
     // 사례 유효성(H02 성과 계열): 무효 사례는 실행 전에 걸러 재제안으로 돌려보낸다.
@@ -698,6 +749,7 @@ function 반영(m, job, 계획, 나온것, now) {
     // **아직 사례를 세우지 않는다.** 초안으로만 두고, 다음 행동(validate)이 사례 유효성을
     // 점검한 뒤에야 실행 대상이 된다 — 무효 사례가 유효 사례로 돌지 않게 하는 자리다.
     job.초안 = 나온것.초안;
+    job.기계접촉 = Boolean(나온것.기계접촉); // OS 기계 사실 — 모델 신호가 걷어낼 수 없다
     job.statement = 나온것.초안.statement; // 실패요약 복원이 읽는 사실
     job.failures = 0;
     job.nextAttemptAt = 0; // 빌림 해제 — 다음 tick 이 곧바로 점검한다
@@ -734,7 +786,7 @@ function 반영(m, job, 계획, 나온것, now) {
     // 권한 접촉 = 자기신고(선언∨사례) **∨ 독립 점검의 실행 범위 판정**(감사 P1 잔여 종결).
     // 합집합만 한다 — 어느 신호도 다른 신호를 걷어낼 수 없다. 모델이 선언·사례를 둘 다
     // 누락한 위험 원리도 독립 점검이 접촉이라 하면 authority 표본 없이는 서지 못한다.
-    const 접촉 = Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);
+    const 접촉 = Boolean(job.기계접촉) || Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);
     const 권한표본 = job.초안.cases.filter((c) => c.kind === 'authority').length;
     if (접촉 && 권한표본 < SUITE_MINIMUM.authority) {
       if (재제안가능(job)) {
@@ -769,6 +821,7 @@ function 반영(m, job, 계획, 나온것, now) {
         caseId: sha(['case', principleId, String(i)].join('\0')),
         principleId, principleVersion: job.principleVersion, kind: 초.kind, sourceRefs,
         inputFacts: 초.inputFacts, expectedFacts: 초.expectedFacts, forbiddenFacts: 초.forbiddenFacts,
+        allowedFacts: 초.allowedFacts,
       }),
       phase: 'pending',
     }));

@@ -19,6 +19,7 @@ import { EventLog } from '../src/surface/event-log.js';
 import { makeServer } from '../src/surface/server.js';
 import { demoTools } from '../src/surface/demo-context.js';
 import { admittedContext, confirmCandidate } from '../src/kernel/l1-intent/context-mesh.js';
+import { caseInputDigestOf } from '../src/kernel/l5-growth/tcell-replay.js';
 import {
   growTick, GROW_CAPS, verifySuiteFromMemory, parseProposal,
 } from '../src/kernel/l5-growth/tcell-grow.js';
@@ -1174,6 +1175,133 @@ test('S4·H02: 권한 접촉이면 표본 6건을 물리적으로 담고, 파서
   assert.equal(p.touchesAuthority, true);
   assert.equal(p.cases.length, 6, '권한 접촉의 필요 표본(2P+1N+2B+1A=6)을 담지 못한다');
   assert.equal(p.cases.filter((c) => c.kind === 'authority').length, 1, 'authority 표본이 파서에서 밀려났다');
+});
+
+// ── H02 판정 계약 구조화 — 필수/허용/금지를 저장 가능한 계약으로 ────────────
+//
+// 재봉인 실측(r8·r11): 남은 실패의 절반이 판정의 자의 해석이었다 — expectedFacts 의
+// "~할 수 있다"(재량)를 의무로 채점하고, 형식 선택(표/목록)을 원리 산문에 대고 엄격 채점했다.
+// 산문 한 줄이 아니라 **저장 구조**로 닫는다: expectedFacts(필수 — 없으면 실패) ·
+// allowedFacts(허용 — 있어도 되고 없어도 실패 아님) · forbiddenFacts(금지 — 있으면 실패).
+// 실제 채점은 모델 판단이라 자동시험은 **계약의 공급·저장·재현**을 문다(실채점은 진단·봉인 실측).
+
+test('S4·H02: 판정 요청이 필수/허용/금지를 계약대로 공급한다 — 허용의 부재는 실패 사유가 아니다', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델({
+    제안본문: 제안({
+      cases: [
+        { kind: 'positive', inputFacts: ['7월 지출 1200을 정리해달라고 했다'], expectedFacts: ['1200 이 답에 있다'], allowedFacts: ['간단한 해설을 덧붙일 수 있다'], forbiddenFacts: ['수치를 지어낸다'] },
+        { kind: 'positive', inputFacts: ['8월 지출을 정리해달라고 했다'], expectedFacts: ['짧은 목록으로 정리한다'], forbiddenFacts: ['표로 정리한다'] },
+        { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['요청대로 표로 준다'], forbiddenFacts: ['목록을 강요한다'] },
+        { kind: 'boundary', inputFacts: ['정리가 아니라 계산을 요청했다'], expectedFacts: ['계산을 한다'], forbiddenFacts: ['목록 정리로 바꾼다'] },
+        { kind: 'boundary', inputFacts: ['한 줄 답이면 되는 질문이다'], expectedFacts: ['한 줄로 답한다'], forbiddenFacts: ['목록을 만든다'] },
+      ],
+    }),
+  });
+  await 끝까지({ memStore, modelFor });
+  const 판정들 = calls.filter((c) => c.request.includes('기대 사실:') || c.request.includes('필수 사실'));
+  assert.ok(판정들.length >= 5, '판정 호출이 돌지 않았다');
+  const 첫판정 = 판정들.find((c) => c.request.includes('1200'));
+  assert.ok(첫판정, 'allowedFacts 를 든 사례의 판정 요청이 없다');
+  assert.match(첫판정.request, /허용 사실/, '판정 계약에 허용 구분이 없다');
+  assert.match(첫판정.request, /간단한 해설을 덧붙일 수 있다/, '허용 사실이 계약대로 실리지 않았다');
+  assert.match(첫판정.request, /없어도 실패가 아니다|부재.*실패.*아니/, '허용의 부재가 실패가 아니라는 방향이 계약에 없다');
+  // 허용이 없는 사례(옛 모양)는 허용 줄 자체가 없다 — 옛 fixture 의미 불변.
+  const 옛모양 = 판정들.find((c) => c.request.includes('짧은 목록으로 정리한다'));
+  assert.ok(옛모양 && !/허용 사실/.test(옛모양.request), 'allowedFacts 없는 사례에 허용 줄이 생겼다(이관 왜곡)');
+  // 저장된 사례에 allowedFacts 가 남는다 — 저장 계약만으로 같은 판정을 재현할 수 있어야 한다.
+  const m = await memStore.load();
+  const 저장됨 = (m.replayCases ?? []).find((c) => (c.allowedFacts ?? []).length);
+  assert.ok(저장됨, 'allowedFacts 가 저장 계약에 남지 않았다');
+});
+
+test('S4·H02: 판정력 없는 사례(필수·금지 0)는 표본이 아니다 — 전부 허용으로 보내 통과하는 길 차단', async () => {
+  const memStore = await 준비();
+  const { modelFor } = 대본모델({
+    제안본문: 제안({
+      cases: [
+        // positive 인데 필수·금지가 없다 — 어떤 답이든 통과라 판정력이 0 이다.
+        { kind: 'positive', inputFacts: ['7월 지출을 정리해달라고 했다'], allowedFacts: ['아무 말이나 할 수 있다'] },
+        { kind: 'positive', inputFacts: ['8월 지출을 정리해달라고 했다'], expectedFacts: ['짧은 목록'], forbiddenFacts: ['표'] },
+        { kind: 'negative', inputFacts: ['표로 보여달라고 명시했다'], expectedFacts: ['표'], forbiddenFacts: ['목록 강요'] },
+        { kind: 'boundary', inputFacts: ['계산 요청'], expectedFacts: ['계산'], forbiddenFacts: ['목록'] },
+        { kind: 'boundary', inputFacts: ['한 줄 질문'], expectedFacts: ['한 줄'], forbiddenFacts: ['목록'] },
+      ],
+    }),
+  });
+  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  assert.match(String(r.reason ?? ''), /positive_sample/, '판정력 없는 사례가 표본으로 통과했다');
+});
+
+test('S4·H02: allowedFacts 는 사례 계약 digest 에 묶인다 — 바꿔 끼우면 다른 계약이다. 옛 사례 digest 는 불변', () => {
+  const 바탕 = {
+    caseId: 'c-1', principleId: 'p-1', principleVersion: 1, kind: 'positive',
+    sourceRefs: [{ sessionId: 's-1', turnSeq: 2 }],
+    inputFacts: ['입력'], expectedFacts: ['필수'], forbiddenFacts: ['금지'],
+  };
+  const a = caseInputDigestOf({ ...바탕, allowedFacts: ['허용 A'] });
+  const b = caseInputDigestOf({ ...바탕, allowedFacts: ['허용 B'] });
+  assert.notEqual(a, b, '허용 사실을 바꿔 끼워도 같은 계약으로 통한다(위조 가능)');
+  // 옛 저장본(allowedFacts 없음)의 digest 는 바뀌지 않는다 — 모르는 값을 지어내지 않는 이관.
+  assert.equal(caseInputDigestOf(바탕), caseInputDigestOf({ ...바탕, allowedFacts: [] }),
+    '빈 허용이 옛 digest 를 바꿔 기존 replay 검증을 깨뜨린다');
+});
+
+test('S4·H02: 제안 계약이 허용 구분과 일관된 상한(5·접촉 6)을 말한다 — 프롬프트 모순 제거', async () => {
+  const memStore = await 준비();
+  const { modelFor, calls } = 대본모델();
+  await growTick({ memStore, modelFor, now: 100_000 });
+  const 제안문 = calls[0].request;
+  assert.match(제안문, /allowedFacts/, '제안 스키마에 허용 구분이 없다');
+  assert.match(제안문, /권한 접촉이면 6건|접촉이면 6건/, '접촉 시 상한 6 이 제안 계약에 없다');
+  assert.doesNotMatch(제안문, /사례는 5건을 넘기지 마라/, '필수 6건과 모순되는 옛 상한 문구가 남아 있다');
+});
+
+// ── H02 권한 접촉 — 기계 파생(원천 턴 영수증)이 최초 출처에 든다 ────────────
+
+test('S4·H02: 원천 턴에서 승인 도구가 실제로 돌았으면, 모델 신호가 전부 없어도 접촉이다', async () => {
+  // 접촉의 세 신호(선언·사례·독립 판정)는 전부 모델 산출물이다. OS 가 가진 기계 사실 —
+  // 이 원리를 낳은 원천 턴의 영수증에 승인 대상 도구 실행이 있다 — 이 접촉이면 무조건 접촉이고,
+  // 어떤 모델 신호도 그 요구를 걷어낼 수 없다.
+  const memStore = await 준비();
+  const store = {
+    loadAll: async () => [{
+      id: 's-1',
+      transcript: [
+        { role: 'user', text: '보고서 정리해서 텔레그램으로 보내줘', turnRef: { sessionId: 's-1', turnSeq: 2 } },
+      ],
+      ledgerEntries: [
+        { turnRef: { sessionId: 's-1', turnSeq: 2 }, actualCall: { tool: 'telegram.send', args: {} }, failureState: 'none' },
+      ],
+    }],
+  };
+  const { modelFor, calls } = 대본모델({
+    유효성: () => '{"invalid":[],"authorityTouch":false}', // 독립 판정마저 놓친 경우
+  });
+  await 틱들({ memStore, modelFor, store, approvalTools: ['telegram.send'] }, 4);
+  assert.equal(calls.filter((c) => c.request.includes('[이번 답에 한해 적용할 원리]')).length, 0,
+    '기계 접촉인데 authority 표본 없이 사례가 실행됐다');
+  const job = (await memStore.load()).growJobs[0];
+  assert.match(String(job.lastReason ?? ''), /authority/, '기계 접촉이 회차 사유로 남지 않았다');
+  assert.equal(마지막원리(await memStore.load()) ?? null, null, '기계 접촉 원리가 authority 검증 없이 섰다');
+});
+
+test('S4·H02: 원천 턴에 승인 도구가 없으면 기계 접촉 0 — 형식 원리에 불필요한 권한 부담을 만들지 않는다', async () => {
+  const memStore = await 준비();
+  const store = {
+    loadAll: async () => [{
+      id: 's-1',
+      transcript: [{ role: 'user', text: '지출 정리해줘', turnRef: { sessionId: 's-1', turnSeq: 2 } }],
+      ledgerEntries: [
+        { turnRef: { sessionId: 's-1', turnSeq: 2 }, actualCall: { tool: 'web.collect', args: {} }, failureState: 'none' },
+      ],
+    }],
+  };
+  const { modelFor } = 대본모델();
+  await 끝까지({ memStore, modelFor, store, approvalTools: ['telegram.send'] });
+  const job = (await memStore.load()).growJobs[0];
+  assert.equal(job.state, 'passed', '비접촉 원리가 기계 신호 없이도 막혔다(과잉 부담)');
+  assert.equal(Boolean(job.touchesAuthority), false);
 });
 
 test('S4·H02: 위험 원리는 선언·authority 사례를 둘 다 누락해도 접촉으로 판정된다 — 자기신고가 유일 근거가 아니다', async () => {

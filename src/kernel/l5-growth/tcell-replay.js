@@ -35,6 +35,9 @@ export function caseInputDigestOf(c) {
     inputFacts: [...(c.inputFacts ?? [])].sort(),
     expectedFacts: [...(c.expectedFacts ?? [])].sort(),
     forbiddenFacts: [...(c.forbiddenFacts ?? [])].sort(),
+    // 허용 사실도 계약이다 — 바꿔 끼우면 다른 계약이다. 단 **있을 때만** digest 에 든다:
+    // 옛 저장본(칸 없음)의 digest 가 바뀌면 기존 replay 검증이 통째로 깨진다(정직한 이관).
+    ...(c.allowedFacts?.length ? { allowedFacts: [...c.allowedFacts].sort() } : {}),
   });
   return sha(canonical);
 }
@@ -51,8 +54,11 @@ export function makeReplayCase(p) {
     kind: p.kind, // positive | negative | boundary | authority
     sourceRefs: p.sourceRefs ?? [],
     inputFacts: p.inputFacts ?? [],
-    expectedFacts: p.expectedFacts ?? [],
-    forbiddenFacts: p.forbiddenFacts ?? [],
+    expectedFacts: p.expectedFacts ?? [],   // 필수 — 없으면 실패
+    forbiddenFacts: p.forbiddenFacts ?? [], // 금지 — 있으면 실패
+    // 허용 — 있어도 되고 없어도 실패가 아니다. 재봉인 실측(r8·r11): "~할 수 있다"류 재량이
+    // expectedFacts 에 섞여 판정이 의무로 채점했다. 재량은 산문이 아니라 이 칸에 산다.
+    ...(p.allowedFacts?.length ? { allowedFacts: p.allowedFacts } : {}),
   };
   return { ...base, caseInputDigest: caseInputDigestOf(base), runReceiptRef: null, verdict: null };
 }
