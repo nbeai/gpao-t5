@@ -1,10 +1,25 @@
 import { prepareAutomationRuns } from './automation-engine.js';
 import { JobClaimer } from './job-claimer.js';
 import { BuiltinTriggerProvider } from './trigger-provider.js';
+import { transitionState } from '../kernel/l5-growth/automation-contracts.js';
 
 function requiredFunction(value, name) {
   if (typeof value !== 'function') throw new TypeError(`${name} is required`);
   return value;
+}
+
+function sameOwner(left, right) {
+  return left?.pid === right?.pid && left?.ownerToken === right?.ownerToken;
+}
+
+function processIsAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
 }
 
 /**
@@ -40,13 +55,36 @@ export class AutomationScheduler {
     this.applyJobDeltas = requiredFunction(applyJobDeltas, 'applyJobDeltas');
     this.recordHeartbeat = requiredFunction(recordHeartbeat, 'recordHeartbeat');
     this.triggerProvider = triggerProvider ?? new BuiltinTriggerProvider({ clock });
+    this.runLedger = runLedger;
     this.claimer = new JobClaimer({ owner, runLedger, jobStore, clock });
     this.atomicJobClaims = Boolean(jobStore);
     this.owner = { pid: owner.pid, ownerToken: owner.ownerToken };
   }
 
+  async #recoverStaleRuns(now) {
+    const loaded = await this.runLedger.load();
+    if (loaded.recovery) throw new Error('automation_run_ledger_recovery_required');
+    const activeStates = new Set(['claimed', 'running', 'waiting_approval']);
+    const recovered = [];
+    for (const run of loaded.runs) {
+      if (!activeStates.has(run.status) || sameOwner(run.owner, this.owner)) continue;
+      // 같은 PID의 다른 token은 이 프로세스의 이전 runtime이다. 다른 PID는 실제로 죽은 경우만
+      // 회수한다. 살아 있는 병렬 worker를 restart 복구가 가로채지 않는다.
+      if (run.owner?.pid !== process.pid && processIsAlive(run.owner?.pid)) continue;
+      const moved = transitionState('agentRun', run, 'unknown', now, {
+        finishedAt: now,
+        heartbeatAt: now,
+        result: { reason: 'owner_lost_execution_uncertain' },
+      });
+      if (!moved.ok) throw new Error(`agent_run_recovery_failed: ${moved.reason}`);
+      recovered.push((await this.runLedger.append(moved.record)).record);
+    }
+    return recovered;
+  }
+
   async #fire(recovering) {
     const now = this.clock();
+    const recoveredRuns = recovering ? await this.#recoverStaleRuns(now) : [];
     const state = await this.stateSource();
     const prepared = prepareAutomationRuns({
       jobs: state.jobs ?? [],
@@ -103,6 +141,7 @@ export class AutomationScheduler {
       heartbeatDelta,
       heartbeatResult,
       prepared,
+      recoveredRuns,
     };
   }
 

@@ -273,9 +273,9 @@ test('AC-7 canonical update and workspace migration preserve both writers', asyn
     };
   });
   await loaded;
-  await migrateAutomationWorkspaceV1(dir, 20);
+  const migrating = migrateAutomationWorkspaceV1(dir, 20);
   releaseUpdate();
-  await updating;
+  await Promise.all([updating, migrating]);
 
   const finalState = await store.load();
   assert.equal(finalState.candidates.some((entry) => entry.candidateId === 'during-migration'), true);

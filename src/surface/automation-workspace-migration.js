@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import {
   migrateAutomationWorkspaceDataV1,
 } from '../kernel/l5-growth/automation-contracts.js';
-import { atomicWritePrivate } from './versioned-json-store.js';
+import { atomicWritePrivate, serializeByFile } from './versioned-json-store.js';
 import { defaultAutomationDir } from './automation-store.js';
 
 const migrations = new Map();
@@ -33,21 +33,37 @@ export function migrateAutomationWorkspaceV1(dir = defaultAutomationDir(), now =
     const skillFile = join(dir, 'skills.json');
     const profileFile = join(dir, 'agent-profiles.json');
     const automationFile = join(dir, 'automation.json');
-    const before = {
-      skills: await readJson(skillFile, { skills: [] }),
-      profiles: await readJson(profileFile, { profiles: [] }),
-      automation: await readJson(automationFile, { candidates: [], jobs: [] }),
-    };
-    const data = migrateAutomationWorkspaceDataV1(before, now);
 
-    // W2·R5 · **안 바꾼 파일은 쓰지 않는다.** 이 migration 은 "job 이 참조할 skill·profile 이
-    // 실재하게" 만드는 것이 일이다. 이미 그 조건이 참인 파일까지 되쓰면, 읽고→쓰는 사이에 낀
-    // 다른 저장선의 갱신이 사라진다(같은 데이터 디렉터리를 쓰는 병렬 작업선의 lost update).
-    // 새 job 승인마다 세 파일이 전부 다시 써지던 것이 실제 창이었다.
-    await 바뀌었으면쓰기(skillFile, before.skills, data.skills);
-    await 바뀌었으면쓰기(profileFile, before.profiles, data.profiles);
-    await 바뀌었으면쓰기(automationFile, before.automation, data.automation);
-    return data;
+    // 저장소 update 와 같은 파일 큐를 공유한다. 각 단계는 잠금을 얻은 뒤 최신 디스크 상태를
+    // 다시 읽으므로, migration 시작 전에 읽은 스냅샷이 그 사이의 canonical 갱신을 덮지 않는다.
+    await serializeByFile(skillFile, async () => {
+      const before = {
+        skills: await readJson(skillFile, { skills: [] }),
+        profiles: await readJson(profileFile, { profiles: [] }),
+        automation: await readJson(automationFile, { candidates: [], jobs: [] }),
+      };
+      const migrated = migrateAutomationWorkspaceDataV1(before, now);
+      await 바뀌었으면쓰기(skillFile, before.skills, migrated.skills);
+    });
+    await serializeByFile(profileFile, async () => {
+      const before = {
+        skills: await readJson(skillFile, { skills: [] }),
+        profiles: await readJson(profileFile, { profiles: [] }),
+        automation: await readJson(automationFile, { candidates: [], jobs: [] }),
+      };
+      const migrated = migrateAutomationWorkspaceDataV1(before, now);
+      await 바뀌었으면쓰기(profileFile, before.profiles, migrated.profiles);
+    });
+    return serializeByFile(automationFile, async () => {
+      const before = {
+        skills: await readJson(skillFile, { skills: [] }),
+        profiles: await readJson(profileFile, { profiles: [] }),
+        automation: await readJson(automationFile, { candidates: [], jobs: [] }),
+      };
+      const migrated = migrateAutomationWorkspaceDataV1(before, now);
+      await 바뀌었으면쓰기(automationFile, before.automation, migrated.automation);
+      return migrated;
+    });
   });
   migrations.set(dir, current);
   return current.finally(() => {
