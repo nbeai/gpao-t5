@@ -74,7 +74,7 @@ import { isSendTool } from '../kernel/contracts.js';
 import { SkillStore } from './skill-store.js';
 import { detectSkillCandidate, surfaceCandidate, markReplayRequired, replaySkill, approveSkill, admitSkill, rejectSkill, canInfluence, canAutoExecute } from '../kernel/l5-growth/skill-learning.js';
 import { AutomationStore } from './automation-store.js';
-import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger } from '../kernel/l5-growth/automation.js';
+import { makeGrowthCandidate, approveAutomation, cancelJob, admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
 import { tickAutomation } from '../runtime/automation-engine.js';
 import { AutomationScheduler } from '../runtime/automation-scheduler.js';
 import { liveDeps } from './live-context.js';
@@ -676,6 +676,11 @@ export function makeServer(deps = {}) {
         result.memoryWithdrawn = { statement: hit.statement, reason: result.memoryWithdrawal.reason };
         if (!(await 기억영수증('withdrawn', hit))) result.memoryWithdrawn.receiptWritten = false;
       });
+    }
+    if (result.automationSuggestion?.action && !자동화후보저장가능(result.automationSuggestion)) {
+      // R2b(AC-1 재대조): 민감값이 든 발화·인자는 자동화 후보 durable 로 두지 않는다 —
+      // 기억 저장선(기억저장가능)과 같은 공용 경계. 후보만 접고 이번 턴 답은 그대로 간다.
+      result.automationSuggestion = undefined;
     }
     if (result.automationSuggestion?.action) {
       const a = await autoStore.load();

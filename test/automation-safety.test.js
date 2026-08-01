@@ -90,3 +90,21 @@ test('연결이 안 된 것과 아예 없는 것은 다르다 — 있는 도구�
   const i = interpret('슬랙에 회의 시작이라고 올려줘', { selfState: live });
   assert.ok((i.neededTools ?? []).includes('slack.post'), '연결만 없는 도구는 안내해야 한다(숨기면 안 된다)');
 });
+
+// ── W1·AC-1 재대조 R2b · 자동화 후보도 민감 원문을 durable 로 두지 않는다 ──
+// D 조사 실측(2026-08-01): 기억 저장선에는 containsSensitiveValue 게이트가 있는데
+// (server.js 기억저장가능), 자동화 후보 저장선(statement=사용자 발화 원문 + action.args)에는
+// 없었다 — "매주 이 비밀번호 hunter2 로 접속해서…"가 automation.json 원문이 된다.
+test('민감값이 든 발화·인자는 자동화 후보로 저장되지 않는다', async () => {
+  const { containsSensitiveValue } = await import('../src/kernel/l0-evidence/sensitive-text.js');
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  // 공용 경계의 계약 안 형태를 쓴다(값-끝 한정 — §5-O 기록된 한계는 여기서도 동일하게 적용된다).
+  const 민감 = '매주 월요일 접속해서 정리해줘. 비밀번호 hunter2machine';
+  assert.equal(containsSensitiveValue(민감), true, '전제: 공용 경계가 이 값을 잡아야 한다');
+  assert.equal(자동화후보저장가능({ statement: 민감, action: { tool: 'web.collect', args: {} } }), false,
+    '민감 발화가 자동화 후보 durable 저장을 통과했다');
+  assert.equal(자동화후보저장가능({ statement: '매주 월요일 아침 뉴스 정리해줘', action: { tool: 'web.collect', args: { request: '뉴스' } } }), true,
+    '평범한 후보까지 막았다 — 과잉 차단');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { token: 'sk-abcdef1234567890abcdef' } } }), false,
+    '인자 쪽 민감값이 통과했다');
+});

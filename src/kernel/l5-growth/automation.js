@@ -6,6 +6,7 @@
 //   (Hermes cron 단일 job 엔진 원리 흡수 — relay/daemon/config는 복제하지 않는다.)
 
 import { classifyRetry } from '../l2-plan/tool-descriptor.js';
+import { containsSensitiveValue } from '../l0-evidence/sensitive-text.js';
 
 export const JOB_STATES = Object.freeze(['scheduled', 'paused', 'cancelled', 'completed', 'expired', 'failed']);
 
@@ -32,6 +33,24 @@ export function detectAutomationCandidate(text, action = null) {
 /** GrowthCandidate 생성(승인 전 — 실행 아님, 영향 0). */
 export function makeGrowthCandidate({ candidateId, statement, action, dedupKey }) {
   return { candidateId, kind: 'automation', statement, action: action ?? null, dedupKey, approved: false };
+}
+
+/**
+ * W1·AC-1 재대조 R2b · **자동화 후보도 기억과 같은 민감 경계를 지난다.**
+ * statement 는 사용자 발화 원문이고 action.args 는 모델이 채운 인자다 — 어느 쪽이든 민감값이
+ * 있으면 durable(automation.json)로 두지 않는다. 기억 저장선의 `기억저장가능`(server.js)과
+ * 같은 공용 경계(containsSensitiveValue) 하나를 쓴다(두 진실 금지).
+ */
+export function 자동화후보저장가능(candidate) {
+  const statement = String(candidate?.statement ?? '');
+  if (containsSensitiveValue(statement)) return false;
+  const args = candidate?.action?.args;
+  if (args && typeof args === 'object') {
+    for (const v of Object.values(args)) {
+      if (typeof v === 'string' && containsSensitiveValue(v)) return false;
+    }
+  }
+  return true;
 }
 
 /**

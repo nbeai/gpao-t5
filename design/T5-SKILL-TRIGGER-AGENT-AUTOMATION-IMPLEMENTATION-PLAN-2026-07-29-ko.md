@@ -289,6 +289,9 @@ flowchart LR
 
 #### `SkillDefinition`
 
+(정오 2026-08-01, AC-1 재대조: 아래 네 객체의 `schemaVersion` 은 계획 시점 표기 1이 아니라
+**코드 정본 `AUTOMATION_SCHEMA_VERSION = 2`** 다 — `automation-contracts.js:4` 가 진실이다.)
+
 ```js
 {
   schemaVersion: 1,

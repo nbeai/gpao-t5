@@ -557,6 +557,9 @@ export const MUTATIONS = [
   { 이름: '계약 신분 없는 쓰기를 산출물 완료로 인정', 파일: 'src/kernel/l2-plan/work-contract.js', 검사: 'test/work-contract.test.js',
     찾기: "      && receipt.deliverableRefs?.includes(wanted.id));",
     바꾸기: "      && true);" },
+  { 이름: 'R2b 자동화 후보 민감 경계 제거(원문 durable 재발)', 파일: 'src/kernel/l5-growth/automation.js', 검사: 'test/automation-safety.test.js',
+    찾기: "  if (containsSensitiveValue(statement)) return false;",
+    바꾸기: "" },
 ];
 
 async function 한번(m, repo) {
