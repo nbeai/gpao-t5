@@ -37,20 +37,42 @@ export function makeGrowthCandidate({ candidateId, statement, action, dedupKey }
 
 /**
  * W1·AC-1 재대조 R2b · **자동화 후보도 기억과 같은 민감 경계를 지난다.**
- * statement 는 사용자 발화 원문이고 action.args 는 모델이 채운 인자다 — 어느 쪽이든 민감값이
- * 있으면 durable(automation.json)로 두지 않는다. 기억 저장선의 `기억저장가능`(server.js)과
- * 같은 공용 경계(containsSensitiveValue) 하나를 쓴다(두 진실 금지).
+ * statement 는 사용자 발화 원문이고 action.args 는 계약상 `*`(임의 구조)다 — 어느 쪽이든
+ * 민감값이 있으면 durable(automation.json)로 두지 않는다. 기억 저장선의 `기억저장가능`
+ * (server.js)과 같은 공용 경계(containsSensitiveValue) 하나를 쓴다(두 진실 금지).
+ *
+ * W1 감사 보완(Codex 2026-08-02): 첫 판은 최상위 문자열만 봐서 `{auth:{password}}`·
+ * `{headers:["Bearer …"]}` 가 통과했다 — 반대시험을 계약(`args?: *`)이 아니라 구현 모양에서
+ * 뽑은 실수. 지금은 **구조 전체를 순회**한다: 중첩 object·배열, 키 이름까지. 순환은 한 번만
+ * 방문하고, 깊이 상한을 넘는 구조는 **다 봤다고 말할 수 없으므로 저장 불가**로 닫는다
+ * (못 본 것을 안전하다고 말하지 않는다 — fail-closed).
  */
+const 인자순회최대깊이 = 32;
+
+// 키 이름이 곧 라벨인 구조(`{password: "..."}`)는 텍스트 경계가 못 본다 — 값이 맨 값이기
+// 때문이다. 파일 손의 SECRET_NAMES 와 같은 원리로 **구조의 이름**을 본다(임의 낱말 추측 아님).
+const 민감키 = /^(password|passwd|pass|pw|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|authorization|auth|credential|credentials|비밀번호|암호|인증키)$/i;
+
+function 인자에민감값(value, depth, seen) {
+  if (typeof value === 'string') return containsSensitiveValue(value);
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return false;      // 순환 — 이미 본 가지다
+  if (depth > 인자순회최대깊이) return true; // 못 본 깊이를 안전하다고 말하지 않는다
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.some((v) => 인자에민감값(v, depth + 1, seen));
+  }
+  for (const [k, v] of Object.entries(value)) {
+    if (민감키.test(String(k)) && typeof v === 'string' && v.trim().length >= 4) return true;
+    if (인자에민감값(v, depth + 1, seen)) return true;
+  }
+  return false;
+}
+
 export function 자동화후보저장가능(candidate) {
   const statement = String(candidate?.statement ?? '');
   if (containsSensitiveValue(statement)) return false;
-  const args = candidate?.action?.args;
-  if (args && typeof args === 'object') {
-    for (const v of Object.values(args)) {
-      if (typeof v === 'string' && containsSensitiveValue(v)) return false;
-    }
-  }
-  return true;
+  return !인자에민감값(candidate?.action?.args, 0, new WeakSet());
 }
 
 /**

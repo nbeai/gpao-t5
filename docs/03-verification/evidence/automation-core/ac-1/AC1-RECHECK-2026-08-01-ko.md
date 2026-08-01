@@ -58,7 +58,7 @@
 
 | # | 내용 | 처분 |
 |---|---|---|
-| R2b | 자동화 후보 statement·args 민감 원문 durable 저장 | **현재 차단 → W1에서 종결**: `자동화후보저장가능`(공용 경계 재사용) + 반대시험(수정 전 실패 실측) + 돌연변이 154번 |
+| R2b | 자동화 후보 statement·args 민감 원문 durable 저장 | **현재 차단 → W1 보완 완료(감사 재확인 대기)**: 1차(최상위 문자열만)는 Codex 감사에서 불합격 — 반대시험을 계약(`args?: *`)이 아니라 구현 모양에서 뽑은 실수. 2차: 구조 전체 재귀 순회 + 민감 키 이름 규칙 + 순환 1회 방문 + 깊이 상한 초과 fail-closed. 중첩·배열·순환·초심층 반대시험(수정 전 실패 실측) + 돌연변이 154·155·156(statement·재귀·키 규칙 — 계약 조항 단위) |
 | R5 | `AutomationStore.save`가 skills.json·agent-profiles.json까지 재작성 → 병렬 런타임 충돌 | **현재 차단 → W2 서두 본선 직렬**(v1/v2 절단과 한 묶음) |
 | R4/1.3 | skills.json v1/v2 왕복 드리프트(stale·retired·quarantined 소실)+전체 배열 재저장 | **현재 차단 → W2 서두 본선 직렬**: 런타임을 v2 store로 전환(절단), 왕복 제거 |
 | R1 | `allowedKinds` 어휘 혼용(authority kind ↔ 도구 id) | **현재 차단 → W2 서두 본선 직렬**: 어휘를 authority kind로 확정, 도구 id는 별도 필드. `automation-contracts.js` 변경은 본선 재봉인 |

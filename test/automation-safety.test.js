@@ -108,3 +108,40 @@ test('민감값이 든 발화·인자는 자동화 후보로 저장되지 않는
   assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { token: 'sk-abcdef1234567890abcdef' } } }), false,
     '인자 쪽 민감값이 통과했다');
 });
+
+// ── W1 감사 보완(Codex 조건부 불합격) · args 는 `*` 다 — 중첩 전체가 경계다 ──
+// 실측(Codex 반대시험 2026-08-02): { auth: { password } }·{ headers: ["Bearer sk-..."] } 가
+// 저장 가능으로 통과했다. 원인: 반대시험을 계약(`ScheduledJob.action.args?: *`)이 아니라
+// 구현 모양(최상위 Object.values)에서 뽑았다. 계약 정의역의 극단을 여기 박는다.
+test('중첩 object 안의 민감값도 자동화 후보 저장을 막는다', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { auth: { password: 'hunter2machine' } } } }), false,
+    '중첩 object 의 비밀번호가 통과했다');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { a: { b: { c: { token: 'sk-abcdef1234567890abcdef' } } } } } }), false,
+    '깊은 중첩의 토큰이 통과했다');
+});
+
+test('배열 안의 민감값도 막는다(Bearer 헤더 형태)', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { headers: ['Accept: json', 'Authorization: Bearer sk-abcdef1234567890abcdef'] } } }), false,
+    '배열 속 Bearer 토큰이 통과했다');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: { items: [{ note: '평범' }, { secretKey: 'sk-abcdef1234567890abcdef' }] } } }), false,
+    '배열 속 object 의 민감값이 통과했다');
+});
+
+test('순환 참조·깊은 구조에서도 판정이 멈추지 않고 안전한 쪽으로 닫힌다', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  const 순환 = { a: 1 }; 순환.self = 순환;
+  // 순환은 안전하게 종료돼야 한다(무한 루프 0) — 판정 자체는 참(민감값 없음)이어도 된다.
+  assert.equal(typeof 자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: 순환 } }), 'boolean');
+  // 상한을 넘는 초심층 구조는 **다 봤다고 말할 수 없으므로** 저장 가능으로 통과시키지 않는다.
+  let 깊은 = { v: 'sk-abcdef1234567890abcdef' };
+  for (let i = 0; i < 40; i += 1) 깊은 = { w: 깊은 };
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'x', args: 깊은 } }), false,
+    '못 본 깊이를 안전하다고 말했다');
+});
+
+test('평범한 중첩 구조는 계속 저장 가능하다(과잉 차단 0)', async () => {
+  const { 자동화후보저장가능 } = await import('../src/kernel/l5-growth/automation.js');
+  assert.equal(자동화후보저장가능({ statement: '매주 정리', action: { tool: 'web.collect', args: { request: '뉴스', options: { limit: 5, tags: ['경제', '기술'] } } } }), true);
+});

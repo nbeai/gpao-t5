@@ -560,6 +560,12 @@ export const MUTATIONS = [
   { 이름: 'R2b 자동화 후보 민감 경계 제거(원문 durable 재발)', 파일: 'src/kernel/l5-growth/automation.js', 검사: 'test/automation-safety.test.js',
     찾기: "  if (containsSensitiveValue(statement)) return false;",
     바꾸기: "" },
+  { 이름: 'R2b args 중첩 순회 제거(계약 args:* 의 절반만 보는 재발)', 파일: 'src/kernel/l5-growth/automation.js', 검사: 'test/automation-safety.test.js',
+    찾기: "    if (인자에민감값(v, depth + 1, seen)) return true;",
+    바꾸기: "" },
+  { 이름: 'R2b 민감 키 이름 규칙 제거(라벨-키 구조 통과 재발)', 파일: 'src/kernel/l5-growth/automation.js', 검사: 'test/automation-safety.test.js',
+    찾기: "    if (민감키.test(String(k)) && typeof v === 'string' && v.trim().length >= 4) return true;",
+    바꾸기: "" },
 ];
 
 async function 한번(m, repo) {

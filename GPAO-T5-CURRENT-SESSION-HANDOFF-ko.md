@@ -371,11 +371,13 @@ T-cell은 3번 코어에 속하지만, 성공하면 2번 모델 운용·4번 권
 
 ## 3. 현재 Git·제품 기준선
 
-**실측 갱신 2026-08-01(W1 배치 1 종결 확인, S 공정감시 지적 반영 — 아래 역사 수치와 혼동 금지)**:
+**실측 갱신 2026-08-02(Codex W1 감사 지적 반영 — 기준선을 이름으로 분리한다. "현재 HEAD"는
+문서에 적는 순간 낡는다 — 현재는 항상 `git log -1` 이 진실이다)**:
 
-- 현재 HEAD: `a7f839e`(= origin 동기) — 배치 1(H08~H09) 봉인 커밋 `a48675d`·`a7f839e` 포함.
-- 전체 회귀 **1,688/1,688** · 돌연변이 스윕 **153종**(본선 기계 재확인 진행 기록은 §9 W1) ·
-  `audit:plan`/`audit:docs`/`audit:workspace` PASS — 전부 이 HEAD에서 본선이 직접 실행해 확인.
+- **배치 1(H08~H09) 봉인 기준**: `a7f839e` (봉인 커밋 `a48675d`·`a7f839e`).
+- **W1 배치 2 착수 기준선**: `a203569` (AC-1 재대조·계약 동결·R2b 1차).
+- W1 게이트 실측(각 기준선 시점 본선 직접 실행): 회귀 1,688→**1,689** · 스윕 153→**154** ·
+  `audit:plan`/`audit:docs`/`audit:workspace` PASS. 이후 수치는 §9 W1 보완 기록이 잇는다.
 - 자동화 자산 7파일(skill-store·automation-store·agent-profile-store·automation-run-ledger·
   automation-workspace-migration·automation-engine·automation-scheduler)은 AC-1 편입
   (`c58bdea`) 이후 무변경 — AC-1 재대조의 초점은 주변 계약(T-cell replay·민감 2층·통제 채널·
