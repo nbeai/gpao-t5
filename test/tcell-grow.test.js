@@ -21,7 +21,7 @@ import { demoTools } from '../src/surface/demo-context.js';
 import { admittedContext, confirmCandidate } from '../src/kernel/l1-intent/context-mesh.js';
 import { caseInputDigestOf } from '../src/kernel/l5-growth/tcell-replay.js';
 import {
-  growTick, GROW_CAPS, verifySuiteFromMemory, parseProposal, computeCaseVerdict,
+  growTick, GROW_CAPS, verifySuiteFromMemory, parseProposal, computeCaseVerdict, 유효성요청,
 } from '../src/kernel/l5-growth/tcell-grow.js';
 
 // 원리 문장과 실제로 겹치는 요청 — 이걸 안 주면 `admittedContext` 는 무조건 0을 돌려주고,
@@ -1923,4 +1923,44 @@ test('H02·v5: 미결합 exact 가 반복되면 재제안 1회 후 회차를 정
   const job = (await memStore.load()).growJobs[0];
   assert.match(String(job.lastReason ?? ''), /invalid_cases:unbound_exact/, '접힌 사유가 남아야 한다');
   assert.equal(calls.filter((c) => c.request.includes('운영 원리 후보')).length, 2, '재제안은 1회다');
+});
+
+// ── r42 관측이 확정한 null 계열 두 원인 봉합 ──────────────────────────────────
+// 원시(진행표 §5-I 예정): 판정 불가 10건 중 지배 원인은 **여러 줄 묶음 인용** — 판정 모델이
+// 답의 목록 여러 줄을 한 근거로 붙여 내는데, 답에 중간 줄(예: 이익 550)이 더 있으면 개별
+// 줄은 전부 원문인데 통짜 substring 이 실패해 null 이 됐다. 나머지는 부재형 필수 계약
+// ("표를 쓰지 않음")이라 인용 근거가 원리적으로 불가능한 사례다.
+
+test('판정 근거: 여러 줄 인용은 줄 단위로 대조한다 — 전부 원문이면 근거다', () => {
+  const c = { expectedFacts: ['수치를 모두 정리한다'], forbiddenFacts: [], exactFacts: [] };
+  const 산출물 = '- 매출: 1,500\n- 비용: 950\n- 이익: 550\n- 신규 고객: 9명';
+  const v = computeCaseVerdict(c, 산출물, {
+    // 이익 줄을 건너뛴 불연속 인용 — r42 실물 그대로
+    required: [{ i: 0, met: true, evidence: '- 매출: 1,500\n- 비용: 950\n- 신규 고객: 9명' }],
+    forbidden: [],
+    rationale: '지켰다',
+  });
+  assert.ok(v, '전부 원문인 줄들의 묶음 인용이 판정 불가가 되면 안 된다(r42 null 지배 원인)');
+  assert.equal(v.pass, true);
+});
+
+test('판정 근거: 줄 중 하나라도 답 원문에 없으면 여전히 판정 불가다 — 지어낸 근거는 통과 못 한다', () => {
+  const c = { expectedFacts: ['수치를 모두 정리한다'], forbiddenFacts: [], exactFacts: [] };
+  const 관측 = {};
+  const v = computeCaseVerdict(c, '- 매출: 1,500\n- 비용: 950', {
+    required: [{ i: 0, met: true, evidence: '- 매출: 1,500\n- 지어낸 줄: 9999' }],
+    forbidden: [],
+    rationale: '지켰다',
+  }, 관측);
+  assert.equal(v, null, '지어낸 줄이 섞인 근거가 통과하면 근거 규율이 무너진다');
+  assert.match(String(관측.불가이유 ?? ''), /required_0_unevidenced/);
+});
+
+test('유효성 계약: 부재형 필수(…하지 않는다)는 forbiddenFacts 로 — 기준이 점검 요청에 있다', () => {
+  // r42 실물: expectedFacts 에 "표를 쓰지 않고 목록으로만"이 들어와, 판정 모델이 부재를
+  // 인용으로 증명할 수 없어 서술을 근거로 냈고 null 이 됐다. 부재·비발생은 금지 칸의 일이다.
+  const memStore = null; // 프롬프트 계약 검사 — 실행 불필요
+  const req = 유효성요청('원리', [{ kind: 'positive', inputFacts: ['a'], expectedFacts: ['표를 쓰지 않는다'], forbiddenFacts: [] }]);
+  assert.match(req, /부재|비발생/, '부재형 필수를 무효로 보내는 기준이 유효성 계약에 있어야 한다');
+  assert.match(req, /forbiddenFacts 로/, '어느 칸으로 가야 하는지까지 계약이 말해야 한다');
 });

@@ -337,7 +337,7 @@ function 실행요청(statement, c) {
  * 달성 불가능한 기대, 실물 없는 자료 서술. 무효로 판정된 사례는 실행·suite 어느 쪽으로도
  * 세지 않고, 재제안(횟수 한정)으로 돌려보낸다.
  */
-function 유효성요청(statement, cases) {
+export function 유효성요청(statement, cases) {
   return [
     '아래는 원리 검증에 쓸 사례들이다. **사례 유효성**만 점검하라 — 원리가 옳은지는 묻지 않는다.',
     '',
@@ -361,6 +361,8 @@ function 유효성요청(statement, cases) {
     '  "도우미가 …라고 여긴다/간주한다" 같은 내부 판단·원리 적용 여부·메타 서술이 계약에 있다',
     '- exactFacts(축자)가 있는데, inputFacts 의 사용자 발화가 **정확한 문구·표기 그대로**를',
     '  요구하지 않았다 — 일반 수치·표현은 의미 계약(expectedFacts)이어야 한다',
+    '- expectedFacts 에 **부재·비발생**("…하지 않는다/…이 없어야 한다")을 기대하는 항목이 있다',
+    '  — 부재는 답 원문 조각으로 증명할 수 없다. 그런 항목은 forbiddenFacts 로 적어야 한다',
     '',
     // 감사 P1 잔여 종결: 접촉의 최초 출처가 제안 모델의 자기신고(선언·사례)뿐이면, 둘 다
     // 누락한 위험 원리가 일반 원리로 통과한다. **이 독립 점검이 원리·사례의 실행 범위에서**
@@ -449,6 +451,18 @@ const 근거정규화 = (s) => String(s ?? '').replace(/[,.·:;!?"'()\[\]\-|~]/g
  *   · forbidden — appeared 주장에 답 원문 근거가 없으면 그 주장은 세지 않는다(답에 없는 위반).
  *   · allowedFacts — 계산에 아예 들지 않는다(수행·생략 어느 쪽도 실패 아님).
  */
+/**
+ * 근거 대조는 **줄 단위**다(r42 관측: 판정 모델이 답의 여러 줄을 한 근거로 묶어 내는데, 답에
+ * 중간 줄이 더 있으면 개별 줄은 전부 원문인데 통짜 substring 이 실패해 null 이 됐다 — 판정
+ * 불가 10건의 지배 원인). 각 줄이 전부 답 원문에 있어야 근거다 — 지어낸 줄이 하나라도 섞이면
+ * 여전히 판정 불가다(근거 규율은 그대로, 이어붙임만 관대하게).
+ */
+function 근거가원문에(evidence, 산출물) {
+  const 답 = 근거정규화(산출물);
+  const 줄들 = String(evidence ?? '').split('\n').map((l) => 근거정규화(l)).filter(Boolean);
+  return 줄들.length > 0 && 줄들.every((l) => 답.includes(l));
+}
+
 export function computeCaseVerdict(c, 산출물, 항목, 관측 = {}) {
   const 답 = 정규화(산출물);
   const 사유 = [];
@@ -463,8 +477,7 @@ export function computeCaseVerdict(c, 산출물, 항목, 관측 = {}) {
     const it = rmap.get(i);
     if (!it || typeof it.met !== 'boolean') { 관측.불가이유 = `required_${i}_missing`; return null; } // 항목 누락 — 판정 불가
     if (it.met === true) {
-      const ev = 근거정규화(it.evidence ?? '');
-      if (!ev || !근거정규화(산출물).includes(ev)) { 관측.불가이유 = `required_${i}_unevidenced`; return null; } // 근거 없는 충족 주장 — 판정 불가
+      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `required_${i}_unevidenced`; return null; } // 근거 없는 충족 주장 — 판정 불가
     } else {
       필수미충족 += 1;
       사유.push(`필수 미충족: ${String((c.expectedFacts ?? [])[i] ?? i).slice(0, 40)}`);
@@ -476,11 +489,10 @@ export function computeCaseVerdict(c, 산출물, 항목, 관측 = {}) {
     const it = fmap.get(i);
     if (!it || typeof it.appeared !== 'boolean') { 관측.불가이유 = `forbidden_${i}_missing`; return null; }
     if (it.appeared === true) {
-      const ev = 근거정규화(it.evidence ?? '');
       // 근거가 답 원문에 없는 위반 주장은 **버리는 것이 아니라 판정 불가다**(감사 지적 ④):
       // 조용히 무시하면 그 주장이 통과로 흐른다. null 은 재질문 1회를 받고, 그래도 불가면
       // 표본이 아니다 — 통과·실패 어느 쪽으로도 위장하지 않는다.
-      if (!ev || !근거정규화(산출물).includes(ev)) { 관측.불가이유 = `forbidden_${i}_unevidenced`; return null; }
+      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `forbidden_${i}_unevidenced`; return null; }
       위반 += 1;
       사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`);
     }
