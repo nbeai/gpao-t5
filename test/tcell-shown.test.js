@@ -280,8 +280,10 @@ test('중복 억제: 정확 동일성만 본다 — 포함 관계·도우미 발
   try {
     await 선호심기(mem);
     const s = await post('/sessions');
-    // 원천을 **포함**하지만 동일하지 않은 사용자 발화 — 유사도·부분 일치 규칙은 금지다.
-    await post('/turn', { sessionId: s.id, text: `아까 "${선언문}" 라고 했던 거 기억하지? 보고서 정리해줘.` });
+    // 원천을 **포함**하지만 동일하지 않은 사용자 발화를 **이력에** 넣는다 — 부분 일치로
+    // 억제하는 돌연변이는 이 이력을 보고 물려야 한다(처음엔 현재 발화로만 보내 안 물렸다).
+    await post('/turn', { sessionId: s.id, text: `아까 "${선언문}" 라고 했던 거 기억하지?` });
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘. 매출 1500, 비용 950.' });
     const tc = 받은것.at(-1);
     assert.equal((tc.admittedContext ?? []).includes(선언문), true,
       '부분 일치로 억제하면 의미 판정이 된다 — 정확 동일성만 기계 사실이다');
