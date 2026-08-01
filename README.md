@@ -9,9 +9,10 @@ folder, retired plans, comparison sources, and the boundary between current trut
 
 GPAO-T5 is an Original AI Operating System: the user feels they are only chatting, while T5 understands the user's purpose, knows its own available models/tools/permissions/context, operates the necessary means, and produces the desired result through a safe, traceable, recoverable flow.
 
-Current development stage: the seven-core local runtime is implemented, T-cell S0-S5 has completed its production
-and live path, and H-stage remediation/sealing is in progress. This is not a public release claim. Durable scheduling,
-bounded agents, H08-H10, full installation lifecycle, and the final product seal remain explicit work.
+Current development stage: the seven-core local runtime, T-cell S0-S5, H01-H10, durable automation, bounded
+delegation, practical document workflows, and the deterministic whole-product seal are implemented. This is not a
+public release claim. Signed installation, updates, uninstall/recovery, public distribution, and the owner's choice
+between packaging now or doing the separately scoped structural hardening pass remain explicit work.
 
 ## Top Authority Documents
 
@@ -96,9 +97,8 @@ Work Chat
 + TurnRef, receipts, Truth Ledger, recovery, and in-process automation
 ```
 
-The current body is a working local product line, not the 2026-07-24 first slice. It becomes a first completed T5
-only after the frozen H sets, Agent Core, designated follow-up capabilities, release lifecycle, and final owner journey
-are sealed.
+The current body is the completed local development line, not the 2026-07-24 first slice. Its deterministic product
+journey is sealed; consumer installation and release lifecycle are deliberately separate from that development seal.
 
 ## Running the Current Development Build
 

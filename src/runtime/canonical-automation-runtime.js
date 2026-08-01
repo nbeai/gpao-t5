@@ -13,6 +13,7 @@ import {
   verifyCallIdentity,
 } from '../kernel/l5-growth/tcell-replay.js';
 import { replayJudgementPrompt } from '../kernel/l5-growth/replay-verdict.js';
+import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { runTurn } from '../kernel/turn.js';
 import { resolveInScope } from './file-scope.js';
 import { AgentRunCancellationError } from './agent-run-registry.js';
@@ -140,7 +141,11 @@ function invocationTargets(args = {}) {
 
 async function assertInvocationScope(id, args, scope, runtimeReality) {
   const descriptor = (runtimeReality?.connectedTools ?? []).find((tool) => tool.id === id);
-  if (!descriptor || !(scope.authorityEnvelope.allowedKinds ?? []).includes(descriptor.toolKind)) {
+  const actionKind = descriptor ? toolActionKind({ toolId: id, args, selfState: runtimeReality }) : null;
+  // 인자가 행동을 말하면 그 좁은 종류가 이긴다. 옛 스킬처럼 인자가 종류를 못 밝힐 때만
+  // 저장된 descriptor 종류로 폴백한다. delete 를 organize 로 낮추는 우회는 허용하지 않는다.
+  const kind = actionKind === 'unknown_kind' ? descriptor.toolKind : actionKind;
+  if (!kind || !(scope.authorityEnvelope.allowedKinds ?? []).includes(kind)) {
     throw new Error('agent_tool_kind_outside_scope');
   }
   const allowedTargets = new Set(scope.authorityEnvelope.allowedTargets ?? []);
@@ -485,7 +490,7 @@ export class CanonicalAutomationRuntime {
       carryableWorkEntries: [],
       activeGoal: null,
       workingState: null,
-      modelControls: [],
+      modelControls: null,
       newId: () => randomUUID(),
       now: this.now,
     });

@@ -66,6 +66,7 @@ import {
 } from '../kernel/l5-growth/tcell-surface.js';
 import { growTick } from '../kernel/l5-growth/tcell-grow.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
+import { makeAgentDelegateTool } from '../runtime/agent-delegate-tool.js';
 import { deriveLanes, carryableLanes, laneFactEntries } from '../kernel/l5-growth/tcell-lane.js';
 import { TaskTraceStore } from './task-trace-store.js';
 import {
@@ -243,13 +244,16 @@ export function makeServer(deps = {}) {
   // 같은 세션의 턴은 durable truth(EventLog)와 transcript를 공유하므로 직렬화한다.
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
-  const env = deps.env ?? demoEnv();
+  const baseEnv = deps.env ?? demoEnv();
   // 안정성: 느린/멈춘 모델이 턴을 무한 매달아 세션 큐를 막지 않게 타임아웃으로 감싼다(기본 30s, 0이면 무제한).
   // 바깥 경계는 어댑터 상한(계정 경로 150s)보다 커야 안쪽의 진짜 취소가 먼저 돈다(§6.22).
   // 30s 기본은 추론 모델의 정상 응답까지 끊었다(2026-07-26 실사용) — 무한 매달림만 막는다.
   const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 180_000);
   const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
+  // 모델 연결 관리자·자동화 런타임·대화는 같은 환경 사실을 봐야 한다. 복제하면 연결 직후에도
+  // 한쪽은 옛 모델/손을 보는 두 진실이 된다. 위임 손도 이 정본 객체에만 덧붙인다.
+  const env = baseEnv;
   const automationRuntime = deps.automationRuntime ?? new CanonicalAutomationRuntime({
     dir: store.dir,
     env,
@@ -263,6 +267,32 @@ export function makeServer(deps = {}) {
     ...(deps.automationRunLedger ? { runLedger: deps.automationRunLedger } : {}),
     migrate: !deps.skillStore && !deps.automationStore && !deps.agentProfileStore,
   });
+  if (deps.enableAgentDelegation && tools?.tools?.['local.file']?.scopeRoots?.length) {
+    tools.tools['agent.delegate'] = makeAgentDelegateTool({
+      runtime: () => automationRuntime,
+      localFile: tools.tools['local.file'],
+    });
+    const descriptor = demoDescriptors({ include: ['agent.delegate'] })[0];
+    if (descriptor && !env.connections.some((entry) => entry.id === descriptor.id)) {
+      env.connections.push({
+        id: descriptor.id,
+        label: descriptor.label,
+        connected: true,
+        executable: true,
+        status: 'usable',
+        hasHandler: true,
+        needsApproval: false,
+        toolKind: descriptor.toolKind,
+        reversible: descriptor.reversible,
+        capability: descriptor.capability,
+        operatorFact: descriptor.operatorFact,
+        schema: descriptor.schema,
+      });
+    }
+    if (Array.isArray(deps.descriptors) && !deps.descriptors.some((entry) => entry.id === descriptor?.id)) {
+      deps.descriptors.push(descriptor);
+    }
+  }
   const automationReady = () => automationRuntime.ready();
   const skillStore = automationRuntime.skillStore;
   const autoStore = automationRuntime.jobStore;
@@ -2230,6 +2260,7 @@ async function startLiveServerInner(opts, bootStore) {
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
     descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
     model: liveModel, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
+    enableAgentDelegation: true,
   });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.
   try { await modelConnection.init(); } catch { /* 복원 실패 → env/stub 정직 폴백 */ }

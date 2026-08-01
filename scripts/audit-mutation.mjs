@@ -615,6 +615,9 @@ export const MUTATIONS = [
   { 이름: '저장 직렬화 제거(동시 저장이 서로를 지운다)', 파일: 'src/surface/skill-store.js', 검사: 'test/w2-mainline-contracts.test.js',
     찾기: "      return serializeByFile(this.file, () => this.#병합저장(a));",
     바꾸기: "      return this.#병합저장(a);" },
+  { 이름: 'automation 저장 직렬화 제거(동시 저장 유실 재발)', 파일: 'src/surface/automation-store.js', 검사: 'test/w2-mainline-contracts.test.js',
+    찾기: "      const merged = await serializeByFile(this.file, () => this.#병합저장(a));",
+    바꾸기: "      const merged = await this.#병합저장(a);" },
   { 이름: 'canonical skill update 가 파일 직렬화 밖에서 돈다(v1/v2 경쟁 재발)', 파일: 'src/surface/skill-store.js', 검사: 'test/w2-mainline-contracts.test.js',
     찾기: "    return serializeByFile(this.file, async () => {\n      const current = await this.load();",
     바꾸기: "    return Promise.resolve().then(async () => {\n      const current = await this.load();" },
@@ -642,6 +645,21 @@ export const MUTATIONS = [
   { 이름: '스킬 revise 표면이 canonical 수정 경로를 건너뜀', 파일: 'src/surface/server.js', 검사: 'test/skill-learning.test.js',
     찾기: "        const revised = await automationRuntime.skillService.revise(id, input.patch ?? input, { now: Date.now() });",
     바꾸기: "        const revised = await automationRuntime.skillService.get(id);" },
+  // ── W4 H10 실제 대화 위임 · W5 문서 intake ─────────────────────────────
+  { 이름: '제한 위임 자식에게 장기 기억 통제 채널을 다시 노출', 파일: 'src/runtime/canonical-automation-runtime.js', 검사: 'test/h10-product-turn.test.js',
+    찾기: '      modelControls: null,', 바꾸기: '      modelControls: [],' },
+  { 이름: '에이전트 권한을 실제 행동 대신 도구의 넓은 종류로 판정', 파일: 'src/runtime/canonical-automation-runtime.js', 검사: 'test/canonical-automation-runtime.test.js',
+    찾기: '  const actionKind = descriptor ? toolActionKind({ toolId: id, args, selfState: runtimeReality }) : null;',
+    바꾸기: '  const actionKind = descriptor?.toolKind ?? null;' },
+  { 이름: '위임 폴더의 OS 범위 대조 제거', 파일: 'src/runtime/agent-delegate-tool.js', 검사: 'test/agent-delegate-tool.test.js',
+    찾기: "          const folder = await resolveInScope(partition?.folder ?? '', { roots });",
+    바꾸기: "          const folder = String(partition?.folder ?? '');" },
+  { 이름: '민감한 위임 목표를 실행 기록에 허용', 파일: 'src/runtime/agent-delegate-tool.js', 검사: 'test/agent-delegate-tool.test.js',
+    찾기: '      if (containsSensitiveValue(goal)\n        || normalized.some((entry) => containsSensitiveValue(entry.label))) {',
+    바꾸기: '      if (false) {' },
+  { 이름: '구조화 문서를 본문 추출 없이 UTF-8 원시 바이트로 읽음', 파일: 'src/runtime/local-file.js', 검사: 'test/w5-practical-workflows.test.js',
+    찾기: '          const document = await extractDocument(abs, bytes);',
+    바꾸기: '          const document = null;' },
 ];
 
 async function 한번(m, repo) {
@@ -666,7 +684,11 @@ async function 한번(m, repo) {
     if (spawnSync('node', ['--check', path], { cwd: repo }).status !== 0) {
       return { ...m, 결과: 'anchor', 메모: '주입 결과가 문법 오류 — 계약이 아니라 문법을 재게 된다' };
     }
-    const r = spawnSync('node', ['--test', '--test-timeout=30000', m.검사], { cwd: repo, encoding: 'utf8' });
+    // 한 주입이 여러 검사를 모두 교착시키면 test별 30초가 누적된다. 계약이 깨져 프로세스가
+    // 45초 안에 끝나지 않는 것 자체가 결정적 실패이므로 전체 지정 검사에도 상한을 둔다.
+    const r = spawnSync('node', ['--test', '--test-timeout=30000', m.검사], {
+      cwd: repo, encoding: 'utf8', timeout: 45_000,
+    });
     // 종료코드 0 = 검사가 전부 통과 = **주입이 빠져나갔다**.
     return { ...m, 결과: r.status === 0 ? 'escaped' : 'caught' };
   } finally {

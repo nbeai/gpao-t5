@@ -1,6 +1,7 @@
 {
-  "deferred": 15,
+  "deferred": 14,
   "testCpuSeconds": 40,
+  "testCpuPerTestSeconds": 0.025,
   "testWallSeconds": 20,
   "serviceNameLeaks": 12
 }

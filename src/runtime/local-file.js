@@ -14,6 +14,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
+import { extractDocument } from './document-intake.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 const VERSION_PREVIEW_FILES = 6;
@@ -88,6 +89,7 @@ export function makeLocalFileTool(deps = {}) {
 
   return {
     toolKind: 'organize',
+    scopeRoots: [...roots],
     /**
      * C 감사 F5.3 · **승인은 성공할 수 있는 일에만 청한다.** 범위 밖·보호 영역을 향한
      * 쓰기/옮기기/지우기는 승인 뒤 반드시 실패한다 — 누를 수 있지만 성공 불가능한 카드는
@@ -297,9 +299,18 @@ export function makeLocalFileTool(deps = {}) {
           if (info.size > MAX_READ_BYTES) {
             return fail('파일이 너무 커서 통째로 읽지 못했어요.', '필요한 부분을 알려주시면 그 부분만 볼게요.');
           }
-          const text = await readFile(abs, 'utf8');
+          const bytes = await readFile(abs);
+          const document = await extractDocument(abs, bytes);
+          if (document && !document.text) {
+            return fail(
+              `${basename(abs)} 형식은 확인했지만 본문을 안전하게 꺼내지 못했어요.`,
+              '원본은 그대로 두었어요. 다른 형식으로 내보낸 사본이 있으면 바로 읽을게요.',
+            );
+          }
+          const text = document?.text ?? bytes.toString('utf8');
           return ok(`${basename(abs)} 을(를) 읽었어요.`, {
             path: abs, text, bytes: info.size,
+            ...(document ? { document } : {}),
             modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
           });
         }

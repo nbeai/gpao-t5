@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "audit:compare-live": "python3 scripts/compare-live/compare_contract.py",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=3",
     "start": "node src/surface/server.js",
     "audit:workspace": "node scripts/audit-project-entry.mjs",
     "verify:package": "node scripts/verify-package.mjs",

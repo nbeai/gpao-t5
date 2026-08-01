@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
@@ -14,6 +16,42 @@ import { MemoryStore } from '../src/surface/memory-store.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
+
+const exec = promisify(execFile);
+
+async function zipDocument(dir, name, entries) {
+  const source = join(dir, `${name}-source`);
+  for (const [relative, body] of Object.entries(entries)) {
+    const path = join(source, relative);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, body, 'utf8');
+  }
+  const target = join(dir, name);
+  await exec('/usr/bin/zip', ['-q', '-r', target, '.'], { cwd: source });
+  return target;
+}
+
+function minimalPdf(text) {
+  const escaped = text.replace(/[()\\]/g, (value) => `\\${value}`);
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(`BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`)} >>\nstream\nBT /F1 12 Tf 72 720 Td (${escaped}) Tj ET\nendstream`,
+  ];
+  let body = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(body));
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  body += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, 'binary');
+}
 
 const postJson = async (base, path, body) => {
   const response = await fetch(`${base}${path}`, {
@@ -80,23 +118,34 @@ test('W5 로컬 문서: 일반 텍스트는 승인 없이 실제로 읽고 원�
 test('W5 로컬 문서: PDF·Word·Excel·HWP/HWPX를 사람이 읽을 본문으로 정규화한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-w5-rich-intake-'));
   const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  const pdf = join(dir, '계약서.pdf');
+  await writeFile(pdf, minimalPdf('PDF CONTRACT BODY'));
+  const docx = await zipDocument(dir, '견적서.docx', {
+    'word/document.xml': '<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>WORD QUOTE BODY</w:t></w:r></w:p></w:body></w:document>',
+  });
+  const xlsx = await zipDocument(dir, '정산표.xlsx', {
+    'xl/sharedStrings.xml': '<sst><si><t>EXCEL SALES</t></si></sst>',
+    'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row><c t="s"><v>0</v></c><c><v>1800</v></c></row></sheetData></worksheet>',
+  });
+  const hwpx = await zipDocument(dir, '신청서.hwpx', {
+    'Contents/section0.xml': '<hp:section xmlns:hp="hp"><hp:p><hp:run><hp:t>HWPX APPLICATION BODY</hp:t></hp:run></hp:p></hp:section>',
+  });
   const formats = [
-    ['계약서.pdf', Buffer.from('%PDF-1.7\ncompressed-object-stream')],
-    ['견적서.docx', Buffer.from('PK\u0003\u0004word/document.xml')],
-    ['정산표.xlsx', Buffer.from('PK\u0003\u0004xl/worksheets/sheet1.xml')],
-    ['신청서.hwpx', Buffer.from('PK\u0003\u0004Contents/section0.xml')],
+    [pdf, 'pdf', 'PDF CONTRACT BODY'],
+    [docx, 'docx', 'WORD QUOTE BODY'],
+    [xlsx, 'xlsx', 'EXCEL SALES'],
+    [hwpx, 'hwpx', 'HWPX APPLICATION BODY'],
   ];
 
   const gaps = [];
-  for (const [name, bytes] of formats) {
-    const path = join(dir, name);
-    await writeFile(path, bytes);
+  for (const [path, expectedFormat, expectedText] of formats) {
+    const name = path.split('/').at(-1);
     const out = await localFile.handler({ action: 'read', path });
-    const expectedFormat = name.split('.').at(-1);
     const document = out.result?.document;
     if (out.blocked) gaps.push(`${name}: intake blocked`);
     if (document?.format !== expectedFormat) gaps.push(`${name}: format missing`);
     if (!String(document?.text ?? '').trim()) gaps.push(`${name}: extracted text missing`);
+    if (!String(document?.text ?? '').includes(expectedText)) gaps.push(`${name}: expected body missing`);
     if (String(document?.text ?? '').includes('PK\u0003\u0004')) gaps.push(`${name}: raw archive bytes exposed`);
   }
   assert.deepEqual(gaps, [], `구조화 문서 intake 미구현:\n- ${gaps.join('\n- ')}`);

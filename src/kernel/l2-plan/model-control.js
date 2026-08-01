@@ -206,6 +206,9 @@ const 준비된통제 = new Set(['memory.propose', 'memory.cite', 'memory.correc
 
 export function modelSchemasFor(selfState, enabledControls = []) {
   const hands = toolSchemasFor(selfState);
+  // 제한 위임의 자식은 부모 요청을 실행하는 손이지, 장기 기억·성장 정책의 저자가 아니다.
+  // null 은 그 경계를 아는 호출자만 쓰는 명시적 통제 채널 차단이다. 기본 대화는 기존 채널을 유지한다.
+  if (enabledControls === null) return hands;
   // 런타임 소비자가 실제로 설치된 채널만 턴 단위로 더 연다. 호출자가 이름을 넘기는 것만으로는
   // 충분하지 않다 — 선언된 통제 채널과의 교집합이어야 하며, 기본값은 기존 기억 채널뿐이다.
   const enabled = new Set([...준비된통제, ...(enabledControls ?? [])]);

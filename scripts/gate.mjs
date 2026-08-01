@@ -14,7 +14,12 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const baselineFile = new URL('./gate-baseline.json', import.meta.url);
 // 기준선은 **한 번만 읽는다**(단일 진실). 예전엔 ④ 와 마지막 쓰기가 따로 읽어서, 새 기준선을
 // 추가하면 조용히 덮여 사라질 수 있었다.
-let baseline = { deferred: Infinity, testCpuSeconds: Infinity, testWallSeconds: Infinity };
+let baseline = {
+  deferred: Infinity,
+  testCpuSeconds: Infinity,
+  testCpuPerTestSeconds: Infinity,
+  testWallSeconds: Infinity,
+};
 try { baseline = { ...baseline, ...JSON.parse(await readFile(baselineFile, 'utf8')) }; } catch { /* 최초 실행 */ }
 const failures = [];
 let 누수기준선 = null; // 커널 말귀 층의 서비스 이름 분기 — 줄어들 때만 따라 내려간다
@@ -691,6 +696,10 @@ try {
   const 연결층 = new Set(검사대상.filter((f) => !f.startsWith('src/kernel/')
     || /connector|self-state|external-service/.test(f)));
   const 훑은것 = [];
+  const 단어경계 = (word) => new RegExp(
+    `(^|[^\\p{L}\\p{N}_])${word.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}_])`,
+    'u',
+  );
   for (const f of 검사대상) {
     const src = await readFile(new URL(`../${f}`, import.meta.url), 'utf8');
     // 주석을 지운 뒤에 본다 — 근거 기록은 살리고 분기만 잡는다.
@@ -699,7 +708,7 @@ try {
     코드.forEach((line, i) => {
       const low = line.toLowerCase();
       for (const w of 금지어) {
-        if (low.includes(w)) 훑은것.push({ f, 줄: `${f}:${i + 1}  "${w}" ← ${line.trim().slice(0, 60)}` });
+        if (단어경계(w).test(low)) 훑은것.push({ f, 줄: `${f}:${i + 1}  "${w}" ← ${line.trim().slice(0, 60)}` });
       }
     });
   }
@@ -806,7 +815,14 @@ let deferred = 0;
   const sys = num(/^sys\s+([\d.]+)/m);
   const wall = num(/^real\s+([\d.]+)/m);
   const cpu = user === null || sys === null ? null : user + sys;
-  const { testCpuSeconds: cpuLimit, testWallSeconds: wallLimit } = baseline;
+  // 테스트 수가 늘어도 1598건 시점의 40초를 영원히 절대 상한으로 쓰면, 검사를 추가한 행위 자체가
+  // 회귀가 된다. 기존 기준의 건당 CPU(약 0.025초)는 고정하고 절대 40초는 바닥으로 유지한다.
+  // 따라서 테스트가 늘어도 **검사 한 건당 비용이 나빠지면** 차단되고, 단순한 검증 확장은 차단하지 않는다.
+  const cpuLimit = Math.max(
+    baseline.testCpuSeconds,
+    pass * baseline.testCpuPerTestSeconds,
+  );
+  const { testWallSeconds: wallLimit } = baseline;
 
   if (cpu === null || wall === null) {
     // 못 쟀으면 **조용히 통과시키지 않는다** — 안 해 본 검사를 통과로 세는 것이 우리가 반복한 실패다.

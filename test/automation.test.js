@@ -133,9 +133,9 @@ function canonicalSkill() {
     schemaVersion: AUTOMATION_SCHEMA_VERSION,
     id: 'test-skill', name: '로컬 파일 정리', purpose: '로컬 파일 목록을 읽어 정리한다',
     version: 1, contentHash: '', inputs: [],
-    steps: [{ kind: 'organize', instruction: '로컬 파일 목록을 확인한다' }],
+    steps: [{ kind: 'read', instruction: '로컬 파일 목록을 확인한다' }],
     resultContract: { kind: 'summary' }, requiredCapabilities: ['local.file'],
-    authorityHints: ['organize'], replayCases: [],
+    authorityHints: ['read'], replayCases: [],
     source: { kind: 'test', sessionId: null, traceIds: [] }, state: 'active',
     createdAt: 0, updatedAt: 0, previousVersion: null,
   };
@@ -159,7 +159,7 @@ function canonicalApproval(candidateId, overrides = {}) {
     candidateId, skillId: 'test-skill', agentProfileId: 'test-agent',
     trigger: { kind: 'once', timezone: 'UTC', at: now, nextRunAt: now, misfirePolicy: 'catch_up_once' },
     authorityEnvelope: {
-      ceiling: 'A1', allowedKinds: ['organize'], allowedTools: ['local.file'],
+      ceiling: 'A1', allowedKinds: ['read'], allowedTools: ['local.file'],
       allowedTargets: [], workspaceRoots: ['/tmp'], expiresAt: null, maxRuns: 1, maxCost: 1,
       requiresFreshApprovalFor: [],
     },

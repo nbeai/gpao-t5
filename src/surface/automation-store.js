@@ -57,7 +57,20 @@ export class AutomationStore {
   async save(a) {
     if (a.schemaVersion === AUTOMATION_SCHEMA_VERSION) {
       // skill-store 와 같은 계약: 읽기-병합-쓰기를 파일 단위로 직렬화한다.
-      return serializeByFile(this.file, () => this.#병합저장(a));
+      const merged = await serializeByFile(this.file, () => this.#병합저장(a));
+      // 다중 파일 migration 은 automation.json 잠금을 다시 얻는다. 같은 잠금 안에서 호출하면
+      // 자기 자신을 기다리는 교착이 된다. 단일 파일 병합을 끝내고 잠금을 놓은 뒤 실행한다.
+      if (merged.hasNewLegacyJob) {
+        const { migrateAutomationWorkspaceV1 } = await import('./automation-workspace-migration.js');
+        const migrated = await migrateAutomationWorkspaceV1(this.dir, merged.now);
+        return {
+          schemaVersion: AUTOMATION_SCHEMA_VERSION,
+          compatibility: 'v1',
+          candidates: migrated.automation.candidates,
+          jobs: migrated.automation.jobs.map(projectAutomationJobV1),
+        };
+      }
+      return a;
     }
     await mkdir(this.dir, { recursive: true });
     await writeFile(this.file, JSON.stringify({ candidates: a.candidates ?? [], jobs: a.jobs ?? [] }), 'utf8');
@@ -85,17 +98,7 @@ export class AutomationStore {
         candidates,
         jobs: [...jobs, ...남은것],
       });
-      if (hasNewLegacyJob) {
-        const { migrateAutomationWorkspaceV1 } = await import('./automation-workspace-migration.js');
-        const migrated = await migrateAutomationWorkspaceV1(this.dir, now);
-        return {
-          schemaVersion: AUTOMATION_SCHEMA_VERSION,
-          compatibility: 'v1',
-          candidates: migrated.automation.candidates,
-          jobs: migrated.automation.jobs.map(projectAutomationJobV1),
-        };
-      }
-      return a;
+      return { hasNewLegacyJob, now };
     }
   }
 

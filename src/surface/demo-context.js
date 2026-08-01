@@ -327,6 +327,35 @@ export function demoChannels() {
 const DESCRIPTORS = [
   defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
   defineTool({
+    id: 'agent.delegate', label: '작업 나눠 맡기기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'read', needsApproval: false, reversible: true,
+    capability: '긴 읽기·조사 작업을 두세 갈래로 나눠 각각 제한된 범위에서 처리하고, 모두 끝난 뒤 결과를 하나로 모은다.',
+    operatorFact: '긴 조사에서 독립된 범위를 제한된 에이전트에게 나눠 맡기고 결과를 회수한다.',
+    schema: {
+      description: '서로 독립인 폴더 두세 개를 조사해야 하는 긴 작업을 나눠 맡긴다.'
+        + ' 먼저 local.locate 또는 local.file 로 실제 폴더를 확인한 뒤 사용한다.'
+        + ' 읽기·조사만 위임하며, 결과가 전부 끝나기 전에는 완료라고 말하지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          goal: { type: 'string', description: '모든 갈래가 함께 완성할 사용자 목표' },
+          partitions: {
+            type: 'array', minItems: 2, maxItems: 3,
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string', description: '사람이 알아볼 갈래 이름' },
+                folder: { type: 'string', description: '앞서 실제로 확인한 폴더 경로' },
+              },
+              required: ['folder'],
+            },
+          },
+        },
+        required: ['goal', 'partitions'],
+      },
+    },
+  }),
+  defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
     capability: '작업 폴더와 Downloads·Documents·Desktop 안에서 파일을 보고·읽고·만들고·옮기고·지운다. 같은 이름 식구의 최종본 판별(versions)도 한다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
     operatorFact: '작업 폴더와 표준 사용자 폴더의 자료를 직접 읽고 정리한다.',
@@ -615,6 +644,7 @@ export function demoDescriptors(opts = {}) {
 // 환경 사실(연결·인증 존재 여부). mail.send는 연결됐으나 발송 인증 미준비 → needs_auth.
 const FACTS = {
   'web.collect': { connected: true },
+  'agent.delegate': { connected: true },
   'local.file': { connected: true },
   'local.terminal': { connected: true },
   'local.process': { connected: true },
@@ -675,6 +705,7 @@ export function demoEnv(opts = {}) {
 export function demoTools(opts = {}) {
   const senders = opts.senders ?? {};
   return new ToolRunner({
+    ...(opts.agentDelegate ? { 'agent.delegate': opts.agentDelegate } : {}),
     'web.collect': opts.webCollector ?? {
       subjectOf(rec) {
         const src = rec?.sources?.[0];

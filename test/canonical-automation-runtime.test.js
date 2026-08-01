@@ -122,7 +122,7 @@ test('agent tool boundary enforces kind, target, workspace, and declared cost be
   const scope = {
     toolAllowlist: ['local.file'], workspaceRoots: [root],
     authorityEnvelope: {
-      allowedKinds: ['organize'], allowedTargets: ['owner'],
+      allowedKinds: ['read'], allowedTargets: ['owner'],
     },
   };
   const controller = new AbortController();
@@ -132,17 +132,22 @@ test('agent tool boundary enforces kind, target, workspace, and declared cost be
   );
 
   await assert.rejects(
-    wrapped.run('local.file', { path: '/tmp/outside.txt' }, { connectedTools: [] }),
+    wrapped.run('local.file', { action: 'list', path: '/tmp/outside.txt' }, { connectedTools: [] }),
     /scope/,
   );
   await assert.rejects(
-    wrapped.run('local.file', { path: join(root, 'a.txt'), target: 'stranger' }, { connectedTools: [] }),
+    wrapped.run('local.file', { action: 'list', path: join(root, 'a.txt'), target: 'stranger' }, { connectedTools: [] }),
     /target_outside_scope/,
   );
   assert.equal(calls, 0, '범위 밖이면 handler 호출 전 차단');
 
+  await assert.rejects(
+    wrapped.run('local.file', { action: 'delete', path: join(root, 'a.txt'), target: 'owner' }, { connectedTools: [] }),
+    /kind_outside_scope/,
+  );
+
   await wrapped.run(
-    'local.file', { path: join(root, 'a.txt'), target: 'owner' },
+    'local.file', { action: 'list', path: join(root, 'a.txt'), target: 'owner' },
     { connectedTools: [{ id: 'local.file', status: 'usable', executable: true }] },
   );
   assert.equal(calls, 1);
