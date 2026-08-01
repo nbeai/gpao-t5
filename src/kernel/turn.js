@@ -521,6 +521,8 @@ export async function runTurn(input, ctx) {
       if (대조.refs.length) modelCitedRefs = 대조.refs;
     }
     if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
+    // 산출물 의무 — 모델의 구조 선언을 턴 문맥에 싣는다(집행은 executePlan 의 대조가 한다).
+    if (분리.deliverable) ctx.선언산출물 = 분리.deliverable;
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
@@ -1042,18 +1044,32 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // toolActionKind → decideAutoGrant. 승인이 필요하면 **실행하지 않고 멈춘다.**
   let steps = 0;
   let 멈춘이유;
-  // (2026-08-01 실측 기록) 모델이 "저장해 두겠다"고 말만 하고 도구 없이 턴을 끝내는 변동이
-  // 있다. 한때 문구 정규식으로 재촉하는 배선을 넣었다가 걷어냈다(오너 경계 판정) — 미완료는
-  // 낱말이 아니라 **계획의 산출물 의무와 영수증의 불일치**로 판정해야 한다. 지금 ActionPlan
-  // 에는 기계 검증 가능한 산출물 의무 계약이 없어 그 판정을 세울 수 없으므로, 이 변동은 판정
-  // 회차에서 모델 이행 변동으로 분리 기록하고, 산출물 의무 계약은 후속 창의 구조 작업으로 남긴다.
+  // 산출물 의무 대조 (2026-08-01, 오너 구조 지시) — 미완료는 낱말이 아니라 **계획(모델의
+  // 구조 선언 work.deliverable)·영수증·남은 손의 불일치**로 판정한다. 한때 "할게요" 문구
+  // 정규식 재촉이 있었으나 걷어냈다(낱말 판정 금지). 산출물 영수증 = 성공 실행이 내용
+  // digest 를 남긴 것(쓰기의 산출물 신분, F2.1). 선언이 없으면 아무것도 달라지지 않는다.
+  const 산출물영수증 = () => turnReceipts.some((r) => (r?.failureState ?? 'none') === 'none' && typeof r?.result?.digest === 'string');
+  let 산출물재확인 = false;
   while (steps < MAX_TOOL_STEPS) {
     // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
     // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
     const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
     if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
+    if (분리.deliverable) ctx.선언산출물 = 분리.deliverable;
     const next = 분리.rest;
-    if (!next.length) break;
+    if (!next.length) {
+      // 선언한 파일 산출물이 원장에 없는데 손이 남았다 — 이 턴 안에서 마칠 기회를 한 번 준다.
+      // 무엇을 실행할지는 모델이 고른다(기회이지 강제가 아니다).
+      if (!산출물재확인 && ctx.선언산출물?.kind === 'file' && steps < MAX_TOOL_STEPS && !산출물영수증()) {
+        산출물재확인 = true;
+        finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
+          onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+          tools: modelSchemasFor(selfState),
+        });
+        continue;
+      }
+      break;
+    }
     const parts = callsToIntentParts(next, selfState);
     const toolId = parts.neededTools?.[0];
     if (!toolId) break;
@@ -1268,6 +1284,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (steps >= MAX_TOOL_STEPS && !멈춘이유) 멈춘이유 = '한 번에 할 수 있는 만큼 하고 멈췄어요';
+  // 산출물 의무 미이행은 완료가 아니다 — 선언(계획)과 원장(영수증)의 불일치가 기계 사실이다.
+  if (!멈춘이유 && ctx.선언산출물?.kind === 'file' && !산출물영수증()) {
+    멈춘이유 = '만들기로 한 파일 산출물이 아직 만들어지지 않았어요';
+  }
 
   let reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
   if (멈춘이유 && !reply.trim()) reply = '';

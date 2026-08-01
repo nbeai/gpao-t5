@@ -227,6 +227,11 @@ export function buildModelMessages(tc) {
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
   usr.push(tc.currentRequest); // 원문 보존
+  // 산출물 의무 대조(턴 실행부) — 낱말이 아니라 **네 선언(work.deliverable)과 원장**의 불일치.
+  // 매 호출 변하는 사실이라 맨 뒤(캐시 경계 계약).
+  if (tc.unmetDeliverable) {
+    usr.push('[원장 대조]\n이 요청의 산출물로 파일을 만들기로 네가 선언했는데, 파일을 만든 실행이 아직 원장에 없다. 손이 남아 있다 — 지금 만들 수 있고, 만들지 않고 끝나면 이 일은 완료로 기록되지 않는다.');
+  }
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
   const history = (tc.recentTurns ?? [])

@@ -533,6 +533,12 @@ export const MUTATIONS = [
   { 이름: 'H08 ~/ 홈 해석 제거(파일 손이 홈 표기를 다시 잃음)', 파일: 'src/runtime/file-scope.js', 검사: 'test/local-file.test.js',
     찾기: "  const t = target.trim() === '~' ? home\n    : target.trim().startsWith('~/') ? resolve(home, target.trim().slice(2)) : target;",
     바꾸기: "  const t = target;" },
+  { 이름: '산출물 의무 대조 제거 — 선언해도 기회가 없다', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
+    찾기: "      if (!산출물재확인 && ctx.선언산출물?.kind === 'file' && steps < MAX_TOOL_STEPS && !산출물영수증()) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '산출물 미이행이 완료로 기록됨(거짓 완료 재발)', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
+    찾기: "  if (!멈춘이유 && ctx.선언산출물?.kind === 'file' && !산출물영수증()) {\n    멈춘이유 = '만들기로 한 파일 산출물이 아직 만들어지지 않았어요';\n  }",
+    바꾸기: "" },
 ];
 
 async function 한번(m, repo) {

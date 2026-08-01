@@ -152,3 +152,94 @@ test('실패 뒤 실제로 성공하면 blocked 는 풀린다(거짓 막힘 금�
     `되는 길을 찾았는데 막혔다고 남았다: ${r.workingState?.blocked}`);
 });
 
+
+// ── 산출물 의무 계약 (2026-08-01, 오너 구조 지시) ─────────────────────────
+// "할게요" 낱말 정규식이 아니라 **계획(모델의 구조 선언)·완료계약·영수증의 불일치**로
+// 미완료를 판정한다. 라이브 실측: 모델이 파일 산출물 일을 정확히 판단하고도 실행 없이 턴을
+// 끝내는 변동이 8회 중 6회였다 — 선언 채널이 없어 그 판단이 구조에 남지 않았기 때문이다.
+// 무엇을 실행할지는 여전히 모델이 고른다. 선언 없으면 아무 일도 달라지지 않는다.
+test('산출물 의무: 선언했는데 산출물 영수증이 없으면 이 턴 안에서 한 번 더 기회를 준다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let 부름 = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      부름 += 1;
+      if (!opts.tools?.length) return '정리했어요';
+      if (부름 === 1) {
+        return { text: '', toolCalls: [
+          { name: 'work.deliverable', args: { kind: 'file' } },
+          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
+        ] };
+      }
+      if (부름 === 2) return { text: '내용을 확인했고 정리 방향을 잡았다.', toolCalls: [] };
+      return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '견적서-정리.md', text: '정리', source: '견적서.md' } }] };
+    },
+  };
+  const r = await runTurn({ text: '해줘' }, ctx(model));
+  assert.equal(r.kind, 'approval',
+    `선언-영수증 불일치가 기회로 이어지지 않았다(kind=${r.kind})`);
+});
+
+test('산출물 의무: 선언이 없으면 어떤 재확인도 일어나지 않는다(기본 무변화)', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let 도구응답 = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      if (!opts.tools?.length) return '정리했어요';
+      도구응답 += 1;
+      if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
+      return { text: '내용을 확인했고 정리 방향을 잡았다.', toolCalls: [] };
+    },
+  };
+  await runTurn({ text: '해줘' }, ctx(model));
+  assert.equal(도구응답, 2, `선언 없는 턴에 재확인이 갔다(도구 응답 ${도구응답}회)`);
+});
+
+test('산출물 의무: 산출물이 이미 계획·승인 경로에 있으면 재확인 왕복이 없다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let 도구응답 = 0; let 재확인수 = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.unmetDeliverable) 재확인수 += 1;
+      if (!opts.tools?.length) return '정리했어요';
+      도구응답 += 1;
+      if (도구응답 === 1) {
+        return { text: '', toolCalls: [
+          { name: 'work.deliverable', args: { kind: 'file' } },
+          { name: 'local.file', args: { action: 'write', path: '정리.md', text: '정리' } },
+        ] };
+      }
+      return { text: '다 만들었다.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({ text: '해줘' }, ctx(model));
+  // 쓰기는 승인 카드가 곧 결과다 — 선언이 계획으로 이어졌으니 재확인 대조는 돌지 않는다.
+  assert.equal(r.kind, 'approval');
+  assert.equal(재확인수, 0, `산출물이 계획에 있는데도 재확인이 갔다(${재확인수})`);
+});
+
+test('산출물 의무: 재확인 뒤에도 안 만들면 완료로 기록하지 않는다(거짓 완료 금지)', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let 부름 = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      부름 += 1;
+      if (!opts.tools?.length) return '정리했어요';
+      if (부름 === 1) {
+        return { text: '', toolCalls: [
+          { name: 'work.deliverable', args: { kind: 'file' } },
+          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
+        ] };
+      }
+      return { text: '방향만 잡았다.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({ text: '해줘' }, ctx(model));
+  assert.equal(r.kind, 'reply');
+  assert.notEqual(r.workingState?.recentOutcome?.status, 'completed',
+    '산출물 의무가 미이행인데 완료로 남았다 — 다음 턴이 이어갈 자리를 잃는다');
+});
