@@ -350,6 +350,7 @@ test('AC-1: a run envelope cannot be wider than its parent approval', () => {
   const parent = envelope({
     ceiling: 'A2',
     allowedKinds: ['send', 'read'],
+    allowedTools: ['local.file', 'web.collect'],
     allowedTargets: ['오너'],
     workspaceRoots: ['/tmp/work'],
     expiresAt: 500,
@@ -360,6 +361,7 @@ test('AC-1: a run envelope cannot be wider than its parent approval', () => {
   const narrower = envelope({
     ceiling: 'A1',
     allowedKinds: ['read'],
+    allowedTools: ['local.file'],
     allowedTargets: [],
     workspaceRoots: ['/tmp/work'],
     expiresAt: 400,
@@ -368,6 +370,8 @@ test('AC-1: a run envelope cannot be wider than its parent approval', () => {
     requiresFreshApprovalFor: ['delivery'],
   });
   assert.equal(authorityWithin(parent, narrower), true);
+  assert.equal(authorityWithin(parent, { ...narrower, allowedTools: ['local.terminal'] }), false,
+    '자식이 부모에게 없는 도구를 얻었다');
   assert.equal(authorityWithin(parent, { ...narrower, ceiling: 'A2', allowedTargets: ['다른 사람'] }), false);
   assert.equal(authorityWithin(parent, { ...narrower, requiresFreshApprovalFor: [] }), false);
 });

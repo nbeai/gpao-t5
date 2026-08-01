@@ -346,6 +346,7 @@ export function authorityWithin(parent, child) {
   const rank = { A0: 0, A1: 1, A2: 2 };
   if (rank[child.ceiling] > rank[parent.ceiling]) return false;
   if (!subset(child.allowedKinds, parent.allowedKinds)) return false;
+  if (!subset(child.allowedTools ?? [], parent.allowedTools ?? [])) return false;
   if (!subset(child.allowedTargets, parent.allowedTargets)) return false;
   if (!subset(child.workspaceRoots, parent.workspaceRoots)) return false;
   if (!subset(parent.requiresFreshApprovalFor, child.requiresFreshApprovalFor)) return false;
