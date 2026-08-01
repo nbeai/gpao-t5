@@ -24,6 +24,7 @@ import { SkillService } from '../surface/skill-service.js';
 import { migrateAutomationWorkspaceV1 } from '../surface/automation-workspace-migration.js';
 import { applyAutomationJobPatch } from '../kernel/l5-growth/automation.js';
 import { AgentRunRunner } from './agent-runner.js';
+import { buildDelegation } from './agent-delegation.js';
 import { AutomationScheduler } from './automation-scheduler.js';
 import { commitClaimToRunLedger, prepareRunClaim } from './job-claimer.js';
 
@@ -264,6 +265,91 @@ export class CanonicalAutomationRuntime {
   async ready() {
     await this.readyPromise;
     return this;
+  }
+
+  async delegateUserRequest(request) {
+    await this.ready();
+    const delegated = buildDelegation({ ...request, now: this.now() });
+    const children = [];
+    for (const child of delegated.children) {
+      const persisted = await this.runLedger.append(child);
+      children.push(persisted.record);
+    }
+    return { parent: delegated.parent, children };
+  }
+
+  collectDelegation(parent) {
+    return this.runner.collect(parent?.childRunIds ?? []);
+  }
+
+  async executeDelegation(delegated) {
+    await this.ready();
+    const parent = delegated?.parent ?? delegated;
+    if (!parent || !Array.isArray(parent.childRunIds)) throw new Error('delegation_parent_required');
+    const loaded = await this.runLedger.load();
+    if (loaded.recovery) throw new Error('automation_run_ledger_recovery_required');
+    const byId = new Map(loaded.runs.map((run) => [run.id, run]));
+    const children = parent.childRunIds.map((runId) => {
+      const run = byId.get(runId);
+      if (!run) throw new Error('delegation_child_missing');
+      return run;
+    });
+    const concurrency = Math.max(1, Math.min(
+      parent.budgets?.maxConcurrency ?? 1,
+      children.length,
+    ));
+    const results = new Array(children.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < children.length) {
+        const index = cursor;
+        cursor += 1;
+        const queued = children[index];
+        if (['succeeded', 'failed', 'cancelled', 'unknown'].includes(queued.status)) {
+          results[index] = queued;
+          continue;
+        }
+        if (queued.status !== 'queued') {
+          results[index] = queued;
+          continue;
+        }
+        const at = this.now();
+        const claim = await commitClaimToRunLedger(this.runLedger, prepareRunClaim(queued, {
+          owner: this.owner,
+          now: at,
+          jobGuard: {
+            jobId: queued.jobId,
+            state: 'delegated',
+            updatedAt: parent.createdAt,
+            nextRunAt: queued.scheduledFor,
+            triggerNextRunAt: queued.scheduledFor,
+          },
+        }));
+        if (!claim.ok) throw new Error(claim.reason ?? 'delegation_claim_failed');
+        if (!claim.claimed) {
+          results[index] = claim.record;
+          continue;
+        }
+        results[index] = await this.runner.run(claim.record, {
+          owner: this.owner,
+          parentAuthority: parent.authorityEnvelope,
+          parentBudgets: parent.budgets,
+          parentToolAllowlist: parent.authorityEnvelope.allowedTools,
+          concurrencyKey: parent.id,
+        });
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    const terminal = results.every((run) => ['succeeded', 'failed', 'cancelled', 'unknown'].includes(run?.status));
+    const succeeded = terminal && results.every((run) => run.status === 'succeeded');
+    return {
+      ready: terminal,
+      status: succeeded ? 'succeeded' : terminal ? 'failed' : 'waiting',
+      pendingRunIds: results.filter(
+        (run) => !['succeeded', 'failed', 'cancelled', 'unknown'].includes(run?.status),
+      ).map((run) => run.id),
+      results,
+    };
   }
 
   async #schedulerState() {

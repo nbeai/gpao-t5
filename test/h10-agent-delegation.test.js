@@ -220,6 +220,52 @@ test('H10 product path decomposes one user request into bounded child AgentRuns'
   assert.ok(delegated.children.every((run) => run.budgets.maxConcurrency <= 2));
 });
 
+test('H10 product path durably claims, executes, and integrates every delegated child', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-h10-integrate-'));
+  const runtime = new CanonicalAutomationRuntime({
+    dir,
+    env: demoEnv(),
+    tools: new ToolRunner({}),
+    memStore: new MemoryStore(dir),
+    withMemory: (task) => task(),
+    modelFor: () => ({ async respond() { return 'unused'; } }),
+    migrate: false,
+    owner,
+    now: (() => { let at = 500; return () => ++at; })(),
+  });
+  runtime.runner = new AgentRunRunner({
+    ledger: runtime.runLedger,
+    now: (() => { let at = 600; return () => ++at; })(),
+    getRuntimeReality: async () => ({
+      connectedTools: [{ id: 'local.file', toolKind: 'read', status: 'usable', executable: true }],
+    }),
+    createContext: async ({ run }) => ({ folder: run.inputSnapshot.folder }),
+    modelFor: () => ({ async respond() { return 'unused'; } }),
+    executePlan: async (request) => ({
+      kind: 'reply',
+      result: { folder: request.context.folder },
+      receipts: [{ id: `receipt-${request.run.id}`, runId: request.run.id }],
+    }),
+  });
+  const delegated = await runtime.delegateUserRequest({
+    requestId: 'h10-turn-integrate',
+    text: '두 폴더를 조사해서 합친다',
+    partitions: [{ folder: 'A' }, { folder: 'B' }],
+    authorityEnvelope: authority(),
+    budgets: budgets({ maxToolCalls: 4, maxCost: 2 }),
+  });
+
+  const integrated = await runtime.executeDelegation(delegated);
+  assert.equal(integrated.ready, true);
+  assert.equal(integrated.status, 'succeeded');
+  assert.deepEqual(integrated.results.map((run) => run.result.folder).sort(), ['A', 'B']);
+  const durable = await runtime.runLedger.load();
+  assert.deepEqual(
+    durable.runs.filter((run) => delegated.parent.childRunIds.includes(run.id)).map((run) => run.status).sort(),
+    ['succeeded', 'succeeded'],
+  );
+});
+
 test('H10 child runs preserve independent results and receipts', async () => {
   const { runner, ledger, modelCalls, toolCalls } = runnerFixture();
   const [left, right] = await Promise.all([
@@ -268,7 +314,7 @@ test('H10 cancelling one child does not cancel or erase its sibling', async () =
   assert.equal(left.status, 'cancelled');
   assert.equal(right.status, 'succeeded');
   assert.deepEqual(right.receipts.map((receipt) => receipt.id), ['receipt-run-B']);
-  assert.deepEqual(runner.collect(['run-A', 'run-B']).map((entry) => entry.status), [
+  assert.deepEqual(runner.collect(['run-A', 'run-B']).results.map((entry) => entry.status), [
     'cancelled', 'succeeded',
   ]);
 });

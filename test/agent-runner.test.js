@@ -182,7 +182,7 @@ test('AC-4 registry permits only independent bounded parallel runs and binds own
   assert.equal(cancelled.signal.aborted, true);
   registry.release('run-a', owner, { status: 'cancelled', result: null, run: a });
   registry.release('run-b', owner, { status: 'succeeded', result: { answer: 2 }, run: b });
-  assert.deepEqual(registry.collect(['run-a', 'run-b']).map((entry) => entry.status), [
+  assert.deepEqual(registry.collect(['run-a', 'run-b']).results.map((entry) => entry.status), [
     'cancelled', 'succeeded',
   ]);
 });
@@ -472,7 +472,7 @@ test('AC-4 cancellation aborts the parent loop boundary and records a terminal c
   assert.equal(result.result.reason, 'user_cancelled');
   assert.equal(ledger.records.at(-1).status, 'cancelled');
   assert.equal(runner.get('run-cancel').status, 'cancelled');
-  assert.equal(runner.collect(['run-cancel'])[0].status, 'cancelled');
+  assert.equal(runner.collect(['run-cancel']).results[0].status, 'cancelled');
 });
 
 test('AC-4 runner only persists a parent-decided canonical recovery transition', async () => {

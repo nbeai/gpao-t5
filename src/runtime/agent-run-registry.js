@@ -109,7 +109,21 @@ export class AgentRunRegistry {
   }
 
   collect(runIds) {
-    return (runIds ?? []).map((runId) => this.#results.get(runId)).filter(Boolean);
+    const requestedRunIds = [...new Set(runIds ?? [])];
+    const results = requestedRunIds
+      .map((runId) => this.#results.get(runId))
+      .filter(Boolean);
+    const terminalRunIds = new Set(
+      results
+        .filter((entry) => ['succeeded', 'failed', 'cancelled', 'unknown'].includes(entry.status))
+        .map((entry) => entry.runId),
+    );
+    const pendingRunIds = requestedRunIds.filter((runId) => !terminalRunIds.has(runId));
+    return {
+      ready: pendingRunIds.length === 0,
+      pendingRunIds,
+      results,
+    };
   }
 
   activeCount(concurrencyKey) {
