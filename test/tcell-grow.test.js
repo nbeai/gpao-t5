@@ -1312,6 +1312,41 @@ test('H02·v3: exactFacts 는 저장·digest 에 묶이고, 옛 사례 digest �
     '축자만 있는 사례의 판정력이 인정되지 않는다');
 });
 
+test('H02·v3: 근거 대조는 구두점·공백에 관대하다 — 인용 표기 차이가 판정 불가를 만들지 않는다', () => {
+  // 재봉인3 실측(r26~r31): 판정 불가가 회차마다 2~4건, r31 은 실패 0 에 null 3건만으로
+  // 소진됐다. 원인은 근거 대조의 축자 substring — 모델이 "매출 1,200원"을 "매출 1200"으로
+  // 다듬어 인용하면 실패했다. 대조는 **기계 정규화**(구두점·공백 제거)로 관대하게, 의미 해석은
+  // 여전히 0. exactFacts 의 축자 대조는 기존 그대로다(사용자가 요구한 정확성은 완화하지 않는다).
+  const c = 사례v3();
+  const v = computeCaseVerdict(c, '7월 매출: 1,200원입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '매출 1200' }],
+    금지: [{ i: 0, appeared: false }],
+  }));
+  assert.equal(v?.pass, true, '구두점·쉼표 차이의 근거가 판정 불가로 굳었다');
+  // 지어낸 근거는 여전히 불가 — 관대함이 위조를 허용하지 않는다.
+  const 위조 = computeCaseVerdict(c, '7월 매출: 1,200원입니다.', 항목({
+    필수: [{ i: 0, met: true, evidence: '9999라고 답함' }],
+    금지: [{ i: 0, appeared: false }],
+  }));
+  assert.equal(위조, null);
+});
+
+test('H02·v3: 재질문은 직전 근거 실패 사실을 듣는다 — 같은 실수를 그대로 반복하게 두지 않는다', async () => {
+  const memStore = await 준비();
+  let 첫판정 = true;
+  const 재질문들 = [];
+  const { modelFor } = 대본모델({
+    판정: (k, req) => {
+      if (req.includes('직전 판정')) 재질문들.push(req);
+      if (첫판정) { 첫판정 = false; return '{"required":[{"i":0,"met":true,"evidence":"완전히 다른 말"}],"forbidden":[{"i":0,"appeared":false}],"rationale":"근거 불량"}'; }
+      return 판정대본(req);
+    },
+  });
+  await 끝까지({ memStore, modelFor });
+  assert.ok(재질문들.length >= 1, '재질문이 직전 근거 실패 사실을 공급하지 않는다');
+  assert.match(재질문들[0], /그대로|복사/, '근거를 답 원문에서 그대로 따오라는 사실이 없다');
+});
+
 test('H02·v3: 판정 불가는 한 번 다시 묻는다 — 근거 불량이 곧바로 표본 상실이 되지 않는다', async () => {
   // 진단 r22~r24 실측: 판정 모델이 근거를 빠뜨린 항목(판정 불가)이 회차마다 1~2건 나왔고,
   // 재판정 기회 없이 null 로 굳어 표본을 잠식했다(r24 는 boundary 표본 부족으로 소진).

@@ -340,8 +340,13 @@ function 유효성읽기(text, 사례수) {
   };
 }
 
-function 판정요청(c, 산출물, baseline) {
+function 판정요청(c, 산출물, baseline, 재질문 = false) {
   return [
+    ...(재질문 ? [
+      '직전 판정은 근거(evidence)가 답 원문과 일치하지 않아 무효였다.',
+      'evidence 는 아래 답에서 **그대로 복사한** 조각이어야 한다 — 다듬거나 요약하지 마라.',
+      '',
+    ] : []),
     // 감사 기각(재봉인2) 반영: pass 하나를 자의로 돌려받지 않는다. 판정 모델은 **항목별**
     // 충족/출현과 **답 원문 근거**만 내고, 최종 pass 는 OS 가 저장 계약에서 계산한다.
     '아래 답을 항목별로만 판정하라. 최종 합격 여부는 네가 정하지 않는다.',
@@ -380,6 +385,10 @@ function 판정항목읽기(text) {
 }
 
 const 정규화 = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+// 근거 대조 전용 — 구두점·공백·숫자 쉼표를 걷어낸 **기계** 정규화(의미 해석 0).
+// 재봉인3 실측: 판정 모델이 인용을 다듬으면("매출 1,200원" → "매출 1200") 축자 substring 이
+// 깨져 판정 불가가 표본을 잠식했다. 지어낸 근거는 여전히 걸린다 — 관대함은 표기까지다.
+const 근거정규화 = (s) => String(s ?? '').replace(/[,.·:;!?"'()\[\]\-|~]/g, '').replace(/\s+/g, '');
 
 /**
  * **최종 판정은 OS 가 계산한다**(감사 요구). 규칙:
@@ -403,8 +412,8 @@ export function computeCaseVerdict(c, 산출물, 항목) {
     const it = rmap.get(i);
     if (!it || typeof it.met !== 'boolean') return null; // 항목 누락 — 판정 불가
     if (it.met === true) {
-      const ev = 정규화(it.evidence ?? '');
-      if (!ev || !답.includes(ev)) return null; // 근거 없는 충족 주장 — 판정 불가
+      const ev = 근거정규화(it.evidence ?? '');
+      if (!ev || !근거정규화(산출물).includes(ev)) return null; // 근거 없는 충족 주장 — 판정 불가
     } else {
       필수미충족 += 1;
       사유.push(`필수 미충족: ${String((c.expectedFacts ?? [])[i] ?? i).slice(0, 40)}`);
@@ -416,9 +425,9 @@ export function computeCaseVerdict(c, 산출물, 항목) {
     const it = fmap.get(i);
     if (!it || typeof it.appeared !== 'boolean') return null;
     if (it.appeared === true) {
-      const ev = 정규화(it.evidence ?? '');
+      const ev = 근거정규화(it.evidence ?? '');
       // 답에 실제로 없는 위반 주장은 세지 않는다 — 근거가 답 원문이어야 위반이다.
-      if (ev && 답.includes(ev)) { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }
+      if (ev && 근거정규화(산출물).includes(ev)) { 위반 += 1; 사유.push(`금지 출현: ${String((c.forbiddenFacts ?? [])[i] ?? i).slice(0, 40)}`); }
     }
   }
   const pass = 사유.length === 0 && 필수미충족 === 0 && 위반 === 0;
@@ -790,7 +799,7 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   }
   if (action === 'judge_case') {
     const c = job.cases.find((x) => x.phase === 'ran');
-    const 판정 = await 성장호출(판정요청(c, c.outputPreview ?? '', 원문[0]?.baseline ?? null));
+    const 판정 = await 성장호출(판정요청(c, c.outputPreview ?? '', 원문[0]?.baseline ?? null, (c.재판정수 ?? 0) > 0));
     // **못 물어본 것**(예산 소진·호출 실패)과 물어봤는데 못 읽은 것은 다른 사실이다.
     // 앞엣것을 "판정 불가"로 굳히면 예산 상한이 그대로 표본 상실이 된다.
     if (!판정.ok) return { kind: 'judge_case', caseId: c.caseId, fail: 판정.reason };
