@@ -221,6 +221,32 @@ test('진짜 경로를 주면 그대로 쓴다(이름 승계가 경로를 가로
   assert.ok(r.result.candidates.length > 0);
 });
 
+// ── H08 · 파일도 후보다 ──────────────────────────────────────────────────
+// "다운로드 폴더에 방금 받은 견적서" — 사용자가 찾는 건 폴더가 아니라 파일이다.
+// 폴더만 후보로 올리면 이 문장은 영영 못 끝난다(인간 기준선 실패 3/3 의 뿌리 ②).
+test('이름이 맞는 파일은 파일로 후보에 오른다 — 폴더만 찾으면 견적서를 못 찾는다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-파일후보-'));
+  await mkdir(join(home, 'Downloads'), { recursive: true });
+  await writeFile(join(home, 'Downloads', '견적서-보일러.pdf'), 'x');
+  await writeFile(join(home, 'Downloads', '무관한것.zip'), 'x');
+
+  const 후보 = await 찾기(home, '견적서 찾아줘');
+  const 파일 = 후보.find((c) => c.kind === 'file');
+  assert.ok(파일, `파일이 후보에 없다 — ${JSON.stringify(후보.map((c) => [c.kind, c.path]))}`);
+  assert.match(파일.path, /견적서-보일러\.pdf$/);
+  assert.equal(파일.confidence, 'high');
+  assert.ok(!후보.some((c) => c.path.endsWith('무관한것.zip')), '이름이 안 맞는 파일까지 올리면 소음이다');
+});
+
+test('비밀 이름 파일은 파일 후보로도 안 오른다 — 파일 포함이 보호를 뚫지 않는다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-비밀파일-'));
+  await mkdir(join(home, 'Downloads'), { recursive: true });
+  await writeFile(join(home, 'Downloads', 'api-token.txt'), 'sk-메아리');
+
+  const 후보 = await 찾기(home, 'token 정리');
+  assert.ok(!후보.some((c) => c.path.includes('token')), '비밀 이름 파일이 후보로 나왔다 — 보여주면 그리로 가게 된다');
+});
+
 test('찾았을 때는 자리 목록으로 지면을 채우지 않는다', async () => {
   const [c] = await 찾기(await 가짜홈(), '정산');
   assert.ok(c, '찾았어야 한다');

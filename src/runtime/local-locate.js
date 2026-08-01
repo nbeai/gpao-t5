@@ -35,13 +35,26 @@ const DOC_EXT = /\.(xlsx?|xlsm|csv|pdf|docx?|hwpx?|pptx?|numbers|pages|key)$/i;
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|svg|ai|psd|sketch|fig)$/i;
 const TEXT_EXT = /\.(md|txt|rtf)$/i;
 
-/** 사람이 부른 말을 낱말로. "정산 자료 봐줘" → [정산, 자료] */
+/** 사람이 부른 말을 낱말로. "정산 자료 봐줘" → [정산, 자료]. NFC 로 맞춘다(디스크는 NFD 일 수 있다). */
 function 낱말(text) {
   return String(text ?? '')
+    .normalize('NFC')
     .toLowerCase()
     .split(/[\s,./\\_-]+/)
     .map((w) => w.replace(/(자료|파일|폴더|봐줘|찾아줘|정리해줘|열어줘|보여줘)$/g, ''))
     .filter((w) => w.length >= 2);
+}
+
+/** 이름이 부른 낱말과 맞는가. 디스크의 NFD 와 사용자의 NFC 를 같은 글자로 읽는다. */
+function 이름이맞나(name, 낱말들) {
+  const 이름 = String(name).normalize('NFC').toLowerCase();
+  return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w));
+}
+
+/** 수정 시각을 사람 말로. 후보의 "왜"에 붙는다. */
+function 시각말(최근일) {
+  if (최근일 == null) return undefined;
+  return 최근일 === 0 ? '오늘 고쳤어요' : 최근일 <= 7 ? `${최근일}일 전에 고쳤어요` : `${Math.round(최근일 / 30)}달 전`;
 }
 
 /** 폴더 하나가 무엇으로 보이는가. **파일을 열지 않는다** — 이름과 개수만 본다. */
@@ -84,9 +97,8 @@ function 근거(성, 이름맞음, 최근일) {
   if (성.kind === 'documents') 조각.push(`문서 ${c.doc}개`);
   if (성.kind === 'images') 조각.push(`이미지 ${c.image}개`);
   if (성.kind === 'notes') 조각.push(`글 ${c.text}개`);
-  if (최근일 != null) {
-    조각.push(최근일 === 0 ? '오늘 고쳤어요' : 최근일 <= 7 ? `${최근일}일 전에 고쳤어요` : `${Math.round(최근일 / 30)}달 전`);
-  }
+  const 시각 = 시각말(최근일);
+  if (시각) 조각.push(시각);
   return 조각.join(' · ');
 }
 
@@ -145,8 +157,22 @@ function 자리로(from, 자리들, home) {
   // 외장 디스크는 전부 여기서 죽는다. 정규화는 판단이 아니라 **같은 이름을 같다고 읽는 것**이다.
   const 같은이름 = (a, b) => a.normalize('NFC').toLowerCase() === b.normalize('NFC').toLowerCase();
   const 맞음 = 자리들.find((p) => 같은이름(p.label, 말));
-  return 맞음 ? { path: 맞음.path, name: 맞음.label } : { unknown: 말 };
+  if (맞음) return { path: 맞음.path, name: 맞음.label };
+  // **사용자는 표준 폴더를 우리말로 부른다** — "다운로드요", "바탕화면이요"(H08). 디스크의 이름은
+  // Downloads·Desktop 이다. 이름을 자리로 바꾸는 게 우리 일이면, 부르는 말을 이름으로 바꾸는 것도
+  // 우리 일이다. 목록에 실제로 있는 자리로만 승계한다(없는 폴더를 지어내지 않는다).
+  const 표준 = 표준폴더말[말.normalize('NFC').replace(/\s+/g, '').toLowerCase()];
+  const 표준맞음 = 표준 && 자리들.find((p) => 같은이름(p.label, 표준));
+  if (표준맞음) return { path: 표준맞음.path, name: 표준맞음.label };
+  return { unknown: 말 };
 }
+
+/** 우리말 부름 → 디스크의 표준 폴더 이름. 여기 있는 세 곳만 — 넓힘의 경계와 같다. */
+const 표준폴더말 = {
+  '다운로드': 'Downloads', '다운로드폴더': 'Downloads',
+  '문서': 'Documents', '내문서': 'Documents',
+  '바탕화면': 'Desktop', '데스크톱': 'Desktop', '데스크탑': 'Desktop',
+};
 
 /**
  * @param {{home?:string, volumesDir?:string}} [deps] 주입할 수 있어야 가짜 홈으로 검사할 수 있다
@@ -239,8 +265,7 @@ export function makeLocalLocateTool(deps = {}) {
         본폴더 += 1;
 
         const 성 = 성격(entries);
-        const 이름 = basename(dir).toLowerCase();
-        const 이름맞음 = 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w));
+        const 이름맞음 = 이름이맞나(basename(dir), 낱말들);
 
         if (d > 0 && (성.kind || 이름맞음)) {
           let 최근일;
@@ -258,6 +283,26 @@ export function makeLocalLocateTool(deps = {}) {
                 : (찾는종류 && 성.kind === 찾는종류) ? 'medium' : 'low',
             modifiedDaysAgo: 최근일,
             counts: 성.counts,
+          });
+        }
+
+        // **파일도 후보다.** H08 실측(인간 기준선 실패 3/3): "다운로드 폴더에 방금 받은 견적서"의
+        // 대상은 폴더가 아니라 파일인데, 여기가 폴더만 올려서 영영 못 찾았다. 이름이 맞는 파일은
+        // 파일로 올린다 — 폴더처럼 성격을 추측하지 않고(파일은 열지 않는다), 이름과 시각만 근거로 준다.
+        for (const e of entries) {
+          if (e.isDirectory() || e.name.startsWith('.') || !이름이맞나(e.name, 낱말들)) continue;
+          const full = join(dir, e.name);
+          // 비밀 이름 파일(.env·토큰·키)은 후보로도 안 올린다 — 보여주면 그리로 가게 된다.
+          if (protectionFor(full)) { 안본자리.push(full); continue; }
+          let 최근일;
+          try { 최근일 = Math.floor((지금 - (await stat(full)).mtimeMs) / 86_400_000); } catch { /* 못 보면 안 쓴다 */ }
+          후보.push({
+            path: full,
+            kind: 'file',
+            kindLabel: '파일',
+            why: ['이름이 맞아요', 시각말(최근일)].filter(Boolean).join(' · '),
+            confidence: 'high', // 파일은 이름이 곧 대상이다 — 성격 추측이 낄 자리가 없다
+            modifiedDaysAgo: 최근일,
           });
         }
 
