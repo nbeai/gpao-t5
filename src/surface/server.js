@@ -44,6 +44,11 @@ import { demoConnectors, demoDescriptors, demoChannels } from './demo-context.js
 import { projectChannels } from '../kernel/l2-plan/channel-registry.js';
 import { searchTranscripts, projectSearchCandidates, makeSearchCandidate } from '../kernel/l5-growth/session-search.js';
 import { buildOverview } from './overview.js';
+import {
+  projectAgents,
+  projectAutomations,
+  projectAutomationRun,
+} from './automation-surface.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
@@ -1083,10 +1088,7 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, {
           candidates: a.candidates.filter((c) => !c.approved),
           jobs: a.jobs.map(stripJob),
-          runs: runs.runs.map((run) => ({
-            id: run.id, jobId: run.jobId, status: run.status,
-            scheduledFor: run.scheduledFor, finishedAt: run.finishedAt,
-          })),
+          runs: runs.runs.map(projectAutomationRun),
         });
       }
       // 후보 승인 → canonical Skill+AgentProfile에 결합된 ScheduledJob. 후보 문장만으로는
@@ -1153,6 +1155,44 @@ export function makeServer(deps = {}) {
         if (outcome?.reason === 'job_not_found') return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
         if (!outcome.ok) return sendJson(res, 409, { error: '이미 끝난 자동화예요.', reason: outcome.reason });
         return sendJson(res, 200, { ok: true, state: outcome.record.state });
+      }
+      if (req.method === 'POST' && ['/automation/pause', '/automation/resume', '/automation/retry'].includes(url)) {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        await automationReady();
+        let outcome = { ok: false, reason: 'job_not_found' };
+        await autoStore.update((state) => {
+          const index = state.jobs.findIndex((job) => job.id === input.jobId);
+          if (index < 0) return state;
+          const current = state.jobs[index];
+          let moved;
+          if (url === '/automation/pause') {
+            moved = current.state === 'paused'
+              ? { ok: true, record: current }
+              : transitionState('automationJob', current, 'paused', Date.now());
+          } else if (url === '/automation/resume') {
+            moved = current.state === 'scheduled'
+              ? { ok: true, record: current }
+              : transitionState('automationJob', current, 'scheduled', Date.now());
+          } else if (current.state === 'scheduled' || current.state === 'needs_review') {
+            moved = { ok: true, record: current };
+          } else if (current.state === 'paused' || current.state === 'approved') {
+            moved = transitionState('automationJob', current, 'scheduled', Date.now());
+          } else {
+            moved = { ok: false, reason: 'job_not_retriable' };
+          }
+          outcome = moved;
+          if (!moved.ok) return state;
+          const jobs = [...state.jobs];
+          jobs[index] = moved.record;
+          return { ...state, jobs };
+        });
+        if (outcome.reason === 'job_not_found') return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
+        if (!outcome.ok) return sendJson(res, 409, { error: '현재 상태에서는 요청한 변경을 할 수 없어요.' });
+        return sendJson(res, 200, {
+          ok: true,
+          ...(url === '/automation/retry' ? { jobId: outcome.record.id } : {}),
+          state: outcome.record.state,
+        });
       }
 
       // ── 기억(Context Mesh) ──
@@ -1639,7 +1679,10 @@ export function makeServer(deps = {}) {
       if (req.method === 'GET' && url === '/overview') {
         const sessionId = new URL(req.url, 'http://x').searchParams.get('sessionId');
         const channels = projectChannels(deps.channels ?? demoChannels());
-        const skillsData = await skillStore.load();
+        await automationReady();
+        const [skillsData, jobsData, profilesData] = await Promise.all([
+          skillStore.load(), autoStore.load(), profileStore.load(),
+        ]);
         const skills = skillsData.skills.map((s) => ({ id: s.id, label: s.name ?? s.label, state: s.state }));
         const memoryState = await memStore.load();
         const userModel = projectUserModel(memoryState);
@@ -1649,7 +1692,15 @@ export function makeServer(deps = {}) {
         const dl = await deliveryStore.load();
         // 전달은 세션 소유(§6.13) — sessionId 있을 때만 그 세션 것을 본다. id는 재전달 액션에 쓴다.
         const deliveries = sessionId ? dl.deliveries.filter((d) => d.sessionId === sessionId).map((d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state })) : [];
-        return sendJson(res, 200, buildOverview({ channels, skills, userModel, deliveries, memories }));
+        return sendJson(res, 200, buildOverview({
+          channels,
+          skills,
+          userModel,
+          deliveries,
+          memories,
+          automations: projectAutomations(jobsData.jobs),
+          agents: projectAgents(profilesData.profiles),
+        }));
       }
       // ── 세션 검색 (P6-17 Slice-1) ── 과거 대화 회수. **결과는 후보로만 나온다(admitted:false, 영향 0).**
       //   turn을 돌리지 않고 모델에 먹이지 않는다 — 라우터·answer에 raw로 섞이지 않게. 승격은 별도 admission.
