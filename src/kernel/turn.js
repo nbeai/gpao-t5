@@ -478,6 +478,17 @@ export async function runTurn(input, ctx) {
   // S5-3: 모델이 "지금 사용자가 앞 답을 고치고 있다"고 알려주면 여기에 담긴다.
   // Runtime 은 낱말로 판정하지 않는다 — 모델이 안 알려주면 아무 일도 일어나지 않는다.
   let memoryCorrection = null;
+  // W2: 스킬·자동화·에이전트 제안도 기억 통제와 같은 생명주기를 탄다. 실행 호출이 아니라
+  // 후보 제출이며, 어느 모델 호출 경로에서 나왔든 턴 결과의 소비자까지 잃지 않고 운반한다.
+  let skillProposal = null;
+  let automationProposal = null;
+  let agentProposal = null;
+  const 통제제안받기 = (분리) => {
+    if (분리?.skillProposal) skillProposal = 분리.skillProposal;
+    if (분리?.automationProposal) automationProposal = 분리.automationProposal;
+    if (분리?.agentProposal) agentProposal = 분리.agentProposal;
+  };
+  const 통제제안 = () => ({ skillProposal, automationProposal, agentProposal });
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
@@ -543,6 +554,7 @@ export async function runTurn(input, ctx) {
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+    통제제안받기(분리);
     if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
     if (분리.memoryWithdrawal) memoryWithdrawal = 분리.memoryWithdrawal;
     // 주장을 **보인 것에 대조**해 신분으로 바꾼다. 대조 못 한 것은 신분을 얻지 못한다.
@@ -574,6 +586,7 @@ export async function runTurn(input, ctx) {
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
+      ...통제제안(),
       workingState: idleState,
       contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
@@ -864,6 +877,7 @@ export async function runTurn(input, ctx) {
       멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
       // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
       const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+      통제제안받기(분리멈춤);
       if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
       if (분리멈춤.memoryWithdrawal) memoryWithdrawal = 분리멈춤.memoryWithdrawal;
     }
@@ -888,6 +902,7 @@ export async function runTurn(input, ctx) {
       memorySuggestion,
       memoryWithdrawal,
       automationSuggestion,
+      ...통제제안(),
       capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
   }
@@ -899,6 +914,11 @@ export async function runTurn(input, ctx) {
   result.shownMemoryRefs = shownMemoryRefs;
   result.modelCitedRefs = modelCitedRefs;
   result.memoryCorrection = memoryCorrection;
+  // executePlan 의 다단계 호출에서 온 제안은 ctx 를 통해 돌아온다.
+  if (ctx.제안된스킬) { skillProposal = ctx.제안된스킬; ctx.제안된스킬 = undefined; }
+  if (ctx.제안된자동화) { automationProposal = ctx.제안된자동화; ctx.제안된자동화 = undefined; }
+  if (ctx.제안된에이전트) { agentProposal = ctx.제안된에이전트; ctx.제안된에이전트 = undefined; }
+  Object.assign(result, 통제제안());
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
@@ -1122,6 +1142,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
     const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
     if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
+    if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
+    if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
+    if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
     const next = 분리.rest;
     if (!next.length) {
       // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
