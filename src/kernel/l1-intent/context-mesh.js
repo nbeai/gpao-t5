@@ -131,7 +131,35 @@ export function admittedEntries(memory, requestText) {
   return (memory?.promoted ?? [])
     .filter(isInfluenceEligible)
     .filter((e) => relevant(e, requestText))
-    .map((e) => ({ ref: e.candidateId ?? e.principleId ?? null, kind: e.kind, statement: e.statement }));
+    .map((e) => ({
+      ref: e.candidateId ?? e.principleId ?? null,
+      kind: e.kind,
+      statement: e.statement,
+      // 중복 억제 판정용 저장 근거 — 이 항목이 태어난 사용자 발화 원문(있을 때만).
+      sourceQuote: e.evidence?.utteranceQuote ?? null,
+    }));
+}
+
+/**
+ * 채널 중복 제거(§5-K 제한의 구조 봉합): 같은 선호가 **대화 이력과 기억 블록에 중복 공급**
+ * 되면 모델이 저장 채널을 구속 규칙으로 승격해 현재 명시 요청을 눌렀다(§5-J·§5-K 실측 —
+ * 활성 2/6 vs 이력 단독 6/6). 원천 발화가 이번에 실제로 보내는 이력에 이미 있으면 기억
+ * 블록으로 다시 넣지 않는다.
+ *
+ * 판정은 **저장 근거(utteranceQuote)와 이력 사용자 발화의 정확 동일성**뿐이다 — 낱말 규칙·
+ * 의미 유사도·부분 일치 없음. 근거가 없는 항목은 억제하지 않는다(공급 쪽 fail-open: 기억이
+ * 일을 안 하는 것이 중복 억제 오판보다 더 자주 틀리는 방향이다 — 새 대화 공급은 정상 유지).
+ * @param {Array<{sourceQuote?:string|null}>} entries
+ * @param {Array<{role:string, text:string}>} recentTurns 이번 모델 입력에 실제로 실리는 이력
+ */
+export function dropHistoryDuplicates(entries, recentTurns) {
+  const 이력원문 = new Set((recentTurns ?? [])
+    .filter((t) => t?.role === 'user')
+    .map((t) => String(t.text ?? '').trim()));
+  return (entries ?? []).filter((e) => {
+    const 원천 = String(e?.sourceQuote ?? '').trim();
+    return !원천 || !이력원문.has(원천);
+  });
 }
 
 /**

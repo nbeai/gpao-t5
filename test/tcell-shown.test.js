@@ -228,3 +228,80 @@ test('S5-1: 기록 상한을 넘기면 오래된 것부터 걷고, 같은 턴은
   assert.equal(memory.shownRefs.length, 전, '같은 턴은 하나로 유지된다');
   assert.equal(memory.shownRefs.at(-1).refs[0].ref, 'r-바뀜');
 });
+
+// ── 채널 중복 제거(§5-K 제한의 구조 봉합) — 원천 발화가 이력에 있으면 재공급하지 않는다 ──
+// §5-J·§5-K 원시: 같은 선호가 대화 이력(선언 턴)과 기억 블록에 **중복 공급**되면 모델이
+// 저장 채널을 구속 규칙으로 승격해 현재 명시 요청을 눌렀다(활성 2/6 vs 이력 단독 6/6).
+// 판정은 저장 근거(evidence.utteranceQuote)와 이번에 실제로 보내는 이력의 **정확 동일성**
+// 뿐이다 — 낱말 규칙·의미 유사도·부분 일치 없음. shown 은 렌더된 그 배열에서 나온다.
+
+const 선언문 = '앞으로 보고서는 표보다 짧은 목록으로 정리해줘.';
+
+async function 선호심기(mem) {
+  const m = await mem.load();
+  m.promoted = [{
+    candidateId: 'pref-중복', kind: 'preference', statement: 선언문,
+    tier: 'auto_reversible', admitted: true, userConfirmed: true,
+    evidence: { utteranceQuote: 선언문, speechAct: 'declaration', appliesTo: 'from_now_on' },
+  }];
+  await mem.save(m);
+}
+
+test('중복 억제: 원천 발화가 같은 대화 이력에 있으면 기억 블록으로 다시 넣지 않는다 — shown 도 같이 0', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: 선언문 });               // 원천 발화가 이력에 들어간다
+    await post('/turn', { sessionId: s.id, text: '이번 보고서만 표로 만들어줘.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), false,
+      '이력에 이미 있는 원천 발화가 기억 블록으로 중복 공급되면 안 된다');
+    // 선언 턴 자체의 렌더는 정상이다(그때는 이력에 없었다) — 측정 턴은 렌더 0 이라 기록도
+    // 없어야 하므로, pref 를 담은 shown 기록은 **선언 턴 하나뿐**이어야 한다.
+    const 담은기록 = shown(await mem.load()).filter((x) => (x.refs ?? []).some((r) => r.ref === 'pref-중복'));
+    assert.equal(담은기록.length, 1, 'shown 은 실제 렌더와 같은 사실을 본다 — 중복 공급 턴의 기록이 있으면 안 된다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 원천 발화가 없는 새 대화에서는 기억이 정상 공급된다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘. 매출 1500, 비용 950.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), true, '새 대화에서는 기억이 일을 해야 한다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 정확 동일성만 본다 — 포함 관계·도우미 발화로는 억제하지 않는다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    // 원천을 **포함**하지만 동일하지 않은 사용자 발화 — 유사도·부분 일치 규칙은 금지다.
+    await post('/turn', { sessionId: s.id, text: `아까 "${선언문}" 라고 했던 거 기억하지? 보고서 정리해줘.` });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), true,
+      '부분 일치로 억제하면 의미 판정이 된다 — 정확 동일성만 기계 사실이다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 저장 근거가 없는 항목은 억제하지 않는다(공급 쪽으로 fail-open)', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    const m = await mem.load();
+    m.promoted = [{
+      candidateId: 'pref-근거없음', kind: 'preference', statement: '보고서는 짧은 목록으로 정리한다',
+      admitted: true, userConfirmed: true, // evidence 없음 — 옛 저장본
+    }];
+    await mem.save(m);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '보고서는 짧은 목록으로 정리한다' }); // 우연히 같은 문장
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes('보고서는 짧은 목록으로 정리한다'), true,
+      '저장 근거 없는 항목을 statement 추측으로 억제하면 안 된다 — 근거로만 판정한다');
+  } finally { server.close(); }
+});

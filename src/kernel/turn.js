@@ -17,7 +17,7 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { detectCandidate, admittedEntries, isRelevant } from './l1-intent/context-mesh.js';
+import { detectCandidate, admittedEntries, dropHistoryDuplicates, isRelevant } from './l1-intent/context-mesh.js';
 import { shownFromRendered, citedFromShown } from './l5-growth/tcell-shown.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -411,7 +411,10 @@ export async function runTurn(input, ctx) {
   const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
   // S5-1(§4.5): 신분을 단 채로 만들고, 렌더에는 문장만 쓴다. **같은 배열**이라 보인 것과
   // 기록한 것이 갈릴 수 없다 — 렌더 뒤에 다시 계산하면 언젠가 다른 답이 나온다.
-  const admittedRich = admittedEntries(ctx.memory ?? {}, input.text ?? '');
+  // 채널 중복 제거(§5-K): 원천 발화가 이번 이력에 이미 실리면 기억 블록으로 재공급하지
+  // 않는다 — 렌더 전에 거르므로 shown 도 같은 사실을 본다(같은 배열 원칙 그대로).
+  const admittedRich = dropHistoryDuplicates(
+    admittedEntries(ctx.memory ?? {}, input.text ?? ''), ctx.recentTurns ?? []);
   const admitted = [
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedRich.map((e) => e.statement),
