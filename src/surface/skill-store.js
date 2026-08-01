@@ -106,6 +106,18 @@ export class SkillDefinitionStore {
   }
 
   async save(state) {
+    return serializeByFile(this.file, () => this.#write(state));
+  }
+
+  async update(mutator) {
+    return serializeByFile(this.file, async () => {
+      const current = await this.load();
+      const changed = await mutator(current) ?? current;
+      return this.#write(changed);
+    });
+  }
+
+  async #write(state) {
     if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('skills state schemaVersion must be 2');
     assertStateRecords(state.skills, validateSkillDefinition, 'skill definition');
     await atomicWritePrivate(this.file, {

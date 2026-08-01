@@ -15,7 +15,7 @@ import { mkdtemp, readFile, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SkillStore, SkillDefinitionStore } from '../src/surface/skill-store.js';
-import { AutomationStore } from '../src/surface/automation-store.js';
+import { AutomationJobStore, AutomationStore } from '../src/surface/automation-store.js';
 import {
   AUTOMATION_SCHEMA_VERSION,
   SKILL_DEFINITION_STATES,
@@ -369,4 +369,52 @@ test('동시 저장이 서로를 지우지 않는다(읽기-병합-쓰기 직렬
   const 후 = await auto.load();
   assert.equal(후.jobs.find((j) => j.id === 'j1').state, 'paused');
   assert.equal(후.jobs.find((j) => j.id === 'j2').state, 'cancelled');
+});
+
+test('canonical skill update 와 legacy 결정이 같은 파일 경계에서 합쳐진다', async () => {
+  const dir = await 새디렉();
+  const v2 = new SkillDefinitionStore(dir);
+  const v1 = new SkillStore(dir);
+  await v2.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, skills: [v2스킬('s1', 'approved')] });
+
+  const 오래된뷰 = await v1.load();
+  오래된뷰.skills[0].state = 'admitted';
+  await Promise.all([
+    v2.update((state) => {
+      const next = { ...state.skills[0], purpose: 'canonical 변경' };
+      next.contentHash = contentHash(skillHashSource(next));
+      state.skills[0] = next;
+      return state;
+    }),
+    v1.save(오래된뷰),
+  ]);
+
+  const 후 = (await v2.load()).skills[0];
+  assert.equal(후.purpose, 'canonical 변경');
+  assert.equal(후.state, 'active');
+});
+
+test('canonical automation update 와 legacy 결정이 후보·job 을 잃지 않는다', async () => {
+  const dir = await 새디렉();
+  const v1 = new AutomationStore(dir);
+  const 초기 = await v1.load();
+  초기.jobs.push({ id: 'j1', statement: '매주 정리', action: { tool: 'web.collect', args: { request: 'x' } }, state: 'scheduled', nextRunAt: 1, intervalMs: 1000, executions: [] });
+  await v1.save({ ...초기, schemaVersion: AUTOMATION_SCHEMA_VERSION });
+
+  const v2 = new AutomationJobStore(dir);
+  const 오래된뷰 = await v1.load();
+  오래된뷰.jobs[0].state = 'paused';
+  await Promise.all([
+    v2.update((state) => {
+      state.candidates.push({ candidateId: 'c2', statement: '새 후보', approved: false });
+      state.jobs[0] = { ...state.jobs[0], name: 'canonical 이름' };
+      return state;
+    }),
+    v1.save(오래된뷰),
+  ]);
+
+  const 후 = await v2.load();
+  assert.equal(후.jobs[0].name, 'canonical 이름');
+  assert.equal(후.jobs[0].state, 'paused');
+  assert.equal(후.candidates.some((c) => c.candidateId === 'c2'), true);
 });

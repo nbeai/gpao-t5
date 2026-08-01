@@ -2,6 +2,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { isDeepStrictEqual } from 'node:util';
 import {
   AUTOMATION_SCHEMA_VERSION,
   mergeAutomationJobV1,
@@ -34,6 +35,7 @@ export class AutomationStore {
           schemaVersion: AUTOMATION_SCHEMA_VERSION,
           compatibility: 'v1',
           candidates: a.candidates ?? [],
+          __v2Candidates: structuredClone(a.candidates ?? []),
           jobs: (a.jobs ?? []).map(projectAutomationJobV1),
         };
       }
@@ -72,9 +74,15 @@ export class AutomationStore {
       const jobs = (a.jobs ?? []).map((job) => mergeAutomationJobV1(job, now, 현재.get(job?.id) ?? null));
       const 본뷰 = new Set(jobs.map((j) => j.id));
       const 남은것 = [...현재.entries()].filter(([id]) => !본뷰.has(id)).map(([, rec]) => rec);
+      const 현재파일 = await this.#현재상태();
+      const candidates = 후보병합(
+        현재파일.candidates ?? [],
+        a.candidates ?? [],
+        a.__v2Candidates,
+      );
       await atomicWritePrivate(this.file, {
         schemaVersion: AUTOMATION_SCHEMA_VERSION,
-        candidates: a.candidates ?? [],
+        candidates,
         jobs: [...jobs, ...남은것],
       });
       if (hasNewLegacyJob) {
@@ -90,6 +98,33 @@ export class AutomationStore {
       return a;
     }
   }
+
+  async #현재상태() {
+    try {
+      const a = JSON.parse(await readFile(this.file, 'utf8'));
+      return a?.schemaVersion === AUTOMATION_SCHEMA_VERSION ? a : { candidates: [], jobs: [] };
+    } catch { return { candidates: [], jobs: [] }; }
+  }
+}
+
+function 후보키(candidate) {
+  return candidate?.candidateId ?? candidate?.id ?? null;
+}
+
+function 후보병합(current, view, snapshot) {
+  // snapshot 없는 직접 호출은 기존 호환 계약대로 view 를 권위 있게 쓴다. v2 파일을 load 한
+  // legacy 소비자는 snapshot 을 갖고 오므로, 그 사이 canonical 소비자가 만든 후보를 보존하고
+  // legacy 가 실제로 추가·변경한 후보만 얹는다.
+  if (!Array.isArray(snapshot)) return view;
+  const before = new Map(snapshot.map((c) => [후보키(c), c]).filter(([id]) => id));
+  const merged = new Map(current.map((c) => [후보키(c), c]).filter(([id]) => id));
+  for (const candidate of view) {
+    const id = 후보키(candidate);
+    if (!id) continue;
+    const old = before.get(id);
+    if (!old || !isDeepStrictEqual(candidate, old)) merged.set(id, candidate);
+  }
+  return [...merged.values()];
 }
 
 // AC-1 v2 저장선. scheduler/runner는 아직 이 클래스를 소비하지 않는다.
@@ -115,6 +150,18 @@ export class AutomationJobStore {
   }
 
   async save(state) {
+    return serializeByFile(this.file, () => this.#write(state));
+  }
+
+  async update(mutator) {
+    return serializeByFile(this.file, async () => {
+      const current = await this.load();
+      const changed = await mutator(current) ?? current;
+      return this.#write(changed);
+    });
+  }
+
+  async #write(state) {
     if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('automation state schemaVersion must be 2');
     if (!Array.isArray(state.candidates)) throw new Error('automation candidates must be an array');
     assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
