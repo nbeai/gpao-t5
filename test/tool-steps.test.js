@@ -9,6 +9,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
 
 /** 지정한 도구 호출을 순서대로 하나씩 내놓는 모델. 다 쓰면 말로 끝낸다. */
 function 걸음마다(계획) {
@@ -104,4 +108,66 @@ test('상한 증명 ②⑤: 모델이 한 걸음에서 멈추면 정확히 한 �
   const 손 = 기록하는손();
   await runTurn({ text: '해줘' }, ctx(걸음마다([명령('ls')]), 손));
   assert.deepEqual(손.불린것, ['ls'], '상한 상향이 일반 흐름의 걸음 수를 바꾸면 안 된다');
+});
+
+// ── P90-2 단계2 · 완료 형태 판정을 산문 파싱에 맡기지 않는다 ────────────────
+//
+// 실측(2026-08-02, 로컬 파일 경로 6회): 이 판정 호출이 전체 모델 시간의 **36.6%**를 쓴다.
+// 본선 왕복 평균 4.62초인데 이 호출만 7.33초다 — 도구도 없고 답이 4글자인데 더 느리다.
+// 이유는 `directWrite` 가 아닐 때 **도구 없이 산문을 받아 정규식으로 읽기** 때문이다.
+// 6회 중 2회는 모델이 파싱 안 되는 산문(47·49·55자)을 내서 재시도가 돌았고,
+// 회차3은 두 번 다 실패해 17초를 태우고 보수 폴백으로 떨어졌다.
+//
+// 계약: 판정은 **구조 채널**로 받는다. 산문 파싱은 구조 채널을 모르는 provider 를 위한
+// 폴백으로만 남는다(코드가 이미 structured → parse 순서로 읽는다).
+// 판정 스키마는 실행 도구가 아니라 `{output: 'chat'|'file'}` 하나뿐이라, 이것만 주고
+// requiredTool 로 강제하면 모델이 "다음 실제 걸음"을 여기서 소비할 수 없다.
+test('P90-2: 완료 형태 판정 호출은 구조 채널을 준다(산문 파싱 의존 금지)', async () => {
+  const 판정호출 = [];
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) {
+        판정호출.push({ tools: (opts.tools ?? []).map((t) => t.name), requiredTool: opts.requiredTool });
+        return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
+      }
+      // 첫 호출: 읽기만 고른다 — directWrite 가 **아닌** 경로를 태운다.
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '정산.csv' } }] };
+      return '정리했어요.';
+    },
+  };
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-p90-2-'));
+  await runTurn({ text: '정산.csv 읽고 보기 좋게 정리해서 파일로 만들어줘' }, {
+    env: demoEnv(),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    model,
+  });
+
+  assert.ok(판정호출.length >= 1, '완료 형태 판정 호출이 있어야 한다');
+  for (const 호출 of 판정호출) {
+    assert.deepEqual(호출.tools, ['work.deliverable'],
+      `판정 호출에 구조 채널이 없다 — 산문 파싱에 맡기면 파싱 실패 시 왕복이 하나 더 든다(실측 6회 중 2회)`);
+    assert.equal(호출.requiredTool, 'work.deliverable',
+      '강제하지 않으면 모델이 산문으로 답할 수 있다');
+  }
+});
+
+test('P90-2: 구조 채널로 답하면 판정 호출은 한 번뿐이다(재시도 루프 미발화)', async () => {
+  let 판정횟수 = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) {
+        판정횟수 += 1;
+        return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      }
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '정산.csv' } }] };
+      return '정리했어요.';
+    },
+  };
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-p90-2b-'));
+  await runTurn({ text: '정산.csv 읽고 정리해줘' }, {
+    env: demoEnv(),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    model,
+  });
+  assert.equal(판정횟수, 1, `구조 채널이 답했는데 재시도가 돌았다 — 실제 ${판정횟수}회`);
 });

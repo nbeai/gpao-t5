@@ -28,7 +28,11 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 function 읽고나서쓰는모델(읽기, 쓰기, 말 = '찾았어요. 이제 모을게요.') {
   let n = 0;
   return {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      // P90-2: 판정 호출(work.deliverable)도 이제 구조 채널을 받는다. 예전엔 도구가 0개라
+      // `opts.tools.length` 로 본선 라운드를 세도 맞았지만, 그건 구현 모양에 기댄 대리 규칙이었다.
+      // 계약 사실은 `tc.workContractAssessment` 다 — 그것으로 가른다. 주장은 그대로다.
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (!opts.tools?.length) return '했어요';
       n += 1;
       if (n === 1) return { text: '', toolCalls: [읽기] };

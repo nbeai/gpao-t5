@@ -26,7 +26,9 @@ const 자연어선호 = '보고서는 표보다 짧은 목록으로 정리해줘
 function 계획모델(계획, 답 = '알겠어요') {
   let i = 0;
   return {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      // P90-2: 판정 호출도 구조 채널을 받는다 — 계약 사실로 가른다(구현 모양 대리 규칙 금지).
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (!opts.tools?.length) return 답;
       if (i >= 계획.length) return { text: 답, toolCalls: [] };
       const 걸음 = 계획[i]; i += 1;

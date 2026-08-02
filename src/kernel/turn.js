@@ -177,11 +177,20 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     // 구조 채널은 모델이 이미 쓰기를 고른 충돌 상황에만 필요하다. 읽기·탐색 흐름에서
     // 실행 도구를 하나 더 제시하면 다음 실제 걸음을 판정 응답으로 소비할 수 있다.
+    // P90-2 실측(2026-08-02 · 로컬 파일 경로 6회): 이 판정이 전체 모델 시간의 **36.6%**를
+    // 썼다. 본선 왕복 평균 4.62초인데 이 호출만 7.33초다 — 도구도 없고 답이 4글자인데 더 느리다.
+    // 원인은 `directWrite` 가 아닐 때 **도구 없이 산문을 받아 정규식으로 읽던 것**이다.
+    // 6회 중 2회는 파싱 안 되는 산문(47·49·55자)이 와서 재시도가 돌았고, 한 회는 두 번 다
+    // 실패해 17초를 태우고 보수 폴백으로 떨어졌다.
+    //
+    // 예전 주석은 "읽기·탐색 흐름에서 실행 도구를 하나 더 제시하면 다음 실제 걸음을 판정
+    // 응답으로 소비할 수 있다"고 걱정했다. 그 걱정은 **실행 도구를 함께 줄 때**의 것이다 —
+    // 여기서 주는 것은 `{output:'chat'|'file'}` 하나뿐인 판정 스키마이고 requiredTool 로
+    // 강제하므로, 모델이 고를 수 있는 실제 걸음이 애초에 목록에 없다.
+    // 산문 파싱은 아래에서 폴백으로 그대로 남는다(구조 채널을 모르는 provider 대비).
     const out = await model.respond(
       { ...tc, workContractAssessment: { kind: 'file' } },
-      directWrite
-        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }
-        : { effort: 'medium' },
+      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },
     );
     const structured = typeof out === 'string' ? null
       : out?.toolCalls?.find((call) => call?.name === WORK_DELIVERABLE_SCHEMA.name

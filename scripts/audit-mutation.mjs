@@ -79,6 +79,7 @@ const MODEL_CONTROL = 'src/kernel/l2-plan/model-control.js';
 const T_WORK_REFS = 'test/work-refs.test.js';
 const T_WORK_LEDGER = 'test/work-event-ledger.test.js';
 const T_WORK_STATE = 'test/work-state.test.js';
+const T_TOOL_STEPS = 'test/tool-steps.test.js';
 const T_WORK_ADMISSION = 'test/work-state-admission.test.js';
 const T_WORK_PRODUCT = 'test/work-state-product.test.js';
 const T_WORK_ATOMICITY = 'test/work-event-atomicity.test.js';
@@ -717,6 +718,10 @@ export const MUTATIONS = [
   { 이름: 'E-4 파생 종류 목록이 어휘 전체로 뭉개짐(두 역할 구분 소실)', 파일: 'src/kernel/l2-plan/authority.js', 검사: 'test/authority-tier-contract.test.js',
     찾기: "export const DERIVED_KINDS = Object.freeze([\n  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',\n]);",
     바꾸기: 'export const DERIVED_KINDS = Object.freeze([...AUTHORITY_KINDS]);' },
+  // ── P90-2(2026-08-02) · 완료 형태 판정은 구조 채널로 ──────────────────
+  { 이름: 'P90-2 완료 형태 판정을 다시 산문 파싱에 맡김(왕복 낭비 재발)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+    찾기: "      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },",
+    바꾸기: "      directWrite\n        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }\n        : { effort: 'medium' }," },
   { 이름: 'F7.4 discovery 보호 경계 제거(제2 읽기 손 재발)', 파일: 'src/runtime/local-discovery.js', 검사: 'test/local-discovery.test.js',
     찾기: "const 보호로막힘 = (path) => Boolean(protectionBlocks(path, { write: false }));",
     바꾸기: "const 보호로막힘 = () => false;" },

@@ -13,7 +13,9 @@ function 걸음모델(계획, 답 = '정리했어요') {
   let i = 0;
   return {
     호출수: () => i,
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      // P90-2: 판정 호출도 구조 채널을 받는다 — 계약 사실로 가른다(구현 모양 대리 규칙 금지).
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (!opts.tools?.length) return 답;
       if (i >= 계획.length) return { text: 답, toolCalls: [] };
       const 걸음 = 계획[i]; i += 1;
@@ -94,7 +96,9 @@ test('C2. 걸음 도중 모델이 죽으면 — 이미 한 일의 영수증은 �
     async handler(args) { return { result: { command: args.command, exitCode: 0, stdout: '결과', cwd: '/x' }, userSafeSummary: '봤어요.' }; },
   };
   const 도중죽는모델 = {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      // P90-2: 판정 호출도 구조 채널을 받는다 — 계약 사실로 가른다(구현 모양 대리 규칙 금지).
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (!opts.tools?.length) return '정리했어요';
       if (첫호출) { 첫호출 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
       throw new Error('stream cut');
@@ -188,7 +192,9 @@ test("C2'. /turn 관통: 걸음 성공 후 모델 사망 — 응답·원장·저
   };
   let 첫호출 = true;
   const 도중죽는모델 = {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      // P90-2: 판정 호출도 구조 채널을 받는다 — 계약 사실로 가른다(구현 모양 대리 규칙 금지).
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (!opts.tools?.length) return '정리했어요';
       if (첫호출) { 첫호출 = false; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
       throw new Error('stream cut');
