@@ -115,7 +115,7 @@ export function buildModelMessages(tc) {
   if (working) sys.push(`[이 대화에서 지금까지]\n${working}`);
   const projectWorking = workStateFacts(tc.projectWorkState);
   if (projectWorking) {
-    sys.push(`[현재 프로젝트 상태 — 사건 원장에서 확인됨]\n${projectWorking}`);
+    sys.push(`[현재 작업 브리프 — 사건 원장에서 확인됨]\n${projectWorking}`);
   }
 
   const af = tc.authorityFacts ?? {};
@@ -256,17 +256,29 @@ export function buildModelMessages(tc) {
         .join('\n')}\n`
       + '현재 요청이 지금 요구한 후보의 번호만 work.current_actions로 제출한다. 이전 턴의 미완료 행동은 고르지 않는다.');
   }
+  if (tc.workStateSettlement) {
+    const settlement = tc.workStateSettlement;
+    usr.push('[턴 정산 사실 — 이미 만든 답을 바꾸지 않음]\n'
+      + `전달 후보 답: ${settlement.deliveryCandidate}\n`
+      + `이번 턴 영수증: ${JSON.stringify(settlement.receipts)}\n`
+      + `Current Work Brief: ${settlement.currentWorkBrief || '(없음)'}\n`
+      + '전달 후보 답에 실제로 포함된 미정 질문만 openQuestion으로 제출할 수 있다. '
+      + '새 질문을 만들거나 실행 완료를 주장하지 않는다. 다른 대화 작업을 이어받는다면 Current Work Brief의 '
+      + '대괄호 선택자(예: P1)를 continueFromRef에 그대로 제출한다. 선택자가 없을 때만 활성 합의나 미정 질문 '
+      + '한 문장을 줄이거나 바꾸지 말고 continueFrom에 복사한다. '
+      + '상태 변화가 없으면 noChange:true를 제출한다.');
+  }
   if (tc.recentTurns?.length) {
     // 같은 지침이 고정 헌장에만 있으면 긴 입력에서 현재 요청과 갈라진다. 현재 발화 바로 앞에
     // 완료 기준만 짧게 놓는다 — 말투 처방이 아니라 "이번 턴에 일을 끝냈는가"의 계약이다.
     usr.push('[이번 답의 완료 기준]\n현재 요청은 이 답에서 완료한다. 형식·길이 수정이면 직전 답의 내용을 새 형식으로 바로 다시 쓰고, 확인이나 예고만으로 한 턴을 소비하지 않는다.');
   }
-  usr.push(tc.currentRequest); // 원문 보존
   // 산출물 의무 대조(턴 실행부) — 낱말이 아니라 **ActionPlan 완료 계약과 원장**의 불일치.
-  // 매 호출 변하는 사실이라 맨 뒤(캐시 경계 계약).
+  // 매 호출 변하는 사실이지만 현재 요청보다 앞에 둔다.
   if (tc.unmetDeliverable) {
     usr.push('[원장 대조]\nActionPlan의 완료 계약에는 파일 산출물이 필요한데, local.file write의 경로와 내용 digest가 있는 성공 영수증이 아직 없다. 손은 남아 있다.');
   }
+  usr.push(tc.currentRequest); // 원문 보존 · 모든 모델 호출의 마지막 사용자 지시
   // Phase 2-1: 같은 대화의 이전 발화를 **진짜 대화 턴으로** 넘긴다. 하나의 덩어리로 이어 붙이면
   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
   const history = (tc.recentTurns ?? [])

@@ -11,11 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { runTurn } from '../kernel/turn.js';
+import { runTurn, stateReviewNeeded } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
 import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
+import { modelSchemasFor, splitModelControlCalls } from '../kernel/l2-plan/model-control.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
@@ -205,8 +206,8 @@ export function makeServer(deps = {}) {
   }
 
   // P90-1 · 같은 principal의 다른 대화에서 아직 살아 있는 프로젝트 상태 후보.
-  // 내부 WorkRef는 모델에 보이지 않고, 모델은 여기서 실제로 보여준 문장 하나를 정확히
-  // 지목해야만 같은 작업을 이어받는다. 목록은 매 턴 원장에서 파생하며 세션에 저장하지 않는다.
+  // 내부 WorkRef는 모델에 보이지 않는다. P1 같은 선택자는 이 목록에서만 유효하며 OS가
+  // WorkRef로 환원한 뒤 버린다. 목록은 매 턴 원장에서 파생하며 세션에 저장하지 않는다.
   async function 이어받을프로젝트(session) {
     if (!session?.principalRef) return [];
     try {
@@ -228,7 +229,9 @@ export function makeServer(deps = {}) {
         if (!quotes.length) continue;
         const facts = workStateFacts(state, { maxChars: 1_000 });
         if (!facts) continue;
-        entries.push({ workRef, quotes, statement: `[이어받을 수 있는 프로젝트]\n${facts}` });
+        const selectionRef = `P${entries.length + 1}`;
+        entries.push({ workRef, quotes, selectionRef,
+          statement: `[이어받을 수 있는 프로젝트 ${selectionRef}]\n${facts}` });
         if (entries.length >= 4) break;
       }
       return entries;
@@ -711,6 +714,7 @@ export function makeServer(deps = {}) {
     provisionalWorkRef = null,
   }) {
     let workRef = session.workRef ?? null;
+    let proposalAdmission = null;
     if (proposal) {
       const admitted = await admitWorkStateProposal({
         store: workEventStore,
@@ -723,9 +727,10 @@ export function makeServer(deps = {}) {
         provisionalWorkRef,
         shownProjects,
       });
+      proposalAdmission = { accepted: admitted.accepted === true, reason: admitted.reason ?? null };
       if (admitted.accepted) workRef = admitted.workRef;
     }
-    if (!workRef || !session.principalRef) return;
+    if (!workRef || !session.principalRef) return { workRef, proposalAdmission };
 
     const scopeRef = { principalRef: session.principalRef, projectRef: workRef };
     const receipts = (session.ledgerEntries ?? []).slice(ledgerFrom);
@@ -765,6 +770,7 @@ export function makeServer(deps = {}) {
       session.workRef = workRef;
       await store.save(session);
     }
+    return { workRef, proposalAdmission };
   }
 
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
@@ -801,6 +807,7 @@ export function makeServer(deps = {}) {
     }
     const carryableWork = await 이어받을작업(session);
     const carryableProjects = await 이어받을프로젝트(session);
+    const hadExistingWork = Boolean(session.workRef);
     const ctx = ctxForSession(
       session, memory, timingEntry, projectedWorkState, carryableWork, carryableProjects,
     );
@@ -869,14 +876,88 @@ export function makeServer(deps = {}) {
       };
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
-    // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리하고, 지속 사실이 선 뒤
-    // 별도 경계에만 전달한다. 기존 WorkRef 수정 턴에서도 내부 후보가 세션 파일에 남지 않는다.
-    const workStateProposal = result.workStateProposal ?? null;
+    // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리한다.
     delete result.workStateProposal;
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
     redactSensitiveOutput(result);
     민감기억후처리(result);
     redactSensitiveResult(result);
+
+    // P90-1 정산: 첫 응답이 상태를 보고하지 않았고, 구조 신호가 있는 종단 턴에서만 한 번 연다.
+    // 이 호출은 실행·영수증·전달 후보 답이 모두 나온 뒤에 서며 reply를 바꾸지 않는다.
+    const beforeSettlement = ctx.workStateSnapshot?.() ?? {};
+    const reviewSignals = ctx.stateReviewSignals ?? {};
+    const terminal = result.kind === 'reply'
+      && result.modelUnavailable !== true
+      && !(result.ledger?.unconfirmed?.length);
+    const currentReceipts = ctx.ledger.entries.slice(ledgerStart);
+    const hasForeignControlProposal = Boolean(
+      result.memorySuggestion
+      || result.memoryWithdrawal
+      || result.skillProposal
+      || result.automationSuggestion
+      || result.agentProposal,
+    );
+    // 최초 작업은 L1의 넓은 complex_work 라벨이 아니라 턴 종료 뒤의 구조 사실로만 후보화한다.
+    // 이 값도 정산 호출 여부의 신호일 뿐, 합의·범위·완료 사건의 증거가 아니다.
+    const durableWorkCandidate = Boolean(result.goal)
+      && currentReceipts.length === 0
+      && reviewSignals.hasAdmittedContext !== true
+      && reviewSignals.hasMemoryState !== true
+      && !hasForeignControlProposal;
+    const reviewNeeded = stateReviewNeeded({
+      phase: 'settled', terminal,
+      reported: beforeSettlement.workStateReported === true,
+      hasExistingWork: hadExistingWork,
+      hasCarryableProject: carryableProjects.length === 1,
+      durableWorkCandidate,
+      goalRelevant: reviewSignals.goalRelevant === true,
+      resumedApproval: reviewSignals.resumedApproval === true,
+    });
+    const settlementDiagnostic = {
+      reviewNeeded,
+      reviewOpened: false,
+      reportedByMain: beforeSettlement.workStateReported === true,
+      durationMs: 0,
+    };
+    if (reviewNeeded) {
+      const stateTools = modelSchemasFor(buildSelfState(env, { tools }), ['work.state'])
+        .filter((schema) => schema.name === 'work.state');
+      if (stateTools.length === 1) {
+        const startedAt = performance.now();
+        try {
+          const deliveryCandidate = String(result.reply ?? '');
+          const stateOut = await ctx.model.respond({
+            currentRequest: 작업상태원문 ?? '',
+            projectWorkState: projectedWorkState,
+            workStateSettlement: {
+              deliveryCandidate,
+              receipts: projectReceipts(currentReceipts),
+              currentWorkBrief: workStateFacts(projectedWorkState)
+                || (carryableProjects.length === 1 ? carryableProjects[0].statement : ''),
+            },
+          }, { effort: 'medium', tools: stateTools, requiredTool: 'work.state' });
+          const split = splitModelControlCalls(
+            typeof stateOut === 'string' ? [] : (stateOut?.toolCalls ?? []),
+          );
+          ctx.collectWorkState?.(split);
+          settlementDiagnostic.reviewOpened = true;
+        } catch (error) {
+          settlementDiagnostic.error = error?.isModelTimeout ? 'timeout' : 'model_error';
+        } finally {
+          settlementDiagnostic.durationMs = Math.max(0, performance.now() - startedAt);
+        }
+      }
+    }
+    result.workStateDiagnostic = settlementDiagnostic;
+    const workStateProposal = ctx.workStateSnapshot?.().workStateProposal ?? null;
+    if (workStateProposal) {
+      result.workStateDiagnostic.candidateTypes = (workStateProposal.changes ?? []).map((change) => change.type);
+      result.workStateDiagnostic.hasOpenQuestion = Boolean(workStateProposal.openQuestion);
+      result.workStateDiagnostic.hasContinueFrom = Boolean(
+        workStateProposal.continueFrom || workStateProposal.continueFromRef,
+      );
+    }
     try {
       await 통제후보저장(result, session);
     } catch (error) {
@@ -1044,12 +1125,17 @@ export function makeServer(deps = {}) {
     // P90-1: transcript·ToolReceipt가 먼저 지속된 뒤 WorkEvent가 그 사실을 가리킨다.
     // 기록 실패가 이미 끝난 대화를 거짓 실패로 바꾸지는 않지만 진단 흔적은 숨기지 않는다.
     try {
-      await 기록된작업사건({
+      const workStateRecorded = await 기록된작업사건({
         session, inputText: 작업상태원문, result, turnRef, ledgerFrom: stampFrom.ledgerFrom,
         shownProjects: carryableProjects,
         proposal: workStateProposal,
         provisionalWorkRef,
       });
+      if (workStateProposal) {
+        result.workStateDiagnostic.recorded = workStateRecorded?.proposalAdmission?.accepted === true;
+        result.workStateDiagnostic.reason = workStateRecorded?.proposalAdmission?.reason ?? null;
+        await store.save(session);
+      }
     } catch (error) {
       result.workStateDiagnostic = { recorded: false, reason: 'work_state_not_recorded' };
       console.error('[work-state] 기록 실패 — 대화는 지속됨:', error?.message ?? error);

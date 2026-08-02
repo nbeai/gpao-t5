@@ -29,6 +29,24 @@ test('사용자 원문과 답에 대조된 합의·미정만 OS 사건이 된다
   assert.deepEqual((await fx.store.load()).map((event) => event.type), ['agreement_set', 'question_opened']);
 });
 
+test('최초 합의의 불필요한 targetQuote는 기존 프로젝트 승계 신호가 아니다', async () => {
+  const fx = await fixture();
+  const result = await admitWorkStateProposal({
+    ...fx,
+    inputText: '새 문서 프로젝트를 시작한다. 이름은 DOC-1로 확정하자.',
+    reply: 'DOC-1로 시작할게요.',
+    shownProjects: [],
+    proposal: { changes: [{
+      type: 'agreement_set',
+      utteranceQuote: '이름은 DOC-1로 확정하자',
+      targetQuote: '새 문서 프로젝트',
+    }] },
+  });
+  assert.equal(result.accepted, true);
+  assert.match(result.workRef, /^wr1\./);
+  assert.deepEqual((await fx.store.load()).map((event) => event.type), ['agreement_set']);
+});
+
 test('모델이 바꿔 쓴 사용자 말이나 답에 실제로 없는 질문은 전부 거부한다', async () => {
   const fx = await fixture();
   const result = await admitWorkStateProposal({
@@ -96,8 +114,8 @@ test('새 대화는 실제로 보여준 프로젝트 원문 하나를 지목할 
     ...fx,
     turnRef: { sessionId: 'session-new', turnSeq: 1 },
     inputText: '그 프로젝트 계속하자', reply: '이어서 할게요.',
-    proposal: { changes: [], continueFrom: '참석자는 35명으로 하자' },
-    shownProjects: [{ workRef: first.workRef, quotes: ['참석자는 35명으로 하자'] }],
+    proposal: { changes: [], continueFromRef: 'P1' },
+    shownProjects: [{ workRef: first.workRef, selectionRef: 'P1', quotes: ['참석자는 35명으로 하자'] }],
   });
   assert.equal(continued.accepted, true);
   assert.equal(continued.workRef, first.workRef);
@@ -107,8 +125,33 @@ test('새 대화는 실제로 보여준 프로젝트 원문 하나를 지목할 
     ...fx,
     turnRef: { sessionId: 'session-guess', turnSeq: 1 },
     inputText: '그거 계속하자', reply: '이어서 할게요.',
-    proposal: { changes: [], continueFrom: '보여주지 않은 프로젝트' },
-    shownProjects: [],
+    proposal: { changes: [], continueFromRef: 'P9' },
+    shownProjects: [{ workRef: first.workRef, selectionRef: 'P1', quotes: ['참석자는 35명으로 하자'] }],
   });
   assert.equal(guessed.accepted, false);
+  assert.equal(guessed.reason, 'continuation_not_shown');
+});
+
+test('승계 선택자와 정확 인용이 서로 다른 프로젝트를 가리키면 전체 후보를 거절한다', async () => {
+  const fx = await fixture();
+  const first = await admitWorkStateProposal({
+    ...fx, inputText: '참석자는 35명으로 하자', reply: '좋아요.',
+    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: '참석자는 35명으로 하자' }] },
+  });
+  const second = await admitWorkStateProposal({
+    ...fx, turnRef: { sessionId: 'session-2', turnSeq: 1 },
+    inputText: '장소는 부산으로 하자', reply: '좋아요.',
+    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: '장소는 부산으로 하자' }] },
+  });
+  const result = await admitWorkStateProposal({
+    ...fx, turnRef: { sessionId: 'session-conflict', turnSeq: 1 },
+    inputText: '계속하자', reply: '이어서 할게요.',
+    proposal: { changes: [], continueFromRef: 'P1', continueFrom: '장소는 부산으로 하자' },
+    shownProjects: [
+      { workRef: first.workRef, selectionRef: 'P1', quotes: ['참석자는 35명으로 하자'] },
+      { workRef: second.workRef, selectionRef: 'P2', quotes: ['장소는 부산으로 하자'] },
+    ],
+  });
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, 'continuation_not_shown');
 });

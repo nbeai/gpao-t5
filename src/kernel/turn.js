@@ -44,6 +44,19 @@ import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE , isSendTool } from './contracts
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
 
+/**
+ * P90-1 정산 게이트. 최초 작업 후보는 호출 여부만 정하며 사건의 근거가 아니다.
+ * activeGoal은 관련 없는 기억·선호 턴에도 붙는 추정 라벨이라 독립 게이트로 쓰지 않는다.
+ * Receipt와 완료 계약도 입력 사실일 뿐 이 게이트를 단독으로 열지 않는다.
+ */
+export function stateReviewNeeded(signals = {}) {
+  if (signals.phase !== 'settled' || signals.terminal !== true || signals.reported === true) return false;
+  return signals.hasExistingWork === true
+    || signals.hasCarryableProject === true
+    || signals.durableWorkCandidate === true
+    || signals.resumedApproval === true;
+}
+
 function runtimeFileArgs(args, request, roots = []) {
   if (!args || typeof args !== 'object' || !roots.length) return args;
   const requested = String(request ?? '').normalize('NFC').replace(/\s+/g, '').toLowerCase();
@@ -563,9 +576,15 @@ export async function runTurn(input, ctx) {
   ctx.askedFrom = input.channel ? { channel: input.channel } : undefined;
   const workStateProposals = [];
   let workStateConflict = false;
+  let workStateReported = false;
   const collectWorkState = (split) => {
     if (!split?.workStateSeen) return;
-    if (!split.workStateProposal) { workStateConflict = true; return; }
+    workStateReported = true;
+    if (split.workStateNoChange) return;
+    if (!split.workStateProposal) {
+      if ((split.workStateCandidateCount ?? 0) > 0) workStateConflict = true;
+      return;
+    }
     workStateProposals.push(split.workStateProposal);
     if (!mergeWorkStateProposals(workStateProposals)) workStateConflict = true;
   };
@@ -575,6 +594,7 @@ export async function runTurn(input, ctx) {
   ctx.workStateSnapshot = () => ({
     workStateProposal: currentWorkStateProposal(),
     workStateConflict,
+    workStateReported,
   });
   // 승인 클릭에는 사용자 원문이 없다. 승인 뒤에도 같은 work.state 후보를 검증할 수 있도록
   // 최초 요청 원문을 pending에 함께 봉인한다.
@@ -593,7 +613,19 @@ export async function runTurn(input, ctx) {
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
     if (saved.workStateConflict) workStateConflict = true;
-    else if (saved.workStateProposal) workStateProposals.push(structuredClone(saved.workStateProposal));
+    else if (saved.workStateProposal) {
+      workStateReported = true;
+      workStateProposals.push(structuredClone(saved.workStateProposal));
+    }
+    if (saved.workStateReported === true) workStateReported = true;
+    ctx.stateReviewSignals = {
+      goalRelevant: false,
+      resumedApproval: true,
+      hasAdmittedContext: (saved.admitted ?? []).length > 0,
+      hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
+        || (ctx.memory?.candidates ?? []).length > 0
+        || (ctx.memory?.observed ?? []).length > 0,
+    };
     ctx.workStateSourceText = saved.sourceInputText ?? '';
     ctx.pending.delete(input.approve);
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
@@ -681,6 +713,13 @@ export async function runTurn(input, ctx) {
   // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
   // 위반이다(감사 보정). broad memory, narrow influence.
   const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
+  ctx.stateReviewSignals = {
+    goalRelevant: Boolean(goalRelevant),
+    resumedApproval: false,
+    hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
+      || (ctx.memory?.candidates ?? []).length > 0
+      || (ctx.memory?.observed ?? []).length > 0,
+  };
   // S5-1(§4.5): 신분을 단 채로 만들고, 렌더에는 문장만 쓴다. **같은 배열**이라 보인 것과
   // 기록한 것이 갈릴 수 없다 — 렌더 뒤에 다시 계산하면 언젠가 다른 답이 나온다.
   // 채널 중복 제거(§5-K): 원천 발화가 이번 이력에 이미 실리면 기억 블록으로 재공급하지
@@ -691,6 +730,7 @@ export async function runTurn(input, ctx) {
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedRich.map((e) => e.statement),
   ];
+  ctx.stateReviewSignals.hasAdmittedContext = admitted.length > 0;
   // 이 턴에 **실제로 모델 앞에 놓인** 것들의 신분. 현재 목표는 기억이 아니므로 세지 않는다.
   const 렌더재료 = {
     렌더된: [...admitted, ...(ctx.carryableWork ?? [])],
@@ -1169,6 +1209,7 @@ export async function runTurn(input, ctx) {
       intent, plan, admitted, sendArgs,
       workStateProposal: currentWorkStateProposal(),
       workStateConflict,
+      workStateReported,
       sourceInputText: ctx.workStateSourceText,
       workRef: ctx.workRef ?? null,
       sourceTurnRef: input.turnRef ?? null,

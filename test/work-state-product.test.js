@@ -48,6 +48,168 @@ function stateModel(seen) {
   };
 }
 
+test('단순 대화는 상태 정산 호출을 열지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-chat-'));
+  let calls = 0;
+  const model = { async respond() {
+    calls += 1;
+    return { text: '반가워요.', toolCalls: [] };
+  } };
+  const app = await start(dir, model);
+  const session = await (await post(app.base, '/sessions')).json();
+  const result = await (await post(app.base, '/turn', {
+    sessionId: session.id, text: '안녕',
+  })).json();
+  assert.equal(result.reply, '반가워요.');
+  assert.equal(result.workStateDiagnostic.reviewNeeded, false);
+  assert.equal(result.workStateDiagnostic.reviewOpened, false);
+  assert.equal(calls, 1);
+  await app.close();
+});
+
+test('첫 응답이 noChange를 보고한 장기 작업은 정산 호출을 중복 실행하지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-main-report-'));
+  let settlementCalls = 0;
+  const model = { async respond(tc) {
+    if (tc.workStateSettlement) settlementCalls += 1;
+    return {
+      text: '상태를 확인했어요.',
+      toolCalls: [{ name: 'work.state', args: { noChange: true } }],
+    };
+  } };
+  const app = await start(dir, model);
+  const session = await (await post(app.base, '/sessions')).json();
+  const result = await (await post(app.base, '/turn', {
+    sessionId: session.id, text: '행사 계획을 정리해줘',
+  })).json();
+  assert.equal(result.workStateDiagnostic.reportedByMain, true);
+  assert.equal(result.workStateDiagnostic.reviewNeeded, false);
+  assert.equal(settlementCalls, 0);
+  await app.close();
+});
+
+test('새 장기 작업에서 첫 응답이 상태를 생략하면 종단 정산이 최초 합의를 기록한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-new-'));
+  const request = '행사 계획을 정리하고 이름은 여름 모임으로 확정하자';
+  let settlementCalls = 0;
+  const model = { async respond(tc) {
+    if (tc.workStateSettlement) {
+      settlementCalls += 1;
+      assert.equal(tc.currentRequest, request);
+      assert.equal(tc.workStateSettlement.deliveryCandidate, '여름 모임으로 정리했어요.');
+      return { text: '이 문장은 전달되면 안 돼요.', toolCalls: [{
+        name: 'work.state', args: { changes: [{
+          type: 'agreement_set', utteranceQuote: request,
+        }] },
+      }] };
+    }
+    return { text: '여름 모임으로 정리했어요.', toolCalls: [] };
+  } };
+  const app = await start(dir, model);
+  const session = await (await post(app.base, '/sessions')).json();
+  const result = await (await post(app.base, '/turn', {
+    sessionId: session.id, text: request,
+  })).json();
+  assert.equal(result.reply, '여름 모임으로 정리했어요.');
+  assert.equal(result.workStateDiagnostic.reviewOpened, true);
+  assert.equal(result.workStateDiagnostic.recorded, true);
+  assert.equal(settlementCalls, 1);
+  assert.ok((await new WorkEventStore(dir).load()).some((event) =>
+    event.type === 'agreement_set' && event.evidence?.statement === request));
+  await app.close();
+});
+
+test('정산 noChange와 오류는 사건을 만들거나 사용자 답을 막지 않는다', async () => {
+  for (const mode of ['no_change', 'error']) {
+    const dir = await mkdtemp(join(tmpdir(), `t5-work-settlement-${mode}-`));
+    const model = { async respond(tc) {
+      if (tc.workStateSettlement) {
+        if (mode === 'error') throw new Error('settlement unavailable');
+        return { text: '', toolCalls: [{ name: 'work.state', args: { noChange: true } }] };
+      }
+      return { text: '요청한 내용을 정리했어요.', toolCalls: [] };
+    } };
+    const app = await start(dir, model);
+    const session = await (await post(app.base, '/sessions')).json();
+    const result = await (await post(app.base, '/turn', {
+      sessionId: session.id, text: '행사 계획을 정리해줘',
+    })).json();
+    assert.equal(result.reply, '요청한 내용을 정리했어요.');
+    assert.equal(result.workStateDiagnostic.reviewNeeded, true);
+    assert.equal((await new WorkEventStore(dir).load()).length, 0);
+    assert.equal((await app.store.load(session.id)).workRef, undefined);
+    if (mode === 'error') assert.equal(result.workStateDiagnostic.error, 'model_error');
+    await app.close();
+  }
+});
+
+test('정산은 전달 후보를 바꾸지 않고 답에 없던 미정 질문을 기록하지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-question-'));
+  const question = '행사 장소는 어디로 할까요?';
+  const model = { async respond(tc) {
+    if (tc.workStateSettlement) return {
+      text: `후보 답을 바꿔서 ${question}`,
+      toolCalls: [{ name: 'work.state', args: {
+        openQuestion: { question, changesAnswerFor: '행사 장소' },
+      } }],
+    };
+    return { text: '참석자 목록을 정리했어요.', toolCalls: [] };
+  } };
+  const app = await start(dir, model);
+  const session = await (await post(app.base, '/sessions')).json();
+  const result = await (await post(app.base, '/turn', {
+    sessionId: session.id, text: '행사 참석자 목록을 정리해줘',
+  })).json();
+  assert.equal(result.reply, '참석자 목록을 정리했어요.');
+  assert.equal(result.workStateDiagnostic.recorded, false);
+  assert.equal(result.workStateDiagnostic.reason, 'question_not_delivered');
+  assert.equal((await new WorkEventStore(dir).load()).length, 0);
+  await app.close();
+});
+
+test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용자 원문을 검증한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-approval-'));
+  const target = join(dir, '결과.md');
+  const request = '행사 결과를 결과.md 파일로 만들어줘';
+  let settlementCalls = 0;
+  const model = { async respond(tc, opts = {}) {
+    if (tc.workStateSettlement) {
+      settlementCalls += 1;
+      assert.equal(tc.currentRequest, request);
+      return { text: '', toolCalls: [{ name: 'work.state', args: { changes: [{
+        type: 'agreement_set', utteranceQuote: request,
+      }] } }] };
+    }
+    if (tc.workContractAssessment) return {
+      text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }],
+    };
+    if (tc.evidenceFacts?.length) return { text: '결과 파일을 만들었어요.', toolCalls: [] };
+    if (opts.tools?.length) return { text: '', toolCalls: [{
+      name: 'local.file', args: { action: 'write', path: target, text: '완성 내용' },
+    }] };
+    return '결과 파일을 만들었어요.';
+  } };
+  const tools = demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) });
+  const app = await start(dir, model, { tools });
+  const session = await (await post(app.base, '/sessions')).json();
+  const approval = await (await post(app.base, '/turn', {
+    sessionId: session.id, text: request,
+  })).json();
+  assert.equal(approval.kind, 'approval');
+  assert.equal(settlementCalls, 0, '승인 전에는 정산을 열지 않는다');
+  const done = await (await post(app.base, '/turn', {
+    sessionId: session.id, approve: approval.pendingId,
+  })).json();
+  assert.equal(done.kind, 'reply');
+  assert.equal(done.workStateDiagnostic.reviewOpened, true);
+  assert.equal(done.workStateDiagnostic.recorded, true);
+  assert.equal(settlementCalls, 1);
+  assert.equal(await readFile(target, 'utf8'), '완성 내용');
+  assert.ok((await new WorkEventStore(dir).load()).some((event) =>
+    event.type === 'agreement_set' && event.evidence?.statement === request));
+  await app.close();
+});
+
 test('제품 턴이 합의·수정·미정을 기록하고 재시작 뒤 모델 입력에 현재 사실만 복원한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-work-product-'));
   const seen = [];
@@ -134,6 +296,41 @@ test('새 대화는 모델에게 실제로 보인 같은 principal 프로젝트�
   const outsiderInput = seen.find((tc) => tc.currentRequest === '이어갈 일이 있나?');
   assert.ok(!(outsiderInput.carryableWork ?? []).some((line) => line.includes('행사 참석자는 42명으로 확정하자')));
   assert.equal((await app.store.load(outsider.id)).workRef, undefined);
+  await app.close();
+});
+
+test('새 대화 주 호출이 상태를 생략하면 하나뿐인 carryable 브리프로 정산한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-work-product-carry-settlement-'));
+  const quote = '행사 참석자는 42명으로 확정하자';
+  const model = { async respond(tc) {
+    if (tc.workContractAssessment) return 'CHAT';
+    if (tc.currentRequest === quote) return {
+      text: '42명으로 확정했어요.',
+      toolCalls: [{ name: 'work.state', args: { changes: [{
+        type: 'agreement_set', utteranceQuote: quote,
+      }] } }],
+    };
+    if (tc.workStateSettlement) {
+      assert.match(tc.workStateSettlement.currentWorkBrief, /프로젝트 P1/);
+      assert.match(tc.workStateSettlement.currentWorkBrief, /행사 참석자는 42명으로 확정하자/);
+      return { text: '전달되지 않는 정산 문장', toolCalls: [{
+        name: 'work.state', args: { changes: [], continueFromRef: 'P1' },
+      }] };
+    }
+    return { text: '같은 행사 준비를 이어갈게요.', toolCalls: [] };
+  } };
+  const app = await start(dir, model);
+  const first = await (await post(app.base, '/sessions')).json();
+  await post(app.base, '/turn', { sessionId: first.id, text: quote });
+  const firstSaved = await app.store.load(first.id);
+
+  const second = await (await post(app.base, '/sessions')).json();
+  const response = await (await post(app.base, '/turn', {
+    sessionId: second.id, text: '그 행사 준비를 이어서 하자',
+  })).json();
+  assert.equal(response.reply, '같은 행사 준비를 이어갈게요.');
+  assert.equal(response.workStateDiagnostic.reviewOpened, true);
+  assert.equal((await app.store.load(second.id)).workRef, firstSaved.workRef);
   await app.close();
 });
 

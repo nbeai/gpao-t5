@@ -24,6 +24,7 @@
     "audit:docs": "node scripts/audit-docs.mjs",
     "audit:plan": "node scripts/audit-plan.mjs",
     "audit:mutation": "node scripts/audit-mutation.mjs",
+    "p90-1:live-reseal": "node scripts/production90/p90-1-live-reseal.mjs",
     "human-use:prepare": "node scripts/human-use/prepare.mjs",
     "human-use:verify": "node scripts/human-use/verify-evidence.mjs"
   }

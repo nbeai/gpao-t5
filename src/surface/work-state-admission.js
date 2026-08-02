@@ -41,7 +41,7 @@ export async function admitWorkStateProposal({
   if (!store || !proposal || !principalRef || !turnRef) return { accepted: false, reason: 'missing_fact' };
   const changes = Array.isArray(proposal.changes) ? proposal.changes : [];
   const openQuestion = proposal.openQuestion;
-  if (!changes.length && !openQuestion && !proposal.continueFrom) {
+  if (!changes.length && !openQuestion && !proposal.continueFrom && !proposal.continueFromRef) {
     return { accepted: false, reason: 'empty_proposal' };
   }
   if (changes.some((change) => !validQuote(inputText, change.utteranceQuote))) {
@@ -54,13 +54,24 @@ export async function admitWorkStateProposal({
   const records = await store.load();
   let workRef = existingWorkRef;
   let provisional = false;
-  if (!workRef && proposal.continueFrom) {
-    const matches = shownProjects.filter((entry) => entry?.quotes?.includes(proposal.continueFrom));
-    if (matches.length !== 1) return { accepted: false, reason: 'continuation_not_shown' };
-    workRef = matches[0].workRef;
+  if (!workRef && (proposal.continueFrom || proposal.continueFromRef)) {
+    const byQuote = proposal.continueFrom
+      ? shownProjects.filter((entry) => entry?.quotes?.includes(proposal.continueFrom)) : [];
+    const byRef = proposal.continueFromRef
+      ? shownProjects.filter((entry) => entry?.selectionRef === proposal.continueFromRef) : [];
+    if ((proposal.continueFrom && byQuote.length !== 1)
+      || (proposal.continueFromRef && byRef.length !== 1)
+      || (byQuote.length && byRef.length && byQuote[0].workRef !== byRef[0].workRef)) {
+      return { accepted: false, reason: 'continuation_not_shown' };
+    }
+    workRef = (byRef[0] ?? byQuote[0])?.workRef;
   }
   if (!workRef) {
-    const targetQuotes = changes.map((change) => change.targetQuote).filter(Boolean);
+    // agreement_set의 targetQuote는 의미가 없다. 모델이 선택 필드를 채웠다는 이유만으로
+    // 새 합의를 기존 프로젝트 수정으로 바꾸지 않는다.
+    const targetQuotes = changes
+      .filter((change) => change.type !== 'agreement_set')
+      .map((change) => change.targetQuote).filter(Boolean);
     if (targetQuotes.length) {
       const matches = shownProjects.filter((entry) => targetQuotes.some((quote) => entry?.quotes?.includes(quote)));
       if (matches.length !== 1) return { accepted: false, reason: 'target_project_ambiguous' };
@@ -76,6 +87,11 @@ export async function admitWorkStateProposal({
     if (!known && !provisional) return { accepted: false, reason: 'unknown_work' };
   }
   const targets = workRef ? currentTargets(records, principalRef, workRef) : [];
+  const repeatedOpenQuestion = openQuestion && targets.some((record) => (
+    record.type === 'question_opened'
+      && record.evidence?.question === openQuestion.question
+      && record.evidence?.changesAnswerFor === openQuestion.changesAnswerFor
+  ));
   const prepared = [];
   for (const change of changes) {
     if (change.type === 'agreement_set') {
@@ -112,7 +128,7 @@ export async function admitWorkStateProposal({
       });
     }
   }
-  if (openQuestion) {
+  if (openQuestion && !repeatedOpenQuestion) {
     candidates.push({
       type: 'question_opened', workRef,
       subjectRef: await store.issueSubjectRef({ turnRef, eventOrdinal: nextOrdinal++ }),

@@ -92,7 +92,13 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
         items: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['agreement_set', 'agreement_superseded', 'agreement_retracted', 'question_resolved'] },
+            type: {
+              type: 'string',
+              enum: ['agreement_set', 'agreement_superseded', 'agreement_retracted', 'question_resolved'],
+              description: 'agreement_set은 이전 현재값이 없는 최초 합의에만 쓴다. '
+                + 'agreement_superseded는 현재 작업 브리프의 실제 현재값을 새 값으로 바꿀 때만 쓴다. '
+                + 'agreement_retracted와 question_resolved도 브리프의 현재 대상을 targetQuote로 정확히 지목한다.',
+            },
             utteranceQuote: { type: 'string', description: '이번 사용자 발화에서 글자 그대로 따온 근거' },
             targetQuote: { type: 'string', description: '수정·철회·해소 대상의 저장된 원문 또는 질문을 글자 그대로' },
           },
@@ -111,6 +117,14 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
       continueFrom: {
         type: 'string',
         description: '다른 대화에서 이어받을 작업 목록 중 지금 이어가는 현재 합의나 미정 질문을 글자 그대로',
+      },
+      continueFromRef: {
+        type: 'string',
+        description: '다른 대화에서 이어받을 작업에 표시된 턴 한정 선택자(예: P1). 영구 작업 신분이 아니다.',
+      },
+      noChange: {
+        type: 'boolean',
+        description: '이번 턴에 새 합의·수정·철회·미정 변화가 없으면 true. 아무 사건도 만들지 않는 정상 결과다.',
       },
     },
   },
@@ -237,6 +251,7 @@ export function mergeWorkStateProposals(proposals = []) {
   const changes = [];
   let openQuestion;
   let continueFrom;
+  let continueFromRef;
   for (const proposal of proposals.filter(Boolean)) {
     for (const change of proposal.changes ?? []) {
       if (!changes.some((existing) => sameValue(existing, change))) changes.push(change);
@@ -250,12 +265,17 @@ export function mergeWorkStateProposals(proposals = []) {
       if (continueFrom && continueFrom !== proposal.continueFrom) return null;
       continueFrom = proposal.continueFrom;
     }
+    if (proposal.continueFromRef) {
+      if (continueFromRef && continueFromRef !== proposal.continueFromRef) return null;
+      continueFromRef = proposal.continueFromRef;
+    }
   }
-  if (!changes.length && !openQuestion && !continueFrom) return null;
+  if (!changes.length && !openQuestion && !continueFrom && !continueFromRef) return null;
   return {
     changes,
     ...(openQuestion ? { openQuestion } : {}),
     ...(continueFrom ? { continueFrom } : {}),
+    ...(continueFromRef ? { continueFromRef } : {}),
   };
 }
 
@@ -299,6 +319,7 @@ export function splitModelControlCalls(toolCalls = []) {
   let agentProposal = null;
   const workStateProposals = [];
   let workStateSeen = false;
+  let workStateNoChange = false;
   let memorySuggestion = null;
   let memoryWithdrawal = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
@@ -324,11 +345,19 @@ export function splitModelControlCalls(toolCalls = []) {
       const changesAnswerFor = String(c?.args?.openQuestion?.changesAnswerFor ?? '').trim().slice(0, 300);
       const openQuestion = question && changesAnswerFor ? { question, changesAnswerFor } : null;
       const continueFrom = String(c?.args?.continueFrom ?? '').trim().slice(0, 300);
-      workStateProposals.push({
-        changes,
-        ...(openQuestion ? { openQuestion } : {}),
-        ...(continueFrom ? { continueFrom } : {}),
-      });
+      const continueFromRef = String(c?.args?.continueFromRef ?? '').trim().slice(0, 32);
+      if (c?.args?.noChange === true && !changes.length && !openQuestion && !continueFrom && !continueFromRef) {
+        workStateNoChange = true;
+        continue;
+      }
+      if (changes.length || openQuestion || continueFrom || continueFromRef) {
+        workStateProposals.push({
+          changes,
+          ...(openQuestion ? { openQuestion } : {}),
+          ...(continueFrom ? { continueFrom } : {}),
+          ...(continueFromRef ? { continueFromRef } : {}),
+        });
+      }
       continue;
     }
     if (c.name === 'memory.propose') {
@@ -367,5 +396,11 @@ export function splitModelControlCalls(toolCalls = []) {
     }
   }
   const workStateProposal = mergeWorkStateProposals(workStateProposals);
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, workStateProposal, workStateSeen, rest };
+  return {
+    memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
+    skillProposal, automationProposal, agentProposal,
+    workStateProposal, workStateSeen, workStateNoChange,
+    workStateCandidateCount: workStateProposals.length,
+    rest,
+  };
 }

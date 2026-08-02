@@ -1,6 +1,6 @@
 # T5 Production 90 점수판
 
-- 상태: `WAVE0_COMPLETE / P90_1_DETERMINISTIC_IMPLEMENTED / FORMAL_PRODUCT_SCORING_PENDING`
+- 상태: `WAVE0_COMPLETE / P90_1_COMPETITIVE_SEAL_PASS_WITH_RECORDED_LIMITS`
 - 점수 정본: `scripts/production90/metric-registry.json`
 - 시나리오 정본: `scripts/production90/scenario-manifest.json`
 - 계산기: `scripts/production90/score-production90.mjs`
@@ -32,7 +32,7 @@ Wave 0에서 서버 입력·큐·첫 진행·첫 답·지속 완료·SSE 완료�
 
 | 작업선 | 기능 | 반복 | 실환경 | 인간 체감 | 운영·복구 | 현재 |
 |---|---:|---:|---:|---:|---:|---|
-| P90-1 장기 작업상태와 말귀 | 30 | 20 | 25 | 15 | 10 | **구조 구현 완료 · 공식 실환경 미측정** |
+| P90-1 장기 작업상태와 말귀 | 30 | 20 | 25 | 15 | 10 | **경쟁 봉인 완료 · 기록된 한계 있음** |
 | P90-2 도구 턴 지연과 응답 밀도 | 30 | 20 | 25 | 15 | 10 | **미측정** |
 | P90-3 비개발자 설치 생명주기 | 30 | 20 | 25 | 15 | 10 | **미측정** |
 | P90-4 실제 사용 폭과 장기 인간 사용 | 30 | 20 | 25 | 15 | 10 | **미측정** |
