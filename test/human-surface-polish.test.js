@@ -73,6 +73,26 @@ test('P90-2: 통제 접두어는 스트리밍 조각에서도 사용자에게 �
   assert.match(String(r.reply ?? ''), /820만원/, '내용은 그대로 남아야 한다');
 });
 
+// ── 스트리밍이 없는 경로에도 같은 경계가 선다 ────────────────────────────────
+//
+// 위 검사는 `onAnswerDelta` 를 준다. 그러면 조각이 정제되어 쌓이고 정렬이 그 누적을
+// 돌려주므로, **최종 답 쪽 경계를 뜯어내도 통과한다**(HRT-ST-002 추출 중 변이로 확인).
+// 그런데 채널·CLI 처럼 스트리밍이 없는 경로에서는 정렬이 모델 원문을 그대로 통과시킨다.
+// 같은 사실은 같은 경계를 지나야 한다 — 표면마다 다른 현실을 보게 하지 않는다.
+test('스트리밍 없는 경로에서도 통제 접두어가 최종 답에 남지 않는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const 새는모델 = {
+    async respond() { return 'memory.cite: [현재 합의] 3월 매출은 820만원이에요.'; },
+  };
+  const r = await runTurn({ text: '3월 매출 알려줘' }, {
+    env: demoEnv(), tools: demoTools(), model: 새는모델,   // onAnswerDelta 없음 — 스트리밍 안 함
+  });
+  assert.doesNotMatch(String(r.reply ?? ''), /memory\.(cite|propose|correction|withdraw)\s*:/i,
+    `스트리밍이 없으면 내부 통제 이름이 그대로 나간다: ${String(r.reply ?? '').slice(0, 80)}`);
+  assert.match(String(r.reply ?? ''), /820만원/, '내용은 그대로 남아야 한다');
+});
+
 // ── P90-2 후속 · 확인된 중간 결과가 화면에 닿는다 ──────────────────────────
 //
 // 커널이 `partial_result` 를 내보내도 화면이 안 그리면 사용자에겐 없는 것이다.

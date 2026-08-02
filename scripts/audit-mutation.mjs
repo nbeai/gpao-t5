@@ -60,6 +60,7 @@ const T_SURFACE = 'test/tcell-surface.test.js';
 const T_BIND = 'test/server-bind.test.js';
 const T_REVMEM = 'test/reversible-memory.test.js';
 const TURNJS = 'src/kernel/turn.js';
+const TSURF = 'src/kernel/turn-surface.js';  // HRT-ST-002 로 turn.js 에서 추출된 사용자 화면 경계
 const T_STREAM = 'test/answer-streaming.test.js';
 const PROVIDER = 'src/runtime/model-provider.js';
 const T_PROVIDER = 'test/model-provider.test.js';
@@ -411,6 +412,14 @@ export const MUTATIONS = [
     검사: 'test/tcell-observation.test.js',
     찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
     바꾸기: '    관찰꺼짐: () => false,' },
+  // ── HRT-ST-002 · 추출한 화면 경계의 배선 (원장 mutationRequirement) ────────
+  //
+  // 추출은 자리를 옮긴 것이지 경계를 옮긴 것이 아니다. turn.js 가 모듈을 거치지 않고
+  // 모델 원문을 그대로 최종 답으로 삼으면 통제 접두어가 다시 사용자에게 나간다.
+  { 이름: 'ST-002 최종 답이 화면 경계를 안 지남(모델 원문 그대로 내보냄)', 파일: TURNJS,
+    검사: 'test/human-surface-polish.test.js',
+    찾기: "  if (String(reply ?? '').trim()) return userFacingModelText(reply);",
+    바꾸기: "  if (String(reply ?? '').trim()) return String(reply).trim();" },
   // ── HRT-ST-002 · 호출 순서 동결 (nextAction: sequence manifest) ────────────
   //
   // 원장의 절대 게이트는 "모델 호출 순서와 횟수 의도치 않은 변화 0"이다. 회귀는 결과를 보지
@@ -758,14 +767,14 @@ export const MUTATIONS = [
     찾기: "export const DERIVED_KINDS = Object.freeze([\n  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',\n]);",
     바꾸기: 'export const DERIVED_KINDS = Object.freeze([...AUTHORITY_KINDS]);' },
   // ── P90-2(2026-08-02) · 완료 형태 판정은 구조 채널로 ──────────────────
-  { 이름: 'P90-2 통제 접두어가 스트리밍 조각으로 다시 샘', 파일: TURNJS, 검사: 'test/human-surface-polish.test.js',
+  { 이름: 'P90-2 통제 접두어가 스트리밍 조각으로 다시 샘', 파일: TSURF, 검사: 'test/human-surface-polish.test.js',
     찾기: "      if (!pv.shown) {\n        p = p.replace(INTERNAL_CONTROL_PREFIX, '');\n        if (!p.trim()) return; // 접두어만 온 조각은 화면에 아무것도 아니다\n      }\n",
     바꾸기: '' },
   { 이름: 'P90-2 완료 형태 판정을 다시 산문 파싱에 맡김(왕복 낭비 재발)', 파일: TURNJS, 검사: T_TOOL_STEPS,
     찾기: "      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },",
     바꾸기: "      directWrite\n        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }\n        : { effort: 'medium' }," },
   // ── P90-2 후속(2026-08-03) · 확인된 중간 결과로 기다림을 채운다 ──────────
-  { 이름: 'P90-2 실패·미완 걸음도 확인된 사실로 흘림(안 일어난 일을 말함)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+  { 이름: 'P90-2 실패·미완 걸음도 확인된 사실로 흘림(안 일어난 일을 말함)', 파일: TSURF, 검사: T_TOOL_STEPS,
     찾기: '  if (!확인된사실(rec)) return;',
     바꾸기: "  if (rec?.failureState && rec.failureState !== 'none') return;" },
   { 이름: 'P90-2 원장의 확인 정의가 결과 도착을 안 봄(attempting 을 확인으로 셈)',
@@ -776,13 +785,13 @@ export const MUTATIONS = [
     파일: 'src/kernel/l0-evidence/ledger.js', 검사: 'test/receipt-ledger.test.js',
     찾기: "    && rec.lifecycle === 'delivered'\n",
     바꾸기: '' },
-  { 이름: 'P90-2 중복을 실행이 아니라 문장으로 셈(두 번째 실행 사실 소실)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+  { 이름: 'P90-2 중복을 실행이 아니라 문장으로 셈(두 번째 실행 사실 소실)', 파일: TSURF, 검사: T_TOOL_STEPS,
     찾기: '  if (보낸것.has(step)) return;\n  보낸것.add(step);',
     바꾸기: '  if (보낸것.has(text)) return;\n  보낸것.add(text);' },
-  { 이름: 'P90-2 실행 신분을 payload 에서 뺌("확인 중" 문구와 구분 불가)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+  { 이름: 'P90-2 실행 신분을 payload 에서 뺌("확인 중" 문구와 구분 불가)', 파일: TSURF, 검사: T_TOOL_STEPS,
     찾기: '    text,\n    step,\n',
     바꾸기: '    text,\n' },
-  { 이름: 'P90-2 확인된 중간 결과 송출 자체를 없앰(공백이 다시 빔)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+  { 이름: 'P90-2 확인된 중간 결과 송출 자체를 없앰(공백이 다시 빔)', 파일: TSURF, 검사: T_TOOL_STEPS,
     찾기: '  await ctx.emit(\'partial_result\', {',
     바꾸기: '  if (true) return;\n  await ctx.emit(\'partial_result\', {' },
   { 이름: 'P90-2 답이 흘러도 중간 결과가 남아 같은 사실이 두 벌로 섬', 파일: 'src/surface/web/index.html',

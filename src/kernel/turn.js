@@ -10,7 +10,8 @@ import { externalReality } from './l1-intent/external-service.js';
 import { selfhoodLookup, selectSelfhoodDetail, soulVoice } from './l1-intent/selfhood-lookup.js';
 import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
-import { TruthLedger, projectReceipts, 확인된사실 } from './l0-evidence/ledger.js';
+import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
+import { userFacingModelText, 확인된중간결과, 미리보기원장, 미리보기정렬 } from './turn-surface.js';
 import { blockedReceipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
@@ -405,53 +406,7 @@ export function fallbackReplyFrom(receipts = []) {
   return `${what}${next ? ` ${next}` : ''}`.trim();
 }
 
-const INTERNAL_CONTROL_PREFIX = /^\s*(?:memory\.(?:propose|cite|correction|withdraw)|skill\.propose|automation\.propose|agent\.propose)\s*:\s*/i;
 
-function userFacingModelText(value) {
-  return String(value ?? '').replace(INTERNAL_CONTROL_PREFIX, '').trim();
-}
-
-/**
- * **기다림을 사실로 채운다** (P90-2).
- *
- * 실측(2026-08-03, 로컬 파일 경로 6회): 도구 턴 20초 동안 사용자가 보는 것은
- * `○○ 실행 중이에요` 하나뿐이고 첫 내용은 마지막 왕복에서야 뜬다(중앙 17.5초).
- * 그런데 걸음마다 영수증이 **이미 사용자 언어 문장을 들고** 도착한다 —
- * "3곳이 후보예요", "정산_3월_수정.csv 을(를) 읽었어요". 그걸 안 보여주고 있었을 뿐이다.
- *
- * 경계:
- *   · **원장이 "확인한 것"으로 세는 것만.** 판정을 여기서 새로 만들지 않고 `확인된사실()` 을
- *     쓴다. 실패가 아니어도 결과가 안 온 걸음(lifecycle `attempting`)은 확인이 아니다 —
- *     손이 아무것도 반환하지 않으면 userSafeSummary 가 기본 문구로 채워져 성공처럼 보인다.
- *     흐르는 사실과 최종 답의 확인 목록이 갈라지면 사용자는 한 턴에서 두 진실을 본다.
- *   · **실행 뒤에만.** 영수증은 결과이지 예고가 아니다(계획서 §4-5 실행 전 성공 예고 금지).
- *   · **실행 신분과 함께.** 그래야 "확인 중" 문구와 구분된다(계획서 §4 측정 기준). 신분은
- *     이 턴 원장에서의 자리(`step`)다 — 커널 영수증에는 `receiptRef` 가 없다(그건 표면이
- *     발급한다). 없는 필드를 신분이라 적으면 화면도 문서도 거짓이 된다.
- *   · 모델 내용을 싣지 않는다 — 이것은 OS 가 만든 문장이다. 참고 원천 두 곳도 같은 규율이다
- *     (OpenClaw `AgentToolProgress{privacy:'public'}` "never model content",
- *      Hermes `ToolCallFinished` "No tool output travels here").
- *   · 중복은 **문장이 아니라 실행**으로 센다. 같은 손이 두 파일을 처리해 요약이 같아도
- *     실행은 둘이다 — 문장으로 지우면 두 번째 실행 사실이 화면에서 사라진다.
- */
-async function 확인된중간결과(ctx, rec, ledger) {
-  if (!ctx?.emit) return;
-  if (!확인된사실(rec)) return;
-  if (rec.surfaceRequest) return;   // 공이 사용자에게 넘어간 것은 이번 걸음의 결과가 아니다
-  const text = String(rec.userSafeSummary ?? '').trim();
-  if (!text) return;
-  // 이 턴 원장에서의 자리 = 실행 신분. **선택 인자가 아니다** — 원장 없이 부르면 여기서
-  // 터진다. 가드로 "신분 없으면 안 흘린다"를 적으면 그 가드는 도달 불가라 검증도 안 된다.
-  const step = ledger.entries.length;
-  const 보낸것 = ctx.보낸중간결과 ?? (ctx.보낸중간결과 = new Set());
-  if (보낸것.has(step)) return;
-  보낸것.add(step);
-  await ctx.emit('partial_result', {
-    text,
-    step,
-    ...(rec.actualCall?.tool ? { tool: rec.actualCall.tool } : {}),
-  });
-}
 
 /**
  * **도구 현실이 바뀌면 그 현실에서 파생되는 표면을 한 번에 다시 만든다.**
@@ -526,61 +481,6 @@ async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
   return 다시 || fallbackReplyFrom(receipts);
 }
 
-/**
- * **화면에 이미 나간 조각과 지속되는 최종 답은 같은 사실이어야 한다**(H 진단 계열 ④).
- *
- * 도구 턴이 스트리밍되면 한 턴 안의 여러 모델 호출이 조각을 흘릴 수 있다 — 모델이 도구를
- * 고르며 이미 한 말("잠깐 볼게요")도 사용자 화면에 나갔다. 나간 말은 물릴 수 없으므로 버리지
- * 않는다(승인 카드의 `지금까지` 와 같은 원리). 이 원장이 그 누적을 들고 있다가, 최종 답이
- * 정해지는 자리에서 `미리보기정렬` 로 둘을 하나의 사실로 만든다.
- */
-function 미리보기원장(ctx) {
-  if (!ctx.onAnswerDelta || ctx.미리보기) return;
-  const raw = ctx.onAnswerDelta;
-  const pv = {
-    shown: '',
-    // P90-2 실측(2026-08-02 라이브, 24개 답 중 3개): 모델이 통제 접두어를 **조각으로** 흘리면
-    // `memory.cite: [현재 합의] …` 가 그대로 화면에 나갔다. 최종 답에는 `userFacingModelText`
-    // 가 붙어 있었지만, 정제된 답은 오염된 누적으로 시작하지 않으므로 정렬이 둘을 이어 붙이거나
-    // 조각 쪽을 그대로 돌려줬다. **화면은 물릴 수 없으니 나가기 전에 지나야 한다.**
-    //
-    // 접두어는 답의 맨 앞에서만 뜻을 갖는다(정규식이 `^` 앵커다). 그래서 **아직 아무것도 안
-    // 나간 동안에만** 같은 경계를 적용한다 — 본문 중간에 우연히 같은 글자가 오면 건드리지
-    // 않는다. 새 문구 규칙을 만들지 않고 기존 `INTERNAL_CONTROL_PREFIX` 하나를 공유한다.
-    emit(piece) {
-      let p = String(piece ?? '');
-      if (!p) return;
-      if (!pv.shown) {
-        p = p.replace(INTERNAL_CONTROL_PREFIX, '');
-        if (!p.trim()) return; // 접두어만 온 조각은 화면에 아무것도 아니다
-      }
-      pv.shown += p;
-      try { raw(p); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
-    },
-  };
-  ctx.onAnswerDelta = (piece) => pv.emit(piece);
-  ctx.미리보기 = pv;
-}
-
-/**
- * 최종 답과 미리보기 누적을 정렬한다. 네 경우뿐이다:
- *   · 같다 → 그대로 · 아직 아무 것도 안 나감 → 답 전체를 한 조각으로 내보냄(완료 전에 도착)
- *   · 답이 누적을 이어 감 → 남은 꼬리만 내보냄 · 누적이 답으로 끝남(중간 말 + 최종 답이 전부
- *     흐른 경우) → 나간 말을 버리지 않고 누적 전체가 답이 된다
- * 그 밖(중간에 흐른 말과 무관한 답이 계산된 경우)은 나간 말 뒤에 답을 잇는다 — 화면을 물릴 수
- * 없으므로 답이 화면을 따라온다.
- */
-function 미리보기정렬(reply, pv) {
-  const 답 = String(reply ?? '');
-  if (!pv) return 답;
-  if (!pv.shown) { pv.emit(답); return 답; }
-  if (답 === pv.shown) return 답;
-  if (답.startsWith(pv.shown)) { pv.emit(답.slice(pv.shown.length)); return 답; }
-  if (pv.shown.endsWith(답)) return pv.shown;
-  const 이은답 = 답.trim() ? `${pv.shown}\n\n${답.trim()}` : pv.shown;
-  pv.emit(이은답.slice(pv.shown.length));
-  return 이은답;
-}
 
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
