@@ -12,7 +12,7 @@ import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, 
 import { join, dirname, basename } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf } from './file-scope.js';
+import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 import { extractDocument } from './document-intake.js';
 
@@ -77,7 +77,7 @@ export function makeLocalFileTool(deps = {}) {
     // "접근이 막힌 것 같다"고 추측하고 터미널 명령을 시킨다(라이브 실측 — 개발자 떠넘김).
     if (e?.code === 'ENOENT') {
       return fail(
-        `제가 다루는 폴더(${roots[0]}) 안에서 ${path} 을(를) 찾지 못했어요.`,
+        `제가 다루는 폴더(${부르는이름들(roots)}) 안에서 ${path} 을(를) 찾지 못했어요.`,
         '다른 폴더에 있다면 그 폴더를 열어 주시면 바로 볼게요.',
       );
     }

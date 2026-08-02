@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, mkdir, symlink, stat, readdir } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { resolveInScope, isWithin, defaultFileRoots, ScopeError } from '../src/runtime/file-scope.js';
 import { liveDeps } from '../src/surface/live-context.js';
@@ -29,7 +29,11 @@ test('범위 밖 경로는 거부하고 다음 행동을 준다(막다른 답 �
   const r = await tool.handler({ action: 'read', path: '/etc/passwd' });
   assert.equal(r.blocked, true);
   assert.ok(r.userSafeSummary.includes('폴더 밖'));
-  assert.ok(r.nextSafeAction.includes(root), '어디까지 되는지 알려준다');
+  // P1(2026-08-02): 이 자리는 원래 `includes(root)` 로 **절대경로 자체**를 요구했다. 의도는
+  // "어디까지 되는지 알려준다"였는데 표현이 원시 경로였고, 그 문장이 그대로 사용자에게 나가고
+  // 모델 입력이 되어 모델이 답변에 절대경로를 옮겨 적었다(라이브 실측). 의도는 그대로 두고
+  // **부르는 이름**으로 확인한다 — 아래 P1 검사가 원시 경로 금지를 따로 문다.
+  assert.ok(r.nextSafeAction.includes(basename(root)), '어디까지 되는지 알려준다');
   assert.ok(!JSON.stringify(r).includes('passwd') || true); // 경로를 그대로 되뇌지 않아도 됨
 });
 
@@ -429,4 +433,70 @@ test('H08: "Downloads/파일" 상대 경로가 Downloads 루트에서 풀린다'
   await writeFile(join(작업, 'Downloads/자료.csv'), '작업루트쪽');
   const r2 = await tool.handler({ action: 'read', path: 'Downloads/자료.csv' });
   assert.equal(r2.result.text, '작업루트쪽');
+});
+
+// ── P1 (QA90 감사 2026-08-02) · 사용자면에 원시 절대경로를 내지 않는다 ──────
+//
+// 라이브 실측(2026-08-02): 범위 밖 안내가 사용자에게 이렇게 나갔다 —
+//   "파일 도구는 /Users/…/GPAO-T5, /Users/…/Downloads 안에서만 다뤄요."
+// 사용자는 자기 폴더를 `Downloads` 라는 절대경로로 알지 않는다("다운로드"라고 부른다).
+// 게다가 이 문장이 그대로 모델 입력이 되어 모델이 절대경로를 답변에 옮겨 적었다.
+// 정의역: 범위 밖(out_of_scope) · 못 찾음(ENOENT) — 둘 다 루트를 사람 말로 말해야 한다.
+test('P1: 범위 밖·못 찾음 안내는 사람이 부르는 폴더 이름으로 말한다(원시 경로 금지)', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-p1-home-'));
+  const roots = ['GPAO-T5', 'Downloads', 'Documents', 'Desktop'].map((d) => join(home, d));
+  for (const r of roots) await mkdir(r, { recursive: true });
+  const tool = makeLocalFileTool({ roots, dataDir: await mkdtemp(join(tmpdir(), 'gpao-t5-p1-')) });
+  const 절대경로 = /(^|[\s(])\/[A-Za-z0-9._-]+\//;
+
+  const 밖 = await tool.handler({ action: 'list', path: '/etc' });
+  assert.equal(밖.scopeState, 'out_of_scope', '전제: 범위 밖이어야 한다');
+  for (const 문장 of [밖.userSafeSummary, 밖.nextSafeAction]) {
+    assert.doesNotMatch(String(문장 ?? ''), 절대경로, `사용자면에 원시 경로가 나갔다: ${문장}`);
+  }
+  assert.match(String(밖.nextSafeAction ?? ''), /다운로드|문서|바탕화면|작업 폴더/,
+    '어디를 다루는지 사람 말로 말하지 않으면 사용자는 다음 행동을 못 정한다');
+
+  const 없음 = await tool.handler({ action: 'read', path: 'GPAO-T5/없는파일.txt' });
+  assert.ok(없음.blocked, '전제: 못 찾은 자리여야 한다');
+  for (const 문장 of [없음.userSafeSummary, 없음.nextSafeAction]) {
+    assert.doesNotMatch(String(문장 ?? ''), 절대경로, `사용자면에 원시 경로가 나갔다: ${문장}`);
+  }
+});
+
+// 라이브 실측(2026-08-02): "정산_3월.csv 지워줘" 에 T5 가 "그 자리는 파일 도구의 작업 폴더
+// 밖이에요"라고 답했다. 그 파일은 Downloads 에 **있었다.** 상대 경로가 첫 루트로만 풀려서,
+// 다른 루트에 있는 파일은 이름만 말하면 닿지 못했다 — 사용자는 경로를 말하지 않는다(P6-W2).
+test('P1: 이름만 말한 파일이 다른 루트에 있으면 거기서 찾는다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-p1b-home-'));
+  const roots = ['GPAO-T5', 'Downloads', 'Documents', 'Desktop'].map((d) => join(home, d));
+  for (const r of roots) await mkdir(r, { recursive: true });
+  await writeFile(join(home, 'Downloads', '정산_3월.csv'), '항목,금액\n임대료,500000\n');
+  const tool = makeLocalFileTool({ roots, dataDir: await mkdtemp(join(tmpdir(), 'gpao-t5-p1b-')) });
+  const r = await tool.handler({ action: 'read', path: '정산_3월.csv' });
+  assert.ok(!r.blocked, `이름만 말했다고 못 찾으면 안 된다: ${r.userSafeSummary}`);
+  assert.match(String(r.result?.text ?? ''), /임대료/, '다른 루트의 그 파일을 실제로 읽어야 한다');
+});
+
+test('P1: 같은 이름이 여러 루트에 있으면 첫 루트 해석을 유지한다(행동 보존)', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-p1c-home-'));
+  const roots = ['GPAO-T5', 'Downloads'].map((d) => join(home, d));
+  for (const r of roots) await mkdir(r, { recursive: true });
+  await writeFile(join(home, 'GPAO-T5', '메모.md'), '작업폴더것');
+  await writeFile(join(home, 'Downloads', '메모.md'), '다운로드것');
+  const tool = makeLocalFileTool({ roots, dataDir: await mkdtemp(join(tmpdir(), 'gpao-t5-p1c-')) });
+  const r = await tool.handler({ action: 'read', path: '메모.md' });
+  assert.match(String(r.result?.text ?? ''), /작업폴더것/, '첫 루트 우선이 깨지면 기존 동작이 바뀐다');
+});
+
+test('P1: 이름만 말한 새 파일은 여전히 작업 폴더에 만든다(찾기 규칙이 쓰기를 옮기지 않는다)', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'gpao-t5-p1d-home-'));
+  const roots = ['GPAO-T5', 'Downloads'].map((d) => join(home, d));
+  for (const r of roots) await mkdir(r, { recursive: true });
+  const tool = makeLocalFileTool({ roots, dataDir: await mkdtemp(join(tmpdir(), 'gpao-t5-p1d-')) });
+  const r = await tool.handler({ action: 'write', path: '새메모.md', text: '내용', granted: true });
+  assert.ok(!r.blocked, `쓰기가 막혔다: ${r.userSafeSummary}`);
+  const { readFile } = await import('node:fs/promises');
+  assert.equal(await readFile(join(home, 'GPAO-T5', '새메모.md'), 'utf8'), '내용',
+    '새 파일이 작업 폴더가 아닌 데 생기면 사용자가 자기 파일을 잃는다');
 });

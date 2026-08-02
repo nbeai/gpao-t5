@@ -93,6 +93,17 @@ export async function resolveInScope(target, opts = {}) {
       const 맞는루트 = roots.find((r) => String(r.split(sep).pop()).normalize('NFC').toLowerCase() === 첫말);
       if (맞는루트) abs = resolve(맞는루트, t.split(/[/\\]/).slice(1).join(sep));
     }
+    // **사용자는 경로를 말하지 않는다**(P6-W2). 라이브 실측(2026-08-01·2026-08-02): "정산_3월.csv
+    // 지워줘"에 T5 가 "작업 폴더 밖이에요"라고 답했는데 그 파일은 Downloads 에 있었다 — 상대
+    // 경로가 첫 루트로만 풀린 탓이다. 위 규칙은 `Downloads/x` 처럼 **루트를 부른** 경우만 푼다.
+    // 여기서는 이름만 준 경우를 마저 푼다: 첫 루트에 없으면 **실재하는 다른 루트**를 쓴다.
+    //   · 첫 루트 해석이 실재하면 그대로 둔다(행동 보존 — 같은 이름이 여럿이면 작업 폴더 우선).
+    //   · 실재하는 것이 없으면 그대로 둔다 — 새 파일은 여전히 작업 폴더에 생긴다(쓰기 자리 불변).
+    // 루트 안에서만 고르므로 범위는 넓어지지 않는다. 지어내지 않고 **있는 것만** 고른다.
+    if (!existsSync(abs)) {
+      const 실재 = roots.map((r) => resolve(r, t)).find((p) => existsSync(p));
+      if (실재) abs = 실재;
+    }
   }
 
   // **판정의 기준은 실제 경로다.** 문자열로 먼저 끊으면 `/var/...` 처럼 링크를 지나는 형태가
@@ -164,6 +175,25 @@ export function outOfScopeMessage(err) {
     userSafeSummary: '그 자리는 파일 도구의 작업 폴더 밖이에요.',
     // **사실만 남긴다** — 이 손이 어디까지 다루는지. 사용자에게 시키지도, 다른 손을 약속하지도
     // 않는다(이 손은 다른 손이 있는지 모른다). 다음 계단은 손 목록을 아는 커널이 정한다.
-    nextSafeAction: `파일 도구는 ${roots.join(', ')} 안에서만 다뤄요.`,
+    nextSafeAction: `파일 도구는 ${부르는이름들(roots)} 안에서만 다뤄요.`,
   };
 }
+
+/**
+ * 루트를 **사용자가 부르는 이름**으로. 라이브 실측(2026-08-02): 이 문장이 절대경로를 그대로
+ * 실어 사용자에게 나갔고(`/Users/…/Downloads`), 같은 문장이 모델 입력이 되어 모델이 답변에
+ * 절대경로를 옮겨 적었다. 사용자는 자기 폴더를 경로로 알지 않는다 — "다운로드"라고 부른다.
+ *
+ * 이름은 **locate 의 부름말 표와 같은 진실**을 쓴다(두 벌로 두면 한쪽만 늘어난다). 표에 없는
+ * 루트는 지어내지 않고 마지막 폴더 이름만 말한다 — 경로는 어디에도 싣지 않는다.
+ */
+export function 부르는이름들(roots = defaultFileRoots()) {
+  const 이름 = roots.map((r) => {
+    const 끝 = String(r).split(sep).filter(Boolean).pop() ?? '';
+    return 폴더부름말[끝] ?? (끝 === 'GPAO-T5' ? '작업 폴더' : 끝);
+  });
+  return [...new Set(이름)].join(', ');
+}
+
+/** 디스크의 표준 폴더 이름 → 사용자가 부르는 말. locate 의 `표준폴더말` 의 역방향(같은 세 곳). */
+const 폴더부름말 = { Downloads: '다운로드', Documents: '문서', Desktop: '바탕화면' };
