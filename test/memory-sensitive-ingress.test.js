@@ -27,9 +27,31 @@ async function withServer(model, fn) {
   const server = makeServer({ store, memoryStore, env: demoEnv(), tools: demoTools(), model });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  try { return await fn({ base, memoryStore }); }
+  try { return await fn({ base, memoryStore, store }); }
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
+
+test('로컬 웹도 민감 발화·제목·모델 재출력을 durable 대화에 원문 저장하지 않는다', async () => {
+  const card = '4111 1111 1111 1111';
+  const model = {
+    async respond(_tc, opts = {}) {
+      opts.onDelta?.(`카드번호는 ${card}예요.`);
+      return `카드번호는 ${card}예요.`;
+    },
+  };
+  await withServer(model, async ({ base, store }) => {
+    const session = await (await post(base, '/sessions')).json();
+    const start = await (await post(base, '/turn/stream-start', {
+      sessionId: session.id, text: `내 카드번호는 ${card}이야. 기억해둬.`,
+    })).json();
+    const sse = await fetch(`${base}/turn/stream?sessionId=${session.id}&streamId=${start.streamId}`).then((r) => r.text());
+    const saved = await store.load(session.id);
+    assert.doesNotMatch(sse, /4111[ -]?1111[ -]?1111[ -]?1111/, '스트림으로 민감값이 먼저 나갔다');
+    assert.doesNotMatch(JSON.stringify(saved), /4111[ -]?1111[ -]?1111[ -]?1111/, '대화·제목에 민감 원문이 남았다');
+    assert.match(saved.title, /민감/, '제목을 빈칸이나 원문으로 두지 않는다');
+    assert.match(saved.transcript[0].text, /민감/, '사용자 발화 자리에는 가림 사실이 남아야 한다');
+  });
+});
 
 test('비밀 모양만 잡고 보통의 기억 문장은 통과시킨다', () => {
   for (const value of [

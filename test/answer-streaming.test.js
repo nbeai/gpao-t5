@@ -553,11 +553,13 @@ import { demoTools as demoTools2 } from '../src/surface/demo-context.js';
 시험('통제 호출만 낸 턴도 사용자에게 빈 답을 주지 않는다', async () => {
   const dir = await mkdtemp2(join2(tmpdir2(), 'gpao-t5-empty-'));
   const 받은옵션 = [];
+  const 받은문맥 = [];
   let 호출 = 0;
   const model = {
     async respond(tc, opts = {}) {
       호출 += 1;
       받은옵션.push({ 도구있음: Boolean(opts.tools?.length), onDelta있음: Boolean(opts.onDelta) });
+      받은문맥.push({ answerOnly: tc.answerOnly, toolBudgetSpent: tc.toolBudgetSpent });
       // 첫 호출: 기억만 적고 **텍스트는 안 낸다**(라이브에서 실제로 이렇게 왔다).
       if (호출 === 1) {
         return { text: '', toolCalls: [{ name: 'memory.propose', args: {
@@ -580,6 +582,8 @@ import { demoTools as demoTools2 } from '../src/surface/demo-context.js';
 
     // **재시도는 도구 없이 간다.** 다시 쥐여 주면 또 고르고 또 텍스트가 없을 수 있다.
     assert2.equal(받은옵션.at(-1).도구있음, false, '재시도에 도구를 다시 줬다');
+    assert2.equal(받은문맥.at(-1).answerOnly, true, '최종 답만 달라는 정직한 상태가 없다');
+    assert2.equal(받은문맥.at(-1).toolBudgetSpent, undefined, '실제로 안 쓴 도구 예산을 소진했다고 말했다');
 
     // **그리고 같은 스트리밍 계약을 쓴다.** `/turn` 에는 조각 통로가 아예 없으니(단발 경로)
     // 계약은 조각이 흐르는 자리에서 재야 한다 — 화면이 쓰는 스트림 경로다. 여기서 빠지면

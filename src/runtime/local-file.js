@@ -9,7 +9,7 @@
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
 import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname, basename, relative, isAbsolute } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
@@ -19,6 +19,18 @@ import { extractDocument } from './document-intake.js';
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 const VERSION_PREVIEW_FILES = 6;
 const VERSION_PREVIEW_CHARS = 1200;
+
+function userVisiblePath(abs, roots) {
+  const root = [...roots]
+    .sort((a, b) => b.length - a.length)
+    .find((candidate) => {
+      const rel = relative(candidate, abs);
+      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+    });
+  if (!root) return basename(abs);
+  const rel = relative(root, abs);
+  return rel ? join(basename(root), rel) : basename(root);
+}
 
 /** 되돌리기 표 한 줄. 휴지통 경로와 원래 자리를 함께 남긴다. */
 function undoEntry(op, from, to) {
@@ -153,7 +165,7 @@ export function makeLocalFileTool(deps = {}) {
           impact: 마지막
             ? `${basename(마지막.from)} 을(를) 이전 상태로 되돌려요`
             : '되돌릴 파일 작업이 없어요',
-          scope: 마지막 ? String(마지막.from) : `${roots[0]} 안`,
+          scope: 마지막 ? userVisiblePath(String(마지막.from), roots) : `${basename(roots[0])} 안`,
           duration: '이번 한 번',
           cancel: '되돌리기를 되돌릴 수는 없어요 — 다시 하면 됩니다',
         };
@@ -164,7 +176,7 @@ export function makeLocalFileTool(deps = {}) {
         : action === 'write' && typeof args.source === 'string' && args.source.trim()
           ? `${이름} 에 저장해요(원본은 그대로 두어요)`
         : action === 'write' ? `${이름} 에 저장해요`
-          : action === 'move' ? `${이름} 을(를) ${previewPathOf(args.to, roots)} 로 옮겨요`
+        : action === 'move' ? `${이름} 을(를) ${userVisiblePath(previewPathOf(args.to, roots), roots)} 로 옮겨요`
             : `${이름} 을(를) ${action} 해요`;
       // **무엇이 적히는가.** 자리만 보여주면 사용자는 "무엇을 허락하는지" 절반만 안다 —
       // 실측(2026-07-27): 오너가 "뭘 적을지도 같이 알려줘"라고 물었는데 카드에는 파일 이름과
@@ -177,7 +189,7 @@ export function makeLocalFileTool(deps = {}) {
         impact,
         ...(적을것 ? { what: 적을것 } : {}),
         // **실제로 어디에 생기는가.** 인자가 아니라 이 줄이 사용자가 확인할 사실이다.
-        scope: abs,
+        scope: userVisiblePath(abs, roots),
         duration: '이번 한 번',
         // 되돌릴 수 있는지는 **이 작업에 대해** 말한다. 도구 전체 라벨로는 알 수 없다.
         // 그리고 **같은 write 라도 되돌리는 방식이 다르다** — 덮어쓰기는 원본을 되살리는 것이고

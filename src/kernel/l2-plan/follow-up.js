@@ -15,7 +15,7 @@ export function decideFollowUp(p) {
   const decision = conflict ? 'interrupt' : 'merge';
   const userNotice = conflict
     ? `"${p.runningTask}" 은 여기까지 저장해 두고 새 요청부터 할게요.`
-    : `"${p.runningTask}" 에 이어서 반영할게요.`;
+    : undefined;
   return {
     runningTask: p.runningTask,
     incomingInput: p.incomingInput,

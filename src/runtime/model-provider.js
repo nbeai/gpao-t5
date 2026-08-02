@@ -101,6 +101,7 @@ export function buildModelMessages(tc) {
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
   // **사실 한 줄.** 손이 없어진 게 아니라 이번 턴 몫을 다 썼다는 것 — 다음 턴에는 다시 쓴다.
   if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
+  if (tc.answerOnly) sys.push('실행 사실과 현재 요청은 이미 위에 있다. 새 행동을 약속하거나 다음 턴으로 미루지 말고, 사용자에게 보낼 최종 답만 지금 작성한다.');
   // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
   // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).
   if (tc.toolStepsLeft) sys.push(`이번 턴에 손을 아직 ${tc.toolStepsLeft}번 더 이어 쓸 수 있다.`);
@@ -238,6 +239,19 @@ export function buildModelMessages(tc) {
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
   if (tc.workContractAssessment?.kind === 'file') {
     usr.push('[완료 계약 판단]\n사용자의 요청을 성공했다고 말하려면 대화 답변과 별개인 새 파일 또는 변경된 파일이 반드시 남아야 하는지 판단한다. 자료를 읽거나 비교하기만 하고 답은 대화로 주면 되는 일은 CHAT, 파일 생성·저장 자체가 요청 결과인 일은 FILE이다. 다른 설명 없이 FILE 또는 CHAT 하나만 답한다.');
+  }
+  if (tc.currentActionAssessment?.candidates?.length) {
+    usr.push('[이번 요청의 행동 판정]\n'
+      + `현재 요청: ${tc.currentActionAssessment.userRequest}\n`
+      + `후보 행동:\n${tc.currentActionAssessment.candidates
+        .map((candidate) => `- ${candidate.index}: ${candidate.tool} ${JSON.stringify(candidate.args ?? {})}`)
+        .join('\n')}\n`
+      + '현재 요청이 지금 요구한 후보의 번호만 work.current_actions로 제출한다. 이전 턴의 미완료 행동은 고르지 않는다.');
+  }
+  if (tc.recentTurns?.length) {
+    // 같은 지침이 고정 헌장에만 있으면 긴 입력에서 현재 요청과 갈라진다. 현재 발화 바로 앞에
+    // 완료 기준만 짧게 놓는다 — 말투 처방이 아니라 "이번 턴에 일을 끝냈는가"의 계약이다.
+    usr.push('[이번 답의 완료 기준]\n현재 요청은 이 답에서 완료한다. 형식·길이 수정이면 직전 답의 내용을 새 형식으로 바로 다시 쓰고, 확인이나 예고만으로 한 턴을 소비하지 않는다.');
   }
   usr.push(tc.currentRequest); // 원문 보존
   // 산출물 의무 대조(턴 실행부) — 낱말이 아니라 **ActionPlan 완료 계약과 원장**의 불일치.

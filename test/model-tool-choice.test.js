@@ -114,7 +114,13 @@ test('앞선 삭제와 현재 쓰기가 함께 선택돼도 현재 요청 행동
       return { text: '확인해 주세요', toolCalls: [] };
     },
   };
-  const ctx = { env: demoEnv(), model, tools: demoTools() };
+  const ctx = {
+    env: demoEnv(), model, tools: demoTools(),
+    recentTurns: [
+      { role: 'user', text: '정산_3월.csv를 지워줘' },
+      { role: 'assistant', text: '아직 실행 전이에요.' },
+    ],
+  };
   const r = await runTurn({ text: '새 보고서를 파일로 저장해줘', turnRef: 'turn-current' }, ctx);
   assert.equal(r.kind, 'approval');
   assert.equal(r.pending.length, 1);
@@ -158,7 +164,8 @@ test('모델이 다른 사용자 홈을 짐작해도 사용자가 부른 표준 
   };
   const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
   assert.equal(r.kind, 'approval');
-  assert.ok((r.pending[0].preview?.scope ?? '').includes(downloads));
+  assert.equal(r.pending[0].preview?.scope, 'Downloads/정산.csv');
+  assert.doesNotMatch(r.pending[0].preview?.scope ?? '', /^\//);
   assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
 });
 
@@ -182,7 +189,8 @@ test('찾은 뒤 이어진 파일 걸음도 추측 홈이 아니라 같은 런�
   const ctx = { env: demoEnv(), tools: demoTools({ localFile }), model };
   const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
   assert.equal(r.kind, 'approval');
-  assert.ok((r.pending[0].preview?.scope ?? '').includes(downloads));
+  assert.equal(r.pending[0].preview?.scope, 'Downloads/정산.csv');
+  assert.doesNotMatch(r.pending[0].preview?.scope ?? '', /^\//);
   assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
 });
 

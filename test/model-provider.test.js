@@ -37,6 +37,36 @@ function fakeFetch(status, json) {
   return { impl, calls };
 }
 
+test('후속 형식 수정은 현재 요청 바로 앞에서 실제 답을 요구한다', () => {
+  const built = buildModelMessages({
+    ...TC,
+    currentRequest: '이번엔 표 말고 한 문장으로 말해줘.',
+    recentTurns: [
+      { role: 'user', text: '7월 수치를 표로 정리해줘.' },
+      { role: 'assistant', text: '| 항목 | 값 |' },
+    ],
+  });
+  assert.match(built.user, /이번 답의 완료 기준/);
+  assert.match(built.user, /확인이나 예고만으로 한 턴을 소비하지 않는다/);
+  assert.ok(built.user.indexOf('[이번 답의 완료 기준]') < built.user.lastIndexOf('이번엔 표 말고'));
+});
+
+test('현재 행동 귀속 판정은 후보와 이번 요청을 모델 입력에 실제로 싣는다', () => {
+  const built = buildModelMessages({
+    ...TC,
+    currentActionAssessment: {
+      userRequest: '실제로 끝났어?',
+      candidates: [{ index: 0, tool: 'local.file', args: { action: 'delete', path: '옛.csv' } }],
+    },
+  });
+  assert.match(built.user, /이번 요청의 행동 판정/);
+  assert.match(built.user, /실제로 끝났어/);
+  assert.match(built.user, /local\.file/);
+  assert.match(built.user, /옛\.csv/);
+  assert.match(built.user, /현재 요청이 지금 요구한 후보의 번호만/);
+  assert.match(built.user, /이전 턴의 미완료 행동은 고르지 않는다/);
+});
+
 // ── env 해석 ──────────────────────────────────────────────────────────────
 test('resolveModelConfig: 자격이 하나도 없으면 미구성(null)', () => {
   assert.equal(resolveModelConfig({}), null);

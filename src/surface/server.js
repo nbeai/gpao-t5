@@ -81,6 +81,22 @@ import { bindAutomationCandidate, transitionState } from '../kernel/l5-growth/au
 import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
 
+const SENSITIVE_TRANSCRIPT_PLACEHOLDER = '[민감정보를 포함한 사용자 발화 — 원문은 저장하지 않음]';
+
+function durableUserText(text) {
+  return containsSensitiveValue(text) ? SENSITIVE_TRANSCRIPT_PLACEHOLDER : text;
+}
+
+function redactSensitiveOutput(result) {
+  for (const field of ['reply', 'question']) {
+    if (typeof result?.[field] === 'string' && containsSensitiveValue(result[field])) {
+      result[field] = '민감한 값은 답과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.';
+      result.sensitiveOutputRedacted = true;
+    }
+  }
+  return result;
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function readBody(req) {
@@ -590,6 +606,7 @@ export function makeServer(deps = {}) {
       ledgerFrom: (session.ledgerEntries ?? []).length,
     };
     const hasText = typeof input.text === 'string' && input.text.trim();
+    const sensitiveInput = hasText && containsSensitiveValue(input.text);
     const memory = await memStore.load();
     const learning = await traceStore.load();
     session.carryableWork = await 이어받을작업(session);
@@ -608,13 +625,14 @@ export function makeServer(deps = {}) {
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
-    if (onAnswerDelta) ctx.onAnswerDelta = onAnswerDelta;
+    // 민감 원문이 든 턴은 완성 결과를 가리기 전에 조각이 화면으로 먼저 나가면 안 된다.
+    if (onAnswerDelta && !sensitiveInput) ctx.onAnswerDelta = onAnswerDelta;
     if (hasText) {
       // 첫 발화로 제목을 붙이되, **사용자가 직접 붙인 이름은 덮어쓰지 않는다**(P2-4a).
       if (!session.manualTitle && !session.transcript.some((e) => e.role === 'user')) {
-        session.title = input.text.trim().slice(0, 30);
+        session.title = durableUserText(input.text).trim().slice(0, 30);
       }
-      session.transcript.push({ role: 'user', text: input.text });
+      session.transcript.push({ role: 'user', text: durableUserText(input.text) });
     }
     // **이 승인이 어느 자리에서 온 요청이었나.** 커널이 봉인해 둔 것을 턴 전에 읽는다
     // (승인 재개는 그 보류를 지우면서 시작한다).
@@ -646,6 +664,7 @@ export function makeServer(deps = {}) {
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
+    redactSensitiveOutput(result);
     민감기억후처리(result);
     try {
       await 통제후보저장(result, session);
@@ -2130,14 +2149,8 @@ export function makeServer(deps = {}) {
       // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
-    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 민감값을 되읽은 답을 그대로
-    // 보내거나 저장하지 않고, 값 없는 안내로 바꾼다. 로컬 웹 대화는 이 경계를 타지 않는다.
-    for (const field of ['reply', 'question']) {
-      if (typeof result[field] === 'string' && containsSensitiveValue(result[field])) {
-        result[field] = '민감한 값은 답장과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.';
-        result.sensitiveOutputRedacted = true;
-      }
-    }
+    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.
+    redactSensitiveOutput(result);
     민감기억후처리(result);
     try { await 통제후보저장(result, session); }
     catch (error) {
@@ -2145,7 +2158,7 @@ export function makeServer(deps = {}) {
       console.error('[control-proposal] 채널 후보 저장 실패:', error?.message ?? error);
     }
     if (result.kind === 'reply' || result.kind === 'approval' || result.kind === 'clarify') {
-      session.transcript.push({ role: 'user', text: input.text, channel: event.channelMeta.channel });
+      session.transcript.push({ role: 'user', text: durableUserText(input.text), channel: event.channelMeta.channel });
       session.transcript.push({ role: 'assistant', result });
       session.ledgerEntries = ctx.ledger.entries;
       session.pendingApprovals = Object.fromEntries(ctx.pending);

@@ -309,7 +309,7 @@ export const MUTATIONS = [
     찾기: '    onDelta: ctx.onAnswerDelta, search, effort: \'medium\',',
     바꾸기: "    search, effort: 'medium'," },
   { 이름: '재시도에 도구를 다시 쥐여 줌(또 고르고 또 빈 답)', 파일: TURNJS, 검사: T_STREAM,
-    찾기: '  const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, {',
+    찾기: '  const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {',
     바꾸기: '  const retry = await ctx.model.respond({ ...tc }, { tools: [{ name: \'x\' }],' },
 
   // ── H 진단 계열 ④ 도구를 쥔 턴의 스트리밍 ───────────────────────────────
@@ -671,8 +671,8 @@ export const MUTATIONS = [
     찾기: "        : { attemptedWith: compactResult(확인되지않은인자(r.actualCall?.args)) }),",
     바꾸기: "        : { calledWith: compactResult(r.actualCall?.args) })," },
   { 이름: '외부 채널 답변의 민감값을 그대로 전송·저장', 파일: SERVER, 검사: 'test/channel-approval-notice.test.js',
-    찾기: "        result.sensitiveOutputRedacted = true;",
-    바꾸기: "        result.sensitiveOutputRedacted = false;" },
+    찾기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.\n    redactSensitiveOutput(result);",
+    바꾸기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다.\n    void result;" },
   // ── W2 서두 본선 직렬 계약 (AC1-RECHECK §5) ──────────────────────────────
   { 이름: 'R1 행동 종류 어휘 검증 제거(도구 id 가 권한 칸으로 재유입)', 파일: 'src/kernel/l5-growth/automation-contracts.js', 검사: 'test/w2-mainline-contracts.test.js',
     찾기: "    ['allowedKinds must use authority kinds', !stringArray(e.allowedKinds) || e.allowedKinds.every(isAuthorityKind)],",

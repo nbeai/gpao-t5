@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -55,7 +55,8 @@ test('읽고 나서 쓰기가 필요하면 승인 카드가 뜬다(조용히 멈
   assert.ok((r.pending ?? []).length >= 1, '승인 대기가 만들어져야 한다');
   const p = r.pending[0];
   assert.match(String(p.preview?.impact ?? ''), /정산\.csv/, '무엇을 허락하는지가 카드에 있어야 한다');
-  assert.ok(String(p.preview?.scope ?? '').startsWith(dir), `어디에 생기는지도 — 실제: ${p.preview?.scope}`);
+  assert.equal(p.preview?.scope, `${basename(dir)}/모음/정산.csv`, `사람이 알아볼 자리여야 한다 — 실제: ${p.preview?.scope}`);
+  assert.doesNotMatch(p.preview?.scope ?? '', /^\//, '승인 카드에 원시 절대 경로를 노출하지 않는다');
   assert.match(String(p.preview?.what ?? ''), /가나상사/, '무엇이 적힐지도');
 });
 

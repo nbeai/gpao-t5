@@ -45,11 +45,9 @@ test('모델이 작업 루트 이름을 경로에 또 넣으면, 카드가 실�
   assert.equal(r.kind, 'approval', '쓰기는 승인 경계다');
   const p = r.pending?.[0]?.preview ?? {};
   // 핵심: 카드가 **인자 원문**(`<루트이름>/메모4.md`)만 보여주고 끝나면 안 된다.
-  assert.match(p.scope, new RegExp(`^${dir}`), `실제 자리가 절대 경로로 보여야 한다: ${p.scope}`);
-  assert.ok(
-    p.scope.includes(`${dir}/${루트이름}/메모4.md`),
-    `루트가 두 번 들어간 사실이 카드에 보여야 한다 — 실제: ${p.scope}`,
-  );
+  assert.equal(p.scope, `${루트이름}/${루트이름}/메모4.md`,
+    `루트가 두 번 들어간 실제 자리는 보이되 내부 절대 경로는 숨겨야 한다 — 실제: ${p.scope}`);
+  assert.doesNotMatch(p.scope, /^\//);
 });
 
 test('평범한 경우에도 카드는 인자가 아니라 풀린 자리를 보여준다', async () => {
@@ -60,7 +58,8 @@ test('평범한 경우에도 카드는 인자가 아니라 풀린 자리를 보�
     tools: demoTools({ localFile: tool }),
   });
   const p = r.pending?.[0]?.preview ?? {};
-  assert.equal(p.scope, `${dir}/메모.md`);
+  assert.equal(p.scope, `${dir.split('/').at(-1)}/메모.md`);
+  assert.doesNotMatch(p.scope, /^\//, '사용자 카드에 내부 절대 경로를 노출한다');
   assert.match(p.impact, /메모\.md/);
   assert.notEqual(p.impact, '로컬 파일 실행', '도구 이름만 있는 빈 문구는 승인이 아니다');
 });

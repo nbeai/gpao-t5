@@ -328,10 +328,19 @@ function 걸음막힘(rec, turnReceipts, hands) {
 
 export function fallbackReplyFrom(receipts = []) {
   const blocked = receipts.filter((r) => r.failureState && r.failureState !== 'none');
-  if (!blocked.length) return '방금 요청은 처리했는데 설명을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?';
+  if (!blocked.length) {
+    const done = receipts.map((r) => r?.userSafeSummary).filter(Boolean).join(' ').trim();
+    return done || '방금 요청은 처리했어요.';
+  }
   const what = blocked.map((r) => r.userSafeSummary).filter(Boolean).join(' ');
   const next = blocked.map((r) => r.nextSafeAction).filter(Boolean)[0];
   return `${what}${next ? ` ${next}` : ''}`.trim();
+}
+
+const INTERNAL_CONTROL_PREFIX = /^\s*(?:memory\.(?:propose|cite|correction|withdraw)|skill\.propose|automation\.propose|agent\.propose)\s*:\s*/i;
+
+function userFacingModelText(value) {
+  return String(value ?? '').replace(INTERNAL_CONTROL_PREFIX, '').trim();
 }
 
 /**
@@ -399,11 +408,11 @@ async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
   const 거짓성공 = 읽은척차단(receipts, reply);
   if (거짓성공?.blocked) return 거짓성공.정직한답;
-  if (String(reply ?? '').trim()) return reply;
-  const retry = await ctx.model.respond({ ...tc, toolBudgetSpent: true }, {
+  if (String(reply ?? '').trim()) return userFacingModelText(reply);
+  const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
-  const 다시 = (typeof retry === 'string' ? retry : retry?.text ?? '').trim();
+  const 다시 = userFacingModelText(typeof retry === 'string' ? retry : retry?.text ?? '');
   return 다시 || fallbackReplyFrom(receipts);
 }
 
@@ -1055,7 +1064,7 @@ export async function runTurn(input, ctx) {
     //   · 모델이 도구를 고르며 이미 한 말이 있으면 **그걸 버리지 않는다**(toolCalls 를 버렸던
     //     것과 같은 자리의 거울상이다 — 그때도 모델은 옳게 말했는데 우리가 버렸다).
     //   · 없으면 카드가 이미 확정한 사실을 짧게 말한다. 안내만 위해 모델을 다시 부르지 않는다.
-    let 멈춤설명 = (earlyReply ?? '').trim();
+    let 멈춤설명 = userFacingModelText(earlyReply);
     if (!멈춤설명) 멈춤설명 = pendingGrants[0]?.reason?.whatChanges
       ? `${pendingGrants[0].reason.whatChanges} 확인해 주시면 진행합니다.`
       : '확인해 주시면 이번 요청만 진행합니다.';
@@ -1555,11 +1564,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     멈춘이유 = '만들기로 한 파일 산출물이 아직 만들어지지 않았어요';
   }
 
-  let reply = typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '';
+  let reply = userFacingModelText(typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '');
   if (멈춘이유 && !reply.trim()) reply = '';
   // 도구를 빼고 한 번 더 묻는 자리 — **빠른 경로와 같은 계약을 쓴다**(`답완성`).
-  // 손을 빼는 이유는 `toolBudgetSpent` 로 함께 간다. 안 그러면 모델이 "손이 없다"고 답한다 —
-  // 같은 실패가 깃허브와 t5demo-idle 에서 실제로 났다(실측 2026-07-28).
+  // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
+  // 소진했다고 말하면 모델이 "손이 없다"는 거짓 상태를 사용자에게 설명한다.
   reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts });
   // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
   reply = 미리보기정렬(reply, ctx.미리보기);
