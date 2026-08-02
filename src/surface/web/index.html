@@ -1946,8 +1946,12 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
         start.measurementId, 'turn_complete', await afterVisiblePaint(surfaceStartedAt),
       ),
     });
-    es.addEventListener('complete', () => { done = true; preview?.remove(); steps?.remove(); es.close(); resolve(completed()); });
-    es.onerror = () => { es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
+    // 임시 표면은 **스트림이 끝나면** 걷는다. 완료만 끝이 아니다 — 끊긴 턴에서도 끝난다.
+    // 철거를 완료 한 곳에만 걸면, 연결이 끊겼을 때 검증 안 된 미리보기 답과 확인 사실이
+    // "연결에 문제가 있었어요" 아래에 그대로 눌러앉는다.
+    const 임시표면정리 = () => { preview?.remove(); preview = null; steps?.remove(); steps = null; };
+    es.addEventListener('complete', () => { done = true; 임시표면정리(); es.close(); resolve(completed()); });
+    es.onerror = () => { 임시표면정리(); es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
   });
 }
 send.onclick = submit;
