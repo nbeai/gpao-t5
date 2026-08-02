@@ -30,6 +30,7 @@ const SENSITIVE = 'src/kernel/l0-evidence/sensitive-text.js';
 const LANE = 'src/kernel/l5-growth/tcell-lane.js';
 const CONN = 'src/surface/model-connection.js';
 const SERVER = 'src/surface/server.js';
+const TICK = 'src/surface/tick-scheduler.js';   // HRT-ST-001 로 server.js 에서 추출된 tick 스케줄러
 
 const T_GROW = 'test/tcell-grow.test.js';
 const T_REPLAY = 'test/tcell-replay.test.js';
@@ -247,9 +248,9 @@ export const MUTATIONS = [
   // 만들었다. 그러면 `server.js` 를 불러오는 **모든** 검사가 파싱 단계에서 죽는다 — 잡히긴
   // 잡히지만 무엇을 쟀는지는 알 수 없고(계약이 아니라 문법을 쟀다), 그동안 그 파일을 읽은
   // 다른 실행까지 함께 무너진다. 감사가 본 회귀 실패의 기전이 정확히 이것이었다.
-  { 이름: '성장 호출을 자물쇠 안으로', 파일: SERVER, 검사: T_GROW,
-    찾기: '      const r = await growTick({\n        memStore, store, withMemory,\n        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).\n        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),',
-    바꾸기: '      const r = await withMemory(async () => growTick({\n        memStore, store,\n        modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model, now: Date.now(),',
+  { 이름: '성장 호출을 자물쇠 안으로', 파일: TICK, 검사: T_GROW,
+    찾기: '      const r = await growTick({\n        memStore, store, withMemory,\n        // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).\n        // 연결 관리자가 없으면 성장 호출은 신분을 못 만들고 §4.4 에서 그대로 떨어진다.\n        modelFor, now: Date.now(),',
+    바꾸기: '      const r = await withMemory(async () => growTick({\n        memStore, store,\n        modelFor, now: Date.now(),',
     // 주입 뒤에도 파싱이 성립해야 한다 — 여는 쪽만 바꾸면 닫는 괄호가 모자란다. 닫는 쪽도 함께.
     추가찾기: '          .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),\n      });',
     추가바꾸기: '          .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),\n      }));' },
@@ -393,7 +394,22 @@ export const MUTATIONS = [
     찾기: '  if (물러남(entry)) return false;', 바꾸기: '' },
   { 이름: '내려간 것을 표면에서 감춤(사용자가 되돌릴 수 없게)', 파일: SERVER, 검사: T_DECAY,
     찾기: '          decayed: 내려감,', 바꾸기: '          decayed: [],' },
-  { 이름: '감쇠를 원장에 안 남김', 파일: SERVER, 검사: T_DECAY,
+  // ── HRT-ST-001 · 추출 모듈 배선 (원장 mutationRequirement) ─────────────────
+  //
+  // 추출은 자리를 옮긴 것이지 계약을 옮긴 것이 아니다. 배선이 끊기거나 옛 경로가 되살아나면
+  // **검사가 물어야** 추출이 행동 보존이었다고 말할 수 있다.
+  { 이름: 'ST-001 감쇠 원장 콜백 배선을 끊음(모듈이 원장 없이 감쇠)', 파일: SERVER, 검사: T_DECAY,
+    찾기: '    store, memStore, withMemory, 기억영수증,',
+    바꾸기: '    store, memStore, withMemory, 기억영수증: async () => {},' },
+  { 이름: 'ST-001 관찰 격리 상태를 모듈이 아닌 새 사본에서 읽음(이중 진실)', 파일: SERVER,
+    검사: 'test/tcell-observation.test.js',
+    찾기: '  server.tcellObserveState = 관찰상태보기;',
+    바꾸기: '  server.tcellObserveState = () => ({ 연속실패: 0, 격리됨: false, 마지막오류: null });' },
+  { 이름: 'ST-001 kill switch 배선을 상수로 굳힘(실행 중 끄기 소실)', 파일: SERVER,
+    검사: 'test/tcell-observation.test.js',
+    찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
+    바꾸기: '    관찰꺼짐: () => false,' },
+  { 이름: '감쇠를 원장에 안 남김', 파일: TICK, 검사: T_DECAY,
     찾기: "        await 기억영수증('decayed', e ?? { candidateId: d.ref, kind: d.kind });", 바꾸기: '' },
 
   // ── S5-5 성장 표면(보이고, 고치고, 되돌릴 수 있는가) ────────────────────
@@ -1056,8 +1072,9 @@ const 한줄 = (r, i, n) => {
  * 둘을 동시에 돌리면 서로의 주입을 재게 된다. 사본을 나누면 다툴 대상이 애초에 없다 —
  * 잠금으로 순서를 맞추는 것보다 안전하다(격리 주석과 같은 원리를 레인 수만큼 늘린 것).
  *
- * 판정은 변이별로 독립이므로 순서가 결과를 바꾸지 않는다. 다만 **보고는 원래 순서**로
- * 되돌린다 — 실행 순서가 회차마다 달라지면 두 회차를 대조할 수 없다.
+ * 판정은 변이별로 독립이므로 순서가 결과를 바꾸지 않는다. 진행 출력은 **끝난 순서**로
+ * 흐르고(레인마다 속도가 다르다), 회차 간 대조가 필요한 **실패 목록만 원래 순서**로 모아
+ * 준다. 진행 줄의 숫자는 그래서 원장 자리가 아니라 진척도다.
  *
  * 일감은 공유 큐에서 하나씩 집어간다. `tcell-grow` 53건처럼 무거운 검사가 한 레인에
  * 몰리면 그 레인만 남아 도는데, 집어가기 방식이면 먼저 끝난 레인이 이어받는다.
