@@ -226,7 +226,14 @@ echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어
       원본tarball해시: tarball해시,          // 공식 SHASUMS256.txt 와 대조한 값
       담은실행파일해시: await 해시(join(contents, 'Resources', 'runtime', 'bin', 'node')),
     },
-    설치본: { 파일: 파일.replace(`${REPO}/`, ''), 크기: (await stat(파일)).size, 해시: await 해시(파일) },
+    // **이 해시는 빌드 직후의 것이다.** 공증 티켓을 붙이면(staple) 파일이 바뀌어 해시도 바뀐다.
+    // 그걸 "배포 파일 해시"라고 적어 두면 받은 사람이 대조했을 때 틀린다 — 이름으로 구분한다.
+    설치본: {
+      파일: 파일.replace(`${REPO}/`, ''),
+      크기: (await stat(파일)).size,
+      빌드직후해시: await 해시(파일),
+      배포해시: null,   // staple 뒤 실제로 나눠 주는 파일의 해시. 그 걸음에서 채운다.
+    },
     기준선: 실행('git', ['rev-parse', 'HEAD'], { cwd: REPO }).trim(),
   };
   await writeFile(join(out, `${신분.이름}-${version}-arm64.manifest.json`), `${JSON.stringify(manifest, null, 2)}\n`);
