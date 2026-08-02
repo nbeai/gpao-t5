@@ -61,6 +61,15 @@ test('파일을 바꾸는 말은 파싱을 거쳐도 자동 진행으로 떨어�
   }
 });
 
+test('한국어 조사가 붙은 파일명도 대상 파일로 읽는다', () => {
+  assert.deepEqual(parseFileRequest('정산_3월.csv를 지워줘'), {
+    action: 'delete', path: '정산_3월.csv',
+  });
+  assert.deepEqual(parseFileRequest('보고서.pdf에서 내용을 읽어줘'), {
+    action: 'read', path: '보고서.pdf',
+  });
+});
+
 // ── B1: 스킬이 도구를 밀어 넣어도 삭제는 승인을 받는다 (실파일로 확인) ──
 test('B1: 승격된 스킬이 local.file 을 골라도 삭제는 승인 없이 실행되지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-floor-'));

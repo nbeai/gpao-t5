@@ -12,10 +12,28 @@
 //
 // 보호 영역은 **두 프로파일 모두**에서 읽기까지 막는다. 승인을 받아도 비밀은 안 샌다 —
 // 사용자가 "설치해줘"를 승인한 것이지 "~/.ssh 를 읽어라"를 승인한 게 아니다.
-import { secretPaths } from './local-protection.js';
+import { secretPaths, secretProtection } from './local-protection.js';
 
 /** sandbox-exec 프로파일 문자열은 Scheme 리터럴이라 따옴표·역슬래시를 막아야 한다. */
 const lit = (p) => `"${String(p).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+/**
+ * P0-a(QA90 감사 2026-08-02): 비밀 보호의 **커널 판 전체.** 그동안 자리(subpath)만 내려가고
+ * 이름 규칙(F7.2)·홈 Library 닫힘(F7.1)은 파일손에만 있었다 — 파일손이 막는
+ * `~/Library/Messages`·`.env`·`id_rsa`·셸 히스토리를 터미널이 승인 없이 읽었다(라이브 실측:
+ * 격리 홈 검증 중 실제 바탕화면이 답변에 나갔고, 적대 검증이 5개 자리에서 확정).
+ * 열림 예외는 allow 재개방이 아니라 require-not 필터다 — allow 는 커넥터 선언(`열어줄것`)의
+ * 자리이고, 여기서 allow 를 쓰면 "선언 없이는 아무것도 도로 열지 않는다" 계약이 흐려진다.
+ */
+function denySecretReads(dirs) {
+  const prot = secretProtection();
+  return [
+    ...dirs.map((p) => `(deny file-read* (subpath ${lit(p)}))`),
+    // SBPL 의 정규식 리터럴은 `#"…"` — 닫는 # 가 없다(위 /dev/ 허용 줄과 같은 형태).
+    ...prot.namePatterns.map((r) => `(deny file-read* (regex #"${r}"))`),
+    ...prot.closed.map(({ root, open }) => `(deny file-read* (require-all (subpath ${lit(root)})${open.map((o) => ` (require-not (subpath ${lit(o)}))`).join('')}))`),
+  ].join('\n');
+}
 
 /**
  * @param {'probe'|'granted'} mode
@@ -25,7 +43,7 @@ const lit = (p) => `"${String(p).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
 export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [] } = {}) {
-  const denySecrets = secrets.map((p) => `(deny file-read* (subpath ${lit(p)}))`).join('\n');
+  const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
   // 넓히지 않는다: 커넥터가 선언한 경로만, 그것도 읽기만 연다. 선언에 없으면 그대로 막힌다.

@@ -43,6 +43,30 @@ test('D1: 승인된 자동화라도 tick 이 파일을 지우지 않는다(확�
   assert.equal(job.state, 'paused', '조용히 사라지지 않는다(다시 켜거나 취소할 수 있어야 한다)');
 });
 
+test('D1: 옛 tick 경로도 전송·쓰기·미상 행동을 무인 실행하지 않는다', async () => {
+  const calls = [];
+  const guardedTools = {
+    async run(tool, args) {
+      calls.push({ tool, args });
+      return { failureState: 'none', userSafeSummary: '실행됨', nextSafeAction: null };
+    },
+  };
+  for (const action of [
+    { tool: 'slack.post', args: { text: '보내기' } },
+    { tool: 'local.file', args: { action: 'write', path: '결과.txt', content: '쓰기' } },
+    { tool: 'unknown.tool', args: {} },
+  ]) {
+    const job = approveAutomation({ action, statement: '반복 실행' }, {
+      id: `guard-${calls.length}`, now: 0, nextRunAt: 0,
+    });
+    const ran = await tickAutomation([job], { tools: guardedTools, selfState: selfState(), now: 1 });
+    assert.equal(ran.length, 0, `${action.tool}이 무인 실행됐다`);
+    assert.equal(job.state, 'paused');
+    assert.equal(job.executions.at(-1)?.failureState, 'blocked');
+  }
+  assert.equal(calls.length, 0, '안전 바닥 또는 미상 행동이 실제 도구까지 도달했다');
+});
+
 test('되돌릴 수 있는 자동화는 그대로 돈다(안전을 이유로 자동화를 다 막지 않는다)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-auto2-'));
   const tools = demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) });
@@ -62,6 +86,9 @@ test('불변식: 행동 종류 판정이 도구가 아니라 작업으로 나온
   assert.equal(toolActionKind({ toolId: 'local.file', args: { action: 'list' }, selfState: s }), 'read');
   assert.equal(toolActionKind({ toolId: 'local.file', args: undefined, selfState: s }), 'unknown_kind');
   assert.equal(toolActionKind({ toolId: 'slack.post', selfState: s }), 'send');
+  assert.equal(toolActionKind({
+    toolId: 'slack.post', args: { text: '카드번호 4111 1111 1111 1111' }, selfState: s,
+  }), 'export_sensitive');
   // 만료 강제(external) 판정이 여기서 나온다 — 도구 플래그로 보면 파일 삭제가 무기한으로 통과했다.
   assert.equal(isSafetyFloor(toolActionKind({ toolId: 'local.file', args: { action: 'delete' }, selfState: s })), true);
   assert.equal(isSafetyFloor(toolActionKind({ toolId: 'local.file', args: { action: 'list' }, selfState: s })), false);

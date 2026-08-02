@@ -39,6 +39,18 @@ test('evidenceFacts 는 userSafeSummary 만 담고 diagnosticTrace 를 담지 �
   assert.doesNotMatch(json, /secret|stack/);
 });
 
+test('실패한 호출의 절대 경로는 실행 사실로 승격되거나 원문 재공급되지 않는다', () => {
+  const intent = interpret('다운로드에 뭐 있어?');
+  const tc = buildTaskContext({ intent, selfState, receipts: [{
+    intended: '파일 목록',
+    actualCall: { tool: 'local.file', args: { action: 'list', path: '/Users/someone/Downloads' } },
+    failureState: 'blocked', userSafeSummary: '그 자리는 확인하지 못했어요.',
+  }] });
+  assert.equal(tc.evidenceFacts[0].calledWith, undefined, '실패한 인자를 실행 사실 칸에 넣었다');
+  assert.match(tc.evidenceFacts[0].attemptedWith, /확인되지 않은 절대 경로/);
+  assert.doesNotMatch(JSON.stringify(tc.evidenceFacts), /\/Users\/someone/);
+});
+
 // ── C 감사 F4.2 · 파일 본문의 줄 구조를 모델 입력에서 지우지 않는다 ───────
 // 실측(감사 2026-08-01): local.file read 결과가 ③ JSON 갈래로 떨어져 \s+ 접기에
 // 줄바꿈이 전부 사라졌다 — CSV·정산표의 행 경계를 모델이 근거 없이 재구성해야 했다.

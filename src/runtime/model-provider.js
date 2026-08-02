@@ -162,6 +162,7 @@ export function buildModelMessages(tc) {
         // 무엇으로 불렀는지가 결과보다 **먼저** 온다 — "무엇을 했나"는 인자가 답하고 결과는
         // 그것이 어떻게 됐는지만 답한다. 이 줄이 없으면 모델이 자기가 쓴 내용을 다시 지어낸다.
         + (f.calledWith ? `\n  부른 인자: ${f.calledWith}` : '')
+        + (f.attemptedWith ? `\n  실패한 시도의 제안값(확인된 사실 아님): ${f.attemptedWith}` : '')
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }

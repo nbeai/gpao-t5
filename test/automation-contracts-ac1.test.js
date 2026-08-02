@@ -6,6 +6,7 @@ import {
   agentRunTransitionWithin,
   agentRunIdempotencyKey,
   authorityWithin,
+  bindAutomationCandidate,
   claimAgentRun,
   childToolAllowlist,
   contentHash,
@@ -104,6 +105,24 @@ const profile = (patch = {}) => ({
   createdAt: now,
   updatedAt: now,
   ...patch,
+});
+
+test('자동화 실행 계약은 후보 행동보다 좁은 담당 권한으로 활성화할 수 없다', () => {
+  const candidate = {
+    action: { tool: 'local.file', args: { action: 'write', path: '/tmp/work/report.md', text: 'done' } },
+  };
+  const once = {
+    trigger: { kind: 'once', timezone: 'UTC', at: 200, nextRunAt: 200, misfirePolicy: 'catch_up_once' },
+    maxRuns: 1,
+  };
+  assert.equal(bindAutomationCandidate(candidate, skill(), profile(), once).ok, false,
+    'A1 담당 역할이 A2 쓰기 자동화를 받았다');
+  assert.equal(bindAutomationCandidate(candidate, skill(), profile({ authorityCeiling: 'A2' }), once).ok, true,
+    '행동 위험도와 같은 권한까지 막았다');
+  assert.equal(bindAutomationCandidate({
+    action: { tool: 'local.file', args: { action: 'delete', path: '/tmp/work/report.md' } },
+  }, skill(), profile({ authorityCeiling: 'A2' }), once).ok, false,
+  'A3 삭제를 자동화 계약으로 활성화했다');
 });
 
 const job = (patch = {}) => ({

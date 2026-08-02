@@ -57,6 +57,9 @@ export function buildCapabilityFacts(selfState) {
       does: doesOnly(t.id, selfState),
       needsApproval: Boolean(t.needsApproval),
       risk: RISK_BY_KIND[t.toolKind] ?? null,
+      // P0-b: 작업 폴더보다 넓게 읽는 손은 그 사실을 여기까지 들고 온다. 능력을 줄이는 대신
+      // **어디까지 보는지를 사용자가 알 수 있게** 한다(descriptor 선언이 유일한 진실).
+      readReach: t.readReach ?? null,
     })),
     blocked: blocked.map((t) => ({
       label: t.label ?? t.id,
@@ -84,7 +87,7 @@ export function renderDerivedSection(facts) {
   const out = ['## 지금 할 수 있는 일', ''];
   if (facts.ready.length) {
     for (const r of facts.ready) {
-      const marks = [r.needsApproval ? '보내기 전 확인을 받습니다' : null, r.risk].filter(Boolean);
+      const marks = [r.needsApproval ? '보내기 전 확인을 받습니다' : null, r.risk, r.readReach].filter(Boolean);
       out.push(`- **${r.label}** — ${r.does}${marks.length ? `\n  - ${marks.join(' / ')}` : ''}`);
     }
   } else {

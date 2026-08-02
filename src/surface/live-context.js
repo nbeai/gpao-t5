@@ -7,6 +7,7 @@ import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
+import { defaultFileRoots } from '../runtime/file-scope.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
 import { makeLocalLocateTool } from '../runtime/local-locate.js';
@@ -70,6 +71,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 소스 트리(src/surface/processes.json)에 쌓이고 로그가 /tmp 로 흩어졌다 — 라이브에서 드러났다.
   // 자기보존 경계(lifecycle guard)도 이 경로를 알아야 "내 기억을 지우는 명령"을 알아본다.
   const stateDir = processEnv.GPAO_T5_DATA_DIR ?? defaultSessionDir();
+  const localHome = processEnv.GPAO_T5_HOME ?? processEnv.HOME;
   const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
   // discovery는 서버가 소유한 같은 커넥터 배열을 읽는다. 나중에 붙거나 끊긴 상태도 다음 턴에서
   // 같은 진실을 본다. 도구가 서비스 목록을 따로 복제하지 않는다.
@@ -90,9 +92,13 @@ export function liveDeps(processEnv = {}, deps = {}) {
       robotsCheck: makeRobotsCheck({ timeoutMs: webTimeoutMs }),
     }),
     senders,
-    localFile: makeLocalFileTool({ dataDir: processEnv.GPAO_T5_DATA_DIR }),
+    localFile: makeLocalFileTool({
+      dataDir: processEnv.GPAO_T5_DATA_DIR,
+      roots: defaultFileRoots(processEnv),
+      homeDir: localHome,
+    }),
     localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
-    localLocate: makeLocalLocateTool(),
+    localLocate: makeLocalLocateTool({ home: localHome }),
     localDiscovery: makeLocalDiscoveryTool({ connectors: () => connectors }),
     localSystem: makeLocalSystemTool({}),
     localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),

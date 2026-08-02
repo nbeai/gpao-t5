@@ -3,6 +3,7 @@
 import { isToolExecutable } from '../l0-evidence/self-state.js';
 import { toolLabel } from '../tool-labels.js';
 import { grantFor, UNKNOWN_KIND, isSafetyFloor } from './authority.js';
+import { containsSensitivePayload } from '../l0-evidence/sensitive-text.js';
 
 // 도구 id → 권한 종류(범주). 실행 종류를 권한 등급으로 잇는다.
 /**
@@ -80,6 +81,9 @@ export function toolActionKind({ toolId, args, selfState }) {
   if (toolId === 'local.terminal') {
     kind = args?.changes === true ? 'write' : args?.changes === false ? 'read' : UNKNOWN_KIND;
   }
+  // 외부 전송의 본문에 민감값이 있으면 일반 send(A2)가 아니라 export_sensitive(A3)다.
+  // 모델의 자기신고가 아니라 실제 실행 인자에서 파생하므로 새 전송 도구도 같은 경계를 탄다.
+  if (kind === 'send' && containsSensitivePayload(args)) kind = 'export_sensitive';
   // **여기서 종류를 바꾸지 않는다.** 예전엔 승인을 강제하려고 `kind = 'send'` 로 바꿔 달았고,
   // 그래서 조회·연결 카드에까지 "메시지를 실제로 밖으로 보내는 일이라"가 떴다(실측 2026-07-28).
   // 강제는 이제 authority 가 `needsApproval` 사실로 한다 — 등급만 올리고 이름은 사실대로 둔다.

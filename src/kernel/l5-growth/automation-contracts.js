@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
+import { isAbsolute, resolve } from 'node:path';
 import { isSendTool } from '../contracts.js';
-import { AUTHORITY_KINDS, isAuthorityKind } from '../l2-plan/authority.js';
+import { AUTHORITY_KINDS, classifyTier, isAuthorityKind } from '../l2-plan/authority.js';
 import { toolActionKind } from '../l2-plan/action-plan.js';
 
 export const AUTOMATION_SCHEMA_VERSION = 2;
@@ -117,6 +118,71 @@ export function validateAuthorityEnvelope(envelope) {
     if (!finite(e.expiresAt)) errors.push('repeated A2 requires expiresAt');
   }
   return result(errors);
+}
+
+const 권한순위 = Object.freeze({ A0: 0, A1: 1, A2: 2, A3: 3 });
+
+function 행동대상(args = {}) {
+  const keys = new Set(['target', 'recipient', 'to', 'channel', 'channelid', 'chatid', 'userid']);
+  return [...new Set(Object.entries(args)
+    .filter(([key, value]) => keys.has(key.toLowerCase()) && string(value))
+    .map(([, value]) => value))];
+}
+
+/**
+ * 승인 화면은 일정과 활성 스킬·담당 역할만 고른다. 실행 인자와 권한은 후보 action에서
+ * 서버가 파생한다. 요청 본문이 후보보다 넓은 계약을 새로 쓰는 경로를 만들지 않는다.
+ */
+export function bindAutomationCandidate(candidate, skill, profile, options = {}) {
+  const action = candidate?.action;
+  const tool = action?.tool;
+  const args = action?.args;
+  if (!string(tool) || !object(args)) return { ok: false, reason: 'candidate_action_incomplete' };
+  const kind = toolActionKind({ toolId: tool, args });
+  if (!isAuthorityKind(kind)) return { ok: false, reason: 'candidate_action_unknown' };
+  const tier = classifyTier({ kind });
+  if (tier === 'A3') return { ok: false, reason: 'candidate_action_forbidden' };
+  if (skill?.state !== 'active' || !(skill.requiredCapabilities ?? []).includes(tool)) {
+    return { ok: false, reason: 'skill_action_mismatch' };
+  }
+  if (profile?.state !== 'active' || !(profile.toolAllowlist ?? []).includes(tool)) {
+    return { ok: false, reason: 'profile_action_mismatch' };
+  }
+  if (!(profile.authorityCeiling in 권한순위) || 권한순위[tier] > 권한순위[profile.authorityCeiling]) {
+    return { ok: false, reason: 'profile_authority_too_narrow' };
+  }
+  const trigger = options.trigger;
+  const checkedTrigger = validateTriggerSpec(trigger);
+  if (!checkedTrigger.ok) return { ok: false, reason: 'invalid_trigger', errors: checkedTrigger.errors };
+  const repeated = trigger.kind !== 'once';
+  const expiresAt = repeated ? options.expiresAt : null;
+  if (repeated && !finite(expiresAt)) return { ok: false, reason: 'repeated_requires_expiry' };
+  const inputTemplate = structuredClone(args);
+  if (string(inputTemplate.path) && !isAbsolute(inputTemplate.path) && !inputTemplate.path.startsWith('~/')) {
+    if (profile.workspaceScope.length !== 1) return { ok: false, reason: 'relative_path_needs_workspace' };
+    inputTemplate.path = resolve(profile.workspaceScope[0], inputTemplate.path);
+  }
+  const authorityEnvelope = {
+    ceiling: tier,
+    allowedKinds: [kind],
+    allowedTools: [tool],
+    allowedTargets: 행동대상(args),
+    workspaceRoots: [...(profile.workspaceScope ?? [])],
+    expiresAt,
+    maxRuns: repeated ? Math.min(30, options.maxRuns ?? 30) : 1,
+    maxCost: finite(profile.defaultBudgets?.maxCost) ? profile.defaultBudgets.maxCost : null,
+    requiresFreshApprovalFor: [],
+  };
+  const checkedAuthority = validateAuthorityEnvelope(authorityEnvelope);
+  if (!checkedAuthority.ok) {
+    return { ok: false, reason: 'invalid_authority', errors: checkedAuthority.errors };
+  }
+  return {
+    ok: true,
+    inputTemplate,
+    authorityEnvelope,
+    deliveryPolicy: { mode: 'none' },
+  };
 }
 
 export function validateTriggerSpec(trigger) {

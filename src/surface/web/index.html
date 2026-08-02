@@ -1591,22 +1591,69 @@ function renderAutomationSuggestion(box, sug) {
   card.appendChild(el('sug-s', `"${sug.statement}"`));
   card.appendChild(el('sug-line', '승인 전엔 아무것도 실행하지 않아요. 켜도 범위·만료(기본 30일)·취소가 있고 실행은 원장에 남아요.'));
   const btns = el('btns');
-  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '자동화 승인';
+  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '자동화 설정';
   const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
   yes.onclick = async () => {
-    const expiresAt = Date.now() + 30 * 24 * 3600 * 1000; // 기본 30일 범위 — 만료·재승인 보장(무기한 금지)
-    const r = await (await fetch('/automation/approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId, expiresAt }) })).json();
-    card.remove();
-    if (!r.ok) { box.appendChild(el('sug-done', '자동화를 켜지 못했어요.')); return; }
-    const done = el('sug-done');
-    done.appendChild(el('sug-line', `자동화를 예약했어요${r.external ? ' (외부 전송 — 승인 범위 유지)' : ''}. 30일 후 만료돼요.`));
-    const cancel = document.createElement('button'); cancel.className = 'act no'; cancel.textContent = '취소'; cancel.style.marginTop = 'var(--sp-2)';
-    cancel.onclick = async () => {
-      await fetch('/automation/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: r.jobId }) });
-      done.replaceChildren(el('sug-line', '자동화를 취소했어요. 앞으로 실행하지 않아요.'));
+    yes.disabled = true;
+    const setup = await (await fetch(`/automation/setup?candidateId=${encodeURIComponent(sug.candidateId)}`)).json();
+    yes.disabled = false;
+    if (!setup.ok || !setup.skills?.length || !setup.profiles?.length) {
+      const reason = !setup.skills?.length ? '이 일을 맡을 활성 스킬이 아직 없어요.'
+        : !setup.profiles?.length ? '이 일을 맡을 담당 역할이 아직 없어요.'
+          : (setup.error ?? '설정 정보를 불러오지 못했어요.');
+      card.appendChild(el('sug-line', reason));
+      return;
+    }
+    btns.remove();
+    const form = el('sug-line');
+    const select = (items) => {
+      const node = document.createElement('select');
+      for (const item of items) {
+        const option = document.createElement('option'); option.value = item.id; option.textContent = item.label;
+        node.appendChild(option);
+      }
+      return node;
     };
-    done.appendChild(cancel);
-    box.appendChild(done);
+    const skill = select(setup.skills);
+    const profile = select(setup.profiles);
+    const cadence = document.createElement('select');
+    cadence.innerHTML = '<option value="weekly">매주</option><option value="daily">매일</option>';
+    const time = document.createElement('input'); time.type = 'time'; time.value = '09:00';
+    form.append('스킬 ', skill, ' · 담당 ', profile, ' · ', cadence, ' ', time);
+    const confirm = document.createElement('button'); confirm.className = 'act primary'; confirm.textContent = '이 설정으로 켜기';
+    const back = document.createElement('button'); back.className = 'act no'; back.textContent = '닫기';
+    confirm.onclick = async () => {
+      confirm.disabled = true;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const now = Date.now();
+      const trigger = cadence.value === 'daily'
+        ? { kind: 'daily', timezone, localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' }
+        : { kind: 'weekly', timezone, weekdays: [new Date().getDay()], localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' };
+      const response = await fetch('/automation/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: sug.candidateId, skillId: skill.value, agentProfileId: profile.value,
+          trigger, expiresAt: now + 30 * 24 * 3600 * 1000, maxRuns: 30,
+        }),
+      });
+      const r = await response.json();
+      confirm.disabled = false;
+      if (!response.ok || !r.ok) { form.appendChild(el('sug-line', r.error ?? '자동화를 켜지 못했어요.')); return; }
+      card.remove();
+      const done = el('sug-done');
+      done.appendChild(el('sug-line', '자동화를 예약했어요. 30일 뒤에는 다시 확인받아요.'));
+      const cancel = document.createElement('button'); cancel.className = 'act no'; cancel.textContent = '취소'; cancel.style.marginTop = 'var(--sp-2)';
+      cancel.onclick = async () => {
+        const response = await fetch('/automation/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: r.jobId }) });
+        if (!response.ok) { done.appendChild(el('sug-line', '취소하지 못했어요. 자동화 목록에서 상태를 확인해 주세요.')); return; }
+        done.replaceChildren(el('sug-line', '자동화를 취소했어요. 앞으로 실행하지 않아요.'));
+      };
+      done.appendChild(cancel);
+      box.appendChild(done);
+    };
+    back.onclick = () => card.remove();
+    const controls = el('btns'); controls.appendChild(confirm); controls.appendChild(back);
+    card.appendChild(form); card.appendChild(controls);
   };
   no.onclick = () => card.remove();
   btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);

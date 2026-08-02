@@ -166,3 +166,101 @@ console.log(JSON.stringify({ sys: protectionFor('/System/Library/x')?.kind ?? nu
   assert.equal(JSON.parse(stdout.trim()).sys, 'system',
     'TMPDIR 오염으로 시스템 보호가 꺼졌다 — 보호 판정이 환경변수에 굴복한다');
 });
+
+// ── P0-a (QA90 감사 2026-08-02) · 파일손과 샌드박스는 **한 벌 목록**이다 ──
+//
+// 계약 원문(local-protection.js): "샌드박스 프로파일도 같은 목록을 쓴다 — 두 벌로 두면
+// 한쪽에만 자리를 추가했을 때 다른 쪽이 조용히 열린다(그게 유출이다)."
+// 실측(2026-08-02): 이 계약이 깨져 있었다 — `secretPaths()` 가 SECRET_DIRS 만 내보내서
+// 파일손이 막는 `~/Library/Messages`·`.env`·`id_rsa`·`.zsh_history` 를 터미널이 승인 없이
+// 읽었다. 정의역: SECRET_DIRS(자리) · SECRET_NAMES(이름) · USER_LIBRARY(닫힘+열림 예외)
+// × 프로파일 모드(probe·granted·reach). 아래는 그 정의역 전체를 한 평가기로 문다.
+
+/** 프로파일의 file-read 규칙을 순서대로 평가한다(뒤 규칙이 이긴다 — seatbelt 의미). */
+function 프로파일이읽기를막나(profile, path) {
+  let 판정 = false; // (allow default) 에서 시작
+  for (const line of profile.split('\n')) {
+    const deny = line.includes('(deny file-read*');
+    const allow = line.includes('(allow file-read*');
+    if (!deny && !allow) continue;
+    const subs = [...line.matchAll(/\(subpath "((?:[^"\\]|\\.)+)"\)/g)].map((m) => m[1].replace(/\\(.)/g, '$1'));
+    const nots = [...line.matchAll(/\(require-not \(subpath "((?:[^"\\]|\\.)+)"\)\)/g)].map((m) => m[1].replace(/\\(.)/g, '$1'));
+    const res = [...line.matchAll(/\(regex #"([^"]+)"\)/g)].map((m) => m[1]);
+    const 안 = (d) => path === d || path.startsWith(d.endsWith('/') ? d : d + '/');
+    const 본체 = subs.filter((s) => !nots.includes(s));
+    let 맞음 = false;
+    if (본체.length) 맞음 = 본체.some(안) && !nots.some(안);
+    if (!맞음 && res.length) 맞음 = res.some((r) => new RegExp(r).test(path));
+    if (맞음) 판정 = deny;
+  }
+  return 판정;
+}
+
+test('P0-a: 파일손이 secret 이라는 자리는 샌드박스도 막는다 — 모든 모드에서', async () => {
+  const { sandboxProfile } = await import('../src/runtime/sandbox.js');
+  const 표본 = [
+    join(H, 'Library/Messages/chat.db'),      // USER_LIBRARY 닫힘
+    join(H, 'Library/Mail/V10/메일함'),        // USER_LIBRARY 닫힘
+    join(H, '.ssh/id_rsa'),                    // SECRET_DIRS
+    join(H, 'work/.env'),                      // SECRET_NAMES
+    join(H, 'work/.env.local'),
+    join(H, 'proj/id_ed25519'),
+    join(H, '.zsh_history'),                   // F7.2 이름 규칙
+    join(H, 'Documents/service-account-prod.json'),
+    '/어디든/api_token.txt',                    // 이름 규칙은 자리와 무관하다
+    '/어디든/rclone.conf',
+  ];
+  for (const mode of ['probe', 'granted', 'reach']) {
+    const prof = sandboxProfile(mode, {});
+    for (const p of 표본) {
+      assert.equal(protectionFor(p)?.kind, 'secret', `전제: 파일손이 막는 자리다: ${p}`);
+      assert.ok(프로파일이읽기를막나(prof, p),
+        `[${mode}] 파일손은 막는데 샌드박스가 연다(두 벌 목록 = 유출): ${p}`);
+    }
+  }
+});
+
+test('P0-a: 열림 예외(동기화 자리)와 일반 자료는 샌드박스도 연다 — 오탐이 늘면 도구가 죽는다', async () => {
+  const { sandboxProfile } = await import('../src/runtime/sandbox.js');
+  const 열림 = [
+    join(H, 'Library/CloudStorage/Dropbox/계약서.pdf'),
+    join(H, 'Library/Mobile Documents/com~apple~CloudDocs/기획.md'),
+    join(H, 'Documents/거래이력.md'),
+    join(H, 'Desktop/메모.md'),
+    join(H, 'Documents/credentials-발표자료.pptx'), // 이름 규칙 오탐 경계(F7.2와 같은 선)
+  ];
+  for (const mode of ['probe', 'granted']) {
+    const prof = sandboxProfile(mode, {});
+    for (const p of 열림) {
+      assert.equal(프로파일이읽기를막나(prof, p), false,
+        `[${mode}] 파일손이 여는 자리를 샌드박스가 막는다(같은 목록 위반·과보호): ${p}`);
+    }
+  }
+});
+
+test('P0-a: 이름 규칙은 대소문자를 가리지 않는다 — 파일손과 같은 판정', async () => {
+  const { sandboxProfile } = await import('../src/runtime/sandbox.js');
+  const prof = sandboxProfile('probe', {});
+  for (const p of ['/x/.ENV', '/x/ID_RSA', '/x/Wallet.DAT', join(H, '.ZSH_HISTORY')]) {
+    assert.equal(protectionFor(p)?.kind, 'secret', `전제: ${p}`);
+    assert.ok(프로파일이읽기를막나(prof, p), `대소문자만 바꾸면 샌드박스가 열린다: ${p}`);
+  }
+});
+
+test('P0-a: 실제 커널 실측 — 이름 규칙 파일은 sandbox-exec 가 읽기를 거부한다', async (t) => {
+  const { sandboxProfile, sandboxAvailable } = await import('../src/runtime/sandbox.js');
+  if (!sandboxAvailable()) return t.skip('샌드박스 없음');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-p0a-'));
+  await writeFile(join(dir, 'deploy_token.txt'), 'tok');   // 이름 규칙(token)
+  await writeFile(join(dir, '메모.txt'), 'memo');           // 일반 자료
+  const prof = join(dir, 'p.sb');
+  await writeFile(prof, sandboxProfile('probe', { scratch: dir }));
+  await assert.rejects(
+    run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, 'deploy_token.txt')]),
+    '파일손이 막는 이름을 커널이 열었다 — 계약 위반이 실기계에서 재현된다');
+  const ok = await run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, '메모.txt')]);
+  assert.equal(ok.stdout, 'memo', '일반 자료까지 막으면 과보호다');
+});

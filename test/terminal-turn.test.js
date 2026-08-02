@@ -148,7 +148,7 @@ test('모델이 도구를 고르며 한 말을 버리지 않는다(승인으로 
 //    제가 실제 생성까지는 못 했어요. 직접 만들면 내용은 이것만 넣으면 됩니다."
 // 승인 카드를 띄우면서 확인이 필요 없다고 했고, 있는 손을 없다고 했고, 사용자에게 시켰다.
 // 원인: 이 자리의 추가 모델 호출에 **손 목록을 안 줬다**. 없으면 모델은 "안 붙어 있다"고 읽는다.
-test('승인으로 멈출 때도 모델은 자기 손이 있다는 걸 안다(없다고 말하게 두지 않는다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('승인으로 멈출 때 추가 모델 호출 없이 자기 손과 다음 행동을 말한다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
   const dir = await 자리();
   const 본것 = [];
   const 말없이고른다 = {
@@ -161,10 +161,8 @@ test('승인으로 멈출 때도 모델은 자기 손이 있다는 걸 안다(�
   };
   const r = await runTurn({ text: '지워줘' }, { env: demoEnv(), model: 말없이고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
   assert.equal(r.kind, 'approval');
-  const 마지막 = 본것.at(-1);
-  assert.ok(마지막.tools > 0,
-    '멈춤 설명을 만들 때 손 목록을 안 줬다 — 모델이 "도구가 안 붙어 있다"고 말하게 된다');
-  // 그리고 무엇이 사실인지 끝까지 적어야 한다: 확인이 필요하다 · 승인되면 내가 한다 · 시키지 않는다.
-  assert.match(마지막.hint ?? '', /확인/, '왜 멈췄는지가 없다');
-  assert.match(마지막.hint ?? '', /내가 직접 실행/, '승인 뒤 누가 하는지가 없으면 "못 한다"로 읽힌다');
+  assert.equal(본것.length, 1, '승인 설명만 만들려고 모델을 다시 불렀다');
+  assert.match(r.reply ?? '', /확인/, '왜 멈췄는지가 없다');
+  assert.match(r.reply ?? '', /실행|지울|진행/, '승인 뒤 T5가 할 일을 말하지 않는다');
+  assert.doesNotMatch(r.reply ?? '', /도구.*없|직접.*하세요/, '있는 손을 없다고 말하거나 사용자에게 실행을 떠넘겼다');
 });

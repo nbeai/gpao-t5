@@ -11,7 +11,12 @@
 //
 // 여기서 정하는 것은 **다음 시도의 종류**뿐이다. 실행·승인·기록은 기존 경로가 그대로 한다.
 
-/** 실패 종류 → 다음에 밟을 계단. 도구가 늘어도 이 표는 종류로만 자란다(사례 하드코딩 금지). */
+/**
+ * 실패 종류 → 다음에 밟을 계단. 도구가 늘어도 이 표는 종류로만 자란다(사례 하드코딩 금지).
+ * P0-b: `needsHand` 로 지목된 손은 **다른 손의 범위 밖을 대신 밟는 손**이다 — 그 사실이
+ * 사용자 고지 대상(descriptor.readReach)을 정한다. 손 목록을 검사에 손으로 적지 않게
+ * 이 표를 내보낸다(여기에 손을 더하면 고지 불변식이 자동으로 그 손을 문다).
+ */
 const LADDER = {
   // 웹: 사이트가 막았다 → 우리 수집 대신 모델이 자기 인프라로 찾는다(1층은 스크래핑 차단에 안 걸린다).
   robots_disallow: { rung: 'other_tool', useModelSearch: true, why: '그 사이트가 수집을 막아 두었어요' },
@@ -166,6 +171,11 @@ function 실패지문(rec) {
   const call = rec?.actualCall;
   if (!call?.tool) return null;
   return 호출지문(call.tool, call.args ?? {});
+}
+
+/** 다른 손의 범위 밖을 대신 밟는 손들 — 고지 불변식(P0-b)이 이 집합을 문다. */
+export function 범위를넘겨받는손들() {
+  return [...new Set(Object.values(LADDER).flatMap((s) => [s?.needsHand, s?.반복시?.needsHand, s?.없으면?.needsHand]).filter(Boolean))];
 }
 
 export function nextRung(receipts = [], hands) {

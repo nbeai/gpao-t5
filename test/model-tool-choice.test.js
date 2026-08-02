@@ -97,6 +97,95 @@ test('모델이 전송을 골라도 승인 게이트를 탄다', async () => {
   assert.deepEqual(r.ledger?.confirmed ?? [], [], '승인 전에는 실행 사실이 없다');
 });
 
+test('앞선 삭제와 현재 쓰기가 함께 선택돼도 현재 요청 행동만 승인에 남는다', async () => {
+  let call = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      call += 1;
+      if (opts.requiredTool === 'work.current_actions') {
+        return { text: '', toolCalls: [{
+          name: 'work.current_actions', args: { requestedIndexes: [1], unclear: false },
+        }] };
+      }
+      if (call === 1) return { text: '', toolCalls: [
+        { name: 'local.file', args: { action: 'delete', path: '정산_3월.csv' } },
+        { name: 'local.file', args: { action: 'write', path: '새보고서.md', text: '완료' } },
+      ] };
+      return { text: '확인해 주세요', toolCalls: [] };
+    },
+  };
+  const ctx = { env: demoEnv(), model, tools: demoTools() };
+  const r = await runTurn({ text: '새 보고서를 파일로 저장해줘', turnRef: 'turn-current' }, ctx);
+  assert.equal(r.kind, 'approval');
+  assert.equal(r.pending.length, 1);
+  assert.match(r.pending[0].preview?.impact ?? '', /새보고서/);
+  assert.doesNotMatch(JSON.stringify(r.pending), /정산_3월/);
+  const saved = ctx.pending.get(r.pendingId);
+  assert.equal(saved.sourceTurnRef, 'turn-current');
+  assert.match(saved.sourceRequestDigest, /^[0-9a-f]{16}$/);
+});
+
+test('행동 귀속 판정이 불명확해도 현재 발화의 명확한 파일 작업 하나만 승인한다', async () => {
+  let call = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      call += 1;
+      if (opts.requiredTool === 'work.current_actions') return { text: '', toolCalls: [] };
+      if (call === 1) return { text: '', toolCalls: [
+        { name: 'local.file', args: { action: 'delete', path: '옛파일.csv' } },
+        { name: 'local.file', args: { action: 'delete', path: '정산_3월.csv' } },
+      ] };
+      return { text: '확인해 주세요', toolCalls: [] };
+    },
+  };
+  const ctx = { env: demoEnv(), model, tools: demoTools() };
+  const r = await runTurn({ text: '정산_3월.csv를 지워줘' }, ctx);
+  assert.equal(r.kind, 'approval');
+  assert.match(r.pending[0].preview?.impact ?? '', /정산_3월/);
+  assert.doesNotMatch(JSON.stringify(r), /옛파일/);
+  assert.doesNotMatch(r.reply ?? '', /한 번 더/);
+});
+
+test('모델이 다른 사용자 홈을 짐작해도 사용자가 부른 표준 폴더의 실제 루트로 고친다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 't5-runtime-home-'));
+  const downloads = join(home, 'Downloads');
+  await import('node:fs/promises').then(({ mkdir }) => mkdir(downloads));
+  await writeFile(join(downloads, '정산.csv'), '내용');
+  const localFile = makeLocalFileTool({ roots: [join(home, 'GPAO-T5'), downloads], dataDir: join(home, 'state') });
+  const ctx = {
+    env: demoEnv(), tools: demoTools({ localFile }),
+    model: modelChoosing([{ name: 'local.file', args: { action: 'delete', path: '/Users/guessed/Downloads/정산.csv' } }]),
+  };
+  const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
+  assert.equal(r.kind, 'approval');
+  assert.ok((r.pending[0].preview?.scope ?? '').includes(downloads));
+  assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
+});
+
+test('찾은 뒤 이어진 파일 걸음도 추측 홈이 아니라 같은 런타임 루트를 쓴다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 't5-runtime-step-home-'));
+  const downloads = join(home, 'Downloads');
+  await import('node:fs/promises').then(({ mkdir }) => mkdir(downloads));
+  await writeFile(join(downloads, '정산.csv'), '내용');
+  let stage = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc.workContractAssessment) return 'CHAT';
+      if (!opts.tools?.length) return '확인했어요';
+      stage += 1;
+      if (stage === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'list', path: downloads } }] };
+      if (stage === 2) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'delete', path: '/Users/guessed/정산.csv' } }] };
+      return { text: '확인해 주세요', toolCalls: [] };
+    },
+  };
+  const localFile = makeLocalFileTool({ roots: [join(home, 'GPAO-T5'), downloads], dataDir: join(home, 'state') });
+  const ctx = { env: demoEnv(), tools: demoTools({ localFile }), model };
+  const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
+  assert.equal(r.kind, 'approval');
+  assert.ok((r.pending[0].preview?.scope ?? '').includes(downloads));
+  assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
+});
+
 test('읽기처럼 안전한 선택은 그대로 진행한다(안전을 이유로 다 막지 않는다)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-choice2-'));
   await writeFile(join(dir, '메모.md'), '내용');

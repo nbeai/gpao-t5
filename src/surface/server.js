@@ -77,7 +77,7 @@ import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-gro
 import { isSendTool } from '../kernel/contracts.js';
 import { detectSkillCandidate } from '../kernel/l5-growth/skill-learning.js';
 import { admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
-import { transitionState } from '../kernel/l5-growth/automation-contracts.js';
+import { bindAutomationCandidate, transitionState } from '../kernel/l5-growth/automation-contracts.js';
 import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
 
@@ -1122,6 +1122,24 @@ export function makeServer(deps = {}) {
           runs: runs.runs.map(projectAutomationRun),
         });
       }
+      if (req.method === 'GET' && url === '/automation/setup') {
+        const candidateId = new URL(req.url, 'http://x').searchParams.get('candidateId');
+        await automationReady();
+        const [a, skills, profiles] = await Promise.all([
+          autoStore.load(), skillStore.load(), profileStore.load(),
+        ]);
+        const candidate = a.candidates.find((entry) => entry.candidateId === candidateId && !entry.approved);
+        if (!candidate?.action?.tool) return sendJson(res, 404, { error: '설정할 자동화 후보를 찾지 못했어요.' });
+        const tool = candidate.action.tool;
+        return sendJson(res, 200, {
+          ok: true,
+          candidate: { candidateId: candidate.candidateId, statement: candidate.statement },
+          skills: skills.skills.filter((entry) => entry.state === 'active'
+            && (entry.requiredCapabilities ?? []).includes(tool)).map((entry) => ({ id: entry.id, label: entry.name })),
+          profiles: profiles.profiles.filter((entry) => entry.state === 'active'
+            && (entry.toolAllowlist ?? []).includes(tool)).map((entry) => ({ id: entry.id, label: entry.name })),
+        });
+      }
       // 후보 승인 → canonical Skill+AgentProfile에 결합된 ScheduledJob. 후보 문장만으로는
       // 실행 계약을 지어내지 않는다 — 정확한 스킬·역할·권한·트리거를 사용자가 확인해야 한다.
       if (req.method === 'POST' && url === '/automation/approve') {
@@ -1137,8 +1155,19 @@ export function makeServer(deps = {}) {
         if (!skill || !profile) {
           return sendJson(res, 409, { error: '활성 스킬과 활성 담당 역할이 모두 필요해요.' });
         }
+        if (['inputTemplate', 'authorityEnvelope', 'deliveryPolicy'].some((key) => Object.hasOwn(input, key))) {
+          return sendJson(res, 400, { error: '실행 내용과 권한은 확인한 후보에서만 정해져요.' });
+        }
         const now = Date.now();
         const trigger = input.trigger;
+        const bound = bindAutomationCandidate(cand, skill, profile, {
+          trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
+        });
+        if (!bound.ok) {
+          return sendJson(res, 422, {
+            error: '후보와 자동화 계약을 안전하게 묶을 수 없어요.', reason: bound.reason, errors: bound.errors,
+          });
+        }
         const proposed = {
           schemaVersion: 2,
           id: randomUUID(),
@@ -1146,9 +1175,9 @@ export function makeServer(deps = {}) {
           skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
           trigger,
           agentProfileId: profile.id,
-          inputTemplate: input.inputTemplate ?? {},
-          authorityEnvelope: input.authorityEnvelope,
-          deliveryPolicy: input.deliveryPolicy ?? { mode: 'none' },
+          inputTemplate: bound.inputTemplate,
+          authorityEnvelope: bound.authorityEnvelope,
+          deliveryPolicy: bound.deliveryPolicy,
           state: 'proposed',
           nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
           lastRunId: null,
@@ -2101,6 +2130,14 @@ export function makeServer(deps = {}) {
       // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
+    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 민감값을 되읽은 답을 그대로
+    // 보내거나 저장하지 않고, 값 없는 안내로 바꾼다. 로컬 웹 대화는 이 경계를 타지 않는다.
+    for (const field of ['reply', 'question']) {
+      if (typeof result[field] === 'string' && containsSensitiveValue(result[field])) {
+        result[field] = '민감한 값은 답장과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.';
+        result.sensitiveOutputRedacted = true;
+      }
+    }
     민감기억후처리(result);
     try { await 통제후보저장(result, session); }
     catch (error) {

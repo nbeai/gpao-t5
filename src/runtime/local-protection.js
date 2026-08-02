@@ -58,6 +58,36 @@ const SECRET_NAMES = [
   /^\.git-credentials$/i, /^\.credentials(\..+)?$/i, /^\..*_history$/i, /^rclone\.conf$/i,
 ];
 
+// P0-a(QA90 감사 2026-08-02): 이름 규칙의 **커널(샌드박스) 판**. 위 SECRET_NAMES 는 basename
+// 에 대한 JS 정규식이고, seatbelt 는 전체 경로에 대한 대소문자 구분 ERE 만 받는다 — 그래서
+// "그건 도구 층에서 잡는다"로 분담해 뒀는데, 터미널의 도구 층은 basename 을 아예 안 본다.
+// 분담의 한쪽이 비어 있었고 파일손이 막는 `.env`·`id_rsa`·히스토리를 터미널이 읽었다.
+// 규칙마다 경로판을 **같은 파일에 나란히** 둔다(두 벌 목록 금지 — 떨어져 있으면 또 벌어진다).
+// `마지막칸` = 경로의 마지막 조각 경계. basename 판정과 같은 정의역을 보장한다.
+const 마지막칸 = '(^|/)';
+const SECRET_NAME_PATHS = [
+  `${마지막칸}\\.env(\\..*)?$`,
+  `${마지막칸}\\.netrc$`, `${마지막칸}\\.npmrc$`, `${마지막칸}\\.pgpass$`,
+  `${마지막칸}id_(rsa|dsa|ecdsa|ed25519)$`,
+  `\\.(pem|key|p12|pfx|keystore|jks)$`,
+  `${마지막칸}credentials$`, `${마지막칸}service-account[^/]*\\.json$`,
+  `${마지막칸}([^/]*[-_.])?secret[^/]*$`, `${마지막칸}([^/]*[-_.])?token[^/]*$`,
+  `${마지막칸}wallet\\.dat$`, `\\.kdbx$`,
+  `${마지막칸}\\.git-credentials$`, `${마지막칸}\\.credentials(\\.[^/]+)?$`,
+  `${마지막칸}\\.[^/]*_history$`, `${마지막칸}rclone\\.conf$`,
+];
+
+/** seatbelt ERE 에는 /i 가 없다 — 괄호 밖 알파벳을 [xX] 로 펼쳐 같은 판정을 만든다. */
+function 대소문자펼침(src) {
+  let out = ''; let 괄호안 = false;
+  for (const ch of src) {
+    if (ch === '[') { 괄호안 = true; out += ch; continue; }
+    if (ch === ']') { 괄호안 = false; out += ch; continue; }
+    out += !괄호안 && /[a-z]/i.test(ch) ? `[${ch.toLowerCase()}${ch.toUpperCase()}]` : ch;
+  }
+  return out;
+}
+
 // F7.1: **홈의 Library 는 앱의 내부 저장소다** — iMessage 전문(chat.db)·Mail·Containers·
 // 목록에 없는 브라우저·앱 세션이 전부 여기 산다. 절대 경로 `/Library`(시스템)와 별개로,
 // 홈 아래 Library 는 **내용을 보지 않는 자리**로 막는다. 목록 열거로는 새 앱마다 새는
@@ -85,11 +115,27 @@ const SCRATCH = SCRATCH_RAW.filter((d) => d && !SYSTEM_DIRS.some((s) => within(d
 /**
  * 비밀 자리의 실제 경로들. **샌드박스 프로파일도 같은 목록을 쓴다** — 두 벌로 두면
  * 한쪽에만 자리를 추가했을 때 다른 쪽이 조용히 열린다(그게 유출이다).
- * 파일 이름 규칙(`SECRET_NAMES`)은 경로가 아니라 패턴이라 여기 안 들어간다 —
- * 그건 도구 층에서 잡고, 커널 층은 자리로 막는다.
+ * P0-a(2026-08-02): 이 문장이 실제로 깨져 있었다 — 여기가 SECRET_DIRS 만 내보내는 동안
+ * 이름 규칙(F7.2)과 홈 Library 닫힘(F7.1)은 파일손에만 있었고, 터미널이 그 자리를 읽었다.
+ * 그래서 커널이 소비할 **전체** 보호를 `secretProtection()` 하나로 내보낸다. 여기에 자리를
+ * 더하면 파일손과 샌드박스가 같이 닫힌다 — 한쪽에만 더할 방법을 남기지 않는다.
  */
 export function secretPaths() {
   return [...SECRET_DIRS];
+}
+
+/**
+ * 커널(샌드박스)이 소비하는 보호 전체 — protectionFor 의 secret 판정과 같은 정의역.
+ *   dirs         — 자리 기준(subpath 거부)
+ *   namePatterns — 이름 기준(경로 ERE 거부 · 대소문자 펼침 완료)
+ *   closed       — 기본 닫힘 뿌리와 그 안의 열림 예외(require-not)
+ */
+export function secretProtection() {
+  return {
+    dirs: [...SECRET_DIRS],
+    namePatterns: SECRET_NAME_PATHS.map(대소문자펼침),
+    closed: [{ root: USER_LIBRARY, open: [...USER_LIBRARY_OPEN] }],
+  };
 }
 
 /**

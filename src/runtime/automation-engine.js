@@ -15,9 +15,8 @@ import {
   resolveAfterRun,
 } from '../kernel/l5-growth/automation.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
-import { classifyTier } from '../kernel/l2-plan/authority.js';
+import { UNKNOWN_KIND, isSafetyFloor } from '../kernel/l2-plan/authority.js';
 import { blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
-import { TIER } from '../kernel/contracts.js';
 import { BuiltinTriggerProvider } from './trigger-provider.js';
 
 function runIdFor(idempotencyKey) {
@@ -211,7 +210,7 @@ export async function tickAutomation(jobs, context) {
     if (!isJobRunnable(job, now)) continue;
 
     const kind = toolActionKind({ toolId: job.action.tool, args: job.action.args, selfState });
-    if (classifyTier({ kind }) === TIER.A3) {
+    if (kind === UNKNOWN_KIND || isSafetyFloor(kind)) {
       const receipt = blockedReceipt(
         `${job.action.tool} 자동 실행`,
         job.action.tool,

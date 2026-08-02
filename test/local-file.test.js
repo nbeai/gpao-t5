@@ -71,6 +71,17 @@ test('기본 루트는 홈 전체가 아니다 — 표준 사용자 폴더까지
   assert.ok(roots.every((r) => r.startsWith(homedir())), '루트는 전부 사용자 홈 하위다');
 });
 
+test('격리 HOME을 주면 파일 손과 찾기 손이 같은 사용자 폴더를 본다', async () => {
+  const home = await mkdtemp(join(tmpdir(), 't5-isolated-home-'));
+  await mkdir(join(home, 'Downloads'));
+  const roots = defaultFileRoots({ HOME: home });
+  assert.deepEqual(roots, ['GPAO-T5', 'Downloads', 'Documents', 'Desktop'].map((name) => join(home, name)));
+  const live = liveDeps({ HOME: home, GPAO_T5_DATA_DIR: join(home, 'state') });
+  assert.deepEqual(live.tools.tools['local.file'].scopeRoots, roots);
+  const places = await live.tools.tools['local.locate'].places();
+  assert.ok(places.some((place) => place.path === join(home, 'Downloads')));
+});
+
 // ── 읽기·쓰기·정리 (능력 완결) ────────────────────────────────────────────
 test('쓰기 → 읽기 → 목록이 실제로 동작한다(스텁 아님)', async () => {
   const { root, tool } = await sandbox();

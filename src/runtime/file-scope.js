@@ -17,12 +17,12 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 export function defaultFileRoots(env = process.env) {
+  const home = env.GPAO_T5_HOME ?? env.HOME ?? homedir();
   const raw = env.GPAO_T5_FILE_ROOTS;
   if (raw && raw.trim()) {
     // C 감사 F7.5 · 상대 경로는 **cwd 가 아니라 홈** 기준으로 푼다 — 서버를 어디서 켰는지에
     // 따라 루트가 조용히 달라지면, 사용자가 넓히려던 범위와 실제 범위가 갈린다.
     // (`:` 구분은 PATH 관례 그대로 둔다 — 경로에 콜론을 쓰는 구성은 지원하지 않는 기록된 제한.)
-    const home = homedir();
     const roots = raw.split(':')
       .map((p) => p.trim()).filter(Boolean)
       .map((p) => (isAbsolute(p) ? resolve(p) : p.startsWith('~/') ? resolve(home, p.slice(2)) : resolve(home, p)));
@@ -33,7 +33,6 @@ export function defaultFileRoots(env = process.env) {
   // 방금 받은 견적서"가 루트 1개에 막혀 시작도 못 했다. 사용자의 파일은 대부분 여기에 온다.
   // 홈 전체는 열지 않는다 — 넓힘은 이 세 폴더까지이고, `~/.ssh` 같은 위험 자리는
   // local-protection 이 루트와 독립으로 막는다(루트 확장이 보호를 풀지 않는다).
-  const home = homedir();
   return [join(home, 'GPAO-T5'), join(home, 'Downloads'), join(home, 'Documents'), join(home, 'Desktop')];
 }
 

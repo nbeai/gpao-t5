@@ -151,6 +151,9 @@ export function buildSelfState(env, deps = {}) {
       capability: t.capability,
       operatorFact: t.operatorFact,
       limits: t.limits,               // 선언된 한계(이름과 함께 다닌다)
+      // P0-b: 작업 폴더보다 넓게 읽는 손의 **고지 사실**. 여기서 흘리면 능력 문서가 그 손을
+      // "읽기만 합니다"로만 소개하고, 사용자는 T5 가 작업 폴더만 본다고 알게 된다(라이브 실측).
+      readReach: t.readReach,
       schema: t.schema,                   // 모델에게 보여줄 스키마도 descriptor 파생
       note: t.note,
     };

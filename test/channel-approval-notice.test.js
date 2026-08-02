@@ -85,3 +85,26 @@ test('무엇을 왜 멈췄는지와 이어갈 길이 함께 간다(막다른 알
   assert.match(말, /확인/, '왜 멈췄는지가 없다');
   assert.match(말, /T5 화면/, '어디서 이어가는지가 없으면 막다른 알림이다');
 });
+
+test('외부 채널 답이 민감값을 되읽으면 전송·대화 기록에서 값 자체를 제거한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-channel-secret-'));
+  const store = new SessionStore(dir);
+  const allowlistStore = new AllowlistStore(dir);
+  await allowlistStore.allow('telegram', { userId: 'u1' });
+  const sent = [];
+  const server = makeServer({
+    store, allowlistStore, channels: demoChannels(), connectors: demoConnectors(),
+    model: { async respond() { return '확인했어요. 카드번호는 4111 1111 1111 1111 입니다.'; } },
+    tools: demoTools({ senders: {
+      'telegram.send': { async handler(args) { sent.push(args.text); return { result: { sent: true } }; } },
+    } }),
+  });
+  const out = await server.handleChannelMessage({
+    channel: 'telegram', chatId: 'room-secret', userId: 'u1', text: '이 값 확인해줘',
+    isDirectMessage: true, isMention: true,
+  });
+  assert.equal(out.sensitiveOutputRedacted, true);
+  assert.doesNotMatch(sent.join('\n'), /4111/);
+  const saved = await store.load(out.sessionId);
+  assert.doesNotMatch(JSON.stringify(saved.transcript), /4111/);
+});

@@ -26,6 +26,12 @@ import { FAILURE } from '../contracts.js';
  *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
  * @param {string} [d.operatorFact]  T5가 사용자 대신 맡을 수 있는 운영 사실. 능력 설명과 달리
  *   짧고, 현재 손을 고르는 판단 재료로만 쓴다. 경로나 순서를 처방하지 않는다.
+ * @param {string} [d.readReach]  **이 손이 어디까지 볼 수 있는가**(사용자 말 한 줄).
+ *   P0-b(오너 결정 2026-08-02 · 능력 유지 + 고지): 파일 손은 작업 폴더 안만 다루지만
+ *   터미널 손은 이 컴퓨터에서 읽을 수 있는 자리를 본다 — 그게 있어야 "폴더를 복사해 오세요"
+ *   같은 떠넘김이 안 생긴다(recovery-ladder out_of_scope 계약). 능력을 줄이지 않는 대신
+ *   **그 사실을 사용자에게 숨기지 않는다.** 작업 폴더보다 넓게 읽는 손은 이 칸을 채운다.
+ *   문구를 주입하는 자리가 아니라 손이 자기 사실을 선언하는 자리다(§24: 무슨 말을 할지는 모델이 정한다).
  * @returns {import('../contracts.js').ToolDescriptor}
  */
 export function defineTool(d) {
@@ -41,6 +47,7 @@ export function defineTool(d) {
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
     operatorFact: d.operatorFact,
+    readReach: d.readReach,             // 작업 폴더보다 넓게 읽는 손의 **고지 사실**(P0-b)
     // P5-B-0: **어느 서비스의 손인가.** 커넥터가 도구 목록을 손으로 들면(availableTools) 손발이
     // 늘거나 줄 때 또 어긋난다 — `선언 ⊆ 손` 이 이미 목록으로 새어 본 자리다. 방향을 뒤집는다:
     // 도구가 자기 서비스를 말하고, 커넥터의 도구 목록은 **거기서 파생**된다.
@@ -94,6 +101,7 @@ export function toConnection(descriptor, facts = {}) {
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     operatorFact: descriptor.operatorFact,
+    readReach: descriptor.readReach,    // 고지 사실도 손 이름과 함께 끝까지 간다(P0-b)
     limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };

@@ -212,8 +212,9 @@ export function makeLocalLocateTool(deps = {}) {
       // 직접 지목한 루트를 열되 홈 전체를 조용히 여는 일은 없다.
       const selected = String(searched?.from ?? '');
       const selectedName = String(searched?.fromName ?? rec.actualCall.args?.from ?? '').normalize('NFC');
+      const askedName = String(rec.actualCall.args?.from ?? '').normalize('NFC');
       const selectedMentioned = selected && selectedName
-        && currentRequest.includes(selectedName);
+        && (currentRequest.includes(selectedName) || (askedName && currentRequest.includes(askedName)));
       if (selectedMentioned) {
         try {
           const actual = await realpath(selected);

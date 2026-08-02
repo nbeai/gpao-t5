@@ -5,7 +5,7 @@
 // 구조로 지키는 방법이다. T5 는 윤의 개발 보조기가 아니라 일반 사용자의 AI OS 다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, utimes } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeLocalLocateTool } from '../src/runtime/local-locate.js';
@@ -219,6 +219,24 @@ test('진짜 경로를 주면 그대로 쓴다(이름 승계가 경로를 가로
   assert.equal(r.result.searched.from, join(vol, '작업용SSD'));
   assert.equal(r.result.searched.fromName, undefined, '경로를 준 것을 이름으로 읽었다고 하면 거짓이다');
   assert.ok(r.result.candidates.length > 0);
+});
+
+test('사용자가 부른 한국어 폴더 이름도 찾은 자리의 읽기 범위를 연다', async () => {
+  const home = await 가짜홈();
+  const tool = makeLocalLocateTool({ home });
+  const found = await tool.handler({ what: '파일', from: '다운로드' });
+  const receipt = {
+    ...found,
+    failureState: 'none',
+    actualCall: { tool: 'local.locate', args: { what: '파일', from: '다운로드' } },
+  };
+  assert.deepEqual(
+    await tool.readScopeOf(receipt, { currentRequest: '다운로드에 뭐 있어?' }),
+    [await realpath(join(home, 'Downloads'))],
+    '실제로 찾은 Downloads를 한국어로 불렀다는 이유로 다음 읽기가 끊겼다',
+  );
+  assert.deepEqual(await tool.readScopeOf(receipt, { currentRequest: '문서에 뭐 있어?' }), [],
+    '사용자가 부르지 않은 자리까지 읽기 범위로 열었다');
 });
 
 // ── H08 · 파일도 후보다 ──────────────────────────────────────────────────

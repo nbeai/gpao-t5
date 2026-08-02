@@ -323,9 +323,23 @@ export function buildTaskContext(p) {
       // 보고도 같은 인자를 봐야 한다. 셋 중 하나만 다른 것을 보면 원장만 진실이 되고, 사용자가
       // 읽는 답변은 그럴듯한 창작이 된다. 도구마다 결과에 실어 보내게 하면 빠뜨리는 도구가 생기므로
       // (조용한 미참여) 커널이 **모든 도구에 대해** 한 자리에서 준다.
-      calledWith: compactResult(r.actualCall?.args),
+      ...(r.failureState === 'none'
+        ? { calledWith: compactResult(r.actualCall?.args) }
+        : { attemptedWith: compactResult(확인되지않은인자(r.actualCall?.args)) }),
     }));
   }
 
   return packet;
+}
+
+function 확인되지않은인자(value) {
+  if (Array.isArray(value)) return value.map(확인되지않은인자);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    const pathLike = /(?:path|directory|root|cwd)$/i.test(key);
+    if (pathLike && typeof item === 'string' && item.startsWith('/')) {
+      return [key, '[확인되지 않은 절대 경로]'];
+    }
+    return [key, 확인되지않은인자(item)];
+  }));
 }

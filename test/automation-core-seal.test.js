@@ -8,7 +8,7 @@ import { AUTOMATION_SCHEMA_VERSION } from '../src/kernel/l5-growth/automation-co
 import { makeGrowthCandidate } from '../src/kernel/l5-growth/automation.js';
 import { CanonicalAutomationRuntime } from '../src/runtime/canonical-automation-runtime.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
-import { demoEnv } from '../src/surface/demo-context.js';
+import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
 import { MemoryStore } from '../src/surface/memory-store.js';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -102,7 +102,7 @@ test('automation core seal: one canonical chain survives restart and exposes rev
   const now = Date.now();
   const clock = () => now;
   const sharedModel = model();
-  const tools = new ToolRunner({});
+  const tools = demoTools();
   const runtime = new CanonicalAutomationRuntime({
     dir,
     env: demoEnv(),
@@ -119,8 +119,8 @@ test('automation core seal: one canonical chain survives restart and exposes rev
     purpose: '주어진 자료를 짧게 요약한다',
     steps: ['자료를 읽는다', '한 문단으로 요약한다'],
     resultContract: { kind: 'summary' },
-    requiredCapabilities: [],
-    authorityHints: [],
+    requiredCapabilities: ['local.file'],
+    authorityHints: ['read'],
     replayCases: replayCases(),
   }, { now });
   assert.equal(proposed.ok, true, JSON.stringify(proposed));
@@ -152,8 +152,8 @@ test('automation core seal: one canonical chain survives restart and exposes rev
     name: '정기 요약 담당',
     purpose: '승인된 정기 요약만 실행한다',
     modelRole: 'worker',
-    toolAllowlist: [],
-    workspaceScope: [],
+    toolAllowlist: ['local.file'],
+    workspaceScope: ['/tmp'],
     defaultBudgets: { maxToolCalls: 1, timeoutMs: 30_000, maxCost: 0, maxConcurrency: 1 },
     authorityCeiling: 'A0',
   }, now + 4);
@@ -163,7 +163,7 @@ test('automation core seal: one canonical chain survives restart and exposes rev
     candidates: [...state.candidates, makeGrowthCandidate({
       candidateId: 'seal-candidate',
       statement: '정기적으로 자료를 요약한다',
-      action: null,
+      action: { tool: 'local.file', args: { action: 'read', operation: 'read', path: '/tmp/sealed-fixture.txt' } },
     })],
   }));
 
@@ -188,9 +188,7 @@ test('automation core seal: one canonical chain survives restart and exposes rev
         kind: 'interval', timezone: 'UTC', intervalMs: 60_000,
         nextRunAt: now, misfirePolicy: 'catch_up_once',
       },
-      authorityEnvelope: authority(),
-      inputTemplate: { source: 'sealed-fixture' },
-      deliveryPolicy: { mode: 'none' },
+      expiresAt: now + 30 * 24 * 60 * 60 * 1000,
     });
     assert.equal(scheduled.response.status, 200, JSON.stringify(scheduled.result));
     assert.equal(scheduled.result.state, 'scheduled');

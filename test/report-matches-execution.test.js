@@ -48,7 +48,7 @@ test('그 사실이 실제 프롬프트 문자열까지 도달한다(패킷에�
   assert.match(전문, /가장 중요한 일 하나만 먼저 끝내기/, '프롬프트에 없으면 모델은 못 본다');
 });
 
-test('실패한 실행의 인자도 보인다 — 못 한 일을 무엇으로 시도했는지', () => {
+test('실패한 실행 인자는 확인된 실행과 분리해 시도값으로 보인다', () => {
   const 실패 = receipt({
     intended: '파일을 지운다',
     actualCall: { tool: 'local.file', args: { action: 'delete', path: '없는파일.md' } },
@@ -56,7 +56,8 @@ test('실패한 실행의 인자도 보인다 — 못 한 일을 무엇으로 �
     userSafeSummary: '찾지 못했어요.',
   });
   const tc = buildTaskContext({ intent, selfState, receipts: [실패] });
-  assert.match(tc.evidenceFacts[0].calledWith, /없는파일\.md/);
+  assert.equal(tc.evidenceFacts[0].calledWith, undefined, '실패한 인자를 성공한 호출 사실로 올렸다');
+  assert.match(tc.evidenceFacts[0].attemptedWith, /없는파일\.md/);
 });
 
 test('인자가 없는 도구도 깨지지 않는다', () => {

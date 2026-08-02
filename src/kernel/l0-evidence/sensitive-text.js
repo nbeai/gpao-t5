@@ -68,3 +68,18 @@ export function containsSensitiveValue(value) {
     !UUID.test(token)
     && /[A-Z]/.test(token) && /[a-z]/.test(token) && /\d/.test(token));
 }
+
+/**
+ * 외부로 나가는 실행 인자에서 사람이 쓴 본문만 검사한다. 대상 ID·채널 이름까지 통째로
+ * 문자열화하면 평범한 기계 식별자가 비밀로 오인되므로, 전송 내용에 해당하는 값만 좁게 본다.
+ */
+export function containsSensitivePayload(args) {
+  if (!args || typeof args !== 'object') return false;
+  const fields = ['text', 'message', 'body', 'content', 'caption', 'subject'];
+  return fields.some((key) => {
+    const value = args[key];
+    if (typeof value === 'string') return containsSensitiveValue(value);
+    if (Array.isArray(value)) return value.some((item) => containsSensitiveValue(item));
+    return false;
+  });
+}

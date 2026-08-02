@@ -2,6 +2,8 @@
 // 흐름(감사 지정): 발화 → SelfState → Intent → (fast_chat | ActionPlan → Authority → 실행 → Receipt)
 //                 → Truth Ledger → 다음 안전 행동.
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
+import { createHash } from 'node:crypto';
+import { basename, resolve } from 'node:path';
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
 import { externalReality } from './l1-intent/external-service.js';
@@ -14,7 +16,7 @@ import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
-import { isExecutionAllowed, decideAutoGrant } from './l2-plan/authority.js';
+import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedEntries, dropHistoryDuplicates, isRelevant } from './l1-intent/context-mesh.js';
@@ -38,6 +40,35 @@ import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE , isSendTool } from './contracts
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
+function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
+
+function runtimeFileArgs(args, request, roots = []) {
+  if (!args || typeof args !== 'object' || !roots.length) return args;
+  const requested = String(request ?? '').normalize('NFC').replace(/\s+/g, '').toLowerCase();
+  const aliases = {
+    Downloads: ['downloads', '다운로드', '다운로드폴더'],
+    Documents: ['documents', '문서', '내문서'],
+    Desktop: ['desktop', '바탕화면', '데스크톱', '데스크탑'],
+  };
+  const mapPath = (value) => {
+    if (typeof value !== 'string' || !value.trim()) return value;
+    const portable = value.replaceAll('\\', '/');
+    for (const [name, names] of Object.entries(aliases)) {
+      if (!names.some((alias) => requested.includes(alias))) continue;
+      const root = roots.find((entry) => basename(entry).normalize('NFC').toLowerCase() === name.toLowerCase());
+      if (!root) continue;
+      const match = portable.match(new RegExp(`(?:^|/)${name}(?:/|$)(.*)$`, 'i'));
+      if (match) return resolve(root, match[1] ?? '');
+      const relative = names.find((alias) => portable.normalize('NFC').replace(/\s+/g, '').toLowerCase().startsWith(alias));
+      if (relative) return resolve(root, portable.split('/').slice(1).join('/'));
+      // 폴더를 명시한 이번 발화가 신분이다. 모델이 중간 폴더명까지 빼고 다른 홈 아래에
+      // 파일명만 붙였어도, 그 추측 홈을 실행 사실로 쓰지 않고 명시된 표준 폴더에 결합한다.
+      return resolve(root, basename(portable));
+    }
+    return value;
+  };
+  return { ...args, ...(args.path ? { path: mapPath(args.path) } : {}), ...(args.to ? { to: mapPath(args.to) } : {}) };
+}
 
 /**
  * P6-W3 · **지금 볼 수 있는 자리.** 매 턴 사실로 준다 — 도구를 부를 때만 알 수 있게 두면
@@ -55,6 +86,41 @@ async function 볼수있는자리(ctx) {
 // 정확히 알고도 "손을 다 써서 다음 턴에 하겠다"며 멈췄다 — t5demo-idle 과 같은 병(손 부족).
 // 되풀이는 지문(호출지문)이 따로 막으므로, 상한은 목적 완주가 걸리지 않는 6으로 둔다.
 const MAX_TOOL_STEPS = 6;
+
+const CURRENT_ACTION_SCOPE_SCHEMA = Object.freeze({
+  name: 'work.current_actions',
+  description: '후보 행동 중 사용자의 이번 발화가 지금 요청한 것만 고른다. 이전 턴의 미완료 행동은 다시 요구하지 않았다면 고르지 않는다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      requestedIndexes: { type: 'array', items: { type: 'integer' } },
+      unclear: { type: 'boolean' },
+    },
+    required: ['requestedIndexes', 'unclear'],
+  },
+});
+
+async function currentRequestCalls({ calls, text, tc, model, selfState }) {
+  if (!Array.isArray(calls) || calls.length < 2) return calls;
+  const touchesApproval = calls.some((call) => isSafetyFloor(toolActionKind({
+    toolId: call?.name, args: call?.args, selfState,
+  })));
+  if (!touchesApproval) return calls;
+
+  const out = await model.respond({
+    ...tc,
+    currentActionAssessment: {
+      userRequest: text,
+      candidates: calls.map((call, index) => ({ index, tool: call?.name, args: call?.args ?? {} })),
+    },
+  }, { effort: 'medium', tools: [CURRENT_ACTION_SCOPE_SCHEMA], requiredTool: CURRENT_ACTION_SCOPE_SCHEMA.name })
+    .catch(() => null);
+  const verdict = typeof out === 'string' ? null
+    : out?.toolCalls?.find((call) => call?.name === CURRENT_ACTION_SCOPE_SCHEMA.name)?.args;
+  if (!verdict || verdict.unclear !== false || !Array.isArray(verdict.requestedIndexes)) return null;
+  const indexes = new Set(verdict.requestedIndexes.filter((index) => Number.isInteger(index) && index >= 0 && index < calls.length));
+  return calls.filter((_, index) => indexes.has(index));
+}
 
 async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
@@ -643,6 +709,25 @@ export async function runTurn(input, ctx) {
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
+  // 대화 이력 속 미완료 행동과 지금 요청이 한 번에 선택되면 안전 카드가 서로 다른 일을 묶는다.
+  // 현재 발화에 속한 행동만 구조 판정으로 남기며, 판정 불능이면 실행보다 짧은 확인을 택한다.
+  if (modelChosen?.length > 1) {
+    modelChosen = await currentRequestCalls({
+      calls: modelChosen, text: input.text ?? '', tc: earlyTc, model: ctx.model, selfState,
+    });
+    if (!modelChosen) {
+      const currentFile = parseFileRequest(input.text ?? '');
+      if (!currentFile.ambiguous && currentFile.action !== 'unknown') {
+        // 구조 판정이 실패해도 현재 발화 하나에서 기계적으로 완결된 파일 작업은 과거 대화와
+        // 섞이지 않는다. 그 한 행동만 다시 세워 승인·실행 경계로 보낸다.
+        modelChosen = [{ name: 'local.file', args: currentFile }];
+        earlyReply = '';
+      } else {
+        earlyReply = '앞선 미완료 작업과 지금 요청이 함께 잡혔어요. 지금 할 일만 한 번 더 말씀해 주세요.';
+      }
+    }
+  }
+
   // 완료 형태 판단은 fast path 보다 먼저 선다. 모델이 첫 응답에서 손을 고르지 않았다는 이유로
   // 파일 산출물 요청이 대화 답만 남기고 빠져나가면, 바로 막으려던 H08 실패가 재발한다.
   const completionContract = await fileDeliverablesFor({
@@ -761,6 +846,19 @@ export async function runTurn(input, ctx) {
         },
       };
     }
+  }
+  // 모델이 다른 사용자 홈을 짐작해도, 사용자가 이번 발화에서 직접 부른 표준 폴더라면
+  // 현재 런타임이 실제로 연 루트로 맞춘다. 미리보기·승인·실행이 모두 같은 인자를 본다.
+  const effectiveFileOp = planIntent.toolArgs?.['local.file'] ?? planIntent.fileOp;
+  if (effectiveFileOp) {
+    const normalizedFile = runtimeFileArgs(
+      effectiveFileOp, input.text, ctx.tools?.tools?.['local.file']?.scopeRoots,
+    );
+    planIntent = {
+      ...planIntent,
+      fileOp: normalizedFile,
+      toolArgs: { ...(planIntent.toolArgs ?? {}), 'local.file': normalizedFile },
+    };
   }
   // 승인 카드에 실을 사실을 **도구에게 물어 둔다.** 도구별 if 가 아니라 계약 하나다 —
   // 새 도구가 previewOf 를 내면 그대로 카드에 실린다(안 내면 예전 문구로 떨어진다).
@@ -939,6 +1037,8 @@ export async function runTurn(input, ctx) {
     이전대기를지난것으로(ctx);
     ctx.pending.set(pendingId, {
       intent, plan, admitted, sendArgs,
+      sourceTurnRef: input.turnRef ?? null,
+      sourceRequestDigest: requestDigest(input.text),
       // **결과는 요청이 온 자리로 돌아간다.** 승인은 표면을 건너뛸 수 있어도(방에서 시켰는데
       // 화면에서 승인) 결과까지 건너뛰면 안 된다 — 라이브 실측: 방에서 시키고 방에서
       // "확인해 주시면 이어서 할게요"를 들은 뒤 화면에서 승인했는데, 방은 영영 조용했다.
@@ -954,34 +1054,11 @@ export async function runTurn(input, ctx) {
     // 원문이 있지만, 그건 "무엇을 이해했고 왜 멈췄는지"가 아니다.
     //   · 모델이 도구를 고르며 이미 한 말이 있으면 **그걸 버리지 않는다**(toolCalls 를 버렸던
     //     것과 같은 자리의 거울상이다 — 그때도 모델은 옳게 말했는데 우리가 버렸다).
-    //   · 없으면 손을 빼고 한 번 더 묻는다. 고를 것이 없으니 모델은 지금까지의 사실로 말한다.
+    //   · 없으면 카드가 이미 확정한 사실을 짧게 말한다. 안내만 위해 모델을 다시 부르지 않는다.
     let 멈춤설명 = (earlyReply ?? '').trim();
-    if (!멈춤설명 && earlyTc) {
-      const 라벨 = toolLabel(pendingGrants[0].action, selfState);
-      const out = await ctx.model.respond(
-        {
-          ...earlyTc,
-          // **"실행 전이다"가 "못 한다"로 번역되지 않게 사실을 끝까지 적는다.**
-          // 라이브 실측(56a6ae67 · f374fb16): 이 자리에서 모델이 이렇게 답했다 —
-          //   "확인받을 일은 아니고 … 지금 이 대화창에는 로컬 파일 실행 도구가 붙어 있지 않아서
-          //    제가 실제 생성까지는 못 했어요. 직접 만들면 내용은 이것만 넣으면 됩니다."
-          // 세 겹으로 틀렸다: 확인이 필요한데 아니라고 했고, 있는 손을 없다고 했고, 사용자에게 시켰다.
-          // 원인은 금지문 부족이 아니라 **현실 부족**이었다(아래 tools 와 이 문장이 그 현실이다).
-          recoveryHint: `${withParticle(라벨, '은')} 실행 전에 확인을 받는 일이에요.`
-            + ' 지금은 확인을 요청하는 중이고, 승인하면 **내가 직접 실행한다.**'
-            + ' 내 손으로 되는 일이다 — 사용자에게 대신 하라고 하지 않는다.',
-        },
-        // **손 목록을 함께 준다.** 안 주면 모델이 "이 경로에는 도구가 안 붙어 있다"고 읽는다
-        // (실측). 여기서 모델이 도구를 또 고르면 그 선택은 쓰지 않는다 — 우리는 문장만 가져간다.
-        { effort: 'medium', tools: modelSchemasFor(selfState, ctx.modelControls) },
-      ).catch(() => null);
-      멈춤설명 = (typeof out === 'string' ? out : out?.text ?? '').trim();
-      // 이 호출도 같은 분리 경계를 지난다 — 도구 선택은 버려도 통제 호출(기억 후보)은 잃지 않는다.
-      const 분리멈춤 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
-      통제제안받기(분리멈춤);
-      if (분리멈춤.memorySuggestion) memorySuggestion = 분리멈춤.memorySuggestion;
-      if (분리멈춤.memoryWithdrawal) memoryWithdrawal = 분리멈춤.memoryWithdrawal;
-    }
+    if (!멈춤설명) 멈춤설명 = pendingGrants[0]?.reason?.whatChanges
+      ? `${pendingGrants[0].reason.whatChanges} 확인해 주시면 진행합니다.`
+      : '확인해 주시면 이번 요청만 진행합니다.';
     return {
       kind: 'approval',
       pendingId,
@@ -1009,7 +1086,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text);
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1058,7 +1135,7 @@ function 이어받기정리(state, connectors = []) {
   return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
 }
 
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest) {
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -1252,7 +1329,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const parts = callsToIntentParts(next, selfState);
     const toolId = parts.neededTools?.[0];
     if (!toolId) break;
-    const args = parts.toolArgs?.[toolId] ?? { request: intent.currentRequest };
+    const rawArgs = parts.toolArgs?.[toolId] ?? { request: intent.currentRequest };
+    const args = toolId === 'local.file'
+      ? runtimeFileArgs(rawArgs, requestText, ctx.tools?.tools?.['local.file']?.scopeRoots)
+      : rawArgs;
 
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     const 지문 = 지문of(toolId, args);
