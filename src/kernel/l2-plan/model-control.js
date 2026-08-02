@@ -228,6 +228,37 @@ const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
 const APPLIES_TO = new Set(['from_now_on', 'this_turn_only']);
 const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown']);
 
+function sameValue(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** 한 턴의 모든 모델 호출이 낸 work.state를 순서대로 합친다. 충돌·상한은 부분 수용하지 않는다. */
+export function mergeWorkStateProposals(proposals = []) {
+  const changes = [];
+  let openQuestion;
+  let continueFrom;
+  for (const proposal of proposals.filter(Boolean)) {
+    for (const change of proposal.changes ?? []) {
+      if (!changes.some((existing) => sameValue(existing, change))) changes.push(change);
+      if (changes.length > 6) return null;
+    }
+    if (proposal.openQuestion) {
+      if (openQuestion && !sameValue(openQuestion, proposal.openQuestion)) return null;
+      openQuestion = proposal.openQuestion;
+    }
+    if (proposal.continueFrom) {
+      if (continueFrom && continueFrom !== proposal.continueFrom) return null;
+      continueFrom = proposal.continueFrom;
+    }
+  }
+  if (!changes.length && !openQuestion && !continueFrom) return null;
+  return {
+    changes,
+    ...(openQuestion ? { openQuestion } : {}),
+    ...(continueFrom ? { continueFrom } : {}),
+  };
+}
+
 /**
  * 모델에게 보여줄 전체 스키마 = 실행 가능한 손 + 통제 채널. 모든 모델 호출 자리가 이걸 쓴다.
  * 손이 하나도 없는 호출에는 통제 채널도 얹지 않는다 — 도구 없는 호출은 스트리밍 단발로 돌고
@@ -266,7 +297,8 @@ export function splitModelControlCalls(toolCalls = []) {
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
-  let workStateProposal = null;
+  const workStateProposals = [];
+  let workStateSeen = false;
   let memorySuggestion = null;
   let memoryWithdrawal = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
@@ -279,8 +311,9 @@ export function splitModelControlCalls(toolCalls = []) {
     if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
     if (c.name === 'agent.propose') { agentProposal = c.args ?? null; continue; }
     if (c.name === 'work.state') {
+      workStateSeen = true;
       const allowed = new Set(['agreement_set', 'agreement_superseded', 'agreement_retracted', 'question_resolved']);
-      const changes = Array.isArray(c?.args?.changes) ? c.args.changes.slice(0, 6).flatMap((entry) => {
+      const changes = Array.isArray(c?.args?.changes) ? c.args.changes.flatMap((entry) => {
         const type = allowed.has(entry?.type) ? entry.type : null;
         const utteranceQuote = String(entry?.utteranceQuote ?? '').trim().slice(0, 300);
         const targetQuote = String(entry?.targetQuote ?? '').trim().slice(0, 300);
@@ -291,11 +324,11 @@ export function splitModelControlCalls(toolCalls = []) {
       const changesAnswerFor = String(c?.args?.openQuestion?.changesAnswerFor ?? '').trim().slice(0, 300);
       const openQuestion = question && changesAnswerFor ? { question, changesAnswerFor } : null;
       const continueFrom = String(c?.args?.continueFrom ?? '').trim().slice(0, 300);
-      workStateProposal = {
+      workStateProposals.push({
         changes,
         ...(openQuestion ? { openQuestion } : {}),
         ...(continueFrom ? { continueFrom } : {}),
-      };
+      });
       continue;
     }
     if (c.name === 'memory.propose') {
@@ -333,5 +366,6 @@ export function splitModelControlCalls(toolCalls = []) {
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, workStateProposal, rest };
+  const workStateProposal = mergeWorkStateProposals(workStateProposals);
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, workStateProposal, workStateSeen, rest };
 }

@@ -56,11 +56,23 @@ test('실행 완료는 같은 WorkRef의 계약과 delivered 영수증 결합만
   const store = await fresh();
   const workRef = await store.issueWorkRef({ turnRef: TURN, workOrdinal: 0 });
   const subjectRef = await store.issueSubjectRef({ turnRef: TURN, eventOrdinal: 1 });
-  const contract = await store.issueCompletionContractRef({ workRef, contract: { deliverable: 'report.md' } });
-  const receipt = await store.issueReceiptRef({
+  const contractBody = {
+    kind: 'file', sourceTurnRef: TURN,
+    deliverables: [{ id: 'report', kind: 'file', operation: 'write', binding: 'direct' }],
+  };
+  const contract = await store.issueCompletionContractRef({ workRef, contract: contractBody });
+  const sealed = await store.runCompletionExecution({
     turnRef: { ...TURN, turnSeq: 2 }, turnOrdinal: 0,
-    receipt: { lifecycle: 'delivered', failureState: 'none', result: { digest: 'a'.repeat(64) } },
+    workRef, completionContract: contractBody, completionContractRef: contract,
+    execute: async () => ({
+      lifecycle: 'delivered', failureState: 'none',
+      actualCall: { tool: 'local.file', args: { action: 'write', path: '/tmp/report.md' } },
+      result: { path: '/tmp/report.md', digest: 'a'.repeat(64) },
+      deliverableRefs: ['report'], workRef, completionContract: contractBody,
+      completionContractRef: contract,
+    }),
   });
+  const receipt = sealed.receiptRef;
 
   const done = await store.append({
     type: 'execution_completed', workRef, subjectRef, scopeRef: SCOPE,

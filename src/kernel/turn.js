@@ -25,7 +25,9 @@ import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
-import { modelSchemasFor, splitModelControlCalls } from './l2-plan/model-control.js';
+import {
+  mergeWorkStateProposals, modelSchemasFor, splitModelControlCalls,
+} from './l2-plan/model-control.js';
 import {
   bindDeliverableReceipt, fileWorkIsInPlay, parseDeliverableJudgment, unsatisfiedDeliverables,
 } from './l2-plan/work-contract.js';
@@ -559,6 +561,24 @@ export async function runTurn(input, ctx) {
   // **어느 자리에서 물었는가.** 실행 루프 중간에 승인이 필요해질 수도 있어서(executePlan 은
   // input 을 안 받는다) 여기서 ctx 에 실어 둔다 — 결과가 요청이 온 자리로 돌아가는 계약(L9).
   ctx.askedFrom = input.channel ? { channel: input.channel } : undefined;
+  const workStateProposals = [];
+  let workStateConflict = false;
+  const collectWorkState = (split) => {
+    if (!split?.workStateSeen) return;
+    if (!split.workStateProposal) { workStateConflict = true; return; }
+    workStateProposals.push(split.workStateProposal);
+    if (!mergeWorkStateProposals(workStateProposals)) workStateConflict = true;
+  };
+  const currentWorkStateProposal = () => (workStateConflict
+    ? null : mergeWorkStateProposals(workStateProposals));
+  ctx.collectWorkState = collectWorkState;
+  ctx.workStateSnapshot = () => ({
+    workStateProposal: currentWorkStateProposal(),
+    workStateConflict,
+  });
+  // 승인 클릭에는 사용자 원문이 없다. 승인 뒤에도 같은 work.state 후보를 검증할 수 있도록
+  // 최초 요청 원문을 pending에 함께 봉인한다.
+  ctx.workStateSourceText = input.text ?? '';
 
   // A) 승인 재개 — 재해석하지 않고 보관된 봉인 계획을 그대로 이어받는다(감사 지적 수정).
   if (input.approve) {
@@ -572,6 +592,9 @@ export async function runTurn(input, ctx) {
       ctx.pending.delete(input.approve);
       return { kind: 'reply', reply: '이 승인 요청은 시간이 지나 만료됐어요. 다시 말씀해 주시면 새로 확인할게요.', selfStateSummary: summary };
     }
+    if (saved.workStateConflict) workStateConflict = true;
+    else if (saved.workStateProposal) workStateProposals.push(structuredClone(saved.workStateProposal));
+    ctx.workStateSourceText = saved.sourceInputText ?? '';
     ctx.pending.delete(input.approve);
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
     // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
@@ -583,7 +606,11 @@ export async function runTurn(input, ctx) {
     // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
-    return executePlan(saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs);
+    const result = await executePlan(
+      saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs,
+    );
+    result.workStateProposal = currentWorkStateProposal();
+    return result;
   }
 
   // B) 승인 거부 — 안전 정지. 실행하지 않고 초안·상태를 보존한다.
@@ -679,14 +706,17 @@ export async function runTurn(input, ctx) {
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
-  let workStateProposal = null;
   const 통제제안받기 = (분리) => {
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
-    if (분리?.workStateProposal) workStateProposal = 분리.workStateProposal;
+    collectWorkState(분리);
   };
-  const 통제제안 = () => ({ skillProposal, automationProposal, agentProposal, workStateProposal });
+  const 통제제안 = () => ({
+    skillProposal, automationProposal, agentProposal,
+    workStateProposal: currentWorkStateProposal(),
+  });
+  const 승인통제제안 = () => ({ skillProposal, automationProposal, agentProposal });
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
@@ -997,6 +1027,19 @@ export async function runTurn(input, ctx) {
     planIntent = { ...planIntent, neededTools: 남은손, fileOp: undefined };
   }
   const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
+  // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
+  // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
+  if (plan.deliverableAssessment === 'file' && plan.deliverables.length
+      && ctx.workRef && ctx.issueCompletionContractRef && input.turnRef) {
+    const contract = {
+      kind: 'file',
+      sourceTurnRef: input.turnRef,
+      deliverables: structuredClone(plan.deliverables),
+    };
+    plan.workRef = ctx.workRef;
+    plan.completionContract = contract;
+    plan.completionContractRef = await ctx.issueCompletionContractRef(contract);
+  }
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
   //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
@@ -1124,6 +1167,10 @@ export async function runTurn(input, ctx) {
     이전대기를지난것으로(ctx);
     ctx.pending.set(pendingId, {
       intent, plan, admitted, sendArgs,
+      workStateProposal: currentWorkStateProposal(),
+      workStateConflict,
+      sourceInputText: ctx.workStateSourceText,
+      workRef: ctx.workRef ?? null,
       sourceTurnRef: input.turnRef ?? null,
       sourceRequestDigest: requestDigest(input.text),
       // **결과는 요청이 온 자리로 돌아간다.** 승인은 표면을 건너뛸 수 있어도(방에서 시켰는데
@@ -1167,7 +1214,7 @@ export async function runTurn(input, ctx) {
       memorySuggestion,
       memoryWithdrawal,
       automationSuggestion,
-      ...통제제안(),
+      ...승인통제제안(),
       capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
   }
@@ -1183,7 +1230,10 @@ export async function runTurn(input, ctx) {
   if (ctx.제안된스킬) { skillProposal = ctx.제안된스킬; ctx.제안된스킬 = undefined; }
   if (ctx.제안된자동화) { automationProposal = ctx.제안된자동화; ctx.제안된자동화 = undefined; }
   if (ctx.제안된에이전트) { agentProposal = ctx.제안된에이전트; ctx.제안된에이전트 = undefined; }
-  Object.assign(result, 통제제안());
+  // 도구 걸음 중 승인이 생기면 work.state는 pending에 봉인된 채 승인 뒤에만 나간다.
+  // 여기서 먼저 노출하면 승인 전/후가 서로 다른 사건 묶음으로 저장된다.
+  if (result.kind === 'approval') Object.assign(result, 승인통제제안());
+  else Object.assign(result, 통제제안());
   result.followUp = followUp;
   // 걸음 경로에서 모델이 제출한 기억 후보가 있으면 그것이 우선이다(ctx 로 실려 온다).
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
@@ -1244,12 +1294,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     currentRequest: intent.currentRequest,
     readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],
   });
+  const 계약실행 = async (toolId, args) => {
+    const execute = async () => bindDeliverableReceipt(
+      plan, await ctx.tools.run(toolId, args, selfState, 실행문맥()),
+    );
+    if (toolId !== 'local.file' || !plan.workRef || !plan.completionContract
+      || !plan.completionContractRef || !ctx.runCompletionExecution) return execute();
+    return ctx.runCompletionExecution({
+      turnRef: plan.completionContract.sourceTurnRef,
+      turnOrdinal: turnReceipts.length,
+      workRef: plan.workRef,
+      completionContract: plan.completionContract,
+      completionContractRef: plan.completionContractRef,
+      execute,
+    });
+  };
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
   for (const toolId of plan.toolsToUse) {
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
-    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState, 실행문맥()));
+    const rec = await 계약실행(toolId, args);
     현실다시();
     ledger.append(rec);
     turnReceipts.push(rec);
@@ -1400,6 +1465,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
     // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
     const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
+    ctx.collectWorkState?.(분리);
     if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
     if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
     if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
@@ -1541,6 +1607,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         })(),
       };
       const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
+      if (plan.workRef && plan.completionContract && plan.completionContractRef) {
+        걸음plan.workRef = plan.workRef;
+        걸음plan.completionContract = structuredClone(plan.completionContract);
+        걸음plan.completionContractRef = plan.completionContractRef;
+      }
       // 이 요청에서 이미 허락받은 손이면 다시 묻지 않는다(같은 질문을 두 번 하지 않는다).
       // 손이 **다르면** 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
       const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
@@ -1549,6 +1620,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         이전대기를지난것으로(ctx);
         ctx.pending.set(pendingId, {
           intent: 걸음intent, plan: 걸음plan, admitted,
+          ...ctx.workStateSnapshot?.(),
+          sourceInputText: ctx.workStateSourceText,
+          workRef: ctx.workRef ?? null,
           // **판정한 인자를 그대로 실행 인자로 봉인한다.** executePlan 은 실행할 때 `sendArgs`
           // 에서 인자를 꺼낸다(570줄) — 여기에 안 실으면 승인 뒤 `{request: 발화원문}` 으로
           // 실행돼 엉뚱한 일이 된다. 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
@@ -1589,7 +1663,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
-    const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, 판정인자, selfState, 실행문맥()));
+    const rec = await 계약실행(toolId, 판정인자);
     현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);

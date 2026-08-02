@@ -708,6 +708,7 @@ export function makeServer(deps = {}) {
 
   async function 기록된작업사건({
     session, inputText, result, turnRef, ledgerFrom, shownProjects = [], proposal = null,
+    provisionalWorkRef = null,
   }) {
     let workRef = session.workRef ?? null;
     if (proposal) {
@@ -719,6 +720,7 @@ export function makeServer(deps = {}) {
         turnRef,
         principalRef: session.principalRef,
         workRef,
+        provisionalWorkRef,
         shownProjects,
       });
       if (admitted.accepted) workRef = admitted.workRef;
@@ -731,15 +733,18 @@ export function makeServer(deps = {}) {
       const receipt = receipts[index];
       if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
         || !receipt?.deliverableRefs?.length) continue;
-      const receiptRef = await workEventStore.issueReceiptRef({ turnRef, turnOrdinal: index, receipt });
-      const completionContractRef = await workEventStore.issueCompletionContractRef({
-        workRef, contract: { deliverableRefs: [...new Set(receipt.deliverableRefs)].sort() },
-      });
+      const receiptRef = receipt.receiptRef;
+      if (!receiptRef) continue;
+      if (receipt.workRef !== workRef || !receipt.completionContractRef) continue;
       await workEventStore.append({
         type: 'execution_completed', workRef,
         subjectRef: await workEventStore.issueSubjectRef({ turnRef, eventOrdinal: 100 + index }),
         scopeRef,
-        evidence: { completionContractRef, receiptRef, verificationPassed: true },
+        evidence: {
+          completionContractRef: receipt.completionContractRef,
+          receiptRef,
+          verificationPassed: true,
+        },
       });
     }
     if (result.kind === 'reply' && String(result.reply ?? '').trim()) {
@@ -799,6 +804,17 @@ export function makeServer(deps = {}) {
     const ctx = ctxForSession(
       session, memory, timingEntry, projectedWorkState, carryableWork, carryableProjects,
     );
+    const 승인대기 = typeof input.approve === 'string'
+      ? session.pendingApprovals?.[input.approve] : undefined;
+    const provisionalWorkRef = session.workRef ?? 승인대기?.workRef ?? (session.principalRef
+      ? await workEventStore.issueWorkRef({ turnRef, workOrdinal: 0 }) : null);
+    ctx.workRef = provisionalWorkRef;
+    if (provisionalWorkRef) {
+      ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
+        workRef: provisionalWorkRef, contract,
+      });
+      ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
+    }
     await automationReady();
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
@@ -824,15 +840,17 @@ export function makeServer(deps = {}) {
     }
     // **이 승인이 어느 자리에서 온 요청이었나.** 커널이 봉인해 둔 것을 턴 전에 읽는다
     // (승인 재개는 그 보류를 지우면서 시작한다).
-    const 물어본자리 = typeof input.approve === 'string'
-      ? session.pendingApprovals?.[input.approve]?.askedFrom : undefined;
+    const 물어본자리 = 승인대기?.askedFrom;
+    const 작업상태원문 = typeof input.approve === 'string'
+      ? 승인대기?.sourceInputText ?? ''
+      : input.text;
     // 모델 응답이 끊겨도 사용자가 방금 말한 일과 이미 일어난 실행을 버리지 않는다.
     // 실행이 없으면 실행 전이라고, 실행이 있으면 원장으로 사실을 남긴다. 오류 원문은
     // 진단면에만 두고 사용자에게는 재시도 가능한 상태만 말한다.
     const ledgerStart = ctx.ledger.entries.length;
     let result;
     try {
-      result = await runTurn(input, ctx);
+      result = await runTurn({ ...input, turnRef }, ctx);
     } catch (err) {
       const receipts = ctx.ledger.entries.slice(ledgerStart);
       const workingState = deriveWorkingState(session.workingState, { receipts });
@@ -1027,9 +1045,10 @@ export function makeServer(deps = {}) {
     // 기록 실패가 이미 끝난 대화를 거짓 실패로 바꾸지는 않지만 진단 흔적은 숨기지 않는다.
     try {
       await 기록된작업사건({
-        session, inputText: input.text, result, turnRef, ledgerFrom: stampFrom.ledgerFrom,
+        session, inputText: 작업상태원문, result, turnRef, ledgerFrom: stampFrom.ledgerFrom,
         shownProjects: carryableProjects,
         proposal: workStateProposal,
+        provisionalWorkRef,
       });
     } catch (error) {
       result.workStateDiagnostic = { recorded: false, reason: 'work_state_not_recorded' };
@@ -2453,6 +2472,15 @@ export function makeServer(deps = {}) {
       session, memory, undefined, channelProjectWorkState,
       channelCarryableWork, channelCarryableProjects,
     );
+    const provisionalWorkRef = session.workRef ?? (session.principalRef
+      ? await workEventStore.issueWorkRef({ turnRef: channelTurnRef, workOrdinal: 0 }) : null);
+    ctx.workRef = provisionalWorkRef;
+    if (provisionalWorkRef) {
+      ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
+        workRef: provisionalWorkRef, contract,
+      });
+      ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
+    }
     await automationReady();
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
@@ -2467,6 +2495,7 @@ export function makeServer(deps = {}) {
       channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
       // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
+      turnRef: channelTurnRef,
     }, ctx);
     const workStateProposal = result.workStateProposal ?? null;
     delete result.workStateProposal;
@@ -2497,6 +2526,7 @@ export function makeServer(deps = {}) {
           ledgerFrom: channelStampFrom.ledgerFrom,
           shownProjects: channelCarryableProjects,
           proposal: workStateProposal,
+          provisionalWorkRef,
         });
       } catch (error) {
         result.workStateDiagnostic = { recorded: false, reason: 'work_state_not_recorded' };

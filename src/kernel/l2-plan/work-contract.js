@@ -40,7 +40,14 @@ export function bindDeliverableReceipt(plan, receipt) {
       && typeof receipt.result?.source === 'string'
       && receipt.result.source !== receipt.result.path;
   }).map((wanted) => wanted.id);
-  return refs.length ? { ...receipt, deliverableRefs: [...new Set(refs)] } : receipt;
+  if (!refs.length || !plan?.completionContract || !plan?.completionContractRef || !plan?.workRef) return receipt;
+  return {
+    ...receipt,
+    deliverableRefs: [...new Set(refs)],
+    workRef: plan.workRef,
+    completionContract: structuredClone(plan.completionContract),
+    completionContractRef: plan.completionContractRef,
+  };
 }
 
 /**
@@ -51,6 +58,8 @@ export function unsatisfiedDeliverables(plan, receipts = []) {
   return (plan?.deliverables ?? []).filter((wanted) => {
     if (wanted?.kind !== 'file') return true;
     return !receipts.some((receipt) => isSuccessfulWrite(receipt)
+      && receipt.workRef === plan?.workRef
+      && receipt.completionContractRef === plan?.completionContractRef
       && receipt.deliverableRefs?.includes(wanted.id));
   });
 }

@@ -74,11 +74,16 @@ const WORK_REFS = 'src/kernel/l0-evidence/work-refs.js';
 const WORK_LEDGER = 'src/kernel/l0-evidence/work-event-ledger.js';
 const WORK_STATE = 'src/kernel/l1-intent/work-state.js';
 const WORK_ADMISSION = 'src/surface/work-state-admission.js';
+const WORK_STORE = 'src/surface/work-event-store.js';
+const MODEL_CONTROL = 'src/kernel/l2-plan/model-control.js';
 const T_WORK_REFS = 'test/work-refs.test.js';
 const T_WORK_LEDGER = 'test/work-event-ledger.test.js';
 const T_WORK_STATE = 'test/work-state.test.js';
 const T_WORK_ADMISSION = 'test/work-state-admission.test.js';
 const T_WORK_PRODUCT = 'test/work-state-product.test.js';
+const T_WORK_ATOMICITY = 'test/work-event-atomicity.test.js';
+const T_WORK_COMPLETION = 'test/work-state-completion-binding.test.js';
+const T_WORK_MULTISTAGE = 'test/work-state-multistage.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -103,6 +108,49 @@ export const MUTATIONS = [
   { 이름: '다른 principal 프로젝트를 새 대화 모델 입력에 공급', 파일: SERVER, 검사: T_WORK_PRODUCT,
     찾기: '        .filter((record) => record?.scopeRef?.principalRef === session.principalRef)',
     바꾸기: '        .filter((record) => record?.scopeRef?.principalRef)' },
+  { 이름: '완료 영수증의 WorkRef·사전 계약 결합 검증 제거', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
+    찾기: "      if (receipt.workRef !== candidate.workRef\n        || receipt.completionContractRef !== evidence.completionContractRef) {",
+    바꾸기: '      if (false) {' },
+  { 이름: '실행 뒤 완료 영수증을 공개 서명 경로로 발급', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
+    찾기: "      if (!completionExecution) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '완료 계약을 검증하기 전에 도구 실행 콜백을 허용', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
+    찾기: "    if (contract.workRef !== workRef\n      || contract.contractDigest !== workEvidenceDigest(completionContract)) {",
+    바꾸기: "    if (false) {" },
+  { 이름: '읽기 영수증도 완료 ReceiptRef로 발급', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
+    찾기: "      if (receipt?.actualCall?.tool !== 'local.file' || receipt?.actualCall?.args?.action !== 'write') {",
+    바꾸기: '      if (false) {' },
+  { 이름: '서명된 완료 계약 신분에 다른 계약 본문을 바꿔 끼움', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
+    찾기: "      if (!receipt.completionContract\n        || contract.contractDigest !== workEvidenceDigest(receipt.completionContract)) {",
+    바꾸기: '      if (false) {' },
+  { 이름: '작업 사건 묶음을 사건별로 부분 저장', 파일: WORK_ADMISSION, 검사: T_WORK_ATOMICITY,
+    찾기: '  const events = candidates.length ? await store.appendBatch(candidates) : [];',
+    바꾸기: '  const events = [];\n  for (const candidate of candidates) events.push(await store.append(candidate));' },
+  { 이름: '한 응답의 work.state를 마지막 호출로 덮음', 파일: MODEL_CONTROL, 검사: T_WORK_MULTISTAGE,
+    찾기: '  const workStateProposal = mergeWorkStateProposals(workStateProposals);',
+    바꾸기: '  const workStateProposal = workStateProposals.at(-1) ?? null;' },
+  { 이름: 'work.state 변경 6개 상한 제거', 파일: MODEL_CONTROL, 검사: T_WORK_MULTISTAGE,
+    찾기: '      if (changes.length > 6) return null;', 바꾸기: '' },
+  { 이름: '도구 뒤 모델 호출의 work.state 수집 제거', 파일: TURNJS, 검사: T_WORK_MULTISTAGE,
+    찾기: '    ctx.collectWorkState?.(분리);', 바꾸기: '' },
+  { 이름: '승인 대기에 승인 전 work.state 묶음을 보존하지 않음', 파일: TURNJS, 검사: T_WORK_MULTISTAGE,
+    찾기: "      workStateProposal: currentWorkStateProposal(),\n      workStateConflict,\n      sourceInputText: ctx.workStateSourceText,\n      workRef: ctx.workRef ?? null,\n      sourceTurnRef: input.turnRef ?? null,",
+    바꾸기: "      sourceTurnRef: input.turnRef ?? null," },
+  { 이름: '승인 재개 때 승인 전 work.state 묶음을 복원하지 않음', 파일: TURNJS, 검사: T_WORK_MULTISTAGE,
+    찾기: "    if (saved.workStateConflict) workStateConflict = true;\n    else if (saved.workStateProposal) workStateProposals.push(structuredClone(saved.workStateProposal));",
+    바꾸기: "" },
+  { 이름: '도구 걸음 승인 전에 work.state 묶음을 조기 저장', 파일: TURNJS, 검사: T_WORK_MULTISTAGE,
+    찾기: "  if (result.kind === 'approval') Object.assign(result, 승인통제제안());",
+    바꾸기: "  if (result.kind === 'approval') Object.assign(result, 통제제안());" },
+  { 이름: '승인 클릭문으로 원래 work.state 발화를 대조', 파일: SERVER, 검사: T_WORK_PRODUCT,
+    찾기: "    const 작업상태원문 = typeof input.approve === 'string'\n      ? 승인대기?.sourceInputText ?? ''\n      : input.text;",
+    바꾸기: "    const 작업상태원문 = input.text;" },
+  { 이름: '승인 재개 때 최초 WorkRef 대신 승인 클릭 턴 WorkRef를 발급', 파일: SERVER, 검사: T_WORK_PRODUCT,
+    찾기: "    const provisionalWorkRef = session.workRef ?? 승인대기?.workRef ?? (session.principalRef",
+    바꾸기: "    const provisionalWorkRef = session.workRef ?? (session.principalRef" },
+  { 이름: '완료 계약 경로를 건너뛰고 도구 영수증을 사후 결합', 파일: TURNJS, 검사: T_WORK_PRODUCT,
+    찾기: "    if (toolId !== 'local.file' || !plan.workRef || !plan.completionContract\n      || !plan.completionContractRef || !ctx.runCompletionExecution) return execute();",
+    바꾸기: "    if (true) return execute();" },
   // ── P90-2 지연 계측(서버 사실과 브라우저 표시를 섞지 않는다) ─────────────
   { 이름: '계측 기록에 임의 원문 필드를 허용', 파일: TIMING, 검사: T_TIMING,
     찾기: '    if (!allowed.includes(key)) throw new Error(`${label}.${key}: 허용되지 않은 필드`);',
@@ -473,6 +521,9 @@ export const MUTATIONS = [
     찾기: '          if (범위) memorySuggestion.evidence.appliesTo = 범위;', 바꾸기: '' },
 
   // ── H 진단 계열 ① 민감정보가 관찰 레인으로 새지 않는다 ──────────────────
+  { 이름: 'UUID 내부 숫자 조각을 다시 카드번호로 오인', 파일: SENSITIVE, 검사: T_SENSITIVE,
+    찾기: "  const withoutMachineIds = String(value).replace(UUID_IN_TEXT, ' ');",
+    바꾸기: "  const withoutMachineIds = String(value);" },
   { 이름: '라벨 없는 카드번호와 자연스러운 비밀번호 표현을 민감값에서 제외', 파일: SENSITIVE, 검사: T_SENSITIVE,
     찾기: '    || KOREAN_BARE_CREDENTIAL.test(text) || hasPaymentCard(text)',
     바꾸기: '' },
@@ -677,9 +728,9 @@ export const MUTATIONS = [
   { 이름: '무관한 파일 쓰기를 변환 산출물 계약에 결합', 파일: 'src/kernel/l2-plan/work-contract.js', 검사: 'test/work-contract.test.js',
     찾기: "      && receipt.result?.originalUntouched === true",
     바꾸기: "      && true" },
-  { 이름: '계약 신분 없는 쓰기를 산출물 완료로 인정', 파일: 'src/kernel/l2-plan/work-contract.js', 검사: 'test/work-contract.test.js',
-    찾기: "      && receipt.deliverableRefs?.includes(wanted.id));",
-    바꾸기: "      && true);" },
+  { 이름: '다른 작업 신분의 쓰기를 현재 산출물 완료로 인정', 파일: 'src/kernel/l2-plan/work-contract.js', 검사: 'test/work-contract.test.js',
+    찾기: "      && receipt.workRef === plan?.workRef",
+    바꾸기: "      && true" },
   // ── 사람 브라우저 사용 흐름 (2026-08-02) ────────────────────────────────
   { 이름: '같은 턴에서 복구된 범위 실패를 최종 미해결로 다시 노출', 파일: TURNJS, 검사: 'test/out-of-scope-handoff.test.js',
     찾기: "    if ((rec?.failureState ?? 'none') === 'none' || rec?.scopeState !== 'out_of_scope') return true;",

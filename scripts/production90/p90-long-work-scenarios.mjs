@@ -49,10 +49,11 @@ export function buildLongWorkScenario(turnCount, domain = `domain-${turnCount}`)
   const subjectB = `subject-${domain}-name`;
   const subjectQ = `subject-${domain}-question`;
   const contract = {
-    contractRef: `contract-${domain}`,
-    workRef,
-    contractDigest: `contract-digest-${domain}`,
-    deliverables: [{ id: `deliverable-${domain}`, kind: 'file', operation: 'write' }],
+    kind: 'file',
+    sourceTurnRef: turnRef(sessionId, 1),
+    deliverables: [{
+      id: `deliverable-${domain}`, kind: 'file', operation: 'write', binding: 'direct',
+    }],
   };
   const receipt = receiptFor(sessionId, turnCount - 4, domain);
 
@@ -208,7 +209,7 @@ export async function loadProductAdapter(root = resolve(fileURLToPath(new URL('.
     issueWorkRef: async (store, binding) => store.issueWorkRef(binding),
     issueSubjectRef: async (store, binding) => store.issueSubjectRef(binding),
     issueCompletionContractRef: async (store, input) => store.issueCompletionContractRef(input),
-    issueReceiptRef: async (store, input) => store.issueReceiptRef(input),
+    runCompletionExecution: async (store, input) => store.runCompletionExecution(input),
     approvalCount: async () => 0,
   };
 }
@@ -251,11 +252,22 @@ async function canonicalCandidate(adapter, store, raw, refs, identities, turnRef
       const completionContractRef = await adapter.issueCompletionContractRef(store, {
         workRef, contract: raw.completionContract,
       });
-      const receiptRef = await adapter.issueReceiptRef(store, {
+      const boundReceipt = {
+        ...raw.receipt,
+        workRef,
+        completionContract: raw.completionContract,
+        completionContractRef,
+        deliverableRefs: raw.completionContract.deliverables.map((item) => item.id),
+      };
+      const sealed = await adapter.runCompletionExecution(store, {
         turnRef: raw.receipt.turnRef,
         turnOrdinal: 0,
-        receipt: raw.receipt,
+        workRef,
+        completionContract: raw.completionContract,
+        completionContractRef,
+        execute: async () => boundReceipt,
       });
+      const receiptRef = sealed.receiptRef;
       return { ...base, evidence: { completionContractRef, receiptRef, verificationPassed: true } };
     }
     case 'chat_delivered': {

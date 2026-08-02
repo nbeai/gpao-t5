@@ -101,13 +101,29 @@ function same(actual, expected, label) {
   return actual;
 }
 
-function receiptBinding(value) {
-  exactKeys(value, ['turnRef', 'turnOrdinal', 'receiptDigest'], 'ReceiptRef binding');
-  return {
+function receiptBinding(value, key) {
+  const baseKeys = ['turnRef', 'turnOrdinal', 'receiptDigest'];
+  const boundKeys = [...baseKeys, 'workRef', 'completionContractRef'];
+  const actual = Object.keys(value ?? {}).sort();
+  const isBound = actual.length === boundKeys.length
+    && actual.every((key, index) => key === [...boundKeys].sort()[index]);
+  exactKeys(value, isBound ? boundKeys : baseKeys, 'ReceiptRef binding');
+  const base = {
     turnRef: turnRef(value.turnRef),
     turnOrdinal: ordinal(value.turnOrdinal, 'turnOrdinal'),
     receiptDigest: digest(value.receiptDigest, 'receiptDigest'),
   };
+  if (!isBound) return base;
+  if (typeof value.workRef !== 'string') throw new TypeError('ReceiptRef.workRef가 필요하다');
+  parseWorkRef(value.workRef, key);
+  if (typeof value.completionContractRef !== 'string') {
+    throw new TypeError('ReceiptRef.completionContractRef가 필요하다');
+  }
+  const contract = parseCompletionContractRef(value.completionContractRef, key);
+  if (contract.workRef !== value.workRef) {
+    throw new TypeError('ReceiptRef의 WorkRef와 CompletionContractRef가 결합되지 않았다');
+  }
+  return { ...base, workRef: value.workRef, completionContractRef: value.completionContractRef };
 }
 
 function workBinding(value) {
@@ -138,7 +154,7 @@ function subjectBinding(value) {
 
 function parseReceiptRef(ref, key) {
   const payload = signedPayload(ref, PREFIX.receipt, key);
-  return receiptBinding(payload);
+  return receiptBinding(payload, key);
 }
 
 function parseWorkRef(ref, key) {
@@ -162,11 +178,11 @@ export function readCompletionContractRef(ref, key) { return parseCompletionCont
 export function readSubjectRef(ref, key) { return parseSubjectRef(ref, key); }
 
 export function issueReceiptRef(binding, key) {
-  return issue(PREFIX.receipt, receiptBinding(binding), key);
+  return issue(PREFIX.receipt, receiptBinding(binding, key), key);
 }
 
 export function assertReceiptRef(ref, binding, key) {
-  return same(parseReceiptRef(ref, key), receiptBinding(binding), 'ReceiptRef');
+  return same(parseReceiptRef(ref, key), receiptBinding(binding, key), 'ReceiptRef');
 }
 
 export function issueWorkRef(binding, key) {

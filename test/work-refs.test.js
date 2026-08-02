@@ -43,6 +43,22 @@ test('ReceiptRef는 TurnRef·ordinal·receipt digest 중 하나라도 다르면 
   assert.throws(() => assertReceiptRef(ref, { ...binding, receiptDigest: DIGEST_B }, KEY));
 });
 
+test('완료 ReceiptRef는 WorkRef와 CompletionContractRef를 같은 서명 안에 결합한다', () => {
+  const workRef = issueWorkRef({ turnRef: TURN, workOrdinal: 0 }, KEY);
+  const completionContractRef = issueCompletionContractRef({
+    workRef, contractDigest: DIGEST_B,
+  }, KEY);
+  const binding = {
+    turnRef: TURN, turnOrdinal: 0, receiptDigest: DIGEST_A,
+    workRef, completionContractRef,
+  };
+  const ref = issueReceiptRef(binding, KEY);
+
+  assert.deepEqual(assertReceiptRef(ref, binding, KEY), binding);
+  const otherWorkRef = issueWorkRef({ turnRef: TURN, workOrdinal: 1 }, KEY);
+  assert.throws(() => issueReceiptRef({ ...binding, workRef: otherWorkRef }, KEY));
+});
+
 test('모델이 꾸민 모양·다른 OS 키·여분 필드는 내부 ref로 수용되지 않는다', () => {
   const binding = { turnRef: TURN, turnOrdinal: 0, receiptDigest: DIGEST_A };
   const ref = issueReceiptRef(binding, KEY);

@@ -52,6 +52,5 @@ test('빈 값·모르는 종류·과대한 문자열은 조용히 사건으로 �
       openQuestion: { question: 'x'.repeat(600), changesAnswerFor: '' },
     },
   }]);
-  assert.deepEqual(split.workStateProposal.changes, []);
-  assert.equal(split.workStateProposal.openQuestion, undefined);
+  assert.equal(split.workStateProposal, null);
 });

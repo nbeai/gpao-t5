@@ -22,6 +22,7 @@ const KOREAN_RESIDENT_ID = /\b\d{6}-?[1-4]\d{6}\b/;
 const PAYMENT_CARD_CANDIDATE = /(?:^|[^\d])((?:\d[ -]?){12,18}\d)(?=$|[^\d])/g;
 const LONG_MACHINE_TOKEN = /[A-Za-z0-9_-]{28,}/g;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_IN_TEXT = /(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![0-9a-f])/gi;
 
 function normalized(value) {
   return String(value ?? '').normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
@@ -43,7 +44,8 @@ function luhn(value) {
 
 function hasPaymentCard(value) {
   PAYMENT_CARD_CANDIDATE.lastIndex = 0;
-  return [...String(value).matchAll(PAYMENT_CARD_CANDIDATE)].some((m) => luhn(m[1]));
+  const withoutMachineIds = String(value).replace(UUID_IN_TEXT, ' ');
+  return [...withoutMachineIds.matchAll(PAYMENT_CARD_CANDIDATE)].some((m) => luhn(m[1]));
 }
 
 /**

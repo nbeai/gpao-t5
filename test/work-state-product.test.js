@@ -168,9 +168,17 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   assert.equal(done.kind, 'reply');
   assert.equal(await readFile(source, 'utf8'), '원본 내용');
   assert.equal(await readFile(target, 'utf8'), '완성 내용');
+  const saved = await app.store.load(session.id);
+  const completionReceipt = saved.ledgerEntries.find((entry) => entry.deliverableRefs?.length);
+  assert.equal(completionReceipt.workRef, saved.workRef);
+  assert.equal(completionReceipt.completionContract?.kind, 'file');
+  assert.equal(completionReceipt.completionContract.sourceTurnRef.sessionId, session.id,
+    '완료 계약은 실행 영수증 뒤가 아니라 원래 ActionPlan 턴에 결합돼야 한다');
+  assert.equal(completionReceipt.completionContract.sourceTurnRef.turnSeq, 1);
   const records = await new WorkEventStore(dir).load();
   assert.ok(records.some((event) => event.type === 'execution_completed'
-    && event.evidence?.verificationPassed === true));
+    && event.evidence?.verificationPassed === true
+    && event.evidence?.completionContractRef === completionReceipt.completionContractRef));
   assert.ok(records.some((event) => event.type === 'chat_delivered'));
   await app.close();
 });

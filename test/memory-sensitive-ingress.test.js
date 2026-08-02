@@ -105,6 +105,13 @@ test('비밀 모양만 잡고 보통의 기억 문장은 통과시킨다', () =>
   ]) assert.equal(containsSensitiveValue(value), false, value);
 });
 
+test('UUID 기계 신분은 카드번호로 오인하지 않고 함께 있는 실제 카드번호는 잡는다', () => {
+  const sessionId = '3179e769-e714-46ef-a615-359554688546';
+  assert.equal(containsSensitiveValue(sessionId), false, 'UUID 내부 숫자 조각을 카드번호로 오인했다');
+  assert.equal(containsSensitiveValue(`${sessionId} 카드 4111 1111 1111 1111`), true,
+    'UUID를 제외하면서 실제 카드번호까지 놓쳤다');
+});
+
 test('모델 제출과 정규식 후보 모두 비밀값을 장기 기억에 쓰지 않는다', async () => {
   const modelProposal = {
     async respond(_tc, opts = {}) {

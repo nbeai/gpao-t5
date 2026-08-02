@@ -150,15 +150,67 @@ export class WorkEventStore {
     return signCompletionContractRef({ workRef, contractDigest: workEvidenceDigest(contract) }, key);
   }
 
-  async issueReceiptRef({ turnRef, turnOrdinal, receipt }) {
+  async _issueReceiptRef({ turnRef, turnOrdinal, receipt, completionExecution = false }) {
     if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none') {
       throw new TypeError('성공 ReceiptRef는 delivered·failureState=none 영수증에서만 발급한다');
+    }
+    const isCompletionReceipt = Array.isArray(receipt.deliverableRefs) && receipt.deliverableRefs.length > 0;
+    if (isCompletionReceipt) {
+      if (!completionExecution) {
+        throw new TypeError('완료 ReceiptRef는 사전 계약이 감싼 실행 경로에서만 발급한다');
+      }
+      if (receipt?.actualCall?.tool !== 'local.file' || receipt?.actualCall?.args?.action !== 'write') {
+        throw new TypeError('완료 ReceiptRef는 성공한 local.file write 영수증에서만 발급한다');
+      }
+      if (!receipt.workRef || !receipt.completionContractRef) {
+        throw new TypeError('완료 ReceiptRef에는 사전 WorkRef·CompletionContractRef 결합이 필요하다');
+      }
+      const contract = readCompletionContractRef(receipt.completionContractRef, await this._key());
+      if (contract.workRef !== receipt.workRef) {
+        throw new TypeError('완료 영수증의 WorkRef와 CompletionContractRef가 결합되지 않았다');
+      }
+      if (!receipt.completionContract
+        || contract.contractDigest !== workEvidenceDigest(receipt.completionContract)) {
+        throw new TypeError('완료 영수증이 사전 완료 계약 본문과 결합되지 않았다');
+      }
+      const required = (receipt.completionContract.deliverables ?? []).map((item) => item?.id).filter(Boolean);
+      if (!required.length || required.some((id) => !receipt.deliverableRefs.includes(id))) {
+        throw new TypeError('완료 영수증이 사전 완료 계약의 산출물을 충족하지 않았다');
+      }
     }
     return signReceiptRef({
       turnRef,
       turnOrdinal,
       receiptDigest: workEvidenceDigest(receipt),
+      ...(isCompletionReceipt ? {
+        workRef: receipt.workRef,
+        completionContractRef: receipt.completionContractRef,
+      } : {}),
     }, await this._key());
+  }
+
+  async issueReceiptRef({ turnRef, turnOrdinal, receipt }) {
+    return this._issueReceiptRef({ turnRef, turnOrdinal, receipt, completionExecution: false });
+  }
+
+  /** 계약을 먼저 검증한 뒤 그 경계 안에서 실행하고, 성공한 완료 영수증을 즉시 봉인한다. */
+  async runCompletionExecution({
+    turnRef, turnOrdinal, workRef, completionContract, completionContractRef, execute,
+  }) {
+    if (typeof execute !== 'function') throw new TypeError('완료 계약 실행 함수가 필요하다');
+    const key = await this._key();
+    readWorkRef(workRef, key);
+    const contract = readCompletionContractRef(completionContractRef, key);
+    if (contract.workRef !== workRef
+      || contract.contractDigest !== workEvidenceDigest(completionContract)) {
+      throw new TypeError('실행 전에 발급된 WorkRef·CompletionContractRef·계약 본문 결합이 필요하다');
+    }
+    const receipt = await execute();
+    if (!Array.isArray(receipt?.deliverableRefs) || receipt.deliverableRefs.length === 0) return receipt;
+    const receiptRef = await this._issueReceiptRef({
+      turnRef, turnOrdinal, receipt, completionExecution: true,
+    });
+    return { ...receipt, receiptRef };
   }
 
   async _validateRefs(candidate, key) {
@@ -167,9 +219,13 @@ export class WorkEventStore {
     const evidence = candidate.evidence;
     if (candidate.type === 'execution_completed') {
       const contract = readCompletionContractRef(evidence.completionContractRef, key);
-      readReceiptRef(evidence.receiptRef, key);
+      const receipt = readReceiptRef(evidence.receiptRef, key);
       if (contract.workRef !== candidate.workRef) {
         throw new TypeError('CompletionContractRef가 사건 WorkRef와 다르다');
+      }
+      if (receipt.workRef !== candidate.workRef
+        || receipt.completionContractRef !== evidence.completionContractRef) {
+        throw new TypeError('ReceiptRef가 사건 WorkRef·CompletionContractRef와 결합되지 않았다');
       }
     } else if (candidate.type === 'question_resolved' && evidence.receiptRef !== undefined) {
       readReceiptRef(evidence.receiptRef, key);
@@ -179,21 +235,35 @@ export class WorkEventStore {
     }
   }
 
-  async append(candidate) {
-    exactKeys(candidate, CANDIDATE_KEYS, 'WorkEvent candidate');
+  async _commitRecords(records) {
+    await atomicWritePrivate(this.file, { schemaVersion: STORE_VERSION, records });
+  }
+
+  async appendBatch(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      throw new TypeError('WorkEvent candidate 묶음이 필요하다');
+    }
     const key = await this._key();
-    await this._validateRefs(candidate, key);
-    const input = structuredClone(candidate);
-    const eventId = eventIdFor(input, key);
+    const prepared = [];
+    for (const candidate of candidates) {
+      exactKeys(candidate, CANDIDATE_KEYS, 'WorkEvent candidate');
+      await this._validateRefs(candidate, key);
+      const input = structuredClone(candidate);
+      prepared.push({ input, eventId: eventIdFor(input, key) });
+    }
 
     return serializeByFile(this.file, async () => {
       const { ledger, forcedDegraded, reason } = await this._ledger();
       if (forcedDegraded || ledger.readOnly) {
         throw new Error(`WorkEventStore는 손상 후 읽기 전용이다: ${reason ?? ledger.recovery.reason}`);
       }
-      const record = ledger.append({ eventId, ...input });
-      await atomicWritePrivate(this.file, { schemaVersion: STORE_VERSION, records: ledger.records });
-      return { accepted: true, eventId: record.eventId, event: record };
+      const records = prepared.map(({ input, eventId }) => ledger.append({ eventId, ...input }));
+      await this._commitRecords(ledger.records);
+      return records.map((record) => ({ accepted: true, eventId: record.eventId, event: record }));
     });
+  }
+
+  async append(candidate) {
+    return (await this.appendBatch([candidate]))[0];
   }
 }

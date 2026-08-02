@@ -36,7 +36,7 @@ function validQuote(text, quote) {
  */
 export async function admitWorkStateProposal({
   store, proposal, inputText, reply, turnRef, principalRef, workRef: existingWorkRef,
-  shownProjects = [],
+  provisionalWorkRef = null, shownProjects = [],
 }) {
   if (!store || !proposal || !principalRef || !turnRef) return { accepted: false, reason: 'missing_fact' };
   const changes = Array.isArray(proposal.changes) ? proposal.changes : [];
@@ -53,6 +53,7 @@ export async function admitWorkStateProposal({
 
   const records = await store.load();
   let workRef = existingWorkRef;
+  let provisional = false;
   if (!workRef && proposal.continueFrom) {
     const matches = shownProjects.filter((entry) => entry?.quotes?.includes(proposal.continueFrom));
     if (matches.length !== 1) return { accepted: false, reason: 'continuation_not_shown' };
@@ -66,9 +67,13 @@ export async function admitWorkStateProposal({
       workRef = matches[0].workRef;
     }
   }
+  if (!workRef && provisionalWorkRef) {
+    workRef = provisionalWorkRef;
+    provisional = true;
+  }
   if (workRef) {
     const known = records.some((record) => record.workRef === workRef && exactScope(record, principalRef, workRef));
-    if (!known) return { accepted: false, reason: 'unknown_work' };
+    if (!known && !provisional) return { accepted: false, reason: 'unknown_work' };
   }
   const targets = workRef ? currentTargets(records, principalRef, workRef) : [];
   const prepared = [];
@@ -116,7 +121,6 @@ export async function admitWorkStateProposal({
     });
   }
 
-  const events = [];
-  for (const candidate of candidates) events.push(await store.append(candidate));
+  const events = candidates.length ? await store.appendBatch(candidates) : [];
   return { accepted: true, workRef, scopeRef, events };
 }

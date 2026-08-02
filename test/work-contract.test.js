@@ -18,7 +18,10 @@ test('파일 손을 실제로 고른 흐름에서만 완료 계약 판단을 연
 });
 
 test('파일 산출물은 같은 계약 신분이 결합된 쓰기 영수증에만 결합된다', () => {
-  const plan = { deliverables: [{ id: 'out-1', kind: 'file', operation: 'write', binding: 'derived' }] };
+  const plan = {
+    workRef: 'wr-bound', completionContract: { kind: 'file' }, completionContractRef: 'cr-bound',
+    deliverables: [{ id: 'out-1', kind: 'file', operation: 'write', binding: 'derived' }],
+  };
   const unrelated = [{
     failureState: 'none', actualCall: { tool: 'other.tool', args: {} },
     result: { path: '/tmp/x', digest: 'same-shape' },
@@ -50,10 +53,17 @@ test('파일 산출물은 같은 계약 신분이 결합된 쓰기 영수증에�
   const bound = bindDeliverableReceipt(plan, derivedWrite);
   assert.deepEqual(bound.deliverableRefs, ['out-1']);
   assert.equal(unsatisfiedDeliverables(plan, [bound]).length, 0);
+  assert.equal(unsatisfiedDeliverables(plan, [{ ...bound, workRef: 'wr-other' }]).length, 1,
+    '다른 작업 신분의 영수증이 현재 산출물을 완료했다');
+  assert.equal(unsatisfiedDeliverables(plan, [{ ...bound, completionContractRef: 'cr-other' }]).length, 1,
+    '다른 완료 계약의 영수증이 현재 산출물을 완료했다');
 });
 
 test('처음부터 고른 직접 쓰기는 원본 표시 없이도 자기 완료 계약에 결합된다', () => {
-  const plan = { deliverables: [{ id: 'out-direct', kind: 'file', operation: 'write', binding: 'direct' }] };
+  const plan = {
+    workRef: 'wr-direct', completionContract: { kind: 'file' }, completionContractRef: 'cr-direct',
+    deliverables: [{ id: 'out-direct', kind: 'file', operation: 'write', binding: 'direct' }],
+  };
   const write = bindDeliverableReceipt(plan, {
     failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'write' } },
     result: { path: '/tmp/new.md', digest: 'content-digest' },

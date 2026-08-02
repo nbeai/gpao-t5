@@ -92,6 +92,9 @@
  * @property {FailureState} failureState
  * @property {ReceiptLifecycle} lifecycle  실행·전달 수명주기(Phase 5.1 §7). 승인 상태는 불허
  * @property {string[]} [deliverableRefs]  이 실행이 실제로 충족한 ActionPlan 산출물 계약 신분
+ * @property {string} [workRef]  완료 영수증이 실행 전에 결합된 작업 신분
+ * @property {Object} [completionContract]  ActionPlan 확정 때 봉인된 완료 계약 본문
+ * @property {string} [completionContractRef]  위 계약 본문과 WorkRef를 함께 서명한 신분
  * @property {string[]} [readScopeRoots]  같은 턴에서 도구가 실제 확인한 제한 읽기 범위. 쓰기 권한으로 사용 금지
  * @property {Array<{sourceUrl:string, fetchedAt:number, title:string, excerptHash:string, confidence:number}>} [sources]  출처 근거(P6-2 Slice-2). 웹 도구는 출처 없이 "확인"을 주장하지 못한다
  * @property {string} userSafeSummary     내부 용어 제외, 사용자면 전용
