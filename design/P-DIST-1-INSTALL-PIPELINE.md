@@ -71,3 +71,41 @@
   환경 자격 안내·진단, 설치 manifest가 함께 서야 소비자 설치 완료라고 부른다.
 - 착수 순서는
   `docs/03-product-plan/T5-INSTALL-VS-STRUCTURAL-HARDENING-DECISION-2026-08-02-ko.md`의 오너 선택을 따른다.
+
+### 착수 순서 (오너 결정 반영 · 2026-08-03)
+
+소비자 설치 작업은 다듬기와 세 파일 정리가 끝난 제품 commit에서 다음 순서로 진행한다.
+
+1. **설치 신분 동결**
+   - 제품명, 버전 규칙, bundle id, LaunchAgent label, 기본 포트, 데이터 위치, update channel과
+     서명 trust root를 정한다.
+   - 현재 `0.1.0-development`, `gpao-t5`, `~/.local/state/gpao-t5`를 소비자 계약으로 그대로
+     확정하지 않는다. 기존 개발 데이터의 새 위치 이관과 되돌림을 함께 정한다.
+2. **자급 런타임 결정**
+   - 깨끗한 Mac에 Node가 없다는 전제로 지원 CPU별 Node 런타임을 설치본에 포함한다.
+   - 사용자가 Node, npm, 터미널 또는 환경변수를 준비하게 하지 않는다.
+   - 포함 런타임의 버전·해시·출처를 manifest에 결합하고 설치 산출물에서 직접 부팅한다.
+3. **로컬 표면 소유권 보호**
+   - 루프백 바인딩에 더해 `Host`·`Origin`과 설치 인스턴스 신분을 검증한다.
+   - 다른 웹페이지와 다른 로컬 프로세스가 세션·기억·자동화·연결 POST API를 호출하지 못하게 한다.
+   - OAuth loopback callback의 state 계약과 제품 HTTP API의 소유권 계약을 섞지 않는다.
+4. **macOS 권한과 실행 생명주기**
+   - 서명된 실제 프로세스에서 Documents/Desktop 등 필요한 사용자 파일 권한과 TCC 동작을 검증한다.
+   - Full Disk Access를 기본 전제로 삼지 않는다. 필요한 권한은 작업 시점에 사람말로 요청하고,
+     거절 뒤에도 다른 폴더 선택과 재시도 경로를 제공한다.
+   - 단일 실행, 포트 충돌, 로그인 뒤 시작, 열기·중지·재시작, sleep/wake, reboot와 고아 프로세스 0을
+     하나의 service 계약으로 닫는다.
+5. **자격·데이터 이관**
+   - 모델·커넥터 자격을 Keychain으로 옮기고 성공 확인 뒤에만 옛 파일 자격을 제거한다.
+   - snapshot, schema migration, 중단 재개와 rollback을 먼저 검증한다.
+   - 내보낸 사용자 데이터는 새 설치본이 실제로 다시 가져와 복원할 수 있어야 한다.
+6. **패키지·업데이트·제거 구현**
+   - 앱/launcher, background service, signed pkg, notarization, 원자적 update, 서명된 rollback,
+     preserve/export/delete 세 uninstall 경로를 구현한다.
+   - 실패 진단은 비밀과 사용자 원문을 제외하고 크기·보존 기간을 제한한다.
+7. **설치 산출물 관통**
+   - 지원 행렬의 깨끗한 환경에서 신규 설치, 개발본 이관, 첫 대화, reboot, sleep/wake, update,
+     손상 update 복구, export→제거→재설치→import를 수행한다.
+   - 키보드만 사용, VoiceOver, 화면 확대와 한글 IME의 설치 후 핵심 대화 경로를 함께 확인한다.
+
+공개 배포, Apple 서명 자격 사용, 실사용자 데이터 삭제는 기존대로 오너의 실행 시점 승인 뒤에만 한다.
