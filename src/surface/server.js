@@ -86,6 +86,7 @@ import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runt
 import { liveDeps } from './live-context.js';
 import { WorkEventStore } from './work-event-store.js';
 import { makeTickScheduler } from './tick-scheduler.js';
+import { makeTurnTimingRegistry } from './turn-timing-registry.js';
 import { admitWorkStateProposal } from './work-state-admission.js';
 import { projectWorkState, workStateFacts } from '../kernel/l1-intent/work-state.js';
 import { workEvidenceDigest } from '../kernel/l0-evidence/work-refs.js';
@@ -319,42 +320,10 @@ export function makeServer(deps = {}) {
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
-  // P90-2: 브라우저 표시 보고는 서버 사실과 다른 단조 시계를 쓴다. 살아 있는 계측기와 결합하되
-  // 원문·답변·도구 인자는 이 표에 들어오지 않는다. 완료 뒤에도 화면 투영 보고를 받을 만큼만 보존한다.
-  const activeTurnTimings = new Map();
-  let processHasMeasuredTurn = false;
-  const timingExpiresMs = 10 * 60_000;
-  const timingPathKind = (toolId) => {
-    if (toolId === 'agent.delegate' || String(toolId).startsWith('agent.')) return 'agent';
-    if (String(toolId).startsWith('local.')) return 'local';
-    if (String(toolId).startsWith('web.') || String(toolId).startsWith('browser.')) return 'web';
-    return 'unknown';
-  };
-  const timingPathClass = (kinds) => {
-    const known = [...kinds].filter((kind) => kind !== 'unknown');
-    if (!known.length) return kinds.size ? 'unknown' : 'chat';
-    return new Set(known).size === 1 && !kinds.has('unknown') ? known[0] : 'mixed';
-  };
-  const withTimingEntry = (entry, task) => {
-    const run = entry.queue.catch(() => {}).then(task);
-    entry.queue = run.catch(() => {});
-    return run;
-  };
-  const observeTiming = (entry, task) => {
-    if (!entry || entry.failed) return undefined;
-    try { return task(); }
-    catch (error) {
-      entry.failed = true;
-      console.error('[turn-timing:diagnostic]', error?.message ?? error);
-      return undefined;
-    }
-  };
-  const cleanExpiredTimings = () => {
-    const now = Date.now();
-    for (const [id, entry] of activeTurnTimings) {
-      if (entry.expiresAt < now) activeTurnTimings.delete(id);
-    }
-  };
+  // HRT-ST-001 · 진행 중인 턴의 계측 장부는 자기 파일에 있다(`turn-timing-registry.js`).
+  // 바깥에서 아무것도 받지 않는 순수한 덩어리였다 — 여기 남는 것은 조립뿐이다.
+  const 계측장부 = makeTurnTimingRegistry();
+  const { timingPathKind, timingPathClass, withTimingEntry, observeTiming } = 계측장부;
   // 같은 세션의 턴은 durable truth(EventLog)와 transcript를 공유하므로 직렬화한다.
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
@@ -1207,8 +1176,7 @@ export function makeServer(deps = {}) {
           || Object.keys(input).some((key) => !allowed.includes(key))) {
           return sendJson(res, 400, { error: '계측 형식이 올바르지 않아요.' });
         }
-        cleanExpiredTimings();
-        const entry = activeTurnTimings.get(input.measurementId);
+        const entry = 계측장부.find(input.measurementId);
         if (!entry) return sendJson(res, 404, { error: '계측할 턴을 찾지 못했어요.' });
         const update = { event: input.event, elapsedMs: input.elapsedMs, visibilityState: input.visibilityState };
         try {
@@ -1234,8 +1202,7 @@ export function makeServer(deps = {}) {
         const streamId = randomUUID();
         const measurementId = randomUUID();
         const receivedAt = timingClock();
-        const processWarmth = processHasMeasuredTurn ? 'warm' : 'cold';
-        processHasMeasuredTurn = true;
+        const processWarmth = 계측장부.nextProcessWarmth();
         pendingStreams.set(streamId, {
           sessionId: input.sessionId, text: input.text, measurementId, receivedAt, processWarmth,
           expiresAt: Date.now() + 30_000,
@@ -1303,18 +1270,12 @@ export function makeServer(deps = {}) {
                 origin: pending.receivedAt,
                 clock: timingClock,
               });
-              timingEntry = {
+              timingEntry = 계측장부.open(pending.measurementId, {
                 timing,
-                pathKinds: new Set(),
                 processWarmth: pending.processWarmth,
                 sessionWarmth: activeSession.transcript?.some((entry) => entry.role === 'user')
                   ? 'continued' : 'first_turn',
-                expiresAt: Date.now() + timingExpiresMs,
-                persisted: false,
-                failed: false,
-                queue: Promise.resolve(),
-              };
-              activeTurnTimings.set(pending.measurementId, timingEntry);
+              });
               observeTiming(timingEntry, () => timing.markServerAt('stream_connected', streamConnectedAt));
               observeTiming(timingEntry, () => timing.markServerAt('queue_entered', queueEnteredAt));
               observeTiming(timingEntry, () => timing.markServer('queue_started'));

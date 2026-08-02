@@ -31,6 +31,8 @@ const LANE = 'src/kernel/l5-growth/tcell-lane.js';
 const CONN = 'src/surface/model-connection.js';
 const SERVER = 'src/surface/server.js';
 const TICK = 'src/surface/tick-scheduler.js';   // HRT-ST-001 로 server.js 에서 추출된 tick 스케줄러
+const TIMING_REG = 'src/surface/turn-timing-registry.js'; // HRT-ST-001 두 번째 추출
+const T_TIMING_REG = 'test/turn-timing-registry.test.js';
 
 const T_GROW = 'test/tcell-grow.test.js';
 const T_REPLAY = 'test/tcell-replay.test.js';
@@ -409,6 +411,18 @@ export const MUTATIONS = [
     검사: 'test/tcell-observation.test.js',
     찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
     바꾸기: '    관찰꺼짐: () => false,' },
+  { 이름: 'ST-001 계측 장부를 라우트마다 새로 만듦(진행 중인 턴을 못 찾음)', 파일: SERVER,
+    검사: T_TIMING_PRODUCT,
+    찾기: '  const 계측장부 = makeTurnTimingRegistry();',
+    바꾸기: '  const 계측장부 = { ...makeTurnTimingRegistry(), find: () => makeTurnTimingRegistry().find() };' },
+  { 이름: 'ST-001 프로세스 온도를 늘 cold 로 굳힘(cold/warm 구분 소실)', 파일: TIMING_REG,
+    검사: T_TIMING_REG,
+    찾기: '      const warmth = processHasMeasuredTurn ? \'warm\' : \'cold\';\n      processHasMeasuredTurn = true;',
+    바꾸기: "      const warmth = 'cold';" },
+  { 이름: 'ST-001 만료된 계측 항목을 걷지 않음(장부가 무한히 큰다)', 파일: TIMING_REG,
+    검사: T_TIMING_REG,
+    찾기: '      cleanExpiredTimings();\n      return activeTurnTimings.get(measurementId);',
+    바꾸기: '      return activeTurnTimings.get(measurementId);' },
   { 이름: '감쇠를 원장에 안 남김', 파일: TICK, 검사: T_DECAY,
     찾기: "        await 기억영수증('decayed', e ?? { candidateId: d.ref, kind: d.kind });", 바꾸기: '' },
 
