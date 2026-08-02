@@ -240,6 +240,9 @@ export function buildModelMessages(tc) {
   if (tc.workContractAssessment?.kind === 'file') {
     usr.push('[완료 계약 판단]\n사용자의 요청을 성공했다고 말하려면 대화 답변과 별개인 새 파일 또는 변경된 파일이 반드시 남아야 하는지 판단한다. 자료를 읽거나 비교하기만 하고 답은 대화로 주면 되는 일은 CHAT, 파일 생성·저장 자체가 요청 결과인 일은 FILE이다. 다른 설명 없이 FILE 또는 CHAT 하나만 답한다.');
   }
+  if (tc.chatOutputContract === true) {
+    usr.push('[이번 결과 형태]\n이번 요청의 결과는 대화에 바로 보여주는 답이다. 파일 생성·저장이나 파일명 확인은 이번 요청의 결과가 아니다. 요청한 내용을 지금 답한다.');
+  }
   if (tc.currentActionAssessment?.candidates?.length) {
     usr.push('[이번 요청의 행동 판정]\n'
       + `현재 요청: ${tc.currentActionAssessment.userRequest}\n`

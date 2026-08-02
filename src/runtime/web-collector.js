@@ -48,6 +48,47 @@ const FETCH_HEADERS = {
   accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 };
 
+const isoDate = (value) => {
+  const ms = Date.parse(String(value ?? ''));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined;
+};
+
+/** 최신성 비교에 쓰는 공개 문서 메타데이터. 날짜를 추측하지 않고 선언된 값만 읽는다. */
+export function extractDocumentDates(html, headers) {
+  const text = String(html ?? '');
+  let publishedAt; let modifiedAt; let dateSource;
+  const take = (kind, value, source) => {
+    const normalized = isoDate(value);
+    if (!normalized) return;
+    if (kind === 'published' && !publishedAt) publishedAt = normalized;
+    if (kind === 'modified' && !modifiedAt) modifiedAt = normalized;
+    if (!dateSource) dateSource = source;
+  };
+  const walk = (value) => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (!value || typeof value !== 'object') return;
+    take('published', value.datePublished, 'json_ld');
+    take('modified', value.dateModified, 'json_ld');
+    Object.values(value).forEach(walk);
+  };
+  for (const match of text.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { walk(JSON.parse(match[1])); } catch { /* 깨진 구조화 데이터는 사실로 쓰지 않는다 */ }
+  }
+  for (const tag of text.match(/<meta\b[^>]*>/gi) ?? []) {
+    const attrs = Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*["']([^"']*)["']/g)]
+      .map((m) => [m[1].toLowerCase(), m[2]]));
+    const key = String(attrs.property ?? attrs.name ?? '').toLowerCase();
+    if (key === 'article:published_time' || key === 'datepublished') take('published', attrs.content, 'meta');
+    if (key === 'article:modified_time' || key === 'datemodified') take('modified', attrs.content, 'meta');
+  }
+  if (!publishedAt) {
+    const time = /<time\b[^>]*datetime=["']([^"']+)["']/i.exec(text)?.[1];
+    take('published', time, 'time');
+  }
+  if (!modifiedAt) take('modified', headers?.get?.('last-modified'), 'last_modified');
+  return { ...(publishedAt ? { publishedAt } : {}), ...(modifiedAt ? { modifiedAt } : {}), ...(dateSource ? { dateSource } : {}) };
+}
+
 /**
  * 한국 서비스는 데스크톱 주소가 자바스크립트로 그리는 껍데기라 읽히지 않는다. **모바일 주소는 내용을
  * HTML 로 준다**(오너 지시 + 실측: map.naver.com 은 robots 차단, m.place.naver.com 은 허용·본문 있음).
@@ -126,7 +167,7 @@ export function makeWebCollector(deps = {}) {
       const norm = { ...(args ?? {}), url: args?.url ?? extractUrl(args?.request) };
       const v = validateWebInput(norm);
       if (!v.ok) return { blocked: true, fetchState: 'blocked', userSafeSummary: `수집할 수 없어요: ${v.reason}` };
-      let { url } = v.normalized;
+      let { url, selectionGoal } = v.normalized;
       let foundVia = null;
       let candidates = [];
 
@@ -152,42 +193,48 @@ export function makeWebCollector(deps = {}) {
       // 하나 막혔다고 "못 찾았다"고 하면 막다른 답이 된다(실사용에서 첫 결과가 봇벽이었다).
       // 읽기 쉬운 주소가 있으면 그것으로 바꾼다(데스크톱 SPA → 모바일 SSR). 원래 주소도 남겨 둔다 —
       // 모바일이 막히면 원래 주소로 다시 시도한다(한 번 바꿨다고 길을 잃지 않게).
-      const tryUrls = (candidates.length ? candidates : [url])
-        .flatMap((u) => { const better = preferReadableUrl(u); return better === u ? [u] : [better, u]; });
-      let res, body, fetchState, lastState = 'blocked';
-      for (const candidate of tryUrls) {
+      const groups = (candidates.length ? candidates : [url]).map((original, rank) => {
+        const better = preferReadableUrl(original);
+        return { original, rank: rank + 1, urls: better === original ? [original] : [better, original] };
+      });
+      const reads = [];
+      let lastState = 'blocked';
+      for (const group of groups) {
+        let read = null;
+        for (const candidate of group.urls) {
+          let res; let body; let fetchState;
         // robots 는 **후보마다** 확인한다. 원래 주소로만 보면, 바꾼 주소가 허용인데도 시도조차 못 한다
         // (실측: map.naver.com 은 차단이지만 m.place.naver.com 은 허용이었다).
         if (robotsCheck) {
           let allowed = true;
           try { allowed = await robotsCheck(candidate); } catch { allowed = false; }
-          if (!allowed) { lastState = 'robots_disallow'; res = null; continue; }
+          if (!allowed) { lastState = 'robots_disallow'; continue; }
         }
         // ① 최근에 읽은 것은 **다시 열지 않는다.** 오늘 같은 주소를 열 번 넘게 다시 열어
         //    429 를 자초했다 — 그게 이 줄이 생긴 이유다.
         const hit = manners.cached(candidate);
-        if (hit) { url = candidate; body = hit.value.body; res = hit.value.res; fetchState = 'ok'; break; }
+        if (hit) { body = hit.value.body; res = hit.value.res; fetchState = 'ok'; }
         // ② 그 사이트가 쉬라고 했으면 **쉰다.** 시도조차 하지 않는다(제한을 더 늘리지 않게).
         const cooling = manners.coolingMs(candidate);
-        if (cooling > 0) { lastState = 'rate_limited'; res = null; continue; }
+        if (!res && cooling > 0) { lastState = 'rate_limited'; continue; }
         // ③ 같은 곳에 연달아 묻지 않는다.
-        await manners.pace(candidate);
-        try {
-          const controller = new AbortController();
-          ({ res, body } = await withTimeout(async () => {
-            const r = await fetchImpl(candidate, { redirect: 'follow', headers: FETCH_HEADERS, signal: controller.signal });
-            const b = await r.text();
-            return { res: r, body: b };
-          }, timeoutMs, controller));
-        } catch (e) {
-          lastState = 'timeout';
-          res = null;
-          continue; // 이 후보는 못 읽었다 — 다음 후보로
+        if (!res) {
+          await manners.pace(candidate);
+          try {
+            const controller = new AbortController();
+            ({ res, body } = await withTimeout(async () => {
+              const r = await fetchImpl(candidate, { redirect: 'follow', headers: FETCH_HEADERS, signal: controller.signal });
+              const b = await r.text();
+              return { res: r, body: b };
+            }, timeoutMs, controller));
+          } catch (e) {
+            lastState = 'timeout';
+            continue; // 이 후보는 못 읽었다 — 다음 후보로
+          }
         }
         if (res.status === 429 || res.status === 503) {
           manners.noteRateLimited(candidate, res.headers?.get?.('retry-after'));
           lastState = 'rate_limited';
-          res = null;
           continue;
         }
         // 본문을 먼저 뽑아 보고 판정한다 — 건진 게 있으면 벽이 아니다(로그인 링크 하나로 막던 오판 수정).
@@ -195,15 +242,17 @@ export function makeWebCollector(deps = {}) {
         const probeChars = Math.max((probe.markdown ?? '').length, extractHydrationText(body, { maxChars: 400 }).length);
         fetchState = httpToFetchState(res.status, { body, readableChars: probeChars });
         if (fetchState === 'ok') {
-          url = candidate;
           manners.noteOk(candidate);
           manners.remember(candidate, { res, body }); // 다음에 같은 주소를 또 열지 않게
+          read = { res, body, url: candidate, original: group.original, rank: group.rank };
           break;
         }
         lastState = fetchState;
-        res = null;
+        }
+        if (read) reads.push(read);
+        if (read && selectionGoal !== 'latest_evidence') break;
       }
-      if (!res || fetchState !== 'ok') {
+      if (!reads.length) {
         // 못 봤다 — 내용·출처 없이 상태만. "못 본 걸 본 척" 금지. 다음 행동은 준다.
         return {
           blocked: true,
@@ -211,7 +260,7 @@ export function makeWebCollector(deps = {}) {
           userSafeSummary: WALL_MESSAGE[lastState] ?? WALL_MESSAGE.blocked,
           // 속도 제한은 **잠시 뒤면 되는 일**이다. "안 되는 사이트"로 오해하게 두지 않는다.
           nextSafeAction: lastState === 'rate_limited'
-            ? `${waitPhrase(manners.coolingMs(tryUrls[0])) || '잠시'} 뒤에 다시 열어 볼까요? 그동안 아는 범위로 정리해 드릴 수도 있어요.`
+              ? `${waitPhrase(manners.coolingMs(groups[0]?.urls?.[0])) || '잠시'} 뒤에 다시 열어 볼까요? 그동안 아는 범위로 정리해 드릴 수도 있어요.`
             : (candidates.length
               ? '다른 자료로 다시 찾아볼까요? 보고 싶은 페이지 주소를 주시면 그건 바로 읽을 수 있어요.'
               : '주소를 다시 확인해 주시겠어요?'),
@@ -221,18 +270,38 @@ export function makeWebCollector(deps = {}) {
       // 봤다 — 출처 근거(SourceEvidence)를 반드시 만든다.
       // 추출 품질(Phase 0-2b, 기준: Crawl4AI "LLM-ready Markdown"): 껍데기를 걷고 제목·문단·목록·
       // 표의 구조를 남긴다. 앞 500자를 자르면 네비게이션·쿠키 배너가 본문이 된다(이전 동작).
-      const title = extractTitle(body);
-      const description = extractDescription(body);
-      let { markdown, blocks } = extractReadable(body);
+      const pages = reads.map((read) => {
+        const title = extractTitle(read.body);
+        const description = extractDescription(read.body);
+        let { markdown, blocks } = extractReadable(read.body);
       // 껍데기만 온 페이지(SPA)면 HTML 안에 심긴 초기 상태에서 읽을 것을 건진다. 브라우저를 띄우지
       // 않고도 대부분 읽힌다(실측: 네이버 플레이스의 상호·주소·메뉴가 전부 HTML 안에 있었다).
       if ((markdown ?? '').length < MIN_READABLE_CHARS) {
-        const hydrated = extractHydrationText(body);
+        const hydrated = extractHydrationText(read.body);
         if (hydrated.length > (markdown ?? '').length) { markdown = hydrated; blocks = 0; }
       }
-      const links = extractLinks(body, res.url || url);
+        const resolvedUrl = read.res.url || read.url;
+        const links = extractLinks(read.body, resolvedUrl);
+        const dates = extractDocumentDates(read.body, read.res.headers);
+        return { ...read, title, description, markdown, blocks, links, resolvedUrl, ...dates };
+      });
+      const timestamp = (page) => Date.parse(page.publishedAt ?? page.modifiedAt ?? '');
+      const selected = selectionGoal === 'latest_evidence'
+        ? pages.reduce((best, page) => Number.isFinite(timestamp(page)) && (!Number.isFinite(timestamp(best)) || timestamp(page) > timestamp(best)) ? page : best, pages[0])
+        : pages[0];
+      const { title, description, markdown, blocks, links } = selected;
       const excerpt = description || markdown.slice(0, 500); // 출처 근거용 짧은 발췌
-      const source = makeSourceEvidence({ sourceUrl: res.url || url, title, excerpt, confidence: 0.6, now: now?.() });
+      const sources = pages.map((page) => makeSourceEvidence({
+        sourceUrl: page.resolvedUrl, title: page.title,
+        excerpt: page.description || page.markdown.slice(0, 500), confidence: 0.6, now: now?.(),
+      }));
+      const comparisonCandidates = selectionGoal === 'latest_evidence' ? pages.map((page) => ({
+        rank: page.rank, title: page.title, url: page.resolvedUrl,
+        excerpt: (page.description || page.markdown).slice(0, 240),
+        ...(page.publishedAt ? { publishedAt: page.publishedAt } : {}),
+        ...(page.modifiedAt ? { modifiedAt: page.modifiedAt } : {}),
+        ...(page.dateSource ? { dateSource: page.dateSource } : {}),
+      })) : undefined;
       return {
         result: {
           title, excerpt, description, markdown, blocks, links,
@@ -240,8 +309,9 @@ export function makeWebCollector(deps = {}) {
           // 둘이면 충분하다. 큰 분류 체계(routeKind 11개)는 만들지 않는다(§24 · 절대원칙 8).
           surfaceAction: foundVia ? 'search_then_read' : 'read_url',
           ...(foundVia ? { foundVia } : {}),
+          ...(comparisonCandidates ? { comparisonCandidates } : {}),
         },
-        sources: [source],
+        sources,
         // 찾아서 읽었으면 "찾아서 읽었다"고 말한다 — 검색만 하고 아는 척하지 않는다.
         userSafeSummary: foundVia
           ? `찾아서 읽었어요${title ? `: ${title}` : ''}.`

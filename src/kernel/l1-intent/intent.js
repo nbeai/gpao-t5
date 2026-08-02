@@ -68,7 +68,9 @@ function inferTools(t, selfState) {
   if (/슬랙|slack/i.test(t)) tools.push('slack.post');
   // 파일 도구는 **파일·폴더가 명시될 때만**. "정리해줘" 같은 일반어로 부르면 엉뚱한 도구가 돈다
   // (실사용: "AI 뉴스 조사해서 정리해줘"에 파일 도구가 돌아 원장에 "그 폴더는 비어 있어요"가 남았다).
-  if (/파일|폴더|\.md|\.txt|\.csv|메모|되돌려|복구|취소해|저장해 ?줘/.test(t)) tools.push('local.file');
+  // 대상 없는 "취소해"는 자동화·기억·승인 등 무엇이든 가리킬 수 있다. 파일 말이 함께
+  // 있을 때만 file-parse가 undo로 해석하고, 명시적인 "되돌려/복구"는 기존 파일 약속을 지킨다.
+  if (/파일|폴더|\.md|\.txt|\.csv|메모|되돌려|복구|저장해 ?줘/.test(t)) tools.push('local.file');
   if (/조사|검색|수집|가져와|불러와|뉴스|환율/.test(t)) tools.push('web.collect');
   const present = tools.filter(exists);
   return present.length ? present : undefined;

@@ -154,6 +154,19 @@ test('웹 결과 요약에 제목·본문 길이·링크가 남는다(뒤가 잘
   assert.doesNotMatch(out, /^\{/, 'JSON 덩어리가 아니라 읽을 수 있는 사실이어야 한다');
 });
 
+test('최신 근거 비교 후보의 순위·날짜·제목이 모델 입력에 남는다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const out = compactResult({
+    title: '새 발표', markdown: '새 본문', links: [],
+    comparisonCandidates: [
+      { rank: 1, title: '예전 발표', url: 'https://official.example/old', publishedAt: '2026-01-10T00:00:00.000Z' },
+      { rank: 2, title: '새 발표', url: 'https://official.example/new', publishedAt: '2026-08-01T00:00:00.000Z' },
+    ],
+  });
+  assert.match(out, /후보 1.*예전 발표.*2026-01-10/s);
+  assert.match(out, /후보 2.*새 발표.*2026-08-01/s);
+});
+
 test('브라우저 결과 요약에 본 범위·못 본 범위·더 열 것·조작이 남는다', async () => {
   const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
   const out = compactResult({

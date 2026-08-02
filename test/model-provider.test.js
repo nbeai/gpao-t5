@@ -345,6 +345,13 @@ test('buildModelMessages: 자기 모델명과 능력 경계를 싣는다(오너 
   assert.ok(!/확인이 필요하다/.test(m.system), '헤지를 시키는 규칙은 없어야 한다');
 });
 
+test('CHAT 완료 판정은 최종 답 호출에도 결과 형태 사실로 전달된다', () => {
+  const m = buildModelMessages({ ...TC, chatOutputContract: true });
+  assert.match(m.user, /이번 결과 형태/);
+  assert.match(m.user, /대화에 바로 보여주는 답/);
+  assert.match(m.user, /파일명 확인은 이번 요청의 결과가 아니다/);
+});
+
 test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 경계를 사실로만 싣는다', () => {
   const m = buildModelMessages(TC);
   assert.ok(m.user.includes('내일 회의 준비 도와줘'));       // 원문

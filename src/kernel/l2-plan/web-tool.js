@@ -79,6 +79,10 @@ export function defineWebTool(d = {}) {
         type: 'object',
         properties: {
           request: { type: 'string', description: '찾을 것(검색어) 또는 읽을 주소' },
+          selectionGoal: {
+            type: 'string', enum: ['first_readable', 'latest_evidence'],
+            description: '일반 읽기는 first_readable. 현재·최신·최근 사실을 묻는 경우 latest_evidence로 상위 후보의 발행·수정 시각을 비교한다.',
+          },
         },
         required: ['request'],
       },
@@ -88,7 +92,7 @@ export function defineWebTool(d = {}) {
     ...base,
     inputSchema: {
       url: 'string?', searchQuery: 'string?', depth: 'number?',
-      allowedDomains: 'string[]?', maxPages: 'number?',
+      allowedDomains: 'string[]?', maxPages: 'number?', selectionGoal: 'first_readable|latest_evidence?',
     },
     sourcePolicy: webSourcePolicy(),
     sessionMode,
@@ -111,6 +115,10 @@ export function validateWebInput(input = {}) {
   const maxPages = Math.min(Number(input.maxPages ?? 1) || 1, MAX_PAGES_CAP); // 대량수집 금지
   const depth = Math.min(Number(input.depth ?? 0) || 0, MAX_DEPTH_CAP);
   const allowedDomains = Array.isArray(input.allowedDomains) ? input.allowedDomains : undefined;
+  const selectionGoal = input.selectionGoal ?? 'first_readable';
+  if (!['first_readable', 'latest_evidence'].includes(selectionGoal)) {
+    return { ok: false, reason: 'selectionGoal invalid' };
+  }
   // url은 hostname 기준으로 검증한다 — 문자열 includes는 ?next=a.com 같은 우회에 뚫린다(감사 보정).
   if (input.url) {
     let host;
@@ -124,7 +132,7 @@ export function validateWebInput(input = {}) {
       if (!allowed) return { ok: false, reason: 'allowedDomains 밖 host' };
     }
   }
-  return { ok: true, normalized: { url: input.url, searchQuery: input.searchQuery, depth, maxPages, allowedDomains } };
+  return { ok: true, normalized: { url: input.url, searchQuery: input.searchQuery, depth, maxPages, allowedDomains, selectionGoal } };
 }
 
 // 짧은 결정적 해시(excerpt 지문). crypto 없이 djb2.

@@ -228,6 +228,17 @@ test('"되돌려줘"가 실제 되돌리기로 이어진다(fast_chat 으로 새
   assert.equal(i.fileOp?.action, 'undo');
 });
 
+test('대상 없는 취소를 파일 되돌리기로 만들지 않되 파일 취소는 유지한다', async () => {
+  const { interpret } = await import('../src/kernel/l1-intent/intent.js');
+  const generic = interpret('이제 취소해줘');
+  assert.equal(generic.neededTools?.includes('local.file') ?? false, false,
+    '자동화·기억 등 다른 대상을 취소하는 말에 파일 승인 카드가 뜬다');
+
+  const file = interpret('방금 만든 파일 취소해줘');
+  assert.ok(file.neededTools?.includes('local.file'), '파일을 명시한 취소까지 잃으면 안 된다');
+  assert.equal(file.fileOp?.action, 'undo');
+});
+
 test('되돌리기는 재시작 후에도 된다 — 표가 메모리에만 있으면 다음 날 못 되돌린다(§18)', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gpao-t5-undo-'));
   const first = makeLocalFileTool({ roots: [root], dataDir: root });

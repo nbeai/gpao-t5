@@ -22,7 +22,13 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 function 걸음마다(계획) {
   let i = 0;
   return {
-    async respond(_tc, opts = {}) {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return {
+        text: '', toolCalls: [
+          { name: 'work.deliverable', args: {} },
+          { name: 'work.deliverable', args: { output: 'chat' } },
+        ],
+      };
       if (!opts.tools?.length) return '정리했어요';
       if (i >= 계획.length) return { text: '다 했어요', toolCalls: [] };
       const 걸음 = 계획[i]; i += 1;
@@ -186,7 +192,9 @@ test('산출물 의무: CHAT 판단이면 어떤 재확인도 일어나지 않�
   let 도구응답 = 0;
   const model = {
     async respond(tc, opts = {}) {
-      if (tc?.workContractAssessment) return 'CHAT';
+      if (tc?.workContractAssessment) return {
+        text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }],
+      };
       if (!opts.tools?.length) return '정리했어요';
       도구응답 += 1;
       if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
@@ -197,13 +205,85 @@ test('산출물 의무: CHAT 판단이면 어떤 재확인도 일어나지 않�
   assert.equal(도구응답, 2, `선언 없는 턴에 재확인이 갔다(도구 응답 ${도구응답}회)`);
 });
 
-test('산출물 의무: 모델이 처음부터 write 를 고르면 추가 판단·재확인 없이 승인 경로에 오른다', async () => {
+test('대화 초안을 요청하고 파일 생성을 미룬 턴은 파일 이름을 되묻지 않는다', async () => {
+  const root = await 임시루트();
+  const { ctx, 호출 } = 손과기록(root);
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return 'CHAT';
+      if (opts.tools?.length) return {
+        text: '어떤 파일로 할까요? (파일 이름을 알려주세요)',
+        toolCalls: [{ name: 'local.file', args: { action: 'read' } }],
+      };
+      assert.equal(tc.chatOutputContract, true, 'CHAT 판정이 최종 답 호출에 전달되지 않았다');
+      return '체크리스트 초안을 대화에 보여드릴게요.';
+    },
+  };
+  const r = await runTurn({
+    text: '이 기준으로 실행 체크리스트 초안을 대화에 먼저 보여줘. 파일은 아직 만들지 마.',
+  }, ctx(model));
+  assert.equal(r.kind, 'reply');
+  assert.match(r.reply, /체크리스트 초안/);
+  assert.doesNotMatch(r.reply, /어떤 파일|파일 이름/);
+  assert.equal(호출.length, 0, '대화 초안 요청이 파일 손을 실행했다');
+});
+
+test('앞선 읽기와 현재 저장이 함께 잡혀도 현재 파일의 write 본문을 보존한다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.currentActionAssessment) return { text: '', toolCalls: [] }; // 구조 판정 불능 재현
+      if (tc?.workContractAssessment) return 'FILE';
+      if (opts.tools?.length) return {
+        text: '',
+        toolCalls: [
+          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
+          { name: 'local.file', args: { action: 'write', path: '행사운영-체크리스트.md', text: '실행 체크리스트' } },
+        ],
+      };
+      return '저장할게요.';
+    },
+  };
+  const runtime = ctx(model);
+  const r = await runTurn({
+    text: '방금 보여준 초안을 행사운영-체크리스트.md로 저장해줘.',
+  }, runtime);
+  assert.equal(r.kind, 'approval', `현재 저장 요청이 다시 확인으로 막혔다: ${r.reply ?? r.kind}`);
+  assert.equal(r.pending?.[0]?.action, 'local.file');
+  const held = runtime.pending.get(r.pendingId);
+  assert.equal(held?.sendArgs?.['local.file']?.action, 'write');
+  assert.equal(held?.sendArgs?.['local.file']?.text, '실행 체크리스트', '모델이 문맥에서 만든 본문을 잃었다');
+});
+
+test('현재 발화와 같은 write 후보가 둘이면 하나를 임의 선택하지 않는다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.currentActionAssessment) return { text: '', toolCalls: [] };
+      if (opts.tools?.length) return {
+        text: '',
+        toolCalls: [
+          { name: 'local.file', args: { action: 'write', path: '결과.md', text: '첫째' } },
+          { name: 'local.file', args: { action: 'write', path: '결과.md', text: '둘째' } },
+        ],
+      };
+      return '확인할게요.';
+    },
+  };
+  const r = await runTurn({ text: '결과.md로 저장해줘.' }, ctx(model));
+  assert.equal(r.kind, 'reply');
+  assert.match(r.reply, /지금 할 일만/);
+});
+
+test('산출물 의무: 모델이 처음부터 write 를 골라도 완료 형태를 독립 판단한 뒤 승인에 오른다', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
   let 도구응답 = 0; let 재확인수 = 0;
   const model = {
     async respond(tc, opts = {}) {
-      if (tc?.workContractAssessment) throw new Error('write 호출 자체가 완료 계약인데 다시 판단했다');
+      if (tc?.workContractAssessment) { 재확인수 += 1; return 'FILE'; }
       if (tc?.unmetDeliverable) 재확인수 += 1;
       if (!opts.tools?.length) return '정리했어요';
       도구응답 += 1;
@@ -214,9 +294,9 @@ test('산출물 의무: 모델이 처음부터 write 를 고르면 추가 판단
     },
   };
   const r = await runTurn({ text: '해줘' }, ctx(model));
-  // 쓰기는 승인 카드가 곧 결과다 — 선언이 계획으로 이어졌으니 재확인 대조는 돌지 않는다.
+  // 모델의 write 선택은 후보다. 별도 완료 판단이 FILE일 때만 승인 카드가 된다.
   assert.equal(r.kind, 'approval');
-  assert.equal(재확인수, 0, `산출물이 계획에 있는데도 재확인이 갔다(${재확인수})`);
+  assert.equal(재확인수, 1, `완료 형태 판단이 중복되거나 빠졌다(${재확인수})`);
 });
 
 test('산출물 의무: FILE 판단 뒤에도 안 만들면 완료로 기록하지 않는다(거짓 완료 금지)', async () => {

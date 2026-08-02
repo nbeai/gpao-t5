@@ -82,9 +82,24 @@ import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runt
 import { liveDeps } from './live-context.js';
 
 const SENSITIVE_TRANSCRIPT_PLACEHOLDER = '[민감정보를 포함한 사용자 발화 — 원문은 저장하지 않음]';
+const SENSITIVE_RESULT_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
 
 function durableUserText(text) {
   return containsSensitiveValue(text) ? SENSITIVE_TRANSCRIPT_PLACEHOLDER : text;
+}
+
+/** 모델이 만든 goal·근거·중첩 메타데이터까지 durable 저장 전에 같은 경계를 지난다. */
+export function redactSensitiveResult(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return value;
+  seen.add(value);
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === 'string') {
+      if (containsSensitiveValue(item)) value[key] = SENSITIVE_RESULT_PLACEHOLDER;
+      continue;
+    }
+    if (item && typeof item === 'object') redactSensitiveResult(item, seen);
+  }
+  return value;
 }
 
 function redactSensitiveOutput(result) {
@@ -666,6 +681,7 @@ export function makeServer(deps = {}) {
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
     redactSensitiveOutput(result);
     민감기억후처리(result);
+    redactSensitiveResult(result);
     try {
       await 통제후보저장(result, session);
     } catch (error) {
@@ -2152,6 +2168,7 @@ export function makeServer(deps = {}) {
     // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.
     redactSensitiveOutput(result);
     민감기억후처리(result);
+    redactSensitiveResult(result);
     try { await 통제후보저장(result, session); }
     catch (error) {
       result.controlProposalWarning = error?.message ?? 'control_proposal_not_stored';

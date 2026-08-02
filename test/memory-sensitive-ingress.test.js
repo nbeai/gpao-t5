@@ -4,7 +4,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { containsSensitiveValue } from '../src/kernel/l0-evidence/sensitive-text.js';
-import { makeServer } from '../src/surface/server.js';
+import { makeServer, redactSensitiveResult } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { MemoryStore } from '../src/surface/memory-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
@@ -13,6 +13,23 @@ import { defineConnector } from '../src/kernel/l2-plan/connector-profile.js';
 import { AllowlistStore } from '../src/surface/allowlist-store.js';
 
 const SECRET = 'sk-proj-1234567890abcdefghijklmnop';
+
+test('민감값은 답 필드뿐 아니라 저장되는 턴 결과 전체에서 제거한다', () => {
+  const card = '4111 1111 1111 1111';
+  const result = {
+    kind: 'reply',
+    reply: '카드번호는 기억할 수 없어요.',
+    goal: {
+      understoodTask: `카드번호 ${card} 기억하기`,
+      successCriteria: `요청 달성: ${card} 저장`,
+    },
+    nested: [{ rationale: `사용자가 ${card}를 제공함` }],
+  };
+  redactSensitiveResult(result);
+  assert.doesNotMatch(JSON.stringify(result), /4111[ -]?1111[ -]?1111[ -]?1111/);
+  assert.equal(result.reply, '카드번호는 기억할 수 없어요.', '정상적인 거절 답까지 지우면 안 된다');
+  assert.match(result.goal.understoodTask, /민감/);
+});
 
 const post = (base, path, body) => fetch(`${base}${path}`, {
   method: 'POST',
@@ -96,12 +113,19 @@ test('모델 제출과 정규식 후보 모두 비밀값을 장기 기억에 쓰
         : '기억할게요.';
     },
   };
-  await withServer(modelProposal, async ({ base, memoryStore }) => {
+  await withServer(modelProposal, async ({ base, memoryStore, store }) => {
     const session = await (await post(base, '/sessions')).json();
-    const result = await (await post(base, '/turn', { sessionId: session.id, text: '이 키를 기억해둬' })).json();
+    const card = '4111 1111 1111 1111';
+    const result = await (await post(base, '/turn', {
+      sessionId: session.id, text: `내 카드번호는 ${card}야. 기억해둬`,
+    })).json();
     assert.match(result.reply, /장기 기억에는 남기지 않았어요/);
     assert.equal(result.memorySuggestion, undefined);
     assert.deepEqual((await memoryStore.load()).candidates, []);
+    assert.doesNotMatch(JSON.stringify(await store.load(session.id)), new RegExp(SECRET),
+      '거절 답만 가리고 goal·successCriteria 같은 턴 결과 메타데이터에 원문을 남겼다');
+    assert.doesNotMatch(JSON.stringify(await store.load(session.id)), /4111[ -]?1111[ -]?1111[ -]?1111/,
+      '민감한 사용자 원문이 턴 결과 메타데이터에 남았다');
   });
 
   const noProposal = { async respond() { return { text: '알겠어요.', toolCalls: [] }; } };

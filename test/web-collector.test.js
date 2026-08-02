@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { makeWebCollector, httpToFetchState } from '../src/runtime/web-collector.js';
+import { makeWebCollector, httpToFetchState, extractDocumentDates } from '../src/runtime/web-collector.js';
 import { classifyWebFetch } from '../src/kernel/l2-plan/web-tool.js';
 import { assertWebEvidence } from '../src/kernel/l2-plan/web-tool.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
@@ -137,6 +137,55 @@ test('주소가 없으면 찾아서 읽고, 출처는 실제로 읽은 페이지
   assert.equal(out.sources[0].sourceUrl, 'https://www.bok.or.kr/rate', '실제로 읽은 페이지가 출처다');
   assert.match(out.userSafeSummary, /찾아서 읽었어요/);
   assert.equal(out.result.foundVia.provider, '덕덕고');
+});
+
+test('최신 근거 선택은 상위 후보를 실제로 읽고 발행 시각과 검색 순위를 함께 남긴다', async () => {
+  const rows = [
+    { title: '예전 발표', url: 'https://official.example/old', snippet: '예전 자료' },
+    { title: '새 발표', url: 'https://official.example/new', snippet: '새 자료' },
+    { title: '목록', url: 'https://official.example/all', snippet: '전체 목록' },
+  ];
+  const search = { search: async () => ({ state: 'ok', providerLabel: '시험검색', results: rows }) };
+  const fetched = [];
+  const pages = {
+    'https://official.example/old': '<script type="application/ld+json">{"datePublished":"2026-01-10"}</script><title>예전 발표</title><article>예전 본문입니다.</article>',
+    'https://official.example/new': '<meta property="article:published_time" content="2026-08-01"><title>새 발표</title><article>새 본문입니다.</article>',
+    'https://official.example/all': '<title>목록</title><article>전체 목록 본문입니다.</article>',
+  };
+  const c = makeWebCollector({ search, fetchImpl: async (url) => {
+    fetched.push(url);
+    return { status: 200, url, headers: { get: () => 'text/html' }, text: async () => pages[url] };
+  } });
+  const out = await c.handler({ request: '공식 최신 발표', selectionGoal: 'latest_evidence' });
+  assert.deepEqual(fetched, rows.map((r) => r.url), '첫 결과 하나로 최신을 단정하면 안 된다');
+  assert.equal(out.result.title, '새 발표', '날짜가 확인된 가장 최신 후보가 주 본문이어야 한다');
+  assert.equal(out.result.comparisonCandidates.length, 3);
+  assert.deepEqual(out.result.comparisonCandidates.map((x) => x.rank), [1, 2, 3]);
+  assert.equal(out.result.comparisonCandidates[1].publishedAt, '2026-08-01T00:00:00.000Z');
+  assert.equal(out.sources.length, 3, '실제로 읽은 모든 후보가 출처 원장에 남아야 한다');
+});
+
+test('일반 읽기는 첫 성공에서 끝나 최신 비교 비용을 상시 부과하지 않는다', async () => {
+  const search = { search: async () => ({ state: 'ok', providerLabel: '시험검색', results: [
+    { title: '첫째', url: 'https://a.example/1' }, { title: '둘째', url: 'https://a.example/2' },
+  ] }) };
+  const fetched = [];
+  const c = makeWebCollector({ search, fetchImpl: async (url) => {
+    fetched.push(url);
+    return { status: 200, url, headers: { get: () => 'text/html' }, text: async () => '<title>첫째</title><article>본문</article>' };
+  } });
+  await c.handler({ request: '자료 읽어줘' });
+  assert.deepEqual(fetched, ['https://a.example/1']);
+});
+
+test('문서 시각은 JSON-LD·meta·Last-Modified에서 기계적으로 뽑는다', () => {
+  const jsonLd = extractDocumentDates('<script type="application/ld+json">{"datePublished":"2026-07-01","dateModified":"2026-07-03"}</script>');
+  assert.equal(jsonLd.publishedAt, '2026-07-01T00:00:00.000Z');
+  assert.equal(jsonLd.modifiedAt, '2026-07-03T00:00:00.000Z');
+  const meta = extractDocumentDates('<meta content="2026-08-01T09:00:00+09:00" property="article:published_time">');
+  assert.equal(meta.publishedAt, '2026-08-01T00:00:00.000Z');
+  const header = extractDocumentDates('', { get: (name) => name.toLowerCase() === 'last-modified' ? 'Fri, 31 Jul 2026 12:00:00 GMT' : null });
+  assert.equal(header.modifiedAt, '2026-07-31T12:00:00.000Z');
 });
 
 test('검색 경로가 모두 막히면 정직하게 말하고 대안을 준다(연결 권유는 이때만)', async () => {

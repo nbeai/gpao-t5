@@ -100,6 +100,29 @@ const CURRENT_ACTION_SCOPE_SCHEMA = Object.freeze({
   },
 });
 
+const WORK_DELIVERABLE_SCHEMA = Object.freeze({
+  name: 'work.deliverable',
+  description: '사용자의 요청 결과가 대화 답변인지, 실제 파일 생성·변경인지 구분한다.',
+  parameters: {
+    type: 'object',
+    properties: { output: { type: 'string', enum: ['chat', 'file'] } },
+    required: ['output'],
+  },
+});
+
+function currentFileCallFromText(calls, text) {
+  const asked = parseFileRequest(text);
+  if (!asked.path || asked.action === 'unknown') return null;
+  const clean = (value) => String(value ?? '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+  const askedPath = clean(asked.path);
+  const matches = calls.filter((call) => {
+    if (call?.name !== 'local.file' || call?.args?.action !== asked.action) return false;
+    const actualPath = clean(call.args.path);
+    return actualPath === askedPath || actualPath.endsWith(`/${askedPath}`);
+  });
+  return matches.length === 1 ? matches : null;
+}
+
 async function currentRequestCalls({ calls, text, tc, model, selfState }) {
   if (!Array.isArray(calls) || calls.length < 2) return calls;
   const touchesApproval = calls.some((call) => isSafetyFloor(toolActionKind({
@@ -117,7 +140,12 @@ async function currentRequestCalls({ calls, text, tc, model, selfState }) {
     .catch(() => null);
   const verdict = typeof out === 'string' ? null
     : out?.toolCalls?.find((call) => call?.name === CURRENT_ACTION_SCOPE_SCHEMA.name)?.args;
-  if (!verdict || verdict.unclear !== false || !Array.isArray(verdict.requestedIndexes)) return null;
+  if (!verdict || verdict.unclear !== false || !Array.isArray(verdict.requestedIndexes)) {
+    // 판정 호출이 흔들려도 현재 발화가 action+path 를 직접 품고 있고 그와 맞는 모델 호출이
+    // 하나뿐이면, 모델이 문맥에서 채운 본문/source 를 버리지 않는다. 같은 후보가 둘이면
+    // 임의 선택하지 않고 기존 확인 경계로 닫힌다.
+    return currentFileCallFromText(calls, text);
+  }
   const indexes = new Set(verdict.requestedIndexes.filter((index) => Number.isInteger(index) && index >= 0 && index < calls.length));
   return calls.filter((_, index) => indexes.has(index));
 }
@@ -125,25 +153,41 @@ async function currentRequestCalls({ calls, text, tc, model, selfState }) {
 async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
   if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
-  // 모델이 처음부터 쓰기를 골랐다면 그 호출 자체가 결과 형태의 구조 판단이다.
-  if (calls.some((call) => call?.name === 'local.file' && call?.args?.action === 'write')) {
+  const directWrite = calls.some((call) => call?.name === 'local.file' && call?.args?.action === 'write');
+  // 쓰기 호출도 곧바로 사용자의 완료 의도로 간주하지 않는다. 실사용에서 모델이
+  // "파일은 아직 만들지 마"를 보고도 write를 고른 적이 있다. 호출은 후보이고, 결과가
+  // 파일이어야 하는지는 요청 전체를 보는 별도 판단으로 확정한다.
+  // 읽기·찾기는 결과물이 아니라 재료일 수도 있다. 사용자 문구 규칙으로 맞히지 않고
+  // 요청 전체를 본 모델에게 전용 구조 판단을 맡긴다. 형식을 못 지키면 한 번만 다시 묻는다.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    // 구조 채널은 모델이 이미 쓰기를 고른 충돌 상황에만 필요하다. 읽기·탐색 흐름에서
+    // 실행 도구를 하나 더 제시하면 다음 실제 걸음을 판정 응답으로 소비할 수 있다.
+    const out = await model.respond(
+      { ...tc, workContractAssessment: { kind: 'file' } },
+      directWrite
+        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }
+        : { effort: 'medium' },
+    );
+    const structured = typeof out === 'string' ? null
+      : out?.toolCalls?.find((call) => call?.name === WORK_DELIVERABLE_SCHEMA.name
+        && ['chat', 'file'].includes(call?.args?.output))?.args?.output;
+    const judgment = structured === 'file' || structured === 'chat'
+      ? structured : parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
+    if (judgment === 'file') {
+      return {
+        assessment: 'file',
+        deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: directWrite ? 'direct' : 'derived' }],
+      };
+    }
+    if (judgment === 'chat') return { assessment: 'chat', deliverables: [] };
+  }
+  // 구조 채널을 모르는 기존 provider는 직접 쓰기 호출이라는 보수적 계약을 유지한다.
+  // 실제 모델이 CHAT을 구조로 반환한 경우에는 위에서 이미 쓰기 후보를 제거했다.
+  if (directWrite) {
     return {
       assessment: 'file',
       deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }],
     };
-  }
-  // 읽기·찾기는 결과물이 아니라 재료일 수도 있다. 사용자 문구 규칙으로 맞히지 않고
-  // 요청 전체를 본 모델에게 전용 구조 판단을 맡긴다. 형식을 못 지키면 한 번만 다시 묻는다.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const out = await model.respond({ ...tc, workContractAssessment: { kind: 'file' } }, { effort: 'medium' });
-    const judgment = parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
-    if (judgment === 'file') {
-      return {
-        assessment: 'file',
-        deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'derived' }],
-      };
-    }
-    if (judgment === 'chat') return { assessment: 'chat', deliverables: [] };
   }
   // 판단 불능을 CHAT 으로 꾸미지 않는다. 사용자 답은 막지 않되 완료 상태는 만들지 않는다.
   return { assessment: 'unknown', deliverables: [] };
@@ -743,6 +787,19 @@ export async function runTurn(input, ctx) {
     model: ctx.model, tc: earlyTc, calls: modelChosen ?? [], intent,
   });
 
+  // CHAT 계약인데 모델이 대상 없는 파일 호출을 함께 냈다면, 그 불완전한 호출로 파일 이름을
+  // 되묻지 않는다. 자료를 실제로 읽어야 하는 채팅이면 모델 호출에 path가 있어야 하고 그대로
+  // 실행된다. 대상도 없고 파일 산출물도 아닌 호출만 버린 뒤 답을 완성한다.
+  if (completionContract.assessment === 'chat' && modelChosen?.length) {
+    const usable = modelChosen.filter((call) => call?.name !== 'local.file'
+      || (call?.args?.action !== 'write' && String(call?.args?.path ?? '').trim()));
+    modelChosen = usable.length ? usable : null;
+  }
+  if (completionContract.assessment === 'chat' && !modelChosen) {
+    // 파일 도구가 함께 보인 첫 호출의 "어떤 파일로 할까요?"도 정답으로 재사용하지 않는다.
+    // CHAT으로 확정된 뒤에는 도구 없는 답 전용 호출이 실제 대화 초안을 만든다.
+    earlyReply = '';
+  }
   // 사용자가 앞서 읽은 자료를 "공지문 파일로 만들어줘"라고 하면, 본문을 다시 받아쓰게 하지
   // 않는다. FILE 계약이 섰고 애매한 것이 **본문뿐**일 때만 모델에게 쓰기 손을 구조로 요구한다.
   // 경로·내용·원본 선택은 모델의 몫이고, 반환된 호출은 아래의 기존 계획·권한·승인 경계를 탄다.
@@ -768,8 +825,9 @@ export async function runTurn(input, ctx) {
   }
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
-  if (!modelChosen && intent.answerMode === 'fast_chat' && !influence
-      && (completionContract.assessment === 'not_applicable' || completionContract.assessment === 'chat')) {
+  if (!modelChosen && !influence
+      && (completionContract.assessment === 'chat'
+        || (intent.answerMode === 'fast_chat' && completionContract.assessment === 'not_applicable'))) {
     // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
     // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
     // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
@@ -777,7 +835,11 @@ export async function runTurn(input, ctx) {
     return {
       kind: 'reply',
       // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
-      reply: 미리보기정렬(await 답완성({ reply: earlyReply, tc: earlyTc, ctx, search: earlyWantedWeb }), ctx.미리보기),
+      reply: 미리보기정렬(await 답완성({
+        reply: earlyReply,
+        tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,
+        ctx, search: earlyWantedWeb,
+      }), ctx.미리보기),
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
@@ -804,6 +866,19 @@ export async function runTurn(input, ctx) {
   let planIntent = ctx.modelSupportsSearch && intent.neededTools?.includes('web.collect')
     ? { ...intent, neededTools: intent.neededTools.filter((id) => id !== 'web.collect') }
     : intent;
+
+  // 파일이라는 낱말은 있어도 전용 결과 판정이 CHAT 이고 모델도 파일 손을 고르지 않았다면,
+  // 정규식 폴백이 그 판단을 뒤집지 못한다. 그래야 "대화에 먼저, 파일은 아직 만들지 마"가
+  // 파일 이름 질문으로 바뀌지 않는다. 실제 파일 요청은 modelChosen 또는 FILE 판정으로 유지된다.
+  if (completionContract.assessment === 'chat'
+      && !modelChosen?.some((call) => call?.name === 'local.file')
+      && planIntent.neededTools?.includes('local.file')) {
+    planIntent = {
+      ...planIntent,
+      neededTools: planIntent.neededTools.filter((id) => id !== 'local.file'),
+      fileOp: undefined,
+    };
+  }
 
   if (influence?.tool && !planIntent.neededTools?.includes(influence.tool)) {
     planIntent = { ...planIntent, neededTools: [...(planIntent.neededTools ?? []), influence.tool] };

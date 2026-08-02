@@ -56,6 +56,12 @@ export function compactResult(result, maxChars = 1200) {
   if (typeof result.markdown === 'string' || Array.isArray(result.links)) {
     const lines = [];
     if (result.title) lines.push(`제목: ${result.title}`);
+    if (Array.isArray(result.comparisonCandidates)) {
+      for (const c of result.comparisonCandidates.slice(0, 3)) {
+        const date = c.publishedAt ?? c.modifiedAt ?? '날짜 미확인';
+        lines.push(`후보 ${c.rank}: ${c.title || '(제목 없음)'} · ${date} · ${c.url}`);
+      }
+    }
     const md = String(result.markdown ?? '');
     if (md) lines.push(`본문 ${md.length}자`);
     const links = (result.links ?? []).map((l) => (typeof l === 'string' ? l : l?.url)).filter(Boolean).slice(0, 6);

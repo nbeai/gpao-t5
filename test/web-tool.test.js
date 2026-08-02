@@ -12,6 +12,7 @@ test('defineWebTool: 읽기 전용·승인 불요·입력스키마·스크래핑
   assert.equal(d.toolKind, 'read');
   assert.equal(d.needsApproval, false);
   assert.ok(d.inputSchema.url && d.inputSchema.maxPages);
+  assert.ok(d.schema.parameters.properties.selectionGoal, '최신 근거 비교를 모델이 구조로 선택할 수 있어야 한다');
   assert.deepEqual(d.sourcePolicy, { readOnly: true, noMassCollect: true, noExternalSend: true, sourceLedgerRequired: true });
   assert.equal(d.sessionMode, 'anonymous');
 });
@@ -21,6 +22,8 @@ test('validateWebInput: 대상 필수, maxPages 상한(대량수집 금지), all
   assert.equal(validateWebInput({ searchQuery: 'x' }).ok, true);
   assert.equal(validateWebInput({ url: 'https://a.com', maxPages: 999 }).normalized.maxPages, 5); // 상한
   assert.equal(validateWebInput({ url: 'https://evil.com', allowedDomains: ['a.com'] }).ok, false);
+  assert.equal(validateWebInput({ searchQuery: 'x', selectionGoal: 'latest_evidence' }).normalized.selectionGoal, 'latest_evidence');
+  assert.equal(validateWebInput({ searchQuery: 'x', selectionGoal: 'unknown' }).ok, false);
 });
 
 test('makeSourceEvidence: 출처 계약 필드 + excerptHash', () => {
