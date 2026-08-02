@@ -719,6 +719,9 @@ export const MUTATIONS = [
     찾기: "export const DERIVED_KINDS = Object.freeze([\n  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',\n]);",
     바꾸기: 'export const DERIVED_KINDS = Object.freeze([...AUTHORITY_KINDS]);' },
   // ── P90-2(2026-08-02) · 완료 형태 판정은 구조 채널로 ──────────────────
+  { 이름: 'P90-2 통제 접두어가 스트리밍 조각으로 다시 샘', 파일: TURNJS, 검사: 'test/human-surface-polish.test.js',
+    찾기: "      if (!pv.shown) {\n        p = p.replace(INTERNAL_CONTROL_PREFIX, '');\n        if (!p.trim()) return; // 접두어만 온 조각은 화면에 아무것도 아니다\n      }\n",
+    바꾸기: '' },
   { 이름: 'P90-2 완료 형태 판정을 다시 산문 파싱에 맡김(왕복 낭비 재발)', 파일: TURNJS, 검사: T_TOOL_STEPS,
     찾기: "      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },",
     바꾸기: "      directWrite\n        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }\n        : { effort: 'medium' }," },

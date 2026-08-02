@@ -30,3 +30,45 @@ test('모델 답이 있으면 복구 문장을 답 뒤에 자동으로 덧붙이
 test('일반 merge 후속은 조용히 합치고 실제 interrupt만 상태로 알린다', () => {
   assert.match(html, /r\.followUp\?\.decision\s*===\s*['"]interrupt['"]/);
 });
+
+// ── P90-2(2026-08-02 실측) · 내부 통제 이름이 스트리밍 조각을 타고 새지 않는다 ──
+//
+// 라이브 24개 답 중 3개(12.5%)가 이렇게 시작했다:
+//   `memory.cite: [현재 합의] 앞으로 답변은 항상 표로 정리해줘.`
+// 사용자에게 내부 통제 채널 이름이 그대로 나갔다.
+//
+// 차단 장치(`userFacingModelText`)는 최종 답에 붙어 있고 정규식도 맞다. 뚫린 자리는
+// **스트리밍 조각**이다: 모델이 접두어를 조각으로 흘리면 `pv.shown` 에 오염된 채 쌓이고,
+// 정제된 최종 답은 그 조각으로 시작하지 않으므로 `미리보기정렬` 이 둘을 이어 붙이거나
+// 조각 쪽을 그대로 돌려준다. 화면에 이미 나간 것을 되돌릴 수는 없으니 **조각이 쌓이는
+// 자리에서 같은 경계를 지나야 한다.**
+//
+// 계약: 사용자에게 나가는 텍스트는 조각이든 최종이든 **같은 사용자면 경계**를 지난다.
+// (문구 규칙을 새로 만들지 않는다 — 이미 있는 INTERNAL_CONTROL_PREFIX 하나를 공유한다.)
+test('P90-2: 통제 접두어는 스트리밍 조각에서도 사용자에게 나가지 않는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const 조각 = [];
+  // 실측 그대로 — 모델이 통제 접두어를 조각으로 흘리고 최종 텍스트에도 담는다.
+  const 새는모델 = {
+    async respond(_tc, opts = {}) {
+      const 전문 = 'memory.cite: [현재 합의] 앞으로 답변은 항상 표로 정리해줘.\n\n3월 매출은 820만원이에요.';
+      if (opts.onDelta) {
+        for (const piece of ['memory.cite: [현재 합의] ', '앞으로 답변은 항상 표로 정리해줘.\n\n', '3월 매출은 820만원이에요.']) {
+          await opts.onDelta(piece);
+        }
+      }
+      return 전문;
+    },
+  };
+  const r = await runTurn({ text: '3월 매출 알려줘' }, {
+    env: demoEnv(), tools: demoTools(), model: 새는모델,
+    onAnswerDelta: (t) => { 조각.push(t); },
+  });
+
+  assert.doesNotMatch(String(r.reply ?? ''), /memory\.(cite|propose|correction|withdraw)\s*:/i,
+    `최종 답에 내부 통제 이름이 남았다: ${String(r.reply ?? '').slice(0, 80)}`);
+  assert.doesNotMatch(조각.join(''), /memory\.(cite|propose|correction|withdraw)\s*:/i,
+    `화면에 흘러간 조각에 내부 통제 이름이 있었다: ${조각.join('').slice(0, 80)}`);
+  assert.match(String(r.reply ?? ''), /820만원/, '내용은 그대로 남아야 한다');
+});

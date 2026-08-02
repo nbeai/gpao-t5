@@ -497,9 +497,21 @@ function 미리보기원장(ctx) {
   const raw = ctx.onAnswerDelta;
   const pv = {
     shown: '',
+    // P90-2 실측(2026-08-02 라이브, 24개 답 중 3개): 모델이 통제 접두어를 **조각으로** 흘리면
+    // `memory.cite: [현재 합의] …` 가 그대로 화면에 나갔다. 최종 답에는 `userFacingModelText`
+    // 가 붙어 있었지만, 정제된 답은 오염된 누적으로 시작하지 않으므로 정렬이 둘을 이어 붙이거나
+    // 조각 쪽을 그대로 돌려줬다. **화면은 물릴 수 없으니 나가기 전에 지나야 한다.**
+    //
+    // 접두어는 답의 맨 앞에서만 뜻을 갖는다(정규식이 `^` 앵커다). 그래서 **아직 아무것도 안
+    // 나간 동안에만** 같은 경계를 적용한다 — 본문 중간에 우연히 같은 글자가 오면 건드리지
+    // 않는다. 새 문구 규칙을 만들지 않고 기존 `INTERNAL_CONTROL_PREFIX` 하나를 공유한다.
     emit(piece) {
-      const p = String(piece ?? '');
+      let p = String(piece ?? '');
       if (!p) return;
+      if (!pv.shown) {
+        p = p.replace(INTERNAL_CONTROL_PREFIX, '');
+        if (!p.trim()) return; // 접두어만 온 조각은 화면에 아무것도 아니다
+      }
       pv.shown += p;
       try { raw(p); } catch { /* 화면 갱신 실패가 응답을 깨지 않는다 */ }
     },
