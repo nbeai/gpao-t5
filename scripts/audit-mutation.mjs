@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const GROW = 'src/kernel/l5-growth/tcell-grow.js';
+const VERDICT = 'src/kernel/l5-growth/tcell-verdict.js';  // HRT-ST-003 로 추출된 순수 판정
 const REPLAY = 'src/kernel/l5-growth/tcell-replay.js';
 const OBSERVE = 'src/kernel/l5-growth/tcell-observe.js';
 const SENSITIVE = 'src/kernel/l0-evidence/sensitive-text.js';
@@ -412,6 +413,24 @@ export const MUTATIONS = [
     검사: 'test/tcell-observation.test.js',
     찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
     바꾸기: '    관찰꺼짐: () => false,' },
+  // ── HRT-ST-003 · 추출한 순수 판정의 배선 (원장 mutationRequirement) ────────
+  //
+  // 추출은 자리를 옮긴 것이지 판정을 옮긴 것이 아니다. worker 가 판정 모듈을 지나지 않고
+  // 스스로 통과를 만들면, 검증되지 않은 원리가 승격 경로에 오른다.
+  { 이름: 'ST-003 사례 판정을 모듈에 안 묻고 무조건 통과로 만듦', 파일: GROW, 검사: T_GROW,
+    찾기: '    const verdict = 판정.ok ? 판정으로(c, 실행.text, 판정.text, 판정틀) : undefined;',
+    바꾸기: "    const verdict = 판정.ok ? 'pass' : undefined;" },
+  { 이름: 'ST-003 표본 판정을 모듈에 안 묻고 빈 보고로 대체(SUITE_MINIMUM 우회)', 파일: GROW,
+    검사: T_GROW,
+    찾기: '  const report = verifySuiteFromMemory(m, job.principleId);',
+    바꾸기: "  const report = { verdict: 'pass', cases: [], passed: [] };" },
+  // 원장이 요구한 "원장 없는 반영" — 검증도 사용자 확인도 없이 표식을 미리 켜는 자리.
+  // 통과했다는 사실과 사용자가 승인했다는 사실은 **다른 사실**이고, 둘 다 근거가 있어야
+  // 켜진다. 여기를 켜면 검증되지 않은 원리가 승격 경로에 그대로 오른다.
+  { 이름: 'ST-003 검증·사용자 확인 없이 후보의 replayPassed·userConfirmed 를 미리 켬',
+    파일: GROW, 검사: T_GROW,
+    찾기: '    userConfirmed: false,\n    replayPassed: false,',
+    바꾸기: '    userConfirmed: true,\n    replayPassed: true,' },
   // ── HRT-ST-002 · 추출한 화면 경계의 배선 (원장 mutationRequirement) ────────
   //
   // 추출은 자리를 옮긴 것이지 경계를 옮긴 것이 아니다. turn.js 가 모듈을 거치지 않고
@@ -520,19 +539,19 @@ export const MUTATIONS = [
     바꾸기: '    const 접촉 = Boolean(job.초안.touchesAuthority) || Boolean(나온것.authorityTouch);' },
 
   // ── H02 답 계약 v3 — 항목별 판정 · OS 계산 · 축자/의미 구분 ──────────────
-  { 이름: '축자 대조를 걷어냄(exact 를 모델 재량에 되넘김)', 파일: GROW, 검사: T_GROW,
+  { 이름: '축자 대조를 걷어냄(exact 를 모델 재량에 되넘김)', 파일: VERDICT, 검사: T_GROW,
     찾기: "  for (const f of c.exactFacts ?? []) {\n    if (!답.includes(정규화(f))) 사유.push(`축자 미포함: ${String(f).slice(0, 40)}`);\n  }",
     바꾸기: '' },
-  { 이름: '근거 없는 충족 주장을 인정(판정 불가가 통과로 위장)', 파일: GROW, 검사: T_GROW,
+  { 이름: '근거 없는 충족 주장을 인정(판정 불가가 통과로 위장)', 파일: VERDICT, 검사: T_GROW,
     찾기: "      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `required_${i}_unevidenced`; return null; } // 근거 없는 충족 주장 — 판정 불가",
     바꾸기: '' },
-  { 이름: '근거 대조를 다시 축자 substring 으로(표기 차이가 표본을 잠식)', 파일: GROW, 검사: T_GROW,
+  { 이름: '근거 대조를 다시 축자 substring 으로(표기 차이가 표본을 잠식)', 파일: VERDICT, 검사: T_GROW,
     찾기: "const 근거정규화 = (s) => String(s ?? '').replace(/[,.·:;!?\"'()\\[\\]\\-|~]/g, '').replace(/\\s+/g, '');",
     바꾸기: "const 근거정규화 = (s) => String(s ?? '').replace(/\\s+/g, ' ').trim();" },
-  { 이름: '답에 없는 위반 주장을 그대로 셈(허구 위반이 실패를 만듦)', 파일: GROW, 검사: T_GROW,
+  { 이름: '답에 없는 위반 주장을 그대로 셈(허구 위반이 실패를 만듦)', 파일: VERDICT, 검사: T_GROW,
     찾기: "      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `forbidden_${i}_unevidenced`; return null; }\n      위반 += 1;",
     바꾸기: '      위반 += 1;' },
-  { 이름: '무근거 위반 주장을 조용히 버림(null 이 아니라 통과로 흐름 — 감사 지적 ④ 재발)', 파일: GROW, 검사: T_GROW,
+  { 이름: '무근거 위반 주장을 조용히 버림(null 이 아니라 통과로 흐름 — 감사 지적 ④ 재발)', 파일: VERDICT, 검사: T_GROW,
     찾기: "      // 표본이 아니다 — 통과·실패 어느 쪽으로도 위장하지 않는다.\n      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `forbidden_${i}_unevidenced`; return null; }",
     바꾸기: "      // 표본이 아니다 — 통과·실패 어느 쪽으로도 위장하지 않는다.\n      if (!근거가원문에(it.evidence, 산출물)) continue;" },
   { 이름: 'exact 출처 결합 제거(요청 문구가 출력 계약이 됨 — r28 재발)', 파일: GROW, 검사: T_GROW,
@@ -544,7 +563,7 @@ export const MUTATIONS = [
   { 이름: '무효 exact 회차가 재제안 없이 그대로 표본으로 돌진', 파일: GROW, 검사: T_GROW,
     찾기: "    const 미결합들 = 초안.cases.filter((c) => c.미결합exact?.length);\n    if (미결합들.length) {",
     바꾸기: '    const 미결합들 = [];\n    if (미결합들.length) {' },
-  { 이름: '항목별 판정 저장 제거(null 과 실행 위반을 기록으로 구분 불가)', 파일: GROW, 검사: T_GROW,
+  { 이름: '항목별 판정 저장 제거(null 과 실행 위반을 기록으로 구분 불가)', 파일: VERDICT, 검사: T_GROW,
     찾기: "    items: { required: 항목.required ?? [], forbidden: 항목.forbidden ?? [] },",
     바꾸기: '' },
 
@@ -553,7 +572,7 @@ export const MUTATIONS = [
     바꾸기: '    } else if (false) {' },
 
   // ── H02 판정 계약 구조화 — 필수/허용/금지 ────────────────────────────────
-  { 이름: '허용 계약을 판정에 안 실음(재량이 다시 산문 해석으로 돌아감)', 파일: GROW, 검사: T_GROW,
+  { 이름: '허용 계약을 판정에 안 실음(재량이 다시 산문 해석으로 돌아감)', 파일: VERDICT, 검사: T_GROW,
     찾기: "    ...(c.allowedFacts?.length ? [\n      `허용 사실(판정 항목이 아니다 — 수행해도, 생략해도 어느 쪽도 세지 않는다): ${c.allowedFacts.join(' / ')}`,\n    ] : []),",
     바꾸기: '' },
   { 이름: '판정력 0(필수·금지 없음) 사례를 표본으로 받음', 파일: GROW, 검사: T_GROW,
@@ -562,7 +581,7 @@ export const MUTATIONS = [
   { 이름: '허용 계약을 digest 에서 뺌(바꿔 끼워도 같은 계약)', 파일: REPLAY, 검사: T_GROW,
     찾기: '    ...(c.allowedFacts?.length ? { allowedFacts: [...c.allowedFacts].sort() } : {}),',
     바꾸기: '' },
-  { 이름: '권한 접촉을 저장 사실이 아니라 남은 사례 존재로 판정(사례를 잃으면 요구도 사라짐)', 파일: GROW, 검사: T_GROW,
+  { 이름: '권한 접촉을 저장 사실이 아니라 남은 사례 존재로 판정(사례를 잃으면 요구도 사라짐)', 파일: VERDICT, 검사: T_GROW,
     찾기: "  const touchesAuthority = (memory?.growJobs ?? []).find((j) => j.principleId === principleId)?.touchesAuthority\n    ?? (memory?.candidates ?? []).find((c) => c.principleId === principleId)?.touchesAuthority\n    ?? 판정된.some((c) => c.kind === 'authority');",
     바꾸기: "  const touchesAuthority = 판정된.some((c) => c.kind === 'authority');" },
   { 이름: '접촉 선언에도 authority 표본을 요구하지 않음', 파일: GROW, 검사: T_GROW,
@@ -659,18 +678,18 @@ export const MUTATIONS = [
   { 이름: '접힌 회차(proposal_short)의 관측이 버려짐', 파일: GROW, 검사: T_GROW,
     찾기: "    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement, 관측 };",
     바꾸기: "    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement };" },
-  { 이름: '판정 불가의 불가 이유가 기록되지 않음', 파일: GROW, 검사: T_GROW,
+  { 이름: '판정 불가의 불가 이유가 기록되지 않음', 파일: VERDICT, 검사: T_GROW,
     찾기: "      if (!근거가원문에(it.evidence, 산출물)) { 관측.불가이유 = `required_${i}_unevidenced`; return null; } // 근거 없는 충족 주장 — 판정 불가",
     바꾸기: '      if (!근거가원문에(it.evidence, 산출물)) return null; // 근거 없는 충족 주장 — 판정 불가' },
 
   // ── r42 null 계열 봉합 — 줄 단위 근거 대조·부재형 필수 기준 ──
-  { 이름: '근거 대조를 다시 통짜 substring 으로(여러 줄 인용이 전부 null — r42 재발)', 파일: GROW, 검사: T_GROW,
+  { 이름: '근거 대조를 다시 통짜 substring 으로(여러 줄 인용이 전부 null — r42 재발)', 파일: VERDICT, 검사: T_GROW,
     찾기: "  const 줄들 = String(evidence ?? '').split('\\n').map((l) => 근거정규화(l)).filter(Boolean);\n  return 줄들.length > 0 && 줄들.every((l) => 답.includes(l));",
     바꾸기: "  const ev = 근거정규화(evidence ?? '');\n  return Boolean(ev) && 답.includes(ev);" },
-  { 이름: '근거 검증을 항상 통과로(지어낸 근거가 충족 주장을 세움)', 파일: GROW, 검사: T_GROW,
+  { 이름: '근거 검증을 항상 통과로(지어낸 근거가 충족 주장을 세움)', 파일: VERDICT, 검사: T_GROW,
     찾기: '  return 줄들.length > 0 && 줄들.every((l) => 답.includes(l));',
     바꾸기: '  return true;' },
-  { 이름: '부재형 필수를 무효로 보내는 유효성 기준 삭제', 파일: GROW, 검사: T_GROW,
+  { 이름: '부재형 필수를 무효로 보내는 유효성 기준 삭제', 파일: VERDICT, 검사: T_GROW,
     찾기: "    '- expectedFacts 에 **부재·비발생**(\"…하지 않는다/…이 없어야 한다\")을 기대하는 항목이 있다',\n    '  — 부재는 답 원문 조각으로 증명할 수 없다. 그런 항목은 forbiddenFacts 로 적어야 한다',",
     바꾸기: '' },
 
