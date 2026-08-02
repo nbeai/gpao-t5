@@ -254,6 +254,38 @@ test('산출물 의무: 첫 응답이 도구를 고르지 않아도 Intent 의 �
   assert.notEqual(r.workingState?.recentOutcome?.status, 'completed');
 });
 
+test('문맥에서 만들 파생 파일은 본문을 다시 받아쓰게 하지 않고 write 승인으로 이어진다', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  let derivedCalls = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return 'FILE';
+      if (tc?.unmetDeliverable) {
+        derivedCalls += 1;
+        assert.equal(opts.requiredTool, 'local.file');
+        assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write']);
+        assert.ok(opts.tools[0].parameters.required.includes('source'));
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: {
+            action: 'write', path: '고객안내-확정.md',
+            text: '# 고객 안내\n\n배송은 오후 3시에 마감됩니다.', source: '견적서.md',
+          },
+        }] };
+      }
+      if (!opts.tools?.length) return '공지문을 만들게요.';
+      return { text: '공지문을 만들게요.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({
+    text: '방금 읽은 최신 내용을 공지문으로 다듬어서 고객안내-확정.md 파일로 만들어줘',
+  }, ctx(model));
+  assert.equal(derivedCalls, 1, '문맥 기반 본문 생성을 위한 쓰기 선택을 요청하지 않았다');
+  assert.equal(r.kind, 'approval',
+    `본문을 다시 받아쓰게 하거나 말로만 끝냈다(kind=${r.kind}, question=${r.question ?? ''})`);
+});
+
 test('산출물 의무: 전용 판단 형식이 두 번 깨지면 CHAT 으로 꾸미지 않고 완료를 보류한다', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);

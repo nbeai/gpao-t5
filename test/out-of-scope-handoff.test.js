@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runTurn } from '../src/kernel/turn.js';
+import { finalNextSafeAction, runTurn, unresolvedTurnReceipts } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalLocateTool } from '../src/runtime/local-locate.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -105,6 +105,87 @@ test('모든 손이 막힌 턴에서도 사용자에게 옮기라고 하지 않�
   assert.ok(힌트들.length, '막혔는데 다음 길을 아예 안 줬다 — 막다른 답이 된다');
   for (const h of 힌트들) assert.doesNotMatch(h, 떠넘김, `모델에게 떠넘김을 사실로 줬다: ${h}`);
   assert.doesNotMatch(r.nextSafeAction ?? '', 떠넘김, `화면에 떠넘김이 나갔다: ${r.nextSafeAction}`);
+});
+
+test('잘못 짐작한 자리의 list 실패는 실제 자리의 하위 파일을 읽으면 사용자 미해결에서 빠진다', () => {
+  const receipts = [
+    {
+      actualCall: { tool: 'local.file', args: { action: 'list', path: '/Users/owner/Documents/자료' } },
+      failureState: 'blocked', scopeState: 'out_of_scope',
+      userSafeSummary: '그 자리는 파일 도구의 작업 폴더 밖이에요.',
+      nextSafeAction: '작업 폴더 안에서 찾아볼게요.',
+    },
+    {
+      actualCall: { tool: 'local.locate', args: { what: '자료', from: 'Documents' } },
+      failureState: 'none', result: { path: '/실제홈/Documents/자료' }, userSafeSummary: '자료를 찾았어요.',
+    },
+    {
+      actualCall: { tool: 'local.file', args: { action: 'read', path: 'Documents/자료/안내.md' } },
+      failureState: 'none', result: { text: '안내' }, userSafeSummary: '안내.md를 읽었어요.',
+    },
+  ];
+  const unresolved = unresolvedTurnReceipts(receipts);
+  assert.equal(unresolved.length, 2, '뒤 성공으로 해결된 선행 범위 실패가 사용자 미해결에 남았다');
+  assert.equal(unresolved.some((r) => r.failureState !== 'none'), false);
+});
+
+test('보호 차단이나 다른 행동의 실패는 뒤의 파일 성공으로 숨기지 않는다', () => {
+  const receipts = [
+    {
+      actualCall: { tool: 'local.file', args: { action: 'read', path: '/보호/비밀.txt' } },
+      failureState: 'blocked', scopeState: 'protected', userSafeSummary: '보호된 자리예요.',
+    },
+    {
+      actualCall: { tool: 'local.file', args: { action: 'list', path: '/허용' } },
+      failureState: 'none', result: { entries: [] }, userSafeSummary: '목록을 봤어요.',
+    },
+  ];
+  assert.equal(unresolvedTurnReceipts(receipts).length, 2,
+    '무관한 성공이 보호 차단을 해결한 것처럼 숨겼다');
+});
+
+test('다른 Documents 폴더의 성공은 앞선 범위 실패를 해결한 것으로 세지 않는다', () => {
+  const receipts = [
+    {
+      actualCall: { tool: 'local.file', args: { action: 'list', path: '/Users/owner/Documents/고객자료' } },
+      failureState: 'blocked', scopeState: 'out_of_scope', userSafeSummary: '범위 밖이에요.',
+    },
+    {
+      actualCall: { tool: 'local.file', args: { action: 'read', path: 'Documents/회계자료/안내.md' } },
+      failureState: 'none', result: { text: '안내' }, userSafeSummary: '안내.md를 읽었어요.',
+    },
+  ];
+  assert.equal(unresolvedTurnReceipts(receipts).length, 2,
+    '다른 폴더의 성공이 앞선 실패를 해결한 것으로 오인됐다');
+});
+
+test('없는 파일 뒤 같은 폴더 목록과 이름 찾기를 이미 했으면 그 찾기를 다시 약속하지 않는다', () => {
+  const receipts = [
+    {
+      actualCall: { tool: 'local.file', args: { action: 'read', path: 'Documents/자료/없는.pdf' } },
+      failureState: 'blocked', userSafeSummary: '없는.pdf를 찾지 못했어요.', nextSafeAction: '다른 자리에서 찾아볼게요.',
+    },
+    {
+      actualCall: { tool: 'local.file', args: { action: 'list', path: 'Documents/자료' } },
+      failureState: 'none', result: { entries: ['대안.md'] }, userSafeSummary: '목록을 확인했어요.',
+    },
+    {
+      actualCall: { tool: 'local.locate', args: { what: '없는.pdf', from: 'Documents' } },
+      failureState: 'none', result: { candidates: [] }, userSafeSummary: '이름으로도 찾아봤어요.',
+    },
+  ];
+  assert.equal(finalNextSafeAction(receipts, ['local.file', 'local.locate']), undefined,
+    '이미 수행한 찾기를 최종 화면에서 다시 약속했다');
+  assert.equal(unresolvedTurnReceipts(receipts).some((r) => r.failureState !== 'none'), true,
+    '파일이 없었다는 미확인 사실까지 지워 버렸다');
+});
+
+test('없는 파일 뒤 복구를 아직 안 했으면 다음 길을 유지한다', () => {
+  const receipts = [{
+    actualCall: { tool: 'local.file', args: { action: 'read', path: 'Documents/자료/없는.pdf' } },
+    failureState: 'blocked', userSafeSummary: '없는.pdf를 찾지 못했어요.', nextSafeAction: '다른 자리에서 찾아볼게요.',
+  }];
+  assert.ok(finalNextSafeAction(receipts, ['local.locate']), '아직 복구하지 않았는데 다음 길까지 없앴다');
 });
 
 // ── 경계는 도구 이름이 아니라 구조에 친다 ────────────────────────────────

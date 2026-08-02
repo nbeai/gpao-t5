@@ -83,6 +83,26 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
   return { assessment: 'unknown', deliverables: [] };
 }
 
+/**
+ * 파일 산출물 계약이 요구하는 쓰기 손. 일반 파일 스키마를 복제하지 않고 action 과 필수 결과만
+ * 좁힌다. 파생 산출물은 원본 결합 근거(source)까지 있어야 기존 원본 보존 경계를 탄다.
+ */
+function fileWriteTools(selfState, modelControls, { derived = true } = {}) {
+  return modelSchemasFor(selfState, modelControls)
+    .filter((tool) => tool.name === 'local.file')
+    .map((tool) => ({
+      ...tool,
+      parameters: {
+        ...tool.parameters,
+        properties: {
+          ...tool.parameters.properties,
+          action: { ...tool.parameters.properties.action, enum: ['write'] },
+        },
+        required: ['action', 'path', 'text', ...(derived ? ['source'] : [])],
+      },
+    }));
+}
+
 function 확정된전송미리보기(preview, args = {}) {
   if (!preview) return preview;
   const { scope: _미확정대상, ...rest } = preview;
@@ -136,6 +156,60 @@ export function userSafeNextAction(receipts = []) {
   if (fromTool) return fromTool;
   const blocked = receipts.find((r) => r.failureState && r.failureState !== 'none');
   return blocked ? '다른 방법으로 이어가 볼까요?' : undefined;
+}
+
+/**
+ * 원장은 시도한 실패까지 모두 보존한다. 다만 사용자에게 보이는 **이번 턴의 미해결 사실**은 다르다.
+ * 잘못 짐작한 파일 자리에서 list 가 범위 밖으로 막힌 뒤, 같은 턴에 실제 자리를 찾아 같은 list 를
+ * 성공했다면 앞 실패는 해결 과정이지 남은 다음 행동이 아니다. 보호 차단·쓰기 실패·다른 파일의
+ * 실패는 숨기지 않는다. 오직 out_of_scope 탐색 실패와 뒤의 같은 도구+행동 성공만 해소한다.
+ */
+export function unresolvedTurnReceipts(receipts = []) {
+  return receipts.filter((rec, index) => {
+    if ((rec?.failureState ?? 'none') === 'none' || rec?.scopeState !== 'out_of_scope') return true;
+    const tool = rec.actualCall?.tool;
+    const action = rec.actualCall?.args?.action;
+    const failedPath = portableFilePath(rec.actualCall?.args?.path);
+    if (!tool || !action) return true;
+    return !receipts.slice(index + 1).some((later) => (
+      (later?.failureState ?? 'none') === 'none'
+      && later?.actualCall?.tool === tool
+      && (
+        later?.actualCall?.args?.action === action
+        || (failedPath && portableFilePath(later?.actualCall?.args?.path)?.startsWith(`${failedPath}/`))
+      )
+    ));
+  });
+}
+
+function portableFilePath(value) {
+  const normalized = typeof value === 'string' ? value.replaceAll('\\', '/').replace(/\/+$/, '') : '';
+  const match = normalized.match(/(?:^|\/)(Downloads|Documents|Desktop|GPAO-T5)(?:\/|$)(.*)$/);
+  return match ? `${match[1]}/${match[2]}`.replace(/\/+$/, '') : undefined;
+}
+
+/** 최종 화면에서 이미 수행한 복구를 다시 약속하지 않는다. 실패 사실 자체는 원장에 남는다. */
+export function finalNextSafeAction(receipts, hands) {
+  const failures = receipts
+    .map((rec, index) => ({ rec, index }))
+    .filter(({ rec }) => (rec?.failureState ?? 'none') !== 'none');
+  if (!failures.length) return undefined;
+  const recovered = ({ rec, index }) => {
+    if (rec.actualCall?.tool !== 'local.file' || rec.actualCall?.args?.action !== 'read') return false;
+    const failedPath = portableFilePath(rec.actualCall?.args?.path);
+    if (!failedPath) return false;
+    const slash = failedPath.lastIndexOf('/');
+    const parent = slash >= 0 ? failedPath.slice(0, slash) : '';
+    const name = slash >= 0 ? failedPath.slice(slash + 1) : failedPath;
+    return receipts.slice(index + 1).some((later) => {
+      if ((later?.failureState ?? 'none') !== 'none') return false;
+      if (later.actualCall?.tool === 'local.file' && later.actualCall?.args?.action === 'list') {
+        return portableFilePath(later.actualCall?.args?.path) === parent;
+      }
+      return later.actualCall?.tool === 'local.locate' && later.actualCall?.args?.what === name;
+    });
+  };
+  return failures.every(recovered) ? undefined : 다음길(receipts, hands);
 }
 
 /**
@@ -571,6 +645,30 @@ export async function runTurn(input, ctx) {
   const completionContract = await fileDeliverablesFor({
     model: ctx.model, tc: earlyTc, calls: modelChosen ?? [], intent,
   });
+
+  // 사용자가 앞서 읽은 자료를 "공지문 파일로 만들어줘"라고 하면, 본문을 다시 받아쓰게 하지
+  // 않는다. FILE 계약이 섰고 애매한 것이 **본문뿐**일 때만 모델에게 쓰기 손을 구조로 요구한다.
+  // 경로·내용·원본 선택은 모델의 몫이고, 반환된 호출은 아래의 기존 계획·권한·승인 경계를 탄다.
+  if (!modelChosen && completionContract.assessment === 'file') {
+    const parsed = parseFileRequest(input.text ?? '');
+    if (parsed.action === 'write' && parsed.clarifyReason === 'no_content') {
+      const writeTools = fileWriteTools(selfState, ctx.modelControls, { derived: true });
+      if (writeTools.length) {
+        const out = await ctx.model.respond({ ...earlyTc, unmetDeliverable: true }, {
+          effort: 'medium', tools: writeTools, requiredTool: 'local.file',
+        });
+        const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+        통제제안받기(분리);
+        if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
+        if (분리.memoryWithdrawal) memoryWithdrawal = 분리.memoryWithdrawal;
+        if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
+        if (분리.rest.length) {
+          modelChosen = 분리.rest;
+          if (typeof out !== 'string' && out?.text) earlyReply = out.text;
+        }
+      }
+    }
+  }
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
   if (!modelChosen && intent.answerMode === 'fast_chat' && !influence
@@ -1118,17 +1216,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // ActionPlan 이 요구한 것은 파일 손 일반이 아니라 **성공한 write 영수증**이다. 같은 전체
     // 스키마를 다시 주면 모델이 방금 끝낸 versions/read 를 되풀이한다. 작업 종류만 계약과
     // 맞추고, 경로·내용·원본 선택은 모델에 남긴다.
-    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((tool) => tool.name === 'local.file').map((tool) => ({
-      ...tool,
-      parameters: {
-        ...tool.parameters,
-        properties: {
-          ...tool.parameters.properties,
-          action: { ...tool.parameters.properties.action, enum: ['write'] },
-        },
-        required: ['action', 'path', 'text', ...(derived ? ['source'] : [])],
-      },
-    }));
+    const fileTools = fileWriteTools(selfState, ctx.modelControls, { derived });
     if (!fileTools.length) { 멈춘이유 = '파일 결과물을 남길 손이 없어 멈췄어요'; return false; }
     산출물요청수 += 1;
     finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
@@ -1396,7 +1484,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 답에서만큼은 원장의 정직한 사실이 이긴다(나간 조각 보존 계약의 유일한 예외 — 거짓 성공).
   const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply);
   if (거짓성공정렬후?.blocked) reply = 거짓성공정렬후.정직한답;
-  const projection = projectReceipts(turnReceipts);
+  const unresolvedReceipts = unresolvedTurnReceipts(turnReceipts);
+  const projection = projectReceipts(unresolvedReceipts);
 
   // **끝난 일은 끝났다고 남긴다.** 실측(오너 라이브 G 행렬 2026-07-29): 저장까지 실제로 끝낸 뒤
   // `아까 그거 이어줘` 하자 같은 파일을 다시 쓰는 승인 카드가 떴다. 현재 상태에 "방금 다룬
@@ -1442,7 +1531,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **사용자 화면은 그 경계를 안 탔다.** 그래서 방금 다른 손이 붙었는데도 화면에는
     // "그 폴더로 옮겨 주세요"가 그대로 남는다(관통 검사로 발견, 2026-07-28).
     // 같은 사실은 같은 경계를 지나야 한다 — 표면마다 다른 현실을 보게 하지 않는다.
-    nextSafeAction: projection.unconfirmed.length ? 다음길(turnReceipts, 있는손()) : undefined,
+    nextSafeAction: projection.unconfirmed.length ? finalNextSafeAction(unresolvedReceipts, 있는손()) : undefined,
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     // **끝났으면 명시적으로 해제한다.** 안 그러면 끝난 일이 계속 "현재 목표"로 남아
     // 다음 턴을 붙든다(실측: activeGoal 이 새 발화로 덮여 런타임이 "진행 중"처럼 말했다).

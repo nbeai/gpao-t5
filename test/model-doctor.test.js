@@ -121,6 +121,19 @@ test('칩 매핑: index.html 이 model_missing/unreachable 을 "모델 확인 �
   assert.ok(html.includes('modelHealthState'), '칩이 검증 축을 실제로 읽는다');
 });
 
+test('초기 화면은 stub 를 준비됨으로 꾸미지 않고 저장된 연결 사실을 즉시 갱신한다', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
+  assert.equal(html.includes('beai5-stub · 준비됨'), false,
+    '실제 연결을 읽기 전 정적 stub 를 준비된 모델로 노출한다');
+  assert.ok(html.includes('모델 확인 중…'), '연결 확인 전 중립 상태가 없다');
+  assert.ok(html.includes('async function refreshInitialModelStatus()'), '첫 턴 전 연결 상태 갱신 경로가 없다');
+  assert.ok(html.includes('await refreshInitialModelStatus();'), '초기화가 연결 상태 갱신을 실제로 부르지 않는다');
+  for (const id of ['brandSearch', 'settingsbtn', 'theme']) {
+    assert.match(html, new RegExp(`<button[^>]+id="${id}"`), `${id} 가 누를 수 있는 button 이 아니다`);
+  }
+});
+
 test('공개 리포트 위생: provider 원문(키 조각 포함)·authSignal 이 /model/health 로 새지 않는다(감사 B2)', async () => {
   const { impl } = fakeFetch(401, { error: { code: 'invalid_api_key', message: 'bad key sk-secret-abc leaked-internal-code' } });
   const d = liveDeps({ OPENAI_API_KEY: 'sk-secret-abc' }, { fetchImpl: impl });
