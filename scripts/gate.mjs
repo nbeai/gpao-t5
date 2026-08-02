@@ -83,7 +83,10 @@ try {
   });
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
-    const { tools: shown } = await (await fetch(`${base}/toolbox`)).json();
+    // 사람이 하는 그대로 들어간다: 화면을 열면 신분이 붙고 그 다음부터 API 가 열린다(P-DIST-1 §3).
+    // 게이트도 **사용자에게 도달하는 경로**로 확인해야 하므로 화면을 건너뛰지 않는다.
+    const 쿠키 = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
+    const { tools: shown } = await (await fetch(`${base}/toolbox`, { headers: { cookie: 쿠키 } })).json();
     const surfaced = (shown ?? []).map((t) => t.id);
     // P5-B-0: 도구함에 **보이는 것** 자체는 문제가 아니다(연결 전 서비스도 보여야 사용자가 안다).
     // 문제는 **"지금 쓸 수 있다"고 보이는데 손이 없는** 경우다.

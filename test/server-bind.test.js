@@ -48,7 +48,10 @@ test('비루프백 기동은 거부된다 — 사람 말로, 무엇이 안 되�
   assert.fail('고르지 않은 LAN 노출이 조용히 열렸다');
 });
 
-test('기존 로컬 흐름은 그대로다 — 토큰도 질문도 없다', async () => {
+// P-DIST-1 §3 이후: **사용자에게 묻는 것은 여전히 없다.** 화면을 여는 그 한 걸음에 신분이
+// 함께 오기 때문이다. 달라진 것은 화면 밖에서 부르는 쪽 — 그건 이 사람이 아니다(소유권 검사는
+// `local-surface-ownership.test.js` 에서 잰다). 여기서는 **쓰던 사람이 겪는 것**만 잰다.
+test('기존 로컬 흐름은 그대로다 — 사용자가 더 할 일은 없다', async () => {
   const server = await 띄우기();
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -56,9 +59,11 @@ test('기존 로컬 흐름은 그대로다 — 토큰도 질문도 없다', asyn
     assert.equal(h.status, 200, '/health 는 설치 검증이 물어보는 자리 — 그대로 열려 있다');
     assert.equal((await h.json()).ok, true);
 
-    assert.equal((await fetch(`${base}/sessions`)).status, 200, '목록 API 그대로');
     const 화면 = await fetch(`${base}/`);
-    assert.equal(화면.status, 200, '화면 그대로');
+    assert.equal(화면.status, 200, '화면 그대로 — 아무 것도 묻지 않는다');
     assert.match(화면.headers.get('content-type') ?? '', /text\/html/);
+
+    const 쿠키 = (화면.headers.get('set-cookie') ?? '').split(';')[0];
+    assert.equal((await fetch(`${base}/sessions`, { headers: { cookie: 쿠키 } })).status, 200, '목록 API 그대로');
   } finally { await new Promise((r) => server.close(r)); }
 });

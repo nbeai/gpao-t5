@@ -90,6 +90,8 @@ import { makeTurnTimingRegistry } from './turn-timing-registry.js';
 import { admitWorkStateProposal } from './work-state-admission.js';
 import { projectWorkState, workStateFacts } from '../kernel/l1-intent/work-state.js';
 import { workEvidenceDigest } from '../kernel/l0-evidence/work-refs.js';
+import { 소유권검사, 신분쿠키헤더 } from './local-surface.js';
+import { 데이터자리, 설치신분, 자리표쓰기 } from './install-locator.js';
 
 const SENSITIVE_TRANSCRIPT_PLACEHOLDER = '[민감정보를 포함한 사용자 발화 — 원문은 저장하지 않음]';
 const SENSITIVE_RESULT_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
@@ -1001,9 +1003,20 @@ export function makeServer(deps = {}) {
     return result;
   }
 
+  // P-DIST-1 §3 · 이 표면은 이 컴퓨터의 이 사람 것이다. 루프백에 떠 있어도 사용자가 열어 둔
+  // 아무 웹페이지가 여기로 요청을 보낼 수 있다 — Host·Origin·설치 신분으로 막는다(`local-surface.js`).
+  // 신분을 안 준 기동(검사 하네스)에서는 검사기가 통과만 한다 — 없는 신분을 요구해 다 막지 않는다.
+  const 소유권 = 소유권검사({ token: deps.surfaceToken, 내포트: () => server.address()?.port });
+
   const server = createServer(async (req, res) => {
     try {
       const url = (req.url ?? '').split('?')[0];
+      const 남의요청 = 소유권(req, url);
+      if (남의요청) {
+        res.writeHead(남의요청.status, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end(남의요청.사람말);
+        return;
+      }
 
       // ── health (P-DIST-1) ── 설치 검증이 물어보는 단일 신호. **거짓 초록 금지**: 서버가 살아 있으면
       //   ok:true 이되, 모델 연결 여부는 있는 그대로 싣는다(모델이 없다고 ok 를 거짓으로 만들지도,
@@ -1013,6 +1026,10 @@ export function makeServer(deps = {}) {
         const onboarding = await onboardingStore.load();
         return sendJson(res, 200, {
           ok: true,
+          // 누구인지는 말한다 — 두 번째 실행이 "저기 있는 게 이 T5 인가"를 이걸로 가린다(§3 자리 재사용).
+          // **비밀은 싣지 않는다.** installId 는 공개해도 되는 이름이고, 신분 토큰은 여기 오지 않는다.
+          product: 'gpao-t5',
+          installId: deps.installId ?? null,
           model: {
             connected: Boolean(connStatus.connected),
             id: env.model?.id ?? null,
@@ -1039,7 +1056,12 @@ export function makeServer(deps = {}) {
 
       if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
         const html = await readFile(join(__dirname, 'web', 'index.html'), 'utf8');
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        // 화면이 뜨는 이 한 걸음에서 신분이 함께 간다 — **사용자가 하는 일은 없다.**
+        // 값을 HTML 에 박지 않고 HttpOnly 쿠키로 준다: 페이지 스크립트도 못 읽으므로
+        // XSS 한 방에 신분이 새지 않고, SameSite=Strict 라 다른 사이트 요청에는 아예 안 붙는다.
+        const 머리 = { 'content-type': 'text/html; charset=utf-8' };
+        if (deps.surfaceToken) 머리['set-cookie'] = 신분쿠키헤더(deps.surfaceToken);
+        res.writeHead(200, 머리);
         res.end(html);
         return;
       }
@@ -2539,6 +2561,30 @@ export function makeServer(deps = {}) {
  * @param {{port?:number, processEnv?:Object, sessionStore?:SessionStore, connectionStore?:ModelConnectionStore,
  *          fetchImpl?:Function, startScheduler?:boolean}} [opts]
  */
+/**
+ * 자리를 잡는다. 원하는 자리가 이미 차 있으면 **OS 가 주는 빈 자리**로 옮긴다.
+ * 옮겼으면 true. 0(아무 자리나)은 애초에 옮길 것이 없다.
+ * 자리를 물어보고 잡는 사이에 남이 채 갈 수 있으므로, 미리 확인하지 않고 **잡아 보고** 처리한다.
+ */
+async function 들을자리(server, port, host) {
+  try {
+    await new Promise((resolve, reject) => {
+      const 실패 = (e) => reject(e);
+      server.once('error', 실패);
+      server.listen(port, host, () => { server.removeListener('error', 실패); resolve(); });
+    });
+    return false;
+  } catch (e) {
+    if (e?.code !== 'EADDRINUSE' || port === 0) throw e;
+    await new Promise((resolve, reject) => {
+      const 실패 = (e2) => reject(e2);
+      server.once('error', 실패);
+      server.listen(0, host, () => { server.removeListener('error', 실패); resolve(); });
+    });
+    return true;
+  }
+}
+
 export async function startLiveServer(opts = {}) {
   const bootStore = opts.sessionStore ?? new SessionStore();
   // 설치 전 필수(감사 2026-07-29): **같은 데이터 디렉터리에는 단일 writer.** 살아 있는 다른
@@ -2594,7 +2640,13 @@ async function startLiveServerInner(opts, bootStore) {
     안내.안내 = true; // 고장이 아니라 안내다 — 스택 없이 이 한 줄만 보여 준다
     throw 안내;
   }
+  // P-DIST-1 §3 · 이 설치본의 신분. 자리표와 같은 폴더에 산다 — 데이터가 격리되면 신분도 함께 격리된다.
+  // 여기서 한 번 읽어(없으면 만들어) 서버에 준다. 만들지 못해도 부팅은 막지 않는다: 신분이 없으면
+  // 소유권 검사가 통과만 하고, **그건 지금까지와 같은 상태**다(더 나빠지지 않는다).
+  const 신분 = await 설치신분(bootStore.dir).catch(() => ({ installId: null, token: null }));
+
   const server = makeServer({
+    surfaceToken: 신분.token, installId: 신분.installId,
     store: bootStore, env: liveEnv, tools: liveTools,
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
     descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
@@ -2612,7 +2664,12 @@ async function startLiveServerInner(opts, bootStore) {
   try { await server.runtimeReconcile(); }
   catch (error) { console.error('[automation:reconcile]', error?.message ?? error); }
   const port = opts.port ?? Number(processEnv.PORT ?? 4173);
-  await new Promise((resolve) => server.listen(port, host, resolve));
+  // P-DIST-1 §3 · **자리가 막혔다고 죽지 않는다.** 예전엔 여기서 EADDRINUSE 가 그대로 터졌고,
+  // 설치본을 받은 사람에겐 그게 "켜지지 않는 프로그램"이었다. 다른 프로그램이 기본 자리를
+  // 쓰고 있으면 OS 가 주는 빈 자리로 옮긴다. 옮겼다는 사실은 숨기지 않는다 — 안내가 이걸 본다.
+  server.자리옮김 = await 들을자리(server, port, host);
+  // 실제로 잡은 자리를 적는다. 이게 없으면 자리를 옮긴 T5 를 다음 실행이 다시는 못 찾는다.
+  await 자리표쓰기(bootStore.dir, { port: server.address().port, installId: 신분.installId });
   // P-RT-2 부팅 점검(비차단): 구성됨→검증됨. 게이트가 아니라 정직한 표시.
   // P5-B-1A: **이미 설치·설정된 것은 사용자가 아니라 T5 가 확인한다.** 커넥터가 선언한 로컬
   // 흔적(동기화 폴더·MCP 설정·CLI·앱)을 부팅 직후 확인해 같은 배열에 얹는다 — 매 턴 ctx 가

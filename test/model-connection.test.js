@@ -218,10 +218,12 @@ test('부팅 순서: 저장 연결이 있으면 listen 전에 복원 — 첫 /tu
   });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
+    // 사람이 하는 그대로: 화면을 열면 신분이 붙고, 그 다음부터 API 가 열린다(P-DIST-1 §3).
+    const 쿠키 = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
     // startLiveServer resolve 즉시(대기 없이) 첫 턴 — 복원이 listen 전에 끝났어야 통과한다.
-    const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+    const s = await (await fetch(`${base}/sessions`, { method: 'POST', headers: { cookie: 쿠키 } })).json();
     const turn = await (await fetch(`${base}/turn`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: 쿠키 },
       body: JSON.stringify({ sessionId: s.id, text: '안녕' }),
     })).json();
     assert.equal(turn.reply, '재시작 후에도 저장 모델');

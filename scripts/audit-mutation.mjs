@@ -34,6 +34,10 @@ const SERVER = 'src/surface/server.js';
 const TICK = 'src/surface/tick-scheduler.js';   // HRT-ST-001 로 server.js 에서 추출된 tick 스케줄러
 const TIMING_REG = 'src/surface/turn-timing-registry.js'; // HRT-ST-001 두 번째 추출
 const T_TIMING_REG = 'test/turn-timing-registry.test.js';
+const OWN = 'src/surface/local-surface.js';      // P-DIST-1 §3 로컬 표면 소유권
+const T_OWN = 'test/local-surface-ownership.test.js';
+const PORT = 'src/surface/port-claim.js';        // P-DIST-1 §3 자리 잡기·재사용
+const T_PORT = 'test/port-claim.test.js';
 
 const T_GROW = 'test/tcell-grow.test.js';
 const T_REPLAY = 'test/tcell-replay.test.js';
@@ -659,8 +663,10 @@ export const MUTATIONS = [
   // ── 노출 경계(고르지 않은 것을 열어 두지 않는다) ───────────────────────
   // 계약은 둘뿐이다: 기본은 루프백에만 붙는다 · 비루프백은 뜨지 않는다.
   { 이름: '주소 없이 붙어 같은 망에 열림(기본값이 노출을 고름)', 파일: SERVER, 검사: T_BIND,
-    찾기: '  await new Promise((resolve) => server.listen(port, host, resolve));',
-    바꾸기: '  await new Promise((resolve) => server.listen(port, resolve));' },
+    // 자리 잡기가 `들을자리` 로 옮겨졌다(P-DIST-1 §3 · 막힌 자리에서 죽지 않게). 계약은 그대로다 —
+    // **주소를 명시해서** 붙는다. 원하는 자리에 붙는 그 한 줄에 다시 건다.
+    찾기: '      server.listen(port, host, () => { server.removeListener(\'error\', 실패); resolve(); });',
+    바꾸기: '      server.listen(port, () => { server.removeListener(\'error\', 실패); resolve(); });' },
   { 이름: '비루프백 지정을 조용히 받아들임', 파일: SERVER, 검사: T_BIND,
     찾기: "  if (!['127.0.0.1', '::1', 'localhost'].includes(host)) {", 바꾸기: '  if (false) {' },
 
@@ -1068,6 +1074,24 @@ export const MUTATIONS = [
   { 이름: '최신 모델 질문에서 공식 목록·날짜 비교 지침 제거', 파일: 'src/kernel/model-prompt-profile.js', 검사: 'test/model-prompt-profile.test.js',
     찾기: "    '최신·변동 사실은 기억한 후보명을 답처럼 검색하지 말고 범주·공식 목록에서 날짜가 다른 후보를 비교한다.',",
     바꾸기: '' },
+
+  // ── P-DIST-1 §3 · 로컬 표면 소유권 ──────────────────────────────────────────
+  // 이 네 줄이 없어지면 이 컴퓨터의 기억·자동화·연결이 아무 웹페이지에 열린다.
+  // 무는지 여기서 확인한다 — 새로 쓴 검사가 진짜인지 재는 것이 목적이다.
+  { 이름: '다른 웹페이지에서 온 요청도 우리 화면인 것처럼 받음', 파일: OWN, 검사: T_OWN,
+    찾기: '      if (!같은자리) {', 바꾸기: '      if (false) {' },
+  { 이름: '공격자 도메인이 127.0.0.1 로 해석돼도 Host 를 안 봄(rebinding)', 파일: OWN, 검사: T_OWN,
+    찾기: '    if (!host || !우리이름.has(host.이름)) {', 바꾸기: '    if (false) {' },
+  { 이름: '신분 없는 로컬 프로그램에도 세션·기억 API 를 열어 줌', 파일: OWN, 검사: T_OWN,
+    찾기: '    if (준것 !== token) {', 바꾸기: '    if (false) {' },
+  { 이름: '신분 쿠키를 다른 사이트 요청에도 붙게 둠', 파일: OWN, 검사: T_OWN,
+    찾기: '  return `${신분쿠키}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`;',
+    바꾸기: '  return `${신분쿠키}=${token}; Path=/; Max-Age=31536000`;' },
+  { 이름: '남의 T5 도 우리 것으로 보고 그리로 사용자를 밀어 넣음', 파일: PORT, 검사: T_PORT,
+    찾기: "    return j?.product === 'gpao-t5' && j?.installId === installId;",
+    바꾸기: "    return j?.product === 'gpao-t5';" },
+  { 이름: '자리표를 안 보고 기본 자리만 찾아 옮긴 T5 를 못 찾음', 파일: PORT, 검사: T_PORT,
+    찾기: '  if (적힌것?.port) 볼자리.push(적힌것.port);', 바꾸기: '' },
 ];
 
 /**

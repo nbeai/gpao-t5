@@ -166,7 +166,10 @@ test('저장된 자격 복원을 켠 채로도 서버가 실제로 뜬다', asyn
     startScheduler: false, restoreConnections: true,
   });
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}/connectors/truth`);
+    const base = `http://127.0.0.1:${server.address().port}`;
+    // 사람이 하는 그대로: 화면을 열면 신분이 붙는다(P-DIST-1 §3). 화면 없이 부르는 쪽은 남이다.
+    const 쿠키 = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
+    const res = await fetch(`${base}/connectors/truth`, { headers: { cookie: 쿠키 } });
     assert.equal(res.status, 200, '부팅은 됐는데 화면이 안 뜬다');
   } finally { await new Promise((r) => server.close(r)); }
 });
