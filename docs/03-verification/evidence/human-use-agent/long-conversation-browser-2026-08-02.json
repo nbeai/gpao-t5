@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "runId": "long-conversation-browser-2026-08-02",
+  "suite": "long_conversation",
+  "manifestVersion": 1,
+  "actualBrowser": true,
+  "isolated": true,
+  "productCommit": "ab6b7ef",
+  "model": "gpt-5.5 (ChatGPT OAuth)",
+  "startedAt": "2026-08-02T00:30:00Z",
+  "finishedAt": "2026-08-02T01:18:00Z",
+  "status": "fail",
+  "environment": {
+    "surface": "visible T5 browser UI",
+    "stateDir": "/private/tmp/t5-human-selfhood/state",
+    "networkExposure": "loopback_only"
+  },
+  "scenarios": [
+    {
+      "id": "long_context_30",
+      "status": "fail",
+      "attribution": "product",
+      "turns": [
+        { "n": 1, "action": "9월 서울 팝업, 20명, 예산 300만원, 주류 없음 등록" },
+        { "n": 2, "action": "행사 이름을 작은방으로 확정" },
+        { "n": 3, "action": "성수 후보 검토" },
+        { "n": 4, "action": "장소를 연남으로 수정" },
+        { "n": 5, "action": "예산을 250만원으로 수정" },
+        { "n": 6, "action": "채식 손님 조건 추가" },
+        { "n": 7, "action": "일정 질문으로 잠시 전환" },
+        { "n": 8, "action": "행사로 복귀", "observed": "새 기억 후보가 불필요하게 한 번 제안됨" },
+        { "n": 9, "action": "장소 확인 작업을 보류" },
+        { "n": 10, "action": "메뉴 초안" },
+        { "n": 11, "action": "메뉴를 한 턴만 표로 요청" },
+        { "n": 12, "action": "다음 답 기본 형식 복귀 확인" },
+        { "n": 13, "action": "후보 장소 A 가격 등록" },
+        { "n": 14, "action": "후보 장소 B 가격 등록" },
+        { "n": 15, "action": "날짜 질문", "observed": "2026-09-14가 토요일이 아니라 월요일임을 정확히 교정" },
+        { "n": 16, "action": "행사 톤 결정" },
+        { "n": 17, "action": "짧은 문장 선호 확인" },
+        { "n": 18, "action": "다른 주제로 전환" },
+        { "n": 19, "action": "다른 주제 후속" },
+        { "n": 20, "action": "행사 제약 하나 확인" },
+        { "n": 21, "action": "무관한 짧은 질문" },
+        { "n": 22, "action": "장소 작업 재개", "observed": "22턴 전 보류한 장소 확인을 정확히 재개" },
+        { "n": 23, "action": "후보 비교" },
+        { "n": 24, "action": "현재 수정 예산 확인" },
+        { "n": 25, "action": "현재 지역 확인" },
+        { "n": 26, "action": "채식 조건 확인" },
+        { "n": 27, "action": "짧은 응답 요청" },
+        { "n": 28, "action": "후속 질문", "observed": "저장된 짧은 응답 선호보다 길게 답함" },
+        { "n": 29, "action": "합의·미정·완료를 구분해 달라고 요청" },
+        { "n": 30, "action": "최종 전체 요약", "observed": "행사명·인원·수정 예산·메뉴 일부가 빠지고 최근 주제가 현재 목표를 지배" }
+      ],
+      "checks": [
+        { "id": "thirty_turns_completed", "pass": true, "evidence": "화면 입력과 화면 답으로 30턴을 완료했고 빈 답은 0이었다." },
+        { "id": "current_instruction_wins", "pass": true, "evidence": "연남·250만원 수정과 한 턴 표 예외가 해당 턴에서 우선했다." },
+        { "id": "accepted_facts_preserved", "pass": false, "evidence": "30턴 최종 요약에서 작은방·20명·250만원·메뉴 합의 일부가 누락됐다." },
+        { "id": "superseded_fact_absent", "pass": true, "evidence": "성수와 300만원을 현재 확정 사실로 되살리지 않았다." },
+        { "id": "paused_work_resumable", "pass": true, "evidence": "22턴 뒤 보류한 장소 확인을 다시 이어갔다." },
+        { "id": "no_context_leak", "pass": true, "evidence": "주제 전환 답에 행사 정보가 무관하게 섞이지 않았다." },
+        { "id": "no_response_bloat", "pass": false, "evidence": "반복적인 '좋아' 시작과 28턴의 과도한 길이가 관찰됐다." }
+      ],
+      "qualitative": [
+        "최근 지시와 수정은 강했지만 오래된 순수 대화 합의는 도구 영수증 기반 workingState에 들어가지 않았다.",
+        "최근 이력은 12개 메시지·4000자로 제한되고 activeGoal은 최근 요청으로 교체돼 최종 종합에서 오래된 합의가 사라졌다.",
+        "이 실패는 모델 단독 변동으로 돌리지 않고 장기 대화 상태가 없는 제품 구조 한계로 분류한다."
+      ]
+    }
+  ],
+  "consoleErrors": [],
+  "p0": []
+}

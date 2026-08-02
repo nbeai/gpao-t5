@@ -119,6 +119,18 @@ Enforcement gates (Phase 5, 환경헌장): enable the fast pre-commit guard with
 CI (`.github/workflows/ci.yml`) runs the full `node --test` on push/PR. Full visual (mobile widths,
 approval card) is reproducible via `design/evidence/capture.mjs` (Chrome headless).
 
+Human-use verification is a separate product gate. It uses the visible browser rather than replacing user actions
+with direct API calls:
+
+```bash
+npm run human-use:prepare -- --suite smoke
+npm run human-use:verify -- /absolute/path/to/evidence.json
+```
+
+The scenario registry and agent contract live under `scripts/human-use/` and
+`.agents/skills/t5-human-use-testing/`. The current seven-domain capability assessment, including the failed
+30-turn continuity run, is `docs/03-verification/T5-SEVEN-DOMAIN-CAPABILITY-REPORT-2026-08-02-ko.md`.
+
 Source layout maps to the sealed L0–L5 architecture (plan §6.2):
 
 ```text
