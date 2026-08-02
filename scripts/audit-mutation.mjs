@@ -413,6 +413,23 @@ export const MUTATIONS = [
     검사: 'test/tcell-observation.test.js',
     찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
     바꾸기: '    관찰꺼짐: () => false,' },
+  // ── 조사 정직성 · 출처를 못 대면 확인했다고 말하지 않는다 ─────────────────
+  //
+  // 실측(2026-08-03 격리 라이브 3회): 웹이 막혀 출처 0인데 답이 "국세청 안내를 기준으로"
+  // 라며 날짜를 단정했다. 방어는 문구 정규식에 걸려 새고 있었다. 이제 descriptor 가 선언한
+  // sourceLedgerRequired 한 줄이 selfState 를 지나 답 검사까지 간다 — 그 줄이 끊기면 문다.
+  { 이름: '조사: 출처 계약 사실이 descriptor 에서 안 나감(답 검사가 판정 근거를 잃음)',
+    파일: 'src/kernel/l2-plan/web-tool.js', 검사: 'test/h09-unread-claim.test.js',
+    찾기: '    sourceLedgerRequired: webSourcePolicy().sourceLedgerRequired === true,',
+    바꾸기: '    sourceLedgerRequired: false,' },
+  { 이름: '조사: 출처 못 댄 턴도 성공 주장을 통과시킴', 파일: 'src/kernel/l2-plan/recovery-ladder.js',
+    검사: 'test/h09-unread-claim.test.js',
+    찾기: "  if (!출처못댐(receipts, 출처계약손) && !내용서술.test(String(reply ?? ''))) return null;",
+    바꾸기: "  if (!내용서술.test(String(reply ?? ''))) return null;" },
+  { 이름: '조사: 정직한 답이 같은 실패 문장을 되풀이함', 파일: 'src/kernel/l2-plan/recovery-ladder.js',
+    검사: 'test/h09-unread-claim.test.js',
+    찾기: "  const 무엇이 = [...new Set((receipts ?? [])\n    .filter((r) => r && (r.failureState ?? 'none') !== 'none')\n    .map((r) => r.userSafeSummary).filter(Boolean))].join(' ');",
+    바꾸기: "  const 무엇이 = (receipts ?? [])\n    .filter((r) => r && (r.failureState ?? 'none') !== 'none')\n    .map((r) => r.userSafeSummary).filter(Boolean).join(' ');" },
   // ── HRT-ST-003 · 추출한 순수 판정의 배선 (원장 mutationRequirement) ────────
   //
   // 추출은 자리를 옮긴 것이지 판정을 옮긴 것이 아니다. worker 가 판정 모듈을 지나지 않고

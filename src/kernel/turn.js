@@ -467,11 +467,11 @@ function 이전대기를지난것으로(ctx) {
  * **같은 스트리밍 계약**으로 간다 — 하필 이 답만 조각으로 안 흐르면 사용자는 제일 오래
  * 기다린 자리에서 제일 늦게 본다.
  */
-async function 답완성({ reply, tc, ctx, search, receipts = [] }) {
+async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약손 = [] }) {
   // H09 P0(거짓 성공): 이번 턴 읽기가 전패했는데 답이 내용을 서술하면, 그 답 대신 영수증의
   // 정직한 사실이 나간다. 판정 근거는 원장이다 — 성공 영수증이 하나라도 있으면 개입하지 않는다
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
-  const 거짓성공 = 읽은척차단(receipts, reply);
+  const 거짓성공 = 읽은척차단(receipts, reply, { 출처계약손 });
   if (거짓성공?.blocked) return 거짓성공.정직한답;
   if (String(reply ?? '').trim()) return userFacingModelText(reply);
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
@@ -1378,6 +1378,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // "다음 길"이 옛 목록으로 안내한다 — 이미 붙은 손을 못 쓴다고 하거나 내린 손을 권한다.
   // `refreshRuntimeReality` 가 만든 현재 selfState 에서 매번 뽑는다(같은 현실의 투영본).
   const 있는손 = () => selfState.connectedTools.filter((t) => t.status === 'usable').map((t) => t.id);
+  // 출처가 **계약인** 손 — descriptor 가 선언한 사실 그대로. 답 검사가 "확인했다" 주장을
+  // 이 사실로 판정한다(문구 규칙이 아니라 계약 한 줄).
+  const 출처계약손목록 = () => selfState.connectedTools.filter((t) => t.sourceLedgerRequired).map((t) => t.id);
   const ladder = nextRung(turnReceipts, 있는손());
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
@@ -1727,12 +1730,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 도구를 빼고 한 번 더 묻는 자리 — **빠른 경로와 같은 계약을 쓴다**(`답완성`).
   // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
   // 소진했다고 말하면 모델이 "손이 없다"는 거짓 상태를 사용자에게 설명한다.
-  reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts });
+  reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록() });
   // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
   reply = 미리보기정렬(reply, ctx.미리보기);
   // H09 P0 는 화면 정렬보다 세다: 스트리밍으로 이미 나간 거짓 서술을 정렬이 되살리면, 지속되는
   // 답에서만큼은 원장의 정직한 사실이 이긴다(나간 조각 보존 계약의 유일한 예외 — 거짓 성공).
-  const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply);
+  const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply, { 출처계약손: 출처계약손목록() });
   if (거짓성공정렬후?.blocked) reply = 거짓성공정렬후.정직한답;
   const unresolvedReceipts = unresolvedTurnReceipts(turnReceipts);
   const projection = projectReceipts(unresolvedReceipts);

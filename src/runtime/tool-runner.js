@@ -31,7 +31,7 @@ async function withReadScope(rec, tool, executionContext) {
   return clean.length ? { ...rec, readScopeRoots: clean } : rec;
 }
 import { isToolExecutable } from '../kernel/l0-evidence/self-state.js';
-import { assertWebEvidence } from '../kernel/l2-plan/web-tool.js';
+import { assertWebEvidence, SOURCE_CONTRACT_FAILED } from '../kernel/l2-plan/web-tool.js';
 import { FAILURE } from '../kernel/contracts.js';
 
 export class ToolRunner {
@@ -79,7 +79,7 @@ export class ToolRunner {
             intended,
             actualCall: { tool: toolId, args },
             failureState: FAILURE.FAILED,
-            userSafeSummary: '출처를 확인하지 못해 결과를 신뢰할 수 없어요.',
+            userSafeSummary: SOURCE_CONTRACT_FAILED,
             diagnosticTrace: { reason: e?.message },
             nextSafeAction: '출처가 있는 방법으로 다시 시도할까요?',
           });

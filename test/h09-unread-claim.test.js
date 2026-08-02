@@ -157,3 +157,86 @@ test('관통: 실제 local.file 경계의 EACCES 호출이 원장에 남고 거�
       && r.failureState !== 'none'), 'EACCES 실행 영수증이 지속 원장에 없다');
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── 조사 정직성 · 출처 0인데 근거를 인용하는 답 ────────────────────────────
+//
+// 실측(2026-08-03, 격리 라이브): "2026년 8월 기준 부가세 마감일을 찾아서 출처도 같이" 요청에
+// `web.collect` 가 두 번 실패했다. 원장은 **확인 0 · 미확인 2 · 출처 0**. 그런데 답은
+// "국세청 부가가치세 신고 안내와 부가가치세법상 일반 기한을 기준으로" 라고 쓰고
+// 날짜를 굵게 단정했다. 읽지 못한 기관 문서를 근거처럼 인용한 것이다.
+//
+// 방어(`읽은척차단`)는 이미 있었는데 **문구 정규식(`내용서술`)에서 새어 나갔다** —
+// 답이 "정리하면 **아래와** 같습니다"라고 써서 패턴에 안 걸렸다. 정규식을 늘리는 것은
+// 예문 규칙을 키우는 일이라 금지다(§4-6). 대신 **구조 사실**로 문다:
+// 출처가 계약인 손(sourceLedgerRequired)이 실패했고 확인된 것이 0이면, 문구가 무엇이든
+// 그 답은 근거를 가진 답이 아니다.
+test('출처 계약 손이 실패하고 확인 0이면 문구와 무관하게 차단된다', () => {
+  const 출처실패 = {
+    intended: 'web.collect 실행',
+    actualCall: { tool: 'web.collect', args: { query: '부가세 마감' } },
+    failureState: 'failed',
+    userSafeSummary: '출처를 확인하지 못해 결과를 신뢰할 수 없어요.',
+    nextSafeAction: '출처가 있는 방법으로 다시 시도할까요?',
+  };
+  // 기존 정규식에 안 걸리는 문구 — 실측에서 새어 나간 바로 그 모양이다.
+  const 답 = '국세청 부가가치세 신고 안내를 기준으로 정리하면 아래와 같습니다. 2026.10.26 월요일입니다.';
+  const r = 읽은척차단([출처실패], 답, { 출처계약손: ['web.collect'] });
+  assert.ok(r?.blocked, '출처 0인데 근거를 인용한 답이 그대로 나갔다');
+  assert.match(r.정직한답, /출처/, '정직한 답이 무엇이 없었는지 말해야 한다');
+});
+
+// 실측 경로: 손이 **던진다**(웹 차단). 그러면 영수증에 출처 계약 표식이 없다 —
+// `'web.collect 실행 중 문제가 있었어요.'` 라는 일반 문장만 남는다. 그래서 문장이 아니라
+// **그 손이 출처가 계약인 손인가**(descriptor 사실)로 판정해야 한다.
+test('출처 계약 손이 던져서 실패해도 출처 0이면 성공 주장을 막는다', () => {
+  const 던져서실패 = {
+    intended: 'web.collect 실행',
+    actualCall: { tool: 'web.collect', args: { query: '부가세 마감' } },
+    failureState: 'failed',
+    userSafeSummary: 'web.collect 실행 중 문제가 있었어요.',
+    nextSafeAction: '잠시 후 다시 시도할까요?',
+  };
+  const 답 = '국세청 부가가치세 신고 안내를 기준으로 정리하면 아래와 같습니다. 2026.10.26 월요일입니다.';
+  const r = 읽은척차단([던져서실패], 답, { 출처계약손: ['web.collect'] });
+  assert.ok(r?.blocked, '웹이 막혀 출처가 0인데 기관 근거를 인용한 답이 그대로 나갔다');
+});
+
+test('출처 계약 손이 성공했으면 같은 문구도 막지 않는다', () => {
+  const 출처성공 = {
+    intended: 'web.collect 실행',
+    actualCall: { tool: 'web.collect', args: { query: '부가세 마감' } },
+    failureState: 'none',
+    sources: [{ url: 'https://example.org/a', title: '안내' }],
+    userSafeSummary: '자료 1건을 확인했어요.',
+  };
+  const 답 = '국세청 안내를 기준으로 정리하면 아래와 같습니다.';
+  assert.equal(읽은척차단([출처성공], 답, { 출처계약손: ['web.collect'] }), null,
+    '출처 영수증이 있으면 기존 답을 그대로 전달한다');
+});
+
+// 같은 실패가 여러 번이면 사용자는 같은 말을 여러 번 듣는다(실측 회차 3: 3번 반복).
+// 사실을 줄이는 게 아니라 **같은 문장을 한 번만** 말한다.
+test('정직한 답은 같은 실패 문장을 되풀이하지 않는다', () => {
+  const 같은실패 = (n) => ({
+    intended: 'web.collect 실행', actualCall: { tool: 'web.collect', args: { query: `q${n}` } },
+    failureState: 'failed', userSafeSummary: '지금은 웹에서 찾아보지 못했어요.',
+    nextSafeAction: '주소를 주시면 그 페이지는 바로 읽을 수 있어요.',
+  });
+  const r = 읽은척차단([같은실패(1), 같은실패(2), 같은실패(3)], '정리하면 아래와 같습니다.',
+    { 출처계약손: ['web.collect'] });
+  assert.ok(r?.blocked);
+  const 횟수 = r.정직한답.split('지금은 웹에서 찾아보지 못했어요.').length - 1;
+  assert.equal(횟수, 1, `같은 문장이 ${횟수}번 나갔다: ${r.정직한답}`);
+});
+
+// 계약은 **한 줄로 이어져야** 쓸모가 있다: descriptor 가 선언 → selfState 가 나름 → 답 검사가 판정.
+// 위 검사들은 손 목록을 직접 넘기므로 이 연결이 끊겨도 통과한다(돌연변이로 확인).
+// 여기서 실제 배선을 잡는다 — 끊기면 답 검사는 판정 근거 자체를 잃는다.
+test('출처 계약 사실이 descriptor 에서 selfState 까지 이어진다', async () => {
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const ss = buildSelfState(demoEnv(), { tools: demoTools() });
+  const 출처손 = ss.connectedTools.filter((t) => t.sourceLedgerRequired).map((t) => t.id);
+  assert.ok(출처손.includes('web.collect'),
+    `출처가 계약인 손이 selfState 에 안 나온다 — 답 검사가 판정 근거를 잃는다: ${JSON.stringify(출처손)}`);
+});

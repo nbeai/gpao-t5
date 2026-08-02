@@ -131,6 +131,8 @@ export function buildSelfState(env, deps = {}) {
       // 1축: **이름은 descriptor 가 진실이다.** 여기서 흘리면 화면·승인 카드가 이름을 다시
       // 손으로 관리하게 된다 — 실제로 그래서 tool-labels.js 의 LABELS 맵이 생겼다(두 진실).
       label: t.label,
+      // 출처가 계약인 손인지 — 답 검사가 이 사실로 "확인했다" 주장을 판정한다.
+      sourceLedgerRequired: t.sourceLedgerRequired === true,
       connected: Boolean(t.connected),
       status, // Phase 5.1: usable|needs_auth|needs_config|needs_connection|blocked
       // **2축 진실(P5-B-0).** executable 은 model schema 노출의 유일한 기준이고,

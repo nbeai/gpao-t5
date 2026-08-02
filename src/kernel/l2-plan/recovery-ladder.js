@@ -11,6 +11,7 @@
 //
 // 여기서 정하는 것은 **다음 시도의 종류**뿐이다. 실행·승인·기록은 기존 경로가 그대로 한다.
 
+
 /**
  * 실패 종류 → 다음에 밟을 계단. 도구가 늘어도 이 표는 종류로만 자란다(사례 하드코딩 금지).
  * P0-b: `needsHand` 로 지목된 손은 **다른 손의 범위 밖을 대신 밟는 손**이다 — 그 사실이
@@ -91,6 +92,7 @@ const LADDER = {
 // 않는다 — 문장은 바뀌지만 기계 사실(scopeState·fetchState·오류 코드·호출 없음)은 계약이다.
 
 /** 진단면에서 OS 오류 코드만 꺼낸다. 진단 원문은 여기서 끝난다(사용자면으로 안 나간다). */
+
 function 오류코드(diag) {
   if (!diag) return undefined;
   if (typeof diag === 'object' && typeof diag.code === 'string') return diag.code;
@@ -292,14 +294,40 @@ const 내용서술 = /읽어\s*보니|열어\s*보니|살펴\s*보니|내용(을
  * @param {string} reply 내보내려는 최종 답
  * @returns {{blocked:true, reason:'unread_content_claim', 정직한답:string}|null}
  */
-export function 읽은척차단(receipts = [], reply = '') {
+/**
+ * 출처가 **계약인** 손을 썼는데 출처를 하나도 못 댔는가.
+ *
+ * 손 이름도, 실패 문장도 보지 않는다 — descriptor 가 선언한 `sourceLedgerRequired` 사실만 본다.
+ * 실측(2026-08-03): 웹이 막혀 손이 던지면 영수증에는 일반 실패 문장만 남아 어떤 문구 규칙으로도
+ * 잡을 수 없었다. **출처를 못 대면 그 답은 확인한 답이 아니다** — 그것만 계약으로 둔다.
+ */
+function 출처못댐(receipts = [], 출처계약손 = []) {
+  const 계약손 = new Set(출처계약손 ?? []);
+  if (!계약손.size) return false;
+  const 썼나 = (receipts ?? []).some((r) => r && 계약손.has(r.actualCall?.tool));
+  if (!썼나) return false;
+  return !(receipts ?? []).some((r) => Array.isArray(r?.sources) && r.sources.length > 0);
+}
+
+export function 읽은척차단(receipts = [], reply = '', { 출처계약손 = [] } = {}) {
   const 사실 = 읽기사실(receipts);
   if (!사실.못본것.length) return null;   // 실패한 실행이 없다 — 대조할 거짓이 없다
   if (사실.확인한것.length) return null;  // 실제로 본 것이 있다 — 서술의 근거일 수 있다
-  if (!내용서술.test(String(reply ?? ''))) return null;
-  const 무엇이 = (receipts ?? [])
+  // **출처가 계약인 손이 실패했으면 문구를 보지 않는다.**
+  //
+  // 실측(2026-08-03): `web.collect` 두 번 실패 · 원장 확인 0 · 출처 0 인데, 답이
+  // "국세청 … 안내를 기준으로 정리하면 아래와 같습니다" 로 기관 문서를 근거처럼 인용하고
+  // 날짜를 단정했다. `내용서술` 정규식이 "정리하면 아래와" 를 못 잡아 그대로 나갔다.
+  //
+  // 정규식을 늘리면 다음 문구에서 또 샌다 — 예문 규칙을 키우는 일이다(§4-6 금지).
+  // 대신 기계 사실로 판정한다: **출처를 못 대면 그 답은 근거를 가진 답이 아니다.**
+  // 조사에서 출처는 선택이 아니라 계약이므로, 문구가 무엇이든 정직한 사실이 나간다.
+  if (!출처못댐(receipts, 출처계약손) && !내용서술.test(String(reply ?? ''))) return null;
+  // 같은 실패가 여러 번이면 사용자는 같은 말을 여러 번 듣는다(실측: 3회 반복).
+  // 사실을 줄이는 게 아니라 **같은 문장을 한 번만** 말한다 — 다른 실패는 그대로 다 남는다.
+  const 무엇이 = [...new Set((receipts ?? [])
     .filter((r) => r && (r.failureState ?? 'none') !== 'none')
-    .map((r) => r.userSafeSummary).filter(Boolean).join(' ');
+    .map((r) => r.userSafeSummary).filter(Boolean))].join(' ');
   const 다음 = (receipts ?? []).map((r) => r?.nextSafeAction).find((x) => typeof x === 'string' && x.trim());
   return {
     blocked: true,

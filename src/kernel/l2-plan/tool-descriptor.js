@@ -48,6 +48,8 @@ export function defineTool(d) {
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
     operatorFact: d.operatorFact,
     readReach: d.readReach,             // 작업 폴더보다 넓게 읽는 손의 **고지 사실**(P0-b)
+    // 출처가 **계약인** 손인가. 이 사실이 답 검사까지 가야 "출처 0인데 확인했다" 를 막는다.
+    sourceLedgerRequired: d.sourceLedgerRequired === true,
     // P5-B-0: **어느 서비스의 손인가.** 커넥터가 도구 목록을 손으로 들면(availableTools) 손발이
     // 늘거나 줄 때 또 어긋난다 — `선언 ⊆ 손` 이 이미 목록으로 새어 본 자리다. 방향을 뒤집는다:
     // 도구가 자기 서비스를 말하고, 커넥터의 도구 목록은 **거기서 파생**된다.
@@ -102,6 +104,7 @@ export function toConnection(descriptor, facts = {}) {
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     operatorFact: descriptor.operatorFact,
     readReach: descriptor.readReach,    // 고지 사실도 손 이름과 함께 끝까지 간다(P0-b)
+    sourceLedgerRequired: descriptor.sourceLedgerRequired === true,
     limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };

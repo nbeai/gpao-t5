@@ -8,6 +8,13 @@ import { defineTool } from './tool-descriptor.js';
 // 웹 fetch 상태 — 로그인벽/차단/robots/봇벽을 성공과 분리한다(정직한 실패 분류).
 export const WEB_FETCH_STATES = Object.freeze(['ok', 'login_wall', 'blocked', 'robots_disallow', 'bot_wall', 'timeout']);
 // 브라우저 세션 개념.
+/**
+ * 출처 계약을 못 지킨 실행의 **사용자면 사실**. 한 자리에 둔다 —
+ * 실행이 이걸 쓰고(ToolRunner), 답 검사가 이걸로 판정한다(읽은척차단).
+ * 두 곳이 각자 문자열을 들고 있으면 조용히 갈라져 방어가 꺼진다.
+ */
+export const SOURCE_CONTRACT_FAILED = '출처를 확인하지 못해 결과를 신뢰할 수 없어요.';
+
 export const SESSION_MODES = Object.freeze(['anonymous', 'authenticated', 'user_approved']);
 
 /** 스크래핑 정책(고정). */
@@ -95,6 +102,9 @@ export function defineWebTool(d = {}) {
       allowedDomains: 'string[]?', maxPages: 'number?', selectionGoal: 'first_readable|latest_evidence?',
     },
     sourcePolicy: webSourcePolicy(),
+    // **계약을 손 사실로도 내보낸다.** sourcePolicy 안에만 있으면 selfState 로 못 가고,
+    // 답 검사가 "출처를 못 댔다"를 판정할 근거가 없다(실측 2026-08-03).
+    sourceLedgerRequired: webSourcePolicy().sourceLedgerRequired === true,
     sessionMode,
   };
 }
