@@ -1,5 +1,14 @@
 # GPAO-T5 Agent Instructions
 
+## Owner communication constraint (2026-08-03, mandatory)
+
+- Do not restate the owner's words as if they were the agent's new finding, framework, or conclusion.
+- Do not inflate an ordinary existing action into a newly named phase, seal, baseline, checklist, document, or work item.
+- Answer the exact question first with the shortest sufficient answer. Add only a genuinely missing fact, risk, or decision.
+- Before proposing anything new, check whether the owner already decided it or the current plan already covers it. If so, use the existing name and process.
+- Agreement needs no decorative paraphrase. Audit and planning output must contribute net-new information rather than repackaging context.
+- Create a new term, artifact, test layer, or process only when an existing contract cannot hold the necessary work, and state that concrete necessity plainly.
+
 > **최상위(2026-07-27 오너 지시)**: T5 성능 철학 — **사용자 발화 이해 → 대화 흐름 이해 →
 > 모델 앞 현실 구성 → 실제 결과 구분 → 다음 턴 승계 → 기능**. 이 순서를 놓치면 아무리 대단한 코드도 의미가 없다.
 > 정본 원문: `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md` §0.
