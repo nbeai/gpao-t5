@@ -182,7 +182,11 @@ export function buildSelfState(env, deps = {}) {
     modelHealthState, // 검증 축(P-RT-2): usable|model_missing|unreachable|… / 미검증이면 undefined
     connectedTools,
     grantedAuthorities: env.grantedAuthorities ?? [],
-    riskyActions: [],
+    // 지금 **실행 가능한 손** 가운데 확인이 필요한 것만. 연결도 안 된 손을 위험 목록에
+    // 섞으면 사용자는 없는 기능의 승인을 걱정하게 된다. descriptor가 가진 동일 사실에서 파생한다.
+    riskyActions: connectedTools
+      .filter((t) => t.executable && t.needsApproval)
+      .map((t) => t.label ?? t.id),
     limits,
     nextSafeAction: nextActionForAuth(modelAuthState),
   };
@@ -211,6 +215,7 @@ export function selfStateSummary(selfState) {
     ready: selfState.connectedTools.filter((t) => t.executable).map((t) => t.label ?? t.id),
     // 모델 입력용: 라벨 + 실제로 하는 일 한 줄. 화면 칩은 위 ready(라벨만)를 그대로 쓴다.
     readyCapabilities: selfState.connectedTools.filter((t) => t.executable).map((t) => toolCapabilityLine(t.id, selfState)),
+    approvalRequired: selfState.riskyActions ?? [],
     limits: selfState.limits,
     nextSafeAction: selfState.nextSafeAction,
   };

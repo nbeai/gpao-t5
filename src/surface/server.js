@@ -535,6 +535,7 @@ export function makeServer(deps = {}) {
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
     return {
       env, model, tools, ledger, pending, identity, selfhoodDocs,
+      runtimeEnvironment: deps.runtimeEnvironment,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
       connectors: deps.connectors ?? demoConnectors(),
       // P5-B-1B: **T5 가 실제로 실행할 수 있는 연결 방식.** 런타임의 사실이 그대로 올라온다 —
@@ -2260,6 +2261,11 @@ async function startLiveServerInner(opts, bootStore) {
     channels: liveChannelList, connectors: liveConnectorList, // 자격도 실제에서 — fixture 폴백 금지
     descriptors: liveDescriptors,                             // 선언도 실제 손이 있는 것만
     model: liveModel, modelDoctor, modelConnection, modelSupportsSearch, modelProviderId,
+    runtimeEnvironment: {
+      locality: 'this_computer',
+      networkExposure: 'loopback_only',
+      costTracking: 'not_tracked',
+    },
     enableAgentDelegation: true,
   });
   // 감사 B2: 저장 연결 복원을 listen **전에** 시도한다. 실패해도 부팅은 계속.

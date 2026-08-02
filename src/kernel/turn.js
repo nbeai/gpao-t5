@@ -431,7 +431,10 @@ export async function runTurn(input, ctx) {
   // 지금처럼 물어봤을 때만(다이어트). SOUL.md 는 사용자가 고치는 문서이고, 말투 구역을 지우면
   // 아무 것도 안 실린다 — 그게 사용자의 주도권이다.
   const voice = soulVoice(ctx.selfhoodDocs?.soul);
-  const selfhood = { identity, capabilityCounts: capCounts, selfhoodDetail, voice };
+  const selfhood = {
+    identity, capabilityCounts: capCounts, selfhoodDetail, voice,
+    runtimeEnvironment: ctx.runtimeEnvironment,
+  };
   ctx.identityUpdate = identityUpdate; // executePlan 경계를 넘겨 결과에 함께 실린다
   ctx.selfhood = selfhood;
   // **어느 자리에서 물었는가.** 실행 루프 중간에 승인이 필요해질 수도 있어서(executePlan 은

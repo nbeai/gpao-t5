@@ -60,12 +60,33 @@ const TURNJS = 'src/kernel/turn.js';
 const T_STREAM = 'test/answer-streaming.test.js';
 const PROVIDER = 'src/runtime/model-provider.js';
 const T_PROVIDER = 'test/model-provider.test.js';
+const SELF_STATE = 'src/kernel/l0-evidence/self-state.js';
+const SELF_LOOKUP = 'src/kernel/l1-intent/selfhood-lookup.js';
+const WELCOME = 'src/surface/welcome.js';
+const CHARTER = 'src/kernel/judgment-charter.js';
+const T_SELFHOOD = 'test/operational-selfhood.test.js';
+const T_HUMAN_LANGUAGE = 'test/human-language-contract.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
  * 새 계약을 만들면 여기 한 줄을 더한다 — 그게 곧 "이 계약을 지키는 검사가 있다"는 증명이다.
  */
 export const MUTATIONS = [
+  // ── 자기상태 · 사람다운 말 표면 ──────────────────────────────────────────
+  { 이름: '승인 필요한 실행 손을 자기상태에서 숨김', 파일: SELF_STATE, 검사: T_SELFHOOD,
+    찾기: '    approvalRequired: selfState.riskyActions ?? [],',
+    바꾸기: '    approvalRequired: [],' },
+  { 이름: '자연스러운 운용 상태 질문을 상세 조회에서 놓침', 파일: SELF_LOOKUP, 검사: T_SELFHOOD,
+    찾기: "  if (ASKS_OPERATIONAL_STATE.test(t)) sections.push('capabilities', 'limits');",
+    바꾸기: '' },
+  { 이름: '로컬 실행 사실을 모델 입력에서 제거', 파일: PROVIDER, 검사: T_SELFHOOD,
+    찾기: "  if (runtime?.locality === 'this_computer') sys.push('T5 런타임은 이 컴퓨터에서 로컬로 실행된다.');",
+    바꾸기: '' },
+  { 이름: '첫 인사를 능력 나열과 자동 도움 질문으로 되돌림', 파일: WELCOME, 검사: T_HUMAN_LANGUAGE,
+    찾기: "      '능력 나열, 자동 도움 제안, 상투적인 질문은 붙이지 마. 사용자의 첫 말을 조용히 기다려.',",
+    바꾸기: "      '지금 가능한 능력을 나열하고 마지막에 무엇을 도와줄지 물어.'," },
+  { 이름: '완료 뒤 자동 상투어 금지 제거', 파일: CHARTER, 검사: T_HUMAN_LANGUAGE,
+    찾기: '끝나면 자동 인사·도움 제안·재요약·빈 약속 금지.', 바꾸기: '' },
   // ── §4.4 replay 증거 결합 ───────────────────────────────────────────────
   { 이름: '계보 대신 호출자가 고른 영수증을 조회', 파일: REPLAY, 검사: T_REPLAY,
     찾기: 'const ref = replayCase?.runReceiptRef;',

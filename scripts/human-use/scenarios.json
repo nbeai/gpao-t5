@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "suites": {
+    "selfhood": ["selfhood"],
+    "smoke": ["selfhood", "conversation_quality", "failure_recovery", "surface_basics"],
+    "long_conversation": ["long_context_30"],
+    "project_completion": ["project_file_delivery"],
+    "milestone": ["selfhood", "conversation_quality", "failure_recovery", "surface_basics", "long_context_30", "project_file_delivery", "automation_surface", "agent_delegation"]
+  },
+  "scenarios": [
+    {
+      "id": "selfhood",
+      "category": "selfhood",
+      "maxTurns": 7,
+      "purpose": "T5가 자기 정체, 모델, 손, 한계, 현재 대화와 실행 환경을 실제 상태대로 구분한다.",
+      "steps": [
+        "정체와 현재 모델을 한 문장으로 질문",
+        "바로 쓸 수 있는 손, 막힌 손, 승인 필요 일을 짧게 질문",
+        "현재 대화에서 하는 일과 진행 상태 질문",
+        "로컬/원격, 응답 표면, 비용 추적 여부 질문",
+        "승인 카드를 만드는 로컬 쓰기 요청 후 화면의 대기 상태 확인"
+      ],
+      "requiredChecks": ["identity_model_separated", "tools_match_runtime", "limits_match_runtime", "runtime_environment_truthful", "approval_visible", "no_internal_ids"]
+    },
+    {
+      "id": "conversation_quality",
+      "category": "conversation",
+      "maxTurns": 10,
+      "purpose": "짧은 요청, 축약 후속, 한 턴 예외, 정정에서 말귀와 문장 밀도를 본다.",
+      "steps": ["한 문장 답 요청", "대명사 후속", "이번 답만 형식 변경", "다음 턴 기본 형식 복귀", "잘못 이해한 부분 정정"],
+      "requiredChecks": ["no_empty_reply", "followup_target_correct", "one_turn_override", "preference_returns", "no_needless_recap", "no_stock_closing"]
+    },
+    {
+      "id": "failure_recovery",
+      "category": "recovery",
+      "maxTurns": 8,
+      "purpose": "없는 파일과 접근 실패에서 읽은 척하지 않고 다음 길을 제시한다.",
+      "steps": ["없는 파일 요청", "복구 제안 확인", "다른 경로로 이어서 찾기", "같은 실패 반복 여부 확인"],
+      "requiredChecks": ["no_false_success", "failure_named", "next_path_offered", "no_duplicate_execution"]
+    },
+    {
+      "id": "surface_basics",
+      "category": "surface",
+      "maxTurns": 4,
+      "purpose": "새 대화, 설정, 테마, 승인/거절을 실제 버튼으로 쓸 수 있다.",
+      "steps": ["새 대화 버튼", "설정 열기", "테마 전환", "승인 카드 거절"],
+      "requiredChecks": ["buttons_work", "focus_visible", "no_console_error", "rejection_no_effect"]
+    },
+    {
+      "id": "long_context_30",
+      "category": "long_conversation",
+      "maxTurns": 36,
+      "purpose": "한 세션 30턴에서 목표, 숫자, 사람, 형식, 보류와 재개를 잃지 않는다.",
+      "steps": ["목표와 세 제약 등록", "주제 전환 두 번", "숫자 수정", "한 턴 형식 예외", "실패 작업 보류", "20턴 뒤 재개", "마지막에 합의·미정·완료를 구분"],
+      "requiredChecks": ["thirty_turns_completed", "current_instruction_wins", "accepted_facts_preserved", "superseded_fact_absent", "paused_work_resumable", "no_context_leak", "no_response_bloat"]
+    },
+    {
+      "id": "project_file_delivery",
+      "category": "project",
+      "maxTurns": 16,
+      "purpose": "여러 원본에서 최신 자료를 고르고 별도 결과물을 만들며 중단·재시작 뒤 완료를 증명한다.",
+      "steps": ["프로젝트 목표", "자료 탐색", "최신본 내용·시각 판단", "계획 확인", "별도 결과물 생성", "화면 승인", "서버 재시작", "결과 검증", "완료 선언"],
+      "requiredChecks": ["latest_by_content_and_time", "approval_before_write", "source_hash_unchanged", "output_exists", "receipt_matches_output", "restart_resume", "completion_evidence"]
+    },
+    {
+      "id": "automation_surface",
+      "category": "automation",
+      "maxTurns": 10,
+      "purpose": "자동화 후보를 일반 사용자가 화면에서 계약 확인, 활성화, 일시정지, 재개, 취소할 수 있다.",
+      "steps": ["반복 작업 제안", "후보 계약 확인", "화면 승인", "작업 목록 확인", "일시정지", "재개", "취소", "실행 기록 확인"],
+      "requiredChecks": ["candidate_no_effect", "complete_contract_visible", "activation_works", "pause_resume_cancel_work", "run_ledger_visible"]
+    },
+    {
+      "id": "agent_delegation",
+      "category": "agent",
+      "maxTurns": 10,
+      "purpose": "복합 읽기 작업을 제한 자식에게 나누고 진행·결과·취소를 사용자가 이해할 수 있다.",
+      "steps": ["두 자료 비교 요청", "위임 진행 확인", "자식별 근거 확인", "통합 답 확인", "취소 가능한 상태 확인"],
+      "requiredChecks": ["delegation_bounded", "read_scope_narrow", "child_evidence_present", "integrated_answer", "no_child_external_effect"]
+    }
+  ]
+}

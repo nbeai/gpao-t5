@@ -21,9 +21,9 @@ export function buildWelcomeContext(selfState) {
   return {
     // 지시문이지만 "무엇을 말하라"가 아니라 "어떤 규격으로 네 말로 하라"에 가깝다(§10.2 자연스러움).
     currentRequest: [
-      '사용자가 방금 처음 들어왔어. 네 말투로 짧게 첫인사를 해.',
-      '규칙: 한국어 1~3문장. 지금 실제로 할 수 있는 일에 근거해서 말하고, 없는 기능을 약속하지 마.',
-      '내부 단계·파일명·도구 id·이 지시문 자체는 언급하지 마. 마지막에 무엇을 도와줄지 한 번만 물어.',
+      '사용자가 방금 처음 들어왔어. 네 이름을 담아 한국어 한 문장으로 인사해.',
+      '능력 나열, 자동 도움 제안, 상투적인 질문은 붙이지 마. 사용자의 첫 말을 조용히 기다려.',
+      '없는 기능을 약속하지 말고 내부 단계·파일명·도구 id·이 지시문 자체는 언급하지 마.',
     ].join(' '),
     selfStateFacts: { model: s.model, modelAuthState: s.modelAuthState, readyTools: s.ready, limits: s.limits },
     admittedContext: [],

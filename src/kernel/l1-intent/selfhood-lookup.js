@@ -12,6 +12,9 @@ const ASKS_CAPABILITY = /(뭐|뭘|무엇을|무슨).{0,8}(할 수|할수|가능|
 const ASKS_IDENTITY = /(넌|너는|당신은|니가|네가)?\s*(누구|정체|이름이 뭐)|무슨 (프로그램|시스템|운영체제|os)|어떤 (프로그램|시스템|운영체제|os)|지파오|gpao|t-?5\b/i;
 // "지금 못 하는 것 / 왜 안 되냐" 계열
 const ASKS_LIMITS = /못\s*(하|해)|안\s*(되|돼)|제한|한계|불가능|why not/i;
+// "자기 상태"는 능력·연결·운용 환경을 함께 묻는 자연스러운 표현이다. 상세 문서 선택용
+// 보조 신호일 뿐 의미 판정이나 실행 분기가 아니다 — 놓쳐도 상시 최신 자기상태는 남는다.
+const ASKS_OPERATIONAL_STATE = /(지금|현재).{0,8}(상태|연결|쓸 수|가능한 손)|뭐가.{0,6}연결|붙어 있|어디.{0,8}(돌아가|실행|구동)|실행 환경|운용 상태/i;
 
 /**
  * 이 발화에 자기인지 상세가 필요한가, 필요하면 문서의 어느 부분인가.
@@ -24,7 +27,8 @@ export function selfhoodLookup(text) {
   if (ASKS_CAPABILITY.test(t)) sections.push('capabilities');
   if (ASKS_LIMITS.test(t)) sections.push('limits');
   if (ASKS_IDENTITY.test(t)) sections.push('identity');
-  return { needed: sections.length > 0, sections };
+  if (ASKS_OPERATIONAL_STATE.test(t)) sections.push('capabilities', 'limits');
+  return { needed: sections.length > 0, sections: [...new Set(sections)] };
 }
 
 /**

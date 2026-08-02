@@ -18,7 +18,7 @@ import { detectSelfNaming } from '../src/kernel/l1-intent/self-naming.js';
 import { selfhoodLookup, selectSelfhoodDetail } from '../src/kernel/l1-intent/selfhood-lookup.js';
 import { SelfhoodStore, readNameFromSoul, replaceNameInSoul } from '../src/surface/selfhood-store.js';
 import { buildModelMessages } from '../src/runtime/model-provider.js';
-import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
+import { buildSelfState, selfStateSummary } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv } from '../src/surface/demo-context.js';
 import { runTurn } from '../src/kernel/turn.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
@@ -60,6 +60,15 @@ test('능력 사실: 헌법 §5 다섯 항목을 모두 담는다(필요한 걸 
   assert.ok(f.blocked.every((b) => b.why), '못 하는 것엔 이유가 붙는다');
 });
 
+test('자기상태 요약은 실제 실행 가능한 손에서 승인 필요 범위를 파생한다', () => {
+  const state = selfState();
+  const expected = state.connectedTools
+    .filter((tool) => tool.executable && tool.needsApproval)
+    .map((tool) => tool.label ?? tool.id);
+  assert.ok(expected.length > 0, 'fixture에 승인 필요 실행 손이 있어야 한다');
+  assert.deepEqual(selfStateSummary(state).approvalRequired, expected);
+});
+
 test('파생 구역 렌더: 할 수 있는 일·못 하는 일·모델을 사용자 언어로 적는다', () => {
   const md = renderDerivedSection(buildCapabilityFacts(selfState()));
   assert.ok(md.includes('## 지금 할 수 있는 일'));
@@ -86,6 +95,9 @@ test('조회 판단: 능력·한계·정체를 물을 때만 상세가 필요하
   assert.equal(selfhoodLookup('넌 누구야?').needed, true);
   assert.equal(selfhoodLookup('지파오티파이브가 뭐야?').needed, true); // ③ 자기 이름을 알아듣는다
   assert.equal(selfhoodLookup('왜 안 돼?').needed, true);
+  assert.equal(selfhoodLookup('지금 상태 어때?').needed, true, '자연스러운 상태 질문도 자기 현실을 찾는다');
+  assert.equal(selfhoodLookup('뭐가 연결돼 있어?').needed, true, '연결 질문을 능력 질문으로 알아듣는다');
+  assert.equal(selfhoodLookup('어디에서 어떻게 돌아가고 있어?').needed, true, '실행 환경 질문을 놓치지 않는다');
   assert.equal(selfhoodLookup('오늘 날씨 어때?').needed, false, '평범한 대화엔 상세를 싣지 않는다');
 });
 
@@ -103,6 +115,28 @@ test('프롬프트: 물어봤을 때만 상세가 실린다', () => {
   const withDetail = buildModelMessages({ ...base, selfhoodDetail: 'CAP 내용' });
   assert.ok(withDetail.system.includes('자세한 사실'));
   assert.ok(withDetail.system.includes('CAP 내용'));
+});
+
+test('프롬프트: 로컬 실행 환경과 승인 필요 손을 실제 자기상태로 구분한다', () => {
+  const system = buildModelMessages({
+    selfStateFacts: {
+      model: 'gpt-5.5',
+      readyTools: ['로컬 파일'],
+      approvalRequired: ['로컬 파일 쓰기'],
+    },
+    runtimeEnvironment: {
+      locality: 'this_computer',
+      networkExposure: 'loopback_only',
+      costTracking: 'not_tracked',
+    },
+    surface: { responseSurface: 'web', audience: 'web_chat' },
+    currentRequest: '지금 어디서 돌아가?', authorityFacts: {},
+  }).system;
+  assert.match(system, /이 컴퓨터에서 로컬로 실행/);
+  assert.match(system, /이 컴퓨터 안에서만 열려/);
+  assert.match(system, /확인받고 실행하는 일: 로컬 파일 쓰기/);
+  assert.match(system, /호출 비용은 현재 T5가 직접 집계하지 않/);
+  assert.match(system, /웹 대화 화면/);
 });
 
 // ── 이름 지정·지속 (④) ───────────────────────────────────────────────────

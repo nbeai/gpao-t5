@@ -210,6 +210,9 @@ export function buildTaskContext(p) {
       : (summary.readyCapabilities ?? summary.ready),
     // 한계(무엇을 연결하면 되는지)는 그 도구가 걸리는 턴에서만 쓸모 있다. 잡담에는 소음이다.
     limits: intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits,
+    // 승인 필요 손은 자기 상태를 물었을 때만 상세히 준다. 평범한 대화에 권한 설명을 매번
+    // 싣지 않되, 물었을 때 모델이 추측으로 위험 범위를 만들지 않게 한다.
+    approvalRequired: p.selfhoodDetail ? summary.approvalRequired : [],
   };
 
   const authorityFacts = {
@@ -243,6 +246,9 @@ export function buildTaskContext(p) {
     recoveryHint: p.recoveryHint,
     // 자기 파악 세 번째 축(운용 상태) — 실제 기록만. 모델 추정은 넣지 않는다(오염 방지).
     workingState: p.workingState,
+    // 서버가 아는 실행 현실. 주소·경로·포트 같은 내부값은 싣지 않고 사용자에게 의미 있는
+    // 경계만 준다. 모델이 자기 호스팅 환경을 출신 지식으로 추측하지 않게 한다.
+    runtimeEnvironment: p.runtimeEnvironment,
     // **지금 언제, 어디인가.** OS 는 이걸 안다. 안 주면 모델은 "오늘"이 언제인지 몰라 되묻거나
     // 엉뚱한 날짜로 답한다(실측: "미국 기준 오늘인 7월 26일을 말씀하신 거라면…").
     // 지역도 마찬가지 — 사실이 없으니 "어느 지역이요?"를 매번 물었다. 규칙이 아니라 사실이 부족했다.

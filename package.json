@@ -23,6 +23,8 @@
     "gate": "node scripts/gate.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",
     "audit:plan": "node scripts/audit-plan.mjs",
-    "audit:mutation": "node scripts/audit-mutation.mjs"
+    "audit:mutation": "node scripts/audit-mutation.mjs",
+    "human-use:prepare": "node scripts/human-use/prepare.mjs",
+    "human-use:verify": "node scripts/human-use/verify-evidence.mjs"
   }
 }

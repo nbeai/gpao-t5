@@ -43,6 +43,8 @@ test('장기 안정성: 길어질수록 더 적은 말로, 구조를 반복하�
   const c = judgmentCharter();
   assert.match(c, /더 적은 말로 더 정확히/);
   assert.match(c, /반복 금지/);
+  assert.match(c, /자동 인사·도움 제안·재요약/);
+  assert.match(c, /빈 약속/);
 });
 
 test('도구 경계: 제안은 모델, 실행·승인·기록은 런타임', () => {

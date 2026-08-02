@@ -88,7 +88,16 @@ export function buildModelMessages(tc) {
   // 지시가 아니라 **사실**로 준다("…로 본다"는 허가처럼 읽혀 모델이 되레 허락을 구했다).
   if (tc.now?.timeZone) sys.push(`사용자 시간대: ${tc.now.timeZone}`);
   if (sf.readyTools?.length) sys.push(`T5 가 대신 실행할 수 있는 도구: ${sf.readyTools.join(', ')}`);
+  if (sf.approvalRequired?.length) sys.push(`확인받고 실행하는 일: ${sf.approvalRequired.join(', ')}`);
   if (sf.limits?.length) sys.push(`아직 안 되는 것: ${sf.limits.join('; ')}`);
+  const runtime = tc.runtimeEnvironment;
+  if (runtime?.locality === 'this_computer') sys.push('T5 런타임은 이 컴퓨터에서 로컬로 실행된다.');
+  if (runtime?.networkExposure === 'loopback_only') {
+    sys.push('웹 화면과 API는 이 컴퓨터 안에서만 열려 있고 같은 망의 다른 기기에는 노출되지 않는다.');
+  }
+  if (runtime?.costTracking === 'not_tracked') {
+    sys.push('모델 호출 비용은 현재 T5가 직접 집계하지 않는다. 비용을 안다고 추측하지 않는다.');
+  }
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
   // **사실 한 줄.** 손이 없어진 게 아니라 이번 턴 몫을 다 썼다는 것 — 다음 턴에는 다시 쓴다.
   if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
