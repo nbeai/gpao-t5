@@ -10,6 +10,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { runTurn } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
 import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
@@ -55,6 +56,8 @@ import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/pers
 import { parseCompletionCriteria, verifyCompletion } from '../kernel/l2-plan/completion-contract.js';
 import { EventLog } from './event-log.js';
 import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
+import { TurnTiming, assertBrowserTimingUpdate } from '../kernel/l0-evidence/turn-timing.js';
+import { TurnTimingStore } from './turn-timing-store.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
@@ -259,6 +262,8 @@ export function makeServer(deps = {}) {
   const personalStore = deps.personalStore ?? new PersonalToolsStore(store.dir);
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
+  const turnTimingStore = deps.turnTimingStore ?? new TurnTimingStore(store.dir);
+  const timingClock = deps.timingClock ?? (() => performance.now());
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   // P5-1 채널: 누가 말을 걸 수 있는지(허용목록)와 어느 방이 어느 대화와 이어지는지(연결).
   const allowlistStore = deps.allowlistStore ?? new AllowlistStore(store.dir);
@@ -272,6 +277,42 @@ export function makeServer(deps = {}) {
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
+  // P90-2: 브라우저 표시 보고는 서버 사실과 다른 단조 시계를 쓴다. 살아 있는 계측기와 결합하되
+  // 원문·답변·도구 인자는 이 표에 들어오지 않는다. 완료 뒤에도 화면 투영 보고를 받을 만큼만 보존한다.
+  const activeTurnTimings = new Map();
+  let processHasMeasuredTurn = false;
+  const timingExpiresMs = 10 * 60_000;
+  const timingPathKind = (toolId) => {
+    if (toolId === 'agent.delegate' || String(toolId).startsWith('agent.')) return 'agent';
+    if (String(toolId).startsWith('local.')) return 'local';
+    if (String(toolId).startsWith('web.') || String(toolId).startsWith('browser.')) return 'web';
+    return 'unknown';
+  };
+  const timingPathClass = (kinds) => {
+    const known = [...kinds].filter((kind) => kind !== 'unknown');
+    if (!known.length) return kinds.size ? 'unknown' : 'chat';
+    return new Set(known).size === 1 && !kinds.has('unknown') ? known[0] : 'mixed';
+  };
+  const withTimingEntry = (entry, task) => {
+    const run = entry.queue.catch(() => {}).then(task);
+    entry.queue = run.catch(() => {});
+    return run;
+  };
+  const observeTiming = (entry, task) => {
+    if (!entry || entry.failed) return undefined;
+    try { return task(); }
+    catch (error) {
+      entry.failed = true;
+      console.error('[turn-timing:diagnostic]', error?.message ?? error);
+      return undefined;
+    }
+  };
+  const cleanExpiredTimings = () => {
+    const now = Date.now();
+    for (const [id, entry] of activeTurnTimings) {
+      if (entry.expiresAt < now) activeTurnTimings.delete(id);
+    }
+  };
   // 같은 세션의 턴은 durable truth(EventLog)와 transcript를 공유하므로 직렬화한다.
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
@@ -560,12 +601,27 @@ export function makeServer(deps = {}) {
 
   // 승인 대기(pending)를 세션 파일에 지속한다(Approval Lifecycle). 기억(memory)·활성목표(activeGoal)를
   // ctx에 주입 — 라우터는 raw 기억을 쓰지 않고, admitted된 것만 좁게 입장한다(§5).
-  function ctxForSession(session, memory) {
+  function ctxForSession(session, memory, timingEntry) {
     const ledger = new TruthLedger();
     ledger.entries = (session.ledgerEntries ?? []).slice();
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
+    const measured = async (kind, action) => {
+      if (!timingEntry) return action();
+      const wait = observeTiming(timingEntry, () => timingEntry.timing.beginExternalWait(kind));
+      try { return await action(); }
+      finally { if (wait) observeTiming(timingEntry, () => wait.end()); }
+    };
+    const turnModel = timingEntry ? {
+      respond: (...args) => measured('model', () => model.respond(...args)),
+    } : model;
+    const turnTools = timingEntry ? Object.assign(Object.create(tools), {
+      run: (toolId, ...args) => {
+        timingEntry.pathKinds.add(timingPathKind(toolId));
+        return measured('tool', () => tools.run(toolId, ...args));
+      },
+    }) : tools;
     return {
-      env, model, tools, ledger, pending, identity, selfhoodDocs,
+      env, model: turnModel, tools: turnTools, ledger, pending, identity, selfhoodDocs,
       runtimeEnvironment: deps.runtimeEnvironment,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
       connectors: deps.connectors ?? demoConnectors(),
@@ -609,7 +665,7 @@ export function makeServer(deps = {}) {
 
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
-  async function runAndPersistTurn(session, input, emit, onAnswerDelta) {
+  async function runAndPersistTurn(session, input, emit, onAnswerDelta, timingEntry) {
     // S0 · TurnRef(§4.1): 저장된 턴에 불변 신분을 준다. 발급은 세션 저장과 같은 직렬화 경계
     // (withSessionQueue) 안이라 동시 턴이 같은 seq 를 받지 않는다. 소급은 사실을 지어내지 않는다.
     migrateTurnRefs(session);
@@ -625,7 +681,7 @@ export function makeServer(deps = {}) {
     const memory = await memStore.load();
     const learning = await traceStore.load();
     session.carryableWork = await 이어받을작업(session);
-    const ctx = ctxForSession(session, memory);
+    const ctx = ctxForSession(session, memory, timingEntry);
     await automationReady();
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
@@ -1025,6 +1081,33 @@ export function makeServer(deps = {}) {
         return sendJson(res, 200, result);
       }
 
+      // ── P90-2 브라우저 표시 계측 ── 서버 사건과 합치지 않고 browser_report 주장으로만 결합한다.
+      if (req.method === 'POST' && url === '/turn/metrics/visible') {
+        let input;
+        try { input = JSON.parse((await readBody(req)) || '{}'); }
+        catch { return sendJson(res, 400, { error: '계측 형식이 올바르지 않아요.' }); }
+        const allowed = ['measurementId', 'event', 'elapsedMs', 'visibilityState'];
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).some((key) => !allowed.includes(key))) {
+          return sendJson(res, 400, { error: '계측 형식이 올바르지 않아요.' });
+        }
+        cleanExpiredTimings();
+        const entry = activeTurnTimings.get(input.measurementId);
+        if (!entry) return sendJson(res, 404, { error: '계측할 턴을 찾지 못했어요.' });
+        const update = { event: input.event, elapsedMs: input.elapsedMs, visibilityState: input.visibilityState };
+        try {
+          assertBrowserTimingUpdate(update);
+          await withTimingEntry(entry, async () => {
+            entry.timing.reportBrowser(update.event, update.elapsedMs, update.visibilityState);
+            if (entry.persisted) await turnTimingStore.mergeBrowser(input.measurementId, update);
+          });
+          return sendJson(res, 200, { ok: true });
+        } catch (error) {
+          console.error('[turn-timing:diagnostic]', error?.message ?? error);
+          return sendJson(res, 400, { error: '계측값을 기록하지 못했어요.' });
+        }
+      }
+
       // ── 스트림 시작 (P6-12) ── 사용자 원문은 POST 본문으로만. streamId를 발급하고 EventSource가 그걸로 구독.
       if (req.method === 'POST' && url === '/turn/stream-start') {
         const input = JSON.parse((await readBody(req)) || '{}');
@@ -1033,8 +1116,15 @@ export function makeServer(deps = {}) {
         const session = await store.load(input.sessionId);
         if (!session) return sendJson(res, 404, { error: '세션을 찾지 못했어요.' });
         const streamId = randomUUID();
-        pendingStreams.set(streamId, { sessionId: input.sessionId, text: input.text, expiresAt: Date.now() + 30_000 });
-        return sendJson(res, 200, { streamId });
+        const measurementId = randomUUID();
+        const receivedAt = timingClock();
+        const processWarmth = processHasMeasuredTurn ? 'warm' : 'cold';
+        processHasMeasuredTurn = true;
+        pendingStreams.set(streamId, {
+          sessionId: input.sessionId, text: input.text, measurementId, receivedAt, processWarmth,
+          expiresAt: Date.now() + 30_000,
+        });
+        return sendJson(res, 200, { streamId, measurementId });
       }
 
       // ── 스트리밍 (P6-12) ── SSE로 진행 상태를 흘리되, 진실은 EventLog(durable)에 남긴다. 끊겨도 복구된다.
@@ -1071,10 +1161,13 @@ export function makeServer(deps = {}) {
           return;
         }
         const text = pending.text;
+        const streamConnectedAt = timingClock();
         writeHeartbeat(); // 연결 즉시 생존 신호(무한 대기 방지)
         const hb = setInterval(writeHeartbeat, 15_000); hb.unref?.(); // 긴 turn 동안 연결 유지
         try {
+          const queueEnteredAt = timingClock();
           await withSessionQueue(sessionId, async () => {
+            let timingEntry;
             try {
               const activeSession = await store.load(sessionId);
               if (!activeSession) {
@@ -1087,6 +1180,28 @@ export function makeServer(deps = {}) {
               // 이 스트림이 어느 저장된 턴인지 — 첫 이벤트 전에 확정한다(§4.1).
               migrateTurnRefs(activeSession);
               const streamTurnRef = makeTurnRef(sessionId, nextTurnSeq(activeSession));
+              const timing = new TurnTiming({
+                measurementId: pending.measurementId,
+                turnRef: streamTurnRef,
+                surface: 'web',
+                origin: pending.receivedAt,
+                clock: timingClock,
+              });
+              timingEntry = {
+                timing,
+                pathKinds: new Set(),
+                processWarmth: pending.processWarmth,
+                sessionWarmth: activeSession.transcript?.some((entry) => entry.role === 'user')
+                  ? 'continued' : 'first_turn',
+                expiresAt: Date.now() + timingExpiresMs,
+                persisted: false,
+                failed: false,
+                queue: Promise.resolve(),
+              };
+              activeTurnTimings.set(pending.measurementId, timingEntry);
+              observeTiming(timingEntry, () => timing.markServerAt('stream_connected', streamConnectedAt));
+              observeTiming(timingEntry, () => timing.markServerAt('queue_entered', queueEnteredAt));
+              observeTiming(timingEntry, () => timing.markServer('queue_started'));
               const emit = async (type, payload) => {
                 seq += 1;
                 const ev = makeTurnEvent({
@@ -1095,6 +1210,11 @@ export function makeServer(deps = {}) {
                 });
                 await eventLog.append(sessionId, ev); // durable만 남는다(안전 척추)
                 writeEvent(ev);
+                if (type === 'trace_status') {
+                  observeTiming(timingEntry, () => timing.markServer('first_feedback_emitted'));
+                } else if (type === 'complete') {
+                  observeTiming(timingEntry, () => timing.markServer('complete_emitted'));
+                }
               };
               await emit('trace_status', { text: '요청을 이해했어요' }); // 시작 신호(무한 대기 금지)
               // 답변 조각은 EventLog 를 거치지 않고 바로 화면으로만 흘린다(비지속 미리보기).
@@ -1102,10 +1222,13 @@ export function makeServer(deps = {}) {
               const onAnswerDelta = (piece) => {
                 미리보기누적 += String(piece ?? '');
                 res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: piece, _turnId: turnId })}\n\n`);
+                observeTiming(timingEntry, () => timing.markServer('first_answer_emitted'));
               };
               const result = await runAndPersistTurn(
                 activeSession, { sessionId, text, turnRef: streamTurnRef }, emit, onAnswerDelta,
+                timingEntry,
               );
+              observeTiming(timingEntry, () => timing.markServer('server_committed'));
               // 계열 ④: 커널은 반환 전에 답과 미리보기를 정렬하지만, 서버 후처리(민감 기억 안내 등)가
               // **지속 직전에** 답을 늘릴 수 있다. 그 꼬리도 완료 전에 흘려 미리보기 누적 = 지속된 답을
               // 유지한다. 이어 가는 경우만 — 갈린 답을 여기서 지어 붙이지 않는다.
@@ -1125,11 +1248,42 @@ export function makeServer(deps = {}) {
                 await emit('capability_needed', { capabilityType: result.capabilityResolution.capabilityType, missingCapability: result.capabilityResolution.missingCapability });
               }
               if (!result.modelUnavailable) await emit('complete', { kind: result.kind });
+              const outcome = result.modelUnavailable ? 'error'
+                : result.kind === 'approval' ? 'approval'
+                  : result.capabilityResolution ? 'blocked' : 'reply';
+              await withTimingEntry(timingEntry, async () => {
+                if (timingEntry.failed) return;
+                const record = timing.finalize({
+                  outcome,
+                  pathClass: timingPathClass(timingEntry.pathKinds),
+                  processWarmth: timingEntry.processWarmth,
+                  sessionWarmth: timingEntry.sessionWarmth,
+                });
+                await turnTimingStore.append(record);
+                timingEntry.persisted = true;
+              }).catch((error) => {
+                timingEntry.failed = true;
+                console.error('[turn-timing:diagnostic]', error?.message ?? error);
+              });
             } catch (err) {
               // 느린 모델은 그 원인을 사용자 언어로(진단 원문 아님). 어느 경우든 항상 complete로 닫아 큐를 푼다.
               const text = err?.isModelTimeout ? '응답이 늦어 잠시 멈췄어요.' : '처리 중 문제가 있었어요.';
               res.write(`event: recoverable_error\ndata: ${JSON.stringify({ text, nextSafeAction: '잠시 후 다시 시도할까요?' })}\n\n`);
               res.write('event: complete\ndata: {"kind":"error"}\n\n');
+              if (timingEntry) {
+                observeTiming(timingEntry, () => timingEntry.timing.markServer('server_committed'));
+                observeTiming(timingEntry, () => timingEntry.timing.markServer('complete_emitted'));
+                await withTimingEntry(timingEntry, async () => {
+                  if (timingEntry.failed) return;
+                  await turnTimingStore.append(timingEntry.timing.finalize({
+                    outcome: 'error',
+                    pathClass: timingPathClass(timingEntry.pathKinds),
+                    processWarmth: timingEntry.processWarmth,
+                    sessionWarmth: timingEntry.sessionWarmth,
+                  }));
+                  timingEntry.persisted = true;
+                }).catch((error) => console.error('[turn-timing:diagnostic]', error?.message ?? error));
+              }
               console.error('[stream:diagnostic]', err?.stack ?? err);
             }
           });

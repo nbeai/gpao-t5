@@ -14,6 +14,11 @@ delegation, practical document workflows, and the deterministic whole-product se
 public release claim. Signed installation, updates, uninstall/recovery, public distribution, and the owner's choice
 between packaging now or doing the separately scoped structural hardening pass remain explicit work.
 
+The approved execution path from the current development-complete baseline to a 90-point production candidate is
+`docs/03-product-plan/T5-PRODUCTION-90-COMPLETION-PLAN-2026-08-02-ko.md`. It treats long-lived work state,
+tool-turn latency, the consumer installation lifecycle, and broad real-world use as four independently scored product
+gates. It does not reopen the sealed core or authorize public distribution.
+
 ## Top Authority Documents
 
 These documents are mandatory first-read material before any GPAO-T5 planning, implementation, review, verification, or handoff.

@@ -114,6 +114,8 @@ test('Work Chat은 recoverable_error를 같은 턴의 회복 안내로 렌더한
   const html = await readFile(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'surface', 'web', 'index.html'), 'utf8');
   assert.match(html, /addEventListener\('recoverable_error'/, 'SSE recoverable_error를 듣는다');
   assert.match(html, /function renderRecovery/, '회복 안내 렌더러가 있다');
-  assert.match(html, /const recovery = await streamTurn/, 'submit 경로가 회복 payload를 받는다');
+  assert.match(html, /const streamed = await streamTurn/, 'submit 경로가 스트림 결과를 받는다');
+  assert.match(html, /const recovery = streamed\.recovery/, '스트림 결과에서 회복 payload를 분리한다');
+  assert.match(html, /await streamed\.reportComplete\(\)/, '회복 안내를 그린 뒤에도 완료 표시를 계측한다');
   assert.match(html, /다음: \$\{r\.nextSafeAction\}/, '다음 안전 행동을 사용자에게 남긴다');
 });

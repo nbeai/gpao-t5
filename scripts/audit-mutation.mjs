@@ -60,6 +60,10 @@ const TURNJS = 'src/kernel/turn.js';
 const T_STREAM = 'test/answer-streaming.test.js';
 const PROVIDER = 'src/runtime/model-provider.js';
 const T_PROVIDER = 'test/model-provider.test.js';
+const TIMING = 'src/kernel/l0-evidence/turn-timing.js';
+const T_TIMING = 'test/turn-timing.test.js';
+const T_TIMING_STORE = 'test/turn-timing-store.test.js';
+const T_TIMING_PRODUCT = 'test/turn-timing-product.test.js';
 const SELF_STATE = 'src/kernel/l0-evidence/self-state.js';
 const SELF_LOOKUP = 'src/kernel/l1-intent/selfhood-lookup.js';
 const WELCOME = 'src/surface/welcome.js';
@@ -72,6 +76,22 @@ const T_HUMAN_LANGUAGE = 'test/human-language-contract.test.js';
  * 새 계약을 만들면 여기 한 줄을 더한다 — 그게 곧 "이 계약을 지키는 검사가 있다"는 증명이다.
  */
 export const MUTATIONS = [
+  // ── P90-2 지연 계측(서버 사실과 브라우저 표시를 섞지 않는다) ─────────────
+  { 이름: '계측 기록에 임의 원문 필드를 허용', 파일: TIMING, 검사: T_TIMING,
+    찾기: '    if (!allowed.includes(key)) throw new Error(`${label}.${key}: 허용되지 않은 필드`);',
+    바꾸기: '    if (false) throw new Error(`${label}.${key}: 허용되지 않은 필드`);' },
+  { 이름: '겹친 모델·도구 대기를 중복 합산', 파일: TIMING, 검사: T_TIMING,
+    찾기: '  return rounded(total + end - start);',
+    바꾸기: '  return rounded(intervals.reduce((sum, x) => sum + x.end - x.start, 0));' },
+  { 이름: '브라우저 표시 사건의 첫 값을 뒤 보고로 덮음', 파일: TIMING, 검사: T_TIMING_STORE,
+    찾기: '  if (record.browser[update.event] !== null) return { updated: false, record };',
+    바꾸기: '  if (false) return { updated: false, record };' },
+  { 이름: '스트림 시작에서 계측 신분을 브라우저에 주지 않음', 파일: SERVER, 검사: T_TIMING_PRODUCT,
+    찾기: '        return sendJson(res, 200, { streamId, measurementId });',
+    바꾸기: '        return sendJson(res, 200, { streamId });' },
+  { 이름: '화면 계측 API가 원문·임의 필드를 받음', 파일: SERVER, 검사: T_TIMING_PRODUCT,
+    찾기: '          || Object.keys(input).some((key) => !allowed.includes(key))) {',
+    바꾸기: '          || false) {' },
   // ── 자기상태 · 사람다운 말 표면 ──────────────────────────────────────────
   { 이름: '승인 필요한 실행 손을 자기상태에서 숨김', 파일: SELF_STATE, 검사: T_SELFHOOD,
     찾기: '    approvalRequired: selfState.riskyActions ?? [],',

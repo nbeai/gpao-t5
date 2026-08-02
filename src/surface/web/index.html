@@ -1806,23 +1806,28 @@ function renderSuggestion(box, sug) {
 
 async function submit() {
   const t = text.value.trim(); if (!t) return;
+  const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
-    const recovery = await streamTurn(t, trace);
+    const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
+    const recovery = streamed.recovery;
     trace.remove();
     if (recovery) {
       renderRecovery(box, recovery);
+      await streamed.reportComplete();
       return;
     }
     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
     await 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json());
     scrollToBottom(); // 최종 결과로 교체된 뒤에도 아래를 보고 있게
+    await streamed.reportComplete();
     await loadSessions();
   } catch {
     trace.remove();
@@ -1839,9 +1844,28 @@ function renderRecovery(box, r) {
 
 // 진행 상태를 조용히 표시. 모델 사고 원문이 아니라 trace_status/tool_progress 등 사용자 언어 상태만.
 // 사용자 원문은 POST 본문으로만 보내고(URL 노출 금지), streamId로만 구독한다(프라이버시).
-async function streamTurn(t, trace) {
+function afterVisiblePaint(startedAt) {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+    elapsedMs: performance.now() - startedAt,
+    visibilityState: ['visible', 'hidden', 'prerender'].includes(document.visibilityState)
+      ? document.visibilityState : 'hidden',
+  }))));
+}
+
+async function reportVisibleTiming(measurementId, event, sample) {
+  if (!measurementId || !sample) return;
+  await fetch('/turn/metrics/visible', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    keepalive: true,
+    body: JSON.stringify({ measurementId, event, ...sample }),
+  }).catch(() => {}); // 계측 실패가 대화 흐름을 막지 않는다
+}
+
+async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
   const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t }) })).json();
   if (!start.streamId) throw new Error('stream-start');
+  firstFeedbackPaint.then((sample) => reportVisibleTiming(start.measurementId, 'first_feedback_visible', sample));
   return new Promise((resolve, reject) => {
     const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
     const es = new EventSource(url);
@@ -1865,6 +1889,7 @@ async function streamTurn(t, trace) {
     // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
     let preview = null;
     let previewText = '';
+    let firstGroundedReported = false;
     es.addEventListener('answer_delta', (e) => {
       try {
         const { text: piece } = JSON.parse(e.data);
@@ -1877,11 +1902,23 @@ async function streamTurn(t, trace) {
         }
         previewText += piece;
         renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
+        if (!firstGroundedReported) {
+          firstGroundedReported = true;
+          afterVisiblePaint(surfaceStartedAt).then((sample) => reportVisibleTiming(
+            start.measurementId, 'first_grounded_content', sample,
+          ));
+        }
         scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
       } catch {}
     });
-    es.addEventListener('complete', () => { done = true; preview?.remove(); es.close(); resolve(recovery); });
-    es.onerror = () => { es.close(); done ? resolve() : reject(new Error('stream')); };
+    const completed = () => ({
+      recovery,
+      reportComplete: async () => reportVisibleTiming(
+        start.measurementId, 'turn_complete', await afterVisiblePaint(surfaceStartedAt),
+      ),
+    });
+    es.addEventListener('complete', () => { done = true; preview?.remove(); es.close(); resolve(completed()); });
+    es.onerror = () => { es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
   });
 }
 send.onclick = submit;
