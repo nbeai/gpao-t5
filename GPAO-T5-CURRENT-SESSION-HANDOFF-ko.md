@@ -97,6 +97,16 @@
   원문·경로·도구 인자는 0이었다. 이 한 회차는 배선 증거이며 공식 p95가 아니다. 회귀 **1,927/1,927**,
   돌연변이 **240/240**, plan/docs/workspace PASS. 공식 경로별 cold/warm 30회 기준선은 다음 측정 단계다.
   증거: `docs/03-verification/evidence/production90/wave0/instrumentation-product-path-2026-08-02-ko.md`.
+- **P90-1 장기 작업상태 결정적 구조 편입 완료(2026-08-02, 겸임 구현 `f9a96d7`)**:
+  `WorkEventLedger` append-only hash chain, OS 발급 `WorkRef`·`ReceiptRef`·`CompletionContractRef`·
+  `subjectRef`, 합의·대체·철회·미정·해소·실행완료·대화산출물 사건을 편입했다. 모델 `work.state`는
+  사용자 원문과 현재 원장에 대조되는 후보일 뿐 완료 진실이 아니다. 실제 파일 산출물의 완료는
+  `delivered` 영수증과 완료 계약 결합에서만 선다. 현재 상태는 사건 투영 하나이고 세션에 별도 정본으로
+  저장하지 않는다. 새 대화는 같은 principal에게 실제로 보여준 프로젝트 원문을 정확히 지목할 때만 같은
+  WorkRef를 이어받는다. 30·60·100턴·재시작·무관 scope·프롬프트 상한·제품 HTTP 산출물 관통 PASS,
+  회귀 **1,984/1,984** · 돌연변이 **246/246** · plan/docs/workspace PASS. 공식 3도메인 실제 모델 반복과
+  P90-1 90점 판정은 아직 미실행이며 독립 감사가 필요하다. 증거:
+  `docs/03-verification/evidence/production90/p90-1/work-state-implementation-2026-08-02-ko.md`.
 - **PC 손발 봉인(H08~H09)도 완료**됐다. 전체 H는 네 묶음으로 운영한다:
   H0 현재 진실 정리 → **T-cell H 봉인(H01~H07, 완료)** → **PC 손발 봉인(H08~H09, 완료)** →
   Agent Core → **Agent 봉인(H10)** → 전체 제품 봉인. 진행표는

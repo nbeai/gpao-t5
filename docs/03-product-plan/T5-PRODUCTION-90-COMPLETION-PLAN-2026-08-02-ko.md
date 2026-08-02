@@ -1,6 +1,6 @@
 # T5 프로덕션 90 완성 계획
 
-- 상태: `APPROVED_FOR_EXECUTION` · Wave 0 계약·계측 편입 완료 · 공식 30회 기준선 수집 대기
+- 상태: `APPROVED_FOR_EXECUTION` · Wave 0 완료 · P90-1 결정적 구조 구현 완료 · 공식 실환경 판정 대기
 - 기준선: `b0111b6` · 회귀 1,898/1,898 · 돌연변이 235/235 · plan/docs/workspace PASS
 - 목적: 현재 강한 개발 완성체를 일반 사용자가 반복해서 믿고 쓰는 90점대 프로덕션으로 끌어올린다.
 - 범위: 장기 작업상태, 도구 턴 지연, 소비자 설치 생명주기, 실제 사용 폭
@@ -153,6 +153,24 @@ scope는 tagged `ScopeRef`로 둔다. cross-session 공급에는 `principalRef`�
 
 구현 순서는 `delivered` 불일치 정정 → ReceiptRef → 완료 계약 신분 결합 → WorkEvent 저장소 → shadow
 projection → legacy lane A/B → 제한 cutover다. 순서를 건너뛰어 WorkState부터 저장하지 않는다.
+
+### 구현 상태 (2026-08-02 · 겸임 구현)
+
+커밋 `f9a96d7`에서 위 순서의 결정적 구조를 제품 경로에 편입했다. `WorkEventLedger`는 append-only
+hash chain과 checkpoint를 가지며, 손상 뒤 마지막 유효 checkpoint까지만 읽고 read-only degraded로
+전환한다. `WorkRef`·`ReceiptRef`·`CompletionContractRef`·`subjectRef`는 로컬 OS 키로 발급·검증한다.
+모델의 `work.state`는 사용자 원문과 현재 원장에 대조되는 후보일 뿐이며 완료 주장은 수용하지 않는다.
+
+웹과 채널 턴은 같은 경계를 사용한다. 새 대화는 같은 principal의 활성 프로젝트 사실 중 모델에게 실제로
+보인 원문 하나를 정확히 지목할 때만 기존 `WorkRef`를 이어받는다. 다른 principal·다른 scope는 입장하지
+않는다. 현재 상태는 사건에서 매 턴 투영하고 세션에 두 번째 정본으로 저장하지 않는다. 기존 세션은 추측
+migration하지 않고 legacy lane을 유지한다.
+
+결정적 증거는 30·60·100턴, 대체·철회·미정·해소·재시작·무관 scope·4,000자 상한·승인 0과 실제 HTTP
+파일 읽기→쓰기 승인→`delivered` 영수증+완료 계약→`execution_completed` 관통이다. 회귀 1,984/1,984,
+돌연변이 246/246, plan/docs/workspace PASS다. 다만 아래 90점 종료 조건의 실제 모델 3개 도메인 반복과
+Codex 비교는 아직 실행하지 않았으므로 P90-1 90점이나 전체 완료를 선언하지 않는다. 정본 증거:
+`docs/03-verification/evidence/production90/p90-1/work-state-implementation-2026-08-02-ko.md`.
 
 ### 선실패 반증
 
