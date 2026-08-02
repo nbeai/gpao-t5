@@ -123,7 +123,9 @@ set -e
 USER_NAME=$(stat -f %Su /dev/console)
 USER_UID=$(id -u "$USER_NAME")
 USER_HOME=$(dscl . -read /Users/"$USER_NAME" NFSHomeDirectory | awk '{print $2}')
-APP="${신분.설치위치}/${신분.이름}.app"
+# **어디에 깔렸는지는 installer 가 안다**($2 = 실제 설치 자리). 여기에 /Applications 를 박아 두면
+# 사용자가 설치 대상을 바꾼 순간 없는 앱을 실행하고 등록만 남는다 — 켜지지 않는 프로그램이 된다.
+APP="\${2:-${신분.설치위치}}/${신분.이름}.app"
 AGENTS="$USER_HOME/Library/LaunchAgents"
 PLIST="$AGENTS/${신분.agentLabel}.plist"
 
@@ -158,10 +160,13 @@ exit 0
   await writeFile(join(contents, 'Resources', 'uninstall.sh'), `#!/bin/sh
 set -e
 LABEL=${신분.agentLabel}
+# 이 스크립트는 앱 안에 산다. 그러니 **자기 자리를 자기가 안다** — 경로를 박아 두면
+# 다른 자리에 깔린 앱을 지우라고 했을 때 엉뚱한 자리를 지우거나 아무 것도 안 지운다.
+APP=$(cd "$(dirname "$0")/../.." && pwd)
 launchctl bootout gui/$(id -u)/$LABEL 2>/dev/null || true
 rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
 pkill -f "${신분.이름}.app" 2>/dev/null || true
-rm -rf "${신분.설치위치}/${신분.이름}.app"
+rm -rf "$APP"
 echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어요."
 `);
   await chmod(join(contents, 'Resources', 'uninstall.sh'), 0o755);
