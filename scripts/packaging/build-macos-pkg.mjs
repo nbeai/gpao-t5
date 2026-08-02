@@ -9,8 +9,14 @@
 // 넣는 것: ① `npm pack` 산출물(bin·src·package.json) ② 검증된 Node 실행 파일 하나
 // 넣지 않는 것: npm, node 헤더·문서, 개발 트리, 테스트, 설계 문서, 자격, 사용자 데이터
 //
-// 서명·공증은 **여기서 하지 않는다.** 자격 사용은 오너 승인 사항이라 별도 걸음이다
-// (무서명 산출물을 먼저 끝까지 검증한다 — 계획서 GitHub 실험 환경과 같은 순서).
+// 서명은 **꺼져 있는 것이 기본**이다. 자격 사용은 오너 승인 사항이라, 아무 것도 주지 않으면
+// 무서명 산출물이 나온다(그걸 먼저 끝까지 검증한다 — 계획서 GitHub 실험 환경과 같은 순서).
+// 승인을 받은 뒤에는 손으로 codesign 을 두드리지 않고 **여기로 통과시킨다.** 손으로 하면
+// 무엇을 어떤 차례로 서명했는지가 사람 기억에만 남고, 다음 산출물이 같다는 보장이 없다.
+//   T5_SIGN_APP        Developer ID Application 신분
+//   T5_SIGN_INSTALLER  Developer ID Installer 신분(PKG 용)
+//   T5_SIGN_KEYCHAIN   그 신분이 있는 키체인(생략하면 기본 검색 경로)
+// 공증(notarytool)은 여전히 바깥 걸음이다 — Apple 에 올리는 행위라 실행 시점 승인에 묶는다.
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm, readFile, chmod, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -160,19 +166,59 @@ echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어
 `);
   await chmod(join(contents, 'Resources', 'uninstall.sh'), 0o755);
 
+  // ── ③-2 서명(자격을 준 경우에만) ────────────────────────────────────
+  // **안에서 바깥으로** 서명한다. 번들을 먼저 서명하면 그 뒤에 안쪽 실행 파일을 건드리는 순간
+  // 겉 서명이 깨진다 — 그러면 Gatekeeper 에서 "손상된 앱"이 된다.
+  const 앱신분 = process.env.T5_SIGN_APP;
+  const 설치신분_ = process.env.T5_SIGN_INSTALLER;
+  const 키체인 = process.env.T5_SIGN_KEYCHAIN;
+  const 키체인인자 = 키체인 ? ['--keychain', 키체인] : [];
+  if (앱신분) {
+    const 서명 = (대상, 더 = []) => 실행('codesign', [
+      '--force', '--timestamp', '--options', 'runtime',
+      '--sign', 앱신분, ...키체인인자, ...더, 대상,
+    ]);
+    // 동봉 Node 는 남이 만든 실행 파일이다. 우리 이름으로 다시 서명하되 hardened runtime 을
+    // 건다(없으면 공증이 거부된다). 그런데 hardened runtime 은 JIT 를 막고, JavaScript 엔진은
+    // JIT 없이는 못 돈다 — 그래서 **Node 에만** 그 예외를 준다. 런처는 필요 없다.
+    const 자격 = join(work, 'node.entitlements.plist');
+    await writeFile(자격, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict></plist>
+`);
+    // **안에서 바깥으로.** 번들을 먼저 서명하면 그 뒤에 안쪽 실행 파일을 건드리는 순간 겉
+    // 서명이 깨지고, Gatekeeper 에서 "손상된 앱"이 된다.
+    서명(join(contents, 'Resources', 'runtime', 'bin', 'node'), ['--entitlements', 자격]);
+    서명(join(root, `${신분.이름}.app`));
+    실행('codesign', ['--verify', '--deep', '--strict', '--verbose=2', join(root, `${신분.이름}.app`)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+  }
+
   // ── ④ 산출물 조립 ─────────────────────────────────────────────────
   const out = join(REPO, 'dist');
   await mkdir(out, { recursive: true });
-  const 파일 = join(out, `${신분.이름}-${version}-arm64-unsigned.pkg`);
+  const 파일 = join(out, `${신분.이름}-${version}-arm64${설치신분_ ? '' : '-unsigned'}.pkg`);
   const 부품 = join(work, 'component.pkg');
   실행('pkgbuild', ['--root', root, '--install-location', 신분.설치위치, '--scripts', scripts,
     '--identifier', 신분.bundleId, '--version', version, 부품]);
-  실행('productbuild', ['--package', 부품, 파일]);
+  if (설치신분_) {
+    const 무서명 = join(work, 'product-unsigned.pkg');
+    실행('productbuild', ['--package', 부품, 무서명]);
+    실행('productsign', ['--sign', 설치신분_, ...키체인인자, 무서명, 파일]);
+  } else {
+    실행('productbuild', ['--package', 부품, 파일]);
+  }
 
   // ── ⑤ manifest — 무엇이 들어갔는지 기계 사실로 남긴다 ────────────────
   const manifest = {
     제품: 신분.이름, 버전: version, bundleId: 신분.bundleId, agentLabel: 신분.agentLabel,
-    아키텍처: 'arm64', 기본포트: 신분.기본포트, 서명: 'unsigned',
+    아키텍처: 'arm64', 기본포트: 신분.기본포트,
+    // 무엇을 했는지만 적는다. 공증·staple 은 이 스크립트 밖 걸음이라 여기서 성공을 주장하지 않는다.
+    서명: 앱신분 || 설치신분_ ? { 앱: Boolean(앱신분), 설치본: Boolean(설치신분_) } : 'unsigned',
     런타임: {
       버전: 런타임버전, 아키텍처: 런타임아치,
       출처: 'nodejs.org 공식 배포',
