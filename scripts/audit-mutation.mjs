@@ -17,8 +17,8 @@
 import { readFile, writeFile, cp, rm, mkdtemp, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, relative } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { spawnSync, spawn } from 'node:child_process';
+import { tmpdir, cpus } from 'node:os';
 import { createHash } from 'node:crypto';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -986,6 +986,25 @@ export const MUTATIONS = [
     바꾸기: '' },
 ];
 
+/**
+ * 지정 검사 하나를 돌리고 종료코드만 돌려준다.
+ *
+ * 예전엔 `spawnSync` 였다. 그러면 이벤트 루프가 멈춰 **한 번에 하나씩만** 돌 수 있고,
+ * 281건 × 검사 파일 하나가 전부 직렬로 쌓여 20분이 됐다(`tcell-grow` 하나만 4.65초 × 53건).
+ * 판정은 종료코드 하나뿐이므로 동기일 이유가 없다.
+ *
+ * 시간 초과는 실패로 본다 — 계약이 깨져 45초 안에 못 끝나는 것 자체가 결정적 실패다.
+ * (`spawnSync` 의 timeout 도 status 를 0 이 아닌 값으로 만들었다. 판정 규칙은 그대로다.)
+ */
+function 검사실행(검사, cwd) {
+  return new Promise((resolve) => {
+    const p = spawn('node', ['--test', '--test-timeout=30000', 검사], { cwd, stdio: 'ignore' });
+    const 상한 = setTimeout(() => p.kill('SIGKILL'), 45_000);
+    p.on('exit', (code) => { clearTimeout(상한); resolve(code); });
+    p.on('error', () => { clearTimeout(상한); resolve(1); });
+  });
+}
+
 async function 한번(m, repo) {
   const path = join(repo, m.파일);
   const 원본 = await readFile(path, 'utf8');
@@ -1014,11 +1033,9 @@ async function 한번(m, repo) {
     }
     // 한 주입이 여러 검사를 모두 교착시키면 test별 30초가 누적된다. 계약이 깨져 프로세스가
     // 45초 안에 끝나지 않는 것 자체가 결정적 실패이므로 전체 지정 검사에도 상한을 둔다.
-    const r = spawnSync('node', ['--test', '--test-timeout=30000', m.검사], {
-      cwd: repo, encoding: 'utf8', timeout: 45_000,
-    });
+    const status = await 검사실행(m.검사, repo);
     // 종료코드 0 = 검사가 전부 통과 = **주입이 빠져나갔다**.
-    return { ...m, 결과: r.status === 0 ? 'escaped' : 'caught' };
+    return { ...m, 결과: status === 0 ? 'escaped' : 'caught' };
   } finally {
     await writeFile(path, 원본, 'utf8');
     const 되돌림 = await readFile(path, 'utf8');
@@ -1029,14 +1046,39 @@ async function 한번(m, repo) {
   }
 }
 
+const 한줄 = (r, i, n) => {
+  const 표 = { caught: '물었다', escaped: '빠져나갔다', anchor: '주입 실패' }[r.결과];
+  return `${r.결과 === 'caught' ? ' ok ' : 'FAIL'} · ${String(i + 1).padStart(3)}/${n} · ${표.padEnd(6)} · ${r.이름}${r.메모 ? ` (${r.메모})` : ''}`;
+};
+
+/**
+ * **레인마다 자기 사본을 쓴다.** 각 변이는 저장소 파일을 고쳤다 되돌리므로 같은 트리에서
+ * 둘을 동시에 돌리면 서로의 주입을 재게 된다. 사본을 나누면 다툴 대상이 애초에 없다 —
+ * 잠금으로 순서를 맞추는 것보다 안전하다(격리 주석과 같은 원리를 레인 수만큼 늘린 것).
+ *
+ * 판정은 변이별로 독립이므로 순서가 결과를 바꾸지 않는다. 다만 **보고는 원래 순서**로
+ * 되돌린다 — 실행 순서가 회차마다 달라지면 두 회차를 대조할 수 없다.
+ *
+ * 일감은 공유 큐에서 하나씩 집어간다. `tcell-grow` 53건처럼 무거운 검사가 한 레인에
+ * 몰리면 그 레인만 남아 도는데, 집어가기 방식이면 먼저 끝난 레인이 이어받는다.
+ */
+async function 레인들로(레인, 목록, 진행) {
+  const 결과 = new Array(목록.length);
+  let 다음 = 0; let 끝난수 = 0;
+  await Promise.all(레인.map(async (work) => {
+    for (;;) {
+      const i = 다음; 다음 += 1;
+      if (i >= 목록.length) return;
+      결과[i] = await 한번(목록[i], work);
+      끝난수 += 1;
+      진행?.(결과[i], 끝난수, 목록.length);
+    }
+  }));
+  return 결과;
+}
+
 export async function auditMutation(repo = REPO, 목록 = MUTATIONS) {
-  const 결과 = [];
-  for (const m of 목록) {
-    const r = await 한번(m, repo);
-    결과.push(r);
-    const 표 = { caught: '물었다', escaped: '빠져나갔다', anchor: '주입 실패' }[r.결과];
-    console.log(`${r.결과 === 'caught' ? ' ok ' : 'FAIL'} · ${표.padEnd(6)} · ${r.이름}${r.메모 ? ` (${r.메모})` : ''}`);
-  }
+  const 결과 = await 레인들로([repo], 목록, (r, 끝난, n) => console.log(한줄(r, 끝난 - 1, n)));
   return 결과;
 }
 
@@ -1077,6 +1119,12 @@ async function 소스지문(repo) {
   return h.digest('hex');
 }
 
+// 레인 수. 코어를 다 쓰면 검사 자체가 서로 느려져 판정 시간이 흔들린다(45초 상한에 닿을 수도
+// 있다). 두 개는 남긴다. `MUTATION_LANES=1` 로 직렬 실행과 1:1 대조할 수 있다.
+const 레인수 = Math.max(1, Math.min(
+  Number(process.env.MUTATION_LANES) || (cpus().length - 2), 12,
+));
+
 // **불러오기만 해서는 아무 일도 일어나지 않는다.** 예전에는 이 파일을 import 하는 순간
 // 스윕 전체가 돌았다 — 목록만 읽으려던 실험이 저장소를 변조하는 실행을 시작해 버린다.
 // 도구를 조사하는 일이 도구를 발동시키면, 조사한 결과를 믿을 수 없다.
@@ -1084,12 +1132,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await 스윕�
 
 async function 스윕실행() {
 const 실행전 = await 소스지문(REPO);
-const { dir: 임시, work } = await 작업사본(REPO);
+const 사본 = await Promise.all(Array.from({ length: 레인수 }, () => 작업사본(REPO)));
+console.log(`레인 ${레인수}개 · 변이 ${MUTATIONS.length}건`);
 let 결과;
 try {
-  결과 = await auditMutation(work);
+  결과 = await 레인들로(사본.map((c) => c.work), MUTATIONS,
+    (r, 끝난, n) => console.log(한줄(r, 끝난 - 1, n)));
 } finally {
-  await rm(임시, { recursive: true, force: true });
+  await Promise.all(사본.map((c) => rm(c.dir, { recursive: true, force: true })));
 }
 
 // 활성 저장소가 실행 전과 **한 바이트도 다르지 않아야** 한다. 이 확인이 없으면 격리는
@@ -1104,6 +1154,9 @@ if (실행전 !== 실행후) {
 const 샌것 = 결과.filter((r) => r.결과 !== 'caught');
 if (샌것.length) {
   console.error(`\nMUTATION SWEEP: FAIL — ${샌것.length}/${결과.length} 건이 검사에 안 걸린다`);
+  // 레인이 여럿이면 진행 출력이 끝난 순서로 섞인다. 실패만은 **원래 순서**로 다시 모아
+  // 준다 — 회차끼리 대조할 수 있어야 무엇이 새로 샜는지 알 수 있다.
+  for (const r of 샌것) console.error(`  · ${r.이름}${r.메모 ? ` (${r.메모})` : ''}`);
   console.error('빠져나간 주입은 그 계약이 지금 무방비라는 뜻이다. 검사를 먼저 세워라.');
   process.exit(1);
 }
