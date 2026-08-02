@@ -82,6 +82,9 @@ export function makeLocalTerminalTool(deps = {}) {
         impact: `${command}`,
         scope: `${blank(args.cwd) ?? cwdOf()} 에서`,
         duration: '이번 한 번',
+        // P0-c: 승인 전에 **무엇이 이미 확인됐는지.** 카드와 영수증이 같은 사실을 말해야 한다 —
+        // probe 결과를 받은 카드는 그 명령이 이미 한 번(변경 차단 상태로) 돌았다는 뜻이다.
+        ...(args.probeResult ? { checked: '바꾸는 걸 막아 둔 채 한 번 시험해 봤어요 — 지금까지 바뀐 건 없어요.' } : {}),
         cancel: (block?.kind === 'sandbox' || block?.kind === 'permission') ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
           : '실행한 뒤에는 되돌리기 어려울 수 있어요',
       };
@@ -132,8 +135,17 @@ export function makeLocalTerminalTool(deps = {}) {
             // (실측: npm test 가 EPERM listen 으로 죽었는데 코드 문제인 줄 알았다).
             blockedBy: block?.kind, blockReason: block?.why,
             probe: { exitCode: r.exitCode, stderr: r.stderr },
+            // P0-c(QA90 감사 2026-08-02): 등급을 매기려면 **먼저 돌려 봐야 한다**(sandbox.js 의
+            // 설계 — 위험을 알아맞히지 않고 커널에게 물어본다). 그래서 카드가 뜨는 시점에는
+            // 이미 한 번 실행된 뒤다. 실행 자체는 계약대로지만 그 사실이 사용자에게도 원장에도
+            // 없었다 — "아직 실제로 하진 않았어요" 한 줄이 전부였고, 사용자는 아무 일도 없었다고
+            // 읽는다. 능력은 그대로 두고(오너 결정 2026-08-02) **사실을 기계 칸으로 남긴다.**
+            // 무엇을 말할지는 모델이 정한다(§24) — 여기서 문구를 처방하지 않는다.
+            probeRan: true,
+            probeChangedNothing: true,   // 커널이 막아서 증명된 것: 이 컴퓨터는 안 바뀌었다
           },
-          userSafeSummary: `${describeCommand(command, r)} — 아직 실제로 하진 않았어요.`,
+          userSafeSummary: `${describeCommand(command, r)} — 바꾸는 걸 막아 둔 채 한 번 시험해 봤고,`
+            + ' 이 컴퓨터는 아직 아무것도 바뀌지 않았어요.',
           nextSafeAction: '이대로 진행할까요?',
         };
       }
