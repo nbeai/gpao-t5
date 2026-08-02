@@ -679,12 +679,14 @@ export async function runTurn(input, ctx) {
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
+  let workStateProposal = null;
   const 통제제안받기 = (분리) => {
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
+    if (분리?.workStateProposal) workStateProposal = 분리.workStateProposal;
   };
-  const 통제제안 = () => ({ skillProposal, automationProposal, agentProposal });
+  const 통제제안 = () => ({ skillProposal, automationProposal, agentProposal, workStateProposal });
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
@@ -732,6 +734,7 @@ export async function runTurn(input, ctx) {
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
+      projectWorkState: ctx.projectWorkState,
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
@@ -1320,7 +1323,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
-    modelProviderId: ctx.modelProviderId, workingState,
+    modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
     toolStepsLeft: MAX_TOOL_STEPS, // 자기 상태 사실 — 거짓 소진("손 다 써서") 방지, H08 실측
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
@@ -1456,7 +1459,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
         surface: ctx.surface, recentTurns: ctx.recentTurns,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
-        workingState,
+        workingState, projectWorkState: ctx.projectWorkState,
         recoveryHint: 다음길(turnReceipts, 있는손()),
         toolStepsLeft: Math.max(MAX_TOOL_STEPS - steps, 0),
         ...(ctx.selfhood ?? {}),
@@ -1612,7 +1615,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
       surface: ctx.surface, recentTurns: ctx.recentTurns,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
-      workingState,
+      workingState, projectWorkState: ctx.projectWorkState,
       recoveryHint: 다음길(turnReceipts, 있는손()),
       toolStepsLeft: Math.max(MAX_TOOL_STEPS - steps, 0), // 남았으면 남았다는 사실(H08 실측)
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):

@@ -26,7 +26,7 @@ export const LANE_CAPS = Object.freeze({
 const id = (parts) => createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 24);
 
 /** 성공한 실행인가. 실패·미실행은 사실이 아니다. */
-const 성공 = (r) => r?.lifecycle === 'executed' && (r.failureState ?? 'none') === 'none';
+const 성공 = (r) => r?.lifecycle === 'delivered' && (r.failureState ?? 'none') === 'none';
 
 /**
  * 이 receipt 가 남긴 파일 경로. **제품이 실제로 쓰는 자리만 본다** — 쓰기·이동처럼 산출물을

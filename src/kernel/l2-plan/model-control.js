@@ -80,6 +80,41 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['name', 'purpose'],
   },
 }, {
+  name: 'work.state',
+  description: '긴 작업에서 사용자가 확정·수정·철회한 사실과 아직 답이 필요한 질문을 구조로 제출한다.'
+    + ' 실행이나 완료 처리가 아니다. 사용자 원문을 글자 그대로 지목해야 하며 T5가 원문·현재성·대체 관계를 대조한다.'
+    + ' 파일 생성·전송·실행 완료는 이 채널로 제출하지 않는다. 완료는 실제 ToolReceipt와 CompletionContract만 정한다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      changes: {
+        type: 'array', maxItems: 6,
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['agreement_set', 'agreement_superseded', 'agreement_retracted', 'question_resolved'] },
+            utteranceQuote: { type: 'string', description: '이번 사용자 발화에서 글자 그대로 따온 근거' },
+            targetQuote: { type: 'string', description: '수정·철회·해소 대상의 저장된 원문 또는 질문을 글자 그대로' },
+          },
+          required: ['type', 'utteranceQuote'],
+        },
+      },
+      openQuestion: {
+        type: 'object',
+        description: '답을 바꾸는 미정이 있어 실제 답에 함께 쓴 질문. 단순 도움말 질문은 제외.',
+        properties: {
+          question: { type: 'string', description: '이번 답에 실제로 쓴 질문 문장 그대로' },
+          changesAnswerFor: { type: 'string', description: '이 답에 따라 달라지는 결과나 결정' },
+        },
+        required: ['question', 'changesAnswerFor'],
+      },
+      continueFrom: {
+        type: 'string',
+        description: '다른 대화에서 이어받을 작업 목록 중 지금 이어가는 현재 합의나 미정 질문을 글자 그대로',
+      },
+    },
+  },
+}, {
   name: 'memory.propose',
   description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 적는다.'
     + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
@@ -231,6 +266,7 @@ export function splitModelControlCalls(toolCalls = []) {
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
+  let workStateProposal = null;
   let memorySuggestion = null;
   let memoryWithdrawal = null;
   // S5-2: 모델의 **주장**이다. 여기서는 받아 적기만 하고, 보인 것과의 대조는 커널이 한다.
@@ -242,6 +278,26 @@ export function splitModelControlCalls(toolCalls = []) {
     if (c.name === 'skill.propose') { skillProposal = c.args ?? null; continue; }
     if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
     if (c.name === 'agent.propose') { agentProposal = c.args ?? null; continue; }
+    if (c.name === 'work.state') {
+      const allowed = new Set(['agreement_set', 'agreement_superseded', 'agreement_retracted', 'question_resolved']);
+      const changes = Array.isArray(c?.args?.changes) ? c.args.changes.slice(0, 6).flatMap((entry) => {
+        const type = allowed.has(entry?.type) ? entry.type : null;
+        const utteranceQuote = String(entry?.utteranceQuote ?? '').trim().slice(0, 300);
+        const targetQuote = String(entry?.targetQuote ?? '').trim().slice(0, 300);
+        if (!type || !utteranceQuote) return [];
+        return [{ type, utteranceQuote, ...(targetQuote ? { targetQuote } : {}) }];
+      }) : [];
+      const question = String(c?.args?.openQuestion?.question ?? '').trim().slice(0, 300);
+      const changesAnswerFor = String(c?.args?.openQuestion?.changesAnswerFor ?? '').trim().slice(0, 300);
+      const openQuestion = question && changesAnswerFor ? { question, changesAnswerFor } : null;
+      const continueFrom = String(c?.args?.continueFrom ?? '').trim().slice(0, 300);
+      workStateProposal = {
+        changes,
+        ...(openQuestion ? { openQuestion } : {}),
+        ...(continueFrom ? { continueFrom } : {}),
+      };
+      continue;
+    }
     if (c.name === 'memory.propose') {
       const statement = String(c?.args?.statement ?? '').trim().slice(0, 300);
       const kind = MEMORY_KINDS.has(c?.args?.kind) ? c.args.kind : 'preference';
@@ -277,5 +333,5 @@ export function splitModelControlCalls(toolCalls = []) {
       if (target) memoryWithdrawal = { target, ...(reason ? { reason } : {}) };
     }
   }
-  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, rest };
+  return { memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection, skillProposal, automationProposal, agentProposal, workStateProposal, rest };
 }

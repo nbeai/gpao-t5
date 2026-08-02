@@ -83,6 +83,10 @@ import { admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-grow
 import { bindAutomationCandidate, transitionState } from '../kernel/l5-growth/automation-contracts.js';
 import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
+import { WorkEventStore } from './work-event-store.js';
+import { admitWorkStateProposal } from './work-state-admission.js';
+import { projectWorkState, workStateFacts } from '../kernel/l1-intent/work-state.js';
+import { workEvidenceDigest } from '../kernel/l0-evidence/work-refs.js';
 
 const SENSITIVE_TRANSCRIPT_PLACEHOLDER = '[민감정보를 포함한 사용자 발화 — 원문은 저장하지 않음]';
 const SENSITIVE_RESULT_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
@@ -200,6 +204,39 @@ export function makeServer(deps = {}) {
     } catch { return []; } // 승계는 편의다 — 실패해도 대화를 막지 않는다
   }
 
+  // P90-1 · 같은 principal의 다른 대화에서 아직 살아 있는 프로젝트 상태 후보.
+  // 내부 WorkRef는 모델에 보이지 않고, 모델은 여기서 실제로 보여준 문장 하나를 정확히
+  // 지목해야만 같은 작업을 이어받는다. 목록은 매 턴 원장에서 파생하며 세션에 저장하지 않는다.
+  async function 이어받을프로젝트(session) {
+    if (!session?.principalRef) return [];
+    try {
+      const records = await workEventStore.load();
+      const workRefs = [...new Set(records
+        .filter((record) => record?.scopeRef?.principalRef === session.principalRef)
+        .map((record) => record.workRef)
+        .filter((workRef) => workRef && workRef !== session.workRef))];
+      const entries = [];
+      for (const workRef of workRefs) {
+        const state = projectWorkState(records, {
+          principalRef: session.principalRef,
+          projectRef: workRef,
+        });
+        const quotes = [
+          ...state.activeAgreements.map((item) => item.label ?? item.statement),
+          ...state.openQuestions.map((item) => item.question),
+        ].filter((value) => typeof value === 'string' && value.trim());
+        if (!quotes.length) continue;
+        const facts = workStateFacts(state, { maxChars: 1_000 });
+        if (!facts) continue;
+        entries.push({ workRef, quotes, statement: `[이어받을 수 있는 프로젝트]\n${facts}` });
+        if (entries.length >= 4) break;
+      }
+      return entries;
+    } catch {
+      return []; // 승계 후보는 편의다. 손상·읽기 실패가 현재 대화를 막지 않는다.
+    }
+  }
+
   /** 같은 대화에서 이 턴보다 앞선, 무엇인가 보인 가장 최근 턴의 문장들. */
   function 직전에보인것(memory, turnRef) {
     const 앞선 = (memory?.shownRefs ?? []).filter((x) => x.turnRef?.sessionId === turnRef?.sessionId
@@ -263,6 +300,7 @@ export function makeServer(deps = {}) {
   const traceStore = deps.traceStore ?? new TaskTraceStore(store.dir);
   const eventLog = deps.eventLog ?? new EventLog(store.dir);
   const turnTimingStore = deps.turnTimingStore ?? new TurnTimingStore(store.dir);
+  const workEventStore = deps.workEventStore ?? new WorkEventStore(store.dir);
   const timingClock = deps.timingClock ?? (() => performance.now());
   const deliveryStore = deps.deliveryStore ?? new DeliveryStore(store.dir);
   // P5-1 채널: 누가 말을 걸 수 있는지(허용목록)와 어느 방이 어느 대화와 이어지는지(연결).
@@ -601,7 +639,8 @@ export function makeServer(deps = {}) {
 
   // 승인 대기(pending)를 세션 파일에 지속한다(Approval Lifecycle). 기억(memory)·활성목표(activeGoal)를
   // ctx에 주입 — 라우터는 raw 기억을 쓰지 않고, admitted된 것만 좁게 입장한다(§5).
-  function ctxForSession(session, memory, timingEntry) {
+  function ctxForSession(session, memory, timingEntry, projectedWorkState = null,
+    carryableWork = [], carryableProjects = []) {
     const ledger = new TruthLedger();
     ledger.entries = (session.ledgerEntries ?? []).slice();
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
@@ -633,14 +672,18 @@ export function makeServer(deps = {}) {
       memory, activeGoal: session.activeGoal ?? null,
       // 자기 파악 세 번째 축 — 이 대화에서 지금까지 실제로 한 일. 다음 턴이 "그거"를 이어받는다.
       workingState: session.workingState ?? null,
+      projectWorkState: projectedWorkState,
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
       recentTurns: recentTurns(session.transcript ?? []),
       // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). **사실만 나열한다** — 무엇을 이어받을지는
       // 모델이 정한다. 같은 대화는 recentTurns 가 이미 잇고, 다른 사용자 것은 오지 않는다.
-      carryableWork: (session.carryableWork ?? []).map((e) => e.statement ?? e),
+      carryableWork: [
+        ...carryableWork.map((e) => e.statement ?? e),
+        ...carryableProjects.map((e) => e.statement),
+      ].filter(Boolean),
       // S5-1: 같은 것들의 신분(모델·사용자면에 나가지 않는다).
-      carryableWorkEntries: (session.carryableWork ?? []).filter((e) => e?.ref),
+      carryableWorkEntries: carryableWork.filter((e) => e?.ref),
       newId: () => randomUUID(), now: () => Date.now(),
     };
   }
@@ -663,6 +706,62 @@ export function makeServer(deps = {}) {
     return out;
   }
 
+  async function 기록된작업사건({
+    session, inputText, result, turnRef, ledgerFrom, shownProjects = [], proposal = null,
+  }) {
+    let workRef = session.workRef ?? null;
+    if (proposal) {
+      const admitted = await admitWorkStateProposal({
+        store: workEventStore,
+        proposal,
+        inputText: inputText ?? '',
+        reply: result.reply ?? '',
+        turnRef,
+        principalRef: session.principalRef,
+        workRef,
+        shownProjects,
+      });
+      if (admitted.accepted) workRef = admitted.workRef;
+    }
+    if (!workRef || !session.principalRef) return;
+
+    const scopeRef = { principalRef: session.principalRef, projectRef: workRef };
+    const receipts = (session.ledgerEntries ?? []).slice(ledgerFrom);
+    for (let index = 0; index < receipts.length; index += 1) {
+      const receipt = receipts[index];
+      if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
+        || !receipt?.deliverableRefs?.length) continue;
+      const receiptRef = await workEventStore.issueReceiptRef({ turnRef, turnOrdinal: index, receipt });
+      const completionContractRef = await workEventStore.issueCompletionContractRef({
+        workRef, contract: { deliverableRefs: [...new Set(receipt.deliverableRefs)].sort() },
+      });
+      await workEventStore.append({
+        type: 'execution_completed', workRef,
+        subjectRef: await workEventStore.issueSubjectRef({ turnRef, eventOrdinal: 100 + index }),
+        scopeRef,
+        evidence: { completionContractRef, receiptRef, verificationPassed: true },
+      });
+    }
+    if (result.kind === 'reply' && String(result.reply ?? '').trim()) {
+      const resultContractRef = await workEventStore.issueCompletionContractRef({
+        workRef, contract: { kind: 'chat', contentRequired: true },
+      });
+      await workEventStore.append({
+        type: 'chat_delivered', workRef,
+        subjectRef: await workEventStore.issueSubjectRef({ turnRef, eventOrdinal: 900 }),
+        scopeRef,
+        evidence: {
+          resultContractRef, turnRef,
+          contentDigest: workEvidenceDigest(result.reply), persisted: true,
+        },
+      });
+    }
+    if (session.workRef !== workRef) {
+      session.workRef = workRef;
+      await store.save(session);
+    }
+  }
+
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
   async function runAndPersistTurn(session, input, emit, onAnswerDelta, timingEntry) {
@@ -680,10 +779,28 @@ export function makeServer(deps = {}) {
     const sensitiveInput = hasText && containsSensitiveValue(input.text);
     const memory = await memStore.load();
     const learning = await traceStore.load();
-    session.carryableWork = await 이어받을작업(session);
-    const ctx = ctxForSession(session, memory, timingEntry);
+    // 새 원장에 실제로 결합된 세션만 shadow projection을 본다. 신분 없는 옛 세션은 legacy lane 유지.
+    if (!session.workRef) {
+      const recoveredWorkRef = await workEventStore.findWorkRef({
+        sessionId: session.id, principalRef: session.principalRef,
+      }).catch(() => null);
+      if (recoveredWorkRef) session.workRef = recoveredWorkRef;
+    }
+    let projectedWorkState = null;
+    if (session.workRef && session.principalRef) {
+      const records = await workEventStore.load().catch(() => []);
+      projectedWorkState = projectWorkState(records, {
+        principalRef: session.principalRef,
+        projectRef: session.workRef,
+      });
+    }
+    const carryableWork = await 이어받을작업(session);
+    const carryableProjects = await 이어받을프로젝트(session);
+    const ctx = ctxForSession(
+      session, memory, timingEntry, projectedWorkState, carryableWork, carryableProjects,
+    );
     await automationReady();
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose'];
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -734,6 +851,10 @@ export function makeServer(deps = {}) {
       };
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
+    // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리하고, 지속 사실이 선 뒤
+    // 별도 경계에만 전달한다. 기존 WorkRef 수정 턴에서도 내부 후보가 세션 파일에 남지 않는다.
+    const workStateProposal = result.workStateProposal ?? null;
+    delete result.workStateProposal;
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
     redactSensitiveOutput(result);
     민감기억후처리(result);
@@ -902,6 +1023,18 @@ export function makeServer(deps = {}) {
       }
     } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
     await store.save(session);
+    // P90-1: transcript·ToolReceipt가 먼저 지속된 뒤 WorkEvent가 그 사실을 가리킨다.
+    // 기록 실패가 이미 끝난 대화를 거짓 실패로 바꾸지는 않지만 진단 흔적은 숨기지 않는다.
+    try {
+      await 기록된작업사건({
+        session, inputText: input.text, result, turnRef, ledgerFrom: stampFrom.ledgerFrom,
+        shownProjects: carryableProjects,
+        proposal: workStateProposal,
+      });
+    } catch (error) {
+      result.workStateDiagnostic = { recorded: false, reason: 'work_state_not_recorded' };
+      console.error('[work-state] 기록 실패 — 대화는 지속됨:', error?.message ?? error);
+    }
     // **방에서 시작한 일의 결과는 방으로 돌아간다.**
     // 라이브 실측(56a6ae67 · 4:57~4:58): 방에서 "메모3.md 만들어줘" → 방으로 "T5 화면에서
     // 확인해 주시면 이어서 할게요" → 화면에서 승인 → 실행은 됐는데(원장 write 성공) **방은
@@ -2294,7 +2427,19 @@ export function makeServer(deps = {}) {
     const memory = await memStore.load();
     // S3 · 채널 턴도 같은 승계 사실을 본다(§4.7). 웹만 배선하면 허용된 채널 사용자가 웹에서
     // 만든 산출물을 새 채널 대화에서 못 이어받는다 — 표면마다 다른 현실이 생긴다(감사 P1).
-    session.carryableWork = await 이어받을작업(session);
+    const channelCarryableWork = await 이어받을작업(session);
+    if (!session.workRef) {
+      const recoveredWorkRef = await workEventStore.findWorkRef({
+        sessionId: session.id, principalRef: session.principalRef,
+      }).catch(() => null);
+      if (recoveredWorkRef) session.workRef = recoveredWorkRef;
+    }
+    let channelProjectWorkState = null;
+    if (session.workRef && session.principalRef) {
+      channelProjectWorkState = projectWorkState(await workEventStore.load().catch(() => []), {
+        principalRef: session.principalRef, projectRef: session.workRef,
+      });
+    }
     // S0 · TurnRef(§4.1): 채널 턴도 같은 신분 계약을 탄다 — 관찰 워커가 표면별로 다른 규칙을
     // 갖지 않게 한다. 발급은 아래 저장과 같은 방 단위 직렬화 안이다.
     migrateTurnRefs(session);
@@ -2303,9 +2448,13 @@ export function makeServer(deps = {}) {
       transcriptFrom: (session.transcript ?? []).length,
       ledgerFrom: (session.ledgerEntries ?? []).length,
     };
-    const ctx = ctxForSession(session, memory);
+    const channelCarryableProjects = await 이어받을프로젝트(session);
+    const ctx = ctxForSession(
+      session, memory, undefined, channelProjectWorkState,
+      channelCarryableWork, channelCarryableProjects,
+    );
     await automationReady();
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose'];
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
@@ -2319,6 +2468,8 @@ export function makeServer(deps = {}) {
       // 3축: 어느 표면으로 답이 나가는지. id 는 내부 판단용, 라벨만 사람 말로 쓴다.
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
     }, ctx);
+    const workStateProposal = result.workStateProposal ?? null;
+    delete result.workStateProposal;
     // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.
     redactSensitiveOutput(result);
     민감기억후처리(result);
@@ -2340,6 +2491,17 @@ export function makeServer(deps = {}) {
     else if (result.goal === null) session.activeGoal = null;
       if (result.workingState) session.workingState = result.workingState;
       await store.save(session);
+      try {
+        await 기록된작업사건({
+          session, inputText: input.text, result, turnRef: channelTurnRef,
+          ledgerFrom: channelStampFrom.ledgerFrom,
+          shownProjects: channelCarryableProjects,
+          proposal: workStateProposal,
+        });
+      } catch (error) {
+        result.workStateDiagnostic = { recorded: false, reason: 'work_state_not_recorded' };
+        console.error('[work-state] 채널 기록 실패 — 대화는 지속됨:', error?.message ?? error);
+      }
     }
     return ok({ ...result, channelMeta: event.channelMeta });
   }

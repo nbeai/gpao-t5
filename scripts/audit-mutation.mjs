@@ -70,12 +70,39 @@ const WELCOME = 'src/surface/welcome.js';
 const CHARTER = 'src/kernel/judgment-charter.js';
 const T_SELFHOOD = 'test/operational-selfhood.test.js';
 const T_HUMAN_LANGUAGE = 'test/human-language-contract.test.js';
+const WORK_REFS = 'src/kernel/l0-evidence/work-refs.js';
+const WORK_LEDGER = 'src/kernel/l0-evidence/work-event-ledger.js';
+const WORK_STATE = 'src/kernel/l1-intent/work-state.js';
+const WORK_ADMISSION = 'src/surface/work-state-admission.js';
+const T_WORK_REFS = 'test/work-refs.test.js';
+const T_WORK_LEDGER = 'test/work-event-ledger.test.js';
+const T_WORK_STATE = 'test/work-state.test.js';
+const T_WORK_ADMISSION = 'test/work-state-admission.test.js';
+const T_WORK_PRODUCT = 'test/work-state-product.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
  * 새 계약을 만들면 여기 한 줄을 더한다 — 그게 곧 "이 계약을 지키는 검사가 있다"는 증명이다.
  */
 export const MUTATIONS = [
+  // ── P90-1 장기 작업상태(모델 후보와 OS 완료 진실을 섞지 않는다) ────────
+  { 이름: '모델이 꾸민 내부 ref 서명을 수용', 파일: WORK_REFS, 검사: T_WORK_REFS,
+    찾기: '  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {',
+    바꾸기: '  if (false) {' },
+  { 이름: '손상된 작업 사건 원장을 다시 쓰기 가능으로 둠', 파일: WORK_LEDGER, 검사: T_WORK_LEDGER,
+    찾기: '    this.readOnly = true;', 바꾸기: '    this.readOnly = false;' },
+  { 이름: '다른 프로젝트 scope 사건도 현재 상태로 투영', 파일: WORK_STATE, 검사: T_WORK_STATE,
+    찾기: '      if (!exactScope(record.scopeRef, expectedScope) || !nonempty(record.eventId)) continue;',
+    바꾸기: '      if (!nonempty(record.eventId)) continue;' },
+  { 이름: '사용자가 말하지 않은 모델 합의를 작업 사건으로 수용', 파일: WORK_ADMISSION, 검사: T_WORK_ADMISSION,
+    찾기: "  return typeof quote === 'string' && quote.length > 0 && String(text ?? '').includes(quote);",
+    바꾸기: "  return typeof quote === 'string' && quote.length > 0;" },
+  { 이름: '실제로 보여주지 않은 프로젝트도 새 대화가 이어받음', 파일: WORK_ADMISSION, 검사: T_WORK_ADMISSION,
+    찾기: "    if (matches.length !== 1) return { accepted: false, reason: 'continuation_not_shown' };",
+    바꾸기: "    if (!matches.length) matches.push({ workRef: records.find((record) => record.scopeRef?.principalRef === principalRef)?.workRef });" },
+  { 이름: '다른 principal 프로젝트를 새 대화 모델 입력에 공급', 파일: SERVER, 검사: T_WORK_PRODUCT,
+    찾기: '        .filter((record) => record?.scopeRef?.principalRef === session.principalRef)',
+    바꾸기: '        .filter((record) => record?.scopeRef?.principalRef)' },
   // ── P90-2 지연 계측(서버 사실과 브라우저 표시를 섞지 않는다) ─────────────
   { 이름: '계측 기록에 임의 원문 필드를 허용', 파일: TIMING, 검사: T_TIMING,
     찾기: '    if (!allowed.includes(key)) throw new Error(`${label}.${key}: 허용되지 않은 필드`);',
@@ -494,7 +521,7 @@ export const MUTATIONS = [
     찾기: '    if (!ctx.principalRef || l.scopeRef?.principalRef !== ctx.principalRef) return false;',
     바꾸기: '    if (false) return false;' },
   { 이름: '실패한 실행도 산출물로 취급', 파일: LANE, 검사: T_LANE,
-    찾기: "const 성공 = (r) => r?.lifecycle === 'executed' && (r.failureState ?? 'none') === 'none';",
+    찾기: "const 성공 = (r) => r?.lifecycle === 'delivered' && (r.failureState ?? 'none') === 'none';",
     바꾸기: 'const 성공 = () => true;' },
 
   // ── 성장 관측 배선(오너 승인 순서 2) — 관측이 사라지거나 경계를 넘으면 잡는다 ──

@@ -33,7 +33,7 @@ const ref = (sessionId, turnSeq) => ({ sessionId, turnSeq });
 const fileReceipt = (path, digest, turnRef) => ({
   intended: '견적서 정리',
   actualCall: { tool: 'local.file', args: { action: 'write', path } },
-  lifecycle: 'executed',
+  lifecycle: 'delivered',
   failureState: 'none',
   userSafeSummary: '정리본을 만들었어요.',
   result: { path, digest },
@@ -233,7 +233,7 @@ test('S3/제품: 새 대화가 다른 대화의 산출물을 사실로 받는다
     const s = await store.load(a.id);
     s.title = '견적서 정리';
     s.ledgerEntries.push({
-      intended: '정리본 작성', lifecycle: 'executed', failureState: 'none',
+      intended: '정리본 작성', lifecycle: 'delivered', failureState: 'none',
       userSafeSummary: '정리본을 만들었어요.', turnRef: ref(a.id, 1),
       actualCall: { tool: 'local.file', args: { action: 'write' } },
       result: { path: join(process.env.HOME ?? '', 'GPAO-T5', '견적서_최종_정리본.md'), digest: 'dg' },
@@ -257,7 +257,7 @@ test('S3/제품: 같은 대화에는 자기 lane 을 공급하지 않는다', as
     await post(base, '/turn', { sessionId: a.id, text: '정리해줘' });
     const s = await store.load(a.id);
     s.ledgerEntries.push({
-      intended: '작성', lifecycle: 'executed', failureState: 'none', userSafeSummary: '했어요',
+      intended: '작성', lifecycle: 'delivered', failureState: 'none', userSafeSummary: '했어요',
       turnRef: ref(a.id, 1), actualCall: { tool: 'local.file', args: { action: 'write' } },
       result: { path: join(process.env.HOME ?? '', 'GPAO-T5', '내것.md'), digest: 'd' },
     });
@@ -275,7 +275,7 @@ test('S3/제품: 신분이 다른 대화의 작업은 넘어가지 않는다', a
     // 다른 사용자(채널 미연결)의 대화를 직접 심는다.
     const 남 = await store.create('남의 대화', { principalRef: 'channel-user-999' });
     남.ledgerEntries.push({
-      intended: '작성', lifecycle: 'executed', failureState: 'none', userSafeSummary: '했어요',
+      intended: '작성', lifecycle: 'delivered', failureState: 'none', userSafeSummary: '했어요',
       turnRef: ref(남.id, 1), actualCall: { tool: 'local.file', args: { action: 'write' } },
       result: { path: join(process.env.HOME ?? '', 'GPAO-T5', '남의비밀.md'), digest: 'd' },
     });
@@ -328,7 +328,7 @@ async function 웹산출물(store, name = '웹정리본.md') {
   s.transcript.push({ role: 'user', text: '정리해줘', turnRef: ref(s.id, 1) });
   s.transcript.push({ role: 'assistant', result: { kind: 'reply', reply: '했어요' }, turnRef: ref(s.id, 1) });
   s.ledgerEntries.push({
-    intended: '정리본 작성', lifecycle: 'executed', failureState: 'none',
+    intended: '정리본 작성', lifecycle: 'delivered', failureState: 'none',
     userSafeSummary: '만들었어요.', turnRef: ref(s.id, 1),
     actualCall: { tool: 'local.file', args: { action: 'write' } },
     result: { path: join(process.env.HOME ?? '', 'GPAO-T5', name), digest: 'dg' },

@@ -13,6 +13,7 @@ import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
 import { workingStateFacts } from '../kernel/l0-evidence/working-state.js';
+import { workStateFacts } from '../kernel/l1-intent/work-state.js';
 import { responseSurfaceFacts } from '../kernel/l0-evidence/response-surface.js';
 import { ModelTimeoutError } from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
@@ -112,6 +113,10 @@ export function buildModelMessages(tc) {
   // 자기 파악 세 번째 축: 지금 이 대화에서 어디까지 왔는가. "그거·거기·그 페이지"가 여기서 풀린다.
   const working = workingStateFacts(tc.workingState);
   if (working) sys.push(`[이 대화에서 지금까지]\n${working}`);
+  const projectWorking = workStateFacts(tc.projectWorkState);
+  if (projectWorking) {
+    sys.push(`[현재 프로젝트 상태 — 사건 원장에서 확인됨]\n${projectWorking}`);
+  }
 
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);

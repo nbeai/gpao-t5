@@ -255,6 +255,7 @@ export function buildTaskContext(p) {
     recoveryHint: p.recoveryHint,
     // 자기 파악 세 번째 축(운용 상태) — 실제 기록만. 모델 추정은 넣지 않는다(오염 방지).
     workingState: p.workingState,
+    projectWorkState: p.projectWorkState,
     // 서버가 아는 실행 현실. 주소·경로·포트 같은 내부값은 싣지 않고 사용자에게 의미 있는
     // 경계만 준다. 모델이 자기 호스팅 환경을 출신 지식으로 추측하지 않게 한다.
     runtimeEnvironment: p.runtimeEnvironment,
