@@ -90,24 +90,15 @@ async function main() {
   <key>CFBundleVersion</key><string>${version}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>LSUIElement</key><true/>
 </dict>
 </plist>
 `);
 
-  // 진입점은 **동봉 런타임만** 부른다. 시스템 Node 로 폴백하지 않는다(과거 사고 원인).
-  const 진입 = `#!/bin/sh
-set -e
-HERE="$(cd "$(dirname "$0")" && pwd)"
-RES="$HERE/../Resources"
-NODE="$RES/runtime/bin/node"
-if [ ! -x "$NODE" ]; then
-  osascript -e 'display alert "${신분.이름}" message "설치본이 손상됐어요. 다시 설치해 주세요."' >/dev/null 2>&1 || true
-  exit 1
-fi
-exec "$NODE" "$RES/app/bin/gpao-t5.mjs" "$@"
-`;
-  await writeFile(join(contents, 'MacOS', 신분.이름), 진입);
+  // 진입점은 **네이티브 런처**다. 셸 스크립트는 Dock 에 뜨긴 해도 ⌘Q·종료를 못 받는다
+  // (실측: AppleEvent -1712 시간 초과 — 이벤트 루프가 없다). 그러면 끄는 방법이 터미널뿐이라
+  // 비개발자용 제품이 아니다. 런처가 동봉 런타임만 부르고, 끝날 때 자식을 데려간다.
+  실행('swiftc', ['-O', '-target', 'arm64-apple-macos13', '-o', join(contents, 'MacOS', 신분.이름),
+    join(dirname(fileURLToPath(import.meta.url)), 'launcher.swift')]);
   await chmod(join(contents, 'MacOS', 신분.이름), 0o755);
 
   // 확장 속성을 걷어낸다. 안 걷으면 pkgbuild 가 `._` 리소스포크를 payload 에 함께 담아
@@ -115,12 +106,66 @@ exec "$NODE" "$RES/app/bin/gpao-t5.mjs" "$@"
   실행('xattr', ['-cr', root]);
   실행('find', [root, '-name', '._*', '-delete']);
 
+  // ── ③-2 설치 스크립트 ────────────────────────────────────────────────
+  //
+  // 설치 파일을 받은 사람은 터미널도 /Applications 도 찾을 필요가 없어야 한다.
+  // postinstall 은 root 로 도므로 **로그인한 사용자 권한으로** 실행·등록한다.
+  const scripts = join(work, 'scripts');
+  await mkdir(scripts, { recursive: true });
+  await writeFile(join(scripts, 'postinstall'), `#!/bin/sh
+set -e
+USER_NAME=$(stat -f %Su /dev/console)
+USER_UID=$(id -u "$USER_NAME")
+USER_HOME=$(dscl . -read /Users/"$USER_NAME" NFSHomeDirectory | awk '{print $2}')
+APP="${신분.설치위치}/${신분.이름}.app"
+AGENTS="$USER_HOME/Library/LaunchAgents"
+PLIST="$AGENTS/${신분.agentLabel}.plist"
+
+# 로그인 자동시작 — 다음 로그인부터 조용히 뜬다(브라우저는 안 띄운다).
+mkdir -p "$AGENTS"
+cat > "$PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${신분.agentLabel}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string><string>-g</string><string>-a</string><string>$APP</string>
+    <string>--env</string><string>GPAO_T5_LOGIN_START=1</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+PLISTEOF
+chown "$USER_NAME" "$PLIST"
+
+# 이전 등록이 있으면 걷고 새로 올린다(중복 등록 0).
+launchctl bootout gui/"$USER_UID"/${신분.agentLabel} 2>/dev/null || true
+launchctl bootstrap gui/"$USER_UID" "$PLIST" 2>/dev/null || true
+
+# **설치 직후 지금 실행한다.** 첫 실행이므로 브라우저와 온보딩이 뜬다.
+sudo -u "$USER_NAME" /usr/bin/open -a "$APP" 2>/dev/null || true
+exit 0
+`);
+  await chmod(join(scripts, 'postinstall'), 0o755);
+
+  // 제거 도우미 — LaunchAgent 해제까지 함께 한다(앱만 지우면 등록이 남는다).
+  await writeFile(join(contents, 'Resources', 'uninstall.sh'), `#!/bin/sh
+set -e
+LABEL=${신분.agentLabel}
+launchctl bootout gui/$(id -u)/$LABEL 2>/dev/null || true
+rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
+pkill -f "${신분.이름}.app" 2>/dev/null || true
+rm -rf "${신분.설치위치}/${신분.이름}.app"
+echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어요."
+`);
+  await chmod(join(contents, 'Resources', 'uninstall.sh'), 0o755);
+
   // ── ④ 산출물 조립 ─────────────────────────────────────────────────
   const out = join(REPO, 'dist');
   await mkdir(out, { recursive: true });
   const 파일 = join(out, `${신분.이름}-${version}-arm64-unsigned.pkg`);
   const 부품 = join(work, 'component.pkg');
-  실행('pkgbuild', ['--root', root, '--install-location', 신분.설치위치,
+  실행('pkgbuild', ['--root', root, '--install-location', 신분.설치위치, '--scripts', scripts,
     '--identifier', 신분.bundleId, '--version', version, 부품]);
   실행('productbuild', ['--package', 부품, 파일]);
 
