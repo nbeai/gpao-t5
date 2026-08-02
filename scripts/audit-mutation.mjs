@@ -64,6 +64,8 @@ const TIMING = 'src/kernel/l0-evidence/turn-timing.js';
 const T_TIMING = 'test/turn-timing.test.js';
 const T_TIMING_STORE = 'test/turn-timing-store.test.js';
 const T_TIMING_PRODUCT = 'test/turn-timing-product.test.js';
+const P90_SCORE = 'scripts/production90/score-production90.mjs';
+const T_P90_SCORE = 'test/production90-scoring-contract.test.js';
 const SELF_STATE = 'src/kernel/l0-evidence/self-state.js';
 const SELF_LOOKUP = 'src/kernel/l1-intent/selfhood-lookup.js';
 const WELCOME = 'src/surface/welcome.js';
@@ -76,6 +78,30 @@ const T_HUMAN_LANGUAGE = 'test/human-language-contract.test.js';
  * 새 계약을 만들면 여기 한 줄을 더한다 — 그게 곧 "이 계약을 지키는 검사가 있다"는 증명이다.
  */
 export const MUTATIONS = [
+  // ── Production 90 점수 증거 신분(숫자보다 먼저 사실을 묶는다) ──────────
+  { 이름: '등록되지 않은 시나리오 결과를 점수 입구에서 허용', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: '    if (!scenario) errors.push(`${label} 등록되지 않은 시나리오 ${run.scenarioId}`);',
+    바꾸기: '    if (false) errors.push(`${label} 등록되지 않은 시나리오 ${run.scenarioId}`);' },
+  { 이름: 'manifest 신분이 다른 실행 결과를 허용', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: "    if (run.manifestDigest !== expectedManifestDigest) errors.push(`${label} manifestDigest 불일치`);",
+    바꾸기: "    if (false) errors.push(`${label} manifestDigest 불일치`);" },
+  { 이름: '호출자가 제시한 build 신분을 신뢰 기준 없이 수용', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: "  } else if (bundle.buildDigest !== options.expectedBuildDigest) {",
+    바꾸기: "  } else if (false) {" },
+  { 이름: '같은 지표 표본을 중복 가산', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: '      if (metricSlots.has(metricSlot)) errors.push(`${resultLabel} 지표 표본 중복 ${metricSlot}`);',
+    바꾸기: '      if (false) errors.push(`${resultLabel} 지표 표본 중복 ${metricSlot}`);' },
+  { 이름: '증거가 없는 PASS 결과를 허용', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: '      if (evidenceRefs.length === 0) errors.push(`${resultLabel} 증거 없음`);',
+    바꾸기: '      if (false) errors.push(`${resultLabel} 증거 없음`);',
+    추가찾기: '      for (const required of requiredEvidence) if (!evidenceKinds.includes(required)) {',
+    추가바꾸기: '      for (const required of []) if (!evidenceKinds.includes(required)) {' },
+  { 이름: '시나리오 예정 회차가 비어도 최종 점수를 냄', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: '      if (!runCoverage.complete) {',
+    바꾸기: '      if (false) {' },
+  { 이름: '측정 시나리오가 없는 원자 지표를 허용', 파일: P90_SCORE, 검사: T_P90_SCORE,
+    찾기: '  for (const metric of registry.metrics) if (!covered.has(metric.id)) errors.push(`측정 시나리오 없는 지표 ${metric.id}`);',
+    바꾸기: '' },
   // ── P90-2 지연 계측(서버 사실과 브라우저 표시를 섞지 않는다) ─────────────
   { 이름: '계측 기록에 임의 원문 필드를 허용', 파일: TIMING, 검사: T_TIMING,
     찾기: '    if (!allowed.includes(key)) throw new Error(`${label}.${key}: 허용되지 않은 필드`);',

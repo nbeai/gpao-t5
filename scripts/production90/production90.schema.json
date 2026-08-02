@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "t5-production90",
   "title": "T5 Production 90 Wave 0 contracts",
+  "$ref": "#/$defs/runBundle",
   "$defs": {
     "status": {
       "enum": ["PASS", "PRODUCT_FAIL", "MODEL_FAIL", "EXTERNAL_BLOCKED", "HARNESS_INVALID", "NOT_RUN"]
@@ -43,24 +44,68 @@
         "steps": {"type": "array"}, "observations": {"type": "array"}
       }
     },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidenceRef": {
+      "type": "object",
+      "required": ["kind", "digest"],
+      "properties": {
+        "kind": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "modelReceipt": {
+      "type": "object",
+      "required": ["provider", "model", "receiptDigest"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "receiptDigest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
     "runResult": {
       "type": "object",
-      "required": ["runId", "scenarioId", "manifestDigest", "buildDigest", "environmentDigest", "results"],
+      "required": ["runId", "scenarioId", "scenarioSampleIndex", "manifestDigest", "buildDigest", "environmentDigest", "modelReceipt", "results"],
       "properties": {
-        "runId": {"type": "string"}, "scenarioId": {"type": "string"},
-        "manifestDigest": {"type": "string"}, "buildDigest": {"type": "string"},
-        "environmentDigest": {"type": "string"}, "modelReceipt": {"type": ["object", "null"]},
+        "runId": {"type": "string", "minLength": 1},
+        "scenarioId": {"type": "string", "minLength": 1},
+        "scenarioSampleIndex": {"type": "integer", "minimum": 1},
+        "manifestDigest": {"$ref": "#/$defs/digest"},
+        "buildDigest": {"$ref": "#/$defs/digest"},
+        "environmentDigest": {"$ref": "#/$defs/digest"},
+        "modelReceipt": {"oneOf": [{"$ref": "#/$defs/modelReceipt"}, {"type": "null"}]},
         "results": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "object", "required": ["metricId", "status", "evidenceRefs"],
+            "type": "object", "required": ["metricId", "sampleIndex", "status", "evidenceRefs"],
             "properties": {
-              "metricId": {"type": "string"}, "status": {"$ref": "#/$defs/status"},
-              "p0": {"type": "boolean"}, "evidenceRefs": {"type": "array", "items": {"type": "string"}}
-            }
+              "metricId": {"type": "string", "minLength": 1},
+              "sampleIndex": {"type": "integer", "minimum": 1},
+              "status": {"$ref": "#/$defs/status"},
+              "p0": {"type": "boolean"},
+              "evidenceRefs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidenceRef"}}
+            },
+            "additionalProperties": false
           }
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "runBundle": {
+      "type": "object",
+      "required": ["schemaVersion", "manifestDigest", "buildDigest", "runs"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "manifestDigest": {"$ref": "#/$defs/digest"},
+        "buildDigest": {"$ref": "#/$defs/digest"},
+        "runs": {"type": "array", "items": {"$ref": "#/$defs/runResult"}}
+      },
+      "additionalProperties": false
     }
   }
 }

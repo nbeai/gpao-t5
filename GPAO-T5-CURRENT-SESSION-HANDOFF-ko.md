@@ -97,6 +97,14 @@
   원문·경로·도구 인자는 0이었다. 이 한 회차는 배선 증거이며 공식 p95가 아니다. 회귀 **1,927/1,927**,
   돌연변이 **240/240**, plan/docs/workspace PASS. 공식 경로별 cold/warm 30회 기준선은 다음 측정 단계다.
   증거: `docs/03-verification/evidence/production90/wave0/instrumentation-product-path-2026-08-02-ko.md`.
+- **Production 90 Wave 0 점수 입력 보강(2026-08-02, Codex 겸임 구현·통합 대기)**: 기존 집계기는
+  실행 결과의 시나리오·digest·표본·증거 신분을 검증하지 않아 가짜 PASS 복제로 모든 투영을 100점으로
+  만들 수 있었다. `codex/production90-score-hardening` 작업선에서 JSON schema 실행 검증, 등록 시나리오와
+  표본 번호 결합, 중복 차단, manifest·환경·신뢰 build digest 대조, 요구 증거·모델 영수증 대조를 편입했다.
+  미귀속 지표 18개는 관련 제품 시나리오와 신규 구조 감사 시나리오에 귀속해 원자 지표 73개·시나리오
+  29개가 됐다. 집중 검사 18/18, 회귀 1,937/1,937, 돌연변이 247/247 PASS. 제품 런타임 변경은 0이며
+  독립 감사와 본선 통합 전 공식 점수 사용은 금지한다. 증거:
+  `docs/03-verification/evidence/production90/wave0/score-input-hardening-2026-08-02-ko.md`.
 - **PC 손발 봉인(H08~H09)도 완료**됐다. 전체 H는 네 묶음으로 운영한다:
   H0 현재 진실 정리 → **T-cell H 봉인(H01~H07, 완료)** → **PC 손발 봉인(H08~H09, 완료)** →
   Agent Core → **Agent 봉인(H10)** → 전체 제품 봉인. 진행표는

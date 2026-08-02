@@ -1,10 +1,10 @@
 # T5 Production 90 점수판
 
-- 상태: `WAVE0_CONTRACT_FROZEN / INSTRUMENTATION_IMPLEMENTED / FORMAL_BASELINE_PENDING`
+- 상태: `WAVE0_SCORE_INPUT_HARDENED_PENDING_INDEPENDENT_AUDIT / INSTRUMENTATION_IMPLEMENTED / FORMAL_BASELINE_PENDING`
 - 점수 정본: `scripts/production90/metric-registry.json`
 - 시나리오 정본: `scripts/production90/scenario-manifest.json`
 - 계산기: `scripts/production90/score-production90.mjs`
-- 현재 지표: 원자 지표 73개 · 사전 등록 시나리오 28개
+- 현재 지표: 원자 지표 73개 · 사전 등록 시나리오 29개
 
 이 문서는 수기 점수표가 아니다. 네 작업선, 18개 평가 항목, 일곱 코어의 제목과 현재 측정 상태를
 사람이 읽도록 투영한다. 배점·분모·P0·중복 가산 규칙은 JSON 정본만이 소유한다. 실행 증거가 없는
@@ -27,6 +27,12 @@ Wave 0에서 서버 입력·큐·첫 진행·첫 답·지속 완료·SSE 완료�
 - `HARNESS_INVALID`는 점수에서 제외하지만 반드시 재실행하며, 남아 있으면 최종 점수를 낼 수 없다.
 - P0 한 건은 총점과 무관하게 후보판을 막는다. 독립 감사 PASS는 추가 점수가 아니다.
 - P90 작업선은 총점 90 이상과 각 축 80% 이상을 함께 만족해야 한다.
+- 점수 입력은 schema를 통과하고 등록 시나리오·시나리오 표본 번호·지표 표본 번호에 결합돼야 한다.
+- manifest와 환경 계약 digest는 정본에서 계산하고, build digest는 점수 파일 밖에서 고정한 신뢰 기준과 대조한다.
+- 지표가 요구한 증거 종류와 digest가 모두 있어야 하며, 모델 증거 지표는 구조화된 모델 영수증도 필요하다.
+- 같은 `runId`, 시나리오 표본, 지표 표본은 중복 가산하지 않는다. 73개 지표 모두 측정 시나리오가 있다.
+- 지표 표본이 차도 사전 등록된 시나리오 회차가 비면 최종 점수는 내지 않는다. 실패·미실행은 성공 증거가
+  아니라 `status-receipt`로 남겨 0점과 재실행 필요를 구분한다.
 
 ## 2. P90 작업선
 
