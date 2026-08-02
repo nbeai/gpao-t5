@@ -8,7 +8,8 @@
 !.env.example
 
 node_modules/
-dist/
+# 설치 산출물만 무시한다. `scripts/dist/`(제작 스크립트)는 커밋한다.
+/dist/
 build/
 out/
 coverage/
