@@ -411,6 +411,15 @@ export const MUTATIONS = [
     검사: 'test/tcell-observation.test.js',
     찾기: "    관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',",
     바꾸기: '    관찰꺼짐: () => false,' },
+  // ── HRT-ST-002 · 호출 순서 동결 (nextAction: sequence manifest) ────────────
+  //
+  // 원장의 절대 게이트는 "모델 호출 순서와 횟수 의도치 않은 변화 0"이다. 회귀는 결과를 보지
+  // 순서를 보지 않으므로, turn.js 를 한 줄도 옮기기 전에 순서를 재는 자리를 먼저 세웠다.
+  // 이 변이는 그 자리가 **정말 무는지**를 지킨다 — 안 물면 정리 중 순서가 조용히 바뀐다.
+  { 이름: 'ST-002 최종 답 앞에 모델 왕복을 하나 더 끼움(사용자가 그만큼 더 기다림)', 파일: TURNJS,
+    검사: 'test/turn-sequence-manifest.test.js',
+    찾기: '  const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {',
+    바꾸기: '  await ctx.model.respond({ ...tc }, {});\n  const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {' },
   { 이름: 'ST-001 계측 장부를 라우트마다 새로 만듦(진행 중인 턴을 못 찾음)', 파일: SERVER,
     검사: T_TIMING_PRODUCT,
     찾기: '  const 계측장부 = makeTurnTimingRegistry();',
@@ -1026,14 +1035,48 @@ export const MUTATIONS = [
  * 시간 초과는 실패로 본다 — 계약이 깨져 45초 안에 못 끝나는 것 자체가 결정적 실패다.
  * (`spawnSync` 의 timeout 도 status 를 0 이 아닌 값으로 만들었다. 판정 규칙은 그대로다.)
  */
+// 지금 살아 있는 검사 프로세스 **그룹**들. 스윕이 통째로 끊겨도 손자를 남기지 않기 위해 센다.
+const 살아있는그룹 = new Set();
+const 그룹정리 = (pid) => { try { process.kill(-pid, 'SIGKILL'); } catch { /* 이미 없다 */ } };
+
+/**
+ * 중단 신호 처리기를 **스윕이 도는 동안에만** 건다.
+ *
+ * 처음엔 모듈 최상단에 걸었다. 그러면 이 파일을 `import` 하기만 해도 프로세스 전역
+ * 처리기가 붙는다 — 목록만 읽으려던 실험이 남의 프로세스 신호 처리를 바꾼다.
+ * 이 파일이 스스로 적어 둔 원칙("불러오기만 해서는 아무 일도 일어나지 않는다")을
+ * 어긴 것이라 실행 구간 안으로 옮기고 끝나면 뗀다.
+ */
+function 중단처리설치() {
+  const 처리기 = () => {
+    for (const pid of 살아있는그룹) 그룹정리(pid);
+    process.exit(130);
+  };
+  const 신호들 = ['SIGINT', 'SIGTERM'];
+  for (const s of 신호들) process.on(s, 처리기);
+  return () => {
+    for (const s of 신호들) process.off(s, 처리기);
+    for (const pid of 살아있는그룹) 그룹정리(pid);   // 남은 그룹은 어떤 경로로 끝나도 걷는다
+    살아있는그룹.clear();
+  };
+}
+
 function 검사실행(검사, cwd) {
   return new Promise((resolve) => {
-    const p = spawn('node', ['--test', '--test-timeout=30000', 검사], { cwd, stdio: 'ignore' });
-    const 상한 = setTimeout(() => p.kill('SIGKILL'), 45_000);
-    p.on('exit', (code) => { clearTimeout(상한); resolve(code); });
-    p.on('error', () => { clearTimeout(상한); resolve(1); });
+    // **자기 프로세스 그룹으로 띄운다.** `node --test` 는 검사 파일마다 자식을 또 만든다
+    // (process 격리). 부모만 죽이면 그 손자들이 살아남아 기계에 쌓인다 — 중단된 스윕들이
+    // 실제로 31개를 남긴 것을 확인했다. 그것이 뒤에 돈 게이트의 벽시계를 밀어 올렸는지는
+    // **확정하지 않았다**(고아를 걷은 직후에도 20.2초였고, 브라우저 탭을 닫고서야 17초대로
+    // 내려갔다). 원인 여부와 무관하게 검증 도구가 찌꺼기를 남기는 것 자체가 결함이다.
+    const p = spawn('node', ['--test', '--test-timeout=30000', 검사], { cwd, stdio: 'ignore', detached: true });
+    살아있는그룹.add(p.pid);
+    const 끝 = (code) => { clearTimeout(상한); 그룹정리(p.pid); 살아있는그룹.delete(p.pid); resolve(code); };
+    const 상한 = setTimeout(() => 그룹정리(p.pid), 45_000);
+    p.on('exit', 끝);
+    p.on('error', () => 끝(1));
   });
 }
+
 
 async function 한번(m, repo) {
   const path = join(repo, m.파일);
@@ -1163,6 +1206,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await 스윕�
 
 async function 스윕실행() {
 const 실행전 = await 소스지문(REPO);
+// 중단 신호 처리기는 **여기서만** 산다(모듈 최상단이 아니다 — import 만으로 붙으면 안 된다).
+const 중단해제 = 중단처리설치();
 const 사본 = await Promise.all(Array.from({ length: 레인수 }, () => 작업사본(REPO)));
 console.log(`레인 ${레인수}개 · 변이 ${MUTATIONS.length}건`);
 let 결과;
@@ -1170,6 +1215,7 @@ try {
   결과 = await 레인들로(사본.map((c) => c.work), MUTATIONS,
     (r, 끝난, n) => console.log(한줄(r, 끝난 - 1, n)));
 } finally {
+  중단해제();
   await Promise.all(사본.map((c) => rm(c.dir, { recursive: true, force: true })));
 }
 
