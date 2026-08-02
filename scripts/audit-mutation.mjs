@@ -109,9 +109,12 @@ export const MUTATIONS = [
   { 이름: '최초 합의의 불필요한 targetQuote를 기존 프로젝트 수정 신호로 해석', 파일: WORK_ADMISSION, 검사: T_WORK_ADMISSION,
     찾기: "    const targetQuotes = changes\n      .filter((change) => change.type !== 'agreement_set')\n      .map((change) => change.targetQuote).filter(Boolean);",
     바꾸기: "    const targetQuotes = changes.map((change) => change.targetQuote).filter(Boolean);" },
-  { 이름: '다른 principal 프로젝트를 새 대화 모델 입력에 공급', 파일: SERVER, 검사: T_WORK_PRODUCT,
-    찾기: '        .filter((record) => record?.scopeRef?.principalRef === session.principalRef)',
-    바꾸기: '        .filter((record) => record?.scopeRef?.principalRef)' },
+  // 재조준(2026-08-02): 서버의 principal 필터만 지우는 변이는 **무의미**했다 — 하류
+  // projectWorkState 가 요청 scope 로 다시 투영해 남의 workRef 에서는 인용이 0건이 되고
+  // 서버가 `if (!quotes.length) continue` 로 버린다(실측). 실제 방어선은 exactScope 다.
+  { 이름: '다른 principal 사건을 현재 프로젝트 투영에 섞음', 파일: WORK_STATE, 검사: T_WORK_STATE,
+    찾기: '      if (!exactScope(record.scopeRef, expectedScope) || !nonempty(record.eventId)) continue;',
+    바꾸기: '      if (!nonempty(record.eventId)) continue;' },
   { 이름: '완료 영수증의 WorkRef·사전 계약 결합 검증 제거', 파일: WORK_STORE, 검사: T_WORK_COMPLETION,
     찾기: "      if (receipt.workRef !== candidate.workRef\n        || receipt.completionContractRef !== evidence.completionContractRef) {",
     바꾸기: '      if (false) {' },

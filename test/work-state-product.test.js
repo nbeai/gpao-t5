@@ -197,6 +197,8 @@ test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용�
   })).json();
   assert.equal(approval.kind, 'approval');
   assert.equal(settlementCalls, 0, '승인 전에는 정산을 열지 않는다');
+  const savedSession = JSON.parse(await readFile(join(dir, `${session.id}.json`), 'utf8'));
+  const sealedWorkRef = savedSession.pendingApprovals?.[approval.pendingId]?.workRef ?? null;
   const done = await (await post(app.base, '/turn', {
     sessionId: session.id, approve: approval.pendingId,
   })).json();
@@ -205,8 +207,22 @@ test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용�
   assert.equal(done.workStateDiagnostic.recorded, true);
   assert.equal(settlementCalls, 1);
   assert.equal(await readFile(target, 'utf8'), '완성 내용');
-  assert.ok((await new WorkEventStore(dir).load()).some((event) =>
+  const events = await new WorkEventStore(dir).load();
+  assert.ok(events.some((event) =>
     event.type === 'agreement_set' && event.evidence?.statement === request));
+
+  // 승인 재개는 **요청 턴에 발급된 WorkRef 를 그대로 이어받는다.** 빈 승인 클릭 턴에서 새
+  // 신분을 발급하면, 사용자는 한 가지 일을 시켰는데 장부는 요청 턴과 실행 턴을 다른
+  // 프로젝트로 적는다. pending 에 workRef 를 봉인해 두는 이유가 이것이고, 그 fallback 이
+  // 실제 도달 경로다 — 첫 턴이 승인으로 끝나면 session.workRef 는 아직 없다.
+  //
+  // 원장의 고유 workRef 개수로는 이 계약을 못 문다(요청 턴은 사건을 남기지 않으므로 어느
+  // 쪽이든 한 개다). **봉인된 값과 기록된 값이 같은지**를 직접 대조해야 한다.
+  assert.ok(sealedWorkRef, '승인 대기에 요청 턴의 WorkRef 가 봉인돼야 한다');
+  for (const event of events) {
+    assert.equal(event.workRef, sealedWorkRef,
+      `승인 재개가 봉인된 WorkRef 를 버리고 새 신분을 발급했다 — ${event.type}`);
+  }
   await app.close();
 });
 
