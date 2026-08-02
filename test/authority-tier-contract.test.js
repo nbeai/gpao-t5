@@ -69,3 +69,64 @@ test('지시서 어휘를 기존 등급에 매핑해도 승인 경계가 유지�
     assert.equal(classifyTier({ kind }), expected, `${kind} 등급이 바뀌었다`);
   }
 });
+
+// ── E-4 (오너 결정 2026-08-02 · 감사 지적 흡수) · 어휘의 두 역할 ─────────
+//
+// 감사 지적은 "`draft` 를 toolKind 로 선언하는 도구가 하나도 없다 — 어휘로만 존재"였다.
+// 정의역을 전수 열거해 보니 19종 중 **12종**이 그랬고, 그중 7종(promote_memory·automate·
+// access_secret·pay·publish·escalate·grant_permission)은 src 전체에서 authority.js 밖에
+// 나오지도 않았다. 그래서 지운다가 아니라 **두 역할을 명시**한다(어휘를 지우면 envelope 이
+// 미리 좁혀 둘 말을 잃는다). 여기서 무는 것은 딱 하나 — **파생 종류가 어휘 밖으로 새지 않는가.**
+test('E-4: 손이 실제로 내는 종류는 전부 권한 어휘 안에 있다(판정이 어휘 밖으로 새지 않는다)', async () => {
+  const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
+  const { demoDescriptors } = await import('../src/surface/demo-context.js');
+  const { UNKNOWN_KIND, DERIVED_KINDS, isAuthorityKind } = await import('../src/kernel/l2-plan/authority.js');
+  const selfState = { connectedTools: demoDescriptors().map((d) => ({ ...d })) };
+
+  // 선언으로 내는 것 + 인자로 파생하는 것을 모두 모은다(정의역을 손으로 적지 않는다).
+  const 낸것 = new Set();
+  for (const d of demoDescriptors()) {
+    if (d.toolKind) 낸것.add(toolActionKind({ toolId: d.id, args: {}, selfState }));
+  }
+  for (const [id, args] of [
+    ['local.file', { action: 'read' }], ['local.file', { action: 'write' }],
+    ['local.file', { action: 'delete' }], ['local.file', { action: 'move' }],
+    ['local.file', { action: 'undo' }], ['local.file', { action: 'list' }],
+    ['local.terminal', { changes: false }], ['local.terminal', { changes: true }],
+    ['local.process', { action: 'status' }], ['local.process', { action: 'start' }],
+    ['local.process', { action: 'stop' }],
+    ['mail.send', { to: 'a@b.c', body: 'password: hunter2222' }],   // send → export_sensitive 파생
+  ]) 낸것.add(toolActionKind({ toolId: id, args, selfState }));
+  낸것.delete(UNKNOWN_KIND);   // 판정 결과일 뿐 저장할 어휘가 아니다
+
+  // demo 밖에서 선언하는 손도 정의역이다 — 라이브 커넥터 손이 `connect_account` 를 낸다.
+  const { liveDeps } = await import('../src/surface/live-context.js');
+  for (const d of Object.values(liveDeps({}).tools?.descriptors ?? {})) {
+    if (d?.toolKind) 낸것.add(d.toolKind);
+  }
+  낸것.add('connect_account');   // connector-declare.js:130 · live-context.js:201,232
+
+  for (const kind of 낸것) {
+    assert.ok(isAuthorityKind(kind), `손이 내는 종류가 권한 어휘 밖이다: ${kind}`);
+    assert.ok(DERIVED_KINDS.includes(kind),
+      `손이 실제로 내는데 파생 목록에 없다: ${kind} — envelope 이 이 종류를 좁힐 수 없게 된다`);
+  }
+
+  // **역방향도 문다.** 파생이라고 적어 놓고 아무도 안 내면 그 목록이 거짓이 되고,
+  // "authority 가 이것도 판정해 준다"는 오해가 그대로 남는다(E-4 지적의 뿌리).
+  for (const kind of DERIVED_KINDS) {
+    assert.ok(낸것.has(kind),
+      `파생이라고 적혀 있는데 내는 손이 없다: ${kind} — 선언전용이면 DERIVED_KINDS 에서 빼라`);
+  }
+});
+
+test('E-4: 선언전용 어휘는 여집합으로 파생된다(두 곳에 손으로 적지 않는다)', async () => {
+  const { AUTHORITY_KINDS, DERIVED_KINDS, declarationOnlyKinds } = await import('../src/kernel/l2-plan/authority.js');
+  const 선언전용 = declarationOnlyKinds();
+  assert.deepEqual(
+    [...DERIVED_KINDS, ...선언전용].sort(),
+    [...AUTHORITY_KINDS].sort(),
+    '파생 + 선언전용 이 어휘 전체와 같지 않다 — 어느 한쪽이 빠지거나 겹친다',
+  );
+  assert.equal(선언전용.some((k) => DERIVED_KINDS.includes(k)), false, '두 역할이 겹치면 구분이 무의미하다');
+});

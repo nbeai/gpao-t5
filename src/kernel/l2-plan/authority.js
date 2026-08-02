@@ -47,6 +47,30 @@ export function isAuthorityKind(kind) {
 }
 
 /**
+ * **이 어휘는 두 가지 일을 한다.** 하나로 뭉쳐 두면 "선언만 있고 내는 손이 없다"가 결함처럼
+ * 보이고(E-4 감사 지적 2026-08-02), 반대로 "authority 가 기억 승격도 막아 준다"는 오해도 생긴다.
+ * 실측(2026-08-02, 정의역 전수 열거): 19종 중 **7종은 낼 수 있는 손이 하나도 없다.**
+ *
+ *   · 파생   — 실제 행동에서 `toolActionKind` 가 판정해 내는 종류. 승인 등급이 여기서 정해진다.
+ *   · 선언전용 — 아무 손도 내지 않는다. envelope 의 `allowedKinds` 로 **미리 좁혀 두는** 어휘이고,
+ *     그 행위 자체의 문지기는 authority 가 아니라 각자의 자리다(기억 승격은 기억 통제 채널,
+ *     자동화 켜기는 `/automation/approve`, 결제·게시는 아직 손이 없다).
+ *
+ * 그래서 **"낼 수 있는 손이 없다"는 그 자체로 결함이 아니다.** 결함은 두 가지다:
+ *   ① 파생 종류인데 이 목록에서 빠지는 것(판정이 어휘 밖으로 샌다)
+ *   ② 선언전용 종류를 authority 가 막아 준다고 믿고 그 자리의 진짜 문지기를 안 세우는 것
+ * 아래 목록은 ①을 검사가 물게 하려고 둔다 — 손이 새 종류를 내기 시작하면 여기도 함께 바뀐다.
+ */
+export const DERIVED_KINDS = Object.freeze([
+  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',
+]);
+
+/** 아무 손도 내지 않는 어휘(선언·차단용). `DERIVED_KINDS` 의 여집합이다 — 손으로 두 번 적지 않는다. */
+export function declarationOnlyKinds() {
+  return AUTHORITY_KINDS.filter((k) => !DERIVED_KINDS.includes(k));
+}
+
+/**
  * 행동의 비가역성·외부성으로 등급을 판정한다. 애매하면 높은 등급으로.
  * @param {Object} action
  * @param {string} action.kind   read|summarize|search|draft|organize|send|write|publish|delete|pay|promote_memory|

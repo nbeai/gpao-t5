@@ -138,6 +138,16 @@ const STUB_ENV_MODEL = () => ({ id: 'beai5-stub', strengths: '자연 대화·판
  * @param {Function} [p.fetchImpl]
  * @param {number} [p.timeoutMs]
  */
+/**
+ * E-3(오너 결정 2026-08-02) · 설정을 바꿨으면 **무엇이 무엇에서 무엇으로** 바뀌었는지 남긴다.
+ * 실제로 달라졌을 때만 싣는다 — 같은 값으로 다시 눌렀는데 "바꿨어요"라고 하면 사용자가
+ * 원인을 잘못 짚는다(안 바뀐 것을 바꿨다고 하는 것도 거짓 성공이다).
+ */
+function 바뀐사실(what, from, to) {
+  if (JSON.stringify(from) === JSON.stringify(to)) return {};
+  return { changed: { what, from, to } };
+}
+
 export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, timeoutMs }) {
   /** @type {Array<Object>} 사용자 연결 목록(최신 의사) */
   let connections = [];
@@ -463,13 +473,20 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       };
     },
 
-    /** 기본 연결 전환(핫스왑 — 다음 턴부터 적용). */
+    /**
+     * 기본 연결 전환(핫스왑 — 다음 턴부터 적용).
+     * E-3(오너 결정 2026-08-02): **바뀌기 전 값을 함께 남긴다.** 커넥터 경로는 현재 상태를 먼저
+     * 읽고 카드에 싣는데 여기는 보지도 남기지도 않고 바꿨다 — 그러면 T5 가 "바꿨어요"밖에 말할
+     * 수 없고 사용자는 무엇이 무엇으로 갔는지 모른다. 승인 단계는 늘리지 않는다(자동성이 의무다).
+     * 실제로 안 바뀌었으면 `changed` 를 싣지 않는다 — 안 바뀐 것을 바꿨다고 하면 거짓 성공이다.
+     */
     async activate(id) {
       if (!findConn(id)) return { ok: false, userSafeSummary: '그 연결을 찾지 못했어요.' };
+      const before = activeId;
       activeId = id;
       applyEnvModel();
       await persist();
-      return { ok: true, ...this.list() };
+      return { ok: true, ...this.list(), ...바뀐사실('activeId', before, id) };
     },
 
     /**
@@ -478,17 +495,19 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
      */
     async bind(role, id) {
       if (!role) return { ok: false, userSafeSummary: '어떤 역할인지 알려 주세요.' };
+      const before = roleBindings[role] ?? null;
       if (id === null || id === undefined) delete roleBindings[role];
       else if (!findConn(id)) return { ok: false, userSafeSummary: '그 연결을 찾지 못했어요.' };
       else roleBindings[role] = id;
       await persist();
-      return { ok: true, ...this.list() };
+      return { ok: true, ...this.list(), ...바뀐사실(`roleBindings.${role}`, before, roleBindings[role] ?? null) };
     },
 
     /** 개별 연결 해제. 활성이었으면 남은 것 중 하나로 승계(없으면 env·stub 복귀). */
     async remove(id) {
       const at = connections.findIndex((c) => c.id === id);
       if (at < 0) return { ok: false, userSafeSummary: '그 연결을 찾지 못했어요.' };
+      const before = connections.map((c) => c.id);
       connections.splice(at, 1);
       clients.delete(id);
       for (const [role, boundId] of Object.entries(roleBindings)) {
@@ -497,7 +516,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       if (activeId === id) activeId = connections[0]?.id ?? null;
       applyEnvModel();
       if (connections.length) await persist(); else await store?.clear();
-      return { ok: true, ...this.list() };
+      return { ok: true, ...this.list(), ...바뀐사실('connections', before, connections.map((c) => c.id)) };
     },
 
     /** 전체 해제 → env 구성 또는 stub 으로 복귀. */

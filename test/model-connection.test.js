@@ -243,3 +243,67 @@ test('서버: 연결 관리자 미배선(demo)이면 connect 는 400, connection
     assert.equal(st.connected, false);
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ── E-3 (오너 결정 2026-08-02) · 설정을 바꾸면 무엇이 무엇으로 바뀌었는지 남긴다 ──
+//
+// 감사 지적(항목 35): 커넥터 경로는 `approvalEligibility`·`previewOf` 로 현재 상태를 먼저 읽고
+// 카드에 싣는데, 모델 연결 변경 경로(`/model/connections/activate|bind|remove`)는 현재 상태를
+// 보지도 남기지도 않고 바로 바꾼다. 오너 결정은 **승인 단계를 늘리지 않는다**(자동성이 의무다).
+// 대신 바뀌기 전 사실을 결과에 실어 T5 가 "무엇을 무엇으로 바꿨는지" 정직하게 말할 수 있게 한다.
+// 실패한 변경에는 `changed` 를 싣지 않는다 — 안 바뀐 것을 바꿨다고 말하면 그게 거짓 성공이다.
+/**
+ * 연결 두 개를 만든 상태. id 는 제품이 정하므로 **만든 뒤에 읽어 쓴다**(내가 지어낸 id 로
+ * 검사하면 제품이 아니라 내 가정이 통과한다). 첫 번째를 활성으로 두고 시작한다.
+ */
+async function 두연결() {
+  const { impl } = providerFetch({ models: ['beai-8.6', 'gemini-flash-latest'] });
+  const mc = makeModelConnection({ env: {}, processEnv: {}, store: await tmpStore(), fetchImpl: impl });
+  await mc.connect({ provider: 'beai', key: 'beai_sk_one' });
+  await mc.connect({ provider: 'gemini', key: 'g_sk_two' });
+  const ids = mc.list().connections.map((c) => c.id);
+  assert.equal(ids.length, 2, `전제: 연결 두 개여야 한다 — ${JSON.stringify(ids)}`);
+  await mc.activate(ids[0]);
+  return { mc, ids };
+}
+
+test('E-3: 기본 연결 전환은 바뀌기 전 값을 함께 남긴다', async () => {
+  const { mc, ids } = await 두연결();
+  const before = mc.list().activeId;
+  const r = await mc.activate(ids[1]);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.changed, { what: 'activeId', from: before, to: ids[1] },
+    '무엇이 무엇에서 무엇으로 바뀌었는지가 없으면 T5 는 "바꿨어요"밖에 말할 수 없다');
+});
+
+test('E-3: 역할 바인딩 설정·해제도 이전 값을 남긴다', async () => {
+  const { mc, ids } = await 두연결();
+  const set = await mc.bind('growth', ids[1]);
+  assert.deepEqual(set.changed, { what: 'roleBindings.growth', from: null, to: ids[1] });
+  const unset = await mc.bind('growth', null);
+  assert.deepEqual(unset.changed, { what: 'roleBindings.growth', from: ids[1], to: null });
+});
+
+test('E-3: 연결 해제도 이전 값을 남긴다', async () => {
+  const { mc, ids } = await 두연결();
+  const r = await mc.remove(ids[0]);
+  assert.equal(r.ok, true);
+  assert.equal(r.changed.what, 'connections');
+  assert.ok(r.changed.from.includes(ids[0]), '무엇이 없어졌는지 알 수 없으면 되돌릴 수도 없다');
+  assert.ok(!r.changed.to.includes(ids[0]));
+});
+
+test('E-3: 실패한 변경에는 바뀐 사실을 싣지 않는다(거짓 성공 금지)', async () => {
+  const { mc } = await 두연결();
+  for (const r of [await mc.activate('없는것'), await mc.bind('growth', '없는것'), await mc.remove('없는것')]) {
+    assert.equal(r.ok, false);
+    assert.equal(r.changed, undefined, '안 바뀌었는데 바뀐 사실이 남으면 원장이 거짓이 된다');
+  }
+});
+
+test('E-3: 같은 값으로 다시 바꾸면 바뀐 사실을 싣지 않는다', async () => {
+  const { mc, ids } = await 두연결();
+  await mc.activate(ids[1]);
+  const 다시 = await mc.activate(ids[1]);
+  assert.equal(다시.ok, true);
+  assert.equal(다시.changed, undefined, '안 바뀐 것을 바뀌었다고 하면 사용자가 원인을 잘못 짚는다');
+});
