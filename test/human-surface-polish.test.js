@@ -72,3 +72,33 @@ test('P90-2: 통제 접두어는 스트리밍 조각에서도 사용자에게 �
     `화면에 흘러간 조각에 내부 통제 이름이 있었다: ${조각.join('').slice(0, 80)}`);
   assert.match(String(r.reply ?? ''), /820만원/, '내용은 그대로 남아야 한다');
 });
+
+// ── P90-2 후속 · 확인된 중간 결과가 화면에 닿는다 ──────────────────────────
+//
+// 커널이 `partial_result` 를 내보내도 화면이 안 그리면 사용자에겐 없는 것이다.
+// 그리고 계획서 §4 는 `first_grounded_content` 를 "receipt 신분 또는 검증된 중간 결과가
+// **화면에 렌더된** 시점" 으로 정의한다 — 그 보고가 이 사건에서도 서야 지표가 성립한다.
+test('P90-2: 화면이 확인된 중간 결과를 그리고 첫 유용한 내용으로 보고한다', () => {
+  assert.match(html, /addEventListener\('partial_result'/,
+    '커널이 내보내는 확인된 중간 결과를 화면이 듣지 않는다');
+  // 진행 문구 자리(trace)를 덮어쓰는 것이 아니라 **쌓이는 자리**여야 한다 —
+  // 덮어쓰면 앞 걸음의 사실이 사라져 기다림이 다시 비어 보인다.
+  assert.doesNotMatch(
+    html.slice(html.indexOf("addEventListener('partial_result'"), html.indexOf("addEventListener('answer_delta'")),
+    /trace\.textContent\s*=/,
+    '중간 결과를 진행 문구 자리에 덮어쓰면 앞 걸음의 사실이 사라진다',
+  );
+  assert.match(html, /markGrounded\(\)/, '첫 유용한 내용 보고가 두 경로에서 같은 자리를 쓰지 않는다');
+  assert.match(html, /steps\?\.remove\(\)/,
+    '완료 뒤에도 중간 결과가 남으면 지속된 최종 답과 두 벌이 된다');
+  // 답이 흐르기 시작하면 채울 공백이 없다. 그때도 남겨두면 확인 사실과 답이 나란히 서서
+  // 같은 말을 두 번 하는 화면이 된다 — 실제 라이브 회차에서 관측된 모습이다.
+  assert.match(
+    html.slice(html.indexOf("addEventListener('answer_delta'"), html.indexOf("const completed =")),
+    /steps\?\.remove\(\)/,
+    '답변 조각이 시작돼도 중간 결과가 남으면 같은 사실이 화면에 두 벌로 선다',
+  );
+  // 답과 같은 조로 그리면 사용자는 그것을 답으로 읽는다. 진행 중 사실은 조용해야 한다.
+  assert.match(html, /\.msg\.steps\s*\{[^}]*color:var\(--muted\)/,
+    '확인된 중간 결과가 최종 답과 같은 조로 그려지면 답으로 오인된다');
+});

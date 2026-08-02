@@ -3,6 +3,31 @@
 import { FAILURE } from '../contracts.js';
 
 /**
+ * **이 걸음은 확인된 사실인가.** 영수증이 스스로 `delivered` 라고 적혀 있고, 호출했고,
+ * 실패하지 않았고, 결과가 실제로 왔다.
+ *
+ * 넷 중 하나만 빠져도 확인이 아니다. 특히 `result === undefined`(lifecycle `attempting`)는
+ * 실패는 아니지만 **아직 아무것도 확인되지 않은** 상태다 — 손이 아무것도 반환하지 않으면
+ * userSafeSummary 는 기본 문구로 채워져 겉보기엔 성공 문장이 된다.
+ *
+ * `lifecycle` 을 **함께** 보는 이유: `receipt()` 는 `r.lifecycle ?? deriveLifecycle(...)` 이라
+ * 호출자가 수명주기를 직접 말할 수 있다. 그래서 "결과는 들어 있는데 스스로 attempting 이라
+ * 적힌" 영수증이 만들어질 수 있고, 파생 조건만 보면 원장이 그걸 확인으로 세면서 영수증이
+ * 스스로 아니라고 적은 것을 맞다고 우기게 된다.
+ *
+ * 이 정의를 함수로 꺼낸 이유: 기다리는 동안 흘리는 사실과 최종 답의 "확인한 것" 목록이
+ * **같은 정의**를 써야 한다. 두 곳에서 따로 판정하면 같은 턴에서 두 개의 진실을 보게 된다.
+ * @param {import('../contracts.js').ToolReceipt} rec
+ */
+export function 확인된사실(rec) {
+  return Boolean(rec
+    && rec.lifecycle === 'delivered'
+    && rec.failureState === FAILURE.NONE
+    && rec.actualCall
+    && rec.result !== undefined);
+}
+
+/**
  * receipt 목록을 확인/미확인/추정으로 투영한다. 사용자면(userSafeSummary)만 노출한다.
  * 순수 함수 — 세션 전체 원장이든 이번 턴 receipt 목록이든 같은 규칙으로 투영한다.
  * @param {import('../contracts.js').ToolReceipt[]} entries
@@ -13,7 +38,7 @@ export function projectReceipts(entries) {
   const unconfirmed = [];
   const estimated = [];
   for (const e of entries) {
-    if (e.failureState === FAILURE.NONE && e.actualCall && e.result !== undefined) {
+    if (확인된사실(e)) {
       confirmed.push(e.userSafeSummary);
     } else if (e.failureState !== FAILURE.NONE) {
       // blocked/failed/timeout = 확인 못 함. 추정으로 메우지 않는다.

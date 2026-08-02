@@ -10,7 +10,7 @@ import { externalReality } from './l1-intent/external-service.js';
 import { selfhoodLookup, selectSelfhoodDetail, soulVoice } from './l1-intent/selfhood-lookup.js';
 import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
-import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
+import { TruthLedger, projectReceipts, 확인된사실 } from './l0-evidence/ledger.js';
 import { blockedReceipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
@@ -409,6 +409,48 @@ const INTERNAL_CONTROL_PREFIX = /^\s*(?:memory\.(?:propose|cite|correction|withd
 
 function userFacingModelText(value) {
   return String(value ?? '').replace(INTERNAL_CONTROL_PREFIX, '').trim();
+}
+
+/**
+ * **기다림을 사실로 채운다** (P90-2).
+ *
+ * 실측(2026-08-03, 로컬 파일 경로 6회): 도구 턴 20초 동안 사용자가 보는 것은
+ * `○○ 실행 중이에요` 하나뿐이고 첫 내용은 마지막 왕복에서야 뜬다(중앙 17.5초).
+ * 그런데 걸음마다 영수증이 **이미 사용자 언어 문장을 들고** 도착한다 —
+ * "3곳이 후보예요", "정산_3월_수정.csv 을(를) 읽었어요". 그걸 안 보여주고 있었을 뿐이다.
+ *
+ * 경계:
+ *   · **원장이 "확인한 것"으로 세는 것만.** 판정을 여기서 새로 만들지 않고 `확인된사실()` 을
+ *     쓴다. 실패가 아니어도 결과가 안 온 걸음(lifecycle `attempting`)은 확인이 아니다 —
+ *     손이 아무것도 반환하지 않으면 userSafeSummary 가 기본 문구로 채워져 성공처럼 보인다.
+ *     흐르는 사실과 최종 답의 확인 목록이 갈라지면 사용자는 한 턴에서 두 진실을 본다.
+ *   · **실행 뒤에만.** 영수증은 결과이지 예고가 아니다(계획서 §4-5 실행 전 성공 예고 금지).
+ *   · **실행 신분과 함께.** 그래야 "확인 중" 문구와 구분된다(계획서 §4 측정 기준). 신분은
+ *     이 턴 원장에서의 자리(`step`)다 — 커널 영수증에는 `receiptRef` 가 없다(그건 표면이
+ *     발급한다). 없는 필드를 신분이라 적으면 화면도 문서도 거짓이 된다.
+ *   · 모델 내용을 싣지 않는다 — 이것은 OS 가 만든 문장이다. 참고 원천 두 곳도 같은 규율이다
+ *     (OpenClaw `AgentToolProgress{privacy:'public'}` "never model content",
+ *      Hermes `ToolCallFinished` "No tool output travels here").
+ *   · 중복은 **문장이 아니라 실행**으로 센다. 같은 손이 두 파일을 처리해 요약이 같아도
+ *     실행은 둘이다 — 문장으로 지우면 두 번째 실행 사실이 화면에서 사라진다.
+ */
+async function 확인된중간결과(ctx, rec, ledger) {
+  if (!ctx?.emit) return;
+  if (!확인된사실(rec)) return;
+  if (rec.surfaceRequest) return;   // 공이 사용자에게 넘어간 것은 이번 걸음의 결과가 아니다
+  const text = String(rec.userSafeSummary ?? '').trim();
+  if (!text) return;
+  // 이 턴 원장에서의 자리 = 실행 신분. **선택 인자가 아니다** — 원장 없이 부르면 여기서
+  // 터진다. 가드로 "신분 없으면 안 흘린다"를 적으면 그 가드는 도달 불가라 검증도 안 된다.
+  const step = ledger.entries.length;
+  const 보낸것 = ctx.보낸중간결과 ?? (ctx.보낸중간결과 = new Set());
+  if (보낸것.has(step)) return;
+  보낸것.add(step);
+  await ctx.emit('partial_result', {
+    text,
+    step,
+    ...(rec.actualCall?.tool ? { tool: rec.actualCall.tool } : {}),
+  });
 }
 
 /**
@@ -1382,6 +1424,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
     if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
+    await 확인된중간결과(ctx, rec, ledger);
     // P6-11 학습 + P6-14 전달 원장: 전달 수단·대상·산출물·전달 결과를 함께 실어 보낸다(생성≠전달 분리).
     // C7-ACTION-001: target 필드가 아니라 **toolKind==='send'** 만 전달이다 — local.process 의
     // {target}이 전달 원장에 "delivered"로 기록되고 기본 대상 학습까지 오염됐다(양 검증선 재현).
@@ -1729,6 +1772,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
+    await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
 
     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**

@@ -102,7 +102,16 @@ test('브라우저는 DOM paint 뒤 표시를 보고하고 최종 투영 뒤에 
   const projection = submit.indexOf('await 대화투영');
   assert.ok(projection >= 0 && projection < submit.indexOf('await streamed.reportComplete()', projection),
     '지속된 최종 답이 화면에 투영된 뒤 완료 표시를 보고해야 한다');
+  // P90-2 후속: 첫 유용한 내용은 두 경로에서 선다 — 답 조각(answer_delta)과
+  // 확인된 중간 결과(partial_result). 보고 자체는 `markGrounded()` 한 자리로 모았으므로,
+  // **각 경로가 DOM 에 렌더한 뒤에 그것을 부르는가**를 본다(계약은 그대로: 렌더 → 보고).
   const delta = html.slice(html.indexOf("es.addEventListener('answer_delta'"), html.indexOf("es.addEventListener('complete'"));
-  assert.ok(delta.indexOf('renderMarkdownInto') < delta.indexOf("'first_grounded_content'"),
+  assert.ok(delta.indexOf('renderMarkdownInto') < delta.indexOf('markGrounded()'),
     '답 조각을 DOM에 렌더한 뒤 첫 유용한 내용 표시를 보고해야 한다');
+  const partial = html.slice(html.indexOf("es.addEventListener('partial_result'"), html.indexOf("es.addEventListener('answer_delta'"));
+  assert.ok(partial.indexOf('appendChild') < partial.indexOf('markGrounded()'),
+    '중간 결과도 DOM에 붙인 뒤에 보고해야 한다');
+  // 보고는 여전히 두 번 paint 뒤에 잰다(단일 자리로 모았어도 계약은 유지).
+  const grounded = html.slice(html.indexOf('const markGrounded'), html.indexOf('const markGrounded') + 400);
+  assert.match(grounded, /afterVisiblePaint/, '표시 보고는 실제 paint 뒤여야 한다');
 });

@@ -725,6 +725,35 @@ export const MUTATIONS = [
   { 이름: 'P90-2 완료 형태 판정을 다시 산문 파싱에 맡김(왕복 낭비 재발)', 파일: TURNJS, 검사: T_TOOL_STEPS,
     찾기: "      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },",
     바꾸기: "      directWrite\n        ? { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name }\n        : { effort: 'medium' }," },
+  // ── P90-2 후속(2026-08-03) · 확인된 중간 결과로 기다림을 채운다 ──────────
+  { 이름: 'P90-2 실패·미완 걸음도 확인된 사실로 흘림(안 일어난 일을 말함)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+    찾기: '  if (!확인된사실(rec)) return;',
+    바꾸기: "  if (rec?.failureState && rec.failureState !== 'none') return;" },
+  { 이름: 'P90-2 원장의 확인 정의가 결과 도착을 안 봄(attempting 을 확인으로 셈)',
+    파일: 'src/kernel/l0-evidence/ledger.js', 검사: 'test/receipt-ledger.test.js',
+    찾기: '    && rec.result !== undefined);',
+    바꾸기: '    );' },
+  { 이름: 'P90-2 확인 정의가 영수증 자기 기술(lifecycle)을 무시(파생·명시 불일치 통과)',
+    파일: 'src/kernel/l0-evidence/ledger.js', 검사: 'test/receipt-ledger.test.js',
+    찾기: "    && rec.lifecycle === 'delivered'\n",
+    바꾸기: '' },
+  { 이름: 'P90-2 중복을 실행이 아니라 문장으로 셈(두 번째 실행 사실 소실)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+    찾기: '  if (보낸것.has(step)) return;\n  보낸것.add(step);',
+    바꾸기: '  if (보낸것.has(text)) return;\n  보낸것.add(text);' },
+  { 이름: 'P90-2 실행 신분을 payload 에서 뺌("확인 중" 문구와 구분 불가)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+    찾기: '    text,\n    step,\n',
+    바꾸기: '    text,\n' },
+  { 이름: 'P90-2 확인된 중간 결과 송출 자체를 없앰(공백이 다시 빔)', 파일: TURNJS, 검사: T_TOOL_STEPS,
+    찾기: '  await ctx.emit(\'partial_result\', {',
+    바꾸기: '  if (true) return;\n  await ctx.emit(\'partial_result\', {' },
+  { 이름: 'P90-2 답이 흘러도 중간 결과가 남아 같은 사실이 두 벌로 섬', 파일: 'src/surface/web/index.html',
+    검사: 'test/human-surface-polish.test.js',
+    찾기: '          steps?.remove(); steps = null;\n',
+    바꾸기: '' },
+  { 이름: 'P90-2 중간 결과를 최종 답과 같은 조로 그림(답으로 오인)', 파일: 'src/surface/web/index.html',
+    검사: 'test/human-surface-polish.test.js',
+    찾기: '  .msg.steps { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);',
+    바꾸기: '  .msg.steps { align-self:flex-start; padding:var(--sp-1) var(--sp-3);' },
   { 이름: 'F7.4 discovery 보호 경계 제거(제2 읽기 손 재발)', 파일: 'src/runtime/local-discovery.js', 검사: 'test/local-discovery.test.js',
     찾기: "const 보호로막힘 = (path) => Boolean(protectionBlocks(path, { write: false }));",
     바꾸기: "const 보호로막힘 = () => false;" },
@@ -963,7 +992,11 @@ async function 한번(m, repo) {
     // **주입은 돌아가는 코드여야 한다.** 문법이 깨지면 그 파일을 불러오는 검사는 전부 파싱
     // 단계에서 죽는다 — 잡히긴 잡히지만 무엇을 쟀는지 알 수 없다(계약이 아니라 문법을 쟀다).
     // 실제로 한 건이 그랬고, 그 주입이 붙어 있는 동안 저장소를 읽은 다른 실행까지 무너졌다.
-    if (spawnSync('node', ['--check', path], { cwd: repo }).status !== 0) {
+    // 문법 검사는 **그 파일의 언어로** 한다. 사용자면(index.html)은 JS 파서로 볼 수 없어
+    // 여기서 무조건 걸렸다 — 그러면 화면 계약은 영영 변이로 검증할 수 없다. JS 가 아닌
+    // 대상은 이 검사를 건너뛰되, 주입 지점 한 자리 규칙과 되돌림 확인은 그대로 받는다.
+    if (/\.(?:js|mjs|cjs)$/.test(m.파일)
+      && spawnSync('node', ['--check', path], { cwd: repo }).status !== 0) {
       return { ...m, 결과: 'anchor', 메모: '주입 결과가 문법 오류 — 계약이 아니라 문법을 재게 된다' };
     }
     // 한 주입이 여러 검사를 모두 교착시키면 test별 30초가 누적된다. 계약이 깨져 프로세스가

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -170,4 +170,137 @@ test('P90-2: 구조 채널로 답하면 판정 호출은 한 번뿐이다(재시
     model,
   });
   assert.equal(판정횟수, 1, `구조 채널이 답했는데 재시도가 돌았다 — 실제 ${판정횟수}회`);
+});
+
+// ── P90-2 후속 · 확인된 중간 결과를 기다림 동안 보여준다 ────────────────────
+//
+// 실측(2026-08-03, 로컬 파일 경로 6회): 도구 턴 20초 동안 사용자가 보는 것은
+// `○○ 실행 중이에요` 하나뿐이고, 첫 내용(answer_delta)은 **마지막 왕복에서야** 뜬다
+// (첫 유용한 내용 중앙 17.5초). 기다림이 비어 있다.
+//
+// 재료는 이미 있다 — 도구 실행 직후 영수증이 `userSafeSummary` 를 들고 온다.
+// 그건 모델 내용이 아니라 **OS 가 만든 사용자 언어 문장**이다("3곳이 후보예요",
+// "정산_3월_수정.csv 을(를) 읽었어요"). `partial_result` 사건 타입도 이미 선언돼
+// 있고 durable 집합에 들어 있다(재접속 복구됨). 생산자만 없었다.
+//
+// 계약:
+//   · **성공 영수증만.** 실패는 복구 사다리와 최종 답이 정직하게 다룬다 — 중간에 흘리면
+//     사용자가 두 번 놀란다.
+//   · **실행 후 사실만.** 계획서 §4-5 "실행 전 성공 예고 금지" — 영수증은 결과이지 예고가 아니다.
+//   · **영수증 신분과 결합.** 계획서 §4 측정 기준: first_grounded_content 는 "단순한 확인 중
+//     문구가 아니라 receipt 신분 또는 검증된 중간 결과와 결합" 돼야 한다.
+//   · 모델 내용을 싣지 않는다(참고 원천 두 곳의 공통 규율과 같다).
+test('P90-2: 성공한 도구 걸음은 확인된 사실을 partial_result 로 먼저 보여준다', async () => {
+  const 사건 = [];
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-partial-'));
+  await writeFile(join(dir, '정산.csv'), '항목,금액\n임대료,500000\n');
+  const 읽는모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '정산.csv' } }] };
+      return '정리했어요.';
+    },
+  };
+  await runTurn({ text: '정산.csv 읽고 알려줘' }, {
+    env: demoEnv(),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    model: 읽는모델,
+    emit: async (type, payload) => { 사건.push({ type, payload }); },
+  });
+
+  const 중간 = 사건.filter((e) => e.type === 'partial_result');
+  assert.ok(중간.length >= 1, `확인된 중간 결과가 하나도 안 나갔다 — 나간 사건: ${사건.map((e) => e.type).join(', ')}`);
+  const 첫 = 중간[0].payload ?? {};
+  assert.ok(String(첫.text ?? '').trim(), '사용자에게 보일 문장이 비었다');
+  // 신분은 **이 턴 원장에서의 자리**다. 커널 영수증에는 receiptRef 가 없다(그건 표면이
+  // 발급한다) — 있지도 않은 필드를 신분으로 적으면 검사도 문서도 거짓이 된다.
+  assert.equal(typeof 첫.step, 'number',
+    '실행 신분(원장 자리)이 없으면 "확인 중" 문구와 구분되지 않는다(계획서 §4 측정 기준)');
+  assert.ok(첫.step >= 1, '원장 자리는 1부터다');
+
+  // 진행 표시보다 **뒤**에 온다 — 실행 전 예고가 아니라 실행 후 사실이라는 뜻이다.
+  const 진행 = 사건.findIndex((e) => e.type === 'tool_progress');
+  const 결과 = 사건.findIndex((e) => e.type === 'partial_result');
+  assert.ok(진행 >= 0 && 결과 > 진행, '중간 결과가 실행 전에 나갔다(성공 예고 금지)');
+});
+
+test('P90-2: 실패한 걸음은 중간 결과로 흘리지 않는다', async () => {
+  const 사건 = [];
+  const 터지는손 = { async handler() { throw new Error('boom'); } };
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '없는것.csv' } }] };
+      return '못 했어요.';
+    },
+  };
+  await runTurn({ text: '없는것.csv 읽어줘' }, {
+    env: demoEnv(), tools: demoTools({ localFile: 터지는손 }), model: 모델,
+    emit: async (type, payload) => { 사건.push({ type, payload }); },
+  });
+  assert.equal(사건.filter((e) => e.type === 'partial_result').length, 0,
+    '실패를 중간 결과로 흘리면 사용자가 두 번 놀란다 — 실패는 최종 답이 정직하게 다룬다');
+});
+
+// ── 감사 반대시험 ① 실패는 아니지만 **끝나지도 않은** 걸음 ──────────────────
+//
+// lifecycle 은 (actualCall, failureState, result) 에서 파생된다. 호출은 했고 실패도
+// 아닌데 result 가 없으면 `attempting` 이다 — 아직 아무것도 확인되지 않았다.
+// `failureState !== 'none'` 만 보면 이게 성공 문장처럼 새어 나간다.
+// 원장의 "확인한 것"(projectReceipts)이 쓰는 정의와 **같은 정의**를 써야 한다.
+test('P90-2 반대시험: 결과 없는 attempting 걸음은 중간 결과로 나가지 않는다', async () => {
+  const 사건 = [];
+  // 실패하지 않고 **아무것도 반환하지 않는** 손. tool-runner 의 `out?.result ?? out` 이
+  // undefined 가 되고, deriveLifecycle 이 attempting 으로 판정한다.
+  // 그런데 userSafeSummary 는 기본 문구("… 실행 완료.")로 채워진다 — 겉보기엔 성공 문장이다.
+  const 결과없는손 = { async handler() { /* 결과를 내지 않는다 */ } };
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '정산.csv' } }] };
+      return '알려드릴게요.';
+    },
+  };
+  const out = await runTurn({ text: '정산.csv 읽어줘' }, {
+    env: demoEnv(), tools: demoTools({ localFile: 결과없는손 }), model: 모델,
+    emit: async (type, payload) => { 사건.push({ type, payload }); },
+  });
+  // 이 시험이 겨누는 상태가 실제로 만들어졌는지 먼저 확인한다 — 원장은 이 걸음을
+  // "확인한 것"이 아니라 "추정"으로 센다(projectReceipts: result 가 없으면 confirmed 아님).
+  assert.equal(out.ledger.confirmed.length, 0,
+    `겨누는 상태가 안 만들어졌다 — 원장이 확인으로 셌다: ${JSON.stringify(out.ledger.confirmed)}`);
+  assert.ok(out.ledger.estimated.length >= 1, '이 걸음이 원장 어디에도 안 남았다');
+
+  assert.equal(사건.filter((e) => e.type === 'partial_result').length, 0,
+    '끝나지도 않은 걸음을 확인된 사실로 흘렸다 — 원장은 이걸 "확인한 것"으로 세지 않는다');
+});
+
+// ── 감사 반대시험 ② 같은 문장을 내는 **서로 다른 두 실행** ──────────────────
+//
+// 문장으로 중복을 제거하면, 같은 손이 두 파일을 처리하고 요약이 같을 때 두 번째 실행
+// 사실이 화면에서 사라진다. 신분은 문장이 아니라 **실행**이어야 한다.
+test('P90-2 반대시험: 문장이 같아도 서로 다른 실행이면 각각 나간다', async () => {
+  const 사건 = [];
+  // 두 번 불려도 **같은 문장**을 내는 손. 실행은 둘, 문장은 하나.
+  const 같은말손 = { async handler() { return { result: { ok: true }, userSafeSummary: '파일 하나를 정리했어요.' }; } };
+  let 남은호출 = ['가.csv', '나.csv'];
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.length && 남은호출.length) {
+        const path = 남은호출.shift();
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path } }] };
+      }
+      return '두 개 다 정리했어요.';
+    },
+  };
+  await runTurn({ text: '가.csv 랑 나.csv 정리해줘' }, {
+    env: demoEnv(), tools: demoTools({ localFile: 같은말손 }), model: 모델,
+    emit: async (type, payload) => { 사건.push({ type, payload }); },
+  });
+  const 중간 = 사건.filter((e) => e.type === 'partial_result');
+  assert.equal(중간.length, 2,
+    `실행 두 번인데 ${중간.length}번만 나갔다 — 문장으로 지우면 두 번째 실행 사실이 사라진다`);
+  const 신분 = 중간.map((e) => e.payload?.step);
+  assert.equal(new Set(신분).size, 2, `실행 신분이 겹친다: ${JSON.stringify(신분)}`);
 });
