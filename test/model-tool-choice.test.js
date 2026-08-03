@@ -286,6 +286,47 @@ test('동의 후속 발화는 직전 파일 정리 목표를 이어받고 계획
   assert.ok((r.ledger?.confirmed ?? []).length > 0, '계획문만 답하고 실행 없이 끝나면 안 된다');
 });
 
+test('파일 정리 중 루트에 파일이 남아 있으면 완료 선언 전에 계속 분류한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-finish-'));
+  await writeFile(join(dir, 'a.pdf'), 'a');
+  await writeFile(join(dir, 'b.jpg'), 'b');
+  await writeFile(join(dir, 'c.txt'), 'c');
+  let sawUnfinished = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (opts.tools?.length && !tc.unfinishedFileOrganization) {
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: { action: 'bulk_move', path: '.', to: '문서', match: { extensions: ['.pdf'] } },
+        }] };
+      }
+      if (tc.unfinishedFileOrganization) {
+        sawUnfinished += 1;
+        const ext = tc.unfinishedFileOrganization.remainingSource.topExtensions?.[0]?.ext;
+        const to = ext === '.jpg' ? '이미지' : '텍스트';
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: { action: 'bulk_move', path: '.', to, match: { extensions: [ext] } },
+        }] };
+      }
+      return { text: '정리 끝냈어.', toolCalls: [] };
+    },
+  };
+  const ctx = {
+    env: demoEnv(),
+    model,
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+  };
+
+  const r = await runTurn({ text: '다운로드 폴더 깔끔하게 정리해줘' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(sawUnfinished, 2, '남은 파일 분포를 보고 두 번 더 이어가야 한다');
+  assert.deepEqual(new Set((await readdir(dir)).filter((name) => !name.startsWith('.'))), new Set(['이미지', '문서', '텍스트']));
+  assert.equal(await readFile(join(dir, '문서/a.pdf'), 'utf8'), 'a');
+  assert.equal(await readFile(join(dir, '이미지/b.jpg'), 'utf8'), 'b');
+  assert.equal(await readFile(join(dir, '텍스트/c.txt'), 'utf8'), 'c');
+});
+
 // ── P2-5b-2: 다른 provider 도 같은 계약 ──────────────────────────────────
 // 라이브(ChatGPT)에서 검증된 것을 넓힌다. 셰이프만 다르고 계약은 같다:
 // 도구를 주면 {text, toolCalls} 를 돌려주고, 이름은 와이어에서 안전하게 바꿨다가 되돌린다.

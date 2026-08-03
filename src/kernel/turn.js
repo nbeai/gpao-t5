@@ -533,6 +533,21 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   return 다시 || fallbackReplyFrom(receipts);
 }
 
+function 남은파일정리대상(receipts = []) {
+  for (const r of [...receipts].reverse()) {
+    const source = r?.result?.remainingSource;
+    if (r?.actualCall?.tool !== 'local.file' || (r.failureState ?? 'none') !== 'none') continue;
+    if (!source || typeof source.files !== 'number') continue;
+    return source.files > 0 ? source : null;
+  }
+  return null;
+}
+
+function 파일정리요청(intent = {}) {
+  return intent.neededTools?.includes('local.file')
+    && /정리|깔끔|분류|모아|치워/.test(String(intent.desiredOutcome ?? intent.currentRequest ?? ''));
+}
+
 
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
@@ -1689,6 +1704,24 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 남긴 digest 는 파일 산출물이 아니며, local.file write 의 path+digest 만 충족으로 센다.
   const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
   let 산출물요청수 = 0;
+  let 남은정리요청수 = 0;
+  const 남은정리이어가기 = async () => {
+    const 남은정리 = 남은파일정리대상(turnReceipts);
+    if (!파일정리요청(intent) || !남은정리 || 예산소진(쓴것(), 예산) || 남은정리요청수 >= 3) return false;
+    남은정리요청수 += 1;
+    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
+    if (!fileTools.length) return false;
+    finalOut = await ctx.model.respond({
+      ...tc,
+      unfinishedFileOrganization: {
+        reason: 'source_still_has_files',
+        remainingSource: 남은정리,
+      },
+    }, {
+      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
+    });
+    return true;
+  };
   const 산출물이어가기 = async () => {
     if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= MAX_TOOL_STEPS) return false;
     const derived = (plan.deliverables ?? []).some((wanted) => wanted.binding === 'derived');
@@ -1812,6 +1845,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
         // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
         if (await 산출물이어가기()) continue;
+        if (await 남은정리이어가기()) continue;
         break;
       }
       대기호출.push(...줄세우기(next));
@@ -1842,6 +1876,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 반복 읽기는 실행하지 않는다. 다만 별도 파일 완료 계약까지 같이 버리지는 않는다.
       // 중복 방지와 완료 판정은 서로 다른 경계다.
       if (await 산출물이어가기()) continue;
+      if (await 남은정리이어가기()) continue;
       멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요';
       break;
     }
@@ -2117,6 +2152,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
   // 소진했다고 말하면 모델이 "손이 없다"는 거짓 상태를 사용자에게 설명한다.
   reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록() });
+  const 남은정리 = 남은파일정리대상(turnReceipts);
+  if (파일정리요청(intent) && 남은정리 && /끝냈|완료|끝났|다 했/.test(reply) && !/부분|남아|남겼|아직/.test(reply)) {
+    reply = `부분 완료입니다. ${남은정리.files}개 파일이 ${남은정리.path}에 아직 남아 있어 전체 정리 완료라고 말할 수는 없어요.\n\n${reply}`;
+  }
   // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
   reply = 미리보기정렬(reply, ctx.미리보기);
   // H09 P0 는 화면 정렬보다 세다: 스트리밍으로 이미 나간 거짓 서술을 정렬이 되살리면, 지속되는
