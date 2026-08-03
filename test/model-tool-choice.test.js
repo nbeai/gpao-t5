@@ -249,6 +249,39 @@ test('모델이 도구를 안 고르면 예전처럼 그냥 답한다(폴백 유
   assert.equal(r.reply, '안녕하세요');
 });
 
+test('동의 후속 발화는 직전 파일 정리 목표를 이어받고 계획문에서 멈추지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-followup-'));
+  await writeFile(join(dir, 'a.pdf'), 'a');
+  let call = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      call += 1;
+      if (call === 1) return { text: '정리용 폴더를 만들고 옮길게.', toolCalls: [] };
+      if (opts.requiredTool === 'local.file') {
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: { action: 'bulk_move', path: '.', to: '문서', match: { extensions: ['.pdf'] } },
+        }] };
+      }
+      return { text: '정리했어.', toolCalls: [] };
+    },
+  };
+  const ctx = {
+    env: demoEnv(),
+    model,
+    recentTurns: [
+      { role: 'user', text: '내 다운로드 폴더 깔끔하게 정리 좀 하고 싶다.' },
+      { role: 'assistant', text: '문서/이미지/압축으로 정리할게.' },
+    ],
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+  };
+
+  const r = await runTurn({ text: '응, 그렇게 해줘.' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(await readFile(join(dir, '문서/a.pdf'), 'utf8'), 'a');
+  assert.ok((r.ledger?.confirmed ?? []).length > 0, '계획문만 답하고 실행 없이 끝나면 안 된다');
+});
+
 // ── P2-5b-2: 다른 provider 도 같은 계약 ──────────────────────────────────
 // 라이브(ChatGPT)에서 검증된 것을 넓힌다. 셰이프만 다르고 계약은 같다:
 // 도구를 주면 {text, toolCalls} 를 돌려주고, 이름은 와이어에서 안전하게 바꿨다가 되돌린다.

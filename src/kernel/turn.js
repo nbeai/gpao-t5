@@ -48,6 +48,20 @@ import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './tur
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
 
+function 동의후속(text = '') {
+  const t = String(text).trim().replace(/[.,!?，。！？\s]/g, '');
+  return /^(응|그래|좋아|ㅇㅇ|어|그렇게해|그렇게해줘|응그렇게해|응그렇게해줘|진행해|계속해|해줘|해)$/.test(t);
+}
+
+function 직전실행목표(recentTurns = [], selfState) {
+  for (const turn of [...recentTurns].reverse()) {
+    if (turn?.role !== 'user') continue;
+    const prior = interpret(turn.text ?? '', { selfState });
+    if (prior.neededTools?.length && prior.answerMode !== 'fast_chat') return prior;
+  }
+  return null;
+}
+
 /**
  * P90-1 정산 게이트. 최초 작업 후보는 호출 여부만 정하며 사건의 근거가 아니다.
  * activeGoal은 관련 없는 기억·선호 턴에도 붙는 추정 라벨이라 독립 게이트로 쓰지 않는다.
@@ -721,7 +735,11 @@ export async function runTurn(input, ctx) {
   }
 
   // 1) 말귀
-  const intent = interpret(input.text, { selfState });
+  let intent = interpret(input.text, { selfState });
+  if (!intent.neededTools?.length && 동의후속(input.text)) {
+    const prior = 직전실행목표(ctx.recentTurns, selfState);
+    if (prior) intent = { ...prior, currentRequest: input.text, desiredOutcome: prior.desiredOutcome };
+  }
 
   // Phase 0-4: 승격된 스킬이 **말귀를 넓힌다**. 일반 규칙이 못 알아듣는 표현이라도 배운 작업의
   //   트리거와 맞으면 그것 자체가 실행 신호다 — 그게 "배웠다"의 뜻이다(계획서 Phase 7).
@@ -914,9 +932,11 @@ export async function runTurn(input, ctx) {
   // CHAT 계약인데 모델이 대상 없는 파일 호출을 함께 냈다면, 그 불완전한 호출로 파일 이름을
   // 되묻지 않는다. 자료를 실제로 읽어야 하는 채팅이면 모델 호출에 path가 있어야 하고 그대로
   // 실행된다. 대상도 없고 파일 산출물도 아닌 호출만 버린 뒤 답을 완성한다.
+  let chatDiscardedFileCall = false;
   if (completionContract.assessment === 'chat' && modelChosen?.length) {
     const usable = modelChosen.filter((call) => call?.name !== 'local.file'
       || (call?.args?.action !== 'write' && String(call?.args?.path ?? '').trim()));
+    chatDiscardedFileCall = usable.length !== modelChosen.length;
     modelChosen = usable.length ? usable : null;
   }
   if (completionContract.assessment === 'chat' && !modelChosen) {
@@ -944,6 +964,24 @@ export async function runTurn(input, ctx) {
           modelChosen = 분리.rest;
           if (typeof out !== 'string' && out?.text) earlyReply = out.text;
         }
+      }
+    }
+  }
+
+  if (!modelChosen && intent.neededTools?.includes('local.file') && !chatDiscardedFileCall) {
+    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
+    if (fileTools.length) {
+      const out = await ctx.model.respond({ ...earlyTc, actionRequired: true }, {
+        effort: 'medium', tools: fileTools, requiredTool: 'local.file',
+      });
+      const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+      통제제안받기(분리);
+      if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
+      if (분리.memoryWithdrawal) memoryWithdrawal = 분리.memoryWithdrawal;
+      if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
+      if (분리.rest.length) {
+        modelChosen = 분리.rest;
+        if (typeof out !== 'string' && out?.text) earlyReply = out.text;
       }
     }
   }
