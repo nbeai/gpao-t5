@@ -90,6 +90,10 @@ export const 허용파일 = [
   'src/runtime/local-file.js',
   'src/runtime/local-locate.js',
   'src/runtime/session-search-tool.js',
+  // S2 필수 계약 둘: ③ 영수증 진실(applied:false 는 확인된 사실이 아니다) ·
+  // ② exchange 저장(재시작해도 모델의 행동 이력이 남는다).
+  'src/kernel/l0-evidence/ledger.js',
+  'src/surface/server.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

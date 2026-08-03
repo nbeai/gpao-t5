@@ -67,5 +67,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/local-file.js',
     'src/runtime/local-locate.js',
     'src/runtime/session-search-tool.js',
+    'src/kernel/l0-evidence/ledger.js',
+    'src/surface/server.js',
   ]);
 });

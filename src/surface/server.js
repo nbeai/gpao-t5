@@ -535,6 +535,11 @@ export function makeServer(deps = {}) {
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
       recentTurns: recentTurns(session.transcript ?? []),
+      // **앞 턴의 도구 대화를 되돌려 준다**(정본 §S2 필수 계약 ②). 대화에 저장돼 있으므로
+      // 재시작·다른 프로세스에서도 살아난다 — 모델 주도 구조에서 행동 이력이 지워지면
+      // 그건 기억상실이다. 가장 최근 턴 것만 준다: 전부 실으면 프롬프트가 턴마다 커진다.
+      priorExchange: [...(session.transcript ?? [])].reverse()
+        .find((t) => t?.role === 'assistant' && t?.result?.turnExchange?.length)?.result?.turnExchange,
       // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). **사실만 나열한다** — 무엇을 이어받을지는
       // 모델이 정한다. 같은 대화는 recentTurns 가 이미 잇고, 다른 사용자 것은 오지 않는다.
       carryableWork: [

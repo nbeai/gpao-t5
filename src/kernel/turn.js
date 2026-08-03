@@ -837,7 +837,7 @@ export async function runTurn(input, ctx) {
   {
     const tc = earlyTc = buildTaskContext({
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
+      intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
@@ -1418,6 +1418,8 @@ export async function runTurn(input, ctx) {
 
   // 4b) 승인 필요 없음 → 바로 실행.
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 심문제외, 계획호출신분);
+  // 다음 턴이 이어받을 자리에 남긴다. 서버가 대화에 저장하면 재시작도 넘는다.
+  if (result?.turnExchange?.length) ctx.priorExchange = result.turnExchange;
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1633,7 +1635,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
-    recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
+    recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
     ...예산사실(),
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
@@ -1890,7 +1892,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
         intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
-        surface: ctx.surface, recentTurns: ctx.recentTurns,
+        surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState,
         recoveryHint: 다음길(turnReceipts, 있는손()),
@@ -2082,7 +2084,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
-      surface: ctx.surface, recentTurns: ctx.recentTurns,
+      surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState,
       recoveryHint: 다음길(turnReceipts, 있는손()),
@@ -2200,6 +2202,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     goal: 완료 ? null : { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
     // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
     workingState,
+    // **이번 턴에 모델이 실제로 부른 것** — 다음 턴이 이어받아 자기 이력으로 되돌려 준다
+    // (정본 §S2 필수 계약 ②). 서버가 대화에 함께 저장해 재시작 뒤에도 살아남는다.
+    // 여기서 다시 만들지 않는다 — 모델 앞에 실제로 놓였던 그 배열을 그대로 넘긴다.
+    turnExchange: tc?.turnExchange ?? [],
     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
     // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
     // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.

@@ -24,7 +24,22 @@ export function 확인된사실(rec) {
     && rec.lifecycle === 'delivered'
     && rec.failureState === FAILURE.NONE
     && rec.actualCall
-    && rec.result !== undefined);
+    && rec.result !== undefined
+    // **성공은 관찰된 실제 효과다**(정본 §S2 필수 계약 ③).
+    //
+    // 손이 `applied` 라는 기계 사실을 내면 그것이 이 판정을 이긴다. `local.terminal` 의
+    // probe 는 **쓰기가 막힌 채 도는 확인**이라 exit 0 이어도 아무것도 안 바뀐다. 그런데
+    // 여기서는 lifecycle·failureState·result 만 봐서 통과시켰고, 사용자면 문장은
+    // "확인만 했어요"인데 **원장은 confirmed 로 세었다** — 한 턴에 두 진실이 섰다.
+    //
+    // 실측(2026-08-03, 헤르메스 대조): 명령이 `2>/dev/null || true` 로 실패를 삼켜 exit 0 이
+    // 나오자 원장에 "실행했어요 · failureState:none" 이 남았다. 디스크는 그대로였고
+    // 모델은 그 거짓 기록 위에서 다음을 판단했다. **원장이 거짓이면 셀프후드도 말귀도
+    // 그 위에 못 선다.**
+    //
+    // 칸이 아예 없는 손(파일·웹 등)은 영향받지 않는다 — 없는 것을 false 로 읽으면
+    // 실제로 한 일까지 미확인이 되어 원장이 반대 방향으로 거짓이 된다.
+    && rec.result?.applied !== false);
 }
 
 /**

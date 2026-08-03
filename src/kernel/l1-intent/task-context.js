@@ -521,9 +521,18 @@ export function buildTaskContext(p) {
   // 가 모델 입력에 원문 재공급되며 걸렸다(실측 2026-08-04). 실패한 호출의 절대 경로가 확인된
   // 값처럼 도는 것을 막는 계약(`02375fe`)은 이 슬라이스가 여는 셋에 들어 있지 않다.
   // 그래서 성공은 원문, 실패는 아래 `확인되지않은인자` 를 통과한 인자로 간다.
+  // ── **앞 턴의 도구 대화도 모델의 것이다** (정본 §S2 필수 계약 ②) ─────────────
+  //
+  // `turnExchange` 는 이번 턴 영수증에서만 나온다. 그래서 턴이 넘어가면 모델은 자기가
+  // 방금 무엇을 했는지 **서술(recentTurns)로만** 받았다 — 재시작하면 그마저도 형태가 바뀐다.
+  // 모델 주도 구조에서 행동 이력이 지워지는 것은 **기억상실**이다(계약 ② 의 정의역).
+  //
+  // 그래서 저장된 앞 턴 교환을 **이번 턴 교환 앞에** 잇는다. 순서는 시간 순이다.
+  // 사실을 두 벌로 만들지 않는다 — 같은 신분(`providerCallId`·`ref`)이 오면 뒤엣것이 이긴다.
+  const 앞턴교환 = Array.isArray(p.priorExchange) ? p.priorExchange : [];
   const 부른것 = (p.receipts ?? []).filter((r) => r?.actualCall?.tool
     && (실패도교환() || (r.failureState ?? 'none') === 'none'));
-  if (부른것.length) {
+  if (부른것.length || 앞턴교환.length) {
     packet.turnExchange = 부른것.map((r, i) => {
       const 실패 = (r.failureState ?? 'none') !== 'none';
       return {
@@ -547,6 +556,13 @@ export function buildTaskContext(p) {
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
       };
     });
+    if (앞턴교환.length) {
+      const 이번신분 = new Set(packet.turnExchange.map((x) => x.providerCallId ?? x.ref));
+      packet.turnExchange = [
+        ...앞턴교환.filter((x) => !이번신분.has(x?.providerCallId ?? x?.ref)),
+        ...packet.turnExchange,
+      ];
+    }
   }
 
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
