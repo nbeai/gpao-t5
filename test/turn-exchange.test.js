@@ -36,6 +36,9 @@ const 못부름 = {
   intended: '연결', failureState: 'blocked', userSafeSummary: '연결 방식이 없어요.', actualCall: null,
 };
 const tcOf = (receipts) => buildTaskContext({ intent, selfState, receipts });
+// S1 슬라이스(`T5_MODEL_SOVEREIGN=1`)는 실패한 호출을 **서술에서 교환으로 옮긴다**(계약 ②).
+// 자리는 옮겨도 성질은 안 바뀐다 — 아래 ② 는 그 성질을 **양팔 모두에서** 잰다.
+const 주객회복 = process.env.T5_MODEL_SOVEREIGN === '1';
 
 test('성공한 실행은 모델 자신의 도구 호출로 간다', () => {
   const tc = tcOf([성공]);
@@ -47,12 +50,20 @@ test('성공한 실행은 모델 자신의 도구 호출로 간다', () => {
 });
 
 // ── ② 확인되지 않은 값을 이력에 심지 않는다 ──────────────────────────────
-test('실패한 호출은 교환에 넣지 않는다 — 확인되지 않은 인자를 사실로 심지 않는다', () => {
+test('실패한 호출은 확인되지 않은 인자를 사실로 심지 않는다(자리가 어디든)', () => {
   const tc = tcOf([실패]);
-  assert.equal(tc.turnExchange, undefined, '실패한 호출이 모델의 실행 이력이 되면 안 된다');
-  const 서술 = JSON.stringify(tc.evidenceFacts);
-  assert.match(서술, /그 자리는 밖이에요/, '실패 사실 자체는 남아야 한다');
-  assert.doesNotMatch(서술, /\/비밀\/폴더/, '확인되지 않은 절대 경로는 가려서 남긴다');
+  // ── 자리 (플래그가 여는 것) ───────────────────────────────────────────
+  if (주객회복) {
+    assert.equal(tc.evidenceFacts, undefined, '교환으로 옮겼으면 서술에 또 있으면 안 된다');
+    assert.equal(tc.turnExchange?.[0]?.failureState, 'blocked', '실패도 자기 행동으로 돌아와야 한다');
+    assert.equal(tc.turnExchange[0].data, undefined, '실패 결과는 확인된 값이 아니다 — 내용을 싣지 않는다');
+  } else {
+    assert.equal(tc.turnExchange, undefined, '실패한 호출이 모델의 실행 이력이 되면 안 된다');
+  }
+  // ── 성질 (플래그가 열지 않는 것 · 양팔 공통) ──────────────────────────
+  const 전부 = JSON.stringify(tc);
+  assert.match(전부, /그 자리는 밖이에요/, '실패 사실 자체는 남아야 한다');
+  assert.doesNotMatch(전부, /\/비밀\/폴더/, '확인되지 않은 절대 경로는 가려서 남긴다');
 });
 
 test('부르지도 못한 것은 서술로 남는다', () => {
@@ -64,8 +75,10 @@ test('부르지도 못한 것은 서술로 남는다', () => {
 // ── ③ 같은 사실을 두 번 주지 않는다 ──────────────────────────────────────
 test('교환과 서술이 겹치지 않는다', () => {
   const tc = tcOf([성공, 실패, 못부름]);
-  assert.equal(tc.turnExchange.length, 1, '성공한 것만 교환으로');
-  assert.equal(tc.evidenceFacts.length, 2, '나머지는 서술로');
+  assert.equal(tc.turnExchange.length, 주객회복 ? 2 : 1, '실제로 부른 것만 교환으로');
+  assert.equal(tc.evidenceFacts.length, 주객회복 ? 1 : 2, '나머지는 서술로');
+  // 셋을 넣었으면 셋이 나온다 — 자리가 갈려도 하나가 증발하면 안 된다.
+  assert.equal(tc.turnExchange.length + tc.evidenceFacts.length, 3);
   assert.doesNotMatch(JSON.stringify(tc.evidenceFacts), /견적서\.md 을\(를\) 읽었어요/,
     '같은 실행을 두 자리에서 주면 프롬프트가 두 배가 되고 사실이 두 벌이 된다');
 });

@@ -41,6 +41,7 @@ import { defaultTargetFor } from './l5-growth/task-trace.js';
 import { isKnownCounterpart, rememberCounterpart } from './l2-plan/known-counterpart.js';
 import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
+import { 심문허용 } from './model-sovereign.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -171,6 +172,16 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
   if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
   const directWrite = calls.some((call) => call?.name === 'local.file' && call?.args?.action === 'write');
+  // **S1 슬라이스**(`T5_MODEL_SOVEREIGN=1`): FILE/CHAT 을 모델에게 따로 묻지 않는다.
+  // 이 심문은 왕복 하나를 판정에 쓰면서 "결과가 파일인가"를 **행동 전에** 확정한다 —
+  // 사용자 목적을 런타임이 미리 형식으로 못박는 자리다. 대신 모델이 이미 고른 것으로만 판단한다:
+  // 쓰기를 골랐으면 파일 산출물이 결과이고(구조 사실), 아니면 아직 정해지지 않았다.
+  // 미충족 사실은 실행 뒤 원장 대조가 그대로 말한다(강제는 기준선에서 이미 걷혔다).
+  if (!심문허용()) {
+    return directWrite
+      ? { assessment: 'file', deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }] }
+      : { assessment: 'not_applicable', deliverables: [] };
+  }
   // 쓰기 호출도 곧바로 사용자의 완료 의도로 간주하지 않는다. 실사용에서 모델이
   // "파일은 아직 만들지 마"를 보고도 write를 고른 적이 있다. 호출은 후보이고, 결과가
   // 파일이어야 하는지는 요청 전체를 보는 별도 판단으로 확정한다.
@@ -823,7 +834,11 @@ export async function runTurn(input, ctx) {
 
   // 대화 이력 속 미완료 행동과 지금 요청이 한 번에 선택되면 안전 카드가 서로 다른 일을 묶는다.
   // 현재 발화에 속한 행동만 구조 판정으로 남기며, 판정 불능이면 실행보다 짧은 확인을 택한다.
-  if (modelChosen?.length > 1) {
+  //
+  // **S1 슬라이스**(`T5_MODEL_SOVEREIGN=1`): 이 재심사를 하지 않는다. 모델이 방금 고른 것을
+  // 런타임이 다시 심문하면 왕복 하나가 판정에 쓰이고, 그 판정이 모델의 선택을 걷어낸다.
+  // 대신 아래 기존 경계(승인·완료 계약·중복 차단)가 그대로 받는다 — 안전은 안 열린다.
+  if (심문허용() && modelChosen?.length > 1) {
     modelChosen = await currentRequestCalls({
       calls: modelChosen, text: input.text ?? '', tc: earlyTc, model: ctx.model, selfState,
     });

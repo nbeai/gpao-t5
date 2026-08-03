@@ -4,6 +4,7 @@
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 import { sameSiteLinks } from '../l0-evidence/working-state.js';
 import { operatorReality } from './operator-reality.js';
+import { 실패도교환 } from '../model-sovereign.js';
 
 /**
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
@@ -377,23 +378,38 @@ export function buildTaskContext(p) {
   // **성공한 호출만** 교환으로 간다. 실패한 호출의 인자는 `확인되지 않은 값`이라 아래 서술이
   // 가림(`확인되지않은인자`)을 걸어 다루고 있다 — 그걸 대화 이력에 사실처럼 심으면 모델이
   // 확인되지 않은 절대 경로를 자기가 실제로 쓴 값으로 읽는다(그 계약을 검사가 지키고 있다).
-  const 해낸것 = (p.receipts ?? []).filter((r) => r?.actualCall?.tool && (r.failureState ?? 'none') === 'none');
-  if (해낸것.length) {
-    packet.turnExchange = 해낸것.map((r, i) => ({
-      id: `c${i + 1}`,
-      tool: r.actualCall.tool,
-      args: r.actualCall.args ?? {},
-      // 결과는 서술 블록이 주던 것과 **같은 내용**이다(줄이지 않는다). 렌더는 provider 가 한다 —
-      // 읽은 곳/안 읽은 곳은 와이어마다 같은 문장을 쓰므로 그쪽 `surfaceLines` 를 그대로 재사용한다.
-      summary: r.userSafeSummary,
-      surface: surfaceOf(r),
-      data: compactResult(r.result),
-    }));
+  //
+  // **S1 슬라이스**(`T5_MODEL_SOVEREIGN=1`, 주객 회복 계약 ②): 실패·차단도 자기 행동이다.
+  // 성공만 자기 것으로 돌려주면 모델은 **자기가 무엇을 시도해 어디서 막혔는지**를 3인칭 서술로
+  // 받는다 — 그 상태로는 "다른 손으로 바꾼다"가 자기 판단이 아니라 남의 보고에 대한 반응이 된다.
+  // 다만 **가림은 그대로 선다.** 첫 판에서 나는 인자를 원문 그대로 실어놓고 주석에는 "가림은
+  // 결과 쪽에서 건다"고 적었다 — 어디서도 안 걸었다. 플래그 ON 회귀에서 `/Users/someone/Downloads`
+  // 가 모델 입력에 원문 재공급되며 걸렸다(실측 2026-08-04). 실패한 호출의 절대 경로가 확인된
+  // 값처럼 도는 것을 막는 계약(`02375fe`)은 이 슬라이스가 여는 셋에 들어 있지 않다.
+  // 그래서 성공은 원문, 실패는 아래 `확인되지않은인자` 를 통과한 인자로 간다.
+  const 부른것 = (p.receipts ?? []).filter((r) => r?.actualCall?.tool
+    && (실패도교환() || (r.failureState ?? 'none') === 'none'));
+  if (부른것.length) {
+    packet.turnExchange = 부른것.map((r, i) => {
+      const 실패 = (r.failureState ?? 'none') !== 'none';
+      return {
+        id: `c${i + 1}`,
+        tool: r.actualCall.tool,
+        args: (실패 ? 확인되지않은인자(r.actualCall.args) : r.actualCall.args) ?? {},
+        // 결과는 서술 블록이 주던 것과 **같은 내용**이다(줄이지 않는다). 렌더는 provider 가 한다 —
+        // 읽은 곳/안 읽은 곳은 와이어마다 같은 문장을 쓰므로 그쪽 `surfaceLines` 를 그대로 재사용한다.
+        summary: r.userSafeSummary,
+        surface: surfaceOf(r),
+        // 실패한 호출의 결과는 확인된 값이 아니다 — 내용을 사실처럼 싣지 않고 상태만 준다.
+        ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result) }),
+        ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
+      };
+    });
   }
 
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
-  // **성공한 호출은 위 `turnExchange` 가 가져갔다** — 여기 남는 것은 못 부른 것과 실패한 것이다.
-  const 남은것 = (p.receipts ?? []).filter((r) => !(r?.actualCall?.tool && (r.failureState ?? 'none') === 'none'));
+  // **`turnExchange` 가 가져간 것은 여기 없다** — 같은 사실을 두 번 주지 않는다.
+  const 남은것 = (p.receipts ?? []).filter((r) => !부른것.includes(r));
   if (남은것.length) {
     packet.evidenceFacts = 남은것.map((r) => ({
       intended: r.intended,

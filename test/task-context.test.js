@@ -47,9 +47,13 @@ test('실패한 호출의 절대 경로는 실행 사실로 승격되거나 원�
     actualCall: { tool: 'local.file', args: { action: 'list', path: '/Users/someone/Downloads' } },
     failureState: 'blocked', userSafeSummary: '그 자리는 확인하지 못했어요.',
   }] });
-  assert.equal(tc.evidenceFacts[0].calledWith, undefined, '실패한 인자를 실행 사실 칸에 넣었다');
-  assert.match(tc.evidenceFacts[0].attemptedWith, /확인되지 않은 절대 경로/);
-  assert.doesNotMatch(JSON.stringify(tc.evidenceFacts), /\/Users\/someone/);
+  // S1 슬라이스는 실패한 호출의 **자리**를 서술→교환으로 옮긴다(계약 ②). 옮겨도 이 성질은
+  // 그대로다 — 확인되지 않은 절대 경로는 어느 자리에서도 원문으로 재공급되지 않는다.
+  const 실패기록 = tc.evidenceFacts?.[0] ?? tc.turnExchange?.[0];
+  assert.ok(실패기록, '실패 사실이 어느 자리에도 없다');
+  assert.equal(실패기록.calledWith, undefined, '실패한 인자를 실행 사실 칸에 넣었다');
+  assert.match(JSON.stringify(실패기록), /확인되지 않은 절대 경로/);
+  assert.doesNotMatch(JSON.stringify(tc), /\/Users\/someone/);
 });
 
 // ── C 감사 F4.2 · 파일 본문의 줄 구조를 모델 입력에서 지우지 않는다 ───────

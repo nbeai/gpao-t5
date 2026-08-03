@@ -57,8 +57,12 @@ test('실패한 실행 인자는 확인된 실행과 분리해 시도값으로 �
     userSafeSummary: '찾지 못했어요.',
   });
   const tc = buildTaskContext({ intent, selfState, receipts: [실패] });
-  assert.equal(tc.evidenceFacts[0].calledWith, undefined, '실패한 인자를 성공한 호출 사실로 올렸다');
-  assert.match(tc.evidenceFacts[0].attemptedWith, /없는파일\.md/);
+  // S1 슬라이스는 실패한 호출을 교환으로 옮긴다(계약 ②) — 자리는 달라도 계약은 같다:
+  // ① 확인된 실행 사실 칸에는 안 올린다 ② 무엇을 시도했는지는 볼 수 있다.
+  const 실패기록 = tc.evidenceFacts?.[0] ?? tc.turnExchange?.[0];
+  assert.ok(실패기록, '실패 사실이 어느 자리에도 없다');
+  assert.equal(실패기록.calledWith, undefined, '실패한 인자를 성공한 호출 사실로 올렸다');
+  assert.match(JSON.stringify(실패기록), /없는파일\.md/, '무엇을 시도했는지가 사라지면 모델은 같은 것을 또 부른다');
 });
 
 test('인자가 없는 도구도 깨지지 않는다', () => {
