@@ -30,7 +30,18 @@ export function makeSessionSearchTool(deps) {
       const sessions = (await deps.store.loadAll()).filter((s) => !s.deletedAt);
       const hits = searchTranscripts(sessions, query).slice(0, limit);
       if (!hits.length) {
-        return { result: { hits: [] }, userSafeSummary: `"${query}"로 지난 대화에서 찾지 못했어요.` };
+        // **몇 개를 뒤졌는지 말한다.** "찾지 못했어요"만 주면 모델은 "대화가 없나"·"검색이
+        // 막혔나"를 추측한다(S1 에서 파일 손이 정확히 그 병으로 거짓 진단을 냈다).
+        // 대화가 0개인 것과 200개를 뒤져서 없는 것은 **완전히 다른 사실**이다.
+        return {
+          result: { hits: [], searched: sessions.length },
+          userSafeSummary: sessions.length
+            ? `"${query}"로 지난 대화 ${sessions.length}개를 뒤졌는데 찾지 못했어요.`
+            : `"${query}"로 찾아봤는데 지난 대화가 아직 0개예요.`,
+          nextSafeAction: sessions.length
+            ? '다른 낱말로 찾아볼까요? 짧은 한 단어가 더 잘 걸려요.'
+            : '대화가 쌓이면 그때부터 찾아볼 수 있어요.',
+        };
       }
       // 제목·시각·조각만. 전문을 옮기지 않는다.
       const byId = new Map(sessions.map((s) => [s.id, s]));
