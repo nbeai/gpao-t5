@@ -171,12 +171,39 @@ export async function ensureRoot(roots = defaultFileRoots()) {
  */
 export function outOfScopeMessage(err) {
   const roots = err?.roots ?? defaultFileRoots();
+  // **막을 때도 무엇을 막았는지 말한다**(라이브 실측 2026-08-03).
+  // "다운로드 폴더 정리하자"에 T5 는 "그 자리는 밖이에요. 파일 도구는 … **다운로드** …
+  // 안에서만 다뤄요"라고 답했다. 다운로드가 된다면서 다운로드를 거절한 셈이라 사용자에겐
+  // 모순으로만 읽혔고, **어느 자리가 문제인지는 화면에도 원장 진단에도 없었다**(actualCall:null,
+  // reason:'not_executable' 이 전부). 모델도 무엇을 고쳐 다시 부를지 알 수 없었다.
+  //
+  // 경로를 사용자에게 그대로 싣지 않는 계약은 그대로 지킨다(2026-08-02: 절대경로가 답변에
+  // 옮겨 적혔다). 대신 **사람이 부르는 이름**으로 가리키고, 실제 경로는 진단면에만 둔다.
+  const 가리킨곳 = 부르는이름(err?.target);
   return {
-    userSafeSummary: '그 자리는 파일 도구의 작업 폴더 밖이에요.',
+    userSafeSummary: 가리킨곳
+      ? `${가리킨곳}은(는) 파일 도구의 작업 폴더 밖이에요.`
+      : '그 자리는 파일 도구의 작업 폴더 밖이에요.',
     // **사실만 남긴다** — 이 손이 어디까지 다루는지. 사용자에게 시키지도, 다른 손을 약속하지도
     // 않는다(이 손은 다른 손이 있는지 모른다). 다음 계단은 손 목록을 아는 커널이 정한다.
     nextSafeAction: `파일 도구는 ${부르는이름들(roots)} 안에서만 다뤄요.`,
+    // 진단면 — 사용자면에는 절대 안 나간다. 이게 없으면 결함을 재현할 수가 없다(실측).
+    diagnostic: { reason: 'out_of_scope', target: err?.target || null, roots },
   };
+}
+
+/**
+ * 막힌 대상을 **사람이 부르는 말**로. 경로 전체를 싣지 않는다 — 마지막 이름 하나면
+ * 사용자는 자기가 무엇을 말했는지 안다("다운로드", "외장하드"). 이름을 못 뽑으면 아무 말도
+ * 하지 않는다(지어내지 않는다).
+ */
+function 부르는이름(target) {
+  const t = String(target ?? '').replace(/\/+$/, '');
+  if (!t) return null;
+  const 끝 = t.slice(t.lastIndexOf('/') + 1);
+  if (!끝 || 끝 === t) return null;             // 상대 경로·빈 값은 가리키지 않는다
+  // 이름표는 **한 벌만 쓴다**(`폴더부름말`) — 두 벌로 두면 한쪽만 늘어난다.
+  return 폴더부름말[끝] ?? (끝 === 'GPAO-T5' ? '작업 폴더' : 끝);
 }
 
 /**

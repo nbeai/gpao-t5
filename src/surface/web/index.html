@@ -1416,9 +1416,16 @@ function receiptNote() {
  */
 function 기록라벨(ledger) {
   const 확인 = ledger?.confirmed ?? [];
-  const 전체 = 확인.length + (ledger?.unconfirmed?.length || 0) + (ledger?.estimated?.length || 0);
-  if (!확인.length) return `작업 기록 · 도구 ${전체}개`;   // 확인된 것이 없으면 사실로 말할 게 없다
-  const 첫 = String(확인[0]).replace(/[.\s]+$/, '');
+  const 미확인 = ledger?.unconfirmed ?? [];
+  const 전체 = 확인.length + 미확인.length + (ledger?.estimated?.length || 0);
+  // **못 한 것도 사실이다.** 확인된 것이 없을 때 "도구 N개"로 떨어지면, 막힌 턴에서 화면에
+  // 남는 것은 모델의 산문 한 줄뿐이고 기계 사실은 접힌 채 숨는다(2026-08-03 실측: 연결이
+  // 막혔는데 답은 "확인했어요."였고 접힌 이름은 "도구 1개"였다).
+  // 다만 **확인처럼 적지는 않는다** — `미확인:` 표를 달아 그대로 올린다. 표 없이 올리면
+  // 펼치지 않는 사용자가 됐다고 믿는다(그건 숫자보다 나쁘다).
+  const 고른것 = 확인.length ? { 말: 확인[0], 표: '' } : 미확인.length ? { 말: 미확인[0], 표: '미확인: ' } : null;
+  if (!고른것) return `작업 기록 · 도구 ${전체}개`;
+  const 첫 = `${고른것.표}${String(고른것.말).replace(/[.\s]+$/, '')}`;
   const 나머지 = 전체 - 1;
   return 나머지 > 0 ? `${첫} 외 ${나머지}건` : 첫;
 }

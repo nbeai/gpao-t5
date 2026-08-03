@@ -1018,6 +1018,9 @@ export async function runTurn(input, ctx) {
   // 이 계약은 실행이나 외부 확인을 하지 않는다. 도구가 "불가능"을 알리면 승인 카드로
   // 포장하지 않고 그 사실을 원장과 모델에 넘긴다. 그래야 사용자는 존재하지 않는 일을
   // 허락하지 않고, 모델은 그 사실 위에서 다음 길을 판단한다.
+  /** 계획 단계에서 막힌 손과 그 사실 — **답이 아니라 이번 턴 모델에게 줄 재료다.** */
+  const 계획막힘 = [];
+  const 계획막힌손 = new Set();
   for (const id of planIntent.neededTools ?? []) {
     const args = id === 'local.terminal' ? planIntent.terminalOp : (planIntent.toolArgs?.[id] ?? planIntent.fileOp ?? {});
     const eligibility = await ctx.tools?.tools?.[id]?.approvalEligibility?.(args);
@@ -1029,19 +1032,27 @@ export async function runTurn(input, ctx) {
         eligibility.diagnostic,
       );
       ledger.append(rec);
-      const workingState = deriveWorkingState(ctx.workingState, {
-        places: await 볼수있는자리(ctx), receipts: [rec],
-      });
-      // 이 자리는 모델에게 추론을 대신시키는 곳이 아니다. 아직 존재를 확인하지 못한 연결을
-      // 승인 카드로 꾸미지 않았다는 **실행 사실**을 먼저 보존한다. 그 사실은 다음 턴의
-      // TaskContext와 원장에 올라가므로 모델은 그 위에서 다음 길을 판단한다.
-      const reply = [rec.userSafeSummary, rec.nextSafeAction].filter(Boolean).join(' ');
-      return {
-        kind: 'reply', reply, workingState, contextShown: workingStateFacts(workingState),
-        selfStateSummary: summary, ledger: projectReceipts([rec]), followUp, memorySuggestion, memoryWithdrawal,
-        shownMemoryRefs, modelCitedRefs, memoryCorrection,
-      };
+      // **막힌 사실은 답이 아니라 재료다** — 이 턴 안에서 모델에게 넘긴다(라이브 실측 2026-08-03).
+      //
+      // 예전엔 여기서 `return { kind:'reply', reply: 막힘문장 }` 으로 **턴을 끝냈다.** 주석은
+      // "그 사실은 **다음 턴의** TaskContext와 원장에 올라가므로 모델은 그 위에서 다음 길을
+      // 판단한다"고 적혀 있었다 — 즉 한 왕복을 통째로 태워 템플릿 한 문장만 말하고, 모델은
+      // 다음 턴으로 미룬 것이다. 실측: "내 다운로드 폴더를 같이 정리해볼까?" 에 T5 는
+      // "그 자리는 파일 도구의 작업 폴더 밖이에요"만 답하고 끝냈다. 모델은 한 마디도 못 했다.
+      //
+      // 사람이 일하는 방식이 아니다. 도구 하나가 안 되면 그 자리에서 다른 길을 찾지, 대화를
+      // 끊고 다음 턴을 기약하지 않는다. 실행 사실을 보존한다는 목적은 그대로다 —
+      // 원장에 남기는 것이 그 목적을 이미 달성한다. 끊는 것은 목적이 아니라 부작용이었다.
+      //
+      // 승인 카드로 꾸미지 않는다는 계약도 그대로다: 이 손은 계획에서 빠지므로 모델은 실행할 수
+      // 없는 일을 고를 수 없고, 사용자는 성공할 수 없는 카드를 보지 않는다.
+      계획막힘.push(rec);
+      계획막힌손.add(id);
     }
+  }
+  // 막힌 손은 이번 턴 계획에서 뺀다 — 못 하는 일을 계획에 남기면 카드가 함정이 된다.
+  if (계획막힌손.size) {
+    planIntent = { ...planIntent, neededTools: (planIntent.neededTools ?? []).filter((x) => !계획막힌손.has(x)) };
   }
   // S1 충돌 해소(오너 판정 2026-07-31) — **같은 발화에서 더 구체적인 의도가 확정된 경우에만**
   // 정규식 폴백의 파일 undo 오탐을 걷는다. "방금 기억한 선호는 취소해줘"는 기억 철회인데
@@ -1256,7 +1267,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘);
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1308,7 +1319,7 @@ function 이어받기정리(state, connectors = []) {
   return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
 }
 
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = []) {
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -1325,7 +1336,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 현실다시 = () => { ({ selfState, summary } = refreshRuntimeReality(ctx)); };
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
-  const turnReceipts = [];
+  // 계획 단계에서 막힌 사실도 **이번 턴의 영수증**이다 — 여기 없으면 모델은 자기가 고른 손이
+  // 왜 안 갔는지 모른 채 답을 쓴다(그래서 예전엔 아예 모델을 안 부르고 턴을 끝냈다).
+  const turnReceipts = [...앞선막힘];
   const 실행문맥 = () => ({
     currentRequest: intent.currentRequest,
     readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],

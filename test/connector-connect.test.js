@@ -134,9 +134,14 @@ test('선언되지 않은 서비스 연결은 승인 카드가 아니라 확인 
   const r = await runTurn({ text: '카페24 연결해줘' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.equal(r.pendingId, undefined, '없는 연결을 승인받게 하면 안 된다');
-  assert.match(r.reply, /바로 시작할 수 있는 연결 방식이 없어요/);
-  assert.equal(r.ledger.confirmed.length, 0);
+  assert.equal(r.ledger.confirmed.length, 0, '하지 않은 일을 확인으로 적으면 안 된다');
+  // **막힌 사실은 원장에 남고 화면에 뜬다.** 산문은 모델 몫이다 —
+  // 예전엔 T5 가 이 문장을 답으로 만들고 **모델을 부르지도 않은 채 턴을 끝냈다**(실측
+  // 2026-08-03: 사용자는 템플릿 한 줄만 받고 대화가 끊겼다). 지금은 같은 사실을 이번 턴
+  // 모델에게 넘겨 이어 가게 한다. 그래서 재는 것도 문장이 아니라 **원장의 기계 사실**이다.
   assert.ok(r.ledger.unconfirmed.length >= 1, '확인하지 못한 사실은 원장에 남긴다');
+  assert.match(r.ledger.unconfirmed.join(' '), /바로 시작할 수 있는 연결 방식이 없어요/,
+    '무엇이 막혔는지가 사실로 남아야 화면과 다음 턴이 그 위에서 이어진다');
 });
 
 test('탐색 뒤에 나온 선언되지 않은 연결도 승인 카드로 만들지 않는다', async () => {
