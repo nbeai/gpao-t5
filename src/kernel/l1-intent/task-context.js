@@ -276,10 +276,12 @@ function verifiedExecutionFacts(receipts = []) {
   const bulk = receipts.filter((r) => r?.actualCall?.tool === 'local.file'
     && (r.failureState ?? 'none') === 'none'
     && Array.isArray(r.result?.moved)
+    && typeof r.result?.from === 'string'
     && typeof r.result?.to === 'string');
   if (!bulk.length) return undefined;
 
   const destinations = new Map();
+  const sources = new Set();
   let moved = 0;
   let skipped = 0;
   for (const r of bulk) {
@@ -287,7 +289,23 @@ function verifiedExecutionFacts(receipts = []) {
     const skippedCount = Array.isArray(r.result.skipped) ? r.result.skipped.length : 0;
     moved += movedCount;
     skipped += skippedCount;
+    sources.add(r.result.from);
     destinations.set(r.result.to, (destinations.get(r.result.to) ?? 0) + movedCount);
+  }
+  const remainingSources = [];
+  for (const path of sources) {
+    const lastList = [...receipts].reverse().find((r) => r?.actualCall?.tool === 'local.file'
+      && (r.failureState ?? 'none') === 'none'
+      && r.result?.path === path
+      && Array.isArray(r.result?.items));
+    if (!lastList) continue;
+    const items = lastList.result.items;
+    remainingSources.push({
+      path,
+      items: items.length,
+      files: items.filter((i) => i?.kind === 'file').length,
+      folders: items.filter((i) => i?.kind === 'folder').length,
+    });
   }
 
   return {
@@ -295,6 +313,7 @@ function verifiedExecutionFacts(receipts = []) {
       calls: bulk.length,
       moved,
       skipped,
+      ...(remainingSources.length ? { remainingSources } : {}),
       destinations: [...destinations.entries()].map(([to, count]) => ({ to, moved: count })),
     },
   };

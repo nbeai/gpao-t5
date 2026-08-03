@@ -123,6 +123,20 @@ test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사
         skipped: [],
       },
     },
+    {
+      intended: '남은 항목 확인',
+      actualCall: { tool: 'local.file', args: { action: 'list', path: '/Downloads' } },
+      failureState: 'none',
+      userSafeSummary: '3개를 찾았어요.',
+      result: {
+        path: '/Downloads',
+        items: [
+          { name: '정리', kind: 'folder' },
+          { name: '남은앱.dmg', kind: 'file' },
+          { name: '애매한파일.bin', kind: 'file' },
+        ],
+      },
+    },
   ];
   const tc = buildTaskContext({ intent, selfState, receipts });
 
@@ -130,6 +144,9 @@ test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사
     calls: 2,
     moved: 5,
     skipped: 1,
+    remainingSources: [
+      { path: '/Downloads', items: 3, files: 2, folders: 1 },
+    ],
     destinations: [
       { to: '/Downloads/정리/문서', moved: 3 },
       { to: '/Downloads/정리/이미지', moved: 2 },
