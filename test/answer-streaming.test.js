@@ -299,8 +299,10 @@ test('계열④: 도구만 고른 스트림은 빈 답 오류가 아니고, 분�
   const cfg = resolveModelConfigFromInput({ provider: 'openai', key: 'k' });
   const out = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: () => {}, tools: 계열4도구 });
   assert.equal(out.text, '');
-  assert.deepEqual(out.toolCalls, [{ name: 'memory.propose', args: { statement: '줄글로' } }],
-    '와이어 이름을 커널 이름으로 되돌리고, 조각난 인자를 완성한다');
+  // **공급자가 발급한 신분도 함께 살아남는다**(2026-08-04). 예전엔 여기서 버려져서, 모델은
+  // 다음 호출에 자기가 발급한 적 없는 id 의 tool_call 을 "네가 한 일"로 돌려받았다.
+  assert.deepEqual(out.toolCalls, [{ name: 'memory.propose', args: { statement: '줄글로' }, providerCallId: 'call_1' }],
+    '와이어 이름을 커널 이름으로 되돌리고, 조각난 인자와 신분을 완성한다');
 });
 
 test('계열④: 텍스트와 도구가 함께 온 스트림은 둘 다 보존한다', async () => {
@@ -316,7 +318,7 @@ test('계열④: 텍스트와 도구가 함께 온 스트림은 둘 다 보존�
   const out = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: (t) => seen.push(t), tools: 계열4도구 });
   assert.equal(out.text, '잠깐 볼게요.');
   assert.deepEqual(seen, ['잠깐 ', '볼게요.']);
-  assert.deepEqual(out.toolCalls, [{ name: 'local.file', args: { path: 'a.txt' } }]);
+  assert.deepEqual(out.toolCalls, [{ name: 'local.file', args: { path: 'a.txt' }, providerCallId: 'c1' }]);
 });
 
 test('계열④: 복수 도구를 index 별로 나눠 누적한다(섞여 와도)', async () => {
@@ -331,9 +333,9 @@ test('계열④: 복수 도구를 index 별로 나눠 누적한다(섞여 와도
   const cfg = resolveModelConfigFromInput({ provider: 'openai', key: 'k' });
   const out = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: () => {}, tools: 계열4도구 });
   assert.deepEqual(out.toolCalls, [
-    { name: 'local.file', args: { path: 'b.txt' } },
-    { name: 'memory.propose', args: { statement: '둘' } },
-  ]);
+    { name: 'local.file', args: { path: 'b.txt' }, providerCallId: 'c1' },
+    { name: 'memory.propose', args: { statement: '둘' }, providerCallId: 'c2' },
+  ], 'index 별 누적이 인자뿐 아니라 신분까지 각자에게 붙어야 한다');
 });
 
 test('계열④: 깨진 arguments 는 그 호출만 버린다(반쪽 인자로 실행하지 않는다)', async () => {
@@ -347,7 +349,7 @@ test('계열④: 깨진 arguments 는 그 호출만 버린다(반쪽 인자로 �
   const cfg = resolveModelConfigFromInput({ provider: 'openai', key: 'k' });
   const out = await makeProviderModelClient(cfg, { fetchImpl }).respond(TC, { onDelta: () => {}, tools: 계열4도구 });
   assert.equal(out.text, '답은 남는다');
-  assert.deepEqual(out.toolCalls, [{ name: 'memory.propose', args: { statement: '산다' } }]);
+  assert.deepEqual(out.toolCalls, [{ name: 'memory.propose', args: { statement: '산다' }, providerCallId: 'c2' }]);
 });
 
 test('계열④: 중복 완료 이벤트가 와도 텍스트·도구는 정확히 한 번이다', async () => {

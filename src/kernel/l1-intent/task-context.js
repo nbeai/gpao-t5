@@ -393,7 +393,15 @@ export function buildTaskContext(p) {
     packet.turnExchange = 부른것.map((r, i) => {
       const 실패 = (r.failureState ?? 'none') !== 'none';
       return {
-        id: `c${i + 1}`,
+        // **두 신분을 구분해 담는다**(오너 지시 2026-08-04).
+        //   `providerCallId` — 공급자가 발급한 것. 없으면 **칸을 만들지 않는다.**
+        //   `ref`            — T5 내부 상관용. 언제나 있다.
+        // 예전엔 `c1, c2…` 하나뿐이었고 그것을 공급자 신분 자리에 실어 보냈다 — 모델은
+        // 자기가 발급한 적 없는 id 의 tool_call 을 "네가 한 일"로 돌려받았다(실측 2026-08-04).
+        // 내용도 짝도 맞았지만 신분이 지어낸 것이라, 런타임은 "모델이 무엇을 요청했는가"와
+        // "T5 가 무엇을 했는가"를 경계 너머로 이을 수 없었다.
+        ref: r.actualCall.callRef ?? `c${i + 1}`,
+        ...(r.actualCall.providerCallId ? { providerCallId: r.actualCall.providerCallId } : {}),
         tool: r.actualCall.tool,
         args: (실패 ? 확인되지않은인자(r.actualCall.args) : r.actualCall.args) ?? {},
         // 결과는 서술 블록이 주던 것과 **같은 내용**이다(줄이지 않는다). 렌더는 provider 가 한다 —
@@ -412,6 +420,11 @@ export function buildTaskContext(p) {
   const 남은것 = (p.receipts ?? []).filter((r) => !부른것.includes(r));
   if (남은것.length) {
     packet.evidenceFacts = 남은것.map((r) => ({
+      // **신분은 여기에도 온다.** 서술로 남는 것들(부르지도 못한 것 · 없는 손 · 상한에 걸린 것)도
+      // 모델이 낸 호출이면 그 신분이 있다. 없으면 모델은 "내가 call_SKIP 으로 시킨 게 어떻게
+      // 됐지"를 물을 수 없고, 안 간 것을 간 것으로 세어 답을 쓴다(오너 지시 2026-08-04).
+      ...(r.actualCall?.providerCallId ? { providerCallId: r.actualCall.providerCallId } : {}),
+      ...(r.actualCall?.callRef ? { ref: r.actualCall.callRef } : {}),
       intended: r.intended,
       failureState: r.failureState,
       // P2-8: **주소를 직접 받아 읽은 것**과 **검색해서 찾아 읽은 것**을 구분한다.

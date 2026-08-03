@@ -646,6 +646,7 @@ export async function runTurn(input, ctx) {
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     const result = await executePlan(
       saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs,
+      saved.intent?.currentRequest, [], [], [], saved.호출신분 ?? {},
     );
     result.workStateProposal = currentWorkStateProposal();
     return result;
@@ -1006,6 +1007,8 @@ export async function runTurn(input, ctx) {
   const 추가호출 = [];
   /** 우리가 안 보여준 손을 골랐다 — 예전엔 여기서 조용히 사라졌다. */
   const 없는손호출 = [];
+  /** 손 이름 → 그 손을 부른 모델 호출의 공급자 신분. */
+  const 계획호출신분 = {};
   if (modelChosen?.length) {
     const 보여준손 = new Set(modelSchemasFor(selfState, ctx.modelControls).map((t) => t.name));
     const 본것 = new Set();
@@ -1015,6 +1018,9 @@ export async function runTurn(input, ctx) {
       if (call?.name && 본것.has(call.name)) { 추가호출.push(call); continue; }
       if (call?.name) 본것.add(call.name);
       대표.push(call);
+      // 계획 경로가 실행할 대표 호출의 **공급자 신분**을 손 이름에 걸어 둔다. 계획은
+      // `plan.toolsToUse`(손 이름)로 도는 구조라 여기서만 이어 붙일 수 있다.
+      if (call?.name && call?.providerCallId) 계획호출신분[call.name] = { providerCallId: call.providerCallId };
     }
     modelChosen = 대표;
   }
@@ -1093,10 +1099,16 @@ export async function runTurn(input, ctx) {
   for (const [i, call] of 없는손호출.entries()) {
     계획막힘.push(receipt({
       intended: `${call?.name ?? '(이름 없음)'} 실행`,
-      actualCall: { tool: call?.name, args: call?.args ?? {} },
+      // **신분도 함께 남는다.** 공급자가 준 것이 있으면 그대로, 없으면 칸을 만들지 않는다.
+      // T5 내부 상관용 `callRef` 는 언제나 붙인다 — 둘은 서로 다른 것이다.
+      actualCall: {
+        tool: call?.name, args: call?.args ?? {},
+        ...(call?.providerCallId ? { providerCallId: call.providerCallId } : {}),
+        callRef: `없는손${i + 1}`,
+      },
       failureState: 'blocked',
       userSafeSummary: '그 손은 지금 없어요.',
-      diagnosticTrace: { callId: call?.id ?? `없는손${i + 1}`, 순번: i + 1, tool: call?.name, reason: '없는손' },
+      diagnosticTrace: { 순번: i + 1, tool: call?.name, reason: '없는손' },
     }));
   }
   const 계획막힌손 = new Set();
@@ -1346,7 +1358,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 심문제외);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 심문제외, 계획호출신분);
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1398,7 +1410,7 @@ function 이어받기정리(state, connectors = []) {
   return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
 }
 
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 심문제외 = []) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 심문제외 = [], 계획호출신분 = {}) {
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -1418,9 +1430,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 계획 단계에서 막힌 사실도 **이번 턴의 영수증**이다 — 여기 없으면 모델은 자기가 고른 손이
   // 왜 안 갔는지 모른 채 답을 쓴다(그래서 예전엔 아예 모델을 안 부르고 턴을 끝냈다).
   const turnReceipts = [...앞선막힘];
+  // **이번에 실행 중인 호출의 신분.** 실행 직전에 세우고 `실행문맥` 이 실어 보낸다 —
+  // 계획 경로·걸음 경로·승인 재개가 모두 이 한 자리를 지나므로 신분이 갈리지 않는다.
+  /** @type {{providerCallId?:string, callRef?:string}} */
+  let 현재호출신분 = {};
   const 실행문맥 = () => ({
     currentRequest: intent.currentRequest,
     readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],
+    ...현재호출신분,
   });
   const 계약실행 = async (toolId, args) => {
     const execute = async () => bindDeliverableReceipt(
@@ -1438,7 +1455,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     });
   };
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
-  for (const toolId of plan.toolsToUse) {
+  for (const [순번, toolId] of plan.toolsToUse.entries()) {
+    현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
@@ -1629,7 +1647,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 못한호출남기기 = (호출, 왜, 사람말) => {
     const rec = receipt({
       intended: `${toolLabel(호출.tool, selfState)} 실행`,
-      actualCall: { tool: 호출.tool, args: 호출.args ?? {} },
+      actualCall: {
+        tool: 호출.tool, args: 호출.args ?? {},
+        ...(호출.providerCallId ? { providerCallId: 호출.providerCallId } : {}),
+        callRef: 호출.callId,
+      },
       // **어휘를 정확히 쓴다.** 되풀이라 건너뛴 것은 *못 한 일*이 아니라 **런타임이 취소한 것**이고,
       // 같은 일이 이미 원장에 확인돼 있다. 처음엔 전부 `blocked` 로 세웠다가, 그것이 "아직 못 한
       // 일"로 잡혀 승인 재개 정산 게이트를 닫았다(`work-state-product` 가 잡았다, 2026-08-04).
@@ -1650,7 +1672,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 선것 = [];
     for (const call of calls) {
       호출일련 += 1;
-      const callId = typeof call?.id === 'string' && call.id ? call.id : `호출${호출일련}`;
+      // **T5 내부 상관용 신분.** 공급자 id 로 덮지 않는다 — 둘은 서로 다른 것이고,
+      // 섞으면 "모델이 낸 신분"이라는 말이 검증 불가능한 주장이 된다.
+      const callId = `걸음${호출일련}`;
       // 1축 그대로: 우리가 실제로 보여준 도구만 받아들인다(selfState 파생 — 수동 맵 없음).
       const parts = callsToIntentParts([call], selfState);
       const id = parts.neededTools?.[0];
@@ -1660,7 +1684,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           '없는손', '그 손은 지금 없어요.');
         continue;
       }
-      선것.push({ callId, 순번: 호출일련, tool: id, args: parts.toolArgs?.[id] ?? {} });
+      선것.push({
+        callId, 순번: 호출일련, tool: id, args: parts.toolArgs?.[id] ?? {},
+        // 공급자가 발급한 신분은 **있을 때만** 나른다. 없으면 칸을 만들지 않는다.
+        ...(call?.providerCallId ? { providerCallId: call.providerCallId } : {}),
+      });
     }
     return 선것;
   };
@@ -1866,6 +1894,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           // 에서 인자를 꺼낸다(570줄) — 여기에 안 실으면 승인 뒤 `{request: 발화원문}` 으로
           // 실행돼 엉뚱한 일이 된다. 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
+          // 승인 뒤 실행도 **같은 신분**으로 간다 — 사용자가 승인한 그 호출이라는 사실이
+          // 원장과 모델 이력에서 끊기지 않는다.
+          호출신분: { ...계획호출신분, ...(이번.providerCallId ? { [toolId]: { providerCallId: 이번.providerCallId } } : {}) },
           askedFrom: ctx.askedFrom,
           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
           허락한손: [...(ctx.허락한손 ?? []), toolId],
@@ -1906,6 +1937,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
 
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` });
+    현재호출신분 = {
+      ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
+      callRef: 이번.callId,
+    };
     const rec = await 계약실행(toolId, 판정인자);
     현실다시();
     ledger.append(rec);          // 모든 걸음이 원장에 남는다

@@ -51,9 +51,13 @@ test('preflight: 변경 파일 목록이 작업 트리와 미추적까지 본다
 
 test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
   // 목록이 넓어지면 "플래그뿐"이 무너진다. 넓힐 때는 이 시험이 먼저 걸린다.
+  // 넓힐 때는 이 시험이 먼저 걸린다 — 그게 이 시험의 일이다. 넓힌 이유는 `preflight.mjs`
+  // 의 `허용파일` 주석에 적혀 있어야 한다(2026-08-04: 실행 벽 수정으로 기준선 이동).
   assert.deepEqual(허용파일, [
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/model-sovereign.js',
+    'src/runtime/model-provider.js',
+    'src/runtime/tool-runner.js',
   ]);
 });

@@ -337,10 +337,22 @@ function requiredWireTool(opts = {}) {
 }
 
 /** 와이어가 준 이름·인자 → 커널 호출. 인자가 깨졌으면 버린다(반쪽 인자로 실행하지 않는다). */
-function parseWireCall(name, rawArgs) {
+/**
+ * 와이어의 도구 호출 하나를 T5 의 것으로 옮긴다.
+ *
+ * `providerCallId` 는 **공급자가 발급한 신분**이다. OpenAI 는 `tool_calls[].id`, Anthropic 은
+ * `tool_use.id` 로 준다. Gemini 의 `functionCall` 규약에는 **아예 없다** — 없는 것을 지어내지
+ * 않는다(오너 지시 2026-08-04). 없으면 칸 자체를 만들지 않아, 뒤에서 `'providerCallId' in call`
+ * 로 "모델이 발급했는가"를 그대로 물을 수 있게 한다.
+ *
+ * T5 내부 상관용 id 는 이것과 **별개**다(`ref`). 둘을 한 칸에 섞으면 "모델이 낸 신분"이라는
+ * 말이 검증 불가능한 주장이 된다.
+ */
+function parseWireCall(name, rawArgs, providerCallId) {
   if (!name) return null;
-  if (rawArgs && typeof rawArgs === 'object') return { name, args: rawArgs };
-  try { return { name, args: rawArgs ? JSON.parse(rawArgs) : {} }; } catch { return null; }
+  const 신분 = typeof providerCallId === 'string' && providerCallId ? { providerCallId } : {};
+  if (rawArgs && typeof rawArgs === 'object') return { name, args: rawArgs, ...신분 };
+  try { return { name, args: rawArgs ? JSON.parse(rawArgs) : {}, ...신분 }; } catch { return null; }
 }
 
 // 이력을 provider 셰이프로. 역할 이름만 다르고 순서·내용은 같다(오래된 것 → 최근 것).
@@ -358,15 +370,21 @@ const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, conte
 const 교환결과 = (x) => [x.summary, x.surface ? surfaceLines(x.surface) : '', x.data ? `결과: ${x.data}` : '']
   .filter((v) => v && String(v).trim()).join('\n');
 
+/**
+ * **모델이 발급한 신분을 그대로 돌려준다.** 이 와이어는 id 를 요구하므로 없으면 T5 내부
+ * `ref` 를 쓴다 — 다만 그건 공급자 신분을 **지어내는 것이 아니다**(원장에는 `providerCallId`
+ * 가 없다는 사실이 그대로 남는다). 공급자가 준 신분이 있으면 언제나 그것이 이긴다.
+ */
+const 교환신분 = (x) => x.providerCallId ?? x.ref;
 const openaiExchange = (m) => (m.exchange ?? []).flatMap((x) => [
-  { role: 'assistant', content: null, tool_calls: [{ id: x.id, type: 'function', function: { name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) } }] },
-  { role: 'tool', tool_call_id: x.id, content: 교환결과(x) },
+  { role: 'assistant', content: null, tool_calls: [{ id: 교환신분(x), type: 'function', function: { name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) } }] },
+  { role: 'tool', tool_call_id: 교환신분(x), content: 교환결과(x) },
 ]);
 
 /** Anthropic 셰이프 — 같은 사실, 다른 그릇. tool_result 는 user 역할에 담는 것이 이 와이어의 규약이다. */
 const anthropicExchange = (m) => (m.exchange ?? []).flatMap((x) => [
-  { role: 'assistant', content: [{ type: 'tool_use', id: x.id, name: wireToolName(x.tool), input: x.args ?? {} }] },
-  { role: 'user', content: [{ type: 'tool_result', tool_use_id: x.id, content: 교환결과(x) }] },
+  { role: 'assistant', content: [{ type: 'tool_use', id: 교환신분(x), name: wireToolName(x.tool), input: x.args ?? {} }] },
+  { role: 'user', content: [{ type: 'tool_result', tool_use_id: 교환신분(x), content: 교환결과(x) }] },
 ]);
 const geminiHistory = (m) => (m.history ?? []).map((h) => ({
   role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }],
@@ -418,7 +436,7 @@ const OPENAI_WIRE = {
   }),
   extract: (json) => json?.choices?.[0]?.message?.content,
   extractToolCalls: (json) => (json?.choices?.[0]?.message?.tool_calls ?? [])
-    .map((c) => parseWireCall(c?.function?.name, c?.function?.arguments))
+    .map((c) => parseWireCall(c?.function?.name, c?.function?.arguments, c?.id))
     .filter(Boolean),
   errorSignal: (status, json) =>
     [status, json?.error?.code, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
@@ -483,7 +501,7 @@ export const MODEL_PROVIDERS = {
     },
     extractToolCalls: (json) => (json?.content ?? [])
       .filter((b) => b.type === 'tool_use')
-      .map((b) => parseWireCall(b.name, b.input))
+      .map((b) => parseWireCall(b.name, b.input, b.id))
       .filter(Boolean),
     errorSignal: (status, json) =>
       [status, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
@@ -550,6 +568,7 @@ export const MODEL_PROVIDERS = {
     responseModel: (json) => json?.modelVersion ?? null,
     extractToolCalls: (json) => (json?.candidates?.[0]?.content?.parts ?? [])
       .filter((p) => p.functionCall)
+      // **세 번째 인자를 주지 않는다** — 이 규약에는 호출 신분이 없다. 지어내면 거짓이 된다.
       .map((p) => parseWireCall(p.functionCall.name, p.functionCall.args))
       .filter(Boolean),
     errorSignal: (status, json) => {
@@ -664,9 +683,12 @@ async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDe
           }
           for (const c of spec.streamToolCalls?.(ev) ?? []) {
             const i = Number.isInteger(c?.index) ? c.index : 0;
-            const cur = 조각들.get(i) ?? { name: '', args: '' };
+            const cur = 조각들.get(i) ?? { name: '', args: '', id: '' };
             if (typeof c?.function?.name === 'string') cur.name += c.function.name;
             if (typeof c?.function?.arguments === 'string') cur.args += c.function.arguments;
+            // **신분도 조각으로 온다.** 이름·인자만 이어 붙이고 id 를 버리면, 스트리밍을 쓰는
+            // provider 에서만 모델이 자기가 낸 적 없는 신분을 돌려받는다(같은 결함의 다른 문).
+            if (typeof c?.id === 'string') cur.id += c.id;
             조각들.set(i, cur);
           }
         }
@@ -681,7 +703,7 @@ async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDe
   // 완성한 뒤에만 호출로 만든다. 인자가 깨졌으면 그 호출만 버린다(반쪽 인자로 실행하지 않는다).
   const toolCalls = [...조각들.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([, c]) => parseWireCall(c.name, c.args))
+    .map(([, c]) => parseWireCall(c.name, c.args, c.id))
     .filter(Boolean);
   return { text: out, toolCalls };
 }

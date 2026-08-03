@@ -50,6 +50,15 @@ export class ToolRunner {
    */
   async run(toolId, args, selfState, executionContext = {}) {
     const intended = `${toolId} 실행`;
+    // **호출 신분은 실행 문맥으로 흘러 영수증에 박힌다** (오너 지시 2026-08-04).
+    // `providerCallId` 는 공급자가 발급한 것 — 없으면 칸을 만들지 않는다(Gemini 규약엔 없다).
+    // `callRef` 는 T5 내부 상관용 — 둘을 한 칸에 섞지 않는다.
+    // 여기 한 자리에 두면 계획 경로·걸음 경로·승인 재개가 전부 같은 길을 탄다.
+    const 신분 = {
+      ...(executionContext?.providerCallId ? { providerCallId: executionContext.providerCallId } : {}),
+      ...(executionContext?.callRef ? { callRef: executionContext.callRef } : {}),
+    };
+    const 부른것 = { tool: toolId, args, ...신분 };
 
     // 1) SelfState 실행 가능 게이트: 목록에 있어도 executable=false 면 호출하지 않는다.
     if (!isToolExecutable(selfState, toolId)) {
@@ -77,7 +86,7 @@ export class ToolRunner {
         } catch (e) {
           return receipt({
             intended,
-            actualCall: { tool: toolId, args },
+            actualCall: 부른것,
             failureState: FAILURE.FAILED,
             userSafeSummary: SOURCE_CONTRACT_FAILED,
             diagnosticTrace: { reason: e?.message },
@@ -88,7 +97,7 @@ export class ToolRunner {
       if (out && out.blocked) {
         return receipt({
           intended,
-          actualCall: { tool: toolId, args },
+          actualCall: 부른것,
           failureState: FAILURE.BLOCKED,
           // 어떤 종류로 막혔는지(사이트 차단·로그인벽·범위 밖…)를 잃지 않는다 — 다음 계단을 그걸로 정한다.
           fetchState: out.fetchState,
@@ -103,7 +112,7 @@ export class ToolRunner {
       if (out && out.failed) {
         return receipt({
           intended,
-          actualCall: { tool: toolId, args },
+          actualCall: 부른것,
           failureState: FAILURE.FAILED,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
           diagnosticTrace: out.diagnosticTrace,
@@ -112,7 +121,7 @@ export class ToolRunner {
       }
       const rec = withSubject(receipt({
         intended,
-        actualCall: { tool: toolId, args },
+        actualCall: 부른것,
         result: out?.result ?? out,
         failureState: FAILURE.NONE,
         // 출처 근거를 원장에 함께 남긴다(P6-2). 웹 도구는 sources 없이 성공을 반환하지 못한다.
@@ -124,7 +133,7 @@ export class ToolRunner {
     } catch (err) {
       return receipt({
         intended,
-        actualCall: { tool: toolId, args },
+        actualCall: 부른것,
         failureState: FAILURE.FAILED,
         userSafeSummary: `${toolId} 실행 중 문제가 있었어요.`, // 내부 오류 비노출
         diagnosticTrace: { message: err?.message, stack: err?.stack },
