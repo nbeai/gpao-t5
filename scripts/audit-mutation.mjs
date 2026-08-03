@@ -875,11 +875,13 @@ export const MUTATIONS = [
   { 이름: '산출물 의무 대조 제거 — FILE 계약이어도 실행이 없다', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
     찾기: "    if (!산출물미충족() || steps >= MAX_TOOL_STEPS || 산출물요청수 >= MAX_TOOL_STEPS) return false;",
     바꾸기: "    if (true) return false;" },
-  { 이름: '산출물 미충족인데 파일 손을 요구하지 않음', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
-    찾기: "      tools: fileTools, requiredTool: 'local.file',",
-    바꾸기: "      tools: fileTools," },
-  { 이름: '산출물 미충족인데 write 대신 읽기 손을 다시 엶', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
-    찾기: "          action: { ...tool.parameters.properties.action, enum: ['write'] },",
+  // 2026-08-03: 계약이 "강제"에서 "제공"으로 바뀌었다(e2e73f3) — 겨냥만 옮긴다. 재는 것은 그대로:
+  //   ① 미충족이면 파일 손을 **다시 준다**  ② 파생 산출물은 write+source 로 좁힌 채 둔다
+  { 이름: '산출물 미충족인데 파일 손을 다시 주지 않음', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
+    찾기: "      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,",
+    바꾸기: "      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium'," },
+  { 이름: '파생 산출물인데 읽기 손까지 다시 엶(원본 덮어쓰기 방어가 풀림)', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
+    찾기: "          action: { ...tool.parameters.properties.action, enum: derived ? ['write'] : ['write', 'move', 'delete'] },",
     바꾸기: "          action: tool.parameters.properties.action," },
   { 이름: '산출물 판단을 건너뛰어 ActionPlan 완료 계약이 비어 버림', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
     찾기: "  const completionContract = await fileDeliverablesFor({\n    model: ctx.model, tc: earlyTc, calls: modelChosen ?? [], intent,\n  });",
