@@ -286,93 +286,74 @@ test('동의 후속 발화는 직전 파일 정리 목표를 이어받고 계획
   assert.ok((r.ledger?.confirmed ?? []).length > 0, '계획문만 답하고 실행 없이 끝나면 안 된다');
 });
 
-test('파일 정리 중 루트에 파일이 남아 있으면 완료 선언 전에 계속 분류한다', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-finish-'));
-  await writeFile(join(dir, 'a.pdf'), 'a');
-  await writeFile(join(dir, 'b.jpg'), 'b');
-  await writeFile(join(dir, 'c.txt'), 'c');
-  let sawUnfinished = 0;
-  const model = {
-    async respond(tc, opts = {}) {
-      if (opts.tools?.length && !tc.unfinishedFileOrganization) {
-        return { text: '', toolCalls: [{
-          name: 'local.file',
-          args: { action: 'bulk_move', path: '.', to: '문서', match: { extensions: ['.pdf'] } },
-        }] };
-      }
-      if (tc.unfinishedFileOrganization) {
-        sawUnfinished += 1;
-        const ext = tc.unfinishedFileOrganization.remainingSource.topExtensions?.[0]?.ext;
-        const to = ext === '.jpg' ? '이미지' : '텍스트';
-        return { text: '', toolCalls: [{
-          name: 'local.file',
-          args: { action: 'bulk_move', path: '.', to, match: { extensions: [ext] } },
-        }] };
-      }
-      return { text: '정리 끝냈어.', toolCalls: [] };
+// ── 파일 정리 — **남은 것을 사실로 준다. 계속하라고 시키지 않는다** ──────────
+//
+// 여기 있던 두 검사는 "루트에 파일이 남으면 런타임이 모델을 다시 불러 계속 옮긴다"는
+// 루프를 못박고 있었다. 오너 판단(2026-08-04)으로 그 루프를 걷었다:
+//
+//   · 동결 §5.2 성공 조건에 "루트에 파일 0개"는 **없다**. 나중에 만들어 넣은 기준이었다.
+//   · 그건 사람이 하는 파일 정리가 아니다. 실모델 회차 6 에서 모델은 정리 안을 셋 내고
+//     "편한 번호 골라줘"라고 되물었다 — 그게 옳다. 남긴 `.hwp`·`.mp4`·확장자 없음은
+//     함부로 분류하면 안 되는 것들이었다.
+//   · 자동성 헌장은 *되돌릴 수 있으면 자동*이지 *끝까지 밀어붙여라*가 아니다.
+//
+// 그 회차의 진짜 결함은 "57개를 안 옮겼다"가 아니라 **"57개가 남았다고 말하지 않았다"**
+// 였다(동결 §5.2: 보고가 실물과 일치 — 옮긴 수·**남은 수**). 그래서 재는 것을 바꾼다:
+// 런타임이 미는가가 아니라, **남은 것이 모델 손에 사실로 오는가.**
+test('묶음 이동 결과에 남은 파일 수와 종류가 사실로 실린다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 요약 = compactResult({
+    from: '/Downloads', to: '/Downloads/Docs',
+    moved: Array.from({ length: 62 }, () => ({})), skipped: [],
+    remainingSource: {
+      path: '/Downloads', items: 60, files: 57, folders: 3,
+      topExtensions: [{ ext: '.hwp', count: 8 }, { ext: '[no-ext]', count: 18 }],
     },
-  };
-  const ctx = {
-    env: demoEnv(),
-    model,
-    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
-  };
-
-  const r = await runTurn({ text: '다운로드 폴더 깔끔하게 정리해줘' }, ctx);
-  assert.equal(r.kind, 'reply');
-  assert.equal(sawUnfinished, 2, '남은 파일 분포를 보고 두 번 더 이어가야 한다');
-  assert.deepEqual(new Set((await readdir(dir)).filter((name) => !name.startsWith('.'))), new Set(['이미지', '문서', '텍스트']));
-  assert.equal(await readFile(join(dir, '문서/a.pdf'), 'utf8'), 'a');
-  assert.equal(await readFile(join(dir, '이미지/b.jpg'), 'utf8'), 'b');
-  assert.equal(await readFile(join(dir, '텍스트/c.txt'), 'utf8'), 'c');
+  });
+  assert.match(요약, /남은 파일: 57개/, '남은 수가 없으면 모델은 끝났는지 알 수 없다');
+  assert.match(요약, /\.hwp 8개/, '남은 것의 종류가 없으면 되물을 말을 못 만든다');
+  assert.match(요약, /확장자 없음 18개/, '[no-ext] 가 사람 말로 안 온다');
+  assert.doesNotMatch(요약, /계속|더 옮|해야/, '사실 자리에 지시가 섞였다');
 });
 
-test('파일 정리 이어가기는 고정 3회가 아니라 남은 파일과 예산을 따른다', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'model-clean-many-'));
-  const exts = ['.pdf', '.jpg', '.txt', '.zip', '.csv'];
-  for (const [i, ext] of exts.entries()) await writeFile(join(dir, `f${i}${ext}`), `${i}`);
-  let 이어가기 = 0;
-  let 첫호출 = true;
+test('남은 것이 없으면 없다고 말한다(빈칸으로 두지 않는다)', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 요약 = compactResult({
+    from: '/Downloads', to: '/Downloads/Docs',
+    moved: [{}], skipped: [],
+    remainingSource: { path: '/Downloads', items: 2, files: 0, folders: 2, topExtensions: [] },
+  });
+  assert.match(요약, /남은 파일: 0개/, '0 을 안 말하면 모델이 빈칸을 "아직 남았다"로 메운다');
+});
+
+test('런타임이 "계속 옮겨라"를 주입하지 않는다(모델이 되물을 자유를 뺏지 않는다)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-no-push-'));
+  await writeFile(join(dir, 'a.pdf'), 'a');
+  await writeFile(join(dir, 'b.hwp'), 'b');
+  const 받은칸 = [];
+  let 냈나 = false;
   const model = {
-    respond: async (tc) => {
-      if (첫호출) {
-        첫호출 = false;
+    async respond(tc, opts = {}) {
+      받은칸.push(Object.keys(tc));
+      if (opts.tools?.length && !냈나) {
+        냈나 = true;
         return { text: '', toolCalls: [{
           name: 'local.file',
           args: { action: 'bulk_move', path: '.', to: '문서', match: { extensions: ['.pdf'] } },
         }] };
       }
-      if (tc.unfinishedFileOrganization) {
-        이어가기 += 1;
-        // **지시문이 아니라 사실을 받는다.** 한때 여기서 런타임이 주입한 완료 계약 문장을
-        // 단언했는데, 그건 위반을 검사로 못박는 것이었다 — 사용자의 목적·방법·되물어도 되는
-        // 시점까지 런타임이 정하는 문장이었다(계약 ①④ 위반). 모델에게 필요한 것은 하나다:
-        // **원본 자리에 아직 몇 개가 남았는가.**
-        const 남음 = tc.unfinishedFileOrganization.remainingSource;
-        assert.ok(남음.files > 0, '남은 수가 사실로 안 온다 — 모델은 끝났는지 알 수 없다');
-        assert.equal(tc.unfinishedFileOrganization.completionContract, undefined,
-          '런타임이 다시 지시문을 주입한다');
-        const ext = tc.unfinishedFileOrganization.remainingSource.topExtensions?.[0]?.ext;
-        return { text: '', toolCalls: [{
-          name: 'local.file',
-          args: { action: 'bulk_move', path: '.', to: `분류-${이어가기}`, match: { extensions: [ext] } },
-        }] };
-      }
-      return { text: '정리 끝냈어.', toolCalls: [] };
+      return '.pdf 는 문서로 옮겼어. .hwp 한 개가 남았는데 어디로 둘까?';
     },
   };
-  const ctx = {
-    env: demoEnv(),
-    processEnv: { GPAO_T5_TURN_ROUNDTRIPS: '12', GPAO_T5_TURN_REVERSIBLE: '20' },
-    model,
+  const r = await runTurn({ text: '다운로드 정리해줘' }, {
+    env: demoEnv(), model,
     tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
-  };
-
-  const r = await runTurn({ text: '다운로드 폴더 깔끔하게 정리해줘' }, ctx);
+  });
   assert.equal(r.kind, 'reply');
-  assert.equal(이어가기, 4, '세 번에서 멈추면 아직 루트에 파일이 남는다');
-  assert.deepEqual(new Set((await readdir(dir)).filter((name) => !name.startsWith('.'))),
-    new Set(['문서', '분류-1', '분류-2', '분류-3', '분류-4']));
+  assert.ok(받은칸.every((k) => !k.includes('unfinishedFileOrganization')),
+    '걷어낸 이어가기 주입이 되살아났다 — 런타임이 모델의 판단을 대신한다');
+  // 모델이 되물으며 끝내도 그건 실패가 아니다 — 남은 것을 정직하게 말한 답이다.
+  assert.match(String(r.reply), /남았는데|어디로/, '모델의 되묻는 답이 대필로 덮였다');
 });
 
 // ── P2-5b-2: 다른 provider 도 같은 계약 ──────────────────────────────────

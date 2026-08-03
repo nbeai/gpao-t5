@@ -533,15 +533,6 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   return 다시 || fallbackReplyFrom(receipts);
 }
 
-function 남은파일정리대상(receipts = []) {
-  for (const r of [...receipts].reverse()) {
-    const source = r?.result?.remainingSource;
-    if (r?.actualCall?.tool !== 'local.file' || (r.failureState ?? 'none') !== 'none') continue;
-    if (!source || typeof source.files !== 'number') continue;
-    return source.files > 0 ? source : null;
-  }
-  return null;
-}
 
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
@@ -1698,27 +1689,24 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 남긴 digest 는 파일 산출물이 아니며, local.file write 의 path+digest 만 충족으로 센다.
   const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
   let 산출물요청수 = 0;
-  const 남은정리이어가기 = async () => {
-    // **발화로 맞히지 않는다.** 한때 여기 `/정리|깔끔|분류|모아|치워/` 가 있었다 —
-    // "다운로드 좀 어떻게 해봐"는 못 잡고 "메모 정리해줘"에는 잘못 붙는다(절대원칙 8).
-    // 조건은 **영수증에서만** 나온다: 이번 턴에 실제로 묶음 이동을 했고, 그 원본 자리에
-    // 파일이 아직 남아 있다. 그게 사실이면 발화가 무엇이었든 아직 안 끝난 것이다.
-    const 남은정리 = 남은파일정리대상(turnReceipts);
-    if (!남은정리 || 예산소진(쓴것(), 예산)) return false;
-    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
-    if (!fileTools.length) return false;
-    finalOut = await ctx.model.respond({
-      ...tc,
-      // **사실만 놓는다**(계약 ④). 한때 여기 완료 계약 지시문이 있었다 — 사용자의 목적
-      // ("깔끔하게")·방법("유형별 하위 폴더로")·되물어도 되는 시점까지 런타임이 정했다.
-      // 그건 이 라인 전체가 없애려던 주객전도이고, S1 fixture 한 시나리오에 맞춘 것이었다.
-      // 지금 주는 것은 하나다: **원본 자리에 아직 몇 개가 남았는가.** 판단은 모델이 한다.
-      unfinishedFileOrganization: { reason: 'source_still_has_files', remainingSource: 남은정리 },
-    }, {
-      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
-    });
-    return true;
-  };
+  // ── **`남은정리이어가기` 를 걷었다** (오너 판단 2026-08-04) ────────────────────
+  //
+  // 여기에 "원본 자리에 파일이 남아 있으면 모델을 다시 불러 계속 옮기게 한다"는 루프가 있었다.
+  // 걷는 이유는 셋이다.
+  //
+  // ① **동결서에 그런 기준이 없다.** §5.2 성공 조건은 "실제 이동 발생 · 같은 계획 반복 0 ·
+  //    거짓 완료 0 · 보고가 실물과 일치(옮긴 수·남은 수) · 다음 턴 승계"다. "루트에 파일 0개"는
+  //    나중에 만들어 넣은 기준이었다.
+  // ② **그건 사람이 하는 파일 정리가 아니다.** 실측(회차 6): 모델은 1턴에서 정리 안을 셋 내고
+  //    "편한 번호 골라줘"라고 되물었다 — 그게 옳은 행동이다. 백지 위임("응, 그렇게 해줘")을
+  //    받았으니 자기 기준을 세운 것이고, 남긴 57개는 `.hwp`·`.mp4`·확장자 없음처럼
+  //    **함부로 분류하면 안 되는 것들**이었다. 안 건드린 게 맞는 판단이다.
+  // ③ 자동성 헌장은 *되돌릴 수 있으면 자동*이지 *끝까지 밀어붙여라*가 아니다. 런타임이
+  //    "더 해라"를 반복하면 그게 다시 주객전도다(계약 ①).
+  //
+  // 이번 라이브의 진짜 결함은 "57개를 안 옮겼다"가 아니라 **"57개가 남았다고 말하지 않았다"**
+  // 였다. 그건 실행을 밀어붙여 고칠 일이 아니라 **남은 수를 사실로 손에 쥐여 주면** 닫힌다 —
+  // `compactResult` 의 묶음 이동 요약에 `남은자리말` 을 실었다(같은 날).
   const 산출물이어가기 = async () => {
     if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= MAX_TOOL_STEPS) return false;
     const derived = (plan.deliverables ?? []).some((wanted) => wanted.binding === 'derived');
@@ -1842,7 +1830,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
         // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
         if (await 산출물이어가기()) continue;
-        if (await 남은정리이어가기()) continue;
         break;
       }
       대기호출.push(...줄세우기(next));
@@ -1873,7 +1860,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 반복 읽기는 실행하지 않는다. 다만 별도 파일 완료 계약까지 같이 버리지는 않는다.
       // 중복 방지와 완료 판정은 서로 다른 경계다.
       if (await 산출물이어가기()) continue;
-      if (await 남은정리이어가기()) continue;
       멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요';
       break;
     }

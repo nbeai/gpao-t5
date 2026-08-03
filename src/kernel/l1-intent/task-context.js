@@ -28,6 +28,19 @@ function fold(text, keep) {
  *
  * 도구마다 "중요한 것"이 다르므로 종류별로 요약한다. 사이트별 분기는 없다.
  */
+/**
+ * 묶음 이동 뒤 **원본 자리에 무엇이 남았는가**. 지시가 아니라 사실이다 —
+ * 이걸 보고 계속할지, 되물을지, 그만둘지는 모델과 사용자가 정한다.
+ */
+function 남은자리말(remainingSource) {
+  const r = remainingSource;
+  if (!r || typeof r.files !== 'number') return '';
+  if (r.files === 0) return `남은 파일: 0개 (${r.path} 에 파일이 더 없다)`;
+  const 분포 = (r.topExtensions ?? []).slice(0, 8)
+    .map((x) => `${x.ext === '[no-ext]' ? '확장자 없음' : x.ext} ${x.count}개`).join(' · ');
+  return `남은 파일: ${r.files}개 (${r.path})${분포 ? `\n남은 것의 종류: ${분포}` : ''}`;
+}
+
 export function compactResult(result, maxChars = 1200) {
   if (result == null || typeof result !== 'object') return undefined;
 
@@ -107,6 +120,18 @@ export function compactResult(result, maxChars = 1200) {
         ? `이동 표본: ${sample.join(' · ')}${moved.length > sample.length ? ` (전체 ${moved.length}개 중 ${sample.length}개만 실음)` : ''}`
         : '',
       skipped.length ? `건너뜀: ${skipped.length}개${skippedReasons ? ` — ${skippedReasons}` : ''}` : '',
+      // **남은 수를 뺀 채로 주면 모델은 끝났는지 알 수 없다.**
+      //
+      // S1 실모델 실측(2026-08-04, 회차 6): 모델이 380개를 옮기고 "싹 돌려놨어"라고 답했다.
+      // 옮긴 수는 정확했는데 **루트에 57개가 남았다는 말이 없었다.** 동결 §5.2 는
+      // "진행 보고가 실물과 일치 (옮긴 수·**남은 수**)"를 요구한다 — 남은 수가 빠진 것이다.
+      //
+      // 사실은 이미 영수증에 있었다(`result.remainingSource`). 여기 요약에서 빠져서
+      // 모델 눈에 안 들어갔을 뿐이다. 런타임이 "더 옮겨라"라고 시킬 일이 아니라
+      // **남은 것이 무엇인지 보여줄 일**이다 — 그 뒤 무엇을 할지는 모델과 사용자의 것이다.
+      // 확장자 분포까지 주는 이유: "57개 남음"만으로는 되물을 말을 못 만든다.
+      // ".hwp 8 · .mp4 9 · 확장자 없음 18" 이면 "이건 어떻게 할까요?"가 나온다.
+      남은자리말(result.remainingSource),
     ].filter(Boolean).join('\n');
   }
 
