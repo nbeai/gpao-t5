@@ -520,7 +520,13 @@ export function makeLocalFileTool(deps = {}) {
               '다른 이름으로 옮기거나, 기존 파일을 먼저 지울까요?',
             );
           }
+          const moveInfo = await stat(abs);
           await mkdir(dirname(dest), { recursive: true });
+          if (moveInfo.isDirectory()) {
+            await rename(abs, dest);
+            await pushUndo(undoEntry('move', abs, dest));
+            return ok(`${basename(abs)} 폴더를 ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
+          }
           await copyFile(abs, dest);
           // C 감사 F5.4 · **부분 실패는 사본을 남기지 않는다.** copyFile 뒤 rm 이 실패하면
           // 예전엔 dest 사본이 조용히 남고("문제가 있었어요"만 나감) 재시도는 destExists 에

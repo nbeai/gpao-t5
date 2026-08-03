@@ -109,6 +109,21 @@ test('옮기기: 원본이 사라지고 대상에 생긴다', async () => {
   await assert.rejects(() => stat(join(root, 'a.txt')));
 });
 
+test('옮기기: 폴더도 같은 안전·되돌리기 계약으로 옮긴다', async () => {
+  const { root, tool } = await sandbox();
+  await mkdir(join(root, '_temp'), { recursive: true });
+  await writeFile(join(root, '_temp/a.txt'), 'a');
+  const m = await tool.handler({ action: 'move', path: '_temp', to: '__temp/_temp' });
+  assert.equal(m.blocked, undefined, `폴더 move 가 막혔다: ${m.userSafeSummary}`);
+  assert.equal(await readFile(join(root, '__temp/_temp/a.txt'), 'utf8'), 'a');
+  await assert.rejects(() => stat(join(root, '_temp')));
+
+  const u = await tool.handler({ action: 'undo' });
+  assert.equal(u.blocked, undefined, `폴더 move undo 가 막혔다: ${u.userSafeSummary}`);
+  assert.equal(await readFile(join(root, '_temp/a.txt'), 'utf8'), 'a');
+  await assert.rejects(() => stat(join(root, '__temp/_temp')));
+});
+
 test('bulk_move: 조건에 맞는 여러 파일을 한 번에 옮기고 되돌릴 수 있다', async () => {
   const { root, tool } = await sandbox();
   await writeFile(join(root, 'a.pdf'), 'a');
