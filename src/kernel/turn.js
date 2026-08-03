@@ -1704,17 +1704,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 남긴 digest 는 파일 산출물이 아니며, local.file write 의 path+digest 만 충족으로 센다.
   const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
   let 산출물요청수 = 0;
-  let 남은정리요청수 = 0;
   const 남은정리이어가기 = async () => {
     const 남은정리 = 남은파일정리대상(turnReceipts);
-    if (!파일정리요청(intent) || !남은정리 || 예산소진(쓴것(), 예산) || 남은정리요청수 >= 3) return false;
-    남은정리요청수 += 1;
+    if (!파일정리요청(intent) || !남은정리 || 예산소진(쓴것(), 예산)) return false;
     const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
     if (!fileTools.length) return false;
     finalOut = await ctx.model.respond({
       ...tc,
       unfinishedFileOrganization: {
         reason: 'source_still_has_files',
+        completionContract: '사용자는 다운로드 폴더를 깔끔하게 정리하고 싶다고 했다. 루트에 미분류 파일이 남아 있으면 아직 완료가 아니다. 삭제하거나 내용을 바꾸지 말고, 남은 파일도 유형별 하위 폴더로 계속 옮긴다. 사용자에게 더 할지 묻는 것은 예산이 닿았거나 더 이상 안전하게 분류할 수 없을 때만 한다.',
         remainingSource: 남은정리,
       },
     }, {

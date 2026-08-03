@@ -327,6 +327,47 @@ test('파일 정리 중 루트에 파일이 남아 있으면 완료 선언 전�
   assert.equal(await readFile(join(dir, '텍스트/c.txt'), 'utf8'), 'c');
 });
 
+test('파일 정리 이어가기는 고정 3회가 아니라 남은 파일과 예산을 따른다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'model-clean-many-'));
+  const exts = ['.pdf', '.jpg', '.txt', '.zip', '.csv'];
+  for (const [i, ext] of exts.entries()) await writeFile(join(dir, `f${i}${ext}`), `${i}`);
+  let 이어가기 = 0;
+  let 첫호출 = true;
+  const model = {
+    respond: async (tc) => {
+      if (첫호출) {
+        첫호출 = false;
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: { action: 'bulk_move', path: '.', to: '문서', match: { extensions: ['.pdf'] } },
+        }] };
+      }
+      if (tc.unfinishedFileOrganization) {
+        이어가기 += 1;
+        assert.match(tc.unfinishedFileOrganization.completionContract, /아직 완료가 아니다/);
+        const ext = tc.unfinishedFileOrganization.remainingSource.topExtensions?.[0]?.ext;
+        return { text: '', toolCalls: [{
+          name: 'local.file',
+          args: { action: 'bulk_move', path: '.', to: `분류-${이어가기}`, match: { extensions: [ext] } },
+        }] };
+      }
+      return { text: '정리 끝냈어.', toolCalls: [] };
+    },
+  };
+  const ctx = {
+    env: demoEnv(),
+    processEnv: { GPAO_T5_TURN_ROUNDTRIPS: '12', GPAO_T5_TURN_REVERSIBLE: '20' },
+    model,
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+  };
+
+  const r = await runTurn({ text: '다운로드 폴더 깔끔하게 정리해줘' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(이어가기, 4, '세 번에서 멈추면 아직 루트에 파일이 남는다');
+  assert.deepEqual(new Set((await readdir(dir)).filter((name) => !name.startsWith('.'))),
+    new Set(['문서', '분류-1', '분류-2', '분류-3', '분류-4']));
+});
+
 // ── P2-5b-2: 다른 provider 도 같은 계약 ──────────────────────────────────
 // 라이브(ChatGPT)에서 검증된 것을 넓힌다. 셰이프만 다르고 계약은 같다:
 // 도구를 주면 {text, toolCalls} 를 돌려주고, 이름은 와이어에서 안전하게 바꿨다가 되돌린다.
