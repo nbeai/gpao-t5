@@ -77,7 +77,10 @@ export class ToolRunner {
 
     // 2) 실제 호출. 실패는 failureState 로 정직하게, 원인은 진단면으로 분리.
     try {
-      const out = await tool.handler(args, executionContext);
+      // **실행기 자신과 현재 자기 상태를 문맥에 실어 보낸다.** 캡슐(S4)은 안에서 다시 손을
+      // 불러야 하는데, 그 호출이 **이 실행 경로를 그대로 타야** 승인·영수증·되돌리기가
+      // 두 벌이 되지 않는다. 다른 손들은 이 두 칸을 안 본다.
+      const out = await tool.handler(args, { ...executionContext, tools: this, selfState });
       // 출처 원장 필수 도구(웹 등)는 계약을 런타임이 강제한다 — handler 관례에 맡기지 않는다(감사 보정 1).
       // 출처 없는 성공·내용 담은 실패는 계약 위반이므로 failed로 떨어뜨린다("못 본 걸 본 척" 차단).
       if (tool.sourceLedgerRequired) {

@@ -204,3 +204,53 @@ export async function 캡슐실행({
     ...(멈춘이유 ? { 멈춘이유 } : {}),
   };
 }
+
+/**
+ * 캡슐을 **T5 의 손**으로 세운다. 격리만 있고 모델이 못 쓰면 의미가 없다.
+ *
+ * `toolKind: 'organize'` · `reversible: true` — 캡슐 자체는 아무것도 안 바꾼다.
+ * 실제 변경은 전부 RPC 로 부른 손이 하고, **그 손의 등급이 그대로 선다**(헌장 상속).
+ *
+ * @param {{cwd:string, 허용손?:string[], 상한?:object}} 설정
+ */
+export function makeCapsuleTool(설정 = {}) {
+  return {
+    toolKind: 'organize',
+    reversible: true,
+    /** 캡슐은 자기 자신이 승인 대상이 아니다 — 안에서 부른 손이 각자 판정을 탄다. */
+    async approvalEligibility() { return { allowed: true }; },
+    async handler(args = {}, 문맥 = {}) {
+      const 결과 = await 캡슐실행({
+        코드: String(args.code ?? ''),
+        tools: 문맥.tools ?? 설정.tools,
+        selfState: 문맥.selfState ?? 설정.selfState,
+        cwd: 설정.cwd ?? 문맥.cwd ?? process.cwd(),
+        허용손: 설정.허용손 ?? ['local.file'],
+        상한: 설정.상한 ?? {},
+      });
+      if (!결과.ok) {
+        return {
+          blocked: true,
+          userSafeSummary: 결과.멈춘이유 ?? '스크립트가 오류로 끝났어요.',
+          nextSafeAction: '조건을 좁혀 다시 해볼까요?',
+          diagnosticTrace: { exitCode: 결과.exitCode, stderr: 결과.stderr?.slice(0, 500) },
+        };
+      }
+      const 실행수 = (결과.영수증 ?? []).length;
+      return {
+        result: {
+          // **결과만 온다.** 중간에 읽은 본문은 여기 없다 — 그게 캡슐이 사는 이유다.
+          output: 결과.stdout,
+          calls: 실행수,
+          // 캡슐 안에서 무엇을 했는지 **사실로** 남긴다(요약이지 덤프가 아니다).
+          did: (결과.영수증 ?? []).map((r) => r.userSafeSummary).filter(Boolean).slice(0, 20),
+          // 원장용 사실. 모델 입력에는 위 `did` 요약만 가고 이건 안 간다(덤프 금지).
+          innerReceipts: 결과.영수증,
+        },
+        userSafeSummary: 실행수
+          ? `스크립트로 ${실행수}번 처리했어요.`
+          : '스크립트를 돌렸는데 손은 쓰지 않았어요.',
+      };
+    },
+  };
+}

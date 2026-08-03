@@ -7,6 +7,8 @@ import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
+import { makeCapsuleTool } from '../runtime/capsule.js';
+import { sandboxAvailable } from '../runtime/sandbox.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
@@ -98,6 +100,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
       homeDir: localHome,
     }),
     localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
+    // S4 캡슐 — **커널 격리를 쓸 수 있을 때만 선다.** 없는 능력을 있는 척하지 않는다
+    // (`sandboxAvailable()` 이 false 면 손 목록에 아예 안 들어가고 descriptor 도 안 딸려온다).
+    // 안에서 부를 수 있는 손은 파일 하나다 — 넓히려면 그 손의 격리 성질을 먼저 증명한다.
+    capsule: sandboxAvailable() ? makeCapsuleTool({ 허용손: ['local.file'] }) : undefined,
     localLocate: makeLocalLocateTool({ home: localHome }),
     localDiscovery: makeLocalDiscoveryTool({ connectors: () => connectors }),
     localSystem: makeLocalSystemTool({}),

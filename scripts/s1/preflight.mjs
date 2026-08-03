@@ -48,8 +48,11 @@ export const 기준지문 = Object.freeze({
   // 모델이 스키마에서 봐야 쓸 수 있으므로 스키마 지문이 움직이는 것이 이 작업의 정의다.
   // 54b6cb359cefe010 → 222bf7de5bcb503d. **시스템 프롬프트는 그대로다**(b5152b97) —
   // 지시 문구를 더한 것이 아니라 손이 받는 인자가 늘었다.
-  스키마: '222bf7de5bcb503d',
-  도구수: 16,
+  // 2026-08-04 · S4 캡슐: 손이 하나 늘었다(`local.capsule`) — 16 → 17.
+  // 222bf7de5bcb503d → 56c6c2070f77f98d. **시스템 프롬프트는 그대로다**(b5152b97).
+  // 캡슐은 커널 격리를 쓸 수 있을 때만 서므로, 못 쓰는 환경에서는 16 그대로다.
+  스키마: '56c6c2070f77f98d',
+  도구수: 17,
 });
 
 /**
@@ -98,6 +101,14 @@ export const 허용파일 = [
   // ② exchange 저장(재시작해도 모델의 행동 이력이 남는다).
   'src/kernel/l0-evidence/ledger.js',
   'src/surface/server.js',
+  // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
+  // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).
+  'src/runtime/capsule.js',
+  'src/runtime/sandbox.js',
+  'src/runtime/terminal-run.js',
+  'src/surface/demo-context.js',
+  'src/surface/live-context.js',
+  'src/runtime/tool-runner.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

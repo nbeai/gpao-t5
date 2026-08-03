@@ -540,6 +540,35 @@ const DESCRIPTORS = [
       },
     },
   }),
+  defineTool({
+    id: 'local.capsule', label: '스크립트로 한 번에', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'organize', needsApproval: false, reversible: true,
+    reversibleNote: '캡슐 자체는 아무것도 바꾸지 않아요 — 안에서 부른 손이 각자 자기 규칙을 그대로 타요',
+    // **언제 쓰는 손인지**를 사실로 적는다. 지시가 아니라 이 손의 성질이다.
+    capability: '짧은 스크립트로 파일 손을 여러 번 불러 한 번에 처리한다. '
+      + '읽은 결과가 다음 조건이 되는 일(예: 각 표를 읽어 합계가 넘는 것만 옮기기)에 쓴다. '
+      + '스크립트 안에서는 t5.call(손이름, 인자) 로만 일한다 — 파일을 직접 만지거나 명령을 띄울 수 없고, '
+      + '중간 결과는 답에 실리지 않고 스크립트가 출력한 것만 돌아온다.',
+    description: '짧은 스크립트로 파일 손을 여러 번 불러 한 번에 처리한다. '
+      + '읽은 결과가 다음 조건이 되는 일(예: 각 표를 읽어 합계가 넘는 것만 옮기기)에 쓴다. '
+      + '스크립트 안에서는 t5.call(손이름, 인자) 로만 일한다 — 파일을 직접 만지거나 명령을 띄울 수 없다. '
+      + '중간 결과는 답에 실리지 않고 스크립트가 출력한 것만 돌아온다.',
+    schema: {
+      name: 'local.capsule',
+      description: '짧은 스크립트로 T5 의 손을 여러 번 불러 한 번에 처리한다(읽은 결과가 다음 조건이 될 때).',
+      parameters: {
+        type: 'object',
+        properties: {
+          code: {
+            type: 'string',
+            description: 'JavaScript 본문. `await t5.call("local.file", { action, path, ... })` 로 손을 부르고 '
+              + 'console.log 로 결과를 낸다. 파일시스템·네트워크·셸은 막혀 있다.',
+          },
+        },
+        required: ['code'],
+      },
+    },
+  }),
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     // P5-B-0 오너 결정(2026-07-27): **선언을 지우지 않고 연결 전 기능으로 낮춘다.**
     // 실행할 손이 없으므로 실행 가능 도구가 아니다 — model schema·도구함·능력 문장 어디에도
@@ -676,6 +705,7 @@ const FACTS = {
   'web.collect': { connected: true },
   'agent.delegate': { connected: true },
   'local.file': { connected: true },
+  'local.capsule': { connected: true },
   'local.terminal': { connected: true },
   'local.process': { connected: true },
   'local.locate': { connected: true },
@@ -785,6 +815,8 @@ export function demoTools(opts = {}) {
     // P2-10: 브라우저 손. 실제 손을 안 넘기면 **등록하지 않는다** — 스텁 금지(게이트가 검사한다).
     ...(opts.localTerminal ? { 'local.terminal': opts.localTerminal } : {}),
     ...(opts.localProcess ? { 'local.process': opts.localProcess } : {}),
+    // S4 캡슐 — 격리 실행. 주입할 때만 선다(없으면 손 목록에 아예 없다).
+    ...(opts.capsule ? { 'local.capsule': opts.capsule } : {}),
     ...(opts.localLocate ? { 'local.locate': opts.localLocate } : {}),
     ...(opts.localDiscovery ? { 'local.discovery': opts.localDiscovery } : {}),
     ...(opts.localSystem ? { 'local.system': opts.localSystem } : {}),

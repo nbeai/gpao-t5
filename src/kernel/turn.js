@@ -1492,6 +1492,20 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 왜 안 갔는지 모른 채 답을 쓴다(그래서 예전엔 아예 모델을 안 부르고 턴을 끝냈다).
   const turnReceipts = [...앞선막힘];
 
+  // **캡슐 안에서 돈 실행도 원장에 올린다**(S4). 캡슐은 손 하나로 보이지만 그 안에서 여러
+  // 손이 실제로 돌았다 — 여기서 끊으면 사용자도 감사도 무슨 일이 있었는지 못 본다.
+  //
+  // 자리마다 적지 않고 **원장 입구 하나**에 묶는다(구조원칙 §2-C). `ledger.append` 는
+  // 여섯 군데에서 불리고, 그중 하나만 빠져도 그 경로의 캡슐이 조용해진다.
+  const 원장 = {
+    ...ledger,
+    entries: ledger.entries,
+    append(rec) {
+      for (const 안쪽 of rec?.result?.innerReceipts ?? []) ledger.append(안쪽);
+      return ledger.append(rec);
+    },
+  };
+
   // ── 예산·가드레일 상태 (계획 경로보다 먼저 선다 — 거기서도 예산을 센다) ──────
   const 예산 = 턴예산(ctx.processEnv ?? process.env);
   // **외부효과 뒷단은 비용 모델이 아니다**(오너 구속 계약 ④). 되돌릴 수 있는 것과 없는 것을
@@ -1558,7 +1572,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
     if (되돌릴수있나(toolId)) 되돌릴수있는것쓴것 += 1; else 그밖쓴것 += 1;
-    ledger.append(rec);
+    원장.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
     if (rec.sources?.length) await ctx.emit?.('evidence_added', { count: rec.sources.length });
@@ -1590,7 +1604,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       `${label}은(는) 아직 실행 준비가 안 됐어요.`,
       `${label} 연결/권한을 준비하면 이어서 할 수 있어요.`,
     );
-    ledger.append(rec);
+    원장.append(rec);
     turnReceipts.push(rec);
     if (!connectionNeeded) {
       const ct = selfState.connectedTools.find((t) => t.id === toolId);
@@ -1779,7 +1793,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 진단면 — 모델이 낸 호출의 신분과 순서를 그대로 보존한다(오너 지시 2026-08-04).
       diagnosticTrace: { callId: 호출.callId, 순번: 호출.순번, tool: 호출.tool, reason: 왜 },
     });
-    ledger.append(rec);
+    원장.append(rec);
     turnReceipts.push(rec);
     return rec;
   };
@@ -1879,7 +1893,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         eligibility.nextSafeAction,
         eligibility.diagnostic,
       );
-      ledger.append(rec);
+      원장.append(rec);
       turnReceipts.push(rec);
       steps += 1;
       // F6.1: 같은 사용자 턴 안의 파생이다 — turnNo 를 늙게 하지 않는다.
@@ -2060,7 +2074,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     };
     const rec = await 계약실행(toolId, 판정인자);
     현실다시();
-    ledger.append(rec);          // 모든 걸음이 원장에 남는다
+    원장.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);
     await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
