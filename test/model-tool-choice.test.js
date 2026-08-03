@@ -344,7 +344,14 @@ test('파일 정리 이어가기는 고정 3회가 아니라 남은 파일과 �
       }
       if (tc.unfinishedFileOrganization) {
         이어가기 += 1;
-        assert.match(tc.unfinishedFileOrganization.completionContract, /아직 완료가 아니다/);
+        // **지시문이 아니라 사실을 받는다.** 한때 여기서 런타임이 주입한 완료 계약 문장을
+        // 단언했는데, 그건 위반을 검사로 못박는 것이었다 — 사용자의 목적·방법·되물어도 되는
+        // 시점까지 런타임이 정하는 문장이었다(계약 ①④ 위반). 모델에게 필요한 것은 하나다:
+        // **원본 자리에 아직 몇 개가 남았는가.**
+        const 남음 = tc.unfinishedFileOrganization.remainingSource;
+        assert.ok(남음.files > 0, '남은 수가 사실로 안 온다 — 모델은 끝났는지 알 수 없다');
+        assert.equal(tc.unfinishedFileOrganization.completionContract, undefined,
+          '런타임이 다시 지시문을 주입한다');
         const ext = tc.unfinishedFileOrganization.remainingSource.topExtensions?.[0]?.ext;
         return { text: '', toolCalls: [{
           name: 'local.file',

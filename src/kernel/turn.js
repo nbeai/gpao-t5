@@ -543,12 +543,6 @@ function 남은파일정리대상(receipts = []) {
   return null;
 }
 
-function 파일정리요청(intent = {}) {
-  return intent.neededTools?.includes('local.file')
-    && /정리|깔끔|분류|모아|치워/.test(String(intent.desiredOutcome ?? intent.currentRequest ?? ''));
-}
-
-
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -1705,17 +1699,21 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
   let 산출물요청수 = 0;
   const 남은정리이어가기 = async () => {
+    // **발화로 맞히지 않는다.** 한때 여기 `/정리|깔끔|분류|모아|치워/` 가 있었다 —
+    // "다운로드 좀 어떻게 해봐"는 못 잡고 "메모 정리해줘"에는 잘못 붙는다(절대원칙 8).
+    // 조건은 **영수증에서만** 나온다: 이번 턴에 실제로 묶음 이동을 했고, 그 원본 자리에
+    // 파일이 아직 남아 있다. 그게 사실이면 발화가 무엇이었든 아직 안 끝난 것이다.
     const 남은정리 = 남은파일정리대상(turnReceipts);
-    if (!파일정리요청(intent) || !남은정리 || 예산소진(쓴것(), 예산)) return false;
+    if (!남은정리 || 예산소진(쓴것(), 예산)) return false;
     const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
     if (!fileTools.length) return false;
     finalOut = await ctx.model.respond({
       ...tc,
-      unfinishedFileOrganization: {
-        reason: 'source_still_has_files',
-        completionContract: '사용자는 다운로드 폴더를 깔끔하게 정리하고 싶다고 했다. 루트에 미분류 파일이 남아 있으면 아직 완료가 아니다. 삭제하거나 내용을 바꾸지 말고, 남은 파일도 유형별 하위 폴더로 계속 옮긴다. 사용자에게 더 할지 묻는 것은 예산이 닿았거나 더 이상 안전하게 분류할 수 없을 때만 한다.',
-        remainingSource: 남은정리,
-      },
+      // **사실만 놓는다**(계약 ④). 한때 여기 완료 계약 지시문이 있었다 — 사용자의 목적
+      // ("깔끔하게")·방법("유형별 하위 폴더로")·되물어도 되는 시점까지 런타임이 정했다.
+      // 그건 이 라인 전체가 없애려던 주객전도이고, S1 fixture 한 시나리오에 맞춘 것이었다.
+      // 지금 주는 것은 하나다: **원본 자리에 아직 몇 개가 남았는가.** 판단은 모델이 한다.
+      unfinishedFileOrganization: { reason: 'source_still_has_files', remainingSource: 남은정리 },
     }, {
       onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
     });
@@ -2151,10 +2149,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
   // 소진했다고 말하면 모델이 "손이 없다"는 거짓 상태를 사용자에게 설명한다.
   reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록() });
-  const 남은정리 = 남은파일정리대상(turnReceipts);
-  if (파일정리요청(intent) && 남은정리 && /끝냈|완료|끝났|다 했/.test(reply) && !/부분|남아|남겼|아직/.test(reply)) {
-    reply = `부분 완료입니다. ${남은정리.files}개 파일이 ${남은정리.path}에 아직 남아 있어 전체 정리 완료라고 말할 수는 없어요.\n\n${reply}`;
-  }
+  // **답을 대필하지 않는다.** 한때 여기서 `/끝냈|완료|끝났|다 했/` 을 잡아 "부분 완료입니다…"를
+  // 앞에 붙였다. 문구 판정은 다음 문장에서 또 새고(§4-6), 무엇보다 최종 답은 모델의 것이다
+  // (동결 §5.2 과정 ⑥ — 템플릿 대필 0). 남은 수는 이미 원장·`unfinishedFileOrganization`·
+  // `멈춘이유` 로 모델 앞에 있다. 그걸 보고도 "끝냈다"고 하면 그건 답의 문제가 아니라
+  // **사실 공급의 문제**이므로 그 자리에서 고친다.
   // 계열 ④: 도중에 화면으로 나간 말(도구를 고르며 한 말 포함)을 버리지 않는다 — 답이 화면을 따라온다.
   reply = 미리보기정렬(reply, ctx.미리보기);
   // H09 P0 는 화면 정렬보다 세다: 스트리밍으로 이미 나간 거짓 서술을 정렬이 되살리면, 지속되는
