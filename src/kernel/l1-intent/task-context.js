@@ -272,6 +272,34 @@ export function connectionAdmissionFacts(receipts = []) {
   };
 }
 
+function verifiedExecutionFacts(receipts = []) {
+  const bulk = receipts.filter((r) => r?.actualCall?.tool === 'local.file'
+    && (r.failureState ?? 'none') === 'none'
+    && Array.isArray(r.result?.moved)
+    && typeof r.result?.to === 'string');
+  if (!bulk.length) return undefined;
+
+  const destinations = new Map();
+  let moved = 0;
+  let skipped = 0;
+  for (const r of bulk) {
+    const movedCount = r.result.moved.length;
+    const skippedCount = Array.isArray(r.result.skipped) ? r.result.skipped.length : 0;
+    moved += movedCount;
+    skipped += skippedCount;
+    destinations.set(r.result.to, (destinations.get(r.result.to) ?? 0) + movedCount);
+  }
+
+  return {
+    bulkMove: {
+      calls: bulk.length,
+      moved,
+      skipped,
+      destinations: [...destinations.entries()].map(([to, count]) => ({ to, moved: count })),
+    },
+  };
+}
+
 /**
  * @param {Object} p
  * @param {import('../contracts.js').IntentPacket} p.intent
@@ -392,6 +420,9 @@ export function buildTaskContext(p) {
   // 연결·비밀 입력은 가능한지의 문제 이전에 **실제로 열린 표면이 있는지**의 문제다.
   // 매 턴 같은 구조 사실을 싣되, 후보와 값은 영수증으로 확인된 것만 넣는다.
   if (p.externalReality || p.receipts?.length) packet.connectionAdmission = connectionAdmissionFacts(p.receipts);
+
+  const 실행합계 = verifiedExecutionFacts(p.receipts);
+  if (실행합계) packet.verifiedExecutionFacts = 실행합계;
 
   // 대화 대상이 파일·웹·외부 서비스·개발 작업 중 무엇이든 같은 운영 현실을 본다.
   // 이건 "이 도구를 써라"가 아니라, T5가 이미 사용자 대신 직접 다룰 수 있는 일을 알려 주는

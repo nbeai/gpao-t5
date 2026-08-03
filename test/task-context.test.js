@@ -95,3 +95,44 @@ test('bulk_move 결과는 수백 경로 배열 대신 다음 판단 요약으로
   assert.ok(요약.length < 600, `대량 경로 배열이 그대로 들어갔다: ${요약.length}자`);
   assert.doesNotMatch(요약, /a119\.pdf/, '긴 이동 목록의 꼬리가 모델 입력을 삼킨다');
 });
+
+test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사실로 선다', () => {
+  const intent = interpret('다운로드 정리해줘');
+  const receipts = [
+    {
+      intended: '문서 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '3개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/정리/문서',
+        moved: [{}, {}, {}],
+        skipped: [{}],
+      },
+    },
+    {
+      intended: '이미지 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '2개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/정리/이미지',
+        moved: [{}, {}],
+        skipped: [],
+      },
+    },
+  ];
+  const tc = buildTaskContext({ intent, selfState, receipts });
+
+  assert.deepEqual(tc.verifiedExecutionFacts.bulkMove, {
+    calls: 2,
+    moved: 5,
+    skipped: 1,
+    destinations: [
+      { to: '/Downloads/정리/문서', moved: 3 },
+      { to: '/Downloads/정리/이미지', moved: 2 },
+    ],
+  });
+});
