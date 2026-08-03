@@ -842,6 +842,38 @@ let deferred = 0;
   const deps = Object.keys(pkg.dependencies ?? {}).length;
   if (deps > 0) bad(`런타임 의존성이 생겼다: ${deps}개 (§17 의존성 0 유지)`);
   else ok('런타임 의존성 0');
+
+  // ── 매듭: **조용한 절단 금지** (정본 §S3 · 구조원칙 §2-C) ──────────────────
+  //
+  // 사고 원문(2026-08-03): 다운로드 437개 목록이 잘려 23개(5%)만 모델에게 갔다. 요약은
+  // "437개를 찾았어요"였고 잘렸다는 말은 마침표 세 개가 전부였으며, **나머지를 가져올 인자가
+  // 없었다.** 모델은 그 자리에서 실행을 요구받았고 다섯 턴 내내 계획만 반복했다.
+  //
+  // 자르는 것 자체는 옳다(437개를 다 실으면 프롬프트가 폭주한다). 금지되는 것은 **조용히**
+  // 자르는 것이다. 자를 때는 셋이 함께 간다: 뺀 양 · 뺀 것의 성질 · **문**.
+  //
+  // 이 매듭을 여기 두는 이유: 새 갈래가 `compactResult` 에 늘 때마다 사람이 기억해서 지킬
+  // 수 없다. 갈래가 늘면 여기서 걸린다(§2-C — 한 자리에서 매듭을 묶는다).
+  {
+    const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+    const 많은목록 = {
+      path: '/집/다운로드',
+      items: Array.from({ length: 437 }, (_, i) => ({
+        name: `자료-${String(i).padStart(3, '0')}.pdf`, kind: 'file',
+        modifiedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
+      })),
+    };
+    const 잘린것 = String(compactResult(많은목록) ?? '');
+    const 빠진것 = [];
+    if (!/나머지 \d+개는 이 답에 이름을 싣지 못했다/.test(잘린것)) 빠진것.push('뺀 양');
+    if (!/확장자:/.test(잘린것)) 빠진것.push('뺀 것의 성질');
+    if (!/offset=\d+/.test(잘린것) || !/limit/.test(잘린것)) 빠진것.push('문(offset·limit)');
+    if (빠진것.length) {
+      bad(`조용한 절단: 모델 입력이 잘리는데 ${빠진것.join(' · ')} 이(가) 없다 (§S3)`);
+    } else {
+      ok('조용한 절단 없음 — 뺀 양·성질·문이 함께 간다');
+    }
+  }
   notes.push(`테스트 ${pass}건 / CPU ${cpu === null ? '미측정' : `${cpu.toFixed(1)}s`}`);
 }
 

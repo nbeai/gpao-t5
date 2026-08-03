@@ -383,6 +383,9 @@ const DESCRIPTORS = [
               newerThanDays: { type: 'number', description: '수정한 지 이 일수보다 최근인 파일만' },
             },
           },
+          // **문**(정본 §S3) — 모델이 스키마에서 봐야 쓴다. 안 주면 예전과 똑같이 전부 온다.
+          offset: { type: 'number', description: 'list·read 를 이어서 받을 자리. 응답의 nextOffset 을 그대로 넣는다' },
+          limit: { type: 'number', description: 'list 는 항목 수, read 는 글자 수. 안 주면 전부' },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
           source: { type: 'string', description: 'write 가 어떤 원본을 정리한 결과물이면 그 원본 경로 — 원본 자리 덮어쓰기를 막고 별도 결과물임을 기록한다' },
         },

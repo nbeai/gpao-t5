@@ -124,6 +124,32 @@ export function makeLocalFileTool(deps = {}) {
     };
   }
 
+  /**
+   * **문(offset·limit)** — 정본 §S3.
+   *
+   * 사고 원문(2026-08-03): 다운로드 437개 목록이 잘려 **23개(5%)만** 모델에게 갔다. 요약은
+   * "437개를 찾았어요"였고 잘렸다는 말은 마침표 세 개가 전부였다. **나머지를 가져올 인자가
+   * 없었다.** 모델은 그 자리에서 실행을 요구받았고 다섯 턴 내내 계획만 반복했다.
+   *
+   * 잘림 자체를 없애는 게 답이 아니다 — 437개를 다 실으면 프롬프트가 폭주한다.
+   * 답은 **문**이다: 전체가 몇 개이고, 어디까지 줬고, 나머지를 어떻게 가져오는가.
+   * 인자를 안 주면 예전과 똑같이 동작한다(기본값이 행동을 바꾸지 않는다).
+   */
+  function 문(총, args) {
+    const 시작 = Number.isInteger(Number(args?.offset)) && Number(args.offset) > 0 ? Number(args.offset) : 0;
+    const 몇개 = Number.isInteger(Number(args?.limit)) && Number(args.limit) > 0 ? Number(args.limit) : null;
+    const 끝 = 몇개 === null ? 총 : Math.min(시작 + 몇개, 총);
+    return { 시작, 끝, 다음: 끝 < 총 ? 끝 : undefined, 총 };
+  }
+
+  /** 문을 쓴 결과를 **사람 말**로. 얼마나 있고 어디까지 줬고 끝났는지. */
+  function 문말(문값, 단위) {
+    if (문값.시작 === 0 && 문값.다음 === undefined) return null;
+    return 문값.다음 === undefined
+      ? `${문값.시작 + 1}-${문값.끝} / 전체 ${문값.총}${단위} — 여기가 마지막이에요.`
+      : `${문값.시작 + 1}-${문값.끝} / 전체 ${문값.총}${단위} (다음은 offset=${문값.다음})`;
+  }
+
   async function remainingSummary(abs) {
     const entries = await readdir(abs, { withFileTypes: true });
     const extensionCounts = new Map();
@@ -379,9 +405,17 @@ export function makeLocalFileTool(deps = {}) {
             try { modifiedAt = new Date((await stat(join(abs, e.name))).mtimeMs).toISOString(); } catch { /* 못 보면 안 쓴다 */ }
             items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', ...(modifiedAt ? { modifiedAt } : {}) });
           }
+          const 문값 = 문(items.length, args);
+          const 쪽 = items.slice(문값.시작, 문값.끝);
+          const 안내 = 문말(문값, '개');
           return ok(
-            items.length ? `${items.length}개를 찾았어요.` : '그 폴더는 비어 있어요.',
-            { path: abs, items },
+            items.length
+              ? (안내 ? `${items.length}개 중 ${안내}` : `${items.length}개를 찾았어요.`)
+              : '그 폴더는 비어 있어요.',
+            {
+              path: abs, items: 쪽, total: items.length, offset: 문값.시작,
+              ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
+            },
           );
         }
 
@@ -398,9 +432,14 @@ export function makeLocalFileTool(deps = {}) {
               '원본은 그대로 두었어요. 다른 형식으로 내보낸 사본이 있으면 바로 읽을게요.',
             );
           }
-          const text = document?.text ?? bytes.toString('utf8');
-          return ok(`${basename(abs)} 을(를) 읽었어요.`, {
+          const 전문 = document?.text ?? bytes.toString('utf8');
+          const 문값 = 문(전문.length, args);
+          const text = 전문.slice(문값.시작, 문값.끝);
+          const 안내 = 문말(문값, '자');
+          return ok(안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`, {
             path: abs, text, bytes: info.size,
+            totalChars: 전문.length, offset: 문값.시작,
+            ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             ...(document ? { document } : {}),
             modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
           });
