@@ -15,7 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { surfaceOf, buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
-import { buildModelMessages } from '../src/runtime/model-provider.js';
+import { buildModelMessages, MODEL_PROVIDERS } from '../src/runtime/model-provider.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv } from '../src/surface/demo-context.js';
 import { readFileSync } from 'node:fs';
@@ -74,8 +74,18 @@ test('주소를 직접 받아 읽었으면 "찾아서 읽었다"고 하지 않�
   assert.doesNotMatch(promptFor([direct]).user, /검색이 준 나머지 후보/, '검색을 안 했으면 후보 이야기도 없다');
 });
 
+// **재는 자리를 옮겼다**(2026-08-03): 성공한 실행은 이제 `user` 서술이 아니라 **모델 자신의
+// 도구 대화**(assistant tool_call + tool 결과)로 간다 — 자기가 한 일을 남의 소식으로 읽으면
+// 같은 폴더를 세 번 읽고 실행을 이어가지 못했다(실모델 실측). 계약은 그대로다:
+// **이 사실들이 모델에게 도달하는가.** 그래서 패킷 한 칸이 아니라 **입력 전문**을 잰다.
+// 렌더는 provider 가 한다(와이어마다 그릇이 다르다). 그러니 **실제로 나가는 본문**을 잰다 —
+// 패킷에 있어도 와이어가 안 실으면 모델은 못 본다.
+const 모델입력 = (recs) => MODEL_PROVIDERS.openai.body(
+  { modelId: 'm', maxTokens: 100, baseUrl: 'http://x' }, promptFor(recs), { tools: [] },
+);
+
 test('관통: 모델 입력에 요청·읽은 곳·안 읽은 곳이 함께 간다', () => {
-  const { user } = promptFor([searched]);
+  const user = 모델입력([searched]);
   assert.match(user, /사용자가 준 주소가 아니에요/, '검색으로 찾은 것을 "사용자가 준 글"이라고 말한 실측이 있다');
   assert.match(user, /읽은 곳: https:\/\/m\.blog\.naver\.com/);
   assert.match(user, /나머지 후보\(이게 전부예요\):.*diningcode/);
@@ -110,11 +120,11 @@ test('그 페이지에서 아직 안 연 곳이 다음 경로로 간다', () => 
   const s = surfaceOf(r);
   assert.deepEqual(s.notRead.onPage, ['https://m.place.naver.com/restaurant/1/review/visitor'],
     '같은 사이트 안의 안 연 곳만 다음 경로다(광고·외부 링크는 길이 아니다)');
-  assert.match(promptFor([r]).user, /아직 안 연 곳:.*review\/visitor/);
+  assert.match(모델입력([r]), /아직 안 연 곳:.*review\/visitor/);
 });
 
 test('얼마나 읽었는지가 사실로 간다("보이는 만큼"의 근거)', () => {
-  const { user } = promptFor([searched]);
+  const user = 모델입력([searched]);
   assert.match(user, /본문 \d+자/, '읽은 양을 모르면 "전부 읽었다"고 말하게 된다');
 });
 

@@ -52,7 +52,9 @@ test('H10 실제 대화는 제한 위임을 골라 두 자식을 실행하고 �
             partitions: [{ label: '알파', folder: left }, { label: '베타', folder: right }],
           } }] };
         }
-        parentEvidence = tc.evidenceFacts ?? [];
+        // 성공한 실행은 이제 **모델 자신의 도구 대화**로 온다(2026-08-03) — 계약은 그대로다:
+        // 부모가 자식들의 결과를 실제로 받았는가. 재는 자리만 옮긴다.
+        parentEvidence = [...(tc.evidenceFacts ?? []), ...(tc.turnExchange ?? [])];
         assert.ok(JSON.stringify(parentEvidence).includes('알파'));
         return { text: '알파와 베타 조사를 모두 회수해 차이를 통합했습니다.', toolCalls: [] };
       }
@@ -60,7 +62,7 @@ test('H10 실제 대화는 제한 위임을 골라 두 자식을 실행하고 �
       const folder = tc.currentRequest.includes(left) ? left : right;
       const label = folder === left ? 'alpha' : 'beta';
       childCalls.push(label);
-      if (!tc.evidenceFacts?.length) {
+      if (!(tc.evidenceFacts?.length || tc.turnExchange?.length)) {
         assert.deepEqual(names, ['local.file'], '자식은 부모가 허용한 읽기 손만 보고 기억 통제 채널은 못 봐야 한다');
         return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'list', path: folder } }] };
       }
@@ -132,20 +134,20 @@ test('H10 실제 대화는 locate가 확인한 기본 범위 밖 폴더를 같�
         }
         if (parentCalls === 2) {
           assert.ok(names.includes('agent.delegate'));
-          assert.match(JSON.stringify(tc.evidenceFacts), /alpha/);
+          assert.match(JSON.stringify([tc.evidenceFacts, tc.turnExchange]), /alpha/);
           return { text: '', toolCalls: [{ name: 'agent.delegate', args: {
             goal: LOCATED_USER,
             partitions: [{ label: '알파', folder: left }, { label: '베타', folder: right }],
           } }] };
         }
-        assert.match(JSON.stringify(tc.evidenceFacts), /completed/);
+        assert.match(JSON.stringify([tc.evidenceFacts, tc.turnExchange]), /completed/);
         return { text: '두 프로젝트를 나눠 읽고 결과를 통합했습니다.', toolCalls: [] };
       }
 
       const folder = tc.currentRequest.includes(left) ? left : right;
       const label = folder === left ? 'alpha' : 'beta';
       childCalls.push(label);
-      if (!tc.evidenceFacts?.length) {
+      if (!(tc.evidenceFacts?.length || tc.turnExchange?.length)) {
         assert.deepEqual(names, ['local.file']);
         return { text: '', toolCalls: [{
           name: 'local.file', args: { action: 'read', path: join(folder, 'package.json') },

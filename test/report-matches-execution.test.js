@@ -35,11 +35,12 @@ const 쓰기영수증 = receipt({
 });
 
 test('모델은 자기가 무엇을 적었는지 프롬프트에서 다시 볼 수 있다', () => {
+  // 성공한 실행은 **모델 자신의 도구 호출**로 간다 — 인자가 곧 "내가 무엇을 적었나"다.
   const tc = buildTaskContext({ intent, selfState, receipts: [쓰기영수증] });
-  const f = tc.evidenceFacts?.[0];
-  assert.ok(f, '실행 사실이 있어야 한다');
-  assert.ok(f.calledWith, '무엇으로 불렀는지가 없으면 모델은 내용을 기억으로 지어낸다');
-  assert.match(f.calledWith, /가장 중요한 일 하나만 먼저 끝내기/, '적은 내용이 그대로 보여야 한다');
+  const x = tc.turnExchange?.[0];
+  assert.ok(x, '실행 사실이 있어야 한다');
+  assert.ok(x.args, '무엇으로 불렀는지가 없으면 모델은 내용을 기억으로 지어낸다');
+  assert.match(JSON.stringify(x.args), /가장 중요한 일 하나만 먼저 끝내기/, '적은 내용이 그대로 보여야 한다');
 });
 
 test('그 사실이 실제 프롬프트 문자열까지 도달한다(패킷에만 있으면 소용없다)', () => {
@@ -66,5 +67,6 @@ test('인자가 없는 도구도 깨지지 않는다', () => {
     result: { items: [] }, userSafeSummary: '비어 있어요.',
   });
   const tc = buildTaskContext({ intent, selfState, receipts: [빈것] });
-  assert.equal(tc.evidenceFacts[0].calledWith, undefined, '없는 것을 지어내지 않는다');
+  assert.deepEqual(tc.turnExchange[0].args, {}, '없는 것을 지어내지 않는다');
+  assert.doesNotMatch(JSON.stringify(buildModelMessages(tc)), /undefined/, '빈 인자가 문자열로 새지 않는다');
 });

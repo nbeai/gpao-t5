@@ -360,9 +360,42 @@ export function buildTaskContext(p) {
   const operating = operatorReality(selfState);
   if (operating) packet.operatorReality = operating;
 
+  // ── 모델이 실제로 부른 것은 **모델의 것으로 돌려준다** (실측 2026-08-03) ──────────
+  //
+  // 실모델 한 턴 전문을 받아 보니 매 호출의 메시지가 `[system, user]` **두 개뿐**이었다.
+  // `tool` 역할도, `assistant` 의 tool_calls 도 없었다 — 도구 결과가 사용자 메시지 안에
+  // **3인칭 서술**로 들어갔다("179개를 찾았어요. 부른 인자: …").
+  //
+  // 모델 입장에서 그건 자기가 한 일이 아니라 **남이 알려준 소식**이다. 그래서 같은 폴더를
+  // 세 번 읽고("매번 처음이라고 느낀다"), 실행을 이어가지 못하고, "다음 턴에 하겠다"고 미루고,
+  // 하지 않은 일을 했다고 말했다. 헌장에 "네가 T5다"라고 적어도 다음 호출에서 자기 행동이
+  // 3인칭으로 돌아오면 그 문장은 힘이 없다 — **행동 이력이 지워진 존재에게 selfhood 는 없다.**
+  //
+  // 그래서 **실제로 부른 것**(actualCall 이 있는 영수증)은 표준 도구 대화로 넘긴다.
+  // **못 부른 것**(계획 단계에서 막혀 actualCall 이 null 인 것)은 대화로 표현할 수 없으므로
+  // 아래 `evidenceFacts` 서술로 남는다 — 둘이 겹치지 않게 가른다(같은 사실을 두 번 주지 않는다).
+  // **성공한 호출만** 교환으로 간다. 실패한 호출의 인자는 `확인되지 않은 값`이라 아래 서술이
+  // 가림(`확인되지않은인자`)을 걸어 다루고 있다 — 그걸 대화 이력에 사실처럼 심으면 모델이
+  // 확인되지 않은 절대 경로를 자기가 실제로 쓴 값으로 읽는다(그 계약을 검사가 지키고 있다).
+  const 해낸것 = (p.receipts ?? []).filter((r) => r?.actualCall?.tool && (r.failureState ?? 'none') === 'none');
+  if (해낸것.length) {
+    packet.turnExchange = 해낸것.map((r, i) => ({
+      id: `c${i + 1}`,
+      tool: r.actualCall.tool,
+      args: r.actualCall.args ?? {},
+      // 결과는 서술 블록이 주던 것과 **같은 내용**이다(줄이지 않는다). 렌더는 provider 가 한다 —
+      // 읽은 곳/안 읽은 곳은 와이어마다 같은 문장을 쓰므로 그쪽 `surfaceLines` 를 그대로 재사용한다.
+      summary: r.userSafeSummary,
+      surface: surfaceOf(r),
+      data: compactResult(r.result),
+    }));
+  }
+
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
-  if (p.receipts && p.receipts.length) {
-    packet.evidenceFacts = p.receipts.map((r) => ({
+  // **성공한 호출은 위 `turnExchange` 가 가져갔다** — 여기 남는 것은 못 부른 것과 실패한 것이다.
+  const 남은것 = (p.receipts ?? []).filter((r) => !(r?.actualCall?.tool && (r.failureState ?? 'none') === 'none'));
+  if (남은것.length) {
+    packet.evidenceFacts = 남은것.map((r) => ({
       intended: r.intended,
       failureState: r.failureState,
       // P2-8: **주소를 직접 받아 읽은 것**과 **검색해서 찾아 읽은 것**을 구분한다.

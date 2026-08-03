@@ -34,7 +34,8 @@ test('evidenceFacts 는 userSafeSummary 만 담고 diagnosticTrace 를 담지 �
     userSafeSummary: '공개 자료로 확인', diagnosticTrace: { stack: 'secret' },
   }];
   const tc = buildTaskContext({ intent, selfState, receipts });
-  const json = JSON.stringify(tc.evidenceFacts);
+  // 성공한 실행은 교환으로 간다 — 진단면 비노출 계약은 **어느 자리로 가든** 그대로다.
+  const json = JSON.stringify([tc.evidenceFacts, tc.turnExchange]);
   assert.match(json, /공개 자료로 확인/);
   assert.doesNotMatch(json, /secret|stack/);
 });

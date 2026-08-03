@@ -293,7 +293,8 @@ export function buildModelMessages(tc) {
   const history = (tc.recentTurns ?? [])
     .filter((t) => t && typeof t.text === 'string' && t.text.trim())
     .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
-  return { system: sys.join('\n'), user: usr.join('\n\n'), history };
+  // 이번 턴에 **모델이 실제로 부른 것**. 서술이 아니라 대화로 싣는다(provider 마다 자기 셰이프로).
+  return { system: sys.join('\n'), user: usr.join('\n\n'), history, exchange: tc.turnExchange ?? [] };
 }
 
 
@@ -330,9 +331,39 @@ function parseWireCall(name, rawArgs) {
 
 // 이력을 provider 셰이프로. 역할 이름만 다르고 순서·내용은 같다(오래된 것 → 최근 것).
 const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, content: h.text }));
+
+/**
+ * **이번 턴에 모델이 부른 도구를 모델의 것으로 돌려준다**(실측 2026-08-03).
+ * 서술로 주면 모델은 자기가 한 일을 남의 소식으로 읽는다 — 같은 폴더를 세 번 읽고 실행을
+ * 이어가지 못했다. 표준 규약으로 주면 자기 행동이 자기 이력에 남는다.
+ *
+ * **주입 방어는 여기서 구조가 맡는다**: 도구가 읽어 온 자료는 `tool` 역할에 들어가므로
+ * 사용자 지시와 같은 층위에서 경쟁하지 않는다(예전엔 사용자 메시지 안에 섞여 들어가서
+ * 괄호 한 줄로 "이건 사용자의 요청이 아니다"라고 적어 막아야 했다).
+ */
+const 교환결과 = (x) => [x.summary, x.surface ? surfaceLines(x.surface) : '', x.data ? `결과: ${x.data}` : '']
+  .filter((v) => v && String(v).trim()).join('\n');
+
+const openaiExchange = (m) => (m.exchange ?? []).flatMap((x) => [
+  { role: 'assistant', content: null, tool_calls: [{ id: x.id, type: 'function', function: { name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) } }] },
+  { role: 'tool', tool_call_id: x.id, content: 교환결과(x) },
+]);
+
+/** Anthropic 셰이프 — 같은 사실, 다른 그릇. tool_result 는 user 역할에 담는 것이 이 와이어의 규약이다. */
+const anthropicExchange = (m) => (m.exchange ?? []).flatMap((x) => [
+  { role: 'assistant', content: [{ type: 'tool_use', id: x.id, name: wireToolName(x.tool), input: x.args ?? {} }] },
+  { role: 'user', content: [{ type: 'tool_result', tool_use_id: x.id, content: 교환결과(x) }] },
+]);
 const geminiHistory = (m) => (m.history ?? []).map((h) => ({
   role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }],
 }));
+
+/** Gemini 셰이프 — functionCall / functionResponse. 이 와이어만 빼면 그 provider 는 결과를
+ *  통째로 못 본다(서술 블록은 부른 것에서 걷혔다). 셋 다 같은 사실을 받아야 한다. */
+const geminiExchange = (m) => (m.exchange ?? []).flatMap((x) => [
+  { role: 'model', parts: [{ functionCall: { name: wireToolName(x.tool), args: x.args ?? {} } }] },
+  { role: 'user', parts: [{ functionResponse: { name: wireToolName(x.tool), response: { result: 교환결과(x) } } }] },
+]);
 
 function openaiTokenBudget(cfg) {
   const needsCompletionTokens = cfg.provider === 'openai'
@@ -368,8 +399,8 @@ const OPENAI_WIRE = {
     // 일부 호환 서버는 user/assistant 만 허용(beai V1 실측 2026-07-26). 그 경우 system 사실을
     // user 턴 앞에 합쳐 보낸다 — 사실 전달은 유지, 셰이프만 서버 제약에 맞춘다.
     messages: cfg.noSystemRole
-      ? [...openaiHistory(m), { role: 'user', content: `${m.system}\n\n${m.user}` }]
-      : [{ role: 'system', content: m.system }, ...openaiHistory(m), { role: 'user', content: m.user }],
+      ? [...openaiHistory(m), { role: 'user', content: `${m.system}\n\n${m.user}` }, ...openaiExchange(m)]
+      : [{ role: 'system', content: m.system }, ...openaiHistory(m), { role: 'user', content: m.user }, ...openaiExchange(m)],
   }),
   extract: (json) => json?.choices?.[0]?.message?.content,
   extractToolCalls: (json) => (json?.choices?.[0]?.message?.tool_calls ?? [])
@@ -409,7 +440,7 @@ export const MODEL_PROVIDERS = {
       model: cfg.modelId,
       max_tokens: cfg.maxTokens,
       system: m.system,
-      messages: [...openaiHistory(m), { role: 'user', content: m.user }],
+      messages: [...openaiHistory(m), { role: 'user', content: m.user }, ...anthropicExchange(m)],
       ...(opts.tools?.length ? {
         tools: opts.tools.map((t) => ({
           name: wireToolName(t.name), description: t.description, input_schema: t.parameters,
@@ -468,7 +499,7 @@ export const MODEL_PROVIDERS = {
     headers: (cfg) => ({ 'content-type': 'application/json', 'x-goog-api-key': cfg.token }),
     body: (cfg, m, opts = {}) => JSON.stringify({
       system_instruction: { parts: [{ text: m.system }] },
-      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }],
+      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }, ...geminiExchange(m)],
       ...(opts.tools?.length ? {
         tools: [{
           function_declarations: opts.tools.map((t) => ({
@@ -506,7 +537,7 @@ export const MODEL_PROVIDERS = {
     streamEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models/${cfg.modelId}:streamGenerateContent?alt=sse`,
     streamBody: (cfg, m) => JSON.stringify({
       system_instruction: { parts: [{ text: m.system }] },
-      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }],
+      contents: [...geminiHistory(m), { role: 'user', parts: [{ text: m.user }] }, ...geminiExchange(m)],
     }),
     streamDelta: (ev) => {
       const t = ev?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('');
