@@ -44,8 +44,30 @@ test('도구가 없으면 도구 표식도 없다(빈 자리에 표식을 만들
   assert.equal(b.system[0].cache_control?.type, 'ephemeral', '도구가 없어도 system 접두는 산다');
 });
 
-// ── 여기가 이 검사의 핵심: 경계 위에 변동 값이 올라오면 캐시가 매 턴 깨진다 ──
-test('매 턴 바뀌는 것이 캐시 접두(system)로 올라오지 않는다', () => {
+// ── 여기가 이 검사의 핵심: 표식이 붙어 있는데 한 번도 안 맞는 상태를 막는다 ──
+// 헤르메스 원칙: "대화 중 시스템 프롬프트를 흔들지 않는다." 시각 한 줄이 매 분 바뀌는데
+// system 을 한 덩어리로 캐시하면 **접두 전체가 무효화**된다 — 표식은 장식이 된다.
+test('시각이 바뀌어도 고정 접두는 그대로다(표식이 실제로 맞는다)', () => {
+  const 만들기 = (t) => buildModelMessages(buildTaskContext({
+    intent: { desiredOutcome: 'x', currentRequest: '안녕' }, selfState,
+    now: { local: t, timeZone: 'Asia/Seoul' },
+  }));
+  const a = 만들기('2026-08-03 21:14');
+  const b = 만들기('2026-08-03 21:15');
+  assert.equal(a.systemStable, b.systemStable, '시각 한 줄이 접두를 통째로 무효화하면 캐시는 한 번도 안 맞는다');
+  assert.notEqual(a.systemVolatile, b.systemVolatile, '변동분은 실제로 변해야 한다(경계가 헛것이 아니다)');
+  assert.ok(a.systemStable.length > a.systemVolatile.length * 10, '접두가 변동분보다 압도적으로 커야 캐시가 값을 한다');
+});
+
+test('와이어는 접두에만 표식을 걸고 변동분은 따로 싣는다', () => {
+  const b = 본문({ now: { local: '2026-08-03 21:14', timeZone: 'Asia/Seoul' } });
+  assert.equal(b.system.length, 2, '한 덩어리면 시각이 접두를 깬다');
+  assert.equal(b.system[0].cache_control?.type, 'ephemeral');
+  assert.equal(b.system[1].cache_control, undefined, '변동분에 표식을 걸면 매 턴 새 캐시를 만든다');
+  assert.match(b.system[1].text, /21:14/, '변동분이 사라지면 모델이 지금 몇 시인지 모른다');
+});
+
+test('매 턴 바뀌는 것이 캐시 접두로 올라오지 않는다', () => {
   const 시각 = 본문({ now: { local: '2026-08-03 21:14', timeZone: 'Asia/Seoul' } });
   const sys = 시각.system[0].text;
   // 시간대는 세션 내내 같다(접두 가능). **정확한 시각**은 매 턴 바뀐다 —

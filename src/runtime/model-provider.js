@@ -126,6 +126,10 @@ export function buildModelMessages(tc) {
   if (tc.selfhoodDetail) sys.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
 
   // ── 여기부터 매 턴 바뀐다(캐시 경계 아래) ──
+  // **경계를 선언만 하지 않고 값으로 만든다.** 위쪽(정체성·헌장·환경)은 세션 내내 같고,
+  // 아래는 분 단위로 바뀐다. 한 덩어리로 캐시 표식을 걸면 시각 한 줄이 **접두 전체**를
+  // 무효화한다 — 표식은 붙어 있는데 한 번도 안 맞는 상태가 된다(헤르메스: 프롬프트 안정성).
+  const 고정접두 = sys.join('\n');
   if (tc.now?.local) sys.push(`[지금] ${tc.now.local}`);
 
   const usr = [];
@@ -294,7 +298,13 @@ export function buildModelMessages(tc) {
     .filter((t) => t && typeof t.text === 'string' && t.text.trim())
     .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
   // 이번 턴에 **모델이 실제로 부른 것**. 서술이 아니라 대화로 싣는다(provider 마다 자기 셰이프로).
-  return { system: sys.join('\n'), user: usr.join('\n\n'), history, exchange: tc.turnExchange ?? [] };
+  const system = sys.join('\n');
+  return {
+    system, user: usr.join('\n\n'), history, exchange: tc.turnExchange ?? [],
+    // 캐시 표식을 걸 수 있는 자리(고정 접두)와 그 뒤 변동분. 와이어가 나눠 싣는다.
+    systemStable: 고정접두,
+    systemVolatile: system.slice(고정접두.length),
+  };
 }
 
 
@@ -447,7 +457,10 @@ export const MODEL_PROVIDERS = {
     body: (cfg, m, opts = {}) => JSON.stringify({
       model: cfg.modelId,
       max_tokens: cfg.maxTokens,
-      system: [{ type: 'text', text: m.system, cache_control: { type: 'ephemeral' } }],
+      system: [
+        { type: 'text', text: m.systemStable ?? m.system, cache_control: { type: 'ephemeral' } },
+        ...(m.systemVolatile?.trim() ? [{ type: 'text', text: m.systemVolatile }] : []),
+      ],
       messages: [...openaiHistory(m), { role: 'user', content: m.user }, ...anthropicExchange(m)],
       ...(opts.tools?.length ? {
         tools: opts.tools.map((t, i) => ({
