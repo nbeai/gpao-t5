@@ -589,3 +589,43 @@ test('P1: 이름만 말한 새 파일은 여전히 작업 폴더에 만든다(�
   assert.equal(await readFile(join(home, 'GPAO-T5', '새메모.md'), 'utf8'), '내용',
     '새 파일이 작업 폴더가 아닌 데 생기면 사용자가 자기 파일을 잃는다');
 });
+
+// ── 조용한 0 은 거짓 진단을 낳는다 ──────────────────────────────────────────
+//
+// 실측(S1 라이브 2026-08-04, gpt-5.1): 모델이 "`backup-` 로 시작하는 것들"과 "이름에 임시·temp
+// 가 든 것들"을 **둘 다 모으려고**(OR 의도) 한 호출에 함께 넣었다. 조건은 AND 라 0개가 나왔고,
+// 결과는 "조건에 맞는 파일이 없어서 옮기지 않았어요"뿐이었다.
+//
+// 그래서 모델은 원인을 **경로 문제로 잘못 짚고** 사용자에게 그렇게 말했다("툴이 쓸 때 경로
+// 지정이 살짝 안 맞았던 걸로 보여"). 도구가 이유를 안 주면 모델은 이유를 지어낸다.
+test('조건에 하나도 안 맞으면 **왜 0인지**를 조건별로 말한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bulk-why0-'));
+  for (const f of ['backup-1.png', 'backup-2.pdf', '#임시#메모.txt', 'normal.doc']) {
+    await writeFile(join(dir, f), 'x');
+  }
+  const tool = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  const out = await tool.handler({
+    action: 'bulk_move', path: '.', to: '__Temp',
+    match: { namePrefix: 'backup-', nameIncludes: ['임시', 'temp'] },
+  });
+  assert.equal(out.blocked, true);
+  assert.match(out.userSafeSummary, /이름이 backup- 로 시작 2개/, '조건별 개수가 없으면 모델이 원인을 지어낸다');
+  assert.match(out.userSafeSummary, /이름에 임시·temp 포함 1개/);
+  assert.match(out.userSafeSummary, /모두 만족해야/, 'AND 라는 사실이 없으면 같은 실수를 반복한다');
+  assert.match(out.nextSafeAction, /나눠서/, '되는 길이 없으면 막다른 답이다');
+  // 진단면 사실은 사용자면 문장과 별개로 남는다.
+  assert.equal(out.diagnosticTrace?.모두만족해야함, true);
+  assert.equal(out.diagnosticTrace?.훑은수, 4);
+});
+
+test('조건이 하나뿐이면 "나눠 부르라"고 하지 않는다(없는 길을 권하지 않는다)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bulk-why0-one-'));
+  await writeFile(join(dir, 'a.doc'), 'x');
+  const tool = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  const out = await tool.handler({
+    action: 'bulk_move', path: '.', to: '__T', match: { extensions: ['.pdf'] },
+  });
+  assert.equal(out.blocked, true);
+  assert.match(out.userSafeSummary, /확장자 \.pdf 0개/);
+  assert.doesNotMatch(out.nextSafeAction, /나눠서/);
+});

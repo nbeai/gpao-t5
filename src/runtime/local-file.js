@@ -79,7 +79,7 @@ export function makeLocalFileTool(deps = {}) {
   }
 
   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });
-  const fail = (userSafeSummary, nextSafeAction) => ({ blocked: true, userSafeSummary, nextSafeAction });
+  const fail = (userSafeSummary, nextSafeAction, diagnosticTrace) => ({ blocked: true, userSafeSummary, nextSafeAction, ...(diagnosticTrace ? { diagnosticTrace } : {}) });
 
   function bulkMatch(match = {}) {
     const extensions = Array.isArray(match.extensions)
@@ -96,8 +96,16 @@ export function makeLocalFileTool(deps = {}) {
     const hasOlder = Number.isFinite(olderThanDays) && olderThanDays > 0;
     const hasNewer = Number.isFinite(newerThanDays) && newerThanDays > 0;
     const hasAny = extensions.length || nameIncludes.length || namePrefix || nameSuffix || hasOlder || hasNewer;
+    // 어떤 조건이 걸려 있는지 — 0개일 때 **왜 0인지**를 말하기 위해 그대로 들고 있는다.
+    const 조건들 = [
+      extensions.length ? { 이름: `확장자 ${extensions.join('·')}`, 통과: (n) => extensions.includes(extname(n)) } : null,
+      nameIncludes.length ? { 이름: `이름에 ${nameIncludes.join('·')} 포함`, 통과: (n) => nameIncludes.some((x) => n.includes(x)) } : null,
+      namePrefix ? { 이름: `이름이 ${namePrefix} 로 시작`, 통과: (n) => n.startsWith(namePrefix) } : null,
+      nameSuffix ? { 이름: `이름이 ${nameSuffix} 로 끝남`, 통과: (n) => n.endsWith(nameSuffix) } : null,
+    ].filter(Boolean);
     return {
       hasAny,
+      조건들,
       test(name, info) {
         const n = String(name ?? '').toLowerCase();
         if (extensions.length && !extensions.includes(extname(n))) return false;
@@ -587,15 +595,38 @@ export function makeLocalFileTool(deps = {}) {
           }
           const entries = await readdir(abs, { withFileTypes: true });
           const candidates = [];
+          const 전체이름들 = [];
           for (const e of entries) {
             if (!e.isFile() || e.name.startsWith('.')) continue;
             const full = join(abs, e.name);
             let info;
             try { info = await stat(full); } catch { continue; }
+            전체이름들.push(e.name);
             if (matcher.test(e.name, info)) candidates.push(e.name);
           }
           candidates.sort();
-          if (!candidates.length) return fail('조건에 맞는 파일이 없어서 옮기지 않았어요.');
+          if (!candidates.length) {
+            // **왜 0인지를 말한다.** 조건들은 서로 **AND** 로 걸린다 — `namePrefix` 와
+            // `nameIncludes` 를 함께 주면 "그 접두어로 시작하면서 그 낱말도 든" 파일만이다.
+            //
+            // 실측(S1 라이브 2026-08-04): 모델이 "backup- 로 시작하는 것들"과 "이름에 임시·temp
+            // 가 든 것들"을 **둘 다 모으려고**(OR 의도) 한 호출에 넣었다. AND 라서 0개가 나왔고,
+            // 결과는 "조건에 맞는 파일이 없어서 옮기지 않았어요"뿐이었다. 모델은 원인을
+            // **경로 문제로 잘못 짚고** 사용자에게 그렇게 말했다 — 조용한 0 이 거짓 진단을 낳았다.
+            //
+            // 그래서 조건 하나하나가 **각각 몇 개를 잡는지** 돌려준다. 모델이 스스로 나눠 부른다.
+            const 각각 = matcher.조건들.map((c) => ({
+              조건: c.이름,
+              잡히는수: 전체이름들.filter((n) => c.통과(n.toLowerCase())).length,
+            }));
+            const 낱개 = 각각.map((x) => `${x.조건} ${x.잡히는수}개`).join(' · ');
+            const 여럿 = 각각.length > 1;
+            return fail(
+              `조건에 맞는 파일이 없어서 옮기지 않았어요.${낱개 ? ` 조건별로는 ${낱개} 인데, 조건은 모두 만족해야 해요.` : ''}`,
+              여럿 ? '조건을 하나씩 나눠서 부르면 각각 옮길 수 있어요.' : '다른 조건으로 다시 찾아볼까요?',
+              { 조건별: 각각, 모두만족해야함: true, 훑은수: 전체이름들.length },
+            );
+          }
           await mkdir(destDir, { recursive: true });
 
           const moved = [];
