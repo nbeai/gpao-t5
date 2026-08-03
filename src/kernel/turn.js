@@ -341,7 +341,7 @@ export function unresolvedTurnReceipts(receipts = []) {
     // **런타임이 "이미 했다"고 취소한 것은 미해결이 아니다.** 같은 손·같은 작업이 이번 턴에
     // 이미 성공했기 때문에 안 한 것이므로, 그 성공이 이것을 해결한다(아래 "뒤의 성공이 앞의
     // 실패를 해결한다"의 거울상). 이 구분이 없으면 다중 호출 중 하나가 중복이라는 이유로
-    // 턴 전체가 "아직 안 끝났다"로 잡힌다(실측 2026-08-04, 승인 재개 정산이 안 열렸다).
+    // 턴 전체가 미완료로 잡힌다(실측 2026-08-04, 승인 재개 정산이 안 열렸다).
     if (rec?.failureState === 'cancelled' && rec?.actualCall?.tool) {
       const 이미 = receipts.slice(0, index).some((앞) => (앞?.failureState ?? 'none') === 'none'
         && 앞?.actualCall?.tool === rec.actualCall.tool);
@@ -1720,7 +1720,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     산출물요청수 += 1;
     // **강제하지 않는다.** `requiredTool` 은 모델에게서 "안 한다"는 선택지를 뺏는다 —
     // 그러면 낼 것이 없을 때 억지로 무언가를 만들어 낸다(실측: 쓰레기 로그 파일).
-    // 계약이 아직 안 찼다는 **사실**(`unmetDeliverable`)을 주고 고르는 것은 모델에 남긴다.
+    // 계약이 덜 찼다는 **사실**(`unmetDeliverable`)을 주고 고르는 것은 모델에 남긴다.
     finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
       onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
     });
@@ -2023,7 +2023,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 사용자 말이다(64a7634). 없으면 원장의 사실로 만든다 — 빈 카드만 뜨면 먹통으로 보인다.
         const 지금까지 = (typeof finalOut === 'string' ? '' : finalOut?.text ?? '').trim();
         // 승인 카드로 나가면서 줄에 남은 호출을 버리지 않는다. 사용자가 승인할 것은 이 하나이고,
-        // 나머지는 **아직 안 한 일**로 원장에 남아 다음 턴이 이어받는다.
+        // 나머지는 **못 한 일**로 원장에 남아 다음 턴이 이어받는다.
         for (const 남은 of 대기호출.splice(0)) {
           못한호출남기기(남은, '승인대기중단', '먼저 확인을 받아야 해서 이건 아직 안 했어요.');
         }
