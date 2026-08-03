@@ -163,3 +163,44 @@ test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사
     ],
   });
 });
+
+test('bulk_move 뒤 별도 list 가 없어도 남은 루트 분포가 판단 사실으로 선다', () => {
+  const intent = interpret('다운로드 정리해줘');
+  const receipts = [
+    {
+      intended: '백업 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '11개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/backup',
+        moved: Array.from({ length: 11 }, () => ({})),
+        skipped: [],
+        remainingSource: {
+          path: '/Downloads',
+          items: 349,
+          files: 340,
+          folders: 9,
+          topExtensions: [
+            { ext: '.pdf', count: 80 },
+            { ext: '.jpg', count: 44 },
+          ],
+        },
+      },
+    },
+  ];
+  const tc = buildTaskContext({ intent, selfState, receipts });
+  assert.deepEqual(tc.verifiedExecutionFacts.bulkMove.remainingSources, [
+    {
+      path: '/Downloads',
+      items: 349,
+      files: 340,
+      folders: 9,
+      topExtensions: [
+        { ext: '.pdf', count: 80 },
+        { ext: '.jpg', count: 44 },
+      ],
+    },
+  ]);
+});

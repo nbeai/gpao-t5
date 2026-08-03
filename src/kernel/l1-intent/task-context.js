@@ -299,6 +299,15 @@ function verifiedExecutionFacts(receipts = []) {
       && (r.failureState ?? 'none') === 'none'
       && r.result?.path === path
       && Array.isArray(r.result?.items));
+    const lastBulkSummary = [...receipts].reverse().find((r) => r?.actualCall?.tool === 'local.file'
+      && (r.failureState ?? 'none') === 'none'
+      && r.result?.from === path
+      && r.result?.remainingSource
+      && typeof r.result.remainingSource.files === 'number');
+    if (!lastList && lastBulkSummary) {
+      remainingSources.push(lastBulkSummary.result.remainingSource);
+      continue;
+    }
     if (!lastList) continue;
     const items = lastList.result.items;
     const extensionCounts = new Map();

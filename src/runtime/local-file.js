@@ -116,6 +116,31 @@ export function makeLocalFileTool(deps = {}) {
     };
   }
 
+  async function remainingSummary(abs) {
+    const entries = await readdir(abs, { withFileTypes: true });
+    const extensionCounts = new Map();
+    let files = 0;
+    let folders = 0;
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue;
+      if (e.isDirectory()) { folders += 1; continue; }
+      if (!e.isFile()) continue;
+      files += 1;
+      const ext = extname(e.name).toLowerCase() || '[no-ext]';
+      extensionCounts.set(ext, (extensionCounts.get(ext) ?? 0) + 1);
+    }
+    return {
+      path: abs,
+      items: files + folders,
+      files,
+      folders,
+      topExtensions: [...extensionCounts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 12)
+        .map(([ext, count]) => ({ ext, count })),
+    };
+  }
+
   /** 실패를 종류별로 사용자 언어로. 진단 원문은 화면에 내보내지 않는다. */
   function failureOf(e, path) {
     // 범위 밖은 **되는 방법을 제안할 수 있는 실패**다(§22). 사다리가 알아볼 표식을 단다.
@@ -601,7 +626,7 @@ export function makeLocalFileTool(deps = {}) {
             skipped.length
               ? `${moved.length}개를 옮겼고, 같은 이름 ${skipped.length}개는 그대로 두었어요.`
               : `${moved.length}개를 옮겼어요.`,
-            { from: abs, to: destDir, moved, skipped },
+            { from: abs, to: destDir, moved, skipped, remainingSource: await remainingSummary(abs) },
           );
         }
 
