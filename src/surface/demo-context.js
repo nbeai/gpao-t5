@@ -363,14 +363,24 @@ const DESCRIPTORS = [
     operatorFact: '작업 폴더와 표준 사용자 폴더의 자료를 직접 읽고 정리한다.',
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
-      description: '작업 폴더·Downloads·Documents·Desktop 의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
+      description: '작업 폴더·Downloads·Documents·Desktop 의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. bulk_move 는 확장자·이름 조건에 맞는 여러 파일을 한 번에 옮긴다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'delete', 'undo', 'versions'] },
+          action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'bulk_move', 'delete', 'undo', 'versions'] },
           path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로 또는 허용 폴더의 절대 경로)' },
           name: { type: 'string', description: 'versions 로 폴더 안의 같은 이름 식구를 비교할 때 공통 이름(예: 견적서)' },
           to: { type: 'string', description: 'move 일 때 옮길 위치' },
+          match: {
+            type: 'object',
+            description: 'bulk_move 조건. 조건이 없으면 실행하지 않는다.',
+            properties: {
+              extensions: { type: 'array', items: { type: 'string' }, description: '옮길 확장자 목록(예: .pdf, .jpg)' },
+              nameIncludes: { type: 'array', items: { type: 'string' }, description: '파일 이름에 들어갈 낱말' },
+              namePrefix: { type: 'string', description: '파일 이름 접두어' },
+              nameSuffix: { type: 'string', description: '파일 이름 접미어' },
+            },
+          },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
           source: { type: 'string', description: 'write 가 어떤 원본을 정리한 결과물이면 그 원본 경로 — 원본 자리 덮어쓰기를 막고 별도 결과물임을 기록한다' },
         },

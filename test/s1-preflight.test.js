@@ -56,10 +56,13 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
   assert.deepEqual(허용파일, [
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
+    'src/kernel/l2-plan/action-plan.js',
     'src/kernel/model-sovereign.js',
     'src/kernel/turn-budget.js',
+    'src/runtime/local-file.js',
     'src/runtime/model-provider.js',
     'src/runtime/tool-runner.js',
+    'src/surface/demo-context.js',
     'src/runtime/chatgpt-model-client.js',
   ]);
 });

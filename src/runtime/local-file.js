@@ -9,7 +9,7 @@
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
 import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
-import { join, dirname, basename, relative, isAbsolute } from 'node:path';
+import { join, dirname, basename, relative, isAbsolute, extname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
@@ -81,6 +81,30 @@ export function makeLocalFileTool(deps = {}) {
   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });
   const fail = (userSafeSummary, nextSafeAction) => ({ blocked: true, userSafeSummary, nextSafeAction });
 
+  function bulkMatch(match = {}) {
+    const extensions = Array.isArray(match.extensions)
+      ? match.extensions.map((v) => String(v).trim().toLowerCase()).filter(Boolean)
+        .map((v) => (v.startsWith('.') ? v : `.${v}`))
+      : [];
+    const nameIncludes = Array.isArray(match.nameIncludes)
+      ? match.nameIncludes.map((v) => String(v).trim().toLowerCase()).filter(Boolean)
+      : [];
+    const namePrefix = typeof match.namePrefix === 'string' ? match.namePrefix.trim().toLowerCase() : '';
+    const nameSuffix = typeof match.nameSuffix === 'string' ? match.nameSuffix.trim().toLowerCase() : '';
+    const hasAny = extensions.length || nameIncludes.length || namePrefix || nameSuffix;
+    return {
+      hasAny,
+      test(name) {
+        const n = String(name ?? '').toLowerCase();
+        if (extensions.length && !extensions.includes(extname(n))) return false;
+        if (nameIncludes.length && !nameIncludes.some((needle) => n.includes(needle))) return false;
+        if (namePrefix && !n.startsWith(namePrefix)) return false;
+        if (nameSuffix && !n.endsWith(nameSuffix)) return false;
+        return true;
+      },
+    };
+  }
+
   /** 실패를 종류별로 사용자 언어로. 진단 원문은 화면에 내보내지 않는다. */
   function failureOf(e, path) {
     // 범위 밖은 **되는 방법을 제안할 수 있는 실패**다(§22). 사다리가 알아볼 표식을 단다.
@@ -120,6 +144,11 @@ export function makeLocalFileTool(deps = {}) {
         const prot = protectionBlocks(abs, { write: true });
         if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
         if (action === 'move') {
+          const dest = await resolveInScope(args.to ?? '', { roots, home });
+          const destProt = protectionBlocks(dest, { write: true });
+          if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
+        }
+        if (action === 'bulk_move') {
           const dest = await resolveInScope(args.to ?? '', { roots, home });
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
@@ -499,6 +528,59 @@ export function makeLocalFileTool(deps = {}) {
           }
           await pushUndo(undoEntry('move', abs, dest));
           return ok(`${basename(abs)} 을(를) ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
+        }
+
+        if (action === 'bulk_move') {
+          const info = await stat(abs);
+          if (!info.isDirectory()) return fail('여러 파일을 옮기려면 폴더를 대상으로 해야 해요.', '폴더를 알려주시면 조건에 맞는 파일만 옮길게요.');
+          const matcher = bulkMatch(args.match);
+          if (!matcher.hasAny) {
+            return fail('옮길 조건이 없어서 아무 파일도 옮기지 않았어요.', '확장자나 이름 조건을 알려주시면 그 조건에 맞는 것만 옮길게요.');
+          }
+          const destDir = await resolveInScope(args.to ?? '', { roots, home });
+          const destProt = protectionBlocks(destDir, { write: true });
+          if (destProt) {
+            const msg = protectionMessage(destProt, { write: true });
+            return { blocked: true, scopeState: 'protected', ...msg };
+          }
+          const entries = await readdir(abs, { withFileTypes: true });
+          const candidates = entries
+            .filter((e) => e.isFile() && !e.name.startsWith('.') && matcher.test(e.name))
+            .map((e) => e.name)
+            .sort();
+          if (!candidates.length) return fail('조건에 맞는 파일이 없어서 옮기지 않았어요.');
+          await mkdir(destDir, { recursive: true });
+
+          const moved = [];
+          const skipped = [];
+          for (const name of candidates) {
+            const from = join(abs, name);
+            const to = join(destDir, name);
+            let exists = false;
+            try { await stat(to); exists = true; } catch { /* 없으면 진행 */ }
+            if (exists) {
+              skipped.push({ name, reason: 'destination_exists' });
+              continue;
+            }
+            await copyFile(from, to);
+            try {
+              await rm(from);
+            } catch (e) {
+              try { await rm(to); } catch { /* 사본 정리 실패는 아래에서 실패로 보고 */ }
+              return fail(`${name} 을(를) 옮기다 멈췄어요 — 원본은 그대로 있어요.`, '원본 폴더의 권한을 확인한 뒤 다시 할까요?');
+            }
+            await pushUndo(undoEntry('move', from, to));
+            moved.push({ from, to });
+          }
+          if (!moved.length) {
+            return fail('조건에 맞는 파일은 있었지만 대상에 같은 이름이 있어서 옮기지 않았어요.', '다른 폴더나 다른 이름 규칙으로 옮길까요?');
+          }
+          return ok(
+            skipped.length
+              ? `${moved.length}개를 옮겼고, 같은 이름 ${skipped.length}개는 그대로 두었어요.`
+              : `${moved.length}개를 옮겼어요.`,
+            { from: abs, to: destDir, moved, skipped },
+          );
         }
 
         if (action === 'delete') {

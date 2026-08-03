@@ -34,7 +34,10 @@ export const 기준선 = 'f5ef144';
  */
 export const 기준지문 = Object.freeze({
   프롬프트: 'b5152b9750d53f94',
-  스키마: 'a7dc62417e93614c',
+  // 2026-08-04: S3 이후 실모델 B 1회가 17개 이동 후 선택지로 후퇴했고, 프롬프트 보강
+  // 실험은 더 나쁜 결과(이동 0·빈 .keep 생성)를 냈다. 병목은 문구가 아니라 긴 목록을
+  // 다룰 실행 입자였다. local.file 에 조건 기반 bulk_move 를 추가해 스키마만 이동했다.
+  스키마: '61d34fe3d8797125',
   도구수: 16,
 });
 
@@ -60,11 +63,16 @@ export const 기준지문 = Object.freeze({
 export const 허용파일 = [
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
+  // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
+  // 조건 기반 bulk_move 를 local.file 의 같은 안전·되돌리기 계약 안에 추가했다.
+  'src/kernel/l2-plan/action-plan.js',
   'src/kernel/model-sovereign.js',
   // §S3 예산·가드레일 — 6상한을 걷기 전에 서는 것(오너 지시 2026-08-04 "6단으로 넘어가").
   'src/kernel/turn-budget.js',
+  'src/runtime/local-file.js',
   'src/runtime/model-provider.js',
   'src/runtime/tool-runner.js',
+  'src/surface/demo-context.js',
   // ChatGPT 계정 경로는 **별도 클라이언트**라 위 공급자 순회에 안 잡혔고, 그래서 교환이
   // 통째로 빠지고 신분이 `callId` 라는 세 번째 이름으로 새던 것이 오래 안 보였다.
   // 같은 계약을 같은 자리에서 지키려면 여기도 슬라이스 범위다(오너 지시 2026-08-04 ①).

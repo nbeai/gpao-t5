@@ -15,7 +15,7 @@ export function fileKind(fileOp) {
     case 'delete': return 'delete';
     // 옮기기·되돌리기도 **사용자 파일을 바꾼다**. organize(A1 자동 진행)로 두었더니 "옮겨줘" 한 마디에
     // 승인 없이 파일이 사라졌다(감사 실증). 사용자 체감은 삭제와 같다 — 안전 바닥으로 올린다.
-    case 'write': case 'move': case 'undo': return 'write';
+    case 'write': case 'move': case 'bulk_move': case 'undo': return 'write';
     // versions 는 읽기 전용 판별(같은 이름 식구의 시각·내용 대조)이다 — 파일을 바꾸지 않는다.
     case 'read': case 'list': case 'versions': return 'read';
     // **모르면 read 로 흘리지 않는다.** fileOp 가 없는 경로(스킬이 도구만 밀어 넣는 경우)에서
@@ -40,6 +40,7 @@ export function describeAction(toolId, args) {
     case 'delete': return `${name} 을(를) 지웁니다`;
     case 'write': return `${name} 에 내용을 저장합니다(기존 내용은 휴지통으로)`;
     case 'move': return args.to ? `${name} 을(를) ${args.to} 로 옮깁니다` : `${name} 을(를) 옮깁니다`;
+    case 'bulk_move': return args.to ? `${name} 안의 조건 맞는 파일들을 ${args.to} 로 옮깁니다` : `${name} 안의 조건 맞는 파일들을 옮깁니다`;
     case 'undo': return '방금 한 파일 작업을 되돌립니다';
     default: return null;
   }

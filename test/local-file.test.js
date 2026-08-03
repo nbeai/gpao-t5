@@ -109,6 +109,41 @@ test('옮기기: 원본이 사라지고 대상에 생긴다', async () => {
   await assert.rejects(() => stat(join(root, 'a.txt')));
 });
 
+test('bulk_move: 조건에 맞는 여러 파일을 한 번에 옮기고 되돌릴 수 있다', async () => {
+  const { root, tool } = await sandbox();
+  await writeFile(join(root, 'a.pdf'), 'a');
+  await writeFile(join(root, 'b.pdf'), 'b');
+  await writeFile(join(root, 'c.txt'), 'c');
+
+  const r = await tool.handler({
+    action: 'bulk_move',
+    path: '.',
+    to: '문서',
+    match: { extensions: ['.pdf'] },
+  });
+  assert.equal(r.blocked, undefined, `bulk_move 가 막혔다: ${r.userSafeSummary}`);
+  assert.equal(r.result.moved.length, 2);
+  assert.equal(await readFile(join(root, '문서/a.pdf'), 'utf8'), 'a');
+  assert.equal(await readFile(join(root, '문서/b.pdf'), 'utf8'), 'b');
+  assert.equal(await readFile(join(root, 'c.txt'), 'utf8'), 'c');
+  await assert.rejects(() => stat(join(root, 'a.pdf')));
+
+  const u1 = await tool.handler({ action: 'undo' });
+  const u2 = await tool.handler({ action: 'undo' });
+  assert.equal(u1.blocked, undefined);
+  assert.equal(u2.blocked, undefined);
+  assert.equal(await readFile(join(root, 'a.pdf'), 'utf8'), 'a');
+  assert.equal(await readFile(join(root, 'b.pdf'), 'utf8'), 'b');
+});
+
+test('bulk_move: 조건 없이 폴더만 만들지 않는다', async () => {
+  const { root, tool } = await sandbox();
+  await writeFile(join(root, 'a.pdf'), 'a');
+  const r = await tool.handler({ action: 'bulk_move', path: '.', to: '문서' });
+  assert.equal(r.blocked, true);
+  await assert.rejects(() => stat(join(root, '문서')), '조건 없는 bulk_move 가 빈 폴더를 만들었다');
+});
+
 // ── 되돌리기 (§18) ────────────────────────────────────────────────────────
 test('삭제는 되돌릴 수 있다 — 되돌린 뒤 실제 내용이 복구된다', async () => {
   const { root, tool } = await sandbox();
