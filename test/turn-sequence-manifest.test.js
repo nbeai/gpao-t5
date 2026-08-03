@@ -40,7 +40,13 @@ async function 무대({ 응답 }) {
   const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
   const 원래 = localFile.handler.bind(localFile);
   localFile.handler = async (...a) => { 순서.push('tool[local.file]'); return 원래(...a); };
-  return { ctx: { env: demoEnv(), tools: demoTools({ localFile }), model }, 순서 };
+  // 승인이 나는 탈것 — 자동성 헌장(2026-08-03) 뒤 되돌릴 수 있는 파일 작업은 자동이라
+  // **승인 카드 턴 자체를 만들 수 없다.** `local.terminal` 은 `reversible:false` 라 헌장 ②에 걸린다.
+  const localTerminal = {
+    async probe(command) { return { command, cwd: dir, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(a) { 순서.push('tool[local.terminal]'); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir }, userSafeSummary: '정리했어요.' }; },
+  };
+  return { ctx: { env: demoEnv(), tools: demoTools({ localFile, localTerminal }), model }, 순서 };
 }
 
 // ① 듣기만 하는 턴 — 도구를 안 쓰는 대화에서 모델을 두 번 넘게 부르지 않는다.
@@ -49,7 +55,7 @@ test('순서 동결 ①: 대화만 하는 턴은 계획 1 + 최종 답 1', async
   const r = await runTurn({ text: '요즘 가게가 너무 힘들다' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=9]',
+    'model[-|tools=10]',
     'model[answerOnly|tools=0]',
   ], '대화 턴의 모델 왕복이 바뀌었다 — 늘었다면 사용자는 그만큼 더 기다린다');
 });
@@ -67,10 +73,10 @@ test('순서 동결 ②: 도구 한 걸음 턴은 모델 4회 · 도구 1회', a
   const r = await runTurn({ text: '정산.csv 읽고 알려줘' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=9]',
+    'model[-|tools=10]',
     'model[workContractAssessment|tools=1|req]',
     'tool[local.file]',
-    'model[-|tools=9]',
+    'model[-|tools=10]',
     'model[answerOnly|tools=0]',
   ], '도구 턴의 호출 순서가 바뀌었다');
 });
@@ -79,18 +85,18 @@ test('순서 동결 ②: 도구 한 걸음 턴은 모델 4회 · 도구 1회', a
 test('순서 동결 ③: 승인 카드 턴은 모델 2회 · 도구 실행 0회', async () => {
   const { ctx, 순서 } = await 무대({
     응답: (tc, o) => {
-      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
-      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '정산.md', text: '합계' } }] };
-      return '저장할까요?';
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }] };
+      return '지울까요?';
     },
   });
-  const r = await runTurn({ text: '정산.md 로 저장해줘' }, ctx);
-  assert.equal(r.kind, 'approval', '쓰기는 승인 경계다');
+  const r = await runTurn({ text: '임시폴더 지워줘' }, ctx);
+  assert.equal(r.kind, 'approval', '되돌릴 수 없는 명령은 헌장 ② 라 승인 경계다');
   assert.deepEqual(순서, [
-    'model[-|tools=9]',
+    'model[-|tools=10]',
     'model[workContractAssessment|tools=1|req]',
   ], '승인 전에 실행이 끼어들었거나 모델 왕복이 바뀌었다');
-  assert.ok(!순서.includes('tool[local.file]'), '승인 전 효과 0 — 카드 턴에서 손이 움직였다');
+  assert.ok(!순서.includes('tool[local.terminal]'), '승인 전 효과 0 — 카드 턴에서 손이 움직였다');
 });
 
 // ④ 승인 재개 — **실행이 먼저**다. 사용자가 이미 허락했으므로 다시 묻지 않는다.
@@ -98,24 +104,23 @@ test('순서 동결 ④: 승인 재개는 실행 먼저, 그다음 모델 2회',
   let 썼나 = false;
   const { ctx, 순서 } = await 무대({
     응답: (tc, o) => {
-      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
-      if (썼나) return '정산.md 로 저장했어요.';
-      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '정산.md', text: '합계' } }] };
-      return '저장할까요?';
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (썼나) return '임시폴더를 지웠어요.';
+      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }] };
+      return '지울까요?';
     },
   });
-  const 카드 = await runTurn({ text: '정산.md 로 저장해줘' }, ctx);
+  const 카드 = await runTurn({ text: '임시폴더 지워줘' }, ctx);
   assert.equal(카드.kind, 'approval');
   순서.length = 0;
-  const t = ctx.tools.tools['local.file'];
+  const t = ctx.tools.tools['local.terminal'];
   const 원래 = t.handler;
   t.handler = async (...a) => { 썼나 = true; return 원래(...a); };
   const r = await runTurn({ approve: 카드.pendingId }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'tool[local.file]',
-    'model[-|tools=9]',
-    'model[unmetDeliverable|tools=1|req]',
+    'tool[local.terminal]',
+    'model[-|tools=10]',
   ], '승인 재개의 호출 순서가 바뀌었다 — 실행이 뒤로 가면 사용자는 허락한 일을 다시 기다린다');
 });
 
@@ -123,12 +128,12 @@ test('순서 동결 ④: 승인 재개는 실행 먼저, 그다음 모델 2회',
 test('순서 동결 ⑤: 거절은 모델 호출 0 · 도구 실행 0', async () => {
   const { ctx, 순서 } = await 무대({
     응답: (tc, o) => {
-      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
-      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '정산.md', text: '합계' } }] };
-      return '저장할까요?';
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (o.tools?.length) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }] };
+      return '지울까요?';
     },
   });
-  const 카드 = await runTurn({ text: '정산.md 로 저장해줘' }, ctx);
+  const 카드 = await runTurn({ text: '임시폴더 지워줘' }, ctx);
   assert.equal(카드.kind, 'approval');
   순서.length = 0;
   const r = await runTurn({ reject: 카드.pendingId }, ctx);

@@ -10,7 +10,6 @@ import {
 } from '../src/kernel/l2-plan/authority.js';
 import { buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
-import { APPROVAL_MODES } from '../src/kernel/contracts.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
@@ -29,31 +28,31 @@ test('A0(읽기/요약)은 승인 없이 자연 진행', () => {
   }
 });
 
-test('A1(되돌릴 수 있는 로컬 정리)은 manual/smart 자연 진행, strict는 확인', () => {
-  assert.equal(decideAutoGrant({ kind: 'organize' }, 'smart'), true);
-  assert.equal(decideAutoGrant({ kind: 'organize' }, 'manual'), true);
-  assert.equal(decideAutoGrant({ kind: 'organize' }, 'strict'), false, '엄격은 A1도 확인');
-  assert.equal(grantFor({ kind: 'organize' }, 'strict').approvalRequired, true);
+// 자동성 헌장(2026-08-03) 이후: **모드는 아무 것도 바꾸지 않는다.** 예전엔 strict 가 A1(되돌릴 수
+// 있는 로컬 정리)까지 확인으로 올렸다. 헌장에는 모드 예외가 없다("그 밖의 모든 것은 자동이다") —
+// 모드가 마찰을 되살릴 수 있으면 그 문이 언젠가 다시 열린다. 그래서 예외를 없앴고,
+// 이 검사는 **없어졌는지를 반대 방향으로 지킨다**(strict 에서 다시 카드가 생기면 실패한다).
+// 등급표(A0~A3) 자체는 그대로다 — 바뀐 것은 "묻느냐"이지 "어떤 등급이냐"가 아니다.
+test('A1(되돌릴 수 있는 로컬 정리)은 자연 진행한다', () => {
+  assert.equal(decideAutoGrant({ kind: 'organize' }), true);
+  assert.equal(grantFor({ kind: 'organize' }).approvalRequired, false);
+  assert.equal(classifyTier({ kind: 'organize' }), 'A1', '등급표는 그대로다');
 });
 
 // ── 안전 바닥: 어느 모드도 우회 못 한다(반대 테스트 포함) ──
 test('A2 외부 전송은 승인 유지(모든 모드)', () => {
-  for (const mode of APPROVAL_MODES) {
-    const g = grantFor({ kind: 'send', label: 'slack.post' }, mode);
-    assert.equal(g.tier, 'A2');
-    assert.equal(g.approvalRequired, true, `${mode}에서도 전송은 승인`);
-    assert.equal(g.granted, false);
-    assert.equal(isExecutionAllowed(g), false, '미승인 전송은 실행 불가');
-  }
+  const g = grantFor({ kind: 'send', label: 'slack.post' });
+  assert.equal(g.tier, 'A2');
+  assert.equal(g.approvalRequired, true, '새 상대 첫 전송은 헌장 ③');
+  assert.equal(g.granted, false);
+  assert.equal(isExecutionAllowed(g), false, '미승인 전송은 실행 불가');
 });
 
 test('삭제성 요청(A3)은 승인 유지(모든 모드)', () => {
-  for (const mode of APPROVAL_MODES) {
-    const g = grantFor({ kind: 'delete' }, mode);
-    assert.equal(g.tier, 'A3');
-    assert.equal(g.approvalRequired, true);
-    assert.equal(isExecutionAllowed(g), false);
-  }
+  const g = grantFor({ kind: 'delete' });   // 되돌림을 안 밝힌 삭제 — 헌장 ②
+  assert.equal(g.tier, 'A3');
+  assert.equal(g.approvalRequired, true);
+  assert.equal(isExecutionAllowed(g), false);
 });
 
 // 반대 테스트(핵심): Smart(가장 느슨) 모드라도 안전 바닥은 자동 승인되지 않는다.
@@ -61,13 +60,11 @@ test('삭제성 요청(A3)은 승인 유지(모든 모드)', () => {
 test('안전 바닥은 Smart 포함 어느 모드에서도 자동 승인 불가', () => {
   for (const kind of SAFETY_FLOOR_KINDS) {
     assert.equal(isSafetyFloor(kind), true);
-    for (const mode of APPROVAL_MODES) {
-      assert.equal(decideAutoGrant({ kind }, mode), false, `${kind}@${mode}는 자동 진행 금지`);
-      const g = grantFor({ kind }, mode);
-      assert.equal(g.approvalRequired, true, `${kind}@${mode}는 승인 필요`);
-      assert.equal(g.safetyFloor, true);
-      assert.equal(g.granted, false, `${kind}@${mode}는 미승인`);
-    }
+    assert.equal(decideAutoGrant({ kind }), false, `${kind} 가 조건 없이 자동으로 샜다`);
+    const g = grantFor({ kind });
+    assert.equal(g.approvalRequired, true, `${kind} 는 승인 필요`);
+    assert.equal(g.safetyFloor, true);
+    assert.equal(g.granted, false);
   }
 });
 
@@ -75,18 +72,22 @@ test('안전 바닥은 Smart 포함 어느 모드에서도 자동 승인 불가'
 test('안전 바닥은 tier가 낮게 나와도 auto를 막는다(독립 불변식)', () => {
   // 매핑에 없는 kind는 최소 A2(애매하면 높은 등급) + allowlist에도 없어 자동 진행 안 함.
   assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A2');
-  // 자동화 활성화는 바닥 — mode 무관 자동 금지.
-  assert.equal(decideAutoGrant({ kind: 'automate' }, 'smart'), false);
-  assert.equal(decideAutoGrant({ kind: 'access_secret' }, 'smart'), false);
-  assert.equal(decideAutoGrant({ kind: 'grant_permission' }, 'smart'), false);
-  assert.equal(decideAutoGrant({ kind: 'connect_account' }, 'smart'), false);
+  // 헌장(2026-08-03)이 바닥 목록을 12→8 로 줄였다. **지키는 불변식은 그대로다** —
+  // tier 분류가 낮게 회귀해도 바닥은 독립으로 자동을 막는다. 재는 종류만 현재 바닥으로 옮긴다.
+  // 내려온 넷(automate·promote_memory·access_secret·connect_account)은 헌장의 결정이며,
+  // 그것들이 다시 카드가 되면 `test/autonomy-charter.test.js` 가 반대 방향에서 잡는다.
+  assert.equal(decideAutoGrant({ kind: 'grant_permission' }), false);
+  assert.equal(decideAutoGrant({ kind: 'escalate' }), false);
+  assert.equal(decideAutoGrant({ kind: 'pay' }), false);
+  assert.equal(decideAutoGrant({ kind: 'export_sensitive' }), false);
+  assert.equal(decideAutoGrant({ kind: 'publish' }), false);
 });
 
 // ── 모르는 kind는 자동 진행 금지(감사 blocker 1) ── 새 도구·플러그인·커넥터가 매핑에 없어도 A0로 새면 안 된다.
 test('unknown kind는 자동 승인되지 않는다(애매하면 높은 등급)', () => {
-  assert.equal(decideAutoGrant({ kind: 'unknown_kind' }, 'smart'), false);
-  assert.equal(decideAutoGrant({ kind: 'transfer_money' }, 'smart'), false);
-  assert.equal(decideAutoGrant({ kind: 'crm_write' }, 'smart'), false);
+  assert.equal(decideAutoGrant({ kind: 'unknown_kind' }), false);
+  assert.equal(decideAutoGrant({ kind: 'transfer_money' }), false);
+  assert.equal(decideAutoGrant({ kind: 'crm_write' }), false);
   const g = grantFor({ kind: 'unknown_kind' });
   assert.equal(g.approvalRequired, true, 'unknown은 승인 필요');
   assert.equal(g.granted, false);
@@ -95,11 +96,10 @@ test('unknown kind는 자동 승인되지 않는다(애매하면 높은 등급)'
 
 test('기존 저위험 kind는 의도대로 유지된다', () => {
   for (const kind of ['read', 'search', 'draft', 'summarize']) {
-    assert.equal(decideAutoGrant({ kind }, 'smart'), true, `${kind} 자연 진행`);
+    assert.equal(decideAutoGrant({ kind }), true, `${kind} 자연 진행`);
     assert.equal(grantFor({ kind }).approvalRequired, false);
   }
-  assert.equal(decideAutoGrant({ kind: 'organize' }, 'smart'), true, 'A1 정리 자연 진행');
-  assert.equal(decideAutoGrant({ kind: 'organize' }, 'strict'), false, '엄격은 A1 확인');
+  assert.equal(decideAutoGrant({ kind: 'organize' }), true, 'A1 정리 자연 진행');
 });
 
 // executable descriptor가 toolKind:'unknown_kind', needsApproval:false여도 autoAllowed로 새지 않는다.
@@ -110,8 +110,7 @@ test('실행 가능한 unknown toolKind 도구는 autoAllowed로 새지 않는�
   });
   const plan = buildActionPlan({
     intent: { neededTools: ['evil.tool'], desiredOutcome: '뭔가 실행' },
-    selfState,
-    mode: 'smart',
+    selfState
   });
   assert.ok(plan.toolsToUse.includes('evil.tool'), '실행 가능 판정은 됨');
   assert.equal(plan.autoAllowed.includes('evil.tool'), false, 'unknown은 자동 허용으로 새지 않는다');
@@ -120,8 +119,8 @@ test('실행 가능한 unknown toolKind 도구는 autoAllowed로 새지 않는�
 
 // ── kind 자체가 비어 있는 것도 안전하지 않은 것으로 본다(감사 blocker) ── 누락 ≠ read.
 test('kind 누락은 자동 진행 금지(누락 ≠ read)', () => {
-  assert.equal(decideAutoGrant({}, 'smart'), false, 'kind 없는 행동은 자동 승인 안 함');
-  assert.equal(decideAutoGrant({ label: '새 도구' }, 'smart'), false);
+  assert.equal(decideAutoGrant({}), false, 'kind 없는 행동은 자동 승인 안 함');
+  assert.equal(decideAutoGrant({ label: '새 도구' }), false);
   const g = grantFor({ label: '새 도구' });
   assert.equal(g.approvalRequired, true, 'kind 없으면 승인 필요');
   assert.equal(g.granted, false);
@@ -136,8 +135,7 @@ test('toolKind 없는(비어 있는) 도구는 read로 흘리지 않고 승인�
   });
   const plan = buildActionPlan({
     intent: { neededTools: ['custom.danger'], desiredOutcome: '뭔가 실행' },
-    selfState,
-    mode: 'smart',
+    selfState
   });
   assert.ok(plan.toolsToUse.includes('custom.danger'), '실행 가능 판정은 됨');
   assert.equal(plan.autoAllowed.includes('custom.danger'), false, 'toolKind 없음도 자동 허용으로 새지 않는다');
@@ -155,8 +153,7 @@ test('known id fallback 유지: toolKind 없어도 TOOL_KIND 맵대로 동작', 
   });
   const plan = buildActionPlan({
     intent: { neededTools: ['web.collect', 'local.file'], desiredOutcome: '조회·정리' },
-    selfState,
-    mode: 'smart',
+    selfState
   });
   assert.ok(plan.autoAllowed.includes('web.collect'), 'web.collect는 read로 자연 진행(기존 유지)');
   // 감사 blocker B1: local.file 은 같은 도구가 읽기도 삭제도 한다. **무슨 작업인지 모르면** 자연
@@ -208,12 +205,11 @@ async function withServer(fn) {
   finally { await new Promise((r) => server.close(r)); }
 }
 
-test('서버: 외부 전송은 승인 카드에 approvalMode + reason(사용자 언어)을 실어 멈춘다', async () => {
+test('서버: 외부 전송은 승인 카드에 reason(사용자 언어)을 실어 멈춘다', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
     const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙 #general에 회의 시작이라고 올려줘' })).json();
     assert.equal(r.kind, 'approval', '전송은 승인에서 멈춘다');
-    assert.ok(APPROVAL_MODES.includes(r.approvalMode), '현재 승인 모드 표면화');
     const g = r.pending[0];
     assert.equal(g.tier, 'A2');
     assert.equal(g.safetyFloor, true, '전송은 안전 바닥');

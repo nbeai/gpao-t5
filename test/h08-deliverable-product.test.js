@@ -36,10 +36,11 @@ test('H08 제품 경로: 모델의 FILE 완료 계약이 읽기→쓰기 승인�
   const post = (body) => fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
   try {
     const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((r) => r.json());
-    const first = await post({ sessionId: session.id, text: '견적서를 읽고 원본은 건드리지 말고 별도 정리본 파일로 만들어줘' });
-    assert.equal(first.kind, 'approval', `쓰기 승인까지 이어지지 않았다(${first.kind})`);
-    const done = await post({ sessionId: session.id, approve: first.pendingId });
-    assert.equal(done.kind, 'reply');
+    // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이다. **재는 계약은 그대로다** —
+    // FILE 완료 계약이 읽기→쓰기→별도 결과물 영수증까지 끊기지 않고 이어지는가.
+    // 중간 승인은 관측점이었을 뿐이고, 아래 원장 단언들이 계약의 본체다.
+    const done = await post({ sessionId: session.id, text: '견적서를 읽고 원본은 건드리지 말고 별도 정리본 파일로 만들어줘' });
+    assert.equal(done.kind, 'reply', `쓰기까지 이어지지 않았다(${done.kind})`);
     assert.equal(await readFile(source, 'utf8'), '배송비 포함 최종 견적 1200원', '원본이 바뀌었다');
     assert.equal(await readFile(target, 'utf8'), '최종 견적: 1200원');
     assert.equal(contractCalls, 1, `완료 계약 판단이 중복됐다(${contractCalls})`);

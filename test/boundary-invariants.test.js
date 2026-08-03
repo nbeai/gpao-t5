@@ -6,7 +6,7 @@
 // 감사관이 요구한 방향이기도 하다("목록이 아니라 불변식을 검사하라").
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, stat, readdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, stat, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -72,16 +72,38 @@ test('불변식: 전송 도구는 어떤 인자로도 안전 바닥이다', () =
   }
 });
 
-// ── 2. 모델이 고른 위험 작업도 실행되지 않는다 ───────────────────────────
-test('불변식: 모델이 고른 삭제·이동·되돌리기는 전부 승인 대기로 멈춘다', async () => {
-  for (const action of ['delete', 'move', 'undo', 'write']) {
+// ── 2. 모델이 고른 위험 작업에서도 사용자는 원본을 잃지 않는다 ───────────
+// 자동성 헌장(2026-08-03)이 이 불변식의 **지키는 방식**을 바꿨다. 예전에는 "승인 대기로 멈춘다"가
+// 보호였다. 헌장은 그 자리를 **되돌림**으로 옮겼다 — "안전은 승인이 아니라 사실 기록(원장)과
+// 되돌리기(휴지통)가 산다"(헌장 §집행). 그래서 재는 것도 옮긴다: 멈추는가가 아니라
+// **원본을 되찾을 수 있는가**. 이것이 헌장 아래에서 사용자를 실제로 지키는 유일한 사실이고,
+// 이 사실이 무너지면 헌장의 전제가 무너진다(같은 이유로 돌연변이 스윕에 휴지통 보장 변이가 있다).
+test('불변식: 모델이 고른 삭제·덮어쓰기는 실행되더라도 원본이 휴지통에 남는다', async () => {
+  for (const action of ['delete', 'write']) {
     const { dir, make } = await fileCtx({ '대상.md': '내용' });
-    const args = { action, path: '대상.md', to: '옮긴.md', text: '새 내용' };
+    const args = { action, path: '대상.md', text: '새 내용' };
     const r = await runTurn({ text: '해줘' }, make([{ name: 'local.file', args }]));
-    assert.equal(r.kind, 'approval', `${action}: 승인 없이 진행됐다(${r.kind})`);
-    assert.deepEqual(r.ledger?.confirmed ?? [], [], `${action}: 승인 전에 실행 사실이 남았다`);
-    await stat(join(dir, '대상.md')); // 원본은 그대로여야 한다
+    assert.equal(r.kind, 'reply', `${action}: 헌장은 되돌릴 수 있는 파일 작업을 자동으로 둔다(${r.kind})`);
+    // 실행했으면 반드시 원장에 남는다 — 조용한 실행 금지(§4 와 같은 계약).
+    assert.ok((r.ledger?.confirmed ?? []).length > 0, `${action}: 실행하고 기록을 안 남겼다`);
+    // **원본은 사라지지 않았다.** 휴지통에 원래 내용 그대로 있어야 한다.
+    const 휴지통 = join(dir, '.trash');
+    const 남은것 = await readdir(휴지통).catch(() => []);
+    const 원본 = 남은것.filter((f) => f.endsWith('대상.md'));
+    assert.equal(원본.length, 1, `${action}: 원본이 휴지통에 남지 않았다 — 되돌릴 수 없는 파괴다`);
+    assert.equal(await readFile(join(휴지통, 원본[0]), 'utf8'), '내용', `${action}: 휴지통 사본이 원본이 아니다`);
   }
+});
+
+// 되돌릴 수 있다는 **선언이 거짓이면** 아무도 막지 않는다 — 그래서 선언과 실제를 대조한다.
+// (헌장 이전에는 승인 카드가 이 자리를 대신 지켰다. 지금은 이 검사가 그 자리다.)
+test('불변식: 파일 손이 내건 되돌림 선언은 실제 동작과 일치한다', async () => {
+  const 파일손 = selfState.connectedTools.find((t) => t.id === 'local.file');
+  assert.equal(파일손?.reversible, true, '선언이 없으면 헌장이 자동으로 두지 않는다');
+  const { dir, make } = await fileCtx({ '지울것.md': '원래 내용' });
+  await runTurn({ text: '지워줘' }, make([{ name: 'local.file', args: { action: 'delete', path: '지울것.md' } }]));
+  const 남은것 = await readdir(join(dir, '.trash')).catch(() => []);
+  assert.ok(남은것.some((f) => f.endsWith('지울것.md')), '선언은 되돌릴 수 있다는데 실제로는 사라졌다');
 });
 
 // ── 3. 범위(scope)는 모델도 못 넘는다 ────────────────────────────────────
@@ -98,11 +120,17 @@ test('불변식: 모델이 작업 폴더 밖을 가리켜도 나가지 않는다
 });
 
 // ── 4. 실행하지 않은 것을 했다고 하지 않는다 ─────────────────────────────
+// **승인 전 효과 0** — 절대 게이트다. 재는 것은 "무엇이 승인을 받느냐"가 아니라 **승인을 기다리는
+// 동안 원장이 실행을 주장하지 않는다**는 것이다. 탈것을 파일 삭제에서 **외부 전송**으로 옮겼다:
+// 헌장이 되돌릴 수 있는 파일 작업을 자동으로 뒀으므로 파일로는 이 상태를 만들 수 없고,
+// 새 상대로의 첫 전송은 헌장 ③ 이라 여전히 승인을 받는다. 계약은 그대로다.
 test('불변식: 승인 대기 상태에서는 원장에 실행 사실이 없다', async () => {
   const { make } = await fileCtx({ 'a.md': '내용' });
-  const r = await runTurn({ text: '지워줘' }, make([{ name: 'local.file', args: { action: 'delete', path: 'a.md' } }]));
-  assert.equal(r.kind, 'approval');
-  assert.equal((r.ledger?.confirmed ?? []).length, 0);
+  const r = await runTurn({ text: '보내줘' }, make([
+    { name: 'slack.post', args: { text: '정리 끝났어요', target: '#일반' } },
+  ]));
+  assert.equal(r.kind, 'approval', '새 상대로의 첫 전송은 헌장 ③ 이라 승인을 받는다');
+  assert.equal((r.ledger?.confirmed ?? []).length, 0, '승인 전에 실행 사실이 남았다');
   assert.equal((r.ledger?.unconfirmed ?? []).length + (r.ledger?.estimated ?? []).length >= 0, true);
 });
 

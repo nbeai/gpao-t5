@@ -496,6 +496,9 @@ export function makeServer(deps = {}) {
     const ledger = new TruthLedger();
     ledger.entries = (session.ledgerEntries ?? []).slice();
     const pending = new Map(Object.entries(session.pendingApprovals ?? {}));
+    // 헌장 ③ — 사용자가 직접 허락한 전송 상대. 세션에 남아 다음 턴·재시작이 이어받는다.
+    // 저장은 승인 경로에서만 일어난다(`turn.js` 의 `rememberCounterpart` 주석 참조).
+    const knownCounterparts = new Set(session.knownCounterparts ?? []);
     const measured = async (kind, action) => {
       if (!timingEntry) return action();
       const wait = observeTiming(timingEntry, () => timingEntry.timing.beginExternalWait(kind));
@@ -512,7 +515,7 @@ export function makeServer(deps = {}) {
       },
     }) : tools;
     return {
-      env, model: turnModel, tools: turnTools, ledger, pending, identity, selfhoodDocs,
+      env, model: turnModel, tools: turnTools, ledger, pending, knownCounterparts, identity, selfhoodDocs,
       runtimeEnvironment: deps.runtimeEnvironment,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
       connectors: deps.connectors ?? demoConnectors(),
@@ -822,6 +825,7 @@ export function makeServer(deps = {}) {
     session.transcript.push({ role: 'assistant', result });
     session.ledgerEntries = ctx.ledger.entries;
     session.pendingApprovals = Object.fromEntries(ctx.pending);
+    session.knownCounterparts = [...(ctx.knownCounterparts ?? [])];
     stampTurn(session, turnRef, stampFrom); // 이 턴의 user·assistant·ledger 는 같은 신분이다
     // S5-1(§4.5): **모델 앞에 실제로 놓인 것**을 그 턴의 신분과 함께 남긴다. 커널이 렌더한
     // 배열에서 뽑아 온 값을 그대로 저장할 뿐, 여기서 다시 판정하지 않는다.
@@ -2460,6 +2464,7 @@ export function makeServer(deps = {}) {
       session.transcript.push({ role: 'assistant', result });
       session.ledgerEntries = ctx.ledger.entries;
       session.pendingApprovals = Object.fromEntries(ctx.pending);
+    session.knownCounterparts = [...(ctx.knownCounterparts ?? [])];
       stampTurn(session, channelTurnRef, channelStampFrom);
       // 끝났으면 커널이 `goal: null` 로 명시 해제한다 — 그 사실을 세션에도 반영한다.
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.

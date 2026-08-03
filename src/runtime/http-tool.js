@@ -46,7 +46,11 @@ export function httpToolDescriptor({ connector, tool }) {
     connector: connector.id,
     availability: [{ kind: 'connected' }],
     toolKind: tool.toolKind ?? 'unknown_kind',
-    needsApproval: tool.toolKind === 'read' ? false : true,
+    // **needsApproval 을 손 전체에 기본으로 달지 않는다**(자동성 헌장). 예전엔 read 가 아니면
+    // 전부 true 였고, 그래서 커넥터가 종류를 안 밝힌 조회까지 승인 카드가 됐다 —
+    // 팀원 실측(2026-08-03): "텔레그램 봇 정보 확인"(getMe)·"최근 업데이트 읽기"(getUpdates)가
+    // 승인을 요구했고 카드는 "되돌리기 어렵거나 밖으로 나가는 일이라"고 말했다. 둘 다 사실이 아니다.
+    // 승인은 이제 종류(toolKind)가 헌장 넷에 닿을 때만 authority 가 붙인다. 여기서 미리 달지 않는다.
     reversible: tool.toolKind === 'read' ? true : undefined,
     capability: tool.capability ?? `${connector.label} 의 ${tool.label ?? tool.name}`,
     schema: {

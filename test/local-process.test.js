@@ -129,19 +129,27 @@ test('⑥ 자기 기억을 지우거나 자동 실행을 거는 명령은 직접
   }
 });
 
-// ── 켜는 것은 사용자의 결정이다 ─────────────────────────────────────────
-// 라이브 실측: "9913 포트로 서버 띄워봐"에 승인 없이 떴다. 포트를 잡고 턴을 넘어
-// 살아남는 일이 사용자 모르게 일어나면 안 된다. 반대로 확인·로그까지 승인을 물으면
-// 사용자가 승인을 기계적으로 누르게 되어 오히려 더 위험해진다.
-test('켜기는 승인을 받고, 보기·로그는 그냥 되고, 끄기는 막지 않는다', async () => {
+// ── 켜는 것도 자동이다 ─────────────────────────────────────────────────
+// (역사) 예전 계약은 "켜기는 승인"이었다. 근거는 라이브 실측 — "9913 포트로 서버 띄워봐"에
+// 승인 없이 떴고, 포트를 잡고 턴을 넘어 사는 일이 사용자 모르게 일어나면 안 된다고 봤다.
+// 자동성 헌장(2026-08-03) + 오너 결정: **서버 켜기도 자동이다.** 헌장 넷에 "포트 점유"나
+// "턴을 넘어 사는 프로세스"가 없고, 켜는 것은 되돌릴 수 있다(끄면 된다 — 도구가 `reversible:true`
+// 와 함께 "꺼줘라고 하시면 바로 꺼요"를 선언한다). 대신 **켰다는 사실이 사용자에게 남아야 한다** —
+// 헌장이 승인 카드를 걷은 자리를 메우는 것은 원장과 되돌리기다.
+test('켜기·보기·로그·끄기는 자동으로 돌고, 모르는 작업만 승인으로 간다', async () => {
   const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
   const { decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
   const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
   const { demoEnv } = await import('../src/surface/demo-context.js');
   const self = buildSelfState(demoEnv());
-  const 자동 = (action) => decideAutoGrant({ kind: toolActionKind({ toolId: 'local.process', args: { action }, selfState: self }) }, 'smart');
+  const 손 = self.connectedTools.find((t) => t.id === 'local.process');
+  const 자동 = (action) => decideAutoGrant({
+    kind: toolActionKind({ toolId: 'local.process', args: { action }, selfState: self }),
+    revocable: 손?.reversible,
+  });
 
-  assert.equal(자동('start'), false, '사용자 모르게 포트가 점유된다');
+  assert.equal(손?.reversible, true, '켜기가 자동으로 도는 근거는 이 선언 하나뿐이다("꺼줘"로 되돌린다)');
+  assert.equal(자동('start'), true, '켜 달라고 말한 것을 또 묻지 않는다');
   assert.equal(자동('status'), true, '확인마다 승인을 물으면 승인을 기계적으로 누르게 된다');
   assert.equal(자동('logs'), true, '"왜 안 켜지지"를 물을 때마다 승인 카드가 뜨면 안 된다');
   assert.equal(자동('stop'), true, '"꺼줘"라고 말한 것을 또 물으면 안 된다');

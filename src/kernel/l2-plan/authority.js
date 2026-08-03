@@ -1,31 +1,51 @@
-// L2 · AuthorityGrant (권한 계약, §3) — A0-A3 분류와 실행 직전 게이트.
-// UI 는 권한을 부여하지 않고 결정을 보여 주고 승인을 받는다(헌법 §3-1).
-// "사용자가 원했다"만으로 A2·A3 우회 불가(헌법 §3-6).
-// P6-15 Smart Approval: 승인 모드(manual/smart/strict)는 **저위험을 얼마나 자연스럽게 통과시키느냐만** 조절한다.
-//   어느 모드도 안전 바닥(SAFETY_FLOOR)을 우회하지 못한다. 그리고 판단 이유를 사용자 언어로 설명한다(정책 불변).
-import { TIER, DEFAULT_APPROVAL_MODE } from '../contracts.js';
+// L2 · AuthorityGrant (권한 계약) — 자동성 헌장의 집행 지점.
+//
+// **자동성 헌장** (design/T5-AUTONOMY-CHARTER-2026-08-03-ko.md · 오너 승인 2026-08-03):
+//   T5 가 사람에게 멈춰 묻는 경우는 넷뿐이다 —
+//   ① 비밀값 입력(값 받는 자리·승인 아님) ② 되돌릴 수 없는 파괴 ③ 새 상대 첫 외부 전송(한 번만) ④ 돈.
+//   그 밖의 모든 것은 자동이다. 헌장과 코드가 어긋나면 코드가 결함이다.
+//
+// 옛 기본값("모르면 묻는다" — 12종 안전 바닥 일괄 승인)은 이 헌장이 뒤집었다. 팀원 실사용에서
+// 승인 카드 6장 중 5장이 읽기·연결 준비였다 — 안전이 아니라 마찰이었다. 안전은 승인이 아니라
+// **사실 기록(원장)과 되돌리기(휴지통·역방향 한 걸음)** 가 산다.
+// UI 는 권한을 부여하지 않고 결정을 보여 주고, 묻는 넷에서만 승인을 받는다.
+import { TIER } from '../contracts.js';
 
-// kind 누락·미상은 **자동 진행 금지**로 취급한다(감사 blocker). "권한 종류가 비어 있는 것"도 안전하지 않은 것 —
-//   allowlist에 없고 classifyTier가 A2로 올려 auto가 새지 않는다. read로 흘리지 않는다.
+// kind 누락·미상은 자동으로 흘리지 않는다 — **분류가 먼저다**(헌장: "모르면 격리해서 해 보고").
+// 원격 손은 선언·분류로 종류를 얻고, 로컬 명령은 probe 가 판정한다. 분류가 안 된 것만 여기 남는다.
 export const UNKNOWN_KIND = 'unknown_kind';
 
 /**
- * 안전 바닥(Safety Floor) — 모드와 무관하게 **항상 승인(A2+)**. Smart라도 자동 승인 금지.
- * 외부 전송·SaaS 쓰기·자동화 활성화·장기 기억 승격·삭제·결제·게시·민감 내보내기·권한 상승/변경·비밀/계정 접근.
- * 이 집합은 tier 분류가 흔들려도 auto-grant를 막는 독립 불변식이다(방어적 이중화).
+ * 헌장이 **물을 수 있는** 종류들. 이 밖의 종류는 어떤 조건에서도 승인 카드가 되지 않는다.
+ * 이 안이라고 항상 묻는 것도 아니다 — 조건(되돌림·아는 상대)이 자동을 연다(`decideAutoGrant`).
+ *
+ * 이름을 SAFETY_FLOOR_KINDS 로 유지하는 이유: 소비자(자동화 엔진·스킬 replay·판정 묶임)가
+ * "사람 확인이 걸릴 수 있는 종류인가"를 이 이름으로 묻는다. 의미는 같고 집합만 줄었다.
+ *
+ * 빠진 것들이 어디로 갔는지 명시한다(조용히 사라진 것이 아니다):
+ *   · write        → 파괴 조건부(reversible:false 만 묻는다). T5 파일 손은 원본을 휴지통에 남긴다.
+ *   · automate     → 자동. 문지기는 사후 교정 표면(오너: 사전 게이트 금지).
+ *   · promote_memory → 자동. 같은 원칙 — 사용자가 보고 고치고 지운다.
+ *   · access_secret → 자동. 저장된 자격을 쓰는 것은 일상이다. 밖으로 나가면 export_sensitive.
+ *   · connect_account → 자동. 사람의 관문은 비밀값 입력면(헌장 ①)이지 승인 카드가 아니다.
  */
 export const SAFETY_FLOOR_KINDS = Object.freeze([
-  'send', 'write', 'automate', 'promote_memory',
-  'delete', 'pay', 'publish', 'export_sensitive', 'escalate',
-  'grant_permission', 'access_secret', 'connect_account',
+  'send',             // ③ 새 상대 첫 전송만 — 아는 상대는 자동
+  'delete', 'write',  // ② 되돌릴 수 없을 때만 — 휴지통·백업이 있으면 자동
+  'pay',              // ④ 항상
+  'export_sensitive', // ② 의 연장 — 새어 나간 비밀은 되돌릴 수 없다. 항상
+  'publish',          // ③ 의 연장 — 공개는 언제나 새 상대(세상)다. 항상
+  'escalate', 'grant_permission', // 권한 변경 — 심각한 안전 훼손 축. 항상(현재 내는 손 없음)
 ]);
 
 // 저위험 어휘의 원천. `AUTO_SAFE_KINDS`(자동 진행 판정)와 `AUTHORITY_KINDS`(어휘 전체)가
 // **같은 목록에서 파생**된다 — 두 곳에 손으로 적으면 언젠가 갈린다.
 const LOW_RISK_ALWAYS = Object.freeze(['read', 'summarize', 'search', 'draft']);
 const LOW_RISK_REVERSIBLE = Object.freeze(['organize', 'title', 'archive']);
+// 헌장이 승인 목록에서 내린 종류들 — 어휘에는 남는다(자동화 envelope 의 allowedKinds 등).
+const CHARTER_AUTO_KINDS = Object.freeze(['automate', 'promote_memory', 'access_secret', 'connect_account']);
 
-/** 이 행동이 안전 바닥인가(항상 승인). */
+/** 이 행동이 **사람 확인이 걸릴 수 있는** 종류인가(조건은 decideAutoGrant 가 본다). */
 export function isSafetyFloor(kind) {
   return SAFETY_FLOOR_KINDS.includes(kind);
 }
@@ -38,7 +58,7 @@ export function isSafetyFloor(kind) {
  * `UNKNOWN_KIND` 는 판정 결과일 뿐 **승인 범위로 저장할 값이 아니다** — 여기 넣지 않는다.
  */
 export const AUTHORITY_KINDS = Object.freeze([
-  ...LOW_RISK_ALWAYS, ...LOW_RISK_REVERSIBLE, ...SAFETY_FLOOR_KINDS,
+  ...LOW_RISK_ALWAYS, ...LOW_RISK_REVERSIBLE, ...CHARTER_AUTO_KINDS, ...SAFETY_FLOOR_KINDS,
 ]);
 
 /** 이 문자열이 행동 종류 어휘인가(도구 id·자유 문자열 배제). */
@@ -123,41 +143,82 @@ function tierOfKind(kind) {
 // 자동 진행 저위험 allowlist — **명시된 것만** 자연 진행한다. 모르는 kind는 여기에 없으므로 자동 진행 안 함.
 //   tier가 낮게 나와도(회귀·오분류) 이 allowlist가 독립적으로 auto를 막는다(안전 바닥과 같은 방어적 이중화).
 export const AUTO_SAFE_KINDS = Object.freeze({
-  always: LOW_RISK_ALWAYS,          // A0 — 모든 모드 자연 진행(읽기·요약·검색·초안)
-  reversibleLocal: LOW_RISK_REVERSIBLE, // A1 — manual/smart 진행, strict는 확인
+  always: LOW_RISK_ALWAYS,          // A0 — 읽기·요약·검색·초안
+  reversibleLocal: LOW_RISK_REVERSIBLE, // A1 — 되돌릴 수 있는 로컬 정리
 });
 
 /**
- * 승인 없이 자연 진행할지 결정한다(모드 인지). **안전 바닥은 어느 모드에서도 자동 진행하지 않는다** —
- * tier 검사보다 먼저 걸러 tier 분류가 낮게 회귀해도 새지 않게 한다(독립 불변식).
- * @param {Object} action  {kind}
- * @param {import('../contracts.js').ApprovalMode} [mode]
- * @returns {boolean} true면 승인 없이 진행(저위험).
+ * **헌장 판정** — 승인 없이 진행할지 결정한다.
+ *
+ * 기본은 자동이다. 묻는 것은 헌장 넷의 파생뿐이고, 그 안에서도 조건이 자동을 연다:
+ * 휴지통이 있는 삭제는 파괴가 아니고, 한 번 허락한 상대는 새 상대가 아니다.
+ *
+ * **승인 모드는 제거했다**(오너 결정 2026-08-03) — 세 모드가 같은 답을 내는 순간 그것은
+ * 조절 손잡이가 아니라 죽은 버튼이었다. 마찰의 강도를 정하는 것은 이제 헌장의 넷뿐이다.
+ *
+ * @param {Object} action  {kind, reversible?, counterpartKnown?, needsApproval?}
+ *   reversible        — 도구가 밝힌 사실. 삭제·쓰기에서 "백업이 있는가"(헌장 ②의 조건).
+ *   counterpartKnown  — 이 상대에게 보낸 것을 사용자가 이미 허락했는가(헌장 ③의 조건).
+ * @returns {boolean} true면 승인 없이 진행.
  */
-export function decideAutoGrant(action, mode = DEFAULT_APPROVAL_MODE) {
+export function decideAutoGrant(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
-  if (action?.needsApproval) return false;   // 도구 선언이 확인을 요구하면 모드와 무관하게 승인
-  if (isSafetyFloor(kind)) return false;                      // 안전 바닥 — 모드 무관 항상 승인(우회 불가)
-  // 명시된 저위험 allowlist만 자연 진행 — 모르는 kind는 여기에 없으니 승인으로 간다(애매하면 높은 등급).
-  if (AUTO_SAFE_KINDS.always.includes(kind)) return true;              // A0: 읽기·요약·검색·초안
-  if (AUTO_SAFE_KINDS.reversibleLocal.includes(kind)) return mode !== 'strict'; // A1: strict는 확인
-  return false;                                              // 그 외(A2/A3·모르는 kind) → 승인 필요
+  // 도구가 명시로 확인을 요구하면 존중한다 — 다만 이 선언은 이제 **예외**다. 손 전체에
+  // 기본값으로 다는 것(옛 http/cli 도구)은 헌장 위반이고, 그 기본값들은 걷어냈다.
+  if (action?.needsApproval) return false;
+  // 헌장 넷에 실제로 닿으면 묻는다. 조건(되돌림·아는 상대)이 자동을 여는 것까지 여기서 본다.
+  if (isCharterAsk(action)) return false;
+  // 그 밖의 전부는 자동 — 헌장이 자동으로 둔 것(automate·기억 승격·자격 사용·연결 준비)과
+  // 저위험 어휘, 조건을 통과한 send·write·delete 가 모두 여기로 온다.
+  return true;
 }
 
 /**
- * 행동에 대한 AuthorityGrant 를 만든다. 승인 필요 여부는 모드가 아니라 **행동의 위험**이 정한다 —
- * 모드는 저위험(A0/A1)을 얼마나 통과시키느냐만 조절하고, 안전 바닥은 어느 모드에서도 승인이다.
+ * 이 행동이 헌장의 넷에 **실제로 닿는가**. 종류가 목록에 있는 것만으로는 부족하다 —
+ * 되돌릴 수 있는 삭제·쓰기, 이미 허락한 상대로의 전송은 헌장이 자동으로 두었다.
+ */
+function isCharterAsk(action) {
+  const kind = action?.kind ?? UNKNOWN_KIND;
+  // **어휘 밖은 전부 미상이다.** 리터럴 `unknown_kind` 만 걸러 내면, 종류를 스스로 적어 내는
+  // 원격 커넥터가 `transfer_money` · `crm_write` 같은 이름으로 헌장을 그냥 지나간다(실측 2026-08-03).
+  // 헌장 ④(돈)에 정면으로 닿는 이름조차 자동이 됐다. 어휘(`AUTHORITY_KINDS`)에 없으면
+  // 분류가 안 된 것이고, 분류가 안 된 것은 자동으로 흘리지 않는다 — 이 파일 머리의 규칙 그대로다.
+  if (!isAuthorityKind(kind)) return true;
+  if (!isSafetyFloor(kind)) return false;   // 헌장 목록 밖(어휘 안) → 안 묻는다
+  switch (kind) {
+    // ② 되돌릴 수 없는 파괴만. 다만 **되돌릴 수 있다고 밝혀야 자동**이다 — 삭제와 같은 기본.
+    // 예전 판은 `revocable === false` 만 파괴로 봤다. 그러면 되돌림을 **선언하지 않은** 손이
+    // 전부 자동이 된다: 원격 SaaS 쓰기(`http-tool` 은 read 가 아니면 `reversible: undefined`)에는
+    // 휴지통이 없는데 구글 시트 덮어쓰기가 확인 없이 돌았다(실측 2026-08-03).
+    // 헌장 ② 는 "백업 없는 덮어쓰기"를 묻는다 — 백업이 있다는 것은 손이 밝혀야 하는 사실이다.
+    // 로컬 파일 손은 휴지통을 선언하므로(`reversible: true`) 그대로 자동이다.
+    case 'write':
+      return action?.revocable !== true;
+    // 삭제도 같은 기본 — 되돌릴 수 있다고 **밝혀야**(휴지통) 자동. 빈 값은 파괴로 본다.
+    case 'delete':
+      return action?.revocable !== true;
+    // ③ 새 상대 첫 전송만. 이미 허락한 상대(counterpartKnown)에는 안 묻는다.
+    case 'send':
+      return action?.counterpartKnown !== true;
+    // ②·③·④ 의 연장 — 비밀 본문·공개·결제·권한 변경은 조건 없이 항상.
+    default:
+      return true;
+  }
+}
+
+/**
+ * 행동에 대한 AuthorityGrant 를 만든다. 승인 필요 여부는 모드가 아니라 **헌장**이 정한다 —
+ * 모드는 되돌릴 수 있는 로컬 정리를 strict 에서 한 번 더 확인하느냐만 조절한다.
  * @param {Object} action
  * @param {string} action.label            사용자에게 보일 행동 이름
  * @param {string} action.kind
  * @param {Object} [action.preview]        {impact,scope,duration,cancel}
  * @param {boolean} [action.revocable]
- * @param {import('../contracts.js').ApprovalMode} [mode]
  * @returns {import('../contracts.js').AuthorityGrant}
  */
-export function grantFor(action, mode = DEFAULT_APPROVAL_MODE) {
+export function grantFor(action) {
   const tier = classifyTier(action);
-  const approvalRequired = !decideAutoGrant(action, mode);
+  const approvalRequired = !decideAutoGrant(action);
   const revocable = action.revocable ?? (tier !== TIER.A3);
   /** @type {import('../contracts.js').AuthorityGrant} */
   const grant = {
@@ -169,7 +230,7 @@ export function grantFor(action, mode = DEFAULT_APPROVAL_MODE) {
     granted: !approvalRequired, // 저위험은 자동 진행, 승인 필요는 대기
     revocable,
     // P6-15: A0-A3 판단을 사용자 언어로. 정책이 아니라 "왜/무엇이/되돌릴 수 있나"를 보여줄 뿐.
-    reason: explainAuthority(action, mode),
+    reason: explainAuthority(action),
   };
   if (approvalRequired) {
     grant.approvalPreview = action.preview ?? {
@@ -210,15 +271,36 @@ const WHY_APPROVAL = {
 };
 
 /**
+ * **자동으로 한 일도 무엇을 했는지 정확히 말한다**(자동성 헌장 2026-08-03).
+ *
+ * 헌장이 승인 카드를 걷은 자리는 비워 두는 자리가 아니다 — "안전은 승인이 아니라 **사실 기록과
+ * 되돌리기**가 산다"가 헌장 자신의 문장이다. 그런데 자동 경로의 설명은 한 문장뿐이었고,
+ * 그래서 파일 삭제·덮어쓰기·계정 연결·자동화 켜기·기억 승격·자격 사용이 전부
+ * **"되돌릴 수 있는 가벼운 정리라 승인 없이 바로 진행했어요"** 를 달고 나갔다(실측 2026-08-03).
+ * 삭제는 가벼운 정리가 아니다. 카드를 없앤 대가로 **거짓 문장**을 준 셈이었다.
+ *
+ * 여기 문장들은 둘을 함께 말한다 — **무엇을 했는지**와 **왜 그것이 자동이어도 되는지**.
+ * 뒤쪽이 곧 사용자가 되돌릴 수 있는 길이라, 이 문장이 정확해야 헌장의 안전이 실제로 선다.
+ */
+const WHY_AUTO = {
+  delete: '원본을 휴지통에 남기고 지웠어요 — 되돌릴 수 있어요.',
+  write: '이전 내용을 휴지통에 남기고 저장했어요 — 되돌릴 수 있어요.',
+  send: '전에 보내도 된다고 하신 곳이라 바로 보냈어요.',
+  connect_account: '붙일 준비만 했어요 — 바뀐 것은 없고, 비밀값이 필요하면 입력창이 따로 열려요.',
+  automate: '바로 켰어요 — 자동화 화면에서 보고 멈추거나 지울 수 있어요.',
+  promote_memory: '기억해 뒀어요 — 보고 고치거나 지울 수 있어요.',
+  access_secret: '저장해 둔 자격으로 처리했어요 — 자격 자체는 밖으로 나가지 않아요.',
+};
+
+/**
  * A0-A3 판단을 사용자 언어로 설명한다(정책을 바꾸지 않는다 — 판단을 보여줄 뿐, P6-15).
  * @param {Object} action  {kind,label,preview,revocable}
- * @param {import('../contracts.js').ApprovalMode} [mode]
  * @returns {{tier:string, needsApproval:boolean, safetyFloor:boolean, why:string, whatChanges:string, reversible:string}}
  */
-export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
+export function explainAuthority(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
   const tier = classifyTier(action);
-  const auto = decideAutoGrant(action, mode);
+  const auto = decideAutoGrant(action);
   const floor = isSafetyFloor(kind);
   // **되돌릴 수 있는지는 도구가 아는 사실이다.** 종류만 보고 추측하면 거짓말이 된다 —
   // 로컬 파일 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라고 겁을 줬다(실측).
@@ -236,9 +318,11 @@ export function explainAuthority(action, mode = DEFAULT_APPROVAL_MODE) {
     : (action?.preview?.cancel ?? action?.reversibleNote ?? '되돌릴 수 있어요.');
   let why;
   if (auto) {
-    why = tier === TIER.A0
-      ? '읽고 정리해 보여드리는 일이라 승인 없이 바로 진행했어요.'
-      : '되돌릴 수 있는 가벼운 정리라 승인 없이 바로 진행했어요.';
+    // 종류별 사실이 먼저다 — 없을 때만 등급으로 떨어진다(A0 읽기 / A1 되돌릴 수 있는 정리).
+    why = WHY_AUTO[kind]
+      ?? (tier === TIER.A0
+        ? '읽고 정리해 보여드리는 일이라 승인 없이 바로 진행했어요.'
+        : '되돌릴 수 있는 가벼운 정리라 승인 없이 바로 진행했어요.');
   } else {
     why = WHY_APPROVAL[kind] ?? '되돌리기 어렵거나 밖으로 나가는 일이라 실행 전에 확인받아요.';
   }

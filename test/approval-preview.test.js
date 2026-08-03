@@ -29,14 +29,15 @@ async function 자리() {
   return { dir, tool: makeLocalProcessTool({ store: new ProcessStore(dir), dataDir: dir, cwd: dir }) };
 }
 
-test('서버 시작 카드에 무엇을·어디서·계속·끄는 법이 보인다', async () => {
+// 자동성 헌장(2026-08-03) + 오너 결정: **서버 켜기는 자동이다**(끄면 되돌아간다).
+// 그래서 카드가 뜨지 않는다 — **재는 계약은 그대로다**: 도구가 자기 일을 사용자 말로 정확히
+// 설명하는가(무엇을·어디서·계속·끄는 법). 그 문장은 `previewOf` 가 소유하고, 카드가 뜰 때도
+// 자동으로 돌 때도 같은 자리에서 나온다. 관측점만 도구 계약으로 옮긴다.
+// (부수 효과: 이 검사가 더 이상 실제로 `python3 -m http.server 9913` 을 띄우지 않는다 —
+//  헌장 뒤 이 검사가 포트를 잡고 정리하지 않아 같은 포트를 쓰는 `execution-block` 검사를 깼다.)
+test('서버 시작 설명에 무엇을·어디서·계속·끄는 법이 보인다', async () => {
   const { dir, tool } = await 자리();
-  const r = await runTurn({ text: '서버 켜줘' }, {
-    env: demoEnv(), model: 고른다([{ name: 'local.process', args: { action: 'start', command: 'python3 -m http.server 9913', label: 'http-9913', cwd: dir } }]),
-    tools: demoTools({ localProcess: tool }),
-  });
-  assert.equal(r.kind, 'approval');
-  const p = r.pending?.[0]?.preview ?? {};
+  const p = tool.previewOf({ action: 'start', command: 'python3 -m http.server 9913', label: 'http-9913', cwd: dir }) ?? {};
   const 카드 = JSON.stringify(p);
   assert.doesNotMatch(카드, /실행 중인 것 실행/, '도구 이름만 있는 빈 문구는 승인이 아니다');
   assert.match(p.impact, /http-9913/, '무엇을 켜는지');

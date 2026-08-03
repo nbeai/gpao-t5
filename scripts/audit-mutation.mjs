@@ -1092,6 +1092,21 @@ export const MUTATIONS = [
     바꾸기: "    return j?.product === 'gpao-t5';" },
   { 이름: '자리표를 안 보고 기본 자리만 찾아 옮긴 T5 를 못 찾음', 파일: PORT, 검사: T_PORT,
     찾기: '  if (적힌것?.port) 볼자리.push(적힌것.port);', 바꾸기: '' },
+
+  // ── 자동성 헌장의 바닥: 되돌림이 승인을 대신한다 (2026-08-03) ──────────
+  // 헌장 ② 는 "백업 없는 파괴"만 묻는다. T5 의 삭제·덮어쓰기가 자동으로 도는 근거는
+  // **원본이 휴지통에 남는다**는 사실 하나뿐이다. 그 사실이 무너지면 헌장의 전제가 무너지고,
+  // 사용자는 확인도 없이 원본을 잃는다. 그래서 이 두 줄은 승인 카드보다 중요하다.
+  // ── 헌장 ③ 의 두 축: 아는 상대에는 안 묻고, 그 앎은 사람 승인에서만 생긴다 ──
+  { 이름: '아는 상대에게도 매번 다시 물음(헌장 ③ 의 "한 번만"이 "매번"이 됨)', 파일: 'src/kernel/turn.js', 검사: 'test/known-counterpart.test.js',
+    찾기: '    if (isKnownCounterpart(ctx.knownCounterparts, sendGrant.action, parsed.target)) {',
+    바꾸기: '    if (false) {' },
+  { 이름: '사람이 허락한 상대를 기억하지 않음(다음 턴이 이어받지 못함)', 파일: 'src/kernel/turn.js', 검사: 'test/known-counterpart.test.js',
+    찾기: '        if (isSendTool(toolId, selfState)) rememberCounterpart(ctx.knownCounterparts, toolId, args?.target);',
+    바꾸기: '        void toolId; void args;' },
+  { 이름: '덮어쓰기가 이전 내용을 휴지통에 남기지 않음(되돌림 없는 파괴)', 파일: 'src/runtime/local-file.js', 검사: 'test/local-file.test.js',
+    찾기: '          const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)',
+    바꾸기: '          const parked = null;' },
 ];
 
 /**

@@ -40,9 +40,12 @@ test('W2 통제 제안은 승인 대기 경로에서도 사라지지 않는다',
     env: demoEnv(),
     tools: demoTools(),
     pending: new Map(),
-    model: sequenceModel([{ text: '예약 후보를 만들고 삭제 확인을 받을게요', toolCalls: [
+    // 탈것을 파일 삭제에서 **전송**으로 옮겼다(자동성 헌장 2026-08-03) — 되돌릴 수 있는 삭제는
+    // 이제 자동이라 승인이라는 사건을 만들 수 없다. 재는 것은 삭제가 아니라
+    // **통제 제안이 승인 반환 경로에서 유실되지 않는가**이므로 승인이 나는 손이면 된다.
+    model: sequenceModel([{ text: '예약 후보를 만들고 전송 확인을 받을게요', toolCalls: [
       { name: 'automation.propose', args: automation },
-      { name: 'local.file', args: { action: 'delete', path: '오래된.md' } },
+      { name: 'slack.post', args: { text: '정리 끝났어요', target: '#일반' } },
     ] }]),
   });
 

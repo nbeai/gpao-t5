@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -14,10 +14,21 @@ const post = (base, path, body) => fetch(`${base}${path}`, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}),
 });
 
+// **단언이 실패해도 서버는 닫힌다.** 각 검사는 끝에서 `close()` 를 부르지만, 그 앞의 단언이
+// 던지면 그 줄에 도달하지 못한다. 그러면 열린 서버가 프로세스를 붙잡아 **파일이 아니라 회귀 전체가
+// 멈춘다** — 실측 2026-08-03: 헌장 전환으로 이 파일의 검사 2건이 실패하자 `npm test` 가 34분 넘게
+// 끝나지 않았고, 원인이 실패가 아니라 잔류로 보여 진단이 그만큼 늦어졌다.
+// 실패는 실패로 보여야 한다. 정리를 성공 경로에만 두지 않는다(환경 헌장 §1의 같은 규율).
+const 열린서버 = [];
+after(async () => {
+  await Promise.all(열린서버.map((s) => new Promise((resolve) => s.close(resolve))));
+});
+
 async function start(dir, model, extra = {}) {
   const store = new SessionStore(dir);
   const server = makeServer({ store, env: demoEnv(), tools: demoTools(), model, ...extra });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  열린서버.push(server);
   return {
     store, server, base: `http://127.0.0.1:${server.address().port}`,
     close: () => new Promise((resolve) => server.close(resolve)),
@@ -169,8 +180,7 @@ test('정산은 전달 후보를 바꾸지 않고 답에 없던 미정 질문을
 
 test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용자 원문을 검증한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-work-settlement-approval-'));
-  const target = join(dir, '결과.md');
-  const request = '행사 결과를 결과.md 파일로 만들어줘';
+  const request = '오래된 행사자료 폴더를 지워줘';
   let settlementCalls = 0;
   const model = { async respond(tc, opts = {}) {
     if (tc.workStateSettlement) {
@@ -181,15 +191,24 @@ test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용�
       }] } }] };
     }
     if (tc.workContractAssessment) return {
-      text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }],
+      text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }],
     };
-    if (tc.evidenceFacts?.length) return { text: '결과 파일을 만들었어요.', toolCalls: [] };
+    if (tc.evidenceFacts?.length) return { text: '정리했어요.', toolCalls: [] };
     if (opts.tools?.length) return { text: '', toolCalls: [{
-      name: 'local.file', args: { action: 'write', path: target, text: '완성 내용' },
+      name: 'local.terminal', args: { command: 'rm -rf 오래된행사자료' },
     }] };
-    return '결과 파일을 만들었어요.';
+    return '정리했어요.';
   } };
-  const tools = demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) });
+  // **탈것을 터미널로 옮겼다**(자동성 헌장 2026-08-03) — 되돌릴 수 있는 파일 작업은 자동이라
+  // 승인 재개라는 사건 자체를 만들 수 없다. 재는 것은 파일이 아니라 **승인 재개 정산이 빈 클릭이
+  // 아니라 pending 에 봉인된 최초 사용자 원문을 검증하는가**이므로 승인이 나는 손이면 된다.
+  const tools = demoTools({
+    localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }),
+    localTerminal: {
+      async probe(command) { return { command, cwd: dir, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+      async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir }, userSafeSummary: '정리했어요.' }; },
+    },
+  });
   const app = await start(dir, model, { tools });
   const session = await (await post(app.base, '/sessions')).json();
   const approval = await (await post(app.base, '/turn', {
@@ -206,7 +225,6 @@ test('승인 재개 정산은 빈 클릭이 아니라 pending의 최초 사용�
   assert.equal(done.workStateDiagnostic.reviewOpened, true);
   assert.equal(done.workStateDiagnostic.recorded, true);
   assert.equal(settlementCalls, 1);
-  assert.equal(await readFile(target, 'utf8'), '완성 내용');
   const events = await new WorkEventStore(dir).load();
   assert.ok(events.some((event) =>
     event.type === 'agreement_set' && event.evidence?.statement === request));
@@ -375,9 +393,9 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   const tools = demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) });
   const app = await start(dir, model, { tools });
   const session = await (await post(app.base, '/sessions')).json();
-  const first = await (await post(app.base, '/turn', { sessionId: session.id, text: request })).json();
-  assert.equal(first.kind, 'approval');
-  const done = await (await post(app.base, '/turn', { sessionId: session.id, approve: first.pendingId })).json();
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이라 중간 승인이 없다. **재는 계약은 그대로다** —
+  // 완료는 실제 `delivered` 영수증과 완료 계약이 결합될 때만 서고, 원본은 변하지 않는다.
+  const done = await (await post(app.base, '/turn', { sessionId: session.id, text: request })).json();
   assert.equal(done.kind, 'reply');
   assert.equal(await readFile(source, 'utf8'), '원본 내용');
   assert.equal(await readFile(target, 'utf8'), '완성 내용');

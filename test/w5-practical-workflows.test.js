@@ -177,16 +177,14 @@ test('W5 보고서: 원본을 보존하고 승인 한 번 뒤 별도 결과물 �
 
   await withServer({ dir, tools, model }, async (base) => {
     const session = await newSession(base);
-    const first = await postJson(base, '/turn', {
+    // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이다. 재는 것은 그대로 —
+    // **원본을 보존하고 별도 결과물을 실제로 만들며, 같은 산출물에 확인을 반복 요구하지 않는다.**
+    const done = await postJson(base, '/turn', {
       sessionId: session.id,
       text: '견적서를 읽고 원본은 건드리지 말고 별도 보고서 파일로 만들어줘',
     });
-    assert.equal(first.body.kind, 'approval', '쓰기 전에 필요한 승인 한 번으로 이어져야 한다');
-    assert.ok(first.body.pendingId, '승인할 실행 신분이 없다');
-
-    const done = await postJson(base, '/turn', { sessionId: session.id, approve: first.body.pendingId });
     assert.equal(done.body.kind, 'reply');
-    assert.equal(done.body.pendingId, undefined, '같은 산출물에 승인을 반복 요구했다');
+    assert.equal(done.body.pendingId, undefined, '같은 산출물에 확인을 반복 요구했다');
     await access(target);
     assert.match(await readFile(target, 'utf8'), /최종 견적: 1200원/u);
     assert.equal(await readFile(source, 'utf8'), original, '보고서 생성이 원본을 덮어썼다');

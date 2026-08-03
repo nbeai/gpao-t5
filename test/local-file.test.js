@@ -211,9 +211,15 @@ test('파일 삭제는 승인 없이 실행되지 않는다 — 도구가 아니
   assert.equal(fileKind({ action: 'write' }), 'write');
   assert.equal(fileKind({ action: 'read' }), 'read');
 
-  // 삭제 요청 → 승인 필요(안전 바닥). 도구 단위로 organize 로 고정하면 여기가 통과해 버린다.
+  // 자동성 헌장(2026-08-03) 이후: 삭제의 문지기는 승인 카드가 아니라 **되돌림**이다.
+  // 헌장 ② 는 "백업 없는 파괴"만 묻는다. local.file 은 원본을 휴지통에 남긴다고 선언하므로
+  // 삭제는 자동으로 돈다 — 대신 그 선언이 거짓이면 사용자는 확인도 없이 원본을 잃는다.
+  // 그래서 여기서 재는 것은 "묻는가"가 아니라 **"되돌릴 수 있다고 선언했는가"** 다.
+  const 파일손 = selfState.connectedTools.find((t) => t.id === 'local.file');
+  assert.equal(파일손?.reversible, true, '삭제가 자동으로 도는 근거는 이 선언 하나뿐이다');
   const del = buildActionPlan({ intent: interpret('메모.md 지워줘'), selfState });
-  assert.ok(del.needsApproval.some((g) => g.action === 'local.file'), '삭제는 승인을 받아야 한다');
+  assert.ok(!del.needsApproval.some((g) => g.action === 'local.file'),
+    '되돌릴 수 있는 삭제는 헌장이 자동으로 둔다');
 
   // 읽기 요청 → 승인 없이 진행(막지 않는다)
   const read = buildActionPlan({ intent: interpret('메모.md 읽어줘'), selfState });

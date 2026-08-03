@@ -7,7 +7,7 @@
 // 모델이 delete 를 골라도 승인 카드가 뜨고, 범위 밖은 막히고, 실행 안 된 건 실행 안 된 것이다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, stat } from 'node:fs/promises';
+import { mkdtemp, writeFile, stat, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { toolSchemasFor, callsToIntentParts } from '../src/kernel/l2-plan/tool-schema.js';
@@ -73,7 +73,10 @@ test('텍스트 조각은 도구 호출로 오인하지 않는다', () => {
 });
 
 // ── 불변식: 모델이 무엇을 고르든 경계는 그대로 ───────────────────────────
-test('모델이 삭제를 골라도 승인 없이 실행되지 않는다', async () => {
+// 자동성 헌장(2026-08-03)이 이 불변식의 **지키는 방식**을 바꿨다. 예전 경계는 승인이었고
+// 지금은 되돌림이다 — "안전은 승인이 아니라 사실 기록과 되돌리기가 산다"(헌장 §집행).
+// 재는 것은 그대로다: **모델이 무엇을 고르든 사용자가 원본을 잃지 않는다.**
+test('모델이 삭제를 골라도 사용자는 원본을 잃지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-choice-'));
   await writeFile(join(dir, '중요.md'), '지워지면 안 됨');
   const ctx = {
@@ -82,8 +85,11 @@ test('모델이 삭제를 골라도 승인 없이 실행되지 않는다', async
     tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
   };
   const r = await runTurn({ text: '작업 폴더 좀 정리해줘' }, ctx);
-  assert.equal(r.kind, 'approval', `모델 선택이 승인을 우회했다: ${r.kind}`);
-  await stat(join(dir, '중요.md')); // 없으면 throw
+  assert.equal(r.kind, 'reply', `되돌릴 수 있는 삭제는 헌장이 자동으로 둔다: ${r.kind}`);
+  const 남은것 = await readdir(join(dir, '.trash')).catch(() => []);
+  assert.ok(남은것.some((f) => f.endsWith('중요.md')), '원본이 휴지통에 없다 — 되돌릴 수 없는 파괴다');
+  assert.equal(await readFile(join(dir, '.trash', 남은것.find((f) => f.endsWith('중요.md'))), 'utf8'),
+    '지워지면 안 됨', '휴지통 사본이 원본이 아니다');
 });
 
 test('모델이 전송을 골라도 승인 게이트를 탄다', async () => {
@@ -114,21 +120,25 @@ test('앞선 삭제와 현재 쓰기가 함께 선택돼도 현재 요청 행동
       return { text: '확인해 주세요', toolCalls: [] };
     },
   };
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 파일 작업은 자동이라 승인 목록으로는 귀속을 볼 수 없다.
+  // **재는 계약은 그대로다** — 현재 발화의 행동만 이번 턴에 선다. 관측점을 승인 목록에서
+  // **실제 실행**으로 옮긴다(더 강한 증거다: 과거 삭제가 섞이면 파일이 실제로 사라진다).
+  // 봉인 신분(sourceTurnRef·sourceRequestDigest)은 승인이 나는 손을 쓰는 검사들이 따로 지킨다.
+  const 호출 = [];
+  const 기록손 = { ...demoTools().tools['local.file'] };
   const ctx = {
-    env: demoEnv(), model, tools: demoTools(),
+    env: demoEnv(), model,
+    tools: demoTools({ localFile: { ...기록손, handler: async (a) => { 호출.push(a); return { result: {}, userSafeSummary: '했어요' }; } } }),
     recentTurns: [
       { role: 'user', text: '정산_3월.csv를 지워줘' },
       { role: 'assistant', text: '아직 실행 전이에요.' },
     ],
   };
-  const r = await runTurn({ text: '새 보고서를 파일로 저장해줘', turnRef: 'turn-current' }, ctx);
-  assert.equal(r.kind, 'approval');
-  assert.equal(r.pending.length, 1);
-  assert.match(r.pending[0].preview?.impact ?? '', /새보고서/);
-  assert.doesNotMatch(JSON.stringify(r.pending), /정산_3월/);
-  const saved = ctx.pending.get(r.pendingId);
-  assert.equal(saved.sourceTurnRef, 'turn-current');
-  assert.match(saved.sourceRequestDigest, /^[0-9a-f]{16}$/);
+  await runTurn({ text: '새 보고서를 파일로 저장해줘', turnRef: 'turn-current' }, ctx);
+  assert.equal(호출.length, 1, `현재 발화의 행동 하나만 서야 한다 — 실제: ${JSON.stringify(호출)}`);
+  assert.equal(호출[0].action, 'write');
+  assert.match(String(호출[0].path ?? ''), /새보고서/);
+  assert.doesNotMatch(JSON.stringify(호출), /정산_3월/, '과거 요청의 삭제가 현재 턴에서 실행됐다');
 });
 
 test('행동 귀속 판정이 불명확해도 현재 발화의 명확한 파일 작업 하나만 승인한다', async () => {
@@ -144,12 +154,17 @@ test('행동 귀속 판정이 불명확해도 현재 발화의 명확한 파일 
       return { text: '확인해 주세요', toolCalls: [] };
     },
   };
-  const ctx = { env: demoEnv(), model, tools: demoTools() };
+  // 관측점을 실행 사실로(헌장 2026-08-03). 재는 계약은 그대로 — 귀속이 불명확해도 **현재 발화의
+  // 명확한 파일 작업 하나만** 서고, 되묻기로 도망가지 않는다.
+  const 호출 = [];
+  const 기록손2 = { ...demoTools().tools['local.file'] };
+  const ctx = { env: demoEnv(), model,
+    tools: demoTools({ localFile: { ...기록손2, handler: async (a) => { 호출.push(a); return { result: {}, userSafeSummary: '했어요' }; } } }) };
   const r = await runTurn({ text: '정산_3월.csv를 지워줘' }, ctx);
-  assert.equal(r.kind, 'approval');
-  assert.match(r.pending[0].preview?.impact ?? '', /정산_3월/);
-  assert.doesNotMatch(JSON.stringify(r), /옛파일/);
-  assert.doesNotMatch(r.reply ?? '', /한 번 더/);
+  assert.equal(호출.length, 1, `현재 발화의 행동 하나만 서야 한다 — 실제: ${JSON.stringify(호출)}`);
+  assert.match(String(호출[0].path ?? ''), /정산_3월/);
+  assert.doesNotMatch(JSON.stringify(호출), /옛파일/, '현재 발화에 없는 파일이 실행됐다');
+  assert.doesNotMatch(r.reply ?? '', /한 번 더/, '되묻기로 도망가지 않는다');
 });
 
 test('모델이 다른 사용자 홈을 짐작해도 사용자가 부른 표준 폴더의 실제 루트로 고친다', async () => {
@@ -162,11 +177,19 @@ test('모델이 다른 사용자 홈을 짐작해도 사용자가 부른 표준 
     env: demoEnv(), tools: demoTools({ localFile }),
     model: modelChoosing([{ name: 'local.file', args: { action: 'delete', path: '/Users/guessed/Downloads/정산.csv' } }]),
   };
+  // 헌장 뒤 되돌릴 수 있는 삭제는 자동이라 카드가 없다. **재는 계약은 그대로다** —
+  // 모델이 짐작한 남의 홈이 아니라 **실행 런타임의 실제 루트**로 고쳐지는가.
+  // 실행 인자와 사용자면 표기 둘 다 본다(원시 절대 경로 비노출 포함).
+  const 호출 = [];
+  const 원래핸들러 = localFile.handler.bind(localFile);
+  localFile.handler = async (a) => { 호출.push(a); return 원래핸들러(a); };
   const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
-  assert.equal(r.kind, 'approval');
-  assert.equal(r.pending[0].preview?.scope, 'Downloads/정산.csv');
-  assert.doesNotMatch(r.pending[0].preview?.scope ?? '', /^\//);
-  assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
+  assert.equal(r.kind, 'reply');
+  assert.equal(호출.length, 1, '삭제가 실행되지 않았다');
+  assert.doesNotMatch(JSON.stringify(호출), /Users\/guessed/, '모델이 짐작한 남의 홈이 그대로 실행됐다');
+  const p = localFile.previewOf(호출[0]);
+  assert.equal(p?.scope, 'Downloads/정산.csv');
+  assert.doesNotMatch(p?.scope ?? '', /^\//, '사용자면에 원시 절대 경로를 노출한다');
 });
 
 test('찾은 뒤 이어진 파일 걸음도 추측 홈이 아니라 같은 런타임 루트를 쓴다', async () => {
@@ -187,11 +210,20 @@ test('찾은 뒤 이어진 파일 걸음도 추측 홈이 아니라 같은 런�
   };
   const localFile = makeLocalFileTool({ roots: [join(home, 'GPAO-T5'), downloads], dataDir: join(home, 'state') });
   const ctx = { env: demoEnv(), tools: demoTools({ localFile }), model };
-  const r = await runTurn({ text: '다운로드 폴더의 정산.csv를 지워줘' }, ctx);
-  assert.equal(r.kind, 'approval');
-  assert.equal(r.pending[0].preview?.scope, 'Downloads/정산.csv');
-  assert.doesNotMatch(r.pending[0].preview?.scope ?? '', /^\//);
-  assert.doesNotMatch(JSON.stringify(r.pending), /Users\/guessed/);
+  // 헌장 뒤 되돌릴 수 있는 삭제는 자동이라 카드가 없다. **재는 계약은 그대로다** —
+  // 모델이 짐작한 남의 홈이 아니라 **실행 런타임의 실제 루트**로 고쳐지는가.
+  // 실행 인자와 사용자면 표기 둘 다 본다(원시 절대 경로 비노출 포함).
+  const 호출 = [];
+  const 원래핸들러 = localFile.handler.bind(localFile);
+  localFile.handler = async (a) => { 호출.push(a); return 원래핸들러(a); };
+  const r = await runTurn({ text: '다운로드 폴더 보고 정산.csv 지워줘' }, ctx);
+  assert.equal(r.kind, 'reply');
+  assert.equal(호출.length, 2, `찾기·지우기 두 걸음이 서야 한다 — 실제: ${JSON.stringify(호출)}`);
+  assert.doesNotMatch(JSON.stringify(호출), /Users\/guessed/, '이어진 걸음이 짐작 홈으로 실행됐다');
+  const 지운것 = 호출.at(-1);
+  const p = localFile.previewOf(지운것);
+  assert.equal(p?.scope, 'Downloads/정산.csv', `같은 런타임 루트를 써야 한다 — 실제: ${p?.scope}`);
+  assert.doesNotMatch(p?.scope ?? '', /^\//, '사용자면에 원시 절대 경로를 노출한다');
 });
 
 test('읽기처럼 안전한 선택은 그대로 진행한다(안전을 이유로 다 막지 않는다)', async () => {

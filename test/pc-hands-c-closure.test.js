@@ -11,7 +11,7 @@
 // 시나리오가 반드시 걸음 루프를 밟게 짠다. 수정 전 실패를 실측했다(2026-08-01).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -69,15 +69,22 @@ const 손과기록 = (root) => {
 // ── F3.2/F6.4 · 읽고 나서 쓰는 걸음은 되풀이가 아니다 ───────────────────
 test('같은 파일을 읽은 뒤 같은 자리에 쓰는 걸음이 되풀이로 차단되지 않는다(F3.2)', async () => {
   const root = await 임시루트();
-  const { ctx } = 손과기록(root);
+  const { ctx, 호출 } = 손과기록(root);
   // 계획 단계: read 견적서.md → 걸음 루프: write 견적서.md (사용자의 흔한 "읽고 고쳐줘").
   const r = await runTurn({ text: '해줘' }, ctx(걸음마다([
     파일({ action: 'read', path: '견적서.md' }),
     파일({ action: 'write', path: '견적서.md', text: '단가 1000원 · 수량 3 (정리)' }),
   ])));
-  // 쓰기는 승인 카드까지 가야 한다 — 되풀이 차단으로 멈추면 카드 자체가 안 뜬다.
-  assert.equal(r.kind, 'approval',
-    `읽기→쓰기가 승인에 도달하지 못했다: kind=${r.kind}, reply=${r.reply ?? ''}`);
+  // 헌장(2026-08-03): 되돌릴 수 있는 쓰기는 자동이다. **재는 것은 그대로다** — 읽고 나서
+  // 같은 자리에 쓰는 걸음이 "되풀이"로 차단되지 않는가.
+  // **실행 사실로 잰다**: 지문에서 action 이 빠지면 read 와 write 가 같은 지문이 되어
+  // write 가 조용히 차단되고, 턴은 그래도 `reply` 로 끝난다 — kind 만 보면 못 잡는다
+  // (돌연변이 스윕이 이 구멍을 잡았다, 2026-08-03).
+  assert.equal(r.kind, 'reply', `읽기→쓰기가 끝까지 걷지 못했다: kind=${r.kind}, reply=${r.reply ?? ''}`);
+  const 쓰기 = 호출.filter((a) => a.action === 'write' && a.path === '견적서.md');
+  assert.equal(쓰기.length, 1, `읽은 자리에 쓰는 걸음이 되풀이로 차단됐다(write ${쓰기.length}건)`);
+  assert.equal(await readFile(join(root, '견적서.md'), 'utf8'), '단가 1000원 · 수량 3 (정리)',
+    '쓰기가 차단돼 파일이 그대로다');
 });
 
 test('같은 파일에 정확히 같은 읽기를 되풀이하는 것은 여전히 막는다(F3.1 보존)', async () => {
@@ -164,7 +171,7 @@ test('실패 뒤 실제로 성공하면 blocked 는 풀린다(거짓 막힘 금�
 // OS 는 실제 local.file write 영수증만 완료로 인정한다.
 test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안에서 계속 걷는다', async () => {
   const root = await 임시루트();
-  const { ctx } = 손과기록(root);
+  const { ctx, 호출 } = 손과기록(root);
   let 도구응답 = 0;
   const model = {
     async respond(tc, opts = {}) {
@@ -173,6 +180,9 @@ test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안�
       도구응답 += 1;
       if (도구응답 === 1) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '견적서.md' } }] };
       if (도구응답 === 2) return { text: '내용을 확인했고 정리 방향을 잡았다.', toolCalls: [] };
+      // 헌장 뒤에는 쓰기가 실제로 돌고 턴이 이어진다 — 쓴 다음에는 말로 끝낸다.
+      // (예전엔 승인 카드에서 턴이 멈춰 이 뒤가 없었다.)
+      if (도구응답 > 3) return { text: '정리본을 만들었어요.', toolCalls: [] };
       assert.equal(opts.requiredTool, 'local.file', '미충족 완료 계약이 파일 손을 구조로 요구하지 않았다');
       assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write'],
         '완료 계약이 write 영수증을 요구하는데 읽기 손까지 다시 열었다');
@@ -182,8 +192,14 @@ test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안�
     },
   };
   const r = await runTurn({ text: '해줘' }, ctx(model));
-  assert.equal(r.kind, 'approval',
-    `선언-영수증 불일치가 실제 쓰기로 이어지지 않았다(kind=${r.kind})`);
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이다. **재는 계약은 그대로다** —
+  // FILE 판단이면 쓰기 영수증까지 파일 손 안에서 계속 걷는가(위 콜백 단언 셋이 그 본체다).
+  // 관측점을 카드에서 **실제 실행**으로 옮긴다 — 더 강한 증거다.
+  assert.equal(r.kind, 'reply', `완료 계약이 쓰기까지 걷지 못했다(kind=${r.kind})`);
+  const 쓰기 = 호출.filter((a) => a.action === 'write');
+  assert.equal(쓰기.length, 1, `write 영수증이 정확히 한 번 서지 않았다(${쓰기.length}건)`);
+  assert.equal(쓰기[0].path, '견적서-정리.md');
+  assert.equal(쓰기[0].source, '견적서.md', '변환 산출물의 원본 결합 근거가 사라졌다');
 });
 
 test('산출물 의무: CHAT 판단이면 어떤 재확인도 일어나지 않는다(읽기 기본 무변화)', async () => {
@@ -249,11 +265,12 @@ test('앞선 읽기와 현재 저장이 함께 잡혀도 현재 파일의 write 
   const r = await runTurn({
     text: '방금 보여준 초안을 행사운영-체크리스트.md로 저장해줘.',
   }, runtime);
-  assert.equal(r.kind, 'approval', `현재 저장 요청이 다시 확인으로 막혔다: ${r.reply ?? r.kind}`);
-  assert.equal(r.pending?.[0]?.action, 'local.file');
-  const held = runtime.pending.get(r.pendingId);
-  assert.equal(held?.sendArgs?.['local.file']?.action, 'write');
-  assert.equal(held?.sendArgs?.['local.file']?.text, '실행 체크리스트', '모델이 문맥에서 만든 본문을 잃었다');
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이라 봉인(pending)에 담기지 않는다.
+  // **재는 계약은 그대로다** — 모델이 문맥에서 만든 본문이 실행까지 살아서 가는가.
+  // 관측점을 승인 봉인에서 **실제 실행 인자**로 옮긴다(더 강한 증거: 본문이 없으면 빈 파일이 생긴다).
+  assert.equal(r.kind, 'reply', `현재 저장 요청이 다시 확인으로 막혔다: ${r.reply ?? r.kind}`);
+  const 만든것 = await readFile(join(root, '행사운영-체크리스트.md'), 'utf8');
+  assert.equal(만든것, '실행 체크리스트', '모델이 문맥에서 만든 본문을 잃었다(빈 파일이 생겼다)');
 });
 
 test('현재 발화와 같은 write 후보가 둘이면 하나를 임의 선택하지 않는다', async () => {
@@ -272,20 +289,26 @@ test('현재 발화와 같은 write 후보가 둘이면 하나를 임의 선택�
       return '확인할게요.';
     },
   };
-  const r = await runTurn({ text: '결과.md로 저장해줘.' }, ctx(model));
-  // 계약은 그대로다 — 코드가 둘 중 하나를 조용히 고르지 않는다.
-  assert.equal(r.kind, 'approval', `막다른 답으로 닫혔다: ${r.reply ?? r.kind}`);
+  const { ctx: 기록, 호출 } = 손과기록(root);
+  const r = await runTurn({ text: '결과.md로 저장해줘.' }, 기록(model));
+  // 계약은 그대로다 — 코드가 둘 중 하나를 조용히 고르지 않고, 막다른 답으로 닫지도 않는다.
+  assert.notEqual(r.kind, 'approval');
   assert.doesNotMatch(r.reply ?? '', /지금 할 일만/);
+  // **본문 없는 쓰기가 조용히 돌면 안 된다**(감사 의심 D5, 2026-08-03). 헌장 전에는 카드가
+  // 이 상태를 사람 앞에 세웠다. 지금은 아무도 못 보므로 여기서 잡는다 — 빈 파일이 생기면
+  // 사용자는 "저장했어요"를 듣고 빈 것을 받는다.
+  const 빈쓰기 = 호출.filter((a) => a.action === 'write' && !String(a.text ?? '').trim());
+  assert.equal(빈쓰기.length, 0, `본문 없는 쓰기가 실행됐다 — 빈 파일이 조용히 생긴다: ${JSON.stringify(빈쓰기)}`);
 });
 
 test('산출물 의무: 모델이 처음부터 write 를 골라도 완료 형태를 독립 판단한 뒤 승인에 오른다', async () => {
   const root = await 임시루트();
   const { ctx } = 손과기록(root);
-  let 도구응답 = 0; let 재확인수 = 0;
+  let 도구응답 = 0; let 판단수 = 0; let 미충족재요청 = 0;
   const model = {
     async respond(tc, opts = {}) {
-      if (tc?.workContractAssessment) { 재확인수 += 1; return 'FILE'; }
-      if (tc?.unmetDeliverable) 재확인수 += 1;
+      if (tc?.workContractAssessment) { 판단수 += 1; return 'FILE'; }
+      if (tc?.unmetDeliverable) 미충족재요청 += 1;
       if (!opts.tools?.length) return '정리했어요';
       도구응답 += 1;
       if (도구응답 === 1) {
@@ -295,9 +318,18 @@ test('산출물 의무: 모델이 처음부터 write 를 골라도 완료 형태
     },
   };
   const r = await runTurn({ text: '해줘' }, ctx(model));
-  // 모델의 write 선택은 후보다. 별도 완료 판단이 FILE일 때만 승인 카드가 된다.
-  assert.equal(r.kind, 'approval');
-  assert.equal(재확인수, 1, `완료 형태 판단이 중복되거나 빠졌다(${재확인수})`);
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이다. **재는 계약은 그대로다** —
+  // 모델의 write 선택은 후보일 뿐이고 **완료 형태를 독립으로, 정확히 한 번** 판단한다.
+  assert.equal(r.kind, 'reply');
+  assert.equal(판단수, 1, `완료 형태 판단이 중복되거나 빠졌다(${판단수})`);
+  const 만든것 = await readFile(join(root, '정리.md'), 'utf8');
+  assert.match(만든것, /정리/, '쓰기가 실제로 실행되지 않았다');
+  // **관측(결함으로 승격하지 않는다):** 쓰기가 성공했는데도 미충족 재요청이 한 번 더 뜬다.
+  // 헌장 전에는 쓰기가 승인에서 멈춰 이 자리에 도달하지 않았다. 완료 계약이 생성되는 시점과
+  // 자동 실행된 쓰기 영수증의 순서가 어긋나는 것으로 보이나, 재현 표본이 하나이고 사용자
+  // 결과(파일 생성·최종 답)는 정상이다. **라이브 관통에서 다시 본다** — 모델 왕복이 한 번
+  // 늘어나는 것은 사용자가 기다리는 시간이므로 M2 라이브 회차의 관찰 항목이다.
+  assert.ok(미충족재요청 <= 1, `미충족 재요청이 반복된다(${미충족재요청})`);
 });
 
 test('산출물 의무: FILE 판단 뒤에도 안 만들면 완료로 기록하지 않는다(거짓 완료 금지)', async () => {
@@ -344,6 +376,9 @@ test('문맥에서 만들 파생 파일은 본문을 다시 받아쓰게 하지 
       if (tc?.workContractAssessment) return 'FILE';
       if (tc?.unmetDeliverable) {
         derivedCalls += 1;
+        // 헌장(2026-08-03) 뒤에는 쓰기가 실제로 돌고 턴이 이어진다 — 한 번 쓴 다음에는 말로 끝낸다.
+        // (예전엔 승인 카드에서 턴이 멈춰 이 뒤가 없었다.)
+        if (derivedCalls > 1) return { text: '정리본을 만들었어요.', toolCalls: [] };
         assert.equal(opts.requiredTool, 'local.file');
         assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write']);
         assert.ok(opts.tools[0].parameters.required.includes('source'));
@@ -362,9 +397,17 @@ test('문맥에서 만들 파생 파일은 본문을 다시 받아쓰게 하지 
   const r = await runTurn({
     text: '방금 읽은 최신 내용을 공지문으로 다듬어서 고객안내-확정.md 파일로 만들어줘',
   }, ctx(model));
-  assert.equal(derivedCalls, 1, '문맥 기반 본문 생성을 위한 쓰기 선택을 요청하지 않았다');
-  assert.equal(r.kind, 'approval',
+  assert.ok(derivedCalls >= 1, '문맥 기반 본문 생성을 위한 쓰기 선택을 요청하지 않았다');
+  // 관측(§ 위 '처음부터 write' 검사와 같은 자리): 쓰기가 성공했는데도 미충족 재요청이 한 번 더 온다.
+  // 사용자 결과는 정상(파일 생성·최종 답)이나 모델 왕복이 하나 는다 — 라이브 회차에서 다시 본다.
+  assert.ok(derivedCalls <= 2, `미충족 재요청이 반복된다(${derivedCalls})`);
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이다. **재는 계약은 그대로다** —
+  // 본문을 사용자에게 다시 받아쓰게 하지 않고 말로만 끝내지도 않는다. 이제 그 증거는
+  // 카드가 아니라 **실제로 만들어진 파생 파일**이다(더 강한 증거).
+  assert.equal(r.kind, 'reply',
     `본문을 다시 받아쓰게 하거나 말로만 끝냈다(kind=${r.kind}, question=${r.question ?? ''})`);
+  const 만든것 = await readFile(join(root, '고객안내-확정.md'), 'utf8');
+  assert.match(만든것, /오후 3시/, '파생 파일이 실제로 만들어지지 않았다');
 });
 
 test('산출물 의무: 전용 판단 형식이 두 번 깨지면 CHAT 으로 꾸미지 않고 완료를 보류한다', async () => {
@@ -424,4 +467,38 @@ test('판정이 흔들려도 같은 문장으로 두 번 막지 않는다 — �
   const 두번째 = await runTurn({ text: 말 }, ctx(model));
   assert.doesNotMatch(두번째.reply ?? '', /지금 할 일만 한 번 더/,
     '같은 문장을 다시 말해도 같은 자리로 돌아왔다 — 사용자가 빠져나갈 길이 없다');
+});
+
+// ── 판정 불능 폴백이 **모델의 호출 그대로**를 쓴다 (돌연변이 #293 반대시험) ────
+//
+// 행동 귀속 판정(`work.current_actions`)이 흔들리면 폴백이 둘이다:
+//   ① `currentFileCallFromText` — 현재 발화가 action+path 를 품고 그와 맞는 모델 호출이
+//      하나뿐이면 **그 호출 객체 그대로** 쓴다(모델이 문맥에서 채운 `source`·본문이 살아남는다).
+//   ② 그 뒤의 텍스트 재구성 — 발화를 파싱해 `{action, path, text}` 만으로 호출을 새로 만든다.
+// ①을 없애도 ②가 받아 주므로 **실행 여부·kind 로는 차이가 안 보인다.** 차이는
+// **텍스트가 표현할 수 없는 인자**에서만 난다 — `source`(변환 원본 결합 근거)가 그것이다.
+// 그래서 이 검사는 실행 인자의 `source` 를 본다. 스윕 #293 이 오래 안 물리던 이유가 이것이다.
+test('판정이 흔들려도 모델 호출의 원본 결합 근거(source)가 살아남는다(#293)', async () => {
+  const root = await 임시루트();
+  const { ctx, 호출 } = 손과기록(root);
+  const model = {
+    async respond(tc, opts = {}) {
+      // 귀속 판정을 **일부러 흔든다** — 폴백 경로로 보낸다.
+      if (opts.requiredTool === 'work.current_actions') return { text: '', toolCalls: [] };
+      if (tc?.workContractAssessment) return 'FILE';
+      if (!opts.tools?.length) return '적었어요';
+      if (tc?.unmetDeliverable) return { text: '적었어요.', toolCalls: [] };
+      // 과거 미완료 삭제 + 현재 요청 쓰기가 함께 잡힌 상황.
+      return { text: '', toolCalls: [
+        { name: 'local.file', args: { action: 'delete', path: '견적서-최종.md' } },
+        { name: 'local.file', args: { action: 'write', path: '정리본.md', text: '단가 1000원', source: '견적서.md' } },
+      ] };
+    },
+  };
+  await runTurn({ text: "정리본.md 에 '단가 1000원' 이라고 적어줘" }, ctx(model));
+  const 쓰기 = 호출.filter((a) => a.action === 'write');
+  assert.equal(쓰기.length, 1, `현재 발화의 쓰기 하나만 서야 한다(${쓰기.length}건)`);
+  assert.equal(쓰기[0].source, '견적서.md',
+    '판정이 흔들리자 모델 호출을 버리고 텍스트로 재구성했다 — 원본 결합 근거가 사라진다');
+  assert.ok(!호출.some((a) => a.action === 'delete'), '과거 행동이 현재 턴에 섞였다');
 });

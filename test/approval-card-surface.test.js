@@ -54,24 +54,27 @@ test('방으로 가는 승인 안내에 무엇이 어디에 생기는지가 실�
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [루트], dataDir: dir }),
       senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
+      localTerminal: {
+        async probe(command) { return { command, cwd: 루트, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+        async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 루트 }, userSafeSummary: '정리했어요.' }; },
+      },
     }),
-    // 모델이 작업 루트 이름을 경로에 **또** 넣는 실측 상황을 그대로 재현한다.
-    model: 고른다([{ name: 'local.file', args: { action: 'write', path: `${루트.split('/').pop()}/메모.md`, text: 'x' } }]),
+    // **탈것을 터미널로 옮겼다**(자동성 헌장 2026-08-03) — 되돌릴 수 있는 파일 작업은 이제
+    // 자동이라 방으로 나가는 승인 안내 자체가 생기지 않는다. 이 검사가 재는 것은 파일 경로가
+    // 아니라 **방 승인 안내가 preview 의 사실(무엇을·어디서)을 싣는가**이므로 손은 무엇이든 된다.
+    // (경로 해석은 `approval-preview-resolved` 가 도구 계약에서 직접 잰다.)
+    model: 고른다([{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }]),
   });
 
   const r = await server.handleChannelMessage({
-    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘',
+    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '임시폴더 지워줘',
   });
   assert.equal(r.kind, 'approval');
   const 안내 = 방으로.at(-1) ?? '';
-  assert.match(안내, /메모\.md/, '무엇이 생기는지가 방에 안 나가면 승인이 아니다');
-  assert.ok(
-    안내.includes(`${루트.split('/').pop()}/${루트.split('/').pop()}/메모.md`),
-    `실제로 생길 자리가 방에 나가야 한다 — 실제 안내:\n${안내}`,
-  );
-  assert.doesNotMatch(안내, new RegExp(루트.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    '방 승인 안내에 내부 절대 경로를 노출한다');
+  assert.match(안내, /임시폴더/, '무엇을 하는지가 방에 안 나가면 승인이 아니다');
+  assert.doesNotMatch(안내, /undefined|null/, '없는 사실을 지어내거나 내부값을 흘리지 않는다');
   assert.match(안내, /T5 화면에서 확인/, '어디서 승인하는지는 그대로 남는다');
+  assert.ok(루트);
 });
 
 test('미리보기 계약이 없는 도구면 지어내지 않는다(안내는 여전히 나간다)', async () => {
@@ -85,11 +88,12 @@ test('미리보기 계약이 없는 도구면 지어내지 않는다(안내는 �
     tools: demoTools({
       senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
     }),
-    // localFile 을 주입하지 않는다 → demo fixture 가 쓰이고, 그 손에는 previewOf 가 없다.
-    model: 고른다([{ name: 'local.file', args: { action: 'write', path: '메모.md', text: 'x' } }]),
+    // 헌장 뒤 승인이 나는 손으로 바꾼다 — 재는 것은 **previewOf 가 없는 손에서도 안내가 나가고
+    // 없는 사실을 지어내지 않는가**이지 파일이 아니다. slack.post 는 demo fixture 라 계약이 없다.
+    model: 고른다([{ name: 'slack.post', args: { text: '정리 끝났어요', target: '#일반' } }]),
   });
   const r = await server.handleChannelMessage({
-    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘',
+    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '슬랙에 알려줘',
   });
   assert.equal(r.kind, 'approval');
   const 안내 = 방으로.at(-1) ?? '';
@@ -157,24 +161,29 @@ test('모델이 "손이 없다"고 말해도 안내에 사실이 함께 남는�
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [루트], dataDir: dir }),
       senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
+      localTerminal: {
+        async probe(command) { return { command, cwd: 루트, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+        async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 루트 }, userSafeSummary: '정리했어요.' }; },
+      },
     }),
+    // 탈것을 터미널로 옮겼다(헌장 2026-08-03). 재는 것은 **모델 문장이 사실을 대체하지 못한다**(L8)
+    // 이지 파일이 아니다 — 승인이 나는 손이면 같은 계약이 그대로 선다.
     model: 말하는모델(
-      '승인 확인했어. 다만 로컬 파일 도구가 붙어 있지 않아서 내가 실제로 만들진 못했어.',
-      [{ name: 'local.file', args: { action: 'write', path: '메모.md', text: '할 일' } }],
+      '승인 확인했어. 다만 터미널 도구가 붙어 있지 않아서 내가 실제로 지우진 못했어.',
+      [{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }],
     ),
   });
   const r = await server.handleChannelMessage({
-    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘',
+    channel: 'telegram', chatId: 'u1', userId: 'u1', text: '임시폴더 지워줘',
   });
   assert.equal(r.kind, 'approval');
   const 안내 = 방으로.at(-1) ?? '';
   // 모델 문장은 버리지 않는다(64a7634) — 다만 **혼자 서지 못하게** 한다.
   assert.match(안내, /붙어 있지 않아서/, '모델이 한 말을 버리지 않는다');
   assert.match(안내, /실행 전에 확인/, '왜 멈췄는지가 함께 있어야 그 문장이 반박된다');
-  assert.match(안내, /메모\.md/, '무엇이 생기는지');
-  assert.ok(안내.includes(`${루트.split('/').pop()}/메모.md`), '어디에 생기는지');
-  assert.doesNotMatch(안내, new RegExp(루트.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    '방 승인 안내에 내부 절대 경로를 노출한다');
+  assert.match(안내, /임시폴더/, '무엇을 하는지');
+  assert.match(안내, /에서/, '어디서 하는지(터미널 preview 의 scope)');
+  assert.doesNotMatch(안내, /undefined|null/, '없는 사실을 지어내거나 내부값을 흘리지 않는다');
   assert.match(안내, /T5 화면에서 확인해 주시면 이어서 할게요/, 'T5 가 이어서 한다는 사실');
 });
 
@@ -190,12 +199,17 @@ test('모델이 아무 말도 안 해도(reply 빈 턴) 안내는 온전하다 �
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [루트], dataDir: dir }),
       senders: { 'telegram.send': { async handler(a) { 방으로.push(a.text); return { result: { sent: true } }; } } },
+      localTerminal: {
+        async probe(command) { return { command, cwd: 루트, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+        async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: 루트 }, userSafeSummary: '정리했어요.' }; },
+      },
     }),
-    model: 말하는모델('', [{ name: 'local.file', args: { action: 'write', path: '메모.md', text: '할 일' } }]),
+    // 탈것을 터미널로(헌장 2026-08-03) — 재는 것은 **모델이 아무 말도 안 해도 안내가 온전한가**다.
+    model: 말하는모델('', [{ name: 'local.terminal', args: { command: 'rm -rf 임시폴더' } }]),
   });
-  await server.handleChannelMessage({ channel: 'telegram', chatId: 'u1', userId: 'u1', text: '메모 만들어줘' });
+  await server.handleChannelMessage({ channel: 'telegram', chatId: 'u1', userId: 'u1', text: '임시폴더 지워줘' });
   const 안내 = 방으로.at(-1) ?? '';
   assert.match(안내, /실행 전에 확인/);
-  assert.match(안내, /메모\.md/);
+  assert.match(안내, /임시폴더/);
   assert.match(안내, /T5 화면에서 확인해 주시면 이어서 할게요/);
 });

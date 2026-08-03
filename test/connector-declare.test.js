@@ -164,10 +164,17 @@ test('연결 카드는 전송이 아니라 연결이라고 말한다', async () 
   const tool = makeConnectorDeclareTool({ connectors: () => [] });
   assert.equal(tool.toolKind, 'connect_account', '손이 자기 종류를 잘못 부르면 위층이 고칠 수 없다');
 
+  // 자동성 헌장(2026-08-03): 붙일 준비는 아무 것도 바꾸지 않으므로 자동이다. 사람의 관문은
+  // 승인 카드가 아니라 **비밀값 입력면**(헌장 ①)이다 — 팀원 실측에서 "새 서비스 붙이기 꼭 확인"
+  // 카드가 오너가 든 마찰 6장 중 하나였다.
+  // **재는 계약은 그대로다** — 이 손이 하는 일을 사용자에게 정확히 말하는가.
+  // 없는 전송을 말하면 안 되고, 무엇을 했는지가 사실이어야 한다.
   const r = explainAuthority({ kind: 'connect_account', preview: tool.previewOf(선언()) });
-  assert.equal(r.needsApproval, true, '승인이 풀리면 안 된다');
+  assert.equal(r.needsApproval, false, '연결 준비는 헌장 넷이 아니다');
   assert.ok(!/보내는 일/.test(r.why), `없는 전송을 말했다: ${r.why}`);
-  assert.match(r.why, /연결하는 일/);
+  assert.ok(!/가벼운 정리/.test(r.why), `연결을 가벼운 정리로 뭉갰다: ${r.why}`);
+  assert.match(r.why, /붙일 준비|연결/, `무엇을 했는지 말하지 않았다: ${r.why}`);
+  assert.match(r.why, /비밀값|입력창/, '사람이 넘을 문턱이 어디인지 말해야 한다');
 });
 
 // ── 원격 MCP 길 ──────────────────────────────────────────────────────────

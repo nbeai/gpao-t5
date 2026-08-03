@@ -38,8 +38,9 @@ import { resolveResponseSurface } from './l0-evidence/response-surface.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
 import { defaultTargetFor } from './l5-growth/task-trace.js';
+import { isKnownCounterpart, rememberCounterpart } from './l2-plan/known-counterpart.js';
 import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
-import { APPROVAL_TTL_MS, DEFAULT_APPROVAL_MODE , isSendTool } from './contracts.js';
+import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -594,6 +595,15 @@ export async function runTurn(input, ctx) {
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
     // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
     ctx.askedFrom = saved.askedFrom ?? ctx.askedFrom;
+    // **헌장 ③ — 사람이 허락한 상대를 기억한다.** 여기가 유일한 저장 자리다:
+    // `input.approve` 는 사용자가 카드를 직접 누른 경로이고, 그것만이 미래를 열 수 있다
+    // (OpenClaw: `allow-always` 는 explicit-approval 에서만 커밋된다). 자동으로 흘러간 전송은
+    // 아무 것도 새로 저장하지 않는다 — 저장은 사람이 처음 허락한 그 한 번에서만 생긴다.
+    if (ctx.knownCounterparts instanceof Set) {
+      for (const [toolId, args] of Object.entries(saved.sendArgs ?? {})) {
+        if (isSendTool(toolId, selfState)) rememberCounterpart(ctx.knownCounterparts, toolId, args?.target);
+      }
+    }
     // **이 요청에서 이미 허락한 손을 기억한다.** 실측(오너 라이브 2026-07-28, D):
     // "노션에서 회의록 찾아줘" 한 마디에 승인 카드가 네 번 떴다 — 같은 손이 인자만 바꿔
     // 다시 물었기 때문이다. 두 번째 카드는 첫 번째와 **같은 질문**이라 사용자가 새로 판단할
@@ -905,7 +915,6 @@ export async function runTurn(input, ctx) {
 
   // 4) complex path — 계획 → 권한 게이트 → 실행 → 원장.
   // P6-15: 승인 모드(세션 설정). 저위험 통과 강도만 조절하고 안전 바닥은 불변. 미설정 시 smart.
-  const approvalMode = ctx.approvalMode ?? DEFAULT_APPROVAL_MODE;
   // Phase 0-2: 모델이 내장 검색을 하면 T5 가 같은 일을 또 하지 않는다(중복 실행·실패 원장 방지).
   //   실사용에서 1층이 답을 만들었는데 2층도 돌아 "로그인이 필요한 페이지예요"가 원장에 남았다.
   //   OpenClaw 도 내장 검색이 있으면 관리형 검색 도구를 억제한다(같은 원리).
@@ -1039,7 +1048,7 @@ export async function runTurn(input, ctx) {
     const 남은손 = planIntent.neededTools.filter((x) => x !== 'local.file');
     planIntent = { ...planIntent, neededTools: 남은손, fileOp: undefined };
   }
-  const plan = buildActionPlan({ intent: planIntent, selfState, mode: approvalMode });
+  const plan = buildActionPlan({ intent: planIntent, selfState });
   // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
@@ -1070,7 +1079,7 @@ export async function runTurn(input, ctx) {
 
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
   //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
-  const pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
+  let pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
 
   // P6-7: send류는 보낼 내용·대상을 지시 문장과 분리한다(문장 전체를 그대로 보내지 않는다).
   //   대상·내용이 애매하면 실행/승인 전에 짧게 확인한다. 명확하면 승인 preview를 어디에/무엇을로 채운다.
@@ -1150,6 +1159,14 @@ export async function runTurn(input, ctx) {
         followUp,
       };
     }
+    // **헌장 ③ — 아는 상대에는 다시 묻지 않는다.** 승인 판정은 대상이 확정되기 **전에** 났다
+    // (계획 단계에서는 어디로 보낼지 아직 모른다). 그래서 대상이 사실로 확정된 지금 다시 본다.
+    // 사용자가 전에 이 상대에게 보내는 것을 직접 허락했다면 그 카드는 같은 질문의 반복이다.
+    if (isKnownCounterpart(ctx.knownCounterparts, sendGrant.action, parsed.target)) {
+      plan.needsApproval = plan.needsApproval.filter((g) => g !== sendGrant);
+      if (!plan.autoAllowed.includes(sendGrant.action)) plan.autoAllowed.push(sendGrant.action);
+      pendingGrants = pendingGrants.filter((g) => g !== sendGrant);
+    }
     // 전송 인자만 갈아끼운다 — 통째로 덮으면 같은 턴의 다른 도구 인자(web.collect 등)가 사라진다.
     // targetLabel 은 화면·미리보기용 사람 말이다 — 실행은 target(실행 값)만 쓴다.
     sendArgs = {
@@ -1212,7 +1229,6 @@ export async function runTurn(input, ctx) {
       pendingId,
       // 카드와 **함께** 나가는 사람 말. 없으면 필드 자체를 안 만든다(빈 말풍선 금지).
       ...(멈춤설명 ? { reply: 멈춤설명 } : {}),
-      approvalMode, // P6-15: 현재 승인 모드(조용한 표면 — 정책 아님, 판단을 보여줄 뿐)
       // action = 매칭용 id(비표시), label = 사용자 표시명. 화면엔 label 만 쓴다.
       pending: pendingGrants.map((g) => ({
         action: g.action,
@@ -1562,6 +1578,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       판정인자 = { ...args, changes: probed?.changes, granted: probed?.changes === true, probeResult: probed?.probe };
     }
     const kind = toolActionKind({ toolId, args: 판정인자, selfState });
+    // **판정은 계획 경로와 같은 사실 위에서 한다**(두 층이 같은 질문에 다른 답을 내면 결함이다).
+    // 헌장은 종류만으로 답할 수 없다 — 되돌릴 수 있는지, 아는 상대인지가 자동을 연다.
+    // 여기서 종류 하나만 넘기던 동안, `reversible:false` 로 선언된 `local.terminal` 의
+    // `rm -rf` 가 걸음 경로에서만 자동으로 실행됐다(실측 2026-08-03). 같은 명령이 계획
+    // 경로에서는 승인을 받았다 — 한 턴 안에서 같은 행동에 두 개의 답이 나온 것이다.
+    const 손선언 = selfState.connectedTools?.find((t) => t.id === toolId);
+    const 판정행동 = { kind, revocable: 손선언?.reversible, needsApproval: 손선언?.needsApproval };
     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
@@ -1594,7 +1617,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
       판정인자 = { ...판정인자, text: 내용, target: 대상, ...(대상라벨 ? { targetLabel: 대상라벨 } : {}) };
     }
-    if (!decideAutoGrant({ kind }, ctx.approvalMode ?? 'smart')) {
+    if (!decideAutoGrant(판정행동)) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
       //
       // 예전엔 여기서 그냥 `break` 했다. 승인 대기를 만들지 않으니 **카드가 뜨지 않았고**,
@@ -1624,7 +1647,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           return pv ? { [toolId]: pv } : undefined;
         })(),
       };
-      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState, mode: ctx.approvalMode ?? 'smart' });
+      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState });
       if (plan.workRef && plan.completionContract && plan.completionContractRef) {
         걸음plan.workRef = plan.workRef;
         걸음plan.completionContract = structuredClone(plan.completionContract);
@@ -1657,7 +1680,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           kind: 'approval',
           pendingId,
           ...(지금까지 ? { reply: 지금까지 } : {}),
-          approvalMode: ctx.approvalMode ?? 'smart',
           pending: grants.map((g) => ({
             action: g.action,
             label: toolLabel(g.action, selfState),

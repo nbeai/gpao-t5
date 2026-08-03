@@ -50,7 +50,8 @@ export function cliToolDescriptor({ connector, tool }) {
     connector: connector.id,
     availability: [{ kind: 'connected' }],
     toolKind: tool.toolKind ?? 'unknown_kind',
-    needsApproval: tool.toolKind !== 'read',
+    // 헌장: 손 전체에 승인 기본값을 달지 않는다(http-tool.js 의 같은 자리 주석 참조).
+    // 종류가 헌장 넷에 닿을 때만 authority 가 붙인다.
     reversible: tool.toolKind === 'read' ? true : undefined,
     capability: tool.capability ?? `${connector.label}의 ${tool.label ?? tool.name}`,
     schema: {

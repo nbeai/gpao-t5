@@ -20,17 +20,14 @@ import { runTurn } from '../src/kernel/turn.js';
 import { makeSkillCandidate } from '../src/kernel/l5-growth/skill-learning.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
-const APPROVAL_MODES = ['strict', 'smart', 'manual'];
 
 // ── 불변식 1: 읽기·목록 외의 파일 작업은 어떤 모드에서도 자동 진행하지 않는다 ──
 test('불변식: local.file 의 read/list 외 모든 action 은 자동 승인되지 않는다', () => {
   const mutating = ['write', 'move', 'delete', 'undo', 'rename', 'chmod', '(알 수 없는 새 action)'];
   for (const action of mutating) {
     const kind = fileKind({ action });
-    for (const mode of APPROVAL_MODES) {
-      assert.equal(decideAutoGrant({ kind }, mode), false,
-        `"${action}" 이 ${mode} 모드에서 승인 없이 실행된다(kind=${kind})`);
-    }
+    assert.equal(decideAutoGrant({ kind }), false,
+      `"${action}" 이 승인 없이 실행된다(kind=${kind})`);
   }
 });
 
@@ -38,14 +35,14 @@ test('불변식: fileOp 가 아예 없으면 read 로 흘리지 않는다(스킬
   for (const missing of [undefined, null, {}, { action: undefined }]) {
     const kind = fileKind(missing);
     assert.notEqual(kind, 'read', '작업을 모르는데 읽기로 취급하면 삭제가 그대로 통과한다');
-    for (const mode of APPROVAL_MODES) assert.equal(decideAutoGrant({ kind }, mode), false);
+    assert.equal(decideAutoGrant({ kind }), false);
   }
 });
 
 test('읽기·목록은 여전히 자연스럽게 진행된다(안전을 이유로 다 막지 않는다)', () => {
   for (const action of ['read', 'list']) {
     assert.equal(fileKind({ action }), 'read');
-    assert.equal(decideAutoGrant({ kind: 'read' }, 'smart'), true);
+    assert.equal(decideAutoGrant({ kind: 'read' }), true);
   }
 });
 
@@ -57,7 +54,7 @@ test('파일을 바꾸는 말은 파싱을 거쳐도 자동 진행으로 떨어�
   ];
   for (const p of phrases) {
     const kind = fileKind(parseFileRequest(p));
-    assert.equal(decideAutoGrant({ kind }, 'smart'), false, `"${p}" 가 승인 없이 실행된다(kind=${kind})`);
+    assert.equal(decideAutoGrant({ kind }), false, `"${p}" 가 승인 없이 실행된다(kind=${kind})`);
   }
 });
 
@@ -85,9 +82,16 @@ test('B1: 승격된 스킬이 local.file 을 골라도 삭제는 승인 없이 �
   };
   const r = await runTurn({ text: '보고서.pdf 지워줘' }, ctx);
 
-  assert.notEqual(r.kind, 'reply', `승인 없이 실행됐다: ${JSON.stringify(r.ledger?.confirmed ?? [])}`);
-  assert.equal(r.kind, 'approval');
-  await stat(join(dir, '보고서.pdf')); // 없으면 throw — 파일은 그대로 있어야 한다
+  // 자동성 헌장(2026-08-03): 되돌릴 수 있는 삭제는 스킬이 밀었든 모델이 골랐든 자동으로 돈다.
+  // **이 검사가 원래 지키던 것은 "스킬이 안전 경계를 우회하지 못한다"**이지 "삭제가 멈춘다"가
+  // 아니었다(B1 의 원래 결함: 스킬 주입이 read 로 흘러 경계 자체를 건너뛰었다).
+  // 헌장 아래에서 그 경계는 되돌림이다 — 스킬 경로도 **같은 휴지통**을 지나야 한다.
+  assert.equal(r.kind, 'reply');
+  const 남은것 = await readdir(join(dir, '.trash')).catch(() => []);
+  assert.ok(남은것.some((f) => f.endsWith('보고서.pdf')),
+    '스킬이 민 삭제가 휴지통을 건너뛰었다 — 사용자의 파일이 영영 사라진다');
+  assert.equal(await readFile(join(dir, '.trash', 남은것.find((f) => f.endsWith('보고서.pdf'))), 'utf8'),
+    '사용자의 소중한 보고서', '휴지통 사본이 원본이 아니다');
 });
 
 // ── B2: 되돌리기가 사용자 파일을 지우지 않는다 ──

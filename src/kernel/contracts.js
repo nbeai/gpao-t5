@@ -184,17 +184,13 @@ export const TOOL_STATUS = Object.freeze(['usable', 'needs_auth', 'needs_config'
 export const GRANT_SCOPE = Object.freeze(['once', 'session', 'persist']);
 export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 승인 대기 30분 후 만료 → 재승인 요구
 
-/**
- * ApprovalMode (P6-15) — 승인 마찰의 강도. **정책을 느슨하게 하려는 게 아니라 사용자가 덜 헤매게** 하는 표면.
- * 어느 모드도 안전 바닥(SAFETY_FLOOR)을 우회하지 못한다 — 외부 전송·삭제·권한 변경·자동화 활성화·비밀/계정
- * 접근은 항상 승인(A2+). 모드는 저위험(A0/A1)을 얼마나 자연스럽게 통과시키느냐만 조절한다.
- * - manual : 저위험 자연 진행(A0/A1), 그 외 승인. (기존 동작)
- * - smart  : manual과 같되 판단 이유를 사용자 언어로 표면화(기본).
- * - strict : A1(되돌릴 수 있는 로컬 정리)도 확인. A0만 자연 진행.
- * @typedef {'manual'|'smart'|'strict'} ApprovalMode
- */
-export const APPROVAL_MODES = Object.freeze(['manual', 'smart', 'strict']);
-export const DEFAULT_APPROVAL_MODE = 'smart';
+// **승인 모드(manual/smart/strict)는 제거했다**(오너 결정 2026-08-03).
+//
+// 자동성 헌장에는 모드 예외가 없다 — "그 밖의 모든 것은 자동이다". 헌장을 집행하면서
+// 세 모드가 같은 답을 내게 됐고, 그 순간 이것은 조절 손잡이가 아니라 **아무 것도 바꾸지 않는
+// 손잡이**가 됐다. 화면에 남겨 두면 사용자가 고를 수 있다고 믿는 죽은 버튼이고,
+// 코드에 남겨 두면 언젠가 누군가 그 문으로 마찰을 되살린다.
+// 승인 마찰의 강도를 정하는 것은 이제 모드가 아니라 헌장의 넷이다.
 
 /**
  * P-OP-7 Pass 4 · C7-ACTION-001 — **전송 도구 판정의 단일 기준.**

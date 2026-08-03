@@ -47,11 +47,16 @@ const declared = (quote) => ({ utteranceQuote: quote, speechAct: 'declaration', 
 /** 범위를 말하지 않은 모델 — 자동 반영 대상이 아니다. */
 const 범위없음 = (quote) => ({ utteranceQuote: quote, speechAct: 'declaration' });
 
-async function standUp(perTurn) {
+async function standUp(perTurn, { onFileCall } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-revmem-'));
   const store = new SessionStore(dir);
+  // 파일 손 호출을 관측할 수 있게 한다 — 헌장 뒤에는 승인 목록이 아니라 **실행 사실**이 증거다.
+  const base손 = demoTools().tools['local.file'];
+  const tools = onFileCall
+    ? demoTools({ localFile: { ...base손, handler: async (a) => { onFileCall(a ?? {}); return base손.handler(a); } } })
+    : demoTools();
   const server = makeServer({
-    store, eventLog: new EventLog(dir), tools: demoTools(), model: 고른다(perTurn),
+    store, eventLog: new EventLog(dir), tools, model: 고른다(perTurn),
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { dir, store, server, base: `http://127.0.0.1:${server.address().port}`, mem: new MemoryStore(dir) };
@@ -265,16 +270,21 @@ test('S1/H04: 철회가 성립한 턴에는 무관한 파일 승인 카드가 �
   } finally { server.close(); }
 });
 
-test('S1: 진짜 파일 되돌리기 요청은 그대로 승인을 거친다(억제가 번지지 않는다)', async () => {
-  // 억제는 기억 철회가 성립한 턴에만 걸린다. 파일 undo 자체를 없애면 그건 능력 삭제다.
+test('S1: 진짜 파일 되돌리기 요청은 그대로 실행된다(억제가 번지지 않는다)', async () => {
+  // 억제는 기억 철회가 성립한 턴에만 걸린다. 파일 undo 자체를 없애면 그건 **능력 삭제**다 —
+  // 이 검사가 지키는 것은 그것이지 "승인을 받는다"가 아니었다(관측점이 승인이었을 뿐).
+  // 헌장(2026-08-03) 뒤 되돌릴 수 있는 파일 작업은 자동이므로, 억제가 번졌는지는
+  // **손이 실제로 불렸는가**로 잰다 — 억제가 번지면 undo 가 아예 실행되지 않는다.
+  const 불린것 = [];
   const { server, base } = await standUp([
     { name: 'local.file', args: { action: 'undo' } },
-  ]);
+  ], { onFileCall: (a) => 불린것.push(a) });
   try {
     const s = await post(base, '/sessions');
     const r = await post(base, '/turn', { sessionId: s.id, text: '방금 만든 파일 되돌려줘' });
-    assert.equal(r.kind, 'approval', '파일 되돌리기는 여전히 승인을 거친다');
-    assert.ok((r.pending ?? []).some((p) => p.action === 'local.file'));
+    assert.notEqual(r.kind, 'approval');
+    assert.ok(불린것.some((a) => a.action === 'undo'),
+      '진짜 되돌리기 요청인데 파일 손이 불리지 않았다 — 억제가 번져 능력이 사라졌다');
   } finally { server.close(); }
 });
 
