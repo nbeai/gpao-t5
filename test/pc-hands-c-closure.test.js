@@ -183,7 +183,12 @@ test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안�
       // 헌장 뒤에는 쓰기가 실제로 돌고 턴이 이어진다 — 쓴 다음에는 말로 끝낸다.
       // (예전엔 승인 카드에서 턴이 멈춰 이 뒤가 없었다.)
       if (도구응답 > 3) return { text: '정리본을 만들었어요.', toolCalls: [] };
-      assert.equal(opts.requiredTool, 'local.file', '미충족 완료 계약이 파일 손을 구조로 요구하지 않았다');
+      // **강제하지 않는다**(2026-08-03). `requiredTool` 은 모델에게서 "안 한다"는 선택지를
+      // 뺏어, 낼 것이 없을 때 억지로 무언가를 만들게 한다(실측: 쓰레기 로그 파일이 완료 계약을
+      // 충족시켰다). 재는 계약은 그대로다 — **미충족이면 파일 손을 다시 쥐여 주고 턴이 이어진다.**
+      assert.ok(tc.unmetDeliverable, '계약이 아직 안 찼다는 사실을 줘야 모델이 이어간다');
+      assert.equal(opts.tools?.[0]?.name, 'local.file', '미충족 완료 계약이 파일 손을 다시 주지 않았다');
+      assert.ok(!opts.requiredTool, '고르는 것은 모델 몫이다 — 강제하면 없는 산출물을 지어낸다');
       assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write'],
         '완료 계약이 write 영수증을 요구하는데 읽기 손까지 다시 열었다');
       assert.ok(opts.tools[0].parameters.required.includes('source'),
@@ -379,7 +384,6 @@ test('문맥에서 만들 파생 파일은 본문을 다시 받아쓰게 하지 
         // 헌장(2026-08-03) 뒤에는 쓰기가 실제로 돌고 턴이 이어진다 — 한 번 쓴 다음에는 말로 끝낸다.
         // (예전엔 승인 카드에서 턴이 멈춰 이 뒤가 없었다.)
         if (derivedCalls > 1) return { text: '정리본을 만들었어요.', toolCalls: [] };
-        assert.equal(opts.requiredTool, 'local.file');
         assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write']);
         assert.ok(opts.tools[0].parameters.required.includes('source'));
         return { text: '', toolCalls: [{

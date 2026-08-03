@@ -232,9 +232,16 @@ function fileWriteTools(selfState, modelControls, { derived = true } = {}) {
         ...tool.parameters,
         properties: {
           ...tool.parameters.properties,
-          action: { ...tool.parameters.properties.action, enum: ['write'] },
+          // **출구를 하나로 잠그지 않는다.** `write` 만 허용하면 "정리"의 정답인 `move` 가
+          // 목록에 없어, 모델이 낼 수 있는 유일한 write 가 쓰레기 로그 파일이 된다(실측 2026-08-03).
+          //
+          // 다만 **파생 산출물은 다르다.** "이 자료로 정리본을 만들어 줘"는 원본에서 파생된
+          // 새 파일이 결과이고, `source` 가 없으면 원본 자리를 덮어쓸 수 있다(그 계약을 검사가
+          // 지킨다). 그때는 좁힌 채로 둔다 — 넓히는 것이 목적이 아니라 **맞는 출구를 주는 것**이다.
+          action: { ...tool.parameters.properties.action, enum: derived ? ['write'] : ['write', 'move', 'delete'] },
         },
-        required: ['action', 'path', 'text', ...(derived ? ['source'] : [])],
+        // `text`·`source` 는 write 에만 필요하다 — 필수로 걸면 move 를 아예 고를 수 없다.
+        required: derived ? ['action', 'path', 'text', 'source'] : ['action', 'path'],
       },
     }));
 }
@@ -1504,9 +1511,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const fileTools = fileWriteTools(selfState, ctx.modelControls, { derived });
     if (!fileTools.length) { 멈춘이유 = '파일 결과물을 남길 손이 없어 멈췄어요'; return false; }
     산출물요청수 += 1;
+    // **강제하지 않는다.** `requiredTool` 은 모델에게서 "안 한다"는 선택지를 뺏는다 —
+    // 그러면 낼 것이 없을 때 억지로 무언가를 만들어 낸다(실측: 쓰레기 로그 파일).
+    // 계약이 아직 안 찼다는 **사실**(`unmetDeliverable`)을 주고 고르는 것은 모델에 남긴다.
     finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
-      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-      tools: fileTools, requiredTool: 'local.file',
+      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
     });
     if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) {
       멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
