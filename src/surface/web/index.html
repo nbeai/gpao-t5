@@ -1402,11 +1402,35 @@ function receiptNote() {
   clearTimeout(n._t); n._t = setTimeout(() => n.remove(), 8000);
 }
 
+/**
+ * 접힌 라벨은 **숫자가 아니라 사실**을 말한다(오너 결정 2026-08-03).
+ *
+ * 실측: 턴이 끝나면 진행 표시(`steps`)는 제거되고 복원되지 않는다. 그때 화면에 남는 것은
+ * 최종 답 한 줄과 이 접힌 머리뿐인데, 그 머리가 **"도구 1개"** 라고 말했다. 참이지만
+ * 사용자가 알고 싶은 것이 아니다 — 대리지표를 결과 자리에 세운 것이고, 팀원이 "진행을 본 적
+ * 없다"고 한 이유다. 정보가 사라진 게 아니라 **접혀 있었고, 접힌 이름이 아무것도 안 말했다.**
+ *
+ * 바로 아래 `body` 에 이미 정확한 문장이 있으므로 새 데이터도 새 UI도 만들지 않는다.
+ * **확인된 사실이 있을 때만 그것을 라벨로 올린다** — 미확인·추정을 라벨에 올리면 접힌 줄만
+ * 보고 "됐구나" 하고 넘어간다. 그건 숫자보다 나쁘다(거짓을 짧게 말하는 것).
+ */
+function 기록라벨(ledger) {
+  const 확인 = ledger?.confirmed ?? [];
+  const 전체 = 확인.length + (ledger?.unconfirmed?.length || 0) + (ledger?.estimated?.length || 0);
+  if (!확인.length) return `작업 기록 · 도구 ${전체}개`;   // 확인된 것이 없으면 사실로 말할 게 없다
+  const 첫 = String(확인[0]).replace(/[.\s]+$/, '');
+  const 나머지 = 전체 - 1;
+  return 나머지 > 0 ? `${첫} 외 ${나머지}건` : 첫;
+}
+
 function renderRecord(box, ledger) {
   const n = (ledger?.confirmed.length || 0) + (ledger?.unconfirmed.length || 0) + (ledger?.estimated.length || 0);
   if (!n) return;
   const rec = el('record');
-  const head = el('head'); head.innerHTML = `<span class="tw">▸</span> 작업 기록 · 도구 ${n}개`;
+  const head = el('head');
+  const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
+  head.appendChild(tw);
+  head.appendChild(document.createTextNode(` ${기록라벨(ledger)}`)); // OS 가 만든 문장 — HTML 로 해석하지 않는다
   const body = el('body');
   body.textContent = [
     ledger.confirmed.length ? '확인: ' + ledger.confirmed.join('; ') : '',
