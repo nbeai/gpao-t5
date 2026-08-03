@@ -155,6 +155,43 @@ try {
       r.kind !== 'approval', `kind=${r.kind}`);
   }
 
+  // ── 연속성: 끊겨도 놓친 사실이 되살아난다 ───────────────────────────────
+  // 헌장이 승인을 걷은 자리를 지탱하는 것은 **사실 기록**이다(헌장 자신의 문장). 그 기록이
+  // 끊긴 연결을 넘어 살아남지 못하면, 자동으로 흘러간 일을 사용자가 영영 못 보게 된다 —
+  // 카드를 없앤 대가가 침묵이 된다. 그래서 이 축은 헌장과 같은 자리에서 잰다.
+  {
+    const s = await 새대화();
+    const { streamId } = await 부르기('/turn/stream-start', { sessionId: s, text: '읽을것.txt 읽어줘' });
+    const ctrl = new AbortController();
+    const 받은것 = []; let 마지막id = null;
+    try {
+      const r = await fetch(`${주소}/turn/stream?sessionId=${s}&streamId=${streamId}`,
+        { headers: { cookie: 신분, accept: 'text/event-stream' }, signal: ctrl.signal });
+      const reader = r.body.getReader(); const dec = new TextDecoder();
+      while (받은것.length < 2) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        for (const blk of dec.decode(value, { stream: true }).split('\n\n')) {
+          const ev = blk.match(/^event: (\w+)/m)?.[1];
+          const id = blk.match(/^id: (\d+)/m)?.[1];
+          if (ev && ev !== 'heartbeat') { 받은것.push(ev); if (id) 마지막id = id; }
+        }
+      }
+    } catch { /* 끊김은 이 시나리오의 목적이다 */ }
+    ctrl.abort();
+
+    await new Promise((r2) => setTimeout(r2, 3000)); // 턴은 서버에서 계속 돈다
+    const 재접속 = await fetch(`${주소}/turn/stream?sessionId=${s}&lastEventId=${마지막id ?? 0}`,
+      { headers: { cookie: 신분, accept: 'text/event-stream' } });
+    const 본문 = await 재접속.text();
+    const 되살아난것 = [...본문.matchAll(/^event: (\w+)/gm)].map((m) => m[1]);
+    잰다('턴 도중 끊겨도 놓친 사실이 되살아난다(연속성)',
+      되살아난것.includes('complete'),
+      `끊기 전 ${받은것.join(',')} (lastEventId=${마지막id}) → 복구 ${되살아난것.join(',')}`);
+    잰다('다시 붙은 쪽이 턴이 끝났는지 알 수 있다',
+      /terminal":true/.test(본문), `reconnected 신호=${/event: reconnected/.test(본문)}`);
+  }
+
   // ── 헌장 ③: 새 상대는 한 번만 묻는다 ────────────────────────────────────
   if (전송축) {
     const s = await 새대화();
