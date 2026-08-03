@@ -14,6 +14,7 @@ const required = [
   'README.md',
   'GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md',
   'docs/PROJECT-AUTHORITY-MAP-ko.md',
+  'docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md',
   'docs/archive/README-ko.md',
   'docs/03-verification/T5-OPERATOR-HARNESS-EXECUTION-BOARD-2026-07-28-ko.md',
 ];
@@ -26,6 +27,9 @@ const retiredAtOldPath = [
   'design/P6-1-MEMORY-POM-TCELL-2026-07-25-ko.md',
   'SESSION-HANDOFF-2026-07-26-ko.md',
   'HANDOFF-2026-07-27-terminal-surface-ko.md',
+  'GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md',
+  'GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md',
+  'GPAO-T5-PRODUCT-CONSTITUTION-AUDIT-2026-07-24-ko.md',
 ];
 for (const path of retiredAtOldPath) {
   if (existsSync(resolve(root, path))) fail(`퇴역 문서가 현재 위치에 남음: ${path}`);
@@ -37,6 +41,7 @@ const 제외경로 = ['docs/archive', 'docs/03-verification/evidence', 'design/e
 const activeMarkdown = execFileSync('git', [
   'ls-files', '--cached', '--others', '--exclude-standard', '--', '*.md',
 ], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+  .filter((path) => existsSync(resolve(root, path)))
   .filter((path) => !제외경로.some((p) => path === p || path.startsWith(`${p}/`)));
 
 const forbiddenReferences = [

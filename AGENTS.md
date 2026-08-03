@@ -9,24 +9,16 @@
 - Agreement needs no decorative paraphrase. Audit and planning output must contribute net-new information rather than repackaging context.
 - Create a new term, artifact, test layer, or process only when an existing contract cannot hold the necessary work, and state that concrete necessity plainly.
 
-> **최상위(2026-07-27 오너 지시)**: T5 성능 철학 — **사용자 발화 이해 → 대화 흐름 이해 →
-> 모델 앞 현실 구성 → 실제 결과 구분 → 다음 턴 승계 → 기능**. 이 순서를 놓치면 아무리 대단한 코드도 의미가 없다.
-> 정본 원문: `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md` §0.
-> 원문을 요약·재작성한 문구가 원문을 대체하면 안 된다. 모든 개발 판단은 원문을 먼저 읽고 적용한다.
-> 런타임은 사용자 말을 대신 해석해서 닫지 않는다. 원문·현재 대상·맥락·가능한 손발·실행 사실·위험 경계를
-> 모델 앞에 정확히 놓고, 해석과 판단은 모델이 하게 둔다.
-> **절대 역량 명제**: Codex, Claude Code, OpenClaw, Hermes, 그리고 기타 다른 AI 운영체제가 할 수 있는
-> 것은 당연히 T5도 할 수 있고, 해도 된다. 그 어떤 핑계로도 이런 개발을 막지마라. 안전은 능력 축소가
-> 아니라 위험 실행 경계·승인·원장·보호 영역으로 구현한다.
-> **가능화 원칙**: "된다/안된다"로 닫지 않는다. 먼저 사용자가 원하는 일을 T5가 어떻게 더 부드럽고
-> 안정적으로 할 수 있게 만들지 찾는다. 위험은 기능 삭제가 아니라 실행 순간의 경계·승인·기록·복구로 다룬다.
-> 모든 개발·검수는 다음 질문을 먼저 통과해야 한다:
-> **이 기능을 막고 있는가, 아니면 더 자연스럽게 가능하게 만들고 있는가?**
-> **Codex·Claude Code·OpenClaw·Hermes가 할 수 있는 일을 T5만 못 하게 축소하고 있지는 않은가?**
-> **위험을 이유로 능력을 제거했는가, 아니면 실행 순간의 승인·원장·보호·복구로 다뤘는가?**
-> **사용자가 해야 할 일을 T5가 대신 할 수 있는데도 사용자에게 떠넘기고 있지는 않은가?**
-> **기능 목록을 늘리는 중인가, 아니면 하나의 근본 표면을 열어 여러 일이 자연스럽게 되게 하는가?**
-> **모델에게 금지문을 더 넣고 있는가, 아니면 모델 앞에 더 정확한 현실과 손발을 주고 있는가?**
+## Single top product authority (mandatory)
+
+Before any planning, implementation, review, verification, handoff, or release work, read and obey:
+
+- `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+
+It is the single authority for owner vision, product purpose, the seven domains, 말귀, functional correctness,
+comparative performance, model operation, Selfhood, memory/growth, reference absorption, and final judgment.
+Do not replace it with a summary or recreate its principles in another document. Technical contracts may only
+interpret or execute it.
 
 This folder is the official GPAO-T5 development root.
 
@@ -36,16 +28,16 @@ Do not treat another T5 worktree, an archived handoff, or local harness notes as
 Run `npm run audit:workspace` before starting a new implementation line and after changing authority, handoff,
 archive, or worktree state.
 
-Before any planning, implementation, review, verification, handoff, or release work, read these top authority documents:
+After the single top authority, read these execution and engineering documents:
 
 1. `README.md`
-2. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
+2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
 3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
 5. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
    - Preserves the reusable method that turns owner philosophy into human scenarios, shared contracts,
      implementation, live evidence, independent audit, and durable project knowledge.
-   - Use it as the operating cycle for new work. It does not replace the authority documents above.
+   - Use it as the operating cycle for new work. It does not replace the single top product authority.
 
 Mandatory reference absorption supplement:
 
@@ -118,24 +110,21 @@ Mandatory skill, scheduling, agent, and automation implementation plan:
    - Core user-created skills, durable scheduling, and bounded agents are pre-human-beta and pre-package work.
      External skill/plugin ecosystems, agent swarms, and recursive multi-agent orchestration are not.
 
-## T5 Core Three-Axis Rule (2026-07-28 owner direction)
+## Product principle and execution contracts
 
-The following three documents are the mandatory product-core reading sequence for every new session, handoff, resumed context, planning, implementation, audit, and completion claim:
+There is one product philosophy authority:
 
 1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
-   - Axis 1: user purpose, performance philosophy, and the full meaning of 말귀.
+
+The following documents execute it without creating competing philosophy:
+
 2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
-   - Axis 2: model/runtime responsibility split, reality assembly, execution truth, and next-turn continuity.
+   - Model/runtime responsibility split, reality assembly, execution truth, and next-turn continuity.
 3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
-   - Axis 3: current core execution order, process audit, real-user scenarios, and completion evidence.
+   - Current core execution order, process audit, real-user scenarios, and completion evidence.
 
-Then read the current execution board and alignment audit when present. The axes cooperate and constrain one another:
-
-- Axis 1 prevents developer-centric, feature-count, or user-purpose drift.
-- Axis 2 prevents model control, invented reality, and missing ledger/continuity.
-- Axis 3 prevents overbuilding, endless work, single-case patching, and completion claims without real-model/user/surface evidence.
-
-No axis alone can justify a feature or completion claim. Do not advance the next core step while the current one still has a user-visible gap, unrun counter-verification, or live verification missing. Keep each step to one shared operating contract; defer scope that does not improve a current human scenario.
+Read the current execution board and handoff for volatile status. No execution contract can override the product
+purpose, and the top product document cannot by itself claim that implementation is complete.
 
 For current (v3.x) development, also read — these define what "done" means now:
 
@@ -147,17 +136,10 @@ For Phase 0 reference inventory, also read:
 
 5. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
 
-Core rule:
+Product rules:
 
-- Do not treat GPAO-T5 as a feature-heavy chat app.
-- GPAO-T5 is an Original AI Operating System.
-- User purpose comes before method listing.
-- Operational Selfhood, BEAI5 Model Operation, Intent/Context/T-cell, ActionPlan/Authority, Router/Execution, Work Surface, and Truth Ledger/Recovery/Growth are the seven body-development domains.
-- The seven domains must work as one user flow: user utterance → self-state and available hands → natural model judgment → memory/context/growth → automatic/approval boundary → execution → surface → ledger/recovery.
-- T-cell belongs to Intent/Context, but its success must improve model operation, authority boundaries, work surface, and ledger/recovery rather than only adding memory state.
-- Never forget the owner’s six product laws: 말귀 first; do not harass people with cards/clicks; minimum safety and maximum automation; do not make the model dumb; be useful on the user’s real computer; memory should become natural, not merely larger.
-- The `npm pack` artifact gate exists. Signed installation, background service, update, uninstall/recovery, and public
-  distribution remain release work after the H and Agent Core seals; do not call the artifact gate a finished installer.
+- Use the seven domains, six product laws, comparison standard, and final judgment exactly as defined in the
+  single top product authority. Do not maintain a second copy here.
 
 Development discipline:
 

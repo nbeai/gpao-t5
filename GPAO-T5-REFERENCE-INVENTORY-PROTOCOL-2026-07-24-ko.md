@@ -3,7 +3,8 @@
 - Status: `phase_0_inventory_protocol`
 - Date: 2026-07-24
 - Scope: GPAO-T5 Phase 0 `Final Research Seal`
-- Authority: Supports `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md` section 2.3, 3, 10, 12.
+- Authority: Historical Phase 0 protocol under the current top product authority. The originating plan is archived at
+  `docs/archive/retired-plans/GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`.
 - Purpose: Define the schema, classification rules, coverage bar, and Codex audit criteria for the Phase 0 Reference Inventory.
 
 ## 0. 원칙

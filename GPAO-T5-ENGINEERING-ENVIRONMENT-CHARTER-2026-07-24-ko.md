@@ -1,10 +1,9 @@
 # GPAO-T5 개발 환경 헌장
 
 - 날짜: 2026-07-24
-- 상태: `top_authority_engineering_environment`
-- 관계: `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`의 착수 전후 필수 산출물 8번째.
-  `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`와 짝을 이룬다.
-- 역할 분담: **절대 원칙이 "왜"를 정한다. 이 문서는 개발 환경에서 "어떻게 지킬지"를 정한다.**
+- 상태: `SUBORDINATE_ENGINEERING_ENVIRONMENT`
+- 관계: 티파이브 프로젝트 절대 원칙과 개발 공학 원칙을 작업 환경에서 집행한다.
+- 역할 분담: **최상위 제품 원칙이 "왜"를 정하고, 개발 공학 원칙과 이 문서가 "어떻게 지킬지"를 정한다.**
 
 ## 0. 이 문서가 존재하는 이유
 

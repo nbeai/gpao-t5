@@ -25,8 +25,11 @@ import { fileURLToPath } from 'node:url';
 const REPO = process.env.T5_DOCS_AUDIT_ROOT
   ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const ENTRY_DOCS = [
+// 시험(test/audit-docs.test.js)이 이 목록을 **복사하지 않고 가져다 쓴다** — 복사본은
+// 목록이 늘 때 fixture 만 낡아 "깨끗한 상태" 시험이 거짓으로 빨개진다(2026-08-04 실측).
+export const ENTRY_DOCS = [
   'GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md',
+  'docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md',
   'docs/PROJECT-AUTHORITY-MAP-ko.md',
   'docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md',
   'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
@@ -48,7 +51,9 @@ const RETIRED_TOKENS = [
   { token: '회차당 14턴', allow: ['docs/archive/', 'evidence/human-baseline/'] },
 ];
 
-const PATH_REF = /(?:docs|design|scripts|src|test)\/[\w가-힣/.\-]+\.(?:json|mjs|md|js|py)(?![\w])/g;
+// URL 안의 `/docs/...`를 저장소 경로로 오인하지 않는다. 활성 정본에서 검사할 로컬 경로는
+// 시작점·공백·괄호·백틱 뒤에 오며 `/` 뒤에 바로 이어지는 URL 하위 경로는 제외한다.
+const PATH_REF = /(?<![\/\w])(?:docs|design|scripts|src|test)\/[\w가-힣/.\-]+\.(?:json|mjs|md|js|py)(?![\w])/g;
 
 // 상태 토큰 접두 → "현재 작업:" 줄이 반드시 담아야 하는 단계 문구.
 // 상태가 다음 단계로 넘어가면 이 표에 행을 추가한다 — 표 갱신 자체가 투영 갱신을 강제한다.
@@ -110,7 +115,12 @@ export function auditDocs(repo = REPO) {
     if (statusDecls.length !== 1) {
       errors.push(`인수인계 §0-A: '현재 상태는' 선언이 ${statusDecls.length}개 (정확히 1개여야 한다)`);
     }
-    const planPath = join(repo, ENTRY_DOCS[3]);
+    // 색인이 아니라 경로로 집는다 — 2026-08-04 비전 문서가 목록 1번에 끼면서 `[3]`이
+    // 브리핑을 가리키게 됐고, 이 검사가 **조용히 건너뛰어졌다**(지위 줄이 없으니 skip).
+    // 검사가 못 찾으면 skip 이 아니라 실패다 — 조용한 공백은 이 게이트가 잡으려는 병 그 자체다.
+    const planDoc = ENTRY_DOCS.find((p) => p.includes('TCELL-DEVELOPMENT-PLAN'));
+    if (!planDoc) errors.push('진입 정본에 T-cell 계획 문서가 없다 — 지위 투영 검사 불능');
+    const planPath = join(repo, planDoc ?? '');
     if (existsSync(planPath)) {
       const plan = readFileSync(planPath, 'utf8');
       const st = plan.match(/^- 지위:\s*`([^`]+)`/m);

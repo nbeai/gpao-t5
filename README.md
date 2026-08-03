@@ -19,17 +19,21 @@ The approved execution path from the current development-complete baseline to a 
 tool-turn latency, the consumer installation lifecycle, and broad real-world use as four independently scored product
 gates. It does not reopen the sealed core or authorize public distribution.
 
-## Top Authority Documents
+## Single Top Product Authority
 
-These documents are mandatory first-read material before any GPAO-T5 planning, implementation, review, verification, or handoff.
+This is the single top product document for all GPAO-T5 planning, implementation, review, verification, and handoff.
 
-1. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
-   - Defines the product identity, Original AI OS philosophy, Operational Selfhood, BEAI5 split, 7 development domains, first build slice, and scenario qualification path.
+1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+   - The single top authority for owner vision, product identity, the seven domains, 말귀, functional correctness,
+     comparative performance, model operation, Selfhood, memory/growth, and final development judgment.
 
-2. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
-   - Defines the non-negotiable development discipline: verify delivered artifacts, do not build on unverified premises, gate destructive/external actions, generalize beyond one case, keep changes surgical, prefer simplicity, write failure tests, report honestly, and define completion by the real user path.
+## Mandatory Engineering Contracts
 
-3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+1. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
+   - Implements the top product authority as engineering discipline: verify delivered artifacts, reject unverified
+     premises, keep changes surgical, write failure tests, report honestly, and complete the real user path.
+
+2. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
    - Defines how the discipline is enforced in the working environment: build artifacts stay out of the source tree, source and generated outputs are physically separated, builds are deterministic, and multi-agent work is isolated by worktree. Frictionless rules apply now; slow gates (hooks/CI/test gates) attach in Phase 5 when real code and a build pipeline exist. Zero friction for everyday local work.
 
 ## Development Method Asset
@@ -45,15 +49,16 @@ time, but only after one shared contract is stable. Each sidecar owns disjoint f
 owner audits and admits contract-sized changes so the product grows faster without making the owner resolve technical
 conflicts.
 
-## Core Three-Axis Reading Order
+## Product Execution Reading Order
 
 Every resumed or new T5 development session reads these before choosing work:
 
-1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md` — user purpose, performance philosophy, and 말귀.
+1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md` — single top product authority.
 2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md` — model/runtime operating loop and judgment boundary.
 3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md` — current core work sequence, process audit, live scenarios, and completion evidence.
 
-They are deliberately complementary: purpose prevents developer-tool drift, the operating loop prevents model-control drift, and the work order prevents overbuilding or completion claims without actual user evidence.
+The latter two do not define a competing philosophy. They execute the top authority: the operating loop defines the
+model/runtime boundary, and the work order defines implementation and evidence.
 
 ## Foundational Reference Documents
 

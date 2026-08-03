@@ -5,9 +5,10 @@
 - 성격: 제품 철학을 구현·검증·협업·축적하는 운영 방법
 - 적용: T5의 이후 개발, 유지보수, 감사, 릴리스, 후속 AI 제품
 - 상위 권위:
-  - `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
   - `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+- 하위 집행 계약:
   - `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+  - `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
 - 함께 읽을 실행 규범:
   - `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
   - `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`

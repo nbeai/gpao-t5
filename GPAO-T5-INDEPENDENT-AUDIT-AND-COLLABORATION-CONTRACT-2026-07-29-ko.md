@@ -5,8 +5,9 @@
 - 적용: Claude, Codex, 후속 AI, 인간 개발자, 겸임 구현자·감사자
 - 목적: 독립 감사로 품질을 높이되, 반복 지적과 무한 재개봉이 T5 전체 완성을 정체시키지 않게 한다.
 - 상위 권위:
-  - `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
   - `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+- 집행 계약:
+  - `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
   - `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
 - 함께 적용:
   - `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`

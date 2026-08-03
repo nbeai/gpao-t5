@@ -4,7 +4,8 @@
 - Date: 2026-07-24
 - Auditor: Codex
 - Audited commit: `7198b0b`
-- Constitution: `GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md`
+- Status: `RETIRED_HISTORY`
+- Constitution: `docs/archive/retired-plans/GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md`
 - Prior evidence: `GPAO-T5-REFERENCE-INVENTORY-AUDIT-2026-07-24-ko.md`
 
 ## 0. 판정

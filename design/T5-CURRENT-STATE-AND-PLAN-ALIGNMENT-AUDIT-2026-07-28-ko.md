@@ -28,7 +28,7 @@ T5가 조립하는 현실·터미널·파일·웹·연결·원장·승인 경계
 
 | 문서 | 확정하는 것 | 현재 감사의 해석 |
 |---|---|---|
-| `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES...` §0 | 발화 이해 → 흐름 → 모델 앞 현실 → 실행 사실 → 승계 → 기능 | 모든 기능의 우선순위 |
+| `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY...` | 발화 이해 → 흐름 → 모델 앞 현실 → 실행 사실 → 승계 → 기능 | 모든 기능의 우선순위 |
 | `GPAO-T5-FINAL-DEVELOPMENT-PLAN...` §0·§5·§6 | ChatGPT급 대화 체감 + Codex급 로컬 실행력 + 자기파악 | 제품의 한 몸 구조 |
 | `GPAO-T5-DEVELOPMENT-PLAN-v3.1-SUPPLEMENT...` §15·§16·§19·§24 | T5 안에서 일을 끝냄, 라이브 우선, 모델 판단 침범 금지 | 완료와 개발 방식의 기준 |
 | `GPAO-T5-MODEL-OS-OPERATING-LOOP...` | 원문·현실·판단·실행·원장·승계의 공동 순환 | 매 슬라이스의 설계/보고 단위 |

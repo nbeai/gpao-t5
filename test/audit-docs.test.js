@@ -4,17 +4,17 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 
-import { auditDocs } from '../scripts/audit-docs.mjs';
+import { auditDocs, ENTRY_DOCS } from '../scripts/audit-docs.mjs';
 
-const ENTRY = [
-  'GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md',
-  'docs/PROJECT-AUTHORITY-MAP-ko.md',
-  'docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md',
-  'design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md',
-  'README.md',
-  'AGENTS.md',
-  'docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md',
-];
+// 진입 정본 목록은 스크립트가 단일 진실이다. 여기 복사해 두면 목록이 늘 때 fixture 만 낡아
+// "깨끗한 상태" 시험이 거짓으로 빨개진다 — 2026-08-04 비전 문서 승격에서 실측된 드리프트다.
+// 색인이 아니라 **경로로** 집는다. 순서가 바뀌어도 역할이 안 밀리게.
+const ENTRY = ENTRY_DOCS;
+const 자리 = (파편) => {
+  const hit = ENTRY.find((p) => p.includes(파편));
+  if (!hit) throw new Error(`진입 정본에 '${파편}' 이 없다 — 시험 갱신 필요`);
+  return hit;
+};
 
 function scaffold() {
   const repo = mkdtempSync(join(tmpdir(), 't5-docs-audit-'));
@@ -35,13 +35,14 @@ function scaffold() {
   ].join('\n');
   const plan = ['# 계획', '- 지위: `DRAFT_X`'].join('\n');
   const files = {
-    [ENTRY[0]]: handoff,
-    [ENTRY[1]]: '# 지도',
-    [ENTRY[2]]: '# 브리핑',
-    [ENTRY[3]]: plan,
-    [ENTRY[4]]: '# README\n현재 제품 본문',
-    [ENTRY[5]]: '# AGENTS\n현재 작업 규칙',
-    [ENTRY[6]]: '# H 진행표\n- 상태: `TCELL_H_REMEDIATION`',
+    [자리('HANDOFF')]: handoff,
+    [자리('VISION-AND-PERFORMANCE')]: '# 비전\n오너 철학 원문',
+    [자리('AUTHORITY-MAP')]: '# 지도',
+    [자리('PRESTART-BRIEFING')]: '# 브리핑',
+    [자리('TCELL-DEVELOPMENT-PLAN')]: plan,
+    [자리('README')]: '# README\n현재 제품 본문',
+    [자리('AGENTS')]: '# AGENTS\n현재 작업 규칙',
+    [자리('H-STAGE-BOARD')]: '# H 진행표\n- 상태: `TCELL_H_REMEDIATION`',
   };
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(join(repo, dirname(rel)), { recursive: true });
@@ -63,7 +64,7 @@ test('정본 투영: 깨끗한 상태는 통과한다', () => {
 test('정본 투영: 끊긴 경로 참조를 잡는다', () => {
   const repo = scaffold();
   try {
-    writeFileSync(join(repo, ENTRY[1]), '참조: `docs/없는-문서-ko.md`');
+    writeFileSync(join(repo, 자리('AUTHORITY-MAP')), '참조: `docs/없는-문서-ko.md`');
     const errors = auditDocs(repo);
     assert.ok(errors.some((e) => e.includes('끊긴 경로')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
@@ -72,7 +73,7 @@ test('정본 투영: 끊긴 경로 참조를 잡는다', () => {
 test('정본 투영: 현재 상태 선언 중복을 잡는다', () => {
   const repo = scaffold();
   try {
-    const p = join(repo, ENTRY[0]);
+    const p = join(repo, 자리('HANDOFF'));
     writeFileSync(p, [
       '# 인수인계', '## 0-A. 상태',
       '- 현재 상태는 `A`이다.', '- 현재 상태는 `B`이다.',
@@ -86,7 +87,7 @@ test('정본 투영: 현재 상태 선언 중복을 잡는다', () => {
 test('정본 투영: 계획 지위가 인수인계에 투영되지 않으면 잡는다', () => {
   const repo = scaffold();
   try {
-    writeFileSync(join(repo, ENTRY[3]), ['# 계획', '- 지위: `NEW_STATUS_TOKEN`'].join('\n'));
+    writeFileSync(join(repo, 자리('TCELL-DEVELOPMENT-PLAN')), ['# 계획', '- 지위: `NEW_STATUS_TOKEN`'].join('\n'));
     const errors = auditDocs(repo);
     assert.ok(errors.some((e) => e.includes('투영되지 않았다')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
@@ -95,7 +96,7 @@ test('정본 투영: 계획 지위가 인수인계에 투영되지 않으면 잡
 test('정본 투영: 퇴역 토큰이 현재 사실로 남으면 잡는다', () => {
   const repo = scaffold();
   try {
-    writeFileSync(join(repo, ENTRY[2]), '실행표는 h-turns.json 을 쓴다 (회차당 14턴)');
+    writeFileSync(join(repo, 자리('PRESTART-BRIEFING')), '실행표는 h-turns.json 을 쓴다 (회차당 14턴)');
     const errors = auditDocs(repo);
     assert.ok(errors.some((e) => e.includes('퇴역 토큰')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
@@ -104,7 +105,7 @@ test('정본 투영: 퇴역 토큰이 현재 사실로 남으면 잡는다', () 
 test('정본 투영: 현재 작업 사본 드리프트를 잡는다', () => {
   const repo = scaffold();
   try {
-    const p = join(repo, ENTRY[0]);
+    const p = join(repo, 자리('HANDOFF'));
     writeFileSync(p, [
       '# 인수인계', '## 0-A. 상태',
       '- 현재 상태는 `SOME_STATE`이다.', '- 지위 DRAFT_X 반영.',
@@ -119,7 +120,7 @@ test('정본 투영: 현재 작업 사본 드리프트를 잡는다', () => {
 test('정본 투영: 상태-단계 연동으로 공유 노후를 잡는다', () => {
   const repo = scaffold();
   try {
-    const p = join(repo, ENTRY[0]);
+    const p = join(repo, 자리('HANDOFF'));
     writeFileSync(p, [
       '# 인수인계', '## 0-A. 상태',
       '- 현재 상태는 `TCELL_PLAN_AUDIT_BLOCKED`이다.', '- 지위 DRAFT_X 반영.',
@@ -134,7 +135,7 @@ test('정본 투영: 상태-단계 연동으로 공유 노후를 잡는다', () 
 test('정본 투영: 여섯 줄 블록이 지난 단계를 현재 사실로 말하면 잡는다', () => {
   const repo = scaffold();
   try {
-    writeFileSync(join(repo, ENTRY[0]), [
+    writeFileSync(join(repo, 자리('HANDOFF')), [
       '# 인수인계', '## 0-A. 상태',
       '- 현재 상태는 `TCELL_IMPL_S0_SUBMITTED`이다.', '- 지위 DRAFT_X 반영.',
       '## 4.', '- 현재 작업: S0 구현 제출',
@@ -155,7 +156,7 @@ test('정본 투영: README·AGENTS·H 보드의 끝난 준비 상태를 잡는�
   try {
     writeFileSync(join(repo, 'README.md'), 'T-cell implementation plan: **not yet issued**');
     writeFileSync(join(repo, 'AGENTS.md'), 'T-cell hold:');
-    writeFileSync(join(repo, ENTRY[6]), '- 상태: `H0_FROZEN · 제품 H 미실행`');
+    writeFileSync(join(repo, 자리('H-STAGE-BOARD')), '- 상태: `H0_FROZEN · 제품 H 미실행`');
     const errors = auditDocs(repo);
     assert.ok(errors.filter((e) => e.includes('끝난 준비 상태')).length >= 3, String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
