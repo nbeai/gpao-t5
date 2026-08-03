@@ -17,6 +17,37 @@ export function responsesHistory(m) {
     ? { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: h.text }] }
     : { type: 'message', role: 'user', content: [{ type: 'input_text', text: h.text }] }));
 }
+/**
+ * **모델이 낸 호출과 그 결과를 Responses 규약으로 다음 입력에 싣는다.**
+ *
+ * 여기가 통째로 비어 있었다(실측 2026-08-04). 다른 와이어(openai·anthropic·gemini)는 전부
+ * 교환을 싣는데 이 경로만 빠져 있어서, **ChatGPT 계정으로 쓰는 사용자만** 자기 도구 대화를
+ * 못 받았다 — 모델은 자기가 한 일을 남의 소식으로 읽고 같은 일을 다시 고른다.
+ *
+ * 규약: 모델의 호출은 `function_call`, 그 결과는 같은 `call_id` 의 `function_call_output`.
+ * 신분은 공급자가 준 것이 이기고, 없으면 T5 내부 `ref` 를 쓴다(이 규약은 `call_id` 를
+ * 요구한다 — 다만 그건 공급자 신분을 지어내는 것이 아니라 원장에 없다는 사실이 그대로 남는다).
+ */
+export function responsesExchange(m) {
+  return (m?.exchange ?? []).flatMap((x) => {
+    const 신분 = x.providerCallId ?? x.ref;
+    const 결과 = [x.summary, x.data ? `결과: ${x.data}` : ''].filter((v) => v && String(v).trim()).join('\n');
+    return [
+      { type: 'function_call', call_id: 신분, name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) },
+      { type: 'function_call_output', call_id: 신분, output: 결과 },
+    ];
+  });
+}
+
+/** 이 요청에 실을 입력 아이템 전체 — 이력 · 이번 발화 · **모델 자신의 도구 대화**. */
+export function responsesInput(m) {
+  return [
+    ...responsesHistory(m),
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] },
+    ...responsesExchange(m),
+  ];
+}
+
 // 계정 경로에서 실제로 통과하는 모델(2026-07-26 오너 계정 실측). codex 접미 계열은 이 경로에서
 // "not supported when using Codex with a ChatGPT account" 400 으로 거절된다 — 카탈로그 문자열이
 // 있다고 계정 경로에서도 되는 게 아니다(실측 전엔 기본값을 추정하지 않는다).
@@ -62,7 +93,10 @@ export function toolCallFromLine(line) {
   if (!item || item.type !== 'function_call' || !item.name) return null;
   let args = {};
   try { args = item.arguments ? JSON.parse(item.arguments) : {}; } catch { return null; }
-  return { name: item.name, args, callId: item.call_id };
+  // **커널이 읽는 이름으로 낸다.** 예전엔 `callId` 라는 세 번째 이름이었고, 커널은
+  // `providerCallId` 를 읽으므로 이 공급자만 신분이 끊겼다(실측 2026-08-04).
+  // 공급자가 안 줬으면 칸을 만들지 않는다 — 지어내지 않는다.
+  return { name: item.name, args, ...(item.call_id ? { providerCallId: item.call_id } : {}) };
 }
 
 /**
@@ -177,7 +211,7 @@ export function makeChatGptModelClient(deps) {
               instructions: m.system,
               // Phase 2-1: 이력도 함께 넘긴다. 여기가 빠져 있어서 **라이브에서만** 대화가 안 이어졌다 —
               // 다른 provider 와이어는 고쳐 놓고 이 경로를 빼먹었다(같은 계약, 다른 셰이프).
-              input: [...responsesHistory(m), { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] }],
+              input: responsesInput(m),
               // Phase 0-2 1층: 내장 검색(§24 — 켜 두고 쓸지는 모델이 판단).
               ...(opts.search && !opts.tools?.length ? { tools: [{ type: 'web_search' }] } : {}),
               // 추론 강도는 **속도 다이얼**이다(모델의 판단을 규칙으로 묶는 것과 다르다).

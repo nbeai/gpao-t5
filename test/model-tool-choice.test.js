@@ -60,7 +60,7 @@ test('모르는 도구 이름은 조용히 버린다(있는 척 금지)', () => 
 // ── 와이어: Responses 셰이프에서 도구 호출을 거둔다 ──────────────────────
 test('스트림에서 도구 호출을 뽑는다', () => {
   const line = 'data: {"type":"response.output_item.done","item":{"type":"function_call","name":"local.file","arguments":"{\\"action\\":\\"list\\"}","call_id":"c1"}}';
-  assert.deepEqual(toolCallFromLine(line), { name: 'local.file', args: { action: 'list' }, callId: 'c1' });
+  assert.deepEqual(toolCallFromLine(line), { name: 'local.file', args: { action: 'list' }, providerCallId: 'c1' });
 });
 
 test('인자가 깨졌으면 버린다(반쪽 인자로 실행하지 않는다)', () => {

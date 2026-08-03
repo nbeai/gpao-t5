@@ -279,3 +279,83 @@ test('반대시험: 못 실행한 호출의 신분도 원장에 남는다(실행
   assert.equal(전문.includes('"providerCallId":"call_SKIP"') && JSON.stringify(두번째.turnExchange ?? [])
     .includes('call_SKIP'), false, '못 간 호출이 성공한 도구 대화로 섞였다');
 });
+
+// ── ⑦ ChatGPT OAuth(Responses) 경로 — 다른 규약, 같은 계약 ──────────────────
+//
+// 이 공급자는 `chat/completions` 가 아니라 **Responses API** 를 쓴다. 규약이 다르다:
+//   모델이 낸 호출  `{type:'function_call', call_id, name, arguments}`
+//   그 결과        `{type:'function_call_output', call_id, output}`
+//
+// 처음 확인했을 때 여기엔 두 결함이 있었다(2026-08-04):
+//   ① `call_id` 를 `callId` 라는 **세 번째 이름**으로 담아 커널이 못 읽었다
+//   ② `input` 에 **교환 자체가 없었다** — 이 공급자 사용자만 자기 도구 대화를 통째로 못 받는다
+// 한 공급자만 조용히 눈이 머는 자리라 여기서 따로 잰다.
+test('Responses 경로: 모델이 낸 call_id 가 providerCallId 로 온다', async () => {
+  const { toolCallFromLine } = await import('../src/runtime/chatgpt-model-client.js');
+  const line = `data: ${JSON.stringify({
+    type: 'response.output_item.done',
+    item: { type: 'function_call', call_id: 'call_RESP1', name: 'local_file', arguments: '{"action":"read"}' },
+  })}`;
+  const c = toolCallFromLine(line);
+  assert.ok(c, '호출을 못 뽑았다');
+  assert.equal(c.providerCallId, 'call_RESP1',
+    '공급자 신분이 커널이 읽는 이름으로 안 온다 — 이 공급자만 신분이 끊긴다');
+});
+
+test('Responses 경로: 다음 입력에 원래 call_id 의 function_call / function_call_output 이 실린다', async () => {
+  const { responsesInput } = await import('../src/runtime/chatgpt-model-client.js');
+  const m = buildModelMessages(buildTaskContext({
+    intent, selfState,
+    receipts: [{
+      intended: '읽기', failureState: 'none', userSafeSummary: '읽었어요.',
+      actualCall: { tool: 'local.file', args: { action: 'read' }, providerCallId: 'call_RESP1', callRef: '걸음1' },
+      result: { text: '내용 알맹이' },
+    }],
+  }));
+  const input = responsesInput(m);
+  const 부름 = input.find((i) => i.type === 'function_call');
+  const 결과 = input.find((i) => i.type === 'function_call_output');
+  assert.ok(부름, '모델이 낸 호출이 다음 입력에 없다 — 이 공급자만 자기 행동을 못 본다');
+  assert.equal(부름.call_id, 'call_RESP1', '원래 신분이 아니다');
+  assert.ok(결과, '도구 결과가 다음 입력에 없다');
+  assert.equal(결과.call_id, 'call_RESP1', '결과가 원래 호출에 안 붙는다');
+  assert.ok(String(결과.output).includes('내용 알맹이'), '결과 알맹이가 빠졌다');
+  // 사용자 발화는 여전히 정확히 한 번(교환을 붙이며 두 벌이 되면 안 된다).
+  assert.equal(JSON.stringify(input).split('내용 알맹이').length - 1, 1, '같은 사실이 두 번 실렸다');
+});
+
+// ── ⑧ 승인 재개 — 사용자가 승인한 그 호출이라는 사실이 끊기지 않는다 ────────
+test('최초 계획 승인도 신분을 봉인하고, 재개 뒤 영수증·모델 입력까지 같은 신분이 간다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'call-id-approval-'));
+  const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  const localTerminal = {
+    async probe(command) { return { command, cwd: dir, changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler(a) { return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir }, userSafeSummary: '지웠어요.' }; },
+  };
+  let 냈나 = false;
+  let 재개tc = null;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.length && !냈나) {
+        냈나 = true;
+        return { text: '', toolCalls: [{
+          providerCallId: 'call_APPROVED', name: 'local.terminal', args: { command: 'rm -rf 임시폴더' },
+        }] };
+      }
+      if (tc?.turnExchange?.length && !재개tc) 재개tc = tc;
+      return '지웠어요.';
+    },
+  };
+  const ctx = { env: demoEnv(), tools: demoTools({ localFile, localTerminal }), model };
+  const 카드 = await runTurn({ text: '임시폴더 지워줘' }, ctx);
+  assert.equal(카드.kind, 'approval', '이 시험은 승인 카드가 떠야 성립한다');
+
+  const 재개 = await runTurn({ approve: 카드.pendingId }, ctx);
+  assert.equal(재개.kind, 'reply');
+  assert.ok(재개tc, '승인 재개 뒤 모델을 다시 안 불렀다');
+  const x = 재개tc.turnExchange.find((e) => e.tool === 'local.terminal');
+  assert.ok(x, '승인해서 실행한 것이 모델 이력에 없다');
+  assert.equal(x.providerCallId, 'call_APPROVED',
+    '사용자가 승인한 그 호출이라는 사실이 재개 경계에서 끊겼다 — 모델은 자기가 낸 호출과 못 잇는다');
+});

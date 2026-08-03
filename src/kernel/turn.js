@@ -1305,6 +1305,10 @@ export async function runTurn(input, ctx) {
     이전대기를지난것으로(ctx);
     ctx.pending.set(pendingId, {
       intent, plan, admitted, sendArgs,
+      // **최초 계획 승인도 신분을 봉인한다.** 걸음 경로에만 걸어 뒀다가, 첫 응답이 바로
+      // 승인 경계인 흔한 경우("임시폴더 지워줘")에서 재개 뒤 신분이 끊겼다(실측 2026-08-04).
+      // 사용자가 승인한 것이 **모델이 낸 그 호출**이라는 사실은 경계를 넘어 살아 있어야 한다.
+      호출신분: 계획호출신분,
       workStateProposal: currentWorkStateProposal(),
       workStateConflict,
       workStateReported,

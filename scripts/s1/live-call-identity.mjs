@@ -36,9 +36,10 @@ const 부르기 = async (p, b) => (await fetch(`${주소}${p}`, {
   method: 'POST', headers: { 'content-type': 'application/json', cookie: 신분쿠키 }, body: JSON.stringify(b ?? {}),
 })).json();
 
+let 답 = null;
 try {
   const s = (await 부르기('/sessions')).id;
-  await 부르기('/turn', { sessionId: s, text: '자료 폴더의 정산.csv 읽고 뭐가 들었는지 알려줘' });
+  답 = await 부르기('/turn', { sessionId: s, text: '자료 폴더의 정산.csv 읽고 전기요금이 얼마인지 알려줘' });
 } finally {
   await new Promise((r) => server.close(r));
   await 도청.close();
@@ -79,9 +80,36 @@ const 지어낸것 = [...new Set(되돌아온것)].filter((id) => !진짜신분.
 잰다('모델이 발급한 적 없는 신분을 돌려주지 않는다', 지어낸것.length === 0,
   지어낸것.length ? `지어낸 신분: ${지어낸것.join(', ')}` : '없음');
 
-// ④ 실행이 실제로 일어났다(신분만 돌고 일은 안 하면 의미가 없다).
-잰다('그 턴에 손이 실제로 움직였다', 되돌아온것.length > 0,
-  `도구 대화 ${되돌아온것.length}건`);
+// ④ **도구 대화가 있다는 것으로 통과시키지 않는다**(오너 지적 2026-08-04).
+//    신분이 돌아도 실행이 안 됐거나 결과가 틀리면 아무 의미가 없다. 그래서 넷을 함께 잰다:
+//    실제 성공 영수증 · 실제 결과 · 다음 입력에 실린 그 결과 · 최종 답이 그것과 맞는가.
+const 성공교환 = [];
+for (const 기 of 도청.기록) {
+  for (const m of 기.보낸것?.messages ?? []) {
+    if (m.role !== 'tool' || !m.tool_call_id) continue;
+    성공교환.push({ 신분: m.tool_call_id, 내용: String(m.content ?? '') });
+  }
+}
+// fixture 에만 있는 값 — 모델이 지어낼 수 없고, 파일을 실제로 읽어야만 나온다.
+const 진짜값 = '120000';
+const 결과에값있나 = 성공교환.filter((x) => x.내용.includes(진짜값));
+
+잰다('실제 성공 영수증이 섰다(신분만 돌고 일은 안 한 것이 아니다)',
+  성공교환.length > 0 && 성공교환.some((x) => 진짜신분.includes(x.신분)),
+  `모델 발급 신분에 붙은 도구 결과 ${성공교환.filter((x) => 진짜신분.includes(x.신분)).length}건`);
+
+잰다('그 결과가 실물과 같다(파일에만 있는 값이 결과에 있다)',
+  결과에값있나.length > 0,
+  결과에값있나.length ? `${결과에값있나.length}건에 ${진짜값} 이 실려 있다` : `결과 어디에도 ${진짜값} 이 없다`);
+
+잰다('다음 모델 입력이 그 결과를 원래 호출에 붙여 실었다',
+  결과에값있나.some((x) => 진짜신분.includes(x.신분)),
+  결과에값있나.map((x) => x.신분).join(', ') || '(없음)');
+
+const 최종답 = String(답?.reply ?? '');
+잰다('최종 답이 실물과 맞는다(읽은 값을 그대로 말한다)',
+  최종답.includes(진짜값) || 최종답.includes('120,000'),
+  `답 ${최종답.length}자 — ${최종답.slice(0, 120).replace(/\n/g, ' ')}`);
 
 await rm(뿌리, { recursive: true, force: true });
 const 실패 = 잰것.filter((x) => !x.통과);

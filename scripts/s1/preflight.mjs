@@ -63,6 +63,10 @@ export const 허용파일 = [
   'src/kernel/model-sovereign.js',
   'src/runtime/model-provider.js',
   'src/runtime/tool-runner.js',
+  // ChatGPT 계정 경로는 **별도 클라이언트**라 위 공급자 순회에 안 잡혔고, 그래서 교환이
+  // 통째로 빠지고 신분이 `callId` 라는 세 번째 이름으로 새던 것이 오래 안 보였다.
+  // 같은 계약을 같은 자리에서 지키려면 여기도 슬라이스 범위다(오너 지시 2026-08-04 ①).
+  'src/runtime/chatgpt-model-client.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

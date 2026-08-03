@@ -96,6 +96,17 @@ test('모든 provider 와이어가 실행 이력을 실제로 싣는다', () => 
   assert.deepEqual(빠진곳, [], `이 provider 들은 실행 이력을 못 받는다 — 그쪽 사용자만 조용히 눈이 먼다: ${빠진곳.join(', ')}`);
 });
 
+// **`MODEL_PROVIDERS` 밖의 와이어도 여기 온다.** ChatGPT 계정 경로는 별도 클라이언트라 위
+// 순회에 안 잡혔고, 그래서 교환이 통째로 빠진 채 오래 초록이었다(실측 2026-08-04 — 그 경로
+// 사용자만 자기 도구 대화를 못 받았다). 목록형 검사는 목록 밖을 못 본다 — 그 자리를 막는다.
+test('ChatGPT 계정 경로(Responses)도 실행 이력을 싣는다', async () => {
+  const { responsesInput } = await import('../src/runtime/chatgpt-model-client.js');
+  const 실린것 = JSON.stringify(responsesInput(buildModelMessages(tcOf([성공]))));
+  assert.ok(실린것.includes('내용 알맹이'), '이 경로 사용자만 결과를 통째로 못 본다');
+  assert.ok(실린것.includes('function_call_output'), 'Responses 규약의 결과 아이템이 없다');
+  assert.ok(실린것.includes('견적서.md'), '무엇으로 불렀는지가 빠졌다');
+});
+
 test('실행이 없으면 아무 것도 얹지 않는다(빈 대화를 만들지 않는다)', () => {
   const m = buildModelMessages(tcOf([]));
   assert.deepEqual(m.exchange, []);
