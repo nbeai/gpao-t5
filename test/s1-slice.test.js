@@ -133,7 +133,7 @@ test('① B 는 승인 경계 후보를 다시 심문하지 않는다', async ()
     (tc, o) => {
       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
       if (tc?.currentActionAssessment) {
-        return { text: '', toolCalls: [{ name: 'current-action-scope', args: { unclear: false, requestedIndexes: [0, 1] } }] };
+        return { text: '', toolCalls: [{ name: 'work.current_actions', args: { unclear: false, requestedIndexes: [0, 1] } }] };
       }
       if (o.tools?.length) {
         // 재심사는 **안전 바닥 후보가 섞인 다중 선택**에서만 돈다(`isSafetyFloor`).

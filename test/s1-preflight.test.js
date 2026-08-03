@@ -57,6 +57,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/model-sovereign.js',
+    'src/kernel/turn-budget.js',
     'src/runtime/model-provider.js',
     'src/runtime/tool-runner.js',
     'src/runtime/chatgpt-model-client.js',

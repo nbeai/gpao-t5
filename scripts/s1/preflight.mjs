@@ -61,6 +61,8 @@ export const 허용파일 = [
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
   'src/kernel/model-sovereign.js',
+  // §S3 예산·가드레일 — 6상한을 걷기 전에 서는 것(오너 지시 2026-08-04 "6단으로 넘어가").
+  'src/kernel/turn-budget.js',
   'src/runtime/model-provider.js',
   'src/runtime/tool-runner.js',
   // ChatGPT 계정 경로는 **별도 클라이언트**라 위 공급자 순회에 안 잡혔고, 그래서 교환이

@@ -13,6 +13,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
+import { 턴예산 } from '../src/kernel/turn-budget.js';
 
 /** 지정한 도구 호출을 순서대로 하나씩 내놓는 모델. 다 쓰면 말로 끝낸다. */
 function 걸음마다(계획) {
@@ -70,13 +71,33 @@ test('승인이 필요한 걸음은 실행하지 않고 멈춘다', async () => 
   assert.deepEqual(손.불린것, ['ls'], '이어 쓰기가 승인 경계를 넘었다 — 사용자가 허락하지 않은 일이 실행됐다');
 });
 
-test('상한을 넘겨 계속 돌지 않는다', async () => {
+test('예산을 넘겨 계속 돌지 않는다', async () => {
   const 손 = 기록하는손();
   const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
   await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
-  // 상한 자체가 계약이다(무한 루프 방지). 수치는 MAX_TOOL_STEPS 설계값(6)+계획 1걸음을 따른다 —
-  // H08 실측으로 4→6 상향(2026-08-01, 실제 파일 목적이 4걸음을 정직하게 넘었다).
-  assert.ok(손.불린것.length <= 7, `상한이 안 먹는다(${손.불린것.length}걸음) — 한 턴이 끝없이 길어진다`);
+  // **경계 자체가 계약이다**(무한 루프 방지). 숫자는 예산에서 파생한다 — 예전엔 7을 손으로
+  // 적어 뒀는데 그건 `MAX_TOOL_STEPS = 6` 시절의 값이라, 예산으로 바꾸자 뜻 없이 빨개졌다.
+  // 이 대본은 걸음마다 한 명령씩 내므로 걸음 수는 왕복 수에 계획 1걸음을 더한 만큼이 상한이다.
+  const 예산 = 턴예산({});
+  assert.ok(손.불린것.length <= 예산.왕복 + 1,
+    `예산이 안 먹는다(${손.불린것.length}걸음 · 왕복예산 ${예산.왕복}) — 한 턴이 끝없이 길어진다`);
+  assert.ok(손.불린것.length < 많이.length, '모델이 낸 것을 끝까지 다 돌면 경계가 없는 것이다');
+});
+
+test('예산을 조이면 **그만큼** 일찍 멈춘다(우연히 멈춘 게 아니다)', async () => {
+  // 위 검사만으로는 "어쩌다 멈췄다"와 "예산이 물었다"를 못 가른다. 예산을 바꿔 보면 갈린다.
+  const 원래 = process.env.GPAO_T5_TURN_ROUNDTRIPS;
+  process.env.GPAO_T5_TURN_ROUNDTRIPS = '2';
+  try {
+    const 손 = 기록하는손();
+    const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+    await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
+    assert.ok(손.불린것.length <= 3,
+      `왕복 예산을 2로 줄였는데 ${손.불린것.length}걸음 돌았다 — 무는 것은 예산이 아니다`);
+  } finally {
+    if (원래 === undefined) delete process.env.GPAO_T5_TURN_ROUNDTRIPS;
+    else process.env.GPAO_T5_TURN_ROUNDTRIPS = 원래;
+  }
 });
 
 test('같은 손을 같은 인자로 되풀이하지 않는다', async () => {

@@ -300,6 +300,13 @@ export function buildTaskContext(p) {
     // (2026-08-01): 손이 3걸음 남았는데 모델이 "지금 손은 다 써서"라며 일을 다음 턴과
     // 사용자에게 미뤘다. 남았다는 사실이 어디에도 없으니 빈칸을 소진으로 메운 것이다.
     ...(Number.isInteger(p.toolStepsLeft) && p.toolStepsLeft > 0 ? { toolStepsLeft: p.toolStepsLeft } : {}),
+    // **예산 사실**(정본 §S3 — 6상한을 걷기 전에 서야 하는 것). 두 축을 그대로 준다:
+    // 왕복(비용이 실제로 드는 곳)과 걸음(폭주 방지 뒷단). 남은 양을 알아야 모델이
+    // "한 번에 얼마나 할지"를 스스로 정할 수 있다 — 지시가 아니라 사실이다(계약 ④).
+    ...(p.turnBudget ? { turnBudget: p.turnBudget } : {}),
+    // 되풀이 신호. **경고이지 명령이 아니다** — 같은 손이 계속 막히고 있다는 사실만 주고
+    // 방향을 바꿀지는 모델이 정한다. 런타임이 대신 멈추면 그게 다시 주객 전도다.
+    ...(p.guardrailNotes?.length ? { guardrailNotes: p.guardrailNotes } : {}),
     // 어느 provider 인가 — 모델 계열별 운영 보정을 고르는 데만 쓴다(정체성은 안 바뀐다).
     modelProviderId: p.modelProviderId,
     // 막힌 것이 있을 때 다음 계단(사다리). 지시가 아니라 **지금 쓸 수 있는 길**이라는 사실이다.
