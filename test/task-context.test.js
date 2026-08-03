@@ -134,6 +134,7 @@ test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사
           { name: '정리', kind: 'folder' },
           { name: '남은앱.dmg', kind: 'file' },
           { name: '애매한파일.bin', kind: 'file' },
+          { name: '또다른앱.dmg', kind: 'file' },
         ],
       },
     },
@@ -145,7 +146,16 @@ test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사
     moved: 5,
     skipped: 1,
     remainingSources: [
-      { path: '/Downloads', items: 3, files: 2, folders: 1 },
+      {
+        path: '/Downloads',
+        items: 4,
+        files: 3,
+        folders: 1,
+        topExtensions: [
+          { ext: '.dmg', count: 2 },
+          { ext: '.bin', count: 1 },
+        ],
+      },
     ],
     destinations: [
       { to: '/Downloads/정리/문서', moved: 3 },

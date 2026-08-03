@@ -1,6 +1,7 @@
 // L1 · LLM-ready Task Context Packet (모델 입력 계약, §11)
 // 계약들이 모델에게 전달되는 최종 형태. "사실·경계"를 주고 "판단·문장"은 모델에 남긴다.
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
+import { extname } from 'node:path';
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 import { sameSiteLinks } from '../l0-evidence/working-state.js';
 import { operatorReality } from './operator-reality.js';
@@ -300,11 +301,22 @@ function verifiedExecutionFacts(receipts = []) {
       && Array.isArray(r.result?.items));
     if (!lastList) continue;
     const items = lastList.result.items;
+    const extensionCounts = new Map();
+    for (const item of items) {
+      if (item?.kind !== 'file') continue;
+      const ext = extname(String(item.name ?? '')).toLowerCase() || '[no-ext]';
+      extensionCounts.set(ext, (extensionCounts.get(ext) ?? 0) + 1);
+    }
+    const topExtensions = [...extensionCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 12)
+      .map(([ext, count]) => ({ ext, count }));
     remainingSources.push({
       path,
       items: items.length,
       files: items.filter((i) => i?.kind === 'file').length,
       folders: items.filter((i) => i?.kind === 'folder').length,
+      ...(topExtensions.length ? { topExtensions } : {}),
     });
   }
 
