@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
-import { externalReality } from './l1-intent/external-service.js';
+import { externalReality, realitySignature, realityDelta } from './l1-intent/external-service.js';
 import { selfhoodLookup, selectSelfhoodDetail, soulVoice } from './l1-intent/selfhood-lookup.js';
 import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
@@ -431,6 +431,12 @@ function refreshRuntimeReality(ctx) {
   ctx.externalReality = externalReality({
     connectors: ctx.connectors, selfState, executableKinds: ctx.executableKinds,
   });
+  // M5 연속성 ②: **이미 놓은 사실을 다시 새것처럼 놓지 않는다.** 사실은 하나도 빼지 않고
+  // "그 뒤로 바뀐 것" 한 줄만 얹는다(빼는 길은 이미 실패한 길이다 — external-service.js 주석).
+  // 대조는 여기서 한 번만 한다 — 판정을 모델에게 넘기면 그건 대조가 아니라 추측이다.
+  const 이번지문 = realitySignature(ctx.externalReality);
+  ctx.externalRealityDelta = realityDelta(ctx.지난현실지문 ?? null, 이번지문);
+  ctx.지난현실지문 = 이번지문;
   const capCounts = capabilityCounts(buildCapabilityFacts(selfState));
   if (ctx.selfhood) ctx.selfhood = { ...ctx.selfhood, capabilityCounts: capCounts };
   // 모델에게 가는 도구 스키마는 `modelSchemasFor(selfState)` 가 이 selfState 에서 파생한다.
@@ -767,7 +773,7 @@ export async function runTurn(input, ctx) {
   let earlyWantedWeb = false;
   {
     const tc = earlyTc = buildTaskContext({
-      externalReality: ctx.externalReality,
+      externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
@@ -1418,7 +1424,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
-    externalReality: ctx.externalReality,
+    externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, nativeSearch: Boolean(ctx.modelSupportsSearch),
@@ -1555,7 +1561,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
-        externalReality: ctx.externalReality,
+        externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
         intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
         surface: ctx.surface, recentTurns: ctx.recentTurns,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
@@ -1726,7 +1732,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
-      externalReality: ctx.externalReality,
+      externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
       intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
       surface: ctx.surface, recentTurns: ctx.recentTurns,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,

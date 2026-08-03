@@ -142,3 +142,43 @@ export function externalReality({ connectors = [], selfState = {}, executableKin
   if (!reach.length && !services.length) return undefined;
   return { reach, services };
 }
+
+/**
+ * 이 현실의 **비교 가능한 요약**. 한 대화 안에서 "그 뒤로 바뀐 것이 있나"를 재려면
+ * 렌더된 문장이 아니라 사실만 비교해야 한다(문장은 곁가지로도 달라진다).
+ * @returns {Record<string, boolean>|null} 서비스 라벨 → 연결됨
+ */
+export function realitySignature(reality) {
+  if (!reality?.services?.length) return null;
+  return Object.fromEntries(reality.services.map((s) => [s.label, Boolean(s.connected)]));
+}
+
+/**
+ * **이미 놓은 사실을 다시 새것처럼 놓지 않는다**(M5 연속성 계약 ②).
+ *
+ * 계약 원문: "이미 사용자에게 말한 사실은 다시 말하지 않는다 — 원장이 '이 턴에 처음 나온
+ * 것'을 이미 알고 있으므로 **판단이 아니라 대조다**."
+ *
+ * 실측(2026-08-03): 순수 대화 세 턴에서 `[바깥 자료에 닿는 현실]` 1,524자가 **바이트까지
+ * 동일하게** 세 번 다시 놓였다. 턴 맥락 2.5KB 중 1,830자가 축자 반복이었다. 모델이 매 턴
+ * 능력을 다시 읊는 것은 모델 탓이 아니라 **우리가 매 턴 처음인 것처럼 놓았기 때문**이다.
+ *
+ * **사실은 하나도 빼지 않는다.** 이 블록을 조건부로 빼는 길은 이미 실패한 길이다 —
+ * 그렇게 했더니 "있는 브라우저 손을 두고 복붙을 시켰다"(코드 주석의 흉터). 여기서 하는 일은
+ * 목록 앞에 **참인 한 줄**을 얹는 것뿐이다.
+ *
+ * @param {Record<string,boolean>|null} 지난것  직전 턴의 signature
+ * @param {Record<string,boolean>|null} 이번것
+ * @returns {{first:true}|{same:true}|{changed:string[]}|null}
+ */
+export function realityDelta(지난것, 이번것) {
+  if (!이번것) return null;
+  if (!지난것) return { first: true };            // 이 대화에서 처음 놓는다 — 새것이 맞다
+  const 바뀐것 = [];
+  for (const [label, 연결됨] of Object.entries(이번것)) {
+    if (!(label in 지난것)) 바뀐것.push(`${label} 새로 생김`);
+    else if (지난것[label] !== 연결됨) 바뀐것.push(`${label} ${연결됨 ? '연결됨' : '연결 끊김'}`);
+  }
+  for (const label of Object.keys(지난것)) if (!(label in 이번것)) 바뀐것.push(`${label} 없어짐`);
+  return 바뀐것.length ? { changed: 바뀐것 } : { same: true };
+}

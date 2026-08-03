@@ -296,6 +296,9 @@ export function buildTaskContext(p) {
   // 이 블록은 T5 자기 손과 연결 상태에 대한 **능력 사실**이다(readyTools·limits 와 같은 급).
   // 짧게 유지하는 것으로 소음을 다루고, 실을지 말지를 분류기가 정하게 두지 않는다.
   if (p.externalReality) packet.externalReality = p.externalReality;
+  // M5 연속성 ②: 같은 목록을 다시 놓을 때 **그것이 새 사실이 아니라는 사실**을 함께 놓는다.
+  // 사실을 빼는 게 아니라 한 줄을 더하는 것이다(위 주석의 흉터 — 빼면 능력이 사라진다).
+  if (p.externalReality && p.externalRealityDelta) packet.externalRealityDelta = p.externalRealityDelta;
 
   // 연결·비밀 입력은 가능한지의 문제 이전에 **실제로 열린 표면이 있는지**의 문제다.
   // 매 턴 같은 구조 사실을 싣되, 후보와 값은 영수증으로 확인된 것만 넣는다.

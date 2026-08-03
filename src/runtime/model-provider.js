@@ -204,7 +204,16 @@ export function buildModelMessages(tc) {
         // 사용자가 뭘 해야 하는지만 준다. 고르는 건 모델이다(§24).
         + (s.paths?.length ? `\n  붙이는 길: ${s.paths.map(연결경로).join(' / ')}` : ''));
     }
-    if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${lines.join('\n')}`);
+    // M5 연속성 ②: **이 목록이 새 사실인지 아닌지도 사실이다.**
+    // 실측(2026-08-03): 순수 대화 세 턴에서 이 블록 1,524자가 바이트까지 같게 세 번 놓였다.
+    // 매 턴 처음인 것처럼 놓으면 모델은 매 턴 처음인 것처럼 읊는다 — 그건 모델 탓이 아니다.
+    // **목록은 그대로 둔다**(조건부로 빼는 길은 이미 실패했다 — 위 흉터). 한 줄만 앞에 얹는다.
+    // 지시("다시 나열하지 마라")가 아니라 사실로 준다 — 판단은 모델이 한다(§24).
+    const d = tc.externalRealityDelta;
+    const 머리 = d?.same ? '이 목록은 이 대화에서 이미 놓였고, 그 뒤로 바뀐 것은 없다.\n'
+      : d?.changed?.length ? `이 목록은 이 대화에서 이미 놓였다. 그 뒤로 바뀐 것: ${d.changed.join(' · ')}.\n`
+        : '';
+    if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${머리}${lines.join('\n')}`);
   }
   if (tc.connectionAdmission) {
     const a = tc.connectionAdmission;
