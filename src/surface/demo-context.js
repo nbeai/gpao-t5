@@ -561,8 +561,16 @@ const DESCRIPTORS = [
         properties: {
           code: {
             type: 'string',
-            description: 'JavaScript 본문. `await t5.call("local.file", { action, path, ... })` 로 손을 부르고 '
-              + 'console.log 로 결과를 낸다. 파일시스템·네트워크·셸은 막혀 있다.',
+            // **돌아오는 모양을 적는다.** 안 적으면 모델이 지어낸다 — 실측(2026-08-04 라이브):
+            // `listRes.entries` · `e.type` 로 읽어 빈 배열을 받고 아무것도 못 옮겼는데
+            // "옮겼다"고 답했다. 실제 모양은 `result.items` · `it.kind` 였다.
+            description: 'JavaScript 본문(async 안에서 돈다). `await t5.call("손이름", 인자)` 로 손을 부른다.\n'
+              + '돌아오는 모양: `{ ok, summary, result }` — 실패면 `{ ok:false, error, next }`.\n'
+              + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt}], total, offset, nextOffset }` · '
+              + 'read → `{ path, text, bytes, totalChars, offset, nextOffset }` · '
+              + 'move → `{ from, to }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'
+              + 'console.log 로 낸 것만 답으로 돌아온다(중간 결과는 안 실린다). '
+              + '파일시스템·네트워크·셸은 막혀 있다 — 손은 t5.call 로만.',
           },
         },
         required: ['code'],

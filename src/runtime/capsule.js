@@ -34,6 +34,7 @@ import { mkdtemp, writeFile, readFile, rm, readdir, realpath, mkdir } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
+import { wireToolName } from './model-provider.js';
 import { redactEnv } from './terminal-run.js';
 
 /**
@@ -158,9 +159,16 @@ export async function 캡슐실행({
     }
   })();
 
-  async function 한번부르기({ tool, args }) {
-    if (통제채널.has(tool)) {
-      // 성질 ⑥ — 캡슐이 자기 권한·기억·자동화를 건드리지 못한다.
+  async function 한번부르기({ tool: 부른이름, args }) {
+    // **와이어 이름도 받는다.** 모델은 도구를 `local_file` 로 본다(점이 안 되는 provider 때문에
+    // `wireToolName` 이 바꾼다) — 그래서 스크립트에도 그 이름을 쓴다. 캡슐만 `local.file` 을
+    // 요구하면 모델이 매번 헛손질하고, 실측(2026-08-04 라이브)에서 정확히 그랬다:
+    // 다섯 번 재시도했고 매번 호출 0이었다. **이름이 두 벌인 것은 우리 사정이지 모델 잘못이 아니다.**
+    const tool = 열린손.has(부른이름)
+      ? 부른이름
+      : ([...열린손].find((id) => wireToolName(id) === 부른이름) ?? 부른이름);
+    if (통제채널.has(tool) || [...통제채널].some((id) => wireToolName(id) === 부른이름)) {
+      // 성질 ⑥ — 캡슐이 자기 권한·기억·자동화를 건드리지 못한다. 와이어 이름으로도 막는다.
       return { ok: false, error: '그 채널은 캡슐에서 부를 수 없어요(권한·기억·자동화는 캡슐 밖의 일이에요).' };
     }
     if (!열린손.has(tool)) {
@@ -231,12 +239,17 @@ export function makeCapsuleTool(설정 = {}) {
       if (!결과.ok) {
         return {
           blocked: true,
-          userSafeSummary: 결과.멈춘이유 ?? '스크립트가 오류로 끝났어요.',
+          userSafeSummary: 결과.멈춘이유
+            ?? `스크립트가 오류로 끝났어요.${결과.stderr?.trim() ? ` ${결과.stderr.trim().slice(0, 300)}` : ''}`,
           nextSafeAction: '조건을 좁혀 다시 해볼까요?',
           diagnosticTrace: { exitCode: 결과.exitCode, stderr: 결과.stderr?.slice(0, 500) },
         };
       }
       const 실행수 = (결과.영수증 ?? []).length;
+      // 실제로 **바꾼** 호출이 몇 번인가. 읽기만 한 것과 구분한다 — 섞으면 "처리했어요"가
+      // 아무것도 안 바꾼 실행에도 붙는다.
+      const 바뀐것 = (결과.영수증 ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
+        && !['read', 'list', 'versions'].includes(r?.actualCall?.args?.action)).length;
       return {
         result: {
           // **결과만 온다.** 중간에 읽은 본문은 여기 없다 — 그게 캡슐이 사는 이유다.
@@ -247,9 +260,18 @@ export function makeCapsuleTool(설정 = {}) {
           // 원장용 사실. 모델 입력에는 위 `did` 요약만 가고 이건 안 간다(덤프 금지).
           innerReceipts: 결과.영수증,
         },
-        userSafeSummary: 실행수
-          ? `스크립트로 ${실행수}번 처리했어요.`
-          : '스크립트를 돌렸는데 손은 쓰지 않았어요.',
+        // **바뀐 게 없으면 없다고 말한다**(정직한 0 — S3 와 같은 계약). 실측(2026-08-04
+        // 라이브): 스크립트가 응답 모양을 잘못 읽어 빈 배열을 받고 아무것도 안 옮겼는데
+        // 요약은 "1번 처리했어요"였고, 모델은 그 위에서 "옮겼다"고 답했다. 거짓 완료다.
+        userSafeSummary: 실행수 === 0
+          // **왜 아무 일도 안 났는지 말한다.** 실측(2026-08-04 라이브): 스크립트가 조용히
+          // 끝나 호출 0·출력 0 이었는데 모델은 이유를 못 받아 "옮겼다"고 답했다.
+          // 도구가 이유를 안 주면 모델은 이유를 지어낸다 — 파일 손에서 이미 겪은 병이다.
+          ? `스크립트를 돌렸는데 손은 한 번도 쓰지 않았어요.${결과.stderr?.trim() ? ` 스크립트가 낸 오류: ${결과.stderr.trim().slice(0, 300)}` : ''}`
+            + `${!결과.stderr?.trim() && !결과.stdout?.trim() ? ' (출력도 없어요 — 함수를 정의만 하고 부르지 않았거나 조건이 하나도 안 맞았을 수 있어요.)' : ''}`
+          : 바뀐것 === 0
+            ? `스크립트로 ${실행수}번 불렀는데 읽기만 했고 바뀐 것은 없어요.`
+            : `스크립트로 ${실행수}번 처리했어요(그중 ${바뀐것}번이 실제로 바꿨어요).`,
       };
     },
   };
