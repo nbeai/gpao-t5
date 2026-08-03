@@ -255,9 +255,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   로그(`\n모델 ${연결.provider}/${연결.modelId} · 순서 ${순서.join('-')} · 회차당 상한 ${회차상한ms / 60000}분`);
   로그('오너 파일 접촉 0 — 회차마다 새 HOME 안 Downloads 에 437개를 생성한다.\n');
 
+  // 회차는 서로 독립이므로(§3) 나눠 돌려도 된다. **순서는 인덱스로 지킨다** — 이어 돌릴 때
+  // 앞에서부터 다시 세면 A-B-B-A-A-B 가 무너진다.
   const 회차들 = [];
-  const 몇번만 = Number(process.env.S1_ROUNDS ?? 순서.length);
-  for (let i = 0; i < Math.min(몇번만, 순서.length); i += 1) {
+  const 처음 = Number(process.env.S1_FROM ?? 1) - 1;
+  const 끝 = Math.min(처음 + Number(process.env.S1_ROUNDS ?? 순서.length), 순서.length);
+  for (let i = 처음; i < 끝; i += 1) {
     const 팔 = 순서[i];
     로그(`── 회차 ${i + 1} · 팔 ${팔} ────────────────────────────────`);
     const r = await 회차돌리기({ n: i + 1, 팔, 연결 });
@@ -268,7 +271,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     await rm(r.뿌리, { recursive: true, force: true });
   }
 
-  const 자리 = join(process.cwd(), 'design', `S1-RESULT-${new Date().toISOString().slice(0, 10)}.json`);
+  const 자리 = join(process.cwd(), "design", `S1-RESULT-${new Date().toISOString().slice(0, 10)}-r${처음 + 1}-${끝}.json`);
   await writeFile(자리, JSON.stringify({ 순서, 문장, 회차: 회차들 }, null, 2), 'utf8');
   로그(`\n회차 장부 → ${자리}`);
 }
