@@ -88,8 +88,12 @@ export function buildModelMessages(tc) {
   sys.push('[환경]');
   // 지시가 아니라 **사실**로 준다("…로 본다"는 허가처럼 읽혀 모델이 되레 허락을 구했다).
   if (tc.now?.timeZone) sys.push(`사용자 시간대: ${tc.now.timeZone}`);
-  if (sf.readyTools?.length) sys.push(`T5 가 대신 실행할 수 있는 도구: ${sf.readyTools.join(', ')}`);
-  if (sf.approvalRequired?.length) sys.push(`확인받고 실행하는 일: ${sf.approvalRequired.join(', ')}`);
+  // **자기 능력은 1인칭으로 읽어야 자기 것이 된다**(오너 지적 2026-08-03).
+  // 예전엔 "T5 가 **대신** 실행할 수 있는 도구"였다. 모델은 매 턴 그 줄을 읽고 자기가 아니라
+  // 남이 실행한다고 배웠고, 실제로 터미널이 멀쩡히 도는데도 사용자에게 명령어를 적어 주며
+  // 떠넘겼다(헤르메스 대조 실측: 같은 미션을 헤르메스는 한 번에 끝냈다).
+  if (sf.readyTools?.length) sys.push(`네가 지금 바로 쓰는 손: ${sf.readyTools.join(', ')}`);
+  if (sf.approvalRequired?.length) sys.push(`네가 쓰되 실행 직전에 확인 한 번을 받는 손: ${sf.approvalRequired.join(', ')}`);
   if (sf.limits?.length) sys.push(`아직 안 되는 것: ${sf.limits.join('; ')}`);
   const runtime = tc.runtimeEnvironment;
   if (runtime?.locality === 'this_computer') sys.push('T5 런타임은 이 컴퓨터에서 로컬로 실행된다.');

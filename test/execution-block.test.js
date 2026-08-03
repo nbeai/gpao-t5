@@ -40,7 +40,13 @@ test('① 사용자에게도 "코드 문제가 아니다"라고 말한다', { sk
   await writeFile(join(dir, 's.js'), 서버스크립트);
   const r = await makeLocalTerminalTool({ cwd: dir }).handler({ command: 'node s.js', timeoutMs: 4000 });
   assert.equal(r.blocked, true, '실제로 하기 전에 물어야 한다');
-  assert.match(r.userSafeSummary, /포트를 열어야|안전 시험/, `무엇 때문인지 안 말한다: ${r.userSafeSummary}`);
+  assert.match(r.userSafeSummary, /포트/, `무엇 때문인지 안 말한다: ${r.userSafeSummary}`);
+  // **승인 대기를 실패로 말하지 않는다**(2026-08-03 헤르메스 대조). 예전엔 "안전 시험 실행에서는
+  // 막혔어요"라고 말했고, 모델은 그것과 probe 의 `Operation not permitted` 를 시스템 거부로 읽어
+  // 되는 일을 사용자에게 떠넘겼다("파인더에서 직접 폴더를 만들어 주세요").
+  assert.ok(!/막혔|멈췄|거부|실패/.test(r.userSafeSummary),
+    `승인 한 번이면 되는 일을 실패로 말한다 — 모델은 그걸 믿고 포기한다: ${r.userSafeSummary}`);
+  assert.match(r.userSafeSummary, /확인만 받으면|아직 아무것도 안 바뀌었어요/, '다음 걸음이 무엇인지 말해야 한다');
   assert.equal(r.result.blockedBy, 'sandbox', '막힌 이유가 사실로 안 남으면 모델이 또 "실패했다"고 단정한다');
   assert.ok(r.nextSafeAction);
 });

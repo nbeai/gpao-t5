@@ -71,7 +71,10 @@ test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는
   assert.equal(planned.changes, true, '권한 부족은 읽기 성공이 아니라 변경 시도다');
   const result = await tool.handler({ command: planned.command, probeResult: planned.probe });
   assert.equal(result.needsGrant, true, '사용자가 승인할 길이 사라지면 안 된다');
-  assert.match(result.userSafeSummary, /권한/, '막힌 이유는 개발자 오류가 아니라 권한 경계로 말한다');
+  // 개발자 오류가 아니라 **권한 경계**로 말한다 — 다만 "막혔다"가 아니라 확인 요청으로.
+  assert.match(result.userSafeSummary, /컴퓨터 설정을 바꾸는 일/, '무엇을 하려는 일인지 사용자 말로 말한다');
+  assert.ok(!/오류|에러|실패|막혔/.test(result.userSafeSummary),
+    `승인하면 되는 일을 실패로 말하면 모델이 포기한다: ${result.userSafeSummary}`);
 });
 
 test('probe 를 못 돌리면 승인으로 간다(모르면 막는다)', async () => {

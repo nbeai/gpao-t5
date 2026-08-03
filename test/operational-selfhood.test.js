@@ -30,7 +30,10 @@ const selfState = () => buildSelfState(demoEnv());
 test('정체 사실: 자기가 OS 임을 말하고, 모델은 두뇌일 뿐임을 구분한다(①②)', () => {
   const lines = buildIdentityFacts(DEFAULT_IDENTITY, { model: 'gpt-5.5', ready: 2 }).join('\n');
   assert.ok(lines.includes(PRODUCT_NAME));
-  assert.ok(lines.includes('AI 모델이 아니라'), '자기가 모델이 아님을 말한다');
+  // 앵커 이동(2026-08-04): "AI 모델이 아니라" 낱말이 사라졌다 — 계약("모델 ≠ 정체")은
+  // 아래 두 단언이 그대로 지킨다. "너는 하나다" 수정(주객 회복 계약 ① 계열)은 모델과 OS 를
+  // 남남으로 소개하던 문장을 걷은 것이지, 모델을 정체로 승격한 것이 아니다.
+  assert.ok(lines.includes('생각하는 것도 너고 손을 쓰는 것도 너다'), '판단과 실행이 한 몸임을 말한다(주객 회복 ①)');
   assert.ok(lines.includes('운영체제'), '자기가 OS 임을 안다');
   assert.ok(lines.includes('gpt-5.5'));
   assert.ok(lines.includes('두뇌일 뿐'), '모델을 정체로 말하지 않는 경계');
@@ -134,7 +137,9 @@ test('프롬프트: 로컬 실행 환경과 승인 필요 손을 실제 자기�
   }).system;
   assert.match(system, /이 컴퓨터에서 로컬로 실행/);
   assert.match(system, /이 컴퓨터 안에서만 열려/);
-  assert.match(system, /확인받고 실행하는 일: 로컬 파일 쓰기/);
+  // 앵커 이동(2026-08-04): "확인받고 실행하는 일"(3인칭·수동)이 1인칭 능력 사실로 바뀌었다.
+  // 계약은 그대로다 — 승인 필요 손이 자동 손과 구분되어 실제 자기상태에서 파생된다.
+  assert.match(system, /네가 쓰되 실행 직전에 확인 한 번을 받는 손: 로컬 파일 쓰기/);
   assert.match(system, /호출 비용은 현재 T5가 직접 집계하지 않/);
   assert.match(system, /웹 대화 화면/);
 });

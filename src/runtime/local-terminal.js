@@ -144,8 +144,10 @@ export function makeLocalTerminalTool(deps = {}) {
             probeRan: true,
             probeChangedNothing: true,   // 커널이 막아서 증명된 것: 이 컴퓨터는 안 바뀌었다
           },
-          userSafeSummary: `${describeCommand(command, r)} — 바꾸는 걸 막아 둔 채 한 번 시험해 봤고,`
-            + ' 이 컴퓨터는 아직 아무것도 바뀌지 않았어요.',
+          // `describeCommand` 가 이미 "확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직
+          // 아무것도 안 바뀌었어요"를 말한다. 여기서 같은 말을 다시 붙이면 한 문장이 두 번
+          // 말하는 답이 되고, 그 중복이 "정말 아무 것도 안 됐구나"로 읽힌다(실측).
+          userSafeSummary: describeCommand(command, r),
           nextSafeAction: '이대로 진행할까요?',
         };
       }
@@ -185,7 +187,14 @@ export function makeLocalTerminalTool(deps = {}) {
             : `일부는 아직 돌고 있어요 — 남은 것: ${종료확인.filter((x) => x.stillRunning).map((x) => x.pid).join(', ')}.`)
           : r.stopped === 'timeout'
           ? `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? 120000) / 1000)}초).`
-          : r.exitCode === 0 ? '실행했어요.'
+          // **확인한 것을 했다고 말하지 않는다**(오너 지적 2026-08-03 · 메모리·맥락의 뿌리).
+          // `probe` 는 쓰기가 막힌 채 도는 **확인**이다. 그런데 exit 0 이면 여기서 그대로
+          // "실행했어요"라고 말했다 — 명령이 `2>/dev/null || true` 로 실패를 삼키면 exit 0 이
+          // 나오므로, 아무것도 안 바뀐 채 원장에 `실행했어요 · failureState:none` 이 남았다
+          // (헤르메스 대조 실측: 디스크는 그대로였고 모델은 그 거짓 기록 위에서 판단했다).
+          // **원장이 거짓이면 셀프후드도 말귀도 그 위에 못 선다.** `applied` 라는 기계 사실이
+          // 이미 result 에 있었는데 문장이 그것을 안 봤다.
+          : r.exitCode === 0 ? (mode === 'granted' ? '실행했어요.' : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.
             : (끝난이유?.kind === 'sandbox' || 끝난이유?.kind === 'permission') ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
               : 끝난이유?.kind === 'env' ? `${끝난이유.userWhy}`

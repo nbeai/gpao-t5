@@ -139,23 +139,63 @@ function 명령어자리인가(이름, command) {
   });
 }
 
+/**
+ * **"승인만 받으면 되는 일"과 "승인해도 안 되는 일"을 같은 말로 부르지 않는다.**
+ *
+ * 헤르메스 대조 실측(2026-08-03, 같은 미션): 헤르메스는 폴더 정리를 한 번에 끝냈고 T5 는
+ * 사용자에게 **"파인더에서 직접 폴더를 만들어 주세요"** 라고 떠넘겼다. T5 의 터미널이
+ * 실제로 막혀서가 아니다 — `probe`(쓰기를 막은 시험 실행)가 낸 `Operation not permitted` 를
+ * 모델이 **시스템의 거부**로 읽었기 때문이다. 우리가 그렇게 말했다:
+ *   "…안전 시험 실행에서는 **막혔어요**" + stderr 의 "Operation not permitted"
+ *
+ * 그건 실패가 아니라 **판정 성공**이다 — "이 명령은 파일을 바꾼다"를 알아냈고, 승인 한 번이면
+ * 그대로 실행된다. 오너 기준 「안 해 본 일을 '막혔다'고 말하지 않는다」를 T5 자신이 어겼다.
+ *
+ * 그래서 `sandbox`·`permission`(승인하면 되는 것)은 확인 요청의 언어로 말하고,
+ * `env`(승인해도 안 되는 것 — 없는 명령·못 띄우는 도구)는 그대로 둔다. 둘을 섞으면
+ * 모델은 되는 일도 포기하고 사용자에게 넘긴다.
+ */
+/**
+ * **실패를 삼키는 명령은 exit code 로 판정할 수 없다.**
+ *
+ * 헤르메스 대조 실측(2026-08-03): 모델이 `mkdir … && mv … 2>/dev/null || true` 를 냈다.
+ * 샌드박스가 mkdir 을 막았지만 `|| true` 가 exit code 를 0 으로 만들었고, 아래 첫 줄이
+ * "exit 0 이면 막힘 없음"으로 보아 **probe 실행을 진짜 실행 성공으로 처리**했다.
+ * 원장에 `실행했어요 · failureState: none` 이 남았는데 디스크는 하나도 안 바뀌었다 —
+ * T5 가 **하지 않은 일을 했다고 적은 것**이다(오너 절대 원칙 위반, 모델이 아니라 런타임이).
+ *
+ * 위험 명령 목록으로 알아맞히지 않는다(그건 다음 문법에서 또 샌다). 재는 것은 **구문 사실**
+ * 하나다: 이 명령은 자기 실패를 감추는가. 그렇다면 exit code 는 정보가 아니므로 판정 불능이고,
+ * T5 의 기존 원칙대로 **모르면 승인으로 간다.**
+ */
+const 실패를삼킴 = /\|\|\s*(?:true|:)\s*(?:$|&|;|\))|2\s*>\s*(?:\/dev\/null|&1\s*>\s*\/dev\/null)|(?:^|\s)set\s+\+e(?:\s|$)/;
+
 export function executionBlock(r) {
-  if (!r || r.exitCode === 0) return undefined;
+  if (!r) return undefined;
+  if (r.exitCode === 0 && 실패를삼킴.test(String(r.command ?? ''))) {
+    return {
+      kind: 'sandbox',
+      why: 'unreadable_exit',
+      userWhy: '이 명령은 실패해도 성공처럼 끝나서 시험만으로는 결과를 알 수 없어요'
+        + ' — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요',
+    };
+  }
+  if (r.exitCode === 0) return undefined;
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
   if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
-    return { kind: 'sandbox', why: 'network', userWhy: '포트를 열어야 하는 일이 있어서 안전 시험 실행에서는 막혔어요' };
+    return { kind: 'sandbox', why: 'network', userWhy: '포트를 여는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
   // 밖으로 나가려다 막힌 것
   if (/ENETUNREACH|ENOTFOUND|EAI_AGAIN|Could not resolve|Network is unreachable|Connection refused/i.test(t)) {
-    return { kind: 'sandbox', why: 'network', userWhy: '인터넷에 연결해야 해서 안전 시험 실행에서는 막혔어요' };
+    return { kind: 'sandbox', why: 'network', userWhy: '인터넷에 연결하는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
   // `launchctl setenv`·`config`처럼 파일 오류는 없지만 **컴퓨터 상태를 바꾸려다** OS 권한에
   // 막히는 경우. "아무 일도 안 바뀌었다"와 "읽기였다"를 섞으면 승인 경로가 사라진다.
   // sandbox가 막은 쓰기와 달리 OS 권한 신호지만, 계획 단계에서는 둘 다 사용자 승인 뒤에만
   // 실제 실행할 수 있는 변경 시도라는 사실이 같다.
   if (/not privileged|requires root|must be run as root/i.test(t)) {
-    return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸려 했는데 권한이 필요해 안전 시험 실행에서 멈췄어요' };
+    return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
   // **남의 프로세스를 건드리려다 막힌 것.** 파일 쓰기와 섞으면 승인 카드가 "파일을 바꿔야
   // 해서"라고 거짓을 말한다 — 사용자는 무엇을 허락하는지 모른 채 누르게 된다.
@@ -170,7 +210,7 @@ export function executionBlock(r) {
     return {
       kind: 'sandbox',
       why: 'signal',
-      userWhy: '돌고 있는 프로그램을 끄는 일이라 안전 시험 실행에서는 막혔어요',
+      userWhy: '돌고 있는 프로그램을 끄는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요',
     };
   }
   // **실행 파일 자체를 못 띄운 것.** `ps`·`top` 같은 setuid 도구는 어느 샌드박스 모드에서도
@@ -194,7 +234,7 @@ export function executionBlock(r) {
   }
   // 파일을 바꾸려다 막힌 것
   if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
-    return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꿔야 해서 안전 시험 실행에서는 막혔어요' };
+    return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
   if (/command not found|No such file or directory: |ENOENT.*spawn|실행을 시작하지 못했어요/i.test(t)) {
     return { kind: 'env', why: 'missing', userWhy: '그 명령이 이 컴퓨터에 없어요' };
