@@ -76,3 +76,22 @@ test('F4.2: 긴 파일은 접되, 접었다는 표식과 앞뒤가 남는다', a
   assert.match(요약, /0행,0/, '앞부분이 사라졌다');
   assert.match(요약, /199행,199000/, '결론(뒷부분)이 통째로 사라졌다');
 });
+
+test('bulk_move 결과는 수백 경로 배열 대신 다음 판단 요약으로 간다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const moved = Array.from({ length: 120 }, (_, i) => ({
+    from: `/Downloads/a${i}.pdf`,
+    to: `/Downloads/정리됨/문서/a${i}.pdf`,
+  }));
+  const 요약 = compactResult({
+    from: '/Downloads',
+    to: '/Downloads/정리됨/문서',
+    moved,
+    skipped: [{ from: '/Downloads/이미있음.pdf', reason: 'destination_exists' }],
+  });
+
+  assert.match(요약, /bulk 이동: 120개/);
+  assert.match(요약, /건너뜀: 1개/);
+  assert.ok(요약.length < 600, `대량 경로 배열이 그대로 들어갔다: ${요약.length}자`);
+  assert.doesNotMatch(요약, /a119\.pdf/, '긴 이동 목록의 꼬리가 모델 입력을 삼킨다');
+});

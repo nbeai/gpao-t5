@@ -78,6 +78,37 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n본문: ${body}`;
   }
 
+  // ②-a 대량 파일 이동 — 수백 개 경로 배열을 그대로 주면 모델이 다음 판단 대신 결과 더미에 묻힌다.
+  // 원본 상세는 영수증에 남고, 모델 방에는 "어떤 조건 실행이 실제로 어느 정도 효과를 냈는지"만
+  // 판단 가능한 크기로 돌린다. 조용히 자르지 않고, 표본만 실었다는 사실을 함께 말한다.
+  if (Array.isArray(result.moved) && typeof result.from === 'string' && typeof result.to === 'string') {
+    const moved = result.moved;
+    const skipped = Array.isArray(result.skipped) ? result.skipped : [];
+    const baseName = (value) => String(value ?? '').split('/').filter(Boolean).at(-1) ?? String(value ?? '');
+    const sample = moved
+      .slice(0, 6)
+      .map((item) => baseName(item?.to ?? item?.from ?? item))
+      .filter(Boolean);
+    const byReason = new Map();
+    for (const item of skipped) {
+      const reason = item?.reason ?? 'reason_unknown';
+      byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
+    }
+    const skippedReasons = [...byReason.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([reason, count]) => `${reason} ${count}개`)
+      .join(' · ');
+    return [
+      `bulk 이동: ${moved.length}개`,
+      `출발: ${result.from}`,
+      `도착: ${result.to}`,
+      sample.length
+        ? `이동 표본: ${sample.join(' · ')}${moved.length > sample.length ? ` (전체 ${moved.length}개 중 ${sample.length}개만 실음)` : ''}`
+        : '',
+      skipped.length ? `건너뜀: ${skipped.length}개${skippedReasons ? ` — ${skippedReasons}` : ''}` : '',
+    ].filter(Boolean).join('\n');
+  }
+
   // ②-b 폴더 목록 — 이름 옆에 **사람 말 상대시각**을 붙인다. H08 라이브 실측(2026-08-01):
   // ISO 시각이 JSON 덩어리 속에 있으면 모델이 "방금 받은" 판단에 못 잇고 이름표("최종")로
   // 골랐다. 같은 사실을 판단이 닿는 형태로 준다(며칠·몇 분 전 — 지시가 아니라 사실이다).
