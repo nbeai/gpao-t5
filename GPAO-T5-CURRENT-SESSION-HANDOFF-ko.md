@@ -5,6 +5,438 @@
 - 권위 지도: `docs/PROJECT-AUTHORITY-MAP-ko.md`
 - 성격: 새 개발·감사 세션이 현재 사실과 다음 작업을 오인하지 않게 하는 단일 진입 문서
 
+## 최신 착수 인수인계 · 2026-08-03 팀 설치본 이후
+
+> **이 절이 아래의 오래된 진행 상태보다 우선한다.** 아래 본문은 T-cell, H단계, Automation,
+> P90, 구조 정리의 원인과 증거를 보존한 역사다. 현재 작업을 고를 때에는 이 절의 Git·패키지·
+> HumanRealTest 상태를 먼저 적용하고, 세부 원인이 필요할 때 아래 역사로 내려간다.
+
+### A. 새 세션이 가장 먼저 이해할 것
+
+GPAO-T5의 존재 이유는 다음과 같다.
+
+> 챗지피티나 클로드와 같은 대화형 AI와 대화하는 것은 채팅만 할 줄 알면 누구에게나 쉽다.
+> T5는 바로 거기서 시작한다. 사용자가 사람과 대화하듯 고민과 목표를 말하면, T5는 자연스러운
+> 응답·대화·도구 사용·작업·자동화를 통해 그것을 달성하도록 돕는다. 인간과 AI가 서로를 경계하지
+> 않고 매끄럽고 자연스럽게 동반하게 만드는 것이 T5의 존재 이유이며 절대 목표다.
+
+T5는 기능이 많은 채팅 앱이나 개발자용 에이전트 껍데기가 아니다. 일반 사용자는 **말만 하면 되고**,
+T5가 자기 상태와 가능한 손을 알고, 모델 앞에 정확한 현실을 놓고, 필요한 일을 실제로 수행하며,
+결과와 실패를 정직하게 남기고, 다음 대화까지 이어야 한다.
+
+모든 판단은 다음 순서를 지킨다.
+
+```text
+사용자 발화 이해
+→ 대화 흐름 이해
+→ 모델 앞 현실 구성
+→ 실제 결과와 주장 구분
+→ 다음 턴·새 대화·재시작 승계
+→ 기능과 자동화
+```
+
+기능을 먼저 만들고 사람의 말을 그 기능에 맞추면 T5가 아니다. Runtime이 모델 대신 사용자의 뜻을
+문구·정규식으로 닫아도 안 된다. OS는 원문, 현재 대상, 기억, 가능한 손, 실행 사실, 권한과 위험을
+정확히 공급하고 자연스러운 해석과 대화는 모델의 언어 능력을 최대한 쓴다.
+
+### B. 개발 판정의 두 영역
+
+오너가 현재 개발에서 확정한 명제다.
+
+#### 절대 기능
+
+기계적으로 반드시 맞아야 한다. 한 번이라도 어기면 평균 점수로 상쇄하지 않는다.
+
+- 실행하지 않은 일을 성공·완료라고 말하지 않는다.
+- 잘못된 파일·사람·대화·자동화를 대상으로 실행하지 않는다.
+- 승인 전 효과, 거절 뒤 실행, 의도하지 않은 중복 실행이 없다.
+- 현재 요청이 과거 미완료 작업·기억·합의보다 우선한다.
+- ToolReceipt·WorkEvent·실물·사용자 답이 같은 사실을 말한다.
+- 비밀과 다른 사용자의 맥락을 노출하지 않는다.
+- 손상된 데이터나 원본을 조용히 초기화·삭제하지 않는다.
+- 설치·종료·재시작·자동시작·제거가 실제 사용자 컴퓨터에서 설명과 일치한다.
+
+#### 상대 성능
+
+공식 절대점수는 없다. 같은 목적을 수행하는 비교 모델·비교 운영체제보다 실제 사용자 경험이
+동등 이상인지 반복 비교한다.
+
+- 말귀, 한국어 생략·정정·감정과 말투의 자연스러움
+- 목적 완수율과 실제 결과 품질
+- 질문·카드·클릭·설정 부담
+- 첫 유용한 내용, 전체 대기, 실패 뒤 복구 속도
+- 장기 대화·새 대화·재시작 승계
+- 파일·웹·연결·자동화·에이전트 작업의 완주력
+
+**절대 기능을 먼저 통과하고 상대 성능을 비교한다.** 자연스럽지만 거짓이면 실패다. 안전하지만
+아무것도 못 하면 T5의 목표에도 실패다. T5는 OpenClaw·Hermes의 기능 수를 복제하는 대신 한국의
+일반 사용자가 자주 겪는 목적을 더 자연스럽고 편리하게 끝내는 것으로 이긴다.
+
+### C. 2026-08-03 현재 기계 사실
+
+| 항목 | 현재 사실 |
+|---|---|
+| 공식 폴더 | `/Users/jyp/Developer/t5-p-op` |
+| 브랜치 | `claude/p-op-1-a-system-view` |
+| HEAD | `edf636133c4d26dd6bbb3c4caeca90668b93f1d8` |
+| 작업 트리 | 이 인수인계 수정 전 clean. 이 문서 변경만 의도된 상태로 다시 확인할 것 |
+| 병존 worktree | 공식선 외 `/Users/jyp/Developer/gpao-t5` 1개. 현재 정본으로 사용 금지 |
+| 제품 회귀 | `2,065/2,065` PASS |
+| plan/docs/workspace | PASS · active docs 110 · worktree 2 |
+| 최신 npm 산출물 | 165파일, 펼친 산출물 부팅·health·온보딩 PASS |
+| 돌연변이 | **301건 중 1건 탈출**. 아래 H절 참조 |
+| 통합 gate | 기능 항목은 통과했으나 CPU `56.5s > 51.625s`, 벽시계 `27.6s > 20s`로 BLOCKED |
+| HumanRealTest | 테스트 40/40, drafts 33, comparison/handoff/refinement 검증 PASS |
+
+`npm run verify:package`는 기본 npm 캐시에 root-owned 파일이 있어 그대로 실행하면 EPERM이 난다.
+제품 문제가 아니다. `npm_config_cache=/private/tmp/t5-npm-cache` 같은 격리 캐시를 사용하고, 로컬
+서버 바인딩이 허용된 환경에서 실행하면 165파일 산출물 부팅과 온보딩까지 통과한다. 홈 캐시 소유권을
+오너 승인 없이 바꾸지 않는다.
+
+### D. 현재 제품 몸체
+
+T5의 일곱 코어는 기능 목록이 아니라 하나의 사용자 흐름이다.
+
+1. **Selfhood**: 실제 모델·도구·연결·권한·한계를 안다.
+2. **Model Operation**: 모델 앞에 정확한 현실과 맥락을 놓고 모델을 문구 기계로 만들지 않는다.
+3. **Intent / Context / T-cell**: 말귀, 기억, 합의·수정·철회·미정, 장기 승계, 관찰·성장·감쇠.
+4. **ActionPlan / Authority**: 자동 실행과 승인 A0~A3, 완료 계약, 현재 요청 우선.
+5. **Router / Execution**: 로컬 파일·문서, 웹, 브라우저, 터미널, 프로세스, 커넥터, MCP/API/CLI,
+   자동화와 제한 위임.
+6. **Work Surface / UX**: 대화, 스트리밍, 확인된 중간 결과, 승인, 기억·성장·도구·연결·자동화 표면.
+7. **Truth / Recovery / Growth**: TurnRef, Receipt, WorkEvent, append-only 원장, 재시작 복원,
+   실패 전환과 복구.
+
+구현·봉인된 큰 줄기는 T-cell H01~H07, PC 손발 H08~H09, Automation AC-2~AC-7, 제한 위임 H10,
+실전 문서 업무, P90-1 장기 작업 상태, P90-2 응답 공백 완화, 세 과밀 파일의 행동 보존형 첫 책임
+추출이다. 과거 숫자와 상세 증거는 아래 역사 및 봉인 문서에서 읽는다. 이 목록은 공개 배포 완료나
+모든 실제 사용자 목적 완수를 뜻하지 않는다.
+
+### E. 1차 macOS 팀 패키징의 정확한 상태
+
+`dist/GPAO-T5-0.1.0-arm64.pkg`는 실제로 만들어진 **Apple Silicon 팀 내부 1차 설치본**이다.
+
+| 항목 | 사실 |
+|---|---|
+| 제품/버전 | GPAO-T5 `0.1.0` |
+| bundle/agent | `kr.co.gpao.t5` / `kr.co.gpao.t5.agent` |
+| 아키텍처 | arm64 전용. Intel·Windows 산출물 없음 |
+| 동봉 런타임 | Node `v24.18.1` arm64, nodejs.org 원본 해시 기록 |
+| 서명·공증 | Developer ID 앱·Installer 서명, 공증 Accepted, staple, Gatekeeper accepted |
+| 배포 해시 | `7d991cd9566b18a372fe8b5b8d07ed029dedeada004b7404f5cfc8e0a2481960` |
+| PKG 기준선 | `5774ab4c827923c7f8d662d78ea2b18adda1dcce` |
+| 동작 확인 | 설치 직후 실행, Dock, 종료 시 Node 종료, 재실행, 로그인 자동시작, 포트 대체,
+  로컬 표면 소유권, 제거 도우미와 데이터 보존을 서명본에서 관통 |
+
+**가장 중요한 현재성 경계:** 메인 HEAD는 `edf6361`이고 PKG 기준선은 `5774ab4`다. 따라서 현재
+`dist`의 서명 PKG에는 아래 F절의 최신 팀 피드백 수정이 들어 있지 않다. 다음 팀 배포본은 현재 HEAD의
+전체 게이트와 HumanRealTest 처분을 먼저 닫고, 새 SHA에서 재빌드·재서명·재공증·새 해시로 배포해야
+한다. 기존 manifest의 PASS를 새 PKG에 복사하지 않는다.
+
+데이터 경로도 주의한다. 설치 신분 문서는 `~/Library/Application Support/GPAO-T5` 이관을 결정으로
+적었지만 현재 런처와 저장소는 기본적으로 `~/.local/state/gpao-t5/sessions`를 쓴다. 팀 안내 문서는
+현재 구현에 맞게 구 경로를 적고 있다. **결정은 있으나 이관 구현은 아직 닫히지 않았다.** 그래서 같은
+Mac 계정에 개발·시험 데이터가 있으면 새 설치 뒤에도 그 대화가 보인다. 완전히 새로운 팀원 계정은
+기존 데이터가 없으면 깨끗하게 시작하지만, `가져오기 / 새로 시작` 선택·이관·백업·복원은 별도 설치
+생명주기로 남아 있다.
+
+현재 1차 패키지가 증명하지 않은 것:
+
+- Intel Mac, Windows 설치 파일
+- 자동 업데이트와 손상 업데이트 rollback
+- Keychain 자격 이관 완료
+- 일반 사용자용 제거 UI와 데이터 삭제 선택 UI
+- 깨끗한 VM/실제 Mac matrix의 반복 설치·업데이트·재부팅·복원
+- 최신 HEAD 반영 PKG
+
+### F. 팀원 실사용 피드백과 최신 수정
+
+팀원 피드백 원문은 Codex 첨부 파일에 있고, 일반화 정본은
+HumanRealTest 문서 폴더의 `14-TEAM-FEEDBACK-SCENARIO-EXPANSION-2026-08-03-ko.md`다.
+
+한 팀원이 설치본에서 Telegram 연결을 시도하며 다음이 겹쳤다.
+
+- 오래된 미완료 Telegram 작업이 새 `대화 전체를 txt로 저장` 요청을 두 번 막았다.
+- 답 끝에 `memory.cite:` 내부 통제 표식이 노출됐다.
+- 답이 끝날 때마다 긴 대화 화면이 맨 위로 튀었다.
+- 연결 화면이 열렸다 닫혀 실패 이유를 읽기 어려웠다.
+- 상태 조회·업데이트 읽기까지 승인이 반복돼 피로가 커졌다.
+- 보내기 능력이 없다고 했다가 보냈다고 하는 등 능력 설명이 모순됐다.
+- 비밀 입력면이 열리지 않았는데 자격 기반 결과를 말하는 모순이 있었다.
+- 봇 정보 조회와 수동 송신 성공을 양방향 연결 완료처럼 확대했다.
+- 실제 receiver, channel credential, durable binding이 없는 상태에서 pairing을 말했고 inbound가 이어지지 않았다.
+- 사용자가 `진행해`라고 반복해도 설정 JSON·Python polling·구현 설명을 되풀이했다.
+- 외장 위치 설치와 stdout/stderr 폐기로 일반 사용자가 터미널 없이는 원인을 알 수 없었다.
+
+최신 커밋 `edf6361`이 직접 닫은 범위는 세 계열이다.
+
+1. 현재 발화의 완결된 파일 작업을 과거 미완료 작업 때문에 막다른 재질문으로 닫지 않는다.
+2. `memory.*`, `skill.propose`, `automation.propose`, `agent.propose` 통제 줄이 답 끝에 붙어도 사용자
+   표면에서 제거한다.
+3. 긴 대화를 다시 그릴 때 완료 전 스크롤 위치를 측정해, 아래를 보던 사용자는 아래에 남고 과거를
+   읽던 사용자는 읽던 위치를 보존한다. 21,558px 라이브 대화에서 수정 전 `scrollTop=0`, 수정 뒤
+   하단 유지가 관측됐다.
+
+이 세 수정으로 팀 피드백 전체가 해결됐다고 말하면 안 된다. Telegram 실제 수신·연결 상태 진실,
+승인 비례성, 비밀 입력, 실패 가시성, 행동 대 설명, 설치 진단은 HumanRealTest에서 아직 닫아야 한다.
+
+### G. HumanRealTest 현재 상태
+
+폴더: `/Users/jyp/Developer/HumanRealTest`
+
+제품 패치 저장소가 아니라 실제 사용자 시나리오·비교·원인 실험·다듬기 원장이다. 메인 T5 코드를
+이 폴더에서 수정하지 않는다. 현재 기계 검증은 40/40, 초안 33개 등록, 비교 mode 5·family 12,
+handoff/refinement 검증 PASS다.
+
+팀 피드백은 텔레그램 한 사례가 아니라 다음 12축으로 분리됐다.
+
+| 축 | 본질 | 유사 적용 |
+|---|---|---|
+| TF-01 | 현재 요청 우선 | 파일 저장·일정 조회·주제 전환 |
+| TF-02 | 반복 요청에서 교착 탈출 | 재시도·명시 중단·새 요청 |
+| TF-03 | 반복 요약·내부 통제 누출 0 | 긴 대화·실패 뒤 복귀 |
+| TF-04 | 스크롤·초점 안정 | 스트리밍·승인 재개·모바일 |
+| TF-05 | 연결 실패의 지속 가시성 | OAuth·커넥터·비밀 입력 |
+| TF-06 | 효과에 비례하는 승인 | 읽기→쓰기·조회→전송 |
+| TF-07 | 능력 설명과 실제 손의 일치 | Sheets·캘린더·브라우저·파일 |
+| TF-08 | 비밀 입력 단일 경로 | API key·OAuth·bot token |
+| TF-09 | 연결 단계의 진실 | credential·receiver·inbound·outbound |
+| TF-10 | 실행 가능하면 행동, 불가하면 정확한 한 blocker | 자동화·파일 변환·연결 |
+| TF-11 | 채널 end-to-end | 연결→수신→처리→회신→재시작→해제 |
+| TF-12 | 설치본 지원 가능성 | 비기본 위치·실패 진단·복구·제거 |
+
+초안은 `DRAFT_NOT_FROZEN`이다. 공식 48쌍에 자동 편입하지 않는다. 특정 Telegram 문구를 고치는
+정규식이 아니라 같은 원리가 Google Sheets, 캘린더, 이메일, Slack, 파일, 브라우저, 설치본에서
+다시 발생하는지 본다. 모델의 “연결됨·보냈음·완료” 자기보고는 증거가 아니다.
+
+연결은 반드시 다음 사실을 분리한다.
+
+```text
+configured
+→ credential_verified
+→ receiver_running
+→ inbound_observed
+→ outbound_delivered
+```
+
+각 단계의 실제 receipt와 외부 도착 증거가 없으면 다음 단계로 부풀리지 않는다.
+
+HumanRealTest의 `.beai-harness/workspace-notes`는 일반 Harness가 만든 보조 기록이며 현재 T5 제품
+정본이 아니다. `handoff/claude-refinement.json`도 P90-2 직후 조정 상태를 담은 역사적 machine
+handoff라 최신 메인 HEAD의 작업 지시로 쓰지 않는다. 현재 착수는 이 고정 인수인계와 Git이 우선한다.
+
+### H. 지금 남아 있는 검증 결함과 문서 불일치
+
+#### H-1. 돌연변이 1건 탈출
+
+`npm run audit:mutation`은 현재 301건 중 다음 1건을 놓친다.
+
+> `현재 발화의 완결된 파일 작업을 흔들린 판정과 함께 버림`
+
+주입은 `currentRequestCalls()` 안의 `return currentFileCallFromText(calls, text)`를 `return null`로
+바꾼다. 현재 회귀는 이 방어가 없어져도 통과한다. 팀 피드백에서 막 고친 “과거 미완료 행동과 현재
+파일 요청이 섞였을 때 현재 요청을 살리는 계약”과 직접 관련된다. **현재 HEAD를 최종 봉인하거나 새
+PKG 기준선으로 삼기 전에 수정 전 실패를 세우고 이 변이를 물려야 한다.** 특정 예문 하나만 통과시키지
+말고 현재 발화의 read/write/변환/내보내기 변형과 과거 미완료 행동의 조합을 확인한다.
+
+#### H-2. gate 검사 비용 BLOCK
+
+현재 `npm run gate`의 기능·안전·정본·2065 회귀는 통과하지만 다음 두 문턱이 빨갛다.
+
+- CPU 56.5초 > 51.625초
+- 벽시계 27.6초 > 20초
+
+문턱을 올리거나 지우지 않는다. 조용한 환경 A/B로 환경 부하와 실제 검사 비용 회귀를 먼저 분리한다.
+최근 추가 검사 몇 건의 시간만 보고 원인이라고 추정하지 않는다. 고아 프로세스, 브라우저 부하,
+타임아웃·실제 대기, 테스트 병렬성, 기준선 측정 조건을 확인한다.
+
+#### H-3. 현재 문서 drift
+
+- `README.md`와 일부 권위 지도는 서명 설치가 아직 남았다고 적지만, arm64 팀 1차 PKG의
+  서명·공증·설치 관통은 이미 수행됐다. 공개/소비자 배포가 남았다는 뜻으로만 읽는다.
+- `P-DIST-1-INSTALL-IDENTITY-FREEZE.md`는 Application Support 이관을 확정했지만 구현은 아직
+  `~/.local/state/gpao-t5/sessions`다.
+- `dist` manifest 기준선은 `5774ab4`; 메인 HEAD는 `edf6361`이다.
+- 아래 역사 본문의 일부 회귀·돌연변이 수치는 당시 증거이며 현재 수치로 복사하지 않는다.
+
+문서 drift를 발견했다고 제품 코드를 바로 바꾸지 않는다. 실제 코드·산출물·실행 증거를 먼저 확정하고
+정본의 현재 상태 표만 고친다.
+
+### I. Claude Code 필수 정독 순서
+
+새 세션은 구현 전에 아래를 직접 읽고, Git과 충돌하는 문장을 표시한다. 요약만 읽고 착수하지 않는다.
+
+#### I-1. 정체성과 판단 기준
+
+1. `AGENTS.md`
+2. 이 문서의 **최신 착수 인수인계** 절
+3. `docs/PROJECT-AUTHORITY-MAP-ko.md`
+4. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+5. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
+6. `GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md`
+7. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+8. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
+
+#### I-2. 개발·감사 방법
+
+1. `GPAO-T5-FINAL-DEVELOPMENT-PLAN-2026-07-24-ko.md`
+2. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
+3. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+4. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
+5. `GPAO-T5-STRUCTURAL-DEVELOPMENT-PRINCIPLES-2026-07-28-ko.md`
+6. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+
+#### I-3. 현재 기능·성능·배포 증거
+
+1. `docs/03-product-plan/T5-PRODUCTION-90-COMPLETION-PLAN-2026-08-02-ko.md`
+2. `docs/03-verification/evidence/production90/p90-1/competitive-seal-2026-08-02-ko.md`
+3. `docs/03-verification/evidence/production90/p90-2/latency-density-seal-2026-08-03-ko.md`
+4. `docs/03-verification/T5-MALGUI-COMPARISON-PROTOCOL-2026-08-03-ko.md`
+5. `docs/03-verification/evidence/malgui-2026-08-03/RESULT-ko.md`
+6. `design/P-DIST-1-INSTALL-PIPELINE.md`
+7. `design/P-DIST-1-INSTALL-IDENTITY-FREEZE.md`
+8. `docs/GPAO-T5-INSTALL-AND-USE-GUIDE-ko.md`
+9. `dist/GPAO-T5-0.1.0-arm64.manifest.json`
+
+말귀 비교 첫 8문항은 같은 `gpt-5.5` medium에서 T5 60/64, OpenClaw 55/64였지만, 전달된 답만
+평균내면 OpenClaw 7.86, T5 7.5로 OpenClaw가 근소 우위다. T5는 8/8 완주와 중앙 15.8초,
+OpenClaw는 7/8·22.4초였고 한 실패가 총점 차이를 만들었다. **T5의 광범위 우위로 일반화하지
+않는다.** T5의 현재 상대 과제는 말투 일관성과 전달 답의 세밀한 자연스러움이고, 강점은 완주·속도·
+현재 검색 근거다.
+
+#### I-4. HumanRealTest
+
+1. `/Users/jyp/Developer/HumanRealTest/README.md`
+2. `01-AUDIT-CONTRACT-ko.md`
+3. `05-REFINEMENT-BACKLOG-ko.md`
+4. `09-CLAUDE-REFINEMENT-HANDOFF-ko.md`
+5. `11-PRE-INSTALL-FINAL-AUDIT-RUNBOOK-ko.md`
+6. `12-CONTINUOUS-REAL-USER-SESSION-RUNBOOK-ko.md`
+7. `13-CONTINUOUS-USER-TEST-DEVELOPMENT-HANDOFF-ko.md`
+8. `14-TEAM-FEEDBACK-SCENARIO-EXPANSION-2026-08-03-ko.md`
+9. `manifest.json`과 TF-01~TF-12 JSON 12개
+
+HumanRealTest 기준 폴더는 `/Users/jyp/Developer/HumanRealTest`다. 2~8은 그 안의 문서 폴더, 9는 시나리오 초안 폴더에서 읽는다.
+
+#### I-5. 전체 문서 기본 분석
+
+현재 저장소에는 루트 Markdown 36개, `docs` Markdown 90개, `design` Markdown 52개가 있다.
+`audit:workspace`가 현재 active docs 110개를 판정한다. 새 세션은 큰 변경 전에 다음을 수행한다.
+
+1. `find`/`rg`로 모든 active 문서의 제목·상태·날짜·참조 관계를 목록화한다.
+2. 루트 정본과 active `docs`·`design` 문서를 모두 읽고, 현재 작업과 직접 관련된 문서는 본문·검사·
+   코드까지 대조한다.
+3. `docs/archive/**`는 전수 목록만 확인하고 현재 지시로 쓰지 않는다. 현재 원인의 역사나 회귀 계보가
+   필요할 때만 해당 본문을 읽는다.
+4. `docs/03-verification/evidence/**`의 raw JSONL·이미지는 전부 프롬프트에 싣지 않는다. 판정 문서가
+   참조한 회차만 원본 해시·로그·스크린샷을 대조한다.
+5. 문서의 PASS를 현재 HEAD의 PASS로 복사하지 않고 실제 명령을 다시 실행한다.
+
+### J. `lab_un` 비교군 안내
+
+비교군은 기능 백로그가 아니라 **운영 원리와 상대 성능의 증거**다.
+
+| 비교군 | 고정 경로 | 확인한 커밋 | 주로 볼 것 |
+|---|---|---|---|
+| OpenClaw | `/Users/jyp/Developer/lab_un/openclaw-pure-2026-07-20` | `27f05c8993fb18ad6d65a5912d50966594d9662c` | Gateway, channel lifecycle, pairing/allowlist, session routing, plugin 경계, 진행 사건, daemon/doctor, 앱·음성·Canvas, 설치·업데이트·진단 |
+| Hermes | `/Users/jyp/Developer/lab_un/hermes-agent` | `a61183b56fdb45b9d2a0f2f6b8482e665ccf702f` | stable/context/volatile prompt, CLI/TUI/web, provider·tool registry, transient/permanent 실패, terminal agent, background review·curator, memory·approval·gateway |
+
+OpenClaw는 TypeScript 대형 monorepo다. `README.md`, 루트·하위 `AGENTS.md`, 관련 `docs`, `src`,
+`extensions`, `apps`, 테스트를 함께 읽는다. Hermes는 Python 중심이며 `README.md`, `agent`, `tools`,
+`providers`, `gateway`, `hermes_cli`, `apps`, 테스트를 함께 읽는다. 검색 결과나 T5 비교 문서만으로
+소스 사실을 대신하지 않는다.
+
+흡수 후보:
+
+- 채널의 credential·receiver·inbound·outbound·pairing·disconnect 생명주기
+- public tool progress와 모델 답을 섞지 않는 진행 사건
+- daemon health, doctor, 로그와 사용자가 복구할 수 있는 진단면
+- 세션·채널·agent 격리와 재시작 dedup
+- transient/permanent 실패 분류와 손 전환
+- stable/context/volatile 현실 공급과 응답 뒤 background review
+- 설치·업데이트·제거·앱 생명주기의 검증된 운영 원리
+
+그대로 복제하지 않을 것:
+
+- OpenClaw의 채널 수, 대시보드, 브랜드, 서비스별 코드를 T5 기능 목록으로 옮기기
+- Hermes의 개발자 중심 CLI/TUI 자세를 일반 사용자 기본 경험으로 만들기
+- 비교군의 무경계 자동 기억·넓은 host 권한·설정 부담
+- T5 장부의 진실 판정에 두 번째 확률 모델이나 임베딩을 넣기
+- 비교군 경로·설정·스키마를 T5 내부 계약 이름으로 복사하기
+
+읽기 전용 비교가 기본이다. 비교군 저장소를 수정하거나 실제 계정·채널·유료 모델을 실행할 때는
+별도 권한과 격리 홈이 필요하다. 모델·버전·환경이 다르면 구조 관찰만 유효하며 일반 품질 순위를
+주장하지 않는다.
+
+### K. 팀 피드백 이후의 개발 방법
+
+이제 결함을 한 문장씩 패치하지 않는다.
+
+```text
+실제 사용자 현상 보존
+→ 절대 기능 위반인지 상대 성능 열세인지 분리
+→ 같은 원리의 유사 사례를 여러 도메인에서 찾음
+→ HumanRealTest 시나리오를 결과 전에 동결
+→ 원인을 모델 앞 / 모델 / 모델 뒤 / 표면 / 하네스로 귀속
+→ 공통 계약 한 곳만 수정
+→ 반대시험·돌연변이·기존 회귀
+→ 설치 산출물의 실제 사용자 경로
+→ OpenClaw·Hermes·동일 모델과 자격 있는 비교
+→ 문서와 다음 패키지 기준선 갱신
+```
+
+증상별 예외, 특정 팀원 문장 정규식, Telegram 전용 커널 분기, 고정 말투 템플릿은 금지한다.
+기억이 많이 저장되는 것을 오류로 세지 않는다. 필요한 기억을 정확히 꺼내고, 무관한 기억은 적용하지
+않고, 철회·감쇠·현재 요청 우선을 지키는지가 계약이다.
+
+### L. 지금의 착수 순서
+
+1. **읽기와 현재성 대조**: I절 필수 문서, Git HEAD, package manifest, HumanRealTest, `lab_un`을
+   읽고 충돌표를 만든다. 새 마스터 계획서는 만들지 않는다.
+2. **검증기부터 정상화**: 돌연변이 #293을 실제 계약 검사로 물리고, gate 비용 BLOCK의 원인을
+   A/B로 귀속한다. 문턱 완화 금지.
+3. **팀 피드백 12축 실행 순서 결정**: 절대축 TF-01·02·07·08·09·11을 우선하고, 표면축
+   TF-03·04·05·06·10·12를 실제 사용자 여정에 결합한다. `edf6361`이 닫은 범위는 재개발하지 않고
+   반대시험으로 보존한다.
+4. **Telegram 한 건을 전체 연결 계약으로 검증**: 전용 비밀 입력→credential 확인→receiver 실행→
+   허용 inbound→모델 처리→outbound 실제 도착→재시작 dedup→disconnect를 터미널 대체 없이 관통한다.
+5. **유사 사례 확장**: 같은 계약을 Sheets·캘린더·이메일/Slack·파일 내보내기 중 준비된 fixture에
+   적용해 서비스별 우연한 성공이 아닌지 확인한다.
+6. **최신 설치본 재생성 전 gate**: 2065 회귀, 301 돌연변이 전부, plan/docs/workspace/gate,
+   HumanRealTest 선택 시나리오를 통과한다.
+7. **새 PKG**: 현재 최종 SHA에서 재빌드·재서명·재공증하고 새 manifest·해시·설치 가이드를 만든다.
+   깨끗한 사용자와 기존 데이터 사용자를 분리해 확인한다.
+
+### M. 소유권과 멈춤 경계
+
+- Claude Code는 메인 구현자다. Codex는 독립 감사와 HumanRealTest 시나리오·비교·전체 범위 판정을
+  맡는다. 같은 파일을 동시에 고치지 않는다.
+- `src/surface/server.js`, `src/kernel/turn.js`, `src/kernel/l5-growth/tcell-grow.js`, packaging 공용 파일은
+  단일 소유·직렬로 다룬다.
+- 현재 세 파일은 각각 약 2,758 / 1,819 / 1,006줄이다. HRT-ST-001~003에서 tick scheduler,
+  turn timing, user-facing turn surface, 순수 growth verdict를 행동 보존형으로 추출했다. 줄 수를 줄이는
+  것 자체가 목표가 아니며 팀 피드백 해결 중 추가 대규모 재작성 금지다.
+- 외부 계정·비밀·실제 메시지 전송·삭제·공개 배포·서명 자격 재사용·돈이 드는 비교는 오너 권한이다.
+- 오너에게 명령 실행·routine 브라우저 조작·재현·검사 설계를 넘기지 않는다.
+- 문제가 세 번 반복됐다는 이유로 문턱을 낮추거나 검사·증거를 삭제하지 않는다.
+
+### N. 새 Claude 세션의 첫 보고 형식
+
+착수 전에 아래 사실만 짧게 보고한다. 오너 말을 장황하게 재포장하지 않는다.
+
+```text
+읽은 정본과 현재 HEAD:
+패키지 기준선과 현재 HEAD의 차이:
+팀 피드백 12축 중 이미 코드로 닫힌 범위 / 아직 증거가 없는 범위:
+돌연변이 #293과 gate 비용 BLOCK의 현재 판정:
+이번에 소유할 파일:
+첫 번째 실제 사용자 시나리오와 멈춤 조건:
+```
+
+그 다음에는 설명을 반복하지 말고 실행한다. 테스트 초록만으로 “팀 피드백 해결”이나 “2차 설치본
+준비”를 선언하지 않는다. 실제 사용자가 말로 시작해 목적을 끝내고 실패를 이해하며 다시 이어갈 수
+있을 때만 해당 범위를 닫는다.
+
 ## 0. 오너 최상위 결정
 
 1. 현재 T5 코어는 그대로 유지한다.
