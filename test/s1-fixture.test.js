@@ -79,7 +79,7 @@ test('fixture: 애매한 이름이 실제로 들어 있다(공백·괄호·한�
 
 // ── 회차 대조 — 이동과 손상을 가르는가 ────────────────────────────────────
 
-test('대조: 손대지 않으면 이동 0 · 손상 0 · 해시 집합 동일', () => {
+test('대조: 손대지 않으면 이동 0 · 손상 0 · 내용 동일', () => {
   const home = 새자리();
   try {
     const root = join(home, 'Downloads');
@@ -88,7 +88,7 @@ test('대조: 손대지 않으면 이동 0 · 손상 0 · 해시 집합 동일',
     assert.equal(r.이동, 0);
     assert.equal(r.손상, 0);
     assert.equal(r.사라짐, 0);
-    assert.equal(r.해시집합동일, true);
+    assert.equal(r.내용동일, true);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -97,12 +97,16 @@ test('대조: 파일을 하위 폴더로 옮기면 이동으로 세고 손상은
   try {
     const root = join(home, 'Downloads');
     const { manifest } = makeFixture(root);
-    const 옮길것 = manifest.entries.filter((e) => e.path.endsWith('.pdf')).slice(0, 12);
+    // **고유 해시만 고른다.** 0바이트는 서로 구분되지 않아 설계상 `이동불명` 으로 빠진다
+    // (그 경계는 아래 전용 시험이 따로 잡는다). 여기서 재는 것은 "확정 가능한 이동"이다.
+    const 옮길것 = manifest.entries.filter((e) => e.path.endsWith('.pdf') && e.bytes > 0).slice(0, 12);
+    assert.equal(옮길것.length, 12);
     for (const e of 옮길것) renameSync(join(root, e.path), join(root, '보관', e.path));
     const r = 대조(manifest, root);
     assert.equal(r.이동, 12, '경로가 바뀌고 내용은 같다 = 이동');
+    assert.equal(r.이동불명, 0, '고유 해시는 전부 확정된다');
     assert.equal(r.손상, 0, '내용이 그대로면 손상 0');
-    assert.equal(r.해시집합동일, true);
+    assert.equal(r.내용동일, true);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -115,7 +119,41 @@ test('대조: 내용이 바뀌면 손상으로 잡는다(절대 게이트 위반
     appendFileSync(join(root, 대상.path), '오염');
     const r = 대조(manifest, root);
     assert.ok(r.손상 >= 1, '원본이 바뀌면 손상으로 센다');
-    assert.equal(r.해시집합동일, false, '해시 집합이 달라지면 원본 손상이다');
+    assert.equal(r.내용동일, false, '원본이 바뀌면 내용동일이 아니다');
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test('대조: 구분 불가능한 해시(0바이트)의 삭제+신규를 이동으로 오판하지 않는다', () => {
+  const home = 새자리();
+  try {
+    const root = join(home, 'Downloads');
+    const { manifest } = makeFixture(root);
+    const 빈것 = manifest.entries.filter((e) => e.bytes === 0);
+    assert.ok(빈것.length >= 2, '0바이트가 여러 개여야 이 시험이 성립한다');
+
+    // 하나를 지우고, **완전히 다른 이름**으로 새 0바이트를 만든다.
+    // 내용이 없으므로 해시가 같다 — 그러나 이건 이동이 아니라 삭제 + 신규다.
+    rmSync(join(root, 빈것[0].path));
+    writeFileSync(join(root, '전혀다른새파일.txt'), '');
+
+    const r = 대조(manifest, root);
+    assert.equal(r.이동, 0, '구분할 수 없는 해시는 이동으로 세지 않는다');
+    assert.equal(r.이동불명, 1, '짝을 확정할 수 없으므로 이동 불명으로 분리한다');
+    assert.equal(r.내용동일, false, '원본 경로 하나가 사라졌으므로 동일이 아니다');
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test('대조: 고유 해시의 이동은 그대로 이동으로 확정한다(불명과 섞지 않는다)', () => {
+  const home = 새자리();
+  try {
+    const root = join(home, 'Downloads');
+    const { manifest } = makeFixture(root);
+    const 고유 = manifest.entries.find((e) => e.bytes > 0);
+    renameSync(join(root, 고유.path), join(root, '보관', 고유.path));
+    const r = 대조(manifest, root);
+    assert.equal(r.이동, 1);
+    assert.equal(r.이동불명, 0);
+    assert.equal(r.내용동일, true, '전부 짝이 맞으면 동일이다');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 

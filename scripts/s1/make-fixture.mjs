@@ -233,7 +233,7 @@ export function 분포세기(entries, now = Date.UTC(2026, 7, 4)) {
 
 /**
  * 회차 후 실물 대조 — 이동은 경로 변화 + 해시 동일, 손상 0 은 해시 집합 동일.
- * @returns {{이동:number, 손상:number, 사라짐:number, 새로생김:number, 해시집합동일:boolean}}
+ * @returns {{이동:number, 이동불명:number, 손상:number, 사라짐:number, 새로생김:number, 내용동일:boolean}}
  */
 export function 대조(manifest, root) {
   // **신분은 경로다. 해시는 손상 판별용이다.**
@@ -256,6 +256,15 @@ export function 대조(manifest, root) {
   const 손상목록 = [...원본].filter(([p, h]) => 현재.has(p) && 현재.get(p) !== h).map(([p]) => p);
 
   // 사라진 경로와 새로 생긴 경로를 해시로 짝지어 이동을 찾는다.
+  //
+  // **짝짓기의 한계를 정직하게 적는다.** 해시가 그 파일에서 **고유**할 때만 짝이 확정된다.
+  // 원본에 같은 해시가 둘 이상이면(0바이트 6개가 그렇다) 사라진 A 와 새로 생긴 B 가
+  // "옮겨진 같은 파일"인지 "A 삭제 + B 신규 생성"인지 **구분할 수 없다**. 첫 판은 그것을
+  // 이동으로 셌다 — 삭제를 이동으로 읽으면 데이터 손실을 성공으로 읽는다(감사 지적 2026-08-04).
+  // 구분 불가능한 것은 이동으로 세지 않고 `이동불명` 으로 분리한다.
+  const 원본해시수 = new Map();
+  for (const h of 원본.values()) 원본해시수.set(h, (원본해시수.get(h) ?? 0) + 1);
+
   const 사라진 = [...원본.keys()].filter((p) => !현재.has(p));
   const 생긴 = [...현재.keys()].filter((p) => !원본.has(p));
   const 남은생긴 = new Map();
@@ -264,26 +273,36 @@ export function 대조(manifest, root) {
     if (!남은생긴.has(h)) 남은생긴.set(h, []);
     남은생긴.get(h).push(p);
   }
+
   const 이동쌍 = [];
+  const 불명쌍 = [];
   const 못찾음 = [];
   for (const p of 사라진) {
     const h = 원본.get(p);
     const 후보 = 남은생긴.get(h);
-    if (후보?.length) 이동쌍.push({ 전: p, 후: 후보.shift() });
-    else 못찾음.push(p);
+    if (!후보?.length) { 못찾음.push(p); continue; }
+    const 짝 = 후보.shift();
+    // 고유 해시여야 "같은 파일이 옮겨졌다"를 확정할 수 있다.
+    if (원본해시수.get(h) === 1) 이동쌍.push({ 전: p, 후: 짝 });
+    else 불명쌍.push({ 전: p, 후: 짝, 왜: `원본에 같은 해시 ${원본해시수.get(h)}개 — 이동인지 삭제+신규인지 구분 불가` });
   }
   const 진짜새로 = [...남은생긴.values()].flat();
 
   return {
     이동: 이동쌍.length,
     이동쌍,
+    이동불명: 불명쌍.length,        // 짝 후보는 있으나 신분을 확정할 수 없다
+    이동불명쌍: 불명쌍,
     손상: 손상목록.length,
     손상목록,
-    사라짐: 못찾음.length,          // 짝을 못 찾은 것만 진짜 사라진 것이다
+    사라짐: 못찾음.length,          // 짝 후보조차 없는 것 = 확실히 사라졌다
     사라진목록: 못찾음,
     새로생김: 진짜새로.length,      // 이동으로 설명되지 않는 새 파일 = 산출물
     새로생긴목록: 진짜새로,
-    해시집합동일: 손상목록.length === 0 && 못찾음.length === 0,
+    // **이름을 뜻에 맞춘다.** 예전 `해시집합동일` 은 해시 집합을 비교하지 않았다 —
+    // 손상 0 · 사라짐 0 을 뜻했다. 그리고 이동불명이 있으면 그것도 동일이 아니다.
+    // 재는 것은 "원본 내용이 하나도 없어지거나 바뀌지 않았는가" 이므로 그렇게 부른다.
+    내용동일: 손상목록.length === 0 && 못찾음.length === 0 && 불명쌍.length === 0,
     현재개수: 현재.size,
     원본개수: 원본.size,
   };
