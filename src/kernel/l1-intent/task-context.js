@@ -179,6 +179,12 @@ export function compactResult(result, maxChars = 1200) {
     // 그래서 둘을 함께 준다: ① 무엇을 얼마나 뺐는지 ② 뺀 부분을 판단할 수 있는 **집계**.
     // 437개 이름을 다 싣는 건 답이 아니다 — 이 일에 필요했던 건 이름이 아니라 분포였다.
     // 집계는 사실이지 판단이 아니다(`modifiedAt` 을 주는 것과 같은 급).
+    // **문을 쓰면 `items` 는 한 쪽일 뿐이다.** `total` 이 있으면 그것이 진짜 전체다 —
+    // 안 보면 "전체 100개"라고 말하게 되고 모델은 438개를 다 봤다고 믿는다(실측 2026-08-04:
+    // 모델이 `limit:100` 을 쓰자 바로 이 거짓이 났다). 조용한 절단을 고치다 새 조용한
+    // 거짓을 만들 뻔한 자리다.
+    const 진짜전체 = Number.isInteger(result.total) ? result.total : result.items.length;
+    const 이번쪽시작 = Number.isInteger(result.offset) ? result.offset : 0;
     const 전체 = result.items;
     const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}`;
     const 머리 = `자리: ${result.path}`;
@@ -190,7 +196,10 @@ export function compactResult(result, maxChars = 1200) {
       if (쓴글자 + l.length + 1 > 이름예산) break;
       실은것.push(l); 쓴글자 += l.length + 1;
     }
-    if (실은것.length === 전체.length) return `${머리}\n${실은것.join('\n')}`;
+    // 이 쪽을 다 실었어도 **뒤에 더 있으면** 끝난 게 아니다.
+    if (실은것.length === 전체.length && 이번쪽시작 + 전체.length >= 진짜전체) {
+      return `${머리}\n${실은것.join('\n')}`;
+    }
 
     const 나머지 = 전체.slice(실은것.length);
     const 세기 = (뽑기) => {
@@ -210,13 +219,13 @@ export function compactResult(result, maxChars = 1200) {
     return [
       머리,
       실은것.join('\n'),
-      `— 여기까지가 이름을 실은 ${실은것.length}개다. **나머지 ${나머지.length}개는 이 답에 이름을 싣지 못했다**(전체 ${전체.length}개).`,
+      `— 여기까지가 이름을 실은 ${실은것.length}개다. **나머지 ${진짜전체 - 이번쪽시작 - 실은것.length}개는 이 답에 이름을 싣지 못했다**(전체 ${진짜전체}개).`,
       `못 실은 ${나머지.length}개의 확장자: ${짧게(확장자, 8)}`,
       `못 실은 ${나머지.length}개의 고친 때: ${짧게(나이, 4)}`,
       // **문을 알려준다**(정본 §S3). 사고 원문에서 정확히 이 줄이 없었다 — 모델은 "437개가
       // 있다"는 말과 23개의 이름을 받은 채 실행을 요구받았고, 나머지를 가져올 인자가
       // 없었다. 잘렸다는 사실만 주고 문을 안 주면 그건 알려준 게 아니라 막은 것이다.
-      `나머지는 offset 으로 이어서 받는다: offset=${result.nextOffset ?? 실은것.length}, limit 로 몇 개씩 받을지 정한다.`,
+      `나머지는 offset 으로 이어서 받는다: offset=${이번쪽시작 + 실은것.length}, limit 로 몇 개씩 받을지 정한다.`,
       '이름 하나하나가 아니라 조건으로 다룰 거면 bulk_move 의 match 를 쓴다.',
     ].join('\n');
   }

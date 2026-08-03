@@ -119,3 +119,38 @@ test('상한을 올려도 이름 문제는 안 풀린다(그래서 문이 답이
       `상한 ${상한}에서 문이 사라졌다`);
   }
 });
+
+// ── ⑤ 문을 쓰면 **전체 수를 잃지 않는다** (내가 만들 뻔한 새 거짓) ──────────
+//
+// 실측(2026-08-04, 문을 낸 직후 라이브): 모델이 `limit:100` 을 쓰자 `compactResult` 가
+// `items.length`(100)를 전체로 읽어 **"전체 100개"** 라고 말했다. 실제로는 438개다.
+// 조용한 절단을 고치다 **새 조용한 거짓**을 만들 뻔한 자리다 — 모델은 다 봤다고 믿는다.
+test('한 쪽만 받아도 전체 수는 진짜 전체다', () => {
+  const 요약 = compactResult({
+    path: '/다운로드', total: 438, offset: 0, nextOffset: 100,
+    items: Array.from({ length: 100 }, (_, i) => ({ name: `자료-${i}.pdf`, kind: 'file' })),
+  });
+  assert.match(요약, /전체 438개/, '한 쪽의 개수를 전체로 말했다 — 모델은 다 봤다고 믿는다');
+  assert.doesNotMatch(요약, /전체 100개/);
+});
+
+test('뒤쪽 쪽에서도 남은 수와 다음 자리가 맞는다', () => {
+  const 요약 = compactResult({
+    path: '/다운로드', total: 438, offset: 400, nextOffset: undefined,
+    items: Array.from({ length: 38 }, (_, i) => ({ name: `자료-${400 + i}.pdf`, kind: 'file' })),
+  });
+  // 400번째부터 38개 = 끝. 다 실렸으면 절단 안내가 없어야 한다.
+  assert.doesNotMatch(요약, /이름을 싣지 못했다/, '끝인데 남았다고 말한다');
+});
+
+test('한 쪽 안에서 또 잘리면 다음 자리는 **그 쪽 안**을 가리킨다', () => {
+  const 요약 = compactResult({
+    path: '/다운로드', total: 438, offset: 100, nextOffset: 200,
+    items: Array.from({ length: 100 }, (_, i) => ({ name: `자료-${100 + i}.pdf`, kind: 'file' })),
+  });
+  const m = 요약.match(/offset=(\d+)/);
+  assert.ok(m, '문이 없다');
+  const 다음 = Number(m[1]);
+  assert.ok(다음 > 100 && 다음 < 200,
+    `다음 자리가 이 쪽 안을 안 가리킨다(${다음}) — 이름을 못 받은 구간을 건너뛴다`);
+});
