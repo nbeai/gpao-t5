@@ -358,12 +358,12 @@ const DESCRIPTORS = [
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
     capability: '작업 폴더와 Downloads·Documents·Desktop 안에서 파일을 보고·읽고·만들고·옮기고·지운다.'
-      + ' 한 번에 **한 자리**를 다룬다 — 여러 개를 한꺼번에 옮기거나 지우는 일은 터미널 실행이 명령 하나로 끝낸다.'
+      + ' 한 번에 **한 자리**를 다룬다 — 조건이 분명한 여러 파일은 bulk_move 로 한꺼번에 옮긴다.'
       + ' 같은 이름 식구의 최종본 판별(versions)도 한다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
     operatorFact: '작업 폴더와 표준 사용자 폴더의 자료를 직접 읽고 정리한다.',
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
-      description: '작업 폴더·Downloads·Documents·Desktop 의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. bulk_move 는 확장자·이름 조건에 맞는 여러 파일을 한 번에 옮긴다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
+      description: '작업 폴더·Downloads·Documents·Desktop 의 파일을 보거나 읽거나 저장하거나 옮기거나 지운다. bulk_move 는 확장자·이름·수정일 조건에 맞는 여러 파일을 한 번에 옮긴다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
       parameters: {
         type: 'object',
         properties: {
@@ -379,6 +379,8 @@ const DESCRIPTORS = [
               nameIncludes: { type: 'array', items: { type: 'string' }, description: '파일 이름에 들어갈 낱말' },
               namePrefix: { type: 'string', description: '파일 이름 접두어' },
               nameSuffix: { type: 'string', description: '파일 이름 접미어' },
+              olderThanDays: { type: 'number', description: '수정한 지 이 일수보다 오래된 파일만' },
+              newerThanDays: { type: 'number', description: '수정한 지 이 일수보다 최근인 파일만' },
             },
           },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },

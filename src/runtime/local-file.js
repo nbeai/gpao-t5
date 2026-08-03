@@ -91,15 +91,26 @@ export function makeLocalFileTool(deps = {}) {
       : [];
     const namePrefix = typeof match.namePrefix === 'string' ? match.namePrefix.trim().toLowerCase() : '';
     const nameSuffix = typeof match.nameSuffix === 'string' ? match.nameSuffix.trim().toLowerCase() : '';
-    const hasAny = extensions.length || nameIncludes.length || namePrefix || nameSuffix;
+    const olderThanDays = Number(match.olderThanDays);
+    const newerThanDays = Number(match.newerThanDays);
+    const hasOlder = Number.isFinite(olderThanDays) && olderThanDays > 0;
+    const hasNewer = Number.isFinite(newerThanDays) && newerThanDays > 0;
+    const hasAny = extensions.length || nameIncludes.length || namePrefix || nameSuffix || hasOlder || hasNewer;
     return {
       hasAny,
-      test(name) {
+      test(name, info) {
         const n = String(name ?? '').toLowerCase();
         if (extensions.length && !extensions.includes(extname(n))) return false;
         if (nameIncludes.length && !nameIncludes.some((needle) => n.includes(needle))) return false;
         if (namePrefix && !n.startsWith(namePrefix)) return false;
         if (nameSuffix && !n.endsWith(nameSuffix)) return false;
+        if (hasOlder || hasNewer) {
+          const mtimeMs = Number(info?.mtimeMs);
+          if (!Number.isFinite(mtimeMs)) return false;
+          const ageDays = (Date.now() - mtimeMs) / 86_400_000;
+          if (hasOlder && ageDays < olderThanDays) return false;
+          if (hasNewer && ageDays > newerThanDays) return false;
+        }
         return true;
       },
     };
@@ -544,10 +555,15 @@ export function makeLocalFileTool(deps = {}) {
             return { blocked: true, scopeState: 'protected', ...msg };
           }
           const entries = await readdir(abs, { withFileTypes: true });
-          const candidates = entries
-            .filter((e) => e.isFile() && !e.name.startsWith('.') && matcher.test(e.name))
-            .map((e) => e.name)
-            .sort();
+          const candidates = [];
+          for (const e of entries) {
+            if (!e.isFile() || e.name.startsWith('.')) continue;
+            const full = join(abs, e.name);
+            let info;
+            try { info = await stat(full); } catch { continue; }
+            if (matcher.test(e.name, info)) candidates.push(e.name);
+          }
+          candidates.sort();
           if (!candidates.length) return fail('조건에 맞는 파일이 없어서 옮기지 않았어요.');
           await mkdir(destDir, { recursive: true });
 

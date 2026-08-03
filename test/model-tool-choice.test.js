@@ -44,6 +44,8 @@ test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려�
   assert.match(file.description, /파일/);
   assert.deepEqual(file.parameters.properties.action.enum, ['list', 'read', 'write', 'move', 'bulk_move', 'delete', 'undo', 'versions']);
   assert.match(file.description, /bulk_move/, '긴 정리는 낱개 move 대신 한 입자로 고르게 해야 한다');
+  assert.ok(file.parameters.properties.match.properties.olderThanDays,
+    '오래된 파일 정리 조건이 스키마에 없으면 모델이 시험 이동 뒤 사용자에게 되묻는다');
 });
 
 // ── 호출 → 커널 형태 변환 ────────────────────────────────────────────────

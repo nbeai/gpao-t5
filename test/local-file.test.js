@@ -3,7 +3,7 @@
 // 그리고 §16-C 스텁 금지 게이트 — 라이브 레지스트리에 fixture 가 들어가면 실패한다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, mkdir, symlink, stat, readdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, mkdir, symlink, stat, readdir, utimes } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -134,6 +134,28 @@ test('bulk_move: 조건에 맞는 여러 파일을 한 번에 옮기고 되돌�
   assert.equal(u2.blocked, undefined);
   assert.equal(await readFile(join(root, 'a.pdf'), 'utf8'), 'a');
   assert.equal(await readFile(join(root, 'b.pdf'), 'utf8'), 'b');
+});
+
+test('bulk_move: 수정일 조건으로 오래된 파일만 한 번에 옮긴다', async () => {
+  const { root, tool } = await sandbox();
+  const 오래된 = join(root, 'old.zip');
+  const 최근 = join(root, 'new.zip');
+  await writeFile(오래된, 'old');
+  await writeFile(최근, 'new');
+  const oldDate = new Date(Date.now() - 220 * 86_400_000);
+  await utimes(오래된, oldDate, oldDate);
+
+  const r = await tool.handler({
+    action: 'bulk_move',
+    path: '.',
+    to: '오래된압축',
+    match: { extensions: ['.zip'], olderThanDays: 180 },
+  });
+
+  assert.equal(r.blocked, undefined, `날짜 bulk_move 가 막혔다: ${r.userSafeSummary}`);
+  assert.equal(r.result.moved.length, 1);
+  assert.equal(await readFile(join(root, '오래된압축/old.zip'), 'utf8'), 'old');
+  assert.equal(await readFile(최근, 'utf8'), 'new');
 });
 
 test('bulk_move: 조건 없이 폴더만 만들지 않는다', async () => {
