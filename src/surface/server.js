@@ -2597,7 +2597,12 @@ async function 들을자리(server, port, host) {
 }
 
 export async function startLiveServer(opts = {}) {
-  const bootStore = opts.sessionStore ?? new SessionStore();
+  // **잠금은 실제로 쓰는 자리에 건다.** `new SessionStore()` 는 `process.env` 만 보므로,
+  // 호출자가 `opts.processEnv` 로 데이터 자리를 옮기면 **데이터는 A 에 쓰면서 잠금은 B 에**
+  // 걸렸다(실측 2026-08-03: 격리 하네스가 실제 설치본의 잠금을 잡으려다 튕겼다).
+  // 단일 writer 계약은 "같은 데이터 디렉터리"가 기준인데, 그 디렉터리를 잘못 골랐던 것이다.
+  const 데이터자리 = opts.processEnv?.GPAO_T5_DATA_DIR;
+  const bootStore = opts.sessionStore ?? new SessionStore(데이터자리 ?? undefined);
   // 설치 전 필수(감사 2026-07-29): **같은 데이터 디렉터리에는 단일 writer.** 살아 있는 다른
   // 서버가 잡고 있으면 여기서 정직하게 멈춘다(반쪽으로 돌아 마지막 저장이 앞의 것을 지우지 않게).
   // 잠금 소유는 pid+ownerToken — 해제는 신호(SIGINT/SIGTERM)·서버 close·부팅 실패 모두에서.

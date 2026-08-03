@@ -57,6 +57,8 @@ export function compactResult(result, maxChars = 1200) {
     const lines = [];
     if (result.title) lines.push(`제목: ${result.title}`);
     if (Array.isArray(result.comparisonCandidates)) {
+      // 조용히 자르지 않는다(같은 계열) — 몇 개 중 몇 개인지 말한다.
+      if (result.comparisonCandidates.length > 3) lines.push(`비교 후보 ${result.comparisonCandidates.length}개 중 위 3개만 싣는다.`);
       for (const c of result.comparisonCandidates.slice(0, 3)) {
         const date = c.publishedAt ?? c.modifiedAt ?? '날짜 미확인';
         lines.push(`후보 ${c.rank}: ${c.title || '(제목 없음)'} · ${date} · ${c.url}`);
@@ -64,8 +66,13 @@ export function compactResult(result, maxChars = 1200) {
     }
     const md = String(result.markdown ?? '');
     if (md) lines.push(`본문 ${md.length}자`);
-    const links = (result.links ?? []).map((l) => (typeof l === 'string' ? l : l?.url)).filter(Boolean).slice(0, 6);
-    if (links.length) lines.push(`그 페이지의 링크: ${links.join(' · ')}`);
+    const 링크전체 = (result.links ?? []).map((l) => (typeof l === 'string' ? l : l?.url)).filter(Boolean);
+    const links = 링크전체.slice(0, 6);
+    // 조용히 자르지 않는다(같은 계열) — 안 실은 링크가 있으면 몇 개인지 말한다.
+    if (links.length) {
+      lines.push(`그 페이지의 링크: ${links.join(' · ')}`
+        + (링크전체.length > links.length ? ` (전체 ${링크전체.length}개 중 ${links.length}개만 실음)` : ''));
+    }
     const body = fold(md || result.excerpt || '', Math.max(maxChars - lines.join('\n').length - 40, 200));
     return `${lines.join('\n')}\n본문: ${body}`;
   }
@@ -83,10 +90,53 @@ export function compactResult(result, maxChars = 1200) {
       if (분 < 60 * 24) return ` — ${Math.round(분 / 60)}시간 전 고침`;
       return ` — ${Math.round(분 / (60 * 24))}일 전 고침`;
     };
-    const lines = result.items.slice(0, 40).map((i) =>
-      `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}`);
-    const out = `자리: ${result.path}\n${lines.join('\n')}`;
-    return out.length <= maxChars ? out : `${out.slice(0, maxChars)}…`;
+    // ── **조용히 자르지 않는다** (오너 라이브 실측 2026-08-03) ──────────────
+    // 다운로드 437개 정리 요청에서 이 갈래는 `slice(0,40)` 뒤 1200자에서 다시 잘려
+    // **23개(5%)만** 모델에게 갔다. 그런데 요약은 "437개를 찾았어요"였고, 잘렸다는 말은
+    // 마침표 세 개가 전부였다. 나머지를 가져올 인자(offset·limit)도 없다.
+    // 모델은 "437개가 있다"는 말과 23개의 이름을 받은 채 "예고만으로 턴을 소비하지 말라"는
+    // 요구까지 받았다 — 불가능한 자리다. 그래서 다섯 턴 내내 계획만 반복했다.
+    // 되풀이는 모델의 고집이 아니라 **런타임이 대신 판단하고 그 사실을 숨긴 결과**였다.
+    //
+    // 그래서 둘을 함께 준다: ① 무엇을 얼마나 뺐는지 ② 뺀 부분을 판단할 수 있는 **집계**.
+    // 437개 이름을 다 싣는 건 답이 아니다 — 이 일에 필요했던 건 이름이 아니라 분포였다.
+    // 집계는 사실이지 판단이 아니다(`modifiedAt` 을 주는 것과 같은 급).
+    const 전체 = result.items;
+    const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}`;
+    const 머리 = `자리: ${result.path}`;
+    const 이름예산 = Math.floor(maxChars * 0.6); // 나머지는 "뺀 것"을 정직하게 말하는 데 쓴다
+    const 실은것 = [];
+    let 쓴글자 = 머리.length;
+    for (const i of 전체) {
+      const l = 줄(i);
+      if (쓴글자 + l.length + 1 > 이름예산) break;
+      실은것.push(l); 쓴글자 += l.length + 1;
+    }
+    if (실은것.length === 전체.length) return `${머리}\n${실은것.join('\n')}`;
+
+    const 나머지 = 전체.slice(실은것.length);
+    const 세기 = (뽑기) => {
+      const m = new Map();
+      for (const i of 나머지) { const k = 뽑기(i); m.set(k, (m.get(k) ?? 0) + 1); }
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    const 확장자 = 세기((i) => (i.kind === 'folder' ? '폴더' : (i.name.match(/\.[^.]+$/)?.[0] ?? '(확장자 없음)').toLowerCase()));
+    const 나이 = 세기((i) => {
+      const ms = 지금 - Date.parse(i.modifiedAt ?? '');
+      if (!Number.isFinite(ms)) return '고친 때 모름';
+      const 일 = ms / 86_400_000;
+      return 일 < 7 ? '7일 안' : 일 < 30 ? '30일 안' : 일 < 180 ? '180일 안' : '180일 넘음';
+    });
+    const 짧게 = (쌍들, n) => 쌍들.slice(0, n).map(([k, v]) => `${k} ${v}개`).join(' · ')
+      + (쌍들.length > n ? ` · 그 밖 ${쌍들.slice(n).reduce((s, [, v]) => s + v, 0)}개` : '');
+    return [
+      머리,
+      실은것.join('\n'),
+      `— 여기까지가 이름을 실은 ${실은것.length}개다. **나머지 ${나머지.length}개는 이 답에 이름을 싣지 못했다**(전체 ${전체.length}개).`,
+      `못 실은 ${나머지.length}개의 확장자: ${짧게(확장자, 8)}`,
+      `못 실은 ${나머지.length}개의 고친 때: ${짧게(나이, 4)}`,
+      '이름 하나하나가 필요하면 더 좁은 폴더를 따로 보거나, 조건에 맞는 것만 골라내는 명령을 쓴다.',
+    ].join('\n');
   }
 
   // ③ 파일 본문 — **줄 구조를 지운 채 주지 않는다**(C 감사 F4.2). `fold` 의 `\s+` 접기는
