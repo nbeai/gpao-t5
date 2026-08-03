@@ -12,7 +12,7 @@ import { buildCapabilityFacts, capabilityCounts } from './capabilities.js';
 import { DEFAULT_IDENTITY } from './identity.js';
 import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
 import { userFacingModelText, 확인된중간결과, 미리보기원장, 미리보기정렬 } from './turn-surface.js';
-import { blockedReceipt } from './l0-evidence/tool-receipt.js';
+import { blockedReceipt, receipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
@@ -320,6 +320,15 @@ export function userSafeNextAction(receipts = []) {
  */
 export function unresolvedTurnReceipts(receipts = []) {
   return receipts.filter((rec, index) => {
+    // **런타임이 "이미 했다"고 취소한 것은 미해결이 아니다.** 같은 손·같은 작업이 이번 턴에
+    // 이미 성공했기 때문에 안 한 것이므로, 그 성공이 이것을 해결한다(아래 "뒤의 성공이 앞의
+    // 실패를 해결한다"의 거울상). 이 구분이 없으면 다중 호출 중 하나가 중복이라는 이유로
+    // 턴 전체가 "아직 안 끝났다"로 잡힌다(실측 2026-08-04, 승인 재개 정산이 안 열렸다).
+    if (rec?.failureState === 'cancelled' && rec?.actualCall?.tool) {
+      const 이미 = receipts.slice(0, index).some((앞) => (앞?.failureState ?? 'none') === 'none'
+        && 앞?.actualCall?.tool === rec.actualCall.tool);
+      if (이미) return false;
+    }
     if ((rec?.failureState ?? 'none') === 'none' || rec?.scopeState !== 'out_of_scope') return true;
     const tool = rec.actualCall?.tool;
     const action = rec.actualCall?.args?.action;
@@ -838,10 +847,23 @@ export async function runTurn(input, ctx) {
   // **S1 슬라이스**(`T5_MODEL_SOVEREIGN=1`): 이 재심사를 하지 않는다. 모델이 방금 고른 것을
   // 런타임이 다시 심문하면 왕복 하나가 판정에 쓰이고, 그 판정이 모델의 선택을 걷어낸다.
   // 대신 아래 기존 경계(승인·완료 계약·중복 차단)가 그대로 받는다 — 안전은 안 열린다.
+  // 심문이 걷어낸 호출 — **판정은 턴 내내 유지된다.**
+  //
+  // 걷어낸 것을 이번 턴 영수증으로 세우지는 않는다. 이 심문의 계약은 "지난 턴 행동을 현재
+  // 턴에 섞지 않는다"이고, 걷어낸 호출을 이번 턴 행동으로 만들면 그 경계를 내가 뚫는 것이다.
+  //
+  // 대신 **다시 실행되지 않게** 막는다. 예전엔 걸음 루프가 여러 호출을 하나로 합쳐 버려서
+  // 이 문제가 가려져 있었다 — 병합을 걷어내자 걸음 루프가 걷어낸 삭제를 다시 받아 실행했다
+  // (`pc-hands-c-closure` #293 이 잡았다, 2026-08-04). 판정을 한 번 했으면 그 턴에서는 선다.
+  const 심문제외 = [];
   if (심문허용() && modelChosen?.length > 1) {
+    const 심문전 = modelChosen;
     modelChosen = await currentRequestCalls({
       calls: modelChosen, text: input.text ?? '', tc: earlyTc, model: ctx.model, selfState,
     });
+    for (const call of 심문전) {
+      if (!modelChosen || !modelChosen.includes(call)) 심문제외.push(call);
+    }
     if (!modelChosen) {
       const currentFile = parseFileRequest(input.text ?? '');
       if (!currentFile.ambiguous && currentFile.action !== 'unknown') {
@@ -972,6 +994,30 @@ export async function runTurn(input, ctx) {
   // P2-5b: 모델이 고른 도구가 있으면 **그것이 우선**이다. 정규식은 모델이 못 고를 때의 폴백이다
   // (모델 미연결·도구 호출 미지원 provider). 판정·승인·실행은 아래 그대로 — 경계는 안 바뀐다.
   let modelToolArgs;
+  // ── 첫 응답의 호출도 **하나도 합치지 않는다** ────────────────────────────────
+  //
+  // 계획 경로(`executePlan`)는 `plan.toolsToUse` 를 돌며 **도구 하나당 인자 하나**를 실행한다.
+  // 그래서 모델이 한 응답에 같은 손을 다섯 번 부르면 넷이 사라졌다(S1 회차 6 실측).
+  //
+  // 계획 경로의 기존 의미는 건드리지 않는다 — 손마다 **첫 호출**이 예전처럼 계획을 만들고
+  // 승인·완료계약을 탄다. **나머지는 걸음 줄로 넘긴다**(`추가호출`). 거기서 호출 하나하나가
+  // 같은 판정(probe → toolActionKind → decideAutoGrant)을 그대로 타고, 못 한 것은 사실로 남는다.
+  /** @type {Array<{name:string, args:object, id?:string}>} */
+  const 추가호출 = [];
+  /** 우리가 안 보여준 손을 골랐다 — 예전엔 여기서 조용히 사라졌다. */
+  const 없는손호출 = [];
+  if (modelChosen?.length) {
+    const 보여준손 = new Set(modelSchemasFor(selfState, ctx.modelControls).map((t) => t.name));
+    const 본것 = new Set();
+    const 대표 = [];
+    for (const call of modelChosen) {
+      if (call?.name && !보여준손.has(call.name)) { 없는손호출.push(call); continue; }
+      if (call?.name && 본것.has(call.name)) { 추가호출.push(call); continue; }
+      if (call?.name) 본것.add(call.name);
+      대표.push(call);
+    }
+    modelChosen = 대표;
+  }
   if (modelChosen?.length) {
     // 1축: 우리가 **실제로 보여준** 도구만 받아들인다(selfState 파생 — 수동 맵 없음).
     const parts = callsToIntentParts(modelChosen, selfState);
@@ -1042,6 +1088,17 @@ export async function runTurn(input, ctx) {
   // 허락하지 않고, 모델은 그 사실 위에서 다음 길을 판단한다.
   /** 계획 단계에서 막힌 손과 그 사실 — **답이 아니라 이번 턴 모델에게 줄 재료다.** */
   const 계획막힘 = [];
+  // 없는 손을 고른 사실을 남긴다. `callsToIntentParts` 는 "있는 척 금지"로 조용히 버리는데,
+  // 버린 사실까지 없애면 모델은 자기가 시킨 것이 갔다고 믿은 채 답을 쓴다(오너 지시 2026-08-04).
+  for (const [i, call] of 없는손호출.entries()) {
+    계획막힘.push(receipt({
+      intended: `${call?.name ?? '(이름 없음)'} 실행`,
+      actualCall: { tool: call?.name, args: call?.args ?? {} },
+      failureState: 'blocked',
+      userSafeSummary: '그 손은 지금 없어요.',
+      diagnosticTrace: { callId: call?.id ?? `없는손${i + 1}`, 순번: i + 1, tool: call?.name, reason: '없는손' },
+    }));
+  }
   const 계획막힌손 = new Set();
   for (const id of planIntent.neededTools ?? []) {
     const args = id === 'local.terminal' ? planIntent.terminalOp : (planIntent.toolArgs?.[id] ?? planIntent.fileOp ?? {});
@@ -1289,7 +1346,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 심문제외);
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1341,7 +1398,7 @@ function 이어받기정리(state, connectors = []) {
   return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
 }
 
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = []) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 심문제외 = []) {
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -1538,35 +1595,125 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
     return true;
   };
-  while (steps < MAX_TOOL_STEPS) {
-    // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
-    // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
-    const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
-    ctx.collectWorkState?.(분리);
-    if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
-    if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
-    if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
-    if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
-    const next = 분리.rest;
-    if (!next.length) {
-      // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
-      // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
-      // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
-      // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
-      if (await 산출물이어가기()) continue;
-      break;
+  // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
+  //
+  // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
+  // 옮겨진 것은 **마지막 하나뿐**이었다. `callsToIntentParts` 가 같은 손의 호출들을
+  // `{...기존, ...새것}` 으로 합쳐 뒤가 이겼고, 여기서 `neededTools[0]` 하나만 집었기 때문이다.
+  // 나머지 넷은 실행도, 실패도, 고지도 없었다 — **모델도 사용자도 그 사실을 못 받는다.**
+  //
+  // 그래서 T5 의 실행 입자는 "한 걸음 = 한 파일"이 아니라 **"한 왕복 = 한 호출"** 이었다.
+  // 걸음 상한과 곱하면 한 턴에 최대 6개다. 437개 앞에서 구조적으로 불가능한데
+  // 그 불가능이 어디에도 안 보였다.
+  //
+  // 이것은 형식 문제가 아니라 **모델 주권 계약의 본체**다(오너 2026-08-04). 계약 ②는
+  // "모든 도구 결과는 모델 자신의 행동 이력으로 돌아간다"인데, 돌아갈 행동 자체가 없어졌다.
+  //
+  // 고친 방식: 합치지 않고 **줄로 세운다.** 줄에 선 호출 하나하나가 기존 판정 경로를
+  // 그대로 탄다(probe → toolActionKind → decideAutoGrant → 승인 봉인 → 실행 → 영수증).
+  // **새 안전 체계를 만들지 않는다.** 그리고 실행하지 못한 호출도 `callId`·순번·판정·이유와
+  // 함께 원장에 남아 모델에게 돌아간다 — 조용한 축소를 없앤다.
+  /** @type {Array<{callId:string, 순번:number, tool:string, args:object}>} */
+  const 대기호출 = [];
+  let 호출일련 = 0;
+
+  /**
+   * **고르기는 했는데 실행하지 못한 호출**을 사실로 남긴다.
+   *
+   * 여기가 이 수정의 절반이다. 실행을 여는 것만으로는 부족하다 — 상한·중복·권한·없는 손으로
+   * 못 한 것이 조용히 사라지면, 모델은 자기가 다섯을 시켰다고 믿은 채 답을 쓴다(거짓 완료의
+   * 씨앗). `actualCall` 을 채워 두므로 모델 입력에서 **자기 호출**로 돌아간다.
+   *
+   * 값은 담지 않는다 — 실행되지 않았으므로 결과가 없다. `왜` 는 분류값이고 사람 말은 따로 온다.
+   */
+  const 못한호출남기기 = (호출, 왜, 사람말) => {
+    const rec = receipt({
+      intended: `${toolLabel(호출.tool, selfState)} 실행`,
+      actualCall: { tool: 호출.tool, args: 호출.args ?? {} },
+      // **어휘를 정확히 쓴다.** 되풀이라 건너뛴 것은 *못 한 일*이 아니라 **런타임이 취소한 것**이고,
+      // 같은 일이 이미 원장에 확인돼 있다. 처음엔 전부 `blocked` 로 세웠다가, 그것이 "아직 못 한
+      // 일"로 잡혀 승인 재개 정산 게이트를 닫았다(`work-state-product` 가 잡았다, 2026-08-04).
+      // 나머지(상한·승인대기·요청밖·없는손)는 실제로 **안 된 일**이므로 blocked 가 맞다 —
+      // 사용자가 그 사실을 알아야 한다.
+      failureState: 왜 === '되풀이' ? 'cancelled' : 'blocked',
+      userSafeSummary: 사람말,
+      // 진단면 — 모델이 낸 호출의 신분과 순서를 그대로 보존한다(오너 지시 2026-08-04).
+      diagnosticTrace: { callId: 호출.callId, 순번: 호출.순번, tool: 호출.tool, reason: 왜 },
+    });
+    ledger.append(rec);
+    turnReceipts.push(rec);
+    return rec;
+  };
+
+  /** 모델 응답의 호출들을 줄로 세운다. 안 보여준 도구는 버리되 **버린 사실을 남긴다**. */
+  const 줄세우기 = (calls) => {
+    const 선것 = [];
+    for (const call of calls) {
+      호출일련 += 1;
+      const callId = typeof call?.id === 'string' && call.id ? call.id : `호출${호출일련}`;
+      // 1축 그대로: 우리가 실제로 보여준 도구만 받아들인다(selfState 파생 — 수동 맵 없음).
+      const parts = callsToIntentParts([call], selfState);
+      const id = parts.neededTools?.[0];
+      if (!id) {
+        // 예전엔 여기서 조용히 사라졌다. 이제 모델이 자기가 없는 손을 골랐다는 것을 안다.
+        못한호출남기기({ callId, 순번: 호출일련, tool: String(call?.name ?? '(이름 없음)'), args: call?.args ?? {} },
+          '없는손', '그 손은 지금 없어요.');
+        continue;
+      }
+      선것.push({ callId, 순번: 호출일련, tool: id, args: parts.toolArgs?.[id] ?? {} });
     }
-    const parts = callsToIntentParts(next, selfState);
-    const toolId = parts.neededTools?.[0];
-    if (!toolId) break;
-    const rawArgs = parts.toolArgs?.[toolId] ?? { request: intent.currentRequest };
+    return 선것;
+  };
+
+  // 첫 응답에서 계획이 안 가져간 호출들을 **맨 앞에** 세운다 — 모델이 낸 순서 그대로다.
+  대기호출.push(...줄세우기(첫응답나머지));
+  // 심문이 "지금 요청 밖"이라고 판정한 호출은 걸음 루프에서 다시 와도 서지 않는다.
+  const 요청밖지문 = new Set(심문제외.map((c) => 지문of(c?.name, c?.args ?? {})));
+
+  while (steps < MAX_TOOL_STEPS) {
+    if (!대기호출.length) {
+      // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
+      // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
+      const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
+      ctx.collectWorkState?.(분리);
+      if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
+      if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
+      if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
+      if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
+      const next = 분리.rest;
+      if (!next.length) {
+        // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
+        // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
+        // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
+        // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
+        if (await 산출물이어가기()) continue;
+        break;
+      }
+      대기호출.push(...줄세우기(next));
+      if (!대기호출.length) break; // 고른 것이 전부 없는 손이었다(사실은 위에서 남겼다)
+    }
+
+    const 이번 = 대기호출.shift();
+    const toolId = 이번.tool;
+    const rawArgs = Object.keys(이번.args).length ? 이번.args : { request: intent.currentRequest };
     const args = toolId === 'local.file'
       ? runtimeFileArgs(rawArgs, requestText, ctx.tools?.tools?.['local.file']?.scopeRoots)
       : rawArgs;
 
-    // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     const 지문 = 지문of(toolId, args);
+    // 심문이 이미 "지금 요청 밖"이라고 판정한 것은 걸음 루프에서도 서지 않는다.
+    if (요청밖지문.has(지문) || 요청밖지문.has(지문of(toolId, 이번.args))) {
+      못한호출남기기({ ...이번, args }, '현재요청밖', '지금 요청에 속한 일이 아니라 하지 않았어요.');
+      if (대기호출.length) continue;
+      break;
+    }
+    // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     if (rung.has(지문)) {
+      // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
+      // 그건 호출이 하나뿐이던 시절의 계약이다. 다섯 중 하나가 중복이라고 나머지 넷을
+      // 버리면 그게 바로 이번에 없앤 그 병이다. 건너뛴 사실은 남는다.
+      못한호출남기기({ ...이번, args }, '되풀이', '방금 한 것과 같은 일이라 다시 하지 않았어요.');
+      if (대기호출.length) continue;
       // 반복 읽기는 실행하지 않는다. 다만 별도 파일 완료 계약까지 같이 버리지는 않는다.
       // 중복 방지와 완료 판정은 서로 다른 경계다.
       if (await 산출물이어가기()) continue;
@@ -1607,10 +1754,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         toolStepsLeft: Math.max(MAX_TOOL_STEPS - steps, 0),
         ...(ctx.selfhood ?? {}),
       });
-      finalOut = await ctx.model.respond(tc, {
-        onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-        ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
-      });
+      // **줄이 남았으면 모델을 다시 부르지 않는다.** 모델은 이미 다음에 할 것을 골라 놨다 —
+      // 여기서 되물으면 왕복 하나를 쓰고 그 사이 골라 둔 호출이 이번 응답에 덮인다.
+      if (!대기호출.length) {
+        finalOut = await ctx.model.respond(tc, {
+          onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+          ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
+        });
+      }
       continue;
     }
 
@@ -1645,6 +1796,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         if (def) 대상 = def;
       }
       if (!내용 || !대상) {
+        // 줄에 남은 호출은 이번 턴에 못 걷는다 — **사실로 남기고 나간다**(조용히 증발 금지).
+        for (const 남은 of 대기호출.splice(0)) {
+          못한호출남기기(남은, '되묻기중단', '먼저 확인할 게 있어 이건 아직 안 했어요.');
+        }
         return {
           kind: 'clarify',
           question: !내용
@@ -1719,6 +1874,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게
         // 사용자 말이다(64a7634). 없으면 원장의 사실로 만든다 — 빈 카드만 뜨면 먹통으로 보인다.
         const 지금까지 = (typeof finalOut === 'string' ? '' : finalOut?.text ?? '').trim();
+        // 승인 카드로 나가면서 줄에 남은 호출을 버리지 않는다. 사용자가 승인할 것은 이 하나이고,
+        // 나머지는 **아직 안 한 일**로 원장에 남아 다음 턴이 이어받는다.
+        for (const 남은 of 대기호출.splice(0)) {
+          못한호출남기기(남은, '승인대기중단', '먼저 확인을 받아야 해서 이건 아직 안 했어요.');
+        }
         return {
           kind: 'approval',
           pendingId,
@@ -1787,11 +1947,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ...(steps >= MAX_TOOL_STEPS ? { toolBudgetSpent: true } : {}),
       ...(ctx.selfhood ?? {}),
     });
-    finalOut = await ctx.model.respond(tc, {
-      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-      // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
-      ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
-    });
+    // **줄에 남은 것을 먼저 다 걷는다.** 모델이 한 응답에 다섯을 냈으면 다섯을 다 하고 묻는다 —
+    // 하나 하고 되물으면 왕복 다섯 번이 되고, 그게 437개 앞에서 상한 6과 곱해져 벽이 됐다.
+    if (!대기호출.length) {
+      finalOut = await ctx.model.respond(tc, {
+        onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+        // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
+        ...(steps < MAX_TOOL_STEPS ? { tools: modelSchemasFor(selfState, ctx.modelControls) } : {}),
+      });
+    }
+  }
+  // 상한에 닿아 줄에 남은 것이 있으면 **그것도 사실로 남긴다**(조용한 축소 금지).
+  for (const 남은 of 대기호출.splice(0)) {
+    못한호출남기기(남은, '걸음상한', '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.');
   }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (steps >= MAX_TOOL_STEPS && !멈춘이유) 멈춘이유 = '한 번에 할 수 있는 만큼 하고 멈췄어요';

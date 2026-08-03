@@ -646,10 +646,19 @@ test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 �
     '승인 카드가 새 손을 가리키지 않는다');
   await runTurn({ approve: r1.pendingId }, ctx).catch(() => {});
 
-  const 영수증 = ledger.entries.map((e) => e.actualCall?.tool);
-  const 새손영수증 = 영수증.filter((t) => String(t).includes('d-new'));
-  assert.equal(새손영수증.length, 1, `새 손 영수증이 ${새손영수증.length}건 — 실행됐고 한 번만이어야 한다`);
-  assert.equal(영수증.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
+  // **"실행"과 "골랐지만 안 했다"를 가른다.** 다중 호출 병합을 걷어낸 뒤(2026-08-04)
+  // 런타임은 못 한 호출도 영수증으로 남긴다 — `actualCall` 만 세면 그 둘이 한 덩어리가 된다.
+  // 재는 것은 **실행**이므로 성공한 것만 센다.
+  const 실행된것 = ledger.entries.filter((e) => (e.failureState ?? 'none') === 'none').map((e) => e.actualCall?.tool);
+  const 새손실행 = 실행된것.filter((t) => String(t).includes('d-new'));
+  assert.equal(새손실행.length, 1, `새 손 실행이 ${새손실행.length}건 — 실행됐고 한 번만이어야 한다`);
+  assert.equal(실행된것.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
+
+  // 그리고 **두 번째로 고른 것이 왜 안 갔는지가 남아 있어야 한다**(조용한 축소 금지).
+  const 안한것 = ledger.entries.filter((e) => String(e.actualCall?.tool).includes('d-new')
+    && (e.failureState ?? 'none') !== 'none');
+  assert.equal(안한것.length, 1, '되풀이라 건너뛴 사실이 사라졌다 — 모델은 자기가 두 번 시켰다고 믿는다');
+  assert.equal(안한것[0].result, undefined, '실행하지 않았는데 결과가 있으면 지어낸 것이다');
 });
 
 // 오너 검토(2026-07-28): `있는손` 목록이 한 번만 만들어져, 뒤 걸음에서 손이 늘거나 줄어도
