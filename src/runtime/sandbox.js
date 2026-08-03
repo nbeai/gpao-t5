@@ -36,13 +36,13 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'} mode
+ * @param {'probe'|'granted'|'reach'|'capsule'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [] } = {}) {
+export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime } = {}) {
   const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
@@ -54,6 +54,21 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
   return [
     '(version 1)',
     '(allow default)',
+    // **캡슐은 프로세스를 못 띄운다**(S4 성질 ④). probe 프로파일은 쓰기·네트워크·시그널·
+    // AppleEvent 를 막지만 **자식 프로세스 생성은 막지 않는다** — 그래서 캡슐 안에서
+    // `child_process.execSync('echo …')` 가 그대로 돌았다(실측 2026-08-04).
+    //
+    // 자식은 샌드박스를 물려받으니 파일도 못 바꾸고 밖에도 못 나간다. 그래도 막는 이유는
+    // **캡슐의 계약이 "손은 RPC 로만"** 이기 때문이다. 셸이 열려 있으면 그 안에서 하는 일이
+    // T5 의 승인·영수증·되돌리기를 지나지 않는다 — 비교군(Hermes)이 허용 도구에 `terminal`
+    // 을 넣어 생긴 구멍이 정확히 그것이다.
+    //
+    // **전면 금지 뒤에 하나만 연다.** `(deny process-exec*)` 만 두면 `sandbox-exec` 가
+    // 캡슐 본체(node)조차 못 띄운다(실측). 순서가 곧 우선순위이므로 막고 나서 그 하나만
+    // 도로 연다 — `child_process` 는 `/bin/sh` 를 띄우므로 여전히 막힌다.
+    ...(mode === 'capsule'
+      ? ['(deny process-exec*)', ...(runtime ? [`(allow process-exec* (literal ${lit(runtime)}))`] : [])]
+      : []),
     '(deny file-write*)',
     // 출력·터미널은 열어 둔다 — 이걸 막으면 명령이 화면에 아무 말도 못 한다.
     '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',

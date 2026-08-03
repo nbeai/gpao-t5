@@ -242,8 +242,12 @@ export function executionBlock(r) {
   return { kind: 'code', why: 'failed', userWhy: '명령이 오류로 끝났어요' };
 }
 
-/** 자식에게 넘기지 않을 환경변수. 명령 하나가 `env` 만 찍어도 토큰이 화면에 나온다. */
-function redactEnv(env) {
+/**
+ * 자식에게 넘기지 않을 환경변수. 명령 하나가 `env` 만 찍어도 토큰이 화면에 나온다.
+ * **한 자리에서 나온다** — 캡슐(S4)도 같은 규칙을 써야 하므로 내보낸다. 두 곳에 적으면
+ * 언젠가 갈리고, 갈리는 쪽이 비밀을 흘린다.
+ */
+export function redactEnv(env) {
   const out = {};
   for (const [k, v] of Object.entries(env)) {
     if (/(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|COOKIE|SESSION)/i.test(k)) continue;
