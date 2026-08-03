@@ -436,14 +436,24 @@ export const MODEL_PROVIDERS = {
       'x-api-key': cfg.token,
       'anthropic-version': '2023-06-01',
     }),
+    // **캐시 경계는 이미 그어져 있었다. 스위치만 안 켜져 있었다.**
+    // `buildModelMessages` 는 정체성·헌장을 위에, 매 턴 바뀌는 것(시각·승인 대기)을 맨 뒤로
+    // 두는 규율을 지킨다. 그런데 `cache_control` 마커가 **0건**이라 Anthropic 은 그 접두를
+    // 재사용할 수 없었다(실측 2026-08-03: 입력 49,505 토큰 중 캐시 17,024 — OpenAI 의
+    // 자동 프리픽스 캐싱이 낸 것이고, Anthropic 은 명시 마커가 없으면 0 이다).
+    //
+    // 두 자리에 건다: **도구 목록**(21개, 매 턴 같다)과 **system**(정체성·헌장·환경).
+    // 모델이 보는 것은 하나도 줄지 않는다 — 같은 것을 두 번 청구하지 않을 뿐이다.
     body: (cfg, m, opts = {}) => JSON.stringify({
       model: cfg.modelId,
       max_tokens: cfg.maxTokens,
-      system: m.system,
+      system: [{ type: 'text', text: m.system, cache_control: { type: 'ephemeral' } }],
       messages: [...openaiHistory(m), { role: 'user', content: m.user }, ...anthropicExchange(m)],
       ...(opts.tools?.length ? {
-        tools: opts.tools.map((t) => ({
+        tools: opts.tools.map((t, i) => ({
           name: wireToolName(t.name), description: t.description, input_schema: t.parameters,
+          // 마지막 하나에만 건다 — 그 앞이 통째로 접두가 된다(도구 목록은 매 턴 같다).
+          ...(i === opts.tools.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}),
         })),
       } : {}),
       ...(requiredWireTool(opts) ? {
