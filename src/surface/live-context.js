@@ -232,7 +232,12 @@ export function liveDeps(processEnv = {}, deps = {}) {
 
   descriptors.push(defineTool({
     id: 'connector.declare', label: '새 서비스 붙이기', owner: 'core',
-    availability: [{ kind: 'connected' }], toolKind: 'connect_account', needsApproval: true,
+    // **헌장(2026-08-03): 여기도 승인을 미리 달지 않는다.** 위 `connector.connect` 와 같은 이유인데,
+    // 오너가 든 그 카드는 정확히 **이 도구**의 것이었다(라이브 실측 2026-08-03: connect 만 걷고
+    // declare 를 놓쳐 카드가 그대로 떴다). 붙일 준비는 아무 것도 바꾸지 않는다 — 카드 자신이
+    // "지금은 아무 값도 저장되지 않아요"라고 적으면서 승인을 물었다. 비밀값이 필요한 순간은
+    // 헌장 ① 이고 안전 입력면이 따로 열린다. 되돌리기는 "연결 끊어줘" 한 마디다.
+    availability: [{ kind: 'connected' }], toolKind: 'connect_account', reversible: true,
     capability: '아직 T5 에 선언되지 않은 외부 서비스를, 그 서비스의 원격 MCP 나 공개 API 로'
       + ' 연결할 수 있게 준비한다. 준비되면 선언돼 있던 서비스와 똑같이 승인·동의·안전 입력면·'
       + ' 도구 편입을 거쳐 연결된다. 비밀값은 이 도구가 받지 않는다 — 안전 입력면이 따로 열린다.',

@@ -6,8 +6,12 @@
 //      되돌리기 가능 여부를 **종류로 추측**한 결과다. 그건 도구가 아는 사실이다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildActionPlan, describeAction } from '../src/kernel/l2-plan/action-plan.js';
-import { explainAuthority, grantFor as authorityGrant } from '../src/kernel/l2-plan/authority.js';
+import { explainAuthority, grantFor as authorityGrant, decideAutoGrant } from '../src/kernel/l2-plan/authority.js';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { interpret } from '../src/kernel/l1-intent/intent.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv } from '../src/surface/demo-context.js';
@@ -41,14 +45,33 @@ test('"무엇이 바뀌나"가 일반론이 아니라 같은 사실을 쓴다', 
   assert.ok(!/상태가 바뀌어요/.test(g.reason.whatChanges), '정책문 금지');
 });
 
-// **자동으로 한 일도 무엇을 했는지 말한다.** 헌장이 카드를 걷은 자리를 메우는 문장이다 —
-// 예전엔 삭제·연결·자동화가 전부 "되돌릴 수 있는 가벼운 정리"라는 한 문장을 달고 나갔다(실측).
-test('자동으로 실행한 일은 무엇을 했는지와 되돌릴 길을 함께 말한다', () => {
-  const del = authorityGrant({ kind: 'delete', revocable: true }).reason;
-  assert.match(del.why, /휴지통/, `자동 삭제 설명이 사실을 안 말한다: ${del.why}`);
-  assert.ok(!/가벼운 정리/.test(del.why), '삭제는 가벼운 정리가 아니다');
-  const conn = authorityGrant({ kind: 'connect_account' }).reason;
-  assert.ok(!/가벼운 정리/.test(conn.why), `연결이 가벼운 정리로 설명된다: ${conn.why}`);
+// **자동으로 한 일도 무엇을 했는지 말한다.** 헌장이 카드를 걷은 자리는 비우는 자리가 아니다.
+//
+// 이 계약을 처음엔 `authority` 의 종류별 고정표(`WHY_AUTO`)로 쟀는데, 라이브 관통(2026-08-03)에서
+// **그 표가 화면에 한 글자도 닿지 않는다**는 것이 드러났다 — `buildActionPlan` 이 자동 grant 를
+// 통째로 버리기 때문이다. 검사는 초록인데 제품에는 없었다. 계약은 그대로 두고 **앵커를 사용자에게
+// 실제로 도달하는 물건**으로 옮긴다: 자동으로 도는 손이 스스로 낸 문장(영수증)이다.
+// 라이브에서 화면에 실제로 뜬 것이 이것이다 — "지울것.txt 을(를) 지웠어요(되돌릴 수 있어요)."
+test('자동으로 실행한 삭제는 영수증이 무엇을 했는지와 되돌릴 길을 함께 말한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'auto-wording-'));
+  await writeFile(join(dir, '회의록.md'), '내용\n', 'utf8');
+  const 손 = makeLocalFileTool({ dataDir: dir, roots: [dir], homeDir: dir });
+
+  // 이 삭제는 자동으로 돈다(손 선언이 되돌림을 밝혔다) — 카드가 없으므로 이 문장이 유일한 안내다.
+  const 선언 = buildSelfState(demoEnv()).connectedTools.find((t) => t.id === 'local.file');
+  assert.equal(선언?.reversible, true, '전제: 손이 되돌림을 선언한다');
+  assert.equal(decideAutoGrant({ kind: 'delete', revocable: 선언.reversible }), true, '전제: 이 삭제는 자동이다');
+
+  const r = await 손.handler({ action: 'delete', path: join(dir, '회의록.md') });
+  const 말 = r.userSafeSummary ?? '';
+  assert.match(말, /회의록\.md/, `무엇을 했는지 대상을 말하지 않았다: ${말}`);
+  assert.match(말, /지웠|삭제/, `한 일을 말하지 않았다: ${말}`);
+  assert.match(말, /되돌/, `되돌릴 길을 말하지 않았다: ${말}`);
+  assert.ok(!/가벼운 정리/.test(말), '삭제는 가벼운 정리가 아니다');
+
+  // 그리고 그 문장이 참이어야 한다 — 원본이 실제로 남아 있어야 되돌릴 수 있다.
+  const 남은것 = await readdir(join(dir, '.trash')).catch(() => []);
+  assert.ok(남은것.some((n) => n.includes('회의록.md')), '되돌릴 수 있다고 말했는데 원본이 없다');
 });
 
 test('대상이 없으면 지어내지 않고 도구 이름으로 떨어진다', () => {

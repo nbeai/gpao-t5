@@ -1107,6 +1107,13 @@ export const MUTATIONS = [
   { 이름: '덮어쓰기가 이전 내용을 휴지통에 남기지 않음(되돌림 없는 파괴)', 파일: 'src/runtime/local-file.js', 검사: 'test/local-file.test.js',
     찾기: '          const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)',
     바꾸기: '          const parked = null;' },
+  // ── 손 선언이 헌장을 되돌리는 자리 ──────────────────────────────────────
+  // 라이브 실측(2026-08-03): 권한 층이 자동으로 판정해도 손이 `needsApproval` 을 미리 달면
+  // 화면에는 카드가 그대로 뜬다. 그때 `connector.connect` 만 걷고 `connector.declare` 를
+  // 놓쳤는데 오너가 든 카드는 정확히 놓친 쪽이었고, 회귀 2,088 건이 전부 초록이었다.
+  { 이름: '손이 헌장 자동 종류에 승인을 다시 달아 화면에 카드가 뜸', 파일: 'src/surface/live-context.js', 검사: 'test/live-descriptor-charter.test.js',
+    찾기: "    availability: [{ kind: 'connected' }], toolKind: 'connect_account', reversible: true,",
+    바꾸기: "    availability: [{ kind: 'connected' }], toolKind: 'connect_account', needsApproval: true," },
 ];
 
 /**

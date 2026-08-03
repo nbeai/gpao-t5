@@ -169,12 +169,22 @@ test('연결 카드는 전송이 아니라 연결이라고 말한다', async () 
   // 카드가 오너가 든 마찰 6장 중 하나였다.
   // **재는 계약은 그대로다** — 이 손이 하는 일을 사용자에게 정확히 말하는가.
   // 없는 전송을 말하면 안 되고, 무엇을 했는지가 사실이어야 한다.
-  const r = explainAuthority({ kind: 'connect_account', preview: tool.previewOf(선언()) });
+  //
+  // 앵커는 **손이 낸 미리보기**다. 예전엔 `authority` 의 종류별 고정표를 쟀는데, 라이브 관통
+  // (2026-08-03)에서 그 표가 화면에 닿지 않는다는 것이 드러났다 — 자동으로 판정된 grant 는
+  // 통째로 버려진다. 화면에 실제로 뜨는 문장은 이 미리보기이고, 그쪽이 언제나 더 많이 안다.
+  const preview = tool.previewOf(선언());
+  const r = explainAuthority({ kind: 'connect_account', preview });
   assert.equal(r.needsApproval, false, '연결 준비는 헌장 넷이 아니다');
-  assert.ok(!/보내는 일/.test(r.why), `없는 전송을 말했다: ${r.why}`);
-  assert.ok(!/가벼운 정리/.test(r.why), `연결을 가벼운 정리로 뭉갰다: ${r.why}`);
-  assert.match(r.why, /붙일 준비|연결/, `무엇을 했는지 말하지 않았다: ${r.why}`);
-  assert.match(r.why, /비밀값|입력창/, '사람이 넘을 문턱이 어디인지 말해야 한다');
+
+  const 말 = [preview.impact, preview.what, preview.cancel].filter(Boolean).join(' ');
+  assert.ok(!/보내는 일|메시지를 실제로 밖으로/.test(말), `없는 전송을 말했다: ${말}`);
+  assert.ok(!/가벼운 정리/.test(말), `연결을 가벼운 정리로 뭉갰다: ${말}`);
+  assert.match(말, /붙일 준비|연결/, `무엇을 하는지 말하지 않았다: ${말}`);
+  assert.match(말, /비밀|값|입력|로그인/, `사람이 넘을 문턱이 어디인지 말해야 한다: ${말}`);
+  // 그리고 그 문장이 사용자에게 도달하는 자리(`whatChanges`)에 그대로 실려야 한다 —
+  // 여기서 일반론으로 갈리면 화면과 손이 두 개의 진실을 말하게 된다.
+  assert.equal(r.whatChanges, preview.impact, '손이 낸 사실 대신 일반론이 화면에 갔다');
 });
 
 // ── 원격 MCP 길 ──────────────────────────────────────────────────────────
