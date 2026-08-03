@@ -105,7 +105,7 @@ const 무시 = [
   /^design\//, /^docs\//, /^test\//, /^scripts\/s1\//, /^scripts\/live\//,
   // 게이트는 **검사 하네스**다 — 제품 행동이 아니라 검사 자체이므로 팔의 차이가 아니다.
   // (§S3 에서 "조용한 절단 금지" 매듭을 여기 묶었다.)
-  /^scripts\/gate\.mjs$/,
+  /^scripts\/gate\.mjs$/, /^scripts\/gate-baseline\.json$/,
   /^AGENTS\.md$/, /^README\.md$/, /\.md$/,
 ];
 
