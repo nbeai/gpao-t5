@@ -99,7 +99,9 @@ test('브라우저는 DOM paint 뒤 표시를 보고하고 최종 투영 뒤에 
   assert.match(html, /turn_complete/);
 
   const submit = html.slice(html.indexOf('async function submit()'), html.indexOf('function renderRecovery'));
-  const projection = submit.indexOf('await 대화투영');
+  // 투영은 스크롤 자리를 지키는 래퍼 안에서 불릴 수 있다(맨 위로 튀는 것을 막는 `자리지키며`).
+  // 계약은 **투영이 완료 보고보다 먼저**라는 순서지 호출 모양이 아니므로 이름으로만 찾는다.
+  const projection = submit.indexOf('대화투영');
   assert.ok(projection >= 0 && projection < submit.indexOf('await streamed.reportComplete()', projection),
     '지속된 최종 답이 화면에 투영된 뒤 완료 표시를 보고해야 한다');
   // P90-2 후속: 첫 유용한 내용은 두 경로에서 선다 — 답 조각(answer_delta)과

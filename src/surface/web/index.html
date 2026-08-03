@@ -1016,6 +1016,26 @@ const logEl = document.getElementById('log');
 /** 이미 아래쪽을 보고 있을 때만 따라간다 — 위로 올려 읽는 중이면 낚아채지 않는다. */
 function nearBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120; }
 function scrollToBottom(force = false) { if (force || nearBottom()) logEl.scrollTop = logEl.scrollHeight; }
+
+/**
+ * 대화를 **통째로 갈아끼울 때** 보던 자리를 지킨다.
+ *
+ * 실측(2026-08-03, 팀원): 답이 하나 끝날 때마다 화면이 맨 위 대화로 튀었다. `대화투영` 이
+ * `wrap.innerHTML = ''` 로 전부 새로 그리면 스크롤이 0 이 되는데, 그 뒤에 부르는
+ * `scrollToBottom()` 은 **새 DOM 을 재서** "사용자가 위쪽을 보고 있다"고 판정해 버린다.
+ * 그래서 아무 것도 안 하고, 사용자는 맨 위에 남는다.
+ *
+ * 그러니 "따라 보고 있었는가"는 **갈아끼우기 전에** 재야 한다. 위로 올려 읽던 중이었다면
+ * 그 자리를 되돌려 준다 — 읽던 곳을 잃는 것도 맨 위로 튀는 것만큼 나쁘다.
+ */
+async function 자리지키며(그리기) {
+  const 따라보고있었다 = nearBottom();
+  const 보던자리 = logEl.scrollTop;
+  const r = await 그리기();
+  if (따라보고있었다) logEl.scrollTop = logEl.scrollHeight;
+  else logEl.scrollTop = Math.min(보던자리, logEl.scrollHeight);
+  return r;
+}
 function add(node) { wrap.appendChild(node); scrollToBottom(); return node; }
 function turnBox() { const t = el('turn'); add(t); return t; }
 function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); b.appendChild(el('msg bot', t)); }
@@ -1270,8 +1290,7 @@ async function 대화투영(s) {
 /** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
 async function 대화다시그리기() {
   if (!currentSessionId) return;
-  await 대화투영(await (await fetch('/sessions/' + currentSessionId)).json());
-  scrollToBottom();
+  await 자리지키며(async () => 대화투영(await (await fetch('/sessions/' + currentSessionId)).json()));
 }
 
 async function selectSession(id) {
@@ -1835,8 +1854,8 @@ async function submit() {
     }
     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
-    await 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json());
-    scrollToBottom(); // 최종 결과로 교체된 뒤에도 아래를 보고 있게
+    // 통째로 갈아끼우므로 "따라 보고 있었는가"를 **미리** 재야 한다(아래 자리지키며 주석).
+    await 자리지키며(async () => 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json()));
     await streamed.reportComplete();
     await loadSessions();
   } catch {

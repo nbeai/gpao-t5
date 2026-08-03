@@ -273,8 +273,9 @@ test('현재 발화와 같은 write 후보가 둘이면 하나를 임의 선택�
     },
   };
   const r = await runTurn({ text: '결과.md로 저장해줘.' }, ctx(model));
-  assert.equal(r.kind, 'reply');
-  assert.match(r.reply, /지금 할 일만/);
+  // 계약은 그대로다 — 코드가 둘 중 하나를 조용히 고르지 않는다.
+  assert.equal(r.kind, 'approval', `막다른 답으로 닫혔다: ${r.reply ?? r.kind}`);
+  assert.doesNotMatch(r.reply ?? '', /지금 할 일만/);
 });
 
 test('산출물 의무: 모델이 처음부터 write 를 골라도 완료 형태를 독립 판단한 뒤 승인에 오른다', async () => {
@@ -385,4 +386,42 @@ test('산출물 의무: 전용 판단 형식이 두 번 깨지면 CHAT 으로 �
   assert.equal(contractCalls, 2);
   assert.notEqual(r.workingState?.recentOutcome?.status, 'completed',
     '판단 불능을 CHAT 으로 꾸며 완료 처리했다');
+});
+
+// ── 팀원 실사용 차단 루프 (2026-08-03) ─────────────────────────────────
+//
+// 실측: 팀원이 "지금까지 나눈 대화내용 txt 파일로 저장해서 나에게 공유해줘" 를 두 번 보냈고,
+// 두 번 다 같은 문장으로 막혔다 — "앞선 미완료 작업과 지금 요청이 함께 잡혔어요.
+// 지금 할 일만 한 번 더 말씀해 주세요."
+//
+// 이건 되묻기가 아니라 **막다른 답**이다. 사용자가 같은 말을 다시 해도 같은 자리로 돌아온다.
+// 이 경계의 목적은 "지난 미완료 행동을 지금 실행하지 않는 것"이었고, 그 목적은 지난 것을
+// 버리는 것으로 이미 달성된다. 사람에게 되묻는 것은 목적이 아니었다.
+test('판정이 흔들려도 같은 문장으로 두 번 막지 않는다 — 막다른 답 금지', async () => {
+  const root = await 임시루트();
+  const { ctx } = 손과기록(root);
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.currentActionAssessment) return { text: '', toolCalls: [] };  // 구조 판정 불능
+      if (tc?.workContractAssessment) return 'FILE';
+      if (opts.tools?.length) return {
+        text: '',
+        // 지난 대화의 미완료 행동 + 이번 요청이 함께 잡힌 실제 모양
+        toolCalls: [
+          { name: 'local.file', args: { action: 'read', path: '견적서.md' } },
+          { name: 'local.file', args: { action: 'write', path: '대화기록.txt', text: '지금까지의 대화' } },
+        ],
+      };
+      return '정리했어요.';
+    },
+  };
+  // 사용자 문장에 파일 **이름이 없다** — 팀원이 실제로 쓴 그대로다.
+  const 말 = '지금까지 나눈 대화내용 txt 파일로 저장해서 나에게 공유해줘.';
+  const 첫번째 = await runTurn({ text: 말 }, ctx(model));
+  assert.doesNotMatch(첫번째.reply ?? '', /지금 할 일만 한 번 더/,
+    `첫 요청이 막다른 답으로 닫혔다: ${첫번째.reply ?? 첫번째.kind}`);
+
+  const 두번째 = await runTurn({ text: 말 }, ctx(model));
+  assert.doesNotMatch(두번째.reply ?? '', /지금 할 일만 한 번 더/,
+    '같은 문장을 다시 말해도 같은 자리로 돌아왔다 — 사용자가 빠져나갈 길이 없다');
 });

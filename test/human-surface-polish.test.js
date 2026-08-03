@@ -166,3 +166,26 @@ test('HRT-RF-004: 현재 대화 행은 레이아웃을 차지하지 않는 가�
   assert.doesNotMatch(선[0], /content:\s*['"][^'"]+['"]/,
     '표지에 글자를 넣으면 "현재" 배지가 된다 — 금지선');
 });
+
+// 실측(2026-08-03, 팀원 실사용): 전달된 답 **마지막 줄**에 통제 표식이 그대로 나갔다 —
+//   memory.cite: "현재 목표: 설정에 있는 텔레그램 메신저 연결이 작동을 안해서 …"
+// 접두어만 보고 있어서 답 끝에 붙은 것은 걸리지 않았다. 통제 표식은 OS 와 모델 사이의
+// 말이지 사람에게 하는 말이 아니다 — 어디에 붙든 사람 눈에는 닿지 않아야 한다.
+test('통제 표식은 답 끝에 붙어도 사람 눈에 닿지 않는다', async () => {
+  const { userFacingModelText } = await import('../src/kernel/turn-surface.js');
+  const 답 = [
+    '좋아요. 지금 상태는 이렇게 정리할게요.',
+    '',
+    '- 봇 정보 확인됨',
+    '- chat_id 확인됨',
+    '',
+    'memory.cite: "현재 목표: 텔레그램 메신저 연결이 작동을 안 해서 요청하는 건데"',
+  ].join('\n');
+  const 보이는것 = userFacingModelText(답);
+  assert.doesNotMatch(보이는것, /memory\.cite/, '내부 표식이 사용자 답에 남았다');
+  assert.match(보이는것, /봇 정보 확인됨/, '표식을 지우다가 사람 문장까지 지웠다');
+  assert.doesNotMatch(보이는것, /\n{3,}/, '지운 자리에 빈 줄이 쌓였다');
+  // 접두어 형태는 기존 계약 그대로 — **표식만 떼고 뒤 문장은 사람에게 간다.**
+  // 답 전체가 표식으로 시작하는 경우라 그 뒤는 사용자에게 할 말이기 때문이다.
+  assert.equal(userFacingModelText('memory.propose: 기억해둘게요'), '기억해둘게요');
+});

@@ -18,10 +18,19 @@
 // 여기는 **무엇이 언제** 나가는가다.
 import { 확인된사실 } from './l0-evidence/ledger.js';
 
-const INTERNAL_CONTROL_PREFIX = /^\s*(?:memory\.(?:propose|cite|correction|withdraw)|skill\.propose|automation\.propose|agent\.propose)\s*:\s*/i;
+const 통제이름 = '(?:memory\\.(?:propose|cite|correction|withdraw)|skill\\.propose|automation\\.propose|agent\\.propose)';
+const INTERNAL_CONTROL_PREFIX = new RegExp(`^\\s*${통제이름}\\s*:\\s*`, 'i');
+// **답 끝에 붙어도 지운다.** 앞에만 보던 시절, 팀원 실사용에서 답 마지막 줄에
+// `memory.cite: "현재 목표: …"` 가 그대로 나갔다(실측 2026-08-03). 통제 표식이 어디에
+// 붙든 그건 OS 와 모델 사이의 말이지 사람에게 하는 말이 아니다. 줄 단위로 걷어낸다.
+const INTERNAL_CONTROL_LINE = new RegExp(`^[ \\t>*-]*${통제이름}\\s*:.*$`, 'gim');
 
 export function userFacingModelText(value) {
-  return String(value ?? '').replace(INTERNAL_CONTROL_PREFIX, '').trim();
+  return String(value ?? '')
+    .replace(INTERNAL_CONTROL_PREFIX, '')
+    .replace(INTERNAL_CONTROL_LINE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /**
