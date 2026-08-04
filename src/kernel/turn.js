@@ -499,13 +499,19 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
   const 검증 = 완료주장검증({ reply, receipts, 이미돌려줬나: Boolean(ctx.출구되돌림) });
   if (검증.일치) return reply;
   ctx.출구되돌림 = true;
+  // **검증이 답을 잡아먹지 않는다.** 이 왕복이 실패해도 답은 이미 만들어져 있다 —
+  // 여기서 예외를 그대로 올리면 공급자가 한 번 트림한 것 때문에 멀쩡한 답이 통째로
+  // "연결이 잠시 끊겼어요"로 바뀐다(라이브 실측 2026-08-04, `live:charter` 에서 잡혔다:
+  // anthropic 이 빈 스트림을 냈고 그 예외가 답 경로 전체를 무너뜨렸다).
+  //
+  // 출구 검증은 **그물이지 관문이 아니다.** 그물이 찢어졌다고 지나가던 것을 버리지 않는다.
   const 다시 = await ctx.model.respond({
     ...tc,
     // 지시가 아니라 **원장의 사실**이다. `answerOnly` 로 손은 안 준다 — 지금 필요한 것은
     // 새 행동이 아니라 방금 한 일을 정직하게 말하는 것이다.
     answerOnly: true,
     completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
-  }, { onDelta: ctx.onAnswerDelta, effort: 'medium' });
+  }, { onDelta: ctx.onAnswerDelta, effort: 'medium' }).catch(() => null);
   const 고친답 = userFacingModelText(typeof 다시 === 'string' ? 다시 : (다시?.text ?? ''));
   return 고친답.trim() ? 고친답 : reply;
 }

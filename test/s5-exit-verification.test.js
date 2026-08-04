@@ -185,3 +185,28 @@ test('턴 출구: 실제로 한 일이 있으면 되돌리지 않는다(왕복�
   assert.equal(받은칸.some((tc) => tc?.completionMismatch), false,
     '읽고 답한 정상 턴을 되돌렸다 — 과잉 차단은 반대 방향의 거짓이다');
 });
+
+// ── ⑥ 검증은 **그물이지 관문이 아니다** ────────────────────────────────────
+//
+// 라이브 실측(2026-08-04 `live:charter`): 되돌림 왕복에서 anthropic 이 빈 스트림을 냈고,
+// 그 예외가 답 경로 전체를 무너뜨려 **멀쩡한 답이 "연결이 잠시 끊겼어요"로 바뀌었다.**
+// 검증은 거짓을 막으려고 있는 것이지 답을 없애려고 있는 것이 아니다.
+test('되돌림 왕복이 실패해도 **답은 살아남는다**', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 's5-exit-net-'));
+  let 되돌림시도 = false;
+  const model = {
+    async respond(tc) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (tc?.completionMismatch) { 되돌림시도 = true; throw new Error('empty response stream'); }
+      return '정리 끝냈어요.';
+    },
+  };
+  const r = await runTurn({ text: '정리해줘' }, {
+    env: demoEnv({ include: ['local.file'], hands: ['local.file'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    model,
+  });
+  assert.ok(되돌림시도, '이 시험이 성립하려면 되돌림이 한 번은 시도돼야 한다');
+  assert.match(String(r.reply ?? ''), /끝냈어요/,
+    '검증 왕복 하나가 트림했다고 답 전체가 사라졌다 — 그물이 관문이 됐다');
+});
