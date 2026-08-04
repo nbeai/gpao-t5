@@ -602,6 +602,9 @@ export async function runTurn(input, ctx) {
   const selfhood = {
     identity, capabilityCounts: capCounts, selfhoodDetail, voice,
     runtimeEnvironment: ctx.runtimeEnvironment,
+    // **집 문서**(S4) — 사용자가 열어 고치는 지침·자기소개. 말투와 같은 수명(매 세션)이고
+    // 같은 규율을 받는다: 사용자가 지우면 안 실린다. 그게 사용자의 주도권이다.
+    ...(ctx.homeDocs && (ctx.homeDocs.지침 || ctx.homeDocs.사용자) ? { homeDocs: ctx.homeDocs } : {}),
   };
   ctx.identityUpdate = identityUpdate; // executePlan 경계를 넘겨 결과에 함께 실린다
   ctx.selfhood = selfhood;

@@ -33,6 +33,7 @@ import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { ModelConnectionStore } from './model-connection.js';
 import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
 import { SelfhoodStore } from './selfhood-store.js';
+import { agentHomeDir, seedAgentHome, readHomeDocs } from './agent-home.js';
 import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
@@ -318,6 +319,9 @@ export function makeServer(deps = {}) {
   // 바뀌면 갱신한다. 모델에겐 상시 요약만 가고 상세는 물어봤을 때만 간다(turn 이 판단).
   const selfhoodStore = deps.selfhoodStore ?? new SelfhoodStore(store.dir);
   let selfhoodDocs = { soul: null, capabilities: null };
+  // **집 문서**(S4) — 사용자가 자기 컴퓨터에서 열어 고치는 지침·자기소개.
+  // 설정·상태(`store.dir`)와 **다른 자리**다. 매 세션 실리고 예산이 걸려 있다.
+  let homeDocs = {};
   let identity = { ...DEFAULT_IDENTITY };
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
@@ -524,7 +528,7 @@ export function makeServer(deps = {}) {
     }) : tools;
     return {
       env, model: turnModel, tools: turnTools, ledger, pending, knownCounterparts, 지난현실지문,
-      identity, selfhoodDocs,
+      identity, selfhoodDocs, homeDocs,
       runtimeEnvironment: deps.runtimeEnvironment,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
       connectors: deps.connectors ?? demoConnectors(),
@@ -2325,7 +2329,11 @@ export function makeServer(deps = {}) {
     const loaded = await selfhoodStore.load();
     selfhoodDocs = { soul: loaded.soul, capabilities };
     identity = loaded.identity;
-    return { identity, selfhoodDocs };
+    // 집은 처음 한 번 씨앗을 놓고, 그 뒤로는 **사용자가 고친 것을 그대로 읽는다.**
+    const 집 = agentHomeDir(deps.processEnv ?? process.env);
+    await seedAgentHome(집).catch(() => false);
+    homeDocs = await readHomeDocs(집).catch(() => ({}));
+    return { identity, selfhoodDocs, homeDocs };
   };
   // 승인이 필요한 일은 채널에서 자동으로 실행하지 않는다. 무엇을 하려는지·왜 멈췄는지만 알린다 —
   // 승인은 T5 화면에서 받는다(밖에서 "네" 한 마디로 외부 효과가 나가면 안 된다).

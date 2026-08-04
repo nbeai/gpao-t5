@@ -437,6 +437,9 @@ export function buildTaskContext(p) {
   };
 
   const packet = {
+    // **집 문서**(S4) — 사용자가 자기 컴퓨터에서 열어 고치는 파일. 매 세션 실린다.
+    // 지시가 아니라 **사용자의 뜻**이고, 이번 턴 사실(원장)과 다른 자리에 놓인다.
+    ...(p.homeDocs && (p.homeDocs.지침 || p.homeDocs.사용자) ? { homeDocs: p.homeDocs } : {}),
     // P-ID-1: 자기인지. identity 는 매 턴(짧게), selfhoodDetail 은 물어봤을 때만(문서에서 꺼낸 대목).
     identity: p.identity,
     capabilityCounts: p.capabilityCounts,

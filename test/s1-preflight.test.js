@@ -105,5 +105,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/prompt-dump.js',
     // F-15(2026-08-05) — 거짓 성공 게이트를 문구가 아니라 뒷받침 없는 구체 사실로 판정한다.
     'src/kernel/l2-plan/recovery-ladder.js',
+    // S4 집(2026-08-05) — 사용자가 열어 고치는 지침·자기소개. 매 세션 실리고 예산이 있다.
+    'src/surface/agent-home.js',
   ]);
 });
