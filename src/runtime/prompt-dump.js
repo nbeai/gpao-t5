@@ -72,6 +72,31 @@ export async function dumpModelOutput(출력, env = process.env) {
 }
 
 /**
+ * **이 턴에 무엇을 줬고 무엇을 왜 걸렀는가** — 손 제시 계측(오너 지시 2026-08-05).
+ *
+ * S7 은 손 집합 자체를 상황에서 계산하는 칸이라, 틀려도 화면에 안 나타난다.
+ * *"모델이 요즘 좀 이상한데"* 로만 보인다 — S6 은 216칸 표가 잡았지만 여기는 잡을 표가 없다.
+ * **안 준 손은 흔적이 없다**는 것이 그 이유다. 그래서 거른 사실 자체를 기록으로 만든다.
+ *
+ * 원장에 안 넣는 이유: 원장은 **영수증 전용**이다(`확인된사실` 이 영수증 칸을 읽는다).
+ * 실행이 아닌 것을 거기 넣으면 사용자가 보는 "확인한 것 / 못 한 것"이 오염된다.
+ * S0 덤프가 이미 "모델이 실제로 받은 것"을 남기는 자리라 여기가 맞다.
+ *
+ * @param {{전부:number, 준수:number, 거른수:number, 준것:string[],
+ *          거른것:Array<{id:string,이유:string}>, 이유별:Object}} 기록
+ */
+export async function dump손제시(기록, env = process.env) {
+  const dir = promptDumpDir(env);
+  if (!dir) return null;
+  일련 += 1;
+  const 파일 = join(dir, `${String(일련).padStart(4, '0')}-손제시-${Date.now()}.json`);
+  await mkdir(dir, { recursive: true });
+  // 손 이름과 이유만 남긴다 — 인자도 결과도 담지 않으므로 가릴 것이 없다.
+  await writeFile(파일, `${JSON.stringify({ at: new Date().toISOString(), kind: 'tool_offer', ...기록 }, null, 2)}\n`, 'utf8');
+  return 파일;
+}
+
+/**
  * 모델 입력 한 건을 남긴다. 꺼져 있으면 `null` 을 돌려주고 아무것도 하지 않는다.
  * @param {{messages: any, tools?: {name?: string}[], meta?: Object}} 입력
  * @param {Object} [env]

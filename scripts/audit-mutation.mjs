@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S7 착수 조건 ① — **손 제시 계측.** S7 은 틀려도 안 보이는 칸이라 계측이 유일한 눈이다.
+  // 계측기가 실제와 다른 것을 재면 원인이 아니라 또 하나의 거짓이 된다.
+  { 이름: '계측기가 모델이 받는 목록 대신 자기 기준으로 셈(기록이 실제와 갈림)',
+    파일: 'src/kernel/l2-plan/tool-offer.js', 검사: 'test/s7-offer-instrument.test.js',
+    찾기: '  const 준것 = toolSchemasFor(selfState).map((t) => t.name).filter(Boolean);',
+    바꾸기: '  const 준것 = 전부.filter((t) => t?.executable).map((t) => t.id);' },
+  { 이름: '거른 손의 이유를 지어냄(모르는 것을 안다고 적음)',
+    파일: 'src/kernel/l2-plan/tool-offer.js', 검사: 'test/s7-offer-instrument.test.js',
+    찾기: "  return 'unknown';",
+    바꾸기: "  return 'needs_connection';" },
   // S6-c 10번(실행) — **열 판정의 마지막.** 앞의 아홉이 옳아도 여기서 다른 것을 실행하면
   // 전부 무의미해진다. 오대상 실행 · 중복 실행 · 원장 불일치가 한자리에 걸린다.
   { 이름: '계획 레인이 모델 인자 대신 발화 원문으로 실행(오대상 실행)', 파일: TURNJS,

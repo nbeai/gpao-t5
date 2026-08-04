@@ -18,6 +18,8 @@ import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { 실행전판정, 승인면제 } from './l2-plan/tool-boundary.js';
+import { 손제시기록 } from './l2-plan/tool-offer.js';
+import { dump손제시 } from '../runtime/prompt-dump.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
@@ -612,6 +614,17 @@ export async function runTurn(input, ctx) {
   // 모델이 고른다(§24). 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다.
   // executePlan 은 input 을 안 받으므로 ctx 에 실어 둔다(askedFrom 과 같은 이유).
   const { selfState, summary } = refreshRuntimeReality(ctx);
+
+  // **이 턴에 무엇을 줬고 무엇을 왜 걸렀는지를 남긴다**(S7 착수 조건 · 오너 지시 2026-08-05).
+  //
+  // *"안 준 손은 흔적이 없다."* 지금은 손 스물 몇 개 중 몇 개만 모델에게 가고, **안 준 사실이
+  // 어디에도 안 남는다.** S7 은 그 집합을 상황에서 계산하는 칸이라, 틀려도 화면에 안 나타나고
+  // "모델이 요즘 좀 이상한데"로만 보인다. S6 은 216칸 표가 잡았지만 여기는 잡을 표가 없다.
+  //
+  // 판정하지 않는다 — 이미 난 결정을 **볼 수 있게** 만들 뿐이다(S0 가 S1 을 살린 그 자리).
+  // 덤프가 꺼져 있으면 아무 일도 하지 않는다(`promptDumpDir` 이 null 이면 즉시 반환).
+  void dump손제시(손제시기록(selfState, ctx.modelControls ?? []), ctx.processEnv ?? process.env)
+    .catch(() => null);   // 계측이 본선을 세우지 않는다
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).
   //   · 이름을 지어 주면 **이번 턴부터** 그 이름으로 답한다(지속은 서버가 identityUpdate 로).
