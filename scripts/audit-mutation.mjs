@@ -1153,12 +1153,16 @@ export const MUTATIONS = [
     // 검사도 옮긴다 — `s6-two-paths-one-answer` 가 **두 경로가 같은 답을 내는지**까지 잰다
     // (규율 12: 개수가 아니라 계약을 잰다).
     검사: 'test/s6-two-paths-one-answer.test.js',
+    // 2026-08-05: 계획 경로에도 게이트 사실(이월·발화밖)을 넘기며 인자가 늘었다 — 겨냥만 맞춘다.
+    // **재는 것은 그대로다**: 아는 상대인데 계획 경로에서 또 묻는가.
     찾기: `    if (승인면제({
       toolId: sendGrant.action,
       판정인자: { target: parsed.target },
       허락한손: ctx.허락한손,
       knownCounterparts: ctx.knownCounterparts,
       전송인가: true,
+      이번이월: 이월행동({ name: sendGrant.action, args: { target: parsed.target } }, 이월된것),
+      발화밖: 발화밖파괴(파괴판정({ name: sendGrant.action, args: { target: parsed.target } }), 이번발화),
     }).면제) {`,
     바꾸기: '    if (false) {' },
   { 이름: '사람이 허락한 상대를 기억하지 않음(다음 턴이 이어받지 못함)', 파일: 'src/kernel/turn.js', 검사: 'test/known-counterpart.test.js',
