@@ -1114,6 +1114,24 @@ export async function runTurn(input, ctx) {
       planIntent = { ...planIntent, toolArgs: parts.toolArgs };
     }
   }
+  // **뒤로 미룬 손을 정규식이 대신 세우지 않는다**(S6-c 6번).
+  //
+  // 밟은 사실(2026-08-05): 지난 턴에 못 끝낸 삭제와 같은 지문을 모델이 다시 내면 위에서
+  // `추가호출` 로 미룬다(이월은 계획의 대표가 되지 않는다). 그러면 `대표` 가 비고, **발화를
+  // 다시 파싱한 폴백 의도가 그 자리에 앉았다.** "작업 폴더 정리 좀 도와줘" 는 작업이 모호해
+  // 턴은 *"그 파일로 무엇을 할까요?"* 로 끝났다 — **모델이 이미 무엇을 할지 말했는데도.**
+  // 미뤄 둔 걸음은 손도 못 댔고, 이월 카드는 뜨지 않았다.
+  //
+  // 바로 위(1281)가 이미 규칙을 적어 뒀다: *"모델이 이해해서 고른 것을 정규식으로 되돌리지
+  // 않는다. 파싱은 모델이 **못 고를 때**의 폴백이다."* 모델은 골랐다 — 우리가 미뤘을 뿐이다.
+  const 미뤄둔손 = new Set(추가호출.map((c) => c?.name).filter(Boolean));
+  for (const c of modelChosen ?? []) 미뤄둔손.delete(c?.name);   // 대표로 선 손은 그대로 돈다
+  if (미뤄둔손.size) {
+    planIntent = {
+      ...planIntent,
+      neededTools: (planIntent.neededTools ?? []).filter((id) => !미뤄둔손.has(id)),
+    };
+  }
   planIntent = {
     ...planIntent,
     deliverableAssessment: completionContract.assessment,

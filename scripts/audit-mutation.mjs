@@ -733,6 +733,12 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 6번(이월·발화밖) — **뒤로 미룬 걸음을 정규식이 덮지 않는다.** 덮으면 모델이 이미
+  // 고른 것을 두고 되묻기로 턴이 끝나고, 이월 카드는 뜨지 않는다.
+  { 이름: '미뤄 둔 손을 정규식 폴백이 대신 세움(이월 카드 대신 엉뚱한 되묻기)', 파일: TURNJS,
+    검사: 'test/s6c-carryover-contract.test.js',
+    찾기: '  for (const c of modelChosen ?? []) 미뤄둔손.delete(c?.name);   // 대표로 선 손은 그대로 돈다\n  if (미뤄둔손.size) {',
+    바꾸기: '  for (const c of modelChosen ?? []) 미뤄둔손.delete(c?.name);   // 대표로 선 손은 그대로 돈다\n  if (false) {' },
   // S6-c 4번(전송 대상·내용) — **무엇을·어디에가 없으면 승인이 아니다.**
   // 나가는 것이 맞아도 사용자가 무엇을 허락하는지 모르면 그 승인은 승인이 아니다.
   { 이름: '걸음 경로 전송 카드에서 누구에게·무엇을이 사라짐(빈 카드로 누르게 함)', 파일: TURNJS,
