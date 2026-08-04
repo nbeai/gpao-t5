@@ -733,6 +733,20 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 10번(실행) — **열 판정의 마지막.** 앞의 아홉이 옳아도 여기서 다른 것을 실행하면
+  // 전부 무의미해진다. 오대상 실행 · 중복 실행 · 원장 불일치가 한자리에 걸린다.
+  { 이름: '계획 레인이 모델 인자 대신 발화 원문으로 실행(오대상 실행)', 파일: TURNJS,
+    검사: 'test/s6c-execution-contract.test.js',
+    찾기: '    const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };',
+    바꾸기: '    const args = { request: intent.currentRequest };' },
+  { 이름: '걸음 레인이 판정 인자 대신 발화 원문으로 실행(판정과 실행이 다른 것을 봄)',
+    파일: TURNJS, 검사: 'test/s6c-execution-contract.test.js',
+    찾기: '    const rec = await 계약실행(toolId, 판정인자);',
+    바꾸기: '    const rec = await 계약실행(toolId, { request: requestText });' },
+  { 이름: '실행 원장에서 공급자 호출 신분이 끊김(모델 요청과 T5 실행을 못 이음)',
+    파일: 'src/runtime/tool-runner.js', 검사: 'test/s6c-execution-contract.test.js',
+    찾기: '      ...(executionContext?.providerCallId ? { providerCallId: executionContext.providerCallId } : {}),',
+    바꾸기: '' },
   // S6-c 9번(예산) — **세기만 하고 안 보면 없는 것과 같다.** 그리고 못 한 것은
   // 모델이 답을 쓰기 **전에** 알아야 한다 — 아니면 조용한 축소가 거짓 성공으로 끝난다.
   { 이름: '계획 레인이 예산을 세기만 하고 안 봄(상한을 넘겨 돎)', 파일: TURNJS,
