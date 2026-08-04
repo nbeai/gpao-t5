@@ -142,7 +142,17 @@ export function 미리보기정렬(reply, pv) {
   if (답 === pv.shown) return 답;
   if (답.startsWith(pv.shown)) { pv.emit(답.slice(pv.shown.length)); return 답; }
   if (pv.shown.endsWith(답)) return pv.shown;
-  const 이은답 = 답.trim() ? `${pv.shown}\n\n${답.trim()}` : pv.shown;
-  pv.emit(이은답.slice(pv.shown.length));
-  return 이은답;
+  // **앞 말과 무관한 답이 계산됐다 — 이건 이어감이 아니라 대체다.**
+  //
+  // 옛 전제는 *"화면을 물릴 수 없으므로 답이 화면을 따라온다"* 였다. 이제 물릴 수 있다
+  // (`answer_reset`). 그대로 이어붙이면 서로 어긋나는 두 답이 한 답으로 저장되고
+  // 사용자에게 그대로 간다 — 라이브에서 두 번 나왔다(F-8, 그리고 승인 경로에서 또):
+  //   "…안전 때문에 rm -rf 실행은 보류했어." + "지금 내가 볼 수 있는 범위에는 그 폴더가 없어."
+  //
+  // 위 갈래들(같음·이어감·흐른 말이 답으로 끝남)은 **잃으면 안 되는 말**이라 그대로 둔다.
+  // 여기 오는 것만 대체다.
+  if (!답.trim()) return pv.shown;
+  pv.retract?.();
+  pv.emit(답);
+  return 답;
 }
