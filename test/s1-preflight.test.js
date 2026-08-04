@@ -109,5 +109,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/agent-home.js',
     // S5a 기억이 집에 산다(2026-08-05) — 줄을 지우면 T5 가 잊는다. 원장은 그대로.
     'src/surface/memory-home.js',
+    // S6-a 실행 경계(2026-08-05) — 두 벌 판정을 한 벌로 만드는 첫 자리. 행동 변화 0.
+    'src/kernel/l2-plan/tool-boundary.js',
   ]);
 });

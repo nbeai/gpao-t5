@@ -17,6 +17,7 @@ import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
+import { 실행전판정 } from './l2-plan/tool-boundary.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
@@ -1939,26 +1940,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       continue;
     }
 
-    // 등급 판정도 기존 것 그대로. 명령은 돌려 봐야 아니까 계획 때와 똑같이 probe 를 먼저 탄다.
-    let 판정인자 = args;
-    if (toolId === 'local.terminal' && typeof args.command === 'string') {
-      const probed = await ctx.tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });
-      판정인자 = { ...args, changes: probed?.changes, granted: probed?.changes === true, probeResult: probed?.probe };
-    }
-    const kind = toolActionKind({ toolId, args: 판정인자, selfState });
-    // **판정은 계획 경로와 같은 사실 위에서 한다**(두 층이 같은 질문에 다른 답을 내면 결함이다).
-    // 헌장은 종류만으로 답할 수 없다 — 되돌릴 수 있는지, 아는 상대인지가 자동을 연다.
-    // 여기서 종류 하나만 넘기던 동안, `reversible:false` 로 선언된 `local.terminal` 의
-    // `rm -rf` 가 걸음 경로에서만 자동으로 실행됐다(실측 2026-08-03). 같은 명령이 계획
-    // 경로에서는 승인을 받았다 — 한 턴 안에서 같은 행동에 두 개의 답이 나온 것이다.
-    const 손선언 = selfState.connectedTools?.find((t) => t.id === toolId);
-    // 이월이거나 이번 발화 밖 파괴면 손의 선언과 무관하게 승인으로 간다 —
-    // 되돌릴 수 있어도 **지금 요청이 아니다.** 버리지 않고 사용자에게 보인다.
-    const 발화밖 = 발화밖파괴({ kind, 대상: args?.path ?? args?.target }, 이번발화);
-    const 판정행동 = {
-      kind, revocable: 손선언?.reversible,
-      needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,
-    };
+    // ── **실행 경계**(S6-a) — 판정은 한 자리에서 한다 ──────────────────────────
+    // 여기 인라인으로 있던 것을 `tool-boundary.js` 로 **글자 그대로** 옮겼다.
+    // 계획 경로가 같은 자리로 들어오는 것은 S6-b 다 — 그때 **두 벌이 한 벌이 된다.**
+    // 훅은 판정만 돌려준다. 승인·되묻기로 **턴을 끝내는 것은 아래 루프의 일**이다.
+    const { 판정인자: 경계인자, kind, 판정행동 } = await 실행전판정({
+      toolId, args, selfState, tools: ctx.tools, 이번이월, 이번발화,
+    });
+    let 판정인자 = 경계인자;
     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
