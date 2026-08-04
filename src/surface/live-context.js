@@ -139,6 +139,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
     include: [...liveToolIds, ...연결전],
     // P5-B-0: 실제 손 목록을 그대로 넘긴다 — env 가 손을 다시 추측하지 않게(두 진실 금지).
     hands: liveToolIds,
+    // **모델이 실제로 읽는 자리는 여기다.** 아래 `descriptors` 만 채웠더니 모델은 여전히
+    // 안 채워진 선언을 봤다(라이브 실측 2026-08-04: 답에 `{방}` 이 글자 그대로 나왔다).
+    // `buildSelfState(env)` → `modelSchemasFor` 가 이 배열에서 나오므로 여기가 진짜 문이다.
+    rooms: 부르는이름들(defaultFileRoots(processEnv)),
     factOverrides: {
       'slack.post': { connected: Boolean(slackToken) },
       'telegram.send': { connected: Boolean(tgToken) },

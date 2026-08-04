@@ -312,7 +312,6 @@
     border-radius:var(--r-lg); padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); background:var(--elevated);
     box-shadow:var(--sh-sm); transition:border-color var(--dur-normal) var(--ease-out), box-shadow var(--dur-normal) var(--ease-out); }
   .inbox:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
-  .inbox .plus { color:var(--muted); font-size:18px; padding-bottom:2px; }
   /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
      보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
   #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
@@ -429,7 +428,6 @@
     <div class="composer">
       <div class="cwrap">
         <div class="inbox">
-          <span class="plus">＋</span>
           <textarea id="text" rows="1" placeholder="GPAO-T5에게 메시지 입력" autofocus></textarea>
           <button id="send">보내기</button>
         </div>

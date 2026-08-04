@@ -21,6 +21,26 @@ const SURFACE_FACTS = {
 };
 
 /**
+ * **받는 쪽 사실** — 사용자가 이 표면에서 무엇을 건넬 수 있는가.
+ *
+ * 라이브 실측(2026-08-04 사람 사용시험): 파일을 못 찾은 T5 가 *"이 대화에 파일을 직접
+ * 올려줘 — 드래그 앤 드롭하거나 **첨부 기능이 있으면** 그걸로"* 라고 답했다. 그런 문은
+ * 어디에도 없다(화면의 `＋` 는 핸들러 없는 span 이고, 업로드 문도 채널 첨부 경로도 없다).
+ * **"있으면"이 증거다** — 모델은 자기 화면에 무엇이 있는지 모른 채 답했고, 그 짐작이
+ * 사용자를 없는 길로 보냈다. 표면 사실이 **나가는 쪽만** 말하고 있었기 때문이다.
+ *
+ * 문장에 "못 받는다"를 박지 않는다 — 문이 생기는 날 그 문장이 거짓이 된다(오늘 고친
+ * `local.file` 방 하드코딩과 같은 병). **표면이 자기 문을 선언하고**(`surface.받는문`),
+ * 선언이 없으면 없다는 사실이 간다.
+ */
+function 받는쪽사실(surface) {
+  const 문 = String(surface?.받는문 ?? '').trim();
+  return 문
+    ? `여기서 사용자가 건넬 수 있는 것: ${문}.`
+    : '여기로는 사용자가 파일을 건넬 수 없다 — 이 컴퓨터에 이미 있는 파일만 다룬다.';
+}
+
+/**
  * 이번 턴의 응답 표면을 사실로 만든다. 모르는 채널은 모르는 대로 둔다(지어내지 않는다).
  * @param {{source?:string, channel?:string, channelLabel?:string}} input 턴 입력(서버가 채운다)
  * @returns {{responseSurface:'web'|'telegram'|'slack'|'unknown', channelLabel?:string,
@@ -44,10 +64,12 @@ export function resolveResponseSurface(input = {}) {
 export function responseSurfaceFacts(surface) {
   if (!surface) return undefined;
   const make = SURFACE_FACTS[surface.responseSurface];
-  if (make) return make(surface.channelLabel);
+  // **나가는 쪽과 들어오는 쪽을 함께 준다.** 하나만 주면 나머지는 모델이 짐작한다.
+  if (make) return `${make(surface.channelLabel)} ${받는쪽사실(surface)}`;
   // 모르는 채널이라도 **바깥이라는 사실**은 준다 — 웹 화면인 줄 알고 답하는 것보다 낫다.
   if (surface.audience === 'external_channel') {
-    return `지금 답이 나가는 곳: ${surface.channelLabel ?? '연결된 메신저'}. 웹 화면이 아니라 메시지로 전달된다.`;
+    return `지금 답이 나가는 곳: ${surface.channelLabel ?? '연결된 메신저'}. 웹 화면이 아니라 메시지로 전달된다.`
+      + ` ${받는쪽사실(surface)}`;
   }
   return undefined;
 }

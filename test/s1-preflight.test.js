@@ -73,6 +73,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // F-8 · answer_reset — 되돌린 답이 앞의 답에 이어붙지 않게(2026-08-04).
     'src/kernel/l0-evidence/turn-event.js',
     'src/kernel/turn-surface.js',
+    // 표면 사실에 받는 쪽을 더했다(2026-08-04).
+    'src/kernel/l0-evidence/response-surface.js',
     'src/surface/server.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',

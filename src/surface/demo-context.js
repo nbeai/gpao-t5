@@ -719,8 +719,15 @@ const DESCRIPTORS = [
  */
 export function demoDescriptors(opts = {}) {
   const 고른것 = opts.include ? DESCRIPTORS.filter((d) => opts.include.includes(d.id)) : DESCRIPTORS;
-  return opts.rooms ? 고른것.map((d) => 방채우기(d, opts.rooms)) : 고른것;
+  // **자리표시자는 절대 밖으로 안 나간다.** 첫 판은 `rooms` 를 준 호출부만 채웠고, 안 준
+  // 호출부(`demoEnv`·서버 두 곳)의 선언이 그대로 모델에게 갔다 — 라이브에서 T5 의 답에
+  // `{방}` 이 글자 그대로 나왔다("지금 이 {방} 말고 다른 자리"). 채우는 자리를 하나로
+  // 안 묶으면 어딘가에서 샌다(§2-C). 그래서 **여기서 항상 채운다** — 안 주면 기본 방으로.
+  return 고른것.map((d) => 방채우기(d, opts.rooms ?? 기본방));
 }
+
+/** 호출부가 방을 안 알려줄 때 쓰는 말. **거짓이 아닌 가장 좁은 표현**이다. */
+const 기본방 = '작업 폴더';
 
 /** 선언 안의 `{방}` 을 실제 방 이름으로 바꾼다. 없는 칸은 건드리지 않는다. */
 function 방채우기(d, rooms) {

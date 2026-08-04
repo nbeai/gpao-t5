@@ -25,10 +25,16 @@ import { liveDeps } from '../src/surface/live-context.js';
 const 파일선언 = (ds) => ds.find((d) => d.id === 'local.file');
 const 전문 = (d) => JSON.stringify(d);
 
-test('선언에는 방 이름이 **박혀 있지 않다**(자리표시자로 남는다)', () => {
-  const d = 파일선언(demoDescriptors({ include: ['local.file'] }));
-  assert.ok(전문(d).includes('{방}'),
-    '방 이름이 선언에 박혔다 — 설정이 다른 설치에서 그 문장이 그대로 모델에게 간다');
+// 하드코딩 여부는 **자리표시자가 보이는가**로 재지 않는다(그건 새는 것이 정상이라는 뜻이 된다).
+// **다른 방을 주면 다른 문장이 나오는가** — 그게 "설정에서 나온다"의 기계적 정의다.
+test('선언에는 방 이름이 **박혀 있지 않다**(방을 바꾸면 문장이 바뀐다)', () => {
+  const 가 = 파일선언(demoDescriptors({ include: ['local.file'], rooms: '가방' }));
+  const 나 = 파일선언(demoDescriptors({ include: ['local.file'], rooms: '나방' }));
+  assert.notEqual(String(가.capability), String(나.capability),
+    '방을 바꿔도 능력 문장이 같다 — 폴더 이름이 선언에 박혀 있다');
+  assert.match(String(가.capability), /가방/);
+  assert.match(String(나.schema?.description ?? ''), /나방/,
+    '능력 문장만 따라오고 스키마 설명은 안 따라온다 — 두 진실이 된다');
 });
 
 test('방을 주면 **그 방 이름으로** 채워진다', () => {
@@ -54,17 +60,51 @@ test('방 자리표시자가 없는 손은 건드리지 않는다(과잉 치환 
 });
 
 // ── 실제 배선까지 간다 — 단위검사는 배선이 끊겨도 초록이다 ──────────────────
-test('라이브 배선: 실제 `GPAO_T5_FILE_ROOTS` 가 능력 문장에 나타난다', async () => {
-  const 방 = await realpath(await mkdtemp(join(tmpdir(), 'rooms-')));
-  const { descriptors } = await liveDeps({
-    GPAO_T5_FILE_ROOTS: 방,
-    GPAO_T5_DATA_DIR: 방,
-    GPAO_T5_HOME: 방,
-  });
-  const d = 파일선언(descriptors);
-  assert.ok(d, '파일 손 선언이 없다');
-  assert.doesNotMatch(전문(d), /\{방\}/, '라이브 경로에서 자리표시자가 안 채워졌다');
-  const 방이름 = 방.split('/').filter(Boolean).at(-1);
-  assert.ok(전문(d).includes(방이름),
-    `실제 방(${방이름})이 능력 문장에 없다 — 모델은 어디를 다룰 수 있는지 모른 채 추측한다: ${String(d.capability).slice(0, 160)}`);
+// **재는 자리를 틀리면 초록인데 안 고쳐진다.** 첫 판은 `liveDeps` 가 돌려주는 `descriptors`
+// 를 쟀고 통과했다. 그런데 모델이 실제로 읽는 것은 `buildSelfState(env)` → `modelSchemasFor`
+// 이고, 그 `env.descriptors` 는 **방을 안 받은 채** 만들어지고 있었다. 라이브에서 답에
+// `{방}` 이 글자 그대로 나온 뒤에야 알았다. 그래서 이 검사는 **모델 앞에 놓이는 것**을 잰다.
+test('라이브 배선: 모델이 보는 스키마·능력에 **실제 방**이 나타난다', async () => {
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { modelSchemasFor } = await import('../src/kernel/l2-plan/model-control.js');
+  const { mkdir } = await import('node:fs/promises');
+  const 자리 = await realpath(await mkdtemp(join(tmpdir(), 'rooms-')));
+  const 방 = join(자리, 'Downloads');
+  await mkdir(방, { recursive: true });
+  const { env } = await liveDeps({ GPAO_T5_FILE_ROOTS: 방, GPAO_T5_DATA_DIR: 자리, GPAO_T5_HOME: 자리 });
+  const 자기상태 = buildSelfState(env);
+  const 능력 = String(자기상태.connectedTools.find((t) => t.id === 'local.file')?.capability ?? '');
+  const 스키마 = String(modelSchemasFor(자기상태).find((t) => t.name === 'local.file')?.description ?? '');
+  for (const [이름, 글] of [['능력 문장', 능력], ['모델 스키마', 스키마]]) {
+    assert.doesNotMatch(글, /\{방\}/, `${이름}에 자리표시자가 남았다 — 답에 그대로 새어 나간다`);
+    assert.match(글, /다운로드/,
+      `${이름}이 실제 방을 말하지 않는다 — 기본값으로 덮여 모델이 어디를 다루는지 모른다: "${글.slice(0, 90)}"`);
+  }
+});
+
+// ── **자리표시자는 절대 밖으로 나가지 않는다** ──────────────────────────────
+//
+// 라이브 실측(2026-08-04 · 사람 사용시험): T5 의 답에 `{방}` 이 그대로 나갔다 —
+//   "지금 이 **{방}** 말고 다른 자리(예: 외장하드, 구글 드라이브…)에 있는 경우"
+//
+// 방을 설정에서 채우도록 고쳤는데, **채우는 자리를 하나로 묶지 않았다.** `demoEnv` 와
+// 서버의 다른 호출부는 `rooms` 없이 선언을 만들고, 그 선언이 자기상태를 거쳐 모델에게 갔다.
+// 오늘 아침에 고친 것과 **같은 병**이다(§2-C: 한 자리에서 매듭을 묶지 않으면 어딘가에서 샌다).
+//
+// 그래서 계약을 뒤집는다: **rooms 를 안 주는 것이 허용되고, 대신 자리표시자가 남는 것이 금지다.**
+test('rooms 를 안 줘도 **자리표시자가 남지 않는다**', () => {
+  const 전문 = JSON.stringify(demoDescriptors());
+  assert.doesNotMatch(전문, /\{방\}/,
+    'rooms 없이 만든 선언에 자리표시자가 남았다 — 그대로 모델에게 가고 답에 새어 나온다');
+});
+
+test('자기상태 입력(demoEnv)에도 자리표시자가 없다', async () => {
+  const { demoEnv } = await import('../src/surface/demo-context.js');
+  assert.doesNotMatch(JSON.stringify(demoEnv()), /\{방\}/,
+    'demoEnv 의 선언에 자리표시자가 남았다 — 라이브가 아닌 경로가 전부 여기로 온다');
+});
+
+test('rooms 를 주면 그 값이 이긴다(기본값이 실제 방을 덮지 않는다)', () => {
+  const d = 파일선언(demoDescriptors({ include: ['local.file'], rooms: '고정판 폴더' }));
+  assert.match(String(d.capability), /고정판 폴더/);
 });
