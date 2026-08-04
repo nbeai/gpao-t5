@@ -542,7 +542,8 @@ export function buildTaskContext(p) {
   // 3인칭으로 돌아오면 그 문장은 힘이 없다 — **행동 이력이 지워진 존재에게 selfhood 는 없다.**
   //
   // 그래서 **실제로 부른 것**(actualCall 이 있는 영수증)은 표준 도구 대화로 넘긴다.
-  // **못 부른 것**(계획 단계에서 막혀 actualCall 이 null 인 것)은 대화로 표현할 수 없으므로
+  // **못 부른 것**(부르지 않아 actualCall 이 null 이고 `제안한호출` 만 있는 것)은 대화로
+  // 표현할 수 없으므로
   // 아래 `evidenceFacts` 서술로 남는다 — 둘이 겹치지 않게 가른다(같은 사실을 두 번 주지 않는다).
   // **성공한 호출만** 교환으로 간다. 실패한 호출의 인자는 `확인되지 않은 값`이라 아래 서술이
   // 가림(`확인되지않은인자`)을 걸어 다루고 있다 — 그걸 대화 이력에 사실처럼 심으면 모델이
@@ -608,8 +609,12 @@ export function buildTaskContext(p) {
       // **신분은 여기에도 온다.** 서술로 남는 것들(부르지도 못한 것 · 없는 손 · 상한에 걸린 것)도
       // 모델이 낸 호출이면 그 신분이 있다. 없으면 모델은 "내가 call_SKIP 으로 시킨 게 어떻게
       // 됐지"를 물을 수 없고, 안 간 것을 간 것으로 세어 답을 쓴다(오너 지시 2026-08-04).
-      ...(r.actualCall?.providerCallId ? { providerCallId: r.actualCall.providerCallId } : {}),
-      ...(r.actualCall?.callRef ? { ref: r.actualCall.callRef } : {}),
+      // 부르지 않은 호출의 신분은 `제안한호출` 에 있다(`actualCall` 은 계약상 null 이다).
+      // 두 칸을 여기서 한 번에 읽는다 — 어느 쪽이든 **모델이 낸 그 호출**이다.
+      ...((r.제안한호출 ?? r.actualCall)?.providerCallId
+        ? { providerCallId: (r.제안한호출 ?? r.actualCall).providerCallId } : {}),
+      ...((r.제안한호출 ?? r.actualCall)?.callRef
+        ? { ref: (r.제안한호출 ?? r.actualCall).callRef } : {}),
       intended: r.intended,
       failureState: r.failureState,
       // P2-8: **주소를 직접 받아 읽은 것**과 **검색해서 찾아 읽은 것**을 구분한다.
@@ -635,7 +640,8 @@ export function buildTaskContext(p) {
       // (조용한 미참여) 커널이 **모든 도구에 대해** 한 자리에서 준다.
       ...(r.failureState === 'none'
         ? { calledWith: compactResult(r.actualCall?.args) }
-        : { attemptedWith: compactResult(확인되지않은인자(r.actualCall?.args)) }),
+        // 부르지 않은 호출은 **제안값**이다 — 어휘가 이미 그렇게 말하고 있었다("확인된 사실 아님").
+        : { attemptedWith: compactResult(확인되지않은인자((r.제안한호출 ?? r.actualCall)?.args)) }),
     }));
   }
 

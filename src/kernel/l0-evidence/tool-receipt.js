@@ -42,6 +42,10 @@ export function receipt(r) {
   return {
     intended: r.intended,
     actualCall,
+    // **모델이 고른 호출인데 부르지 않은 것.** `actualCall` 과 나눠 둔다 — 부르지 않은 것을
+    // "실제 호출"로 적으면 원장이 거짓이 되고, 그렇다고 지우면 모델은 자기가 시킨 것을
+    // 다 했다고 믿은 채 답을 쓴다(조용한 축소). 값(result)은 없다.
+    제안한호출: r.제안한호출,
     result: r.result,
     failureState,
     // 실행·전달 수명주기. 승인 상태는 여기 아니라 AuthorityGrant에 있다.

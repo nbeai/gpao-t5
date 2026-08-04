@@ -124,6 +124,11 @@ export const 허용파일 = [
   // S2 필수 계약 둘: ③ 영수증 진실(applied:false 는 확인된 사실이 아니다) ·
   // ② exchange 저장(재시작해도 모델의 행동 이력이 남는다).
   'src/kernel/l0-evidence/ledger.js',
+  // **제안과 실행을 나눈다**(2026-08-04). 계약은 "호출 안 했으면 actualCall 은 null" 인데
+  // 다중 호출 줄 세우기가 미실행 호출에도 채우고 있었다 — 원장이 "안 부른 것"을 "부른 것"으로
+  // 말했다. `제안한호출` 칸을 세워 모델은 자기 호출을 그대로 돌려받고 원장은 정직해진다.
+  'src/kernel/contracts.js',
+  'src/kernel/l0-evidence/tool-receipt.js',
   // F-8 · 되돌림은 이어감이 아니라 대체다 — `answer_reset` 어휘 한 종류를 더했다(2026-08-04).
   'src/kernel/l0-evidence/turn-event.js',
   'src/kernel/turn-surface.js',

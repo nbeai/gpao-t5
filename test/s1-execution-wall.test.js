@@ -124,7 +124,10 @@ test('못 한 호출이 **모델 입력**에 자기 호출로 돌아간다(계�
   const selfState = buildSelfState(demoEnv());
   const 못한것 = {
     intended: '파일 도구 실행',
-    actualCall: { tool: 'local.file', args: { action: 'move', path: 'a.png', to: 'images/a.png' } },
+    // **부르지 않은 호출은 `actualCall` 이 아니다**(계약: 호출 안 했으면 null).
+    // 모델에게 돌려주는 것은 `제안한호출` 이다 — 원장은 정직하고 모델은 잃지 않는다.
+    actualCall: null,
+    제안한호출: { tool: 'local.file', args: { action: 'move', path: 'a.png', to: 'images/a.png' } },
     failureState: 'blocked',
     userSafeSummary: '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.',
     diagnosticTrace: { callId: 'wire_5', 순번: 5, tool: 'local.file', reason: '걸음상한' },

@@ -88,6 +88,11 @@
  * @typedef {Object} ToolReceipt         §7 Tool Execution Truth Ledger 계약
  * @property {string} intended
  * @property {{tool:string, args?:*}|null} actualCall  호출 안 했으면 null
+ * @property {{tool:string, args?:*, providerCallId?:string, callRef?:string}} [제안한호출]
+ *   **모델이 고른 호출인데 부르지 않은 것.** 상한·중복·승인대기·없는 손으로 못 간 호출이
+ *   조용히 사라지면 모델은 자기가 시킨 것을 다 했다고 믿은 채 답을 쓴다(거짓 완료의 씨앗).
+ *   그렇다고 `actualCall` 에 넣으면 **원장이 거짓**이 된다 — 부르지 않았기 때문이다.
+ *   두 칸을 나눈다: 실행은 `actualCall`, 제안은 여기. 값(result)은 없다.
  * @property {*} [result]
  * @property {FailureState} failureState
  * @property {ReceiptLifecycle} lifecycle  실행·전달 수명주기(Phase 5.1 §7). 승인 상태는 불허

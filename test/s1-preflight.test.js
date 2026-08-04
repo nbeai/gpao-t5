@@ -70,6 +70,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/local-locate.js',
     'src/runtime/session-search-tool.js',
     'src/kernel/l0-evidence/ledger.js',
+    // **제안과 실행을 나눈다**(2026-08-04). 계약은 "호출 안 했으면 actualCall 은 null" 인데
+    // 다중 호출 줄 세우기가 미실행 호출에도 채우고 있었다 — 원장이 "안 부른 것"을 "부른 것"으로
+    // 말했다. `제안한호출` 칸을 세워 모델은 자기 호출을 그대로 돌려받고 원장은 정직해진다.
+    'src/kernel/contracts.js',
+    'src/kernel/l0-evidence/tool-receipt.js',
     // F-8 · answer_reset — 되돌린 답이 앞의 답에 이어붙지 않게(2026-08-04).
     'src/kernel/l0-evidence/turn-event.js',
     'src/kernel/turn-surface.js',

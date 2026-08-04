@@ -155,7 +155,10 @@ test('② 못 한 호출도 순번·신분과 함께 남는다(순서를 잃지 
   assert.ok(못한것.length > 0, '예산으로 못 한 호출이 원장에 없다');
   assert.ok(못한것.every((e) => e.failureState !== 'cancelled'),
     '예산 소진을 cancelled 로 적었다 — 미완료가 "이미 된 일"과 같은 자리에 들어간다');
-  assert.ok(못한것.some((e) => e.actualCall?.providerCallId?.startsWith('call_')),
+  // 신분은 `제안한호출` 에 남는다 — 부르지 않은 것을 "실제 호출"로 적으면 원장이 거짓이 된다.
+  assert.ok(못한것.every((e) => e.actualCall === null),
+    '부르지 않은 호출이 "실제 호출"로 기록됐다');
+  assert.ok(못한것.some((e) => e.제안한호출?.providerCallId?.startsWith('call_')),
     '모델이 낸 신분이 못 한 호출에서 사라졌다');
   assert.ok(못한것.some((e) => Number.isInteger(e.diagnosticTrace?.순번)), '순번이 사라졌다');
 });

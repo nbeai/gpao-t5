@@ -655,7 +655,7 @@ test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 �
   assert.equal(실행된것.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
 
   // 그리고 **두 번째로 고른 것이 왜 안 갔는지가 남아 있어야 한다**(조용한 축소 금지).
-  const 안한것 = ledger.entries.filter((e) => String(e.actualCall?.tool).includes('d-new')
+  const 안한것 = ledger.entries.filter((e) => String(e.제안한호출?.tool ?? e.actualCall?.tool).includes('d-new')
     && (e.failureState ?? 'none') !== 'none');
   assert.equal(안한것.length, 1, '되풀이라 건너뛴 사실이 사라졌다 — 모델은 자기가 두 번 시켰다고 믿는다');
   assert.equal(안한것[0].result, undefined, '실행하지 않았는데 결과가 있으면 지어낸 것이다');

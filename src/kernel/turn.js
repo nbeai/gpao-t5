@@ -284,20 +284,25 @@ export function userSafeNextAction(receipts = []) {
  * 실패는 숨기지 않는다. 오직 out_of_scope 탐색 실패와 뒤의 같은 도구+행동 성공만 해소한다.
  */
 export function unresolvedTurnReceipts(receipts = []) {
+  // **부른 것이든 못 부른 것이든 "무슨 호출이었나"는 하나다.** 실행한 것은 `actualCall`,
+  // 부르지 않은 것은 `제안한호출` 에 있다(계약: 호출 안 했으면 actualCall 은 null).
+  // 여기서 한 번에 읽는다 — 두 칸을 따로 훑으면 언젠가 한쪽이 빠지고, 빠진 그 경로로
+  // "이미 했다"가 "아직 못 했다"로 잡혀 턴 전체가 미완료가 된다(실측 2026-08-04).
+  const 무슨호출 = (rec) => rec?.actualCall ?? rec?.제안한호출 ?? null;
   return receipts.filter((rec, index) => {
     // **런타임이 "이미 했다"고 취소한 것은 미해결이 아니다.** 같은 손·같은 작업이 이번 턴에
     // 이미 성공했기 때문에 안 한 것이므로, 그 성공이 이것을 해결한다(아래 "뒤의 성공이 앞의
     // 실패를 해결한다"의 거울상). 이 구분이 없으면 다중 호출 중 하나가 중복이라는 이유로
     // 턴 전체가 미완료로 잡힌다(실측 2026-08-04, 승인 재개 정산이 안 열렸다).
-    if (rec?.failureState === 'cancelled' && rec?.actualCall?.tool) {
+    if (rec?.failureState === 'cancelled' && 무슨호출(rec)?.tool) {
       const 이미 = receipts.slice(0, index).some((앞) => (앞?.failureState ?? 'none') === 'none'
-        && 앞?.actualCall?.tool === rec.actualCall.tool);
+        && 앞?.actualCall?.tool === 무슨호출(rec).tool);
       if (이미) return false;
     }
     if ((rec?.failureState ?? 'none') === 'none' || rec?.scopeState !== 'out_of_scope') return true;
-    const tool = rec.actualCall?.tool;
-    const action = rec.actualCall?.args?.action;
-    const failedPath = portableFilePath(rec.actualCall?.args?.path);
+    const tool = 무슨호출(rec)?.tool;
+    const action = 무슨호출(rec)?.args?.action;
+    const failedPath = portableFilePath(무슨호출(rec)?.args?.path);
     if (!tool || !action) return true;
     return !receipts.slice(index + 1).some((later) => (
       (later?.failureState ?? 'none') === 'none'
@@ -1764,11 +1769,18 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
    * 씨앗). `actualCall` 을 채워 두므로 모델 입력에서 **자기 호출**로 돌아간다.
    *
    * 값은 담지 않는다 — 실행되지 않았으므로 결과가 없다. `왜` 는 분류값이고 사람 말은 따로 온다.
+   *
+   * **`actualCall` 이 아니라 `제안한호출` 이다.** 첫 판은 여기에 `actualCall` 을 채웠다 —
+   * 그래야 모델이 자기 호출을 돌려받기 때문이었다. 그런데 계약은 *"호출 안 했으면 null"* 이고,
+   * 부르지 않은 것을 "실제 호출"로 적으면 **원장이 거짓**이 된다. 필요했던 것은 이 칸이 아니라
+   * **다른 칸**이었다. 어휘는 이미 있었다 — `task-context` 가 실패한 호출의 인자를
+   * `attemptedWith`("확인된 사실 아님")로 싣는다. 같은 구분을 영수증에도 세운다.
    */
   const 못한호출남기기 = (호출, 왜, 사람말) => {
     const rec = receipt({
       intended: `${toolLabel(호출.tool, selfState)} 실행`,
-      actualCall: {
+      actualCall: null,
+      제안한호출: {
         tool: 호출.tool, args: 호출.args ?? {},
         ...(호출.providerCallId ? { providerCallId: 호출.providerCallId } : {}),
         callRef: 호출.callId,
