@@ -1616,11 +1616,58 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     });
   };
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.
+  // **못 한 호출을 사실로 남기는 자리 — 두 레인이 같이 쓴다.**
+  // 예전엔 걸음 루프 안쪽에만 있었다. 그래서 계획 레인이 예산에 걸려 건너뛴 손은 이 어휘를
+  // 쓸 수 없었고, 뒤늦게 남기면 **최종 답을 만든 뒤**라 모델에게 못 갔다(2026-08-05 밟음).
+  // 사실의 모양을 두 벌로 만들지 않으려면 자리가 여기여야 한다.
+  let 호출일련 = 0;
+  const 못한호출남기기 = (호출, 왜, 사람말) => {
+    const rec = receipt({
+      intended: `${toolLabel(호출.tool, selfState)} 실행`,
+      actualCall: null,
+      제안한호출: {
+        tool: 호출.tool, args: 호출.args ?? {},
+        ...(호출.providerCallId ? { providerCallId: 호출.providerCallId } : {}),
+        callRef: 호출.callId,
+      },
+      // **어휘를 정확히 쓴다.** 되풀이라 건너뛴 것은 *못 한 일*이 아니라 **런타임이 취소한 것**이고,
+      // 같은 일이 이미 원장에 확인돼 있다. 처음엔 전부 `blocked` 로 세웠다가, 그것이 "아직 못 한
+      // 일"로 잡혀 승인 재개 정산 게이트를 닫았다(`work-state-product` 가 잡았다, 2026-08-04).
+      // 나머지(상한·승인대기·요청밖·없는손)는 실제로 **안 된 일**이므로 blocked 가 맞다 —
+      // 사용자가 그 사실을 알아야 한다.
+      failureState: 왜 === '되풀이' ? 'cancelled' : 'blocked',
+      userSafeSummary: 사람말,
+      // 진단면 — 모델이 낸 호출의 신분과 순서를 그대로 보존한다(오너 지시 2026-08-04).
+      diagnosticTrace: { callId: 호출.callId, 순번: 호출.순번, tool: 호출.tool, reason: 왜 },
+    });
+    원장.append(rec);
+    turnReceipts.push(rec);
+    return rec;
+  };
+
+
   for (const [순번, toolId] of plan.toolsToUse.entries()) {
-    현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
-    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
+    // **세기만 하고 안 보면 없는 것과 같다**(S6-c 9번).
+    //
+    // 계수기는 예전부터 두 레인이 같은 것을 올렸다(`되돌릴수있는것쓴것`·`그밖쓴것` 은 변수 하나).
+    // 그런데 **보는 자리는 걸음 루프에만 있었다**(`while (!예산소진(...))`). 그래서 계획 레인은
+    // 상한과 무관하게 `toolsToUse` 를 끝까지 돌았다 — 밟은 사실(2026-08-05):
+    // 되돌릴 수 있는 손 예산 **1** 로 두고 손 셋을 내니 **셋 다 돌았다.**
+    //
+    // 위 주석이 "계획 경로 실행도 예산에 잡힌다"고 적어 둔 것은 **계수**까지였다. 계수는
+    // 뒷단(걸음 루프)을 정확하게 만들었지만 이 레인 자신은 멈추지 않았다.
     // P6-7: send류는 분리된 {target, text}로 실행한다(문장 전체를 그대로 보내지 않는다). 그 외엔 요청 원문.
     const args = sendArgs?.[toolId] ?? { request: intent.currentRequest };
+    if (예산소진(쓴것(), 예산)) {
+      // **버리지 않고 남긴다.** 조용히 건너뛰면 모델은 자기가 시킨 것이 다 됐다고 믿고 답을 쓴다.
+      못한호출남기기({ tool: toolId, args, callId: `p${순번 + 1}`, 순번: 순번 + 1,
+        ...(계획호출신분?.[toolId]?.providerCallId
+          ? { providerCallId: 계획호출신분[toolId].providerCallId } : {}) },
+      '예산소진', 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.');
+      continue;
+    }
+    현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
+    await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
@@ -1834,7 +1881,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 함께 원장에 남아 모델에게 돌아간다 — 조용한 축소를 없앤다.
   /** @type {Array<{callId:string, 순번:number, tool:string, args:object}>} */
   const 대기호출 = [];
-  let 호출일련 = 0;
 
   /**
    * **고르기는 했는데 실행하지 못한 호출**을 사실로 남긴다.
@@ -1851,30 +1897,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
    * **다른 칸**이었다. 어휘는 이미 있었다 — `task-context` 가 실패한 호출의 인자를
    * `attemptedWith`("확인된 사실 아님")로 싣는다. 같은 구분을 영수증에도 세운다.
    */
-  const 못한호출남기기 = (호출, 왜, 사람말) => {
-    const rec = receipt({
-      intended: `${toolLabel(호출.tool, selfState)} 실행`,
-      actualCall: null,
-      제안한호출: {
-        tool: 호출.tool, args: 호출.args ?? {},
-        ...(호출.providerCallId ? { providerCallId: 호출.providerCallId } : {}),
-        callRef: 호출.callId,
-      },
-      // **어휘를 정확히 쓴다.** 되풀이라 건너뛴 것은 *못 한 일*이 아니라 **런타임이 취소한 것**이고,
-      // 같은 일이 이미 원장에 확인돼 있다. 처음엔 전부 `blocked` 로 세웠다가, 그것이 "아직 못 한
-      // 일"로 잡혀 승인 재개 정산 게이트를 닫았다(`work-state-product` 가 잡았다, 2026-08-04).
-      // 나머지(상한·승인대기·요청밖·없는손)는 실제로 **안 된 일**이므로 blocked 가 맞다 —
-      // 사용자가 그 사실을 알아야 한다.
-      failureState: 왜 === '되풀이' ? 'cancelled' : 'blocked',
-      userSafeSummary: 사람말,
-      // 진단면 — 모델이 낸 호출의 신분과 순서를 그대로 보존한다(오너 지시 2026-08-04).
-      diagnosticTrace: { callId: 호출.callId, 순번: 호출.순번, tool: 호출.tool, reason: 왜 },
-    });
-    원장.append(rec);
-    turnReceipts.push(rec);
-    return rec;
-  };
-
   /** 모델 응답의 호출들을 줄로 세운다. 안 보여준 도구는 버리되 **버린 사실을 남긴다**. */
   const 줄세우기 = (calls) => {
     const 선것 = [];
@@ -1905,6 +1927,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 이번발화 = parseFileRequest(requestText ?? '');
 
   // 첫 응답에서 계획이 안 가져간 호출들을 **맨 앞에** 세운다 — 모델이 낸 순서 그대로다.
+  /**
+   * **남은 줄을 사실로 거둔다 — 원장에도, 다음 턴이 이어받을 상태에도.**
+   *
+   * 두 자리에서 부른다: 예산이 **루프 안에서** 닿았을 때(그래야 모델이 마지막 답을 쓰기 전에
+   * 무엇을 못 했는지 안다), 그리고 루프가 끝난 뒤 남은 것이 있을 때.
+   *
+   * 처음엔 루프 안에서 `못한호출남기기` 만 불렀다가 **상태 갱신을 빠뜨렸다**(2026-08-05).
+   * 회귀가 잡았다 — *"중간에 멈춘 사실이 현재 상태에서 사라졌다."* 원장에만 남기면
+   * `workingState` 는 마지막 성공 시점의 사진이라 "다 됐다"로 읽히고, 다음 턴이 이어받을
+   * 자리를 잃는다(구속 계약 ②). 뒷정리가 두 벌이면 한쪽이 반드시 얇아진다 — 그래서 한 벌이다.
+   */
+  const 남은줄거두기 = () => {
+    if (!대기호출.length) return;
+    const 말 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
+    const 남긴것 = 대기호출.splice(0).map((남은) => 못한호출남기기(남은, '예산소진', 말));
+    workingState = 이어받기정리(deriveWorkingState(workingState, {
+      receipts: 남긴것, withinTurn: true,
+      blocked: 걸음막힘(남긴것[0], turnReceipts, 있는손()),
+    }), ctx.connectors);
+  };
+
   대기호출.push(...줄세우기(첫응답나머지));
 
   while (!예산소진(쓴것(), 예산)) {
@@ -2200,6 +2243,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     workingState = 이어받기정리(deriveWorkingState(workingState, {
       receipts: [rec], withinTurn: true, blocked: 걸음막힘(rec, turnReceipts, 있는손()),
     }), ctx.connectors);
+    // **예산이 여기서 닿았으면 남은 줄을 지금 거둔다**(S6-c 9번).
+    //
+    // 자리가 이 줄들 **사이**인 이유가 둘이다. 위 갱신보다 뒤여야 한다 — 성공 걸음은 막힘을
+    // 푸는 계약이라, 먼저 거두면 방금 세운 "남은 게 있다"를 그 성공이 지운다(회귀가 잡았다).
+    // 그리고 아래 재료 조립보다 앞이어야 한다 — 그래야 **모델이 마지막 답을 쓰기 전에**
+    // 무엇을 못 했는지 안다. 예전엔 루프 밖에서 거둬 원장·화면에는 남았지만 모델은 몰랐고,
+    // 셋 중 둘만 돌고서 "했어요."라고 답했다(밟은 사실 2026-08-05).
+    if (예산소진(쓴것(), 예산) && 대기호출.length) 남은줄거두기();
     tc = buildTaskContext({
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
@@ -2236,15 +2287,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // `unconfirmed` 와 working state 에 그대로 선다 — `cancelled` 로 두면 "이미 된 일"과 같은
   // 자리에 들어가 미완료가 사라진다. 새 enum 을 열지 않고 기존 어휘를 그대로 쓴다.
   const 소진말 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
-  const 남긴것 = 대기호출.splice(0).map((남은) => 못한호출남기기(남은, '예산소진', 소진말));
-  // **현재 상태를 다시 만든다.** 미완료 사실을 원장에만 남기면 `workingState` 는 마지막 성공
-  // 시점의 사진이라 "다 됐다"로 읽힌다 — 다음 턴이 이어받을 자리를 잃는다(구속 계약 ②).
-  if (남긴것.length) {
-    workingState = 이어받기정리(deriveWorkingState(workingState, {
-      receipts: 남긴것, withinTurn: true,
-      blocked: 걸음막힘(남긴것[0], turnReceipts, 있는손()),
-    }), ctx.connectors);
-  }
+  남은줄거두기();
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (예산소진(쓴것(), 예산) && !멈춘이유) 멈춘이유 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼 하고 멈췄어요';
   // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.
