@@ -42,6 +42,7 @@ import { isKnownCounterpart, rememberCounterpart } from './l2-plan/known-counter
 import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
+import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
 import { 완료주장검증 } from './l2-plan/exit-verification.js';
 
@@ -123,20 +124,6 @@ async function 볼수있는자리(ctx) {
 // 걸음(폭주 방지). 이 값은 `산출물이어가기` 의 재요청 횟수 뒷단으로만 남는다.
 // 왜 6 이 문제였는지는 `turn-budget.js` 머리말에 적혀 있다(비용 안 드는 축을 조였다).
 const MAX_TOOL_STEPS = 6;
-
-const CURRENT_ACTION_SCOPE_SCHEMA = Object.freeze({
-  name: 'work.current_actions',
-  description: '후보 행동 중 사용자의 이번 발화가 지금 요청한 것만 고른다. 이전 턴의 미완료 행동은 다시 요구하지 않았다면 고르지 않는다.',
-  parameters: {
-    type: 'object',
-    properties: {
-      requestedIndexes: { type: 'array', items: { type: 'integer' } },
-      unclear: { type: 'boolean' },
-    },
-    required: ['requestedIndexes', 'unclear'],
-  },
-});
-
 const WORK_DELIVERABLE_SCHEMA = Object.freeze({
   name: 'work.deliverable',
   description: '사용자의 요청 결과가 대화 답변인지, 실제 파일 생성·변경인지 구분한다.',
@@ -146,47 +133,6 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
     required: ['output'],
   },
 });
-
-function currentFileCallFromText(calls, text) {
-  const asked = parseFileRequest(text);
-  if (!asked.path || asked.action === 'unknown') return null;
-  const clean = (value) => String(value ?? '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
-  const askedPath = clean(asked.path);
-  const matches = calls.filter((call) => {
-    if (call?.name !== 'local.file' || call?.args?.action !== asked.action) return false;
-    const actualPath = clean(call.args.path);
-    return actualPath === askedPath || actualPath.endsWith(`/${askedPath}`);
-  });
-  return matches.length === 1 ? matches : null;
-}
-
-async function currentRequestCalls({ calls, text, tc, model, selfState }) {
-  if (!Array.isArray(calls) || calls.length < 2) return calls;
-  const touchesApproval = calls.some((call) => isSafetyFloor(toolActionKind({
-    toolId: call?.name, args: call?.args, selfState,
-  })));
-  if (!touchesApproval) return calls;
-
-  const out = await model.respond({
-    ...tc,
-    currentActionAssessment: {
-      userRequest: text,
-      candidates: calls.map((call, index) => ({ index, tool: call?.name, args: call?.args ?? {} })),
-    },
-  }, { effort: 'medium', tools: [CURRENT_ACTION_SCOPE_SCHEMA], requiredTool: CURRENT_ACTION_SCOPE_SCHEMA.name })
-    .catch(() => null);
-  const verdict = typeof out === 'string' ? null
-    : out?.toolCalls?.find((call) => call?.name === CURRENT_ACTION_SCOPE_SCHEMA.name)?.args;
-  if (!verdict || verdict.unclear !== false || !Array.isArray(verdict.requestedIndexes)) {
-    // 판정 호출이 흔들려도 현재 발화가 action+path 를 직접 품고 있고 그와 맞는 모델 호출이
-    // 하나뿐이면, 모델이 문맥에서 채운 본문/source 를 버리지 않는다. 같은 후보가 둘이면
-    // 임의 선택하지 않고 기존 확인 경계로 닫힌다.
-    return currentFileCallFromText(calls, text);
-  }
-  const indexes = new Set(verdict.requestedIndexes.filter((index) => Number.isInteger(index) && index >= 0 && index < calls.length));
-  return calls.filter((_, index) => indexes.has(index));
-}
-
 async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
   if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
@@ -708,7 +654,9 @@ export async function runTurn(input, ctx) {
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     const result = await executePlan(
       saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs,
-      saved.intent?.currentRequest, [], [], [], saved.호출신분 ?? {},
+      // **승인 재개에는 이월이 없다.** 재개는 새 발화가 아니라 사용자가 방금 본 그 카드의
+      // 이어짐이다 — 여기서 이월을 다시 재면 사용자가 승인한 바로 그 행동이 또 카드로 돌아온다.
+      saved.intent?.currentRequest, [], [], new Set(), saved.호출신분 ?? {},
     );
     result.workStateProposal = currentWorkStateProposal();
     return result;
@@ -908,51 +856,31 @@ export async function runTurn(input, ctx) {
     if (분리.rest.length) modelChosen = 분리.rest;
   }
 
-  // 대화 이력 속 미완료 행동과 지금 요청이 한 번에 선택되면 안전 카드가 서로 다른 일을 묶는다.
-  // 현재 발화에 속한 행동만 구조 판정으로 남기며, 판정 불능이면 실행보다 짧은 확인을 택한다.
+  // ── **현재 요청 침해 0** — 심문이 아니라 승인 경계로 지킨다 ──────────────────
   //
-  // **S1 슬라이스**(`T5_MODEL_SOVEREIGN=1`): 이 재심사를 하지 않는다. 모델이 방금 고른 것을
-  // 런타임이 다시 심문하면 왕복 하나가 판정에 쓰이고, 그 판정이 모델의 선택을 걷어낸다.
-  // 대신 아래 기존 경계(승인·완료 계약·중복 차단)가 그대로 받는다 — 안전은 안 열린다.
-  // 심문이 걷어낸 호출 — **판정은 턴 내내 유지된다.**
+  // 여기 있던 것은 심문(`currentRequestCalls`)이었다. 모델이 지난 턴의 미완료 행동과 지금
+  // 요청 행동을 함께 냈을 때, 런타임이 **모델에게 되물어** 현재 것만 남기고 나머지를 버렸다.
   //
-  // 걷어낸 것을 이번 턴 영수증으로 세우지는 않는다. 이 심문의 계약은 "지난 턴 행동을 현재
-  // 턴에 섞지 않는다"이고, 걷어낸 호출을 이번 턴 행동으로 만들면 그 경계를 내가 뚫는 것이다.
+  // 걷어내는 근거는 실측이다(같은 코드·같은 문장·같은 437개 고정판, 2026-08-04):
+  //   심문 켬 — 모델호출 18 · 토큰 178k · 무진전반복 4 · 이동 353
+  //   심문 끔 — 모델호출  5 · 토큰  51k · 무진전반복 0 · 이동 367
+  // 왕복만 먹은 게 아니다. 모델의 선택을 **조용히 버리면서** 모델이 자기 계획을 잃고 같은
+  // 자리를 다시 밟게 만들었다. 계약 ①("모델이 낸 호출을 버리지 않는다")과 정면으로 어긋난다.
   //
-  // 대신 **다시 실행되지 않게** 막는다. 예전엔 걸음 루프가 여러 호출을 하나로 합쳐 버려서
-  // 이 문제가 가려져 있었다 — 병합을 걷어내자 걸음 루프가 걷어낸 삭제를 다시 받아 실행했다
-  // (`pc-hands-c-closure` #293 이 잡았다, 2026-08-04). 판정을 한 번 했으면 그 턴에서는 선다.
-  const 심문제외 = [];
-  if (심문허용() && modelChosen?.length > 1) {
-    const 심문전 = modelChosen;
-    modelChosen = await currentRequestCalls({
-      calls: modelChosen, text: input.text ?? '', tc: earlyTc, model: ctx.model, selfState,
-    });
-    for (const call of 심문전) {
-      if (!modelChosen || !modelChosen.includes(call)) 심문제외.push(call);
-    }
-    if (!modelChosen) {
-      const currentFile = parseFileRequest(input.text ?? '');
-      if (!currentFile.ambiguous && currentFile.action !== 'unknown') {
-        // 구조 판정이 실패해도 현재 발화 하나에서 기계적으로 완결된 파일 작업은 과거 대화와
-        // 섞이지 않는다. 그 한 행동만 다시 세워 승인·실행 경계로 보낸다.
-        modelChosen = [{ name: 'local.file', args: currentFile }];
-        earlyReply = '';
-      } else {
-        // **막다른 답 금지**(실측 2026-08-03, 팀원 실사용): 예전엔 여기서
-        // "지금 할 일만 한 번 더 말씀해 주세요" 로 되물었다. 그런데 사용자가 같은 문장을
-        // 다시 말해도 같은 판정 불능으로 돌아와 **똑같은 문장에 두 번 막혔다.** 되묻기가
-        // 아니라 빠져나갈 길이 없는 벽이었다.
-        //
-        // 이 경계의 목적은 "지난 미완료 행동을 지금 실행하지 않는 것"이었고, 그 목적은
-        // 지난 것을 **버리는 것**으로 이미 달성된다. 사람에게 되묻는 것은 목적이 아니었다.
-        // 그래서 손을 비우고 넘긴다 — 이번 발화가 산출물을 요구하면 아래 완료 계약이
-        // 그것을 다시 세운다(모델이 손을 안 골랐을 때와 같은 길이다).
-        modelChosen = [];
-        earlyReply = '';
-      }
-    }
-  }
+  // 그래도 위험은 가설이 아니다 — 다중 호출 병합을 걷어내자 걸음 루프가 심문이 걷어내던
+  // **과거 삭제를 다시 받아 실행했다**(`pc-hands-c-closure` #293).
+  //
+  // 그래서 **버리는 대신 보인다**: 지난 턴에 시도했다 못 끝낸 행동과 같은 지문이 이번 턴에
+  // 다시 나오면, 되돌릴 수 있든 없든 자동으로 실행하지 않고 **승인 카드로 올린다.**
+  // 왕복 0 · 모델의 선택은 안 버려짐 · 사용자가 정말 원했으면 한 번 누르면 끝.
+  // 판단을 대신 하는 게 아니라 "이건 이번 발화가 아니라 지난 턴에서 왔다"는 사실만 세운다.
+  const 이월된것 = 이월지문(ctx.priorExchange);
+  // 이번 발화가 가리킨 자리 — 발화밖 파괴 판정의 유일한 기준이다(목록 없음).
+  const 이번발화 = parseFileRequest(input.text ?? '');
+  const 파괴판정 = (call) => ({
+    kind: toolActionKind({ toolId: call?.name, args: call?.args, selfState }),
+    대상: call?.args?.path ?? call?.args?.target,
+  });
 
   // 완료 형태 판단은 fast path 보다 먼저 선다. 모델이 첫 응답에서 손을 고르지 않았다는 이유로
   // 파일 산출물 요청이 대화 답만 남기고 빠져나가면, 바로 막으려던 H08 실패가 재발한다.
@@ -1101,6 +1029,11 @@ export async function runTurn(input, ctx) {
     const 대표 = [];
     for (const call of modelChosen) {
       if (call?.name && !보여준손.has(call.name)) { 없는손호출.push(call); continue; }
+      // **이월은 계획의 대표가 되지 않는다.** 계획 경로는 승인이 걸리면 턴 전체가 거기서 서는데,
+      // 대표 자리에 지난 턴 행동이 앉으면 **이번 요청이 이월 하나 때문에 못 돈다** — 그게 심문이
+      // 내던 병 그대로다(실측 2026-08-04, 이 검사가 처음 잡았다). 줄 뒤로 보내면 이번 요청이
+      // 계획 경로에서 먼저 끝나고, 이월은 걸음 루프에서 승인 카드로 선다. 순서가 곧 계약이다.
+      if (이월행동(call, 이월된것) || 발화밖파괴(파괴판정(call), 이번발화)) { 추가호출.push(call); continue; }
       if (call?.name && 본것.has(call.name)) { 추가호출.push(call); continue; }
       if (call?.name) 본것.add(call.name);
       대표.push(call);
@@ -1448,7 +1381,7 @@ export async function runTurn(input, ctx) {
   }
 
   // 4b) 승인 필요 없음 → 바로 실행.
-  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 심문제외, 계획호출신분);
+  const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 이월된것, 계획호출신분);
   // 다음 턴이 이어받을 자리에 남긴다. 서버가 대화에 저장하면 재시작도 넘는다.
   if (result?.turnExchange?.length) ctx.priorExchange = result.turnExchange;
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
@@ -1502,7 +1435,7 @@ function 이어받기정리(state, connectors = []) {
   return { ...state, ...(awaiting.length ? { awaiting } : { awaiting: undefined }) };
 }
 
-async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 심문제외 = [], 계획호출신분 = {}) {
+async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 이월된것 = new Set(), 계획호출신분 = {}) {
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -1855,10 +1788,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     return 선것;
   };
 
+  // 이번 발화가 가리킨 자리 — 계획 경로와 **같은 기준**으로 판정한다(두 진실 금지).
+  const 이번발화 = parseFileRequest(requestText ?? '');
+
   // 첫 응답에서 계획이 안 가져간 호출들을 **맨 앞에** 세운다 — 모델이 낸 순서 그대로다.
   대기호출.push(...줄세우기(첫응답나머지));
-  // 심문이 "지금 요청 밖"이라고 판정한 호출은 걸음 루프에서 다시 와도 서지 않는다.
-  const 요청밖지문 = new Set(심문제외.map((c) => 지문of(c?.name, c?.args ?? {})));
 
   while (!예산소진(쓴것(), 예산)) {
     if (!대기호출.length) {
@@ -1891,12 +1825,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       : rawArgs;
 
     const 지문 = 지문of(toolId, args);
-    // 심문이 이미 "지금 요청 밖"이라고 판정한 것은 걸음 루프에서도 서지 않는다.
-    if (요청밖지문.has(지문) || 요청밖지문.has(지문of(toolId, 이번.args))) {
-      못한호출남기기({ ...이번, args }, '현재요청밖', '지금 요청에 속한 일이 아니라 하지 않았어요.');
-      if (대기호출.length) continue;
-      break;
-    }
+    // **이월 행동은 자동으로 실행하지 않는다** — 지난 턴에 못 끝낸 일이 지금 발화에 섞여
+    // 조용히 도는 것을 막는다. 버리지 않고 아래 승인 경계로 올린다(카드에 그대로 실린다).
+    const 이번이월 = 이월된것.has(지문) || 이월된것.has(지문of(toolId, 이번.args));
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     if (rung.has(지문)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
@@ -1968,7 +1899,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // `rm -rf` 가 걸음 경로에서만 자동으로 실행됐다(실측 2026-08-03). 같은 명령이 계획
     // 경로에서는 승인을 받았다 — 한 턴 안에서 같은 행동에 두 개의 답이 나온 것이다.
     const 손선언 = selfState.connectedTools?.find((t) => t.id === toolId);
-    const 판정행동 = { kind, revocable: 손선언?.reversible, needsApproval: 손선언?.needsApproval };
+    // 이월이거나 이번 발화 밖 파괴면 손의 선언과 무관하게 승인으로 간다 —
+    // 되돌릴 수 있어도 **지금 요청이 아니다.** 버리지 않고 사용자에게 보인다.
+    const 발화밖 = 발화밖파괴({ kind, 대상: args?.path ?? args?.target }, 이번발화);
+    const 판정행동 = {
+      kind, revocable: 손선언?.reversible,
+      needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,
+    };
     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →

@@ -84,6 +84,11 @@ export const 허용파일 = [
   // 조건 기반 bulk_move 를 local.file 의 같은 안전·되돌리기 계약 안에 추가했다.
   'src/kernel/l2-plan/action-plan.js',
   'src/kernel/model-sovereign.js',
+  // §S2 본 전환 — 심문 ①(`currentRequestCalls`)을 **제품에서 걷어냈다.** 그 자리를 지키던
+  // 절대 게이트 "현재 요청 침해"는 왕복을 쓰는 되묻기 대신 **승인 경계로 보이기**가 받는다.
+  // 걷어낸 근거는 같은 코드·같은 문장 실측이다(2026-08-04): 심문 켬 18호출·178k토큰·무진전 4
+  // / 심문 끔 5호출·51k토큰·무진전 0. 심문은 왕복만 먹은 게 아니라 모델이 자기 계획을 잃게 했다.
+  'src/kernel/l2-plan/carryover.js',
   // §S3 예산·가드레일 — 6상한을 걷기 전에 서는 것(오너 지시 2026-08-04 "6단으로 넘어가").
   'src/kernel/turn-budget.js',
   'src/runtime/local-file.js',

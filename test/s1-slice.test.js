@@ -127,8 +127,19 @@ test('② B 는 쓰기를 골라도 심문 없이 간다(파일 산출물은 고
   assert.equal(B.r.kind, 'reply');
 });
 
-// ── ① 현재 행동 재심사 호출 ────────────────────────────────────────────────
-test('① B 는 승인 경계 후보를 다시 심문하지 않는다', async () => {
+// ── ① 현재 행동 재심사 호출 — **본 전환으로 제품에서 사라졌다** ────────────
+//
+// 이 자리는 원래 A/B 를 갈랐다: A 는 승인 경계 후보를 다시 심문하고 B 는 안 했다.
+// **본 전환(2026-08-04) 뒤 두 팔 모두 심문하지 않는다** — 플래그가 아니라 제품이 바뀌었다.
+// 그래서 닻을 "B 에는 없다"에서 "**어디에도 없다**"로 옮긴다.
+//
+// 걷어낸 근거(같은 코드·같은 문장·같은 437개 고정판, 2026-08-04):
+//   심문 켬 — 모델호출 18 · 토큰 178k · 무진전반복 4 · 이동 353
+//   심문 끔 — 모델호출  5 · 토큰  51k · 무진전반복 0 · 이동 367
+//
+// 심문이 지키던 절대 게이트("현재 요청 침해")는 **사라지지 않았다.** 왕복을 쓰는 되묻기
+// 대신 승인 경계로 보이기가 받는다 — 그 계약은 `test/s2-carryover-boundary.test.js` 가 잰다.
+test('① 심문(work.current_actions)은 두 팔 어디에도 남아 있지 않다', async () => {
   const { A, B } = await 양팔(
     (tc, o) => {
       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
@@ -136,9 +147,6 @@ test('① B 는 승인 경계 후보를 다시 심문하지 않는다', async ()
         return { text: '', toolCalls: [{ name: 'work.current_actions', args: { unclear: false, requestedIndexes: [0, 1] } }] };
       }
       if (o.tools?.length) {
-        // 재심사는 **안전 바닥 후보가 섞인 다중 선택**에서만 돈다(`isSafetyFloor`).
-        // `local.terminal` 은 계획 단계 인자에 `changes` 가 없어 '미상'이라 여기 안 걸린다 —
-        // 확실히 걸리는 `delete` 로 잰다.
         return { text: '', toolCalls: [
           { name: 'local.file', args: { action: 'read', path: '정산.csv' } },
           { name: 'local.file', args: { action: 'delete', path: '낡은.csv' } },
@@ -148,10 +156,12 @@ test('① B 는 승인 경계 후보를 다시 심문하지 않는다', async ()
     },
     { text: '정산.csv 읽고 낡은.csv 지워줘' },
   );
-  assert.ok(A.순서.some((s) => s.includes('currentActionAssessment')),
-    `A 팔에서 재심사가 안 일어났다 — 이 대본으로는 ① 을 못 잰다: ${A.순서.join(' → ')}`);
-  assert.ok(!B.순서.some((s) => s.includes('currentActionAssessment')),
-    `B 팔에 재심사가 남아 있다 — 플래그가 죽어 있다: ${B.순서.join(' → ')}`);
+  for (const [이름, 팔] of [['A', A], ['B', B]]) {
+    assert.ok(!팔.순서.some((s) => s.includes('currentActionAssessment')),
+      `${이름} 팔에 심문이 남아 있다 — 본 전환이 안 끝났다: ${팔.순서.join(' → ')}`);
+  }
+  // 심문을 걷었다고 모델이 고른 것이 사라지면 안 된다 — 그게 걷어낸 이유였다.
+  assert.ok(B.순서.includes('tool[local.file]'), '심문을 걷었더니 모델이 고른 손이 실행되지 않았다');
 });
 
 // ── 열지 않은 것 ───────────────────────────────────────────────────────────
