@@ -21,8 +21,12 @@ import { 저장된연결 } from '../s1/run.mjs';
 import { 도청기띄우기 } from '../s1/wire-tap.mjs';
 import { startLiveServer } from '../../src/surface/server.js';
 
-const 발화 = process.argv[2]
-  ?? '매일 아침 9시에 fixture 폴더에 새 파일이 생겼는지 확인해서 알려주는 걸 반복으로 걸어줘.';
+// **계측기를 먼저 검증한다.** 도청기가 도구 호출을 못 잡으면 "모델이 안 썼다"는 결론이
+// 통째로 틀린다. 반드시 도구를 부르는 대조 발화를 같은 실행에 넣어 그것부터 확인한다.
+const 발화들 = process.argv.slice(2).length ? process.argv.slice(2) : [
+  ['대조(도구를 반드시 부른다)', 'fixture 폴더에 뭐가 있는지 목록으로 보여줘.'],
+  ['자동화', '매일 아침 9시에 fixture 폴더에 새 파일이 생겼는지 확인해서 알려주는 걸 반복으로 걸어줘.'],
+].map((x) => (Array.isArray(x) ? x : ['직접', x]));
 
 const 연결 = 저장된연결();
 if (!연결) { console.error('저장된 모델 연결이 없다.'); process.exit(2); }
@@ -56,49 +60,49 @@ const 부르기 = async (경로, 몸) => (await fetch(`${주소}${경로}`, {
   body: JSON.stringify(몸 ?? {}),
 })).json();
 
-const s = await 부르기('/sessions');
-const 답 = await 부르기('/turn', { sessionId: s.id, text: 발화 });
+const 회차들 = [];
+for (const [이름, 발화] of 발화들) {
+  const 앞까지 = 도청.기록.length;
+  const s = await 부르기('/sessions');
+  const 답 = await 부르기('/turn', { sessionId: s.id, text: 발화 });
+  회차들.push({ 이름, 발화, 답, 기록: 도청.기록.slice(앞까지) });
+}
 
 await new Promise((r) => server.close(r));
 await 도청.close();
 
-// ── 판정: 각 요청에 자동화 채널이 실렸는가 ─────────────────────────────────
-const 요청들 = 도청.기록.filter((r) => r.보낸것?.tools || r.보낸것?.messages);
-console.log(`\n발화: ${발화}\n모델 요청 ${요청들.length}건\n`);
-let 실린적 = 0;
-요청들.forEach((r, i) => {
-  const 이름들 = (r.보낸것?.tools ?? []).map((t) => t.function?.name ?? t.name).filter(Boolean);
-  const 있나 = 이름들.some((n) => String(n).includes('automation'));
-  if (있나) 실린적 += 1;
-  console.log(`  요청${i + 1}: 도구 ${이름들.length}개 · automation ${있나 ? '실림' : '안 실림'}`
-    + (있나 ? ` (${이름들.findIndex((n) => String(n).includes('automation')) + 1}번째/${이름들.length})` : '')
-    + (이름들.length ? `\n           ${이름들.join(', ')}` : ''));
-});
-
-// 모델이 실제로 부른 것
-const 부른것 = [];
-for (const 한건 of 도청.기록) {
-  const 몸 = 한건.받은것;
-  const 호출 = 몸?.choices?.[0]?.message?.tool_calls
-    ?? 몸?.output?.filter?.((o) => o.type === 'function_call')
-    ?? [];
-  for (const x of 호출) 부른것.push(x.function?.name ?? x.name);
-  // 스트리밍이면 본문이 문자열로 남는다 — 이름만 훑는다.
-  if (typeof 한건.받은본문 === 'string') {
-    for (const m of 한건.받은본문.matchAll(/"name"\s*:\s*"([a-z_]+)"/g)) 부른것.push(m[1]);
+// ── 회차별 판정 ────────────────────────────────────────────────────────────
+const 부른도구 = (기록) => {
+  const 낸것 = [];
+  for (const 한건 of 기록) {
+    const 몸 = 한건.받은것;
+    for (const x of (몸?.choices?.[0]?.message?.tool_calls ?? [])) 낸것.push(x.function?.name ?? x.name);
+    for (const x of (몸?.output ?? []).filter?.((o) => o.type === 'function_call') ?? []) 낸것.push(x.name);
+    const 본문 = 한건.받은본문 ?? 한건.본문 ?? (typeof 몸 === 'string' ? 몸 : null);
+    if (typeof 본문 === 'string') {
+      for (const m of 본문.matchAll(/"function"\s*:\s*\{[^}]*"name"\s*:\s*"([a-z_.]+)"/g)) 낸것.push(m[1]);
+    }
   }
+  return 낸것;
+};
+
+for (const r of 회차들) {
+  const 요청들 = r.기록.filter((x) => x.보낸것?.tools || x.보낸것?.messages);
+  const 실림 = 요청들.filter((x) => (x.보낸것?.tools ?? []).some((t) => String(t.function?.name ?? t.name).includes('automation')));
+  const 낸것 = 부른도구(r.기록);
+  console.log(`\n[${r.이름}] "${r.발화.slice(0, 40)}…"`);
+  console.log(`  모델 요청 ${요청들.length}건 · automation 실린 요청 ${실림.length}건`);
+  console.log(`  모델이 부른 도구: ${낸것.length ? [...new Set(낸것)].join(', ') : '(없음)'}`);
+  console.log(`  답: ${String(r.답?.reply ?? r.답?.question ?? '').slice(0, 110).replace(/\n/g, ' ')}`);
 }
-console.log(`\n모델이 부른 도구: ${부른것.length ? 부른것.join(', ') : '(없음)'}`);
-console.log(`자동화 채널이 실린 요청: ${실린적}/${요청들.length}`);
-console.log(`\n판정: ${실린적 === 0 ? '**커널 쪽** — 채널이 요청에 안 실렸다'
-  : 부른것.some((n) => String(n).includes('automation')) ? '모델이 실제로 썼다(재현 실패)'
-    : '**모델 쪽** — 채널은 실렸는데 안 썼다'}`);
-// ── F-12: **실행 0인데 이 컴퓨터의 구체적 자리를 단정하는가** ─────────────
-const 답글 = String(답?.reply ?? '');
-const 자리들 = [...답글.matchAll(/[`'"]?(~?\/[^\s`'"]+|~\/[^\s`'"]+)[`'"]?/g)].map((m) => m[1]);
-const 단정 = 자리들.filter((p) => /\.(sh|log|md|txt|json|csv|py|js)$/.test(p) || /scripts|logs/.test(p));
-console.log(`\n[F-12] 실행한 도구 ${부른것.length}건 · 답이 부른 자리 ${단정.length}개`
-  + (단정.length ? `: ${[...new Set(단정)].slice(0, 4).join(' · ')}` : ''));
-console.log(`[F-12] 거짓 자리 주장: ${부른것.length === 0 && 단정.length > 0 ? '**있음**' : '없음'}`);
-console.log(`\n최종 답 앞부분: ${답글.slice(0, 200)}`);
+
+const 대조 = 회차들[0];
+const 대조가부름 = 부른도구(대조?.기록 ?? []).length > 0;
+console.log(`\n=== 계측기 검증: ${대조가부름 ? '**정상** — 도구 호출을 잡는다' : '**고장** — 대조 발화에서도 못 잡았다. 아래 판정은 무효다'}`);
+if (대조가부름) {
+  const 자동화회차 = 회차들.find((r) => r.이름.includes('자동화'));
+  const 낸것 = 부른도구(자동화회차?.기록 ?? []);
+  console.log(`=== F-11 판정: ${낸것.some((n) => String(n).includes('automation'))
+    ? '모델이 자동화 채널을 실제로 썼다' : '**모델이 채널을 쥐고도 안 썼다**'}`);
+}
 await rm(root, { recursive: true, force: true });
