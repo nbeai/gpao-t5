@@ -77,11 +77,26 @@ test('⑥ 모르는 손도 죽지 않는다(선언이 없으면 없는 대로 �
 import { 승인면제 } from '../src/kernel/l2-plan/tool-boundary.js';
 import { rememberCounterpart } from '../src/kernel/l2-plan/known-counterpart.js';
 
-test('⑦ **이번 요청에서 허락한 손은 다시 안 묻는다**', () => {
+test('⑦ **되돌릴 수 있는 손은 이번 요청에서 다시 안 묻는다**', () => {
   const 허락한손 = new Set(['local.file']);
-  assert.equal(승인면제({ toolId: 'local.file', 허락한손 }).면제, true,
-    '같은 요청에서 이미 허락한 손인데 또 묻는다 — 사용자는 같은 질문을 두 번 받는다');
-  assert.equal(승인면제({ toolId: 'local.file', 허락한손 }).이유, '허락한손');
+  const r = 승인면제({ toolId: 'local.file', 허락한손, 되돌릴수있나: true });
+  assert.equal(r.면제, true, '같은 요청에서 이미 허락한 손인데 또 묻는다 — 같은 질문을 두 번 받는다');
+  assert.equal(r.이유, '허락한손');
+});
+
+// **손 면제는 되돌릴 수 없는 것까지 덮지 않는다**(2026-08-05 · 밟아서 확인).
+// 사용자가 `rm -rf ./임시` 를 승인했더니 재개 루프에서 모델이 낸 `rm -rf /전혀다른곳` 이
+// 승인 없이 실행됐다. 승인은 **그 명령**에 준 것이지 "앞으로 이 손 마음대로"가 아니다.
+test('⑦-a **되돌릴 수 없는 것은 손을 허락했어도 다시 묻는다**(헌장 ②)', () => {
+  const 허락한손 = new Set(['local.terminal']);
+  assert.equal(승인면제({ toolId: 'local.terminal', 허락한손, 되돌릴수있나: false }).면제, false,
+    '승인한 손이라고 다음 파괴까지 자동으로 나갔다 — 헌장 ②가 무너진다');
+});
+
+test('⑦-b 되돌릴 수 있는지 **모르면 묻는다**(모르는 것을 안전하다고 하지 않는다)', () => {
+  const 허락한손 = new Set(['새손']);
+  assert.equal(승인면제({ toolId: '새손', 허락한손 }).면제, false,
+    '선언이 없는 손을 되돌릴 수 있다고 가정했다');
 });
 
 test('⑧ **손이 다르면 다른 결정이다** — 면제가 번지지 않는다', () => {

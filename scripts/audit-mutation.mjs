@@ -728,6 +728,11 @@ export const MUTATIONS = [
     바꾸기: '' },
 
   // ── §5-J 렌더 격리(감사 승인 1회 수정) — 기억이 다시 벌거벗은 명령으로 나오면 잡는다 ──
+  // S6-c — **손 면제가 헌장 ②를 뚫지 않는다.** 승인은 그 명령에 준 것이지 손 전체가 아니다.
+  { 이름: '경계: 승인한 손이면 되돌릴 수 없는 새 파괴도 자동 실행(헌장 ② 위반)', 파일: TBOUND,
+    검사: 'test/s6c-approval-seal-contract.test.js',
+    찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
+    바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
   // S6-c — **원장 입구.** 절대 게이트 "원장↔영수증↔실물 불일치 0" 이 여기 걸린다.
   { 이름: '캡슐 안쪽 실행이 원장에서 사라짐(손 하나만 남고 안이 조용해짐)', 파일: TURNJS,
     검사: 'test/s6c-ledger-contract.test.js',
@@ -749,7 +754,8 @@ export const MUTATIONS = [
     찾기: "    if (대상 && isKnownCounterpart(knownCounterparts, toolId, 대상)) return { 면제: true, 이유: '아는상대' };",
     바꾸기: "    if (false) return { 면제: true, 이유: '아는상대' };" },
   { 이름: '경계: 이번 요청에서 허락한 손을 또 물음', 파일: TBOUND, 검사: T_TBOUND,
-    찾기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };",
+    // 2026-08-05: 손 면제가 **되돌릴 수 있는 것에만** 걸리도록 좁아졌다(헌장 ②) — 겨냥만 옮긴다.
+    찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (false) return { 면제: true, 이유: '허락한손' };" },
   { 이름: '경계: 터미널을 돌려 보지 않고 등급을 매김(probe 생략)', 파일: TBOUND, 검사: T_TBOUND,
     찾기: "    const probed = await tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });",

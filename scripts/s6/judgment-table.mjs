@@ -66,6 +66,8 @@ async function 결정(손, 발화, { 이월, 허락됨, 상대앎 }) {
     전송인가: 손.id.endsWith('.send'),
     이번이월: 이월,
     발화밖: 발화밖파괴({ kind, 대상: 손.args?.path ?? 손.args?.target }, 발화.값),
+    // 되돌릴 수 없는 것은 손 면제가 덮지 않는다(헌장 ②) — turn.js 가 넘기는 그대로.
+    되돌릴수있나: 판정행동.revocable,
   });
   if (면제.면제) return `자동(면제:${면제.이유})`;
   return decideAutoGrant(판정행동) ? '자동' : '승인';

@@ -2011,6 +2011,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       전송인가: isSendTool(toolId, selfState),
       // **게이트는 면제 대상이 아니다** — 이월·발화밖은 "현재 요청 침해"의 자리다.
       이번이월, 발화밖: 발화밖파괴({ kind, 대상: args?.path ?? args?.target }, 이번발화),
+      // 되돌릴 수 없는 것은 손 면제가 덮지 않는다(헌장 ②). 손 선언이 유일한 진실이다.
+      되돌릴수있나: 판정행동.revocable,
     });
     if (!면제.면제 && !decideAutoGrant(판정행동)) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
