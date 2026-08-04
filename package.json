@@ -27,6 +27,7 @@
     "audit:mutation": "node scripts/audit-mutation.mjs",
     "p90-1:live-reseal": "node scripts/production90/p90-1-live-reseal.mjs",
     "human-use:prepare": "node scripts/human-use/prepare.mjs",
-    "human-use:verify": "node scripts/human-use/verify-evidence.mjs"
+    "human-use:verify": "node scripts/human-use/verify-evidence.mjs",
+    "preview:isolated": "GPAO_T5_DATA_DIR=/tmp/t5-preview-state GPAO_T5_HOME=/tmp/t5-preview-home node src/surface/server.js"
   }
 }

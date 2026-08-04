@@ -322,6 +322,8 @@ export function makeServer(deps = {}) {
   // P6-12: 스트림 시작을 POST 본문으로 받아 streamId만 발급한다 — 사용자 원문을 URL에 싣지 않는다(프라이버시).
   //   EventSource는 streamId로만 구독한다. 일회성 소비 + 30초 만료(누수 방지).
   const pendingStreams = new Map();
+  /** 사용자가 "멈춰"를 누른 세션. 다음 발화에서 지워진다(F-5). */
+  const 멈춤요청 = new Set();
   // HRT-ST-001 · 진행 중인 턴의 계측 장부는 자기 파일에 있다(`turn-timing-registry.js`).
   // 바깥에서 아무것도 받지 않는 순수한 덩어리였다 — 여기 남는 것은 조립뿐이다.
   const 계측장부 = makeTurnTimingRegistry();
@@ -688,6 +690,16 @@ export function makeServer(deps = {}) {
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
+      // ── **멈춤**(F-5) — 사용자가 누른 정지가 이 턴의 실행 큐까지 닿는다 ──────────
+    //
+    // 캡슐(S4)이 서면서 한 턴이 수십 초 동안 수백 번 손을 쓸 수 있게 됐다. 그동안 멈출
+    // 방법이 없으면, 되돌릴 수 있는 작업이라도 사용자는 자기 컴퓨터에서 벌어지는 일을
+    // 못 세운다. **자동성이 의무인 만큼 정지도 의무다.**
+    //
+    // **새 발화는 앞선 멈춤을 물려받지 않는다** — 안 그러면 한 번 누른 정지가 그 세션을
+    // 영영 얼린다(사용자는 다음 요청이 왜 아무 일도 안 하는지 알 길이 없다).
+    if (hasText) 멈춤요청.delete(session.id);
+    ctx.취소됐나 = () => 멈춤요청.has(session.id);
     ctx.priorShown = 직전에보인것(memory, turnRef);
     ctx.defaults = learning.promoted; // P6-11: 승격된 기본 대상만 영향(narrow)
     ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
@@ -1226,6 +1238,15 @@ export function makeServer(deps = {}) {
           console.error('[turn-timing:diagnostic]', error?.message ?? error);
           return sendJson(res, 400, { error: '계측값을 기록하지 못했어요.' });
         }
+      }
+
+      // ── 멈춤 (F-5) ── 돌고 있는 턴의 실행 큐를 세운다. **이미 한 일은 되돌리지 않는다** —
+      //   되돌리기는 사용자가 따로 말하는 별개의 일이고, 여기서 합치면 "멈춰"가 파괴가 된다.
+      if (req.method === 'POST' && url === '/turn/cancel') {
+        const input = JSON.parse((await readBody(req)) || '{}');
+        if (typeof input.sessionId !== 'string') return sendJson(res, 400, { error: '세션 없음' });
+        멈춤요청.add(input.sessionId);
+        return sendJson(res, 200, { ok: true });
       }
 
       // ── 스트림 시작 (P6-12) ── 사용자 원문은 POST 본문으로만. streamId를 발급하고 EventSource가 그걸로 구독.

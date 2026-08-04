@@ -75,5 +75,6 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/demo-context.js',
     'src/surface/live-context.js',
     'src/runtime/tool-runner.js',
+    'src/surface/web/index.html',
   ]);
 });

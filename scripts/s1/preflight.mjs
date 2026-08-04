@@ -112,6 +112,8 @@ export const 허용파일 = [
   'src/surface/demo-context.js',
   'src/surface/live-context.js',
   'src/runtime/tool-runner.js',
+  // F-5 멈춤 — 표면(HTTP 문 + 화면 버튼)에서 커널 취소 이음새까지.
+  'src/surface/web/index.html',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */
@@ -120,6 +122,9 @@ const 무시 = [
   // 게이트는 **검사 하네스**다 — 제품 행동이 아니라 검사 자체이므로 팔의 차이가 아니다.
   // (§S3 에서 "조용한 절단 금지" 매듭을 여기 묶었다.)
   /^scripts\/gate\.mjs$/, /^scripts\/gate-baseline\.json$/,
+  // 개발 하네스 — 제품 행동이 아니다. `preview:isolated` 는 다른 세션의 서버와 데이터 자리가
+  // 겹치지 않게 화면을 띄우는 스크립트다(쓰기 잠금이 옳게 막아서 필요해졌다).
+  /^package\.json$/, /^\.claude\//,
   /^AGENTS\.md$/, /^README\.md$/, /\.md$/,
 ];
 

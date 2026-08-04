@@ -283,6 +283,11 @@
      쓴다 — 답과 같은 굵기·색이면 사용자는 같은 말을 두 번 들었다고 느낀다. */
   .msg.steps { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
     border-left:2px solid var(--line); display:flex; flex-direction:column; gap:var(--sp-1); }
+  .stopbtn { align-self:flex-start; font-size:var(--fs-sm); margin:0 var(--sp-3) var(--sp-1);
+    padding:var(--sp-1) var(--sp-3); border:1px solid var(--line); border-radius:999px;
+    background:transparent; color:var(--muted); cursor:pointer; }
+  .stopbtn:hover { color:var(--fg); }
+  .stopbtn:disabled { opacity:.5; cursor:default; }
   .trace { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
     display:flex; align-items:center; gap:var(--sp-2); opacity:0.9; }
   .trace::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent);
@@ -1871,6 +1876,20 @@ async function submit() {
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
+  // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
+  // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
+  const 멈춤 = el('stopbtn'); 멈춤.textContent = '멈추기';
+  멈춤.onclick = async () => {
+    멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';
+    await fetch('/turn/cancel', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    }).catch(() => {});
+    trace.textContent = '멈추는 중이에요 — 하던 걸음까지만 끝내요…';
+  };
+  box.appendChild(멈춤);
+  const 멈춤치우기 = () => 멈춤.remove();
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
@@ -1891,6 +1910,8 @@ async function submit() {
   } catch {
     trace.remove();
     sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    멈춤치우기(); // 오류로 끝나도 버튼이 남지 않는다
   }
 }
 
