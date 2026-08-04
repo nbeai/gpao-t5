@@ -247,3 +247,40 @@ test('앞 턴에 만든 자리도 지어낸 것이 아니다(턴이 넘어가도
   });
   assert.equal(v.일치, true, '앞 턴에 만든 자리를 지어낸 것으로 잡았다 — 턴이 넘어가면 원장을 잊는 셈이다');
 });
+
+// ── ⑧ 답에 적어 놓고 **안 돌린 명령** ──────────────────────────────────────
+//
+// 라이브 실측 2회(2026-08-04 · 사람 사용시험 · gpt-5.1 · 격리 증명 통과):
+//   원장 `local.file list ~/Documents` → blocked
+//   T5   "터미널에서 직접 확인해 볼게." + ```ls -al ~/Documents```
+//   원장 `local.terminal` **호출 0건**
+//
+// 런타임은 매 호출에 터미널 손을 쥐어 줬다(같은 환경 3/3 확인). 모델이 쥐고도 안 쓰고
+// 명령을 글로 적었다 — 사용자가 대신 실행해야 하니 **떠넘김**이다.
+// "확인해 볼게"는 미래형이라 완료 주장 그물에는 안 걸린다. 그래서 이 대조는 따로 선다.
+test('명령을 답에 적고 안 돌렸으면 **모델에게 사실로 돌려준다**', () => {
+  const 목록 = 성공('local.file', { action: 'list', path: '~/Documents' }, { path: '~/Documents', items: [] });
+  const v = 완료주장검증({
+    reply: '터미널에서 직접 확인해 볼게.\n\n```bash\nls -al ~/Documents\n```',
+    receipts: [목록], 원장글: JSON.stringify([[목록], []]),
+  });
+  assert.equal(v.일치, false, '손을 쥐고도 명령만 보여 준 답이 그대로 나갔다');
+  assert.match(v.모델에게, /ls -al/, '어느 명령이 안 돌았는지가 모델에게 안 간다');
+});
+
+test('실제로 돌린 명령은 지나간다(과잉 차단 금지)', () => {
+  const 돌림 = 성공('local.terminal', { command: 'ls -al ~/Documents' }, { command: 'ls -al ~/Documents', exitCode: 0, stdout: '가.txt' });
+  const v = 완료주장검증({
+    reply: '봤어.\n\n```bash\nls -al ~/Documents\n```\n\n가.txt 하나 있어.',
+    receipts: [돌림], 원장글: JSON.stringify([[돌림], []]),
+  });
+  assert.equal(v.일치, true, `실제로 돌린 명령을 안 돌렸다고 잡았다: ${v.모델에게}`);
+});
+
+test('설명용 코드블록은 명령이 아니면 안 잡는다', () => {
+  const v = 완료주장검증({
+    reply: '이렇게 쓰면 돼.\n\n```js\nconst a = 1;\n```',
+    receipts: [], 원장글: '[]',
+  });
+  assert.equal(v.일치, true, '셸 명령이 아닌 코드까지 잡으면 설명하는 답이 전부 막힌다');
+});

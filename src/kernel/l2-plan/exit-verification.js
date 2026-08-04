@@ -110,6 +110,37 @@ function 가리킨자리들(reply) {
 }
 
 /**
+ * 답에 **실행하지 않은 명령**이 실렸는가 — 코드블록 안의 셸 명령만 본다.
+ *
+ * 라이브 실측 2회(2026-08-04 · 사람 사용시험 · gpt-5.1 · 격리 증명 통과):
+ *   원장   `local.file list ~/Documents` → blocked
+ *   T5     "터미널에서 직접 확인해 볼게.\n\n```\nls -al ~/Documents\n```"
+ *   원장   `local.terminal` **호출 0건**
+ *
+ * 런타임은 매 호출에 터미널 손을 쥐어 줬다(같은 환경에서 3/3 확인). 모델이 쥐고도 안 쓰고
+ * **명령을 글로 적었다.** 사용자에게 이건 떠넘김이다 — 자기가 실행해야 한다.
+ *
+ * **막지 않는다. 사실만 돌려준다.** "이 명령이 답에 있는데 원장에 그 실행이 없다."
+ * 실행할지, 안 한다고 말할지, 설명으로 둘지는 모델이 정한다(§24). 문구 규칙을 키우는 것이
+ * 아니라 **원장 대조**다 — 명령이 원장에 있으면 그냥 지나간다.
+ */
+function 안돌린명령(reply, 원장글) {
+  const 명령들 = new Set();
+  // **명령 이름을 목록으로 적지 않는다**(§4-6 · 절대원칙 8: 목록은 늘 뚫린다).
+  // 게이트도 이것을 잡는다 — 커널 말귀 층에 서비스·도구 이름 분기가 늘면 침범이다.
+  // 대신 **구조**로 본다: 셸이라고 **모델이 스스로 표시한** 코드블록만.
+  for (const m of String(reply ?? '').matchAll(/```(bash|sh|shell|zsh|console|terminal)\n([\s\S]*?)```/g)) {
+    for (const 줄 of m[2].split('\n')) {
+      const c = 줄.trim().replace(/^[$#>]\s*/, '');       // 프롬프트 기호는 명령이 아니다
+      if (!c || c.startsWith('#')) continue;               // 주석은 실행이 아니다
+      if (c.length < 3) continue;
+      명령들.add(c);
+    }
+  }
+  return [...명령들].filter((c) => !원장글.includes(c));
+}
+
+/**
  * 완료 주장을 원장과 대조한다.
  *
  * @param {{reply:string, receipts:Array, 원장글?:string, 이미돌려줬나?:boolean}} p
@@ -126,9 +157,22 @@ export function 완료주장검증({ reply, receipts = [], 원장글 = '', 이�
     && r?.actualCall?.tool && r?.result !== undefined).length;
   const 지나감 = { 일치: true, 사용자에게: true, 실제 };
 
-  if (!완료주장인가(reply)) return 지나감;
   // **한 턴에 한 번만 돌려준다.** 두 번 되돌리면 왕복이 무한이 되고, 그 비용은 사용자가 문다.
   if (이미돌려줬나) return 지나감;
+
+  // 답에 적어 놓고 안 돌린 명령은 **완료 주장이 아니어도** 본다 — "확인해 볼게" 하고
+  // 명령만 보여 주는 답이 정확히 그 모양이다(미래형이라 완료 주장으로는 안 잡힌다).
+  const 안돌린먼저 = 안돌린명령(reply, 원장글);
+  if (안돌린먼저.length) {
+    return {
+      일치: false,
+      사용자에게: false,
+      실제,
+      모델에게: `답에 명령이 실려 있는데 이 턴의 원장에 그 실행이 없다: ${안돌린먼저.join(' · ')}`,
+    };
+  }
+
+  if (!완료주장인가(reply)) return 지나감;
 
   if (확인된실행 === 0) {
     return {
