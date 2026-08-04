@@ -66,6 +66,12 @@ const T_BIND = 'test/server-bind.test.js';
 const T_REVMEM = 'test/reversible-memory.test.js';
 const TURNJS = 'src/kernel/turn.js';
 const TSURF = 'src/kernel/turn-surface.js';  // HRT-ST-002 로 turn.js 에서 추출된 사용자 화면 경계
+// **S6-a 로 turn.js 에서 추출된 실행 경계**(2026-08-05). 같은 규칙을 적용한다 —
+// turn.js 에서 뽑아낸 파일은 겨냥에 올린다. 여기에 S6-b·S6-c 가 원장·영수증·**절대 게이트**·
+// 승인 생애주기를 모을 예정이라, 안 올리면 **가장 안전이 걸린 코드가 무방비인 채로 306/306 이
+// 계속 초록**이 된다. 쌓이기 전에 올린다(지금은 파일 하나, 나중엔 언제부터 무방비였는지를 되짚어야 한다).
+const TBOUND = 'src/kernel/l2-plan/tool-boundary.js';
+const T_TBOUND = 'test/s6a-tool-boundary.test.js';
 const T_STREAM = 'test/answer-streaming.test.js';
 const PROVIDER = 'src/runtime/model-provider.js';
 const T_PROVIDER = 'test/model-provider.test.js';
@@ -722,6 +728,19 @@ export const MUTATIONS = [
     바꾸기: '' },
 
   // ── §5-J 렌더 격리(감사 승인 1회 수정) — 기억이 다시 벌거벗은 명령으로 나오면 잡는다 ──
+  // ── 실행 경계(S6-a) — 여기 판정이 무너지면 절대 게이트가 함께 무너진다 ──────
+  { 이름: '경계: 이월된 일을 손 선언만 보고 자동 실행', 파일: TBOUND, 검사: T_TBOUND,
+    찾기: "      needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,",
+    바꾸기: "      needsApproval: 손선언?.needsApproval," },
+  { 이름: '경계: 발화 밖 파괴를 현재 요청으로 셈(현재 요청 침해)', 파일: TBOUND, 검사: T_TBOUND,
+    찾기: "  const 발화밖 = 발화밖파괴({ kind, 대상: args?.path ?? args?.target }, 이번발화);",
+    바꾸기: "  const 발화밖 = false;" },
+  { 이름: '경계: 손의 되돌림 선언을 판정에서 버림(rm -rf 자동 실행 재발)', 파일: TBOUND, 검사: T_TBOUND,
+    찾기: "      revocable: 손선언?.reversible,",
+    바꾸기: "      revocable: true," },
+  { 이름: '경계: 터미널을 돌려 보지 않고 등급을 매김(probe 생략)', 파일: TBOUND, 검사: T_TBOUND,
+    찾기: "    const probed = await tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });",
+    바꾸기: "    const probed = undefined;" },
   { 이름: '기억 격리 해제 — 저장 원문이 벌거벗은 명령 목록으로 렌더됨(§5-J 재발)', 파일: PROVIDER, 검사: T_PROVIDER,
     // 2026-08-05: 변수 이름이 `usr` → `커널블록` 으로 바뀌었다(이름이 거짓말해서 검토가 오독했다).
     // **재는 것은 그대로다** — 저장 원문이 격리 없이 벌거벗은 목록으로 렌더되면 안 된다.
