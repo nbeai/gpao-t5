@@ -941,8 +941,10 @@ export const MUTATIONS = [
     찾기: "const FILE_TOKEN = /(?:^|[\\s'\"“”‘’(])([^\\s'\"“”‘’()]+\\.[A-Za-z0-9]{1,8})(?=(?:을|를|은|는|이|가|에서|으로|로)?(?:$|[\\s'\"“”‘’),.]))/;",
     바꾸기: "const FILE_TOKEN = /(?:^|[\\s'\"“”‘’(])([^\\s'\"“”‘’()]+\\.[A-Za-z0-9]{1,8})(?=$|[\\s'\"“”‘’),.])/;" },
   { 이름: '실패한 모델 추측을 성공한 실행 인자로 사실화', 파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/task-context.test.js',
-    찾기: "        : { attemptedWith: compactResult(확인되지않은인자(r.actualCall?.args)) }),",
-    바꾸기: "        : { calledWith: compactResult(r.actualCall?.args) })," },
+    // 2026-08-04: 제안과 실행을 나누며(`제안한호출`) 줄이 바뀌었다 — 겨냥만 옮긴다.
+    // 재는 것은 그대로다: 부르지 않은/실패한 호출의 인자를 **확인된 값처럼** 싣지 않는가.
+    찾기: "        : { attemptedWith: compactResult(확인되지않은인자((r.제안한호출 ?? r.actualCall)?.args)) }),",
+    바꾸기: "        : { calledWith: compactResult((r.제안한호출 ?? r.actualCall)?.args) })," },
   { 이름: '외부 채널 답변의 민감값을 그대로 전송·저장', 파일: SERVER, 검사: 'test/channel-approval-notice.test.js',
     찾기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.\n    redactSensitiveOutput(result);",
     바꾸기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다.\n    void result;" },
