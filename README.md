@@ -4,6 +4,10 @@ Status: `official_development_root`
 
 This folder is the formal development root for GPAO-T5.
 
+**새로 합류했다면 `docs/00-START-HERE/README.md` 부터 읽어라.** 목적·철학·현재 상황·열려 있는
+결함까지 한 시간 안에 잡을 수 있는 읽는 순서와, 문서보다 먼저 밟아야 할 명령이 적혀 있다.
+새 세션에게 그대로 붙여 넣을 첫 메시지도 같은 폴더에 있다.
+
 Start with `docs/PROJECT-AUTHORITY-MAP-ko.md`. It identifies the current canonical entry points, official working
 folder, retired plans, comparison sources, and the boundary between current truth and history.
 
