@@ -99,6 +99,9 @@ export const 허용파일 = [
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
   // 조건 기반 bulk_move 를 local.file 의 같은 안전·되돌리기 계약 안에 추가했다.
   'src/kernel/l2-plan/action-plan.js',
+  // 통제 채널 설명에 **되는 것**을 더했다(2026-08-04). 라이브 2회에서 모델이 자동화 채널을
+  // 쥐고도 "예약 기능이 없다"며 사용자에게 cron 을 짜 줬다 — 설명이 안 되는 것만 말했다.
+  'src/kernel/l2-plan/model-control.js',
   'src/kernel/model-sovereign.js',
   // §S2 본 전환 — 심문 ①(`currentRequestCalls`)을 **제품에서 걷어냈다.** 그 자리를 지키던
   // 절대 게이트 "현재 요청 침해"는 왕복을 쓰는 되묻기 대신 **승인 경계로 보이기**가 받는다.

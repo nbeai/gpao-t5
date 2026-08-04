@@ -57,6 +57,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/l2-plan/action-plan.js',
+    // 통제 채널 설명에 **되는 것**을 더했다(2026-08-04). 라이브 2회에서 모델이 자동화 채널을
+    // 쥐고도 "예약 기능이 없다"며 사용자에게 cron 을 짜 줬다 — 설명이 안 되는 것만 말했다.
+    'src/kernel/l2-plan/model-control.js',
     'src/kernel/model-sovereign.js',
     // §S2 본 전환 — 심문 ① 을 걷고 그 자리를 승인 경계로 대체했다(2026-08-04).
     'src/kernel/l2-plan/carryover.js',
