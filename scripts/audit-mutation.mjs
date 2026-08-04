@@ -728,6 +728,11 @@ export const MUTATIONS = [
     바꾸기: '' },
 
   // ── §5-J 렌더 격리(감사 승인 1회 수정) — 기억이 다시 벌거벗은 명령으로 나오면 잡는다 ──
+  // S6-c — **원장 입구.** 절대 게이트 "원장↔영수증↔실물 불일치 0" 이 여기 걸린다.
+  { 이름: '캡슐 안쪽 실행이 원장에서 사라짐(손 하나만 남고 안이 조용해짐)', 파일: TURNJS,
+    검사: 'test/s6c-ledger-contract.test.js',
+    찾기: '      for (const 안쪽 of rec?.result?.innerReceipts ?? []) ledger.append(안쪽);',
+    바꾸기: '      void rec;' },
   // ── 실행 경계(S6-a) — 여기 판정이 무너지면 절대 게이트가 함께 무너진다 ──────
   { 이름: '경계: 이월된 일을 손 선언만 보고 자동 실행', 파일: TBOUND, 검사: T_TBOUND,
     찾기: "      needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,",
