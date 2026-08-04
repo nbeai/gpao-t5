@@ -22,6 +22,7 @@
 // **훅은 판정을 돌려주고, 턴을 끝내는 것은 루프의 일이다.**
 import { toolActionKind } from './action-plan.js';
 import { 발화밖파괴 } from './carryover.js';
+import { isKnownCounterpart } from './known-counterpart.js';
 
 /**
  * **실행 전 판정** — 이 호출이 무슨 등급이고, 자동인가 승인인가를 정할 사실을 만든다.
@@ -68,4 +69,41 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,
     },
   };
+}
+
+/**
+ * **승인 면제 — 같은 질문을 두 번 하지 않는다.** (S6-b)
+ *
+ * 면제는 둘인데 **각 경로가 서로 다른 하나만** 읽고 있었다:
+ *   `isKnownCounterpart`(헌장 ③ · 아는 상대) → 계획 경로에서만(turn.js:1324)
+ *   `허락한손`(이번 요청에서 허락한 손)      → 걸음 경로에서만(turn.js:2036)
+ *
+ * 재현(F-20 · 기계 사실): 아는 상대인데 전송이 **다음 왕복**으로 오면(걸음 경로)
+ * **카드가 다시 떴다.** 헌장 ③ 이 어느 경로로 왔느냐에 따라 갈린 것이다.
+ * 두 벌 판정의 실제 대가다 — **한 벌이면 안 생긴다.**
+ *
+ * ── 왜 `decideAutoGrant` **앞**에서 봐야 하나 ──────────────────────────────
+ * 뒤에서 `needsApproval` 만 비우면 **호출이 조용히 증발한다**(밟아서 확인).
+ * 걸음 경로는 승인 분기에 들어간 뒤 카드를 못 만들면 `멈춘이유` 를 세우고 **루프를 빠져나간다**
+ * — 실행 목록으로 돌아가지 않는다. 면제는 **애초에 승인 분기로 안 들어가게** 하는 것이다.
+ *
+ * @param {object} p
+ * @param {string} p.toolId
+ * @param {object} [p.판정인자]        대상이 확정된 인자(전송이면 `target` 이 여기 있다)
+ * @param {Set<string>} [p.허락한손]    이번 요청에서 이미 허락받은 손
+ * @param {Set<string>} [p.knownCounterparts]
+ * @param {boolean} [p.전송인가]
+ * @returns {{면제: boolean, 이유?: '허락한손'|'아는상대'}}
+ */
+export function 승인면제({ toolId, 판정인자, 허락한손, knownCounterparts, 전송인가 = false }) {
+  // ① 이 요청에서 이미 허락받은 **같은 손**이면 다시 묻지 않는다.
+  //    손이 다르면 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
+  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };
+  // ② 헌장 ③ — 사용자가 전에 **이 상대**에게 보내는 것을 직접 허락했으면 같은 질문의 반복이다.
+  //    대상이 확정된 뒤에만 물을 수 있다(계획 단계에서는 어디로 보낼지 아직 모른다).
+  if (전송인가) {
+    const 대상 = String(판정인자?.target ?? '').trim();
+    if (대상 && isKnownCounterpart(knownCounterparts, toolId, 대상)) return { 면제: true, 이유: '아는상대' };
+  }
+  return { 면제: false };
 }

@@ -17,7 +17,7 @@ import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
-import { 실행전판정 } from './l2-plan/tool-boundary.js';
+import { 실행전판정, 승인면제 } from './l2-plan/tool-boundary.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
@@ -1984,7 +1984,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
       판정인자 = { ...판정인자, text: 내용, target: 대상, ...(대상라벨 ? { targetLabel: 대상라벨 } : {}) };
     }
-    if (!decideAutoGrant(판정행동)) {
+    // ── **면제는 승인 분기 앞에서 본다**(S6-b · F-20) ──────────────────────────
+    // 뒤에서 `needsApproval` 만 비우면 **호출이 조용히 증발한다**(밟아서 확인) —
+    // 이 분기에 들어간 뒤 카드를 못 만들면 `멈춘이유` 를 세우고 루프를 빠져나가기 때문이다.
+    // 면제는 **애초에 안 들어가게** 하는 것이고, 그래야 계획 경로와 같은 결과가 된다.
+    const 면제 = 승인면제({
+      toolId, 판정인자,
+      허락한손: ctx.허락한손,
+      knownCounterparts: ctx.knownCounterparts,
+      전송인가: isSendTool(toolId, selfState),
+    });
+    if (!면제.면제 && !decideAutoGrant(판정행동)) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
       //
       // 예전엔 여기서 그냥 `break` 했다. 승인 대기를 만들지 않으니 **카드가 뜨지 않았고**,

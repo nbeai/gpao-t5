@@ -69,3 +69,59 @@ test('⑥ 모르는 손도 죽지 않는다(선언이 없으면 없는 대로 �
   assert.ok(r.판정행동.kind, '등급이 없으면 승인 경계가 판단할 근거를 잃는다');
   assert.equal(r.판정행동.revocable, undefined, '모르는 것을 안다고 하지 않는다');
 });
+
+// ── 승인 면제 (S6-b) — **같은 질문을 두 번 하지 않는다** ────────────────────
+//
+// 면제는 둘인데 각 경로가 서로 다른 하나만 읽고 있었다(F-20 재현).
+// 이제 경계 한 자리에서 둘 다 본다. 돌연변이 스윕이 이 계약이 **무방비**라고 알려 줘서 세웠다.
+import { 승인면제 } from '../src/kernel/l2-plan/tool-boundary.js';
+import { rememberCounterpart } from '../src/kernel/l2-plan/known-counterpart.js';
+
+test('⑦ **이번 요청에서 허락한 손은 다시 안 묻는다**', () => {
+  const 허락한손 = new Set(['local.file']);
+  assert.equal(승인면제({ toolId: 'local.file', 허락한손 }).면제, true,
+    '같은 요청에서 이미 허락한 손인데 또 묻는다 — 사용자는 같은 질문을 두 번 받는다');
+  assert.equal(승인면제({ toolId: 'local.file', 허락한손 }).이유, '허락한손');
+});
+
+test('⑧ **손이 다르면 다른 결정이다** — 면제가 번지지 않는다', () => {
+  const 허락한손 = new Set(['local.file']);
+  assert.equal(승인면제({ toolId: 'local.terminal', 허락한손 }).면제, false,
+    '파일을 허락했다고 터미널까지 자동으로 열리면 승인이 의미를 잃는다');
+});
+
+test('⑨ **헌장 ③ — 아는 상대면 전송을 다시 안 묻는다**(경로와 무관하게)', () => {
+  const known = new Set();
+  rememberCounterpart(known, 'telegram.send', '111');
+  const r = 승인면제({
+    toolId: 'telegram.send', 판정인자: { target: '111' },
+    knownCounterparts: known, 전송인가: true,
+  });
+  assert.equal(r.면제, true, '아는 상대인데 또 물었다 — 헌장 ③ 위반');
+  assert.equal(r.이유, '아는상대');
+});
+
+test('⑩ **새 상대는 묻는다** — 헌장 ③ 은 첫 전송을 면제하지 않는다', () => {
+  const known = new Set();
+  rememberCounterpart(known, 'telegram.send', '111');
+  assert.equal(승인면제({
+    toolId: 'telegram.send', 판정인자: { target: '999' },
+    knownCounterparts: known, 전송인가: true,
+  }).면제, false, '모르는 상대에게 첫 전송이 자동으로 나갔다 — 헌장 ③ 의 본체다');
+});
+
+test('⑪ 대상이 아직 없으면 면제하지 않는다(어디로 보낼지 모르는 채 자동 금지)', () => {
+  const known = new Set();
+  rememberCounterpart(known, 'telegram.send', '111');
+  assert.equal(승인면제({
+    toolId: 'telegram.send', 판정인자: {}, knownCounterparts: known, 전송인가: true,
+  }).면제, false, '대상 미정인데 면제했다 — 빈 대상으로 나갈 수 있다');
+});
+
+test('⑫ 전송이 아닌 손에는 아는 상대 면제를 쓰지 않는다', () => {
+  const known = new Set();
+  rememberCounterpart(known, 'telegram.send', '111');
+  assert.equal(승인면제({
+    toolId: 'local.file', 판정인자: { target: '111' }, knownCounterparts: known, 전송인가: false,
+  }).면제, false, '전송 면제가 파일 손까지 번졌다');
+});
