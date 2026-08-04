@@ -394,9 +394,21 @@ function 걸음막힘(rec, turnReceipts, hands) {
 }
 
 export function fallbackReplyFrom(receipts = []) {
-  const blocked = receipts.filter((r) => r.failureState && r.failureState !== 'none');
+  // **런타임이 스스로 건너뛴 것은 사용자면 답에 안 싣는다.**
+  //
+  // 라이브 실측(2026-08-04 사람 사용시험): 사용자가 페이지 하나를 물었는데 화면에
+  // *"그 사이트가 수집을 허용하지 않아요. **방금 한 것과 같은 일이라 다시 하지 않았어요.**
+  // 주소를 다시 확인해 주시겠어요?"* 가 나갔다. 가운데 문장은 **런타임이 스스로 두 번 부르려다
+  // 스스로 건너뛴 내부 사정**이다. 사용자 기준으로는 처음 물은 것이라 **사실도 아니다** —
+  // 사용자는 자기가 하지도 않은 반복을 했다고 읽는다.
+  //
+  // 원장에는 그대로 남고 모델도 받는다(조용한 축소 아님). **사용자면 문장에만 안 들어간다** —
+  // 두 면은 원래 다른 계약이다. 다만 **그것뿐이면 빈 답을 주지 않는다**(그게 더 나쁘다).
+  const 사람에게 = receipts.filter((r) => r.failureState !== 'cancelled');
+  const 볼것 = 사람에게.length ? 사람에게 : receipts;
+  const blocked = 볼것.filter((r) => r.failureState && r.failureState !== 'none');
   if (!blocked.length) {
-    const done = receipts.map((r) => r?.userSafeSummary).filter(Boolean).join(' ').trim();
+    const done = 볼것.map((r) => r?.userSafeSummary).filter(Boolean).join(' ').trim();
     return done || '방금 요청은 처리했어요.';
   }
   const what = blocked.map((r) => r.userSafeSummary).filter(Boolean).join(' ');
