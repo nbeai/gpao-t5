@@ -695,7 +695,15 @@ export function makeServer(deps = {}) {
         memory = 갱신;
       }
       await 기억파일쓰기(집자리, memory.promoted ?? [], 저장소표식);
-    } catch { /* 집을 못 읽어도 대화는 이어진다 — 기억은 있던 대로 간다 */ }
+      // **지침·자기소개도 매 턴 다시 읽는다**(2026-08-05 · 오너 라이브가 잡았다).
+      //
+      // 씨앗 파일에 *"여기 적은 것은 **다음 대화부터** T5 가 그대로 따른다"* 고 적어 놓고
+      // 실제로는 **서버 시작 때 한 번만** 읽고 있었다. 오너가 지침에 호칭을 적었는데
+      // 다음 대화에서 안 따랐다 — **거짓 약속이었다.**
+      // fixture 검사가 이걸 못 잡은 이유: 내가 편집할 때마다 서버를 다시 띄웠다.
+      // 재는 자리가 사용자의 실제 행동과 달랐다(§10 규율 10 과 같은 병).
+      homeDocs = await readHomeDocs(집자리).catch(() => homeDocs);
+    } catch { /* 집을 못 읽어도 대화는 이어진다 — 기억·지침은 있던 대로 간다 */ }
     const learning = await traceStore.load();
     // 새 원장에 실제로 결합된 세션만 shadow projection을 본다. 신분 없는 옛 세션은 legacy lane 유지.
     if (!session.workRef) {
