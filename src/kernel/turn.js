@@ -1326,12 +1326,18 @@ export async function runTurn(input, ctx) {
     // 그래야 "같은 요청인데 어느 길로 왔느냐"로 답이 갈리지 않는다(F-20 이 그 대가였다).
     // 적용하는 **방식**은 경로마다 다르다: 여기는 계획을 고쳐 자동 목록으로 옮기고,
     // 걸음 경로는 승인 분기에 애초에 안 들어가게 한다. **판정은 하나, 적용은 그 경로의 것.**
+    // **게이트 사실도 같이 넘긴다.** 여기 오는 전송은 이월이 아니다 —
+    // 이월·발화밖은 위(1069)에서 이미 걸러 `추가호출` 로 밀려났기 때문이다.
+    // 그래도 **넘긴다**: 그 사실이 인자에 안 보이면 다음 사람이 "계획 경로는 게이트를 안 본다"로
+    // 읽고, 위쪽 거르기가 언젠가 바뀌면 조용히 뚫린다. **판정이 하나면 인자도 하나여야 한다.**
     if (승인면제({
       toolId: sendGrant.action,
       판정인자: { target: parsed.target },
       허락한손: ctx.허락한손,
       knownCounterparts: ctx.knownCounterparts,
       전송인가: true,
+      이번이월: 이월행동({ name: sendGrant.action, args: { target: parsed.target } }, 이월된것),
+      발화밖: 발화밖파괴(파괴판정({ name: sendGrant.action, args: { target: parsed.target } }), 이번발화),
     }).면제) {
       plan.needsApproval = plan.needsApproval.filter((g) => g !== sendGrant);
       if (!plan.autoAllowed.includes(sendGrant.action)) plan.autoAllowed.push(sendGrant.action);
