@@ -1322,7 +1322,17 @@ export async function runTurn(input, ctx) {
     // **헌장 ③ — 아는 상대에는 다시 묻지 않는다.** 승인 판정은 대상이 확정되기 **전에** 났다
     // (계획 단계에서는 어디로 보낼지 아직 모른다). 그래서 대상이 사실로 확정된 지금 다시 본다.
     // 사용자가 전에 이 상대에게 보내는 것을 직접 허락했다면 그 카드는 같은 질문의 반복이다.
-    if (isKnownCounterpart(ctx.knownCounterparts, sendGrant.action, parsed.target)) {
+    // **S6-b(2): 면제 판정은 경계 하나가 한다.** 계획 경로와 걸음 경로가 같은 함수를 쓴다 —
+    // 그래야 "같은 요청인데 어느 길로 왔느냐"로 답이 갈리지 않는다(F-20 이 그 대가였다).
+    // 적용하는 **방식**은 경로마다 다르다: 여기는 계획을 고쳐 자동 목록으로 옮기고,
+    // 걸음 경로는 승인 분기에 애초에 안 들어가게 한다. **판정은 하나, 적용은 그 경로의 것.**
+    if (승인면제({
+      toolId: sendGrant.action,
+      판정인자: { target: parsed.target },
+      허락한손: ctx.허락한손,
+      knownCounterparts: ctx.knownCounterparts,
+      전송인가: true,
+    }).면제) {
       plan.needsApproval = plan.needsApproval.filter((g) => g !== sendGrant);
       if (!plan.autoAllowed.includes(sendGrant.action)) plan.autoAllowed.push(sendGrant.action);
       pendingGrants = pendingGrants.filter((g) => g !== sendGrant);

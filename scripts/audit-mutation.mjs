@@ -1147,8 +1147,19 @@ export const MUTATIONS = [
   // **원본이 휴지통에 남는다**는 사실 하나뿐이다. 그 사실이 무너지면 헌장의 전제가 무너지고,
   // 사용자는 확인도 없이 원본을 잃는다. 그래서 이 두 줄은 승인 카드보다 중요하다.
   // ── 헌장 ③ 의 두 축: 아는 상대에는 안 묻고, 그 앎은 사람 승인에서만 생긴다 ──
-  { 이름: '아는 상대에게도 매번 다시 물음(헌장 ③ 의 "한 번만"이 "매번"이 됨)', 파일: 'src/kernel/turn.js', 검사: 'test/known-counterpart.test.js',
-    찾기: '    if (isKnownCounterpart(ctx.knownCounterparts, sendGrant.action, parsed.target)) {',
+  { 이름: '아는 상대에게도 매번 다시 물음(헌장 ③ 의 "한 번만"이 "매번"이 됨)', 파일: 'src/kernel/turn.js',
+    // 2026-08-05(S6-b2): 계획 경로가 면제를 **경계 함수**로 부르게 바뀌었다 — 겨냥만 옮긴다.
+    // 재는 것은 그대로다: 아는 상대인데 계획 경로에서 또 묻는가.
+    // 검사도 옮긴다 — `s6-two-paths-one-answer` 가 **두 경로가 같은 답을 내는지**까지 잰다
+    // (규율 12: 개수가 아니라 계약을 잰다).
+    검사: 'test/s6-two-paths-one-answer.test.js',
+    찾기: `    if (승인면제({
+      toolId: sendGrant.action,
+      판정인자: { target: parsed.target },
+      허락한손: ctx.허락한손,
+      knownCounterparts: ctx.knownCounterparts,
+      전송인가: true,
+    }).면제) {`,
     바꾸기: '    if (false) {' },
   { 이름: '사람이 허락한 상대를 기억하지 않음(다음 턴이 이어받지 못함)', 파일: 'src/kernel/turn.js', 검사: 'test/known-counterpart.test.js',
     찾기: '        if (isSendTool(toolId, selfState)) rememberCounterpart(ctx.knownCounterparts, toolId, args?.target);',

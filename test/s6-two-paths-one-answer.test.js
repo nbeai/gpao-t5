@@ -113,3 +113,38 @@ test('**S6-b 닫는 조건**: 아는 상대면 걸음 경로에서도 안 묻는
     + '  허락한손            읽기 turn.js:2036 (걸음 경로에만)');
   assert.equal(보낸것.length, 1, '아는 상대에게 바로 나가야 한다');
 });
+
+// ── **S6-b(2): 판정이 하나인가** ────────────────────────────────────────────
+//
+// §10 규율 12: **그물은 이름·개수가 아니라 계약을 잰다.**
+// 그래서 "`승인면제` 를 몇 곳에서 부르나"를 세지 않는다 — 그건 정당한 추가에 죽는다.
+// 재는 것은 **같은 상황에 두 경로가 같은 답을 내는가** 다.
+test('**두 경로가 같은 답을 낸다** — 아는 상대 · 계획 경로 vs 걸음 경로', async () => {
+  const 판정 = async (모델만들기) => {
+    const known = new Set();
+    rememberCounterpart(known, 'telegram.send', '111');
+    const { ctx } = await 자리(known);
+    const r = await runTurn({ text: '작업 폴더 보고 오너에게 보내줘' }, ctx(모델만들기('111')));
+    return r.kind === 'approval' ? '묻는다' : '안 묻는다';
+  };
+  const 계획 = await 판정(보내기만하는모델);
+  const 걸음 = await 판정(나중에보내는모델);
+  assert.equal(걸음, 계획,
+    `같은 요청인데 경로에 따라 답이 다르다 — 계획:${계획} · 걸음:${걸음}\n`
+    + '두 벌 판정의 실제 대가다. 판정이 한 자리면 이 검사는 구조적으로 실패할 수 없다.');
+  assert.equal(계획, '안 묻는다', '아는 상대인데 둘 다 물었다 — 헌장 ③ 위반');
+});
+
+test('**새 상대는 두 경로 다 묻는다** — 면제가 한쪽으로만 번지지 않는다', async () => {
+  const 판정 = async (모델만들기) => {
+    const known = new Set();
+    rememberCounterpart(known, 'telegram.send', '111');   // 다른 상대만 안다
+    const { ctx } = await 자리(known);
+    const r = await runTurn({ text: '작업 폴더 보고 오너에게 보내줘' }, ctx(모델만들기('999')));
+    return r.kind === 'approval' ? '묻는다' : '안 묻는다';
+  };
+  const 계획 = await 판정(보내기만하는모델);
+  const 걸음 = await 판정(나중에보내는모델);
+  assert.equal(걸음, 계획, `새 상대인데 경로에 따라 답이 다르다 — 계획:${계획} · 걸음:${걸음}`);
+  assert.equal(계획, '묻는다', '모르는 상대에게 첫 전송이 자동으로 나갔다 — 헌장 ③ 의 본체다');
+});
