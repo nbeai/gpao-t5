@@ -733,6 +733,12 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 3번(자동/승인) — **카드를 만들 때 판정을 다시 하지 않는다.** 다시 하면 경계가 세운
+  // 사실(이월·발화밖)을 잃고, 걸음이 카드도 실행도 원장도 없이 사라진다.
+  { 이름: '승인 카드가 경계 판정을 버리고 다시 판정(발화밖 파괴가 조용히 사라짐)', 파일: TURNJS,
+    검사: 'test/s6c-autogrant-contract.test.js',
+    찾기: `      const 걸음selfState = 판정행동.needsApproval\n        ? { ...selfState,`,
+    바꾸기: `      const 걸음selfState = false\n        ? { ...selfState,` },
   // S6-c 2번(등급) — **명령은 돌려 봐야 안다.** 위험 목록으로 알아맞히지 않는다는 계약이
   // 여기 걸린다(목록은 `find -delete` 하나에 뚫린다). 판정한 사실이 실행까지 그대로 가야
   // 사용자가 승인한 것과 실제로 돈 것이 같다.

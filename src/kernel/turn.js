@@ -2048,7 +2048,25 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           return pv ? { [toolId]: pv } : undefined;
         })(),
       };
-      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState });
+      // **경계가 내린 판정을 계획에 사실로 싣는다 — 여기서 다시 판정하지 않는다**(S6-c 3번).
+      //
+      // 밟은 사실(2026-08-05): 사용자가 `보고서.md 읽어줘` 라고 했는데 모델이
+      // `전혀다른것.csv` **삭제**를 골랐다. 경계는 정확히 판정했다 —
+      // `{kind:'delete', revocable:true, needsApproval:true}`(발화 밖 파괴). 그런데 여기서
+      // `buildActionPlan` 이 **손 선언만 보고 처음부터 다시 판정해** "자동"이라 답했고,
+      // `grants` 가 비어 아래 `break` 로 갔다. 결과: **카드도 실행도 원장도 없고 모델도 모른다.**
+      // 게이트는 안 뚫렸지만(아무것도 실행 안 됨) 걸음이 조용히 사라졌다 — 이 파일이
+      // 곳곳에서 싸우는 그 병이다("예전엔 여기서 조용히 사라졌다").
+      //
+      // 판정을 한 벌로 두는 방법은 **다시 재지 않는 것**이다. 경계가 세운 사실
+      // (이월·발화밖·손 선언이 합쳐진 `needsApproval`)을 그대로 넘긴다.
+      const 걸음selfState = 판정행동.needsApproval
+        ? { ...selfState,
+          connectedTools: (selfState.connectedTools ?? []).map(
+            (t) => (t.id === toolId ? { ...t, needsApproval: true } : t),
+          ) }
+        : selfState;
+      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState: 걸음selfState });
       if (plan.workRef && plan.completionContract && plan.completionContractRef) {
         걸음plan.workRef = plan.workRef;
         걸음plan.completionContract = structuredClone(plan.completionContract);
