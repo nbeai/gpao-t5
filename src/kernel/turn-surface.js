@@ -18,12 +18,22 @@
 // 여기는 **무엇이 언제** 나가는가다.
 import { 확인된사실 } from './l0-evidence/ledger.js';
 
-const 통제이름 = '(?:memory\\.(?:propose|cite|correction|withdraw)|skill\\.propose|automation\\.propose|agent\\.propose)';
+// **채널 이름도 목록으로 적지 않는다.** 여기 손으로 적어 두면 채널이 하나 늘 때마다
+// 그 하나가 사용자 화면으로 샌다 — 실제로 `work.state` 가 빠져 있었다(실측 2026-08-04).
+// 채널을 정의한 **한 자리**에서 파생한다(§2-C).
+import { MODEL_CONTROL_SCHEMAS } from './l2-plan/model-control.js';
+
+const 통제이름 = `(?:${MODEL_CONTROL_SCHEMAS.map((s) => s.name.replace('.', '\\.')).join('|')})`;
 const INTERNAL_CONTROL_PREFIX = new RegExp(`^\\s*${통제이름}\\s*:\\s*`, 'i');
 // **답 끝에 붙어도 지운다.** 앞에만 보던 시절, 팀원 실사용에서 답 마지막 줄에
 // `memory.cite: "현재 목표: …"` 가 그대로 나갔다(실측 2026-08-03). 통제 표식이 어디에
 // 붙든 그건 OS 와 모델 사이의 말이지 사람에게 하는 말이 아니다. 줄 단위로 걷어낸다.
-const INTERNAL_CONTROL_LINE = new RegExp(`^[ \\t>*-]*${통제이름}\\s*:.*$`, 'gim');
+// **장식을 목록으로 열거하지 않는다.** 첫 판은 `^[ \t>*-]*` 로 공백·인용·별표·하이픈만
+// 허용했는데, 모델이 백틱으로 감싸자(` \`memory.cite\`: `) 그대로 통과했다
+// (실측 2026-08-04 말귀 재측정 5번 — 같은 자리가 **두 번째** 뚫렸다).
+// 목록은 늘 뚫린다(절대원칙 8). 그래서 **글자가 아닌 것 전부**를 넘긴다 —
+// 마크다운 장식은 늘어나도 "글자가 아니다"는 안 늘어난다.
+const INTERNAL_CONTROL_LINE = new RegExp(`^[^\\p{L}\\p{N}]*${통제이름}[^\\p{L}\\p{N}]*:.*$`, 'gimu');
 
 export function userFacingModelText(value) {
   return String(value ?? '')
