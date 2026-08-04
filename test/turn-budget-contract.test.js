@@ -11,7 +11,7 @@
 // 기존 Authority · 호출별 ToolReceipt · 순서 · providerCallId · 중복 방지는 그대로 선다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -301,4 +301,35 @@ test('예산이 커져도 승인 경계는 그대로다 — 되돌릴 수 없는
   const r = await runTurn({ text: '임시폴더 지워줘' }, { env: demoEnv(), tools: demoTools({ localFile, localTerminal }), model });
   assert.equal(r.kind, 'approval', '예산을 키우자 승인 경계가 새어 나갔다');
   assert.equal(돌았나, 0, '승인 전 효과 0 이 무너졌다');
+});
+
+// ── 산출물 이어가기가 **없는 진전을 짜내지 않는다** ────────────────────────
+//
+// 라이브 실측(2026-08-04, 재봉인 관통 A팔): 정리 요청에 FILE 계약이 서자 이어가기가
+// `unmetDeliverable` 을 계속 밀었고, 모델은 **같은 bulk_move 를 여덟 번** 냈다.
+// 중복 차단이 매번 막아 실물은 안전했지만 왕복 8개와 원장 8줄이 그냥 탔다.
+// 그 턴의 이동은 261 에서 멈췄다 — 같은 문장·다른 턴에서는 367 이었다.
+//
+// 멈추는 근거는 판단이 아니라 **기계 사실**이다: 이미 이 턴에서 돈 지문을 그대로 다시 냈다.
+test('이어가기: 모델이 **같은 실행만** 다시 내면 밀어붙이지 않는다', async () => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'budget-nodup-')));
+  await writeFile(join(dir, '가.txt'), 'x');
+  let 밀린수 = 0;
+  const 같은호출 = { name: 'local.file', args: { action: 'write', path: join(dir, '결과.md'), text: '정리' } };
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
+      if (tc?.unmetDeliverable) { 밀린수 += 1; return { text: '', toolCalls: [같은호출] }; }
+      if (tc?.completionMismatch) return '아직 못 끝냈어요.';
+      if (opts.tools?.length && !this.냈나) { this.냈나 = true; return { text: '', toolCalls: [같은호출] }; }
+      return '했어요.';
+    },
+  };
+  await runTurn({ text: '정리해서 결과.md 로 남겨줘' }, {
+    env: demoEnv({ include: ['local.file'], hands: ['local.file'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    model,
+  });
+  assert.ok(밀린수 <= 1,
+    `같은 실행만 내는 모델을 ${밀린수}번 더 밀었다 — 왕복과 원장만 타고 진전은 0이다`);
 });
