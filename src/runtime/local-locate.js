@@ -45,6 +45,34 @@ function 낱말(text) {
     .filter((w) => w.length >= 2);
 }
 
+/**
+ * **확장자는 낱말이 아니다** — S3(2026-08-05).
+ *
+ * 라이브 사고: 사용자가 `YOON.md` 를 찾자 `낱말()` 이 `["yoon","md"]` 를 만들고
+ * `.some(포함)` 이 `md` 로 **모든 `.md` 파일**을 잡았다. 무관한 다섯 개가
+ * `why:"이름이 맞아요" · confidence:"high"` 로 돌아갔다. `계약서.pdf` 도 같다 —
+ * 모든 PDF 가 "이름이 맞아요"가 된다. **커널이 프로세스에게 거짓말한 것이다.**
+ *
+ * 목록을 늘리지 않는다(§4-6). 구조로 가른다:
+ * 부른 말이 `이름.확장자` 꼴이면 **확장자는 이름의 일부이지 독립된 낱말이 아니다.**
+ * 다만 사용자가 확장자 **자체**를 물으면("pdf 파일 찾아줘") 그건 확장자 질문이므로 그대로 둔다.
+ * 가르는 기준은 문구가 아니라 **꼴**이다: 앞에 이름이 붙어 있는가.
+ */
+function 이름낱말(말) {
+  const 전부 = 낱말(말);
+  const 원문 = String(말 ?? '').normalize('NFC').toLowerCase();
+  // `이름.확장자` 꼴이 원문에 있으면, 그 확장자는 **그 이름에 딸린 것**이다.
+  const 딸린확장자 = new Set();
+  for (const m of 원문.matchAll(/([^\s,/\\]+)\.([a-z0-9]{1,8})(?![a-z0-9])/g)) {
+    if (m[1] && m[1].length >= 1) 딸린확장자.add(m[2]);
+  }
+  if (!딸린확장자.size) return 전부;
+  const 남은것 = 전부.filter((w) => !딸린확장자.has(w));
+  // 확장자를 빼고 나면 아무것도 안 남는 경우(`.md` 만 부른 것)는 원래 목록을 쓴다 —
+  // 그때는 정말 확장자를 물은 것이다.
+  return 남은것.length ? 남은것 : 전부;
+}
+
 /** 이름이 부른 낱말과 맞는가. 디스크의 NFD 와 사용자의 NFC 를 같은 글자로 읽는다. */
 function 이름이맞나(name, 낱말들) {
   const 이름 = String(name).normalize('NFC').toLowerCase();
@@ -300,7 +328,8 @@ export function makeLocalLocateTool(deps = {}) {
       }
       const from = 고른자리.path;
       const depth = Math.min(Math.max(Number(args.depth) || 3, 1), 5);
-      const 낱말들 = 낱말(말);
+      // **확장자는 낱말이 아니다**(S3) — `YOON.md` 가 모든 `.md` 를 잡던 자리.
+      const 낱말들 = 이름낱말(말);
       const 찾는종류 = 부른종류(말);
 
       const 후보 = [];
