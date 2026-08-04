@@ -458,8 +458,10 @@ export const MUTATIONS = [
   // 모델 원문을 그대로 최종 답으로 삼으면 통제 접두어가 다시 사용자에게 나간다.
   { 이름: 'ST-002 최종 답이 화면 경계를 안 지남(모델 원문 그대로 내보냄)', 파일: TURNJS,
     검사: 'test/human-surface-polish.test.js',
-    찾기: "  if (String(reply ?? '').trim()) return userFacingModelText(reply);",
-    바꾸기: "  if (String(reply ?? '').trim()) return String(reply).trim();" },
+    // 2026-08-04: 출구 검증(§S5 H08 재개봉)이 **같은 자리**로 들어오면서 줄이 바뀌었다.
+    // 겨냥만 옮긴다 — 재는 것은 그대로다(최종 답이 화면 경계를 지나는가).
+    찾기: "  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts });",
+    바꾸기: "  if (String(reply ?? '').trim()) return 출구검증(String(reply).trim(), { tc, ctx, receipts });" },
   // ── HRT-ST-002 · 호출 순서 동결 (nextAction: sequence manifest) ────────────
   //
   // 원장의 절대 게이트는 "모델 호출 순서와 횟수 의도치 않은 변화 0"이다. 회귀는 결과를 보지
@@ -821,8 +823,9 @@ export const MUTATIONS = [
     바꾸기: "  if (rec?.failureState && rec.failureState !== 'none') return;" },
   { 이름: 'P90-2 원장의 확인 정의가 결과 도착을 안 봄(attempting 을 확인으로 셈)',
     파일: 'src/kernel/l0-evidence/ledger.js', 검사: 'test/receipt-ledger.test.js',
-    찾기: '    && rec.result !== undefined);',
-    바꾸기: '    );' },
+    // 2026-08-04: 필수 계약 ③(applied 는 확인된 사실이 아니다)이 아래에 붙으면서 줄 끝이 바뀌었다.
+    찾기: '    && rec.result !== undefined\n',
+    바꾸기: '    && true\n' },
   { 이름: 'P90-2 확인 정의가 영수증 자기 기술(lifecycle)을 무시(파생·명시 불일치 통과)',
     파일: 'src/kernel/l0-evidence/ledger.js', 검사: 'test/receipt-ledger.test.js',
     찾기: "    && rec.lifecycle === 'delivered'\n",
@@ -873,7 +876,8 @@ export const MUTATIONS = [
     찾기: "            f.contentPreview = f.내용.slice(0, VERSION_PREVIEW_CHARS);",
     바꾸기: "            f.contentPreview = undefined;" },
   { 이름: '산출물 의무 대조 제거 — FILE 계약이어도 실행이 없다', 파일: 'src/kernel/turn.js', 검사: 'test/pc-hands-c-closure.test.js',
-    찾기: "    if (!산출물미충족() || steps >= MAX_TOOL_STEPS || 산출물요청수 >= MAX_TOOL_STEPS) return false;",
+    // 2026-08-04: 걸음 상한 6 이 예산(왕복·외부효과·벽시계·취소)으로 바뀌며 줄이 바뀌었다.
+    찾기: "    if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= MAX_TOOL_STEPS) return false;",
     바꾸기: "    if (true) return false;" },
   // 2026-08-03: 계약이 "강제"에서 "제공"으로 바뀌었다(e2e73f3) — 겨냥만 옮긴다. 재는 것은 그대로:
   //   ① 미충족이면 파일 손을 **다시 준다**  ② 파생 산출물은 write+source 로 좁힌 채 둔다
@@ -1061,9 +1065,15 @@ export const MUTATIONS = [
   { 이름: '대상 없는 취소를 다시 파일 되돌리기로 해석', 파일: 'src/kernel/l1-intent/intent.js', 검사: 'test/local-file.test.js',
     찾기: "  if (/파일|폴더|\\.md|\\.txt|\\.csv|메모|되돌려|복구|저장해 ?줘/.test(t)) tools.push('local.file');",
     바꾸기: "  if (/파일|폴더|\\.md|\\.txt|\\.csv|메모|되돌려|복구|취소해|저장해 ?줘/.test(t)) tools.push('local.file');" },
-  { 이름: '현재 발화의 완결된 파일 작업을 흔들린 판정과 함께 버림', 파일: TURN, 검사: 'test/pc-hands-c-closure.test.js',
-    찾기: '    return currentFileCallFromText(calls, text);',
-    바꾸기: '    return null;' },
+  // 2026-08-04 · S2 본 전환: 심문(`currentRequestCalls`)이 사라져 "흔들린 판정" 자체가 없다.
+  // 그 계약이 지키던 것("현재 요청 침해 0")은 **승인 경계로 보이기**가 받는다 — 겨냥을 그리로 옮긴다.
+  { 이름: '지난 턴의 미완료 행동을 이번 발화에 얹어 조용히 실행', 파일: TURN, 검사: 'test/s2-carryover-boundary.test.js',
+    찾기: '  const 이월된것 = 이월지문(ctx.priorExchange);',
+    바꾸기: '  const 이월된것 = new Set();' },
+  { 이름: '이번 발화가 요구하지 않은 파괴를 승인 없이 실행', 파일: 'src/kernel/l2-plan/carryover.js',
+    검사: 'test/model-tool-choice.test.js',
+    찾기: "  if (요구 !== 'delete') return true;             // 발화는 다른 구체 작업을 지목했다",
+    바꾸기: "  if (요구 !== 'delete') return false;" },
   { 이름: '대화 결과 계약을 최종 답 호출에서 누락', 파일: TURN, 검사: 'test/pc-hands-c-closure.test.js',
     찾기: "        tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,",
     바꾸기: '        tc: earlyTc,' },
