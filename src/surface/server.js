@@ -33,7 +33,9 @@ import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { ModelConnectionStore } from './model-connection.js';
 import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
 import { SelfhoodStore } from './selfhood-store.js';
+import { homedir } from 'node:os';
 import { agentHomeDir, seedAgentHome, readHomeDocs } from './agent-home.js';
+import { 기억파일쓰기, 기억파일읽기, 지워진기억 } from './memory-home.js';
 import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
@@ -658,7 +660,42 @@ export function makeServer(deps = {}) {
     };
     const hasText = typeof input.text === 'string' && input.text.trim();
     const sensitiveInput = hasText && containsSensitiveValue(input.text);
-    const memory = await memStore.load();
+    let memory = await memStore.load();
+    // ── **S5a · 기억이 집에 산다** — 사용자가 지운 것은 이 턴부터 없다 ──────────
+    //
+    // 지금까지 사용자는 자기 기억을 **볼 수도 지울 수도** 없었다(암호화돼서가 아니라 평문인데
+    // 볼 자리가 없어서다). 이제 집(`~/GPAO-T5/기억.md`)에 사람이 읽는 목록으로 놓이고,
+    // 사용자가 줄을 지우면 **그 자리에서 철회된다** — 원장은 기존 경로를 그대로 탄다.
+    // 파일이 없으면(`null`) 아무것도 안 지운 것이다 — 첫 실행에 기억이 통째로 날아가지 않게.
+    //
+    // **`admittedEntries(ctx.memory)` 가 읽는 그 배열에 건다.** 처음엔 `learning.promoted`
+    // (학습 트레이스)에 붙였다가 라이브에서 빈 파일이 나와 알았다 — 이름이 같다고 같은 것이
+    // 아니다(§10 규율 9).
+    try {
+      const 환경 = deps.processEnv ?? process.env;
+      const 집자리 = agentHomeDir(환경);
+      // **짝은 두 겹으로 맞춘다**(2026-08-05 · 회귀 29건이 여기서 깨졌다).
+      //   ① **같은 홈에 속하는가** — 집은 홈에 하나인데 상태 자리는 옮겨 다닌다.
+      //      검사는 임시 폴더를 상태로 쓰면서 홈은 개발자의 진짜 홈이다. 그 둘은 한 설치가
+      //      아니므로 짝이 아니다 — 짝이 아닌 파일로 기억을 지우면 **남의 파일이 이쪽을 지운다.**
+      //   ② **표식이 같은가** — 같은 홈 안에서도 데이터 자리가 여럿일 수 있다.
+      const 상태자리 = memStore.dir ?? store.dir ?? '';
+      const 같은홈 = String(상태자리).startsWith(String(환경?.HOME ?? homedir()));
+      if (!같은홈) throw new Error('집과 상태가 같은 설치가 아니다');
+      const 저장소표식 = 상태자리;
+      const 지운것 = 지워진기억(memory.promoted ?? [], await 기억파일읽기(집자리, 저장소표식));
+      if (지운것.length) {
+        let 갱신 = memory;
+        for (const id of 지운것) {
+          갱신 = markClosed(갱신, id, 'withdrawn_by_user_file');
+          await memLedger.append('withdrawn', { candidateId: id, source: 'home_file' }).catch(() => null);
+        }
+        갱신 = { ...갱신, promoted: (갱신.promoted ?? []).filter((m) => !지운것.includes(m.candidateId)) };
+        await memStore.save(갱신);
+        memory = 갱신;
+      }
+      await 기억파일쓰기(집자리, memory.promoted ?? [], 저장소표식);
+    } catch { /* 집을 못 읽어도 대화는 이어진다 — 기억은 있던 대로 간다 */ }
     const learning = await traceStore.load();
     // 새 원장에 실제로 결합된 세션만 shadow projection을 본다. 신분 없는 옛 세션은 legacy lane 유지.
     if (!session.workRef) {

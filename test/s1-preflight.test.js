@@ -107,5 +107,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l2-plan/recovery-ladder.js',
     // S4 집(2026-08-05) — 사용자가 열어 고치는 지침·자기소개. 매 세션 실리고 예산이 있다.
     'src/surface/agent-home.js',
+    // S5a 기억이 집에 산다(2026-08-05) — 줄을 지우면 T5 가 잊는다. 원장은 그대로.
+    'src/surface/memory-home.js',
   ]);
 });
