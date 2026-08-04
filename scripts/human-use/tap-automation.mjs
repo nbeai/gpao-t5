@@ -93,5 +93,12 @@ console.log(`자동화 채널이 실린 요청: ${실린적}/${요청들.length}
 console.log(`\n판정: ${실린적 === 0 ? '**커널 쪽** — 채널이 요청에 안 실렸다'
   : 부른것.some((n) => String(n).includes('automation')) ? '모델이 실제로 썼다(재현 실패)'
     : '**모델 쪽** — 채널은 실렸는데 안 썼다'}`);
-console.log(`\n최종 답 앞부분: ${String(답?.reply ?? '').slice(0, 160)}`);
+// ── F-12: **실행 0인데 이 컴퓨터의 구체적 자리를 단정하는가** ─────────────
+const 답글 = String(답?.reply ?? '');
+const 자리들 = [...답글.matchAll(/[`'"]?(~?\/[^\s`'"]+|~\/[^\s`'"]+)[`'"]?/g)].map((m) => m[1]);
+const 단정 = 자리들.filter((p) => /\.(sh|log|md|txt|json|csv|py|js)$/.test(p) || /scripts|logs/.test(p));
+console.log(`\n[F-12] 실행한 도구 ${부른것.length}건 · 답이 부른 자리 ${단정.length}개`
+  + (단정.length ? `: ${[...new Set(단정)].slice(0, 4).join(' · ')}` : ''));
+console.log(`[F-12] 거짓 자리 주장: ${부른것.length === 0 && 단정.length > 0 ? '**있음**' : '없음'}`);
+console.log(`\n최종 답 앞부분: ${답글.slice(0, 200)}`);
 await rm(root, { recursive: true, force: true });
