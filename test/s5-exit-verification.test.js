@@ -210,3 +210,40 @@ test('되돌림 왕복이 실패해도 **답은 살아남는다**', async () => 
   assert.match(String(r.reply ?? ''), /끝냈어요/,
     '검증 왕복 하나가 트림했다고 답 전체가 사라졌다 — 그물이 관문이 됐다');
 });
+
+// ── ⑦ 답이 가리킨 자리가 **원장 어디에도 없다** ─────────────────────────────
+//
+// 라이브 실측(2026-08-04, 재봉인 관통 둘째 턴): 모델이 목록만 한 번 부르고
+// "설치·압축 파일을 `Downloads/_정리됨/설치_및_압축/` 으로 옮겼어"라고 답했다.
+// **그 폴더는 만들어진 적이 없다.** 앞의 두 그물은 둘 다 지나갔다 — 목록도 확인된 실행이라
+// "실행 0"이 아니었고, 개수를 안 말해서 수 대조도 안 걸렸다.
+// 사용자에게 이건 가장 나쁜 거짓이다. 그 자리로 찾으러 간다.
+test('지어낸 자리를 답에 실으면 **모델에게 돌려준다**', () => {
+  const 목록 = 성공('local.file', { action: 'list', path: '/집/Downloads' }, { path: '/집/Downloads', items: [] });
+  const v = 완료주장검증({
+    reply: '설치·압축 파일은 `Downloads/_정리됨/설치_및_압축/` 으로 옮겼어.',
+    receipts: [목록], 원장글: JSON.stringify([[목록], []]),
+  });
+  assert.equal(v.일치, false, '만들어진 적 없는 폴더를 옮겼다고 말했는데 그대로 나갔다');
+  assert.match(v.모델에게, /설치_및_압축/, '어느 자리가 없는지가 모델에게 안 간다');
+});
+
+test('실제로 다룬 자리는 그대로 지나간다(과잉 차단 금지)', () => {
+  const 이동 = 성공('local.file', { action: 'bulk_move', path: '/집/Downloads' },
+    { from: '/집/Downloads', to: '/집/Downloads/_정리됨/6개월_이전', moved: [{}, {}], skipped: [] });
+  const v = 완료주장검증({
+    reply: '오래된 것들을 `Downloads/_정리됨/6개월_이전/` 으로 옮겨 뒀어.',
+    receipts: [이동], 원장글: JSON.stringify([[이동], []]),
+  });
+  assert.equal(v.일치, true, `실제로 만든 자리를 지어낸 것으로 잡았다: ${v.모델에게}`);
+});
+
+test('앞 턴에 만든 자리도 지어낸 것이 아니다(턴이 넘어가도 원장은 이어진다)', () => {
+  const 앞턴 = { tool: 'local.file', args: { action: 'bulk_move' }, data: 'to=/집/Downloads/_정리됨/6개월_이전' };
+  const 목록 = 성공('local.file', { action: 'list', path: '/집/Downloads' }, { path: '/집/Downloads', items: [] });
+  const v = 완료주장검증({
+    reply: '아까 옮긴 것은 `Downloads/_정리됨/6개월_이전/` 에 그대로 뒀어.',
+    receipts: [목록], 원장글: JSON.stringify([[목록], [앞턴]]),
+  });
+  assert.equal(v.일치, true, '앞 턴에 만든 자리를 지어낸 것으로 잡았다 — 턴이 넘어가면 원장을 잊는 셈이다');
+});

@@ -496,7 +496,10 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
  * 빠진 그 경로로 거짓 완료가 그대로 나간다(구조원칙 §2-C).
  */
 async function 출구검증(reply, { tc, ctx, receipts = [] }) {
-  const 검증 = 완료주장검증({ reply, receipts, 이미돌려줬나: Boolean(ctx.출구되돌림) });
+  // **원장글**: 이 턴의 영수증 + 앞 턴 교환. 답이 가리킨 자리가 여기 없으면 지어낸 것이다.
+  // 두 벌을 따로 만들지 않는다 — 모델이 받은 것과 같은 사실 위에서 대조한다.
+  const 원장글 = JSON.stringify([receipts ?? [], tc?.turnExchange ?? []]);
+  const 검증 = 완료주장검증({ reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림) });
   if (검증.일치) return reply;
   ctx.출구되돌림 = true;
   // **검증이 답을 잡아먹지 않는다.** 이 왕복이 실패해도 답은 이미 만들어져 있다 —
