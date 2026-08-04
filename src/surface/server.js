@@ -638,7 +638,7 @@ export function makeServer(deps = {}) {
 
   // 한 턴을 실행하고 지속한다(transcript·원장·pending·학습·후보). /turn과 /turn/stream이 공유해 동작이 갈라지지
   // 않게 한다. emit(선택, P6-12)이 있으면 진행 이벤트를 방출한다 — 스트림은 durable truth 위의 투영이다.
-  async function runAndPersistTurn(session, input, emit, onAnswerDelta, timingEntry) {
+  async function runAndPersistTurn(session, input, emit, onAnswerDelta, timingEntry, onAnswerReset) {
     // S0 · TurnRef(§4.1): 저장된 턴에 불변 신분을 준다. 발급은 세션 저장과 같은 직렬화 경계
     // (withSessionQueue) 안이라 동시 턴이 같은 seq 를 받지 않는다. 소급은 사실을 지어내지 않는다.
     migrateTurnRefs(session);
@@ -711,6 +711,10 @@ export function makeServer(deps = {}) {
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
     // 민감 원문이 든 턴은 완성 결과를 가리기 전에 조각이 화면으로 먼저 나가면 안 된다.
     if (onAnswerDelta && !sensitiveInput) ctx.onAnswerDelta = onAnswerDelta;
+    // **되돌림은 대체다** — 앞서 흐른 말을 지운다(F-8). 조각과 **같은 동기 문**으로 나가야
+    // 한다: `emit` 은 원장 append 를 기다리는 비동기라 지우는 신호가 조각보다 늦게 도착했다
+    // (실측 2026-08-04: answer_reset 이 1회 왔는데도 화면은 두 답이 붙은 채였다).
+    if (onAnswerReset && !sensitiveInput) ctx.onAnswerReset = onAnswerReset;
     if (hasText) {
       // 첫 발화로 제목을 붙이되, **사용자가 직접 붙인 이름은 덮어쓰지 않는다**(P2-4a).
       if (!session.manualTitle && !session.transcript.some((e) => e.role === 'user')) {
@@ -1358,9 +1362,15 @@ export function makeServer(deps = {}) {
                 res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: piece, _turnId: turnId })}\n\n`);
                 observeTiming(timingEntry, () => timing.markServer('first_answer_emitted'));
               };
+              // 되돌림 신호는 조각과 같은 동기 문으로. 서버의 미리보기 누적도 함께 비운다 —
+              // 아래 꼬리 채우기가 화면과 같은 진실을 봐야 한다.
+              const onAnswerReset = () => {
+                미리보기누적 = '';
+                res.write(`event: answer_reset\ndata: ${JSON.stringify({ _turnId: turnId })}\n\n`);
+              };
               const result = await runAndPersistTurn(
                 activeSession, { sessionId, text, turnRef: streamTurnRef }, emit, onAnswerDelta,
-                timingEntry,
+                timingEntry, onAnswerReset,
               );
               observeTiming(timingEntry, () => timing.markServer('server_committed'));
               // 계열 ④: 커널은 반환 전에 답과 미리보기를 정렬하지만, 서버 후처리(민감 기억 안내 등)가

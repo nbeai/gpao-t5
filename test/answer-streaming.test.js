@@ -394,8 +394,25 @@ test('계열④: 도구 스트림 파서가 없는 provider 는 가장하지 않
 import { demoTools as 제품도구, demoEnv as 제품환경 } from '../src/surface/demo-context.js';
 
 /** SSE 원문에서 answer_delta 조각을 순서대로 모은다. */
-const 조각누적 = (sse) => [...sse.matchAll(/event: answer_delta\ndata: (.*)\n/g)]
-  .map((m) => JSON.parse(m[1]).text).join('');
+/**
+ * 화면이 실제로 보는 것과 **같게** 모은다.
+ *
+ * `answer_reset` 이 오면 **거기서 다시 시작한다** — 되돌림은 이어감이 아니라 대체이고,
+ * 웹 화면도 그 신호에서 미리보기를 비운다(F-8, 2026-08-04). 예전 누적기는 리셋을 몰라서
+ * 지운 말까지 세었고, 그래서 "화면 = 저장"을 재면서 **옛 화면**을 흉내 내고 있었다.
+ */
+const 조각누적 = (sse) => {
+  let 누적 = '';
+  for (const 덩이 of sse.split('\n\n')) {
+    const 종류 = /^event:\s*(\S+)/m.exec(덩이)?.[1];
+    if (종류 === 'answer_reset') { 누적 = ''; continue; }
+    if (종류 !== 'answer_delta') continue;
+    const d = /^data:\s*(.+)$/m.exec(덩이)?.[1];
+    if (!d) continue;
+    try { 누적 += String(JSON.parse(d).text ?? ''); } catch { /* 조각 하나가 깨져도 계속 */ }
+  }
+  return 누적;
+};
 
 async function 제품서버로(fetchImpl, tools) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-str4-'));

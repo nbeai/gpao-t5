@@ -114,6 +114,9 @@ export const 허용파일 = [
   // S2 필수 계약 둘: ③ 영수증 진실(applied:false 는 확인된 사실이 아니다) ·
   // ② exchange 저장(재시작해도 모델의 행동 이력이 남는다).
   'src/kernel/l0-evidence/ledger.js',
+  // F-8 · 되돌림은 이어감이 아니라 대체다 — `answer_reset` 어휘 한 종류를 더했다(2026-08-04).
+  'src/kernel/l0-evidence/turn-event.js',
+  'src/kernel/turn-surface.js',
   'src/surface/server.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).

@@ -12,6 +12,9 @@ export const EVENT_TYPES = Object.freeze([
   'recoverable_error', // 복구 가능한 오류(+다음 안전 행동)
   'partial_result',    // 일부 결과
   'answer_delta',      // 최종 답변 본문 조각(비지속)
+  // 답을 **다시 쓴다**는 신호(비지속). 되돌림은 이어감이 아니라 대체이므로, 앞서 흐른 말을
+  // 지우고 다시 시작한다. 이게 없으면 어긋나는 두 답이 한 답으로 보인다(F-8).
+  'answer_reset',
   'complete',          // 완료(turn 종료)
   'heartbeat',         // 연결 생존 신호(비지속)
 ]);

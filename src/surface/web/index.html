@@ -1997,6 +1997,12 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
         scrollToBottom();
       } catch {}
     });
+    // **되돌린 답은 앞의 것을 지우고 다시 쓴다**(F-8). 이어붙이면 서로 어긋난 두 답이
+    // 한 답으로 보인다 — 라이브에서 "터미널로 가져올게요" 뒤에 "직접 실행할 수는 없어요"가 붙었다.
+    es.addEventListener('answer_reset', () => {
+      previewText = '';
+      if (preview) renderMarkdownInto(preview, '');
+    });
     es.addEventListener('answer_delta', (e) => {
       try {
         const { text: piece } = JSON.parse(e.data);
