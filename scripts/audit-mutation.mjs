@@ -733,6 +733,17 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 2번(등급) — **명령은 돌려 봐야 안다.** 위험 목록으로 알아맞히지 않는다는 계약이
+  // 여기 걸린다(목록은 `find -delete` 하나에 뚫린다). 판정한 사실이 실행까지 그대로 가야
+  // 사용자가 승인한 것과 실제로 돈 것이 같다.
+  { 이름: '경계: probe 가 알아낸 자리를 버림(원장에 빈 자리가 남아 어디서 돌았는지 못 봄)',
+    파일: TBOUND, 검사: 'test/s6c-grading-contract.test.js',
+    찾기: '      ...(probed?.cwd ? { cwd: probed.cwd } : {}),',
+    바꾸기: '' },
+  { 이름: '계획 경로가 경계를 안 타고 등급을 매김(두 벌 판정 복원)', 파일: TURNJS,
+    검사: 'test/s6c-grading-contract.test.js',
+    찾기: `      const { 판정인자: 터미널판정인자 } = await 실행전판정({\n        toolId: 'local.terminal', args: { command, cwd: asked.cwd }, selfState, tools: ctx.tools,\n      });`,
+    바꾸기: '      const 터미널판정인자 = { command, cwd: asked.cwd };' },
   // S6-c 1번(승인 자격) — **막힌 손이 남긴 다음 길**. 이 둘이 무너지면 모델은 "왜 안 됐는지"만
   // 받고 "무엇을 하면 되는지"는 못 받는다. 그러면 손 하나의 한계에서 턴이 멈추거나 엉뚱한 손을 고른다.
   { 이름: '차단 영수증이 이유를 지어냄(거절을 "도구 없음"으로 기록 → 손의 다음 길이 사다리에 덮임)',

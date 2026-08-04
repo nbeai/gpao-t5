@@ -1104,18 +1104,20 @@ export async function runTurn(input, ctx) {
     const asked = modelToolArgs?.['local.terminal'];
     const command = typeof asked?.command === 'string' ? asked.command.trim() : '';
     if (command) {
-      const probed = await ctx.tools?.tools?.['local.terminal']?.probe?.(command, { cwd: asked.cwd });
-      planIntent = {
-        ...planIntent,
-        // probe 를 못 돌렸으면 `changes` 를 비워 둔다 — 미상은 승인으로 간다(read 로 흘리지 않는다).
-        // probe 결과를 **그대로 싣는다.** 안 그러면 도구가 같은 명령을 한 번 더 돌린다 —
-        // 느린 것보다, `date`·`ls` 처럼 두 번 돌리면 답이 달라지는 명령에서 사용자에게 보인 것과
-        // 원장에 남은 것이 갈라지는 게 문제다(두 진실 금지).
-        terminalOp: {
-          command, cwd: probed?.cwd ?? asked.cwd, changes: probed?.changes,
-          granted: probed?.changes === true, probeResult: probed?.probe,
-        },
-      };
+      // **등급 판정은 경계 한 자리에서 한다**(S6-c 2번). 여기 같은 로직이 한 벌 더 있었다 —
+      // probe 를 돌리고 `{changes, granted, probeResult}` 를 만드는 열 줄이 `tool-boundary.js`
+      // 와 줄 단위로 같았다. 두 벌이면 한쪽만 고쳐지고, 실제로 그랬다:
+      // **probe 가 풀어 준 자리(cwd)를 계획 경로만 챙기고 걸음 경로는 버렸다.**
+      //
+      // 경계가 지키는 계약은 그대로다:
+      //   · probe 를 못 돌렸으면 `changes` 를 비워 둔다 — 미상은 승인으로 간다(read 로 안 흘린다).
+      //   · probe 결과를 **그대로 싣는다.** 안 그러면 도구가 같은 명령을 한 번 더 돌린다 —
+      //     느린 것보다, `date`·`ls` 처럼 두 번 돌리면 답이 달라지는 명령에서 사용자에게 보인 것과
+      //     원장에 남은 것이 갈라지는 게 문제다(두 진실 금지).
+      const { 판정인자: 터미널판정인자 } = await 실행전판정({
+        toolId: 'local.terminal', args: { command, cwd: asked.cwd }, selfState, tools: ctx.tools,
+      });
+      planIntent = { ...planIntent, terminalOp: 터미널판정인자 };
     }
   }
   // 모델이 다른 사용자 홈을 짐작해도, 사용자가 이번 발화에서 직접 부른 표준 폴더라면

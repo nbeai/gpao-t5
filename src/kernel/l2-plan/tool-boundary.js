@@ -46,6 +46,12 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
     const probed = await tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });
     판정인자 = {
       ...args,
+      // **probe 가 알아낸 자리를 그대로 받는다.** 빈 칸은 없는 칸이라 손이 기본 자리로 푸는데
+      // (`local-terminal.js:57` — `blank(opts.cwd) ?? cwdOf()`), 그 사실을 여기서 버리면
+      // 원장에는 빈 자리가 남는다. 실행 자리는 handler 가 같은 식으로 다시 풀어 안 갈리지만,
+      // **기록이 갈린다** — 감사도 사용자도 그 명령이 어디서 돌았는지 못 본다.
+      // 계획 경로는 처음부터 이걸 받고 있었다(`turn.js` 의 terminalOp). 두 벌이라 한쪽만 챙긴 자리다.
+      ...(probed?.cwd ? { cwd: probed.cwd } : {}),
       changes: probed?.changes,
       granted: probed?.changes === true,
       probeResult: probed?.probe,

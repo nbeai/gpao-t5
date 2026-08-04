@@ -355,7 +355,7 @@ CU 를 붙이면 CU 정책도 인라인으로 쌓인다 — 지난 두 달에 �
 > | # | 판정 | 한 벌? |
 > |---|---|---|
 > | 1 | `approvalEligibility` | ✅ **계약으로 확인 · 결함 하나 고침**(S6-c · 4/10) |
-> | 2 | probe → `toolActionKind`(등급) | ☐ 걸음만 경계로(S6-a) |
+> | 2 | probe → `toolActionKind`(등급) | ✅ **한 벌로 합침 · 결함 하나 고침**(S6-c · 5/10) |
 > | 3 | `decideAutoGrant` | ☐ |
 > | 4 | send 대상·내용 확정 | ☐ |
 > | 5 | **승인 면제** | ✅ S6-b |
