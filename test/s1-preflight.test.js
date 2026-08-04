@@ -47,6 +47,14 @@ test('preflight: 변경 파일 목록이 작업 트리와 미추적까지 본다
   // 이 시험 파일 자신은 test/ 라 무시 목록에 들어간다 — 제품 변경만 남는다.
   assert.ok(목록.every((p) => !p.startsWith('test/')), `검사 파일이 제품 변경으로 샜다: ${목록}`);
   assert.ok(목록.every((p) => !p.endsWith('.md')), '문서가 제품 변경으로 샜다');
+  // **이 검사는 통과하면서 깨져 있었다**(2026-08-05). git 은 비ASCII 경로를 따옴표로 감싸
+  // 8진 이스케이프해서 준다(`"docs/…/\354\203\210-….md"`). 그러면 위 두 줄이 전부 빗나간다 —
+  // `.md` 로 끝나지 않고 `test/` 로 시작하지도 않기 때문이다. 한글 이름이 대부분인 저장소에서
+  // 무시 필터가 통째로 새고 있었고, 검사는 초록이었다. **재는 자리를 검증하지 않으면 그렇게 된다.**
+  assert.ok(목록.every((p) => !p.startsWith('"')),
+    `git 이 따옴표로 감싼 경로가 그대로 왔다 — 무시 필터가 전부 빗나간다: ${목록.filter((p) => p.startsWith('"'))}`);
+  assert.ok(목록.every((p) => !/\\\d{3}/.test(p)),
+    `8진 이스케이프된 경로가 그대로 왔다(한글 이름이 원문으로 안 온다): ${목록.filter((p) => /\\\d{3}/.test(p))}`);
 });
 
 test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
@@ -93,5 +101,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/web/index.html',
     'src/kernel/l2-plan/exit-verification.js',
     'src/runtime/model-provider.js',
+    // S0 계측(2026-08-05) — 조립된 프롬프트를 보는 모듈. 기본 꺼짐이라 제품 동작을 안 바꾼다.
+    'src/runtime/prompt-dump.js',
   ]);
 });

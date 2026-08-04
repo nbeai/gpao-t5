@@ -151,11 +151,18 @@ export const 허용파일 = [
   // §S5 출구 검증 — 완료 주장을 원장과 대조하고 어긋나면 모델에게 되돌린다.
   'src/kernel/l2-plan/exit-verification.js',
   'src/runtime/model-provider.js',
+  // **S0 계측**(2026-08-05). 조립된 프롬프트를 볼 수 없어서 "안녕에 능력을 읊는" 원인을 세 번
+  // 잘못 짚었다. 이 모듈은 고치는 도구가 아니라 **보는 도구**이고, 기본은 꺼짐이라 제품 동작을
+  // 바꾸지 않는다(검사 ③ 이 그걸 잰다). chatgpt 경로에만 있던 원문 덤프도 여기로 합쳐 비밀을 가린다.
+  'src/runtime/prompt-dump.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */
 const 무시 = [
   /^design\//, /^docs\//, /^test\//, /^scripts\/s1\//, /^scripts\/s4\//, /^scripts\/live\//,
+  // S0 뷰어도 같은 범주다 — 모델을 부르지 않고 **조립된 프롬프트를 찍어 보기만** 한다.
+  // 제품 코드는 `src/runtime/prompt-dump.js` 쪽이고 그건 허용 목록에 사유와 함께 올라 있다.
+  /^scripts\/s0\//,
   // 게이트는 **검사 하네스**다 — 제품 행동이 아니라 검사 자체이므로 팔의 차이가 아니다.
   // (§S3 에서 "조용한 절단 금지" 매듭을 여기 묶었다.)
   /^scripts\/gate\.mjs$/, /^scripts\/gate-baseline\.json$/,
@@ -180,12 +187,17 @@ const sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
  * A/B 는 **디스크에서 도는 코드**를 비교하는 것이므로 기준도 디스크여야 한다.
  */
 export function 변경파일(repo = process.cwd(), base = 기준선) {
-  const 걸러 = (s) => s.trim().split('\n').filter(Boolean);
+  // **`-z` 로 받는다.** git 은 기본으로 비ASCII 경로를 따옴표로 감싸고 8진 이스케이프한다
+  // (`"docs/…/\354\203\210-….md"`). 이 저장소는 한글 파일명이 대부분이라, 줄 단위로 읽으면
+  // 무시 필터(`test/`·`.md`)가 **전부 빗나간다** — 경로가 `"` 로 시작해 `"` 로 끝나기 때문이다.
+  // 실측 2026-08-05: 한글 이름 문서 두 개가 "제품 변경"으로 잡혀 preflight 가 빨개졌고,
+  // 반대로 한글 이름 **검사 파일**은 여태 필터를 그냥 통과하고 있었다. 구멍은 양쪽이었다.
+  const 걸러 = (s) => s.split('\0').filter(Boolean);
   // base..작업트리 (추적 파일의 커밋·스테이지·미스테이지 변경을 모두 포함)
-  const 추적 = 걸러(execFileSync('git', ['diff', '--name-only', base], { cwd: repo, encoding: 'utf8' }));
+  const 추적 = 걸러(execFileSync('git', ['diff', '--name-only', '-z', base], { cwd: repo, encoding: 'utf8' }));
   // 미추적 파일도 제품 코드일 수 있다 — 새 모듈을 안 커밋한 채 도는 경우.
   const 미추적 = 걸러(execFileSync(
-    'git', ['ls-files', '--others', '--exclude-standard'], { cwd: repo, encoding: 'utf8' },
+    'git', ['ls-files', '--others', '--exclude-standard', '-z'], { cwd: repo, encoding: 'utf8' },
   ));
   return [...new Set([...추적, ...미추적])].filter((p) => !무시.some((r) => r.test(p))).sort();
 }

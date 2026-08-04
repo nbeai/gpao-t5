@@ -5,6 +5,7 @@ import { withTimeout } from './with-timeout.js';
 import { ModelTimeoutError } from './model-timeout.js';
 import { ModelProviderError } from './model-provider.js';
 import { buildModelMessages } from './model-provider.js';
+import { dumpModelInput } from './prompt-dump.js';
 
 export const CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex/responses';
 
@@ -178,19 +179,13 @@ export function makeChatGptModelClient(deps) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
       const toolCalls = []; // 모델이 고른 도구(있으면 호출자가 승인·실행 경로로 태운다)
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
-      // 진단(기본 꺼짐): 라이브에서 모델에게 **실제로 간 것**을 눈으로 보기 위한 덤프.
-      // 오프라인 재현과 라이브가 다른 사고를 여러 번 겪었다(절대원칙 1).
-      if (process.env.GPAO_T5_DEBUG_PROMPT) {
-        try {
-          const { appendFileSync } = await import('node:fs');
-          appendFileSync(process.env.GPAO_T5_DEBUG_PROMPT,
-            `\n===== ${new Date().toISOString()} tools=${(opts.tools ?? []).length} effort=${opts.effort}\n`
-            + `--- system(${m.system.length}) ---\n${m.system}\n`
-            + `--- history(${(m.history ?? []).length}턴 ${(m.history ?? []).reduce((n, h) => n + h.text.length, 0)}자) ---\n`
-            + `${(m.history ?? []).map((h) => `${h.role}(${h.text.length}): ${h.text.slice(0, 120)}`).join('\n')}\n`
-            + `--- user(${m.user.length}) ---\n${m.user}\n`);
-        } catch { /* 진단 실패가 응답을 막지 않는다 */ }
-      }
+      // **S0 계측**(기본 꺼짐): 라이브에서 모델에게 실제로 간 것을 눈으로 본다.
+      // 예전엔 여기 `GPAO_T5_DEBUG_PROMPT` 로 system·user 를 **원문 그대로** 파일에 이어 붙였다.
+      // 덤프는 디스크에 남고 디스크는 다시 읽힌다 — 비밀이 그대로 남는 자리였다.
+      // 이제 `prompt-dump` 하나로 모은다: 가림·크기·도구 목록이 같은 계약으로 붙는다.
+      await dumpModelInput(
+        { messages: m, tools: opts.tools ?? [], meta: { path: 'chatgpt', effort: opts.effort } },
+      ).catch(() => null); // 진단 실패가 응답을 막지 않는다
       const controller = new AbortController();
       // §4.6: 응답 신분은 이 지도 하나로만 흐른다 — 스트림·통본문 어느 경로든 provider 가
       // 실제로 보고한 값만 담긴다(보고가 없으면 비어 있고, 비어 있음이 곧 미보고다).
@@ -283,12 +278,11 @@ export function makeChatGptModelClient(deps) {
       const restored = toolCalls
         .map((c) => (byWire.has(c.name) ? { ...c, name: byWire.get(c.name) } : null))
         .filter(Boolean);
-      if (process.env.GPAO_T5_DEBUG_PROMPT && restored.length) {
-        try {
-          const { appendFileSync } = await import('node:fs');
-          appendFileSync(process.env.GPAO_T5_DEBUG_PROMPT,
-            `>>> 모델이 고른 호출: ${JSON.stringify(restored)}\n`);
-        } catch { /* 진단 실패가 응답을 막지 않는다 */ }
+      // 모델이 **무엇을 골랐는지**도 같은 자리에 남긴다 — 입력만 보면 왜 그 선택인지 못 잇는다.
+      if (restored.length) {
+        await dumpModelInput(
+          { messages: { user: '(응답)' }, tools: opts.tools ?? [], meta: { path: 'chatgpt', chose: restored } },
+        ).catch(() => null);
       }
       return { text, toolCalls: restored };
     },

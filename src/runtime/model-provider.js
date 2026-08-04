@@ -9,6 +9,7 @@
 //     실제로 abort 하고(§6.21 진짜 취소의 HTTP 구간) ModelTimeoutError로 기존 사용자 언어 경로를 탄다.
 //   - 테스트·기본은 실 API를 치지 않는다(fetchImpl 주입). 라이브 서버만 실제 배선.
 import { withTimeout } from './with-timeout.js';
+import { dumpModelInput } from './prompt-dump.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
@@ -809,6 +810,12 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         ? { ...baseCfg, maxTokens: opts.maxTokens }
         : baseCfg;
       const messages = buildModelMessages(tc);
+      // **S0 계측**(기본 꺼짐). 여기엔 계측기가 없었다 — chatgpt 경로에만 있었고, 오너가 쓰는
+      // 주 경로가 바로 여기다. 그래서 "안녕"에 능력을 읊은 원인을 세 번 잘못 짚었다(2026-08-05).
+      // 관측이 대상을 바꾸지 않는다: `messages` 를 읽기만 하고 만지지 않는다.
+      await dumpModelInput(
+        { messages, tools: opts.tools ?? [], meta: { path: cfg.provider, model: cfg.modelId, effort: opts.effort } },
+      ).catch(() => null);
       // 스트리밍 가능한 와이어면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로 단발.
       // 계열 ④: 도구를 준 턴도 **tool_call 조각 파서를 선언한 와이어(OpenAI 계열)** 는 스트리밍한다
       // — T5 는 거의 모든 턴에 통제 채널을 실으므로, 여기서 막으면 answer_delta 가 영원히 0 이다

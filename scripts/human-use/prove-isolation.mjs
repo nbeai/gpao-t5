@@ -67,12 +67,20 @@ export async function 격리증명(방) {
     적기('터미널 기본 자리가 격리 홈', 자리 === 방.root && !자리.startsWith(진짜홈 + '/') && 자리 !== 진짜홈,
       `cwd=${자리 === 방.root ? '격리 루트' : 자리}`);
 
-    // ④ 홈 기준으로 훑어도 오너 홈이 안 나오는가
-    const ls = await 터미널?.probe?.('ls -la ~/');
+    // ④ 홈 기준으로 훑으면 **격리 방의 표식**이 보이고 오너 홈의 표식은 안 보이는가
+    //
+    // 첫 판은 `Documents`·`Desktop` 이름을 오너 홈의 증거로 삼았다. 그런데 오너 환경을
+    // **복제한 시험 방**에도 그 이름이 있다 — 이름으로 가르면 정상 격리를 오너 홈으로 오인한다
+    // (실측 2026-08-05). **이름이 아니라 표식으로 가른다**: 우리가 심은 것이 보이고,
+    // 오너 홈에만 있는 `Library` 가 안 보이면 `~` 는 격리 방이다.
+    await writeFile(join(방.root, '.t5-격리표식'), '이 자리는 시험용 격리 방이다.\n', 'utf8');
+    const ls = await 터미널?.probe?.('ls -a ~/');
     const 출력 = String(ls?.probe?.stdout ?? '');
-    const 샌다 = 출력.includes('Documents') || 출력.includes('Desktop') || 출력.includes('Library');
-    적기('터미널 `ls ~/` 에 오너 홈이 안 나온다', !샌다 && (ls?.probe?.exitCode === 0),
-      샌다 ? '오너 홈의 표준 폴더가 출력에 보인다' : `exit=${ls?.probe?.exitCode} · 줄 ${출력.split('\n').filter(Boolean).length}개`);
+    const 표식보임 = 출력.includes('.t5-격리표식');
+    const 오너홈표식 = 출력.includes('Library');
+    적기('터미널 `~` 가 격리 방이다(표식으로 확인)', 표식보임 && !오너홈표식 && (ls?.probe?.exitCode === 0),
+      !표식보임 ? '격리 표식이 안 보인다 — `~` 가 다른 자리다'
+        : 오너홈표식 ? '오너 홈의 Library 가 보인다' : `exit=${ls?.probe?.exitCode}`);
   } finally {
     if (이전HOME === undefined) delete process.env.HOME; else process.env.HOME = 이전HOME;
   }

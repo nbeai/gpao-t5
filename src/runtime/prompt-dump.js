@@ -1,0 +1,92 @@
+// L4 · **S0 계측 — 모델이 실제로 받은 것을 그대로 남긴다.**
+//
+// 왜 있나(2026-08-05): 오너 라이브에서 "안녕" 한 마디에 능력 목록이 나왔고, 나는 원인을 **세 번**
+// 잘못 짚었다. 소스를 읽을수록 확신만 늘었다. 조립된 프롬프트를 못 봤기 때문이다.
+// 이 파일은 고치는 도구가 아니라 **보는 도구**다.
+//
+// 계약 넷:
+//   ① 기본은 꺼짐. 환경(`GPAO_T5_PROMPT_DUMP`)이 있을 때만 쓴다.
+//   ② 모델에 들어간 것을 그대로 남긴다 — system·user·history·도구 이름·크기.
+//   ③ **관측이 대상을 바꾸지 않는다.** 여기서 messages 를 만지지 않는다(읽기만 한다).
+//   ④ 비밀은 원문으로 디스크에 남지 않는다. 덤프는 파일로 남고 파일은 다시 읽힌다.
+//
+// 크기(`systemChars`·`toolSchemaChars`)를 함께 남기는 이유 — 불변식 B(좁은 허리)는
+// "코어 도구 하나가 매 API 콜 비용"이라는 사실 위에 선다. 단계마다 **수치로** 대조하려면
+// 재는 자리가 상설이어야 한다.
+import { mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+
+const 지문 = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 12);
+
+/** 덤프 자리. 환경이 없으면 `null` — 없는 것이 기본이다. */
+export function promptDumpDir(env = process.env) {
+  const raw = typeof env?.GPAO_T5_PROMPT_DUMP === 'string' ? env.GPAO_T5_PROMPT_DUMP.trim() : '';
+  return raw || null;
+}
+
+// **비밀은 목록으로 짐작하지 않는다**(절대원칙 8 · §4-6). 이름을 열거하면 새 이름이 반드시 샌다.
+// 대신 **모양**으로 본다: 비밀은 사람 말과 달리 "긴 무작위 문자열"이다.
+//   · 널리 쓰이는 접두(sk-·ghp_·xoxb- 등)는 접두를 몰라도 걸리도록 길이·엔트로피로 잡는다.
+//   · 사람 말·경로·URL 을 안 지우려고 **공백 없는 20자 이상 + 숫자와 영문이 섞인 토막**만 본다.
+const 비밀모양 = /(?<![\w/.-])(?=[\w-]{20,})(?=[^\s]*\d)(?=[^\s]*[A-Za-z])[\w-]{20,}(?![\w/.-])/g;
+
+/** 한글·경로는 남기고 무작위 토막만 가린다. 지운 자국을 남긴다 — 뭘 지웠는지 모르면 못 믿는다. */
+export function 비밀가림(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(비밀모양, (m) => `${m.slice(0, 4)}***가림:${m.length}자***`);
+}
+
+const 가려서 = (v) => {
+  if (typeof v === 'string') return 비밀가림(v);
+  if (Array.isArray(v)) return v.map(가려서);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, 가려서(x)]));
+  return v;
+};
+
+let 일련 = 0;
+
+/**
+ * 모델 입력 한 건을 남긴다. 꺼져 있으면 `null` 을 돌려주고 아무것도 하지 않는다.
+ * @param {{messages: any, tools?: {name?: string}[], meta?: Object}} 입력
+ * @param {Object} [env]
+ * @returns {Promise<string|null>} 쓴 파일 경로
+ */
+export async function dumpModelInput(입력, env = process.env) {
+  const dir = promptDumpDir(env);
+  if (!dir) return null;
+  const m = 입력?.messages ?? {};
+  const tools = Array.isArray(입력?.tools) ? 입력.tools : [];
+  // 도구 스키마 전체 크기 — 매 콜에 실려 나가는 몫이다(불변식 B 를 재는 자리).
+  let toolSchemaChars = 0;
+  try { toolSchemaChars = JSON.stringify(tools).length; } catch { toolSchemaChars = -1; }
+  const system = typeof m.system === 'string' ? m.system : Array.isArray(m.system) ? m.system.join('\n') : '';
+  // **캐시 접두가 살아 있는지 재는 자리.** 적중 여부는 공급자 거동이라 우리가 통제하지 못한다 —
+  // 대신 우리가 통제하는 불변식을 잰다: 안정 접두와 **도구 목록의 앞부분이 안 바뀌는가**.
+  // 대화 중 커넥터를 붙이면 손이 늘어난다(`admitHttpTools`). 뒤에만 붙으면(append-only)
+  // 앞 직렬화가 그대로라 접두가 산다. 중간 삽입·재정렬하면 그 순간 접두가 죽는다.
+  const stable = typeof m.systemStable === 'string' ? m.systemStable : null;
+  const 이름들 = tools.map((t) => t?.name).filter(Boolean);
+  const 기록 = {
+    at: new Date().toISOString(),
+    ...(입력?.meta ? { meta: 가려서(입력.meta) } : {}),
+    system: 비밀가림(system),
+    user: 가려서(m.user),
+    ...(m.history?.length ? { history: 가려서(m.history) } : {}),
+    ...(m.exchange?.length ? { exchange: 가려서(m.exchange) } : {}),
+    toolNames: 이름들,
+    // 수치는 가리기 **전** 원문 기준이다 — 가림이 크기를 왜곡하면 대조가 무너진다.
+    systemChars: system.length,
+    toolCount: tools.length,
+    toolSchemaChars,
+    ...(stable === null ? {} : { systemStableChars: stable.length, systemStableSha: 지문(stable) }),
+    // 도구 목록을 **누적 지문**으로 남긴다. 앞에서부터 n 개의 지문이 이전 턴과 같으면
+    // 그 만큼은 접두가 살아 있다 — 어디서 깨졌는지 눈으로 짚을 수 있다.
+    toolPrefixSha: 이름들.map((_, i) => 지문(JSON.stringify(tools.slice(0, i + 1)))),
+  };
+  일련 += 1;
+  const 파일 = join(dir, `${String(일련).padStart(4, '0')}-${Date.now()}.json`);
+  await mkdir(dir, { recursive: true });
+  await writeFile(파일, `${JSON.stringify(기록, null, 2)}\n`, 'utf8');
+  return 파일;
+}
