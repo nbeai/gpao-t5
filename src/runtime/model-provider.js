@@ -106,6 +106,8 @@ export function buildModelMessages(tc) {
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
   // **사실 한 줄.** 손이 없어진 게 아니라 이번 턴 몫을 다 썼다는 것 — 다음 턴에는 다시 쓴다.
   if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
+  // 출구 검증이 되돌린 사실 — 답이 원장과 어긋났다. **사실 한 줄이지 지시가 아니다.**
+  if (tc.completionMismatch?.사실) sys.push(tc.completionMismatch.사실);
   if (tc.answerOnly) sys.push('실행 사실과 현재 요청은 이미 위에 있다. 새 행동을 약속하거나 다음 턴으로 미루지 말고, 사용자에게 보낼 최종 답만 지금 작성한다.');
   // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
   // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).

@@ -114,6 +114,9 @@ export const 허용파일 = [
   'src/runtime/tool-runner.js',
   // F-5 멈춤 — 표면(HTTP 문 + 화면 버튼)에서 커널 취소 이음새까지.
   'src/surface/web/index.html',
+  // §S5 출구 검증 — 완료 주장을 원장과 대조하고 어긋나면 모델에게 되돌린다.
+  'src/kernel/l2-plan/exit-verification.js',
+  'src/runtime/model-provider.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

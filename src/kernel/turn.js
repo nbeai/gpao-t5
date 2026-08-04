@@ -43,6 +43,7 @@ import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
+import { 완료주장검증 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -525,12 +526,42 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
   const 거짓성공 = 읽은척차단(receipts, reply, { 출처계약손 });
   if (거짓성공?.blocked) return 거짓성공.정직한답;
-  if (String(reply ?? '').trim()) return userFacingModelText(reply);
+  // **출구 검증은 여기 묶는다**(§2-C). `답완성` 은 답이 나가는 모든 자리가 지나는 한 문이다 —
+  // 자리마다 적으면 언젠가 하나가 빠지고, 빠진 그 경로로 거짓 완료가 그대로 나간다.
+  // 실측(2026-08-04): `executePlan` 에만 붙였더니 **손을 안 고른 턴**이 그 앞에서 돌아가
+  // 그대로 통과했다 — 그게 정본이 말한 "말로만 끝남"의 바로 그 자리였다.
+  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts });
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
   const 다시 = userFacingModelText(typeof retry === 'string' ? retry : retry?.text ?? '');
-  return 다시 || fallbackReplyFrom(receipts);
+  return 출구검증(다시 || fallbackReplyFrom(receipts), { tc, ctx, receipts });
+}
+
+/**
+ * **출구 검증**(정본 §S5 H08 재개봉) — 완료 주장을 원장과 대조하고, 어긋나면 사용자에게
+ * 보내지 않고 **모델에게 한 번 돌려준다.**
+ *
+ * 중간에서 강제하면 낼 것이 없을 때 억지로 무언가를 만들어 낸다(쓰레기 로그 파일, 실측
+ * 2026-08-03). 그래서 강제는 걷고 검증만 출구로 옮겼다. **대필이 아니다** — 사실만 주고
+ * 무엇을 말할지는 모델이 정한다.
+ *
+ * `답완성` 옆에 두는 이유: 답이 나가는 자리가 여럿이라 자리마다 적으면 언젠가 하나가 빠지고,
+ * 빠진 그 경로로 거짓 완료가 그대로 나간다(구조원칙 §2-C).
+ */
+async function 출구검증(reply, { tc, ctx, receipts = [] }) {
+  const 검증 = 완료주장검증({ reply, receipts, 이미돌려줬나: Boolean(ctx.출구되돌림) });
+  if (검증.일치) return reply;
+  ctx.출구되돌림 = true;
+  const 다시 = await ctx.model.respond({
+    ...tc,
+    // 지시가 아니라 **원장의 사실**이다. `answerOnly` 로 손은 안 준다 — 지금 필요한 것은
+    // 새 행동이 아니라 방금 한 일을 정직하게 말하는 것이다.
+    answerOnly: true,
+    completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
+  }, { onDelta: ctx.onAnswerDelta, effort: 'medium' });
+  const 고친답 = userFacingModelText(typeof 다시 === 'string' ? 다시 : (다시?.text ?? ''));
+  return 고친답.trim() ? 고친답 : reply;
 }
 
 
@@ -2162,6 +2193,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 답에서만큼은 원장의 정직한 사실이 이긴다(나간 조각 보존 계약의 유일한 예외 — 거짓 성공).
   const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply, { 출처계약손: 출처계약손목록() });
   if (거짓성공정렬후?.blocked) reply = 거짓성공정렬후.정직한답;
+
+  // ── **출구 검증**(정본 §S5 H08 재개봉) ────────────────────────────────────
+  //
+  // 모델이 완료를 주장하면 원장과 대조하고, 어긋나면 **사용자에게 보내지 않고 모델에게
+  // 돌려준다.** 중간에서 강제하면 낼 것이 없을 때 억지로 무언가를 만들어 낸다(쓰레기 로그
+  // 파일, 실측 2026-08-03) — 그래서 강제는 걷고 검증만 출구로 옮겼다.
+  //
+  // **대필이 아니다.** 사실만 주고 무엇을 말할지는 모델이 정한다. 한 턴에 한 번만 준다 —
+  // 두 번 되돌리면 왕복이 무한이 되고 그 비용은 사용자가 문다.
   const unresolvedReceipts = unresolvedTurnReceipts(turnReceipts);
   const projection = projectReceipts(unresolvedReceipts);
 
