@@ -139,12 +139,87 @@ export function buildModelMessages(tc) {
     sys.push(`[현재 작업 브리프 — 사건 원장에서 확인됨]\n${projectWorking}`);
   }
 
+  // **S1a · 운영 현실은 시스템 공간에 둔다**(2026-08-05).
+  // 예전엔 이 블록이 **사용자 메시지 안**에 있었다. 그래서 오너가 "안녕" 한 마디를 했는데
+  // 모델이 받은 사용자 메시지는 `[T5가 먼저 맡을 수 있는 일] … \n\n안녕` 이었고,
+  // 모델은 **사용자가 그렇게 말했다고 읽고** 능력을 읊었다(S0 계측 실측). 모델 잘못이 아니다.
+  // 같은 프롬프트에 "묻지 않은 능력 나열 금지"가 적혀 있었다 — 말과 행동이 반대였다.
+  //
+  // **지우지 않고 옮긴다.** 이 사실이 없으면 모델이 "사용자에게 무엇을 시킬까"를 먼저 생각한다
+  // (그래서 원래 넣은 것이다). 틀린 것은 사실이 아니라 **자리**였다.
+  // 옮기면 둘이 같이 좋아진다 — 목소리가 바로잡히고, **안정 구역이라 캐시에 얹힌다**
+  // (사용자 턴은 캐시에 안 얹혀 매 콜 새로 지불했다).
+  // 손 구성은 대화 안에서 잘 안 바뀌므로 여기가 제자리다. 늘어날 때는 뒤에만 붙는다(불변식 A 예외 ②).
+  if (tc.operatorReality?.hands?.length) {
+    sys.push(`[네가 먼저 맡을 수 있는 일]\n${tc.operatorReality.hands
+      .map((hand) => `- ${hand.label}: ${hand.operation}`).join('\n')}`);
+  }
+
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
   if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);
 
   // 물어봤을 때만 자기인지 상세를 싣는다(오너 결정: 필요할 때만 찾아 반영).
   if (tc.selfhoodDetail) sys.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
+
+  // ── **안정 구역의 맨 끝** — 바뀌면 여기 뒤만 무효화된다(불변식 A 예외 ②와 같은 원리) ──
+  let 바깥현실 = null;
+  // P5-B-0.5: **외부 자료에 닿는 현실.** 판정이 아니라 사실이다 — 어느 서비스 얘기인지,
+  // 한 번만 볼 건지 계속 쓸 건지, 어느 길이 자연스러운지는 **모델이 고른다**(§24).
+  // 이 블록이 없으면 모델은 없는 자리를 상상으로 메우고, 가장 쉬운 상상이 "복사해서 붙여주세요"다.
+  if (tc.externalReality) {
+    const e = tc.externalReality;
+    const lines = [];
+    // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
+    if (e.reach?.length) {
+      lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach
+        .map((h) => `${h.label}${h.operation ? ` — ${h.operation}` : ''}${h.limit ? ` (${h.limit})` : ''}`).join(' · ')}`);
+    }
+    const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
+    const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
+    if (연결됨.length) lines.push(`직접 연결된 서비스: ${연결됨.map((s) => s.label).join(' · ')}`);
+    for (const s of 미연결) {
+      const 부르는말 = s.aliases?.length ? `(${s.aliases.slice(0, 4).join('/')})` : '';
+      // **connectable 과 planned 를 섞지 않는다.** planned 는 연결 흐름 자체가 없는 상태다 —
+      // 거기에 "연결하면 가능"을 붙이면 못 지킬 약속이 된다.
+      lines.push(`${s.label}${부르는말}: ${s.connectable ? '직접 연결 없음(연결하면 가능)' : '직접 연결 없음 · 연결 흐름도 아직 없음'}`
+        + (s.jobsWhenConnected?.length ? ` — 연결하면 ${s.jobsWhenConnected.join(' · ')}` : '')
+        + (s.plannedJobs?.length ? ` — 지원 예정: ${s.plannedJobs.join(' · ')}` : '')
+        + (s.setupGuide ? `\n  ${s.setupGuide}` : '')
+        // P5-B-1A: **T5 가 이 컴퓨터에서 직접 확인한 것.** 결과가 있을 때만 낸다 —
+        // 확인 안 했으면 이 줄 자체가 없다(확인한 척 금지). 있음·없음 둘 다 사실이라 둘 다 싣는다.
+        + (s.localSigns?.length
+          ? `\n  이 컴퓨터에서 직접 확인함: ${s.localSigns.map((x) => `${x.label} ${x.found ? `있음${x.where ? `(${x.where})` : ''}` : '없음'}`).join(' · ')}`
+          : '')
+        // P5-B-1B: **연결 경로 현실.** 오너 지시(2026-07-28) — 모델이 판단하려면 판단할 현실이
+        // 있어야 한다. 어느 길로 가라고 말하지 않는다. 무엇이 있고 · T5 가 할 수 있고 ·
+        // 사용자가 뭘 해야 하는지만 준다. 고르는 건 모델이다(§24).
+        + (s.paths?.length ? `\n  붙이는 길: ${s.paths.map(연결경로).join(' / ')}` : ''));
+    }
+    // M5 연속성 ②: **이 목록이 새 사실인지 아닌지도 사실이다.**
+    // 실측(2026-08-03): 순수 대화 세 턴에서 이 블록 1,524자가 바이트까지 같게 세 번 놓였다.
+    // 매 턴 처음인 것처럼 놓으면 모델은 매 턴 처음인 것처럼 읊는다 — 그건 모델 탓이 아니다.
+    // **목록은 그대로 둔다**(조건부로 빼는 길은 이미 실패했다 — 위 흉터). 한 줄만 앞에 얹는다.
+    // 지시("다시 나열하지 마라")가 아니라 사실로 준다 — 판단은 모델이 한다(§24).
+    const d = tc.externalRealityDelta;
+    const 머리 = d?.same ? '이 목록은 이 대화에서 이미 놓였고, 그 뒤로 바뀐 것은 없다.\n'
+      : d?.changed?.length ? `이 목록은 이 대화에서 이미 놓였다. 그 뒤로 바뀐 것: ${d.changed.join(' · ')}.\n`
+        : '';
+    // **S1a(2026-08-05): 자리를 옮긴다 — 사용자 메시지 → 시스템 안정 구역 맨 끝.**
+    // 위 흉터가 이미 진단을 적어 놓았다: *"1,524자가 바이트까지 같게 세 번 놓였다.
+    // 매 턴 처음인 것처럼 놓으면 모델은 매 턴 처음인 것처럼 읊는다."*
+    // 그때의 처방은 "이미 놓였다"는 **한 줄을 앞에 얹는 것**이었다. 그건 증상에 붙인 말이다 —
+    // 블록은 여전히 **사용자 메시지**에 있었고, 모델은 그것을 사용자가 한 말로 읽었다.
+    //
+    // 라이브 실측(2026-08-05, 오너 첫 대화): 인사 한 마디에 T5 가
+    // *"메일·텔레그램·슬랙 같은 건 지금은 직접 연결은 안 된 상태네"* 라고 답했다.
+    // 그 목록이 바로 여기 `미연결` 이다. **모델이 지어낸 게 아니라 우리가 사용자 입으로 말했다.**
+    //
+    // 안정 구역 **맨 끝**에 둔다: 목소리가 바로잡히고, 바이트가 같은 동안 캐시에 얹히며,
+    // 서비스가 붙어 내용이 바뀌어도 **그 뒤쪽만** 무효화된다(불변식 A 예외 ② 와 같은 원리).
+    if (lines.length) 바깥현실 = `[바깥 자료에 닿는 현실]\n${머리}${lines.join('\n')}`;
+  }
+  if (바깥현실) sys.push(바깥현실);
 
   // ── 여기부터 매 턴 바뀐다(캐시 경계 아래) ──
   // **경계를 선언만 하지 않고 값으로 만든다.** 위쪽(정체성·헌장·환경)은 세션 내내 같고,
@@ -197,49 +272,6 @@ export function buildModelMessages(tc) {
         + (f.data ? `\n  결과: ${f.data}` : ''))
       .join('\n')}`);
   }
-  // P5-B-0.5: **외부 자료에 닿는 현실.** 판정이 아니라 사실이다 — 어느 서비스 얘기인지,
-  // 한 번만 볼 건지 계속 쓸 건지, 어느 길이 자연스러운지는 **모델이 고른다**(§24).
-  // 이 블록이 없으면 모델은 없는 자리를 상상으로 메우고, 가장 쉬운 상상이 "복사해서 붙여주세요"다.
-  if (tc.externalReality) {
-    const e = tc.externalReality;
-    const lines = [];
-    // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
-    if (e.reach?.length) {
-      lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach
-        .map((h) => `${h.label}${h.operation ? ` — ${h.operation}` : ''}${h.limit ? ` (${h.limit})` : ''}`).join(' · ')}`);
-    }
-    const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
-    const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
-    if (연결됨.length) lines.push(`직접 연결된 서비스: ${연결됨.map((s) => s.label).join(' · ')}`);
-    for (const s of 미연결) {
-      const 부르는말 = s.aliases?.length ? `(${s.aliases.slice(0, 4).join('/')})` : '';
-      // **connectable 과 planned 를 섞지 않는다.** planned 는 연결 흐름 자체가 없는 상태다 —
-      // 거기에 "연결하면 가능"을 붙이면 못 지킬 약속이 된다.
-      lines.push(`${s.label}${부르는말}: ${s.connectable ? '직접 연결 없음(연결하면 가능)' : '직접 연결 없음 · 연결 흐름도 아직 없음'}`
-        + (s.jobsWhenConnected?.length ? ` — 연결하면 ${s.jobsWhenConnected.join(' · ')}` : '')
-        + (s.plannedJobs?.length ? ` — 지원 예정: ${s.plannedJobs.join(' · ')}` : '')
-        + (s.setupGuide ? `\n  ${s.setupGuide}` : '')
-        // P5-B-1A: **T5 가 이 컴퓨터에서 직접 확인한 것.** 결과가 있을 때만 낸다 —
-        // 확인 안 했으면 이 줄 자체가 없다(확인한 척 금지). 있음·없음 둘 다 사실이라 둘 다 싣는다.
-        + (s.localSigns?.length
-          ? `\n  이 컴퓨터에서 직접 확인함: ${s.localSigns.map((x) => `${x.label} ${x.found ? `있음${x.where ? `(${x.where})` : ''}` : '없음'}`).join(' · ')}`
-          : '')
-        // P5-B-1B: **연결 경로 현실.** 오너 지시(2026-07-28) — 모델이 판단하려면 판단할 현실이
-        // 있어야 한다. 어느 길로 가라고 말하지 않는다. 무엇이 있고 · T5 가 할 수 있고 ·
-        // 사용자가 뭘 해야 하는지만 준다. 고르는 건 모델이다(§24).
-        + (s.paths?.length ? `\n  붙이는 길: ${s.paths.map(연결경로).join(' / ')}` : ''));
-    }
-    // M5 연속성 ②: **이 목록이 새 사실인지 아닌지도 사실이다.**
-    // 실측(2026-08-03): 순수 대화 세 턴에서 이 블록 1,524자가 바이트까지 같게 세 번 놓였다.
-    // 매 턴 처음인 것처럼 놓으면 모델은 매 턴 처음인 것처럼 읊는다 — 그건 모델 탓이 아니다.
-    // **목록은 그대로 둔다**(조건부로 빼는 길은 이미 실패했다 — 위 흉터). 한 줄만 앞에 얹는다.
-    // 지시("다시 나열하지 마라")가 아니라 사실로 준다 — 판단은 모델이 한다(§24).
-    const d = tc.externalRealityDelta;
-    const 머리 = d?.same ? '이 목록은 이 대화에서 이미 놓였고, 그 뒤로 바뀐 것은 없다.\n'
-      : d?.changed?.length ? `이 목록은 이 대화에서 이미 놓였다. 그 뒤로 바뀐 것: ${d.changed.join(' · ')}.\n`
-        : '';
-    if (lines.length) usr.push(`[바깥 자료에 닿는 현실]\n${머리}${lines.join('\n')}`);
-  }
   if (tc.connectionAdmission) {
     const a = tc.connectionAdmission;
     const lines = [];
@@ -267,13 +299,8 @@ export function buildModelMessages(tc) {
     }
     usr.push(`[이번 턴의 연결 입력·확인 사실]\n${lines.join('\n')}`);
   }
-  // 사용자 발화의 분야를 미리 맞히지 않는다. 자료 찾기·컴퓨터 문제·연결·개발 작업 모두에서
-  // 모델이 "사용자에게 무엇을 시킬까"보다 "T5가 먼저 무엇을 확인할까"를 판단할 수 있게 하는
-  // 공통 운영 현실이다. 역할은 descriptor가 선언한 것만 실린다.
-  if (tc.operatorReality?.hands?.length) {
-    usr.push(`[T5가 먼저 맡을 수 있는 일]\n${tc.operatorReality.hands
-      .map((hand) => `- ${hand.label}: ${hand.operation}`).join('\n')}`);
-  }
+  // (운영 현실은 **시스템 안정 구역**으로 옮겼다 — S1a. 위 `[네가 먼저 맡을 수 있는 일]` 참조.
+  //  사용자 메시지에는 사용자가 말한 것만 남긴다.)
   // 막힌 게 있으면 다음 계단을 사실로 알려 준다 — 모델이 "안 됩니다"로 끝내지 않게.
   if (tc.recoveryHint) usr.push(`[막힌 것과 다음 길]\n${tc.recoveryHint}`);
   if (tc.workContractAssessment?.kind === 'file') {
@@ -319,9 +346,23 @@ export function buildModelMessages(tc) {
     .filter((t) => t && typeof t.text === 'string' && t.text.trim())
     .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
   // 이번 턴에 **모델이 실제로 부른 것**. 서술이 아니라 대화로 싣는다(provider 마다 자기 셰이프로).
+  // ── **S1 · 커널은 사용자 입으로 말하지 않는다**(2026-08-05) ──────────────────
+  // `usr` 에는 커널이 쓴 블록이 최대 열넷, 그리고 **맨 마지막에 사용자가 실제로 한 말**이 있었다.
+  // 그걸 하나의 문자열로 이어 붙여 보냈다. 모델 입장에서는 전부 사용자가 한 말이다.
+  //
+  // 라이브 실측(오너 첫 대화): 사용자가 "안녕" 한 마디를 했는데 모델이 받은 것은 1,574자였고,
+  // 그 안에 능력 목록과 미연결 서비스 목록이 있었다. 모델은 그걸 읽고 그대로 읊었다 —
+  // **모델 잘못이 아니다.** 같은 프롬프트에 "묻지 않은 능력 나열 금지"가 적혀 있었다.
+  //
+  // 여기서 가른다. 커널이 쓴 것은 **시스템 공간(휘발 구역)** 으로, 사용자 메시지에는
+  // **사용자가 말한 것만** 남는다. 캐시 경계 아래라 안정 접두는 그대로다.
+  // 도구 결과를 정규 도구 메시지로 돌리는 일은 다음 칸(S2)이 한다 — 여기서는 목소리만 바로잡는다.
+  const 사용자말 = usr.length ? usr[usr.length - 1] : '';
+  const 커널이쓴것 = usr.slice(0, -1);
+  if (커널이쓴것.length) sys.push(...커널이쓴것);
   const system = sys.join('\n');
   return {
-    system, user: usr.join('\n\n'), history, exchange: tc.turnExchange ?? [],
+    system, user: 사용자말, history, exchange: tc.turnExchange ?? [],
     // 캐시 표식을 걸 수 있는 자리(고정 접두)와 그 뒤 변동분. 와이어가 나눠 싣는다.
     systemStable: 고정접두,
     systemVolatile: system.slice(고정접두.length),

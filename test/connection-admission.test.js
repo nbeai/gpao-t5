@@ -14,9 +14,11 @@ function promptFor(receipts = []) {
     selfState,
     externalReality: { reach: [], services: [] },
     receipts,
-  })).user;
+  })).system;
 }
 
+// S1(2026-08-05): 커널이 쓴 사실은 시스템 공간으로 옮겼다 — 사용자 메시지엔 사용자 말만 남는다.
+// 계약의 뜻은 그대로다: **이 사실이 모델 앞에 놓인다.** 사라지면 여전히 빨개진다.
 test('실제로 열린 입력면이 없으면 그 부재가 모델의 연결 현실로 간다', () => {
   const user = promptFor();
   assert.match(user, /안전한 비밀 입력면은 아직 열리지 않았어요/);

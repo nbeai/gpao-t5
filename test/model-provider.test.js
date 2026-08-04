@@ -46,9 +46,13 @@ test('후속 형식 수정은 현재 요청 바로 앞에서 실제 답을 요�
       { role: 'assistant', text: '| 항목 | 값 |' },
     ],
   });
-  assert.match(built.user, /이번 답의 완료 기준/);
-  assert.match(built.user, /확인이나 예고만으로 한 턴을 소비하지 않는다/);
-  assert.ok(built.user.indexOf('[이번 답의 완료 기준]') < built.user.lastIndexOf('이번엔 표 말고'));
+  assert.match(built.system, /이번 답의 완료 기준/);
+  assert.match(built.system, /확인이나 예고만으로 한 턴을 소비하지 않는다/);
+  // S1(2026-08-05): 예전엔 둘이 **한 문자열**이라 "요청보다 앞에 있는가"를 인덱스로 쟀다.
+  // 이제 커널이 쓴 사실은 system, 사용자가 한 말은 user 로 갈렸다 —
+  // **순서는 구조가 보장한다**(system 은 언제나 user 앞이다). 대신 갈림 자체를 잰다.
+  assert.equal(built.user.trim(), '이번엔 표 말고 한 문장으로 말해줘.',
+    '사용자 메시지에 커널이 쓴 것이 섞였다');
 });
 
 test('현재 행동 귀속 판정은 후보와 이번 요청을 모델 입력에 실제로 싣는다', () => {
@@ -59,12 +63,12 @@ test('현재 행동 귀속 판정은 후보와 이번 요청을 모델 입력에
       candidates: [{ index: 0, tool: 'local.file', args: { action: 'delete', path: '옛.csv' } }],
     },
   });
-  assert.match(built.user, /이번 요청의 행동 판정/);
-  assert.match(built.user, /실제로 끝났어/);
-  assert.match(built.user, /local\.file/);
-  assert.match(built.user, /옛\.csv/);
-  assert.match(built.user, /현재 요청이 지금 요구한 후보의 번호만/);
-  assert.match(built.user, /이전 턴의 미완료 행동은 고르지 않는다/);
+  assert.match(built.system, /이번 요청의 행동 판정/);
+  assert.match(built.system, /실제로 끝났어/);
+  assert.match(built.system, /local\.file/);
+  assert.match(built.system, /옛\.csv/);
+  assert.match(built.system, /현재 요청이 지금 요구한 후보의 번호만/);
+  assert.match(built.system, /이전 턴의 미완료 행동은 고르지 않는다/);
 });
 
 // ── env 해석 ──────────────────────────────────────────────────────────────
@@ -347,16 +351,18 @@ test('buildModelMessages: 자기 모델명과 능력 경계를 싣는다(오너 
 
 test('CHAT 완료 판정은 최종 답 호출에도 결과 형태 사실로 전달된다', () => {
   const m = buildModelMessages({ ...TC, chatOutputContract: true });
-  assert.match(m.user, /이번 결과 형태/);
-  assert.match(m.user, /대화에 바로 보여주는 답/);
-  assert.match(m.user, /파일명 확인은 이번 요청의 결과가 아니다/);
+  assert.match(m.system, /이번 결과 형태/);
+  assert.match(m.system, /대화에 바로 보여주는 답/);
+  assert.match(m.system, /파일명 확인은 이번 요청의 결과가 아니다/);
 });
 
 test('buildModelMessages: 원문 보존 + 반영 기억·실행 사실·승인 경계를 사실로만 싣는다', () => {
   const m = buildModelMessages(TC);
-  assert.ok(m.user.includes('내일 회의 준비 도와줘'));       // 원문
-  assert.ok(m.user.includes('사용자는 오전 회의를 선호'));   // admittedContext
-  assert.ok(m.user.includes('자료 3건 확인'));               // evidenceFacts(userSafeSummary)
+  // S1(2026-08-05): **원문은 사용자 메시지에만 있다.** 커널이 쓴 사실은 시스템 공간으로 갈렸다.
+  assert.equal(m.user.trim(), '내일 회의 준비 도와줘');        // 원문 — 오직 여기
+  assert.ok(!m.system.includes('내일 회의 준비 도와줘'), '커널 자리에 사용자 원문이 새 들어갔다');
+  assert.ok(m.system.includes('사용자는 오전 회의를 선호'));   // admittedContext
+  assert.ok(m.system.includes('자료 3건 확인'));               // evidenceFacts(userSafeSummary)
   assert.ok(m.system.includes('slack.post'));                // 승인 필요(아직 실행 안 됨)
   assert.ok(!m.system.includes('반드시'));                   // 장문 지시문 주입 아님(사실 표식만)
 });
@@ -365,14 +371,14 @@ test('buildModelMessages: 기억 채널에 충돌 시 현재 요청 우선이 �
   // v1(r41): 한 줄 우선순위 계약 — 쌍 2 실측에서 모델이 우선순위를 뒤집어 패배(§5-J).
   // v2(감사 승인): 기억을 인용된 기본값 데이터로 격리 — 충돌 시 미적용이 블록 이름에 있다.
   const m = buildModelMessages(TC);
-  assert.ok(m.user.includes('저장된 기본값'));
-  assert.ok(m.user.includes('현재 요청과 충돌하면 적용하지 않음'),
+  assert.ok(m.system.includes('저장된 기본값'));
+  assert.ok(m.system.includes('현재 요청과 충돌하면 적용하지 않음'),
     '충돌 시 현재 요청이 우선한다는 사실이 기억 블록의 이름이어야 한다');
 });
 
 test('buildModelMessages: 반영 기억이 없으면 기본값 블록도 없다(빈 채널에 지시문을 싣지 않는다)', () => {
   const m = buildModelMessages({ ...TC, admittedContext: [] });
-  assert.ok(!m.user.includes('저장된 기본값'));
+  assert.ok(!m.system.includes('저장된 기본값'));
 });
 
 // ── 감사 승인 렌더 수정(1회 한정): 기억은 명령이 아니라 **인용된 기본값 데이터**로 격리 ──
@@ -382,12 +388,12 @@ test('buildModelMessages: 반영 기억이 없으면 기본값 블록도 없다(
 
 test('기억 렌더: 저장 원문이 벌거벗은 명령이 아니라 인용된 기록으로 격리된다', () => {
   const m = buildModelMessages({ ...TC, admittedContext: ['앞으로 보고서는 표보다 짧은 목록으로 정리해줘.'] });
-  assert.ok(m.user.includes('저장된 기본값'), '기본값 데이터 블록 이름이 있어야 한다');
-  assert.ok(m.user.includes('지금 실행할 명령이 아니다'), '명령 아님 격리 문장이 있어야 한다');
-  assert.ok(m.user.includes('기록 원문: "앞으로 보고서는 표보다 짧은 목록으로 정리해줘."'),
+  assert.ok(m.system.includes('저장된 기본값'), '기본값 데이터 블록 이름이 있어야 한다');
+  assert.ok(m.system.includes('지금 실행할 명령이 아니다'), '명령 아님 격리 문장이 있어야 한다');
+  assert.ok(m.system.includes('기록 원문: "앞으로 보고서는 표보다 짧은 목록으로 정리해줘."'),
     '원문은 의미 재서술 없이 따옴표 인용으로 보존된다');
   assert.ok(!/^- 앞으로 보고서는/m.test(m.user), '원문이 벌거벗은 명령 줄로 나오면 안 된다');
-  assert.ok(m.user.includes('현재 요청과 충돌하면 적용하지 않음'), '충돌 시 현재 요청 우선이 블록 이름에 있다');
+  assert.ok(m.system.includes('현재 요청과 충돌하면 적용하지 않음'), '충돌 시 현재 요청 우선이 블록 이름에 있다');
 });
 
 test('기억 렌더: 현재 요청은 마지막 독립 블록이다 — 기본값 데이터가 그 뒤에 오지 않는다', () => {
@@ -399,6 +405,6 @@ test('기억 렌더: 현재 요청은 마지막 독립 블록이다 — 기본�
 
 test('기억 렌더: 기억이 없는 턴의 입력은 기본값 블록이 없다(불변)', () => {
   const m = buildModelMessages({ ...TC, admittedContext: [] });
-  assert.ok(!m.user.includes('저장된 기본값'));
+  assert.ok(!m.system.includes('저장된 기본값'));
   assert.ok(!m.user.includes('지금 실행할 명령이 아니다'));
 });

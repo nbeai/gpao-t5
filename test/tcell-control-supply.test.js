@@ -50,8 +50,8 @@ const tc = (over = {}) => ({
 test('S5-2: 기억을 보여준 자리에서 인용 안내를 함께 준다', () => {
   const m = buildModelMessages(tc({ admittedContext: ['월별 수치는 표로 정리한다'] }));
   // §5-J 렌더 격리(감사 승인): 블록 이름이 [반영된 기억] → [저장된 기본값 …] 으로 바뀌었다.
-  assert.match(m.user, /\[저장된 기본값/);
-  assert.match(m.user, /memory\.cite/, '보여준 그 자리에서 안내한다');
+  assert.match(m.system, /\[저장된 기본값/);
+  assert.match(m.system, /memory\.cite/, '보여준 그 자리에서 안내한다');
 });
 
 test('S5-2: 보여준 것이 없으면 인용 안내도 없다(없는 것을 가리키게 하지 않는다)', () => {
@@ -61,21 +61,21 @@ test('S5-2: 보여준 것이 없으면 인용 안내도 없다(없는 것을 가
 
 test('S5-2: 이어받을 작업만 있어도 안내가 붙는다', () => {
   const m = buildModelMessages(tc({ carryableWork: ['지난 정리 — 정리한 답이 남아 있음'] }));
-  assert.match(m.user, /\[다른 대화에서 이어받을 수 있는 작업\]/);
-  assert.match(m.user, /memory\.cite/);
+  assert.match(m.system, /\[다른 대화에서 이어받을 수 있는 작업\]/);
+  assert.match(m.system, /memory\.cite/);
 });
 
 test('S5-2: 안내가 사실 목록을 밀어내지 않는다(기억 문장이 그대로 간다)', () => {
   const 문장 = '월별 수치는 표로 정리한다';
   const m = buildModelMessages(tc({ admittedContext: [문장] }));
-  assert.ok(m.user.includes(문장), '기억 문장은 그대로 간다');
-  assert.equal(m.user.includes('p-원리'), false, '내부 ID 는 여전히 안 나간다');
+  assert.ok(m.system.includes(문장), '기억 문장은 그대로 간다');
+  assert.equal(m.system.includes('p-원리'), false, '내부 ID 는 여전히 안 나간다');
 });
 
 test('S5-3: 직전 답이 놓고 쓴 문장을 이번 턴에 사실로 준다(지목할 목록)', () => {
   const m = buildModelMessages(tc({ priorShown: ['월별 수치는 표로 정리한다'] }));
-  assert.match(m.user, /memory\.correction/, '정정이 가능한 자리에서 알려 준다');
-  assert.ok(m.user.includes('월별 수치는 표로 정리한다'), '지목할 대상을 실제로 보여준다');
+  assert.match(m.system, /memory\.correction/, '정정이 가능한 자리에서 알려 준다');
+  assert.ok(m.system.includes('월별 수치는 표로 정리한다'), '지목할 대상을 실제로 보여준다');
 });
 
 test('S5-3: 직전 턴에 보인 것이 없으면 그 안내를 주지 않는다', () => {
@@ -85,5 +85,5 @@ test('S5-3: 직전 턴에 보인 것이 없으면 그 안내를 주지 않는다
 
 test('S5-2: 인용 안내에 면제 문구를 두지 않는다(쉬운 출구를 만들지 않는다)', () => {
   const m = buildModelMessages(tc({ admittedContext: ['월별 수치는 표로 정리한다'] }));
-  assert.equal(m.user.includes('없으면 넣지 않는다'), false, '렌더 안내는 사실만 준다');
+  assert.equal(m.system.includes('없으면 넣지 않는다'), false, '렌더 안내는 사실만 준다');
 });

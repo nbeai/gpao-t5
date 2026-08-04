@@ -284,13 +284,18 @@ test('모델 프롬프트에 붙이는 길이 사람 말로 실린다(처방 아
   const reality = externalReality({
     connectors: [네방식()], selfState: { connectedTools: [] }, executableKinds: EXECUTABLE_KINDS,
   });
-  const { user } = buildModelMessages({ currentRequest: '붙여줘', externalReality: reality });
-  assert.match(user, /붙이는 길:/, '연결 경로가 모델 앞에 없다');
-  assert.match(user, /사용자는 동의 화면에서 허용 한 번/);
-  assert.match(user, /비밀 입력창에 열쇠·아이디 입력/);
-  assert.match(user, /실행기가 없음/, '못 하는 방식을 못 한다고 말하지 않았다');
+  // **S1a(2026-08-05): 자리가 사용자 메시지 → 시스템 안정 구역으로 옮겨졌다.**
+  // 계약의 뜻은 그대로다 — "붙이는 길이 모델 앞에 사실로 놓이고, 처방하지 않는다".
+  // 옮긴 이유: 이 블록이 사용자 메시지에 있어서 모델이 **사용자가 한 말로 읽었고**,
+  // 인사 한 마디에 미연결 서비스 목록을 읊었다(오너 라이브 실측).
+  const { system, user } = buildModelMessages({ currentRequest: '붙여줘', externalReality: reality });
+  assert.match(system, /붙이는 길:/, '연결 경로가 모델 앞에 없다');
+  assert.match(system, /사용자는 동의 화면에서 허용 한 번/);
+  assert.match(system, /비밀 입력창에 열쇠·아이디 입력/);
+  assert.match(system, /실행기가 없음/, '못 하는 방식을 못 한다고 말하지 않았다');
+  assert.equal(user.trim(), '붙여줘', '커널이 사용자 입으로 말했다');
   // **처방하지 않는다** — 무엇을 하라고 시키는 문장이 없어야 한다
   for (const 처방 of ['하세요', '해야 한다', '먼저 ~를 시도', '권장']) {
-    assert.ok(!user.includes(처방), `모델에게 지시가 들어갔다: "${처방}"`);
+    assert.ok(!system.includes(처방), `모델에게 지시가 들어갔다: "${처방}"`);
   }
 });

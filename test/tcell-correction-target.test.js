@@ -92,9 +92,9 @@ const tc = (over = {}) => ({
 
 test('S5-3: 직전 답이 놓고 쓴 기억 문장을 이번 턴에 사실로 준다', () => {
   const m = buildModelMessages(tc({ priorShown: [원리문장, 선호문장] }));
-  assert.match(m.user, /직전 답/);
-  assert.ok(m.user.includes(원리문장), '지목할 대상을 실제로 보여준다');
-  assert.match(m.user, /memory\.correction/);
+  assert.match(m.system, /직전 답/);
+  assert.ok(m.system.includes(원리문장), '지목할 대상을 실제로 보여준다');
+  assert.match(m.system, /memory\.correction/);
 });
 
 test('S5-3: 직전 턴에 보인 것이 없으면 그 안내도 없다', () => {
@@ -113,7 +113,7 @@ test('S5-3: 지목 인자를 통제 채널이 받는다', () => {
 
 test('S5-3: 내부 ID 는 여전히 나가지 않는다', () => {
   const m = buildModelMessages(tc({ priorShown: [원리문장] }));
-  assert.equal(m.user.includes('p-원리'), false);
+  assert.equal(m.system.includes('p-원리'), false);
 });
 
 // ── 제품 경로: 목록이 실제로 공급되는가 ───────────────────────────────────

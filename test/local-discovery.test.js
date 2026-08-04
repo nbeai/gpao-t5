@@ -132,8 +132,8 @@ test('두 사실이 모델 입력까지 간다 — 없는 입력면을 약속하
       discovery: { subject: '어떤상점', checked: ['mcp', 'cli'], candidates: [], scope: 'this_computer', declared: false },
     },
   });
-  assert.match(m.user, /이 컴퓨터 안만 본 것/, '확인 범위가 모델에 안 간다');
-  assert.match(m.user, /연결 선언이 아직 없어요/, '열릴 수 없는 면이라는 사실이 안 간다');
+  assert.match(m.system, /이 컴퓨터 안만 본 것/, '확인 범위가 모델에 안 간다');
+  assert.match(m.system, /연결 선언이 아직 없어요/, '열릴 수 없는 면이라는 사실이 안 간다');
 
   // 선언이 있으면 그 말은 하지 않는다(없는 벽을 세우지 않는다)
   const 있을때 = buildModelMessages({
