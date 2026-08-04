@@ -27,7 +27,7 @@ import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 /** 모델이 자동화를 제안하는 턴을 만든다. */
-async function 제안턴() {
+async function 제안턴({ 열어둠 = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 't5-autoprop-'));
   const model = {
     async respond(tc, opts = {}) {
@@ -36,7 +36,7 @@ async function 제안턴() {
         this.냈나 = true;
         return { text: '매일 아침 9시에 확인하도록 걸어 둘까?', toolCalls: [{
           name: 'automation.propose',
-          args: { statement: '매일 아침 9시에 작업 폴더에 새 파일이 있는지 확인한다', kind: 'daily' },
+          args: { statement: '매일 아침 9시에 작업 폴더에 새 파일이 있는지 확인한다', kind: 'daily', tool: 'local.file' },
         }] };
       }
       return '알겠어요.';
@@ -48,31 +48,67 @@ async function 제안턴() {
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
+  const close = () => new Promise((r) => server.close(r));
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
-    return await (await fetch(`${base}/turn`, {
+    const r = await (await fetch(`${base}/turn`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: s.id, text: '매일 아침 9시에 작업 폴더 확인하는 걸 반복으로 걸어줘' }),
     })).json();
-  } finally { await new Promise((r) => server.close(r)); }
+    return { base, r, close };
+  } finally { if (!열어둠) await close(); }
 }
 
-test('서버가 자동화 후보를 실제로 만든다(이 검사가 성립하는 조건)', async () => {
-  const r = await 제안턴();
+/** 사슬 전체를 한 번에 잰다 — 후보 생성 → 화면이 읽는 이름 → 설정 문이 연다. */
+async function 사슬(base, r) {
   const 후보 = r.automationSuggestion ?? r.automationProposal;
-  assert.ok(후보?.candidateId, `자동화 후보가 아예 안 만들어졌다: ${JSON.stringify(r).slice(0, 200)}`);
+  const setup = 후보?.candidateId
+    ? await (await fetch(`${base}/automation/setup?candidateId=${후보.candidateId}`)).json()
+    : { error: '후보 없음' };
+  return { 후보, 화면이름: r.automationSuggestion, setup };
+}
+
+test('① 서버가 자동화 후보를 만든다', async () => {
+  const { r } = await 제안턴();
+  const 후보 = r.automationSuggestion ?? r.automationProposal;
+  assert.ok(후보?.candidateId, `후보가 안 만들어졌다: ${JSON.stringify(r).slice(0, 200)}`);
   assert.match(String(후보.statement), /매일 아침 9시/);
 });
 
-// **확정된 것만 검사로 세운다.** 아래 두 갈래가 갈려 있다는 사실은 장부(F-11)에 적었고,
-// 잇는 수정은 한 번에 안 됐다 — 서버에서 이름을 더해도 응답까지 오지 않았고, 그 이유를
-// 확정하지 못했다. **확정 못 한 것은 고치지 않는다**(오늘 두 번 그렇게 하다 틀렸다).
-// 결함을 검사로 축복하지도 않는다 — 그러면 다음 사람이 그것을 계약으로 읽는다.
+// 이름을 서버에서 통일하려 했으나 응답까지 오지 않았고 이유를 확정 못 했다.
+// **화면이 두 출처를 다 받게** 했다 — 어느 키가 오든 사용자에겐 같은 카드다.
+test('② 화면이 **받는 형태로** 온다(카드가 뜬다)', async () => {
+  const { r } = await 제안턴();
+  const 화면이받는것 = r.automationSuggestion ?? r.automationProposal;
+  assert.ok(화면이받는것?.candidateId, '어느 이름으로도 후보가 안 왔다 — 카드가 안 뜬다');
+});
+
+test('③ **설정 문이 열린다** — 카드를 눌렀을 때 막다른 길이 아니다', async () => {
+  const { base, r, close } = await 제안턴({ 열어둠: true });
+  try {
+    const { setup } = await 사슬(base, r);
+    assert.equal(setup.ok, true,
+      `카드를 눌러도 설정이 안 열린다(죽은 버튼): ${setup.error ?? JSON.stringify(setup).slice(0, 120)}`);
+    // **스킬·역할이 없는 것은 결함이 아니다** — T5 의 자동화는 "이미 배운 스킬을 정해진
+    // 시각에 반복"하는 것이고, 새 설치엔 배운 것이 없다. 결함은 그때 **막다른 답**이 되는 것이다.
+    // 여기서는 문이 열리는 것까지만 잰다(404 가 아니어야 한다).
+  } finally { await close(); }
+});
+
+test('④ 켤 스킬이 없을 때 **막다른 답이 아니다**(다음 길이 있다)', async () => {
+  const 화면 = await readFile(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'surface', 'web', 'index.html'), 'utf8',
+  );
+  const i = 화면.indexOf('자동으로 맡길 준비가 아직 안 됐어요');
+  assert.ok(i > 0, '스킬 없음 안내가 사라졌다');
+  assert.match(화면.slice(i, i + 400), /먼저|보면|알려|해 두면|배워|말해/,
+    '스킬이 없다는 말만 하고 끝난다 — 사용자는 무엇을 해야 하는지 모른다(막다른 답 금지)');
+});
 
 test('화면에 자동화 제안을 그리는 자리가 **있다**(없어지지 않았다)', async () => {
   const 화면 = await readFile(
     join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'surface', 'web', 'index.html'), 'utf8',
   );
-  assert.match(화면, /automationSuggestion\?\.candidateId/,
-    '화면이 자동화 제안을 그리는 자리가 없어졌다 — 서버 쪽 이름만 고치면 반대로 죽는다');
+  assert.match(화면, /automationSuggestion \?\? r\.automationProposal/,
+    '화면이 두 출처를 다 받는 자리가 없어졌다 — 한쪽 이름만 보면 다른 쪽이 조용히 죽는다');
 });

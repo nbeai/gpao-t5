@@ -413,6 +413,9 @@ export function makeServer(deps = {}) {
             candidateId: randomUUID(),
             statement: proposal.statement,
             kind: proposal.kind,
+            // **무엇으로 하는 일인지 담는다.** 이게 없으면 `/automation/setup` 이 후보를 못 찾고
+            // 카드가 죽은 버튼이 된다(F-11). 모델이 손을 안 밝히면 담지 않는다 — 지어내지 않는다.
+            ...(proposal.tool ? { action: { tool: proposal.tool, args: {} } } : {}),
             state: 'proposed',
             approved: false,
             createdAt: Date.now(),
