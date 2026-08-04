@@ -9,7 +9,7 @@ import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeCapsuleTool } from '../runtime/capsule.js';
 import { sandboxAvailable } from '../runtime/sandbox.js';
-import { defaultFileRoots } from '../runtime/file-scope.js';
+import { defaultFileRoots, 부르는이름들 } from '../runtime/file-scope.js';
 import { makeLocalTerminalTool } from '../runtime/local-terminal.js';
 import { makeLocalProcessTool } from '../runtime/local-process.js';
 import { makeLocalLocateTool } from '../runtime/local-locate.js';
@@ -169,7 +169,13 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 서버가 demo fixture(텔레그램 connected:true 하드코딩)로 폴백해 **토큰 없는 채널이 라이브에서
   // 열린다** — Phase 0-5 에서 실제로 그렇게 새고 있었다.
   const channels = liveChannels(processEnv);
-  const descriptors = demoDescriptors({ include: [...liveToolIds, ...연결전] });
+  // **손이 자기 방을 말한다.** 선언에 방 이름을 박아 두면 `GPAO_T5_FILE_ROOTS` 가 다른
+  // 설치에서 그 문장이 그대로 가고, 모델은 틀린 사실을 사용자에게 옮겨 적는다
+  // (라이브 실측 2026-08-04: 방이 하나뿐인 설치에서 "~/Documents 도 다룬다"고 답했다).
+  const descriptors = demoDescriptors({
+    include: [...liveToolIds, ...연결전],
+    rooms: 부르는이름들(defaultFileRoots(processEnv)),
+  });
   connectors = [
     ...channels.map((c) => c.connector),
     ...demoConnectors().filter((c) => c.kind !== 'channel'),

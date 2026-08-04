@@ -357,13 +357,19 @@ const DESCRIPTORS = [
   }),
   defineTool({
     id: 'local.file', label: '로컬 파일', owner: 'core', availability: [{ kind: 'connected' }], toolKind: 'organize',
-    capability: '작업 폴더와 Downloads·Documents·Desktop 안에서 파일과 폴더를 보고·읽고·만들고·옮기고·지운다.'
+    // **방 이름을 여기 적지 않는다.** 예전엔 "작업 폴더와 Downloads·Documents·Desktop" 이라고
+    // 박혀 있었고, `GPAO_T5_FILE_ROOTS` 가 다른 설치에서도 그 문장이 그대로 갔다.
+    // 라이브 실측(2026-08-04 사람 사용시험): 방이 고정판 폴더 하나뿐인 설치에서 T5 가
+    // "~/Documents 도 다룬다"고 답했고, 실제로 시키자 "작업 폴더 밖"으로 막혔다.
+    // 거짓 성공은 아니었지만 **능력 진술이 실제 범위와 달랐다.** 방은 아래 `방채우기` 가
+    // 런타임의 진짜 `scopeRoots` 로 채운다 — 손이 자기 방을 말한다.
+    capability: '{방} 안에서 파일과 폴더를 보고·읽고·만들고·옮기고·지운다.'
       + ' 한 번에 **한 자리**를 다룬다 — 조건이 분명한 여러 파일은 bulk_move 로 한꺼번에 옮긴다.'
       + ' 같은 이름 식구의 최종본 판별(versions)도 한다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
-    operatorFact: '작업 폴더와 표준 사용자 폴더의 자료를 직접 읽고 정리한다.',
+    operatorFact: '{방} 의 자료를 직접 읽고 정리한다.',
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
-      description: '작업 폴더·Downloads·Documents·Desktop 의 파일과 폴더를 보거나 읽거나 저장하거나 옮기거나 지운다. move 는 파일과 폴더 모두 가능하다. bulk_move 는 확장자·이름·수정일 조건에 맞는 여러 파일을 한 번에 옮기며, 목적지 폴더는 필요하면 자동으로 만든다. 정리 폴더를 만들려고 __keep 같은 placeholder 파일을 write 하지 않는다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
+      description: '{방} 의 파일과 폴더를 보거나 읽거나 저장하거나 옮기거나 지운다. move 는 파일과 폴더 모두 가능하다. bulk_move 는 확장자·이름·수정일 조건에 맞는 여러 파일을 한 번에 옮기며, 목적지 폴더는 필요하면 자동으로 만든다. 정리 폴더를 만들려고 __keep 같은 placeholder 파일을 write 하지 않는다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
       parameters: {
         type: 'object',
         properties: {
@@ -704,8 +710,28 @@ const DESCRIPTORS = [
  * @param {{include?:string[]}} [opts] include 를 주면 **그 id 만** 선언한다 — 라이브는 실제 손이 있는
  *   것만 선언한다(손 없는 선언 = 사용자에게 하는 거짓말).
  */
+/**
+ * 손 선언을 낸다. `rooms` 를 주면 **자리표시자 `{방}` 을 실제 방 이름으로 채운다.**
+ *
+ * 왜 여기인가: 방은 설치마다 다르다(`GPAO_T5_FILE_ROOTS`). 선언에 박아 두면 그 문장이
+ * 설정과 어긋난 채 모델에게 가고, 모델은 그것을 사용자에게 그대로 옮겨 적는다.
+ * **모델이 지어낸 게 아니라 우리가 틀린 사실을 준 것이다.**
+ */
 export function demoDescriptors(opts = {}) {
-  return opts.include ? DESCRIPTORS.filter((d) => opts.include.includes(d.id)) : DESCRIPTORS;
+  const 고른것 = opts.include ? DESCRIPTORS.filter((d) => opts.include.includes(d.id)) : DESCRIPTORS;
+  return opts.rooms ? 고른것.map((d) => 방채우기(d, opts.rooms)) : 고른것;
+}
+
+/** 선언 안의 `{방}` 을 실제 방 이름으로 바꾼다. 없는 칸은 건드리지 않는다. */
+function 방채우기(d, rooms) {
+  const 바꿔 = (v) => (typeof v === 'string' && v.includes('{방}') ? v.replaceAll('{방}', rooms) : v);
+  if (!JSON.stringify(d).includes('{방}')) return d;
+  return {
+    ...d,
+    capability: 바꿔(d.capability),
+    operatorFact: 바꿔(d.operatorFact),
+    ...(d.schema ? { schema: { ...d.schema, description: 바꿔(d.schema.description) } } : {}),
+  };
 }
 
 // 환경 사실(연결·인증 존재 여부). mail.send는 연결됐으나 발송 인증 미준비 → needs_auth.
