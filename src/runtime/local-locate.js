@@ -74,9 +74,36 @@ function 이름낱말(말) {
 }
 
 /** 이름이 부른 낱말과 맞는가. 디스크의 NFD 와 사용자의 NFC 를 같은 글자로 읽는다. */
-function 이름이맞나(name, 낱말들) {
-  const 이름 = String(name).normalize('NFC').toLowerCase();
-  return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w));
+/**
+ * 이 이름이 부른 말과 **어떻게** 맞는가. 예전엔 둘(맞음/아님)이었는데 실제로는 셋이다.
+ *
+ * 라이브 사고(오너 2026-08-05): `지침.md` 를 찾자
+ * `《Mixtral 8x7B 최적화형 존재 프롬프트 설계 지침》.md` 가 **"이름이 맞아요 · high"** 로
+ * 돌아왔고, 모델이 그걸 답으로 삼아 열어 읽었다. 그 파일 이름은 `지침.md` 가 아니다 —
+ * `지침` 이라는 낱말을 **품고 있을** 뿐이다.
+ *
+ * 이 파일 53줄이 같은 병을 이미 적어 뒀다("모든 PDF 가 '이름이 맞아요'가 된다 —
+ * 커널이 프로세스에게 거짓말한 것이다"). 그때는 **입력 쪽**(확장자를 낱말로 만들지 않기)만
+ * 고쳤다. 판정 쪽은 `.includes` 하나였고, 그래서 같은 매듭이 두 번째 얼굴로 돌아왔다.
+ *
+ * 목록을 늘리지 않는다(§4-6). **확신의 등급을 나눈다:**
+ *   `exact`   부른 말이 곧 그 이름이다(확장자가 있든 없든) → 답이다
+ *   `partial` 부른 낱말이 이름 안에 있다                    → 후보다
+ *   `null`    아니다
+ * @returns {'exact'|'partial'|null}
+ */
+function 이름맞음종류(name, 부른말, 낱말들) {
+  const 이름 = String(name).normalize('NFC').toLowerCase().trim();
+  const 말 = String(부른말 ?? '').normalize('NFC').toLowerCase().trim();
+  if (말 && 이름 === 말) return 'exact';
+  // `지침` 으로 불러도 `지침.md` 는 그 파일이다 — 확장자는 이름의 일부이지 다른 이름이 아니다.
+  if (말 && 이름.replace(/\.[a-z0-9]{1,8}$/, '') === 말) return 'exact';
+  return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w)) ? 'partial' : null;
+}
+
+/** 부른 말이 **파일 이름 꼴**인가(`이름.확장자`). 그러면 폴더는 그 이름일 수 없다. */
+function 파일이름꼴(부른말) {
+  return /[^\s,/\\]+\.[a-z0-9]{1,8}$/i.test(String(부른말 ?? '').trim());
 }
 
 /**
@@ -346,7 +373,9 @@ export function makeLocalLocateTool(deps = {}) {
         본폴더 += 1;
 
         const 성 = 성격(entries);
-        const 이름맞음 = 이름이맞나(basename(dir), 낱말들);
+        // **파일 이름을 물었으면 폴더는 그 이름일 수 없다.** `지침.md` 를 물었는데
+        // `Developer` 폴더가 후보로 올라와 모델이 고를 것을 늘렸다(라이브 2026-08-05).
+        const 이름맞음 = !파일이름꼴(말) && Boolean(이름맞음종류(basename(dir), 말, 낱말들));
         // 모델이 locate 질의를 한 대상으로 좁혀 쓰더라도, 같은 사용자 요청에서 이름을 직접 부른
         // 형제 폴더는 놓치지 않는다. 실제 탐색으로 연 폴더의 basename 과 사용자 원문을 정확히
         // 대조할 뿐이며, 경로를 추측하거나 홈 전체를 권한으로 올리지 않는다.
@@ -378,7 +407,8 @@ export function makeLocalLocateTool(deps = {}) {
         // 대상은 폴더가 아니라 파일인데, 여기가 폴더만 올려서 영영 못 찾았다. 이름이 맞는 파일은
         // 파일로 올린다 — 폴더처럼 성격을 추측하지 않고(파일은 열지 않는다), 이름과 시각만 근거로 준다.
         for (const e of entries) {
-          if (e.isDirectory() || e.name.startsWith('.') || !이름이맞나(e.name, 낱말들)) continue;
+          const 맞음 = e.isDirectory() ? null : 이름맞음종류(e.name, 말, 낱말들);
+          if (e.isDirectory() || e.name.startsWith('.') || !맞음) continue;
           const full = join(dir, e.name);
           // 비밀 이름 파일(.env·토큰·키)은 후보로도 안 올린다 — 보여주면 그리로 가게 된다.
           if (protectionFor(full)) { 안본자리.push(full); continue; }
@@ -388,8 +418,12 @@ export function makeLocalLocateTool(deps = {}) {
             path: full,
             kind: 'file',
             kindLabel: '파일',
-            why: ['이름이 맞아요', 시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
-            confidence: 'high', // 파일은 이름이 곧 대상이다 — 성격 추측이 낄 자리가 없다
+            why: [맞음 === 'exact' ? '이름이 정확히 맞아요' : '이름에 그 낱말이 있어요',
+              시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
+            // **확신은 정확히 맞을 때만 준다.** 낱말이 들었다는 것은 후보의 근거이지
+            // "그 파일"이라는 근거가 아니다 — 그 둘을 같은 등급으로 주면 모델이 고를 수 없다.
+            confidence: 맞음 === 'exact' ? 'high' : 'medium',
+            이름맞음: 맞음,
             modifiedDaysAgo: 최근일,
             // 기계 대조 가능한 시각 — "최종본" 판단은 이름이 아니라 이 사실 위에서 선다(H08).
             ...(mtimeMs ? { modifiedAt: new Date(mtimeMs).toISOString() } : {}),
@@ -434,7 +468,12 @@ export function makeLocalLocateTool(deps = {}) {
       // 무관한 폴더 셋이 나왔다). 그럴 땐 몇 개만 곁들이고 못 찾았다고 말한다.
       const 짚었나 = 후보.some((c) => c.confidence !== 'low');
       const 물었나 = 낱말들.length > 0 || Boolean(찾는종류);
+      // **이름이 정확히 맞는 것을 앞세운다.** 뒤에 섞이면 모델은 목록의 앞부터 고른다 —
+      // 라이브에서 정확한 `지침.md` 가 다른 후보들 사이에 묻혀 있었고, 모델은 자기가 훑던
+      // 폴더(Documents) 안의 낱말 후보를 답으로 삼았다.
+      후보.sort((a, b) => (b.이름맞음 === 'exact' ? 1 : 0) - (a.이름맞음 === 'exact' ? 1 : 0));
       const 고른것 = 후보.slice(0, 물었나 && !짚었나 ? 2 : MAX_CANDIDATES);
+      const 정확한것 = 고른것.filter((c) => c.이름맞음 === 'exact');
 
       return {
         result: {
@@ -466,9 +505,17 @@ export function makeLocalLocateTool(deps = {}) {
             : '찾을 대상을 알려주시면 찾아볼게요.')
           : (물었나 && !짚었나)
             ? `"${말}"에 딱 맞는 자리는 못 찾았어요. 근처에 이런 자리는 있어요.`
+            : 정확한것.length === 1
+            // **정확한 답을 갖고 있으면 그렇게 말한다.** 예전엔 정확한 것 하나와 낱말만 든 것
+            // 넷을 묶어 "5곳이 후보예요"라고 했다. 모델은 후보 목록을 받으면 그중 하나를
+            // 골라야 하고, 그때 엉뚱한 것을 골랐다(라이브 2026-08-05: `지침.md` 를 물었는데
+            // `《… 설계 지침》.md` 를 열어 읽었다). **사실을 갖고 있으면서 뭉갠 것이다.**
+            ? `${정확한것[0].path} 예요 (${정확한것[0].why}).`
+            : 정확한것.length > 1
+            ? `이름이 정확히 맞는 자리가 ${정확한것.length}곳이에요.`
             : 고른것.length === 1
             ? `${고른것[0].path} 인 것 같아요 (${고른것[0].why}).`
-            : `${고른것.length}곳이 후보예요.`,
+            : `${고른것.length}곳이 후보예요(이름이 정확히 맞는 건 없어요).`,
         ...(고른것.length === 0 || (물었나 && !짚었나) ? { nextSafeAction: 이름으로골라 } : {}),
       };
     },

@@ -733,6 +733,20 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **커널은 확신을 지어내지 않는다** — locate 이름 판정(라이브 2026-08-05).
+  // 낱말을 품은 것과 그 이름인 것을 같은 등급으로 주면 모델이 엉뚱한 파일을 답으로 삼는다.
+  { 이름: '이름을 품은 것을 그 이름이라고 말함(커널이 프로세스에게 거짓말)',
+    파일: 'src/runtime/local-locate.js', 검사: 'test/locate-exact-name.test.js',
+    찾기: "  if (말 && 이름.replace(/\\.[a-z0-9]{1,8}$/, '') === 말) return 'exact';\n  return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w)) ? 'partial' : null;",
+    바꾸기: "  return 낱말들.length > 0 && 낱말들.some((w) => 이름.includes(w)) ? 'exact' : null;" },
+  { 이름: '정확한 답을 갖고도 "N곳이 후보"로 뭉갬(모델이 그중 엉뚱한 것을 고름)',
+    파일: 'src/runtime/local-locate.js', 검사: 'test/locate-exact-name.test.js',
+    찾기: '            ? `${정확한것[0].path} 예요 (${정확한것[0].why}).`',
+    바꾸기: '            ? `${고른것.length}곳이 후보예요.`' },
+  { 이름: '파일 이름을 물었는데 폴더를 이름맞음으로 올림', 파일: 'src/runtime/local-locate.js',
+    검사: 'test/locate-exact-name.test.js',
+    찾기: '        const 이름맞음 = !파일이름꼴(말) && Boolean(이름맞음종류(basename(dir), 말, 낱말들));',
+    바꾸기: '        const 이름맞음 = Boolean(이름맞음종류(basename(dir), 말, 낱말들));' },
   // S7 착수 조건 ① — **손 제시 계측.** S7 은 틀려도 안 보이는 칸이라 계측이 유일한 눈이다.
   // 계측기가 실제와 다른 것을 재면 원인이 아니라 또 하나의 거짓이 된다.
   { 이름: '계측기가 모델이 받는 목록 대신 자기 기준으로 셈(기록이 실제와 갈림)',

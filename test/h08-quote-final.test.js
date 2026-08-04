@@ -71,7 +71,12 @@ test('다운로드의 견적서 **파일**이 후보로 나온다 — 폴더만 
   assert.ok(파일후보.length >= 3, `견적서 파일이 후보에 없다 — ${JSON.stringify(r.result.candidates.map((c) => c.path))}`);
   assert.ok(파일후보.every((c) => /견적서/.test(c.path)), '이름이 안 맞는 파일이 후보에 섞였다');
   assert.equal(r.result.candidates[0].kind, 'file', '으뜸 후보가 파일이어야 한다 — 사용자가 찾는 건 폴더가 아니다');
-  assert.equal(r.result.candidates[0].confidence, 'high');
+  // **확신은 정확히 맞을 때만 준다**(2026-08-05 라이브 사고 뒤 고침).
+  // 여기서 부른 말은 `견적서` 라는 **낱말**이고 파일 이름은 `견적서-보일러.pdf` 다 —
+  // 그 낱말을 품었을 뿐 그 이름은 아니다. 예전엔 둘 다 `high · "이름이 맞아요"` 였고,
+  // 그래서 `지침.md` 를 물었을 때 `《… 설계 지침》.md` 가 같은 등급으로 올라와
+  // 모델이 그것을 답으로 삼아 열어 읽었다. 이 검사의 목적(파일이 후보에 오른다)은 그대로다.
+  assert.equal(r.result.candidates[0].confidence, 'medium');
   assert.ok(파일후보.every((c) => c.why), '근거 없는 후보는 사용자가 고를 수 없다');
 });
 

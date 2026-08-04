@@ -252,7 +252,13 @@ test('이름이 맞는 파일은 파일로 후보에 오른다 — 폴더만 찾
   const 파일 = 후보.find((c) => c.kind === 'file');
   assert.ok(파일, `파일이 후보에 없다 — ${JSON.stringify(후보.map((c) => [c.kind, c.path]))}`);
   assert.match(파일.path, /견적서-보일러\.pdf$/);
-  assert.equal(파일.confidence, 'high');
+  // **확신은 정확히 맞을 때만 준다**(2026-08-05 라이브 사고 뒤 고침).
+  // 여기서 부른 말은 `견적서` 라는 **낱말**이고 파일 이름은 `견적서-보일러.pdf` 다 —
+  // 그 낱말을 품었을 뿐 그 이름은 아니다. 예전엔 둘 다 `high · "이름이 맞아요"` 였고,
+  // 그래서 `지침.md` 를 물었을 때 `《… 설계 지침》.md` 가 같은 등급으로 올라와
+  // 모델이 그것을 답으로 삼아 열어 읽었다. 이 검사의 목적(파일이 후보에 오른다)은 그대로다.
+  assert.equal(파일.confidence, 'medium');
+  assert.match(파일.why, /낱말이 있어요/);
   assert.ok(!후보.some((c) => c.path.endsWith('무관한것.zip')), '이름이 안 맞는 파일까지 올리면 소음이다');
 });
 
