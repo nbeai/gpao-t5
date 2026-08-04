@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 4번(전송 대상·내용) — **무엇을·어디에가 없으면 승인이 아니다.**
+  // 나가는 것이 맞아도 사용자가 무엇을 허락하는지 모르면 그 승인은 승인이 아니다.
+  { 이름: '걸음 경로 전송 카드에서 누구에게·무엇을이 사라짐(빈 카드로 누르게 함)', 파일: TURNJS,
+    검사: 'test/s6c-send-target-contract.test.js',
+    찾기: '          if (g.action === toolId) 전송카드확정(g, 판정인자);',
+    바꾸기: '          void g;' },
+  { 이름: '전송 카드가 확정 대상 대신 미확정 상태를 그대로 실음', 파일: TURNJS,
+    검사: 'test/s6c-send-target-contract.test.js',
+    찾기: '  grant.approvalPreview = 확정된전송미리보기(grant.approvalPreview, 인자);',
+    바꾸기: '  void 인자;' },
   // S6-c 3번(자동/승인) — **카드를 만들 때 판정을 다시 하지 않는다.** 다시 하면 경계가 세운
   // 사실(이월·발화밖)을 잃고, 걸음이 카드도 실행도 원장도 없이 사라진다.
   { 이름: '승인 카드가 경계 판정을 버리고 다시 판정(발화밖 파괴가 조용히 사라짐)', 파일: TURNJS,

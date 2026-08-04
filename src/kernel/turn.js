@@ -234,6 +234,33 @@ function 확정된전송미리보기(preview, args = {}) {
 }
 
 /**
+ * **승인 카드에 "누구에게·무엇을"을 못 박는다.** (S6-c 4번)
+ *
+ * 두 경로가 각자 하던 일이다. 계획 경로만 했고 걸음 경로는 안 했다 — 밟은 사실(2026-08-05):
+ * 같은 전송이 두 번째 왕복에 오면 카드가 이렇게 떴다.
+ *   계획: `where:"민수" · what:"회의 30분 늦어요" · "민수에 …를 실제로 보내요"`
+ *   걸음: `where 없음 · what 없음 · "텔레그램 전송 실행"`
+ * 나가는 것은 양쪽 다 맞았다. **사용자가 무엇을 허락하는지 모른 채 누르는 것**이 갈렸다.
+ * 이 파일이 이미 적어 둔 계약 그대로다: *"무엇을·어디에가 없으면 승인이 아니다."*
+ *
+ * 걸음 경로가 비었던 이유는 `확정된전송미리보기` 가 **손이 낸 미리보기가 있을 때만** 채우기
+ * 때문이다. 계획 경로는 `grantFor` 가 만든 기본 카드가 있어 늘 채워졌다. 손이 `previewOf` 를
+ * 안 내면(새 커넥터·주입된 어댑터) 걸음 경로만 빈 카드가 된다 — 손의 실수가 사용자에게 간다.
+ * @param {object} grant  `grantFor` 가 만든 승인 대상(제자리에서 고친다)
+ * @param {object} 인자   판정에 쓴 그 인자 — 실행될 값과 같다(두 진실 금지)
+ */
+function 전송카드확정(grant, 인자 = {}) {
+  if (!grant) return grant;
+  const 보이는대상 = 인자.targetLabel ?? 인자.target;
+  const 보낼내용 = 인자.text ?? 인자.request;
+  grant.approvalPreview = 확정된전송미리보기(grant.approvalPreview, 인자);
+  if (보이는대상 || 보낼내용) {
+    grant.reason = { ...grant.reason, whatChanges: `${보이는대상}에 "${보낼내용}"를 실제로 보내요.` };
+  }
+  return grant;
+}
+
+/**
  * @typedef {Object} TurnInput
  * @property {string} [text]                    사용자 발화
  * @property {string} [approve]                 승인할 보류 계획 id(재해석 없이 그 계획을 이어받음)
@@ -1354,17 +1381,11 @@ export async function runTurn(input, ctx) {
         ...(parsed.targetLabel ? { targetLabel: parsed.targetLabel } : {}),
       },
     };
-    // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 preview를 채운다.
-    const 보이는대상 = parsed.targetLabel ?? parsed.target;
+    // 승인 카드가 "어디에/무엇을/되돌리기"를 사용자 언어로 보이도록 채운다.
     // 대상이 확정되면 미확정 상태를 설명하던 scope는 폐기한다. 같은 카드에
     // "받는 곳 미정"과 "오너"가 함께 있으면 표면이 어느 쪽을 그리든 객체에는 두 진실이 남는다.
-    sendGrant.approvalPreview = 확정된전송미리보기(sendGrant.approvalPreview, {
-      target: parsed.target,
-      targetLabel: parsed.targetLabel,
-      text: parsed.message,
-    });
-    // P6-15: 승인 이유의 "무엇이 바뀌는지"를 구체 대상·내용으로 채운다(사용자 언어).
-    sendGrant.reason = { ...sendGrant.reason, whatChanges: `${보이는대상}에 "${parsed.message}"를 실제로 보내요.` };
+    // **걸음 경로도 같은 함수를 쓴다** — 이 두 줄이 여기에만 있어서 걸음 카드가 비어 있었다.
+    전송카드확정(sendGrant, { target: parsed.target, targetLabel: parsed.targetLabel, text: parsed.message });
   }
 
   if (pendingGrants.length) {
@@ -2067,6 +2088,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           ) }
         : selfState;
       const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState: 걸음selfState });
+      // **카드에 누구에게·무엇을을 못 박는다** — 계획 경로와 같은 자리(S6-c 4번).
+      if (isSendTool(toolId, selfState)) {
+        for (const g of 걸음plan.needsApproval ?? []) {
+          if (g.action === toolId) 전송카드확정(g, 판정인자);
+        }
+      }
       if (plan.workRef && plan.completionContract && plan.completionContractRef) {
         걸음plan.workRef = plan.workRef;
         걸음plan.completionContract = structuredClone(plan.completionContract);
