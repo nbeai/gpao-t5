@@ -67,12 +67,16 @@ export class ToolRunner {
         toolId,
         `${toolId} 은 아직 실행 준비가 안 됐어요.`,
         `${toolId} 연결/권한을 준비하면 이어서 할 수 있어요.`,
+        // **여기는 정말로 손이 안 선 자리다.** 사다리가 "도구가 준비되지 않았다"고
+        // 말하는 것이 사실이므로 그 근거를 직접 남긴다(기본값에 기대지 않는다).
+        { tool: toolId, reason: 'not_executable' },
       );
     }
 
     const tool = this.tools[toolId];
     if (!tool || typeof tool.handler !== 'function') {
-      return blockedReceipt(intended, toolId, `${toolId} 을 지금 사용할 수 없어요.`);
+      return blockedReceipt(intended, toolId, `${toolId} 을 지금 사용할 수 없어요.`,
+        undefined, { tool: toolId, reason: 'not_executable' });   // handler 가 없다 — 진짜로 없는 손이다
     }
 
     // 2) 실제 호출. 실패는 failureState 로 정직하게, 원인은 진단면으로 분리.

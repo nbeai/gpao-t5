@@ -73,6 +73,24 @@ export function receipt(r) {
 
 /**
  * 실행 불가·차단된 도구의 receipt. actualCall 은 null(호출한 척 금지).
+ *
+ * **왜 안 막혔는지를 기본값으로 지어내지 않는다**(2026-08-05 밟음).
+ * 예전엔 이유를 안 준 호출부에 `reason:'not_executable'` 을 채워 넣었다. 그런데 그 값은
+ * `증거종류()` 가 읽는 **증거**다 — "호출이 없었다 + 실행 불가 사유 ⇒ 도구가 없는 것" 으로
+ * 판정해 `tool_missing` 계단을 세운다. 그래서 여섯 호출부 중 셋이 사실과 다르게 말했다:
+ *   · `approvalEligibility` 가 **이 요청만** 거절한 자리(손은 붙어 있다) ×2
+ *   · 되돌릴 수 없어 **자동으로 안 한** 자리(automation-engine)
+ * 결과: 모델은 *"그 일을 맡는 도구가 아직 준비되지 않았어요"* 를 받고, 손이 알려 준
+ * 다음 길("작업 폴더 안에서 다시")은 그 계단에 덮여 사라졌다.
+ *
+ * 같은 병이 이 저장소에 이미 적혀 있다 — `file-scope.js:178`:
+ *   *"어느 자리가 문제인지는 화면에도 원장 진단에도 없었다(actualCall:null,
+ *     reason:'not_executable' 이 전부). 모델도 무엇을 고쳐 다시 부를지 알 수 없었다."*
+ *
+ * 그래서 **모르면 안 적는다.** 진짜로 손이 없는 자리는 그 사실을 직접 넘긴다.
+ * 이유가 없으면 `증거종류()` 는 증거가 없다고 보고 `failureState` 로만 보수적으로 말하며,
+ * 그때 **도구가 남긴 `nextSafeAction` 이 다음 길이 된다**(`다음길` 계약 그대로).
+ *
  * @param {string} intended
  * @param {string} toolId
  * @param {string} userSafeSummary
@@ -85,7 +103,7 @@ export function blockedReceipt(intended, toolId, userSafeSummary, nextSafeAction
     actualCall: null,
     failureState: FAILURE.BLOCKED,
     userSafeSummary,
-    diagnosticTrace: diagnosticTrace ?? { tool: toolId, reason: 'not_executable' },
+    diagnosticTrace: diagnosticTrace ?? { tool: toolId },
     nextSafeAction,
   });
 }

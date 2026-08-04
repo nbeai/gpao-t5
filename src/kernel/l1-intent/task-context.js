@@ -666,6 +666,17 @@ export function buildTaskContext(p) {
         ? { calledWith: compactResult(r.actualCall?.args) }
         // 부르지 않은 호출은 **제안값**이다 — 어휘가 이미 그렇게 말하고 있었다("확인된 사실 아님").
         : { attemptedWith: compactResult(확인되지않은인자((r.제안한호출 ?? r.actualCall)?.args)) }),
+      // **손이 남긴 다음 길도 그 손의 사실이다**(2026-08-05 밟음).
+      // `turnExchange` 는 이미 이걸 싣는데 여기만 빠져 있었다. 그래서 실행 전에 막힌 손
+      // (`approvalEligibility` 거절 등)은 *왜* 막혔는지만 가고 *무엇을 하면 되는지*는 사라졌다.
+      //
+      // 턴 하나짜리 `recoveryHint` 로 대신할 수 없다. 그 자리는 **해낸 손이 있으면 막힌 손의
+      // 다음 길을 일부러 버린다**(userSafeNextAction 의 `해낸손` 계약 — 라이브 c217a0c6:
+      // locate 가 자료를 찾았는데도 "폴더를 통째로 복사해 주세요"가 턴 전체를 지배했다).
+      // 그 계약은 옳고 그대로 둔다. 대신 **손마다의 사실은 손마다 붙여 준다** —
+      // 하나로 합친 판정이 아니라 사실 나열이므로, 무엇을 쓸지는 모델이 고른다(§24).
+      ...((r.failureState ?? 'none') !== 'none' && r.nextSafeAction
+        ? { nextSafeAction: r.nextSafeAction } : {}),
     }));
   }
 

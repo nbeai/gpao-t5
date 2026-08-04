@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // S6-c 1번(승인 자격) — **막힌 손이 남긴 다음 길**. 이 둘이 무너지면 모델은 "왜 안 됐는지"만
+  // 받고 "무엇을 하면 되는지"는 못 받는다. 그러면 손 하나의 한계에서 턴이 멈추거나 엉뚱한 손을 고른다.
+  { 이름: '차단 영수증이 이유를 지어냄(거절을 "도구 없음"으로 기록 → 손의 다음 길이 사다리에 덮임)',
+    파일: 'src/kernel/l0-evidence/tool-receipt.js', 검사: 'test/s6c-eligibility-contract.test.js',
+    찾기: '    diagnosticTrace: diagnosticTrace ?? { tool: toolId },',
+    바꾸기: "    diagnosticTrace: diagnosticTrace ?? { tool: toolId, reason: 'not_executable' }," },
+  { 이름: '손이 남긴 다음 길을 모델 재료에서 뺌(evidenceFacts 가 이유만 싣고 다음 길을 버림)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/s6c-eligibility-contract.test.js',
+    찾기: `      ...((r.failureState ?? 'none') !== 'none' && r.nextSafeAction\n        ? { nextSafeAction: r.nextSafeAction } : {}),`,
+    바꾸기: '' },
   // S6-c — **원장 입구.** 절대 게이트 "원장↔영수증↔실물 불일치 0" 이 여기 걸린다.
   { 이름: '캡슐 안쪽 실행이 원장에서 사라짐(손 하나만 남고 안이 조용해짐)', 파일: TURNJS,
     검사: 'test/s6c-ledger-contract.test.js',

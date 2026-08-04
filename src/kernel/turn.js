@@ -1616,6 +1616,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       toolId,
       `${label}은(는) 아직 실행 준비가 안 됐어요.`,
       `${label} 연결/권한을 준비하면 이어서 할 수 있어요.`,
+      // 연결·권한이 없어 손이 안 선 자리다 — 사다리의 "준비되지 않았어요"가 사실이다.
+      { tool: toolId, reason: 'not_executable' },
     );
     원장.append(rec);
     turnReceipts.push(rec);
