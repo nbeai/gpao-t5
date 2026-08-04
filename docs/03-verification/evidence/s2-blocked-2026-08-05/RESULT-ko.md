@@ -20,6 +20,20 @@
 ← 출력  [single/tools] 글자=453 도구=[]
 ```
 
+**그 22개가 무엇이었나**(귀속을 가르려면 이름이 있어야 한다 — §10 규율 9):
+
+```
+web.collect · local.file · local.discovery · local.terminal · local.system · local.process
+local.locate · local.capsule · session.search · browser.observe · browser.act
+connector.connect · connector.declare · agent.delegate · skill.propose · automation.propose
+agent.propose · work.state · memory.propose · memory.cite · memory.correction · memory.withdraw
+```
+
+**`browser.observe` 와 `browser.act` 가 들어 있었다.** 즉 모델은 자바스크립트로 그려지는
+페이지를 **실제로 열어 볼 수 있는 손을 쥐고 있었고**, 쓰지 않고 "네가 캡처해서 올려 줘"라고 했다.
+
+→ 귀속은 **A(손이 없다)가 아니라 B(안 골랐다)** 다. 이 구분이 S8 의 전제를 바꾼다(아래).
+
 ## 2. 모델은 제대로 답했다
 
 교환으로 차단을 받은 뒤 모델이 쓴 453자:
