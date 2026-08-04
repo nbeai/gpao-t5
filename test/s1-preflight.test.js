@@ -103,5 +103,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/model-provider.js',
     // S0 계측(2026-08-05) — 조립된 프롬프트를 보는 모듈. 기본 꺼짐이라 제품 동작을 안 바꾼다.
     'src/runtime/prompt-dump.js',
+    // F-15(2026-08-05) — 거짓 성공 게이트를 문구가 아니라 뒷받침 없는 구체 사실로 판정한다.
+    'src/kernel/l2-plan/recovery-ladder.js',
   ]);
 });

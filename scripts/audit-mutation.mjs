@@ -427,9 +427,12 @@ export const MUTATIONS = [
     찾기: '    sourceLedgerRequired: webSourcePolicy().sourceLedgerRequired === true,',
     바꾸기: '    sourceLedgerRequired: false,' },
   { 이름: '조사: 출처 못 댄 턴도 성공 주장을 통과시킴', 파일: 'src/kernel/l2-plan/recovery-ladder.js',
-    검사: 'test/h09-unread-claim.test.js',
-    찾기: "  if (!출처못댐(receipts, 출처계약손) && !내용서술.test(String(reply ?? ''))) return null;",
-    바꾸기: "  if (!내용서술.test(String(reply ?? ''))) return null;" },
+    // **2026-08-05(F-15): 겨냥을 옮긴다.** 판정이 "출처 못 댐" 단독에서
+    // "출처 못 댐 **그리고** 뒷받침 없는 구체 사실"로 바뀌었다(정직한 답을 버리던 자리).
+    // 재는 것은 그대로다: 출처 계약 손이 실패한 턴에서 지어낸 답이 통과하면 안 된다.
+    검사: 'test/f15-honest-answer-survives.test.js',
+    찾기: "  const 근거없는구체 = 출처못댐(receipts, 출처계약손)\n    && 뒷받침없는구체(String(reply ?? ''), receipts).length > 0;",
+    바꾸기: "  const 근거없는구체 = false;" },
   { 이름: '조사: 정직한 답이 같은 실패 문장을 되풀이함', 파일: 'src/kernel/l2-plan/recovery-ladder.js',
     검사: 'test/h09-unread-claim.test.js',
     찾기: "  const 무엇이 = [...new Set((receipts ?? [])\n    .filter((r) => r && (r.failureState ?? 'none') !== 'none')\n    .map((r) => r.userSafeSummary).filter(Boolean))].join(' ');",

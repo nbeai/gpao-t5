@@ -103,7 +103,11 @@ test('관통: 우리 수집이 막히면 모델 내장 검색을 켜서 이어�
   const model = {
     async respond(_tc, opts = {}) {
       if (first) { first = false; return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'https://x.example' } }] }; }
-      searchOnFinal = opts.search;
+      // **최종 답 호출**의 값만 잡는다(F-15 이후, 2026-08-05).
+      // 예전엔 매 호출마다 덮어썼고, 답이 게이트에 막혀 그 뒤 왕복이 없었기에 우연히 맞았다.
+      // 이제 정직한 답이 살아 출구검증까지 가고, 그 **검증 왕복은 검색을 켜지 않는다**(켤 이유가 없다).
+      // 마지막 값을 재면 검증 왕복을 최종 답으로 착각한다 — 재는 자리를 고정한다.
+      if (searchOnFinal === null) searchOnFinal = opts.search;
       return { text: '아는 범위로 정리했어요.', toolCalls: [] };
     },
   };
