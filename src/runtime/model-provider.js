@@ -9,7 +9,7 @@
 //     실제로 abort 하고(§6.21 진짜 취소의 HTTP 구간) ModelTimeoutError로 기존 사용자 언어 경로를 탄다.
 //   - 테스트·기본은 실 API를 치지 않는다(fetchImpl 주입). 라이브 서버만 실제 배선.
 import { withTimeout } from './with-timeout.js';
-import { dumpModelInput } from './prompt-dump.js';
+import { dumpModelInput, dumpModelOutput } from './prompt-dump.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
@@ -854,9 +854,24 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
       // **S0 계측**(기본 꺼짐). 여기엔 계측기가 없었다 — chatgpt 경로에만 있었고, 오너가 쓰는
       // 주 경로가 바로 여기다. 그래서 "안녕"에 능력을 읊은 원인을 세 번 잘못 짚었다(2026-08-05).
       // 관측이 대상을 바꾸지 않는다: `messages` 를 읽기만 하고 만지지 않는다.
-      await dumpModelInput(
-        { messages, tools: opts.tools ?? [], meta: { path: cfg.provider, model: cfg.modelId, effort: opts.effort } },
-      ).catch(() => null);
+      await dumpModelInput({
+        messages,
+        tools: opts.tools ?? [],
+        meta: {
+          path: cfg.provider,
+          model: cfg.modelId,
+          effort: opts.effort,
+          // **어느 자리에서 온 호출인가.** S2 실측(2026-08-05)에서 도구 없는 재시도가 네 번
+          // 있었는데 **교환이 전부 비어 있었다** — 모델은 자기 호출이 어떻게 됐는지 모른 채
+          // "답만 써라"를 받았다. 어느 tc 가 왔는지 못 짚어 원인을 확정할 수 없었다.
+          // 재는 자리를 늘린다(추측으로 고치지 않는다).
+          answerOnly: Boolean(tc?.answerOnly),
+          unmetDeliverable: Boolean(tc?.unmetDeliverable),
+          actionRequired: Boolean(tc?.actionRequired),
+          completionMismatch: Boolean(tc?.completionMismatch),
+          exchangeIn: Array.isArray(tc?.turnExchange) ? tc.turnExchange.length : 0,
+        },
+      }).catch(() => null);
       // 스트리밍 가능한 와이어면 조각을 흘리며 읽는다(P-STR-1). 못 하는 곳은 그대로 단발.
       // 계열 ④: 도구를 준 턴도 **tool_call 조각 파서를 선언한 와이어(OpenAI 계열)** 는 스트리밍한다
       // — T5 는 거의 모든 턴에 통제 채널을 실으므로, 여기서 막으면 answer_delta 가 영원히 0 이다
@@ -866,6 +881,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         const streamed = await streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDelta: opts.onDelta });
         if (!opts.tools?.length) {
           // 도구 없는 호출의 계약은 그대로 문자열이다. 빈 스트림은 성공처럼 돌려주지 않는다.
+          await dumpModelOutput({ text: streamed.text, meta: { 자리: 'stream/no-tools' } }).catch(() => null);
           if (streamed.text) return streamed.text;
           throw new ModelProviderError({ provider: cfg.provider, authSignal: 'empty response stream' });
         }
@@ -878,6 +894,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         if (!streamed.text && !toolCalls.length) {
           throw new ModelProviderError({ provider: cfg.provider, authSignal: 'empty response stream' });
         }
+        await dumpModelOutput({ text: streamed.text, toolCalls, meta: { 자리: 'stream/tools' } }).catch(() => null);
         return { text: streamed.text, toolCalls };
       }
       const url = spec.endpoint(cfg);
@@ -906,6 +923,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         opts.onCallIdentity?.(actualCallFacts({ url, bodyText, json, spec }));
         const text = spec.extract(json);
         if (!opts.tools?.length) {
+          await dumpModelOutput({ text, meta: { 자리: 'single/no-tools' } }).catch(() => null);
           if (typeof text === 'string' && text.length) return text;
           throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty or unreadable response' });
         }
@@ -917,6 +935,8 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         if ((typeof text !== 'string' || !text.length) && !toolCalls.length) {
           throw new ModelProviderError({ provider: cfg.provider, status, authSignal: 'empty or unreadable response' });
         }
+        await dumpModelOutput({ text: typeof text === 'string' ? text : '', toolCalls, meta: { 자리: 'single/tools' } })
+          .catch(() => null);
         return { text: typeof text === 'string' ? text : '', toolCalls };
       }
       throw new ModelProviderError({ provider: cfg.provider, status, authSignal: spec.errorSignal(status, json) });

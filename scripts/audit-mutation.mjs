@@ -940,11 +940,14 @@ export const MUTATIONS = [
   { 이름: '한국어 조사가 붙은 파일명을 경로 없음으로 오판', 파일: 'src/kernel/l1-intent/file-parse.js', 검사: 'test/file-safety-floor.test.js',
     찾기: "const FILE_TOKEN = /(?:^|[\\s'\"“”‘’(])([^\\s'\"“”‘’()]+\\.[A-Za-z0-9]{1,8})(?=(?:을|를|은|는|이|가|에서|으로|로)?(?:$|[\\s'\"“”‘’),.]))/;",
     바꾸기: "const FILE_TOKEN = /(?:^|[\\s'\"“”‘’(])([^\\s'\"“”‘’()]+\\.[A-Za-z0-9]{1,8})(?=$|[\\s'\"“”‘’),.])/;" },
-  { 이름: '실패한 모델 추측을 성공한 실행 인자로 사실화', 파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/task-context.test.js',
+  { 이름: '실패한 모델 추측을 성공한 실행 인자로 사실화', 파일: 'src/kernel/l1-intent/task-context.js',
+    검사: 'test/s2-blocked-returns-to-model.test.js',
     // 2026-08-04: 제안과 실행을 나누며(`제안한호출`) 줄이 바뀌었다 — 겨냥만 옮긴다.
+    // **2026-08-05(S2): 또 옮긴다.** 막힌 호출이 산문에서 **교환**으로 갔으므로 계약도 따라갔다.
     // 재는 것은 그대로다: 부르지 않은/실패한 호출의 인자를 **확인된 값처럼** 싣지 않는가.
-    찾기: "        : { attemptedWith: compactResult(확인되지않은인자((r.제안한호출 ?? r.actualCall)?.args)) }),",
-    바꾸기: "        : { calledWith: compactResult((r.제안한호출 ?? r.actualCall)?.args) })," },
+    // (겨냥만 옮기고 무는 검사를 함께 세웠다 — 스윕이 "무방비"라고 말한 그 자리다.)
+    찾기: "        args: (실패 || !r.actualCall ? 확인되지않은인자(호출.args) : 호출.args) ?? {},",
+    바꾸기: "        args: 호출.args ?? {}," },
   { 이름: '외부 채널 답변의 민감값을 그대로 전송·저장', 파일: SERVER, 검사: 'test/channel-approval-notice.test.js',
     찾기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.\n    redactSensitiveOutput(result);",
     바꾸기: "    // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다.\n    void result;" },

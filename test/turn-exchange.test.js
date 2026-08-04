@@ -52,31 +52,43 @@ test('성공한 실행은 모델 자신의 도구 호출로 간다', () => {
 // ── ② 확인되지 않은 값을 이력에 심지 않는다 ──────────────────────────────
 test('실패한 호출은 확인되지 않은 인자를 사실로 심지 않는다(자리가 어디든)', () => {
   const tc = tcOf([실패]);
-  // ── 자리 (플래그가 여는 것) ───────────────────────────────────────────
-  if (주객회복) {
-    assert.equal(tc.evidenceFacts, undefined, '교환으로 옮겼으면 서술에 또 있으면 안 된다');
-    assert.equal(tc.turnExchange?.[0]?.failureState, 'blocked', '실패도 자기 행동으로 돌아와야 한다');
-    assert.equal(tc.turnExchange[0].data, undefined, '실패 결과는 확인된 값이 아니다 — 내용을 싣지 않는다');
-  } else {
-    assert.equal(tc.turnExchange, undefined, '실패한 호출이 모델의 실행 이력이 되면 안 된다');
-  }
+  // ── 자리 (S2 에서 플래그를 내렸다 — 팔이 하나다) ────────────────────────
+  // 예전엔 플래그 OFF 에서 `turnExchange === undefined` 를 요구했다. 그러면 모델은 자기가
+  // 낸 호출이 **통째로 사라진 것**으로 본다 — 원리 ⑤ 위반이다.
+  // A/B 실측(2026-08-03·04)이 방향을 정했다: 실물 이동 성공 A 1/4 vs B 5/7.
+  assert.equal(tc.evidenceFacts, undefined, '교환으로 옮겼으면 서술에 또 있으면 안 된다');
+  assert.equal(tc.turnExchange?.[0]?.failureState, 'blocked', '실패도 자기 행동으로 돌아와야 한다');
+  assert.equal(tc.turnExchange[0].data, undefined, '실패 결과는 확인된 값이 아니다 — 내용을 싣지 않는다');
   // ── 성질 (플래그가 열지 않는 것 · 양팔 공통) ──────────────────────────
   const 전부 = JSON.stringify(tc);
   assert.match(전부, /그 자리는 밖이에요/, '실패 사실 자체는 남아야 한다');
   assert.doesNotMatch(전부, /\/비밀\/폴더/, '확인되지 않은 절대 경로는 가려서 남긴다');
 });
 
-test('부르지도 못한 것은 서술로 남는다', () => {
+// **S2(2026-08-05): 부르지도 못한 것도 모델에게 돌아간다.**
+// 예전 계약은 "서술로 남는다"였다. 그런데 모델이 낸 호출이면 그 신분(providerCallId)이 있고,
+// 구조로 돌려주지 않으면 모델은 "내가 시킨 게 어디 갔지"를 이을 수 없다.
+// **손이 아예 없어서 T5 가 만들어 본 적도 없는 호출**만 서술로 남는다 — 그건 모델의 행동이 아니다.
+test('모델이 낸 호출은 못 불렀어도 자기 행동 이력으로 돌아온다', () => {
+  const tc = tcOf([{ ...못부름, 제안한호출: { tool: 'x.hand', args: {}, providerCallId: 'call_NX', callRef: 'cN' } }]);
+  const x = (tc.turnExchange ?? []).find((e) => e.providerCallId === 'call_NX');
+  assert.ok(x, '모델이 낸 호출이 행동 이력에서 사라졌다');
+  assert.ok(x.failureState && x.failureState !== 'none', '못 부른 사실이 상태로 안 왔다');
+  assert.match(JSON.stringify(tc), /연결 방식이 없어요/, '왜 못 불렀는지가 사라졌다');
+});
+
+test('모델이 낸 적 없는 것은 서술로 남는다(모델의 행동이 아니다)', () => {
   const tc = tcOf([못부름]);
-  assert.equal(tc.turnExchange, undefined);
+  assert.equal(tc.turnExchange, undefined, '모델이 낸 적 없는 것을 모델 행동으로 만들면 안 된다');
   assert.match(JSON.stringify(tc.evidenceFacts), /연결 방식이 없어요/);
 });
 
 // ── ③ 같은 사실을 두 번 주지 않는다 ──────────────────────────────────────
 test('교환과 서술이 겹치지 않는다', () => {
   const tc = tcOf([성공, 실패, 못부름]);
-  assert.equal(tc.turnExchange.length, 주객회복 ? 2 : 1, '실제로 부른 것만 교환으로');
-  assert.equal(tc.evidenceFacts.length, 주객회복 ? 1 : 2, '나머지는 서술로');
+  // S2: 모델이 낸 호출(성공·실패)은 교환으로, 모델이 낸 적 없는 것(못부름)만 서술로.
+  assert.equal(tc.turnExchange.length, 2, '모델이 낸 호출이 교환에 다 안 왔다');
+  assert.equal(tc.evidenceFacts.length, 1, '모델이 낸 적 없는 것은 서술로');
   // 셋을 넣었으면 셋이 나온다 — 자리가 갈려도 하나가 증발하면 안 된다.
   assert.equal(tc.turnExchange.length + tc.evidenceFacts.length, 3);
   assert.doesNotMatch(JSON.stringify(tc.evidenceFacts), /견적서\.md 을\(를\) 읽었어요/,

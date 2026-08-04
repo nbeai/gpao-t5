@@ -566,11 +566,30 @@ export function buildTaskContext(p) {
   // 그래서 저장된 앞 턴 교환을 **이번 턴 교환 앞에** 잇는다. 순서는 시간 순이다.
   // 사실을 두 벌로 만들지 않는다 — 같은 신분(`providerCallId`·`ref`)이 오면 뒤엣것이 이긴다.
   const 앞턴교환 = Array.isArray(p.priorExchange) ? p.priorExchange : [];
-  const 부른것 = (p.receipts ?? []).filter((r) => r?.actualCall?.tool
-    && (실패도교환() || (r.failureState ?? 'none') === 'none'));
+  // ── **S2 · 모델이 낸 호출은 어떻게 됐든 모델에게 돌아간다**(2026-08-05) ──────
+  //
+  // 원리 ⑤ — 커널이 막았으면 **막았다는 사실을 프로세스에게 결과로 돌려준다.**
+  // 예전엔 두 겹으로 어긋나 있었다:
+  //   ① 실행됐지만 실패한 호출은 `T5_MODEL_SOVEREIGN` 을 켜야만 여기 들어왔다.
+  //   ② **실행 전에 막힌 호출은 플래그를 켜도 못 들어왔다** — `못한호출남기기` 의 영수증은
+  //      `actualCall: null` 이라 아래 필터에 애초에 안 걸렸다. 모델은 자기가 낸 호출이
+  //      어떻게 됐는지 **산문으로만** 받았고, 구조로는 그 호출이 통째로 사라져 보였다.
+  //
+  // A/B 실측(2026-08-03·04 · 같은 발화 · gpt-5.1)이 방향을 정했다 —
+  //   A(기준선) 실물 이동 성공 1/4 · 왕복 평균 9.5 · 심문호출 매회 2
+  //   B(모델주도) 실물 이동 성공 5/7 · 왕복 평균 7.1 · 심문호출 0
+  // 계약 ③(실패도 교환)은 **플래그에서 내린다.** ①②(심문 미실행)는 이 칸의 일이 아니라
+  // 그대로 플래그에 남는다 — 한 번에 하나만 바꾼다.
+  //
+  // 호출 신분은 `actualCall` 또는 `제안한호출` 중 **있는 쪽**에서 온다. 어느 쪽이든
+  // **모델이 낸 그 호출**이고, 모델은 그 신분으로 자기 행동을 잇는다.
+  const 낸호출 = (r) => r?.actualCall ?? r?.제안한호출 ?? null;
+  const 부른것 = (p.receipts ?? []).filter((r) => 낸호출(r)?.tool);
   if (부른것.length || 앞턴교환.length) {
     packet.turnExchange = 부른것.map((r, i) => {
       const 실패 = (r.failureState ?? 'none') !== 'none';
+      // 실행 전에 막힌 것은 `제안한호출` 이 그 신분을 갖는다(계약상 `actualCall` 은 null).
+      const 호출 = 낸호출(r);
       return {
         // **두 신분을 구분해 담는다**(오너 지시 2026-08-04).
         //   `providerCallId` — 공급자가 발급한 것. 없으면 **칸을 만들지 않는다.**
@@ -579,10 +598,12 @@ export function buildTaskContext(p) {
         // 자기가 발급한 적 없는 id 의 tool_call 을 "네가 한 일"로 돌려받았다(실측 2026-08-04).
         // 내용도 짝도 맞았지만 신분이 지어낸 것이라, 런타임은 "모델이 무엇을 요청했는가"와
         // "T5 가 무엇을 했는가"를 경계 너머로 이을 수 없었다.
-        ref: r.actualCall.callRef ?? `c${i + 1}`,
-        ...(r.actualCall.providerCallId ? { providerCallId: r.actualCall.providerCallId } : {}),
-        tool: r.actualCall.tool,
-        args: (실패 ? 확인되지않은인자(r.actualCall.args) : r.actualCall.args) ?? {},
+        ref: 호출.callRef ?? `c${i + 1}`,
+        ...(호출.providerCallId ? { providerCallId: 호출.providerCallId } : {}),
+        tool: 호출.tool,
+        // **실행 안 된 호출의 인자는 확인된 값이 아니다.** 실패와 같은 계약으로 가린다 —
+        // 확인되지 않은 절대 경로가 사실처럼 도는 것을 막는 계약(`02375fe`)이 여기서도 선다.
+        args: (실패 || !r.actualCall ? 확인되지않은인자(호출.args) : 호출.args) ?? {},
         // 결과는 서술 블록이 주던 것과 **같은 내용**이다(줄이지 않는다). 렌더는 provider 가 한다 —
         // 읽은 곳/안 읽은 곳은 와이어마다 같은 문장을 쓰므로 그쪽 `surfaceLines` 를 그대로 재사용한다.
         summary: r.userSafeSummary,

@@ -47,6 +47,31 @@ const 가려서 = (v) => {
 let 일련 = 0;
 
 /**
+ * **모델이 낸 것**을 같은 자리에 남긴다. 입력만 보면 "왜 저 답이 나갔는지"를 못 잇는다.
+ *
+ * S2 실측(2026-08-05)에서 필요해졌다: 차단된 턴의 최종 답이 런타임 문장이었는데,
+ * 모델이 침묵한 것인지 / 모델이 거짓 성공을 말해 P0 게이트가 바꾼 것인지 **구분할 수 없었다.**
+ * 둘은 정반대 판정이다(전자는 결함, 후자는 게이트가 옳게 문 것).
+ * @param {{text?: string, toolCalls?: {name?: string}[], meta?: Object}} 출력
+ */
+export async function dumpModelOutput(출력, env = process.env) {
+  const dir = promptDumpDir(env);
+  if (!dir) return null;
+  일련 += 1;
+  const 파일 = join(dir, `${String(일련).padStart(4, '0')}-out-${Date.now()}.json`);
+  await mkdir(dir, { recursive: true });
+  await writeFile(파일, `${JSON.stringify({
+    at: new Date().toISOString(),
+    kind: 'output',
+    ...(출력?.meta ? { meta: 가려서(출력.meta) } : {}),
+    text: 비밀가림(String(출력?.text ?? '')),
+    textChars: String(출력?.text ?? '').length,
+    toolCalls: (출력?.toolCalls ?? []).map((c) => c?.name).filter(Boolean),
+  }, null, 2)}\n`, 'utf8');
+  return 파일;
+}
+
+/**
  * 모델 입력 한 건을 남긴다. 꺼져 있으면 `null` 을 돌려주고 아무것도 하지 않는다.
  * @param {{messages: any, tools?: {name?: string}[], meta?: Object}} 입력
  * @param {Object} [env]

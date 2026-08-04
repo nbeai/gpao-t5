@@ -274,10 +274,20 @@ test('반대시험: 못 실행한 호출의 신분도 원장에 남는다(실행
   assert.ok(전문.includes('call_SKIP'),
     `못 실행한 호출의 신분이 사라졌다 — 모델은 자기가 시킨 것이 갔다고 믿는다: ${전문.slice(0, 400)}`);
   // 그리고 **둘이 구분돼야** 한다 — 안 간 것이 간 것처럼 보이면 더 나쁘다.
+  //
+  // **S2(2026-08-05): 구분하는 방식이 바뀌었다.** 예전엔 "못 간 호출은 교환에 없다"로 갈랐다.
+  // 그런데 그러면 모델은 자기가 낸 호출이 **통째로 사라진 것**으로 본다 — 원리 ⑤ 위반이다
+  // (OpenClaw 는 막힌 호출에도 `buildBlockedToolResult` 로 결과를 돌려준다).
+  // 이제 교환은 "모델 자신의 행동 이력"이고, 간 것과 안 간 것은 **`failureState` 로** 갈린다.
+  // 계약의 뜻은 그대로다: 안 간 것에 결과가 붙으면 안 된다.
   const 간것 = (두번째.turnExchange ?? []).find((x) => x.providerCallId === 'call_DONE');
   assert.ok(간것?.data !== undefined, '실행된 호출에는 결과가 붙는다');
-  assert.equal(전문.includes('"providerCallId":"call_SKIP"') && JSON.stringify(두번째.turnExchange ?? [])
-    .includes('call_SKIP'), false, '못 간 호출이 성공한 도구 대화로 섞였다');
+  assert.equal(간것.failureState, undefined, '성공한 호출에 실패 상태가 붙었다');
+  const 못간것 = (두번째.turnExchange ?? []).find((x) => x.providerCallId === 'call_SKIP');
+  assert.ok(못간것, '못 간 호출이 모델의 행동 이력에서 사라졌다');
+  assert.ok(못간것.failureState && 못간것.failureState !== 'none',
+    '못 간 호출에 상태가 없다 — 간 것과 구분이 안 된다');
+  assert.equal(못간것.data, undefined, '못 간 호출에 결과가 붙었다 — 안 간 것이 간 것처럼 보인다');
 });
 
 // ── ⑦ ChatGPT OAuth(Responses) 경로 — 다른 규약, 같은 계약 ──────────────────
