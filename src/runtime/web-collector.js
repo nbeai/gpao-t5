@@ -309,11 +309,22 @@ export function makeWebCollector(deps = {}) {
         const title = extractTitle(read.body);
         const description = extractDescription(read.body);
         let { markdown, blocks } = extractReadable(read.body);
-      // 껍데기만 온 페이지(SPA)면 HTML 안에 심긴 초기 상태에서 읽을 것을 건진다. 브라우저를 띄우지
-      // 않고도 대부분 읽힌다(실측: 네이버 플레이스의 상호·주소·메뉴가 전부 HTML 안에 있었다).
-      if ((markdown ?? '').length < MIN_READABLE_CHARS) {
-        const hydrated = extractHydrationText(read.body);
-        if (hydrated.length > (markdown ?? '').length) { markdown = hydrated; blocks = 0; }
+      // 요즘 페이지는 본문을 태그가 아니라 **스크립트 안 JSON** 으로 준다. 브라우저를 안 띄우고도
+      // 대부분 읽힌다(실측: 네이버 플레이스의 상호·주소·메뉴가 전부 HTML 안에 있었다).
+      //
+      // 예전엔 `태그 글이 짧을 때만` 그걸 봤다. 라이브(2026-08-05) 사고가 거기서 났다:
+      //     extractReadable → 757자   (전부 알림 배너·쿠키 문구)
+      //     MIN_READABLE_CHARS(200) 을 넘으니 **심긴 데이터는 아예 안 봤다**
+      // 그날 기온은 그 JSON 안에 있었고(`"temp":"35°"`), 모델은 하나도 못 받은 채 계절 상식으로
+      // 지어냈다. **길이로 "본문이 있다"를 판정하면 껍데기 문구가 본문 자격을 딴다.**
+      //
+      // 그래서 **고르지 않는다** — 둘 다 준다. 태그 글이 먼저, 심긴 데이터가 뒤.
+      // 길면 버리는 게 아니라 창(`readWindow`)으로 닿는다.
+      const 심긴것 = extractHydrationText(read.body);
+      if (심긴것) {
+        markdown = (markdown ?? '').length < MIN_READABLE_CHARS
+          ? 심긴것
+          : `${markdown}\n\n${심긴것}`;
       }
         const resolvedUrl = read.res.url || read.url;
         const links = extractLinks(read.body, resolvedUrl);

@@ -756,6 +756,21 @@ export const MUTATIONS = [
     파일: 'src/runtime/readable.js', 검사: 'test/web-entity-decode.test.js',
     찾기: '    try { return String.fromCodePoint(cp); } catch { return 전체; }',
     바꾸기: '    try { return String.fromCharCode(cp); } catch { return 전체; }' },
+  // **심긴 데이터를 이름으로 알아맞히지 않는다**(라이브 2026-08-05, `내일 날씨` 거짓말).
+  // 그 페이지엔 `<table>·<article>·<main>` 이 0개고 기온은 스크립트 JSON 안에 있었다.
+  // 되돌아가기 쉬운 자리 셋 — 이름 목록 · 길이 게이트 · 앞자리 뺏기.
+  { 이름: '심긴 데이터를 아는 이름으로만 찾음(모르는 사이트는 통째로 안 보인다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-hydration-any.test.js',
+    찾기: '    if (!안 || !/[{[]/.test(안)) continue;',
+    바꾸기: "    if (!안 || !/__NEXT_DATA__|__NUXT__|__APOLLO_STATE__/.test(안)) continue;" },
+  { 이름: '태그 글이 길면 심긴 데이터를 안 봄(알림 배너가 본문 자격을 딴다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/web-hydration-any.test.js',
+    찾기: '      const 심긴것 = extractHydrationText(read.body);',
+    바꾸기: "      const 심긴것 = (markdown ?? '').length < MIN_READABLE_CHARS ? extractHydrationText(read.body) : '';" },
+  { 이름: '광고·계측 설정이 본문 앞자리를 차지함(첫 창에 답이 안 들어온다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-hydration-any.test.js',
+    찾기: '  덩어리들.sort((a, b) => b.말수 - a.말수);',
+    바꾸기: '  덩어리들.sort((a, b) => b.out.length - a.out.length);' },
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
