@@ -235,6 +235,15 @@ export function makeWebCollector(deps = {}) {
       });
       const reads = [];
       let lastState = 'blocked';
+      // **무엇을 실제로 시도했고 어디서 막혔나.** 둘 다 확인된 사실이다 — 못 본 페이지의
+      // *내용*은 사실이 아니지만, *어디를 열어 봤고 무슨 벽이었나*는 우리가 밟은 것이다.
+      // 이게 없으면 다음 수가 방금 막힌 곳을 다시 가리키고, 모델은 같은 벽에 두 번 부딪힌다.
+      const 시도한주소 = new Set();
+      const 막힌곳 = [];
+      const 못읽음 = (url, state) => {
+        lastState = state;
+        if (!막힌곳.some((x) => x.url === url)) 막힌곳.push({ url, fetchState: state });
+      };
       // **한 장을 여는가, 여러 장을 훑는가.** robots 는 뒤쪽에만 건다(아래 주석 참고).
       // 사용자가 물어서 여는 **첫 장**은 사용자가 직접 여는 것과 같다 — 거기엔 안 건다.
       // 두 번째 장부터는 우리가 스스로 더 보는 것이고, 그게 크롤이다.
@@ -260,15 +269,16 @@ export function makeWebCollector(deps = {}) {
         if (robotsCheck && 훑는중()) {
           let allowed = true;
           try { allowed = await robotsCheck(candidate); } catch { allowed = false; }
-          if (!allowed) { lastState = 'robots_disallow'; continue; }
+          if (!allowed) { 못읽음(candidate, 'robots_disallow'); continue; }
         }
+        시도한주소.add(candidate);
         // ① 최근에 읽은 것은 **다시 열지 않는다.** 오늘 같은 주소를 열 번 넘게 다시 열어
         //    429 를 자초했다 — 그게 이 줄이 생긴 이유다.
         const hit = manners.cached(candidate);
         if (hit) { body = hit.value.body; res = hit.value.res; fetchState = 'ok'; }
         // ② 그 사이트가 쉬라고 했으면 **쉰다.** 시도조차 하지 않는다(제한을 더 늘리지 않게).
         const cooling = manners.coolingMs(candidate);
-        if (!res && cooling > 0) { lastState = 'rate_limited'; continue; }
+        if (!res && cooling > 0) { 못읽음(candidate, 'rate_limited'); continue; }
         // ③ 같은 곳에 연달아 묻지 않는다.
         if (!res) {
           await manners.pace(candidate);
@@ -280,13 +290,13 @@ export function makeWebCollector(deps = {}) {
               return { res: r, body: b };
             }, timeoutMs, controller));
           } catch (e) {
-            lastState = 'timeout';
+            못읽음(candidate, 'timeout');
             continue; // 이 후보는 못 읽었다 — 다음 후보로
           }
         }
         if (res.status === 429 || res.status === 503) {
           manners.noteRateLimited(candidate, res.headers?.get?.('retry-after'));
-          lastState = 'rate_limited';
+          못읽음(candidate, 'rate_limited');
           continue;
         }
         // 본문을 먼저 뽑아 보고 판정한다 — 건진 게 있으면 벽이 아니다(로그인 링크 하나로 막던 오판 수정).
@@ -306,16 +316,49 @@ export function makeWebCollector(deps = {}) {
           read = { res, body, url: candidate, original: group.original, rank: group.rank };
           break;
         }
-        lastState = fetchState;
+        못읽음(candidate, fetchState);
         }
         if (read) reads.push(read);
         if (read && selectionGoal !== 'latest_evidence') break;
       }
+      // **안 가 본 후보.** 검색기가 실제로 돌려준 목록이고, 우리가 아직 안 연 곳이다.
+      // 성공·실패 양쪽이 **같은 계산**을 쓴다 — 자리마다 따로 적으면 한쪽이 언젠가 빠지고,
+      // 실제로 빠져 있던 쪽이 하필 **막힌 쪽**이었다(아래 주석).
+      //
+      // 이미 열어 본 곳은 뺀다. 방금 벽이었던 곳을 "다음 수"로 다시 내미는 것은 수가 아니다.
+      // 다만 **robots 로 안 연 곳은 빼지 않는다** — 우리가 훑기를 접은 것이지 벽이 아니고,
+      // 모델이 그 주소를 직접 읽기로 부르면 그건 사용자 대신 여는 한 장이라 열린다(0d82bed).
+      // 무엇을 시도해 무슨 벽이었는지는 `막힌곳` 에 그대로 남으므로 판단 재료는 줄지 않는다.
+      const 안가본후보 = (더뺄것 = []) => (foundVia?.candidates ?? [])
+        .filter((c) => c.url && !시도한주소.has(c.url) && !더뺄것.includes(c.url))
+        .slice(0, 5)
+        .map((c) => ({ title: c.title ?? '', url: c.url }));
+      const 후보로가는수 = (후보) => 후보.map((c) => ({
+        방법: 'read_url', url: c.url, 왜: `검색에서 같이 나온 곳: ${c.title || c.url}`,
+      }));
+      // **검색은 늘 남아 있는 수다.** 주소 하나가 막혔다고 길이 끝나면 그게 막다른 답이다.
+      const 다시찾기 = { 방법: 'search', 왜: '다른 자료로 검색을 다시 한다' };
+
       if (!reads.length) {
-        // 못 봤다 — 내용·출처 없이 상태만. "못 본 걸 본 척" 금지. 다음 행동은 준다.
+        // 못 봤다 — **내용·출처는 없다**(못 본 걸 본 척 금지). 그러나 **사실은 준다.**
+        //
+        // 라이브(오너 2026-08-05) `오늘 한국 증시 상황 알려줘`: 검색이 후보 다섯을 줬는데
+        // 앞의 셋이 막혔다. 그러자 T5 는 *"대신 제가 아는 경로로 찾아볼게요"* 라 해 놓고
+        // **아무 데도 안 갔다.** 손이 이미 나머지 후보를 쥐고 있었는데 한 칸도 안 나갔기 때문이다.
+        //
+        // 구멍의 모양은 이랬다 — `다음수단`·`다른후보` 를 **읽기에 성공한 뒤에만** 만들었다.
+        // 그래서 **다음 수가 정확히 필요한 자리에서만 다음 수가 없었다.** 뒤집힌 것이다.
+        //
+        // 실패한 호출의 *내용*을 안 싣는 계약은 옳고 그대로 둔다. 그런데 안 가 본 후보는
+        // 막힌 페이지의 내용이 아니라 **검색기가 실제로 돌려준 목록**이다. 확인된 사실이고,
+        // 이걸 같이 버린 것이 구멍이었다. 어디로 갈지는 여기서 정하지 않는다 — 모델이 둔다.
+        const 다른후보 = 안가본후보();
         return {
           blocked: true,
           fetchState: lastState,
+          ...(다른후보.length ? { 다른후보 } : {}),
+          다음수단: [...후보로가는수(다른후보), 다시찾기],
+          ...(막힌곳.length ? { 막힌곳 } : {}),
           userSafeSummary: WALL_MESSAGE[lastState] ?? WALL_MESSAGE.blocked,
           // 속도 제한은 **잠시 뒤면 되는 일**이다. "안 되는 사이트"로 오해하게 두지 않는다.
           nextSafeAction: lastState === 'rate_limited'
@@ -401,16 +444,15 @@ export function makeWebCollector(deps = {}) {
       // "알맹이가 있다"와 "물은 것의 답이 있다"는 다르다. 그렇다고 **커널이 관련성을 재면
       // 안 된다** — 내용 판정은 심문의 부활이다(절대원칙 8). 그러니 재지 않고 **끊지 않는다.**
       // 관련 없다는 판단은 모델이 하고, 커널은 둘 수 있는 수를 늘 열어 둔다.
-      const 다른후보 = (foundVia?.candidates ?? [])
-        .filter((c) => c.url && c.url !== selected.resolvedUrl && c.url !== selected.url)
-        .slice(0, 5)
-        .map((c) => ({ title: c.title ?? '', url: c.url }));
+      // 막힌 쪽과 **같은 계산**을 쓴다(위 `안가본후보`). 예전엔 이 자리에만 있었고, 그래서
+      // 성공한 턴에는 다음 수가 넉넉하고 막힌 턴에는 하나도 없었다.
+      const 다른후보 = 안가본후보([selected.resolvedUrl, selected.url]);
       const 다음수단 = [
         ...(Number.isInteger(창.다음) ? [{ 방법: 'read_more', offset: 창.다음, 왜: '이 페이지의 뒷부분이 남았다' }] : []),
         // **검색으로 왔으면 나머지 후보가 살아 있다.** 첫 개가 답이라고 커널이 정하지 않는다.
-        ...다른후보.map((c) => ({ 방법: 'read_url', url: c.url, 왜: `검색에서 같이 나온 곳: ${c.title || c.url}` })),
+        ...후보로가는수(다른후보),
         ...links.slice(0, 5).map((l) => ({ 방법: 'read_url', url: l.url, 왜: `이 페이지가 가리키는 곳: ${l.text}` })),
-        { 방법: 'search', 왜: '다른 자료로 검색을 다시 한다' },
+        다시찾기,
       ];
       return {
         result: {

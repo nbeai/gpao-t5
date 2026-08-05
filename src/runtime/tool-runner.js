@@ -110,6 +110,11 @@ export class ToolRunner {
           fetchState: out.fetchState,
           scopeState: out.scopeState,
           surfaceRequest: out.surfaceRequest,
+          // **막혔어도 손이 쥔 다음 수는 떨어뜨리지 않는다.** 내용(`result`)은 여전히 안 싣는다 —
+          // 못 본 것은 못 본 것이다. 그러나 안 가 본 후보는 검색기가 실제로 준 사실이다.
+          다음수단: out.다음수단,
+          다른후보: out.다른후보,
+          막힌곳: out.막힌곳,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 대상이 접근을 막았어요.`,
           diagnosticTrace: out.diagnosticTrace,
           nextSafeAction: out.nextSafeAction ?? '공개 자료/대체 경로로 이어갈까요?',
