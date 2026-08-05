@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **S7 — 이번 런의 도구는 상황에서 나온다.** 틀려도 화면에 안 나타나는 칸이라,
+  // 계약을 안 박아 두면 다음 변경에서 조용히 무너진다(F-18 이 그 자리였다).
+  { 이름: '손 집합 계산이 사용자 발화를 받는다(자격이 아니라 의도 — 심문의 부활)',
+    파일: 'src/kernel/l2-plan/tool-schema.js', 검사: 'test/s7-tool-set-from-situation.test.js',
+    찾기: 'export function toolSchemasFor(selfState) {',
+    바꾸기: 'export function toolSchemasFor(selfState, currentRequest) {\n  void currentRequest;' },
+  { 이름: '안 보여준 손을 실행 후보로 받아들임(제시가 곧 능력 선언이라는 계약이 깨짐)',
+    파일: 'src/kernel/l2-plan/tool-schema.js', 검사: 'test/s7-tool-set-from-situation.test.js',
+    찾기: '    if (!id || !known.has(id)) continue; // 안 보여준 도구는 조용히 버린다(있는 척 금지)',
+    바꾸기: '    if (!id) continue;' },
   // **S5 — 집 파일이 곧 기억이다.** 파일이 "고친 대로 기억한다"고 약속해 놓고 지우기만 됐다.
   // 그리고 F-18: 낱말 겹침이 사실 공급 여부를 정해, 저장된 기억이 모델에게 안 갔다.
   { 이름: '집 파일에 사람이 쓴 줄을 무시함(약속과 동작이 다름)',
