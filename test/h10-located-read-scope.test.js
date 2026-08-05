@@ -65,7 +65,12 @@ test('같은 턴의 성공한 locate 영수증만 읽기·위임 범위를 넓�
     'local.file', { action: 'read', path: join(f.left, 'package.json') }, selfState,
     { currentRequest: USER },
   );
-  assert.equal(before.failureState, 'blocked', 'locate 전 범위 밖 읽기가 열렸다');
+  // **읽기는 홈까지 열려 있다**(2026-08-05 오너 지적 뒤 바뀜).
+  // 예전엔 정적 루트 밖은 locate 가 열어 줘야 읽혔다. 그래서 `내 컴퓨터에서 … 읽어줘` 가
+  // 도큐먼트 밖으로 못 나갔고, **같은 파일이 `local.terminal` 로는 읽혔다** —
+  // 우회되는 울타리는 위험을 못 막고 사용자가 시킨 일만 막는다.
+  // 이 검사의 본래 목적(탐색이 권한을 만드는 경로가 정확한가)은 아래 위임 봉투가 그대로 잰다.
+  assert.equal(before.failureState, 'none', '홈 안 읽기가 막혔다 — "내 컴퓨터"가 말 그대로 동작해야 한다');
 
   const located = await runner.run(
     'local.locate', { what: '프로젝트', from: 'Developer' }, selfState,
@@ -98,8 +103,13 @@ test('같은 턴의 성공한 locate 영수증만 읽기·위임 범위를 넓�
   const write = await runner.run(
     'local.file', { action: 'write', path: join(f.left, 'changed.txt'), text: 'no' }, selfState, context,
   );
-  assert.equal(write.failureState, 'blocked', 'locate 읽기 범위가 쓰기 범위까지 넓혔다');
-  await assert.rejects(readFile(join(f.left, 'changed.txt')));
+  // **쓰기를 막는 것은 울타리가 아니라 승인이다**(오너 지시 2026-08-05):
+  //   *"쓰기/이동/삭제는 사용자 지시에 그렇게 하라는 내용이 있으면 하면 되는 거고,
+  //     다른 지시를 수행하다 필수적으로 필요해지면 승인을 요청하면 되는 거고,
+  //     반복되면 학습으로 올리면 되는 거다."*
+  // 그 기계는 이미 다 있다 — 안 시킨 파괴는 `발화밖파괴` 가 카드로 올리고(S6-c 6번),
+  // 반복은 `허락한손`·자동화 제안이 받는다. 손 안에서 한 번 더 막으면 **사용자가 시킨 일까지 막힌다.**
+  assert.equal(write.failureState, 'none', '홈 안 쓰기가 손 단계에서 막혔다 — 그 판단은 승인 경계의 것이다');
 });
 
 test('locate 질의가 한 대상으로 좁아도 같은 요청에서 직접 부른 실제 형제 폴더를 범위로 보존한다', async () => {
@@ -167,19 +177,51 @@ test('임의 경로·보호 경로·심볼릭 링크 탈출은 locate 읽기 범
 
 test('자식 실행기는 봉인된 workspaceRoots를 local.file 읽기 범위로 실제 전달한다', async () => {
   const f = await fixture();
+  // **홈 밖에서 잰다.** 읽기가 홈까지 열린 뒤(2026-08-05) 홈 안 경로로는 전달을 끊어도
+  // 홈이 덮어 아무 일이 안 난다 — 돌연변이 스윕이 그 사실을 먼저 말해 줬다.
+  // 이 계약(봉인된 자리가 자식의 읽기 문을 연다)이 값을 하는 자리는 외장 같은 홈 밖이다.
+  const 밖작업방 = await realpath(await mkdtemp(join(tmpdir(), 't5-자식외장-')));
+  await writeFile(join(밖작업방, 'package.json'), '{"name":"alpha"}');
   const base = new ToolRunner({ 'local.file': f.localFile });
   const budget = { consumeStep() {} };
   const wrapped = scopedAgentTools(base, {
     toolAllowlist: ['local.file'],
-    workspaceRoots: [f.left],
+    workspaceRoots: [밖작업방],
     authorityEnvelope: {
-      allowedKinds: ['read'], allowedTools: ['local.file'], allowedTargets: [], workspaceRoots: [f.left],
+      allowedKinds: ['read'], allowedTools: ['local.file'], allowedTargets: [], workspaceRoots: [밖작업방],
     },
   }, budget, new AbortController().signal, async () => {}, stateFor('local.file'));
 
   const rec = await wrapped.run(
-    'local.file', { action: 'read', path: join(f.left, 'package.json') }, stateFor('local.file'),
+    'local.file', { action: 'read', path: join(밖작업방, 'package.json') }, stateFor('local.file'),
   );
-  assert.equal(rec.failureState, 'none');
+  assert.equal(rec.failureState, 'none',
+    '봉인된 자리를 자식의 읽기 범위로 안 넘겼다 — 자식은 홈 밖 작업방을 영영 못 연다');
   assert.match(rec.result.text, /alpha/);
+});
+
+// ── **locate 가 연 자리는 홈 밖에서 값을 한다** ────────────────────────────────
+//
+// 읽기가 홈까지 열린 뒤(2026-08-05), 홈 안 경로로는 `readScopeRoots` 를 빼도 아무 일이
+// 일어나지 않는다 — 홈이 이미 덮기 때문이다. 돌연변이 스윕이 그 사실을 먼저 말해 줬다
+// (두 겨냥이 빠져나갔다). **계약이 죽은 게 아니라 재는 자리가 옮겨간 것이다.**
+// 외장 디스크처럼 **홈 밖** 자리에서는 여전히 이것만이 문을 연다.
+test('locate 가 연 홈 밖 자리만 읽기가 열린다 — 안 열어 준 홈 밖은 그대로 막힌다', async () => {
+  const 밖 = await realpath(await mkdtemp(join(tmpdir(), 't5-외장-')));
+  const 다른밖 = await realpath(await mkdtemp(join(tmpdir(), 't5-남의외장-')));
+  await writeFile(join(밖, '자료.md'), '외장 내용');
+  await writeFile(join(다른밖, '자료.md'), '남의 것');
+  const f = await fixture();
+  const runner = new ToolRunner({ 'local.file': f.localFile });
+  const selfState = stateFor('local.file');
+
+  const 열린것 = await runner.run('local.file', { action: 'read', path: join(밖, '자료.md') },
+    selfState, { currentRequest: USER, readScopeRoots: [밖] });
+  assert.equal(열린것.failureState, 'none',
+    'locate 가 연 홈 밖 자리를 못 읽었다 — 그 자리를 여는 유일한 문이다');
+
+  const 안열린것 = await runner.run('local.file', { action: 'read', path: join(다른밖, '자료.md') },
+    selfState, { currentRequest: USER, readScopeRoots: [밖] });
+  assert.equal(안열린것.failureState, 'blocked',
+    '**안 열어 준 홈 밖 자리가 열렸다** — 탐색이 권한을 만드는 경로가 정확해야 한다');
 });

@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **"내 컴퓨터"는 내 컴퓨터다** — 파일 범위(오너 실사용 2026-08-05).
+  // 울타리를 좁히면 안전해지는 게 아니라 사용자가 시킨 일만 막힌다(터미널로는 이미 읽혔다).
+  { 이름: '파일 손이 다시 네 폴더에 갇힘(내 컴퓨터인데 도큐먼트 밖을 못 봄)',
+    파일: 'src/runtime/local-file.js', 검사: 'test/file-read-scope-home.test.js',
+    찾기: '        ...roots, 홈자리,',
+    바꾸기: '        ...roots,' },
+  { 이름: '자격 판정만 좁아서 실행은 되는데 카드 앞에서 막힘(두 진실)',
+    파일: 'src/runtime/local-file.js', 검사: 'test/file-read-scope-home.test.js',
+    찾기: "        const abs = await resolveInScope(args.path ?? '', { roots: [...roots, home ?? homedir()], home });",
+    바꾸기: "        const abs = await resolveInScope(args.path ?? '', { roots, home });" },
   // **커널은 확신을 지어내지 않는다** — locate 이름 판정(라이브 2026-08-05).
   // 낱말을 품은 것과 그 이름인 것을 같은 등급으로 주면 모델이 엉뚱한 파일을 답으로 삼는다.
   { 이름: '이름을 품은 것을 그 이름이라고 말함(커널이 프로세스에게 거짓말)',
@@ -1181,12 +1191,18 @@ export const MUTATIONS = [
   { 이름: '모델이 임의 선택한 시작 폴더를 사용자 읽기 범위로 개방', 파일: 'src/runtime/local-locate.js', 검사: 'test/h10-located-read-scope.test.js',
     찾기: '      const selectedMentioned = selected && selectedName\n        && (currentRequest.includes(selectedName) || (askedName && currentRequest.includes(askedName)));',
     바꾸기: '      const selectedMentioned = Boolean(selected);' },
-  { 이름: 'local.file 이 locate 확인 범위를 읽기에도 사용하지 않음', 파일: 'src/runtime/local-file.js', 검사: 'test/h10-located-read-scope.test.js',
-    찾기: '        ? [...new Set([...roots, ...(executionContext.readScopeRoots ?? [])])]',
-    바꾸기: '        ? roots' },
-  { 이름: 'locate 읽기 범위를 쓰기 범위까지 확대', 파일: 'src/runtime/local-file.js', 검사: 'test/h10-located-read-scope.test.js',
-    찾기: "      const readOnly = action === 'list' || action === 'read' || action === 'versions';",
-    바꾸기: '      const readOnly = true;' },
+  // 읽기가 홈까지 열린 뒤(2026-08-05) 이 계약이 값을 하는 자리는 **홈 밖**이다 —
+  // 홈 안 경로로는 홈이 이미 덮어 주입이 안 물린다. 재는 자리를 그리로 옮겼다.
+  { 이름: 'local.file 이 locate 확인 범위를 읽기에도 사용하지 않음(홈 밖 자리가 안 열림)', 파일: 'src/runtime/local-file.js', 검사: 'test/h10-located-read-scope.test.js',
+    찾기: '        ...(readOnly ? (executionContext.readScopeRoots ?? []) : []),',
+    바꾸기: '' },
+  // 예전 겨냥("locate 읽기 범위를 쓰기까지 확대")은 울타리가 홈으로 통일되며 뜻을 잃었다 —
+  // 쓰기를 막는 것은 이제 승인 경계다. 같은 걱정(탐색이 넓은 권한으로 승격되지 않는가)은
+  // **위임 봉투**가 든다: 자식에게 가는 자리는 여전히 부른 폴더뿐이어야 한다.
+  { 이름: '자식에게 부른 폴더 대신 넓은 자리를 넘김(탐색이 권한으로 승격)',
+    파일: 'src/runtime/agent-delegate-tool.js', 검사: 'test/h10-located-read-scope.test.js',
+    찾기: '        ...(executionContext.readScopeRoots ?? []),',
+    바꾸기: '        ...(executionContext.readScopeRoots ?? []), 조상(executionContext),' },
   { 이름: 'agent.delegate 가 같은 턴 locate 범위를 전달받지 않음', 파일: 'src/runtime/agent-delegate-tool.js', 검사: 'test/h10-located-read-scope.test.js',
     찾기: '        ...(executionContext.readScopeRoots ?? []),', 바꾸기: '' },
   { 이름: '동적 위임 범위에서 보호 경로 검사를 제거', 파일: 'src/runtime/agent-delegate-tool.js', 검사: 'test/h10-located-read-scope.test.js',

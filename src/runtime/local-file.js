@@ -12,6 +12,7 @@ import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, 
 import { join, dirname, basename, relative, isAbsolute, extname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 import { extractDocument } from './document-intake.js';
@@ -210,7 +211,9 @@ export function makeLocalFileTool(deps = {}) {
       // 승인 대기로 멈춘다)은 동결 계약이라 여기서 갈래를 만들지 않는다.
       if (action === 'undo') return { allowed: true };
       try {
-        const abs = await resolveInScope(args.path ?? '', { roots, home });
+        // **자격도 실행과 같은 선을 본다.** 여기만 좁으면 실행은 되는데 카드 앞에서 막혀
+        // "그 자리는 못 해요"가 나간다 — 판정과 실행이 다른 것을 보는 자리다(두 진실 금지).
+        const abs = await resolveInScope(args.path ?? '', { roots: [...roots, home ?? homedir()], home });
         const prot = protectionBlocks(abs, { write: true });
         if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
         if (action === 'move') {
@@ -304,12 +307,31 @@ export function makeLocalFileTool(deps = {}) {
     async handler(args = {}, executionContext = {}) {
       const action = args.action ?? (args.path ? 'read' : 'list');
       const target = args.path ?? '.';
-      // locate·자식 authority가 확인한 범위는 읽기 계열에만 합친다. 쓰기·이동·삭제·undo는
-      // 기존 정적 roots만 보므로 탐색 성공이 파일 변경 권한으로 승격되지 않는다.
       const readOnly = action === 'list' || action === 'read' || action === 'versions';
-      const activeRoots = readOnly
-        ? [...new Set([...roots, ...(executionContext.readScopeRoots ?? [])])]
-        : roots;
+      // **"내 컴퓨터"는 내 컴퓨터다**(2026-08-05 오너 지적).
+      //
+      // 네 폴더 울타리 때문에 `~/Developer`·`~/Music` 은 사용자가 시켜도 못 읽었다.
+      // 그런데 **같은 파일이 `local.terminal` 로는 읽혔다** — 우회되는 울타리는 위험을 못 막고
+      // 사용자가 시킨 일만 막는다. **안전 장치가 아니라 능력 손실이다.**
+      //
+      // 파괴도 같은 선이다. 오너 지시: *"쓰기/이동/삭제는 사용자 지시에 그렇게 하라는 내용이
+      // 있으면 하면 되는 거고, 다른 지시를 수행하다 그게 필수적으로 필요해지면 승인을 요청하면
+      // 되는 거고, 반복되면 학습으로 올리면 되는 거다."* **그 기계는 이미 다 있다** —
+      // 시킨 파괴는 발화 안이라 돌고(휴지통), 안 시킨 파괴는 `발화밖파괴` 가 카드로 올리며
+      // (S6-c 6번), 반복은 `허락한손`·자동화 제안이 받는다. 울타리는 그 위에 덧댄 중복이었다.
+      //
+      // 남는 절대선은 하나다 — 이 파일 아래가 이미 그렇게 적어 뒀다:
+      //   *"범위 안이어도 보호 영역은 막는다. 루트를 넓혀도 여기는 안 열린다 —
+      //     안전이 '좁은 루트'에서 나오던 구조를 대체하는 자리다."*
+      // 터미널은 이미 그 규칙 하나로 돈다. **두 손을 같은 선에 세운다.**
+      // 홈을 안 주면 실제 홈이다 — `resolveInScope` 의 기본과 같은 규칙(두 진실 금지).
+      // 여기서 `undefined` 를 그대로 넣으면 루트 목록이 오염돼 **모든 경로가 막힌다**(밟음).
+      const 홈자리 = home ?? homedir();
+      const activeRoots = [...new Set([
+        ...roots, 홈자리,
+        // locate 가 이번 요청에서 연 자리는 읽기 계열에만 합친다(탐색 성공이 권한이 되지 않게).
+        ...(readOnly ? (executionContext.readScopeRoots ?? []) : []),
+      ])];
       try {
         await ensureRoot(roots);
 
