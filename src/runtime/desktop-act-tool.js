@@ -357,6 +357,59 @@ async handler(args) {
         };
       }
 
+      // ── **됐는지는 드라이버가 판정한다**(CU F) ──────────────────────────
+      //
+      // 우리 전후 대조가 오늘만 네 번 틀렸다 — 켜기를 "앞에 왔나"로 재고, 창 관리자가
+      // 반영하기 전에 찍고, 드라이버가 `refused`·`unverifiable` 로 밝힌 것을 "안 됐다"로 바꿨다.
+      //
+      // cua `verify_state` 는 우리가 A14 로 세운 문장을 그대로 갖고 있고
+      // (*"unknown never implies success"*), **상태가 가라앉을 때까지 기다린다**
+      // (`stable_samples`·`timeout_ms`) — 우리가 못 하던 것이다.
+      // 커널은 모델이 낸 기대를 **신분으로 옮겨 넘기고 답을 적을 뿐**이다. 알맹이를 재지 않는다.
+      //
+      // 능력이 없는 드라이버(네이티브)는 아래 전후 대조가 그대로 돈다 — 슬롯은 안 바뀐다.
+      if (typeof 드라이버.verify === 'function' && 누르는것.has(행동) && args?.기대?.값 !== undefined) {
+        // 모델이 준 `기대.요소` 는 우리 관찰 안의 id 다. 드라이버는 그 id 를 모르니
+        // **관찰이 준 신분**(라벨·역할)으로 옮겨 준다 — 없는 신분을 지어내지는 않는다.
+        let 그것 = null;
+        try { 그것 = ((await 드라이버.observe({ scope: 'window' }))?.elements ?? [])
+          .find((e) => e?.id === args.기대.요소) ?? null; } catch { 그것 = null; }
+        let 답 = null;
+        try {
+          답 = await 드라이버.verify({
+            값: args.기대.값,
+            ...(그것?.label ? { 라벨: 그것.label } : {}),
+            ...(그것?.role ? { 역할: 그것.role } : {}),
+            창: args?.window ?? args?.대상?.창 ?? null,
+          });
+        } catch { 답 = null; }
+        const 판정 = 답?.판정 ?? 'unknown';
+        if (판정 === 'satisfied') {
+          return {
+            result: { 단계: 'goal_verified', 행동, 전, 확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})` },
+            userSafeSummary: '그렇게 했어요. 실제로 그렇게 된 것까지 확인했어요.',
+          };
+        }
+        if (판정 === 'unsatisfied') {
+          return {
+            failed: true,
+            userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
+            진행: { 단계: 'dispatched', 판정: 'unsatisfied', 전 },
+            다음수단: [
+              { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
+              { 방법: 'retry', 왜: '반영이 늦었을 수 있다' },
+            ],
+          };
+        }
+        return {
+          failed: true,
+          userSafeSummary: '했어요. 다만 그 결과를 화면에서 확인하지는 못했어요 — 됐는지 안 됐는지는 모르겠어요.',
+          진행: { 단계: 'dispatched', 판정: 'unknown', 전 },
+          // **다시 하라고 권하지 않는다.** 이미 됐을 수 있다.
+          다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
+        };
+      }
+
       // ── effect_observed · 여기가 A14 다 ────────────────────────────────
       // **드라이버가 "확인 못 한다"고 밝히면 그건 모른다다.** 실측(2026-08-05):
       // cua 가 `{"delivery":{"mode":"background"},"effect":"unverifiable"}` 를 줬는데

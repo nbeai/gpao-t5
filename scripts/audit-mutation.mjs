@@ -50,6 +50,7 @@ const T_CU_C2 = 'test/cu-c-launch-measures-running-not-front.test.js';
 const T_EXIT_B = 'test/exit-blocked-step-claimed-done.test.js';
 const T_CU_D2 = 'test/cu-d-unknown-is-not-failure.test.js';
 const T_RETRY = 'test/approved-step-can-retry.test.js';
+const T_CU_F = 'test/cu-f-verify-belongs-to-driver.test.js';
 const DESK = 'src/runtime/desktop-tool.js';
 const CUA = 'src/runtime/desktop-cua-driver.js';
 const EXITV = 'src/kernel/l2-plan/exit-verification.js';
@@ -1563,6 +1564,28 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── CU F · 됐는지는 드라이버가 판정한다 ───────────────────────────────
+  { 이름: '드라이버 판정을 안 쓰고 우리 전후 추측으로 되돌림', 파일: DESK_ACT, 검사: T_CU_F,
+    찾기: "      if (typeof 드라이버.verify === 'function' && 누르는것.has(행동) && args?.기대?.값 !== undefined) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '드라이버가 모른다고 해도 됐다고 함', 파일: DESK_ACT, 검사: T_CU_F,
+    찾기: "        const 판정 = 답?.판정 ?? 'unknown';",
+    바꾸기: "        const 판정 = 답?.판정 ?? 'satisfied';" },
+  { 이름: '기대를 신분 없이 넘김(엉뚱한 요소를 확인한다)', 파일: DESK_ACT, 검사: T_CU_F,
+    찾기: "            ...(그것?.label ? { 라벨: 그것.label } : {}),",
+    바꾸기: "" },
+  { 이름: 'cua 가 verify_state 를 안 부름(계약이 죽는다)', 파일: CUA, 검사: T_CU_F,
+    찾기: "      const r = await mcp.call('verify_state', {",
+    바꾸기: "      const r = await Promise.resolve(null) ?? await mcp.call('__none__', {" },
+  { 이름: '신분 없이도 확인을 시킴', 파일: CUA, 검사: T_CU_F,
+    찾기: "      if (!라벨) return { 판정: 'unknown', 근거: 'no_selector' };",
+    바꾸기: "      if (false) return { 판정: 'unknown', 근거: 'no_selector' };" },
+  { 이름: '가라앉기를 안 기다림(창 관리자보다 먼저 찍어 없는 실패를 만든다)', 파일: CUA, 검사: T_CU_F,
+    찾기: "        stable_samples: 2,",
+    바꾸기: "        stable_samples: 0," },
+  { 이름: '모르는 답을 성공으로 승격', 파일: CUA, 검사: T_CU_F,
+    찾기: "      return { 판정: ['satisfied', 'unsatisfied'].includes(답) ? 답 : 'unknown', 근거: r?.code ?? null };",
+    바꾸기: "      return { 판정: 'satisfied', 근거: r?.code ?? null };" },
   // ── 모른다를 안 됐다로 바꾸지 않는다 (라이브 2026-08-05 · 사진으로 확인) ─
   { 이름: '드라이버가 "확인 못 한다"고 밝혀도 안 됐다고 단정', 파일: DESK_ACT, 검사: T_CU_D2,
     찾기: "      const 못본다 = 낸것?.effect === 'unverifiable';",

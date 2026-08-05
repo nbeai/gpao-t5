@@ -134,6 +134,45 @@ export function makeCuaDriver(deps = {}) {
       };
     },
 
+    /**
+     * **됐는지 판정한다 — 우리가 전후를 추측하지 않는다**(CU F).
+     *
+     * `verify_state` 는 우리가 A14 로 세운 문장을 그대로 갖고 있다:
+     *   *"Predicate results are satisfied, unsatisfied, or unknown; unknown never implies
+     *    success. Accessibility projections are conservative: absence remains unknown
+     *    unless the observed search domain is proven exhaustive."*
+     * 게다가 `stable_samples`·`timeout_ms` 로 **상태가 가라앉을 때까지 기다린다** —
+     * 우리 전후 대조가 창 관리자보다 먼저 찍어 **없는 실패**를 만들던 자리가 여기서 닫힌다.
+     *
+     * `include_screenshot` 은 안 받는다. 그림은 *"uninterpreted visual evidence for a
+     * multimodal caller"* 인데 **우리 모델 길이 아직 글자만 나른다** — 못 쓰는 것을 받아
+     * 비용만 쓰지 않는다. 길이 열리면 그때 켠다.
+     */
+    async verify(기대 = {}) {
+      const 라벨 = String(기대.라벨 ?? '').trim();
+      // 신분이 없으면 **부르지 않는다.** 아무 요소나 확인해 달라고 하면 엉뚱한 것을 확인한다.
+      if (!라벨) return { 판정: 'unknown', 근거: 'no_selector' };
+      const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
+      const 창들 = 본것?.windows ?? [];
+      const 창 = 창들.find((w) => Number(w?.id ?? w?.window_id) === Number(기대.창)) ?? 창들[0] ?? null;
+      const pid = Number.isInteger(창?.pid) ? 창.pid : 본것?.frontmost?.pid;
+      const r = await mcp.call('verify_state', {
+        ...(Number.isInteger(pid) ? { pid } : {}),
+        ...(창?.id != null ? { window_id: Number(창.id ?? 창.window_id) } : {}),
+        expect: [{
+          element: {
+            selector: { label_contains: 라벨, ...(기대.역할 ? { role: String(기대.역할) } : {}) },
+            value_equals: String(기대.값 ?? ''),
+          },
+        }],
+        // 눌린 값이 화면에 반영되는 데 시간이 걸린다. **두 번 같은 값을 봐야** 인정한다.
+        stable_samples: 2,
+        timeout_ms: 2000,
+      }).catch(() => null);
+      const 답 = String(r?.result ?? r?.predicates?.[0]?.result ?? 'unknown');
+      return { 판정: ['satisfied', 'unsatisfied'].includes(답) ? 답 : 'unknown', 근거: r?.code ?? null };
+    },
+
     async observe(args = {}) {
       // **가벼운 것과 무거운 것이 나뉘어 있다**(실물 확인 2026-08-05):
       //   `get_accessibility_tree`  앱·창 목록 + 좌표·z순서 — 가볍다
