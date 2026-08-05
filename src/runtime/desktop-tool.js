@@ -160,7 +160,18 @@ export function makeDesktopTool(deps = {}) {
         };
       }
 
-      const 상태 = await 드라이버.status();
+      // **드라이버가 터져도 손은 안 터진다.** 예외가 그대로 올라가면 실행 경계가 그것을
+      // 일반 실패로 뭉개고, 사용자는 왜 못 봤는지 못 듣는다. 못 본 것은 못 봤다고 말한다.
+      // (내부 오류 문구는 사용자면으로 안 보낸다 — 진단면 분리.)
+      let 상태;
+      try { 상태 = await 드라이버.status(); } catch {
+        return {
+          blocked: true,
+          userSafeSummary: '화면 상태를 확인하지 못했어요.',
+          nextSafeAction: '잠시 뒤에 다시 볼까요?',
+          다음수단: [{ 방법: 'retry', 왜: '화면 보기 준비가 아직 안 끝났을 수 있다' }],
+        };
+      }
       const 권한 = 상태?.permissions ?? {};
 
       // `status` 는 **권한이 없어도 막지 않는다.** 상태 조회까지 막으면 왜 막혔는지도 못 말한다.
@@ -174,7 +185,16 @@ export function makeDesktopTool(deps = {}) {
         };
       }
 
-      const 본것 = await 드라이버.observe(args ?? {});
+      let 본것;
+      try { 본것 = await 드라이버.observe(args ?? {}); } catch {
+        // 권한은 봤는데 관찰이 깨졌다 — **"창이 없다"가 아니라 "못 봤다"** 다.
+        return {
+          blocked: true,
+          권한,
+          userSafeSummary: '화면을 보다가 중간에 못 읽었어요.',
+          다음수단: [{ 방법: 'retry', 왜: '화면이 바뀌는 중이었을 수 있다' }],
+        };
+      }
 
       // ── 여기가 갈리는 자리다 ──────────────────────────────────────────
       // 권한이 없으면 **목록을 결과로 내지 않는다**(빈 배열도 목록이다).

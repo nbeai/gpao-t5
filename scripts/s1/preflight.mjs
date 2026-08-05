@@ -265,6 +265,8 @@ export const 허용파일 = [
   'src/runtime/desktop-native-driver.js',
   // CU C — 첫 손. 읽기 손과 **따로** 선다(권한 종류가 손 단위로 판정되므로).
   'src/runtime/desktop-act-tool.js',
+  // **cua 드라이버**(2026-08-05) — 화면 슬롯의 두 번째 드라이버. 크로스 플랫폼 요구로 갈아탔다.
+  'src/runtime/desktop-cua-driver.js',
   'src/kernel/l2-plan/action-plan.js',
 ];
 

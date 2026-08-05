@@ -923,6 +923,24 @@ export const MUTATIONS = [
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
     찾기: '        if (args?.기대?.바깥으로 === true) {', 바꾸기: '        if (false) {' },
 
+  // **cua 드라이버 — 우리가 띄운 프로세스가 몰래 밖으로 보내면 안 된다(헌장 ③).**
+  { 이름: '드라이버 텔레메트리를 안 끄고 띄움(사용자 모르게 밖으로 나간다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: "      CUA_DRIVER_RS_TELEMETRY_ENABLED: '0',", 바꾸기: '' },
+  { 이름: '별도 앱 모드로 띄움(사용자가 앱을 하나 더 깔아야 한다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: "    args: ['mcp', '--direct'],", 바꾸기: "    args: ['mcp'],", },
+  { 이름: '좌표로 누름(무엇을 눌렀는지 원장에 못 남긴다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: '          ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : 가운데(대상.bounds)),',
+    바꾸기: '          ...가운데(대상.bounds),' },
+  { 이름: '창 목록만 필요한 턴에도 무거운 AX 훑기(비용이 목적을 안 돕는다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: "      if (args?.scope === 'window') {", 바꾸기: '      if (true) {' },
+  { 이름: '드라이버가 터졌는데 손도 같이 터짐(왜 못 봤는지 아무도 못 듣는다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: '      try { 상태 = await 드라이버.status(); } catch {', 바꾸기: '      try { 상태 = await 드라이버.status(); } catch (무시) { throw 무시; } if (false) {' },
+
   // **CU C — 눌렀는지가 아니라 됐는지.** A14 가 CU 에서 제일 위험한 자리다.
   { 이름: 'dispatch 를 성공으로 셈(눌렀는데 안 됐어도 됐다고 한다 · A14)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',

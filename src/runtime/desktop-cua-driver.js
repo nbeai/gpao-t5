@@ -1,0 +1,218 @@
+// L3 · **화면 슬롯의 두 번째 드라이버 — cua-driver (MCP stdio)**
+//
+// 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다. **임베디드 모드.**
+//
+// ── 왜 갈아타나 ─────────────────────────────────────────────────────────
+// **크로스 플랫폼이 요구다**(오너: *"PC 운영체제가 무엇이든 상관없이 작동해야겠지"*).
+// Peekaboo 는 macOS 전용이다. cua-driver 는 platform-macos 37K줄 · windows 32K줄 ·
+// linux 33K줄로 **셋 다 실물**이다(감사 2026-08-05).
+//
+// ── 왜 임베디드인가 ─────────────────────────────────────────────────────
+// `EMBEDDING.md` 원문: *"macOS TCC 는 실행 파일 경로가 아니라 **책임 프로세스**에 귀속한다.
+// 서명된 앱이 자식을 spawn 하면 그 자식의 TCC 검사는 **그 앱의** 권한으로 답한다."*
+//
+//   Standalone   `CuaDriver.app` 을 따로 깔고 그 앱에 권한 → **사용자가 앱을 하나 더 깐다**(§15 마찰)
+//   임베디드     T5 가 spawn 하고 **T5 의 권한을 물려받는다** → 앱 하나 · 승인 한 번
+//
+// 그래서 `mcp --direct` 로 띄운다. 실물이 그 사실을 스스로 밝힌다 —
+// `check_permissions` 가 `source.attribution: "host"` 를 낸다.
+//
+// ── 텔레메트리 ──────────────────────────────────────────────────────────
+// **기본값이 켜짐이다**(실물 확인: `Telemetry: enabled (source: default)`).
+// PostHog 로 세션·도구 사용 사실이 나간다. 화면 내용은 안 나가고 그쪽 검사가 그걸 강제한다
+// (금지 목록에 screenshot·window_title·clipboard·typed_text 등이 박혀 있다).
+//
+// **그래도 우리가 끈다.** 보내는 게 우리가 아니어도 **띄운 것이 우리면 원인은 우리**이고,
+// 사용자 컴퓨터에서 사용자 모르게 밖으로 나가는 것은 헌장 ③ 이 걸리는 자리다.
+// 이름으로 껐다고 믿지 않는다 — 기동 인자에 박고, 그 인자를 검사가 잰다.
+import { spawn } from 'node:child_process';
+
+/**
+ * **드라이버를 어떻게 띄우는가** — 인자와 환경을 한 자리에 둔다.
+ * 밖에서 잴 수 있어야 "껐다"가 주장이 아니라 사실이 된다.
+ */
+export function 기동인자({ binPath }) {
+  return {
+    bin: binPath,
+    // `--direct` = 임베디드. 우리(호스트)의 TCC 귀속을 쓴다.
+    args: ['mcp', '--direct'],
+    env: {
+      ...process.env,
+      // **기본이 켜짐이라 명시적으로 끈다.**
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: '0',
+      CUA_TELEMETRY_ENABLED: '0',   // 옛 이름도 함께(둘 다 읽는다)
+    },
+  };
+}
+
+/** 권한 값 → 우리 어휘. **모르는 값은 안 된 쪽으로**(모름은 확인 쪽이다). */
+const 권한말 = (v) => (v === true ? 'granted' : 'denied');
+
+/**
+ * MCP stdio 한 줄 클라이언트. **여기서 판정하지 않는다** — 부르고 결과를 옮긴다.
+ * 가르는 것은 손(`desktop-tool` · `desktop-act-tool`)의 일이다.
+ */
+export function makeMcpStdio({ binPath, timeoutMs = 20_000, spawnImpl = spawn }) {
+  let 아이 = null; let 다음id = 1; let 버퍼 = '';
+  const 기다리는것 = new Map();
+
+  const 띄우기 = () => {
+    if (아이) return 아이;
+    const { bin, args, env } = 기동인자({ binPath });
+    아이 = spawnImpl(bin, args, { stdio: ['pipe', 'pipe', 'pipe'], env });
+    아이.stdout.on('data', (d) => {
+      버퍼 += d;
+      const 줄들 = 버퍼.split('\n');
+      버퍼 = 줄들.pop() ?? '';
+      for (const 줄 of 줄들) {
+        if (!줄.trim()) continue;
+        try {
+          const m = JSON.parse(줄);
+          const 대기 = 기다리는것.get(m.id);
+          if (대기) { 기다리는것.delete(m.id); 대기(m); }
+        } catch { /* 프로토콜 밖 출력은 버린다 — 진단면이지 결과가 아니다 */ }
+      }
+    });
+    아이.on('exit', () => { 아이 = null; for (const [, f] of 기다리는것) f({ error: { message: 'exit' } }); 기다리는것.clear(); });
+    return 아이;
+  };
+
+  const 보내기 = (method, params) => new Promise((resolve, reject) => {
+    const p = 띄우기();
+    const id = 다음id++;
+    const 시계 = setTimeout(() => { 기다리는것.delete(id); reject(new Error('timeout')); }, timeoutMs);
+    기다리는것.set(id, (m) => { clearTimeout(시계); m.error ? reject(new Error('mcp')) : resolve(m.result); });
+    p.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
+  });
+
+  let 준비 = null;
+  const 준비되기 = () => {
+    준비 ??= 보내기('initialize', {
+      protocolVersion: '2025-06-18', capabilities: {},
+      clientInfo: { name: 'gpao-t5', version: '0' },
+    });
+    return 준비;
+  };
+
+  return {
+    async call(name, args = {}) {
+      await 준비되기();
+      const r = await 보내기('tools/call', { name, arguments: args });
+      return r?.structuredContent ?? r?.content ?? r ?? {};
+    },
+    끄기() { try { 아이?.kill(); } catch { /* 이미 죽었으면 그만이다 */ } 아이 = null; 준비 = null; },
+  };
+}
+
+/**
+ * 화면 슬롯 드라이버. **계약은 `desktop-native-driver` 와 같다** —
+ * `id` · `status` · `observe` · `act`. 슬롯을 안 고치고 갈아끼우는 것이 이 파일의 목적이다.
+ *
+ * @param {{binPath?:string, mcp?:{call:Function}}} deps  `mcp` 주입 시 그것을 쓴다(검사용).
+ */
+export function makeCuaDriver(deps = {}) {
+  const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath });
+
+  return {
+    id: 'cua',
+    label: '화면 관찰·조작(cua)',
+    needs: [],
+
+    async status() {
+      const p = await mcp.call('check_permissions', {});
+      return {
+        platform: 'unknown',            // 드라이버가 밝히면 그때 채운다 — 지어내지 않는다
+        backend: { id: 'cua', ready: true },
+        permissions: {
+          accessibility: 권한말(p?.accessibility),
+          screenRecording: 권한말(p?.screen_recording),
+        },
+        capabilities: ['observe', 'elements', 'act'],
+        // **책임 귀속을 그대로 옮긴다.** 임베디드가 실제로 섰는지 밖에서 볼 수 있어야 한다
+        // (F-30 이 못 갈랐던 그 값이다 — 이제 드라이버가 스스로 밝힌다).
+        ...(p?.source ? { 귀속: p.source } : {}),
+      };
+    },
+
+    async observe(args = {}) {
+      // **가벼운 것과 무거운 것이 나뉘어 있다**(실물 확인 2026-08-05):
+      //   `get_accessibility_tree`  앱·창 목록 + 좌표·z순서 — 가볍다
+      //   `get_window_state`        창 하나의 AX 하위트리 + **번호로 누를 수 있는 요소** — 무겁다
+      // 원문이 그렇게 말한다: *"For the full AX subtree of a single window (with interactive
+      // element indices you can click by), use `get_window_state` instead."*
+      // 그래서 요소는 **필요할 때만** 가져온다 — 창 목록만 필요한 턴에 무거운 것을 부르지 않는다.
+      const 얕은것 = await mcp.call('get_accessibility_tree', {});
+      const 앞앱 = (얕은것?.apps ?? []).find((a) => a.active) ?? (얕은것?.apps ?? [])[0] ?? null;
+      const 창들 = (얕은것?.windows ?? []).map((w) => ({
+        id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
+      }));
+
+      let 요소 = null; let 스냅샷 = null;
+      if (args?.scope === 'window') {
+        // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
+        const 대상 = 창들.find((w) => w.id === args?.window) ?? 창들[0] ?? null;
+        if (대상) {
+          const st = await mcp.call('get_window_state', {
+            window_id: 대상.id, pid: 대상.pid,
+            // **조용한 절단을 드라이버 쪽에서도 막는다.** 안 주면 Electron 앱이 수백 개를 낸다
+            // (그쪽 주석도 같은 말을 한다). 우리 `요소창` 이 그 위에서 다시 문을 단다.
+            max_elements: Number(args?.최대요소) > 0 ? Number(args.최대요소) : 400,
+          });
+          스냅샷 = st?.snapshot_id ?? null;
+          요소 = (st?.elements ?? []).map((e) => ({
+            // **번호로 누른다**(som). 좌표로 찍으면 무엇을 눌렀는지 원장에 남길 수가 없다.
+            id: e.element_token ?? (e.index != null ? String(e.index) : e.id),
+            번호: e.index, 토큰: e.element_token, 스냅샷,
+            type: e.type ?? e.role, role: e.role, subrole: e.subrole,
+            label: e.label ?? e.title ?? e.name ?? '', value: e.value,
+            bounds: e.bounds ?? e.frame ?? {}, isEnabled: e.enabled !== false,
+            창: 대상.id, pid: 대상.pid,
+          }));
+        }
+      }
+
+      return {
+        ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+        windows: 창들,
+        ...(요소 ? { elements: 요소 } : {}),
+      };
+    },
+
+    async act(요청) {
+      const 행동 = String(요청?.행동 ?? '');
+      const 대상 = 요청?.대상 ?? {};
+      // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
+      const 표 = {
+        focus: () => mcp.call('bring_to_front', { app: 대상.app }),
+        launch: () => mcp.call('launch_app', { app: 대상.app }),
+        quit: () => mcp.call('kill_app', { app: 대상.app }),
+        move: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
+        resize: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
+        scroll: () => mcp.call('scroll', { ...(요청?.값 ?? {}) }),
+        // **번호·토큰으로 누른다 — 좌표는 마지막 수단이다.**
+        // 좌표로 찍으면 그 사이에 화면이 밀렸을 때 다른 것을 누르고도 모른다(A04 가 겨눈 자리).
+        click: () => mcp.call('click', {
+          ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : 가운데(대상.bounds)),
+          ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
+          ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
+        }),
+        type: () => mcp.call('type_text', { text: String(요청?.값 ?? '') }),
+        // `set_value` — 네이티브 메뉴를 안 열고 값을 직접 넣는다. 메뉴를 열면 포커스를 뺏는다.
+        set_value: () => mcp.call('set_value', {
+          ...(대상.토큰 ? { element_token: 대상.토큰 } : {}), value: String(요청?.값 ?? ''),
+          ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
+        }),
+      };
+      const 부르기 = 표[행동];
+      if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
+      return 부르기();
+    },
+  };
+}
+
+/** 요소의 가운데 좌표 — cua 의 `click` 은 좌표를 받는다(요소 id 가 아니다). */
+function 가운데(b = {}) {
+  const x = Number(b.x ?? 0); const y = Number(b.y ?? 0);
+  const w = Number(b.w ?? b.width ?? 0); const h = Number(b.h ?? b.height ?? 0);
+  return { x: Math.round(x + w / 2), y: Math.round(y + h / 2) };
+}
