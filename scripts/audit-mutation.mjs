@@ -867,6 +867,15 @@ export const MUTATIONS = [
     찾기: "    .filter((t) => t.executable && t.schema)\n    .map((t) => ({ name: t.id, ...t.schema }));",
     바꾸기: "    .filter((t) => t.executable && t.schema)\n    .sort((a, b) => String(a.toolKind).localeCompare(String(b.toolKind)))\n    .map((t) => ({ name: t.id, ...t.schema }));" },
 
+  // **S8 ④ — 묻는 일을 모델에게 돌려준다.** 손이 늘면 질문이 늘 수 있다(자동성 갉기).
+  { 이름: '커널이 모델의 질문을 안 받음(다시 커널 문장으로 되묻는다)',
+    파일: 'src/kernel/turn.js', 검사: 'test/ask-user-replaces-clarify.test.js',
+    찾기: '  if (물음) {\n    return {\n      kind: \'clarify\',', 바꾸기: '  if (false) {\n    return {\n      kind: \'clarify\',' },
+  { 이름: '못 쓸 질문을 그대로 내보냄(선택지 없이 사용자에게 떠넘긴다)',
+    파일: 'src/kernel/l2-plan/model-control.js', 검사: 'test/ask-user-replaces-clarify.test.js',
+    찾기: '      if (문장 && 고를것.length >= 2) askUser = { question: 문장, options: 고를것 };',
+    바꾸기: '      askUser = { question: 문장, options: 고를것 };' },
+
   // **S8 본체 — 계약 슬롯.** 슬롯이 있다는 것과 손이 슬롯에서 받는다는 것은 다르다.
   { 이름: '호출부가 슬롯을 안 쓰고 코어 기본 배열로 떨어짐(다시 이음매가 된다)',
     파일: 'src/runtime/web-collector.js', 검사: 'test/s8-slot-registry.test.js',

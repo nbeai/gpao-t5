@@ -858,7 +858,12 @@ export async function runTurn(input, ctx) {
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
+  // **모델이 낸 질문.** 커널이 만든 되묻기와 한 자리를 놓고 다투지 않게 여기 하나만 둔다.
+  let 물음 = null;
   const 통제제안받기 = (분리) => {
+    // **모델이 물었다.** 어느 모델 호출에서 왔든 한 자리에 모은다 — 자리마다 따로 읽으면
+    // 언젠가 하나가 빠지고, 빠진 그 자리에서 모델의 질문이 조용히 사라진다(§2-C).
+    if (분리?.askUser && !물음) 물음 = 분리.askUser;
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
@@ -952,6 +957,34 @@ export async function runTurn(input, ctx) {
     }
     if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
     if (분리.rest.length) modelChosen = 분리.rest;
+  }
+
+  // ── **묻는 일을 모델에게 돌려준다**(S8 ④) ────────────────────────────────
+  //
+  // 예전엔 커널이 자기 문장으로 되물었다(`fileClarifyQuestion` 등). 모델이 물었으면 **그
+  // 질문이 나간다** — 커널이 갈아치우지 않는다(§1 소유의 분할: 말은 프로세스의 것이다).
+  //
+  // 그리고 **여기서 턴이 끝난다.** 같은 턴에 다른 손을 함께 골랐어도 실행하지 않는다 —
+  // 물어 놓고 실행하면 사용자의 답이 도착하기 전에 효과가 나고, 그건 승인 전 효과의 사촌이다.
+  // 실행을 안 하므로 뒤쪽 런타임 되묻기도 도달하지 않는다: **한 턴에 질문은 최대 하나**다.
+  //
+  // 손이 하나 늘었다고 질문이 늘면 그건 개선이 아니라 실패다(§3.1 · 오너 지시). 그래서
+  // 늘리는 쪽 장치는 하나도 안 만들었다 — 모델이 안 부르면 이 자리는 통째로 안 돈다.
+  if (물음) {
+    return {
+      kind: 'clarify',
+      question: 물음.question,
+      options: 물음.options,
+      selfStateSummary: summary,
+      shownMemoryRefs,
+      modelCitedRefs,
+      memoryCorrection,
+      memorySuggestion,
+      memoryWithdrawal,
+      ...통제제안(),
+      followUp,
+      usedSkill: ctx.usedSkill,
+    };
   }
 
   // ── **현재 요청 침해 0** — 심문이 아니라 승인 경계로 지킨다 ──────────────────

@@ -245,6 +245,50 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     },
     required: ['target'],
   },
+}, {
+  // **배열 끝에 붙인다 — 접두를 살리려고**(불변식 A · 2026-08-05).
+  // 처음엔 맨 앞에 뒀는데 기억 채널 넷이 통째로 밀려 **접두가 죽었다**(옛 배치와 6/10 만 겹쳤다).
+  // 내가 바로 앞 커밋에 "새 손은 끝에 붙어 접두가 산다"고 적어 놓고 그 자리에서 어겼다.
+  // 검사가 아니라 내가 직접 재서 잡았다 — 손 축만 재는 검사는 통제 채널 이동을 안 본다.
+
+  // ── **묻는 일을 모델에게 돌려준다**(S8 ④) ──────────────────────────────
+  //
+  // 지금은 **런타임이 스스로 묻는다** — `turn.js` 세 자리에서 `kind:'clarify'` 를 만들고
+  // 문장도 커널이 쓴다. 그 사고가 파일에 그대로 적혀 있다: `"그거 정리해줘"` 에 커널이
+  // 하드코딩 문장으로 되물었고, **모델은 할 수 있었다.** 커널이 프로세스 대신 말하는 자리다(§1).
+  //
+  // **손이 하나 늘면 모델이 더 자주 물 수 있다** — 그게 자동성 헌장을 갉는 가장 흔한 길이다
+  // (오너 지시: *"안 그러면 질문 수도꼭지가 된다"*). 그래서 계약을 좁게 세운다:
+  //   · **질문은 하나만**(판단 헌장 <질문> 그대로 — 배열이 아니다)
+  //   · **고를 것을 함께 준다**(2~4개). 선택지 없는 질문은 사용자에게 문장 쓰기를 떠넘기는 것이다
+  //   · 답이 방향을 **실제로 바꿀 때만** — 이건 문구가 아니라 헌장이 이미 규율한다
+  //
+  // 실행이 아니다. 이 채널이 오면 그 턴은 묻고 끝나며, **한 턴에 질문은 최대 하나**다.
+  name: 'ask.user',
+  description: '답이 없으면 진행 방향이 실제로 갈리는 것 하나를 사용자에게 묻는다.'
+    + ' **묻지 않고 할 수 있으면 묻지 않는다** — 할 수 있는 것을 먼저 하고, 모르면 합리적으로'
+    + ' 가정한 뒤 무엇을 가정했는지 밝히는 편이 낫다.'
+    + ' 고를 것을 2~4개 함께 준다(그게 없으면 사용자가 문장을 다시 써야 한다).'
+    + ' 이걸 부르면 그 턴은 묻고 끝난다 — 같은 턴에 다른 손을 함께 골라도 실행되지 않는다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: '한 문장. 한 번에 답할 수 있게.' },
+      options: {
+        type: 'array', minItems: 2, maxItems: 4,
+        description: '사용자가 고를 것. 각각 짧게.',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string', description: '고를 말' },
+            why: { type: 'string', description: '이걸 고르면 무엇이 달라지는가(있으면)' },
+          },
+          required: ['label'],
+        },
+      },
+    },
+    required: ['question', 'options'],
+  },
 }]);
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
@@ -298,7 +342,7 @@ export function mergeWorkStateProposals(proposals = []) {
 // 소비자가 실제로 붙은 통제 채널만 모델에게 보인다. 선언은 배열 하나(두 진실 금지)이고,
 // **노출은 소비 배선이 끝난 뒤 본선이 연다** — 선언과 노출을 같은 순간에 묶으면, 아직 아무도
 // 받지 않는 제안을 모델이 하고 사용자에게는 된 것처럼 들린다.
-const 준비된통제 = new Set(['memory.propose', 'memory.cite', 'memory.correction', 'memory.withdraw']);
+const 준비된통제 = new Set(['ask.user', 'memory.propose', 'memory.cite', 'memory.correction', 'memory.withdraw']);
 
 export function modelSchemasFor(selfState, enabledControls = []) {
   const hands = toolSchemasFor(selfState);
@@ -324,6 +368,7 @@ export function splitModelControlCalls(toolCalls = []) {
   const rest = [];
   // W2 사전 배선: 세 슬롯의 반환 자리. 지금은 걷어내기만 하고(실행 경로로 안 샌다) 소비는
   // 각 작업선이 자기 파일에서 붙인다 — 이 파일을 다시 열지 않게 하는 것이 사전 배선의 목적이다.
+  let askUser = null;
   let skillProposal = null;
   let automationProposal = null;
   let agentProposal = null;
@@ -338,6 +383,17 @@ export function splitModelControlCalls(toolCalls = []) {
   let memoryCorrection = null;
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
+    if (c.name === 'ask.user') {
+      // **못 쓸 질문은 조용히 버린다.** 빈 문장이나 선택지 하나는 고르는 게 아니라 떠넘기는 것이고,
+      // 그대로 내보내면 사용자가 문장을 다시 써야 한다 — 물어서 마찰만 늘린 턴이 된다.
+      const 문장 = String(c.args?.question ?? '').trim();
+      const 고를것 = (Array.isArray(c.args?.options) ? c.args.options : [])
+        .map((o) => ({ label: String(o?.label ?? '').trim(), ...(o?.why ? { why: String(o.why) } : {}) }))
+        .filter((o) => o.label)
+        .slice(0, 4);
+      if (문장 && 고를것.length >= 2) askUser = { question: 문장, options: 고를것 };
+      continue;
+    }
     if (c.name === 'skill.propose') { skillProposal = c.args ?? null; continue; }
     if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
     if (c.name === 'agent.propose') { agentProposal = c.args ?? null; continue; }
@@ -408,6 +464,7 @@ export function splitModelControlCalls(toolCalls = []) {
   const workStateProposal = mergeWorkStateProposals(workStateProposals);
   return {
     memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
+    askUser,
     skillProposal, automationProposal, agentProposal,
     workStateProposal, workStateSeen, workStateNoChange,
     workStateCandidateCount: workStateProposals.length,
