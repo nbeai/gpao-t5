@@ -891,6 +891,22 @@ export const MUTATIONS = [
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",
     바꾸기: "const 화면계약 = ['id'];" },
 
+  // **CU B — 요소를 신분과 함께, 비밀칸은 값을 안 낸다.**
+  { 이름: '비밀번호 칸 값이 모델 재료로 나감(되돌릴 수 없는 비밀 노출)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
+    찾기: '    ...(비밀 ? { 비밀칸: true } : (value === undefined ? {} : { value })),',
+    바꾸기: '    ...(value === undefined ? {} : { value }),' },
+  { 이름: '백엔드 표기만 믿고 비밀칸을 놓침(남이 만든 것을 믿는다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
+    찾기: "  const 표기 = `${e.role ?? ''} ${e.subrole ?? ''} ${e.type ?? ''}`.toLowerCase();",
+    바꾸기: "  const 표기 = `${e.role ?? ''}`.toLowerCase();" },
+  { 이름: '요소에 신분(지문)을 안 붙임(C 에서 다른 것을 누른다 · A04)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
+    찾기: '    지문: 요소지문(e),\n', 바꾸기: '' },
+  { 이름: '요소를 조용히 잘라 냄(모델이 그게 전부인 줄 안다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
+    찾기: '    요소창: { 시작, 끝, 총,', 바꾸기: '    아무거나: { 시작, 끝, 총,' },
+
   // **A10 — 화면 내용은 데이터다.** 관찰 전용이라 안전해 보이는 자리가 주입의 입구다.
   { 이름: '화면 글자에 데이터 표식을 안 붙임(화면 지시가 명령으로 승격된다)',
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-screen-is-data.test.js',

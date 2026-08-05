@@ -23,8 +23,8 @@ const 기본시간 = 10_000;
 export function makeDesktopNativeDriver(deps = {}) {
   const 실행 = deps.execFileImpl ?? execFile;
   const 시간 = deps.timeoutMs ?? 기본시간;
-  const 부르기 = () => new Promise((resolve, reject) => {
-    실행(deps.binPath, [], { timeout: 시간, maxBuffer: 4 << 20 }, (err, stdout) => {
+  const 부르기 = (인자 = []) => new Promise((resolve, reject) => {
+    실행(deps.binPath, 인자, { timeout: 시간, maxBuffer: 8 << 20 }, (err, stdout) => {
       if (err) return reject(err);
       try { resolve(JSON.parse(String(stdout))); } catch (e) { reject(e); }
     });
@@ -32,8 +32,10 @@ export function makeDesktopNativeDriver(deps = {}) {
 
   // 한 번 부르면 상태와 관찰이 함께 온다 — 두 번 부르면 **그 사이에 화면이 바뀐다.**
   // 권한은 있다고 했는데 목록은 다른 순간의 것이 되는 자리라, 같은 호출의 것을 나눠 쓴다.
+  // 요소까지 볼지는 **부르는 쪽이 정한다.** 늘 읽으면 창 목록만 필요한 턴에도 AX 트리를
+  // 통째로 훑는다(실측 384개) — 비용이 목적을 안 돕는 자리다.
   let 최근 = null;
-  const 한번 = async () => { 최근 = await 부르기(); return 최근; };
+  const 한번 = async (요소까지 = false) => { 최근 = await 부르기(요소까지 ? ['elements'] : []); return 최근; };
 
   return {
     id: 'peekaboo',
@@ -48,13 +50,17 @@ export function makeDesktopNativeDriver(deps = {}) {
         ...(v.frontmost ? { frontmost: v.frontmost } : {}),
       };
     },
-    async observe() {
-      const v = 최근 ?? await 한번();
+    async observe(args = {}) {
+      const 요소까지 = args?.scope === 'window';
+      // 앞서 상태를 볼 때 요소를 안 읽었으면 다시 읽는다 — 묵은 값으로 요소를 지어내지 않는다.
+      const v = (최근 && !(요소까지 && !최근.elements)) ? 최근 : await 한번(요소까지);
       최근 = null; // 다음 관찰은 다시 실물을 본다(묵은 값을 현재로 주장하지 않는다)
       return {
         ...(v.frontmost ? { frontmost: v.frontmost } : {}),
         windows: v.windows ?? [],
+        ...(v.elements ? { elements: v.elements } : {}),
         ...(v.windowsError ? { windowsError: v.windowsError } : {}),
+        ...(v.elementsError ? { elementsError: v.elementsError } : {}),
       };
     },
   };
