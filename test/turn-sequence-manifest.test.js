@@ -15,6 +15,14 @@
 // **정리 중 이 파일을 고쳐서 통과시키면 안 된다.** 순서가 바뀌었다면 그것이 회귀다.
 // 의도한 변경이라면 왜 바뀌어야 하는지를 먼저 적고 별도 커밋으로 바꾼다
 // (원장 forbiddenFixes: "호출 순서 기반 기존 시험을 수정해 회귀 은폐").
+// ── **손이 하나 늘었다: `web.search`**(2026-08-05 · S8 ③) ────────────────────
+// `tools=10` → `tools=11`. **왕복은 한 번도 안 늘었다** — 이 검사가 지키는 것은 그쪽이고,
+// 표식의 도구 수는 "이번 호출에 무엇을 쥐여 줬나"라는 다른 축이다.
+//
+// 그래도 공짜가 아니다(불변식 B — 코어 도구 하나는 매 API 콜 비용). 그 값을 치르기로 한
+// 근거는 오너 라이브 실측이다: 찾기와 읽기가 한 칸에 섞여 있어 모델이 **"후보만 보여 줘"를
+// 부를 수 없었고**, 그래서 첫 결과에 운을 맡긴 채 막히면 질의 문구만 바꿨다(세 번 다).
+// 같은 코드로 6턴을 돌려 4턴만 맞은 편차가 거기서 나왔다. **고를 기회를 여는 값이다.**
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile } from 'node:fs/promises';
@@ -55,7 +63,7 @@ test('순서 동결 ①: 대화만 하는 턴은 계획 1 + 최종 답 1', async
   const r = await runTurn({ text: '요즘 가게가 너무 힘들다' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=10]',
+    'model[-|tools=11]',
     'model[answerOnly|tools=0]',
   ], '대화 턴의 모델 왕복이 바뀌었다 — 늘었다면 사용자는 그만큼 더 기다린다');
 });
@@ -73,10 +81,10 @@ test('순서 동결 ②: 도구 한 걸음 턴은 모델 4회 · 도구 1회', a
   const r = await runTurn({ text: '정산.csv 읽고 알려줘' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=10]',
+    'model[-|tools=11]',
     'model[workContractAssessment|tools=1|req]',
     'tool[local.file]',
-    'model[-|tools=10]',
+    'model[-|tools=11]',
     'model[answerOnly|tools=0]',
   ], '도구 턴의 호출 순서가 바뀌었다');
 });
@@ -93,7 +101,7 @@ test('순서 동결 ③: 승인 카드 턴은 모델 2회 · 도구 실행 0회'
   const r = await runTurn({ text: '임시폴더 지워줘' }, ctx);
   assert.equal(r.kind, 'approval', '되돌릴 수 없는 명령은 헌장 ② 라 승인 경계다');
   assert.deepEqual(순서, [
-    'model[-|tools=10]',
+    'model[-|tools=11]',
     'model[workContractAssessment|tools=1|req]',
   ], '승인 전에 실행이 끼어들었거나 모델 왕복이 바뀌었다');
   assert.ok(!순서.includes('tool[local.terminal]'), '승인 전 효과 0 — 카드 턴에서 손이 움직였다');
@@ -120,7 +128,7 @@ test('순서 동결 ④: 승인 재개는 실행 먼저, 그다음 모델 2회',
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
     'tool[local.terminal]',
-    'model[-|tools=10]',
+    'model[-|tools=11]',
   ], '승인 재개의 호출 순서가 바뀌었다 — 실행이 뒤로 가면 사용자는 허락한 일을 다시 기다린다');
 });
 

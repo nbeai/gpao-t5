@@ -5,6 +5,7 @@
 import { demoEnv, demoTools, demoDescriptors, demoConnectors } from './demo-context.js';
 import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
+import { makeWebSearchTool } from '../runtime/web-search-tool.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeCapsuleTool } from '../runtime/capsule.js';
@@ -87,6 +88,9 @@ export function liveDeps(processEnv = {}, deps = {}) {
   };
   // Phase 0-1: 로컬 파일은 **실제 손발**을 배선한다(스텁 금지 — 등록된 도구는 실제로 동작해야 한다).
   const tools = demoTools({
+    // **찾는 손.** 읽는 손과 나뉘어 있어야 모델이 목록을 보고 출처를 고를 수 있다.
+    // 같은 검색 층(무키 → 키)을 쓰지만, 이쪽은 **읽지 않는다**.
+    webSearch: makeWebSearchTool({ timeoutMs: webTimeoutMs }),
     webCollector: makeWebCollector({
       timeoutMs: webTimeoutMs, manners,
       // 실제 robots.txt 를 확인한다. 안 넘기면 검사가 아예 안 돌아 "수집을 막은 페이지는 읽지 못한다"는

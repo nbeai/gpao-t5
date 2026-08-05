@@ -19,7 +19,7 @@ import { selfhoodLookup, selectSelfhoodDetail } from '../src/kernel/l1-intent/se
 import { SelfhoodStore, readNameFromSoul, replaceNameInSoul } from '../src/surface/selfhood-store.js';
 import { buildModelMessages } from '../src/runtime/model-provider.js';
 import { buildSelfState, selfStateSummary } from '../src/kernel/l0-evidence/self-state.js';
-import { demoEnv } from '../src/surface/demo-context.js';
+import { demoDescriptors, demoEnv } from '../src/surface/demo-context.js';
 import { runTurn } from '../src/kernel/turn.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { demoTools } from '../src/surface/demo-context.js';
@@ -77,7 +77,15 @@ test('파생 구역 렌더: 할 수 있는 일·못 하는 일·모델을 사용
   assert.ok(md.includes('## 지금 할 수 있는 일'));
   assert.ok(md.includes('## 지금은 못 하는 일'));
   assert.ok(md.includes('## 지금 쓰는 모델'));
-  assert.ok(!/web\.collect|slack\.post|mail\.send/.test(md), '내부 도구 id 가 새지 않는다');
+  // **이름 세 개를 세지 않는다 — 계약을 잰다**(§4.4 · 2026-08-05).
+  // 예전엔 `web.collect|slack.post|mail.send` 세 개를 손으로 적어 뒀다. 그래서
+  // `web.collect` 의 능력 문장이 **`browser.observe` 를 그대로 부르고 있었는데도 초록**이었다 —
+  // 목록에 없는 id 라서다. 그물이 이름을 세면 새 손이 붙을 때마다 조용히 한 칸씩 풀린다.
+  // 이제 **선언된 모든 손 id** 를 자리에서 뽑아 대조한다. 사용자면 문장은 사람 이름(label)으로
+  // 말한다 — 손끼리 서로를 가리키는 것은 모델이 읽는 `schema.description` 의 일이다.
+  const 새면안되는id = demoDescriptors().map((d) => d.id).filter((id) => id.includes('.'));
+  const 샌것 = 새면안되는id.filter((id) => md.includes(id));
+  assert.deepEqual(샌것, [], `내부 도구 id 가 새지 않는다 — 샌 것: ${샌것.join(', ')}`);
 });
 
 test('파생 구역만 갈아끼운다 — 사람이 쓴 메모는 보존된다', () => {

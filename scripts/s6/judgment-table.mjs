@@ -45,6 +45,12 @@ const 손들 = [
   { id: 'telegram.send', args: { target: '111', text: 'x' }, reversible: false, needsApproval: true },
   { id: 'telegram.send', args: { target: '999', text: 'x' }, reversible: false, needsApproval: true },
   { id: 'web.collect', args: { request: 'https://a.example' }, reversible: true, needsApproval: false },
+  // **S8 ③ — 손 집합이 늘었다**(2026-08-05). 찾는 손과 읽는 손을 나눴다.
+  // 오너가 S8 착수 지시 ④ 로 못 박은 자리다: *"S8 이 그 '전부'를 늘리는 칸이다.
+  // 손이 늘면 그 자리에서 다시 얼린다 — 안 하면 S8 이후의 판정 변화를 아무도 못 본다."*
+  // 읽기·되돌릴 수 있음·승인 불요 — `web.collect` 와 같은 성질이라 판정도 같아야 한다.
+  // **같아야 한다고 믿는 것과 잰 것은 다르다.** 그래서 칸으로 세운다.
+  { id: 'web.search', args: { query: '오늘 코스피' }, reversible: true, needsApproval: false, toolKind: 'read' },
   { id: 'browser.act', args: { action: 'click', ref: 'b1' }, reversible: false, needsApproval: true },
 ];
 
@@ -68,6 +74,13 @@ async function 결정(손, 발화, { 이월, 허락됨, 상대앎, 제시됨 }) 
   const 제시된손 = 손들.filter((h) => 제시됨 || h.id !== 손.id);
   const selfState = { connectedTools: 제시된손.map((h) => ({
     id: h.id, executable: true, reversible: h.reversible, needsApproval: h.needsApproval,
+    // **재는 자리를 먼저 검증한다**(§4.3 · 2026-08-05). 여기엔 `toolKind` 가 없었다.
+    // 그래서 표는 제품이 **선언에서 읽는** 권한 종류를 못 보고 `TOOL_KIND` 이름 맵으로만
+    // 떨어졌다 — 그 맵에 이름이 없는 새 손은 전부 `승인` 으로 나온다.
+    // `web.search` 를 넣자마자 표가 "카드가 늘었다"고 말했는데, 제품에서 직접 재 보니
+    // 선언의 `toolKind: 'read'` 로 **자동**이었다. **표가 제품보다 엄하게 틀린 것**이다.
+    // §4.7 이 미리 적어 둔 그대로다: *"표 자신도 실제와 어긋날 수 있다."*
+    toolKind: h.toolKind,
     schema: { description: h.id, parameters: { type: 'object', properties: {} } },
   })) };
   // 안 준 손은 경계에 **도달하지 못한다.** 실행도 승인도 아니고 "없는 손"이다.
@@ -91,6 +104,9 @@ async function 결정(손, 발화, { 이월, 허락됨, 상대앎, 제시됨 }) 
   if (면제.면제) return `자동(면제:${면제.이유})`;
   return decideAutoGrant(판정행동) ? '자동' : '승인';
 }
+
+/** 표가 덮는 손 id — **밖에서 대조하라고 내보낸다.** 손으로 적은 목록은 새 손을 조용히 빠뜨린다. */
+export const 표가덮는손 = Object.freeze([...new Set(손들.map((h) => h.id))]);
 
 export async function 표만들기() {
   const rows = [];

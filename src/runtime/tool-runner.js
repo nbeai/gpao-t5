@@ -136,6 +136,8 @@ export class ToolRunner {
         actualCall: 부른것,
         result: out?.result ?? out,
         failureState: FAILURE.NONE,
+        // 성공했어도 **무엇을 얻었는지**는 손이 밝힌다(예: 찾는 손은 후보 목록이지 내용이 아니다).
+        읽은상태: out?.읽은상태,
         // 출처 근거를 원장에 함께 남긴다(P6-2). 웹 도구는 sources 없이 성공을 반환하지 못한다.
         sources: out?.sources,
         connectionDiscovery: out?.connectionDiscovery,

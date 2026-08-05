@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { ToolRunner } from '../runtime/tool-runner.js';
 import { sameSiteLinks } from '../kernel/l0-evidence/working-state.js';
 import { defineTool, toConnection } from '../kernel/l2-plan/tool-descriptor.js';
-import { defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
+import { defineWebSearchTool, defineWebTool, makeSourceEvidence, classifyWebFetch } from '../kernel/l2-plan/web-tool.js';
 import { defineConnector } from '../kernel/l2-plan/connector-profile.js';
 import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
 import { makeSendPreview } from '../runtime/channel-sender.js';
@@ -326,6 +326,10 @@ export function demoChannels() {
 // web.collect는 WebToolDescriptor로 확장(입력스키마·출처계약·세션·스크래핑 정책).
 const DESCRIPTORS = [
   defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
+  // **찾는 손과 읽는 손을 나눈다**(오너 라이브 2026-08-05). 한 칸에 섞여 있으면 모델이
+  // "후보만 보여 줘"를 부를 수 없고, 부를 수 없으면 고를 수 없다. 고를 수 없으니 첫 결과에
+  // 운을 맡기게 되고, 그게 같은 코드로 6턴을 돌려 4턴만 맞던 편차의 정체였다.
+  defineWebSearchTool({}),
   defineTool({
     id: 'agent.delegate', label: '작업 나눠 맡기기', owner: 'core',
     availability: [{ kind: 'connected' }], toolKind: 'read', needsApproval: false, reversible: true,
@@ -744,6 +748,7 @@ function 방채우기(d, rooms) {
 // 환경 사실(연결·인증 존재 여부). mail.send는 연결됐으나 발송 인증 미준비 → needs_auth.
 const FACTS = {
   'web.collect': { connected: true },
+  'web.search': { connected: true },
   'agent.delegate': { connected: true },
   'local.file': { connected: true },
   'local.capsule': { connected: true },
@@ -807,6 +812,29 @@ export function demoTools(opts = {}) {
   const senders = opts.senders ?? {};
   return new ToolRunner({
     ...(opts.agentDelegate ? { 'agent.delegate': opts.agentDelegate } : {}),
+    // 찾는 손. 선언이 항상 서므로 손도 항상 선다(P5-B-0 — 선언 ⊆ 손). 라이브는 실제 검색기를
+    // 넘기고, 여기 기본값은 **실네트워크를 안 타는 스텁**이다(검사가 밖으로 나가면 안 된다).
+    'web.search': opts.webSearch ?? {
+      sourceLedgerRequired: false,
+      async handler(args) {
+        const q = String(args?.query ?? args?.request ?? '').trim();
+        if (!q) {
+          return { blocked: true, fetchState: 'blocked', userSafeSummary: '무엇을 찾을지 알려주시면 찾아볼게요.',
+            nextSafeAction: '찾을 말을 주시거나, 읽을 페이지 주소를 주시면 바로 읽을게요.' };
+        }
+        const 후보 = [
+          { 순위: 1, title: `${q} — 공개 자료`, url: 'https://demo.example/a', snippet: `${q} 관련 요약` },
+          { 순위: 2, title: `${q} — 다른 자료`, url: 'https://demo.example/b', snippet: `${q} 다른 요약` },
+        ];
+        return {
+          result: { 검색어: q, provider: '데모검색', 후보, 읽은상태: '후보만',
+            다음수단: [...후보.map((c) => ({ 방법: 'read_url', url: c.url, 왜: `${c.순위}위: ${c.title}` })),
+              { 방법: 'search', 왜: '다른 말로 다시 찾는다' }] },
+          읽은상태: '후보만',
+          userSafeSummary: `‘${q}’ 로 ${후보.length}곳을 찾았어요(데모검색). 아직 열어 보지는 않았어요.`,
+        };
+      },
+    },
     'web.collect': opts.webCollector ?? {
       subjectOf(rec) {
         const src = rec?.sources?.[0];

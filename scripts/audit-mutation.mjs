@@ -823,6 +823,31 @@ export const MUTATIONS = [
     파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/web-next-moves-reach-model.test.js',
     찾기: "      lines.push('알맹이 없음: 메뉴·링크뿐이라 이 페이지에는 답이 없어요(껍데기).');",
     바꾸기: "      lines.push('');" },
+  // **막혔을 때야말로 다음 수가 필요하다**(라이브 2026-08-05). 성공 경로에만 다음 수가 있고
+  // 막힌 경로엔 없었다 — 필요한 자리에서만 없었다. 세 자리를 각각 겨눈다.
+  { 이름: '막힌 수집이 안 가 본 후보를 안 낸다(다음 수가 필요한 자리에서만 사라진다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/blocked-still-has-next-moves.test.js',
+    찾기: '          다음수단: [...후보로가는수(다른후보), 다시찾기],',
+    바꾸기: '' },
+  { 이름: '막힌 손의 다음 수를 영수증이 떨어뜨림',
+    파일: 'src/runtime/tool-runner.js', 검사: 'test/blocked-still-has-next-moves.test.js',
+    찾기: '          다음수단: out.다음수단,\n          다른후보: out.다른후보,',
+    바꾸기: '' },
+  { 이름: '실패 영수증의 다음 수를 모델 재료에서 뺌(막다른 답으로 돌아간다)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/blocked-still-has-next-moves.test.js',
+    찾기: '        ...(r.다음수단?.length ? { 다음수단: r.다음수단 } : {}),',
+    바꾸기: '' },
+  // **찾은 것은 읽은 것이 아니다**(S8 ③). 손이 하나 늘 때 사라지는 방어(§4.7) —
+  // 검색 성공을 읽기로 세면 페이지를 하나도 못 읽은 턴에서 거짓 성공 게이트가 통째로 꺼진다.
+  { 이름: '검색 성공을 "읽었다"로 셈(거짓 성공 게이트가 통째로 꺼진다)',
+    파일: 'src/kernel/l2-plan/recovery-ladder.js', 검사: 'test/web-search-is-its-own-hand.test.js',
+    찾기: "    if (r.읽은상태 === '후보만') continue;",
+    바꾸기: '' },
+  { 이름: '찾는 손이 무엇을 얻었는지 안 밝힘(커널이 읽기와 구분할 근거를 잃는다)',
+    파일: 'src/runtime/web-search-tool.js', 검사: 'test/web-search-is-its-own-hand.test.js',
+    찾기: "        읽은상태: '후보만',\n        userSafeSummary:",
+    바꾸기: '        userSafeSummary:' },
+
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',

@@ -435,8 +435,17 @@ try {
       for (const lim of limits) {
         if (!lim?.coveredBy || !배선됨.has(lim.coveredBy)) continue;
         // 덮는 손이 실제로 있다 → 능력 설명은 그 손을 **가리켜야** 한다.
-        if (!line.includes(lim.coveredBy)) {
-          problems.push(`${id}: "${lim.says}" 는 이미 ${lim.coveredBy} 가 한다 — 능력 설명이 그 손을 가리켜야 한다`);
+        //
+        // **가리키는 것과 id 를 적는 것은 다르다**(2026-08-05). 이 줄은 id 만 인정했는데,
+        // 능력 설명은 SOUL.md 파생 구역에 그대로 나가 **사용자가 읽는 문장**이다. 그래서
+        // 다른 그물(`operational-selfhood` — 내부 도구 id 가 새지 않는다)과 정면으로 부딪혔다:
+        // id 를 적으면 사용자면에 내부 이름이 새고, 안 적으면 여기서 걸린다. 둘 다 옳은 규칙이라
+        // 어느 한쪽을 끄면 안 되고, **재는 것을 정확히 하면 둘 다 선다.**
+        // 계약은 *"그 일을 하는 손이 있으면 그 손을 가리킨다"* 이지 *"id 를 쓴다"* 가 아니다.
+        // 그러니 **사람 이름(label)으로 가리키는 것도 가리킨 것**이다.
+        const 가리키는말 = [lim.coveredBy, byId.get(lim.coveredBy)?.label].filter(Boolean);
+        if (!가리키는말.some((말) => line.includes(말))) {
+          problems.push(`${id}: "${lim.says}" 는 이미 ${lim.coveredBy} 가 한다 — 능력 설명이 그 손을 가리켜야 한다(id 또는 사람 이름 "${byId.get(lim.coveredBy)?.label ?? ''}")`);
         }
       }
     }

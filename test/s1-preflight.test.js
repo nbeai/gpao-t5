@@ -139,5 +139,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // `local.file list` 는 이미 `offset`/`limit` 을 준다. 웹 손만 없었다.
     'src/kernel/l2-plan/web-tool.js',
     'src/runtime/web-collector.js',
+    // **찾는 손과 읽는 손을 나눈다**(2026-08-05 · S8 ③). `web.collect{request}` 한 칸에
+    // "찾을 것"과 "읽을 주소"가 섞여 있어 모델이 **"후보만 보여 줘"를 부를 수 없었다.**
+    // 고를 기회가 없으니 고를 수 없고, 그게 같은 코드로 6턴을 돌려 4턴만 맞던 편차의 정체다.
+    'src/runtime/web-search-tool.js',
   ]);
 });
