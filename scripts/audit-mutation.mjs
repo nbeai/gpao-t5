@@ -53,6 +53,11 @@ const T_RETRY = 'test/approved-step-can-retry.test.js';
 const T_CU_F = 'test/cu-f-verify-belongs-to-driver.test.js';
 const T_CU_F2 = 'test/cu-f2-screen-evidence-to-model.test.js';
 const T_CU1_G = 'test/cu1-g-does-not-take-over.test.js';
+const T_CU1_A = 'test/cu1-a-identity-is-one-set.test.js';
+const T_CU1_CDEF = 'test/cu1-cdef-classes-sealed.test.js';
+const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
+const T_NAMES = 'test/cu1-tool-names-must-not-collide.test.js';
+const IDENT = 'src/runtime/desktop-identity.js';
 const ANSWER = 'src/runtime/desktop-driver-answer.js';
 const RUNNER2 = 'src/runtime/tool-runner.js';
 const TASKCTX2 = 'src/kernel/l1-intent/task-context.js';
@@ -1571,6 +1576,42 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── CU-1·2 · 창 안을 정확히 준다 ──────────────────────────────────────
+  { 이름: '창 밖(Dock)·스크롤 밖 요소를 대화에 섞음("마지막"이 뒤바뀐다)', 파일: DESK, 검사: T_CU2,
+    찾기: "  const 걸러진것 = 요소들.filter(안쪽);",
+    바꾸기: "  const 걸러진것 = 요소들;" },
+  { 이름: '화면 순서로 안 줌(모델이 앞엣것을 마지막으로 고른다)', 파일: DESK, 검사: T_CU2,
+    찾기: "    return a[0] - b[0] || a[1] - b[1];",
+    바꾸기: "    return 0;" },
+  { 이름: '자리 못 잰 요소를 창 밖으로 몰아 버림', 파일: DESK, 검사: T_CU2,
+    찾기: "    if (!범위 || !b || !Number.isFinite(b.x) || !Number.isFinite(b.y)) return true;  // 모르면 안 버린다",
+    바꾸기: "    if (!범위 || !b) return false;" },
+  { 이름: '글자만 보는 축을 없앰(모델이 역할 이름을 알아맞히다 0개를 받는다)', 파일: DESK, 검사: T_CU2,
+    찾기: "  const 요소들 = args?.글자만 === true\n    ? 요소들0.filter(글자있나)",
+    바꾸기: "  const 요소들 = false\n    ? 요소들0.filter(글자있나)" },
+  { 이름: '잘렸는데 끝쪽으로 가는 길을 안 줌("마지막"에 못 닿는다)', 파일: DESK, 검사: T_CU2,
+    찾기: "        { 방법: 'observe', offset: Math.max(0, 총 - (끝 - 시작)), 왜: '끝쪽(화면 아래 = 가장 최근)부터 본다' },",
+    바꾸기: "" },
+  { 이름: '지목한 앱을 못 찾고 앞 창을 보여 줌(오대상 관찰)', 파일: CUA, 검사: T_CU2,
+    찾기: "        if (앱이름 && !앱것.length && args?.window == null) {",
+    바꾸기: "        if (false) {" },
+  { 이름: '앱 이름 축을 하나로 줄임(KakaoTalk 로는 못 찾는다)', 파일: CUA, 검사: T_CU2,
+    찾기: "        if (앱이름 && !앱것.length) {",
+    바꾸기: "        if (false) {" },
+  { 이름: '창 자리를 안 받아 옴(스크롤 밖이 안 걸러진다)', 파일: CUA, 검사: T_CU2,
+    찾기: "        const 자리 = await mcp.call('list_windows', {}).catch(() => null);",
+    바꾸기: "        const 자리 = null;" },
+  // ── CU-1 계열 A · 신분은 한 벌로만 ────────────────────────────────────
+  { 이름: '신분 조각을 섞음(토큰과 스냅샷 회차가 어긋나 아무 데도 안 눌린다)', 파일: IDENT, 검사: T_CU1_A,
+    찾기: "  return 토큰.split(':')[0] === 스냅샷;",
+    바꾸기: "  return true;" },
+  { 이름: '없는 신분을 지어냄', 파일: IDENT, 검사: T_CU1_A,
+    찾기: "  if (!요소) return null;",
+    바꾸기: "  if (!요소) return {};" },
+  // ── 되는 것을 모델에게 말한다 ─────────────────────────────────────────
+  { 이름: '모델이 받는 칸에서 창 안 글자를 지움(커넥터를 찾게 된다)', 파일: 'src/surface/demo-context.js', 검사: T_NAMES,
+    찾기: "    operatorFact: '이 컴퓨터의 앞 앱·창 목록을 보고, 창 안 요소의 글자(대화·문서 본문·목록 값)까지 읽는다.'",
+    바꾸기: "    operatorFact: '이 컴퓨터의 앞 앱·창 목록을 본다.'" },
   // ── CU-1 계열 G · 옆에서 같이 한다(사용자 것을 안 뺏는다) ─────────────
   { 이름: '글자를 키보드로 흘림(사용자가 보던 창에 들어간다 · 오대상 실행)', 파일: DESK_ACT, 검사: T_CU1_G,
     찾기: "          행동: 행동 === 'type' ? 'set_value' : 행동,",
@@ -1588,7 +1629,7 @@ export const MUTATIONS = [
     찾기: "          ?? 앱것[0] ?? 창들[0] ?? null;",
     바꾸기: "          ?? 창들[0] ?? null;" },
   { 이름: '무엇을 봤는지 안 남김(같은 앱 창이 여럿일 수 있다)', 파일: CUA, 검사: T_CU1_G,
-    찾기: "          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '' };",
+    찾기: "          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '', ...(대상.bounds ? { bounds: 대상.bounds } : {}) };",
     바꾸기: "" },
   { 이름: '손이 드라이버 거절을 안 읽음(안 나간 것을 나갔다고 한다)', 파일: DESK_ACT, 검사: T_CU1_G,
     찾기: "        if (답읽기.종류 === '거절') throw new Error(답읽기.근거);",
@@ -1601,8 +1642,8 @@ export const MUTATIONS = [
     찾기: "      if (Array.isArray(마지막본것?.elements)) 지금요소 = 마지막본것.elements;",
     바꾸기: "" },
   { 이름: '누를 때 관찰이 준 신분을 안 씀(모델이 베낀 것만 간다)', 파일: DESK_ACT, 검사: T_CU_F,
-    찾기: "            ...(관찰것 ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호,",
-    바꾸기: "            ...(false ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호," },
+    찾기: "            ...(신분(관찰것) ?? {}),",
+    바꾸기: "" },
   { 이름: '거절을 결과로 흘림(안 나간 것을 나갔다고 한다)', 파일: CUA, 검사: T_CU_F,
     찾기: "      if (거절인가(낸것)) throw new Error(거절사유(낸것));",
     바꾸기: "      void 낸것;" },
@@ -1681,15 +1722,15 @@ export const MUTATIONS = [
     찾기: "          const 창pid = 창만 ? await 창의pid(대상.window) : null;",
     바꾸기: "          const 창pid = null;" },
   { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: ANSWER, 검사: T_CU_C2,
-    찾기: "    return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));",
+    찾기: "    return r.length > 0 && r.every((x) => x?.type === 'text' || typeof x?.text === 'string');",
     바꾸기: "    return false;" },
   // ── 커널이 모델에게 거짓을 먹이지 않는다 (라이브 2026-08-05) ──────────
   { 이름: '거르개가 AX 접두를 안 벗겨 151개 중 0개를 돌려줌(조용한 0 을 모델에게 먹인다)', 파일: DESK, 검사: T_CU_B2,
     찾기: "  const 종류맞춤 = (v) => String(v ?? '').trim().replace(/^AX/i, '').toLowerCase();",
     바꾸기: "  const 종류맞춤 = (v) => String(v ?? '').trim();" },
   { 이름: '거르개가 못 문 것을 "없다"로 내보냄(모델이 다시 물을 길이 없다)', 파일: DESK, 검사: T_CU_B2,
-    찾기: "      ...(종류 && 총 === 0 && 요소들0.length > 0",
-    바꾸기: "      ...(false && 종류 && 총 === 0 && 요소들0.length > 0" },
+    찾기: "      ...((종류 || args?.글자만 === true) && 총 === 0 && 요소들0.length > 0",
+    바꾸기: "      ...(false && 총 === 0 && 요소들0.length > 0" },
   { 이름: '창 안을 봐도 요약은 늘 화면 문장(모델이 요약만 읽고 손을 접는다)', 파일: DESK, 검사: T_CU_B2,
     찾기: "  if (args?.scope !== 'window' || !본것?.elements) return null;",
     바꾸기: "  return null; // eslint-disable-line" },
@@ -1699,8 +1740,8 @@ export const MUTATIONS = [
     바꾸기: "          return false" },
   { 이름: '앱 이름 축에서 앱 파일 이름을 뺌(Calculator 로는 계산기를 못 찾는다)', 파일: CUA, 검사: T_CU_C2,
     // 정규식이 든 줄을 통째로 적으면 이스케이프가 두 겹이 된다 — **앞 토막만** 짚는다.
-    찾기: "          String(a.launch_path ?? '').split('/').pop()",
-    바꾸기: "          [].pop()" },
+    찾기: "          // `/System/Applications/Calculator.app` → `Calculator`\n          String(a.launch_path ?? '').split('/').pop()",
+    바꾸기: "          // `/System/Applications/Calculator.app` → `Calculator`\n          [].pop()" },
   { 이름: '같은 이름 앱이 여럿인데 앞엣것을 임의로 고름(A02 위반)', 파일: CUA, 검사: T_CU_C2,
     찾기: "        if (걸린것.length > 1) {",
     바꾸기: "        if (false) {" },

@@ -21,8 +21,14 @@
 
 /** 인자가 모자라거나 대상을 못 찾아 **안 나간** 답인가. */
 export function 거절인가(r) {
+  // **문구가 아니라 구조로 가른다**(계열 E). 처음엔 `Missing required|invalid|unsupported` 를
+  // 셌는데, 문구 목록은 늘 뚫린다 — 드라이버가 표현을 바꾸면 그 답이 **결과로 흘러** 들어오고
+  // 우리는 안 나간 것을 나갔다고 말하게 된다.
+  //
+  // 구조는 이렇다: 성공하면 **구조화된 객체**가 오고, 못 하면 **텍스트 조각만** 온다.
+  // *"텍스트뿐이면 결과가 아니다"* 는 문구를 안 세고도 참이다. 문구는 **사유**로만 쓴다.
   if (Array.isArray(r)) {
-    return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));
+    return r.length > 0 && r.every((x) => x?.type === 'text' || typeof x?.text === 'string');
   }
   return r?.effect === 'refused';
 }

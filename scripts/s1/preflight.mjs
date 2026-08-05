@@ -173,6 +173,7 @@ export const 허용파일 = [
   'src/kernel/turn-surface.js',
   // 표면 사실에 **받는 쪽**을 더했다(못 지킬 약속 차단, 2026-08-04).
   'src/kernel/l0-evidence/response-surface.js',
+  'src/runtime/desktop-identity.js',   // CU-1 계열 A — 신분을 한 벌로만 만든다
   'src/runtime/desktop-driver-answer.js',   // CU-1 계열 B — 드라이버 답을 한 자리에서 읽는다
   'src/kernel/l0-evidence/sensitive-text.js',   // F-32 — 비밀만 가리고 나머지는 준다
   'src/surface/server.js',

@@ -230,20 +230,65 @@ export function makeCuaDriver(deps = {}) {
       const 앞앱 = (얕은것?.apps ?? []).find((a) => a.active) ?? (얕은것?.apps ?? [])[0] ?? null;
       const 창들 = (얕은것?.windows ?? []).map((w) => ({
         id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
+        // **창 자리를 싣는다.** 없으면 창 밖(Dock)도, 스크롤 위로 벗어난 것(y=-5081)도
+        // 안 걸러지고, 그러면 "마지막 메시지"가 뒤바뀐다(라이브 2026-08-06 · 사진 대조).
+        ...(w.bounds ? {
+          bounds: {
+            x: w.bounds.x, y: w.bounds.y,
+            w: w.bounds.w ?? w.bounds.width, h: w.bounds.h ?? w.bounds.height,
+          },
+        } : {}),
       }));
 
       let 요소 = null; let 스냅샷 = null; let 본창 = null;
       if (args?.scope === 'window') {
+        // **창 자리는 `list_windows` 에만 있다**(실측 2026-08-06 — AX 트리는 안 준다).
+        // 자리를 모르면 창 밖(Dock)도, **스크롤 위로 벗어난 것**(y=-5081)도 안 걸러지고,
+        // 그러면 "마지막 메시지"가 뒤바뀐다. 창 안을 볼 때만 한 번 더 묻는다.
+        const 자리 = await mcp.call('list_windows', {}).catch(() => null);
+        const 자리들 = new Map(((자리?.windows ?? (Array.isArray(자리) ? 자리 : [])) ?? [])
+          .filter((w) => w?.bounds)
+          .map((w) => [Number(w.window_id ?? w.id), {
+            x: w.bounds.x, y: w.bounds.y,
+            w: w.bounds.w ?? w.bounds.width, h: w.bounds.h ?? w.bounds.height,
+          }]));
+        for (const w of 창들) {
+          const b = 자리들.get(Number(w.id));
+          if (b && !w.bounds) w.bounds = b;
+        }
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
         // **앱 이름으로도 고를 수 있어야 한다**(계열 G · 라이브 2026-08-06):
         // 앞 창만 볼 수 있으면 *"옆에서 같이 한다"* 가 말뿐이 된다 — 일하려면 매번
         // 앞으로 가져와야 하고, 그건 사용자 것을 뺏는 것이다.
         const 앱이름 = String(args?.app ?? '').trim().toLowerCase();
-        const 앱것 = 앱이름
+        let 앱것 = 앱이름
           ? 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름)
             || 앱이름.includes(String(w.app ?? '').toLowerCase()))
           : [];
+        // **이름 축이 하나로는 모자란다**(라이브 2026-08-06): 모델이 `KakaoTalk` 라고 물었는데
+        // 창 이름은 `카카오톡` 뿐이라 못 찾았고, 우리는 **앞 창으로 떨어져 Claude 창을 보여 줬다.**
+        // 앱 목록에는 bundle id·앱 파일 이름이 있다 — 거기서 pid 를 얻어 창과 잇는다.
+        if (앱이름 && !앱것.length) {
+          const { apps } = await mcp.call('list_apps', {}).catch(() => ({ apps: [] }));
+          const 축 = (a) => [String(a.name ?? ''), String(a.bundle_id ?? ''),
+            String(a.launch_path ?? '').split('/').pop().replace(/\.app$/i, '')]
+            .map((x) => x.toLowerCase()).filter(Boolean);
+          const 맞는앱 = (apps ?? []).filter((a) => 축(a).some((x) => x === 앱이름
+            || x.includes(앱이름) || 앱이름.includes(x)));
+          const pid들 = new Set(맞는앱.map((a) => a.pid).filter((x) => Number.isInteger(x)));
+          앱것 = 창들.filter((w) => pid들.has(w.pid));
+        }
+        // **못 찾으면 앞 창으로 떨어지지 않는다.** 그건 오대상 관찰이고,
+        // 모델은 지목한 앱을 봤다고 믿은 채 남의 창 내용으로 답한다.
+        if (앱이름 && !앱것.length && args?.window == null) {
+          return {
+            ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+            windows: 창들,
+            그앱없음: `'${args.app}' 이름의 창을 못 찾았어요`,
+            후보: [...new Set(창들.map((w) => w.app).filter(Boolean))].slice(0, 12),
+          };
+        }
         const 대상 = 창들.find((w) => w.id === args?.window)
           ?? 앱것[0] ?? 창들[0] ?? null;
         if (대상) {
@@ -256,7 +301,7 @@ export function makeCuaDriver(deps = {}) {
           스냅샷 = st?.snapshot_id ?? null;
           // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
           // 다음 걸음이 어느 창 이야기인지 모른다.
-          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '' };
+          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '', ...(대상.bounds ? { bounds: 대상.bounds } : {}) };
           요소 = (st?.elements ?? []).map((e) => ({
             // **번호로 누른다**(som). 좌표로 찍으면 무엇을 눌렀는지 원장에 남길 수가 없다.
             id: e.element_token ?? (e.index != null ? String(e.index) : e.id),
