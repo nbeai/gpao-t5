@@ -235,13 +235,29 @@ export function makeWebCollector(deps = {}) {
       });
       const reads = [];
       let lastState = 'blocked';
+      // **한 장을 여는가, 여러 장을 훑는가.** robots 는 뒤쪽에만 건다(아래 주석 참고).
+      // 사용자가 물어서 여는 **첫 장**은 사용자가 직접 여는 것과 같다 — 거기엔 안 건다.
+      // 두 번째 장부터는 우리가 스스로 더 보는 것이고, 그게 크롤이다.
+      const 훑는중 = () => reads.length > 0;
       for (const group of groups) {
         let read = null;
         for (const candidate of group.urls) {
           let res; let body; let fetchState;
         // robots 는 **후보마다** 확인한다. 원래 주소로만 보면, 바꾼 주소가 허용인데도 시도조차 못 한다
         // (실측: map.naver.com 은 차단이지만 m.place.naver.com 은 허용이었다).
-        if (robotsCheck) {
+        // **robots 는 크롤러 규칙이다 — 사용자를 대신해 한 장 여는 것을 막는 규칙이 아니다.**
+        //
+        // 라이브(오너 2026-08-05): `오늘 한국 증시 상황 알려줘` 에 네이버 금융이 robots 로
+        // 거부해 T5 가 웹을 못 쓰고 **사용자에게 지수를 알려 달라**고 요구했다(§0 정면 위반).
+        // 오너: *"robots 내용은 법적 강제가 아니야. 이걸 지키는 걸 원칙으로 하면 정말 많은
+        // 웹검색 및 서치 기능이 무용지물이 된다."* 맞다. 그리고 이 파일 위쪽 주석에 이미
+        // 모순이 있었다 — "robots 를 지킨다" 옆에 "T5 는 크롤러가 아니라 **사용자 요청 1건을
+        // 대신 여는** 도구다". 사용자가 자기 폰으로 열면 보이는 페이지다.
+        //
+        // 그래서 경계를 옮긴다. 막지 않는 것은 **지금 이 요청 한 건**이고,
+        // **여러 장을 훑는 확장 탐색은 여전히 지킨다** — 그건 크롤이기 때문이다.
+        // 예의(요청 간격·429 물러서기)는 다른 축이고 그대로다: 우리가 부하를 만들지 않는다.
+        if (robotsCheck && 훑는중()) {
           let allowed = true;
           try { allowed = await robotsCheck(candidate); } catch { allowed = false; }
           if (!allowed) { lastState = 'robots_disallow'; continue; }

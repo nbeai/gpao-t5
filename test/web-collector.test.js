@@ -69,15 +69,21 @@ test('200이지만 로그인 페이지: 본문 신호로 login_wall(못 본 걸 
   assert.equal(out.result, undefined);
 });
 
-test('robots 불허: fetch 없이 robots_disallow', async () => {
+// **정책이 바뀌었다**(오너 판단 2026-08-05). 이 검사는 예전에 "robots 불허면 fetch 자체를
+// 안 한다"를 지켰다. 그런데 그 규칙 때문에 라이브에서 `오늘 한국 증시 상황 알려줘` 가
+// 네이버 금융 robots 에 막혀 T5 가 **사용자에게 지수를 알려 달라**고 요구했다(§0 위반).
+// robots 는 법이 아니라 크롤러 관례이고, T5 는 크롤러가 아니라 사용자 요청 1건을 대신 여는
+// 도구다. 그래서 경계를 옮겼다 — 계약은 없애지 않고 **적용 자리를 바꿨다**.
+// 자세한 근거와 경계는 `test/robots-is-for-crawlers.test.js` 에 있다.
+test('robots 불허라도 사용자가 물은 첫 장은 연다(크롤만 지킨다)', async () => {
   let fetched = false;
   const c = makeWebCollector({
-    fetchImpl: async () => { fetched = true; return fakeFetch(200, 'ok')(); },
+    fetchImpl: async () => { fetched = true; return fakeFetch(200, '<html><body><main><p>본문이 충분히 긴 문단입니다. 여기에 답이 있어요.</p></main></body></html>')(); },
     robotsCheck: async () => false,
   });
   const out = await c.handler({ url: 'http://x/' });
-  assert.equal(out.fetchState, 'robots_disallow');
-  assert.equal(fetched, false, 'robots 불허면 fetch 자체를 안 한다');
+  assert.notEqual(out.fetchState, 'robots_disallow', '사용자가 직접 열면 보이는 페이지를 크롤러 규칙으로 막았다');
+  assert.equal(fetched, true, '한 건은 사용자 대신 여는 것이다 — 열어야 한다');
 });
 
 test('네트워크 실패: timeout으로 정직하게(내용 없음)', async () => {
