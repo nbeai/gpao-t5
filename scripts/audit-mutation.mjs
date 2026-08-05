@@ -891,6 +891,20 @@ export const MUTATIONS = [
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",
     바꾸기: "const 화면계약 = ['id'];" },
 
+  // **CU D — 무엇이 바뀌면 된 것인지 모델이 먼저 말한다.**
+  { 이름: '기대 효과 없이 누름(됐는지 잴 방법이 없는 클릭)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: '        if (!args?.기대?.요소) {', 바꾸기: '        if (false) {' },
+  { 이름: '이름 없는 요소를 누름(원장에 적을 것이 좌표뿐 · A17)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: "        if (!String(args?.대상?.label ?? '').trim()) {", 바꾸기: '        if (false) {' },
+  { 이름: '비밀칸에 입력함(비밀은 사람만 넣는다 · 헌장 ①)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: '        if (args?.대상?.비밀칸 === true) {', 바꾸기: '        if (false) {' },
+  { 이름: '바깥으로 나가는 클릭을 무해 칸에서 실행함',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: '        if (args?.기대?.바깥으로 === true) {', 바꾸기: '        if (false) {' },
+
   // **CU C — 눌렀는지가 아니라 됐는지.** A14 가 CU 에서 제일 위험한 자리다.
   { 이름: 'dispatch 를 성공으로 셈(눌렀는데 안 됐어도 됐다고 한다 · A14)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',

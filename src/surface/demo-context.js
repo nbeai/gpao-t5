@@ -388,21 +388,42 @@ function 화면행동선언() {
     availability: [{ kind: 'connected' }], toolKind: 'read',
     capability: '창을 앞으로 띄우거나, 내리거나, 옮기거나, 앱을 켜고 끈다.'
       + ' 한 뒤에 **실제로 그렇게 됐는지 값으로 확인하고**, 안 됐으면 됐다고 하지 않는다.'
-      + ' 아직 버튼을 누르거나 글자를 입력하지는 못한다.'
+      + ' 화면 안의 버튼을 누르거나 칸에 글자를 넣을 수도 있다 — 다만 **무엇이 바뀌면 된 것인지 정하고** 누르고, 누른 뒤 그 값으로 확인한다.'
       + ' 앱을 끄는 것만 미리 확인을 받는다 — 저장 안 한 것이 날아갈 수 있어서다.',
     operatorFact: '창·앱 상태를 바꾸고 전후 값으로 실제 변화를 확인한다.',
-    limits: [{ says: '버튼을 누르거나 글자를 입력하지는 못한다' }],
+    limits: [{ says: '비밀번호 칸에는 입력하지 못한다' }, { says: '바깥으로 나가는 클릭은 아직 하지 못한다' }],
     schema: {
       description: '창·앱 상태를 바꾼다. `focus`(앞으로 띄우기) · `scroll` · `move` · `resize`'
         + ' · `launch` · `quit`.'
         + ' **한 뒤에 전후 값을 대조해 실제로 바뀐 것까지 확인한다** — 안 바뀌었으면 실패로 온다.'
         + ' 그러니 결과가 실패면 "했어요"라고 말하지 마라.'
+        + ' **누르기·입력(`click`·`type`)은 `기대` 를 함께 줘야 한다** — 무엇이 어떻게 되면 된 것인지'
+        + ' 네가 먼저 말해야 눌러 보고 확인할 수 있다. 안 주면 누르지 않는다.'
+        + ' 이름이 없는 요소는 누르지 않는다(무엇을 눌렀는지 남길 수가 없다).'
+        + ' 비밀번호 칸에는 입력하지 않는다 — 그건 사람이 직접 넣는다.'
+        + ' 메시지 전송·결제처럼 **바깥으로 나가는 일이면 `기대.바깥으로` 를 true 로 밝혀라** —'
+        + ' 그건 아직 이 손이 하지 않는다.'
         + ' `desktop.screen` 이 준 요소·창의 `지문` 을 `확인지문` 으로 함께 주면,'
         + ' 그 사이에 화면이 바뀐 경우 **실행하지 않고** 다시 보라고 알려 준다.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit'] },
+          action: { type: 'string', enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type'] },
+          대상: {
+            type: 'object', description: '누를 것(관찰이 준 요소 그대로 — id·label·지문)',
+            properties: { id: { type: 'string' }, label: { type: 'string' }, 지문: { type: 'string' }, 비밀칸: { type: 'boolean' } },
+          },
+          기대: {
+            type: 'object',
+            description: '**누르기·입력에는 반드시 준다.** 무엇이 어떻게 되면 된 것인가 —'
+              + ' 이게 있어야 눌러 보고 실제로 됐는지 확인할 수 있다.',
+            properties: {
+              요소: { type: 'string', description: '눌린 뒤 값이 바뀔 요소의 id' },
+              값: { type: 'string', description: '그 요소가 가져야 할 값' },
+              바깥으로: { type: 'boolean', description: '이 클릭이 메시지 전송·결제처럼 바깥으로 나가는 일이면 true' },
+            },
+          },
+          값: { type: 'string', description: 'type 일 때 넣을 글자' },
           app: { type: 'string', description: '대상 앱 이름 또는 번들 id' },
           window: { type: 'number', description: '대상 창 id(있으면)' },
           확인지문: { type: 'string', description: '관찰 때 받은 지문. 화면이 바뀌었으면 실행하지 않는다' },

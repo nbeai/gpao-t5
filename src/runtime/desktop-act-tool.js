@@ -24,7 +24,22 @@
 // **`dispatched` 만으로 성공을 만들지 않는다.** 이 파일의 전부가 그 한 줄이다.
 
 /** C 가 받는 넷. 여기 없는 것은 **없다고 정직하게 말한다**(있는 척도 조용한 실패도 아니다). */
-const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'quit']);
+const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type']);
+
+/**
+ * **누르는 것들 (CU D)** — C 의 넷과 갈리는 자리.
+ *
+ * C 의 넷은 대조가 자명했다(frontmost·스크롤·좌표·프로세스). 클릭은 아니다 —
+ * **버튼을 누르면 무엇이 바뀌어야 하는지 커널은 모른다.** 그러면 A14 를 잴 수가 없다.
+ *
+ * 두 갈래가 있었다:
+ *   ✗ 커널이 화면 글자를 읽고 "저장 버튼이니 저장됐나 보자"고 판정한다 → **심문**이고,
+ *     화면 글자는 남이 쓴 글이라(A10) **주입이 판정을 조종한다.**
+ *   ✓ **모델이 기대 효과를 먼저 선언한다.** 커널은 그 선언을 **확인만** 한다.
+ *
+ * 두 번째가 정본 §5(*"클릭이 아니라 의미 효과를 판정한다"*)이고 §1.2 그대로다.
+ */
+const 누르는것 = new Set(['click', 'type']);
 
 /**
  * **무엇을 보면 됐는지 아나** — 행동마다 대조할 값이 다르다.
@@ -39,7 +54,17 @@ const 대조할값 = {
   resize: (본것) => ({ 창자리: JSON.stringify(본것?.windows?.[0]?.bounds ?? null) }),
   launch: (본것) => ({ 앱들: (본것?.apps ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
   quit: (본것) => ({ 앱들: (본것?.apps ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
+  // 누르기는 **모델이 지목한 요소의 값**을 본다. 무엇을 볼지는 모델이 정하고 커널은 대조만 한다.
+  click: (본것, args) => ({ 값: 요소값(본것, args?.기대?.요소) }),
+  type: (본것, args) => ({ 값: 요소값(본것, args?.기대?.요소) }),
 };
+
+/** 관찰 결과에서 그 요소의 현재 값. 없으면 `null` — 못 찾은 것과 값이 빈 것을 안 섞는다. */
+function 요소값(본것, 요소id) {
+  if (!요소id) return null;
+  const e = (본것?.elements ?? []).find((x) => x?.id === 요소id);
+  return e ? (e.value ?? null) : null;
+}
 
 const 같은가 = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -67,6 +92,13 @@ function 목표도달(행동, args, 후) {
   }
   if (행동 === 'quit') return !(앞.includes(대상) || 대상.includes(앞));
   return null;
+}
+
+/** 누르기의 목표 도달 — **모델이 말한 값이 됐는가.** 커널은 그 말을 확인만 한다. */
+function 누르기도달(args, 후) {
+  const 원한값 = args?.기대?.값;
+  if (원한값 === undefined) return null;
+  return String(후?.값 ?? '') === String(원한값);
 }
 
 /**
@@ -110,9 +142,42 @@ export function makeDesktopActTool(deps = {}) {
         };
       }
 
+      // ── D · 누르기 전에 갖춰야 하는 것 ─────────────────────────────────
+      if (누르는것.has(행동)) {
+        const 막힘 = (문장, 수단 = 'observe') => ({
+          blocked: true, userSafeSummary: 문장,
+          다음수단: [{ 방법: 수단, 왜: '지금 화면을 다시 보고 무엇을 누를지 정한다' }],
+        });
+
+        // **A17 — 이름 없는 것은 안 누른다.** B 실측에서 창 하나에 385개 중 61개가 이름 없는
+        // `"버튼"` 이었다. 좌표로 누르면 **원장에 적을 것이 좌표뿐**이고, 무엇을 눌렀는지
+        // 아무도 모른다. 밋밋한 이름(`"버튼"`)은 받는다 — 그건 앱이 그렇게 준 것이고 신분은 있다.
+        if (!String(args?.대상?.label ?? '').trim()) {
+          return 막힘('무엇을 누르는 건지 이름이 없어서 누르지 않았어요.');
+        }
+
+        // **비밀칸에는 입력하지 않는다**(헌장 ① · A09). 비밀은 사람만 넣는다.
+        // 거절하면서 값을 실어 보내지도 않는다 — 영수증은 남는다.
+        if (args?.대상?.비밀칸 === true) {
+          return 막힘('비밀번호 칸에는 제가 직접 입력하지 않아요. 그건 직접 넣으셔야 해요.', 'user_input');
+        }
+
+        // **무엇이 바뀌면 된 것인지 안 말하면 누르지 않는다.** 그게 없으면 눌러 놓고
+        // 됐는지 잴 방법이 없고, 그 클릭은 A14 를 통과할 수 없다.
+        if (!args?.기대?.요소) {
+          return 막힘('무엇이 바뀌면 된 것인지 정해야 눌러 보고 확인할 수 있어요.');
+        }
+
+        // **바깥으로 나가는 것은 이 칸이 아니다.** 커널이 화면 글자로 위험을 판정하지 않는다 —
+        // **모델이 밝힌 것**으로 갈린다. 밝혔으면 승인 경계가 받는 자리(E)이고 여기서는 안 한다.
+        if (args?.기대?.바깥으로 === true) {
+          return 막힘('그건 바깥으로 나가는 일이라 아직 제가 누르지 않아요.', 'observe');
+        }
+      }
+
       const 재기 = 대조할값[행동];
       let 전;
-      try { 전 = 재기(await 드라이버.observe({ scope: 'screen' })); } catch { 전 = null; }
+      try { 전 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }), args); } catch { 전 = null; }
 
       // ── dispatched ─────────────────────────────────────────────────────
       try {
@@ -129,11 +194,11 @@ export function makeDesktopActTool(deps = {}) {
 
       // ── effect_observed · 여기가 A14 다 ────────────────────────────────
       let 후;
-      try { 후 = 재기(await 드라이버.observe({ scope: 'screen' })); } catch { 후 = null; }
+      try { 후 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }), args); } catch { 후 = null; }
 
       // **먼저 목표 도달을 본다.** 변화 여부는 그다음이다 —
       // 이미 목표 상태였으면 안 바뀐 것이 정상이고, 그걸 실패로 내면 됐는데 안 됐다고 하는 것이다.
-      const 도달 = 후 === null ? null : 목표도달(행동, args, 후);
+      const 도달 = 후 === null ? null : (누르는것.has(행동) ? 누르기도달(args, 후) : 목표도달(행동, args, 후));
       if (도달 === false) {
         return {
           failed: true,
@@ -153,9 +218,11 @@ export function makeDesktopActTool(deps = {}) {
             // **안 바뀐 것도 사실이다.** 이미 그 상태였다는 것을 숨기면 모델이 자기가 바꾼 줄 안다.
             ...(같은가(전, 후) ? { 이미그상태였다: true } : {}),
           },
-          userSafeSummary: 같은가(전, 후)
-            ? `${후.frontmost ?? '그 앱'} 은(는) 이미 앞에 떠 있었어요.`
-            : `${후.frontmost ?? '그 창'} 을(를) 앞으로 띄웠어요.`,
+          userSafeSummary: 누르는것.has(행동)
+            ? `${args?.대상?.label ?? '그것'} 을(를) ${행동 === 'type' ? '입력했' : '눌렀'}고, 실제로 바뀐 것까지 확인했어요.`
+            : (같은가(전, 후)
+              ? `${후.frontmost ?? '그 앱'} 은(는) 이미 앞에 떠 있었어요.`
+              : `${후.frontmost ?? '그 창'} 을(를) 앞으로 띄웠어요.`),
         };
       }
 

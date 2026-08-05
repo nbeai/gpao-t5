@@ -48,7 +48,10 @@ export function makeDesktopNativeDriver(deps = {}) {
      */
     async act(요청) {
       const 행동 = String(요청?.행동 ?? '');
-      const 대상 = String(요청?.대상?.app ?? '').trim();
+      // 누르기는 **요소 id** 로, 창·앱 행동은 **앱 이름**으로 간다. 둘을 섞으면 다른 것을 조작한다.
+      const 대상 = String((행동 === 'click' || 행동 === 'type')
+        ? (요청?.대상?.id ?? '')
+        : (요청?.대상?.app ?? '')).trim();
       if (!대상) throw new Error('대상 없음');
       최근 = null;   // 행동 뒤에는 묵은 관찰을 쓰지 않는다 — 전후 비교가 무너진다
       const v = await 부르기(['act', 행동, 대상]);

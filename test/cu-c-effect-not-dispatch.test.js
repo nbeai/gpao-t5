@@ -113,17 +113,29 @@ test('A04: 지문이 맞으면 그대로 간다 — 없는 벽을 만들지 않�
   assert.equal(out.result.단계, 'goal_verified');
 });
 
-// ── 넷만 받는다 — 클릭은 아직 없다 ────────────────────────────────────────
-test('C 는 대조되는 넷만 받는다 — 클릭·입력은 여기 없다', async () => {
+// ── 대조할 값이 없는 행동은 안 받는다 ────────────────────────────────────
+//
+// **처음엔 여기서 `click`·`type` 도 막았다.** C 의 범위가 넷이었기 때문이다.
+// D 가 서면서 그 둘은 **계약을 갖추고** 들어왔다 — 모델이 기대 효과를 선언하고 커널이 그
+// 값으로 확인한다. 그러니 이제 재는 것은 "클릭이 막히나"가 아니라
+// **"대조할 값이 없는 행동이 막히나"** 다. 계약이 옮겨 갔지 느슨해진 것이 아니다.
+test('대조할 값이 없는 행동은 안 받는다 — 없이 계약을 세우지 않는다', async () => {
   const 백 = 백엔드({});
-  for (const 안되는것 of ['click', 'type', 'menu_click']) {
+  for (const 안되는것 of ['menu_click', 'drag', 'screenshot']) {
     const out = await 손세우기(백).handler({ action: 안되는것 });
     assert.equal(out.blocked, true, `${안되는것} 이 통과했다 — 대조 기준 없이 계약을 세우게 된다`);
   }
   assert.equal(백.부른것.length, 0);
   // **"없다"고 정직하게 말한다.** 있는 척도 아니고 조용한 실패도 아니다.
-  const out = await 손세우기(백).handler({ action: 'click' });
+  const out = await 손세우기(백).handler({ action: 'menu_click' });
   assert.match(out.userSafeSummary, /아직|못/);
+});
+
+test('클릭은 계약을 갖췄을 때만 들어온다 — 기대 없이는 여전히 안 누른다', async () => {
+  const 백 = 백엔드({});
+  const out = await 손세우기(백).handler({ action: 'click', 대상: { id: 'X', label: '뭔가' } });
+  assert.equal(out.blocked, true, '기대 효과 없는 클릭이 통과했다');
+  assert.equal(백.부른것.length, 0);
 });
 
 // ── 백엔드가 터져도 정직하다 ─────────────────────────────────────────────

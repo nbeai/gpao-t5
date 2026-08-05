@@ -88,6 +88,10 @@ export function toolActionKind({ toolId, args, selfState }) {
   if (toolId === 'desktop.act') {
     const a = args?.action;
     if (a === 'focus' || a === 'scroll' || a === 'move' || a === 'resize' || a === 'launch') kind = 'read';
+    // **누르기·입력은 화면 상태를 바꾼다**(CU D). 그런데 되돌릴 수 있다 — 다시 누르면 된다.
+    // 헌장 넷에 안 닿으므로 **자동이다.** 여기에 카드를 달면 화면 쓸 때마다 사람이 선다.
+    // 바깥으로 나가는 클릭은 **손이 애초에 안 받는다**(모델이 밝힌 것으로 갈린다) — E 의 일이다.
+    else if (a === 'click' || a === 'type') kind = 'organize';
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
   }
