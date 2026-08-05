@@ -245,3 +245,76 @@ test('창 자리를 못 받으면 그 사실이 드러난다 — 자리 없이�
   assert.ok(o.본창?.bounds, `**창 자리를 안 받아 온다** — 스크롤 밖 요소가 그대로 섞인다: ${JSON.stringify(o.본창)}`);
   assert.equal(o.본창.bounds.w, 3);
 });
+
+// ── 앱 창이 여럿일 때 — 임의로 고르면 엉뚱한 대화를 읽는다 ──────────────
+// 라이브(2026-08-06): `app:'KakaoTalk'` 로 물으니 그 pid 의 창이 **7개**였고
+// 우리가 **첫 창을 임의로** 골랐다 — 하필 다른 대화창이었고 그 AX 트리는 20초를 넘겨
+// **timeout** 이 났다. 보이는 창은 하나뿐이었는데 **안 보이는 창까지** 후보에 넣었다.
+// A02(같은 이름이면 임의로 안 고른다)를 창 고르기에는 안 지킨 것이다.
+test('보이는 창만 후보로 삼는다 — 숨은 창을 여느라 시간을 다 쓴다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'get_accessibility_tree') {
+        return { windows: [
+          { window_id: 1, app_name: '카카오톡', pid: 77, title: '다른 대화', is_on_screen: false },
+          { window_id: 2, app_name: '카카오톡', pid: 77, title: '정영현', is_on_screen: true },
+        ] };
+      }
+      if (이름 === 'list_windows') {
+        return { windows: [
+          { window_id: 1, pid: 77, is_on_screen: false, bounds: { x: 0, y: 0, width: 10, height: 10 } },
+          { window_id: 2, pid: 77, is_on_screen: true, bounds: { x: 90, y: 60, width: 380, height: 675 } },
+        ] };
+      }
+      if (이름 === 'get_window_state') return { snapshot_id: 's1', elements: [] };
+      return {};
+    },
+  };
+  const o = await makeCuaDriver({ mcp }).observe({ scope: 'window', app: '카카오톡' });
+  assert.equal(o.본창?.id, 2, `**안 보이는 창을 열었다** — 엉뚱한 대화를 읽고 시간도 다 쓴다: ${JSON.stringify(o.본창)}`);
+});
+
+test('창 제목으로도 고를 수 있다 — 사용자는 "정영현"이라고 말한다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const mcp = {
+    async call(이름) {
+      // 창 목록의 주 통로는 `list_windows` 다(z_index·is_on_screen·bounds 가 거기 있다).
+      if (이름 === 'list_windows') {
+        return { windows: [
+          { window_id: 1, app_name: '카카오톡', pid: 77, title: '채팅', is_on_screen: true, z_index: 2 },
+          { window_id: 2, app_name: '카카오톡', pid: 77, title: '정영현', is_on_screen: true, z_index: 1 },
+        ] };
+      }
+      if (이름 === 'get_accessibility_tree') return { windows: [] };
+      if (이름 === 'get_window_state') return { snapshot_id: 's1', elements: [] };
+      return {};
+    },
+  };
+  const o = await makeCuaDriver({ mcp }).observe({ scope: 'window', 창제목: '정영현' });
+  assert.equal(o.본창?.id, 2, `**제목으로 못 고른다** — 사용자가 말한 대화창을 못 찾는다: ${JSON.stringify(o.본창)}`);
+});
+
+test('보이는 창이 여럿이면 임의로 안 고른다 — 어느 것이냐고 되묻는다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'list_windows') {
+        return { windows: [
+          { window_id: 1, app_name: '카카오톡', pid: 77, title: '정영현', is_on_screen: true, z_index: 2 },
+          { window_id: 2, app_name: '카카오톡', pid: 77, title: '박종윤', is_on_screen: true, z_index: 1 },
+        ] };
+      }
+      if (이름 === 'get_accessibility_tree') return { windows: [] };
+      return {};
+    },
+  };
+  const o = await makeCuaDriver({ mcp }).observe({ scope: 'window', app: '카카오톡' });
+  assert.equal(부른것.some((c) => c.이름 === 'get_window_state'), false,
+    '**둘 중 하나를 임의로 열었다** — 엉뚱한 대화를 읽는다');
+  assert.equal(o.창을골라야함?.length, 2, `후보를 안 준다: ${JSON.stringify(o).slice(0, 200)}`);
+});

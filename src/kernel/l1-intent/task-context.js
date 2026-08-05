@@ -87,6 +87,48 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n본문: ${body}`;
   }
 
+  // ①-b **화면 관찰 — 글자가 알맹이다.**
+  //
+  // 오너 지적(2026-08-06): *"기본인 읽기조차 안 되는데 어떻게 컴퓨터 유즈가 되지?"*
+  // 손은 카톡 대화 65개를 읽었는데 모델은 못 받았다. 여기 **화면 갈래가 없어서**
+  // 맨 아래 `JSON.stringify` → 1,200자 접기로 떨어졌고, 앞쪽 창 목록에서 예산이 다 차
+  // **요소가 통째로 잘렸다.**
+  //
+  // 읽을 때 필요한 것은 **글자**다. 좌표·지문·창·pid 는 누를 때나 쓴다.
+  // 그것들을 빼면 같은 예산에 몇 배가 들어간다 — 그리고 누르려면 **토큰**만 있으면 된다.
+  if (Array.isArray(result.elements) || result.요소창 || result.본창) {
+    const lines = [];
+    const 본창 = result.본창;
+    if (본창) lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}`);
+    else if (result.frontmost?.name) lines.push(`앞 앱: ${result.frontmost.name}`);
+    const 창수 = (result.windows ?? []).length;
+    if (창수) lines.push(`열린 창 ${창수}개`);
+    if (result.창없음이유) lines.push(String(result.창없음이유));
+    if (result.그앱없음) lines.push(String(result.그앱없음));
+
+    const 창정보 = result.요소창;
+    const 요소들 = result.elements ?? [];
+    if (창정보) {
+      lines.push(`요소 ${창정보.끝 ?? 요소들.length}개 (전체 ${창정보.총 ?? 요소들.length}개`
+        + `${창정보.전체 && 창정보.전체 !== 창정보.총 ? ` / 화면 전체 ${창정보.전체}개` : ''})`
+        + `${창정보.순서 ? ` · ${창정보.순서}` : ''}`);
+      if (창정보.거르개가못물었다) lines.push(`그 종류로는 못 찾았어요. 있는 건: ${(창정보.있는종류 ?? []).join('·')}`);
+    }
+    // **글자를 줄 단위로.** 기계 값은 토큰 하나만 — 그게 다음 걸음(누르기)에 필요한 전부다.
+    const 줄 = 요소들.map((e) => {
+      const 글 = String(e?.value ?? '').trim() || String(e?.label ?? '').trim();
+      const 역할 = String(e?.type ?? e?.role ?? '').replace(/^AX/i, '');
+      const 표 = e?.토큰 ?? e?.id ?? '';
+      return `- ${역할}${표 ? `[${표}]` : ''}: ${글.replace(/\s+/g, ' ').slice(0, 200)}`;
+    });
+    // 읽기는 알맹이라 예산을 넉넉히 준다 — 그래도 조용히 자르지는 않는다.
+    const 본문 = fold(줄.join('\n'), Math.max(maxChars * 6, 6000));
+    if (result.다음수단?.length) {
+      lines.push(`다음 수: ${result.다음수단.map((n) => `${n.방법}${n.offset != null ? `(offset ${n.offset})` : ''} — ${n.왜}`).join(' · ')}`);
+    }
+    return `${lines.join('\n')}${줄.length ? `\n${본문}` : ''}`;
+  }
+
   // ② 웹 수집 — 제목 · 본문 길이 · 핵심 발췌 · 열지 않은 같은 사이트 링크
   if (typeof result.markdown === 'string' || Array.isArray(result.links)) {
     const lines = [];

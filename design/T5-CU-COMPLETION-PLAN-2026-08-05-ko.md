@@ -194,3 +194,75 @@ T5 를 무엇이 띄우든 상관없다"* 고 한다. **우리는 그렇지 않�
 - 갈림 기준: **뚫는 일**(§0 위반 — 떠넘김·거짓 성공·있는 걸 없다고 함)은 지금,
   **넓히는 일**(새 칸·통합·계약 정리)은 다음 슬라이스.
 - 한 슬라이스가 **반나절을 넘으면 그 자체가 신호다** — 멈추고 오너에게 상태를 알린다.
+
+
+---
+
+# 부록 A · **흡수 계획** — cua 전면 · 헤르메스 활용 전면 (2026-08-06)
+
+오너 지적: *"쿠아 전체도 분석하고 헤르메스의 쿠아 활용 전체도 분석해야지.
+깊고 정밀하게. **왜 어려운 길만 고집하냐. 흡수할 건 해야지.**"*
+
+맞다. 나는 오늘 **헤르메스가 이미 푼 문제를 하나씩 재발명**했고, 그래서 증상을 쫓았다.
+앞서 "비교군은 CU 계약을 안 갖고 있다"고 적은 것은 **틀렸다** — `tools/computer_use/`
+(5,033줄)를 못 찾고 얕게 훑은 결과다. 그 절은 무효다.
+
+## A-1. 드라이버가 인자로 주는 것을 우리가 손으로 했다
+
+| 우리가 손으로 한 것 | 드라이버가 이미 주는 것 |
+|---|---|
+| 안 보이는 창 걸러내기(20초 timeout 의 원인) | **`list_windows(on_screen_only: true)`** |
+| 요소 129개를 40개씩 페이징 | **`get_window_state(query: …)`** |
+| 트리가 커서 느림 | **`max_depth`** |
+| 앞뒤 순서를 몰라 앞 창을 못 고름 | `list_windows` 의 **`z_index`** |
+
+## A-2. 드라이버의 판정을 우리가 좁게 읽었다
+
+헤르베스는 드라이버 판정을 **그대로 모델에게 올린다**(`tool.py:_text_response`):
+`verified` · `effect` · **`escalation`** · `path` · `degraded` · `delivery_mode` · `code`.
+주석이 못 박는다 — *"`ok` 는 전송 성공일 뿐이고 **의미 판정은 effect/escalation**"*.
+
+우리는 `effect:'unverifiable'` 하나만 보고 나머지를 버렸다.
+**`escalation.recommended` 를 봤으면 오늘 클릭 문제를 몇 시간 전에 끝냈다.**
+
+## A-3. delivery 사다리 = A14 의 실제 해법
+
+`delivery_mode: background`(기본) → 안 들어갔다는 **신호가 오면** `foreground`.
+신호는 `effect:'suspected_noop'` · `code:'background_unavailable'` ·
+`escalation.recommended:'foreground'`.
+스키마 주석이 못 박는다 — *"Electron 이라고 **예측하지 마라. 신호에 반응하라.**"*
+
+## A-4. 승인 경계가 (행동 · delivery_mode) 로 나뉜다
+
+foreground 는 **눈에 보이는 포커스 변경**이라 background 승인이 덮지 못한다
+(헤르메스 이슈 #67052). 우리 `걸음신분(손|걸음|대상)` 에 **delivery_mode 를 더해야 한다.**
+
+## A-5. 손 구조 — 하나에 action 14개
+
+헤르메스: `computer_use` **하나** · action 14개(capture·click·double_click·right_click·
+middle_click·drag·scroll·type·key·set_value·wait·list_apps·list_windows·focus_app).
+이유가 적혀 있다 — **스키마를 작게 유지해 턴당 토큰 비용을 낮춘다.**
+
+우리: 손 둘 · action 8개. **없는 것**: `double_click` `right_click` `drag`
+`press_key` `hotkey` `invoke_menu` `clipboard_read/write` `wait` — 즉
+**오너가 말한 "마우스·키보드로 할 수 있는 모든 것"의 절반이 없다.**
+
+`focus_app` 의 **`raise_window` 기본 false** 도 그대로 가져온다 — 앞으로 안 올리는 것이 기본.
+
+## A-6. capture 모드 셋
+
+`som`(번호 오버레이 + AX · **기본**) · `vision`(사진만) · `ax`(트리만).
+우리는 `ax` 하나만 쓴다. 그리고 **`capture_after: true`** 로 행동 뒤 확인을 한 번에 —
+우리가 `verify` 로 따로 부르는 왕복이 사라진다(CU-3 성능의 실제 해법).
+
+## A-7. 흡수 순서
+
+| # | 무엇 | 왜 지금 |
+|---|---|---|
+| 1 | `list_windows(on_screen_only)` · `z_index` · `query` · `max_depth` | **읽기가 여기서 막혀 있다** |
+| 2 | 드라이버 판정 전부 올리기(effect·escalation·code·path·degraded) | 판정의 근거가 없으면 사다리를 못 탄다 |
+| 3 | delivery 사다리(background → 신호 → foreground) + 승인 경계에 delivery_mode | **클릭이 안 들어가는 자리** |
+| 4 | 빠진 행동들: double/right click · drag · press_key · hotkey · invoke_menu · clipboard · wait | 오너: 마우스·키보드로 되는 모든 것 |
+| 5 | `capture_after` · som/vision 모드 | 왕복과 눈 |
+
+**이 다섯을 다 흡수하기 전에는 새 칸(H·I·J)을 안 연다.**

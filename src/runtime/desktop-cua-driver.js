@@ -226,10 +226,19 @@ export function makeCuaDriver(deps = {}) {
       // 원문이 그렇게 말한다: *"For the full AX subtree of a single window (with interactive
       // element indices you can click by), use `get_window_state` instead."*
       // 그래서 요소는 **필요할 때만** 가져온다 — 창 목록만 필요한 턴에 무거운 것을 부르지 않는다.
+      // **창 목록은 `list_windows` 다**(비교군 `_select_capture_target` 을 읽고 고침 2026-08-06).
+      // 거기에만 `z_index`(앞뒤) · `is_on_screen`(화면 밖) · `bounds`(자리) 가 있다.
+      // `get_accessibility_tree` 를 주 목록으로 쓰던 동안 우리는 **앞뒤도 화면 밖도 몰랐고**,
+      // 그래서 숨은 창을 열다 20초 timeout 을 냈다.
+      const 목록 = await mcp.call('list_windows', {}).catch(() => null);
       const 얕은것 = await mcp.call('get_accessibility_tree', {});
       const 앞앱 = (얕은것?.apps ?? []).find((a) => a.active) ?? (얕은것?.apps ?? [])[0] ?? null;
-      const 창들 = (얕은것?.windows ?? []).map((w) => ({
+      const 날것창 = (목록?.windows ?? (Array.isArray(목록) ? 목록 : null)) ?? 얕은것?.windows ?? [];
+      const 창들 = 날것창.map((w) => ({
         id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
+        보임: w.is_on_screen !== false,
+        // 앞뒤 순서 — 큰 값이 앞이다. 없으면 목록 순서를 쓴다.
+        층: Number.isFinite(w.z_index) ? w.z_index : null,
         // **창 자리를 싣는다.** 없으면 창 밖(Dock)도, 스크롤 위로 벗어난 것(y=-5081)도
         // 안 걸러지고, 그러면 "마지막 메시지"가 뒤바뀐다(라이브 2026-08-06 · 사진 대조).
         ...(w.bounds ? {
@@ -240,32 +249,27 @@ export function makeCuaDriver(deps = {}) {
         } : {}),
       }));
 
+      // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
+      창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
       let 요소 = null; let 스냅샷 = null; let 본창 = null;
       if (args?.scope === 'window') {
-        // **창 자리는 `list_windows` 에만 있다**(실측 2026-08-06 — AX 트리는 안 준다).
-        // 자리를 모르면 창 밖(Dock)도, **스크롤 위로 벗어난 것**(y=-5081)도 안 걸러지고,
-        // 그러면 "마지막 메시지"가 뒤바뀐다. 창 안을 볼 때만 한 번 더 묻는다.
-        const 자리 = await mcp.call('list_windows', {}).catch(() => null);
-        const 자리들 = new Map(((자리?.windows ?? (Array.isArray(자리) ? 자리 : [])) ?? [])
-          .filter((w) => w?.bounds)
-          .map((w) => [Number(w.window_id ?? w.id), {
-            x: w.bounds.x, y: w.bounds.y,
-            w: w.bounds.w ?? w.bounds.width, h: w.bounds.h ?? w.bounds.height,
-          }]));
-        for (const w of 창들) {
-          const b = 자리들.get(Number(w.id));
-          if (b && !w.bounds) w.bounds = b;
-        }
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
         // **앱 이름으로도 고를 수 있어야 한다**(계열 G · 라이브 2026-08-06):
         // 앞 창만 볼 수 있으면 *"옆에서 같이 한다"* 가 말뿐이 된다 — 일하려면 매번
         // 앞으로 가져와야 하고, 그건 사용자 것을 뺏는 것이다.
         const 앱이름 = String(args?.app ?? '').trim().toLowerCase();
+        // **사용자는 앱이 아니라 대화창 이름을 말한다** — `정영현` 처럼. 그 축을 준다.
+        const 제목 = String(args?.창제목 ?? '').trim().toLowerCase();
         let 앱것 = 앱이름
           ? 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름)
             || 앱이름.includes(String(w.app ?? '').toLowerCase()))
           : [];
+        if (제목) {
+          const 제목것 = (앱것.length ? 앱것 : 창들)
+            .filter((w) => String(w.title ?? '').toLowerCase().includes(제목));
+          if (제목것.length) 앱것 = 제목것;
+        }
         // **이름 축이 하나로는 모자란다**(라이브 2026-08-06): 모델이 `KakaoTalk` 라고 물었는데
         // 창 이름은 `카카오톡` 뿐이라 못 찾았고, 우리는 **앞 창으로 떨어져 Claude 창을 보여 줬다.**
         // 앱 목록에는 bundle id·앱 파일 이름이 있다 — 거기서 pid 를 얻어 창과 잇는다.
@@ -279,13 +283,28 @@ export function makeCuaDriver(deps = {}) {
           const pid들 = new Set(맞는앱.map((a) => a.pid).filter((x) => Number.isInteger(x)));
           앱것 = 창들.filter((w) => pid들.has(w.pid));
         }
-        // **못 찾으면 앞 창으로 떨어지지 않는다.** 그건 오대상 관찰이고,
-        // 모델은 지목한 앱을 봤다고 믿은 채 남의 창 내용으로 답한다.
-        if (앱이름 && !앱것.length && args?.window == null) {
+        // **보이는 창만 고른다.** 라이브(2026-08-06): 카톡 pid 의 창이 7개였는데 보이는 건
+        // 하나였고, 우리가 첫 창(안 보이는 다른 대화)을 열어 **20초 timeout** 이 났다.
+        // 안 보이는 창은 사용자가 지금 보고 있는 것이 아니다.
+        if (앱것.length > 1) {
+          const 보이는것 = 앱것.filter((w) => w.보임);
+          if (보이는것.length) 앱것 = 보이는것;
+        }
+        // **여럿이면 임의로 안 연다**(A02). 엉뚱한 대화를 읽고 그것을 사실로 말하게 된다.
+        if (앱것.length > 1 && args?.window == null) {
           return {
             ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
             windows: 창들,
-            그앱없음: `'${args.app}' 이름의 창을 못 찾았어요`,
+            창을골라야함: 앱것.map((w) => ({ window: w.id, title: w.title, app: w.app })),
+          };
+        }
+        // **못 찾으면 앞 창으로 떨어지지 않는다.** 그건 오대상 관찰이고,
+        // 모델은 지목한 앱을 봤다고 믿은 채 남의 창 내용으로 답한다.
+        if ((앱이름 || 제목) && !앱것.length && args?.window == null) {
+          return {
+            ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+            windows: 창들,
+            그앱없음: `'${args.창제목 ?? args.app}' 을(를) 가진 창을 못 찾았어요`,
             후보: [...new Set(창들.map((w) => w.app).filter(Boolean))].slice(0, 12),
           };
         }
