@@ -229,3 +229,22 @@ test('창·앱 행동은 앱 이름으로 간다 — 요소 이름과 섞지 않
   await 드라이버.act({ 행동: 'focus', 대상: { app: 'TextEdit', label: '저장' } });
   assert.deepEqual(보낸인자[0], ['act', 'focus', 'TextEdit'], '요소 이름으로 앱을 띄우려 했다');
 });
+
+// ── 클릭에도 "모르겠다" 자리가 선다 ──────────────────────────────────────
+//
+// 누르기는 특히 중요하다. **누른 뒤 못 봤는데 다시 누르면 두 번 눌린다** —
+// 전송 버튼이었으면 두 번 나간다. 절대 게이트(중복 실행)가 걸리는 자리다.
+test('누른 뒤 못 보면 "안 됐다"가 아니라 "모르겠다"다 — 다시 누르라고 하지 않는다', async () => {
+  const 백 = 백엔드({ 효과: true, 요소: 다크모드 });
+  const 원래 = 백.observe.bind(백);
+  let 몇번 = 0;
+  백.observe = async (a) => { 몇번 += 1; if (몇번 > 1) throw new Error('관찰 실패'); return 원래(a); };
+
+  const out = await 손세우기(백).handler({
+    action: 'click', 대상: { id: 'SW1', label: '다크 모드' }, 기대: { 요소: 'SW1', 값: 'on' },
+  });
+  assert.equal(out.failed, true);
+  assert.equal(out.진행?.판정, 'unknown', '**누르고 못 봤는데 "안 됐다"로 뭉갰다**');
+  const 수단 = (out.다음수단 ?? []).map((m) => m.방법);
+  assert.ok(!수단.includes('retry'), `다시 누르라고 했다 — 전송 버튼이었으면 두 번 나간다: ${JSON.stringify(수단)}`);
+});

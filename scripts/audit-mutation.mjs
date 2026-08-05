@@ -898,6 +898,17 @@ export const MUTATIONS = [
     파일: 'src/runtime/desktop-native-driver.js', 검사: 'test/cu-d-click-declares-effect.test.js',
     찾기: "        ? (요청?.대상?.label ?? '')", 바꾸기: "        ? (요청?.대상?.id ?? '')" },
 
+  // **"안 됐다"와 "모르겠다"를 뭉개면 중복 실행이 난다**(절대 게이트).
+  // **한 자리로 모으고 나서야 물었다.** 처음엔 같은 판정을 두 곳에서 내렸고, 한쪽을 지워도
+  // 다른 쪽이 받아 그물이 안 물었다 — 겹친 방어가 아니라 **두 진실**이었다(§ 두 진실 금지).
+  { 이름: '못 본 것을 안 된 것으로 뭉갬(이미 됐는데 또 눌러 두 번 실행된다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: '      if (후 === null) {', 바꾸기: '      if (false) {' },
+  { 이름: '모르는데 다시 하라고 권함(전송 버튼이었으면 두 번 나간다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: "          다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],\n        };\n      }\n      if (도달 === false) {",
+    바꾸기: "          다음수단: [{ 방법: 'observe', 왜: 'x' }, { 방법: 'retry', 왜: 'x' }],\n        };\n      }\n      if (도달 === false) {" },
+
   // **CU D — 무엇이 바뀌면 된 것인지 모델이 먼저 말한다.**
   { 이름: '기대 효과 없이 누름(됐는지 잴 방법이 없는 클릭)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
@@ -915,7 +926,7 @@ export const MUTATIONS = [
   // **CU C — 눌렀는지가 아니라 됐는지.** A14 가 CU 에서 제일 위험한 자리다.
   { 이름: 'dispatch 를 성공으로 셈(눌렀는데 안 됐어도 됐다고 한다 · A14)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
-    찾기: '      if (전 === null || 후 === null || 같은가(전, 후)) {', 바꾸기: '      if (false) {' },
+    찾기: '      if (같은가(전, 후)) {', 바꾸기: '      if (false) {' },
   { 이름: '목표 도달을 안 보고 변화만 봄(이미 그 상태인데 실패라고 한다)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
     찾기: '      if (도달 === true) {', 바꾸기: '      if (false) {' },

@@ -239,3 +239,52 @@ test('스크롤이 실제로 움직이면 성공이다 — 없는 벽을 만들�
   assert.equal(out.result?.단계, 'goal_verified');
   assert.notEqual(out.result.전.스크롤, out.result.후.스크롤);
 });
+
+// ── **"안 됐다"와 "모르겠다"는 다르다** ───────────────────────────────────
+//
+// 지금 손은 둘을 같은 `failed` 로 뭉갠다. 그런데 뜻이 정반대다:
+//   안 됐다   → 다시 하거나 다른 길로 간다
+//   모르겠다  → **다시 해서는 안 된다.** 이미 됐는데 못 본 것일 수 있고,
+//              그 상태에서 또 누르면 두 번 실행된다(절대 게이트: 중복 실행)
+//
+// cua-driver 계약이 그걸 문장으로 못 박아 뒀다(감사 2026-08-05):
+//   *"Predicate results are satisfied, unsatisfied, or **unknown; unknown never implies
+//    success.** Accessibility projections are conservative: **absence remains unknown
+//    unless the observed search domain is proven exhaustive.**"*
+//
+// 앞줄은 우리 A14 와 같고, **뒷줄이 우리에게 없던 것**이다 — 다 봤다는 증명이 없으면
+// "없다"가 아니라 "모른다". 드라이버를 갈기 전에 **우리 손에 그 자리부터 만든다.**
+/** **실행 전은 봤는데 후를 못 본** 백엔드 — "됐나 안 됐나"가 진짜로 갈리는 자리다. */
+function 후를못보는백엔드(옵션) {
+  const 백 = 백엔드(옵션);
+  const 원래 = 백.observe.bind(백);
+  let 몇번 = 0;
+  백.observe = async (a) => { 몇번 += 1; if (몇번 > 1) throw new Error('관찰 실패'); return 원래(a); };
+  return 백;
+}
+
+test('못 봤으면 "안 됐다"가 아니라 "모르겠다"다 — 둘을 뭉개지 않는다', async () => {
+  // 처음엔 관찰을 통째로 깨뜨렸는데, 그러면 **전도 null** 이라 다른 가드가 받아
+  // 그물이 안 물었다. 재려던 것은 **실행 전은 봤고 후를 못 본** 자리다.
+  const 백 = 후를못보는백엔드({ 효과: true, 앞: 'Safari' });
+  const out = await 손세우기(백).handler({ action: 'focus', app: 'TextEdit' });
+
+  assert.equal(out.failed, true, '실패 자리는 그대로다');
+  assert.equal(out.진행?.판정, 'unknown',
+    '**못 본 것을 안 된 것으로 뭉갰다** — 이미 됐는데 또 누르면 두 번 실행된다');
+  assert.match(out.userSafeSummary, /확인하지 못|모르/, '무엇이 불확실한지 사용자 문장에 없다');
+});
+
+test('모를 때는 다시 하라고 권하지 않는다 — 중복 실행이 절대 게이트다', async () => {
+  const out = await 손세우기(후를못보는백엔드({ 효과: true })).handler({ action: 'focus', app: 'TextEdit' });
+  const 수단 = (out.다음수단 ?? []).map((m) => m.방법);
+  assert.ok(!수단.includes('retry'),
+    `모르는데 다시 하라고 했다: ${JSON.stringify(수단)} — 이미 됐으면 두 번 된다`);
+  assert.ok(수단.includes('observe'), '지금 상태를 보라는 길은 있어야 한다');
+});
+
+test('안 된 것이 확실하면 그때는 다시 하라고 한다 — 없는 벽을 만들지 않는다', async () => {
+  const out = await 손세우기(백엔드({ 효과: false, 앞: 'Safari' })).handler({ action: 'focus', app: 'TextEdit' });
+  assert.equal(out.진행?.판정, 'unsatisfied', '확실히 안 된 것을 모른다고 했다');
+  assert.ok((out.다음수단 ?? []).some((m) => m.방법 === 'retry'), '확실히 안 됐는데 다시 하라고 안 했다');
+});
