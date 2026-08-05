@@ -507,3 +507,33 @@
   못 고친 것이 아니라 **고치지 않기로 한 것**이다. 다시 열지 마라.
 - 남은 것: 출처마다 값이 갈린다(`6,358.95` vs `6,648.93` — 둘 다 원장 뒷받침).
   **어느 쪽이 맞는지는 커널이 정하지 않는다.** 이건 결함이 아니라 관측으로 둔다.
+
+## F-25 · 선언이 **이번 런에 없는 손**을 가리킨다 (열림 · 비교군 대조로 발견)
+
+- 발견: 2026-08-05 · 오너 지시로 오픈클로·헤르메스 **소스를 직접 읽다가**
+  (`hermes-agent/model_tools.py` · `openclaw/src/agents/system-prompt.ts`)
+- **둘 다 같은 계약을 코드로 갖고 있다** — *손 목록은 이번 런에 실제로 선 것만이고,
+  그 목록에 없는 이름은 어떤 설명에도 안 나온다.*
+  - 헤르메스 `model_tools.py:461` — `available_tool_names` 는 **`check_fn` 을 통과한 것만**.
+    주석에 이유가 그대로 적혀 있다: *"otherwise the model sees tools mentioned in
+    descriptions that don't actually exist, and hallucinates calls to them."*
+    그래서 세 자리를 **런타임에 다시 쓴다**: `execute_code` 의 샌드박스 도구 목록,
+    `discord` 의 동작 목록, 그리고 `browser_navigate` 설명에서
+    *"prefer web_search or web_extract"* 문장을 **통째로 지운다**(그 둘이 없을 때).
+  - 오픈클로 `system-prompt.ts:895` — `toolOrder.filter((t) => visibleTools.has(t))`.
+    **역할 순서를 지시문이 아니라 나열 순서로 준다**(읽기→쓰기→찾기→실행→웹→브라우저→화면→…).
+- **T5 실측(직접 밟음)**: 브라우저가 없는 컴퓨터를 흉내 내고 모델에게 나가는 **도구 스키마**를 찍었다.
+  ```
+  스키마로 나간 손   web.collect · web.search · local.file · slack.post · session.search · telegram.send …
+  browser.observe    손 없음  ·  그런데 web.collect 스키마 글에 이름이 나온다   ← 유령
+  ```
+  `web.collect` 스키마가 *"`browser.observe` 로 실제 화면을 연다"* 고 말한다.
+  **헤르메스가 고친 그 버그와 같은 모양이다.**
+- 재는 자리를 두 번 틀렸다(기록): 처음엔 `buildModelMessages` 를 찍었는데 **도구 스키마는
+  메시지가 아니라 `tools` 인자로 간다.** 거기서는 유령이 0으로 보였다(§4.3).
+- 이건 웹 문제가 아니다. **모든 손에 공통인 계약**이다(오너 강조 2026-08-05:
+  *"웹 뿐만 아니라 모든 도구가 다 AI에게 제대로 인식될 수 있어야 한다"*).
+  T5 에는 이미 반대 방향 그물이 있다 — 게이트 ③ *"덮는 손이 있으면 가리켜야 한다"*.
+  **없을 때 가리키면 안 된다**는 쪽이 비어 있었다. 같은 계약의 나머지 반쪽이다.
+- 다음 절차: 선언 사이의 상호참조를 **이번 런에 선 손 집합으로 걸러서** 내보낸다.
+  지우는 것이 아니라 **그 런에서만 안 보이게** 한다(선언은 하나, 노출이 상황에서 계산된다 — S7 의 축).
