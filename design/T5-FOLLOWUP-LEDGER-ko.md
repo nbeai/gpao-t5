@@ -638,3 +638,25 @@
 - **막힌 것**: 개인 키가 이 컴퓨터 키체인에 없다(`find-identity` 0개). 실물은
   `/Users/jyp/Developer/gpao-t-handoff/` 에 있고 `HANDOFF.md` 89~105 행에 import 블록이 있다.
   **자격증명을 사용자 키체인에 심는 것은 구현자가 하지 않는다 — 오너가 직접 한 번 붙인다.**
+
+## F-29 · `T5_SIGN_KEYCHAIN` 만으로는 서명이 안 선다 — 검색 경로가 함께 필요하다 (실측)
+
+- 발견: 2026-08-05 · CU A 서명을 전용 키체인으로 세우다가
+- **기계 사실**(같은 키체인 · 같은 신원 · 잠금 해제 직후, 검색 경로만 바꿔 두 번 잼):
+  ```
+  검색 경로에 있음   codesign --sign … --keychain <kc>   →  서명 성공(팀 5WC35NK3LA)
+  검색 경로 밖       codesign --sign … --keychain <kc>   →  **no identity found**
+  ```
+  `scripts/packaging/build-macos-pkg.mjs` 는 `T5_SIGN_KEYCHAIN` 을 `--keychain` 으로만 넘긴다.
+  머리말에는 *"그 신분이 있는 키체인"* 이라고 적혀 있는데, **그것만으로는 신원을 못 찾는다.**
+- 왜 8/3 PKG 는 됐나 — 그때 그 키체인이 **검색 경로에 있었을 것**이다(같은 세션에서 세웠다면
+  `list-keychains -s` 가 남아 있다). 지금 오너 login 키체인에 신원이 0개인 것과 모순이 없다.
+  **재현 조건이 스크립트 밖에 있었다는 뜻이고, 그래서 다음 사람이 못 재현한다.**
+- 함께 밟은 것 — **루트 CA 도 그 키체인에 있어야 한다.** 개인 키·리프·중간 CA 만 넣으면
+  `unable to build chain to self-signed root` 로 서명이 거부된다(`errSecInternalComponent`).
+  `Apple Root CA` 를 `SystemRootCertificates.keychain` 에서 옮겨 넣어야 선다.
+- 다음 절차: 빌드 스크립트가 **서명 전에 검색 경로에 넣고 끝나면 되돌리게** 한다.
+  사용자 환경을 바꾸는 일이라 **원상복구까지 한 세트**여야 한다(이번에 손으로 복구했다).
+  지금 안 고치는 이유: CU A 는 PKG 를 안 만든다. 배포 칸(CU I)에서 고칠 자리다.
+- **오너 login 키체인은 안 건드렸다**(전후로 확인: `find-identity` 0개).
+  전용 키체인과 그 비밀번호는 저장소 밖 임시 자리에 있고 저장소에 안 들어간다.
