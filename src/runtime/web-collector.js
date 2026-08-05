@@ -378,8 +378,21 @@ export function makeWebCollector(deps = {}) {
       // 창(`readWindow`)이 "같은 페이지의 뒷부분"을 주는 것과 같은 계약을, **목적을 이룰 다른
       // 길**로 넓힌 것이다. 커널은 무엇이 옳은지 정하지 않는다 — 쓸 수 있는 수를 주고 모델이 둔다.
       const 읽은상태 = classifyWebFetch({ readable: 알맹이글, readableChars: 살은글자 });
-      const 다음수단 = 읽은상태 === 'ok' ? undefined : [
+      // **읽었다고 끊지 않는다.** 라이브(2026-08-05) `오늘 한국 증시 상황은 어때?`:
+      // 검색 첫 결과가 마케팅 페이지였고 알맹이 602자(회사 소개·주소)를 건져 `ok` 가 됐다.
+      // 지수 숫자는 0개였는데 다음 수가 끊겨, 모델은 **사용자에게 대신 찾아보라고 넘겼다.**
+      //
+      // "알맹이가 있다"와 "물은 것의 답이 있다"는 다르다. 그렇다고 **커널이 관련성을 재면
+      // 안 된다** — 내용 판정은 심문의 부활이다(절대원칙 8). 그러니 재지 않고 **끊지 않는다.**
+      // 관련 없다는 판단은 모델이 하고, 커널은 둘 수 있는 수를 늘 열어 둔다.
+      const 다른후보 = (foundVia?.candidates ?? [])
+        .filter((c) => c.url && c.url !== selected.resolvedUrl && c.url !== selected.url)
+        .slice(0, 5)
+        .map((c) => ({ title: c.title ?? '', url: c.url }));
+      const 다음수단 = [
         ...(Number.isInteger(창.다음) ? [{ 방법: 'read_more', offset: 창.다음, 왜: '이 페이지의 뒷부분이 남았다' }] : []),
+        // **검색으로 왔으면 나머지 후보가 살아 있다.** 첫 개가 답이라고 커널이 정하지 않는다.
+        ...다른후보.map((c) => ({ 방법: 'read_url', url: c.url, 왜: `검색에서 같이 나온 곳: ${c.title || c.url}` })),
         ...links.slice(0, 5).map((l) => ({ 방법: 'read_url', url: l.url, 왜: `이 페이지가 가리키는 곳: ${l.text}` })),
         { 방법: 'search', 왜: '다른 자료로 검색을 다시 한다' },
       ];
@@ -387,8 +400,8 @@ export function makeWebCollector(deps = {}) {
         result: {
           title, excerpt, description, markdown, blocks, links,
           // **무엇을 얻었고 무엇이 없나.** 이게 없으면 모델은 읽은 줄 알고 그 위에 지어낸다.
-          읽은상태, substanceChars: 살은글자,
-          ...(다음수단 ? { 다음수단 } : {}),
+          읽은상태, substanceChars: 살은글자, 다음수단,
+          ...(다른후보.length ? { 다른후보 } : {}),
           // P2-9: **사후 기록**이다 — 발화에서 예측한 분류가 아니라 실제로 무엇을 했는가.
           // 둘이면 충분하다. 큰 분류 체계(routeKind 11개)는 만들지 않는다(§24 · 절대원칙 8).
           // **얼마나 있고 어디까지 줬는지.** 모델이 다음을 부를 수 있어야 막다른 답이 안 된다.
