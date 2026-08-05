@@ -410,8 +410,18 @@ function 화면행동선언() {
         properties: {
           action: { type: 'string', enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type'] },
           대상: {
-            type: 'object', description: '누를 것(관찰이 준 요소 그대로 — id·label·지문)',
-            properties: { id: { type: 'string' }, label: { type: 'string' }, 지문: { type: 'string' }, 비밀칸: { type: 'boolean' } },
+            type: 'object',
+            description: '누를 것(관찰이 준 요소 그대로 — id·label·지문·토큰).'
+              + ' **같은 이름이 여럿이면 `토큰` 을 함께 줘라** — 이름만으로는 어느 것인지 알 수 없어'
+              + ' 누르지 않는다. 막히면 후보와 토큰을 돌려주니 그 중 하나를 골라 다시 부르면 된다.',
+            properties: {
+              id: { type: 'string' }, label: { type: 'string' }, 지문: { type: 'string' },
+              // **관찰이 주고 막힘이 가리키는 값인데 넣을 칸이 없었다**(라이브 2026-08-05):
+              // 길을 주고 문을 잠근 셈이라 모델이 재시도를 못 했다.
+              토큰: { type: 'string', description: '관찰이 준 요소의 토큰 — 이름이 겹칠 때 이것으로 가른다' },
+              번호: { type: 'number' },
+              비밀칸: { type: 'boolean' },
+            },
           },
           기대: {
             type: 'object',

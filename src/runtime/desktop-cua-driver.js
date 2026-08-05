@@ -203,7 +203,9 @@ export function makeCuaDriver(deps = {}) {
         const 이름 = String(대상.app ?? '').trim().toLowerCase();
         if (!이름) return null;
         const { apps } = await mcp.call('list_apps', {});
-        const 후보들 = (apps ?? []).filter((a) => a?.pid != null);
+        // **꺼진 앱도 본다.** pid 로 거르면 "켜 줘" 를 받을 수가 없다 —
+        // 켜는 쪽은 pid 가 아니라 앱 파일 이름이 필요하다.
+        const 후보들 = apps ?? [];
         const 축 = (a) => [
           String(a.name ?? ''),
           String(a.bundle_id ?? ''),
@@ -218,44 +220,96 @@ export function makeCuaDriver(deps = {}) {
         if (걸린것.length > 1) {
           return { 골라야함: 걸린것.map((a) => ({ app: a.name, pid: a.pid, bundle: a.bundle_id })) };
         }
-        return { pid: 걸린것[0].pid };
+        // 찾은 앱을 통째로 준다 — 켜는 쪽은 **앱 파일 이름**이 필요하고(표시 이름으로는 cua 가
+        // 못 받는다) 켜져 있는지도 알아야 한다.
+        return { pid: 걸린것[0].pid, 앱: 걸린것[0] };
       };
       const pid찾기 = async () => (await 앱고르기())?.pid ?? null;
+      /** 창 id 로 그 창 주인의 pid. 창 목록이 창마다 pid 를 싣는다(실측 2026-08-05). */
+      const 창의pid = async (windowId) => {
+        // **관찰이 쓰는 그 호출을 그대로 쓴다** — 창 목록을 두 곳에서 다르게 가져오면
+        // 언젠가 한쪽만 바뀌고 그때 조용히 어긋난다.
+        const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
+        const 창들 = 본것?.windows ?? (Array.isArray(본것) ? 본것 : []);
+        const w = 창들.find((x) => Number(x?.window_id ?? x?.id) === Number(windowId));
+        return Number.isInteger(w?.pid) ? w.pid : null;
+      };
 
+      // **확인 표식은 한 자리에서 붙인다.** 두 번 부르는 길(후보에서 하나 고르기)이 생겼는데
+      // 거기에 표식을 안 붙여서, 드라이버가 `activated:true` 로 확인해 준 focus 가
+      // **실패로 나갔다**(내가 낸 회귀 · 2026-08-05 라이브에서 잡음).
+      const 확인붙이기 = (r) => (
+        r?.exact_window_effect?.verified === true || r?.activated === true
+          ? { ...r, 확인됨: true, 근거: r.code ?? 'driver_verified' }
+          : r);
       // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
       const 표 = {
         focus: async () => {
-          const 고른것 = await 앱고르기();
+          // **창 id 는 그 자체로 신분이다.** 앱 이름이 없다고 거절하면, 모델이 정확히 그 창을
+          // 짚어 줘도 못 띄운다 — 라이브에서 `focus window:14213` 이 그렇게 실패했다.
+          const 창만 = 대상.window && !대상.app && !Number.isInteger(대상.pid);
+          // cua `bring_to_front` 는 **pid 를 반드시 받는다**(창 id 만 주면 거절한다).
+          // 창 목록이 창마다 pid 를 실어 주니 거기서 가져온다 — 추측이 아니라 기계 사실이다.
+          const 창pid = 창만 ? await 창의pid(대상.window) : null;
+          const 고른것 = 창만 ? (창pid != null ? { pid: 창pid } : null) : await 앱고르기();
           // **여럿이면 부르지 않는다** — 어느 것이냐고 되묻는 것이 실패보다 정직하다(A02).
           if (고른것?.골라야함) return { 골라야함: 고른것.골라야함 };
           const pid = 고른것?.pid ?? null;
-          // pid 를 못 찾았으면 **부르지 않는다.** 빈 인자로 부르면 드라이버가 알아서
+          // pid 도 창 id 도 없으면 **부르지 않는다.** 빈 인자로 부르면 드라이버가 알아서
           // 아무 창이나 띄울 수도 있고, 그건 오대상 실행이다.
-          if (pid == null) throw new Error('대상 앱을 못 찾았다');
-          const r = await mcp.call('bring_to_front', { pid, ...(대상.window ? { window_id: 대상.window } : {}) });
+          if (pid == null && !대상.window) throw new Error('대상 앱을 못 찾았다');
+          const r = await mcp.call('bring_to_front', {
+            ...(pid != null ? { pid } : {}), ...(대상.window ? { window_id: 대상.window } : {}),
+          });
+          // **드라이버가 "인자가 모자라다"고 답하면 그건 결과가 아니다.** 그대로 흘리면
+          // 전후 대조가 "안 바뀌었다"로 읽어 **없는 실패**를 만든다(실측 2026-08-05).
+          if (Array.isArray(r) && r.some((x) => /Missing required/i.test(String(x?.text ?? '')))) {
+            throw new Error(String(r[0]?.text ?? '드라이버가 인자를 못 받았다'));
+          }
           // **드라이버가 모호하면 실행하지 않고 후보를 돌려준다**(실물 확인 2026-08-05:
           // Finder 창이 여럿이라 `candidates` 만 왔고 앞 앱은 안 바뀌었다).
           // 그건 실패가 아니라 **"어느 것이냐"** 다 — A02 와 같은 규율이고, 우리도 같은 답을 해야 한다.
           // 실패로 뭉개면 모델이 "안 된다"고 하고, 성공으로 뭉개면 거짓 성공이 된다.
           if (Array.isArray(r?.candidates) && r.candidates.length) {
-            return { 골라야함: r.candidates.map((c) => ({
-              window: c.window_id, title: c.title ?? '', app: c.app_name ?? '', 보임: c.is_on_screen !== false,
-            })) };
+            const 후보 = r.candidates.map((c) => ({
+              window: c.window_id, title: c.title ?? '', app: c.app_name ?? c.app ?? '',
+              보임: (c.is_on_screen ?? c.visible) !== false,
+            }));
+            // **안 보이는 창은 고를 것이 아니다.** 계산기 하나에 숨은 창이 넷 딸려 와서
+            // *"창이 여러 개라 알 수 없어요"* 가 나갔다(라이브 2026-08-05) — 보이는 건 하나뿐이었다.
+            // 고를 수 없는 것을 고르라고 하는 건 고를 수 있는 척하는 것이다.
+            const 보이는것 = 후보.filter((c) => c.보임);
+            if (보이는것.length === 1) {
+              return 확인붙이기(await mcp.call('bring_to_front', {
+                window_id: 보이는것[0].window, ...(pid != null ? { pid } : {}),
+              }));
+            }
+            return { 골라야함: 보이는것.length ? 보이는것 : 후보 };
           }
           // **드라이버가 스스로 검증해서 준다.** 우리 전후 추측보다 이게 낫다 —
           // `verified:true` · `focused_window_id` 까지 온다(실물 확인 2026-08-05).
           // 우리 관찰은 창 관리자가 반영하기 전에 찍힐 수 있어 **없는 실패**를 만든다.
           // 드라이버가 더 잘하는 것을 우리가 어설프게 다시 만들지 않는다.
-          if (r?.exact_window_effect?.verified === true || r?.activated === true) {
-            return { ...r, 확인됨: true, 근거: r.code ?? 'driver_verified' };
-          }
-          return r;
+          return 확인붙이기(r);
         },
         // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
         // cua 는 켜고도 일부러 앞으로 안 올린다(`self_activation_suppressed`). 그걸 앞으로
         // 재면 켜기는 영원히 실패로 찍힌다 — 라이브에서 사용자가 "직접 누르세요"를 들은 자리다.
         launch: async () => {
-          const r = await mcp.call('launch_app', { name: 대상.app });
+          const 고른것 = await 앱고르기();
+          if (고른것?.골라야함) return { 골라야함: 고른것.골라야함 };
+          // **이미 켜져 있으면 켜는 일은 끝난 일이다.** 다시 켜면 켜지지도 않고(이미 있다)
+          // 우리 전후 대조는 "안 변했다"로 읽어 실패로 찍는다 — 라이브에서 그렇게 났다.
+          if (고른것?.앱?.running === true || 고른것?.앱?.pid != null) {
+            return { 확인됨: true, 근거: 'list_apps.running', pid: 고른것.앱.pid, name: 고른것.앱.name };
+          }
+          // cua `launch_app` 은 **앱 파일 이름**을 받는다(`계산기` 로는 못 켠다).
+          // 우리가 아는 이름이 있으면 그걸 쓰고, 모르는 앱이면 사용자가 말한 그대로 켜 본다 —
+          // 우리가 아는 것만 켤 수 있는 건 아니다.
+          const 켤이름 = 고른것?.앱
+            ? (String(고른것.앱.launch_path ?? '').split('/').pop().replace(/\.app$/i, '') || 고른것.앱.name)
+            : 대상.app;
+          const r = await mcp.call('launch_app', { name: 켤이름 });
           return r?.launch_state?.process_running === true
             ? { ...r, 확인됨: true, 근거: 'launch_state.process_running' }
             : r;

@@ -223,3 +223,27 @@ test('토큰을 주면 이름이 겹쳐도 누른다 — 신분이 확실하면 
   assert.notEqual(r.blocked, true, `**신분을 줬는데도 막았다**: ${JSON.stringify(r).slice(0, 200)}`);
   assert.equal(누른것?.대상?.토큰, 't-btn', '토큰이 드라이버까지 안 갔다');
 });
+
+// ── ⑩ 준 길을 우리가 막아 두지 않는다 ────────────────────────────────────
+// 라이브(2026-08-05): A02 로 막으며 **토큰 실린 다음수단**을 줬는데 모델이 재시도를 안 했다.
+// 스키마의 `대상` 에 **토큰 칸이 없었다.** 관찰은 토큰을 주고 막힘은 토큰을 가리키는데,
+// 모델이 그걸 적어 낼 자리가 없다. 길을 주고 문을 잠근 셈이다.
+test('대상 스키마에 토큰 칸이 있다 — 없으면 다음수단이 죽은 길이다', async () => {
+  const { demoDescriptors } = await import('../src/surface/demo-context.js');
+  const d = (demoDescriptors({ desktopAct: true }) ?? []).find((x) => x.id === 'desktop.act');
+  const 대상 = d?.schema?.parameters?.properties?.대상?.properties ?? {};
+  assert.ok(대상.토큰, '**토큰 칸이 없다** — 막힘이 준 토큰을 모델이 넣을 자리가 없다');
+});
+
+test('관찰이 내보내는 요소에 토큰이 실린다 — 스키마 칸과 짝이 맞아야 한다', async () => {
+  const { makeDesktopTool } = await import('../src/runtime/desktop-tool.js');
+  const 손 = makeDesktopTool({
+    drivers: [{
+      id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
+      observe: () => ({ frontmost: { name: 'X' }, windows: [{ id: 1 }],
+        elements: [{ id: 'e1', 토큰: 's1:5', type: 'AXButton', label: '7', isEnabled: true }] }),
+    }],
+  });
+  const r = await 손.handler({ action: 'observe', scope: 'window', type: 'button' });
+  assert.equal(r.result.elements[0].토큰, 's1:5', '관찰이 토큰을 떨어뜨리면 모델이 줄 것이 없다');
+});

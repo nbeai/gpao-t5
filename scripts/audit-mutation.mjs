@@ -48,6 +48,8 @@ const T_CU_E = 'test/cu-e-click-risk-from-probe.test.js';
 const T_CU_B2 = 'test/cu-b-filter-must-bite.test.js';
 const T_CU_C2 = 'test/cu-c-launch-measures-running-not-front.test.js';
 const T_EXIT_B = 'test/exit-blocked-step-claimed-done.test.js';
+const T_CU_D2 = 'test/cu-d-unknown-is-not-failure.test.js';
+const T_RETRY = 'test/approved-step-can-retry.test.js';
 const DESK = 'src/runtime/desktop-tool.js';
 const CUA = 'src/runtime/desktop-cua-driver.js';
 const EXITV = 'src/kernel/l2-plan/exit-verification.js';
@@ -914,7 +916,7 @@ export const MUTATIONS = [
   // 다른 쪽이 받아 그물이 안 물었다 — 겹친 방어가 아니라 **두 진실**이었다(§ 두 진실 금지).
   { 이름: '못 본 것을 안 된 것으로 뭉갬(이미 됐는데 또 눌러 두 번 실행된다)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
-    찾기: '      if (후 === null) {', 바꾸기: '      if (false) {' },
+    찾기: '      if (후 === null || 못본다 ||', 바꾸기: '      if (false ||' },
   { 이름: '모르는데 다시 하라고 권함(전송 버튼이었으면 두 번 나간다)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
     찾기: "          다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],\n        };\n      }\n      if (도달 === false) {",
@@ -954,12 +956,12 @@ export const MUTATIONS = [
 
   { 이름: '앱 이름을 그대로 보냄(실물은 pid 를 필수로 받는다 · 라이브에서 전부 실패했다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: "          const r = await mcp.call('bring_to_front', { pid, ...(대상.window ? { window_id: 대상.window } : {}) });",
-    바꾸기: "          const r = await mcp.call('bring_to_front', { app: 대상.app });" },
+    찾기: "            ...(pid != null ? { pid } : {}), ...(대상.window ? { window_id: 대상.window } : {}),",
+    바꾸기: "            app: 대상.app," },
   { 이름: '대상을 못 찾았는데 부름(오대상 실행)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: "          if (pid == null) throw new Error('대상 앱을 못 찾았다');\n          const r = await mcp.call('bring_to_front'",
-    바꾸기: "          const r = await mcp.call('bring_to_front'" },
+    찾기: "          if (pid == null && !대상.window) throw new Error('대상 앱을 못 찾았다');",
+    바꾸기: "          void 0;" },
   { 이름: '드라이버가 되물은 후보를 실패로 뭉갬(고를 수 있는데 못 한다고 한다)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
     찾기: '        if (낸것?.골라야함?.length) {', 바꾸기: '        if (false) {' },
@@ -1561,6 +1563,36 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 모른다를 안 됐다로 바꾸지 않는다 (라이브 2026-08-05 · 사진으로 확인) ─
+  { 이름: '드라이버가 "확인 못 한다"고 밝혀도 안 됐다고 단정', 파일: DESK_ACT, 검사: T_CU_D2,
+    찾기: "      const 못본다 = 낸것?.effect === 'unverifiable';",
+    바꾸기: "      const 못본다 = false;" },
+  { 이름: '기대한 요소를 못 찾은 것을 값이 다른 것으로 침', 파일: DESK_ACT, 검사: T_CU_D2,
+    찾기: "  if (후?.못찾음 === true) return null;   // 모른다 — 다시 누르면 두 번 눌린다",
+    바꾸기: "  if (false) return null;" },
+  { 이름: '못 찾음 표식을 아예 안 실음(대조가 빈 값과 못 구분한다)', 파일: DESK_ACT, 검사: T_CU_D2,
+    찾기: "  return { 값: 요소값(본것, 요소id), ...(요소id && !있나 ? { 못찾음: true } : {}) };",
+    바꾸기: "  return { 값: 요소값(본것, 요소id) };" },
+  // ── 허락한 그 걸음은 다시 물어보지 않는다 (F-34) ───────────────────────
+  { 이름: '허락한 걸음을 다시 물어봄(재시도가 죽고 사용자에게 떠넘겨진다)', 파일: BOUNDARY, 검사: T_RETRY,
+    찾기: "  if (허락한걸음?.has?.(걸음신분({ toolId, 판정인자 }))) return { 면제: true, 이유: '허락한걸음' };",
+    바꾸기: "  if (false) return { 면제: true, 이유: '허락한걸음' };" },
+  { 이름: '걸음 신분에서 대상을 뺌(rm -rf 구멍이 열린다)', 파일: BOUNDARY, 검사: T_RETRY,
+    찾기: "  return `${toolId}|${걸음}|${대상}`;",
+    바꾸기: "  return `${toolId}|${걸음}`;" },
+  { 이름: '걸음 신분이 인자 전체를 봄(토큰이 붙으면 재시도가 영영 막힌다)', 파일: BOUNDARY, 검사: T_RETRY,
+    찾기: "  const 걸음 = String(판정인자?.action ?? 판정인자?.op ?? '');",
+    바꾸기: "  const 걸음 = JSON.stringify(판정인자 ?? {});" },
+  // ── 확인해 준 것을 실패로 내지 않는다 ─────────────────────────────────
+  { 이름: '후보에서 고른 뒤 확인 표식을 안 붙임(확인된 focus 가 실패로 나간다)', 파일: CUA, 검사: T_CU_C2,
+    찾기: "              return 확인붙이기(await mcp.call('bring_to_front', {",
+    바꾸기: "              return ((x) => x)(await mcp.call('bring_to_front', {" },
+  { 이름: '창 id 로 그 창 주인의 pid 를 안 찾음(창만 주면 못 띄운다)', 파일: CUA, 검사: T_CU_C2,
+    찾기: "          const 창pid = 창만 ? await 창의pid(대상.window) : null;",
+    바꾸기: "          const 창pid = null;" },
+  { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: CUA, 검사: T_CU_C2,
+    찾기: "          if (Array.isArray(r) && r.some((x) => /Missing required/i.test(String(x?.text ?? '')))) {",
+    바꾸기: "          if (false) {" },
   // ── 커널이 모델에게 거짓을 먹이지 않는다 (라이브 2026-08-05) ──────────
   { 이름: '거르개가 AX 접두를 안 벗겨 151개 중 0개를 돌려줌(조용한 0 을 모델에게 먹인다)', 파일: DESK, 검사: T_CU_B2,
     찾기: "  const 종류맞춤 = (v) => String(v ?? '').trim().replace(/^AX/i, '').toLowerCase();",

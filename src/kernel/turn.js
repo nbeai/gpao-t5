@@ -17,7 +17,7 @@ import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
-import { 실행전판정, 승인면제 } from './l2-plan/tool-boundary.js';
+import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boundary.js';
 import { 손제시기록 } from './l2-plan/tool-offer.js';
 import { dump손제시 } from '../runtime/prompt-dump.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
@@ -613,6 +613,7 @@ export async function runTurn(input, ctx) {
   // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
   if (typeof input.text === 'string' && input.text.trim()) {
     ctx.허락한손 = undefined;
+    ctx.허락한걸음 = undefined;
     // **새 발화는 이전 승인을 지난 것으로 만든다.**
     //
     // 실측(오너 라이브 G 행렬 2026-07-29): 승인 대기 중에 `아, 잠깐. 그건 됐고 지금 몇 시야?`
@@ -742,6 +743,8 @@ export async function runTurn(input, ctx) {
     // 것이 없다. 그렇게 묻는 것은 확인이 아니라 절차가 되고, 사용자는 읽지 않고 누르게 된다.
     // 범위는 **이 요청 안에서만**이다. 요청이 바뀌면 맥락도 바뀌므로 다시 묻는다.
     ctx.허락한손 = new Set(saved.허락한손 ?? []);
+    // **허락한 그 걸음**도 이어진다 — 안 이으면 승인 뒤 재시도가 다시 카드를 부른다(F-34).
+    ctx.허락한걸음 = new Set(saved.허락한걸음 ?? []);
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     const result = await executePlan(
       saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs,
@@ -1504,6 +1507,11 @@ export async function runTurn(input, ctx) {
       // 이 요청에서 허락받은 손. 계획 경로와 걸음 경로가 **같은 규칙**을 써야 한다 —
       // 한쪽만 면제하면 같은 요청인데 어느 길로 왔느냐에 따라 묻는 횟수가 달라진다.
       허락한손: [...(ctx.허락한손 ?? []), ...pendingGrants.map((g) => g.action).filter(Boolean)],
+      // **무엇을 허락했는지**까지 봉인한다. 손 이름만 남기면 재시도가 "허락 안 한 것"이 되고,
+      // 그 자리에서 걸음이 죽는다(F-34 · 라이브 2026-08-05).
+      허락한걸음: [...(ctx.허락한걸음 ?? []), ...pendingGrants.map((g) => 걸음신분({
+        toolId: g.action, 판정인자: intent.toolArgs?.[g.action],
+      })).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
     });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
@@ -2166,6 +2174,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 면제 = 승인면제({
       toolId, 판정인자,
       허락한손: ctx.허락한손,
+      허락한걸음: ctx.허락한걸음,
       knownCounterparts: ctx.knownCounterparts,
       전송인가: isSendTool(toolId, selfState),
       // **게이트는 면제 대상이 아니다** — 이월·발화밖은 "현재 요청 침해"의 자리다.
@@ -2233,9 +2242,18 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         걸음plan.completionContract = structuredClone(plan.completionContract);
         걸음plan.completionContractRef = plan.completionContractRef;
       }
-      // 이 요청에서 이미 허락받은 손이면 다시 묻지 않는다(같은 질문을 두 번 하지 않는다).
-      // 손이 **다르면** 다른 결정이므로 그때는 묻는다 — 면제되는 것은 같은 손뿐이다.
-      const grants = ctx.허락한손?.has(toolId) ? [] : (걸음plan.needsApproval ?? []);
+      // **면제는 위에서 이미 봤다 — 여기서 다시 재지 않는다**(F-34 · 2026-08-05).
+      //
+      // 예전엔 여기서 `ctx.허락한손.has(toolId)` 로 grants 를 비웠다. 그런데 `승인면제` 는
+      // 같은 질문에 **다른 답**을 낸다(손 면제는 `되돌릴수있나 === true` 일 때만 준다).
+      // 두 벌이 어긋나면 걸음이 그 사이로 빠진다 — 면제를 못 받고 승인 분기에 들어왔는데
+      // 여기서 grants 가 비어 **카드도 못 만들고 죽는다.** 라이브에서 사용자가 `7 누르기` 를
+      // 승인하고도 *"승인이 한 번 더 필요합니다"* 를 들은 자리가 정확히 여기다.
+      //
+      // 그리고 이 지름길에는 구멍이 있었다 — **같은 손이면 대상이 바뀌어도 열렸다.**
+      // `rm -rf ./임시` 를 승인한 뒤 `rm -rf /전혀다른곳` 이 실행된 그 사고가 이 모양이고,
+      // 계획 경로는 `승인면제` 가 막는데 걸음 경로만 안 막고 있었다. 지우면 함께 닫힌다.
+      const grants = 걸음plan.needsApproval ?? [];
       if (grants.length) {
         const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
         이전대기를지난것으로(ctx);
@@ -2254,6 +2272,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           askedFrom: ctx.askedFrom,
           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
           허락한손: [...(ctx.허락한손 ?? []), toolId],
+          허락한걸음: [...(ctx.허락한걸음 ?? []), 걸음신분({ toolId, 판정인자 })],
           grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
         });
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게
