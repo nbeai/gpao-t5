@@ -57,6 +57,15 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       probeResult: probed?.probe,
     };
   }
+  // **화면 누르기도 돌려 봐야 안다**(CU E). 터미널과 같은 자리, 같은 이유다 —
+  // 위험한 버튼 이름을 세는 대신 **화면에 그 자리가 무엇인지 다시 물어본다.**
+  // 여기서 안 태우면 `action-plan` 의 판정은 늘 "돌려 본 사실 없음"을 보고 미상으로 답한다.
+  // 창 넷(`focus` 등)에는 probe 가 `{해당없음:true}` 로 답한다 — 볼 일이 없는데 안 읽는다.
+  if (toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type')) {
+    const 돌려본것 = await tools?.tools?.[toolId]?.probe?.(args);
+    // 돌려 본 사실을 **판정인자에 실어 보낸다** — 원장도 사용자도 왜 물었는지 볼 수 있어야 한다.
+    if (돌려본것 && !돌려본것.해당없음) 판정인자 = { ...args, 눌러본사실: 돌려본것 };
+  }
   const kind = toolActionKind({ toolId, args: 판정인자, selfState });
   // **판정은 계획 경로와 같은 사실 위에서 한다**(두 층이 같은 질문에 다른 답을 내면 결함이다).
   // 헌장은 종류만으로 답할 수 없다 — 되돌릴 수 있는지, 아는 상대인지가 자동을 연다.

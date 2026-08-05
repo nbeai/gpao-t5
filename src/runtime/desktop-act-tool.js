@@ -52,8 +52,12 @@ const 대조할값 = {
   scroll: (본것) => ({ 스크롤: 본것?.scroll ?? null }),
   move: (본것) => ({ 창자리: JSON.stringify(본것?.windows?.[0]?.bounds ?? null) }),
   resize: (본것) => ({ 창자리: JSON.stringify(본것?.windows?.[0]?.bounds ?? null) }),
-  launch: (본것) => ({ 앱들: (본것?.apps ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
-  quit: (본것) => ({ 앱들: (본것?.apps ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
+  // **`앱들` 을 걷어냈다**(2026-08-05). `observe` 는 `apps` 를 주지 않는다 — 그 칸은 전에도 0,
+  // 후에도 0 이었고, 판정은 옆의 `frontmost` 로 흘러 **켜기를 "앞에 떴나"로 재게 됐다.**
+  // 빈 칸을 대조에 세워 두면 그 옆 칸이 조용히 판정을 가져간다. 재는 자리를 먼저 검증한다(§4.3).
+  // 켜기·끄기가 됐는지는 드라이버가 확인해 준다(`launch_state` · `kill`) — 그게 더 정확하다.
+  launch: (본것) => ({ 창수: (본것?.windows ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
+  quit: (본것) => ({ 창수: (본것?.windows ?? []).length, frontmost: 본것?.frontmost?.name ?? null }),
   // 누르기는 **모델이 지목한 요소의 값**을 본다. 무엇을 볼지는 모델이 정하고 커널은 대조만 한다.
   click: (본것, args) => ({ 값: 요소값(본것, args?.기대?.요소) }),
   type: (본것, args) => ({ 값: 요소값(본것, args?.기대?.요소) }),
@@ -108,7 +112,71 @@ export function makeDesktopActTool(deps = {}) {
   const drivers = Array.isArray(deps.drivers) ? deps.drivers : [];
   return {
     sourceLedgerRequired: false,
-    async handler(args) {
+    /**
+    * **돌려 봐야 안다**(CU E). 이 자리가 무엇인지 **화면에 다시 물어본다.**
+    *
+    * 왜 모델에게 안 묻나: 지금 위험 판정은 `기대.바깥으로` 를 **모델이 밝혀야** 걸린다.
+    * 안 밝히면 안 걸린다 — 승인 경계가 자기신고로 열리는 자리다. 화면이 답하면 그 길이 닫힌다.
+    *
+    * 왜 이름 목록이 아닌가: `보내기`·`삭제`·`결제` 를 세면 영어·아이콘·다른 말에 뚫린다.
+    * **문구 목록은 항상 뚫린다.** 게다가 화면 문구로 등급을 정하는 건 A10 을 정면으로 어긴다.
+    *
+    * 대신 **구조로 가른다** — 되돌릴 수 있는 것과 없는 것은 화면에서 구조로 갈린다:
+    *   값이 있는 요소(체크박스·스위치·팝업·글자칸) → 전후 대조가 자명하고 다시 놓으면 돌아온다
+    *   값이 없는 버튼                              → 눌러 보기 전엔 모르고 되돌릴 방법도 없다
+    * C 가 첫 손을 "대조가 자명한 넷"으로 자른 것과 **같은 기준**이다.
+    *
+    * **아무것도 실행하지 않는다.** `local.terminal` 의 probe 와 같은 약속이다.
+    */
+   /**
+    * **카드는 무엇을 허락하는지 말해야 한다**(라이브 2026-08-05). 처음 뜬 카드에는
+    * *"화면 다루기 실행"* 이라고만 적혀 있었다 — 이 저장소가 이미 싸운 병이고
+    * (*"실행 중인 것 실행"*), **뜨는 것과 말이 되는 것은 다른 일이다.**
+    *
+    * 되돌림도 함부로 약속하지 않는다. 값이 있는 요소는 다시 놓으면 되지만,
+    * **값이 없는 버튼은 무엇이 되는지 모르니 되돌림도 모른다.**
+    */
+   previewOf(args = {}) {
+     const 행동 = String(args.action ?? '');
+     const 어디 = String(args.app ?? args.대상?.app ?? '').trim();
+     const 무엇 = String(args.대상?.label ?? '').trim();
+     const 말 = {
+       click: `${무엇 || '그 자리'} 누르기`,
+       type: `${무엇 || '그 칸'} 에 글자 넣기`,
+       quit: `${어디 || '그 앱'} 끄기`,
+       focus: `${어디 || '그 창'} 앞으로 띄우기`,
+       launch: `${어디 || '그 앱'} 실행`,
+     }[행동] ?? `화면 ${행동}`;
+     const 값있음 = args.눌러본사실?.값있음;
+     return {
+       impact: 어디 && (행동 === 'click' || 행동 === 'type') ? `${어디} · ${말}` : 말,
+       scope: '이번 요청',
+       duration: '이번 한 번',
+       cancel: 행동 === 'quit' ? '저장 안 한 것은 되돌릴 수 없어요'
+         : 값있음 === true ? '되돌릴 수 있어요 — 다시 놓으면 돼요'
+           : 값있음 === false ? '무엇이 되는지 몰라서 되돌릴 수 있다고 말 못 해요'
+             : '되돌릴 수 있어요',
+     };
+   },
+
+   async probe(args) {
+     const 모름 = { 찾음: false };
+     // 창 넷은 요소를 안 본다 — 볼 일이 없는데 화면을 한 번 더 읽으면 값싼 길에 비용이 붙는다.
+     if (args?.action !== 'click' && args?.action !== 'type') return { 해당없음: true };
+     const 드라이버 = (deps.drivers ?? [])[0];
+     const 이름 = String(args?.대상?.label ?? '').trim();
+     if (!드라이버 || !이름) return 모름;
+     let 요소들 = null;
+     // 판정하다가 터지면 판정 자리 전체가 죽는다. 못 보면 **모른다**(모름은 확인 쪽이다).
+     try { 요소들 = (await 드라이버.observe({ scope: 'window' }))?.elements ?? null; } catch { 요소들 = null; }
+     if (!Array.isArray(요소들)) return 모름;
+     const 그것 = 요소들.find((e) => String(e?.label ?? '') === 이름);
+     if (!그것) return 모름;
+     // **화면이 준 요소만 본다.** `args.대상` 은 모델이 적어 낸 것이라 지어낼 수 있다.
+     return { 찾음: true, 값있음: 그것.value !== undefined && 그것.value !== null, 역할: 그것.role ?? null };
+   },
+
+async handler(args) {
       const 드라이버 = drivers[0];
       if (!드라이버) {
         return {
@@ -170,11 +238,29 @@ export function makeDesktopActTool(deps = {}) {
         // 같은 이름이 둘이면 어느 것이 눌릴지 우리가 모르고, **모르면 안 누른다**(A02).
         let 지금요소 = null;
         try { 지금요소 = (await 드라이버.observe({ scope: 'window' }))?.elements ?? null; } catch { 지금요소 = null; }
-        if (Array.isArray(지금요소)) {
+        // **신분을 줬으면 겹쳐도 모호하지 않다.** A02 는 *임의 선택*을 막는 규율이지
+        // 신분이 확실한 것까지 막는 규율이 아니다 — cua 는 이름이 아니라 토큰으로 누른다.
+        const 신분있나 = Boolean(args?.대상?.토큰) || args?.대상?.번호 != null;
+        if (Array.isArray(지금요소) && !신분있나) {
           const 이름 = String(args.대상.label);
-          const 겹침 = 지금요소.filter((e) => String(e?.label ?? '') === 이름).length;
-          if (겹침 > 1) {
-            return 막힘(`"${이름}" 이라는 이름이 여러 개라 어느 것을 누를지 알 수 없어요.`);
+          const 같은이름 = 지금요소.filter((e) => String(e?.label ?? '') === 이름);
+          if (같은이름.length > 1) {
+            // **막되 갈 곳을 준다.** 라이브에서 여기 후보가 없어 모델이 사용자에게 떠넘겼다
+            // (*"윤님이 직접 한 번만…"*). 웹에서 세운 계약이 이 자리에만 없었다 —
+            // **하나가 막혔다고 전부를 버리지 않는다.**
+            const 후보 = 같은이름.slice(0, 8).map((e) => ({
+              토큰: e.토큰 ?? null, 번호: e.번호 ?? null, 역할: e.role ?? e.type ?? null,
+              label: e.label, bounds: e.bounds ?? null,
+            }));
+            return {
+              blocked: true,
+              userSafeSummary: `"${이름}" 이라는 이름이 여러 개라 어느 것을 누를지 알 수 없어요.`,
+              후보,
+              다음수단: 후보.filter((c) => c.토큰 != null || c.번호 != null).map((c) => ({
+                방법: 'click', 토큰: c.토큰, 번호: c.번호,
+                왜: `${c.역할 ?? '요소'} · ${c.label}`,
+              })),
+            };
           }
         }
 
@@ -214,7 +300,11 @@ export function makeDesktopActTool(deps = {}) {
             },
             userSafeSummary: 행동 === 'focus'
               ? `${args?.app ?? '그 창'} 을(를) 앞으로 띄웠어요.`
-              : '그렇게 했어요. 실제로 그렇게 된 것까지 확인했어요.',
+              // **켠 것과 앞에 둔 것은 다른 일이다.** 뭉뚱그리면 사용자는 앞에 왔다고 듣고
+              // 화면을 보고 어리둥절해진다(cua 는 켜고도 앞으로 안 올린다).
+              : 행동 === 'launch'
+                ? `${args?.app ?? '그 앱'} 을(를) 실행했어요. 화면 앞으로 오지는 않았어요.`
+                : '그렇게 했어요. 실제로 그렇게 된 것까지 확인했어요.',
           };
         }
         if (낸것?.골라야함?.length) {

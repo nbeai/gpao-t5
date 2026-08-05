@@ -44,6 +44,16 @@ const T_REPLAY = 'test/tcell-replay.test.js';
 const T_OBS = 'test/tcell-observation.test.js';
 const T_SENSITIVE = 'test/memory-sensitive-ingress.test.js';
 const T_MASK = 'test/sensitive-masks-only-the-value.test.js';
+const T_CU_E = 'test/cu-e-click-risk-from-probe.test.js';
+const T_CU_B2 = 'test/cu-b-filter-must-bite.test.js';
+const T_CU_C2 = 'test/cu-c-launch-measures-running-not-front.test.js';
+const T_EXIT_B = 'test/exit-blocked-step-claimed-done.test.js';
+const DESK = 'src/runtime/desktop-tool.js';
+const CUA = 'src/runtime/desktop-cua-driver.js';
+const EXITV = 'src/kernel/l2-plan/exit-verification.js';
+const RUNNER = 'src/runtime/tool-runner.js';
+const DESK_ACT = 'src/runtime/desktop-act-tool.js';
+const BOUNDARY = 'src/kernel/l2-plan/tool-boundary.js';
 const T_LANE = 'test/tcell-lane.test.js';
 const T_IDN = 'test/tcell-model-identity.test.js';
 const T_ROUND = 'test/tcell-round-retry.test.js';
@@ -894,7 +904,7 @@ export const MUTATIONS = [
 
   { 이름: '이름이 겹치는데 누름(어느 것이 눌릴지 모르는 채로 · A02)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
-    찾기: '          if (겹침 > 1) {', 바꾸기: '          if (false) {' },
+    찾기: '          if (같은이름.length > 1) {', 바꾸기: '          if (false) {' },
   { 이름: '누를 때 이름을 안 보냄(백엔드가 id 로는 못 되살린다 · 실측)',
     파일: 'src/runtime/desktop-native-driver.js', 검사: 'test/cu-d-click-declares-effect.test.js',
     찾기: "        ? (요청?.대상?.label ?? '')", 바꾸기: "        ? (요청?.대상?.id ?? '')" },
@@ -988,7 +998,7 @@ export const MUTATIONS = [
     찾기: '    지문: 요소지문(e),\n', 바꾸기: '' },
   { 이름: '요소를 조용히 잘라 냄(모델이 그게 전부인 줄 안다)',
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
-    찾기: '    요소창: { 시작, 끝, 총,', 바꾸기: '    아무거나: { 시작, 끝, 총,' },
+    찾기: '    요소창: {\n      시작, 끝, 총,', 바꾸기: '    아무거나: {\n      시작, 끝, 총,' },
 
   // **A10 — 화면 내용은 데이터다.** 관찰 전용이라 안전해 보이는 자리가 주입의 입구다.
   { 이름: '화면 글자에 데이터 표식을 안 붙임(화면 지시가 명령으로 승격된다)',
@@ -1551,6 +1561,59 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 커널이 모델에게 거짓을 먹이지 않는다 (라이브 2026-08-05) ──────────
+  { 이름: '거르개가 AX 접두를 안 벗겨 151개 중 0개를 돌려줌(조용한 0 을 모델에게 먹인다)', 파일: DESK, 검사: T_CU_B2,
+    찾기: "  const 종류맞춤 = (v) => String(v ?? '').trim().replace(/^AX/i, '').toLowerCase();",
+    바꾸기: "  const 종류맞춤 = (v) => String(v ?? '').trim();" },
+  { 이름: '거르개가 못 문 것을 "없다"로 내보냄(모델이 다시 물을 길이 없다)', 파일: DESK, 검사: T_CU_B2,
+    찾기: "      ...(종류 && 총 === 0 && 요소들0.length > 0",
+    바꾸기: "      ...(false && 종류 && 총 === 0 && 요소들0.length > 0" },
+  { 이름: '창 안을 봐도 요약은 늘 화면 문장(모델이 요약만 읽고 손을 접는다)', 파일: DESK, 검사: T_CU_B2,
+    찾기: "  if (args?.scope !== 'window' || !본것?.elements) return null;",
+    바꾸기: "  return null; // eslint-disable-line" },
+  // ── 켜기를 앞으로 재지 않는다 · 앱 이름 축 · A02 (라이브 2026-08-05) ───
+  { 이름: '켠 것을 확인해 주지 않아 켜기가 늘 실패로 찍힘(사용자가 직접 하라는 말을 듣는다)', 파일: CUA, 검사: T_CU_C2,
+    찾기: "          return r?.launch_state?.process_running === true",
+    바꾸기: "          return false" },
+  { 이름: '앱 이름 축에서 앱 파일 이름을 뺌(Calculator 로는 계산기를 못 찾는다)', 파일: CUA, 검사: T_CU_C2,
+    // 정규식이 든 줄을 통째로 적으면 이스케이프가 두 겹이 된다 — **앞 토막만** 짚는다.
+    찾기: "String(a.launch_path ?? '').split('/')",
+    바꾸기: "''.split('/')" },
+  { 이름: '같은 이름 앱이 여럿인데 앞엣것을 임의로 고름(A02 위반)', 파일: CUA, 검사: T_CU_C2,
+    찾기: "        if (걸린것.length > 1) {",
+    바꾸기: "        if (false) {" },
+  // ── 막힘이 갈 곳을 잃지 않는다 (라이브 2026-08-05) ─────────────────────
+  { 이름: '이름이 겹치면 신분을 줘도 막음(신분이 확실한데 못 누른다)', 파일: DESK_ACT, 검사: T_CU_E,
+    찾기: "        const 신분있나 = Boolean(args?.대상?.토큰) || args?.대상?.번호 != null;",
+    바꾸기: "        const 신분있나 = false;" },
+  { 이름: '겹칠 때 후보 없이 막음(모델이 갈 곳을 잃고 사용자에게 떠넘긴다)', 파일: DESK_ACT, 검사: T_CU_E,
+    찾기: "            const 후보 = 같은이름.slice(0, 8).map((e) => ({",
+    바꾸기: "            const 후보 = [].map((e) => ({" },
+  { 이름: '다음 수를 쥐고도 웹 기본 문구를 냄(모델이 그걸 읽고 손을 접는다)', 파일: RUNNER, 검사: T_EXIT_B,
+    찾기: "            ?? (out.다음수단?.length ? '막힌 자리에 다음 수가 있어요 — 그 중 하나를 골라 이어가세요.'",
+    바꾸기: "            ?? (false ? '막힌 자리에 다음 수가 있어요 — 그 중 하나를 골라 이어가세요.'" },
+  // ── 출구 넷째 그물 (라이브 2026-08-05) ────────────────────────────────
+  { 이름: '막힌 걸음을 했다고 말해도 사용자에게 그대로 보냄', 파일: EXITV, 검사: T_EXIT_B,
+    찾기: "  if (못한걸음.length) {",
+    바꾸기: "  if (false) {" },
+  { 이름: '걸음을 안 보고 손만 봐서, 다른 걸음이 성공했으면 거짓을 통과시킴', 파일: EXITV, 검사: T_EXIT_B,
+    찾기: "  const 걸음키 = (rec) => `${rec?.actualCall?.tool ?? ''}|${rec?.actualCall?.args?.action ?? rec?.actualCall?.args?.op ?? ''}`;",
+    바꾸기: "  const 걸음키 = (rec) => `${rec?.actualCall?.tool ?? ''}`;" },
+  // ── CU E · 무엇이 되는지 모르면 묻는다 ────────────────────────────────
+  // 넷 다 **같은 방향**으로만 무너뜨린다: 모르는 것을 자동으로 흘리는 쪽.
+  // 반대 방향(다 물어보게 만들기)은 카드를 늘리는 실패라 ①의 organize 칸이 잡는다.
+  { 이름: '값 없는 버튼도 자동으로 흘림("보내기 눌러줘"가 카드 없이 나간다)', 파일: 'src/kernel/l2-plan/action-plan.js', 검사: T_CU_E,
+    찾기: "      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;",
+    바꾸기: "      kind = 'organize';" },
+  { 이름: '경계가 화면 클릭에 probe 를 안 태움(판정이 늘 미상이 되거나 늘 자동이 된다)', 파일: BOUNDARY, 검사: T_CU_E,
+    찾기: "    const 돌려본것 = await tools?.tools?.[toolId]?.probe?.(args);",
+    바꾸기: "    const 돌려본것 = { 찾음: true, 값있음: true };" },
+  { 이름: 'probe 가 화면 대신 모델이 적어 낸 인자를 믿음(자기신고로 승인이 열린다)', 파일: DESK_ACT, 검사: T_CU_E,
+    찾기: "     const 그것 = 요소들.find((e) => String(e?.label ?? '') === 이름);",
+    바꾸기: "     const 그것 = args?.대상;" },
+  { 이름: '화면을 못 봤는데 값 있는 요소로 단정(못 보면 자동이 된다)', 파일: DESK_ACT, 검사: T_CU_E,
+    찾기: "     if (!Array.isArray(요소들)) return 모름;",
+    바꾸기: "     if (!Array.isArray(요소들)) return { 찾음: true, 값있음: true };" },
   // ── F-32 · 비밀만 가리고 나머지는 준다 ────────────────────────────────
   // 라이브에서 화면 답이 통째로 사라진 자리다. 그물 넷이 지키는 것은 서로 다르다:
   // 둘은 **비밀이 새는 쪽**, 둘은 **정보가 사라지는 쪽**. 어느 쪽으로 무너져도 물어야 한다.

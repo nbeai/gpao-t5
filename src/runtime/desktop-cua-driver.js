@@ -186,23 +186,49 @@ export function makeCuaDriver(deps = {}) {
       // 라이브에서 `app` 을 보내다 `Missing required integer field: pid` 로 전부 실패했다 —
       // 검사는 초록이었다(가짜 MCP 가 인자를 안 봤다). **가짜가 실물의 필수 인자를 안 재면
       // 계약이 아니라 모양만 지킨다.**
-      const pid찾기 = async () => {
-        if (Number.isInteger(대상.pid)) return 대상.pid;
+      /**
+       * **앱 하나를 고른다 — 못 고르면 고르지 않는다.**
+       *
+       * 축이 셋이다. 셋째가 없어서 라이브에서 `Calculator` 가 안 잡혔다(2026-08-05):
+       * OS 표시 이름은 `계산기` 인데 사용자와 모델은 `Calculator` 라고 쓴다. 둘을 잇는 것은
+       * **앱 파일 이름**(`/System/Applications/Calculator.app`)이고, 이건 추측이 아니라 기계 사실이다.
+       *
+       * 그리고 **여럿이면 안 고른다**(A02). 예전 `.find()` 는 앞엣것을 임의로 집었다 —
+       * 손 바깥에는 A02 를 세워 두고 손 안쪽에 그대로 남아 있던 자리다.
+       *
+       * @returns {Promise<{pid:number}|{골라야함:Array}|null>}
+       */
+      const 앱고르기 = async () => {
+        if (Number.isInteger(대상.pid)) return { pid: 대상.pid };
         const 이름 = String(대상.app ?? '').trim().toLowerCase();
         if (!이름) return null;
         const { apps } = await mcp.call('list_apps', {});
-        const 맞는것 = (apps ?? []).find((a) => {
-          const n = String(a.name ?? '').toLowerCase();
-          const b = String(a.bundle_id ?? '').toLowerCase();
-          return n === 이름 || b === 이름 || n.includes(이름) || 이름.includes(n);
-        });
-        return 맞는것?.pid ?? null;
+        const 후보들 = (apps ?? []).filter((a) => a?.pid != null);
+        const 축 = (a) => [
+          String(a.name ?? ''),
+          String(a.bundle_id ?? ''),
+          // `/System/Applications/Calculator.app` → `Calculator`
+          String(a.launch_path ?? '').split('/').pop().replace(/\.app$/i, ''),
+        ].map((x) => x.toLowerCase()).filter(Boolean);
+        // **정확히 맞는 것이 먼저다.** 부분 일치를 먼저 보면 `메모` 가 `메모 도우미` 를 문다.
+        const 정확 = 후보들.filter((a) => 축(a).includes(이름));
+        const 걸린것 = 정확.length ? 정확
+          : 후보들.filter((a) => 축(a).some((x) => x.includes(이름) || 이름.includes(x)));
+        if (!걸린것.length) return null;
+        if (걸린것.length > 1) {
+          return { 골라야함: 걸린것.map((a) => ({ app: a.name, pid: a.pid, bundle: a.bundle_id })) };
+        }
+        return { pid: 걸린것[0].pid };
       };
+      const pid찾기 = async () => (await 앱고르기())?.pid ?? null;
 
       // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
       const 표 = {
         focus: async () => {
-          const pid = await pid찾기();
+          const 고른것 = await 앱고르기();
+          // **여럿이면 부르지 않는다** — 어느 것이냐고 되묻는 것이 실패보다 정직하다(A02).
+          if (고른것?.골라야함) return { 골라야함: 고른것.골라야함 };
+          const pid = 고른것?.pid ?? null;
           // pid 를 못 찾았으면 **부르지 않는다.** 빈 인자로 부르면 드라이버가 알아서
           // 아무 창이나 띄울 수도 있고, 그건 오대상 실행이다.
           if (pid == null) throw new Error('대상 앱을 못 찾았다');
@@ -225,7 +251,15 @@ export function makeCuaDriver(deps = {}) {
           }
           return r;
         },
-        launch: () => mcp.call('launch_app', { name: 대상.app }),
+        // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
+        // cua 는 켜고도 일부러 앞으로 안 올린다(`self_activation_suppressed`). 그걸 앞으로
+        // 재면 켜기는 영원히 실패로 찍힌다 — 라이브에서 사용자가 "직접 누르세요"를 들은 자리다.
+        launch: async () => {
+          const r = await mcp.call('launch_app', { name: 대상.app });
+          return r?.launch_state?.process_running === true
+            ? { ...r, 확인됨: true, 근거: 'launch_state.process_running' }
+            : r;
+        },
         quit: async () => {
           const pid = await pid찾기();
           if (pid == null) throw new Error('대상 앱을 못 찾았다');

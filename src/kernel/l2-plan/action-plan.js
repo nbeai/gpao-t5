@@ -88,10 +88,19 @@ export function toolActionKind({ toolId, args, selfState }) {
   if (toolId === 'desktop.act') {
     const a = args?.action;
     if (a === 'focus' || a === 'scroll' || a === 'move' || a === 'resize' || a === 'launch') kind = 'read';
-    // **누르기·입력은 화면 상태를 바꾼다**(CU D). 그런데 되돌릴 수 있다 — 다시 누르면 된다.
-    // 헌장 넷에 안 닿으므로 **자동이다.** 여기에 카드를 달면 화면 쓸 때마다 사람이 선다.
-    // 바깥으로 나가는 클릭은 **손이 애초에 안 받는다**(모델이 밝힌 것으로 갈린다) — E 의 일이다.
-    else if (a === 'click' || a === 'type') kind = 'organize';
+    // **누르기·입력은 돌려 봐야 안다**(CU E). D 에서는 무조건 `organize` 였고,
+    // 그래서 **"보내기 눌러줘"가 카드 없이 나갔다.** 위험을 버튼 이름으로 알아맞히지 않는다 —
+    // 문구 목록은 항상 뚫리고, 화면 문구로 등급을 정하는 건 A10 을 정면으로 어긴다.
+    //
+    // 대신 **손의 probe 가 화면에 다시 물어본 사실**로 가른다(터미널과 같은 길이다):
+    //   값이 있는 요소(체크박스·스위치·글자칸)  전후 대조가 자명하고 다시 놓으면 돌아온다 → 자동
+    //   값이 없는 버튼                          눌러 보기 전엔 모르고 되돌릴 방법도 없다 → 미상
+    //   못 찾음 · 돌려 본 사실 없음             **모름은 자동이 아니라 확인 쪽이다** → 미상
+    //
+    // 모델이 인자에 `value` 를 적어 내도 소용없다 — probe 는 화면이 준 요소만 본다.
+    else if (a === 'click' || a === 'type') {
+      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
+    }
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
   }

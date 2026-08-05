@@ -117,7 +117,14 @@ export class ToolRunner {
           막힌곳: out.막힌곳,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 대상이 접근을 막았어요.`,
           diagnosticTrace: out.diagnosticTrace,
-          nextSafeAction: out.nextSafeAction ?? '공개 자료/대체 경로로 이어갈까요?',
+          // **손이 다음 수를 쥐고 있으면 그 길을 가리킨다.** 기본 문구는 웹에서 온 것이라
+          // (*"공개 자료/대체 경로로 이어갈까요?"*) 화면 손에 붙으면 엉뚱하다 —
+          // 라이브(2026-08-05)에서 모델이 토큰 실린 다음수단 둘을 받고도 그 문구를 읽고
+          // *"desktop.act 가 막혀 있어서"* 라며 사용자에게 떠넘겼다.
+          // **가진 길을 두고 없는 것처럼 말하게 만든 것은 기본값이지 모델이 아니다.**
+          nextSafeAction: out.nextSafeAction
+            ?? (out.다음수단?.length ? '막힌 자리에 다음 수가 있어요 — 그 중 하나를 골라 이어가세요.'
+              : '공개 자료/대체 경로로 이어갈까요?'),
         });
       }
       // transient 실패(재시도 여지) — handler가 정직한 사용자면 메시지와 함께 알린다. blocked(permanent)와 분리.
