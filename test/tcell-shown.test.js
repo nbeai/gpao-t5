@@ -77,12 +77,16 @@ test('S5-1: 모델 입력에 렌더된 것만 shown 으로 남는다', async () 
 
     // 실제로 모델 앞에 놓인 것.
     const tc = 받은것.at(-1);
-    assert.deepEqual(tc.admittedContext, [원리], '이 요청에는 원리만 렌더된다');
+    // **선호는 발화와 무관하게 실린다**(F-18 · 2026-08-05). 사용자에 대한 사실은 무엇을
+    // 물었느냐로 참·거짓이 되지 않는다. 이 검사가 지키는 것은 그대로다 —
+    // **렌더된 것과 shown 이 같다**(기록만 맞고 렌더가 틀리면 아무 의미가 없다).
+    assert.deepEqual(new Set(tc.admittedContext), new Set([원리, '보고서는 짧은 목록으로 정리한다']),
+      '사례가 맞는 원리와 선호가 함께 렌더된다');
 
     const 기록 = shown(await mem.load());
     assert.equal(기록.length, 1, '턴 하나에 기록 하나');
-    assert.deepEqual(기록[0].refs.map((r) => r.ref), ['p-원리'], '렌더된 그 항목만 shown');
-    assert.deepEqual(기록[0].refs.map((r) => r.kind), ['operating_principle']);
+    assert.deepEqual(new Set(기록[0].refs.map((r) => r.ref)), new Set(['p-원리', 'pref-보고서']),
+      '렌더된 그 항목들만 shown — 렌더와 기록이 어긋나면 인용·정정이 헛돈다');
   } finally { server.close(); }
 });
 
@@ -110,9 +114,14 @@ test('S5-1: 관련 없는 요청이면 렌더 0 · shown 0', async () => {
     const s = await post('/sessions');
     await post('/turn', { sessionId: s.id, text: '점심 하나만 골라줘' });
 
-    assert.deepEqual(받은것.at(-1).admittedContext, [], '무관한 요청에는 아무 것도 안 든다');
+    // **원리는 사례로 범위가 정해진다 — 무관한 요청에는 안 든다**(그 계약은 그대로다).
+    // 선호는 사용자에 대한 사실이라 든다(F-18 · 2026-08-05).
+    const 렌더 = 받은것.at(-1).admittedContext ?? [];
+    assert.ok(!렌더.includes(원리), '사례가 안 맞는 원리가 렌더됐다 — 검증된 범위를 벗어났다');
+    assert.deepEqual(렌더, ['보고서는 짧은 목록으로 정리한다'], '선호는 그대로 실린다');
     const 기록 = shown(await mem.load());
-    assert.equal(기록.flatMap((x) => x.refs).length, 0, '렌더가 0이면 shown 도 0');
+    assert.deepEqual(기록.flatMap((x) => x.refs).map((r) => r.ref), ['pref-보고서'],
+      '렌더된 것과 shown 이 같다');
   } finally { server.close(); }
 });
 

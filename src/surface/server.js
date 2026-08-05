@@ -35,7 +35,7 @@ import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
 import { SelfhoodStore } from './selfhood-store.js';
 import { homedir } from 'node:os';
 import { agentHomeDir, seedAgentHome, readHomeDocs } from './agent-home.js';
-import { 기억파일쓰기, 기억파일읽기, 지워진기억 } from './memory-home.js';
+import { 기억파일쓰기, 기억파일읽기, 집파일반영 } from './memory-home.js';
 import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
@@ -683,14 +683,31 @@ export function makeServer(deps = {}) {
       const 같은홈 = String(상태자리).startsWith(String(환경?.HOME ?? homedir()));
       if (!같은홈) throw new Error('집과 상태가 같은 설치가 아니다');
       const 저장소표식 = 상태자리;
-      const 지운것 = 지워진기억(memory.promoted ?? [], await 기억파일읽기(집자리, 저장소표식));
-      if (지운것.length) {
+      // **집 파일이 곧 기억이다**(S5 · 2026-08-05). 예전엔 **지우기만** 이어져 있었다 —
+      // 파일 머리말은 *"문장을 고치면 고친 대로 기억한다"* 고 약속하는데 손으로 쓴 줄도,
+      // 고친 문장도 무시됐다. 지침.md 가 "다음 대화부터 따른다"고 하고 안 따랐던 것과 같은
+      // 병이고(두 번째 거짓 약속), 이것 때문에 오너 설치의 승격이 **0개**였다.
+      const 반영 = 집파일반영(memory.promoted ?? [], await 기억파일읽기(집자리, 저장소표식));
+      if (반영.지울것.length || 반영.더할것.length || 반영.고칠것.length) {
         let 갱신 = memory;
-        for (const id of 지운것) {
+        for (const id of 반영.지울것) {
           갱신 = markClosed(갱신, id, 'withdrawn_by_user_file');
           await memLedger.append('withdrawn', { candidateId: id, source: 'home_file' }).catch(() => null);
         }
-        갱신 = { ...갱신, promoted: (갱신.promoted ?? []).filter((m) => !지운것.includes(m.candidateId)) };
+        const 고친것 = new Map(반영.고칠것.map((x) => [x.candidateId, x.statement]));
+        갱신 = {
+          ...갱신,
+          promoted: [
+            ...(갱신.promoted ?? [])
+              .filter((m) => !반영.지울것.includes(m.candidateId))
+              // **파일이 진실이다** — 사용자가 다듬은 문장이 지금의 기억이다.
+              .map((m) => (고친것.has(m.candidateId) ? { ...m, statement: 고친것.get(m.candidateId) } : m)),
+            ...반영.더할것,
+          ],
+        };
+        for (const m of 반영.더할것) {
+          await memLedger.append('promoted', { candidateId: m.candidateId, source: 'home_file' }).catch(() => null);
+        }
         await memStore.save(갱신);
         memory = 갱신;
       }

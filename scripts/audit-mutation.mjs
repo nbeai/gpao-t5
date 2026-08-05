@@ -733,6 +733,20 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **S5 — 집 파일이 곧 기억이다.** 파일이 "고친 대로 기억한다"고 약속해 놓고 지우기만 됐다.
+  // 그리고 F-18: 낱말 겹침이 사실 공급 여부를 정해, 저장된 기억이 모델에게 안 갔다.
+  { 이름: '집 파일에 사람이 쓴 줄을 무시함(약속과 동작이 다름)',
+    파일: 'src/surface/memory-home.js', 검사: 'test/s5-home-file-is-memory.test.js',
+    찾기: "    if (맨줄 && 맨줄[1] !== '(아직 기억한 것이 없어요)') 사람이쓴것.push(맨줄[1]);",
+    바꾸기: '' },
+  { 이름: '사용자가 고친 문장을 안 받아 다음 쓰기에서 옛 문장으로 덮음',
+    파일: 'src/surface/memory-home.js', 검사: 'test/s5-home-file-is-memory.test.js',
+    찾기: '      고칠것.push({ candidateId: m.candidateId, statement: 파일문장 });',
+    바꾸기: '      void 파일문장;' },
+  { 이름: '사용자에 대한 사실을 발화 낱말로 거름(F-18 — 아는 걸 모른다고 함)',
+    파일: 'src/kernel/l1-intent/context-mesh.js', 검사: 'test/s5-home-file-is-memory.test.js',
+    찾기: "  if (entry?.kind === 'preference') return true;",
+    바꾸기: '' },
   // **"내 컴퓨터"는 내 컴퓨터다** — 파일 범위(오너 실사용 2026-08-05).
   // 울타리를 좁히면 안전해지는 게 아니라 사용자가 시킨 일만 막힌다(터미널로는 이미 읽혔다).
   { 이름: '파일 손이 다시 네 폴더에 갇힘(내 컴퓨터인데 도큐먼트 밖을 못 봄)',

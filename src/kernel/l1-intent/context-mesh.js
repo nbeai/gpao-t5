@@ -105,9 +105,22 @@ export function isRelevant(statement, requestText) {
   });
 }
 const relevant = (entry, requestText) => {
-  // 검증 사례가 있으면 그것이 진실이다. 없으면(선호 기억 등) 예전 낱말 판정 그대로.
+  // 검증 사례가 있으면 그것이 진실이다 — 원칙은 **검증된 본보기**로 범위가 정해진다.
   const 사례판정 = 사례로관련(entry, requestText);
-  return 사례판정 ?? isRelevant(entry.statement, requestText);
+  if (사례판정 != null) return 사례판정;
+  // ── **사용자에 대한 사실은 발화로 거르지 않는다**(F-18 · 2026-08-05) ──────────
+  //
+  // 예전엔 여기서도 낱말 겹침(`isRelevant`)을 봤다. 그래서 `"내가 뭘 마시는지 알아?"` 에
+  // `"홍차를 마신다"` 가 **안 실렸다** — 겹치는 낱말이 없기 때문이다. 기억은 저장돼 있는데
+  // 모델은 못 받고 "몰라"라고 답한다. **분류기가 사실 공급 여부를 정하고 있었다.**
+  //
+  // 선호는 사용자에 대한 **사실**이다. 무엇을 물었느냐에 따라 참이 되었다 거짓이 되지 않는다.
+  // 검증된 사례로 범위가 정해진 **원칙**과는 성질이 다르다 — 그건 위에서 이미 갈렸다.
+  //
+  // 부수 효과 하나가 더 있다: 기억 블록이 발화마다 달라지지 않으므로 **프롬프트 접두가 산다**
+  // (불변식 A). 예전 필터는 사실을 막으면서 캐시도 함께 깨고 있었다.
+  if (entry?.kind === 'preference') return true;
+  return isRelevant(entry.statement, requestText);
 };
 
 /**
@@ -127,10 +140,22 @@ export function admittedContext(memory, requestText) {
  * 다른 답을 낸다. 판정은 한 곳에만 둔다. 신분은 OS 안에서만 쓰이고 모델·사용자면에는
  * 나가지 않는다.
  */
+/**
+ * **선호를 몇 개까지 실을 것인가.** 발화로 거르지 않기로 한 이상(F-18) 개수는 묶어야 한다 —
+ * 안 묶으면 기억이 늘수록 프롬프트가 조용히 커진다(불변식 B · 좁은 허리).
+ * 축은 **발화와 무관**해야 한다(착수 조건 ②) — 그래야 대화 안에서 흔들리지 않고 접두가 산다.
+ * 넘치면 최근 것을 남긴다: 사용자가 방금 고친 것이 지금의 진실이다.
+ */
+const 선호상한 = 30;
+
 export function admittedEntries(memory, requestText) {
-  return (memory?.promoted ?? [])
+  const 실릴것 = (memory?.promoted ?? [])
     .filter(isInfluenceEligible)
-    .filter((e) => relevant(e, requestText))
+    .filter((e) => relevant(e, requestText));
+  const 선호 = 실릴것.filter((e) => e?.kind === 'preference');
+  const 넘친것 = 선호.length > 선호상한 ? new Set(선호.slice(0, 선호.length - 선호상한)) : null;
+  return 실릴것
+    .filter((e) => !넘친것?.has(e))
     .map((e) => ({
       ref: e.candidateId ?? e.principleId ?? null,
       kind: e.kind,
