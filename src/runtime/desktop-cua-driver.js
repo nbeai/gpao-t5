@@ -114,6 +114,21 @@ export function makeMcpStdio({ binPath, timeoutMs = 20_000, spawnImpl = spawn })
 }
 
 /**
+ * **인자가 모자라다·거절했다는 답은 결과가 아니다.** 한 자리에서 가른다.
+ *
+ * 세 번 같은 병을 밟았다(2026-08-05): `bring_to_front` 가 `Missing required integer field: pid`
+ * 를 냈고, `focus` 가 `effect:'refused'` 를 냈고, **`click` 이 같은 pid 거절을 냈다.**
+ * 앞의 둘은 그때그때 막았는데 셋째에서 또 샜다 — 그 사이 계산기 화면은 `778` 그대로였는데
+ * T5 는 *"했어요"* 라고 말했다. **안 나간 것을 나갔다고 한 것**이다.
+ *
+ * `unverifiable` 은 여기 안 든다 — 그건 **보냈는데 확인을 못 한다**는 뜻이고, 실제로 눌린다.
+ */
+export function 거절인가(r) {
+  if (Array.isArray(r)) return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));
+  return r?.effect === 'refused';
+}
+
+/**
  * 화면 슬롯 드라이버. **계약은 `desktop-native-driver` 와 같다** —
  * `id` · `status` · `observe` · `act`. 슬롯을 안 고치고 갈아끼우는 것이 이 파일의 목적이다.
  *
@@ -376,11 +391,7 @@ export function makeCuaDriver(deps = {}) {
           const r = await mcp.call('bring_to_front', {
             ...(pid != null ? { pid } : {}), ...(대상.window ? { window_id: 대상.window } : {}),
           });
-          // **드라이버가 "인자가 모자라다"고 답하면 그건 결과가 아니다.** 그대로 흘리면
-          // 전후 대조가 "안 바뀌었다"로 읽어 **없는 실패**를 만든다(실측 2026-08-05).
-          if (Array.isArray(r) && r.some((x) => /Missing required/i.test(String(x?.text ?? '')))) {
-            throw new Error(String(r[0]?.text ?? '드라이버가 인자를 못 받았다'));
-          }
+
           // **드라이버가 모호하면 실행하지 않고 후보를 돌려준다**(실물 확인 2026-08-05:
           // Finder 창이 여럿이라 `candidates` 만 왔고 앞 앱은 안 바뀌었다).
           // 그건 실패가 아니라 **"어느 것이냐"** 다 — A02 와 같은 규율이고, 우리도 같은 답을 해야 한다.
@@ -405,9 +416,6 @@ export function makeCuaDriver(deps = {}) {
           // `verified:true` · `focused_window_id` 까지 온다(실물 확인 2026-08-05).
           // 우리 관찰은 창 관리자가 반영하기 전에 찍힐 수 있어 **없는 실패**를 만든다.
           // 드라이버가 더 잘하는 것을 우리가 어설프게 다시 만들지 않는다.
-          // **거절은 결과가 아니다.** 드라이버가 `effect:'refused'` 로 밝히면 실행이 안 나간 것이고,
-          // 그걸 전후 대조로 뭉개면 *"원하신 상태가 되지 않았어요"* 라는 **없는 실패**가 된다.
-          if (r?.effect === 'refused') throw new Error(String(r.code ?? '드라이버가 거절했다'));
           return 확인붙이기(r);
         },
         // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
@@ -456,7 +464,12 @@ export function makeCuaDriver(deps = {}) {
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
-      return 부르기();
+      const 낸것 = await 부르기();
+      // **한 자리에서 가른다.** 손마다 따로 막다가 `click` 에서 또 샜다(라이브 2026-08-05).
+      if (거절인가(낸것)) {
+        throw new Error(String(낸것?.code ?? (Array.isArray(낸것) ? 낸것[0]?.text : '') ?? '드라이버가 거절했다'));
+      }
+      return 낸것;
     },
   };
 }

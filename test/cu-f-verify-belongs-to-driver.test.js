@@ -219,3 +219,114 @@ test('못 판정한 이유를 그대로 옮긴다 — 왜 모르는지가 사라
   assert.equal(r.판정, 'unknown');
   assert.equal(r.근거, 'not_exhaustive');
 });
+
+// ── ⑤ 안 나간 것을 나갔다고 하지 않는다 ─────────────────────────────────
+// 라이브(2026-08-05, 사진 대조로 확정): 모델이 클릭 인자에 토큰만 베껴 왔다.
+// cua `click` 은 **pid 가 필수**라 `"Missing required integer field: pid"` 로 **거절**했다.
+// 우리는 그걸 결과로 받아 *"했어요. 다만 확인은 못 했어요"* 라고 말했다 —
+// **실행이 안 나갔는데 나갔다고 한 것**이고, 계산기 화면이 `778` 그대로였던 이유다.
+//
+// 고치는 자리가 둘이다:
+//   ① **창·pid 는 관찰이 아는 사실이다** — 모델이 베끼게 하지 않고 손이 붙인다.
+//   ② **"인자가 모자라다"는 어떤 손에서도 결과가 아니다** — 한 자리에서 막는다.
+//      (`focus` 에만 세웠다가 `click` 에서 같은 병이 다시 났다. 세 번째다.)
+test('클릭에 창·pid 를 붙여 보낸다 — 모델이 베끼게 하지 않는다', async () => {
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const 부른것 = [];
+  const 버튼 = { id: 'b3', 토큰: 's1:29', 스냅샷: 's1', role: 'AXButton', label: '3', isEnabled: true, 창: 14346, pid: 41816 };
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 14346, pid: 41816 }] };
+      if (이름 === 'verify_state') return { status: 'unknown' };
+      return { ok: true };
+    },
+  };
+  const d = makeCuaDriver({ mcp });
+  const 원래관찰 = d.observe;
+  d.observe = async () => ({ frontmost: { name: '계산기' }, windows: [{ id: 14346, pid: 41816 }], elements: [버튼] });
+  void 원래관찰;
+  const 손 = makeDesktopActTool({ drivers: [d] });
+  // 모델은 토큰·라벨만 베껴 왔다 — 창·pid 가 없다.
+  await 손.handler({ action: 'click', 대상: { id: 'b3', label: '3', 토큰: 's1:29' } });
+  const 누름 = 부른것.find((c) => c.이름 === 'click');
+  assert.ok(누름, '클릭을 안 불렀다');
+  assert.equal(누름.인자?.pid, 41816, `**pid 가 안 갔다** — cua 가 거절하고 우리는 "했어요"라고 한다: ${JSON.stringify(누름.인자)}`);
+  assert.equal(누름.인자?.window_id, 14346, '창이 안 갔다');
+});
+
+test('"인자가 모자라다"는 어떤 손에서도 결과가 아니다 — 한 자리에서 막는다', async () => {
+  const { makeMcpStdio } = await import('../src/runtime/desktop-cua-driver.js');
+  // 실물이 그렇게 답한다: `[{type:'text', text:'Missing required integer field: pid'}]`
+  const 가짜spawn = () => { throw new Error('안 띄운다'); };
+  const io = makeMcpStdio({ binPath: '/x', spawnImpl: 가짜spawn });
+  assert.equal(typeof io.call, 'function');
+  // 실제 거절 판정은 `거절인가` 가 한 자리에서 한다.
+  const { 거절인가 } = await import('../src/runtime/desktop-cua-driver.js');
+  assert.equal(거절인가([{ type: 'text', text: 'Missing required integer field: pid' }]), true);
+  assert.equal(거절인가({ effect: 'refused', code: 'window_target_not_found' }), true);
+  assert.equal(거절인가({ ok: true }), false);
+  assert.equal(거절인가({ delivery: { mode: 'background' }, effect: 'unverifiable' }), false,
+    '**모른다를 거절로 본다** — 눌린 것을 안 눌렀다고 하게 된다');
+});
+
+// ── ⑥ 토큰과 스냅샷은 짝이다 ─────────────────────────────────────────────
+// 사진 대조로 잡았다(2026-08-05). 화면이 `14` 그대로인데 T5 는 *"했어요"* 라고 했다.
+//
+// 원인: 관찰할 때마다 **새 스냅샷**이 생긴다. 손은 A02 를 보려고 한 번 보고,
+// 전 상태를 재려고 또 한 번 봤다. 그 사이 앞서 잡아 둔 토큰이 낡았고,
+// **낡은 토큰으로 누르면 아무 데도 안 눌리는데** 드라이버는 `background`·`unverifiable`
+// 을 돌려준다 — 우리 눈에는 "보냈다"로 보인다.
+//
+// 그래서 **마지막으로 본 화면 하나로 모은다.** 누를 때 쓰는 신분은 그 관찰의 것이어야 한다.
+test('마지막으로 본 화면의 신분으로 누른다 — 토큰만 낡으면 아무 데도 안 눌린다', async () => {
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  let 회차 = 0;
+  const 넘긴것 = [];
+  const 요소 = (스냅샷) => ({
+    id: 'b9', 토큰: `${스냅샷}:7`, 스냅샷, role: 'AXButton', label: '9',
+    isEnabled: true, 창: 14346, pid: 41816,
+  });
+  const 손 = makeDesktopActTool({
+    drivers: [{
+      id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
+      // 볼 때마다 새 스냅샷 — 실물이 그렇다.
+      observe: () => { 회차 += 1; return { frontmost: { name: '계산기' }, windows: [{ id: 14346, pid: 41816 }], elements: [요소(`s${회차}`)] }; },
+      // **누를 때의 회차**를 함께 적는다 — 뒤에 관찰이 더 일어나므로 마지막 총계로 재면 틀린다.
+      act: (req) => { 넘긴것.push({ ...req.대상, 누를때회차: 회차 }); return { delivery: { mode: 'background' }, effect: 'unverifiable' }; },
+      verify: async () => ({ 판정: 'unknown' }),
+    }],
+  });
+  // 모델은 **첫 관찰**의 토큰을 들고 온다.
+  await 손.handler({ action: 'click', 대상: { id: 'b9', label: '9', 토큰: 's0:7' } });
+  const 쓴것 = 넘긴것[0] ?? {};
+  assert.equal(String(쓴것.토큰 ?? '').split(':')[0], String(쓴것.스냅샷 ?? ''),
+    `**토큰과 스냅샷이 다른 회차다**: ${JSON.stringify(쓴것)}`);
+  assert.notEqual(쓴것.토큰, 's0:7', '낡은 토큰을 그대로 썼다');
+  // **마지막 회차여야 한다.** 짝만 맞으면 되는 게 아니다 — 앞 회차 스냅샷은 이미 지나갔고,
+  // 그 토큰으로 누르면 아무 데도 안 눌린다(사진으로 확인한 그 자리다).
+  assert.equal(쓴것.토큰, `s${쓴것.누를때회차}:7`, `**마지막으로 본 화면이 아니다** — 지나간 스냅샷이다: ${JSON.stringify(쓴것)}`);
+});
+
+test('드라이버가 거절하면 안 나간 것으로 적는다 — "했어요"가 나가지 않는다', async () => {
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const mcp = {
+    async call(이름) {
+      if (이름 === 'get_accessibility_tree') {
+        return { frontmost: { name: '계산기', pid: 7 }, windows: [{ window_id: 3, pid: 7 }] };
+      }
+      if (이름 === 'get_window_state') {
+        return { elements: [{ id: 'b9', element_token: 's1:7', snapshot_id: 's1', role: 'AXButton', label: '9', enabled: true }] };
+      }
+      // 실물이 이렇게 답한다 — 인자가 모자라면 **결과가 아니라 거절**이다.
+      if (이름 === 'click') return [{ type: 'text', text: 'Missing required integer field: pid' }];
+      return {};
+    },
+  };
+  const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
+  const r = await 손.handler({ action: 'click', 대상: { id: 'b9', label: '9', 토큰: 's1:7' } });
+  assert.notEqual(r.result?.단계, 'goal_verified');
+  assert.equal(r.진행?.판정, 'not_dispatched', `**안 나간 것을 나갔다고 적었다**: ${JSON.stringify(r.진행)}`);
+});

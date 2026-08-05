@@ -1569,6 +1569,19 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 안 나간 것을 나갔다고 하지 않는다 (사진 대조 2026-08-05) ──────────
+  { 이름: '낡은 토큰으로 누름(아무 데도 안 눌리는데 "했어요"가 나간다)', 파일: DESK_ACT, 검사: T_CU_F,
+    찾기: "      if (Array.isArray(마지막본것?.elements)) 지금요소 = 마지막본것.elements;",
+    바꾸기: "" },
+  { 이름: '누를 때 관찰이 준 신분을 안 씀(모델이 베낀 것만 간다)', 파일: DESK_ACT, 검사: T_CU_F,
+    찾기: "            ...(관찰것 ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호,",
+    바꾸기: "            ...(false ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호," },
+  { 이름: '거절을 결과로 흘림(안 나간 것을 나갔다고 한다)', 파일: CUA, 검사: T_CU_F,
+    찾기: "      if (거절인가(낸것)) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '모른다를 거절로 봄(눌린 것을 안 눌렀다고 한다)', 파일: CUA, 검사: T_CU_F,
+    찾기: "  return r?.effect === 'refused';",
+    바꾸기: "  return r?.effect === 'refused' || r?.effect === 'unverifiable';" },
   // ── CU F-2 · 못 보는 자리는 화면을 보여 준다 ──────────────────────────
   { 이름: '됐다고 판정된 자리에도 화면을 받아 옴(비용도 노출도 공짜가 아니다)', 파일: CUA, 검사: T_CU_F2,
     찾기: "      if (판정 !== 'unknown' || typeof mcp.조각들 !== 'function') return { 판정, 근거 };",
@@ -1644,8 +1657,8 @@ export const MUTATIONS = [
     찾기: "          const 창pid = 창만 ? await 창의pid(대상.window) : null;",
     바꾸기: "          const 창pid = null;" },
   { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: CUA, 검사: T_CU_C2,
-    찾기: "          if (Array.isArray(r) && r.some((x) => /Missing required/i.test(String(x?.text ?? '')))) {",
-    바꾸기: "          if (false) {" },
+    찾기: "  if (Array.isArray(r)) return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));",
+    바꾸기: "  if (Array.isArray(r)) return false;" },
   // ── 커널이 모델에게 거짓을 먹이지 않는다 (라이브 2026-08-05) ──────────
   { 이름: '거르개가 AX 접두를 안 벗겨 151개 중 0개를 돌려줌(조용한 0 을 모델에게 먹인다)', 파일: DESK, 검사: T_CU_B2,
     찾기: "  const 종류맞춤 = (v) => String(v ?? '').trim().replace(/^AX/i, '').toLowerCase();",
