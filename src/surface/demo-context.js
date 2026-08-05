@@ -325,11 +325,11 @@ export function demoChannels() {
 // P6-2: 도구를 ToolDescriptor로 정의한다(소유≠실행, availability 신호, auth≠approval).
 // web.collect는 WebToolDescriptor로 확장(입력스키마·출처계약·세션·스크래핑 정책).
 const DESCRIPTORS = [
-  defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
-  // **찾는 손과 읽는 손을 나눈다**(오너 라이브 2026-08-05). 한 칸에 섞여 있으면 모델이
-  // "후보만 보여 줘"를 부를 수 없고, 부를 수 없으면 고를 수 없다. 고를 수 없으니 첫 결과에
-  // 운을 맡기게 되고, 그게 같은 코드로 6턴을 돌려 4턴만 맞던 편차의 정체였다.
+  // **찾고 나서 읽는다 — 선언 순서가 곧 배치다**(2026-08-05).
+  // 같은 역할(`read`) 안에서는 여기 적힌 순서가 모델이 보는 순서가 된다(`toolSchemasFor`).
+  // 처음엔 읽는 손이 앞에 있었다 — 손을 나중에 나눴기 때문이고, **의도가 아니라 우연**이었다.
   defineWebSearchTool({}),
+  defineWebTool({ id: 'web.collect', label: '웹 자료 수집', sessionMode: 'anonymous' }),
   defineTool({
     id: 'agent.delegate', label: '작업 나눠 맡기기', owner: 'core',
     availability: [{ kind: 'connected' }], toolKind: 'read', needsApproval: false, reversible: true,

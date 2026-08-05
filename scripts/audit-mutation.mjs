@@ -861,6 +861,12 @@ export const MUTATIONS = [
     찾기: "        읽은상태: '후보만',\n        userSafeSummary:",
     바꾸기: '        userSafeSummary:' },
 
+  // **배치는 선언에서 한다.** 런타임이 다시 줄 세우면 새 손이 띠 한가운데 끼어 접두가 죽는다.
+  { 이름: '커널이 노출 순서를 다시 세움(새 손이 중간에 끼어 프롬프트 접두가 죽는다)',
+    파일: 'src/kernel/l2-plan/tool-schema.js', 검사: 'test/tool-order-is-role-order.test.js',
+    찾기: "    .filter((t) => t.executable && t.schema)\n    .map((t) => ({ name: t.id, ...t.schema }));",
+    바꾸기: "    .filter((t) => t.executable && t.schema)\n    .sort((a, b) => String(a.toolKind).localeCompare(String(b.toolKind)))\n    .map((t) => ({ name: t.id, ...t.schema }));" },
+
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
