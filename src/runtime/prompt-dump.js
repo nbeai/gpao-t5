@@ -19,6 +19,26 @@ import { join } from 'node:path';
 
 const 지문 = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 12);
 
+/**
+ * **토큰 어림** — 자수와 단위가 다르다. 비교군의 임계가 토큰이라 자로 재면 대조가 안 된다.
+ *
+ * 헤르메스 `tools/tool_search.py` 는 `chars/4` 한 규칙으로 어림하고 주석에 그 이유를 적었다:
+ * *"자릿수만 맞으면 된다 — 켤지 말지를 가르는 문턱이지 청구서가 아니다."* 맞는 판단이라 따른다.
+ *
+ * **다만 그 규칙은 영어 기준이다.** 우리 스키마는 설명이 한글이고, 한글은 토크나이저에서
+ * 훨씬 조밀하다(대략 1~1.5자에 1토큰). 영어 규칙을 그대로 쓰면 **한글 몫을 3~4배 과소평가**한다.
+ * 그래서 두 몫을 갈라 센다 — 한글은 보수적으로 1자 1토큰, 나머지는 4자 1토큰.
+ *
+ * **어림이다. 청구서가 아니다.** 토크나이저를 들이지 않는 이유는 런타임 의존성 0 이 게이트이고,
+ * 이 숫자의 쓸모는 "임계를 넘었나"뿐이기 때문이다. 정확한 값이 필요해지면 그때 재는 자리를 바꾼다.
+ */
+export function 토큰어림(text) {
+  const s = String(text ?? '');
+  // 한글 음절·자모 + 한중일 문자. 이 범위 밖은 영어 규칙으로 센다.
+  const 조밀 = (s.match(/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF\u3040-\u30FF\u4E00-\u9FFF]/g) ?? []).length;
+  return Math.ceil(조밀 + (s.length - 조밀) / 4);
+}
+
 /** 덤프 자리. 환경이 없으면 `null` — 없는 것이 기본이다. */
 export function promptDumpDir(env = process.env) {
   const raw = typeof env?.GPAO_T5_PROMPT_DUMP === 'string' ? env.GPAO_T5_PROMPT_DUMP.trim() : '';
@@ -109,7 +129,15 @@ export async function dumpModelInput(입력, env = process.env) {
   const tools = Array.isArray(입력?.tools) ? 입력.tools : [];
   // 도구 스키마 전체 크기 — 매 콜에 실려 나가는 몫이다(불변식 B 를 재는 자리).
   let toolSchemaChars = 0;
-  try { toolSchemaChars = JSON.stringify(tools).length; } catch { toolSchemaChars = -1; }
+  let toolSchemaTokens = 0;
+  try {
+    const 직렬 = JSON.stringify(tools);
+    toolSchemaChars = 직렬.length;
+    // **토큰으로도 남긴다.** 비교군의 지연 공개 임계가 "컨텍스트의 10%"이고 단위가 토큰이다.
+    // 자로만 재면 **언제 그 문턱을 넘는지 못 본다** — MCP·플러그인이 붙기 시작하는 순간을
+    // 놓치지 않으려면 재는 자리를 미리 바꿔 둬야 한다(오너 지시 2026-08-05).
+    toolSchemaTokens = 토큰어림(직렬);
+  } catch { toolSchemaChars = -1; toolSchemaTokens = -1; }
   const system = typeof m.system === 'string' ? m.system : Array.isArray(m.system) ? m.system.join('\n') : '';
   // **캐시 접두가 살아 있는지 재는 자리.** 적중 여부는 공급자 거동이라 우리가 통제하지 못한다 —
   // 대신 우리가 통제하는 불변식을 잰다: 안정 접두와 **도구 목록의 앞부분이 안 바뀌는가**.
@@ -127,8 +155,10 @@ export async function dumpModelInput(입력, env = process.env) {
     toolNames: 이름들,
     // 수치는 가리기 **전** 원문 기준이다 — 가림이 크기를 왜곡하면 대조가 무너진다.
     systemChars: system.length,
+    systemTokens: 토큰어림(system),
     toolCount: tools.length,
     toolSchemaChars,
+    toolSchemaTokens,
     ...(stable === null ? {} : { systemStableChars: stable.length, systemStableSha: 지문(stable) }),
     // 도구 목록을 **누적 지문**으로 남긴다. 앞에서부터 n 개의 지문이 이전 턴과 같으면
     // 그 만큼은 접두가 살아 있다 — 어디서 깨졌는지 눈으로 짚을 수 있다.
