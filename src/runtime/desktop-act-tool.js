@@ -162,6 +162,22 @@ export function makeDesktopActTool(deps = {}) {
           return 막힘('비밀번호 칸에는 제가 직접 입력하지 않아요. 그건 직접 넣으셔야 해요.', 'user_input');
         }
 
+        // **A02 — 같은 이름이 둘이면 누르지 않는다.**
+        //
+        // 실측(2026-08-05)이 길을 바꿨다: 요소 **신분(id)으로 누르면** 백엔드가 저장된 것을
+        // 살아 있는 AX 요소로 못 되살려 `snapshotStale` 로 떨어지고, **이름으로 누르면 눌린다.**
+        // 그래서 클릭은 이름으로 나간다. **그런데 이름은 신분이 아니다** —
+        // 같은 이름이 둘이면 어느 것이 눌릴지 우리가 모르고, **모르면 안 누른다**(A02).
+        let 지금요소 = null;
+        try { 지금요소 = (await 드라이버.observe({ scope: 'window' }))?.elements ?? null; } catch { 지금요소 = null; }
+        if (Array.isArray(지금요소)) {
+          const 이름 = String(args.대상.label);
+          const 겹침 = 지금요소.filter((e) => String(e?.label ?? '') === 이름).length;
+          if (겹침 > 1) {
+            return 막힘(`"${이름}" 이라는 이름이 여러 개라 어느 것을 누를지 알 수 없어요.`);
+          }
+        }
+
         // **무엇이 바뀌면 된 것인지 안 말하면 누르지 않는다.** 그게 없으면 눌러 놓고
         // 됐는지 잴 방법이 없고, 그 클릭은 A14 를 통과할 수 없다.
         if (!args?.기대?.요소) {
@@ -181,6 +197,7 @@ export function makeDesktopActTool(deps = {}) {
 
       // ── dispatched ─────────────────────────────────────────────────────
       try {
+        // 대상에 **이름을 반드시 실어 보낸다** — 백엔드가 id 로는 못 되살린다(위 실측).
         await 드라이버.act({ 행동, 대상: { app: args?.app, window: args?.window, ...(args?.대상 ?? {}) }, 값: args?.값 });
       } catch {
         // 내부 오류는 사용자면으로 안 보낸다(진단면 분리). 실패는 실패라고 한다.

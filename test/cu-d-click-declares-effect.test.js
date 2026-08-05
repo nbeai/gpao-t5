@@ -154,3 +154,78 @@ test('A04 는 클릭에서도 문다 — 지문이 다르면 안 누른다', asy
   assert.equal(백.부른것.length, 0);
   assert.equal(out.blocked, true);
 });
+
+// ── A02 · 이름이 겹치면 누르지 않는다 ────────────────────────────────────
+//
+// 실측(2026-08-05)이 길을 바꿨다. 요소 **신분(id)으로 누르면** 백엔드가 저장된 요소를 살아 있는
+// AX 요소로 못 되살려 `snapshotStale` 로 떨어진다. **이름(label)으로 누르면 실제로 눌린다.**
+// ```
+// id 로    → snapshotStale
+// 이름으로  → ok   ← 실제로 눌렸다
+// ```
+// 그래서 클릭은 이름으로 나간다. **그런데 이름은 신분이 아니다** —
+// 반대시험 A02: *"같은 제목의 창 두 개 → window ID 로 분리, 임의 선택 0."*
+// 같은 이름이 둘이면 **어느 것이 눌릴지 우리가 모른다.** 모르면 안 누른다.
+test('A02: 같은 이름이 둘이면 누르지 않는다 — 어느 것이 눌릴지 모른다', async () => {
+  const 백 = 백엔드({ 효과: true, 요소: [
+    { id: 'B1', type: 'button', label: '저장', value: 'off', bounds: {}, isEnabled: true },
+    { id: 'B2', type: 'button', label: '저장', value: 'off', bounds: {}, isEnabled: true },
+  ] });
+  const out = await 손세우기(백).handler({
+    action: 'click', 대상: { id: 'B1', label: '저장' }, 기대: { 요소: 'B1', 값: 'on' },
+  });
+  assert.equal(백.부른것.length, 0, '**이름이 겹치는데 눌렀다** — 임의로 하나를 고른 것이다');
+  assert.equal(out.blocked, true);
+  assert.match(out.userSafeSummary, /같은 이름|두 개|여러/, '왜 안 눌렀는지가 없다');
+});
+
+test('A02: 이름이 하나뿐이면 누른다 — 없는 벽을 만들지 않는다', async () => {
+  const 백 = 백엔드({ 효과: true, 요소: [
+    { id: 'B1', type: 'button', label: '저장', value: 'off', bounds: {}, isEnabled: true },
+    { id: 'B2', type: 'button', label: '취소', value: 'off', bounds: {}, isEnabled: true },
+  ] });
+  const out = await 손세우기(백).handler({
+    action: 'click', 대상: { id: 'B1', label: '저장' }, 기대: { 요소: 'B1', 값: 'on' },
+  });
+  assert.equal(백.부른것.length, 1);
+  assert.equal(out.result?.단계, 'goal_verified');
+});
+
+test('누를 때는 이름을 함께 보낸다 — 백엔드가 id 로는 못 되살린다(실측)', async () => {
+  const 백 = 백엔드({ 효과: true, 요소: 다크모드 });
+  await 손세우기(백).handler({
+    action: 'click', 대상: { id: 'SW1', label: '다크 모드' }, 기대: { 요소: 'SW1', 값: 'on' },
+  });
+  assert.equal(백.부른것[0]?.대상?.label, '다크 모드', '이름을 안 보내면 백엔드가 못 찾는다');
+});
+
+// ── 드라이버가 실제로 무엇을 보내는가 ─────────────────────────────────────
+//
+// 돌연변이가 여기서 빠져나갔다: 드라이버가 이름 대신 id 를 보내게 바꿔도 검사가 초록이었다.
+// **위 검사들이 전부 가짜 백엔드를 직접 쓰기 때문이다** — 네이티브 드라이버는 안 재고 있었다.
+// 실측으로 얻은 계약(`id` 로는 못 되살린다)이 정작 그 계약을 지키는 파일에서 무방비였다.
+test('네이티브 드라이버는 누를 때 **이름**을 보낸다 — id 로는 백엔드가 못 되살린다', async () => {
+  const { makeDesktopNativeDriver } = await import('../src/runtime/desktop-native-driver.js');
+  const 보낸인자 = [];
+  const 드라이버 = makeDesktopNativeDriver({
+    binPath: '/없어도/된다',
+    execFileImpl: (bin, 인자, opts, cb) => {
+      보낸인자.push(인자);
+      cb(null, JSON.stringify({ dispatched: true }));
+    },
+  });
+  await 드라이버.act({ 행동: 'click', 대상: { id: 'elem_6', label: '저장' } });
+  assert.deepEqual(보낸인자[0], ['act', 'click', '저장'],
+    `id 를 보냈다 — 백엔드가 snapshotStale 로 떨어진다: ${JSON.stringify(보낸인자[0])}`);
+});
+
+test('창·앱 행동은 앱 이름으로 간다 — 요소 이름과 섞지 않는다', async () => {
+  const { makeDesktopNativeDriver } = await import('../src/runtime/desktop-native-driver.js');
+  const 보낸인자 = [];
+  const 드라이버 = makeDesktopNativeDriver({
+    binPath: '/없어도/된다',
+    execFileImpl: (bin, 인자, opts, cb) => { 보낸인자.push(인자); cb(null, JSON.stringify({ dispatched: true })); },
+  });
+  await 드라이버.act({ 행동: 'focus', 대상: { app: 'TextEdit', label: '저장' } });
+  assert.deepEqual(보낸인자[0], ['act', 'focus', 'TextEdit'], '요소 이름으로 앱을 띄우려 했다');
+});

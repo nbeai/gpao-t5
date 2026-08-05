@@ -891,6 +891,13 @@ export const MUTATIONS = [
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",
     바꾸기: "const 화면계약 = ['id'];" },
 
+  { 이름: '이름이 겹치는데 누름(어느 것이 눌릴지 모르는 채로 · A02)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: '          if (겹침 > 1) {', 바꾸기: '          if (false) {' },
+  { 이름: '누를 때 이름을 안 보냄(백엔드가 id 로는 못 되살린다 · 실측)',
+    파일: 'src/runtime/desktop-native-driver.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: "        ? (요청?.대상?.label ?? '')", 바꾸기: "        ? (요청?.대상?.id ?? '')" },
+
   // **CU D — 무엇이 바뀌면 된 것인지 모델이 먼저 말한다.**
   { 이름: '기대 효과 없이 누름(됐는지 잴 방법이 없는 클릭)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
