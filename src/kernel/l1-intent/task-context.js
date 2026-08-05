@@ -5,7 +5,7 @@ import { extname } from 'node:path';
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 import { sameSiteLinks } from '../l0-evidence/working-state.js';
 import { operatorReality } from './operator-reality.js';
-import { 실패도교환 } from '../model-sovereign.js';
+import { 실패도교환, 사실공급 } from '../model-sovereign.js';
 
 /**
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
@@ -422,8 +422,18 @@ export function buildTaskContext(p) {
     readyTools: intent.answerMode === 'fast_chat' && !p.selfhoodDetail
       ? (summary.ready ?? [])
       : (summary.readyCapabilities ?? summary.ready),
-    // 한계(무엇을 연결하면 되는지)는 그 도구가 걸리는 턴에서만 쓸모 있다. 잡담에는 소음이다.
-    limits: intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits,
+    // ── **한계는 사실이다 — 분류기가 지우지 않는다**(S7 ③ · F-18 · 2026-08-05) ──────
+    //
+    // 예전 주석은 *"한계는 그 도구가 걸리는 턴에서만 쓸모 있다. 잡담에는 소음이다"* 였다.
+    // 그런데 **얼마나 되는지 재 보니 79자**다(메일·슬랙·텔레그램 연결 안내 3줄).
+    // 79자를 아끼려고 "무엇을 못 하는지"를 통째로 지우면, 모델은 "슬랙 보낼 수 있어?"에
+    // 짐작으로 답한다 — 사실을 안 주면 모델은 사실을 만든다(이 흐름에서 여러 번 밟았다).
+    //
+    // 원 주석이 걱정한 *"설명서를 통째로 실어 번호 목록으로 되읊는"* 것은 바로 위
+    // `readyCapabilities`(능력 **설명 문장**) 쪽이고 `limits` 가 아니다 — 그건 안 건드린다.
+    limits: 사실공급(p.processEnv)
+      ? summary.limits
+      : (intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits),
     // 승인 필요 손은 자기 상태를 물었을 때만 상세히 준다. 평범한 대화에 권한 설명을 매번
     // 싣지 않되, 물었을 때 모델이 추측으로 위험 범위를 만들지 않게 한다.
     approvalRequired: p.selfhoodDetail ? summary.approvalRequired : [],

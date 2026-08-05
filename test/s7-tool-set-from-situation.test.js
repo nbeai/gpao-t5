@@ -25,6 +25,12 @@ import { modelSchemasFor } from '../src/kernel/l2-plan/model-control.js';
 import { 손제시 } from '../src/kernel/l2-plan/tool-offer.js';
 import { demoEnv } from '../src/surface/demo-context.js';
 
+// **주의 — 이 그물이 재는 것은 "손 목록" 뿐이다**(오너 지적 2026-08-05).
+// 착수 조건 ②가 겨눈 자리는 이 넷이 아니라 `task-context.js` · `context-mesh.js` 이기도 하다 —
+// **F-18 의 병은 도구가 아니라 사실 공급**이다(limits 와 기억이 걸러진다).
+// 그 자리는 `s7-facts-not-classified.test.js` 가 잰다. 여기만 보고 "발화가 안 들어간다"고
+// 읽으면 안 된다 — 내가 그렇게 읽고 ③을 통과시켰다.
+
 /** 손 집합을 계산하는 **모든** 자리. 여기 밖에서 목록이 만들어지면 그건 두 벌이다. */
 const 계산경로 = [
   'src/kernel/l2-plan/tool-schema.js',

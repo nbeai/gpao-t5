@@ -305,7 +305,7 @@ export const MUTATIONS = [
     찾기: '    return entry.replayPassed === true && entry.userConfirmed === true;',
     바꾸기: '    return true;' },
   { 이름: '무관한 요청에도 원리를 넣음(과잉 적용)', 파일: 'src/kernel/l1-intent/context-mesh.js', 검사: T_ROUND,
-    찾기: '    .filter((e) => relevant(e, requestText))', 바꾸기: '' },
+    찾기: '    .filter((e) => relevant(e, requestText, env));', 바꾸기: '    ;' },
 
   { 이름: '표본 부족을 제안 단계에서 안 세고 다 돌림', 파일: GROW, 검사: T_GROW,
     찾기: "    if (부족.length) return { kind: 'propose', 표본부족: 부족, statement: 초안.statement, 관측 };",
@@ -733,6 +733,19 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **S7 ③ — 사실 공급을 분류기가 정하지 않는다**(F-18 두 자리 · 플래그 뒤).
+  { 이름: '발화 분류가 한계를 지운다(모델이 못 하는 일을 짐작으로 답함)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/s7-facts-not-classified.test.js',
+    찾기: '    limits: 사실공급(p.processEnv)\n      ? summary.limits',
+    바꾸기: '    limits: false\n      ? summary.limits' },
+  { 이름: '범위 모르는 원칙을 낱말 겹침으로 듦(잘못 든 원리가 안 든 원리보다 나쁘다)',
+    파일: 'src/kernel/l1-intent/context-mesh.js', 검사: 'test/s7-facts-not-classified.test.js',
+    찾기: "  if (사실공급(env) && entry?.kind === 'operating_principle') return false;",
+    바꾸기: '' },
+  { 이름: '플래그가 켜져도 안 읽힘(A/B 가 성립하지 않음)',
+    파일: 'src/kernel/model-sovereign.js', 검사: 'test/s7-facts-not-classified.test.js',
+    찾기: "  return env?.T5_FACTS_UNFILTERED === '1';",
+    바꾸기: '  return false;' },
   // **S7 — 이번 런의 도구는 상황에서 나온다.** 틀려도 화면에 안 나타나는 칸이라,
   // 계약을 안 박아 두면 다음 변경에서 조용히 무너진다(F-18 이 그 자리였다).
   { 이름: '손 집합 계산이 사용자 발화를 받는다(자격이 아니라 의도 — 심문의 부활)',

@@ -819,7 +819,7 @@ export async function runTurn(input, ctx) {
   // 채널 중복 제거(§5-K): 원천 발화가 이번 이력에 이미 실리면 기억 블록으로 재공급하지
   // 않는다 — 렌더 전에 거르므로 shown 도 같은 사실을 본다(같은 배열 원칙 그대로).
   const admittedRich = dropHistoryDuplicates(
-    admittedEntries(ctx.memory ?? {}, input.text ?? ''), ctx.recentTurns ?? []);
+    admittedEntries(ctx.memory ?? {}, input.text ?? '', ctx.processEnv), ctx.recentTurns ?? []);
   const admitted = [
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedRich.map((e) => e.statement),
@@ -888,6 +888,7 @@ export async function runTurn(input, ctx) {
   let earlyWantedWeb = false;
   {
     const tc = earlyTc = buildTaskContext({
+      processEnv: ctx.processEnv,
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
       intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
@@ -1760,6 +1761,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     blocked: ladder ? rungMessage(ladder) : undefined,
   }), ctx.connectors);
   let tc = buildTaskContext({
+    processEnv: ctx.processEnv,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
@@ -2033,6 +2035,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         receipts: [rec], withinTurn: true, blocked: 걸음막힘(rec, turnReceipts, 있는손()),
       }), ctx.connectors);
       tc = buildTaskContext({
+        processEnv: ctx.processEnv,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,

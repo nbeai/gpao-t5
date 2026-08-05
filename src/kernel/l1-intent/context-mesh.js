@@ -10,6 +10,7 @@
 // 운영원리 = T5 행동을 규율하는 규칙(확인/금지 의미). 선호 = 사용자가 좋아하는 방식.
 // 주의: '받'(수신)은 선호에도 흔하므로 원리 신호에서 제외한다.
 import { bestShapeOverlap, bestShapeMatch, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
+import { 사실공급 } from '../model-sovereign.js';
 const PRINCIPLE_SIGNAL = /무조건|반드시.*확인|절대.*(마|말|하지)|(할|보낼|전송할|올릴) ?땐|전에.*확인|확인받/;
 const PREFERENCE_SIGNAL = /(좋아|선호|받고 싶|줬으면|앞으로.*(로|으로|기본)|항상.*(로|으로) 받|글로 받|표로 받)/;
 
@@ -104,10 +105,17 @@ export function isRelevant(statement, requestText) {
     return stem.length >= 2 && req.includes(stem);
   });
 }
-const relevant = (entry, requestText) => {
+const relevant = (entry, requestText, env) => {
   // 검증 사례가 있으면 그것이 진실이다 — 원칙은 **검증된 본보기**로 범위가 정해진다.
   const 사례판정 = 사례로관련(entry, requestText);
   if (사례판정 != null) return 사례판정;
+  // ── **범위를 모르는 원칙은 낱말로 짐작하지 않는다**(S7 ③ · F-18 두 번째 자리) ──────
+  //
+  // 검증 사례가 없는 원칙을 발화 낱말 겹침으로 들었다. 그건 **모르는 범위를 글자로 짐작**하는
+  // 것이다. 이 파일이 이미 적어 뒀다: *"잘못 든 원리가 안 든 원리보다 나쁘다."*
+  // 모르면 안 드는 것이 맞고, 그 판정에는 발화가 필요 없다.
+  // (선호는 아래에서 늘 든다 — 사용자에 대한 **사실**은 범위를 물을 것이 없다.)
+  if (사실공급(env) && entry?.kind === 'operating_principle') return false;
   // ── **사용자에 대한 사실은 발화로 거르지 않는다**(F-18 · 2026-08-05) ──────────
   //
   // 예전엔 여기서도 낱말 겹침(`isRelevant`)을 봤다. 그래서 `"내가 뭘 마시는지 알아?"` 에
@@ -129,8 +137,8 @@ const relevant = (entry, requestText) => {
  * @param {string} requestText
  * @returns {string[]} 입장된 맥락 statement (사실만)
  */
-export function admittedContext(memory, requestText) {
-  return admittedEntries(memory, requestText).map((e) => e.statement);
+export function admittedContext(memory, requestText, env) {
+  return admittedEntries(memory, requestText, env).map((e) => e.statement);
 }
 
 /**
@@ -148,10 +156,10 @@ export function admittedContext(memory, requestText) {
  */
 const 선호상한 = 30;
 
-export function admittedEntries(memory, requestText) {
+export function admittedEntries(memory, requestText, env) {
   const 실릴것 = (memory?.promoted ?? [])
     .filter(isInfluenceEligible)
-    .filter((e) => relevant(e, requestText));
+    .filter((e) => relevant(e, requestText, env));
   const 선호 = 실릴것.filter((e) => e?.kind === 'preference');
   const 넘친것 = 선호.length > 선호상한 ? new Set(선호.slice(0, 선호.length - 선호상한)) : null;
   return 실릴것

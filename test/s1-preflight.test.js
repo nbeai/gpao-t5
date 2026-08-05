@@ -122,5 +122,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // **분류기가 사실 공급 여부를 정하고 있었다.** 선호는 사용자에 대한 사실이라 발화로 거르지
     // 않고 개수만 묶는다. 검증 사례가 있는 원칙은 그대로 사례로 범위가 정해진다.
     'src/kernel/l1-intent/context-mesh.js',
+    // S7 ③ · F-18 — 사실 공급을 분류기가 정하지 않는다(플래그 `T5_FACTS_UNFILTERED` 뒤).
+    'src/kernel/model-sovereign.js',
   ]);
 });
