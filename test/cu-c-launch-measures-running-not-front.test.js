@@ -295,3 +295,55 @@ test('"인자가 모자라다"는 답을 결과로 흘리지 않는다 — 없�
   assert.notEqual(r.result?.단계, 'goal_verified', '**못 부른 것을 됐다고 한다**');
   assert.equal(r.진행?.판정, 'not_dispatched', `실행이 안 나간 것을 다르게 적었다: ${JSON.stringify(r.진행)}`);
 });
+
+// ── 라이브 4차 — 사실만 말하고 길을 안 주면 그게 벽이 된다 ────────────────
+// `계산기 창 앞으로 띄우고 숫자 3 눌러줘` 에서 T5 가 `launch` 만 하고 답했다:
+//   *"화면 앞쪽으로 가져오거나 키보드 입력을 직접 보내는 동작이 막혀 있어서 거기까진 못 해요."*
+// **focus 를 한 번도 안 불렀다.** 막힌 적이 없는데 막혔다고 했다.
+//
+// 원인은 내 문장이다 — `"Calculator 을(를) 실행했어요. 화면 앞으로 오지는 않았어요."`
+// 사실이지만 **다음 수가 없다.** 모델은 "앞으로 가져오는 건 안 되는구나"로 읽었다.
+// 오늘 여러 번 세운 계약이 성공한 걸음에는 없었다 — **부분적으로 됐으면 남은 길을 함께 준다.**
+test('켠 뒤에는 앞으로 가져오는 길을 함께 준다 — 사실만 던지면 벽으로 읽힌다', async () => {
+  const 손 = makeDesktopActTool({ drivers: [가짜cua([])] });
+  const r = await 손.handler({ action: 'launch', app: 'Calculator' });
+  const 다음 = JSON.stringify(r.result?.다음수단 ?? r.다음수단 ?? []);
+  assert.match(다음, /focus/, `**켰는데 다음 수가 없다**: ${JSON.stringify(r).slice(0, 200)}`);
+});
+
+test('앞으로 못 왔다는 사실은 그대로 말한다 — 길을 준다고 사실을 지우지 않는다', async () => {
+  const 손 = makeDesktopActTool({ drivers: [가짜cua([])] });
+  const r = await 손.handler({ action: 'launch', app: 'Calculator' });
+  assert.match(r.userSafeSummary, /앞으로/, `앞에 안 왔다는 사실이 사라졌다: ${r.userSafeSummary}`);
+});
+
+// ── 라이브 5차 — 꺼진 앱을 보게 했더니 focus 가 그걸 집었다(내 회귀) ──────
+// `앱고르기` 에서 pid 거르개를 뺐다(켜기는 꺼진 앱을 찾아야 하니까). 그러자 **focus 가
+// pid 없는 항목을 집어** cua 가 `{"code":"window_target_not_found","effect":"refused","pid":0}`
+// 로 거절했다. 우리는 그 거절을 **전후 대조로 뭉개** *"원하신 상태가 되지 않았어요"* 라 했고,
+// 모델은 *"제어가 끊겼어요"* 라며 사용자에게 `Command+Tab` 을 시켰다.
+//
+// 켜기와 앞으로 띄우기는 **찾는 대상이 다르다** — 켜기는 꺼진 것도, 띄우기는 켜진 것만.
+// 그리고 **드라이버가 거절했다고 밝히면 그건 안 나간 것**이지 "됐는데 안 바뀐 것"이 아니다.
+test('앞으로 띄우기는 켜진 앱만 고른다 — 꺼진 항목을 집어 거절당하지 않는다', async () => {
+  const 부른것 = [];
+  const 앱들 = [{ ...계산기, running: false, pid: null },
+    { name: '계산기', bundle_id: 'com.apple.calculator', pid: 777, running: true, launch_path: '/System/Applications/Calculator.app' }];
+  const 손 = makeDesktopActTool({ drivers: [가짜cua(부른것, { apps: 앱들 })] });
+  await 손.handler({ action: 'focus', app: 'Calculator' });
+  assert.equal(부른것.find((c) => c.이름 === 'bring_to_front')?.인자?.pid, 777, '**꺼진 항목을 집었다**');
+});
+
+test('드라이버가 거절했다고 밝히면 안 나간 것으로 적는다 — 전후 대조로 뭉개지 않는다', async () => {
+  const mcp = {
+    async call(이름) {
+      if (이름 === 'list_apps') return { apps: [계산기] };
+      if (이름 === 'bring_to_front') return { candidates: [], code: 'window_target_not_found', effect: 'refused', pid: 0 };
+      return {};
+    },
+  };
+  const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
+  const r = await 손.handler({ action: 'focus', app: '계산기' });
+  assert.equal(r.진행?.판정, 'not_dispatched', `거절을 "안 바뀌었다"로 뭉갰다: ${JSON.stringify(r.진행)}`);
+  assert.match(JSON.stringify(r.다음수단 ?? []), /observe|retry/, '다음 수가 없다');
+});

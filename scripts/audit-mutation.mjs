@@ -1626,8 +1626,11 @@ export const MUTATIONS = [
     바꾸기: "            ?? (false ? '막힌 자리에 다음 수가 있어요 — 그 중 하나를 골라 이어가세요.'" },
   // ── 출구 넷째 그물 (라이브 2026-08-05) ────────────────────────────────
   { 이름: '막힌 걸음을 했다고 말해도 사용자에게 그대로 보냄', 파일: EXITV, 검사: T_EXIT_B,
-    찾기: "  if (못한걸음.length) {",
+    찾기: "  if (못한걸음.length && !미완료를밝혔나(reply)) {",
     바꾸기: "  if (false) {" },
+  { 이름: '완료형일 때만 봐서 "눌러 둔 상태예요" 를 통과시킴', 파일: EXITV, 검사: T_EXIT_B,
+    찾기: "  if (못한걸음.length && !미완료를밝혔나(reply)) {\n    return {",
+    바꾸기: "  if (못한걸음.length && !미완료를밝혔나(reply) && 완료주장인가(reply)) {\n    return {" },
   { 이름: '걸음을 안 보고 손만 봐서, 다른 걸음이 성공했으면 거짓을 통과시킴', 파일: EXITV, 검사: T_EXIT_B,
     찾기: "  const 걸음키 = (rec) => `${rec?.actualCall?.tool ?? ''}|${rec?.actualCall?.args?.action ?? rec?.actualCall?.args?.op ?? ''}`;",
     바꾸기: "  const 걸음키 = (rec) => `${rec?.actualCall?.tool ?? ''}`;" },

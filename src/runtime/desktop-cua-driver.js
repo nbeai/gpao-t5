@@ -198,14 +198,15 @@ export function makeCuaDriver(deps = {}) {
        *
        * @returns {Promise<{pid:number}|{골라야함:Array}|null>}
        */
-      const 앱고르기 = async () => {
+      const 앱고르기 = async ({ 켜진것만 = false } = {}) => {
         if (Number.isInteger(대상.pid)) return { pid: 대상.pid };
         const 이름 = String(대상.app ?? '').trim().toLowerCase();
         if (!이름) return null;
         const { apps } = await mcp.call('list_apps', {});
-        // **꺼진 앱도 본다.** pid 로 거르면 "켜 줘" 를 받을 수가 없다 —
-        // 켜는 쪽은 pid 가 아니라 앱 파일 이름이 필요하다.
-        const 후보들 = apps ?? [];
+        // **켜기와 앞으로 띄우기는 찾는 대상이 다르다.** 켜기는 꺼진 앱도 찾아야 하고
+        // (pid 로 거르면 "켜 줘"를 받을 수가 없다), 띄우기는 **켜진 것만** 이어야 한다 —
+        // pid 없는 항목을 집으면 드라이버가 `window_target_not_found` 로 거절한다(내 회귀 · 라이브 5차).
+        const 후보들 = (apps ?? []).filter((a) => (켜진것만 ? Number.isInteger(a?.pid) && a.pid > 0 : true));
         const 축 = (a) => [
           String(a.name ?? ''),
           String(a.bundle_id ?? ''),
@@ -224,7 +225,7 @@ export function makeCuaDriver(deps = {}) {
         // 못 받는다) 켜져 있는지도 알아야 한다.
         return { pid: 걸린것[0].pid, 앱: 걸린것[0] };
       };
-      const pid찾기 = async () => (await 앱고르기())?.pid ?? null;
+      const pid찾기 = async () => (await 앱고르기({ 켜진것만: true }))?.pid ?? null;
       /** 창 id 로 그 창 주인의 pid. 창 목록이 창마다 pid 를 싣는다(실측 2026-08-05). */
       const 창의pid = async (windowId) => {
         // **관찰이 쓰는 그 호출을 그대로 쓴다** — 창 목록을 두 곳에서 다르게 가져오면
@@ -251,7 +252,7 @@ export function makeCuaDriver(deps = {}) {
           // cua `bring_to_front` 는 **pid 를 반드시 받는다**(창 id 만 주면 거절한다).
           // 창 목록이 창마다 pid 를 실어 주니 거기서 가져온다 — 추측이 아니라 기계 사실이다.
           const 창pid = 창만 ? await 창의pid(대상.window) : null;
-          const 고른것 = 창만 ? (창pid != null ? { pid: 창pid } : null) : await 앱고르기();
+          const 고른것 = 창만 ? (창pid != null ? { pid: 창pid } : null) : await 앱고르기({ 켜진것만: true });
           // **여럿이면 부르지 않는다** — 어느 것이냐고 되묻는 것이 실패보다 정직하다(A02).
           if (고른것?.골라야함) return { 골라야함: 고른것.골라야함 };
           const pid = 고른것?.pid ?? null;
@@ -290,6 +291,9 @@ export function makeCuaDriver(deps = {}) {
           // `verified:true` · `focused_window_id` 까지 온다(실물 확인 2026-08-05).
           // 우리 관찰은 창 관리자가 반영하기 전에 찍힐 수 있어 **없는 실패**를 만든다.
           // 드라이버가 더 잘하는 것을 우리가 어설프게 다시 만들지 않는다.
+          // **거절은 결과가 아니다.** 드라이버가 `effect:'refused'` 로 밝히면 실행이 안 나간 것이고,
+          // 그걸 전후 대조로 뭉개면 *"원하신 상태가 되지 않았어요"* 라는 **없는 실패**가 된다.
+          if (r?.effect === 'refused') throw new Error(String(r.code ?? '드라이버가 거절했다'));
           return 확인붙이기(r);
         },
         // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
