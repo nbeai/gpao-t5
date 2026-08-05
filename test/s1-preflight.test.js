@@ -124,5 +124,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l1-intent/context-mesh.js',
     // S7 ③ · F-18 — 사실 공급을 분류기가 정하지 않는다(플래그 `T5_FACTS_UNFILTERED` 뒤).
     'src/kernel/model-sovereign.js',
+    // **S8 — 검색 슬롯**(2026-08-05 · 오너 착수 지시 ①③).
+    // 예전엔 `const order = [duckduckgo, searxng, tavily]` 가 이 파일에 박혀 있어, 새 검색기를
+    // 붙이려면 코어를 고쳐야 했다 — §4 발자국 사다리의 **6칸**이고 불변식 B 와 부딪힌다.
+    // 목록을 인자로 받고 드라이버가 `needs` 로 자기 조건을 밝히게 했다.
+    // 성공 판정은 오너가 못 박은 그대로다: **이 파일을 한 글자도 안 고치고 네 번째가 붙는가.**
+    'src/runtime/web-search.js',
   ]);
 });

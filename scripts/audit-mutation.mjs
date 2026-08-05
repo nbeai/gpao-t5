@@ -733,6 +733,15 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
+  { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
+    파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
+    찾기: '  const order = deps.providers ?? [duckduckgo, searxng, tavily];',
+    바꾸기: '  const order = [duckduckgo, searxng, tavily];' },
+  { 이름: '드라이버가 밝힌 조건 대신 이름으로 짐작(새 드라이버마다 짐작이 는다)',
+    파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
+    찾기: '        const 필요한것 = Array.isArray(p.needs) ? p.needs',
+    바꾸기: '        const 필요한것 = false ? p.needs' },
   // **S7 ③ — 사실 공급을 분류기가 정하지 않는다**(F-18 두 자리 · 플래그 뒤).
   { 이름: '발화 분류가 한계를 지운다(모델이 못 하는 일을 짐작으로 답함)',
     파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/s7-facts-not-classified.test.js',
