@@ -941,6 +941,21 @@ export const MUTATIONS = [
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
     찾기: '      try { 상태 = await 드라이버.status(); } catch {', 바꾸기: '      try { 상태 = await 드라이버.status(); } catch (무시) { throw 무시; } if (false) {' },
 
+  { 이름: '앱 이름을 그대로 보냄(실물은 pid 를 필수로 받는다 · 라이브에서 전부 실패했다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: "          const r = await mcp.call('bring_to_front', { pid, ...(대상.window ? { window_id: 대상.window } : {}) });",
+    바꾸기: "          const r = await mcp.call('bring_to_front', { app: 대상.app });" },
+  { 이름: '대상을 못 찾았는데 부름(오대상 실행)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: "          if (pid == null) throw new Error('대상 앱을 못 찾았다');\n          const r = await mcp.call('bring_to_front'",
+    바꾸기: "          const r = await mcp.call('bring_to_front'" },
+  { 이름: '드라이버가 되물은 후보를 실패로 뭉갬(고를 수 있는데 못 한다고 한다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: '        if (낸것?.골라야함?.length) {', 바꾸기: '        if (false) {' },
+  { 이름: '드라이버 확인을 무시하고 우리 추측으로 판정(없는 실패를 만든다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
+    찾기: '        if (낸것?.확인됨 === true) {', 바꾸기: '        if (false) {' },
+
   // **CU C — 눌렀는지가 아니라 됐는지.** A14 가 CU 에서 제일 위험한 자리다.
   { 이름: 'dispatch 를 성공으로 셈(눌렀는데 안 됐어도 됐다고 한다 · A14)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',

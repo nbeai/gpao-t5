@@ -198,7 +198,35 @@ export function makeDesktopActTool(deps = {}) {
       // ── dispatched ─────────────────────────────────────────────────────
       try {
         // 대상에 **이름을 반드시 실어 보낸다** — 백엔드가 id 로는 못 되살린다(위 실측).
-        await 드라이버.act({ 행동, 대상: { app: args?.app, window: args?.window, ...(args?.대상 ?? {}) }, 값: args?.값 });
+        const 낸것 = await 드라이버.act({ 행동, 대상: { app: args?.app, window: args?.window, ...(args?.대상 ?? {}) }, 값: args?.값 });
+        // **드라이버가 "어느 것이냐"고 되물으면 그건 실패가 아니다.**
+        // 실행은 0 이고(오대상 방지), 사용자·모델이 고를 수 있게 후보를 그대로 올린다.
+        // **드라이버가 스스로 확인해 줬으면 그것을 쓴다.**
+        // 우리 전후 비교는 창 관리자가 반영하기 전에 찍혀 **없는 실패**를 만든다(실물 실측).
+        // 드라이버가 더 잘하는 것을 우리가 다시 만들지 않는다 — 다만 **근거를 함께 남긴다**:
+        // 무엇을 믿고 됐다고 하는지가 원장에 없으면 다음 사람이 이 성공을 못 믿는다.
+        if (낸것?.확인됨 === true) {
+          const 후확인 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }).catch(() => null), args);
+          return {
+            result: {
+              단계: 'goal_verified', 행동, 전, 후: 후확인,
+              확인방법: `드라이버 확인(${낸것.근거})`,
+            },
+            userSafeSummary: 행동 === 'focus'
+              ? `${args?.app ?? '그 창'} 을(를) 앞으로 띄웠어요.`
+              : '그렇게 했어요. 실제로 그렇게 된 것까지 확인했어요.',
+          };
+        }
+        if (낸것?.골라야함?.length) {
+          return {
+            blocked: true,
+            userSafeSummary: `그 앱 창이 여러 개라 어느 것을 앞으로 띄울지 알 수 없어요.`,
+            후보: 낸것.골라야함,
+            다음수단: 낸것.골라야함.slice(0, 5).map((c) => ({
+              방법: 'focus', window: c.window, 왜: `${c.app} · ${c.title || '(제목 없음)'}`,
+            })),
+          };
+        }
       } catch {
         // 내부 오류는 사용자면으로 안 보낸다(진단면 분리). 실패는 실패라고 한다.
         return {

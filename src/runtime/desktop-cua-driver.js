@@ -181,11 +181,56 @@ export function makeCuaDriver(deps = {}) {
     async act(요청) {
       const 행동 = String(요청?.행동 ?? '');
       const 대상 = 요청?.대상 ?? {};
+
+      // **앱 이름을 pid 로 바꾼다.** 실물이 `pid` 를 받는다(`bring_to_front`·`kill_app` 필수).
+      // 라이브에서 `app` 을 보내다 `Missing required integer field: pid` 로 전부 실패했다 —
+      // 검사는 초록이었다(가짜 MCP 가 인자를 안 봤다). **가짜가 실물의 필수 인자를 안 재면
+      // 계약이 아니라 모양만 지킨다.**
+      const pid찾기 = async () => {
+        if (Number.isInteger(대상.pid)) return 대상.pid;
+        const 이름 = String(대상.app ?? '').trim().toLowerCase();
+        if (!이름) return null;
+        const { apps } = await mcp.call('list_apps', {});
+        const 맞는것 = (apps ?? []).find((a) => {
+          const n = String(a.name ?? '').toLowerCase();
+          const b = String(a.bundle_id ?? '').toLowerCase();
+          return n === 이름 || b === 이름 || n.includes(이름) || 이름.includes(n);
+        });
+        return 맞는것?.pid ?? null;
+      };
+
       // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
       const 표 = {
-        focus: () => mcp.call('bring_to_front', { app: 대상.app }),
-        launch: () => mcp.call('launch_app', { app: 대상.app }),
-        quit: () => mcp.call('kill_app', { app: 대상.app }),
+        focus: async () => {
+          const pid = await pid찾기();
+          // pid 를 못 찾았으면 **부르지 않는다.** 빈 인자로 부르면 드라이버가 알아서
+          // 아무 창이나 띄울 수도 있고, 그건 오대상 실행이다.
+          if (pid == null) throw new Error('대상 앱을 못 찾았다');
+          const r = await mcp.call('bring_to_front', { pid, ...(대상.window ? { window_id: 대상.window } : {}) });
+          // **드라이버가 모호하면 실행하지 않고 후보를 돌려준다**(실물 확인 2026-08-05:
+          // Finder 창이 여럿이라 `candidates` 만 왔고 앞 앱은 안 바뀌었다).
+          // 그건 실패가 아니라 **"어느 것이냐"** 다 — A02 와 같은 규율이고, 우리도 같은 답을 해야 한다.
+          // 실패로 뭉개면 모델이 "안 된다"고 하고, 성공으로 뭉개면 거짓 성공이 된다.
+          if (Array.isArray(r?.candidates) && r.candidates.length) {
+            return { 골라야함: r.candidates.map((c) => ({
+              window: c.window_id, title: c.title ?? '', app: c.app_name ?? '', 보임: c.is_on_screen !== false,
+            })) };
+          }
+          // **드라이버가 스스로 검증해서 준다.** 우리 전후 추측보다 이게 낫다 —
+          // `verified:true` · `focused_window_id` 까지 온다(실물 확인 2026-08-05).
+          // 우리 관찰은 창 관리자가 반영하기 전에 찍힐 수 있어 **없는 실패**를 만든다.
+          // 드라이버가 더 잘하는 것을 우리가 어설프게 다시 만들지 않는다.
+          if (r?.exact_window_effect?.verified === true || r?.activated === true) {
+            return { ...r, 확인됨: true, 근거: r.code ?? 'driver_verified' };
+          }
+          return r;
+        },
+        launch: () => mcp.call('launch_app', { name: 대상.app }),
+        quit: async () => {
+          const pid = await pid찾기();
+          if (pid == null) throw new Error('대상 앱을 못 찾았다');
+          return mcp.call('kill_app', { pid });
+        },
         move: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
         resize: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
         scroll: () => mcp.call('scroll', { ...(요청?.값 ?? {}) }),

@@ -9,6 +9,7 @@ import { makeWebSearchTool } from '../runtime/web-search-tool.js';
 import { makeDesktopTool } from '../runtime/desktop-tool.js';
 import { makeDesktopActTool } from '../runtime/desktop-act-tool.js';
 import { makeDesktopNativeDriver } from '../runtime/desktop-native-driver.js';
+import { makeCuaDriver } from '../runtime/desktop-cua-driver.js';
 import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
@@ -94,17 +95,22 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // **화면 손은 백엔드가 실제로 있을 때만 선다**(발자국 사다리 3칸 · 조건부 도구).
   // 경로를 여기 박지 않는다 — 없는 컴퓨터에서 "있는데 실패"로 보이면 없는 능력을 있다고
   // 말하는 것이다. 환경이 알려줄 때만 붙이고, 없으면 선언조차 안 딸려온다(1축의 배당금).
+  // **드라이버가 둘이다 — 슬롯이 고른다.** cua 가 있으면 그것(3개 OS), 없으면 옛 네이티브(macOS).
+  // 둘 다 같은 슬롯 계약을 채우므로 **손과 검사는 어느 쪽인지 모른다** — 그게 슬롯의 값이다.
+  const cua백엔드 = processEnv.GPAO_T5_CUA_BIN;
   const 화면백엔드 = processEnv.GPAO_T5_DESKTOP_BIN;
-  const desktop = 화면백엔드 ? (() => {
+  const desktop = (cua백엔드 || 화면백엔드) ? (() => {
     const 등록소 = 화면등록소();
     if (!등록소.드라이버(DESKTOP_SLOT).length) {
-      등록소.붙이기(DESKTOP_SLOT, makeDesktopNativeDriver({ binPath: 화면백엔드 }));
+      // 붙이는 순서가 고르는 순서다(슬롯 계약). cua 를 먼저 — 크로스 플랫폼이 요구다.
+      if (cua백엔드) 등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ binPath: cua백엔드 }));
+      if (화면백엔드) 등록소.붙이기(DESKTOP_SLOT, makeDesktopNativeDriver({ binPath: 화면백엔드 }));
     }
     return makeDesktopTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) });
   })() : undefined;
   // 행동 손은 **읽기 손과 따로 선다.** 권한 종류가 손 단위로 판정되므로 합치면
   // 읽기가 행동 등급으로 오르거나 행동이 읽기로 샌다(정본 §4.1 이 나눈 이유).
-  const desktopAct = 화면백엔드
+  const desktopAct = (cua백엔드 || 화면백엔드)
     ? makeDesktopActTool({ drivers: 화면등록소().드라이버(DESKTOP_SLOT) })
     : undefined;
 

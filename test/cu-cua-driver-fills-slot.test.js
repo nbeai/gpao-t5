@@ -162,3 +162,62 @@ test('무거운 관찰은 필요할 때만 — 창 목록만 볼 때는 안 부�
   assert.ok(!mcp.부른것.some((c) => c.name === 'get_window_state'),
     '창 목록만 필요한 턴에 창 하나의 AX 트리를 통째로 훑었다');
 });
+
+// ── 실물이 가르쳐 준 것 셋 (라이브 2026-08-05) ──────────────────────────
+//
+// 검사는 초록인데 라이브가 빨갰다. **가짜 MCP 가 실물의 필수 인자를 안 쟀기 때문이다** —
+// 가짜가 실물과 다르면 검사는 계약이 아니라 모양만 지킨다.
+test('앱 이름을 pid 로 바꿔서 보낸다 — 실물이 pid 를 필수로 받는다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: true },
+    앱: [{ name: 'Finder', pid: 678, active: false }] });
+  const { 등록소 } = 손세우기(mcp);
+  await 등록소.드라이버(DESKTOP_SLOT)[0].act({ 행동: 'focus', 대상: { app: 'Finder' } });
+  const 부름 = mcp.부른것.find((c) => c.name === 'bring_to_front');
+  assert.equal(부름.args.pid, 678, '`app` 을 보냈다 — 실물은 `Missing required integer field: pid` 로 거절한다');
+});
+
+test('대상 앱을 못 찾으면 부르지 않는다 — 빈 인자로 부르면 오대상 실행이다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: true }, 앱: [] });
+  const { 등록소 } = 손세우기(mcp);
+  await assert.rejects(() => 등록소.드라이버(DESKTOP_SLOT)[0].act({ 행동: 'focus', 대상: { app: '없는앱' } }));
+  assert.ok(!mcp.부른것.some((c) => c.name === 'bring_to_front'), '못 찾았는데 불렀다');
+});
+
+// **모호하면 실행 0 · 후보를 돌려준다** — 드라이버가 A02 와 같은 규율을 갖고 있다.
+// 실물: Finder 창이 셋이라 `candidates` 만 오고 앞 앱은 안 바뀌었다.
+test('드라이버가 "어느 것이냐"고 하면 실패가 아니다 — 후보를 올린다', async () => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp: {
+    async call(name) {
+      if (name === 'check_permissions') return { accessibility: true, screen_recording: true };
+      if (name === 'list_apps') return { apps: [{ name: 'Finder', pid: 678 }] };
+      if (name === 'get_accessibility_tree') return { apps: [{ name: 'Finder', pid: 678, active: true }], windows: [] };
+      if (name === 'bring_to_front') return { candidates: [{ window_id: 1, title: '가', app_name: 'Finder' }, { window_id: 2, title: '나', app_name: 'Finder' }] };
+      return {};
+    },
+  } }));
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const out = await makeDesktopActTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) }).handler({ action: 'focus', app: 'Finder' });
+  assert.equal(out.blocked, true, '모호한데 실행했거나 실패로 뭉갰다');
+  assert.equal(out.후보?.length, 2);
+  assert.ok(out.다음수단.every((m) => m.window), '어느 창인지 골라 부를 수 없다');
+});
+
+// **드라이버가 스스로 확인해 주면 그것을 쓴다** — 우리 전후 추측은 창 관리자가 반영하기
+// 전에 찍혀 **없는 실패**를 만든다(실물에서 실제로 그랬다).
+test('드라이버 확인이 있으면 그것을 근거로 쓴다 — 근거를 원장에 남긴다', async () => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp: {
+    async call(name) {
+      if (name === 'check_permissions') return { accessibility: true, screen_recording: true };
+      if (name === 'list_apps') return { apps: [{ name: 'Finder', pid: 678 }] };
+      if (name === 'get_accessibility_tree') return { apps: [{ name: 'Claude', pid: 1, active: true }], windows: [] };
+      if (name === 'bring_to_front') return { activated: true, code: 'bring_to_front_exact_window_verified', exact_window_effect: { verified: true } };
+      return {};
+    },
+  } }));
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const out = await makeDesktopActTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) }).handler({ action: 'focus', app: 'Finder', window: 1 });
+  assert.equal(out.result?.단계, 'goal_verified', '드라이버가 확인해 줬는데 없는 실패를 만들었다');
+  assert.match(out.result.확인방법, /드라이버 확인/, '무엇을 믿고 됐다고 하는지가 원장에 없다');
+});
