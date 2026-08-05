@@ -160,5 +160,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/desktop-slot.js',
     'src/runtime/desktop-tool.js',
     'src/runtime/desktop-native-driver.js',
+    // CU C — 첫 손. 읽기 손과 **따로** 선다(권한 종류가 손 단위로 판정되므로).
+    'src/runtime/desktop-act-tool.js',
+    'src/kernel/l2-plan/action-plan.js',
   ]);
 });

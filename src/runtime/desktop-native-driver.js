@@ -41,6 +41,20 @@ export function makeDesktopNativeDriver(deps = {}) {
     id: 'peekaboo',
     label: '화면 관찰(네이티브)',
     needs: [],
+    /**
+     * **행동은 부르기만 한다 — 됐는지는 안 본다**(CU C).
+     * 전후를 찍어 가르는 것은 손(`desktop-act-tool.js`)의 일이다. 여기서 판정하면
+     * 계약이 두 곳에 살고, 백엔드가 바뀔 때마다 그 판정을 다시 써야 한다.
+     */
+    async act(요청) {
+      const 행동 = String(요청?.행동 ?? '');
+      const 대상 = String(요청?.대상?.app ?? '').trim();
+      if (!대상) throw new Error('대상 없음');
+      최근 = null;   // 행동 뒤에는 묵은 관찰을 쓰지 않는다 — 전후 비교가 무너진다
+      const v = await 부르기(['act', 행동, 대상]);
+      if (v?.dispatched !== true) throw new Error('dispatch 실패');
+      return v;
+    },
     async status() {
       const v = await 한번();
       // **판정하지 않는다.** 백엔드가 낸 것을 그대로 옮긴다 — 가르는 것은 손의 일이다.

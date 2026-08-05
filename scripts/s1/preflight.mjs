@@ -263,6 +263,9 @@ export const 허용파일 = [
   'src/runtime/desktop-slot.js',
   'src/runtime/desktop-tool.js',
   'src/runtime/desktop-native-driver.js',
+  // CU C — 첫 손. 읽기 손과 **따로** 선다(권한 종류가 손 단위로 판정되므로).
+  'src/runtime/desktop-act-tool.js',
+  'src/kernel/l2-plan/action-plan.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

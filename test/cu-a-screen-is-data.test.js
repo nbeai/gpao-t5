@@ -112,10 +112,11 @@ test('라이브: 백엔드가 있으면 화면 손이 **맨 뒤**에 붙는다',
   const 있게 = 손이름(liveDeps({ GPAO_T5_DESKTOP_BIN: '/없어도/된다/probe' }));
 
   assert.ok(!없이.includes('desktop.screen'), '백엔드가 없는데 손이 실렸다');
-  assert.equal(있게.length, 없이.length + 1);
+  // CU C 에서 행동 손이 하나 더 붙는다 — 둘 다 **맨 뒤**여야 한다.
+  assert.equal(있게.length, 없이.length + 2);
   assert.deepEqual(있게.slice(0, 없이.length), 없이,
     `새 손이 앞을 밀어냈다 — 프롬프트 접두가 죽는다.\n  전: ${없이.join(' · ')}\n  후: ${있게.join(' · ')}`);
-  assert.equal(있게[있게.length - 1], 'desktop.screen', '맨 뒤가 아니다');
+  assert.deepEqual(있게.slice(없이.length).sort(), ['desktop.act', 'desktop.screen'], '맨 뒤가 아니다');
 });
 
 // 돌연변이가 여기서 빠져나갔다: `descriptors` 재배치를 지워도 위 검사가 초록이었다.

@@ -76,6 +76,21 @@ export function toolActionKind({ toolId, args, selfState }) {
     else if (a === 'stop') kind = 'organize';
     else kind = UNKNOWN_KIND; // 모르는 작업은 승인으로
   }
+  // **CU C — 화면 행동은 무엇을 하느냐로 갈린다**(2026-08-05). `local.file` 과 같은 모양이다:
+  // 같은 손이 되돌릴 수 있는 일도 하고 없는 일도 한다. 손 하나로 뭉개면 둘 중 하나가 틀린다.
+  //
+  //   focus·scroll·move·resize   창을 앞으로 띄우고 내리고 옮긴다 — **되돌릴 수 있다**
+  //   launch                     켠 것은 끄면 된다 — 되돌릴 수 있다
+  //   quit                       **저장 안 된 것이 날아간다** — 헌장 ②(되돌릴 수 없는 파괴)
+  //
+  // 되돌릴 수 있는 넷까지 물으면 카드가 늘고, **카드가 늘어나는 변경은 개선이 아니라 실패다**(§3.1).
+  // 모르는 행동은 읽기로 흘리지 않는다 — 모름은 자동이 아니라 확인 쪽이다.
+  if (toolId === 'desktop.act') {
+    const a = args?.action;
+    if (a === 'focus' || a === 'scroll' || a === 'move' || a === 'resize' || a === 'launch') kind = 'read';
+    else if (a === 'quit') kind = 'write';
+    else kind = UNKNOWN_KIND;
+  }
   // P6-T2: 명령은 **돌려 봐야 안다.** 계획 단계에서 probe(쓰기·네트워크·비밀읽기 차단)를 돌리고
   // 그 결과가 등급을 정한다 — 위험 명령 목록으로 알아맞히지 않는다(목록은 항상 뚫린다).
   // probe 결과가 없으면 '미상'으로 둔다: 모르면 승인으로 간다(read 로 흘리지 않는다).

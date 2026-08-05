@@ -891,6 +891,23 @@ export const MUTATIONS = [
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",
     바꾸기: "const 화면계약 = ['id'];" },
 
+  // **CU C — 눌렀는지가 아니라 됐는지.** A14 가 CU 에서 제일 위험한 자리다.
+  { 이름: 'dispatch 를 성공으로 셈(눌렀는데 안 됐어도 됐다고 한다 · A14)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: '      if (전 === null || 후 === null || 같은가(전, 후)) {', 바꾸기: '      if (false) {' },
+  { 이름: '목표 도달을 안 보고 변화만 봄(이미 그 상태인데 실패라고 한다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: '      if (도달 === true) {', 바꾸기: '      if (false) {' },
+  { 이름: '지문이 달라도 실행함(다른 것을 조작한다 · A04)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: '      if (준지문 && 확인지문 && 준지문 !== 확인지문) {', 바꾸기: '      if (false) {' },
+  { 이름: '대조 못 하는 행동까지 받음(클릭이 계약 없이 들어온다)',
+    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: '      if (!받는행동.has(행동)) {', 바꾸기: '      if (false) {' },
+  { 이름: '앱 끄기가 되돌릴 수 있는 일과 같은 등급이 됨(헌장 ② 가 뚫린다)',
+    파일: 'src/kernel/l2-plan/action-plan.js', 검사: 'test/cu-c-effect-not-dispatch.test.js',
+    찾기: "    else if (a === 'quit') kind = 'write';", 바꾸기: "    else if (a === 'quit') kind = 'read';" },
+
   // **CU B — 요소를 신분과 함께, 비밀칸은 값을 안 낸다.**
   { 이름: '비밀번호 칸 값이 모델 재료로 나감(되돌릴 수 없는 비밀 노출)',
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-b-elements-with-identity.test.js',
@@ -913,11 +930,10 @@ export const MUTATIONS = [
     찾기: '          관찰내용은데이터: true,\n', 바꾸기: '' },
   { 이름: '백엔드 없이도 화면 손을 선언함(못 지킬 약속 · 매 콜 비용)',
     파일: 'src/surface/demo-context.js', 검사: 'test/cu-a-screen-is-data.test.js',
-    찾기: '  const 전부 = opts.desktop ? [...DESCRIPTORS, 화면선언()] : DESCRIPTORS;',
-    바꾸기: '  const 전부 = [...DESCRIPTORS, 화면선언()];' },
+    찾기: '    ...(opts.desktop ? [화면선언()] : []),', 바꾸기: '    화면선언(),' },
   { 이름: '새 손이 중간에 끼어 프롬프트 접두가 죽음(라이브에서만 난다)',
     파일: 'src/surface/live-context.js', 검사: 'test/cu-a-screen-is-data.test.js',
-    찾기: "    뒤로(descriptors, (d) => d.id === 'desktop.screen');\n", 바꾸기: '' },
+    찾기: "      뒤로(descriptors, (d) => d.id === id);\n", 바꾸기: '' },
 
   // **S8 ④ — 묻는 일을 모델에게 돌려준다.** 손이 늘면 질문이 늘 수 있다(자동성 갉기).
   { 이름: '커널이 모델의 질문을 안 받음(다시 커널 문장으로 되묻는다)',

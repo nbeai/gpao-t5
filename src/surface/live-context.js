@@ -7,6 +7,7 @@ import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeWebSearchTool } from '../runtime/web-search-tool.js';
 import { makeDesktopTool } from '../runtime/desktop-tool.js';
+import { makeDesktopActTool } from '../runtime/desktop-act-tool.js';
 import { makeDesktopNativeDriver } from '../runtime/desktop-native-driver.js';
 import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
@@ -101,9 +102,15 @@ export function liveDeps(processEnv = {}, deps = {}) {
     }
     return makeDesktopTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) });
   })() : undefined;
+  // 행동 손은 **읽기 손과 따로 선다.** 권한 종류가 손 단위로 판정되므로 합치면
+  // 읽기가 행동 등급으로 오르거나 행동이 읽기로 샌다(정본 §4.1 이 나눈 이유).
+  const desktopAct = 화면백엔드
+    ? makeDesktopActTool({ drivers: 화면등록소().드라이버(DESKTOP_SLOT) })
+    : undefined;
 
   const tools = demoTools({
     ...(desktop ? { desktop } : {}),
+    ...(desktopAct ? { desktopAct } : {}),
     // **찾는 손.** 읽는 손과 나뉘어 있어야 모델이 목록을 보고 출처를 고를 수 있다.
     // 같은 검색 층(무키 → 키)을 쓰지만, 이쪽은 **읽지 않는다**.
     webSearch: makeWebSearchTool({ timeoutMs: webTimeoutMs }),
@@ -144,7 +151,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // **조건부 선언도 파생의 원천에 알려야 한다.** `desktop.screen` 은 백엔드가 있을 때만
   // 선언이 생기는데, 여기서 그 사실을 안 넘기면 **손은 붙었는데 선언이 없는** 상태가 된다
   // (P5-B-0 이 막으려던 그 자리 — 실제로 배선하자마자 났다: 손 true · 선언 false).
-  const 선언옵션 = { ...(desktop ? { desktop } : {}) };
+  const 선언옵션 = { ...(desktop ? { desktop } : {}), ...(desktopAct ? { desktopAct } : {}) };
   const liveToolIds = demoDescriptors(선언옵션)
     .map((d) => d.id)
     .filter((id) => typeof tools?.tools?.[id]?.handler === 'function');
@@ -373,8 +380,10 @@ export function liveDeps(processEnv = {}, deps = {}) {
       const i = arr.findIndex(맞나);
       if (i >= 0) arr.push(arr.splice(i, 1)[0]);
     };
-    뒤로(descriptors, (d) => d.id === 'desktop.screen');
-    뒤로(env.connections, (c) => c.id === 'desktop.screen');
+    for (const id of ['desktop.screen', 'desktop.act']) {
+      뒤로(descriptors, (d) => d.id === id);
+      뒤로(env.connections, (c) => c.id === id);
+    }
   }
 
   return {

@@ -372,6 +372,47 @@ function 화면선언() {
   });
 }
 
+/**
+ * **화면 행동 손의 선언 (CU C)** — 읽기 손과 **따로** 선다.
+ *
+ * 권한 종류는 손 단위로 판정된다(`toolActionKind`). 합치면 읽기가 행동 등급으로 오르거나
+ * 행동이 읽기로 샌다 — 정본 §4.1 이 `observe` 와 `act` 를 나눈 이유가 그것이다.
+ *
+ * **넷만 받는다**(계획 §5.1). 클릭·타이핑은 일부러 뺐다: 그 넷은 됐는지를 **값으로 대조**할 수
+ * 있고(frontmost·스크롤 위치·창 좌표·프로세스), 클릭은 대조 기준이 없다.
+ * 가장 어려운 계약(A14)을 가장 쉬운 대상에서 먼저 세운다.
+ */
+function 화면행동선언() {
+  return defineTool({
+    id: 'desktop.act', label: '화면 다루기', owner: 'core',
+    availability: [{ kind: 'connected' }], toolKind: 'read',
+    capability: '창을 앞으로 띄우거나, 내리거나, 옮기거나, 앱을 켜고 끈다.'
+      + ' 한 뒤에 **실제로 그렇게 됐는지 값으로 확인하고**, 안 됐으면 됐다고 하지 않는다.'
+      + ' 아직 버튼을 누르거나 글자를 입력하지는 못한다.'
+      + ' 앱을 끄는 것만 미리 확인을 받는다 — 저장 안 한 것이 날아갈 수 있어서다.',
+    operatorFact: '창·앱 상태를 바꾸고 전후 값으로 실제 변화를 확인한다.',
+    limits: [{ says: '버튼을 누르거나 글자를 입력하지는 못한다' }],
+    schema: {
+      description: '창·앱 상태를 바꾼다. `focus`(앞으로 띄우기) · `scroll` · `move` · `resize`'
+        + ' · `launch` · `quit`.'
+        + ' **한 뒤에 전후 값을 대조해 실제로 바뀐 것까지 확인한다** — 안 바뀌었으면 실패로 온다.'
+        + ' 그러니 결과가 실패면 "했어요"라고 말하지 마라.'
+        + ' `desktop.screen` 이 준 요소·창의 `지문` 을 `확인지문` 으로 함께 주면,'
+        + ' 그 사이에 화면이 바뀐 경우 **실행하지 않고** 다시 보라고 알려 준다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit'] },
+          app: { type: 'string', description: '대상 앱 이름 또는 번들 id' },
+          window: { type: 'number', description: '대상 창 id(있으면)' },
+          확인지문: { type: 'string', description: '관찰 때 받은 지문. 화면이 바뀌었으면 실행하지 않는다' },
+        },
+        required: ['action'],
+      },
+    },
+  });
+}
+
 const DESCRIPTORS = [
   // **찾고 나서 읽는다 — 선언 순서가 곧 배치다**(2026-08-05).
   // 같은 역할(`read`) 안에서는 여기 적힌 순서가 모델이 보는 순서가 된다(`toolSchemasFor`).
@@ -772,7 +813,9 @@ const DESCRIPTORS = [
 export function demoDescriptors(opts = {}) {
   // **손이 있을 때만 선언이 딸려온다.** 없는 손을 선언하면 모델이 못 지킬 약속을 한다.
   // 끝에 붙인다 — 새 손이 중간에 끼면 프롬프트 접두가 죽는다(불변식 A).
-  const 전부 = opts.desktop ? [...DESCRIPTORS, 화면선언()] : DESCRIPTORS;
+  const 전부 = [...DESCRIPTORS,
+    ...(opts.desktop ? [화면선언()] : []),
+    ...(opts.desktopAct ? [화면행동선언()] : [])];
   const 고른것 = opts.include ? 전부.filter((d) => opts.include.includes(d.id)) : 전부;
   // **자리표시자는 절대 밖으로 안 나간다.** 첫 판은 `rooms` 를 준 호출부만 채웠고, 안 준
   // 호출부(`demoEnv`·서버 두 곳)의 선언이 그대로 모델에게 갔다 — 라이브에서 T5 의 답에
@@ -801,6 +844,7 @@ const FACTS = {
   'web.collect': { connected: true },
   'web.search': { connected: true },
   'desktop.screen': { connected: true },
+  'desktop.act': { connected: true },
   'agent.delegate': { connected: true },
   'local.file': { connected: true },
   'local.capsule': { connected: true },
@@ -867,6 +911,7 @@ export function demoTools(opts = {}) {
     // 찾는 손. 선언이 항상 서므로 손도 항상 선다(P5-B-0 — 선언 ⊆ 손). 라이브는 실제 검색기를
     // 넘기고, 여기 기본값은 **실네트워크를 안 타는 스텁**이다(검사가 밖으로 나가면 안 된다).
     ...(opts.desktop ? { 'desktop.screen': opts.desktop } : {}),
+    ...(opts.desktopAct ? { 'desktop.act': opts.desktopAct } : {}),
     'web.search': opts.webSearch ?? {
       sourceLedgerRequired: false,
       async handler(args) {
