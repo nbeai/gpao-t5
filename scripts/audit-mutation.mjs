@@ -733,6 +733,16 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **읽어 온 글자를 모델이 읽을 수 있어야 한다**(라이브 2026-08-05).
+  // 데이터는 다 와 있었는데 16진수 엔티티라 모델이 못 읽고 25℃ 를 지어냈다(실제는 체감 40°).
+  { 이름: '16진수 엔티티를 안 풂(모델이 한글을 못 읽고 지어낸다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-entity-decode.test.js',
+    찾기: '  .replace(/&#[xX]([0-9a-fA-F]+);/g, (전체, h) => {',
+    바꾸기: '  .replace(/&#never([0-9a-fA-F]+);/g, (전체, h) => {' },
+  { 이름: 'BMP 밖 문자를 깨뜨림(날씨·지도 기호가 깨진 글자가 된다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-entity-decode.test.js',
+    찾기: '    try { return String.fromCodePoint(cp); } catch { return 전체; }',
+    바꾸기: '    try { return String.fromCharCode(cp); } catch { return 전체; }' },
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
