@@ -771,6 +771,20 @@ export const MUTATIONS = [
     파일: 'src/runtime/readable.js', 검사: 'test/web-hydration-any.test.js',
     찾기: '  덩어리들.sort((a, b) => b.말수 - a.말수);',
     바꾸기: '  덩어리들.sort((a, b) => b.out.length - a.out.length);' },
+  // **`div`·`span` 으로 그린 내용도 내용이다**(라이브 2026-08-05, `내일 날씨` 거짓말).
+  // 아는 태그 여섯 개만 훑던 시절 AccuWeather 일별 예보가 통째로 안 보였다(온도 0종).
+  { 이름: '아는 블록 태그만 훑음(div 로 그린 내용이 통째로 안 보인다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-divs-are-content.test.js',
+    찾기: "    .replace(/<\\/(p|div|h[1-6]|li|ul|ol|table|blockquote|pre|article|section|main|span|td|th)\\s*>/gi, '\\n');",
+    바꾸기: "    .replace(/<\\/(p|h[1-6]|li|blockquote|pre)\\s*>/gi, '\\n');" },
+  { 이름: '길이 잣대를 모든 줄에 댐(`36°` 같은 짧은 값이 사라진다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/web-divs-are-content.test.js',
+    찾기: '    if (!말 || BOILERPLATE.test(말)) continue;',
+    바꾸기: '    if (!말 || 말.length < 20 || BOILERPLATE.test(말)) continue;' },
+  { 이름: '<head> 를 안 걷어냄(사이트 제목이 본문 첫 줄이 된다)',
+    파일: 'src/runtime/readable.js', 검사: 'test/readable.test.js',
+    찾기: 'const DROP_BLOCKS = /<(head|script|style',
+    바꾸기: 'const DROP_BLOCKS = /<(script|style' },
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
