@@ -321,7 +321,7 @@ export function makeWebCollector(deps = {}) {
         if (read) reads.push(read);
         if (read && selectionGoal !== 'latest_evidence') break;
       }
-      // **안 가 본 후보.** 검색기가 실제로 돌려준 목록이고, 우리가 아직 안 연 곳이다.
+      // **안 가 본 후보.** 검색기가 실제로 돌려준 목록이고, 우리가 열어 보지 않은 곳이다.
       // 성공·실패 양쪽이 **같은 계산**을 쓴다 — 자리마다 따로 적으면 한쪽이 언젠가 빠지고,
       // 실제로 빠져 있던 쪽이 하필 **막힌 쪽**이었다(아래 주석).
       //
