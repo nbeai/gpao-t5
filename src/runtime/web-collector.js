@@ -29,8 +29,9 @@ export function httpToFetchState(status, ctx = {}) {
   }
   if (status >= 400) return 'blocked';
   if (status >= 200 && status < 300) {
-    // 건진 본문 길이를 함께 넘긴다 — 실제로 읽었으면 벽으로 판정하지 않는다.
-    return classifyWebFetch({ body: ctx.body, readableChars: ctx.readableChars });
+    // 건진 본문을 **그대로** 넘긴다. 길이만 넘기면 판정은 원본 HTML 을 훑게 되고,
+    // 메뉴의 "로그인" 낱말 하나로 공개 페이지가 벽이 된다(라이브 2026-08-05).
+    return classifyWebFetch({ body: ctx.body, readable: ctx.readable, readableChars: ctx.readableChars });
   }
   return 'blocked'; // 3xx 미해결·기타
 }
@@ -274,9 +275,16 @@ export function makeWebCollector(deps = {}) {
         }
         // 본문을 먼저 뽑아 보고 판정한다 — 건진 게 있으면 벽이 아니다(로그인 링크 하나로 막던 오판 수정).
         const probe = extractReadable(body);
-        const probeChars = Math.max((probe.markdown ?? '').length, extractHydrationText(body, { maxChars: 400 }).length);
-        fetchState = httpToFetchState(res.status, { body, readableChars: probeChars });
-        if (fetchState === 'ok') {
+        // 벽 판정에 **원본 HTML 을 넘기지 않는다.** 넘기면 메뉴의 "로그인" 낱말 하나로
+        // 공개 페이지가 벽이 되고, 여기서 걸리면 본문을 아예 안 읽는다 — 라이브에서
+        // `오늘 코스피` 가 "로그인이 필요하다"로 끝난 자리다. 건진 알맹이로만 잰다.
+        const 심긴맛보기 = extractHydrationText(body, { maxChars: 400 });
+        const probeChars = Math.max(probe.살은글자 ?? 0, 심긴맛보기.length);
+        fetchState = httpToFetchState(res.status, {
+          body, readable: `${probe.알맹이글 ?? ''}\n${심긴맛보기}`, readableChars: probeChars,
+        });
+        // 껍데기는 **벽이 아니다** — 읽어는 봐야 다음 수단(링크·창)을 모델에게 줄 수 있다.
+        if (fetchState === 'ok' || fetchState === 'shell') {
           manners.noteOk(candidate);
           manners.remember(candidate, { res, body }); // 다음에 같은 주소를 또 열지 않게
           read = { res, body, url: candidate, original: group.original, rank: group.rank };
@@ -308,7 +316,7 @@ export function makeWebCollector(deps = {}) {
       const pages = reads.map((read) => {
         const title = extractTitle(read.body);
         const description = extractDescription(read.body);
-        let { markdown, blocks } = extractReadable(read.body);
+        let { markdown, blocks, 살은글자, 알맹이글 } = extractReadable(read.body);
       // 요즘 페이지는 본문을 태그가 아니라 **스크립트 안 JSON** 으로 준다. 브라우저를 안 띄우고도
       // 대부분 읽힌다(실측: 네이버 플레이스의 상호·주소·메뉴가 전부 HTML 안에 있었다).
       //
@@ -325,17 +333,19 @@ export function makeWebCollector(deps = {}) {
         markdown = (markdown ?? '').length < MIN_READABLE_CHARS
           ? 심긴것
           : `${markdown}\n\n${심긴것}`;
+        살은글자 += 심긴것.length;   // 스크립트에 심긴 데이터는 메뉴가 아니다 — 알맹이다
+        알맹이글 = `${알맹이글}\n${심긴것}`;
       }
         const resolvedUrl = read.res.url || read.url;
         const links = extractLinks(read.body, resolvedUrl);
         const dates = extractDocumentDates(read.body, read.res.headers);
-        return { ...read, title, description, markdown, blocks, links, resolvedUrl, ...dates };
+        return { ...read, title, description, markdown, blocks, 살은글자, 알맹이글, links, resolvedUrl, ...dates };
       });
       const timestamp = (page) => Date.parse(page.publishedAt ?? page.modifiedAt ?? '');
       const selected = selectionGoal === 'latest_evidence'
         ? pages.reduce((best, page) => Number.isFinite(timestamp(page)) && (!Number.isFinite(timestamp(best)) || timestamp(page) > timestamp(best)) ? page : best, pages[0])
         : pages[0];
-      const { title, description, markdown: 본문전체, blocks, links } = selected;
+      const { title, description, markdown: 본문전체, blocks, 살은글자, 알맹이글, links } = selected;
       // **웹도 문을 갖는다**(라이브 2026-08-05). 본문이 길면 조용히 접히는 것이 아니라
       // **창을 옮겨 더 읽을 수 있어야 한다** — `local.file list` 가 이미 그렇게 한다.
       // 그날 사고: 본문 4,588자가 재료 조립에서 1,183자로 접히며 **온도표가 통째로 가운데**라
@@ -356,9 +366,29 @@ export function makeWebCollector(deps = {}) {
         ...(page.modifiedAt ? { modifiedAt: page.modifiedAt } : {}),
         ...(page.dateSource ? { dateSource: page.dateSource } : {}),
       })) : undefined;
+      // **멈추지 않는다**(오너 2026-08-05): *"해당 사이트가 로그인을 구체적으로 요구하는
+      // 허들로 제시하지 않으면 멈춰서는 안 되지!"*
+      //
+      // 그날 `오늘 코스피, 코스닥 상황 알려줘` 에 T5 가 "로그인이 필요하다"며 멈췄다. 막힌 게
+      // 아니라 **메뉴뿐인 페이지를 읽고** 메뉴 안의 "로그인" 낱말을 벽으로 오해한 것이었다.
+      //
+      // 그래서 어떤 결과든 **막다른 답이 되지 않게** 두 가지를 함께 싣는다:
+      //   `읽은상태` — 알맹이를 얻었나(ok), 껍데기였나(shell), 사이트가 정말 요구했나(login_wall)
+      //   `다음수단` — 지금 바로 부를 수 있는 다른 길(같은 사이트의 다른 자리, 다른 검색어)
+      // 창(`readWindow`)이 "같은 페이지의 뒷부분"을 주는 것과 같은 계약을, **목적을 이룰 다른
+      // 길**로 넓힌 것이다. 커널은 무엇이 옳은지 정하지 않는다 — 쓸 수 있는 수를 주고 모델이 둔다.
+      const 읽은상태 = classifyWebFetch({ readable: 알맹이글, readableChars: 살은글자 });
+      const 다음수단 = 읽은상태 === 'ok' ? undefined : [
+        ...(Number.isInteger(창.다음) ? [{ 방법: 'read_more', offset: 창.다음, 왜: '이 페이지의 뒷부분이 남았다' }] : []),
+        ...links.slice(0, 5).map((l) => ({ 방법: 'read_url', url: l.url, 왜: `이 페이지가 가리키는 곳: ${l.text}` })),
+        { 방법: 'search', 왜: '다른 자료로 검색을 다시 한다' },
+      ];
       return {
         result: {
           title, excerpt, description, markdown, blocks, links,
+          // **무엇을 얻었고 무엇이 없나.** 이게 없으면 모델은 읽은 줄 알고 그 위에 지어낸다.
+          읽은상태, substanceChars: 살은글자,
+          ...(다음수단 ? { 다음수단 } : {}),
           // P2-9: **사후 기록**이다 — 발화에서 예측한 분류가 아니라 실제로 무엇을 했는가.
           // 둘이면 충분하다. 큰 분류 체계(routeKind 11개)는 만들지 않는다(§24 · 절대원칙 8).
           // **얼마나 있고 어디까지 줬는지.** 모델이 다음을 부를 수 있어야 막다른 답이 안 된다.
@@ -379,7 +409,7 @@ export function makeWebCollector(deps = {}) {
         //
         // 경로까지 싣지는 않는다. 사용자면 문장은 읽는 것이지 복사하는 것이 아니고,
         // 전체 주소는 원장에 남는다.
-        userSafeSummary: `${foundVia ? '찾아서 읽었어요' : '공개 자료로 확인했어요'}`
+        userSafeSummary: `${읽은상태 === 'shell' ? '열어 봤는데 메뉴뿐이라 알맹이가 없었어요' : (foundVia ? '찾아서 읽었어요' : '공개 자료로 확인했어요')}`
           + `${읽은곳말(title, sources)}.`
           // **얼마나 읽었는지도 말한다.** 조용히 자르지 않는 계약은 사용자면에서도 선다.
           + `${Number.isInteger(창.다음) ? ` 본문 ${창.총}자 중 ${창.끝}자까지 읽었어요.` : ''}`,

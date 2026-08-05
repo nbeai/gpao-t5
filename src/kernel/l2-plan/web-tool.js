@@ -209,17 +209,59 @@ export function assertWebEvidence(out) {
 // 페이지를 벽으로 오인한다.
 export const MIN_READABLE_CHARS = 200;
 
+// **껍데기는 "알맹이가 하나도 없다"이다.** 임계를 짐작하지 않는다 —
+// 40자로 잡았더니 본문이 짧은 정상 페이지가 껍데기로 몰렸고(실측), 200자로 잡으면
+// `코스피 6,622.23 전일 대비 +263.28` 처럼 한 줄이 곧 답인 데이터 페이지가 통째로 몰린다.
+// 조금이라도 살아 있으면 읽은 것이고, 쓸 만한지는 모델이 판단한다(커널은 안 고른다).
+export const MIN_SUBSTANCE_CHARS = 1;
+
 export function classifyWebFetch(raw = {}) {
   // **본문을 실제로 건졌으면 그건 읽은 것이다.** 예전엔 본문 어딘가에 "로그인" 단어가 하나만 있어도
   // login_wall 로 판정했다 — 위키백과처럼 누구나 읽는 페이지도 전부 막힌 것으로 처리됐다(실측).
-  // 한국 사이트 대부분에 로그인 링크가 있으니 사실상 2층 수집이 통째로 죽어 있었다.
-  // 벽은 "아무것도 못 건졌는데 벽 신호만 있을 때" 판정한다.
-  if (typeof raw.readableChars === 'number' && raw.readableChars >= MIN_READABLE_CHARS) return 'ok';
-  const s = String(raw.status ?? raw.body ?? '').toLowerCase();
+  //
+  // 그 교훈은 여기 적혀 있었는데 **길이 게이트 뒤 대비책에서 되살아났다.** 라이브(2026-08-05):
+  // 오너가 `오늘 코스피, 코스닥 상황 알려줘` 라고 묻자 T5 가 **"로그인이 필요하다"** 고 답했다.
+  // 막힌 게 아니었다 — `finance.naver.com/sise/` 는 **총 938자가 전부 메뉴**였고, 네이버 메뉴에는
+  // "로그인"이 들어 있다. 낱말 하나로 공개 페이지가 벽이 됐다.
+  //
+  // 그래서 둘을 고쳤다:
+  //   ① "읽었다"를 **길이가 아니라 알맹이**로 잰다(`readableChars` = 메뉴·링크를 뺀 글자수).
+  //   ② 벽 낱말은 **건진 본문(`readable`) 안에서만** 본다. 페이지 전체를 훑지 않는다.
+  //
+  // 그리고 알맹이도 없고 벽 신호도 없으면 **`shell`** 이다 — 벽이 아니라 *"껍데기만 왔으니
+  // 다음 층으로 가라"* 는 신호다. 이게 없으면 모델은 읽은 줄 알고 지어내거나 벽을 상상한다.
+  const 알맹이수 = typeof raw.readableChars === 'number' ? raw.readableChars : null;
+
+  // ① **로그인 안내를 빼고도 남는 내용이 있으면 읽은 것이다.**
+  //    오너 규칙(2026-08-05): *"일반적인 로그인 필요나 안내, 요청 문구는 무시한다."*
+  //    거의 모든 한국 사이트에 로그인 링크가 있다 — 그건 벽이 아니라 가구다.
+  //    빼고 나서 **아무것도 안 남으면** 그 페이지는 로그인 얘기만 하는 것이고,
+  //    그때가 *"로그인이 실제 벽으로 작동할 때"* 다(규칙 2). 낱말의 존재가 아니라
+  //    **남는 내용의 유무**로 가른다 — 있고 없고가 사용자에게 실제로 다른 것이다.
+  // 건진 본문(`readable`)이 오면 **정밀하게** 잰다: 안내 줄을 빼고 남는 게 있는가.
+  // 안 오면(옛 호출부) 잴 수가 없으니 예전 잣대(통짜 200자)를 그대로 쓴다 —
+  // 모르는 것을 아는 척하지 않는다.
+  if (raw.readable != null) {
+    const 안내뺀글자 = String(raw.readable).split('\n')
+      .filter((l) => !/login|signin|sign ?in|로그인|계정|가입/i.test(l)).join('').trim().length;
+    if (안내뺀글자 >= MIN_SUBSTANCE_CHARS) return 'ok';
+  } else if (알맹이수 !== null && 알맹이수 >= MIN_READABLE_CHARS) {
+    return 'ok';
+  }
+
+  // ② 여기부터는 **아무것도 못 얻은** 자리다. 그때만 왜 못 얻었는지 본다 —
+  //    *"로그인이 실제 벽으로 작동할 때는 인정하고 사용자에게 로그인을 요청하며 작업을
+  //    이어가거나 사용 가능한 다른 방법을 사용한다."* 벽이어도 끝이 아니다(`다음수단`).
+  //    낱말은 **건진 본문 안에서만** 본다. 원본 HTML 을 훑으면 메뉴의 "로그인" 하나로
+  //    공개 페이지가 벽이 된다 — 라이브에서 `오늘 코스피` 가 그렇게 멈췄다.
+  const s = String(raw.status ?? (raw.readable != null ? raw.readable : raw.body) ?? '').toLowerCase();
   if (/login|signin|sign in|로그인/.test(s)) return 'login_wall';
   if (/robots|disallow/.test(s)) return 'robots_disallow';
   if (/captcha|bot|봇|are you human/.test(s)) return 'bot_wall';
   if (/timeout|timed out/.test(s)) return 'timeout';
   if (/blocked|forbidden|403|접근|차단/.test(s)) return 'blocked';
+
+  // 막은 신호도 없는데 빈손이다 — 껍데기다. 벽이 아니니 멈추지 않고 다음 수단으로 간다.
+  if (알맹이수 !== null) return 'shell';
   return 'ok';
 }

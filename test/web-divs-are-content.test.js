@@ -72,12 +72,27 @@ test('③ **문서형 페이지의 구조는 그대로 남는다** — 되던 �
   assert.match(markdown, /\|\s*가\s*\|\s*나\s*\|/, `표 표시가 사라졌다:\n${markdown}`);
 });
 
-test('④ **껍데기 문구는 여전히 버린다** — 쿠키 배너가 본문이 되지 않는다', () => {
-  const { markdown } = extractReadable(
-    '<html><body><div>쿠키 설정</div><div>로그인</div><div>실제 내용은 여기 있습니다. 충분히 깁니다.</div></body></html>',
+// 껍데기 거르기를 **낱말 목록으로 하지 않는다.** 앞머리만 보고 줄을 버리면
+// `로그인이 필요합니다` 같은 진짜 벽 문구까지 사라져 벽을 못 본다(실측 2026-08-05).
+// 실제 페이지에서 배너·메뉴는 **링크로** 온다 — 그건 구조라서 이름 없이 가릴 수 있다.
+test('④ **껍데기는 알맹이 앞을 차지하지 않는다** — 낱말이 아니라 구조로 가른다', () => {
+  const { markdown, 살은글자 } = extractReadable(
+    '<html><body><div><a href="/c">쿠키 설정</a></div><div><a href="/l">로그인</a></div>'
+    + '<div>실제 내용은 여기 있습니다. 충분히 깁니다.</div></body></html>',
   );
-  assert.doesNotMatch(markdown, /^쿠키 설정$/m, `껍데기 문구가 본문에 남았다:\n${markdown}`);
-  assert.match(markdown, /실제 내용은 여기 있습니다/);
+  assert.ok(markdown.indexOf('실제 내용은 여기 있습니다') < markdown.indexOf('쿠키 설정'),
+    `껍데기가 본문보다 앞에 있다:\n${markdown}`);
+  assert.equal(살은글자, '실제 내용은 여기 있습니다. 충분히 깁니다.'.length,
+    `알맹이 계산에 껍데기가 섞였다(${살은글자}자)`);
+});
+
+test('④-2 **진짜 벽 문구는 살아남는다** — 낱말 앞머리로 줄을 버리지 않는다', () => {
+  const { markdown, 살은글자 } = extractReadable(
+    '<html><body><main>로그인이 필요합니다. 계속하려면 계정으로 들어와 주세요.</main></body></html>',
+  );
+  assert.match(markdown, /로그인이 필요합니다/,
+    '**벽 문구가 사라졌다** — 그러면 커널은 벽을 못 보고 "껍데기"라고 말한다');
+  assert.ok(살은글자 > 0);
 });
 
 test('⑤ **같은 말이 연달아 반복되면 한 번만** — 메뉴가 본문을 밀어내지 않는다', () => {
