@@ -256,6 +256,13 @@ export const 허용파일 = [
   // **지문은 안 움직였다** — 슬롯은 모델이 보는 것을 안 바꾼다(대조군 보존).
   'src/kernel/l2-plan/slot-registry.js',
   'src/runtime/search-slot.js',
+  // **CU A — 화면 슬롯**(2026-08-05). S8 의 **두 번째 슬롯**이다(오너: *CU 는 다음
+  // 기능이 아니라 S8 의 판정이다*). 같은 등록소·같은 계약 검사를 쓰고 아무것도 새로
+  // 발명하지 않았다 — 발명해야 했으면 슬롯이 아니라 검색 전용 함수였다는 뜻이다.
+  // 네이티브 드라이버는 **코어 밖**이고, 없으면 손이 정직하게 "볼 수 없다"를 말한다.
+  'src/runtime/desktop-slot.js',
+  'src/runtime/desktop-tool.js',
+  'src/runtime/desktop-native-driver.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

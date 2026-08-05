@@ -867,6 +867,24 @@ export const MUTATIONS = [
     찾기: "    .filter((t) => t.executable && t.schema)\n    .map((t) => ({ name: t.id, ...t.schema }));",
     바꾸기: "    .filter((t) => t.executable && t.schema)\n    .sort((a, b) => String(a.toolKind).localeCompare(String(b.toolKind)))\n    .map((t) => ({ name: t.id, ...t.schema }));" },
 
+  // **CU A 첫 계약 — 조용한 0 을 "창이 없네요"로 답하지 않는다.**
+  { 이름: '권한 없이 받은 빈 창 목록을 사실로 내보냄("창이 없네요"가 나간다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
+    찾기: '      if (!허용됨(권한.accessibility) || !허용됨(권한.screenRecording)) {',
+    바꾸기: '      if (false) {' },
+  { 이름: '백엔드가 없는데 "창이 없다"로 답함(없는 사실을 지어낸다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
+    찾기: "          userSafeSummary: '이 컴퓨터에서는 화면을 볼 수 있는 준비가 아직 안 됐어요.',",
+    바꾸기: "          userSafeSummary: '열려 있는 창이 없어요.'," },
+  { 이름: '이미 허락한 권한을 다시 요구함(무엇이 진짜 막혔는지 흐려진다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
+    찾기: '            ...(허용됨(권한.accessibility) ? [] : [{ 방법:',
+    바꾸기: '            ...(false ? [] : [{ 방법:' },
+  { 이름: '화면 슬롯이 status 를 계약으로 안 받음(못 볼 때와 볼 게 없을 때를 못 가른다)',
+    파일: 'src/runtime/desktop-slot.js', 검사: 'test/cu-a-status-before-list.test.js',
+    찾기: "const 화면계약 = ['id', 'status', 'observe'];",
+    바꾸기: "const 화면계약 = ['id'];" },
+
   // **S8 ④ — 묻는 일을 모델에게 돌려준다.** 손이 늘면 질문이 늘 수 있다(자동성 갉기).
   { 이름: '커널이 모델의 질문을 안 받음(다시 커널 문장으로 되묻는다)',
     파일: 'src/kernel/turn.js', 검사: 'test/ask-user-replaces-clarify.test.js',
