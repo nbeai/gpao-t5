@@ -6,6 +6,9 @@ import { demoEnv, demoTools, demoDescriptors, demoConnectors } from './demo-cont
 import { makeRobotsCheck } from '../runtime/robots.js';
 import { makeWebCollector } from '../runtime/web-collector.js';
 import { makeWebSearchTool } from '../runtime/web-search-tool.js';
+import { makeDesktopTool } from '../runtime/desktop-tool.js';
+import { makeDesktopNativeDriver } from '../runtime/desktop-native-driver.js';
+import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeCapsuleTool } from '../runtime/capsule.js';
@@ -87,7 +90,20 @@ export function liveDeps(processEnv = {}, deps = {}) {
     'telegram.send': makeChannelSender({ channel: 'telegram', token: tgToken, defaultTarget: processEnv.TELEGRAM_DEFAULT_CHAT }),
   };
   // Phase 0-1: 로컬 파일은 **실제 손발**을 배선한다(스텁 금지 — 등록된 도구는 실제로 동작해야 한다).
+  // **화면 손은 백엔드가 실제로 있을 때만 선다**(발자국 사다리 3칸 · 조건부 도구).
+  // 경로를 여기 박지 않는다 — 없는 컴퓨터에서 "있는데 실패"로 보이면 없는 능력을 있다고
+  // 말하는 것이다. 환경이 알려줄 때만 붙이고, 없으면 선언조차 안 딸려온다(1축의 배당금).
+  const 화면백엔드 = processEnv.GPAO_T5_DESKTOP_BIN;
+  const desktop = 화면백엔드 ? (() => {
+    const 등록소 = 화면등록소();
+    if (!등록소.드라이버(DESKTOP_SLOT).length) {
+      등록소.붙이기(DESKTOP_SLOT, makeDesktopNativeDriver({ binPath: 화면백엔드 }));
+    }
+    return makeDesktopTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) });
+  })() : undefined;
+
   const tools = demoTools({
+    ...(desktop ? { desktop } : {}),
     // **찾는 손.** 읽는 손과 나뉘어 있어야 모델이 목록을 보고 출처를 고를 수 있다.
     // 같은 검색 층(무키 → 키)을 쓰지만, 이쪽은 **읽지 않는다**.
     webSearch: makeWebSearchTool({ timeoutMs: webTimeoutMs }),
@@ -125,7 +141,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 예전엔 여기 `LIVE_TOOL_IDS` 손 목록이 있었고, demo 목록을 그대로 선언하던 시절엔 `mail.send`
   // (핸들러가 아예 없다)를 "연결됨"으로 사용자와 모델에게 말했다 — 없는 능력을 있다고 한 것이다.
   // 목록을 손으로 맞추면 손발이 늘거나 줄 때 또 어긋난다(절대원칙 8). 이제 어긋날 수가 없다.
-  const liveToolIds = demoDescriptors()
+  // **조건부 선언도 파생의 원천에 알려야 한다.** `desktop.screen` 은 백엔드가 있을 때만
+  // 선언이 생기는데, 여기서 그 사실을 안 넘기면 **손은 붙었는데 선언이 없는** 상태가 된다
+  // (P5-B-0 이 막으려던 그 자리 — 실제로 배선하자마자 났다: 손 true · 선언 false).
+  const 선언옵션 = { ...(desktop ? { desktop } : {}) };
+  const liveToolIds = demoDescriptors(선언옵션)
     .map((d) => d.id)
     .filter((id) => typeof tools?.tools?.[id]?.handler === 'function');
 
@@ -133,13 +153,14 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 그게 유령(`mail.send`)을 막는 유일한 방법이었기 때문이다. 이제 2축이 있으니 걸러낼 필요가
   // 없다: 선언은 남기고 executable:false + reason 으로 표시하면 model schema 에는 안 나온다.
   // 걸러내면 사용자는 그 서비스가 **존재한다는 것조차** 못 듣고, 모델은 빈 자리를 상상으로 메운다.
-  const 연결전 = demoDescriptors()
+  const 연결전 = demoDescriptors(선언옵션)
     .filter((d) => d.connector && !liveToolIds.includes(d.id))
     .map((d) => d.id);
 
   // 전송 도구의 연결 상태는 실제 토큰 유무로 결정한다. 토큰 없으면 도구함에서 "연결이 필요해요"(노랑),
   // 실행 게이트에서도 실행 불가 — 승인만 받고 뒤늦게 실패하는 불일치를 없앤다.
   const env = demoEnv({
+    ...선언옵션,
     include: [...liveToolIds, ...연결전],
     // P5-B-0: 실제 손 목록을 그대로 넘긴다 — env 가 손을 다시 추측하지 않게(두 진실 금지).
     hands: liveToolIds,
@@ -181,6 +202,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 설치에서 그 문장이 그대로 가고, 모델은 틀린 사실을 사용자에게 옮겨 적는다
   // (라이브 실측 2026-08-04: 방이 하나뿐인 설치에서 "~/Documents 도 다룬다"고 답했다).
   const descriptors = demoDescriptors({
+    ...선언옵션,
     include: [...liveToolIds, ...연결전],
     rooms: 부르는이름들(defaultFileRoots(processEnv)),
   });
@@ -336,6 +358,24 @@ export function liveDeps(processEnv = {}, deps = {}) {
     },
   }));
   env.connections.push({ ...toConnection(descriptors[descriptors.length - 1], { connected: true }), hasHandler: true });
+
+  // **조건부로 붙은 손은 맨 뒤로 보낸다**(불변식 A · 2026-08-05 라이브에서 잡음).
+  //
+  // `desktop.screen` 은 `demoDescriptors` 안에서 붙어서 **커넥터 선언보다 앞**에 놓였다.
+  // 커넥터는 여기 아래에서 `push` 로 뒤에 붙기 때문이다. 그래서 백엔드를 깔면
+  // `… browser.act · **desktop.screen** · connector.connect …` 가 되어 **접두가 죽었다** —
+  // 백엔드를 깐 컴퓨터에서만, 그것도 조용히.
+  //
+  // demo 만 재던 검사는 이걸 못 봤다(거기엔 커넥터 push 가 없다). **재는 자리가 좁았다**(§4.3).
+  // 새로 붙는 것은 언제나 **맨 뒤**여야 한다 — 그래야 앞이 안 밀린다.
+  if (desktop) {
+    const 뒤로 = (arr, 맞나) => {
+      const i = arr.findIndex(맞나);
+      if (i >= 0) arr.push(arr.splice(i, 1)[0]);
+    };
+    뒤로(descriptors, (d) => d.id === 'desktop.screen');
+    뒤로(env.connections, (c) => c.id === 'desktop.screen');
+  }
 
   return {
     env, tools, descriptors, channels,

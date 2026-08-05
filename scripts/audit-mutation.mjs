@@ -885,6 +885,18 @@ export const MUTATIONS = [
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",
     바꾸기: "const 화면계약 = ['id'];" },
 
+  // **A10 — 화면 내용은 데이터다.** 관찰 전용이라 안전해 보이는 자리가 주입의 입구다.
+  { 이름: '화면 글자에 데이터 표식을 안 붙임(화면 지시가 명령으로 승격된다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-screen-is-data.test.js',
+    찾기: '          관찰내용은데이터: true,\n', 바꾸기: '' },
+  { 이름: '백엔드 없이도 화면 손을 선언함(못 지킬 약속 · 매 콜 비용)',
+    파일: 'src/surface/demo-context.js', 검사: 'test/cu-a-screen-is-data.test.js',
+    찾기: '  const 전부 = opts.desktop ? [...DESCRIPTORS, 화면선언()] : DESCRIPTORS;',
+    바꾸기: '  const 전부 = [...DESCRIPTORS, 화면선언()];' },
+  { 이름: '새 손이 중간에 끼어 프롬프트 접두가 죽음(라이브에서만 난다)',
+    파일: 'src/surface/live-context.js', 검사: 'test/cu-a-screen-is-data.test.js',
+    찾기: "    뒤로(descriptors, (d) => d.id === 'desktop.screen');\n", 바꾸기: '' },
+
   // **S8 ④ — 묻는 일을 모델에게 돌려준다.** 손이 늘면 질문이 늘 수 있다(자동성 갉기).
   { 이름: '커널이 모델의 질문을 안 받음(다시 커널 문장으로 되묻는다)',
     파일: 'src/kernel/turn.js', 검사: 'test/ask-user-replaces-clarify.test.js',
