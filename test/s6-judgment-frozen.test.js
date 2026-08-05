@@ -21,7 +21,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { 표만들기, 동결본 } from '../scripts/s6/judgment-table.mjs';
 
-test('경계의 판정 216칸이 동결본과 **한 칸도** 다르지 않다', async () => {
+// ── **축을 하나 늘렸다**(2026-08-05 · S7 착수 조건 ④, 오너 지시) ──────────────
+//   *"표의 축이 '손 9종'인데 S7 은 손 집합 자체를 바꾸는 칸이다.
+//     표를 '가능한 손 전부'로 고정하고 '그중 몇 개를 주느냐'를 별도 축으로 세워라.
+//     안 정하고 들어가면 표가 무용지물이 되거나 매번 다시 얼리게 된다."*
+//
+// 216 → 432. **판정은 한 칸도 안 움직였다** — `제시=true` 216칸이 옛 표와 그대로 같고,
+// `제시=false` 216칸은 전부 `없는손` 이다(안 준 손은 경계에 도달하지 못한다).
+// 그 판정도 여기서 새로 만들지 않고 제품의 `callsToIntentParts` 를 그대로 쓴다.
+test('경계의 판정 432칸이 동결본과 **한 칸도** 다르지 않다', async () => {
   const 지금 = await 표만들기();
   const 언것 = JSON.parse(await readFile(동결본, 'utf8'));
 
@@ -40,7 +48,7 @@ test('경계의 판정 216칸이 동결본과 **한 칸도** 다르지 않다', 
 
 test('동결본이 **비어 있지 않다**(빈 표는 늘 통과한다)', async () => {
   const 언것 = JSON.parse(await readFile(동결본, 'utf8'));
-  assert.ok(언것.length >= 100, `결정 공간이 너무 작다(${언것.length}칸) — 그물이 성긴 것이다`);
+  assert.ok(언것.length >= 400, `결정 공간이 너무 작다(${언것.length}칸) — 그물이 성긴 것이다`);
   // 결정이 한 종류뿐이면 표가 아무것도 못 가른다.
   const 종류 = new Set(언것.map((r) => r.split('→')[1]?.trim()));
   assert.ok(종류.size >= 3, `결정이 ${종류.size}종뿐이다 — 갈리는 축이 표에 없다`);

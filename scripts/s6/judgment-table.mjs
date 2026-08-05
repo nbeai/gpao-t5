@@ -20,8 +20,20 @@ import { 실행전판정, 승인면제 } from '../../src/kernel/l2-plan/tool-bou
 import { decideAutoGrant } from '../../src/kernel/l2-plan/authority.js';
 import { rememberCounterpart } from '../../src/kernel/l2-plan/known-counterpart.js';
 import { 발화밖파괴 } from '../../src/kernel/l2-plan/carryover.js';
+import { callsToIntentParts } from '../../src/kernel/l2-plan/tool-schema.js';
 
 export const 동결본 = join(dirname(fileURLToPath(import.meta.url)), 'judgment-frozen.json');
+
+// ── **표의 축을 S7 앞에서 고쳤다**(오너 지시 2026-08-05, 착수 조건 ④) ────────────
+//
+//   *"표의 축이 '손 9종'인데 **S7 은 손 집합 자체를 바꾸는 칸이다.**
+//     표를 '가능한 손 전부'로 고정하고 '그중 몇 개를 주느냐'를 별도 축으로 세우는 게 맞아 보인다.
+//     안 정하고 들어가면 표가 무용지물이 되거나 매번 다시 얼리게 된다."*
+//
+// 그래서 `손들` 은 이제 **가능한 손 전부**(이번 런에 무엇이 제시되든 고정)이고,
+// **제시됨**이 별도 축이 된다. 안 준 손을 모델이 이름으로 부르면 어떻게 되는가 —
+// 그 판정도 결정 공간의 일부다. 판정은 여기서 새로 만들지 않고 제품의 그 함수를 그대로 쓴다
+// (`callsToIntentParts` — 우리가 실제로 보여준 손만 받아들인다).
 
 /** 결정 공간의 축. 조합 폭발을 피하되 **게이트가 갈리는 축**은 다 넣는다. */
 const 손들 = [
@@ -50,10 +62,17 @@ const tools = { tools: { 'local.terminal': {
 const 아는상대 = (() => { const s = new Set(); rememberCounterpart(s, 'telegram.send', '111'); return s; })();
 
 /** 경계가 내리는 **최종 결정** — 이것이 표의 값이다. */
-async function 결정(손, 발화, { 이월, 허락됨, 상대앎 }) {
-  const selfState = { connectedTools: 손들.map((h) => ({
+async function 결정(손, 발화, { 이월, 허락됨, 상대앎, 제시됨 }) {
+  // **이번 런에 제시된 손만 실행 후보가 된다**(S7 의 축). 안 준 손을 모델이 이름으로 불러도
+  // 커널은 받지 않는다 — 그 판정을 여기서 다시 만들지 않고 제품의 그 함수를 그대로 쓴다.
+  const 제시된손 = 손들.filter((h) => 제시됨 || h.id !== 손.id);
+  const selfState = { connectedTools: 제시된손.map((h) => ({
     id: h.id, executable: true, reversible: h.reversible, needsApproval: h.needsApproval,
+    schema: { description: h.id, parameters: { type: 'object', properties: {} } },
   })) };
+  // 안 준 손은 경계에 **도달하지 못한다.** 실행도 승인도 아니고 "없는 손"이다.
+  const 받아들인것 = callsToIntentParts([{ name: 손.id, args: 손.args }], selfState);
+  if (!받아들인것.neededTools.length) return '없는손';
   const { 판정행동, kind } = await 실행전판정({
     toolId: 손.id, args: 손.args, selfState, tools, 이번이월: 이월, 이번발화: 발화.값,
   });
@@ -80,9 +99,13 @@ export async function 표만들기() {
       for (const 이월 of [false, true]) {
         for (const 허락됨 of [false, true]) {
           for (const 상대앎 of [false, true]) {
-            const key = [손.id, JSON.stringify(손.args), 발화.이름,
-              `이월=${이월}`, `허락=${허락됨}`, `앎=${상대앎}`].join(' | ');
-            rows.push(`${key}  →  ${await 결정(손, 발화, { 이월, 허락됨, 상대앎 })}`);
+            // **S7 의 축** — 이번 런에 이 손을 줬는가. 손 집합이 상황에서 계산되면
+            // 이 축이 움직인다. 표는 "가능한 손 전부"로 고정돼 있으므로 그대로 잰다.
+            for (const 제시됨 of [true, false]) {
+              const key = [손.id, JSON.stringify(손.args), 발화.이름,
+                `이월=${이월}`, `허락=${허락됨}`, `앎=${상대앎}`, `제시=${제시됨}`].join(' | ');
+              rows.push(`${key}  →  ${await 결정(손, 발화, { 이월, 허락됨, 상대앎, 제시됨 })}`);
+            }
           }
         }
       }
