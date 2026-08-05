@@ -15,7 +15,7 @@ import { userFacingModelText, 확인된중간결과, 미리보기원장, 미리�
 import { blockedReceipt, receipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
-import { buildTaskContext } from './l1-intent/task-context.js';
+import { buildTaskContext, 이번턴만그림 } from './l1-intent/task-context.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boundary.js';
 import { 손제시기록 } from './l2-plan/tool-offer.js';
@@ -1552,7 +1552,8 @@ export async function runTurn(input, ctx) {
   // 4b) 승인 필요 없음 → 바로 실행.
   const result = await executePlan(intent, plan, selfState, ctx, ledger, summary, admitted, sendArgs, input.text, 계획막힘, 추가호출, 이월된것, 계획호출신분);
   // 다음 턴이 이어받을 자리에 남긴다. 서버가 대화에 저장하면 재시작도 넘는다.
-  if (result?.turnExchange?.length) ctx.priorExchange = result.turnExchange;
+  // **화면 증거는 이번 턴만.** 이월하면 오너 화면이 계속 돈다(CU F-2 · 계획 §6).
+  if (result?.turnExchange?.length) ctx.priorExchange = 이번턴만그림(result.turnExchange);
   // S5-1(§4.5): 이 턴에 **실제로 모델 앞에 놓인** 것의 신분. 렌더를 아는 쪽이 붙인다 —
   // `executePlan` 은 무엇이 렌더됐는지 모른다. 사용자면에는 나가지 않는다(서버가 저장에만 쓴다).
   result.shownMemoryRefs = shownMemoryRefs;
@@ -1679,10 +1680,20 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],
     ...현재호출신분,
   });
+  // **이번 턴의 화면 증거.** 영수증에는 안 싣는다(세션 파일로 디스크에 남는다) —
+  // 여기 모았다가 교환에만 붙이고, 턴이 끝나면 사라진다(CU F-2 · 계획 §6 수명).
+  const 이번턴그림 = new Map();
   const 계약실행 = async (toolId, args) => {
-    const execute = async () => bindDeliverableReceipt(
-      plan, await ctx.tools.run(toolId, args, selfState, 실행문맥()),
-    );
+    // **열쇠는 영수증 자체다.** `callRef` 는 첫 호출(계획 경로)에는 없어서, 그걸 열쇠로 쓰면
+    // 첫 클릭의 화면 증거가 조용히 사라진다(라이브에서 그랬다). 이름을 만들지 않는다 —
+    // 손이 낸 그림을 받아 두었다가 **그 호출이 낸 영수증에 그대로 붙인다.**
+    let 방금그림 = null;
+    const 문맥 = () => ({ ...실행문맥(), 그림받기: (g) => { 방금그림 = g; } });
+    const execute = async () => {
+      const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState, 문맥()));
+      if (방금그림 && rec) { 이번턴그림.set(rec, 방금그림); 방금그림 = null; }
+      return rec;
+    };
     if (toolId !== 'local.file' || !plan.workRef || !plan.completionContract
       || !plan.completionContractRef || !ctx.runCompletionExecution) return execute();
     return ctx.runCompletionExecution({
@@ -2104,7 +2115,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, 이번턴그림,
         surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState,
@@ -2347,7 +2358,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, 이번턴그림,
       surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState,

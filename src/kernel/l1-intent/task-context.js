@@ -706,6 +706,8 @@ export function buildTaskContext(p) {
   const 턴후보 = 후보모으기(부른것);
   const 이미가본곳 = 가본곳모으기(부른것);
   if (부른것.length || 앞턴교환.length) {
+    // **손이 든 화면 증거를 교환에 붙인다**(CU F-2). 영수증에는 없다 — 옆길로 왔다.
+    const 그림들 = p.이번턴그림 instanceof Map ? p.이번턴그림 : new Map();
     packet.turnExchange = 부른것.map((r, i) => {
       const 실패 = (r.failureState ?? 'none') !== 'none';
       // 실행 전에 막힌 것은 `제안한호출` 이 그 신분을 갖는다(계약상 `actualCall` 은 null).
@@ -728,6 +730,9 @@ export function buildTaskContext(p) {
         // 읽은 곳/안 읽은 곳은 와이어마다 같은 문장을 쓰므로 그쪽 `surfaceLines` 를 그대로 재사용한다.
         summary: r.userSafeSummary,
         surface: surfaceOf(r),
+        // **못 본 자리의 화면 증거**(CU F-2). 손이 옆길로 넘긴 것이라 영수증엔 없다.
+        // 커널은 이 그림을 읽지 않는다 — 모델에게 그대로 옮길 뿐이다.
+        ...(그림들.has(r) ? { 그림: 그림들.get(r) } : {}),
         // 실패한 호출의 결과는 확인된 값이 아니다 — 내용을 사실처럼 싣지 않고 상태만 준다.
         ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result) }),
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
@@ -824,4 +829,15 @@ function 확인되지않은인자(value) {
     }
     return [key, 확인되지않은인자(item)];
   }));
+}
+
+/**
+ * **화면 증거의 수명은 이번 턴이다**(CU F-2 · 계획 §6).
+ *
+ * 그림은 오너 화면이다. 다음 턴으로 넘기면 **한 번 본 것이 계속 도는 것**이 되고,
+ * 원장에 남으면 지워지지 않는다. 나머지 사실은 그대로 이어야 한다 —
+ * 교환이 끊기면 모델은 자기가 무엇을 했는지 잊는다(기억상실).
+ */
+export function 이번턴만그림(turnExchange = []) {
+  return (turnExchange ?? []).map(({ 그림, ...나머지 }) => 나머지);
 }

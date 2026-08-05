@@ -347,3 +347,53 @@ test('드라이버가 거절했다고 밝히면 안 나간 것으로 적는다 �
   assert.equal(r.진행?.판정, 'not_dispatched', `거절을 "안 바뀌었다"로 뭉갰다: ${JSON.stringify(r.진행)}`);
   assert.match(JSON.stringify(r.다음수단 ?? []), /observe|retry/, '다음 수가 없다');
 });
+
+// ── 라이브 6차 — `list_apps` 가 낡는다 ────────────────────────────────────
+// 실측(2026-08-05): `launch_app` 이 `{process_running:true, pid:41816}` 을 주고
+// **`ps` 로도 그 pid 가 살아 있는데**, 1.5초 뒤 `list_apps` 는 여전히
+// `{pid:0, running:false}` 라고 답한다. 그래서 `focus` 가 *"대상 앱을 못 찾았다"* 로 죽었다.
+//
+// **창 목록은 정확했다** — `list_windows`·`get_accessibility_tree` 둘 다
+// `{app_name:'계산기', pid:41816, window_id:14346}` 를 준다. WindowServer 에서 오니 더 신선하다.
+//
+// 그래서 축을 하나 더 둔다: **지금 떠 있는 창의 주인.**
+// 한 곳이 낡았다고 못 찾는다고 하지 않는다 — 다른 데서 볼 수 있으면 본다.
+test('앱 목록이 낡아도 떠 있는 창으로 찾는다', async () => {
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      // 낡은 목록: 안 돈다고 한다.
+      if (이름 === 'list_apps') return { apps: [{ ...계산기, running: false, pid: 0 }] };
+      // 창 목록은 살아 있는 것을 준다.
+      if (이름 === 'get_accessibility_tree') {
+        return { windows: [{ window_id: 14346, app_name: '계산기', pid: 41816, title: '계산기' }] };
+      }
+      if (이름 === 'bring_to_front') return { activated: true, code: 'ok' };
+      return {};
+    },
+  };
+  const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
+  const r = await 손.handler({ action: 'focus', app: '계산기' });
+  assert.notEqual(r.failed, true, `**낡은 목록만 믿고 못 찾았다**: ${JSON.stringify(r).slice(0, 170)}`);
+  assert.equal(부른것.find((c) => c.이름 === 'bring_to_front')?.인자?.pid, 41816);
+});
+
+test('영문 이름으로 물어도 떠 있는 창으로 찾는다 — 창은 표시 이름만 준다', async () => {
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'list_apps') return { apps: [{ ...계산기, running: false, pid: 0 }] };
+      if (이름 === 'get_accessibility_tree') {
+        return { windows: [{ window_id: 14346, app_name: '계산기', pid: 41816 }] };
+      }
+      if (이름 === 'bring_to_front') return { activated: true, code: 'ok' };
+      return {};
+    },
+  };
+  const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
+  // 낡은 목록에도 `Calculator` 라는 이름과 앱 파일 이름은 남아 있다 — 그 축으로 이어 붙인다.
+  await 손.handler({ action: 'focus', app: 'Calculator' });
+  assert.equal(부른것.find((c) => c.이름 === 'bring_to_front')?.인자?.pid, 41816, '축을 못 이었다');
+});

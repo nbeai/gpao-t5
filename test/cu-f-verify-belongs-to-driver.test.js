@@ -106,7 +106,8 @@ test('cua 드라이버가 verify_state 를 부르고 답을 그대로 옮긴다'
     async call(이름, 인자) {
       부른것.push({ 이름, 인자 });
       if (이름 === 'get_accessibility_tree') return { frontmost: { name: '계산기', pid: 7 }, windows: [{ id: 3, pid: 7 }] };
-      if (이름 === 'verify_state') return { predicates: [{ result: 'satisfied' }], result: 'satisfied' };
+      // 실물 응답 칸은 **`status`** 다 — `result` 로 읽다가 전부 unknown 이 됐다(실측).
+      if (이름 === 'verify_state') return { predicates: [{ index: 0, status: 'satisfied' }], status: 'satisfied', samples: 2 };
       return {};
     },
   };
@@ -131,7 +132,7 @@ test('cua 가 모른다고 하면 모른다로 옮긴다 — 성공으로 승격
   const mcp = {
     async call(이름) {
       if (이름 === 'get_accessibility_tree') return { frontmost: { pid: 7 }, windows: [{ id: 3, pid: 7 }] };
-      if (이름 === 'verify_state') return { result: 'unknown' };
+      if (이름 === 'verify_state') return { status: 'unknown', predicates: [{ status: 'unknown', unknown_reason: 'not_exhaustive' }] };
       return {};
     },
   };
@@ -152,4 +153,69 @@ test('신분이 없으면 부르지 않는다 — 아무 요소나 확인해 달
   const r = await makeCuaDriver({ mcp }).verify({ 값: '7' });
   assert.equal(r.판정, 'unknown');
   assert.equal(부른것.some((c) => c.이름 === 'verify_state'), false, '**라벨도 없이 확인을 시켰다**');
+});
+
+test('pid 와 창 id 를 둘 다 보낸다 — 스키마가 둘 다 필수다(실측: 하나 빠뜨려 invalid_arguments)', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      // 날것 창 목록의 키는 `window_id` 다 — `id` 만 보다가 실제로 빠뜨렸다.
+      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 14346, pid: 41816 }] };
+      if (이름 === 'verify_state') return { result: 'satisfied' };
+      return {};
+    },
+  };
+  await makeCuaDriver({ mcp }).verify({ 값: '7', 라벨: '결과', 창: 14346 });
+  const 인자 = 부른것.find((c) => c.이름 === 'verify_state')?.인자 ?? {};
+  assert.equal(인자.pid, 41816, `pid 가 안 갔다: ${JSON.stringify(인자)}`);
+  assert.equal(인자.window_id, 14346, `**창 id 가 안 갔다** — invalid_arguments 로 떨어진다: ${JSON.stringify(인자)}`);
+});
+
+test('창을 못 찾으면 부르지 않는다 — 잘못 불러 놓고 "확인 못 했다"고 하지 않는다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'get_accessibility_tree') return { windows: [] };
+      return {};
+    },
+  };
+  const r = await makeCuaDriver({ mcp }).verify({ 값: '7', 라벨: '결과', 창: 1 });
+  assert.equal(r.판정, 'unknown');
+  assert.equal(r.근거, 'no_window');
+  assert.equal(부른것.some((c) => c.이름 === 'verify_state'), false);
+});
+
+test('값을 안 말했으면 "있느냐"를 잰다 — 빈 값이냐를 묻지 않는다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const 부른것 = [];
+  const mcp = {
+    async call(이름, 인자) {
+      부른것.push({ 이름, 인자 });
+      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 3, pid: 7 }] };
+      if (이름 === 'verify_state') return { status: 'satisfied' };
+      return {};
+    },
+  };
+  await makeCuaDriver({ mcp }).verify({ 라벨: '7', 역할: 'AXButton', 창: 3 });
+  const 술어 = 부른것.find((c) => c.이름 === 'verify_state')?.인자?.expect?.[0]?.element ?? {};
+  assert.equal(술어.exists, true, `**값 없이 value_equals 를 보낸다** — 늘 안 맞는다: ${JSON.stringify(술어)}`);
+  assert.equal(술어.value_equals, undefined);
+});
+
+test('못 판정한 이유를 그대로 옮긴다 — 왜 모르는지가 사라지면 다음 수를 못 정한다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const mcp = {
+    async call(이름) {
+      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 3, pid: 7 }] };
+      if (이름 === 'verify_state') return { status: 'unknown', predicates: [{ status: 'unknown', unknown_reason: 'not_exhaustive' }] };
+      return {};
+    },
+  };
+  const r = await makeCuaDriver({ mcp }).verify({ 값: '7', 라벨: '결과', 창: 3 });
+  assert.equal(r.판정, 'unknown');
+  assert.equal(r.근거, 'not_exhaustive');
 });

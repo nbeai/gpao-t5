@@ -101,6 +101,10 @@ export class ToolRunner {
           });
         }
       }
+      // **화면 증거는 옆길로 간다**(CU F-2). 영수증에 실으면 `ledgerEntries` 로 세션 파일에
+      // 저장되고, 그건 오너 화면이 디스크에 남는다는 뜻이다 — 계획 §6 의 수명 계약이 깨진다.
+      // 그래서 손이 낸 그림은 **여기서 받아 넘기고 영수증에는 안 싣는다.**
+      if (out?.그림) { try { executionContext?.그림받기?.(out.그림); } catch { /* 옆길은 본선을 막지 않는다 */ } }
       if (out && out.blocked) {
         return receipt({
           intended,

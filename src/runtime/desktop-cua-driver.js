@@ -100,6 +100,15 @@ export function makeMcpStdio({ binPath, timeoutMs = 20_000, spawnImpl = spawn })
       const r = await 보내기('tools/call', { name, arguments: args });
       return r?.structuredContent ?? r?.content ?? r ?? {};
     },
+    /**
+     * **조각 그대로 준다** — `call` 은 `structuredContent` 만 주고 나머지를 버린다.
+     * 화면 증거(`image/png`)는 그 밖에 있어서, 잘라 버리면 있는 것을 없다고 하게 된다.
+     */
+    async 조각들(name, args = {}) {
+      await 준비되기();
+      const r = await 보내기('tools/call', { name, arguments: args });
+      return Array.isArray(r?.content) ? r.content : [];
+    },
     끄기() { try { 아이?.kill(); } catch { /* 이미 죽었으면 그만이다 */ } 아이 = null; 준비 = null; },
   };
 }
@@ -150,27 +159,62 @@ export function makeCuaDriver(deps = {}) {
      */
     async verify(기대 = {}) {
       const 라벨 = String(기대.라벨 ?? '').trim();
-      // 신분이 없으면 **부르지 않는다.** 아무 요소나 확인해 달라고 하면 엉뚱한 것을 확인한다.
-      if (!라벨) return { 판정: 'unknown', 근거: 'no_selector' };
       const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
       const 창들 = 본것?.windows ?? [];
-      const 창 = 창들.find((w) => Number(w?.id ?? w?.window_id) === Number(기대.창)) ?? 창들[0] ?? null;
+      const 창 = 창들.find((w) => Number(w?.window_id ?? w?.id) === Number(기대.창)) ?? 창들[0] ?? null;
       const pid = Number.isInteger(창?.pid) ? 창.pid : 본것?.frontmost?.pid;
-      const r = await mcp.call('verify_state', {
-        ...(Number.isInteger(pid) ? { pid } : {}),
-        ...(창?.id != null ? { window_id: Number(창.id ?? 창.window_id) } : {}),
+      // **pid 와 window_id 는 둘 다 필수다**(스키마 `required`). 하나라도 빠지면
+      // `invalid_arguments` 로 떨어지고, 그건 "확인 못 했다"가 아니라 **우리가 잘못 부른 것**이다.
+      // 창 목록을 날것으로 부르면 키가 `window_id` 다 — `id` 만 보다가 실제로 빠뜨렸다.
+      const 창id = Number(창?.window_id ?? 창?.id);
+      if (!Number.isInteger(pid) || !Number.isInteger(창id)) {
+        return { 판정: 'unknown', 근거: 'no_window' };
+      }
+      // 신분이 없으면 **요소 판정은 안 한다** — 아무 요소나 확인해 달라고 하면 엉뚱한 것을
+      // 확인한다. 다만 **그림은 받는다**: 못 보는 자리야말로 눈이 필요한 자리다(아래).
+      const 인자 = 라벨 ? {
+        pid,
+        window_id: 창id,
         expect: [{
           element: {
             selector: { label_contains: 라벨, ...(기대.역할 ? { role: String(기대.역할) } : {}) },
-            value_equals: String(기대.값 ?? ''),
+            // 값을 말했으면 값을 재고, 안 말했으면 **있느냐**를 잰다.
+            // 값 없이 `value_equals: ''` 를 보내면 "빈 값이냐"를 묻는 것이 되어 늘 안 맞는다.
+            ...(기대.값 === undefined || 기대.값 === null
+              ? { exists: true }
+              : { value_equals: String(기대.값) }),
           },
         }],
         // 눌린 값이 화면에 반영되는 데 시간이 걸린다. **두 번 같은 값을 봐야** 인정한다.
         stable_samples: 2,
         timeout_ms: 2000,
-      }).catch(() => null);
-      const 답 = String(r?.result ?? r?.predicates?.[0]?.result ?? 'unknown');
-      return { 판정: ['satisfied', 'unsatisfied'].includes(답) ? 답 : 'unknown', 근거: r?.code ?? null };
+      } : null;
+      const r = 인자 ? await mcp.call('verify_state', 인자).catch(() => null) : null;
+      // 응답 칸은 **`status`** 다(실측 2026-08-05 — `result` 로 읽다가 전부 unknown 이 됐다).
+      // 못 판정한 이유는 드라이버가 `unknown_reason` 으로 밝히니 그대로 옮긴다.
+      const 술어 = r?.predicates?.[0];
+      const 답 = 라벨 ? String(r?.status ?? 술어?.status ?? 'unknown') : 'unknown';
+      const 판정 = ['satisfied', 'unsatisfied'].includes(답) ? 답 : 'unknown';
+      const 근거 = 라벨 ? (술어?.unknown_reason ?? r?.code ?? null) : 'no_selector';
+      // **모를 때만 화면을 받는다**(CU F-2 · 계획 §6.2 "마지막 수단").
+      // 됐다/안 됐다가 나온 자리에는 그림이 필요 없고, 비용도 화면 노출도 공짜가 아니다.
+      // 실물이 이 자리를 정확히 말해 준다 — `unknown_reason: "observation_unavailable"`,
+      // 즉 **접근성으로는 못 보는 값**이다. 그때가 눈이 필요한 때다.
+      if (판정 !== 'unknown' || typeof mcp.조각들 !== 'function') return { 판정, 근거 };
+      let 그림;
+      try {
+        // **그림만 받을 때는 창이 있느냐만 묻는다.** 요소 신분이 없어도 그 창은 찍힌다 —
+        // 계산기 표시창처럼 접근성에 없는 값은 **눈으로만** 확인되고, 그게 이 칸의 이유다.
+        // 이 호출의 `satisfied` 는 "창이 있다"는 뜻일 뿐이고 **판정으로 쓰지 않는다**(위에서 정했다).
+        const 그림인자 = 인자 ?? {
+          pid, window_id: 창id, expect: [{ window: { exists: true } }],
+          stable_samples: 1, timeout_ms: 800,
+        };
+        const 조각 = await mcp.조각들('verify_state', { ...그림인자, include_screenshot: true });
+        const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
+        if (이미지) 그림 = { mime: String(이미지.mimeType ?? 'image/png'), base64: String(이미지.data) };
+      } catch { 그림 = undefined; }   // **그림은 덤이지 조건이 아니다** — 없어도 판정은 그대로다
+      return { 판정, 근거, ...(그림 ? { 그림 } : {}) };
     },
 
     async observe(args = {}) {
@@ -242,10 +286,28 @@ export function makeCuaDriver(deps = {}) {
         const 이름 = String(대상.app ?? '').trim().toLowerCase();
         if (!이름) return null;
         const { apps } = await mcp.call('list_apps', {});
+        // **`list_apps` 는 낡는다**(실측 2026-08-05): `launch_app` 이 pid 41816 을 주고
+        // `ps` 로도 살아 있는데 1.5초 뒤에도 `{pid:0, running:false}` 라고 답했다.
+        // 창 목록은 WindowServer 에서 와서 정확했다 — **지금 떠 있는 창의 주인**을 축으로 더한다.
+        // 한 곳이 낡았다고 "못 찾았다"로 끝내지 않는다.
+        const 창주인 = 켜진것만 ? await 창에서앱들() : [];
         // **켜기와 앞으로 띄우기는 찾는 대상이 다르다.** 켜기는 꺼진 앱도 찾아야 하고
         // (pid 로 거르면 "켜 줘"를 받을 수가 없다), 띄우기는 **켜진 것만** 이어야 한다 —
         // pid 없는 항목을 집으면 드라이버가 `window_target_not_found` 로 거절한다(내 회귀 · 라이브 5차).
-        const 후보들 = (apps ?? []).filter((a) => (켜진것만 ? Number.isInteger(a?.pid) && a.pid > 0 : true));
+        const 목록것 = (apps ?? []).filter((a) => (켜진것만 ? Number.isInteger(a?.pid) && a.pid > 0 : true));
+        // 낡은 목록의 이름(`Calculator`)과 살아 있는 창의 이름(`계산기`)을 **pid 로 잇는다** —
+        // 사용자가 어느 쪽 이름을 쓰든 같은 앱에 닿는다.
+        const 이름보태기 = (w) => {
+          const 같은 = (apps ?? []).find((a) => String(a.bundle_id ?? '') && (
+            String(a.name ?? '') === String(w.name ?? '')
+            || String(a.launch_path ?? '').split('/').pop().replace(/\.app$/i, '') === String(w.name ?? '')
+            || Number(a.pid) === Number(w.pid)));
+          return 같은 ? { ...같은, ...w } : w;
+        };
+        const 후보들 = [...목록것];
+        for (const w of 창주인.map(이름보태기)) {
+          if (!후보들.some((a) => Number(a.pid) === Number(w.pid))) 후보들.push(w);
+        }
         const 축 = (a) => [
           String(a.name ?? ''),
           String(a.bundle_id ?? ''),
@@ -266,6 +328,19 @@ export function makeCuaDriver(deps = {}) {
       };
       const pid찾기 = async () => (await 앱고르기({ 켜진것만: true }))?.pid ?? null;
       /** 창 id 로 그 창 주인의 pid. 창 목록이 창마다 pid 를 싣는다(실측 2026-08-05). */
+      /** 지금 떠 있는 창들의 주인 앱. **`list_apps` 가 낡았을 때의 다른 눈이다.** */
+      const 창에서앱들 = async () => {
+        const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
+        const 창들 = 본것?.windows ?? (Array.isArray(본것) ? 본것 : []);
+        const 본pid = new Map();
+        for (const w of 창들) {
+          const pid = Number(w?.pid);
+          if (!Number.isInteger(pid) || pid <= 0 || 본pid.has(pid)) continue;
+          본pid.set(pid, { name: w.app_name ?? w.app ?? '', pid, running: true });
+        }
+        return [...본pid.values()];
+      };
+
       const 창의pid = async (windowId) => {
         // **관찰이 쓰는 그 호출을 그대로 쓴다** — 창 목록을 두 곳에서 다르게 가져오면
         // 언젠가 한쪽만 바뀌고 그때 조용히 어긋난다.
