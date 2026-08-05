@@ -52,6 +52,8 @@ const T_CU_D2 = 'test/cu-d-unknown-is-not-failure.test.js';
 const T_RETRY = 'test/approved-step-can-retry.test.js';
 const T_CU_F = 'test/cu-f-verify-belongs-to-driver.test.js';
 const T_CU_F2 = 'test/cu-f2-screen-evidence-to-model.test.js';
+const T_CU1_G = 'test/cu1-g-does-not-take-over.test.js';
+const ANSWER = 'src/runtime/desktop-driver-answer.js';
 const RUNNER2 = 'src/runtime/tool-runner.js';
 const TASKCTX2 = 'src/kernel/l1-intent/task-context.js';
 const PROVIDER2 = 'src/runtime/model-provider.js';
@@ -1569,6 +1571,31 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── CU-1 계열 G · 옆에서 같이 한다(사용자 것을 안 뺏는다) ─────────────
+  { 이름: '글자를 키보드로 흘림(사용자가 보던 창에 들어간다 · 오대상 실행)', 파일: DESK_ACT, 검사: T_CU1_G,
+    찾기: "          행동: 행동 === 'type' ? 'set_value' : 행동,",
+    바꾸기: "          행동," },
+  { 이름: '어디에 넣는지 모르는데 넣음', 파일: DESK_ACT, 검사: T_CU1_G,
+    찾기: "          if (!찾음) return 막힘('어느 칸에 넣는 건지 알 수 없어서 넣지 않았어요.');",
+    바꾸기: "          void 찾음;" },
+  { 이름: '사용자 앞 창을 바꿔 놓고 아무 말도 안 함', 파일: DESK_ACT, 검사: T_CU1_G,
+    찾기: "              ...(전앞창 && 뒤앞창 && 전앞창 !== 뒤앞창 ? { 앞창바뀜: true, 앞창: 뒤앞창 } : {}),",
+    바꾸기: "" },
+  { 이름: '내부 재관찰이 앞 창을 봄(다른 앱 신분을 집어 아무 데도 안 눌린다)', 파일: DESK_ACT, 검사: T_CU1_G,
+    찾기: "        ...(args?.window ?? args?.대상?.창 ? { window: args?.window ?? args?.대상?.창 } : {}),\n        ...(args?.app ? { app: args.app } : {}),",
+    바꾸기: "" },
+  { 이름: '앱 이름으로 창을 못 고름(앞으로 가져와야만 일할 수 있다)', 파일: CUA, 검사: T_CU1_G,
+    찾기: "          ?? 앱것[0] ?? 창들[0] ?? null;",
+    바꾸기: "          ?? 창들[0] ?? null;" },
+  { 이름: '무엇을 봤는지 안 남김(같은 앱 창이 여럿일 수 있다)', 파일: CUA, 검사: T_CU1_G,
+    찾기: "          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '' };",
+    바꾸기: "" },
+  { 이름: '손이 드라이버 거절을 안 읽음(안 나간 것을 나갔다고 한다)', 파일: DESK_ACT, 검사: T_CU1_G,
+    찾기: "        if (답읽기.종류 === '거절') throw new Error(답읽기.근거);",
+    바꾸기: "        void 답읽기;" },
+  { 이름: '읽는 자리가 모름을 거절로 봄(눌린 것을 안 눌렀다고 한다)', 파일: ANSWER, 검사: T_CU_F,
+    찾기: "  return r?.effect === 'refused';",
+    바꾸기: "  return r?.effect === 'refused' || r?.effect === 'unverifiable';" },
   // ── 안 나간 것을 나갔다고 하지 않는다 (사진 대조 2026-08-05) ──────────
   { 이름: '낡은 토큰으로 누름(아무 데도 안 눌리는데 "했어요"가 나간다)', 파일: DESK_ACT, 검사: T_CU_F,
     찾기: "      if (Array.isArray(마지막본것?.elements)) 지금요소 = 마지막본것.elements;",
@@ -1577,11 +1604,8 @@ export const MUTATIONS = [
     찾기: "            ...(관찰것 ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호,",
     바꾸기: "            ...(false ? {\n              토큰: 관찰것.토큰, 스냅샷: 관찰것.스냅샷, 번호: 관찰것.번호," },
   { 이름: '거절을 결과로 흘림(안 나간 것을 나갔다고 한다)', 파일: CUA, 검사: T_CU_F,
-    찾기: "      if (거절인가(낸것)) {",
-    바꾸기: "      if (false) {" },
-  { 이름: '모른다를 거절로 봄(눌린 것을 안 눌렀다고 한다)', 파일: CUA, 검사: T_CU_F,
-    찾기: "  return r?.effect === 'refused';",
-    바꾸기: "  return r?.effect === 'refused' || r?.effect === 'unverifiable';" },
+    찾기: "      if (거절인가(낸것)) throw new Error(거절사유(낸것));",
+    바꾸기: "      void 낸것;" },
   // ── CU F-2 · 못 보는 자리는 화면을 보여 준다 ──────────────────────────
   { 이름: '됐다고 판정된 자리에도 화면을 받아 옴(비용도 노출도 공짜가 아니다)', 파일: CUA, 검사: T_CU_F2,
     찾기: "      if (판정 !== 'unknown' || typeof mcp.조각들 !== 'function') return { 판정, 근거 };",
@@ -1656,9 +1680,9 @@ export const MUTATIONS = [
   { 이름: '창 id 로 그 창 주인의 pid 를 안 찾음(창만 주면 못 띄운다)', 파일: CUA, 검사: T_CU_C2,
     찾기: "          const 창pid = 창만 ? await 창의pid(대상.window) : null;",
     바꾸기: "          const 창pid = null;" },
-  { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: CUA, 검사: T_CU_C2,
-    찾기: "  if (Array.isArray(r)) return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));",
-    바꾸기: "  if (Array.isArray(r)) return false;" },
+  { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: ANSWER, 검사: T_CU_C2,
+    찾기: "    return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));",
+    바꾸기: "    return false;" },
   // ── 커널이 모델에게 거짓을 먹이지 않는다 (라이브 2026-08-05) ──────────
   { 이름: '거르개가 AX 접두를 안 벗겨 151개 중 0개를 돌려줌(조용한 0 을 모델에게 먹인다)', 파일: DESK, 검사: T_CU_B2,
     찾기: "  const 종류맞춤 = (v) => String(v ?? '').trim().replace(/^AX/i, '').toLowerCase();",

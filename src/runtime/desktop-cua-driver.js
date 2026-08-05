@@ -1,3 +1,4 @@
+import { 거절인가, 거절사유 } from './desktop-driver-answer.js';
 // L3 · **화면 슬롯의 두 번째 드라이버 — cua-driver (MCP stdio)**
 //
 // 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다. **임베디드 모드.**
@@ -113,20 +114,6 @@ export function makeMcpStdio({ binPath, timeoutMs = 20_000, spawnImpl = spawn })
   };
 }
 
-/**
- * **인자가 모자라다·거절했다는 답은 결과가 아니다.** 한 자리에서 가른다.
- *
- * 세 번 같은 병을 밟았다(2026-08-05): `bring_to_front` 가 `Missing required integer field: pid`
- * 를 냈고, `focus` 가 `effect:'refused'` 를 냈고, **`click` 이 같은 pid 거절을 냈다.**
- * 앞의 둘은 그때그때 막았는데 셋째에서 또 샜다 — 그 사이 계산기 화면은 `778` 그대로였는데
- * T5 는 *"했어요"* 라고 말했다. **안 나간 것을 나갔다고 한 것**이다.
- *
- * `unverifiable` 은 여기 안 든다 — 그건 **보냈는데 확인을 못 한다**는 뜻이고, 실제로 눌린다.
- */
-export function 거절인가(r) {
-  if (Array.isArray(r)) return r.some((x) => /Missing required|invalid|unsupported/i.test(String(x?.text ?? '')));
-  return r?.effect === 'refused';
-}
 
 /**
  * 화면 슬롯 드라이버. **계약은 `desktop-native-driver` 와 같다** —
@@ -245,10 +232,20 @@ export function makeCuaDriver(deps = {}) {
         id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
       }));
 
-      let 요소 = null; let 스냅샷 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
-        const 대상 = 창들.find((w) => w.id === args?.window) ?? 창들[0] ?? null;
+        //
+        // **앱 이름으로도 고를 수 있어야 한다**(계열 G · 라이브 2026-08-06):
+        // 앞 창만 볼 수 있으면 *"옆에서 같이 한다"* 가 말뿐이 된다 — 일하려면 매번
+        // 앞으로 가져와야 하고, 그건 사용자 것을 뺏는 것이다.
+        const 앱이름 = String(args?.app ?? '').trim().toLowerCase();
+        const 앱것 = 앱이름
+          ? 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름)
+            || 앱이름.includes(String(w.app ?? '').toLowerCase()))
+          : [];
+        const 대상 = 창들.find((w) => w.id === args?.window)
+          ?? 앱것[0] ?? 창들[0] ?? null;
         if (대상) {
           const st = await mcp.call('get_window_state', {
             window_id: 대상.id, pid: 대상.pid,
@@ -257,6 +254,9 @@ export function makeCuaDriver(deps = {}) {
             max_elements: Number(args?.최대요소) > 0 ? Number(args.최대요소) : 400,
           });
           스냅샷 = st?.snapshot_id ?? null;
+          // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
+          // 다음 걸음이 어느 창 이야기인지 모른다.
+          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '' };
           요소 = (st?.elements ?? []).map((e) => ({
             // **번호로 누른다**(som). 좌표로 찍으면 무엇을 눌렀는지 원장에 남길 수가 없다.
             id: e.element_token ?? (e.index != null ? String(e.index) : e.id),
@@ -273,6 +273,9 @@ export function makeCuaDriver(deps = {}) {
         ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
         windows: 창들,
         ...(요소 ? { elements: 요소 } : {}),
+        // **무엇을 봤는지 남긴다** — 같은 앱 창이 여럿일 수 있고, 안 적으면
+        // 다음 걸음이 어느 창 이야기인지 모른다(계열 G).
+        ...(본창 ? { 본창 } : {}),
       };
     },
 
@@ -466,9 +469,8 @@ export function makeCuaDriver(deps = {}) {
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
       const 낸것 = await 부르기();
       // **한 자리에서 가른다.** 손마다 따로 막다가 `click` 에서 또 샜다(라이브 2026-08-05).
-      if (거절인가(낸것)) {
-        throw new Error(String(낸것?.code ?? (Array.isArray(낸것) ? 낸것[0]?.text : '') ?? '드라이버가 거절했다'));
-      }
+      // **읽는 자리는 하나다**(계열 B) — `desktop-driver-answer.js`.
+      if (거절인가(낸것)) throw new Error(거절사유(낸것));
       return 낸것;
     },
   };

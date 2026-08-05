@@ -263,7 +263,8 @@ test('"인자가 모자라다"는 어떤 손에서도 결과가 아니다 — �
   const io = makeMcpStdio({ binPath: '/x', spawnImpl: 가짜spawn });
   assert.equal(typeof io.call, 'function');
   // 실제 거절 판정은 `거절인가` 가 한 자리에서 한다.
-  const { 거절인가 } = await import('../src/runtime/desktop-cua-driver.js');
+  // 읽는 자리는 **한 모듈**이다(계열 B) — 드라이버도 손도 여기만 본다.
+  const { 거절인가 } = await import('../src/runtime/desktop-driver-answer.js');
   assert.equal(거절인가([{ type: 'text', text: 'Missing required integer field: pid' }]), true);
   assert.equal(거절인가({ effect: 'refused', code: 'window_target_not_found' }), true);
   assert.equal(거절인가({ ok: true }), false);
@@ -329,4 +330,21 @@ test('드라이버가 거절하면 안 나간 것으로 적는다 — "했어요
   const r = await 손.handler({ action: 'click', 대상: { id: 'b9', label: '9', 토큰: 's1:7' } });
   assert.notEqual(r.result?.단계, 'goal_verified');
   assert.equal(r.진행?.판정, 'not_dispatched', `**안 나간 것을 나갔다고 적었다**: ${JSON.stringify(r.진행)}`);
+});
+
+test('드라이버 자신도 거절을 결과로 안 흘린다 — 손과 겹쳐 막는다', async () => {
+  const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
+  const mcp = {
+    async call(이름) {
+      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 3, pid: 7 }] };
+      if (이름 === 'click') return [{ type: 'text', text: 'Missing required integer field: pid' }];
+      return {};
+    },
+  };
+  const d = makeCuaDriver({ mcp });
+  await assert.rejects(
+    () => d.act({ 행동: 'click', 대상: { 토큰: 's1:1', 창: 3, pid: 7 } }),
+    /Missing required/,
+    '**드라이버가 거절을 결과처럼 돌려준다** — 손이 그걸 "했어요"로 읽을 수 있다',
+  );
 });

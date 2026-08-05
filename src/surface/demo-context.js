@@ -361,7 +361,15 @@ function 화면선언() {
         type: 'object',
         properties: {
           action: { type: 'string', enum: ['status', 'observe'], description: '볼 준비를 묻는가(status), 화면을 보는가(observe)' },
-          scope: { type: 'string', enum: ['screen', 'window'], description: 'window 면 앞 창 안의 요소까지 본다' },
+          scope: { type: 'string', enum: ['screen', 'window'], description: 'window 면 창 안의 요소까지 본다' },
+          // **앞에 없는 앱도 본다**(계열 G · 2026-08-06). 이 칸이 없어서 모델은
+          // 앞 창만 볼 수 있었고, 일하려면 매번 앞으로 가져와야 했다 —
+          // 그건 사용자가 보던 것을 뺏는 것이다.
+          app: {
+            type: 'string',
+            description: '어느 앱의 창을 볼지. **앞으로 가져오지 않고 그 앱 창 안을 본다.**'
+              + ' 안 주면 앞 창을 본다. 사용자가 다른 일을 하는 중이면 이걸 써서 방해하지 마라.',
+          },
           type: { type: 'string', description: '한 종류만 볼 때(button·textField·link·checkbox 등). 안 주면 전부' },
           offset: { type: 'number', description: '요소 목록의 어디부터. 결과의 `요소창.다음` 을 그대로 넣는다' },
           limit: { type: 'number', description: '한 번에 볼 요소 수(기본 40)' },

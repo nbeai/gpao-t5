@@ -1,3 +1,4 @@
+import { 드라이버답 } from './desktop-driver-answer.js';
 // L3 · **화면 손 · 행동 (CU C)** — 첫 손. 눌렀는지가 아니라 **됐는지**로 판정한다.
 //
 // ── 왜 관찰 손과 나눠 두나 ──────────────────────────────────────────────
@@ -72,6 +73,11 @@ function 요소값(본것, 요소id) {
 }
 
 const 같은가 = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/** 지금 앞에 있는 앱 이름. 못 보면 `null` — 모르는 것을 "안 바뀌었다"로 만들지 않는다. */
+async function 앞창보기(드라이버) {
+  try { return (await 드라이버.observe({ scope: 'screen' }))?.frontmost?.name ?? null; } catch { return null; }
+}
 
 /** 누른 뒤 볼 값. **못 찾은 것과 값이 빈 것을 끝까지 안 섞는다.** */
 function 누른값(본것, args) {
@@ -216,6 +222,15 @@ async handler(args) {
 
       // **다시 본 화면은 실행에도 쓴다** — 신분(창·pid·스냅샷)이 거기 있다.
       // 누르기 분기 안에만 두었다가 실행부에서 못 써서, 모델이 안 준 pid 를 못 채웠다.
+      // **내부 재관찰도 같은 창을 본다**(계열 A×G · 라이브 2026-08-06).
+      // 앞 창만 보면 **다른 앱의 신분**을 집어 오고, 그 토큰으로 누르면 아무 데도 안 눌린다.
+      // 사용자가 다른 일을 하는 중이면 앞 창은 늘 남의 것이다 — 그래서 이건 G 의 알맹이다.
+      const 볼자리 = (scope) => ({
+        scope,
+        ...(args?.window ?? args?.대상?.창 ? { window: args?.window ?? args?.대상?.창 } : {}),
+        ...(args?.app ? { app: args.app } : {}),
+      });
+
       let 지금요소 = null;
       // ── A04 · 지문이 다르면 **부르지도 않는다** ─────────────────────────
       // 관찰과 실행 사이에 화면이 바뀌었을 수 있다. 그때 옛 신분으로 실행하면
@@ -256,7 +271,7 @@ async handler(args) {
         // 살아 있는 AX 요소로 못 되살려 `snapshotStale` 로 떨어지고, **이름으로 누르면 눌린다.**
         // 그래서 클릭은 이름으로 나간다. **그런데 이름은 신분이 아니다** —
         // 같은 이름이 둘이면 어느 것이 눌릴지 우리가 모르고, **모르면 안 누른다**(A02).
-        try { 지금요소 = (await 드라이버.observe({ scope: 'window' }))?.elements ?? null; } catch { 지금요소 = null; }
+        try { 지금요소 = (await 드라이버.observe(볼자리('window')))?.elements ?? null; } catch { 지금요소 = null; }
         // **신분을 줬으면 겹쳐도 모호하지 않다.** A02 는 *임의 선택*을 막는 규율이지
         // 신분이 확실한 것까지 막는 규율이 아니다 — cua 는 이름이 아니라 토큰으로 누른다.
         const 신분있나 = Boolean(args?.대상?.토큰) || args?.대상?.번호 != null;
@@ -281,6 +296,24 @@ async handler(args) {
               })),
             };
           }
+        }
+
+        // **글자는 요소에 직접 넣는다 — 키보드에 흘리지 않는다**(계열 G).
+        //
+        // `type_text` 는 **포커스를 가진 곳**에 글자를 넣는다. 사용자가 다른 창에서
+        // 타이핑 중이면 **그 창에 들어간다** — 안 뺏는 문제가 아니라 **오대상 실행**이다.
+        // `set_value` 는 요소를 직접 짚으니 포커스와 무관하고 네이티브 메뉴도 안 연다.
+        //
+        // 신분(토큰)이 없으면 **아예 안 넣는다.** 어디에 넣는지 모르는 채로 넣지 않는다.
+        // (이 가드는 **`막힘` 이 사는 자리**에 둔다. 아래 실행 try 안에 뒀다가 범위를 벗어나
+        //  ReferenceError 가 났고, 바깥 catch 가 그걸 **"실행 실패"로 위장**했다.)
+        // 재는 것은 **"관찰에서 그 요소를 찾았나"** 다 — 특정 칸(토큰)이 아니다.
+        // 드라이버마다 신분 이름이 다르고(토큰·번호·id), 그 이름은 드라이버가 안다.
+        if (행동 === 'type' && Array.isArray(지금요소)) {
+          const 찾음 = 지금요소.some((e) => (args?.대상?.토큰 && e?.토큰 === args.대상.토큰)
+            || (args?.대상?.id && e?.id === args.대상.id)
+            || (args?.대상?.label && String(e?.label ?? '') === String(args.대상.label)));
+          if (!찾음) return 막힘('어느 칸에 넣는 건지 알 수 없어서 넣지 않았어요.');
         }
 
         // **무엇이 바뀌면 된 것인지 안 말하면 누르지 않는다.** 그게 없으면 눌러 놓고
@@ -312,9 +345,13 @@ async handler(args) {
       // 드라이버는 `background`·`unverifiable` 을 돌려주고, 우리는 *"했어요"* 라고 말한다.
       // (사진 대조로 잡았다 2026-08-05: 화면은 `14` 그대로였다.)
       let 마지막본것 = null;
+      // **사용자 앞 창을 바꿨으면 숨기지 않는다**(계열 G). 안 뺏는 게 기본이지만,
+      // 바뀌었다면 그건 사용자 화면이 달라졌다는 뜻이고 **사실이다.**
+      let 전앞창 = null;
       try {
-        마지막본것 = await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' });
+        마지막본것 = await 드라이버.observe(볼자리(누르는것.has(행동) ? 'window' : 'screen'));
         전 = 재기(마지막본것, args);
+        전앞창 = 마지막본것?.frontmost?.name ?? null;
       } catch { 전 = null; }
       if (Array.isArray(마지막본것?.elements)) 지금요소 = 마지막본것.elements;
 
@@ -333,7 +370,8 @@ async handler(args) {
             || (args?.대상?.label && String(e?.label ?? '') === String(args.대상.label)))
           : null;
         낸것 = await 드라이버.act({
-          행동,
+          // 글자 넣기는 **요소에 직접**(계열 G) — 위 가드가 신분을 이미 확인했다.
+          행동: 행동 === 'type' ? 'set_value' : 행동,
           대상: {
             app: args?.app,
             window: args?.window,
@@ -360,6 +398,10 @@ async handler(args) {
         // 우리 전후 비교는 창 관리자가 반영하기 전에 찍혀 **없는 실패**를 만든다(실물 실측).
         // 드라이버가 더 잘하는 것을 우리가 다시 만들지 않는다 — 다만 **근거를 함께 남긴다**:
         // 무엇을 믿고 됐다고 하는지가 원장에 없으면 다음 사람이 이 성공을 못 믿는다.
+        // **드라이버 답은 네 갈래로만 읽는다**(계열 B). 흩어져 읽다가 `set_value` 거절을
+        // 또 놓쳤다 — 화면은 안 바뀌었는데 *"했어요"* 가 나갔다.
+        const 답읽기 = 드라이버답(낸것);
+        if (답읽기.종류 === '거절') throw new Error(답읽기.근거);
         if (낸것?.확인됨 === true) {
           const 후확인 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }).catch(() => null), args);
           return {
@@ -422,7 +464,7 @@ async handler(args) {
         // 모델이 준 `기대.요소` 는 우리 관찰 안의 id 다. 드라이버는 그 id 를 모르니
         // **관찰이 준 신분**(라벨·역할)으로 옮겨 준다 — 없는 신분을 지어내지는 않는다.
         let 그것 = null;
-        try { 그것 = ((await 드라이버.observe({ scope: 'window' }))?.elements ?? [])
+        try { 그것 = ((await 드라이버.observe(볼자리('window')))?.elements ?? [])
           .find((e) => e?.id === args?.기대?.요소) ?? null; } catch { 그것 = null; }
         let 답 = null;
         try {
@@ -437,8 +479,13 @@ async handler(args) {
         } catch { 답 = null; }
         const 판정 = 답?.판정 ?? 'unknown';
         if (판정 === 'satisfied') {
+          const 뒤앞창 = await 앞창보기(드라이버);
           return {
-            result: { 단계: 'goal_verified', 행동, 전, 확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})` },
+            result: {
+              단계: 'goal_verified', 행동, 전,
+              확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})`,
+              ...(전앞창 && 뒤앞창 && 전앞창 !== 뒤앞창 ? { 앞창바뀜: true, 앞창: 뒤앞창 } : {}),
+            },
             userSafeSummary: '그렇게 했어요. 실제로 그렇게 된 것까지 확인했어요.',
           };
         }
