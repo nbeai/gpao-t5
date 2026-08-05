@@ -425,6 +425,67 @@ function verifiedExecutionFacts(receipts = []) {
  * @param {import('../contracts.js').ToolReceipt[]} [p.receipts]
  * @returns {import('../contracts.js').TaskContextPacket}
  */
+/** 주소로 읽히는 것만 주소로 센다. 검색어(`오늘 코스피`)를 가본 곳으로 세면 안 된다. */
+function 주소만(v) {
+  try { return /^https?:$/.test(new URL(String(v)).protocol) ? String(v) : null; } catch { return null; }
+}
+
+/**
+ * **이번 턴이 가진 후보.** 어느 손이 받아 왔든 상관없다 — 찾는 손의 목록도, 읽는 손이
+ * 검색으로 왔을 때 딸려 온 목록도 같은 사실이다. 순서는 받은 순서를 지킨다(순위를 다시 매기지 않는다).
+ */
+function 후보모으기(receipts = []) {
+  const out = []; const 본것 = new Set();
+  const 넣기 = (title, url) => {
+    if (!url || 본것.has(url)) return;
+    본것.add(url); out.push({ title: String(title ?? ''), url });
+  };
+  for (const r of receipts) {
+    for (const c of r?.result?.후보 ?? []) 넣기(c?.title, c?.url);
+    for (const c of r?.result?.다른후보 ?? []) 넣기(c?.title, c?.url);
+    for (const c of r?.result?.foundVia?.candidates ?? []) 넣기(c?.title, c?.url);
+    for (const c of r?.다른후보 ?? []) 넣기(c?.title, c?.url);
+  }
+  return out;
+}
+
+/** **이번 턴에 이미 열어 본 곳.** 읽은 곳·막힌 곳·부른 주소 — 셋 다 우리가 밟은 사실이다. */
+function 가본곳모으기(receipts = []) {
+  const 본것 = new Set();
+  for (const r of receipts) {
+    for (const s of r?.sources ?? []) if (s?.sourceUrl) 본것.add(s.sourceUrl);
+    for (const m of r?.막힌곳 ?? []) if (m?.url) 본것.add(m.url);
+    const a = r?.actualCall?.args ?? {};
+    for (const v of [a.url, a.request]) { const u = 주소만(v); if (u) 본것.add(u); }
+  }
+  return 본것;
+}
+
+/**
+ * 막힌 영수증의 **빈 자리만** 메운다.
+ *
+ * 손이 스스로 쥔 것이 있으면 그것을 그대로 쓴다 — 손의 사실을 커널이 갈아치우면
+ * 그게 답 갈아치우기의 축소판이다. 빈 자리에만 **턴이 이미 가진 후보**를 놓는다.
+ * 어느 것이 좋은지는 정하지 않는다(§1.2 · 절대원칙 8).
+ */
+function 막힌자리메우기(r, { 턴후보 = [], 이미가본곳 = new Set() } = {}) {
+  const 손이쥔후보 = r?.다른후보 ?? [];
+  const 후보 = 손이쥔후보.length
+    ? 손이쥔후보
+    : 턴후보.filter((c) => !이미가본곳.has(c.url)).slice(0, 5);
+  const 손이쥔수단 = r?.다음수단 ?? [];
+  // 구체 주소를 앞에 둔다 — `search`(다시 찾기)는 늘 있는 수라 뒤에 와야 눈에 덜 밀린다.
+  const 이미실린주소 = new Set(손이쥔수단.filter((m) => m?.url).map((m) => m.url));
+  const 읽기수 = 손이쥔후보.length ? [] : 후보
+    .filter((c) => !이미실린주소.has(c.url))
+    .map((c) => ({ 방법: 'read_url', url: c.url, 왜: `이번 턴에 찾아 둔 곳: ${c.title || c.url}` }));
+  const 수단 = [...읽기수, ...손이쥔수단];
+  return {
+    ...(수단.length ? { 다음수단: 수단 } : {}),
+    ...(후보.length ? { 다른후보: 후보 } : {}),
+  };
+}
+
 export function buildTaskContext(p) {
   const { intent, selfState } = p;
   const summary = selfStateSummary(selfState);
@@ -631,6 +692,19 @@ export function buildTaskContext(p) {
   // **모델이 낸 그 호출**이고, 모델은 그 신분으로 자기 행동을 잇는다.
   const 낸호출 = (r) => r?.actualCall ?? r?.제안한호출 ?? null;
   const 부른것 = (p.receipts ?? []).filter((r) => 낸호출(r)?.tool);
+  // **후보는 손 하나가 아니라 턴이 갖는다**(라이브 2026-08-05, 내가 직접 돌린 5턴).
+  //
+  // `web.collect` 가 4번 막혔고 **네 번 다 `다른후보` 가 0개**였다. 계약은 지켜졌다 —
+  // 그 넷은 모델이 **주소를 직접 넣어** 부른 호출이라 검색 이력이 없었고,
+  // *"검색을 안 했으면 후보를 지어내지 않는다"* 가 맞게 돌았다.
+  // **그런데 바로 그 턴에 `web.search` 가 후보 여덟을 이미 받아 놓고 있었다.**
+  // 계약은 관통했고 목적은 안 지켜졌다 — 찾은 손과 막힌 손이 남남이라 **왼손이 쥔 것을
+  // 오른손이 못 썼다.** 그래서 후보를 턴이 갖는 사실로 올린다.
+  //
+  // **이건 심문이 아니다.** 어느 후보가 좋은지 정하지 않는다. 이번 턴에 실제로 받아 둔
+  // 목록에서 **이미 열어 본 곳만 빼고** 그대로 옆에 놓는다. 없는 턴에는 아무것도 안 붙는다.
+  const 턴후보 = 후보모으기(부른것);
+  const 이미가본곳 = 가본곳모으기(부른것);
   if (부른것.length || 앞턴교환.length) {
     packet.turnExchange = 부른것.map((r, i) => {
       const 실패 = (r.failureState ?? 'none') !== 'none';
@@ -666,8 +740,10 @@ export function buildTaskContext(p) {
         //
         // 내용과 다음 길은 다른 것이다. 못 본 페이지의 본문은 사실이 아니지만, 검색기가
         // 실제로 돌려준 후보 목록과 우리가 부딪힌 벽은 **밟은 사실**이다. 사실은 보낸다.
-        ...(r.다음수단?.length ? { 다음수단: r.다음수단 } : {}),
-        ...(r.다른후보?.length ? { 다른후보: r.다른후보 } : {}),
+        //
+        // 손이 스스로 쥔 것이 있으면 **그것을 쓴다.** 커널은 **빈 자리만 메운다** —
+        // 손의 사실을 갈아치우면 그게 답 갈아치우기의 축소판이다.
+        ...(실패 ? 막힌자리메우기(r, { 턴후보, 이미가본곳 }) : {}),
         ...(r.막힌곳?.length ? { 막힌곳: r.막힌곳 } : {}),
       };
     });

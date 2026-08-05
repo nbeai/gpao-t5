@@ -835,8 +835,21 @@ export const MUTATIONS = [
     바꾸기: '' },
   { 이름: '실패 영수증의 다음 수를 모델 재료에서 뺌(막다른 답으로 돌아간다)',
     파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/blocked-still-has-next-moves.test.js',
-    찾기: '        ...(r.다음수단?.length ? { 다음수단: r.다음수단 } : {}),',
+    찾기: '        ...(실패 ? 막힌자리메우기(r, { 턴후보, 이미가본곳 }) : {}),',
     바꾸기: '' },
+  // **후보는 손 하나가 아니라 턴이 갖는다**(라이브 4/4 로 빈 채 나간 자리).
+  { 이름: '막힌 손이 같은 턴의 후보로 못 돌아감(왼손이 쥔 것을 오른손이 못 쓴다)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/blocked-returns-to-turn-candidates.test.js',
+    찾기: '  const 턴후보 = 후보모으기(부른것);',
+    바꾸기: '  const 턴후보 = [];' },
+  { 이름: '이미 열어 본 곳을 다음 수로 다시 내밈(같은 벽으로 두 번 보낸다)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/blocked-returns-to-turn-candidates.test.js',
+    찾기: '  const 이미가본곳 = 가본곳모으기(부른것);',
+    바꾸기: '  const 이미가본곳 = new Set();' },
+  { 이름: '커널이 손의 후보를 갈아치움(답 갈아치우기의 축소판)',
+    파일: 'src/kernel/l1-intent/task-context.js', 검사: 'test/blocked-returns-to-turn-candidates.test.js',
+    찾기: '  const 후보 = 손이쥔후보.length\n    ? 손이쥔후보\n    : 턴후보',
+    바꾸기: '  const 후보 = [].length\n    ? 손이쥔후보\n    : 턴후보' },
   // **찾은 것은 읽은 것이 아니다**(S8 ③). 손이 하나 늘 때 사라지는 방어(§4.7) —
   // 검색 성공을 읽기로 세면 페이지를 하나도 못 읽은 턴에서 거짓 성공 게이트가 통째로 꺼진다.
   { 이름: '검색 성공을 "읽었다"로 셈(거짓 성공 게이트가 통째로 꺼진다)',
