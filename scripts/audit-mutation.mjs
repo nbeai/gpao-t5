@@ -870,16 +870,22 @@ export const MUTATIONS = [
   // **CU A 첫 계약 — 조용한 0 을 "창이 없네요"로 답하지 않는다.**
   { 이름: '권한 없이 받은 빈 창 목록을 사실로 내보냄("창이 없네요"가 나간다)',
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
-    찾기: '      if (!허용됨(권한.accessibility) || !허용됨(권한.screenRecording)) {',
-    바꾸기: '      if (false) {' },
+    찾기: '      if (!창볼수있나(권한)) {', 바꾸기: '      if (false) {' },
+  // **거울상도 겨눈다** — 필요 없는 권한으로 막으면 있는 것을 없다고 하는 것이다(라이브에서 잡음).
+  { 이름: '필요 없는 권한으로 창 목록을 막음(있는 것을 없다고 한다)',
+    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
+    찾기: "const 창에필요한권한 = ['accessibility'];",
+    바꾸기: "const 창에필요한권한 = ['accessibility', 'screenRecording'];" },
   { 이름: '백엔드가 없는데 "창이 없다"로 답함(없는 사실을 지어낸다)',
     파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
     찾기: "          userSafeSummary: '이 컴퓨터에서는 화면을 볼 수 있는 준비가 아직 안 됐어요.',",
     바꾸기: "          userSafeSummary: '열려 있는 창이 없어요.'," },
-  { 이름: '이미 허락한 권한을 다시 요구함(무엇이 진짜 막혔는지 흐려진다)',
-    파일: 'src/runtime/desktop-tool.js', 검사: 'test/cu-a-status-before-list.test.js',
-    찾기: '            ...(허용됨(권한.accessibility) ? [] : [{ 방법:',
-    바꾸기: '            ...(false ? [] : [{ 방법:' },
+  // **겨냥을 내렸다 — 왜 안 무는지 파고 나서**(2026-08-05).
+  // `이미 허락한 권한을 다시 요구함` 은 필요 권한이 둘일 때 성립하던 결함이다. 라이브에서
+  // 재고 `창에필요한권한` 을 **하나(`accessibility`)로 좁히자** 그 결함이 구조적으로
+  // 불가능해졌다 — 막히는 유일한 경우가 그 하나가 없을 때뿐이라 "이미 준 것"이 존재하지 않는다.
+  // 필터는 코드에 그대로 둔다: 스크린샷이 들어오는 CU F 에서 필요 권한이 다시 둘이 되면
+  // 그때 이 결함이 되살아난다. **그때 겨냥도 같이 되살린다.**
   { 이름: '화면 슬롯이 status 를 계약으로 안 받음(못 볼 때와 볼 게 없을 때를 못 가른다)',
     파일: 'src/runtime/desktop-slot.js', 검사: 'test/cu-a-status-before-list.test.js',
     찾기: "const 화면계약 = ['id', 'status', 'observe'];",

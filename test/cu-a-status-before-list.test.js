@@ -37,6 +37,11 @@ const 백엔드 = (권한, 창 = []) => ({
 
 const 다줌 = { accessibility: 'granted', screenRecording: 'granted' };
 const 없음 = { accessibility: 'denied', screenRecording: 'not_requested' };
+// **창 목록에 실제로 필요한 것은 손쉬운 사용 하나다**(라이브 실측 2026-08-05).
+// 처음엔 화면 기록까지 요구했다가 **재 보고 좁혔다** — 화면 기록이 denied 인 채로도
+// 창 목록이 제목까지 전부 나왔다. 화면 기록은 픽셀(스크린샷) 것이고 그건 CU F 칸이다.
+// **없는 것을 있다고 하는 것만 병이 아니다 — 있는 것을 없다고 하는 것도 같은 병이다.**
+const 화면기록만없음 = { accessibility: 'granted', screenRecording: 'denied' };
 
 const 손세우기 = (백) => {
   const 등록소 = 화면슬롯세우기(makeSlotRegistry());
@@ -104,10 +109,32 @@ test('백엔드가 안 붙었으면 "창이 없다"가 아니라 "볼 수 없다
 // 사용자는 이미 준 것을 또 주러 가고, 무엇이 진짜 막힌 건지 흐려진다.
 // **없는 사실을 지어내지 않는 규칙은 다음 수단에도 똑같이 선다.**
 test('이미 허용된 권한은 다음 수단에서 뺀다', async () => {
-  const 반쪽 = 손세우기(백엔드({ accessibility: 'granted', screenRecording: 'denied' }, []));
+  const 반쪽 = 손세우기(백엔드({ accessibility: 'denied', screenRecording: 'granted' }, []));
   const out = await 반쪽.handler({ action: 'observe' });
-  assert.equal(out.blocked, true, '화면 기록이 없으면 창 목록은 못 낸다');
+  assert.equal(out.blocked, true, '손쉬운 사용이 없으면 창 목록을 못 낸다');
   const 요구 = out.다음수단.map((m) => m.무엇);
-  assert.deepEqual(요구, ['screen_recording'],
+  assert.deepEqual(요구, ['accessibility'],
     `이미 준 권한을 또 요구했다: ${JSON.stringify(요구)}`);
+});
+
+// ── **있는 것을 없다고 하지 않는다** — 조용한 0 의 거울상 ────────────────────
+//
+// 라이브에서 잡았다. 화면 기록이 `denied` 인데도 백엔드는 창 목록을 **제목까지** 냈다:
+//   "…아는형님 - YouTube - 오디오 재생 - Chrome - TV (wildwolf)"
+// 그런데 내 게이트가 그걸 막고 권한 안내를 대신 내보내고 있었다.
+// **사용자는 받을 수 있는 답 대신 안내를 받는다** — §0 이 깨지는 그 모양이다.
+test('화면 기록이 없어도 창은 보인다 — 필요 없는 권한으로 막지 않는다', async () => {
+  const 손 = 손세우기(백엔드(화면기록만없음, [{ id: 11972, title: 'YouTube - Chrome' }]));
+  const out = await 손.handler({ action: 'observe' });
+  assert.equal(out.blocked, undefined,
+    '화면 기록은 스크린샷(F 칸) 것이다 — 창 목록을 그것으로 막으면 있는 것을 없다고 하는 것이다');
+  assert.equal(out.result.windows.length, 1);
+  assert.equal(out.result.windows[0].title, 'YouTube - Chrome');
+});
+
+test('화면 기록만 없으면 "볼 준비가 됐다"고 말한다', async () => {
+  const 손 = 손세우기(백엔드(화면기록만없음, []));
+  const out = await 손.handler({ action: 'status' });
+  assert.match(out.userSafeSummary, /준비가 돼|준비됐/,
+    '창을 볼 수 있는데 못 본다고 말했다');
 });

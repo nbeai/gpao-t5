@@ -21,11 +21,31 @@
 /** 권한 값이 "됐다"인가. 모르는 값은 **안 된 쪽으로** 본다(모름은 자동이 아니라 확인 쪽이다). */
 const 허용됨 = (v) => v === 'granted' || v === true;
 
+/** 창을 볼 수 있나 — **실제로 필요한 것만** 본다(아래 주석: 재 보고 좁혔다). */
+const 창볼수있나 = (권한 = {}) => 창에필요한권한.every((k) => 허용됨(권한[k]));
+
+/**
+ * **창 목록에 실제로 필요한 권한은 손쉬운 사용 하나다**(라이브 실측 2026-08-05).
+ *
+ * 처음엔 화면 기록까지 요구했다. **틀렸다.** 화면 기록이 `denied` 인 채로 재 보니
+ * 창 목록도 **제목까지 전부** 나왔다:
+ * ```
+ * 권한   accessibility granted · screenRecording denied
+ * 창     1개 · "…아는형님 - YouTube - 오디오 재생 - Chrome - TV (wildwolf)"
+ * ```
+ * 화면 기록은 **픽셀(스크린샷)** 에 필요한 것이고, 스크린샷은 CU F 칸이라 A 에는 없다.
+ *
+ * **이 실수의 모양을 적어 둔다** — 조용한 0 의 거울상이다. 없는 것을 있다고 하는 대신
+ * **있는 것을 없다고** 했다. 사용자는 받을 수 있는 답 대신 권한 안내를 받는다.
+ * §0 이 깨지는 방식은 둘 다 같다: **방법(권한 규칙)이 목적(지금 뭐 떠 있어?)을 덮는다.**
+ * 안전 쪽 기본값을 세게 잡는 것이 정직해 보였는데, 재 보지 않고 잡은 것이 문제였다.
+ */
+const 창에필요한권한 = ['accessibility'];
+
 /** 사용자가 볼 문장. 어느 권한이 왜 막혔는지는 사실이므로 숨기지 않는다. */
 function 못보는이유(권한 = {}) {
-  const 없는것 = [];
-  if (!허용됨(권한.accessibility)) 없는것.push('손쉬운 사용');
-  if (!허용됨(권한.screenRecording)) 없는것.push('화면 기록');
+  const 이름 = { accessibility: '손쉬운 사용', screenRecording: '화면 기록' };
+  const 없는것 = 창에필요한권한.filter((k) => !허용됨(권한[k])).map((k) => 이름[k]);
   return 없는것.length
     ? `창을 보려면 ${없는것.join('·')} 권한이 필요해요. 아직 허용되지 않았어요.`
     : '지금은 창을 볼 수 없어요.';
@@ -62,9 +82,7 @@ export function makeDesktopTool(deps = {}) {
         if (!앞) { try { 앞 = (await 드라이버.observe({ scope: 'app' }))?.frontmost; } catch { 앞 = undefined; } }
         return {
           result: { ...상태, ...(앞 ? { frontmost: 앞 } : {}) },
-          userSafeSummary: 허용됨(권한.accessibility) && 허용됨(권한.screenRecording)
-            ? '화면을 볼 준비가 돼 있어요.'
-            : 못보는이유(권한),
+          userSafeSummary: 창볼수있나(권한) ? '화면을 볼 준비가 돼 있어요.' : 못보는이유(권한),
         };
       }
 
@@ -73,7 +91,7 @@ export function makeDesktopTool(deps = {}) {
       // ── 여기가 갈리는 자리다 ──────────────────────────────────────────
       // 권한이 없으면 **목록을 결과로 내지 않는다**(빈 배열도 목록이다).
       // 앞 앱은 권한 없이도 나오므로 그건 준다 — 못 본 것만 못 봤다고 한다.
-      if (!허용됨(권한.accessibility) || !허용됨(권한.screenRecording)) {
+      if (!창볼수있나(권한)) {
         return {
           blocked: true,
           권한,
@@ -83,10 +101,9 @@ export function makeDesktopTool(deps = {}) {
           // **이미 허용된 권한을 다시 내밀지 않는다.** 라이브에서 손쉬운 사용이 `granted` 인데도
           // 둘 다 내밀고 있었다 — 사용자는 이미 준 것을 또 주러 가고, 무엇이 진짜 막힌 건지
           // 흐려진다. 없는 사실을 지어내지 않는 규칙은 **다음 수단에도 똑같이 선다.**
-          다음수단: [
-            ...(허용됨(권한.accessibility) ? [] : [{ 방법: 'grant_permission', 무엇: 'accessibility', 왜: '창 목록과 요소를 읽으려면 필요하다' }]),
-            ...(허용됨(권한.screenRecording) ? [] : [{ 방법: 'grant_permission', 무엇: 'screen_recording', 왜: '창 제목과 화면을 읽으려면 필요하다' }]),
-          ],
+          다음수단: 창에필요한권한
+            .filter((k) => !허용됨(권한[k]))
+            .map((k) => ({ 방법: 'grant_permission', 무엇: k === 'accessibility' ? 'accessibility' : 'screen_recording', 왜: '창 목록과 요소를 읽으려면 필요하다' })),
         };
       }
 
