@@ -519,9 +519,15 @@ export const MUTATIONS = [
     찾기: "          await 기억영수증('archived', r.entry ?? { candidateId: input.id, kind: r.kind });", 바꾸기: '' },
 
   // ── H 진단 계열 ③ 빈 답을 사용자에게 돌려주지 않는다 ────────────────────
+  // **겨냥을 감싸개가 아니라 계약에 건다**(2026-08-05, 빠져나간 주입 1건의 원인).
+  // 옛 겨냥은 `reply:` 줄부터 `미리보기정렬(…, ctx.미리보기),` 까지 통째로 떠 있었다.
+  // 그 바깥에 `잘림말붙이기(…)` 가 하나 더 감기자(8ea8fb9) 문자열이 안 맞아 **주입 지점 0곳**이
+  // 됐고, 계약은 그대로인데 그물만 조용히 풀렸다 — §4.4 "이름·개수는 죽고 계약은 안 죽는다"의
+  // 돌연변이판이다. 그래서 재는 것만 남긴다: **빈 답을 고치는 `답완성` 을 건너뛴다.**
+  // 감싸개(미리보기정렬·잘림말붙이기)가 몇 겹이 되든 이 겨냥은 그대로 문다.
   { 이름: '빠른 경로가 빈 답을 그대로 돌려줌', 파일: TURNJS, 검사: T_STREAM,
-    찾기: "      reply: 미리보기정렬(await 답완성({\n        reply: earlyReply,\n        tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,\n        ctx, search: earlyWantedWeb,\n      }), ctx.미리보기),",
-    바꾸기: '      reply: 미리보기정렬(earlyReply, ctx.미리보기),' },
+    찾기: "await 답완성({\n        reply: earlyReply,\n        tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,\n        ctx, search: earlyWantedWeb,\n      })",
+    바꾸기: 'earlyReply' },
   { 이름: '재시도가 스트리밍 계약 밖으로 나감', 파일: TURNJS, 검사: T_STREAM,
     찾기: '    onDelta: ctx.onAnswerDelta, search, effort: \'medium\',',
     바꾸기: "    search, effort: 'medium'," },
