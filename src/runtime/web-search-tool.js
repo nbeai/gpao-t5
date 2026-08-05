@@ -16,6 +16,7 @@
 // **읽지 않는다.** 한 줄로 편하게 첫 결과를 열어 주고 싶어지는 자리인데, 그러면 갈라 놓고
 // 도로 붙이는 것이다 — 고르는 자리가 다시 사라진다. 읽기는 `web.collect` 가 한다.
 import { makeWebSearch, searchConnectionSuggestion } from './web-search.js';
+import { 검색드라이버 } from './search-slot.js';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -28,9 +29,12 @@ const 보여줄개수 = 8;
  */
 export function makeWebSearchTool(deps = {}) {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // **드라이버 목록은 슬롯에서 온다**(S8) — 읽는 손과 같은 자리를 쓴다.
+  // 두 손이 각자 다른 목록을 들면 "붙였는데 한쪽에서만 돈다"가 된다.
   const search = deps.search ?? makeWebSearch({
     fetchImpl: deps.fetchImpl ?? globalThis.fetch,
     timeoutMs,
+    providers: deps.searchProviders ?? 검색드라이버(),
     apiKey: deps.searchApiKey,
     instanceUrl: deps.searchInstanceUrl,
   });

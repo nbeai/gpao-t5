@@ -7,6 +7,7 @@ import { validateWebInput, makeSourceEvidence, classifyWebFetch, MIN_READABLE_CH
 import { withTimeout } from './with-timeout.js';
 import { sameSiteLinks } from '../kernel/l0-evidence/working-state.js';
 import { makeWebSearch, searchConnectionSuggestion } from './web-search.js';
+import { 검색드라이버 } from './search-slot.js';
 import { makeHostManners, waitPhrase } from './host-manners.js';
 import { extractTitle, extractDescription, extractReadable, extractLinks, extractHydrationText } from './readable.js';
 
@@ -175,8 +176,12 @@ export function makeWebCollector(deps = {}) {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   // Phase 0-2: 주소가 없으면 **찾아서 실제로 읽는다**. 검색만 하고 스니펫으로 답하지 않는다 —
   // T5 가 직접 읽은 페이지만 출처가 된다(§ 출처 원장 계약, assertWebEvidence).
+  // **드라이버 목록은 슬롯에서 온다**(S8). 안 넘기면 `web-search.js` 의 기본 배열로 떨어지고,
+  // 그러면 새 검색기를 붙이려고 그 파일을 고쳐야 한다 — 인자 자리만 있고 등록할 자리가 없던
+  // 그 상태가 **슬롯이 아니라 이음매**였다.
   const search = deps.search ?? makeWebSearch({
     fetchImpl, timeoutMs,
+    providers: deps.searchProviders ?? 검색드라이버(),
     apiKey: deps.searchApiKey,
     instanceUrl: deps.searchInstanceUrl,
   });

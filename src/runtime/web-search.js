@@ -145,7 +145,15 @@ export function makeWebSearch(deps = {}) {
         tried.push(p.id);
         let rows = null;
         try {
-          rows = await p.run(q, { fetchImpl, timeoutMs, apiKey: deps.apiKey, instanceUrl: deps.instanceUrl });
+          // **드라이버가 밝힌 것을 그대로 넘긴다**(S8). 예전엔 `apiKey`·`instanceUrl` 두 칸만
+          // 손으로 박아 넘겼다 — 그래서 네 번째 검색기가 `needs: ['braveKey']` 를 밝혀도
+          // **조건 검사는 통과하는데 값은 안 갔다.** 붙었는데 안 도는 상태이고, 고치려면
+          // 결국 이 파일에 칸을 하나 더 적어야 했다(발자국 6칸).
+          //
+          // 이제 `needs` 한 곳이 **조건도 정하고 전달도 정한다.** 두 곳에 적으면 갈라진다.
+          // 옛 두 칸은 그대로 둔다 — `needs` 를 안 밝힌 드라이버의 행동을 안 바꾸기 위해서다(대조군 보존).
+          const 드라이버몫 = Object.fromEntries(필요한것.map((k) => [k, deps[k]]));
+          rows = await p.run(q, { fetchImpl, timeoutMs, apiKey: deps.apiKey, instanceUrl: deps.instanceUrl, ...드라이버몫 });
         } catch { rows = null; } // 한 층이 죽어도 다음 층으로(막다른 답 금지)
         if (rows?.length) return { state: 'ok', provider: p.id, providerLabel: p.label, results: rows, tried };
       }

@@ -867,6 +867,20 @@ export const MUTATIONS = [
     찾기: "    .filter((t) => t.executable && t.schema)\n    .map((t) => ({ name: t.id, ...t.schema }));",
     바꾸기: "    .filter((t) => t.executable && t.schema)\n    .sort((a, b) => String(a.toolKind).localeCompare(String(b.toolKind)))\n    .map((t) => ({ name: t.id, ...t.schema }));" },
 
+  // **S8 본체 — 계약 슬롯.** 슬롯이 있다는 것과 손이 슬롯에서 받는다는 것은 다르다.
+  { 이름: '호출부가 슬롯을 안 쓰고 코어 기본 배열로 떨어짐(다시 이음매가 된다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/s8-slot-registry.test.js',
+    찾기: '    providers: deps.searchProviders ?? 검색드라이버(),\n', 바꾸기: '' },
+  { 이름: '드라이버가 밝힌 조건 값을 안 넘김(붙었는데 안 돈다)',
+    파일: 'src/runtime/web-search.js', 검사: 'test/s8-slot-registry.test.js',
+    찾기: ', ...드라이버몫 });', 바꾸기: ' });' },
+  { 이름: '계약 미달 드라이버를 조용히 받음(붙인 줄 알았는데 안 돈다)',
+    파일: 'src/kernel/l2-plan/slot-registry.js', 검사: 'test/s8-slot-registry.test.js',
+    찾기: '      if (빠진것.length) {', 바꾸기: '      if (false) {' },
+  { 이름: '드라이버 0개를 정상으로 넘김(없는 한계를 지어낸다)',
+    파일: 'src/runtime/search-slot.js', 검사: 'test/s8-slot-registry.test.js',
+    찾기: '  if (!목록.length) throw new Error(', 바꾸기: '  if (false) throw new Error(' },
+
   // **S8 — 검색 슬롯.** 새 능력이 코어를 안 건드리고 붙는가(발자국 사다리 6칸 회피).
   { 이름: '드라이버 목록이 코어에 다시 박힘(새 검색기가 6칸을 써야 붙는다)',
     파일: 'src/runtime/web-search.js', 검사: 'test/s8-search-slot.test.js',
