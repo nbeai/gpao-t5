@@ -20,7 +20,10 @@ import { ModelTimeoutError } from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
 
 const DEFAULT_HTTP_TIMEOUT_MS = 25_000; // 서버 withModelTimeout(30s)보다 짧게 — 내부가 먼저 실제 취소
-const DEFAULT_MAX_TOKENS = 1024;
+// **답 한 편이 들어갈 만큼.** 1024 는 어느 실서비스도 안 쓰는 값이다(ChatGPT·Claude 모두 수천~수만).
+// 라이브(오너 2026-08-05): `오늘 한국 증시 상황 알려줘` 답이 문장 한가운데서 그대로 끊겼다.
+// 사용자는 증시 정보를 원했지 잘림 안내를 원한 게 아니다(최상위 §0).
+export const DEFAULT_MAX_TOKENS = 8192;
 
 export class ModelProviderError extends Error {
   /** @param {{provider:string, status?:number, authSignal:string}} p */
@@ -852,6 +855,17 @@ export function actualCallFacts({ url, bodyText, json, spec }) {
   };
 }
 
+/**
+ * **답이 상한에서 끊겼나.** 와이어마다 이름이 다를 뿐 같은 사실이다 —
+ * openai `length` · gemini `MAX_TOKENS` · anthropic `max_tokens`.
+ * 사유를 안 주는 공급자면 **모르는 대로 둔다**(안 끊겼다고 단정하지 않고, 끊겼다고도 안 한다).
+ */
+function 잘렸나(json) {
+  const 사유 = json?.choices?.[0]?.finish_reason
+    ?? json?.candidates?.[0]?.finishReason ?? json?.stop_reason ?? null;
+  return 사유 != null && /^(length|max_tokens|MAX_TOKENS)$/i.test(String(사유));
+}
+
 export function makeProviderModelClient(baseCfg, deps = {}) {
   const spec = MODEL_PROVIDERS[baseCfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
@@ -864,7 +878,37 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
      *   **스트리밍 경로는 신분을 내지 않는다** — 못 만든 증거를 만든 척하지 않는다(성장 호출은
      *   조각을 쓰지 않으므로 이 경로로만 온다).
      */
+    /**
+     * **답은 끝까지 나간다.** 상한에 닿으면 이어 써서 완성한다 — 사용자는 나눠졌다는 걸 몰라도 된다.
+     * 실서비스가 하는 그대로다. 이어 써도 못 끝내면 그때 사실을 남긴다(`잘림`).
+     * 손을 부르는 답은 이어 쓰지 않는다 — 도구 호출을 두 번 만들면 중복 실행이다.
+     */
     async respond(tc, opts = {}) {
+      const 한번 = (a, b) => this.한번(a, b);
+      const 첫판 = await 한번(tc, opts);
+      if (typeof 첫판 === 'string' || !첫판?.잘림 || 첫판.toolCalls?.length) return 첫판;
+      let 모은글 = 첫판.text ?? '';
+      let 아직잘림 = true;
+      for (let 회 = 0; 회 < 3 && 아직잘림; 회 += 1) {
+        // 이어쓰기 지시는 **recentTurns 로** 넣는다 — 재료 조립부가 이력을 거기서 읽는다
+        // (`tc.user`·`tc.history` 는 그대로 쓰이지 않는다. 실측으로 확인했다).
+        const 이어서 = {
+          ...tc,
+          recentTurns: [
+            ...(tc.recentTurns ?? []),
+            { role: 'assistant', text: 모은글 },
+            { role: 'user', text: '방금 답이 길이 한도에서 끊겼어요. 이미 쓴 부분은 다시 쓰지 말고 끊긴 자리부터 이어서 마저 써 주세요.' },
+          ],
+        };
+        // eslint-disable-next-line no-await-in-loop
+        const 다음 = await 한번(이어서, opts);
+        모은글 += typeof 다음 === 'string' ? 다음 : (다음?.text ?? '');
+        // 이어쓰기 회차의 손 호출은 **쓰지 않는다** — 같은 손을 두 번 만들면 중복 실행이다.
+        아직잘림 = typeof 다음 === 'string' ? false : Boolean(다음?.잘림);
+      }
+      return { text: 모은글, toolCalls: [], ...(아직잘림 ? { 잘림: true } : {}) };
+    },
+    async 한번(tc, opts = {}) {
       // H02 절단 원인: 계약이 큰 호출(성장 제안 = statement + 5사례 JSON)이 기본 상한(1024)에서
       // 잘려 마지막 표본이 사라졌다. 호출 하나가 자기 출력 예산을 말할 수 있다 — 기본은 그대로다.
       const cfg = Number.isFinite(opts.maxTokens) && opts.maxTokens > 0
@@ -957,7 +1001,14 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         }
         await dumpModelOutput({ text: typeof text === 'string' ? text : '', toolCalls, meta: { 자리: 'single/tools' } })
           .catch(() => null);
-        return { text: typeof text === 'string' ? text : '', toolCalls };
+        // **잘렸으면 잘렸다고 응답에 싣는다.** 종료 사유는 위(`actualCallFacts`)에서 이미 관측하고
+        // 있었지만 `onCallIdentity` 곁길로만 흘러 **턴 경로에서는 아무도 안 읽었다**(성장 판정과
+        // 연결 상태만 썼다). 라이브(2026-08-05): 답이 `예를 들어 스윙이면` 에서 그대로 끊겼는데
+        // T5 는 완결된 답처럼 내보냈다 — 절대 게이트 1(거짓 성공)이다.
+        //
+        // 상한을 올리는 것이 이 계약이 아니다. 상한은 얼마든 있을 수 있고 언제나 닿을 수 있다.
+        // 계약은 **닿았을 때 그렇다고 말하는 것**이고, 파일의 문·웹의 창과 같은 계열이다.
+        return { text: typeof text === 'string' ? text : '', toolCalls, ...(잘렸나(json) ? { 잘림: true } : {}) };
       }
       throw new ModelProviderError({ provider: cfg.provider, status, authSignal: spec.errorSignal(status, json) });
     },

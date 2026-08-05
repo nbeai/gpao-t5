@@ -570,6 +570,24 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
 }
 
 
+/**
+ * **다 못 냈을 때만** 한 줄 남긴다.
+ *
+ * 라이브(오너 2026-08-05): 답이 `예를 들어 스윙이면` 에서 끊겼다. 나는 **"여기서 잘렸어요"라고
+ * 말하는 것**으로 고쳤고 오너에게 질책받았다 — *"여기서 잘렸습니다라고 안내하는 게 무슨 소용이야.
+ * 메시지를 두 번, 세 번에 나누어서 필요한 만큼 다 출력하게 해도 되잖아."*
+ *
+ * 맞다. 사용자는 증시 정보를 원했지 잘림 안내를 원한 게 아니다(최상위 §0).
+ * 그래서 지금은 **공급자 층에서 이어 써서 완성한다**(`model-provider.js` · 실서비스가 하는 그대로).
+ * 이 줄은 세 번 이어 쓰고도 못 끝낸 드문 경우에만 나간다 — 정직은 **낼 수 있는데 안 내고
+ * 대신 하는 말**이 아니라, 정말 못 냈을 때 쓰는 것이다.
+ */
+function 잘림말붙이기(답, 잘렸나) {
+  const 글 = String(답 ?? '');
+  if (!잘렸나 || !글) return 답;
+  return `${글.trimEnd()}\n\n— 남은 부분이 더 있어요. "이어서" 라고 하시면 마저 쓸게요.`;
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -883,6 +901,7 @@ export async function runTurn(input, ctx) {
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
   let modelChosen = null;
   let earlyReply = null;
+  let 답잘림 = false;   // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다)
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
   let earlyTc;
   let earlyWantedWeb = false;
@@ -915,6 +934,11 @@ export async function runTurn(input, ctx) {
       tools: modelSchemasFor(selfState, ctx.modelControls),
     });
     earlyReply = typeof out === 'string' ? out : out?.text ?? '';
+    // **잘린 답을 다 쓴 답인 것처럼 내지 않는다**(절대 게이트 1 — 거짓 성공).
+    // 라이브(오너 2026-08-05): 답이 `예를 들어 스윙이면` 에서 문장 한가운데 끊겼는데
+    // T5 는 아무 말 없이 그대로 내보냈다. 사용자는 왜 끊겼는지 알 길이 없었다.
+    // 종료 사유는 관측되고 있었지만 `onCallIdentity` 곁길로만 흘러 여기서 아무도 안 읽었다.
+    if (out?.잘림) 답잘림 = true;
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
@@ -1030,11 +1054,11 @@ export async function runTurn(input, ctx) {
     return {
       kind: 'reply',
       // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
-      reply: 미리보기정렬(await 답완성({
+      reply: 잘림말붙이기(미리보기정렬(await 답완성({
         reply: earlyReply,
         tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,
         ctx, search: earlyWantedWeb,
-      }), ctx.미리보기),
+      }), ctx.미리보기), 답잘림),
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
