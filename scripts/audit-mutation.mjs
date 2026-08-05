@@ -733,6 +733,19 @@ export const MUTATIONS = [
     검사: 'test/s6c-approval-seal-contract.test.js',
     찾기: "  if (허락한손?.has?.(toolId) && 되돌릴수있나 === true) return { 면제: true, 이유: '허락한손' };",
     바꾸기: "  if (허락한손?.has?.(toolId)) return { 면제: true, 이유: '허락한손' };" },
+  // **웹도 문을 갖는다.** 조용히 접히면 무엇이 접혔는지 아무도 모르고, 모델은 그 위에 지어낸다.
+  { 이름: '긴 본문을 창 없이 통째로 넘김(뒷단이 조용히 접어 답이 사라진다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/web-read-window.test.js',
+    찾기: '      const markdown = 본문전체.slice(창.시작, 창.끝);',
+    바꾸기: '      const markdown = 본문전체;' },
+  { 이름: '다음 자리를 안 알려 줌(더 있는데 막다른 답이 된다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/web-read-window.test.js',
+    찾기: '  return { 시작, 끝, 총, ...(끝 < 총 ? { 다음: 끝 } : {}) };',
+    바꾸기: '  return { 시작, 끝, 총 };' },
+  { 이름: '출처를 제목만 보여 줌(사용자가 믿을지 판단할 수 없다)',
+    파일: 'src/runtime/web-collector.js', 검사: 'test/web-source-judgeable.test.js',
+    찾기: "  if (title && 어디) return `: ${title} (${어디})`;",
+    바꾸기: "  if (title && 어디) return `: ${title}`;" },
   // **읽어 온 글자를 모델이 읽을 수 있어야 한다**(라이브 2026-08-05).
   // 데이터는 다 와 있었는데 16진수 엔티티라 모델이 못 읽고 25℃ 를 지어냈다(실제는 체감 40°).
   { 이름: '16진수 엔티티를 안 풂(모델이 한글을 못 읽고 지어낸다)',

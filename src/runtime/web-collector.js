@@ -133,6 +133,41 @@ const DEFAULT_TIMEOUT_MS = 15_000;
  * @param {{fetchImpl?:Function, robotsCheck?:(url:string)=>Promise<boolean>, now?:()=>number, timeoutMs?:number}} [deps]
  * @returns {{sourceLedgerRequired:true, handler:(args:*)=>Promise<object>}}
  */
+/**
+ * **본문의 어느 자리를 줄 것인가** — 파일 손의 `문` 과 같은 계약(`local-file.js`).
+ *
+ * 조용히 자르지 않는다. 얼마나 있고, 어디까지 줬고, 다음은 어디서 이어지는지 함께 낸다.
+ *
+ * **창 크기는 모델에게 실제로 닿는 크기여야 한다.** 재료 조립(`compactResult`)이 1,200자에서
+ * 접으므로, 창을 그보다 크게 주면 **뒷단이 다시 접고 무엇이 접혔는지 아무도 모른다** —
+ * 그게 그날 사고의 모양이었다(4,588자가 1,183자로 접히며 온도표가 통째로 사라졌다).
+ * 그래서 창은 접히지 않을 만큼으로 두고, 부족하면 **문으로 더 부른다.**
+ */
+const 기본창 = 900;
+function 읽기창(본문, args = {}) {
+  const 총 = String(본문 ?? '').length;
+  const 시작0 = Number(args?.offset);
+  const 시작 = Number.isInteger(시작0) && 시작0 > 0 ? Math.min(시작0, 총) : 0;
+  const 몇자0 = Number(args?.limit);
+  const 몇자 = Number.isInteger(몇자0) && 몇자0 > 0 ? 몇자0 : 기본창;
+  const 끝 = Math.min(시작 + 몇자, 총);
+  return { 시작, 끝, 총, ...(끝 < 총 ? { 다음: 끝 } : {}) };
+}
+
+/**
+ * **무엇을 어디서 읽었는가** — 사용자가 판단할 수 있는 한 토막.
+ *
+ * 제목만으로는 못 믿는다("Today"). 주소만으로는 못 읽는다. 둘 다, 그러나 **경로는 빼고**.
+ * 전체 주소는 원장에 그대로 남는다 — 여기는 사람이 읽는 자리다.
+ */
+function 읽은곳말(title, sources = []) {
+  let 어디;
+  try { 어디 = new URL(sources?.[0]?.sourceUrl ?? '').hostname.replace(/^www\./, ''); } catch { 어디 = ''; }
+  if (title && 어디) return `: ${title} (${어디})`;
+  if (어디) return ` — ${어디}`;
+  return title ? `: ${title}` : '';
+}
+
 export function makeWebCollector(deps = {}) {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const { robotsCheck, now } = deps;
@@ -289,7 +324,15 @@ export function makeWebCollector(deps = {}) {
       const selected = selectionGoal === 'latest_evidence'
         ? pages.reduce((best, page) => Number.isFinite(timestamp(page)) && (!Number.isFinite(timestamp(best)) || timestamp(page) > timestamp(best)) ? page : best, pages[0])
         : pages[0];
-      const { title, description, markdown, blocks, links } = selected;
+      const { title, description, markdown: 본문전체, blocks, links } = selected;
+      // **웹도 문을 갖는다**(라이브 2026-08-05). 본문이 길면 조용히 접히는 것이 아니라
+      // **창을 옮겨 더 읽을 수 있어야 한다** — `local.file list` 가 이미 그렇게 한다.
+      // 그날 사고: 본문 4,588자가 재료 조립에서 1,183자로 접히며 **온도표가 통째로 가운데**라
+      // 모델이 본 온도값이 0개였다. 폭염경보(37.9°C·체감 43.7°C) 날에 "31도, 얇은 우산"이 나갔다.
+      // 상한을 올리는 것은 실측으로 이미 기각됐다(1200→6000 을 써도 이름은 3분의 1) —
+      // 그때 세운 답이 **문**이고, 웹 손만 그 문이 없었다.
+      const 창 = 읽기창(본문전체, args);
+      const markdown = 본문전체.slice(창.시작, 창.끝);
       const excerpt = description || markdown.slice(0, 500); // 출처 근거용 짧은 발췌
       const sources = pages.map((page) => makeSourceEvidence({
         sourceUrl: page.resolvedUrl, title: page.title,
@@ -307,15 +350,28 @@ export function makeWebCollector(deps = {}) {
           title, excerpt, description, markdown, blocks, links,
           // P2-9: **사후 기록**이다 — 발화에서 예측한 분류가 아니라 실제로 무엇을 했는가.
           // 둘이면 충분하다. 큰 분류 체계(routeKind 11개)는 만들지 않는다(§24 · 절대원칙 8).
+          // **얼마나 있고 어디까지 줬는지.** 모델이 다음을 부를 수 있어야 막다른 답이 안 된다.
+          readWindow: 창,
           surfaceAction: foundVia ? 'search_then_read' : 'read_url',
           ...(foundVia ? { foundVia } : {}),
           ...(comparisonCandidates ? { comparisonCandidates } : {}),
         },
         sources,
         // 찾아서 읽었으면 "찾아서 읽었다"고 말한다 — 검색만 하고 아는 척하지 않는다.
-        userSafeSummary: foundVia
-          ? `찾아서 읽었어요${title ? `: ${title}` : ''}.`
-          : `공개 자료로 확인했어요${title ? `: ${title}` : ''}.`,
+        //
+        // **어디서 읽었는지도 말한다**(라이브 2026-08-05). `오늘 날씨 어때?` 에 T5 가 실제
+        // 시간별 기온을 읽고 정확히 답했는데, 화면에는 `찾아서 읽었어요: Today` 만 떴다.
+        // 제목이 "Today" 뿐이라 사용자는 **그게 서울 날씨인지 오늘 날짜 안내인지 광고인지**
+        // 알 수 없었다 — 오너가 "답변이 정상이 아닌 것 같다"고 한 자리다.
+        // 답은 정상이었고 **근거 표시가 판단 불가능**했다. 거짓말은 아니지만 **아는 것보다
+        // 덜 말한 것**이다 — 어디서 읽었는지는 `sources[].sourceUrl` 에 그대로 있었다.
+        //
+        // 경로까지 싣지는 않는다. 사용자면 문장은 읽는 것이지 복사하는 것이 아니고,
+        // 전체 주소는 원장에 남는다.
+        userSafeSummary: `${foundVia ? '찾아서 읽었어요' : '공개 자료로 확인했어요'}`
+          + `${읽은곳말(title, sources)}.`
+          // **얼마나 읽었는지도 말한다.** 조용히 자르지 않는 계약은 사용자면에서도 선다.
+          + `${Number.isInteger(창.다음) ? ` 본문 ${창.총}자 중 ${창.끝}자까지 읽었어요.` : ''}`,
       };
     },
   };

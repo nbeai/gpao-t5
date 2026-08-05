@@ -76,6 +76,8 @@ export function defineWebTool(d = {}) {
         + ' **사용자가 주소(URL)를 준 경우 먼저 이걸로 읽는다** — 기억이나 검색 요약이 아니라'
         + ' 그 페이지의 실제 내용을 읽고, 출처가 기록으로 남는다.'
         + ' 주소 없이 하는 일반 검색은 네 내장 검색이 더 낫다(그건 이 도구 없이 한다).'
+        + ' **본문이 길면 한 번에 다 오지 않는다** — 결과의 `readWindow` 에 전체 길이와 다음 자리가 있으니,'
+        + ' 필요하면 `offset` 을 그 값으로 넣어 이어서 읽는다. 접힌 자리에 답이 있을 수 있다.'
         + ' robots 로 수집을 막은 곳, 로그인이 필요한 곳은 읽지 못한다.'
         // P2-10: 브라우저 손이 생겼다. 이 문장이 없으면 모델이 "반드시 web.collect"로 굳어
         // JS 로 그리는 화면에서 빈손으로 끝난다(실측: 사용자가 "브라우저로 열어"라고 했는데도
@@ -90,6 +92,10 @@ export function defineWebTool(d = {}) {
             type: 'string', enum: ['first_readable', 'latest_evidence'],
             description: '일반 읽기는 first_readable. 현재·최신·최근 사실을 묻는 경우 latest_evidence로 상위 후보의 발행·수정 시각을 비교한다.',
           },
+          // **긴 페이지는 창을 옮겨 더 읽는다**(파일 손의 `문` 과 같은 계약).
+          // 이 문이 없어서, 온도표가 통째로 접힌 줄 모르고 답을 지어낸 일이 있었다(2026-08-05).
+          offset: { type: 'number', description: '본문의 어디부터 읽을지. 결과의 `readWindow.다음` 을 그대로 넣으면 이어서 읽는다' },
+          limit: { type: 'number', description: '한 번에 읽을 글자 수(기본 900). 결과에 `readWindow{시작,끝,총,다음}` 이 함께 온다' },
         },
         required: ['request'],
       },
