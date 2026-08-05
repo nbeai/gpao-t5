@@ -173,6 +173,7 @@ export const 허용파일 = [
   'src/kernel/turn-surface.js',
   // 표면 사실에 **받는 쪽**을 더했다(못 지킬 약속 차단, 2026-08-04).
   'src/kernel/l0-evidence/response-surface.js',
+  'src/kernel/l0-evidence/sensitive-text.js',   // F-32 — 비밀만 가리고 나머지는 준다
   'src/surface/server.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).

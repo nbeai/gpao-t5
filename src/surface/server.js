@@ -63,7 +63,7 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TurnTiming, assertBrowserTimingUpdate } from '../kernel/l0-evidence/turn-timing.js';
 import { TurnTimingStore } from './turn-timing-store.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
-import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
+import { containsSensitiveValue, maskSensitiveValues } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
 import { correlateCorrection } from '../kernel/l5-growth/tcell-correction.js';
@@ -117,12 +117,30 @@ export function redactSensitiveResult(value, seen = new WeakSet()) {
   return value;
 }
 
-function redactSensitiveOutput(result) {
+/**
+ * **비밀만 가리고 나머지는 내보낸다**(F-32 · 2026-08-05).
+ *
+ * 예전엔 하나라도 걸리면 답을 **통째로** 갈아치웠다. 라이브에서 `지금 화면에 뭐 떠 있어?` 에
+ * 그 문장이 나갔고 **사용자는 화면 정보를 하나도 못 받았다** — 걸린 것은 우리 문서 파일명
+ * 둘뿐이었다(`GPAO-T5-...-2026-07-27-ko.md`). 정보 대신 안내가 나간 자리다(§0).
+ *
+ * **판정은 안 느슨해졌다.** `containsSensitiveValue` 는 그대로 물고, 가린 뒤 **다시 판정한다** —
+ * 그래도 걸리면 통째로 버린다(안전 쪽 실패). 가리기가 틀려도 비밀은 안 나간다.
+ * *"하나가 막혔다고 전부를 버리지 않는다"* 를 이 자리에도 세운 것이다.
+ *
+ * @param {object} result
+ * @param {{가리기?:Function}} [deps] 검사 주입용 — 가리기가 실패하는 길을 밟기 위해.
+ */
+export function redactSensitiveOutput(result, deps = {}) {
+  const 가리기 = deps.가리기 ?? maskSensitiveValues;
   for (const field of ['reply', 'question']) {
-    if (typeof result?.[field] === 'string' && containsSensitiveValue(result[field])) {
-      result[field] = '민감한 값은 답과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.';
-      result.sensitiveOutputRedacted = true;
-    }
+    if (typeof result?.[field] !== 'string' || !containsSensitiveValue(result[field])) continue;
+    const 가린것 = 가리기(result[field]);
+    result[field] = containsSensitiveValue(가린것)
+      // 가리고도 걸린다 — **반쯤 가린 것을 내보내지 않는다.** 모르면 안 내보내는 쪽이다.
+      ? '민감한 값은 답과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.'
+      : 가린것;
+    result.sensitiveOutputRedacted = true;
   }
   return result;
 }

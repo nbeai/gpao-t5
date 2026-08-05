@@ -43,6 +43,7 @@ const T_GROW = 'test/tcell-grow.test.js';
 const T_REPLAY = 'test/tcell-replay.test.js';
 const T_OBS = 'test/tcell-observation.test.js';
 const T_SENSITIVE = 'test/memory-sensitive-ingress.test.js';
+const T_MASK = 'test/sensitive-masks-only-the-value.test.js';
 const T_LANE = 'test/tcell-lane.test.js';
 const T_IDN = 'test/tcell-model-identity.test.js';
 const T_ROUND = 'test/tcell-round-retry.test.js';
@@ -1550,6 +1551,21 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── F-32 · 비밀만 가리고 나머지는 준다 ────────────────────────────────
+  // 라이브에서 화면 답이 통째로 사라진 자리다. 그물 넷이 지키는 것은 서로 다르다:
+  // 둘은 **비밀이 새는 쪽**, 둘은 **정보가 사라지는 쪽**. 어느 쪽으로 무너져도 물어야 한다.
+  { 이름: '긴 기계 토막을 안 가리고 내보냄(비밀이 샌다)', 파일: SENSITIVE, 검사: T_MASK,
+    찾기: "    !UUID.test(토막) && /[A-Z]/.test(토막) && /[a-z]/.test(토막) && /\\d/.test(토막) ? MASK : 토막));",
+    바꾸기: "    false ? MASK : 토막));" },
+  { 이름: '라벨 붙은 비밀(api_key=…)을 안 가리고 내보냄', 파일: SENSITIVE, 검사: T_MASK,
+    찾기: "    text = text.replace(new RegExp(패턴.source, 패턴.flags.includes('g') ? 패턴.flags : `${패턴.flags}g`), MASK);",
+    바꾸기: "    void 패턴;" },
+  { 이름: '가리고도 걸리는데 그대로 내보냄(안전 쪽 실패를 없앰)', 파일: SERVER, 검사: T_MASK,
+    찾기: "    result[field] = containsSensitiveValue(가린것)",
+    바꾸기: "    result[field] = false" },
+  { 이름: '답을 다시 통째로 갈아치움(F-32 회귀 — 사용자가 아무것도 못 받는다)', 파일: SERVER, 검사: T_MASK,
+    찾기: "    const 가린것 = 가리기(result[field]);",
+    바꾸기: "    const 가린것 = '민감한 값은 답과 기록에 다시 싣지 않았어요. 값 자체를 제외하고 요청을 이어가 주세요.';" },
   { 이름: '민감값을 중첩 결과 메타데이터에는 그대로 저장', 파일: SERVER, 검사: T_SENSITIVE,
     찾기: "    if (item && typeof item === 'object') redactSensitiveResult(item, seen);",
     바꾸기: '' },

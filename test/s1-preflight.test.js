@@ -91,6 +91,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/turn-surface.js',
     // 표면 사실에 받는 쪽을 더했다(2026-08-04).
     'src/kernel/l0-evidence/response-surface.js',
+    // F-32 — 비밀만 가리고 나머지는 준다(2026-08-05). 하나 걸렸다고 답을 통째로 버리면
+    // 사용자는 화면 정보를 하나도 못 받는다. 가린 뒤 다시 검사해서 그때도 걸리면 버린다.
+    'src/kernel/l0-evidence/sensitive-text.js',
     'src/surface/server.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',
