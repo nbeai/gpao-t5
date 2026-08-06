@@ -583,6 +583,22 @@ export function makeCuaDriver(deps = {}) {
         ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
       });
 
+      // **창 신분은 한 자리에서 붙인다** — 손마다 조립하면 반드시 어딘가 빠진다.
+      //
+      // 오늘 하루에 세 번 났다(2026-08-06): `scroll`(창·pid·자리 없음 → 거절) ·
+      // `type_text`(창·pid 없음 → 앞 창에 친다) · `set_value`(pid 없음 →
+      // *"Missing required integer field: pid"*). 마지막 것이 오너의 ④ 를 막았다 —
+      // 손은 입력칸을 정확히 짚고도 *"실행하지 못했어요"* 로 끝냈다.
+      //
+      // 손이 준 인자가 이긴다(그 손이 더 잘 아는 경우가 있다). 없을 때만 채운다.
+      // 사다리가 `delivery_mode` 를 얹는 자리 — 표의 손을 하나하나 고치지 않는다.
+      let 덧인자 = {};
+      const 창실어부르기 = (이름, 인자 = {}) => mcp.call(이름, {
+        ...(대상.창 ? { window_id: 대상.창 } : {}),
+        ...(대상.pid ? { pid: 대상.pid } : {}),
+        ...인자,
+        ...덧인자,
+      });
       // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
       const 표 = {
         focus: async () => {
@@ -669,7 +685,7 @@ export function makeCuaDriver(deps = {}) {
           const 값 = 요청?.값;
           const 말 = typeof 값 === 'string' ? { 방향: 값 } : (값 ?? {});
           const 가 = 가운데(대상.bounds);
-          return mcp.call('scroll', {
+          return 창실어부르기('scroll', {
             ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
             ...가,
             // **"이전 대화 보여줘"는 위로 올리라는 말이다.** 안 정해 주면 아무 데도 안 간다.
@@ -680,54 +696,89 @@ export function makeCuaDriver(deps = {}) {
         },
         // **번호·토큰으로 누른다 — 좌표는 마지막 수단이다.**
         // 좌표로 찍으면 그 사이에 화면이 밀렸을 때 다른 것을 누르고도 모른다(A04 가 겨눈 자리).
-        click: () => mcp.call('click', {
+        click: () => 창실어부르기('click', {
           ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : 가운데(대상.bounds)),
           ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
           ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
         }),
         // **어느 창에 치는지 들고 간다.** 안 실으면 앞 창에 친다 — 사용자가 보던 창에
         // 글자가 들어간다(계열 G · 옆에서 같이 한다, 뺏지 않는다).
-        type: () => mcp.call('type_text', {
+        type: () => 창실어부르기('type_text', {
           text: String(요청?.값 ?? ''),
           ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
         }),
         // `set_value` — 네이티브 메뉴를 안 열고 값을 직접 넣는다. 메뉴를 열면 포커스를 뺏는다.
         // **마우스·키보드로 되는 모든 것**(흡수 ④). 드라이버에는 이미 다 있었다 —
         // 우리가 여덟만 쓰고 있었다. 신분(토큰·창·pid)은 위에서 한 벌로 온다.
-        double_click: () => mcp.call('double_click', { ...짚기(), ...전달() }),
-        right_click: () => mcp.call('right_click', { ...짚기(), ...전달() }),
-        drag: () => mcp.call('drag', {
+        double_click: () => 창실어부르기('double_click', { ...짚기(), ...전달() }),
+        right_click: () => 창실어부르기('right_click', { ...짚기(), ...전달() }),
+        drag: () => 창실어부르기('drag', {
           ...(대상.pid ? { pid: 대상.pid } : {}), ...(대상.창 ? { window_id: 대상.창 } : {}),
           ...(요청?.값 ?? {}),
         }),
         // **Enter·Tab·Esc·방향키** — 메시지 보내기가 이것이다.
-        press_key: () => mcp.call('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),
+        press_key: () => 창실어부르기('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),
         // `cmd+s` 처럼 앱마다 있는 표준 길.
-        hotkey: () => mcp.call('hotkey', { keys: String(요청?.값 ?? ''), ...전달() }),
+        hotkey: () => 창실어부르기('hotkey', { keys: String(요청?.값 ?? ''), ...전달() }),
         // **앱 메뉴가 가장 안정적인 조작 경로다** — 좌표도 토큰도 안 낡는다.
-        menu: () => mcp.call('invoke_menu', {
+        menu: () => 창실어부르기('invoke_menu', {
           path: Array.isArray(요청?.값) ? 요청.값 : String(요청?.값 ?? '').split('>').map((x) => x.trim()),
           ...전달(),
         }),
         copy: () => mcp.call('clipboard_read', { include_text: true }),
-        paste: () => mcp.call('clipboard_write', { text: String(요청?.값 ?? '') }),
+        paste: () => 창실어부르기('clipboard_write', { text: String(요청?.값 ?? '') }),
         wait: async () => {
           const 초 = Math.min(Math.max(Number(요청?.값) || 1, 0), 30);
           await new Promise((z) => { setTimeout(z, 초 * 1000); });
           return { ok: true, waited_s: 초 };
         },
-        set_value: () => mcp.call('set_value', {
+        set_value: () => 창실어부르기('set_value', {
           ...(대상.토큰 ? { element_token: 대상.토큰 } : {}), value: String(요청?.값 ?? ''),
           ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
         }),
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
-      const 낸것 = await 부르기();
+      let 낸것 = await 부르기();
+
+      // **거절이 길을 함께 주면 그 길로 간다**(라이브 2026-08-06 · 오너의 ④ 마지막 칸).
+      //
+      // 드라이버는 이렇게 거절한다 — `same_pid_keyboard_ambiguity` ·
+      // *"process-scoped key events cannot be proven to reach window 14963 and could mutate a
+      // sibling window. Use … **delivery_mode:"foreground"**."* 옳은 거절이고, **푸는 법도 말한다.**
+      // 우리는 `observe` 에서만 이 사다리를 탔다(흡수 ③). 행동에서 안 타서 T5 가
+      // *"키보드 입력이 막혀 있어서"* 라고 답하고 사용자에게 떠넘겼다 — 막힌 적이 없다.
+      //
+      // 규율은 읽기와 같다: **잠깐 앞세우고, 하고, 이전 앱으로 되돌린다**(계열 G).
+      // **한 번만 탄다** — 그래도 안 되면 거절 그대로다.
+      let 앞세워함 = false;
+      // **문구를 읽어 고르지 않는다**(계열 E). 실물은 `recommended: 'accessibility'` 를 주면서
+      // 정작 길은 `reason` 안에 적어 준다(*"or delivery_mode:\"foreground\""*). 문자열을 물면
+      // 드라이버가 말을 바꿀 때마다 조용히 끊긴다. **구조로 잰다** —
+      // 거절이고 사다리가 딸려 왔으면, 우리가 가진 마지막 수단으로 **한 번만** 더.
+      if (낸것?.effect === 'refused' && 낸것?.escalation && (대상.pid || 대상.창)) {
+        const 앞앱 = (await mcp.call('get_accessibility_tree', {}).catch(() => null))
+          ?.apps?.find((a) => a.active);
+        const 되돌릴pid = Number(앞앱?.pid);
+        const 앞세움 = await mcp.call('bring_to_front', {
+          ...(대상.pid ? { pid: 대상.pid } : {}), ...(대상.창 ? { window_id: 대상.창 } : {}),
+        }).catch(() => null);
+        if (앞세움) {
+          앞세워함 = true;
+          await new Promise((z) => { setTimeout(z, 150); });
+          덧인자 = { delivery_mode: 'foreground' };
+          낸것 = await 부르기();
+          덧인자 = {};
+          if (Number.isInteger(되돌릴pid) && 되돌릴pid > 0 && 되돌릴pid !== 대상.pid) {
+            await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);
+          }
+        }
+      }
+
       // **한 자리에서 가른다.** 손마다 따로 막다가 `click` 에서 또 샜다(라이브 2026-08-05).
       // **읽는 자리는 하나다**(계열 B) — `desktop-driver-answer.js`.
       if (거절인가(낸것)) throw new Error(거절사유(낸것));
-      return 낸것;
+      return 앞세워함 ? { ...낸것, 앞세워함: true } : 낸것;
     },
   };
 }

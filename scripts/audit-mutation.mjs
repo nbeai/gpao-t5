@@ -60,6 +60,9 @@ const T_VISION1 = 'test/cu-vision-is-decided-in-one-place.test.js';
 const T_SCROLL = 'test/cu-scroll-and-type-carry-the-window.test.js';
 const T_A02 = 'test/cu-a02-blocks-names-not-identities.test.js';
 const CHATGPT = 'src/runtime/chatgpt-model-client.js';
+const T_CHOICE = 'test/cu-window-choice-must-reach-the-model.test.js';
+const T_EVERY = 'test/cu-every-hand-carries-the-window.test.js';
+const T_LADDER = 'test/cu-act-climbs-the-ladder-too.test.js';
 const T_CU1_A = 'test/cu1-a-identity-is-one-set.test.js';
 const T_CU1_CDEF = 'test/cu1-cdef-classes-sealed.test.js';
 const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
@@ -1593,10 +1596,10 @@ export const MUTATIONS = [
     찾기: "  'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait']);",
     바꾸기: "]);" },
   { 이름: '키 누르기를 드라이버에 안 넘김(메시지를 못 보낸다)', 파일: CUA, 검사: T_AB4,
-    찾기: "        press_key: () => mcp.call('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),",
+    찾기: "        press_key: () => 창실어부르기('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),",
     바꾸기: "        press_key: () => mcp.call('__none__', {})," },
   { 이름: '앱 메뉴 길을 없앰(가장 안정적인 조작 경로가 사라진다)', 파일: CUA, 검사: T_AB4,
-    찾기: "        menu: () => mcp.call('invoke_menu', {",
+    찾기: "        menu: () => 창실어부르기('invoke_menu', {",
     바꾸기: "        menu: () => mcp.call('__none__', {" },
   // (기본값이 미상이라 "분기에서 빼기"로는 안 문다 — **자동으로 흘리는 쪽**이 진짜 위험이다.)
   { 이름: '새 행동을 자동으로 흘림(맥락 메뉴·붙여넣기가 카드 없이 실행된다)', 파일: 'src/kernel/l2-plan/action-plan.js', 검사: T_AB4,
@@ -1813,6 +1816,27 @@ export const MUTATIONS = [
     찾기: "        if (걸린것.length > 1) {",
     바꾸기: "        if (false) {" },
   // ── 막힘이 갈 곳을 잃지 않는다 (라이브 2026-08-05) ─────────────────────
+  { 이름: '되물음을 사람 말에 안 실음(모델이 "권한이 없다"를 지어낸다)', 파일: 'src/runtime/desktop-tool.js', 검사: T_CHOICE,
+    찾기: "        userSafeSummary: (본것?.창을골라야함?.length",
+    바꾸기: "        userSafeSummary: (false" },
+  { 이름: '되물음에 갈 길을 안 줌(모델이 사용자에게 떠넘긴다)', 파일: 'src/runtime/desktop-tool.js', 검사: T_CHOICE,
+    찾기: "          ...(본것?.창을골라야함?.length",
+    바꾸기: "          ...(false" },
+  { 이름: '손이 창 신분을 한 자리에서 안 붙임(손마다 하나씩 빠진다)', 파일: CUA, 검사: T_EVERY,
+    찾기: "        ...(대상.pid ? { pid: 대상.pid } : {}),\n        ...인자,",
+    바꾸기: "        ...인자," },
+  { 이름: '행동이 사다리를 안 탐(막힌 적 없는데 "막혀 있다"고 답한다)', 파일: CUA, 검사: T_LADDER,
+    찾기: "      if (낸것?.effect === 'refused' && 낸것?.escalation && (대상.pid || 대상.창)) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '사다리를 타고도 안 되돌림(사용자 화면을 뺏은 채 둔다)', 파일: CUA, 검사: T_LADDER,
+    찾기: "            await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);\n          }\n        }\n      }",
+    바꾸기: "          }\n        }\n      }" },
+  { 이름: '행동 손이 창제목을 안 넘김(짚어 놓고 딴 창을 본다)', 파일: DESK_ACT, 검사: T_CHOICE,
+    찾기: "        ...(args?.창제목 ? { 창제목: args.창제목 } : {}),",
+    바꾸기: "" },
+  { 이름: '막고 갈 곳을 안 줌(모델이 같은 실수를 반복한다)', 파일: DESK_ACT, 검사: T_CHOICE,
+    찾기: "              다음수단: [채울것, { 방법: 'observe', 왜: '지금 화면을 다시 보고 그 요소를 고른다' }],",
+    바꾸기: "              다음수단: []," },
   // ── 오너의 네 질문이 실물에서 막혔던 자리들(2026-08-06) ─────────────────
   { 이름: 'AX 로 못 읽어도 눈으로 안 봄(카톡 대화창을 영영 못 읽는다)', 파일: CUA, 검사: T_EYES,
     찾기: "              const 조각 = await mcp.조각들('zoom', {",
@@ -1836,8 +1860,8 @@ export const MUTATIONS = [
     찾기: "    return !준이름 || 준이름 === 그이름 ? 자리것 : null;",
     바꾸기: "    return 자리것;" },
   { 이름: '그림을 줘 놓고 못 읽었다고 말함(모델이 그 말을 따른다)', 파일: 'src/runtime/desktop-tool.js', 검사: T_EYES,
-    찾기: "        userSafeSummary: (본것?.그림",
-    바꾸기: "        userSafeSummary: (false" },
+    찾기: "          ?? (본것?.그림",
+    바꾸기: "          ?? (false" },
   { 이름: '이름이 겹치면 신분을 줘도 막음(신분이 확실한데 못 누른다)', 파일: DESK_ACT, 검사: T_CU_E,
     찾기: "        const 신분있나 = 신분축준것",
     바꾸기: "        const 신분있나 = false && 신분축준것" },
