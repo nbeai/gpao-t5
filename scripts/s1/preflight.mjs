@@ -151,6 +151,10 @@ export const 허용파일 = [
   'vendor/cua-driver/darwin-arm64/cua-driver',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
+  // **막혔을 때의 다음 길은 소비자가 둘이다**(노드 R 첫 걸음 · 2026-08-07).
+  // 원장이 `userSafeSummary — nextSafeAction` 을 **합쳐서** 모델에게 보낸다(`ledger.js:59`).
+  // 그래서 *"그 폴더를 열어 주시면"* 이 모델의 다음 행동이 되어 사장님께 되물었다(⑫ 0/3).
+  'src/kernel/l0-evidence/ledger.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
   // 조건 기반 bulk_move 를 local.file 의 같은 안전·되돌리기 계약 안에 추가했다.
   'src/kernel/l2-plan/action-plan.js',

@@ -80,7 +80,14 @@ export function makeLocalFileTool(deps = {}) {
   }
 
   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });
-  const fail = (userSafeSummary, nextSafeAction, diagnosticTrace) => ({ blocked: true, userSafeSummary, nextSafeAction, ...(diagnosticTrace ? { diagnosticTrace } : {}) });
+  // **말과 길은 소비자가 다르다.** `nextSafeAction` 은 표면이 사용자에게 보여 주는 한 문장이고,
+  // `다음수단` 은 모델이 그대로 부를 수 있는 값이다(`tool-receipt.js` 계약).
+  // 한 문장으로 둘을 다 하려다 *"그 폴더를 열어 주시면"* 이 모델의 다음 행동이 됐다(판 ⑫ 0/3).
+  const fail = (userSafeSummary, nextSafeAction, diagnosticTrace, 다음수단) => ({
+    blocked: true, userSafeSummary, nextSafeAction,
+    ...(다음수단?.length ? { 다음수단 } : {}),
+    ...(diagnosticTrace ? { diagnosticTrace } : {}),
+  });
 
   function bulkMatch(match = {}) {
     const extensions = Array.isArray(match.extensions)
@@ -186,6 +193,11 @@ export function makeLocalFileTool(deps = {}) {
       return fail(
         `제가 다루는 폴더(${부르는이름들(roots)}) 안에서 ${path} 을(를) 찾지 못했어요.`,
         '다른 폴더에 있다면 그 폴더를 열어 주시면 바로 볼게요.',
+        undefined,
+        // **못 찾은 것은 없는 것이 아니다.** 짚은 자리에 없었을 뿐이고, 찾는 손이 있다.
+        // 판 ⑫에서 모델은 `~/Desktop/지난달 정산 파일` 을 짚어 실패했는데, 같은 회차 ②가
+        // `~/GPAO-T5/지난달 정산 파일` 을 실제로 읽었다 — **찾을 수 있었다.**
+        [{ 방법: 'local.locate', what: path, 왜: `\`${path}\` 가 어느 자리에 있는지 찾는다(그 자리에 없었을 뿐 없다는 뜻이 아니다)` }],
       );
     }
     if (e?.code === 'EACCES' || e?.code === 'EPERM') return fail('그 파일에 접근할 권한이 없어요.', '다른 파일로 해볼까요?');

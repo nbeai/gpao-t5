@@ -57,7 +57,18 @@ export function projectReceipts(entries) {
       confirmed.push(e.userSafeSummary);
     } else if (e.failureState !== FAILURE.NONE) {
       // blocked/failed/timeout = 확인 못 함. 추정으로 메우지 않는다.
-      unconfirmed.push(e.userSafeSummary + (e.nextSafeAction ? ` — ${e.nextSafeAction}` : ''));
+      // **이 줄을 읽는 것은 모델이다.** `nextSafeAction` 은 표면이 사용자에게 보여 주는
+      // 문장이라(`server.js` `recoverable_error`) *"…그 폴더를 열어 주시면 바로 볼게요"* 처럼
+      // **사용자에게 시키는 말**이 들어 있다. 그것이 그대로 모델의 다음 행동이 되어
+      // T5 가 할 수 있는 일을 사장님께 되물었다(판 5판 ⑫ 0/3 · 노드 R 셋째 갈래).
+      //
+      // 손이 모델용 길(`모델다음`)을 주면 그것이 이긴다. 안 주면 예전 그대로다 —
+      // **한 자리에서 갈라야** 손이 늘 때마다 다시 새지 않는다.
+      // 손이 **실제로 쥔 다음 수**가 있으면 그것이 이긴다(`다음수단` — tool-receipt 계약).
+      // 없을 때만 사람용 문장을 쓴다.
+      const 길 = (e.다음수단 ?? []).map((x) => x?.왜 ?? x?.방법).filter(Boolean).slice(0, 3);
+      const 다음 = 길.length ? `이어서 할 수 있는 것: ${길.join(' · ')}` : e.nextSafeAction;
+      unconfirmed.push(e.userSafeSummary + (다음 ? ` — ${다음}` : ''));
     } else {
       // 호출 없이 모델 지식으로만 답한 경우 = 추정으로 정직하게 분리.
       estimated.push(e.userSafeSummary);
