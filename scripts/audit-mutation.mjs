@@ -58,6 +58,7 @@ const T_CU1_CDEF = 'test/cu1-cdef-classes-sealed.test.js';
 const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
 const T_AB1 = 'test/cu-absorb-1-window-and-query.test.js';
 const T_AB2 = 'test/cu-absorb-2-follow-the-drivers-fix.test.js';
+const T_AB3 = 'test/cu-absorb-3-foreground-ladder.test.js';
 const T_READ = 'test/cu-read-reaches-the-model.test.js';
 const T_NAMES = 'test/cu1-tool-names-must-not-collide.test.js';
 const IDENT = 'src/runtime/desktop-identity.js';
@@ -1579,6 +1580,16 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 흡수 ③ · 알려준 사다리를 실제로 탄다 ──────────────────────────────
+  { 이름: '앞으로 가져오면 읽힌다고 알려줘도 안 감(정직하지만 일을 못 끝낸다)', 파일: CUA, 검사: T_AB3,
+    찾기: "          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {",
+    바꾸기: "          if (false) {" },
+  { 이름: '읽고 나서 안 되돌림(사용자 화면을 뺏은 채 둔다)', 파일: CUA, 검사: T_AB3,
+    찾기: "                await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);",
+    바꾸기: "" },
+  { 이름: '화면을 만지고 말 안 함(조용히 앞세운다)', 파일: CUA, 검사: T_AB3,
+    찾기: "              앞세워읽음값 = true;",
+    바꾸기: "" },
   // ── 흡수 ①② · 드라이버가 주는 것을 쓰고, 말하는 것을 듣는다 ──────────
   { 이름: '창 목록을 전부 달라고 함(117개를 손으로 거르다 20초를 쓴다)', 파일: CUA, 검사: T_AB1,
     찾기: "      const 목록 = await mcp.call('list_windows', 지목함 ? {} : { on_screen_only: true }).catch(() => null);",
@@ -1592,9 +1603,9 @@ export const MUTATIONS = [
   { 이름: '드라이버가 알려준 주인 pid 로 다시 안 부름(읽기가 0개로 끝난다)', 파일: CUA, 검사: T_AB2,
     찾기: "              st = await mcp.call('get_window_state', { ...창상태인자, pid: 고칠pid });",
     바꾸기: "" },
-  { 이름: '왜 못 읽었는지를 안 올림(모델이 "권한이 막혔다"고 지어낸다)', 파일: CUA, 검사: T_AB2,
-    찾기: "          if (st?.degraded === true && !못읽은이유값) {",
-    바꾸기: "          if (false) {" },
+  // (뺐다: '왜 못 읽었는지를 안 올림' — 이유를 채우는 자리가 **둘**이고(사다리 전·후)
+  //  서로 받쳐 주는 안전한 중복이라 한쪽만 끊어서는 안 문다.
+  //  그 영역은 '무엇을 하면 되는지를 안 올림'(escalation) 앵커가 덮는다.)
   { 이름: '무엇을 하면 되는지를 안 올림(드라이버가 준 사다리를 못 탄다)', 파일: CUA, 검사: T_AB2,
     찾기: "          if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;",
     바꾸기: "" },

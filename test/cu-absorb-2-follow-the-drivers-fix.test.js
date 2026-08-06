@@ -101,6 +101,8 @@ test('요소가 비어도 왜 비었는지·무엇을 하면 되는지 그대로
       if (이름 === 'list_windows') return { windows: [창] };
       if (이름 === 'get_accessibility_tree') return { windows: [] };
       if (이름 === 'get_window_state') {
+        // **앞세워도 안 읽히는 상황**으로 잰다 — 그래야 "왜 비었는지"를 올리는 계약만 남는다
+        // (흡수 ③이 붙은 뒤로는 사다리를 타고 다시 읽으므로, 성공하는 가짜로는 이 계약이 안 잡힌다).
         return {
           elements: [], element_count: 0, total_element_count: 0, elements_complete: false,
           degraded: true,

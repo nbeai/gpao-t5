@@ -257,7 +257,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -383,6 +383,32 @@ export function makeCuaDriver(deps = {}) {
               + (st.screenshot_error?.code ? ` · ${st.screenshot_error.code}` : '');
           }
           if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;
+
+          // **알려준 사다리를 실제로 탄다**(흡수 ③).
+          //
+          // 오너: *"사용자가 지시하면 **알아서 자동으로** 수행해야 당연한 거잖아."*
+          // 드라이버가 *"앞으로 가져오면 볼 수 있다"* 고 알려주는데 안 하면,
+          // T5 는 정직하지만 **일을 못 끝낸다** — 사용자는 "읽어줘"라고 했다.
+          //
+          // 비교군 계약 그대로다: 배경이 기본, **신호가 오면** 앞으로,
+          // 그리고 `bring_to_front:false` 처럼 **이전 앱으로 되돌린다** —
+          // 깜빡임만 남고 사용자 화면은 그대로다.
+          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {
+            const 되돌릴pid = Number(앞앱?.pid);
+            const 앞세움 = await mcp.call('bring_to_front', { pid: 대상.pid, window_id: 대상.id })
+              .catch(() => null);
+            if (앞세움) {
+              앞세워읽음값 = true;
+              await new Promise((z) => { setTimeout(z, 250); });
+              const 다시 = await mcp.call('get_window_state', 창상태인자).catch(() => null);
+              if ((다시?.elements ?? []).length) { st = 다시; 못읽은이유값 = null; 올려야할길값 = null; }
+              else if (다시?.degraded_reason) 못읽은이유값 = String(다시.degraded_reason);
+              // **되돌린다.** 읽으려고 뺏은 것이지 가져가려고 뺏은 것이 아니다.
+              if (Number.isInteger(되돌릴pid) && 되돌릴pid > 0 && 되돌릴pid !== 대상.pid) {
+                await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);
+              }
+            }
+          }
           스냅샷 = st?.snapshot_id ?? null;
           // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
           // 다음 걸음이 어느 창 이야기인지 모른다.
@@ -408,6 +434,7 @@ export function makeCuaDriver(deps = {}) {
         ...(본창 ? { 본창 } : {}),
         ...(못읽은이유값 ? { 못읽은이유: 못읽은이유값 } : {}),
         ...(올려야할길값 ? { 올려야할길: 올려야할길값 } : {}),
+        ...(앞세워읽음값 ? { 앞세워읽음: true } : {}),
       };
     },
 
