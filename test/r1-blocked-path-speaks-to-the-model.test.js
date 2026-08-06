@@ -52,10 +52,26 @@ test('모델이 받는 원장에는 모델용 다음 길이 간다 — 사용자
     `**사용자용 문장이 모델의 다음 행동이 된다** — 판 ⑫ 0/3 의 근인이다: ${줄}`);
 });
 
-test('모델용이 없으면 예전 그대로다 — 있는 길을 없애지 않는다', () => {
+// **폴백을 두지 않는다**(PM 지적 2026-08-07 · 커밋 직전).
+// `다음수단` 이 없을 때 사람용 문장으로 메우면 그건 **옵트인**이고, 채워야 할 손 목록이 생긴다 —
+// `local-file.js` 의 `fail()` 만 22곳이고 `nextSafeAction` 을 쓰는 손이 12개 파일이다.
+// 그 목록이 정확히 오늘 하루 종일 앓은 병(만든 것과 닿은 것)이다.
+// 그리고 폴백이 있으면 **아래 반대시험을 못 세운다** — 19곳이 다 빨개져 시험 자체가 안 선다.
+test('모델용 길이 없으면 아무것도 안 준다 — 비어 있는 것보다 틀린 것이 나쁘다', () => {
   const { unconfirmed } = projectReceipts(막힌영수증({}));
-  assert.match(unconfirmed.join(' '), /열어 주시면/,
-    `**막혔을 때 아무 말도 안 한다**: ${unconfirmed.join(' ')}`);
+  assert.doesNotMatch(unconfirmed.join(' '), /열어 주시면/,
+    `**사용자용 문장이 폴백으로 샌다** — 손 12개 파일이 그대로 옛 병을 유지한다: ${unconfirmed.join(' ')}`);
+  assert.match(unconfirmed.join(' '), /찾지 못했어요/,
+    `막힌 사실 자체는 남아야 한다: ${unconfirmed.join(' ')}`);
+});
+
+test('모델에게 가는 칸에는 사람에게 시키는 말이 없다 — 새 손이 같은 실수를 해도 여기서 잡힌다', () => {
+  const 시키는말 = /주세요|주시면|열어 주|골라 주|알려 주|말씀해/;
+  const { unconfirmed } = projectReceipts(막힌영수증({
+    다음수단: [{ 방법: 'local.locate', 왜: '그 이름이 어느 자리에 있는지 찾는다' }],
+  }));
+  assert.doesNotMatch(unconfirmed.join(' '), 시키는말,
+    `**모델의 다음 행동이 "사용자에게 물어라"가 된다**: ${unconfirmed.join(' ')}`);
 });
 
 test('해낸 걸음은 안 건드린다 — 모델용 칸이 확인된 사실을 오염시키지 않는다', () => {
@@ -93,4 +109,31 @@ test('못 찾은 것과 없는 것을 가른다 — "없다"로 단정하지 않
   const r = await 손.handler({ action: 'read', path: '지난달 정산 파일/6월.csv' });
   assert.doesNotMatch(JSON.stringify(r.다음수단 ?? []), /없어요|존재하지 않/,
     `**없다고 단정한다** — 자리를 모르는 것뿐이다: ${JSON.stringify(r).slice(0, 200)}`);
+});
+
+// ── 손이 늘어도 다시 안 새게 ────────────────────────────────────────────
+// PM 지적(2026-08-07): `local-file.js` 의 `fail()` 만 22곳이고 `nextSafeAction` 을 쓰는 손이
+// 12개 파일이다. **손으로 훑을 수 없다.** 폴백을 끊었으니 새는 건 멈췄지만, 앞으로 누가
+// `다음수단` 에 사람용 문장을 넣으면 같은 병이 돌아온다. 그 자리를 기계로 막는다.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+test('손이 모델에게 주는 길에 사람에게 시키는 말이 없다', () => {
+  const 뿌리 = fileURLToPath(new URL('../src/runtime', import.meta.url));
+  const 시키는말 = /주세요|주시면|알려\s*주|골라\s*주|열어\s*주|말씀해/;
+  const 걸린것 = [];
+  for (const 이름 of readdirSync(뿌리)) {
+    if (!이름.endsWith('.js')) continue;
+    const 글 = readFileSync(join(뿌리, 이름), 'utf8');
+    글.split('\n').forEach((줄, i) => {
+      // `다음수단` 항목의 `왜:` 는 **모델이 읽는 글**이다. 사용자에게 하는 말은
+      // `userSafeSummary`·`nextSafeAction` 자리이지 여기가 아니다.
+      if (!/왜:/.test(줄) || !시키는말.test(줄)) return;
+      if (/^\s*\/\//.test(줄)) return;   // 주석은 사람이 읽는 글이다
+      걸린것.push(`${이름}:${i + 1} ${줄.trim().slice(0, 90)}`);
+    });
+  }
+  assert.deepEqual(걸린것, [],
+    `**모델이 읽는 길에 사용자에게 시키는 말이 있다** — 모델은 그걸 그대로 사용자에게 옮긴다:\n${걸린것.join('\n')}`);
 });

@@ -85,7 +85,11 @@ test('원장은 확인/미확인/추정을 분리 투영한다', () => {
   const p = L.project();
   assert.deepEqual(p.confirmed, ['A 확인']);
   assert.equal(p.unconfirmed.length, 1);
-  assert.match(p.unconfirmed[0], /대체 경로/);
+  // **미확인에는 막힌 사실이 선다.** 예전엔 여기에 `nextSafeAction`('대체 경로')이 따라붙었는데,
+  // 그 칸은 표면이 **사용자에게** 보여 주는 문장이라 *"…열어 주시면"* 처럼 사람에게 시키는 말이
+  // 들어 있고, 그것이 모델의 다음 행동이 되어 T5 가 할 수 있는 일을 되물었다(판 5판 ⑫ 0/3).
+  // 이제 모델용 길(`다음수단`)이 있을 때만 붙는다 — 이 갈래는 그것이 없는 경우다.
+  assert.match(p.unconfirmed[0], /B는 막힘/);
   assert.deepEqual(p.estimated, ['모델 지식 기반']);
 });
 
