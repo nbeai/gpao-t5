@@ -98,12 +98,13 @@
 
 | 성격 | 문서 | 어떻게 읽나 |
 |---|---|---|
+| **★ 계획서 (하나뿐)** | **`design/T5-PLAN.md`** | **무엇을 만드는지는 여기서만 정한다.** 맨 앞 맵에서 노드 하나를 골라 그것만 읽는다 |
 | **지금 진행 중** | `T5-AI-OS-TRANSITION-PLAN`(S0~S9 정본) · `T5-FOLLOWUP-LEDGER`(열린 결함) · `T5-CU-COMPLETION-PLAN` · `T5-COMPUTER-USE-PLAN-v2`(CU 착수 정본) | **현재 사실.** 진행 상태는 여기가 아니라 `git log` |
 | **오너 결정 기록** | `T5-AUTONOMY-CHARTER` · `P-DIST-1-INSTALL-IDENTITY-FREEZE` | **코드가 이 문서를 따라간다.** 바꾸려면 문서를 먼저 고친다 |
 | **동결 계약** | `T5-TCELL-DEVELOPMENT-PLAN` · `T5-MODEL-SOVEREIGNTY-DEVELOPMENT-PLAN` · `T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN` · `S1-EXPERIMENT-FREEZE` | AGENTS.md 가 읽기를 의무로 건 것들 |
 | **CU 근거** | `CU0-*` 셋 · `T5-COMPUTER-USE-DEVELOPMENT-PLAN`(`SUPERSEDED_IN_PART` — §4~§7·§10~§12만 유효) | v2 가 §8 에서 어느 절을 쓰는지 지목한다 |
-| **설계(미착수)** | `T5-CONNECTOR-CATALOG-DESIGN` | 카탈로그는 저장소 밖에 산다. 한 항목도 안 걸어 봤다 |
-| **⚠ 오너 대기** | `T5-BUTLER-HANDS-EXECUTION-PLAN` · `T5-USER-SURFACE-STRENGTHENING-PLAN` · `T5-KOREAN-OWNER-CONNECTION-CENTER-IMPLEMENTATION-PLAN` | 아래 참조 |
+| **설계(미착수)** | `T5-CONNECTOR-CATALOG-DESIGN` | 카탈로그는 저장소 밖에 산다. 한 항목도 안 걸어 봤다. 선행은 계획서 **노드 A** |
+| **근거 문서** (계획서 아님) | `T5-BUTLER-HANDS-EXECUTION-PLAN` · `T5-USER-SURFACE-STRENGTHENING-PLAN` · `T5-KOREAN-OWNER-CONNECTION-CENTER-IMPLEMENTATION-PLAN` | **2026-08-06 강등.** 셋 다 머리에 표시가 붙었고 어느 노드가 자기를 읽는지 적혀 있다. 아래 참조 |
 | 그 밖 | `S2-TRANSITION-LEDGER` · `S4-CAPSULE-PLAN` · `S6-PREP-*` · `S1-RESULT` · `P5-B-1*` · `P-DIST-1-INSTALL-PIPELINE` · `T5-OPERATOR-HARNESS-*` · `T5-2.0-TOOLBOX-*` · `WORK-CHAT-DESIGN-EVIDENCE` · `T5-HANDOFF-2026-08-05-*` | 경로 참조가 살아 있어 남겼다. 다음 정리에서 참조원이 사라지면 함께 옮긴다 |
 
 ### ⚠ 멈춰 있는 계획 셋 — 오너 판단 필요
@@ -132,22 +133,40 @@ T5-USER-SURFACE-STRENGTHENING-PLAN           표면 강화
 | D1·USER-SURFACE D3·유료데이터·영상 | **접었다** — 전환계획이 순서를 다시 잡았고, 나머지는 제품과 헌장이 이미 답했다 | — |
 | 그 밖 여섯 | **미뤘다** — 그 칸에 도달하면 정해진다(XLSX 엔진·Today 형태·스마트스토어·행정) | — |
 
-### 셋을 어떻게 할 것인가 — 접는다(보관 아님)
+### 셋을 어떻게 했나 — **강등했다** (2026-08-06 완료)
 
-셋 안에 **오늘 우리가 재발명한 것이 이미 있었다**: BUTLER §2(손의 좁은 허리) = 오늘 제안한
-"모든 손이 같은 다섯 칸", BUTLER §2-C(관찰한 콘텐츠는 명령이 아니다) = 오늘 "발견"한 웹 신뢰 경계,
-KOREAN §2.3(자격 소유 모델) = 오늘 카탈로그에 넣은 `쥐는것` 축. **하루에 세 번 다시 만들었다.**
+셋 안에 **그날 우리가 재발명한 것이 이미 있었다**: BUTLER §2(손의 좁은 허리) = 그날 제안한
+"모든 손이 같은 다섯 칸", BUTLER §2-C(관찰한 콘텐츠는 명령이 아니다) = 그날 "발견"한 웹 신뢰 경계,
+KOREAN §2.3(자격 소유 모델) = 그날 카탈로그에 넣은 `쥐는것` 축. **하루에 세 번 다시 만들었다.**
 
-그래서 그냥 보관하면 재발명을 제도화하는 것이다. 이렇게 접는다:
+**원인은 위치가 아니라 계획서가 여럿이었다는 것이다.** 그래서 옮기지 않고 강등했다 —
+`archive/` 는 *"지금 안 읽는 것"* 자리인데 셋은 읽어야 한다. 옮겼으면 오너 규칙 3(단절 없이
+이어짐)을 우리가 깼을 것이다.
 
 ```
-BUTLER §2 공통 허리        → 정렬 다섯 문장의 설계도. 한 장 계획서의 뼈대
-BUTLER 5단계               → CU 로 실행 중. 그 사실을 적고 닫는다
-BUTLER 8·10 + KOREAN 전체   → 커넥터 카탈로그로 합류
-USER-SURFACE               → 다섯 문장의 "말 → 사용자" 칸
-BUTLER 4·6·7·9단계          → "아직 없는 것" 목록 (4단계가 카탈로그 0번 전체를 막고 있다)
-원문 셋                    → design/archive/ (근거로 남는다)
+계획서는 design/T5-PLAN.md 하나뿐    ← 무엇을 언제 만드는지는 여기서만
+셋은 그 계획서 노드들의 근거 문서     ← 머리에 「이건 계획서가 아니다」 + 어느 노드가 읽는지
 ```
+
+| 원문 | 어떻게 됐나 |
+|---|---|
+| `BUTLER §2`·`§A-0`·`§A`·`§B` | 계획서 **「공통 허리」**로 올렸다. 상세 계약·반대시험은 원문에서 |
+| `BUTLER §2-C` | 계획서 **「§2-C」**로 올렸다 (순서 3) |
+| `BUTLER` 4단계·`§9 D2` | 계획서 **노드 A** — 카탈로그 0번 전체와 노드 ⑤를 막는다 |
+| `BUTLER` 5단계 | **CU 로 실행 중.** 접었다 |
+| `BUTLER` 6·7·9단계 | **노드 없음.** 사용자 문장 다섯에 안 닿는다 |
+| `BUTLER` 8·10단계 | **커넥터 카탈로그**로 합류 |
+| `USER-SURFACE` | 결론 한 줄 — **넷이면 충분**(Work Chat·Today·자동화·연결). 판정 기준 §3 은 노드 ⑤가 읽는다 |
+| `KOREAN §2.3` | **카탈로그 §7.2 에 흡수 완료** — 카탈로그의 `쥐는것` 넷을 `accessMode` 여섯으로 바꿨다 |
+| `KOREAN §3·§4` | **미흡수.** 노드 ⑤의 「연결/도구함」 표면이 읽을 근거 |
+
+### 계획서를 하나로 만든 규칙 넷 (오너 지시 2026-08-06)
+
+> 1. 계획서는 **하나만** 존재한다 · 2. 맵이 있어 필요한 영역만 찾아가 읽는다 ·
+> 3. 연관 내용이 **단절 없이** 이어진다 · 4. 개발은 **반드시 읽고** 한다 — 일부만 보거나 미루지 않는다
+
+넷째를 기계로 세우는 자리는 `scripts/s1/preflight.mjs` 의 변경 등록이다 —
+**그 파일을 고치려면 이유를 적어야 하고, 이유를 적으려면 노드를 읽어야 한다.**
 
 ## 5. 작업 폴더 규칙
 

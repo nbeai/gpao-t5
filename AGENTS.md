@@ -39,6 +39,18 @@ After the single top authority, read these execution and engineering documents:
      implementation, live evidence, independent audit, and durable project knowledge.
    - Use it as the operating cycle for new work. It does not replace the single top product authority.
 
+The one and only plan (owner directive 2026-08-06):
+
+5b. `design/T5-PLAN.md` — **what T5 builds next. There is no second plan.**
+   - Before writing product code, open it, pick the node your change belongs to, and read that node in full.
+     Partial reads and "I'll read it after" are what made the previous plans dead letters.
+   - Start at the map (first section). Every node carries `지금 몇/몇` · `닫는 조건` · `파일` · `근거`,
+     so following one node reaches everything connected to it. `scripts/audit-docs.mjs` check 10 enforces that.
+   - Other `design/` plan documents are **evidence, not plans**. The three former plans carry a banner saying so
+     and naming which node reads them. Do not take work orders from them.
+   - Never create a new plan document. Add a node to this one.
+   - Progress belongs in `git log`, open defects in `design/T5-FOLLOWUP-LEDGER-ko.md` — not in the plan.
+
 Mandatory reference absorption supplement:
 
 6. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`

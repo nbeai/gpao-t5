@@ -109,6 +109,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/file-scope.js',
     // design/ 정리(2026-08-06) — `design/archive` 를 감사 제외 경로에 더했다.
     'scripts/audit-project-entry.mjs',
+    // 계획서 도달성 게이트(검사 10 · 2026-08-06) — 맵이 가리킨 노드 절이 있는지,
+    // 노드마다 파일·근거가 있는지. 이유는 `preflight.mjs` 의 `허용파일` 주석에 적혀 있다.
+    'scripts/audit-docs.mjs',
     // 주석만 — 오너 결정(사용자 브라우저를 쓴다)을 그 자리에 기록했다. 구현 아님.
     'src/runtime/browser.js',
     'src/surface/demo-context.js',

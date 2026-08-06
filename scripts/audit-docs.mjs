@@ -18,12 +18,17 @@
 //     현재 사실로 말하지 않는가 (S0 감사 REPEAT: 검사 범위보다 문서가 넓었다)
 //  8. 진입 문서 노후 — README·AGENTS·권위 지도·H 보드가 이미 끝난 준비 상태를 현재로 말하지 않는가
 //  9. 제품 메타 노후 — package.json 이 첫 슬라이스를 현재 제품 이름·버전으로 계속 주장하지 않는가
+// 10. 계획서 도달성 — 맵이 가리킨 노드가 실제로 있고, 노드마다 파일·근거가 있는가
+//     (오너 규칙 2·3, 2026-08-06: "맵으로 찾아가서 읽을 수 있어야 하고, 연관 내용이 단절 없이 이어져야 한다")
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = process.env.T5_DOCS_AUDIT_ROOT
   ?? join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// **계획서는 하나뿐이다**(오너 규칙 1, 2026-08-06). 경로를 여기 한 번만 적는다.
+export const PLAN_DOC = 'design/T5-PLAN.md';
 
 // 시험(test/audit-docs.test.js)이 이 목록을 **복사하지 않고 가져다 쓴다** — 복사본은
 // 목록이 늘 때 fixture 만 낡아 "깨끗한 상태" 시험이 거짓으로 빨개진다(2026-08-04 실측).
@@ -36,6 +41,9 @@ export const ENTRY_DOCS = [
   'README.md',
   'AGENTS.md',
   'docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md',
+  // 하나뿐인 계획서(오너 지시 2026-08-06). 여기 들어와야 경로 투영(검사 1)이 걸린다 —
+  // 계획서가 끊긴 경로를 가리키면 "찾아가서 읽는다"가 성립하지 않는다.
+  PLAN_DOC,
 ];
 
 const STALE_CURRENT_PHRASES = [
@@ -185,6 +193,41 @@ export function auditDocs(repo = REPO) {
       if (/First Build Slice/i.test(String(pkg.description ?? ''))) errors.push('package.json: description이 첫 슬라이스를 현재 제품으로 말한다');
     } catch {
       errors.push('package.json: JSON을 읽을 수 없다');
+    }
+  }
+
+  // 10. 계획서 도달성.
+  //
+  // 왜 이 검사가 있나: 계획서가 여럿이라 아무도 안 읽었고, 하루에 같은 설계를 세 번
+  // 다시 만들었다(권위지도 §4.5 실측 2026-08-06). 하나로 합치면서 오너가 건 조건이
+  // "맵에서 필요한 영역을 찾아가 읽을 수 있어야 하고, 연관 내용이 단절 없이 이어져야
+  // 한다"였다. 맵이 가리키는데 그 절이 없으면 **찾아갈 수 없고**, 절에 파일·근거가
+  // 없으면 **거기서 더 못 간다.** 둘 다 사람 눈으로는 안 보인다 — 맵만 읽으면 멀쩡해 보인다.
+  const planPath = join(repo, PLAN_DOC);
+  if (!existsSync(planPath)) {
+    errors.push(`${PLAN_DOC}: 하나뿐인 계획서가 없다`);
+  } else {
+    const plan = readFileSync(planPath, 'utf8');
+    const 절 = plan.split(/^## /m).filter((s) => s.startsWith('노드 '));
+
+    // 절 제목에서 노드 기호를 뽑는다. `노드 B·C·D` 는 셋을 선언한 것이고, `노드 A ★` 는 A 하나다.
+    const 선언 = new Set();
+    for (const s of 절) {
+      for (const [id] of s.split('\n')[0].matchAll(/[①-⑳A-Z]/g)) 선언.add(id);
+    }
+
+    // 맵은 첫 `##` 절이다 — 여기만 보고 어디로 갈지 정하는 자리이므로, 여기가 가리킨 것은 다 있어야 한다.
+    const 맵 = plan.split(/^## /m)[1] ?? '';
+    for (const [, id] of 맵.matchAll(/노드 ([①-⑳A-Z])/g)) {
+      if (!선언.has(id)) errors.push(`${PLAN_DOC}: 맵이 가리킨 '노드 ${id}' 절이 없다 — 찾아갈 수 없다`);
+    }
+
+    if (!절.length) errors.push(`${PLAN_DOC}: 노드 절이 하나도 없다`);
+    for (const s of 절) {
+      const 제목 = s.split('\n')[0].trim();
+      for (const 칸 of ['파일', '근거']) {
+        if (!s.includes(칸)) errors.push(`${PLAN_DOC}: '${제목}' 에 ${칸} 칸이 없다 — 거기서 더 못 간다`);
+      }
     }
   }
 

@@ -34,7 +34,15 @@ function scaffold() {
     '현재 상태: `SOME_STATE`',
   ].join('\n');
   const plan = ['# 계획', '- 지위: `DRAFT_X`'].join('\n');
+  // 하나뿐인 계획서의 **깨끗한 본보기**: 맵이 가리킨 노드가 다 있고, 노드마다 파일·근거가 있다.
+  // 저장소 경로는 일부러 안 쓴다 — 여기서 재는 것은 도달성이지 경로 투영(검사 1)이 아니다.
+  const 계획서 = [
+    '# T5 계획', '## 맵', '- ① 무언가 → 노드 ①', '- A 다른것 → 노드 A',
+    '## 노드 ① — 무언가', '| 파일 | 어딘가 |', '| 근거 | 무엇 |',
+    '## 노드 A — 다른것', '파일: 어딘가 · 근거: 무엇',
+  ].join('\n');
   const files = {
+    [자리('T5-PLAN')]: 계획서,
     [자리('HANDOFF')]: handoff,
     [자리('VISION-AND-PERFORMANCE')]: '# 비전\n오너 철학 원문',
     [자리('AUTHORITY-MAP')]: '# 지도',
@@ -159,6 +167,43 @@ test('정본 투영: README·AGENTS·H 보드의 끝난 준비 상태를 잡는�
     writeFileSync(join(repo, 자리('H-STAGE-BOARD')), '- 상태: `H0_FROZEN · 제품 H 미실행`');
     const errors = auditDocs(repo);
     assert.ok(errors.filter((e) => e.includes('끝난 준비 상태')).length >= 3, String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+// 검사 10 — 계획서 도달성. 오너 규칙 2·3(2026-08-06): 맵으로 찾아갈 수 있어야 하고,
+// 거기서 연관 내용으로 단절 없이 이어져야 한다. 둘 다 맵만 읽으면 멀쩡해 보인다.
+
+test('계획서 도달성: 맵이 없는 노드를 가리키면 잡는다', () => {
+  const repo = scaffold();
+  try {
+    writeFileSync(join(repo, 자리('T5-PLAN')), [
+      '# T5 계획', '## 맵', '- Z 어디로 → 노드 Z',
+      '## 노드 ① — 무언가', '| 파일 | 어딘가 |', '| 근거 | 무엇 |',
+    ].join('\n'));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes("'노드 Z' 절이 없다")), String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('계획서 도달성: 노드에 파일·근거가 없으면 잡는다', () => {
+  const repo = scaffold();
+  try {
+    writeFileSync(join(repo, 자리('T5-PLAN')), [
+      '# T5 계획', '## 맵', '- ① 무언가 → 노드 ①',
+      '## 노드 ① — 무언가', '설명만 있고 어디로 가는지가 없다',
+    ].join('\n'));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('파일 칸이 없다')), String(errors));
+    assert.ok(errors.some((e) => e.includes('근거 칸이 없다')), String(errors));
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('계획서 도달성: 계획서가 사라지면 잡는다', () => {
+  const repo = scaffold();
+  try {
+    rmSync(join(repo, 자리('T5-PLAN')));
+    const errors = auditDocs(repo);
+    assert.ok(errors.some((e) => e.includes('하나뿐인 계획서가 없다')), String(errors));
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });
 
