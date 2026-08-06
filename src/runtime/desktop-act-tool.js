@@ -199,16 +199,36 @@ export function makeDesktopActTool(deps = {}) {
      const 행동 = String(args.action ?? '');
      const 어디 = String(args.app ?? args.대상?.app ?? '').trim();
      const 무엇 = String(args.대상?.label ?? '').trim();
+     // **어느 창인지도 말한다** — 같은 앱 창이 여럿이면 어느 대화방인지가 알맹이다.
+     const 창 = String(args.창제목 ?? '').trim();
+     const 자리 = [어디, 창].filter(Boolean).join(' · ');
+     const 키 = String(args.값 ?? '').trim();
      const 말 = {
        click: `${무엇 || '그 자리'} 누르기`,
        type: `${무엇 || '그 칸'} 에 글자 넣기`,
        quit: `${어디 || '그 앱'} 끄기`,
        focus: `${어디 || '그 창'} 앞으로 띄우기`,
        launch: `${어디 || '그 앱'} 실행`,
+       // *"화면 press_key"* 는 말이 아니다 — 무슨 키인지 적는다(라이브 2026-08-06).
+       press_key: `${키 || '키'} 누르기`,
+       hotkey: `${키 || '단축키'} 누르기`,
+       menu: `메뉴 ${Array.isArray(args.값) ? args.값.join(' → ') : (키 || '')} 열기`,
+       scroll: '스크롤',
+       paste: `${무엇 || '그 칸'} 에 붙여넣기`,
      }[행동] ?? `화면 ${행동}`;
      const 값있음 = args.눌러본사실?.값있음;
+     // **바깥으로 나가는 걸음은 무엇이 나가는지 말한다.** 사용자는 이 한 줄을 보고 허락한다.
+     if (args.기대?.바깥으로 === true) {
+       const 내용 = String(args.기대?.값 ?? '').trim();
+       return {
+         impact: [자리 || '그 앱', 내용 ? `"${내용.slice(0, 60)}" 보내기` : 말].filter(Boolean).join(' · '),
+         scope: '이번 요청',
+         duration: '이번 한 번',
+         cancel: '한 번 나가면 되돌릴 수 없어요',
+       };
+     }
      return {
-       impact: 어디 && (행동 === 'click' || 행동 === 'type') ? `${어디} · ${말}` : 말,
+       impact: 자리 && (행동 === 'click' || 행동 === 'type') ? `${자리} · ${말}` : 말,
        scope: '이번 요청',
        duration: '이번 한 번',
        cancel: 행동 === 'quit' ? '저장 안 한 것은 되돌릴 수 없어요'
@@ -224,15 +244,46 @@ export function makeDesktopActTool(deps = {}) {
      if (args?.action !== 'click' && args?.action !== 'type') return { 해당없음: true };
      const 드라이버 = (deps.drivers ?? [])[0];
      const 이름 = String(args?.대상?.label ?? '').trim();
-     if (!드라이버 || !이름) return 모름;
+     const 신분축 = Boolean(args?.대상?.토큰 ?? args?.대상?.id) || args?.대상?.번호 != null;
+     if (!드라이버 || (!이름 && !신분축)) return 모름;
      let 요소들 = null;
+     // **탐침도 손과 같은 창을 본다**(라이브 2026-08-06 · F-44).
+     //
+     // 예전엔 `{scope:'window'}` 만 불러 **앞 창**을 봤다. 사용자가 다른 일을 하는 중이면
+     // 앞 창은 늘 남의 것이라 요소를 못 찾고, 못 찾으면 미상이 되고, 미상은 승인으로 간다.
+     // 그래서 **값 있는 입력칸에도 카드가 떴다** — 카드 3장 중 둘이 이 자리에서 났다.
+     // 오너 규율: *"자동성이 의무다 — 승인으로 안전을 사지 마라."* 헛카드는 안전이 아니다.
      // 판정하다가 터지면 판정 자리 전체가 죽는다. 못 보면 **모른다**(모름은 확인 쪽이다).
-     try { 요소들 = (await 드라이버.observe({ scope: 'window' }))?.elements ?? null; } catch { 요소들 = null; }
+     try {
+       요소들 = (await 드라이버.observe({
+         scope: 'window',
+         ...(args?.window ?? args?.대상?.창 ? { window: args?.window ?? args?.대상?.창 } : {}),
+         ...(args?.app ? { app: args.app } : {}),
+         ...(args?.창제목 ? { 창제목: args.창제목 } : {}),
+       }))?.elements ?? null;
+     } catch { 요소들 = null; }
      if (!Array.isArray(요소들)) return 모름;
-     const 그것 = 요소들.find((e) => String(e?.label ?? '') === 이름);
+     // **탐침도 손과 같은 자로 찾는다**(계열 A). 손은 신분으로 찾는데 탐침만 이름으로 찾으면,
+     // 모델이 이름을 틀리게 적은 순간(그리고 실제로 그렇게 적었다) 둘의 답이 갈린다 —
+     // 손은 누르고 탐침은 "모른다"고 해서 **누를 수 있는 걸음에 카드가 붙는다.**
+     const 그것 = 신분찾기(요소들, args?.대상)
+       ?? (이름 ? 요소들.find((e) => String(e?.label ?? '') === 이름) : null);
      if (!그것) return 모름;
      // **화면이 준 요소만 본다.** `args.대상` 은 모델이 적어 낸 것이라 지어낼 수 있다.
-     return { 찾음: true, 값있음: 그것.value !== undefined && 그것.value !== null, 역할: 그것.role ?? null };
+     // **되돌릴 수 있는지는 역할이 말해 준다.**
+     //
+     // `값있음` 은 원래 "다시 놓으면 돌아간다"를 재는 자리다. 그런데 값으로만 재면
+     // **빈 칸은 늘 미상**이 된다 — 카톡 입력칸은 비어 있을 때 `value: null` 이고,
+     // 글자를 넣은 뒤에야 읽힌다(실측 2026-08-06). 그러면 **첫 입력마다 카드가 뜬다.**
+     // 글자를 넣는 칸은 비어 있어도 지우면 돌아간다. 그건 AX 분류가 말해 주는 사실이지
+     // 우리가 문구로 알아맞히는 것이 아니다(계열 E 아님).
+     const 역할 = String(그것.role ?? 그것.type ?? '');
+     const 글자칸 = /^AX(TextField|TextArea|ComboBox|SearchField)$/i.test(역할);
+     return {
+       찾음: true,
+       값있음: (그것.value !== undefined && 그것.value !== null) || 글자칸,
+       역할: 그것.role ?? null,
+     };
    },
 
 async handler(args) {
@@ -286,6 +337,25 @@ async handler(args) {
       }
 
       // ── D · 누르기 전에 갖춰야 하는 것 ─────────────────────────────────
+      // **빈 값으로는 안 한다**(라이브 2026-08-06). 모델이 `press_key` 에 `값:""` 를 보냈고
+      // 우리는 그대로 보냈다 — 아무 키도 안 눌렸는데 *"했어요"* 가 나갔다(A14 자리).
+      // 무엇을 누를지 없으면 **누른 것이 아니다.** 막되 갈 곳을 준다.
+      const 값이있어야하는것 = { press_key: '어떤 키인지', hotkey: '어떤 조합인지', menu: '어떤 메뉴 차례인지' };
+      if (값이있어야하는것[행동]) {
+        const 값 = args?.값;
+        const 비었나 = Array.isArray(값) ? 값.length === 0 : !String(값 ?? '').trim();
+        if (비었나) {
+          return {
+            blocked: true,
+            userSafeSummary: `어떤 키인지 안 주셔서 누르지 않았어요 — 값에 키 이름을 넣어 주세요.`,
+            다음수단: [{
+              방법: 'retry', 채울칸: '값', 무엇: 값이있어야하는것[행동],
+              왜: 행동 === 'press_key' ? '보내기는 보통 return · 취소는 escape' : '값 없이는 아무 일도 안 난다',
+            }],
+          };
+        }
+      }
+
       // **요소를 짚는 것에만** 이름·비밀칸·A02 가 걸린다(흡수 ④).
       // `press_key`·`hotkey`·`menu` 는 요소를 안 짚는다 — 라벨을 요구하면 못 쓴다.
       if (요소짚는것.has(행동)) {
@@ -418,11 +488,13 @@ async handler(args) {
           return 막힘('무엇이 바뀌면 된 것인지 정해야 눌러 보고 확인할 수 있어요.');
         }
 
-        // **바깥으로 나가는 것은 이 칸이 아니다.** 커널이 화면 글자로 위험을 판정하지 않는다 —
-        // **모델이 밝힌 것**으로 갈린다. 밝혔으면 승인 경계가 받는 자리(E)이고 여기서는 안 한다.
-        if (args?.기대?.바깥으로 === true) {
-          return 막힘('그건 바깥으로 나가는 일이라 아직 제가 누르지 않아요.', 'observe');
-        }
+        // **바깥으로 나가는 것은 승인 경계가 받는다 — 여기서 또 막지 않는다.**
+        //
+        // 예전엔 여기서 통째로 막았다. 그런데 승인 경계는 이 신호를 **보지도 않았고**,
+        // 카드가 떠서 사용자가 허락해도 손이 다시 막았다(라이브 2026-08-06 · 오너의 ④).
+        // 두 자리가 서로에게 미루니 **밝히면 영영 못 하고 안 밝히면 그냥 나갔다** —
+        // 정직하게 밝힌 모델이 벌받는 구조다. 잠금은 `action-plan` 한 자리에만 둔다:
+        // 밝히면 반드시 카드가 뜨고(값이 있어도), 허락이 나야 여기까지 온다.
       }
 
       const 재기 = 대조할값[행동];
@@ -499,7 +571,7 @@ async handler(args) {
           const 후확인 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }).catch(() => null), args);
           return {
             result: {
-              단계: 'goal_verified', 행동, 전, 후: 후확인,
+              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전, 후: 후확인,
               확인방법: `드라이버 확인(${낸것.근거})`,
               // **부분적으로 됐으면 남은 길을 함께 준다.** 라이브(2026-08-05): 켠 뒤
               // *"화면 앞으로 오지는 않았어요"* 만 말했더니 모델이 **focus 를 한 번도 안 부르고**
@@ -528,7 +600,8 @@ async handler(args) {
             })),
           };
         }
-      } catch {
+      } catch (진단오류) {
+        if (process.env.GPAO_T5_ACT_DEBUG === '1') console.error('[act]', 진단오류);
         // 내부 오류는 사용자면으로 안 보낸다(진단면 분리). 실패는 실패라고 한다.
         return {
           failed: true,
@@ -547,7 +620,7 @@ async handler(args) {
         const 글 = typeof 낸것?.text === 'string' ? 낸것.text : null;
         return {
           result: {
-            단계: 'goal_verified', 행동, 확인방법: '드라이버가 낸 답',
+            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 확인방법: '드라이버가 낸 답',
             ...(글 !== null ? { 글 } : {}),
             ...(낸것?.waited_s != null ? { 기다린초: 낸것.waited_s } : {}),
           },
@@ -590,7 +663,7 @@ async handler(args) {
           const 뒤앞창 = await 앞창보기(드라이버);
           return {
             result: {
-              단계: 'goal_verified', 행동, 전,
+              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전,
               확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})`,
               ...(전앞창 && 뒤앞창 && 전앞창 !== 뒤앞창 ? { 앞창바뀜: true, 앞창: 뒤앞창 } : {}),
             },
@@ -680,7 +753,7 @@ async handler(args) {
       if (도달 === true) {
         return {
           result: {
-            단계: 'goal_verified', 행동, 전, 후,
+            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전, 후,
             확인방법: Object.keys(후).join('·'),
             // **안 바뀐 것도 사실이다.** 이미 그 상태였다는 것을 숨기면 모델이 자기가 바꾼 줄 안다.
             ...(같은가(전, 후) ? { 이미그상태였다: true } : {}),

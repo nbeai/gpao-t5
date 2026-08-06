@@ -106,7 +106,14 @@ export function toolActionKind({ toolId, args, selfState }) {
     // 것만 자동이다(전후 대조가 자명하고 다시 놓으면 된다).
     else if (a === 'click' || a === 'type' || a === 'double_click' || a === 'right_click'
       || a === 'press_key' || a === 'hotkey' || a === 'menu' || a === 'paste' || a === 'drag') {
-      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
+      // **바깥으로 나가는 걸음은 값이 있어도 카드다**(라이브 2026-08-06).
+      //
+      // 예전엔 이 신호를 승인 경계가 **보지도 않았다.** 손이 자기 자리에서 통째로 막고 있었고
+      // (*"아직 제가 누르지 않아요"*), 승인 경계는 값 없는 버튼이라 미상으로 잡았을 뿐이다.
+      // 그래서 밝히면 영영 못 하고 **안 밝히면 그냥 나갔다** — 정직함이 벌받는 구조였다.
+      // 잠금은 여기 한 자리다: 밝히면 반드시 묻고, 허락이 나면 손은 한다.
+      kind = args?.기대?.바깥으로 === true ? UNKNOWN_KIND
+        : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;

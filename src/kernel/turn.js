@@ -724,6 +724,8 @@ export async function runTurn(input, ctx) {
         || (ctx.memory?.observed ?? []).length > 0,
     };
     ctx.workStateSourceText = saved.sourceInputText ?? '';
+    // **앞서 한 걸음을 이어받는다.** 안 이어받으면 모델이 자기가 한 일을 잊는다(위 봉인 참조).
+    ctx.이어받은걸음 = Array.isArray(saved.이미한걸음) ? saved.이미한걸음 : [];
     ctx.pending.delete(input.approve);
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
     // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
@@ -1624,7 +1626,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   /** @type {import('../contracts.js').ToolReceipt[]} */
   // 계획 단계에서 막힌 사실도 **이번 턴의 영수증**이다 — 여기 없으면 모델은 자기가 고른 손이
   // 왜 안 갔는지 모른 채 답을 쓴다(그래서 예전엔 아예 모델을 안 부르고 턴을 끝냈다).
-  const turnReceipts = [...앞선막힘];
+  // 계획 단계의 막힘 + **승인으로 쪼개지기 전에 실제로 한 걸음**(둘 다 이번 턴의 사실이다).
+  const 이어받은 = Array.isArray(ctx.이어받은걸음) ? ctx.이어받은걸음 : [];
+  const turnReceipts = [...이어받은, ...앞선막힘.filter((r) => !이어받은.includes(r))];
 
   // **캡슐 안에서 돈 실행도 원장에 올린다**(S4). 캡슐은 손 하나로 보이지만 그 안에서 여러
   // 손이 실제로 돌았다 — 여기서 끊으면 사용자도 감사도 무슨 일이 있었는지 못 본다.
@@ -2284,6 +2288,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
           허락한손: [...(ctx.허락한손 ?? []), toolId],
           허락한걸음: [...(ctx.허락한걸음 ?? []), 걸음신분({ toolId, 판정인자 })],
+          // **여기까지 실제로 한 걸음을 봉인한다**(라이브 2026-08-06 · 오너의 ④).
+          //
+          // 카드에서 턴이 쪼개지면 재개 턴은 **빈 손으로** 시작한다. 그래서 T5 는 카톡에
+          // 글자를 넣고 승인받아 실제로 보내 놓고도 마지막 답에서 *"메시지를 보내는 기능은
+          // 지금은 쓸 수 없는 상태"* 라고 했다 — 재개 턴의 교환이 **1개**였고 앞 걸음이
+          // 사라져 있었다. 모델은 자기 눈에 보이는 것만으로 답을 쓴다(A14 의 거울상).
+          // 계획 단계의 `앞선막힘` 과 **같은 통로**다.
+          이미한걸음: [...turnReceipts],
           grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
         });
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게

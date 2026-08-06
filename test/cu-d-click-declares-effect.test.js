@@ -114,15 +114,34 @@ test('A17: 이름이 밋밋해도(`버튼`) 이름이 있으면 누른다 — �
 // **커널이 화면 글자를 읽고 위험을 판정하지 않는다.** 그건 문구 목록이고 두 번 뚫린 길이며,
 // 화면 글자는 남이 쓴 글이라(A10) 주입이 판정을 조종하게 된다.
 // **모델이 자기 기대를 밝히고, 그 밝힌 것으로 갈린다.**
-test('모델이 바깥으로 나간다고 밝히면 D 에서 안 받는다 — E 의 일이다', async () => {
+// **여기서 통째로 막던 것을 승인 경계 한 자리로 옮겼다**(라이브 2026-08-06 · 오너의 ④).
+//
+// 원래 이 검사는 *"밝혔으면 E 의 일이니 D 에서 안 받는다"* 였다. 그런데 **E 는 그 신호를
+// 보지도 않았다** — 카드가 뜬 건 값 없는 버튼이라 미상이었기 때문이고, 사용자가 허락해도
+// 손이 여기서 다시 막았다(*"아직 제가 누르지 않아요"*). 두 자리가 서로에게 미루니
+// **밝히면 영영 못 하고 안 밝히면 그냥 나갔다** — 정직하게 밝힌 모델이 벌받는 구조다.
+//
+// 이제 잠금은 `action-plan` 한 자리다: 밝히면 **값이 있어도 반드시 카드**가 뜨고,
+// 허락이 나야 손까지 온다. 규율은 그대로다 — 커널은 여전히 화면 글자로 위험을 재지 않는다.
+test('모델이 바깥으로 나간다고 밝히면 반드시 카드를 거친다 — 자동으로 안 흘린다', async () => {
+  const { toolActionKind } = await import('../src/kernel/l2-plan/action-plan.js');
+  const { UNKNOWN_KIND, decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
+  const kind = toolActionKind({
+    toolId: 'desktop.act',
+    args: { action: 'click', 눌러본사실: { 찾음: true, 값있음: true }, 기대: { 바깥으로: true } },
+  });
+  assert.equal(kind, UNKNOWN_KIND, '**전송이 값 있는 요소라는 이유로 카드 없이 나간다**');
+  assert.equal(decideAutoGrant({ kind, label: 'desktop.act' }), false);
+});
+
+test('허락이 난 뒤에는 손이 한다 — 카드를 띄워 놓고 안 하면 거짓 카드다', async () => {
   const 백 = 백엔드({ 효과: true, 요소: [{ id: 'S1', type: 'button', label: '보내기', value: 'off', bounds: {}, isEnabled: true }] });
   const out = await 손세우기(백).handler({
     action: 'click', 대상: { id: 'S1', label: '보내기' },
     기대: { 요소: 'S1', 값: 'on', 바깥으로: true },
   });
-  assert.equal(백.부른것.length, 0, '바깥으로 나가는 것을 무해 칸에서 실행했다');
-  assert.equal(out.blocked, true);
-  assert.match(out.userSafeSummary, /아직|확인/);
+  assert.equal(백.부른것.length, 1, `**승인까지 받고도 안 누른다**: ${out.userSafeSummary}`);
+  assert.notEqual(out.blocked, true);
 });
 
 // ── 입력도 같은 계약 ─────────────────────────────────────────────────────

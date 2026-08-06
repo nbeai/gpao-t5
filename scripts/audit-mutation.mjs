@@ -63,6 +63,15 @@ const CHATGPT = 'src/runtime/chatgpt-model-client.js';
 const T_CHOICE = 'test/cu-window-choice-must-reach-the-model.test.js';
 const T_EVERY = 'test/cu-every-hand-carries-the-window.test.js';
 const T_LADDER = 'test/cu-act-climbs-the-ladder-too.test.js';
+const T_COPY = 'test/cu-model-can-copy-back-the-target.test.js';
+const T_PROBE = 'test/cu-probe-must-find-what-the-hand-finds.test.js';
+const T_EMPTY = 'test/cu-empty-key-and-blank-field.test.js';
+const T_OUT = 'test/cu-outward-step-goes-through-approval.test.js';
+const T_RESUME = 'test/cu-approval-does-not-erase-earlier-steps.test.js';
+const TASKCTX = 'src/kernel/l1-intent/task-context.js';
+const PLAN = 'src/kernel/l2-plan/action-plan.js';
+const TURN = 'src/kernel/turn.js';
+const DEMOCTX = 'src/surface/demo-context.js';
 const T_CU1_A = 'test/cu1-a-identity-is-one-set.test.js';
 const T_CU1_CDEF = 'test/cu1-cdef-classes-sealed.test.js';
 const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
@@ -89,7 +98,6 @@ const T_ROUND = 'test/tcell-round-retry.test.js';
 const T_ADMIT = 'test/tcell-admission.test.js';
 const MESH = 'src/kernel/l1-intent/context-mesh.js';
 const SHAPE = 'src/kernel/l0-evidence/text-shape.js';
-const TURN = 'src/kernel/turn.js';
 const SHOWN = 'src/kernel/l5-growth/tcell-shown.js';
 const T_SHOWN = 'test/tcell-shown.test.js';
 const T_CITE = 'test/tcell-cite.test.js';
@@ -960,9 +968,11 @@ export const MUTATIONS = [
   { 이름: '비밀칸에 입력함(비밀은 사람만 넣는다 · 헌장 ①)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
     찾기: '        if (args?.대상?.비밀칸 === true) {', 바꾸기: '        if (false) {' },
+  // 잠금이 손에서 **계획 한 자리**로 옮겨 갔다(2026-08-06) — 계약은 그대로, 자리만 바뀌었다.
   { 이름: '바깥으로 나가는 클릭을 무해 칸에서 실행함',
-    파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
-    찾기: '        if (args?.기대?.바깥으로 === true) {', 바꾸기: '        if (false) {' },
+    파일: 'src/kernel/l2-plan/action-plan.js', 검사: 'test/cu-d-click-declares-effect.test.js',
+    찾기: "      kind = args?.기대?.바깥으로 === true ? UNKNOWN_KIND\n        : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;",
+    바꾸기: "      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;" },
 
   // **cua 드라이버 — 우리가 띄운 프로세스가 몰래 밖으로 보내면 안 된다(헌장 ③).**
   { 이름: '드라이버 텔레메트리를 안 끄고 띄움(사용자 모르게 밖으로 나간다)',
@@ -1644,7 +1654,7 @@ export const MUTATIONS = [
     찾기: "  if (Array.isArray(result.elements) || result.요소창 || result.본창) {",
     바꾸기: "  if (false) {" },
   { 이름: '기계 값까지 실어 예산을 먹음(글자가 밀려 잘린다)', 파일: TASKCTX2, 검사: T_READ,
-    찾기: "      return `- ${역할}${표 ? `[${표}]` : ''}: ${글.replace(/\\s+/g, ' ').slice(0, 200)}`;",
+    찾기: "      return `- ${역할}: ${보이는것.replace(/\\s+/g, ' ').slice(0, 200)}${짚기}`;",
     바꾸기: "      return `- ${JSON.stringify(e)}`;" },
   // ── CU-1·2 · 창 안을 정확히 준다 ──────────────────────────────────────
   { 이름: '창 밖(Dock)·스크롤 밖 요소를 대화에 섞음("마지막"이 뒤바뀐다)', 파일: DESK, 검사: T_CU2,
@@ -1832,11 +1842,42 @@ export const MUTATIONS = [
     찾기: "            await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);\n          }\n        }\n      }",
     바꾸기: "          }\n        }\n      }" },
   { 이름: '행동 손이 창제목을 안 넘김(짚어 놓고 딴 창을 본다)', 파일: DESK_ACT, 검사: T_CHOICE,
-    찾기: "        ...(args?.창제목 ? { 창제목: args.창제목 } : {}),",
-    바꾸기: "" },
+    찾기: "        ...(args?.창제목 ? { 창제목: args.창제목 } : {}),\n      });",
+    바꾸기: "      });" },
   { 이름: '막고 갈 곳을 안 줌(모델이 같은 실수를 반복한다)', 파일: DESK_ACT, 검사: T_CHOICE,
     찾기: "              다음수단: [채울것, { 방법: 'observe', 왜: '지금 화면을 다시 보고 그 요소를 고른다' }],",
     바꾸기: "              다음수단: []," },
+  // ── F-42(모델이 몬다) · F-44(카드 3장→1장) 2026-08-06 ──────────────────
+  { 이름: '되붙일 한 벌을 안 줌(모델이 역할을 이름으로 베낀다)', 파일: TASKCTX, 검사: T_COPY,
+    찾기: "      const 짚기 = 표 ? ` 대상=${JSON.stringify({ id: 표, label: 이름 })}` : '';",
+    바꾸기: "      const 짚기 = '';" },
+  { 이름: '값이 이름을 덮음(그 요소를 다시 짚을 수 없다)', 파일: TASKCTX, 검사: T_COPY,
+    찾기: "      const 짚기 = 표 ? ` 대상=${JSON.stringify({ id: 표, label: 이름 })}` : '';\n      return `- ${역할}: ${보이는것.replace(/\\s+/g, ' ').slice(0, 200)}${짚기}`;",
+    바꾸기: "      const 짚기 = 표 ? ` 대상=${JSON.stringify({ id: 표 })}` : '';\n      return `- ${역할}: ${값 || 이름}${짚기}`;" },
+  { 이름: '탐침이 앞 창만 봄(값 있는 칸인데 승인 카드가 뜬다)', 파일: DESK_ACT, 검사: T_PROBE,
+    찾기: "         ...(args?.app ? { app: args.app } : {}),\n         ...(args?.창제목 ? { 창제목: args.창제목 } : {}),",
+    바꾸기: "" },
+  { 이름: '탐침이 신분으로 안 찾음(손과 답이 갈린다)', 파일: DESK_ACT, 검사: T_PROBE,
+    찾기: "     const 그것 = 신분찾기(요소들, args?.대상)",
+    바꾸기: "     const 그것 = null ?? (null)" },
+  { 이름: '빈 키를 그대로 보냄(아무것도 안 하고 "했어요"가 된다)', 파일: DESK_ACT, 검사: T_EMPTY,
+    찾기: "      const 값이있어야하는것 = { press_key: '어떤 키인지', hotkey: '어떤 조합인지', menu: '어떤 메뉴 차례인지' };",
+    바꾸기: "      const 값이있어야하는것 = {};" },
+  { 이름: '빈 칸을 미상으로 봄(첫 입력마다 카드가 뜬다)', 파일: DESK_ACT, 검사: T_EMPTY,
+    찾기: "       값있음: (그것.value !== undefined && 그것.value !== null) || 글자칸,",
+    바꾸기: "       값있음: 그것.value !== undefined && 그것.value !== null," },
+  { 이름: '카드가 무엇이 나가는지 안 말함(사용자가 모르고 허락한다)', 파일: DESK_ACT, 검사: T_OUT,
+    찾기: "     if (args.기대?.바깥으로 === true) {",
+    바꾸기: "     if (false) {" },
+  { 이름: '능력 선언이 아직 "못 한다"고 말함(모델이 시도조차 안 한다)', 파일: DEMOCTX, 검사: T_OUT,
+    찾기: "      { says: '메시지 전송처럼 바깥으로 나가는 것은 사람에게 한 번 물어본 뒤에 한다' }],",
+    바꾸기: "      { says: '바깥으로 나가는 클릭은 아직 하지 못한다' }]," },
+  { 이름: '승인이 앞 걸음을 지움(다 해놓고 "못 했다"고 답한다)', 파일: TURN, 검사: T_RESUME,
+    찾기: "          이미한걸음: [...turnReceipts],",
+    바꾸기: "          이미한걸음: []," },
+  { 이름: '재개가 앞 걸음을 안 이어받음(모델이 자기 일을 잊는다)', 파일: TURN, 검사: T_RESUME,
+    찾기: "    ctx.이어받은걸음 = Array.isArray(saved.이미한걸음) ? saved.이미한걸음 : [];",
+    바꾸기: "    ctx.이어받은걸음 = [];" },
   // ── 오너의 네 질문이 실물에서 막혔던 자리들(2026-08-06) ─────────────────
   { 이름: 'AX 로 못 읽어도 눈으로 안 봄(카톡 대화창을 영영 못 읽는다)', 파일: CUA, 검사: T_EYES,
     찾기: "              const 조각 = await mcp.조각들('zoom', {",
@@ -1885,14 +1926,14 @@ export const MUTATIONS = [
   // 넷 다 **같은 방향**으로만 무너뜨린다: 모르는 것을 자동으로 흘리는 쪽.
   // 반대 방향(다 물어보게 만들기)은 카드를 늘리는 실패라 ①의 organize 칸이 잡는다.
   { 이름: '값 없는 버튼도 자동으로 흘림("보내기 눌러줘"가 카드 없이 나간다)', 파일: 'src/kernel/l2-plan/action-plan.js', 검사: T_CU_E,
-    찾기: "      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;",
-    바꾸기: "      kind = 'organize';" },
+    찾기: "        : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;",
+    바꾸기: "        : 'organize';" },
   { 이름: '경계가 화면 클릭에 probe 를 안 태움(판정이 늘 미상이 되거나 늘 자동이 된다)', 파일: BOUNDARY, 검사: T_CU_E,
     찾기: "    const 돌려본것 = await tools?.tools?.[toolId]?.probe?.(args);",
     바꾸기: "    const 돌려본것 = { 찾음: true, 값있음: true };" },
   { 이름: 'probe 가 화면 대신 모델이 적어 낸 인자를 믿음(자기신고로 승인이 열린다)', 파일: DESK_ACT, 검사: T_CU_E,
-    찾기: "     const 그것 = 요소들.find((e) => String(e?.label ?? '') === 이름);",
-    바꾸기: "     const 그것 = args?.대상;" },
+    찾기: "       ?? (이름 ? 요소들.find((e) => String(e?.label ?? '') === 이름) : null);",
+    바꾸기: "       ?? args?.대상;" },
   { 이름: '화면을 못 봤는데 값 있는 요소로 단정(못 보면 자동이 된다)', 파일: DESK_ACT, 검사: T_CU_E,
     찾기: "     if (!Array.isArray(요소들)) return 모름;",
     바꾸기: "     if (!Array.isArray(요소들)) return { 찾음: true, 값있음: true };" },
