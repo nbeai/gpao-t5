@@ -235,8 +235,8 @@ test('창 자리를 못 받으면 그 사실이 드러난다 — 자리 없이�
   const { makeCuaDriver } = await import('../src/runtime/desktop-cua-driver.js');
   const mcp = {
     async call(이름) {
-      if (이름 === 'get_accessibility_tree') return { windows: [{ window_id: 9, app_name: 'K', pid: 7 }] };
-      if (이름 === 'list_windows') return { windows: [{ window_id: 9, bounds: { x: 1, y: 2, width: 3, height: 4 } }] };
+      if (이름 === 'list_windows') return { windows: [{ window_id: 9, app_name: 'K', pid: 7, title: 'k', is_on_screen: true, bounds: { x: 1, y: 2, width: 3, height: 4 } }] };
+      if (이름 === 'get_accessibility_tree') return { windows: [] };
       if (이름 === 'get_window_state') return { snapshot_id: 's1', elements: [] };
       return {};
     },
@@ -257,18 +257,14 @@ test('보이는 창만 후보로 삼는다 — 숨은 창을 여느라 시간을
   const mcp = {
     async call(이름, 인자) {
       부른것.push({ 이름, 인자 });
-      if (이름 === 'get_accessibility_tree') {
-        return { windows: [
-          { window_id: 1, app_name: '카카오톡', pid: 77, title: '다른 대화', is_on_screen: false },
-          { window_id: 2, app_name: '카카오톡', pid: 77, title: '정영현', is_on_screen: true },
-        ] };
-      }
+      // 실물에서 창 정보(이름·제목·보임·자리·앞뒤)는 **`list_windows` 에 다 있다.**
       if (이름 === 'list_windows') {
         return { windows: [
-          { window_id: 1, pid: 77, is_on_screen: false, bounds: { x: 0, y: 0, width: 10, height: 10 } },
-          { window_id: 2, pid: 77, is_on_screen: true, bounds: { x: 90, y: 60, width: 380, height: 675 } },
+          { window_id: 1, app_name: '카카오톡', pid: 77, title: '다른 대화', is_on_screen: false, z_index: 2, bounds: { x: 0, y: 0, width: 10, height: 10 } },
+          { window_id: 2, app_name: '카카오톡', pid: 77, title: '정영현', is_on_screen: true, z_index: 1, bounds: { x: 90, y: 60, width: 380, height: 675 } },
         ] };
       }
+      if (이름 === 'get_accessibility_tree') return { windows: [] };
       if (이름 === 'get_window_state') return { snapshot_id: 's1', elements: [] };
       return {};
     },

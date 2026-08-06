@@ -230,7 +230,13 @@ export function makeCuaDriver(deps = {}) {
       // 거기에만 `z_index`(앞뒤) · `is_on_screen`(화면 밖) · `bounds`(자리) 가 있다.
       // `get_accessibility_tree` 를 주 목록으로 쓰던 동안 우리는 **앞뒤도 화면 밖도 몰랐고**,
       // 그래서 숨은 창을 열다 20초 timeout 을 냈다.
-      const 목록 = await mcp.call('list_windows', {}).catch(() => null);
+      // **거르기는 드라이버에게 맡긴다**(흡수 ①). 실측: `on_screen_only` 하나로
+      // 창 117개 → 12개, 103ms → 3ms. 손으로 거르다 숨은 창을 열어 20초를 썼다.
+      // **다만 앱·제목을 지목했으면 전부 본다** — 사용자가 그 창을 말했으니
+      // 최소화돼 있어도 그것을 봐야 한다.
+      const 지목함 = Boolean(String(args?.app ?? '').trim() || String(args?.창제목 ?? '').trim()
+        || args?.window != null);
+      const 목록 = await mcp.call('list_windows', 지목함 ? {} : { on_screen_only: true }).catch(() => null);
       const 얕은것 = await mcp.call('get_accessibility_tree', {});
       const 앞앱 = (얕은것?.apps ?? []).find((a) => a.active) ?? (얕은것?.apps ?? [])[0] ?? null;
       const 날것창 = (목록?.windows ?? (Array.isArray(목록) ? 목록 : null)) ?? 얕은것?.windows ?? [];
@@ -251,7 +257,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -261,10 +267,32 @@ export function makeCuaDriver(deps = {}) {
         const 앱이름 = String(args?.app ?? '').trim().toLowerCase();
         // **사용자는 앱이 아니라 대화창 이름을 말한다** — `정영현` 처럼. 그 축을 준다.
         const 제목 = String(args?.창제목 ?? '').trim().toLowerCase();
-        let 앱것 = 앱이름
-          ? 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름)
-            || 앱이름.includes(String(w.app ?? '').toLowerCase()))
-          : [];
+        // **정확 일치가 부분 일치를 이긴다**(비교군 `_match_windows_for_app` 그대로).
+        // *"`Code` 를 물었는데 앞에 있다는 이유로 `Visual Studio Code` 가 잡히면 안 된다."*
+        // 순서: 창이름 정확 → 앱별칭 정확 → 창이름 부분 → 앱별칭 부분.
+        // 앱 목록은 **창 이름으로 못 찾을 때만** 부른다(실측 472ms 짜리다).
+        let 앱것 = [];
+        if (앱이름) {
+          앱것 = 창들.filter((w) => String(w.app ?? '').trim().toLowerCase() === 앱이름);
+          if (!앱것.length) {
+            const { apps } = await mcp.call('list_apps', {}).catch(() => ({ apps: [] }));
+            const 별칭 = (a) => [String(a.name ?? ''), String(a.bundle_id ?? ''), String(a.app_name ?? ''),
+              String(a.launch_path ?? '').split('/').pop().replace(/\.app$/i, '')]
+              .map((x) => x.trim().toLowerCase()).filter(Boolean);
+            const 켜진앱 = (apps ?? []).filter((a) => a?.running !== false && Number.isInteger(a?.pid));
+            const 정확pid = new Set(켜진앱.filter((a) => 별칭(a).includes(앱이름)).map((a) => a.pid));
+            앱것 = 창들.filter((w) => 정확pid.has(w.pid));
+            if (!앱것.length) {
+              앱것 = 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름));
+            }
+            if (!앱것.length) {
+              const 부분pid = new Set(켜진앱
+                .filter((a) => 별칭(a).some((x) => x.includes(앱이름) || 앱이름.includes(x)))
+                .map((a) => a.pid));
+              앱것 = 창들.filter((w) => 부분pid.has(w.pid));
+            }
+          }
+        }
         if (제목) {
           const 제목것 = (앱것.length ? 앱것 : 창들)
             .filter((w) => String(w.title ?? '').toLowerCase().includes(제목));
@@ -286,9 +314,16 @@ export function makeCuaDriver(deps = {}) {
         // **보이는 창만 고른다.** 라이브(2026-08-06): 카톡 pid 의 창이 7개였는데 보이는 건
         // 하나였고, 우리가 첫 창(안 보이는 다른 대화)을 열어 **20초 timeout** 이 났다.
         // 안 보이는 창은 사용자가 지금 보고 있는 것이 아니다.
+        // **보이는 것 우선, 없으면 안 보이는 것도.** 지목한 창이 최소화돼 있을 수 있으니
+        // 버리지는 않되(그러면 영영 못 본다), 보이는 것이 있으면 그것부터다 —
+        // 숨은 창을 열다 20초를 쓴 자리다.
         if (앱것.length > 1) {
           const 보이는것 = 앱것.filter((w) => w.보임);
           if (보이는것.length) 앱것 = 보이는것;
+        }
+        if (제목 && 앱것.length > 1) {
+          const 정확 = 앱것.filter((w) => String(w.title ?? '').trim().toLowerCase() === 제목);
+          if (정확.length) 앱것 = 정확;
         }
         // **여럿이면 임의로 안 연다**(A02). 엉뚱한 대화를 읽고 그것을 사실로 말하게 된다.
         if (앱것.length > 1 && args?.window == null) {
@@ -311,12 +346,43 @@ export function makeCuaDriver(deps = {}) {
         const 대상 = 창들.find((w) => w.id === args?.window)
           ?? 앱것[0] ?? 창들[0] ?? null;
         if (대상) {
-          const st = await mcp.call('get_window_state', {
+          const 창상태인자 = {
             window_id: 대상.id, pid: 대상.pid,
             // **조용한 절단을 드라이버 쪽에서도 막는다.** 안 주면 Electron 앱이 수백 개를 낸다
             // (그쪽 주석도 같은 말을 한다). 우리 `요소창` 이 그 위에서 다시 문을 단다.
             max_elements: Number(args?.최대요소) > 0 ? Number(args.최대요소) : 400,
-          });
+            // **찾기·깊이도 드라이버가 한다**(흡수 ①). 우리가 129개를 40개씩 넘겨보던 자리다.
+            ...(String(args?.찾는말 ?? '').trim() ? { query: String(args.찾는말).trim() } : {}),
+            ...(Number(args?.깊이) > 0 ? { max_depth: Number(args.깊이) } : {}),
+          };
+          // **드라이버가 고치는 법을 알려주면 따라 한다**(흡수 ②).
+          //
+          // 밟은 사실(2026-08-06): 메모 창을 읽으려는데 요소가 0개였다. 드라이버는 이유와
+          // 고칠 값을 **함께** 주고 있었다 — `window_owner_pid_mismatch` · `owner_pid: 31490` ·
+          // *"Re-call with pid=31490"*(macOS 가 샌드박스 패널을 별도 프로세스로 띄운다).
+          // 우리는 그걸 버리고 "요소 0개"라고 했고, 모델은 **"권한이 막혔다"** 고 지어냈다.
+          //
+          // **한 번만 따라 한다** — 무한히 되묻지 않는다.
+          let st = await mcp.call('get_window_state', 창상태인자);
+          if (st?.code && !Array.isArray(st?.elements)) {
+            const 고칠pid = Number(st.owner_pid);
+            if (Number.isInteger(고칠pid) && 고칠pid > 0 && 고칠pid !== 창상태인자.pid) {
+              st = await mcp.call('get_window_state', { ...창상태인자, pid: 고칠pid });
+            }
+            if (st?.code && !Array.isArray(st?.elements)) {
+              // **왜 못 읽었는지는 사실이다.** 안 올리면 모델이 이유를 지어낸다.
+              못읽은이유값 = `${st.code}${st.suggestion ? ` — ${st.suggestion}` : ''}`;
+            }
+          }
+          // **판정을 그대로 올린다**(흡수 ② · 비교군 `_text_response` 계약).
+          // 실물은 요소를 비워 주면서 **왜 비웠는지**(`degraded_reason`)와
+          // **무엇을 하면 되는지**(`escalation.recommended`)를 함께 준다.
+          // 그걸 버렸더니 T5 가 *"권한이 막혔다"* 고 지어냈다 — 권한 문제가 아니었다.
+          if (st?.degraded === true && !못읽은이유값) {
+            못읽은이유값 = String(st.degraded_reason ?? 'degraded')
+              + (st.screenshot_error?.code ? ` · ${st.screenshot_error.code}` : '');
+          }
+          if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;
           스냅샷 = st?.snapshot_id ?? null;
           // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
           // 다음 걸음이 어느 창 이야기인지 모른다.
@@ -340,6 +406,8 @@ export function makeCuaDriver(deps = {}) {
         // **무엇을 봤는지 남긴다** — 같은 앱 창이 여럿일 수 있고, 안 적으면
         // 다음 걸음이 어느 창 이야기인지 모른다(계열 G).
         ...(본창 ? { 본창 } : {}),
+        ...(못읽은이유값 ? { 못읽은이유: 못읽은이유값 } : {}),
+        ...(올려야할길값 ? { 올려야할길: 올려야할길값 } : {}),
       };
     },
 

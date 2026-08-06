@@ -56,6 +56,9 @@ const T_CU1_G = 'test/cu1-g-does-not-take-over.test.js';
 const T_CU1_A = 'test/cu1-a-identity-is-one-set.test.js';
 const T_CU1_CDEF = 'test/cu1-cdef-classes-sealed.test.js';
 const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
+const T_AB1 = 'test/cu-absorb-1-window-and-query.test.js';
+const T_AB2 = 'test/cu-absorb-2-follow-the-drivers-fix.test.js';
+const T_READ = 'test/cu-read-reaches-the-model.test.js';
 const T_NAMES = 'test/cu1-tool-names-must-not-collide.test.js';
 const IDENT = 'src/runtime/desktop-identity.js';
 const ANSWER = 'src/runtime/desktop-driver-answer.js';
@@ -1576,6 +1579,31 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 흡수 ①② · 드라이버가 주는 것을 쓰고, 말하는 것을 듣는다 ──────────
+  { 이름: '창 목록을 전부 달라고 함(117개를 손으로 거르다 20초를 쓴다)', 파일: CUA, 검사: T_AB1,
+    찾기: "      const 목록 = await mcp.call('list_windows', 지목함 ? {} : { on_screen_only: true }).catch(() => null);",
+    바꾸기: "      const 목록 = await mcp.call('list_windows', {}).catch(() => null);" },
+  { 이름: '앱 이름 부분 일치가 정확 일치를 이김(Code 가 Visual Studio Code 를 문다)', 파일: CUA, 검사: T_AB1,
+    찾기: "          앱것 = 창들.filter((w) => String(w.app ?? '').trim().toLowerCase() === 앱이름);",
+    바꾸기: "          앱것 = 창들.filter((w) => String(w.app ?? '').toLowerCase().includes(앱이름));" },
+  { 이름: '찾기를 드라이버에 안 맡김(129개를 40개씩 넘겨보게 된다)', 파일: CUA, 검사: T_AB1,
+    찾기: "            ...(String(args?.찾는말 ?? '').trim() ? { query: String(args.찾는말).trim() } : {}),",
+    바꾸기: "" },
+  { 이름: '드라이버가 알려준 주인 pid 로 다시 안 부름(읽기가 0개로 끝난다)', 파일: CUA, 검사: T_AB2,
+    찾기: "              st = await mcp.call('get_window_state', { ...창상태인자, pid: 고칠pid });",
+    바꾸기: "" },
+  { 이름: '왜 못 읽었는지를 안 올림(모델이 "권한이 막혔다"고 지어낸다)', 파일: CUA, 검사: T_AB2,
+    찾기: "          if (st?.degraded === true && !못읽은이유값) {",
+    바꾸기: "          if (false) {" },
+  { 이름: '무엇을 하면 되는지를 안 올림(드라이버가 준 사다리를 못 탄다)', 파일: CUA, 검사: T_AB2,
+    찾기: "          if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;",
+    바꾸기: "" },
+  { 이름: '읽은 글자를 모델에게 안 보냄(손이 읽어도 모델은 못 받는다)', 파일: TASKCTX2, 검사: T_READ,
+    찾기: "  if (Array.isArray(result.elements) || result.요소창 || result.본창) {",
+    바꾸기: "  if (false) {" },
+  { 이름: '기계 값까지 실어 예산을 먹음(글자가 밀려 잘린다)', 파일: TASKCTX2, 검사: T_READ,
+    찾기: "      return `- ${역할}${표 ? `[${표}]` : ''}: ${글.replace(/\\s+/g, ' ').slice(0, 200)}`;",
+    바꾸기: "      return `- ${JSON.stringify(e)}`;" },
   // ── CU-1·2 · 창 안을 정확히 준다 ──────────────────────────────────────
   { 이름: '창 밖(Dock)·스크롤 밖 요소를 대화에 섞음("마지막"이 뒤바뀐다)', 파일: DESK, 검사: T_CU2,
     찾기: "  const 걸러진것 = 요소들.filter(안쪽);",
@@ -1593,14 +1621,14 @@ export const MUTATIONS = [
     찾기: "        { 방법: 'observe', offset: Math.max(0, 총 - (끝 - 시작)), 왜: '끝쪽(화면 아래 = 가장 최근)부터 본다' },",
     바꾸기: "" },
   { 이름: '지목한 앱을 못 찾고 앞 창을 보여 줌(오대상 관찰)', 파일: CUA, 검사: T_CU2,
-    찾기: "        if (앱이름 && !앱것.length && args?.window == null) {",
+    찾기: "        if ((앱이름 || 제목) && !앱것.length && args?.window == null) {",
     바꾸기: "        if (false) {" },
-  { 이름: '앱 이름 축을 하나로 줄임(KakaoTalk 로는 못 찾는다)', 파일: CUA, 검사: T_CU2,
-    찾기: "        if (앱이름 && !앱것.length) {",
-    바꾸기: "        if (false) {" },
+  // (뺐다: '앱 이름 축을 하나로 줄임' — 정확·부분 경로가 서로 받쳐 주는 **안전한 중복**이라
+  //  한쪽만 끊어서는 안 문다. 그 영역은 '부분 일치가 정확 일치를 이김' 앵커가 덮는다.
+  //  안 무는 그물을 억지로 만들지 않는다.)
   { 이름: '창 자리를 안 받아 옴(스크롤 밖이 안 걸러진다)', 파일: CUA, 검사: T_CU2,
-    찾기: "        const 자리 = await mcp.call('list_windows', {}).catch(() => null);",
-    바꾸기: "        const 자리 = null;" },
+    찾기: "        ...(w.bounds ? {\n          bounds: {",
+    바꾸기: "        ...(false ? {\n          bounds: {" },
   // ── CU-1 계열 A · 신분은 한 벌로만 ────────────────────────────────────
   { 이름: '신분 조각을 섞음(토큰과 스냅샷 회차가 어긋나 아무 데도 안 눌린다)', 파일: IDENT, 검사: T_CU1_A,
     찾기: "  return 토큰.split(':')[0] === 스냅샷;",
