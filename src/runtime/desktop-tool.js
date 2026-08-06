@@ -262,6 +262,10 @@ function 떠있는것요약(windows = [], 최대 = 6) {
   return 줄.join(' · ');
 }
 
+/** 브라우저 창인가 — 탭은 이 창을 지목해야 열린다(CDP). 이름 없는 창은 셈에서 뺀다. */
+const 브라우저창인가 = (w) => /chrome|chromium|edge|brave|크롬|엣지|브레이브/i.test(String(w?.app ?? ''))
+  && String(w?.title ?? '').trim();
+
 export function makeDesktopTool(deps = {}) {
   const drivers = Array.isArray(deps.drivers) ? deps.drivers : [];
   return {
@@ -364,6 +368,20 @@ export function makeDesktopTool(deps = {}) {
           // 드라이버는 후보를 정확히 냈다(`[박종윤, 카카오톡]`). 우리가 그걸 결과에만 두고
           // **말과 길에는 안 실었다.** 사용자 말은 *"Claude 창 119개가 떠 있어요"* 로 떨어졌고,
           // 모델은 그 말을 보고 **"화면 접근 권한이 없어서"** 라고 지어냈다 — 권한은 멀쩡했다.
+          // **창 목록에서 멈추지 않는다**(라이브 2026-08-07 · 노드 A ①).
+          // *"내 크롬에 열려 있는 탭 알려줘"* 에 T5 가 창 목록만 보고
+          // *"창 제목이 '새 탭'이에요. 탭 목록은 macOS 가 안 보여줘요"* 라고 답했다 —
+          // `browser_prepare` 가 **한 번도 안 불렸다.** 탭은 그 창을 지목해야 나오는데
+          // (CDP) 모델은 그걸 모른다. 창 목록에 이름을 넣은 수정이 여기선 덜 파고들게 했다.
+          // 고치는 길은 같다 — **길을 준다.**
+          ...((본것?.windows ?? []).some(브라우저창인가) && !본것?.창을골라야함?.length
+            ? {
+              다음수단: (본것.windows ?? []).filter(브라우저창인가).slice(0, 4).map((w) => ({
+                방법: 'observe', 창제목: w.title ?? '',
+                왜: `그 창을 지목해서 봐야 열린 탭 제목·주소가 나온다(${w.app})`,
+              })),
+            }
+            : {}),
           ...(본것?.창을골라야함?.length
             ? {
               다음수단: 본것.창을골라야함.slice(0, 8).map((c) => ({

@@ -143,3 +143,49 @@ test('문맥이 없어도 안 터진다 — 발화 없는 경로(자동 실행)�
   const r = await 손.handler({ scope: 'app' });
   assert.ok(r, '문맥 없이 부르면 터진다');
 });
+
+// ── 창 목록에서 멈추지 않는다 ───────────────────────────────────────────
+// 라이브(2026-08-07): *"내 크롬에 열려 있는 탭 알려줘"* → T5 가 창 목록만 보고 답했다.
+// ```
+// 원장  "지금 창 9개가 떠 있어요 — … Google Chrome('새 탭') …"
+// 답    "크롬 창 제목이 '새 탭'이에요. 탭 목록은 macOS 가 창 제목만 보여줘서 안 드러나요."
+// ```
+// `browser_prepare` 가 **한 번도 안 불렸다.** 창 목록으로 답이 되니 거기서 멈춘 것이다.
+// 탭은 그 창을 지목해서 봐야 나온다(CDP) — **모델은 그걸 모른다.**
+//
+// 오늘 아침 창 목록에 이름을 넣은 수정이 여기선 덜 파고들게 만들었다. 고치는 길은 같다:
+// **길을 준다.** 창 목록에 브라우저가 있으면 `다음수단` 으로 그 창을 가리킨다.
+test('창 목록에 브라우저가 있으면 탭까지 가는 길을 준다', async () => {
+  const 손 = makeDesktopTool({
+    drivers: [{
+      id: 'cua', status: () => ({ connected: true, permissions: { accessibility: 'granted' } }),
+      observe: async () => ({
+        frontmost: { name: 'Finder' },
+        windows: [
+          { id: 1, app: 'Google Chrome', title: '새 탭', 보임: true },
+          { id: 2, app: '카카오톡', title: '카카오톡', 보임: true },
+        ],
+      }),
+    }],
+  });
+  const r = await 손.handler({ scope: 'screen' }, { currentRequest: '내 크롬에 열려 있는 탭 알려줘' });
+  const 길 = JSON.stringify(r.result?.다음수단 ?? []);
+  assert.match(길, /새 탭/,
+    `**탭까지 가는 길이 없다** — 모델이 창 목록에서 멈춰 "탭은 안 드러나요"로 답한다: ${길}`);
+  assert.match(길, /창제목/, `창을 지목하는 법을 안 준다: ${길}`);
+});
+
+test('브라우저가 없으면 그 길을 안 준다 — 없는 것을 가리키지 않는다', async () => {
+  const 손 = makeDesktopTool({
+    drivers: [{
+      id: 'cua', status: () => ({ connected: true, permissions: { accessibility: 'granted' } }),
+      observe: async () => ({
+        frontmost: { name: '계산기' },
+        windows: [{ id: 1, app: '계산기', title: '계산기', 보임: true }],
+      }),
+    }],
+  });
+  const r = await 손.handler({ scope: 'screen' }, { currentRequest: '계산기 화면 읽어줘' });
+  assert.doesNotMatch(JSON.stringify(r.result?.다음수단 ?? []), /탭/,
+    '브라우저가 없는데 탭 이야기를 한다');
+});
