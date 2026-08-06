@@ -62,6 +62,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
   // 넓힐 때는 이 시험이 먼저 걸린다 — 그게 이 시험의 일이다. 넓힌 이유는 `preflight.mjs`
   // 의 `허용파일` 주석에 적혀 있어야 한다(2026-08-04: 실행 벽 수정으로 기준선 이동).
   assert.deepEqual(허용파일, [
+    // 화면 손 쓰는 법(사다리·순서)을 모델에게 가르치는 자리(노드 ② · 2026-08-06).
+    // 커널이 사다리를 만들어 뒀는데 모델이 있는 줄 몰라 여섯 번 다 사람에게 떠넘겼다.
+    'src/kernel/screen-guidance.js',
+    // 그림 크기만 봉투에서 읽는다 — 모델이 짚을 자를 주려면 필요하고, 알맹이는 안 본다.
+    'src/runtime/image-size.js',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/l2-plan/action-plan.js',

@@ -12,6 +12,7 @@ import { withTimeout } from './with-timeout.js';
 import { dumpModelInput, dumpModelOutput } from './prompt-dump.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
+import { 화면다루는법 } from '../kernel/screen-guidance.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
 import { workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { workStateFacts } from '../kernel/l1-intent/work-state.js';
@@ -83,6 +84,11 @@ export function buildModelMessages(tc) {
   // SOUL.md 계층에서 흡수: voice 는 SOUL 이 갖고, 운영 규칙·판단 순서는 따로).
   // 예전엔 SOUL 전체가 "물어봤을 때만" 실려서 말투 문장이 **한 번도 모델에게 간 적이 없었다.**
   if (tc.voice) sys.push(`<말투>\n${tc.voice}\n</말투>`);
+  // **화면을 다루는 법** — 화면 손이 배선된 턴에만. 세션 안에서 안 변하므로 접두를 안 깬다.
+  // 커널은 사다리를 탈 수 있게 만들어 뒀는데 **모델이 그게 있는 줄 몰라** 한 번 해 보고
+  // 사람에게 떠넘겼다(라이브 2026-08-06 · 여섯 번). 손과 그 손 쓰는 법은 같이 가야 한다.
+  const 화면법 = 화면다루는법(tc.connectedTools);
+  if (화면법) sys.push(화면법);
 
   // ── 캐시 경계 ──────────────────────────────────────────────────────────
   // 위(정체성·헌장)는 매 턴 같다. 아래는 **세션 안에서 잘 안 변하는 사실** → 여기까지가 고정 접두다.

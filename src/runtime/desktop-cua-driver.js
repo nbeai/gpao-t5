@@ -1,4 +1,5 @@
 import { 거절인가, 거절사유 } from './desktop-driver-answer.js';
+import { 그림크기재기 } from './image-size.js';
 // L3 · **화면 슬롯의 두 번째 드라이버 — cua-driver (MCP stdio)**
 //
 // 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다. **임베디드 모드.**
@@ -402,7 +403,9 @@ export function makeCuaDriver(deps = {}) {
             const 이미지 = (한번에.조각 ?? []).find((x) => x?.type === 'image' && x?.data);
             if (이미지) {
               그림값 = { mime: String(이미지.mimeType ?? 'image/png'), base64: String(이미지.data) };
-              if (Number(이미지.width) > 0) 그림크기값 = { w: Number(이미지.width), h: Number(이미지.height) };
+              그림크기값 = Number(이미지.width) > 0
+                ? { w: Number(이미지.width), h: Number(이미지.height) }
+                : 그림크기재기(String(이미지.data));
             }
           }
           let st = 한번에?.구조 ?? (트리터짐 ? null : await mcp.call('get_window_state', 창상태인자).catch((e) => {
@@ -497,7 +500,10 @@ export function makeCuaDriver(deps = {}) {
               if (이미지) {
                 그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
                 // **모델이 짚을 자다.** 창 크기와 다르다(zoom 은 20% 패딩 + 500px 축소).
-                if (Number(이미지.width) > 0) 그림크기값 = { w: Number(이미지.width), h: Number(이미지.height) };
+                // MCP 조각에는 크기가 없다(실측: `data·mimeType·type` 뿐) — 봉투에서 읽는다.
+                그림크기값 = Number(이미지.width) > 0
+                  ? { w: Number(이미지.width), h: Number(이미지.height) }
+                  : 그림크기재기(String(이미지.data));
               }
               // **그림 크기가 창과 다른 것은 정상이다.** `zoom` 계약이 그렇다 —
               // *"cropped JPEG … with **20% padding** added on each side. The output image is

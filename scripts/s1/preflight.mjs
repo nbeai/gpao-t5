@@ -130,6 +130,13 @@ export const 기준지문 = Object.freeze({
  * 도구 스키마는 글자 하나 안 바뀌었다(아래 ③④ 가 매 실행 전 그것을 확인한다).
  */
 export const 허용파일 = [
+  // 화면 손을 쓰는 법(사다리·순서)을 모델에게 가르치는 자리(노드 ② · 2026-08-06).
+  // 커널은 사다리를 탈 수 있게 만들어 뒀는데 모델이 그게 있는 줄 몰라 여섯 번 다
+  // 사람에게 떠넘겼다 — 손과 그 손 쓰는 법은 같이 가야 한다.
+  'src/kernel/screen-guidance.js',
+  // 그림의 **크기만** 봉투(PNG/JPEG 머리)에서 읽는다 — MCP 조각에 크기가 없어서,
+  // 모델이 자리를 짚을 자를 못 받았다(창 크기를 주면 그림 밖을 짚는다). 알맹이는 안 본다.
+  'src/runtime/image-size.js',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
