@@ -940,7 +940,8 @@ export function resolveModelConfigFromInput(input = {}) {
 }
 
 /**
- * 실 provider ModelClient 를 만든다. respond 는 단발 요청(스트리밍은 후속).
+ * 실 provider ModelClient 를 만든다. `onDelta` 를 주면 조각을 흘리며 읽고(`streamSse`),
+ * 없으면 단발로 받는다 — 스트리밍은 서 있다(낡은 주석을 고침 2026-08-06).
  * @param {ReturnType<typeof resolveModelConfig>} cfg
  * @param {{fetchImpl?:Function, timeoutMs?:number}} [deps]
  * @returns {import('./model-client.js').ModelClient}

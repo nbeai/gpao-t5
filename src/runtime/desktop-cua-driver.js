@@ -110,6 +110,19 @@ export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn })
       const r = await 보내기('tools/call', { name, arguments: args });
       return Array.isArray(r?.content) ? r.content : [];
     },
+    /**
+     * **구조와 그림을 한 번에.** `call` 은 구조만, `조각들` 은 조각만 준다 —
+     * 그런데 `get_window_state` 는 **둘 다 낸다**(계약: *"returns BOTH the element tree
+     * and a screenshot — ground on both"*). 두 번 부르면 두 번 걷고 두 번 찍는다.
+     */
+    async 구조와조각(name, args = {}) {
+      await 준비되기();
+      const r = await 보내기('tools/call', { name, arguments: args });
+      return {
+        구조: r?.structuredContent ?? r?.content ?? r ?? {},
+        조각: Array.isArray(r?.content) ? r.content : [],
+      };
+    },
     끄기() { try { 아이?.kill(); } catch { /* 이미 죽었으면 그만이다 */ } 아이 = null; 준비 = null; },
   };
 }
@@ -354,6 +367,11 @@ export function makeCuaDriver(deps = {}) {
             // **찾기·깊이도 드라이버가 한다**(흡수 ①). 우리가 129개를 40개씩 넘겨보던 자리다.
             ...(String(args?.찾는말 ?? '').trim() ? { query: String(args.찾는말).trim() } : {}),
             ...(Number(args?.깊이) > 0 ? { max_depth: Number(args.깊이) } : {}),
+            // **볼 일 없는 화면은 안 찍는다.** 기본값이 `true` 라, 안 끄면 매 관찰마다
+            // 화면을 찍고 우리는 그걸 버린다 — 그 지연만 낸다. 계약이 이 최적화를 말한다:
+            // *"Set false to skip the grab … the cheap path when you're just re-indexing
+            // before an element ax action."* 행동 전 재관찰이 정확히 그 자리다.
+            ...(args?.그림없이 === true ? { include_screenshot: false } : {}),
           };
           // **드라이버가 고치는 법을 알려주면 따라 한다**(흡수 ②).
           //
@@ -365,7 +383,19 @@ export function makeCuaDriver(deps = {}) {
           // **한 번만 따라 한다** — 무한히 되묻지 않는다.
           // **읽다가 터져도 눈이 남아 있다**(F-41). timeout 이 곧 실패가 아니다 —
           // 카톡 대화창은 AX 로 20초를 써도 못 낸다.
-          let st = await mcp.call('get_window_state', 창상태인자).catch((e) => {
+          // **트리와 그림을 한 번에 받는다**(노드 ① · 2026-08-06).
+          //
+          // `call` 은 `structuredContent` 만 집고 `content` 를 버린다 — 그림이 거기 있다.
+          // 그래서 화면에 찍힌 값(계산기 표시창처럼 트리에 없는 것)을 영영 못 읽었다.
+          // 실측: `조각들('get_window_state')` **928ms → 111,056B**. 이미 오고 있었다.
+          const 한번에 = args?.그림없이 === true || typeof mcp.구조와조각 !== 'function'
+            ? null
+            : await mcp.구조와조각('get_window_state', 창상태인자).catch(() => null);
+          if (한번에) {
+            const 이미지 = (한번에.조각 ?? []).find((x) => x?.type === 'image' && x?.data);
+            if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/png'), base64: String(이미지.data) };
+          }
+          let st = 한번에?.구조 ?? await mcp.call('get_window_state', 창상태인자).catch((e) => {
             // **터진 것은 "없는 것"이 아니다**(계열 C). 말없이 0개로 넘기면 모델이 이유를
             // 지어낸다 — 라이브에서 *"권한이 막혔다"* 가 그렇게 나왔다.
             못읽은이유값 = `읽기가 끝나지 않았어요 — ${String(e?.message ?? e).slice(0, 120)}`;

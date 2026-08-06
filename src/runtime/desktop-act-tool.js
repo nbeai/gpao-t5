@@ -322,6 +322,10 @@ async handler(args) {
         // 모델이 `창제목:'박종윤'` 으로 입력칸을 정확히 짚었는데, 손이 실행 전 재관찰에서
         // 이 축을 안 넘겨 목록 창을 봤고 *"지금 화면에 없어요"* 로 막혔다.
         ...(args?.창제목 ? { 창제목: args.창제목 } : {}),
+        // **신분만 다시 잡는 관찰이다 — 화면은 볼 일이 없다.**
+        // 계약이 그 최적화를 명시한다: *"Set false to skip the grab … the cheap path when
+        // you're just re-indexing before an element ax action."* 여기가 정확히 그 자리다.
+        그림없이: true,
       });
 
       let 지금요소 = null;
@@ -585,7 +589,7 @@ async handler(args) {
         const 답읽기 = 드라이버답(낸것);
         if (답읽기.종류 === '거절') throw new Error(답읽기.근거);
         if (낸것?.확인됨 === true) {
-          const 후확인 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }).catch(() => null), args);
+          const 후확인 = 재기(await 드라이버.observe(볼자리(누르는것.has(행동) ? 'window' : 'screen')).catch(() => null), args);
           return {
             result: {
               단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후: 후확인,
@@ -718,7 +722,7 @@ async handler(args) {
       // 밝힌 사실을 우리 추측으로 덮지 않는다 — 커널은 손이 가져온 것을 적는다.
       const 못본다 = 낸것?.effect === 'unverifiable';
       let 후;
-      try { 후 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }), args); } catch { 후 = null; }
+      try { 후 = 재기(await 드라이버.observe(볼자리(누르는것.has(행동) ? 'window' : 'screen')), args); } catch { 후 = null; }
 
       // **먼저 목표 도달을 본다.** 변화 여부는 그다음이다 —
       // 이미 목표 상태였으면 안 바뀐 것이 정상이고, 그걸 실패로 내면 됐는데 안 됐다고 하는 것이다.
