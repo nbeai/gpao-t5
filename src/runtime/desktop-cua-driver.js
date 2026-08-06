@@ -755,13 +755,37 @@ export function makeCuaDriver(deps = {}) {
         // 모델이 화면을 보고 입력칸을 좌표로 눌렀는데(`{x:210,y:820}`) 글자를 못 넣었다 —
         // `set_value` 는 **요소에 값을 놓는 손**이라 좌표에는 놓을 데가 없다.
         // 사람이 하는 그대로다: 눌러서 커서를 두고, 키보드로 친다.
-        set_value: () => (대상.토큰 || 대상.번호 != null
-          ? 창실어부르기('set_value', {
-            ...(대상.토큰 ? { element_token: 대상.토큰 } : { element_index: 대상.번호 }),
-            value: String(요청?.값 ?? ''),
-            ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
-          })
-          : 창실어부르기('type_text', { text: String(요청?.값 ?? ''), ...(짚은자리(대상) ?? {}) })),
+        // **글자를 넣는다 = 눌러서 커서를 두고 친다.**
+        //
+        // 요소를 짚었으면 값을 바로 놓는다(`set_value` — 배경에서 되고 확인도 된다).
+        //
+        // 자리를 짚었으면 **먼저 눌러 커서를 두고** 친다. 드라이버도 같은 일을 한다 —
+        // *"Pass x,y (no element_index) and the tool **pixel-clicks there to establish real
+        // renderer focus, then types**."* 그런데 우리가 직접 눌러야 하는 이유가 있다:
+        // **`type_text` 는 `from_zoom` 을 안 받는다**(인자 목록에 없다). 우리가 모델에게 주는
+        // 그림은 `zoom` 산출물이므로 그 좌표는 `click(from_zoom)` 으로만 되돌릴 수 있다.
+        // 그래서 **눌러서 커서를 두는 것은 `click` 이 하고, 치는 것은 `type_text` 가** 한다.
+        //
+        // 실측(2026-08-06): `focus → type → return` 을 다 실행했는데 화면이 그대로였다 —
+        // 커서가 입력칸에 없었다. 순서를 모델에게 맡기면 계속 틀린다. **한 손에 묶는다.**
+        set_value: async () => {
+          if (대상.토큰 || 대상.번호 != null) {
+            return 창실어부르기('set_value', {
+              ...(대상.토큰 ? { element_token: 대상.토큰 } : { element_index: 대상.번호 }),
+              value: String(요청?.값 ?? ''),
+              ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
+            });
+          }
+          const 자리 = 짚은자리(대상);
+          if (자리) {
+            await 창실어부르기('click', 자리);
+            await new Promise((z) => { setTimeout(z, 120); });
+            return 창실어부르기('type_text', { text: String(요청?.값 ?? '') });
+          }
+          // 자리도 요소도 없다 — 커서가 어디 있는지 **우리가 모른다.** 치되 그 사실을 남긴다.
+          const 낸것 = await 창실어부르기('type_text', { text: String(요청?.값 ?? '') });
+          return { ...(낸것 ?? {}), 커서자리: true };
+        },
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');

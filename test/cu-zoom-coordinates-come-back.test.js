@@ -46,12 +46,19 @@ test('그림을 보고 짚은 좌표는 zoom 기준이라고 말한다 — 안 �
   assert.equal(c?.인자?.x, 250, '좌표를 우리가 고쳐 보내면 안 된다 — 되돌리는 일은 드라이버가 한다');
 });
 
-test('글자 넣기도 같은 자를 쓴다', async () => {
+// **`type_text` 는 `from_zoom` 을 안 받는다** — 인자 목록에 없다(실물 확인 2026-08-06:
+// `delay_ms · delivery_mode · element_index · element_token · pid · scope · session ·
+// snapshot_id · text · window_id · x · y`). 그래서 zoom 그림 좌표로 글자를 넣으려면
+// **`click(from_zoom)` 이 커서를 두고, `type_text` 가 친다.** 그 순서가 아래 검사다.
+test('글자 넣을 자리는 click 이 되돌린다 — type_text 는 그 자를 모른다', async () => {
   const 부른것 = [];
   await makeCuaDriver({ mcp: 가짜(부른것) })
     .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, x: 250, y: 640 }, 값: 'ㄱ' });
-  const c = 부른것.find((x) => x.이름 === 'type_text');
-  assert.equal(c?.인자?.from_zoom, true, `**입력 자리만 딴 자를 쓴다**: ${JSON.stringify(c?.인자)}`);
+  const 누름 = 부른것.find((x) => x.이름 === 'click');
+  assert.equal(누름?.인자?.from_zoom, true, `**커서를 딴 자로 둔다**: ${JSON.stringify(누름?.인자)}`);
+  const 침 = 부른것.find((x) => x.이름 === 'type_text');
+  assert.equal(침?.인자?.from_zoom, undefined,
+    `**계약에 없는 인자를 보낸다** — 드라이버가 거절한다: ${JSON.stringify(침?.인자)}`);
 });
 
 test('토큰으로 짚으면 그 말을 안 붙인다 — 좌표를 안 쓰니까', async () => {
@@ -98,4 +105,36 @@ test('zoom 은 창 좌상단 0,0 의 스크린샷 픽셀로 요청한다 — 화
   // 창 논리 559×859 → 스크린샷 픽셀은 그 2배(Retina). 넘치면 드라이버가 자른다.
   assert.equal(z?.인자?.x2, 559 * 2, `창 전체를 요청하지 않는다: ${JSON.stringify(z?.인자)}`);
   assert.equal(z?.인자?.y2, 859 * 2);
+});
+
+// ── 글자를 넣는다 = **눌러서 커서를 두고 친다** ─────────────────────────
+// 밟은 사실(2026-08-06 · 마지막 조각). `focus → type → return` 을 다 실행했는데 화면에
+// 아무 변화가 없었다. `type_text` 는 **커서가 있는 곳**에 치는데, 그 턴에 모델이 클릭을
+// 건너뛰어 커서가 입력칸에 없었기 때문이다.
+//
+// 순서를 모델에게 맡기면 계속 틀린다. **한 손에 묶는다** — 사람이 하는 그대로다:
+// 자리를 짚었으면 **눌러서 커서를 두고**, 그 다음 친다.
+test('좌표로 글자를 넣으면 먼저 눌러 커서를 둔다 — 안 그러면 아무 데도 안 들어간다', async () => {
+  const 부른것 = [];
+  await makeCuaDriver({ mcp: 가짜(부른것) })
+    .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, x: 250, y: 640 }, 값: '오늘도 힘!' });
+  const 순서 = 부른것.map((c) => c.이름).filter((n) => n === 'click' || n === 'type_text');
+  assert.deepEqual(순서, ['click', 'type_text'],
+    `**커서를 안 두고 친다** — "했어요"라고 하는데 화면은 그대로다: ${순서.join(' → ')}`);
+  assert.equal(부른것.find((c) => c.이름 === 'click')?.인자?.x, 250, '누른 자리가 다르다');
+});
+
+test('요소를 짚었으면 누르지 않는다 — 값을 바로 놓는다', async () => {
+  const 부른것 = [];
+  await makeCuaDriver({ mcp: 가짜(부른것) })
+    .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, 토큰: 's1:26', 스냅샷: 's1' }, 값: 'ㄱ' });
+  assert.equal(부른것.some((c) => c.이름 === 'click'), false, '**값 놓기에 클릭을 끼워 넣었다**');
+});
+
+test('자리도 요소도 없으면 커서 자리에 친다 — 다만 어디인지 모른다고 남긴다', async () => {
+  const 부른것 = [];
+  const r = await makeCuaDriver({ mcp: 가짜(부른것) })
+    .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77 }, 값: 'ㄱ' });
+  assert.equal(부른것.some((c) => c.이름 === 'click'), false);
+  assert.equal(r?.커서자리, true, `**어디에 쳤는지 모르는데 아무 말이 없다**: ${JSON.stringify(r)}`);
 });
