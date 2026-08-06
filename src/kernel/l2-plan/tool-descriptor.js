@@ -47,6 +47,12 @@ export function defineTool(d) {
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
     operatorFact: d.operatorFact,
+    // **무엇을 보는 손인가**(노드 ③ · 2026-08-06). `operatorFact` 는 **모델이 읽는 글**이고
+    // 이 축은 **커널이 읽는 값**이다. 한 손이 막혔을 때 *"같은 것을 보는 다른 손"* 을 가리키려면
+    // 비교할 수 있어야 한다 — 글로는 못 비교한다.
+    // 라이브(2026-08-06): `local.file` 이 작업 폴더 밖이라 막히자 T5 가 사용자에게 awk 명령을
+    // 줬다. 바로 앞 걸음에서 `local.terminal` 로 그 폴더를 실제로 봤는데도.
+    보는것: d.보는것,
     readReach: d.readReach,             // 작업 폴더보다 넓게 읽는 손의 **고지 사실**(P0-b)
     // 출처가 **계약인** 손인가. 이 사실이 답 검사까지 가야 "출처 0인데 확인했다" 를 막는다.
     sourceLedgerRequired: d.sourceLedgerRequired === true,
@@ -103,6 +109,8 @@ export function toConnection(descriptor, facts = {}) {
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     operatorFact: descriptor.operatorFact,
+    // **무엇을 보는 손인가**(노드 ③) — 여기서 흘리면 커널이 옆 손을 못 고른다.
+    보는것: descriptor.보는것,
     readReach: descriptor.readReach,    // 고지 사실도 손 이름과 함께 끝까지 간다(P0-b)
     sourceLedgerRequired: descriptor.sourceLedgerRequired === true,
     limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실

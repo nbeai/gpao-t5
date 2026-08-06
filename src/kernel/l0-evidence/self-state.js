@@ -152,6 +152,9 @@ export function buildSelfState(env, deps = {}) {
       connector: t.connector,          // 어느 서비스의 손인가(커넥터 진실층이 여기서 파생한다)
       capability: t.capability,
       operatorFact: t.operatorFact,
+      // **무엇을 보는 손인가**(노드 ③). 커널이 *"같은 것을 보는 다른 손"* 을 고르는 축이다 —
+      // 여기서 안 나르면 `다음길` 이 비교할 재료를 못 받는다.
+      보는것: t.보는것,
       limits: t.limits,               // 선언된 한계(이름과 함께 다닌다)
       // P0-b: 작업 폴더보다 넓게 읽는 손의 **고지 사실**. 여기서 흘리면 능력 문서가 그 손을
       // "읽기만 합니다"로만 소개하고, 사용자는 T5 가 작업 폴더만 본다고 알게 된다(라이브 실측).

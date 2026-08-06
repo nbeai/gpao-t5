@@ -67,6 +67,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/screen-guidance.js',
     // 그림 크기만 봉투에서 읽는다 — 모델이 짚을 자를 주려면 필요하고, 알맹이는 안 본다.
     'src/runtime/image-size.js',
+    // 손이 무엇을 보는지 축으로 선언한다 — 커널이 같은 것을 보는 손을 고를 수 있게.
+    'src/kernel/l2-plan/tool-descriptor.js',
+    // 그 축을 selfState 가 나른다.
+    'src/kernel/l0-evidence/self-state.js',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/l2-plan/action-plan.js',

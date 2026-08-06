@@ -391,7 +391,19 @@ export function finalNextSafeAction(receipts, hands) {
 // 활용형을 놓치면 경계가 아니라 장식이 된다 — `옮기`만 넣었더니 "옮겨 주세요"가 그대로 샜다.
 const 시키는말 = /옮[기겨]|복사(해|하)|붙여넣|Finder|파인더|직접 (열어|실행해)|터미널에서/;
 
-export function 다음길(receipts, 있는손) {
+/**
+ * **막힌 손과 같은 것을 보면서 이번 턴에 안 막힌 손.** 없으면 `null` — 없는 손을 지어내지 않는다.
+ * 축(`보는것`)은 descriptor 가 선언한다. 커널은 이름을 모른 채 축만 비교한다.
+ */
+function 옆손찾기(막힌손, 손들 = []) {
+  const 축 = (id) => (손들.find((t) => t?.id === id) ?? {}).보는것;
+  const 막힌축 = new Set([...막힌손].map(축).filter(Boolean));
+  if (!막힌축.size) return null;
+  const 옆 = 손들.find((t) => t?.id && !막힌손.has(t.id) && t.보는것 && 막힌축.has(t.보는것));
+  return 옆 ? (옆.label ?? 옆.id) : null;
+}
+
+export function 다음길(receipts, 있는손, 손들 = []) {
   const 계단 = nextRung(receipts, 있는손);
   const 알아본계단 = 계단 && 계단.from !== 'blocked' ? rungMessage(계단) : undefined;
 
@@ -408,6 +420,20 @@ export function 다음길(receipts, 있는손) {
   const 다른손있음 = (있는손 ?? []).some((id) => !막힌손.has(id));
   const 도구말 = userSafeNextAction(receipts);
   const 쓸도구말 = 도구말 && 다른손있음 && 시키는말.test(도구말) ? undefined : 도구말;
+
+  // **같은 것을 보는 다른 손을 가리킨다**(노드 ③ · 2026-08-06).
+  //
+  // `file-scope.js` 주석이 이 자리를 이미 적어 뒀다 — *"이 손은 다른 손이 있는지 모른다.
+  // 다음 계단은 **손 목록을 아는 커널**이 정한다."* 커널은 손 목록을 알았지만
+  // **어느 손이 같은 것을 보는지**를 몰랐다. 이제 손이 `보는것` 축을 선언한다.
+  //
+  // 라이브: `local.file` 이 작업 폴더 밖이라 막히자 T5 가 사용자에게 awk 명령을 줬다 —
+  // 바로 앞 걸음에서 `local.terminal` 로 그 폴더를 실제로 봤는데도.
+  const 같은것보는손 = 옆손찾기(막힌손, 손들);
+  if (같은것보는손) {
+    const 앞말 = 알아본계단 ?? 쓸도구말;
+    return `${앞말 ? `${앞말} ` : ''}같은 것을 보는 손이 있어요 — ${같은것보는손}로 해 볼게요.`;
+  }
 
   return 알아본계단 ?? 쓸도구말 ?? rungMessage(계단);
 }
@@ -1829,6 +1855,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // "다음 길"이 옛 목록으로 안내한다 — 이미 붙은 손을 못 쓴다고 하거나 내린 손을 권한다.
   // `refreshRuntimeReality` 가 만든 현재 selfState 에서 매번 뽑는다(같은 현실의 투영본).
   const 있는손 = () => selfState.connectedTools.filter((t) => t.status === 'usable').map((t) => t.id);
+  // **어느 손이 같은 것을 보는가** — 축(`보는것`)은 descriptor 가 선언하고 커널은 비교만 한다.
+  // 커널이 손 목록을 직접 읽지 않는다(층 역전 금지) — selfState 가 든 것을 그대로 쓴다.
+  const 손설명 = () => selfState.connectedTools.filter((t) => t.status === 'usable');
   // 출처가 **계약인** 손 — descriptor 가 선언한 사실 그대로. 답 검사가 "확인했다" 주장을
   // 이 사실로 판정한다(문구 규칙이 아니라 계약 한 줄).
   const 출처계약손목록 = () => selfState.connectedTools.filter((t) => t.sourceLedgerRequired).map((t) => t.id);
@@ -1854,7 +1883,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
     // 못 찾았어요"). 사다리는 도구 종류를 모르는 일반 폴백이라, 앞세우면 파일 실패에 웹 문구가
     // 나간다 — 실측: 원장엔 정확한 문장이 있었는데 사다리가 덮어써서 모델이 터미널 명령을 시켰다.
-    recoveryHint: 다음길(turnReceipts, 있는손()),
+    recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
     ...(ctx.selfhood ?? {}),
   });
   // Phase 0-2 1층: 이 턴이 웹을 필요로 했으면 모델 내장 검색을 켠다. 모델이 자기 인프라로 찾아
@@ -2123,7 +2152,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState,
-        recoveryHint: 다음길(turnReceipts, 있는손()),
+        recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
         ...예산사실(),
         ...(ctx.selfhood ?? {}),
       });
@@ -2374,7 +2403,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState,
-      recoveryHint: 다음길(turnReceipts, 있는손()),
+      recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
       ...예산사실(), // 남았으면 남았다는 사실(H08 실측) — 이제 두 축 다 준다
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):
       // "t5demo-idle 꺼줘" 에서 T5 가 대상을 정확히 찾아 놓고 **"터미널 손이 열리지 않아

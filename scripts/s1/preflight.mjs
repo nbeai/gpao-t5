@@ -137,6 +137,12 @@ export const 허용파일 = [
   // 그림의 **크기만** 봉투(PNG/JPEG 머리)에서 읽는다 — MCP 조각에 크기가 없어서,
   // 모델이 자리를 짚을 자를 못 받았다(창 크기를 주면 그림 밖을 짚는다). 알맹이는 안 본다.
   'src/runtime/image-size.js',
+  // 손이 **무엇을 보는지** 축으로 선언하는 자리(노드 ③ · 2026-08-06). `operatorFact` 는
+  // 모델이 읽는 글이고 이 축은 커널이 읽는 값이다 — 한 손이 막혔을 때 같은 것을 보는
+  // 다른 손을 가리키려면 비교할 수 있어야 한다(글로는 못 비교한다).
+  'src/kernel/l2-plan/tool-descriptor.js',
+  // 그 축을 selfState 가 나른다 — 안 나르면 커널이 비교할 재료를 못 받는다.
+  'src/kernel/l0-evidence/self-state.js',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
