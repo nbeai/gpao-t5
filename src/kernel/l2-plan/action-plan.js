@@ -87,7 +87,10 @@ export function toolActionKind({ toolId, args, selfState }) {
   // 모르는 행동은 읽기로 흘리지 않는다 — 모름은 자동이 아니라 확인 쪽이다.
   if (toolId === 'desktop.act') {
     const a = args?.action;
-    if (a === 'focus' || a === 'scroll' || a === 'move' || a === 'resize' || a === 'launch') kind = 'read';
+    // **아무것도 안 바꾸는 것은 자동**(흡수 ④): 기다리기·복사는 화면을 안 건드린다.
+    // 창을 옮기고 띄우는 넷은 되돌릴 수 있다 — 그건 예전부터 자동이었다.
+    if (a === 'focus' || a === 'scroll' || a === 'move' || a === 'resize' || a === 'launch'
+      || a === 'wait' || a === 'copy') kind = 'read';
     // **누르기·입력은 돌려 봐야 안다**(CU E). D 에서는 무조건 `organize` 였고,
     // 그래서 **"보내기 눌러줘"가 카드 없이 나갔다.** 위험을 버튼 이름으로 알아맞히지 않는다 —
     // 문구 목록은 항상 뚫리고, 화면 문구로 등급을 정하는 건 A10 을 정면으로 어긴다.
@@ -98,7 +101,11 @@ export function toolActionKind({ toolId, args, selfState }) {
     //   못 찾음 · 돌려 본 사실 없음             **모름은 자동이 아니라 확인 쪽이다** → 미상
     //
     // 모델이 인자에 `value` 를 적어 내도 소용없다 — probe 는 화면이 준 요소만 본다.
-    else if (a === 'click' || a === 'type') {
+    // **누르고 넣는 것은 돌려 봐야 안다.** 새로 받는 것들(맥락 메뉴·Enter·단축키·끌기·
+    // 붙여넣기)도 같은 규율이다 — 무엇이 되는지 모르면 묻는다. 값이 있는 요소를 다루는
+    // 것만 자동이다(전후 대조가 자명하고 다시 놓으면 된다).
+    else if (a === 'click' || a === 'type' || a === 'double_click' || a === 'right_click'
+      || a === 'press_key' || a === 'hotkey' || a === 'menu' || a === 'paste' || a === 'drag') {
       kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';

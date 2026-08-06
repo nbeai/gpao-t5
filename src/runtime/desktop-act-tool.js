@@ -26,7 +26,18 @@ import { 드라이버답 } from './desktop-driver-answer.js';
 // **`dispatched` 만으로 성공을 만들지 않는다.** 이 파일의 전부가 그 한 줄이다.
 
 /** C 가 받는 넷. 여기 없는 것은 **없다고 정직하게 말한다**(있는 척도 조용한 실패도 아니다). */
-const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type']);
+// **마우스·키보드로 되는 모든 것**(흡수 ④ · 오너 지시 2026-08-06).
+// 여덟만 받던 동안 사용자 일의 절반이 막혀 있었다 — 맥락 메뉴도, Enter 도, 단축키도.
+const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type',
+  'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait']);
+/** 요소를 짚어 누르는 것들 — 신분·기대·A02 규율이 똑같이 걸린다. */
+const 요소짚는것 = new Set(['click', 'type', 'double_click', 'right_click']);
+/**
+ * **화면을 안 바꾸는 것.** 안 바뀌는 것이 정상이므로 전후 대조로 재면 늘 실패로 찍힌다 —
+ * A14 가 겨눈 "됐는데 안 됐다고 하는" 자리의 거울상이다.
+ * 이 둘은 **드라이버가 낸 답 자체가 결과**다(클립보드 글 · 기다린 초).
+ */
+const 안바꾸는것 = new Set(['copy', 'wait']);
 
 /**
  * **누르는 것들 (CU D)** — C 의 넷과 갈리는 자리.
@@ -41,7 +52,8 @@ const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'qu
  *
  * 두 번째가 정본 §5(*"클릭이 아니라 의미 효과를 판정한다"*)이고 §1.2 그대로다.
  */
-const 누르는것 = new Set(['click', 'type']);
+const 누르는것 = new Set(['click', 'type', 'double_click', 'right_click',
+  'press_key', 'hotkey', 'menu', 'paste']);
 
 /**
  * **무엇을 보면 됐는지 아나** — 행동마다 대조할 값이 다르다.
@@ -64,6 +76,18 @@ const 대조할값 = {
   // 못 찾음을 **함께 싣는다** — 안 실으면 아래 대조가 "값이 빈 것"과 못 구분한다.
   click: (본것, args) => 누른값(본것, args),
   type: (본것, args) => 누른값(본것, args),
+  // **새로 받는 것들도 같은 자리를 본다**(흡수 ④). 무엇이 바뀌면 된 것인지는
+  // 모델이 `기대` 로 밝히고, 커널은 그 값을 확인만 한다 — 규율이 안 바뀐다.
+  double_click: (본것, args) => 누른값(본것, args),
+  right_click: (본것, args) => 누른값(본것, args),
+  press_key: (본것, args) => 누른값(본것, args),
+  hotkey: (본것, args) => 누른값(본것, args),
+  menu: (본것, args) => 누른값(본것, args),
+  paste: (본것, args) => 누른값(본것, args),
+  drag: (본것) => ({ 창자리: JSON.stringify(본것?.windows?.[0]?.bounds ?? null) }),
+  // 클립보드 읽기와 기다리기는 **화면을 안 바꾼다** — 대조할 것이 없고, 결과가 곧 답이다.
+  copy: () => ({ 바꾼것: '없음' }),
+  wait: () => ({ 바꾼것: '없음' }),
 };
 
 /** 관찰 결과에서 그 요소의 현재 값. 없으면 `null` — 못 찾은 것과 값이 빈 것을 안 섞는다. */
@@ -247,7 +271,9 @@ async handler(args) {
       }
 
       // ── D · 누르기 전에 갖춰야 하는 것 ─────────────────────────────────
-      if (누르는것.has(행동)) {
+      // **요소를 짚는 것에만** 이름·비밀칸·A02 가 걸린다(흡수 ④).
+      // `press_key`·`hotkey`·`menu` 는 요소를 안 짚는다 — 라벨을 요구하면 못 쓴다.
+      if (요소짚는것.has(행동)) {
         const 막힘 = (문장, 수단 = 'observe') => ({
           blocked: true, userSafeSummary: 문장,
           다음수단: [{ 방법: 수단, 왜: '지금 화면을 다시 보고 무엇을 누를지 정한다' }],
@@ -442,6 +468,21 @@ async handler(args) {
             { 방법: 'observe', 왜: '지금 상태를 다시 본다' },
             { 방법: 'retry', 왜: '실행이 아예 안 나갔으므로 다시 해도 두 번 되지 않는다' },
           ],
+        };
+      }
+
+      // 화면을 안 바꾸는 것은 낸 답이 곧 결과다 — 전후로 재지 않는다.
+      if (안바꾸는것.has(행동)) {
+        const 글 = typeof 낸것?.text === 'string' ? 낸것.text : null;
+        return {
+          result: {
+            단계: 'goal_verified', 행동, 확인방법: '드라이버가 낸 답',
+            ...(글 !== null ? { 글 } : {}),
+            ...(낸것?.waited_s != null ? { 기다린초: 낸것.waited_s } : {}),
+          },
+          userSafeSummary: 행동 === 'copy'
+            ? (글 ? '복사돼 있던 글을 가져왔어요.' : '복사돼 있는 글이 없어요.')
+            : '잠깐 기다렸어요.',
         };
       }
 

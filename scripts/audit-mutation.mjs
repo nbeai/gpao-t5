@@ -59,6 +59,7 @@ const T_CU2 = 'test/cu2-window-contents-are-ordered.test.js';
 const T_AB1 = 'test/cu-absorb-1-window-and-query.test.js';
 const T_AB2 = 'test/cu-absorb-2-follow-the-drivers-fix.test.js';
 const T_AB3 = 'test/cu-absorb-3-foreground-ladder.test.js';
+const T_AB4 = 'test/cu-absorb-4-mouse-and-keyboard.test.js';
 const T_READ = 'test/cu-read-reaches-the-model.test.js';
 const T_NAMES = 'test/cu1-tool-names-must-not-collide.test.js';
 const IDENT = 'src/runtime/desktop-identity.js';
@@ -1580,6 +1581,26 @@ export const MUTATIONS = [
     찾기: '          const document = await extractDocument(abs, bytes);',
     바꾸기: '          const document = null;' },
   // ── 사람 사용 비교 3회 — 실제 브라우저에서 발견한 계약 ──────────────────
+  // ── 흡수 ④ · 마우스·키보드로 되는 모든 것 ─────────────────────────────
+  { 이름: '손이 받는 행동을 여덟으로 되돌림(맥락 메뉴·Enter·단축키가 사라진다)', 파일: DESK_ACT, 검사: T_AB4,
+    찾기: "  'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait']);",
+    바꾸기: "]);" },
+  { 이름: '키 누르기를 드라이버에 안 넘김(메시지를 못 보낸다)', 파일: CUA, 검사: T_AB4,
+    찾기: "        press_key: () => mcp.call('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),",
+    바꾸기: "        press_key: () => mcp.call('__none__', {})," },
+  { 이름: '앱 메뉴 길을 없앰(가장 안정적인 조작 경로가 사라진다)', 파일: CUA, 검사: T_AB4,
+    찾기: "        menu: () => mcp.call('invoke_menu', {",
+    바꾸기: "        menu: () => mcp.call('__none__', {" },
+  // (기본값이 미상이라 "분기에서 빼기"로는 안 문다 — **자동으로 흘리는 쪽**이 진짜 위험이다.)
+  { 이름: '새 행동을 자동으로 흘림(맥락 메뉴·붙여넣기가 카드 없이 실행된다)', 파일: 'src/kernel/l2-plan/action-plan.js', 검사: T_AB4,
+    찾기: "      || a === 'wait' || a === 'copy') kind = 'read';",
+    바꾸기: "      || a === 'wait' || a === 'copy' || a === 'paste' || a === 'menu') kind = 'read';" },
+  { 이름: '화면을 안 바꾸는 것을 전후로 재서 늘 실패로 찍음', 파일: DESK_ACT, 검사: T_AB4,
+    찾기: "      if (안바꾸는것.has(행동)) {",
+    바꾸기: "      if (false) {" },
+  { 이름: '복사한 글을 결과에 안 실음(읽기의 왕도가 막힌다)', 파일: DESK_ACT, 검사: T_AB4,
+    찾기: "            ...(글 !== null ? { 글 } : {}),",
+    바꾸기: "" },
   // ── 흡수 ③ · 알려준 사다리를 실제로 탄다 ──────────────────────────────
   { 이름: '앞으로 가져오면 읽힌다고 알려줘도 안 감(정직하지만 일을 못 끝낸다)', 파일: CUA, 검사: T_AB3,
     찾기: "          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {",

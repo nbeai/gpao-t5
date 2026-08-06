@@ -121,7 +121,9 @@ test('A04: 지문이 맞으면 그대로 간다 — 없는 벽을 만들지 않�
 // **"대조할 값이 없는 행동이 막히나"** 다. 계약이 옮겨 갔지 느슨해진 것이 아니다.
 test('대조할 값이 없는 행동은 안 받는다 — 없이 계약을 세우지 않는다', async () => {
   const 백 = 백엔드({});
-  for (const 안되는것 of ['menu_click', 'drag', 'screenshot']) {
+  // (`drag` 는 흡수 ④ 로 **계약을 갖추고 들어왔다** — 창 자리로 대조한다.
+  //  그래서 여기서 빠졌다. 계약이 옮겨 간 것이지 느슨해진 것이 아니다.)
+  for (const 안되는것 of ['menu_click', 'screenshot', 'zoom']) {
     const out = await 손세우기(백).handler({ action: 안되는것 });
     assert.equal(out.blocked, true, `${안되는것} 이 통과했다 — 대조 기준 없이 계약을 세우게 된다`);
   }

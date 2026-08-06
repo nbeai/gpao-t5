@@ -463,7 +463,16 @@ function 화면행동선언() {
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type'] },
+          action: {
+            type: 'string',
+            enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type',
+              'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait'],
+            description: '마우스·키보드로 되는 것들.'
+              + ' `press_key`(Enter·Tab·Esc·방향키 — **메시지 보내기가 이것이다**) ·'
+              + ' `hotkey`(`cmd+s` 같은 조합) · `menu`(앱 메뉴 — **가장 안정적인 길**) ·'
+              + ' `right_click`(맥락 메뉴) · `double_click` · `drag` ·'
+              + ' `copy`/`paste`(클립보드) · `wait`(초).',
+          },
           대상: {
             type: 'object',
             description: '누를 것(관찰이 준 요소 그대로 — id·label·지문·토큰).'

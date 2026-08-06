@@ -534,6 +534,15 @@ export function makeCuaDriver(deps = {}) {
         r?.exact_window_effect?.verified === true || r?.activated === true
           ? { ...r, 확인됨: true, 근거: r.code ?? 'driver_verified' }
           : r);
+      // 요소를 짚는 값과 창을 가리키는 값 — **한 자리에서 만든다**(계열 A).
+      const 짚기 = () => ({
+        ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : {}),
+        ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
+      });
+      const 전달 = () => ({
+        ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
+      });
+
       // **여기서 판정하지 않는다.** 부르고 결과만 낸다 — 됐는지는 손이 전후로 가른다.
       const 표 = {
         focus: async () => {
@@ -619,6 +628,30 @@ export function makeCuaDriver(deps = {}) {
         }),
         type: () => mcp.call('type_text', { text: String(요청?.값 ?? '') }),
         // `set_value` — 네이티브 메뉴를 안 열고 값을 직접 넣는다. 메뉴를 열면 포커스를 뺏는다.
+        // **마우스·키보드로 되는 모든 것**(흡수 ④). 드라이버에는 이미 다 있었다 —
+        // 우리가 여덟만 쓰고 있었다. 신분(토큰·창·pid)은 위에서 한 벌로 온다.
+        double_click: () => mcp.call('double_click', { ...짚기(), ...전달() }),
+        right_click: () => mcp.call('right_click', { ...짚기(), ...전달() }),
+        drag: () => mcp.call('drag', {
+          ...(대상.pid ? { pid: 대상.pid } : {}), ...(대상.창 ? { window_id: 대상.창 } : {}),
+          ...(요청?.값 ?? {}),
+        }),
+        // **Enter·Tab·Esc·방향키** — 메시지 보내기가 이것이다.
+        press_key: () => mcp.call('press_key', { key: String(요청?.값 ?? ''), ...짚기(), ...전달() }),
+        // `cmd+s` 처럼 앱마다 있는 표준 길.
+        hotkey: () => mcp.call('hotkey', { keys: String(요청?.값 ?? ''), ...전달() }),
+        // **앱 메뉴가 가장 안정적인 조작 경로다** — 좌표도 토큰도 안 낡는다.
+        menu: () => mcp.call('invoke_menu', {
+          path: Array.isArray(요청?.값) ? 요청.값 : String(요청?.값 ?? '').split('>').map((x) => x.trim()),
+          ...전달(),
+        }),
+        copy: () => mcp.call('clipboard_read', { include_text: true }),
+        paste: () => mcp.call('clipboard_write', { text: String(요청?.값 ?? '') }),
+        wait: async () => {
+          const 초 = Math.min(Math.max(Number(요청?.값) || 1, 0), 30);
+          await new Promise((z) => { setTimeout(z, 초 * 1000); });
+          return { ok: true, waited_s: 초 };
+        },
         set_value: () => mcp.call('set_value', {
           ...(대상.토큰 ? { element_token: 대상.토큰 } : {}), value: String(요청?.값 ?? ''),
           ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
