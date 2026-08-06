@@ -107,6 +107,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/local-terminal.js',
     // 주석만 고쳤다(F-46) — 선언 넷과 강제 홈 전체가 두 진실이라 그 사실을 머리말에 적었다.
     'src/runtime/file-scope.js',
+    // design/ 정리(2026-08-06) — `design/archive` 를 감사 제외 경로에 더했다.
+    'scripts/audit-project-entry.mjs',
+    // 주석만 — 오너 결정(사용자 브라우저를 쓴다)을 그 자리에 기록했다. 구현 아님.
+    'src/runtime/browser.js',
     'src/surface/demo-context.js',
     'src/surface/live-context.js',
     'src/runtime/tool-runner.js',

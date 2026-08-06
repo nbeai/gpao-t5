@@ -121,6 +121,26 @@ Finder 를 앞에 둔 채 계산기를 눌렀더니 `1 → 14` 로 들어갔다(
 
 ---
 
+## 4-A. 실계정 시험 범위 — **오너 결정 2026-08-06** (BUTLER §9 D3)
+
+이 결정이 없어서 §0 의 닫는 문장(*"다른 앱 셋에서 사람이 시킨 문장 다섯"*)을 **닫을 수가 없었다.**
+카톡·네이버 같은 실계정 앱을 못 건드리면 "다른 앱 셋"이 계산기·메모·Finder 로 좁아진다.
+
+```
+읽기 · 관찰      **오너 계정으로 연다.**  화면을 읽는 것이 이 제품의 핵심이고,
+                 오너가 직접 쓰면 매일 일어나는 일이다
+전송 · 밖으로     **그대로 닫는다.**       헌장 ③(새 상대 첫 전송)이 이미 그 자리다
+```
+
+**갈리는 선은 앱 이름이 아니라 방향이다** — 들어오는 것(읽기)과 나가는 것(전송).
+그래서 카톡을 열어도 카톡으로 **보내는** 것은 여전히 카드를 탄다.
+
+실무 규율 둘:
+- 시험에서 읽은 대화 내용은 **그 턴에서만** 산다(F-2 화면 증거와 같은 수명 — 영수증에 안 싣는다).
+- 오너 아닌 사람의 계정으로는 시험하지 않는다. 상대방 동의가 없다.
+
+---
+
 ## 5. 종료 조건 — **언제 끝인가**
 
 1. §0 의 닫는 문장이 참이다(다른 앱 셋 · 문장 다섯 · 사진 대조).
@@ -359,3 +379,52 @@ A02(같은 이름이면 안 누른다) · A14(dispatch ≠ 효과) · 조용한 
 - 조작은 **창을 대상으로** 한다(창 id · pid). 모니터 좌표를 흉내 내지 않는다.
 - 화면 전체를 모델에 밀어 넣지 않는다 — 오너의 다른 창까지 간다. **눈 흉내는 목적이 아니다.**
 - 화면은 **확인용이자 사람이 원할 때** 준다.
+
+---
+
+## cua 를 공부하고 알게 된 것 — 오너 지시 (2026-08-06)
+
+> *"쿠아 자체가 깃허브에서 사랑받는 이유가 있을 거야. 사용자들이 왜 좋아하는지, 개발자는 왜
+> 개발했는지를 알면 우리가 쿠아를 어떻게 활용해야 하는지 개발 방향을 정확하게 잡을 수 있지 않을까?"*
+
+읽었더니 **오늘 하루 실험으로 헤맨 것이 전부 계약에 적혀 있었다.**
+
+### cua 가 사랑받는 이유 (README 첫 줄)
+> *"Drive native desktop apps **in the background**. Agents click, type, and verify
+> **without stealing the cursor or focus**."*
+
+**배경에서, 커서·포커스를 안 뺏고, 검증까지.** 그게 이 드라이버의 존재 이유다.
+그래서 우리가 화면을 찍어 좌표로 짚는 쪽으로 새면 **설계와 정반대로 가는 것**이다.
+
+### `docs/action-support.md` — 경험적 거동 원장
+- **AX 와 PX 는 "타깃을 어떻게 고르나"이지 배달 경로가 아니다** —
+  *"a PX target may be hit-tested and delivered through AX when that is the background-safe route."*
+  좌표로 짚어도 배경 배달이 된다. 좌표 = 나쁜 길이 아니다.
+- **macOS Electron 앱**: `left/right/double click · type text · press key · hotkey` 가 **배경으로 배달**된다.
+  안 되는 것은 `scroll`·`drag` 뿐. 카톡이 여기 속한다.
+- `background_unavailable` · `background_occluded` 는 **정식 거절 코드**다.
+
+### 좌표계 — 여기서 하루를 썼다
+`click` 도구 설명 원문:
+> `x, y` — *"**window-local screenshot pixels**, top-left origin of the PNG returned by
+> get_window_state … **the pixel you read IS the pixel that gets clicked**; no scaling math."*
+> `from_zoom` — *"set true after a zoom call to **auto-translate zoom-image pixel coordinates**
+> to full-window space."*
+> `zoom` — *"cropped JPEG … with **20% padding** added on each side. The output image is
+> **at most 500 px wide**."*
+> `debug_image_out` — *"draws a red crosshair at (x, y) … **Use to verify coordinate spaces**."*
+
+내가 틀린 것 셋:
+1. **화면 절대 좌표로 zoom 을 요청했다** → 창 위쪽만 담겼다(500×707, 비율 0.707 ≠ 창 0.651).
+   창 픽셀(0,0 ~ w×2, h×2)로 주니 **500×768 · 창 비율 일치 · 입력칸과 전송 버튼까지** 담겼다.
+2. 그 비율 차이를 **"잘렸다"로 판정**했다 — 계약된 패딩+축소였다. 틀린 자를 만들어 검사까지 세웠다.
+3. **`from_zoom` 을 안 붙였다** — 모델이 그림 보고 말한 좌표를 창 좌표인 척 보냈다.
+
+### 남은 한 걸음
+`type_text` 는 **커서가 있는 곳**에 친다. 클릭으로 커서를 두지 않으면 아무 데도 안 들어간다
+(실측: focus → type → return 을 했는데 화면에 아무 변화가 없었다). 순서가 계약이다:
+**짚어서 누르고(커서를 두고), 치고, 보낸다.**
+
+### 배운 것 — 오너 규율이 정확했다
+[[만들지-말고-읽고-판정한다]]. **계약을 안 읽고 실험으로 알아내려 한 것이 오늘의 가장 큰 낭비였다.**
+새 드라이버·새 도구를 붙일 때는 **도구 설명 전문과 `docs/` 를 먼저 읽는다.**

@@ -197,6 +197,14 @@ export const 허용파일 = [
   // 그 문장 때문에 **T5 가 없는 능력을 주장한다고 오판**했다. 코드는 한 줄도 안 바꿨다 —
   // 선언과 강제를 한 벌로 만드는 것은 격리 증명의 판정 축을 먼저 정해야 해서 F-46 으로 남겼다.
   'src/runtime/file-scope.js',
+  // **design/ 정리**(오너 지시 2026-08-06) — 47개를 `design/archive/` 로 옮기고 그 경로를
+  // 감사의 제외 목록에 더했다. 안 더하면 보관한 문서가 계속 "활성"으로 세어져서, 보관이
+  // 정리가 아니라 이름만 바꾼 것이 된다. 제품 코드는 안 건드렸다.
+  'scripts/audit-project-entry.mjs',
+  // **주석만 고쳤다**(오너 결정 2026-08-06 · BUTLER §9 D2). 이 파일 머리가
+  // *"사용자 프로필 활용은 별도 결정이 필요한 사안"* 이라 적고 사흘을 기다리고 있었다.
+  // 결정이 났으므로 그 자리에 기록했다 — **구현은 안 했다**(4단계 슬라이스다).
+  'src/runtime/browser.js',
   'src/surface/demo-context.js',
   'src/surface/live-context.js',
   'src/runtime/tool-runner.js',

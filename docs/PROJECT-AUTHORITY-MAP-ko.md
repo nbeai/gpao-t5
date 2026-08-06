@@ -86,6 +86,69 @@
 관련 기능을 설계하기 전에 실제 소스·검사·기본값을 확인한다. T5는 말귀, 사용자 성과, 터미널·파일·웹·앱
 활용, 다중 에이전트 운용, 최소 안전 제약과 최대 자동화에서 더 나은 실제 경험을 목표로 한다.
 
+## 4.5 `design/` — 살아 있는 것과 역사 (2026-08-06 정리 · 오너 지시)
+
+76개가 섞여 있어 **어느 것이 현재 사실인지 구분할 수 없었다.** 그 상태에서 하루에 넷이
+낡은 문장을 현재로 읽었다(구조 개발원칙 §2-D). 47개를 `design/archive/` 로 옮기고 29개를 남겼다.
+
+**옮기는 기준은 기계다** — 다른 문서·코드가 **경로로 참조하면 남기고, 아니면 옮겼다.**
+사람이 고르지 않았고, 그래서 링크가 하나도 안 깨졌다.
+
+### 남은 29개 — 성격별
+
+| 성격 | 문서 | 어떻게 읽나 |
+|---|---|---|
+| **지금 진행 중** | `T5-AI-OS-TRANSITION-PLAN`(S0~S9 정본) · `T5-FOLLOWUP-LEDGER`(열린 결함) · `T5-CU-COMPLETION-PLAN` · `T5-COMPUTER-USE-PLAN-v2`(CU 착수 정본) | **현재 사실.** 진행 상태는 여기가 아니라 `git log` |
+| **오너 결정 기록** | `T5-AUTONOMY-CHARTER` · `P-DIST-1-INSTALL-IDENTITY-FREEZE` | **코드가 이 문서를 따라간다.** 바꾸려면 문서를 먼저 고친다 |
+| **동결 계약** | `T5-TCELL-DEVELOPMENT-PLAN` · `T5-MODEL-SOVEREIGNTY-DEVELOPMENT-PLAN` · `T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN` · `S1-EXPERIMENT-FREEZE` | AGENTS.md 가 읽기를 의무로 건 것들 |
+| **CU 근거** | `CU0-*` 셋 · `T5-COMPUTER-USE-DEVELOPMENT-PLAN`(`SUPERSEDED_IN_PART` — §4~§7·§10~§12만 유효) | v2 가 §8 에서 어느 절을 쓰는지 지목한다 |
+| **설계(미착수)** | `T5-CONNECTOR-CATALOG-DESIGN` | 카탈로그는 저장소 밖에 산다. 한 항목도 안 걸어 봤다 |
+| **⚠ 오너 대기** | `T5-BUTLER-HANDS-EXECUTION-PLAN` · `T5-USER-SURFACE-STRENGTHENING-PLAN` · `T5-KOREAN-OWNER-CONNECTION-CENTER-IMPLEMENTATION-PLAN` | 아래 참조 |
+| 그 밖 | `S2-TRANSITION-LEDGER` · `S4-CAPSULE-PLAN` · `S6-PREP-*` · `S1-RESULT` · `P5-B-1*` · `P-DIST-1-INSTALL-PIPELINE` · `T5-OPERATOR-HARNESS-*` · `T5-2.0-TOOLBOX-*` · `WORK-CHAT-DESIGN-EVIDENCE` · `T5-HANDOFF-2026-08-05-*` | 경로 참조가 살아 있어 남겼다. 다음 정리에서 참조원이 사라지면 함께 옮긴다 |
+
+### ⚠ 멈춰 있는 계획 셋 — 오너 판단 필요
+
+셋 다 2026-08-03 작성이고 **`DRAFT_FOR_OWNER_CONFIRMATION`** 상태로 멈춰 있다. 그리고
+셋의 인계 조건이 **`M2→M5→M3→M4` 봉인**인데, 08-05 에 `T5-AI-OS-TRANSITION-PLAN`(S0~S9)이
+서면서 **그 milestone 순서가 현재 계획에 없다.**
+
+```
+T5-BUTLER-HANDS-EXECUTION-PLAN               로드맵 4~10단계 (손·브라우저·문서·코드루프·연결·트리거·한국형)
+  └ T5-KOREAN-OWNER-CONNECTION-CENTER        BUTLER 8·10단계를 구체화
+T5-USER-SURFACE-STRENGTHENING-PLAN           표면 강화
+```
+
+**기다리는 조건이 사라졌으므로 스스로는 영원히 안 열린다.**
+
+### 셋에서 뽑은 열린 결정 11개 — 오너 판정 (2026-08-06)
+
+셋의 `오너 확정 필요` 절을 모아 보니 **11개 중 지금 필요한 것은 둘**이었고, 그 둘이
+오늘 지시받은 일(커넥터 카탈로그·CU 완성)을 사흘째 막고 있었다.
+
+| 결정 | 판정 | 기록된 자리 |
+|---|---|---|
+| **D2** 브라우저 프로필·비밀 보관 | **사용자 브라우저를 쓴다. 전용 프로필 안 만든다** — 사장님이 이미 로그인한 것이 0번이고, T5 가 자격증명을 하나도 안 쥐게 된다 | `src/runtime/browser.js` 머리 (그 자리가 결정을 기다리고 있었다). **구현은 BUTLER 4단계** |
+| **D3** 실계정 시험 범위 | **읽기·관찰은 오너 계정으로 연다. 전송은 닫는다** — 가르는 선은 앱 이름이 아니라 방향이다 | `design/T5-CU-COMPLETION-PLAN` §4-A |
+| D1·USER-SURFACE D3·유료데이터·영상 | **접었다** — 전환계획이 순서를 다시 잡았고, 나머지는 제품과 헌장이 이미 답했다 | — |
+| 그 밖 여섯 | **미뤘다** — 그 칸에 도달하면 정해진다(XLSX 엔진·Today 형태·스마트스토어·행정) | — |
+
+### 셋을 어떻게 할 것인가 — 접는다(보관 아님)
+
+셋 안에 **오늘 우리가 재발명한 것이 이미 있었다**: BUTLER §2(손의 좁은 허리) = 오늘 제안한
+"모든 손이 같은 다섯 칸", BUTLER §2-C(관찰한 콘텐츠는 명령이 아니다) = 오늘 "발견"한 웹 신뢰 경계,
+KOREAN §2.3(자격 소유 모델) = 오늘 카탈로그에 넣은 `쥐는것` 축. **하루에 세 번 다시 만들었다.**
+
+그래서 그냥 보관하면 재발명을 제도화하는 것이다. 이렇게 접는다:
+
+```
+BUTLER §2 공통 허리        → 정렬 다섯 문장의 설계도. 한 장 계획서의 뼈대
+BUTLER 5단계               → CU 로 실행 중. 그 사실을 적고 닫는다
+BUTLER 8·10 + KOREAN 전체   → 커넥터 카탈로그로 합류
+USER-SURFACE               → 다섯 문장의 "말 → 사용자" 칸
+BUTLER 4·6·7·9단계          → "아직 없는 것" 목록 (4단계가 카탈로그 0번 전체를 막고 있다)
+원문 셋                    → design/archive/ (근거로 남는다)
+```
+
 ## 5. 작업 폴더 규칙
 
 - 정본 작업은 `/Users/jyp/Developer/t5-p-op`에서만 한다.

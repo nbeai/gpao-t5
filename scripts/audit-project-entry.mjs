@@ -37,7 +37,9 @@ for (const path of retiredAtOldPath) {
 
 // 활성 문서 목록 — 선택 설치된 rg에 기대지 않는다. Git은 아래 worktree 감사도 이미 요구한다.
 // cached+untracked(비무시) 목록은 기존 rg의 gitignore 경계를 보존해 로컬 메모가 정본에 섞이지 않는다.
-const 제외경로 = ['docs/archive', 'docs/03-verification/evidence', 'design/evidence', 'node_modules', '.git'];
+// `design/archive` — 구현이 끝난 슬라이스 명세(2026-08-06 정리). 여기 것은 **활성 문서가 아니다.**
+// 안 빼면 보관한 47개가 계속 활성으로 세어지고, 그러면 보관이 정리가 아니라 이름만 바꾼 게 된다.
+const 제외경로 = ['docs/archive', 'design/archive', 'docs/03-verification/evidence', 'design/evidence', 'node_modules', '.git'];
 const activeMarkdown = execFileSync('git', [
   'ls-files', '--cached', '--others', '--exclude-standard', '--', '*.md',
 ], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean)

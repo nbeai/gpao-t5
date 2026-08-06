@@ -445,24 +445,20 @@ export function makeCuaDriver(deps = {}) {
             try {
               const 조각 = await mcp.조각들('zoom', {
                 window_id: 대상.id, pid: 대상.pid,
-                // 창 테두리 그대로 — 어림잡으면 대화창이 잘린다.
-                x1: 테.x, y1: 테.y, x2: 테.x + 테.w, y2: 테.y + 테.h,
+                // **창 좌상단이 0,0 인 스크린샷 픽셀**이다 — 화면 절대 좌표가 아니다.
+                // 계약: *"a window region (x1,y1)–(x2,y2) **in screenshot pixel coordinates**"*.
+                // 화면 절대 좌표를 주면 **창 위쪽만** 담긴다(실측: 500×707, 비율이 안 맞았다).
+                // 창 픽셀은 Retina 에서 논리 크기의 2배다 — 넉넉히 주면 드라이버가 자른다.
+                // 실측(2026-08-06): 0,0~w*2,h*2 로 주니 500×768 · 창 비율과 일치 ·
+                // **입력칸과 전송 버튼까지** 담겼다. 그 전에는 모델이 입력칸을 못 보고 추측했다.
+                x1: 0, y1: 0, x2: 테.w * 2, y2: 테.h * 2,
               });
               const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
               if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
-              // **창이 다 안 담겼으면 그 사실을 말한다.** 실측(2026-08-06): `zoom` 이 559×859 창을
-              // 500×707 로 냈다 — 아래가 잘렸고 **입력칸이 거기 있었다.** 요청 영역을 바꿔도
-              // 같은 위쪽만 왔다. 모델은 정확히 *"입력창이 잘려 있어 좌표를 못 짚는다"* 고 답했다.
-              //
-              // **화면 전체를 대신 밀어 넣지 않는다**(오너 지침 2026-08-06):
-              // *"T5 의 눈은 인간이 실제로 보는 눈과 같아야만 하는 게 아니다. 원격에서
-              //  텔레그램으로 지시한다면 모니터에 뭐가 떠 있는지가 중요할까?"*
-              // 화면 전체에는 오너의 다른 창이 다 담기고, 그건 지시 수행이 아니라 눈 흉내다.
-              // 못 담았으면 **못 담았다고 적는다** — 그게 사실이고, 조작은 창을 대상으로 한다.
-              if (이미지 && 잘렸나(테, { w: 이미지.width, h: 이미지.height })) {
-                못읽은이유값 = `${못읽은이유값 ? `${못읽은이유값} · ` : ''}화면에 창이 다 안 담겼어요`
-                  + `(창 ${테.w}×${테.h} · 그림 ${이미지.width}×${이미지.height})`;
-              }
+              // **그림 크기가 창과 다른 것은 정상이다.** `zoom` 계약이 그렇다 —
+              // *"cropped JPEG … with **20% padding** added on each side. The output image is
+              // **at most 500 px wide**."* 그래서 559×859 창이 500×707 로 온다.
+              // 잘린 게 아니라 패딩+축소다. 그리고 그 좌표는 `from_zoom` 으로 되돌린다(아래 act).
             } catch { 그림값 = null; }
           }
           요소 = (st?.elements ?? []).map((e) => ({
@@ -765,7 +761,7 @@ export function makeCuaDriver(deps = {}) {
             value: String(요청?.값 ?? ''),
             ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
           })
-          : 창실어부르기('type_text', { text: String(요청?.값 ?? '') })),
+          : 창실어부르기('type_text', { text: String(요청?.값 ?? ''), ...(짚은자리(대상) ?? {}) })),
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
@@ -840,7 +836,13 @@ export function 잘렸나(창 = null, 그림 = null) {
  */
 function 짚은자리(대상 = {}) {
   const x = Number(대상.x); const y = Number(대상.y);
-  return Number.isFinite(x) && Number.isFinite(y) ? { x: Math.round(x), y: Math.round(y) } : null;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  // **어느 자로 잰 좌표인지 함께 말한다.** 우리가 모델에게 주는 그림은 언제나 `zoom` 산출물이고
+  // (AX 로 못 읽는 창의 유일한 눈이다), `zoom` 은 20% 패딩을 붙이고 500px 로 줄인다.
+  // 그러니 모델이 그 그림을 보고 말하는 좌표는 **zoom 이미지 좌표**다.
+  // 계약이 그 되돌림을 이미 준다 — *"`from_zoom`: set true after a zoom call to auto-translate
+  // zoom-image pixel coordinates to full-window space."* 우리가 계산하지 않는다.
+  return { x: Math.round(x), y: Math.round(y), from_zoom: true };
 }
 
 function 가운데(b = {}) {
