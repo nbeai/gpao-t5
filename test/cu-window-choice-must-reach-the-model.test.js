@@ -72,15 +72,18 @@ const 행동손 = () => makeDesktopActTool({
   }],
 });
 
+// **`type` 은 이제 커서 자리에 친다**(라이브 2026-08-06 · 손과 눈). 누르고 치는 것이 사람의
+// 순서라 대상이 없어도 막지 않는다. 이 검사가 겨눈 것은 *"틀린 이유를 말한다"* 이므로
+// 자리를 짚어야 하는 **클릭**으로 옮긴다 — 계약은 그대로다.
 test('대상을 아예 안 주면 그 사실을 말한다 — "이름이 없다"가 아니다', async () => {
-  const r = await 행동손().handler({ action: 'type', 값: 'ㄱ', 기대: { 요소: 's1:26', 값: 'ㄱ' } });
+  const r = await 행동손().handler({ action: 'click', 기대: { 요소: 's1:26', 값: 'ㄱ' } });
   assert.equal(r.blocked, true);
   assert.match(r.userSafeSummary, /어디에|무엇에|짚/,
     `**틀린 이유를 말한다** — 모델이 같은 실수를 반복한다: ${r.userSafeSummary}`);
 });
 
 test('무엇을 채워야 하는지 길에 적는다 — 모델은 그 길을 읽고 고친다', async () => {
-  const r = await 행동손().handler({ action: 'type', 값: 'ㄱ', 기대: { 요소: 's1:26', 값: 'ㄱ' } });
+  const r = await 행동손().handler({ action: 'click', 기대: { 요소: 's1:26', 값: 'ㄱ' } });
   assert.match(JSON.stringify(r.다음수단 ?? []), /대상/,
     `**막고 갈 곳을 안 준다**: ${JSON.stringify(r.다음수단)}`);
 });

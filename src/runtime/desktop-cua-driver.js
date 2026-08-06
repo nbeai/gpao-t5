@@ -450,6 +450,19 @@ export function makeCuaDriver(deps = {}) {
               });
               const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
               if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
+              // **창이 다 안 담겼으면 그 사실을 말한다.** 실측(2026-08-06): `zoom` 이 559×859 창을
+              // 500×707 로 냈다 — 아래가 잘렸고 **입력칸이 거기 있었다.** 요청 영역을 바꿔도
+              // 같은 위쪽만 왔다. 모델은 정확히 *"입력창이 잘려 있어 좌표를 못 짚는다"* 고 답했다.
+              //
+              // **화면 전체를 대신 밀어 넣지 않는다**(오너 지침 2026-08-06):
+              // *"T5 의 눈은 인간이 실제로 보는 눈과 같아야만 하는 게 아니다. 원격에서
+              //  텔레그램으로 지시한다면 모니터에 뭐가 떠 있는지가 중요할까?"*
+              // 화면 전체에는 오너의 다른 창이 다 담기고, 그건 지시 수행이 아니라 눈 흉내다.
+              // 못 담았으면 **못 담았다고 적는다** — 그게 사실이고, 조작은 창을 대상으로 한다.
+              if (이미지 && 잘렸나(테, { w: 이미지.width, h: 이미지.height })) {
+                못읽은이유값 = `${못읽은이유값 ? `${못읽은이유값} · ` : ''}화면에 창이 다 안 담겼어요`
+                  + `(창 ${테.w}×${테.h} · 그림 ${이미지.width}×${이미지.height})`;
+              }
             } catch { 그림값 = null; }
           }
           요소 = (st?.elements ?? []).map((e) => ({
@@ -498,6 +511,10 @@ export function makeCuaDriver(deps = {}) {
        *
        * @returns {Promise<{pid:number}|{골라야함:Array}|null>}
        */
+      // **창을 가리키는 이름은 하나다.** 손은 요소 신분과 같은 말(`창`)로 깔고, 이 아래 손들은
+      // `window` 로 읽고 있었다 — 그래서 손이 *"n.BEAI 창"* 을 정확히 짚어 줘도 `focus` 는
+      // *"창이 여러 개라 모르겠다"* 로 되물었다(라이브 2026-08-06). 한 자리에서 합친다.
+      const 짚은창 = 대상.창 ?? 대상.window;
       const 앱고르기 = async ({ 켜진것만 = false } = {}) => {
         if (Number.isInteger(대상.pid)) return { pid: 대상.pid };
         const 이름 = String(대상.app ?? '').trim().toLowerCase();
@@ -576,7 +593,9 @@ export function makeCuaDriver(deps = {}) {
           : r);
       // 요소를 짚는 값과 창을 가리키는 값 — **한 자리에서 만든다**(계열 A).
       const 짚기 = () => ({
-        ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : {}),
+        ...(대상.토큰 ? { element_token: 대상.토큰 }
+          : 대상.번호 != null ? { element_index: 대상.번호 }
+            : 짚은자리(대상) ?? {}),
         ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
       });
       const 전달 = () => ({
@@ -604,19 +623,19 @@ export function makeCuaDriver(deps = {}) {
         focus: async () => {
           // **창 id 는 그 자체로 신분이다.** 앱 이름이 없다고 거절하면, 모델이 정확히 그 창을
           // 짚어 줘도 못 띄운다 — 라이브에서 `focus window:14213` 이 그렇게 실패했다.
-          const 창만 = 대상.window && !대상.app && !Number.isInteger(대상.pid);
+          const 창만 = 짚은창 && !대상.app && !Number.isInteger(대상.pid);
           // cua `bring_to_front` 는 **pid 를 반드시 받는다**(창 id 만 주면 거절한다).
           // 창 목록이 창마다 pid 를 실어 주니 거기서 가져온다 — 추측이 아니라 기계 사실이다.
-          const 창pid = 창만 ? await 창의pid(대상.window) : null;
+          const 창pid = 창만 ? await 창의pid(짚은창) : null;
           const 고른것 = 창만 ? (창pid != null ? { pid: 창pid } : null) : await 앱고르기({ 켜진것만: true });
           // **여럿이면 부르지 않는다** — 어느 것이냐고 되묻는 것이 실패보다 정직하다(A02).
           if (고른것?.골라야함) return { 골라야함: 고른것.골라야함 };
           const pid = 고른것?.pid ?? null;
           // pid 도 창 id 도 없으면 **부르지 않는다.** 빈 인자로 부르면 드라이버가 알아서
           // 아무 창이나 띄울 수도 있고, 그건 오대상 실행이다.
-          if (pid == null && !대상.window) throw new Error('대상 앱을 못 찾았다');
+          if (pid == null && !짚은창) throw new Error('대상 앱을 못 찾았다');
           const r = await mcp.call('bring_to_front', {
-            ...(pid != null ? { pid } : {}), ...(대상.window ? { window_id: 대상.window } : {}),
+            ...(pid != null ? { pid } : {}), ...(짚은창 ? { window_id: 짚은창 } : {}),
           });
 
           // **드라이버가 모호하면 실행하지 않고 후보를 돌려준다**(실물 확인 2026-08-05:
@@ -672,8 +691,8 @@ export function makeCuaDriver(deps = {}) {
           if (pid == null) throw new Error('대상 앱을 못 찾았다');
           return mcp.call('kill_app', { pid });
         },
-        move: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
-        resize: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
+        move: () => mcp.call('set_window_frame', { window_id: 짚은창, ...(요청?.값 ?? {}) }),
+        resize: () => mcp.call('set_window_frame', { window_id: 짚은창, ...(요청?.값 ?? {}) }),
         // **어느 창에, 어디를, 어느 쪽으로.** 셋 중 하나만 빠져도 안 굴러간다(실측 2026-08-06):
         //   pid 없음 → *"Missing required integer field: pid"*
         //   direction 없음 → *"Missing required string field: direction"*
@@ -697,7 +716,10 @@ export function makeCuaDriver(deps = {}) {
         // **번호·토큰으로 누른다 — 좌표는 마지막 수단이다.**
         // 좌표로 찍으면 그 사이에 화면이 밀렸을 때 다른 것을 누르고도 모른다(A04 가 겨눈 자리).
         click: () => 창실어부르기('click', {
-          ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : 가운데(대상.bounds)),
+          // 토큰 → 번호 → **눈으로 본 자리** → 요소 테두리 가운데. 순서가 곧 근거의 세기다.
+          ...(대상.토큰 ? { element_token: 대상.토큰 }
+            : 대상.번호 != null ? { element_index: 대상.번호 }
+              : 짚은자리(대상) ?? 가운데(대상.bounds)),
           ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
           ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
         }),
@@ -732,10 +754,18 @@ export function makeCuaDriver(deps = {}) {
           await new Promise((z) => { setTimeout(z, 초 * 1000); });
           return { ok: true, waited_s: 초 };
         },
-        set_value: () => 창실어부르기('set_value', {
-          ...(대상.토큰 ? { element_token: 대상.토큰 } : {}), value: String(요청?.값 ?? ''),
-          ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
-        }),
+        // **놓을 요소가 없으면 키보드로 친다**(라이브 2026-08-06 · 손과 눈의 마지막 조각).
+        //
+        // 모델이 화면을 보고 입력칸을 좌표로 눌렀는데(`{x:210,y:820}`) 글자를 못 넣었다 —
+        // `set_value` 는 **요소에 값을 놓는 손**이라 좌표에는 놓을 데가 없다.
+        // 사람이 하는 그대로다: 눌러서 커서를 두고, 키보드로 친다.
+        set_value: () => (대상.토큰 || 대상.번호 != null
+          ? 창실어부르기('set_value', {
+            ...(대상.토큰 ? { element_token: 대상.토큰 } : { element_index: 대상.번호 }),
+            value: String(요청?.값 ?? ''),
+            ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
+          })
+          : 창실어부르기('type_text', { text: String(요청?.값 ?? '') })),
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
@@ -784,6 +814,35 @@ export function makeCuaDriver(deps = {}) {
 }
 
 /** 요소의 가운데 좌표 — cua 의 `click` 은 좌표를 받는다(요소 id 가 아니다). */
+/**
+ * **잘렸나** — 창을 찍었는데 창이 다 안 담겼는지 **재서** 안다.
+ *
+ * 밟은 사실(2026-08-06). `zoom` 으로 559×859 창을 찍었더니 500×707 이 왔다
+ * (비율 0.707 vs 0.651). **아래가 잘렸고 입력칸이 거기 있었다.** 요청 영역을 바꿔도
+ * 같은 위쪽만 왔다. 모델은 정확히 *"입력창이 잘려 있어서 좌표를 못 짚는다"* 고 말했다.
+ *
+ * 문구로 짐작하지 않는다 — **비율을 잰다.** 못 재면 잘렸다고 하지 않는다(모르면 있던 길).
+ */
+export function 잘렸나(창 = null, 그림 = null) {
+  const cw = Number(창?.w); const ch = Number(창?.h);
+  const iw = Number(그림?.w); const ih = Number(그림?.h);
+  if (![cw, ch, iw, ih].every((n) => Number.isFinite(n) && n > 0)) return false;
+  return Math.abs((iw / ih) - (cw / ch)) > 0.02;
+}
+
+/**
+ * **눈으로 본 자리** — 화면에서 읽은 좌표를 그대로 쓴다.
+ *
+ * AX 를 안 내주는 창이 있다(카톡 `n.BEAI 사일런트서비스` — 요소 0개). 거기서는 토큰이
+ * 영영 안 나오고, 그러면 우리 손은 **화면을 보고도 아무것도 못 만진다.**
+ * 드라이버가 길을 이미 말했다: *"act by pixel (x,y) off the screenshot."*
+ * 눈이 있으면 그 자리를 짚을 수 있어야 한다 — 그게 손과 눈이다(오너 2026-08-06).
+ */
+function 짚은자리(대상 = {}) {
+  const x = Number(대상.x); const y = Number(대상.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x: Math.round(x), y: Math.round(y) } : null;
+}
+
 function 가운데(b = {}) {
   const x = Number(b.x ?? 0); const y = Number(b.y ?? 0);
   const w = Number(b.w ?? b.width ?? 0); const h = Number(b.h ?? b.height ?? 0);

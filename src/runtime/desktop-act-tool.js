@@ -48,7 +48,9 @@ const 안바꾸는것 = new Set(['copy', 'wait']);
  * (`same_pid_keyboard_ambiguity`). 그래서 손이 짚어서 넘긴다.
  */
 const 창이필요한것 = new Set(['scroll', 'type', 'drag', 'press_key', 'hotkey', 'menu', 'paste',
-  'click', 'double_click', 'right_click']);
+  // **앞으로 띄우기도 어느 창인지가 알맹이다.** 앱만 주면 드라이버가 *"창이 여러 개"* 라며
+  // 옳게 되묻고, 사용자는 *"n.BEAI 대화창 열어"* 라고 이미 말했는데 걸음이 죽는다(라이브 2026-08-06).
+  'focus', 'click', 'double_click', 'right_click']);
 
 /**
  * **누르는 것들 (CU D)** — C 의 넷과 갈리는 자리.
@@ -358,7 +360,22 @@ async handler(args) {
 
       // **요소를 짚는 것에만** 이름·비밀칸·A02 가 걸린다(흡수 ④).
       // `press_key`·`hotkey`·`menu` 는 요소를 안 짚는다 — 라벨을 요구하면 못 쓴다.
-      if (요소짚는것.has(행동)) {
+      // **눈으로 본 자리는 이름 없이도 근거다**(오너 2026-08-06 · 손과 눈).
+      //
+      // A17·A02·지문은 전부 **요소를 짚을 때**의 규율이다 — *"무엇을 눌렀는지 원장에 적을 수
+      // 있는가"* 를 지킨다. 그런데 AX 를 안 내주는 창(카톡 `n.BEAI` — 요소 0개)에서는
+      // 이름도 토큰도 **영영 안 나온다.** 그러면 T5 는 화면을 **보고도** 아무것도 못 만지고,
+      // *"권한/지원 제약"* 이라 답한다 — 사실이 아니고 §0 을 어긴다.
+      //
+      // 좌표는 원장에 **그대로 적는다**(무엇을 눌렀는지 못 적는 것이 아니라 자리로 적는다).
+      // 그리고 되돌림을 약속할 수 없으니 **언제나 사람에게 한 번 묻는다**(action-plan).
+      const 눈으로짚음 = Number.isFinite(Number(args?.대상?.x)) && Number.isFinite(Number(args?.대상?.y))
+        && !args?.대상?.토큰 && args?.대상?.번호 == null && !args?.대상?.id;
+      // **눌러서 커서를 뒀으면 키보드는 거기에 친다.** 사람은 누르고 친다 —
+      // 라이브에서 모델이 좌표로 입력칸을 눌러 놓고도 *"어디에 넣을지 안 짚으셨어요"* 로 막혔다.
+      // 규율은 그대로다: 커서가 어디 있는지 **우리가 모르므로** 이 걸음은 언제나 카드를 거친다.
+      const 커서에친다 = 행동 === 'type' && !Object.keys(args?.대상 ?? {}).length;
+      if (요소짚는것.has(행동) && !눈으로짚음 && !커서에친다) {
         const 막힘 = (문장, 수단 = 'observe') => ({
           blocked: true, userSafeSummary: 문장,
           다음수단: [{ 방법: 수단, 왜: '지금 화면을 다시 보고 무엇을 누를지 정한다' }],
@@ -571,7 +588,7 @@ async handler(args) {
           const 후확인 = 재기(await 드라이버.observe({ scope: 누르는것.has(행동) ? 'window' : 'screen' }).catch(() => null), args);
           return {
             result: {
-              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전, 후: 후확인,
+              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후: 후확인,
               확인방법: `드라이버 확인(${낸것.근거})`,
               // **부분적으로 됐으면 남은 길을 함께 준다.** 라이브(2026-08-05): 켠 뒤
               // *"화면 앞으로 오지는 않았어요"* 만 말했더니 모델이 **focus 를 한 번도 안 부르고**
@@ -620,7 +637,7 @@ async handler(args) {
         const 글 = typeof 낸것?.text === 'string' ? 낸것.text : null;
         return {
           result: {
-            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 확인방법: '드라이버가 낸 답',
+            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 확인방법: '드라이버가 낸 답',
             ...(글 !== null ? { 글 } : {}),
             ...(낸것?.waited_s != null ? { 기다린초: 낸것.waited_s } : {}),
           },
@@ -663,7 +680,7 @@ async handler(args) {
           const 뒤앞창 = await 앞창보기(드라이버);
           return {
             result: {
-              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전,
+              단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전,
               확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})`,
               ...(전앞창 && 뒤앞창 && 전앞창 !== 뒤앞창 ? { 앞창바뀜: true, 앞창: 뒤앞창 } : {}),
             },
@@ -674,7 +691,7 @@ async handler(args) {
           return {
             failed: true,
             userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
-            진행: { 단계: 'dispatched', 판정: 'unsatisfied', 전 },
+            진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전 },
             다음수단: [
               { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
               { 방법: 'retry', 왜: '반영이 늦었을 수 있다' },
@@ -684,7 +701,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '했어요. 다만 그 결과를 화면에서 확인하지는 못했어요 — 됐는지 안 됐는지는 모르겠어요.',
-          진행: { 단계: 'dispatched', 판정: 'unknown', 전 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전 },
           // **다시 하라고 권하지 않는다.** 이미 됐을 수 있다.
           다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
           // **그림은 옆길로 간다**(CU F-2). 결과에 박으면 원장에 남고, 그러면 수명 계약이 깨진다.
@@ -734,7 +751,7 @@ async handler(args) {
           // 성공을 주장하는 것이 아니다(A14) — 정본 §7 의 `dispatched` 를 그대로 말할 뿐이고,
           // `goal_verified` 가 아니라는 것은 판정과 뒷문장이 함께 말한다.
           userSafeSummary: '했어요. 다만 그 결과를 화면에서 확인하지는 못했어요 — 됐는지 안 됐는지는 모르겠어요.',
-          진행: { 단계: 'dispatched', 판정: 'unknown', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후 },
           // **다시 하라고 권하지 않는다.** 이미 됐을 수 있다.
           다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
         };
@@ -743,7 +760,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
-          진행: { 단계: 'dispatched', 판정: 'unsatisfied', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후 },
           다음수단: [
             { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
             { 방법: 'retry', 왜: '앱이 뜨는 데 시간이 걸렸을 수 있다' },
@@ -753,7 +770,7 @@ async handler(args) {
       if (도달 === true) {
         return {
           result: {
-            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), 전, 후,
+            단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후,
             확인방법: Object.keys(후).join('·'),
             // **안 바뀐 것도 사실이다.** 이미 그 상태였다는 것을 숨기면 모델이 자기가 바꾼 줄 안다.
             ...(같은가(전, 후) ? { 이미그상태였다: true } : {}),
@@ -775,7 +792,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행 전 상태를 못 찍어서 됐는지 안 됐는지 모르겠어요.',
-          진행: { 단계: 'dispatched', 판정: 'unknown', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후 },
           다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
         };
       }
@@ -785,7 +802,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행은 했는데 화면이 안 바뀌었어요.',
-          진행: { 단계: 'dispatched', 판정: 'unsatisfied', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후 },
           다음수단: [
             { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
             { 방법: 'retry', 왜: '앱이 뜨는 데 시간이 걸렸을 수 있다' },

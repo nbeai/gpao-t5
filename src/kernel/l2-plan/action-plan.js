@@ -112,7 +112,16 @@ export function toolActionKind({ toolId, args, selfState }) {
       // (*"아직 제가 누르지 않아요"*), 승인 경계는 값 없는 버튼이라 미상으로 잡았을 뿐이다.
       // 그래서 밝히면 영영 못 하고 **안 밝히면 그냥 나갔다** — 정직함이 벌받는 구조였다.
       // 잠금은 여기 한 자리다: 밝히면 반드시 묻고, 허락이 나면 손은 한다.
-      kind = args?.기대?.바깥으로 === true ? UNKNOWN_KIND
+      // **좌표로 짚은 걸음은 언제나 묻는다**(오너 2026-08-06 · 손과 눈).
+      // 눈으로 본 자리는 이름이 없다 — 무엇이 되는지도, 되돌아가는지도 약속할 수 없다.
+      // 그래서 손은 받되(못 만지는 창을 만들지 않는다) 등급은 미상이다.
+      const 좌표로짚음 = Number.isFinite(Number(args?.대상?.x)) && Number.isFinite(Number(args?.대상?.y))
+        && !args?.대상?.토큰 && args?.대상?.번호 == null && !args?.대상?.id;
+      // 커서 자리에 치는 입력도 같다 — **커서가 어디 있는지 우리가 모른다.**
+      // 탐침이 그 칸을 **찾았으면** 요소를 아는 것이다 — 그때는 예전 그대로 자동이다.
+      const 커서에침 = a === 'type' && !Object.keys(args?.대상 ?? {}).length
+        && args?.눌러본사실?.찾음 !== true;
+      kind = args?.기대?.바깥으로 === true || 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
         : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';

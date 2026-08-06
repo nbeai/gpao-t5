@@ -973,8 +973,8 @@ export const MUTATIONS = [
   // 잠금이 손에서 **계획 한 자리**로 옮겨 갔다(2026-08-06) — 계약은 그대로, 자리만 바뀌었다.
   { 이름: '바깥으로 나가는 클릭을 무해 칸에서 실행함',
     파일: 'src/kernel/l2-plan/action-plan.js', 검사: 'test/cu-d-click-declares-effect.test.js',
-    찾기: "      kind = args?.기대?.바깥으로 === true ? UNKNOWN_KIND\n        : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;",
-    바꾸기: "      kind = args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;" },
+    찾기: "      kind = args?.기대?.바깥으로 === true || 좌표로짚음 || 커서에침 ? UNKNOWN_KIND",
+    바꾸기: "      kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND" },
 
   // **cua 드라이버 — 우리가 띄운 프로세스가 몰래 밖으로 보내면 안 된다(헌장 ③).**
   { 이름: '드라이버 텔레메트리를 안 끄고 띄움(사용자 모르게 밖으로 나간다)',
@@ -983,10 +983,10 @@ export const MUTATIONS = [
   { 이름: '별도 앱 모드로 띄움(사용자가 앱을 하나 더 깔아야 한다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
     찾기: "    args: ['mcp', '--direct'],", 바꾸기: "    args: ['mcp'],", },
-  { 이름: '좌표로 누름(무엇을 눌렀는지 원장에 못 남긴다)',
-    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: '          ...(대상.토큰 ? { element_token: 대상.토큰 } : 대상.번호 != null ? { element_index: 대상.번호 } : 가운데(대상.bounds)),',
-    바꾸기: '          ...가운데(대상.bounds),' },
+  { 이름: '눈으로 본 자리를 못 누름(AX 없는 창은 영영 못 만진다)',
+    파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-eyes-can-point-too.test.js',
+    찾기: '            : 짚은자리(대상) ?? 가운데(대상.bounds)),',
+    바꾸기: '            : 가운데(대상.bounds)),' },
   { 이름: '창 목록만 필요한 턴에도 무거운 AX 훑기(비용이 목적을 안 돕는다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
     찾기: "      if (args?.scope === 'window') {", 바꾸기: '      if (true) {' },
@@ -996,11 +996,11 @@ export const MUTATIONS = [
 
   { 이름: '앱 이름을 그대로 보냄(실물은 pid 를 필수로 받는다 · 라이브에서 전부 실패했다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: "            ...(pid != null ? { pid } : {}), ...(대상.window ? { window_id: 대상.window } : {}),",
+    찾기: "            ...(pid != null ? { pid } : {}), ...(짚은창 ? { window_id: 짚은창 } : {}),",
     바꾸기: "            app: 대상.app," },
   { 이름: '대상을 못 찾았는데 부름(오대상 실행)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: "          if (pid == null && !대상.window) throw new Error('대상 앱을 못 찾았다');",
+    찾기: "          if (pid == null && !짚은창) throw new Error('대상 앱을 못 찾았다');",
     바꾸기: "          void 0;" },
   { 이름: '드라이버가 되물은 후보를 실패로 뭉갬(고를 수 있는데 못 한다고 한다)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
@@ -1691,9 +1691,9 @@ export const MUTATIONS = [
     찾기: "  if (!요소) return null;",
     바꾸기: "  if (!요소) return {};" },
   // ── 되는 것을 모델에게 말한다 ─────────────────────────────────────────
-  { 이름: '모델이 받는 칸에서 창 안 글자를 지움(커넥터를 찾게 된다)', 파일: 'src/surface/demo-context.js', 검사: T_NAMES,
-    찾기: "    operatorFact: '이 컴퓨터의 앞 앱·창 목록을 보고, 창 안 요소의 글자(대화·문서 본문·목록 값)까지 읽는다.'",
-    바꾸기: "    operatorFact: '이 컴퓨터의 앞 앱·창 목록을 본다.'" },
+  // **뺐다**(2026-08-06): `operatorFact` 가 여러 문장이 되면서 한 조각을 지워도 검사가
+  // 다른 조각으로 통과한다 — **안전한 중복**이라 한쪽만 끊어서는 안 문다.
+  // 계약(모델이 창 안 글자를 읽을 수 있다고 안다)은 `cu-read-reaches-the-model` 이 지킨다.
   // ── CU-1 계열 G · 옆에서 같이 한다(사용자 것을 안 뺏는다) ─────────────
   { 이름: '글자를 키보드로 흘림(사용자가 보던 창에 들어간다 · 오대상 실행)', 파일: DESK_ACT, 검사: T_CU1_G,
     찾기: "          행동: 행동 === 'type' ? 'set_value' : 행동,",
@@ -1800,9 +1800,9 @@ export const MUTATIONS = [
   { 이름: '후보에서 고른 뒤 확인 표식을 안 붙임(확인된 focus 가 실패로 나간다)', 파일: CUA, 검사: T_CU_C2,
     찾기: "              return 확인붙이기(await mcp.call('bring_to_front', {",
     바꾸기: "              return ((x) => x)(await mcp.call('bring_to_front', {" },
-  { 이름: '창 id 로 그 창 주인의 pid 를 안 찾음(창만 주면 못 띄운다)', 파일: CUA, 검사: T_CU_C2,
-    찾기: "          const 창pid = 창만 ? await 창의pid(대상.window) : null;",
-    바꾸기: "          const 창pid = null;" },
+  // **뺐다**(2026-08-06): 창 이름을 하나(`짚은창`)로 합치면서 `focus` 가 창 id 만 와도
+  // 앱 경로로 pid 를 찾을 수 있게 됐다 — **안전한 중복**이라 한쪽만 끊어서는 안 문다.
+  // 계약(창 id 만 줘도 띄운다)은 `cu-eyes-can-point-too` 의 창제목 검사가 지킨다.
   { 이름: '"인자가 모자라다"를 결과로 흘림(없는 실패가 만들어진다)', 파일: ANSWER, 검사: T_CU_C2,
     찾기: "    return r.length > 0 && r.every((x) => x?.type === 'text' || typeof x?.text === 'string');",
     바꾸기: "    return false;" },

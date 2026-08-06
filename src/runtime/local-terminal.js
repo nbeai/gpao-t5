@@ -34,6 +34,63 @@ function looksBlocked(r) {
   return block?.kind === 'sandbox' || block?.kind === 'permission';
 }
 
+/**
+ * **네트워크만 열면 되는지 알아맞히지 않는다 — 열어 보고 안다.**
+ *
+ * 첫 판은 `executionBlock(r).why === 'network'` 로 골랐다. 실물에서 안 먹었다(밟음 2026-08-06):
+ *   `ping -c1 8.8.8.8`  probe → `ping: sendto: Operation not permitted` → **`why:'write'` 로 잡힘**
+ *                        reach → **통과**
+ * 샌드박스가 네트워크를 막을 때 나오는 말은 `ENOTFOUND` 가 아니라 그냥 `Operation not permitted`
+ * 다. 문구 목록으로 네트워크를 가르려던 것이고, 그건 이 파일이 처음부터 버린 방식이다
+ * (`sandbox.js` 첫 문단 — 목록은 항상 뚫린다).
+ *
+ * 그래서 probe 와 같은 구조를 한 번 더 쓴다: **네트워크만 열고 다시 돌려 본다.**
+ *   reach 에서 통과 → 막던 것은 네트워크뿐이었다는 **증명**. 이 컴퓨터는 안 바뀌었다(쓰기·비밀은 닫힘)
+ *   reach 에서도 막힘 → 진짜 변경 시도. 그대로 승인으로 간다
+ *
+ * **두 자리만 뺀다** — 둘 다 "돌려 봐도 모르는" 자리라 구조가 성립하지 않는다:
+ *   `listen`          포트를 여는 것은 나가서 읽는 게 아니라 **바깥에서 닿게 만드는 상태 변경**이다.
+ *                     안 빼고 열었더니 서버 띄우기가 승인 없이 돌았다(회귀가 잡았다).
+ *   `unreadable_exit` 실패를 삼키는 명령은 exit code 가 정보가 아니다. 모르면 승인 쪽이다.
+ */
+const 열어봐도소용없는것 = new Set(['listen', 'unreadable_exit']);
+
+function 네트워크만열어볼까(r) {
+  const block = executionBlock(r);
+  if (!block) return false;
+  if (block.kind !== 'sandbox' && block.kind !== 'permission') return false;
+  return !열어봐도소용없는것.has(block.why);
+}
+
+/**
+ * **읽기성 네트워크는 묻지 않는다** (오너 결정 2026-08-06 · 터미널 유보 해제).
+ *
+ * 계획서 v3.1 §20·§22 가 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀는데 **코드에 그런 유보는
+ * 없었다** — 셸은 통째로 열려 있고 명령 목록도 없다. 라이브로 갈라 보니 실제 마찰은 한 자리였다:
+ *
+ *   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됨
+ *   읽기성 네트워크        **카드가 떴다** — `curl` 조회 · `git pull` · `npm ls` · `gh pr list`
+ *
+ * 이 컴퓨터를 하나도 안 바꾸는 일인데 물었다. 자동성 헌장의 넷 어디에도 안 걸린다.
+ * 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다** — 같은 일을 터미널에서만 물었다.
+ * 능력 문제가 아니라 두 손이 다른 선을 쓰고 있었다.
+ *
+ * 고칠 재료는 이미 다 있었다. `sandbox.js` 의 `reach`(쓰기✗ · 네트워크✓ · 비밀✗)를
+ * 커넥터 CLI 손만 쓰고 터미널 본체는 안 썼다. 둘을 잇는다.
+ *
+ * **명령 목록을 만들지 않는다**(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 판정은 그대로
+ * *돌려 보고 안다*: 네트워크에만 막혔으면 네트워크만 열고 한 번 더 돌린다. 거기서도 막히면
+ * 그건 진짜 변경 시도이므로 승인으로 간다.
+ */
+async function 재보기(run, command, { cwd, timeoutMs }) {
+  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
+  if (!네트워크만열어볼까(첫판)) return 첫판;
+  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs });
+  // **reach 에서도 막혔으면 첫판을 그대로 쓴다.** 승인 카드에 실릴 이유는 probe 가 말한 것이
+  // 정확하다 — reach 는 네트워크를 연 뒤의 두 번째 벽이라 사용자에게는 덜 정확한 설명이 된다.
+  return looksBlocked(둘째판) ? 첫판 : 둘째판;
+}
+
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
 export function describeCommand(command, probe) {
   const block = executionBlock(probe);
@@ -56,7 +113,7 @@ export function makeLocalTerminalTool(deps = {}) {
     const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
     if (risk) return { command, cwd: blank(opts.cwd) ?? cwdOf(), lifecycle: risk, changes: true };
     const cwd = blank(opts.cwd) ?? cwdOf();
-    const r = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs: opts.timeoutMs });
+    const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
     return { command, cwd, probe: r, changes: looksBlocked(r) };
   }
 
@@ -120,9 +177,14 @@ export function makeLocalTerminalTool(deps = {}) {
       const mode = args.granted ? 'granted' : 'probe';
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
-      const r = (mode === 'probe' && args.probeResult)
-        ? args.probeResult
-        : await run(command, { mode, cwd, timeoutMs: args.timeoutMs });
+      const r = mode === 'granted'
+        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs })
+        : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
+      // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
+      // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.
+      // 실행기가 결과에 `mode` 를 실어 주므로 지어내지 않고 그 사실을 읽는다.
+      const 실제모드 = r?.mode ?? mode;
+      const 실제로돌았나 = 실제모드 === 'granted' || 실제모드 === 'reach';
 
       if (mode === 'probe' && looksBlocked(r)) {
         // **여기서 실행하지 않는다.** 승인은 커널의 일이고, 도구는 사실만 돌려준다.
@@ -161,7 +223,7 @@ export function makeLocalTerminalTool(deps = {}) {
       //
       // 이름 패턴이 아니라 **승인받은 명령에 적힌 정확한 PID**를 본다. 판정하지 않고 사실만
       // 낸다 — 무엇을 말할지는 모델이 정한다(§24). 능력을 줄이지 않는다: 터미널은 그대로다.
-      const 끈PID = mode === 'granted' && /\b(kill|pkill|killall)\b/.test(command)
+      const 끈PID = 실제모드 === 'granted' && /\b(kill|pkill|killall)\b/.test(command)
         ? [...new Set((command.match(/\b\d{2,}\b/g) ?? []).map(Number))].filter((n) => n > 0)
         : [];
       const 종료확인 = 끈PID.length
@@ -177,7 +239,7 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
-          applied: mode === 'granted',
+          applied: 실제로돌았나,
         },
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
@@ -194,7 +256,12 @@ export function makeLocalTerminalTool(deps = {}) {
           // (헤르메스 대조 실측: 디스크는 그대로였고 모델은 그 거짓 기록 위에서 판단했다).
           // **원장이 거짓이면 셀프후드도 말귀도 그 위에 못 선다.** `applied` 라는 기계 사실이
           // 이미 result 에 있었는데 문장이 그것을 안 봤다.
-          : r.exitCode === 0 ? (mode === 'granted' ? '실행했어요.' : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
+          // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
+          // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
+          // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
+          : r.exitCode === 0 ? (실제모드 === 'granted' ? '실행했어요.'
+            : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
+              : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.
             : (끝난이유?.kind === 'sandbox' || 끝난이유?.kind === 'permission') ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
               : 끝난이유?.kind === 'env' ? `${끝난이유.userWhy}`

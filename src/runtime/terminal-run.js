@@ -45,7 +45,9 @@ export async function runCommand(command, opts = {}) {
   } else {
     profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-sb-'));
     const file = join(profileDir, 'p.sb');
-    if (mode === 'probe') {
+    // `reach` 도 쓰기가 막힌 모드다 — 셸이 heredoc 을 못 쓰면 읽기만 하는 명령이
+    // "파일을 바꾸려 했다"로 잡힌다(아래 주석의 그 사고). probe 와 같은 이유로 같이 연다.
+    if (mode === 'probe' || mode === 'reach') {
       // 이번 실행만 쓰는 임시 자리. 셸의 heredoc·here-string 이 여기에 쓴다 — 이게 없으면
       // 읽기만 하는 명령이 "파일을 바꾸려 했다"로 잡혀 승인 카드로 간다(sandbox.js 주석 참고).
       // realpath 로 편다: macOS 의 /var 는 /private/var 로 가는 심볼릭 링크라, 편 경로가 아니면
@@ -184,7 +186,11 @@ export function executionBlock(r) {
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
   if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
-    return { kind: 'sandbox', why: 'network', userWhy: '포트를 여는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
+    // **나가서 읽는 것과 포트를 여는 것은 다른 사실이다**(오너 결정 2026-08-06 을 배선하다 밟음).
+    // 둘 다 `network` 로 부르던 것을 갈랐다 — 읽기성 네트워크는 자동으로 열리는데, 포트를 여는
+    // 것은 이 컴퓨터를 **바깥에서 닿을 수 있게 만드는** 상태 변경이라 그대로 승인이다.
+    // 안 가르고 열었더니 `node s.js`(서버 띄우기)가 승인 없이 돌았다(회귀가 잡았다).
+    return { kind: 'sandbox', why: 'listen', userWhy: '포트를 여는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
   // 밖으로 나가려다 막힌 것
   if (/ENETUNREACH|ENOTFOUND|EAI_AGAIN|Could not resolve|Network is unreachable|Connection refused/i.test(t)) {

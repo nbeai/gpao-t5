@@ -99,7 +99,15 @@ export function compactResult(result, maxChars = 1200) {
   if (Array.isArray(result.elements) || result.요소창 || result.본창) {
     const lines = [];
     const 본창 = result.본창;
-    if (본창) lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}`);
+    // **자를 함께 준다**(오너 2026-08-06 · 손과 눈). 그림만 주면 모델은 *"입력창이 아래에 있다"*
+    // 까지만 알고 **어디를 누르라고 말할 수가 없다.** 창의 자리와 크기를 주면 비율로 짚는다.
+    // 전용 기능이 아니다 — 모든 창에 같은 자가 붙는다.
+    if (본창) {
+      const b = 본창.bounds;
+      const 자 = b && Number.isFinite(Number(b.x))
+        ? ` · 자리 x${b.x} y${b.y} 크기 ${b.w ?? b.width}×${b.h ?? b.height}` : '';
+      lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}${자}`);
+    }
     else if (result.frontmost?.name) lines.push(`앞 앱: ${result.frontmost.name}`);
     const 창수 = (result.windows ?? []).length;
     if (창수) lines.push(`열린 창 ${창수}개`);
