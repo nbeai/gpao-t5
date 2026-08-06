@@ -592,7 +592,42 @@ export function makeCuaDriver(deps = {}) {
 
     async act(요청) {
       const 행동 = String(요청?.행동 ?? '');
-      const 대상 = 요청?.대상 ?? {};
+      const 요청대상 = 요청?.대상 ?? {};
+
+      // **보는 손이 찾은 창을 하는 손도 찾아야 한다**(오너 계획서 ③ · 라이브 2026-08-06).
+      //
+      // `desktop.screen` 은 `창제목` 으로 창을 정확히 고른다 — 사용자는 앱이 아니라 **대화창
+      // 이름**을 말하기 때문이다(`정영현`·`TNT`). 그런데 `act` 는 그 축을 아예 안 봤다:
+      // `대상.창`·`대상.pid` 가 없으면 **앱 이름**만 찾았다. 카카오톡은 한 pid 가 창 열 개를
+      // 가지니 앱만으로는 어느 창인지 알 수 없고, 드라이버가 옳게 거절한다 —
+      //   `scroll` → *"Missing required integer field: pid"*
+      //   `press_key` → *"pid 4340 owns 6 other eligible top-level window(s)"*
+      // 스키마는 이미 *"screen 에서 이걸로 골랐으면 여기에도 똑같이 줘라"* 고 약속하고 있었다.
+      // **약속만 하고 안 지킨 것은 우리다.** 두 손이 같은 축으로 창을 좁힌다.
+      //
+      // 직접 준 창 신분이 언제나 이긴다 — 찾은 것으로 덮어쓰지 않는다.
+      const 창이름 = String(요청?.창제목 ?? 요청대상.창제목 ?? '').trim().toLowerCase();
+      let 대상 = 요청대상;
+      if (창이름 && (요청대상.창 ?? 요청대상.window) == null && !Number.isInteger(요청대상.pid)) {
+        const 창들 = (await mcp.call('list_windows', {}).catch(() => ({})))?.windows ?? [];
+        const 축 = (w) => String(w.title ?? w.window_title ?? '').trim().toLowerCase();
+        // **정확 일치가 부분 일치를 이긴다** — 관찰이 쓰는 규칙 그대로다.
+        const 정확 = 창들.filter((w) => 축(w) === 창이름);
+        const 걸린것 = 정확.length ? 정확 : 창들.filter((w) => 축(w).includes(창이름));
+        // 여럿이면 **앞에 있는 것**을 고른다(관찰이 보여 준 것이 그것이다). 하나도 없으면
+        // 아무 창이나 건드리지 않는다 — 빈 채로 두면 아래 손들이 알아서 막힌다.
+        const 고른것 = [...걸린것].sort((a, b) => Number(b.is_on_screen ?? 0) - Number(a.is_on_screen ?? 0)
+          || Number(b.z_index ?? 0) - Number(a.z_index ?? 0))[0];
+        if (고른것) {
+          대상 = {
+            ...요청대상,
+            창: 고른것.window_id,
+            pid: 고른것.pid,
+            // 스크롤·클릭이 창 가운데를 짚을 때 쓴다 — 자리가 없으면 형제 창 모호성으로 거절된다.
+            ...(요청대상.bounds ? {} : { bounds: 고른것.bounds }),
+          };
+        }
+      }
 
       // **앱 이름을 pid 로 바꾼다.** 실물이 `pid` 를 받는다(`bring_to_front`·`kill_app` 필수).
       // 라이브에서 `app` 을 보내다 `Missing required integer field: pid` 로 전부 실패했다 —
