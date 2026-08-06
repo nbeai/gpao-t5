@@ -8,9 +8,14 @@
 // 검사: ①라이브 스텁 ②위험 작업 승인 누락 ③"후속" 증가 ④테스트·성능 기준선 ⑤프로세스 산출물 커밋
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { 방크기 } from './dir-size.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+
 const baselineFile = new URL('./gate-baseline.json', import.meta.url);
 // 기준선은 **한 번만 읽는다**(단일 진실). 예전엔 ④ 와 마지막 쓰기가 따로 읽어서, 새 기준선을
 // 추가하면 조용히 덮여 사라질 수 있었다.
@@ -817,11 +822,33 @@ let deferred = 0;
 //
 // 두 선 모두 **자동 갱신하지 않는다.** 넘겼으면 코드를 고치거나, 오너 결정으로 선을 옮긴다.
 {
-  // 검사는 **한 번만** 돌린다. CPU 시간은 자식의 rusage 라 Node 가 안 준다 — POSIX `time -p` 가
-  // stderr 로 내므로 `2>&1` 로 합쳐 한 번에 받는다(두 번 돌리면 게이트가 두 배로 느려진다).
-  const out = execFileSync('bash', ['-lc',
-    `cd ${root} && { /usr/bin/time -p npm test; } 2>&1`,
-  ], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  // **검사에게 자기 임시방을 준다**(2026-08-07 · 오너 지시). 그래야 끝나고 통째로 지울 수 있다.
+  //
+  // 왜 이 모양인가 — 2026-08-06 에 디스크가 100% 로 찼다. 주범은 다른 것이었지만
+  // 검사가 남긴 임시 폴더도 2.1GB 였다. `mkdtemp` 를 쓰는 자리가 400곳이 넘고
+  // 접두가 `t5-`·`gpao-t5-` 뿐 아니라 `what-`·`zero-locate-`·`turn-seq-` 까지 제각각이라
+  // **접두 목록으로 지우면 반드시 샌다**(§목록으로 짐작하지 마라).
+  //
+  // 그래서 목록이 아니라 **경계**로 푼다. `TMPDIR` 을 이 회차 전용 방으로 바꿔 주면
+  // `os.tmpdir()` 이 그 방을 가리키므로 **검사가 만든 것은 전부 그 안에 떨어진다.**
+  // 끝나고 그 방만 지우면 된다 — 남의 프로세스 임시 폴더는 애초에 손댈 일이 없다.
+  // 그래서 "무엇을 지울까"를 판단할 필요가 없어진다. 판단이 없으면 틀릴 수도 없다.
+  const 검사방 = mkdtempSync(join(tmpdir(), 'gate-run-'));
+  let out;
+  try {
+    // 검사는 **한 번만** 돌린다. CPU 시간은 자식의 rusage 라 Node 가 안 준다 — POSIX `time -p` 가
+    // stderr 로 내므로 `2>&1` 로 합쳐 한 번에 받는다(두 번 돌리면 게이트가 두 배로 느려진다).
+    // `TMPDIR` 은 **명령 안에서도** 세운다 — `bash -lc` 는 로그인 셸이라 프로필이 환경을 덮을 수 있다.
+    out = execFileSync('bash', ['-lc',
+      `cd ${root} && export TMPDIR=${검사방}/ && { /usr/bin/time -p npm test; } 2>&1`,
+    ], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env: { ...process.env, TMPDIR: `${검사방}/` } });
+  } finally {
+    // **얼마나 남겼는지 말한다.** 조용히 지우면 검사가 임시 폴더를 흘리는 것이 영영 안 보인다 —
+    // 게이트는 치우는 자리가 아니라 알리는 자리다.
+    const 남긴바이트 = 방크기(검사방);
+    rmSync(검사방, { recursive: true, force: true });
+    if (남긴바이트 > 0) ok(`검사 임시방 정리 ${(남긴바이트 / 1024 / 1024).toFixed(1)}MB (검사가 안 치운 것)`);
+  }
 
   const pass = Number(out.match(/^ℹ pass (\d+)/m)?.[1] ?? 0);
   const fail = Number(out.match(/^ℹ fail (\d+)/m)?.[1] ?? 1);
