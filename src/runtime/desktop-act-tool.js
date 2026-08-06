@@ -74,7 +74,9 @@ const 누르는것 = new Set(['click', 'type', 'double_click', 'right_click',
  * 길이와 양끝만으로 충분하다: 밀린 화면은 반드시 다른 바이트를 낸다.
  */
 function 그림지문(그림) {
-  const g = typeof 그림 === 'string' ? 그림 : '';
+  // 관찰이 주는 실물은 `{mime, base64}` 다 — 문자열만 받으면 **늘 null 이 되어**
+  // 스크롤이 영영 "모르겠다"로 간다(실측 2026-08-06: `typeof 그림 === 'object'`).
+  const g = typeof 그림 === 'string' ? 그림 : String(그림?.base64 ?? '');
   if (g.length < 100) return null;   // 없거나 못 쓸 그림 — **모른다**
   return `${g.length}:${g.slice(0, 48)}:${g.slice(-48)}`;
 }

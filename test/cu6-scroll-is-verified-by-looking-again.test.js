@@ -23,8 +23,10 @@ import assert from 'node:assert/strict';
 import { makeDesktopActTool } from '../src/runtime/desktop-act-tool.js';
 
 const 창 = { id: 9, app: '카카오톡', title: 'TNT' };
-// 실물 그림은 수십 KB 다 — 지문은 못 쓸 만큼 짧은 것을 `모른다`로 걸러낸다.
-const 화면 = (씨) => 씨.repeat(40);
+// **가짜가 실물 모양을 안 내면 계약이 아니라 모양만 지킨다.** 관찰이 주는 그림은
+// 문자열이 아니라 `{mime, base64}` 다 — 첫 판은 문자열로 재서 검사는 초록인데
+// 실물에서는 지문이 늘 `null` 이었다(실측 2026-08-06).
+const 화면 = (씨) => ({ mime: 'image/jpeg', base64: 씨.repeat(40) });
 function 드라이버({ 화면들, effect = 'unverifiable' }) {
   let n = 0;
   const 부른것 = [];
