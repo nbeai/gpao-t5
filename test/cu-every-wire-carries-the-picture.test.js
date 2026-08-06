@@ -18,7 +18,7 @@ import { responsesInput } from '../src/runtime/chatgpt-model-client.js';
 const 그림달린교환 = [{
   ref: 'p1', tool: 'desktop.screen', args: { action: 'observe' },
   summary: '그 창은 글자로는 못 읽어서 화면을 보고 말씀드릴게요.',
-  그림: { mime: 'image/jpeg', base64: 'PIXELS0000' },
+  그림: { mime: 'image/jpeg', base64: 'P'.repeat(2000) },
 }];
 const 말 = { system: 's', user: 'u', history: [], exchange: 그림달린교환 };
 
@@ -32,7 +32,7 @@ const 와이어들 = [
 
 test('그림을 실을 수 있는 와이어가 하나도 안 빠진다 — 계정 경로만 못 보는 일이 없다', () => {
   const 버리는곳 = 와이어들
-    .filter(({ 몸통 }) => !몸통({ 눈있음: true }).includes('PIXELS0000'))
+    .filter(({ 몸통 }) => !몸통({ 눈있음: true }).includes('P'.repeat(2000)))
     .map(({ 이름 }) => 이름);
   assert.deepEqual(버리는곳, [],
     `**이 와이어로 쓰는 사용자만 화면을 못 본다**: ${버리는곳.join(' · ')}`);
@@ -40,7 +40,7 @@ test('그림을 실을 수 있는 와이어가 하나도 안 빠진다 — 계�
 
 test('눈이 없다고 밝히면 어느 와이어도 안 싣는다 — 규율도 같이 간다', () => {
   const 그냥싣는곳 = 와이어들
-    .filter(({ 몸통 }) => 몸통({ 눈있음: false }).includes('PIXELS0000'))
+    .filter(({ 몸통 }) => 몸통({ 눈있음: false }).includes('P'.repeat(2000)))
     .map(({ 이름 }) => 이름);
   assert.deepEqual(그냥싣는곳, [],
     `**못 읽는 모델에 그림을 보낸다** — 하드 실패다: ${그냥싣는곳.join(' · ')}`);

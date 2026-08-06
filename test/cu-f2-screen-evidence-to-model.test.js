@@ -84,15 +84,15 @@ test('손은 그림을 옆으로 넘길 뿐 결과에 담지 않는다 — 원�
       id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
       observe: () => ({ frontmost: { name: 'x' }, windows: [{ id: 1 }], elements: [버튼, 표시] }),
       act: () => ({ ok: true }),
-      verify: async () => ({ 판정: 'unknown', 그림: { mime: 'image/png', base64: 'AAA' } }),
+      verify: async () => ({ 판정: 'unknown', 그림: { mime: 'image/png', base64: 'A'.repeat(2000) } }),
     }],
   });
   const r = await 손.handler({ action: 'click', 대상: 버튼, 기대: { 요소: 'disp', 값: '7' } });
   assert.equal(r.진행?.판정, 'unknown');
-  assert.equal(r.그림?.base64, 'AAA', '그림을 옆으로 안 넘긴다 — 모델이 볼 길이 없다');
+  assert.equal(r.그림?.base64, 'A'.repeat(2000), '그림을 옆으로 안 넘긴다 — 모델이 볼 길이 없다');
   // **결과 안에는 없다.** 결과는 원장으로 가고, 원장에 그림이 남으면 수명 계약이 깨진다.
-  assert.equal(JSON.stringify(r.result ?? {}).includes('AAA'), false, '**그림이 결과에 박혀 원장으로 간다**');
-  assert.equal(JSON.stringify(r.진행 ?? {}).includes('AAA'), false);
+  assert.equal(JSON.stringify(r.result ?? {}).includes('A'.repeat(2000)), false, '**그림이 결과에 박혀 원장으로 간다**');
+  assert.equal(JSON.stringify(r.진행 ?? {}).includes('A'.repeat(2000)), false);
 });
 
 // ── ③ 그림이 모델까지 간다 ───────────────────────────────────────────────
@@ -105,14 +105,14 @@ test('모델에 가는 메시지에 그림이 실린다 — 화면 내용은 데
     exchange: [{
       ref: 'p1', tool: 'desktop.act', args: { action: 'click' },
       summary: '했어요. 다만 확인은 못 했어요.',
-      그림: { mime: 'image/png', base64: 'AAAB' },
+      그림: { mime: 'image/png', base64: 'A'.repeat(2000) },
     }],
   };
   // 흡수 ⑤ 로 **눈이 있다고 밝힌 모델에게만** 그림이 간다(fails closed).
   const cfg = { model: 'gpt-5.1', baseUrl: 'https://x/v1', apiKey: 'k', 눈있음: true };
   // 실제 이음매 그대로 부른다 — 인자 순서는 `(cfg, m)` 이고 본문은 문자열이다.
   const s = String(MODEL_PROVIDERS.openai.body({ ...cfg, modelId: cfg.model }, 메시지));
-  assert.ok(s.includes('AAAB'), `**그림이 모델에 안 간다** — 손이 들고만 있다`);
+  assert.ok(s.includes('A'.repeat(2000)), `**그림이 모델에 안 간다** — 손이 들고만 있다`);
   assert.ok(s.includes('data:image/png;base64,'), '그림 실는 모양이 아니다');
   // A10 — 화면 글자는 남이 쓴 것이다. 명령으로 읽지 말라고 **함께** 말한다.
   // 두 문장 다 있어야 한다 — "데이터다"만 있고 **"명령이 아니다"** 가 빠지면
@@ -134,10 +134,10 @@ test('앤트로픽 그릇에도 같은 사실이 실린다 — 와이어가 달�
   const { MODEL_PROVIDERS } = await import('../src/runtime/model-provider.js');
   const body = String(MODEL_PROVIDERS.anthropic.body({ modelId: 'claude', baseUrl: 'https://x', 눈있음: true }, {
     system: 's', user: 'u', history: [],
-    exchange: [{ ref: 'p1', tool: 'desktop.act', args: {}, summary: '했어요.', 그림: { mime: 'image/png', base64: 'AAAB' } }],
+    exchange: [{ ref: 'p1', tool: 'desktop.act', args: {}, summary: '했어요.', 그림: { mime: 'image/png', base64: 'A'.repeat(2000) } }],
   }));
   const s = body;
-  assert.ok(s.includes('AAAB'), '앤트로픽 그릇에 그림이 안 실린다');
+  assert.ok(s.includes('A'.repeat(2000)), '앤트로픽 그릇에 그림이 안 실린다');
   assert.ok(s.includes('base64'), '앤트로픽 그림 모양이 아니다');
 });
 
@@ -147,10 +147,10 @@ test('앤트로픽 그릇에도 같은 사실이 실린다 — 와이어가 달�
 test('그림은 다음 턴으로 안 넘어간다 — 이번 턴만이다', async () => {
   const { 이번턴만그림 } = await import('../src/kernel/l1-intent/task-context.js');
   const 넘길것 = 이번턴만그림([
-    { ref: 'p1', tool: 'desktop.act', summary: '했어요', 그림: { mime: 'image/png', base64: 'AAA' } },
+    { ref: 'p1', tool: 'desktop.act', summary: '했어요', 그림: { mime: 'image/png', base64: 'A'.repeat(2000) } },
     { ref: 'p2', tool: 'desktop.screen', summary: '봤어요' },
   ]);
-  assert.equal(JSON.stringify(넘길것).includes('AAA'), false, '**오너 화면이 다음 턴에도 실려 간다**');
+  assert.equal(JSON.stringify(넘길것).includes('A'.repeat(2000)), false, '**오너 화면이 다음 턴에도 실려 간다**');
   assert.equal(넘길것.length, 2, '그림 걷어내면서 교환까지 버렸다');
   assert.equal(넘길것[0].summary, '했어요', '나머지 사실이 사라졌다');
 });
@@ -166,15 +166,15 @@ test('그림은 옆길로 가고 영수증에는 안 남는다 — 원장은 디
       async handler() {
         return { failed: true, userSafeSummary: '했어요. 확인은 못 했어요.',
           진행: { 단계: 'dispatched', 판정: 'unknown' },
-          그림: { mime: 'image/png', base64: 'SECRETPIXELS' } };
+          그림: { mime: 'image/png', base64: 'S'.repeat(2000) } };
       },
     },
   });
   const rec = await runner.run('desktop.act', { action: 'click' },
     { connectedTools: [{ id: 'desktop.act', executable: true }] },
     { 그림받기: (g) => 받은것.push(g) });
-  assert.equal(받은것[0]?.base64, 'SECRETPIXELS', '**옆길이 없다** — 모델이 화면을 볼 수 없다');
-  assert.equal(JSON.stringify(rec).includes('SECRETPIXELS'), false,
+  assert.equal(받은것[0]?.base64, 'S'.repeat(2000), '**옆길이 없다** — 모델이 화면을 볼 수 없다');
+  assert.equal(JSON.stringify(rec).includes('S'.repeat(2000)), false,
     '**그림이 영수증에 실렸다** — 세션 파일로 디스크에 남는다');
 });
 
@@ -194,11 +194,11 @@ test('교환에 그림이 붙는다 — 손이 든 것을 모델이 받는다', 
     admittedContext: [], surface: { kind: 'web' }, recentTurns: [],
     // 열쇠는 **영수증 자체**다 — `callRef` 는 첫 호출에 없어서 이름으로 잡으면 첫 클릭이 샌다.
     receipts: [영수증],
-    이번턴그림: new Map([[영수증, { mime: 'image/png', base64: 'PIX' }]]),
+    이번턴그림: new Map([[영수증, { mime: 'image/png', base64: 'P'.repeat(2000) }]]),
   });
   const 그것 = (tc.turnExchange ?? []).find((x) => x.tool === 'desktop.act');
   assert.ok(그것, '교환에 그 호출이 없다');
-  assert.equal(그것.그림?.base64, 'PIX', `**그림이 교환에 안 붙는다**: ${JSON.stringify(그것).slice(0, 160)}`);
+  assert.equal(그것.그림?.base64, 'P'.repeat(2000), `**그림이 교환에 안 붙는다**: ${JSON.stringify(그것).slice(0, 160)}`);
 });
 
 // ── ⑥ 기대를 못 말하는 대상에서도 누를 수 있다 ───────────────────────────
@@ -221,13 +221,13 @@ test('기대를 못 말해도 누른다 — 대신 화면 증거를 함께 낸�
       id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
       observe: () => ({ frontmost: { name: '계산기' }, windows: [{ id: 1 }], elements: [버튼] }),
       act: () => { 눌렀나 = true; return { ok: true }; },
-      verify: async () => ({ 판정: 'unknown', 근거: 'no_selector', 그림: { mime: 'image/png', base64: 'PIX' } }),
+      verify: async () => ({ 판정: 'unknown', 근거: 'no_selector', 그림: { mime: 'image/png', base64: 'P'.repeat(2000) } }),
     }],
   });
   const r = await 손.handler({ action: 'click', 대상: 버튼 });
   assert.equal(눌렀나, true, `**안 눌렀다** — 확인 못 한다고 하지도 못하게 막았다: ${JSON.stringify(r).slice(0, 200)}`);
   assert.equal(r.진행?.판정, 'unknown', '누르고 나서 됐다고 하면 A14 가 무너진다');
-  assert.equal(r.그림?.base64, 'PIX', '눈이 없으면 이 길을 열면 안 된다');
+  assert.equal(r.그림?.base64, 'P'.repeat(2000), '눈이 없으면 이 길을 열면 안 된다');
 });
 
 test('눈이 없으면 예전대로 막는다 — 확인도 못 하고 근거도 없이 누르지 않는다', async () => {

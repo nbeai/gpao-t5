@@ -19,7 +19,7 @@ import { MODEL_PROVIDERS } from '../src/runtime/model-provider.js';
 const 그림달린교환 = [{
   ref: 'p1', tool: 'desktop.act', args: { action: 'click' },
   summary: '했어요. 다만 확인은 못 했어요.',
-  그림: { mime: 'image/png', base64: 'AAAB' },
+  그림: { mime: 'image/png', base64: 'A'.repeat(2000) },
 }];
 
 const 몸통 = (cfg, m) => String(MODEL_PROVIDERS.openai.body(
@@ -29,19 +29,19 @@ const 몸통 = (cfg, m) => String(MODEL_PROVIDERS.openai.body(
 
 test('눈이 있다고 확인된 모델에게만 그림을 싣는다', () => {
   const s = 몸통({ 눈있음: true }, {});
-  assert.ok(s.includes('AAAB'), '눈이 있는데 그림을 안 보낸다');
+  assert.ok(s.includes('A'.repeat(2000)), '눈이 있는데 그림을 안 보낸다');
 });
 
 test('눈이 없다고 확인되면 그림을 안 싣는다 — 턴이 통째로 죽는다', () => {
   const s = 몸통({ 눈있음: false }, {});
-  assert.equal(s.includes('AAAB'), false,
+  assert.equal(s.includes('A'.repeat(2000)), false,
     '**못 읽는 모델에게 그림을 보낸다** — 하드 실패다');
   assert.equal(s.includes('image_url'), false);
 });
 
 test('모르면 안 보낸다 — 안전 쪽으로 실패한다(fails closed)', () => {
   const s = 몸통({}, {});
-  assert.equal(s.includes('AAAB'), false,
+  assert.equal(s.includes('A'.repeat(2000)), false,
     `**모르는데 보낸다** — 비교군은 여기서 fails closed 한다: ${s.slice(0, 160)}`);
 });
 
@@ -55,7 +55,7 @@ test('앤트로픽 그릇에도 같은 규율이다', () => {
     { modelId: 'c', baseUrl: 'https://x', 눈있음: false },
     { system: 's', user: 'u', history: [], exchange: 그림달린교환 },
   ));
-  assert.equal(눈없음.includes('AAAB'), false);
+  assert.equal(눈없음.includes('A'.repeat(2000)), false);
 });
 
 // ── 어떤 모델이 눈을 가졌는지는 **선언으로** 안다 ────────────────────────

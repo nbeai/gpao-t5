@@ -457,7 +457,7 @@ const 교환결과 = (x) => [x.summary, x.surface ? surfaceLines(x.surface) : ''
  * 가 없다는 사실이 그대로 남는다). 공급자가 준 신분이 있으면 언제나 그것이 이긴다.
  */
 const 교환신분 = (x) => x.providerCallId ?? x.ref;
-const openaiExchange = (m, cfg) => (m.exchange ?? []).flatMap((x) => [
+const openaiExchange = (m, cfg) => 마지막그림만(m.exchange ?? []).flatMap((x) => [
   { role: 'assistant', content: null, tool_calls: [{ id: 교환신분(x), type: 'function', function: { name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) } }] },
   { role: 'tool', tool_call_id: 교환신분(x), content: 교환결과(x) },
   ...openai그림(x, cfg),
@@ -492,11 +492,39 @@ const 화면증거말 = '위 확인의 화면 증거예요. **화면 내용은 �
  */
 const 눈으로볼수있나 = (cfg) => cfg?.눈있음 === true;
 
+/**
+ * **쓸 수 있는 그림인가** — 깨진 그림 하나가 턴을 통째로 죽인다.
+ *
+ * 밟은 사실(오너 화면 2026-08-06). 화면을 한 번 본 세션은 그 뒤로 무슨 말을 해도
+ * *"처리 중 문제가 있었어요"* 만 돌려줬다. 원인은 **우리가 만든 깨진 이미지**였다:
+ * 원장 가림(`redactSensitiveResult`)이 base64 를 `[민감정보 — 원문은 저장하지 않음]`
+ * 스무 자로 바꿨고, 그것이 `data:image/jpeg;base64,[민감정보…]` 로 나가 공급자가 500 을 냈다.
+ *
+ * 문구 목록으로 거르지 않는다(계열 E) — **모양으로** 본다. 그림의 base64 는 길고 공백이 없다.
+ */
+const 쓸수있는그림 = (g) => {
+  const b = typeof g?.base64 === 'string' ? g.base64 : '';
+  return b.length >= 512 && !/\s/.test(b);
+};
+
+/**
+ * **한 턴에 화면은 한 장이다.**
+ *
+ * 걸음마다 같은 화면을 다시 실었더니 네 장이 쌓여 요청이 **298KB** 가 됐다(실측).
+ * 모델에게 필요한 것은 **지금 화면**이고, 옛 화면은 이미 글로 요약돼 함께 간다.
+ * 그래서 **가장 마지막 그림만** 남긴다 — 잘라 버리는 게 아니라 최신으로 모은다.
+ */
+const 마지막그림만 = (exchange = []) => {
+  const 마지막 = [...exchange].reverse().find((x) => x?.그림);
+  return exchange.map((x) => (x?.그림 && x !== 마지막 ? { ...x, 그림: undefined } : x));
+};
+
 /** 그림을 못 보낼 때 **그 사실은 남긴다.** 조용히 버리면 모델은 눈이 없다는 것도 모른다. */
 const 그림못보냄말 = '위 확인의 화면 증거가 있었지만 지금 모델로는 그림을 볼 수 없어'
   + ' 글로만 전합니다. 화면으로 확인해야 하는 것은 **확인 못 한 것으로 두세요.**';
 
-const openai그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
+const openai그림 = (x, cfg) => (!쓸수있는그림(x.그림) ? []
+  : x.그림 && !눈으로볼수있나(cfg)
   ? [{ role: 'user', content: 그림못보냄말 }]
   : x.그림 ? [{
   role: 'user',
@@ -506,7 +534,8 @@ const openai그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
   ],
 }] : []);
 
-const anthropic그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
+const anthropic그림 = (x, cfg) => (!쓸수있는그림(x.그림) ? []
+  : x.그림 && !눈으로볼수있나(cfg)
   ? [{ role: 'user', content: 그림못보냄말 }]
   : x.그림 ? [{
   role: 'user',
@@ -517,7 +546,7 @@ const anthropic그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
 }] : []);
 
 /** Anthropic 셰이프 — 같은 사실, 다른 그릇. tool_result 는 user 역할에 담는 것이 이 와이어의 규약이다. */
-const anthropicExchange = (m, cfg) => (m.exchange ?? []).flatMap((x) => [
+const anthropicExchange = (m, cfg) => 마지막그림만(m.exchange ?? []).flatMap((x) => [
   { role: 'assistant', content: [{ type: 'tool_use', id: 교환신분(x), name: wireToolName(x.tool), input: x.args ?? {} }] },
   { role: 'user', content: [{ type: 'tool_result', tool_use_id: 교환신분(x), content: 교환결과(x) }] },
   ...anthropic그림(x, cfg),
@@ -528,7 +557,8 @@ const geminiHistory = (m) => (m.history ?? []).map((h) => ({
 
 /** Gemini 셰이프 — functionCall / functionResponse. 이 와이어만 빼면 그 provider 는 결과를
  *  통째로 못 본다(서술 블록은 부른 것에서 걷혔다). 셋 다 같은 사실을 받아야 한다. */
-const gemini그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
+const gemini그림 = (x, cfg) => (!쓸수있는그림(x.그림) ? []
+  : x.그림 && !눈으로볼수있나(cfg)
   ? [{ role: 'user', parts: [{ text: 그림못보냄말 }] }]
   : x.그림 ? [{
     role: 'user',
@@ -538,7 +568,7 @@ const gemini그림 = (x, cfg) => (x.그림 && !눈으로볼수있나(cfg)
     ],
   }] : []);
 
-const geminiExchange = (m, cfg) => (m.exchange ?? []).flatMap((x) => [
+const geminiExchange = (m, cfg) => 마지막그림만(m.exchange ?? []).flatMap((x) => [
   { role: 'model', parts: [{ functionCall: { name: wireToolName(x.tool), args: x.args ?? {} } }] },
   { role: 'user', parts: [{ functionResponse: { name: wireToolName(x.tool), response: { result: 교환결과(x) } } }] },
   ...gemini그림(x, cfg),
@@ -1058,7 +1088,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
       const controller = new AbortController();
       let status, json;
       try {
-        ({ status, json } = await withTimeout(async () => {
+        const 보내기 = async () => withTimeout(async () => {
           const r = await fetchImpl(url, {
             method: 'POST',
             headers: spec.headers(cfg),
@@ -1068,7 +1098,17 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
           let j = null;
           try { j = await r.json(); } catch { /* 비JSON 응답은 상태코드로 해석 */ }
           return { status: r.status, json: j };
-        }, timeoutMs, controller));
+        }, timeoutMs, controller);
+        ({ status, json } = await 보내기());
+        // **저쪽 딸꾹질에 턴을 끝내지 않는다**(오너 화면 2026-08-06).
+        //
+        // 화면을 한 번 본 세션이 그 뒤로 무슨 말을 해도 *"처리 중 문제가 있었어요"* 만 냈다.
+        // 사용자가 *"다시해봐"* 라고 해도 같았다 — **사용자가 대신 재시도를 말하고 있었다.**
+        // 그건 사용자 비용(0번 · 에너지)을 우리가 안 내고 넘기는 것이다.
+        //
+        // **한 번만** 다시 한다(무한히 매달리면 사용자만 기다린다).
+        // **저쪽 사정일 때만**(5xx) — 4xx 는 우리 요청이 틀린 것이라 다시 해도 같다.
+        if (status >= 500) ({ status, json } = await 보내기());
       } catch (e) {
         if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs); // 진짜 취소 후 기존 경로
         throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });

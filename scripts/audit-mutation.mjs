@@ -68,6 +68,8 @@ const T_PROBE = 'test/cu-probe-must-find-what-the-hand-finds.test.js';
 const T_EMPTY = 'test/cu-empty-key-and-blank-field.test.js';
 const T_OUT = 'test/cu-outward-step-goes-through-approval.test.js';
 const T_RESUME = 'test/cu-approval-does-not-erase-earlier-steps.test.js';
+const T_PIC = 'test/cu-picture-must-not-kill-the-session.test.js';
+const T_HICCUP = 'test/cu-provider-hiccup-does-not-end-the-turn.test.js';
 const TASKCTX = 'src/kernel/l1-intent/task-context.js';
 const PLAN = 'src/kernel/l2-plan/action-plan.js';
 const TURN = 'src/kernel/turn.js';
@@ -1847,6 +1849,18 @@ export const MUTATIONS = [
   { 이름: '막고 갈 곳을 안 줌(모델이 같은 실수를 반복한다)', 파일: DESK_ACT, 검사: T_CHOICE,
     찾기: "              다음수단: [채울것, { 방법: 'observe', 왜: '지금 화면을 다시 보고 그 요소를 고른다' }],",
     바꾸기: "              다음수단: []," },
+  { 이름: '깨진 그림을 그대로 보냄(화면 본 세션이 그 뒤로 통째로 죽는다)', 파일: PROVIDER2, 검사: T_PIC,
+    찾기: "  return b.length >= 512 && !/\\s/.test(b);",
+    바꾸기: "  return true;" },
+  { 이름: '같은 화면을 걸음마다 다시 실음(요청이 300KB가 된다)', 파일: PROVIDER2, 검사: T_PIC,
+    찾기: "  const 마지막 = [...exchange].reverse().find((x) => x?.그림);",
+    바꾸기: "  const 마지막 = null;" },
+  { 이름: '저쪽 딸꾹질에 턴을 끝냄(사용자가 대신 재시도를 말한다)', 파일: PROVIDER2, 검사: T_HICCUP,
+    찾기: "        if (status >= 500) ({ status, json } = await 보내기());",
+    바꾸기: "" },
+  { 이름: '우리 잘못까지 다시 보냄(같은 답을 두 번 받는다)', 파일: PROVIDER2, 검사: T_HICCUP,
+    찾기: "        if (status >= 500) ({ status, json } = await 보내기());",
+    바꾸기: "        if (status >= 400) ({ status, json } = await 보내기());" },
   // ── F-42(모델이 몬다) · F-44(카드 3장→1장) 2026-08-06 ──────────────────
   { 이름: '되붙일 한 벌을 안 줌(모델이 역할을 이름으로 베낀다)', 파일: TASKCTX, 검사: T_COPY,
     찾기: "      const 짚기 = 표 ? ` 대상=${JSON.stringify({ id: 표, label: 이름 })}` : '';",
