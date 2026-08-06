@@ -681,6 +681,21 @@ export function buildTaskContext(p) {
     // `selfStateFacts` 가 준다(두 벌로 주면 서로 어긋난다).
     connectedTools: (p.selfState?.connectedTools ?? []).map((t) => t?.id).filter(Boolean),
     admittedContext: p.admittedContext ?? [],
+    // **문장만 나르면 신분이 죽는다**(노드 K · 판 ④ 0/3). `context-mesh.js` 가 `kind` 를
+    // 달아 주는데 `turn.js` 가 `statement` 만 뽑아 왔다 — 그래서 *"아침에 보리차를 마셨다"*
+    // 같은 **사실**이 저장된 **명령**과 같은 격리 딱지를 받았고, 모델이 그걸 읽고 버렸다.
+    // 실려 갔는데도 *"볼 방법이 없어요"* 라고 답한 자리다.
+    //
+    // **`kind` 와 `statement` 만 추린다.** 원본을 통째로 넘기면 내부 신분(`id`)이 따라와
+    // 모델 입력에 샌다 — S5 봉인이 그 자리를 문다(실측: 이 수정의 첫 판이 걸렸다).
+    // 필요한 것은 *"이 문장이 지시냐 사실이냐"* 하나뿐이다.
+    admittedRich: (p.admittedRich ?? [])
+      .filter((e) => e?.statement)
+      .map((e) => ({ kind: e.kind, statement: e.statement })),
+    // **만든 것을 모델이 알아야 한다**(판 ⑦ 0/3). 예약 후보는 `turn.js` 에서 만들어져
+    // 표면까지 가는데 모델 프롬프트에는 한 번도 안 갔다 — T5 가 만들어 놓고
+    // *"스스로 먼저 말 걸 수 없어요"* 라고 답했다(거짓 실패).
+    ...(p.automationProposal ? { automationProposal: p.automationProposal } : {}),
     // S3 · 다른 대화에서 이어받을 수 있는 작업(§4.7). 사실 나열이며 지시가 아니다 —
     // "아까 그거"가 무엇인지는 모델이 이 사실 위에서 판단한다. 후보가 여럿이면 여럿 그대로.
     carryableWork: p.carryableWork ?? [],

@@ -873,6 +873,11 @@ export async function runTurn(input, ctx) {
     ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
     ...admittedRich.map((e) => e.statement),
   ];
+  // **신분도 함께 나른다**(노드 K · 판 ④). 문장만 가면 *"아침에 보리차를 마셨다"* 같은
+  // **사실**이 저장된 **명령**과 같은 격리 딱지를 받고, 모델이 그걸 읽고 버린다.
+  // `executePlan` 은 `admitted`(문장)만 인자로 받으므로 `ctx` 로 보낸다 — 같은 배열이라
+  // 보인 것과 실린 것이 갈릴 수 없다.
+  ctx.admittedRich = admittedRich;
   ctx.stateReviewSignals.hasAdmittedContext = admitted.length > 0;
   // 이 턴에 **실제로 모델 앞에 놓인** 것들의 신분. 현재 목표는 기억이 아니므로 세지 않는다.
   const 렌더재료 = {
@@ -897,6 +902,8 @@ export async function runTurn(input, ctx) {
     if (분리?.askUser && !물음) 물음 = 분리.askUser;
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
+    // **만든 것을 모델이 알아야 한다**(판 ⑦). `executePlan` 안에서도 읽으려면 `ctx` 다.
+    ctx.automationProposal = automationProposal;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
     collectWorkState(분리);
   };
@@ -945,7 +952,7 @@ export async function runTurn(input, ctx) {
     const tc = earlyTc = buildTaskContext({
       processEnv: ctx.processEnv,
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, admittedContext: admitted, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
+      intent, selfState, admittedContext: admitted, admittedRich, automationProposal, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
@@ -1874,7 +1881,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-    intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+    intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
@@ -2148,7 +2155,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, 이번턴그림,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal, 이번턴그림,
         surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState,
@@ -2399,7 +2406,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, 이번턴그림,
+      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal, 이번턴그림,
       surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState,
