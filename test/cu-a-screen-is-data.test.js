@@ -107,9 +107,10 @@ test('라이브: 백엔드가 있으면 화면 손이 **맨 뒤**에 붙는다',
   const { liveDeps } = await import('../src/surface/live-context.js');
   const 손이름 = (live) => toolSchemasFor(buildSelfState(live.env, { tools: live.tools })).map((t) => t.name);
 
-  const 없이 = 손이름(liveDeps({}));
+  // 이 기계에 화면 손이 깔려 있으면 자동 탐색이 잡는다 — **검사는 환경에 안 흔들려야** 한다.
+  const 없이 = 손이름(liveDeps({ GPAO_T5_NO_AUTO_SCREEN_BIN: '1' }));
   // 경로는 아무 값이나 된다 — 여기서 재는 것은 **배치**이지 실행이 아니다(부르지 않는다).
-  const 있게 = 손이름(liveDeps({ GPAO_T5_DESKTOP_BIN: '/없어도/된다/probe' }));
+  const 있게 = 손이름(liveDeps({ GPAO_T5_NO_AUTO_SCREEN_BIN: '1', GPAO_T5_DESKTOP_BIN: '/없어도/된다/probe' }));
 
   assert.ok(!없이.includes('desktop.screen'), '백엔드가 없는데 손이 실렸다');
   // CU C 에서 행동 손이 하나 더 붙는다 — 둘 다 **맨 뒤**여야 한다.

@@ -71,6 +71,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l2-plan/tool-descriptor.js',
     // 그 축을 selfState 가 나른다.
     'src/kernel/l0-evidence/self-state.js',
+    // 화면 손을 스스로 찾는다 — 환경변수를 손으로 넣어야 붙는 손은 제품에 없는 손이다.
+    'src/runtime/desktop-bin.js',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/l2-plan/action-plan.js',

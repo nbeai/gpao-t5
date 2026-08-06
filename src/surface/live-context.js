@@ -10,6 +10,7 @@ import { makeDesktopTool } from '../runtime/desktop-tool.js';
 import { makeDesktopActTool } from '../runtime/desktop-act-tool.js';
 import { makeDesktopNativeDriver } from '../runtime/desktop-native-driver.js';
 import { makeCuaDriver } from '../runtime/desktop-cua-driver.js';
+import { 화면손찾기 } from '../runtime/desktop-bin.js';
 import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
@@ -97,7 +98,11 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 말하는 것이다. 환경이 알려줄 때만 붙이고, 없으면 선언조차 안 딸려온다(1축의 배당금).
   // **드라이버가 둘이다 — 슬롯이 고른다.** cua 가 있으면 그것(3개 OS), 없으면 옛 네이티브(macOS).
   // 둘 다 같은 슬롯 계약을 채우므로 **손과 검사는 어느 쪽인지 모른다** — 그게 슬롯의 값이다.
-  const cua백엔드 = processEnv.GPAO_T5_CUA_BIN;
+  // **손을 스스로 찾는다**(PM 판정 2026-08-06 · 판 3차). 예전엔 `GPAO_T5_CUA_BIN` 만 봤고,
+  // 그 값을 **아무데서도 안 세웠다** — 개발자가 시험 때 손으로 넣어 띄웠을 뿐이다.
+  // 그래서 실험실에서는 계산기·카톡·크롬이 다 됐는데 **사장님이 켠 T5 에는 화면 손이 0개**였다.
+  // 오너 규율: *"영향 0 레인 작업을 제품 효과로 보고하지 말 것."*
+  const cua백엔드 = 화면손찾기({ env: processEnv });
   const 화면백엔드 = processEnv.GPAO_T5_DESKTOP_BIN;
   const desktop = (cua백엔드 || 화면백엔드) ? (() => {
     const 등록소 = 화면등록소();

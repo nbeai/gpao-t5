@@ -143,6 +143,9 @@ export const 허용파일 = [
   'src/kernel/l2-plan/tool-descriptor.js',
   // 그 축을 selfState 가 나른다 — 안 나르면 커널이 비교할 재료를 못 받는다.
   'src/kernel/l0-evidence/self-state.js',
+  // **손을 스스로 찾는 자리**(PM 판정 2026-08-06). `GPAO_T5_CUA_BIN` 을 아무데서도 안 세워
+  // 사장님이 켠 T5 에는 화면 손이 0개였다 — 실험실에서만 되던 것을 제품에 잇는다.
+  'src/runtime/desktop-bin.js',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
@@ -385,6 +388,11 @@ export async function 현실지문({ sovereign }) {
       GPAO_T5_DATA_DIR: join(자리, 'state'),
       GPAO_T5_HOME: 자리,
       GPAO_T5_FILE_ROOTS: join(자리, 'Downloads'),
+      // **기준지문은 기계에 안 흔들려야 한다.** 화면 손은 이제 표준 자리를 스스로 훑는데
+      // (PM 판정 2026-08-06 · 사장님이 켠 T5 에 손이 0개였다), 그러면 **이 컴퓨터에 뭐가
+      // 깔렸느냐**로 도구 수가 바뀐다(실측 19 → 21). 지문은 계약을 재는 자이지 환경을 재는
+      // 자가 아니다 — 자동 탐색을 끄고 잰다.
+      GPAO_T5_NO_AUTO_SCREEN_BIN: '1',
     };
     const { env: liveEnv } = liveDeps(env, {});
     const selfState = buildSelfState(liveEnv, {});
