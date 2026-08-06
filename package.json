@@ -12,7 +12,8 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "vendor"
   ],
   "scripts": {
     "audit:compare-live": "python3 scripts/compare-live/compare_contract.py",

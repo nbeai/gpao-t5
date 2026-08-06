@@ -146,6 +146,9 @@ export const 허용파일 = [
   // **손을 스스로 찾는 자리**(PM 판정 2026-08-06). `GPAO_T5_CUA_BIN` 을 아무데서도 안 세워
   // 사장님이 켠 T5 에는 화면 손이 0개였다 — 실험실에서만 되던 것을 제품에 잇는다.
   'src/runtime/desktop-bin.js',
+  // **화면 손 실행 파일**(오너 결정 2026-08-07: T5 설치에 같이 담는다).
+  // 코드가 아니라 산출물이라 지문에 안 잡히지만, 빠지면 손이 통째로 없어진다.
+  'vendor/cua-driver/darwin-arm64/cua-driver',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게

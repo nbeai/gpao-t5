@@ -73,6 +73,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l0-evidence/self-state.js',
     // 화면 손을 스스로 찾는다 — 환경변수를 손으로 넣어야 붙는 손은 제품에 없는 손이다.
     'src/runtime/desktop-bin.js',
+    // **화면 손 실행 파일**(오너 결정 2026-08-07: T5 설치에 같이 담는다).
+    // 코드가 아니라 산출물이라 지문에 안 잡히지만, 빠지면 손이 통째로 없어진다.
+    'vendor/cua-driver/darwin-arm64/cua-driver',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     'src/kernel/l2-plan/action-plan.js',

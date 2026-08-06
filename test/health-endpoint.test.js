@@ -75,6 +75,8 @@ test('패키지 계약: bin 진입점과 files 화이트리스트가 선언돼 �
   const { readFile } = await import('node:fs/promises');
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.bin['gpao-t5'], 'bin/gpao-t5.mjs');
-  assert.deepEqual(pkg.files, ['bin', 'src']);           // 무엇이 나가는지 명시
+  // `vendor` 는 **화면 손 실행 파일**이다(오너 결정 2026-08-07: T5 설치에 같이 담는다).
+  // 빠지면 설치본에 손이 안 담겨, 사장님이 켠 T5 는 화면을 못 본다 — 한 번 겪은 사고다.
+  assert.deepEqual(pkg.files, ['bin', 'src', 'vendor']);  // 무엇이 나가는지 명시
   assert.ok(pkg.scripts['verify:package'], '산출물 검증 게이트가 스크립트로 노출된다');
 });

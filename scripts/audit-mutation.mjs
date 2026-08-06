@@ -2262,7 +2262,10 @@ export async function auditMutation(repo = REPO, 목록 = MUTATIONS) {
 // 그래서 변조는 임시 사본에서만 한다. 활성 저장소는 읽기 전용이다 — 잠금으로 순서를 맞추는
 // 대신, 애초에 다툴 대상을 없앤다. 잠금은 잊거나 새 진입점이 생기면 뚫리지만, 사본은
 // 뚫릴 것이 없다.
-const 건너뛸것 = new Set(['.git', 'node_modules', '.claude']);
+// **빌드 산출물은 돌연변이와 무관하다.** 회차마다 통째로 복사하느라 오너 디스크를 먹고
+// (실측 2026-08-07: `dist` 75MB · `vendor` 28MB → `ENOSPC` 로 스윕이 죽었다),
+// 검사가 그 파일을 읽는 일도 없다. 산출물은 `git` 도 무시하는 것들이다.
+const 건너뛸것 = new Set(['.git', 'node_modules', '.claude', 'dist', 'vendor']);
 
 async function 작업사본(repo) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-mutation-'));
