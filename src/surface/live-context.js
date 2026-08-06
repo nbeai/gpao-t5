@@ -103,7 +103,13 @@ export function liveDeps(processEnv = {}, deps = {}) {
     const 등록소 = 화면등록소();
     if (!등록소.드라이버(DESKTOP_SLOT).length) {
       // 붙이는 순서가 고르는 순서다(슬롯 계약). cua 를 먼저 — 크로스 플랫폼이 요구다.
-      if (cua백엔드) 등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ binPath: cua백엔드 }));
+      // **사용자가 이미 로그인해 둔 브라우저에 붙는다**(CU-④ · 오너 결정 2026-08-06).
+      // 오너 정본: *"로그인이 화면 뒤에 있다 — 터미널이 아무리 강해져도 이 자리는 안 열린다."*
+      // 밝힐 때만 켠다 — 말 없이 브라우저 접근 권한을 얻지 않는다.
+      const 브라우저허용 = processEnv.GPAO_T5_BROWSER_PROFILE === '1';
+      if (cua백엔드) {
+        등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ binPath: cua백엔드, 기존프로필허용: 브라우저허용 }));
+      }
       if (화면백엔드) 등록소.붙이기(DESKTOP_SLOT, makeDesktopNativeDriver({ binPath: 화면백엔드 }));
     }
     return makeDesktopTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) });

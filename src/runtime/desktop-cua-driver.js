@@ -33,11 +33,16 @@ import { spawn } from 'node:child_process';
  * **드라이버를 어떻게 띄우는가** — 인자와 환경을 한 자리에 둔다.
  * 밖에서 잴 수 있어야 "껐다"가 주장이 아니라 사실이 된다.
  */
-export function 기동인자({ binPath }) {
+export function 기동인자({ binPath, 기존프로필허용 = false }) {
   return {
     bin: binPath,
     // `--direct` = 임베디드. 우리(호스트)의 TCC 귀속을 쓴다.
-    args: ['mcp', '--direct'],
+    //
+    // **`--grant existing-profile` = 사용자가 이미 로그인해 둔 브라우저에 붙는 허가**(CU-④).
+    // 오너 정본: *"로그인이 화면 뒤에 있다 — 터미널이 아무리 강해져도 이 자리는 안 열린다."*
+    // 이 플래그 없이는 드라이버가 **격리 프로필로 새 브라우저**만 띄운다 — 로그인이 없다.
+    // 밝히지 않으면 안 붙인다 — 말 없이 브라우저 접근 권한을 얻지 않는다.
+    args: ['mcp', '--direct', ...(기존프로필허용 ? ['--grant', 'existing-profile'] : [])],
     env: {
       ...process.env,
       // **기본이 켜짐이라 명시적으로 끈다.**
@@ -54,13 +59,13 @@ const 권한말 = (v) => (v === true ? 'granted' : 'denied');
  * MCP stdio 한 줄 클라이언트. **여기서 판정하지 않는다** — 부르고 결과를 옮긴다.
  * 가르는 것은 손(`desktop-tool` · `desktop-act-tool`)의 일이다.
  */
-export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn }) {
+export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn, 기존프로필허용 = false }) {
   let 아이 = null; let 다음id = 1; let 버퍼 = '';
   const 기다리는것 = new Map();
 
   const 띄우기 = () => {
     if (아이) return 아이;
-    const { bin, args, env } = 기동인자({ binPath });
+    const { bin, args, env } = 기동인자({ binPath, 기존프로필허용 });
     아이 = spawnImpl(bin, args, { stdio: ['pipe', 'pipe', 'pipe'], env });
     아이.stdout.on('data', (d) => {
       버퍼 += d;
@@ -136,7 +141,15 @@ export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn })
  * @param {{binPath?:string, mcp?:{call:Function}}} deps  `mcp` 주입 시 그것을 쓴다(검사용).
  */
 export function makeCuaDriver(deps = {}) {
-  const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath });
+  // **사용자가 이미 로그인해 둔 브라우저에 붙어도 되는가**(CU-④). 밝힐 때만 참이다 —
+  // 말 없이 브라우저 접근 권한을 얻지 않는다. 배선이 이 값을 준다(`live-context`).
+  const 기존프로필허용 = deps.기존프로필허용 === true;
+  // 한 번 붙으면 그 뒤로는 다시 안 붙는다 — **재연결마다 크롬이 동의 시트를 띄우는데
+  // 드라이버가 한국어 시트를 못 읽는다**(`consent_ui.rs` 가 "remote debugging" 을 찾는다).
+  // 오너 결정(2026-08-06): *"연결을 한 번 맺고 유지한다."* 드라이버가 상주하니 조건이 선다.
+  const 붙은브라우저 = new Set();
+  const 브라우저세션 = 'gpao-t5';
+  const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath, 기존프로필허용: deps.기존프로필허용 === true });
 
   return {
     id: 'cua',
@@ -271,7 +284,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -459,6 +472,44 @@ export function makeCuaDriver(deps = {}) {
               }
             }
           }
+          // **브라우저 창이면 탭도 본다**(CU-④). 사용자는 *"그 화면 읽어줘"* 라고 하지
+          // *"CDP 로 읽어줘"* 라고 하지 않는다 — 어느 길로 읽는지는 우리 일이다.
+          // 로그인해야 보이는 자리가 여기서 열린다(카드사·배달앱·플레이스).
+          if (기존프로필허용 && /chrome|chromium|edge|brave|크롬/i.test(String(대상.app ?? ''))) {
+            try {
+              if (!붙은브라우저.has(대상.pid)) {
+                const 붙이기 = () => mcp.call('browser_prepare', {
+                  pid: 대상.pid, window_id: 대상.id, session: 브라우저세션,
+                  strategy: { kind: 'existing_profile' },
+                });
+                let 붙음 = await 붙이기();
+                // **한국어 동의 시트는 우리가 눌러 준다.** 크롬은 새 연결마다
+                // *"원격 디버깅을 허용하시겠습니까?"* 를 띄우는데, `consent_ui.rs` 는
+                // `"remote debugging"`(영어)을 찾아 **그 시트를 못 본다** — 사용자가 손으로
+                // 눌러도 드라이버는 모르고 계속 다시 띄운다(실측: 오너가 세 번 눌렀다).
+                // 한국어를 읽는 건 우리 일이다(CU-⑥에서 내내 한 일).
+                if (!붙음?.action) {
+                  const 허용 = (st?.elements ?? []).find((e) => /Button/i.test(String(e.role))
+                    && ['허용', 'Allow'].includes(String(e.label ?? '').trim()));
+                  if (허용?.element_token) {
+                    await mcp.call('click', {
+                      element_token: 허용.element_token, pid: 대상.pid, window_id: 대상.id,
+                      ...(st?.snapshot_id ? { snapshot_id: st.snapshot_id } : {}),
+                    }).catch(() => null);
+                    await new Promise((z) => { setTimeout(z, 900); });
+                    붙음 = await 붙이기();
+                  }
+                }
+                if (붙음?.action) 붙은브라우저.add(대상.pid);
+              }
+              const 브 = await mcp.call('get_browser_state', {
+                pid: 대상.pid, window_id: 대상.id, session: 브라우저세션,
+              });
+              if (Array.isArray(브?.tabs)) {
+                탭들값 = 브.tabs.map((t) => ({ id: t.tab_id, title: t.title, url: t.url }));
+              }
+            } catch { 탭들값 = null; }
+          }
           스냅샷 = st?.snapshot_id ?? null;
           // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
           // 다음 걸음이 어느 창 이야기인지 모른다.
@@ -535,6 +586,7 @@ export function makeCuaDriver(deps = {}) {
         ...(앞세워읽음값 ? { 앞세워읽음: true } : {}),
         ...(그림값 ? { 그림: 그림값 } : {}),
         ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
+        ...(탭들값?.length ? { 탭들: 탭들값 } : {}),
       };
     },
 

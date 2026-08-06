@@ -153,6 +153,14 @@ export function compactResult(result, maxChars = 1200) {
       return `- ${역할}: ${보이는것.replace(/\s+/g, ' ').slice(0, 200)}${짚기}`;
     });
     // 읽기는 알맹이라 예산을 넉넉히 준다 — 그래도 조용히 자르지는 않는다.
+    // **브라우저 탭은 로그인 뒤 자리로 가는 문이다**(CU-④). 손이 들고만 있으면 소용없다 —
+    // 실측: 탭을 CDP 로 다 읽어 놓고도 모델은 *"AX 로는 각 탭 URL 을 못 읽는다"* 고 답했다.
+    if (Array.isArray(result.탭들) && result.탭들.length) {
+      lines.push(`열린 탭 ${result.탭들.length}개`);
+      for (const t of result.탭들.slice(0, 30)) {
+        lines.push(`- ${String(t.title ?? '').replace(/\s+/g, ' ').slice(0, 80)} — ${t.url ?? ''}`);
+      }
+    }
     const 본문 = fold(줄.join('\n'), Math.max(maxChars * 6, 6000));
     if (result.다음수단?.length) {
       lines.push(`다음 수: ${result.다음수단.map((n) => `${n.방법}${n.offset != null ? `(offset ${n.offset})` : ''} — ${n.왜}`).join(' · ')}`);
