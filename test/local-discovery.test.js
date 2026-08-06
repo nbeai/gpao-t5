@@ -64,11 +64,17 @@ test('실행 원장은 연결 탐색 계약을 버리지 않고 다음 판단까
   });
   assert.equal(rec.failureState, 'none');
   assert.deepEqual(rec.connectionDiscovery, {
-    subject: '낯선서비스', checked: ['mcp', 'cli', 'known_connectors', 'apps', 'sync_folders', 'settings_names', 'local_files'], candidates: [],
+    // **`settings_names` 가 빠졌다**(2026-08-07 · 루트를 홈으로 넓히며 숨김 자리를 닫았다).
+    // 그 축이 훑던 `~/.config` 는 자격증명이 사는 자리라 보호가 이긴다 — 그래서 못 본 것을
+    // **못 봤다고 적는다**(H09 규율: 빈 측정을 긍정 증거로 세우지 않는다). 아래 `unchecked` 로 간다.
+    subject: '낯선서비스', checked: ['mcp', 'cli', 'known_connectors', 'apps', 'sync_folders', 'local_files'], candidates: [],
+    // **못 본 자리를 못 봤다고 적는다.** 이 칸이 비면 위 `checked` 여섯이 전부인 줄 읽힌다.
+    unchecked: ['settings_names'],
     // 확인 범위와 연결 선언 여부도 같은 계약으로 실려 간다 — "못 찾음"과 "없음"을 가르는 사실.
     scope: 'this_computer', declared: false,
   });
-  assert.equal(rec.subject?.detail, 'mcp · cli · known_connectors · apps · sync_folders · settings_names · local_files을 확인했지만 맞는 연결 단서는 없음');
+  // **못 본 자리를 말로도 밝힌다** — 이 괄호가 없으면 "없음"이 "다 봤는데 없음"으로 읽힌다.
+  assert.equal(rec.subject?.detail, 'mcp · cli · known_connectors · apps · sync_folders · local_files을 확인했지만 맞는 연결 단서는 없음 (settings_names은 읽지 못해 못 봤음)');
 });
 
 // 실측(감사 2026-07-28): `듣도보도못한상점ABC` 에 `bc(cli)`·`ab(cli)` 가 단서로 나왔다.

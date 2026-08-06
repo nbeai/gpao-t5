@@ -16,7 +16,7 @@ import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { makeLocalLocateTool } from '../src/runtime/local-locate.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
-import { defaultFileRoots, resolveInScope, ScopeError } from '../src/runtime/file-scope.js';
+import { isWithin, defaultFileRoots, resolveInScope, ScopeError } from '../src/runtime/file-scope.js';
 
 /** 파일 수정 시각을 며칠 전으로 돌린다 — 최종본 판별은 시각이 근거라 시각을 심어야 검사가 된다. */
 async function 며칠전(path, 일) {
@@ -25,14 +25,18 @@ async function 며칠전(path, 일) {
 }
 
 // ── 뿌리 ① · 허용 루트 — 다운로드·문서·바탕화면이 범위에 들어온다 ─────────
-test('기본 루트: 표준 사용자 폴더까지 열린다 — 루트 1개면 다운로드가 처음부터 범위 밖이다(H08 뿌리 ①)', () => {
+// H08 이 물었던 것은 *"다운로드 폴더의 견적서가 범위 안인가"* 였다. **그 의도는 그대로다.**
+// 재는 방법만 바뀌었다 — 루트가 넷에서 홈 하나가 됐기 때문이다(2026-08-07 · 노드 R 순서 ②).
+// 넷도 원래 하나였고 H08 이 셋을 얹은 것인데, 판 5판 ⑫가 **같은 병을 한 칸 위에서** 냈다:
+// 파일은 `~/GPAO-T5` 안에 있었는데 모델이 좁은 선언을 믿고 `from:'Desktop'` 으로 찾다 실패했다.
+// **넷 → 다섯으로는 계속 난다.** 선언을 강제(홈)에 맞췄다.
+test('기본 루트: 사용자 폴더가 전부 범위 안이다 — 여기가 막히면 시작도 못 한다(H08 뿌리 ①)', () => {
   const roots = defaultFileRoots({});
-  assert.ok(roots[0].endsWith('GPAO-T5'), '작업 루트가 첫째다(상대 경로·휴지통·새 파일의 기준)');
-  for (const 이름 of ['Downloads', 'Documents', 'Desktop']) {
-    assert.ok(roots.includes(join(homedir(), 이름)), `${이름} 이 범위에 없다 — "다운로드 폴더의 견적서"가 시작도 못 한다`);
+  assert.deepEqual(roots, [homedir()], '선언이 강제(홈)와 같아야 모델이 좁게 찾지 않는다');
+  for (const 이름 of ['Downloads', 'Documents', 'Desktop', 'GPAO-T5']) {
+    assert.ok(isWithin(roots[0], join(homedir(), 이름)),
+      `${이름} 이 범위에 없다 — "다운로드 폴더의 견적서"가 시작도 못 한다`);
   }
-  assert.ok(!roots.includes(homedir()), '홈 전체를 기본으로 열지 않는다 — 넓힘은 표준 사용자 폴더까지만');
-  assert.ok(roots.every((r) => r.startsWith(homedir())), '루트는 전부 사용자 홈 하위다');
 });
 
 test('여러 루트: 둘째 루트 안 절대 경로도 범위 안이고, 상대 경로는 여전히 첫 루트 기준이다', async () => {

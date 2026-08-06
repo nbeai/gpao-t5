@@ -63,8 +63,10 @@ export async function 격리증명(방) {
     // 예전엔 `scopeRoots.length === 1` 을 봤다. 그건 **선언**이고, 선언은 강제를 보증하지
     // 않는다(F-46). 여기서 물어야 하는 것은 *"오너 홈이 안 보이는가"* 하나다.
     // 표식을 격리 방에 심고 **파일 손으로** 읽는다 — 읽히면 그 `~` 는 격리 방이다.
-    await writeFile(join(방.root, '.t5-격리표식'), '이 자리는 시험용 격리 방이다.\n', 'utf8');
-    const 표식 = await 파일?.handler?.({ action: 'read', path: '~/.t5-격리표식' }, {});
+    // **점으로 시작하지 않는다.** 홈 최상위 숨김 자리는 보호가 막는다(2026-08-07) —
+    // 점 이름으로 두면 보호가 이겨서 격리가 아니라 보호를 재게 된다.
+    await writeFile(join(방.root, 't5-격리표식'), '이 자리는 시험용 격리 방이다.\n', 'utf8');
+    const 표식 = await 파일?.handler?.({ action: 'read', path: '~/t5-격리표식' }, {});
     const 표식읽힘 = !표식?.blocked && !표식?.failed
       && /격리 방/.test(JSON.stringify(표식?.result ?? ''));
     적기('파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)', 표식읽힘,
@@ -74,7 +76,7 @@ export async function 격리증명(방) {
     // ② **홈 기준 경로가 오너 홈에 닿지 않는가.** 격리 방에 같은 이름을 만들어 두고 잰다 —
     //    안 만들면 "폴더가 없어서 못 읽음"(ENOENT)이 통과로 세어져 **강제를 안 재게 된다.**
     await mkdir(join(방.root, 'Documents'), { recursive: true });
-    await writeFile(join(방.root, 'Documents', '.t5-격리표식'), '격리 방의 Documents 다.\n', 'utf8');
+    await writeFile(join(방.root, 'Documents', 't5-격리표식'), '격리 방의 Documents 다.\n', 'utf8');
     const 밖 = await 파일?.handler?.({ action: 'list', path: '~/Documents' }, {});
     const 오너홈아님 = !JSON.stringify(밖?.result ?? '').includes(진짜홈);
     적기('파일 손의 ~/Documents 가 오너 홈이 아니다', 오너홈아님,
@@ -95,7 +97,7 @@ export async function 격리증명(방) {
     // 표식은 ①에서 이미 심었다 — 여기서는 터미널의 `~` 로 같은 것을 본다.
     const ls = await 터미널?.probe?.('ls -a ~/');
     const 출력 = String(ls?.probe?.stdout ?? '');
-    const 표식보임 = 출력.includes('.t5-격리표식');
+    const 표식보임 = 출력.includes('t5-격리표식');
     const 오너홈표식 = 출력.includes('Library');
     적기('터미널 `~` 가 격리 방이다(표식으로 확인)', 표식보임 && !오너홈표식 && (ls?.probe?.exitCode === 0),
       !표식보임 ? '격리 표식이 안 보인다 — `~` 가 다른 자리다'

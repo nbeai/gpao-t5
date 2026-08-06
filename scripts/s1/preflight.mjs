@@ -159,6 +159,11 @@ export const 허용파일 = [
   // 첫 항목이 `scopeRoots` 가 하나인지(=선언)만 봤다. 오늘 F-46 이 증명한 것이
   // **선언은 강제를 보증하지 않는다**이고, 루트를 넓히면 이 증명이 먼저 깨진다.
   'scripts/human-use/prove-isolation.mjs',
+  // **선언을 실제 강제에 맞춘다**(오너 방향 2026-08-07 · 노드 R 순서 ②).
+  // 선언은 넷인데 강제는 홈 전체였고, 모델이 좁은 선언을 믿어 `from:'Desktop'` 으로
+  // 범위를 좁혀 찾다 실패했다(판 ⑫ 0/3). 넓히는 같은 걸음에서 노출면을 닫는다.
+  'src/runtime/file-scope.js',
+  'src/runtime/local-protection.js',
   // 긴 정리 실행 입자 — 모델이 400개 낱개 move 나 빈 폴더 만들기로 빠지지 않게
   // 조건 기반 bulk_move 를 local.file 의 같은 안전·되돌리기 계약 안에 추가했다.
   'src/kernel/l2-plan/action-plan.js',

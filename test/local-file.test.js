@@ -62,24 +62,36 @@ test('resolveInScope: 새 파일도 부모가 범위 안이면 허용된다', as
   await assert.rejects(() => resolveInScope('/tmp', { roots: [root] }), (e) => e instanceof ScopeError);
 });
 
-test('기본 루트는 홈 전체가 아니다 — 표준 사용자 폴더까지만 열린다(H08)', () => {
+// **선언을 강제에 맞췄다**(2026-08-07 · 오너 방향 · 노드 R 순서 ②).
+//
+// 이 검사는 원래 *"홈 전체를 기본으로 열지 않는다"* 를 지켰다. 그 판단이 뒤집힌 이유:
+//   · 강제는 이미 홈 전체였다(`local-file.js:216`·`:331`). 선언만 넷이라 **모델이 좁은 쪽을
+//     믿고** `from:'Desktop'` 으로 범위를 좁혀 찾다 실패했다(판 5판 ⑫ 0/3 · F-46).
+//   · 넷도 원래 하나였고 H08 이 셋을 얹은 것이다. **넷 → 다섯으로는 같은 병이 계속 난다.**
+//
+// 지키려던 것(위험 자리 노출 금지)은 **보호**가 담당한다 — 루트와 독립이라 넓혀도 그대로다.
+// 그래서 이 검사는 루트 개수가 아니라 **보호가 서 있는지**를 잰다.
+test('루트를 홈으로 넓혀도 위험 자리는 보호가 막는다 — 넓힘이 보호를 풀지 않는다', async () => {
+  const { protectionBlocks } = await import('../src/runtime/local-protection.js');
   const roots = defaultFileRoots({});
-  // 루트 1개(~/GPAO-T5)로는 "다운로드 폴더의 견적서"가 시작도 못 한다(H08 실패 3/3 의 뿌리 ①).
-  // 그렇다고 홈 전체를 열지 않는다 — 넓힘은 Downloads·Documents·Desktop 까지이고,
-  // 그 안의 위험 자리는 local-protection 이 루트와 독립으로 막는다.
-  assert.ok(roots[0].endsWith('GPAO-T5'), '작업 루트가 첫째다(상대 경로·휴지통의 기준)');
-  for (const 이름 of ['Downloads', 'Documents', 'Desktop']) {
-    assert.ok(roots.includes(join(homedir(), 이름)), `${이름} 이 범위에 없다`);
+  assert.deepEqual(roots, [homedir()], '선언이 강제(홈)와 같아야 한다');
+  for (const p of ['.ssh/id_rsa', '.config/gh/hosts.yml', '.zshrc', '.gitconfig',
+    'Library/Messages/chat.db', 'Library/Application Support/Google/Chrome/Default/Cookies']) {
+    assert.ok(protectionBlocks(join(homedir(), p)), `**~/${p} 가 열린다**`);
   }
-  assert.ok(!roots.includes(homedir()), '홈 전체를 기본으로 열지 않는다');
-  assert.ok(roots.every((r) => r.startsWith(homedir())), '루트는 전부 사용자 홈 하위다');
+  // 사장님 자료는 그대로 열린다 — 보호가 기능을 먹으면 안 된다.
+  for (const p of ['Downloads/견적서.pdf', 'Documents/계약서.pdf', 'Dropbox/정산.xlsx']) {
+    assert.ok(!protectionBlocks(join(homedir(), p)), `**~/${p} 를 막는다**`);
+  }
 });
 
 test('격리 HOME을 주면 파일 손과 찾기 손이 같은 사용자 폴더를 본다', async () => {
   const home = await mkdtemp(join(tmpdir(), 't5-isolated-home-'));
   await mkdir(join(home, 'Downloads'));
   const roots = defaultFileRoots({ HOME: home });
-  assert.deepEqual(roots, ['GPAO-T5', 'Downloads', 'Documents', 'Desktop'].map((name) => join(home, name)));
+  // 선언은 홈 하나다(2026-08-07 · 선언=강제). **의도는 그대로다** —
+  // 파일 손과 찾기 손이 **같은 것**을 보고, 사용자 폴더가 그 안에 든다.
+  assert.deepEqual(roots, [home]);
   const live = liveDeps({ HOME: home, GPAO_T5_DATA_DIR: join(home, 'state') });
   assert.deepEqual(live.tools.tools['local.file'].scopeRoots, roots);
   const places = await live.tools.tools['local.locate'].places();

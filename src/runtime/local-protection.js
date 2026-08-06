@@ -144,6 +144,17 @@ export function secretProtection() {
  * @param {string} absPath 이미 realpath 로 푼 절대 경로
  * @returns {{kind:'secret'|'system', why:string}|undefined}
  */
+/**
+ * 홈 **바로 아래**의 숨김 항목인가(`~/.zshrc` · `~/.config/...`). 그 아래로는 다 포함된다.
+ * 자료 폴더 안의 점파일은 여기 안 걸린다 — 홈 최상위 한 칸만 본다.
+ */
+function 홈최상위숨김(p) {
+  const 안쪽 = within(HOME, p) && p !== HOME;
+  if (!안쪽) return false;
+  const 첫칸 = String(p).slice(HOME.length).split('/').filter(Boolean)[0] ?? '';
+  return 첫칸.startsWith('.');
+}
+
 export function protectionFor(absPath) {
   const p = String(absPath ?? '');
   if (!p) return undefined;
@@ -157,6 +168,17 @@ export function protectionFor(absPath) {
   // 나머지는 내용을 보지 않는다(위 USER_LIBRARY 선언 참고).
   if (within(USER_LIBRARY, p) && !USER_LIBRARY_OPEN.some((d) => within(d, p))) {
     return { kind: 'secret', why: '앱이 대화·메일·세션 같은 개인 데이터를 보관하는 자리예요' };
+  }
+  // **홈 최상위의 숨김 자리**(2026-08-07 · 루트를 홈으로 넓히는 같은 걸음에서 닫는다).
+  //
+  // 하나씩 열거하는 방식은 새 도구가 생길 때마다 뚫린다 — 실측으로 `.ssh`·`.aws`·`.netrc`·
+  // `.npmrc` 는 막혔는데 **`.gitconfig`·`.zshrc` 가 열려 있었다.** 셸 설정에는
+  // `export API_KEY=` 가 흔하다. 사장님이 *"내 파일"* 이라고 할 때 이것들을 뜻하지 않는다.
+  //
+  // **홈 바로 아래만 본다.** 자료 폴더 안의 점파일(`~/Documents/프로젝트/.gitignore`)까지
+  // 막으면 그물이 넓어져 기능이 죽는다 — 보호는 *위험한 자리를 정확히 잡는* 방식이다.
+  if (홈최상위숨김(p)) {
+    return { kind: 'secret', why: '설정과 로그인 정보가 담기는 자리예요' };
   }
   if (SCRATCH.some((d) => within(d, p))) return undefined; // 임시 작업 공간은 지킬 대상이 아니다
   if (SYSTEM_DIRS.some((d) => within(d, p))) {
