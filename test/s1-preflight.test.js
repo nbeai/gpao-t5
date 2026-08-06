@@ -82,6 +82,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // 원장이 `userSafeSummary — nextSafeAction` 을 **합쳐서** 모델에게 보낸다(`ledger.js:59`).
     // 그래서 *"그 폴더를 열어 주시면"* 이 모델의 다음 행동이 되어 사장님께 되물었다(⑫ 0/3).
     'src/kernel/l0-evidence/ledger.js',
+    // **격리 증명은 강제를 재야 한다**(PM 당부 2026-08-07 · 노드 R 순서 ② 선행).
+    // 첫 항목이 `scopeRoots` 가 하나인지(=선언)만 봤다. 오늘 F-46 이 증명한 것이
+    // **선언은 강제를 보증하지 않는다**이고, 루트를 넓히면 이 증명이 먼저 깨진다.
+    'scripts/human-use/prove-isolation.mjs',
     'src/kernel/l2-plan/action-plan.js',
     // 통제 채널 설명에 **되는 것**을 더했다(2026-08-04). 라이브 2회에서 모델이 자동화 채널을
     // 쥐고도 "예약 기능이 없다"며 사용자에게 cron 을 짜 줬다 — 설명이 안 되는 것만 말했다.

@@ -12,9 +12,16 @@
 // **프로세스의 진짜 `HOME`** 이다. 그걸 안 바꿨다. 선언과 사실이 갈렸고, 갈린 채로 문을 열었다.
 //
 // ── 무엇을 증명하고, 무엇을 증명하지 않는가 ────────────────────────────────
+// **재는 것은 선언이 아니라 강제다**(2026-08-07 · 노드 R 순서 ② 선행).
+// 첫 판은 ①이 `scopeRoots` 가 **하나인지**를 셌다. 그건 선언이고, 오늘 F-46 이
+// **선언은 강제를 보증하지 않는다**를 증명했다 — 선언 넷(`defaultFileRoots`)에
+// 강제 홈 전체(`local-file.js:331`)였고 사람 셋이 그 차이에 걸렸다.
+// 게다가 루트를 넓히는 순간 그 항목이 먼저 깨지면서, **강제는 한 번도 안 재진 채**
+// 증명이 무너진다. 물어야 할 것은 하나다 — **오너 홈이 안 보이는가.**
+//
 // 증명한다:
-//   ① 파일 손의 방이 고정판 폴더 하나뿐이다 (`scopeRoots`)
-//   ② 파일 손이 홈 기준 경로(`~/Documents`)를 **막는다**
+//   ① 파일 손이 보는 `~` 가 **격리 방**이다 (표식으로 확인 — ④와 같은 축)
+//   ② 파일 손이 홈 기준 경로(`~/Documents`)로 **오너 홈에 닿지 않는다**
 //   ③ 터미널 손의 기본 자리가 **격리 홈**이다 (`pwd` · `echo ~`)
 //   ④ 터미널로 `~/Documents` 를 훑어도 **오너 홈이 안 나온다**
 //
@@ -51,15 +58,27 @@ export async function 격리증명(방) {
     const 파일 = tools?.tools?.['local.file'];
     const 터미널 = tools?.tools?.['local.terminal'];
 
-    // ① 파일 손의 방
-    const 방들 = 파일?.scopeRoots ?? [];
-    적기('파일 손의 방이 고정판 하나뿐', 방들.length === 1 && 방들[0] === 방.fixtureDir,
-      `scopeRoots=${JSON.stringify(방들)}`);
+    // ① **파일 손이 보는 `~` 가 격리 방인가** — 이름이 아니라 표식으로 가른다(④와 같은 축).
+    //
+    // 예전엔 `scopeRoots.length === 1` 을 봤다. 그건 **선언**이고, 선언은 강제를 보증하지
+    // 않는다(F-46). 여기서 물어야 하는 것은 *"오너 홈이 안 보이는가"* 하나다.
+    // 표식을 격리 방에 심고 **파일 손으로** 읽는다 — 읽히면 그 `~` 는 격리 방이다.
+    await writeFile(join(방.root, '.t5-격리표식'), '이 자리는 시험용 격리 방이다.\n', 'utf8');
+    const 표식 = await 파일?.handler?.({ action: 'read', path: '~/.t5-격리표식' }, {});
+    const 표식읽힘 = !표식?.blocked && !표식?.failed
+      && /격리 방/.test(JSON.stringify(표식?.result ?? ''));
+    적기('파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)', 표식읽힘,
+      표식읽힘 ? `scopeRoots=${JSON.stringify(파일?.scopeRoots ?? [])}`
+        : `표식을 못 읽었다 — \`~\` 가 다른 자리다: ${String(표식?.userSafeSummary ?? '').slice(0, 60)}`);
 
-    // ② 홈 기준 경로를 막는가
+    // ② **홈 기준 경로가 오너 홈에 닿지 않는가.** 격리 방에 같은 이름을 만들어 두고 잰다 —
+    //    안 만들면 "폴더가 없어서 못 읽음"(ENOENT)이 통과로 세어져 **강제를 안 재게 된다.**
+    await mkdir(join(방.root, 'Documents'), { recursive: true });
+    await writeFile(join(방.root, 'Documents', '.t5-격리표식'), '격리 방의 Documents 다.\n', 'utf8');
     const 밖 = await 파일?.handler?.({ action: 'list', path: '~/Documents' }, {});
-    const 막힘 = Boolean(밖?.blocked) || /작업 폴더 밖/.test(String(밖?.userSafeSummary ?? ''));
-    적기('파일 손이 ~/Documents 를 막는다', 막힘, `요약="${String(밖?.userSafeSummary ?? '').slice(0, 60)}"`);
+    const 오너홈아님 = !JSON.stringify(밖?.result ?? '').includes(진짜홈);
+    적기('파일 손의 ~/Documents 가 오너 홈이 아니다', 오너홈아님,
+      오너홈아님 ? '격리 방의 Documents 를 본다' : '**오너 홈 경로가 결과에 있다**');
 
     // ③ 터미널의 기본 자리
     const pwd = await 터미널?.probe?.('pwd');
@@ -73,7 +92,7 @@ export async function 격리증명(방) {
     // **복제한 시험 방**에도 그 이름이 있다 — 이름으로 가르면 정상 격리를 오너 홈으로 오인한다
     // (실측 2026-08-05). **이름이 아니라 표식으로 가른다**: 우리가 심은 것이 보이고,
     // 오너 홈에만 있는 `Library` 가 안 보이면 `~` 는 격리 방이다.
-    await writeFile(join(방.root, '.t5-격리표식'), '이 자리는 시험용 격리 방이다.\n', 'utf8');
+    // 표식은 ①에서 이미 심었다 — 여기서는 터미널의 `~` 로 같은 것을 본다.
     const ls = await 터미널?.probe?.('ls -a ~/');
     const 출력 = String(ls?.probe?.stdout ?? '');
     const 표식보임 = 출력.includes('.t5-격리표식');
