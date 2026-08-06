@@ -108,7 +108,8 @@ test('모델에 가는 메시지에 그림이 실린다 — 화면 내용은 데
       그림: { mime: 'image/png', base64: 'AAAB' },
     }],
   };
-  const cfg = { model: 'gpt-5.1', baseUrl: 'https://x/v1', apiKey: 'k' };
+  // 흡수 ⑤ 로 **눈이 있다고 밝힌 모델에게만** 그림이 간다(fails closed).
+  const cfg = { model: 'gpt-5.1', baseUrl: 'https://x/v1', apiKey: 'k', 눈있음: true };
   // 실제 이음매 그대로 부른다 — 인자 순서는 `(cfg, m)` 이고 본문은 문자열이다.
   const s = String(MODEL_PROVIDERS.openai.body({ ...cfg, modelId: cfg.model }, 메시지));
   assert.ok(s.includes('AAAB'), `**그림이 모델에 안 간다** — 손이 들고만 있다`);
@@ -131,7 +132,7 @@ test('그림이 없으면 예전 그대로다 — 없는 것을 만들지 않는
 
 test('앤트로픽 그릇에도 같은 사실이 실린다 — 와이어가 달라도 사실은 하나다', async () => {
   const { MODEL_PROVIDERS } = await import('../src/runtime/model-provider.js');
-  const body = String(MODEL_PROVIDERS.anthropic.body({ modelId: 'claude', baseUrl: 'https://x' }, {
+  const body = String(MODEL_PROVIDERS.anthropic.body({ modelId: 'claude', baseUrl: 'https://x', 눈있음: true }, {
     system: 's', user: 'u', history: [],
     exchange: [{ ref: 'p1', tool: 'desktop.act', args: {}, summary: '했어요.', 그림: { mime: 'image/png', base64: 'AAAB' } }],
   }));

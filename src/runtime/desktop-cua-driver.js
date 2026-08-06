@@ -53,7 +53,7 @@ const 권한말 = (v) => (v === true ? 'granted' : 'denied');
  * MCP stdio 한 줄 클라이언트. **여기서 판정하지 않는다** — 부르고 결과를 옮긴다.
  * 가르는 것은 손(`desktop-tool` · `desktop-act-tool`)의 일이다.
  */
-export function makeMcpStdio({ binPath, timeoutMs = 20_000, spawnImpl = spawn }) {
+export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn }) {
   let 아이 = null; let 다음id = 1; let 버퍼 = '';
   const 기다리는것 = new Map();
 
@@ -257,7 +257,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -363,7 +363,14 @@ export function makeCuaDriver(deps = {}) {
           // 우리는 그걸 버리고 "요소 0개"라고 했고, 모델은 **"권한이 막혔다"** 고 지어냈다.
           //
           // **한 번만 따라 한다** — 무한히 되묻지 않는다.
-          let st = await mcp.call('get_window_state', 창상태인자);
+          // **읽다가 터져도 눈이 남아 있다**(F-41). timeout 이 곧 실패가 아니다 —
+          // 카톡 대화창은 AX 로 20초를 써도 못 낸다.
+          let st = await mcp.call('get_window_state', 창상태인자).catch((e) => {
+            // **터진 것은 "없는 것"이 아니다**(계열 C). 말없이 0개로 넘기면 모델이 이유를
+            // 지어낸다 — 라이브에서 *"권한이 막혔다"* 가 그렇게 나왔다.
+            못읽은이유값 = `읽기가 끝나지 않았어요 — ${String(e?.message ?? e).slice(0, 120)}`;
+            return null;
+          });
           if (st?.code && !Array.isArray(st?.elements)) {
             const 고칠pid = Number(st.owner_pid);
             if (Number.isInteger(고칠pid) && 고칠pid > 0 && 고칠pid !== 창상태인자.pid) {
@@ -412,7 +419,39 @@ export function makeCuaDriver(deps = {}) {
           스냅샷 = st?.snapshot_id ?? null;
           // **무엇을 봤는지 남긴다.** 같은 앱 창이 여럿일 수 있고, 안 적으면
           // 다음 걸음이 어느 창 이야기인지 모른다.
-          본창 = { id: 대상.id, app: 대상.app, title: 대상.title ?? '', ...(대상.bounds ? { bounds: 대상.bounds } : {}) };
+          // **pid 도 적는다.** 다음 걸음(스크롤·키·붙여넣기)이 그걸 요구한다 —
+          // 안 적어 두면 손이 창은 짚고도 pid 를 못 실어 드라이버가 거절한다(실측 2026-08-06).
+          본창 = {
+            id: 대상.id, app: 대상.app, title: 대상.title ?? '',
+            ...(대상.pid != null ? { pid: 대상.pid } : {}),
+            ...(대상.bounds ? { bounds: 대상.bounds } : {}),
+          };
+
+          // **AX 가 답을 못 주는 대상이 있다** — 메모 본문은 트리에 없고, 카톡 대화창은
+          // 20초를 넘긴다. 앞세워도 안 풀린다. 그때 **눈으로 본다**(F-41).
+          // 커널은 그림을 읽지 않는다 — 모델이 본다(F-2 통로 그대로).
+          // **잘 읽혔으면 안 받는다** — 비용도 화면 노출도 공짜가 아니다.
+          // **못 찍는다고 이미 말했으면 또 시도하지 않는다.** 그 한 번이 20초다.
+          //
+          // **어느 손으로 찍는지는 실물이 정했다**(2026-08-06 · 카톡 창 13637/pid 4340):
+          //   `get_window_state(include_screenshot: true)`  20,114ms → **그림 없음**
+          //   `zoom(window_id, pid, x1..y2)`                 3,223ms → image/jpeg 67,492B
+          // 드라이버가 이유도 글로 말한다 — *"AX tree walk for pid=4340 timed out after 20 s …
+          // then **act by pixel (x,y) off the screenshot** if the tree stays unusable."*
+          // `include_screenshot` 은 **트리 걷기와 한 몸이라 같이 죽는다.** 그래서 따로 찍는다.
+          const 그림도안됨 = Boolean(st?.screenshot_error);
+          const 테 = 대상.bounds;
+          if (!(st?.elements ?? []).length && !그림도안됨 && 테 && typeof mcp.조각들 === 'function') {
+            try {
+              const 조각 = await mcp.조각들('zoom', {
+                window_id: 대상.id, pid: 대상.pid,
+                // 창 테두리 그대로 — 어림잡으면 대화창이 잘린다.
+                x1: 테.x, y1: 테.y, x2: 테.x + 테.w, y2: 테.y + 테.h,
+              });
+              const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
+              if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
+            } catch { 그림값 = null; }
+          }
           요소 = (st?.elements ?? []).map((e) => ({
             // **번호로 누른다**(som). 좌표로 찍으면 무엇을 눌렀는지 원장에 남길 수가 없다.
             id: e.element_token ?? (e.index != null ? String(e.index) : e.id),
@@ -435,6 +474,7 @@ export function makeCuaDriver(deps = {}) {
         ...(못읽은이유값 ? { 못읽은이유: 못읽은이유값 } : {}),
         ...(올려야할길값 ? { 올려야할길: 올려야할길값 } : {}),
         ...(앞세워읽음값 ? { 앞세워읽음: true } : {}),
+        ...(그림값 ? { 그림: 그림값 } : {}),
       };
     },
 
@@ -618,7 +658,26 @@ export function makeCuaDriver(deps = {}) {
         },
         move: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
         resize: () => mcp.call('set_window_frame', { window_id: 대상.window, ...(요청?.값 ?? {}) }),
-        scroll: () => mcp.call('scroll', { ...(요청?.값 ?? {}) }),
+        // **어느 창에, 어디를, 어느 쪽으로.** 셋 중 하나만 빠져도 안 굴러간다(실측 2026-08-06):
+        //   pid 없음 → *"Missing required integer field: pid"*
+        //   direction 없음 → *"Missing required string field: direction"*
+        //   자리 없음 → `refused` · `same_pid_keyboard_ambiguity`
+        //     *"pid 4340 owns 6 other eligible top-level window(s) … could mutate a sibling window"*
+        // 마지막 것은 **옳은 거절**이다 — 형제 창을 건드릴 수 있으니 안 한 것이다.
+        // 자리를 주면 풀린다. 창 가운데를 찍는다.
+        scroll: () => {
+          const 값 = 요청?.값;
+          const 말 = typeof 값 === 'string' ? { 방향: 값 } : (값 ?? {});
+          const 가 = 가운데(대상.bounds);
+          return mcp.call('scroll', {
+            ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
+            ...가,
+            // **"이전 대화 보여줘"는 위로 올리라는 말이다.** 안 정해 주면 아무 데도 안 간다.
+            direction: String(말.방향 ?? 말.direction ?? 'up'),
+            clicks: Number(말.양 ?? 말.clicks ?? 5),
+            ...(말.x != null || 말.y != null ? { x: 말.x ?? 가.x, y: 말.y ?? 가.y } : {}),
+          });
+        },
         // **번호·토큰으로 누른다 — 좌표는 마지막 수단이다.**
         // 좌표로 찍으면 그 사이에 화면이 밀렸을 때 다른 것을 누르고도 모른다(A04 가 겨눈 자리).
         click: () => mcp.call('click', {
@@ -626,7 +685,12 @@ export function makeCuaDriver(deps = {}) {
           ...(대상.스냅샷 ? { snapshot_id: 대상.스냅샷 } : {}),
           ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
         }),
-        type: () => mcp.call('type_text', { text: String(요청?.값 ?? '') }),
+        // **어느 창에 치는지 들고 간다.** 안 실으면 앞 창에 친다 — 사용자가 보던 창에
+        // 글자가 들어간다(계열 G · 옆에서 같이 한다, 뺏지 않는다).
+        type: () => mcp.call('type_text', {
+          text: String(요청?.값 ?? ''),
+          ...(대상.창 ? { window_id: 대상.창 } : {}), ...(대상.pid ? { pid: 대상.pid } : {}),
+        }),
         // `set_value` — 네이티브 메뉴를 안 열고 값을 직접 넣는다. 메뉴를 열면 포커스를 뺏는다.
         // **마우스·키보드로 되는 모든 것**(흡수 ④). 드라이버에는 이미 다 있었다 —
         // 우리가 여덟만 쓰고 있었다. 신분(토큰·창·pid)은 위에서 한 벌로 온다.
