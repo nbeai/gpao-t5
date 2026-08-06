@@ -267,7 +267,11 @@ export function makeDesktopTool(deps = {}) {
   return {
     // 읽기만 한다. 출처 원장 계약은 안 건다 — 웹 페이지가 아니라 이 컴퓨터의 현재 상태다.
     sourceLedgerRequired: false,
-    async handler(args) {
+    // **실행 문맥이 발화를 들고 온다**(`turn.js` `실행문맥()` — `currentRequest`).
+    // 화면 손은 그 발화를 **하나에만** 쓴다: 로그인해 둔 브라우저의 동의 시트를 눌러도 되는지.
+    // 그 누름은 문을 따는 일이라 **시킨 자리에서만** 해야 한다(BUTLER §B).
+    // 발화로 무엇을 볼지 고르지 않는다 — 그건 모델이 한다(심문 금지).
+    async handler(args, executionContext) {
       const 드라이버 = drivers[0];
       if (!드라이버) {
         // **"창이 없다"가 아니라 "볼 수 없다"다.** 백엔드가 없는 것은 이 컴퓨터의 사실이고,
@@ -306,7 +310,8 @@ export function makeDesktopTool(deps = {}) {
       }
 
       let 본것;
-      try { 본것 = await 드라이버.observe(args ?? {}); } catch {
+      const 발화 = String(executionContext?.currentRequest ?? '');
+      try { 본것 = await 드라이버.observe({ ...(args ?? {}), ...(발화 ? { 발화 } : {}) }); } catch {
         // 권한은 봤는데 관찰이 깨졌다 — **"창이 없다"가 아니라 "못 봤다"** 다.
         return {
           blocked: true,

@@ -143,7 +143,11 @@ test('시트 때문에 막히면 우리가 허용을 누르고 한 번 더 붙�
     },
     async 조각들() { return []; },
   };
-  const o = await makeCuaDriver({ mcp, 기존프로필허용: true }).observe({ scope: 'window', app: 'Google Chrome' });
+  // **발화를 함께 준다**(2026-08-07 · 노드 A ①). 시트를 누르는 것은 문을 따는 일이라
+  // 사장님이 브라우저 이야기를 한 자리에서만 한다(BUTLER §B self-grant 금지).
+  // 이 검사의 의도는 *"한국어 시트를 우리가 읽어 준다"* 이고 그건 그대로다.
+  const o = await makeCuaDriver({ mcp, 기존프로필허용: true })
+    .observe({ scope: 'window', app: 'Google Chrome', 발화: '내 크롬에 열려 있는 탭 알려줘' });
   const 누름 = 부른것.filter((c) => c.이름 === 'click');
   assert.equal(누름.length, 1,
     `**한국어 시트를 안 눌러 준다** — 드라이버는 영영 못 본다: ${JSON.stringify(부른것.map((c) => c.이름))}`);
