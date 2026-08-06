@@ -99,6 +99,7 @@
 | 성격 | 문서 | 어떻게 읽나 |
 |---|---|---|
 | **★ 계획서 (하나뿐)** | **`design/T5-PLAN.md`** | **무엇을 만드는지는 여기서만 정한다.** 맨 앞 맵에서 노드 하나를 골라 그것만 읽는다 |
+| **★ 정렬 판 (자)** | **`docs/03-verification/T5-ALIGNMENT-BOARD-ko.md`** | **다 됐는지를 여기서 잰다.** 문항 아홉은 채점 전 동결. 노드를 닫을 때마다 아홉 전부 돈다 |
 | **지금 진행 중** | `T5-AI-OS-TRANSITION-PLAN`(S0~S9 정본) · `T5-FOLLOWUP-LEDGER`(열린 결함) · `T5-CU-COMPLETION-PLAN` · `T5-COMPUTER-USE-PLAN-v2`(CU 착수 정본) | **현재 사실.** 진행 상태는 여기가 아니라 `git log` |
 | **오너 결정 기록** | `T5-AUTONOMY-CHARTER` · `P-DIST-1-INSTALL-IDENTITY-FREEZE` | **코드가 이 문서를 따라간다.** 바꾸려면 문서를 먼저 고친다 |
 | **동결 계약** | `T5-TCELL-DEVELOPMENT-PLAN` · `T5-MODEL-SOVEREIGNTY-DEVELOPMENT-PLAN` · `T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN` · `S1-EXPERIMENT-FREEZE` | AGENTS.md 가 읽기를 의무로 건 것들 |

@@ -50,6 +50,9 @@ The one and only plan (owner directive 2026-08-06):
      and naming which node reads them. Do not take work orders from them.
    - Never create a new plan document. Add a node to this one.
    - Progress belongs in `git log`, open defects in `design/T5-FOLLOWUP-LEDGER-ko.md` — not in the plan.
+   - **Closing a node means re-running the whole alignment board**, not just the sentence you fixed:
+     `docs/03-verification/T5-ALIGNMENT-BOARD-ko.md`. All nine items, or the node is not closed.
+     The board is frozen before scoring — do not add, drop, or reword items after seeing results.
 
 Mandatory reference absorption supplement:
 
