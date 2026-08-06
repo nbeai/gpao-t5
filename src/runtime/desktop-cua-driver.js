@@ -270,7 +270,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -388,19 +388,29 @@ export function makeCuaDriver(deps = {}) {
           // `call` 은 `structuredContent` 만 집고 `content` 를 버린다 — 그림이 거기 있다.
           // 그래서 화면에 찍힌 값(계산기 표시창처럼 트리에 없는 것)을 영영 못 읽었다.
           // 실측: `조각들('get_window_state')` **928ms → 111,056B**. 이미 오고 있었다.
+          // **터지면 다시 안 부른다.** AX 가 20초를 넘기는 창에서 여기가 터지면 아래 `call` 로
+          // 한 번 더 걸었다 — 같은 창을 두 번 걷고 두 번 기다린다(실측 40초). 결과는 같다.
+          let 트리터짐 = false;
           const 한번에 = args?.그림없이 === true || typeof mcp.구조와조각 !== 'function'
             ? null
-            : await mcp.구조와조각('get_window_state', 창상태인자).catch(() => null);
+            : await mcp.구조와조각('get_window_state', 창상태인자).catch((e) => {
+              트리터짐 = true;
+              못읽은이유값 = `읽기가 끝나지 않았어요 — ${String(e?.message ?? e).slice(0, 120)}`;
+              return null;
+            });
           if (한번에) {
             const 이미지 = (한번에.조각 ?? []).find((x) => x?.type === 'image' && x?.data);
-            if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/png'), base64: String(이미지.data) };
+            if (이미지) {
+              그림값 = { mime: String(이미지.mimeType ?? 'image/png'), base64: String(이미지.data) };
+              if (Number(이미지.width) > 0) 그림크기값 = { w: Number(이미지.width), h: Number(이미지.height) };
+            }
           }
-          let st = 한번에?.구조 ?? await mcp.call('get_window_state', 창상태인자).catch((e) => {
+          let st = 한번에?.구조 ?? (트리터짐 ? null : await mcp.call('get_window_state', 창상태인자).catch((e) => {
             // **터진 것은 "없는 것"이 아니다**(계열 C). 말없이 0개로 넘기면 모델이 이유를
             // 지어낸다 — 라이브에서 *"권한이 막혔다"* 가 그렇게 나왔다.
             못읽은이유값 = `읽기가 끝나지 않았어요 — ${String(e?.message ?? e).slice(0, 120)}`;
             return null;
-          });
+          }));
           if (st?.code && !Array.isArray(st?.elements)) {
             const 고칠pid = Number(st.owner_pid);
             if (Number.isInteger(고칠pid) && 고칠pid > 0 && 고칠pid !== 창상태인자.pid) {
@@ -484,7 +494,11 @@ export function makeCuaDriver(deps = {}) {
                 x1: 0, y1: 0, x2: 테.w * 2, y2: 테.h * 2,
               });
               const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
-              if (이미지) 그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
+              if (이미지) {
+                그림값 = { mime: String(이미지.mimeType ?? 'image/jpeg'), base64: String(이미지.data) };
+                // **모델이 짚을 자다.** 창 크기와 다르다(zoom 은 20% 패딩 + 500px 축소).
+                if (Number(이미지.width) > 0) 그림크기값 = { w: Number(이미지.width), h: Number(이미지.height) };
+              }
               // **그림 크기가 창과 다른 것은 정상이다.** `zoom` 계약이 그렇다 —
               // *"cropped JPEG … with **20% padding** added on each side. The output image is
               // **at most 500 px wide**."* 그래서 559×859 창이 500×707 로 온다.
@@ -514,6 +528,7 @@ export function makeCuaDriver(deps = {}) {
         ...(올려야할길값 ? { 올려야할길: 올려야할길값 } : {}),
         ...(앞세워읽음값 ? { 앞세워읽음: true } : {}),
         ...(그림값 ? { 그림: 그림값 } : {}),
+        ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
       };
     },
 
@@ -819,6 +834,30 @@ export function makeCuaDriver(deps = {}) {
       };
       const 부르기 = 표[행동];
       if (!부르기) throw new Error('그 행동은 이 드라이버가 안 받는다');
+
+      // **좌표로 짚으면 먼저 좌표계를 세운다.**
+      //
+      // `from_zoom` 은 *"방금 zoom 을 부른 pid"* 에만 유효하다. 관찰에서 찍은 것은 그 턴
+      // 안에서도 안 살아 있다 — 실측(2026-08-06): *"from_zoom=true but no zoom context
+      // for pid 4340. **Call zoom first.**"* 그래서 행동 직전에 같은 영역을 다시 찍는다.
+      // 늘 창 전체(0,0~w×2,h×2)를 찍으므로 **관찰 때와 같은 자**다.
+      const 짚음 = 짚은자리(대상);
+      if (짚음 && 대상.창 && typeof mcp.조각들 === 'function') {
+        // 테두리는 **손이 줬으면 그걸**, 없으면 **창 목록에서** 가져온다 —
+        // 모델이 안 준다고 좌표계를 못 세우면, 볼 줄은 아는데 만질 줄을 모르게 된다.
+        const 테 = 대상.bounds ?? (await mcp.call('list_windows', { on_screen_only: false })
+          .then((r) => (r?.windows ?? []).find((w) => w.window_id === 대상.창)?.bounds)
+          .catch(() => null));
+        const 가로 = Number(테?.w ?? 테?.width ?? 0);
+        const 세로 = Number(테?.h ?? 테?.height ?? 0);
+        if (가로 > 0 && 세로 > 0) {
+          await mcp.조각들('zoom', {
+            window_id: 대상.창, ...(대상.pid ? { pid: 대상.pid } : {}),
+            x1: 0, y1: 0, x2: 가로 * 2, y2: 세로 * 2,
+          }).catch(() => null);
+        }
+      }
+
       let 낸것 = await 부르기();
 
       // **거절이 길을 함께 주면 그 길로 간다**(라이브 2026-08-06 · 오너의 ④ 마지막 칸).
@@ -836,7 +875,19 @@ export function makeCuaDriver(deps = {}) {
       // 정작 길은 `reason` 안에 적어 준다(*"or delivery_mode:\"foreground\""*). 문자열을 물면
       // 드라이버가 말을 바꿀 때마다 조용히 끊긴다. **구조로 잰다** —
       // 거절이고 사다리가 딸려 왔으면, 우리가 가진 마지막 수단으로 **한 번만** 더.
-      if (낸것?.effect === 'refused' && 낸것?.escalation && (대상.pid || 대상.창)) {
+      //
+      // **그런데 드라이버는 조용히 실패하기도 한다**(노드 ⑥ · 2026-08-06). 카톡 방 목록에서
+      // 대화방을 여는 데 다섯 칸을 밟았는데 `escalation` 은 **한 번도 안 왔다**:
+      //   AX press → `confirmed`(value_readback) · 방 안 열림
+      //   AX/픽셀 double, 픽셀 click 배경 → `unverifiable` · 방 안 열림
+      //   **픽셀 double + `delivery_mode:'foreground'` → 열렸다**
+      // 배달은 했으니 `unverifiable` 이 정직한 답이다. 그래서 **거절만 보면 영영 못 오른다.**
+      // 비교군 프롬프트도 같은 말을 한다 — *"unverifiable … re-capture and check yourself
+      // before deciding it worked"* · *"do not conclude 'cua-driver can't drive this app' —
+      // climb the ladder."* 확인이 안 되는 것도 **오를 이유**다.
+      const 못박았나 = 낸것?.effect === 'refused'
+        || (낸것?.effect === 'unverifiable' && 짚은자리(대상) != null);
+      if (못박았나 && (대상.pid || 대상.창)) {
         const 앞앱 = (await mcp.call('get_accessibility_tree', {}).catch(() => null))
           ?.apps?.find((a) => a.active);
         const 되돌릴pid = Number(앞앱?.pid);

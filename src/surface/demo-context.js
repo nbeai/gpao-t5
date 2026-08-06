@@ -479,6 +479,8 @@ function 화면행동선언() {
             enum: ['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type',
               'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait'],
             description: '마우스·키보드로 되는 것들.'
+              + ' **목록에서 항목을 열 때는 `double_click`** — `click` 은 고르기(선택)라'
+              + ' 눌러도 안 열린다(카톡 대화방·파인더 항목·문서 목록이 다 그렇다).'
               + ' `press_key`(Enter·Tab·Esc·방향키 — **메시지 보내기가 이것이다**) ·'
               + ' `hotkey`(`cmd+s` 같은 조합) · `menu`(앱 메뉴 — **가장 안정적인 길**) ·'
               + ' `right_click`(맥락 메뉴) · `double_click` · `drag` ·'

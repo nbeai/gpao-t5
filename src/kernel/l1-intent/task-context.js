@@ -106,7 +106,12 @@ export function compactResult(result, maxChars = 1200) {
       const b = 본창.bounds;
       const 자 = b && Number.isFinite(Number(b.x))
         ? ` · 자리 x${b.x} y${b.y} 크기 ${b.w ?? b.width}×${b.h ?? b.height}` : '';
-      lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}${자}`);
+      // **모델이 짚을 자는 모델이 보는 그림의 자다.** 창 크기를 주면 밖을 짚는다 —
+      // 실측: 그림 500×768 인데 창 크기(559×859)를 보고 `y=840` 을 짚어 창 밖(939)이 됐다.
+      // `zoom` 이 20% 패딩을 붙이고 500px 로 줄이므로 둘은 늘 다르다.
+      const 그림자 = result.그림크기 && Number(result.그림크기.w) > 0
+        ? ` · 보여 드린 화면 ${result.그림크기.w}×${result.그림크기.h}(짚을 때 이 자를 쓰세요)` : '';
+      lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}${자}${그림자}`);
     }
     else if (result.frontmost?.name) lines.push(`앞 앱: ${result.frontmost.name}`);
     const 창수 = (result.windows ?? []).length;
