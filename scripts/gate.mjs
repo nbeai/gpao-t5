@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { 방크기 } from './dir-size.mjs';
+import { 동시성, 유휴초 } from './gate-idle.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -23,7 +24,7 @@ let baseline = {
   deferred: Infinity,
   testCpuSeconds: Infinity,
   testCpuPerTestSeconds: Infinity,
-  testWallSeconds: Infinity,
+  testIdleSeconds: Infinity, // 기다림의 자 — 벽시계(30s 고정)는 §1-A 로 퇴역했다
 };
 try { baseline = { ...baseline, ...JSON.parse(await readFile(baselineFile, 'utf8')) }; } catch { /* 최초 실행 */ }
 const failures = [];
@@ -867,20 +868,32 @@ let deferred = 0;
     baseline.testCpuSeconds,
     pass * baseline.testCpuPerTestSeconds,
   );
-  const { testWallSeconds: wallLimit } = baseline;
 
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   if (cpu === null || wall === null) {
     // 못 쟀으면 **조용히 통과시키지 않는다** — 안 해 본 검사를 통과로 세는 것이 우리가 반복한 실패다.
     bad('테스트 시간을 재지 못했다(`/usr/bin/time -p` 출력 없음) — 성능 기준선이 검사되지 않았다 (§17)');
   } else {
     if (cpu > cpuLimit) bad(`테스트가 일하는 양이 기준선을 넘었다: CPU ${cpu.toFixed(1)}s > ${cpuLimit}s (§17)`);
-    else ok(`테스트 CPU ${cpu.toFixed(1)}s (기준선 ${cpuLimit}s) · 벽시계 ${wall.toFixed(1)}s`);
-    if (wall > wallLimit) {
-      bad(`테스트가 기다리고 있다: 벽시계 ${wall.toFixed(1)}s > ${wallLimit}s — 잠든 검사·타임아웃 대기를 의심할 것 (§17)`);
+    // ── 기다림은 벽시계가 아니라 **유휴**로 잰다 (오너 결정 2026-08-07 · 현재상황 §1-A) ──
+    //
+    // 벽시계 30s 고정선은 검사가 늘면 반드시 터졌다 — 기다림이 아니라 크기를 재고 있었다.
+    // 실측(2026-08-08): 같은 트리가 한가한 기계에서 PASS(23.6s), 옆에 부하가 돌자
+    // BLOCKED(35.4s) — 부하만으로 판이 뒤집혔다. 유휴(= 벽시계 − CPU÷동시성)는 그 두
+    // 회차에서 9.7s/6.2s 로 **부하 쪽이 오히려 낮았다.** 계산과 상한 근거는 `gate-idle.mjs`,
+    // 상한 교정치는 `gate-baseline.json`(자동 갱신 없음 — §17 그대로).
+    const conc = 동시성(pkg);
+    const idle = 유휴초({ wall, cpu, concurrency: conc });
+    if (idle === null) {
+      bad('유휴를 못 쟀다(동시성 또는 시간 없음) — package.json 의 --test-concurrency 를 확인할 것 (§17)');
+    } else if (idle > baseline.testIdleSeconds) {
+      bad(`테스트가 기다리고 있다: 유휴 ${idle.toFixed(1)}s > ${baseline.testIdleSeconds}s`
+        + ` (벽시계 ${wall.toFixed(1)} − CPU ${cpu.toFixed(1)}÷${conc}) — 잠든 검사·타임아웃 대기를 의심할 것 (§17)`);
+    }
+    if (cpu <= cpuLimit && idle !== null && idle <= baseline.testIdleSeconds) {
+      ok(`테스트 CPU ${cpu.toFixed(1)}s (기준선 ${cpuLimit}s) · 유휴 ${idle.toFixed(1)}s (상한 ${baseline.testIdleSeconds}s · 벽시계 ${wall.toFixed(1)}s)`);
     }
   }
-
-  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const deps = Object.keys(pkg.dependencies ?? {}).length;
   if (deps > 0) bad(`런타임 의존성이 생겼다: ${deps}개 (§17 의존성 0 유지)`);
   else ok('런타임 의존성 0');
