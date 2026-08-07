@@ -73,6 +73,42 @@ function 표사실(전문) {
 }
 
 /**
+ * **쓴 실물의 숫자를 기계 합과 대조한다** (⑫ 접근 전환 · PM 승인 2026-08-08 · 회차 I 실증).
+ * 출구 되부름은 손이 없어 실물을 못 고친다 — 실물이 생기는 바로 그 영수증에 대조 사실을
+ * 실으면, 모델은 손을 쥔 채(루프 안) 받아서 파일을 다시 쓸 수 있다. 차단이 아니다(쓰기는
+ * 이미 됐다) · 문구 가르침이 아니다(기계 대조) · 트리거는 원장 사실이다(세 성질 유지).
+ *
+ * 붙는 조건 전부: 이번 턴 표 맥락이 있고(안 읽은 CSV 가 남은 폴더) · 쓴 글에 숫자와
+ * 총·전체·합계 명명이 있고 · 그 글이 빠진 파일을 이름으로 부르지 않았고 · 글의 숫자에
+ * 부분합은 있는데 전체 합은 없다. 전체 합을 모르면 주장하지 않는다 — 빠진 파일의 개별
+ * 합 사실만 남긴다(지어내지 않는다).
+ */
+function 쓴숫자대조(text, 표맥락) {
+  if (!Array.isArray(표맥락) || !표맥락.length) return null;
+  const 글 = String(text ?? '');
+  if (!/\d/.test(글) || !/총|전체|합계/.test(글)) return null;
+  const 숫자들 = new Set([...글.matchAll(/\d[\d,]*/g)].map((m) => Number(m[0].replace(/,/g, ''))));
+  const 조각 = [];
+  for (const f of 표맥락) {
+    const 미지명 = (f.안읽은 ?? []).filter((n) => !글.includes(n));
+    if (!미지명.length) continue;                      // 실물이 빠진 파일을 지명했다 — 범위를 밝힌 것
+    const 부분값들 = Object.values(f.부분합 ?? {}).flatMap((s) => Object.values(s ?? {}));
+    if (!부분값들.some((v) => 숫자들.has(v))) continue; // 글의 숫자가 이 폴더의 합이 아니다 — 소음 금지
+    const 폴더이름 = String(f.폴더).split('/').pop();
+    const 어긋난열 = Object.entries(f.전체합 ?? {}).filter(([, v]) => !숫자들.has(v));
+    const 빠짐말 = 미지명.map((n) => (f.빠진합?.[n]
+      ? `${n}(${Object.entries(f.빠진합[n]).slice(0, 2).map(([열, v]) => `${열} ${v.toLocaleString('ko-KR')}`).join(' · ')})`
+      : n)).slice(0, 3).join(' · ');
+    if (어긋난열.length) {
+      조각.push(`${폴더이름}의 ${어긋난열.slice(0, 2).map(([열, v]) => `${열} 전체 합 ${v.toLocaleString('ko-KR')}`).join(' · ')}이 쓴 숫자에 없음 · 빠짐: ${빠짐말}`);
+    } else if (!f.전체합) {
+      조각.push(`${폴더이름}에서 안 읽은 파일이 쓴 숫자에 빠짐: ${빠짐말}`);
+    }
+  }
+  return 조각.length ? ` (숫자 대조: ${조각.slice(0, 2).join(' / ')})` : null;
+}
+
+/**
  * @param {{roots?:string[], trashDir?:string, dataDir?:string, readFile?:Function}} [deps]
  */
 export function makeLocalFileTool(deps = {}) {
@@ -689,9 +725,11 @@ export function makeLocalFileTool(deps = {}) {
           // 저장했는데 "되돌릴 작업이 없다"가 나왔다. 카드가 못 지킬 약속을 한 것이다.
           // 만들기의 되돌리기는 복원이 아니라 **만든 것을 치우는 것**이라 되살릴 원본(`to`)이 없다.
           await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
+          // 실물의 숫자 대조 사실 — 루프 안에서 모델이 손을 쥔 채 받는 되부름(위 쓴숫자대조 주석).
+          const 대조말 = 쓴숫자대조(text, executionContext?.표맥락) ?? '';
           return ok(
-            parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
-              : `${basename(abs)} 을(를) 만들었어요.`,
+            (parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
+              : `${basename(abs)} 을(를) 만들었어요.`) + 대조말,
             {
               path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked),
               // C 감사 F2.1 · **산출물의 내용 신분.** lane 은 digest 가 있으면 그것을 신분으로
