@@ -689,6 +689,19 @@ export function buildTaskContext(p) {
     // **`kind` 와 `statement` 만 추린다.** 원본을 통째로 넘기면 내부 신분(`id`)이 따라와
     // 모델 입력에 샌다 — S5 봉인이 그 자리를 문다(실측: 이 수정의 첫 판이 걸렸다).
     // 필요한 것은 *"이 문장이 지시냐 사실이냐"* 하나뿐이다.
+    // **앞 턴에 한 것을 앞 턴 것으로 준다**(노드 K · 판 ③ · 라이브 2026-08-07).
+    //
+    // 원장이 **완전히 빈** 턴에 T5 가 *"방금 실제 파일 다시 열어서 확인해 봤어요"* 라고 답했다.
+    // `[이번 턴 실행 사실] 없음` 은 프롬프트에 실렸는데도 그랬다 — 모델이 보는 것이 둘뿐이라
+    // 그렇다: ① 이번 턴에 아무것도 안 했다 ② 대화 이력에 파일 내용이 있다.
+    // **앞 턴에 그것을 읽었다는 사실이 어디에도 없어서** ②를 ①의 빈자리에 끌어다 놓는다.
+    //
+    // 금지 문구를 세게 쓰는 길은 막혀 있다(⛔ · F-12). **구분할 재료를 준다.**
+    // 최근 것만 준다 — 세션 전체를 실으면 이번 턴 사실이 밀린다.
+    priorFacts: (p.priorReceipts ?? []).slice(-6).map((r) => ({
+      summary: r?.userSafeSummary ?? '',
+      확인됨: (r?.failureState ?? 'none') === 'none',
+    })).filter((f) => f.summary),
     admittedRich: (p.admittedRich ?? [])
       .filter((e) => e?.statement)
       .map((e) => ({ kind: e.kind, statement: e.statement })),

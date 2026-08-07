@@ -1882,6 +1882,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+    // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
+    // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
+    // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
+    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)),
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
@@ -2155,7 +2159,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal, 이번턴그림,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+    // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
+    // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
+    // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
+    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)), 이번턴그림,
         surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState,
@@ -2406,7 +2414,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal, 이번턴그림,
+      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+    // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
+    // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
+    // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
+    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)), 이번턴그림,
       surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState,
