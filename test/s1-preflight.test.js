@@ -127,6 +127,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/chatgpt-model-client.js',
     'src/runtime/local-file.js',
     'src/runtime/local-locate.js',
+    // **사장님이 부르는 말을 자리 목록에 붙인다**(PM 매듭 ① · 2026-08-07).
+    // 판 ⑫에서 *"바탕화면에 저장해줘"* 가 `~/GPAO-T5/Desktop` 으로 갔다 — 파일도
+    // 내용도 맞았고 자리만 틀렸다. 모델이 `Desktop` 과 "바탕화면"을 이을 근거가 없었다.
+    'src/runtime/local-locate.js',
+    'src/kernel/l0-evidence/working-state.js',
     'src/runtime/session-search-tool.js',
     'src/kernel/l0-evidence/ledger.js',
     // **제안과 실행을 나눈다**(2026-08-04). 계약은 "호출 안 했으면 actualCall 은 null" 인데

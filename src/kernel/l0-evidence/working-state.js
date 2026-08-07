@@ -26,6 +26,8 @@ const FORGET_AFTER_TURNS = 8;
 export const MAX_FACTS_CHARS = 1200;
 
 /** 그 페이지에서 이어갈 수 있는 **같은 사이트 안의 길**만. 광고·외부 링크는 길이 아니다. */
+import { 부르는말붙이기 } from '../../runtime/local-locate.js';
+
 export function sameSiteLinks(pageUrl, links = []) {
   let host;
   try { host = new URL(pageUrl).hostname; } catch { return []; }
@@ -182,8 +184,14 @@ export function workingStateFacts(stateOrNull) {
   if (자리) lines.push(`지금 자리: ${자리}`);
   // **볼 수 있는 자리는 이름만 준다.** 경로를 늘어놓으면 프롬프트를 먹고, 사용자도 경로로 말하지 않는다.
   // 사용자가 "외장하드요", "거기"라고 하면 모델이 이 이름들 중에서 고른다(우리가 파싱하지 않는다 — §24).
+  //
+  // **다만 사장님이 부르는 말은 함께 준다**(PM 매듭 ① · 2026-08-07). 예전엔 `Desktop ·
+  // Documents · Downloads` 였는데, 사장님은 *"바탕화면에 저장해줘"* 라고 하지 `Desktop` 이라
+  // 하지 않는다. 그 대응이 어디에도 없어서 판 ⑫에서 모델이 방금 읽은 `~/GPAO-T5/Desktop` 에
+  // 끌려 거기 썼다 — 파일도 내용도 맞았고 **자리만 틀렸다.** 사장님은 그것을 못 받는다.
+  // 낱말 목록을 새로 만드는 게 아니라 `local-locate` 가 이미 가진 대응을 옮기는 것이다.
   if (state.places?.length) {
-    lines.push(`볼 수 있는 자리: ${state.places.map((p) => p.label).slice(0, 10).join(' · ')}`);
+    lines.push(`볼 수 있는 자리: ${부르는말붙이기(state.places.slice(0, 10))}`);
   }
   // **끝난 일은 끝났다고 말한다.** 무엇을 할지는 모델이 정한다(§24) — "다시 하지 마"라고
   // 시키지 않는다. 사용자가 정말 다시 하라고 하면 막히면 안 되기 때문이다.

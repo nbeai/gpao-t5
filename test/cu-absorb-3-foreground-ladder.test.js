@@ -1,19 +1,27 @@
-// **흡수 ③ · 드라이버가 알려준 사다리를 실제로 탄다.**
+// **흡수 ③ · 드라이버가 알려준 사다리 — 걷었다.**
 //
+// ── 예전 판단 (2026-08-06) ──────────────────────────────────────────────
 // 오너: *"사용자가 지시하면 **알아서 자동으로** 그것들을 수행해야 당연한 거잖아."*
+// 드라이버가 *"앞으로 가져오면 볼 수 있다"* 고 알려주는데 우리가 안 해서, T5 는 정직하지만
+// 일을 못 끝냈다. 그래서 **커널이 자동으로 앞세우고 이전 앱으로 되돌리게** 했다.
 //
-// 지금은 드라이버가 *"앞으로 가져오면 볼 수 있다"* 고 알려주는데 **우리가 안 한다.**
-// 그래서 T5 는 정직하지만 **일을 못 끝낸다** — 사용자는 "읽어줘"라고 했는데
-// "못 읽었어요"만 듣는다.
+// ── 뒤집힌 이유 (2026-08-07 · PM 조건 2) ────────────────────────────────
+// 벤더 사용설명서를 그때는 못 읽었다. `SKILL.md` 가 못박는다 —
+//   *"An optional escalation is a **harness instruction, never an automatic retry**."*
+// 그리고 `bring_to_front` 설명서 — *"**This DOES steal foreground**."*
 //
-// 비교군 계약(`schema.py`):
-//   `delivery_mode: background`(기본) → 안 들어갔다는 **신호가 오면** `foreground`.
-//   *"Electron 이라고 **예측하지 마라. 신호에 반응하라.**"*
-//   `bring_to_front: false` 면 **행동 뒤 이전 앱으로 되돌린다** — 깜빡임만 남고 화면은 그대로.
+// 우리는 신호를 보고 **커널이 자동으로** 올렸다. 되돌리기까지 넣었지만 그건 뺏은 뒤의 수습이고,
+// 실측에서 `앞세움: true` 가 매번 나왔다. 오너가 오늘 말했다 —
+// *"내가 컴퓨터로 작업중이라 카톡 화면을 앞으로 내세워도 나 때문에 뒤로 밀린다."*
+// **우리가 그 화면을 계속 뺏고 있었다.**
 //
-// 그래서 읽기도 같은 사다리다:
-//   배경으로 읽어 본다 → `escalation.recommended: 'foreground'` 가 오면
-//   **잠깐 앞세워 읽고 이전 앱으로 되돌린다.** 그리고 그렇게 했다는 **사실을 남긴다.**
+// **자동을 버린 게 아니다.** 오너 규율은 그대로다 — 다만 **화면을 뺏을지 정하는 것은
+// 커널이 아니라 모델**이다. `올려야할길`(escalation)은 사실로 계속 실리고, 모델이 필요하면
+// 손으로 올린다. 그리고 걷어도 되는 이유가 생겼다 — **그림 배선이 섰다**(`1cf79eb`).
+// 트리가 비어도 드라이버가 *"the screenshot IS the requested window"* 라고 말하고
+// 그 그림이 모델까지 간다. 계산기를 다른 Space 에서 3/3 읽은 그 길이다.
+//
+// 이 파일은 **뒤집힌 판단의 기록**으로 남긴다 — 지우면 다음 사람이 같은 길로 간다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeCuaDriver } from '../src/runtime/desktop-cua-driver.js';
@@ -46,25 +54,23 @@ function 가짜({ 부른것 = [], 앞세우면읽힘 = true } = {}) {
   };
 }
 
-test('배경으로 못 읽으면 잠깐 앞세워 읽는다 — 사용자는 "읽어줘"라고 했다', async () => {
+test('신호가 와도 커널이 화면을 안 뺏는다 — escalation 은 지시이지 자동 재시도가 아니다', async () => {
   const 부른것 = [];
-  const o = await makeCuaDriver({ mcp: 가짜({ 부른것 }) }).observe({ scope: 'window', app: '메모' });
-  assert.equal((o.elements ?? []).length, 1,
-    `**알려준 길을 안 간다** — 정직하지만 일을 못 끝낸다: ${JSON.stringify(o).slice(0, 200)}`);
-  assert.ok(부른것.some((c) => c.이름 === 'bring_to_front'), '앞세우지 않았다');
+  const o = await makeCuaDriver({ mcp: 가짜(부른것) }).observe({ scope: 'window', app: '메모' });
+  assert.equal(부른것.some((c) => c.이름 === 'bring_to_front'), false,
+    '**사용자 화면을 뺏는다** — `This DOES steal foreground`');
+  assert.ok(o, '관찰 자체는 돌아야 한다');
 });
 
-test('읽고 나서 이전 앱으로 되돌린다 — 화면을 뺏은 채 두지 않는다', async () => {
-  const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜({ 부른것 }) }).observe({ scope: 'window', app: '메모' });
-  const 앞세우기들 = 부른것.filter((c) => c.이름 === 'bring_to_front');
-  assert.equal(앞세우기들.length, 2, `**앞세운 채 두고 나온다** — 사용자 화면이 바뀐다: ${앞세우기들.length}번`);
-  assert.equal(앞세우기들[1].인자.pid, 1, '이전 앱으로 안 되돌렸다');
+test('그 신호는 사실로 남긴다 — 버리면 모델이 올릴 길을 잃는다', async () => {
+  const o = await makeCuaDriver({ mcp: 가짜([]) }).observe({ scope: 'window', app: '메모' });
+  assert.equal(o.올려야할길?.recommended, 'foreground',
+    `**드라이버가 준 지시를 버린다**: ${JSON.stringify(o.올려야할길)}`);
 });
 
-test('그렇게 했다는 사실을 남긴다 — 조용히 화면을 만지지 않는다', async () => {
-  const o = await makeCuaDriver({ mcp: 가짜({}) }).observe({ scope: 'window', app: '메모' });
-  assert.equal(o.앞세워읽음, true, `화면을 만졌는데 말이 없다: ${JSON.stringify(o).slice(0, 160)}`);
+test('안 올렸으면 올렸다고 하지 않는다 — 안 만진 화면을 만졌다고 적지 않는다', async () => {
+  const o = await makeCuaDriver({ mcp: 가짜([]) }).observe({ scope: 'window', app: '메모' });
+  assert.equal(o.앞세워읽음, undefined, `화면을 안 만졌는데 만졌다고 한다: ${o.앞세워읽음}`);
 });
 
 test('앞세워도 못 읽으면 이유를 그대로 남긴다 — 무한히 시도하지 않는다', async () => {

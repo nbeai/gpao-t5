@@ -1633,14 +1633,21 @@ export const MUTATIONS = [
     찾기: "            ...(글 !== null ? { 글 } : {}),",
     바꾸기: "" },
   // ── 흡수 ③ · 알려준 사다리를 실제로 탄다 ──────────────────────────────
-  { 이름: '앞으로 가져오면 읽힌다고 알려줘도 안 감(정직하지만 일을 못 끝낸다)', 파일: CUA, 검사: T_AB3,
-    찾기: "          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {",
-    바꾸기: "          if (false) {" },
-  { 이름: '읽고 나서 안 되돌림(사용자 화면을 뺏은 채 둔다)', 파일: CUA, 검사: T_AB3,
-    찾기: "                await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);",
-    바꾸기: "" },
-  { 이름: '화면을 만지고 말 안 함(조용히 앞세운다)', 파일: CUA, 검사: T_AB3,
-    찾기: "              앞세워읽음값 = true;",
+  // 2026-08-07 · **재는 것이 뒤집혔다**(PM 조건 2 · CU 닫는 조건).
+  // 예전 셋은 *"드라이버가 알려줘도 안 올라간다"* 를 물었다. 그런데 `SKILL.md` 가 못박는다 —
+  // *"An optional escalation is a harness instruction, **never an automatic retry**."*
+  // 그리고 `bring_to_front` 는 *"**This DOES steal foreground**."* 우리는 신호를 보고
+  // **커널이 자동으로** 올렸고, 실측에서 `앞세움: true` 가 매번 나왔다 —
+  // 오너가 며칠 말한 *"내 카톡이 뒤로 밀린다"* 가 우리 탓이었다.
+  //
+  // 이제 무는 것은 **읽으려고 화면을 뺏지 않는가**이다. 그리고 그 신호를 **버리지도 않는가** —
+  // 걷는 것과 사실을 버리는 것은 다르다. 모델이 필요하면 손으로 올린다.
+  { 이름: '읽으려고 사용자 화면을 뺏음(This DOES steal foreground)', 파일: CUA,
+    검사: 'test/cu-do-not-steal-the-screen.test.js',
+    찾기: "          // **여기 있던 자동 앞세우기를 걷었다**(PM 조건 2 · 2026-08-07).",
+    바꾸기: "          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {\n            await mcp.call('bring_to_front', { pid: 대상.pid, window_id: 대상.id }).catch(() => null);\n          }\n          // **여기 있던 자동 앞세우기를 걷었다**(PM 조건 2 · 2026-08-07)." },
+  { 이름: '드라이버가 준 사다리를 버림(모델이 올릴 길을 잃는다)', 파일: CUA, 검사: T_AB3,
+    찾기: "          if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;",
     바꾸기: "" },
   // ── 흡수 ①② · 드라이버가 주는 것을 쓰고, 말하는 것을 듣는다 ──────────
   { 이름: '창 목록을 전부 달라고 함(117개를 손으로 거르다 20초를 쓴다)', 파일: CUA, 검사: T_AB1,

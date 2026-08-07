@@ -532,22 +532,21 @@ export function makeCuaDriver(deps = {}) {
           // `bring_to_front` 는 Space 를 넘는다는 보장이 없고 설명서가 `This DOES steal
           // foreground` 라고 못박는다 — 사용자 화면을 뺏는 것은 최후다.
           // 드라이버가 `escalation` 으로 *"앞으로 가져오면 된다"* 고 말할 때만 올라간다.
-          if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {
-            const 되돌릴pid = Number(앞앱?.pid);
-            const 앞세움 = await mcp.call('bring_to_front', { pid: 대상.pid, window_id: 대상.id })
-              .catch(() => null);
-            if (앞세움) {
-              앞세워읽음값 = true;
-              await new Promise((z) => { setTimeout(z, 250); });
-              const 다시 = await mcp.call('get_window_state', 창상태인자).catch(() => null);
-              if ((다시?.elements ?? []).length) { st = 다시; 못읽은이유값 = null; 올려야할길값 = null; }
-              else if (다시?.degraded_reason) 못읽은이유값 = String(다시.degraded_reason);
-              // **되돌린다.** 읽으려고 뺏은 것이지 가져가려고 뺏은 것이 아니다.
-              if (Number.isInteger(되돌릴pid) && 되돌릴pid > 0 && 되돌릴pid !== 대상.pid) {
-                await mcp.call('bring_to_front', { pid: 되돌릴pid }).catch(() => null);
-              }
-            }
-          }
+          // **여기 있던 자동 앞세우기를 걷었다**(PM 조건 2 · 2026-08-07).
+          //
+          // `SKILL.md`: *"An optional escalation is a **harness instruction, never an
+          // automatic retry**."* 그리고 `bring_to_front` 설명서: *"**This DOES steal
+          // foreground**."* 우리는 드라이버 신호를 보고 **커널이 자동으로** 올렸다 —
+          // 계약이 금지한 자리이고, 오너 화면을 계속 뺏었다(오늘 실측에서 `앞세움: true`
+          // 가 매번 나왔고, 오너가 *"내가 작업중이라 카톡이 뒤로 밀린다"* 고 말했다).
+          //
+          // **자동을 버리는 게 아니다.** 오너 규율 *"사용자가 지시하면 알아서 자동으로"* 는
+          // 그대로다 — 다만 **화면을 뺏을지 정하는 것은 커널이 아니라 모델**이다.
+          // `올려야할길` 은 사실로 계속 실린다(아래 반환값). 모델이 필요하면 손으로 올린다.
+          //
+          // 걷어도 되는 이유: **그림 배선이 섰다**(`1cf79eb`). 트리가 비어도 드라이버가
+          // *"the screenshot in this response IS the requested window"* 라고 말하고
+          // 그 그림이 이제 모델까지 간다 — 계산기를 다른 Space 에서 3/3 읽은 그 길이다.
           // **브라우저 창이면 탭도 본다**(CU-④). 사용자는 *"그 화면 읽어줘"* 라고 하지
           // *"CDP 로 읽어줘"* 라고 하지 않는다 — 어느 길로 읽는지는 우리 일이다.
           // 로그인해야 보이는 자리가 여기서 열린다(카드사·배달앱·플레이스).
