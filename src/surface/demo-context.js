@@ -824,6 +824,10 @@ const DESCRIPTORS = [
             // "옮겼다"고 답했다. 실제 모양은 `result.items` · `it.kind` 였다.
             description: 'JavaScript 본문(async 안에서 돈다). `await t5.call("손이름", 인자)` 로 손을 부른다.\n'
               + '돌아오는 모양: `{ ok, summary, result }` — 실패면 `{ ok:false, error, next }`.\n'
+              // ⑫ 실측(2026-08-08): 열 이름을 "매출액"으로 짐작한 스크립트가 0원을 합산해
+              // 그대로 파일에 썼다(실제 열은 "금액"). 형식은 짐작이 아니라 확인의 대상이다.
+              + '표(CSV 등)의 열 이름은 짐작하지 않는다 — 스크립트 안에서 첫 줄(헤더)을 읽어 그 이름을 쓰고, '
+              + '합계가 0 이면 열 이름부터 의심한다.\n'
               + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt}], total, offset, nextOffset }` · '
               + 'read → `{ path, text, bytes, totalChars, offset, nextOffset }` · '
               + 'move → `{ from, to }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'

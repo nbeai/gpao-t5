@@ -112,7 +112,21 @@ export async function 캡슐실행({
   await mkdir(요청, { recursive: true });
   await mkdir(응답, { recursive: true });
   const 본문 = join(scratch, 'main.js');
-  await writeFile(본문, 캡슐머리 + String(코드 ?? '') + 캡슐꼬리, 'utf8');
+  // **함수를 건네면 부른다** (⑫ 회차 D 실측 · 2026-08-08). 모델이 `async () => {…}` 를
+  // 통째로 건네는 일이 잦고, 래퍼가 IIFE 라 그건 **정의만 되고 호출 0** 으로 끝났다
+  // ("손을 한 번도 쓰지 않았어요" — 그 회차에서 두 걸음이 그렇게 탔다). 코드 전체가
+  // 함수 하나면 뜻은 하나뿐이다 — 실행해 달라는 것. 판정은 컴파일로만 한다(실행 없음):
+  // 전체가 한 식으로 컴파일되고, 함수 모양으로 시작하고, 이미 호출로 끝나지 않을 때만 부른다.
+  // 문장 여러 개는 그대로 둔다 — 감싸면 문법이 깨진다.
+  const 몸 = String(코드 ?? '').trim();
+  let 실행몸 = 몸;
+  try {
+    new Function(`return (${몸});`);   // 컴파일만 — 부르지 않는다
+    if (/^(async\s*)?(\(|function\b)/.test(몸) && /\}\s*;?\s*$/.test(몸)) {
+      실행몸 = `await (${몸})();`;
+    }
+  } catch { /* 한 식이 아니다 — 문장들 그대로 */ }
+  await writeFile(본문, 캡슐머리 + 실행몸 + 캡슐꼬리, 'utf8');
 
   const 프로파일 = join(뿌리, 'p.sb');
   // **캡슐 프로파일** = probe(쓰기 0·네트워크 0·시그널 0·AppleEvent 0·비밀 0) + **프로세스 생성 0**.
