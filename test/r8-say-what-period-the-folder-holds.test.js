@@ -46,13 +46,29 @@ test('연도 없이 "6월"만 있으면 안 적는다 — 어느 해인지 모�
 });
 
 // ── 후보에 실제로 붙는다 ────────────────────────────────────────────────
+// 감사 지적(2026-08-08 · 세 번째): 첫 판은 실기계 `~/GPAO-T5` 고정물에 기댔다 — 이 맥에서만
+// 초록인 검사였다(빈 HOME 으로 돌리면 정확히 이 하나가 빨갛다). 본선은 어느 기계에서든
+// 초록이어야 한다 — 검사가 자기 고정물을 짓는다(러너와 같은 방식).
 test('후보에 기간이 붙는다 — 붙지 않으면 모델은 이름으로만 고른다', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const home = await mkdtemp(join(tmpdir(), 'r8-기간-'));
+  const 심기 = async (p, files) => {
+    await mkdir(join(home, p), { recursive: true });
+    for (const f of files) await writeFile(join(home, p, f), '거래처,금액\n마바상회,520000\n');
+  };
+  await 심기('2026-07 정산', ['2026-07 매출정산.csv', '7월 정산내역.csv', '증빙.pdf']);
+  await 심기('지난달 정산 파일', ['2026-06 매출정산.csv', '6월 정산내역.csv', '증빙.pdf']);
   const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
-  const 손 = makeLocalLocateTool({ home: process.env.HOME });
+  const 손 = makeLocalLocateTool({ home });
   const r = await 손.handler({ what: '정산' }, {});
   const 후보 = (r.result?.candidates ?? []).filter((c) => /정산/.test(c.path));
-  assert.ok(후보.length, '정산 후보가 없다 — 고정물이 없으면 이 검사는 성립하지 않는다');
+  assert.ok(후보.length, '정산 후보가 없다 — 고정물을 지었는데도 못 찾으면 찾기가 깨진 것이다');
   const 기간있는것 = 후보.filter((c) => c.자료기간);
   assert.ok(기간있는것.length,
     `**후보에 기간이 하나도 없다** — 모델이 "지난달"을 이름으로만 푼다: ${JSON.stringify(후보.slice(0, 2))}`);
+  // 이름(2026-07)에서 읽은 것과 안의 파일(2026-06)에서 읽은 것이 각각 제 기간을 단다.
+  assert.ok(기간있는것.some((c) => c.자료기간 === '2026-07'));
+  assert.ok(기간있는것.some((c) => c.자료기간 === '2026-06'), '이름이 "지난달"인 폴더의 내용 기간이 안 붙었다');
 });

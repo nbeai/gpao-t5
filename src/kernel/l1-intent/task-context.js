@@ -340,6 +340,9 @@ export function compactResult(result, maxChars = 1200) {
     const lines = [`파일: ${result.path}`];
     if (result.modifiedAt) lines.push(`고침: ${result.modifiedAt}`); // 최신 판단의 재료(F2.3·H08)
     if (result.bytes != null) lines.push(`크기: ${result.bytes}바이트`);
+    // 같은 자리의 다른 파일 — 부분합을 전체처럼 말하는 병의 재료 칸(매듭 ① · 2026-08-08).
+    // 사실만 준다: 읽었는지 안 읽었는지는 모델의 교환 이력이 안다.
+    if (result.같은자리파일?.length) lines.push(`같은 자리의 다른 파일: ${result.같은자리파일.join(' · ')}`);
     const keep = Math.max(maxChars - lines.join('\n').length - 40, 200);
     const t = String(result.text).replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
     const body = t.length <= keep

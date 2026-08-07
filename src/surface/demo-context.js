@@ -788,7 +788,10 @@ const DESCRIPTORS = [
         type: 'object',
         properties: {
           what: { type: 'string', description: '사용자가 부른 말 그대로 — "정산 자료", "이 프로젝트"' },
-          from: { type: 'string', description: '어디서부터 찾을지 — "볼 수 있는 자리"의 이름 그대로("작업용SSD", "Downloads") 또는 경로. 비우면 홈' },
+          // ⑫ 실측 2/3(2026-08-08): "바탕화면에 **저장**해줘"의 바탕화면을 from 에 넣어
+          // 바탕화면만 뒤지고 "못 찾았다"며 사용자에게 위치를 물었다 — 저장할 자리와
+          // 찾을 자리가 섞인 것이다. 자료가 어딨는지 모르면 비우는 게 맞다(홈이 가장 넓다).
+          from: { type: 'string', description: '어디서부터 **찾을**지 — "볼 수 있는 자리"의 이름 그대로("작업용SSD", "Downloads") 또는 경로. 결과를 저장할 자리가 아니다. 자료가 어디 있는지 모르면 비운다(홈 전체가 기본)' },
           depth: { type: 'number', description: '몇 단계까지(기본 3, 최대 5). 못 찾으면 늘려서 다시 부른다' },
         },
         required: ['what'],

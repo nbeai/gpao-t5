@@ -106,6 +106,17 @@ const 손흔적 = (t) => {
   const c = t?.ledger?.confirmed ?? [], u = t?.ledger?.unconfirmed ?? [];
   return { 확인: c.length, 미확인: u.length, 뻗었나: c.length + u.length > 0 };
 };
+// **무효 회차는 기계 사실로만 판정한다**(감사 · 채점 전 명문화 2026-08-08).
+// 서버가 모델 연결 실패에 세우는 구조 필드(modelUnavailable·modelFailure)와 턴 오류(kind)뿐이다.
+// "안 좋은 답"은 무효 사유가 아니다 — 그 문이 열리면 3/3 이 최선 고르기로 변질된다.
+// 무효 회차의 원본도 무효 표시와 함께 증거에 남는다(지우지 않는다).
+const 무효사유 = (턴들 = []) => {
+  for (const [i, t] of 턴들.entries()) {
+    if (t?.kind === 'ERROR') return `턴 ${i + 1} 오류(kind: ERROR)`;
+    if (t?.modelUnavailable === true) return `턴 ${i + 1} 모델 연결 실패(modelUnavailable · ${t.modelFailure ?? '?'})`;
+  }
+  return null;
+};
 async function 세션돌기(발화들) {
   const s = await post('/sessions');
   const 턴들 = [];
@@ -184,6 +195,8 @@ try {
       } : null;
     const 전바탕 = 바탕 ? await 바탕() : null;
     const 결과 = await 세션돌기(항.발화);
+    const 무효 = 무효사유(결과.턴들);
+    if (무효) { 결과.무효 = 무효; console.error(`  ⚠ 무효 회차: ${무효}`); }
     if (바탕) {
       const 후바탕 = await 바탕();
       결과.새파일 = 후바탕.filter((p) => !전바탕.includes(p));
@@ -196,6 +209,7 @@ try {
       const t = 결과.턴들[i] ?? {};
       기록.문항[항목] = {
         kind: t.kind, 동반: 손흔적(t),
+        ...(결과.무효 ? { 무효: 결과.무효 } : {}),
         ...(항.전제 === '기억' && !기억전제?.승격수 ? { 전제미충족: true } : {}),
         ...(결과.새파일 ? { 새파일: 결과.새파일 } : {}),
         답: (t.reply ?? '').slice(0, 400),

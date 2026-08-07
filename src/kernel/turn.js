@@ -2056,10 +2056,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let 후보요청수 = 0;
   const 후보이어가기 = async () => {
     if (후보요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;   // 한 턴에 한 번만
-    const 후보들 = turnReceipts
-      .filter((r) => r?.actualCall?.tool === 'local.locate' && (r.failureState ?? 'none') === 'none')
-      .flatMap((r) => r?.result?.candidates ?? []);
-    if (!후보들.length) return false;
+    const 찾은것들 = turnReceipts
+      .filter((r) => r?.actualCall?.tool === 'local.locate' && (r.failureState ?? 'none') === 'none');
+    const 후보들 = 찾은것들.flatMap((r) => r?.result?.candidates ?? []);
+    // **얕게 끝난 찾기도 빈손이다**(⑫ 실측 2/3: "바탕화면에 저장해줘"의 바탕화면을 검색
+    // 자리로 오독 → 후보 0 → 넓힐 길(canWiden·placesToLook)이 결과에 실려 있는데 안 넓히고
+    // 사용자에게 위치를 물었다). 후보가 있는데 안 연 것과 같은 병의 다른 얼굴이다.
+    const 얕은찾기 = !후보들.length ? 찾은것들.filter((r) => (r?.result?.candidates ?? []).length === 0
+      && (r?.result?.canWiden || (r?.result?.placesToLook ?? []).length)) : [];
+    if (!후보들.length && !얕은찾기.length) return false;
     const 읽었다 = turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file'
       && ['read', 'versions'].includes(r?.actualCall?.args?.action));
@@ -2072,10 +2077,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (!손들.length) return false;
     finalOut = await ctx.model.respond({
       ...tc,
-      candidatesUnopened: {
-        수: 후보들.length,
-        자리들: [...new Set(후보들.map((c) => String(c.path ?? '')))].filter(Boolean).slice(0, 5),
-      },
+      ...(후보들.length ? {
+        candidatesUnopened: {
+          수: 후보들.length,
+          자리들: [...new Set(후보들.map((c) => String(c.path ?? '')))].filter(Boolean).slice(0, 5),
+        },
+      } : {
+        searchNotExhausted: {
+          ...(얕은찾기.some((r) => r?.result?.canWiden)
+            ? { 깊이: Math.max(...얕은찾기.map((r) => Number(r?.result?.suggestDepth) || 0)) } : {}),
+          자리들: [...new Set(얕은찾기.flatMap((r) => (r?.result?.placesToLook ?? [])
+            .map((p) => String(p?.name ?? p ?? ''))))].filter(Boolean).slice(0, 6),
+        },
+      }),
     }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
     if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false; // 모델이 안 골랐다 — 그대로
     if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;

@@ -470,11 +470,26 @@ export function makeLocalFileTool(deps = {}) {
           const 문값 = 문(전문.length, args);
           const text = 전문.slice(문값.시작, 문값.끝);
           const 안내 = 문말(문값, '자');
+          // **같은 자리에 무엇이 더 있는지는 손이 이미 아는 사실이다**(3단계 매듭 ① · 2026-08-08).
+          // ⑤ 실측 2/3: 한 폴더의 두 자료 중 하나만 읽고 부분합(2,120,000)을 전체처럼 말했다 —
+          // 확신 있는 부분합은 빈손 되묻기보다 나쁘다(사용자를 속인다). 판단하지 않는다:
+          // 목록만 준다. 더 읽을지는 모델이 정한다. 자료기간과 같은 병(아는 것을 안 줌)의 이웃 칸.
+          const 같은자리 = [];
+          try {
+            for (const e of await readdir(dirname(abs), { withFileTypes: true })) {
+              if (!e.isFile() || e.name.startsWith('.')) continue;
+              const full = join(dirname(abs), e.name);
+              if (full === abs || protectionBlocks(full, { write: false })) continue;
+              같은자리.push(e.name);
+              if (같은자리.length >= 8) break;
+            }
+          } catch { /* 이웃을 못 세도 읽기는 이미 됐다 — 빈 채로 간다 */ }
           return ok(안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`, {
             path: abs, text, bytes: info.size,
             totalChars: 전문.length, offset: 문값.시작,
             ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             ...(document ? { document } : {}),
+            ...(같은자리.length ? { 같은자리파일: 같은자리 } : {}),
             modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
           });
         }

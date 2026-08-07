@@ -329,6 +329,14 @@ export function buildModelMessages(tc) {
       + (tc.candidatesUnopened.자리들 ?? []).map((p) => `- ${p}`).join('\n')
       + '\n답을 내기 전에 열어 볼 수 있다. 안 열고 답한다면 무엇을 안 봤는지 함께 말한다.');
   }
+  // 얕게 끝난 찾기 — 후보 0 이지만 넓힐 길이 결과에 실려 있었다는 사실(같은 그물의 다른 얼굴).
+  if (tc.searchNotExhausted) {
+    const s = tc.searchNotExhausted;
+    커널블록.push('[이번 턴 사실] 찾기가 얕게 끝났다 — 아직 안 본 길이 있다:'
+      + `${s.깊이 ? `\n- 더 깊이 찾을 수 있다(깊이 ${s.깊이}까지)` : ''}`
+      + `${s.자리들?.length ? `\n- 다른 자리에서 찾을 수 있다: ${s.자리들.join(' · ')}` : ''}`
+      + '\n다시 찾아볼 수 있다. 안 찾고 답한다면 어디까지 봤는지 함께 말한다.');
+  }
   if (tc.priorShown?.length) {
     커널블록.push(`[직전 답이 놓고 쓴 것]\n${tc.priorShown.map((c) => `- ${c}`).join('\n')}\n`
       + '지금 사용자가 그 답을 바로잡고 있다면, 위에서 어긋난 문장 하나를 `memory.correction`'
