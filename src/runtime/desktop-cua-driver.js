@@ -481,6 +481,11 @@ export function makeCuaDriver(deps = {}) {
           // 비교군 계약 그대로다: 배경이 기본, **신호가 오면** 앞으로,
           // 그리고 `bring_to_front:false` 처럼 **이전 앱으로 되돌린다** —
           // 깜빡임만 남고 사용자 화면은 그대로다.
+          // **넓히려다 되돌렸다**(2026-08-07). 글자가 0이면 무조건 앞세우게 바꿨는데,
+          // 진짜 원인은 **창이 다른 Space 에 있는 것**이었다(`space=[1]` · 현재 22).
+          // `bring_to_front` 는 Space 를 넘는다는 보장이 없고 설명서가 `This DOES steal
+          // foreground` 라고 못박는다 — 사용자 화면을 뺏는 것은 최후다.
+          // 드라이버가 `escalation` 으로 *"앞으로 가져오면 된다"* 고 말할 때만 올라간다.
           if (올려야할길값?.recommended === 'foreground' && !(st?.elements ?? []).length) {
             const 되돌릴pid = Number(앞앱?.pid);
             const 앞세움 = await mcp.call('bring_to_front', { pid: 대상.pid, window_id: 대상.id })

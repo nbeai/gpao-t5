@@ -1758,7 +1758,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 문맥 = () => ({ ...실행문맥(), 그림받기: (g) => { 방금그림 = g; } });
     const execute = async () => {
       const rec = bindDeliverableReceipt(plan, await ctx.tools.run(toolId, args, selfState, 문맥()));
-      if (방금그림 && rec) { 이번턴그림.set(rec, 방금그림); 방금그림 = null; }
+      // **객체 동일성에 기대지 않는다**(밟음 2026-08-07 · 오너 질책).
+      // 손은 그림을 냈고(`out.그림=O`) 옆길도 불렸는데(`그림받기=O`) 교환에는 안 붙었다 —
+      // 담을 때의 `rec` 과 꺼낼 때의 영수증이 **다른 객체**라 `Map.has` 가 false 였다.
+      // 그래서 그림 55KB 를 쥐고도 모델은 한 번도 못 봤고, T5 는 계속 *"못 읽었다"* 고 답했다.
+      // 호출 신분(`providerCallId`·`callRef`)으로도 함께 걸어 둔다 — 그건 안 바뀐다.
+      if (방금그림 && rec) {
+        이번턴그림.set(rec, 방금그림);
+        const 신분 = (rec.actualCall ?? rec.제안한호출 ?? {});
+        for (const k of [신분.providerCallId, 신분.callRef]) if (k) 이번턴그림.set(k, 방금그림);
+        방금그림 = null;
+      }
       return rec;
     };
     if (toolId !== 'local.file' || !plan.workRef || !plan.completionContract
@@ -1912,6 +1922,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
     intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+    // **답을 만드는 자리에도 그림을 준다**(밟음 2026-08-07 · 오너 질책).
+    // 손은 그림 55KB 를 냈고 옆길도 정상이었는데(`out.그림=O` · `받기=O`) **이 자리가
+    // `이번턴그림` 을 안 넘겼다.** 그래서 모델은 그림을 한 번도 못 봤고, 계산기 화면을
+    // 쥐고도 계속 *"못 읽었다"* 고 답했다 — 아침에 됐던 것은 접근성이 잡히던 환경이라
+    // 글자로 읽었을 뿐이고, 그림 경로는 **처음부터 이 자리에서 끊겨 있었다.**
+    이번턴그림,
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
