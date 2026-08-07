@@ -516,24 +516,26 @@ test('H08: ~/ 경로는 홈 기준으로 풀린다', async () => {
   assert.ok(r.result.items.some((i) => i.name === '자료.csv'));
 });
 
-// ── H08 실측 · 루트 이름으로 시작하는 상대 경로는 그 루트에서 푼다 ────────
+// ── H08 실측 · 표준 폴더 이름으로 시작하는 상대 경로는 홈의 그 자리에서 푼다 ────────
 // 라이브(2026-08-01): 모델이 `Downloads/견적서.csv` 를 골랐는데 상대 경로가 루트0
 // (GPAO-T5) 기준으로만 풀려 ENOENT — 실제로 열려 있는 둘째 루트를 부르는 자연스러운
 // 표기가 죽었고, 모델은 "만들었다고 보고 설명"하는 거짓 서술로 밀렸다.
-test('H08: "Downloads/파일" 상대 경로가 Downloads 루트에서 풀린다', async () => {
+test('H08: "Downloads/파일" 상대 경로가 홈 Downloads 에서 풀린다', async () => {
   const home = await mkdtemp(join(tmpdir(), 'gpao-t5-루트명-'));
   const 작업 = join(home, 'GPAO-T5'); const dl = join(home, 'Downloads');
   await mkdir(작업, { recursive: true }); await mkdir(dl, { recursive: true });
   await writeFile(join(dl, '자료.csv'), '내용');
   const tool = makeLocalFileTool({ roots: [작업, dl], homeDir: home });
   const r = await tool.handler({ action: 'read', path: 'Downloads/자료.csv' });
-  assert.equal(r.blocked, undefined, `루트 이름 상대 경로가 안 풀렸다: ${r.userSafeSummary}`);
+  assert.equal(r.blocked, undefined, `표준 폴더 상대 경로가 안 풀렸다: ${r.userSafeSummary}`);
   assert.equal(r.result.text, '내용');
-  // 루트0 안에 같은 이름 폴더가 실제로 있으면 **기존 해석이 이긴다**(행동 보존).
+  // 루트0 안에 같은 이름 폴더가 실제로 있어도 **앵커는 갈리지 않는다**(⑫ 회차 F R1 · 2026-08-08).
+  // 옛 조항("실재하면 기존 해석이 이긴다")이 바로 그 병이었다 — 존재 여부로 앵커가 뒤집히면
+  // 같은 말이 컴퓨터 상태에 따라 다른 자리에 닿아 거짓 성공이 제조된다. 사용자의 다운로드는 하나다.
   await mkdir(join(작업, 'Downloads'), { recursive: true });
   await writeFile(join(작업, 'Downloads/자료.csv'), '작업루트쪽');
   const r2 = await tool.handler({ action: 'read', path: 'Downloads/자료.csv' });
-  assert.equal(r2.result.text, '작업루트쪽');
+  assert.equal(r2.result.text, '내용');
 });
 
 // ── P1 (QA90 감사 2026-08-02) · 사용자면에 원시 절대경로를 내지 않는다 ──────

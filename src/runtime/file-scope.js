@@ -102,12 +102,20 @@ export async function resolveInScope(target, opts = {}) {
   const home = opts.home ?? homedir();
   const t = target.trim() === '~' ? home
     : target.trim().startsWith('~/') ? resolve(home, target.trim().slice(2)) : target;
+  // **표준 폴더를 부르는 상대 경로는 구성과 무관하게 홈의 그 자리다**(⑫ 회차 F R1 실측 2026-08-08).
+  // 모델이 `Desktop/정산요약.txt` 로 write 를 불렀는데, 루트가 좁혀진 구성(GPAO_T5_FILE_ROOTS)에서
+  // 첫 루트 기준으로 풀려 `<루트>/Desktop/…` 에 생겼고 성공 영수증이 나갔다 — 홈 바탕화면 실물은
+  // 0개다(거짓 성공 제조). 사용자의 바탕화면은 하나다 — 어느 앵커에 닿는지가 구성에 따라 달라지면
+  // 안 된다. 아래 실재 기반 규칙들도 타지 않는다 — 실재로 갈리면 같은 병이 존재 여부로 되돌아온다.
+  const 표준 = isAbsolute(t) ? null : 표준폴더디스크이름(t.split(/[/\\]/)[0]);
   // 상대 경로는 첫 루트 기준으로 푼다(사용자가 "메모.md"라고만 말해도 되게).
-  let abs = isAbsolute(t) ? resolve(t) : resolve(base, t);
+  let abs = isAbsolute(t) ? resolve(t)
+    : 표준 ? resolve(home, 표준, t.split(/[/\\]/).slice(1).join(sep))
+      : resolve(base, t);
   // **루트 이름으로 시작하는 상대 경로는 그 루트를 부르는 말이다.** H08 라이브 실측(2026-08-01):
   // 모델이 `Downloads/견적서.csv` 를 골랐는데 첫 루트(작업 폴더) 기준으로만 풀려 ENOENT 가 났다.
   // 첫 루트 해석이 실재하면 그대로 두고(행동 보존), 없을 때만 이름이 맞는 다른 루트로 푼다.
-  if (!isAbsolute(t)) {
+  if (!isAbsolute(t) && !표준) {
     const 첫말 = String(t.split(/[/\\]/)[0] ?? '').normalize('NFC').toLowerCase();
     if (첫말 && !existsSync(abs)) {
       const 맞는루트 = roots.find((r) => String(r.split(sep).pop()).normalize('NFC').toLowerCase() === 첫말);
@@ -167,7 +175,11 @@ export function previewPathOf(target, roots = defaultFileRoots(), home = homedir
   if (!raw) return base;
   // `~/` 해석도 실행 경로(resolveInScope)와 같은 규칙 — 카드가 다른 자리를 말하면 안 된다.
   const t = raw === '~' ? home : raw.startsWith('~/') ? resolve(home, raw.slice(2)) : raw;
-  return isAbsolute(t) ? resolve(t) : resolve(base, t);
+  if (isAbsolute(t)) return resolve(t);
+  // 표준 폴더 상대 경로도 실행과 같은 자(홈 앵커) — 카드가 `<루트>/Desktop` 을 말하고
+  // 실행이 홈 Desktop 에 쓰면 승인이 승인이 아니다(두 진실 금지).
+  const 표준 = 표준폴더디스크이름(t.split(/[/\\]/)[0]);
+  return 표준 ? resolve(home, 표준, t.split(/[/\\]/).slice(1).join(sep)) : resolve(base, t);
 }
 
 /** 첫 루트를 만들어 둔다(처음 쓸 때 폴더가 없어서 실패하지 않게). */
@@ -248,3 +260,19 @@ export function 부르는이름들(roots = defaultFileRoots(), env = process.env
 
 /** 디스크의 표준 폴더 이름 → 사용자가 부르는 말. locate 의 `표준폴더말` 의 역방향(같은 세 곳). */
 const 폴더부름말 = { Downloads: '다운로드', Documents: '문서', Desktop: '바탕화면' };
+
+/**
+ * 상대 경로의 첫말이 표준 폴더의 **디스크 이름**(`Desktop`·`Documents`·`Downloads`)인가.
+ * 한 벌 진실은 `폴더부름말` 의 키다(두 벌로 두면 한쪽만 늘어난다). 맞으면 정규 표기를 돌려주고,
+ * 아니면 null — 지어내지 않는다.
+ *
+ * 부르는 말(`문서`·`바탕화면`)은 여기서 **안** 알아듣는다 — 평범한 폴더 이름과 충돌한다(실측:
+ * 모델이 `to:'문서'` 를 루트 안 새 폴더 이름으로 자연스럽게 쓴다 — bulk_move·동의 이어가기 검사).
+ * 말을 자리로 번역하는 것은 locate 의 일이고, 경로에 실려 오는 표준 폴더는 디스크 이름이다
+ * (⑫ 회차 F R1 의 모델 인자도 `Desktop/…` 였다).
+ */
+function 표준폴더디스크이름(첫말) {
+  const k = String(첫말 ?? '').normalize('NFC').toLowerCase();
+  if (!k) return null;
+  return Object.keys(폴더부름말).find((디스크) => 디스크.toLowerCase() === k) ?? null;
+}

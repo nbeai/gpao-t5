@@ -17,7 +17,9 @@ async function 무대() {
   await mkdir(join(A, '자료'), { recursive: true });
   await mkdir(join(H, 'Desktop'), { recursive: true });
   await writeFile(join(A, '자료', 'f.txt'), 'x');
-  return { H, A, 손: makeLocalFileTool({ roots: [A], home: H, dataDir: A }) };
+  // 주입 인자는 `homeDir` 다(`deps.home` 은 조용히 무시된다) — 옛 이름으로 넣으면 이 봉인이
+  // 실제 홈을 자로 쓰게 되어, 무대(H)가 실제 홈 안에 있을 때만 우연히 통과한다(2026-08-08 밟음).
+  return { H, A, 손: makeLocalFileTool({ roots: [A], homeDir: H, dataDir: A }) };
 }
 
 test('move 의 목적지가 홈 안이면 write 와 똑같이 허용된다', async () => {

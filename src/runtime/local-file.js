@@ -289,13 +289,16 @@ export function makeLocalFileTool(deps = {}) {
           cancel: '되돌리기를 되돌릴 수는 없어요 — 다시 하면 됩니다',
         };
       }
-      const abs = previewPathOf(args.path, roots);
+      // 카드도 실행과 같은 자를 본다 — 홈을 빼면 표준 폴더 상대 경로(`Desktop/…`)가 카드에서만
+      // 다른 자리(또는 이름 없는 자리)로 보인다(두 진실 금지 · ⑫ 회차 F R1).
+      const 카드루트 = [...roots, home ?? homedir()];
+      const abs = previewPathOf(args.path, roots, home);
       const 이름 = basename(abs);
       const impact = action === 'delete' ? `${이름} 을(를) 지워요`
         : action === 'write' && typeof args.source === 'string' && args.source.trim()
           ? `${이름} 에 저장해요(원본은 그대로 두어요)`
         : action === 'write' ? `${이름} 에 저장해요`
-        : action === 'move' ? `${이름} 을(를) ${userVisiblePath(previewPathOf(args.to, roots), roots)} 로 옮겨요`
+        : action === 'move' ? `${이름} 을(를) ${userVisiblePath(previewPathOf(args.to, roots, home), 카드루트)} 로 옮겨요`
             : `${이름} 을(를) ${action} 해요`;
       // **무엇이 적히는가.** 자리만 보여주면 사용자는 "무엇을 허락하는지" 절반만 안다 —
       // 실측(2026-07-27): 오너가 "뭘 적을지도 같이 알려줘"라고 물었는데 카드에는 파일 이름과
@@ -308,7 +311,7 @@ export function makeLocalFileTool(deps = {}) {
         impact,
         ...(적을것 ? { what: 적을것 } : {}),
         // **실제로 어디에 생기는가.** 인자가 아니라 이 줄이 사용자가 확인할 사실이다.
-        scope: userVisiblePath(abs, roots),
+        scope: userVisiblePath(abs, 카드루트),
         duration: '이번 한 번',
         // 되돌릴 수 있는지는 **이 작업에 대해** 말한다. 도구 전체 라벨로는 알 수 없다.
         // 그리고 **같은 write 라도 되돌리는 방식이 다르다** — 덮어쓰기는 원본을 되살리는 것이고
@@ -600,7 +603,10 @@ export function makeLocalFileTool(deps = {}) {
           // 원본을 밝히면(어디서 만든 결과물인지), 그 자리로는 저장하지 않는다.
           let 원본;
           if (typeof args.source === 'string' && args.source.trim()) {
-            try { 원본 = await resolveInScope(args.source, { roots, home }); }
+            // 원본도 대상(abs)과 **같은 자**를 봐야 같은 자리인지 알 수 있다 — 여기만 홈 없는 자를
+            // 보면 좁힌 구성에서 `source:'Desktop/…'` 가 ScopeError 로 삼켜져 원본 보호가 조용히
+            // 꺼진다(공정감시 지적 2026-08-08 · ⑫ 앵커 통일이 만든 새 갈래).
+            try { 원본 = await resolveInScope(args.source, { roots: [...roots, home ?? homedir()], home }); }
             catch { /* 원본 표시가 틀렸다고 저장까지 막지는 않는다 — 같은 자리일 수 없으면 지킬 것도 없다 */ }
           }
           if (원본 && 원본 === abs) {
