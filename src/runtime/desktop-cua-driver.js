@@ -805,13 +805,26 @@ export function makeCuaDriver(deps = {}) {
         return Number.isInteger(w?.pid) ? w.pid : null;
       };
 
-      // **확인 표식은 한 자리에서 붙인다.** 두 번 부르는 길(후보에서 하나 고르기)이 생겼는데
-      // 거기에 표식을 안 붙여서, 드라이버가 `activated:true` 로 확인해 준 focus 가
-      // **실패로 나갔다**(내가 낸 회귀 · 2026-08-05 라이브에서 잡음).
-      const 확인붙이기 = (r) => (
-        r?.exact_window_effect?.verified === true || r?.activated === true
-          ? { ...r, 확인됨: true, 근거: r.code ?? 'driver_verified' }
-          : r);
+      // ── **드라이버 확인은 한 자리에서, 한 규칙으로 받는다** (1단계 빼는 걸음 · 2026-08-08) ──
+      //
+      // 예전엔 focus(`activated`)·launch(`launch_state`)에만 특수 표식을 붙였고, move·resize 는
+      // 우리 전후 대조로 갔다 — 벤더는 `set_window_frame` 을 *"returns confirmed only after
+      // geometry readback"* 으로 이미 확인해 주는데, 우리 대조가 창 관리자보다 먼저 찍어
+      // **없는 실패**를 만들었다(그 병만 네 번). 0.14 행동 계약이 `effect` 로 통일됐으니
+      // 특수 표식 대신 그 계약을 읽는다.
+      //
+      // **누르는 것(클릭·입력)은 여기서 안 받는다** — 계약 원문: *"These fields describe the
+      // actuator; they do not declare the user's task complete."* 누르기의 판정은 모델이
+      // 선언한 의미 효과이고, 그건 `verify_state`(손 쪽)가 받는다.
+      const 행동이곧목표 = new Set(['focus', 'launch', 'quit', 'move', 'resize']);
+      const 드라이버확인 = (r) => {
+        if (!r || typeof r !== 'object' || r.확인됨 === true) return r;
+        const 근거 = r.exact_window_effect?.verified === true || r.activated === true
+          ? (r.code ?? 'driver_verified')
+          : r.launch_state?.process_running === true ? 'launch_state.process_running'
+            : r.effect === 'confirmed' ? 'effect.confirmed' : null;
+        return 근거 ? { ...r, 확인됨: true, 근거 } : r;
+      };
       // 요소를 짚는 값과 창을 가리키는 값 — **한 자리에서 만든다**(계열 A).
       const 짚기 = () => ({
         ...(대상.토큰 ? { element_token: 대상.토큰 }
@@ -873,17 +886,15 @@ export function makeCuaDriver(deps = {}) {
             // 고를 수 없는 것을 고르라고 하는 건 고를 수 있는 척하는 것이다.
             const 보이는것 = 후보.filter((c) => c.보임);
             if (보이는것.length === 1) {
-              return 확인붙이기(await mcp.call('bring_to_front', {
+              return mcp.call('bring_to_front', {
                 window_id: 보이는것[0].window, ...(pid != null ? { pid } : {}),
-              }));
+              });
             }
             return { 골라야함: 보이는것.length ? 보이는것 : 후보 };
           }
-          // **드라이버가 스스로 검증해서 준다.** 우리 전후 추측보다 이게 낫다 —
-          // `verified:true` · `focused_window_id` 까지 온다(실물 확인 2026-08-05).
-          // 우리 관찰은 창 관리자가 반영하기 전에 찍힐 수 있어 **없는 실패**를 만든다.
-          // 드라이버가 더 잘하는 것을 우리가 어설프게 다시 만들지 않는다.
-          return 확인붙이기(r);
+          // 드라이버가 스스로 검증해서 준다(`verified:true`·`focused_window_id`) —
+          // 표식은 아래 `드라이버확인` 한 자리가 붙인다.
+          return r;
         },
         // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
         // cua 는 켜고도 일부러 앞으로 안 올린다(`self_activation_suppressed`). 그걸 앞으로
@@ -902,10 +913,8 @@ export function makeCuaDriver(deps = {}) {
           const 켤이름 = 고른것?.앱
             ? (String(고른것.앱.launch_path ?? '').split('/').pop().replace(/\.app$/i, '') || 고른것.앱.name)
             : 대상.app;
-          const r = await mcp.call('launch_app', { name: 켤이름 });
-          return r?.launch_state?.process_running === true
-            ? { ...r, 확인됨: true, 근거: 'launch_state.process_running' }
-            : r;
+          // 켜졌는지는 드라이버가 `launch_state` 로 밝힌다 — 표식은 `드라이버확인` 이 붙인다.
+          return mcp.call('launch_app', { name: 켤이름 });
         },
         quit: async () => {
           const pid = await pid찾기();
@@ -1089,6 +1098,8 @@ export function makeCuaDriver(deps = {}) {
       // **한 자리에서 가른다.** 손마다 따로 막다가 `click` 에서 또 샜다(라이브 2026-08-05).
       // **읽는 자리는 하나다**(계열 B) — `desktop-driver-answer.js`.
       if (거절인가(낸것)) throw new Error(거절사유(낸것));
+      // 행동 자체가 목표인 것만 — 사다리(앞세움 재시도)까지 끝난 최종 답에 붙인다.
+      if (행동이곧목표.has(행동)) 낸것 = 드라이버확인(낸것);
       return 앞세워함 ? { ...낸것, 앞세워함: true } : 낸것;
     },
   };
