@@ -610,7 +610,8 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
  */
 function 표맥락에서(receipts) {
   const 폴더들 = new Map();
-  for (const r of receipts ?? []) {
+  // 캡슐 경유 읽기도 같은 원장이다(회차 J R1 실측) — innerReceipts 를 한 겹 펴서 같은 자로.
+  for (const r of (receipts ?? []).flatMap((x) => [x, ...(x?.result?.innerReceipts ?? [])])) {
     if ((r?.failureState ?? 'none') !== 'none') continue;
     const ac = r?.actualCall;
     if (ac?.tool !== 'local.file' || ac?.args?.action !== 'read') continue;

@@ -223,8 +223,13 @@ export function 완료주장검증({ reply, receipts = [], 원장글 = '', 이�
   // 미완료를 밝히면 범위를 밝힌 것이다(실측: 정직한 답은 "8월 정산내역.csv 에 있을 수
   // 있는데"라고 이름을 불렀고, 거짓이 되는 답은 이름 없이 "총 2,120,000"이라 했다).
   {
-    const 읽은들 = (receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
-      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read');
+    // **캡슐 경유 읽기도 같은 원장이다**(회차 J R1 실측 2026-08-08). 캡슐이 반만 읽고
+    // 답이 한정 없는 "총"을 말했는데, 여기가 바깥 read 영수증만 봐서 지나쳤다 —
+    // innerReceipts 는 같은 영수증 모양이므로 한 겹 펴서 같은 자로 잰다(새 규칙 아님).
+    const 읽기영수증 = (r) => (r?.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read';
+    const 읽은들 = (receipts ?? []).flatMap((r) => [r, ...(r?.result?.innerReceipts ?? [])])
+      .filter(읽기영수증);
     const 읽은이름 = new Set(읽은들.map((r) => String(r?.result?.path ?? '').split('/').pop()));
     const 안읽은 = [...new Set(읽은들.flatMap((r) => r?.result?.같은자리파일 ?? []))]
       .filter((n) => !읽은이름.has(n));

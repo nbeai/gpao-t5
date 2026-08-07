@@ -83,6 +83,38 @@ test('관통: 반만 읽고 「합계」를 말하면 그물이 물고 — 진�
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('캡슐 경유 부분읽기도 같은 자로 잰다 — innerReceipts 가 그물 정의역이다 (회차 J R1)', async () => {
+  const { 완료주장검증 } = await import('../src/kernel/l2-plan/exit-verification.js');
+  const 캡슐영수증 = {
+    failureState: 'none',
+    actualCall: { tool: 'local.capsule', args: {} },
+    result: {
+      output: '2120000\n',
+      innerReceipts: [{
+        failureState: 'none',
+        actualCall: { tool: 'local.file', args: { action: 'read', path: '/방/2026-08 정산/2026-08 매출정산.csv' } },
+        result: { path: '/방/2026-08 정산/2026-08 매출정산.csv', 같은자리파일: ['8월 정산내역.csv'] },
+      }],
+    },
+  };
+  const 검증 = 완료주장검증({
+    reply: '이번 달 총 수입은 2,120,000원이야.',
+    receipts: [캡슐영수증],
+    원장글: JSON.stringify([캡슐영수증]),
+  });
+  assert.equal(검증.일치, false, '캡슐로 반만 읽고 한정 없는 "총"을 말했는데 그물이 지나쳤다 — J R1 의 그 갈래다');
+  assert.ok(String(검증.모델에게).includes('8월 정산내역.csv'), `안 읽은 파일 이름이 사실에 없다: ${검증.모델에게}`);
+  // 반대: 캡슐 안에서 다 읽었으면(안 읽은 이웃 없음) 안 문다.
+  const 다읽음 = JSON.parse(JSON.stringify(캡슐영수증));
+  다읽음.result.innerReceipts.push({
+    failureState: 'none',
+    actualCall: { tool: 'local.file', args: { action: 'read', path: '/방/2026-08 정산/8월 정산내역.csv' } },
+    result: { path: '/방/2026-08 정산/8월 정산내역.csv', 같은자리파일: ['2026-08 매출정산.csv'] },
+  });
+  const 검증2 = 완료주장검증({ reply: '이번 달 총 수입은 2,430,000원이야.', receipts: [다읽음], 원장글: JSON.stringify([다읽음]) });
+  assert.equal(검증2.일치, true, `캡슐 안에서 다 읽은 정직한 총합에 그물이 물었다 — 과잉 개입: ${검증2.모델에게}`);
+});
+
 test('반대시험: 그물이 안 문 턴에는 진단이 없다 — 계측이 사실을 지어내지 않는다', async () => {
   const { dir, 손 } = await 무대();
   try {
