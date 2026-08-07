@@ -575,6 +575,10 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
   const 검증 = 완료주장검증({ reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림) });
   if (검증.일치) return reply;
   ctx.출구되돌림 = true;
+  // **그물이 물었다는 사실을 남긴다**(계측 · 회차 H 실측 2026-08-08). 회차 원본에 최종 답만
+  // 실려서 "그물이 물었는데 모델이 반복했다"와 "그물이 안 물었다"를 가릴 수 없었다 —
+  // 안 보이면 또 추측 수리를 하게 된다(P2-7 과 같은 이유). 진단면이다 — 사용자면에 안 나간다.
+  ctx.출구그물 = { 사실: 검증.모델에게 };
   // **되돌림은 이어감이 아니라 대체다**(F-8). 안 물리면 서로 어긋나는 두 답이 한 답으로
   // 저장되고 그대로 사용자에게 간다 — 라이브에서 정확히 그렇게 나갔다.
   ctx.미리보기?.retract?.();
@@ -1153,6 +1157,7 @@ export async function runTurn(input, ctx) {
       contextShown: workingStateFacts(idleState),
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
+      exitNetDiagnostic: ctx.출구그물, // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
       memoryWithdrawal,
@@ -2665,6 +2670,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     identityUpdate: ctx.identityUpdate, // P-ID-1: 승인 재개 경로에서도 이름 지정을 잃지 않는다
     usedSkill: ctx.usedSkill,           // Phase 0-4: 어떤 배운 작업이 도왔는지(조용히 바뀌지 않는다)
     selfStateSummary: summary,
+    exitNetDiagnostic: ctx.출구그물,     // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
     // **영수증의 사용자면 문장을 쓴다.** 예전엔 계획의 `recoveryCriteria`(내부 문자열)를 그대로

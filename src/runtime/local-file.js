@@ -528,12 +528,35 @@ export function makeLocalFileTool(deps = {}) {
           } catch { /* 이웃을 못 세도 읽기는 이미 됐다 — 빈 채로 간다 */ }
           // 이웃 사실은 **요약줄에도** 싣는다(감사 승인 레버 ① · 2026-08-08). data 깊숙이만 넣으니
           // 모델이 지나쳤다 — 요약줄은 원장·모델·사용자가 다 보는 가장 강한 지면이다.
-          const 이웃말 = 같은자리.length
-            ? ` (같은 자리에 ${같은자리.length}개 더: ${같은자리.slice(0, 3).join(' · ')}${같은자리.length > 3 ? ' …' : ''})`
-            : '';
           // 표 사실도 요약줄에 싣는다(레버 ① 과 같은 지면) — 합계가 data 깊숙이만 있으면
           // 모델이 지나치고 암산으로 돌아간다(이웃 사실에서 이미 밟은 병).
           const 표 = extname(abs).toLowerCase() === '.csv' && !document ? 표사실(전문) : null;
+          // **이웃의 합계도 손이 아는 사실이다**(레버 ① 연장 · 회차 H 실측 2026-08-08).
+          // 이름만 주니 모델이 안 읽은 채 부분합에 "총" 을 명명했다(⑤ H R1·R2 · ⑫ H R3 —
+          // 그물이 사실을 되돌려도 answerOnly 되돌림에는 손이 없어 마저 읽을 수 없다).
+          // CSV 를 읽는 맥락에서만, 보이는 이웃(앞 3개)의 CSV 표 합계를 같은 지면에 동봉한다 —
+          // 첫 답을 짓는 순간 모든 숫자가 기계 사실로 손에 있게. 못 읽거나 애매하면 이름만 남는다.
+          const 이웃표 = {};
+          if (표) {
+            for (const n of 같은자리.slice(0, 3)) {
+              if (!n.normalize('NFC').toLowerCase().endsWith('.csv')) continue;
+              try {
+                const p = join(dirname(abs), n);
+                const st = await stat(p);
+                if (st.size > 262_144) continue;
+                const t = 표사실((await readFile(p)).toString('utf8'));
+                if (t) 이웃표[n] = t;
+              } catch { /* 이웃을 못 읽어도 본 읽기는 이미 됐다 */ }
+            }
+          }
+          // ⚠ `같은자리파일` 은 **순수 이름 배열로 동결** — 출구 그물이 이름 일치로 잰다.
+          const 이웃이름 = (n) => (이웃표[n]
+            ? `${n}(표 ${이웃표[n].rows}행 · 합계 ${Object.entries(이웃표[n].sums).slice(0, 2)
+              .map(([열, 값]) => `${열} ${값.toLocaleString('ko-KR')}`).join(' · ')})`
+            : n);
+          const 이웃말 = 같은자리.length
+            ? ` (같은 자리에 ${같은자리.length}개 더: ${같은자리.slice(0, 3).map(이웃이름).join(' · ')}${같은자리.length > 3 ? ' …' : ''})`
+            : '';
           const 표말 = 표
             ? ` (표 ${표.rows}행 · 합계 ${Object.entries(표.sums).slice(0, 3)
               .map(([열, 값]) => `${열} ${값.toLocaleString('ko-KR')}`).join(' · ')})`
@@ -545,6 +568,7 @@ export function makeLocalFileTool(deps = {}) {
             ...(document ? { document } : {}),
             ...(표 ? { table: 표 } : {}),
             ...(같은자리.length ? { 같은자리파일: 같은자리 } : {}),
+            ...(Object.keys(이웃표).length ? { 같은자리표: 이웃표 } : {}),
             modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
           });
         }
