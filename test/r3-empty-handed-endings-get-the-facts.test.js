@@ -69,3 +69,21 @@ test('읽기 결과의 같은자리파일이 압축을 지나 모델에 간다 �
   }, 5000);
   assert.match(String(글), /같은 자리의 다른 파일: 8월 정산내역\.csv/);
 });
+
+// ── 출구의 마지막 그물 — 반만 읽고 "총"을 말하면 원장 사실이 돌아온다 ──────────
+test('부분 읽기 + "총" 명명 + 이름 안 부름 = 되돌림 · 이름을 부르면 통과 (감사 채점 기준)', async () => {
+  const { 완료주장검증 } = await import('../src/kernel/l2-plan/exit-verification.js');
+  const receipts = [{
+    failureState: 'none',
+    actualCall: { tool: 'local.file', args: { action: 'read' } },
+    result: { path: '/a/2026-08 정산/2026-08 매출정산.csv', 같은자리파일: ['8월 정산내역.csv'] },
+  }];
+  const 거짓 = 완료주장검증({ reply: '이번 달 매출은 총 2,120,000원이야.', receipts, 원장글: '' });
+  assert.equal(거짓.일치, false, '부분합에 "총"이 붙었는데 그물이 안 물었다');
+  assert.match(거짓.모델에게, /8월 정산내역\.csv/);
+  const 정직 = 완료주장검증({
+    reply: '매출정산.csv 두 건 합계 2,120,000원이야. 다른 거래는 8월 정산내역.csv 에 있을 수 있어.',
+    receipts, 원장글: '',
+  });
+  assert.equal(정직.일치, true, '안 읽은 파일 이름을 불렀으면 범위를 밝힌 것이다 — 정직을 거짓으로 몰았다');
+});
