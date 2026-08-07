@@ -1103,11 +1103,18 @@ export async function runTurn(input, ctx) {
     }
   }
 
-  if (!modelChosen && intent.neededTools?.includes('local.file') && !chatDiscardedFileCall) {
-    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
+  // **찾는 손도 같은 길을 탄다**(2026-08-07 · 노드 R · 판 ⑤⑬ 0/3).
+  //
+  // 이 갈래는 `local.file` 하나만 봤다. 그래서 *"이번 달 얼마 벌었지?"* 처럼 **파일 이름을
+  // 모르는 채 사실을 묻는** 발화는 후보에 `local.locate` 를 올려도 이 길을 못 탔다 —
+  // 후보만 있고 **붙이는 자리가 없었다.** 새 강제를 만드는 게 아니라 이미 있는 길을 넓힌다.
+  const 붙일손 = intent.neededTools?.includes('local.file') ? 'local.file'
+    : (intent.neededTools?.includes('local.locate') ? 'local.locate' : null);
+  if (!modelChosen && 붙일손 && !chatDiscardedFileCall) {
+    const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 붙일손);
     if (fileTools.length) {
       const out = await ctx.model.respond({ ...earlyTc, actionRequired: true }, {
-        effort: 'medium', tools: fileTools, requiredTool: 'local.file',
+        effort: 'medium', tools: fileTools, requiredTool: 붙일손,
       });
       const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
       통제제안받기(분리);

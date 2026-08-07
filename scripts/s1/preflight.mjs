@@ -162,6 +162,10 @@ export const 허용파일 = [
   'vendor/cua-driver/darwin-arm64/cua-driver',
   'src/kernel/turn.js',
   'src/kernel/l1-intent/task-context.js',
+  // **사실을 묻는 것도 일이다**(2026-08-07 · 노드 R · 판 ⑤⑬).
+  // `ACTION_SIGNALS` 가 명령 동사만 잡아 *"이번 달 얼마 벌었지?"* 가 `fast_chat` 으로
+  // 분류됐다 — 계획 단계에서 손 후보가 0개가 되어 모델이 뻗을 길이 없었다.
+  'src/kernel/l1-intent/intent.js',
   // **막혔을 때의 다음 길은 소비자가 둘이다**(노드 R 첫 걸음 · 2026-08-07).
   // 원장이 `userSafeSummary — nextSafeAction` 을 **합쳐서** 모델에게 보낸다(`ledger.js:59`).
   // 그래서 *"그 폴더를 열어 주시면"* 이 모델의 다음 행동이 되어 사장님께 되물었다(⑫ 0/3).
