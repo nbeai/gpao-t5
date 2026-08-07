@@ -560,6 +560,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       return rec?.provider ?? rec?.kind ?? undefined;
     },
 
+    /** 지금 실제로 요청에 실릴 모델 id — 창 예산(노드 W)이 이걸로 표를 찾는다.
+     *  `selectionFor` 가 doctor·성장 신분에 주는 것과 **같은 해석**이다(두 진실 금지). */
+    activeModelId() {
+      return selectionFor(DEFAULT_ROLE).requestModelId ?? undefined;
+    },
+
     /** 지금 연결된 모델이 **스스로 웹을 찾을 수 있는가**(1층). 자기인지·계획이 이걸 본다. */
     supportsSearch() {
       // 계정 경로의 내장 검색은 응답 문장만 돌려준다 — 검색 과정·출처를 T5 원장으로 회수하는

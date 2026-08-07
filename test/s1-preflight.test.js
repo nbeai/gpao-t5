@@ -245,5 +245,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // F-9 · 표를 그린다(0단계 옆줄 · 2026-08-08) — 렌더러가 표를 그리게 한다(장부 판정 ①).
     'src/surface/web/markdown.js',
     'src/surface/web/index.html',
+    // 노드 W · 창을 알고 몫을 나눈다(2단계 · 2026-08-08) — 상한이 창 예산의 파생값이 된다.
+    'src/kernel/l1-intent/model-window.js',
+    'src/kernel/l1-intent/conversation.js',
+    'src/surface/model-connection.js',
   ]);
 });

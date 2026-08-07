@@ -953,6 +953,7 @@ export async function runTurn(input, ctx) {
       processEnv: ctx.processEnv,
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
       intent, selfState, admittedContext: admitted, admittedRich, automationProposal, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
+      창예산: ctx.창예산, // 노드 W · 결과 상한이 창의 파생값이 된다(모르면 null → 옛 값)
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       // 3축: 지금 이 답이 어디로 나가는가(웹/메신저). 같은 커널, 표면만 다르다.
@@ -1918,6 +1919,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   }), ctx.connectors);
   let tc = buildTaskContext({
     processEnv: ctx.processEnv,
+      창예산: ctx.창예산, // 노드 W · 결과 상한이 창의 파생값이 된다(모르면 null → 옛 값)
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
@@ -2202,6 +2204,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }), ctx.connectors);
       tc = buildTaskContext({
         processEnv: ctx.processEnv,
+      창예산: ctx.창예산, // 노드 W · 결과 상한이 창의 파생값이 된다(모르면 null → 옛 값)
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
@@ -2457,6 +2460,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 셋 중 둘만 돌고서 "했어요."라고 답했다(밟은 사실 2026-08-05).
     if (예산소진(쓴것(), 예산) && 대기호출.length) 남은줄거두기();
     tc = buildTaskContext({
+      창예산: ctx.창예산, // 노드 W · 결과 상한이 창의 파생값이 된다(모르면 null → 옛 값)
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,

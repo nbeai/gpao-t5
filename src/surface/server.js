@@ -21,6 +21,7 @@ import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
 import { recentTurns } from '../kernel/l1-intent/conversation.js';
+import { 창예산 } from '../kernel/l1-intent/model-window.js';
 import { AllowlistStore } from './allowlist-store.js';
 import { ChannelBindingStore } from './channel-binding-store.js';
 import { ChannelCredentialStore } from './channel-credential-store.js';
@@ -563,7 +564,19 @@ export function makeServer(deps = {}) {
       projectWorkState: projectedWorkState,
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
-      recentTurns: recentTurns(session.transcript ?? []),
+      // 노드 W: 창을 알면 이력 상한이 예산의 파생값이 된다(자수가 지배하므로 턴 수 상한은 푼다).
+      // 모르는 모델이면 창 = null → 옛 고정값 그대로 — 지어내지 않는다.
+      ...(() => {
+        const 창 = 창예산({
+          modelId: deps.modelConnection?.activeModelId?.() ?? (deps.processEnv ?? process.env).GPAO_T5_MODEL_ID,
+          설정입력토큰: (deps.processEnv ?? process.env).GPAO_T5_MODEL_INPUT_TOKENS,
+        });
+        return {
+          창예산: 창,
+          recentTurns: recentTurns(session.transcript ?? [], 창
+            ? { maxTurns: Infinity, maxChars: 창.이력자, maxPerTurn: 창.발화자 } : {}),
+        };
+      })(),
       // **앞 턴의 도구 대화를 되돌려 준다**(정본 §S2 필수 계약 ②). 대화에 저장돼 있으므로
       // 재시작·다른 프로세스에서도 살아난다 — 모델 주도 구조에서 행동 이력이 지워지면
       // 그건 기억상실이다. 가장 최근 턴 것만 준다: 전부 실으면 프롬프트가 턴마다 커진다.

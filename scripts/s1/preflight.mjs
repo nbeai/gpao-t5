@@ -405,6 +405,13 @@ export const 허용파일 = [
   // 방향이 아니다). 같은 안전 계약(선 escape · 우리 태그만) 안에서 표 블록만 넓힌다.
   'src/surface/web/markdown.js',
   'src/surface/web/index.html',
+  // **노드 W · 모델의 창을 알고 몫을 나눈다**(2단계 · 2026-08-08). 이력 4,000자·결과 1,200자는
+  // 창을 모른 채 박은 값이었고(입력 여유의 1%), ⑪이 그 상한에 정확히 잘렸다. 창표+설정 덮기
+  // (작은 쪽)에서 예산을 세우고 이력·발화·결과 상한이 그 파생값이 된다. 모르는 모델은 옛 값.
+  'src/kernel/l1-intent/model-window.js',
+  'src/kernel/l1-intent/conversation.js',
+  // 지금 실릴 모델 id 를 밝히는 문 하나(`activeModelId`) — doctor 와 같은 해석(두 진실 금지).
+  'src/surface/model-connection.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

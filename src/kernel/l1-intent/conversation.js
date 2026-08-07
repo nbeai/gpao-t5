@@ -26,13 +26,19 @@ function readableText(entry) {
 
 /**
  * 최근 대화를 모델 입력용으로 뽑는다.
+ *
+ * 상한 셋은 **창 예산이 오면 그 파생값**이고(노드 W · `model-window.js`), 안 오면 옛 고정값이다 —
+ * 창을 모르는 모델에서 큰 값을 지어내지 않는다. 위 고정값 주석의 "충분한 최소"는 창을 모르던
+ * 시절의 판단이었다: 실측으로 gpt-5.1 입력 여유의 1% 남짓만 쓰고 있었고 ⑪(스무 턴 뒤)이
+ * 그 상한에 정확히 잘렸다.
  * @param {Array<{role:string, text?:string, result?:object}>} transcript
- * @param {{maxTurns?:number, maxChars?:number}} [opts]
+ * @param {{maxTurns?:number, maxChars?:number, maxPerTurn?:number}} [opts]
  * @returns {Array<{role:'user'|'assistant', text:string}>} 오래된 것 → 최근 것 순
  */
 export function recentTurns(transcript, opts = {}) {
   const maxTurns = opts.maxTurns ?? MAX_TURNS;
   const maxChars = opts.maxChars ?? MAX_CHARS;
+  const maxPerTurn = opts.maxPerTurn ?? MAX_PER_TURN;
   const out = [];
   let chars = 0;
   // 뒤에서부터 채운다 — 잘려야 한다면 **오래된 쪽**이 잘려야 한다.
@@ -41,7 +47,7 @@ export function recentTurns(transcript, opts = {}) {
     const role = entry?.role === 'assistant' ? 'assistant' : 'user';
     let text = readableText(entry).trim();
     if (!text) continue;
-    if (text.length > MAX_PER_TURN) text = `${text.slice(0, MAX_PER_TURN)}…`;
+    if (text.length > maxPerTurn) text = `${text.slice(0, maxPerTurn)}…`;
     if (chars + text.length > maxChars) break;
     chars += text.length;
     out.push({ role, text });

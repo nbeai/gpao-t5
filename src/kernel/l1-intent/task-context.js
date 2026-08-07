@@ -868,7 +868,8 @@ export function buildTaskContext(p) {
           return g ? { 그림: g } : {};
         })()),
         // 실패한 호출의 결과는 확인된 값이 아니다 — 내용을 사실처럼 싣지 않고 상태만 준다.
-        ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result) }),
+        // 결과 상한은 창 예산의 파생값이다(노드 W) — 창을 알면 원문이 접히지 않고 간다.
+        ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result, p.창예산?.결과자 ?? undefined) }),
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
         // **막혔을 때야말로 다음 수가 필요하다**(라이브 2026-08-05).
         //
@@ -921,7 +922,7 @@ export function buildTaskContext(p) {
       summary: r.userSafeSummary, // diagnosticTrace 는 절대 넣지 않는다
       // 결과의 **알맹이**도 준다. 요약만 주면 모델이 "목록을 붙여달라"고 되묻는다(실측: 파일 목록을
       // 실제로 읽어 놓고 "도구가 없어 못 본다"고 답했다). 진단면은 여전히 안 넣는다.
-      data: compactResult(r.result),
+      data: compactResult(r.result, p.창예산?.결과자 ?? undefined),
       // **무엇으로 불렀는가**도 준다. 요약과 결과만 주면 모델은 자기가 보낸 인자를 다시 못 본다.
       // 그러면 "무엇을 적었는지"를 기억으로 재구성한다 — 실측(2026-07-27 라이브, 텔레그램·화면
       // 양쪽): `메모5.md` 에 실제로 쓴 목록과 T5 가 "이렇게 적었어"라며 보고한 목록이 **세 줄 다
