@@ -241,6 +241,12 @@
   .msg.bot blockquote { margin:0 0 var(--sp-2); padding-left:var(--sp-3);
                         border-left:3px solid rgba(127,127,127,0.35); opacity:0.9; }
   .msg.bot hr { border:0; border-top:1px solid rgba(127,127,127,0.25); margin:var(--sp-3) 0; }
+  /* 표 (F-9) — 넓은 표는 말풍선 안에서 가로로만 민다. 색은 위 코드·인용과 같은 중립 틴트다. */
+  .msg.bot table { border-collapse:collapse; margin:0 0 var(--sp-2); font-size:0.94em;
+                   display:block; overflow-x:auto; max-width:100%; }
+  .msg.bot th, .msg.bot td { border:1px solid rgba(127,127,127,0.3); padding:3px 10px;
+                             text-align:left; vertical-align:top; }
+  .msg.bot th { font-weight:650; background:rgba(127,127,127,0.12); }
   .msg.bot a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
   .me { align-self:flex-end; background:var(--me); border-bottom-right-radius:var(--r-sm); }
   .who { font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }

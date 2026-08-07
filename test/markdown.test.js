@@ -86,3 +86,47 @@ test('빈 입력·없는 입력에 아무 것도 만들지 않는다', () => {
   assert.equal(renderMarkdown(''), '');
   assert.equal(renderMarkdown(null), '');
 });
+
+// ── 표 (F-9 · 2026-08-08) — 모델이 정확히 낸 표가 파이프 문자로 떴다 ──────────
+test('표가 표로 그려진다 — 머리행·구분행·본문행', () => {
+  const h = renderMarkdown('| 항목 | 예산 |\n|---|---|\n| 광고 | 300,000 |\n| 배달 | 120,000 |');
+  assert.match(h, /<table><thead><tr><th>항목<\/th><th>예산<\/th><\/tr><\/thead>/);
+  assert.match(h, /<td>광고<\/td><td>300,000<\/td>/);
+  assert.match(h, /<td>배달<\/td>/);
+  assert.doesNotMatch(h, /\|/, '파이프 문자가 화면에 남으면 F-9 그대로다');
+});
+
+test('구분행이 없으면 표가 아니다 — 파이프 낀 문단은 문단으로 남는다(반대시험)', () => {
+  const h = renderMarkdown('가격은 3,000 | 5,000 중 하나예요');
+  assert.doesNotMatch(h, /<table>/);
+  assert.match(h, /<p>/);
+});
+
+test('구분선(---)을 표 구분행으로 삼키지 않는다 — 한 칸짜리는 표가 아니다(반대시험)', () => {
+  const h = renderMarkdown('a | b 라고 썼다\n---\n다음 문단');
+  assert.doesNotMatch(h, /<table>/);
+  assert.match(h, /<hr>/);
+});
+
+test('셀 안 HTML·서식 — escape 는 유지되고 inline 서식만 산다(안전 계약 1)', () => {
+  const h = renderMarkdown('| 이름 | 값 |\n|---|---|\n| <script>x</script> | **굵게** |');
+  assert.doesNotMatch(h, /<script>/);
+  assert.match(h, /&lt;script&gt;/);
+  assert.match(h, /<td><strong>굵게<\/strong><\/td>/);
+});
+
+test('정렬 콜론 — 고정 문자열 셋만 속성이 된다', () => {
+  const h = renderMarkdown('| a | b | c |\n|:---|:---:|---:|\n| 1 | 2 | 3 |');
+  assert.match(h, /<th>a<\/th><th style="text-align:center">b<\/th><th style="text-align:right">c<\/th>/);
+});
+
+test('들쭉날쭉한 행 — 칸수는 머리행이 정한다(남으면 버리고 모자라면 빈칸)', () => {
+  const h = renderMarkdown('| a | b |\n|---|---|\n| 1 |\n| 1 | 2 | 3 |');
+  assert.match(h, /<td>1<\/td><td><\/td>/);
+  assert.doesNotMatch(h, /<td>3<\/td>/);
+});
+
+test('표 뒤 문단이 정상으로 이어진다', () => {
+  const h = renderMarkdown('| a |  b |\n|---|---|\n| 1 | 2 |\n\n그 다음 이야기');
+  assert.match(h, /<\/table><p>그 다음 이야기<\/p>/);
+});
