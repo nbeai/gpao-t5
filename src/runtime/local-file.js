@@ -229,12 +229,17 @@ export function makeLocalFileTool(deps = {}) {
         const prot = protectionBlocks(abs, { write: true });
         if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
         if (action === 'move') {
-          const dest = await resolveInScope(args.to ?? '', { roots, home });
+          // **목적지도 원본과 같은 자를 본다**(2026-08-08 · ⑫ 회차 E 실측 · F-46 프랙탈).
+          // write 는 홈 전체가 열리는데 move 의 to 만 좁은 자라서, "만들고 바탕화면으로
+          // 옮기기"가 두 번 거절됐고 모델은 "권한이 없다"고 알렸다 — 행동이 다르다고 자가
+          // 다르면 사용자에겐 "파일마다 되다 안 되다"로 보인다. 보호(protectionBlocks)는
+          // 자와 독립이라 그대로 선다.
+          const dest = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
         }
         if (action === 'bulk_move') {
-          const dest = await resolveInScope(args.to ?? '', { roots, home });
+          const dest = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
         }
@@ -484,7 +489,12 @@ export function makeLocalFileTool(deps = {}) {
               if (같은자리.length >= 8) break;
             }
           } catch { /* 이웃을 못 세도 읽기는 이미 됐다 — 빈 채로 간다 */ }
-          return ok(안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`, {
+          // 이웃 사실은 **요약줄에도** 싣는다(감사 승인 레버 ① · 2026-08-08). data 깊숙이만 넣으니
+          // 모델이 지나쳤다 — 요약줄은 원장·모델·사용자가 다 보는 가장 강한 지면이다.
+          const 이웃말 = 같은자리.length
+            ? ` (같은 자리에 ${같은자리.length}개 더: ${같은자리.slice(0, 3).join(' · ')}${같은자리.length > 3 ? ' …' : ''})`
+            : '';
+          return ok((안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`) + 이웃말, {
             path: abs, text, bytes: info.size,
             totalChars: 전문.length, offset: 문값.시작,
             ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
@@ -623,7 +633,7 @@ export function makeLocalFileTool(deps = {}) {
         }
 
         if (action === 'move') {
-          const dest = await resolveInScope(args.to ?? '', { roots, home });
+          const dest = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           // 목적지도 본다 — 보호 영역으로 **옮겨 넣는 것**도 변경이다.
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) {
@@ -675,7 +685,7 @@ export function makeLocalFileTool(deps = {}) {
           if (!matcher.hasAny) {
             return fail('옮길 조건이 없어서 아무 파일도 옮기지 않았어요.', '확장자나 이름 조건을 알려주시면 그 조건에 맞는 것만 옮길게요.');
           }
-          const destDir = await resolveInScope(args.to ?? '', { roots, home });
+          const destDir = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           const destProt = protectionBlocks(destDir, { write: true });
           if (destProt) {
             const msg = protectionMessage(destProt, { write: true });

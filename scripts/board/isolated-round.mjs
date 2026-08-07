@@ -184,13 +184,14 @@ try {
     }
     console.error(`문항 ${이름}:`);
     // ⑫는 실물(바탕화면 파일)이 채점 대상이다 — 회차 방 안의 Desktop 을 전후로 센다.
+    // **사용자의 바탕화면은 하나다**(감사 지적 2026-08-08). 옛 board13 은 GPAO-T5/Desktop 도
+    // 통과로 세는 관대함이 있었다 — 축 6("결과물이 엉뚱한 자리에")을 재려면 홈 Desktop 만 센다.
     const 바탕 = 항.바탕대조
       ? async () => {
         const { readdir } = await import('node:fs/promises');
         const 목록 = [];
-        for (const d of [join(방, 'Desktop'), join(방, 'GPAO-T5', 'Desktop')]) {
-          try { for (const n of await readdir(d)) 목록.push(join(d, n)); } catch { /* 없으면 그만 */ }
-        }
+        try { for (const n of await readdir(join(방, 'Desktop'))) 목록.push(join(방, 'Desktop', n)); }
+        catch { /* 없으면 그만 */ }
         return 목록;
       } : null;
     const 전바탕 = 바탕 ? await 바탕() : null;
