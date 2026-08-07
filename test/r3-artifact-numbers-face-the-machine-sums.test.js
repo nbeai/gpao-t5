@@ -59,6 +59,35 @@ test('반대시험: 전체 합을 쓴 실물 · 빠진 파일을 지명한 실�
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('캡슐 안 쓰기도 같은 자를 지난다 — 내부 부분합 실물에 대조 사실이 붙는다 (회차 K R1)', async () => {
+  const { dir, 손 } = await 무대();
+  try {
+    const { makeCapsuleTool } = await import('../src/runtime/capsule.js');
+    const capsule = makeCapsuleTool({
+      cwd: dir,
+      tools: { run: (tool, args, s, 문맥) => 손.handler(args, 문맥).then((r) => ({
+        failureState: r.blocked || r.failed ? 'user_visible_failure' : 'none',
+        userSafeSummary: r.userSafeSummary, nextSafeAction: r.nextSafeAction,
+        actualCall: { tool, args }, result: r.result,
+      })) },
+      selfState: {},
+    });
+    const r = await capsule.handler({
+      code: `
+        const 읽음 = await t5.call('local.file', { action: 'read', path: '매출정산.csv' });
+        const 합 = Object.values(읽음.result.table.sums)[0];
+        await t5.call('local.file', { action: 'write', path: '요약.txt',
+          text: '이번 달 총 매출 합계: ' + 합.toLocaleString('ko-KR') + '원' });
+        console.log('done');
+      `,
+    }, {});
+    assert.ok(!r.blocked, `캡슐이 막혔다: ${r.userSafeSummary}`);
+    const 대조줄 = (r.result.did ?? []).find((s) => /숫자 대조/.test(s));
+    assert.ok(대조줄 && /정산내역\.csv\(금액 310,000\)/.test(대조줄),
+      `캡슐 내부 부분합 실물에 대조 사실이 없다 — K R1 의 그 갈래다: ${JSON.stringify(r.result.did)}`);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('관통: 부분합 실물 → 영수증 대조 사실 → 모델이 같은 턴에 실물을 다시 쓴다', async () => {
   const { dir, 손 } = await 무대();
   try {

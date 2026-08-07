@@ -73,6 +73,49 @@ function 표사실(전문) {
 }
 
 /**
+ * **이번 턴의 표 맥락** — 읽은 CSV 의 합·이웃 합·폴더 명부를 폴더 단위로 모은다
+ * (⑫ 접근 전환 · PM 승인 2026-08-08 · "말과 실물 모두 기계 합에서 나온다").
+ *
+ * 안 읽은 CSV 가 남은 폴더만 낸다 — 다 읽은 폴더는 대조할 공백이 없다. 폴더의 모든 CSV
+ * 합을 알 때만 열별 전체 합을 낸다(하나라도 모르면 전체 합을 지어내지 않는다 — 그때는
+ * 빠진 파일의 개별 합 사실만 남는다). 판단은 없다 — 원장 영수증의 기계 사실 재배열이다.
+ * 커널(턴)과 캡슐이 **같은 한 벌**을 쓴다 — 회차 K 실측: 캡슐 내부 쓰기를 대조에서 빼는
+ * 관할 빗장이 설계 오류였다(캡슐 스크립트도 반만 합산한 실물을 낸다 · R1).
+ */
+export function 표맥락에서(receipts) {
+  const 폴더들 = new Map();
+  // 캡슐 경유 읽기도 같은 원장이다(회차 J R1 실측) — innerReceipts 를 한 겹 펴서 같은 자로.
+  for (const r of (receipts ?? []).flatMap((x) => [x, ...(x?.result?.innerReceipts ?? [])])) {
+    if ((r?.failureState ?? 'none') !== 'none') continue;
+    const ac = r?.actualCall;
+    if (ac?.tool !== 'local.file' || ac?.args?.action !== 'read') continue;
+    const res = r?.result ?? {};
+    if (!res.table?.sums || !res.path) continue;
+    const 마디 = String(res.path).split('/');
+    const 폴더 = 마디.slice(0, -1).join('/');
+    const f = 폴더들.get(폴더) ?? { 읽은합: {}, 이웃합: {}, 명부: new Set() };
+    f.읽은합[마디.at(-1)] = res.table.sums;
+    for (const n of res.같은자리파일 ?? []) f.명부.add(n);
+    for (const [n, t] of Object.entries(res.같은자리표 ?? {})) if (t?.sums) f.이웃합[n] = t.sums;
+    폴더들.set(폴더, f);
+  }
+  const 맥락 = [...폴더들.entries()].map(([폴더, f]) => {
+    const 안읽은 = [...f.명부].filter((n) => n.normalize('NFC').toLowerCase().endsWith('.csv') && !(n in f.읽은합));
+    const 빠진합 = Object.fromEntries(안읽은.filter((n) => f.이웃합[n]).map((n) => [n, f.이웃합[n]]));
+    let 전체합 = null;
+    if (안읽은.length && 안읽은.every((n) => 빠진합[n])) {
+      전체합 = {};
+      for (const sums of [...Object.values(f.읽은합), ...Object.values(빠진합)]) {
+        for (const [열, 값] of Object.entries(sums ?? {})) 전체합[열] = (전체합[열] ?? 0) + 값;
+      }
+      if (!Object.keys(전체합).length) 전체합 = null;
+    }
+    return { 폴더, 안읽은, 빠진합, 전체합, 부분합: f.읽은합 };
+  }).filter((x) => x.안읽은.length);
+  return 맥락.length ? 맥락 : undefined;
+}
+
+/**
  * **쓴 실물의 숫자를 기계 합과 대조한다** (⑫ 접근 전환 · PM 승인 2026-08-08 · 회차 I 실증).
  * 출구 되부름은 손이 없어 실물을 못 고친다 — 실물이 생기는 바로 그 영수증에 대조 사실을
  * 실으면, 모델은 손을 쥔 채(루프 안) 받아서 파일을 다시 쓸 수 있다. 차단이 아니다(쓰기는

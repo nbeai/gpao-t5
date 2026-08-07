@@ -36,6 +36,7 @@ import { join } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
 import { wireToolName } from './model-provider.js';
 import { redactEnv } from './terminal-run.js';
+import { 표맥락에서 } from './local-file.js';
 
 /**
  * 캡슐 상한 — **잠정 동결값**. Hermes(300s·50호출·50KB) 와 OpenClaw code-mode 를 대조해 정했다.
@@ -192,7 +193,11 @@ export async function 캡슐실행({
       멈춘이유 = 멈춘이유 ?? `한 캡슐에서 부를 수 있는 손을 다 썼어요(${상한.호출}번).`;
       return { ok: false, error: '이 캡슐의 호출 한도를 다 썼어요.' };
     }
-    const rec = await tools.run(tool, args ?? {}, selfState, { currentRequest: '캡슐 실행' });
+    // **캡슐 안 쓰기도 같은 자를 지난다**(회차 K R1 실측 2026-08-08). 캡슐 스크립트가
+    // 매출정산만 합산한 "합계" 실물을 냈는데, 내부 쓰기가 대조 밖이라 그대로 나갔다 —
+    // 캡슐 길이 늘 기계 합 경로라는 J R3 기반 가정이 K 에서 반증됐다. 캡슐이 지금까지
+    // 모은 자기 원장(영수증)에서 표 맥락을 만들어 안의 손에도 넘긴다(커널과 같은 한 벌).
+    const rec = await tools.run(tool, args ?? {}, selfState, { currentRequest: '캡슐 실행', 표맥락: 표맥락에서(영수증) });
     영수증.push(rec);
     const 됐나 = (rec?.failureState ?? 'none') === 'none';
     // **모델의 자연 짐작이 사실에 닿게 편다**(⑫ 회차 G R2 실측 2026-08-08 · 구조 층).
