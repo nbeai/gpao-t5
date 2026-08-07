@@ -39,6 +39,40 @@ function undoEntry(op, from, to) {
 }
 
 /**
+ * CSV 의 표 사실 — 행수·열 이름·숫자 열 합계. **손이 이미 읽은 내용에서 세는 기계 사실**이다
+ * (매듭 ① 회차 G 실측 2026-08-08 · 구조 층). ⑤⑫⑬ 이 전부 "여러 값의 합"인데 합산이 모델
+ * 암산으로 남아 회차마다 흔들렸다 — 회차 E 는 어느 파일 조합도 아닌 2,270,000 을 지어냈고,
+ * 회차 G R1·R3 은 부분합에 "총" 을 명명했다. 합산을 캡슐로 보내라고 말로 가르치는 길은 같은
+ * 방법 다섯 번째라 막혔고(F-12 계열), 재료를 바꾼다 — 읽기가 합계를 사실로 동봉해 말이
+ * 기계 사실에서 나오게 한다(매듭 ② 의 열린 길 · locate 의 자료기간·counts 와 같은 계약).
+ *
+ * 지어내지 않는다: 따옴표 필드·열 수 불일치·숫자 아닌 열은 세지 않고, 표가 애매하면 아예
+ * 안 낸다 — 틀린 합계는 없는 합계보다 나쁘다(거짓 성공 제조).
+ */
+function 표사실(전문) {
+  const 줄들 = String(전문 ?? '').split(/\r?\n/).filter((l) => l.trim() !== '');
+  if (줄들.length < 2 || 줄들.length > 5000) return null;
+  if (줄들.some((l) => l.includes('"'))) return null;     // 따옴표 CSV 는 이 단순한 자의 밖이다
+  const 머리 = 줄들[0].split(',').map((s) => s.trim());
+  if (머리.length < 2 || 머리.some((h) => !h || /^-?\d/.test(h))) return null; // 머리줄이 숫자면 표가 아니다
+  if (new Set(머리).size !== 머리.length) return null; // 같은 이름 열 둘 — 뒤가 앞을 조용히 덮는다(공정감시 지적)
+  const 행들 = 줄들.slice(1).map((l) => l.split(',').map((s) => s.trim()));
+  if (행들.some((r) => r.length !== 머리.length)) return null;
+  const sums = {};
+  머리.forEach((h, i) => {
+    let 합 = 0; let 숫자열 = true; let 값있음 = false;
+    for (const r of 행들) {
+      const v = r[i];
+      if (v === '') continue;
+      if (!/^-?\d+(\.\d+)?$/.test(v)) { 숫자열 = false; break; }
+      합 += Number(v); 값있음 = true;
+    }
+    if (숫자열 && 값있음) sums[h] = 합;
+  });
+  return Object.keys(sums).length ? { rows: 행들.length, columns: 머리, sums } : null;
+}
+
+/**
  * @param {{roots?:string[], trashDir?:string, dataDir?:string, readFile?:Function}} [deps]
  */
 export function makeLocalFileTool(deps = {}) {
@@ -497,11 +531,19 @@ export function makeLocalFileTool(deps = {}) {
           const 이웃말 = 같은자리.length
             ? ` (같은 자리에 ${같은자리.length}개 더: ${같은자리.slice(0, 3).join(' · ')}${같은자리.length > 3 ? ' …' : ''})`
             : '';
-          return ok((안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`) + 이웃말, {
+          // 표 사실도 요약줄에 싣는다(레버 ① 과 같은 지면) — 합계가 data 깊숙이만 있으면
+          // 모델이 지나치고 암산으로 돌아간다(이웃 사실에서 이미 밟은 병).
+          const 표 = extname(abs).toLowerCase() === '.csv' && !document ? 표사실(전문) : null;
+          const 표말 = 표
+            ? ` (표 ${표.rows}행 · 합계 ${Object.entries(표.sums).slice(0, 3)
+              .map(([열, 값]) => `${열} ${값.toLocaleString('ko-KR')}`).join(' · ')})`
+            : '';
+          return ok((안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`) + 표말 + 이웃말, {
             path: abs, text, bytes: info.size,
             totalChars: 전문.length, offset: 문값.시작,
             ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             ...(document ? { document } : {}),
+            ...(표 ? { table: 표 } : {}),
             ...(같은자리.length ? { 같은자리파일: 같은자리 } : {}),
             modifiedAt: new Date(info.mtimeMs).toISOString(), // F2.3 — stat 을 이미 했으면 버리지 않는다
           });

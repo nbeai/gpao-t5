@@ -829,7 +829,7 @@ const DESCRIPTORS = [
               + '표(CSV 등)의 열 이름은 짐작하지 않는다 — 스크립트 안에서 첫 줄(헤더)을 읽어 그 이름을 쓰고, '
               + '합계가 0 이면 열 이름부터 의심한다.\n'
               + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt}], total, offset, nextOffset }` · '
-              + 'read → `{ path, text, bytes, totalChars, offset, nextOffset }` · '
+              + 'read → `{ path, text, bytes, totalChars, offset, nextOffset, table?:{rows, columns, sums} }`(CSV 의 숫자 열 합계가 sums 에 있다) · '
               + 'move → `{ from, to }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'
               + 'console.log 로 낸 것만 답으로 돌아온다(중간 결과는 안 실린다). '
               + '파일시스템·네트워크·셸은 막혀 있다 — 손은 t5.call 로만.',

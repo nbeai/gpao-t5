@@ -195,7 +195,15 @@ export async function 캡슐실행({
     const rec = await tools.run(tool, args ?? {}, selfState, { currentRequest: '캡슐 실행' });
     영수증.push(rec);
     const 됐나 = (rec?.failureState ?? 'none') === 'none';
+    // **모델의 자연 짐작이 사실에 닿게 편다**(⑫ 회차 G R2 실측 2026-08-08 · 구조 층).
+    // 스크립트가 `readRes.text` 로 두 번 짚었다 — 첫 번째는 TypeError 로 죽고, 두 번째는
+    // `|| ""` 로 네 파일을 **전부 읽고도** 빈 값을 받아 "합계 계산 불가"를 실물에 적었다.
+    // 반환 모양 {ok, summary, result} 는 스키마에 이미 적혀 있었는데도 그랬다 — 문장을 더
+    // 얹는 길은 같은 방법 다섯 번째라 막혔고(F-12 계열), 반환을 편다: result 의 밭을 위층에도
+    // 편다. 정본 키(ok·summary·result·error·next)가 이긴다 — 두 표기가 같은 사실을 본다.
+    const 평평 = 됐나 && rec?.result && typeof rec.result === 'object' && !Array.isArray(rec.result) ? rec.result : null;
     return {
+      ...(평평 ?? {}),
       ok: 됐나,
       summary: rec?.userSafeSummary,
       ...(됐나 ? { result: rec?.result } : { error: rec?.userSafeSummary, next: rec?.nextSafeAction }),
