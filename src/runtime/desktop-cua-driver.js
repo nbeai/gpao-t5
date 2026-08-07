@@ -49,16 +49,22 @@ export function 브라우저이야기인가(발화) {
   return /브라우저|크롬|chrome|edge|엣지|브레이브|brave|사파리|safari|탭|사이트|웹\s*페이지|웹페이지|인터넷|주소창|url|http|\.com|\.co\.kr|네이버|구글|google|유튜브|youtube/.test(말);
 }
 
-export function 기동인자({ binPath, 기존프로필허용 = false }) {
+export function 기동인자({ binPath, 기존프로필허용: _프로필 = false }) {
   return {
     bin: binPath,
-    // `--direct` = 임베디드. 우리(호스트)의 TCC 귀속을 쓴다.
+    // **`--direct` 를 뺐다**(오너 결정 2026-08-07 · 장착을 공식대로).
     //
-    // **`--grant existing-profile` = 사용자가 이미 로그인해 둔 브라우저에 붙는 허가**(CU-④).
-    // 오너 정본: *"로그인이 화면 뒤에 있다 — 터미널이 아무리 강해져도 이 자리는 안 열린다."*
-    // 이 플래그 없이는 드라이버가 **격리 프로필로 새 브라우저**만 띄운다 — 로그인이 없다.
-    // 밝히지 않으면 안 붙인다 — 말 없이 브라우저 접근 권한을 얻지 않는다.
-    args: ['mcp', '--direct', ...(기존프로필허용 ? ['--grant', 'existing-profile'] : [])],
+    // 그 플래그의 정의가 *"on macOS this **explicitly accepts host TCC attribution**"* 이다 —
+    // T5 를 띄운 프로세스의 권한을 빌려 쓴다. 개발 기계에서는 Claude Code 셸의 권한이 있어
+    // 되는 것처럼 보였고, 사장님 컴퓨터에서는 *"터미널이 화면을 기록하려 합니다"* 가 뜬다.
+    // **이틀간 권한이 회차마다 흔들린 뿌리가 이것이다.**
+    //
+    // 빼면 드라이버가 스스로 `open -n -g -a CuaDriver --args serve` 로 데몬을 띄우고
+    // 프록시한다(실측). TCC 는 `com.trycua.driver` 번들에 붙어 안 흔들린다.
+    //
+    // **`--grant existing-profile` 은 `serve` 쪽 인자다.** 데몬을 우리가 안 띄우니 여기서
+    // 줄 수 없다 — 브라우저 프로필 붙이기는 장착이 선 뒤에 다시 본다(노드 A ① 재개).
+    args: ['mcp'],
     env: {
       ...process.env,
       // **기본이 켜짐이라 명시적으로 끈다.**

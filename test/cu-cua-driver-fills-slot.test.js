@@ -113,11 +113,25 @@ test('드라이버를 띄울 때 텔레메트리를 끈다 — 이름이 아니�
     '**우리가 띄운 프로세스가 밖으로 보낸다** — 헌장 ③ 이 걸리는 자리다');
 });
 
-test('실행 방식은 임베디드다 — 별도 앱을 깔게 하지 않는다', async () => {
+// **이 판단이 뒤집혔다**(오너 결정 2026-08-07 · 장착을 공식대로).
+//
+// 예전 근거는 *"standalone 을 고르면 사용자가 CuaDriver.app 을 따로 깔아야 한다(§15 마찰)"*
+// 였다. 마찰을 줄이려 한 것은 맞았는데 **고른 수단이 틀렸다** — `--direct` 의 정의가
+// *"on macOS this explicitly accepts **host TCC attribution**"* 이라, T5 를 띄운 프로세스의
+// 권한을 빌려 쓴다. 개발 기계에서는 Claude Code 셸의 권한이 있어 되는 것처럼 보였고
+// 사장님 컴퓨터에서는 *"터미널이 화면을 기록하려 합니다"* 가 뜬다.
+// **이틀간 권한이 회차마다 흔들린 뿌리가 이것이다.**
+//
+// 마찰은 다른 방법으로 없앴다 — **`.app` 을 동봉해 T5 가 자동으로 놓는다.**
+// 사용자가 따로 깔지 않는다는 목적은 그대로이고, 권한은 이제 `com.trycua.driver` 에 붙는다.
+test('남의 권한을 빌리지 않는다 — 앱은 우리가 놓고, TCC 는 그 앱에 붙는다', async () => {
   const { 기동인자 } = await import('../src/runtime/desktop-cua-driver.js');
   const { args } = 기동인자({ binPath: '/어딘가/cua-driver' });
-  assert.deepEqual(args.slice(0, 2), ['mcp', '--direct'],
-    'standalone 을 고르면 사용자가 CuaDriver.app 을 따로 깔아야 한다(§15 마찰)');
+  assert.deepEqual(args, ['mcp'],
+    `**호스트 TCC 를 상속한다** — 사장님 컴퓨터에서 터미널 권한을 묻게 된다: ${JSON.stringify(args)}`);
+  const { 동봉된앱, 앱설치자리 } = await import('../src/runtime/desktop-bin.js');
+  assert.ok(동봉된앱({ platform: 'darwin', arch: 'arm64' }), '동봉본이 없으면 사용자가 깔아야 한다');
+  assert.equal(앱설치자리({ platform: 'darwin' }), '/Applications/CuaDriver.app');
 });
 
 // ── 드라이버가 없거나 죽어도 정직하다 ───────────────────────────────────

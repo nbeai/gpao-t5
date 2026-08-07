@@ -22,16 +22,22 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { 기동인자 } from '../src/runtime/desktop-cua-driver.js';
 
-test('기존 프로필에 붙을 수 있게 띄운다 — 그 허가 없이는 로그인 자리가 안 열린다', () => {
-  const { args } = 기동인자({ binPath: '/x/cua-driver', 기존프로필허용: true });
-  assert.deepEqual(args, ['mcp', '--direct', '--grant', 'existing-profile'],
-    `**허가 없이 띄운다** — 로그인된 브라우저에 영영 못 붙는다: ${JSON.stringify(args)}`);
-});
-
-test('안 밝히면 예전 그대로다 — 없던 권한을 슬쩍 얹지 않는다', () => {
-  const { args } = 기동인자({ binPath: '/x/cua-driver' });
-  assert.deepEqual(args, ['mcp', '--direct'],
-    `**말 없이 브라우저 접근 권한을 얻는다**: ${JSON.stringify(args)}`);
+// **이 두 검사의 전제가 바뀌었다**(오너 결정 2026-08-07 · 장착을 공식대로).
+//
+// `--grant existing-profile` 은 **`serve`(데몬) 쪽 인자**다. 예전엔 우리가 `mcp --direct` 로
+// 런타임을 직접 소유해서 거기 같이 실을 수 있었는데, 그 `--direct` 가 **호스트 TCC 를
+// 상속**하는 것이라 뺐다(이틀간 권한이 흔들린 뿌리). 이제 드라이버가 스스로 데몬을 띄우고
+// 우리는 프록시로 붙으므로, 프로필 허가는 기동 인자에 실을 자리가 없다.
+//
+// **로그인된 브라우저에 붙는 목적은 안 버렸다** — 노드 A ① 을 장착이 선 뒤에 다시 연다.
+// 그때 `BROWSER.md` 를 읽고 간다: 우리가 크롬 동의 시트를 직접 누르던 코드도
+// *"never click a similar-looking prompt yourself"* 에 걸려 다시 봐야 한다.
+test('기동 인자에 데몬 전용 허가를 싣지 않는다 — 조용히 무시되거나 거절된다', () => {
+  for (const 밝힘 of [true, false]) {
+    const { args } = 기동인자({ binPath: '/x/cua-driver', 기존프로필허용: 밝힘 });
+    assert.deepEqual(args, ['mcp'],
+      `**데몬 전용 인자를 mcp 에 준다**(밝힘=${밝힘}): ${JSON.stringify(args)}`);
+  }
 });
 
 // ── 브라우저 창은 CDP 로 읽는다 — 손은 안 늘린다 ────────────────────────

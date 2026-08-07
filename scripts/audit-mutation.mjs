@@ -980,10 +980,15 @@ export const MUTATIONS = [
   { 이름: '드라이버 텔레메트리를 안 끄고 띄움(사용자 모르게 밖으로 나간다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
     찾기: "      CUA_DRIVER_RS_TELEMETRY_ENABLED: '0',", 바꾸기: '' },
-  { 이름: '별도 앱 모드로 띄움(사용자가 앱을 하나 더 깔아야 한다)',
+  // 2026-08-07 · **재는 것이 뒤집혔다**(오너 결정 · 장착을 공식대로).
+  // 예전엔 *"별도 앱 모드로 띄우면 사용자가 앱을 하나 더 깔아야 한다"* 를 물었다.
+  // 그런데 `--direct` 가 **호스트 TCC 를 상속**하는 것이었고, 그게 이틀간 권한이 흔들린
+  // 뿌리였다. 마찰은 다른 방법으로 없앴다 — 서명된 앱을 동봉해 T5 가 자동으로 놓는다.
+  // 이제 무는 것은 **남의 권한을 빌리지 않는가**이다.
+  { 이름: '호스트 TCC 를 상속함(사장님 컴퓨터에서 터미널 권한을 묻게 된다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-cua-driver-fills-slot.test.js',
-    찾기: "    args: ['mcp', '--direct', ...(기존프로필허용 ? ['--grant', 'existing-profile'] : [])],",
-    바꾸기: "    args: ['mcp', ...(기존프로필허용 ? ['--grant', 'existing-profile'] : [])],", },
+    찾기: "    args: ['mcp'],",
+    바꾸기: "    args: ['mcp', '--direct'],", },
   { 이름: '눈으로 본 자리를 못 누름(AX 없는 창은 영영 못 만진다)',
     파일: 'src/runtime/desktop-cua-driver.js', 검사: 'test/cu-eyes-can-point-too.test.js',
     찾기: '            : 짚은자리(대상) ?? 가운데(대상.bounds)),',
@@ -1891,9 +1896,14 @@ export const MUTATIONS = [
   { 이름: '낡은 환경변수를 그대로 믿음(손이 통째로 사라진다)', 파일: 'src/runtime/desktop-bin.js', 검사: 'test/cu-hand-must-reach-the-product.test.js',
     찾기: "  if (밝힌것 && 있나(밝힌것)) return 밝힌것;",
     바꾸기: "  if (밝힌것) return 밝힌것;" },
-  { 이름: '로그인된 브라우저에 붙는 허가를 안 줌(로그인 뒤 자리가 안 열린다)', 파일: CUA, 검사: 'test/cu-node4-my-logged-in-browser.test.js',
-    찾기: "...(기존프로필허용 ? ['--grant', 'existing-profile'] : [])",
-    바꾸기: "" },
+  // 2026-08-07 · **이 계약은 자리를 옮겼다.** `--grant existing-profile` 은 `serve`(데몬)
+  // 인자인데 우리는 이제 데몬을 직접 안 띄운다 — 드라이버가 띄우고 우리는 프록시로 붙는다.
+  // **로그인된 브라우저에 붙는 목적은 안 버렸다**(노드 A ① 을 장착이 선 뒤 다시 연다).
+  // 그때까지 이 자리에서 물 것은 **동봉 앱이 배포에 담기는가**이다 — 빠지면 손이 통째로 없다.
+  { 이름: '동봉 앱을 배포에서 뺌(설치본에 화면 손이 없다)', 파일: 'src/runtime/desktop-bin.js',
+    검사: 'test/cu-mount-the-driver-the-official-way.test.js',
+    찾기: "  return fileURLToPath(new URL('../../vendor/cua-driver/darwin-arm64/CuaDriver.app', import.meta.url));",
+    바꾸기: "  return null;" },
   { 이름: '브라우저 창인데 탭을 안 봄(CDP 길을 안 쓴다)', 파일: CUA, 검사: 'test/cu-node4-my-logged-in-browser.test.js',
     찾기: "          if (기존프로필허용 && /chrome|chromium|edge|brave|크롬/i.test(String(대상.app ?? ''))) {",
     바꾸기: "          if (false) {" },

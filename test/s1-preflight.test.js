@@ -75,7 +75,17 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/desktop-bin.js',
     // **화면 손 실행 파일**(오너 결정 2026-08-07: T5 설치에 같이 담는다).
     // 코드가 아니라 산출물이라 지문에 안 잡히지만, 빠지면 손이 통째로 없어진다.
-    'vendor/cua-driver/darwin-arm64/cua-driver',
+    // **서명·공증된 앱을 동봉한다**(오너 결정 2026-08-07 · 장착을 공식대로).
+    // 생 바이너리를 `mcp --direct` 로 띄우던 것이 **호스트 TCC 를 상속**해서
+    // 이틀간 권한이 흔들렸다. 이제 앱을 `/Applications` 에 놓고 드라이버가 스스로
+    // 데몬을 띄운다 — TCC 는 `com.trycua.driver` 에 붙는다. 코드가 아니라 산출물이라
+    // 지문에 안 잡히지만, 빠지면 손이 통째로 없어진다.
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/CodeResources',
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/Info.plist',
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/MacOS/cua-cursor-theme',
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/MacOS/cua-driver',
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/Resources/AppIcon.icns',
+    'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/_CodeSignature/CodeResources',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
     // **사실을 묻는 것도 일이다**(2026-08-07 · 노드 R · 판 ⑤⑬).

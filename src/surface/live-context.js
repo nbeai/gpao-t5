@@ -10,7 +10,7 @@ import { makeDesktopTool } from '../runtime/desktop-tool.js';
 import { makeDesktopActTool } from '../runtime/desktop-act-tool.js';
 import { makeDesktopNativeDriver } from '../runtime/desktop-native-driver.js';
 import { makeCuaDriver } from '../runtime/desktop-cua-driver.js';
-import { 화면손찾기 } from '../runtime/desktop-bin.js';
+import { 화면손찾기, 앱을제자리에 } from '../runtime/desktop-bin.js';
 import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
@@ -102,6 +102,14 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 그 값을 **아무데서도 안 세웠다** — 개발자가 시험 때 손으로 넣어 띄웠을 뿐이다.
   // 그래서 실험실에서는 계산기·카톡·크롬이 다 됐는데 **사장님이 켠 T5 에는 화면 손이 0개**였다.
   // 오너 규율: *"영향 0 레인 작업을 제품 효과로 보고하지 말 것."*
+  // **앱이 없으면 먼저 놓는다**(오너 결정 2026-08-07 · 장착을 공식대로).
+  //
+  // 손을 찾기 **전에** 해야 한다 — `.app` 이 제자리에 있어야 드라이버가 데몬을 띄우고,
+  // 그래야 TCC 가 `com.trycua.driver` 에 붙는다. 없으면 예전처럼 남의 권한을 빌리게 된다.
+  // 네트워크를 안 쓴다(동봉된 서명 앱을 복사할 뿐). 있으면 안 덮고, 실패해도 기동을 안 막는다.
+  // **기다리지 않는다** — 복사가 늦어도 T5 가 뜨는 것을 막으면 안 되고, 이번 턴에 못 쓰면
+  // 다음 턴에 쓴다. 결과는 아무도 안 읽으므로 실패는 조용히 삼킨다(그 이유는 함수가 남긴다).
+  앱을제자리에({}).catch(() => null);
   const cua백엔드 = 화면손찾기({ env: processEnv });
   const 화면백엔드 = processEnv.GPAO_T5_DESKTOP_BIN;
   const desktop = (cua백엔드 || 화면백엔드) ? (() => {
@@ -119,7 +127,19 @@ export function liveDeps(processEnv = {}, deps = {}) {
       //
       // 권한을 프로세스에 붙이는 것과 **문을 따는 것**은 다르다 — 크롬 동의 시트를 누르는
       // 것은 손이 **사장님 발화 안에서만** 한다(`desktop-cua-driver.js` · BUTLER §B).
-      const 브라우저허용 = processEnv.GPAO_T5_BROWSER_PROFILE !== '0';
+      // **되돌렸다**(오너 지시 2026-08-07). 기본 켬으로 바꿨다가 `BROWSER.md` 를 읽고 되돌린다 —
+      // 우리가 크롬 동의 시트를 직접 누르는 코드가 있는데, 문서가 그걸 못박아 금지한다:
+      //   *"Missing, localized, or ambiguous controls are refused;
+      //     **never click a similar-looking prompt yourself.**"*
+      // 드라이버가 거부하는 것은 못해서가 아니라 **비슷하게 생긴 것을 눌러 엉뚱한 것을
+      // 승인하는 사고를 막으려고 일부러** 그러는 것이다. 우리는 그 안전장치를 우회했고,
+      // 기본 켬은 그 우회로를 사장님이 켜자마자 열어 두는 것이었다.
+      //
+      // 그리고 우리가 *"cua 가 한국어 크롬을 못 연다"* 고 판정한 그 관측 자체가
+      // **잘못 장착된 상태**(IDE 셸에서 생 바이너리 spawn · `CuaDriver.app` 없음 ·
+      // `CUA_DRIVER_EMBEDDED` 없음)에서 나온 것일 수 있다. 장착을 바로 세운 뒤 같은 질문을
+      // 다시 던진다 — 그 전에는 이 우회로가 필요한지조차 판정할 수 없다.
+      const 브라우저허용 = processEnv.GPAO_T5_BROWSER_PROFILE === '1';
       if (cua백엔드) {
         등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ binPath: cua백엔드, 기존프로필허용: 브라우저허용 }));
       }

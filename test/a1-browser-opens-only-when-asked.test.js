@@ -23,22 +23,32 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { 기동인자, makeCuaDriver } from '../src/runtime/desktop-cua-driver.js';
 
-test('밝히지 않아도 켜진다 — 사장님은 환경변수 이름을 모른다', async () => {
-  const { liveDeps } = await import('../src/surface/live-context.js');
+// **기본 켬을 되돌렸다**(오너 지시 2026-08-07 · `BROWSER.md` 를 읽고).
+//
+// 우리가 크롬 동의 시트를 직접 누르는 코드가 있는데 문서가 못박아 금지한다 —
+// *"never click a similar-looking prompt yourself."* 드라이버가 거부하는 것은 못해서가
+// 아니라 **엉뚱한 것을 승인하는 사고를 막으려고 일부러** 그러는 것이다.
+// 기본 켬은 그 우회로를 사장님이 켜자마자 열어 두는 것이었다.
+//
+// 아래 **발화 조건**은 그대로 둔다 — 켜져 있을 때 *언제* 누르는가는 여전히 지켜야 한다.
+test('밝힐 때만 켠다 — 문서가 금지한 우회로를 기본값으로 열지 않는다', async () => {
   const 소스 = await import('node:fs').then((fs) => fs.readFileSync(
     new URL('../src/surface/live-context.js', import.meta.url), 'utf8',
   ));
-  assert.doesNotMatch(소스, /GPAO_T5_BROWSER_PROFILE === '1'/,
-    '**밝혀야만 켜진다** — 사장님이 켠 T5 에는 로그인 뒤 화면이 없다(CU-④ 가 0이 된다)');
-  assert.match(소스, /GPAO_T5_BROWSER_PROFILE[^\n]*!==\s*'0'/,
-    '**끄는 길이 없다** — 기본값만 뒤집는 것이지 선택을 없애는 게 아니다');
-  assert.ok(typeof liveDeps === 'function');
+  assert.match(소스, /GPAO_T5_BROWSER_PROFILE === '1'/,
+    '**밝히지 않아도 켜진다** — 우리가 직접 시트를 누르는 경로가 기본으로 열린다');
 });
 
-test('=0 으로 끄면 프로세스에 권한이 안 붙는다', () => {
-  const { args } = 기동인자({ binPath: '/x/cua-driver', 기존프로필허용: false });
-  assert.deepEqual(args, ['mcp', '--direct'],
-    `**끈다고 했는데 권한이 붙는다**: ${JSON.stringify(args)}`);
+// **장착이 바뀌면서 이 검사의 자리도 바뀌었다**(2026-08-07).
+// `--grant existing-profile` 은 `serve` 쪽 인자인데 우리는 이제 데몬을 직접 안 띄운다 —
+// `mcp` 가 드라이버 자신의 데몬에 프록시한다. 그래서 기동 인자에는 프로필 허가가 없다.
+// **브라우저 프로필 붙이기는 장착이 선 뒤에 다시 본다**(노드 A ① 재개).
+test('기동 인자에 프로필 허가가 안 붙는다 — 그건 이제 데몬 쪽 이야기다', () => {
+  const { args } = 기동인자({ binPath: '/x/cua-driver', 기존프로필허용: true });
+  assert.ok(!args.includes('--grant'),
+    `**데몬 인자를 mcp 에 준다** — 조용히 무시되거나 거절된다: ${JSON.stringify(args)}`);
+  assert.ok(!args.includes('--direct'),
+    `**호스트 TCC 를 상속한다**: ${JSON.stringify(args)}`);
 });
 
 // ── 발화 안에서만 문을 딴다 ─────────────────────────────────────────────
