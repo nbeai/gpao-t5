@@ -1,0 +1,227 @@
+{
+  "sessionId": "6dc70eef-329c-4090-928d-d8699430e7b5",
+  "턴들": [
+    {
+      "말": "내 크롬에 열려 있는 탭들 주소까지 알려줘",
+      "걸린ms": 17308,
+      "kind": "reply",
+      "reply": "윤님, 지금 보이는 크롬 창 기준으로 탭과 주소를 정리하면 이렇게 보여요.\n\n1. 왼쪽 첫 번째 탭  \n   - 제목: NAVER  \n   - 주소(주소창에 보이는 도메인으로 추정): naver.com\n\n2. 가운데 활성 탭  \n   - 제목: (3) YouTube  \n   - 주소(주소창에 실제로 보이는 값): youtube.com\n\n3. 오른쪽 탭  \n   - 제목: Gemini에게 물어보기  \n   - 주소는 탭에 글자가 없어서 화면에서 확인되지 않습니다. (별도 표시된 도메인/URL 없음)\n\n화면에는 이 3개 탭만 보이고, 그 외에 숨겨진 탭들의 주소는 이 상태로는 읽을 수 없습니다.",
+      "selfStateSummary": {
+        "model": "gpt-5.1",
+        "modelAuthState": "usable",
+        "modelHealthState": "unreachable",
+        "ready": [
+          "웹에서 찾기",
+          "웹 자료 수집",
+          "로컬 파일",
+          "연결 흔적 찾기",
+          "터미널 실행",
+          "컴퓨터 상태",
+          "실행 중인 것",
+          "작업 대상 찾기",
+          "스크립트로 한 번에",
+          "지난 대화 찾기",
+          "브라우저로 화면 보기",
+          "브라우저 화면 넘기기",
+          "서비스 연결",
+          "새 서비스 붙이기",
+          "화면 보기",
+          "화면 다루기",
+          "작업 나눠 맡기기"
+        ],
+        "readyCapabilities": [
+          "웹에서 찾기 — 웹에서 무엇이 있는지 **후보를 찾아 목록으로 준다**(제목·주소·짧은 요약). 페이지를 열어 읽지는 않는다 — 어디를 읽을지는 목록을 보고 고른 다음 웹 자료 수집으로 읽는다.",
+          "웹 자료 수집 — 주소를 주면 그 페이지를 읽고, 주소가 없으면 찾아서 읽는다(읽기 전용). 읽은 내용은 출처와 함께 준다. 로그인이 필요하거나 수집을 막은 페이지는 읽지 못한다. 페이지를 **열어서 눌러 보지는 못한다** — 자바스크립트로 그려지거나 버튼·탭·더보기·스크롤 뒤에 있는 내용은 이 도구로는 들어오지 않는다. 그건 **브라우저로 화면 보기**가 한다(실제 화면을 열어서 본다). 주소를 직접 받으면 그 주소로는 여기서도 읽을 수 있다.",
+          "로컬 파일 — 이 컴퓨터의 내 폴더 전체 안에서 파일과 폴더를 보고·읽고·만들고·옮기고·지운다. 한 번에 **한 자리**를 다룬다 — 조건이 분명한 여러 파일은 bulk_move 로 한꺼번에 옮긴다. 같은 이름 식구의 최종본 판별(versions)도 한다. 지우거나 덮어쓴 것은 되돌릴 수 있다.",
+          "연결 흔적 찾기 — 낯선 서비스나 도구의 기존 MCP 등록·설치된 명령·연결 단서를 비밀 없이 직접 확인한다.",
+          "터미널 실행 — 이 컴퓨터에서 명령을 직접 실행한다. 위치를 모르면 직접 찾는다. 확인·검사·테스트·빌드는 바로 하고, **여러 파일을 한꺼번에 다루는 일도 명령 하나로 끝난다**(수백 개를 옮기거나 고르는 일에 파일 도구를 여러 번 부를 필요가 없다). 파일을 바꾸거나 인터넷에 연결하는 명령은 그냥 실행하면 된다 — 실행 직전에 확인 카드가 한 번 뜨고, 승인되면 네가 이어서 실행한다 — 사용자에게 명령어를 적어 주지 않는다. 그러니 사용자에게 명령어를 보여주며 대신 치라고 하지 않는다. 비밀 자리는 승인해도 읽지 않는다.",
+          "컴퓨터 상태 — 이 컴퓨터에서 지금 무엇이 돌고 있고 무엇이 자원을 많이 쓰는지 직접 본다. 아무것도 바꾸지 않는다. 터미널이 못 보는 자리(setuid 도구)라 별도 손으로 본다.",
+          "실행 중인 것 — 네가 켠 것을 관리한다 — 서버처럼 계속 도는 것을 켜고, 살아있는지 확인하고, 로그를 읽고, 끈다. 기록에 남아 있어도 실제로 죽었으면 죽었다고 말한다. 사용자가 직접 켠 프로그램은 여기 없다.",
+          "작업 대상 찾기 — 사용자가 말한 대상이 어느 폴더인지 후보와 근거를 찾는다(코드 폴더든 정산·계약서·원고든).",
+          "스크립트로 한 번에 — 짧은 스크립트로 파일 손을 여러 번 불러 한 번에 처리한다. 읽은 결과가 다음 조건이 되는 일(예: 각 표를 읽어 합계가 넘는 것만 옮기기)에 쓴다. 스크립트 안에서는 t5.call(손이름, 인자) 로만 일한다 — 파일을 직접 만지거나 명령을 띄울 수 없고, 중간 결과는 답에 실리지 않고 스크립트가 출력한 것만 돌아온다.",
+          "지난 대화 찾기 — 지난 대화들에서 찾는다. 제목·시각·짧은 조각만 돌려주며 대화 내용을 통째로 옮기지 않는다.",
+          "브라우저로 화면 보기 — 주소를 브라우저로 열어 **실제로 그려진 화면**을 본다. 자바스크립트로 그려지거나 탭 뒤에 있는 내용도 볼 수 있고, 어디까지 봤고 얼마가 남았는지를 함께 남긴다. 보기만 하고 화면을 바꾸지 않는다. **로그인은 안 되어 있다** — 매번 새 브라우저 자리로 열기 때문에 사용자가 평소 쓰는 로그인 상태가 따라오지 않는다. 그래서 로그인이 필요한 화면은 로그인 페이지까지만 보인다.",
+          "브라우저 화면 넘기기 — 보고 있는 화면을 더 본다 — 아래로 내리거나, 탭을 바꾸거나, 더보기를 편다. 몇 번 내렸는지와 왜 멈췄는지를 남긴다. 글을 쓰거나 보내거나 사는 일은 하지 않는다.",
+          "서비스 연결 — 외부 서비스를 T5 에 실제로 연결한다(연결·해제). 연결되면 그 서비스의 도구가 바로 쓸 수 있는 손으로 올라온다. 확인·등록·재연결은 T5 가 하고, 사람은 비밀값만 넣는다.",
+          "새 서비스 붙이기 — 아직 T5 에 선언되지 않은 외부 서비스를, 그 서비스의 원격 MCP 나 공개 API 로 연결할 수 있게 준비한다. 준비되면 선언돼 있던 서비스와 똑같이 승인·동의·안전 입력면· 도구 편입을 거쳐 연결된다. 비밀값은 이 도구가 받지 않는다 — 안전 입력면이 따로 열린다.",
+          "화면 보기 — 지금 이 컴퓨터 화면에 무엇이 떠 있는지 본다 — 앞에 있는 앱, 열린 창들, 그리고 **창 안의 글자까지**(대화·문서·목록의 내용). 카톡 대화, 메모 본문, 표에 적힌 값처럼 **화면에 보이는 것이면 서비스 연결 없이도 읽는다.** 앞에 없는 앱도 이름을 대면 **앞으로 가져오지 않고** 그 창 안을 본다. 보기만 하고 누르거나 입력하지 않는다. 손쉬운 사용 권한이 있어야 보이고, 없으면 **못 봤다고 말한다** (창이 없다고 하지 않는다).",
+          "화면 다루기 — 창을 앞으로 띄우거나, 내리거나, 옮기거나, 앱을 켜고 끈다. 한 뒤에 **실제로 그렇게 됐는지 값으로 확인하고**, 안 됐으면 됐다고 하지 않는다. 화면 안의 버튼을 누르거나 칸에 글자를 넣을 수도 있다 — 다만 **무엇이 바뀌면 된 것인지 정하고** 누르고, 누른 뒤 그 값으로 확인한다. 앱을 끄는 것만 미리 확인을 받는다 — 저장 안 한 것이 날아갈 수 있어서다.",
+          "작업 나눠 맡기기 — 긴 읽기·조사 작업을 두세 갈래로 나눠 각각 제한된 범위에서 처리하고, 모두 끝난 뒤 결과를 하나로 모은다."
+        ],
+        "approvalRequired": [],
+        "limits": [
+          "모델 확인 필요: 모델 서비스에 연결이 안 돼요",
+          "메일 발송: 아직 준비 중이에요(연결 흐름이 생기면 가능해져요)",
+          "슬랙 게시: 연결하면 가능해요",
+          "텔레그램 전송: 연결하면 가능해요"
+        ]
+      },
+      "ledger": {
+        "confirmed": [
+          "화면을 볼 준비가 돼 있어요.",
+          "지금 창 80개가 떠 있어요 — Claude('Claude') · Finder('Developer' · 'Chrome 앱') · 계산기('계산기') · 메모('메모') · 카카오톡('카카오톡') · Google Chrome('(3) YouTube').",
+          "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요."
+        ],
+        "unconfirmed": [],
+        "estimated": []
+      },
+      "goal": null,
+      "workingState": {
+        "turnNo": 1,
+        "places": [
+          {
+            "label": "Desktop",
+            "path": "/Users/jyp/Desktop",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Developer",
+            "path": "/Users/jyp/Developer",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Documents",
+            "path": "/Users/jyp/Documents",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Downloads",
+            "path": "/Users/jyp/Downloads",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "GPAO-T5",
+            "path": "/Users/jyp/GPAO-T5",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Movies",
+            "path": "/Users/jyp/Movies",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Music",
+            "path": "/Users/jyp/Music",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Pictures",
+            "path": "/Users/jyp/Pictures",
+            "kind": "folder",
+            "hint": "내 폴더"
+          },
+          {
+            "label": "Public",
+            "path": "/Users/jyp/Public",
+            "kind": "folder",
+            "hint": "내 폴더"
+          }
+        ],
+        "subjects": [],
+        "recentOutcome": {
+          "status": "completed",
+          "request": "내 크롬에 열려 있는 탭들 주소까지 알려줘",
+          "completedTurn": 1,
+          "subjects": []
+        }
+      },
+      "turnExchange": [
+        {
+          "ref": "p1",
+          "providerCallId": "[민감정보 — 원문은 저장하지 않음]",
+          "tool": "desktop.screen",
+          "args": {
+            "action": "status"
+          },
+          "summary": "화면을 볼 준비가 돼 있어요.",
+          "data": "{\"platform\":\"unknown\",\"backend\":{\"id\":\"cua\",\"ready\":true},\"permissions\":{\"accessibility\":\"granted\",\"screenRecording\":\"granted\"},\"capabilities\":[\"observe\",\"elements\",\"act\"],\"귀속\":{\"attribution\":\"host\",\"direct_runtime\":true,\"disclaim_env\":false,\"embedded\":false,\"executable\":\"/Users/jyp/Developer/t5-p-op/vendor/cua-driver/darwin-arm64/cua-driver\",\"host_bundle_id\":\"\",\"note\":\"Embedded mode: these booleans reflect the HOST app's TCC grant (the driver is a child in the host's responsibility chain). No separate driver grant exists or is needed. If a permission is NOT granted, the host app must request it — the driver never raises its own prompt.\",\"pid\":99871,\"responsible_ppid\":99779},\"frontmost\":{\"name\":\"Claude\",\"bundleId\":\"com.anthropic.claudefordesktop\",\"pid\":1046}}"
+        },
+        {
+          "ref": "걸음1",
+          "providerCallId": "[민감정보 — 원문은 저장하지 않음]",
+          "tool": "desktop.screen",
+          "args": {
+            "action": "observe",
+            "scope": "screen",
+            "app": "Google Chrome"
+          },
+          "summary": "지금 창 80개가 떠 있어요 — Claude('Claude') · Finder('Developer' · 'Chrome 앱') · 계산기('계산기') · 메모('메모') · 카카오톡('카카오톡') · Google Chrome('(3) YouTube').",
+          "data": "{\"frontmost\":{\"name\":\"Claude\",\"bundleId\":\"com.anthropic.claudefordesktop\",\"pid\":1046},\"windows\":[{\"id\":411,\"title\":\"\",\"app\":\"Claude\",\"pid\":1046,\"보임\":true,\"층\":117,\"bounds\":{\"x\":0,\"y\":33,\"w\":1470,\"h\":32}},{\"id\":405,\"title\":\"계산기\",\"app\":\"계산기\",\"pid\":99805,\"보임\":false,\"층\":116,\"bounds\":{\"x\":431,\"y\":200,\"w\":230,\"h\":408}},{\"id\":404,\"title\":\"\",\"app\":\"계산기\",\"pid\":99805,\"보임\":false,\"층\":115,\"bounds\":{\"x\":0,\"y\":0,\"w\":1470,\"h\":33}},{\"id\":403,\"title\":\"\",\"app\":\"계산기\",\"pid\":99805,\"보임\":false,\"층\":114,\"bounds\":{\"x\":0,\"y\":0,\"w\":1470,\"h\":33}},{\"id\":402,\"title\":\"\",\"app\":\"계산기\",\"pid\":99805,\"보임\":false,\"층\":113,\"bounds\":{\"x\":0,\"y\":0,\"w\":1470,\"h\":33}},{\"id\":401,\"title\":\"\",\"app\":\"계산기\",\"pid\":99805,\"보임\":false,\"층\":112,\"bounds\":{\"x\":0,\"y\":0,\"w\":1470,\"h\":33}},{\"id\":394,\"title\":\"\",\"app\":\"CursorUIViewService\",\"pid\":1069,\"보임\":false,\"층\":111,\"bounds\":{\"x\":0,\"y\":892,\"w\":64, …(가운데 7778자 생략)… \":1470,\"h\":33}},{\"id\":49,\"title\":\"\",\"app\":\"ChatGPT Classic\",\"pid\":1053,\"보임\":false,\"층\":2,\"bounds\":{\"x\":0,\"y\":0,\"w\":1470,\"h\":33}},{\"id\":99,\"title\":\"\",\"app\":\"Google Chrome\",\"pid\":1466,\"보임\":false,\"층\":1,\"bounds\":{\"x\":0,\"y\":0,\"w\":1,\"h\":1}}],\"다음수단\":[{\"방법\":\"observe\",\"창제목\":\"(3) YouTube\",\"왜\":\"그 창을 지목해서 봐야 열린 탭 제목·주소가 나온다(Google Chrome)\"}],\"권한확인됨\":true,\"관찰내용은데이터\":true}"
+        },
+        {
+          "ref": "걸음2",
+          "providerCallId": "[민감정보 — 원문은 저장하지 않음]",
+          "tool": "desktop.screen",
+          "args": {
+            "action": "observe",
+            "scope": "window",
+            "app": "Google Chrome",
+            "창제목": "(3) YouTube",
+            "깊이": 3,
+            "글자만": true,
+            "limit": 200
+          },
+          "summary": "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요.",
+          "그림": {
+            "mime": "image/png",
+            "base64": "[민감정보 — 원문은 저장하지 않음]"
+          },
+          "data": "본 창: Google Chrome · (3) YouTube · 네가 본 화면 1372×1567(지금 보이는 만큼 · 짚을 자리는 이 안에서)\n열린 창 80개\n요소 107개 (전체 107개 / 화면 전체 113개) · 화면 위에서 아래로 (자리를 못 잰 것은 맨 뒤)\n다음 수: observe — 그 창을 지목해서 봐야 열린 탭 제목·주소가 나온다(Google Chrome)\n- Window: (3) YouTube - Chrome - TV (wildwolf) 대상={\"id\":\"s00000001:0\",\"label\":\"(3) YouTube - Chrome - TV (wildwolf)\"} - Button: 뒤로 대상={\"id\":\"s00000001:1\",\"label\":\"뒤로\"} - Button: 새로고침 대상={\"id\":\"s00000001:2\",\"label\":\"새로고침\"} - PopUpButton: ChatGPT search 대상={\"id\":\"s00000001:7\",\"label\":\"ChatGPT search\"} - PopUpButton: 확장 프로그램 대상={\"id\":\"s00000001:8\",\"label\":\"확장 프로그램\"} - Button: TV (wildwolf) 대상={\"id\":\"s00000001:9\",\"label\":\"TV (wildwolf)\"} - PopUpButton: Chrome 대상={\"id\":\"s00000001:10\",\"label\":\"Chrome\"} - PopUpButton: 사이트 정보 보기 대상={\"id\":\"s00000001:3\",\"label\":\"사이트 정보 보기\"} - TextField: youtube.com (이름: 주소창 및 검색창) 대상={\"id\":\"s00000001:4\",\"label\":\"주소창 및 검색창\"} - Button: YouTube 설치 대상={\"id\":\"s00000001:5\",\"label\":\"YouTube 설치\"} - Button: 현재 탭을 북마크에 추가 대상={\"id\":\"s00000001:6\",\"label\":\"현재 탭을 북마크에 추가\"} - Toolbar: 북마크 대상={\"id\":\"s00000001:11\",\"label\":\"북마크\"} - Button: 탭 그룹 대상={\"id\":\"s00000001:12\",\"label\":\"탭 그룹\"} - PopUpButton: 모든 북마크 대상={\"id\":\"s00000001:13\",\"label\":\"모든 북마크\"} - WebArea: (3) YouTube 대상={\"id\":\"s00000001:14\",\"label\":\"(3) YouTube\"} - Button: 탐색 건너뛰기 대상={\"id\":\"s00000001:34\",\"label\":\"탐색 건너뛰기\"} - StaticText: 탐색 건너뛰기 대상={\"id\":\"s00000001:35\",\"label\":\"탐색 건너뛰기\"} - Link: YouTube Premium 홈 대상={\"id\":\"s00000001:32\",\"label\":\"YouTube Premium 홈\"} - Button: Search 대상={\"id\":\"s00000001:38\",\"label\":\"Search\"} - Button: 음성으로 검색 대상={\"id\":\"s00000001:39\",\"label\":\"음성으로 검색\"} - Button: 만들기 대상={\"id\":\"s00000001:40\",\"label\":\"만들기\"} - Button: 알림 대상={\"id\":\"s00000001:42\",\"label\":\"알림\"} - PopUpButton: 계정 메뉴 대상={\"id\":\"s00000001:44\",\"label\":\"계정 메뉴\"} - StaticText: KR 대상={\"id\":\"s00000001:33\",\"label\":\"KR\"} - Image: 아바타 이미지 대상={\"id\":\"s00000001:45\",\"label\":\"아바타 이미지\"} - StaticText: 3 대상={\"id\":\"s00000001:43\",\"label\":\"3\"} - Button: 가이드 대상={\"id\":\"s00000001:31\",\"label\":\"가이드\"} - ComboBox: 검색 대상={\"id\":\"s00000001:36\",\"label\":\"검색\"} - StaticText: 만들기 대상={\"id\":\"s00000001:41\",\"label\":\"만들기\"} - Button: 다음 대상={\"id\":\"s00000001:61\",\"label\":\"다음\"} - RadioButton: 1 (이름: 전체) 대상={\"id\":\"s00000001:47\",\"label\":\"전체\"} - RadioButton: 0 (이름: 음악) 대상={\"id\":\"s00000001:48\",\"label\":\"음악\"} - RadioButton: 0 (이름: 뉴스) 대상={\"id\":\"s00000001:49\",\"label\":\"뉴스\"} - RadioButton: 0 (이름: 믹스) 대상={\"id\":\"s00000001:50\",\"label\":\"믹스\"} - RadioButton: 0 (이름: 팟캐스트) 대상={\"id\":\"s00000001:51\",\"label\":\"팟캐스트\"} - RadioButton: 0 (이름: 라이브) 대상={\"id\":\"s00000001:52\",\"label\":\"라이브\"} - RadioButton: 0 (이름: 야구) 대상={\"id\":\"s00000001:53\",\"label\":\"야구\"} - RadioButton: 0 (이름: 자연) 대상={\"id\":\"s00000001:54\",\"label\":\"자연\"} - RadioButton: 0 (이름: 반려동물) 대상={\"id\":\"s00000001:55\",\"label\":\"반려동물\"} - RadioButton: 0 (이름: 관광지) 대상={\"id\":\"s00000001:56\",\"label\":\"관광지\"} - RadioButton: 0 (이름: 요리) 대상={\"id\":\"s00000001:57\",\"label\":\"요리\"} - Button: 추가 작업 대상={\"id\":\"s00000001:70\",\"label\":\"추가 작업\"} - Button: 추가 작업 대상={\"id\":\"s00000001:78\",\"label\":\"추가 작업\"} - Button: 탭하여 오늘의 멜로디 Today's Melody 채널 라이브 시청하기 대상={\"id\":\"s00000001:62\",\"label\":\"탭하여 오늘의 멜로디 Today's Melody 채널 라이브 시청하기\"} - Heading: 3 (이름: Playlist 🍉여름에 듣기 좋은 카페 음악 🌊 시원한 여름 바다처럼 기분좋고 상쾌한 음악 | 중간광고없음 | Chill Summer Cafe Music 260621) 대상={\"id\":\"s00000001:64\",\"label\":\"Playlist 🍉여름에 듣기 좋은 카페 음악 🌊 시원한 여름 바다처럼 기분좋고 상쾌한 음악 | 중간광고없음 | Chill Summer Cafe Music 260621\"} - Link: Playlist 🍉여름에 듣기 좋은 카페 음악 🌊 시원한 여름 바다처럼 기분좋고 상쾌한 음악 | 중간광고없음 | Chill Summer Cafe Music 260621 2시간 1분 대상={\"id\":\"s00000001:65\",\"label\":\"Playlist 🍉여름에 듣기 좋은 카페 음악 🌊 시원한 여름 바다처럼 기분좋고 상쾌한 음악 | 중간광고없음 | Chill Summer Cafe Music 260621 2시간 1분\"} - Button: 오빠두엑셀 l 엑셀 강의 대표채널 채널로 이동 대상={\"id\":\"s00000001:71\",\"label\":\"오빠두엑셀 l 엑셀 강의 대표채널 채널로 이동\"} - Heading: 3 (이름: 완전히 새로워진 노트북 LM 2.0, 무료인데 성능은 미쳤습니다 | 핵심 기능 7가지 총정리 (최신 가이드)) 대상={\"id\":\"s00000001:72\",\"label\":\"완전히 새로워진 노트북 LM 2.0, 무료인데 성능은 미쳤습니다 | 핵심 기능 7가지 총정리 (최신 가이드)\"} - Link: 완전히 새로워진 노트북 LM 2.0, 무료인데 성능은 미쳤습니다 | 핵심 기능 7가지 총정리 (최신 가이드) 19분 대상={\"id\":\"s00000001:73\",\"label\":\"완전히 새로워진 노트북 LM 2.0, 무료인데 성능은 미쳤습니다 | 핵심 기능 7가지 총정리 (최신 가이드) 19분\"} - StaticText: 라이브 대상={\"id\":\"s00000001:63\",\"label\":\"라이브\"} - Link: 오빠두엑셀 l 엑셀 강의 대표채널 대상={\"id\":\"s00000001:74\",\"label\":\"오빠두엑셀 l 엑셀 강의 대표채널\"} - Link: 오늘의 멜로디 Today's Melody 대상={\"id\":\"s00000001:66\",\"label\":\"오늘의 멜로디 Today's Melody\"} - StaticText: 오늘의 멜로디 Today's Melody 대상={\"id\":\"s00000001:67\",\"label\":\"오늘의 멜로디 Today's Melody\"} - StaticText: 오빠두엑셀 l 엑셀 강의 대표채널 대상={\"id\":\"s00000001:75\",\"label\":\"오빠두엑셀 l 엑셀 강의 대표채널\"} - StaticText: 조회수 9.7만회 대상={\"id\":\"s00000001:68\",\"label\":\"조회수 9.7만회\"} - StaticText: 1개월 전 대상={\"id\":\"s00000001:69\",\"label\":\"1개월 전\"} - StaticText: 조회수 2.3만회 대상={\"id\":\"s00000001:76\",\"label\":\"조회수 2.3만회\"} - StaticText: 12시간 전 대상={\"id\":\"s00000001:77\",\"label\":\"12시간 전\"} - Button: 확장(i) 대상={\"id\":\"s00000001:17\",\"label\":\"확장(i)\"} - Button: 닫기 대상={\"id\":\"s00000001:15\",\"label\":\"닫기\"} - Button: Shorts 동영상 - 작업 더보기 대상={\"id\":\"s00000001:81\",\"label\":\"Shorts 동영상 - 작업 더보기\"} - Heading: 2 (이름: Shorts) 대상={\"id\":\"s00000001:79\",\"label\":\"Shorts\"} - StaticText: Shorts 대상={\"id\":\"s00000001:80\",\"label\":\"Shorts\"} - Button: 재생(k) 대상={\"id\":\"s00000001:19\",\"label\":\"재생(k)\"} - Button: 58 분 10 초/1 시간 11 분 40 초 대상={\"id\":\"s00000001:21\",\"label\":\"58 분 10 초/1 시간 11 분 40 초\"} - StaticText: 58:10 대상={\"id\":\"s00000001:22\",\"label\":\"58:10\"} - StaticText: / 대상={\"id\":\"s0 …(가운데 1322자 생략)… \"id\":\"s00000001:86\",\"label\":\"자존감이 낮았던 외국인에게 잊지 못할 사진 선물하기…\"} - StaticText: 자존감이 낮았던 외국인에게 잊지 못할 사진 선물하기… 대상={\"id\":\"s00000001:87\",\"label\":\"자존감이 낮았던 외국인에게 잊지 못할 사진 선물하기…\"} - StaticText: 조회수 32만회 대상={\"id\":\"s00000001:88\",\"label\":\"조회수 32만회\"} - Button: 추가 작업 대상={\"id\":\"s00000001:89\",\"label\":\"추가 작업\"} - Link: 다 죽자 그냥 대상={\"id\":\"s00000001:90\",\"label\":\"다 죽자 그냥\"} - StaticText: 다 죽자 그냥 대상={\"id\":\"s00000001:91\",\"label\":\"다 죽자 그냥\"} - StaticText: 조회수 106만회 대상={\"id\":\"s00000001:92\",\"label\":\"조회수 106만회\"} - Button: 추가 작업 대상={\"id\":\"s00000001:93\",\"label\":\"추가 작업\"} - Button: 고소영 채널로 이동 대상={\"id\":\"s00000001:94\",\"label\":\"고소영 채널로 이동\"} - Heading: 3 (이름: 이 멤버가 한 자리에? 고소영과 함께하는 연예인 파티 현장(이정재,장동건,강동원,이민호)) 대상={\"id\":\"s00000001:95\",\"label\":\"이 멤버가 한 자리에? 고소영과 함께하는 연예인 파티 현장(이정재,장동건,강동원,이민호)\"} - Link: 이 멤버가 한 자리에? 고소영과 함께하는 연예인 파티 현장(이정재,장동건,강동원,이민호) 16분 대상={\"id\":\"s00000001:96\",\"label\":\"이 멤버가 한 자리에? 고소영과 함께하는 연예인 파티 현장(이정재,장동건,강동원,이민호) 16분\"} - Link: 고소영 대상={\"id\":\"s00000001:97\",\"label\":\"고소영\"} - StaticText: 고소영 대상={\"id\":\"s00000001:98\",\"label\":\"고소영\"} - StaticText: 조회수 37만회 대상={\"id\":\"s00000001:99\",\"label\":\"조회수 37만회\"} - StaticText: 2일 전 대상={\"id\":\"s00000001:100\",\"label\":\"2일 전\"} - Button: 추가 작업 대상={\"id\":\"s00000001:101\",\"label\":\"추가 작업\"} - Button: 추성훈 ChooSungHoon 채널로 이동 대상={\"id\":\"s00000001:102\",\"label\":\"추성훈 ChooSungHoon 채널로 이동\"} - Heading: 3 (이름: 절제 끝판왕 박진영이 일본 편의점 먹방하고 술방하는 귀한 영상 ft. 미야코지마) 대상={\"id\":\"s00000001:103\",\"label\":\"절제 끝판왕 박진영이 일본 편의점 먹방하고 술방하는 귀한 영상 ft. 미야코지마\"} - Link: 절제 끝판왕 박진영이 일본 편의점 먹방하고 술방하는 귀한 영상 ft. 미야코지마 41분 대상={\"id\":\"s00000001:104\",\"label\":\"절제 끝판왕 박진영이 일본 편의점 먹방하고 술방하는 귀한 영상 ft. 미야코지마 41분\"} - Link: 추성훈 ChooSungHoon 대상={\"id\":\"s00000001:105\",\"label\":\"추성훈 ChooSungHoon\"} - StaticText: 추성훈 ChooSungHoon 대상={\"id\":\"s00000001:106\",\"label\":\"추성훈 ChooSungHoon\"} - StaticText: 조회수 71만회 대상={\"id\":\"s00000001:107\",\"label\":\"조회수 71만회\"} - StaticText: 17시간 전 대상={\"id\":\"s00000001:108\",\"label\":\"17시간 전\"} - Button: 추가 작업 대상={\"id\":\"s00000001:109\",\"label\":\"추가 작업\"} - Heading: 2 (이름: Shorts) 대상={\"id\":\"s00000001:110\",\"label\":\"Shorts\"} - StaticText: Shorts 대상={\"id\":\"s00000001:111\",\"label\":\"Shorts\"} - Button: Shorts 동영상 - 작업 더보기 대상={\"id\":\"s00000001:112\",\"label\":\"Shorts 동영상 - 작업 더보기\"}"
+        }
+      ],
+      "contextShown": "볼 수 있는 자리: Desktop · Developer · Documents · Downloads · GPAO-T5 · Movies · Music · Pictures · Public\n최근 완료한 일: 내 크롬에 열려 있는 탭들 주소까지 알려줘 (완료됨)",
+      "shownMemoryRefs": {
+        "turnRef": {
+          "sessionId": "6dc70eef-329c-4090-928d-d8699430e7b5",
+          "turnSeq": 1
+        },
+        "refs": [
+          {
+            "ref": "home-332c740a953e",
+            "kind": "preference",
+            "statement": "콜라를 마시며 넷플릭스를 시청한다"
+          },
+          {
+            "ref": "efc63b50ae0e2f74bef05570",
+            "kind": "lane",
+            "statement": "정리한 답이 남아 있음"
+          },
+          {
+            "ref": "c4878314c60138da3612bc5c",
+            "kind": "lane",
+            "statement": "정리한 답이 남아 있음"
+          },
+          {
+            "ref": "a119ef1e553ca6f0d4703e5c",
+            "kind": "lane",
+            "statement": "정리한 답이 남아 있음"
+          }
+        ]
+      },
+      "modelCitedRefs": null,
+      "memoryCorrection": null,
+      "skillProposal": null,
+      "automationProposal": null,
+      "agentProposal": null,
+      "memorySuggestion": null,
+      "memoryWithdrawal": null,
+      "automationSuggestion": null,
+      "toolCandidate": null,
+      "capabilityResolution": null,
+      "workStateDiagnostic": {
+        "reviewNeeded": false,
+        "reviewOpened": false,
+        "reportedByMain": false,
+        "durationMs": 0
+      }
+    }
+  ],
+  "바뀐것": null
+}
