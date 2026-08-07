@@ -46,3 +46,24 @@ test('이미 있던 네 걸음은 그대로다 — 있는 규율을 없애지 �
     assert.ok(s.includes(조각), `**기존 걸음이 사라졌다**: ${조각}`);
   }
 });
+
+// ── 그 순서가 모델까지 간다 ─────────────────────────────────────────────
+// **밟고 나서 안 것**(2026-08-07): `도구쓰는순서` 는 `task-context.js` 가 만들고
+// **아무도 안 읽는다**(소비자 0곳). 내가 넣기 전부터 죽어 있던 필드다.
+//
+// 그래서 위 걸음을 더한 뒤 라이브가 안 움직인 것을 나는 *"문구 세 번째 실패"* 로 셌는데,
+// **문구가 안 통한 게 아니라 문구가 안 갔다.** 오늘 일곱 번째 같은 병이고,
+// 이번엔 내가 만든 것이 아니라 원래 끊겨 있던 자리다 — 그래서 더 조용했다.
+import { buildModelMessages } from '../src/runtime/model-provider.js';
+
+test('도구 쓰는 순서가 모델 프롬프트에 실린다 — 소비자가 0곳이면 무엇을 적든 안 간다', () => {
+  const tc = buildTaskContext({
+    processEnv: {},
+    selfState: { currentModel: { id: 't' }, connectedTools: [], riskyActions: [], limits: {} },
+    intent: { answerMode: 'work', goal: 'x', currentRequest: '이번 달 얼마 벌었지?' },
+    plan: { autoAllowed: [], needsApproval: [], forbidden: [] }, receipts: [],
+  });
+  const 글 = String(buildModelMessages({ currentRequest: '이번 달 얼마 벌었지?', ...tc }).system ?? '');
+  assert.match(글, /먼저 손으로 찾아본다/,
+    `**순서가 모델에게 안 간다** — 커널이 만들어 놓고 아무도 안 읽는다: ${글.slice(-300)}`);
+});

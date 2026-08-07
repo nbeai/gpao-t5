@@ -962,6 +962,13 @@ export async function runTurn(input, ctx) {
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
       projectWorkState: ctx.projectWorkState,
+      // **첫 판단 자리에도 남은 걸음을 준다**(PM 실측 2026-08-07 · 노드 R).
+      //
+      // `예산사실()` 은 `executePlan` 안에 있어 **모델이 처음 판단할 때는 없다.** ⑤·⑬ 처럼
+      // 첫 턴에 손을 쓸지 말지 정하는 자리가 바로 여기이고, 여기가 비어 있으면 모델은
+      // 능력만 알고 *지금 써도 되는지*를 모른 채 *"…해 드려야 해요"* 라고 미래형으로 답한다.
+      // 아직 아무것도 안 썼으니 남은 걸음은 상한 그대로다.
+      toolStepsLeft: Math.min(MAX_TOOL_STEPS, 턴예산(ctx.processEnv ?? process.env).왕복),
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
@@ -1706,6 +1713,22 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       되돌릴수있는것쓴것, 되돌릴수있는것예산: 예산.되돌릴수있는것,
       그밖쓴것, 그밖예산: 예산.그밖,
     },
+    // **지금 몇 번 더 뻗을 수 있나**(PM 실측 2026-08-07 · 노드 R).
+    //
+    // 받는 쪽(`task-context.js`·`model-provider.js`)은 처음부터 있었는데 **넣어 주는 자리가
+    // 0곳**이었다. 그 주석에 H08 실측이 이미 적혀 있다 — *"손이 3걸음 남았는데 모델이
+    // 「지금 손은 다 써서」라며 미뤘다. 남았다는 사실이 어디에도 없으니 빈칸을 소진으로
+    // 메운 것이다."* **진단은 맞았는데 배선이 안 됐다.**
+    //
+    // 그래서 모델은 *능력*은 알고 *지금 써도 되는지*는 몰랐다. ⑤가
+    // *"읽어서 계산해 드려야 해요"* 라고 **미래형**으로 말한 것이 그 모양이다.
+    // 위 `turnBudget` 은 두 축의 원자료이고, 이건 **모델이 바로 읽는 한 숫자**다.
+    // 강제가 아니다(⛔) — 사실을 줄 뿐이고 어떻게 쓸지는 모델이 정한다.
+    toolStepsLeft: Math.max(0, Math.min(
+      예산.왕복 - (ctx.왕복수 ?? 0),
+      예산.되돌릴수있는것 - 되돌릴수있는것쓴것,
+      MAX_TOOL_STEPS - turnReceipts.length,
+    )),
     ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
   });
   // **이번에 실행 중인 호출의 신분.** 계획 경로도 바로 아래 `계약실행`을 지나므로
