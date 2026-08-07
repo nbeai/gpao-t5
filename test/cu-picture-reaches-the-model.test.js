@@ -42,3 +42,22 @@ test('그림을 호출 신분으로도 걸어 둔다 — 객체 동일성은 언
   assert.match(글, /이번턴그림\.set\((?:신분\.)?providerCallId|providerCallId,\s*방금그림|신분\.providerCallId/,
     '**객체 하나에만 건다** — 영수증이 한 번만 복사돼도 그림이 조용히 사라진다');
 });
+
+// **관찰 그림도 실린다** — 예전 주석은 *"손이 확인을 못 했을 때만 눈이 필요하다"* 였다.
+// 그 전제가 틀렸다(PM 지적). 접근성이 창을 못 잡는 것은 흔한 정상 상태이고,
+// 그때 드라이버가 주는 것은 *"그림이 곧 그 창이다"* 라는 사실이다 — 관찰이 눈이 필요한 자리다.
+import { buildModelMessages } from '../src/runtime/model-provider.js';
+
+test('관찰이 낸 그림도 모델 메시지에 실린다 — verify 때만 싣는 게 아니다', () => {
+  const m = buildModelMessages({
+    currentRequest: '계산기 화면 읽어줘',
+    turnExchange: [{
+      ref: 'c1', tool: 'desktop.screen', args: { scope: 'window', app: '계산기' },
+      summary: '그 창은 다른 화면에 있어요.',
+      그림: { mime: 'image/png', base64: 'x'.repeat(2000) },
+    }],
+  });
+  const s = JSON.stringify(m.exchange ?? m);
+  assert.match(s, /base64|image/,
+    `**관찰 그림이 안 실린다** — 접근성이 안 잡히는 창은 영영 못 읽는다: ${s.slice(0, 300)}`);
+});

@@ -286,6 +286,13 @@ export function makeCuaDriver(deps = {}) {
       const 창들 = 날것창.map((w) => ({
         id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
         보임: w.is_on_screen !== false,
+        // **어느 화면(Space)에 있나**(2026-08-07 · 오너 질책 뒤 밟음).
+        // 풀스크린 창은 별도 Space 를 만들고, 그러면 다른 창이 그리로 밀린다.
+        // 그때 AX 트리는 그 창을 못 잡고(`ax_window_unresolved`) `bring_to_front` 도 안 통한다 —
+        // **`list_windows` 가 처음부터 이 사실을 줬는데 우리가 0곳에서도 안 읽었다.**
+        // 이게 없으면 사람도 모델도 *"가려졌나"* 로만 추측한다(하루를 그렇게 썼다).
+        ...(w.on_current_space === false ? { 같은화면: false } : {}),
+        ...(w.on_current_space === true ? { 같은화면: true } : {}),
         // 앞뒤 순서 — 큰 값이 앞이다. 없으면 목록 순서를 쓴다.
         층: Number.isFinite(w.z_index) ? w.z_index : null,
         // **창 자리를 싣는다.** 없으면 창 밖(Dock)도, 스크롤 위로 벗어난 것(y=-5081)도
@@ -300,7 +307,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -471,6 +478,39 @@ export function makeCuaDriver(deps = {}) {
               + (st.screenshot_error?.code ? ` · ${st.screenshot_error.code}` : '');
           }
           if (st?.escalation && typeof st.escalation === 'object') 올려야할길값 = st.escalation;
+          // **손이 준 사실을 버리지 않는다**(PM 판정 2026-08-07).
+          //
+          // cua 는 매 응답에 *"지금 상태가 이렇고 다음은 이렇게 하라"* 를 전부 적어 준다.
+          // 우리는 `degraded_reason` 한 줄만 뽑아 모델에게 **실패**로 넘겼다. 실물:
+          // ```
+          // escalation.reason  "the screenshot in this response IS the requested window,
+          //                     but background input (including px) is refused …"
+          // background_input   routes 셋 다 refused · reason "off_space_or_ax_unresolved"
+          // ```
+          // **그림은 맞고 입력만 거부된다**를 드라이버가 정확히 말하는데 그걸 버렸다.
+          // 커널은 이 글을 읽어 판정하지 않는다 — 손이 밝힌 것을 **사실로 옮길 뿐**이다.
+          화면사실값 = (() => {
+            const 것 = {};
+            const 막힌길 = (st?.background_input?.routes ?? []).filter((r) => r?.status === 'refused');
+            if (막힌길.length) {
+              것.조작막힘 = true;
+              것.조작막힌이유 = [...new Set(막힌길.map((r) => r.reason).filter(Boolean))].join(' · ');
+              것.막힌길 = 막힌길.map((r) => r.route).filter(Boolean);
+            }
+            // 관찰은 되는데 조작만 막힌 경우 — **"못 읽는다"와 완전히 다른 상태다.**
+            if (/screenshot[^.]*IS the requested window/i.test(String(올려야할길값?.reason ?? ''))) {
+              것.그림은요청한창이맞다 = true;
+            }
+            if (st?.screenshot_error?.code) 것.그림못찍은이유 = st.screenshot_error.code;
+            // **어느 화면에 있는지는 원인 그 자체다.** 풀스크린 창이 별도 Space 를 만들면
+            // 다른 창이 그리로 밀리고, 그때 AX 는 창을 못 잡는다 — 하루를 *"가려졌나"* 로 썼다.
+            if (대상?.같은화면 === false) {
+              것.다른화면에있다 = true;
+              것.말 = '그 창은 지금 보고 있는 화면(Space)이 아니라 **다른 화면에 있어요**'
+                + `${것.조작막힘 ? ' — 화면은 볼 수 있지만 조작은 그 화면으로 넘어가야 해요.' : '.'}`;
+            }
+            return Object.keys(것).length ? 것 : null;
+          })();
 
           // **알려준 사다리를 실제로 탄다**(흡수 ③).
           //
@@ -558,6 +598,8 @@ export function makeCuaDriver(deps = {}) {
             id: 대상.id, app: 대상.app, title: 대상.title ?? '',
             ...(대상.pid != null ? { pid: 대상.pid } : {}),
             ...(대상.bounds ? { bounds: 대상.bounds } : {}),
+            ...(대상.같은화면 === false ? { 같은화면: false } : {}),
+            ...(대상.같은화면 === true ? { 같은화면: true } : {}),
           };
 
           // **AX 가 답을 못 주는 대상이 있다** — 메모 본문은 트리에 없고, 카톡 대화창은
@@ -623,6 +665,7 @@ export function makeCuaDriver(deps = {}) {
         ...(못읽은이유값 ? { 못읽은이유: 못읽은이유값 } : {}),
         ...(올려야할길값 ? { 올려야할길: 올려야할길값 } : {}),
         ...(앞세워읽음값 ? { 앞세워읽음: true } : {}),
+        ...(화면사실값 ? { 화면사실: 화면사실값 } : {}),
         ...(그림값 ? { 그림: 그림값 } : {}),
         ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
         ...(탭들값?.length ? { 탭들: 탭들값 } : {}),
