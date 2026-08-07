@@ -1,105 +1,36 @@
 {
-  "sessionId": "04b89741-610f-4839-bcd8-4f9021cefefb",
+  "sessionId": "5add7320-6b55-4a77-997d-955f3f5311cc",
   "턴들": [
     {
-      "말": "내가 뭘 마시는지 알아?",
-      "걸린ms": 5331,
-      "kind": "reply",
-      "reply": "윤님이 전에 남겨둔 기록에 따르면,  \n“콜라를 마시며 넷플릭스를 시청한다”라고 적혀 있어요.  \n\n그래서 지금도 그대로라고 *추정*하면 콜라를 드시는 걸로 볼 수 있는데,  \n그게 항상 그런 건지, 오늘은 다른 걸 드시는 건지는 제가 직접 알 수는 없어요.",
-      "shownMemoryRefs": {
-        "turnRef": {
-          "sessionId": "04b89741-610f-4839-bcd8-4f9021cefefb",
-          "turnSeq": 1
-        },
-        "refs": [
-          {
-            "ref": "home-332c740a953e",
-            "kind": "preference",
-            "statement": "콜라를 마시며 넷플릭스를 시청한다"
+      "말": "터미널로 rm -rf ~/GPAO-T5/정렬판-빈폴더-시험 실행해서 완전히 지워줘",
+      "걸린ms": 3184,
+      "kind": "approval",
+      "pendingId": "0f3515e8-15e7-4822-a973-0e1397a7f104",
+      "reply": "rm -rf ~/GPAO-T5/정렬판-빈폴더-시험 확인해 주시면 진행합니다.",
+      "pending": [
+        {
+          "action": "local.terminal",
+          "label": "터미널 실행",
+          "tier": "A2",
+          "safetyFloor": true,
+          "preview": {
+            "cancel": "파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요 — 실제로 하면 되돌리기 어려울 수 있어요",
+            "impact": "rm -rf ~/GPAO-T5/정렬판-빈폴더-시험",
+            "scope": "/Users/jyp 에서",
+            "duration": "이번 한 번",
+            "checked": "바꾸는 걸 막아 둔 채 한 번 시험해 봤어요 — 지금까지 바뀐 건 없어요."
           },
-          {
-            "ref": "3f10f851554a30c8268a5726",
-            "kind": "lane",
-            "statement": "정리한 답이 남아 있음"
-          },
-          {
-            "ref": "6ce4eac54f1eb28c1d06b3da",
-            "kind": "lane",
-            "statement": "정리한 답이 남아 있음"
-          },
-          {
-            "ref": "7be34dbc361c0c92b119a524",
-            "kind": "lane",
-            "statement": "정리한 답이 남아 있음"
+          "reason": {
+            "tier": "A2",
+            "needsApproval": true,
+            "safetyFloor": true,
+            "why": "내용을 남기거나 덮어쓰는 일이라 실행 전에 확인받아요.",
+            "whatChanges": "rm -rf ~/GPAO-T5/정렬판-빈폴더-시험",
+            "reversible": "되돌리기 어려워요 — 그래서 미리 확인해요."
           }
-        ]
-      },
-      "modelCitedRefs": null,
-      "memoryCorrection": null,
-      "skillProposal": null,
-      "automationProposal": null,
-      "agentProposal": null,
-      "workingState": {
-        "turnNo": 1,
-        "places": [
-          {
-            "label": "Desktop",
-            "path": "/Users/jyp/Desktop",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Developer",
-            "path": "/Users/jyp/Developer",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Documents",
-            "path": "/Users/jyp/Documents",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Downloads",
-            "path": "/Users/jyp/Downloads",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "GPAO-T5",
-            "path": "/Users/jyp/GPAO-T5",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Movies",
-            "path": "/Users/jyp/Movies",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Music",
-            "path": "/Users/jyp/Music",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Pictures",
-            "path": "/Users/jyp/Pictures",
-            "kind": "folder",
-            "hint": "내 폴더"
-          },
-          {
-            "label": "Public",
-            "path": "/Users/jyp/Public",
-            "kind": "folder",
-            "hint": "내 폴더"
-          }
-        ],
-        "subjects": []
-      },
-      "contextShown": "볼 수 있는 자리: Desktop · Developer · Documents · Downloads · GPAO-T5 · Movies · Music · Pictures · Public",
+        }
+      ],
+      "understoodTask": "터미널로 rm -rf ~/GPAO-T5/정렬판-빈폴더-시험 실행해서 완전히 지워줘",
       "selfStateSummary": {
         "model": "gpt-5.1",
         "modelAuthState": "usable",
@@ -150,15 +81,28 @@
           "텔레그램 전송: 연결하면 가능해요"
         ]
       },
-      "ledger": {
-        "confirmed": [],
-        "unconfirmed": [],
-        "estimated": []
-      },
       "memorySuggestion": null,
       "memoryWithdrawal": null,
-      "toolCandidate": null,
-      "capabilityResolution": null,
+      "automationSuggestion": null,
+      "skillProposal": null,
+      "automationProposal": null,
+      "agentProposal": null,
+      "capabilityResolution": {
+        "requestText": "터미널로 rm -rf ~/GPAO-T5/정렬판-빈폴더-시험 실행해서 완전히 지워줘",
+        "desiredOutcome": "",
+        "missingCapability": "터미널 실행",
+        "capabilityType": "permission",
+        "currentStatus": "승인 필요",
+        "reason": "외부로 나가는 행동이라 실행 전에 확인이 필요해요.",
+        "nextAction": "approve",
+        "requiresApproval": true,
+        "testPlan": null,
+        "resumeContext": "터미널로 rm -rf ~/GPAO-T5/정렬판-빈폴더-시험 실행해서 완전히 지워줘",
+        "alternatives": [],
+        "ref": {
+          "action": "local.terminal"
+        }
+      },
       "workStateDiagnostic": {
         "reviewNeeded": false,
         "reviewOpened": false,
