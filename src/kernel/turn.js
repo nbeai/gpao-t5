@@ -47,7 +47,7 @@ import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
-import { 완료주장검증, 빈손으로끝났나 } from './l2-plan/exit-verification.js';
+import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -2095,6 +2095,46 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
     return true;
   };
+  // ── **읽던 자리를 반만 읽고 끝나지 않는다** (감사 판정의 나비 자리 · 2026-08-08) ──
+  //
+  // 실측: ⑤가 3/3, ⑫ R3 이 같은 갈래 — 한 폴더의 두 자료 중 하나만 읽고 부분합에
+  // "총·이번 달" 이름을 붙였다(채점 기준: 그 순간 그 숫자는 거짓이다). 읽기 결과에 실어 준
+  // "같은 자리의 다른 파일" 사실만으로는 안 움직였다 — 그래서 커널이 원장을 대조해
+  // **안 읽은 것의 목록**을 사실로 되돌린다. 판단은 모델에 남는다(다 읽거나, 범위를 이름에 밝히거나).
+  let 부분읽기요청수 = 0;
+  const 부분읽기이어가기 = async () => {
+    if (부분읽기요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;
+    // **관할을 가른다** — 파일 산출물 계약이 있으면 산출물이어가기의 일이고(두 그물이 같은
+    // 턴을 당기면 걸음만 탄다), 쓰기가 이미 됐으면 읽기-답 턴이 아니다. 그리고 부분 읽기가
+    // 거짓이 되는 자리는 **숫자 주장**이다(부분합에 "총" — 감사 채점 기준). 숫자 없는 답에
+    // 이 그물을 물리면 정상 요약 턴마다 왕복 하나가 탄다.
+    if ((plan.deliverables ?? []).length) return false;
+    if (turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file'
+      && ['write', 'move', 'bulk_move', 'delete'].includes(r?.actualCall?.args?.action))) return false;
+    const 읽은들 = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
+      && (r?.result?.같은자리파일 ?? []).length);
+    if (!읽은들.length) return false;
+    const 읽은이름 = new Set(읽은들.map((r) => String(r?.result?.path ?? '').split('/').pop()));
+    const 안읽은 = [...new Set(읽은들.flatMap((r) => r.result.같은자리파일))]
+      .filter((n) => !읽은이름.has(n));
+    if (!안읽은.length) return false;
+    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
+    if (미완료를밝혔나(답글)) return false;                 // 못 본 것을 밝히면 정직한 끝이다
+    if (!/\d/.test(답글)) return false;                    // 숫자 주장이 아니면 부분합 위험이 없다
+    부분읽기요청수 += 1;
+    const 손들 = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
+    if (!손들.length) return false;
+    finalOut = await ctx.model.respond({
+      ...tc,
+      partialRead: { 자리: String(읽은들[0]?.result?.path ?? '').split('/').slice(0, -1).join('/'),
+        읽은: [...읽은이름], 안읽은: 안읽은.slice(0, 6) },
+    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
+    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false;
+    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
+    return true;
+  };
   // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
   //
   // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
@@ -2198,6 +2238,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (!next.length) {
         // 후보를 받아 놓고 빈손(심문·약속)으로 끝나려 하면 — 원장 사실을 주고 한 번 되부른다.
         if (await 후보이어가기()) continue;
+        // 읽던 자리를 반만 읽고 끝나려 하면 — 안 읽은 목록을 사실로 주고 한 번 되부른다.
+        if (await 부분읽기이어가기()) continue;
         // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
         // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
         // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은

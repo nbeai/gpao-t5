@@ -48,3 +48,24 @@ test('되부름의 사실 블록이 모델 입력에 실린다 — 안 실리면
   assert.match(글, /2026-07 정산/);
   assert.match(글, /무엇을 안 봤는지 함께 말한다/);
 });
+
+// ── 부분읽기 그물 (감사 판정의 나비 자리 · 2026-08-08) ──────────────────────
+test('반만 읽은 자리의 사실 블록이 모델 입력에 실린다 — 채점 기준(부분합에 총 금지)과 함께', () => {
+  const { system } = buildModelMessages({
+    currentRequest: '이번 달 얼마 벌었지?',
+    partialRead: { 자리: '/a/2026-08 정산', 읽은: ['2026-08 매출정산.csv'], 안읽은: ['8월 정산내역.csv'] },
+  });
+  const 글 = String(system);
+  assert.match(글, /1개를 읽었고 1개는 안 읽었다/);
+  assert.match(글, /8월 정산내역\.csv/);
+  assert.match(글, /"총·전체" 이름을 붙이면 거짓/);
+});
+
+test('읽기 결과의 같은자리파일이 압축을 지나 모델에 간다 — 안 실리면 그물의 재료가 없다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 글 = compactResult({
+    path: '/a/2026-08 정산/2026-08 매출정산.csv', text: '거래처,금액\n가나상사,980000\n',
+    같은자리파일: ['8월 정산내역.csv'],
+  }, 5000);
+  assert.match(String(글), /같은 자리의 다른 파일: 8월 정산내역\.csv/);
+});

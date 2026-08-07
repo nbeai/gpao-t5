@@ -329,6 +329,15 @@ export function buildModelMessages(tc) {
       + (tc.candidatesUnopened.자리들 ?? []).map((p) => `- ${p}`).join('\n')
       + '\n답을 내기 전에 열어 볼 수 있다. 안 열고 답한다면 무엇을 안 봤는지 함께 말한다.');
   }
+  // 반만 읽은 자리 — 원장 대조로 나온 **안 읽은 것의 목록**(감사 판정의 나비 자리 · 2026-08-08).
+  // 채점 기준이 함께 간다: 부분 숫자에 "총·전체" 이름을 붙이면 그 숫자는 거짓이 된다.
+  if (tc.partialRead?.안읽은?.length) {
+    const p = tc.partialRead;
+    커널블록.push(`[이번 턴 사실] ${p.자리} 에서 ${p.읽은.length}개를 읽었고 ${p.안읽은.length}개는 안 읽었다:\n`
+      + p.안읽은.map((n) => `- ${n}`).join('\n')
+      + '\n마저 읽고 답할 수 있다. 안 읽고 답한다면 지금 숫자가 어느 파일 범위인지 이름에 그대로 밝힌다'
+      + ' — 부분 숫자에 "총·전체" 이름을 붙이면 거짓이 된다.');
+  }
   // 얕게 끝난 찾기 — 후보 0 이지만 넓힐 길이 결과에 실려 있었다는 사실(같은 그물의 다른 얼굴).
   if (tc.searchNotExhausted) {
     const s = tc.searchNotExhausted;
