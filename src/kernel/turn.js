@@ -47,7 +47,7 @@ import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
-import { 완료주장검증 } from './l2-plan/exit-verification.js';
+import { 완료주장검증, 빈손으로끝났나 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -2044,6 +2044,43 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
     return true;
   };
+  // ── **후보를 받아 놓고 빈손으로 끝나지 않는다** (3단계 매듭 ① · 2026-08-08) ────
+  //
+  // 실측(⑬ 아홉 회차): locate 가 정확한 후보 다섯을 받아 놓고 모델이 **하나도 안 열고**
+  // 사용자에게 열다섯을 되묻거나(심문), 목록까지 열고 *"바로 해 볼게요"* 로 끝냈다(약속).
+  // 헌장 문장(*"하겠다고 말했으면 같은 답 안에서 그 손을 부른다"*)은 실린 채로 뚫렸다 —
+  // 문구 지시의 네 번째 실패. 그래서 지시가 아니라 **구조**로 만든다: 산출물이어가기와
+  // 같은 모양의 되부름이고, 강제하지 않는다 — 원장의 사실만 주고 고르는 것은 모델에 남긴다
+  // (안 고르면 그대로 끝난다). 정직한 미완료·증거 가져온 뒤의 표적 질문은 안 걸린다
+  // (⑬ 채점 해석 · 오너 승인 2026-08-08).
+  let 후보요청수 = 0;
+  const 후보이어가기 = async () => {
+    if (후보요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;   // 한 턴에 한 번만
+    const 후보들 = turnReceipts
+      .filter((r) => r?.actualCall?.tool === 'local.locate' && (r.failureState ?? 'none') === 'none')
+      .flatMap((r) => r?.result?.candidates ?? []);
+    if (!후보들.length) return false;
+    const 읽었다 = turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file'
+      && ['read', 'versions'].includes(r?.actualCall?.args?.action));
+    if (읽었다) return false;                                       // 증거를 가져왔다 — 빈손이 아니다
+    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
+    if (!빈손으로끝났나(답글)) return false;                        // 답이 곧 결과일 수 있다(자리 물음 등)
+    후보요청수 += 1;
+    const 손들 = modelSchemasFor(selfState, ctx.modelControls)
+      .filter((t) => ['local.file', 'local.locate'].includes(t.name));
+    if (!손들.length) return false;
+    finalOut = await ctx.model.respond({
+      ...tc,
+      candidatesUnopened: {
+        수: 후보들.length,
+        자리들: [...new Set(후보들.map((c) => String(c.path ?? '')))].filter(Boolean).slice(0, 5),
+      },
+    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
+    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false; // 모델이 안 골랐다 — 그대로
+    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
+    return true;
+  };
   // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
   //
   // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
@@ -2145,6 +2182,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
       const next = 분리.rest;
       if (!next.length) {
+        // 후보를 받아 놓고 빈손(심문·약속)으로 끝나려 하면 — 원장 사실을 주고 한 번 되부른다.
+        if (await 후보이어가기()) continue;
         // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
         // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
         // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은

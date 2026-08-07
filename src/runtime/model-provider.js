@@ -322,6 +322,13 @@ export function buildModelMessages(tc) {
     커널블록.push(`[이번 턴에 세운 예약 후보]\n- ${tc.automationProposal.statement}\n`
       + '이미 만들어 둔 것이다 — "그런 기능이 없다"고 말하지 않는다. 사용자에게 이대로 할지 물으면 된다.');
   }
+  // **후보를 받아 놓고 안 열었다는 사실**(3단계 매듭 ① · 되부름 한 번). 지시가 아니라 원장이다 —
+  // 열지 말지는 모델이 정하고, 안 열면 무엇을 안 봤는지 말하는 것이 정직이다(동반 세 계단 2).
+  if (tc.candidatesUnopened?.수) {
+    커널블록.push(`[이번 턴 사실] 자리 후보 ${tc.candidatesUnopened.수}곳을 받아 놓고 하나도 안 열었다:\n`
+      + (tc.candidatesUnopened.자리들 ?? []).map((p) => `- ${p}`).join('\n')
+      + '\n답을 내기 전에 열어 볼 수 있다. 안 열고 답한다면 무엇을 안 봤는지 함께 말한다.');
+  }
   if (tc.priorShown?.length) {
     커널블록.push(`[직전 답이 놓고 쓴 것]\n${tc.priorShown.map((c) => `- ${c}`).join('\n')}\n`
       + '지금 사용자가 그 답을 바로잡고 있다면, 위에서 어긋난 문장 하나를 `memory.correction`'

@@ -146,6 +146,11 @@ const 순서 = {
   // 판 문항은 "같은 세션 **스무 턴** 뒤"다. 8판 이전에 11턴으로 잰 것이 조건 미충족으로
   // 무효가 됐다(첫 메시지 §2-④) — 잡담 19 + 물음 = 아침 발화에서 스무 턴 뒤가 맞다.
   11: { 발화: ['아침에 보리차 마셨어. 기억해 둬.', ...잡담, '아침에 얘기한 그거 뭐였지?'], 채점: { '⑪': 20 } },
+  // ── 성능 층(판 §2-b) 중 파일만으로 재현되는 것 — 매듭 ① 닫을 때 쓴다 ──────────
+  58: { 발화: ['이번 달 얼마 벌었지?', '아까 그거 왜 안 됐어? 다시 해줘'], 채점: { '⑤': 0, '⑧': 1 } },
+  13: { 발화: ['요즘 통장이 자꾸 비어. 뭐가 문제인지 알고 싶어'], 채점: { '⑬': 0 } },
+  12: { 발화: ['지난달 정산 파일들 정리해서 이번 달이랑 비교한 요약 만들어서 바탕화면에 저장해줘'],
+    채점: { '⑫': 0 }, 바탕대조: true },
 };
 
 const 기록 = {
@@ -167,13 +172,32 @@ try {
       if (!기억전제.승격수) console.error('  ⚠ 기억 승격 0 — ④ 는 전제 미충족(미측정)으로 적는다');
     }
     console.error(`문항 ${이름}:`);
+    // ⑫는 실물(바탕화면 파일)이 채점 대상이다 — 회차 방 안의 Desktop 을 전후로 센다.
+    const 바탕 = 항.바탕대조
+      ? async () => {
+        const { readdir } = await import('node:fs/promises');
+        const 목록 = [];
+        for (const d of [join(방, 'Desktop'), join(방, 'GPAO-T5', 'Desktop')]) {
+          try { for (const n of await readdir(d)) 목록.push(join(d, n)); } catch { /* 없으면 그만 */ }
+        }
+        return 목록;
+      } : null;
+    const 전바탕 = 바탕 ? await 바탕() : null;
     const 결과 = await 세션돌기(항.발화);
+    if (바탕) {
+      const 후바탕 = await 바탕();
+      결과.새파일 = 후바탕.filter((p) => !전바탕.includes(p));
+      for (const p of 결과.새파일.slice(0, 3)) {
+        try { 결과[`실물:${p.split('/').pop()}`] = (await readFile(p, 'utf8')).slice(0, 800); } catch { /* 못 읽으면 그만 */ }
+      }
+    }
     await writeFile(join(OUT, `R${회차}-${이름}.json`), JSON.stringify(결과, null, 2));
     for (const [항목, i] of Object.entries(항.채점)) {
       const t = 결과.턴들[i] ?? {};
       기록.문항[항목] = {
         kind: t.kind, 동반: 손흔적(t),
         ...(항.전제 === '기억' && !기억전제?.승격수 ? { 전제미충족: true } : {}),
+        ...(결과.새파일 ? { 새파일: 결과.새파일 } : {}),
         답: (t.reply ?? '').slice(0, 400),
       };
     }
