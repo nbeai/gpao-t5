@@ -138,6 +138,14 @@ const 문항표 = {
   '8f': { 발화: ['GPAO-T5 폴더에 있는 결산보고서.xlsx 열어서 요약해줘', '아까 그거 왜 안 됐어?'] },
   // ⑪ 은 같은 21턴 대본 — 아침 보리차 + 잡담 19 + 질문(스무 턴 뒤).
   11: { 발화: ['아침에 보리차 마셨어. 기억해 둬.', ...잡담, '아침에 얘기한 그거 뭐였지?'] },
+  // ── M1·M2 (판 §2-b 성능 층 · 과업 2 · 2026-08-09) — **실물 회차**다 ─────────────
+  // 5단계 real-rounds 규격 승계: **상태만 격리**(새 stateDir·방 고정물) · **실화면 공유**
+  // (HOME 은 안 바꾼다 — 화면 손이 오너 실제 화면을 읽어야 문항이 성립한다).
+  // 화면 준비(크롬 카드 페이지·카톡 목록)는 러너 밖 준비 단계의 몫이고, 그 실물은
+  // 스크린샷·페이지 사본으로 evidence 에 남는다. **발신·클릭은 어느 제품에도 없다** —
+  // T5 는 봉인된 자기 계약(승인 카드·화면 안 뺏기), Hermes 는 cua-observe-guard(기계 울타리).
+  m1: { 발화: ['이번 달 얼마 벌었지?'], 실물: true },
+  m2: { 발화: ['카톡에 온 거래처 요청 정리해서 파일로 만들어줘'], 실물: true },
 };
 
 const 인자 = (이름, 기본) => {
@@ -146,25 +154,33 @@ const 인자 = (이름, 기본) => {
 };
 const 문항 = 인자('item', null);
 const 회차 = Number(인자('round', '1'));
-const 제품들 = 인자('products', 't5,hermes,openclaw').split(',');
+// M1·M2(실물)는 2자다 — OpenClaw 는 기본 구성에 화면 손이 없어 비교 불가(§10-3 B) 이고,
+// PM 판정(R1 정정)으로 파일을 만지는 회차에도 세우지 않는다.
+const 제품들 = 인자('products', String(문항).toLowerCase().startsWith('m') ? 't5,hermes' : 't5,hermes,openclaw').split(',');
 const 프로브 = process.argv.includes('--probe-openclaw');
 const 증거뿌리 = 인자('out', join(repo, 'docs/03-verification/evidence/step6-compare-2026-08-09'));
 
 // ── CLI 실행 공통 — 원본 전량을 그대로 담는다. 시간 초과는 기계 사실로 적는다 ──
 const 턴상한ms = 300_000;
-function 실행(cmd, args, { cwd, env }) {
+function 실행(cmd, args, { cwd, env, 파수 }) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const p = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = ''; let err = '';
+    let out = ''; let err = ''; let 중단됨 = false;
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
     const 시한 = setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* 이미 죽음 */ } }, 턴상한ms);
+    // 파수(실물 회차 · 관찰 전용 울타리): 입력·클릭류가 감지되면 즉시 중단 — 지키는 선.
+    const 망 = 파수 ? setInterval(() => {
+      if (existsSync(파수)) { 중단됨 = true; try { p.kill('SIGKILL'); } catch { /* 이미 죽음 */ } }
+    }, 250) : null;
     p.on('close', (code, signal) => {
       clearTimeout(시한);
+      if (망) clearInterval(망);
       resolve({
         exitCode: code, signal, 걸린ms: Date.now() - t0, stdout: out, stderr: err,
-        ...(signal === 'SIGKILL' ? { timedOut: true } : {}),
+        ...(signal === 'SIGKILL' && !중단됨 ? { timedOut: true } : {}),
+        ...(중단됨 ? { 중단됨: true } : {}),
       });
     });
   });
@@ -368,6 +384,207 @@ async function OpenClaw회차(발화들, { 세션열쇠 }) {
   return 기록;
 }
 
+// ── 실물 회차(M1·M2) — 상태만 격리 · 실화면 공유 · 오너 실홈 전후 감시 ────────────
+const 실홈자리들 = ['', 'Desktop', 'Documents', 'Downloads'];
+async function 실홈스냅() {
+  const 스냅 = {};
+  for (const d of 실홈자리들) {
+    try { 스냅[d || '~'] = (await readdir(join(진짜홈, d))).sort(); } catch { 스냅[d || '~'] = []; }
+  }
+  return 스냅;
+}
+async function 전면앱() {
+  const r = await 실행('osascript',
+    ['-e', 'tell application "System Events" to get name of first process whose frontmost is true'],
+    { cwd: repo, env: process.env });
+  return (r.stdout || '').trim() || `(못 읽음: ${r.stderr?.trim?.() ?? ''})`;
+}
+
+async function 잔재수거(방, 새파일들, 잔재자리, 제품) {
+  const 수거 = [];
+  if (!잔재자리) return 수거;
+  for (const p of 새파일들.slice(0, 8)) {
+    const 이름 = `실물-${제품}-${p.replace(/\//g, '·')}`;
+    try { await copyFile(join(방, p), join(잔재자리, 이름)); 수거.push(이름); } catch { /* 이진·소멸 등 */ }
+  }
+  return 수거;
+}
+
+// T5 — 상태만 격리: HOME 은 실제 그대로(화면 손의 서식지), 파일·상태·바탕화면은 방으로
+// (GPAO_T5_HOME=방 · GPAO_T5_FILE_ROOTS=방/GPAO-T5 · GPAO_T5_DATA_DIR=방/state).
+// 오너 실파일 불가침이 이 세 변수로 선다 — 실물(만드는 파일)은 방에 생긴다.
+async function T5실물회차(발화들, 문항, { 잔재자리 } = {}) {
+  const { 저장된연결 } = await import(pathToFileURL(join(repo, 'scripts/s1/run.mjs')));
+  const 연결 = 저장된연결();
+  if (!연결) throw new Error('저장된 모델 연결이 없다');
+  // 설치본이 있으면 설치본에서 띄운다(5단계 real-rounds 규격). 없으면 소스(그 사실을 적는다).
+  const 설치본자리 = 인자('t5-pkg', null);
+  const 서버자리 = 설치본자리 ? join(설치본자리, 'src/surface/server.js') : join(repo, 'src/surface/server.js');
+  const { startLiveServer } = await import(pathToFileURL(서버자리));
+
+  const 방 = await realpath(await mkdtemp(join(tmpdir(), 't5cmp-real-t5-')));
+  const stateDir = join(방, 'state');
+  await mkdir(stateDir, { recursive: true });
+  const 고정물지문 = await 고정물짓기(방);
+  const 포트 = 4390 + (회차 % 40);
+  let server;
+  const 기록 = {
+    제품: 'T5', 모델: 연결.modelId, 방, stateDir,
+    실물회차: '상태만 격리 · 실화면 공유(HOME 불변) — 5단계 real-rounds 규격',
+    설치본: 설치본자리
+      ? { 자리: 설치본자리, 버전: JSON.parse(await readFile(join(설치본자리, 'package.json'), 'utf8')).version }
+      : null,
+    고정물지문, 턴들: [],
+  };
+  try {
+    server = await startLiveServer({
+      port: 포트,
+      processEnv: {
+        HOME: 진짜홈, // 실화면 공유 — 화면 손(CuaDriver.app)의 서식지는 건드리지 않는다
+        GPAO_T5_DATA_DIR: stateDir, GPAO_T5_HOME: 방,
+        GPAO_T5_FILE_ROOTS: join(방, 'GPAO-T5'),
+        ...(문항 === 'm1' ? { GPAO_T5_BROWSER_PROFILE: '1' } : {}), // M1 선행 조건(노드 A) — 기본 켬이 아직 아니라 측정이 켠다. 회차기록에 병기.
+        ...(연결.provider === 'anthropic' ? { ANTHROPIC_API_KEY: 연결.자격 } : { OPENAI_API_KEY: 연결.자격 }),
+        ...(연결.상류 ? { GPAO_T5_MODEL_BASE_URL: 연결.상류 } : {}),
+        GPAO_T5_MODEL_ID: 연결.modelId,
+      },
+    });
+    const 신분 = JSON.parse(await readFile(join(stateDir, 'install.json'), 'utf8'));
+    const H = { 'content-type': 'application/json', cookie: `t5_surface=${신분.token}` };
+    const post = (p, b) => fetch(`http://127.0.0.1:${포트}${p}`, {
+      method: 'POST', headers: H, body: JSON.stringify(b ?? {}), signal: AbortSignal.timeout(턴상한ms),
+    }).then((r) => r.json());
+
+    const 전방목록 = await 방걷기(방);
+    const s = await post('/sessions');
+    기록.sessionId = s.id;
+    for (const 말 of 발화들) {
+      const t0 = Date.now();
+      let r;
+      try { r = await post('/turn', { sessionId: s.id, text: 말 }); }
+      catch (e) { r = { kind: 'ERROR', reply: String(e) }; }
+      기록.턴들.push({
+        말, 걸린ms: Date.now() - t0, kind: r.kind, 답: r.reply ?? '',
+        원장: r.ledger ?? null,
+        // 승인 카드가 뜨면 그대로 기계 사실 — **승인하지 않는다**(M1·M2 는 읽기+파일 과업.
+        // 실화면에 행동을 승인하는 것은 이 측정의 소관 밖이다).
+        ...(r.pendingId ? { pendingId: r.pendingId, pending: r.pending ?? null, 승인: '하지 않음(측정 정책)' } : {}),
+        ...(r.modelUnavailable ? { modelUnavailable: true, modelFailure: r.modelFailure } : {}),
+      });
+      process.stderr.write(`  T5(실물) → ${r.kind} ${Date.now() - t0}ms\n`);
+    }
+    try {
+      const 세션파일 = (await readdir(stateDir)).find((n) => n.includes(s.id));
+      if (세션파일) {
+        const 세션 = JSON.parse(await readFile(join(stateDir, 세션파일), 'utf8'));
+        기록.손호출 = (세션.ledgerEntries ?? [])
+          .map((e) => (e.actualCall ? e.actualCall.tool + (e.actualCall.args?.action ? `:${e.actualCall.args.action}` : '') : null))
+          .filter(Boolean);
+      }
+    } catch { 기록.손호출 = null; }
+    const 후방목록 = await 방걷기(방);
+    기록.새파일 = 후방목록.filter((p) => !전방목록.includes(p));
+    기록.실물 = {};
+    for (const p of 기록.새파일.slice(0, 6)) {
+      try { 기록.실물[p] = (await readFile(join(방, p), 'utf8')).slice(0, 4000); } catch { /* 이진 등 */ }
+    }
+    기록.잔재수거 = await 잔재수거(방, 기록.새파일, 잔재자리, 'T5');
+    기록.고정물사후 = await 고정물사후(방);
+  } finally {
+    try { server?.close(); } catch { /* 이미 닫힘 */ }
+    await rm(방, { recursive: true, force: true });
+  }
+  return 기록;
+}
+
+// Hermes — 상태는 방(.hermes 사본·HOME=방)으로 격리하되, 화면 손은 **울타리를 통해서만**
+// 진짜 드라이버에 닿는다(HERMES_CUA_DRIVER_CMD → cua-observe-guard). 관찰·읽기만 통과,
+// 입력·클릭·발신류는 화면에 닿기 전에 차단되고 파수가 찍히면 회차를 즉시 중단한다.
+async function Hermes실물회차(발화들, 문항, { 잔재자리 } = {}) {
+  const { 저장된연결 } = await import(pathToFileURL(join(repo, 'scripts/s1/run.mjs')));
+  const 연결 = 저장된연결();
+  if (연결?.provider !== 'openai') throw new Error('Hermes(openai-api) 는 OPENAI 자격이 필요하다');
+  const 진짜드라이버 = join(진짜홈, '.local/bin/cua-driver');
+  if (!existsSync(진짜드라이버)) throw new Error(`cua-driver 가 없다: ${진짜드라이버}`);
+  const 방 = await realpath(await mkdtemp(join(tmpdir(), 't5cmp-real-Hermes-')));
+  const 고정물지문 = await 고정물짓기(방);
+  await Hermes방(방);
+  const 울타리로그 = join(방, 'cua-guard.log');
+  const 파수 = join(방, 'cua-guard.BLOCKED');
+  const 울타리 = join(방, 'cua-guard.sh');
+  await writeFile(울타리, [
+    '#!/bin/sh',
+    `exec node ${JSON.stringify(join(repo, 'scripts/compare-live/cua-observe-guard.mjs'))} \\`,
+    `  --real ${JSON.stringify(진짜드라이버)} --log ${JSON.stringify(울타리로그)} --sentinel ${JSON.stringify(파수)} -- "$@"`,
+    '',
+  ].join('\n'));
+  const { chmod } = await import('node:fs/promises');
+  await chmod(울타리, 0o755);
+  const env = {
+    PATH: process.env.PATH, HOME: 방, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8',
+    TERM: 'dumb', TMPDIR: join(방, 'tmp'), OPENAI_API_KEY: 연결.자격,
+    HERMES_CUA_DRIVER_CMD: 울타리,
+  };
+  await mkdir(env.TMPDIR, { recursive: true });
+  const 기록 = {
+    제품: 'Hermes', 모델: 'gpt-5.1', 방,
+    실물회차: '상태만 격리(HOME=방·.hermes 사본) · 실화면 공유 · 화면 손은 관찰 전용 울타리 경유',
+    화면손울타리: { 래퍼: '방/cua-guard.sh', 통과: '관찰·읽기만', 중단급: '입력·클릭·발신류 → 차단+회차 중단' },
+    고정물지문, 턴들: [],
+  };
+  let 세션id = null;
+  try {
+    const 전방목록 = await 방걷기(방);
+    for (const 말 of 발화들) {
+      const args = ['chat', ...(세션id ? ['--resume', 세션id] : []), '-q', 말, '-m', 'gpt-5.1', '--yolo'];
+      const r = await 실행('hermes', args, { cwd: 방, env, 파수 });
+      const m = r.stdout.match(/Session:\s+(\S+)/);
+      if (m) 세션id = m[1];
+      기록.턴들.push({
+        말, 명령: `hermes ${args.join(' ')}`, exitCode: r.exitCode, 걸린ms: r.걸린ms,
+        답: r.stdout, stderr: r.stderr, ...(r.timedOut ? { timedOut: true } : {}),
+        ...(r.중단됨 ? { 중단됨: '화면 손 입력·클릭류 감지 — 울타리가 차단하고 회차를 중단(무효 아님 · 관측)' } : {}),
+        세션id,
+      });
+      process.stderr.write(`  Hermes(실물) → exit ${r.exitCode} ${r.걸린ms}ms${r.중단됨 ? ' · 중단(울타리)' : ''}\n`);
+      if (r.중단됨) break;
+      if (r.exitCode !== 0 && !세션id) break;
+    }
+    try { 기록.화면손기록 = (await readFile(울타리로그, 'utf8')).split('\n').filter(Boolean); } catch { 기록.화면손기록 = []; }
+    try { 기록.중단파수 = (await readFile(파수, 'utf8')).split('\n').filter(Boolean); } catch { 기록.중단파수 = null; }
+    const 후방목록 = await 방걷기(방);
+    기록.새파일 = 후방목록.filter((p) => !전방목록.includes(p) && !p.startsWith('cua-guard.'));
+    기록.실물 = {};
+    for (const p of 기록.새파일.slice(0, 6)) {
+      try { 기록.실물[p] = (await readFile(join(방, p), 'utf8')).slice(0, 4000); } catch { /* 이진 등 */ }
+    }
+    기록.잔재수거 = await 잔재수거(방, 기록.새파일, 잔재자리, 'Hermes');
+    기록.고정물사후 = await 고정물사후(방);
+  } finally {
+    await rm(방, { recursive: true, force: true });
+  }
+  return 기록;
+}
+
+// 실물 감시 — 바탕화면만이 아니라 실홈 상위·문서·다운로드까지 전후 대조하고,
+// 전면 앱을 전후로 적어 "제품이 화면을 뺏는지"를 기계 사실로 남긴다.
+async function 실물감시하며(fn) {
+  const 전 = await 실홈스냅();
+  const 전면전 = await 전면앱();
+  const 결과 = await fn();
+  const 후 = await 실홈스냅();
+  const 전면후 = await 전면앱();
+  const 변경 = {};
+  for (const k of Object.keys(전)) {
+    const 생김 = 후[k].filter((n) => !전[k].includes(n));
+    const 사라짐 = 전[k].filter((n) => !후[k].includes(n));
+    if (생김.length || 사라짐.length) 변경[k] = { 생김, 사라짐 };
+  }
+  결과.오너실홈변경 = Object.keys(변경).length ? 변경 : null;
+  결과.전면앱 = { 전: 전면전, 후: 전면후, 뺏었나: 전면전 !== 전면후 ? '변화 있음 — 판정 필요' : '변화 없음' };
+  return 결과;
+}
+
 // ── 오너 실제 바탕화면 감시 — 제품별 전후 대조. 이탈은 기계 사실로 남긴다 ─────────
 async function 감시하며(fn) {
   const 전 = await 실제바탕();
@@ -396,11 +613,11 @@ if (프로브) {
 }
 
 if (!문항 || !문항표[문항]) {
-  console.error('사용: --item 12|13|8f|11 --round N [--products t5,hermes,openclaw] | --probe-openclaw');
+  console.error('사용: --item 12|13|8f|11|m1|m2 --round N [--products …] [--t5-pkg <설치본>] | --probe-openclaw');
   process.exit(2);
 }
-const { 발화: 발화들 } = 문항표[문항];
-const out = join(증거뿌리, `R${회차}-item${문항}`);
+const { 발화: 발화들, 실물: 실물모드 } = 문항표[문항];
+const out = join(증거뿌리, `R${회차}-item${실물모드 ? String(문항).toUpperCase() : 문항}`);
 await mkdir(out, { recursive: true });
 
 // 이미 있는 회차 파일에 병합한다 — 무효(기계 사실)였던 제품만 다시 돌릴 때, 유효한 다른
@@ -414,8 +631,13 @@ for (const 제품 of 제품들) {
   console.error(`\n== ${제품} · 문항 ${문항} · R${회차} ==`);
   let r;
   try {
-    if (제품 === 't5') r = await 감시하며(() => T5회차(발화들));
-    else if (제품 === 'hermes') r = await 감시하며(() => Hermes회차(발화들));
+    if (실물모드 && 제품 === 'openclaw') {
+      r = {
+        제품: 'OpenClaw',
+        비교불가: '기본 구성에 화면 손 대응 없음(§10-3 B) + PM 판정(R1 정정): 파일 회차에 세우지 않음 — 실행하지 않았다',
+      };
+    } else if (제품 === 't5') r = 실물모드 ? await 실물감시하며(() => T5실물회차(발화들, 문항, { 잔재자리: out })) : await 감시하며(() => T5회차(발화들));
+    else if (제품 === 'hermes') r = 실물모드 ? await 실물감시하며(() => Hermes실물회차(발화들, 문항, { 잔재자리: out })) : await 감시하며(() => Hermes회차(발화들));
     else if (제품 === 'openclaw') r = await 감시하며(() => OpenClaw회차(발화들, { 세션열쇠: `t5cmp-item${문항}-r${회차}` }));
     else { console.error(`모르는 제품: ${제품}`); continue; }
   } catch (e) {
