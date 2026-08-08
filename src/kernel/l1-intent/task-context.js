@@ -891,11 +891,28 @@ export function buildTaskContext(p) {
       };
     });
     if (앞턴교환.length) {
+      // E1(4단계 · PM 승인 2026-08-09): 앞 턴 교환을 이번 턴 규약 메시지로 **재생하지 않는다.**
+      // 규약 모양(도구 호출 메시지)에는 시제가 없어, 모델 눈에 지난 턴 읽기가 "방금 내가
+      // 부른 호출"로 선다 — 회차 G~M 턴2의 원장-0 현재형 서사("지금 다시 읽어서 계산했어")의
+      // 재료다(M-1). 같은 입력에 "[이번 턴 실행 사실] 없음"이 공존하는 자기모순(F-48)도
+      // 이 합류가 만든다. 계약 ②(행동 이력은 모델에게 돌아간다)는 지운 게 아니라 **시제가
+      // 박힌 밭으로 옮겼다** — 아래 priorExchange 를 model-provider 가 "[앞선 턴에서 한 것]"
+      // 딱지 아래 싣는다. 신분·인자 요약은 남기고, 결과 원문(data)은 안 싣는다 — 확인을
+      // 물으면 다시 보는 것이 맞는 행동이고, 원문이 손에 있으면 말로 때운다(같은 블록의 계약).
       const 이번신분 = new Set(packet.turnExchange.map((x) => x.providerCallId ?? x.ref));
-      packet.turnExchange = [
-        ...앞턴교환.filter((x) => !이번신분.has(x?.providerCallId ?? x?.ref)),
-        ...packet.turnExchange,
-      ];
+      packet.priorExchange = 앞턴교환
+        .filter((x) => !이번신분.has(x?.providerCallId ?? x?.ref))
+        .slice(-8)
+        .map((x) => ({
+          summary: String(x?.summary ?? ''),
+          ...(x?.tool ? { tool: x.tool } : {}),
+          ...(x?.args ? { calledWith: JSON.stringify(x.args).slice(0, 160) } : {}),
+          // **신분은 계약 ② 의 핵심이다** — 모델은 이 신분으로 자기 행동을 잇는다.
+          // 규약 재생을 걷어도 신분은 시제 딱지 밭으로 그대로 간다(봉인 넷이 이걸 문다).
+          ...(x?.providerCallId ? { providerCallId: x.providerCallId } : {}),
+          ...(x?.ref ? { ref: x.ref } : {}),
+        }))
+        .filter((f) => f.summary);
     }
   }
 

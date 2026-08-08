@@ -186,6 +186,11 @@ test('재시작 뒤 "아까 그거 이어서" — 앞 턴에 **무엇을 했는�
   const 전문 = JSON.stringify(받은칸);
   assert.match(전문, /정산\.csv/,
     '재시작 뒤 모델이 앞 턴에 무엇을 했는지 모른다 — 기억상실 위에는 셀프후드가 못 선다');
-  assert.ok(받은칸.some((tc) => Array.isArray(tc?.turnExchange) && tc.turnExchange.some((x) => x?.tool === 'local.file')),
+  // E1(4단계 · PM 승인 2026-08-09): 앞 턴 대화는 이번 턴 규약 메시지(turnExchange)가 아니라
+  // **시제가 박힌 구조 밭**(priorExchange — 도구·인자·신분을 가진 같은 급 구조)으로 온다.
+  // 규약 재생은 시제가 없어 "방금 부른 호출"로 서고, 그 위에서 원장-0 현재형 서사가 났다
+  // (기준선 14/18 → E1 0/3). 검사의 뜻은 그대로다 — 서술이 아니라 구조로 와야 한다.
+  assert.ok(받은칸.some((tc) => [...(tc?.turnExchange ?? []), ...(tc?.priorExchange ?? [])]
+    .some((x) => x?.tool === 'local.file')),
     `앞 턴의 **도구 대화**가 서술로만 남고 구조로 안 왔다: ${전문.slice(0, 400)}`);
 });

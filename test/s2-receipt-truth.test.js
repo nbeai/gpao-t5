@@ -89,6 +89,14 @@ test('② 모델의 도구 대화가 **다음 턴에도** 자기 이력으로 �
   const 실린것 = JSON.stringify(본것);
   assert.ok(실린것.includes('call_TURN1'),
     '앞 턴의 도구 대화가 사라졌다 — 모델은 자기가 한 일을 남의 소식(서술)으로만 받는다');
+  // E1(4단계 · PM 승인 2026-08-09): 신분은 오되 **시제가 박힌 밭으로** 온다. 이번 턴 규약
+  // 메시지(turnExchange)로 재생되면 모델 눈에 "방금 부른 호출"이 되고, 그 위에서 원장-0
+  // 현재형 서사가 났다(기준선 14/18 → E1 0/3 · step4-d-table evidence).
+  const 둘째턴 = 본것.find((tc) => Array.isArray(tc?.priorExchange));
+  assert.ok(둘째턴?.priorExchange?.some((x) => x?.providerCallId === 'call_TURN1'),
+    '앞 턴 호출 신분이 시제 밭(priorExchange)에 없다 — 계약 ② 가 시제와 함께 서야 한다');
+  assert.ok(본것.every((tc) => !(tc?.turnExchange ?? []).some((x) => x?.providerCallId === 'call_TURN1')),
+    '앞 턴 호출이 이번 턴 규약 메시지로 재생됐다 — 시제 없는 이력이 원장-0 서사의 재료다(E1)');
 });
 
 test('② 재시작해도 앞 턴의 도구 대화가 복원된다(기억상실 금지)', async () => {
