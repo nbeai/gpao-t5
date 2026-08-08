@@ -113,7 +113,7 @@ async function 방걷기(방) {
     for (const n of names) {
       const p = join(d, n.name);
       if (n.isDirectory()) {
-        if (['.hermes', '.openclaw', 'state', '.cache', '.config', '.local', 'node_modules', 'tmp', '.git'].includes(n.name)) continue;
+        if (['.hermes', '.openclaw', 'state', '.cache', '.config', '.local', 'node_modules', 'tmp', '.git', 'Library'].includes(n.name)) continue;
         await walk(p);
       } else 목록.push(p.slice(방.length + 1));
     }
@@ -262,12 +262,18 @@ async function Hermes방(방) {
   }
 }
 async function Hermes회차(발화들) {
+  // 자격: 제품이 직접 말한 자리 그대로다 — R2 첫 실행이 "No usable credentials found for
+  // provider 'openai-api'. Set OPENAI_API_KEY." 로 죽었다(무효 원본: R2-item12 회차.json).
+  // auth.json 사본만으로는 안 되고 환경변수가 필요하다. T5 와 같은 저장된 openai 자격을 준다.
+  const { 저장된연결 } = await import(pathToFileURL(join(repo, 'scripts/s1/run.mjs')));
+  const 연결 = 저장된연결();
+  if (연결?.provider !== 'openai') throw new Error('Hermes(openai-api) 는 OPENAI 자격이 필요하다');
   const 방 = await realpath(await mkdtemp(join(tmpdir(), 't5cmp-Hermes-')));
   const 고정물지문 = await 고정물짓기(방);
   await Hermes방(방);
   const env = {
     PATH: process.env.PATH, HOME: 방, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8',
-    TERM: 'dumb', TMPDIR: join(방, 'tmp'),
+    TERM: 'dumb', TMPDIR: join(방, 'tmp'), OPENAI_API_KEY: 연결.자격,
   };
   await mkdir(env.TMPDIR, { recursive: true });
   const 기록 = { 제품: 'Hermes', 모델: 'gpt-5.1', 방, 고정물지문, 턴들: [] };
@@ -397,7 +403,13 @@ const { 발화: 발화들 } = 문항표[문항];
 const out = join(증거뿌리, `R${회차}-item${문항}`);
 await mkdir(out, { recursive: true });
 
-const 회차기록 = { 발화: 발화들.length === 1 ? 발화들[0] : 발화들, 시각: new Date().toISOString(), 결과: {} };
+// 이미 있는 회차 파일에 병합한다 — 무효(기계 사실)였던 제품만 다시 돌릴 때, 유효한 다른
+// 제품의 기록을 지우면 그게 재실행이 된다. 덮이는 이전 기록은 무효이력으로 남긴다(불삭제).
+let 회차기록 = { 발화: 발화들.length === 1 ? 발화들[0] : 발화들, 시각: new Date().toISOString(), 결과: {} };
+try {
+  회차기록 = JSON.parse(await readFile(join(out, '회차.json'), 'utf8'));
+  회차기록.시각재실행 = [...(회차기록.시각재실행 ?? []), new Date().toISOString()];
+} catch { /* 첫 실행 */ }
 for (const 제품 of 제품들) {
   console.error(`\n== ${제품} · 문항 ${문항} · R${회차} ==`);
   let r;
@@ -409,7 +421,11 @@ for (const 제품 of 제품들) {
   } catch (e) {
     r = { 제품, 무효: `실행 실패(기계 사실): ${e?.message ?? e}` };
   }
-  회차기록.결과[r.제품 ?? 제품] = r;
+  const 열쇠 = r.제품 ?? 제품;
+  if (회차기록.결과[열쇠]) {
+    회차기록.무효이력 = [...(회차기록.무효이력 ?? []), { 덮인시각: new Date().toISOString(), 기록: 회차기록.결과[열쇠] }];
+  }
+  회차기록.결과[열쇠] = r;
   // 회차 중간에도 원본을 남긴다 — 뒤 제품이 죽어도 앞 제품 원본은 증거다.
   await writeFile(join(out, '회차.json'), JSON.stringify(회차기록, null, 2));
 }
