@@ -58,3 +58,36 @@ test('반대시험: 모르는 종류는 여전히 preference 로 접힌다 — �
   }]);
   assert.equal(memorySuggestion?.kind, 'preference', '열거 밖 종류가 그대로 통과됐다');
 });
+
+// **승격은 집 파일까지가 한 걸음이다** (5단계 전수 실측 2026-08-09 · P0 봉인).
+//
+// 확인 카드로 승격하면 memory.json 에는 들어가는데 집 파일(기억.md)에는 안 쓰였다. 그러면
+// 다음 턴의 집 동기화가 "파일에 없으니 사용자가 지웠다"로 읽고 지운다 — **사용자가 확인
+// 버튼을 눌러 기억한 것이 다음 턴에 조용히 사라진다.** ④ 가 판에서 한 번도 안 선 뿌리이고,
+// user_fact 만이 아니라 **모든 확인 승격**의 구멍이었다(자동 반영 경로만 우연히 안 걸렸다).
+test('확인 승격이 집 파일에 실린다 — 안 실리면 다음 턴 동기화가 그것을 지운다', async () => {
+  const { mkdtemp, mkdir, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { 기억파일쓰기, 기억파일읽기, 집파일반영 } = await import('../src/surface/memory-home.js');
+  const 집 = await mkdtemp(join(tmpdir(), 'm4-home-'));
+  const 상태 = join(집, 'state');
+  await mkdir(상태, { recursive: true });
+
+  const memory = { candidates: [makeCandidate('c9', 'user_fact', '밤마다 콜라 마시면서 넷플릭스 봄')], promoted: [] };
+  // 승격 전 집 파일(빈 상태) — 서버 첫 턴이 쓰는 그 모양.
+  await 기억파일쓰기(집, memory.promoted, 상태);
+  const r = confirmCandidate(memory, 'c9');
+  assert.equal(r.ok, true);
+
+  // ① 수리 전 재현: 집 파일을 안 쓰면 다음 턴 동기화가 지운다.
+  const 안쓴채 = 집파일반영(memory.promoted, await 기억파일읽기(집, 상태));
+  assert.deepEqual(안쓴채.지울것, ['c9'],
+    '집 파일을 안 썼는데도 동기화가 안 지운다 — 이 검사가 재현을 잃었다(계약이 바뀌었으면 여기부터 고친다)');
+
+  // ② 수리: 승격 뒤 집 파일에 쓰면 다음 턴 동기화가 아무것도 안 지운다.
+  await 기억파일쓰기(집, memory.promoted, 상태);
+  const 쓴뒤 = 집파일반영(memory.promoted, await 기억파일읽기(집, 상태));
+  assert.deepEqual(쓴뒤.지울것, [], '집 파일에 썼는데도 동기화가 지운다');
+  assert.match(await readFile(join(집, '기억.md'), 'utf8'), /밤마다 콜라/, '집 파일에 문장이 없다');
+});

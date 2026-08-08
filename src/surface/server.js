@@ -180,6 +180,27 @@ export function makeServer(deps = {}) {
     기억변경중 = run.catch(() => {});
     return run;
   };
+  /**
+   * **승격은 집 파일까지가 한 걸음이다**(⑤단계 전수 실측 2026-08-09 · P0).
+   *
+   * 확인 카드로 승격하면 `memory.json` 에는 들어가는데 **집 파일(`기억.md`)에는 안 쓰였다.**
+   * 그러면 바로 다음 턴의 집 동기화가 *"파일에 없으니 사용자가 지운 것"* 으로 읽고
+   * `withdrawn_by_user_file` 로 지운다 — **사용자가 확인 버튼을 눌러 기억한 것이 다음 턴에
+   * 조용히 사라진다.** ④ 가 판에서 한 번도 안 선 뿌리이고(전수에서 전제가 처음 성립하자
+   * 드러났다), user_fact 만의 문제가 아니라 **모든 확인 승격**이 같은 구멍이었다.
+   *
+   * 자동 반영(`auto_reversible`) 경로는 턴 안에서 승격돼 그 턴 끝의 쓰기에 실려 안 걸렸다 —
+   * 두 승격 통로가 집 파일에 대해 서로 다른 진실을 갖고 있었던 것이다.
+   */
+  async function 집파일에승격반영(memory) {
+    try {
+      const 환경 = deps.processEnv ?? process.env;
+      const 집자리 = agentHomeDir(환경);
+      const 상태자리 = memStore.dir ?? store.dir ?? '';
+      if (!String(상태자리).startsWith(String(환경?.HOME ?? homedir()))) return false;
+      return await 기억파일쓰기(집자리, memory.promoted ?? [], 상태자리);
+    } catch { return false; } // 집을 못 써도 승격 자체는 이미 참이다(상태가 진실)
+  }
   // P-OP-4 · 원장 기록 실패는 **성공한 행동을 실패로 둔갑시키지 않는다.** 상태가 행동의 진실이고,
   // 영수증이 빠졌다는 사실은 조용히 넘기지 않고 응답에 싣는다(화면·상태·원장이 다른 결론을 내지 않게).
   async function 기억영수증(event, entry) {
@@ -1733,6 +1754,8 @@ export function makeServer(deps = {}) {
           }
           if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
           await memStore.save(m); // 상태 저장이 행동의 진실 — 여기서 실패하면 아무 일도 없던 것
+          // **집 파일까지가 한 걸음이다** — 안 쓰면 다음 턴 동기화가 이 승격을 지운다(위 주석).
+          await 집파일에승격반영(m);
           const receiptWritten = await 기억영수증('confirmed', r.entry);
           // 권한 표면(감사 보정): 무엇을·어디에·되돌리기 가능한지 UI가 짧게 보여줄 근거.
           return sendJson(res, 200, {
@@ -2361,6 +2384,7 @@ export function makeServer(deps = {}) {
           }
           if (!r.ok) return sendJson(res, 200, { ok: false, reason: r.reason });
           await memStore.save(memory);
+          await 집파일에승격반영(memory); // 같은 계약 — 통로가 둘이어도 집 파일은 하나다
           const receiptWritten = await 기억영수증('confirmed', r.entry);
           return sendJson(res, 200, { ok: true, status: 'admitted', statement: r.entry.statement, ...(receiptWritten ? {} : { receiptWritten: false }) });
         });
