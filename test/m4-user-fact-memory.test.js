@@ -35,6 +35,22 @@ test('user_fact 는 확인 뒤에만 영향하고, 확인되면 물음의 낱말
     '확인된 사용자 사실이 프롬프트 재료에 안 실린다 — ④ 는 낱말 겹침 운에 매달리게 된다');
 });
 
+test('user_fact 는 프롬프트에서 **사실**로 실린다 — 지시 격리에 걸리면 기억이 죽는다', async () => {
+  const { buildModelMessages } = await import('../src/runtime/model-provider.js');
+  const { system } = buildModelMessages({
+    currentRequest: '내가 뭘 마시는지 알아?',
+    admittedContext: ['밤마다 콜라 마시면서 넷플릭스 봄'],
+    admittedRich: [{ kind: 'user_fact', statement: '밤마다 콜라 마시면서 넷플릭스 봄' }],
+  });
+  const 글 = String(system);
+  assert.match(글, /밤마다 콜라/, '저장된 사용자 사실이 모델 입력에 없다');
+  // 설치본 전수 실측(2026-08-09): 열거에 없어 **지시**로 분류돼 "지금 실행할 명령이 아니다"
+  // 딱지가 붙었고, 모델은 그 사실을 버리고 3/3 "모른다"로 답했다.
+  const 지시블록 = 글.slice(글.indexOf('[저장된 기본값'));
+  assert.ok(!글.includes('[저장된 기본값') || !지시블록.includes('밤마다 콜라'),
+    '사용자 사실이 지시 격리 블록으로 갔다 — 격리가 기억을 죽인다(④ 의 그 자리)');
+});
+
 test('반대시험: 모르는 종류는 여전히 preference 로 접힌다 — 정의역은 열거로만 는다', () => {
   const { memorySuggestion } = splitModelControlCalls([{
     name: 'memory.propose',

@@ -288,7 +288,12 @@ export function buildModelMessages(tc) {
     // **열거하는 쪽은 사실이다.** 모르는 종류를 사실로 두면 새 종류가 생길 때마다 격리가
     // 조용히 풀린다 — 목록은 늘 뚫리고, 뚫리는 방향이 안전한 쪽이어야 한다.
     // `operating_principle` 은 *"항상 ~하라"* 는 **운영 지시**라 사실 쪽이 아니다.
-    const 사실종류 = new Set(['preference', 'inferred_trait']);
+    // ④ 실측(2026-08-09 · 설치본 전수): `user_fact` 를 만들어 승격까지 됐는데(후보1/승격1)
+    // 이 열거에 없어서 **지시 쪽으로 분류돼 격리됐다** — 모델은 "지금 실행할 명령이 아니다"를
+    // 읽고 그 사실을 버렸고 3/3 이 "모른다"였다. 위 주석이 경고한 그 모양 그대로다
+    // (*"모르는 종류를 사실로 두면 …"* 의 반대편: **사실을 안 열거하면 조용히 죽는다**).
+    // 종류를 만들면 이 열거도 같이 늘려야 한다 — 봉인이 그것을 지킨다.
+    const 사실종류 = new Set(['preference', 'inferred_trait', 'user_fact']);
     const 신분 = new Map((tc.admittedRich ?? []).map((e) => [e?.statement, e?.kind]));
     const 사실들 = tc.admittedContext.filter((c) => 사실종류.has(신분.get(c)));
     const 지시들 = tc.admittedContext.filter((c) => !사실들.includes(c));
