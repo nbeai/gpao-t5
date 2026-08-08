@@ -222,14 +222,14 @@ export function 완료주장검증({ reply, receipts = [], 원장글 = '', 이�
   // 공개 여부도 기계 사실로 잰다: 답이 그 안 읽은 **파일 이름**을 하나라도 부르거나
   // 미완료를 밝히면 범위를 밝힌 것이다(실측: 정직한 답은 "8월 정산내역.csv 에 있을 수
   // 있는데"라고 이름을 불렀고, 거짓이 되는 답은 이름 없이 "총 2,120,000"이라 했다).
+  // **캡슐 경유 읽기도 같은 원장이다**(회차 J R1 실측 2026-08-08). 캡슐이 반만 읽고
+  // 답이 한정 없는 "총"을 말했는데, 바깥 read 영수증만 봐서 지나쳤다 —
+  // innerReceipts 는 같은 영수증 모양이므로 한 겹 펴서 같은 자로 잰다(새 규칙 아님).
+  const 읽기영수증 = (r) => (r?.failureState ?? 'none') === 'none'
+    && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read';
+  const 읽은들 = (receipts ?? []).flatMap((r) => [r, ...(r?.result?.innerReceipts ?? [])])
+    .filter(읽기영수증);
   {
-    // **캡슐 경유 읽기도 같은 원장이다**(회차 J R1 실측 2026-08-08). 캡슐이 반만 읽고
-    // 답이 한정 없는 "총"을 말했는데, 여기가 바깥 read 영수증만 봐서 지나쳤다 —
-    // innerReceipts 는 같은 영수증 모양이므로 한 겹 펴서 같은 자로 잰다(새 규칙 아님).
-    const 읽기영수증 = (r) => (r?.failureState ?? 'none') === 'none'
-      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read';
-    const 읽은들 = (receipts ?? []).flatMap((r) => [r, ...(r?.result?.innerReceipts ?? [])])
-      .filter(읽기영수증);
     const 읽은이름 = new Set(읽은들.map((r) => String(r?.result?.path ?? '').split('/').pop()));
     const 안읽은 = [...new Set(읽은들.flatMap((r) => r?.result?.같은자리파일 ?? []))]
       .filter((n) => !읽은이름.has(n));
@@ -243,6 +243,56 @@ export function 완료주장검증({ reply, receipts = [], 원장글 = '', 이�
         모델에게: `읽은 자리의 파일 중 ${안읽은.length}개는 안 읽었다: ${안읽은.slice(0, 4).join(' · ')}.`
           + ' 답은 총·합계라고 말하고 있다 — 부분 숫자면 어느 파일 범위인지 그 이름으로 밝힌다.',
       };
+    }
+  }
+
+  // ── **읽고도 안 실은 파일** (⑫ 회차 L 판정 · PM 지시 2026-08-08 · 제외-사실 되부름) ──
+  //
+  // "못 봤다"와 "읽고 안 실었다"는 사용자 자리에서 같다 — 받은 숫자에서 자기 정산의 일부가
+  // 소리 없이 빠진다. 편집 선택은 강제하지 않는다: 좁은 범위 유지는 자유고, 제외를 **이름으로
+  // 밝히면** 통과다. 침묵만 사실로 되부른다. 문구 목록 없음 · 차단 없음 · 트리거는 원장 대조.
+  //
+  // 오탐 빗장: 답·실물이 이번 턴 표의 기계 합을 **하나라도 인용할 때만** 돈다 — 날짜 같은
+  // 무관한 숫자만 있는 턴에 무는 것은 개입이지 사실이 아니다. 묶음 합(폴더 열 합계)이 실렸으면
+  // 그 폴더의 파일들은 반영된 것으로 친다(합산 정답 오탐 방지).
+  {
+    const 쓴글들 = (receipts ?? []).flatMap((r) => [r, ...(r?.result?.innerReceipts ?? [])])
+      .filter((r) => (r?.failureState ?? 'none') === 'none'
+        && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'write')
+      .map((r) => String(r?.actualCall?.args?.text ?? ''));
+    const 글 = [String(reply ?? ''), ...쓴글들].join('\n');
+    const 표읽기 = 읽은들.filter((r) => r?.result?.table?.sums && r?.result?.path);
+    if (표읽기.length && /\d/.test(글)) {
+      const 숫자들 = new Set([...글.matchAll(/\d[\d,]*/g)].map((m) => Number(m[0].replace(/,/g, ''))));
+      const 폴더합 = new Map();
+      for (const r of 표읽기) {
+        const 폴더 = String(r.result.path).split('/').slice(0, -1).join('/');
+        const m = 폴더합.get(폴더) ?? {};
+        for (const [열, v] of Object.entries(r.result.table.sums)) m[열] = (m[열] ?? 0) + v;
+        폴더합.set(폴더, m);
+      }
+      const 표숫자쓰임 = 표읽기.some((r) => Object.values(r.result.table.sums).some((v) => 숫자들.has(v)))
+        || [...폴더합.values()].some((m) => Object.values(m).some((v) => 숫자들.has(v)));
+      if (표숫자쓰임) {
+        const 미반영 = [...new Set(표읽기.flatMap((r) => {
+          const 마디 = String(r.result.path).split('/');
+          const 이름 = 마디.at(-1);
+          if (글.includes(이름)) return [];                                        // 이름으로 밝혔다
+          if (Object.values(r.result.table.sums).some((v) => 숫자들.has(v))) return []; // 그 합이 실렸다
+          const m = 폴더합.get(마디.slice(0, -1).join('/')) ?? {};
+          if (Object.values(m).some((v) => 숫자들.has(v))) return [];               // 묶음 합으로 실렸다
+          return [`${이름}(${Object.entries(r.result.table.sums).slice(0, 2)
+            .map(([열, v]) => `${열} ${v.toLocaleString('ko-KR')}`).join(' · ')})`];
+        }))];
+        if (미반영.length) {
+          return {
+            일치: false,
+            사용자에게: false,
+            실제,
+            모델에게: `이번 턴에 읽은 표 중 답·실물에 숫자도 이름도 실리지 않은 파일: ${미반영.slice(0, 4).join(' · ')}.`,
+          };
+        }
+      }
     }
   }
 
