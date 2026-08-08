@@ -43,13 +43,17 @@ const 허용 = new Set([
   'get_session_state', 'get_recording_state', 'get_agent_cursor_state', 'get_browser_state',
   'get_config', 'verify_state', 'check_permissions', 'health_report', 'check_for_update',
   'start_session', 'end_session', 'wait',
+  // 드라이버 세션 부기 — 화면 입력이 아니다. 프로브 실측(2026-08-09 03:01): Hermes 는 세션을
+  // 열자마자 set_config{max_image_dimension}·set_agent_cursor_enabled{false} 를 부른다.
+  // 이걸 중단급으로 세우면 상대의 정상 개시 절차를 죽이는 것 — 상대를 약하게 세우는 변종이다.
+  'set_config', 'set_agent_cursor_enabled', 'set_agent_cursor_motion', 'set_agent_cursor_theme',
 ]);
 // 입력·클릭·발신류 — 차단 + **회차 즉시 중단**(파수).
 const 중단급 = new Set([
   'click', 'double_click', 'right_click', 'middle_click', 'drag', 'scroll',
   'type_text', 'hotkey', 'press_key', 'set_value', 'move_cursor', 'invoke_menu',
   'bring_to_front', 'focus_app', 'launch_app', 'kill_app', 'escalate_session',
-  'set_window_frame', 'set_config', 'replay_trajectory', 'clipboard_write',
+  'set_window_frame', 'replay_trajectory', 'clipboard_write',
   'browser_click', 'browser_type', 'browser_pointer', 'browser_navigate', 'browser_dialog',
   'browser_set_input_files', 'browser_download', 'browser_prepare', 'page',
 ]);
