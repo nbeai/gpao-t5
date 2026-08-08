@@ -636,8 +636,12 @@ export function makeLocalFileTool(deps = {}) {
           const 이웃말 = 같은자리.length
             ? ` (같은 자리에 ${같은자리.length}개 더: ${같은자리.slice(0, 3).map(이웃이름).join(' · ')}${같은자리.length > 3 ? ' …' : ''})`
             : '';
+          // X1(4단계 의미 계열 · PM 승인 2026-08-09): **열 목록을 함께 싣는다** — 부재를 낱말로
+          // 선언하지 않고 있는 것의 전부를 보여줘서 없는 것이 드러나게 한다. E4 실측: 자료가
+          // 두 열뿐인데 모델이 자료에 없는 구분(수입/지출류)을 지어 분류하고 한쪽을 0 으로
+          // 뭉갰다. 열 이름은 자료에서 온 데이터라 §1-B 순수성과 충돌하지 않는다.
           const 표말 = 표
-            ? ` (표 ${표.rows}행 · 합계 ${Object.entries(표.sums).slice(0, 3)
+            ? ` (표 ${표.rows}행 · 열: ${표.columns.slice(0, 5).join('·')} · 합계 ${Object.entries(표.sums).slice(0, 3)
               .map(([열, 값]) => `${열} ${값.toLocaleString('ko-KR')}`).join(' · ')})`
             : '';
           return ok((안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`) + 표말 + 이웃말, {

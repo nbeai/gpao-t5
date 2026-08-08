@@ -29,8 +29,8 @@ test('CSV 읽기가 숫자 열 합계를 표 사실로 동봉한다 — 요약�
     await writeFile(join(dir, '정산.csv'), '거래처,금액\n가나상사,1350000\n다라유통,760000\n');
     const r = await 손.handler({ action: 'read', path: '정산.csv' }, {});
     assert.deepEqual(r.result.table, { rows: 2, columns: ['거래처', '금액'], sums: { 금액: 2110000 } });
-    assert.match(String(r.userSafeSummary), /표 2행 · 합계 금액 2,110,000/,
-      '합계가 요약줄에 없다 — data 깊숙이만 있으면 모델이 지나친다(이웃 사실에서 밟은 병)');
+    assert.match(String(r.userSafeSummary), /표 2행 · 열: 거래처·금액 · 합계 금액 2,110,000/,
+      '합계·열 목록이 요약줄에 없다 — 합계는 암산의 재료(매듭 ②), 열 목록은 지어낸 구분의 반대 재료(X1)');
     assert.ok(!('거래처' in r.result.table.sums), '문자 열이 합계로 세어졌다 — 지어낸 사실이다');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
