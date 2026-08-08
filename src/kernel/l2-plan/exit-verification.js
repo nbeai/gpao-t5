@@ -292,6 +292,49 @@ export function 완료주장검증({ reply, receipts = [], 원장글 = '', 이�
             모델에게: `이번 턴에 읽은 표 중 답·실물에 숫자도 이름도 실리지 않은 파일: ${미반영.slice(0, 4).join(' · ')}.`,
           };
         }
+
+        // ── **다 읽은 폴더의 기계 합이 숫자로 안 실렸다** (⑫ R1 수리 · PM 주소록: 호명→숫자) ──
+        //
+        // R1 패배 원문(PM 라벨확정 2026-08-09): 실물이 읽은 파일 넷을 전부 "기준"이라
+        // 부르면서(호명) 합계·전체 비교는 절반의 파일에서만 냈다 — 위 그물은 이름과 개별 합이
+        // 실려 있어 지나갔다. **읽은 파일은 이름을 부른 것이 반영이 아니다 — 반영은 숫자다.**
+        // 다 읽은 폴더(표 2개 이상 · 안 읽은 이웃 0)의 기계 합이 답·실물의 숫자 집합에 없는데
+        // 답이 총·전체·합계를 명명하면 그 사실을 되부른다. 차단 아님 · 문구는 위 그물과 같은
+        // 한 벌(총·전체·합계 + 미완료 예외) · 트리거는 원장 대조다. 안 읽은 이웃이 남은 폴더는
+        // 위 두 그물(반만 읽고 총 · 미반영)의 자리라 여기서 다시 재지 않는다.
+        if (/총|전체|합계/.test(글) && !미완료를밝혔나(reply)) {
+          const 폴더별 = new Map();
+          for (const r of 표읽기) {
+            const 마디 = String(r.result.path).split('/');
+            const 폴더 = 마디.slice(0, -1).join('/');
+            const f = 폴더별.get(폴더) ?? { 읽은: new Set(), 명부: new Set() };
+            f.읽은.add(마디.at(-1));
+            for (const n of r.result.같은자리파일 ?? []) f.명부.add(n);
+            폴더별.set(폴더, f);
+          }
+          const 안실린합 = [];
+          for (const [폴더, f] of 폴더별) {
+            if (f.읽은.size < 2) continue;              // 표 하나면 그 파일 합이 곧 전체다 — 공백이 없다
+            const 남은csv = [...f.명부].filter((n) => n.normalize('NFC').toLowerCase().endsWith('.csv') && !f.읽은.has(n));
+            if (남은csv.length) continue;               // 공백이 남은 폴더는 위 그물들의 자리다
+            const 이폴더 = 표읽기.filter((r) => String(r.result.path).startsWith(`${폴더}/`));
+            if (!이폴더.some((r) => Object.values(r.result.table.sums).some((v) => 숫자들.has(v)))) continue; // 이 폴더 숫자를 안 썼다 — 소음 금지
+            const 어긋 = Object.entries(폴더합.get(폴더) ?? {}).filter(([, v]) => !숫자들.has(v));
+            if (어긋.length) {
+              안실린합.push(`${폴더.split('/').pop()}(읽은 표 ${f.읽은.size}개 · ${어긋.slice(0, 2)
+                .map(([열, v]) => `${열} 전체 합 ${v.toLocaleString('ko-KR')}`).join(' · ')})`);
+            }
+          }
+          if (안실린합.length) {
+            return {
+              일치: false,
+              사용자에게: false,
+              실제,
+              모델에게: `이번 턴에 읽은 표들의 기계 합이 답·실물의 숫자에 없다: ${안실린합.slice(0, 3).join(' · ')}.`
+                + ' 답·실물은 총·전체·합계를 말하고 있다 — 파일 이름을 불렀어도 그 합이 숫자로 안 실리면 반영이 아니다.',
+            };
+          }
+        }
       }
     }
   }
