@@ -35,6 +35,23 @@ test('CSV 읽기가 숫자 열 합계를 표 사실로 동봉한다 — 요약�
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('목록의 CSV 에도 표 합계가 동봉되고 줄에 실린다 — 멈춘 자리에 숫자가 있다 (⑬ 표적 수리)', async () => {
+  const { dir, 손 } = await 무대();
+  try {
+    await writeFile(join(dir, '정산.csv'), '거래처,금액\n마바상회,520000\n');
+    await writeFile(join(dir, '메모.md'), '점심 약속\n');
+    const r = await 손.handler({ action: 'list', path: '.' }, {});
+    const csv = r.result.items.find((i) => i.name === '정산.csv');
+    assert.deepEqual(csv?.table, { rows: 1, columns: ['거래처', '금액'], sums: { 금액: 520000 } },
+      '목록의 CSV 에 표 사실이 없다 — 멈춘 자리(목록)에 이름·시각뿐이면 일반론이 쉽다(E4 vs X1 실측)');
+    assert.equal(r.result.items.find((i) => i.name === '메모.md')?.table, undefined, 'CSV 아닌 항목에 표가 붙었다');
+    const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+    const 글 = compactResult(r.result);
+    assert.match(글, /정산\.csv.*\(표 1행 · 열: 거래처·금액 · 합계 금액 520,000\)/,
+      `목록 줄에 표 사실이 안 실렸다: ${글}`);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('반대시험: 애매한 표는 아예 안 낸다 — 틀린 합계는 없는 합계보다 나쁘다', async () => {
   const { dir, 손 } = await 무대();
   try {

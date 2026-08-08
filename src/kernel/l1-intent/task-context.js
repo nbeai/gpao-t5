@@ -288,7 +288,13 @@ export function compactResult(result, maxChars = 1200) {
     const 진짜전체 = Number.isInteger(result.total) ? result.total : result.items.length;
     const 이번쪽시작 = Number.isInteger(result.offset) ? result.offset : 0;
     const 전체 = result.items;
-    const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}`;
+    // 목록의 표 사실(⑬ 진단·표적 수리 · 2026-08-09) — 손이 동봉한 CSV 합계를 이름 옆에 싣는다.
+    // 멈춘 자리(목록)에 이름·시각뿐이면 일반론이 인용보다 쉽다(E4-R3 vs X1 대조 실측).
+    const 표말 = (t) => (t?.sums
+      ? ` (표 ${t.rows}행 · 열: ${(t.columns ?? []).slice(0, 5).join('·')} · 합계 ${Object.entries(t.sums).slice(0, 2)
+        .map(([열, v]) => `${열} ${Number(v).toLocaleString('ko-KR')}`).join(' · ')})`
+      : '');
+    const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}${표말(i.table)}`;
     const 머리 = `자리: ${result.path}`;
     const 이름예산 = Math.floor(maxChars * 0.6); // 나머지는 "뺀 것"을 정직하게 말하는 데 쓴다
     const 실은것 = [];

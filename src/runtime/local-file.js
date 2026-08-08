@@ -563,6 +563,23 @@ export function makeLocalFileTool(deps = {}) {
           const 문값 = 문(items.length, args);
           const 쪽 = items.slice(문값.시작, 문값.끝);
           const 안내 = 문말(문값, '개');
+          // **목록의 CSV 에도 표 합계를 동봉한다**(⑬ 진단·표적 수리 1회 · PM 한도 내 · 2026-08-09).
+          // 진단: E4-R3 과 X1 세 판이 같은 후보·같은 재료에서 갈렸고, 갈린 지점은 목록 뒤
+          // 읽으러 들어가느냐였다 — 멈춘 자리(목록)에 이름·시각뿐이라 일반론이 쉬웠다.
+          // 레버 ① 의 목록판: 이 쪽의 CSV 앞 5개만 · 256KB 상한 · 애매하면 안 낸다.
+          {
+            let 셈 = 0;
+            for (const it of 쪽) {
+              if (it.kind !== 'file' || !it.name.normalize('NFC').toLowerCase().endsWith('.csv') || 셈 >= 5) continue;
+              try {
+                const p = join(abs, it.name);
+                const st = await stat(p);
+                if (st.size > 262_144) continue;
+                const t = 표사실((await readFile(p)).toString('utf8'));
+                if (t) { it.table = t; 셈 += 1; }
+              } catch { /* 이웃을 못 읽어도 목록은 이미 됐다 */ }
+            }
+          }
           return ok(
             items.length
               ? (안내 ? `${items.length}개 중 ${안내}` : `${items.length}개를 찾았어요.`)
