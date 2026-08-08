@@ -134,6 +134,23 @@ export async function resolveInScope(target, opts = {}) {
     }
   }
 
+  // **다른 집의 표준 폴더를 가리키는 절대 경로는 이 집의 그 자리다**(6단계 ⑫ R3 실측 2026-08-09).
+  //
+  // 원장 사실: 격리로 홈이 옮겨진 우주에서 모델이 바탕화면을 **지어낸 홈 꼴 절대 경로**
+  // (`/Users/<이름>/Desktop/…`)로 네 번 짚었고, 전수 프로브에서 그 형태만 범위 밖이었다
+  // (상대·`~`·`Desktop/` 은 전부 닿는다). 네 번 거절 끝에 실물은 작업 폴더에 남았고 답은
+  // *"드래그해서 바탕화면으로 옮기면 끝이야"* — 자리 이탈 + 사용자 떠넘김이다.
+  //
+  // 위 상대 표기 규칙과 같은 원리다 — **사용자의 바탕화면은 하나다.** 홈 꼴(`/Users/<이름>`)
+  // 또는 뿌리 바로 아래(`/Desktop/…`)의 표준 폴더만 옮긴다. 외장 디스크의 `Desktop/` 폴더처럼
+  // 실제로 다른 자리(`/Volumes/…`)는 그대로 거절된다 — 조용한 바꿔치기가 아니라 같은 말의
+  // 다른 표기만 잇는 것이다. 범위 판정은 그대로 아래 자를 지난다(앵커를 옮긴 것이지 범위를
+  // 넓힌 게 아니다). 홈 안을 가리킨 절대 경로는 애초에 범위 안이라 여기 안 온다(행동 보존).
+  if (isAbsolute(t) && !roots.some((r) => isWithin(r, abs))) {
+    const 옮긴 = 다른집표준폴더(abs, home);
+    if (옮긴) abs = 옮긴;
+  }
+
   // **판정의 기준은 실제 경로다.** 문자열로 먼저 끊으면 `/var/...` 처럼 링크를 지나는 형태가
   // 실제로는 루트 안(`/private/var/...`)인데도 범위 밖으로 오판된다(다중 루트 검사에서 실측).
   // 그래서 존재하는 경로는 realpath 로만 판정하고 — 링크 탈출(안→밖)은 여기서 그대로 잡힌다 —
@@ -159,6 +176,22 @@ export async function resolveInScope(target, opts = {}) {
 }
 
 /**
+ * 절대 경로가 **다른 집(홈 꼴)의 표준 폴더**를 가리키면 이 집(home)의 그 자리를 돌려준다.
+ * 아니면 null — 지어내지 않는다. 홈 꼴은 구조로만 본다: `/Users/<이름>/<표준폴더>/…` 또는
+ * `/<표준폴더>/…`. 표준 폴더의 한 벌 진실은 `폴더부름말` 의 키다(`표준폴더디스크이름` 재사용).
+ * 실행(resolveInScope)과 카드(previewPathOf)가 **같은 이 함수**를 지난다 — 두 진실 금지.
+ * @param {string} abs 정규화된 절대 경로 @param {string} home
+ */
+function 다른집표준폴더(abs, home) {
+  const 마디 = String(abs).split(sep).filter(Boolean);
+  const 표준칸 = 마디.findIndex((m) => 표준폴더디스크이름(m));
+  if (표준칸 < 0) return null;
+  const 홈꼴 = 표준칸 === 0 || (표준칸 === 2 && 마디[0] === 'Users');
+  if (!홈꼴) return null;
+  return resolve(home, 표준폴더디스크이름(마디[표준칸]), ...마디.slice(표준칸 + 1));
+}
+
+/**
  * **승인 카드에 보여줄 자리**를 동기로 푼다. 판정이 아니라 표시용이다 —
  * 경계 판정은 `resolveInScope` 가 하고(링크 해제·범위 검사), 여기는 사용자가 "어디에 생기는가"를
  * 승인 **전에** 볼 수 있게만 한다.
@@ -175,7 +208,16 @@ export function previewPathOf(target, roots = defaultFileRoots(), home = homedir
   if (!raw) return base;
   // `~/` 해석도 실행 경로(resolveInScope)와 같은 규칙 — 카드가 다른 자리를 말하면 안 된다.
   const t = raw === '~' ? home : raw.startsWith('~/') ? resolve(home, raw.slice(2)) : raw;
-  if (isAbsolute(t)) return resolve(t);
+  if (isAbsolute(t)) {
+    const abs = resolve(t);
+    // 다른 집 꼴의 표준 폴더도 실행과 같은 자(홈 앵커) — 카드가 옛 절대 경로를 말하고
+    // 실행이 홈 바탕화면에 쓰면 승인이 승인이 아니다(두 진실 금지 · 위 표준 상대 표기와 동일).
+    if (!roots.some((r) => isWithin(r, abs))) {
+      const 옮긴 = 다른집표준폴더(abs, home);
+      if (옮긴) return 옮긴;
+    }
+    return abs;
+  }
   // 표준 폴더 상대 경로도 실행과 같은 자(홈 앵커) — 카드가 `<루트>/Desktop` 을 말하고
   // 실행이 홈 Desktop 에 쓰면 승인이 승인이 아니다(두 진실 금지).
   const 표준 = 표준폴더디스크이름(t.split(/[/\\]/)[0]);
