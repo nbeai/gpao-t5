@@ -759,6 +759,38 @@ try {
   누수기준선 = Math.min(말귀층누수.length, 말귀기준);
 }
 
+// ── §1-B 오너 지시(2026-08-09) · 손이 세는 사실은 도메인 낱말 없이 참이어야 한다 ──
+// 기준선 0 하드 · 상향 금지. 기계는 fact-purity.mjs 한 벌 — 게이트가 실제 소스로 부르고
+// 반대시험(test/fact-layer-purity.test.js)이 심은 소스로 불러 빨개짐을 확인한다.
+// 경계(규격 5): 그물 트리거의 총·전체·합계는 업종 어휘가 아니라 **일반 수량어**라 이
+// 불변식의 대상이 아니다 — 「세 성질」(문구는 최소 보조)이 다스린다. 원고·강의·설계 같은
+// 내용 종류 낱말도 대상이 아니다(locate 성격 분류표는 여러 업을 포괄하는 선언).
+{
+  const { readdir } = await import('node:fs/promises');
+  const { 사실층정의역, 업종금지어, 업종어휘위반, 미등록사실층 } = await import(new URL('./checks/fact-purity.mjs', import.meta.url));
+  const 훑기 = async (dir) => {
+    const out = [];
+    for (const e of await readdir(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+      if (e.isDirectory()) out.push(...await 훑기(`${dir}/${e.name}`));
+      else if (e.name.endsWith('.js')) out.push(`${dir}/${e.name}`);
+    }
+    return out;
+  };
+  const 전체 = await Promise.all((await 훑기('src')).map(async (path) => ({
+    path, src: await readFile(new URL(`../${path}`, import.meta.url), 'utf8'),
+  })));
+  const 정의역 = 전체.filter((x) => 사실층정의역.includes(x.path));
+  const 위반 = 업종어휘위반(정의역);
+  const 미등록 = 미등록사실층(전체);
+  if (위반.length) {
+    bad(`사실 층에 업종 어휘가 스몄다 — 도메인 낱말 없이 참이어야 한다(§1-B · 기준선 0 하드):\n      ${위반.slice(0, 8).map((x) => x.줄).join('\n      ')}`);
+  } else if (미등록.length) {
+    bad(`등록 없는 사실 층 추가 — 표지가 코드에 있는데 정의역 목록에 없다(§1-B 규격 1): ${미등록.join(' · ')}`);
+  } else {
+    ok(`사실 층 ${사실층정의역.length}개 파일 업종 어휘 0건 · 미등록 사실 층 0 (§1-B · 금지어 ${업종금지어.length})`);
+  }
+}
+
 // ── ③-b 1축: 도구의 이름·설명은 descriptor 하나에서만 나온다 ─────────────
 // 예전엔 tool-labels.js 에 LABELS·CAPABILITIES 수동 맵 두 개가 따로 있었다. 그래서 도구를 더해도
 // 이름·설명이 안 따라왔다(`session.search` 는 CAPABILITIES 에 없어서 자기파악에 이름만 나왔다).

@@ -427,6 +427,10 @@ export const 허용파일 = [
   'src/kernel/l1-intent/conversation.js',
   // 지금 실릴 모델 id 를 밝히는 문 하나(`activeModelId`) — doctor 와 같은 해석(두 진실 금지).
   'src/surface/model-connection.js',
+  // §1-B 오너 지시(2026-08-09) — 「손이 세는 사실은 도메인 낱말 없이 참이어야 한다」.
+  // 게이트 불변식의 기계(정의역·금지어·주석뺀코드)를 한 벌로 두는 모듈 — 게이트가 실제
+  // 소스로 부르고 반대시험이 심은 소스로 불러 빨개짐을 확인한다(규격 4).
+  'scripts/checks/fact-purity.mjs',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */

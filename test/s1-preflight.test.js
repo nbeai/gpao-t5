@@ -249,5 +249,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l1-intent/model-window.js',
     'src/kernel/l1-intent/conversation.js',
     'src/surface/model-connection.js',
+    // §1-B 오너 지시(2026-08-09) — 사실 층 순수성 게이트의 한 벌 기계(게이트·반대시험 공용).
+    'scripts/checks/fact-purity.mjs',
   ]);
 });
