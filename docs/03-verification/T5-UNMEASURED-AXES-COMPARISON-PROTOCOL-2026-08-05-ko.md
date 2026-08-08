@@ -264,9 +264,31 @@ T5 · Hermes · OpenClaw 3자. **Claude Code 는 참고군** — 점수에 안 �
 기록하며 **매 기록에 "모델이 다르다"를 병기**한다(조항 4). 참고군이 조용히 비교군으로
 승격되는 문을 닫아 둔다. 결과를 보고 비교군을 고르지 않는다.
 
-**모델 고정**: 첫째안 셋을 `gpt-5.1`. 안 되면 **셋이 공통 지원하는 동급 모델 하나**로 맞춰
-진행하고 그 모델명을 회계에 적는다(오너 사전 승인 대기 · 승인 시 왕복 없이 진행).
-전수 모델(`gpt-5.1`)과 다르면 **다르다고 적는다.**
+**모델 고정 — 확정: `gpt-5.5`** (실측 + 오너 승인 2026-08-09).
+
+착수 전 확인을 밟은 결과, 첫째안(`gpt-5.1`)은 **성립하지 않는다** — 기계 사실:
+
+```
+T5        저장된 연결 = openai · gpt-5.1
+Hermes    ~/.hermes/config.yaml = provider openai-api · model gpt-5.1
+OpenClaw  openclaw.json = openai/gpt-5.5      ← 여기만 달랐다
+확인       openclaw --profile t5cmp agent --local --model openai/gpt-5.1
+          → FailoverError: **Unknown model: openai/gpt-5.1** (모델 목록에도 없다)
+```
+
+그래서 규약 §2-1 의 폴백대로 **셋을 `gpt-5.5` 로 맞춘다**(오너 승인: *"5.5도 상관 없어"*).
+`openclaw models list` 에 `openai/gpt-5.5` 가 `default,configured` 로 서 있고, T5·Hermes 는
+공급자가 같아 같은 모델을 부를 수 있다.
+
+**오너 설치를 건드리지 않는다** — 셋 다 실행 시 오버라이드로 맞춘다(실측한 자리):
+```
+T5        격리 방의 GPAO_T5_MODEL_ID      (러너가 이미 processEnv 로 넘긴다)
+Hermes    hermes -m <model>               (전역 설정 불변)
+OpenClaw  openclaw --profile <격리> --model openai/gpt-5.5
+```
+
+**전수 모델(`gpt-5.1`)과 다르다** — 6단계 숫자를 5단계 전수 숫자와 직접 비교하지 않는다.
+완성 2 는 상대 기준이라 **셋이 같은 모델**이면 성립한다.
 
 ## 10-3. 대응표 — 먼저 그린다 · 두 묶음
 | 축 | T5 | Hermes | OpenClaw | 묶음 |
