@@ -264,31 +264,40 @@ T5 · Hermes · OpenClaw 3자. **Claude Code 는 참고군** — 점수에 안 �
 기록하며 **매 기록에 "모델이 다르다"를 병기**한다(조항 4). 참고군이 조용히 비교군으로
 승격되는 문을 닫아 둔다. 결과를 보고 비교군을 고르지 않는다.
 
-**모델 고정 — 확정: `gpt-5.5`** (실측 + 오너 승인 2026-08-09).
+**모델 — 확정: T5·Hermes `gpt-5.1` · OpenClaw `gpt-5.5`** (실측 + 오너 결정 2026-08-09).
 
-착수 전 확인을 밟은 결과, 첫째안(`gpt-5.1`)은 **성립하지 않는다** — 기계 사실:
+착수 전 확인(순서 1번)의 기계 사실:
 
 ```
 T5        저장된 연결 = openai · gpt-5.1
 Hermes    ~/.hermes/config.yaml = provider openai-api · model gpt-5.1
-OpenClaw  openclaw.json = openai/gpt-5.5      ← 여기만 달랐다
+OpenClaw  openclaw.json = openai/gpt-5.5   (models list 에서 default,configured)
 확인       openclaw --profile t5cmp agent --local --model openai/gpt-5.1
           → FailoverError: **Unknown model: openai/gpt-5.1** (모델 목록에도 없다)
 ```
 
-그래서 규약 §2-1 의 폴백대로 **셋을 `gpt-5.5` 로 맞춘다**(오너 승인: *"5.5도 상관 없어"*).
-`openclaw models list` 에 `openai/gpt-5.5` 가 `default,configured` 로 서 있고, T5·Hermes 는
-공급자가 같아 같은 모델을 부를 수 있다.
+**오너 결정**: *"오픈클로만 5.5로 가라고, 그것도 의미 있는 테스트니까."* 셋을 한 모델로
+맞추지 않는다 — OpenClaw 는 그 제품의 **기본 구성 그대로** 세운다(대응 확인을 상대의 최선
+구성으로 밟는다는 §10-3 단서와 같은 방향이다).
 
-**오너 설치를 건드리지 않는다** — 셋 다 실행 시 오버라이드로 맞춘다(실측한 자리):
-```
-T5        격리 방의 GPAO_T5_MODEL_ID      (러너가 이미 processEnv 로 넘긴다)
-Hermes    hermes -m <model>               (전역 설정 불변)
-OpenClaw  openclaw --profile <격리> --model openai/gpt-5.5
-```
+⚠ 그래서 **비교의 성질이 상대마다 다르다. 회계를 갈라 적는다**:
 
-**전수 모델(`gpt-5.1`)과 다르다** — 6단계 숫자를 5단계 전수 숫자와 직접 비교하지 않는다.
-완성 2 는 상대 기준이라 **셋이 같은 모델**이면 성립한다.
+| 짝 | 모델 | 무엇을 재나 | 완성 2 판정 |
+|---|---|---|---|
+| T5 ↔ Hermes | 둘 다 `gpt-5.1` | **제품**(같은 모델이라 차이는 제품에서 온다) | **주축** |
+| T5 ↔ OpenClaw | 5.1 ↔ 5.5 | **제품+모델 묶음**(둘을 못 가른다) | **보조** — 모든 기록에 모델 차이를 병기하고, 이 짝만으로 우열을 단정하지 않는다 |
+| Claude Code | Opus 5 | 참고군 | 점수 밖(§10-2) |
+
+두 짝이 어긋나면(예: Hermes 에는 앞서고 OpenClaw 에는 뒤진다) **그 어긋남 자체를 사실로
+보고한다** — 모델 차이가 설명 후보라고 적고, 우열로 뭉개지 않는다.
+전수 모델과 T5 쪽은 같다(`gpt-5.1`) — 5단계 숫자와의 연속성은 T5 축에서만 성립한다.
+
+**오너 설치를 건드리지 않는다** — 실행 시 오버라이드·격리로만 맞춘다(실측한 자리):
+```
+T5        격리 방의 GPAO_T5_MODEL_ID (러너가 이미 processEnv 로 넘긴다) = gpt-5.1
+Hermes    hermes -m gpt-5.1          (전역 설정 불변)
+OpenClaw  openclaw --profile <격리>   (모델은 그 제품 기본 = openai/gpt-5.5)
+```
 
 ## 10-3. 대응표 — 먼저 그린다 · 두 묶음
 | 축 | T5 | Hermes | OpenClaw | 묶음 |
