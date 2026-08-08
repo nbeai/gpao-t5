@@ -140,7 +140,8 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
   },
 }, {
   name: 'memory.propose',
-  description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙을 말하면 이걸로 적는다.'
+  description: '사용자가 앞으로도 지켜 달라는 선호·방식·원칙, 그리고 **기억해 달라고 명시한'
+    + ' 자기 사실**(습관·상태 — kind: user_fact)을 이걸로 적는다.'
     + ' **적지 않았다면 "앞으로 기억할게" 같은 약속을 하지 않는다.**'
     + ' 사용자가 지금 말로 선언한 선호는 `evidence` 를 함께 내면 확인 카드 없이 바로 반영되고'
     + ' 사용자가 나중에 되돌릴 수 있다. 그 밖(요약한 문장·운영 원칙)은 사용자 확인을 거친다.'
@@ -151,7 +152,10 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
   parameters: {
     type: 'object',
     properties: {
-      kind: { type: 'string', enum: ['preference', 'operating_principle'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle' },
+      // ④ 진단(2026-08-09): 씨앗 "밤마다 콜라 … 기억해 둬"에 모델이 채널을 3+1회 연속 안
+      // 불렀다 — 정의역(선호·원칙)에 **사용자 사실**의 자리가 없어서다. 낱말 그물이 아니라
+      // 종류를 만든다(구조). user_fact 는 자동 반영 없이 확인 카드 경로만 탄다.
+      kind: { type: 'string', enum: ['preference', 'operating_principle', 'user_fact'], description: '선호(방식·취향)면 preference, T5 행동을 규율하는 규칙(반드시/절대)이면 operating_principle, 사용자가 기억해 달라고 한 자기 사실(습관·상태)이면 user_fact' },
       statement: {
         type: 'string',
         description: '기억할 내용. **`evidence.utteranceQuote` 와 글자까지 똑같이 적으면**'
@@ -292,7 +296,7 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
 }]);
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
-const MEMORY_KINDS = new Set(['preference', 'operating_principle']);
+const MEMORY_KINDS = new Set(['preference', 'operating_principle', 'user_fact']);
 const APPLIES_TO = new Set(['from_now_on', 'this_turn_only']);
 const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown']);
 

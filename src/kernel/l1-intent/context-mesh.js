@@ -127,7 +127,9 @@ const relevant = (entry, requestText, env) => {
   //
   // 부수 효과 하나가 더 있다: 기억 블록이 발화마다 달라지지 않으므로 **프롬프트 접두가 산다**
   // (불변식 A). 예전 필터는 사실을 막으면서 캐시도 함께 깨고 있었다.
-  if (entry?.kind === 'preference') return true;
+  // 사용자 사실(user_fact)도 같은 성질이다 — "내가 뭘 마시는지 알아?"가 어느 낱말로 오든
+  // 저장된 사실은 실려 있어야 답할 수 있다(④ · 2026-08-09 user_fact 종류 신설).
+  if (entry?.kind === 'preference' || entry?.kind === 'user_fact') return true;
   return isRelevant(entry.statement, requestText);
 };
 
@@ -160,7 +162,7 @@ export function admittedEntries(memory, requestText, env) {
   const 실릴것 = (memory?.promoted ?? [])
     .filter(isInfluenceEligible)
     .filter((e) => relevant(e, requestText, env));
-  const 선호 = 실릴것.filter((e) => e?.kind === 'preference');
+  const 선호 = 실릴것.filter((e) => e?.kind === 'preference' || e?.kind === 'user_fact'); // 상한은 한 묶음(무한 성장 금지)
   const 넘친것 = 선호.length > 선호상한 ? new Set(선호.slice(0, 선호.length - 선호상한)) : null;
   return 실릴것
     .filter((e) => !넘친것?.has(e))
