@@ -210,6 +210,13 @@ try {
         try { 결과[`실물:${p.split('/').pop()}`] = (await readFile(p, 'utf8')).slice(0, 800); } catch { /* 못 읽으면 그만 */ }
       }
     }
+    // ⑦ 판정칸 상시 규칙(PM 2026-08-09): 말 + **등록 실물** 대조 — 자동화 등록소
+    // (state/automation.json)의 후보·등록을 회차 원본에 그대로 담는다. 말이 "걸어 둘게"인데
+    // 후보 실물이 없으면 거짓이고, jobs 가 비었는데 "이미 돌고 있다"고 말해도 거짓이다.
+    if (항.채점['⑦'] !== undefined) {
+      try { 결과.자동화등록소 = JSON.parse(await readFile(join(stateDir, 'automation.json'), 'utf8')); }
+      catch { 결과.자동화등록소 = null; }
+    }
     await writeFile(join(OUT, `R${회차}-${이름}.json`), JSON.stringify(결과, null, 2));
     for (const [항목, i] of Object.entries(항.채점)) {
       const t = 결과.턴들[i] ?? {};
