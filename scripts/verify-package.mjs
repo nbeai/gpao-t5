@@ -19,7 +19,10 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.env.GPAO_T5_VERIFY_PORT ?? 4599);
 
 // 산출물에 반드시 있어야 하는 것(누락 사고 방지) / 절대 없어야 하는 것(과다 사고 방지).
-const MUST_HAVE = ['package.json', 'bin/gpao-t5.mjs', 'src/surface/server.js', 'src/surface/web/index.html'];
+const MUST_HAVE = ['package.json', 'bin/gpao-t5.mjs', 'src/surface/server.js', 'src/surface/web/index.html',
+  // 동봉 화면 손(오너 결정 2026-08-07: T5 설치에 같이 담는다) — 빠지면 ①⑥이 통째로 죽는다.
+  'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/MacOS/cua-driver',
+  'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/Info.plist'];
 const MUST_NOT_HAVE = ['test', 'design', 'docs', 'workspace-notes', '.beai-harness', 'node_modules'];
 
 const log = (m) => console.log(`[verify:package] ${m}`);
@@ -69,6 +72,30 @@ try {
   const extra = MUST_NOT_HAVE.filter((d) => files.some((f) => f === d || f.startsWith(`${d}/`)));
   if (extra.length) fail(`산출물에 들어가면 안 되는 것이 섞였습니다: ${extra.join(', ')}`);
   log(`내용물 ${files.length}개 — 필수 ${MUST_HAVE.length}개 있음, 금지 항목 없음`);
+
+  // 3-b) **동봉 화면 손이 설치된 자리에서 실제로 뜬다**(PM 지시 2026-08-09 · 5단계 선행).
+  // `files` 에 실리는 것(내용물 검사)과 **설치본에서 도는 것**은 다르다 — npm pack 이
+  // 실행 비트·번들 구조를 부수면 목록은 있는데 손은 죽는다. ①⑥은 설치본 기준으로만
+  // 성립하므로, 소스 쪽 손을 빌려 재지 않고 여기(펼친 산출물)에서 잰다.
+  // 권한(TCC)은 안 건드린다 — --version 은 데몬 없이 답하고 끝난다(실측 · exit 0).
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    const 손확인 = execFileSync(process.execPath, ['-e', `
+      import(${JSON.stringify(`file://${join(pkgDir, 'src/runtime/desktop-bin.js')}`)}).then((m) => {
+        const p = m.동봉된손();
+        if (!p) { console.error('동봉된손() null'); process.exit(1); }
+        console.log(p);
+      });
+    `], { encoding: 'utf8' }).trim();
+    // macOS tmp 는 /var → /private/var 링크라 문자열 접두가 어긋난다 — 실제 경로로 비교.
+    const { realpath } = await import('node:fs/promises');
+    if (!손확인.startsWith(await realpath(pkgDir))) fail(`동봉 화면 손이 설치본 밖을 가리킵니다: ${손확인}`);
+    execFileSync('codesign', ['--verify', '--deep', '--strict', join(pkgDir, 'vendor/cua-driver/darwin-arm64/CuaDriver.app')]);
+    const 버전 = execFileSync(손확인, ['--version'], { encoding: 'utf8' }).trim();
+    if (!/cua-driver \d/.test(버전)) fail(`동봉 화면 손이 뜨지 않습니다: ${버전}`);
+    log(`동봉 화면 손 확인 — ${버전} · 서명 검증 통과 · 설치본 자리에서 실행됨`);
+  } else {
+    log('동봉 화면 손 확인 건너뜀 — darwin-arm64 가 아니다(동봉본의 정의역 밖)');
+  }
 
   // 4) **펼친 산출물에서 실제 실행** — 여기가 이 스크립트의 존재 이유다.
   log(`실행: node bin/gpao-t5.mjs --port ${PORT} --no-open`);

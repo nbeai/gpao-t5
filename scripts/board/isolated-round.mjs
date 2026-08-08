@@ -12,6 +12,16 @@
 //
 // ⚠ 이 러너는 **격리 회차**만 안다. ①(계산기)·⑥(카톡)은 화면 실물이 필요해 여기 없다 —
 //    실물 회차는 노드를 닫을 때 따로 돈다(첫 메시지 §3-① 두 갈래).
+//
+// ── 실물 회차(①⑥) 측정 조건 — 5단계 전수 대본(PM 지시 2026-08-09 · 조건 미비면 미측정) ──
+//   공통  설치본에서 잰다(소스 손 차용 금지 — 아래 --pkg) · 상태만 격리(GPAO_T5_DATA_DIR
+//         새 자리) · 홈 변경 세기 · 회차기록 동일 규격 · 오너가 기계를 비운 창에서만(임의
+//         실물 측정 금지)
+//   ①    1단계 가려진 조건 절차 **그대로 재사용**(새 설계 금지): 계산기에 고정값 심기 →
+//         즉시 다른 앱으로 복귀(계산기를 뒤로) → 스크린샷으로 실물 확정 → 가려진 상태에서
+//         "계산기 화면 읽어줘" 측정
+//   ⑥    카톡 실물 로그인 + **고정 대화**(측정 전에 내용을 심고 스크린샷으로 확정) 준비가
+//         선행 조건. 미비면 그 문항은 미측정이지 실패가 아니다
 // ⚠ 성능 층(M1·M2·⑫⑬⑧⑪기억)은 여기서 재지 않는다 — 실물 회차 + 비교군 나란히(판 §2-b).
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -24,7 +34,14 @@ import { realpath } from 'node:fs/promises';
 const repo = fileURLToPath(new URL('../..', import.meta.url));
 const { 저장된연결 } = await import(pathToFileURL(join(repo, 'scripts/s1/run.mjs')));
 const { 격리증명 } = await import(pathToFileURL(join(repo, 'scripts/human-use/prove-isolation.mjs')));
-const { startLiveServer } = await import(pathToFileURL(join(repo, 'src/surface/server.js')));
+// **설치본 전수**(PM 지시 2026-08-09): --pkg <펼친 산출물 자리> 를 주면 서버를 소스가
+// 아니라 **설치본에서** 띄우고, 회차기록에 설치본 식별자(버전·해시)를 남긴다.
+// 해시는 산출물 tarball 의 shasum 을 --pkg-sha 로 받아 그대로 적는다(계산 주체는 다리).
+const 넘긴값 = (이름) => { const i = process.argv.indexOf(`--${이름}`); return i >= 0 ? process.argv[i + 1] : null; };
+const 설치본 = 넘긴값('pkg');
+const 설치본해시 = 넘긴값('pkg-sha');
+const 서버자리 = 설치본 ? join(설치본, 'src/surface/server.js') : join(repo, 'src/surface/server.js');
+const { startLiveServer } = await import(pathToFileURL(서버자리));
 
 const 인자 = (이름, 기본) => {
   const i = process.argv.indexOf(`--${이름}`);
@@ -172,6 +189,14 @@ const 순서 = {
 const 기록 = {
   회차, 시각: new Date().toISOString(),
   productCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(),
+  // 설치본 전수의 식별자(PM 규격 5) — 무엇을 쟀는지가 커밋이 아니라 산출물로 남는다.
+  ...(설치본 ? {
+    설치본: {
+      자리: 설치본,
+      버전: JSON.parse(await readFile(join(설치본, 'package.json'), 'utf8')).version,
+      ...(설치본해시 ? { shasum: 설치본해시 } : {}),
+    },
+  } : {}),
   미커밋: execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' }).trim().split('\n').filter(Boolean),
   model: 연결.modelId, 방, 고정물지문, 격리증명: 증명.결과,
   문항: {}, 계측기: null, 전제: {},
