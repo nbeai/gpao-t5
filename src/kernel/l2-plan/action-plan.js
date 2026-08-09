@@ -132,9 +132,22 @@ export function toolActionKind({ toolId, args, selfState }) {
       // 안전은 안 풀린다: `send` 도 헌장 ③ 이라 **새 상대면 반드시 카드**이고, 신분이 안
       // 서면(정규화 실패) 상대를 모르는 것이므로 역시 카드다(fail-closed).
       // 좌표로 짚은 걸음·커서에 치는 입력은 그대로 미상이다 — 그 규율은 손대지 않는다.
+      //
+      // **창의 칸에 글자를 넣는 일은 `field_input` 이다**(F-58 (가-2) · PM 판정 2026-08-09).
+      //
+      // 실물 회차가 남긴 사실: 모델은 같은 일을 매번 다른 모양으로 부른다 — 첫 발신 카드
+      // 넷 중 하나만 `바깥으로` 를 신고했고, 두 번째 걸음은 신고 없이 왔다. 열쇠를 모델의
+      // **자기 신고에 걸면** 같은 방·같은 문구인데 부르는 모양에 따라 마찰이 갈린다
+      // ("모델은 같은 답을 낼 수 없다" — 오너). 그래서 신고가 아니라 **기계가 아는 사실**
+      // (type · 요소로 짚음)로 종류를 세운다. 그 칸이 전송 입력인지 메모인지 기계가 모르므로
+      // 기본은 무조건 카드고, 조용해지는 칸은 「아는 상대 + 같은 내용 + 창 신분 성립」
+      // 하나뿐이다(authority.js `isCharterAsk` · 안전 대차 봉인이 문다). 값 있는 칸 입력이
+      // 예전엔 organize(자동)였는데 — 탐침이 선 대화 입력칸이면 **카드 없이 밖으로 나갈 수
+      // 있는 구멍**이었다. 카드가 늘어나는 쪽 변화는 PM 조건 ②로 승인된 값이다.
       kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
         : args?.기대?.바깥으로 === true ? 'send'
-          : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
+          : a === 'type' ? 'field_input'
+            : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
@@ -215,8 +228,16 @@ export function buildActionPlan(p) {
     // `발신실질`, 채널 손은 실행 대상 값. 둘 다 없으면 모르는 상대다(fail-closed).
     const 상대열쇠 = 도구미리보기?.발신실질
       ?? (isSendTool(id, selfState) ? counterpartRef(id, 판정인자?.target ?? intent.sendArgs?.[id]?.target) : null);
-    const counterpartKnown = Boolean(상대열쇠)
-      && (knownCounterparts instanceof Set ? knownCounterparts : new Set(knownCounterparts ?? [])).has(상대열쇠);
+    const 아는상대집합 = knownCounterparts instanceof Set ? knownCounterparts : new Set(knownCounterparts ?? []);
+    const counterpartKnown = Boolean(상대열쇠) && 아는상대집합.has(상대열쇠);
+    // ⛔ **(가) 1차 시도는 게이트가 막았다 — 되돌렸다**(2026-08-09). 여기서 `kind = 'send'` 로
+    // 올렸더니 게이트 §종류 보존이 물었다(*"위층이 아래층의 종류를 바꿔 부르지 않는다"*).
+    // 규율이 맞다. **종류는 사실이고 등급은 조건**이다 — 이 기록은 지우지 않는다.
+    //
+    // → **(가-2) 로 닫혔다**(PM 판정 2026-08-09): 올바른 자리인 종류 판정(`toolActionKind`)에
+    // 사실 층의 정확한 이름 `field_input`(창의 칸에 글자 넣기)이 섰다. 기본은 무조건 카드,
+    // 조용해지는 칸은 「아는 상대 + 같은 내용 + 창 신분 성립」 하나뿐(authority.js).
+    // **계획 층(여기)은 종류를 건드리지 않는다** — 조건(counterpartKnown)만 세워서 넘긴다.
     const asAction = (k) => ({
       label: id, kind: k, preview: preview(),
       ...(상대열쇠 ? { 상대열쇠 } : {}),

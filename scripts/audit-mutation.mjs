@@ -1350,7 +1350,7 @@ export const MUTATIONS = [
     찾기: '  if (JSON.stringify(from) === JSON.stringify(to)) return {};',
     바꾸기: '' },
   { 이름: 'E-4 파생 종류 목록이 어휘 전체로 뭉개짐(두 역할 구분 소실)', 파일: 'src/kernel/l2-plan/authority.js', 검사: 'test/authority-tier-contract.test.js',
-    찾기: "export const DERIVED_KINDS = Object.freeze([\n  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',\n]);",
+    찾기: "export const DERIVED_KINDS = Object.freeze([\n  'read', 'organize', 'write', 'delete', 'send', 'field_input', 'export_sensitive', 'connect_account',\n]);",
     바꾸기: 'export const DERIVED_KINDS = Object.freeze([...AUTHORITY_KINDS]);' },
   // ── P90-2(2026-08-02) · 완료 형태 판정은 구조 채널로 ──────────────────
   { 이름: 'P90-2 통제 접두어가 스트리밍 조각으로 다시 샘', 파일: TSURF, 검사: 'test/human-surface-polish.test.js',

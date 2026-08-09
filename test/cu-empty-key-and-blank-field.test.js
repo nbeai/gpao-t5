@@ -53,17 +53,26 @@ test('단축키·메뉴도 빈 값이면 안 한다 — 같은 규율이다', as
   }
 });
 
-// ── 빈 칸도 되돌릴 수 있다 ───────────────────────────────────────────────
-test('빈 입력칸도 되돌릴 수 있는 칸이다 — 첫 입력마다 카드가 뜨면 안 된다', async () => {
+// ── 빈 칸도 되돌릴 수 있다 → **계약 변경**(F-58 (가-2) · PM 판정 2026-08-09) ────
+//
+// 이 검사는 "빈 칸이라고 카드를 띄우지 마라(organize)"를 물었다. 그 칸이 뒤집혔다:
+// 글자 넣기는 값 유무와 무관하게 **`field_input`** 이고 기본은 카드다 — 탐침이 선
+// 대화 입력칸이면 카드 없이 밖으로 나갈 수 있는 구멍이었다(같은 자리의 실측이 근거다:
+// 이 파일 머리의 라이브가 정확히 **채팅 입력칸**이었다). 이 검사가 지키던 가치
+// ("첫 입력마다 카드"를 막는 것)는 사라지지 않고 자리를 옮겼다 — 반복 마찰은 이제
+// 승인 기억(아는 상대·같은 내용)이 줄인다. 첫 한 번은 묻는 것이 헌장 ③ 이다.
+test('글자 넣기는 빈 칸이어도 field_input — 기본은 카드, 두 번째부터는 승인 기억이 줄인다', async () => {
   const 눌러본사실 = await 손세우기().probe({
     action: 'type', app: 'K', 대상: { id: 's1:26', label: '메시지 입력' },
   });
   assert.equal(눌러본사실?.찾음, true);
-  assert.equal(
-    toolActionKind({ toolId: 'desktop.act', args: { action: 'type', 눌러본사실 } }),
-    'organize',
-    `**빈 칸이라고 카드를 띄운다** — 첫 입력은 늘 카드가 된다: ${JSON.stringify(눌러본사실)}`,
-  );
+  const kind = toolActionKind({ toolId: 'desktop.act', args: { action: 'type', 눌러본사실 } });
+  assert.equal(kind, 'field_input',
+    `**글자 넣기가 field_input 으로 안 잡힌다**: ${kind} — 값 유무로 등급이 갈리면 그 구멍이 되살아난다`);
+  const { decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
+  assert.equal(decideAutoGrant({ kind }), false, '새 상대인데 자동으로 흘렀다 — 기본은 카드다');
+  assert.equal(decideAutoGrant({ kind, counterpartKnown: true }), true,
+    '아는 상대인데도 묻는다 — 반복 마찰을 줄이는 자리가 죽었다(사거리 비대칭병 재발)');
 });
 
 test('글자를 넣는 칸이 아니면 그대로 미상이다 — 규율이 안 느슨해진다', async () => {

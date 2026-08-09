@@ -61,9 +61,12 @@ test('값 있는 요소는 자동이다 — 다크 모드 켜기가 다시 묻�
   assert.equal(자동인가(kind), true);
 });
 
-test('글자 넣기도 값이 있는 칸이면 자동이다', () => {
+// 계약 변경(F-58 (가-2) · PM 판정 2026-08-09): 글자 넣기는 값이 있는 칸이어도 자동이 아니다 —
+// **`field_input`** 이다. 탐침이 선 대화 입력칸이면 카드 없이 밖으로 나갈 수 있는 구멍이었다.
+// 카드가 늘어나는 쪽 변화는 PM 조건 ②로 승인된 값이고, 조용해지는 칸은 아는 상대 하나뿐이다.
+test('글자 넣기는 값이 있는 칸이어도 field_input 이다 — 기본은 카드, 아는 상대만 자동', () => {
   const kind = toolActionKind({ toolId: 'desktop.act', args: { action: 'type', 눌러본사실: { 찾음: true, 값있음: true } } });
-  assert.equal(kind, 'organize');
+  assert.equal(kind, 'field_input');
 });
 
 // ── ③ 못 찾은 자리는 미상이다 — 없는 것을 자동으로 누르지 않는다 ──────────

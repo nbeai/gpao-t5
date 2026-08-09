@@ -96,6 +96,8 @@ test('E-4: 손이 실제로 내는 종류는 전부 권한 어휘 안에 있다(
     ['local.process', { action: 'status' }], ['local.process', { action: 'start' }],
     ['local.process', { action: 'stop' }],
     ['mail.send', { to: 'a@b.c', body: 'password: hunter2222' }],   // send → export_sensitive 파생
+    // field_input 파생(F-58 (가-2)) — 요소로 짚은 창의 칸에 글자 넣기.
+    ['desktop.act', { action: 'type', 대상: { 토큰: 's1:9', label: '메시지 입력' } }],
   ]) 낸것.add(toolActionKind({ toolId: id, args, selfState }));
   낸것.delete(UNKNOWN_KIND);   // 판정 결과일 뿐 저장할 어휘가 아니다
 

@@ -31,6 +31,9 @@ export const UNKNOWN_KIND = 'unknown_kind';
  */
 export const SAFETY_FLOOR_KINDS = Object.freeze([
   'send',             // ③ 새 상대 첫 전송만 — 아는 상대는 자동
+  'field_input',      // ③ 파생(F-58 (가-2) · PM 2026-08-09) — 창의 칸에 글자 넣기. 그 칸이
+                      //    밖으로 이어지는지 기계가 모른다 → 기본 카드. 아는 상대·같은 내용·
+                      //    창 신분 성립(fail-closed)일 때만 자동 — send 와 같은 조건이다
   'delete', 'write',  // ② 되돌릴 수 없을 때만 — 휴지통·백업이 있으면 자동
   'pay',              // ④ 항상
   'export_sensitive', // ② 의 연장 — 새어 나간 비밀은 되돌릴 수 없다. 항상
@@ -82,7 +85,7 @@ export function isAuthorityKind(kind) {
  * 아래 목록은 ①을 검사가 물게 하려고 둔다 — 손이 새 종류를 내기 시작하면 여기도 함께 바뀐다.
  */
 export const DERIVED_KINDS = Object.freeze([
-  'read', 'organize', 'write', 'delete', 'send', 'export_sensitive', 'connect_account',
+  'read', 'organize', 'write', 'delete', 'send', 'field_input', 'export_sensitive', 'connect_account',
 ]);
 
 /** 아무 손도 내지 않는 어휘(선언·차단용). `DERIVED_KINDS` 의 여집합이다 — 손으로 두 번 적지 않는다. */
@@ -118,6 +121,7 @@ function tierOfKind(kind) {
     case 'grant_permission': // 권한 변경/상승
       return TIER.A3;
     case 'send':
+    case 'field_input':    // 창의 칸에 글자 넣기 — send 와 같은 수위(F-58 (가-2))
     case 'write':          // SaaS 쓰기
     case 'automate':       // 자동화 활성화
     case 'promote_memory': // 장기 기억 승격
@@ -200,6 +204,12 @@ function isCharterAsk(action) {
     // ③ 새 상대 첫 전송만. 이미 허락한 상대(counterpartKnown)에는 안 묻는다.
     case 'send':
       return action?.counterpartKnown !== true;
+    // ③ 파생 — 창의 칸에 글자 넣기(F-58 (가-2) · PM 2026-08-09). 종류는 기계가 아는 사실이고,
+    // 그 칸이 전송 입력인지 메모인지는 모른다 — 모름은 자동이 아니라 확인 쪽이다.
+    // 조용해지는 조건은 send 와 같다: 사용자가 이미 허락한 그 실질(앱·창·내용 — 신분이
+    // 안 서면 열쇠가 없어 영영 이 조건에 안 닿는다 · fail-closed).
+    case 'field_input':
+      return action?.counterpartKnown !== true;
     // ②·③·④ 의 연장 — 비밀 본문·공개·결제·권한 변경은 조건 없이 항상.
     default:
       return true;
@@ -260,6 +270,7 @@ export function isExecutionAllowed(grant) {
 // 승인 이유(사용자 언어) — kind별 한 줄. 개발자식 설명 금지.
 const WHY_APPROVAL = {
   send: '메시지를 실제로 밖으로 보내는 일이라 보내기 전에 한 번 확인받아요.',
+  field_input: '화면의 입력칸에 글자를 넣는 일이라 실행 전에 확인받아요.',
   write: '내용을 남기거나 덮어쓰는 일이라 실행 전에 확인받아요.',
   automate: '앞으로 자동으로 실행될 설정이라 켜기 전에 확인받아요.',
   promote_memory: '오래 기억할 내용이라 저장하기 전에 확인받아요.',
