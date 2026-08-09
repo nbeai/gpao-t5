@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as qualification from '../scripts/human-use/harness-qualification.mjs';
@@ -202,6 +202,53 @@ test('반례: raw 원본 변조·삭제·경로탈출은 사후 검증에서 전
   manifest.rawEvidence[0].name = '../outside.json';
   await writeFile(escaped.manifestPath, JSON.stringify(manifest));
   assert.equal((await qualification.verifyQualificationEvidence(escaped.manifestPath)).ok, false, '경로탈출 원본을 받았다');
+});
+
+test('반례: 허용 모양의 manifest 단독 artifact·model·fixture·isolation·감시경로 변조도 raw와 어긋나면 거부한다', async () => {
+  const root = await room('t5-hq-manifest-bind-');
+  const result = await runHarnessQualification({
+    runId: 'manifest-bind', sourceRoot: tree,
+    evidenceDir: join(root, 'evidence'), historyDir: join(root, 'history'), protectedPaths: [],
+  });
+  assert.equal(result.status, 'QUALIFIED');
+  const mutate = [
+    ['artifact', (m) => { m.artifact.gitSha = 'f'.repeat(40); }],
+    ['model', (m) => { m.model.settings.configured.maxTokens = 999; }],
+    ['fixture', (m) => { m.fixtureHash = 'e'.repeat(64); }],
+    ['isolation', (m) => { m.isolation = { ok: true, 결과: [{ 항목: 'forged', 통과: true }] }; }],
+    ['protected paths', (m) => { m.protectedState.paths = ['/declared-but-not-snapshotted']; }],
+    ['declared paths', (m) => { m.declaredPaths.paths = ['/declared-but-not-snapshotted']; }],
+  ];
+  for (const [name, apply] of mutate) {
+    const forged = structuredClone(result.manifest);
+    apply(forged);
+    await writeFile(result.manifestPath, JSON.stringify(forged));
+    assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath)).ok, false,
+      `${name} manifest 단독 변조를 원본 사실처럼 받았다`);
+  }
+});
+
+test('반례: 같은 runId claim 거부 뒤에도 새 임시방·프로세스 진입은 없고 기존 history 원본은 그대로다', async () => {
+  const root = await room('t5-hq-duplicate-cleanup-');
+  const historyDir = join(root, 'history');
+  const claim = await claimRun({ historyDir, runId: 'duplicate-cleanup', executionKind: 'headless_isolated', isolatedRoot: root });
+  await finishRun(claim, { status: 'QUALIFIED', manifestHash: 'a'.repeat(64) });
+  const before = await Promise.all((await readdir(claim.runDir)).sort().map((name) => readFile(join(claim.runDir, name), 'utf8')));
+  let allocatedRoom = null;
+  let enteredProbe = false;
+  await assert.rejects(() => runHarnessQualification({
+    runId: 'duplicate-cleanup', sourceRoot: tree,
+    evidenceDir: join(root, 'evidence'), historyDir, protectedPaths: [],
+    hooks: {
+      onRoomAllocated: (path) => { allocatedRoom = path; },
+      isolationProof: async () => { enteredProbe = true; return { ok: true, 결과: [] }; },
+    },
+  }), (error) => error.code === 'RUN_ID_ALREADY_USED');
+  assert.ok(allocatedRoom, '중복 claim 전에 만든 임시방을 관측하지 못했다');
+  await assert.rejects(() => lstat(allocatedRoom), (error) => error.code === 'ENOENT');
+  assert.equal(enteredProbe, false, '중복 claim이 모델·서버 경로까지 들어갔다');
+  const after = await Promise.all((await readdir(claim.runDir)).sort().map((name) => readFile(join(claim.runDir, name), 'utf8')));
+  assert.deepEqual(after, before, '거부된 재실행이 기존 append-only history 원본을 바꿨다');
 });
 
 test('절단: 격리 증명이 빨강이면 제품 FAIL이 아니라 HARNESS_INVALID다', async () => {

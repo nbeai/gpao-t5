@@ -366,6 +366,15 @@ export async function verifyQualificationEvidence(manifestPath, { secretValues =
   }
   if (!probe) failures.push('probe_evidence_missing');
   if (probe) {
+    const execution = probe.execution;
+    if (!execution || typeof execution !== 'object') {
+      failures.push('execution_evidence_missing');
+    } else {
+      if (digest(execution.artifact) !== digest(manifest.artifact)) failures.push('artifact_mismatch');
+      if (digest(execution.model) !== digest(manifest.model)) failures.push('model_mismatch');
+      if (execution.fixtureHash !== manifest.fixtureHash) failures.push('fixture_mismatch');
+      if (digest(execution.isolation) !== digest(manifest.isolation)) failures.push('isolation_mismatch');
+    }
     const derived = machineFactsFrom({
       session: probe.session ?? {}, workEvents: probe.workEvents ?? [],
       first: probe.turns?.[0], second: probe.turns?.[1], providerRequests: probe.providerRequests ?? [],
@@ -375,6 +384,12 @@ export async function verifyQualificationEvidence(manifestPath, { secretValues =
       const before = probe.pathSnapshots?.[key]?.before;
       const after = probe.pathSnapshots?.[key]?.after;
       if (!Array.isArray(before) || !Array.isArray(after)) { failures.push(`${key}_snapshots_missing`); continue; }
+      const beforePaths = before.map((item) => item?.path).sort();
+      const afterPaths = after.map((item) => item?.path).sort();
+      const manifestPaths = [...(manifest?.[manifestKey]?.paths ?? [])].sort();
+      if (digest(beforePaths) !== digest(afterPaths) || digest(beforePaths) !== digest(manifestPaths)) {
+        failures.push(`${key}_paths_mismatch`);
+      }
       if (digest(before) !== manifest?.[manifestKey]?.beforeSnapshotDigest
         || digest(after) !== manifest?.[manifestKey]?.afterSnapshotDigest
         || digest(changedPaths(before, after)) !== digest(manifest?.[manifestKey]?.changed ?? [])) {
@@ -450,25 +465,35 @@ export async function runHarnessQualification(options) {
       code: 'PACKAGE_EXECUTION_NOT_AVAILABLE',
     });
   }
-  const room = await mkdtemp(join(tmpdir(), 't5-harness-qualification-'));
-  const fixtureDir = join(room, 'fixture');
-  const stateDir = join(room, 'state');
-  const homeDir = join(room, 'home');
-  await Promise.all([mkdir(fixtureDir), mkdir(stateDir), mkdir(homeDir), mkdir(resolve(evidenceDir), { recursive: true })]);
-  const fixturePath = join(fixtureDir, 'qualification.txt');
-  await writeFile(fixturePath, '생활모의시험 하네스 자격검증 fixture\n', 'utf8');
-  const watchedDeclared = [...declaredPaths, fixturePath];
-  const claim = await claimRun({ historyDir, runId, executionKind, isolatedRoot: room });
+  let room;
+  let fixtureDir;
+  let stateDir;
+  let homeDir;
+  let fixturePath;
+  let watchedDeclared;
+  let claim;
   let lease;
   let server;
   let scripted;
   let providerProxy;
   let finished = false;
-  const rawDir = join(resolve(evidenceDir), `${runId}-${claim.attemptId}`, 'raw');
-  const manifestPath = join(dirname(rawDir), 'manifest.json');
+  let rawDir;
+  let manifestPath;
   const fakeSecret = 'qualification_scripted_key_not_for_network';
   const allSecrets = [...secretValues, fakeSecret];
   try {
+    room = await mkdtemp(join(tmpdir(), 't5-harness-qualification-'));
+    await hooks.onRoomAllocated?.(room);
+    fixtureDir = join(room, 'fixture');
+    stateDir = join(room, 'state');
+    homeDir = join(room, 'home');
+    await Promise.all([mkdir(fixtureDir), mkdir(stateDir), mkdir(homeDir), mkdir(resolve(evidenceDir), { recursive: true })]);
+    fixturePath = join(fixtureDir, 'qualification.txt');
+    await writeFile(fixturePath, '생활모의시험 하네스 자격검증 fixture\n', 'utf8');
+    watchedDeclared = [...declaredPaths, fixturePath];
+    claim = await claimRun({ historyDir, runId, executionKind, isolatedRoot: room });
+    rawDir = join(resolve(evidenceDir), `${runId}-${claim.attemptId}`, 'raw');
+    manifestPath = join(dirname(rawDir), 'manifest.json');
     lease = await claimExecutionLease({ leaseDir, executionKind, runId });
     const artifact = await artifactIdentity({ sourceRoot, pkgPath });
     const beforeProtected = await snapshotPaths(protectedPaths);
@@ -545,7 +570,9 @@ export async function runHarnessQualification(options) {
     const workEvents = JSON.parse(await readFile(join(stateDir, 'work-events.json'), 'utf8')).records ?? [];
     const afterProtected = await snapshotPaths(protectedPaths);
     const afterDeclared = await snapshotPaths(watchedDeclared);
+    const fixtureHash = digest(await readFile(fixturePath));
     const raw = {
+      execution: { artifact, model: modelIdentity, fixtureHash, isolation },
       session: {
         id: session.id, workRef: session.workRef ?? null,
         transcript: (session.transcript ?? []).map((entry) => ({ role: entry.role, turnRef: entry.turnRef })),
@@ -571,7 +598,7 @@ export async function runHarnessQualification(options) {
       runId, attemptId: claim.attemptId, executionKind,
       status: 'QUALIFIED', artifact,
       model: modelIdentity,
-      fixtureHash: digest(await readFile(fixturePath)),
+      fixtureHash,
       isolation,
       protectedState: {
         paths: protectedPaths.map((path) => resolve(path)),
@@ -617,6 +644,7 @@ export async function runHarnessQualification(options) {
     finished = true;
     return { ok: true, status: 'QUALIFIED', manifestPath, manifest };
   } catch (error) {
+    if (!claim) throw error;
     const invalidReason = MACHINE_INVALID.has(error?.invalidReason) ? error.invalidReason : 'probe_crashed';
     const invalid = {
       schemaVersion: QUALIFICATION_SCHEMA_VERSION, runId, attemptId: claim.attemptId,
@@ -635,7 +663,7 @@ export async function runHarnessQualification(options) {
     await providerProxy?.close().catch(() => {});
     await scripted?.close().catch(() => {});
     await lease?.release().catch(() => {});
-    await rm(room, { recursive: true, force: true });
+    if (room) await rm(room, { recursive: true, force: true });
   }
 }
 
