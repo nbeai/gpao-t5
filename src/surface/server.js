@@ -906,8 +906,12 @@ export function makeServer(deps = {}) {
     );
     // 최초 작업은 L1의 넓은 complex_work 라벨이 아니라 턴 종료 뒤의 구조 사실로만 후보화한다.
     // 이 값도 정산 호출 여부의 신호일 뿐, 합의·범위·완료 사건의 증거가 아니다.
+    // **"최초"는 구조 사실로 잰다**: 세션에 이미 활성 목표가 있었으면 이 턴은 첫 작업이
+    // 아니다(hadActiveGoal — 입장 판정과 별개의 사실. 예전엔 입장(hasAdmittedContext)이
+    // 우연히 이 억제를 대신했는데, 입장 경계를 정밀화하자 이어지는 턴이 최초로 보였다).
     const durableWorkCandidate = Boolean(result.goal)
       && currentReceipts.length === 0
+      && reviewSignals.hadActiveGoal !== true
       && reviewSignals.hasAdmittedContext !== true
       && reviewSignals.hasMemoryState !== true
       && !hasForeignControlProposal;

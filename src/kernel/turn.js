@@ -24,7 +24,7 @@ import { 표맥락에서 } from '../runtime/local-file.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
-import { detectCandidate, admittedEntries, dropHistoryDuplicates, isRelevant } from './l1-intent/context-mesh.js';
+import { detectCandidate, admittedEntries, dropHistoryDuplicates, isGoalRelevant } from './l1-intent/context-mesh.js';
 import { shownFromRendered, citedFromShown } from './l5-growth/tcell-shown.js';
 import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
@@ -812,6 +812,7 @@ export async function runTurn(input, ctx) {
     if (saved.workStateReported === true) workStateReported = true;
     ctx.stateReviewSignals = {
       goalRelevant: false,
+      hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask),
       resumedApproval: true,
       hasAdmittedContext: (saved.admitted ?? []).length > 0,
       hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
@@ -924,9 +925,17 @@ export async function runTurn(input, ctx) {
   //   memorySuggestion: 후보만 표면화(자동 승격 아님). operating_principle은 replay 전 영향 0(§5).
   // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
   // 위반이다(감사 보정). broad memory, narrow influence.
-  const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
+  // 관련은 **목표의 대상**으로만 잰다(isGoalRelevant) — 부탁 형태("…말해줘")만 겹친 발화에
+  // 옛 목표를 실으면 상태 요약형 질문의 시야가 그 목표로 좁혀진다(30턴 12턴 실측 · 팔A 3/3).
+  const goalRelevant = ctx.activeGoal?.understoodTask && isGoalRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
   ctx.stateReviewSignals = {
     goalRelevant: Boolean(goalRelevant),
+    // **입장과 부기는 다른 질문이다.** "목표를 이번 프롬프트에 실을까"(goalRelevant)와
+    // "이 세션에 이미 진행 중인 목표가 있었나"(최초 작업 후보 판정의 억제 사실)는 소비자가
+    // 다르다. 예전엔 정산 게이트가 입장 여부(hasAdmittedContext)로 이걸 대신 알았는데,
+    // 입장 판정을 정밀화하자(부탁 형태 겹침 제외) 이어지는 턴이 "최초 작업"으로 보였다.
+    // 목표의 존재는 판정이 아니라 구조 사실이므로 그대로 나른다.
+    hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask),
     resumedApproval: false,
     hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
       || (ctx.memory?.candidates ?? []).length > 0

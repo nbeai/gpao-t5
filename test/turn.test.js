@@ -205,6 +205,30 @@ test('activeGoal은 관련 발화에만 admitted, 무관 발화엔 주입 안 �
   assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')), '관련 발화엔 목표 admitted');
 });
 
+// 30턴 실측(2026-08-09 · 분리시험 팔A): 상태 요약형 질문("방금 바뀐 것만 … 말해줘")에
+// 옛 목표가 실려 시야가 그 목표로 좁혀졌다 — 변경 3중 1만 답함, 주입을 끄면 3/3 회복.
+// 겹친 낱말은 부탁 형태("말해줘") 하나였다. 목표는 **대상**이 발화에 있을 때만 입장한다.
+test('반대시험(12턴형): 부탁 형태만 겹친 상태 요약형 질문엔 옛 목표가 주입되지 않는다', async () => {
+  const captured = [];
+  const c = ctx();
+  c.model = { async respond(tc) { captured.push(tc); return '응답'; } };
+  c.activeGoal = {
+    understoodTask: '지금까지 확정된 것, 후보인 것, 아직 안 정한 것을 구분해서 짧게 말해줘.',
+    successCriteria: 'x',
+  };
+  // 수리를 걷으면(낱말 겹침 판정으로 되돌리면) "말해줘" 하나로 목표가 실려 이 단언이 빨강이 된다.
+  await runTurn({ text: '방금 바뀐 것만, 옛 값과 현재 값을 나눠서 말해줘.' }, c);
+  assert.ok(!captured[0].admittedContext.some((s) => s.includes('현재 목표')),
+    '부탁 형태의 겹침은 관련이 아니다 — 상태 요약형 질문에 옛 목표를 싣지 않는다');
+
+  // 관통 조건: 마지막 낱말이 같아도 **목표의 대상**을 부른 발화에는 여전히 실린다(작업 이어가기).
+  captured.length = 0;
+  c.activeGoal = { understoodTask: '경쟁사 뉴스 조사해서 짧게 말해줘', successCriteria: 'x' };
+  await runTurn({ text: '경쟁사 것도 마저 말해줘' }, c);
+  assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')),
+    '대상을 부른 발화엔 목표가 그대로 admitted — activeGoal 이 일하는 사례가 죽지 않는다');
+});
+
 // 감사 소보정: 승인 재개 경로에서도 admittedContext가 보존된다(게이트에서 계산한 맥락을 잃지 않음).
 test('승인 재개 후에도 승격된 preference가 admittedContext에 유지된다', async () => {
   const captured = [];

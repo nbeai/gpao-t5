@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   detectCandidate, isInfluenceEligible, admittedContext, makeCandidate, promote, runReplay,
+  isGoalRelevant,
 } from '../src/kernel/l1-intent/context-mesh.js';
 
 // 후보 감지: preference / operating_principle / 없음(자동 승격 아님).
@@ -70,4 +71,28 @@ test('runReplay(S4): 실행 증거가 결합된 suite 보고서로만 통과한�
   assert.equal(runReplay(prin, [], { pass: false }), false, 'suite 미통과는 통과가 아니다');
   assert.equal(runReplay(prin, [], { pass: true }), true, 'suite 통과만 통과다');
   assert.equal(runReplay(makeCandidate('c9', 'preference', 'z'), ['안 z']), true, '선호는 replay 불요');
+});
+
+// ── 목표 입장 판정(isGoalRelevant) — 부탁 형태의 겹침은 관련이 아니다 ──────────────
+//
+// 30턴 실측(2026-08-09 · 분리시험 팔A): 상태 요약형 질문에 옛 목표가 실려 "방금 바뀐 것"
+// 시야가 좁혀졌다(3중 1만 답함 · 주입 끄면 3/3). 겹친 낱말은 서술어("말해줘") 하나였다.
+// 가르는 사실은 낱말 목록이 아니라 자리다 — 마지막 낱말(부탁 형태)이 같으면 그건 빼고
+// **목표의 대상**만으로 관련을 잰다.
+test('반대시험(12턴형): 부탁 형태("…말해줘")만 겹친 상태 요약형 질문에 옛 목표가 안 실린다', () => {
+  const 옛목표 = '지금까지 확정된 것, 후보인 것, 아직 안 정한 것을 구분해서 짧게 말해줘.';
+  const 상태질문 = '방금 바뀐 것만, 옛 값과 현재 값을 나눠서 말해줘.';
+  // 수리를 걷으면(낱말 겹침 그대로면) "말해줘" 하나로 true 가 되어 이 단언이 빨강이 된다.
+  assert.equal(isGoalRelevant(옛목표, 상태질문), false,
+    '겹친 것이 부탁 형태뿐이면 목표의 대상이 발화에 없다 — 입장 금지');
+});
+
+test('목표의 대상을 부른 발화에는 여전히 실린다 — 작업 이어가기가 죽지 않는다(관통 조건)', () => {
+  // ① 마지막 낱말까지 같아도 대상("경쟁사")을 불렀으면 입장한다.
+  assert.equal(isGoalRelevant('경쟁사 뉴스 조사해줘', '경쟁사 것도 마저 조사해줘'), true);
+  // ② 마지막 낱말이 다르면 기존 판정 그대로다 — 경계의 정밀화이지 새 판정 축이 아니다.
+  assert.equal(isGoalRelevant('경쟁사 뉴스 조사', '경쟁사 관련 더 알려줘'), true);
+  assert.equal(isGoalRelevant('경쟁사 뉴스 조사', '조사 결과 더 자세히 말해줘'), true);
+  // ③ 무관한 발화에는 원래대로 안 실린다.
+  assert.equal(isGoalRelevant('경쟁사 뉴스 조사', '오늘 날씨 어때'), false);
 });

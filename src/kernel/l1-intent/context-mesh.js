@@ -105,6 +105,39 @@ export function isRelevant(statement, requestText) {
     return stem.length >= 2 && req.includes(stem);
   });
 }
+
+/** 문장의 마지막 낱말(구두점 제거) — 한국어 요청문에서 서술어(부탁 형태)가 서는 자리다. */
+const 꼬리낱말 = (text) => {
+  const words = String(text ?? '').trim().split(/\s+/);
+  return (words[words.length - 1] ?? '').replace(/[^\p{L}\p{N}]+/gu, '');
+};
+
+/**
+ * **목표 입장 판정** — `isRelevant`(낱말 겹침)와 같은 원리의 연장이되, 겹친 낱말이
+ * **부탁 형태**뿐이면 관련의 증거로 세지 않는다.
+ *
+ * 병의 자리(30턴 실측 2026-08-09 · 분리시험 팔A): 상태 요약형 질문
+ * *"방금 바뀐 것만, 옛 값과 현재 값을 나눠서 말해줘"* 에 옛 목표(*"지금까지 확정된 것 …
+ * 짧게 말해줘"*)가 실렸다 — 겹친 낱말이 **"말해줘" 하나**였기 때문이다. 두 발화는 같은
+ * 일을 잇는 게 아니라 **같은 모양으로 부탁**했을 뿐인데, 낱말 겹침은 그 둘을 못 가른다.
+ * 그렇게 입장한 직전 목표가 "방금 바뀐 것" 시야를 하나로 좁혔다(3중 1만 답함 —
+ * 주입을 끄면 3/3 회복).
+ *
+ * 가르는 사실은 **낱말 목록이 아니라 자리**다: 한국어는 서술어가 문장 끝에 온다.
+ * 요청문의 마지막 낱말은 "어떻게 해달라"(형태)이고 그 앞이 "무엇에 대해"(대상)이다.
+ * 목표와 이번 발화의 마지막 낱말이 같으면 그 낱말은 형태의 겹침이므로 빼고,
+ * **목표의 대상만으로** 같은 판정(`isRelevant`)을 다시 한다 — 대상이 이번 발화에
+ * 있으면 여전히 입장한다("경쟁사 …" 같은 작업 이어가기가 죽지 않는 관통 조건).
+ * 마지막 낱말이 서로 다르면 아무것도 빼지 않는다(기존 판정 그대로) — 이 함수는
+ * 경계의 정밀화이지 새 판정 축이 아니다.
+ */
+export function isGoalRelevant(goalStatement, requestText) {
+  const goal = String(goalStatement ?? '').trim();
+  const 같은부탁형태 = 꼬리낱말(goal) && 꼬리낱말(goal) === 꼬리낱말(requestText);
+  if (!같은부탁형태) return isRelevant(goal, requestText);
+  const 목표의대상 = goal.split(/\s+/).slice(0, -1).join(' ');
+  return isRelevant(목표의대상, requestText);
+}
 const relevant = (entry, requestText, env) => {
   // 검증 사례가 있으면 그것이 진실이다 — 원칙은 **검증된 본보기**로 범위가 정해진다.
   const 사례판정 = 사례로관련(entry, requestText);
