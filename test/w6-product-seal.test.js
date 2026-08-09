@@ -98,14 +98,18 @@ test('W6: 현재 요청부터 영수증까지 일곱 코어가 한 제품 경로
 
     assert.equal(turn.kind, 'reply');
     assert.match(turn.reply, new RegExp(current));
-    assert.equal(modelContexts.at(-1).currentRequest, current, '현재 요청 원문이 이전 맥락에 덮이면 안 된다');
+    // **정산 호출은 턴 맥락이 아니다**(2026-08-10). P90-1 정산이 열리면 그 호출이 마지막이
+    // 되는데, 그건 `{currentRequest, workStateSettlement}` 만 든 다른 질문이다. 이 칸이 재려는
+    // 것은 **턴 맥락**이므로 그것을 골라 본다(재는 대상은 그대로다).
+    const 턴맥락 = [...modelContexts].reverse().find((c) => Array.isArray(c?.recentTurns));
+    assert.equal(턴맥락.currentRequest, current, '현재 요청 원문이 이전 맥락에 덮이면 안 된다');
     assert.ok(
-      modelContexts.at(-1).recentTurns.some((entry) =>
+      턴맥락.recentTurns.some((entry) =>
         entry.role === 'user' && entry.text === '보고서는 기본적으로 목록으로 정리해줘'),
       '직전 사용자 발화는 역할과 함께 이력에 남아야 한다',
     );
     assert.equal(
-      modelContexts.at(-1).recentTurns.some((entry) => entry.text === current),
+      턴맥락.recentTurns.some((entry) => entry.text === current),
       false,
       '현재 요청은 currentRequest와 recentTurns에 중복 공급되면 안 된다',
     );

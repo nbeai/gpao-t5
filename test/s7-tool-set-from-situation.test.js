@@ -121,11 +121,26 @@ test('⑥ **계측기가 그 계산과 같은 것을 잰다** — 거짓말하�
     '거른 이유가 안 남았다');
 });
 
-test('⑦ **통제 채널은 손이 있을 때만 얹힌다** — 빈손 호출에 채널만 실리지 않는다', () => {
+// ── **⑦ 이 좁혀졌다**(라이브 실측 2026-08-10 · P-OP 원인 ①) ────────────────────────
+//
+// 원래 계약은 *"통제 채널은 손이 있을 때만 얹힌다"* 였고, 그 커밋의 말대로 **이미 서 있던
+// 사실을 못 박은 것**이지 지켜야 할 해악이 적혀 있지는 않았다. 실측이 해악을 찾았다:
+// S1(고객 문의 운영안)은 손이 필요 없는 대화 작업이라 `connectedTools` 가 비고, 그 순간
+// `work.state` 까지 사라져 **12턴 · 2회차 내내 WorkEvent 0** 이었다 — 확정·수정·철회가
+// 원장에 하나도 안 남는다. 계약이 지키려던 것은 **못 지킬 약속**(손도 없이 "다음부터
+// 그렇게 할게요")이고 그건 실행 제안 채널 셋의 성질이다. 그 셋으로 정의역을 좁힌다.
+test('⑦ **실행 제안 채널만 손에 매인다** — 상태·기억은 손이 없어도 선다', () => {
   const 있음 = buildSelfState(demoEnv());
   const 없음 = { connectedTools: [] };
   assert.ok(modelSchemasFor(있음, ['memory.propose']).length > toolSchemasFor(있음).length,
     '손이 있는데 통제 채널이 안 얹혔다');
-  assert.deepEqual(modelSchemasFor(없음, ['memory.propose']), [],
-    '손이 하나도 없는데 통제 채널만 실렸다 — 도구 없는 호출은 그 채널을 소비하지 않는다');
+  for (const 실행제안 of ['skill.propose', 'automation.propose', 'agent.propose']) {
+    assert.deepEqual(modelSchemasFor(없음, [실행제안]).map((s) => s.name).filter((n) => n === 실행제안), [],
+      `손이 하나도 없는데 실행 제안 채널이 실렸다(${실행제안}) — 못 지킬 약속의 자리다`);
+  }
+  const 손없는상태채널 = modelSchemasFor(없음, ['work.state']).map((s) => s.name);
+  assert.ok(손없는상태채널.includes('work.state'),
+    '손이 없다고 상태 채널까지 지웠다 — 대화만으로 하는 작업에서 원장이 시작될 수 없다(실측: WorkEvent 0)');
+  assert.ok(손없는상태채널.includes('memory.propose'),
+    '손이 없다고 기억 채널까지 지웠다 — 기억은 실행이 아니다');
 });

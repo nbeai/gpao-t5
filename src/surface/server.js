@@ -661,8 +661,18 @@ export function makeServer(deps = {}) {
         workRef,
         provisionalWorkRef,
         shownProjects,
+        // **이 대화의 사용자 원문과 그 신분**(2026-08-10). 모델이 앞 턴에 확정된 것을 뒤늦게
+        // 제출해도 사용자가 실제로 한 말이면 원장에 남아야 한다 — 증거의 TurnRef 는 그 말이
+        // 있었던 턴이다. 여기서 만드는 것은 없다: 이미 지속된 transcript 와 그 stamp 뿐이다.
+        priorUtterances: (session.transcript ?? [])
+          .filter((entry) => entry?.role === 'user' && typeof entry.text === 'string' && entry.turnRef)
+          .map((entry) => ({ text: entry.text, turnRef: entry.turnRef })),
       });
-      proposalAdmission = { accepted: admitted.accepted === true, reason: admitted.reason ?? null };
+      proposalAdmission = {
+        accepted: admitted.accepted === true,
+        reason: admitted.reason ?? null,
+        detail: admitted.detail ?? null,
+      };
       if (admitted.accepted) workRef = admitted.workRef;
     }
     if (!workRef || !session.principalRef) return { workRef, proposalAdmission };
@@ -914,12 +924,30 @@ export function makeServer(deps = {}) {
     // 우연히 이 억제를 대신했는데, 입장 경계를 정밀화하자 이어지는 턴이 최초로 보였다).
     // 목표 수명(수명주기 v2)과 "이 턴이 작업을 세웠다"는 다른 사실이다 — 대화 턴이 목표를
     // 소진해도(goal: null · spentGoal 동봉) 최초 작업 정산 후보에서는 빠지지 않는다.
+    //
+    // ── **억제 둘을 걷는다**(원인 ① 규명 · 라이브 실측 2026-08-10) ────────────────
+    //
+    // S1 12턴 · 2회차에서 `reviewNeeded` 가 **22턴 내내 false** 였다. 게이트 항을 진단면에
+    // 실어 재니(위 `gate`) 닫은 것은 둘이었다:
+    //
+    //   · t5 — 목표 신호가 선 **유일한 최초 후보 턴**인데 `hasForeignControlProposal:true`.
+    //     그 턴 발화가 *"답장을 자동으로 보내지는 말고 초안만 만들어 줘야 해"* — **지속 선호**라
+    //     모델이 기억 후보를 함께 냈다. 기억·스킬·자동화 채널은 "이 턴이 지속 작업을 세웠는가"와
+    //     **다른 질문**이다. 그런데 겹치면 정산이 꺼졌다 — 작업을 세우는 턴일수록 선호가 함께
+    //     나오므로, 이 항은 **가장 열려야 할 턴에서 정확히 닫힌다.**
+    //   · t6~t12 — `hadActiveGoal:true`(=`hadWorkGoal` 역사). t5 가 닫힌 뒤로는 영영 닫혔다.
+    //     이 억제의 뜻은 *"이미 작업이 있으면 최초가 아니다"* 인데, **작업이 실제로 있는지는
+    //     `hasExistingWork`(WorkRef)가 아는 사실**이고 그쪽은 이미 게이트를 여는 갈래다.
+    //     WorkRef 가 없는데 이 항이 닫으면 원장은 **시작될 기회를 영영 잃는다** — 실측이 그것이다.
+    //
+    // 그래서 억제를 신분으로 바꾼다: 작업 신분이 이미 있으면 최초 후보가 아니고(그 턴은
+    // `hasExistingWork` 로 열린다), 없으면 최초 후보 판정은 살아 있다. 기억 상태·입장 억제는
+    // 이번 실측에서 전부 false 였다 — 증거가 없으므로 건드리지 않는다.
     const durableWorkCandidate = Boolean(result.goal || result.spentGoal)
       && currentReceipts.length === 0
-      && reviewSignals.hadActiveGoal !== true
+      && hadExistingWork !== true
       && reviewSignals.hasAdmittedContext !== true
-      && reviewSignals.hasMemoryState !== true
-      && !hasForeignControlProposal;
+      && reviewSignals.hasMemoryState !== true;
     const reviewNeeded = stateReviewNeeded({
       phase: 'settled', terminal,
       reported: beforeSettlement.workStateReported === true,
@@ -934,6 +962,21 @@ export function makeServer(deps = {}) {
       reviewOpened: false,
       reportedByMain: beforeSettlement.workStateReported === true,
       durationMs: 0,
+      // **게이트가 왜 닫혔는지 보이게 한다**(2026-08-10 · 원인 ① 규명). 라이브 22턴에서
+      // `reviewNeeded=false` 가 계속 나왔는데 어느 항이 껐는지 회차 원본에 없어서 추측
+      // 수리로 갈 뻔했다(P2-7 과 같은 병). 진단면이다 — 사용자면·모델면에 안 나간다.
+      gate: {
+        terminal,
+        hasExistingWork: hadExistingWork,
+        hasCarryableProject: carryableProjects.length === 1,
+        durableWorkCandidate,
+        hasGoalSignal: Boolean(result.goal || result.spentGoal),
+        receipts: currentReceipts.length,
+        hadActiveGoal: reviewSignals.hadActiveGoal === true,
+        hasAdmittedContext: reviewSignals.hasAdmittedContext === true,
+        hasMemoryState: reviewSignals.hasMemoryState === true,
+        hasForeignControlProposal,
+      },
     };
     if (reviewNeeded) {
       const stateTools = modelSchemasFor(buildSelfState(env, { tools }), ['work.state'])
@@ -1153,6 +1196,7 @@ export function makeServer(deps = {}) {
       if (workStateProposal) {
         result.workStateDiagnostic.recorded = workStateRecorded?.proposalAdmission?.accepted === true;
         result.workStateDiagnostic.reason = workStateRecorded?.proposalAdmission?.reason ?? null;
+        result.workStateDiagnostic.rejectDetail = workStateRecorded?.proposalAdmission?.detail ?? null;
         await store.save(session);
       }
     } catch (error) {

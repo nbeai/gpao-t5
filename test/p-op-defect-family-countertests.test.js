@@ -76,26 +76,107 @@ test('A-① 모델 제안 문장은 사용자 원문에 없으면 입장하지 �
   assert.equal(state.activeAgreements.length, 0, '사용자가 고르지 않은 것이 현재 합의가 됐다');
 });
 
-// ② 거짓 전제 질문("~포함한다고 했지?")은 합의 사건을 만들지 못한다.
-//    HEAD 빨강(실측): 질문 원문이 사용자 발화에 있다는 이유만으로 agreement_set 이
-//    입장했다(accepted:true · 사건 1). 인용 존재만 보고 발화의 종류(질문/확정)를 보지 않는다.
-//    S1 11턴의 거짓 전제가 이 문으로 상태가 될 수 있다 — 수리 뒤 사건 0 이어야 한다.
-test('A-② 거짓 전제 질문은 사건 생성 0', async () => {
+// ② 거짓 전제는 사건을 만들지 않는다 — **문장 모양이 아니라 원장 대조로** 잰다.
+//
+//    1차 수리는 "물음표로 끝나는 인용은 합의 증거가 아니다"였다. 그건 문구 층 판정이고
+//    (평서문 거짓 전제는 그냥 통과한다) PM 이 그 방법을 물렸다. 실측으로 대체한다:
+//    거짓 전제 넷을 **실제 모델**(GPT-5.1)에게 `work.state` 로 물었을 때 나온 제안 원본이
+//    `docs/03-verification/evidence/p-op-identity-2026-08-10/false-premise-probe.json` 이고,
+//    그 제안들을 실제 경계에 통과시켜 **사건 0**을 잰다. 판정 근거는 두 기계 사실뿐이다:
+//      · 사용자가 하지 않은 말은 이 대화의 어느 발화에도 없다(utterance_quote_mismatch)
+//      · 모델이 자기 답 문장을 대상으로 지목하면 원장에 그런 현재값이 없다(target_not_current)
+test('A-② 거짓 전제는 원장 대조에서 떨어진다 — 사건 0 (실제 모델 제안 원본)', async () => {
+  const probe = JSON.parse(await readFile(
+    new URL('../docs/03-verification/evidence/p-op-identity-2026-08-10/false-premise-probe.json', import.meta.url),
+    'utf8',
+  ));
+  const 거짓전제 = probe.probes.filter((p) => p.id.startsWith('declarative') || p.id === 'question');
+  assert.equal(거짓전제.length, 4, '거짓 전제 표본이 줄었다 — 원본이 바뀌었는지 확인한다');
+  for (const p of 거짓전제) {
+    const store = await 새원장();
+    // 앞선 확정들이 원장에 서 있는 상태에서 잰다(빈 원장은 아무것도 증명하지 않는다).
+    const 세운것 = [
+      '문의는 스마트스토어랑 인스타 DM 두 곳에서 들어와.',
+      '급한 문의는 배송 지연, 오배송, 환불 요청으로 보자.',
+    ];
+    let workRef = null;
+    const priorUtterances = [];
+    for (const [i, 문장] of 세운것.entries()) {
+      const turnRef = { sessionId: 's-a2', turnSeq: i + 1 };
+      priorUtterances.push({ text: 문장, turnRef });
+      const r = await admitWorkStateProposal({
+        store, turnRef, principalRef: 'owner', workRef,
+        provisionalWorkRef: workRef ?? await store.issueWorkRef({ turnRef, workOrdinal: 0 }),
+        inputText: 문장, reply: '네.',
+        proposal: { changes: [{ type: 'agreement_set', utteranceQuote: 문장 }] },
+      });
+      workRef = r.workRef ?? workRef;
+    }
+    const 기준 = (await store.load()).length;
+    if (!p.proposal?.changes?.length) continue; // 모델이 noChange 를 냈다 — 그 자체로 사건 0
+    await admitWorkStateProposal({
+      store, turnRef: { sessionId: 's-a2', turnSeq: 9 }, principalRef: 'owner', workRef,
+      priorUtterances,
+      inputText: p.text,
+      reply: '단순 변심은 아직 급한 문의에 포함하지 않았어요. 지금 정해 주세요.',
+      proposal: p.proposal,
+    });
+    assert.equal((await store.load()).length, 기준,
+      `거짓 전제가 사건이 됐다(${p.id}): ${p.text}`);
+  }
+});
+
+// ②′ 앞 턴에 사용자가 실제로 한 말은 **그 턴의 신분으로** 원장에 남는다.
+//     라이브 실측(2026-08-10 · S1 t7): 모델이 t2~t5 의 확정 넷을 뒤늦게 제출했는데 전부
+//     `utterance_quote_mismatch` 로 떨어졌다 — 사용자가 한 말인데 원장에 못 남았다.
+test("②′ 앞 턴 사용자 원문 인용은 그 턴의 TurnRef 로 남는다", async () => {
   const store = await 새원장();
-  const turnRef = { sessionId: 's-a2', turnSeq: 1 };
-  const provisional = await store.issueWorkRef({ turnRef, workOrdinal: 0 });
-  const 질문 = '아까 말한 급한 문의에 단순 변심도 포함한다고 했지?';
+  const 앞말 = '급한 문의는 배송 지연, 오배송, 환불 요청으로 보자.';
+  const 앞턴 = { sessionId: 's-a2p', turnSeq: 3 };
+  const 이번턴 = { sessionId: 's-a2p', turnSeq: 7 };
   const admitted = await admitWorkStateProposal({
-    store,
-    turnRef,
-    principalRef: 'owner',
-    provisionalWorkRef: provisional,
-    inputText: 질문,
-    reply: '단순 변심은 포함하지 않았어요. 포함할지 정해 주세요.',
-    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: 질문 }] },
+    store, turnRef: 이번턴, principalRef: 'owner',
+    provisionalWorkRef: await store.issueWorkRef({ turnRef: 이번턴, workOrdinal: 0 }),
+    priorUtterances: [{ text: 앞말, turnRef: 앞턴 }],
+    inputText: '참, 다음 달 촬영 콘셉트는 여름 바다로 할까 생각 중이야.',
+    reply: '촬영은 별개로 두고 정리했어요.',
+    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: 앞말 }] },
   });
-  const records = await store.load();
-  assert.equal(records.length, 0, `거짓 전제 질문이 합의 사건이 됐다(accepted=${admitted.accepted})`);
+  assert.equal(admitted.accepted, true, `사용자가 한 말이 원장에 못 남았다: ${admitted.reason}`);
+  const record = (await store.load()).find((r) => r.evidence?.statement === 앞말);
+  assert.deepEqual(record.evidence.turnRef, 앞턴,
+    '증거의 신분이 제출한 턴으로 적혔다 — 그 말이 있었던 턴이어야 한다');
+});
+
+// ②″ 같은 문장의 재등재는 부활이다 — 철회·대체된 값이 다시 현재가 되지 않는다.
+test('②″ 이미 사건이 된 문장은 다시 합의로 서지 않는다', async () => {
+  const store = await 새원장();
+  const 뺀것 = '문의는 스마트스토어랑 인스타 DM 두 곳에서 들어와.';
+  const t2 = { sessionId: 's-a2r', turnSeq: 2 };
+  const first = await admitWorkStateProposal({
+    store, turnRef: t2, principalRef: 'owner',
+    provisionalWorkRef: await store.issueWorkRef({ turnRef: t2, workOrdinal: 0 }),
+    inputText: 뺀것, reply: '네.',
+    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: 뺀것 }] },
+  });
+  const t10 = { sessionId: 's-a2r', turnSeq: 10 };
+  const 빼자 = '인스타 DM은 이번 운영에서 빼고 스마트스토어만 먼저 하자.';
+  await admitWorkStateProposal({
+    store, turnRef: t10, principalRef: 'owner', workRef: first.workRef,
+    inputText: 빼자, reply: '네, 스마트스토어만 볼게요.',
+    proposal: { changes: [{ type: 'agreement_superseded', utteranceQuote: 빼자, targetQuote: 뺀것 }] },
+  });
+  const 다시 = await admitWorkStateProposal({
+    store, turnRef: { sessionId: 's-a2r', turnSeq: 12 }, principalRef: 'owner', workRef: first.workRef,
+    priorUtterances: [{ text: 뺀것, turnRef: t2 }],
+    inputText: '정리해줘.', reply: '정리했어요.',
+    proposal: { changes: [{ type: 'agreement_set', utteranceQuote: 뺀것 }] },
+  });
+  assert.equal(다시.accepted, false, '대체된 값이 같은 문장으로 다시 현재가 됐다');
+  assert.equal(다시.reason, 'already_recorded');
+  const state = projectWorkState(await store.load(), { principalRef: 'owner', projectRef: first.workRef });
+  assert.deepEqual(state.activeAgreements.map((a) => a.statement), [빼자],
+    '취소된 값이 부활했다');
 });
 
 // ③ 이후 사용자가 실제로 고르면 같은 WorkRef 에서 현재값이 갱신된다. (HEAD 초록)

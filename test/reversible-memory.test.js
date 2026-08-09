@@ -30,7 +30,12 @@ const H04 = '방금 기억한 보고서 형식 선호는 취소해줘';
 const 고른다 = (perTurn) => {
   const script = perTurn.flatMap((c) => [c, null]);
   return {
-    async respond() {
+    // **정산 호출은 대본을 소비하지 않는다**(2026-08-10). 이 대본은 "모델 호출 n번째"로
+    // 세는데, P90-1 정산이 열리면 턴당 호출이 하나 늘어 **대본이 통째로 밀린다**(철회 호출이
+    // 먹혔다). 정산은 `workStateSettlement` 를 들고 오는 다른 질문이므로 여기서 갈라 답한다 —
+    // 검사가 재려는 것(기억 반영·철회)은 그대로다.
+    async respond(tc) {
+      if (tc?.workStateSettlement) return { text: '', toolCalls: [{ name: 'work.state', args: { noChange: true } }] };
       const next = script.shift();
       return next ? { text: '', toolCalls: [next] } : '알겠어요.';
     },

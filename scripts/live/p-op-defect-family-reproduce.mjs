@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import {
   mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile,
 } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -101,7 +101,14 @@ async function main() {
   const scenario = JSON.parse(await readFile(resolve(args.scenario), 'utf8'));
   const credential = readCredential(homedir());
 
-  const room = await realpath(await mkdtemp(join(tmpdir(), `p-op-repro-${scenario.id}-`)));
+  // **방 이름은 짧아야 한다**(측정 오염 수리 2026-08-10). macOS 의 `$TMPDIR` 는
+  // `/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/` 처럼 **30자 기계 토큰**을 품는다.
+  // 그 경로가 파일 대상(subject)의 label 로 들어가면 `containsSensitiveValue` 의
+  // LONG_MACHINE_TOKEN 에 걸려 **workingState 가 통째로 가려진다** — 실사용 홈
+  // (`/Users/…/GPAO-T5/…`)에서는 안 일어나는 일이고, 그 상태로 재면 "결과물 신분이
+  // 안 이어진다"를 제품 결함으로 오독하게 된다(계측기가 만든 사실을 제품 사실로 보고 금지).
+  // `/tmp` 도 SCRATCH 면제 안이라 격리 성질은 그대로다.
+  const room = await realpath(await mkdtemp('/tmp/p-op-'));
   const home = join(room, 'home');
   const stateDir = join(room, 'state');
   const fileRoot = join(home, 'GPAO-T5');
@@ -197,6 +204,27 @@ async function main() {
       catch { return []; }
     };
     const readSession = async () => JSON.parse(await readFile(join(stateDir, `${sessionId}.json`), 'utf8'));
+    // **정산 게이트의 입력을 그대로 덤프한다**(원인 ① 규명 · 2026-08-10). reviewNeeded 가
+    // 왜 false 인지 추측하지 않으려면 `durableWorkCandidate` 의 억제 항 셋(hadWorkGoal ·
+    // 기억 상태 · 입장)이 턴마다 어떤 값이었는지가 보여야 한다. 제품 코드는 안 건드린다 —
+    // 서버가 이미 지속한 파일(세션·기억)을 읽을 뿐이다.
+    const readGateInputs = async () => {
+      let memory = {};
+      try { memory = JSON.parse(await readFile(join(stateDir, 'memory.json'), 'utf8')); } catch { memory = {}; }
+      const session = await readSession();
+      return {
+        session: {
+          workRef: session.workRef ?? null,
+          hadWorkGoal: session.hadWorkGoal === true,
+          activeGoal: session.activeGoal?.understoodTask ?? null,
+        },
+        memory: {
+          promoted: (memory.promoted ?? []).length,
+          candidates: (memory.candidates ?? []).length,
+          observed: (memory.observed ?? []).length,
+        },
+      };
+    };
 
     let previousEventCount = 0;
     for (let index = 0; index < scenario.turns.length; index += 1) {
@@ -227,6 +255,7 @@ async function main() {
         user: scenario.turns[index],
         elapsedMs,
         steps,
+        gateInputs: await readGateInputs(),
         newWorkEvents: newEvents,
         workEventTotal: events.length,
         nextTurnWorkBrief: projectedBrief,
