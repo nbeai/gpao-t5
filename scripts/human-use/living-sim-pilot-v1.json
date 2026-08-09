@@ -27,7 +27,7 @@
       "family": "정산·돈과 자료",
       "userProfile": "디지털 숙련도가 낮고 결론부터 듣고 싶은 작은 매장 운영자",
       "purpose": "여러 8월 매출 파일에서 최종본을 고르고, 원본을 보존한 채 환불 조정이 반영된 채널별 순매출 결과물을 만든다.",
-      "allowedHands": ["local.file"],
+      "requiredHands": ["local.file"],
       "fixture": {
         "온라인_8월_백업.csv": "구분,금액\n매출,760000\n",
         "온라인_8월_최종.csv": "구분,금액\n매출,800000\n",
@@ -59,7 +59,7 @@
       "family": "고객 응대",
       "userProfile": "짧은 반말과 정정이 잦은 1인 카페 운영자",
       "purpose": "여러 턴에서 바뀌는 고객 문의 채널과 응대 원칙을 확정·보류로 나누고 실제로 쓸 두 답장을 만든다.",
-      "allowedHands": [],
+      "requiredHands": [],
       "turns": [
         "고객 문의 답이 자꾸 늦어져. 내가 혼자서도 지킬 수 있는 운영 기준을 같이 정해보자.",
         "일단 네이버 톡톡이랑 카카오 두 군데만 볼게. 메일은 빼.",
@@ -86,7 +86,7 @@
       "family": "조사·비교",
       "userProfile": "출처는 필요하지만 복잡한 용어를 싫어하는 동네 공방 운영자",
       "purpose": "서로 날짜와 조건이 다른 세 공고를 비교해 현재 신청 가능한 지원을 고르고 근거와 불확실성을 설명한다.",
-      "allowedHands": ["web.collect"],
+      "requiredHands": ["web.collect"],
       "webFixture": {
         "/old.html": "<html><title>2025 디지털 전환 지원</title><meta name=published_time content=2025-02-01><body>접수 종료: 2025-03-31. 상시근로자 5인 미만 소상공인. 지원금 100만원.</body></html>",
         "/current.html": "<html><title>2026 소상공인 온라인 판로 지원</title><meta name=published_time content=2026-08-01><body>접수: 2026-08-01~2026-08-31. 사업자등록 6개월 이상, 상시근로자 5인 미만. 지원금 최대 150만원. 자부담 10%.</body></html>",
@@ -116,7 +116,7 @@
       "family": "콘텐츠·문서",
       "userProfile": "고객 말투를 중요하게 여기고 초안을 먼저 보고 싶은 작은 꽃집 운영자",
       "purpose": "브랜드 메모와 고객 인터뷰를 읽어 안내문 초안을 대화에서 조정한 뒤 별도 문서로 만들고 검증한다.",
-      "allowedHands": ["local.file"],
+      "requiredHands": ["local.file"],
       "fixture": {
         "브랜드_메모.md": "# 우리 꽃집\n과장하지 않고 따뜻하게. 당일 제작은 오후 2시 주문까지. 배송 가능 지역은 성북구와 종로구.\n",
         "고객_인터뷰.txt": "선물 목적이 많고 가격보다 주문 방법을 어려워한다. 20대 고객은 인스타 DM을, 50대 고객은 전화를 선호한다.\n"
@@ -146,7 +146,7 @@
       "family": "행정·생활",
       "userProfile": "서류 이름에 익숙하지 않고 빠뜨릴까 걱정하는 반찬가게 운영자",
       "purpose": "공고와 가게 상황·보유 서류를 대조해 신청 가능성, 부족한 서류, 확인할 질문을 정리한 준비표를 만든다.",
-      "allowedHands": ["local.file"],
+      "requiredHands": ["local.file"],
       "fixture": {
         "위생설비_지원공고.txt": "대상: 영업신고 후 1년 이상인 지역 내 식품접객업. 지원: 냉장·세척 설비 비용의 70%, 최대 200만원. 필수: 사업자등록증, 영업신고증, 최근 1개월 견적서, 지방세 완납증명서. 접수 전 구매한 설비는 제외.\n",
         "우리상황.txt": "지역 내 반찬가게. 영업신고 2024-03-10. 세척기 교체 예정, 아직 구매하지 않음. 받은 견적은 2026-06-15 작성.\n",
@@ -178,7 +178,7 @@
       "family": "일정·자동화",
       "userProfile": "반복 일정을 자주 바꾸지만 내부 설정은 보고 싶지 않은 프리랜서",
       "purpose": "반복 알림을 후보·승인 경계로 만들고 최신 시간으로 수정한 뒤 일시정지·재개 상태와 다음 실행을 정확히 설명한다.",
-      "allowedHands": ["automation.propose"],
+      "requiredHands": ["automation.propose"],
       "turns": [
         "매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘.",
         "실제로 등록하기 전에 언제 무슨 일이 생기는지 먼저 보여줘.",
@@ -205,7 +205,7 @@
       "family": "PC 작업",
       "userProfile": "파일 구조는 모르지만 결과를 직접 확인하려는 소규모 팀장",
       "purpose": "중첩 폴더에서 이름이 그럴듯한 오답을 피하고 내용상 배포 승인본을 찾아, 원본을 보존한 채 점검 결과를 별도 파일로 만든다.",
-      "allowedHands": ["local.file", "local.terminal"],
+      "requiredHands": ["local.file", "local.terminal"],
       "fixture": {
         "초안/배포설정_최종.txt": "상태=검토중\n버전=2.3\n서버=staging\n",
         "보관/배포설정_2025.txt": "상태=승인\n버전=1.8\n서버=production\n",
