@@ -295,6 +295,7 @@ export function validateQualificationManifest(manifest, { secretValues = [] } = 
   const failures = [];
   if (manifest?.schemaVersion !== QUALIFICATION_SCHEMA_VERSION) failures.push('schema');
   if (!manifest?.runId || !manifest?.attemptId || manifest?.executionKind !== 'headless_isolated') failures.push('run_identity');
+  if (manifest?.status !== 'QUALIFIED' || manifest?.invalidReason != null) failures.push('qualification_status');
   const artifact = manifest?.artifact;
   if (!(artifact?.kind === 'source' && GIT_SHA.test(artifact.gitSha ?? '')
       && typeof artifact.dirty === 'boolean' && SHA256.test(artifact.worktreeDigest ?? '')
@@ -345,8 +346,8 @@ function safeRawPath(manifestPath, name) {
   return candidate.startsWith(`${rawRoot}/`) ? candidate : null;
 }
 
-/** 저장 뒤 감사 경로: manifest 주장을 믿지 않고 raw 바이트·계보·경로 snapshot을 다시 잰다. */
-export async function verifyQualificationEvidence(manifestPath, { secretValues = [] } = {}) {
+/** 저장 뒤 감사의 raw 단계: manifest 주장을 믿지 않고 raw 바이트·계보·경로 snapshot을 다시 잰다. */
+async function verifyQualificationRawEvidence(manifestPath, { secretValues = [] } = {}) {
   const failures = [];
   let manifest;
   try { manifest = JSON.parse(await readFile(resolve(manifestPath), 'utf8')); }
@@ -374,6 +375,8 @@ export async function verifyQualificationEvidence(manifestPath, { secretValues =
       if (digest(execution.model) !== digest(manifest.model)) failures.push('model_mismatch');
       if (execution.fixtureHash !== manifest.fixtureHash) failures.push('fixture_mismatch');
       if (digest(execution.isolation) !== digest(manifest.isolation)) failures.push('isolation_mismatch');
+      if (execution.runId !== manifest.runId || execution.attemptId !== manifest.attemptId
+        || execution.executionKind !== manifest.executionKind) failures.push('execution_identity_mismatch');
     }
     const derived = machineFactsFrom({
       session: probe.session ?? {}, workEvents: probe.workEvents ?? [],
@@ -398,6 +401,44 @@ export async function verifyQualificationEvidence(manifestPath, { secretValues =
     }
   }
   return { ok: failures.length === 0, failures: [...new Set(failures)] };
+}
+
+async function verifyQualificationHistory(manifestPath, manifest, historyDir) {
+  const failures = [];
+  if (!historyDir) return ['history_dir_missing'];
+  const runDir = join(resolve(historyDir), 'runs', digest(manifest.runId));
+  let events;
+  let manifestHash;
+  try {
+    [events, manifestHash] = await Promise.all([readEvents(runDir), readFile(resolve(manifestPath)).then(digest)]);
+  } catch {
+    return ['history_unreadable'];
+  }
+  const started = events.filter((event) => event.type === 'started' && event.attemptId === manifest.attemptId);
+  const finished = events.filter((event) => event.type === 'finished' && event.attemptId === manifest.attemptId);
+  if (started.length !== 1) failures.push('history_started_missing_or_ambiguous');
+  if (finished.length !== 1) failures.push('history_finished_missing_or_ambiguous');
+  const start = started[0];
+  const finish = finished[0];
+  if (!start || start.runId !== manifest.runId || start.executionKind !== manifest.executionKind) {
+    failures.push('history_started_identity_mismatch');
+  }
+  if (!finish || finish.runId !== manifest.runId || finish.status !== 'QUALIFIED'
+    || finish.invalidReason !== null || finish.manifestHash !== manifestHash) {
+    failures.push('history_finished_mismatch');
+  }
+  return failures;
+}
+
+/** 최종 감사 경로: raw 사실과 append-only history 모두가 현재 manifest 바이트를 가리켜야 한다. */
+export async function verifyQualificationEvidence(manifestPath, { secretValues = [], historyDir } = {}) {
+  const raw = await verifyQualificationRawEvidence(manifestPath, { secretValues });
+  let manifest;
+  try { manifest = JSON.parse(await readFile(resolve(manifestPath), 'utf8')); }
+  catch { return raw; }
+  const historyFailures = await verifyQualificationHistory(manifestPath, manifest, historyDir);
+  const failures = [...new Set([...raw.failures, ...historyFailures])];
+  return { ok: failures.length === 0, failures };
 }
 
 function invalidReasonFor(failures) {
@@ -572,7 +613,10 @@ export async function runHarnessQualification(options) {
     const afterDeclared = await snapshotPaths(watchedDeclared);
     const fixtureHash = digest(await readFile(fixturePath));
     const raw = {
-      execution: { artifact, model: modelIdentity, fixtureHash, isolation },
+      execution: {
+        runId, attemptId: claim.attemptId, executionKind,
+        artifact, model: modelIdentity, fixtureHash, isolation,
+      },
       session: {
         id: session.id, workRef: session.workRef ?? null,
         transcript: (session.transcript ?? []).map((entry) => ({ role: entry.role, turnRef: entry.turnRef })),
@@ -625,7 +669,7 @@ export async function runHarnessQualification(options) {
       return { ok: false, status: 'HARNESS_INVALID', invalidReason: reason, manifestPath, manifest: invalid };
     }
     await atomicJson(manifestPath, manifest);
-    const persisted = await verifyQualificationEvidence(manifestPath, { secretValues: allSecrets });
+    const persisted = await verifyQualificationRawEvidence(manifestPath, { secretValues: allSecrets });
     if (!persisted.ok) {
       const invalid = {
         ...manifest, status: 'HARNESS_INVALID', invalidReason: 'manifest_invalid',
@@ -642,6 +686,14 @@ export async function runHarnessQualification(options) {
     const manifestHash = digest(await readFile(manifestPath));
     await finishRun(claim, { status: 'QUALIFIED', manifestHash });
     finished = true;
+    await hooks.afterFinish?.({ manifestPath, runDir: claim.runDir });
+    const final = await verifyQualificationEvidence(manifestPath, { secretValues: allSecrets, historyDir });
+    if (!final.ok) {
+      return {
+        ok: false, status: 'QUALIFICATION_EVIDENCE_INVALID', invalidReason: 'manifest_invalid',
+        manifestPath, manifest, validation: final,
+      };
+    }
     return { ok: true, status: 'QUALIFIED', manifestPath, manifest };
   } catch (error) {
     if (!claim) throw error;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { lstat, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as qualification from '../scripts/human-use/harness-qualification.mjs';
@@ -23,10 +23,11 @@ const room = (prefix) => mkdtemp(join(tmpdir(), prefix));
 test('관통: 실제 HTTP·세션·도구·Receipt·WorkEvent·다음 턴 승계가 자격 manifest에 선다', async () => {
   const root = await room('t5-hq-through-');
   const protectedFile = join(root, 'owner-state.txt');
+  const historyDir = join(root, 'history');
   await writeFile(protectedFile, 'unchanged\n');
   const result = await runHarnessQualification({
     runId: 'qualification-through', sourceRoot: tree,
-    evidenceDir: join(root, 'evidence'), historyDir: join(root, 'history'),
+    evidenceDir: join(root, 'evidence'), historyDir,
     protectedPaths: [protectedFile],
   });
   assert.equal(result.status, 'QUALIFIED', JSON.stringify(result.manifest, null, 2));
@@ -51,7 +52,7 @@ test('관통: 실제 HTTP·세션·도구·Receipt·WorkEvent·다음 턴 승계
   const raw = JSON.parse(await readFile(join(result.manifestPath, '..', 'raw', 'probe.json'), 'utf8'));
   assert.ok(raw.pathSnapshots?.protected?.before?.length, '보호 경로 before digest가 원본 증거에 없다');
   assert.ok(raw.pathSnapshots?.protected?.after?.length, '보호 경로 after digest가 원본 증거에 없다');
-  assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath)).ok, true);
+  assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath, { historyDir })).ok, true);
 });
 
 test('산출물 신분: source는 정확한 Git SHA, pkg는 파일 SHA이며 둘을 섞지 않는다', async () => {
@@ -184,31 +185,33 @@ test('반례: Receipt가 첫 턴이나 다른 세션에 붙으면 둘째 턴 실
 
 test('반례: raw 원본 변조·삭제·경로탈출은 사후 검증에서 전부 빨강이다', async () => {
   const root = await room('t5-hq-raw-verify-');
+  const historyDir = join(root, 'history');
   const make = (runId) => runHarnessQualification({
-    runId, sourceRoot: tree, evidenceDir: join(root, 'evidence'), historyDir: join(root, 'history'), protectedPaths: [],
+    runId, sourceRoot: tree, evidenceDir: join(root, 'evidence'), historyDir, protectedPaths: [],
   });
   const tampered = await make('raw-tampered');
   const tamperedRaw = join(tampered.manifestPath, '..', 'raw', 'probe.json');
   await writeFile(tamperedRaw, '{}\n');
-  assert.equal((await qualification.verifyQualificationEvidence(tampered.manifestPath)).ok, false, '변조 원본을 받았다');
+  assert.equal((await qualification.verifyQualificationEvidence(tampered.manifestPath, { historyDir })).ok, false, '변조 원본을 받았다');
 
   const deleted = await make('raw-deleted');
   const deletedRaw = join(deleted.manifestPath, '..', 'raw', 'probe.json');
   await import('node:fs/promises').then(({ rm }) => rm(deletedRaw));
-  assert.equal((await qualification.verifyQualificationEvidence(deleted.manifestPath)).ok, false, '삭제 원본을 받았다');
+  assert.equal((await qualification.verifyQualificationEvidence(deleted.manifestPath, { historyDir })).ok, false, '삭제 원본을 받았다');
 
   const escaped = await make('raw-escaped');
   const manifest = JSON.parse(await readFile(escaped.manifestPath, 'utf8'));
   manifest.rawEvidence[0].name = '../outside.json';
   await writeFile(escaped.manifestPath, JSON.stringify(manifest));
-  assert.equal((await qualification.verifyQualificationEvidence(escaped.manifestPath)).ok, false, '경로탈출 원본을 받았다');
+  assert.equal((await qualification.verifyQualificationEvidence(escaped.manifestPath, { historyDir })).ok, false, '경로탈출 원본을 받았다');
 });
 
 test('반례: 허용 모양의 manifest 단독 artifact·model·fixture·isolation·감시경로 변조도 raw와 어긋나면 거부한다', async () => {
   const root = await room('t5-hq-manifest-bind-');
+  const historyDir = join(root, 'history');
   const result = await runHarnessQualification({
     runId: 'manifest-bind', sourceRoot: tree,
-    evidenceDir: join(root, 'evidence'), historyDir: join(root, 'history'), protectedPaths: [],
+    evidenceDir: join(root, 'evidence'), historyDir, protectedPaths: [],
   });
   assert.equal(result.status, 'QUALIFIED');
   const mutate = [
@@ -223,9 +226,81 @@ test('반례: 허용 모양의 manifest 단독 artifact·model·fixture·isolati
     const forged = structuredClone(result.manifest);
     apply(forged);
     await writeFile(result.manifestPath, JSON.stringify(forged));
-    assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath)).ok, false,
+    assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath, { historyDir })).ok, false,
       `${name} manifest 단독 변조를 원본 사실처럼 받았다`);
   }
+});
+
+test('선빨강: QUALIFIED status·runId·attemptId와 append-only history는 원본 probe까지 한 결합이어야 한다', async () => {
+  const root = await room('t5-hq-history-bind-');
+  const historyDir = join(root, 'history');
+  const make = (runId) => runHarnessQualification({
+    runId, sourceRoot: tree, evidenceDir: join(root, 'evidence'), historyDir, protectedPaths: [],
+  });
+  const verify = (result) => qualification.verifyQualificationEvidence(result.manifestPath, { historyDir });
+
+  const status = await make('history-status');
+  const statusManifest = structuredClone(status.manifest);
+  statusManifest.status = 'HARNESS_INVALID';
+  await writeFile(status.manifestPath, JSON.stringify(statusManifest));
+  assert.equal((await verify(status)).ok, false, 'HARNESS_INVALID 원본을 QUALIFIED 자격으로 받았다');
+
+  for (const [suffix, mutate] of [
+    ['run-id', (m) => { m.runId = 'other-run'; }],
+    ['attempt-id', (m) => { m.attemptId = 'other-attempt'; }],
+  ]) {
+    const result = await make(`history-${suffix}`);
+    const manifest = structuredClone(result.manifest);
+    mutate(manifest);
+    await writeFile(result.manifestPath, JSON.stringify(manifest));
+    assert.equal((await verify(result)).ok, false, `${suffix} 단독 변조를 같은 원본으로 받았다`);
+  }
+
+  const mutateFinished = async (runId, mutate) => {
+    const result = await make(runId);
+    const eventPath = join(historyDir, 'runs', qualification.digest(runId));
+    const finishedName = (await readdir(eventPath)).find((name) => name.endsWith('-finished.json'));
+    const finishedPath = join(eventPath, finishedName);
+    await mutate(finishedPath);
+    assert.equal((await verify(result)).ok, false, `${runId} history 위조를 자격으로 받았다`);
+  };
+  await mutateFinished('history-finished-deleted', (path) => rm(path));
+  await mutateFinished('history-finished-status', async (path) => {
+    const event = JSON.parse(await readFile(path, 'utf8'));
+    event.status = 'HARNESS_INVALID';
+    await writeFile(path, JSON.stringify(event));
+  });
+  await mutateFinished('history-finished-hash', async (path) => {
+    const event = JSON.parse(await readFile(path, 'utf8'));
+    event.manifestHash = 'f'.repeat(64);
+    await writeFile(path, JSON.stringify(event));
+  });
+  await mutateFinished('history-finished-attempt', async (path) => {
+    const event = JSON.parse(await readFile(path, 'utf8'));
+    event.attemptId = 'different-attempt';
+    await writeFile(path, JSON.stringify(event));
+  });
+});
+
+test('절단: finish 뒤 history 결합 검증이 깨지면 runHarnessQualification도 성공을 돌려주지 않는다', async () => {
+  const root = await room('t5-hq-final-history-cut-');
+  const historyDir = join(root, 'history');
+  const result = await runHarnessQualification({
+    runId: 'final-history-cut', sourceRoot: tree,
+    evidenceDir: join(root, 'evidence'), historyDir, protectedPaths: [],
+    hooks: {
+      afterFinish: async ({ runDir }) => {
+        const finishedName = (await readdir(runDir)).find((name) => name.endsWith('-finished.json'));
+        const path = join(runDir, finishedName);
+        const event = JSON.parse(await readFile(path, 'utf8'));
+        event.manifestHash = 'f'.repeat(64);
+        await writeFile(path, JSON.stringify(event));
+      },
+    },
+  });
+  assert.equal(result.ok, false, 'finish 뒤 history 위조를 성공으로 돌려줬다');
+  assert.equal(result.status, 'QUALIFICATION_EVIDENCE_INVALID');
+  assert.equal((await qualification.verifyQualificationEvidence(result.manifestPath, { historyDir })).ok, false);
 });
 
 test('반례: 같은 runId claim 거부 뒤에도 새 임시방·프로세스 진입은 없고 기존 history 원본은 그대로다', async () => {
