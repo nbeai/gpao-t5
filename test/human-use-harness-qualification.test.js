@@ -68,6 +68,10 @@ test('산출물 신분: source는 정확한 Git SHA, pkg는 파일 SHA이며 둘
   assert.equal(packaged.kind, 'package');
   assert.match(packaged.pkgSha, /^[0-9a-f]{64}$/);
   await assert.rejects(() => artifactIdentity({ sourceRoot: tree, pkgPath: pkg }));
+  await assert.rejects(() => runHarnessQualification({
+    runId: 'pkg-must-really-run', pkgPath: pkg,
+    evidenceDir: join(root, 'evidence'), historyDir: join(root, 'history'), protectedPaths: [],
+  }), (error) => error.code === 'PACKAGE_EXECUTION_NOT_AVAILABLE');
 });
 
 test('소스 신분 반례: HEAD가 같아도 실행 바이트가 바뀌면 worktree digest가 달라진다', async () => {

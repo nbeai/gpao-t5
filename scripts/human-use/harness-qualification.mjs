@@ -445,6 +445,11 @@ export async function runHarnessQualification(options) {
     sourceRoot, pkgPath, protectedPaths = [join(homedir(), '.local', 'state', 'gpao-t5')],
     declaredPaths = [], secretValues = [], hooks = {},
   } = options;
+  if (pkgPath) {
+    throw Object.assign(new Error('이 관문은 패키지 바이트를 실제 실행하지 않는다 — --pkg 자격을 주장할 수 없다'), {
+      code: 'PACKAGE_EXECUTION_NOT_AVAILABLE',
+    });
+  }
   const room = await mkdtemp(join(tmpdir(), 't5-harness-qualification-'));
   const fixtureDir = join(room, 'fixture');
   const stateDir = join(room, 'state');
@@ -650,7 +655,12 @@ if (process.argv[1] && resolve(process.argv[1]) === thisFile) {
     console.error('usage: node scripts/human-use/harness-qualification.mjs --run-id ID --evidence-dir DIR --history-dir DIR [--source DIR|--pkg FILE]');
     process.exit(2);
   }
-  const result = await runHarnessQualification({ runId, evidenceDir, historyDir, sourceRoot, pkgPath });
-  console.log(JSON.stringify({ ok: result.ok, status: result.status, invalidReason: result.invalidReason ?? null, manifestPath: result.manifestPath }, null, 2));
-  process.exit(result.ok ? 0 : 1);
+  try {
+    const result = await runHarnessQualification({ runId, evidenceDir, historyDir, sourceRoot, pkgPath });
+    console.log(JSON.stringify({ ok: result.ok, status: result.status, invalidReason: result.invalidReason ?? null, manifestPath: result.manifestPath }, null, 2));
+    process.exit(result.ok ? 0 : 1);
+  } catch (error) {
+    console.error(JSON.stringify({ ok: false, code: error?.code ?? 'QUALIFICATION_START_FAILED', error: String(error?.message ?? error) }, null, 2));
+    process.exit(2);
+  }
 }
