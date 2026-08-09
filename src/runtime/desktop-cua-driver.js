@@ -360,7 +360,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null; let 얕게걷기지연 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -490,7 +490,7 @@ export function makeCuaDriver(deps = {}) {
           // **터지면 다시 안 부른다.** AX 가 20초를 넘기는 창에서 여기가 터지면 아래 `call` 로
           // 한 번 더 걸었다 — 같은 창을 두 번 걷고 두 번 기다린다(실측 40초). 결과는 같다.
           let 트리터짐 = false;
-          const 한번에 = args?.그림없이 === true || typeof mcp.구조와조각 !== 'function'
+          let 한번에 = args?.그림없이 === true || typeof mcp.구조와조각 !== 'function'
             ? null
             : await mcp.구조와조각('get_window_state', 창상태인자).catch((e) => {
               트리터짐 = true;
@@ -504,6 +504,47 @@ export function makeCuaDriver(deps = {}) {
               그림크기값 = Number(이미지.width) > 0
                 ? { w: Number(이미지.width), h: Number(이미지.height) }
                 : 그림크기재기(String(이미지.data));
+            }
+          }
+          // ── **깊이 제한 폴백**(F-53 방 선택 · PM 승인 2026-08-09) ─────────────────
+          //
+          // 실측(오너 창): 카톡 목록에서 AX 전체 걷기가 **20초 타임아웃**으로 죽었고
+          // (드라이버 원문: *"AX tree walk for pid=1048 timed out after 20 s … re-call with a
+          // depth-limited scan"*), 요소가 0~18개로만 보였다. 그래서 모델은 방 이름을 못 찾고
+          // label 로 헛짚었다 — 두 달간 "방을 못 연다"의 정체다. 깊이를 제한하면 트리가
+          // **살아난다**: 같은 창에서 요소 11개 + 목표 행의 토큰(`s0000001c:5`)이 나왔고,
+          // 그 토큰으로 방이 열렸다(오대상 0).
+          //
+          // 새 능력이 아니다 — **손이 이미 볼 수 있는 것을 못 보고 있었다.**
+          // 발동 조건은 기계 사실 둘: ① 트리가 터졌다 ② 트리는 왔는데 요소가 0개다.
+          // 상한 근거(실측값 그대로): `max_depth 12`(목표 행이 잡힌 깊이) ·
+          // `max_elements 60`(목록 한 화면 분량 — 400은 타임아웃을 부른 그 값이다).
+          // **한 번만 더 걷는다** — 같은 창을 두 번 걷고 두 번 기다리는 병(실측 40초)을 안 만든다.
+          const 얕게걷기 = async () => {
+            const t0 = Date.now();
+            const r = await mcp.구조와조각('get_window_state', {
+              ...창상태인자, max_elements: 60, max_depth: 12,
+            }).catch(() => null);
+            얕게걷기지연 = { 걸린ms: Date.now() - t0, 요소수: (r?.구조?.elements ?? []).length };
+            return r;
+          };
+          const 트리비었나 = (구조) => !Array.isArray(구조?.elements) || 구조.elements.length === 0;
+          if (typeof mcp.구조와조각 === 'function' && args?.그림없이 !== true
+            && (트리터짐 || 트리비었나(한번에?.구조))) {
+            const 다시 = await 얕게걷기();
+            if (!트리비었나(다시?.구조)) {
+              트리터짐 = false;
+              못읽은이유값 = null;                 // 얕게 걸으니 읽혔다 — 못 읽은 것이 아니다
+              한번에 = 다시;
+              if (!그림값) {
+                const 이 = (다시.조각 ?? []).find((x) => x?.type === 'image' && x?.data);
+                if (이) {
+                  그림값 = { mime: String(이.mimeType ?? 'image/png'), base64: String(이.data) };
+                  그림크기값 = Number(이.width) > 0
+                    ? { w: Number(이.width), h: Number(이.height) }
+                    : 그림크기재기(String(이.data));
+                }
+              }
             }
           }
           let st = 한번에?.구조 ?? (트리터짐 ? null : await mcp.call('get_window_state', 창상태인자).catch((e) => {
@@ -725,6 +766,8 @@ export function makeCuaDriver(deps = {}) {
         ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
         ...(탭들값?.length ? { 탭들: 탭들값 } : {}),
         ...(동의안내값 ? { 동의안내: 동의안내값 } : {}),
+        // 폴백이 돌았는가·얼마 걸렸는가(진단면 · PM 조건). 안 돌면 칸을 안 만든다.
+        ...(얕게걷기지연 ? { 얕게걷기: 얕게걷기지연 } : {}),
       };
     },
 

@@ -133,8 +133,16 @@ test('트리 읽기가 터지면 다시 안 부른다 — 같은 창을 두 번 
     },
   };
   const o = await makeCuaDriver({ mcp }).observe({ scope: 'window', 창제목: '카카오톡' });
-  const 걸음 = 부른것.filter((c) => c.이름 === 'get_window_state').length;
-  assert.equal(걸음, 1, `**터진 것을 또 부른다** — 20초를 두 번 쓴다: ${걸음}회`);
+  // **같은 인자로** 두 번 걷지 않는다 — 이 봉인이 지키는 것은 "20초를 두 번 쓰지 않는다"다.
+  // 깊이 제한 폴백(F-53 · 2026-08-09)은 **다른 인자로 한 칸 올리는 것**이고(사다리 규율:
+  // "같은 방법을 그대로 다시 하지 않는다. 방법을 바꿔서 올린다"), 얕은 걷기는 전체 걷기보다
+  // 훨씬 싸다(실측: 20s 타임아웃 vs 1s 내외). 그래서 **깊은 재호출 0 · 얕은 재호출 최대 1**
+  // 로 계약을 정밀화한다 — 느슨해진 게 아니라 무엇을 금지하는지가 정확해졌다.
+  const 걷기 = 부른것.filter((c) => c.이름 === 'get_window_state');
+  const 깊게 = 걷기.filter((c) => !(Number(c.인자?.max_depth) > 0));
+  const 얕게 = 걷기.filter((c) => Number(c.인자?.max_depth) > 0);
+  assert.equal(깊게.length, 1, `**터진 것을 같은 인자로 또 부른다** — 20초를 두 번 쓴다: ${깊게.length}회`);
+  assert.ok(얕게.length <= 1, `얕은 재시도가 반복된다: ${얕게.length}회`);
   assert.ok(o.그림, '터졌다고 눈까지 포기했다');
 });
 
