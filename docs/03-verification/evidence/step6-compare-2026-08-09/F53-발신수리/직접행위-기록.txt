@@ -1,0 +1,14 @@
+개발라인 직접 행위 시작: 16:25:41
+{
+  "delivery": {
+    "mode": "background"
+  },
+  "effect": "unverifiable",
+  "route": "synthetic_events"
+앞세움 확인(52 frontmost): 16:29:43
+더블클릭: {"delivery":{"mode":"background"},"effect":"unverifiable","route":"synthetic_events"}
+⚠ 오대상: 조용한 채팅방 창(4733) 열림 — 의도 밖. 즉시 닫음: 16:30:38
+닫기2: {"code":"delivery_failed","message":"press_key delivery failed: Unknown key name: cmd+w"}
+닫기3: {"delivery":{"mode":"foreground"},"effect":"unverifiable","route":"global_input"}
+오대상 창 닫기 시도(좌상단 닫기 버튼 좌표): 16:34:46
+클릭2: {"delivery":{"mode":"foreground"},"effect":"unverifiable","route":"global_input"}

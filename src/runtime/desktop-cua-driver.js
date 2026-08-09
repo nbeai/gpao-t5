@@ -1148,7 +1148,14 @@ export function makeCuaDriver(deps = {}) {
 
       // **한 자리에서 가른다.** 손마다 따로 막다가 `click` 에서 또 샜다(라이브 2026-08-05).
       // **읽는 자리는 하나다**(계열 B) — `desktop-driver-answer.js`.
-      if (거절인가(낸것)) throw new Error(거절사유(낸것));
+      //
+      // **거절은 던지지 않고 네 갈래 모양으로 돌려준다**(F-53 원인 2층 · 2026-08-09).
+      // 예전엔 여기서 throw 해 위층(desktop-act-tool)의 거절 갈래가 **영영 못 봤다** —
+      // 일반 catch 로 떨어져 사유가 삼켜지고 'not_dispatched'(틀림)가 됐다. 발신 시험의
+      // 방 열기 3연속 실패가 정확히 이 경로다(실사유: "Either element_index + window_id
+      // or x + y must be provided" — label 만으로는 못 누른다는 드라이버 계약).
+      // 위층은 이 모양(effect:'refused')을 이미 읽는다 — 던지면 계약이 죽는다.
+      if (거절인가(낸것)) return { effect: 'refused', code: 거절사유(낸것) };
       // 행동 자체가 목표인 것만 — 사다리(앞세움 재시도)까지 끝난 최종 답에 붙인다.
       if (행동이곧목표.has(행동)) 낸것 = 드라이버확인(낸것);
       return 앞세워함 ? { ...낸것, 앞세워함: true } : 낸것;

@@ -74,8 +74,9 @@ test('그렇게 했다는 사실을 남긴다 — 조용히 화면을 만지지 
 test('앞세워도 안 되면 거절 그대로다 — 무한히 시도하지 않는다', async () => {
   const 부른것 = [];
   const r = await makeCuaDriver({ mcp: 가짜({ 부른것, 앞세우면됨: false }) })
-    .act({ 행동: 'press_key', 대상: { 창: 9, pid: 77 }, 값: 'Enter' })
-    .catch((e) => ({ 오류: String(e.message) }));
-  assert.ok(r?.오류, '안 됐는데 됐다고 한다');
+    .act({ 행동: 'press_key', 대상: { 창: 9, pid: 77 }, 값: 'Enter' });
+  // 계약 이행(F-53 2026-08-09): 거절은 던지지 않고 네 갈래로 돌아온다 — "안 됐는데 됐다"는
+  // effect:'refused' 가 막는다(거절인가가 참인 것은 결과로 읽히지 않는다).
+  assert.equal(r?.effect, 'refused', `안 됐는데 됐다고 한다: ${JSON.stringify(r).slice(0, 120)}`);
   assert.ok(부른것.filter((c) => c.이름 === 'press_key').length <= 2, '계속 다시 시도한다');
 });

@@ -293,7 +293,10 @@ test('"인자가 모자라다"는 답을 결과로 흘리지 않는다 — 없�
   const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
   const r = await 손.handler({ action: 'focus', window: 99 });
   assert.notEqual(r.result?.단계, 'goal_verified', '**못 부른 것을 됐다고 한다**');
-  assert.equal(r.진행?.판정, 'not_dispatched', `실행이 안 나간 것을 다르게 적었다: ${JSON.stringify(r.진행)}`);
+  // 계약 이행(F-53 2026-08-09): 거절은 이제 던져지지 않고 네 갈래로 돌아온다 — 실행은
+  // **나갔고 드라이버가 거절**했으므로 'refused' 가 참이다('not_dispatched' 가 오히려 거짓이었다).
+  // 이 검사의 불변식(못 부른 것을 됐다고 안 한다)은 위 goal_verified 부정이 그대로 지킨다.
+  assert.equal(r.진행?.판정, 'refused', `거절이 거절로 안 적혔다: ${JSON.stringify(r.진행)}`);
 });
 
 // ── 라이브 4차 — 사실만 말하고 길을 안 주면 그게 벽이 된다 ────────────────
@@ -344,7 +347,8 @@ test('드라이버가 거절했다고 밝히면 안 나간 것으로 적는다 �
   };
   const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
   const r = await 손.handler({ action: 'focus', app: '계산기' });
-  assert.equal(r.진행?.판정, 'not_dispatched', `거절을 "안 바뀌었다"로 뭉갰다: ${JSON.stringify(r.진행)}`);
+  // 계약 이행(F-53): 거절은 'refused' 로 — "안 바뀌었다(unknown)"로 뭉개지 않는 것이 불변식이다.
+  assert.equal(r.진행?.판정, 'refused', `거절을 "안 바뀌었다"로 뭉갰다: ${JSON.stringify(r.진행)}`);
   assert.match(JSON.stringify(r.다음수단 ?? []), /observe|retry/, '다음 수가 없다');
 });
 

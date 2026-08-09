@@ -329,7 +329,8 @@ test('드라이버가 거절하면 안 나간 것으로 적는다 — "했어요
   const 손 = makeDesktopActTool({ drivers: [makeCuaDriver({ mcp })] });
   const r = await 손.handler({ action: 'click', 대상: { id: 'b9', label: '9', 토큰: 's1:7' } });
   assert.notEqual(r.result?.단계, 'goal_verified');
-  assert.equal(r.진행?.판정, 'not_dispatched', `**안 나간 것을 나갔다고 적었다**: ${JSON.stringify(r.진행)}`);
+  // 계약 이행(F-53): 나갔고 거절당했다 — 'refused' 가 참이다. "했어요" 금지는 위 줄이 지킨다.
+  assert.equal(r.진행?.판정, 'refused', `거절이 거절로 안 적혔다: ${JSON.stringify(r.진행)}`);
 });
 
 test('드라이버 자신도 거절을 결과로 안 흘린다 — 손과 겹쳐 막는다', async () => {
@@ -342,9 +343,11 @@ test('드라이버 자신도 거절을 결과로 안 흘린다 — 손과 겹쳐
     },
   };
   const d = makeCuaDriver({ mcp });
-  await assert.rejects(
-    () => d.act({ 행동: 'click', 대상: { 토큰: 's1:1', 창: 3, pid: 7 } }),
-    /Missing required/,
-    '**드라이버가 거절을 결과처럼 돌려준다** — 손이 그걸 "했어요"로 읽을 수 있다',
-  );
+  // 계약 이행(F-53 2026-08-09): 던지면 위층 거절 갈래가 영영 못 보고 일반 catch 가 사유를
+  // 삼킨다(발신 시험 3연속 그 경로). 이제 **네 갈래 모양**(effect:'refused')으로 돌아온다 —
+  // 이 검사의 불변식("결과처럼 흘리지 않는다")은 그 모양이 지킨다: 거절인가() 가 참이면
+  // 손은 그것을 "했어요"로 읽을 수 없다.
+  const r = await d.act({ 행동: 'click', 대상: { 토큰: 's1:1', 창: 3, pid: 7 } });
+  assert.equal(r?.effect, 'refused', `거절이 결과처럼 흘렀다: ${JSON.stringify(r).slice(0, 120)}`);
+  assert.match(String(r?.code ?? ''), /Missing required/, '사유가 사라졌다 — 원인 확정을 막는다');
 });
