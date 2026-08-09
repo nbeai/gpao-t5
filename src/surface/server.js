@@ -588,6 +588,9 @@ export function makeServer(deps = {}) {
       modelSupportsSearch: deps.modelSupportsSearch?.() ?? false,
       modelProviderId: deps.modelProviderId?.(),
       memory, activeGoal: session.activeGoal ?? null,
+      // 수명주기 v2: 목표가 소진돼도 "이 세션에 작업 목표가 세워진 적 있다"는 역사는 남는다 —
+      // 최초 작업 정산의 억제 사실은 목표의 생존이 아니라 이 역사다.
+      hadWorkGoal: session.hadWorkGoal === true,
       // 자기 파악 세 번째 축 — 이 대화에서 지금까지 실제로 한 일. 다음 턴이 "그거"를 이어받는다.
       workingState: session.workingState ?? null,
       projectWorkState: projectedWorkState,
@@ -909,7 +912,9 @@ export function makeServer(deps = {}) {
     // **"최초"는 구조 사실로 잰다**: 세션에 이미 활성 목표가 있었으면 이 턴은 첫 작업이
     // 아니다(hadActiveGoal — 입장 판정과 별개의 사실. 예전엔 입장(hasAdmittedContext)이
     // 우연히 이 억제를 대신했는데, 입장 경계를 정밀화하자 이어지는 턴이 최초로 보였다).
-    const durableWorkCandidate = Boolean(result.goal)
+    // 목표 수명(수명주기 v2)과 "이 턴이 작업을 세웠다"는 다른 사실이다 — 대화 턴이 목표를
+    // 소진해도(goal: null · spentGoal 동봉) 최초 작업 정산 후보에서는 빠지지 않는다.
+    const durableWorkCandidate = Boolean(result.goal || result.spentGoal)
       && currentReceipts.length === 0
       && reviewSignals.hadActiveGoal !== true
       && reviewSignals.hasAdmittedContext !== true
@@ -1017,6 +1022,8 @@ export function makeServer(deps = {}) {
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;
     else if (result.goal === null) session.activeGoal = null;
+    // 수명주기 v2: 목표가 세워졌다는 역사(최초 작업 정산의 억제 사실)는 소진돼도 남는다.
+    if (result.goal || result.spentGoal) session.hadWorkGoal = true;
     // 자기 파악 세 번째 축 — 이 대화에서 실제로 한 일을 지속한다(다음 턴의 "그거"가 여기서 풀린다).
     if (result.workingState) session.workingState = result.workingState;
     // C7-ACTION-001 이중 방어: 커널이 걸러도, 원장·학습 직전에 같은 술어로 한 번 더 판정한다.
@@ -2652,6 +2659,8 @@ export function makeServer(deps = {}) {
     // 그냥 truthy 검사만 하면 완료된 목표가 영원히 남아 다음 턴을 붙든다.
     if (result.goal) session.activeGoal = result.goal;
     else if (result.goal === null) session.activeGoal = null;
+      // 수명주기 v2: 목표가 세워졌다는 역사(최초 작업 정산의 억제 사실)는 소진돼도 남는다.
+      if (result.goal || result.spentGoal) session.hadWorkGoal = true;
       if (result.workingState) session.workingState = result.workingState;
       await store.save(session);
       try {

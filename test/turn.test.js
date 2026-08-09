@@ -229,6 +229,34 @@ test('반대시험(12턴형): 부탁 형태만 겹친 상태 요약형 질문엔
     '대상을 부른 발화엔 목표가 그대로 admitted — activeGoal 이 일하는 사례가 죽지 않는다');
 });
 
+// ── 수명주기 v2(2026-08-09 · 코덱스 지적 타당 판정) ──────────────────────────
+//
+// 완료 판정(끝났나)은 "실제로 성공한 실행 하나 이상"을 요구한다 — 실행 턴에는 맞는 계약이지만
+// 도구 0 인 대화 턴은 답을 다 내고도 **영원히 완료가 못 된다.** 그 턴이 세운 목표가 안 닫힌 채
+// 세션에 남아, 다음 턴 입장 판정의 낡은 목표 공급원이 된다(12턴형 병의 수명주기 쪽 뿌리).
+// 답을 낸 대화 턴은 그 턴의 목표를 소진시킨다(goal: null → 서버가 activeGoal 을 지운다).
+test('수명주기: 도구 0 대화 턴이 답을 끝내면 그 턴의 목표는 소진된다(goal: null)', async () => {
+  const c = ctx();
+  c.model = { async respond() { return '오늘 회의 내용은 이렇습니다.'; } };
+  // "정리" 신호로 complex 경로를 타지만 파일·웹 대상이 없어 도구 0 으로 답만 내는 턴.
+  const r = await runTurn({ text: '오늘 회의 내용 짧게 정리해서 말해줘' }, c);
+  assert.equal(r.kind, 'reply');
+  assert.equal(c.ledger.entries.length, 0, '이 시나리오는 도구 0 이어야 한다(전제 확인)');
+  assert.equal(r.goal, null,
+    '답을 낸 대화 턴의 목표가 남으면 다음 턴에 낡은 목표로 실린다 — 소진돼야 한다');
+});
+
+// 관통 조건: 여러 턴짜리 작업(막힘·미확인·대기 승인이 있는 턴)에서는 목표가 일찍 죽지 않는다.
+test('수명주기 관통: 막힌 일이 남은 턴은 목표를 소진하지 않는다', async () => {
+  const c = ctx({
+    tools: new ToolRunner({ 'web.collect': { async handler() { return { blocked: true, userSafeSummary: '그 사이트가 접근을 막고 있어요.' }; } } }),
+  });
+  const r = await runTurn({ text: '이 페이지 조사해서 가져와줘' }, c);
+  assert.equal(r.kind, 'reply');
+  assert.ok(r.ledger.unconfirmed.length >= 1, '막힘이 남는 시나리오다(전제 확인)');
+  assert.ok(r.goal && r.goal.understoodTask, '미확인이 남은 턴의 목표는 살아서 다음 턴이 이어받는다');
+});
+
 // 감사 소보정: 승인 재개 경로에서도 admittedContext가 보존된다(게이트에서 계산한 맥락을 잃지 않음).
 test('승인 재개 후에도 승격된 preference가 admittedContext에 유지된다', async () => {
   const captured = [];

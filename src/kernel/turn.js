@@ -812,7 +812,7 @@ export async function runTurn(input, ctx) {
     if (saved.workStateReported === true) workStateReported = true;
     ctx.stateReviewSignals = {
       goalRelevant: false,
-      hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask),
+      hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask) || ctx.hadWorkGoal === true,
       resumedApproval: true,
       hasAdmittedContext: (saved.admitted ?? []).length > 0,
       hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
@@ -935,7 +935,9 @@ export async function runTurn(input, ctx) {
     // 다르다. 예전엔 정산 게이트가 입장 여부(hasAdmittedContext)로 이걸 대신 알았는데,
     // 입장 판정을 정밀화하자(부탁 형태 겹침 제외) 이어지는 턴이 "최초 작업"으로 보였다.
     // 목표의 존재는 판정이 아니라 구조 사실이므로 그대로 나른다.
-    hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask),
+    // 수명주기 v2: 대화 턴이 목표를 소진하면(activeGoal null) 이 사실이 함께 꺼졌다 —
+    // "세운 적 있다"는 역사(ctx.hadWorkGoal, 서버 지속)로 잰다. 목표의 생존과 역사는 다른 사실이다.
+    hadActiveGoal: Boolean(ctx.activeGoal?.understoodTask) || ctx.hadWorkGoal === true,
     resumedApproval: false,
     hasMemoryState: (ctx.memory?.promoted ?? []).length > 0
       || (ctx.memory?.candidates ?? []).length > 0
@@ -2767,6 +2769,31 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   } : undefined;
   if (완료) workingState = { ...workingState, recentOutcome: 완료 };
 
+  // ── 수명주기 v2(2026-08-09 · 코덱스 지적 타당 판정) ──────────────────────────
+  //
+  // 위 완료 판정은 "실제로 성공한 실행 하나 이상"을 요구한다 — 실행 턴에는 맞는 계약이지만,
+  // **도구 0 인 대화 턴은 답을 다 내고도 영원히 완료가 못 된다.** 그 턴이 세운 목표(아래
+  // `goal`)가 안 닫힌 채 세션에 남아 다음 턴 입장 판정(isGoalRelevant)의 **낡은 목표
+  // 공급원**이 된다 — 들어오는 문(입장 판정)만 좁힌 v1 이 낡은 목표를 계속 만드는 이 뿌리를
+  // 안 건드렸다(12턴형 병의 수명주기 쪽 절반).
+  //
+  // 답을 낸 대화 턴은 그 턴의 목표를 소진시킨다. `완료`(recentOutcome)로 올리지는 않는다 —
+  // 그 계약은 "실행 결과로 정한다"가 정체성이고, 대화 답을 완료 실적으로 적으면 모델 앞
+  // 사실("최근 완료한 일")의 뜻이 넓어진다. 여기서 닫는 것은 **목표 수명** 하나다.
+  //
+  // 관통 조건(여러 턴짜리 작업의 중간 대화 턴에서 목표가 일찍 죽지 않는다): 그런 턴은
+  // 미확인·대기 승인·기다리는 표면·막힘·멈춘이유 중 하나를 반드시 지니므로 아래가 거짓이
+  // 된다. 승인 카드 턴은 위에서 이미 `goal` 을 실은 채 반환됐고, 빠른 경로(도구 무관 잡담)는
+  // `goal` 자체를 안 실어 기존 목표를 건드리지 않는다 — 이 자리는 본 경로의 대화 턴뿐이다.
+  const 대화턴소진 = turnReceipts.length === 0
+    && !멈춘이유
+    && reply.trim().length > 0
+    && plan.deliverableAssessment !== 'unknown'
+    && projection.unconfirmed.length === 0
+    && (ctx.pending?.size ?? 0) === 0
+    && !(workingState.awaiting?.length)
+    && !workingState.blocked;
+
   return {
     kind: 'reply',
     reply,
@@ -2791,7 +2818,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 현재 목표 유지(P6-1): 서버가 session.activeGoal 로 지속해 세션 간 좁게 복원한다.
     // **끝났으면 명시적으로 해제한다.** 안 그러면 끝난 일이 계속 "현재 목표"로 남아
     // 다음 턴을 붙든다(실측: activeGoal 이 새 발화로 덮여 런타임이 "진행 중"처럼 말했다).
-    goal: 완료 ? null : { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+    // 대화 턴의 목표 소진(수명주기 v2)도 같은 자리에서 닫힌다 — 위 주석 블록 참조.
+    goal: (완료 || 대화턴소진) ? null : { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria },
+    // **소진과 "세운 적 없음"은 다른 사실이다.** 정산 게이트(P90-1)는 "이 턴이 작업을
+    // 세웠는가"를 구조 사실로 묻는데, 그 신호가 `goal` 의 truthy 에 얹혀 있었다 — 목표
+    // 수명을 닫자 정산까지 함께 꺼졌다(시험 3건 빨강으로 잡힘). 두 소비자를 한 필드에
+    // 태우지 않는다: 지속할 목표는 `goal`, 이 턴이 세웠다 소진한 목표는 `spentGoal` 로 나른다.
+    ...(대화턴소진 && !완료 ? { spentGoal: { understoodTask: plan.understoodTask, successCriteria: plan.successCriteria } } : {}),
     // 자기 파악 세 번째 축 — 서버가 세션에 지속해 다음 턴이 "그거"를 이어받는다.
     workingState,
     // **이번 턴에 모델이 실제로 부른 것** — 다음 턴이 이어받아 자기 이력으로 되돌려 준다
