@@ -110,7 +110,7 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
                 + 'agreement_retracted와 question_resolved도 브리프의 현재 대상을 targetQuote로 정확히 지목한다.',
             },
             utteranceQuote: { type: 'string', description: '이번 사용자 발화에서 글자 그대로 따온 근거' },
-            targetQuote: { type: 'string', description: '수정·철회·해소 대상의 저장된 원문 또는 질문을 글자 그대로' },
+            targetQuote: { type: 'string', description: '수정·철회·해소 대상의 저장된 원문 또는 질문을 글자 그대로. 브리프에 그 값이 없으면 **그 값을 정했던 사용자의 과거 발화를 글자 그대로** 따온다 — 네가 요약한 문장은 대조할 원본이 없어 사건이 되지 못한다' },
           },
           required: ['type', 'utteranceQuote'],
         },

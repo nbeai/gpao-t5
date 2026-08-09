@@ -2772,6 +2772,24 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       && r?.actualCall?.tool === 'local.file'
       && ['write', 'move', 'delete'].includes(r?.actualCall?.args?.action)
       && r?.result !== undefined);
+  // **이 작업의 산출물 신분**(P-OP S4 마감 · 오너 정정 2026-08-10 — "하나" 고정 금지) —
+  // 파일 산출물 계약이 선 턴의 성공 write 들이 작업의 결과물 목록으로 working-state 에 선다
+  // (새 저장소 아님 — 세션이 이미 나르는 상태). 실측: 신분 승계("방금 다룬 파일")는 보였는데
+  // 산출물 신분이 없어, 열 명세 같은 추가 요청에 모델이 같은 파일을 고치지 않고 새로 만들었다
+  // (S4 결과 파일 2개 · 2/4). 판정은 계약(plan)과 원장(영수증)의 대조뿐이다 — 문구 판정 0.
+  const 산출물영수증들 = plan.deliverableAssessment === 'file'
+    ? turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file'
+      && r?.actualCall?.args?.action === 'write'
+      && typeof r?.actualCall?.args?.path === 'string'
+      && r?.result !== undefined)
+    : [];
+  if (산출물영수증들.length) {
+    workingState = 이어받기정리(deriveWorkingState(workingState, {
+      withinTurn: true,
+      deliverables: 산출물영수증들.map((r) => ({ path: r.actualCall.args.path })),
+    }), ctx.connectors);
+  }
   reply = await 답완성({
     reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록(), 파일계약빈손,
   });

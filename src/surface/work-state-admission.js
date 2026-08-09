@@ -38,10 +38,12 @@ function targetFor(change, targets) {
     ? record.evidence?.question : record.evidence?.statement ?? '');
   const quote = String(change.targetQuote ?? '');
   const 완전일치 = 후보.find((record) => 글(record) === quote);
-  if (완전일치) return 완전일치;
-  if (quote.length < 4) return undefined;   // 너무 짧은 조각은 무엇이든 품는다 — 해소가 아니다
+  if (완전일치) return { target: 완전일치 };
+  if (quote.length < 4) return { target: undefined, 모호: false };   // 짧은 조각은 무엇이든 품는다 — 해소가 아니다
   const 품음 = 후보.filter((record) => 글(record).includes(quote) || quote.includes(글(record)));
-  return 품음.length === 1 ? 품음[0] : undefined;
+  // **모호와 부재는 다르다**(③-b 봉인) — 여럿을 품으면 지어내지 않고 거부해야 하고,
+  // 아무도 안 품으면 그때가 소급(사용자 원문 정의역)의 자리다.
+  return 품음.length === 1 ? { target: 품음[0] } : { target: undefined, 모호: 품음.length > 1 };
 }
 
 function validQuote(text, quote) {
@@ -152,10 +154,63 @@ export async function admitWorkStateProposal({
       continue;
     }
     if (!workRef || !change.targetQuote) return { accepted: false, reason: 'target_required' };
-    const target = targetFor(change, targets);
+    const 해소 = targetFor(change, targets);
+    const target = 해소?.target;
+    if (해소?.모호) {
+      // **여럿을 품는 조각은 지어내지 않는다**(③-b 봉인 그대로) — 모호는 부재가 아니다.
+      return {
+        accepted: false,
+        reason: 'target_not_current',
+        detail: {
+          targetQuote: change.targetQuote,
+          currentQuotes: targets.map((r) => r.evidence?.statement ?? r.evidence?.question).filter(Boolean),
+        },
+      };
+    }
+    if (!target && change.type === 'question_resolved') {
+      // 미정 해소는 **열린 질문이 실재해야** 한다 — 없는 질문을 닫으면 없던 미정이 지어진다.
+      // **왜 못 맞췄는지 보이게 한다**(2026-08-10) — 진단면이므로 사용자·모델면에 나가지 않는다.
+      return {
+        accepted: false,
+        reason: 'target_not_current',
+        detail: {
+          targetQuote: change.targetQuote,
+          currentQuotes: targets.map((r) => r.evidence?.statement ?? r.evidence?.question).filter(Boolean),
+        },
+      };
+    }
     if (!target) {
-      // **왜 못 맞췄는지 보이게 한다**(2026-08-10). 지목이 빗나가면 "수정·철회가 원장에 안
-      // 남는다"만 남고 원인이 안 보인다 — 진단면이므로 사용자·모델면에 나가지 않는다.
+      // ── **수정·제외의 대상이 원장에 없다 — 거절하지 않는다**(P-OP S1 마감 · 2026-08-10) ──
+      //
+      // 실측(final r3·r4): 모델은 수정·제외를 9·10턴에 4/4 제출했는데, 지목 대상(t2·t3 의
+      // 확정)이 게이트 탓에 원장에 못 서서 전부 `target_not_current` 로 죽었다 — 사용자의
+      // 변경이 사라지고 **옛 값·미정 값이 최종 종합에 되살아나는** 뿌리다.
+      //
+      // **대상이 사용자 원문에서 하나로 특정되면 — 현재 발화가 새 확정으로 선다**(오너 판정
+      // 2026-08-10). 과거 확정을 소급해 만들지 않는다: 그 발화는 검토("…생각했어")였을 수
+      // 있고, 원장에 없던 과거를 발명하면 역사가 달라진다. **과거 기록 부재는 부재로 남기고**,
+      // 사용자가 지금 정한 값(utteranceQuote — 이미 원문 대조 통과)이 현재값으로 확정된다.
+      // 사건은 하나라 원자적이다(두 번 저장 없음 — Truth Ledger 계약).
+      //
+      // 대상의 사용자 원문 특정은 **거짓 전제 차단기**로만 쓴다: 진짜 수정은 옛 값을 정했던
+      // 사용자 발화가 실재하지만, 거짓 전제의 지목(자기 답 문장·브리프 렌더 요약)은 사용자
+      // 원문 어디에서도 특정되지 않는다 — 그 갈래는 아래에서 예전 그대로 거절된다(A-② 계약).
+      const 대상실재 = (() => {
+        const quote = String(change.targetQuote ?? '');
+        if (quote.trim().length < 4) return false;   // 짧은 조각은 무엇이든 품는다 — 해소가 아니다
+        return (priorUtterances ?? []).filter((u) => String(u?.text ?? '').includes(quote)).length === 1;
+      })();
+      if (대상실재) {
+        if (alreadyRecorded(records, workRef, change.utteranceQuote)) {
+          return { accepted: false, reason: 'already_recorded' };
+        }
+        prepared.push({ change: { type: 'agreement_set', utteranceQuote: change.utteranceQuote }, target: null });
+        continue;
+      }
+      // **소급도 안 되면 예전 그대로 거절한다.** 검증된 이번 발화를 새 확정으로 "강등"하는
+      // 길을 실측이 물렸다(전체 회귀 · A-② 봉인 빨강): 거짓 전제 평서문("~포함한다고 했지.")도
+      // 사용자가 한 말이라 강등이 그것을 사건으로 세운다 — 의미를 재지 않고는 진짜 수정과
+      // 못 가른다. 못 가르는 자리는 fail-closed 다(사건 0 이 옳다 — A-② 계약 유지).
       return {
         accepted: false,
         reason: 'target_not_current',

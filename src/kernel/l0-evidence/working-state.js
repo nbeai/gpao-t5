@@ -148,6 +148,21 @@ export function deriveWorkingState(prevState, turn = {}) {
   const recentOutcome = turn.outcome
     ?? (지난완료 && turnNo - (지난완료.completedTurn ?? 0) <= FORGET_AFTER_TURNS ? 지난완료 : undefined);
 
+  // **이 작업의 결과물 목록**(P-OP S4 마감 · 오너 정정 2026-08-10). 파일 산출물 계약(FILE)의
+  // 성공 write 가 작업의 결과물로 선다 — "방금 다룬 파일"(읽은 것도 섞인다)과 다른, 산출물의
+  // 신분이다. 실측(S4-final-r2 6턴): 이 신분이 없어 모델이 열 명세 요청에 같은 파일을 고치지
+  // 않고 새로 만들었다(결과 파일 2개 — 2/4 재현).
+  // **"하나"로 고정하지 않는다**(오너 지적): 실사용은 보고서+엑셀+이미지처럼 여러 산출물을
+  // 요청한다 — 계약(CompletionContract)이 요구한 개수·신분이 진실이고, 여기는 **만들어진
+  // 것들의 원장 사실**만 잇는다. 같은 경로 재작성은 갱신, 새 경로는 목록에 더해진다.
+  // 판단(고칠지 새로 만들지)은 모델의 것이다. 부르는 쪽(turn.js)이 계약·원장 대조로 넘긴다.
+  const 이전산출물 = (prev.deliverables ?? []).filter((d) => turnNo - (d.lastTurn ?? 0) <= FORGET_AFTER_TURNS);
+  const 새산출물 = (turn.deliverables ?? []).filter((d) => typeof d?.path === 'string');
+  const 산출물모음 = [...새산출물.map((d) => ({ path: d.path, lastTurn: turnNo })), ...이전산출물]
+    .filter((d, i, all) => all.findIndex((x) => x.path === d.path) === i)
+    .slice(0, 5);
+  const deliverables = 산출물모음.length ? 산출물모음 : undefined;
+
   return {
     turnNo,
     ...(places?.length ? { places } : {}),
@@ -156,6 +171,7 @@ export function deriveWorkingState(prevState, turn = {}) {
     pendingApprovals: turn.pendingApprovals?.length ? turn.pendingApprovals : prev.pendingApprovals,
     ...(awaiting.length ? { awaiting } : {}),
     ...(recentOutcome ? { recentOutcome } : {}),
+    ...(deliverables ? { deliverables } : {}),
     blocked,
   };
 }
@@ -208,6 +224,13 @@ export function workingStateFacts(stateOrNull) {
   const 끝난 = state.recentOutcome;
   if (끝난?.status === 'completed') {
     lines.push(`최근 완료한 일: ${끝난.request}${끝난.subjects?.length ? ` — ${끝난.subjects.join(' · ')}` : ''} (완료됨)`);
+  }
+  // **이 작업의 산출물 신분** — 원장 사실만 말한다(P-OP S4 마감 · 오너 정정: "하나"로
+  // 고정하지 않는다 — 여러 산출물 작업이 실사용이다). "다룬 파일"은 읽은 것도 섞여 산출물의
+  // 신분이 아니었다 — 그래서 모델이 추가 명세 요청에 새 파일을 만들었다. 무엇을 할지는
+  // 모델이 정한다 — 이미 만들어진 결과물이 무엇인지는 원장이 정한다.
+  if (state.deliverables?.length) {
+    lines.push(`이 작업에서 만든 결과물 파일: ${state.deliverables.map((d) => d.path).join(' · ')}`);
   }
   for (const s of current) {
     if (s.kind === 'web') {
