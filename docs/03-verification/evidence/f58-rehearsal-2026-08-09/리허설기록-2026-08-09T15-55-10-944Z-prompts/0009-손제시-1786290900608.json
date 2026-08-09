@@ -1,0 +1,50 @@
+{
+  "at": "2026-08-09T15:55:00.608Z",
+  "kind": "tool_offer",
+  "전부": 20,
+  "준수": 17,
+  "거른수": 3,
+  "준것": [
+    "web.search",
+    "web.collect",
+    "local.file",
+    "local.discovery",
+    "local.terminal",
+    "local.system",
+    "local.process",
+    "local.locate",
+    "local.capsule",
+    "session.search",
+    "browser.observe",
+    "browser.act",
+    "connector.connect",
+    "connector.declare",
+    "desktop.screen",
+    "desktop.act",
+    "agent.delegate"
+  ],
+  "거른것": [
+    {
+      "id": "mail.send",
+      "이유": "planned"
+    },
+    {
+      "id": "slack.post",
+      "이유": "needs_connection"
+    },
+    {
+      "id": "telegram.send",
+      "이유": "needs_connection"
+    }
+  ],
+  "통제채널": [
+    "skill.propose",
+    "automation.propose",
+    "agent.propose",
+    "work.state"
+  ],
+  "이유별": {
+    "planned": 1,
+    "needs_connection": 2
+  }
+}
