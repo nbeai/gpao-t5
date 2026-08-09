@@ -191,7 +191,27 @@ async function 볼수있는자리(home, volumesDir = '/Volumes') {
   try {
     for (const e of await readdir(home, { withFileTypes: true })) {
       if (!e.isDirectory() || e.name.startsWith('.') || SKIP.has(e.name)) continue;
-      자리.push({ label: e.name, path: join(home, e.name), kind: 'folder', hint: '내 폴더' });
+      // **자리에 내용 사실을 동봉한다**(F-54 ③ 완성 · PM 판정 2026-08-09). 이 병 계열에서
+      // 행동을 움직인 재료는 언제나 **내용**이었다 — ⑤를 살린 건 이웃 파일의 존재가 아니라
+      // 그 합계였고, 파일-먼저 흐름을 끌던 것도 이 파일의 힌트("2026-08 자료예요")였다.
+      // 이름 9개는 화면에 이미 떠 있는 완성된 답과 싸울 수 없다.
+      // **새 계산은 없다** — 이 파일이 이미 세는 자(성격·자료기간)를 명부에도 적용할 뿐이다.
+      // 못 읽은 폴더는 이름만 남는다(없는 사실을 지어내지 않는다).
+      let 사실;
+      try {
+        const 안 = await readdir(join(home, e.name), { withFileTypes: true });
+        // 자 사용법은 locate 의 후보 스캔과 **한 벌**이다(450행) — 전체 항목 이름을 넘긴다.
+        // 파일만 넘기면 날짜를 품은 하위 폴더 이름("2026-08 정산")이 빠져 사실이 빈다(실측).
+        const 이름들 = 안.map((x) => x.name);
+        const 성 = 성격(안.map((x) => ({ name: x.name })));
+        const 기간 = 자료기간(e.name, 이름들);
+        const 조각 = [];
+        if (기간) 조각.push(`${기간} 자료`);
+        if (성.kind === 'documents') 조각.push(`문서 ${성.counts.doc}`);
+        else if (성.kind && 종류이름[성.kind]) 조각.push(종류이름[성.kind]);
+        if (조각.length) 사실 = 조각.join(' · ');
+      } catch { /* 폴더를 못 읽으면 이름만 — 지어내지 않는다 */ }
+      자리.push({ label: e.name, path: join(home, e.name), kind: 'folder', hint: '내 폴더', ...(사실 ? { 사실 } : {}) });
     }
   } catch { /* 홈을 못 보면 넣지 않는다 */ }
   return 자리.slice(0, 14); // 목록이 길면 고르기 어렵다

@@ -148,8 +148,14 @@ function 자리공백동봉(rec, 이번턴영수증들, ctx) {
   if (!파일자리.length || !화면자리들.length) return; // 한 종류뿐 — 고를 공백이 없다
   const 닿았나 = (판별) => 이번턴영수증들.some((r) => (r?.failureState ?? 'none') === 'none'
     && 판별(String(r?.actualCall?.tool ?? '')));
+  // **이름이 아니라 내용으로**(③ 완성 · PM 판정 2026-08-09). 자리에 동봉된 내용 사실
+  // (locate 의 자 — 자료기간·성격·개수)이 있으면 함께 싣는다: "GPAO-T5(2026-08 자료 · 문서 2)".
+  // 질문과 자리의 관련성이 사실로 선다 — 판단은 여전히 모델이 한다.
+  const 파일자리말 = (ctx.이번턴파일자리 ?? [])
+    .map((p) => (p?.label ? `${p.label}${p.사실 ? `(${p.사실})` : ''}` : String(p)))
+    .filter(Boolean);
   const 사실 = (화면계 && !닿았나((t) => t.startsWith('local.')))
-    ? `이번 턴에 아직 안 본 자리 종류 — 파일: ${파일자리.join(' · ')}`
+    ? `이번 턴에 아직 안 본 자리 종류 — 파일: ${파일자리말.join(' · ')}`
     : (파일계 && !닿았나((t) => t === 'desktop.screen'))
       ? `이번 턴에 아직 안 본 자리 종류 — 화면: ${화면자리들.slice(0, 5).join(' · ')}` // 폭 동결과 같은 5
       : null;
@@ -1020,7 +1026,12 @@ export async function runTurn(input, ctx) {
   // 턴에는 그게 비어 있어 그물이 한 번도 안 물었다 — 오너의 창 하나를 미검증 배선에 태운
   // 그 자리다. 화면 자리만 머리 관측을 받고 파일 자리는 안 받은 **대칭 누락**이었다.
   // 관측은 턴에 1회 — 아래 파생 자리들이 이 값을 이어받는다(두 번 세지 않는다).
-  ctx.이번턴파일자리 = await 볼수있는자리(ctx);
+  {
+    const t0 = Date.now();
+    ctx.이번턴파일자리 = await 볼수있는자리(ctx);
+    // 내용 동봉으로 관측 비용이 늘었다 — 얼마나인지는 재서 남긴다(PM 조건 · 화면 자리와 같은 계약).
+    ctx.파일자리지연 = { 걸린ms: Date.now() - t0, 자리수: (ctx.이번턴파일자리 ?? []).length };
+  }
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
   let earlyTc;
   let earlyWantedWeb = false;
@@ -1233,6 +1244,7 @@ export async function runTurn(input, ctx) {
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       exitNetDiagnostic: ctx.출구그물, // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
       screenPlaceDiagnostic: ctx.화면자리지연, // F-54 지연 실측(PM 조건 2 · 진단면)
+      filePlaceDiagnostic: ctx.파일자리지연,   // ③ 완성 — 내용 동봉 비용 실측(진단면)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
       memoryWithdrawal,
@@ -2754,6 +2766,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     selfStateSummary: summary,
     exitNetDiagnostic: ctx.출구그물,     // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
     screenPlaceDiagnostic: ctx.화면자리지연, // F-54 지연 실측(PM 조건 2 · 진단면)
+    filePlaceDiagnostic: ctx.파일자리지연,   // ③ 완성 — 내용 동봉 비용 실측(진단면)
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
     // **영수증의 사용자면 문장을 쓴다.** 예전엔 계획의 `recoveryCriteria`(내부 문자열)를 그대로

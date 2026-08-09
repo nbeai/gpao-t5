@@ -261,3 +261,45 @@ test('사전 재료 반대시험: 양쪽 다 닿은 턴·자리 한 종류뿐인
   assert.ok((r2.turnExchange ?? []).every((x) => !String(x.summary ?? '').includes('아직 안 본 자리 종류')),
     '자리가 한 종류뿐인데 공백 사실이 실렸다 — 고를 수 없는 것을 나무란다');
 });
+
+// ── **③ 완성 봉인 — 자리 사실에 내용이 실린다** (PM 판정: 재료 층의 마지막 시도 · 2026-08-09) ──
+//
+// 이 병 계열에서 행동을 움직인 재료는 언제나 내용이었다(⑤: 이웃의 존재가 아니라 합계).
+// 이름 9개는 화면의 완성된 답과 싸울 수 없다 — locate 가 이미 세는 자(자료기간·성격·개수)를
+// 명부와 공백 사실에 동봉한다. 새 계산 0 · 못 읽은 폴더는 이름만(지어내지 않음).
+test('명부의 자리에 내용 사실이 동봉되고, 공백 사실이 그것을 싣는다', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { makeLocalLocateTool } = await import('../src/runtime/local-locate.js');
+  const home = await mkdtemp(join(tmpdir(), 'f54c-'));
+  await mkdir(join(home, '2026-08 정산'), { recursive: true });
+  await writeFile(join(home, '2026-08 정산', '2026-08 매출정산.csv'), '거래처,금액\nA,1\n');
+  await writeFile(join(home, '2026-08 정산', '8월 정산내역.csv'), '거래처,금액\nB,2\n');
+  await mkdir(join(home, '빈폴더'), { recursive: true });
+
+  const 명부 = await makeLocalLocateTool({ home, volumesDir: join(home, '없는볼륨') }).places();
+  const 정산 = 명부.find((p) => p.label === '2026-08 정산');
+  assert.ok(정산, '홈 폴더가 명부에 없다');
+  assert.match(String(정산.사실 ?? ''), /2026-08 자료/, '자료기간 사실이 안 실렸다 — 이름뿐인 자리로 돌아간다');
+  assert.match(String(정산.사실 ?? ''), /문서 2/, '개수 사실이 안 실렸다');
+  const 빈 = 명부.find((p) => p.label === '빈폴더');
+  assert.equal(빈?.사실, undefined, '빈 폴더에 내용 사실을 지어냈다');
+
+  // 공백 사실이 그 내용을 그대로 싣는다 — runTurn 관통.
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoContext } = await import('../src/surface/demo-context.js');
+  let 걸음 = 0; const 받은재료 = [];
+  const model = { async respond(tc) {
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+    받은재료.push(JSON.stringify(tc)); 걸음 += 1;
+    if (걸음 === 1) return { text: '', toolCalls: [{ providerCallId: 'p1', name: 'desktop.screen', args: { action: 'observe' } }] };
+    return { text: '합쳐서 3원이에요.' };
+  } };
+  const desktop = { async places() { return { 창들: [{ label: '카드 — Chrome', kind: 'screen' }], 걸린ms: 4 }; }, async handler() { return { result: {} }; } };
+  const localLocate = { places: () => makeLocalLocateTool({ home, volumesDir: join(home, '없는볼륨') }).places(), async handler() { return { result: { candidates: [] } }; } };
+  const r = await runTurn({ text: '이번 달 얼마 벌었지?' }, { ...demoContext({ desktop, localLocate }), model });
+  assert.ok(받은재료.slice(1).some((m) => m.includes('아직 안 본 자리 종류') && m.includes('2026-08 자료')),
+    '공백 사실이 이름만 싣는다 — 내용(자료기간)이 함께 가야 관련성이 사실로 선다');
+  assert.ok(Number.isFinite(r.filePlaceDiagnostic?.걸린ms), '내용 동봉 비용 실측이 진단면에 없다');
+});
