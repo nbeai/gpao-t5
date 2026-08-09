@@ -48,7 +48,7 @@ import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
-import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나 } from './l2-plan/exit-verification.js';
+import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -593,7 +593,7 @@ function 이전대기를지난것으로(ctx) {
  * **같은 스트리밍 계약**으로 간다 — 하필 이 답만 조각으로 안 흐르면 사용자는 제일 오래
  * 기다린 자리에서 제일 늦게 본다.
  */
-async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약손 = [] }) {
+async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약손 = [], 파일계약빈손 = false }) {
   // H09 P0(거짓 성공): 이번 턴 읽기가 전패했는데 답이 내용을 서술하면, 그 답 대신 영수증의
   // 정직한 사실이 나간다. 판정 근거는 원장이다 — 성공 영수증이 하나라도 있으면 개입하지 않는다
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
@@ -603,12 +603,12 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   // 자리마다 적으면 언젠가 하나가 빠지고, 빠진 그 경로로 거짓 완료가 그대로 나간다.
   // 실측(2026-08-04): `executePlan` 에만 붙였더니 **손을 안 고른 턴**이 그 앞에서 돌아가
   // 그대로 통과했다 — 그게 정본이 말한 "말로만 끝남"의 바로 그 자리였다.
-  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts });
+  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts, 파일계약빈손 });
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
   const 다시 = userFacingModelText(typeof retry === 'string' ? retry : retry?.text ?? '');
-  return 출구검증(다시 || fallbackReplyFrom(receipts), { tc, ctx, receipts });
+  return 출구검증(다시 || fallbackReplyFrom(receipts), { tc, ctx, receipts, 파일계약빈손 });
 }
 
 /**
@@ -622,7 +622,7 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
  * `답완성` 옆에 두는 이유: 답이 나가는 자리가 여럿이라 자리마다 적으면 언젠가 하나가 빠지고,
  * 빠진 그 경로로 거짓 완료가 그대로 나간다(구조원칙 §2-C).
  */
-async function 출구검증(reply, { tc, ctx, receipts = [] }) {
+async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 = false }) {
   // **원장글**: 이 턴의 영수증 + 앞 턴 교환. 답이 가리킨 자리가 여기 없으면 지어낸 것이다.
   // 두 벌을 따로 만들지 않는다 — 모델이 받은 것과 같은 사실 위에서 대조한다.
   const 원장글 = JSON.stringify([receipts ?? [], tc?.turnExchange ?? []]);
@@ -661,6 +661,27 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
     completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
   }, { onDelta: ctx.onAnswerDelta, effort: 'medium' }).catch(() => null);
   const 고친답 = userFacingModelText(typeof 다시 === 'string' ? 다시 : (다시?.text ?? ''));
+  // ── **보정 실패는 거짓 답으로 회귀하지 않는다**(P-OP 수리 계약 FILE-⑦ · 2026-08-10) ──
+  //
+  // 실측(S4 재현): 되부름 뒤 모델이 같은 거짓 완료를 반복하면 "한 턴에 한 번" 계약이
+  // 그 두 번째 거짓을 그대로 사용자에게 보냈다. 왕복은 여전히 한 번이다 — 다시 부르지
+  // 않고, 되부름 뒤의 답이 여전히 **실물 없는 파일 완료 주장**(FILE 계약 빈손 · 원장 밖
+  // 이름·자리)이면 원장 기반 짧은 미완료 답으로 끝낸다. 부드러운 그물(개수 어림 등)은
+  // 재지 않는다 — 정직하게 고쳐 쓴 답을 잡아먹으면 그게 반대 방향의 거짓이다.
+  //
+  // **셋째 갈아치움 칸이다**(계획 §3-A 회계 · answer-authorship-lanes 참조). 앞 둘(거짓
+  // 성공 게이트)과 같은 P0 성질 — 모델에게 이미 한 번 돌려줬고, 그 뒤에도 반복된 거짓만
+  // 잡는다. 일반 대화는 이 칸에 오지 않는다(파일 산출물 존재만 절대 게이트).
+  const 재검증 = 절대재검증({ reply: 고친답.trim() ? 고친답 : reply, receipts, 원장글, 파일계약빈손 });
+  if (재검증.재거짓) {
+    ctx.출구그물 = { 사실: 검증.모델에게, 재거짓: 재검증.사실 };
+    ctx.미리보기?.retract?.();
+    const 막힘 = (receipts ?? []).some((r) => r?.failureState && !['none', 'cancelled'].includes(r.failureState));
+    return [
+      '방금 요청은 아직 완료하지 못했어요 — 이 턴의 기록에 그 완료를 뒷받침하는 실행이 없어요.',
+      ...(막힘 ? [fallbackReplyFrom(receipts)] : []),
+    ].join(' ');
+  }
   return 고친답.trim() ? 고친답 : reply;
 }
 
@@ -2731,7 +2752,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 도구를 빼고 한 번 더 묻는 자리 — **빠른 경로와 같은 계약을 쓴다**(`답완성`).
   // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
   // 소진했다고 말하면 모델이 "손이 없다"는 거짓 상태를 사용자에게 설명한다.
-  reply = await 답완성({ reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록() });
+  // **FILE 절대 게이트의 재료**(P-OP 수리 계약 · 2026-08-10) — 이 턴에 파일 산출물 계약이
+  // 섰는데 성공한 파일 변경(write·move·delete) 영수증이 0 이라는 **기계 사실.** 출구의
+  // 되부름 뒤에도 같은 완료 주장이 반복되면 이 사실이 거짓 답의 회귀를 막는다(절대재검증).
+  // 문구 판정이 아니다 — 계약(ActionPlan)과 원장(영수증)의 대조다.
+  const 파일계약빈손 = plan.deliverableAssessment === 'file'
+    && (plan.deliverables ?? []).length > 0
+    && !turnReceipts.some((r) => (r?.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file'
+      && ['write', 'move', 'delete'].includes(r?.actualCall?.args?.action)
+      && r?.result !== undefined);
+  reply = await 답완성({
+    reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록(), 파일계약빈손,
+  });
   // **답을 대필하지 않는다.** 한때 여기서 `/끝냈|완료|끝났|다 했/` 을 잡아 "부분 완료입니다…"를
   // 앞에 붙였다. 문구 판정은 다음 문장에서 또 새고(§4-6), 무엇보다 최종 답은 모델의 것이다
   // (동결 §5.2 과정 ⑥ — 템플릿 대필 0). 남은 수는 이미 원장·`unfinishedFileOrganization`·

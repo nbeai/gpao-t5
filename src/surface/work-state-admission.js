@@ -31,6 +31,15 @@ function validQuote(text, quote) {
   return typeof quote === 'string' && quote.length > 0 && String(text ?? '').includes(quote);
 }
 
+// **물음은 확정이 아니다**(P-OP 결함 가족 A-② · 2026-08-10). 이 모듈의 계약은
+// "모델이 지목한 문장이 실제로 있었는지"인데, 존재만 보면 거짓 전제 질문("~포함한다고
+// 했지?")이 그 문장 그대로 합의 사건이 된다 — 기계 확인으로 사건 1이 실제로 생겼다.
+// 의미 판단이 아니라 **문장 부호의 기계 사실**만 본다: 물음표로 끝나는 발화는 합의의
+// 증거 인용이 될 수 없다(질문은 openQuestion 의 자리다). 목록이 아니라 닫힌 부호다.
+function questionShaped(quote) {
+  return /[?？]\s*$/.test(String(quote ?? '').trim());
+}
+
 /**
  * 모델 후보는 단독으로 사건이 되지 않는다. 모든 후보를 먼저 검증한 뒤에만 append한다.
  */
@@ -46,6 +55,9 @@ export async function admitWorkStateProposal({
   }
   if (changes.some((change) => !validQuote(inputText, change.utteranceQuote))) {
     return { accepted: false, reason: 'utterance_quote_mismatch' };
+  }
+  if (changes.some((change) => questionShaped(change.utteranceQuote))) {
+    return { accepted: false, reason: 'question_is_not_confirmation' };
   }
   if (openQuestion && (!validQuote(reply, openQuestion.question) || !openQuestion.changesAnswerFor)) {
     return { accepted: false, reason: 'question_not_delivered' };

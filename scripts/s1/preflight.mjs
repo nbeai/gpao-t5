@@ -353,6 +353,10 @@ export const 허용파일 = [
   'src/surface/web/index.html',
   // §S5 출구 검증 — 완료 주장을 원장과 대조하고 어긋나면 모델에게 되돌린다.
   'src/kernel/l2-plan/exit-verification.js',
+  // **P-OP 결함 가족 A-②**(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다.
+  // 거짓 전제 질문("~포함한다고 했지?")이 그 문장 그대로 agreement_set 으로 입장하는 것을
+  // 기계 확인으로 재현하고 닫았다. 프롬프트·스키마 지문은 안 바뀐다(입장 경계만).
+  'src/surface/work-state-admission.js',
   'src/runtime/model-provider.js',
   // **S0 계측**(2026-08-05). 조립된 프롬프트를 볼 수 없어서 "안녕에 능력을 읊는" 원인을 세 번
   // 잘못 짚었다. 이 모듈은 고치는 도구가 아니라 **보는 도구**이고, 기본은 꺼짐이라 제품 동작을

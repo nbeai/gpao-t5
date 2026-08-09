@@ -110,7 +110,18 @@ const within = (dir, p) => p === dir || p.startsWith(dir.endsWith(sep) ? dir : d
 const baseName = (p) => String(p).split(sep).pop() ?? '';
 
 // F7.3: 시스템 자리를 품는 SCRATCH 항목은 면제로 쓰지 않는다(위 선언의 실제 적용).
-const SCRATCH = SCRATCH_RAW.filter((d) => d && !SYSTEM_DIRS.some((s) => within(d, s)));
+//
+// **홈에서 파생된 시스템 자리는 이 판정에서 뺀다**(P-OP 결함 가족 B-④′ · 2026-08-10 실측).
+// 격리 HOME 이 임시 폴더 안에 서면(`HOME=/private$TMPDIR/…/home`) 홈 파생 항목
+// (`~/Library/LaunchAgents`)이 SCRATCH 안에 들어가 이 필터가 `/private$TMPDIR` 면제를
+// 통째로 걷었다 — 그 순간 realpath 된 방 전체가 `/private/var`(SYSTEM)로 읽혀 **명시된
+// 루트 안 write 까지** "운영체제와 앱이 쓰는 자리"로 막혔다(S4 재현 6턴 write 3/3 차단 ·
+// 결과 파일 0개의 기계 원인). F7.3 이 막으려던 것은 TMPDIR 오염이 **OS 자리**를 여는
+// 것이고, 홈 파생 항목은 홈이 어디 서느냐에 따라 움직이는 값이라 그 증거가 아니다 —
+// 임시 홈의 LaunchAgents 는 OS 가 읽지 않으므로 자동실행 지속성도 생기지 않는다.
+const SCRATCH = SCRATCH_RAW.filter(
+  (d) => d && !SYSTEM_DIRS.some((s) => !within(HOME, s) && within(d, s)),
+);
 
 /**
  * 비밀 자리의 실제 경로들. **샌드박스 프로파일도 같은 목록을 쓴다** — 두 벌로 두면

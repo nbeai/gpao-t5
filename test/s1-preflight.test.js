@@ -183,6 +183,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/tool-runner.js',
     'src/surface/web/index.html',
     'src/kernel/l2-plan/exit-verification.js',
+    // P-OP 결함 가족 A-②(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다(입장 경계만).
+    'src/surface/work-state-admission.js',
     'src/runtime/model-provider.js',
     // S0 계측(2026-08-05) — 조립된 프롬프트를 보는 모듈. 기본 꺼짐이라 제품 동작을 안 바꾼다.
     'src/runtime/prompt-dump.js',

@@ -14,9 +14,9 @@
 //     보호가 '운영체제와 앱이 쓰는 자리'로 막았다(6턴 write 3회 전부 blocked).
 //
 // 이 파일의 규율:
-//   · 이미 초록인 계약은 그대로 봉인한다(반대시험).
-//   · 아직 빨간 계약은 **todo 로 정직하게 기록**한다 — 본선을 빨갛게 만들지 않되
-//     "이미 됐다"고 꾸미지도 않는다. 수리(2단계)가 서면 todo 를 걷는다.
+//   · 1단계(49f8645)에서 초록 5는 봉인, 빨강 5는 todo 로 기록했다.
+//   · 2단계 수리(입장 물음표 거부 · F7.3 홈파생 제외 · 원장 밖 파일 이름 그물 ·
+//     되부름 뒤 절대 재검증)가 서면서 todo 를 걷어 전부 정식 봉인이다.
 //   · 정규식 문구 패치·대본 맞춤 분기 없음 — 전부 기존 경계(admission·projection·
 //     출구 그물·working-state)의 기계 사실로 잰다.
 import { test } from 'node:test';
@@ -80,7 +80,7 @@ test('A-① 모델 제안 문장은 사용자 원문에 없으면 입장하지 �
 //    HEAD 빨강(실측): 질문 원문이 사용자 발화에 있다는 이유만으로 agreement_set 이
 //    입장했다(accepted:true · 사건 1). 인용 존재만 보고 발화의 종류(질문/확정)를 보지 않는다.
 //    S1 11턴의 거짓 전제가 이 문으로 상태가 될 수 있다 — 수리 뒤 사건 0 이어야 한다.
-test('A-② 거짓 전제 질문은 사건 생성 0', { todo: 'HEAD 6c2273e 빨강 — 질문 발화가 agreement_set 으로 입장한다(재현 실측)' }, async () => {
+test('A-② 거짓 전제 질문은 사건 생성 0', async () => {
   const store = await 새원장();
   const turnRef = { sessionId: 's-a2', turnSeq: 1 };
   const provisional = await store.issueWorkRef({ turnRef, workOrdinal: 0 });
@@ -215,7 +215,7 @@ test('B-⑤ 파생 결과 생성 뒤 원본 내용 불변', async () => {
 //     그 순간 realpath 된 방 전체가 '/private/var'(SYSTEM_DIRS) 로 읽혀 **루트 안 쓰기까지**
 //     '운영체제와 앱이 쓰는 자리'로 막힌다. S4 절대 실패(결과 파일 0개)의 기계 원인이며,
 //     원본 보호 범위가 파생 결과물 생성 범위를 삼킨 자리다(수리 계약 B).
-test('B-④′ 격리 HOME 에서도 명시된 루트 안 쓰기는 막히지 않는다', { todo: 'HEAD 6c2273e 빨강 — 임시 폴더 홈에서 루트 안 write 가 system 보호로 차단된다(S4 재현 6턴 3/3)' }, async () => {
+test('B-④′ 격리 HOME 에서도 명시된 루트 안 쓰기는 막히지 않는다', async () => {
   const script = `
     const { mkdtempSync, mkdirSync, realpathSync } = require('node:fs');
     const { tmpdir } = require('node:os');
@@ -246,7 +246,7 @@ test('B-④′ 격리 HOME 에서도 명시된 루트 안 쓰기는 막히지 �
 // ⑥ 성공한 write Receipt 없이 "만들었다"는 사용자에게 가지 않는다.
 //    HEAD 빨강(실측 · S4 6턴 원문 모양): 읽기 영수증이 있으면 확인된실행>0 이라 지나가고,
 //    주장된 파일 이름은 `/` 가 없어 가리킨자리들 대조에도 안 걸린다.
-test('FILE-⑥ 쓰기 영수증 0 인 파일 완료 주장은 출구에서 모델에게 돌아간다', { todo: 'HEAD 6c2273e 빨강 — 읽기만 있는 턴의 "만든 통합 결과"가 그대로 통과한다(재현 실측)' }, () => {
+test('FILE-⑥ 쓰기 영수증 0 인 파일 완료 주장은 출구에서 모델에게 돌아간다', () => {
   const receipts = [읽기영수증('A사_7월_최종.csv'), 읽기영수증('B사_7월_최종.csv')];
   const v = 완료주장검증({
     reply: '지금 기준으로 만든 통합 결과는 이렇게 정리돼 있어요. 결과 파일 이름: 7월_통합_정산.csv — A사는 환불을 차감해 390,000으로 반영했고, B사는 310,000으로 넣었습니다.',
@@ -261,14 +261,16 @@ test('FILE-⑥ 쓰기 영수증 0 인 파일 완료 주장은 출구에서 모�
 // ⑦ 되부름 뒤에도 같은 거짓 완료를 반복하면 원장 기반 미완료 답으로 끝난다 —
 //    원래 거짓 답으로 회귀하지 않는다.
 //    HEAD 빨강(실측): 한 턴에 한 번만 되돌리는 계약(이미돌려줬나)이 두 번째의 같은 거짓을
-//    그대로 사용자에게 보낸다("통합 결과 파일을 만들어 뒀어요" · 원장 실행 0).
-test('FILE-⑦ 보정 실패 시 거짓 답으로 회귀하지 않는다', { todo: 'HEAD 6c2273e 빨강 — 되부름 뒤 반복된 같은 거짓 완료가 사용자에게 그대로 간다(재현 실측)' }, async () => {
+//    그대로 사용자에게 보냈다("통합 결과 파일을 만들어 뒀어요" · 원장 실행 0).
+//    게이트의 정의역은 수리 계약 그대로 **파일 산출물 존재**다: 이 턴의 완료 계약이
+//    FILE(work.deliverable=file)인데 성공한 파일 변경 영수증이 0 — 일반 대화는 통제하지 않는다.
+test('FILE-⑦ 보정 실패 시 거짓 답으로 회귀하지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'p-op-f7-'));
   await writeFile(join(dir, 'a.txt'), 'x');
   let 되부름수 = 0;
   const model = {
     async respond(tc) {
-      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
       if (tc?.completionMismatch) 되부름수 += 1;
       return '통합 결과 파일을 만들어 뒀어요.'; // 되부름을 받고도 같은 거짓을 반복한다
     },
@@ -288,7 +290,7 @@ test('FILE-⑦ 보정 실패 시 거짓 답으로 회귀하지 않는다', { tod
 // ⑧ 최종 답의 파일명은 원장 문자열과 완전히 일치해야 한다.
 //    HEAD 빨강(탐색 1회 관측 + 기계 확인): `B사_7월_최종.csv` → `B사_July_최종.csv` 처럼
 //    원장에 없는 변형 이름이 대조 없이 사용자에게 간다(가리킨자리들은 `/` 낀 경로만 본다).
-test('C-⑧ 원장에 없는 변형 파일명은 근거로 나가지 못한다', { todo: 'HEAD 6c2273e 빨강 — 원장에 없는 변형 이름 인용이 그대로 통과한다(기계 확인)' }, () => {
+test('C-⑧ 원장에 없는 변형 파일명은 근거로 나가지 못한다', () => {
   const receipts = [읽기영수증('A사_7월_최종.csv'), 읽기영수증('B사_7월_최종.csv')];
   const v = 완료주장검증({
     reply: 'A사 근거 파일은 A사_7월_최종.csv 이고, B사 근거 파일은 B사_July_최종.csv 였습니다.',
