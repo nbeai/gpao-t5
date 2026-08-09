@@ -360,7 +360,7 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null;
+      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -627,6 +627,14 @@ export function makeCuaDriver(deps = {}) {
                 // (데몬 장착) 또는 embedding authorization host 다.
                 // 부재 봉인이 이 자리를 지킨다(test/a1-browser-opens-only-when-asked).
                 if (붙음?.action) 붙은브라우저.add(대상.pid);
+                // **첫 동의는 사용자의 행동이다 — 사용자가 알아야 한다**(PM 조건 2 · 2026-08-09).
+                // 승인 UI 는 사람의 것이고(우리가 안 누른다) 크롬은 이 기계에서 **한 번** 묻는다.
+                // 그 거절을 조용한 실패로 두면 사용자는 *"왜 탭을 못 보지"* 만 남고 자기가 할 수
+                // 있는 한 걸음을 모른다 — F-52(한계의 이유와 다음 길을 함께 말한다)의 사촌 자리다.
+                else if (붙음?.status === 'refused') {
+                  동의안내값 = '크롬이 "원격 디버깅을 허용하시겠습니까?"를 한 번 물어요 —'
+                    + ' 허용을 눌러 주시면 그다음부터는 탭까지 볼 수 있어요.';
+                }
               }
               const 브 = await mcp.call('get_browser_state', {
                 pid: 대상.pid, window_id: 대상.id, session: 브라우저세션,
@@ -716,6 +724,7 @@ export function makeCuaDriver(deps = {}) {
         ...(그림값 ? { 그림: 그림값 } : {}),
         ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
         ...(탭들값?.length ? { 탭들: 탭들값 } : {}),
+        ...(동의안내값 ? { 동의안내: 동의안내값 } : {}),
       };
     },
 

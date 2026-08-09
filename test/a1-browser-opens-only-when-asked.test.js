@@ -35,8 +35,26 @@ test('밝힐 때만 켠다 — 문서가 금지한 우회로를 기본값으로 
   const 소스 = await import('node:fs').then((fs) => fs.readFileSync(
     new URL('../src/surface/live-context.js', import.meta.url), 'utf8',
   ));
-  assert.match(소스, /GPAO_T5_BROWSER_PROFILE === '1'/,
-    '**밝히지 않아도 켜진다** — 우리가 직접 시트를 누르는 경로가 기본으로 열린다');
+  // **기본 켬으로 열었다**(스윕 2번 · 오너 기결정 2026-08-07 의 집행 재개 · PM 판정 2026-08-09).
+  // 막고 있던 유일한 근거(우리가 시트를 누르는 우회 갈래)가 **제거·부재봉인**됐으므로 차단
+  // 사유가 소멸했다. 붙기 실측도 났다 — grant 데몬 + **사람의 동의**로 탭 6개가 읽혔고,
+  // 그 성공은 **우리 클릭 0** 이었다(승인 UI 는 사람의 것).
+  //
+  // ⚠ **셋이 한 세트로 물려야 한다**(PM 조건 4) — 켬만 봉인하고 울타리를 안 물면 반쪽이다.
+  assert.match(소스, /GPAO_T5_BROWSER_PROFILE !== '0'/,
+    '**기본 켬이 아니다** — 오너 결정이 또 코드에 안 들어간 상태로 되돌아갔다');
+  assert.match(소스, /브라우저이야기인가/,
+    '**발화 조건이 사라졌다** — 유지된 권한으로 안 시킨 관찰을 하게 된다(BUTLER §B)');
+  // **관찰 전용 울타리** — 화면 조작 손(desktopAct)이 있는 것 자체는 정상이다(계산기·창 다루기).
+  // 막는 것은 **로그인된 프로필에 붙은 채로 손을 푸는 것**이다: 프로필 허가는 관찰 경로에만
+  // 흐르고, 브라우저 붙기·탭 읽기는 조작 경로에 없어야 한다.
+  const 드라이버소스 = await import('node:fs').then((fs) => fs.readFileSync(
+    new URL('../src/runtime/desktop-cua-driver.js', import.meta.url), 'utf8'));
+  const 조작부 = 드라이버소스.slice(드라이버소스.indexOf('async act('));
+  for (const 금지 of ['browser_prepare', 'get_browser_state', '기존프로필허용']) {
+    assert.ok(!조작부.includes(금지),
+      `**관찰 전용 울타리가 뚫렸다** — 조작 경로(act)가 로그인 프로필을 만진다: ${금지}`);
+  }
 });
 
 // **장착이 바뀌면서 이 검사의 자리도 바뀌었다**(2026-08-07).
