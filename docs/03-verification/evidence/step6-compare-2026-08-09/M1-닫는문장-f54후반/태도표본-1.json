@@ -1,0 +1,35 @@
+{
+ "파일자리": [
+  "Desktop",
+  "Developer",
+  "Documents",
+  "Downloads",
+  "GPAO-T5",
+  "Movies",
+  "Music",
+  "Pictures",
+  "Public"
+ ],
+ "그물": {
+  "사실": "이번 턴에 화면 자리는 봤고 **파일 자리는 안 봤다**: Desktop · Developer · Documents · Downloads · GPAO-T5 · Movies · Music · Pictures · Public. 답은 숫자를 말하고 있다 — 그 자리도 보거나, 안 봤다는 것을 밝힌다."
+ },
+ "화면자리수": 5,
+ "화면지연": {
+  "걸린ms": 29,
+  "창수": 5
+ },
+ "contextShownLen": 268,
+ "ready화면류": [
+  "브라우저로 화면 보기",
+  "브라우저 화면 넘기기",
+  "화면 보기",
+  "화면 다루기"
+ ],
+ "손호출": [
+  "desktop.screen"
+ ],
+ "영수증요약": [
+  "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요. (이번 턴에 아직 안 본 자리 종류 — 파일: Desktop(문서 3) · Developer(2026-07 자료 · 이미지) · Documents(문서 9) · Downloads(2026-03~2026-08 자료 · 문서 100) · GPAO-T5(2026-07~2026-08 자료 · 글) · "
+ ],
+ "답앞": "윤님,  \n지금 화면 기준으로는 이번 달(8월 1일~9일) 카드 매출 승인액 합계가 **570,000원**이에요."
+}
