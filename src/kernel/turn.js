@@ -125,6 +125,38 @@ async function 볼수있는자리(ctx) {
  * 지연은 실측으로 남긴다(PM 조건 2 — 「무겁지 않은가」 축의 사전 데이터). 못 보면 undefined —
  * 조용히 생략(없는 화면을 지어내지 않는다).
  */
+/**
+ * **자리 공백을 손이 살아 있는 지면에 동봉한다** (F-54 사전 재료 · 쓴숫자대조 선례 · PM 승인 2026-08-09).
+ *
+ * 출구 되부름은 answerOnly 라 "그 자리도 본다"가 구조적으로 불가능했다(라이브 2표본 — 발화
+ * 2/2 · 행동 0/2). 사후 되부름 방법은 이 얼굴에서 **은퇴**했고(모델이 세 번 실패한 게 아니라
+ * 방법이 닫힌 것), 선례대로 사실을 옮긴다: 관측 영수증의 요약줄은 모델이 **손을 쥔 채** 받는
+ * 지면이다 — 볼 수도 있고(손이 있으니) 밝힐 수도 있다. 닫는 문장의 두 길이 다 산다.
+ *
+ * 세 성질: 트리거는 원장(이번 턴 영수증 + 턴 머리 관측값 재사용 — 새 관측 아님) · 판단 0
+ * (어느 자리가 값진지는 모델이 고른다 — 자르지 않고 전부) · 차단 아님(요약줄 사실 한 줄).
+ * 침묵 조건: 두 종류를 다 닿았거나 · 자리가 한 종류뿐이거나 · 실패 영수증.
+ */
+function 자리공백동봉(rec, 이번턴영수증들, ctx) {
+  if ((rec?.failureState ?? 'none') !== 'none') return;
+  const tool = String(rec?.actualCall?.tool ?? '');
+  const 화면계 = tool === 'desktop.screen';
+  const 파일계 = tool.startsWith('local.');
+  if (!화면계 && !파일계) return;
+  const 파일자리 = (ctx.이번턴파일자리 ?? []).map((p) => p?.label ?? p).filter(Boolean);
+  const 화면자리들 = (ctx.이번턴화면자리 ?? []).map((x) => x?.label ?? x).filter(Boolean);
+  if (!파일자리.length || !화면자리들.length) return; // 한 종류뿐 — 고를 공백이 없다
+  const 닿았나 = (판별) => 이번턴영수증들.some((r) => (r?.failureState ?? 'none') === 'none'
+    && 판별(String(r?.actualCall?.tool ?? '')));
+  const 사실 = (화면계 && !닿았나((t) => t.startsWith('local.')))
+    ? `이번 턴에 아직 안 본 자리 종류 — 파일: ${파일자리.join(' · ')}`
+    : (파일계 && !닿았나((t) => t === 'desktop.screen'))
+      ? `이번 턴에 아직 안 본 자리 종류 — 화면: ${화면자리들.slice(0, 5).join(' · ')}` // 폭 동결과 같은 5
+      : null;
+  if (!사실) return;
+  rec.userSafeSummary = `${String(rec.userSafeSummary ?? '').trim()} (${사실})`.trim();
+}
+
 async function 화면자리(ctx) {
   try {
     const r = await ctx.tools?.tools?.['desktop.screen']?.places?.();
@@ -1889,6 +1921,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
+    자리공백동봉(rec, turnReceipts, ctx); // F-54 사전 재료 — 원장(rec)과 모델이 같은 요약을 본다
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
@@ -2579,6 +2612,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       callRef: 이번.callId,
     };
     const rec = await 계약실행(toolId, 판정인자);
+    자리공백동봉(rec, turnReceipts, ctx); // F-54 사전 재료 — 손을 쥔 채 받는 지면
     현실다시();
     원장.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);

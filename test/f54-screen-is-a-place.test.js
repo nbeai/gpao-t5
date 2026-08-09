@@ -187,3 +187,77 @@ test('배선 발화: 새 세션 첫 턴, 화면만 보고 숫자를 말하면 �
   // ② 최종 답은 밝힌 쪽 — 되부름 뒤 모델의 선택이 실렸다.
   assert.match(String(r.reply ?? ''), /안 봤어/, '되부름 뒤의 답이 안 실렸다');
 });
+
+// ── **사전 재료 봉인 — 자리 공백이 손을 쥔 지면에 실린다** (선례 경로 · PM 승인 2026-08-09) ──
+//
+// 사후 되부름은 이 얼굴에서 은퇴했다(answerOnly — "보거나"가 구조적으로 불가 · 라이브 2표본).
+// 선례(쓴숫자대조)대로 사실을 관측 영수증의 요약줄로 옮긴다 — 모델이 손을 쥔 채 받는다.
+test('사전 재료: 화면만 관측한 영수증 요약줄에 "안 본 파일 자리"가 실려 모델에 닿는다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoContext } = await import('../src/surface/demo-context.js');
+  const 받은재료 = [];
+  let 걸음 = 0;
+  const model = {
+    async respond(tc) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      받은재료.push(JSON.stringify(tc));
+      걸음 += 1;
+      if (걸음 === 1) return { text: '', toolCalls: [{ providerCallId: 'p1', name: 'desktop.screen', args: { action: 'observe', scope: 'window', app: 'Chrome' } }] };
+      return { text: '화면 570,000원에 파일 쪽 2,430,000원 합쳐서 3,000,000원이에요.' };
+    },
+  };
+  const desktop = {
+    async places() { return { 창들: [{ label: '성심카드 가맹점센터 — Chrome', kind: 'screen' }], 걸린ms: 5 }; },
+    async handler() { return { result: { 본창: { app: 'Chrome', title: '성심카드' } } }; },
+  };
+  const localLocate = {
+    async places() { return [{ label: 'GPAO-T5', path: '/x/GPAO-T5' }]; },
+    async handler() { return { result: { candidates: [] } }; },
+  };
+  const ctx = demoContext({ desktop, localLocate });
+  const r = await runTurn({ text: '이번 달 얼마 벌었지?' }, { ...ctx, model });
+  // 관측 **다음** 모델 호출(걸음 2)이 손을 쥔 채 그 사실을 받았는가 — 여기가 선례의 핵심이다.
+  assert.ok(받은재료.slice(1).some((m) => m.includes('아직 안 본 자리 종류') && m.includes('GPAO-T5')),
+    '자리 공백 사실이 루프 안(손을 쥔 지면)에 안 실렸다 — 출구에서만 말하면 "보거나"가 죽는다');
+  assert.match(String(r.reply ?? ''), /3,000,000/);
+});
+
+test('사전 재료 반대시험: 양쪽 다 닿은 턴·자리 한 종류뿐인 턴은 요약줄이 조용하다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoContext } = await import('../src/surface/demo-context.js');
+  const 만들기 = (호출들) => {
+    let 걸음 = 0;
+    return {
+      async respond(tc) {
+        if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+        걸음 += 1;
+        if (걸음 <= 호출들.length) return { text: '', toolCalls: [호출들[걸음 - 1]] };
+        return { text: '봤어요.' };
+      },
+    };
+  };
+  const desktop = {
+    async places() { return { 창들: [{ label: '성심카드 — Chrome', kind: 'screen' }], 걸린ms: 3 }; },
+    async handler() { return { result: {} }; },
+  };
+  const localLocate = { async places() { return [{ label: 'GPAO-T5', path: '/x/G' }]; }, async handler() { return { result: { candidates: [] } }; } };
+
+  // ① 양쪽 다 닿은 턴 — 두 번째 관측(파일 쪽)의 요약줄은 조용해야 한다.
+  const ctx1 = demoContext({ desktop, localLocate });
+  const r1 = await runTurn({ text: '정산 확인해줘' }, { ...ctx1, model: 만들기([
+    { providerCallId: 'a1', name: 'desktop.screen', args: { action: 'observe' } },
+    { providerCallId: 'a2', name: 'local.locate', args: { request: '정산' } },
+  ]) });
+  const 파일영수증 = (r1.turnExchange ?? []).filter((x) => x.tool === 'local.locate');
+  assert.ok(파일영수증.length >= 1, '파일 걸음이 원장에 없다 — 검사가 헛돈다');
+  assert.ok(파일영수증.every((x) => !String(x.summary ?? '').includes('아직 안 본 자리 종류')),
+    '양쪽 다 닿았는데 공백 사실이 실렸다 — 없는 공백을 지어낸다');
+
+  // ② 자리 한 종류뿐(화면 자리 없음 — 화면 손 미장착 설치) — 조용해야 한다.
+  const ctx2 = demoContext({ localLocate });
+  const r2 = await runTurn({ text: '정산 확인해줘' }, { ...ctx2, model: 만들기([
+    { providerCallId: 'b1', name: 'local.locate', args: { request: '정산' } },
+  ]) });
+  assert.ok((r2.turnExchange ?? []).every((x) => !String(x.summary ?? '').includes('아직 안 본 자리 종류')),
+    '자리가 한 종류뿐인데 공백 사실이 실렸다 — 고를 수 없는 것을 나무란다');
+});
