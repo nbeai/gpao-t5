@@ -119,6 +119,21 @@ async function 볼수있는자리(ctx) {
   try { return await ctx.tools?.tools?.['local.locate']?.places?.(); } catch { return undefined; }
 }
 
+/**
+ * **화면의 자리**(F-54 · 2026-08-09). 파일 자리와 같은 계약, 다른 손 — 화면 손이 살아 있는
+ * 설치에서만 창 제목·앱명(최대 5 · 폭은 드라이버 층 동결)이 현실 사실로 실린다.
+ * 지연은 실측으로 남긴다(PM 조건 2 — 「무겁지 않은가」 축의 사전 데이터). 못 보면 undefined —
+ * 조용히 생략(없는 화면을 지어내지 않는다).
+ */
+async function 화면자리(ctx) {
+  try {
+    const r = await ctx.tools?.tools?.['desktop.screen']?.places?.();
+    if (!r?.창들?.length) return undefined;
+    ctx.화면자리지연 = { 걸린ms: r.걸린ms, 창수: r.창들.length }; // 진단면 — 회차기록용
+    return r.창들;
+  } catch { return undefined; }
+}
+
 // 한 턴에 손을 이어 쓸 수 있는 횟수. 상한의 목적은 무한 루프·비용 폭주 방지다.
 // H08 라이브 실측(2026-08-01): 실제 파일 목적은 자리 찾기(이름 승계 실패 포함 1~2걸음) →
 // 최종본 판별 → 읽기 → 별도 결과물 쓰기로 4걸음을 정직하게 넘는다. 4에서는 모델이 일을
@@ -950,6 +965,13 @@ export async function runTurn(input, ctx) {
   let modelChosen = null;
   let earlyReply = null;
   let 답잘림 = false;   // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다)
+  // **화면 자리는 턴 머리에서 한 번 관측한다**(F-54). 턴 끝 파생에만 실으면 이번 턴 모델은
+  // 화면을 영영 못 본다(첫 턴 측정이 정확히 그 자리다 — M1). 여기서 관측해 이번 턴의
+  // workingState 에 얹고, 턴 끝 파생도 같은 관측을 이어받는다(드라이버 호출은 턴에 1회).
+  ctx.이번턴화면자리 = await 화면자리(ctx);
+  if (ctx.이번턴화면자리?.length) {
+    ctx.workingState = { ...(ctx.workingState ?? {}), screenPlaces: ctx.이번턴화면자리 };
+  }
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
   let earlyTc;
   let earlyWantedWeb = false;
@@ -1141,7 +1163,9 @@ export async function runTurn(input, ctx) {
     // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
     // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
     // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
-    const idleState = deriveWorkingState(ctx.workingState, { receipts: [], places: await 볼수있는자리(ctx) });
+    const idleState = deriveWorkingState(ctx.workingState, {
+      receipts: [], places: await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
+    });
     return {
       kind: 'reply',
       // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
@@ -1159,6 +1183,7 @@ export async function runTurn(input, ctx) {
       identityUpdate, // P-ID-1: 사용자가 지어 준 이름 — 서버가 지속한다
       selfStateSummary: summary, // 칩은 접힌 채(대화 점유 금지)
       exitNetDiagnostic: ctx.출구그물, // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
+      screenPlaceDiagnostic: ctx.화면자리지연, // F-54 지연 실측(PM 조건 2 · 진단면)
       ledger: { confirmed: [], unconfirmed: [], estimated: [] },
       memorySuggestion,
       memoryWithdrawal,
@@ -1924,6 +1949,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = 이어받기정리(deriveWorkingState(ctx.workingState, {
     places: await 볼수있는자리(ctx),
+    screenPlaces: ctx.이번턴화면자리, // F-54 — 턴 머리의 그 관측(드라이버 호출은 턴에 1회)
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
   }), ctx.connectors);
@@ -2676,6 +2702,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     usedSkill: ctx.usedSkill,           // Phase 0-4: 어떤 배운 작업이 도왔는지(조용히 바뀌지 않는다)
     selfStateSummary: summary,
     exitNetDiagnostic: ctx.출구그물,     // 진단면 — 출구 그물이 물었는가(회차 원본 계측)
+    screenPlaceDiagnostic: ctx.화면자리지연, // F-54 지연 실측(PM 조건 2 · 진단면)
     ledger: projection,
     // 막다른 답 금지: 확인 못 한 게 있으면 다음 안전 행동을 끌어올린다.
     // **영수증의 사용자면 문장을 쓴다.** 예전엔 계획의 `recoveryCriteria`(내부 문자열)를 그대로

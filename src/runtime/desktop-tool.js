@@ -271,6 +271,15 @@ export function makeDesktopTool(deps = {}) {
   return {
     // 읽기만 한다. 출처 원장 계약은 안 건다 — 웹 페이지가 아니라 이 컴퓨터의 현재 상태다.
     sourceLedgerRequired: false,
+    /**
+     * 화면의 「볼 수 있는 자리」(F-54) — 드라이버가 주면 그대로 위임, 없으면 null.
+     * 폭 동결(앱명·제목만 · 최대 5)은 드라이버 층의 계약이고 여기서 넓히지 않는다.
+     */
+    async places() {
+      try { return await drivers[0]?.places?.() ?? null; } catch { return null; }
+    },
+    /** 띄운 드라이버를 걷는다(스윕 5번) — 수명이 있는 쪽(러너·검사)이 부른다. */
+    close() { for (const d of drivers) { try { d?.close?.(); } catch { /* 이미 죽었으면 그만 */ } } },
     // **실행 문맥이 발화를 들고 온다**(`turn.js` `실행문맥()` — `currentRequest`).
     // 화면 손은 그 발화를 **하나에만** 쓴다: 로그인해 둔 브라우저의 동의 시트를 눌러도 되는지.
     // 그 누름은 문을 따는 일이라 **시킨 자리에서만** 해야 한다(BUTLER §B).

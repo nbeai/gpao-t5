@@ -81,6 +81,9 @@ export function deriveWorkingState(prevState, turn = {}) {
   // P6-W3: **지금 볼 수 있는 자리.** 사용자는 경로를 모르고 알 필요도 없다 — 이름으로 고른다.
   // 이번 턴에 새로 알아냈으면 갱신하고, 아니면 지난 것을 그대로 이어간다(사라지면 "거기"가 끊긴다).
   const places = turn.places ?? prev.places;
+  // **화면 자리는 이어가지 않는다**(F-54). 파일 자리와 달리 화면은 턴 사이에 바뀌는 현실이라,
+  // 지난 턴 창 목록을 이어가면 낡은 화면을 지금 화면이라고 말하게 된다 — 이번 턴 관측만 싣는다.
+  const screenPlaces = turn.screenPlaces;
   const receipts = turn.receipts ?? [];
 
   // 이번 턴에 실제로 다룬 대상들(성공분만).
@@ -148,6 +151,7 @@ export function deriveWorkingState(prevState, turn = {}) {
   return {
     turnNo,
     ...(places?.length ? { places } : {}),
+    ...(screenPlaces?.length ? { screenPlaces } : {}),
     subjects: merged,
     pendingApprovals: turn.pendingApprovals?.length ? turn.pendingApprovals : prev.pendingApprovals,
     ...(awaiting.length ? { awaiting } : {}),
@@ -192,6 +196,12 @@ export function workingStateFacts(stateOrNull) {
   // 낱말 목록을 새로 만드는 게 아니라 `local-locate` 가 이미 가진 대응을 옮기는 것이다.
   if (state.places?.length) {
     lines.push(`볼 수 있는 자리: ${부르는말붙이기(state.places.slice(0, 10))}`);
+  }
+  // **화면도 자리다**(F-54 · 2026-08-09). 파일 명부만 주면 모델의 세계에서 출처 후보는
+  // 파일뿐이라, 화면에만 있는 출처(카드사 페이지류)로 전환할 근거가 없었다(사다리 전환 0 —
+  // 6단계 M1 실측 6/6 + 프로브). 창 제목·앱명만(폭 동결은 드라이버 층) — 지시 없음, 사실 한 줄.
+  if (state.screenPlaces?.length) {
+    lines.push(`화면에 떠 있는 것: ${state.screenPlaces.map((s) => s.label).join(' · ')}`);
   }
   // **끝난 일은 끝났다고 말한다.** 무엇을 할지는 모델이 정한다(§24) — "다시 하지 마"라고
   // 시키지 않는다. 사용자가 정말 다시 하라고 하면 막히면 안 되기 때문이다.

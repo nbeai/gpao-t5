@@ -89,6 +89,15 @@ export function makeMcpStdio({ binPath, timeoutMs = 12_000, spawnImpl = spawn, �
     if (아이) return 아이;
     const { bin, args, env } = 기동인자({ binPath, 기존프로필허용 });
     아이 = spawnImpl(bin, args, { stdio: ['pipe', 'pipe', 'pipe'], env });
+    // **자식이 부모의 수명을 잡지 않는다**(스윕 5번 · 재현 3문맥 2026-08-09: step6 러너 R2·R3
+    // 매달림 + F-54 검사가 게이트를 1시간 25분 매달았다 — 셋 다 측정은 끝났는데 프로세스가
+    // 안 죽었다). 원인은 spawn 한 자식과 그 stdio 파이프가 이벤트 루프를 ref 하는 것이다.
+    // `끄기()` 는 예전부터 있었지만 **아무도 안 불렀고**, 안 불러도 새지 않아야 맞다 —
+    // 명시적 정리(아래 close)와 unref 를 **둘 다** 둔다. 한쪽만 두면 부르는 걸 잊는 순간
+    // 같은 사고가 돌아온다. unref 는 우리 일이 끝났을 때만 종료를 허락하는 것이지 자식을
+    // 죽이는 게 아니다 — 도는 동안의 동작은 그대로다(서버는 포트가 루프를 잡는다).
+    try { 아이.unref?.(); 아이.stdout?.unref?.(); 아이.stderr?.unref?.(); 아이.stdin?.unref?.(); }
+    catch { /* 주입된 가짜 spawn 은 unref 가 없다 — 검사 경로를 막지 않는다 */ }
     아이.stdout.on('data', (d) => {
       버퍼 += d;
       const 줄들 = 버퍼.split('\n');
@@ -171,12 +180,50 @@ export function makeCuaDriver(deps = {}) {
   // 오너 결정(2026-08-06): *"연결을 한 번 맺고 유지한다."* 드라이버가 상주하니 조건이 선다.
   const 붙은브라우저 = new Set();
   const 브라우저세션 = 'gpao-t5';
-  const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath, 기존프로필허용: deps.기존프로필허용 === true });
+  // ⚠ 이 한 줄의 **모양**을 봉인이 문다(`cu-node4` — 허가가 드라이버에서 프로세스까지 가는지를
+  // 소스 문자열로 대조한다). 줄을 쪼개면 배선이 살아 있어도 빨개진다 — 한 줄로 둔다.
+  // `spawnImpl` 은 수명 봉인이 실드라이버를 띄우며 자식을 지켜보려고 지난다(검사 주입).
+  const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath, 기존프로필허용: deps.기존프로필허용 === true, ...(deps.spawnImpl ? { spawnImpl: deps.spawnImpl } : {}) });
 
   return {
     id: 'cua',
     label: '화면 관찰·조작(cua)',
     needs: [],
+
+    /**
+     * **화면도 「볼 수 있는 자리」다** (F-54 · 오너 최우선 · PM 승인 2026-08-09).
+     *
+     * 원장 확정: 모델의 재료에서 화면은 능력 목록에만 있고 현실 사실로는 0 이었다 —
+     * "볼 수 있는 자리" 명부가 전부 파일시스템이라, 화면에만 있는 출처(카드사 페이지)가
+     * 존재한다는 사실이 어디에도 안 실렸고 사다리 전환이 6/6+1 로 0 이었다.
+     * locate 의 `places()` 와 **같은 계약**을 화면 손이 갖는다(두 벌이 아니라 두 손).
+     *
+     * **폭 동결(PM 조건 1)**: 앱명·창 제목**만** · 앞 창부터 **최대 5개** · **내용(본문·
+     * 필드값·픽셀)은 절대 싣지 않는다.** 이 경계가 곧 계약이고, 봉인이 이 폭을 문다.
+     * 못 보면 null — 없는 화면을 지어내지 않는다(조용히 생략).
+     */
+    async places() {
+      const t0 = Date.now();
+      const 목록 = await mcp.call('list_windows', { on_screen_only: true }).catch(() => null);
+      if (!Array.isArray(목록?.windows)) return null;
+      const 이미 = new Set();
+      const 창들 = [];
+      for (const w of 목록.windows) {
+        const 라벨 = [w?.title, w?.app_name].filter((x) => typeof x === 'string' && x.trim())
+          .join(' — ').slice(0, 80);
+        if (!라벨 || 이미.has(라벨)) continue;
+        이미.add(라벨);
+        창들.push({ label: 라벨, kind: 'screen' });
+        if (창들.length >= 5) break; // 폭 동결 — 앞 창부터 5개
+      }
+      return 창들.length ? { 창들, 걸린ms: Date.now() - t0 } : null;
+    },
+
+    /**
+     * **띄운 것은 걷는다**(스윕 5번). 러너·검사처럼 수명이 있는 쪽이 명시적으로 부를 문이다 —
+     * unref 가 새는 것을 막고, 이것은 **끝났음을 지금 선언**한다(둘 다 있어야 한다).
+     */
+    close() { try { mcp.끄기?.(); } catch { /* 이미 죽었으면 그만 */ } },
 
     async status() {
       const p = await mcp.call('check_permissions', {});

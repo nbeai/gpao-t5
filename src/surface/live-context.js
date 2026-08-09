@@ -43,6 +43,27 @@ import { defineChannel } from '../kernel/l2-plan/channel-registry.js';
  * `/channels`가 "받을 준비됨(초록)"으로 보이지 않고 연결 안내를 준다(2.0-A slack 초록 오표시와 같은 계열).
  * @param {Record<string,string|undefined>} processEnv
  */
+/**
+ * **로그인된 브라우저 관찰 — 아직 옵트인이다**(스윕 2번 진행 중 · 2026-08-09).
+ *
+ * 기본 켬으로 뒤집었다가 **되돌렸다.** 봉인
+ * (`test/a1-browser-opens-only-when-asked.test.js` — *"밝힐 때만 켠다 — 문서가 금지한
+ * 우회로를 기본값으로 열지 않는다"*)이 정확히 물었고, 그 말이 맞다:
+ *
+ *   봉인이 지키는 것은 "플래그의 값"이 아니라 **"우리가 크롬 동의 시트를 직접 누르는 경로가
+ *   기본으로 열리는 것"** 이다. 그 경로는 `desktop-cua-driver.js` 에 **아직 있다**
+ *   (`browser_prepare` 실패 시 발화 게이트 안에서 '허용' 버튼 클릭). 2026-08-09 실측에서
+ *   그 갈래를 **안 탔을 뿐**(로그인 화면이 시트 클릭 0 으로 읽혔다) 없어진 게 아니다.
+ *   "안 타더라"에 기대어 기본값을 여는 것은 봉인을 결과에 맞춰 고치는 것이다.
+ *
+ * **올바른 순서**: ① 시트 클릭 갈래를 걷는다(벤더 계약이 정본 — 승인된 요청이면 드라이버가
+ * 스스로 체크박스를 토글한다 · `describe browser_prepare`) → ② 봉인의 근거가 사라진다 →
+ * ③ 그때 기본 켬을 연다. ①은 실패 시 붙기가 아예 막힐 수 있어(한국어 시트) PM 판정 자리다.
+ *
+ * F-54(화면도 자리다)는 이 플래그와 **독립**이다 — 창 목록 관측은 프로필 붙기가 아니다.
+ */
+export const 브라우저프로필허용 = (env = {}) => env?.GPAO_T5_BROWSER_PROFILE === '1';
+
 export function liveChannels(processEnv = {}) {
   const tgToken = processEnv.TELEGRAM_BOT_TOKEN;   // 없으면 텔레그램 수신 불가 → 미연결
   const slackToken = processEnv.SLACK_BOT_TOKEN;   // 슬랙 채널 자격도 실제 토큰 유무로
@@ -139,7 +160,7 @@ export function liveDeps(processEnv = {}, deps = {}) {
       // **잘못 장착된 상태**(IDE 셸에서 생 바이너리 spawn · `CuaDriver.app` 없음 ·
       // `CUA_DRIVER_EMBEDDED` 없음)에서 나온 것일 수 있다. 장착을 바로 세운 뒤 같은 질문을
       // 다시 던진다 — 그 전에는 이 우회로가 필요한지조차 판정할 수 없다.
-      const 브라우저허용 = processEnv.GPAO_T5_BROWSER_PROFILE === '1';
+      const 브라우저허용 = 브라우저프로필허용(processEnv);
       if (cua백엔드) {
         등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ binPath: cua백엔드, 기존프로필허용: 브라우저허용 }));
       }
