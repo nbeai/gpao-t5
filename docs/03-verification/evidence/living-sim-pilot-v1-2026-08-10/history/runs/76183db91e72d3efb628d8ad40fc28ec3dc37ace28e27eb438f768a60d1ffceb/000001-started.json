@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-pilot-v1-20260810-01::L6-schedule-automation",
+  "attemptId": "845df92d-119f-4579-840b-fde97c058b59",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-il9Gpr",
+  "recordedAt": "2026-08-09T19:37:09.222Z"
+}

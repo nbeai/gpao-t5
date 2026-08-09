@@ -1,0 +1,27 @@
+{
+  "type": "path_snapshots",
+  "protected": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "before": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ],
+    "after": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ]
+  },
+  "sources": {
+    "paths": [],
+    "before": [],
+    "after": []
+  },
+  "protectedChanged": [],
+  "sourceChanged": []
+}

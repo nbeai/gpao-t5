@@ -1,0 +1,83 @@
+{
+  "type": "fixture_identity",
+  "files": [
+    {
+      "name": "매장_8월.csv",
+      "path": "/private/tmp/t5-ls-QtqzGs/fixture/매장_8월.csv",
+      "sha256": "c0ed1ac246f04bcb6c48a242ea23ccdd752c0f7e5c916a35f95f608461cbe47c"
+    },
+    {
+      "name": "배달_8월_초안.csv",
+      "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_초안.csv",
+      "sha256": "fd2e65ffb10fd950bf00251ce28412abe554e5938c4c8ad8c934933bfd85047b"
+    },
+    {
+      "name": "배달_8월_최종.csv",
+      "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_최종.csv",
+      "sha256": "75ae5a911a6eef7bc06265aac603dfa45667127c0151f88b938c27c4fae8fcd5"
+    },
+    {
+      "name": "온라인_8월_백업.csv",
+      "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_백업.csv",
+      "sha256": "850dfc228284a115426ece8e89ccf8da1df5a81c8a2826d539e4ee0ba4d8b02a"
+    },
+    {
+      "name": "온라인_8월_최종.csv",
+      "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_최종.csv",
+      "sha256": "38a1897f51e27d39495210afc71b4c9572c24d80089ad9728594d7e52c921722"
+    }
+  ],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "여기 있는 8월 매출 자료를 먼저 훑어보고 어떤 파일을 써야 할지 알려줘. 아직 바꾸지는 마.",
+      "rendered": "여기 있는 8월 매출 자료를 먼저 훑어보고 어떤 파일을 써야 할지 알려줘. 아직 바꾸지는 마."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "온라인, 매장, 배달 매출을 각각 계산해줘. 초안이나 백업은 빼고.",
+      "rendered": "온라인, 매장, 배달 매출을 각각 계산해줘. 초안이나 백업은 빼고."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "배달에서 환불 2만원이 빠져야 해. 원본에는 손대지 말고 결과에만 반영해.",
+      "rendered": "배달에서 환불 2만원이 빠져야 해. 원본에는 손대지 말고 결과에만 반영해."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "결과 파일은 채널, 원매출, 조정, 순매출 네 칸짜리 8월_채널별_순매출.csv로 만들어줘.",
+      "rendered": "결과 파일은 채널, 원매출, 조정, 순매출 네 칸짜리 8월_채널별_순매출.csv로 만들어줘."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "user_text",
+      "frozen": "만든 파일을 다시 읽어서 합계가 맞는지 확인해줘.",
+      "rendered": "만든 파일을 다시 읽어서 합계가 맞는지 확인해줘."
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "user_text",
+      "frozen": "원본들이 그대로인지도 확인해.",
+      "rendered": "원본들이 그대로인지도 확인해."
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "내가 알아야 할 최종 숫자와 만든 파일만 쉽게 정리해줘.",
+      "rendered": "내가 알아야 할 최종 숫자와 만든 파일만 쉽게 정리해줘."
+    }
+  ]
+}

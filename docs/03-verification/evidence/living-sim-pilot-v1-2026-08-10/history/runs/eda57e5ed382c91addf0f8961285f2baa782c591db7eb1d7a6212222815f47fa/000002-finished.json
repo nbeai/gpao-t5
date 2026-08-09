@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-batch::living-sim-pilot-v1-20260810-01",
+  "attemptId": "3daa6721-8766-405a-a7b7-289075c5ff44",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "3c7ee656fc41859063d2cfba6af42dc6aa4f021ad2495a999924388534e7a09c",
+  "recordedAt": "2026-08-09T19:38:36.636Z"
+}

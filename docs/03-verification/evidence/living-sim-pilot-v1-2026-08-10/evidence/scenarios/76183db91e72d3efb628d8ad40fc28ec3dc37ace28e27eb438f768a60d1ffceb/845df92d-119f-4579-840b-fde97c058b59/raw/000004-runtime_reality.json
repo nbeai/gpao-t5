@@ -1,0 +1,83 @@
+{
+  "type": "runtime_reality",
+  "requiredHands": [
+    "automation.propose"
+  ],
+  "usableToolIds": [
+    "agent.delegate",
+    "agent.propose",
+    "automation.propose",
+    "connector.connect",
+    "connector.declare",
+    "local.capsule",
+    "local.discovery",
+    "local.file",
+    "local.locate",
+    "local.process",
+    "local.system",
+    "local.terminal",
+    "session.search",
+    "skill.propose",
+    "web.collect",
+    "web.search",
+    "work.state"
+  ],
+  "exposedToolIds": [
+    "agent.delegate",
+    "agent.propose",
+    "automation.propose",
+    "connector.connect",
+    "connector.declare",
+    "local.capsule",
+    "local.discovery",
+    "local.file",
+    "local.locate",
+    "local.process",
+    "local.system",
+    "local.terminal",
+    "session.search",
+    "skill.propose",
+    "web.collect",
+    "web.search",
+    "work.state"
+  ],
+  "executableToolIds": [
+    "agent.delegate",
+    "connector.connect",
+    "connector.declare",
+    "local.capsule",
+    "local.discovery",
+    "local.file",
+    "local.locate",
+    "local.process",
+    "local.system",
+    "local.terminal",
+    "session.search",
+    "web.collect",
+    "web.search"
+  ],
+  "controlToolIds": [
+    "skill.propose",
+    "automation.propose",
+    "agent.propose",
+    "work.state"
+  ],
+  "controlContract": "startLiveServer ctx.modelControls",
+  "modelConfiguration": {
+    "provider": "openai",
+    "configuredModelId": "gpt-5.1",
+    "baseUrl": "https://api.openai.com/v1",
+    "baseOrigin": "https://api.openai.com",
+    "settings": {
+      "maxOutputTokens": 8192,
+      "totalTimeoutMs": 0,
+      "httpTimeoutMs": 0,
+      "stallMs": 0,
+      "temperature": null
+    }
+  },
+  "unavailableRequiredHands": [],
+  "externalEffectToolsUsable": [],
+  "preflightProviderCalls": 0,
+  "providerRequestMutation": false
+}

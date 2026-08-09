@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-pilot-v1-20260810-01::L4-content-document",
+  "attemptId": "23c58713-5e76-45a0-8051-94588607195f",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-rc5NHI",
+  "recordedAt": "2026-08-09T19:34:44.702Z"
+}

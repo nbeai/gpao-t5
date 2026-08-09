@@ -1,0 +1,55 @@
+{
+  "type": "fixture_identity",
+  "files": [],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "고객 문의 답이 자꾸 늦어져. 내가 혼자서도 지킬 수 있는 운영 기준을 같이 정해보자.",
+      "rendered": "고객 문의 답이 자꾸 늦어져. 내가 혼자서도 지킬 수 있는 운영 기준을 같이 정해보자."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "일단 네이버 톡톡이랑 카카오 두 군데만 볼게. 메일은 빼.",
+      "rendered": "일단 네이버 톡톡이랑 카카오 두 군데만 볼게. 메일은 빼."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "평일엔 오전 10시랑 오후 4시에 두 번 확인하는 걸로 확정하자.",
+      "rendered": "평일엔 오전 10시랑 오후 4시에 두 번 확인하는 걸로 확정하자."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "주말은 오전 11시에 한 번 보면 어떨까 싶긴 한데 아직 정하진 말자.",
+      "rendered": "주말은 오전 11시에 한 번 보면 어떨까 싶긴 한데 아직 정하진 말자."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "user_text",
+      "frozen": "환불이 걸린 문의는 다른 것보다 먼저 본다는 원칙도 넣어줘.",
+      "rendered": "환불이 걸린 문의는 다른 것보다 먼저 본다는 원칙도 넣어줘."
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "user_text",
+      "frozen": "아니 카카오는 빼고 인스타 디엠으로 바꿀게. 네이버랑 인스타 두 개야.",
+      "rendered": "아니 카카오는 빼고 인스타 디엠으로 바꿀게. 네이버랑 인스타 두 개야."
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "user_text",
+      "frozen": "주말 건은 계속 보류. 네가 알아서 시간 만들지 마.",
+      "rendered": "주말 건은 계속 보류. 네가 알아서 시간 만들지 마."
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "이제 확정된 운영 기준, 아직 미정인 것, 늦은 답변용 답장과 환불 문의용 답장을 나눠서 줘.",
+      "rendered": "이제 확정된 운영 기준, 아직 미정인 것, 늦은 답변용 답장과 환불 문의용 답장을 나눠서 줘."
+    }
+  ]
+}

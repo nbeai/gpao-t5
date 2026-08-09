@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-pilot-v1-20260810-01::L3-policy-research",
+  "attemptId": "d30b38d6-9e83-4daf-8613-ecb49f89285b",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-LXByuk",
+  "recordedAt": "2026-08-09T19:33:54.309Z"
+}

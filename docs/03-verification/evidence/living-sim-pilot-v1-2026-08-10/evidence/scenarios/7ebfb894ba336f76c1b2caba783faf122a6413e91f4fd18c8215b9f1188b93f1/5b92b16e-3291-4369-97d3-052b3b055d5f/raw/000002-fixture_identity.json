@@ -1,0 +1,78 @@
+{
+  "type": "fixture_identity",
+  "files": [
+    {
+      "name": "README.txt",
+      "path": "/private/tmp/t5-ls-TlhnR6/fixture/README.txt",
+      "sha256": "d666601730f75d6969a5115b3ffedbe5ce3572886a6806cfd20142d9d0ccdbf2"
+    },
+    {
+      "name": "보관/배포설정_2025.txt",
+      "path": "/private/tmp/t5-ls-TlhnR6/fixture/보관/배포설정_2025.txt",
+      "sha256": "b96ea8da5067a7fd39c29e763752fdd66311e2fdc15b3a2e137ba1f8780b21d6"
+    },
+    {
+      "name": "승인본/배포설정.txt",
+      "path": "/private/tmp/t5-ls-TlhnR6/fixture/승인본/배포설정.txt",
+      "sha256": "2c085a02059453ef2792a22416959fd1be8662da6082decf3e3c695b2ccdae1b"
+    },
+    {
+      "name": "초안/배포설정_최종.txt",
+      "path": "/private/tmp/t5-ls-TlhnR6/fixture/초안/배포설정_최종.txt",
+      "sha256": "fb7c6dea318e6a9e78c9f8ce3c2f2e13af9bf85f30264f4dd1bba8fc7cc36faf"
+    }
+  ],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "이 폴더 안에서 실제로 배포에 써야 할 설정을 찾아줘. 파일 이름만 믿지는 마.",
+      "rendered": "이 폴더 안에서 실제로 배포에 써야 할 설정을 찾아줘. 파일 이름만 믿지는 마."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "왜 그 파일인지 내용 근거를 알려줘.",
+      "rendered": "왜 그 파일인지 내용 근거를 알려줘."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "초안이랑 예전 보관본은 왜 아닌지도 짧게 말해줘.",
+      "rendered": "초안이랑 예전 보관본은 왜 아닌지도 짧게 말해줘."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "선택한 파일의 해시와 핵심 설정을 작업결과/배포_점검.txt에 따로 남겨줘. 원본은 건드리지 마.",
+      "rendered": "선택한 파일의 해시와 핵심 설정을 작업결과/배포_점검.txt에 따로 남겨줘. 원본은 건드리지 마."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "user_text",
+      "frozen": "결과 파일을 다시 읽고 선택한 버전과 서버가 맞는지 확인해줘.",
+      "rendered": "결과 파일을 다시 읽고 선택한 버전과 서버가 맞는지 확인해줘."
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "user_text",
+      "frozen": "원본 네 개가 그대로인지 확인해.",
+      "rendered": "원본 네 개가 그대로인지 확인해."
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "마지막으로 실제로 한 일과 배포 자체는 아직 안 했다는 걸 구분해줘.",
+      "rendered": "마지막으로 실제로 한 일과 배포 자체는 아직 안 했다는 걸 구분해줘."
+    }
+  ]
+}

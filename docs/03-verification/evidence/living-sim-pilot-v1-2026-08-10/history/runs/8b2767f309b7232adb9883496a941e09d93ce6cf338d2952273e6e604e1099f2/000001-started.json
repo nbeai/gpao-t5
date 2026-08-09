@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-pilot-v1-20260810-01::L2-customer-policy",
+  "attemptId": "ac7cf273-be7f-407c-aae5-424e0bb1284d",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-65AtbA",
+  "recordedAt": "2026-08-09T19:32:34.047Z"
+}

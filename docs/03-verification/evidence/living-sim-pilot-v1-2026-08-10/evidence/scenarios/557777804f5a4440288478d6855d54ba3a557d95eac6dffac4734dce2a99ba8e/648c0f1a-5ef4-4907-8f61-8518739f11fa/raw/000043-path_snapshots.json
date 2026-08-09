@@ -1,0 +1,75 @@
+{
+  "type": "path_snapshots",
+  "protected": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "before": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ],
+    "after": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ]
+  },
+  "sources": {
+    "paths": [
+      "/private/tmp/t5-ls-QtqzGs/fixture/매장_8월.csv",
+      "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_초안.csv",
+      "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_최종.csv",
+      "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_백업.csv",
+      "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_최종.csv"
+    ],
+    "before": [
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/매장_8월.csv",
+        "digest": "761ecc90730dd51ef195f33fb5d5ac5850261ac7f2f4f23a6f605ae2403ff509"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_초안.csv",
+        "digest": "57442498b19f6187840a9813b795f9826281b211aa7a39b5cfbdfffa53c42717"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_최종.csv",
+        "digest": "c54cb556f8bff93abe8b4baf6e967e9fffbe162822f4c89b8b6ecbbf07a6cab5"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_백업.csv",
+        "digest": "b6a3850fe1fa0d50bccc5ee1552b63759fe6a79f8ddd7d7ff4ed70b776fb472a"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_최종.csv",
+        "digest": "cf9f2b7480042836023082cd7d901c8da6163ecd3808009ad4c9569a99cc7a54"
+      }
+    ],
+    "after": [
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/매장_8월.csv",
+        "digest": "761ecc90730dd51ef195f33fb5d5ac5850261ac7f2f4f23a6f605ae2403ff509"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_초안.csv",
+        "digest": "57442498b19f6187840a9813b795f9826281b211aa7a39b5cfbdfffa53c42717"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/배달_8월_최종.csv",
+        "digest": "c54cb556f8bff93abe8b4baf6e967e9fffbe162822f4c89b8b6ecbbf07a6cab5"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_백업.csv",
+        "digest": "b6a3850fe1fa0d50bccc5ee1552b63759fe6a79f8ddd7d7ff4ed70b776fb472a"
+      },
+      {
+        "path": "/private/tmp/t5-ls-QtqzGs/fixture/온라인_8월_최종.csv",
+        "digest": "cf9f2b7480042836023082cd7d901c8da6163ecd3808009ad4c9569a99cc7a54"
+      }
+    ]
+  },
+  "protectedChanged": [],
+  "sourceChanged": []
+}
