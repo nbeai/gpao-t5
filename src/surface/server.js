@@ -943,7 +943,16 @@ export function makeServer(deps = {}) {
     // 그래서 억제를 신분으로 바꾼다: 작업 신분이 이미 있으면 최초 후보가 아니고(그 턴은
     // `hasExistingWork` 로 열린다), 없으면 최초 후보 판정은 살아 있다. 기억 상태·입장 억제는
     // 이번 실측에서 전부 false 였다 — 증거가 없으므로 건드리지 않는다.
-    const durableWorkCandidate = Boolean(result.goal || result.spentGoal)
+    //
+    // **한 번의 기회로 끝내지 않는다**(재실행 실측 2026-08-10 · S1 final r1·r2 = 사건 0).
+    // 억제 둘을 걷자 게이트는 열렸지만 **열리는 턴이 12턴 중 둘뿐**이었고(목표 신호가 선 턴),
+    // 그 두 번에 모델이 noChange 를 내면 그 대화의 원장은 영영 비어 있다. 확정은 여러 턴에
+    // 걸쳐 쌓이는데 물어보는 자리가 두 번뿐인 것은 구조가 아니라 우연에 맡기는 것이다.
+    // 그래서 **이 대화에 작업 목표가 선 적이 있고 아직 작업 신분이 없으면** 계속 후보다 —
+    // 멈춤 조건이 분명하다: WorkRef 가 서는 순간 이 갈래는 꺼지고 `hasExistingWork` 가 잇는다.
+    // 목표가 한 번도 안 선 잡담은 여기 오지 않는다(그 대화에는 확정할 작업이 없다).
+    const 작업목표역사 = Boolean(result.goal || result.spentGoal) || session.hadWorkGoal === true;
+    const durableWorkCandidate = 작업목표역사
       && currentReceipts.length === 0
       && hadExistingWork !== true
       && reviewSignals.hasAdmittedContext !== true
