@@ -102,5 +102,15 @@ if (부명령[0] !== 'mcp') {
     }
     try { child.stdin.write(`${line}\n`); } catch (e) { 적기(`중계 실패(기계 사실): ${e?.code ?? e}`); }
   });
-  rl.on('close', () => { try { child.stdin.end(); } catch { /* 이미 끝남 */ } });
+  rl.on('close', () => {
+    try { child.stdin.end(); } catch { /* 이미 끝남 */ }
+    // 실측(M2 R1·R2): cua-driver mcp 는 stdin EOF 로 안 죽는다 — 살아남은 grandchild 가
+    // 러너의 파이프를 물고 있어 러너가 20분 넘게 안 끝났다. 부모(Hermes)가 끝나면
+    // 이 세션의 드라이버도 끝이 맞다: 2초 유예 뒤 내리고 울타리도 나간다.
+    // (R2 교훈: unref 타이머는 이벤트 루프가 비면 안 울린다 — ref 를 유지해야 확실히 내린다.)
+    setTimeout(() => {
+      try { child.kill('SIGTERM'); } catch { /* 이미 죽음 */ }
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* 이미 죽음 */ } process.exit(0); }, 1000);
+    }, 2000);
+  });
 }
