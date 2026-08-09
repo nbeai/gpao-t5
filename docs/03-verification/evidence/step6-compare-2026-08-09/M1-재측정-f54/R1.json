@@ -1,0 +1,49 @@
+{
+  "턴들": [
+    {
+      "말": "이번 달 얼마 벌었지?",
+      "걸린ms": 8179,
+      "kind": "reply",
+      "reply": "윤님,  \n지금 보이는 성심카드 가맹점센터 화면 기준으로,\n\n- 2026년 8월 카드 승인액 합계: **570,000원**\n\n이라서, 이번 달 카드 매출은 57만 원이에요.",
+      "pendingId": null,
+      "pending": null,
+      "ledger": {
+        "confirmed": [
+          "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요."
+        ],
+        "unconfirmed": [],
+        "estimated": []
+      },
+      "turnExchange": [
+        {
+          "ref": "p1",
+          "providerCallId": "[민감정보 — 원문은 저장하지 않음]",
+          "tool": "desktop.screen",
+          "args": {
+            "action": "observe",
+            "scope": "window",
+            "app": "Google Chrome",
+            "창제목": "성심카드 가맹점센터",
+            "글자만": true,
+            "limit": 80
+          },
+          "summary": "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요.",
+          "그림": {
+            "mime": "image/png",
+            "base64": "[민감정보 — 원문은 저장하지 않음]"
+          },
+          "data": "본 창: Google Chrome · 성심카드 가맹점센터 — 2026년 8월 매출 · 네가 본 화면 1372×1567(지금 보이는 만큼 · 짚을 자리는 이 안에서)\n열린 창 109개\n요소 80개 (전체 192개 / 화면 전체 252개) · 화면 위에서 아래로 (자리를 못 잰 것은 맨 뒤)\n다음 수: observe(offset 80) — 이어서 다음 것들을 본다 · observe(offset 112) — 끝쪽(화면 아래 = 가장 최근)부터 본다\n- Window: 성심카드 가맹점센터 — 2026년 8월 매출 - Chrome - TV (wildwolf) 대상={\"id\":\"s0000002f:0\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출 - Chrome - TV (wildwolf)\"} - RadioButton: 0 (이름: www.naver.com - 네트워크 오류) 대상={\"id\":\"s0000002f:82\",\"label\":\"www.naver.com - 네트워크 오류\"} - RadioButton: 0 (이름: (4) YouTube - 메모리 사용량 많음 - 801MB) 대상={\"id\":\"s0000002f:83\",\"label\":\"(4) YouTube - 메모리 사용량 많음 - 801MB\"} - RadioButton: 0 (이름: localhost - 네트워크 오류) 대상={\"id\":\"s0000002f:84\",\"label\":\"localhost - 네트워크 오류\"} - RadioButton: 0 (이름: Device Activation) 대상={\"id\":\"s0000002f:85\",\"label\":\"Device Activation\"} - RadioButton: 0 (이름: Device Activation) 대상={\"id\":\"s0000002f:86\",\"label\":\"Device Activation\"} - RadioButton: 1 (이름: 성심카드 가맹점센터 — 2026년 8월 매출) 대상={\"id\":\"s0000002f:87\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출\"} - Button: 새 탭 대상={\"id\":\"s0000002f:89\",\"label\":\"새 탭\"} - Button: Chrome의 Gemini 열기 대상={\"id\":\"s0000002f:90\",\"label\":\"Chrome의 Gemini 열기\"} - PopUpButton: 탭 검색 대상={\"id\":\"s0000002f:81\",\"label\":\"탭 검색\"} - Button: 닫기 대상={\"id\":\"s0000002f:88\",\"label\":\"닫기\"} - Button: 새로고침 대상={\"id\":\"s0000002f:1\",\"label\":\"새로고침\"} - PopUpButton: ChatGPT search 대상={\"id\":\"s0000002f:6\",\"label\":\"ChatGPT search\"} - PopUpButton: 확장 프로그램 대상={\"id\":\"s0000002f:7\",\"label\":\"확장 프로그램\"} - Button: TV (wildwolf) 대상={\"id\":\"s0000002f:8\",\"label\":\"TV (wildwolf)\"} - PopUpButton: 새로운 Chrome 사용 가능 대상={\"id\":\"s0000002f:9\",\"label\":\"새로운 Chrome 사용 가능\"} - PopUpButton: 사이트 정보 보기 대상={\"id\":\"s0000002f:2\",\"label\":\"사이트 정보 보기\"} - TextField: 127.0.0.1:4777/card.html (이름: 주소창 및 검색창) 대상={\"id\":\"s0000002f:3\",\"label\":\"주소창 및 검색창\"} - Button: 확대/축소: 90% 대상={\"id\":\"s0000002f:4\",\"label\":\"확대/축소: 90%\"} - Button: 현재 탭을 북마크에 추가 대상={\"id\":\"s0000002f:5\",\"label\":\"현재 탭을 북마크에 추가\"} - Toolbar: 북마크 대상={\"id\":\"s0000002f:10\",\"label\":\"북마크\"} - Button: 탭 그룹 대상={\"id\":\"s0000002f:11\",\"label\":\"탭 그룹\"} - PopUpButton: 모든 북마크 대상={\"id\":\"s0000002f:12\",\"label\":\"모든 북마크\"} - WebArea: 성심카드 가맹점센터 — 2026년 8월 매출 대상={\"id\":\"s0000002f:13\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출\"} - Heading: 1 (이름: 성심카드 가맹점센터 — 2026년 8월 카드 매출) 대상={\"id\":\"s0000002f:14\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 카드 매출\"} - StaticText: 성심카드 가맹점센터 — 2026년 8월 카드 매출 대상={\"id\":\"s0000002f:15\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 카드 매출\"} - StaticText: 가맹점: 지피에이오상회 · 조회 기간: 2026-08-01 ~ 2026-08-09 대상={\"id\":\"s0000002f:16\",\"label\":\"가맹점: 지피에이오상회 · 조회 기간: 2026-08-01 ~ 2026-08-09\"} - StaticText: 승인일 대상={\"id\":\"s0000002f:20\",\"label\":\"승인일\"} - StaticText: 승인일 대상={\"id\":\"s0000002f:48\",\"label\":\"승인일\"} - StaticText: 승인일 대상={\"id\":\"s0000002f:74\",\"label\":\"승인일\"} - StaticText: 승인 건수 대상={\"id\":\"s0000002f:22\",\"label\":\"승인 건수\"} - StaticText: 승인 건수 대상={\"id\":\"s0000002f:57\",\"label\":\"승인 건수\"} - StaticText: 승인 건수 대상={\"id\":\"s0000002f:76\",\"label\":\"승인 건수\"} - StaticText: 승인 금액 대상={\"id\":\"s0000002f:24\",\"label\":\"승인 금액\"} - StaticText: 승인 금액 대상={\"id\":\"s0000002f:66\",\"label\":\"승인 금액\"} - StaticText: 승인 금액 대상={\"id\":\"s0000002f:78\",\"label\":\"승인 금액\"} - StaticText: 2026-08-02 대상={\"id\":\"s0000002f:27\",\"label\":\"2026-08-02\"} - StaticText: 2026-08-02 대상={\"id\":\"s0000002f:50\",\"label\":\"2026-08-02\"} - StaticText: 3건 대상={\"id\":\"s0000002f:29\",\"label\":\"3건\"} - StaticText: 3건 대상={\"id\":\"s0000002f:59\",\"label\":\"3건\"} - StaticText: 150,000원 대상={\"id\":\"s0000002f:31\",\"label\":\"150,000원\"} - StaticText: 150,000원 대상={\"id\":\"s0000002f:68\",\"label\":\"150,000원\"} - StaticText: 2026-08-05 대상={\"id\":\"s0000002f:34\",\"label\":\"2026-08-05\"} - StaticText: 2026-08-05 대상={\"id\":\"s0000002f:52\",\"label\":\"2026-08-05\"} - StaticText: 5건 대상={\"id\":\"s0000002f:36\",\"label\":\"5건\"} - StaticText: 5건 대상={\"id\":\"s0000002f:61\",\"label\":\"5건\"} - StaticText: 230,000원 대상={\"id\":\"s0000002f:38\",\"label\":\"230,000원\"} - StaticText: 230,000원 대상={\"id\":\"s0000002f:70\",\"label\":\"230,000원\"} - StaticText: 2026-08-08 대상={\"id\":\"s0000002f:41\",\"label\":\"2026-08-08\"} - StaticText: 2026-08-08 대상={\"id\":\"s0000002f:54\",\"label\":\"2026-08-08\"} - StaticText: 4건 대상={\"id\":\"s0000002f:43\",\"label\":\"4건\"} - StaticText: 4건 대상={\"id\":\"s0000002f:63\",\"label\":\"4건\"} - StaticText: 190,000원 대상={\"id\":\"s0000002f:45\",\"label\":\"190,000원\"} - StaticText: 190,000원 대상={\"id\":\"s0000002f:72\",\"label\":\"190,000원\"} - StaticText: 2026년 8월 카드 승인액 합계: 570,000원 대상={\"id\":\"s0000002f:79\",\"label\":\"2026년 8월 카드 승인액 합계: 570,000원\"} - StaticText: ※ 측정 고정물 페이지(가상의 카드사) — 6단계 M1 · 2026-08-09 대상={\"id\":\"s0000002f:80\",\"label\":\"※ 측정 고정물 페이지(가상의 카드사) — 6단계 M1 · 2026-08-09\"} - MenuItem: 이 Mac에 관하여 대상={\"id\":\"s0000002f:97\",\"label\":\"이 Mac에 관하여\"} - MenuItem: 시스템 정보 대상={\"id\":\"s0000002f:98\",\"label\":\"시스템 정보\"} - MenuItem: 시스템 설정…, 2개의 업데이트 대상={\"id\":\"s0000002f:99\",\"label\":\"시스템 설정…, 2개의 업데이트\"} - MenuItem: App Store…, 6개의 업데이트 대상={\"id\":\"s0000002f:100\",\"label\":\"App Store…, 6개의 업데이트\"} - MenuItem: 최근 사용 항목 대상={\"id\":\"s0000002f:101\",\"label\":\"최근 사용 항목\"} - MenuItem: 계산기 대상={\"id\":\"s0000002f:103\",\"label\":\"계산기\"} - MenuItem: Finder에서 ‘계산기’ 보기 대상={\"id\":\"s0000002f:104\",\"label\":\"Finder에서 ‘계산기’ 보기\"} - MenuItem: 사전 대상={\"id\":\"s0000002f:105\",\"label\":\"사전\"} - MenuItem: Finder에서 ‘사전’ 보기 대상={\"id\":\"s0000002f:106\",\"label\":\"Finder에서 ‘사전’ 보기\"} - MenuItem: 시스템 설정 대상={\"id\":\"s0000002f:107\",\"label\":\"시스템 설정\"} - MenuItem: Finder에서 ‘시스템 설정’ 보기 대상={\"id\":\"s0000002f:108\",\"label\":\"Finder에서 ‘시스템 설정’ 보기\"} - MenuItem: 카카오톡 대상={\"id\":\"s0000002f:109\",\"label\":\"카카오톡\"} - MenuItem: Finder에서 ‘카카오톡’ 보기 대상={\"id\":\"s0000002f:110\",\"label\":\"Finder에서 ‘카카오톡’ 보기\"} - MenuItem: ChatGPT 대상={\"id\":\"s0000002f:111\",\"label\":\"ChatGPT\"} - MenuItem: Finder에서 ‘ChatGPT’ 보기 대상={\"id\":\"s0000002f:112\",\"label\":\"Finder에서 ‘ChatGPT’ 보기\"} - MenuItem: Google 비밀번호 관리자 대상={\"id\":\"s0000002f:113\",\"label\":\"Google 비밀번호 관리자\"} - MenuItem: Finder에서 ‘Google 비밀번호 관리자’ 보기 대상={\"id\":\"s0000002f:114\",\"label\":\"Finder에서 ‘Google 비밀번호 관리자’ 보기\"} - MenuItem: Google Chrome 대상={\"id\":\"s0000002f:115\",\"label\":\"Google Chrome\"} - MenuItem: Finder에서 ‘Google Chrome’ 보기 대상={\"id\":\"s0000002f:116\",\"label\":\"Finder에서 ‘Google Chrome’ 보기\"} - MenuItem: Notion 대상={\"id\":\"s0000002f:117\",\"label\":\"Notion\"} - MenuItem: Finder에서 ‘Notion’ 보기 대상={\"id\":\"s0000002f:118\",\"label\":\"Finder에서 ‘Notion’ 보기\"} - MenuItem: Safari 대상={\"id\":\"s0000002f:119\",\"label\":\"Safari\"} - MenuItem: Finder에서 ‘Safari’ 보기 대상={\"id\":\"s0000002f:120\",\"label\":\"Finder에서 ‘Safari’ 보기\"} - MenuItem: Telegram 대상={\"id\":\"s0000002f:121\",\"label\":\"Telegram\"}"
+        }
+      ]
+    }
+  ],
+  "홈변경": {
+    "생김": [],
+    "사라짐": []
+  },
+  "stateDir": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-real-state-75aeEA",
+  "설치본": {
+    "자리": "/tmp/t5-pkg-f54-AIOj/package",
+    "버전": "0.1.0"
+  }
+}
