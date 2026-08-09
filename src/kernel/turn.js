@@ -834,6 +834,13 @@ export async function runTurn(input, ctx) {
       for (const [toolId, args] of Object.entries(saved.sendArgs ?? {})) {
         if (isSendTool(toolId, selfState)) rememberCounterpart(ctx.knownCounterparts, toolId, args?.target);
       }
+      // **화면 경유 전송도 같은 자리에서 기억한다**(F-58 · 2026-08-09). 열쇠는 카드가
+      // 보여 준 그 실질(`상대열쇠` — previewOf 가 낸 앱·방·내용)이다. 카드가 A 를 보여 주고
+      // 기억이 B 로 저장되면 사용자가 승인한 것과 조용해지는 것이 어긋난다(PM 조건 ①).
+      // 신분이 안 선 카드(정규화 실패)는 열쇠가 없으므로 아무것도 저장하지 않는다 — 다음에도 묻는다.
+      for (const 행동 of saved.plan?.needsApproval ?? []) {
+        if (행동?.상대열쇠) ctx.knownCounterparts.add(행동.상대열쇠);
+      }
     }
     // **이 요청에서 이미 허락한 손을 기억한다.** 실측(오너 라이브 2026-07-28, D):
     // "노션에서 회의록 찾아줘" 한 마디에 승인 카드가 네 번 떴다 — 같은 손이 인자만 바꿔
@@ -1482,7 +1489,8 @@ export async function runTurn(input, ctx) {
     const 남은손 = planIntent.neededTools.filter((x) => x !== 'local.file');
     planIntent = { ...planIntent, neededTools: 남은손, fileOp: undefined };
   }
-  const plan = buildActionPlan({ intent: planIntent, selfState });
+  // F-58 — 이 대화에서 이미 허락한 상대를 함께 넘긴다(헌장 ③ 의 조건이 서는 자리).
+  const plan = buildActionPlan({ intent: planIntent, selfState, knownCounterparts: ctx.knownCounterparts });
   // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
@@ -2542,7 +2550,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
             (t) => (t.id === toolId ? { ...t, needsApproval: true } : t),
           ) }
         : selfState;
-      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState: 걸음selfState });
+      const 걸음plan = buildActionPlan({ intent: 걸음intent, selfState: 걸음selfState, knownCounterparts: ctx.knownCounterparts });
       // **카드에 누구에게·무엇을을 못 박는다** — 계획 경로와 같은 자리(S6-c 4번).
       if (isSendTool(toolId, selfState)) {
         for (const g of 걸음plan.needsApproval ?? []) {

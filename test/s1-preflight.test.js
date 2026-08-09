@@ -248,6 +248,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // **cua 드라이버**(2026-08-05) — 화면 슬롯의 두 번째 드라이버. 크로스 플랫폼 요구로 갈아탔다.
     'src/runtime/desktop-cua-driver.js',
     'src/kernel/l2-plan/action-plan.js',
+    // F-58 · 승인 기억의 열쇠(상대·내용)를 grant 가 카드와 함께 나른다 — 판정 규칙은 불변.
+    'src/kernel/l2-plan/authority.js',
     // F-9 · 표를 그린다(0단계 옆줄 · 2026-08-08) — 렌더러가 표를 그리게 한다(장부 판정 ①).
     'src/surface/web/markdown.js',
     'src/surface/web/index.html',

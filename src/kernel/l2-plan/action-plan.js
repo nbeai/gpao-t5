@@ -4,6 +4,8 @@ import { isToolExecutable } from '../l0-evidence/self-state.js';
 import { toolLabel } from '../tool-labels.js';
 import { grantFor, UNKNOWN_KIND, isSafetyFloor } from './authority.js';
 import { containsSensitivePayload } from '../l0-evidence/sensitive-text.js';
+import { counterpartRef } from './known-counterpart.js';
+import { isSendTool } from '../contracts.js';
 
 // 도구 id → 권한 종류(범주). 실행 종류를 권한 등급으로 잇는다.
 /**
@@ -121,8 +123,18 @@ export function toolActionKind({ toolId, args, selfState }) {
       // 탐침이 그 칸을 **찾았으면** 요소를 아는 것이다 — 그때는 예전 그대로 자동이다.
       const 커서에침 = a === 'type' && !Object.keys(args?.대상 ?? {}).length
         && args?.눌러본사실?.찾음 !== true;
-      kind = args?.기대?.바깥으로 === true || 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
-        : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
+      // **바깥으로 나가는 걸음은 미상이 아니라 전송이다**(F-58 · PM 승인 2026-08-09).
+      //
+      // 예전엔 `UNKNOWN_KIND` 였고 미상은 조건 없이 항상 카드라, 헌장 ③ 의 조건
+      // (`counterpartKnown` — 아는 상대에겐 안 묻는다)에 **닿지도 못했다.** 그래서 같은
+      // "카톡에 이 말 보내기"가 채널 손으로는 한 번만 묻고 화면 손으로는 매번 물었다 —
+      // 사거리 비대칭병이고, 사용자에게는 같은 일이다.
+      // 안전은 안 풀린다: `send` 도 헌장 ③ 이라 **새 상대면 반드시 카드**이고, 신분이 안
+      // 서면(정규화 실패) 상대를 모르는 것이므로 역시 카드다(fail-closed).
+      // 좌표로 짚은 걸음·커서에 치는 입력은 그대로 미상이다 — 그 규율은 손대지 않는다.
+      kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
+        : args?.기대?.바깥으로 === true ? 'send'
+          : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
@@ -149,7 +161,9 @@ export function toolActionKind({ toolId, args, selfState }) {
  * @returns {import('../contracts.js').ActionPlan}
  */
 export function buildActionPlan(p) {
-  const { intent, selfState, mode } = p; // mode(P6-15): 저위험 통과 강도. 안전 바닥은 불변.
+  // `knownCounterparts` — 이 대화에서 사용자가 이미 허락한 상대들(세션 범위 · PM 판정
+  // 2026-08-09: 영속은 사용자가 명시로 넓힐 때만이고 그때는 기억 계약을 탄다).
+  const { intent, selfState, mode, knownCounterparts } = p; // mode(P6-15): 저위험 통과 강도. 안전 바닥은 불변.
   const needed = intent.neededTools ?? [];
 
   // 실행 가능한 도구만 계획에 올린다(목록 존재 ≠ 실행 가능).
@@ -193,8 +207,20 @@ export function buildActionPlan(p) {
       duration: '이번 한 번',
       cancel: cancelText,
     });
+    // **아는 상대인가** — 헌장 ③ 의 조건을 여기서 세운다(F-58).
+    // 계약(`counterpartKnown`)과 신분 만드는 자리(`known-counterpart.js`)는 있었는데
+    // **둘을 잇는 배선이 없었다** — 그래서 조건이 영영 참이 되지 않았고 채널 손조차
+    // 매번 물었다(집 파일 P0 와 같은 모양: 만들어 놓고 안 이었다).
+    // 열쇠는 **카드가 보여 준 그 실질**이다(PM 조건 ①): 화면 손은 previewOf 가 낸
+    // `발신실질`, 채널 손은 실행 대상 값. 둘 다 없으면 모르는 상대다(fail-closed).
+    const 상대열쇠 = 도구미리보기?.발신실질
+      ?? (isSendTool(id, selfState) ? counterpartRef(id, 판정인자?.target ?? intent.sendArgs?.[id]?.target) : null);
+    const counterpartKnown = Boolean(상대열쇠)
+      && (knownCounterparts instanceof Set ? knownCounterparts : new Set(knownCounterparts ?? [])).has(상대열쇠);
     const asAction = (k) => ({
       label: id, kind: k, preview: preview(),
+      ...(상대열쇠 ? { 상대열쇠 } : {}),
+      counterpartKnown,
       revocable: reversible, reversibleNote: tool?.reversibleNote,
       // 도구 선언이 확인을 요구한다는 **사실**을 그대로 넘긴다 — 종류를 바꿔 흉내 내지 않는다.
       needsApproval: tool?.needsApproval,

@@ -233,6 +233,10 @@ export function grantFor(action) {
     reason: explainAuthority(action),
   };
   if (approvalRequired) {
+    // **승인 기억의 열쇠를 카드와 함께 나른다**(F-58 · 2026-08-09). 승인 경로(`input.approve`)
+    // 가 이 값으로 상대를 기억한다 — 여기서 떨구면 카드가 보여 준 것과 기억하는 것이 갈린다
+    // (PM 조건 ①: 보여 준 것과 기억한 것의 동일성). 없으면 칸을 안 만든다 → 매번 카드.
+    if (action.상대열쇠) grant.상대열쇠 = action.상대열쇠;
     grant.approvalPreview = action.preview ?? {
       impact: action.label ?? action.kind,
       scope: '이번 요청',

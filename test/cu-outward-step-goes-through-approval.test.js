@@ -40,9 +40,15 @@ test('바깥으로 나가는 걸음은 값이 있어도 반드시 카드다 — 
     toolId: 'desktop.act',
     args: { action: 'click', 눌러본사실: { 찾음: true, 값있음: true }, 기대: { 바깥으로: true } },
   });
-  assert.equal(kind, UNKNOWN_KIND,
-    `**전송이 값 있는 요소라는 이유로 카드 없이 나간다**: ${kind}`);
-  assert.equal(decideAutoGrant({ kind, label: 'desktop.act' }), false);
+  // 계약 이행(F-58 · 2026-08-09): 바깥으로 나가는 걸음은 이제 **미상이 아니라 `send`** 다 —
+  // 미상이면 헌장 ③ 의 조건(아는 상대엔 안 묻는다)에 닿지도 못해 화면 손만 매번 물었다
+  // (사거리 비대칭병). 이 봉인이 지키는 것은 종류 이름이 아니라 **"카드 없이 안 나간다"** 이고,
+  // `send` 도 새 상대면 반드시 카드다(counterpartKnown 이 없으면 decideAutoGrant 는 false).
+  assert.equal(kind, 'send', `바깥으로 나가는 걸음이 전송으로 안 잡힌다: ${kind}`);
+  assert.equal(decideAutoGrant({ kind, label: 'desktop.act' }), false,
+    '**새 상대인데 자동으로 흘린다** — 헌장 ③ 붕괴');
+  // 아는 상대일 때만 조용해진다(그 조건은 F-58 봉인이 따로 문다).
+  assert.equal(decideAutoGrant({ kind, label: 'desktop.act', counterpartKnown: true }), true);
 });
 
 test('바깥이 아니면 예전 그대로다 — 없던 벽을 만들지 않는다', () => {

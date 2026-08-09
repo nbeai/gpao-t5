@@ -130,8 +130,11 @@ test('모델이 바깥으로 나간다고 밝히면 반드시 카드를 거친�
     toolId: 'desktop.act',
     args: { action: 'click', 눌러본사실: { 찾음: true, 값있음: true }, 기대: { 바깥으로: true } },
   });
-  assert.equal(kind, UNKNOWN_KIND, '**전송이 값 있는 요소라는 이유로 카드 없이 나간다**');
-  assert.equal(decideAutoGrant({ kind, label: 'desktop.act' }), false);
+  // 계약 이행(F-58): 바깥 걸음은 미상이 아니라 'send' 다. 불변식("카드 없이 안 나간다")은
+  // 아래 줄이 그대로 지킨다 — 새 상대면 decideAutoGrant 가 false 다.
+  assert.equal(kind, 'send', '**바깥으로 나가는 걸음이 전송으로 안 잡힌다**');
+  assert.equal(decideAutoGrant({ kind, label: 'desktop.act' }), false,
+    '**전송이 카드 없이 나간다**');
 });
 
 test('허락이 난 뒤에는 손이 한다 — 카드를 띄워 놓고 안 하면 거짓 카드다', async () => {
