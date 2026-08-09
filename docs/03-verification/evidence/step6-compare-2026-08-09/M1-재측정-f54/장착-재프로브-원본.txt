@@ -1,0 +1,44 @@
+{
+  "action": "attached_existing_profile",
+  "attachment": {
+    "browser": "chromium",
+    "capabilities_invalidated": true,
+    "kind": "existing_profile",
+    "next_action": "get_browser_state"
+  },
+  "endpoint_ownership": {
+    "detail": "exact default-profile DevToolsActivePort path plus lsof loopback listener owner",
+    "method": "devtools_active_ports_file",
+    "owner_pid": 1466
+  },
+  "message": "Attached to the approved existing Chromium profile. Bind the native window again before using browser capabilities.",
+  "prepared": true,
+  "prepared_pid": 1466,
+status: ok
+탭 수: 6
+[
+ {
+  "title": "localhost",
+  "url": "http://localhost:4173/"
+ },
+ {
+  "title": "성심카드 가맹점센터 — 2026년 8월 매출",
+  "url": "http://127.0.0.1:4777/card.html"
+ },
+ {
+  "title": "Device Activation",
+  "url": "https://github.com/login/device?skip_account_picke"
+ },
+ {
+  "title": "Device Activation",
+  "url": "https://github.com/login/device/success"
+ },
+ {
+  "title": "(4) YouTube",
+  "url": "https://www.youtube.com/"
+ },
+ {
+  "title": "www.naver.com",
+  "url": "https://www.naver.com/"
+ }
+]
