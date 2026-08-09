@@ -112,3 +112,38 @@ test('관통: 화면 손이 자리를 주면 이번 턴 모델 문맥에 화면 
     '화면 자리가 이번 턴 모델 재료에 없다 — 턴 끝 파생에만 실리면 M1 첫 턴은 영영 못 본다');
   assert.equal(r.screenPlaceDiagnostic?.걸린ms, 7, '지연 실측이 응답 진단면에 없다(PM 조건 2)');
 });
+
+// ── **F-54 후반 봉인 — 자리 종류를 하나만 보고 끝내지 않는다** (PM 승인 2026-08-09) ──────
+//
+// 전반(화면도 자리다)이 전환을 열었더니 얼굴이 뒤집혔다 — 전엔 파일만 보고 화면을 안 봤고,
+// 수리 뒤엔 화면만 보고 파일을 안 본다(M1 재측정 6판 실측). 한 종류에서 멈추는 구조는 그대로다.
+// **새 그물이 아니라 기존 출구 그물의 정의역을 자리 종류로 넓힌 것**이다.
+// 정의역 경계(동결): 화면은 **창 단위까지** · 탭은 범위 밖. 모델의 몫 보존 — 보든 밝히든 통과.
+const 자리 = { 파일: ['GPAO-T5', '바탕화면'], 화면: [{ label: '성심카드 가맹점센터 — Chrome' }] };
+const 영수증 = (tool) => [{ failureState: 'none', actualCall: { tool, args: {} }, result: {} }];
+
+test('한 종류만 보고 숫자를 말하면 안 본 자리를 되부른다 (양방향)', async () => {
+  const { 완료주장검증 } = await import('../src/kernel/l2-plan/exit-verification.js');
+  // 화면만 봤다 → 파일 자리를 되부른다(M1 재측정의 그 얼굴)
+  const a = 완료주장검증({ reply: '이번 달 카드 매출은 570,000원입니다.', receipts: 영수증('desktop.screen'), 자리종류: 자리 });
+  assert.equal(a.일치, false, '화면만 보고 숫자를 말했는데 그물이 지나쳤다');
+  assert.match(String(a.모델에게), /파일 자리는 안 봤다/);
+  // 파일만 봤다 → 화면 자리를 되부른다(수리 전의 그 얼굴 — 대칭)
+  const b = 완료주장검증({ reply: '이번 달 매출은 2,430,000원이야.', receipts: 영수증('local.file'), 자리종류: 자리 });
+  assert.equal(b.일치, false, '파일만 보고 숫자를 말했는데 그물이 지나쳤다');
+  assert.match(String(b.모델에게), /화면 자리는 안 봤다/);
+  assert.match(String(b.모델에게), /성심카드/, '안 본 자리를 이름으로 안 준다 — 모델이 무엇을 볼지 모른다');
+});
+
+test('반대시험: 양쪽 봄 · 안 본 쪽을 밝힘 · 숫자 없음 · 한쪽 자리가 아예 없음 → 침묵', async () => {
+  const { 완료주장검증 } = await import('../src/kernel/l2-plan/exit-verification.js');
+  const 양쪽 = [...영수증('desktop.screen'), ...영수증('local.file')];
+  assert.equal(완료주장검증({ reply: '합쳐서 3,000,000원이야.', receipts: 양쪽, 자리종류: 자리 }).일치, true,
+    '양쪽 다 본 답에 물었다 — 과잉 개입');
+  assert.equal(완료주장검증({ reply: '카드 화면 기준 570,000원이고 파일 쪽은 아직 안 봤어.', receipts: 영수증('desktop.screen'), 자리종류: 자리 }).일치, true,
+    '안 본 쪽을 밝힌 답에 물었다 — 편집 자유 침해');
+  assert.equal(완료주장검증({ reply: '정리해 뒀어. 더 필요하면 말해줘.', receipts: 영수증('desktop.screen'), 자리종류: 자리 }).일치, true,
+    '숫자 없는 답에 물었다');
+  assert.equal(완료주장검증({ reply: '570,000원입니다.', receipts: 영수증('desktop.screen'), 자리종류: { 파일: [], 화면: 자리.화면 } }).일치, true,
+    '**없는 선택을 나무랐다** — 파일 자리가 아예 없는 턴이다');
+});

@@ -588,7 +588,15 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
   // **원장글**: 이 턴의 영수증 + 앞 턴 교환. 답이 가리킨 자리가 여기 없으면 지어낸 것이다.
   // 두 벌을 따로 만들지 않는다 — 모델이 받은 것과 같은 사실 위에서 대조한다.
   const 원장글 = JSON.stringify([receipts ?? [], tc?.turnExchange ?? []]);
-  const 검증 = 완료주장검증({ reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림) });
+  // F-54 후반 — **자리 종류**를 함께 준다(파일 자리 명부 · 이번 턴 화면 자리).
+  // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
+  const 검증 = 완료주장검증({
+    reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
+    자리종류: {
+      파일: (ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
+      화면: ctx.이번턴화면자리 ?? [],
+    },
+  });
   if (검증.일치) return reply;
   ctx.출구되돌림 = true;
   // **그물이 물었다는 사실을 남긴다**(계측 · 회차 H 실측 2026-08-08). 회차 원본에 최종 답만
