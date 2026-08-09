@@ -98,3 +98,67 @@ test('보여 준 것과 기억하는 것이 같다 (PM 조건 ①) — 카드 im
       `**카드는 A 를 보여 주고 기억은 B 로 저장한다** — 승인한 것과 조용해지는 것이 어긋난다: ${키}`);
   }
 });
+
+// ── **실경로 관통 봉인**(PM 지시 2026-08-09) ─────────────────────────────────
+//
+// 부품 봉인 7개가 초록인데 **실전이 빨갰다** — 봉인이 잘못된 곳에 서 있었다는 뜻이다.
+// F-59 계열(계약은 있는데 배선 0)의 수리는 부품 레인이 아니라 **사용자 경로 전체**를
+// 관통해서 물어야 한다: 모델이 손을 고르고 → 걸음 루프가 계획을 세우고 → 카드가 뜨고 →
+// 사용자가 승인하고 → 그 승인이 상대를 기억하고 → **다음 요청에서 카드가 사라진다.**
+//
+// (첫 리허설의 미달은 제품이 아니라 **검사 하네스**였다: 턴마다 새 ctx 를 만들어
+//  pending·knownCounterparts 가 안 이어졌다. 한 대화는 한 ctx 다 — 그 사실도 여기 박는다.)
+test('실경로: 승인 한 번 → 같은 방·같은 문구 두 번째는 카드 없이 실행된다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoContext } = await import('../src/surface/demo-context.js');
+  const 방 = 'n.BEAI 사일런트서비스';
+  const 문구 = '지파오가 테스트 중입니다.';
+  const 보내기 = {
+    action: 'type', app: '카카오톡', 창제목: 방,
+    대상: { 토큰: 's1:9', label: '메시지 입력' },
+    기대: { 요소: '대화 입력', 값: 문구, 바깥으로: true },
+  };
+  const 드라이버 = {
+    id: 'cua', label: '화면(가짜)',
+    async status() { return { backend: { id: 'cua', ready: true }, permissions: { accessibility: true, screenRecording: true } }; },
+    async observe() {
+      return { frontmost: { name: '카카오톡' },
+        본창: { id: 9, pid: 7, app: '카카오톡', title: 방, bounds: { x: 0, y: 0, w: 430, h: 664 } },
+        elements: [{ id: 'e9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력' }] };
+    },
+    async act() { return { effect: 'confirmed' }; },   // 실제로는 아무 데도 안 보낸다
+  };
+  // **한 대화 = 한 ctx** — pending 과 아는 상대를 세션 내내 이어간다.
+  const ctx = {
+    ...demoContext({ desktopAct: makeDesktopActTool({ drivers: [드라이버] }) }),
+    knownCounterparts: new Set(),
+    pending: new Map(),
+    model: {
+      낸것: 0,
+      async respond(tc) {
+        if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+        this.낸것 += 1;
+        // 사용자가 보내라고 한 턴에서만 손을 고른다(승인 재개 턴은 커널이 이어받는다).
+        return tc?.currentRequest?.includes('보내')
+          ? { text: '', toolCalls: [{ providerCallId: `p${this.낸것}`, name: 'desktop.act', args: 보내기 }] }
+          : { text: '알겠어.' };
+      },
+    },
+  };
+
+  const 첫 = await runTurn({ text: `카톡 "${방}" 에 "${문구}" 보내줘` }, ctx);
+  assert.equal(첫.kind, 'approval', '첫 발신이 카드 없이 나갔다 — 헌장 ③ 붕괴');
+  const 카드 = (첫.pending ?? [])[0];
+  assert.match(String(카드?.preview?.impact ?? ''), /n\.BEAI 사일런트서비스/, '카드가 상대를 안 보여 준다');
+
+  const 승인 = await runTurn({ approve: 첫.pendingId }, ctx);
+  assert.notEqual(승인.kind, 'approval', '승인했는데 또 카드다');
+  assert.equal(ctx.knownCounterparts.size, 1,
+    `**승인이 상대를 기억하지 않았다** — 배선이 실경로에서 끊겼다(부품 봉인만으론 못 잡는 자리): ${[...ctx.knownCounterparts]}`);
+
+  const 둘째 = await runTurn({ text: `카톡 "${방}" 에 "${문구}" 한 번 더 보내줘` }, ctx);
+  assert.notEqual(둘째.kind, 'approval',
+    '**같은 방·같은 문구인데 또 물었다** — 사거리 비대칭병 그대로다');
+  assert.ok((둘째.turnExchange ?? []).some((x) => x.tool === 'desktop.act'),
+    `두 번째가 조용하긴 한데 **손이 안 돌았다** — 카드만 사라지고 일이 안 되면 수리가 아니다: ${JSON.stringify((둘째.turnExchange ?? []).map((x) => x.tool))}`);
+});
