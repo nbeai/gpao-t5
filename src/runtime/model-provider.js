@@ -8,7 +8,7 @@
 //   - 실패는 정직하게: 응답을 지어내지 않고 ModelProviderError로 던진다. 타임아웃은 fetch를
 //     실제로 abort 하고(§6.21 진짜 취소의 HTTP 구간) ModelTimeoutError로 기존 사용자 언어 경로를 탄다.
 //   - 테스트·기본은 실 API를 치지 않는다(fetchImpl 주입). 라이브 서버만 실제 배선.
-import { withTimeout } from './with-timeout.js';
+import { withLiveness } from './with-timeout.js';
 import { dumpModelInput, dumpModelOutput } from './prompt-dump.js';
 import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
@@ -17,10 +17,29 @@ import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
 import { workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { workStateFacts } from '../kernel/l1-intent/work-state.js';
 import { responseSurfaceFacts } from '../kernel/l0-evidence/response-surface.js';
-import { ModelTimeoutError } from './model-timeout.js';
+import {
+  ModelTimeoutError, modelHttpTimeoutMs, modelStallMs, modelDevBaselineMs, recordModelBaseline,
+} from './model-timeout.js';
 import { StubModelClient } from './model-client.js';
 
-const DEFAULT_HTTP_TIMEOUT_MS = 25_000; // 서버 withModelTimeout(30s)보다 짧게 — 내부가 먼저 실제 취소
+/**
+ * **총 소요 시간으로 자르는 상한은 제품에 없다**(오너 결정 2026-08-09).
+ *
+ * 예전 값은 25_000 이었고 주석은 *"서버 withModelTimeout(30s)보다 짧게"* 였다. 두 숫자가
+ * 서로를 근거로 삼았을 뿐, **사용자 기계·네트워크·임무 난이도**는 어느 쪽 근거도 아니었다.
+ * 25초는 얼마든지 넘어가고, 그때 사용자 앞에서 정상 응답이 잘렸다.
+ * 이 파일 옆의 `chatgpt-model-client.js` 는 같은 자리에서 이미 밟았다(2026-07-26 오너 실사용:
+ * *"설명해봐" 한 마디가 25초 상한에 걸려 "응답이 늦어 잠시 멈췄어요"로 끊겼다*). 그때는
+ * 그 경로의 숫자만 올렸다 — 숫자를 올리는 것은 고치는 것이 아니라 **미루는 것**이었다.
+ *
+ * 자를 근거는 총 시간이 아니라 **진짜 죽음**이다. 응답이 흐르는 동안은 살아 있는 것이고,
+ * 흐르다 멈추면(정체) 그때 자른다(`withStallTimeout`). 첫 조각 전 침묵은 소켓이 끊어지며
+ * `fetch` 가 스스로 거절한다.
+ *
+ * 0 = 무제한. 끄는 길·조이는 길은 남는다 — `GPAO_T5_MODEL_HTTP_TIMEOUT_MS` 를 주면 그 값이
+ * 다시 총 시간 상한이 된다(개발·재현용).
+ */
+const DEFAULT_HTTP_TIMEOUT_MS = 0;
 // **답 한 편이 들어갈 만큼.** 1024 는 어느 실서비스도 안 쓰는 값이다(ChatGPT·Claude 모두 수천~수만).
 // 라이브(오너 2026-08-05): `오늘 한국 증시 상황 알려줘` 답이 문장 한가운데서 그대로 끊겼다.
 // 사용자는 증시 정보를 원했지 잘림 안내를 원한 게 아니다(최상위 §0).
@@ -958,14 +977,14 @@ export function resolveModelConfig(env = {}) {
  * 빈 스트림 판정은 여기서 하지 않는다 — 도구만 고른 응답은 빈 답이 아니므로 respond 가
  * 텍스트·도구를 함께 보고 한 자리에서 판정한다.
  */
-async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDelta }) {
+async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, stallMs, onDelta }) {
   const controller = new AbortController();
   // provider 마다 스트림 엔드포인트가 다르다(gemini 는 :streamGenerateContent). 선언이 있으면 그걸 쓴다.
   const url = (spec.streamEndpoint ?? spec.endpoint)(cfg);
   let out = '';
   const 조각들 = new Map(); // index → { name, args } 문자열 누적(청크 분할 견딤)
   try {
-    await withTimeout(async () => {
+    await withLiveness(async (살아있음) => {
       const r = await fetchImpl(url, {
         method: 'POST',
         headers: { ...spec.headers(cfg), accept: 'text/event-stream' },
@@ -982,6 +1001,9 @@ async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDe
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        // **무언가 도착했다 = 살아 있다.** 정체 시계를 0 으로 돌린다. 총 걸린 시간은 세지 않는다 —
+        // 답이 열 문장이든 백 문장이든, 흐르고 있는 한 끊을 이유가 없다.
+        살아있음();
         buf += decoder.decode(value, { stream: true });
         const lines = buf.split('\n');
         buf = lines.pop() ?? '';
@@ -1009,9 +1031,10 @@ async function streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDe
         }
       }
       return r.status;
-    }, timeoutMs, controller);
+    }, { totalMs: timeoutMs, stallMs }, controller);
   } catch (e) {
-    if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs);
+    // 무엇이 잘랐는지 사실로 갈린다: 정체(진짜 죽음) 인가, 사람이 건 총 시간 상한인가.
+    if (e?.name === 'AbortError') throw new ModelTimeoutError(e.정체 ? stallMs : timeoutMs, e.정체 ? '정체' : '총시간');
     if (e instanceof ModelProviderError) throw e;
     throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });
   }
@@ -1106,7 +1129,9 @@ function 잘렸나(json) {
 export function makeProviderModelClient(baseCfg, deps = {}) {
   const spec = MODEL_PROVIDERS[baseCfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS; // 0 = 총 시간 상한 없음
+  const stallMs = deps.stallMs ?? modelStallMs(deps.env ?? process.env); // 진짜 죽음만 자른다
+  const baselineMs = deps.baselineMs ?? modelDevBaselineMs(deps.env ?? process.env); // 재는 자
   return {
     /**
      * @param {*} tc
@@ -1145,7 +1170,20 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
       }
       return { text: 모은글, toolCalls: [], ...(아직잘림 ? { 잘림: true } : {}) };
     },
+    /**
+     * **25초는 자가 됐다 — 자르는 자가 아니라 재는 자다**(오너 결정 2026-08-09).
+     * 한 번의 HTTP 호출이 개발 기준선을 넘으면 그 사실을 남긴다. 응답은 그대로 흐른다.
+     * 실패로 끝난 호출도 잰다 — 얼마나 기다렸는가는 성패와 무관한 사실이다.
+     */
     async 한번(tc, opts = {}) {
+      const t0 = Date.now();
+      try {
+        return await this.한번실행(tc, opts);
+      } finally {
+        recordModelBaseline({ 경로: baseCfg.provider, 걸린ms: Date.now() - t0, 기준선ms: baselineMs });
+      }
+    },
+    async 한번실행(tc, opts = {}) {
       // H02 절단 원인: 계약이 큰 호출(성장 제안 = statement + 5사례 JSON)이 기본 상한(1024)에서
       // 잘려 마지막 표본이 사라졌다. 호출 하나가 자기 출력 예산을 말할 수 있다 — 기본은 그대로다.
       const cfg = Number.isFinite(opts.maxTokens) && opts.maxTokens > 0
@@ -1179,7 +1217,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
       // (라이브 25턴 실측). 파서가 없는 와이어(anthropic·gemini)는 가장하지 않고 단발을 유지한다:
       // 반쪽으로 흉내 내면 "고른 줄 알았는데 실행 안 됨"이 된다(§16-D 능력 완결).
       if (opts.onDelta && spec.streamBody && (!opts.tools?.length || spec.streamToolCalls)) {
-        const streamed = await streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, onDelta: opts.onDelta });
+        const streamed = await streamSse({ spec, cfg, messages, opts, fetchImpl, timeoutMs, stallMs, onDelta: opts.onDelta });
         if (!opts.tools?.length) {
           // 도구 없는 호출의 계약은 그대로 문자열이다. 빈 스트림은 성공처럼 돌려주지 않는다.
           await dumpModelOutput({ text: streamed.text, meta: { 자리: 'stream/no-tools' } }).catch(() => null);
@@ -1205,7 +1243,11 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
       const controller = new AbortController();
       let status, json;
       try {
-        const 보내기 = async () => withTimeout(async () => {
+        // **단발 경로에는 흐름이 없다** — 모델이 다 쓸 때까지 저쪽이 연결을 붙잡고 있고,
+        // 그 침묵이 곧 "생각 중"이다. 그래서 여기서는 잴 조각이 없고(`stallMs: 0`),
+        // 총 시간도 재지 않는다(기본 `totalMs: 0`). 진짜 죽음은 소켓이 끊어지며
+        // `fetch` 가 스스로 거절하고, 그것은 아래 catch 가 그대로 받는다.
+        const 보내기 = async () => withLiveness(async () => {
           const r = await fetchImpl(url, {
             method: 'POST',
             headers: spec.headers(cfg),
@@ -1215,7 +1257,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
           let j = null;
           try { j = await r.json(); } catch { /* 비JSON 응답은 상태코드로 해석 */ }
           return { status: r.status, json: j };
-        }, timeoutMs, controller);
+        }, { totalMs: timeoutMs, stallMs: 0 }, controller);
         ({ status, json } = await 보내기());
         // **저쪽 딸꾹질에 턴을 끝내지 않는다**(오너 화면 2026-08-06).
         //
@@ -1227,7 +1269,7 @@ export function makeProviderModelClient(baseCfg, deps = {}) {
         // **저쪽 사정일 때만**(5xx) — 4xx 는 우리 요청이 틀린 것이라 다시 해도 같다.
         if (status >= 500) ({ status, json } = await 보내기());
       } catch (e) {
-        if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs); // 진짜 취소 후 기존 경로
+        if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs, '총시간'); // 진짜 취소 후 기존 경로
         throw new ModelProviderError({ provider: cfg.provider, authSignal: `network ${e?.message ?? e}` });
       }
       if (status >= 200 && status < 300) {
@@ -1279,9 +1321,10 @@ export function selectLiveModel(env = {}, deps = {}) {
       envModel: { id: 'beai5-stub', strengths: '자연 대화·판단', authSignal: 'ok' },
     };
   }
-  const timeoutMs = Number(env.GPAO_T5_MODEL_HTTP_TIMEOUT_MS ?? DEFAULT_HTTP_TIMEOUT_MS);
+  // 기본 0(무제한). 환경변수를 주면 그 값이 총 시간 상한이 된다 — 조이는 길은 남겨 둔다.
+  const timeoutMs = modelHttpTimeoutMs(env);
   return {
-    model: makeProviderModelClient(cfg, { fetchImpl: deps.fetchImpl, timeoutMs }),
+    model: makeProviderModelClient(cfg, { fetchImpl: deps.fetchImpl, timeoutMs, env }),
     envModel: { id: cfg.modelId, strengths: '자연 대화·판단', authSignal: 'ok' },
   };
 }

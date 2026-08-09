@@ -13,6 +13,7 @@ import { makeCuaDriver } from '../runtime/desktop-cua-driver.js';
 import { 화면손찾기, 앱을제자리에 } from '../runtime/desktop-bin.js';
 import { DESKTOP_SLOT, 화면등록소 } from '../runtime/desktop-slot.js';
 import { makeChannelSender } from '../runtime/channel-sender.js';
+import { modelHttpTimeoutMs } from '../runtime/model-timeout.js';
 import { makeLocalFileTool } from '../runtime/local-file.js';
 import { makeCapsuleTool } from '../runtime/capsule.js';
 import { sandboxAvailable } from '../runtime/sandbox.js';
@@ -259,7 +260,8 @@ export function liveDeps(processEnv = {}, deps = {}) {
     env, processEnv,
     store: deps.connectionStore, // 없으면 지속 없이 동작(demo·테스트)
     fetchImpl: deps.fetchImpl,
-    timeoutMs: processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS ? Number(processEnv.GPAO_T5_MODEL_HTTP_TIMEOUT_MS) : undefined,
+    // 기본 0 = 총 시간 상한 없음(오너 결정 2026-08-09). 환경변수를 주면 그 값이 상한이 된다.
+    timeoutMs: modelHttpTimeoutMs(processEnv),
   });
   const model = modelConnection.model;
   const modelSupportsSearch = () => modelConnection.supportsSearch();

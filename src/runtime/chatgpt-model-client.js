@@ -1,8 +1,10 @@
 // L3 · ChatGPT 백엔드 ModelClient (P-RT-3). OAuth 토큰은 플랫폼 API 가 아니라 Codex 백엔드에서 동작한다.
 // 와이어: POST chatgpt.com/backend-api/codex/responses — Responses 셰이프, stream 필수(SSE 누적 → 단발 반환).
 // 다른 provider 와 같은 ModelClient 계약(respond)이라 turn·타임아웃·doctor 가 그대로 적용된다.
-import { withTimeout } from './with-timeout.js';
-import { ModelTimeoutError } from './model-timeout.js';
+import { withLiveness } from './with-timeout.js';
+import {
+  ModelTimeoutError, modelStallMs, modelDevBaselineMs, recordModelBaseline,
+} from './model-timeout.js';
 import { ModelProviderError } from './model-provider.js';
 import { buildModelMessages } from './model-provider.js';
 import { dumpModelInput } from './prompt-dump.js';
@@ -88,8 +90,14 @@ export function responsesInput(m) {
 export const CHATGPT_DEFAULT_MODEL = 'gpt-5.5';
 // 계정 경로(추론 모델)는 한 턴이 분 단위로 걸린다 — 2026-07-26 실사용에서 "설명해봐" 한 마디가
 // 25초 상한에 걸려 "응답이 늦어 잠시 멈췄어요"로 끊겼다. §6.21 의 목적은 **무한 매달림 방지**이지
-// 느린 모델을 죽이는 게 아니다. 넉넉히 잡되 무한은 아니게 한다(스트림 heartbeat 가 대기를 지탱).
-const DEFAULT_TIMEOUT_MS = 150_000;
+// 느린 모델을 죽이는 게 아니다.
+//
+// **그때 한 일은 숫자를 올린 것이었다(25초 → 150초).** 위 진단은 정확했는데 처방이 증상에
+// 붙었다 — 150초도 넘어가고, 넘어가면 같은 자리에서 같은 문장으로 잘린다. 오너 결정
+// (2026-08-09): **총 소요 시간으로 자르는 상한을 없앤다.** 자를 근거는 정체(진짜 죽음)뿐이고,
+// 이 경로는 스트림만 받으므로(`stream: true`) 조각이 곧 살아있음의 증거다.
+// 0 = 무제한. 조이는 길은 `GPAO_T5_MODEL_HTTP_TIMEOUT_MS` 로 남아 있다.
+const DEFAULT_TIMEOUT_MS = 0;
 
 /** SSE 한 줄에서 사용자면 텍스트 조각만 뽑는다(사고 원문·도구 인자는 절대 흘리지 않는다, §6.12). */
 export function textDeltaFromLine(line, { allowCompleted = true } = {}) {
@@ -163,8 +171,11 @@ export function accumulateResponsesText(raw) {
  * 스트림 본문을 줄 단위로 읽으며 텍스트 조각을 흘린다(P-STR-1).
  * 조각은 **화면용 미리보기**다 — 저장하지 않는다. 최종 텍스트는 반환값이 진실.
  * @param {ReadableStream|null} body @param {(t:string)=>void} [onDelta]
+ * @param {*} [collected] @param {*} [meta]
+ * @param {() => void} [살아있음] 조각이 도착할 때마다 부른다 — 정체 시계를 0 으로 돌린다.
+ *   총 걸린 시간은 아무도 안 센다(오너 결정 2026-08-09).
  */
-export async function readTextStream(body, onDelta, collected, meta) {
+export async function readTextStream(body, onDelta, collected, meta, 살아있음) {
   if (!body?.getReader) return '';
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -187,6 +198,7 @@ export async function readTextStream(body, onDelta, collected, meta) {
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    살아있음?.(); // 무언가 도착했다 = 살아 있다
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
     buf = lines.pop() ?? ''; // 마지막 조각은 미완일 수 있다 — 다음 청크와 이어 붙인다
@@ -203,12 +215,26 @@ export async function readTextStream(body, onDelta, collected, meta) {
  */
 export function makeChatGptModelClient(deps) {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS; // 0 = 총 시간 상한 없음
+  const stallMs = deps.stallMs ?? modelStallMs(deps.env ?? process.env);
+  const baselineMs = deps.baselineMs ?? modelDevBaselineMs(deps.env ?? process.env);
   const modelId = deps.modelId ?? CHATGPT_DEFAULT_MODEL;
   return {
+    /**
+     * **25초는 자가 됐다 — 재는 자다**(오너 결정 2026-08-09). 기준선을 넘으면 사실로 남기고,
+     * 응답은 그대로 흐른다. 이 경로는 원래 25초에서 잘렸던 바로 그 자리다(위 상수 흉터).
+     */
+    async respond(tc, opts = {}) {
+      const t0 = Date.now();
+      try {
+        return await this.응답한번(tc, opts);
+      } finally {
+        recordModelBaseline({ 경로: 'chatgpt_oauth', 걸린ms: Date.now() - t0, 기준선ms: baselineMs });
+      }
+    },
     /** @param {*} tc @param {{onDelta?:(t:string)=>void}} [opts] 조각은 화면용 미리보기(저장 안 함) */
     /** 내장 검색을 켤 수 있다(1층). 모델이 자기 인프라로 찾아 읽으므로 스크래핑 차단에 안 걸린다. */
-    async respond(tc, opts = {}) {
+    async 응답한번(tc, opts = {}) {
       const cred = await deps.credentials(); // 만료 임박이면 관리자가 여기서 갱신한다
       const toolCalls = []; // 모델이 고른 도구(있으면 호출자가 승인·실행 경로로 태운다)
       const m = buildModelMessages(tc);      // §11 사실만 — provider 와 같은 입력 계약
@@ -229,7 +255,7 @@ export function makeChatGptModelClient(deps) {
       const 응답신분 = {};
       let status, raw, whole;
       try {
-        ({ status, raw, whole } = await withTimeout(async () => {
+        ({ status, raw, whole } = await withLiveness(async (살아있음) => {
           const r = await fetchImpl(CHATGPT_BACKEND_URL, {
             method: 'POST',
             headers: {
@@ -268,12 +294,12 @@ export function makeChatGptModelClient(deps) {
           // 성공이면 **읽으면서 흘린다**(다 모으고 넘기지 않는다 — 체감 지연의 원인이었다).
           // 실패면 진단을 위해 본문을 통째로 읽는다(짧다).
           if (r.status >= 200 && r.status < 300 && r.body?.getReader) {
-            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta, toolCalls, 응답신분) };
+            return { status: r.status, raw: await readTextStream(r.body, opts.onDelta, toolCalls, 응답신분, 살아있음) };
           }
           return { status: r.status, raw: await r.text(), whole: true };
-        }, timeoutMs, controller));
+        }, { totalMs: timeoutMs, stallMs }, controller));
       } catch (e) {
-        if (e?.name === 'AbortError') throw new ModelTimeoutError(timeoutMs);
+        if (e?.name === 'AbortError') throw new ModelTimeoutError(e.정체 ? stallMs : timeoutMs, e.정체 ? '정체' : '총시간');
         throw new ModelProviderError({ provider: 'chatgpt_oauth', authSignal: `network ${e?.message ?? e}` });
       }
       if (status < 200 || status >= 300) {

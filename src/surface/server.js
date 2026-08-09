@@ -29,7 +29,7 @@ import { makeTelegramReceiver } from '../runtime/telegram-receiver.js';
 import { checkDeclaration } from '../runtime/connector-declare.js';
 import { acquireWriterLock } from './writer-lock.js';
 import { StubModelClient } from '../runtime/model-client.js';
-import { withModelTimeout } from '../runtime/model-timeout.js';
+import { withModelTimeout, modelResponseTimeoutMs } from '../runtime/model-timeout.js';
 import { describeUnprobedModel } from '../runtime/model-doctor.js';
 import { ModelConnectionStore } from './model-connection.js';
 import { OnboardingStore, onboardingNeeded } from './onboarding-store.js';
@@ -378,10 +378,18 @@ export function makeServer(deps = {}) {
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
   const baseEnv = deps.env ?? demoEnv();
-  // 안정성: 느린/멈춘 모델이 턴을 무한 매달아 세션 큐를 막지 않게 타임아웃으로 감싼다(기본 30s, 0이면 무제한).
-  // 바깥 경계는 어댑터 상한(계정 경로 150s)보다 커야 안쪽의 진짜 취소가 먼저 돈다(§6.22).
-  // 30s 기본은 추론 모델의 정상 응답까지 끊었다(2026-07-26 실사용) — 무한 매달림만 막는다.
-  const modelTimeoutMs = Number(deps.modelTimeoutMs ?? process.env.GPAO_T5_MODEL_TIMEOUT_MS ?? 180_000);
+  // 바깥 경계도 **총 걸린 시간으로 자르지 않는다**(오너 결정 2026-08-09 · 기본 0 = 무제한).
+  //
+  // 이 자리의 숫자는 30s → 180s 로 한 번 올라갔었다. 올린 이유가 그대로 진단이다:
+  // *"30s 기본은 추론 모델의 정상 응답까지 끊었다(2026-07-26 실사용)."* 숫자를 올리는 것은
+  // 자를 자를 바꾸지 않는다 — 180초도 넘어가고, 넘어가면 사용자 앞에서 답이 잘린다.
+  //
+  // 원래 목적(느린/멈춘 모델이 세션 큐를 무한 매달지 않게)은 그대로 옳다. 그 목적은 이제
+  // 어댑터가 **정체(진짜 죽음)** 로 끊어서 이룬다 — 안쪽에서 진짜 취소가 돌고, 바깥은 총
+  // 시간을 다시 재지 않는다. `GPAO_T5_MODEL_TIMEOUT_MS` 를 주면 옛 상한이 되살아난다.
+  const modelTimeoutMs = deps.modelTimeoutMs != null
+    ? Number(deps.modelTimeoutMs)
+    : modelResponseTimeoutMs(process.env);
   const model = withModelTimeout(deps.model ?? new StubModelClient(), modelTimeoutMs);
   const tools = deps.tools ?? demoTools();
   // 모델 연결 관리자·자동화 런타임·대화는 같은 환경 사실을 봐야 한다. 복제하면 연결 직후에도

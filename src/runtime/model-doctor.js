@@ -65,7 +65,13 @@ export async function checkModelHealth(processEnv = {}, deps = {}) {
 export async function checkConfigHealth(cfg, deps = {}) {
   const spec = MODEL_PROVIDERS[cfg.provider];
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // **0 이 "즉시 자르라"가 되면 안 된다**(밟은 자리 2026-08-09). 모델 응답 상한이 0(무제한)이
+  // 되면서 같은 값이 여기까지 흘렀고, `withTimeout(…, 0)` 은 **바로 abort** 라 진단이 늘
+  // `unreachable` 로 떨어졌다 — 사용자에게는 "연결이 되지 않아요"로 보인다.
+  //
+  // 진단은 응답과 **다른 일**이다. 저쪽이 살아 있나만 묻는 짧은 GET 이고, 여기서 오래 매달리면
+  // 연결 화면이 멈춘다. 그러니 진단에는 상한이 맞다 — 다만 0 은 상한이 아니라 없음이다.
+  const timeoutMs = deps.timeoutMs > 0 ? deps.timeoutMs : DEFAULT_TIMEOUT_MS;
   const base = { provider: cfg.provider, modelId: cfg.modelId };
 
   let status, json;

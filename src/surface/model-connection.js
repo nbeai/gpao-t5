@@ -23,6 +23,7 @@ import {
   createPkce, buildAuthorizeUrl, exchangeCode, refreshCredential, isExpired, startCallbackListener,
 } from '../runtime/chatgpt-oauth.js';
 import { makeChatGptModelClient, CHATGPT_DEFAULT_MODEL, CHATGPT_BACKEND_URL } from '../runtime/chatgpt-model-client.js';
+import { modelStallMs, modelDevBaselineMs } from '../runtime/model-timeout.js';
 
 export const DEFAULT_ROLE = 'default';
 
@@ -149,6 +150,13 @@ function 바뀐사실(what, from, to) {
 }
 
 export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, timeoutMs }) {
+  // 살아있음 판정(정체 기준·개발 기준선)은 **두 어댑터가 같은 값**을 봐야 한다.
+  // 한쪽만 흐르는 env 를 쓰면 provider 경로와 계정 경로가 다른 자로 잘린다(이번 결함의 모양).
+  const 살아있음설정 = { stallMs: modelStallMs(processEnv), baselineMs: modelDevBaselineMs(processEnv) };
+  // **진단은 응답이 아니다.** 응답 상한이 0(무제한)이 되어도 진단까지 무제한으로 만들지 않는다 —
+  // 저쪽이 살아 있나만 묻는 짧은 GET 이고, 매달리면 연결 화면이 멈춘다. 0 이면 진단은 자기
+  // 기본값(10s)을 쓰고, 사람이 값을 정해 준 경우에만 그 값이 진단에도 적용된다(옛 동작 그대로).
+  const 진단시간 = timeoutMs > 0 ? timeoutMs : undefined;
   /** @type {Array<Object>} 사용자 연결 목록(최신 의사) */
   let connections = [];
   let activeId = null;
@@ -192,8 +200,8 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     if (!rec) return null;
     if (clients.has(rec.id)) return clients.get(rec.id);
     const c = rec.kind === 'chatgpt_oauth'
-      ? makeChatGptModelClient({ credentials: credentialsFor(rec), modelId: rec.modelId, fetchImpl, timeoutMs })
-      : makeProviderModelClient(configOf(rec), { fetchImpl, timeoutMs });
+      ? makeChatGptModelClient({ credentials: credentialsFor(rec), modelId: rec.modelId, fetchImpl, timeoutMs, ...살아있음설정 })
+      : makeProviderModelClient(configOf(rec), { fetchImpl, timeoutMs, ...살아있음설정 });
     clients.set(rec.id, c);
     return c;
   }
@@ -216,7 +224,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     const boundId = roleBindings[role];
     const rec = (boundId && findConn(boundId)) || activeConn();
     if (rec) return clientFor(rec);
-    if (envCfg) return makeProviderModelClient(envCfg, { fetchImpl, timeoutMs });
+    if (envCfg) return makeProviderModelClient(envCfg, { fetchImpl, timeoutMs, ...살아있음설정 });
     return new StubModelClient();
   }
 
@@ -441,7 +449,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
           },
         };
       }
-      const report = await checkConfigHealth(cfg, { fetchImpl, timeoutMs });
+      const report = await checkConfigHealth(cfg, { fetchImpl, timeoutMs: 진단시간 });
       // **확실한 무효만 거절한다**(P-ONB-2, T3·Hermes 공통 교훈): 라이브 프로브 하드블록은 사내
       // 프록시·지역 차단·일시 rate limit 같은 정상 사용자를 너무 많이 막았다. 확실히 틀린 것
       // (자격 거부·모델 없음·결제)만 거절하고, 불확실(도달 불가·혼잡)은 저장하되 **검증됨이라
@@ -551,7 +559,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
       }
       const cfg = rec ? configOf(rec) : envCfg;
       if (!cfg) return describeUnprobedModel(env.model);
-      return reflect(await checkConfigHealth(cfg, { fetchImpl, timeoutMs }));
+      return reflect(await checkConfigHealth(cfg, { fetchImpl, timeoutMs: 진단시간 }));
     },
 
     /** 지금 연결된 provider id — 모델 계열별 **운영 보정**을 고르는 데만 쓴다(정체성 불변). */

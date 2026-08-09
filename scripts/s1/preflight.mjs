@@ -258,6 +258,17 @@ export const 허용파일 = [
   'src/kernel/turn-budget.js',
   'src/runtime/local-file.js',
   'src/runtime/model-provider.js',
+  // **모델 응답에서 총 소요 시간 상한을 없앤다**(오너 결정 2026-08-09 · 제품 결함).
+  // `DEFAULT_HTTP_TIMEOUT_MS = 25_000` 이 사용자 앞에서 정상 응답을 잘랐다. 자를 근거는
+  // 총 시간이 아니라 **진짜 죽음(정체)** 이어야 한다 — 그 판정이 이 두 파일에 산다.
+  // 값이 세 자리(어댑터 둘·서버 하나)에 흩어져 있어 하나를 풀어도 나머지에서 잘렸다.
+  // 이제 한 자리에서만 산다(`model-timeout.js`), 재는 자(25초 개발 기준선)도 여기다.
+  'src/runtime/model-timeout.js',
+  'src/runtime/with-timeout.js',
+  // **0 은 상한이 아니라 없음이다**(밟은 자리 2026-08-09). 응답 상한을 0(무제한)으로 내리자
+  // 같은 값이 진단까지 흘렀고 `withTimeout(…, 0)` 이 바로 abort 라 진단이 늘 `unreachable` 로
+  // 떨어졌다 — 사용자에게는 "연결이 되지 않아요"였다. 진단은 응답과 다른 일이라 상한을 지킨다.
+  'src/runtime/model-doctor.js',
   'src/runtime/tool-runner.js',
   'src/surface/demo-context.js',
   // ChatGPT 계정 경로는 **별도 클라이언트**라 위 공급자 순회에 안 잡혔고, 그래서 교환이

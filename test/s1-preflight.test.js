@@ -122,6 +122,12 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/turn-budget.js',
     'src/runtime/local-file.js',
     'src/runtime/model-provider.js',
+    // 모델 응답의 총 소요 시간 상한을 없앤다(오너 결정 2026-08-09) — 자를 근거는 총 시간이
+    // 아니라 정체(진짜 죽음)다. 25초는 재는 자로만 남는다. 값이 한 자리에서만 살게 모았다.
+    'src/runtime/model-timeout.js',
+    'src/runtime/with-timeout.js',
+    // 0 은 상한이 아니라 없음이다(2026-08-09) — 응답 상한 0 이 진단을 즉시 자르던 자리.
+    'src/runtime/model-doctor.js',
     'src/runtime/tool-runner.js',
     'src/surface/demo-context.js',
     'src/runtime/chatgpt-model-client.js',
