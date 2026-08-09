@@ -235,9 +235,13 @@ export function auditScenarioRecord({ manifest, scenario, events }) {
     || manifest?.runtime?.providerRequestMutation !== runtime?.providerRequestMutation
     || (runtime?.unavailableRequiredHands ?? []).length) failures.push('runtime_binding');
   if (!session?.sessionId || turns.length !== (scenario?.turns ?? []).length
-    || turns.some((turn, index) => turn.entryIndex !== index || (turn.sessionId && turn.sessionId !== session.sessionId))) {
+    || turns.some((turn, index) => turn.entryIndex !== index || turn.sessionId !== session.sessionId)) {
     failures.push('product_turns');
   }
+  const surfaceSessionId = manifest?.surface?.sessionId;
+  if (!surfaceSessionId || surfaceSessionId !== session?.sessionId || final?.sessionId !== surfaceSessionId
+    || turns.some((turn) => turn.sessionId !== surfaceSessionId)
+    || manifest?.surface?.entryCount !== turns.length) failures.push('session_binding');
   if (!calls.length || calls.some((call) => !String(call.responseModelId ?? '').trim()
     || call.requestBodySha256 !== call.forwardedBodySha256)) failures.push('provider_identity');
   if (manifest?.provider?.provider !== 'openai' || manifest?.provider?.configuredModelId !== MODEL_ID
@@ -254,6 +258,9 @@ export function auditScenarioRecord({ manifest, scenario, events }) {
   if ((paths?.protectedChanged ?? []).length || (manifest?.protectedState?.changed ?? []).length) {
     failures.push('protected_state_changed');
   }
+  const expectedProtectedPath = resolve(homedir(), '.local', 'state', 'gpao-t5');
+  if (!same(manifest?.protectedState?.paths, [expectedProtectedPath])
+    || !same(paths?.protected?.paths, [expectedProtectedPath])) failures.push('protected_path_identity');
   if (manifest?.protectedState && paths) {
     if (manifest.protectedState.beforeSnapshotDigest !== digest(paths.protected?.before ?? [])
       || manifest.protectedState.afterSnapshotDigest !== digest(paths.protected?.after ?? [])
@@ -262,8 +269,18 @@ export function auditScenarioRecord({ manifest, scenario, events }) {
   if (manifest?.fixtureState && paths) {
     if (manifest.fixtureState.beforeSnapshotDigest !== digest(paths.sources?.before ?? [])
       || manifest.fixtureState.afterSnapshotDigest !== digest(paths.sources?.after ?? [])
-      || !same(manifest.fixtureState.changed, paths.sourceChanged ?? [])) failures.push('fixture_snapshot_binding');
+      || !same(manifest.fixtureState.changed, paths.sourceChanged ?? [])
+      || !same(manifest.fixtureState.sourcePaths, paths.sources?.paths)) failures.push('fixture_snapshot_binding');
   }
+  const ledgerReadBack = final?.output?.exists
+    ? outputReadbackEvidence(final?.ledgerEntries, final.output.absolutePath) : false;
+  if (final?.outputReadBack !== ledgerReadBack) failures.push('output_readback_binding');
+  const recalculatedEvaluation = evaluateMachineConditions(scenario ?? {}, {
+    output: final?.output ?? null,
+    sourceChanged: paths?.sourceChanged ?? [],
+    outputReadBack: ledgerReadBack,
+  });
+  if (!same(manifest?.evaluation, recalculatedEvaluation)) failures.push('evaluation_binding');
   if ((final?.runnerMutations ?? []).some((path) => /^\/automation\/(?:pause|resume|manage)/.test(path))) {
     failures.push('runner_ghost_action');
   }
@@ -285,6 +302,17 @@ function safeRawPath(manifestPath, name) {
   return target.startsWith(`${root}${sep}`) ? target : null;
 }
 
+async function rawEvidenceSetMatches(manifestPath, rawEvidence) {
+  const root = resolve(dirname(manifestPath), 'raw');
+  const actual = await readdir(root).catch(() => null);
+  if (!actual) return false;
+  const actualJson = actual.filter((name) => name.endsWith('.json')).sort();
+  const claimed = (rawEvidence ?? []).map((item) => item?.name).filter((name) => typeof name === 'string').sort();
+  return claimed.length === (rawEvidence ?? []).length
+    && new Set(claimed).size === claimed.length
+    && same(actualJson, claimed);
+}
+
 export async function verifyLivingSimScenarioEvidence(manifestPath, {
   historyDir, scenarioFile, secretValues = [], verifyQualification = verifyQualificationEvidence,
 } = {}) {
@@ -292,6 +320,7 @@ export async function verifyLivingSimScenarioEvidence(manifestPath, {
   let manifest;
   try { manifest = JSON.parse(await readFile(resolve(manifestPath), 'utf8')); }
   catch { return { ok: false, failures: ['manifest_unreadable'] }; }
+  if (!await rawEvidenceSetMatches(manifestPath, manifest.rawEvidence)) failures.push('raw_evidence_set');
   const events = [];
   for (const item of manifest.rawEvidence ?? []) {
     const path = safeRawPath(manifestPath, item?.name);
@@ -818,17 +847,19 @@ export async function verifyLivingSimBatchEvidence(manifestPath, {
     const current = await artifactIdentity({ sourceRoot }).catch(() => null);
     if (!same(current, manifest.source)) failures.push('source_identity_changed');
   }
-  const rawPath = safeRawPath(manifestPath, manifest.rawEvidence?.[0]?.name);
-  let raw = null;
-  if (!rawPath) failures.push('batch_raw_path');
-  else {
+  if (!await rawEvidenceSetMatches(manifestPath, manifest.rawEvidence)) failures.push('batch_raw_evidence_set');
+  const rawEvents = [];
+  for (const item of manifest.rawEvidence ?? []) {
+    const rawPath = safeRawPath(manifestPath, item?.name);
+    if (!rawPath) { failures.push('batch_raw_path'); continue; }
+    // eslint-disable-next-line no-await-in-loop
     const bytes = await readFile(rawPath).catch(() => null);
-    if (!bytes) failures.push('batch_raw_missing');
-    else {
-      if (digest(bytes) !== manifest.rawEvidence[0].sha256) failures.push('batch_raw_hash');
-      try { raw = JSON.parse(bytes.toString('utf8')); } catch { failures.push('batch_raw_unreadable'); }
-    }
+    if (!bytes) { failures.push('batch_raw_missing'); continue; }
+    if (digest(bytes) !== item.sha256) failures.push('batch_raw_hash');
+    try { rawEvents.push(JSON.parse(bytes.toString('utf8'))); } catch { failures.push('batch_raw_unreadable'); }
   }
+  const batchRaw = rawEvents.filter((event) => event?.type === 'batch_execution');
+  const raw = batchRaw.length === 1 ? batchRaw[0] : null;
   if (!raw || raw.runId !== manifest.runId || !same(raw.source, manifest.source)
     || !same(raw.scenarioIds, manifest.scenarioIds) || raw.scenarioFileSha256 !== manifest.scenarioFile?.sha256
     || !same(raw.qualification, manifest.qualification)) failures.push('batch_raw_binding');
@@ -837,12 +868,36 @@ export async function verifyLivingSimBatchEvidence(manifestPath, {
       historyDir: qualificationHistoryDir ?? manifest.qualification.historyDir,
     }).catch(() => ({ ok: false })) : { ok: false };
   if (!qualification.ok) failures.push('qualification_invalid');
+  const childManifestPaths = [];
+  const childAttemptIds = [];
   for (const entry of manifest.scenarios ?? []) {
+    // symlink로 같은 child를 다른 문자열처럼 쓰는 우회까지 같은 실물 경로로 접는다.
     // eslint-disable-next-line no-await-in-loop
-    const verified = await verifyLivingSimScenarioEvidence(entry.manifestPath, { historyDir, scenarioFile });
-    if (!verified.ok || digest(await readFile(entry.manifestPath).catch(() => Buffer.alloc(0))) !== entry.sha256) {
-      failures.push(`${entry.id}:scenario_evidence`);
-    }
+    const childPath = await realpath(resolve(entry.manifestPath)).catch(() => null);
+    // eslint-disable-next-line no-await-in-loop
+    const childBytes = childPath ? await readFile(childPath).catch(() => null) : null;
+    // eslint-disable-next-line no-await-in-loop
+    const verified = childPath
+      ? await verifyLivingSimScenarioEvidence(childPath, { historyDir, scenarioFile })
+      : { ok: false, manifest: null };
+    if (!verified.ok || !childBytes) failures.push(`${entry.id}:scenario_evidence`);
+    if (!childBytes || digest(childBytes) !== entry.sha256) failures.push(`${entry.id}:scenario_hash`);
+    const child = verified.manifest;
+    if (!child || entry.id !== child.scenarioId
+      || child.batchRunId !== manifest.runId
+      || child.runId !== `${manifest.runId}::${entry.id}`
+      || !same(child.source, manifest.source)
+      || child.scenarioFile?.sha256 !== manifest.scenarioFile?.sha256
+      || !same(child.qualification, manifest.qualification)) failures.push(`${entry.id}:child_binding`);
+    if (childPath) childManifestPaths.push(childPath);
+    if (typeof child?.attemptId === 'string' && child.attemptId) childAttemptIds.push(child.attemptId);
+    else failures.push(`${entry.id}:child_attempt`);
+  }
+  if (childManifestPaths.length !== 7 || new Set(childManifestPaths).size !== 7) {
+    failures.push('child_manifest_paths_unique');
+  }
+  if (childAttemptIds.length !== 7 || new Set(childAttemptIds).size !== 7) {
+    failures.push('child_attempt_ids_unique');
   }
   const history = await readHistoryEvents(historyDir, manifest.historyRunId).catch(() => []);
   const started = history.filter((event) => event.type === 'started' && event.attemptId === manifest.attemptId);

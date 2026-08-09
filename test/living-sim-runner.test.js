@@ -14,9 +14,10 @@ import {
   parseChildProcessOutput,
   renderScenarioTurns,
   runLivingSimPilot,
+  verifyLivingSimBatchEvidence,
   verifyLivingSimScenarioEvidence,
 } from '../scripts/human-use/living-sim-runner.mjs';
-import { digest } from '../scripts/human-use/harness-qualification.mjs';
+import { digest, runHarnessQualification } from '../scripts/human-use/harness-qualification.mjs';
 import { containsSensitiveValue } from '../src/kernel/l0-evidence/sensitive-text.js';
 
 const tree = new URL('..', import.meta.url).pathname;
@@ -199,6 +200,8 @@ test('control 계약은 live server가 소비하는 네 ID만이며 응답의 da
 });
 
 function validRecord() {
+  const protectedPath = join(homedir(), '.local', 'state', 'gpao-t5');
+  const outputPath = '/tmp/living-sim-out.csv';
   return {
     manifest: {
       schemaVersion: 1, kind: 'living-sim-pilot-scenario', status: 'RECORDED',
@@ -208,20 +211,41 @@ function validRecord() {
       scenarioFile: { sha256: 'd'.repeat(64) }, scenarioDigest: 'e'.repeat(64),
       provider: { provider: 'openai', configuredModelId: 'gpt-5.1', baseOrigin: 'https://api.openai.com', observedCalls: 1 },
       runtime: { requiredHands: ['local.file'], usableToolIds: ['local.file'], exposedToolIds: ['local.file'], unavailableRequiredHands: [] },
-      protectedState: { beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
-      fixtureState: { beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
+      protectedState: { paths: [protectedPath], beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
+      fixtureState: { sourcePaths: [], beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
+      surface: { sessionId: 'session-1', entryCount: 1 },
       rawEvidence: [{ name: '000001-execution.json', sha256: 'f'.repeat(64) }],
-      evaluation: { machineConditions: { outputFile: { status: 'PASS', expected: 'out.csv', observed: 'out.csv' } } },
+      evaluation: {
+        machineConditions: {
+          outputFile: { status: 'PASS', expected: 'out.csv', observed: 'out.csv' },
+          sourceHashesUnchanged: { status: 'PASS', expected: true, observed: [] },
+          outputReadBack: { status: 'PASS', expected: true, observed: true },
+        },
+        semanticConditions: [], safetyConditions: [], forbiddenOutcomes: [], overall: 'PM_UNJUDGED',
+      },
     },
-    scenario: { id: 'L1-settlement-files', requiredHands: ['local.file'], turns: ['첫 턴'], resultConditions: { outputFile: 'out.csv' } },
+    scenario: {
+      id: 'L1-settlement-files', requiredHands: ['local.file'], turns: ['첫 턴'],
+      resultConditions: { outputFile: 'out.csv', sourceHashesUnchanged: true, outputReadBack: true },
+      safetyConditions: [], forbiddenOutcomes: [],
+    },
     events: [
       { type: 'execution', source: { kind: 'source', gitSha: 'a'.repeat(40), dirty: false, worktreeDigest: 'b'.repeat(64), changesDigest: 'c'.repeat(64) }, scenarioFileSha256: 'd'.repeat(64), scenarioDigest: 'e'.repeat(64) },
       { type: 'runtime_reality', usableToolIds: ['local.file'], exposedToolIds: ['local.file'], requiredHands: ['local.file'], unavailableRequiredHands: [] },
       { type: 'surface_session', sessionId: 'session-1' },
       { type: 'surface_turn', entryIndex: 0, inputKind: 'user_text', sessionId: 'session-1', endpoint: '/turn', renderedText: '첫 턴', response: { kind: 'reply' } },
       { type: 'provider_call', endpointOrigin: 'https://api.openai.com', requestModelId: 'gpt-5.1', responseModelId: 'gpt-5.1', requestBodySha256: '1'.repeat(64), forwardedBodySha256: '1'.repeat(64) },
-      { type: 'final_state', sessionId: 'session-1', ledgerEntries: [], workEvents: [], output: { path: 'out.csv', exists: true, sha256: '2'.repeat(64), readbackSha256: '2'.repeat(64) }, runnerMutations: [] },
-      { type: 'path_snapshots', protected: { before: [], after: [] }, sources: { before: [], after: [] }, protectedChanged: [], sourceChanged: [] },
+      {
+        type: 'final_state', sessionId: 'session-1',
+        ledgerEntries: [{ actualCall: { tool: 'local.file', args: { action: 'read', path: outputPath } } }],
+        workEvents: [], outputReadBack: true,
+        output: { path: 'out.csv', absolutePath: outputPath, exists: true, sha256: '2'.repeat(64), readbackSha256: '2'.repeat(64) },
+        runnerMutations: [],
+      },
+      {
+        type: 'path_snapshots', protected: { paths: [protectedPath], before: [], after: [] },
+        sources: { paths: [], before: [], after: [] }, protectedChanged: [], sourceChanged: [],
+      },
     ],
   };
 }
@@ -258,6 +282,32 @@ test('절단: 보호·fixture before/after snapshot 주장은 raw path_snapshots
   }
 });
 
+test('선빨강: 평가·세션·실제 보호 경로는 manifest와 raw 양쪽이 함께 거짓이어도 통과하면 안 된다', () => {
+  assert.equal(auditScenarioRecord(validRecord()).ok, true);
+  const cases = [
+    ['sourceHashes 거짓 PASS', (r) => {
+      r.events.find((event) => event.type === 'path_snapshots').sourceChanged = ['/fixture/source.csv'];
+      r.manifest.fixtureState.changed = ['/fixture/source.csv'];
+    }, 'evaluation_binding'],
+    ['outputReadBack 거짓 PASS', (r) => {
+      const final = r.events.find((event) => event.type === 'final_state');
+      final.ledgerEntries = []; final.outputReadBack = false;
+    }, 'evaluation_binding'],
+    ['다른 final session', (r) => { r.events.find((event) => event.type === 'final_state').sessionId = 'session-other'; }, 'session_binding'],
+    ['다른 manifest surface session', (r) => { r.manifest.surface.sessionId = 'session-other'; }, 'session_binding'],
+    ['빈 보호 경로로 양쪽 바꿔치기', (r) => {
+      r.manifest.protectedState.paths = ['/tmp/empty-owner-state'];
+      r.events.find((event) => event.type === 'path_snapshots').protected.paths = ['/tmp/empty-owner-state'];
+    }, 'protected_path_identity'],
+  ];
+  const observed = cases.map(([name, mutate, expected]) => {
+    const forged = structuredClone(validRecord()); mutate(forged);
+    const result = auditScenarioRecord(forged);
+    return { name, ok: result.ok, caught: result.failures.includes(expected) };
+  });
+  assert.deepEqual(observed, cases.map(([name]) => ({ name, ok: false, caught: true })));
+});
+
 test('raw 삭제·변조와 manifest 단독 변조는 파일·history 결합 검증에서 빨강이다', async () => {
   const root = await room('t5-living-evidence-');
   try {
@@ -271,17 +321,59 @@ test('raw 삭제·변조와 manifest 단독 변조는 파일·history 결합 검
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-async function writeValidEvidence(root, suffix) {
+function fixtureEvaluation(scenario, { output, sourceChanged = [], outputReadBack = false }) {
+  const machineConditions = {};
+  for (const [name, expected] of Object.entries(scenario.resultConditions ?? {})) {
+    if (name === 'outputFile') {
+      machineConditions[name] = { status: output?.exists ? 'PASS' : 'FAIL', expected, observed: output?.exists ? output.path : null };
+    } else if (name === 'sourceHashesUnchanged') {
+      machineConditions[name] = { status: expected === true && sourceChanged.length === 0 ? 'PASS' : 'FAIL', expected, observed: sourceChanged };
+    } else if (name === 'outputReadBack') {
+      machineConditions[name] = { status: expected === true && outputReadBack ? 'PASS' : 'FAIL', expected, observed: outputReadBack };
+    }
+  }
+  const machineNames = new Set(['outputFile', 'sourceHashesUnchanged', 'outputReadBack']);
+  return {
+    machineConditions,
+    semanticConditions: Object.entries(scenario.resultConditions ?? {})
+      .filter(([name]) => !machineNames.has(name))
+      .map(([name, expected]) => ({ name, expected, status: 'PM_UNJUDGED' })),
+    safetyConditions: (scenario.safetyConditions ?? []).map((condition) => ({ condition, status: 'PM_UNJUDGED' })),
+    forbiddenOutcomes: (scenario.forbiddenOutcomes ?? []).map((outcome) => ({ outcome, status: 'PM_UNJUDGED' })),
+    overall: 'PM_UNJUDGED',
+  };
+}
+
+async function writeValidEvidence(root, suffix, options = {}) {
   const pilot = await loadPilotDefinition(frozenPath);
-  const scenario = pilot.document.scenarios[0];
-  const runId = `pilot::L1-settlement-files::${suffix}`; const attemptId = `attempt-${suffix}`;
+  const scenario = pilot.document.scenarios[options.scenarioIndex ?? 0];
+  const batchRunId = options.batchRunId ?? 'pilot';
+  const runId = options.runId ?? `pilot::L1-settlement-files::${suffix}`;
+  const attemptId = options.attemptId ?? `attempt-${suffix}`;
   const attempt = join(root, suffix); const rawDir = join(attempt, 'raw');
-  const historyDir = join(root, `history-${suffix}`); const qualificationPath = join(root, `qualification-${suffix}.json`);
+  const historyDir = options.historyDir ?? join(root, `history-${suffix}`);
+  const qualificationPath = join(root, `qualification-${suffix}.json`);
   await mkdir(rawDir, { recursive: true });
-  const source = { kind: 'source', gitSha: 'a'.repeat(40), dirty: false, worktreeDigest: 'b'.repeat(64), changesDigest: 'c'.repeat(64) };
-  await writeFile(qualificationPath, '{"qualified":true}\n');
-  const qualification = { manifestPath: qualificationPath, historyDir: join(root, 'q-history'), sha256: digest(await readFile(qualificationPath)), runId: 'q', attemptId: 'qa' };
-  const runtime = { requiredHands: ['local.file'], usableToolIds: ['local.file'], exposedToolIds: ['local.file'], unavailableRequiredHands: [] };
+  const source = options.source ?? { kind: 'source', gitSha: 'a'.repeat(40), dirty: false, worktreeDigest: 'b'.repeat(64), changesDigest: 'c'.repeat(64) };
+  let qualification = options.qualification;
+  if (!qualification) {
+    await writeFile(qualificationPath, '{"qualified":true}\n');
+    qualification = { manifestPath: qualificationPath, historyDir: join(root, 'q-history'), sha256: digest(await readFile(qualificationPath)), runId: 'q', attemptId: 'qa' };
+  }
+  const runtime = {
+    requiredHands: scenario.requiredHands, usableToolIds: scenario.requiredHands,
+    exposedToolIds: scenario.requiredHands, unavailableRequiredHands: [],
+  };
+  const protectedPath = join(homedir(), '.local', 'state', 'gpao-t5');
+  const outputName = scenario.resultConditions?.outputFile ?? null;
+  const outputPath = outputName ? `/tmp/${suffix}-output` : null;
+  const output = outputName ? {
+    path: outputName, absolutePath: outputPath, exists: true,
+    sha256: '2'.repeat(64), readbackSha256: '2'.repeat(64),
+  } : null;
+  const ledgerEntries = outputPath
+    ? [{ actualCall: { tool: 'local.file', args: { action: 'read', path: outputPath } } }] : [];
+  const outputReadBack = Boolean(outputPath);
   const events = [
     { type: 'execution', runId, attemptId, source, scenarioFileSha256: pilot.sha256, scenarioDigest: digest(scenario), qualification },
     { type: 'runtime_reality', ...runtime },
@@ -292,8 +384,11 @@ async function writeValidEvidence(root, suffix) {
       ...(typeof entry === 'string' ? { renderedText: entry } : { action: entry.action }), response: { kind: 'reply' },
     })),
     { type: 'provider_call', endpointOrigin: 'https://api.openai.com', requestModelId: 'gpt-5.1', responseModelId: 'gpt-5.1', requestBodySha256: '1'.repeat(64), forwardedBodySha256: '1'.repeat(64) },
-    { type: 'final_state', sessionId: 'session-1', output: { path: 'out.csv', exists: true, sha256: '2'.repeat(64), readbackSha256: '2'.repeat(64) }, runnerMutations: [] },
-    { type: 'path_snapshots', protected: { before: [], after: [] }, sources: { before: [], after: [] }, protectedChanged: [], sourceChanged: [] },
+    { type: 'final_state', sessionId: 'session-1', output, outputReadBack, ledgerEntries, runnerMutations: [] },
+    {
+      type: 'path_snapshots', protected: { paths: [protectedPath], before: [], after: [] },
+      sources: { paths: [], before: [], after: [] }, protectedChanged: [], sourceChanged: [],
+    },
   ];
   const rawEvidence = [];
   for (let index = 0; index < events.length; index += 1) {
@@ -302,29 +397,200 @@ async function writeValidEvidence(root, suffix) {
     rawEvidence.push({ name, sha256: digest(await readFile(path)) });
   }
   const manifest = {
-    schemaVersion: 1, kind: 'living-sim-pilot-scenario', status: 'RECORDED', batchRunId: 'pilot', runId, attemptId,
+    schemaVersion: 1, kind: 'living-sim-pilot-scenario', status: 'RECORDED', batchRunId, runId, attemptId,
     scenarioId: scenario.id, source, scenarioFile: { sha256: pilot.sha256 }, scenarioDigest: digest(scenario), qualification,
     provider: { provider: 'openai', configuredModelId: 'gpt-5.1', baseOrigin: 'https://api.openai.com', observedCalls: 1 },
     runtime,
-    protectedState: { beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
-    fixtureState: { beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
-    evaluation: { machineConditions: { outputFile: { status: 'PASS', expected: 'out.csv', observed: 'out.csv' } } },
+    protectedState: { paths: [protectedPath], beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
+    fixtureState: { sourcePaths: [], beforeSnapshotDigest: digest([]), afterSnapshotDigest: digest([]), changed: [] },
+    surface: { sessionId: 'session-1', entryCount: scenario.turns.length },
+    evaluation: fixtureEvaluation(scenario, { output, outputReadBack }),
     rawEvidence,
   };
   const manifestPath = join(attempt, 'manifest.json'); await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
   const runDir = join(historyDir, 'runs', digest(runId)); await mkdir(runDir, { recursive: true });
-  await writeFile(join(runDir, '000001-started.json'), JSON.stringify({ type: 'started', runId, attemptId, executionKind: 'headless_isolated' }));
-  await writeFile(join(runDir, '000002-finished.json'), JSON.stringify({ type: 'finished', runId, attemptId, status: 'RECORDED', invalidReason: null, manifestHash: digest(await readFile(manifestPath)) }));
-  return { manifestPath, historyDir, rawDir, verify: () => verifyLivingSimScenarioEvidence(manifestPath, {
+  const historySeq = Number(options.historySeq ?? 1) * 2;
+  await writeFile(join(runDir, `${String(historySeq - 1).padStart(6, '0')}-started.json`), JSON.stringify({ type: 'started', runId, attemptId, executionKind: 'headless_isolated' }));
+  await writeFile(join(runDir, `${String(historySeq).padStart(6, '0')}-finished.json`), JSON.stringify({ type: 'finished', runId, attemptId, status: 'RECORDED', invalidReason: null, manifestHash: digest(await readFile(manifestPath)) }));
+  return { manifestPath, manifest, historyDir, rawDir, verify: () => verifyLivingSimScenarioEvidence(manifestPath, {
     historyDir, scenarioFile: frozenPath, verifyQualification: async () => ({ ok: true }),
   }) };
 }
+
+async function makeQualificationRef(root, suffix) {
+  const historyDir = join(root, `qualification-history-${suffix}`);
+  const protectedFile = join(root, `qualification-protected-${suffix}.txt`);
+  await writeFile(protectedFile, 'unchanged\n');
+  const result = await runHarnessQualification({
+    runId: `living-batch-qualification-${suffix}`, sourceRoot: tree,
+    evidenceDir: join(root, `qualification-evidence-${suffix}`), historyDir,
+    protectedPaths: [protectedFile],
+  });
+  assert.equal(result.status, 'QUALIFIED', JSON.stringify(result.manifest));
+  const bytes = await readFile(result.manifestPath);
+  return {
+    ref: {
+      manifestPath: result.manifestPath, historyDir, sha256: digest(bytes),
+      runId: result.manifest.runId, attemptId: result.manifest.attemptId,
+    },
+    source: result.manifest.artifact,
+    historyDir,
+  };
+}
+
+async function writeBatchEvidence(root, suffix, {
+  batchRunId, children, source, qualification, historyDir, historySeq,
+} = {}) {
+  const pilot = await loadPilotDefinition(frozenPath);
+  const attemptId = `batch-attempt-${suffix}`;
+  const historyRunId = `living-sim-batch::${batchRunId}`;
+  const attempt = join(root, `batch-${suffix}`); const rawDir = join(attempt, 'raw');
+  await mkdir(rawDir, { recursive: true });
+  const raw = {
+    schemaVersion: 1, type: 'batch_execution', runId: batchRunId, historyRunId, attemptId,
+    source, scenarioFileSha256: pilot.sha256,
+    scenarioIds: pilot.document.scenarios.map((scenario) => scenario.id), qualification,
+    execution: { separateProcessPerScenario: true, parallel: false, resultBasedSelection: false },
+  };
+  const rawName = '000001-batch_execution.json'; const rawPath = join(rawDir, rawName);
+  await writeFile(rawPath, `${JSON.stringify(raw)}\n`);
+  const scenarios = [];
+  for (let index = 0; index < children.length; index += 1) {
+    const manifestPath = children[index].manifestPath;
+    // eslint-disable-next-line no-await-in-loop
+    scenarios.push({
+      id: pilot.document.scenarios[index].id, manifestPath,
+      // eslint-disable-next-line no-await-in-loop
+      sha256: digest(await readFile(manifestPath)),
+    });
+  }
+  const manifest = {
+    schemaVersion: 1, kind: 'living-sim-pilot-batch', runId: batchRunId, historyRunId, attemptId,
+    status: 'RECORDED', invalidReason: null, source,
+    scenarioFile: { sha256: pilot.sha256 }, qualification,
+    scenarioIds: pilot.document.scenarios.map((scenario) => scenario.id), scenarios,
+    rawEvidence: [{ name: rawName, sha256: digest(await readFile(rawPath)) }],
+  };
+  const manifestPath = join(attempt, 'manifest.json'); await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+  const runDir = join(historyDir, 'runs', digest(historyRunId)); await mkdir(runDir, { recursive: true });
+  const seq = Number(historySeq) * 2;
+  await writeFile(join(runDir, `${String(seq - 1).padStart(6, '0')}-started.json`), JSON.stringify({
+    type: 'started', runId: historyRunId, attemptId, executionKind: 'headless_isolated',
+  }));
+  await writeFile(join(runDir, `${String(seq).padStart(6, '0')}-finished.json`), JSON.stringify({
+    type: 'finished', runId: historyRunId, attemptId, status: 'RECORDED', invalidReason: null,
+    manifestHash: digest(await readFile(manifestPath)),
+  }));
+  return {
+    manifestPath, rawDir,
+    verify: () => verifyLivingSimBatchEvidence(manifestPath, {
+      historyDir, scenarioFile: frozenPath, qualificationHistoryDir: qualification.historyDir,
+    }),
+  };
+}
+
+test('선빨강: batch 일곱 칸은 각 child의 시나리오·batch·run·source·qualification·attempt와 결합돼야 한다', async () => {
+  const root = await room('t5-living-batch-bindings-');
+  try {
+    const q1 = await makeQualificationRef(root, 'q1');
+    const q2 = await makeQualificationRef(root, 'q2');
+    const historyDir = join(root, 'scenario-and-batch-history');
+    const batchRunId = 'pilot-batch-bindings';
+    const source = {
+      kind: 'source', gitSha: 'a'.repeat(40), dirty: false,
+      worktreeDigest: 'b'.repeat(64), changesDigest: 'c'.repeat(64),
+    };
+    const pilot = await loadPilotDefinition(frozenPath);
+    const children = [];
+    for (let index = 0; index < 7; index += 1) {
+      const scenario = pilot.document.scenarios[index];
+      // eslint-disable-next-line no-await-in-loop
+      children.push(await writeValidEvidence(root, `batch-child-${index}`, {
+        scenarioIndex: index, batchRunId, runId: `${batchRunId}::${scenario.id}`,
+        attemptId: `child-attempt-${index}`, historyDir, qualification: q1.ref, source,
+      }));
+    }
+    const valid = await writeBatchEvidence(root, 'valid', {
+      batchRunId, children, source, qualification: q1.ref, historyDir, historySeq: 1,
+    });
+    const validResult = await valid.verify();
+    assert.equal(validResult.ok, true, `정상 batch fixture가 먼저 서지 않았다: ${JSON.stringify(validResult.failures)}`);
+
+    const otherBatch = await writeValidEvidence(root, 'other-batch-child', {
+      scenarioIndex: 1, batchRunId: 'other-batch', runId: 'other-batch::L2-customer-policy',
+      attemptId: 'other-batch-attempt', historyDir, qualification: q1.ref, source,
+    });
+    const wrongId = await writeValidEvidence(root, 'wrong-id-child', {
+      scenarioIndex: 1, batchRunId, runId: `${batchRunId}::L2-customer-policy`,
+      attemptId: 'wrong-id-attempt', historyDir, historySeq: 2, qualification: q1.ref, source,
+    });
+    const wrongRun = await writeValidEvidence(root, 'wrong-run-child', {
+      scenarioIndex: 3, batchRunId, runId: 'unrelated-child-run',
+      attemptId: 'wrong-run-attempt', historyDir, qualification: q1.ref, source,
+    });
+    const otherSource = { ...source, gitSha: 'f'.repeat(40), worktreeDigest: 'e'.repeat(64) };
+    const wrongSource = await writeValidEvidence(root, 'wrong-source-child', {
+      scenarioIndex: 4, batchRunId, runId: `${batchRunId}::L5-admin-preparation`,
+      attemptId: 'wrong-source-attempt', historyDir, historySeq: 2, qualification: q1.ref, source: otherSource,
+    });
+    const wrongQualification = await writeValidEvidence(root, 'wrong-qualification-child', {
+      scenarioIndex: 5, batchRunId, runId: `${batchRunId}::L6-schedule-automation`,
+      attemptId: 'wrong-qualification-attempt', historyDir, historySeq: 2, qualification: q2.ref, source,
+    });
+    const duplicateAttempt = await writeValidEvidence(root, 'duplicate-attempt-child', {
+      scenarioIndex: 6, batchRunId, runId: `${batchRunId}::L7-pc-mixed-work`,
+      attemptId: children[0].manifest.attemptId, historyDir, historySeq: 2, qualification: q1.ref, source,
+    });
+
+    const variants = [
+      ['L1 manifest 7칸 중복', Array(7).fill(children[0])],
+      ['다른 batch child', children.with(1, otherBatch)],
+      ['entry-child id 어긋남', children.with(2, wrongId)],
+      ['child runId 어긋남', children.with(3, wrongRun)],
+      ['child source 어긋남', children.with(4, wrongSource)],
+      ['child qualification 어긋남', children.with(5, wrongQualification)],
+      ['child attemptId 중복', children.with(6, duplicateAttempt)],
+    ];
+    const observed = [];
+    for (let index = 0; index < variants.length; index += 1) {
+      const [name, forgedChildren] = variants[index];
+      // eslint-disable-next-line no-await-in-loop
+      const forged = await writeBatchEvidence(root, `forged-${index}`, {
+        batchRunId, children: forgedChildren, source, qualification: q1.ref,
+        historyDir, historySeq: index + 2,
+      });
+      // eslint-disable-next-line no-await-in-loop
+      const forgedResult = await forged.verify();
+      observed.push({ name, ok: forgedResult.ok, failures: forgedResult.failures });
+    }
+    assert.deepEqual(observed.map(({ name, ok }) => ({ name, ok })), variants.map(([name]) => ({ name, ok: false })),
+      JSON.stringify(observed));
+
+    const unlisted = await writeBatchEvidence(root, 'unlisted-raw', {
+      batchRunId, children, source, qualification: q1.ref, historyDir, historySeq: 20,
+    });
+    await writeFile(join(unlisted.rawDir, '999999-hidden-child-failure.json'), '{"type":"hidden_failure"}\n');
+    assert.ok((await unlisted.verify()).failures.includes('batch_raw_evidence_set'));
+
+    const shaCut = await writeBatchEvidence(root, 'child-sha-cut', {
+      batchRunId, children, source, qualification: q1.ref, historyDir, historySeq: 21,
+    });
+    const shaManifest = JSON.parse(await readFile(shaCut.manifestPath, 'utf8'));
+    shaManifest.scenarios[0].sha256 = '0'.repeat(64);
+    await writeFile(shaCut.manifestPath, JSON.stringify(shaManifest));
+    assert.ok((await shaCut.verify()).failures.includes('L1-settlement-files:scenario_hash'));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 test('실제 파일 반례: valid 원본 뒤 raw 삭제·변조, manifest 단독 변조, history 절단을 각각 잡는다', async () => {
   const root = await room('t5-living-file-counterexamples-');
   try {
     const valid = await writeValidEvidence(root, 'valid');
     assert.equal((await valid.verify()).ok, true);
+
+    const unlisted = await writeValidEvidence(root, 'unlisted');
+    await writeFile(join(unlisted.rawDir, '999999-hidden-provider-call.json'), '{"type":"provider_call","hidden":true}\n');
+    assert.ok((await unlisted.verify()).failures.includes('raw_evidence_set'), 'manifest에 없는 raw가 숨었다');
 
     const deleted = await writeValidEvidence(root, 'deleted');
     await rm(join(deleted.rawDir, (await readdir(deleted.rawDir))[0]));
