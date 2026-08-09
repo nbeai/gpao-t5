@@ -144,7 +144,14 @@ test('클릭은 계약을 갖췄을 때만 들어온다 — 기대 없이는 여
 test('백엔드가 터지면 실패로 낸다 — 성공도 침묵도 아니다', async () => {
   const out = await 손세우기(백엔드({ 던지기: 'boom' })).handler({ action: 'focus', app: 'TextEdit' });
   assert.equal(out.failed, true);
-  assert.ok(!JSON.stringify(out).includes('boom'), '내부 오류가 사용자면으로 샜다');
+  // **사용자면과 진단면을 가른다**(F-53 수리 2026-08-09). 이 봉인이 지키는 것은 "내부 오류가
+  // **사용자 문장**으로 새지 않는다"이지 "어디에도 안 남는다"가 아니다 — 사유 없는 실패가
+  // 회차 원본에 남아 원인 확정을 막았고(발신 시험 3회), 모델은 그 빈자리를 "환경이 막혀서"로
+  // 메웠다. diagnosticTrace 는 진단면 채널이다(task-context 가 모델·사용자에게 안 싣는다).
+  const 사용자면 = JSON.stringify({ 요약: out.userSafeSummary, 수단: out.다음수단, 결과: out.result });
+  assert.ok(!사용자면.includes('boom'), '내부 오류가 사용자면으로 샜다');
+  assert.ok(String(out.diagnosticTrace?.오류 ?? '').includes('boom'),
+    '내부 오류가 진단면에도 없다 — 사유 없는 실패는 원인 확정을 막는다(발신 시험의 그 자리)');
   assert.ok(out.다음수단?.length);
 });
 
