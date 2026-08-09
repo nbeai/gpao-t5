@@ -1,0 +1,13 @@
+diff --git a/src/kernel/turn.js b/src/kernel/turn.js
+index 4c64bd6..11781bc 100644
+--- a/src/kernel/turn.js
++++ b/src/kernel/turn.js
+@@ -924,7 +924,7 @@ export async function runTurn(input, ctx) {
+   //   memorySuggestion: 후보만 표면화(자동 승격 아님). operating_principle은 replay 전 영향 0(§5).
+   // activeGoal도 이번 발화와 관련/후속일 때만 입장한다 — 무관한 발화에 목표를 주입하면 현재요청우선
+   // 위반이다(감사 보정). broad memory, narrow influence.
+-  const goalRelevant = ctx.activeGoal?.understoodTask && isRelevant(ctx.activeGoal.understoodTask, input.text ?? '');
++  const goalRelevant = false; // [실험 팔 A] activeGoal 주입 차단 — 측정 전용, 본선 아님
+   ctx.stateReviewSignals = {
+     goalRelevant: Boolean(goalRelevant),
+     resumedApproval: false,
