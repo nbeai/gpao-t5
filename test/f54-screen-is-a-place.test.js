@@ -147,3 +147,43 @@ test('반대시험: 양쪽 봄 · 안 본 쪽을 밝힘 · 숫자 없음 · 한�
   assert.equal(완료주장검증({ reply: '570,000원입니다.', receipts: 영수증('desktop.screen'), 자리종류: { 파일: [], 화면: 자리.화면 } }).일치, true,
     '**없는 선택을 나무랐다** — 파일 자리가 아예 없는 턴이다');
 });
+
+// ── **배선 발화 봉인 — 새 세션 첫 턴에서 그물이 문다** (PM 필수 지정 2026-08-09) ─────────
+//
+// 첫 판의 사고: 그물 자체는 정상인데(단위 호출 초록) 배선이 이전 턴 상태(workingState.places)
+// 를 넘겨 **새 세션 첫 턴에는 한 번도 안 물었다** — 미검증 배선이 오너의 창 하나를 태웠다.
+// 위 단위 봉인들은 그물만 물었지 **배선**은 아무도 안 물었다(집 파일 P0 와 같은 모양).
+// 이 검사는 사용자 경로 그대로 지난다: 새 세션 → 첫 턴 → 화면만 보고 숫자 답 → **되부름 실재**.
+test('배선 발화: 새 세션 첫 턴, 화면만 보고 숫자를 말하면 그물이 실제로 문다', async () => {
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const 받은재료 = [];
+  let 걸음 = 0;
+  const model = {
+    async respond(tc) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      받은재료.push(JSON.stringify(tc));
+      걸음 += 1;
+      if (걸음 === 1) return { text: '', toolCalls: [{ providerCallId: 'p1', name: 'desktop.screen', args: { action: 'observe', scope: 'window', app: 'Chrome' } }] };
+      if (걸음 === 2) return { text: '지금 화면 기준으로 이번 달 카드 매출은 570,000원이에요.' };
+      return { text: '카드 화면 기준 570,000원이고, 파일 쪽(GPAO-T5)은 이번에 안 봤어.' };
+    },
+  };
+  const desktop = {
+    async places() { return { 창들: [{ label: '성심카드 가맹점센터 — Chrome', kind: 'screen' }], 걸린ms: 5 }; },
+    async handler() { return { result: { 본창: { app: 'Chrome', title: '성심카드' } } }; },
+  };
+  const localLocate = {
+    async places() { return [{ label: 'GPAO-T5', path: '/x/GPAO-T5' }, { label: '바탕화면', path: '/x/Desktop' }]; },
+    async handler() { return { result: { candidates: [] } }; },
+  };
+  // 선언과 손을 **같은 opts** 로 세운다(demoContext) — env 를 따로 만들면 hands 판정에서
+  // desktop.screen 이 빠져 호출이 '없는손'으로 막히고, 이 봉인이 엉뚱한 것을 잰다(직접 밟음).
+  const { demoContext } = await import('../src/surface/demo-context.js');
+  const ctx = demoContext({ desktop, localLocate });
+  const r = await runTurn({ text: '이번 달 얼마 벌었지?' }, { ...ctx, model });
+  // ① 되부름 실재 — 모델이 "파일 자리는 안 봤다" 사실을 **받았다**(첫 판은 여기가 0 이었다).
+  assert.ok(받은재료.some((m) => m.includes('파일 자리는 안 봤다')),
+    '새 세션 첫 턴에서 그물이 침묵했다 — 배선이 이전 턴 상태를 보고 있다(오너 창을 태운 그 자리)');
+  // ② 최종 답은 밝힌 쪽 — 되부름 뒤 모델의 선택이 실렸다.
+  assert.match(String(r.reply ?? ''), /안 봤어/, '되부름 뒤의 답이 안 실렸다');
+});

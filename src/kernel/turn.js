@@ -593,7 +593,10 @@ async function 출구검증(reply, { tc, ctx, receipts = [] }) {
   const 검증 = 완료주장검증({
     reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
     자리종류: {
-      파일: (ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
+      // **이번 턴 머리의 관측이 진실이다** — 이전 턴 상태(workingState.places)는 새 세션
+      // 첫 턴에 비어 있어 그물이 침묵한다(실측: 오너 창 하나를 태웠다). 관측이 없던 옛
+      // 세션 이어받기에서만 이전 턴 상태로 물러난다.
+      파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
       화면: ctx.이번턴화면자리 ?? [],
     },
   });
@@ -980,6 +983,12 @@ export async function runTurn(input, ctx) {
   if (ctx.이번턴화면자리?.length) {
     ctx.workingState = { ...(ctx.workingState ?? {}), screenPlaces: ctx.이번턴화면자리 };
   }
+  // **파일 자리도 같은 규격으로 턴 머리에서 관측한다**(F-54 후반 대칭 · PM 지시 2026-08-09).
+  // 첫 판은 출구 그물에 `ctx.workingState.places`(= **이전 턴** 상태)를 넘겼고, 새 세션 첫
+  // 턴에는 그게 비어 있어 그물이 한 번도 안 물었다 — 오너의 창 하나를 미검증 배선에 태운
+  // 그 자리다. 화면 자리만 머리 관측을 받고 파일 자리는 안 받은 **대칭 누락**이었다.
+  // 관측은 턴에 1회 — 아래 파생 자리들이 이 값을 이어받는다(두 번 세지 않는다).
+  ctx.이번턴파일자리 = await 볼수있는자리(ctx);
   // 이 턴의 문맥을 블록 밖에서도 쓴다 — 승인으로 멈출 때 **한 번 더 말하게** 하려면 필요하다.
   let earlyTc;
   let earlyWantedWeb = false;
@@ -1172,7 +1181,7 @@ export async function runTurn(input, ctx) {
     // 영원히 "방금 읽은 자료"로 남는다 — 감쇠가 필요한 바로 그 턴(화제 전환)에 감쇠가 안 돈다.
     // 라이브 실측에서 드러났다: 팔식당 뒤로 파이썬 얘기를 네 턴 해도 여전히 "방금 팔식당"이었다.
     const idleState = deriveWorkingState(ctx.workingState, {
-      receipts: [], places: await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
+      receipts: [], places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
     });
     return {
       kind: 'reply',
@@ -1956,7 +1965,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 턴에 **실제로 한 일**을 상태에 얹는다(모델 추정이 아니라 영수증 기록만).
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = 이어받기정리(deriveWorkingState(ctx.workingState, {
-    places: await 볼수있는자리(ctx),
+    places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx),
     screenPlaces: ctx.이번턴화면자리, // F-54 — 턴 머리의 그 관측(드라이버 호출은 턴에 1회)
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
