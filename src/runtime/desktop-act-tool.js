@@ -254,10 +254,15 @@ export function makeDesktopActTool(deps = {}) {
     */
    previewOf(args = {}) {
      const 행동 = String(args.action ?? '');
-     const 어디 = String(args.app ?? args.대상?.app ?? '').trim();
+     // **실질의 창은 모델 신고가 아니라 탐침이 본 창이다**(F-58 (가-2) 리허설 실측).
+     // 모델이 `창제목`·`app` 을 비우는 회차가 실재하고(같은 일을 매번 다른 모양으로 부른다),
+     // 그때 신고만 보면 열쇠가 못 서 같은 방·같은 문구 두 번째에도 카드가 떴다.
+     // 탐침의 `본창` 은 실행이 쓸 그 창이다 — 있으면 그것이 먼저다(카드는 될 일을 보여야 한다).
+     const 기계창 = args.눌러본사실?.본창 ?? null;
+     const 어디 = String(기계창?.app ?? args.app ?? args.대상?.app ?? '').trim();
      const 무엇 = String(args.대상?.label ?? '').trim();
      // **어느 창인지도 말한다** — 같은 앱 창이 여럿이면 어느 대화방인지가 알맹이다.
-     const 창 = String(args.창제목 ?? '').trim();
+     const 창 = String(기계창?.제목 ?? args.창제목 ?? '').trim();
      const 자리 = [어디, 창].filter(Boolean).join(' · ');
      const 키 = String(args.값 ?? '').trim();
      const 말 = {
@@ -327,12 +332,19 @@ export function makeDesktopActTool(deps = {}) {
    async probe(args) {
      const 모름 = { 찾음: false };
      // 창 넷은 요소를 안 본다 — 볼 일이 없는데 화면을 한 번 더 읽으면 값싼 길에 비용이 붙는다.
-     if (args?.action !== 'click' && args?.action !== 'type') return { 해당없음: true };
+     // **press_key·hotkey 는 창 신분만 확인한다**(F-58 (가-2) 리허설 실측 2026-08-09).
+     // 실질(앱·창·내용)의 창이 모델 신고(`창제목`)에만 달려 있었고, 모델이 그 칸을 비우는
+     // 회차에서 열쇠가 못 서 같은 방·같은 문구 두 번째에도 카드가 떴다 — 열쇠를 신고에서
+     // 떼는 것이 (가-2)의 판정문인데 창만 신고에 남아 있었던 것이다. 요소 탐색은 안 한다
+     // (누를 대상이 없다) — 어느 창에서 하는 일인지(기계 사실)만 들고 온다.
+     const 창신분만 = args?.action === 'press_key' || args?.action === 'hotkey';
+     if (args?.action !== 'click' && args?.action !== 'type' && !창신분만) return { 해당없음: true };
      const 드라이버 = (deps.drivers ?? [])[0];
      const 이름 = String(args?.대상?.label ?? '').trim();
      const 신분축 = Boolean(args?.대상?.토큰 ?? args?.대상?.id) || args?.대상?.번호 != null;
-     if (!드라이버 || (!이름 && !신분축)) return 모름;
+     if (!드라이버 || (!창신분만 && !이름 && !신분축)) return 모름;
      let 요소들 = null;
+     let 본창 = null;
      // **탐침도 손과 같은 창을 본다**(라이브 2026-08-06 · F-44).
      //
      // 예전엔 `{scope:'window'}` 만 불러 **앞 창**을 봤다. 사용자가 다른 일을 하는 중이면
@@ -341,20 +353,31 @@ export function makeDesktopActTool(deps = {}) {
      // 오너 규율: *"자동성이 의무다 — 승인으로 안전을 사지 마라."* 헛카드는 안전이 아니다.
      // 판정하다가 터지면 판정 자리 전체가 죽는다. 못 보면 **모른다**(모름은 확인 쪽이다).
      try {
-       요소들 = (await 드라이버.observe({
+       const 관찰 = await 드라이버.observe({
          scope: 'window',
          ...(args?.window ?? args?.대상?.창 ? { window: args?.window ?? args?.대상?.창 } : {}),
          ...(args?.app ? { app: args.app } : {}),
          ...(args?.창제목 ? { 창제목: args.창제목 } : {}),
-       }))?.elements ?? null;
+       });
+       요소들 = 관찰?.elements ?? null;
+       // **탐침이 실제로 본 창** — 실행이 쓸 그 신분이다(창실어부르기와 같은 원천).
+       // 모델 신고가 아니라 이 사실이 실질의 창이 된다(previewOf · F-58 (가-2)).
+       본창 = 관찰?.본창?.app || 관찰?.본창?.title
+         ? { app: 관찰.본창?.app ?? null, 제목: 관찰.본창?.title ?? null } : null;
      } catch { 요소들 = null; }
-     if (!Array.isArray(요소들)) return 모름;
+     // **요소를 못 찾아도 창을 본 것은 사실이다.** 리허설 실측(2026-08-09 라운드 5): 못 찾은
+     // 턴에서 본창을 버리자 previewOf 가 모델 신고로 떨어졌고, 같은 방인데 앱 이름이
+     // `카카오톡`/`KakaoTalk` 로 갈려 열쇠가 어긋났다 — 카드가 다시 떴다. 관찰이 됐으면
+     // 본창은 반환 전체에 싣는다(찾음 여부와 독립인 기계 사실).
+     const 밭 = (r) => ({ ...r, ...(본창 ? { 본창 } : {}) });
+     if (창신분만) return 본창 ? { 찾음: false, 본창 } : 모름;
+     if (!Array.isArray(요소들)) return 밭(모름);
      // **탐침도 손과 같은 자로 찾는다**(계열 A). 손은 신분으로 찾는데 탐침만 이름으로 찾으면,
      // 모델이 이름을 틀리게 적은 순간(그리고 실제로 그렇게 적었다) 둘의 답이 갈린다 —
      // 손은 누르고 탐침은 "모른다"고 해서 **누를 수 있는 걸음에 카드가 붙는다.**
      const 그것 = 신분찾기(요소들, args?.대상)
        ?? (이름 ? 요소들.find((e) => String(e?.label ?? '') === 이름) : null);
-     if (!그것) return 모름;
+     if (!그것) return 밭(모름);
      // **화면이 준 요소만 본다.** `args.대상` 은 모델이 적어 낸 것이라 지어낼 수 있다.
      // **되돌릴 수 있는지는 역할이 말해 준다.**
      //
@@ -369,6 +392,7 @@ export function makeDesktopActTool(deps = {}) {
        찾음: true,
        값있음: (그것.value !== undefined && 그것.value !== null) || 글자칸,
        역할: 그것.role ?? null,
+       ...(본창 ? { 본창 } : {}),
      };
    },
 

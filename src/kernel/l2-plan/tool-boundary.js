@@ -61,7 +61,10 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // 위험한 버튼 이름을 세는 대신 **화면에 그 자리가 무엇인지 다시 물어본다.**
   // 여기서 안 태우면 `action-plan` 의 판정은 늘 "돌려 본 사실 없음"을 보고 미상으로 답한다.
   // 창 넷(`focus` 등)에는 probe 가 `{해당없음:true}` 로 답한다 — 볼 일이 없는데 안 읽는다.
-  if (toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type')) {
+  // press_key·hotkey 는 **창 신분만** 탐침한다(F-58 (가-2)) — 실질의 창을 모델 신고가 아니라
+  // 기계 사실로 세우는 자리다. 요소 탐색은 없으니 등급 판정(값있음)은 그대로 미상이다.
+  if (toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type'
+    || args?.action === 'press_key' || args?.action === 'hotkey')) {
     const 돌려본것 = await tools?.tools?.[toolId]?.probe?.(args);
     // 돌려 본 사실을 **판정인자에 실어 보낸다** — 원장도 사용자도 왜 물었는지 볼 수 있어야 한다.
     if (돌려본것 && !돌려본것.해당없음) 판정인자 = { ...args, 눌러본사실: 돌려본것 };
@@ -133,7 +136,7 @@ export function 걸음신분({ toolId, 판정인자 }) {
 
 export function 승인면제({
   toolId, 판정인자, 허락한손, 허락한걸음, knownCounterparts, 전송인가 = false,
-  이번이월 = false, 발화밖 = false, 되돌릴수있나,
+  이번이월 = false, 발화밖 = false, 되돌릴수있나, 실질열쇠 = null,
 }) {
   // ── **면제는 "같은 질문 반복"만 없앤다. 게이트를 뚫지 않는다.** ──────────────
   //
@@ -176,6 +179,15 @@ export function 승인면제({
   if (전송인가) {
     const 대상 = String(판정인자?.target ?? '').trim();
     if (대상 && isKnownCounterpart(knownCounterparts, toolId, 대상)) return { 면제: true, 이유: '아는상대' };
+  }
+  // ②-b 헌장 ③ 의 화면 얼굴(F-58 (가-2) · 2026-08-09) — 화면 손의 상대는 target 이 아니라
+  //    **실질**(도구 previewOf 가 낸 앱·창·내용, 카드가 보여 준 그것)이다. 사용자가 그 실질을
+  //    직접 허락한 적이 있으면 같은 질문의 반복이다. 열쇠가 못 서면(신분 불성립 fail-closed)
+  //    이 조항은 영영 안 닿는다 — 새 상대·새 내용·모호한 창은 그대로 카드다.
+  //    이 조항이 없으면 경계는 "승인 필요", 분기 안의 계획은 기억을 보고 "자동" —
+  //    두 진실이 어긋나 걸음이 흔적 없이 증발한다(리허설 원장 실측 · F-20 계열 세 번째).
+  if (실질열쇠 && (knownCounterparts instanceof Set ? knownCounterparts : new Set(knownCounterparts ?? [])).has(실질열쇠)) {
+    return { 면제: true, 이유: '아는상대' };
   }
   return { 면제: false };
 }

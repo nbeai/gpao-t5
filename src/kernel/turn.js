@@ -2497,6 +2497,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       허락한걸음: ctx.허락한걸음,
       knownCounterparts: ctx.knownCounterparts,
       전송인가: isSendTool(toolId, selfState),
+      // **화면 손의 헌장 ③ 열쇠**(F-58 (가-2) · 리허설 실측 2026-08-09). 채널 손은 target 으로
+      // 묻는데 화면 손의 상대는 previewOf 가 낸 실질(앱·창·내용)이다. 이 열쇠를 여기서 안 주면
+      // 경계는 "승인 필요", 분기 안의 계획은 knownCounterparts 를 보고 "자동" — 어긋나서
+      // grants 빈손 break 로 **걸음이 흔적 없이 증발**했다(F-20 이 기록한 바로 그 죽음길).
+      실질열쇠: ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {})?.발신실질 ?? null,
       // **게이트는 면제 대상이 아니다** — 이월·발화밖은 "현재 요청 침해"의 자리다.
       이번이월, 발화밖: 발화밖파괴({ kind, 대상: args?.path ?? args?.target }, 이번발화),
       // 되돌릴 수 없는 것은 손 면제가 덮지 않는다(헌장 ②). 손 선언이 유일한 진실이다.

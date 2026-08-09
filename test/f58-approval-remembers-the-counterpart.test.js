@@ -205,13 +205,29 @@ test('실경로 ②: 두 번째를 신고 없이 불러도 카드가 없다 — 
     knownCounterparts: new Set(),
     pending: new Map(),
     model: {
-      낸것: 0,
+      // **전역 카운터로 세면 안 된다**(이 대본의 첫 판이 그랬다): 승인 재개 턴도 모델을
+      // 여러 번 부른다(재개 실행·답완성·출구 검증). 전역으로 세면 턴 2 차례가 그 사이에
+      // 소진돼 손을 낼 기회가 지나가고, 검사는 제품이 아니라 대본을 잰다. 턴 기준으로 센다.
+      첫턴손냈나: false, 둘째낸것: 0,
       async respond(tc) {
         if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
-        if (!tc?.currentRequest?.includes('보내')) return { text: '알겠어.' };
-        this.낸것 += 1;
-        // 첫 턴은 신고하고, 두 번째 턴은 **신고 없이** 부른다 — 실물이 그랬다.
-        return { text: '', toolCalls: [{ providerCallId: `p${this.낸것}`, name: 'desktop.act', args: this.낸것 === 1 ? 신고함 : 신고없음 }] };
+        const req = String(tc?.currentRequest ?? '');
+        if (!req.includes('보내')) return { text: '알겠어.' };
+        if (tc?.answerOnly) return { text: '보냈어.' };
+        if (!req.includes('한 번 더')) {
+          // 턴 1(과 그 승인 재개): 신고하고 한 번 부르고, 그 뒤는 마무리 말만.
+          if (this.첫턴손냈나) return { text: '보냈어.' };
+          this.첫턴손냈나 = true;
+          return { text: '', toolCalls: [{ providerCallId: 'p1', name: 'desktop.act', args: 신고함 }] };
+        }
+        // **두 번째 턴은 실물 모양 그대로**(격리 리허설 원장 2026-08-09): 화면을 먼저 보고,
+        // 그 다음 걸음(**걸음 경로**)에서 신고 없이 type 을 낸다. act 를 첫 호출로 내면
+        // 계획 경로로 가서 이 검사가 걸음 경로의 증발(F-20 계열)을 영영 못 문다 —
+        // 실물에서 정확히 그 자리(승인 분기 grants 빈손 break)로 걸음이 사라졌다.
+        this.둘째낸것 += 1;
+        if (this.둘째낸것 === 1) return { text: '', toolCalls: [{ providerCallId: 'p2', name: 'desktop.screen', args: { action: 'observe', scope: 'window', app: '카카오톡' } }] };
+        if (this.둘째낸것 === 2) return { text: '', toolCalls: [{ providerCallId: 'p3', name: 'desktop.act', args: 신고없음 }] };
+        return { text: '다시 보냈어.' };
       },
     },
   };
@@ -225,7 +241,7 @@ test('실경로 ②: 두 번째를 신고 없이 불러도 카드가 없다 — 
   assert.notEqual(둘째.kind, 'approval',
     '**신고를 안 했다는 이유로 같은 방·같은 문구에 또 물었다** — 열쇠가 모델 신고에 달려 있다(실물 미달의 그 자리)');
   assert.ok((둘째.turnExchange ?? []).some((x) => x.tool === 'desktop.act'),
-    '카드만 사라지고 손이 안 돌았다 — 그건 수리가 아니다');
+    '**카드도 없이 손도 안 돌았다** — 걸음이 조용히 증발했다(경계 "승인 필요" vs 계획 "자동"의 어긋남 · F-20 계열)');
 });
 
 // ── 안전 대차 — (가)로 넓어지는 자리는 하나뿐임을 증명한다 (PM 조건 ②) ──────
@@ -246,4 +262,58 @@ test('안전 대차: 카드가 줄어드는 곳은 「아는 방·아는 문구�
     assert.equal(카드떴나(계획(인자, 아는것)), 카드여야,
       `**안전 대차가 깨졌다** — "${이름}" 에서 카드 ${카드여야 ? '가 사라졌다' : '가 남았다'}`);
   }
+});
+
+// ── **실질의 창은 모델 신고가 아니라 탐침이 본 창이다** (F-58 (가-2) 리허설 실측 · 2026-08-09) ──
+//
+// 격리 리허설 2차(실모델 gpt-5.1)가 잡았다: 모델이 `창제목`·`app` 을 **비우는 회차**가 실재하고,
+// 그때 열쇠가 못 서 같은 방·같은 문구 두 번째에도 카드가 떴다(리허설기록 원본). 열쇠를 신고에서
+// 떼는 것이 (가-2)인데 **창만 신고에 남아 있었다.** 탐침이 실제로 본 창(`본창`)이 실질의 창이다.
+test('신고 없는 type 도 탐침의 본창으로 열쇠가 선다 — 창제목·app 을 비운 그 모양', () => {
+  const 방 = 'n.BEAI 사일런트서비스';
+  const 문구 = '지파오가 테스트 중입니다.';
+  const pv = 손.previewOf({
+    action: 'type', 대상: { 토큰: 's1:9', label: '메시지 입력' }, 값: 문구,
+    눌러본사실: { 찾음: true, 값있음: true, 본창: { app: '카카오톡', 제목: 방 } },
+  });
+  assert.equal(pv.발신실질, 발신실질('카카오톡', 방, 문구),
+    `**모델이 창을 안 적으면 열쇠가 없다** — 실질이 신고에 달려 있다: ${pv.발신실질}`);
+});
+
+test('press_key(엔터)도 본창으로 열쇠가 선다 — 둘째 카드가 매번 뜨던 그 자리', () => {
+  const 방 = 'n.BEAI 사일런트서비스';
+  const 문구 = '지파오가 테스트 중입니다.';
+  const pv = 손.previewOf({
+    action: 'press_key', 값: 'return', 기대: { 값: 문구, 바깥으로: true },
+    눌러본사실: { 찾음: false, 본창: { app: '카카오톡', 제목: 방 } },
+  });
+  assert.equal(pv.발신실질, 발신실질('카카오톡', 방, 문구),
+    `엔터 걸음의 실질이 못 선다 — 같은 방·같은 문구의 전송이 매번 카드가 된다: ${pv.발신실질}`);
+});
+
+test('본창이 있어도 좌표 걸음에는 열쇠가 없다 — 그 규율은 그대로다', () => {
+  const pv = 손.previewOf({
+    action: 'type', 대상: { x: 100, y: 200 }, 값: '문장',
+    기대: { 값: '문장', 바깥으로: true },
+    눌러본사실: { 찾음: true, 값있음: true, 본창: { app: '카카오톡', 제목: '방이름' } },
+  });
+  assert.equal(pv.발신실질, undefined,
+    '**눈으로 본 자리에 열쇠가 생겼다** — 이름 없는 자리는 약속할 수 없다(오너 2026-08-06)');
+});
+
+test('탐침이 press_key 에서 창 신분을 들고 온다 — 요소는 안 찾는다(등급 불변)', async () => {
+  const 손2 = makeDesktopActTool({
+    drivers: [{
+      id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
+      observe: () => ({
+        frontmost: { name: 'K' }, windows: [{ id: 9, pid: 77 }],
+        본창: { id: 9, app: '카카오톡', title: '박종윤', pid: 77 }, elements: [],
+      }),
+      act: () => ({ ok: true }),
+    }],
+  });
+  const r = await 손2.probe({ action: 'press_key', app: '카카오톡', 값: 'return' });
+  assert.equal(r?.찾음, false, '요소를 찾은 척했다 — 창 신분만 보는 걸음이다');
+  assert.deepEqual(r?.본창, { app: '카카오톡', 제목: '박종윤' },
+    `탐침이 본 창이 사실로 안 남는다: ${JSON.stringify(r)}`);
 });
