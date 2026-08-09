@@ -144,9 +144,16 @@ export function toolActionKind({ toolId, args, selfState }) {
       // 하나뿐이다(authority.js `isCharterAsk` · 안전 대차 봉인이 문다). 값 있는 칸 입력이
       // 예전엔 organize(자동)였는데 — 탐침이 선 대화 입력칸이면 **카드 없이 밖으로 나갈 수
       // 있는 구멍**이었다. 카드가 늘어나는 쪽 변화는 PM 조건 ②로 승인된 값이다.
+      // **엔터도 칸 내용이 기계로 읽히면 미상이 아니다**(F-58 (a) · PM 판정 2026-08-10).
+      // 탐침이 그 창의 글자칸 내용을 읽었으면(정확히 한 칸 · 보안 칸 제외 · fail-closed)
+      // "그 내용이 담긴 칸에서 엔터"는 field_input 의 사실 가족이다 — (가-2)가 type 에 한
+      // 일(신고 대신 기계 사실로 신분)을 엔터 걸음에 마저 한 것. 못 읽으면 미상 그대로 카드다.
+      // 키는 return/enter 만이다 — 다른 키는 그 칸의 내용을 실행하는 걸음이 아니다.
+      const 엔터걸음 = a === 'press_key' && /^(return|enter)$/i.test(String(args?.값 ?? '').trim())
+        && typeof args?.눌러본사실?.칸내용 === 'string' && args.눌러본사실.칸내용.trim() !== '';
       kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
         : args?.기대?.바깥으로 === true ? 'send'
-          : a === 'type' ? 'field_input'
+          : a === 'type' || 엔터걸음 ? 'field_input'
             : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';

@@ -1,0 +1,13 @@
+{
+  "at": "2026-08-09T15:37:53.795Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "",
+  "textChars": 0,
+  "toolCalls": [
+    "desktop.act",
+    "desktop.act"
+  ]
+}
