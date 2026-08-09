@@ -1,0 +1,20 @@
+diff --git a/src/runtime/model-provider.js b/src/runtime/model-provider.js
+index 4275c69..032cc91 100644
+--- a/src/runtime/model-provider.js
++++ b/src/runtime/model-provider.js
+@@ -497,7 +497,14 @@ export function buildModelMessages(tc) {
+   // 역할이 사라져 모델이 말투·맥락을 다시 고른다 — provider 마다 자기 셰이프로 싣는다.
+   const history = (tc.recentTurns ?? [])
+     .filter((t) => t && typeof t.text === 'string' && t.text.trim())
+-    .map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: t.text }));
++    // [실험 팔 D · 본선 아님] 가설 D: 이력에서 모델 발화와 사용자 확정의 권위 구분이 없어
++    // 모델이 자기 제안을 상태 목록에 승격시킨다. 모델 턴에 비권위 표시(사실 진술)를 붙인다.
++    .map((t) => ({
++      role: t.role === 'assistant' ? 'assistant' : 'user',
++      text: t.role === 'assistant'
++        ? `[아래는 내가 앞서 한 답이다. 그 안의 제안·예시·안내는 사용자가 확정한 사실이 아니다.]\n${t.text}`
++        : t.text,
++    }));
+   // 이번 턴에 **모델이 실제로 부른 것**. 서술이 아니라 대화로 싣는다(provider 마다 자기 셰이프로).
+   // ── **S1 · 커널은 사용자 입으로 말하지 않는다**(2026-08-05) ──────────────────
+   // `usr` 에는 커널이 쓴 블록이 최대 열넷, 그리고 **맨 마지막에 사용자가 실제로 한 말**이 있었다.
