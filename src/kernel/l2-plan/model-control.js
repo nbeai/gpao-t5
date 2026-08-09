@@ -357,7 +357,20 @@ export function modelSchemasFor(selfState, enabledControls = []) {
   // 충분하지 않다 — 선언된 통제 채널과의 교집합이어야 하며, 기본값은 기존 기억 채널뿐이다.
   const enabled = new Set([...준비된통제, ...(enabledControls ?? [])]);
   const controls = MODEL_CONTROL_SCHEMAS.filter((sch) => enabled.has(sch.name));
-  return hands.length ? [...hands, ...controls] : hands;
+  // ── **손에 매이는 것은 실행 제안뿐이다**(원인 ① 후반 · 라이브 실측 2026-08-10) ──────
+  //
+  // 예전엔 `hands.length ? [...hands, ...controls] : hands` 였다 — 연결된 손이 하나도 없으면
+  // **상태·기억 채널까지 통째로 사라졌다.** S1(고객 문의 운영안)은 손이 필요 없는 대화 작업이라
+  // 정확히 그 자리였고, 정산 게이트를 고친 뒤에도 `work.state` 스키마가 없어 `reviewOpened:false` —
+  // **원장이 시작될 수 없었다**(12턴 · 2회차 · WorkEvent 0).
+  //
+  // 원래 계약(S7 ⑦)이 지키려던 것은 *"손이 없는데 실행 제안 채널만 실리지 않는다"* 이고,
+  // 그건 `skill.propose`·`automation.propose`·`agent.propose` 의 성질이다 — 셋 다 나중에
+  // **실행되는 것**을 제안하므로 손이 없으면 못 지킬 약속이 된다. `work.state`·기억·`ask.user`
+  // 는 실행이 아니라 **상태와 이해**를 다루므로 손과 다른 축이다. 축을 하나로 묶어 두면
+  // 손 없는 대화 작업에서 OS 는 아무것도 확정하지 못한다.
+  const 실행제안 = new Set(['skill.propose', 'automation.propose', 'agent.propose']);
+  return [...hands, ...controls.filter((sch) => hands.length || !실행제안.has(sch.name))];
 }
 
 /**

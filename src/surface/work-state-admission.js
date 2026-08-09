@@ -15,29 +15,64 @@ function currentTargets(records, principalRef, workRef) {
     .filter((record) => ['active', 'open'].includes(projection.byEvent[record.eventId]?.status));
 }
 
+/**
+ * 모델이 지목한 대상이 원장의 **어느 현재값**인가.
+ *
+ * 예전엔 저장된 원문과 **완전히 같을 때만** 맞다고 봤다. 라이브 실측(2026-08-10 · S1)에서
+ * 수정·제외가 `target_not_current` 로 줄줄이 떨어졌다 — 사용자는 분명히 바꿨는데
+ * 원장에는 옛 값만 남는다(취소된 값이 부활하는 바로 그 자리다). 모델은 브리프에 렌더된
+ * 문장을 보고 **그 일부를** 지목한다.
+ *
+ * 그래서 **신분 해소**로 바꾼다: 완전 일치가 있으면 그것, 없으면 서로 품는 관계
+ * (한쪽이 다른 쪽의 부분 문자열)로 찾되 **하나로 특정될 때만** 통과시킨다. 둘 이상이면
+ * 지어내지 않고 거부한다 — `quoteSourceRef` 와 같은 규율이다. 이건 문구 규칙이 아니라
+ * **원장 안에서의 지시 대상 해소**이고, 정의역은 이 작업의 현재값들뿐이다.
+ */
 function targetFor(change, targets) {
   const expectedType = change.type === 'question_resolved'
     ? 'question_opened'
     : ['agreement_set', 'agreement_superseded'];
-  return targets.find((record) => {
-    const allowed = Array.isArray(expectedType) ? expectedType.includes(record.type) : record.type === expectedType;
-    if (!allowed) return false;
-    const text = record.type === 'question_opened' ? record.evidence?.question : record.evidence?.statement;
-    return text === change.targetQuote;
-  });
+  const 후보 = targets.filter((record) => (Array.isArray(expectedType)
+    ? expectedType.includes(record.type) : record.type === expectedType));
+  const 글 = (record) => String(record.type === 'question_opened'
+    ? record.evidence?.question : record.evidence?.statement ?? '');
+  const quote = String(change.targetQuote ?? '');
+  const 완전일치 = 후보.find((record) => 글(record) === quote);
+  if (완전일치) return 완전일치;
+  if (quote.length < 4) return undefined;   // 너무 짧은 조각은 무엇이든 품는다 — 해소가 아니다
+  const 품음 = 후보.filter((record) => 글(record).includes(quote) || quote.includes(글(record)));
+  return 품음.length === 1 ? 품음[0] : undefined;
 }
 
 function validQuote(text, quote) {
   return typeof quote === 'string' && quote.length > 0 && String(text ?? '').includes(quote);
 }
 
-// **물음은 확정이 아니다**(P-OP 결함 가족 A-② · 2026-08-10). 이 모듈의 계약은
-// "모델이 지목한 문장이 실제로 있었는지"인데, 존재만 보면 거짓 전제 질문("~포함한다고
-// 했지?")이 그 문장 그대로 합의 사건이 된다 — 기계 확인으로 사건 1이 실제로 생겼다.
-// 의미 판단이 아니라 **문장 부호의 기계 사실**만 본다: 물음표로 끝나는 발화는 합의의
-// 증거 인용이 될 수 없다(질문은 openQuestion 의 자리다). 목록이 아니라 닫힌 부호다.
-function questionShaped(quote) {
-  return /[?？]\s*$/.test(String(quote ?? '').trim());
+/**
+ * 이 인용이 **누구의 어느 발화**에서 왔는가. 있으면 그 발화의 TurnRef, 없으면 null.
+ *
+ * 예전엔 "이번 발화에 있는가" 하나만 봤다. 라이브 실측(2026-08-10 · S1 12턴)에서 모델은
+ * 앞 턴들에 확정된 것을 **뒤늦게** 제출했고(t7 에 t2~t5 의 문장 넷), 전부
+ * `utterance_quote_mismatch` 로 떨어졌다 — 사용자가 실제로 한 말인데도 원장에 못 남았다.
+ * 합의의 증거는 **사용자 원문 + 그 원문이 있었던 TurnRef** 이지 "몇 번째 턴에 제출했는가"가
+ * 아니다. 그래서 이 대화의 사용자 발화 전체를 정의역으로 삼고, **어느 발화였는지 하나로
+ * 특정될 때만** 통과시킨다(둘 이상이면 지어내지 않고 거부한다).
+ *
+ * 거짓 전제는 이 문으로 못 들어온다 — 사용자가 하지 않은 말은 어느 발화에도 없다.
+ */
+function quoteSourceRef(quote, { inputText, turnRef, priorUtterances }) {
+  if (typeof quote !== 'string' || quote.length === 0) return null;
+  if (String(inputText ?? '').includes(quote)) return turnRef;
+  const hits = (priorUtterances ?? []).filter((u) => String(u?.text ?? '').includes(quote));
+  if (hits.length !== 1) return null;
+  const ref = hits[0]?.turnRef;
+  return ref?.sessionId && Number.isSafeInteger(ref?.turnSeq) ? ref : null;
+}
+
+/** 같은 문장이 이 작업에 이미 사건으로 서 있는가(상태 무관). 재등재는 부활이다. */
+function alreadyRecorded(records, workRef, statement) {
+  return records.some((record) => record.workRef === workRef
+    && (record.evidence?.statement === statement || record.evidence?.question === statement));
 }
 
 /**
@@ -45,7 +80,7 @@ function questionShaped(quote) {
  */
 export async function admitWorkStateProposal({
   store, proposal, inputText, reply, turnRef, principalRef, workRef: existingWorkRef,
-  provisionalWorkRef = null, shownProjects = [],
+  provisionalWorkRef = null, shownProjects = [], priorUtterances = [],
 }) {
   if (!store || !proposal || !principalRef || !turnRef) return { accepted: false, reason: 'missing_fact' };
   const changes = Array.isArray(proposal.changes) ? proposal.changes : [];
@@ -53,11 +88,11 @@ export async function admitWorkStateProposal({
   if (!changes.length && !openQuestion && !proposal.continueFrom && !proposal.continueFromRef) {
     return { accepted: false, reason: 'empty_proposal' };
   }
-  if (changes.some((change) => !validQuote(inputText, change.utteranceQuote))) {
-    return { accepted: false, reason: 'utterance_quote_mismatch' };
-  }
-  if (changes.some((change) => questionShaped(change.utteranceQuote))) {
-    return { accepted: false, reason: 'question_is_not_confirmation' };
+  const 인용출처 = new Map();
+  for (const change of changes) {
+    const ref = quoteSourceRef(change.utteranceQuote, { inputText, turnRef, priorUtterances });
+    if (!ref) return { accepted: false, reason: 'utterance_quote_mismatch' };
+    인용출처.set(change, ref);
   }
   if (openQuestion && (!validQuote(reply, openQuestion.question) || !openQuestion.changesAnswerFor)) {
     return { accepted: false, reason: 'question_not_delivered' };
@@ -107,12 +142,29 @@ export async function admitWorkStateProposal({
   const prepared = [];
   for (const change of changes) {
     if (change.type === 'agreement_set') {
+      // **재등재는 부활이다**(2026-08-10). 인용 정의역을 이 대화 전체로 넓히자 모델이 뒤늦게
+      // 옛 발화를 다시 세울 수 있게 됐다 — 그중에는 **이미 철회·대체된 값**도 있다. 같은
+      // 문장으로 선 사건이 이 작업에 이미 있으면 새 합의가 아니다(상태 무관 · 원장 대조).
+      if (workRef && alreadyRecorded(records, workRef, change.utteranceQuote)) {
+        return { accepted: false, reason: 'already_recorded' };
+      }
       prepared.push({ change, target: null });
       continue;
     }
     if (!workRef || !change.targetQuote) return { accepted: false, reason: 'target_required' };
     const target = targetFor(change, targets);
-    if (!target) return { accepted: false, reason: 'target_not_current' };
+    if (!target) {
+      // **왜 못 맞췄는지 보이게 한다**(2026-08-10). 지목이 빗나가면 "수정·철회가 원장에 안
+      // 남는다"만 남고 원인이 안 보인다 — 진단면이므로 사용자·모델면에 나가지 않는다.
+      return {
+        accepted: false,
+        reason: 'target_not_current',
+        detail: {
+          targetQuote: change.targetQuote,
+          currentQuotes: targets.map((r) => r.evidence?.statement ?? r.evidence?.question).filter(Boolean),
+        },
+      };
+    }
     prepared.push({ change, target });
   }
 
@@ -123,20 +175,22 @@ export async function admitWorkStateProposal({
   for (const { change, target } of prepared) {
     let subjectRef = target?.subjectRef;
     if (!subjectRef) subjectRef = await store.issueSubjectRef({ turnRef, eventOrdinal: nextOrdinal++ });
+    // **증거의 TurnRef 는 그 말이 있었던 턴이다** — 제출한 턴이 아니다.
+    const 출처 = 인용출처.get(change) ?? turnRef;
     if (change.type === 'agreement_set') {
       candidates.push({
         type: change.type, workRef, subjectRef, scopeRef,
-        evidence: { turnRef, statement: change.utteranceQuote },
+        evidence: { turnRef: 출처, statement: change.utteranceQuote },
       });
     } else if (change.type === 'question_resolved') {
       candidates.push({
         type: change.type, workRef, subjectRef, scopeRef,
-        evidence: { targetEventId: target.eventId, turnRef },
+        evidence: { targetEventId: target.eventId, turnRef: 출처 },
       });
     } else {
       candidates.push({
         type: change.type, workRef, subjectRef, scopeRef,
-        evidence: { turnRef, statement: change.utteranceQuote, targetEventId: target.eventId },
+        evidence: { turnRef: 출처, statement: change.utteranceQuote, targetEventId: target.eventId },
       });
     }
   }

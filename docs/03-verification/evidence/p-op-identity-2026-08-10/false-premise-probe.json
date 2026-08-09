@@ -1,0 +1,71 @@
+{
+  "purpose": "거짓 전제 — 모델이 work.state 로 내는 실제 모양(원인 ③)",
+  "testedAt": "2026-08-09T16:02:43.002Z",
+  "model": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "brief": "[현재 합의] 문의는 스마트스토어랑 인스타 DM 두 곳에서 들어와.\n- 처음에는 오전 9시와 오후 5시에 확인하는 걸로 생각했어.\n- 급한 문의는 배송 지연, 오배송, 환불 요청으로 보자.\n- 답장을 자동으로 보내지는 말고 초안만 만들어 줘야 해.",
+  "probes": [
+    {
+      "id": "declarative-a",
+      "text": "그거 포함하기로 했잖아.",
+      "proposal": {
+        "noChange": true
+      }
+    },
+    {
+      "id": "declarative-b",
+      "text": "아까 그렇게 정했으니 그대로 가자.",
+      "proposal": {
+        "noChange": true
+      }
+    },
+    {
+      "id": "declarative-c",
+      "text": "단순 변심도 급한 문의에 포함한다고 했지.",
+      "proposal": {
+        "changes": [
+          {
+            "type": "agreement_superseded",
+            "utteranceQuote": "단순 변심도 급한 문의에 포함한다고 했지.",
+            "targetQuote": "단순 변심은 아직 급한 문의에 포함하지 않았어요. 지금 정해 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "question",
+      "text": "단순 변심도 급한 문의에 포함한다고 했지?",
+      "proposal": {
+        "noChange": true
+      }
+    },
+    {
+      "id": "genuine-new",
+      "text": "단순 변심은 일반 문의로 두자.",
+      "proposal": {
+        "changes": [
+          {
+            "type": "agreement_superseded",
+            "utteranceQuote": "단순 변심은 일반 문의로 두자.",
+            "targetQuote": "단순 변심은 아직 급한 문의에 포함하지 않았어요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "genuine-change",
+      "text": "오전 9시는 너무 늦다. 오전 8시 30분으로 바꾸자.",
+      "proposal": {
+        "changes": [
+          {
+            "type": "agreement_superseded",
+            "utteranceQuote": "오전 9시는 너무 늦다. 오전 8시 30분으로 바꾸자.",
+            "targetQuote": "처음에는 오전 9시와 오후 5시에 확인하는 걸로 생각했어."
+          }
+        ]
+      }
+    }
+  ]
+}
