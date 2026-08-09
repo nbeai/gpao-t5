@@ -605,32 +605,27 @@ export function makeCuaDriver(deps = {}) {
                   strategy: { kind: 'existing_profile' },
                 });
                 let 붙음 = await 붙이기();
-                // **한국어 동의 시트는 우리가 눌러 준다.** 크롬은 새 연결마다
-                // *"원격 디버깅을 허용하시겠습니까?"* 를 띄우는데, `consent_ui.rs` 는
-                // `"remote debugging"`(영어)을 찾아 **그 시트를 못 본다** — 사용자가 손으로
-                // 눌러도 드라이버는 모르고 계속 다시 띄운다(실측: 오너가 세 번 눌렀다).
-                // 한국어를 읽는 건 우리 일이다(CU-⑥에서 내내 한 일).
+                // **우리가 시트를 누르지 않는다 — 그 시트는 뜨지 않는다**(스윕 2번 (a) ·
+                // PM 승인 2026-08-09 · 프로브 실측). 여기 있던 클릭 갈래를 걷었다.
                 //
-                // **문을 따는 것은 사장님 발화 안에서만 한다**(오너 지시 2026-08-07 · BUTLER §B).
-                // 권한이 기본으로 켜지면 이 누름이 **self-grant** 모양이 된다 — T5 가 스스로
-                // 로그인된 브라우저를 여는 것이다. 가르는 선은 발화다:
-                //   사장님이 지금 브라우저·그 화면 이야기를 했다 → 시킨 일을 하는 것이다
-                //   딴 이야기를 하고 있다                      → T5 가 스스로 얻는 것이 된다
-                // **모르면 안 누른다** — 자동 실행·예약에는 발화가 없다.
-                // 한 번 붙으면 유지하는 것은 그대로다(위 `붙은브라우저`). 유지는
-                // *"다시 안 물어봐도 된다"* 이지 *"언제든 봐도 된다"* 가 아니다.
-                if (!붙음?.action && 브라우저이야기인가(args?.발화)) {
-                  const 허용 = (st?.elements ?? []).find((e) => /Button/i.test(String(e.role))
-                    && ['허용', 'Allow'].includes(String(e.label ?? '').trim()));
-                  if (허용?.element_token) {
-                    await mcp.call('click', {
-                      element_token: 허용.element_token, pid: 대상.pid, window_id: 대상.id,
-                      ...(st?.snapshot_id ? { snapshot_id: st.snapshot_id } : {}),
-                    }).catch(() => null);
-                    await new Promise((z) => { setTimeout(z, 900); });
-                    붙음 = await 붙이기();
-                  }
-                }
+                // 걷은 근거(사람 개입 0 · 우리 클릭 0 조건에서 벤더에 직접 물었다 —
+                // 원본: evidence/step6-compare-2026-08-09/M1-재측정-f54/시트프로브-원본.txt):
+                //   browser_prepare{strategy:'existing_profile'} →
+                //     status: "refused" · code: "browser_consent_required"
+                //     "existing-profile attachment in standard mode requires
+                //      --grant existing-profile or an embedding authorization host"
+                //     legacy_approval_enabled: false
+                // **드라이버는 시트를 띄우지 않고 요청 자체를 거절한다.** 우리 코드가 기다리던
+                // 한국어 *"원격 디버깅을 허용하시겠습니까?"* 는 이 경로에서 뜨지 않으므로
+                // 그 클릭은 **도달 불가 코드**였다 — "걷으면 한국어 시트에서 막힌다"는 우려는
+                // 실측으로 기각됐다(막는 것은 시트가 아니라 grant 다).
+                //
+                // ⛔ **다시 만들지 않는다.** BROWSER.md 가 못박는다 —
+                // *"never click a similar-looking prompt yourself."* 비슷하게 생긴 것을 눌러
+                // 엉뚱한 것을 승인하는 사고를 막으려고 드라이버가 **일부러** 거절하는 것이고,
+                // 우리가 그 안전장치를 우회하던 자리였다. 정본 경로는 `--grant existing-profile`
+                // (데몬 장착) 또는 embedding authorization host 다.
+                // 부재 봉인이 이 자리를 지킨다(test/a1-browser-opens-only-when-asked).
                 if (붙음?.action) 붙은브라우저.add(대상.pid);
               }
               const 브 = await mcp.call('get_browser_state', {

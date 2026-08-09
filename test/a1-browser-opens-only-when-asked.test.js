@@ -85,15 +85,36 @@ function 가짜(부른것 = []) {
 const 보기 = async (발화, 부른것) => makeCuaDriver({ mcp: 가짜(부른것), 기존프로필허용: true })
   .observe({ scope: 'window', app: 'Google Chrome', 발화 });
 
-test('브라우저 이야기를 했으면 시트를 눌러 준다 — 시킨 일을 하는 것이다', async () => {
+// ── **부재 봉인**(스윕 2번 (a) · PM 지시 2026-08-09) ─────────────────────────
+//
+// 여기 있던 검사는 *"브라우저 이야기를 했으면 시트를 눌러 준다"* 였다 — 우리가 크롬 동의
+// 시트를 직접 누르는 **행동**을 지키던 검사다. 그 갈래를 걷었으므로 이 검사도 근거를 잃었다.
+// **걷은 것이 되돌아오는 걸 막는 것까지가 봉인의 일이다**(PM) — 그래서 지우지 않고
+// **부재를 무는 검사로 바꾼다.**
+//
+// 걷은 근거(프로브 실측 2026-08-09 · 사람 개입 0 · 우리 클릭 0 · 원본:
+// evidence/step6-compare-2026-08-09/M1-재측정-f54/시트프로브-원본.txt):
+//   browser_prepare{existing_profile} → status "refused" · code "browser_consent_required"
+//   "standard mode requires --grant existing-profile or an embedding authorization host"
+//   legacy_approval_enabled: false
+// **드라이버는 시트를 띄우지도 않고 거절한다** — 그 클릭은 도달 불가 코드였다.
+// BROWSER.md 정본: *"never click a similar-looking prompt yourself."*
+test('부재 봉인: 우리가 동의 시트를 누르는 갈래가 다시 생기지 않는다', async () => {
+  // ① 행동으로 — 브라우저 이야기를 해도 click 을 부르지 않는다(발화 유무와 무관).
   for (const 말 of ['내 크롬에 열려 있는 탭 알려줘', '브라우저에 뭐 떠 있어?',
     '지금 보고 있는 사이트 주소 뭐야', '네이버 화면 좀 읽어줘']) {
     const 부른것 = [];
-    const o = await 보기(말, 부른것);
-    assert.ok(부른것.some((c) => c.이름 === 'click'),
-      `**시킨 일을 안 한다** — 사장님이 "${말}" 이라고 했는데 시트를 안 눌러 영영 못 붙는다`);
-    assert.equal((o.탭들 ?? []).length, 1, `누르고 나서 안 붙는다: ${JSON.stringify(o.탭들)}`);
+    await 보기(말, 부른것);
+    assert.equal(부른것.some((c) => c.이름 === 'click'), false,
+      `**시트 클릭 갈래가 되살아났다** — "${말}" 에서 우리가 승인 UI 를 눌렀다(BROWSER.md 금지)`);
   }
+  // ② 소스로 — 승인 버튼을 낱말로 찾아 누르는 코드가 없다(다른 모양으로 되살아나는 것까지).
+  const 소스 = await import('node:fs').then((fs) => fs.readFileSync(
+    new URL('../src/runtime/desktop-cua-driver.js', import.meta.url), 'utf8'));
+  const 코드 = 소스.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+    .map((l) => (l.trim().startsWith('//') ? '' : l.replace(/\/\/.*$/, ''))).join('\n');
+  assert.doesNotMatch(코드, /['"]허용['"]|['"]Allow['"]/,
+    '**승인 버튼을 낱말로 찾는 코드가 생겼다** — 비슷하게 생긴 것을 눌러 엉뚱한 것을 승인한다');
 });
 
 test('딴 이야기 중이면 안 누른다 — 유지는 "언제든 봐도 된다"가 아니다', async () => {

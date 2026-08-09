@@ -123,42 +123,41 @@ test('허가가 드라이버에서 프로세스까지 간다 — 중간에 끊�
 // 오너가 손으로 눌러도 드라이버는 눌린 걸 모르고 *"시트가 안 나타났다"* 며 재시도한다
 // (실측: 오너가 세 번 눌러도 계속 떴다).
 // 한국어를 읽는 건 우리가 한다 — 오늘 CU-⑥에서 내내 한 일이다.
-test('시트 때문에 막히면 우리가 허용을 누르고 한 번 더 붙는다', async () => {
+// ── **부재 봉인 2**(스윕 2번 (a) · PM 지시 2026-08-09) ──────────────────────
+//
+// 여기 있던 검사는 *"시트 때문에 막히면 우리가 허용을 누르고 한 번 더 붙는다"* 였다.
+// 그 행동을 걷었으므로(도달 불가 코드 — 아래 근거) 같은 자리를 **부재로 뒤집는다.**
+// `a1-browser-opens-only-when-asked` 의 부재 봉인과 한 쌍이다 — 그쪽은 발화 있는 경로를,
+// 여기는 **드라이버가 거절을 내는 경로**를 막는다(우리가 그 거절을 클릭으로 우회하던 자리).
+//
+// 근거(프로브 실측 2026-08-09 · 사람 개입 0 · 우리 클릭 0):
+//   browser_prepare{existing_profile} → refused / browser_consent_required ·
+//   legacy_approval_enabled: false — **시트가 뜨지 않고 요청 자체가 거절된다.**
+//   정본 경로는 `--grant existing-profile`(serve) 또는 embedding authorization host.
+test('부재 봉인: 붙기가 거절돼도 우리가 승인 UI 를 누르지 않는다', async () => {
   const 부른것 = [];
-  let 눌렀나 = false;
-  const 시트버튼 = {
-    element_token: 's1:9', element_index: 9, role: 'AXButton', label: '허용', frame: {},
-  };
+  const 시트버튼 = { element_token: 's1:9', element_index: 9, role: 'AXButton', label: '허용', frame: {} };
   const mcp = {
     async call(이름, 인자) {
       부른것.push({ 이름, 인자 });
       if (이름 === 'list_windows') return { windows: [크롬창] };
       if (이름 === 'get_accessibility_tree') return { windows: [] };
       if (이름 === 'get_window_state') return { snapshot_id: 's1', elements: [시트버튼] };
+      // 실물이 내는 그대로 — 거절한다(우리는 이 거절을 우회하지 않는다).
       if (이름 === 'browser_prepare') {
-        // 실물이 내는 그대로 — 시트를 못 봤다고 거절한다.
-        return 눌렀나
-          ? { action: 'attached_existing_profile' }
-          : { status: 'refused', refusal: { code: 'browser_wrong_target_refused', message: 'no exact Chrome remote-debugging consent sheet appeared for reconnect attempt 1' } };
+        return { status: 'refused', refusal: { code: 'browser_consent_required', message: 'standard mode requires --grant existing-profile' } };
       }
-      if (이름 === 'click') { 눌렀나 = true; return { effect: 'confirmed' }; }
-      if (이름 === 'get_browser_state') {
-        return 눌렀나 ? { status: 'ok', tabs: [{ tab_id: 't1', title: '내 캘린더', url: 'https://calendar.google.com/' }] } : { status: 'refused' };
-      }
+      if (이름 === 'get_browser_state') return { status: 'refused' };
       return {};
     },
     async 조각들() { return []; },
+    async 구조와조각(이름, 인자) { return { 구조: await this.call(이름, 인자), 조각: [] }; },
   };
-  // **발화를 함께 준다**(2026-08-07 · 노드 A ①). 시트를 누르는 것은 문을 따는 일이라
-  // 사장님이 브라우저 이야기를 한 자리에서만 한다(BUTLER §B self-grant 금지).
-  // 이 검사의 의도는 *"한국어 시트를 우리가 읽어 준다"* 이고 그건 그대로다.
-  const o = await makeCuaDriver({ mcp, 기존프로필허용: true })
+  // 발화가 있어도(문을 딸 명분이 가장 강한 조건) 누르지 않는다.
+  await makeCuaDriver({ mcp, 기존프로필허용: true })
     .observe({ scope: 'window', app: 'Google Chrome', 발화: '내 크롬에 열려 있는 탭 알려줘' });
-  const 누름 = 부른것.filter((c) => c.이름 === 'click');
-  assert.equal(누름.length, 1,
-    `**한국어 시트를 안 눌러 준다** — 드라이버는 영영 못 본다: ${JSON.stringify(부른것.map((c) => c.이름))}`);
-  assert.equal(누름[0].인자.element_token, 's1:9', '허용 버튼이 아닌 걸 눌렀다');
-  assert.equal((o.탭들 ?? []).length, 1, `누르고 나서 다시 안 붙는다: ${JSON.stringify(o.탭들)}`);
+  assert.equal(부른것.some((c) => c.이름 === 'click'), false,
+    `**거절을 클릭으로 우회한다** — BROWSER.md 가 못박은 그 사고다: ${JSON.stringify(부른것.map((c) => c.이름))}`);
 });
 
 test('시트가 없으면 아무것도 안 누른다 — 없는 시트를 만들지 않는다', async () => {
