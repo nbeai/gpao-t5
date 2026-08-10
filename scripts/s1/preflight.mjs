@@ -325,6 +325,12 @@ export const 허용파일 = [
   'src/surface/automation-store.js',
   'src/surface/automation-settlement.js',
   'src/surface/automation-surface.js',
+  // L6 local conversation delivery — immutable run target, append-only delivery/readback,
+  // session exact-once append, trusted tick reconciliation are one product path.
+  'src/surface/automation-run-ledger.js',
+  'src/surface/delivery-store.js',
+  'src/surface/session-store.js',
+  'src/surface/tick-scheduler.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).
   'src/runtime/capsule.js',

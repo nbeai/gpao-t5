@@ -46,6 +46,8 @@ export function projectAutomationRun(run) {
     id: run.id,
     jobId: run.jobId,
     status: run.status,
+    executionStatus: run.status,
+    deliveryStatus: run.deliveryState?.status ?? 'unknown',
     scheduledFor: run.scheduledFor,
     finishedAt: run.finishedAt,
   };

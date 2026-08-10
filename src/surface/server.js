@@ -496,6 +496,7 @@ export function makeServer(deps = {}) {
       action: candidate.action,
       skillPurpose: candidate.skillPurpose,
       deliveryIntent: candidate.deliveryIntent,
+      deliveryTarget: candidate.deliveryTarget ?? null,
     })).digest('hex');
   }
 
@@ -640,7 +641,8 @@ export function makeServer(deps = {}) {
     };
   }
 
-  function 자동화입장준비(proposal, principalRef) {
+  function 자동화입장준비(proposal, session) {
+    const principalRef = session?.principalRef;
     if (typeof principalRef !== 'string' || !principalRef.trim()) return 'principal_unknown';
     if (!proposal || !['create', 'update'].includes(proposal.operation)) return 'operation_unknown';
     if (typeof proposal.statement !== 'string' || !proposal.statement.trim()) return 'statement_unknown';
@@ -650,9 +652,11 @@ export function makeServer(deps = {}) {
       || Array.isArray(proposal.action.args)) return 'candidate_action_unknown';
     if (typeof proposal.skillPurpose !== 'string' || !proposal.skillPurpose.trim()) return 'skill_purpose_unknown';
     if (!['none', 'chat'].includes(proposal.deliveryIntent)) return 'delivery_intent_unknown';
-    // 실행 뒤 local conversation으로 전달하는 canonical consumer가 0개다.
-    // 의도만 job 계약으로 승격하면 pending을 실제 전달처럼 보이게 하므로 fail-closed한다.
-    if (proposal.deliveryIntent === 'chat') return 'delivery_not_connected';
+    if (proposal.deliveryIntent === 'chat'
+      && (session.origin != null || session.deletedAt || session.archivedAt
+        || typeof session.id !== 'string' || !Number.isFinite(session.createdAt))) {
+      return 'delivery_target_unknown';
+    }
     return null;
   }
 
@@ -662,7 +666,7 @@ export function makeServer(deps = {}) {
       proposal: { rejected: true, reason: 'sensitive_input' },
       reality: await automationRealityFor(session.principalRef),
     };
-    const notReady = 자동화입장준비(proposal, session.principalRef);
+    const notReady = 자동화입장준비(proposal, session);
     if (notReady) return {
       proposal: { rejected: true, reason: notReady },
       reality: await automationRealityFor(session.principalRef),
@@ -693,7 +697,12 @@ export function makeServer(deps = {}) {
           && lastApproval.tool === proposal.tool
           && JSON.stringify(lastApproval.actionArgs) === JSON.stringify(proposal.action.args)
           && lastApproval.skillPurpose === proposal.skillPurpose
-          && lastApproval.deliveryIntent === proposal.deliveryIntent;
+          && lastApproval.deliveryIntent === proposal.deliveryIntent
+          && JSON.stringify(lastApproval.deliveryPolicy?.target ?? null)
+            === JSON.stringify(proposal.deliveryIntent === 'chat' ? {
+              kind: 'local_conversation', conversationRef: session.id,
+              principalRef: session.principalRef, conversationCreatedAt: session.createdAt,
+            } : null);
         if (!sameAction) {
           stored = { rejected: true, reason: 'update_contract_change_not_allowed' };
           return state;
@@ -721,6 +730,10 @@ export function makeServer(deps = {}) {
         trigger,
         skillPurpose: proposal.skillPurpose,
         deliveryIntent: proposal.deliveryIntent,
+        ...(proposal.deliveryIntent === 'chat' ? { deliveryTarget: {
+          kind: 'local_conversation', conversationRef: session.id,
+          principalRef: session.principalRef, conversationCreatedAt: session.createdAt,
+        } } : {}),
         state: 'proposed',
         approved: false,
         superseded: false,
@@ -896,12 +909,96 @@ export function makeServer(deps = {}) {
   // in-process 스케줄러는 runTrustedTick을 직접 부르고, HTTP tick 라우트는 이 토큰을 요구한다.
   const runtimeToken = deps.runtimeToken ?? randomUUID();
 
+  async function deliverAutomationRuns(_newRuns = [], { retryRef = null } = {}) {
+    const runsState = await runLedger.load();
+    if (runsState.recovery) return { observed: false, statuses: [] };
+    const statuses = [];
+    for (const run of runsState.runs.filter((entry) => entry.status === 'succeeded'
+      && (entry.deliveryState?.status === 'pending'
+        || (retryRef && entry.deliveryState?.status === 'failed'
+          && entry.deliveryState.deliveryRef === retryRef)))) {
+      const policy = run.deliveryState?.policySnapshot;
+      const target = policy?.mode === 'local_conversation' ? policy.target : null;
+      if (!target) continue;
+      const reply = typeof run.result?.reply === 'string' ? run.result.reply.trim() : '';
+      if (!reply || containsSensitiveValue(reply)) {
+        await runLedger.recordDelivery(run.id, {
+          status: 'failed', reason: reply ? 'sensitive_artifact' : 'empty_artifact',
+        }, automationNow());
+        statuses.push({ runId: run.id, jobId: run.jobId, status: 'failed' });
+        continue;
+      }
+      const contentDigest = createHash('sha256').update(reply).digest('hex');
+      const deliveryRef = createHash('sha256').update(JSON.stringify({
+        runRef: run.id, jobRef: run.jobId, target, contentDigest,
+      })).digest('hex');
+      const attemptAt = automationNow();
+      const attempting = await deliveryStore.update((state) => {
+        const existing = state.deliveries.find((entry) => entry.deliveryRef === deliveryRef);
+        if (existing?.state === 'delivered' || (existing?.state === 'failed' && !retryRef)) return state;
+        const ordinal = (existing?.attempts ?? []).filter((entry) => entry.phase === 'started').length + 1;
+        const attempt = { attemptRef: `${deliveryRef}:${ordinal}:start`, phase: 'started', at: attemptAt };
+        const record = existing ? {
+          ...existing, state: 'attempting', attempts: [...existing.attempts, attempt], lastError: null,
+        } : {
+          kind: 'automation_local_delivery', deliveryRef, runRef: run.id, jobRef: run.jobId,
+          target: structuredClone(target), contentDigest, state: 'attempting',
+          attempts: [attempt], createdAt: attemptAt, updatedAt: attemptAt,
+        };
+        return { deliveries: existing
+          ? state.deliveries.map((entry) => entry.deliveryRef === deliveryRef ? record : entry)
+          : [...state.deliveries, record] };
+      });
+      if (attempting.recovery) {
+        statuses.push({ runId: run.id, jobId: run.jobId, status: 'unknown' });
+        continue;
+      }
+      const record = attempting.deliveries.find((entry) => entry.deliveryRef === deliveryRef);
+      if (record?.state === 'delivered' || (record?.state === 'failed' && !retryRef)) {
+        await runLedger.recordDelivery(run.id, {
+          status: record.state, deliveryRef, contentDigest,
+        }, automationNow());
+        statuses.push({ runId: run.id, jobId: run.jobId, status: record.state });
+        continue;
+      }
+      const entry = {
+        role: 'assistant', result: { kind: 'reply', reply }, source: 'automation',
+        jobRef: run.jobId, runRef: run.id, deliveryRef, contentDigest,
+      };
+      const appended = await store.appendAutomationDelivery(target.conversationRef, entry, target);
+      const finishedAt = automationNow();
+      await deliveryStore.update((state) => {
+        const current = state.deliveries.find((item) => item.deliveryRef === deliveryRef);
+        if (!current || current.state === 'delivered') return state;
+        const finish = { attemptRef: `${deliveryRef}:${current.attempts.filter((entry) => entry.phase === 'started').length}:finish`,
+          phase: 'finished', at: finishedAt, outcome: appended.ok ? 'delivered' : 'failed' };
+        const next = appended.ok ? {
+          ...current, state: 'delivered', deliveredAt: finishedAt, updatedAt: finishedAt,
+          attempts: [...current.attempts, finish],
+          receipt: { conversationRef: target.conversationRef, deliveryRef, contentDigest, exactCount: 1 },
+        } : {
+          ...current, state: 'failed', updatedAt: finishedAt,
+          attempts: [...current.attempts, finish],
+          lastError: { reason: appended.reason ?? 'session_append_failed' },
+        };
+        return { deliveries: state.deliveries.map((item) => item.deliveryRef === deliveryRef ? next : item) };
+      });
+      await runLedger.recordDelivery(run.id, {
+        status: appended.ok ? 'delivered' : 'failed', deliveryRef, contentDigest,
+        ...(appended.ok ? {} : { reason: appended.reason ?? 'session_append_failed' }),
+      }, finishedAt);
+      statuses.push({ runId: run.id, jobId: run.jobId, status: appended.ok ? 'delivered' : 'failed' });
+    }
+    return { observed: true, statuses };
+  }
+
   // HRT-ST-001 · tick 스케줄러는 자기 파일에 있다(`tick-scheduler.js`). 네 워커와 그 격리
   // 상태를 바깥이 한 번도 참조하지 않았으므로 옮겨도 닿는 면이 `runTrustedTick` 하나다.
   // 여기 남는 것은 **조립**뿐이다 — 무엇을 주는지가 한눈에 보이는 것이 목적이다.
   const { runTrustedTick, 관찰상태보기 } = makeTickScheduler({
     store, memStore, withMemory, 기억영수증,
     automationRuntime, automationReady,
+    deliverAutomationRuns,
     // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
     modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model,
     env, tools,
@@ -2189,11 +2286,15 @@ export function makeServer(deps = {}) {
           trigger: job.trigger, nextRunAt: job.nextRunAt,
           lastRunId: job.lastRunId, authorityEnvelope: job.authorityEnvelope,
         });
+        const stripCandidate = (candidate) => {
+          const { deliveryTarget: _privateTarget, ...publicCandidate } = candidate;
+          return publicCandidate;
+        };
         return sendJson(res, 200, {
           candidates: a.candidates.filter((c) => !c.approved
             && c.current !== false && c.superseded !== true
             && (!Number.isFinite(c.expiresAt) || c.expiresAt >= automationNow())
-            && automationEntryVisible(c)),
+            && automationEntryVisible(c)).map(stripCandidate),
           jobs: a.jobs.filter(automationEntryVisible).map(stripJob),
           runs: runs.runs.map(projectAutomationRun),
         });
@@ -2241,7 +2342,15 @@ export function makeServer(deps = {}) {
             error: '자동화 계약을 확정하지 못했어요.', reason: 'sensitive_input',
           });
         }
-        const [skills, profiles] = await Promise.all([skillStore.load(), profileStore.load()]);
+        const [skills, profiles, candidateState] = await Promise.all([
+          skillStore.load(), profileStore.load(), autoStore.load(),
+        ]);
+        const candidatePreview = candidateState.candidates.find(
+          (entry) => entry.candidateId === input.candidateId,
+        );
+        const deliveryTargetSession = candidatePreview?.deliveryIntent === 'chat'
+          ? await store.load(candidatePreview.deliveryTarget?.conversationRef)
+          : null;
         const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
         const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
         if (['inputTemplate', 'authorityEnvelope', 'deliveryPolicy'].some((key) => Object.hasOwn(input, key))) {
@@ -2264,8 +2373,15 @@ export function makeServer(deps = {}) {
             || (Number.isFinite(cand.expiresAt) && cand.expiresAt < now)) {
             outcome = { ok: false, reason: 'candidate_not_current' }; return state;
           }
-          if (cand.deliveryIntent === 'chat') {
-            outcome = { ok: false, reason: 'delivery_not_connected' }; return state;
+          if (cand.deliveryIntent === 'chat'
+            && (!deliveryTargetSession || deliveryTargetSession.origin != null
+              || deliveryTargetSession.archivedAt || deliveryTargetSession.deletedAt
+              || cand.deliveryTarget?.kind !== 'local_conversation'
+              || deliveryTargetSession.id !== cand.deliveryTarget.conversationRef
+              || deliveryTargetSession.principalRef !== cand.principalRef
+              || deliveryTargetSession.principalRef !== cand.deliveryTarget.principalRef
+              || deliveryTargetSession.createdAt !== cand.deliveryTarget.conversationCreatedAt)) {
+            outcome = { ok: false, reason: 'delivery_target_changed' }; return state;
           }
           const operation = cand.operation ?? 'create';
           const trigger = cand.trigger ?? input.trigger;
@@ -2340,6 +2456,11 @@ export function makeServer(deps = {}) {
           });
           if (!bound.ok) {
             outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;
+          }
+          if (cand.deliveryIntent === 'chat') {
+            bound.deliveryPolicy = {
+              mode: 'local_conversation', target: structuredClone(cand.deliveryTarget),
+            };
           }
           const proposed = {
             schemaVersion: 2,
@@ -2731,7 +2852,18 @@ export function makeServer(deps = {}) {
         const strip = (d) => ({ id: d.id, tool: d.tool, target: d.target, state: d.state, attempts: d.attempts, retriable: isRetriable(d), needsFix: d.needsFix ?? false, lastResult: d.lastError?.failureState ?? null });
         // C7-ACTION-001: 비전송 legacy 기록은 사용자 전달 목록에 나타나지 않는다.
         const ss전달 = buildSelfState(env, { tools });
-        return sendJson(res, 200, { deliveries: a.deliveries.filter((d) => d.sessionId === sessionId && isSendTool(d.tool, ss전달)).map(strip) });
+        const session = await store.load(sessionId);
+        const local = session ? a.deliveries.filter((d) => d.kind === 'automation_local_delivery'
+          && d.target?.conversationRef === session.id
+          && d.target?.principalRef === session.principalRef
+          && d.target?.conversationCreatedAt === session.createdAt).map((d) => ({
+          id: d.deliveryRef, state: d.state, attempts: d.attempts.length,
+          retriable: d.state === 'failed', needsFix: false, lastResult: d.lastError?.reason ?? null,
+        })) : [];
+        return sendJson(res, 200, { deliveries: [
+          ...a.deliveries.filter((d) => d.sessionId === sessionId && isSendTool(d.tool, ss전달)).map(strip),
+          ...local,
+        ] });
       }
       // 재전달: 이미 만든 산출물(artifact)을 그대로 다시 보낸다 — 재생성하지 않는다. 외부 전송은 원 승인 범위의
       //   재전달(A2 유지). 전달 확인(delivered) 이후에만 완료로 본다.
@@ -2743,6 +2875,23 @@ export function makeServer(deps = {}) {
         const sessionId = body.sessionId;
         if (typeof sessionId !== 'string' || !sessionId) return sendJson(res, 400, { error: '세션 없음' });
         const a = await deliveryStore.load();
+        const local = a.deliveries.find((d) => d.kind === 'automation_local_delivery'
+          && d.deliveryRef === id);
+        if (local) {
+          const session = await store.load(sessionId);
+          if (!session || local.target.conversationRef !== session.id
+            || local.target.principalRef !== session.principalRef
+            || local.target.conversationCreatedAt !== session.createdAt) {
+            return sendJson(res, 403, { error: '다른 대화의 전달이라 여기서 다시 보낼 수 없어요.' });
+          }
+          if (local.state === 'delivered') {
+            return sendJson(res, 200, { ok: true, state: 'delivered', alreadyDelivered: true });
+          }
+          if (local.state !== 'failed') return sendJson(res, 409, { error: '아직 전달을 정산 중이에요.' });
+          await deliverAutomationRuns([], { retryRef: id });
+          const readback = (await deliveryStore.load()).deliveries.find((d) => d.deliveryRef === id);
+          return sendJson(res, 200, { ok: readback?.state === 'delivered', state: readback?.state ?? 'unknown' });
+        }
         const idx = a.deliveries.findIndex((d) => d.id === id);
         if (idx < 0) return sendJson(res, 404, { error: '전달 기록을 찾지 못했어요.' });
         const d = a.deliveries[idx];

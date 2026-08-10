@@ -332,7 +332,7 @@ test('서버: structured model proposal → 제안 카드 + 후보 저장(실경
     const r2 = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp 파일 목록 정리해줘' });
     assert.equal(r2.automationProposal, null, '이미 제안한 것은 다시 제안하지 않는다');
     assert.equal((await getj(base, '/automation')).candidates.length, 1);
-  }, { model: structuredAutomationModel('/tmp') });
+  }, { model: structuredAutomationModel('/tmp/t5-automation-list.txt') });
 });
 
 // 전체 경로 회귀(감사 보정): /sessions → /turn structured proposal → approve → tick → runs 1.

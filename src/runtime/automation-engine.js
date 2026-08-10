@@ -56,6 +56,9 @@ function queuedRunFor(job, skill, profile, scheduledFor) {
     result: null,
     deliveryState: {
       status: job.deliveryPolicy?.mode === 'none' ? 'not_requested' : 'pending',
+      ...(job.deliveryPolicy?.mode === 'none' ? {} : {
+        policySnapshot: structuredClone(job.deliveryPolicy),
+      }),
     },
     startedAt: null,
     finishedAt: null,

@@ -174,6 +174,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/automation-store.js',
     'src/surface/automation-settlement.js',
     'src/surface/automation-surface.js',
+    // L6 local conversation delivery 한 경로: run target·delivery 원장·session append·tick 결산.
+    'src/surface/automation-run-ledger.js',
+    'src/surface/delivery-store.js',
+    'src/surface/session-store.js',
+    'src/surface/tick-scheduler.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',
     'src/runtime/terminal-run.js',

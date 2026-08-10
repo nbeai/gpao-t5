@@ -87,7 +87,7 @@ export class AutomationRunLedger {
       for (const event of events) {
         if (event?.schemaVersion !== AUTOMATION_SCHEMA_VERSION
           || !event.eventId || !event.runId || !event.idempotencyKey
-          || !['queued', 'transition'].includes(event.type)) {
+          || !['queued', 'transition', 'delivery'].includes(event.type)) {
           throw new Error('invalid run event');
         }
         const checked = validateAgentRun(event.snapshot);
@@ -100,6 +100,17 @@ export class AutomationRunLedger {
         if (!previous) {
           if (event.type !== 'queued' || event.from !== null || event.to !== 'queued') {
             throw new Error('run event does not start queued');
+          }
+        } else if (event.type === 'delivery') {
+          if (event.from !== previous.status || event.to !== previous.status
+            || event.snapshot.status !== previous.status
+            || !isDeepStrictEqual(
+              { ...event.snapshot, deliveryState: previous.deliveryState, updatedAt: previous.updatedAt },
+              previous,
+            )
+            || !['delivered', 'failed'].includes(event.snapshot.deliveryState?.status)
+            || event.snapshot.deliveryState?.status === previous.deliveryState?.status) {
+            throw new Error('run delivery event is invalid');
           }
         } else {
           if (event.type !== 'transition' || event.from !== previous.status) {
@@ -206,6 +217,43 @@ export class AutomationRunLedger {
         snapshotWritten: projection.written,
         idempotent: false,
       };
+    });
+  }
+
+  async recordDelivery(runId, deliveryState, at = Date.now()) {
+    return serialize(this.file, async () => {
+      if (!['delivered', 'failed'].includes(deliveryState?.status)) {
+        throw new Error('run delivery terminal state invalid');
+      }
+      const loaded = await this.readEvents();
+      if (loaded.recovery) throw new Error('automation run ledger was corrupted');
+      const previous = currentRuns(loaded.events).find((entry) => entry.id === runId);
+      if (!previous || previous.status !== 'succeeded') throw new Error('automation run is not succeeded');
+      const nextDelivery = { ...previous.deliveryState, ...structuredClone(deliveryState) };
+      if (previous.deliveryState?.status === deliveryState.status) {
+        if (!isDeepStrictEqual(previous.deliveryState, nextDelivery)) {
+          throw new Error('automation delivery terminal identity changed');
+        }
+        return { record: previous, idempotent: true };
+      }
+      if (previous.deliveryState?.status !== 'pending'
+        && !(previous.deliveryState?.status === 'failed' && deliveryState.status === 'delivered'
+          && previous.deliveryState.deliveryRef === deliveryState.deliveryRef
+          && previous.deliveryState.contentDigest === deliveryState.contentDigest)) {
+        throw new Error('automation delivery already terminal');
+      }
+      const next = { ...previous, deliveryState: nextDelivery, updatedAt: at };
+      const checked = validateAgentRun(next);
+      if (!checked.ok) throw new Error(`agent run invalid: ${checked.errors.join('; ')}`);
+      const event = {
+        schemaVersion: AUTOMATION_SCHEMA_VERSION, eventId: randomUUID(), runId: next.id,
+        idempotencyKey: next.idempotencyKey, type: 'delivery', from: next.status, to: next.status,
+        at, snapshot: next,
+      };
+      const events = [...loaded.events, event];
+      await atomicWritePrivate(this.file, `${events.map((entry) => JSON.stringify(entry)).join('\n')}\n`);
+      await this.#syncSnapshot(events);
+      return { record: next, idempotent: false };
     });
   }
 }

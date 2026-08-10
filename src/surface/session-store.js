@@ -13,6 +13,16 @@ export function defaultSessionDir() {
 
 // 클라이언트가 준 id로 파일 경로를 만들기 전에 검증한다(경로 탈출 방지 — 보안).
 const SAFE_ID = /^[a-f0-9-]{36}$/;
+const saveQueues = new Map();
+
+function serializeSession(path, task) {
+  const previous = saveQueues.get(path) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  saveQueues.set(path, current);
+  return current.finally(() => {
+    if (saveQueues.get(path) === current) saveQueues.delete(path);
+  });
+}
 
 // P2-4a 목록 정리성. 제목은 사용자 입력이므로 손질한다 — 제어문자·줄바꿈이 목록을 깨뜨린다.
 const MAX_TITLE = 60;
@@ -110,9 +120,50 @@ export class SessionStore {
 
   /** 세션 저장(updatedAt 갱신). */
   async save(session) {
-    session.updatedAt = Date.now();
-    await writeAtomic(this._path(session.id), JSON.stringify(session));
-    return session;
+    const path = this._path(session.id);
+    return serializeSession(path, async () => {
+      let current = null;
+      try { current = JSON.parse(await readFile(path, 'utf8')); } catch {}
+      const durableDeliveries = (current?.transcript ?? []).filter(
+        (entry) => entry?.source === 'automation' && typeof entry.deliveryRef === 'string',
+      );
+      const durableByRef = new Map(durableDeliveries.map((entry) => [entry.deliveryRef, entry]));
+      session.transcript = (session.transcript ?? []).map((entry) => (
+        durableByRef.has(entry?.deliveryRef) ? structuredClone(durableByRef.get(entry.deliveryRef)) : entry
+      ));
+      const known = new Set(session.transcript.map((entry) => entry?.deliveryRef).filter(Boolean));
+      session.transcript.push(...durableDeliveries
+        .filter((entry) => !known.has(entry.deliveryRef)).map((entry) => structuredClone(entry)));
+      session.updatedAt = Date.now();
+      await writeAtomic(path, JSON.stringify(session));
+      return session;
+    });
+  }
+
+  async appendAutomationDelivery(id, entry, expected = {}) {
+    const path = this._path(id);
+    return serializeSession(path, async () => {
+      let session;
+      try { session = JSON.parse(await readFile(path, 'utf8')); } catch { return { ok: false, reason: 'session_missing' }; }
+      if (session.deletedAt || session.archivedAt
+        || session.principalRef !== expected.principalRef
+        || session.createdAt !== expected.conversationCreatedAt) {
+        return { ok: false, reason: 'delivery_target_changed' };
+      }
+      const matches = (session.transcript ?? []).filter((item) => item?.deliveryRef === entry.deliveryRef);
+      if (matches.length > 1) return { ok: false, reason: 'delivery_duplicate' };
+      if (matches.length === 1) return JSON.stringify(matches[0]) === JSON.stringify(entry)
+        ? { ok: true, appended: false, entry: matches[0] }
+        : { ok: false, reason: 'delivery_identity_mismatch' };
+      session.transcript = [...(session.transcript ?? []), structuredClone(entry)];
+      session.updatedAt = Date.now();
+      await writeAtomic(path, JSON.stringify(session));
+      const readback = JSON.parse(await readFile(path, 'utf8'));
+      const exact = readback.transcript.filter((item) => item?.deliveryRef === entry.deliveryRef);
+      return exact.length === 1 && JSON.stringify(exact[0]) === JSON.stringify(entry)
+        ? { ok: true, appended: true, entry: exact[0] }
+        : { ok: false, reason: 'delivery_readback_mismatch' };
+    });
   }
 
   /** 전체 세션(transcript 포함) 로드 — 세션 검색(P6-17)용. 손상 파일은 조용히 제외. */

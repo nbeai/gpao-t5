@@ -1006,7 +1006,7 @@ test('5차 감사 A: verified automationControl settlement의 card-like hash만 
   assert.equal(result.actualCall.args.settlementDigest, SENSITIVE_VALUE_PLACEHOLDER);
 });
 
-test('delivery intent: 실제 local conversation consumer가 없는 chat 후보는 승인되지 않는다', async () => {
+test('delivery intent: 봉인된 local conversation target이 없는 legacy chat 후보는 승인되지 않는다', async () => {
   const proposed = { ...candidate('chat-candidate', '매주 월요일 오전 9시 반 정산 확인'), deliveryIntent: 'chat' };
   await withProduct({ model: proposalModel(), candidates: [proposed] }, async (app) => {
     const approval = await app.request('POST', '/automation/approve', {
@@ -1015,7 +1015,7 @@ test('delivery intent: 실제 local conversation consumer가 없는 chat 후보�
       expiresAt: 2_000_000_000_000, maxRuns: 20,
     });
     assert.equal(approval.status, 422, JSON.stringify(approval));
-    assert.equal(approval.body.reason, 'delivery_not_connected');
+    assert.equal(approval.body.reason, 'delivery_target_changed');
     const state = await app.automationStore.load();
     assert.equal(state.jobs.length, 0);
     assert.equal(state.candidates[0].approved, false);
@@ -1023,7 +1023,7 @@ test('delivery intent: 실제 local conversation consumer가 없는 chat 후보�
   });
 });
 
-test('delivery intent actual /turn: 자연 chat 제안은 admission rejected·setup0·job0이다', async () => {
+test('delivery intent actual /turn: 자연 local chat 제안은 서버 target에 결속된 setup 후보이고 승인 전 job0이다', async () => {
   const model = { async respond(_tc, opts = {}) {
     if (opts.tools?.some((entry) => entry.name === 'automation.propose')) {
       return { text: '', toolCalls: [{ name: 'automation.propose', args: {
@@ -1037,11 +1037,11 @@ test('delivery intent actual /turn: 자연 chat 제안은 admission rejected·se
   } };
   await withProduct({ model }, async (app) => {
     const result = await app.turn('매주 월요일 정산 결과를 이 대화로 알려줘');
-    assert.deepEqual(result.automationProposal, { rejected: true, reason: 'delivery_not_connected' });
-    const setup = await app.request('GET', '/automation/setup?candidateId=missing');
+    assert.equal(typeof result.automationProposal?.candidateId, 'string');
+    const setup = await app.request('GET', `/automation/setup?candidateId=${result.automationProposal.candidateId}`);
     const state = await app.automationStore.load();
-    assert.equal(setup.status, 404);
-    assert.equal(state.candidates.length, 0);
+    assert.equal(setup.status, 200);
+    assert.equal(state.candidates.length, 1);
     assert.equal(state.jobs.length, 0);
   });
 });

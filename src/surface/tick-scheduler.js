@@ -30,6 +30,7 @@ import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 export function makeTickScheduler({
   store, memStore, withMemory, 기억영수증,
   automationRuntime, automationReady,
+  deliverAutomationRuns,
   modelFor, env, tools, 관찰꺼짐,
 }) {
   // 자동화 워커 — 자기 오류 경계를 갖는다. 여기서 터져도 관찰은 같은 tick 에서 계속 돈다.
@@ -37,8 +38,14 @@ export function makeTickScheduler({
     try {
       await automationReady();
       const tick = await automationRuntime.tick();
+      const delivery = typeof deliverAutomationRuns === 'function'
+        ? await deliverAutomationRuns(tick.runs) : { statuses: [] };
+      const deliveryByRun = new Map((delivery.statuses ?? []).map((entry) => [entry.runId, entry.status]));
       return {
-        ran: tick.runs.map((run) => ({ runId: run.id, jobId: run.jobId, status: run.status })),
+        ran: tick.runs.map((run) => ({
+          runId: run.id, jobId: run.jobId, status: run.status,
+          ...(deliveryByRun.has(run.id) ? { deliveryStatus: deliveryByRun.get(run.id) } : {}),
+        })),
         claimed: tick.claimed.length,
         duplicates: tick.duplicates.length,
       };
