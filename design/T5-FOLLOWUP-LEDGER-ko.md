@@ -163,6 +163,12 @@ F-18·F-19  분류기·기억 — 노드 W 와 겹친다
   마감/접수중/예정 분리.
 - 수리 경계: 단어 그물·금지 문구·업종별 대필 금지. 사용자 원문 확정, 관측 근거, 일반 참고,
   미확정 계산 전제를 서로 다른 신분으로 다음 턴·산출물·원장에 공급한다.
+- 개발 입장(같은 턴 slice · `1b43918`): initial bounded source set의 member 신분·revision과 실제
+  전량 read Receipt를 WorkRef·sourceSetRef로 결속하고, 각 member를 `read/unresolved`로 다음 모델
+  현실과 runtime observation 원장에 공급한다. 파일 교체·혼합 pagination·부분/실패 read·다른
+  WorkRef/sourceSetRef는 read가 아니다. runtime observation은 실행·완료 실적으로 세지 않는다.
+- **미닫힘**: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded 입장.
+  이 slice만으로 F-66 닫힘이나 목적 완료를 선언하지 않는다. 목적 결과와 완료 결속은 F-64다.
 - 재검: L2 원본 + L3·L4·L5 형제 + 정의된 금액관계 반대조건 + 보이지 않은 파일명·경로와
   제안/확정/보류 혼합 PM 홀드아웃.
 

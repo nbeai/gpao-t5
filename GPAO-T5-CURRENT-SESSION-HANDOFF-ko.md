@@ -7,12 +7,17 @@
 
 ## 최신 작업선 · 2026-08-10
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `7de4676`.
-- 활성 sidecar: `/private/tmp/t5-f66-source-coverage` · `codex/f66-source-coverage`.
-  F-66b의 초기 source set과 실제 read/excluded/unresolved 결산 현실만 소유한다. F-64 완료 입장,
-  F-60, PM 정본 문서는 건드리지 않는다. F-65 보강 뒤 원본은 정본에 입장했고 증거 worktree는 수거했다.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `1b43918`.
+- 활성 sidecar: 없음. F-66b 격리선은 독립 반대감사 입장 뒤 정본에 반영하고 수거했다.
+- F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
+  WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
+  runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
+- F-66b 미닫힘: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded
+  입장 채널. 따라서 F-66 전체 닫힘이 아니며 다음 개발선은 F-64 목적 결과·완료 결속이다.
+- 검증: 전체 3,496/3,496 · 유휴 게이트 PASS(CPU 58.7초≤87.4 · 유휴 9.6초≤20).
+  앞선 CPU 142.5초 차단 회차는 동시에 돌던 전체 테스트 2벌을 기계 확인한 뒤 분리 재측정했다.
 - 제외: F-60은 오너 지시로 미해결 봉인. F-64 후보 `c0fd5cc6`은 원본 미달로 병합 차단된 채
-  브랜치만 보존한다. F-66은 F-65 뒤 별도 작업선이다.
+  브랜치만 보존한다.
 - 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
 
 ## 감사 인계 · 2026-08-04 — **설치파일 직전 단계 종결 요청**

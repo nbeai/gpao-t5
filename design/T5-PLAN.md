@@ -1220,8 +1220,8 @@ Q8 "자동으로 안 되나?" →  "이 컴퓨터 안 파일인가요? steps 로
 
 ### 현재 실행 노드 L — 생활모의시험 규약 v1 *(오너 진행 승인 2026-08-10)*
 
-- 지위: `F65_NARROW_CLOSED_F66B_IN_PROGRESS` · 예비 7 원본 봉인, 1차 21 진입 전 보강
-- 기준선: `8a31422` — F-65 보강 뒤 유료 24판 원본·사후 기계 감사 봉인, PM 독립 해시 대조
+- 지위: `F66B_SAME_TURN_SLICE_ADMITTED_F64_IN_PROGRESS` · 예비 7 원본 봉인, 1차 21 진입 전 보강
+- 기준선: `1b43918` — F-65 좁은 닫힘 뒤 F-66b 같은 턴 source 결산 개발 입장
 - 귀속: 스윕 뒤 첫 일감. 확장 1열 여덟의 순서를 바꾸거나 판 열셋을 늘리지 않는다.
 - 역할: PM은 시나리오·채점·홀드아웃 동결과 독립 판정, 개발팀은 러너·격리·원본 증거와 수리.
 
@@ -1245,11 +1245,12 @@ Q8 "자동으로 안 되나?" →  "이 컴퓨터 안 파일인가요? steps 로
 → 예비 입장 통과 뒤 1차 21
 ```
 
-현재 위치는 F-65의 좁은 닫힘을 지나 F-66b source-set 결산이다. 보강 뒤 유료 24판에서 모델 실제
+현재 위치는 F-65의 좁은 닫힘과 F-66b의 같은 턴 source-set 결산 입장을 지나 F-64 목적 완료 결속이다. 보강 뒤 유료 24판에서 모델 실제
 자료 손 진입 24/24·`local.locate` 0/24로 current workset 입장은 닫혔다. 그러나 L1은 `메모.txt`를
-6/8에서 누락했고, L4는 파일 0/8인데 completed 8/8이었다. F-66b가 source set의 각 member를
-read/excluded/unresolved로 결산한 뒤 F-64가 목적 결과·Receipt·WorkRef·execution event를 한 완료
-진실로 묶는다. 원본과 PM 판정은 `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/`에 있다.
+6/8에서 누락했고, L4는 파일 0/8인데 completed 8/8이었다. F-66b는 같은 턴의 initial source set을
+실제 read Receipt와 결속해 read/unresolved로 공급한다. 목적 연속성·64개 이후·folder·excluded는
+아직 열려 있다. F-64가 목적 결과·source 결산·Receipt·WorkRef·execution event를 한 완료 진실로
+묶는 다음 경계를 맡는다. 원본과 PM 판정은 `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/`에 있다.
 
 F-60은 오너가 미해결 봉인했다. 이 순서에서 재시험·수리하지 않는다.
 
