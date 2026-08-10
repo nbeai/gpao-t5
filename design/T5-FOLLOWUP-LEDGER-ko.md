@@ -137,9 +137,13 @@ F-18·F-19  분류기·기억 — 노드 W 와 겹친다
   L7은 source-derived artifact에 더해 process exit/stdout→digest→result artifact fact owner가 필요하다.
   근거는 `docs/03-verification/evidence/f64-l5-l7-deterministic-probes-2026-08-10/`이다.
 - 현재 잔여: slice-1은 L5·L7의 거짓 완료 승격은 막지만 올바른 목적 결과를 만들지 않는다. L6는
-  후보 3·승인/job/run 0이라는 정본은 정직하지만 사용자 답의 활성·다음 실행 거짓 주장은 남는다.
-  세 owner 계약과 구현 순서는 PM 동결 전까지 열지 않고, 그 뒤에만 유료 예비 7 대상·횟수를 결과 전에
-  동결한다.
+  구조 단위 `db81834..3d6f9fd`가 두 독립 감사와 canonical gate(3,572/3,572)를 통과했다. 구조 제안→
+  final 전 후보 입장·readback→승인 job, same-id update/control, canonical nextRun·bounded observe,
+  AgentRun/maxRuns, append-only settlement chain, 비밀·legacy 경계는 정본에 들어갔다. 그러나 local chat
+  delivery consumer가 없어 chat 후보는 candidate/setup/job 0 fail-closed이고, 동결 원본의 모델 거짓
+  표본도 남아 있으므로 L6 닫힘이 아니다. 다음은 실행 성공과 전달 성공을 분리한 local conversation
+  delivery evidence를 L6에서 실제 관통한다. 그 뒤 L7→L5 순서로 진행하며, 세 결정형 판정 뒤에만 유료
+  예비 7 대상·횟수를 결과 전에 동결한다.
 
 ### F-65 · ★ 닫힘 — 현재 작업셋의 root·관측 구성원 신분이 첫 현실에 서지 않는다 (3가족 · 2026-08-10)
 

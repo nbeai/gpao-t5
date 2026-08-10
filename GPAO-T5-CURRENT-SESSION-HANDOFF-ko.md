@@ -5,9 +5,9 @@
 - 권위 지도: `docs/PROJECT-AUTHORITY-MAP-ko.md`
 - 성격: 새 개발·감사 세션이 현재 사실과 다음 작업을 오인하지 않게 하는 단일 진입 문서
 
-## 최신 작업선 · 2026-08-10
+## 최신 작업선 · 2026-08-11
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `deb7c2e`.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `3d6f9fd`.
 - 활성 sidecar: 없음. 최초 F-64 실패 실험 `/private/tmp/t5-f64-purpose-completion-v2`은 독립 감사
   수거 PASS와 오너의 미커밋 7파일·706줄 영구 삭제 승인을 받은 뒤 제거했다. 커밋 `37868ec`과
   브랜치 계보는 보존되고 미커밋 WIP는 복구할 수 없다.
@@ -24,17 +24,24 @@
   실사용 상태 전후 digest 불변이다. slice-1은 L5·L7의 거짓 완료 승격을 막지만 사용자 목적 결과를
   만들지는 않는다. L6 정본은 후보 3·승인/job/run 0으로 정직하지만 사용자 답은 활성·다음 실행을
   거짓 주장하는 표본이 그대로 재현됐다.
-- 오너가 구현 순서를 `L6 → L7 → L5`로 확정했다. 다음 격리선은 L6의 후보→승인→단일 durable job→
-  pause/resume→nextRun 현실과 사용자 답을 같은 canonical automation state에 결속하는 계약만 소유한다.
-  제품 문구 필터·활성 사실 대필·승인 우회는 금지한다. L7·L5 제품 수리와 유료 예비 7 재실행·PM
-  홀드아웃 열람은 L6 독립 감사 입장 전까지 열지 않는다. F-60·F-67도 계속 불가침이다.
+- 오너가 구현 순서를 `L6 → L7 → L5`로 확정했다. L6 구조 단위 `db81834..3d6f9fd`는 두 독립 감사
+  PASS 뒤 정본에 통합됐다. 구조 제안 한 입장선, final 전 후보 저장·readback, 승인→단일 durable job,
+  same-id update·status·pause·resume, canonical nextRun, bounded observe, AgentRun/maxRuns, candidate→job→
+  control append-only settlement chain, 전체 durable-field 비밀 경계와 legacy schema2 호환을 실제 제품
+  경로로 결속했다. 답 문구 필터·활성 사실 대필·승인 우회는 0이다.
+- L6는 아직 닫히지 않았다. local chat delivery consumer가 없어 `deliveryIntent:chat`은 candidate/setup/job
+  0으로 정직하게 fail-closed하며, 동결 원본의 현실을 무시하는 모델 답 표본도 그대로 남아 있다. 다음
+  L6 격리선은 승인된 job의 due AgentRun 결과를 실제 local conversation delivery와 delivered/failed
+  evidence로 결속하되 실행 성공과 전달 성공을 분리한다. 그 뒤 동결 원본을 결정형으로 다시 판정하고
+  L7로 간다. 유료 예비 7 재실행·PM 홀드아웃·L5/L7 제품 수리는 아직 열지 않는다. F-60·F-67도 불가침이다.
 - F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
   WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
   runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
 - F-66b 미닫힘: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded
   입장 채널. 따라서 F-66 전체 닫힘이 아니며 다음 개발선은 F-64 목적 결과·완료 결속이다.
-- 검증: 전체 3,525/3,525 · 결정형 프로브 관련 92/92 · F-64 slice-1과 L5·L6·L7 프로브 증거
-  독립 감사 PASS. 실패 sidecar 수거 뒤 workspace 감사 PASS(88 active docs · worktree 2).
+- 검증: canonical `npm run gate` PASS · 전체 3,572/3,572 · L6 최종 표적 47/47 · 결정형 프로브
+  관련 92/92 · F-64 slice-1과 L5·L6·L7 프로브 증거 독립 감사 PASS. L6 sidecar 수거 뒤 workspace
+  감사 PASS(88 active docs · worktree 2).
 - 제외: F-60은 오너 지시로 미해결 봉인. F-67은 확장 후보로 불가침. PM 홀드아웃과 유료 예비 7
   재실행은 L5·L6·L7 결정형 판정 뒤 대상·횟수를 결과 전에 동결할 때까지 열지 않는다.
 - 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
