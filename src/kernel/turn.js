@@ -1989,7 +1989,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const executeBeforeSignature = async () => {
       const rec = await execute();
       // 사용자면 동봉도 Receipt 본문이다. 서명 뒤가 아니라 직전에 한 번만 결산한다.
-      자리공백동봉(rec, turnReceipts, ctx);
+      if (rec?.deliverableRefs?.length) 자리공백동봉(rec, turnReceipts, ctx);
       return rec;
     };
     return ctx.runCompletionExecution({

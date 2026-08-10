@@ -22,6 +22,9 @@ test('완료 Receipt는 전체 민감값을 서명 전에 복제·가림하고 o
     actualCall: { tool: 'local.file', providerCallId: 'CallRefAbc1234567890XYZ', args: {
       action: 'write', path: '/tmp/report.md', text: 'api_key=SecretValue1234567890',
       source: 'https://owner:secret-password@example.com/private',
+      digest: 'api_key=ArgsDigestSecret1234567890',
+      callRef: 'password=ArgsCallRefSecret1234567890',
+      workRef: 'Bearer ArgsWorkRefSecret1234567890',
     } },
     result: {
       path: '/tmp/report.md', source: 'password=huntertwo', text: 'Bearer SecretToken1234567890',
@@ -41,6 +44,9 @@ test('완료 Receipt는 전체 민감값을 서명 전에 복제·가림하고 o
   assert.equal(prepared.result.path, '/tmp/report.md');
   assert.equal(prepared.actualCall.args.text, '[민감정보 — 원문은 저장하지 않음]');
   assert.equal(prepared.actualCall.args.source, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.actualCall.args.digest, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.actualCall.args.callRef, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.actualCall.args.workRef, '[민감정보 — 원문은 저장하지 않음]');
   assert.equal(prepared.result.source, '[민감정보 — 원문은 저장하지 않음]');
   assert.equal(prepared.result.text, '[민감정보 — 원문은 저장하지 않음]');
   assert.equal(prepared.result.nested.id, '[민감정보 — 원문은 저장하지 않음]');

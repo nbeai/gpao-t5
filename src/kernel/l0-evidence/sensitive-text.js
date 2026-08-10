@@ -76,26 +76,31 @@ export const MASK = '[가림]';
 /** durable 구조 안에서 민감 문자열 전체를 대체하는 한 표식. */
 export const SENSITIVE_VALUE_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
 
-const DURABLE_OPAQUE_FIELDS = new Set([
-  'workRef', 'completionContractRef', 'receiptRef', 'sourceWorkRef', 'sourceSetRef',
-  'sourceRevisionRef', 'memberRef', 'deliverableRefs', 'digest', 'providerCallId', 'callRef',
-]);
+function opaqueDurablePath(path) {
+  const joined = path.join('.');
+  if (['workRef', 'completionContractRef', 'receiptRef', 'sourceWorkRef', 'sourceSetRef'].includes(joined)) return true;
+  if (['actualCall.providerCallId', 'actualCall.callRef', 'result.digest',
+    'result.sourceRevisionRef', 'result.sourceSetRef', 'result.memberRef'].includes(joined)) return true;
+  if (/^(?:turnRef|sourceTurnRef|completionContract\.sourceTurnRef)\./.test(joined)) return true;
+  if (/^(?:deliverableRefs\.\d+|deliverables\.\d+\.id|completionContract\.deliverables\.\d+\.id)$/.test(joined)) return true;
+  return false;
+}
 
-/** 서명·저장할 JSON 현실을 비변이 복제하며, 기계 신분 외 민감 문자열을 한 경계에서 가린다. */
-export function canonicalDurableEvidence(value, { opaque = false } = {}, stack = new WeakSet()) {
+/** 서명·저장할 JSON 현실을 비변이 복제하며, 정확한 기계 신분 경로 외 민감 문자열을 가린다. */
+export function canonicalDurableEvidence(value, path = [], stack = new WeakSet()) {
   if (typeof value === 'string') {
-    return !opaque && containsSensitiveValue(value) ? SENSITIVE_VALUE_PLACEHOLDER : value;
+    return !opaqueDurablePath(path) && containsSensitiveValue(value) ? SENSITIVE_VALUE_PLACEHOLDER : value;
   }
   if (!value || typeof value !== 'object') return value;
   if (stack.has(value)) throw new TypeError('durable evidence는 순환 구조일 수 없다');
   stack.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => canonicalDurableEvidence(item, { opaque }, stack));
+      return value.map((item, index) => canonicalDurableEvidence(item, [...path, String(index)], stack));
     }
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [
       key,
-      canonicalDurableEvidence(item, { opaque: opaque || DURABLE_OPAQUE_FIELDS.has(key) }, stack),
+      canonicalDurableEvidence(item, [...path, key], stack),
     ]));
   } finally {
     stack.delete(value);

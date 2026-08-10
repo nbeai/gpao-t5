@@ -393,7 +393,17 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
       name: 'local.file', args: { action: 'write', path: target, text: '완성 내용', source },
     }] };
   } };
-  const tools = demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) });
+  const tools = demoTools({
+    localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }),
+    localLocate: {
+      async places() { return [{ label: '테스트 파일방' }]; },
+      async handler() { return { result: { hits: [] }, userSafeSummary: '파일 자리를 확인했어요.' }; },
+    },
+    desktop: {
+      async places() { return { 창들: [{ label: '테스트 화면' }], 걸린ms: 0 }; },
+      async handler() { return { result: { windows: [] }, userSafeSummary: '화면을 확인했어요.' }; },
+    },
+  });
   const app = await start(dir, model, { tools });
   const session = await (await post(app.base, '/sessions')).json();
   // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이라 중간 승인이 없다. **재는 계약은 그대로다** —
@@ -417,6 +427,13 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
     'CompletionContractRef와 durable 완료 계약 본문이 같아야 한다');
   assert.equal(signed.receiptDigest, workEvidenceDigest(durableSignedBody),
     'ReceiptRef 발급 뒤 완료 영수증 본문을 바꾸면 안 된다');
+  const fileReceipts = saved.ledgerEntries.filter((entry) => entry?.actualCall?.tool === 'local.file'
+    && ['read', 'write'].includes(entry.actualCall.args?.action));
+  assert.equal(fileReceipts.length, 2, 'read→write 실제 제품 경로여야 한다');
+  for (const receipt of fileReceipts) {
+    assert.equal((receipt.userSafeSummary.match(/이번 턴에 아직 안 본 자리 종류/g) ?? []).length, 1,
+      `${receipt.actualCall.args.action}: unsigned read와 signed write 모두 자리 사실을 정확히 한 번만 동봉해야 한다`);
+  }
   const records = await new WorkEventStore(dir).load();
   assert.ok(records.some((event) => event.type === 'execution_completed'
     && event.evidence?.verificationPassed === true
