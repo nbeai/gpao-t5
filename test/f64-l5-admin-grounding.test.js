@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
@@ -70,6 +70,7 @@ async function runCase({ mode = 'normal' } = {}) {
     if (mode === 'original_red' && main === 1) return { text: '', toolCalls: [{
       name: 'local.file', args: {
         action: 'write', path: '신청준비표.md',
+        source: join(root, '보유서류.txt'),
         text: '보유: 사업자등록증, 임대차계약서, 통장사본\n준비 필요: 국세납세증명서\n',
         evidenceRows: [
           { source: join(root, '보유서류.txt'), quote: '임대차계약서 있음.' },
@@ -112,12 +113,17 @@ async function runCase({ mode = 'normal' } = {}) {
     assert.equal(response.status, 200);
     await response.json();
     const saved = await store.load(session.id); const events = await workEventStore.load();
+    const outputText = await readFile(join(root, '신청준비표.md'), 'utf8').catch(() => null);
     return {
       rawWrites: saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
         && entry.actualCall?.args?.action === 'write' && entry.origin !== 'completion_settlement'),
       completions: saved.ledgerEntries.filter((entry) => entry.origin === 'completion_settlement' && entry.receiptRef),
       completedEvents: events.filter((entry) => entry.type === 'execution_completed'),
       completed: saved.workingState?.recentOutcome?.status === 'completed',
+      sourceReads: saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
+        && entry.actualCall?.args?.action === 'read'
+        && Object.keys(SOURCES).some((name) => String(entry.result?.path).endsWith(name))),
+      outputText,
     };
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -134,7 +140,13 @@ function assertNotCompleted(result) {
 
 test('F-64 L5 행정 결과물: 원본 1·정상 1·동결 반례 4', async (t) => {
   await t.test('원본형 빨강: 자료를 안 읽고 만든 일반 준비표는 완료 0', async () => {
-    assertNotCompleted(await runCase({ mode: 'original_red' }));
+    const result = await runCase({ mode: 'original_red' });
+    assert.ok(result.rawWrites.some((entry) => entry.lifecycle === 'delivered'
+      && entry.failureState === 'none'), '잘못된 일반 준비표 write가 실제 실행돼야 한다');
+    assert.equal(result.outputText,
+      '보유: 사업자등록증, 임대차계약서, 통장사본\n준비 필요: 국세납세증명서\n');
+    assert.equal(result.sourceReads.length, 0);
+    assertNotCompleted(result);
   });
   await t.test('정상: 모든 자료의 사실·누락·기간·조건이 결과 readback에 결속되면 완료 1', async () => {
     const result = await runCase();
