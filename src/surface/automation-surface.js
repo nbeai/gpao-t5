@@ -1,9 +1,17 @@
+import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
+
 const ACTIVE_AUTOMATION_STATES = new Set(['scheduled', 'paused', 'needs_review']);
+
+export function automationEntryVisible(entry) {
+  return ![entry?.statement, entry?.name]
+    .filter((value) => typeof value === 'string')
+    .some((value) => containsSensitiveValue(value));
+}
 
 export function projectAutomations(jobs = []) {
   return {
     active: jobs
-      .filter((job) => ACTIVE_AUTOMATION_STATES.has(job.state))
+      .filter((job) => ACTIVE_AUTOMATION_STATES.has(job.state) && automationEntryVisible(job))
       .map((job) => ({ id: job.id, label: job.name, state: job.state })),
   };
 }
@@ -38,11 +46,20 @@ export function projectAutomationRun(run) {
 export function projectAutomationReality({ candidates = [], jobs = [], runs = [] }, {
   principalRef, now, limit = 20,
 } = {}) {
+  if (typeof principalRef !== 'string' || !principalRef.trim()) {
+    const unknown = { observed: false, total: null, truncated: null, items: [] };
+    return {
+      observedAt: now, principalBound: false, availability: 'unknown',
+      candidates: structuredClone(unknown), jobs: structuredClone(unknown),
+      recentRuns: structuredClone(unknown),
+    };
+  }
   const owns = (entry) => entry?.principalRef === principalRef;
   const currentCandidates = candidates.filter((entry) => owns(entry)
+    && automationEntryVisible(entry)
     && entry.approved !== true && entry.current !== false && entry.superseded !== true
     && (!Number.isFinite(entry.expiresAt) || entry.expiresAt >= now));
-  const ownedJobs = jobs.filter(owns);
+  const ownedJobs = jobs.filter((entry) => owns(entry) && automationEntryVisible(entry));
   const jobIds = new Set(ownedJobs.map((job) => job.id));
   const ownedRuns = runs.filter((run) => jobIds.has(run.jobId));
   const bounded = (all, project) => ({

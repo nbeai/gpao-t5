@@ -91,9 +91,14 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
       // **어느 손으로 하는 일인지 함께 말한다.** 없으면 설정 화면이 이 일을 맡을 스킬·담당을
       // 고를 수 없어 카드가 막다른 길이 된다(F-11 사슬 3번째 끊김, 실측 2026-08-04).
       tool: { type: 'string', description: '이 반복이 실제로 쓸 손(예: local.file). 지금 쓸 수 있는 손 중에서 고른다' },
-      action: { type: 'object', description: '그 손에 줄 구조화된 실행 인자. 비밀은 넣지 않는다.' },
+      action: {
+        type: 'object',
+        description: '그 손에 줄 구조화된 실행 인자. 비밀은 넣지 않는다.',
+        properties: { args: { type: 'object', description: '선택한 손의 구조화된 실행 인자' } },
+        required: ['args'],
+      },
     },
-    required: ['statement'],
+    required: ['statement', 'operation', 'trigger', 'tool', 'action', 'skillPurpose', 'deliveryIntent'],
   },
 }, {
   name: 'agent.propose',

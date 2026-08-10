@@ -55,6 +55,7 @@ import {
   projectAutomations,
   projectAutomationRun,
   projectAutomationReality,
+  automationEntryVisible,
 } from './automation-surface.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
@@ -502,6 +503,93 @@ export function makeServer(deps = {}) {
     }
   }
 
+  function 자동화입장준비(proposal, principalRef) {
+    if (typeof principalRef !== 'string' || !principalRef.trim()) return 'principal_unknown';
+    if (!proposal || !['create', 'update'].includes(proposal.operation)) return 'operation_unknown';
+    if (typeof proposal.statement !== 'string' || !proposal.statement.trim()) return 'statement_unknown';
+    if (typeof proposal.tool !== 'string' || !proposal.tool.trim()) return 'tool_unknown';
+    if (!proposal.action || typeof proposal.action !== 'object' || Array.isArray(proposal.action)
+      || !proposal.action.args || typeof proposal.action.args !== 'object'
+      || Array.isArray(proposal.action.args)) return 'candidate_action_unknown';
+    if (typeof proposal.skillPurpose !== 'string' || !proposal.skillPurpose.trim()) return 'skill_purpose_unknown';
+    if (!['none', 'chat'].includes(proposal.deliveryIntent)) return 'delivery_intent_unknown';
+    return null;
+  }
+
+  async function 자동화후보입장(proposal, session) {
+    await automationReady();
+    const notReady = 자동화입장준비(proposal, session.principalRef);
+    if (notReady) return {
+      proposal: { rejected: true, reason: notReady },
+      reality: await automationRealityFor(session.principalRef),
+    };
+    if (!자동화후보저장가능({
+      statement: proposal.statement,
+      action: { tool: proposal.tool, args: proposal.action.args },
+    })) return {
+      proposal: { rejected: true, reason: 'sensitive_input' },
+      reality: await automationRealityFor(session.principalRef),
+    };
+    let stored;
+    await autoStore.update((state) => {
+      const now = automationNow();
+      const operation = proposal.operation;
+      const targetJob = operation === 'update'
+        ? (state.jobs ?? []).find((entry) => entry.id === proposal.targetJobRef
+          && entry.principalRef === session.principalRef)
+        : null;
+      if (operation === 'update' && !targetJob) {
+        stored = { rejected: true, reason: 'target_not_current' };
+        return state;
+      }
+      const trigger = canonicalCandidateTrigger(proposal.trigger, now);
+      if (!trigger) {
+        stored = { rejected: true, reason: 'trigger_invalid' };
+        return state;
+      }
+      const draft = {
+        candidateId: randomUUID(),
+        principalRef: session.principalRef,
+        revision: 1,
+        current: true,
+        operation,
+        ...(targetJob ? { targetJobRef: targetJob.id, targetJobRevision: targetJob.updatedAt } : {}),
+        statement: proposal.statement,
+        kind: proposal.kind,
+        action: { tool: proposal.tool, args: structuredClone(proposal.action.args) },
+        trigger,
+        skillPurpose: proposal.skillPurpose,
+        deliveryIntent: proposal.deliveryIntent,
+        state: 'proposed',
+        approved: false,
+        superseded: false,
+        expiresAt: now + (24 * 60 * 60 * 1000),
+        createdAt: now,
+      };
+      draft.controlRef = automationControlRef(draft);
+      const duplicate = (state.candidates ?? []).find((entry) =>
+        entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
+        && entry.current !== false && entry.approved !== true && entry.superseded !== true);
+      if (duplicate) { stored = duplicate; return state; }
+      const candidates = (state.candidates ?? []).map((entry) => (
+        operation === 'update' && entry.principalRef === session.principalRef
+          && entry.operation === 'update' && entry.targetJobRef === targetJob.id
+          && entry.approved !== true && entry.current !== false
+          ? { ...entry, current: false, superseded: true, supersededAt: now }
+          : entry
+      ));
+      stored = draft;
+      return { ...state, candidates: [...candidates, stored] };
+    });
+    const admitted = stored.rejected ? stored : {
+      candidateId: stored.candidateId, candidateRef: stored.candidateId,
+      revision: stored.revision, controlRef: stored.controlRef,
+      operation: stored.operation, statement: stored.statement, state: 'proposed',
+      ...(stored.targetJobRef ? { targetJobRef: stored.targetJobRef } : {}),
+    };
+    return { proposal: admitted, reality: await automationRealityFor(session.principalRef) };
+  }
+
   async function 통제후보저장(result, session) {
     await automationReady();
     if (result.skillProposal) {
@@ -511,71 +599,6 @@ export function makeServer(deps = {}) {
       result.skillProposal = proposed.ok
         ? { id: proposed.skill.id, name: proposed.skill.name, state: proposed.skill.state }
         : { rejected: true, reason: proposed.reason ?? proposed.errors?.[0] ?? 'invalid_skill_proposal' };
-    }
-    if (result.automationProposal) {
-      const proposal = result.automationProposal;
-      if (!자동화후보저장가능({
-        statement: proposal.statement ?? 'automation proposal',
-        action: { tool: 'automation.propose', args: proposal },
-      })) {
-        result.automationProposal = { rejected: true, reason: 'sensitive_input' };
-      } else {
-        let stored;
-        await autoStore.update((state) => {
-          const now = automationNow();
-          const operation = proposal.operation === 'update' ? 'update' : 'create';
-          const targetJob = operation === 'update'
-            ? (state.jobs ?? []).find((entry) => entry.id === proposal.targetJobRef
-              && entry.principalRef === session.principalRef)
-            : null;
-          if (operation === 'update' && !targetJob) {
-            stored = { rejected: true, reason: 'target_not_current' };
-            return state;
-          }
-          const trigger = canonicalCandidateTrigger(proposal.trigger, now);
-          const draft = {
-            candidateId: randomUUID(),
-            principalRef: session.principalRef,
-            revision: 1,
-            current: true,
-            operation,
-            ...(targetJob ? { targetJobRef: targetJob.id, targetJobRevision: targetJob.updatedAt } : {}),
-            statement: proposal.statement,
-            kind: proposal.kind,
-            // **무엇으로 하는 일인지 담는다.** 이게 없으면 `/automation/setup` 이 후보를 못 찾고
-            // 카드가 죽은 버튼이 된다(F-11). 모델이 손을 안 밝히면 담지 않는다 — 지어내지 않는다.
-            ...(proposal.tool ? { action: { tool: proposal.tool, args: proposal.action?.args ?? {} } } : {}),
-            trigger,
-            skillPurpose: proposal.skillPurpose ?? targetJob?.name ?? proposal.statement,
-            deliveryIntent: proposal.deliveryIntent ?? targetJob?.deliveryPolicy?.mode ?? 'none',
-            state: 'proposed',
-            approved: false,
-            superseded: false,
-            expiresAt: now + (24 * 60 * 60 * 1000),
-            createdAt: now,
-          };
-          draft.controlRef = automationControlRef(draft);
-          const duplicate = (state.candidates ?? []).find((entry) =>
-            entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
-            && entry.current !== false && entry.approved !== true && entry.superseded !== true);
-          if (duplicate) { stored = duplicate; return state; }
-          const candidates = (state.candidates ?? []).map((entry) => (
-            operation === 'update' && entry.principalRef === session.principalRef
-              && entry.operation === 'update' && entry.targetJobRef === targetJob.id
-              && entry.approved !== true && entry.current !== false
-              ? { ...entry, current: false, superseded: true, supersededAt: now }
-              : entry
-          ));
-          stored = draft;
-          return { ...state, candidates: [...candidates, stored] };
-        });
-        result.automationProposal = stored.rejected ? stored : {
-          candidateId: stored.candidateId, candidateRef: stored.candidateId,
-          revision: stored.revision, controlRef: stored.controlRef,
-          operation: stored.operation, statement: stored.statement, state: 'proposed',
-          ...(stored.targetJobRef ? { targetJobRef: stored.targetJobRef } : {}),
-        };
-      }
     }
     if (result.agentProposal) {
       const proposal = result.agentProposal;
@@ -1081,6 +1104,7 @@ export function makeServer(deps = {}) {
     }
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
+    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
@@ -1921,8 +1945,8 @@ export function makeServer(deps = {}) {
           lastRunId: job.lastRunId, authorityEnvelope: job.authorityEnvelope,
         });
         return sendJson(res, 200, {
-          candidates: a.candidates.filter((c) => !c.approved),
-          jobs: a.jobs.map(stripJob),
+          candidates: a.candidates.filter((c) => !c.approved && automationEntryVisible(c)),
+          jobs: a.jobs.filter(automationEntryVisible).map(stripJob),
           runs: runs.runs.map(projectAutomationRun),
         });
       }
@@ -1932,7 +1956,10 @@ export function makeServer(deps = {}) {
         const [a, skills, profiles] = await Promise.all([
           autoStore.load(), skillStore.load(), profileStore.load(),
         ]);
-        const candidate = a.candidates.find((entry) => entry.candidateId === candidateId && !entry.approved);
+        const candidate = a.candidates.find((entry) => entry.candidateId === candidateId
+          && !entry.approved && entry.current !== false && entry.superseded !== true
+          && automationEntryVisible(entry)
+          && (!Number.isFinite(entry.expiresAt) || entry.expiresAt >= automationNow()));
         if (!candidate?.action?.tool) return sendJson(res, 404, { error: '설정할 자동화 후보를 찾지 못했어요.' });
         const tool = candidate.action.tool;
         return sendJson(res, 200, {
@@ -3039,6 +3066,7 @@ export function makeServer(deps = {}) {
     }
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
+    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.

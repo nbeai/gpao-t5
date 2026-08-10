@@ -1332,6 +1332,22 @@ export async function runTurn(input, ctx) {
     }
   }
 
+  const 자동화입장후답 = async (baseTc, currentReply, search) => {
+    if (!automationProposal || typeof ctx.admitAutomationProposal !== 'function'
+      || ctx.automationAdmissionHandled === true) return currentReply;
+    ctx.automationAdmissionHandled = true;
+    const admission = await ctx.admitAutomationProposal(automationProposal);
+    automationProposal = admission?.proposal ?? { rejected: true, reason: 'admission_unknown' };
+    ctx.automationProposal = automationProposal;
+    ctx.automationReality = admission?.reality ?? ctx.automationReality;
+    const out = await ctx.model.respond({
+      ...baseTc,
+      automationProposal: structuredClone(automationProposal),
+      automationReality: structuredClone(ctx.automationReality),
+    }, { search, effort: 'medium' });
+    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+  };
+
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
   if (!modelChosen && !influence
       && (completionContract.assessment === 'chat'
@@ -1342,6 +1358,7 @@ export async function runTurn(input, ctx) {
     const idleState = deriveWorkingState(ctx.workingState, {
       receipts: [], places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
     });
+    earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
     return {
       kind: 'reply',
       // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
@@ -2871,6 +2888,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.
   if (!멈춘이유 && 산출물미충족()) {
     멈춘이유 = '만들기로 한 파일 산출물이 아직 만들어지지 않았어요';
+  }
+
+  // 자동화 제안은 답 뒤 서버가 저장하는 부수효과가 아니다. 승인 가능한 후보 신분과
+  // canonical store readback을 먼저 확정하고, 모델은 그 현실을 본 뒤 최종 답을 고른다.
+  // 문구를 고치지 않는다 — 입장 결과와 갱신된 현실만 공급한다.
+  if (ctx.automationProposal && typeof ctx.admitAutomationProposal === 'function'
+    && ctx.automationAdmissionHandled !== true) {
+    ctx.automationAdmissionHandled = true;
+    const admission = await ctx.admitAutomationProposal(ctx.automationProposal);
+    ctx.automationProposal = admission?.proposal ?? { rejected: true, reason: 'admission_unknown' };
+    ctx.automationReality = admission?.reality ?? ctx.automationReality;
+    ctx.제안된자동화 = ctx.automationProposal;
+    tc = {
+      ...tc,
+      automationProposal: structuredClone(ctx.automationProposal),
+      automationReality: structuredClone(ctx.automationReality),
+    };
+    finalOut = await ctx.model.respond(tc, {
+      search: wantedWeb,
+      effort: 'medium',
+    });
   }
 
   let reply = userFacingModelText(typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '');

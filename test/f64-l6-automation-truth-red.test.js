@@ -18,6 +18,7 @@ import { AutomationJobStore } from '../src/surface/automation-store.js';
 import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
+import { projectAutomationReality } from '../src/surface/automation-surface.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { SkillDefinitionStore } from '../src/surface/skill-store.js';
 
@@ -140,12 +141,22 @@ function proposalModel({ finalReply = FALSE_REPLY, capture = [] } = {}) {
   return { async respond(tc, opts = {}) {
     capture.push(structuredClone(tc));
     const request = String(tc.currentRequest ?? '');
-    if (!opts.tools?.length) return request === '최종 상태를 알려줘' ? finalReply : '처리했어요.';
-    if (request === '최종 상태를 알려줘') return { text: finalReply, toolCalls: [] };
+    const realityReply = () => {
+      const candidates = tc.automationReality?.candidates;
+      const jobs = tc.automationReality?.jobs;
+      if (candidates?.observed !== false && jobs?.observed !== false
+        && Number.isInteger(candidates?.total) && Number.isInteger(jobs?.total)) {
+        return `승인 전 후보 ${candidates.total}개가 있고, 켜진 자동화는 ${jobs.total}개예요.`;
+      }
+      return finalReply;
+    };
+    if (!opts.tools?.length) return request === '최종 상태를 알려줘' ? realityReply() : '처리했어요.';
+    if (request === '최종 상태를 알려줘') return { text: realityReply(), toolCalls: [] };
     const target = tc.automationReality?.jobs?.items?.[0];
     const update = request.includes('같은 알림') && target;
     return { text: '', toolCalls: [{ name: 'automation.propose', args: {
       statement: request, kind: 'weekly', tool: 'local.file',
+      action: { args: { action: 'read', path: '지난주정산.txt' } },
       operation: update ? 'update' : 'create',
       ...(update ? { targetJobRef: target.jobRef } : {}),
       trigger: update ? TUESDAY : (request.includes('화요일') ? TUESDAY : MONDAY),
@@ -154,7 +165,7 @@ function proposalModel({ finalReply = FALSE_REPLY, capture = [] } = {}) {
   } };
 }
 
-test('L6 원본 동결 관측: 후보 셋·승인/job/run 0인 provider 거짓 표면을 제품 완료로 세지 않는다', async () => {
+test('L6 원본 동결 관측: 후보 셋·승인/job/run 0의 canonical 현실이 종료 답과 일치한다', async () => {
   const observed = await withProduct({ model: proposalModel() }, async (app) => {
     const turns = [];
     turns.push(await app.turn('매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘.'));
@@ -185,7 +196,8 @@ test('L6 원본 동결 관측: 후보 셋·승인/job/run 0인 provider 거짓 �
   );
   assert.equal(observed.surfaceCandidates, 3, '모델 제안은 후보 표면까지만 닿는다');
   assert.equal(observed.actionableSetups, 3, 'candidateId는 실제 setup으로 이어지는 신분이다');
-  assert.equal(observed.reply, FALSE_REPLY, '동결 provider가 낸 거짓 완료 표면');
+  assert.equal(observed.reply, '승인 전 후보 3개가 있고, 켜진 자동화는 0개예요.',
+    '같은 provider가 canonical candidate/job 현실을 보고 원본 종료문장을 바꾼다');
   assert.equal(observed.purposeMet, false, '승인하지 않은 후보는 제품 완료가 아니다');
 });
 
@@ -340,6 +352,7 @@ test('stale/superseded: 먼저 본 update revision은 승인되지 않고 target
     return { text: '', toolCalls: [{ name: 'automation.propose', args: {
       statement: `일정 변경 후보 ${calls}`, operation: 'update', targetJobRef: target.id,
       kind: 'weekly', tool: 'local.file', trigger: TUESDAY,
+      action: { args: { action: 'read', path: '지난주정산.txt' } },
       skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
     } }] };
   } };
@@ -512,4 +525,106 @@ test('반대조건: 없는 id 변경은 404이고 기존 job·run 원장을 바�
     assert.deepEqual(after, before);
     assert.equal((await app.runLedger.load()).runs.length, 0);
   });
+});
+
+test('P0 실제 스키마 경로: 자연 제안은 final 전 입장·readback reality를 보고 승인 뒤 job1로 이어진다', async () => {
+  const seenSchemas = [];
+  const honestReply = '월요일 오전 9시 반 후보를 준비했어요. 아직 승인 전이에요.';
+  const model = { async respond(tc, opts = {}) {
+    const proposalSchema = opts.tools?.find((entry) => entry.name === 'automation.propose');
+    if (proposalSchema) {
+      seenSchemas.push(structuredClone(proposalSchema));
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: '매주 월요일 오전 9시 반에 지난주 정산 확인',
+        operation: 'create', kind: 'weekly', trigger: MONDAY,
+        tool: 'local.file', action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+      } }] };
+    }
+    const admitted = tc.automationProposal?.candidateId;
+    const observed = tc.automationReality?.candidates?.items?.some((entry) => entry.candidateRef === admitted);
+    return admitted && observed ? honestReply : FALSE_REPLY;
+  } };
+  await withProduct({ model }, async (app) => {
+    const result = await app.turn('매주 월요일 오전 9시 반에 지난주 정산을 확인해줘.');
+    const required = seenSchemas[0]?.parameters?.required ?? [];
+    assert.deepEqual(required.slice().sort(), [
+      'action', 'deliveryIntent', 'operation', 'skillPurpose', 'statement', 'tool', 'trigger',
+    ].sort(), '승인 준비에 필요한 구조가 실제 provider schema의 필수 계약이어야 한다');
+    assert.equal(result.reply, honestReply, '같은 모델이 입장·readback 현실을 본 뒤 후보 상태로 답한다');
+    const candidateId = result.automationProposal?.candidateId;
+    const stored = (await app.automationStore.load()).candidates.find((entry) => entry.candidateId === candidateId);
+    assert.deepEqual(stored?.action, { tool: 'local.file', args: { action: 'read', path: '지난주정산.txt' } });
+    const setup = await app.request('GET', `/automation/setup?candidateId=${candidateId}`);
+    assert.equal(setup.status, 200);
+    const approval = await app.request('POST', '/automation/approve', {
+      candidateId, candidateRevision: result.automationProposal.revision,
+      controlRef: result.automationProposal.controlRef,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+      expiresAt: 2_000_000_000_000, maxRuns: 20,
+    });
+    assert.equal(approval.status, 200, JSON.stringify(approval));
+    assert.equal((await app.automationStore.load()).jobs.length, 1);
+  });
+});
+
+test('P0 입장 경계: action args가 없는 draft는 current setup·job이 되지 않는다', async () => {
+  const model = { async respond(_tc, opts = {}) {
+    if (!opts.tools?.length) return '확인할 후보가 아직 없어요.';
+    return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+      statement: '매주 월요일 오전 9시 반 정산 확인', operation: 'create',
+      kind: 'weekly', trigger: MONDAY, tool: 'local.file',
+      skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+    } }] };
+  } };
+  await withProduct({ model }, async (app) => {
+    const result = await app.turn('매주 월요일 오전 9시 반 정산 확인 후보를 준비해줘.');
+    const state = await app.automationStore.load();
+    assert.equal(state.candidates.filter((entry) => entry.current !== false).length, 0);
+    assert.equal(state.jobs.length, 0);
+    const setup = await app.request('GET', `/automation/setup?candidateId=${result.automationProposal?.candidateId ?? 'missing'}`);
+    assert.equal(setup.status, 404);
+  });
+});
+
+test('P0 민감 경계: 모델 제안의 비밀은 durable 후보와 final reality에 들어가지 않는다', async () => {
+  const secret = 'api_key=Abcd1234SecretValue';
+  const finalContexts = [];
+  const model = { async respond(tc, opts = {}) {
+    if (!opts.tools?.length) {
+      finalContexts.push(structuredClone(tc));
+      return '민감한 값이 있어 후보로 저장하지 않았어요.';
+    }
+    return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+      statement: '매주 월요일 오전 9시 반 정산 확인', operation: 'create',
+      kind: 'weekly', trigger: MONDAY, tool: 'local.file',
+      action: { args: { action: 'read', path: '지난주정산.txt', token: secret } },
+      skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+    } }] };
+  } };
+  await withProduct({ model }, async (app) => {
+    const result = await app.turn('정산 확인 자동화 후보를 준비해줘.');
+    const state = await app.automationStore.load();
+    assert.equal(state.candidates.length, 0);
+    assert.equal(state.jobs.length, 0);
+    assert.deepEqual(result.automationProposal, { rejected: true, reason: 'sensitive_input' });
+    assert.equal(JSON.stringify(finalContexts).includes(secret), false);
+    assert.equal(JSON.stringify(await app.request('GET', '/automation')).includes(secret), false);
+  });
+});
+
+test('P0 민감·principal 경계: legacy 비밀 이름은 표면/모델에서 빠지고 null principal은 unknown이다', async () => {
+  const x = await room();
+  const secret = 'password=Abcd1234SecretValue';
+  const legacy = { ...scheduledJob('secret-job', x.root), name: secret };
+  const capture = [];
+  await withProduct({ model: proposalModel({ capture }), jobs: [legacy] }, async (app) => {
+    await app.turn('자동화 상태를 알려줘');
+    const surface = await app.request('GET', '/automation');
+    assert.equal(JSON.stringify(surface).includes(secret), false);
+  });
+  assert.equal(JSON.stringify(capture).includes(secret), false);
+  const unknown = projectAutomationReality({ jobs: [legacy] }, { principalRef: null, now: FROZEN_NOW });
+  assert.deepEqual([unknown.principalBound, unknown.availability, unknown.jobs.observed], [false, 'unknown', false]);
+  assert.equal(unknown.jobs.items.length, 0);
 });
