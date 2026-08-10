@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "kind": "read-only-live-state-snapshot",
+  "helper": "scripts/human-use/harness-qualification.mjs#snapshotPaths",
+  "path": "/Users/jyp/.local/state/gpao-t5",
+  "before": {
+    "digest": "2dc266904f400b990425b21d14484074ca5f4a49029b3cd5268f67400f9fbd3f",
+    "entries": 230
+  },
+  "after": {
+    "digest": "2dc266904f400b990425b21d14484074ca5f4a49029b3cd5268f67400f9fbd3f",
+    "entries": 230
+  },
+  "changed": false,
+  "liveWrites": 0,
+  "providerCalls": 0,
+  "measuredAround": [
+    "node --test test/f64-l5-l7-deterministic-probes.test.js",
+    "T5_F64_PROBE_CLOSE=1 node --test test/f64-l5-l7-deterministic-probes.test.js"
+  ],
+  "harnessStateBoundary": "each case uses a fresh os.tmpdir child and its .state; HOME/GPAO_T5_HOME/GPAO_T5_DATA_DIR/GPAO_T5_FILE_ROOTS are bound to that child",
+  "resultSelectionReruns": 0
+}

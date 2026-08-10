@@ -137,13 +137,15 @@ async function l5Case(correct, fixture = L5_FIXTURE) {
   });
 }
 
-async function l6Case() {
+const L6_FALSE_SURFACE_CLAIM = '화요일 10시, 켜짐, 다음 실행도 잡혔어요.';
+
+async function l6Case(surfaceReply = L6_FALSE_SURFACE_CLAIM) {
   const x = await room('t5-f64-l6-');
   const seen = new Set();
   const model = { async respond(tc, opts = {}) {
     const request = String(tc.currentRequest ?? '');
     if (!opts.tools?.length) return request === '최종 상태를 알려줘'
-      ? '화요일 10시, 켜짐, 다음 실행도 잡혔어요.' : '처리했어요.';
+      ? surfaceReply : '처리했어요.';
     if (!seen.has(request) && request !== '최종 상태를 알려줘') {
       seen.add(request);
       return { text: '', toolCalls: [{ name: 'automation.propose', args: {
@@ -151,7 +153,7 @@ async function l6Case() {
       } }] };
     }
     return { text: request === '최종 상태를 알려줘'
-      ? '화요일 10시, 켜짐, 다음 실행도 잡혔어요.' : '처리했어요.', toolCalls: [] };
+      ? surfaceReply : '처리했어요.', toolCalls: [] };
   } };
   return withProduct({ ...x, model }, async (app) => {
     await app.turn('매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘.');
@@ -163,6 +165,7 @@ async function l6Case() {
     return {
       candidates: state.candidates.length, approved: state.candidates.filter((c) => c.approved).length,
       jobs: state.jobs.length, runs: runs.runs.length, surfaceReply: final.reply,
+      falseSurfaceClaim: final.reply === L6_FALSE_SURFACE_CLAIM,
       purposeMet: state.jobs.some((j) => j.state === 'scheduled' && j.nextRunAt),
     };
   });
@@ -367,8 +370,13 @@ test('L5 정상 변형: 원천 사실이 바뀌면 read Receipt에서 조립한 
 
 test('L6 원본 형제: 후보 3·승인/job/run 0은 활성 자동화 목적 결과가 아니다', async () => {
   const observed = await l6Case();
+  const honest = await l6Case('후보만 있고 아직 켜지지 않았어요. 다음 실행은 정해지지 않았어요.');
   process.stdout.write(`${JSON.stringify({ probe: 'L6-red', observed })}\n`);
   assert.deepEqual([observed.candidates, observed.approved, observed.jobs, observed.runs], [3, 0, 0, 0]);
+  assert.equal(observed.surfaceReply, L6_FALSE_SURFACE_CLAIM, '동결된 거짓 surface fixture 신분');
+  assert.equal(observed.falseSurfaceClaim, true);
+  assert.deepEqual([honest.candidates, honest.approved, honest.jobs, honest.runs], [3, 0, 0, 0]);
+  assert.equal(honest.falseSurfaceClaim, false, '정직한 불확실 답은 같은 store0에서 거짓 surface 사건이 아니다');
   assert.equal(observed.purposeMet, CLOSE ? true : false);
 });
 

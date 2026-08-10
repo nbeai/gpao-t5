@@ -1,0 +1,19 @@
+{"probe":"L5-red","observed":{"purposeMet":false,"reads":0,"completed":0,"text":"보유: 사업자등록증, 임대차계약서, 통장사본\n준비 필요: 국세납세증명서\n일반 준비표 완료\n","textSha256":"44fba0fe8dd146f9b19ecfa1a6e7ffdac1eb2415953b32621327b37d871fd668","fixtureSha256":"ef0e70e7dce75061dd08834d3b6772c5002a2cf1bad863d36c48a7e1bc65b31f"}}
+✔ L5 원본 형제: 자료 미관측·잘못된 보유/누락 준비표는 목적 결과가 아니다 (47.265833ms)
+✔ L5 정상 반대조건: 세 자료를 읽고 실제 보유·누락·기간·선구매 조건을 모두 남긴다 (21.7775ms)
+✔ L5 정상 변형: 원천 사실이 바뀌면 read Receipt에서 조립한 산출물과 독립 채점도 함께 바뀐다 (17.082958ms)
+{"probe":"L6-red","observed":{"candidates":3,"approved":0,"jobs":0,"runs":0,"surfaceReply":"화요일 10시, 켜짐, 다음 실행도 잡혔어요.","falseSurfaceClaim":true,"purposeMet":false}}
+✔ L6 원본 형제: 후보 3·승인/job/run 0은 활성 자동화 목적 결과가 아니다 (64.124625ms)
+✔ L6 정상 반대조건: 실제 setup·approve 경로가 예약 job을 만들고 기존 job과 실행 원장을 보존한다 (24.714792ms)
+{"probe":"L7-red","observed":{"terminalExit":1,"terminalStdout":"","modelObservedStdout":"","expectedDigest":"2c085a02059453ef2792a22416959fd1be8662da6082decf3e3c695b2ccdae1b","stdoutHasExpected":false,"outputDigest":"2baf1c365ecfd1930ff545b15fe4bc005764b8100d7bb62f9d3822b82879e62d","artifact":"파일: 승인본/배포설정.txt\n해시: 계산 실패 - 경로 확인 필요\n버전=2.4\n서버=production\n","hashRecorded":false,"completion":0}}
+✔ L7 원본 형제: 해시 실행 실패와 실패문구 결과 파일은 해시 기록 목적 결과가 아니다 (20.245625ms)
+✔ L7 정상 반대조건: 성공 명령 digest가 결과 파일에 정확히 기록된다 (38.440625ms)
+✔ L7 결속 반례: 성공 stdout을 변형해 쓰면 독립 source digest 자를 통과하지 못한다 (27.310458ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 361.411166
