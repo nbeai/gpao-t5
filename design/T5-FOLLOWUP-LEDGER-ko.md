@@ -39,7 +39,7 @@
 F-17  브라우저 손을 쥐고도 안 쓴다        F-27  ask.user 실렸는데 안 골랐다
 F-25  선언이 이번 런에 없는 손을 가리킨다   F-23  판정 표가 선언된 손의 절반만 덮는다
 F-1   locate ↔ list 왕복이 반복된다        F-24  막힌 읽기가 같은 턴의 검색 후보로 못 돌아간다
-F-65  현재 작업셋의 canonical root·관측 구성원 신분이 첫 현실에 서지 않는다(원인 확정 · 수리 중)
+F-65  **닫힘** — 현재 작업셋의 canonical root·관측 구성원 신분을 첫 현실에 공급
 ```
 
 **판 ⑤⑫⑬ 이 전부 여기다.** 7판에서 병이 「안 뻗는다」→「잘못 고른다」로 옮겨간 그 자리다.
@@ -127,7 +127,7 @@ F-18·F-19  분류기·기억 — 노드 W 와 겹친다
 - 필수 선빨강: L1·L4·L5·L6·L7 원본 → 각 형제 → 성공 Receipt 반대조건 → 기존 절대 회귀 →
   미공개 PM 홀드아웃. 한 문항만 통과하면 문항 패치다.
 
-### F-65 · 매듭 확정 — 현재 작업셋의 root·관측 구성원 신분이 첫 현실에 서지 않는다 (3가족 · 2026-08-10)
+### F-65 · ★ 닫힘 — 현재 작업셋의 root·관측 구성원 신분이 첫 현실에 서지 않는다 (3가족 · 2026-08-10)
 
 - L1·L4·L5 모두 필요한 파일이 격리 작업 폴더에 실제로 있고 `local.file`로 읽을 수 있었지만 첫 턴에
   읽지 않았다. L1은 뒤늦게 같은 파일들을 읽었고, L7은 같은 실행기에서 `.` 목록과 중첩 읽기에
@@ -143,7 +143,12 @@ F-18·F-19  분류기·기억 — 노드 W 와 겹친다
   도구 호출 문구는 조종이라 기각한다.
 - 범위 분리: L1의 `메모.txt` 미관측은 F-66b source coverage/provenance, L4의 파일 0인데 completed는
   F-64다. F-65 수리만으로 원본 닫힘을 선언하지 않는다.
-- 근거: `docs/03-verification/evidence/f65-workset-matrix-2026-08-10/RESULT-ko.md`.
+- **닫힘 실물**: canonical current root와 실제 관측 member identity/sourceSetRef를 첫 RealitySnapshot에
+  공급한 뒤 같은 자 유료 24판에서 모델 실제 자료 손 진입 24/24·`local.locate` 0/24. 기준 셀 3/3도
+  사용자 재설명 없이 실제 파일로 들어갔다. 복수 root·scope 불일치·HOME 기본값은 current로 고르지
+  않고, runtime 관측 Receipt는 사용자 실행·완료로 세지 않는다.
+- 근거: `docs/03-verification/evidence/f65-workset-matrix-2026-08-10/RESULT-ko.md` ·
+  `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/RESULT-ko.md`.
 
 ### F-66 · ★ 절대 결함 — 사용자 확정·자료 관측·모델 제안의 신분이 섞인다 (4가족 · 2026-08-10)
 

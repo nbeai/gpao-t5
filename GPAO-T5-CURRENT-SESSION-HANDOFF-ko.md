@@ -7,12 +7,12 @@
 
 ## 최신 작업선 · 2026-08-10
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `c8f5b75`.
-- 활성 sidecar: 없음. F-65 bounded current workset 현실 공급은 독립 PM 표적 9/9 뒤 정본에 입장했고,
-  격리 worktree를 수거했다. 전체 게이트와 유료 원본 재측정은 이어서 판정한다.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `8a31422`.
+- 활성 sidecar: 없음. F-65 보강 뒤 유료 24판 원본은 정본에 입장했고 증거 worktree를 수거했다.
+  F-65 bounded current workset 입장은 닫혔으며 다음 제품 작업선은 F-66b source-set 결산이다.
 - 제외: F-60은 오너 지시로 미해결 봉인. F-64 후보 `c0fd5cc6`은 원본 미달로 병합 차단된 채
   브랜치만 보존한다. F-66은 F-65 뒤 별도 작업선이다.
-- 증거: `docs/03-verification/evidence/f65-workset-matrix-2026-08-10/` 유료 24판 원본과 PM 판정.
+- 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
 
 ## 감사 인계 · 2026-08-04 — **설치파일 직전 단계 종결 요청**
 
