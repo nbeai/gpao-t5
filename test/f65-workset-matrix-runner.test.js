@@ -10,7 +10,7 @@ import { buildModelMessages } from '../src/runtime/model-provider.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import {
-  FROZEN_F65_MATRIX_SHA256, applyDiagnosticReality, enumerateF65Cells,
+  FROZEN_F65_MATRIX_SHA256, applyDiagnosticReality, enumerateF65Cells, evaluateDerivedArtifacts,
   loadF65MatrixDefinition, scoreF65Cell,
 } from '../scripts/human-use/f65-workset-matrix-runner.mjs';
 
@@ -31,6 +31,10 @@ test('동결 config는 정확히 L1/L4/L5 × W/P/O 24칸이고 축이 사용자 
   const cells = enumerateF65Cells(frozen.document);
   assert.equal(cells.length, 24);
   assert.equal(new Set(cells.map((row) => row.cellId)).size, 24);
+  assert.equal(frozen.document.supersedes.configSha256,
+    '20681992a5eb2d1060445bec5151252397c9f03b1670cd5deb0c9dcb6e8cd102');
+  assert.equal(frozen.document.supersedes.reason, 'PM_ENTRY_AUDIT_BEFORE_PAID_RUN_NO_RESULT_SEEN');
+  assert.doesNotMatch(JSON.stringify(frozen.document), /expectedOutput|정확한 결과 경로/);
   assert.deepEqual([...new Set(cells.map((row) => row.scenarioId))],
     ['L1-workset-settlement', 'L4-workset-document', 'L5-workset-admin']);
   for (const scenario of frozen.document.scenarios) {
@@ -98,21 +102,79 @@ test('실제 local.file list Receipt가 첫 /turn Runtime reality를 통과한�
   }
 });
 
-test('결과 판정기는 읽기 범위·경로·내용·세 완료 진실을 별도 기계 사실로 남긴다', () => {
-  const scenario = { sourceFiles: ['a.csv', 'b.csv'], expectedOutput: '결과/out.csv', requiredContent: ['A', 'B'] };
-  const output = { exists: true, path: '/tmp/f/결과/out.csv', relativePath: '결과/out.csv', text: 'A만' };
+const scoringScenario = { sourceFiles: ['a.csv', 'b.csv'], artifactKind: 'integrated_result_text_file',
+  artifactKindMachineBasis: 'new_regular_file_with_required_content', requiredContent: ['A', 'B'] };
+const sourceFacts = [
+  { path: '/tmp/f/a.csv', relativePath: 'a.csv', sha256: 'a', bytes: 1, text: 'A' },
+  { path: '/tmp/f/b.csv', relativePath: 'b.csv', sha256: 'b', bytes: 1, text: 'B' },
+];
+const artifact = (path = '/tmp/f/자유로운이름.txt', text = 'A B') => ({ path,
+  relativePath: path.replace('/tmp/f/', ''), sha256: 'out', bytes: text.length, text });
+const writeReceipt = (path, receiptRef = 'R-output') => ({ actualCall: { tool: 'local.file',
+  args: { action: 'write', path } }, failureState: 'none', lifecycle: 'delivered', result: { path }, receiptRef,
+  completionContractRef: 'CC-output', deliverableRefs: ['D-output'] });
+
+test('숨은 filename/folder 정답 없이 bounded root의 임의 이름 새 산출물이 통과한다', () => {
+  const out = artifact('/tmp/f/내가고른이름.txt');
+  const observed = evaluateDerivedArtifacts({ root: '/tmp/f', scenario: scoringScenario,
+    beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out], calls: [{ tool: 'local.file',
+      args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none', receiptRef: 'R' }] });
+  assert.equal(observed.pass, true);
+  assert.equal(observed.candidates[0].identity.relativePath, '내가고른이름.txt');
+  assert.equal(JSON.stringify(scoringScenario).includes('내가고른이름'), false);
+});
+
+test('root 밖 성공 write와 원천 덮어쓰기는 산출물 성공을 열지 못한다', () => {
+  const out = artifact();
+  const calls = [
+    { tool: 'local.file', args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none' },
+    { tool: 'local.file', args: { action: 'write', path: '/tmp/outside.txt' }, result: { path: '/tmp/outside.txt' }, failureState: 'none' },
+    { tool: 'local.file', args: { action: 'write', path: '/tmp/f/a.csv' }, result: { path: '/tmp/f/a.csv' }, failureState: 'none' },
+  ];
+  const observed = evaluateDerivedArtifacts({ root: '/tmp/f', scenario: scoringScenario,
+    beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out], calls, sourceChanged: ['/tmp/f/a.csv'] });
+  assert.equal(observed.pass, false);
+  assert.equal(observed.workspaceBoundary.pass, false);
+  assert.equal(observed.sourceOverwrite.pass, false);
+  assert.equal(observed.sourceFilesUnchanged.pass, false);
+});
+
+test('무관한 read ReceiptRef는 새 산출물의 completion truth를 열지 못한다', () => {
+  const out = artifact();
   const session = { workingState: { recentOutcome: { status: 'completed' } }, ledgerEntries: [
     { actualCall: { tool: 'local.file', args: { action: 'read', path: '/tmp/f/a.csv' } },
-      failureState: 'none', result: { path: '/tmp/f/a.csv' } },
-    { actualCall: { tool: 'local.file', args: { action: 'write', path: '/tmp/f/결과/out.csv' } },
-      failureState: 'none', result: { path: '/tmp/f/결과/out.csv' }, receiptRef: 'R1' },
+      failureState: 'none', result: { path: '/tmp/f/a.csv' }, receiptRef: 'R-unrelated' },
   ] };
-  const score = scoreF65Cell({ scenario, surfaceTurn: { response: { kind: 'clarify' } }, session,
-    workEvents: [{ eventType: 'execution_completed' }], output });
-  assert.deepEqual(score.sourceFilesReadCoverage, { read: ['a.csv'], total: 2 });
-  assert.equal(score.userRestatementBurden, 1);
-  assert.equal(score.exactOutputPath.pass, true);
-  assert.equal(score.requiredContentCoverage.pass, false);
+  const score = scoreF65Cell({ root: '/tmp/f', scenario: scoringScenario, surfaceTurn: { response: {} }, session,
+    workEvents: [{ type: 'execution_completed', evidence: { receiptRef: 'R-unrelated' } }],
+    beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out] });
+  assert.deepEqual(score.completionTruthConsistency.selected.receiptRefs, []);
+  assert.equal(score.completionTruthConsistency.verifiedComplete, false);
+});
+
+test('같은 산출물 write ReceiptRef와 같은 execution_completed만 세 완료 진실을 결속한다', () => {
+  const out = artifact();
+  const session = { workingState: { recentOutcome: { status: 'completed' } }, ledgerEntries: [writeReceipt(out.path)] };
+  const score = scoreF65Cell({ root: '/tmp/f', scenario: scoringScenario, surfaceTurn: { response: {} }, session,
+    workEvents: [{ type: 'execution_completed', eventId: 'WE1', evidence: {
+      receiptRef: 'R-output', completionContractRef: 'CC-output' } }],
+    beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out] });
+  assert.equal(score.derivedArtifactIdentity.pass, true);
   assert.equal(score.completionTruthConsistency.consistent, true);
-  assert.equal(score.semantic, 'PM_UNJUDGED');
+  assert.equal(score.completionTruthConsistency.verifiedComplete, true);
+  assert.deepEqual(score.completionTruthConsistency.selected.receiptRefs, ['R-output']);
+});
+
+test('derived artifact가 0개 또는 2개 이상이면 경로를 임의 선택하지 않고 ambiguity를 남긴다', () => {
+  const empty = scoreF65Cell({ root: '/tmp/f', scenario: scoringScenario, surfaceTurn: { response: {} }, session: {},
+    workEvents: [], beforeFiles: sourceFacts, afterFiles: sourceFacts });
+  assert.equal(empty.completionTruthConsistency.ambiguity, 'none');
+  assert.equal(empty.completionTruthConsistency.selected, null);
+  const one = artifact('/tmp/f/첫째.txt'); const two = artifact('/tmp/f/둘째.txt');
+  const session = { ledgerEntries: [writeReceipt(one.path, 'R1'), writeReceipt(two.path, 'R2')] };
+  const multiple = scoreF65Cell({ root: '/tmp/f', scenario: scoringScenario, surfaceTurn: { response: {} }, session,
+    workEvents: [], beforeFiles: sourceFacts, afterFiles: [...sourceFacts, one, two] });
+  assert.equal(multiple.completionTruthConsistency.ambiguity, 'multiple');
+  assert.equal(multiple.completionTruthConsistency.selected, null);
+  assert.equal(multiple.completionTruthConsistency.candidates.length, 2);
 });

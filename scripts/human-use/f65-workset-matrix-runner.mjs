@@ -1,9 +1,9 @@
 // F-65 current-workset 2x2x2 counterfactual runner.
 // This is a diagnostic harness only: it changes Runtime reality assembly, never product source or user text.
 import { execFile } from 'node:child_process';
-import { mkdir, open, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, realpath, readdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { makeServer } from '../../src/surface/server.js';
@@ -19,8 +19,8 @@ import {
   createLivingSimRoom, createRecordingFetch, loadOpenAiCredential, materializeFixture,
 } from './living-sim-runner.mjs';
 
-export const F65_MATRIX_SCHEMA_VERSION = 1;
-export const FROZEN_F65_MATRIX_SHA256 = '20681992a5eb2d1060445bec5151252397c9f03b1670cd5deb0c9dcb6e8cd102';
+export const F65_MATRIX_SCHEMA_VERSION = 2;
+export const FROZEN_F65_MATRIX_SHA256 = '3fa4cf8302f9df847775fad7ea169526e1157a7b8042ea35a4d190d247fb3c27';
 const execFileAsync = promisify(execFile);
 
 function stable(value) {
@@ -158,7 +158,9 @@ async function fixtureIdentity(root, fixture) {
 function receiptCalls(ledger = []) {
   return ledger.filter((entry) => entry?.actualCall?.tool).map((entry) => ({
     tool: entry.actualCall.tool, args: entry.actualCall.args ?? {}, failureState: entry.failureState,
-    receiptRef: entry.receiptRef ?? entry.ref ?? null, result: entry.result ?? null,
+    receiptRef: entry.receiptRef ?? null, result: entry.result ?? null,
+    completionContractRef: entry.completionContractRef ?? null,
+    deliverableRefs: entry.deliverableRefs ?? [], lifecycle: entry.lifecycle ?? null,
   }));
 }
 
@@ -172,40 +174,103 @@ function providerMeter(events, expected) {
     expectedUpperBoundsForMeteringOnly: expected, enforced: false };
 }
 
-async function outputFact(root, scenario) {
-  const path = resolve(root, scenario.expectedOutput);
-  try {
-    const bytes = await readFile(path);
-    return { exists: true, path, relativePath: relative(root, path), sha256: digest(bytes), bytes: bytes.length,
-      text: bytes.toString('utf8') };
-  } catch { return { exists: false, path, relativePath: relative(root, path) }; }
+function pathInside(root, path) {
+  const rel = relative(resolve(root), resolve(path));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-export function scoreF65Cell({ scenario, surfaceTurn, session, workEvents, output }) {
+async function treeFileFacts(root) {
+  const rows = [];
+  async function walk(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) {
+        const bytes = await readFile(path);
+        rows.push({ path: resolve(path), relativePath: relative(root, path), sha256: digest(bytes),
+          bytes: bytes.length, text: bytes.toString('utf8') });
+      }
+    }
+  }
+  await walk(root); return rows.sort((a, b) => a.relativePath.localeCompare(b.relativePath, 'ko'));
+}
+
+function receiptTarget(call) {
+  const value = call?.result?.path ?? call?.result?.to ?? call?.args?.to ?? call?.args?.path;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try { return resolve(value); } catch { return null; }
+}
+
+export function evaluateDerivedArtifacts({ root, scenario, beforeFiles, afterFiles, calls, sourceChanged = [] }) {
+  const before = new Set((beforeFiles ?? []).map((file) => resolve(file.path)));
+  const sources = new Set((scenario.sourceFiles ?? []).map((name) => resolve(root, name)));
+  const qualification = new Set((scenario.qualificationFiles ?? []).map((name) => resolve(root, name)));
+  const writes = calls.filter((call) => call.tool === 'local.file' && ['write', 'move'].includes(call.args?.action)
+    && call.failureState === 'none');
+  const outsideSuccessful = writes.filter((call) => {
+    const target = receiptTarget(call); return target && !pathInside(root, target);
+  }).map((call) => ({ receiptRef: call.receiptRef, target: receiptTarget(call), action: call.args.action }));
+  const sourceOverwrite = writes.filter((call) => sources.has(receiptTarget(call)))
+    .map((call) => ({ receiptRef: call.receiptRef, target: receiptTarget(call), action: call.args.action }));
+  const candidates = (afterFiles ?? []).filter((file) => !before.has(resolve(file.path))
+    && !sources.has(resolve(file.path)) && !qualification.has(resolve(file.path))).map((file) => {
+    const matching = writes.filter((call) => receiptTarget(call) === resolve(file.path));
+    const contentRows = scenario.requiredContent.map((fact) => ({ fact, present: file.text.includes(fact) }));
+    const extension = extname(file.path).toLowerCase();
+    const pass = pathInside(root, file.path) && contentRows.every((row) => row.present)
+      && matching.length > 0 && sourceChanged.length === 0 && outsideSuccessful.length === 0 && sourceOverwrite.length === 0;
+    return { identity: { path: resolve(file.path), relativePath: file.relativePath, sha256: file.sha256, bytes: file.bytes,
+      extension, artifactKind: scenario.artifactKind,
+      artifactKindMachineBasis: scenario.artifactKindMachineBasis }, contentRows,
+      writeReceipts: matching.map((call) => ({ receiptRef: call.receiptRef,
+        completionContractRef: call.completionContractRef, deliverableRefs: call.deliverableRefs,
+        action: call.args.action, lifecycle: call.lifecycle })), pass };
+  });
+  return { candidates, candidateCount: candidates.length, validCount: candidates.filter((row) => row.pass).length,
+    ambiguity: candidates.length === 1 ? 'single' : candidates.length === 0 ? 'none' : 'multiple',
+    sourceFilesUnchanged: { pass: sourceChanged.length === 0, changed: sourceChanged },
+    workspaceBoundary: { pass: outsideSuccessful.length === 0, outsideSuccessful },
+    sourceOverwrite: { pass: sourceOverwrite.length === 0, receipts: sourceOverwrite },
+    pass: candidates.some((row) => row.pass) };
+}
+
+export function scoreF65Cell({ root, scenario, surfaceTurn, session, workEvents, beforeFiles, afterFiles,
+  sourceChanged = [] }) {
   const calls = receiptCalls(session?.ledgerEntries ?? []);
   const first = calls[0] ?? null;
   const reads = new Set(calls.filter((c) => c.tool === 'local.file' && c.args?.action === 'read'
     && c.failureState === 'none').map((c) => basename(String(c.result?.path ?? c.args?.path ?? ''))));
-  const expectedPath = resolve(output.path);
-  const exactWrite = calls.some((c) => c.tool === 'local.file' && ['write', 'move'].includes(c.args?.action)
-    && c.failureState === 'none' && resolve(String(c.result?.path ?? c.args?.path ?? '')) === expectedPath);
-  const contentRows = scenario.requiredContent.map((fact) => ({ fact, present: output.exists && output.text.includes(fact) }));
+  const artifacts = evaluateDerivedArtifacts({ root, scenario, beforeFiles, afterFiles, calls, sourceChanged });
   const recent = session?.workingState?.recentOutcome?.status === 'completed'
     || surfaceTurn?.response?.recentOutcome?.status === 'completed';
-  const receiptRef = Boolean(session?.ledgerEntries?.some((entry) => entry?.receiptRef));
   const completedEvents = (workEvents ?? []).filter((event) => event?.eventType === 'execution_completed'
     || event?.type === 'execution_completed');
+  const truthRows = artifacts.candidates.map((artifact) => {
+    const receiptRefs = [...new Set(artifact.writeReceipts.map((receipt) => receipt.receiptRef).filter(Boolean))];
+    const events = completedEvents.filter((event) => receiptRefs.includes(event?.evidence?.receiptRef));
+    const eventRefs = [...new Set(events.map((event) => event.evidence.receiptRef))];
+    const receiptBound = receiptRefs.length === 1;
+    const eventBound = receiptBound && eventRefs.length === 1 && eventRefs[0] === receiptRefs[0];
+    return { artifact: artifact.identity, artifactPass: artifact.pass, receiptRefs,
+      completionContractRefs: [...new Set(artifact.writeReceipts.map((r) => r.completionContractRef).filter(Boolean))],
+      matchingExecutionCompleted: events.map((event) => ({ eventId: event.eventId ?? null,
+        receiptRef: event.evidence.receiptRef, completionContractRef: event.evidence.completionContractRef ?? null })),
+      recentOutcome: recent, consistent: recent === receiptBound && receiptBound === eventBound,
+      verifiedComplete: artifact.pass && recent && receiptBound && eventBound };
+  });
+  const selectedTruth = artifacts.candidateCount === 1 ? truthRows[0] : null;
   return {
     firstToolTarget: first ? { tool: first.tool, action: first.args?.action ?? null,
       target: first.args?.path ?? first.args?.target ?? first.args?.request ?? null } : null,
     sourceFilesReadCoverage: { read: [...reads].filter((name) => scenario.sourceFiles.includes(name)).sort(),
       total: scenario.sourceFiles.length },
     userRestatementBurden: surfaceTurn?.response?.kind === 'clarify' ? 1 : 0,
-    exactOutputPath: { exists: output.exists, receiptMatched: exactWrite,
-      pass: output.exists && exactWrite, expected: scenario.expectedOutput, observed: output.relativePath },
-    requiredContentCoverage: { rows: contentRows, pass: contentRows.every((row) => row.present) },
-    completionTruthConsistency: { recentOutcome: recent, receiptRef, executionCompleted: completedEvents.length,
-      consistent: recent === receiptRef && receiptRef === Boolean(completedEvents.length) },
+    derivedArtifactIdentity: artifacts,
+    requiredContentCoverage: { candidates: artifacts.candidates.map((row) => ({ artifact: row.identity,
+      rows: row.contentRows, pass: row.contentRows.every((fact) => fact.present) })), pass: artifacts.pass },
+    completionTruthConsistency: { ambiguity: artifacts.ambiguity, candidates: truthRows,
+      selected: selectedTruth, consistent: selectedTruth?.consistent ?? null,
+      verifiedComplete: selectedTruth?.verifiedComplete ?? false },
     semantic: 'PM_UNJUDGED',
   };
 }
@@ -240,6 +305,7 @@ export async function runF65MatrixCell(options) {
     const fixture = await fixtureIdentity(fixtureDir, scenario.fixture);
     const sourcePaths = Object.keys(scenario.fixture).map((name) => join(fixtureDir, name));
     const beforeSources = await snapshotPaths(sourcePaths);
+    const beforeFiles = await treeFileFacts(fixtureDir);
     const isolation = await 격리증명({ root: homeDir, fixtureDir, stateDir });
     if (!isolation.ok) throw Object.assign(new Error('isolation failed'), { code: 'ISOLATION_FAILED' });
     const beforeProtected = await snapshotPaths([realProtected]);
@@ -277,12 +343,13 @@ export async function runF65MatrixCell(options) {
     await closeServer(server); server = null;
     const persisted = await readJson(join(stateDir, `${sessionId}.json`), {});
     const workEvents = (await readJson(join(stateDir, 'work-events.json'), {}))?.records ?? [];
-    const output = await outputFact(fixtureDir, scenario);
+    const afterFiles = await treeFileFacts(fixtureDir);
     const afterProtected = await snapshotPaths([realProtected]);
     const afterSources = await snapshotPaths(sourcePaths);
     const protectedChanged = changedPaths(beforeProtected, afterProtected);
     const sourceChanged = changedPaths(beforeSources, afterSources);
-    const machine = scoreF65Cell({ scenario, surfaceTurn: { response: turn.json }, session: persisted, workEvents, output });
+    const machine = scoreF65Cell({ root: fixtureDir, scenario, surfaceTurn: { response: turn.json },
+      session: persisted, workEvents, beforeFiles, afterFiles, sourceChanged });
     const raw = { execution: { batchRunId, runId, cell, source, configSha256: definition.sha256,
       fixture, qualificationManifest: resolve(qualificationManifest), qualificationStatus: qualificationDoc.status,
       credentialIdentity: credential.identity }, frozen: { userUtterance: scenario.userUtterance,
@@ -292,14 +359,14 @@ export async function runF65MatrixCell(options) {
       providerEvents, providerMeter: providerMeter(providerEvents,
         definition.document.measurement.expectedUpperBoundsForMeteringOnly),
       firstRealitySnapshot: seenContexts[0] ?? null, surfaceTurn: turn.json,
-      surfaceSession, persistedSession: persisted, workEvents, output,
+      surfaceSession, persistedSession: persisted, workEvents, artifactFiles: { before: beforeFiles, after: afterFiles },
       pathSnapshots: { protected: { before: beforeProtected, after: afterProtected, changed: protectedChanged },
         sources: { before: beforeSources, after: afterSources, changed: sourceChanged } } };
     assertNoSecretExposure(raw, secrets);
     const rawPath = join(rawDir, 'cell.json'); await exclusiveJson(rawPath, raw);
     const manifest = { schemaVersion: F65_MATRIX_SCHEMA_VERSION, kind: 'f65-workset-counterfactual-cell',
-      runId, attemptId: claim.attemptId, status: protectedChanged.length || sourceChanged.length ? 'HARNESS_INVALID' : 'RECORDED',
-      invalidReason: protectedChanged.length ? 'protected_state_changed' : sourceChanged.length ? 'source_fixture_changed' : null,
+      runId, attemptId: claim.attemptId, status: protectedChanged.length ? 'HARNESS_INVALID' : 'RECORDED',
+      invalidReason: protectedChanged.length ? 'protected_state_changed' : null,
       cell, source,
       config: { path: relative(sourceRoot, definition.path), sha256: definition.sha256 }, fixture,
       isolation, machine, semantic: 'PM_UNJUDGED',
