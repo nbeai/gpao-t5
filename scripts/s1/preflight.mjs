@@ -312,6 +312,8 @@ export const 허용파일 = [
   // F-64 slice 1 — 사용자 exact path와 quoted body의 독립 span만 완료 계약 재료로 입장한다.
   'src/kernel/l1-intent/file-parse.js',
   'src/surface/server.js',
+  // L6 — canonical 자동화 원장의 same-principal bounded reality 투영.
+  'src/surface/automation-surface.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).
   'src/runtime/capsule.js',

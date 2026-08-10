@@ -165,6 +165,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // F-64 slice 1 — exact path/body provenance 입장 경계.
     'src/kernel/l1-intent/file-parse.js',
     'src/surface/server.js',
+    // L6 — canonical 자동화 원장의 same-principal bounded reality 투영.
+    'src/surface/automation-surface.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',
     'src/runtime/terminal-run.js',

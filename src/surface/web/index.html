@@ -1687,23 +1687,32 @@ function renderAutomationSuggestion(box, sug) {
     };
     const skill = select(setup.skills);
     const profile = select(setup.profiles);
+    const fixedTrigger = setup.candidate?.trigger ?? null;
     const cadence = document.createElement('select');
     cadence.innerHTML = '<option value="weekly">매주</option><option value="daily">매일</option>';
     const time = document.createElement('input'); time.type = 'time'; time.value = '09:00';
-    form.append('스킬 ', skill, ' · 담당 ', profile, ' · ', cadence, ' ', time);
+    form.append('스킬 ', skill, ' · 담당 ', profile);
+    if (fixedTrigger) {
+      const days = fixedTrigger.kind === 'weekly' ? ` · 요일 ${fixedTrigger.weekdays.join(',')}` : '';
+      form.append(` · ${fixedTrigger.kind}${days} · ${fixedTrigger.localTime ?? new Date(fixedTrigger.at).toLocaleString()}`);
+    } else {
+      form.append(' · ', cadence, ' ', time);
+    }
     const confirm = document.createElement('button'); confirm.className = 'act primary'; confirm.textContent = '이 설정으로 켜기';
     const back = document.createElement('button'); back.className = 'act no'; back.textContent = '닫기';
     confirm.onclick = async () => {
       confirm.disabled = true;
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const now = Date.now();
-      const trigger = cadence.value === 'daily'
+      const trigger = fixedTrigger ?? (cadence.value === 'daily'
         ? { kind: 'daily', timezone, localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' }
-        : { kind: 'weekly', timezone, weekdays: [new Date().getDay()], localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' };
+        : { kind: 'weekly', timezone, weekdays: [new Date().getDay()], localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' });
       const response = await fetch('/automation/approve', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          candidateId: sug.candidateId, skillId: skill.value, agentProfileId: profile.value,
+          candidateId: sug.candidateId, candidateRevision: setup.candidate?.revision,
+          controlRef: setup.candidate?.controlRef,
+          skillId: skill.value, agentProfileId: profile.value,
           trigger, expiresAt: now + 30 * 24 * 3600 * 1000, maxRuns: 30,
         }),
       });

@@ -54,6 +54,7 @@ import {
   projectAgents,
   projectAutomations,
   projectAutomationRun,
+  projectAutomationReality,
 } from './automation-surface.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
@@ -88,6 +89,7 @@ import { isSendTool } from '../kernel/contracts.js';
 import { detectSkillCandidate } from '../kernel/l5-growth/skill-learning.js';
 import { admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
 import { bindAutomationCandidate, transitionState } from '../kernel/l5-growth/automation-contracts.js';
+import { nextTriggerOccurrence } from '../kernel/l5-growth/trigger-spec.js';
 import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
 import { WorkEventStore } from './work-event-store.js';
@@ -411,6 +413,7 @@ export function makeServer(deps = {}) {
     ...(deps.automationStore ? { jobStore: deps.automationStore } : {}),
     ...(deps.agentProfileStore ? { profileStore: deps.agentProfileStore } : {}),
     ...(deps.automationRunLedger ? { runLedger: deps.automationRunLedger } : {}),
+    ...(deps.clock ? { now: deps.clock } : {}),
     migrate: !deps.skillStore && !deps.automationStore && !deps.agentProfileStore,
   });
   if (deps.enableAgentDelegation && tools?.tools?.['local.file']?.scopeRoots?.length) {
@@ -444,6 +447,60 @@ export function makeServer(deps = {}) {
   const autoStore = automationRuntime.jobStore;
   const profileStore = automationRuntime.profileStore;
   const runLedger = automationRuntime.runLedger;
+  const automationNow = () => Number(automationRuntime.now());
+
+  function canonicalCandidateTrigger(input, at = automationNow()) {
+    if (!input?.kind || !input?.timezone) return null;
+    const trigger = {
+      kind: input.kind,
+      timezone: input.timezone,
+      misfirePolicy: input.misfirePolicy ?? 'catch_up_once',
+      ...(Number.isFinite(input.at) ? { at: input.at } : {}),
+      ...(Number.isFinite(input.intervalMs) ? { intervalMs: input.intervalMs } : {}),
+      ...(Array.isArray(input.weekdays) ? { weekdays: [...input.weekdays] } : {}),
+      ...(typeof input.localTime === 'string' ? { localTime: input.localTime } : {}),
+      nextRunAt: null,
+    };
+    try {
+      if (trigger.kind === 'once') trigger.nextRunAt = trigger.at;
+      else if (trigger.kind === 'interval') trigger.nextRunAt = at + trigger.intervalMs;
+      else {
+        trigger.nextRunAt = at;
+        trigger.nextRunAt = nextTriggerOccurrence(trigger, at);
+      }
+      return trigger.nextRunAt === null || Number.isFinite(trigger.nextRunAt) ? trigger : null;
+    } catch { return null; }
+  }
+
+  function automationControlRef(candidate) {
+    return createHash('sha256').update(JSON.stringify({
+      principalRef: candidate.principalRef,
+      operation: candidate.operation,
+      targetJobRef: candidate.targetJobRef ?? null,
+      statement: candidate.statement,
+      trigger: candidate.trigger,
+      action: candidate.action,
+      skillPurpose: candidate.skillPurpose,
+      deliveryIntent: candidate.deliveryIntent,
+    })).digest('hex');
+  }
+
+  async function automationRealityFor(principalRef) {
+    await automationReady();
+    try {
+      const [state, runState] = await Promise.all([autoStore.load(), runLedger.load()]);
+      return projectAutomationReality({
+        candidates: state.candidates, jobs: state.jobs, runs: runState.runs,
+      }, { principalRef, now: automationNow() });
+    } catch {
+      const unknown = { observed: false, total: null, truncated: null, items: [] };
+      return {
+        observedAt: automationNow(), principalBound: true, availability: 'unknown',
+        candidates: structuredClone(unknown), jobs: structuredClone(unknown),
+        recentRuns: structuredClone(unknown),
+      };
+    }
+  }
 
   async function 통제후보저장(result, session) {
     await automationReady();
@@ -465,24 +522,58 @@ export function makeServer(deps = {}) {
       } else {
         let stored;
         await autoStore.update((state) => {
-          const duplicate = (state.candidates ?? []).find((entry) =>
-            entry.statement === proposal.statement && entry.kind === proposal.kind);
-          if (duplicate) { stored = duplicate; return state; }
-          stored = {
+          const now = automationNow();
+          const operation = proposal.operation === 'update' ? 'update' : 'create';
+          const targetJob = operation === 'update'
+            ? (state.jobs ?? []).find((entry) => entry.id === proposal.targetJobRef
+              && entry.principalRef === session.principalRef)
+            : null;
+          if (operation === 'update' && !targetJob) {
+            stored = { rejected: true, reason: 'target_not_current' };
+            return state;
+          }
+          const trigger = canonicalCandidateTrigger(proposal.trigger, now);
+          const draft = {
             candidateId: randomUUID(),
+            principalRef: session.principalRef,
+            revision: 1,
+            current: true,
+            operation,
+            ...(targetJob ? { targetJobRef: targetJob.id, targetJobRevision: targetJob.updatedAt } : {}),
             statement: proposal.statement,
             kind: proposal.kind,
             // **무엇으로 하는 일인지 담는다.** 이게 없으면 `/automation/setup` 이 후보를 못 찾고
             // 카드가 죽은 버튼이 된다(F-11). 모델이 손을 안 밝히면 담지 않는다 — 지어내지 않는다.
-            ...(proposal.tool ? { action: { tool: proposal.tool, args: {} } } : {}),
+            ...(proposal.tool ? { action: { tool: proposal.tool, args: proposal.action?.args ?? {} } } : {}),
+            trigger,
+            skillPurpose: proposal.skillPurpose ?? targetJob?.name ?? proposal.statement,
+            deliveryIntent: proposal.deliveryIntent ?? targetJob?.deliveryPolicy?.mode ?? 'none',
             state: 'proposed',
             approved: false,
-            createdAt: Date.now(),
+            superseded: false,
+            expiresAt: now + (24 * 60 * 60 * 1000),
+            createdAt: now,
           };
-          return { ...state, candidates: [...(state.candidates ?? []), stored] };
+          draft.controlRef = automationControlRef(draft);
+          const duplicate = (state.candidates ?? []).find((entry) =>
+            entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
+            && entry.current !== false && entry.approved !== true && entry.superseded !== true);
+          if (duplicate) { stored = duplicate; return state; }
+          const candidates = (state.candidates ?? []).map((entry) => (
+            operation === 'update' && entry.principalRef === session.principalRef
+              && entry.operation === 'update' && entry.targetJobRef === targetJob.id
+              && entry.approved !== true && entry.current !== false
+              ? { ...entry, current: false, superseded: true, supersededAt: now }
+              : entry
+          ));
+          stored = draft;
+          return { ...state, candidates: [...candidates, stored] };
         });
-        result.automationProposal = {
-          candidateId: stored.candidateId, statement: stored.statement, state: 'proposed',
+        result.automationProposal = stored.rejected ? stored : {
+          candidateId: stored.candidateId, candidateRef: stored.candidateId,
+          revision: stored.revision, controlRef: stored.controlRef,
+          operation: stored.operation, statement: stored.statement, state: 'proposed',
+          ...(stored.targetJobRef ? { targetJobRef: stored.targetJobRef } : {}),
         };
       }
     }
@@ -989,6 +1080,7 @@ export function makeServer(deps = {}) {
       ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
     }
     await automationReady();
+    ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
@@ -1356,17 +1448,27 @@ export function makeServer(deps = {}) {
       result.automationSuggestion = undefined;
     }
     if (result.automationSuggestion?.action) {
-      const a = await autoStore.load();
       const dedupKey = result.automationSuggestion.statement;
-      if (a.candidates.some((c) => c.statement === dedupKey && !c.approved)) { result.automationSuggestion = undefined; }
-      else {
-        const c = {
+      const now = automationNow();
+      let stored = null;
+      await autoStore.update((state) => {
+        if (state.candidates.some((c) => c.principalRef === session.principalRef
+          && c.statement === dedupKey && !c.approved && c.current !== false && !c.superseded)) return state;
+        const candidate = {
           candidateId: randomUUID(), statement: result.automationSuggestion.statement,
           action: structuredClone(result.automationSuggestion.action), dedupKey,
-          state: 'proposed', approved: false, createdAt: Date.now(),
+          principalRef: session.principalRef, revision: 1, current: true,
+          operation: 'create', trigger: null,
+          skillPurpose: result.automationSuggestion.statement, deliveryIntent: 'none',
+          state: 'proposed', approved: false, superseded: false,
+          expiresAt: now + (24 * 60 * 60 * 1000), createdAt: now,
         };
-        a.candidates.push(c); await autoStore.save(a); result.automationSuggestion.candidateId = c.candidateId;
-      }
+        candidate.controlRef = automationControlRef(candidate);
+        stored = candidate;
+        return { ...state, candidates: [...state.candidates, candidate] };
+      });
+      if (stored) result.automationSuggestion.candidateId = stored.candidateId;
+      else result.automationSuggestion = undefined;
     } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
     await store.save(session);
     // P90-1: transcript·ToolReceipt가 먼저 지속된 뒤 WorkEvent가 그 사실을 가리킨다.
@@ -1835,7 +1937,19 @@ export function makeServer(deps = {}) {
         const tool = candidate.action.tool;
         return sendJson(res, 200, {
           ok: true,
-          candidate: { candidateId: candidate.candidateId, statement: candidate.statement },
+          candidate: {
+            candidateId: candidate.candidateId,
+            candidateRef: candidate.candidateId,
+            revision: candidate.revision ?? 1,
+            controlRef: candidate.controlRef,
+            operation: candidate.operation ?? 'create',
+            targetJobRef: candidate.targetJobRef,
+            statement: candidate.statement,
+            trigger: candidate.trigger,
+            skillPurpose: candidate.skillPurpose,
+            deliveryIntent: candidate.deliveryIntent,
+            expiresAt: candidate.expiresAt,
+          },
           skills: skills.skills.filter((entry) => entry.state === 'active'
             && (entry.requiredCapabilities ?? []).includes(tool)).map((entry) => ({ id: entry.id, label: entry.name })),
           profiles: profiles.profiles.filter((entry) => entry.state === 'active'
@@ -1847,59 +1961,131 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/automation/approve') {
         const input = JSON.parse((await readBody(req)) || '{}');
         await automationReady();
-        const [a, skills, profiles] = await Promise.all([
-          autoStore.load(), skillStore.load(), profileStore.load(),
-        ]);
-        const cand = a.candidates.find((c) => c.candidateId === input.candidateId && !c.approved);
-        if (!cand) return sendJson(res, 404, { error: '자동화 후보를 찾지 못했어요.' });
+        const [skills, profiles] = await Promise.all([skillStore.load(), profileStore.load()]);
         const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
         const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
-        if (!skill || !profile) {
-          return sendJson(res, 409, { error: '활성 스킬과 활성 담당 역할이 모두 필요해요.' });
-        }
         if (['inputTemplate', 'authorityEnvelope', 'deliveryPolicy'].some((key) => Object.hasOwn(input, key))) {
           return sendJson(res, 400, { error: '실행 내용과 권한은 확인한 후보에서만 정해져요.' });
         }
-        const now = Date.now();
-        const trigger = input.trigger;
-        const bound = bindAutomationCandidate(cand, skill, profile, {
-          trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
+        const now = automationNow();
+        let outcome = { ok: false, reason: 'candidate_not_found' };
+        await autoStore.update((state) => {
+          const index = (state.candidates ?? []).findIndex((entry) => entry.candidateId === input.candidateId);
+          if (index < 0) return state;
+          const cand = state.candidates[index];
+          const expectedRevision = input.candidateRevision ?? cand.revision ?? 1;
+          if ((cand.revision ?? 1) !== expectedRevision) {
+            outcome = { ok: false, reason: 'candidate_revision_changed' }; return state;
+          }
+          if (input.controlRef && input.controlRef !== cand.controlRef) {
+            outcome = { ok: false, reason: 'candidate_control_changed' }; return state;
+          }
+          if (cand.approved || cand.current === false || cand.superseded
+            || (Number.isFinite(cand.expiresAt) && cand.expiresAt < now)) {
+            outcome = { ok: false, reason: 'candidate_not_current' }; return state;
+          }
+          const operation = cand.operation ?? 'create';
+          const trigger = cand.trigger ?? input.trigger;
+          if (!trigger) { outcome = { ok: false, reason: 'trigger_missing' }; return state; }
+          let record;
+          if (operation === 'update') {
+            const jobIndex = state.jobs.findIndex((job) => job.id === cand.targetJobRef
+              && job.principalRef === cand.principalRef);
+            if (jobIndex < 0) { outcome = { ok: false, reason: 'target_not_current' }; return state; }
+            const target = state.jobs[jobIndex];
+            if (target.updatedAt !== cand.targetJobRevision
+              || !['scheduled', 'paused', 'needs_review'].includes(target.state)) {
+              outcome = { ok: false, reason: 'target_revision_changed' }; return state;
+            }
+            record = {
+              ...target,
+              trigger: structuredClone(trigger),
+              nextRunAt: trigger.nextRunAt,
+              updatedAt: now,
+            };
+            const jobs = [...state.jobs];
+            jobs[jobIndex] = record;
+            const candidates = [...state.candidates];
+            candidates[index] = {
+              ...cand, approved: true, current: false, approvedAt: now,
+              revision: (cand.revision ?? 1) + 1,
+            };
+            outcome = { ok: true, operation, record, candidate: candidates[index] };
+            return { ...state, candidates, jobs };
+          }
+          if (!skill || !profile) {
+            outcome = { ok: false, reason: 'binding_not_active' }; return state;
+          }
+          const bound = bindAutomationCandidate(cand, skill, profile, {
+            trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
+          });
+          if (!bound.ok) {
+            outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;
+          }
+          const proposed = {
+            schemaVersion: 2,
+            id: randomUUID(),
+            principalRef: cand.principalRef,
+            name: input.name ?? cand.statement,
+            skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+            trigger,
+            agentProfileId: profile.id,
+            inputTemplate: bound.inputTemplate,
+            authorityEnvelope: bound.authorityEnvelope,
+            deliveryPolicy: bound.deliveryPolicy,
+            state: 'proposed',
+            nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
+            lastRunId: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+          const approved = transitionState('automationJob', proposed, 'approved', now);
+          const scheduled = approved.ok
+            ? transitionState('automationJob', approved.record, 'scheduled', now)
+            : approved;
+          if (!scheduled.ok) {
+            outcome = { ok: false, reason: scheduled.reason, errors: scheduled.errors }; return state;
+          }
+          const candidates = [...state.candidates];
+          candidates[index] = {
+            ...cand, approved: true, current: false, approvedAt: now,
+            revision: (cand.revision ?? 1) + 1,
+          };
+          record = scheduled.record;
+          outcome = { ok: true, operation, record, candidate: candidates[index] };
+          return { ...state, candidates, jobs: [...state.jobs, record] };
         });
-        if (!bound.ok) {
-          return sendJson(res, 422, {
-            error: '후보와 자동화 계약을 안전하게 묶을 수 없어요.', reason: bound.reason, errors: bound.errors,
+        if (!outcome.ok) {
+          const status = outcome.reason === 'candidate_not_found' ? 404
+            : outcome.reason?.includes('revision') || outcome.reason === 'candidate_not_current'
+              || outcome.reason === 'candidate_control_changed' ? 409 : 422;
+          return sendJson(res, status, {
+            error: status === 404 ? '자동화 후보를 찾지 못했어요.' : '자동화 계약을 확정하지 못했어요.',
+            reason: outcome.reason, ...(outcome.errors ? { errors: outcome.errors } : {}),
           });
         }
-        const proposed = {
-          schemaVersion: 2,
-          id: randomUUID(),
-          name: input.name ?? cand.statement,
-          skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
-          trigger,
-          agentProfileId: profile.id,
-          inputTemplate: bound.inputTemplate,
-          authorityEnvelope: bound.authorityEnvelope,
-          deliveryPolicy: bound.deliveryPolicy,
-          state: 'proposed',
-          nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
-          lastRunId: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        const approved = transitionState('automationJob', proposed, 'approved', now);
-        const scheduled = approved.ok
-          ? transitionState('automationJob', approved.record, 'scheduled', now)
-          : approved;
-        if (!scheduled.ok) {
-          return sendJson(res, 422, { error: '자동화 계약이 완전하지 않아요.', reason: scheduled.reason, errors: scheduled.errors });
+        const readback = await autoStore.load();
+        const saved = readback.jobs.find((job) => job.id === outcome.record.id);
+        if (!saved || saved.updatedAt !== outcome.record.updatedAt
+          || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)) {
+          return sendJson(res, 500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
         }
-        await autoStore.update((state) => ({
-          ...state,
-          candidates: state.candidates.map((entry) => entry.candidateId === cand.candidateId
-            ? { ...entry, approved: true, approvedAt: now } : entry),
-          jobs: [...state.jobs, scheduled.record],
-        }));
-        return sendJson(res, 200, { ok: true, jobId: scheduled.record.id, state: scheduled.record.state });
+        const settlement = {
+          kind: 'automation_settlement',
+          verificationPassed: true,
+          candidateRef: outcome.candidate.candidateId,
+          candidateRevision: outcome.candidate.revision,
+          controlRef: outcome.candidate.controlRef,
+          operation: outcome.operation,
+          jobRef: saved.id,
+          state: saved.state,
+          trigger: saved.trigger,
+          nextRunAt: saved.nextRunAt,
+          storeReadback: true,
+        };
+        return sendJson(res, 200, {
+          ok: true, jobId: saved.id, state: saved.state, nextRunAt: saved.nextRunAt, settlement,
+        });
       }
       // tick은 런타임 이벤트로만 실행된다(§8.3). 사용자 버튼이 아니다 — 트러스트 토큰 없으면 거부.
       // 정상 구동은 in-process 스케줄러(server.runtimeTick). 이 라우트는 런타임/운영·테스트 전용.
@@ -1913,7 +2099,7 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/automation/cancel') {
         const input = JSON.parse((await readBody(req)) || '{}');
         await automationReady();
-        const outcome = await automationRuntime.cancelJob(input.jobId, Date.now());
+        const outcome = await automationRuntime.cancelJob(input.jobId, automationNow());
         if (outcome?.reason === 'job_not_found') return sendJson(res, 404, { error: '자동화 작업을 찾지 못했어요.' });
         if (!outcome.ok) return sendJson(res, 409, { error: '이미 끝난 자동화예요.', reason: outcome.reason });
         return sendJson(res, 200, { ok: true, state: outcome.record.state });
@@ -1930,15 +2116,15 @@ export function makeServer(deps = {}) {
           if (url === '/automation/pause') {
             moved = current.state === 'paused'
               ? { ok: true, record: current }
-              : transitionState('automationJob', current, 'paused', Date.now());
+              : transitionState('automationJob', current, 'paused', automationNow());
           } else if (url === '/automation/resume') {
             moved = current.state === 'scheduled'
               ? { ok: true, record: current }
-              : transitionState('automationJob', current, 'scheduled', Date.now());
+              : transitionState('automationJob', current, 'scheduled', automationNow());
           } else if (current.state === 'scheduled' || current.state === 'needs_review') {
             moved = { ok: true, record: current };
           } else if (current.state === 'paused' || current.state === 'approved') {
-            moved = transitionState('automationJob', current, 'scheduled', Date.now());
+            moved = transitionState('automationJob', current, 'scheduled', automationNow());
           } else {
             moved = { ok: false, reason: 'job_not_retriable' };
           }
@@ -2852,6 +3038,7 @@ export function makeServer(deps = {}) {
       ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
     }
     await automationReady();
+    ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.

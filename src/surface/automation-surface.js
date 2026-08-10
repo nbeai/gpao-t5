@@ -33,3 +33,45 @@ export function projectAutomationRun(run) {
     nextSafeAction: '원래 작업과 필요한 연결을 확인한 뒤 다시 시도해 주세요.',
   };
 }
+
+/** Same-principal, bounded projection of canonical automation stores. */
+export function projectAutomationReality({ candidates = [], jobs = [], runs = [] }, {
+  principalRef, now, limit = 20,
+} = {}) {
+  const owns = (entry) => entry?.principalRef === principalRef;
+  const currentCandidates = candidates.filter((entry) => owns(entry)
+    && entry.approved !== true && entry.current !== false && entry.superseded !== true
+    && (!Number.isFinite(entry.expiresAt) || entry.expiresAt >= now));
+  const ownedJobs = jobs.filter(owns);
+  const jobIds = new Set(ownedJobs.map((job) => job.id));
+  const ownedRuns = runs.filter((run) => jobIds.has(run.jobId));
+  const bounded = (all, project) => ({
+    total: all.length,
+    truncated: all.length > limit,
+    items: all.slice(0, limit).map(project),
+  });
+  return {
+    observedAt: now,
+    principalBound: true,
+    candidates: bounded(currentCandidates, (entry) => ({
+      candidateRef: entry.candidateId,
+      revision: entry.revision,
+      operation: entry.operation,
+      ...(entry.targetJobRef ? { targetJobRef: entry.targetJobRef } : {}),
+      statement: entry.statement,
+      trigger: entry.trigger,
+      current: true,
+      expiresAt: entry.expiresAt,
+    })),
+    jobs: bounded(ownedJobs, (job) => ({
+      jobRef: job.id,
+      revision: job.updatedAt,
+      name: job.name,
+      state: job.state,
+      trigger: job.trigger,
+      nextRunAt: job.nextRunAt,
+    })),
+    recentRuns: bounded(ownedRuns.slice().sort((a, b) => (b.updatedAt ?? b.finishedAt ?? 0)
+      - (a.updatedAt ?? a.finishedAt ?? 0)), projectAutomationRun),
+  };
+}

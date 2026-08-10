@@ -70,9 +70,28 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     properties: {
       statement: { type: 'string', description: '무엇을 언제 반복하는지 사람 말로' },
       kind: { type: 'string', enum: ['once', 'interval', 'daily', 'weekly'], description: '반복의 종류' },
+      operation: { type: 'string', enum: ['create', 'update'], description: '새 예약 후보인지, 보인 기존 예약을 바꾸는 후보인지' },
+      targetJobRef: { type: 'string', description: 'update일 때 AutomationRealitySnapshot에서 본 정확한 job ref' },
+      trigger: {
+        type: 'object',
+        description: '사용자가 원하는 전체 시각 구조. nextRunAt은 런타임이 계산한다.',
+        properties: {
+          kind: { type: 'string', enum: ['once', 'interval', 'daily', 'weekly'] },
+          timezone: { type: 'string' },
+          at: { type: 'number' },
+          intervalMs: { type: 'number' },
+          weekdays: { type: 'array', items: { type: 'integer' } },
+          localTime: { type: 'string' },
+          misfirePolicy: { type: 'string', enum: ['skip', 'catch_up_once'] },
+        },
+        required: ['kind', 'timezone', 'misfirePolicy'],
+      },
+      skillPurpose: { type: 'string', description: '예약이 수행할 일의 목적' },
+      deliveryIntent: { type: 'string', enum: ['none', 'chat'], description: '실행 결과를 어디에 둘지의 의도' },
       // **어느 손으로 하는 일인지 함께 말한다.** 없으면 설정 화면이 이 일을 맡을 스킬·담당을
       // 고를 수 없어 카드가 막다른 길이 된다(F-11 사슬 3번째 끊김, 실측 2026-08-04).
       tool: { type: 'string', description: '이 반복이 실제로 쓸 손(예: local.file). 지금 쓸 수 있는 손 중에서 고른다' },
+      action: { type: 'object', description: '그 손에 줄 구조화된 실행 인자. 비밀은 넣지 않는다.' },
     },
     required: ['statement'],
   },
