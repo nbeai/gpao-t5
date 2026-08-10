@@ -14,12 +14,13 @@ import {
 import { makeGrowthCandidate } from '../src/kernel/l5-growth/automation.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { prepareAutomationRuns } from '../src/runtime/automation-engine.js';
+import { containsSensitiveValue, SENSITIVE_VALUE_PLACEHOLDER } from '../src/kernel/l0-evidence/sensitive-text.js';
 import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
 import { AutomationJobStore } from '../src/surface/automation-store.js';
 import { sealAutomationSettlement } from '../src/surface/automation-settlement.js';
 import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
-import { makeServer } from '../src/surface/server.js';
+import { makeServer, redactSensitiveResult } from '../src/surface/server.js';
 import { projectAutomationReality } from '../src/surface/automation-surface.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { SkillDefinitionStore } from '../src/surface/skill-store.js';
@@ -898,6 +899,48 @@ test('4차 감사 선빨강: self-sealed지만 job chain에서 닿지 않는 con
   });
 });
 
+test('5차 감사 chain 반례: forward link와 partial anchor는 write 거절·raw restart unknown이다', async () => {
+  const proposed = candidate('chain-counterexample', '매주 월요일 오전 9시 반 정산 확인');
+  await withProduct({ model: proposalModel(), candidates: [proposed] }, async (app) => {
+    assert.equal((await app.request('POST', '/automation/approve', {
+      candidateId: proposed.candidateId, candidateRevision: 1,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+      expiresAt: 2_000_000_000_000, maxRuns: 20,
+    })).status, 200);
+    const valid = await app.automationStore.load();
+    const root = valid.settlements[0];
+    const job = valid.jobs[0];
+    const control = (previous, ordinal, observedAt) => sealAutomationSettlement({
+      kind: 'automation_control_settlement', operation: 'status',
+      principalRef: job.principalRef, jobRef: job.id, jobRevision: job.jobRevision,
+      state: job.state, trigger: structuredClone(job.trigger), nextRunAt: job.nextRunAt,
+      observedAt, ordinal, mutated: false, verificationPassed: true,
+      previousSettlementRef: previous.settlementRef,
+      previousSettlementDigest: previous.settlementDigest,
+    });
+    const later = control(root, 2, FROZEN_NOW + 2);
+    const forward = control(later, 1, FROZEN_NOW + 1);
+    const forwardState = structuredClone(valid);
+    forwardState.settlements = [root, forward, later];
+    forwardState.jobs[0].latestSettlementRef = forward.settlementRef;
+    forwardState.jobs[0].latestSettlementDigest = forward.settlementDigest;
+    const partialState = structuredClone(valid);
+    delete partialState.jobs[0].latestSettlementDigest;
+    for (const [name, invalid] of [['forward', forwardState], ['partial', partialState]]) {
+      await assert.rejects(() => app.automationStore.save(invalid), /settlement/u, name);
+      const corruptRaw = JSON.stringify({
+        schemaVersion: AUTOMATION_SCHEMA_VERSION,
+        candidates: invalid.candidates, jobs: invalid.jobs, settlements: invalid.settlements,
+      });
+      await writeFile(app.automationStore.file, corruptRaw, 'utf8');
+      const loaded = await new AutomationJobStore(app.state).load();
+      assert.ok(loaded.recovery, name);
+      assert.equal(await readFile(app.automationStore.file, 'utf8'), corruptRaw, name);
+      await writeFile(app.automationStore.file, JSON.stringify(valid), 'utf8');
+    }
+  });
+});
+
 test('4차 감사 선빨강: settlement 필드가 전부 없는 구형 schema2 승인 상태는 recovery 없이 보존되나 update 근거는 0이다', async () => {
   const x = await room();
   const legacyJob = scheduledJob('legacy-approved-job', x.root);
@@ -940,6 +983,27 @@ test('4차 감사 선빨강: settlement 필드가 전부 없는 구형 schema2 �
     assert.equal(after.candidates.length, 1);
     assert.equal(after.settlements.length, 0);
   } finally { await new Promise((resolve) => app.server.close(resolve)); }
+});
+
+test('5차 감사 A: verified automationControl settlement의 card-like hash만 기계 신분으로 보존한다', () => {
+  const settlement = sealAutomationSettlement({
+    kind: 'automation_control_settlement', operation: 'status',
+    principalRef: 'p', jobRef: 'j', jobRevision: 1, state: 'scheduled',
+    trigger: { kind: 'weekly' }, nextRunAt: 1, observedAt: 18, ordinal: 0,
+    mutated: false, verificationPassed: true,
+  });
+  assert.equal(containsSensitiveValue(settlement.settlementRef)
+    || containsSensitiveValue(settlement.settlementDigest), true);
+  const result = {
+    automationControl: { settlement: structuredClone(settlement) },
+    nested: { settlementRef: 'api_key=not-a-machine-ref', previousSettlementDigest: 'Bearer abc123SECRET' },
+    actualCall: { args: { settlementDigest: 'password=hunter2' } },
+  };
+  redactSensitiveResult(result);
+  assert.deepEqual(result.automationControl.settlement, settlement);
+  assert.equal(result.nested.settlementRef, SENSITIVE_VALUE_PLACEHOLDER);
+  assert.equal(result.nested.previousSettlementDigest, SENSITIVE_VALUE_PLACEHOLDER);
+  assert.equal(result.actualCall.args.settlementDigest, SENSITIVE_VALUE_PLACEHOLDER);
 });
 
 test('delivery intent: 실제 local conversation consumer가 없는 chat 후보는 승인되지 않는다', async () => {
@@ -1127,6 +1191,104 @@ test('natural automation.control: exact job status→pause→resume가 same id/r
     const schema = capture.flatMap((tc) => tc ? [tc] : []).length;
     assert.equal(schema > 0, true);
   });
+});
+
+test('5차 감사 B: settlement0 legacy job은 첫 control root 뒤 exact chain으로 status→pause→resume·restart·tick을 잇는다', async () => {
+  const x = await room();
+  const anchored = { ...scheduledJob('anchored-other', x.root), jobRevision: 2 };
+  const seed = await startProduct({ model: controlModel(), jobs: [anchored], space: x });
+  await new Promise((resolve) => seed.server.close(resolve));
+  const raw = JSON.parse(await readFile(seed.automationStore.file, 'utf8'));
+  const legacy = {
+    ...scheduledJob('legacy-control-target', x.root),
+    jobRevision: 0, nextRunAt: FROZEN_NOW,
+    trigger: { ...structuredClone(MONDAY), nextRunAt: FROZEN_NOW },
+  };
+  const legacyOther = { ...scheduledJob('legacy-control-other', x.root), jobRevision: 5 };
+  const approvedWithoutSettlement = (id, job) => ({
+    ...candidate(id, `${job.name} 구형 승인`), approved: true, current: false,
+    approvedAt: 2,
+  });
+  raw.jobs = [legacy, legacyOther, ...raw.jobs];
+  raw.candidates = [
+    approvedWithoutSettlement('legacy-control-candidate', legacy),
+    approvedWithoutSettlement('legacy-other-candidate', legacyOther),
+    ...raw.candidates,
+  ];
+  await writeFile(seed.automationStore.file, JSON.stringify(raw), 'utf8');
+  const app = await startProduct({ model: controlModel(), space: x, preserveState: true });
+  try {
+    const status = await app.turn('첫 번째 자동화 상태를 알려줘');
+    assert.deepEqual([status.automationControl.operation, status.automationControl.jobRef,
+      status.automationControl.jobRevision], ['status', legacy.id, 0]);
+    assert.equal(status.automationControl.settlement.previousSettlementRef, undefined);
+    const paused = await app.turn('첫 번째 자동화를 일시정지해줘');
+    assert.deepEqual([paused.automationControl.state, paused.automationControl.jobRevision], ['paused', 1]);
+    assert.equal(paused.automationControl.settlement.previousSettlementRef,
+      status.automationControl.settlement.settlementRef);
+    const resumed = await app.turn('첫 번째 자동화를 재개해줘');
+    assert.deepEqual([resumed.automationControl.state, resumed.automationControl.jobRevision], ['scheduled', 2]);
+    assert.equal(resumed.automationControl.settlement.previousSettlementRef,
+      paused.automationControl.settlement.settlementRef);
+    const beforeTick = await app.automationStore.load();
+    assert.deepEqual(beforeTick.jobs.find((job) => job.id === legacyOther.id), legacyOther);
+    assert.deepEqual(beforeTick.jobs.find((job) => job.id === anchored.id), anchored);
+    await app.server.runtimeTick();
+    const afterTick = await app.automationStore.load();
+    assert.equal(Boolean(afterTick.recovery), false);
+    assert.equal(afterTick.jobs.find((job) => job.id === legacy.id)?.id, legacy.id);
+    assert.deepEqual(afterTick.jobs.find((job) => job.id === legacyOther.id), legacyOther);
+    assert.deepEqual(afterTick.jobs.find((job) => job.id === anchored.id), anchored);
+  } finally { await new Promise((resolve) => app.server.close(resolve)); }
+  const restarted = await startProduct({ model: controlModel(), space: x, preserveState: true });
+  try {
+    const loaded = await restarted.automationStore.load();
+    assert.equal(Boolean(loaded.recovery), false);
+    assert.equal((await restarted.request('GET', '/automation')).body.jobs
+      .some((job) => job.id === legacy.id), true);
+    const status = await restarted.turn('첫 번째 자동화 상태를 알려줘');
+    assert.equal(status.automationControl.jobRef, legacy.id);
+  } finally { await new Promise((resolve) => restarted.server.close(resolve)); }
+});
+
+test('5차 감사 정상 chain: create→status→pause→update가 한 reachable history로 보존된다', async () => {
+  const x = await room();
+  const proposed = candidate('complete-chain', '매주 월요일 오전 9시 반 정산 확인');
+  const createApp = await startProduct({ model: proposalModel(), candidates: [proposed], space: x });
+  const created = await createApp.request('POST', '/automation/approve', {
+    candidateId: proposed.candidateId, candidateRevision: 1,
+    skillId: 'l6-skill', agentProfileId: 'l6-agent',
+    expiresAt: 2_000_000_000_000, maxRuns: 20,
+  });
+  assert.equal(created.status, 200);
+  const jobId = created.body.jobId;
+  await new Promise((resolve) => createApp.server.close(resolve));
+  const controlApp = await startProduct({ model: controlModel(), space: x, preserveState: true });
+  await controlApp.turn('첫 번째 자동화 상태를 알려줘');
+  await controlApp.turn('첫 번째 자동화를 일시정지해줘');
+  await new Promise((resolve) => controlApp.server.close(resolve));
+  const updateApp = await startProduct({ model: proposalModel(), space: x, preserveState: true });
+  try {
+    const update = await updateApp.turn('같은 알림을 매주 화요일 오전 10시로 바꿔줘.');
+    const approved = await updateApp.request('POST', '/automation/approve', {
+      candidateId: update.automationProposal.candidateId,
+      candidateRevision: update.automationProposal.revision,
+      controlRef: update.automationProposal.controlRef,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+      expiresAt: 2_000_000_000_000, maxRuns: 20,
+    });
+    assert.equal(approved.status, 200, JSON.stringify(approved));
+    const state = await updateApp.automationStore.load();
+    assert.equal(Boolean(state.recovery), false);
+    assert.deepEqual(state.settlements.map((entry) => entry.operation),
+      ['create', 'status', 'pause', 'update']);
+    const saved = state.jobs.find((job) => job.id === jobId);
+    assert.equal(saved.latestSettlementRef, state.settlements.at(-1).settlementRef);
+    for (let index = 1; index < state.settlements.length; index += 1) {
+      assert.equal(state.settlements[index].previousSettlementRef,
+        state.settlements[index - 1].settlementRef);
+    }
+  } finally { await new Promise((resolve) => updateApp.server.close(resolve)); }
 });
 
 test('natural automation.control 반례: stale/다른 principal exact ref는 영향0이고 채널도 같은 callback이다', async () => {

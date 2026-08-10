@@ -91,8 +91,13 @@ export function assertAutomationSettlementState(state) {
         || settlements.indexOf(previous) >= index) {
         throw new Error('automation settlement previous linkage mismatch');
       }
-    } else if (entry.kind !== 'automation_settlement' || entry.operation !== 'create') {
-      throw new Error('automation settlement chain root must be create');
+    } else {
+      const legacyControlRoot = entry.kind === 'automation_control_settlement'
+        && !job.settlementRef && !job.settlementDigest && !job.candidateLineage;
+      if (!legacyControlRoot
+        && (entry.kind !== 'automation_settlement' || entry.operation !== 'create')) {
+        throw new Error('automation settlement chain root must be create or legacy control');
+      }
     }
     if (entry.kind === 'automation_settlement') {
       const candidate = candidates.get(entry.candidateRef);
@@ -109,19 +114,21 @@ export function assertAutomationSettlementState(state) {
   });
   const reachable = new Set();
   for (const job of state.jobs ?? []) {
-    const linkageFields = [job.settlementRef, job.settlementDigest, job.candidateLineage,
-      job.latestSettlementRef, job.latestSettlementDigest];
-    const linkageCount = linkageFields.filter((value) => value !== undefined && value !== null).length;
-    if (linkageCount === 0) {
+    const approvalLinkage = [job.settlementRef, job.settlementDigest, job.candidateLineage];
+    const latestLinkage = [job.latestSettlementRef, job.latestSettlementDigest];
+    const approvalCount = approvalLinkage.filter((value) => value !== undefined && value !== null).length;
+    const latestCount = latestLinkage.filter((value) => value !== undefined && value !== null).length;
+    if (approvalCount === 0 && latestCount === 0) {
       if (settlements.some((entry) => entry.jobRef === job.id)) {
         throw new Error('automation legacy job cannot own settlement history');
       }
       continue;
     }
-    if (linkageCount !== linkageFields.length) {
+    if (!((approvalCount === 0 || approvalCount === approvalLinkage.length)
+      && latestCount === latestLinkage.length)) {
       throw new Error('automation job settlement linkage is partial');
     }
-    {
+    if (approvalCount === approvalLinkage.length) {
       const entry = byRef.get(job.settlementRef);
       if (!entry || entry.kind !== 'automation_settlement'
         || entry.jobRef !== job.id || entry.principalRef !== job.principalRef
@@ -151,8 +158,12 @@ export function assertAutomationSettlementState(state) {
       ref = entry.previousSettlementRef ?? null;
       digest = entry.previousSettlementDigest ?? null;
     }
-    if (root?.settlementRef !== job.settlementRef
-      || root?.settlementDigest !== job.settlementDigest) {
+    const expectedRootRef = approvalCount === approvalLinkage.length ? job.settlementRef : null;
+    const expectedRootDigest = approvalCount === approvalLinkage.length ? job.settlementDigest : null;
+    if ((expectedRootRef && (root?.settlementRef !== expectedRootRef
+      || root?.settlementDigest !== expectedRootDigest))
+      || (!expectedRootRef && (root?.kind !== 'automation_control_settlement'
+        || root?.previousSettlementRef || root?.previousSettlementDigest))) {
       throw new Error('automation settlement chain does not reach job root');
     }
     if (job.lastControlSettlement) {

@@ -116,18 +116,25 @@ function durableUserText(text) {
 }
 
 /** 모델이 만든 goal·근거·중첩 메타데이터까지 durable 저장 전에 같은 경계를 지난다. */
-export function redactSensitiveResult(value, seen = new WeakSet()) {
+export function redactSensitiveResult(value, seen = new WeakSet(), path = []) {
   if (!value || typeof value !== 'object' || seen.has(value)) return value;
   // ReceiptRef는 이 객체 본문의 digest 서명이다. 완료 Receipt는 서명 전에 canonical 민감
   // 경계를 지났으므로 표면 투영이 같은 객체를 다시 고치지 않는다.
   if (value.receiptRef) return value;
   seen.add(value);
+  const verifiedAutomationSettlement = path.join('.') === 'automationControl.settlement'
+    && verifyAutomationSettlement(value);
   for (const [key, item] of Object.entries(value)) {
     if (typeof item === 'string') {
-      if (containsSensitiveValue(item)) value[key] = SENSITIVE_RESULT_PLACEHOLDER;
+      const verifiedMachineIdentity = verifiedAutomationSettlement
+        && ['settlementRef', 'settlementDigest',
+          'previousSettlementRef', 'previousSettlementDigest'].includes(key);
+      if (!verifiedMachineIdentity && containsSensitiveValue(item)) {
+        value[key] = SENSITIVE_RESULT_PLACEHOLDER;
+      }
       continue;
     }
-    if (item && typeof item === 'object') redactSensitiveResult(item, seen);
+    if (item && typeof item === 'object') redactSensitiveResult(item, seen, [...path, key]);
   }
   return value;
 }
