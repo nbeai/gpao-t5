@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,7 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import {
   FROZEN_F65_MATRIX_SHA256, applyDiagnosticReality, enumerateF65Cells, evaluateDerivedArtifacts,
-  loadF65MatrixDefinition, scoreF65Cell,
+  loadF65MatrixDefinition, parseF65CliArgs, runF65ChildFromArgv, runF65Matrix, scoreF65Cell,
 } from '../scripts/human-use/f65-workset-matrix-runner.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -34,6 +34,9 @@ test('동결 config는 정확히 L1/L4/L5 × W/P/O 24칸이고 축이 사용자 
   assert.equal(frozen.document.supersedes.configSha256,
     '20681992a5eb2d1060445bec5151252397c9f03b1670cd5deb0c9dcb6e8cd102');
   assert.equal(frozen.document.supersedes.reason, 'PM_ENTRY_AUDIT_BEFORE_PAID_RUN_NO_RESULT_SEEN');
+  assert.deepEqual(frozen.document.invalidAttempts, [{ batchRunId: 'f65-workset-matrix-20260810-v2',
+    invalidReason: 'PRE_PROVIDER_CLI_WIRING_INVALID', providerCalls: 0, evidenceFiles: 0,
+    historyFiles: 0, resultObserved: false }]);
   assert.doesNotMatch(JSON.stringify(frozen.document), /expectedOutput|정확한 결과 경로/);
   assert.deepEqual([...new Set(cells.map((row) => row.scenarioId))],
     ['L1-workset-settlement', 'L4-workset-document', 'L5-workset-admin']);
@@ -42,6 +45,47 @@ test('동결 config는 정확히 L1/L4/L5 × W/P/O 24칸이고 축이 사용자 
     assert.deepEqual([...new Set(utterances)], [scenario.userUtterance]);
     assert.doesNotMatch(scenario.userUtterance, /private\/tmp|ws1\.|W[01]P[01]O[01]/);
   }
+});
+
+test('실제 parent 첫 child는 공유 CLI로 claim·qualification/source 대조 뒤 provider 직전까지 간다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-f65-parent-child-'));
+  const evidenceDir = join(room, 'evidence'); const historyDir = join(room, 'history');
+  const qualificationHistoryDir = join(room, 'qualification-history');
+  const qualificationManifest = join(room, 'qualification.json');
+  const artifactIdentity = { kind: 'source', gitSha: 'a'.repeat(40), dirty: false,
+    worktreeDigest: 'b'.repeat(64), changesDigest: 'c'.repeat(64) };
+  await writeFile(qualificationManifest, `${JSON.stringify({ status: 'QUALIFIED', artifact: artifactIdentity })}\n`);
+  const options = { batchRunId: 'f65-no-paid-parent-child-seal', configFile: configPath,
+    qualificationManifest, qualificationHistoryDir, evidenceDir, historyDir, sourceRoot: root };
+  let childCount = 0; let capturedArgv; let boundary; let credentialCalls = 0; let fetchCalls = 0;
+  try {
+    const result = await runF65Matrix(options, { spawn: async (childArgv) => {
+      childCount += 1; capturedArgv = childArgv;
+      return runF65ChildFromArgv(childArgv, {
+        verifyQualificationEvidence: async () => ({ ok: true }),
+        artifactIdentity: async () => artifactIdentity,
+        beforeProvider: async (seen) => { boundary = seen; }, stopBeforeProvider: true,
+        loadOpenAiCredential: () => { credentialCalls += 1; throw new Error('provider boundary crossed'); },
+        fetchImpl: async () => { fetchCalls += 1; throw new Error('provider called'); },
+      });
+    } });
+    assert.equal(result.status, 'HARNESS_INVALID');
+    assert.equal(childCount, 1, '첫 child 실패 뒤 재시도하거나 다음 cell로 가면 안 된다');
+    const parsed = parseF65CliArgs(capturedArgv, { child: true });
+    assert.equal(parsed.configFile, configPath); assert.equal(parsed.sourceRoot, root);
+    assert.equal(parsed.cellId, 'L1-workset-settlement--W0P0O0');
+    assert.ok(boundary?.claim?.attemptId); assert.equal(boundary.qualification.ok, true);
+    assert.equal(boundary.source.gitSha, artifactIdentity.gitSha);
+    assert.equal(credentialCalls, 0); assert.equal(fetchCalls, 0);
+    const batch = JSON.parse(await readFile(result.manifestPath, 'utf8'));
+    assert.equal(batch.status, 'HARNESS_INVALID');
+    assert.equal(batch.stoppedAtCell, parsed.cellId); assert.equal(batch.cells.length, 1);
+    assert.equal(batch.notRunCellIds.length, 23);
+    assert.equal(batch.cells[0].invalidReason, 'TEST_PRE_PROVIDER_REACHED');
+    const runDirs = await readdir(join(historyDir, 'runs'));
+    const historyFiles = await readdir(join(historyDir, 'runs', runDirs[0]));
+    assert.ok(historyFiles.length >= 2, 'claim started/finished history가 실제로 남아야 한다');
+  } finally { await rm(room, { recursive: true, force: true }); }
 });
 
 test('W/P/O는 같은 facts renderer 입력에서 독립적으로 갈리고 user는 불변이다', async () => {

@@ -20,8 +20,49 @@ import {
 } from './living-sim-runner.mjs';
 
 export const F65_MATRIX_SCHEMA_VERSION = 2;
-export const FROZEN_F65_MATRIX_SHA256 = '3fa4cf8302f9df847775fad7ea169526e1157a7b8042ea35a4d190d247fb3c27';
+export const FROZEN_F65_MATRIX_SHA256 = 'f80204bdb4455105e79a318a677c722f83c2bdd632e868a2b53d2ac75d7ae2f2';
 const execFileAsync = promisify(execFile);
+
+export const F65_CLI_SCHEMA = Object.freeze([
+  { key: 'batchRunId', flag: '--batch-run-id', required: true },
+  { key: 'cellId', flag: '--cell-id', childOnly: true },
+  { key: 'configFile', flag: '--config', required: true },
+  { key: 'qualificationManifest', flag: '--qualification-manifest', required: true },
+  { key: 'qualificationHistoryDir', flag: '--qualification-history-dir', required: true },
+  { key: 'evidenceDir', flag: '--evidence-dir', required: true },
+  { key: 'historyDir', flag: '--history-dir', required: true },
+  { key: 'sourceRoot', flag: '--source', required: true },
+]);
+
+export function serializeF65CliOptions(options, { child = false } = {}) {
+  const argv = [];
+  for (const field of F65_CLI_SCHEMA) {
+    if (field.childOnly && !child) continue;
+    const value = options[field.key];
+    if (field.required && (value === undefined || value === null || value === '')) {
+      throw Object.assign(new Error(`missing CLI option ${field.flag}`), { code: 'F65_CLI_INVALID' });
+    }
+    if (field.childOnly && child && (value === undefined || value === null || value === '')) {
+      throw Object.assign(new Error(`missing child CLI option ${field.flag}`), { code: 'F65_CLI_INVALID' });
+    }
+    if (value !== undefined && value !== null && value !== '') argv.push(field.flag, String(value));
+  }
+  return argv;
+}
+
+export function parseF65CliArgs(argv, { child = false } = {}) {
+  const out = {};
+  const known = new Map(F65_CLI_SCHEMA.map((field) => [field.flag, field]));
+  for (let index = 0; index < argv.length; index += 2) {
+    const flag = argv[index]; const value = argv[index + 1]; const field = known.get(flag);
+    if (!field || value === undefined || (field.childOnly && !child)) {
+      throw Object.assign(new Error(`unknown or incomplete CLI option ${flag ?? ''}`), { code: 'F65_CLI_INVALID' });
+    }
+    out[field.key] = value;
+  }
+  serializeF65CliOptions(out, { child }); // one schema performs validation for both directions
+  return out;
+}
 
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
@@ -280,17 +321,18 @@ export function scoreF65Cell({ root, scenario, surfaceTurn, session, workEvents,
   };
 }
 
-export async function runF65MatrixCell(options) {
+export async function runF65MatrixCell(options, hooks = {}) {
   const { batchRunId, cellId, configFile, qualificationManifest, qualificationHistoryDir,
     evidenceDir, historyDir, sourceRoot } = options;
   const definition = await loadF65MatrixDefinition(configFile);
   const cell = enumerateF65Cells(definition.document).find((row) => row.cellId === cellId);
   if (!cell) throw Object.assign(new Error('unknown matrix cell'), { code: 'CELL_NOT_FROZEN' });
   const scenario = definition.document.scenarios.find((row) => row.id === cell.scenarioId);
-  const qualification = await verifyQualificationEvidence(qualificationManifest, { historyDir: qualificationHistoryDir });
+  const qualification = await (hooks.verifyQualificationEvidence ?? verifyQualificationEvidence)(
+    qualificationManifest, { historyDir: qualificationHistoryDir });
   if (!qualification.ok) throw Object.assign(new Error('qualification evidence invalid'), { code: 'QUALIFICATION_REQUIRED' });
   const qualificationDoc = JSON.parse(await readFile(qualificationManifest, 'utf8'));
-  const source = await artifactIdentity({ sourceRoot });
+  const source = await (hooks.artifactIdentity ?? artifactIdentity)({ sourceRoot });
   if (source.kind !== 'source' || source.dirty || qualificationDoc.artifact?.kind !== 'source'
       || source.gitSha !== qualificationDoc.artifact.gitSha
       || source.worktreeDigest !== qualificationDoc.artifact.worktreeDigest) {
@@ -314,9 +356,19 @@ export async function runF65MatrixCell(options) {
     const isolation = await 격리증명({ root: homeDir, fixtureDir, stateDir });
     if (!isolation.ok) throw Object.assign(new Error('isolation failed'), { code: 'ISOLATION_FAILED' });
     const beforeProtected = await snapshotPaths([realProtected]);
-    const credential = loadOpenAiCredential(homedir()); const secrets = [credential.key];
+    const boundary = { stage: 'provider_boundary', runId, cell, claim: { runId: claim.runId,
+      attemptId: claim.attemptId }, qualification: { ok: qualification.ok, artifact: qualificationDoc.artifact },
+      source, isolation, fixture };
+    await hooks.beforeProvider?.(boundary);
+    if (hooks.stopBeforeProvider === true) {
+      await finishRun(claim, { status: 'HARNESS_INVALID', invalidReason: 'evidence_incomplete' }); finished = true;
+      return { ok: false, status: 'HARNESS_INVALID', invalidReason: 'TEST_PRE_PROVIDER_REACHED',
+        providerCalls: 0, reached: boundary };
+    }
+    const credential = (hooks.loadOpenAiCredential ?? loadOpenAiCredential)(homedir());
+    const secrets = [credential.key];
     const providerEvents = [];
-    const recordingFetch = createRecordingFetch({ secretValues: secrets,
+    const recordingFetch = createRecordingFetch({ fetchImpl: hooks.fetchImpl ?? globalThis.fetch, secretValues: secrets,
       record: async (event) => { providerEvents.push(event); } });
     const processEnv = isolatedEnv({ homeDir, stateDir, fixtureDir, apiKey: credential.key,
       model: definition.document.model });
@@ -400,44 +452,62 @@ function parseChild(stdout = '', stderr = '') {
   throw new Error(`child did not return JSON: ${stderr.slice(-1000)}`);
 }
 
-async function spawnCell(args) {
-  const argv = [fileURLToPath(import.meta.url), '--child'];
-  for (const [key, value] of Object.entries(args)) argv.push(`--${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`, String(value));
+async function defaultSpawnCell(childArgv) {
+  const parsed = parseF65CliArgs(childArgv, { child: true });
+  const argv = [fileURLToPath(import.meta.url), '--child', ...childArgv];
   try {
-    const result = await execFileAsync(process.execPath, argv, { cwd: args.sourceRoot, env: process.env,
+    const result = await execFileAsync(process.execPath, argv, { cwd: parsed.sourceRoot, env: process.env,
       maxBuffer: 64 * 1024 * 1024, encoding: 'utf8' });
     return parseChild(result.stdout, result.stderr);
-  } catch (error) { return parseChild(error.stdout ?? '', error.stderr ?? ''); }
+  } catch (error) {
+    try { return parseChild(error.stdout ?? '', error.stderr ?? ''); }
+    catch (parseError) {
+      return { ok: false, status: 'HARNESS_INVALID', invalidReason: 'child_protocol_invalid',
+        diagnostic: String(parseError.message).slice(0, 500), exitCode: error?.code ?? null };
+    }
+  }
 }
 
-export async function runF65Matrix(options) {
+export async function runF65ChildFromArgv(argv, hooks = {}) {
+  return runF65MatrixCell(parseF65CliArgs(argv, { child: true }), hooks);
+}
+
+export async function runF65Matrix(options, { spawn = defaultSpawnCell } = {}) {
   const definition = await loadF65MatrixDefinition(options.configFile);
   const cells = enumerateF65Cells(definition.document);
   if (cells.length !== 24 || new Set(cells.map((cell) => cell.cellId)).size !== 24) throw new Error('matrix is not 24 unique cells');
   const results = [];
+  let stoppedAtCell = null;
   for (const cell of cells) { // serial by frozen policy; one child and no rerun per cell
-    // eslint-disable-next-line no-await-in-loop
-    results.push(await spawnCell({ ...options, cellId: cell.cellId }));
+    const childArgv = serializeF65CliOptions({ ...options, cellId: cell.cellId }, { child: true });
+    let result;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      result = await spawn(childArgv);
+    } catch (error) {
+      result = { ok: false, status: 'HARNESS_INVALID', invalidReason: 'child_spawn_failed',
+        diagnostic: String(error?.message ?? error).slice(0, 500) };
+    }
+    results.push({ cellId: cell.cellId, childArgv, ...result });
+    if (result?.status !== 'RECORDED') { stoppedAtCell = cell.cellId; break; }
   }
   const batch = { schemaVersion: F65_MATRIX_SCHEMA_VERSION, kind: 'f65-workset-counterfactual-batch',
-    batchRunId: options.batchRunId, status: results.every((row) => row.status === 'RECORDED') ? 'RECORDED' : 'HARNESS_INVALID',
+    batchRunId: options.batchRunId, status: results.length === cells.length
+      && results.every((row) => row.status === 'RECORDED') ? 'RECORDED' : 'HARNESS_INVALID',
+    invalidReason: stoppedAtCell ? results.at(-1)?.invalidReason ?? 'child_failed' : null,
+    stoppedAtCell, notRunCellIds: stoppedAtCell ? cells.slice(results.length).map((cell) => cell.cellId) : [],
     configSha256: definition.sha256, cells: results, semantic: 'PM_UNJUDGED' };
   const path = join(resolve(options.evidenceDir), encodeURIComponent(options.batchRunId), 'batch-manifest.json');
   await exclusiveJson(path, batch); return { ok: batch.status === 'RECORDED', status: batch.status, manifestPath: path };
 }
 
-function arg(name) { const at = process.argv.indexOf(name); return at < 0 ? null : process.argv[at + 1]; }
 const thisFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === thisFile) {
-  const options = { batchRunId: arg('--batch-run-id'), cellId: arg('--cell-id'), configFile: arg('--config'),
-    qualificationManifest: arg('--qualification-manifest'), qualificationHistoryDir: arg('--qualification-history-dir'),
-    evidenceDir: arg('--evidence-dir'), historyDir: arg('--history-dir'), sourceRoot: arg('--source') };
-  if (Object.entries(options).some(([key, value]) => key !== 'cellId' && !value)) {
-    console.error('usage: node scripts/human-use/f65-workset-matrix-runner.mjs --batch-run-id ID --config FILE --qualification-manifest FILE --qualification-history-dir DIR --evidence-dir DIR --history-dir DIR --source DIR');
-    process.exit(2);
-  }
   try {
-    const result = process.argv.includes('--child') ? await runF65MatrixCell(options) : await runF65Matrix(options);
+    const child = process.argv.includes('--child');
+    const argv = process.argv.slice(2).filter((value) => value !== '--child');
+    const options = parseF65CliArgs(argv, { child });
+    const result = child ? await runF65MatrixCell(options) : await runF65Matrix(options);
     console.log(JSON.stringify(result)); process.exit(result.ok ? 0 : 1);
   } catch (error) {
     console.error(JSON.stringify({ ok: false, code: error?.code ?? 'F65_RUNNER_FAILED', error: String(error?.message ?? error) }));

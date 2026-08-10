@@ -6,6 +6,16 @@
     "qualificationManifestSha256": "91f009494f3f6549372f9ecfc0038cef1e2b5a848e83b65f144bee600daebd48",
     "reason": "PM_ENTRY_AUDIT_BEFORE_PAID_RUN_NO_RESULT_SEEN"
   },
+  "invalidAttempts": [
+    {
+      "batchRunId": "f65-workset-matrix-20260810-v2",
+      "invalidReason": "PRE_PROVIDER_CLI_WIRING_INVALID",
+      "providerCalls": 0,
+      "evidenceFiles": 0,
+      "historyFiles": 0,
+      "resultObserved": false
+    }
+  ],
   "model": {
     "provider": "openai",
     "modelId": "gpt-5.1",
