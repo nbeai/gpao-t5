@@ -78,6 +78,7 @@ async function runCase({ mode = 'normal' } = {}) {
         ],
       },
     }] };
+    if (mode === 'original_red') return { text: '일반 준비표를 만들었어요.', toolCalls: [] };
     if (main === 1) {
       const reads = mode === 'source_missing' ? sourceEntries.slice(0, 2) : sourceEntries;
       return { text: '', toolCalls: reads.map(([name]) => ({
