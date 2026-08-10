@@ -167,9 +167,11 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/server.js',
     // L6 — 승인 후보의 전달 의도와 durable AgentRun 기반 maxRuns 를 같은 정본에 결속한다.
     'src/kernel/l5-growth/automation-contracts.js',
+    'src/kernel/l5-growth/automation.js',
     'src/runtime/automation-engine.js',
     'src/runtime/automation-scheduler.js',
     'src/runtime/canonical-automation-runtime.js',
+    'src/surface/automation-store.js',
     'src/surface/automation-surface.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',

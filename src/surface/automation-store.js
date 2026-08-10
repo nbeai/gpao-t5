@@ -97,6 +97,7 @@ export class AutomationStore {
         schemaVersion: AUTOMATION_SCHEMA_VERSION,
         candidates,
         jobs: [...jobs, ...남은것],
+        settlements: 현재파일.settlements ?? [],
       });
       return { hasNewLegacyJob, now };
     }
@@ -138,7 +139,7 @@ export class AutomationJobStore {
   }
 
   async load() {
-    const fallback = { schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [], jobs: [] };
+    const fallback = { schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [], jobs: [], settlements: [] };
     const loaded = await loadVersionedJson(
       this.file,
       fallback,
@@ -146,10 +147,17 @@ export class AutomationJobStore {
       (state) => {
         if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('automation state schemaVersion must be 2');
         if (!Array.isArray(state.candidates)) throw new Error('automation candidates must be an array');
+        if (state.settlements !== undefined && !Array.isArray(state.settlements)) {
+          throw new Error('automation settlements must be an array');
+        }
         assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
       },
     );
-    return { ...loaded.state, ...(loaded.recovery ? { recovery: loaded.recovery } : {}) };
+    return {
+      ...loaded.state,
+      settlements: loaded.state.settlements ?? [],
+      ...(loaded.recovery ? { recovery: loaded.recovery } : {}),
+    };
   }
 
   async save(state) {
@@ -167,11 +175,15 @@ export class AutomationJobStore {
   async #write(state) {
     if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('automation state schemaVersion must be 2');
     if (!Array.isArray(state.candidates)) throw new Error('automation candidates must be an array');
+    if (state.settlements !== undefined && !Array.isArray(state.settlements)) {
+      throw new Error('automation settlements must be an array');
+    }
     assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
     await atomicWritePrivate(this.file, {
       schemaVersion: AUTOMATION_SCHEMA_VERSION,
       candidates: state.candidates,
       jobs: state.jobs,
+      settlements: state.settlements ?? [],
     });
     return state;
   }

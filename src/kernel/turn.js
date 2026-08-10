@@ -31,7 +31,6 @@ import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedEntries, dropHistoryDuplicates, isGoalRelevant } from './l1-intent/context-mesh.js';
 import { shownFromRendered, citedFromShown } from './l5-growth/tcell-shown.js';
-import { detectAutomationCandidate } from './l5-growth/automation.js';
 import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
@@ -1077,6 +1076,7 @@ export async function runTurn(input, ctx) {
   let skillProposal = null;
   let automationProposal = null;
   let automationControl = null;
+  let automationObserve = null;
   let agentProposal = null;
   // **모델이 낸 질문.** 커널이 만든 되묻기와 한 자리를 놓고 다투지 않게 여기 하나만 둔다.
   let 물음 = null;
@@ -1087,6 +1087,7 @@ export async function runTurn(input, ctx) {
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
     if (분리?.automationControl) automationControl = 분리.automationControl;
+    if (분리?.automationObserve) automationObserve = 분리.automationObserve;
     // **만든 것을 모델이 알아야 한다**(판 ⑦). `executePlan` 안에서도 읽으려면 `ctx` 다.
     ctx.automationProposal = automationProposal;
     ctx.automationControl = automationControl;
@@ -1340,7 +1341,8 @@ export async function runTurn(input, ctx) {
       || ctx.automationAdmissionHandled === true) return currentReply;
     ctx.automationAdmissionHandled = true;
     const admission = await ctx.admitAutomationProposal(automationProposal);
-    automationProposal = admission?.proposal ?? { rejected: true, reason: 'admission_unknown' };
+    automationProposal = admission && Object.hasOwn(admission, 'proposal')
+      ? admission.proposal : { rejected: true, reason: 'admission_unknown' };
     ctx.automationProposal = automationProposal;
     ctx.automationReality = admission?.reality ?? ctx.automationReality;
     const out = await ctx.model.respond({
@@ -1365,6 +1367,21 @@ export async function runTurn(input, ctx) {
     }, { search, effort: 'medium' });
     return typeof out === 'string' ? out : (out?.text ?? currentReply);
   };
+  const 자동화관찰후답 = async (baseTc, currentReply, search) => {
+    if (!automationObserve || typeof ctx.observeAutomation !== 'function') return currentReply;
+    const observed = await ctx.observeAutomation(automationObserve);
+    ctx.automationReality = observed?.reality ?? ctx.automationReality;
+    const out = await ctx.model.respond({
+      ...baseTc,
+      automationObserve: observed?.observation ?? { rejected: true, reason: 'observation_unknown' },
+      automationReality: structuredClone(ctx.automationReality),
+    }, {
+      search, effort: 'medium', tools: modelSchemasFor(selfState, ctx.modelControls),
+    });
+    const separated = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
+    통제제안받기(separated);
+    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+  };
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
   if (!modelChosen && !influence
@@ -1377,6 +1394,7 @@ export async function runTurn(input, ctx) {
       receipts: [], places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
     });
     earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
+    earlyReply = await 자동화관찰후답(earlyTc, earlyReply, earlyWantedWeb);
     earlyReply = await 자동화제어후답(earlyTc, earlyReply, earlyWantedWeb);
     return {
       kind: 'reply',
@@ -1667,20 +1685,6 @@ export async function runTurn(input, ctx) {
     }
   }
 
-  // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
-  //   승인 전 영향 0. action은 계획의 첫 도구를 재사용. 외부 전송 도구면 승인 경계(A2)를 상속.
-  const primaryTool = plan.toolsToUse?.[0] ?? plan.needsApproval?.[0]?.action ?? null;
-  // 자동화 후보의 인자도 **이번 턴이 이해한 작업 그대로**여야 한다. 원문만 실으면 나중에 tick 이
-  // 돌 때 도구가 그 문장을 못 읽고 기본 동작(목록 보기)을 하고는 성공으로 기록한다 — 승인받은
-  // 자동화가 엉뚱한 일을 조용히 반복하는 것이다(감사 지적).
-  const primaryArgs = primaryTool === 'local.file' && planIntent.fileOp
-    ? { ...planIntent.fileOp, request: intent.currentRequest ?? input.text }
-    : { request: intent.currentRequest ?? input.text };
-  const automationSuggestion = detectAutomationCandidate(
-    input.text ?? '',
-    primaryTool ? { tool: primaryTool, args: primaryArgs } : null,
-  );
-
   // 4a) A2·A3 미승인 행동이 있으면 실행 전 멈춘다(외부효과 게이트, 헌법 §3-6).
   //     보류 계획을 서버가 보관하고 id 만 사용자에게 준다 — 승인 시 이 계획을 이어받는다.
   let pendingGrants = plan.needsApproval.filter((g) => !isExecutionAllowed(g));
@@ -1866,7 +1870,6 @@ export async function runTurn(input, ctx) {
       followUp,
       memorySuggestion,
       memoryWithdrawal,
-      automationSuggestion,
       ...승인통제제안(),
       capabilityResolution: resolveCapability({ text: input.text, permission: { label: toolLabel(pendingGrants[0].action, selfState), action: pendingGrants[0].action } }),
     };
@@ -1895,7 +1898,6 @@ export async function runTurn(input, ctx) {
   if (ctx.제안된기억) { memorySuggestion = ctx.제안된기억; ctx.제안된기억 = undefined; }
   result.memorySuggestion = memorySuggestion;
   result.memoryWithdrawal = memoryWithdrawal; // 제안과 같은 자리에서 철회도 전달한다
-  result.automationSuggestion = automationSuggestion;
   result.toolCandidate = toolCandidate;
   // 2.0-C-0: 부족 능력 신호(연결/도구)를 통합 패킷으로. 커넥터가 우선(작업 직접 차단), 없으면 도구 준비.
   result.capabilityResolution = resolveCapability({ text: input.text, connectionNeeded: result.connectionNeeded, toolCandidate });
@@ -2531,6 +2533,23 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
       if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
       if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
+      if (분리.automationObserve && typeof ctx.observeAutomation === 'function') {
+        ctx.automationObserveCount = (ctx.automationObserveCount ?? 0) + 1;
+        const observed = ctx.automationObserveCount <= 4
+          ? await ctx.observeAutomation(분리.automationObserve)
+          : { observation: { rejected: true, reason: 'observation_budget_spent' } };
+        ctx.automationReality = observed?.reality ?? ctx.automationReality;
+        tc = {
+          ...tc,
+          automationObserve: observed?.observation,
+          automationReality: structuredClone(ctx.automationReality),
+        };
+        finalOut = await ctx.model.respond(tc, {
+          search: wantedWeb, effort: 'medium',
+          tools: modelSchemasFor(selfState, ctx.modelControls),
+        });
+        continue;
+      }
       const next = 분리.rest;
       if (!next.length) {
         // 후보를 받아 놓고 빈손(심문·약속)으로 끝나려 하면 — 원장 사실을 주고 한 번 되부른다.
@@ -2916,7 +2935,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     && ctx.automationAdmissionHandled !== true) {
     ctx.automationAdmissionHandled = true;
     const admission = await ctx.admitAutomationProposal(ctx.automationProposal);
-    ctx.automationProposal = admission?.proposal ?? { rejected: true, reason: 'admission_unknown' };
+    ctx.automationProposal = admission && Object.hasOwn(admission, 'proposal')
+      ? admission.proposal : { rejected: true, reason: 'admission_unknown' };
     ctx.automationReality = admission?.reality ?? ctx.automationReality;
     ctx.제안된자동화 = ctx.automationProposal;
     tc = {

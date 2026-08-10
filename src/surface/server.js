@@ -486,7 +486,7 @@ export function makeServer(deps = {}) {
     })).digest('hex');
   }
 
-  function automationSettlementIdentity(candidate, job, operation) {
+  function automationSettlementIdentity(candidate, job, operation, observedAt) {
     const candidateLineage = {
       candidateRef: candidate.candidateId,
       candidateRevision: candidate.revision,
@@ -496,20 +496,94 @@ export function makeServer(deps = {}) {
       candidateLineage, operation, jobRef: job.id, jobRevision: job.jobRevision,
     })).digest('hex');
     const settlementDigest = createHash('sha256').update(JSON.stringify({
-      settlementRef, state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
+      settlementRef, operation, principalRef: candidate.principalRef,
+      candidateRef: candidate.candidateId, candidateRevision: candidate.revision,
+      controlRef: candidate.controlRef, jobRef: job.id, jobRevision: job.jobRevision ?? 0,
+      state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
       skillRef: job.skillRef, agentProfileId: job.agentProfileId,
       authorityEnvelope: job.authorityEnvelope, deliveryPolicy: job.deliveryPolicy,
+      observedAt, tool: candidate.action?.tool, actionArgs: candidate.action?.args ?? {},
+      skillPurpose: candidate.skillPurpose, deliveryIntent: candidate.deliveryIntent,
+      verificationPassed: true,
     })).digest('hex');
     return { candidateLineage, settlementRef, settlementDigest };
   }
 
-  async function automationRealityFor(principalRef) {
+  function appendAutomationSettlement(state, entry) {
+    const settlements = state.settlements ?? [];
+    const existing = settlements.find((item) => item.settlementRef === entry.settlementRef);
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(entry)) {
+        throw new Error('automation_settlement_identity_collision');
+      }
+      return state;
+    }
+    return { ...state, settlements: [...settlements, structuredClone(entry)] };
+  }
+
+  function approvalSettlementEntry(candidate, job, operation, at) {
+    return {
+      kind: 'automation_settlement', operation,
+      principalRef: candidate.principalRef,
+      candidateRef: candidate.candidateId,
+      candidateRevision: candidate.revision,
+      controlRef: candidate.controlRef,
+      jobRef: job.id,
+      jobRevision: job.jobRevision ?? 0,
+      state: job.state,
+      trigger: structuredClone(job.trigger),
+      nextRunAt: job.nextRunAt,
+      skillRef: structuredClone(job.skillRef),
+      agentProfileId: job.agentProfileId,
+      authorityEnvelope: structuredClone(job.authorityEnvelope),
+      deliveryPolicy: structuredClone(job.deliveryPolicy),
+      settlementRef: job.settlementRef,
+      settlementDigest: job.settlementDigest,
+      observedAt: at,
+      tool: candidate.action?.tool,
+      actionArgs: structuredClone(candidate.action?.args ?? {}),
+      skillPurpose: candidate.skillPurpose,
+      deliveryIntent: candidate.deliveryIntent,
+      verificationPassed: true,
+    };
+  }
+
+  function controlSettlementEntry(state, job, operation, at, mutated) {
+    const ordinal = (state.settlements ?? []).length;
+    const base = {
+      kind: 'automation_control_settlement', operation,
+      principalRef: job.principalRef,
+      jobRef: job.id,
+      jobRevision: job.jobRevision ?? 0,
+      state: job.state,
+      trigger: structuredClone(job.trigger),
+      nextRunAt: job.nextRunAt,
+      observedAt: at,
+      ordinal,
+      mutated,
+      verificationPassed: true,
+    };
+    const settlementRef = createHash('sha256').update(JSON.stringify(base)).digest('hex');
+    const settlementDigest = createHash('sha256').update(JSON.stringify({
+      settlementRef, jobRef: job.id, jobRevision: job.jobRevision ?? 0,
+      state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
+    })).digest('hex');
+    return { ...base, settlementRef, settlementDigest };
+  }
+
+  async function automationRealityFor(principalRef, page = {}) {
     await automationReady();
     try {
       const [state, runState] = await Promise.all([autoStore.load(), runLedger.load()]);
       return projectAutomationReality({
         candidates: state.candidates, jobs: state.jobs, runs: runState.runs,
-      }, { principalRef, now: automationNow() });
+        settlements: state.settlements,
+      }, {
+        principalRef, now: automationNow(),
+        ...(page.collection ? {
+          collection: page.collection, offset: page.offset, limit: page.limit,
+        } : {}),
+      });
     } catch {
       const unknown = { observed: false, total: null, truncated: null, items: [] };
       return {
@@ -518,6 +592,26 @@ export function makeServer(deps = {}) {
         recentRuns: structuredClone(unknown),
       };
     }
+  }
+
+  async function 자동화관찰(observation, session) {
+    if (!observation || !['jobs', 'candidates', 'recentRuns'].includes(observation.collection)
+      || !Number.isInteger(observation.offset) || observation.offset < 0
+      || !Number.isInteger(observation.limit) || observation.limit < 1 || observation.limit > 20) {
+      return { observation: { rejected: true, reason: 'observation_invalid' } };
+    }
+    const reality = await automationRealityFor(session.principalRef, observation);
+    const page = reality[observation.collection];
+    return {
+      observation: {
+        collection: observation.collection,
+        offset: page?.offset ?? observation.offset,
+        nextOffset: page?.nextOffset ?? null,
+        total: page?.total ?? null,
+        observed: page?.observed !== false,
+      },
+      reality,
+    };
   }
 
   function 자동화입장준비(proposal, principalRef) {
@@ -530,6 +624,9 @@ export function makeServer(deps = {}) {
       || Array.isArray(proposal.action.args)) return 'candidate_action_unknown';
     if (typeof proposal.skillPurpose !== 'string' || !proposal.skillPurpose.trim()) return 'skill_purpose_unknown';
     if (!['none', 'chat'].includes(proposal.deliveryIntent)) return 'delivery_intent_unknown';
+    // 실행 뒤 local conversation으로 전달하는 canonical consumer가 0개다.
+    // 의도만 job 계약으로 승격하면 pending을 실제 전달처럼 보이게 하므로 fail-closed한다.
+    if (proposal.deliveryIntent === 'chat') return 'delivery_not_connected';
     return null;
   }
 
@@ -548,6 +645,7 @@ export function makeServer(deps = {}) {
       reality: await automationRealityFor(session.principalRef),
     };
     let stored;
+    let duplicateStored = false;
     await autoStore.update((state) => {
       const now = automationNow();
       const operation = proposal.operation;
@@ -558,6 +656,20 @@ export function makeServer(deps = {}) {
       if (operation === 'update' && !targetJob) {
         stored = { rejected: true, reason: 'target_not_current' };
         return state;
+      }
+      if (operation === 'update') {
+        const lastApproval = (state.settlements ?? []).findLast((entry) =>
+          entry.jobRef === targetJob.id && ['create', 'update'].includes(entry.operation)
+          && entry.verificationPassed === true);
+        const sameAction = lastApproval
+          && lastApproval.tool === proposal.tool
+          && JSON.stringify(lastApproval.actionArgs) === JSON.stringify(proposal.action.args)
+          && lastApproval.skillPurpose === proposal.skillPurpose
+          && lastApproval.deliveryIntent === proposal.deliveryIntent;
+        if (!sameAction) {
+          stored = { rejected: true, reason: 'update_contract_change_not_allowed' };
+          return state;
+        }
       }
       const trigger = canonicalCandidateTrigger(proposal.trigger, now);
       if (!trigger) {
@@ -591,7 +703,7 @@ export function makeServer(deps = {}) {
       const duplicate = (state.candidates ?? []).find((entry) =>
         entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
         && entry.current !== false && entry.approved !== true && entry.superseded !== true);
-      if (duplicate) { stored = duplicate; return state; }
+      if (duplicate) { stored = duplicate; duplicateStored = true; return state; }
       const candidates = (state.candidates ?? []).map((entry) => (
         operation === 'update' && entry.principalRef === session.principalRef
           && entry.operation === 'update' && entry.targetJobRef === targetJob.id
@@ -602,7 +714,7 @@ export function makeServer(deps = {}) {
       stored = draft;
       return { ...state, candidates: [...candidates, stored] };
     });
-    const admitted = stored.rejected ? stored : {
+    const admitted = duplicateStored ? null : stored.rejected ? stored : {
       candidateId: stored.candidateId, candidateRef: stored.candidateId,
       revision: stored.revision, controlRef: stored.controlRef,
       operation: stored.operation, statement: stored.statement, state: 'proposed',
@@ -624,8 +736,9 @@ export function makeServer(deps = {}) {
         return state;
       }
       if (control.operation === 'status') {
-        outcome = { ok: true, record: current, operation: 'status', mutated: false };
-        return state;
+        const settlement = controlSettlementEntry(state, current, 'status', automationNow(), false);
+        outcome = { ok: true, record: current, operation: 'status', mutated: false, settlement };
+        return appendAutomationSettlement(state, settlement);
       }
       const targetState = control.operation === 'pause' ? 'paused' : 'scheduled';
       const moved = current.state === targetState
@@ -636,26 +749,22 @@ export function makeServer(deps = {}) {
         return state;
       }
       if (moved.record === current) {
-        outcome = { ok: true, record: current, operation: control.operation, mutated: false };
-        return state;
+        const settlement = controlSettlementEntry(
+          state, current, control.operation, automationNow(), false,
+        );
+        outcome = { ok: true, record: current, operation: control.operation, mutated: false, settlement };
+        return appendAutomationSettlement(state, settlement);
       }
       const jobRevision = (current.jobRevision ?? 0) + 1;
-      const settlementBase = {
-        operation: control.operation, jobRef: current.id, jobRevision,
-        state: moved.record.state, nextRunAt: moved.record.nextRunAt,
-      };
-      const settlementRef = createHash('sha256').update(JSON.stringify(settlementBase)).digest('hex');
-      const settlementDigest = createHash('sha256').update(JSON.stringify({
-        ...settlementBase, trigger: moved.record.trigger,
-      })).digest('hex');
-      const record = {
-        ...moved.record, jobRevision,
-        lastControlSettlement: { ...settlementBase, settlementRef, settlementDigest },
-      };
+      const changed = { ...moved.record, jobRevision };
+      const settlement = controlSettlementEntry(
+        state, changed, control.operation, automationNow(), true,
+      );
+      const record = { ...changed, lastControlSettlement: settlement };
       const jobs = [...state.jobs];
       jobs[index] = record;
-      outcome = { ok: true, record, operation: control.operation, mutated: true };
-      return { ...state, jobs };
+      outcome = { ok: true, record, operation: control.operation, mutated: true, settlement };
+      return appendAutomationSettlement({ ...state, jobs }, settlement);
     });
     if (!outcome.ok) return {
       control: { rejected: true, reason: outcome.reason },
@@ -664,7 +773,14 @@ export function makeServer(deps = {}) {
     const readback = await autoStore.load();
     const saved = readback.jobs.find((job) => job.id === outcome.record.id
       && job.principalRef === session.principalRef);
-    if (!saved || (saved.jobRevision ?? 0) !== (outcome.record.jobRevision ?? 0)) return {
+    const savedSettlement = readback.settlements?.find(
+      (entry) => entry.settlementRef === outcome.settlement?.settlementRef,
+    );
+    if (!saved || (saved.jobRevision ?? 0) !== (outcome.record.jobRevision ?? 0)
+      || !savedSettlement
+      || savedSettlement.settlementDigest !== outcome.settlement?.settlementDigest
+      || savedSettlement.jobRef !== saved.id
+      || savedSettlement.jobRevision !== (saved.jobRevision ?? 0)) return {
       control: { rejected: true, reason: 'control_readback_mismatch' },
       reality: await automationRealityFor(session.principalRef),
     };
@@ -672,7 +788,7 @@ export function makeServer(deps = {}) {
       control: {
         operation: outcome.operation, jobRef: saved.id, jobRevision: saved.jobRevision ?? 0,
         state: saved.state, nextRunAt: saved.nextRunAt, mutated: outcome.mutated,
-        ...(saved.lastControlSettlement ? { settlement: saved.lastControlSettlement } : {}),
+        settlement: savedSettlement,
         storeReadback: true,
       },
       reality: await automationRealityFor(session.principalRef),
@@ -1195,7 +1311,8 @@ export function makeServer(deps = {}) {
     ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
     ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'agent.propose', 'work.state'];
+    ctx.observeAutomation = (observation) => 자동화관찰(observation, session);
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -1556,34 +1673,6 @@ export function makeServer(deps = {}) {
         if (!(await 기억영수증('withdrawn', hit))) result.memoryWithdrawn.receiptWritten = false;
       });
     }
-    if (result.automationSuggestion?.action && !자동화후보저장가능(result.automationSuggestion)) {
-      // R2b(AC-1 재대조): 민감값이 든 발화·인자는 자동화 후보 durable 로 두지 않는다 —
-      // 기억 저장선(기억저장가능)과 같은 공용 경계. 후보만 접고 이번 턴 답은 그대로 간다.
-      result.automationSuggestion = undefined;
-    }
-    if (result.automationSuggestion?.action) {
-      const dedupKey = result.automationSuggestion.statement;
-      const now = automationNow();
-      let stored = null;
-      await autoStore.update((state) => {
-        if (state.candidates.some((c) => c.principalRef === session.principalRef
-          && c.statement === dedupKey && !c.approved && c.current !== false && !c.superseded)) return state;
-        const candidate = {
-          candidateId: randomUUID(), statement: result.automationSuggestion.statement,
-          action: structuredClone(result.automationSuggestion.action), dedupKey,
-          principalRef: session.principalRef, revision: 1, current: true,
-          operation: 'create', trigger: null,
-          skillPurpose: result.automationSuggestion.statement, deliveryIntent: 'none',
-          state: 'proposed', approved: false, superseded: false,
-          expiresAt: now + (24 * 60 * 60 * 1000), createdAt: now,
-        };
-        candidate.controlRef = automationControlRef(candidate);
-        stored = candidate;
-        return { ...state, candidates: [...state.candidates, candidate] };
-      });
-      if (stored) result.automationSuggestion.candidateId = stored.candidateId;
-      else result.automationSuggestion = undefined;
-    } else if (result.automationSuggestion) { result.automationSuggestion = undefined; }
     await store.save(session);
     // P90-1: transcript·ToolReceipt가 먼저 지속된 뒤 WorkEvent가 그 사실을 가리킨다.
     // 기록 실패가 이미 끝난 대화를 거짓 실패로 바꾸지는 않지만 진단 흔적은 숨기지 않는다.
@@ -2028,11 +2117,21 @@ export function makeServer(deps = {}) {
         await automationReady();
         const a = await autoStore.load();
         const runs = await runLedger.load();
+        const latestSettlementFor = (jobId) => {
+          const entry = (a.settlements ?? []).findLast((item) => item?.jobRef === jobId
+            && item?.verificationPassed === true);
+          return entry ? {
+            operation: entry.operation, jobRef: entry.jobRef, jobRevision: entry.jobRevision,
+            state: entry.state, settlementRef: entry.settlementRef,
+            settlementDigest: entry.settlementDigest, verificationPassed: true,
+          } : null;
+        };
         const stripJob = (job) => ({
           id: job.id, name: job.name, state: job.state,
           jobRevision: job.jobRevision, settlementRef: job.settlementRef,
           settlementDigest: job.settlementDigest, candidateLineage: job.candidateLineage,
           lastControlSettlement: job.lastControlSettlement,
+          latestSettlement: latestSettlementFor(job.id) ?? null,
           skillRef: job.skillRef, agentProfileId: job.agentProfileId,
           trigger: job.trigger, nextRunAt: job.nextRunAt,
           lastRunId: job.lastRunId, authorityEnvelope: job.authorityEnvelope,
@@ -2084,6 +2183,11 @@ export function makeServer(deps = {}) {
       if (req.method === 'POST' && url === '/automation/approve') {
         const input = JSON.parse((await readBody(req)) || '{}');
         await automationReady();
+        if (Object.hasOwn(input, 'name') && containsSensitiveValue(input.name)) {
+          return sendJson(res, 422, {
+            error: '자동화 계약을 확정하지 못했어요.', reason: 'sensitive_input',
+          });
+        }
         const [skills, profiles] = await Promise.all([skillStore.load(), profileStore.load()]);
         const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
         const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
@@ -2106,6 +2210,9 @@ export function makeServer(deps = {}) {
           if (cand.approved || cand.current === false || cand.superseded
             || (Number.isFinite(cand.expiresAt) && cand.expiresAt < now)) {
             outcome = { ok: false, reason: 'candidate_not_current' }; return state;
+          }
+          if (cand.deliveryIntent === 'chat') {
+            outcome = { ok: false, reason: 'delivery_not_connected' }; return state;
           }
           const operation = cand.operation ?? 'create';
           const trigger = cand.trigger ?? input.trigger;
@@ -2139,7 +2246,7 @@ export function makeServer(deps = {}) {
                 && input.maxRuns !== target.authorityEnvelope?.maxRuns)) {
               outcome = { ok: false, reason: 'authority_change_not_allowed' }; return state;
             }
-            const approvedCandidate = {
+            let approvedCandidate = {
               ...cand, approved: true, current: false, approvedAt: now,
               revision: (cand.revision ?? 1) + 1,
             };
@@ -2150,13 +2257,22 @@ export function makeServer(deps = {}) {
               updatedAt: now,
               jobRevision: (target.jobRevision ?? 0) + 1,
             };
-            Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation));
+            Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
+            approvedCandidate = {
+              ...approvedCandidate,
+              jobRef: record.id,
+              settlementRef: record.settlementRef,
+              settlementDigest: record.settlementDigest,
+            };
             const jobs = [...state.jobs];
             jobs[jobIndex] = record;
             const candidates = [...state.candidates];
             candidates[index] = approvedCandidate;
             outcome = { ok: true, operation, record, candidate: candidates[index] };
-            return { ...state, candidates, jobs };
+            return appendAutomationSettlement(
+              { ...state, candidates, jobs },
+              approvalSettlementEntry(approvedCandidate, record, operation, now),
+            );
           }
           if (!skill || !profile) {
             outcome = { ok: false, reason: 'binding_not_active' }; return state;
@@ -2193,14 +2309,24 @@ export function makeServer(deps = {}) {
             outcome = { ok: false, reason: scheduled.reason, errors: scheduled.errors }; return state;
           }
           const candidates = [...state.candidates];
-          candidates[index] = {
+          let approvedCandidate = {
             ...cand, approved: true, current: false, approvedAt: now,
             revision: (cand.revision ?? 1) + 1,
           };
           record = { ...scheduled.record, jobRevision: 1 };
-          Object.assign(record, automationSettlementIdentity(candidates[index], record, operation));
-          outcome = { ok: true, operation, record, candidate: candidates[index] };
-          return { ...state, candidates, jobs: [...state.jobs, record] };
+          Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
+          approvedCandidate = {
+            ...approvedCandidate,
+            jobRef: record.id,
+            settlementRef: record.settlementRef,
+            settlementDigest: record.settlementDigest,
+          };
+          candidates[index] = approvedCandidate;
+          outcome = { ok: true, operation, record, candidate: approvedCandidate };
+          return appendAutomationSettlement(
+            { ...state, candidates, jobs: [...state.jobs, record] },
+            approvalSettlementEntry(approvedCandidate, record, operation, now),
+          );
         });
         if (!outcome.ok) {
           const status = outcome.reason === 'candidate_not_found' ? 404
@@ -2213,8 +2339,20 @@ export function makeServer(deps = {}) {
         }
         const readback = await autoStore.load();
         const saved = readback.jobs.find((job) => job.id === outcome.record.id);
+        const savedCandidate = readback.candidates.find(
+          (entry) => entry.candidateId === outcome.candidate.candidateId,
+        );
+        const savedSettlement = readback.settlements?.find(
+          (entry) => entry.settlementRef === outcome.record.settlementRef,
+        );
         if (!saved || saved.updatedAt !== outcome.record.updatedAt
-          || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)) {
+          || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)
+          || savedCandidate?.jobRef !== saved.id
+          || savedCandidate?.settlementRef !== saved.settlementRef
+          || savedCandidate?.settlementDigest !== saved.settlementDigest
+          || savedSettlement?.jobRef !== saved.id
+          || savedSettlement?.jobRevision !== (saved.jobRevision ?? 0)
+          || savedSettlement?.settlementDigest !== saved.settlementDigest) {
           return sendJson(res, 500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
         }
         const settlement = {
@@ -3197,7 +3335,8 @@ export function makeServer(deps = {}) {
     ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
     ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'agent.propose', 'work.state'];
+    ctx.observeAutomation = (observation) => 자동화관찰(observation, session);
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.

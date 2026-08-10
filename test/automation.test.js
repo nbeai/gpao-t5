@@ -170,7 +170,32 @@ function canonicalEnvelope() {
   };
 }
 
-async function withServer(fn) {
+function structuredAutomationModel(path, { once = false } = {}) {
+  const proposedTurns = new Set();
+  return { async respond(tc, opts = {}) {
+    const turnKey = JSON.stringify(tc.turnRef ?? [tc.currentRequest, tc.currentTime]);
+    if (!proposedTurns.has(turnKey)
+      && opts.tools?.some((entry) => entry.name === 'automation.propose')) {
+      proposedTurns.add(turnKey);
+      const at = Date.now();
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: once ? '파일 목록을 한 번 확인한다' : '매주 파일 목록을 확인한다',
+        operation: 'create', kind: once ? 'once' : 'weekly',
+        trigger: once ? {
+          kind: 'once', timezone: 'UTC', at, nextRunAt: at, misfirePolicy: 'catch_up_once',
+        } : {
+          kind: 'weekly', timezone: 'UTC', weekdays: [1], localTime: '09:00',
+          nextRunAt: at + 60_000, misfirePolicy: 'catch_up_once',
+        },
+        tool: 'local.file', action: { args: { action: 'read', path } },
+        skillPurpose: '파일 목록 확인', deliveryIntent: 'none',
+      } }] };
+    }
+    return { text: '후보로 준비했어요.', toolCalls: [] };
+  } };
+}
+
+async function withServer(fn, { model } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-auto-'));
   const autoStore = new AutomationJobStore(dir);
   const skillStore = new SkillDefinitionStore(dir);
@@ -181,6 +206,7 @@ async function withServer(fn) {
   const server = makeServer({
     store: new SessionStore(dir), automationStore: autoStore, skillStore,
     agentProfileStore: profileStore, automationRunLedger: runLedger, runtimeToken: TICK_TOKEN,
+    ...(model ? { model } : {}),
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
@@ -293,32 +319,32 @@ test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async (
   });
 });
 
-// 산출물 검증(원칙 1): /turn 실경로가 반복 신호 → 후보를 만들어 저장하는지. (dedupKey 버그를 잡는 경로)
-test('서버: 반복 신호 turn → 제안 카드 + 후보 저장(실경로)', async () => {
+// 산출물 검증(원칙 1): 모델의 구조 제안이 /turn→후보 저장으로 관통하는지.
+test('서버: structured model proposal → 제안 카드 + 후보 저장(실경로)', async () => {
   await withServer(async (base) => {
     const s = await postj(base, '/sessions');
     const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp 파일 목록 정리해줘' });
-    assert.ok(r.automationSuggestion, '반복 신호 → 제안 카드');
-    assert.ok(r.automationSuggestion.candidateId, 'UI 승인용 candidateId');
-    assert.ok(r.automationSuggestion.action?.tool, '실행할 action 도구');
+    assert.ok(r.automationProposal, '구조 제안 → 제안 카드');
+    assert.ok(r.automationProposal.candidateId, 'UI 승인용 candidateId');
     const view = await getj(base, '/automation');
     assert.equal(view.candidates.length, 1, '후보로 저장됨(자동 승인 아님)');
     // 같은 발화 재입력 → 중복 제안 안 함
     const r2 = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp 파일 목록 정리해줘' });
-    assert.equal(r2.automationSuggestion, undefined, '이미 제안한 것은 다시 제안하지 않는다');
+    assert.equal(r2.automationProposal, null, '이미 제안한 것은 다시 제안하지 않는다');
     assert.equal((await getj(base, '/automation')).candidates.length, 1);
-  });
+  }, { model: structuredAutomationModel('/tmp') });
 });
 
-// 전체 경로 회귀(감사 보정): /sessions → /turn 반복 → approve → tick → runs 1 을 한 줄 흐름으로 고정.
-test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1', async () => {
+// 전체 경로 회귀(감사 보정): /sessions → /turn structured proposal → approve → tick → runs 1.
+test('서버: 전체 경로 /turn structured proposal → approve → tick → 원장 runs 1', async () => {
   await withServer(async (base, autoStore, server, runLedger) => {
     const s = await postj(base, '/sessions');
     const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp/t5-automation-fixture.txt 읽어서 정리해줘' });
-    const candidateId = r.automationSuggestion.candidateId;
-    assert.equal(r.automationSuggestion.action?.args?.action, 'read');
+    const candidateId = r.automationProposal.candidateId;
+    const stored = (await getj(base, '/automation')).candidates[0];
+    assert.equal(stored.action?.args?.action, 'read');
     const appr = await postj(base, '/automation/approve', canonicalApproval(candidateId));
-    assert.equal(appr.ok, true);
+    assert.equal(appr.ok, true, JSON.stringify(appr));
     const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].status, 'succeeded', JSON.stringify(await runLedger.load()));
@@ -327,7 +353,7 @@ test('서버: 전체 경로 /turn 반복 → approve → tick → 원장 runs 1'
     assert.equal(view.jobs[0].state, 'scheduled');
     assert.equal(view.runs.length, 1, 'AutomationRunLedger에 실행 1건');
     assert.equal(view.runs[0].status, 'succeeded');
-  });
+  }, { model: structuredAutomationModel('/tmp/t5-automation-fixture.txt', { once: true }) });
 });
 
 test('서버: 일반 대화 turn은 자동화 후보를 만들지 않는다(흐름 미교란)', async () => {

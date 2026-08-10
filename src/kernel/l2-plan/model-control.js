@@ -113,6 +113,18 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['operation', 'targetJobRef', 'targetJobRevision'],
   },
 }, {
+  name: 'automation.observe',
+  description: 'AutomationRealitySnapshot이 잘렸을 때 같은 principal의 다음 bounded page를 읽는다. 실행·승인·상태 변경은 없다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      collection: { type: 'string', enum: ['jobs', 'candidates', 'recentRuns'] },
+      offset: { type: 'integer', minimum: 0 },
+      limit: { type: 'integer', minimum: 1, maximum: 20 },
+    },
+    required: ['collection', 'offset', 'limit'],
+  },
+}, {
   name: 'agent.propose',
   description: '사용자가 "이 폴더만 보는 분석 담당을 만들어줘" 처럼 **역할**을 맡기면 이걸로 적는다.'
     + ' 실행이 아니고 권한도 아니다 — 실행 때마다 현재 권한과 교집합으로 다시 제한된다.',
@@ -425,6 +437,7 @@ export function splitModelControlCalls(toolCalls = []) {
   let skillProposal = null;
   let automationProposal = null;
   let automationControl = null;
+  let automationObserve = null;
   let agentProposal = null;
   const workStateProposals = [];
   let workStateSeen = false;
@@ -456,6 +469,17 @@ export function splitModelControlCalls(toolCalls = []) {
       const targetJobRevision = Number.isInteger(c.args?.targetJobRevision) ? c.args.targetJobRevision : null;
       if (operation && targetJobRef && targetJobRevision !== null) {
         automationControl = { operation, targetJobRef, targetJobRevision };
+      }
+      continue;
+    }
+    if (c.name === 'automation.observe') {
+      const collection = ['jobs', 'candidates', 'recentRuns'].includes(c.args?.collection)
+        ? c.args.collection : null;
+      const offset = Number.isInteger(c.args?.offset) && c.args.offset >= 0 ? c.args.offset : null;
+      const limit = Number.isInteger(c.args?.limit) && c.args.limit >= 1 && c.args.limit <= 20
+        ? c.args.limit : null;
+      if (collection && offset !== null && limit !== null) {
+        automationObserve = { collection, offset, limit };
       }
       continue;
     }
@@ -528,7 +552,7 @@ export function splitModelControlCalls(toolCalls = []) {
   return {
     memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
     askUser,
-    skillProposal, automationProposal, automationControl, agentProposal,
+    skillProposal, automationProposal, automationControl, automationObserve, agentProposal,
     workStateProposal, workStateSeen, workStateNoChange,
     workStateCandidateCount: workStateProposals.length,
     rest,

@@ -249,13 +249,34 @@ test('W5 자료 조사: 읽은 내용은 출처와 결합되고 출처 없는 �
 });
 
 test('W5 반복 업무: 후보 한 번만 제안하고 사용자 승인 전에는 자동 실행하지 않는다', async () => {
-  await withServer({}, async (base) => {
+  const proposedTurns = new Set();
+  const model = { async respond(tc, call = {}) {
+    const turnKey = JSON.stringify(tc.turnRef ?? [tc.currentRequest, tc.currentTime]);
+    if (!proposedTurns.has(turnKey)
+      && call.tools?.some((entry) => entry.name === 'automation.propose')) {
+      proposedTurns.add(turnKey);
+      const at = Date.now();
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: '매주 금요일 로컬 파일 목록을 정리한다',
+        operation: 'create', kind: 'weekly',
+        trigger: {
+          kind: 'weekly', timezone: 'Asia/Seoul', weekdays: [5], localTime: '09:00',
+          nextRunAt: at + 60_000, misfirePolicy: 'catch_up_once',
+        },
+        tool: 'local.file', action: { args: { action: 'list', path: '.' } },
+        skillPurpose: '로컬 파일 목록 정리', deliveryIntent: 'none',
+      } }] };
+    }
+    return { text: '후보로 준비했어요.', toolCalls: [] };
+  } };
+  await withServer({ model }, async (base) => {
     const session = await newSession(base);
     const first = await postJson(base, '/turn', {
       sessionId: session.id,
       text: '매주 금요일 로컬 파일 목록을 정리해줘',
     });
-    assert.ok(first.body.automationSuggestion?.candidateId, '반복 업무 후보가 사용자에게 보이지 않는다');
+    const firstCandidate = first.body.automationSuggestion ?? first.body.automationProposal;
+    assert.ok(firstCandidate?.candidateId, '반복 업무 후보가 사용자에게 보이지 않는다');
     assert.equal(first.body.pendingId, undefined, '후보를 보여주는 단계에서 실행 승인을 강요했다');
     const view = await fetch(`${base}/automation`).then((response) => response.json());
     assert.equal(view.candidates.length, 1);
@@ -266,7 +287,8 @@ test('W5 반복 업무: 후보 한 번만 제안하고 사용자 승인 전에�
       sessionId: session.id,
       text: '매주 금요일 로컬 파일 목록을 정리해줘',
     });
-    assert.equal(second.body.automationSuggestion, undefined, '같은 후보 카드를 반복해서 보여준다');
+    const secondCandidate = second.body.automationSuggestion ?? second.body.automationProposal;
+    assert.equal(secondCandidate == null, true, '같은 후보 카드를 반복해서 보여준다');
   });
 });
 

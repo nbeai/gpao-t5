@@ -316,9 +316,13 @@ export const 허용파일 = [
   // 후보가 delivery intent 를 실제 deliveryPolicy 로 나르고, scheduler 는 durable AgentRun
   // 발생 원장에서 maxRuns 를 세어 재시작·동시 실행에서도 같은 권한 상한을 지킨다.
   'src/kernel/l5-growth/automation-contracts.js',
+  // L6 — 반복 문구 정규식 후보를 제품 진실에서 걷고 structured automation.propose 한 자리만 쓴다.
+  'src/kernel/l5-growth/automation.js',
   'src/runtime/automation-engine.js',
   'src/runtime/automation-scheduler.js',
   'src/runtime/canonical-automation-runtime.js',
+  // L6 — candidate/job/control settlement를 job 한 칸 덮어쓰기 대신 append-only로 보존한다.
+  'src/surface/automation-store.js',
   'src/surface/automation-surface.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).

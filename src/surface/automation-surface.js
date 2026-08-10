@@ -43,8 +43,8 @@ export function projectAutomationRun(run) {
 }
 
 /** Same-principal, bounded projection of canonical automation stores. */
-export function projectAutomationReality({ candidates = [], jobs = [], runs = [] }, {
-  principalRef, now, limit = 20,
+export function projectAutomationReality({ candidates = [], jobs = [], runs = [], settlements = [] }, {
+  principalRef, now, limit = 20, collection = null, offset = 0,
 } = {}) {
   if (typeof principalRef !== 'string' || !principalRef.trim()) {
     const unknown = { observed: false, total: null, truncated: null, items: [] };
@@ -60,13 +60,30 @@ export function projectAutomationReality({ candidates = [], jobs = [], runs = []
     && entry.approved !== true && entry.current !== false && entry.superseded !== true
     && (!Number.isFinite(entry.expiresAt) || entry.expiresAt >= now));
   const ownedJobs = jobs.filter((entry) => owns(entry) && automationEntryVisible(entry));
+  const latestSettlementFor = (jobId) => {
+    const entry = settlements.findLast((item) => item?.principalRef === principalRef
+      && item?.jobRef === jobId && item?.verificationPassed === true);
+    return entry ? {
+      operation: entry.operation, jobRef: entry.jobRef, jobRevision: entry.jobRevision,
+      state: entry.state, settlementRef: entry.settlementRef,
+      settlementDigest: entry.settlementDigest, verificationPassed: true,
+    } : null;
+  };
   const jobIds = new Set(ownedJobs.map((job) => job.id));
   const ownedRuns = runs.filter((run) => jobIds.has(run.jobId));
-  const bounded = (all, project) => ({
+  const bounded = (all, project, key) => {
+    const start = collection === key ? Math.min(offset, all.length) : 0;
+    const page = all.slice(start, start + limit);
+    return {
     total: all.length,
-    truncated: all.length > limit,
-    items: all.slice(0, limit).map(project),
-  });
+    truncated: start + page.length < all.length,
+    items: page.map(project),
+    ...(collection === key ? {
+      offset: start,
+      nextOffset: start + page.length < all.length ? start + page.length : null,
+    } : {}),
+    };
+  };
   return {
     observedAt: now,
     principalBound: true,
@@ -79,7 +96,7 @@ export function projectAutomationReality({ candidates = [], jobs = [], runs = []
       trigger: entry.trigger,
       current: true,
       expiresAt: entry.expiresAt,
-    })),
+    }), 'candidates'),
     jobs: bounded(ownedJobs, (job) => ({
       jobRef: job.id,
       revision: job.updatedAt,
@@ -90,10 +107,11 @@ export function projectAutomationReality({ candidates = [], jobs = [], runs = []
       settlementDigest: job.settlementDigest,
       candidateLineage: job.candidateLineage,
       lastControlSettlement: job.lastControlSettlement,
+      latestSettlement: latestSettlementFor(job.id) ?? null,
       trigger: job.trigger,
       nextRunAt: job.nextRunAt,
-    })),
+    }), 'jobs'),
     recentRuns: bounded(ownedRuns.slice().sort((a, b) => (b.updatedAt ?? b.finishedAt ?? 0)
-      - (a.updatedAt ?? a.finishedAt ?? 0)), projectAutomationRun),
+      - (a.updatedAt ?? a.finishedAt ?? 0)), projectAutomationRun, 'recentRuns'),
   };
 }

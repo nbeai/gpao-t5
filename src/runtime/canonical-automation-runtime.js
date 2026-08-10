@@ -538,10 +538,13 @@ export class CanonicalAutomationRuntime {
       const index = state.jobs.findIndex((job) => job.id === jobId);
       if (index < 0) return state;
       const moved = transitionState('automationJob', state.jobs[index], 'cancelled', now);
-      outcome = moved;
+      outcome = moved.ok ? {
+        ...moved,
+        record: { ...moved.record, jobRevision: (state.jobs[index].jobRevision ?? 0) + 1 },
+      } : moved;
       if (!moved.ok) return state;
       const jobs = [...state.jobs];
-      jobs[index] = moved.record;
+      jobs[index] = outcome.record;
       return { ...state, jobs };
     });
     if (!outcome?.ok) return outcome ?? { ok: false, reason: 'job_not_found' };

@@ -148,6 +148,7 @@ export function applyAutomationJobPatch(state, delta) {
   const changed = {
     ...job,
     ...changes,
+    jobRevision: (job.jobRevision ?? 0) + 1,
     ...(triggerNextRunAt === undefined
       ? {}
       : { trigger: { ...job.trigger, nextRunAt: triggerNextRunAt } }),
