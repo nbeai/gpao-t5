@@ -103,6 +103,12 @@ async function runCase({ terminal = 'correct', artifact = 'exact', source = 'a.t
       completions: saved.ledgerEntries.filter((entry) => entry.origin === 'completion_settlement' && entry.receiptRef),
       completedEvents: events.filter((entry) => entry.type === 'execution_completed'),
       completed: saved.workingState?.recentOutcome?.status === 'completed',
+      debug: saved.ledgerEntries.map((entry) => ({ tool: entry.actualCall?.tool,
+        action: entry.actualCall?.args?.action, origin: entry.origin,
+        phase: entry.verificationPhase, basis: entry.completionContract?.completionBasis,
+        policy: entry.completionContract?.sourcePolicy, refs: entry.deliverableRefs,
+        exit: entry.result?.exitCode, stdout: entry.result?.stdout,
+        source: entry.result?.source })),
     };
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -121,7 +127,7 @@ test('F-64 L7 process/hash 완료 계약: 정상 1건과 동결 반례 5갈래',
     const result = await runCase();
     assert.equal(result.terminals[0]?.result?.exitCode, 0);
     assert.equal(result.observedStdout.includes(result.sourceDigest), true);
-    assert.equal(result.completions.length, 1);
+    assert.equal(result.completions.length, 1, JSON.stringify(result.debug));
     assert.equal(result.completedEvents.length, 1);
     assert.equal(result.completed, true);
   });

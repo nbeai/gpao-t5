@@ -1145,11 +1145,16 @@ export function makeServer(deps = {}) {
     const raw = candidates[0];
     const contract = raw.completionContract;
     const policy = contract?.sourcePolicy;
-    if (contract?.completionBasis !== 'direct_exact'
-      || !['none', 'all_current'].includes(policy)
-      || !contract?.userBinding?.expectedPathDigest
-      || !contract?.userBinding?.expectedContentDigest) return fail();
-    if (policy === 'none' && contract.sourceBinding) return fail();
+    const directExact = contract?.completionBasis === 'direct_exact'
+      && ['none', 'all_current'].includes(policy)
+      && contract?.userBinding?.expectedPathDigest
+      && contract?.userBinding?.expectedContentDigest;
+    const processHash = contract?.completionBasis === 'process_sha256'
+      && policy === 'selected'
+      && contract?.processBinding?.algorithm === 'sha256'
+      && contract?.userBinding?.expectedPathDigest;
+    if (!directExact && !processHash) return fail();
+    if ((policy === 'none' || policy === 'selected') && contract.sourceBinding) return fail();
     let sourceStillStable = async () => true;
     if (policy === 'all_current') {
       const binding = contract.sourceBinding;
@@ -1174,7 +1179,49 @@ export function makeServer(deps = {}) {
     const writeDigest = executed?.result?.digest;
     if (!actualPath || !writeDigest
       || hexDigest(actualPath) !== contract.userBinding.expectedPathDigest
-      || writeDigest !== contract.userBinding.expectedContentDigest) return fail();
+      || (directExact && writeDigest !== contract.userBinding.expectedContentDigest)) return fail();
+
+    let processVerification;
+    if (processHash) {
+      const sourcePath = executed?.result?.source;
+      if (!sourcePath || executed?.result?.originalUntouched !== true || sourcePath === actualPath) return fail();
+      const verifySource = async (phase) => {
+        const receipt = await ctx.tools.run('local.file', { action: 'read', path: sourcePath },
+          ctx.turnSelfState, { callRef: `completion-source-${phase}:${turnRef.turnSeq}` });
+        const durable = canonicalDurableEvidence({ ...receipt, origin: 'runtime_verification',
+          verificationPhase: `source_${phase}`, turnRef });
+        ctx.ledger.append(durable);
+        if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
+          || receipt?.result?.path !== sourcePath || receipt?.result?.nextOffset !== undefined
+          || !receipt?.result?.sourceRevisionRef || typeof receipt?.result?.text !== 'string') return null;
+        return { receipt, durable, contentDigest: hexDigest(receipt.result.text) };
+      };
+      const sourceBefore = await verifySource('before');
+      if (!sourceBefore) return fail();
+      const turnEntries = ctx.ledger.entries.slice(ledgerFrom);
+      const sourceReads = turnEntries.filter((receipt) => executionReceipt(receipt)
+        && receipt?.actualCall?.tool === 'local.file' && receipt?.actualCall?.args?.action === 'read'
+        && receipt?.result?.path === sourcePath && receipt?.result?.nextOffset === undefined
+        && receipt?.result?.sourceRevisionRef
+        && hexDigest(receipt?.result?.text ?? '') === sourceBefore.contentDigest);
+      if (sourceReads.length !== 1
+        || sourceReads[0].result.sourceRevisionRef !== sourceBefore.receipt.result.sourceRevisionRef) return fail();
+      const sourceRead = sourceReads[0];
+      const matchingTerminal = turnEntries.filter((receipt) => {
+        if (!executionReceipt(receipt) || receipt?.actualCall?.tool !== 'local.terminal'
+          || receipt?.result?.exitCode !== 0 || receipt?.result?.truncated === true
+          || receipt?.result?.stopped || typeof receipt?.result?.stdout !== 'string') return false;
+        const tokens = receipt.result.stdout.match(/\b[0-9a-f]{64}\b/giu) ?? [];
+        return turnEntries.indexOf(sourceRead) < turnEntries.indexOf(receipt)
+          && turnEntries.indexOf(receipt) < turnEntries.indexOf(raw)
+          && tokens.length === 1 && tokens[0].toLowerCase() === sourceBefore.contentDigest;
+      });
+      if (matchingTerminal.length !== 1) return fail();
+      const terminal = matchingTerminal[0];
+      const terminalStdout = terminal.result.stdout.trim();
+      if (!terminalStdout) return fail();
+      processVerification = { sourcePath, sourceRead, sourceBefore, terminal, terminalStdout };
+    }
 
     const verifyRead = async (phase) => {
       const receipt = await ctx.tools.run('local.file', { action: 'read', path: actualPath },
@@ -1185,13 +1232,29 @@ export function makeServer(deps = {}) {
       if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
         || receipt?.result?.path !== actualPath || receipt?.result?.nextOffset !== undefined
         || !receipt?.result?.sourceRevisionRef
-        || hexDigest(receipt?.result?.text ?? '') !== contract.userBinding.expectedContentDigest) return null;
+        || (directExact && hexDigest(receipt?.result?.text ?? '') !== contract.userBinding.expectedContentDigest)
+        || (processHash && !String(receipt?.result?.text ?? '')
+          .includes(processVerification.sourceBefore.contentDigest))) return null;
       return { receipt, durable };
     };
     const readback = await verifyRead('readback');
     if (!readback) return fail();
     const sealCheck = await verifyRead('seal_check');
     if (!sealCheck || sealCheck.receipt.result.sourceRevisionRef !== readback.receipt.result.sourceRevisionRef) return fail();
+    let sourceAfter;
+    if (processHash) {
+      const receipt = await ctx.tools.run('local.file', { action: 'read', path: processVerification.sourcePath },
+        ctx.turnSelfState, { callRef: `completion-source-after:${turnRef.turnSeq}` });
+      const durable = canonicalDurableEvidence({ ...receipt, origin: 'runtime_verification',
+        verificationPhase: 'source_after', turnRef });
+      ctx.ledger.append(durable);
+      if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
+        || receipt?.result?.path !== processVerification.sourcePath
+        || receipt?.result?.nextOffset !== undefined || !receipt?.result?.sourceRevisionRef
+        || receipt.result.sourceRevisionRef !== processVerification.sourceBefore.receipt.result.sourceRevisionRef
+        || hexDigest(receipt?.result?.text ?? '') !== processVerification.sourceBefore.contentDigest) return fail();
+      sourceAfter = { receipt, durable };
+    }
     // artifact 검증 사이에도 initial source가 바뀔 수 있다. 서명 직전 같은 revision을 다시 밟는다.
     if (!await sourceStillStable()) return fail();
 
@@ -1210,10 +1273,22 @@ export function makeServer(deps = {}) {
         readbackCallRef: readback.receipt?.actualCall?.callRef ?? null,
         sealCheckCallRef: sealCheck.receipt?.actualCall?.callRef ?? null,
         expectedPathDigest: contract.userBinding.expectedPathDigest,
-        expectedContentDigest: contract.userBinding.expectedContentDigest,
+        ...(directExact ? { expectedContentDigest: contract.userBinding.expectedContentDigest } : {}),
         ...(policy === 'all_current' ? {
           sourceWorkRef: contract.sourceBinding.workRef,
           sourceSetRef: contract.sourceBinding.sourceSetRef,
+        } : {}),
+        ...(processHash ? {
+          processAlgorithm: 'sha256',
+          sourcePathDigest: hexDigest(processVerification.sourcePath),
+          sourceContentDigest: processVerification.sourceBefore.contentDigest,
+          sourceRevisionRef: sourceAfter.receipt.result.sourceRevisionRef,
+          sourceExecutionReceiptDigest: workEvidenceDigest(processVerification.sourceRead),
+          sourceBeforeReceiptDigest: workEvidenceDigest(processVerification.sourceBefore.durable),
+          sourceAfterReceiptDigest: workEvidenceDigest(sourceAfter.durable),
+          terminalReceiptDigest: workEvidenceDigest(processVerification.terminal),
+          terminalCallRef: processVerification.terminal?.actualCall?.callRef ?? null,
+          terminalStdoutDigest: hexDigest(processVerification.terminalStdout),
         } : {}),
       },
     };

@@ -197,7 +197,9 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
       output: { type: 'string', enum: ['chat', 'file'] },
-      sourcePolicy: { type: 'string', enum: ['none', 'all_current'] },
+      sourcePolicy: { type: 'string', enum: ['none', 'all_current', 'selected'] },
+      verification: { type: 'string', enum: ['direct_exact', 'process_sha256'],
+        description: '파일 결과를 확인할 실제 근거. process_sha256은 선택 원본의 터미널 SHA-256 출력과 결과 readback을 결속한다.' },
     },
     required: ['output'],
   },
@@ -243,13 +245,15 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
       : out?.toolCalls?.find((call) => call?.name === WORK_DELIVERABLE_SCHEMA.name
         && ['chat', 'file'].includes(call?.args?.output));
     const structured = structuredCall?.args?.output;
-    const sourcePolicy = ['none', 'all_current'].includes(structuredCall?.args?.sourcePolicy)
+    const sourcePolicy = ['none', 'all_current', 'selected'].includes(structuredCall?.args?.sourcePolicy)
       ? structuredCall.args.sourcePolicy : 'unknown';
+    const verification = ['direct_exact', 'process_sha256'].includes(structuredCall?.args?.verification)
+      ? structuredCall.args.verification : 'unknown';
     const judgment = structured === 'file' || structured === 'chat'
       ? structured : parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
     if (judgment === 'file') {
       return {
-        assessment: 'file', sourcePolicy,
+        assessment: 'file', sourcePolicy, verification,
         deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: directWrite ? 'direct' : 'derived' }],
       };
     }
@@ -1525,6 +1529,7 @@ export async function runTurn(input, ctx) {
     ...planIntent,
     deliverableAssessment: completionContract.assessment,
     sourcePolicy: completionContract.sourcePolicy ?? 'unknown',
+    verification: completionContract.verification ?? 'unknown',
     ...(completionContract.deliverables.length ? { deliverables: completionContract.deliverables } : {}),
   };
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
@@ -1658,11 +1663,18 @@ export async function runTurn(input, ctx) {
       ...(() => {
         const parsed = parseFileRequest(input.text ?? '');
         const root = ctx.initialWorksetReality?.currentRoot?.path;
-        if (!root || parsed.action !== 'write' || parsed.ambiguous || !parsed.provenance?.independent
+        if (!root || parsed.action !== 'write' || !parsed.path || !parsed.provenance?.independent
           || parsed.provenance.pathCount !== 1) {
           return { completionBasis: 'unverified' };
         }
         const expected = resolve(root, parsed.path);
+        if (planIntent.verification === 'process_sha256'
+          && planIntent.sourcePolicy === 'selected') {
+          return { completionBasis: 'process_sha256', userBinding: {
+            expectedPathDigest: createHash('sha256').update(expected).digest('hex'),
+          }, processBinding: { algorithm: 'sha256' } };
+        }
+        if (parsed.ambiguous) return { completionBasis: 'unverified' };
         return { completionBasis: 'direct_exact', userBinding: {
           expectedPathDigest: createHash('sha256').update(expected).digest('hex'),
           expectedContentDigest: createHash('sha256').update(parsed.text).digest('hex'),
@@ -1673,8 +1685,12 @@ export async function runTurn(input, ctx) {
           sourceSetRef: ctx.initialWorksetReality.sourceSetRef } } : {}),
       deliverables: structuredClone(plan.deliverables),
     });
-    const slicePolicy = ['none', 'all_current'].includes(contract.sourcePolicy);
-    const sliceAdmitted = contract.completionBasis === 'direct_exact' && slicePolicy;
+    const directAdmitted = contract.completionBasis === 'direct_exact'
+      && ['none', 'all_current'].includes(contract.sourcePolicy);
+    const processHashAdmitted = contract.completionBasis === 'process_sha256'
+      && contract.sourcePolicy === 'selected'
+      && contract.processBinding?.algorithm === 'sha256';
+    const sliceAdmitted = directAdmitted || processHashAdmitted;
     if (!sliceAdmitted) {
       // 명시 경로·본문이 입장하지 못한 FILE 실행은 그대로 남기되 완료 후보가 아니다.
       ctx.completionAdmissionRejected = true;

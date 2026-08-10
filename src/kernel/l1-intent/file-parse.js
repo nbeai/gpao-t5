@@ -64,15 +64,18 @@ export function parseFileRequest(text) {
       return { body: match[1], span: { start, end: start + match[1].length } };
     });
     const bodyCandidates = quotes.filter(({ span }) => span.end <= pathSpan.start || pathSpan.end <= span.start);
+    const pathProvenance = { source: 'user_utterance', path: pathSpan,
+      pathCount: pathMatches.length, independent: pathMatches.length === 1 };
     if (bodyCandidates.length > 1) {
-      return { action, path, ambiguous: true, clarifyReason: 'ambiguous_content' };
+      return { action, path, ambiguous: true, clarifyReason: 'ambiguous_content',
+        provenance: pathProvenance };
     }
     const selected = bodyCandidates[0];
     const body = selected?.body;
-    if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content' };
+    if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content',
+      provenance: pathProvenance };
     return { action, path, text: body,
-      provenance: { source: 'user_utterance', path: pathSpan, text: selected.span,
-        pathCount: pathMatches.length, independent: pathMatches.length === 1 } };
+      provenance: { ...pathProvenance, text: selected.span } };
   }
 
   return { action, path };
