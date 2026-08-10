@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { WorkEventStore } from '../src/surface/work-event-store.js';
+import { receiptReadyForSignature, WorkEventStore } from '../src/surface/work-event-store.js';
+import { canonicalDurableEvidence } from '../src/kernel/l0-evidence/sensitive-text.js';
+import {
+  readCompletionContractRef, readReceiptRef, workEvidenceDigest,
+} from '../src/kernel/l0-evidence/work-refs.js';
 
 const TURN = { sessionId: 'session-store', turnSeq: 1 };
 const SCOPE = { principalRef: 'principal-owner', projectRef: 'project-store' };
@@ -12,6 +16,75 @@ const SCOPE = { principalRef: 'principal-owner', projectRef: 'project-store' };
 async function fresh() {
   return new WorkEventStore(await mkdtemp(join(tmpdir(), 't5-work-store-')));
 }
+
+test('완료 Receipt는 전체 민감값을 서명 전에 복제·가림하고 opaque ref와 정상 경로는 보존한다', () => {
+  const raw = {
+    actualCall: { tool: 'local.file', providerCallId: 'CallRefAbc1234567890XYZ', args: {
+      action: 'write', path: '/tmp/report.md', text: 'api_key=SecretValue1234567890',
+      source: 'https://owner:secret-password@example.com/private',
+    } },
+    result: {
+      path: '/tmp/report.md', source: 'password=huntertwo', text: 'Bearer SecretToken1234567890',
+      nested: { id: 'api_key=NestedSecret1234567890' },
+      digest: 'a'.repeat(64), sourceRevisionRef: 'fr1.MixedOpaque1234567890Value',
+    },
+    workRef: 'wr1.MixedOpaque1234567890Value',
+    completionContractRef: 'cr1.MixedOpaque1234567890Value',
+    deliverableRefs: ['DeliverableMixed1234567890Value'],
+    completionContract: { kind: 'file', sourceTurnRef: TURN },
+  };
+  const before = structuredClone(raw);
+  const prepared = receiptReadyForSignature(raw, TURN);
+  assert.notEqual(prepared, raw);
+  assert.deepEqual(raw, before, '서명 준비가 실행 Receipt 원본을 바꾸면 안 된다');
+  assert.equal(prepared.actualCall.args.path, '/tmp/report.md');
+  assert.equal(prepared.result.path, '/tmp/report.md');
+  assert.equal(prepared.actualCall.args.text, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.actualCall.args.source, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.result.source, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.result.text, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.result.nested.id, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(prepared.workRef, raw.workRef);
+  assert.equal(prepared.completionContractRef, raw.completionContractRef);
+  assert.equal(prepared.result.digest, raw.result.digest);
+  assert.equal(prepared.result.sourceRevisionRef, raw.result.sourceRevisionRef);
+  assert.deepEqual(prepared.turnRef, TURN);
+});
+
+test('민감 CompletionContract와 Receipt는 같은 canonical 본문으로 각각 서명·저장된다', async () => {
+  const store = await fresh();
+  const workRef = await store.issueWorkRef({ turnRef: TURN, workOrdinal: 0 });
+  const rawContract = {
+    kind: 'file', sourceTurnRef: TURN,
+    deliverables: [{ id: 'report', kind: 'file', operation: 'write', binding: 'direct',
+      expectedPath: '/tmp/report.md', requiredFacts: ['api_key=SecretValue1234567890'] }],
+  };
+  await assert.rejects(store.issueCompletionContractRef({ workRef, contract: rawContract }),
+    /canonical 가림/, '민감 원문 계약을 그대로 서명하면 안 된다');
+  const contract = canonicalDurableEvidence(rawContract);
+  assert.equal(contract.deliverables[0].expectedPath, '/tmp/report.md');
+  assert.equal(contract.deliverables[0].requiredFacts[0], '[민감정보 — 원문은 저장하지 않음]');
+  const completionContractRef = await store.issueCompletionContractRef({ workRef, contract });
+  const sealed = await store.runCompletionExecution({
+    turnRef: TURN, turnOrdinal: 0, workRef, completionContract: contract, completionContractRef,
+    execute: async () => ({
+      lifecycle: 'delivered', failureState: 'none', deliverableRefs: ['report'], workRef,
+      completionContract: contract, completionContractRef,
+      actualCall: { tool: 'local.file', args: { action: 'write', path: '/tmp/report.md',
+        text: 'password=huntertwo' } },
+      result: { path: '/tmp/report.md', text: 'Bearer SecretToken1234567890', digest: 'b'.repeat(64) },
+    }),
+  });
+  const key = Buffer.from((await readFile(store.keyFile, 'utf8')).trim(), 'hex');
+  const contractBinding = readCompletionContractRef(completionContractRef, key);
+  const receiptBinding = readReceiptRef(sealed.receiptRef, key);
+  const { receiptRef: _receiptRef, ...signedBody } = sealed;
+  assert.equal(contractBinding.contractDigest, workEvidenceDigest(sealed.completionContract));
+  assert.equal(receiptBinding.receiptDigest, workEvidenceDigest(signedBody));
+  assert.equal(sealed.actualCall.args.path, '/tmp/report.md');
+  assert.equal(sealed.actualCall.args.text, '[민감정보 — 원문은 저장하지 않음]');
+  assert.equal(sealed.result.text, '[민감정보 — 원문은 저장하지 않음]');
+});
 
 test('저장소만 WorkRef·subjectRef·eventId를 발급하고 재시작 뒤 검증한다', async () => {
   const store = await fresh();

@@ -73,6 +73,34 @@ export function containsSensitiveValue(value) {
 
 /** 가린 자리에 남기는 표. **무엇이 가려졌는지는 사실이므로 숨기지 않는다.** */
 export const MASK = '[가림]';
+/** durable 구조 안에서 민감 문자열 전체를 대체하는 한 표식. */
+export const SENSITIVE_VALUE_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
+
+const DURABLE_OPAQUE_FIELDS = new Set([
+  'workRef', 'completionContractRef', 'receiptRef', 'sourceWorkRef', 'sourceSetRef',
+  'sourceRevisionRef', 'memberRef', 'deliverableRefs', 'digest', 'providerCallId', 'callRef',
+]);
+
+/** 서명·저장할 JSON 현실을 비변이 복제하며, 기계 신분 외 민감 문자열을 한 경계에서 가린다. */
+export function canonicalDurableEvidence(value, { opaque = false } = {}, stack = new WeakSet()) {
+  if (typeof value === 'string') {
+    return !opaque && containsSensitiveValue(value) ? SENSITIVE_VALUE_PLACEHOLDER : value;
+  }
+  if (!value || typeof value !== 'object') return value;
+  if (stack.has(value)) throw new TypeError('durable evidence는 순환 구조일 수 없다');
+  stack.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => canonicalDurableEvidence(item, { opaque }, stack));
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      canonicalDurableEvidence(item, { opaque: opaque || DURABLE_OPAQUE_FIELDS.has(key) }, stack),
+    ]));
+  } finally {
+    stack.delete(value);
+  }
+}
 
 /**
  * **비밀만 가리고 나머지는 남긴다.**

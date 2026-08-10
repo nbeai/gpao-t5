@@ -13,6 +13,7 @@ import { DEFAULT_IDENTITY } from './identity.js';
 import { TruthLedger, projectReceipts } from './l0-evidence/ledger.js';
 import { userFacingModelText, 확인된중간결과, 미리보기원장, 미리보기정렬 } from './turn-surface.js';
 import { blockedReceipt, receipt } from './l0-evidence/tool-receipt.js';
+import { canonicalDurableEvidence } from './l0-evidence/sensitive-text.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext, 이번턴만그림 } from './l1-intent/task-context.js';
@@ -145,6 +146,8 @@ async function 볼수있는자리(ctx) {
  * 침묵 조건: 두 종류를 다 닿았거나 · 자리가 한 종류뿐이거나 · 실패 영수증.
  */
 function 자리공백동봉(rec, 이번턴영수증들, ctx) {
+  // ReceiptRef가 선 뒤에는 사용자면 요약도 서명 본문의 일부다. 사후 동봉으로 바꾸지 않는다.
+  if (rec?.receiptRef) return;
   if ((rec?.failureState ?? 'none') !== 'none') return;
   const tool = String(rec?.actualCall?.tool ?? '');
   const 화면계 = tool === 'desktop.screen';
@@ -1581,11 +1584,11 @@ export async function runTurn(input, ctx) {
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
       && ctx.workRef && ctx.issueCompletionContractRef && input.turnRef) {
-    const contract = {
+    const contract = canonicalDurableEvidence({
       kind: 'file',
       sourceTurnRef: input.turnRef,
       deliverables: structuredClone(plan.deliverables),
-    };
+    });
     plan.workRef = ctx.workRef;
     plan.completionContract = contract;
     plan.completionContractRef = await ctx.issueCompletionContractRef(contract);
@@ -1983,13 +1986,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     };
     if (toolId !== 'local.file' || !plan.workRef || !plan.completionContract
       || !plan.completionContractRef || !ctx.runCompletionExecution) return execute();
+    const executeBeforeSignature = async () => {
+      const rec = await execute();
+      // 사용자면 동봉도 Receipt 본문이다. 서명 뒤가 아니라 직전에 한 번만 결산한다.
+      자리공백동봉(rec, turnReceipts, ctx);
+      return rec;
+    };
     return ctx.runCompletionExecution({
       turnRef: plan.completionContract.sourceTurnRef,
       turnOrdinal: turnReceipts.length,
       workRef: plan.workRef,
       completionContract: plan.completionContract,
       completionContractRef: plan.completionContractRef,
-      execute,
+      execute: executeBeforeSignature,
     });
   };
   let sentVia; // P6-11: 승인된 send 실행 사실(도구·대상) — 서버가 TaskTrace로 기록하고 학습 후보를 제안한다.

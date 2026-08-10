@@ -16,7 +16,9 @@ import {
   readWorkRef,
   workEvidenceDigest,
 } from '../kernel/l0-evidence/work-refs.js';
-import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
+import {
+  canonicalDurableEvidence, containsSensitiveValue,
+} from '../kernel/l0-evidence/sensitive-text.js';
 import { atomicWritePrivate, serializeByFile } from './versioned-json-store.js';
 
 const STORE_VERSION = 1;
@@ -36,6 +38,13 @@ function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+}
+
+export function receiptReadyForSignature(receipt, turnRef) {
+  if (receipt?.turnRef && JSON.stringify(receipt.turnRef) !== JSON.stringify(turnRef)) {
+    throw new TypeError('완료 Receipt 본문의 TurnRef가 서명 TurnRef와 다르다');
+  }
+  return canonicalDurableEvidence({ ...receipt, turnRef });
 }
 
 function eventIdFor(candidate, key) {
@@ -147,6 +156,10 @@ export class WorkEventStore {
   async issueCompletionContractRef({ workRef, contract }) {
     const key = await this._key();
     readWorkRef(workRef, key);
+    const canonical = canonicalDurableEvidence(contract);
+    if (workEvidenceDigest(canonical) !== workEvidenceDigest(contract)) {
+      throw new TypeError('CompletionContract는 민감값을 canonical 가림한 본문으로 발급해야 한다');
+    }
     return signCompletionContractRef({ workRef, contractDigest: workEvidenceDigest(contract) }, key);
   }
 
@@ -205,7 +218,9 @@ export class WorkEventStore {
       || contract.contractDigest !== workEvidenceDigest(completionContract)) {
       throw new TypeError('실행 전에 발급된 WorkRef·CompletionContractRef·계약 본문 결합이 필요하다');
     }
-    const receipt = await execute();
+    const executed = await execute();
+    const receipt = Array.isArray(executed?.deliverableRefs) && executed.deliverableRefs.length > 0
+      ? receiptReadyForSignature(executed, turnRef) : executed;
     if (!Array.isArray(receipt?.deliverableRefs) || receipt.deliverableRefs.length === 0) return receipt;
     const receiptRef = await this._issueReceiptRef({
       turnRef, turnOrdinal, receipt, completionExecution: true,

@@ -20,10 +20,15 @@ export function identifyWorksetMembers(reality) {
 }
 
 export function bindSourceReceipt(rec, { workRef, sourceSetRef } = {}) {
-  if (!rec || rec.origin === 'runtime_observation') return rec;
-  if (workRef) rec.sourceWorkRef = workRef;
-  if (sourceSetRef) rec.sourceSetRef = sourceSetRef;
-  return rec;
+  // ReceiptRef는 이 본문의 digest에 대한 OS 서명이다. 발급 뒤 source 결산 표식을 덧붙이면
+  // 서명한 사실과 durable 원장이 갈라진다. 완료 write는 source read 결산 대상도 아니므로
+  // 그대로 보존하고, 아직 서명되지 않은 실행 Receipt만 새 객체로 결속한다.
+  if (!rec || rec.origin === 'runtime_observation' || rec.receiptRef) return rec;
+  return {
+    ...rec,
+    ...(workRef ? { sourceWorkRef: workRef } : {}),
+    ...(sourceSetRef ? { sourceSetRef } : {}),
+  };
 }
 
 function requestedPath(args, root) {

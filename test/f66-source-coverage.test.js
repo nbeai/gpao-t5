@@ -9,7 +9,7 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildModelMessages } from '../src/runtime/model-provider.js';
 import {
-  identifyWorksetMembers, projectSourceCoverage,
+  bindSourceReceipt, identifyWorksetMembers, projectSourceCoverage,
 } from '../src/kernel/l1-intent/source-coverage.js';
 
 async function room() {
@@ -65,6 +65,26 @@ function readReceipt({ root, name, workRef = 'work-1', sourceSetRef = 'ws1.fixtu
       ...(Number.isInteger(nextOffset) ? { nextOffset } : {}) } } : {}),
   };
 }
+
+test('source 결속은 unsigned read를 복제하고 이미 서명된 Receipt를 한 바이트도 바꾸지 않는다', () => {
+  const unsigned = readReceipt({ root: '/bounded/work', name: 'source.txt' });
+  delete unsigned.sourceWorkRef;
+  delete unsigned.sourceSetRef;
+  const unsignedBefore = structuredClone(unsigned);
+  const bound = bindSourceReceipt(unsigned, { workRef: 'work-signed-boundary', sourceSetRef: 'ws1.boundary' });
+  assert.notEqual(bound, unsigned);
+  assert.deepEqual(unsigned, unsignedBefore);
+  assert.equal(bound.sourceWorkRef, 'work-signed-boundary');
+  assert.equal(bound.sourceSetRef, 'ws1.boundary');
+
+  const signed = { ...unsigned, receiptRef: 'rr1.signed.body' };
+  const signedBefore = JSON.stringify(signed);
+  assert.equal(bindSourceReceipt(signed, {
+    workRef: 'must-not-attach', sourceSetRef: 'must-not-attach',
+  }), signed);
+  assert.equal(JSON.stringify(signed), signedBefore);
+  assert.equal(signed.sourceWorkRef, undefined);
+});
 
 test('실제 /turn은 3 source 중 2 read를 read/read/unresolved 현실로 다음 판단과 원장에 남긴다', async () => {
   const x = await room();

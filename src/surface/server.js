@@ -64,7 +64,9 @@ import { makeTurnEvent } from '../kernel/l0-evidence/turn-event.js';
 import { TurnTiming, assertBrowserTimingUpdate } from '../kernel/l0-evidence/turn-timing.js';
 import { TurnTimingStore } from './turn-timing-store.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
-import { containsSensitiveValue, maskSensitiveValues } from '../kernel/l0-evidence/sensitive-text.js';
+import {
+  containsSensitiveValue, maskSensitiveValues, SENSITIVE_VALUE_PLACEHOLDER,
+} from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
 import { correlateCorrection } from '../kernel/l5-growth/tcell-correction.js';
@@ -98,7 +100,7 @@ import { 소유권검사, 신분쿠키헤더 } from './local-surface.js';
 import { 데이터자리, 설치신분, 자리표쓰기 } from './install-locator.js';
 
 const SENSITIVE_TRANSCRIPT_PLACEHOLDER = '[민감정보를 포함한 사용자 발화 — 원문은 저장하지 않음]';
-const SENSITIVE_RESULT_PLACEHOLDER = '[민감정보 — 원문은 저장하지 않음]';
+const SENSITIVE_RESULT_PLACEHOLDER = SENSITIVE_VALUE_PLACEHOLDER;
 
 function durableUserText(text) {
   return containsSensitiveValue(text) ? SENSITIVE_TRANSCRIPT_PLACEHOLDER : text;
@@ -107,6 +109,9 @@ function durableUserText(text) {
 /** 모델이 만든 goal·근거·중첩 메타데이터까지 durable 저장 전에 같은 경계를 지난다. */
 export function redactSensitiveResult(value, seen = new WeakSet()) {
   if (!value || typeof value !== 'object' || seen.has(value)) return value;
+  // ReceiptRef는 이 객체 본문의 digest 서명이다. 완료 Receipt는 서명 전에 canonical 민감
+  // 경계를 지났으므로 표면 투영이 같은 객체를 다시 고치지 않는다.
+  if (value.receiptRef) return value;
   seen.add(value);
   for (const [key, item] of Object.entries(value)) {
     if (typeof item === 'string') {

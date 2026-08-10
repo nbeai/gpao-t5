@@ -222,6 +222,9 @@ export const 허용파일 = [
   // WorkRef·sourceSetRef·revisionRef로 결속한다. 문구나 손 순서를 정하지 않고
   // read/excluded/unresolved 기계 현실만 다음 모델 호출에 공급한다.
   'src/kernel/l1-intent/source-coverage.js',
+  // F-66b 독립 감사 차단 — CompletionContract/Receipt는 canonical 민감 경계를 지난
+  // 바로 그 본문에 서명하고, source 결산이 서명 뒤 객체를 고치지 못하게 한다.
+  'src/surface/work-event-store.js',
   // **사실을 묻는 것도 일이다**(2026-08-07 · 노드 R · 판 ⑤⑬).
   // `ACTION_SIGNALS` 가 명령 동사만 잡아 *"이번 달 얼마 벌었지?"* 가 `fast_chat` 으로
   // 분류됐다 — 계획 단계에서 손 후보가 0개가 되어 모델이 뻗을 길이 없었다.

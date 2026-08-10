@@ -7,6 +7,9 @@ import test, { after } from 'node:test';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { WorkEventStore } from '../src/surface/work-event-store.js';
+import {
+  readCompletionContractRef, readReceiptRef, workEvidenceDigest,
+} from '../src/kernel/l0-evidence/work-refs.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 
@@ -406,6 +409,14 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   assert.equal(completionReceipt.completionContract.sourceTurnRef.sessionId, session.id,
     '완료 계약은 실행 영수증 뒤가 아니라 원래 ActionPlan 턴에 결합돼야 한다');
   assert.equal(completionReceipt.completionContract.sourceTurnRef.turnSeq, 1);
+  const issuerKey = Buffer.from((await readFile(join(dir, 'work-events.key'), 'utf8')).trim(), 'hex');
+  const signed = readReceiptRef(completionReceipt.receiptRef, issuerKey);
+  const signedContract = readCompletionContractRef(completionReceipt.completionContractRef, issuerKey);
+  const { receiptRef: _receiptRef, ...durableSignedBody } = completionReceipt;
+  assert.equal(signedContract.contractDigest, workEvidenceDigest(completionReceipt.completionContract),
+    'CompletionContractRef와 durable 완료 계약 본문이 같아야 한다');
+  assert.equal(signed.receiptDigest, workEvidenceDigest(durableSignedBody),
+    'ReceiptRef 발급 뒤 완료 영수증 본문을 바꾸면 안 된다');
   const records = await new WorkEventStore(dir).load();
   assert.ok(records.some((event) => event.type === 'execution_completed'
     && event.evidence?.verificationPassed === true
