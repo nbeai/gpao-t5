@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../src/surface/server.js';
@@ -36,7 +36,7 @@ test('단일 허용 root의 실제 목록은 이름·종류만 bounded current r
     const local = makeLocalFileTool({ roots: [x.root], dataDir: x.state, homeDir: x.root,
       readFile: async () => { contentReads += 1; throw new Error('workset observation read content'); } });
     const { observeWorksetReality } = await observer();
-    const out = await observeWorksetReality({ tools: runner(x.root, x.state, local), selfState: executableState, roots: [x.root], currentBasis: 'explicit_file_roots', limit: 1 });
+    const out = await observeWorksetReality({ tools: runner(x.root, x.state, local), selfState: executableState, roots: [x.root], configuredRoots: [x.root], currentBasis: 'explicit_file_roots', limit: 1 });
     assert.equal(out.reality.status, 'observed');
     assert.equal(out.reality.currentRoot.path, out.receipt.result.path);
     assert.equal(out.reality.members.length, 1);
@@ -56,11 +56,11 @@ test('복수 허용 root는 current를 임의 선택하지 않고 후보만 남�
   const x = await room(); const other = join(x.base, 'other'); await mkdir(other);
   try {
     const { observeWorksetReality } = await observer();
-    const out = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: {}, roots: [x.root, other], currentBasis: 'explicit_file_roots' });
+    const out = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: {}, roots: [x.root, other], configuredRoots: [x.root, other], currentBasis: 'explicit_file_roots' });
     assert.equal(out.reality.status, 'unknown');
     assert.equal(out.reality.reason, 'multiple_allowed_roots');
     assert.equal(out.reality.currentRoot, null);
-    assert.deepEqual(out.reality.candidates.map((v) => v.path), [other, x.root].sort());
+    assert.deepEqual(out.reality.candidates.map((v) => v.path), [await realpath(other), await realpath(x.root)].sort());
     assert.equal(out.receipt, null);
   } finally { await rm(x.base, { recursive: true, force: true }); }
 });
@@ -69,11 +69,11 @@ test('관측된 빈 목록과 목록 실패 unknown은 서로 다른 현실이�
   const x = await room();
   try {
     const { observeWorksetReality } = await observer();
-    const empty = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: executableState, roots: [x.root], currentBasis: 'explicit_file_roots' });
+    const empty = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: executableState, roots: [x.root], configuredRoots: [x.root], currentBasis: 'explicit_file_roots' });
     assert.equal(empty.reality.status, 'observed_empty');
     assert.equal(empty.reality.page.total, 0);
     const failing = { scopeRoots: [x.root], async handler() { throw Object.assign(new Error('denied'), { code: 'EACCES' }); } };
-    const failed = await observeWorksetReality({ tools: runner(x.root, x.state, failing), selfState: executableState, roots: [x.root], currentBasis: 'explicit_file_roots' });
+    const failed = await observeWorksetReality({ tools: runner(x.root, x.state, failing), selfState: executableState, roots: [x.root], configuredRoots: [x.root], currentBasis: 'explicit_file_roots' });
     assert.equal(failed.reality.status, 'unknown');
     assert.equal(failed.reality.reason, 'list_failed');
     assert.equal('members' in failed.reality, false);
@@ -86,7 +86,7 @@ test('큰 목록은 잘린 범위와 continuation을 말하고 안 본 항목을
   try {
     await Promise.all(Array.from({ length: 5 }, (_, i) => writeFile(join(x.root, `f${i}.txt`), `${i}`)));
     const { observeWorksetReality } = await observer();
-    const out = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: executableState, roots: [x.root], currentBasis: 'explicit_file_roots', limit: 2 });
+    const out = await observeWorksetReality({ tools: runner(x.root, x.state), selfState: executableState, roots: [x.root], configuredRoots: [x.root], currentBasis: 'explicit_file_roots', limit: 2 });
     assert.equal(out.reality.members.length, 2);
     assert.deepEqual(out.reality.page, { offset: 0, observed: 2, total: 5, truncated: true, nextOffset: 2 });
     assert.equal(out.reality.membersComplete, false);
@@ -99,9 +99,9 @@ test('관측 목록은 생성 순서와 무관한 결정적 순서·전체 sourc
     for (const name of ['z.txt', 'a.txt', 'm.txt']) await writeFile(join(x.root, name), name);
     const { observeWorksetReality } = await observer();
     const tools = runner(x.root, x.state);
-    const first = await observeWorksetReality({ tools, selfState: executableState, roots: [x.root],
+    const first = await observeWorksetReality({ tools, selfState: executableState, roots: [x.root], configuredRoots: [x.root],
       currentBasis: 'explicit_file_roots', limit: 2 });
-    const full = await observeWorksetReality({ tools, selfState: executableState, roots: [x.root],
+    const full = await observeWorksetReality({ tools, selfState: executableState, roots: [x.root], configuredRoots: [x.root],
       currentBasis: 'explicit_file_roots', limit: 64 });
     assert.deepEqual(first.reality.members.map((v) => v.name), ['a.txt', 'm.txt']);
     assert.equal(first.reality.sourceSetRef, full.reality.sourceSetRef);
@@ -128,10 +128,27 @@ test('root 별칭은 list 실물이 확인한 canonical path와 source 신분을
     await writeFile(join(x.root, 'a.txt'), 'x'); await symlink(x.root, alias);
     const { observeWorksetReality } = await observer();
     const out = await observeWorksetReality({ tools: runner(alias, x.state), selfState: executableState,
-      roots: [alias], currentBasis: 'explicit_file_roots' });
+      roots: [alias], configuredRoots: [x.root], currentBasis: 'explicit_file_roots' });
     assert.equal(out.reality.currentRoot.path, out.receipt.result.path);
     assert.notEqual(out.reality.currentRoot.path, alias);
     assert.equal(out.receipt.result.sourceSetRef, out.reality.sourceSetRef);
+  } finally { await rm(x.base, { recursive: true, force: true }); }
+});
+
+test('환경 explicit root와 실제 tool scope가 다르면 어느 쪽도 current로 올리거나 list하지 않는다', async () => {
+  const x = await room(); const other = join(x.base, 'other'); await mkdir(other);
+  let listCalls = 0;
+  const local = makeLocalFileTool({ roots: [other], dataDir: x.state, homeDir: other });
+  const tools = new ToolRunner({ 'local.file': { ...local, async handler(...args) { listCalls += 1; return local.handler(...args); } } });
+  try {
+    const { observeWorksetReality } = await observer();
+    const out = await observeWorksetReality({ tools, selfState: executableState, roots: [other],
+      configuredRoots: [x.root], currentBasis: 'explicit_file_roots' });
+    assert.equal(out.reality.status, 'unknown');
+    assert.equal(out.reality.reason, 'scope_configuration_mismatch');
+    assert.equal(out.reality.currentRoot, null);
+    assert.equal(out.receipt, null);
+    assert.equal(listCalls, 0);
   } finally { await rm(x.base, { recursive: true, force: true }); }
 });
 

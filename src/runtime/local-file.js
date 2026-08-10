@@ -8,7 +8,7 @@
 //   · 덮어쓰기·삭제는 **되돌릴 수 있다** — 원본을 휴지통으로 옮기고 되돌리기 표를 남긴다.
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
-import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
+import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile, realpath } from 'node:fs/promises';
 import { join, dirname, basename, relative, isAbsolute, extname, resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,8 +32,19 @@ function worksetRootIdentity(path) {
 }
 
 /** 허용 범위와 current 작업셋을 분리하고, 실제 이름·종류 목록 Receipt를 같은 턴 현실로 만든다. */
-export async function observeWorksetReality({ tools, selfState, roots = [], currentBasis, limit = WORKSET_LIST_LIMIT } = {}) {
-  const candidates = [...new Set(roots.map((v) => resolve(String(v))))].sort().map(worksetRootIdentity);
+export async function observeWorksetReality({ tools, selfState, roots = [], configuredRoots = [], currentBasis,
+  limit = WORKSET_LIST_LIMIT } = {}) {
+  const canonicalSet = async (values) => [...new Set(await Promise.all(values.map(async (value) => {
+    const path = resolve(String(value));
+    return realpath(path).catch(() => path);
+  })))].sort();
+  const actualScope = await canonicalSet(roots);
+  const configuredScope = await canonicalSet(configuredRoots);
+  const candidates = actualScope.map(worksetRootIdentity);
+  if (currentBasis === 'explicit_file_roots'
+    && JSON.stringify(actualScope) !== JSON.stringify(configuredScope)) {
+    return { reality: { status: 'unknown', reason: 'scope_configuration_mismatch', currentRoot: null, candidates }, receipt: null };
+  }
   if (candidates.length !== 1) return { reality: { status: 'unknown',
     reason: candidates.length ? 'multiple_allowed_roots' : 'no_allowed_root', currentRoot: null, candidates }, receipt: null };
   if (currentBasis !== 'explicit_file_roots' && currentBasis !== 'selected_observed_root') {

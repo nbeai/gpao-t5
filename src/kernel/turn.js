@@ -21,6 +21,7 @@ import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boun
 import { 손제시기록 } from './l2-plan/tool-offer.js';
 import { dump손제시 } from '../runtime/prompt-dump.js';
 import { observeWorksetReality, 표맥락에서 } from '../runtime/local-file.js';
+import { defaultFileRoots } from '../runtime/file-scope.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
@@ -769,6 +770,7 @@ export async function runTurn(input, ctx) {
     const roots = ctx.tools?.tools?.['local.file']?.scopeRoots ?? [];
     const explicitRoots = String((ctx.processEnv ?? process.env).GPAO_T5_FILE_ROOTS ?? '').trim();
     const observed = await observeWorksetReality({ tools: ctx.tools, selfState, roots,
+      configuredRoots: explicitRoots ? defaultFileRoots(ctx.processEnv ?? process.env) : [],
       currentBasis: explicitRoots ? 'explicit_file_roots' : undefined });
     ctx.worksetReality = observed.reality;
     if (observed.receipt) ledger.append(observed.receipt);
