@@ -8,7 +8,9 @@
 ## 최신 작업선 · 2026-08-10
 
 - 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `1b43918`.
-- 활성 sidecar: 없음. F-66b 격리선은 독립 반대감사 입장 뒤 정본에 반영하고 수거했다.
+- 활성 sidecar: `/private/tmp/t5-f64-purpose-completion-v2` · `codex/f64-purpose-completion-v2`.
+  F-64 목적 결과·source 결산·Receipt·WorkRef·execution event 결속만 소유한다. F-60·F-67과
+  PM 홀드아웃은 불가침이다. F-66b 격리선은 독립 반대감사 입장 뒤 정본에 반영하고 수거했다.
 - F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
   WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
   runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
