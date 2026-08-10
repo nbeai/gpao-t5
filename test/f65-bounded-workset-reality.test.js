@@ -40,7 +40,9 @@ test('단일 허용 root의 실제 목록은 이름·종류만 bounded current r
     assert.equal(out.reality.status, 'observed');
     assert.equal(out.reality.currentRoot.path, out.receipt.result.path);
     assert.equal(out.reality.members.length, 1);
-    assert.deepEqual(Object.keys(out.reality.members[0]).sort(), ['kind', 'name']);
+    assert.deepEqual(Object.keys(out.reality.members[0]).sort(), ['kind', 'memberRef', 'name', 'revisionRef']);
+    assert.match(out.reality.members[0].memberRef, /^wsm1\./);
+    assert.match(out.reality.members[0].revisionRef, /^fr1\./);
     assert.equal(out.reality.page.total, 2);
     assert.equal(out.reality.page.truncated, true);
     assert.equal(out.reality.page.nextOffset, 1);
@@ -194,7 +196,8 @@ test('실제 /turn 첫 모델 입력과 같은 턴 ledger가 같은 sourceSetRef
     assert.match(failedTurn.reply, /아직 실행하지 않았어요/);
     assert.deepEqual(failedTurn.ledger?.confirmed ?? [], []);
     const afterFailure = await store.load(session.id);
-    assert.equal(afterFailure.ledgerEntries.filter((v) => v.origin === 'runtime_observation').length, 2);
+    assert.equal(afterFailure.ledgerEntries.filter((v) => v.origin === 'runtime_observation'
+      && v.observationKind === 'workset').length, 2);
     assert.notEqual(afterFailure.workingState?.recentOutcome?.status, 'completed');
   } finally {
     await new Promise((ok) => server.close(ok)); await rm(x.base, { recursive: true, force: true });

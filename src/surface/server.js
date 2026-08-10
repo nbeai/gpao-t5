@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { runTurn, stateReviewNeeded } from '../kernel/turn.js';
+import { finalizeSourceCoverage, runTurn, stateReviewNeeded } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
 import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
@@ -823,6 +823,11 @@ export function makeServer(deps = {}) {
     const provisionalWorkRef = session.workRef ?? 승인대기?.workRef ?? (session.principalRef
       ? await workEventStore.issueWorkRef({ turnRef, workOrdinal: 0 }) : null);
     ctx.workRef = provisionalWorkRef;
+    // F-66b는 이번 턴의 initial source set을 signed WorkRef에 결속하되, 그 신분을 사용자 목적의
+    // durable WorkRef라고 추정하지 않는다. 목적 연속성 입장 경계는 F-64가 책임진다.
+    // 턴마다 별도 신분이므로 같은 세션의 새 무관 임무가 옛 read를 상속하지 않는다.
+    ctx.sourceCoverageWorkRef = session.principalRef
+      ? await workEventStore.issueWorkRef({ turnRef, workOrdinal: 1 }) : null;
     if (provisionalWorkRef) {
       ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
         workRef: provisionalWorkRef, contract,
@@ -898,6 +903,9 @@ export function makeServer(deps = {}) {
       };
       console.error('[turn:diagnostic]', err?.stack ?? err);
     }
+    // F-66b: 실행 여부와 무관하게 initial source set의 read/unresolved 현실을 같은 원장에 남긴다.
+    // runtime observation이므로 사용자 실행·완료·WorkEvent 계산에서는 기존 경계대로 제외된다.
+    finalizeSourceCoverage(ctx, turnRef);
     // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리한다.
     delete result.workStateProposal;
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
@@ -2671,6 +2679,8 @@ export function makeServer(deps = {}) {
     const provisionalWorkRef = session.workRef ?? (session.principalRef
       ? await workEventStore.issueWorkRef({ turnRef: channelTurnRef, workOrdinal: 0 }) : null);
     ctx.workRef = provisionalWorkRef;
+    ctx.sourceCoverageWorkRef = session.principalRef
+      ? await workEventStore.issueWorkRef({ turnRef: channelTurnRef, workOrdinal: 1 }) : null;
     if (provisionalWorkRef) {
       ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
         workRef: provisionalWorkRef, contract,
@@ -2693,6 +2703,7 @@ export function makeServer(deps = {}) {
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
       turnRef: channelTurnRef,
     }, ctx);
+    finalizeSourceCoverage(ctx, channelTurnRef);
     const workStateProposal = result.workStateProposal ?? null;
     delete result.workStateProposal;
     // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.

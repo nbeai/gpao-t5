@@ -88,6 +88,9 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'vendor/cua-driver/darwin-arm64/CuaDriver.app/Contents/_CodeSignature/CodeResources',
     'src/kernel/turn.js',
     'src/kernel/l1-intent/task-context.js',
+    // F-66b 같은 턴 source 결산 — 초기 bounded source set과 실제 read Receipt를
+    // WorkRef·sourceSetRef·revisionRef로 결속한다.
+    'src/kernel/l1-intent/source-coverage.js',
     // **사실을 묻는 것도 일이다**(2026-08-07 · 노드 R · 판 ⑤⑬).
     // `ACTION_SIGNALS` 가 명령 동사만 잡아 *"이번 달 얼마 벌었지?"* 가 `fast_chat` 으로
     // 분류됐다 — 계획 단계에서 손 후보가 0개가 되어 모델이 뻗을 길이 없었다.

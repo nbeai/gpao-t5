@@ -219,6 +219,14 @@ export function buildModelMessages(tc) {
       for (const item of w.members) lines.push(`- ${item.name} (${item.kind})`);
       if (w.page?.truncated) lines.push(`목록은 일부만 관측됨 · 다음 시작점 ${w.page.nextOffset}`);
     }
+    if (w.sourceCoverage) {
+      const c = w.sourceCoverage;
+      lines.push(`source 결산: read ${c.counts?.read ?? 0} · excluded ${c.counts?.excluded ?? 0} · unresolved ${c.counts?.unresolved ?? 0}`);
+      for (const member of c.members ?? []) lines.push(`- ${member.name}: ${member.status}`);
+      if (!c.membersComplete || c.unobserved > 0) {
+        lines.push(`source 목록 관측이 끝나지 않음 · 아직 관측하지 못한 수 ${c.unobserved ?? '미상'}`);
+      }
+    }
     sys.push(`[현재 작업셋의 기계 현실]\n${lines.join('\n')}`);
   }
 

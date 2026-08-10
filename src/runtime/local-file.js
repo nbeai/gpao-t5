@@ -16,6 +16,7 @@ import { homedir } from 'node:os';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 import { extractDocument } from './document-intake.js';
+import { identifyWorksetMembers } from '../kernel/l1-intent/source-coverage.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 const VERSION_PREVIEW_FILES = 6;
@@ -29,6 +30,12 @@ function worksetDigest(value) {
 function worksetRootIdentity(path) {
   const canonical = resolve(String(path));
   return { path: canonical, rootRef: `wr1.${worksetDigest(canonical).slice(0, 24)}` };
+}
+
+function sourceRevisionRef(info) {
+  if (!info) return null;
+  return `fr1.${worksetDigest({ size: info.size, mtimeMs: info.mtimeMs,
+    ctimeMs: info.ctimeMs, ino: info.ino }).slice(0, 28)}`;
 }
 
 /** 허용 범위와 current 작업셋을 분리하고, 실제 이름·종류 목록 Receipt를 같은 턴 현실로 만든다. */
@@ -58,16 +65,23 @@ export async function observeWorksetReality({ tools, selfState, roots = [], conf
     return { reality: { status: 'unknown', reason: 'list_failed', currentRoot, candidates }, receipt: baseReceipt };
   }
   const actualRoot = worksetRootIdentity(raw.result.path ?? currentRoot.path);
-  const members = (raw.result.items ?? []).map((item) => ({ name: String(item.name), kind: item.kind === 'folder' ? 'folder' : 'file' }));
+  const members = (raw.result.items ?? []).map((item) => ({
+    name: String(item.name), kind: item.kind === 'folder' ? 'folder' : 'file',
+    ...(item.revisionRef ? { revisionRef: item.revisionRef } : {}),
+  }));
   const total = Number(raw.result.total ?? members.length);
   const nextOffset = Number.isInteger(raw.result.nextOffset) ? raw.result.nextOffset : null;
   const sourceSetRef = raw.result.sourceSetRef
     ?? `ws1.${worksetDigest({ root: actualRoot.path, offset: 0, total, nextOffset, members }).slice(0, 32)}`;
-  const receipt = { ...baseReceipt, result: { ...raw.result, items: members, sourceSetRef } };
+  const identified = identifyWorksetMembers({ sourceSetRef, members });
+  const identifiedMembers = identified.members;
+  const receipt = { ...baseReceipt, observationKind: 'workset', result: {
+    ...raw.result, currentRoot: actualRoot, items: identifiedMembers, sourceSetRef,
+  } };
   const page = { offset: 0, observed: members.length, total, truncated: nextOffset !== null,
     ...(nextOffset !== null ? { nextOffset } : {}) };
   return { reality: { status: total === 0 ? 'observed_empty' : 'observed', currentRoot: actualRoot, candidates,
-    members, membersComplete: nextOffset === null, page, sourceSetRef }, receipt };
+    members: identifiedMembers, membersComplete: nextOffset === null, page, sourceSetRef }, receipt };
 }
 
 function userVisiblePath(abs, roots) {
@@ -618,12 +632,25 @@ export function makeLocalFileTool(deps = {}) {
         if (action === 'list') {
           const entries = await readdir(abs, { withFileTypes: true });
           const items = [];
+          const observationIdentities = [];
           for (const e of entries) {
             if (e.name.startsWith('.')) continue;
             // F-65 runtime 관측은 작업셋의 이름·종류만 본다. public list의 수정시각·CSV 표사실은
             // 모델이 고른 파일 손에만 남고, 턴 머리 관측이 내용을 몰래 읽는 길은 없다.
             if (executionContext.worksetObservation === true) {
-              items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file' });
+              // 내용은 읽지 않되, 같은 이름의 실물이 바뀐 뒤 옛 read가 살아나지 않도록
+              // 파일시스템이 관측한 불투명 revision을 sourceSet 신분에만 넣는다. 모델/receipt의
+              // member 목록에는 이름·종류만 남는다.
+              try {
+                const s = await stat(join(abs, e.name));
+                const revisionRef = sourceRevisionRef(s);
+                items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', revisionRef });
+                observationIdentities.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', revisionRef });
+              } catch {
+                items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file' });
+                observationIdentities.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file',
+                  revision: 'unknown' });
+              }
               continue;
             }
             // C 감사 F2.3 · 수정 시각도 사실이다 — 이게 없으면 "어느 게 최신이야"에 런타임이
@@ -635,6 +662,10 @@ export function makeLocalFileTool(deps = {}) {
           if (executionContext.worksetObservation === true) {
             // continuation offset이 readdir의 우연한 순서에 흔들리지 않게 관측 전용으로만 정렬한다.
             items.sort((a, b) => {
+              const an = a.name.normalize('NFC'); const bn = b.name.normalize('NFC');
+              return an < bn ? -1 : an > bn ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+            });
+            observationIdentities.sort((a, b) => {
               const an = a.name.normalize('NFC'); const bn = b.name.normalize('NFC');
               return an < bn ? -1 : an > bn ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
             });
@@ -666,7 +697,7 @@ export function makeLocalFileTool(deps = {}) {
             {
               path: abs, items: 쪽, total: items.length, offset: 문값.시작,
               ...(executionContext.worksetObservation === true ? { sourceSetRef: `ws1.${createHash('sha256')
-                .update(JSON.stringify({ path: abs, members: items })).digest('hex').slice(0, 32)}` } : {}),
+                .update(JSON.stringify({ path: abs, members: observationIdentities })).digest('hex').slice(0, 32)}` } : {}),
               ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             },
           );
@@ -678,6 +709,11 @@ export function makeLocalFileTool(deps = {}) {
             return fail('파일이 너무 커서 통째로 읽지 못했어요.', '필요한 부분을 알려주시면 그 부분만 볼게요.');
           }
           const bytes = await readFile(abs);
+          const afterRead = await stat(abs).catch(() => null);
+          const beforeRevisionRef = sourceRevisionRef(info);
+          const afterRevisionRef = sourceRevisionRef(afterRead);
+          const stableRevisionRef = beforeRevisionRef && beforeRevisionRef === afterRevisionRef
+            ? beforeRevisionRef : null;
           const document = await extractDocument(abs, bytes);
           if (document && !document.text) {
             return fail(
@@ -745,6 +781,7 @@ export function makeLocalFileTool(deps = {}) {
           return ok((안내 ? `${basename(abs)} 의 ${안내}` : `${basename(abs)} 을(를) 읽었어요.`) + 표말 + 이웃말, {
             path: abs, text, bytes: info.size,
             totalChars: 전문.length, offset: 문값.시작,
+            ...(stableRevisionRef ? { sourceRevisionRef: stableRevisionRef } : {}),
             ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             ...(document ? { document } : {}),
             ...(표 ? { table: 표 } : {}),

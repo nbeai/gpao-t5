@@ -16,6 +16,9 @@ import { blockedReceipt, receipt } from './l0-evidence/tool-receipt.js';
 import { toolLabel, withParticle } from './tool-labels.js';
 import { interpret } from './l1-intent/intent.js';
 import { buildTaskContext, 이번턴만그림 } from './l1-intent/task-context.js';
+import {
+  bindSourceReceipt, initialWorksetReality, projectSourceCoverage, sourceCoverageReceipt,
+} from './l1-intent/source-coverage.js';
 import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boundary.js';
 import { 손제시기록 } from './l2-plan/tool-offer.js';
@@ -566,6 +569,33 @@ function refreshRuntimeReality(ctx) {
   return { selfState, summary: selfStateSummary(selfState), capCounts };
 }
 
+function refreshSourceCoverage(ctx, ledger) {
+  if (!ctx.initialWorksetReality) return null;
+  ctx.sourceCoverage = projectSourceCoverage({
+    worksetReality: ctx.initialWorksetReality,
+    receipts: ledger.entries,
+    workRef: ctx.sourceCoverageWorkRef,
+  });
+  ctx.worksetReality = {
+    ...ctx.worksetReality,
+    initialSourceSetRef: ctx.initialWorksetReality.sourceSetRef,
+    sourceCoverage: ctx.sourceCoverage,
+  };
+  return ctx.sourceCoverage;
+}
+
+/** 턴 종료 뒤 같은 projection을 durable runtime reality receipt로 한 번 남긴다. */
+export function finalizeSourceCoverage(ctx, turnRef) {
+  const coverage = refreshSourceCoverage(ctx, ctx.ledger);
+  if (!coverage) return null;
+  const existing = ctx.ledger.entries.find((entry) => entry?.origin === 'runtime_observation'
+    && entry?.observationKind === 'source_coverage'
+    && entry?.turnRef?.sessionId === turnRef?.sessionId
+    && entry?.turnRef?.turnSeq === turnRef?.turnSeq);
+  if (!existing) ctx.ledger.append(sourceCoverageReceipt(coverage, turnRef));
+  return coverage;
+}
+
 /**
  * **한 대화에 살아 있는 승인 요청은 하나다.**
  *
@@ -773,7 +803,15 @@ export async function runTurn(input, ctx) {
       configuredRoots: explicitRoots ? defaultFileRoots(ctx.processEnv ?? process.env) : [],
       currentBasis: explicitRoots ? 'explicit_file_roots' : undefined });
     ctx.worksetReality = observed.reality;
-    if (observed.receipt) ledger.append(observed.receipt);
+    if (observed.receipt) {
+      observed.receipt.sourceWorkRef = ctx.sourceCoverageWorkRef ?? null;
+      observed.receipt.sourceSetRef = observed.reality?.sourceSetRef ?? null;
+      ledger.append(observed.receipt);
+    }
+    ctx.initialWorksetReality = initialWorksetReality(
+      ledger.entries, ctx.sourceCoverageWorkRef, observed.reality,
+    );
+    refreshSourceCoverage(ctx, ledger);
   }
 
   // **이 턴에 무엇을 줬고 무엇을 왜 걸렀는지를 남긴다**(S7 착수 조건 · 오너 지시 2026-08-05).
@@ -1846,8 +1884,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     ...ledger,
     entries: ledger.entries,
     append(rec) {
-      for (const 안쪽 of rec?.result?.innerReceipts ?? []) ledger.append(안쪽);
-      return ledger.append(rec);
+      for (const 안쪽 of rec?.result?.innerReceipts ?? []) {
+        ledger.append(bindSourceReceipt(안쪽, {
+          workRef: ctx.sourceCoverageWorkRef, sourceSetRef: ctx.initialWorksetReality?.sourceSetRef,
+        }));
+      }
+      const appended = ledger.append(bindSourceReceipt(rec, {
+        workRef: ctx.sourceCoverageWorkRef, sourceSetRef: ctx.initialWorksetReality?.sourceSetRef,
+      }));
+      refreshSourceCoverage(ctx, ledger);
+      return appended;
     },
   };
 
