@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "f64-deterministic-product-probes",
+  "status": "RED_REPRODUCTIONS_RECORDED",
+  "source": {
+    "gitSha": "a04034b90014f2f70526953e68e7593e3cd92535",
+    "productSourceModified": false,
+    "providerCalls": 0,
+    "paidCalls": 0
+  },
+  "frozenPilot": {
+    "configPath": "scripts/human-use/living-sim-pilot-v1.json",
+    "configSha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0",
+    "runnerPath": "scripts/human-use/living-sim-runner.mjs",
+    "runnerSha256": "cb6142c4dbf6df2b69985b6c1805c3c05f5623e5a3dd5719dea000f610996efe",
+    "scenarios": [
+      {
+        "id": "L5-admin-preparation",
+        "scenarioDigest": "39acf32acff591728ce2c58c36d79d9d97df3c75c64b32b1a96c0b481d8bec8a",
+        "originalManifestSha256": "d372ce50b09680e5e91cb3b750511e2ec8ea4f5a1a6d1ad779127777c6947e42",
+        "fixtureFiles": {
+          "보유서류.txt": "2ed1be38db8072afa5ce961d8334dc16cdc8fdcaf06f58e3f4235346649cd36e",
+          "우리상황.txt": "27af652a128fc8763f7e337f6ae3873bbcbaeb0d97078851b18fbde9260cadfb",
+          "위생설비_지원공고.txt": "5717d0c230663a72bf53512ae3d1e385d025e43226e9c1a6683dbe9bc938d202"
+        }
+      },
+      {
+        "id": "L6-schedule-automation",
+        "scenarioDigest": "105296d9e7e8148dd0ab9423177f7e655177f01b21701fe763ff006f82e9ec63",
+        "originalManifestSha256": "48b6c7eb88d16fbaa7f9eaa2878dba49b81d3fbfc2bf9d4d8b92d8c21b2a5e7f",
+        "fixtureFiles": {}
+      },
+      {
+        "id": "L7-pc-mixed-work",
+        "scenarioDigest": "8cd1ef43c87ca0dc9ed6c7e3fa897017ba0b1d3e33280bb6c831a352f2c3ccd1",
+        "originalManifestSha256": "6003841ea694987f11f06fa2e6cd1e6bbbff6cf2c49f4762fb581e268290a9d1",
+        "fixtureFiles": {
+          "README.txt": "d666601730f75d6969a5115b3ffedbe5ce3572886a6806cfd20142d9d0ccdbf2",
+          "보관/배포설정_2025.txt": "b96ea8da5067a7fd39c29e763752fdd66311e2fdc15b3a2e137ba1f8780b21d6",
+          "승인본/배포설정.txt": "2c085a02059453ef2792a22416959fd1be8662da6082decf3e3c695b2ccdae1b",
+          "초안/배포설정_최종.txt": "fb7c6dea318e6a9e78c9f8ce3c2f2e13af9bf85f30264f4dd1bba8fc7cc36faf"
+        }
+      }
+    ]
+  },
+  "harness": {
+    "path": "test/f64-l5-l7-deterministic-probes.test.js",
+    "sha256": "87c94e708cf505525aef9ab7d8ac9ad991bcbd4e564f2f7d5631babdf8ed2b1e",
+    "actualProductPath": "POST /turn",
+    "providerFixture": "deterministic-local-model",
+    "toolOrderForced": false,
+    "replyScoredByRegex": false
+  },
+  "runs": [
+    {
+      "kind": "diagnostic-observation",
+      "command": "node --test test/f64-l5-l7-deterministic-probes.test.js",
+      "exitCode": 0,
+      "tests": { "pass": 6, "fail": 0 },
+      "machineObservations": {
+        "L5": { "sourceReads": 0, "completionAxes": 0, "purposeMet": false, "artifactSha256": "44fba0fe8dd146f9b19ecfa1a6e7ffdac1eb2415953b32621327b37d871fd668" },
+        "L6": { "candidates": 3, "approved": 0, "jobs": 0, "runs": 0, "surfaceClaimRecorded": true, "purposeMet": false },
+        "L7": { "terminalExit": 1, "expectedSourceDigest": "2c085a02059453ef2792a22416959fd1be8662da6082decf3e3c695b2ccdae1b", "artifactSha256": "2baf1c365ecfd1930ff545b15fe4bc005764b8100d7bb62f9d3822b82879e62d", "hashRecorded": false, "completionAxes": 0 }
+      }
+    },
+    {
+      "kind": "closing-assertions-red",
+      "command": "T5_F64_PROBE_CLOSE=1 node --test test/f64-l5-l7-deterministic-probes.test.js",
+      "exitCode": 1,
+      "tests": { "pass": 3, "fail": 3 },
+      "failedScenarios": ["L5-admin-preparation", "L6-schedule-automation", "L7-pc-mixed-work"],
+      "normalCounterconditions": { "pass": 3, "fail": 0 }
+    }
+  ],
+  "interpretation": {
+    "sharedCauseConfirmed": false,
+    "L5": "content/provenance purpose remains unmet; slice-1 already keeps signed completion axes at zero",
+    "L6": "durable stores correctly show proposal-only state; the false active/next-run statement is surface-model behavior, not durable automation truth",
+    "L7": "terminal failure and missing source digest are mechanically visible; slice-1 already keeps signed completion axes at zero"
+  }
+}
