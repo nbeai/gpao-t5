@@ -525,7 +525,9 @@ export function makeServer(deps = {}) {
     return { ...state, settlements: [...settlements, structuredClone(entry)] };
   }
 
-  function approvalSettlementBody(candidate, job, operation, at) {
+  function approvalSettlementBody(candidate, job, operation, at, previous = null) {
+    const previousSettlementRef = previous?.ref ?? job.latestSettlementRef;
+    const previousSettlementDigest = previous?.digest ?? job.latestSettlementDigest;
     return {
       kind: 'automation_settlement', operation,
       principalRef: candidate.principalRef,
@@ -548,12 +550,16 @@ export function makeServer(deps = {}) {
       actionArgs: structuredClone(candidate.action?.args ?? {}),
       skillPurpose: candidate.skillPurpose,
       deliveryIntent: candidate.deliveryIntent,
+      ...(operation === 'create' ? {} : {
+        previousSettlementRef,
+        previousSettlementDigest,
+      }),
       verificationPassed: true,
     };
   }
 
-  function approvalSettlementEntry(candidate, job, operation, at) {
-    return sealAutomationSettlement(approvalSettlementBody(candidate, job, operation, at));
+  function approvalSettlementEntry(candidate, job, operation, at, previous = null) {
+    return sealAutomationSettlement(approvalSettlementBody(candidate, job, operation, at, previous));
   }
 
   function controlSettlementEntry(state, job, operation, at, mutated) {
@@ -569,6 +575,8 @@ export function makeServer(deps = {}) {
       observedAt: at,
       ordinal,
       mutated,
+      previousSettlementRef: job.latestSettlementRef,
+      previousSettlementDigest: job.latestSettlementDigest,
       verificationPassed: true,
     };
     return sealAutomationSettlement(base);
@@ -2288,6 +2296,10 @@ export function makeServer(deps = {}) {
               ...cand, approved: true, current: false, approvedAt: now,
               revision: (cand.revision ?? 1) + 1,
             };
+            const previousSettlement = {
+              ref: target.latestSettlementRef,
+              digest: target.latestSettlementDigest,
+            };
             record = {
               ...target,
               trigger: structuredClone(trigger),
@@ -2309,7 +2321,7 @@ export function makeServer(deps = {}) {
             outcome = { ok: true, operation, record, candidate: candidates[index] };
             return appendAutomationSettlement(
               { ...state, candidates, jobs },
-              approvalSettlementEntry(approvedCandidate, record, operation, now),
+              approvalSettlementEntry(approvedCandidate, record, operation, now, previousSettlement),
             );
           }
           if (!skill || !profile) {
@@ -2394,7 +2406,13 @@ export function makeServer(deps = {}) {
           || savedSettlement?.jobRevision !== (saved.jobRevision ?? 0)
           || !verifyAutomationSettlement(savedSettlement)
           || JSON.stringify(savedSettlement)
-            !== JSON.stringify(approvalSettlementEntry(outcome.candidate, saved, outcome.operation, now))
+            !== JSON.stringify(approvalSettlementEntry(
+              outcome.candidate, saved, outcome.operation, now,
+              outcome.operation === 'update' ? {
+                ref: savedSettlement.previousSettlementRef,
+                digest: savedSettlement.previousSettlementDigest,
+              } : null,
+            ))
           || savedSettlement?.settlementDigest !== saved.latestSettlementDigest) {
           return sendJson(res, 500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
         }

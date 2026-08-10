@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -862,6 +862,84 @@ test('재감사 settlement write: digest·linkage 불일치는 저장 전 거절
       assert.deepEqual(await app.automationStore.load(), valid, variant);
     }
   });
+});
+
+test('4차 감사 선빨강: self-sealed지만 job chain에서 닿지 않는 control settlement는 저장되지 않는다', async () => {
+  const proposed = candidate('orphan-control', '매주 월요일 오전 9시 반 정산 확인');
+  await withProduct({ model: proposalModel(), candidates: [proposed] }, async (app) => {
+    const approval = await app.request('POST', '/automation/approve', {
+      candidateId: proposed.candidateId, candidateRevision: 1,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+      expiresAt: 2_000_000_000_000, maxRuns: 20,
+    });
+    assert.equal(approval.status, 200, JSON.stringify(approval));
+    const valid = await app.automationStore.load();
+    const job = valid.jobs[0];
+    const forged = sealAutomationSettlement({
+      kind: 'automation_control_settlement', operation: 'status',
+      principalRef: job.principalRef, jobRef: job.id, jobRevision: job.jobRevision,
+      state: job.state, trigger: structuredClone(job.trigger), nextRunAt: job.nextRunAt,
+      observedAt: FROZEN_NOW + 1, ordinal: valid.settlements.length,
+      previousSettlementRef: job.latestSettlementRef,
+      previousSettlementDigest: job.latestSettlementDigest,
+      mutated: false, verificationPassed: true,
+    });
+    const invalid = { ...valid, settlements: [...valid.settlements, forged] };
+    await assert.rejects(() => app.automationStore.save(invalid), /settlement/u);
+    assert.deepEqual(await app.automationStore.load(), valid);
+    const corruptRaw = JSON.stringify({
+      schemaVersion: AUTOMATION_SCHEMA_VERSION,
+      candidates: invalid.candidates, jobs: invalid.jobs, settlements: invalid.settlements,
+    });
+    await writeFile(app.automationStore.file, corruptRaw, 'utf8');
+    const restarted = await new AutomationJobStore(app.state).load();
+    assert.ok(restarted.recovery);
+    assert.equal(await readFile(app.automationStore.file, 'utf8'), corruptRaw);
+  });
+});
+
+test('4차 감사 선빨강: settlement 필드가 전부 없는 구형 schema2 승인 상태는 recovery 없이 보존되나 update 근거는 0이다', async () => {
+  const x = await room();
+  const legacyJob = scheduledJob('legacy-approved-job', x.root);
+  const legacyCandidate = {
+    ...candidate('legacy-approved-candidate', '구형 승인 후보'),
+    approved: true, current: false, approvedAt: 2,
+  };
+  await mkdir(x.state, { recursive: true });
+  await writeFile(join(x.state, 'automation.json'), JSON.stringify({
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    candidates: [legacyCandidate], jobs: [legacyJob], settlements: [],
+  }), 'utf8');
+  const capture = [];
+  const model = { async respond(tc, opts = {}) {
+    capture.push(structuredClone(tc));
+    const visible = tc.automationReality?.jobs?.items?.find((entry) => entry.name === legacyJob.name);
+    if (visible && opts.tools?.some((entry) => entry.name === 'automation.propose')) {
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: '구형 자동화 시간을 화요일 오전 10시로 바꾼다', operation: 'update',
+        targetJobRef: visible.jobRef, targetJobRevision: visible.jobRevision,
+        kind: 'weekly', trigger: TUESDAY, tool: 'local.file',
+        action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+      } }] };
+    }
+    return '검증된 승인 이력이 없어 변경 후보를 만들지 않았어요.';
+  } };
+  const app = await startProduct({ model, space: x, preserveState: true });
+  try {
+    const loaded = await app.automationStore.load();
+    assert.equal(Boolean(loaded.recovery), false);
+    assert.equal(loaded.jobs.length, 1);
+    const surface = await app.request('GET', '/automation');
+    assert.equal(surface.body.jobs.length, 1);
+    assert.equal(surface.body.jobs[0].latestSettlement, null);
+    const result = await app.turn('구형 자동화 시간을 화요일 오전 10시로 바꿔줘');
+    assert.ok(result.automationProposal?.rejected);
+    const after = await app.automationStore.load();
+    assert.equal(after.jobs.length, 1);
+    assert.equal(after.candidates.length, 1);
+    assert.equal(after.settlements.length, 0);
+  } finally { await new Promise((resolve) => app.server.close(resolve)); }
 });
 
 test('delivery intent: 실제 local conversation consumer가 없는 chat 후보는 승인되지 않는다', async () => {
