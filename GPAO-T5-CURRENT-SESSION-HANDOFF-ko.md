@@ -7,11 +7,10 @@
 
 ## 최신 작업선 · 2026-08-10
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `1058662`.
-- 활성 sidecar: `/private/tmp/t5-f64-purpose-completion-v2` · `codex/f64-purpose-completion-v2`.
-  최초 F-64 통합 시도의 실패 원형이며 추가 편집·병합·push 금지다. 독립 감사자가 첫 실패의
-  원인·반례와 `51bca5b`의 대체 수리를 실제 제품 경로로 모두 대조해 수거 PASS를 냈다. 다만
-  미커밋 7파일·706줄을 영구 삭제하는 명시적 승인 전에는 `--force` 수거하지 않는다.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `deb7c2e`.
+- 활성 sidecar: 없음. 최초 F-64 실패 실험 `/private/tmp/t5-f64-purpose-completion-v2`은 독립 감사
+  수거 PASS와 오너의 미커밋 7파일·706줄 영구 삭제 승인을 받은 뒤 제거했다. 커밋 `37868ec`과
+  브랜치 계보는 보존되고 미커밋 WIP는 복구할 수 없다.
 - F-64 slice-1 개발 입장 범위: 사용자 발화에서 기계적으로 특정된 단일 파일 경로·본문과 명시된
   `sourcePolicy(none|all_current)`가 함께 있을 때만 raw write·실제 readback·seal check·별도 signed
   completion Receipt·같은 ReceiptRef의 `execution_completed`·최근 완료가 한 WorkRef로 선다. 하나라도
@@ -25,15 +24,17 @@
   실사용 상태 전후 digest 불변이다. slice-1은 L5·L7의 거짓 완료 승격을 막지만 사용자 목적 결과를
   만들지는 않는다. L6 정본은 후보 3·승인/job/run 0으로 정직하지만 사용자 답은 활성·다음 실행을
   거짓 주장하는 표본이 그대로 재현됐다.
-- 다음 개발은 PM이 위 세 fact owner의 계약과 구현 순서를 동결한 뒤에만 연다. 그 전에는 제품 수리·
-  유료 예비 7 재실행·PM 홀드아웃 열람을 금지한다. F-60·F-67도 계속 불가침이다.
+- 오너가 구현 순서를 `L6 → L7 → L5`로 확정했다. 다음 격리선은 L6의 후보→승인→단일 durable job→
+  pause/resume→nextRun 현실과 사용자 답을 같은 canonical automation state에 결속하는 계약만 소유한다.
+  제품 문구 필터·활성 사실 대필·승인 우회는 금지한다. L7·L5 제품 수리와 유료 예비 7 재실행·PM
+  홀드아웃 열람은 L6 독립 감사 입장 전까지 열지 않는다. F-60·F-67도 계속 불가침이다.
 - F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
   WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
   runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
 - F-66b 미닫힘: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded
   입장 채널. 따라서 F-66 전체 닫힘이 아니며 다음 개발선은 F-64 목적 결과·완료 결속이다.
 - 검증: 전체 3,525/3,525 · 결정형 프로브 관련 92/92 · F-64 slice-1과 L5·L6·L7 프로브 증거
-  독립 감사 PASS. 제품 코드 변경 0. workspace 감사는 위 보존 sidecar 1건이 남아 BLOCKED다.
+  독립 감사 PASS. 실패 sidecar 수거 뒤 workspace 감사 PASS(88 active docs · worktree 2).
 - 제외: F-60은 오너 지시로 미해결 봉인. F-67은 확장 후보로 불가침. PM 홀드아웃과 유료 예비 7
   재실행은 L5·L6·L7 결정형 판정 뒤 대상·횟수를 결과 전에 동결할 때까지 열지 않는다.
 - 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
