@@ -363,10 +363,10 @@ export class CanonicalAutomationRuntime {
 
   async #schedulerState() {
     await this.ready();
-    const [automation, skills, profiles] = await Promise.all([
-      this.jobStore.load(), this.skillStore.load(), this.profileStore.load(),
+    const [automation, skills, profiles, runState] = await Promise.all([
+      this.jobStore.load(), this.skillStore.load(), this.profileStore.load(), this.runLedger.load(),
     ]);
-    return { jobs: automation.jobs, skills: skills.skills, profiles: profiles.profiles };
+    return { jobs: automation.jobs, skills: skills.skills, profiles: profiles.profiles, runs: runState.runs };
   }
 
   async #applyJobDeltas(deltas) {

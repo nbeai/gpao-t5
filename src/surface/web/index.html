@@ -1713,7 +1713,9 @@ function renderAutomationSuggestion(box, sug) {
           candidateId: sug.candidateId, candidateRevision: setup.candidate?.revision,
           controlRef: setup.candidate?.controlRef,
           skillId: skill.value, agentProfileId: profile.value,
-          trigger, expiresAt: now + 30 * 24 * 3600 * 1000, maxRuns: 30,
+          trigger,
+          ...(setup.candidate?.operation === 'update'
+            ? {} : { expiresAt: now + 30 * 24 * 3600 * 1000, maxRuns: 30 }),
         }),
       });
       const r = await response.json();

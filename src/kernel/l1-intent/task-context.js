@@ -687,6 +687,7 @@ export function buildTaskContext(p) {
     worksetReality: p.worksetReality,
     // L6: 같은 principal의 canonical 자동화 저장소·실행 원장에서 투영한 bounded 현실.
     automationReality: p.automationReality,
+    automationControl: p.automationControl,
     // 서버가 아는 실행 현실. 주소·경로·포트 같은 내부값은 싣지 않고 사용자에게 의미 있는
     // 경계만 준다. 모델이 자기 호스팅 환경을 출신 지식으로 추측하지 않게 한다.
     runtimeEnvironment: p.runtimeEnvironment,

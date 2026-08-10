@@ -36,7 +36,18 @@ async function 제안턴({ 열어둠 = false } = {}) {
         this.냈나 = true;
         return { text: '매일 아침 9시에 확인하도록 걸어 둘까?', toolCalls: [{
           name: 'automation.propose',
-          args: { statement: '매일 아침 9시에 작업 폴더에 새 파일이 있는지 확인한다', kind: 'daily', tool: 'local.file' },
+          // 카드 관통의 소유 의미는 그대로다. 승인 가능한 후보가 되려면 모델 제안도
+          // 제품 계약의 trigger/action/purpose/delivery를 실제로 제출해야 한다.
+          args: {
+            statement: '매일 아침 9시에 작업 폴더에 새 파일이 있는지 확인한다',
+            operation: 'create', kind: 'daily',
+            trigger: {
+              kind: 'daily', timezone: 'Asia/Seoul', misfirePolicy: 'catch_up_once',
+              localTime: '09:00', nextRunAt: 1786381200000,
+            },
+            tool: 'local.file', action: { args: { action: 'list', path: '.' } },
+            skillPurpose: '작업 폴더 새 파일 확인', deliveryIntent: 'none',
+          },
         }] };
       }
       return '알겠어요.';

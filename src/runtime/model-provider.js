@@ -372,6 +372,9 @@ export function buildModelMessages(tc) {
   if (tc.automationReality) {
     커널블록.push(`[자동화 현실]\n${JSON.stringify(tc.automationReality)}`);
   }
+  if (tc.automationControl) {
+    커널블록.push(`[자동화 제어 결과]\n${JSON.stringify(tc.automationControl)}`);
+  }
   // **후보를 받아 놓고 안 열었다는 사실**(3단계 매듭 ① · 되부름 한 번). 지시가 아니라 원장이다 —
   // 열지 말지는 모델이 정하고, 안 열면 무엇을 안 봤는지 말하는 것이 정직이다(동반 세 계단 2).
   if (tc.candidatesUnopened?.수) {

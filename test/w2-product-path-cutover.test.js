@@ -180,7 +180,17 @@ test('W2 model proposals persist through /turn as canonical influence-free candi
           },
           {
             name: 'automation.propose',
-            args: { statement: '매주 금요일에 정산 초안을 준비한다', kind: 'weekly' },
+            // W2가 재는 것은 실행 전 canonical 후보 보존이다. 후보 자체는 현재 제품의
+            // 승인 입장 계약을 충족하는 구조여야 그 의미가 성립한다.
+            args: {
+              statement: '매주 금요일에 정산 초안을 준비한다', operation: 'create', kind: 'weekly',
+              trigger: {
+                kind: 'weekly', timezone: 'Asia/Seoul', misfirePolicy: 'catch_up_once',
+                weekdays: [5], localTime: '09:00', nextRunAt: 1_900_000_000_000,
+              },
+              tool: 'local.file', action: { args: { action: 'read', path: '정산자료' } },
+              skillPurpose: '정산 초안 준비', deliveryIntent: 'none',
+            },
           },
           {
             name: 'agent.propose',

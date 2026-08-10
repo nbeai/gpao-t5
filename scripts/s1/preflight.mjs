@@ -312,7 +312,13 @@ export const 허용파일 = [
   // F-64 slice 1 — 사용자 exact path와 quoted body의 독립 span만 완료 계약 재료로 입장한다.
   'src/kernel/l1-intent/file-parse.js',
   'src/surface/server.js',
-  // L6 — canonical 자동화 원장의 same-principal bounded reality 투영.
+  // L6 — canonical 자동화 원장의 same-principal bounded reality 투영과 승인 후보 계약.
+  // 후보가 delivery intent 를 실제 deliveryPolicy 로 나르고, scheduler 는 durable AgentRun
+  // 발생 원장에서 maxRuns 를 세어 재시작·동시 실행에서도 같은 권한 상한을 지킨다.
+  'src/kernel/l5-growth/automation-contracts.js',
+  'src/runtime/automation-engine.js',
+  'src/runtime/automation-scheduler.js',
+  'src/runtime/canonical-automation-runtime.js',
   'src/surface/automation-surface.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).

@@ -101,6 +101,18 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['statement', 'operation', 'trigger', 'tool', 'action', 'skillPurpose', 'deliveryIntent'],
   },
 }, {
+  name: 'automation.control',
+  description: 'AutomationRealitySnapshot에서 본 정확한 예약 하나의 현재 상태를 확인하거나, 사용자의 현재 요청대로 일시정지·재개한다. 후보 생성이 아니라 기존 예약의 가역 제어다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      operation: { type: 'string', enum: ['pause', 'resume', 'status'] },
+      targetJobRef: { type: 'string' },
+      targetJobRevision: { type: 'integer' },
+    },
+    required: ['operation', 'targetJobRef', 'targetJobRevision'],
+  },
+}, {
   name: 'agent.propose',
   description: '사용자가 "이 폴더만 보는 분석 담당을 만들어줘" 처럼 **역할**을 맡기면 이걸로 적는다.'
     + ' 실행이 아니고 권한도 아니다 — 실행 때마다 현재 권한과 교집합으로 다시 제한된다.',
@@ -412,6 +424,7 @@ export function splitModelControlCalls(toolCalls = []) {
   let askUser = null;
   let skillProposal = null;
   let automationProposal = null;
+  let automationControl = null;
   let agentProposal = null;
   const workStateProposals = [];
   let workStateSeen = false;
@@ -437,6 +450,15 @@ export function splitModelControlCalls(toolCalls = []) {
     }
     if (c.name === 'skill.propose') { skillProposal = c.args ?? null; continue; }
     if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
+    if (c.name === 'automation.control') {
+      const operation = ['pause', 'resume', 'status'].includes(c.args?.operation) ? c.args.operation : null;
+      const targetJobRef = String(c.args?.targetJobRef ?? '').trim();
+      const targetJobRevision = Number.isInteger(c.args?.targetJobRevision) ? c.args.targetJobRevision : null;
+      if (operation && targetJobRef && targetJobRevision !== null) {
+        automationControl = { operation, targetJobRef, targetJobRevision };
+      }
+      continue;
+    }
     if (c.name === 'agent.propose') { agentProposal = c.args ?? null; continue; }
     if (c.name === 'work.state') {
       workStateSeen = true;
@@ -506,7 +528,7 @@ export function splitModelControlCalls(toolCalls = []) {
   return {
     memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
     askUser,
-    skillProposal, automationProposal, agentProposal,
+    skillProposal, automationProposal, automationControl, agentProposal,
     workStateProposal, workStateSeen, workStateNoChange,
     workStateCandidateCount: workStateProposals.length,
     rest,

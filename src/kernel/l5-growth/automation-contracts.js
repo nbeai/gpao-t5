@@ -181,7 +181,7 @@ export function bindAutomationCandidate(candidate, skill, profile, options = {})
     ok: true,
     inputTemplate,
     authorityEnvelope,
-    deliveryPolicy: { mode: 'none' },
+    deliveryPolicy: { mode: options.deliveryIntent === 'chat' ? 'chat' : 'none' },
   };
 }
 

@@ -486,6 +486,23 @@ export function makeServer(deps = {}) {
     })).digest('hex');
   }
 
+  function automationSettlementIdentity(candidate, job, operation) {
+    const candidateLineage = {
+      candidateRef: candidate.candidateId,
+      candidateRevision: candidate.revision,
+      controlRef: candidate.controlRef,
+    };
+    const settlementRef = createHash('sha256').update(JSON.stringify({
+      candidateLineage, operation, jobRef: job.id, jobRevision: job.jobRevision,
+    })).digest('hex');
+    const settlementDigest = createHash('sha256').update(JSON.stringify({
+      settlementRef, state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
+      skillRef: job.skillRef, agentProfileId: job.agentProfileId,
+      authorityEnvelope: job.authorityEnvelope, deliveryPolicy: job.deliveryPolicy,
+    })).digest('hex');
+    return { candidateLineage, settlementRef, settlementDigest };
+  }
+
   async function automationRealityFor(principalRef) {
     await automationReady();
     try {
@@ -553,7 +570,11 @@ export function makeServer(deps = {}) {
         revision: 1,
         current: true,
         operation,
-        ...(targetJob ? { targetJobRef: targetJob.id, targetJobRevision: targetJob.updatedAt } : {}),
+        ...(targetJob ? {
+          targetJobRef: targetJob.id,
+          targetJobRevision: targetJob.jobRevision ?? 0,
+          targetJobUpdatedAt: targetJob.updatedAt,
+        } : {}),
         statement: proposal.statement,
         kind: proposal.kind,
         action: { tool: proposal.tool, args: structuredClone(proposal.action.args) },
@@ -588,6 +609,74 @@ export function makeServer(deps = {}) {
       ...(stored.targetJobRef ? { targetJobRef: stored.targetJobRef } : {}),
     };
     return { proposal: admitted, reality: await automationRealityFor(session.principalRef) };
+  }
+
+  async function 자동화제어적용(control, session) {
+    await automationReady();
+    let outcome = { ok: false, reason: 'job_not_found' };
+    await autoStore.update((state) => {
+      const index = state.jobs.findIndex((job) => job.id === control.targetJobRef
+        && job.principalRef === session.principalRef);
+      if (index < 0) return state;
+      const current = state.jobs[index];
+      if ((current.jobRevision ?? 0) !== control.targetJobRevision) {
+        outcome = { ok: false, reason: 'job_revision_changed' };
+        return state;
+      }
+      if (control.operation === 'status') {
+        outcome = { ok: true, record: current, operation: 'status', mutated: false };
+        return state;
+      }
+      const targetState = control.operation === 'pause' ? 'paused' : 'scheduled';
+      const moved = current.state === targetState
+        ? { ok: true, record: current }
+        : transitionState('automationJob', current, targetState, automationNow());
+      if (!moved.ok) {
+        outcome = { ok: false, reason: moved.reason ?? 'job_not_controllable' };
+        return state;
+      }
+      if (moved.record === current) {
+        outcome = { ok: true, record: current, operation: control.operation, mutated: false };
+        return state;
+      }
+      const jobRevision = (current.jobRevision ?? 0) + 1;
+      const settlementBase = {
+        operation: control.operation, jobRef: current.id, jobRevision,
+        state: moved.record.state, nextRunAt: moved.record.nextRunAt,
+      };
+      const settlementRef = createHash('sha256').update(JSON.stringify(settlementBase)).digest('hex');
+      const settlementDigest = createHash('sha256').update(JSON.stringify({
+        ...settlementBase, trigger: moved.record.trigger,
+      })).digest('hex');
+      const record = {
+        ...moved.record, jobRevision,
+        lastControlSettlement: { ...settlementBase, settlementRef, settlementDigest },
+      };
+      const jobs = [...state.jobs];
+      jobs[index] = record;
+      outcome = { ok: true, record, operation: control.operation, mutated: true };
+      return { ...state, jobs };
+    });
+    if (!outcome.ok) return {
+      control: { rejected: true, reason: outcome.reason },
+      reality: await automationRealityFor(session.principalRef),
+    };
+    const readback = await autoStore.load();
+    const saved = readback.jobs.find((job) => job.id === outcome.record.id
+      && job.principalRef === session.principalRef);
+    if (!saved || (saved.jobRevision ?? 0) !== (outcome.record.jobRevision ?? 0)) return {
+      control: { rejected: true, reason: 'control_readback_mismatch' },
+      reality: await automationRealityFor(session.principalRef),
+    };
+    return {
+      control: {
+        operation: outcome.operation, jobRef: saved.id, jobRevision: saved.jobRevision ?? 0,
+        state: saved.state, nextRunAt: saved.nextRunAt, mutated: outcome.mutated,
+        ...(saved.lastControlSettlement ? { settlement: saved.lastControlSettlement } : {}),
+        storeReadback: true,
+      },
+      reality: await automationRealityFor(session.principalRef),
+    };
   }
 
   async function 통제후보저장(result, session) {
@@ -1105,7 +1194,8 @@ export function makeServer(deps = {}) {
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
+    ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'agent.propose', 'work.state'];
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -1940,12 +2030,18 @@ export function makeServer(deps = {}) {
         const runs = await runLedger.load();
         const stripJob = (job) => ({
           id: job.id, name: job.name, state: job.state,
+          jobRevision: job.jobRevision, settlementRef: job.settlementRef,
+          settlementDigest: job.settlementDigest, candidateLineage: job.candidateLineage,
+          lastControlSettlement: job.lastControlSettlement,
           skillRef: job.skillRef, agentProfileId: job.agentProfileId,
           trigger: job.trigger, nextRunAt: job.nextRunAt,
           lastRunId: job.lastRunId, authorityEnvelope: job.authorityEnvelope,
         });
         return sendJson(res, 200, {
-          candidates: a.candidates.filter((c) => !c.approved && automationEntryVisible(c)),
+          candidates: a.candidates.filter((c) => !c.approved
+            && c.current !== false && c.superseded !== true
+            && (!Number.isFinite(c.expiresAt) || c.expiresAt >= automationNow())
+            && automationEntryVisible(c)),
           jobs: a.jobs.filter(automationEntryVisible).map(stripJob),
           runs: runs.runs.map(projectAutomationRun),
         });
@@ -2020,23 +2116,45 @@ export function makeServer(deps = {}) {
               && job.principalRef === cand.principalRef);
             if (jobIndex < 0) { outcome = { ok: false, reason: 'target_not_current' }; return state; }
             const target = state.jobs[jobIndex];
-            if (target.updatedAt !== cand.targetJobRevision
+            if ((target.jobRevision ?? 0) !== cand.targetJobRevision
+              || target.updatedAt !== cand.targetJobUpdatedAt
               || !['scheduled', 'paused', 'needs_review'].includes(target.state)) {
               outcome = { ok: false, reason: 'target_revision_changed' }; return state;
             }
+            const exactSkill = skill
+              && skill.id === target.skillRef?.id
+              && skill.version === target.skillRef?.version
+              && skill.contentHash === target.skillRef?.contentHash;
+            const exactProfile = profile && profile.id === target.agentProfileId;
+            if (!exactSkill || !exactProfile) {
+              outcome = { ok: false, reason: 'binding_not_active' }; return state;
+            }
+            if (Number.isFinite(target.authorityEnvelope?.expiresAt)
+              && target.authorityEnvelope.expiresAt < now) {
+              outcome = { ok: false, reason: 'authority_expired' }; return state;
+            }
+            if ((Object.hasOwn(input, 'expiresAt')
+                && input.expiresAt !== target.authorityEnvelope?.expiresAt)
+              || (Object.hasOwn(input, 'maxRuns')
+                && input.maxRuns !== target.authorityEnvelope?.maxRuns)) {
+              outcome = { ok: false, reason: 'authority_change_not_allowed' }; return state;
+            }
+            const approvedCandidate = {
+              ...cand, approved: true, current: false, approvedAt: now,
+              revision: (cand.revision ?? 1) + 1,
+            };
             record = {
               ...target,
               trigger: structuredClone(trigger),
               nextRunAt: trigger.nextRunAt,
               updatedAt: now,
+              jobRevision: (target.jobRevision ?? 0) + 1,
             };
+            Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation));
             const jobs = [...state.jobs];
             jobs[jobIndex] = record;
             const candidates = [...state.candidates];
-            candidates[index] = {
-              ...cand, approved: true, current: false, approvedAt: now,
-              revision: (cand.revision ?? 1) + 1,
-            };
+            candidates[index] = approvedCandidate;
             outcome = { ok: true, operation, record, candidate: candidates[index] };
             return { ...state, candidates, jobs };
           }
@@ -2045,6 +2163,7 @@ export function makeServer(deps = {}) {
           }
           const bound = bindAutomationCandidate(cand, skill, profile, {
             trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
+            deliveryIntent: cand.deliveryIntent,
           });
           if (!bound.ok) {
             outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;
@@ -2078,7 +2197,8 @@ export function makeServer(deps = {}) {
             ...cand, approved: true, current: false, approvedAt: now,
             revision: (cand.revision ?? 1) + 1,
           };
-          record = scheduled.record;
+          record = { ...scheduled.record, jobRevision: 1 };
+          Object.assign(record, automationSettlementIdentity(candidates[index], record, operation));
           outcome = { ok: true, operation, record, candidate: candidates[index] };
           return { ...state, candidates, jobs: [...state.jobs, record] };
         });
@@ -2108,6 +2228,9 @@ export function makeServer(deps = {}) {
           state: saved.state,
           trigger: saved.trigger,
           nextRunAt: saved.nextRunAt,
+          jobRevision: saved.jobRevision,
+          settlementRef: saved.settlementRef,
+          settlementDigest: saved.settlementDigest,
           storeReadback: true,
         };
         return sendJson(res, 200, {
@@ -2157,6 +2280,12 @@ export function makeServer(deps = {}) {
           }
           outcome = moved;
           if (!moved.ok) return state;
+          if (moved.record !== current) {
+            moved = { ...moved, record: {
+              ...moved.record, jobRevision: (current.jobRevision ?? 0) + 1,
+            } };
+            outcome = moved;
+          }
           const jobs = [...state.jobs];
           jobs[index] = moved.record;
           return { ...state, jobs };
@@ -3067,7 +3196,8 @@ export function makeServer(deps = {}) {
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
     ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'];
+    ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'agent.propose', 'work.state'];
     ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.

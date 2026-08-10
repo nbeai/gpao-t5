@@ -1076,6 +1076,7 @@ export async function runTurn(input, ctx) {
   // 후보 제출이며, 어느 모델 호출 경로에서 나왔든 턴 결과의 소비자까지 잃지 않고 운반한다.
   let skillProposal = null;
   let automationProposal = null;
+  let automationControl = null;
   let agentProposal = null;
   // **모델이 낸 질문.** 커널이 만든 되묻기와 한 자리를 놓고 다투지 않게 여기 하나만 둔다.
   let 물음 = null;
@@ -1085,16 +1086,18 @@ export async function runTurn(input, ctx) {
     if (분리?.askUser && !물음) 물음 = 분리.askUser;
     if (분리?.skillProposal) skillProposal = 분리.skillProposal;
     if (분리?.automationProposal) automationProposal = 분리.automationProposal;
+    if (분리?.automationControl) automationControl = 분리.automationControl;
     // **만든 것을 모델이 알아야 한다**(판 ⑦). `executePlan` 안에서도 읽으려면 `ctx` 다.
     ctx.automationProposal = automationProposal;
+    ctx.automationControl = automationControl;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
     collectWorkState(분리);
   };
   const 통제제안 = () => ({
-    skillProposal, automationProposal, agentProposal,
+    skillProposal, automationProposal, automationControl, agentProposal,
     workStateProposal: currentWorkStateProposal(),
   });
-  const 승인통제제안 = () => ({ skillProposal, automationProposal, agentProposal });
+  const 승인통제제안 = () => ({ skillProposal, automationProposal, automationControl, agentProposal });
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
@@ -1347,6 +1350,21 @@ export async function runTurn(input, ctx) {
     }, { search, effort: 'medium' });
     return typeof out === 'string' ? out : (out?.text ?? currentReply);
   };
+  const 자동화제어후답 = async (baseTc, currentReply, search) => {
+    if (!automationControl || typeof ctx.applyAutomationControl !== 'function'
+      || ctx.automationControlHandled === true) return currentReply;
+    ctx.automationControlHandled = true;
+    const settled = await ctx.applyAutomationControl(automationControl);
+    automationControl = settled?.control ?? { rejected: true, reason: 'control_unknown' };
+    ctx.automationControl = automationControl;
+    ctx.automationReality = settled?.reality ?? ctx.automationReality;
+    const out = await ctx.model.respond({
+      ...baseTc,
+      automationControl: structuredClone(automationControl),
+      automationReality: structuredClone(ctx.automationReality),
+    }, { search, effort: 'medium' });
+    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+  };
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
   if (!modelChosen && !influence
@@ -1359,6 +1377,7 @@ export async function runTurn(input, ctx) {
       receipts: [], places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx), screenPlaces: ctx.이번턴화면자리,
     });
     earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
+    earlyReply = await 자동화제어후답(earlyTc, earlyReply, earlyWantedWeb);
     return {
       kind: 'reply',
       // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.

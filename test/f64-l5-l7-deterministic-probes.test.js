@@ -149,7 +149,13 @@ async function l6Case(surfaceReply = L6_FALSE_SURFACE_CLAIM) {
     if (!seen.has(request) && request !== '최종 상태를 알려줘') {
       seen.add(request);
       return { text: '', toolCalls: [{ name: 'automation.propose', args: {
-        statement: request, kind: 'weekly', tool: 'local.file',
+        statement: request, operation: 'create', kind: 'weekly',
+        trigger: {
+          kind: 'weekly', timezone: 'Asia/Seoul', misfirePolicy: 'catch_up_once',
+          weekdays: [1], localTime: '09:30', nextRunAt: 1_900_000_000_000,
+        },
+        tool: 'local.file', action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
       } }] };
     }
     return { text: request === '최종 상태를 알려줘'

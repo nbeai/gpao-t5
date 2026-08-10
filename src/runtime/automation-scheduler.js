@@ -88,6 +88,7 @@ export class AutomationScheduler {
     const state = await this.stateSource();
     const prepared = prepareAutomationRuns({
       jobs: state.jobs ?? [],
+      runs: state.runs ?? [],
       skills: state.skills ?? [],
       profiles: state.profiles ?? [],
       now,

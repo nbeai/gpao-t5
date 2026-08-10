@@ -85,6 +85,7 @@ function failed(failures, job, reason, errors = []) {
  */
 export function prepareAutomationRuns({
   jobs = [],
+  runs = [],
   skills = [],
   profiles = [],
   now,
@@ -106,6 +107,19 @@ export function prepareAutomationRuns({
     }
     if (job.state !== 'scheduled') {
       ignored.push({ jobId: job.id, reason: `job_${job.state}` });
+      continue;
+    }
+    const usedRuns = runs.filter((run) => run?.jobId === job.id).length;
+    if (usedRuns >= job.authorityEnvelope.maxRuns) {
+      entries.push({
+        jobId: job.id,
+        run: null,
+        jobGuard: jobGuard(job),
+        jobDelta: automationJobPatchDelta(job, { state: 'expired' }, {
+          reason: 'authority_max_runs_reached', now,
+        }),
+        reason: 'authority_max_runs_reached',
+      });
       continue;
     }
     if (Number.isFinite(job.authorityEnvelope.expiresAt)
