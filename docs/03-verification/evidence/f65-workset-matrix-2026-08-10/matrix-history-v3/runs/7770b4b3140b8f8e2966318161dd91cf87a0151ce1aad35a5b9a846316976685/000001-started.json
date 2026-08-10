@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "f65-workset-matrix-20260810-v3::L5-workset-admin--W1P1O0",
+  "attemptId": "27cdc0da-a83c-463f-afe9-4d8e9b31db4f",
+  "executionKind": "f65_counterfactual",
+  "isolatedRoot": "/private/tmp/t5-ls-IXkecy",
+  "recordedAt": "2026-08-10T00:52:36.919Z"
+}

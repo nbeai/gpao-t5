@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "f65-workset-matrix-prepaid-qualification-20260810-e5c000a",
+  "attemptId": "94313be8-97ac-4698-b9cb-35eb62979e45",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-harness-qualification-duqOoj",
+  "recordedAt": "2026-08-10T00:45:27.379Z"
+}

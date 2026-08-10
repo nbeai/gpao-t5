@@ -1,0 +1,1106 @@
+{
+  "schemaVersion": 1,
+  "kind": "f65-workset-matrix-post-run-mechanical-audit",
+  "authority": "raw-derived mechanical audit; not PM final judgment",
+  "resultSeen": true,
+  "noRerun": true,
+  "providerCallsAdded": 0,
+  "inputs": {
+    "batchManifest": "matrix-evidence-v3/f65-workset-matrix-20260810-v3/batch-manifest.json",
+    "batchRunId": "f65-workset-matrix-20260810-v3",
+    "batchStatus": "RECORDED",
+    "configPath": "scripts/human-use/f65-workset-matrix-v1.json",
+    "configSha256": "f80204bdb4455105e79a318a677c722f83c2bdd632e868a2b53d2ac75d7ae2f2",
+    "source": {
+      "kind": "source",
+      "gitSha": "e5c000a5bc7289336197588f98ca1abcaf8df46e",
+      "dirty": false,
+      "worktreeDigest": "487a2bdcb27251ac290b5ef87a0cfcbcea11bb4c598dc54851252a2d7f50bf84",
+      "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "childCount": 24
+  },
+  "provider": {
+    "providerCalls": 142,
+    "usage": {
+      "promptTokens": 1752140,
+      "completionTokens": 23322,
+      "totalTokens": 1775462
+    },
+    "requestModelIds": [
+      "gpt-5.1"
+    ],
+    "responseModelIds": [
+      "gpt-5.1-2025-11-13"
+    ],
+    "responseModelFixed": true
+  },
+  "recomputedFromRaw": {
+    "axes": {
+      "W": {
+        "OFF": {
+          "cells": 12,
+          "firstLocalLocate": 3,
+          "enteredLocalFileOrCapsule": 9,
+          "fullSourceRead": 6,
+          "validArtifact": 5,
+          "requiredContent": 5,
+          "recentOutcomeCompleted": 9,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        },
+        "ON": {
+          "cells": 12,
+          "firstLocalLocate": 2,
+          "enteredLocalFileOrCapsule": 10,
+          "fullSourceRead": 8,
+          "validArtifact": 6,
+          "requiredContent": 6,
+          "recentOutcomeCompleted": 10,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        }
+      },
+      "P": {
+        "OFF": {
+          "cells": 12,
+          "firstLocalLocate": 4,
+          "enteredLocalFileOrCapsule": 8,
+          "fullSourceRead": 6,
+          "validArtifact": 5,
+          "requiredContent": 5,
+          "recentOutcomeCompleted": 10,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        },
+        "ON": {
+          "cells": 12,
+          "firstLocalLocate": 1,
+          "enteredLocalFileOrCapsule": 11,
+          "fullSourceRead": 8,
+          "validArtifact": 6,
+          "requiredContent": 6,
+          "recentOutcomeCompleted": 9,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        }
+      },
+      "O": {
+        "OFF": {
+          "cells": 12,
+          "firstLocalLocate": 5,
+          "enteredLocalFileOrCapsule": 7,
+          "fullSourceRead": 6,
+          "validArtifact": 4,
+          "requiredContent": 4,
+          "recentOutcomeCompleted": 8,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        },
+        "ON": {
+          "cells": 12,
+          "firstLocalLocate": 0,
+          "enteredLocalFileOrCapsule": 12,
+          "fullSourceRead": 8,
+          "validArtifact": 7,
+          "requiredContent": 7,
+          "recentOutcomeCompleted": 11,
+          "executionCompleted": 0,
+          "verifiedComplete": 0
+        }
+      }
+    },
+    "scenarios": {
+      "L1-workset-settlement": {
+        "cells": 8,
+        "firstLocalLocate": 3,
+        "enteredLocalFileOrCapsule": 5,
+        "fullSourceRead": 0,
+        "validArtifact": 4,
+        "requiredContent": 4,
+        "recentOutcomeCompleted": 5,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      },
+      "L4-workset-document": {
+        "cells": 8,
+        "firstLocalLocate": 1,
+        "enteredLocalFileOrCapsule": 7,
+        "fullSourceRead": 7,
+        "validArtifact": 0,
+        "requiredContent": 0,
+        "recentOutcomeCompleted": 7,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      },
+      "L5-workset-admin": {
+        "cells": 8,
+        "firstLocalLocate": 1,
+        "enteredLocalFileOrCapsule": 7,
+        "fullSourceRead": 7,
+        "validArtifact": 7,
+        "requiredContent": 7,
+        "recentOutcomeCompleted": 7,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      }
+    },
+    "cells": [
+      {
+        "cellId": "L1-workset-settlement--W0P0O0",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O0/8699166d-6354-4e7d-8540-54debe8ff13c/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.locate",
+          "action": null,
+          "target": null
+        },
+        "enteredLocalFileOrCapsule": false,
+        "sourceRead": [],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "카드_7월.csv",
+          "현금_7월.csv",
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W0P0O1",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O1/dc5a87da-5302-44b1-864c-5a6268c76405/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "read",
+          "target": "카드_7월.csv"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W0P1O0",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P1O0/4e0ee495-5426-4f3f-ba6d-973f443096a3/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": false,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W0P1O1",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P1O1/9328224b-32f4-44c3-a7c9-44879ec08099/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": false,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W1P0O0",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P0O0/667e3b6b-214c-4328-af8c-cf607c7acd7a/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.locate",
+          "action": null,
+          "target": null
+        },
+        "enteredLocalFileOrCapsule": false,
+        "sourceRead": [],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "카드_7월.csv",
+          "현금_7월.csv",
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": false,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W1P0O1",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P0O1/83424515-ebc2-48fd-9dad-f22a479a98b5/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "/private/tmp/t5-ls-Q1pZ7P/fixture"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W1P1O0",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P1O0/9d4c9c2a-073f-4ecb-9d0a-421dbd428182/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.locate",
+          "action": null,
+          "target": null
+        },
+        "enteredLocalFileOrCapsule": false,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L1-workset-settlement--W1P1O1",
+        "scenarioId": "L1-workset-settlement",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P1O1/c7c43c0f-6937-4ddb-bf10-af2dfa2ff5d8/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.capsule",
+          "action": "read",
+          "target": "카드_7월.csv"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "카드_7월.csv",
+          "현금_7월.csv"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "메모.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W0P0O0",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O0/01af4a3d-5537-49a3-836a-88b8d867a915/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.locate",
+          "action": null,
+          "target": null
+        },
+        "enteredLocalFileOrCapsule": false,
+        "sourceRead": [],
+        "sourceTotal": 2,
+        "fullSourceRead": false,
+        "missingSources": [
+          "정책.txt",
+          "문의.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W0P0O1",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O1/4df5e991-1660-48b6-bd0b-bd4345a143c5/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "read",
+          "target": "정책.txt"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W0P1O0",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P1O0/6e9bbbe5-15f1-4e22-be15-bf7b1fc763dd/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W0P1O1",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P1O1/8e78d14e-72ff-47de-9dda-0d153f4ecc19/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "read",
+          "target": "정책.txt"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W1P0O0",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P0O0/85946df9-dcb1-4c98-9aa6-e96f68d318ca/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W1P0O1",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P0O1/16fcb686-cb18-4c6d-b8a9-e10be183b88b/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "read",
+          "target": "정책.txt"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W1P1O0",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P1O0/b38b7d93-41df-42d1-b56e-9649a1e6574a/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": false,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L4-workset-document--W1P1O1",
+        "scenarioId": "L4-workset-document",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P1O1/a8a25596-bd21-4f05-9e24-276e2aec300a/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "read",
+          "target": "정책.txt"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "문의.txt",
+          "정책.txt"
+        ],
+        "sourceTotal": 2,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W0P0O0",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P0O0/d759785d-e10a-44c0-ac3b-13ef227c015f/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.locate",
+          "action": null,
+          "target": null
+        },
+        "enteredLocalFileOrCapsule": false,
+        "sourceRead": [],
+        "sourceTotal": 3,
+        "fullSourceRead": false,
+        "missingSources": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 0,
+        "validArtifacts": 0,
+        "requiredContentPassingArtifacts": 0,
+        "recentOutcomeCompleted": false,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W0P0O1",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": false,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P0O1/4d3c7ac2-b4bd-4671-9597-50271f86c1ab/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "/private/tmp/t5-ls-G7mfXY/fixture"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W0P1O0",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P1O0/1bc0a4e3-75e9-4a5f-a8e3-c586c7db1a6e/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W0P1O1",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": false,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P1O1/cfc45f4e-845e-4f34-b92a-09a6b2341294/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W1P0O0",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P0O0/3a5e0acc-e9d7-4b96-92cf-6dd96704ddf7/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W1P0O1",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": true,
+          "P": false,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P0O1/db436094-870c-466b-a9ac-38857caf81f3/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "/private/tmp/t5-ls-m1bEaO/fixture"
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W1P1O0",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": false
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P1O0/27cdc0da-a83c-463f-afe9-4d8e9b31db4f/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      },
+      {
+        "cellId": "L5-workset-admin--W1P1O1",
+        "scenarioId": "L5-workset-admin",
+        "axes": {
+          "W": true,
+          "P": true,
+          "O": true
+        },
+        "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P1O1/d8bddb49-0606-469b-aa97-be13d6f29ca4/raw/cell.json",
+        "firstToolTarget": {
+          "tool": "local.file",
+          "action": "list",
+          "target": "."
+        },
+        "enteredLocalFileOrCapsule": true,
+        "sourceRead": [
+          "사업자등록증.txt",
+          "임대차계약서.txt",
+          "통장사본.txt"
+        ],
+        "sourceTotal": 3,
+        "fullSourceRead": true,
+        "missingSources": [],
+        "userRestatementBurdenRecorded": 0,
+        "derivedArtifactCandidates": 1,
+        "validArtifacts": 1,
+        "requiredContentPassingArtifacts": 1,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0,
+        "verifiedComplete": false
+      }
+    ]
+  },
+  "frozenMechanicalFacts": {
+    "baseline": {
+      "cells": 3,
+      "firstLocalLocate": 3
+    },
+    "anyDiagnosticRealityAxis": {
+      "cells": 21,
+      "enteredLocalFileOrCapsule": 19
+    },
+    "L1": {
+      "cells": 8,
+      "validArtifact": 4,
+      "requiredContent": 4,
+      "fullSourceRead": 0,
+      "memoMissing": 8
+    },
+    "L4": {
+      "cells": 8,
+      "fullSourceRead": 7,
+      "derivedFile": 0,
+      "recentOutcomeCompleted": 7
+    },
+    "L5": {
+      "cells": 8,
+      "fullSourceRead": 7,
+      "validArtifact": 7,
+      "requiredContent": 7,
+      "nonBaseline": {
+        "cells": 7,
+        "fullSourceRead": 7,
+        "validArtifact": 7,
+        "requiredContent": 7
+      }
+    },
+    "executionCompleted": 0,
+    "responseModelIds": [
+      "gpt-5.1-2025-11-13"
+    ]
+  },
+  "scorerDefects": [
+    {
+      "id": "user-restatement-burden-kind-only",
+      "fact": "userRestatementBurden counts only response.kind=clarify and misses explicit restatement requests in reply responses",
+      "evidence": [
+        {
+          "cellId": "L1-workset-settlement--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O0/8699166d-6354-4e7d-8540-54debe8ff13c/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O0/01af4a3d-5537-49a3-836a-88b8d867a915/raw/cell.json"
+        }
+      ]
+    },
+    {
+      "id": "locate-what-omitted-from-first-target",
+      "fact": "firstToolTarget does not project local.locate args.what into target",
+      "evidence": [
+        {
+          "cellId": "L1-workset-settlement--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O0/8699166d-6354-4e7d-8540-54debe8ff13c/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P0O0/667e3b6b-214c-4328-af8c-cf607c7acd7a/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P1O0/9d4c9c2a-073f-4ecb-9d0a-421dbd428182/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O0/01af4a3d-5537-49a3-836a-88b8d867a915/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P0O0/d759785d-e10a-44c0-ac3b-13ef227c015f/raw/cell.json"
+        }
+      ]
+    },
+    {
+      "id": "batch-child-hash-history-not-directly-bound",
+      "fact": "batch manifest stores child manifest paths and statuses but not child manifest hashes or history references; ARCHIVE-MANIFEST.json supplies archive-level hashes",
+      "evidence": [
+        {
+          "path": "matrix-evidence-v3/f65-workset-matrix-20260810-v3/batch-manifest.json"
+        }
+      ]
+    },
+    {
+      "id": "all-false-consistency",
+      "fact": "completionTruthConsistency.consistent may be true when recentOutcome, receipt binding, and execution event binding are all false; completion judgment must use verifiedComplete",
+      "evidence": [
+        {
+          "cellId": "L1-workset-settlement--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O0/8699166d-6354-4e7d-8540-54debe8ff13c/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W0P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P0O1/dc5a87da-5302-44b1-864c-5a6268c76405/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W0P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P1O0/4e0ee495-5426-4f3f-ba6d-973f443096a3/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W0P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W0P1O1/9328224b-32f4-44c3-a7c9-44879ec08099/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P0O0/667e3b6b-214c-4328-af8c-cf607c7acd7a/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P0O1/83424515-ebc2-48fd-9dad-f22a479a98b5/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P1O0/9d4c9c2a-073f-4ecb-9d0a-421dbd428182/raw/cell.json"
+        },
+        {
+          "cellId": "L1-workset-settlement--W1P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL1-workset-settlement--W1P1O1/c7c43c0f-6937-4ddb-bf10-af2dfa2ff5d8/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O0/01af4a3d-5537-49a3-836a-88b8d867a915/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P0O1/4df5e991-1660-48b6-bd0b-bd4345a143c5/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P1O0/6e9bbbe5-15f1-4e22-be15-bf7b1fc763dd/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W0P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W0P1O1/8e78d14e-72ff-47de-9dda-0d153f4ecc19/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W1P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P0O0/85946df9-dcb1-4c98-9aa6-e96f68d318ca/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W1P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P0O1/16fcb686-cb18-4c6d-b8a9-e10be183b88b/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W1P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P1O0/b38b7d93-41df-42d1-b56e-9649a1e6574a/raw/cell.json"
+        },
+        {
+          "cellId": "L4-workset-document--W1P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL4-workset-document--W1P1O1/a8a25596-bd21-4f05-9e24-276e2aec300a/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W0P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P0O0/d759785d-e10a-44c0-ac3b-13ef227c015f/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W0P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P0O1/4d3c7ac2-b4bd-4671-9597-50271f86c1ab/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W0P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P1O0/1bc0a4e3-75e9-4a5f-a8e3-c586c7db1a6e/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W0P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W0P1O1/cfc45f4e-845e-4f34-b92a-09a6b2341294/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W1P0O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P0O0/3a5e0acc-e9d7-4b96-92cf-6dd96704ddf7/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W1P0O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P0O1/db436094-870c-466b-a9ac-38857caf81f3/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W1P1O0",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P1O0/27cdc0da-a83c-463f-afe9-4d8e9b31db4f/raw/cell.json"
+        },
+        {
+          "cellId": "L5-workset-admin--W1P1O1",
+          "rawPath": "matrix-evidence-v3/f65-workset-matrix-20260810-v3%3A%3AL5-workset-admin--W1P1O1/d8bddb49-0606-469b-aa97-be13d6f29ca4/raw/cell.json"
+        }
+      ]
+    }
+  ],
+  "mechanicalBoundaryJudgment": {
+    "F65": {
+      "status": "NARROW_KNOT_CONFIRMED",
+      "scope": "bounded current-workset entry reality only"
+    },
+    "remaining": [
+      {
+        "defect": "F66b",
+        "fact": "L1 source-set coverage/provenance remains; memo omitted 8/8"
+      },
+      {
+        "defect": "F64",
+        "fact": "L4 durable file result remains absent while recentOutcome completed 7/8"
+      },
+      {
+        "defect": "F64/F66-boundary",
+        "fact": "durable WorkRef/Receipt/execution_completed continuity remains absent; execution_completed 0/24"
+      }
+    ]
+  },
+  "measurementRule": "No raw reply strings were converted into a new score; scorer omissions are identified only by cell ID and raw evidence path."
+}

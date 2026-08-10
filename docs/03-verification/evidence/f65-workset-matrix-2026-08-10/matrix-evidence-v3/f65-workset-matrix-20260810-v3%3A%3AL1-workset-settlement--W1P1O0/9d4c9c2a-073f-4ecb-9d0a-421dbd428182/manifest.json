@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 2,
+  "kind": "f65-workset-counterfactual-cell",
+  "runId": "f65-workset-matrix-20260810-v3::L1-workset-settlement--W1P1O0",
+  "attemptId": "9d4c9c2a-073f-4ecb-9d0a-421dbd428182",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "cell": {
+    "scenarioId": "L1-workset-settlement",
+    "W": true,
+    "P": true,
+    "O": false,
+    "cellId": "L1-workset-settlement--W1P1O0"
+  },
+  "source": {
+    "kind": "source",
+    "gitSha": "e5c000a5bc7289336197588f98ca1abcaf8df46e",
+    "dirty": false,
+    "worktreeDigest": "487a2bdcb27251ac290b5ef87a0cfcbcea11bb4c598dc54851252a2d7f50bf84",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "config": {
+    "path": "scripts/human-use/f65-workset-matrix-v1.json",
+    "sha256": "f80204bdb4455105e79a318a677c722f83c2bdd632e868a2b53d2ac75d7ae2f2"
+  },
+  "fixture": {
+    "rows": [
+      {
+        "name": "메모.txt",
+        "sha256": "a2449b225b84976a26bf2580b6a60b5e252a090bb532d66e6fd2b5333e467be2",
+        "bytes": 38
+      },
+      {
+        "name": "카드_7월.csv",
+        "sha256": "d966f508748ec21e50d022ef551e2d427beced2b0d655ee30d0e71cca3eae0d0",
+        "bytes": 23
+      },
+      {
+        "name": "현금_7월.csv",
+        "sha256": "58dcc37d21d423fe8a80b47b0f2636277f94893d1dbc8c66432cdd7540562324",
+        "bytes": 23
+      }
+    ],
+    "sha256": "45686898933e1744cdabd7122b789867b59626f483d8885419e612c7f3b8b0c4"
+  },
+  "isolation": {
+    "ok": true,
+    "결과": [
+      {
+        "항목": "파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "scopeRoots=[\"/private/tmp/t5-ls-acIWsF/fixture\"]"
+      },
+      {
+        "항목": "파일 손의 ~/Documents 가 오너 홈이 아니다",
+        "통과": true,
+        "사실": "격리 방의 Documents 를 본다"
+      },
+      {
+        "항목": "터미널 기본 자리가 격리 홈",
+        "통과": true,
+        "사실": "cwd=격리 루트"
+      },
+      {
+        "항목": "터미널 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "exit=0"
+      }
+    ]
+  },
+  "machine": {
+    "firstToolTarget": {
+      "tool": "local.locate",
+      "action": null,
+      "target": null
+    },
+    "sourceFilesReadCoverage": {
+      "read": [
+        "카드_7월.csv",
+        "현금_7월.csv"
+      ],
+      "total": 3
+    },
+    "userRestatementBurden": 0,
+    "derivedArtifactIdentity": {
+      "candidates": [
+        {
+          "identity": {
+            "path": "/private/tmp/t5-ls-acIWsF/fixture/7월_정산_통합.csv",
+            "relativePath": "7월_정산_통합.csv",
+            "sha256": "5fdbae06e8f8fc5c9fe31c173381757a33c9f4f803f52f81d1326f339263ca69",
+            "bytes": 58,
+            "extension": ".csv",
+            "artifactKind": "integrated_result_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "contentRows": [
+            {
+              "fact": "A",
+              "present": true
+            },
+            {
+              "fact": "390000",
+              "present": true
+            },
+            {
+              "fact": "B",
+              "present": true
+            },
+            {
+              "fact": "360000",
+              "present": true
+            },
+            {
+              "fact": "750000",
+              "present": false
+            }
+          ],
+          "writeReceipts": [
+            {
+              "receiptRef": "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjYxMGJhODEwLTY5YTQtNDUzYy1iNjM5LTJjYmVhZGE2ZmFmYiIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NSwicmVjZWlwdERpZ2VzdCI6IjAxZWE1NjY5MGU3YWU1OGE1NjJlMTYxNzYzZmVjYTRiZTQ0YTMyNjI3M2Q1ZDc3NWZlMTA3OGU5MTE0ZDkyMTciLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTV3BaZUUxSFNtaFBSRVYzVEZSWk5WbFVVWFJPUkZWNldYa3hhVTVxVFRWTVZFcHFXVzFXYUZwSFJUSmFiVVp0V1dsSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzV5YVZWcFQzaDBaMlZwYTBsVGNEWlBSRUV0TUU1aVEwZE1PRkJKWDNKRGEyTnZUVWxpVDA5d1FVaFJJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUk0TmpWak5tRXlaREl5WW1NMVl6UXdOalZqTm1VeVlXRTNNemd3T0dVeVpqTmxabVkzWkdGaE16WXpPVGMzWTJWaVl6WmpaR05rWVRRME5EVTFPVE0ySW4wLnA2eDNZY1dFVlBEbkNzc1pUM19BVTg0RFhIQlFZTlpOVGg5MFZpR0hlWEEifQ.fbX5JqDdj2zhiM3TsU7_jtoGn0qDfTlJdo7JlLSr_P8",
+              "completionContractRef": "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29udHJhY3REaWdlc3QiOiI4NjVjNmEyZDIyYmM1YzQwNjVjNmUyYWE3MzgwOGUyZjNlZmY3ZGFhMzYzOTc3Y2ViYzZjZGNkYTQ0NDU1OTM2In0.p6x3YcWEVPDnCssZT3_AU84DXHBQYNZNTh90ViGHeXA",
+              "deliverableRefs": [
+                "primary-file-output"
+              ],
+              "action": "write",
+              "lifecycle": "delivered"
+            }
+          ],
+          "pass": false
+        }
+      ],
+      "candidateCount": 1,
+      "validCount": 0,
+      "ambiguity": "single",
+      "sourceFilesUnchanged": {
+        "pass": true,
+        "changed": []
+      },
+      "workspaceBoundary": {
+        "pass": true,
+        "outsideSuccessful": []
+      },
+      "sourceOverwrite": {
+        "pass": true,
+        "receipts": []
+      },
+      "pass": false
+    },
+    "requiredContentCoverage": {
+      "candidates": [
+        {
+          "artifact": {
+            "path": "/private/tmp/t5-ls-acIWsF/fixture/7월_정산_통합.csv",
+            "relativePath": "7월_정산_통합.csv",
+            "sha256": "5fdbae06e8f8fc5c9fe31c173381757a33c9f4f803f52f81d1326f339263ca69",
+            "bytes": 58,
+            "extension": ".csv",
+            "artifactKind": "integrated_result_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "rows": [
+            {
+              "fact": "A",
+              "present": true
+            },
+            {
+              "fact": "390000",
+              "present": true
+            },
+            {
+              "fact": "B",
+              "present": true
+            },
+            {
+              "fact": "360000",
+              "present": true
+            },
+            {
+              "fact": "750000",
+              "present": false
+            }
+          ],
+          "pass": false
+        }
+      ],
+      "pass": false
+    },
+    "completionTruthConsistency": {
+      "ambiguity": "single",
+      "candidates": [
+        {
+          "artifact": {
+            "path": "/private/tmp/t5-ls-acIWsF/fixture/7월_정산_통합.csv",
+            "relativePath": "7월_정산_통합.csv",
+            "sha256": "5fdbae06e8f8fc5c9fe31c173381757a33c9f4f803f52f81d1326f339263ca69",
+            "bytes": 58,
+            "extension": ".csv",
+            "artifactKind": "integrated_result_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "artifactPass": false,
+          "receiptRefs": [
+            "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjYxMGJhODEwLTY5YTQtNDUzYy1iNjM5LTJjYmVhZGE2ZmFmYiIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NSwicmVjZWlwdERpZ2VzdCI6IjAxZWE1NjY5MGU3YWU1OGE1NjJlMTYxNzYzZmVjYTRiZTQ0YTMyNjI3M2Q1ZDc3NWZlMTA3OGU5MTE0ZDkyMTciLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTV3BaZUUxSFNtaFBSRVYzVEZSWk5WbFVVWFJPUkZWNldYa3hhVTVxVFRWTVZFcHFXVzFXYUZwSFJUSmFiVVp0V1dsSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzV5YVZWcFQzaDBaMlZwYTBsVGNEWlBSRUV0TUU1aVEwZE1PRkJKWDNKRGEyTnZUVWxpVDA5d1FVaFJJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUk0TmpWak5tRXlaREl5WW1NMVl6UXdOalZqTm1VeVlXRTNNemd3T0dVeVpqTmxabVkzWkdGaE16WXpPVGMzWTJWaVl6WmpaR05rWVRRME5EVTFPVE0ySW4wLnA2eDNZY1dFVlBEbkNzc1pUM19BVTg0RFhIQlFZTlpOVGg5MFZpR0hlWEEifQ.fbX5JqDdj2zhiM3TsU7_jtoGn0qDfTlJdo7JlLSr_P8"
+          ],
+          "completionContractRefs": [
+            "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29udHJhY3REaWdlc3QiOiI4NjVjNmEyZDIyYmM1YzQwNjVjNmUyYWE3MzgwOGUyZjNlZmY3ZGFhMzYzOTc3Y2ViYzZjZGNkYTQ0NDU1OTM2In0.p6x3YcWEVPDnCssZT3_AU84DXHBQYNZNTh90ViGHeXA"
+          ],
+          "matchingExecutionCompleted": [],
+          "recentOutcome": true,
+          "consistent": false,
+          "verifiedComplete": false
+        }
+      ],
+      "selected": {
+        "artifact": {
+          "path": "/private/tmp/t5-ls-acIWsF/fixture/7월_정산_통합.csv",
+          "relativePath": "7월_정산_통합.csv",
+          "sha256": "5fdbae06e8f8fc5c9fe31c173381757a33c9f4f803f52f81d1326f339263ca69",
+          "bytes": 58,
+          "extension": ".csv",
+          "artifactKind": "integrated_result_text_file",
+          "artifactKindMachineBasis": "new_regular_file_with_required_content"
+        },
+        "artifactPass": false,
+        "receiptRefs": [
+          "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjYxMGJhODEwLTY5YTQtNDUzYy1iNjM5LTJjYmVhZGE2ZmFmYiIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NSwicmVjZWlwdERpZ2VzdCI6IjAxZWE1NjY5MGU3YWU1OGE1NjJlMTYxNzYzZmVjYTRiZTQ0YTMyNjI3M2Q1ZDc3NWZlMTA3OGU5MTE0ZDkyMTciLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTV3BaZUUxSFNtaFBSRVYzVEZSWk5WbFVVWFJPUkZWNldYa3hhVTVxVFRWTVZFcHFXVzFXYUZwSFJUSmFiVVp0V1dsSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzV5YVZWcFQzaDBaMlZwYTBsVGNEWlBSRUV0TUU1aVEwZE1PRkJKWDNKRGEyTnZUVWxpVDA5d1FVaFJJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUk0TmpWak5tRXlaREl5WW1NMVl6UXdOalZqTm1VeVlXRTNNemd3T0dVeVpqTmxabVkzWkdGaE16WXpPVGMzWTJWaVl6WmpaR05rWVRRME5EVTFPVE0ySW4wLnA2eDNZY1dFVlBEbkNzc1pUM19BVTg0RFhIQlFZTlpOVGg5MFZpR0hlWEEifQ.fbX5JqDdj2zhiM3TsU7_jtoGn0qDfTlJdo7JlLSr_P8"
+        ],
+        "completionContractRefs": [
+          "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SWpZeE1HSmhPREV3TFRZNVlUUXRORFV6WXkxaU5qTTVMVEpqWW1WaFpHRTJabUZtWWlJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC5yaVVpT3h0Z2Vpa0lTcDZPREEtME5iQ0dMOFBJX3JDa2NvTUliT09wQUhRIiwiY29udHJhY3REaWdlc3QiOiI4NjVjNmEyZDIyYmM1YzQwNjVjNmUyYWE3MzgwOGUyZjNlZmY3ZGFhMzYzOTc3Y2ViYzZjZGNkYTQ0NDU1OTM2In0.p6x3YcWEVPDnCssZT3_AU84DXHBQYNZNTh90ViGHeXA"
+        ],
+        "matchingExecutionCompleted": [],
+        "recentOutcome": true,
+        "consistent": false,
+        "verifiedComplete": false
+      },
+      "consistent": false,
+      "verifiedComplete": false
+    },
+    "semantic": "PM_UNJUDGED"
+  },
+  "semantic": "PM_UNJUDGED",
+  "providerMeter": {
+    "observedCalls": 9,
+    "responseModelIds": [
+      "gpt-5.1-2025-11-13"
+    ],
+    "usage": {
+      "callsWithUsage": 9,
+      "promptTokens": 124027,
+      "completionTokens": 606,
+      "totalTokens": 124633,
+      "raw": [
+        {
+          "prompt_tokens": 14815,
+          "completion_tokens": 40,
+          "total_tokens": 14855,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 6656,
+          "completion_tokens": 25,
+          "total_tokens": 6681,
+          "prompt_tokens_details": {
+            "cached_tokens": 6016,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15147,
+          "completion_tokens": 26,
+          "total_tokens": 15173,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15345,
+          "completion_tokens": 25,
+          "total_tokens": 15370,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15568,
+          "completion_tokens": 37,
+          "total_tokens": 15605,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15849,
+          "completion_tokens": 31,
+          "total_tokens": 15880,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 16128,
+          "completion_tokens": 62,
+          "total_tokens": 16190,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 16389,
+          "completion_tokens": 152,
+          "total_tokens": 16541,
+          "prompt_tokens_details": {
+            "cached_tokens": 3840,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 8130,
+          "completion_tokens": 208,
+          "total_tokens": 8338,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      ]
+    },
+    "expectedUpperBoundsForMeteringOnly": {
+      "providerCallsPerCell": 12,
+      "totalTokensPerCell": 200000,
+      "enforced": false
+    },
+    "enforced": false
+  },
+  "protectedState": {
+    "path": "/Users/jyp/.local/state/gpao-t5",
+    "changed": []
+  },
+  "fixtureState": {
+    "sourcePaths": [
+      "/private/tmp/t5-ls-acIWsF/fixture/카드_7월.csv",
+      "/private/tmp/t5-ls-acIWsF/fixture/현금_7월.csv",
+      "/private/tmp/t5-ls-acIWsF/fixture/메모.txt"
+    ],
+    "changed": []
+  },
+  "rawEvidence": [
+    {
+      "name": "cell.json",
+      "sha256": "a9c57d655c94813534000d622ce9d6687b085f696059668628a7d2cdb8570360"
+    }
+  ]
+}
