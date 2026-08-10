@@ -7,10 +7,29 @@
 
 ## 최신 작업선 · 2026-08-11
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `3d6f9fd`.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `d36885e`.
 - 활성 sidecar: 없음. 최초 F-64 실패 실험 `/private/tmp/t5-f64-purpose-completion-v2`은 독립 감사
   수거 PASS와 오너의 미커밋 7파일·706줄 영구 삭제 승인을 받은 뒤 제거했다. 커밋 `37868ec`과
   브랜치 계보는 보존되고 미커밋 WIP는 복구할 수 없다.
+- F-64 L7 process/hash 조각은 `aded078..c2e8fb9`에서 구현하고 정본 `08625c0..d36885e`로
+  통합했다. 사용자 발화의 명시 단일 결과 경로, 모델의 구조 판정
+  `sourcePolicy:selected + verification:process_sha256`, 실제 선택 source의 full-read Receipt와
+  current revision, terminal `exitCode:0`의 단일 SHA-256 token, 결과 파일 readback·seal check,
+  마지막 source revision이 모두 같을 때만 별도 signed completion Receipt·같은 ReceiptRef의
+  `execution_completed`·recentOutcome이 함께 선다. 명령 실패·빈 stdout·다른 source·변형 digest·
+  artifact readback 불일치에서는 raw 실행 증거만 남고 완료 세 축은 0이다.
+- **L7 독립감사 기록(2026-08-11): PASS.** 구현자와 분리된 읽기·실행 감사선
+  `f64_settlement_design_audit`가 `aded078..c2e8fb9` 전체를 한 번에 감사했다. 감사선 직접 실행은
+  동결 정상 1건+반례 5갈래 suite 7/7, 관련 112/112, 전체 3,596/3,596, gate 제품 항목 전부 PASS,
+  `git diff --check` PASS였고 파일 변경·provider 호출·commit·merge·push는 0이었다. 감사 판정은
+  이 process/hash 구조 단위의 통합 PASS이며, L7의 다중 source 선택 의미·L5·전체 F-64 완료로
+  확대하지 않는다. 구현 커밋의 `needs independent audit` 표시는 이 후속 감사 기록으로 해소한다.
+- **L7 종료 공정 계수:** 닫는 목록은 선빨강 `aded078`(02:55)이 구현 `c2e8fb9`(02:59)보다 먼저였고,
+  동결 밖 범위 확장은 0회였다. 개발선은 선빨강 1회 뒤 표적 1회·관련 1회·전체 1회·gate 1회,
+  독립감사 1회를 사용했다. 개발선 최초 전체는 L6 local-chat setup의 병렬 404 한 건으로
+  3,595/3,596이었으며 이를 숨기거나 전체 재실행하지 않았다. 이어 예정된 단일 gate에서
+  3,596/3,596이 통과했고, 독립감사선의 별도 전체도 3,596/3,596이었다. 정본 통합·sidecar 수거 뒤
+  `audit:workspace`는 88 active docs·2 worktrees PASS다.
 - F-64 slice-1 개발 입장 범위: 사용자 발화에서 기계적으로 특정된 단일 파일 경로·본문과 명시된
   `sourcePolicy(none|all_current)`가 함께 있을 때만 raw write·실제 readback·seal check·별도 signed
   completion Receipt·같은 ReceiptRef의 `execution_completed`·최근 완료가 한 WorkRef로 선다. 하나라도
