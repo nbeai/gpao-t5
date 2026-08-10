@@ -8,6 +8,26 @@
     "providerCalls": 0,
     "paidCalls": 0
   },
+  "invalidAttempts": [
+    {
+      "kind": "COUNTERCONDITION_ORACLE_INVALID",
+      "commit": "de8d0ae3a1523fba2fbc464c76cff99f72dcf85b",
+      "reason": "L5/L7 결과 본문과 digest 및 L6 scheduled job을 하네스가 직접 넣어 실제 모델 관측→제품 실행 결속을 증명하지 못했다.",
+      "resultSeenBeforeCorrection": true,
+      "providerCalls": 0
+    },
+    {
+      "kind": "COUNTERCONDITION_WIRING_INVALID",
+      "reason": "첫 보강은 모델에게 실제 공급되는 turnExchange가 아니라 존재하지 않는 tc.receipts를 읽었고, L6 후보는 action이 없어 approve가 candidate_action_unknown 422였다. 반복 trigger에 expiry가 빠진 다음 시도도 repeated_requires_expiry 422였다.",
+      "validApprovedJobs": 0,
+      "providerCalls": 0
+    },
+    {
+      "kind": "HARNESS_ENVIRONMENT_INVALID",
+      "reason": "샌드박스가 127.0.0.1 listen을 EPERM으로 거부한 닫힘 실행 1회는 제품/provider 진입 전 환경 무효로 제외했다.",
+      "providerCalls": 0
+    }
+  ],
   "frozenPilot": {
     "configPath": "scripts/human-use/living-sim-pilot-v1.json",
     "configSha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0",
@@ -45,21 +65,28 @@
   },
   "harness": {
     "path": "test/f64-l5-l7-deterministic-probes.test.js",
-    "sha256": "87c94e708cf505525aef9ab7d8ac9ad991bcbd4e564f2f7d5631babdf8ed2b1e",
-    "actualProductPath": "POST /turn",
+    "sha256": "6b3c9c71bbcb7f20cb0c68ccf34d7465397033b214089220f5b86bc7148253e8",
+    "actualProductPath": "POST /turn; GET /automation/setup; POST /automation/approve",
     "providerFixture": "deterministic-local-model",
     "toolOrderForced": false,
-    "replyScoredByRegex": false
+    "replyScoredByRegex": false,
+    "isolation": {
+      "fixtureRoot": "fresh mkdtemp child under os.tmpdir per case",
+      "stateRoot": "fixtureRoot/.state",
+      "processEnv": "HOME/GPAO_T5_HOME/GPAO_T5_DATA_DIR/GPAO_T5_FILE_ROOTS point only to that child",
+      "liveUserStateReferenced": false
+    }
   },
   "runs": [
     {
       "kind": "diagnostic-observation",
       "command": "node --test test/f64-l5-l7-deterministic-probes.test.js",
       "exitCode": 0,
-      "tests": { "pass": 6, "fail": 0 },
+      "tests": { "pass": 8, "fail": 0 },
+      "rawStdout": { "path": "/private/tmp/t5-f64-l5-l7-probes-diagnostic.raw", "bytes": 2105, "sha256": "4bfe07c5eff9fdedac456f337e2066183f2a50d4b7d4407f65f8b2ba79a2f254" },
       "machineObservations": {
         "L5": { "sourceReads": 0, "completionAxes": 0, "purposeMet": false, "artifactSha256": "44fba0fe8dd146f9b19ecfa1a6e7ffdac1eb2415953b32621327b37d871fd668" },
-        "L6": { "candidates": 3, "approved": 0, "jobs": 0, "runs": 0, "surfaceClaimRecorded": true, "purposeMet": false },
+        "L6": { "candidates": 3, "approved": 0, "jobs": 0, "runs": 0, "surfaceClaimRecorded": true, "purposeMet": false, "normalSetupStatus": 200, "normalApproveStatus": 200, "normalScheduledJobsCreated": 1, "normalRunsBeforeDue": 0, "seededJobUnchanged": true },
         "L7": { "terminalExit": 1, "expectedSourceDigest": "2c085a02059453ef2792a22416959fd1be8662da6082decf3e3c695b2ccdae1b", "artifactSha256": "2baf1c365ecfd1930ff545b15fe4bc005764b8100d7bb62f9d3822b82879e62d", "hashRecorded": false, "completionAxes": 0 }
       }
     },
@@ -67,9 +94,22 @@
       "kind": "closing-assertions-red",
       "command": "T5_F64_PROBE_CLOSE=1 node --test test/f64-l5-l7-deterministic-probes.test.js",
       "exitCode": 1,
-      "tests": { "pass": 3, "fail": 3 },
+      "tests": { "pass": 5, "fail": 3 },
+      "rawStdout": { "path": "/private/tmp/t5-f64-l5-l7-probes-closing.raw", "bytes": 4460, "sha256": "090bdc69fdf995a2839145d2575d2b06864e3a3d4a364fbdea41c7448e454cef" },
       "failedScenarios": ["L5-admin-preparation", "L6-schedule-automation", "L7-pc-mixed-work"],
-      "normalCounterconditions": { "pass": 3, "fail": 0 }
+      "normalCounterconditionsAndBindings": { "pass": 5, "fail": 0 }
+    },
+    {
+      "kind": "relevant-regression",
+      "command": "node --test test/f64-l5-l7-deterministic-probes.test.js test/automation.test.js test/automation-stores-ac1.test.js test/local-system.test.js test/execution-block.test.js test/f64-slice1-completion-contract.test.js",
+      "exitCode": 0,
+      "tests": { "pass": 92, "fail": 0 }
+    },
+    {
+      "kind": "full-regression",
+      "command": "npm test",
+      "exitCode": 0,
+      "tests": { "pass": 3525, "fail": 0 }
     }
   ],
   "interpretation": {

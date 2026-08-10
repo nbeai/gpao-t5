@@ -7,11 +7,20 @@ import test from 'node:test';
 
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import {
+  AUTOMATION_SCHEMA_VERSION,
+  contentHash,
+  skillHashSource,
+  transitionState,
+} from '../src/kernel/l5-growth/automation-contracts.js';
+import { makeGrowthCandidate } from '../src/kernel/l5-growth/automation.js';
 import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
 import { AutomationJobStore } from '../src/surface/automation-store.js';
+import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
+import { SkillDefinitionStore } from '../src/surface/skill-store.js';
 
 const CLOSE = process.env.T5_F64_PROBE_CLOSE === '1';
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -24,12 +33,16 @@ async function room(prefix) {
   return { root, state };
 }
 
-async function startProduct({ root, state, model, terminalCwd = root }) {
+async function startProduct({ root, state, model, terminalCwd = root, initialize }) {
   const store = new SessionStore(state);
   const automationStore = new AutomationJobStore(state);
   const runLedger = new AutomationRunLedger(state);
+  const skillStore = new SkillDefinitionStore(state);
+  const agentProfileStore = new AgentProfileStore(state);
+  await initialize?.({ automationStore, runLedger, skillStore, agentProfileStore });
   const server = makeServer({
-    store, automationStore, automationRunLedger: runLedger, model, env: demoEnv(),
+    store, automationStore, automationRunLedger: runLedger, skillStore, agentProfileStore,
+    model, env: demoEnv(),
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [root], dataDir: state, homeDir: root }),
       localTerminal: makeLocalTerminalTool({ cwd: terminalCwd, dataDir: state }),
@@ -43,7 +56,7 @@ async function startProduct({ root, state, model, terminalCwd = root }) {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: session.id, text }),
   }).then((r) => r.json());
-  return { server, store, automationStore, runLedger, session, turn };
+  return { base, server, store, automationStore, runLedger, session, turn };
 }
 
 async function withProduct(options, fn) {
@@ -63,24 +76,52 @@ const L5_SHA = Object.freeze({
   '위생설비_지원공고.txt': '5717d0c230663a72bf53512ae3d1e385d025e43226e9c1a6683dbe9bc938d202',
 });
 
-async function l5Case(correct) {
+function exchangeData(exchange) {
+  if (exchange?.data && typeof exchange.data === 'object') return exchange.data;
+  if (typeof exchange?.data !== 'string') return {};
+  try { return JSON.parse(exchange.data); } catch { return {}; }
+}
+
+function successfulReadTexts(tc) {
+  return (tc.turnExchange ?? [])
+    .filter((exchange) => exchange.tool === 'local.file'
+      && exchange.args?.action === 'read'
+      && (typeof exchangeData(exchange).text === 'string'
+        || (typeof exchange.data === 'string' && exchange.data.includes('내용:\n'))))
+    .map((exchange) => ({
+      path: exchange.args.path,
+      text: exchangeData(exchange).text ?? String(exchange.data).split('내용:\n').slice(1).join('내용:\n'),
+    }));
+}
+
+async function l5Case(correct, fixture = L5_FIXTURE) {
   const x = await room('t5-f64-l5-');
-  for (const [name, text] of Object.entries(L5_FIXTURE)) {
-    assert.equal(sha(Buffer.from(text)), L5_SHA[name]);
+  for (const [name, text] of Object.entries(fixture)) {
+    if (fixture === L5_FIXTURE) assert.equal(sha(Buffer.from(text)), L5_SHA[name]);
     await writeFile(join(x.root, name), text);
   }
-  const output = correct
-    ? '보유: 사업자등록증, 영업신고증, 세척기 견적서\n준비 필요: 지방세 완납증명서\n확인: 견적서는 최근 1개월 기준 재확인\n구매: 접수 전 구매 제외\n'
-    : '보유: 사업자등록증, 임대차계약서, 통장사본\n준비 필요: 국세납세증명서\n일반 준비표 완료\n';
   let main = 0;
   const model = { async respond(tc, opts = {}) {
     if (tc.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
     if (!opts.tools?.length) return '준비표를 만들었어요.';
     main += 1;
-    if (main === 1) return { text: '', toolCalls: [
-      ...(correct ? Object.keys(L5_FIXTURE).map((path) => ({ name: 'local.file', args: { action: 'read', path } })) : []),
-      { name: 'local.file', args: { action: 'write', path: '신청준비표.md', text: output } },
-    ] };
+    if (correct) {
+      const readFacts = successfulReadTexts(tc);
+      const readPaths = new Set(readFacts.map(({ path }) => path));
+      const nextPath = Object.keys(fixture).find((path) => !readPaths.has(path));
+      if (nextPath) return { text: '', toolCalls: [
+        { name: 'local.file', args: { action: 'read', path: nextPath } },
+      ] };
+      return { text: '', toolCalls: [{ name: 'local.file', args: {
+        action: 'write', path: '신청준비표.md',
+        // 정답 문장을 주입하지 않는다. 모델이 실제 읽기 Receipt에서 본 전문만 결과로 조립한다.
+        text: readFacts.map(({ path, text }) => `## ${path}\n${text}`).join('\n'),
+      } }] };
+    }
+    if (main === 1) return { text: '', toolCalls: [{ name: 'local.file', args: {
+      action: 'write', path: '신청준비표.md',
+      text: '보유: 사업자등록증, 임대차계약서, 통장사본\n준비 필요: 국세납세증명서\n일반 준비표 완료\n',
+    } }] };
     return { text: '준비표를 만들었어요.', toolCalls: [] };
   } };
   return withProduct({ ...x, model }, async (app) => {
@@ -89,9 +130,10 @@ async function l5Case(correct) {
     const text = await readFile(join(x.root, '신청준비표.md'), 'utf8');
     const reads = saved.ledgerEntries.filter((r) => r.actualCall?.tool === 'local.file' && r.actualCall.args?.action === 'read');
     const completed = saved.ledgerEntries.filter((r) => r.origin === 'completion_settlement' || r.receiptRef).length;
-    const purposeMet = text.includes('영업신고증') && text.includes('지방세 완납증명서')
-      && text.includes('최근 1개월') && text.includes('접수 전 구매 제외');
-    return { purposeMet, reads: reads.length, completed, textSha256: sha(text), fixtureSha256: sha(JSON.stringify(L5_FIXTURE)) };
+    // 채점기는 원천 bytes를 독립적으로 읽는다. 이 값들은 provider/model 입력에 들어가지 않는다.
+    const sourceTexts = await Promise.all(Object.keys(fixture).map((name) => readFile(join(x.root, name), 'utf8')));
+    const purposeMet = sourceTexts.every((sourceText) => text.includes(sourceText.trim()));
+    return { purposeMet, reads: reads.length, completed, text, textSha256: sha(text), fixtureSha256: sha(JSON.stringify(fixture)) };
   });
 }
 
@@ -126,6 +168,108 @@ async function l6Case() {
   });
 }
 
+function l6Skill() {
+  const record = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: 'l6-skill', name: '주간 자료 확인', purpose: '로컬 자료를 정해진 때 확인한다',
+    version: 1, contentHash: '', inputs: [],
+    steps: [{ kind: 'read', instruction: '로컬 자료를 확인한다' }],
+    resultContract: { kind: 'summary' }, requiredCapabilities: ['local.file'],
+    authorityHints: ['read'], replayCases: [],
+    source: { kind: 'test', sessionId: null, traceIds: [] }, state: 'active',
+    createdAt: 1, updatedAt: 1, previousVersion: null,
+  };
+  record.contentHash = contentHash(skillHashSource(record));
+  return record;
+}
+
+function l6Profile(root) {
+  return {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: 'l6-agent', name: '주간 확인 담당', purpose: '허용된 로컬 자료를 확인한다',
+    modelRole: 'worker', toolAllowlist: ['local.file'], workspaceScope: [root],
+    defaultBudgets: { maxToolCalls: 4, timeoutMs: 30_000, maxCost: 1, maxConcurrency: 1 },
+    authorityCeiling: 'A1', state: 'active', createdAt: 1, updatedAt: 1,
+  };
+}
+
+function l6ScheduledJob(id, skill, root) {
+  const proposed = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id, name: '기존 주간 자료 확인',
+    skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+    trigger: {
+      kind: 'weekly', timezone: 'Asia/Seoul', weekdays: [1], localTime: '09:30',
+      nextRunAt: 1_900_000_000_000, misfirePolicy: 'catch_up_once',
+    },
+    agentProfileId: 'l6-agent', inputTemplate: {},
+    authorityEnvelope: {
+      ceiling: 'A1', allowedKinds: ['read'], allowedTools: ['local.file'],
+      allowedTargets: [], workspaceRoots: [root], expiresAt: null,
+      maxRuns: 20, maxCost: 1, requiresFreshApprovalFor: [],
+    },
+    deliveryPolicy: { mode: 'none' }, state: 'proposed', nextRunAt: 1_900_000_000_000,
+    lastRunId: null, createdAt: 1, updatedAt: 1,
+  };
+  const approved = transitionState('automationJob', proposed, 'approved', 2);
+  assert.equal(approved.ok, true, JSON.stringify(approved));
+  const scheduled = transitionState('automationJob', approved.record, 'scheduled', 3);
+  assert.equal(scheduled.ok, true, JSON.stringify(scheduled));
+  return scheduled.record;
+}
+
+async function l6ApprovedCase() {
+  const x = await room('t5-f64-l6-approved-');
+  const skill = l6Skill();
+  const profile = l6Profile(x.root);
+  const seeded = l6ScheduledJob('l6-existing-job', skill, x.root);
+  const candidate = makeGrowthCandidate({
+    candidateId: 'l6-approved-candidate',
+    statement: '매주 화요일 오전 10시에 지난주 정산을 확인한다',
+    action: { tool: 'local.file', args: { action: 'read', path: '지난주정산.txt' } },
+    dedupKey: 'l6-approved-candidate',
+  });
+  const model = { async respond() { return { text: '준비됐어요.', toolCalls: [] }; } };
+  return withProduct({
+    ...x, model,
+    async initialize({ automationStore, skillStore, agentProfileStore }) {
+      await skillStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, skills: [skill] });
+      await agentProfileStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, profiles: [profile] });
+      await automationStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [candidate], jobs: [seeded] });
+    },
+  }, async (app) => {
+    const before = await app.automationStore.load();
+    const storedCandidate = before.candidates.find((c) => !c.approved);
+    assert.equal(storedCandidate?.candidateId, candidate.candidateId);
+    const setupResponse = await fetch(`${app.base}/automation/setup?candidateId=${storedCandidate.candidateId}`);
+    const setup = await setupResponse.json();
+    const nextRunAt = 1_900_000_360_000;
+    const approveResponse = await fetch(`${app.base}/automation/approve`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        candidateId: storedCandidate.candidateId, skillId: skill.id, agentProfileId: profile.id,
+        trigger: {
+          kind: 'weekly', timezone: 'Asia/Seoul', weekdays: [2], localTime: '10:00',
+          nextRunAt, misfirePolicy: 'catch_up_once',
+        },
+        expiresAt: 2_000_000_000_000,
+        maxRuns: 20,
+      }),
+    });
+    const approval = await approveResponse.json();
+    const after = await app.automationStore.load();
+    const newJob = after.jobs.find((job) => job.id === approval.jobId);
+    const runs = await app.runLedger.load();
+    return {
+      candidateId: storedCandidate.candidateId,
+      setupStatus: setupResponse.status, setupCandidateId: setup.candidate?.candidateId,
+      approvalStatus: approveResponse.status, approval, newJob,
+      seededUnchanged: JSON.stringify(after.jobs.find((job) => job.id === seeded.id)) === JSON.stringify(seeded),
+      jobs: after.jobs.length, runs: runs.runs.length, expectedNextRunAt: nextRunAt,
+    };
+  });
+}
+
 const L7_SOURCE = '상태=승인\n버전=2.4\n서버=production\n승인자=민지\n';
 const L7_FIXTURE = Object.freeze({
   '초안/배포설정_최종.txt': '상태=검토중\n버전=2.3\n서버=staging\n',
@@ -140,7 +284,7 @@ const L7_SHA = Object.freeze({
   '초안/배포설정_최종.txt': 'fb7c6dea318e6a9e78c9f8ce3c2f2e13af9bf85f30264f4dd1bba8fc7cc36faf',
 });
 
-async function l7Case(correct) {
+async function l7Case(correct, { mutateStdout = false } = {}) {
   const x = await room('t5-f64-l7-');
   const home = join(x.root, 'home');
   for (const [name, text] of Object.entries(L7_FIXTURE)) {
@@ -150,18 +294,33 @@ async function l7Case(correct) {
   }
   await mkdir(home);
   const expected = sha(Buffer.from(L7_SOURCE));
-  const output = correct
-    ? `파일: 승인본/배포설정.txt\nSHA256: ${expected}\n버전=2.4\n서버=production\n`
-    : '파일: 승인본/배포설정.txt\n해시: 계산 실패 - 경로 확인 필요\n버전=2.4\n서버=production\n';
   let main = 0;
+  let modelObservedStdout = '';
   const model = { async respond(tc, opts = {}) {
     if (tc.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
     if (!opts.tools?.length) return '해시 정보를 기록했어요.';
     main += 1;
     if (main === 1) return { text: '', toolCalls: [
       { name: 'local.terminal', args: { command: correct ? `shasum -a 256 ${join(x.root, '승인본/배포설정.txt')}` : 'md5 승인본/배포설정.txt' } },
-      { name: 'local.file', args: { action: 'write', path: '배포_점검.txt', text: output } },
+      ...(!correct ? [{ name: 'local.file', args: {
+        action: 'write', path: '배포_점검.txt',
+        text: '파일: 승인본/배포설정.txt\n해시: 계산 실패 - 경로 확인 필요\n버전=2.4\n서버=production\n',
+      } }] : []),
     ] };
+    if (main === 2 && correct) {
+      const terminalExchange = (tc.turnExchange ?? []).find((exchange) => exchange.tool === 'local.terminal'
+        && typeof exchangeData(exchange).stdout === 'string');
+      const stdout = String(exchangeData(terminalExchange).stdout ?? '');
+      modelObservedStdout = stdout;
+      const artifactStdout = mutateStdout
+        ? stdout.replace(/[0-9a-f]/u, (character) => character === '0' ? '1' : '0')
+        : stdout;
+      return { text: '', toolCalls: [{ name: 'local.file', args: {
+        action: 'write', path: '배포_점검.txt',
+        // digest를 미리 넣지 않는다. 실제 terminal Receipt stdout을 다음 모델 호출이 옮긴다.
+        text: `명령: shasum -a 256\n실행 결과:\n${artifactStdout}`,
+      } }] };
+    }
     return { text: '해시 정보를 기록했어요.', toolCalls: [] };
   } };
   return withProduct({ ...x, model, terminalCwd: home }, async (app) => {
@@ -170,8 +329,10 @@ async function l7Case(correct) {
     const terminal = saved.ledgerEntries.find((r) => r.actualCall?.tool === 'local.terminal');
     const text = await readFile(join(x.root, '배포_점검.txt'), 'utf8');
     const completion = saved.ledgerEntries.filter((r) => r.origin === 'completion_settlement' || r.receiptRef).length;
-    return { terminalExit: terminal?.result?.exitCode, expectedDigest: expected,
-      outputDigest: sha(Buffer.from(text)), hashRecorded: text.includes(expected), completion };
+    const terminalStdout = String(terminal?.result?.stdout ?? '');
+    return { terminalExit: terminal?.result?.exitCode, terminalStdout, modelObservedStdout, expectedDigest: expected,
+      stdoutHasExpected: terminalStdout.includes(expected), outputDigest: sha(Buffer.from(text)),
+      artifact: text, hashRecorded: text.includes(expected), completion };
   });
 }
 
@@ -191,6 +352,19 @@ test('L5 정상 반대조건: 세 자료를 읽고 실제 보유·누락·기간
   assert.equal(observed.purposeMet, true);
 });
 
+test('L5 정상 변형: 원천 사실이 바뀌면 read Receipt에서 조립한 산출물과 독립 채점도 함께 바뀐다', async () => {
+  const changed = Object.freeze({
+    ...L5_FIXTURE,
+    '보유서류.txt': L5_FIXTURE['보유서류.txt'].replace('지방세 완납증명서 없음', '지방세 완납증명서 있음'),
+  });
+  const baseline = await l5Case(true);
+  const sibling = await l5Case(true, changed);
+  assert.equal(sibling.purposeMet, true);
+  assert.notEqual(sibling.textSha256, baseline.textSha256);
+  assert.match(sibling.text, /지방세 완납증명서 있음/u);
+  assert.doesNotMatch(sibling.text, /지방세 완납증명서 없음/u);
+});
+
 test('L6 원본 형제: 후보 3·승인/job/run 0은 활성 자동화 목적 결과가 아니다', async () => {
   const observed = await l6Case();
   process.stdout.write(`${JSON.stringify({ probe: 'L6-red', observed })}\n`);
@@ -198,9 +372,17 @@ test('L6 원본 형제: 후보 3·승인/job/run 0은 활성 자동화 목적 �
   assert.equal(observed.purposeMet, CLOSE ? true : false);
 });
 
-test('L6 정상 반대조건의 기계 자: 활성·다음 실행은 실제 job에서만 참이다', () => {
-  const state = { jobs: [{ state: 'scheduled', nextRunAt: 1786410000000 }] };
-  assert.equal(state.jobs.some((j) => j.state === 'scheduled' && j.nextRunAt), true);
+test('L6 정상 반대조건: 실제 setup·approve 경로가 예약 job을 만들고 기존 job과 실행 원장을 보존한다', async () => {
+  const observed = await l6ApprovedCase();
+  assert.equal(observed.setupStatus, 200);
+  assert.equal(observed.approvalStatus, 200, JSON.stringify(observed.approval));
+  assert.equal(observed.setupCandidateId, observed.candidateId);
+  assert.equal(observed.approval.ok, true);
+  assert.equal(observed.newJob?.state, 'scheduled');
+  assert.equal(observed.newJob?.nextRunAt, observed.expectedNextRunAt);
+  assert.equal(observed.jobs, 2);
+  assert.equal(observed.runs, 0, '예정 시각 전에는 실행 실물이 없어야 한다');
+  assert.equal(observed.seededUnchanged, true, '다른 예약 job은 승인 경로가 바꾸지 않는다');
 });
 
 test('L7 원본 형제: 해시 실행 실패와 실패문구 결과 파일은 해시 기록 목적 결과가 아니다', async () => {
@@ -214,5 +396,16 @@ test('L7 원본 형제: 해시 실행 실패와 실패문구 결과 파일은 �
 test('L7 정상 반대조건: 성공 명령 digest가 결과 파일에 정확히 기록된다', async () => {
   const observed = await l7Case(true);
   assert.equal(observed.terminalExit, 0);
+  assert.equal(observed.stdoutHasExpected, true);
   assert.equal(observed.hashRecorded, true);
+  assert.match(observed.artifact, /명령: shasum -a 256/u);
+  assert.equal(observed.artifact.includes(observed.modelObservedStdout.trim()), true);
+});
+
+test('L7 결속 반례: 성공 stdout을 변형해 쓰면 독립 source digest 자를 통과하지 못한다', async () => {
+  const observed = await l7Case(true, { mutateStdout: true });
+  assert.equal(observed.terminalExit, 0);
+  assert.equal(observed.stdoutHasExpected, true, '실행 Receipt 자체는 올바른 digest를 가져야 한다');
+  assert.equal(observed.hashRecorded, false, '결과 파일의 변형 digest는 목적 결과가 아니다');
+  assert.equal(observed.artifact.includes(observed.modelObservedStdout.trim()), false);
 });
