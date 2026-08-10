@@ -126,6 +126,20 @@ F-18·F-19  분류기·기억 — 노드 W 와 겹친다
   Receipt·readback·실패 상태·활성 job을 같은 완료 입장 심사의 재료로 세운다.
 - 필수 선빨강: L1·L4·L5·L6·L7 원본 → 각 형제 → 성공 Receipt 반대조건 → 기존 절대 회귀 →
   미공개 PM 홀드아웃. 한 문항만 통과하면 문항 패치다.
+- 개발 입장(slice-1 · `51bca5b`): 사용자 원문에서 특정된 단일 파일 경로·본문과 명시
+  `sourcePolicy(none|all_current)`가 함께 있을 때만 raw write→실제 readback→seal check→별도 signed
+  completion Receipt→같은 ReceiptRef의 `execution_completed`→최근 완료가 선다. 실패한 실행의 raw
+  증거는 남기되 완료·deliverable·WorkRef·work-state·chat 승격은 0이다. 이 범위의 독립 감사 PASS는
+  F-64 전체 닫힘이 아니다.
+- 결정형 원인 판정(`1058662`): L5·L6·L7 원본 3/3 빨강과 정상·결속 반대조건 5/5 초록을 actual
+  제품 경로에서 provider·유료 호출 0으로 봉인했다. 세 가족을 한 코드 원인으로 묶는 주장은 기각한다.
+  L5는 multi-source/admin artifact fact owner, L6는 canonical AutomationJob/AgentRun fact owner,
+  L7은 source-derived artifact에 더해 process exit/stdout→digest→result artifact fact owner가 필요하다.
+  근거는 `docs/03-verification/evidence/f64-l5-l7-deterministic-probes-2026-08-10/`이다.
+- 현재 잔여: slice-1은 L5·L7의 거짓 완료 승격은 막지만 올바른 목적 결과를 만들지 않는다. L6는
+  후보 3·승인/job/run 0이라는 정본은 정직하지만 사용자 답의 활성·다음 실행 거짓 주장은 남는다.
+  세 owner 계약과 구현 순서는 PM 동결 전까지 열지 않고, 그 뒤에만 유료 예비 7 대상·횟수를 결과 전에
+  동결한다.
 
 ### F-65 · ★ 닫힘 — 현재 작업셋의 root·관측 구성원 신분이 첫 현실에 서지 않는다 (3가족 · 2026-08-10)
 
