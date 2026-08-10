@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -373,13 +373,18 @@ test('새 대화 주 호출이 상태를 생략하면 하나뿐인 carryable 브
 
 test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 계약이 결합될 때만 선다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-work-product-complete-'));
-  const source = join(dir, '원본.md');
-  const target = join(dir, '결과.md');
+  const canonicalDir = await realpath(dir);
+  const source = join(canonicalDir, '원본.md');
+  const target = join(canonicalDir, '결과.md');
   await writeFile(source, '원본 내용', 'utf8');
   let mainCalls = 0;
-  const request = '원본은 그대로 두고 결과 파일을 만들어줘';
+  // 이 시험의 소유 계약은 완료된 파일 작업의 work-state 투영이다. 완료 입장 자체는
+  // 사용자 exact path/body와 명시 policy가 있는 현재 제품 계약으로 공급한다.
+  const request = `결과.md 파일에 '완성 내용'을 저장해줘. 원본은 그대로 둬.`;
   const model = { async respond(tc, opts = {}) {
-    if (tc?.workContractAssessment) return 'FILE';
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{
+      name: 'work.deliverable', args: { output: 'file', sourcePolicy: 'none' },
+    }] };
     if (!opts.tools?.length) return '결과 파일을 만들었어요.';
     mainCalls += 1;
     if (mainCalls === 1) return { text: '', toolCalls: [
@@ -404,7 +409,9 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
       async handler() { return { result: { windows: [] }, userSafeSummary: '화면을 확인했어요.' }; },
     },
   });
-  const app = await start(dir, model, { tools });
+  const app = await start(dir, model, { tools, processEnv: {
+    HOME: dir, GPAO_T5_HOME: dir, GPAO_T5_DATA_DIR: dir, GPAO_T5_FILE_ROOTS: dir,
+  } });
   const session = await (await post(app.base, '/sessions')).json();
   // 헌장(2026-08-03) 뒤 되돌릴 수 있는 쓰기는 자동이라 중간 승인이 없다. **재는 계약은 그대로다** —
   // 완료는 실제 `delivered` 영수증과 완료 계약이 결합될 때만 서고, 원본은 변하지 않는다.
@@ -413,7 +420,7 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   assert.equal(await readFile(source, 'utf8'), '원본 내용');
   assert.equal(await readFile(target, 'utf8'), '완성 내용');
   const saved = await app.store.load(session.id);
-  const completionReceipt = saved.ledgerEntries.find((entry) => entry.deliverableRefs?.length);
+  const completionReceipt = saved.ledgerEntries.find((entry) => entry.origin === 'completion_settlement');
   assert.equal(completionReceipt.workRef, saved.workRef);
   assert.equal(completionReceipt.completionContract?.kind, 'file');
   assert.equal(completionReceipt.completionContract.sourceTurnRef.sessionId, session.id,
@@ -428,7 +435,8 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   assert.equal(signed.receiptDigest, workEvidenceDigest(durableSignedBody),
     'ReceiptRef 발급 뒤 완료 영수증 본문을 바꾸면 안 된다');
   const fileReceipts = saved.ledgerEntries.filter((entry) => entry?.actualCall?.tool === 'local.file'
-    && ['read', 'write'].includes(entry.actualCall.args?.action));
+    && ['read', 'write'].includes(entry.actualCall.args?.action)
+    && !['runtime_verification', 'completion_settlement'].includes(entry.origin));
   assert.equal(fileReceipts.length, 2, 'read→write 실제 제품 경로여야 한다');
   for (const receipt of fileReceipts) {
     assert.equal((receipt.userSafeSummary.match(/이번 턴에 아직 안 본 자리 종류/g) ?? []).length, 1,

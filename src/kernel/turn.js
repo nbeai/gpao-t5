@@ -1616,8 +1616,8 @@ export async function runTurn(input, ctx) {
       deliverables: structuredClone(plan.deliverables),
     });
     const slicePolicy = ['none', 'all_current'].includes(contract.sourcePolicy);
-    if ((contract.completionBasis === 'direct_exact' && !slicePolicy)
-      || (contract.completionBasis !== 'direct_exact' && slicePolicy)) {
+    const sliceAdmitted = contract.completionBasis === 'direct_exact' && slicePolicy;
+    if (!sliceAdmitted) {
       // 명시 경로·본문이 입장하지 못한 FILE 실행은 그대로 남기되 완료 후보가 아니다.
       ctx.completionAdmissionRejected = true;
       plan.deliverables = [];
@@ -1625,8 +1625,7 @@ export async function runTurn(input, ctx) {
       plan.workRef = contract.sourcePolicy === 'all_current'
         ? ctx.sourceCoverageWorkRef : ctx.workRef;
       plan.completionContract = contract;
-      ctx.deferCompletionSettlement = contract.completionBasis === 'direct_exact'
-        && ['none', 'all_current'].includes(contract.sourcePolicy);
+      ctx.deferCompletionSettlement = true;
       plan.completionContractRef = await ctx.issueCompletionContractRef(contract, plan.workRef);
     }
   }
@@ -2093,7 +2092,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
-    자리공백동봉(rec, turnReceipts, ctx); // F-54 사전 재료 — 원장(rec)과 모델이 같은 요약을 본다
+    // 완료 산출물은 서명 경계 직전에 이미 한 번 동봉했다. unsigned 중간 Receipt만 여기서 동봉한다.
+    if (!rec?.deliverableRefs?.length) 자리공백동봉(rec, turnReceipts, ctx);
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
@@ -2790,7 +2790,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       callRef: 이번.callId,
     };
     const rec = await 계약실행(toolId, 판정인자);
-    자리공백동봉(rec, turnReceipts, ctx); // F-54 사전 재료 — 손을 쥔 채 받는 지면
+    // 완료 산출물은 서명 경계 직전에 이미 한 번 동봉했다. unsigned 중간 Receipt만 여기서 동봉한다.
+    if (!rec?.deliverableRefs?.length) 자리공백동봉(rec, turnReceipts, ctx);
     현실다시();
     원장.append(rec);          // 모든 걸음이 원장에 남는다
     turnReceipts.push(rec);

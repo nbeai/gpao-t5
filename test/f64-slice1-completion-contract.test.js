@@ -205,6 +205,12 @@ test('F-64 slice1 선빨강: 사용자 발화에 explicit 단일 path가 없으�
   assertFailureTruth(out);
 });
 
+test('F-64 slice1 선빨강: direct exact와 허용 sourcePolicy가 모두 없으면 완료 입장 0', async () => {
+  const out = await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: null,
+    request: "결과 파일에 '정확한 내용'을 저장해줘." });
+  assertFailureTruth(out);
+});
+
 test('F-64 slice1 선빨강: direct exact FILE의 sourcePolicy missing은 completion 투영 0', async () => {
   assertFailureTruth(await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: null }));
 });
