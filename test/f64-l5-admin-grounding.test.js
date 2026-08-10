@@ -113,17 +113,30 @@ async function runCase({ mode = 'normal' } = {}) {
     assert.equal(response.status, 200);
     await response.json();
     const saved = await store.load(session.id); const events = await workEventStore.load();
+    const rawWrites = saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
+      && entry.actualCall?.args?.action === 'write' && entry.origin !== 'completion_settlement');
+    const sourceReads = saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
+      && entry.actualCall?.args?.action === 'read'
+      && Object.keys(SOURCES).some((name) => String(entry.result?.path).endsWith(name)));
     const outputText = await readFile(join(root, '신청준비표.md'), 'utf8').catch(() => null);
     return {
-      rawWrites: saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
-        && entry.actualCall?.args?.action === 'write' && entry.origin !== 'completion_settlement'),
+      rawWrites,
       completions: saved.ledgerEntries.filter((entry) => entry.origin === 'completion_settlement' && entry.receiptRef),
       completedEvents: events.filter((entry) => entry.type === 'execution_completed'),
       completed: saved.workingState?.recentOutcome?.status === 'completed',
-      sourceReads: saved.ledgerEntries.filter((entry) => entry.actualCall?.tool === 'local.file'
-        && entry.actualCall?.args?.action === 'read'
-        && Object.keys(SOURCES).some((name) => String(entry.result?.path).endsWith(name))),
+      sourceReads,
       outputText,
+      bindingFacts: {
+        sourceReadCount: sourceReads.length,
+        rawWriteCount: rawWrites.length,
+        deliveredWriteCount: rawWrites.filter((entry) => entry.lifecycle === 'delivered'
+          && entry.failureState === 'none').length,
+        completionBasis: rawWrites[0]?.completionContract?.completionBasis ?? null,
+        sourcePolicy: rawWrites[0]?.completionContract?.sourcePolicy ?? null,
+        deliverableRefCount: rawWrites[0]?.deliverableRefs?.length ?? 0,
+        completionContractRef: rawWrites[0]?.completionContractRef ?? null,
+        evidenceRowCount: rawWrites[0]?.actualCall?.args?.evidenceRows?.length ?? 0,
+      },
     };
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -150,7 +163,16 @@ test('F-64 L5 행정 결과물: 원본 1·정상 1·동결 반례 4', async (t) 
   });
   await t.test('정상: 모든 자료의 사실·누락·기간·조건이 결과 readback에 결속되면 완료 1', async () => {
     const result = await runCase();
-    assert.equal(result.completions.length, 1);
+    const facts = JSON.stringify(result.bindingFacts);
+    assert.equal(result.bindingFacts.sourceReadCount, 3, facts);
+    assert.equal(result.bindingFacts.rawWriteCount, 1, facts);
+    assert.equal(result.bindingFacts.deliveredWriteCount, 1, facts);
+    assert.equal(result.bindingFacts.completionBasis, 'admin_grounded', facts);
+    assert.equal(result.bindingFacts.sourcePolicy, 'all_current', facts);
+    assert.equal(result.bindingFacts.deliverableRefCount, 1, facts);
+    assert.ok(result.bindingFacts.completionContractRef, facts);
+    assert.equal(result.bindingFacts.evidenceRowCount, 3, facts);
+    assert.equal(result.completions.length, 1, facts);
     assert.equal(result.completedEvents.length, 1);
     assert.equal(result.completed, true);
   });
