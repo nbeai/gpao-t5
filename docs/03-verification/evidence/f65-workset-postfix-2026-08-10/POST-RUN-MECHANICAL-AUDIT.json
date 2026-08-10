@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "kind": "f65-workset-postfix-post-run-mechanical-audit",
+  "authority": "raw-derived mechanical audit; not PM final judgment",
+  "resultSeen": true,
+  "noRerun": true,
+  "providerCallsAdded": 0,
+  "inputs": {
+    "batchManifest": "matrix-evidence-v4/f65-workset-matrix-postfix-20260810-v4/batch-manifest.json",
+    "batchRunId": "f65-workset-matrix-postfix-20260810-v4",
+    "batchStatus": "RECORDED",
+    "batchSha256": "e15ab2c906f88e16808ff92385c30f4fa98f0b8f3790818321bb03de665f5a5b",
+    "configPath": "scripts/human-use/f65-workset-matrix-v1.json",
+    "configSha256": "f80204bdb4455105e79a318a677c722f83c2bdd632e868a2b53d2ac75d7ae2f2",
+    "source": {
+      "gitSha": "d7190844adef5609f553e689281bbec91cae99df",
+      "dirty": false,
+      "worktreeDigest": "7f782d1eb78c3315aee90b8b37910cc4980f0dd7538d17b5bba01bc94fc7a00f",
+      "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "childCount": 24
+  },
+  "integrity": {
+    "childRecorded": "24/24",
+    "childManifestToRawHash": "24/24",
+    "historyStartedAndFinished": "24/24",
+    "historyManifestHash": "24/24",
+    "sourceAndConfigBound": "24/24",
+    "isolationQualified": "24/24",
+    "protectedChanged": 0,
+    "fixtureChanged": 0,
+    "mismatches": []
+  },
+  "provider": {
+    "providerCalls": 138,
+    "usage": {
+      "totalTokens": 1755136
+    },
+    "requestModelIds": ["gpt-5.1"],
+    "responseModelIds": ["gpt-5.1-2025-11-13"],
+    "endpointOrigins": ["https://api.openai.com"],
+    "responseModelFixed": true,
+    "cost": null,
+    "costStatus": "unknown",
+    "costReason": "provider did not report cost"
+  },
+  "measurementRule": {
+    "modelActualCallsExcludeOrigins": ["runtime_observation"],
+    "completionTruth": "verifiedComplete only; all-false consistent is not completion",
+    "oneSample": "an unchanged cell is effect-not-observed, not rejection; a changed cell does not establish necessity or sufficiency"
+  },
+  "recomputedFromRaw": {
+    "all": {
+      "cells": 24,
+      "firstLocalLocate": 0,
+      "enteredLocalFileOrCapsule": 24,
+      "fullSourceRead": 18,
+      "validArtifact": 12,
+      "requiredContent": 12,
+      "recentOutcomeCompleted": 20,
+      "targetWriteOrMoveReceiptRef": 12,
+      "workRef": 0,
+      "executionCompleted": 0,
+      "verifiedComplete": 0
+    },
+    "scenarios": {
+      "L1-workset-settlement": {
+        "cells": 8,
+        "firstLocalLocate": 0,
+        "enteredLocalFileOrCapsule": 8,
+        "fullSourceRead": 2,
+        "missingMemo": 6,
+        "validArtifact": 4,
+        "requiredContent": 4,
+        "recentOutcomeCompleted": 6,
+        "targetWriteOrMoveReceiptRef": 6,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      },
+      "L4-workset-document": {
+        "cells": 8,
+        "firstLocalLocate": 0,
+        "enteredLocalFileOrCapsule": 8,
+        "fullSourceRead": 8,
+        "validArtifact": 0,
+        "requiredContent": 0,
+        "recentOutcomeCompleted": 8,
+        "targetWriteOrMoveReceiptRef": 0,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      },
+      "L5-workset-admin": {
+        "cells": 8,
+        "firstLocalLocate": 0,
+        "enteredLocalFileOrCapsule": 8,
+        "fullSourceRead": 8,
+        "validArtifact": 8,
+        "requiredContent": 8,
+        "recentOutcomeCompleted": 6,
+        "targetWriteOrMoveReceiptRef": 6,
+        "executionCompleted": 0,
+        "verifiedComplete": 0
+      }
+    },
+    "baselineCells": {
+      "L1-workset-settlement--W0P0O0": {
+        "rawPath": "matrix-evidence-v4/f65-workset-matrix-postfix-20260810-v4%3A%3AL1-workset-settlement--W0P0O0/031f920d-c89e-4158-a9db-eed681a3a4aa/raw/cell.json",
+        "productReality": "observed current root with three member names and sourceSetRef",
+        "modelActualCalls": ["local.file:read", "local.file:read", "local.file:write"],
+        "userRestatementObserved": false,
+        "fullSourceRead": false,
+        "missingSource": ["메모.txt"],
+        "requiredContentMissing": ["750000"],
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0
+      },
+      "L4-workset-document--W0P0O0": {
+        "rawPath": "matrix-evidence-v4/f65-workset-matrix-postfix-20260810-v4%3A%3AL4-workset-document--W0P0O0/487878c5-e0cd-4e34-9dd6-5e660f1029d1/raw/cell.json",
+        "productReality": "observed current root with source member names and sourceSetRef",
+        "modelActualCalls": ["local.file:read", "local.file:read"],
+        "userRestatementObserved": false,
+        "fullSourceRead": true,
+        "validArtifact": false,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0
+      },
+      "L5-workset-admin--W0P0O0": {
+        "rawPath": "matrix-evidence-v4/f65-workset-matrix-postfix-20260810-v4%3A%3AL5-workset-admin--W0P0O0/280bed00-8128-4008-a832-8dbf53f406f3/raw/cell.json",
+        "productReality": "observed current root with source member names and sourceSetRef",
+        "modelActualCalls": ["local.file:list", "local.file:read", "local.file:read", "local.file:read", "local.file:write"],
+        "userRestatementObserved": false,
+        "fullSourceRead": true,
+        "validArtifact": true,
+        "requiredContent": true,
+        "recentOutcomeCompleted": true,
+        "executionCompleted": 0
+      }
+    }
+  },
+  "v3ToV4SameMechanicalRuler": {
+    "v3": {
+      "providerCalls": 142,
+      "totalTokens": 1775462,
+      "baselineFirstLocalLocate": "3/3",
+      "enteredLocalFileOrCapsule": "19/24",
+      "fullSourceRead": "14/24",
+      "validArtifact": "11/24",
+      "requiredContent": "11/24",
+      "recentOutcomeCompleted": "19/24",
+      "executionCompleted": "0/24",
+      "verifiedComplete": "0/24"
+    },
+    "v4": {
+      "providerCalls": 138,
+      "totalTokens": 1755136,
+      "baselineFirstLocalLocate": "0/3",
+      "enteredLocalFileOrCapsule": "24/24",
+      "fullSourceRead": "18/24",
+      "validArtifact": "12/24",
+      "requiredContent": "12/24",
+      "recentOutcomeCompleted": "20/24",
+      "executionCompleted": "0/24",
+      "verifiedComplete": "0/24"
+    }
+  },
+  "scorerDefects": [
+    {
+      "field": "firstToolTarget",
+      "defect": "counts origin=runtime_observation local.file:list as if it were the model's first tool",
+      "impact": "postfix machine score reports list for 24/24; modelActualCalls must exclude runtime_observation"
+    },
+    {
+      "field": "userRestatementBurden",
+      "defect": "counts clarify kind only and misses explicit restatement requests in ordinary replies",
+      "impact": "recorded zero is not a complete burden measure"
+    },
+    {
+      "field": "firstToolTarget.target",
+      "defect": "local.locate args.what is omitted",
+      "impact": "target comparison is incomplete"
+    },
+    {
+      "field": "consistent",
+      "defect": "all-false can be consistent",
+      "impact": "only verifiedComplete is used as completion"
+    }
+  ],
+  "mechanicalBoundaryJudgment": {
+    "F65": "narrow knot supported: the bounded current workset reality is present in first snapshots, baseline locate detours moved from 3/3 to 0/3, and all 24 cells entered local file or capsule without user restatement observed",
+    "F66b": "not closed: L1 still misses memo.txt in 6/8 and W0P0O0 omits required total 750000",
+    "F64": "not closed: L4 has full source read 8/8 and artifact 0/8 while recentOutcome is completed 8/8",
+    "durableBoundary": "not closed: WorkRef, execution_completed, and verifiedComplete are 0/24 while recentOutcome completed is 20/24",
+    "status": "mechanical audit only; PM final judgment not made"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "f65-workset-matrix-postfix-20260810-v4::L5-workset-admin--W1P0O0",
+  "attemptId": "c59de49d-a9b4-40fd-842f-171e8636ac67",
+  "executionKind": "f65_counterfactual",
+  "isolatedRoot": "/private/tmp/t5-ls-yvWlSY",
+  "recordedAt": "2026-08-10T09:02:37.870Z"
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "f65-workset-matrix-postfix-20260810-v4::L4-workset-document--W1P1O0",
+  "attemptId": "d14b5ae1-16f2-44b2-84ce-5c2ca6d9aafb",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "e12f0d0691763718da2c42ab7f0d83c7b0792b7c2f022eb39ef4aca88aceef79",
+  "recordedAt": "2026-08-10T09:00:46.241Z"
+}
