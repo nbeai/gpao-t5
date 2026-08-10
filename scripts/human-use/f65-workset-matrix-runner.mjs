@@ -264,6 +264,8 @@ export async function runF65MatrixCell(options) {
       modelSupportsSearch: live.modelSupportsSearch,
       modelProviderId: live.modelProviderId, modelTimeoutMs: 0, enableAgentDelegation: true,
       runtimeEnvironment: { locality: 'this_computer', networkExposure: 'loopback_only', costTracking: 'meter_only' } });
+    await server.loadSelfhood();
+    await server.runtimeReconcile();
     await listen(server); const base = `http://127.0.0.1:${server.address().port}`;
     const landing = await fetch(`${base}/`);
     let cookie = (landing.headers.get('set-cookie') ?? '').split(';')[0];

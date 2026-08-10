@@ -80,6 +80,7 @@ test('실제 local.file list Receipt가 첫 /turn Runtime reality를 통과한�
   const server = makeServer({ store: new SessionStore(state), tools, model, modelTimeoutMs: 0,
     processEnv: { HOME: room, GPAO_T5_HOME: room, GPAO_T5_DATA_DIR: state, GPAO_T5_FILE_ROOTS: fixture } });
   try {
+    await server.runtimeReconcile();
     await new Promise((ok, fail) => { server.once('error', fail); server.listen(0, '127.0.0.1', ok); });
     const base = `http://127.0.0.1:${server.address().port}`;
     let response = await fetch(`${base}/`); const cookie = (response.headers.get('set-cookie') ?? '').split(';')[0];
