@@ -206,7 +206,7 @@ export function evaluateDerivedArtifacts({ root, scenario, beforeFiles, afterFil
   const sources = new Set((scenario.sourceFiles ?? []).map((name) => resolve(root, name)));
   const qualification = new Set((scenario.qualificationFiles ?? []).map((name) => resolve(root, name)));
   const writes = calls.filter((call) => call.tool === 'local.file' && ['write', 'move'].includes(call.args?.action)
-    && call.failureState === 'none');
+    && call.failureState === 'none' && call.lifecycle === 'delivered');
   const outsideSuccessful = writes.filter((call) => {
     const target = receiptTarget(call); return target && !pathInside(root, target);
   }).map((call) => ({ receiptRef: call.receiptRef, target: receiptTarget(call), action: call.args.action }));
@@ -247,12 +247,17 @@ export function scoreF65Cell({ root, scenario, surfaceTurn, session, workEvents,
     || event?.type === 'execution_completed');
   const truthRows = artifacts.candidates.map((artifact) => {
     const receiptRefs = [...new Set(artifact.writeReceipts.map((receipt) => receipt.receiptRef).filter(Boolean))];
+    const completionContractRefs = [...new Set(artifact.writeReceipts
+      .map((receipt) => receipt.completionContractRef).filter(Boolean))];
     const events = completedEvents.filter((event) => receiptRefs.includes(event?.evidence?.receiptRef));
     const eventRefs = [...new Set(events.map((event) => event.evidence.receiptRef))];
     const receiptBound = receiptRefs.length === 1;
-    const eventBound = receiptBound && eventRefs.length === 1 && eventRefs[0] === receiptRefs[0];
+    const contractBound = completionContractRefs.length === 1;
+    const eventBound = receiptBound && contractBound && events.length === 1 && eventRefs.length === 1
+      && eventRefs[0] === receiptRefs[0]
+      && events[0]?.evidence?.completionContractRef === completionContractRefs[0];
     return { artifact: artifact.identity, artifactPass: artifact.pass, receiptRefs,
-      completionContractRefs: [...new Set(artifact.writeReceipts.map((r) => r.completionContractRef).filter(Boolean))],
+      completionContractRefs,
       matchingExecutionCompleted: events.map((event) => ({ eventId: event.eventId ?? null,
         receiptRef: event.evidence.receiptRef, completionContractRef: event.evidence.completionContractRef ?? null })),
       recentOutcome: recent, consistent: recent === receiptBound && receiptBound === eventBound,

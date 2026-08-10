@@ -118,7 +118,8 @@ test('숨은 filename/folder 정답 없이 bounded root의 임의 이름 새 산
   const out = artifact('/tmp/f/내가고른이름.txt');
   const observed = evaluateDerivedArtifacts({ root: '/tmp/f', scenario: scoringScenario,
     beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out], calls: [{ tool: 'local.file',
-      args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none', receiptRef: 'R' }] });
+      args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none',
+      lifecycle: 'delivered', receiptRef: 'R' }] });
   assert.equal(observed.pass, true);
   assert.equal(observed.candidates[0].identity.relativePath, '내가고른이름.txt');
   assert.equal(JSON.stringify(scoringScenario).includes('내가고른이름'), false);
@@ -127,9 +128,9 @@ test('숨은 filename/folder 정답 없이 bounded root의 임의 이름 새 산
 test('root 밖 성공 write와 원천 덮어쓰기는 산출물 성공을 열지 못한다', () => {
   const out = artifact();
   const calls = [
-    { tool: 'local.file', args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none' },
-    { tool: 'local.file', args: { action: 'write', path: '/tmp/outside.txt' }, result: { path: '/tmp/outside.txt' }, failureState: 'none' },
-    { tool: 'local.file', args: { action: 'write', path: '/tmp/f/a.csv' }, result: { path: '/tmp/f/a.csv' }, failureState: 'none' },
+    { tool: 'local.file', args: { action: 'write', path: out.path }, result: { path: out.path }, failureState: 'none', lifecycle: 'delivered' },
+    { tool: 'local.file', args: { action: 'write', path: '/tmp/outside.txt' }, result: { path: '/tmp/outside.txt' }, failureState: 'none', lifecycle: 'delivered' },
+    { tool: 'local.file', args: { action: 'write', path: '/tmp/f/a.csv' }, result: { path: '/tmp/f/a.csv' }, failureState: 'none', lifecycle: 'delivered' },
   ];
   const observed = evaluateDerivedArtifacts({ root: '/tmp/f', scenario: scoringScenario,
     beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out], calls, sourceChanged: ['/tmp/f/a.csv'] });
@@ -163,6 +164,11 @@ test('같은 산출물 write ReceiptRef와 같은 execution_completed만 세 완
   assert.equal(score.completionTruthConsistency.consistent, true);
   assert.equal(score.completionTruthConsistency.verifiedComplete, true);
   assert.deepEqual(score.completionTruthConsistency.selected.receiptRefs, ['R-output']);
+  const wrongContract = scoreF65Cell({ root: '/tmp/f', scenario: scoringScenario,
+    surfaceTurn: { response: {} }, session, workEvents: [{ type: 'execution_completed', evidence: {
+      receiptRef: 'R-output', completionContractRef: 'CC-other' } }],
+    beforeFiles: sourceFacts, afterFiles: [...sourceFacts, out] });
+  assert.equal(wrongContract.completionTruthConsistency.verifiedComplete, false);
 });
 
 test('derived artifact가 0개 또는 2개 이상이면 경로를 임의 선택하지 않고 ambiguity를 남긴다', () => {
