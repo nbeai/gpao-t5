@@ -42,17 +42,24 @@ async function start(x, model, { localFile, workEventStore } = {}) {
 }
 
 async function runCase({ outputName, outputText, request = "result.txt 파일에 '정확한 내용'을 저장해줘.",
-  sourcePolicy = 'none', sources = [], readSources = sources, mutateAfterWrite, workEventStoreFactory } = {}) {
+  sourcePolicy = 'none', sources = [], readSources = sources, mutateAfterWrite,
+  mutateAfterFirstVerificationRead, mainWorkStateProposal, workEventStoreFactory } = {}) {
   const x = await fixture('t5-f64-slice1-');
   const expectedPath = join(await realpath(x.root), 'result.txt');
   for (const [name, text] of sources) await writeFile(join(x.root, name), text);
   const baseLocal = makeLocalFileTool({ roots: [x.root], dataDir: x.state, homeDir: x.root });
-  let wrote = false;
-  const localFile = mutateAfterWrite ? { ...baseLocal, async handler(args, ctx) {
+  let wrote = false; let verificationReads = 0;
+  const localFile = mutateAfterWrite || mutateAfterFirstVerificationRead ? { ...baseLocal, async handler(args, ctx) {
     const result = await baseLocal.handler(args, ctx);
-    if (args.action === 'write' && !result?.blocked && !wrote) {
+    if (args.action === 'write' && !result?.blocked && !wrote && mutateAfterWrite) {
       wrote = true;
       await mutateAfterWrite({ args, x });
+    }
+    if (args.action === 'read' && String(args.path).endsWith('/result.txt')) {
+      verificationReads += 1;
+      if (verificationReads === 1 && mutateAfterFirstVerificationRead) {
+        await mutateAfterFirstVerificationRead({ args, x });
+      }
     }
     return result;
   } } : baseLocal;
@@ -66,6 +73,7 @@ async function runCase({ outputName, outputText, request = "result.txt 파일에
     if (!options.tools?.length) return '파일을 만들었어요.';
     mainCalls += 1;
     if (mainCalls === 1) return { text: '', toolCalls: [
+      ...(mainWorkStateProposal ? [{ name: 'work.state', args: mainWorkStateProposal }] : []),
       ...readSources.map(([name]) => ({ name: 'local.file', args: { action: 'read', path: join(x.root, name) } })),
       { name: 'local.file', args: { action: 'write', path: join(x.root, outputName), text: outputText,
         ...(readSources[0] ? { source: join(x.root, readSources[0][0]) } : {}) } },
@@ -84,7 +92,7 @@ async function runCase({ outputName, outputText, request = "result.txt 파일에
     await response.json();
     const saved = await app.store.load(app.session.id);
     const events = await app.workEventStore.load();
-    return { expectedPath, saved, events, before,
+    return { expectedPath, saved, events, before, verificationReads,
       sourceCoverage: saved.ledgerEntries.find((r) => r?.observationKind === 'source_coverage')?.result?.sourceCoverage,
       writes: saved.ledgerEntries.filter((r) => r?.actualCall?.tool === 'local.file'
         && r.actualCall.args?.action === 'write' && r?.origin !== 'completion_settlement'),
@@ -197,10 +205,35 @@ test('F-64 slice1 선빨강: 사용자 발화에 explicit 단일 path가 없으�
   assertFailureTruth(out);
 });
 
+test('F-64 slice1 선빨강: direct exact FILE의 sourcePolicy missing은 completion 투영 0', async () => {
+  assertFailureTruth(await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: null }));
+});
+
+test('F-64 slice1 선빨강: direct exact FILE의 sourcePolicy invalid는 completion 투영 0', async () => {
+  assertFailureTruth(await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: 'invalid' }));
+});
+
 test('F-64 slice1 선빨강: post-write artifact가 readback 전에 바뀌면 완료 0', async () => {
   const out = await runCase({ outputName: 'result.txt', outputText: '정확한 내용',
     mutateAfterWrite: async ({ x }) => writeFile(join(x.root, 'result.txt'), '바뀐 내용') });
   assertFailureTruth(out);
+});
+
+test('F-64 slice1 선빨강: artifact readback 중 initial source revision이 바뀌면 완료 0', async () => {
+  const out = await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: 'all_current',
+    sources: [['a.txt', 'A']],
+    mutateAfterFirstVerificationRead: async ({ x }) => writeFile(join(x.root, 'a.txt'), 'A changed during verify') });
+  assertFailureTruth(out);
+  assert.equal(out.readbacks.length, 2,
+    `바뀌기 전후 실제 artifact verification evidence는 보존한다: reads=${out.verificationReads} coverage=${JSON.stringify(out.sourceCoverage)}`);
+});
+
+test('F-64 slice1 선빨강: settlement 실패 뒤 work.state·chat 사건이 completion을 우회하지 않는다', async () => {
+  const request = "result.txt 파일에 '정확한 내용'을 저장해줘.";
+  const out = await runCase({ outputName: 'wrong.txt', outputText: '정확한 내용', request,
+    mainWorkStateProposal: { changes: [{ type: 'agreement_set', utteranceQuote: request }] } });
+  assertFailureTruth(out);
+  assert.equal(out.events.length, 0, '실패 턴의 agreement/chat 사건도 0이어야 한다');
 });
 
 test('F-64 slice1 선빨강: execution_completed projection이 identity mismatch면 세 축 모두 0', async () => {
@@ -235,4 +268,16 @@ test('F-64 direct_exact parser는 두 explicit path를 단일 path 계약으로 
   const parsed = parseFileRequest("a.txt b.txt 파일에 '내용'을 저장해줘");
   assert.equal(parsed.provenance.pathCount, 2);
   assert.equal(parsed.provenance.independent, false);
+});
+
+test('F-64 slice1 선빨강: body quote 후보가 둘이면 actual write와 무관하게 completion 0', async () => {
+  const out = await runCase({ request: "result.txt 파일에 '첫째'와 '둘째'를 저장해줘.",
+    outputName: 'result.txt', outputText: '첫째' });
+  assertFailureTruth(out);
+});
+
+test('F-64 direct_exact parser는 non-path body quote 후보 둘을 ambiguous로 둔다', () => {
+  const parsed = parseFileRequest("result.txt 파일에 '첫째'와 '둘째'를 저장해줘.");
+  assert.equal(parsed.ambiguous, true);
+  assert.equal(parsed.clarifyReason, 'ambiguous_content');
 });

@@ -681,6 +681,7 @@ export function makeServer(deps = {}) {
       || !contract?.userBinding?.expectedPathDigest
       || !contract?.userBinding?.expectedContentDigest) return fail();
     if (policy === 'none' && contract.sourceBinding) return fail();
+    let sourceStillStable = async () => true;
     if (policy === 'all_current') {
       const binding = contract.sourceBinding;
       const coverage = ctx.sourceCoverage;
@@ -688,13 +689,16 @@ export function makeServer(deps = {}) {
         || binding.sourceSetRef !== ctx.initialWorksetReality?.sourceSetRef
         || coverage?.workRef !== binding.workRef || coverage?.sourceSetRef !== binding.sourceSetRef
         || coverage?.complete !== true || (coverage?.counts?.unresolved ?? 1) !== 0) return fail();
-      const again = await ctx.reobserveWorkset?.();
-      if (!again?.reality?.membersComplete) return fail();
-      const current = new Map((again.reality.members ?? []).map((m) => [`${m.kind}:${m.name}`, m]));
-      if ((ctx.initialWorksetReality?.members ?? []).some((member) => {
-        const now = current.get(`${member.kind}:${member.name}`);
-        return !now || !member.revisionRef || now.revisionRef !== member.revisionRef;
-      })) return fail();
+      sourceStillStable = async () => {
+        const again = await ctx.reobserveWorkset?.();
+        if (!again?.reality?.membersComplete) return false;
+        const current = new Map((again.reality.members ?? []).map((m) => [`${m.kind}:${m.name}`, m]));
+        return !(ctx.initialWorksetReality?.members ?? []).some((member) => {
+          const now = current.get(`${member.kind}:${member.name}`);
+          return !now || !member.revisionRef || now.revisionRef !== member.revisionRef;
+        });
+      };
+      if (!await sourceStillStable()) return fail();
     }
     const executed = raw._completionCandidate;
     const actualPath = executed?.result?.path;
@@ -719,6 +723,8 @@ export function makeServer(deps = {}) {
     if (!readback) return fail();
     const sealCheck = await verifyRead('seal_check');
     if (!sealCheck || sealCheck.receipt.result.sourceRevisionRef !== readback.receipt.result.sourceRevisionRef) return fail();
+    // artifact 검증 사이에도 initial source가 바뀔 수 있다. 서명 직전 같은 revision을 다시 밟는다.
+    if (!await sourceStillStable()) return fail();
 
     const completionReceipt = {
       ...executed,
@@ -1053,15 +1059,18 @@ export function makeServer(deps = {}) {
     // F-66b: 실행 여부와 무관하게 initial source set의 read/unresolved 현실을 같은 원장에 남긴다.
     // runtime observation이므로 사용자 실행·완료·WorkEvent 계산에서는 기존 경계대로 제외된다.
     finalizeSourceCoverage(ctx, turnRef);
-    await settleSingleFileCompletion({ ctx, session, result, turnRef, ledgerFrom: ledgerStart })
+    const completionSettlement = await settleSingleFileCompletion({ ctx, session, result, turnRef, ledgerFrom: ledgerStart })
       .catch(() => {
         if (ctx.deferCompletionSettlement === true) {
           delete result.workingState; delete result.recentOutcome; delete result.deliverables;
         }
+        return { attempted: true, passed: false };
       });
     if (ctx.completionAdmissionRejected === true) {
       delete result.workingState; delete result.recentOutcome; delete result.deliverables;
     }
+    const completionFailed = ctx.completionAdmissionRejected === true
+      || (completionSettlement.attempted === true && completionSettlement.passed !== true);
     // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리한다.
     delete result.workStateProposal;
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
@@ -1124,7 +1133,7 @@ export function makeServer(deps = {}) {
       && hadExistingWork !== true
       && reviewSignals.hasAdmittedContext !== true
       && reviewSignals.hasMemoryState !== true;
-    const reviewNeeded = stateReviewNeeded({
+    const reviewNeeded = !completionFailed && stateReviewNeeded({
       phase: 'settled', terminal,
       reported: beforeSettlement.workStateReported === true,
       hasExistingWork: hadExistingWork,
@@ -1184,7 +1193,7 @@ export function makeServer(deps = {}) {
       }
     }
     result.workStateDiagnostic = settlementDiagnostic;
-    const workStateProposal = ctx.workStateSnapshot?.().workStateProposal ?? null;
+    const workStateProposal = completionFailed ? null : (ctx.workStateSnapshot?.().workStateProposal ?? null);
     if (workStateProposal) {
       result.workStateDiagnostic.candidateTypes = (workStateProposal.changes ?? []).map((change) => change.type);
       result.workStateDiagnostic.hasOpenQuestion = Boolean(workStateProposal.openQuestion);
@@ -1362,7 +1371,7 @@ export function makeServer(deps = {}) {
     await store.save(session);
     // P90-1: transcript·ToolReceipt가 먼저 지속된 뒤 WorkEvent가 그 사실을 가리킨다.
     // 기록 실패가 이미 끝난 대화를 거짓 실패로 바꾸지는 않지만 진단 흔적은 숨기지 않는다.
-    try {
+    if (!completionFailed) try {
       const workStateRecorded = await 기록된작업사건({
         session, inputText: 작업상태원문, result, turnRef, ledgerFrom: stampFrom.ledgerFrom,
         shownProjects: carryableProjects,
@@ -2859,17 +2868,20 @@ export function makeServer(deps = {}) {
       turnRef: channelTurnRef,
     }, ctx);
     finalizeSourceCoverage(ctx, channelTurnRef);
-    await settleSingleFileCompletion({ ctx, session, result, turnRef: channelTurnRef,
+    const completionSettlement = await settleSingleFileCompletion({ ctx, session, result, turnRef: channelTurnRef,
       ledgerFrom: channelStampFrom.ledgerFrom })
       .catch(() => {
         if (ctx.deferCompletionSettlement === true) {
           delete result.workingState; delete result.recentOutcome; delete result.deliverables;
         }
+        return { attempted: true, passed: false };
       });
     if (ctx.completionAdmissionRejected === true) {
       delete result.workingState; delete result.recentOutcome; delete result.deliverables;
     }
-    const workStateProposal = result.workStateProposal ?? null;
+    const completionFailed = ctx.completionAdmissionRejected === true
+      || (completionSettlement.attempted === true && completionSettlement.passed !== true);
+    const workStateProposal = completionFailed ? null : (result.workStateProposal ?? null);
     delete result.workStateProposal;
     // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.
     redactSensitiveOutput(result);
@@ -2896,7 +2908,7 @@ export function makeServer(deps = {}) {
       if (result.goal || result.spentGoal) session.hadWorkGoal = true;
       if (result.workingState) session.workingState = result.workingState;
       await store.save(session);
-      try {
+      if (!completionFailed) try {
         await 기록된작업사건({
           session, inputText: input.text, result, turnRef: channelTurnRef,
           ledgerFrom: channelStampFrom.ledgerFrom,

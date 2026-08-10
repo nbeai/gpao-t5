@@ -63,7 +63,11 @@ export function parseFileRequest(text) {
       const start = match.index + match[0].indexOf(match[1]);
       return { body: match[1], span: { start, end: start + match[1].length } };
     });
-    const selected = quotes.find(({ span }) => span.end <= pathSpan.start || pathSpan.end <= span.start);
+    const bodyCandidates = quotes.filter(({ span }) => span.end <= pathSpan.start || pathSpan.end <= span.start);
+    if (bodyCandidates.length > 1) {
+      return { action, path, ambiguous: true, clarifyReason: 'ambiguous_content' };
+    }
+    const selected = bodyCandidates[0];
     const body = selected?.body;
     if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content' };
     return { action, path, text: body,

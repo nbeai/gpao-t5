@@ -1615,8 +1615,9 @@ export async function runTurn(input, ctx) {
           sourceSetRef: ctx.initialWorksetReality.sourceSetRef } } : {}),
       deliverables: structuredClone(plan.deliverables),
     });
-    if (contract.completionBasis !== 'direct_exact'
-      && ['none', 'all_current'].includes(contract.sourcePolicy)) {
+    const slicePolicy = ['none', 'all_current'].includes(contract.sourcePolicy);
+    if ((contract.completionBasis === 'direct_exact' && !slicePolicy)
+      || (contract.completionBasis !== 'direct_exact' && slicePolicy)) {
       // 명시 경로·본문이 입장하지 못한 FILE 실행은 그대로 남기되 완료 후보가 아니다.
       ctx.completionAdmissionRejected = true;
       plan.deliverables = [];
