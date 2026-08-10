@@ -161,8 +161,28 @@ test('F-64 slice1 반대조건: all_current initial source 전량 read와 exact 
   assert.equal(out.readbacks.length, 2,
     `전량 source 결산 뒤 artifact readback까지 도달해야 한다: ${JSON.stringify(out.sourceCoverage)}`);
   assert.equal(out.completions.length, 1);
-  assert.equal(out.events.filter((e) => e.type === 'execution_completed').length, 1);
+  const event = out.events.find((e) => e.type === 'execution_completed');
+  assert.ok(event);
+  assert.equal(out.writes[0].workRef, out.sourceCoverage.workRef,
+    'raw write는 관측 source coverage와 같은 WorkRef여야 한다');
+  assert.equal(out.completions[0].completionContract.sourceBinding.workRef, out.sourceCoverage.workRef);
+  assert.equal(out.completions[0].workRef, out.sourceCoverage.workRef,
+    'signed completion은 source coverage와 같은 WorkRef여야 한다');
+  assert.equal(event.workRef, out.sourceCoverage.workRef,
+    'execution_completed도 같은 WorkRef 한 벌이어야 한다');
   assert.equal(out.saved.workingState?.recentOutcome?.status, 'completed');
+});
+
+test('F-64 slice1 반대조건: none은 sourceSetRef 없이 provisional WorkRef 한 벌을 유지한다', async () => {
+  const out = await runCase({ outputName: 'result.txt', outputText: '정확한 내용', sourcePolicy: 'none' });
+  const event = out.events.find((e) => e.type === 'execution_completed');
+  assert.equal(out.completions.length, 1);
+  assert.equal(out.completions[0].completionContract.sourceBinding, undefined);
+  assert.equal(out.completions[0].sourceSetRef, undefined);
+  assert.equal(out.writes[0].workRef, out.completions[0].workRef);
+  assert.equal(event.workRef, out.completions[0].workRef);
+  assert.notEqual(out.completions[0].workRef, out.sourceCoverage.workRef,
+    'none은 source coverage용 별도 WorkRef를 완료 신분으로 승격하지 않는다');
 });
 
 test('F-64 slice1 선빨강: read 뒤 initial source revision이 바뀌면 완료 0', async () => {

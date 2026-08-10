@@ -1621,11 +1621,12 @@ export async function runTurn(input, ctx) {
       ctx.completionAdmissionRejected = true;
       plan.deliverables = [];
     } else {
-      plan.workRef = ctx.workRef;
+      plan.workRef = contract.sourcePolicy === 'all_current'
+        ? ctx.sourceCoverageWorkRef : ctx.workRef;
       plan.completionContract = contract;
       ctx.deferCompletionSettlement = contract.completionBasis === 'direct_exact'
         && ['none', 'all_current'].includes(contract.sourcePolicy);
-      plan.completionContractRef = await ctx.issueCompletionContractRef(contract);
+      plan.completionContractRef = await ctx.issueCompletionContractRef(contract, plan.workRef);
     }
   }
 

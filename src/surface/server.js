@@ -977,8 +977,8 @@ export function makeServer(deps = {}) {
     ctx.sourceCoverageWorkRef = session.principalRef
       ? await workEventStore.issueWorkRef({ turnRef, workOrdinal: 1 }) : null;
     if (provisionalWorkRef) {
-      ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
-        workRef: provisionalWorkRef, contract,
+      ctx.issueCompletionContractRef = (contract, workRef = provisionalWorkRef) => workEventStore.issueCompletionContractRef({
+        workRef, contract,
       });
       ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
     }
@@ -2837,8 +2837,8 @@ export function makeServer(deps = {}) {
     ctx.sourceCoverageWorkRef = session.principalRef
       ? await workEventStore.issueWorkRef({ turnRef: channelTurnRef, workOrdinal: 1 }) : null;
     if (provisionalWorkRef) {
-      ctx.issueCompletionContractRef = (contract) => workEventStore.issueCompletionContractRef({
-        workRef: provisionalWorkRef, contract,
+      ctx.issueCompletionContractRef = (contract, workRef = provisionalWorkRef) => workEventStore.issueCompletionContractRef({
+        workRef, contract,
       });
       ctx.runCompletionExecution = (execution) => workEventStore.runCompletionExecution(execution);
     }
