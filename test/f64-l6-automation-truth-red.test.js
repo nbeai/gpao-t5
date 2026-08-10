@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, realpath } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -16,6 +16,7 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { prepareAutomationRuns } from '../src/runtime/automation-engine.js';
 import { AutomationRunLedger } from '../src/surface/automation-run-ledger.js';
 import { AutomationJobStore } from '../src/surface/automation-store.js';
+import { sealAutomationSettlement } from '../src/surface/automation-settlement.js';
 import { AgentProfileStore } from '../src/surface/agent-profile-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
@@ -114,19 +115,43 @@ async function startProduct({ model, jobs = [], candidates = [], space, preserve
   if (!preserveState) {
     await skillStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, skills: [skill()] });
     await agentProfileStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, profiles: [profile(x.root)] });
-    const settlements = jobs.filter((job) => job.principalRef).map((job, index) => ({
-      kind: 'automation_settlement', operation: 'create', principalRef: job.principalRef,
-      candidateRef: `fixture-candidate-${index}`, candidateRevision: 2,
-      controlRef: `fixture-control-${index}`, jobRef: job.id,
-      jobRevision: job.jobRevision ?? 0, state: job.state,
-      trigger: structuredClone(job.trigger), nextRunAt: job.nextRunAt,
-      settlementRef: `fixture-settlement-${index}`, settlementDigest: `fixture-digest-${index}`,
-      observedAt: job.updatedAt, tool: 'local.file',
-      actionArgs: structuredClone(job.inputTemplate), skillPurpose: '지난주 정산 확인',
-      deliveryIntent: job.deliveryPolicy?.mode === 'chat' ? 'chat' : 'none',
-      verificationPassed: true,
-    }));
-    await automationStore.save({ schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates, jobs, settlements });
+    const seededCandidates = [...candidates];
+    const settlements = [];
+    const storedJobs = jobs.map((job, index) => {
+      if (!job.principalRef) return job;
+      const candidateRef = `fixture-candidate-${index}`;
+      const controlRef = `fixture-control-${index}`;
+      const settlement = sealAutomationSettlement({
+        kind: 'automation_settlement', operation: 'create', principalRef: job.principalRef,
+        candidateRef, candidateRevision: 2, controlRef, jobRef: job.id,
+        jobRevision: job.jobRevision ?? 0, state: job.state,
+        trigger: structuredClone(job.trigger), nextRunAt: job.nextRunAt,
+        observedAt: job.updatedAt, tool: 'local.file',
+        actionArgs: structuredClone(job.inputTemplate), skillPurpose: '지난주 정산 확인',
+        deliveryIntent: job.deliveryPolicy?.mode === 'chat' ? 'chat' : 'none',
+        skillRef: structuredClone(job.skillRef), agentProfileId: job.agentProfileId,
+        authorityEnvelope: structuredClone(job.authorityEnvelope),
+        deliveryPolicy: structuredClone(job.deliveryPolicy), verificationPassed: true,
+      });
+      settlements.push(settlement);
+      seededCandidates.push({
+        candidateId: candidateRef, principalRef: job.principalRef, revision: 2,
+        controlRef, approved: true, current: false, operation: 'create',
+        jobRef: job.id, settlementRef: settlement.settlementRef,
+        settlementDigest: settlement.settlementDigest,
+      });
+      return Object.assign(job, {
+        candidateLineage: { candidateRef, candidateRevision: 2, controlRef },
+        settlementRef: settlement.settlementRef,
+        settlementDigest: settlement.settlementDigest,
+        latestSettlementRef: settlement.settlementRef,
+        latestSettlementDigest: settlement.settlementDigest,
+      });
+    });
+    await automationStore.save({
+      schemaVersion: AUTOMATION_SCHEMA_VERSION,
+      candidates: seededCandidates, jobs: storedJobs, settlements,
+    });
   }
   const server = makeServer({
     store, automationStore, automationRunLedger: runLedger, skillStore, agentProfileStore,
@@ -434,12 +459,29 @@ test('update 보존: trigger revision만 바뀌고 같은 principal의 다른 jo
     const state = await app.automationStore.load();
     const changed = state.jobs.find((job) => job.id === target.id);
     const {
-      jobRevision, candidateLineage, settlementRef, settlementDigest, ...changedContract
+      jobRevision, candidateLineage, settlementRef, settlementDigest,
+      latestSettlementRef, latestSettlementDigest, ...changedContract
     } = changed;
+    const {
+      candidateLineage: initialLineage,
+      settlementRef: initialSettlementRef,
+      settlementDigest: initialSettlementDigest,
+      latestSettlementRef: initialLatestRef,
+      latestSettlementDigest: initialLatestDigest,
+      ...targetContract
+    } = target;
     const preserved = { ...changedContract, trigger: target.trigger, nextRunAt: target.nextRunAt, updatedAt: target.updatedAt };
-    assert.deepEqual(preserved, target);
+    assert.deepEqual(preserved, targetContract);
+    assert.deepEqual(candidateLineage, initialLineage);
+    assert.equal(settlementRef, initialSettlementRef);
+    assert.equal(settlementDigest, initialSettlementDigest);
+    assert.notEqual(latestSettlementRef, initialLatestRef);
+    assert.notEqual(latestSettlementDigest, initialLatestDigest);
     assert.equal(jobRevision, 1);
-    assert.equal(candidateLineage.candidateRef, proposed.automationProposal.candidateId);
+    const updateSettlement = state.settlements.find(
+      (entry) => entry.settlementRef === latestSettlementRef,
+    );
+    assert.equal(updateSettlement.candidateRef, proposed.automationProposal.candidateId);
     assert.match(settlementRef, /^[a-f0-9]{64}$/u);
     assert.match(settlementDigest, /^[a-f0-9]{64}$/u);
     assert.deepEqual(changed.trigger, TUESDAY);
@@ -643,6 +685,66 @@ test('P0 민감 경계: 모델 제안의 비밀은 durable 후보와 final reali
   });
 });
 
+test('재감사 민감 경계: 후보의 모든 durable field는 비밀이면 입장·표면·setup 0이다', async () => {
+  const secret = 'api_key=Abcd1234SecretValue';
+  const variants = {
+    skillPurpose: (args) => { args.skillPurpose = secret; },
+    tool: (args) => { args.tool = secret; },
+    timezone: (args) => { args.trigger.timezone = secret; },
+    localTime: (args) => { args.trigger.localTime = secret; },
+    delivery: (args) => { args.deliveryIntent = secret; },
+  };
+  for (const [variant, mutate] of Object.entries(variants)) {
+    const finalContexts = [];
+    const model = { async respond(tc, opts = {}) {
+      if (!opts.tools?.length) {
+        finalContexts.push(structuredClone(tc));
+        return '후보로 입장시키지 않았어요.';
+      }
+      const args = {
+        statement: '매주 월요일 오전 9시 반 정산 확인', operation: 'create',
+        kind: 'weekly', trigger: structuredClone(MONDAY), tool: 'local.file',
+        action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+      };
+      mutate(args);
+      return { text: '', toolCalls: [{ name: 'automation.propose', args }] };
+    } };
+    await withProduct({ model }, async (app) => {
+      const result = await app.turn(`민감 후보 ${variant}`);
+      const state = await app.automationStore.load();
+      const surface = await app.request('GET', '/automation');
+      const setup = await app.request('GET', '/automation/setup?candidateId=missing');
+      assert.equal(state.candidates.length, 0, variant);
+      assert.equal(state.jobs.length, 0, variant);
+      assert.deepEqual(result.automationProposal, { rejected: true, reason: 'sensitive_input' }, variant);
+      assert.equal(JSON.stringify(finalContexts).includes(secret), false, variant);
+      assert.equal(JSON.stringify(surface).includes(secret), false, variant);
+      assert.equal(setup.status, 404, variant);
+      assert.equal(JSON.stringify(setup).includes(secret), false, variant);
+    });
+  }
+});
+
+test('재감사 민감 경계: legacy candidate/job의 비표시 durable field도 web·provider에 0이다', async () => {
+  const x = await room();
+  const secret = 'password=Abcd1234SecretValue';
+  const hiddenCandidate = { ...candidate('legacy-secret-candidate', '주간 자료 확인'), skillPurpose: secret };
+  const hiddenJob = { ...scheduledJob('legacy-secret-job', x.root), inputTemplate: { token: secret } };
+  const capture = [];
+  const model = { async respond(tc) { capture.push(structuredClone(tc)); return '상태를 확인했어요.'; } };
+  await withProduct({
+    model, candidates: [hiddenCandidate], jobs: [hiddenJob], space: x,
+  }, async (app) => {
+    await app.turn('자동화 상태를 알려줘');
+    const surface = await app.request('GET', '/automation');
+    assert.equal(surface.body.candidates.length, 0);
+    assert.equal(surface.body.jobs.some((entry) => entry.id === hiddenJob.id), false);
+    assert.equal(JSON.stringify(surface).includes(secret), false);
+  });
+  assert.equal(JSON.stringify(capture).includes(secret), false);
+});
+
 test('P0 민감·principal 경계: legacy 비밀 이름은 표면/모델에서 빠지고 null principal은 unknown이다', async () => {
   const x = await room();
   const secret = 'password=Abcd1234SecretValue';
@@ -681,6 +783,7 @@ test('lineage settlement: candidate→job digest 신분이 store readback·web·
     assert.deepEqual([settlement.settlementRef, settlement.settlementDigest],
       [stored.settlementRef, stored.settlementDigest]);
     const surfaceJob = (await app.request('GET', '/automation')).body.jobs[0];
+    assert.ok(surfaceJob, 'verified canonical job must remain visible');
     assert.deepEqual([surfaceJob.settlementRef, surfaceJob.jobRevision], [stored.settlementRef, 1]);
     await app.turn('최종 상태를 알려줘');
     const webReality = capture.at(-1).automationReality.jobs.items
@@ -693,6 +796,71 @@ test('lineage settlement: candidate→job digest 신분이 store readback·web·
     const channelReality = capture.at(-1).automationReality.jobs.items
       .find((entry) => entry.jobRef === stored.id);
     assert.equal(channelReality.settlementRef, stored.settlementRef);
+  });
+});
+
+test('재감사 settlement: 본문·candidate/job linkage 손상은 restart에서 unknown이고 모델 입장 0이다', async () => {
+  for (const variant of ['body', 'job-link']) {
+    const x = await room();
+    const proposed = candidate(`tamper-${variant}`, '매주 월요일 오전 9시 반 정산 확인');
+    const first = await startProduct({ model: proposalModel(), candidates: [proposed], space: x });
+    try {
+      const approval = await first.request('POST', '/automation/approve', {
+        candidateId: proposed.candidateId, candidateRevision: 1,
+        skillId: 'l6-skill', agentProfileId: 'l6-agent',
+        expiresAt: 2_000_000_000_000, maxRuns: 20,
+      });
+      assert.equal(approval.status, 200, JSON.stringify(approval));
+    } finally { await new Promise((resolve) => first.server.close(resolve)); }
+    const raw = JSON.parse(await readFile(first.automationStore.file, 'utf8'));
+    if (variant === 'body') raw.settlements[0].state = 'paused';
+    else raw.jobs[0].settlementRef = '0'.repeat(64);
+    await writeFile(first.automationStore.file, JSON.stringify(raw), 'utf8');
+
+    const capture = [];
+    const restarted = await startProduct({
+      model: proposalModel({ capture }), space: x, preserveState: true,
+    });
+    try {
+      const loaded = await restarted.automationStore.load();
+      const result = await restarted.turn('자동화 상태를 알려줘');
+      assert.ok(loaded.recovery, variant);
+      assert.deepEqual(result.automationProposal, {
+        rejected: true, reason: 'automation_reality_unknown',
+      }, variant);
+      assert.equal(capture.at(-1).automationReality.availability, 'unknown', variant);
+      assert.equal(capture.at(-1).automationReality.jobs.items.length, 0, variant);
+    } finally { await new Promise((resolve) => restarted.server.close(resolve)); }
+  }
+});
+
+test('재감사 settlement write: digest·linkage 불일치는 저장 전 거절되고 기존 원본은 불변이다', async () => {
+  const proposed = candidate('write-validation', '매주 월요일 오전 9시 반 정산 확인');
+  await withProduct({ model: proposalModel(), candidates: [proposed] }, async (app) => {
+    const approval = await app.request('POST', '/automation/approve', {
+      candidateId: proposed.candidateId, candidateRevision: 1,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+      expiresAt: 2_000_000_000_000, maxRuns: 20,
+    });
+    assert.equal(approval.status, 200, JSON.stringify(approval));
+    const valid = await app.automationStore.load();
+    for (const variant of ['digest', 'linkage', 'principal', 'revision', 'state', 'job']) {
+      const invalid = structuredClone(valid);
+      if (variant === 'digest') invalid.settlements[0].state = 'paused';
+      else if (variant === 'linkage') invalid.jobs[0].settlementRef = '0'.repeat(64);
+      else {
+        const body = structuredClone(valid.settlements[0]);
+        delete body.settlementRef;
+        delete body.settlementDigest;
+        if (variant === 'principal') body.principalRef = 'forged-principal';
+        if (variant === 'revision') body.candidateRevision += 1;
+        if (variant === 'state') body.state = 'paused';
+        if (variant === 'job') body.jobRef = 'forged-job';
+        invalid.settlements.push(sealAutomationSettlement(body));
+      }
+      await assert.rejects(() => app.automationStore.save(invalid), /settlement/u, variant);
+      assert.deepEqual(await app.automationStore.load(), valid, variant);
+    }
   });
 });
 
@@ -710,6 +878,29 @@ test('delivery intent: 실제 local conversation consumer가 없는 chat 후보�
     assert.equal(state.jobs.length, 0);
     assert.equal(state.candidates[0].approved, false);
     assert.equal((await app.runLedger.load()).runs.length, 0);
+  });
+});
+
+test('delivery intent actual /turn: 자연 chat 제안은 admission rejected·setup0·job0이다', async () => {
+  const model = { async respond(_tc, opts = {}) {
+    if (opts.tools?.some((entry) => entry.name === 'automation.propose')) {
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: '매주 월요일 정산 결과를 이 대화로 알린다', operation: 'create',
+        kind: 'weekly', trigger: MONDAY, tool: 'local.file',
+        action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'chat',
+      } }] };
+    }
+    return '전달 연결이 없어 후보로 확정하지 않았어요.';
+  } };
+  await withProduct({ model }, async (app) => {
+    const result = await app.turn('매주 월요일 정산 결과를 이 대화로 알려줘');
+    assert.deepEqual(result.automationProposal, { rejected: true, reason: 'delivery_not_connected' });
+    const setup = await app.request('GET', '/automation/setup?candidateId=missing');
+    const state = await app.automationStore.load();
+    assert.equal(setup.status, 404);
+    assert.equal(state.candidates.length, 0);
+    assert.equal(state.jobs.length, 0);
   });
 });
 
@@ -893,10 +1084,13 @@ test('automation.observe 관통: 모델이 다음 bounded page에서 실제 본 
     target,
   ];
   const capture = [];
+  const explicitLabel = target.name;
+  let requestedLabel = null;
   const model = { async respond(tc, opts = {}) {
     capture.push(structuredClone(tc));
     if (tc.automationControl) return `상태:${tc.automationControl.state}`;
-    const visible = tc.automationReality?.jobs?.items?.find((entry) => entry.jobRef === target.id);
+    requestedLabel ??= String(tc.currentRequest ?? '').match(/「([^」]+)」/u)?.[1] ?? null;
+    const visible = tc.automationReality?.jobs?.items?.find((entry) => entry.name === requestedLabel);
     if (visible && opts.tools?.some((entry) => entry.name === 'automation.control')) {
       return { text: '', toolCalls: [{ name: 'automation.control', args: {
         operation: 'status', targetJobRef: visible.jobRef, targetJobRevision: visible.jobRevision,
@@ -913,16 +1107,87 @@ test('automation.observe 관통: 모델이 다음 bounded page에서 실제 본 
   await withProduct({
     model, jobs,
   }, async (app) => {
-    const status = await app.turn('자동화 목록에서 다음 쪽까지 보고 대상 상태를 알려줘');
+    const status = await app.turn(`자동화 목록에서 다음 쪽까지 보고 「${explicitLabel}」 상태를 알려줘`);
+    assert.ok(status.automationControl, JSON.stringify(capture.map((entry) => ({
+      request: entry.currentRequest,
+      page: entry.automationReality?.jobs,
+      observe: entry.automationObserve,
+    }))));
     assert.deepEqual([status.automationControl.jobRef, status.automationControl.jobRevision,
       status.automationControl.state], [target.id, 7, 'scheduled']);
     const firstReality = capture[0].automationReality.jobs;
-    assert.equal(firstReality.truncated, true);
+    assert.equal(firstReality.truncated, true, JSON.stringify({
+      total: firstReality.total, count: firstReality.items.length,
+      names: firstReality.items.map((entry) => entry.name),
+    }));
     assert.equal(firstReality.items.some((entry) => entry.jobRef === target.id), false);
     const observedReality = capture.find((entry) => entry.automationObserve)?.automationReality.jobs;
     assert.equal(observedReality.offset, 20);
     assert.equal(observedReality.items.some((entry) => entry.jobRef === target.id), true);
     assert.equal((await app.automationStore.load()).jobs.length, 21);
+  });
+});
+
+test('automation.observe→update 관통: 다음 page에서 실제 본 label/ref/revision만 canonical 후보로 입장한다', async () => {
+  const x = await room();
+  const target = { ...scheduledJob('page-update-target', x.root), jobRevision: 7 };
+  const jobs = [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      ...scheduledJob(`page-update-${String(index).padStart(2, '0')}`, x.root), jobRevision: 1,
+    })),
+    target,
+  ];
+  const explicitLabel = target.name;
+  let requestedLabel = null;
+  const capture = [];
+  const model = { async respond(tc, opts = {}) {
+    capture.push(structuredClone(tc));
+    requestedLabel ??= String(tc.currentRequest ?? '').match(/「([^」]+)」/u)?.[1] ?? null;
+    if (tc.automationProposal?.candidateId) return '변경 후보를 준비했어요.';
+    const seen = tc.automationReality?.jobs?.items?.find((entry) => entry.name === requestedLabel);
+    if (seen && opts.tools?.some((entry) => entry.name === 'automation.propose')) {
+      return { text: '', toolCalls: [{ name: 'automation.propose', args: {
+        statement: `${requestedLabel} 시간을 화요일 오전 10시로 바꾼다`,
+        operation: 'update', targetJobRef: seen.jobRef,
+        kind: 'weekly', trigger: TUESDAY, tool: 'local.file',
+        action: { args: { action: 'read', path: '지난주정산.txt' } },
+        skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
+      } }] };
+    }
+    if (tc.automationReality?.jobs?.truncated
+      && opts.tools?.some((entry) => entry.name === 'automation.observe')) {
+      return { text: '', toolCalls: [{ name: 'automation.observe', args: {
+        collection: 'jobs', offset: tc.automationReality.jobs.nextOffset, limit: 20,
+      } }] };
+    }
+    return '대상을 찾지 못했어요.';
+  } };
+  await withProduct({ model, jobs, space: x }, async (app) => {
+    const result = await app.turn(`자동화 목록 다음 쪽의 「${explicitLabel}」 시간을 화요일 오전 10시로 바꿔줘`);
+    assert.ok(result.automationProposal?.candidateId, JSON.stringify({
+      proposal: result.automationProposal,
+      capture: capture.map((entry) => ({
+        request: entry.currentRequest,
+        page: entry.automationReality?.jobs,
+        observe: entry.automationObserve,
+        proposal: entry.automationProposal,
+      })),
+    }));
+    const setup = await app.request('GET', `/automation/setup?candidateId=${result.automationProposal.candidateId}`);
+    assert.equal(setup.status, 200, JSON.stringify(setup));
+    assert.deepEqual([setup.body.candidate.targetJobRef, setup.body.candidate.revision], [target.id, 1]);
+    const approval = await app.request('POST', '/automation/approve', {
+      candidateId: result.automationProposal.candidateId,
+      candidateRevision: result.automationProposal.revision,
+      skillId: 'l6-skill', agentProfileId: 'l6-agent',
+    });
+    assert.equal(approval.status, 200, JSON.stringify(approval));
+    assert.equal(approval.body.jobId, target.id);
+    const saved = (await app.automationStore.load()).jobs.find((entry) => entry.id === target.id);
+    assert.deepEqual([saved.id, saved.jobRevision, saved.trigger.localTime], [target.id, 8, '10:00']);
+    assert.equal(capture[0].automationReality.jobs.items.some((entry) => entry.jobRef === target.id), false);
+    assert.equal(capture.some((entry) => entry.automationReality?.jobs?.items
+      ?.some((item) => item.jobRef === target.id)), true);
   });
 });
 

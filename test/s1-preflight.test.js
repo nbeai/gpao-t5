@@ -172,6 +172,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/automation-scheduler.js',
     'src/runtime/canonical-automation-runtime.js',
     'src/surface/automation-store.js',
+    'src/surface/automation-settlement.js',
     'src/surface/automation-surface.js',
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',

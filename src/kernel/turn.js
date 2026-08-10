@@ -1395,6 +1395,9 @@ export async function runTurn(input, ctx) {
     });
     earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
     earlyReply = await 자동화관찰후답(earlyTc, earlyReply, earlyWantedWeb);
+    // 관찰 뒤 실제로 본 ref로 새 후보를 제출할 수 있다. 그 후보도 첫 제안과 같은
+    // authoritative 입장/readback을 지나야 하며 raw 모델 args로 표면에 나가면 안 된다.
+    earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
     earlyReply = await 자동화제어후답(earlyTc, earlyReply, earlyWantedWeb);
     return {
       kind: 'reply',
@@ -1888,6 +1891,7 @@ export async function runTurn(input, ctx) {
   // executePlan 의 다단계 호출에서 온 제안은 ctx 를 통해 돌아온다.
   if (ctx.제안된스킬) { skillProposal = ctx.제안된스킬; ctx.제안된스킬 = undefined; }
   if (ctx.제안된자동화) { automationProposal = ctx.제안된자동화; ctx.제안된자동화 = undefined; }
+  if (ctx.automationControl) automationControl = ctx.automationControl;
   if (ctx.제안된에이전트) { agentProposal = ctx.제안된에이전트; ctx.제안된에이전트 = undefined; }
   // 도구 걸음 중 승인이 생기면 work.state는 pending에 봉인된 채 승인 뒤에만 나간다.
   // 여기서 먼저 노출하면 승인 전/후가 서로 다른 사건 묶음으로 저장된다.
@@ -2531,7 +2535,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ctx.collectWorkState?.(분리);
       if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
       if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
-      if (분리.automationProposal) ctx.제안된자동화 = 분리.automationProposal;
+      if (분리.automationProposal) {
+        ctx.제안된자동화 = 분리.automationProposal;
+        ctx.automationProposal = 분리.automationProposal;
+      }
       if (분리.agentProposal) ctx.제안된에이전트 = 분리.agentProposal;
       if (분리.automationObserve && typeof ctx.observeAutomation === 'function') {
         ctx.automationObserveCount = (ctx.automationObserveCount ?? 0) + 1;
@@ -2548,6 +2555,34 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           search: wantedWeb, effort: 'medium',
           tools: modelSchemasFor(selfState, ctx.modelControls),
         });
+        continue;
+      }
+      if (분리.automationProposal && typeof ctx.admitAutomationProposal === 'function'
+        && ctx.automationAdmissionHandled !== true) {
+        ctx.automationAdmissionHandled = true;
+        const admission = await ctx.admitAutomationProposal(분리.automationProposal);
+        ctx.automationProposal = admission && Object.hasOwn(admission, 'proposal')
+          ? admission.proposal : { rejected: true, reason: 'admission_unknown' };
+        ctx.제안된자동화 = ctx.automationProposal;
+        ctx.automationReality = admission?.reality ?? ctx.automationReality;
+        tc = {
+          ...tc,
+          automationProposal: structuredClone(ctx.automationProposal),
+          automationReality: structuredClone(ctx.automationReality),
+        };
+        finalOut = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
+        continue;
+      }
+      if (분리.automationControl && typeof ctx.applyAutomationControl === 'function') {
+        const settled = await ctx.applyAutomationControl(분리.automationControl);
+        ctx.automationControl = settled?.control ?? { rejected: true, reason: 'control_unknown' };
+        ctx.automationReality = settled?.reality ?? ctx.automationReality;
+        tc = {
+          ...tc,
+          automationControl: structuredClone(ctx.automationControl),
+          automationReality: structuredClone(ctx.automationReality),
+        };
+        finalOut = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
         continue;
       }
       const next = 분리.rest;

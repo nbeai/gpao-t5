@@ -1,11 +1,28 @@
-import { containsSensitiveValue } from '../kernel/l0-evidence/sensitive-text.js';
+import { isDeepStrictEqual } from 'node:util';
+import { canonicalDurableEvidence } from '../kernel/l0-evidence/sensitive-text.js';
+import { assertAutomationSettlementState, linkedLatestSettlement } from './automation-settlement.js';
 
 const ACTIVE_AUTOMATION_STATES = new Set(['scheduled', 'paused', 'needs_review']);
 
-export function automationEntryVisible(entry) {
-  return ![entry?.statement, entry?.name]
-    .filter((value) => typeof value === 'string')
-    .some((value) => containsSensitiveValue(value));
+function withTrustedSettlementRefs(entry, trustedRefs) {
+  if (!trustedRefs?.size || !entry || typeof entry !== 'object') return entry;
+  if (Array.isArray(entry)) return entry.map((item) => withTrustedSettlementRefs(item, trustedRefs));
+  return Object.fromEntries(Object.entries(entry).map(([key, value]) => {
+    if (['settlementRef', 'settlementDigest', 'latestSettlementRef',
+      'latestSettlementDigest'].includes(key) && trustedRefs.has(value)) {
+      return [key, `verified-automation-${key}`];
+    }
+    return [key, withTrustedSettlementRefs(value, trustedRefs)];
+  }));
+}
+
+export function automationEntryVisible(entry, trustedRefs = null) {
+  if (entry == null) return false;
+  try {
+    const comparable = withTrustedSettlementRefs(entry, trustedRefs);
+    return isDeepStrictEqual(comparable, canonicalDurableEvidence(comparable));
+  }
+  catch { return false; }
 }
 
 export function projectAutomations(jobs = []) {
@@ -54,15 +71,24 @@ export function projectAutomationReality({ candidates = [], jobs = [], runs = []
       recentRuns: structuredClone(unknown),
     };
   }
+  let trustedRefs = null;
+  try {
+    assertAutomationSettlementState({ candidates, jobs, settlements });
+    trustedRefs = new Set(settlements.flatMap(
+      (entry) => [entry.settlementRef, entry.settlementDigest],
+    ));
+  } catch {
+    trustedRefs = null;
+  }
   const owns = (entry) => entry?.principalRef === principalRef;
   const currentCandidates = candidates.filter((entry) => owns(entry)
-    && automationEntryVisible(entry)
+    && automationEntryVisible(entry, trustedRefs)
     && entry.approved !== true && entry.current !== false && entry.superseded !== true
     && (!Number.isFinite(entry.expiresAt) || entry.expiresAt >= now));
-  const ownedJobs = jobs.filter((entry) => owns(entry) && automationEntryVisible(entry));
+  const ownedJobs = jobs.filter((entry) => owns(entry) && automationEntryVisible(entry, trustedRefs));
   const latestSettlementFor = (jobId) => {
-    const entry = settlements.findLast((item) => item?.principalRef === principalRef
-      && item?.jobRef === jobId && item?.verificationPassed === true);
+    const job = ownedJobs.find((item) => item.id === jobId);
+    const entry = job ? linkedLatestSettlement({ settlements }, job) : null;
     return entry ? {
       operation: entry.operation, jobRef: entry.jobRef, jobRevision: entry.jobRevision,
       state: entry.state, settlementRef: entry.settlementRef,
@@ -78,10 +104,8 @@ export function projectAutomationReality({ candidates = [], jobs = [], runs = []
     total: all.length,
     truncated: start + page.length < all.length,
     items: page.map(project),
-    ...(collection === key ? {
-      offset: start,
-      nextOffset: start + page.length < all.length ? start + page.length : null,
-    } : {}),
+    offset: start,
+    nextOffset: start + page.length < all.length ? start + page.length : null,
     };
   };
   return {

@@ -57,6 +57,12 @@ import {
   projectAutomationReality,
   automationEntryVisible,
 } from './automation-surface.js';
+import {
+  linkedApprovalSettlement,
+  linkedLatestSettlement,
+  sealAutomationSettlement,
+  verifyAutomationSettlement,
+} from './automation-settlement.js';
 import { projectToolbox } from './toolbox-view.js';
 import { PersonalToolsStore } from './personal-tools-store.js';
 import { definePersonalTool, runProbe, applyProbe } from '../kernel/l2-plan/personal-tool.js';
@@ -492,24 +498,22 @@ export function makeServer(deps = {}) {
       candidateRevision: candidate.revision,
       controlRef: candidate.controlRef,
     };
-    const settlementRef = createHash('sha256').update(JSON.stringify({
-      candidateLineage, operation, jobRef: job.id, jobRevision: job.jobRevision,
-    })).digest('hex');
-    const settlementDigest = createHash('sha256').update(JSON.stringify({
-      settlementRef, operation, principalRef: candidate.principalRef,
-      candidateRef: candidate.candidateId, candidateRevision: candidate.revision,
-      controlRef: candidate.controlRef, jobRef: job.id, jobRevision: job.jobRevision ?? 0,
-      state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
-      skillRef: job.skillRef, agentProfileId: job.agentProfileId,
-      authorityEnvelope: job.authorityEnvelope, deliveryPolicy: job.deliveryPolicy,
-      observedAt, tool: candidate.action?.tool, actionArgs: candidate.action?.args ?? {},
-      skillPurpose: candidate.skillPurpose, deliveryIntent: candidate.deliveryIntent,
-      verificationPassed: true,
-    })).digest('hex');
-    return { candidateLineage, settlementRef, settlementDigest };
+    const sealed = sealAutomationSettlement(approvalSettlementBody(candidate, job, operation, observedAt));
+    if (operation === 'update') return {
+      latestSettlementRef: sealed.settlementRef,
+      latestSettlementDigest: sealed.settlementDigest,
+    };
+    return {
+      candidateLineage,
+      settlementRef: sealed.settlementRef,
+      settlementDigest: sealed.settlementDigest,
+      latestSettlementRef: sealed.settlementRef,
+      latestSettlementDigest: sealed.settlementDigest,
+    };
   }
 
   function appendAutomationSettlement(state, entry) {
+    if (!verifyAutomationSettlement(entry)) throw new Error('automation_settlement_invalid');
     const settlements = state.settlements ?? [];
     const existing = settlements.find((item) => item.settlementRef === entry.settlementRef);
     if (existing) {
@@ -521,7 +525,7 @@ export function makeServer(deps = {}) {
     return { ...state, settlements: [...settlements, structuredClone(entry)] };
   }
 
-  function approvalSettlementEntry(candidate, job, operation, at) {
+  function approvalSettlementBody(candidate, job, operation, at) {
     return {
       kind: 'automation_settlement', operation,
       principalRef: candidate.principalRef,
@@ -548,6 +552,10 @@ export function makeServer(deps = {}) {
     };
   }
 
+  function approvalSettlementEntry(candidate, job, operation, at) {
+    return sealAutomationSettlement(approvalSettlementBody(candidate, job, operation, at));
+  }
+
   function controlSettlementEntry(state, job, operation, at, mutated) {
     const ordinal = (state.settlements ?? []).length;
     const base = {
@@ -563,18 +571,21 @@ export function makeServer(deps = {}) {
       mutated,
       verificationPassed: true,
     };
-    const settlementRef = createHash('sha256').update(JSON.stringify(base)).digest('hex');
-    const settlementDigest = createHash('sha256').update(JSON.stringify({
-      settlementRef, jobRef: job.id, jobRevision: job.jobRevision ?? 0,
-      state: job.state, trigger: job.trigger, nextRunAt: job.nextRunAt,
-    })).digest('hex');
-    return { ...base, settlementRef, settlementDigest };
+    return sealAutomationSettlement(base);
   }
 
   async function automationRealityFor(principalRef, page = {}) {
     await automationReady();
     try {
       const [state, runState] = await Promise.all([autoStore.load(), runLedger.load()]);
+      if (state.recovery) {
+        const unknown = { observed: false, total: null, truncated: null, items: [] };
+        return {
+          observedAt: automationNow(), principalBound: true, availability: 'unknown',
+          candidates: structuredClone(unknown), jobs: structuredClone(unknown),
+          recentRuns: structuredClone(unknown),
+        };
+      }
       return projectAutomationReality({
         candidates: state.candidates, jobs: state.jobs, runs: runState.runs,
         settlements: state.settlements,
@@ -632,6 +643,10 @@ export function makeServer(deps = {}) {
 
   async function 자동화후보입장(proposal, session) {
     await automationReady();
+    if (!automationEntryVisible(proposal)) return {
+      proposal: { rejected: true, reason: 'sensitive_input' },
+      reality: await automationRealityFor(session.principalRef),
+    };
     const notReady = 자동화입장준비(proposal, session.principalRef);
     if (notReady) return {
       proposal: { rejected: true, reason: notReady },
@@ -658,9 +673,7 @@ export function makeServer(deps = {}) {
         return state;
       }
       if (operation === 'update') {
-        const lastApproval = (state.settlements ?? []).findLast((entry) =>
-          entry.jobRef === targetJob.id && ['create', 'update'].includes(entry.operation)
-          && entry.verificationPassed === true);
+        const lastApproval = linkedApprovalSettlement(state, targetJob.id);
         const sameAction = lastApproval
           && lastApproval.tool === proposal.tool
           && JSON.stringify(lastApproval.actionArgs) === JSON.stringify(proposal.action.args)
@@ -714,6 +727,10 @@ export function makeServer(deps = {}) {
       stored = draft;
       return { ...state, candidates: [...candidates, stored] };
     });
+    if (!stored) return {
+      proposal: { rejected: true, reason: 'automation_reality_unknown' },
+      reality: await automationRealityFor(session.principalRef),
+    };
     const admitted = duplicateStored ? null : stored.rejected ? stored : {
       candidateId: stored.candidateId, candidateRef: stored.candidateId,
       revision: stored.revision, controlRef: stored.controlRef,
@@ -737,8 +754,15 @@ export function makeServer(deps = {}) {
       }
       if (control.operation === 'status') {
         const settlement = controlSettlementEntry(state, current, 'status', automationNow(), false);
-        outcome = { ok: true, record: current, operation: 'status', mutated: false, settlement };
-        return appendAutomationSettlement(state, settlement);
+        const record = {
+          ...current,
+          latestSettlementRef: settlement.settlementRef,
+          latestSettlementDigest: settlement.settlementDigest,
+        };
+        const jobs = [...state.jobs];
+        jobs[index] = record;
+        outcome = { ok: true, record, operation: 'status', mutated: false, settlement };
+        return appendAutomationSettlement({ ...state, jobs }, settlement);
       }
       const targetState = control.operation === 'pause' ? 'paused' : 'scheduled';
       const moved = current.state === targetState
@@ -752,15 +776,27 @@ export function makeServer(deps = {}) {
         const settlement = controlSettlementEntry(
           state, current, control.operation, automationNow(), false,
         );
-        outcome = { ok: true, record: current, operation: control.operation, mutated: false, settlement };
-        return appendAutomationSettlement(state, settlement);
+        const record = {
+          ...current,
+          latestSettlementRef: settlement.settlementRef,
+          latestSettlementDigest: settlement.settlementDigest,
+        };
+        const jobs = [...state.jobs];
+        jobs[index] = record;
+        outcome = { ok: true, record, operation: control.operation, mutated: false, settlement };
+        return appendAutomationSettlement({ ...state, jobs }, settlement);
       }
       const jobRevision = (current.jobRevision ?? 0) + 1;
       const changed = { ...moved.record, jobRevision };
       const settlement = controlSettlementEntry(
         state, changed, control.operation, automationNow(), true,
       );
-      const record = { ...changed, lastControlSettlement: settlement };
+      const record = {
+        ...changed,
+        lastControlSettlement: settlement,
+        latestSettlementRef: settlement.settlementRef,
+        latestSettlementDigest: settlement.settlementDigest,
+      };
       const jobs = [...state.jobs];
       jobs[index] = record;
       outcome = { ok: true, record, operation: control.operation, mutated: true, settlement };
@@ -778,6 +814,8 @@ export function makeServer(deps = {}) {
     );
     if (!saved || (saved.jobRevision ?? 0) !== (outcome.record.jobRevision ?? 0)
       || !savedSettlement
+      || !verifyAutomationSettlement(savedSettlement)
+      || JSON.stringify(savedSettlement) !== JSON.stringify(outcome.settlement)
       || savedSettlement.settlementDigest !== outcome.settlement?.settlementDigest
       || savedSettlement.jobRef !== saved.id
       || savedSettlement.jobRevision !== (saved.jobRevision ?? 0)) return {
@@ -2118,8 +2156,8 @@ export function makeServer(deps = {}) {
         const a = await autoStore.load();
         const runs = await runLedger.load();
         const latestSettlementFor = (jobId) => {
-          const entry = (a.settlements ?? []).findLast((item) => item?.jobRef === jobId
-            && item?.verificationPassed === true);
+          const job = a.jobs.find((item) => item.id === jobId);
+          const entry = job ? linkedLatestSettlement(a, job) : null;
           return entry ? {
             operation: entry.operation, jobRef: entry.jobRef, jobRevision: entry.jobRevision,
             state: entry.state, settlementRef: entry.settlementRef,
@@ -2261,8 +2299,8 @@ export function makeServer(deps = {}) {
             approvedCandidate = {
               ...approvedCandidate,
               jobRef: record.id,
-              settlementRef: record.settlementRef,
-              settlementDigest: record.settlementDigest,
+              settlementRef: record.latestSettlementRef,
+              settlementDigest: record.latestSettlementDigest,
             };
             const jobs = [...state.jobs];
             jobs[jobIndex] = record;
@@ -2318,8 +2356,8 @@ export function makeServer(deps = {}) {
           approvedCandidate = {
             ...approvedCandidate,
             jobRef: record.id,
-            settlementRef: record.settlementRef,
-            settlementDigest: record.settlementDigest,
+            settlementRef: record.latestSettlementRef,
+            settlementDigest: record.latestSettlementDigest,
           };
           candidates[index] = approvedCandidate;
           outcome = { ok: true, operation, record, candidate: approvedCandidate };
@@ -2343,16 +2381,21 @@ export function makeServer(deps = {}) {
           (entry) => entry.candidateId === outcome.candidate.candidateId,
         );
         const savedSettlement = readback.settlements?.find(
-          (entry) => entry.settlementRef === outcome.record.settlementRef,
+          (entry) => entry.settlementRef === outcome.candidate.settlementRef,
         );
         if (!saved || saved.updatedAt !== outcome.record.updatedAt
           || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)
           || savedCandidate?.jobRef !== saved.id
-          || savedCandidate?.settlementRef !== saved.settlementRef
-          || savedCandidate?.settlementDigest !== saved.settlementDigest
+          || savedCandidate?.settlementRef !== savedSettlement?.settlementRef
+          || savedCandidate?.settlementDigest !== savedSettlement?.settlementDigest
+          || saved.latestSettlementRef !== savedSettlement?.settlementRef
+          || saved.latestSettlementDigest !== savedSettlement?.settlementDigest
           || savedSettlement?.jobRef !== saved.id
           || savedSettlement?.jobRevision !== (saved.jobRevision ?? 0)
-          || savedSettlement?.settlementDigest !== saved.settlementDigest) {
+          || !verifyAutomationSettlement(savedSettlement)
+          || JSON.stringify(savedSettlement)
+            !== JSON.stringify(approvalSettlementEntry(outcome.candidate, saved, outcome.operation, now))
+          || savedSettlement?.settlementDigest !== saved.latestSettlementDigest) {
           return sendJson(res, 500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
         }
         const settlement = {
@@ -2367,8 +2410,8 @@ export function makeServer(deps = {}) {
           trigger: saved.trigger,
           nextRunAt: saved.nextRunAt,
           jobRevision: saved.jobRevision,
-          settlementRef: saved.settlementRef,
-          settlementDigest: saved.settlementDigest,
+          settlementRef: savedSettlement.settlementRef,
+          settlementDigest: savedSettlement.settlementDigest,
           storeReadback: true,
         };
         return sendJson(res, 200, {

@@ -323,6 +323,7 @@ export const 허용파일 = [
   'src/runtime/canonical-automation-runtime.js',
   // L6 — candidate/job/control settlement를 job 한 칸 덮어쓰기 대신 append-only로 보존한다.
   'src/surface/automation-store.js',
+  'src/surface/automation-settlement.js',
   'src/surface/automation-surface.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).

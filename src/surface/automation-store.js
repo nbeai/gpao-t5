@@ -16,6 +16,7 @@ import {
   assertStateRecords,
   loadVersionedJson,
 } from './versioned-json-store.js';
+import { assertAutomationSettlementState } from './automation-settlement.js';
 
 export function defaultAutomationDir() {
   return process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
@@ -140,19 +141,35 @@ export class AutomationJobStore {
 
   async load() {
     const fallback = { schemaVersion: AUTOMATION_SCHEMA_VERSION, candidates: [], jobs: [], settlements: [] };
-    const loaded = await loadVersionedJson(
-      this.file,
-      fallback,
-      (raw) => migrateAutomationStateV1(raw),
-      (state) => {
-        if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('automation state schemaVersion must be 2');
-        if (!Array.isArray(state.candidates)) throw new Error('automation candidates must be an array');
-        if (state.settlements !== undefined && !Array.isArray(state.settlements)) {
-          throw new Error('automation settlements must be an array');
-        }
-        assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
-      },
-    );
+    let loaded;
+    try {
+      loaded = await loadVersionedJson(
+        this.file,
+        fallback,
+        (raw) => migrateAutomationStateV1(raw),
+        (state) => {
+          if (state.schemaVersion !== AUTOMATION_SCHEMA_VERSION) throw new Error('automation state schemaVersion must be 2');
+          if (!Array.isArray(state.candidates)) throw new Error('automation candidates must be an array');
+          if (state.settlements !== undefined && !Array.isArray(state.settlements)) {
+            throw new Error('automation settlements must be an array');
+          }
+          assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
+          assertAutomationSettlementState(state);
+        },
+      );
+    } catch (error) {
+      // 손상 원본을 이동·덮어쓰지 않는다. 예약 작업을 자동으로 비우는 것은 복구가 아니라
+      // 별도 상태변경이다. 읽기 표면만 unknown으로 닫고 원본 경로·바이트는 그대로 보존한다.
+      let corruptBytes = null;
+      try { corruptBytes = Buffer.byteLength(await readFile(this.file, 'utf8')); } catch {}
+      loaded = {
+        state: structuredClone(fallback), migrated: false,
+        recovery: {
+          corrupted: true, preservedFile: this.file, corruptBytes,
+          reason: 'automation_state_invalid', errorName: error?.name ?? 'Error',
+        },
+      };
+    }
     return {
       ...loaded.state,
       settlements: loaded.state.settlements ?? [],
@@ -167,6 +184,7 @@ export class AutomationJobStore {
   async update(mutator) {
     return serializeByFile(this.file, async () => {
       const current = await this.load();
+      if (current.recovery) return current;
       const changed = await mutator(current) ?? current;
       return this.#write(changed);
     });
@@ -179,6 +197,7 @@ export class AutomationJobStore {
       throw new Error('automation settlements must be an array');
     }
     assertStateRecords(state.jobs, validateAutomationJob, 'automation job');
+    assertAutomationSettlementState(state);
     await atomicWritePrivate(this.file, {
       schemaVersion: AUTOMATION_SCHEMA_VERSION,
       candidates: state.candidates,
