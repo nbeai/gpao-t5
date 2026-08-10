@@ -207,6 +207,21 @@ export function buildModelMessages(tc) {
       .map((hand) => `- ${hand.label}: ${hand.operation}`).join('\n')}`);
   }
 
+  // F-65: 사용자가 이미 준 자료의 기계 현실. 지시가 아니라 root 신분·실제 목록 관측만 싣는다.
+  // 내용은 없고, 잘린 목록은 못 본 것을 없다고 만들지 않도록 범위와 다음 offset을 함께 말한다.
+  if (tc.worksetReality) {
+    const w = tc.worksetReality;
+    const lines = [`상태: ${w.status}`, `현재 작업셋: ${w.currentRoot?.path ?? '미상'}`];
+    if (w.reason) lines.push(`이유: ${w.reason}`);
+    if (w.candidates?.length > 1) lines.push(`허용 후보: ${w.candidates.map((r) => r.path).join(' · ')}`);
+    if (Array.isArray(w.members)) {
+      lines.push(`관측한 항목: ${w.members.length}/${w.page?.total ?? w.members.length}`);
+      for (const item of w.members) lines.push(`- ${item.name} (${item.kind})`);
+      if (w.page?.truncated) lines.push(`목록은 일부만 관측됨 · 다음 시작점 ${w.page.nextOffset}`);
+    }
+    sys.push(`[현재 작업셋의 기계 현실]\n${lines.join('\n')}`);
+  }
+
   const af = tc.authorityFacts ?? {};
   if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
   if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);

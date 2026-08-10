@@ -20,7 +20,7 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boundary.js';
 import { 손제시기록 } from './l2-plan/tool-offer.js';
 import { dump손제시 } from '../runtime/prompt-dump.js';
-import { 표맥락에서 } from '../runtime/local-file.js';
+import { observeWorksetReality, 표맥락에서 } from '../runtime/local-file.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
@@ -53,6 +53,9 @@ import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절�
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
+function 모델앞선영수증(entries, turnReceipts) {
+  return (entries ?? []).filter((e) => !turnReceipts.includes(e) && e?.origin !== 'runtime_observation');
+}
 
 function 동의후속(text = '') {
   const t = String(text).trim().replace(/[.,!?，。！？\s]/g, '');
@@ -759,6 +762,17 @@ export async function runTurn(input, ctx) {
   // 모델이 고른다(§24). 조립부마다 따로 만들면 같은 턴인데 표면마다 다른 현실을 보게 된다.
   // executePlan 은 input 을 안 받으므로 ctx 에 실어 둔다(askedFrom 과 같은 이유).
   const { selfState, summary } = refreshRuntimeReality(ctx);
+  // F-65: 허용 범위와 현재 작업셋을 섞지 않는다. 명시된 bounded root 하나일 때만 턴 머리에서
+  // 이름·종류 목록을 실제 파일 손으로 관측한다. 이 영수증은 모델이 고른 실행이 아니므로
+  // 실행 교환/완료 판단에는 넣지 않고, 같은 턴 원장과 RealitySnapshot에만 결속한다.
+  {
+    const roots = ctx.tools?.tools?.['local.file']?.scopeRoots ?? [];
+    const explicitRoots = String((ctx.processEnv ?? process.env).GPAO_T5_FILE_ROOTS ?? '').trim();
+    const observed = await observeWorksetReality({ tools: ctx.tools, selfState, roots,
+      currentBasis: explicitRoots ? 'explicit_file_roots' : undefined });
+    ctx.worksetReality = observed.reality;
+    if (observed.receipt) ledger.append(observed.receipt);
+  }
 
   // **이 턴에 무엇을 줬고 무엇을 왜 걸렀는지를 남긴다**(S7 착수 조건 · 오너 지시 2026-08-05).
   //
@@ -1098,6 +1112,7 @@ export async function runTurn(input, ctx) {
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
+      worksetReality: ctx.worksetReality,
       projectWorkState: ctx.projectWorkState,
       // **첫 판단 자리에도 남은 걸음을 준다**(PM 실측 2026-08-07 · 노드 R).
       //
@@ -2081,10 +2096,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
-    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)),
+    priorReceipts: 모델앞선영수증(ledger.entries, turnReceipts),
     surface: ctx.surface,
     recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange, nativeSearch: Boolean(ctx.modelSupportsSearch),
     modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
+    worksetReality: ctx.worksetReality,
     ...예산사실(),
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
@@ -2455,10 +2471,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
-    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)), 이번턴그림,
+    priorReceipts: 모델앞선영수증(ledger.entries, turnReceipts), 이번턴그림,
         surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
-        workingState, projectWorkState: ctx.projectWorkState,
+        workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
         recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
         ...예산사실(),
         ...(ctx.selfhood ?? {}),
@@ -2717,10 +2733,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
-    priorReceipts: (ledger.entries ?? []).filter((e) => !turnReceipts.includes(e)), 이번턴그림,
+    priorReceipts: 모델앞선영수증(ledger.entries, turnReceipts), 이번턴그림,
       surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
-      workingState, projectWorkState: ctx.projectWorkState,
+      workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
       recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
       ...예산사실(), // 남았으면 남았다는 사실(H08 실측) — 이제 두 축 다 준다
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):

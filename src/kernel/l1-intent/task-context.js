@@ -682,6 +682,9 @@ export function buildTaskContext(p) {
     // 자기 파악 세 번째 축(운용 상태) — 실제 기록만. 모델 추정은 넣지 않는다(오염 방지).
     workingState: p.workingState,
     projectWorkState: p.projectWorkState,
+    // F-65: runtime이 실제로 관측한 bounded 현재 작업셋. 허용 범위 자체와 구분하며,
+    // 목록 실패/절단도 그대로 보존한다. 판단이나 도구 순서는 포함하지 않는다.
+    worksetReality: p.worksetReality,
     // 서버가 아는 실행 현실. 주소·경로·포트 같은 내부값은 싣지 않고 사용자에게 의미 있는
     // 경계만 준다. 모델이 자기 호스팅 환경을 출신 지식으로 추측하지 않게 한다.
     runtimeEnvironment: p.runtimeEnvironment,

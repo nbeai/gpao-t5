@@ -578,6 +578,7 @@ export function makeServer(deps = {}) {
     }) : tools;
     return {
       env, model: turnModel, tools: turnTools, ledger, pending, knownCounterparts, 지난현실지문,
+      processEnv: deps.processEnv ?? process.env,
       identity, selfhoodDocs, homeDocs,
       runtimeEnvironment: deps.runtimeEnvironment,
       // P5-B-0.5: 외부 서비스 별칭·연결 안내는 커넥터가 든다 — 턴이 그걸 봐야 막다른 답을 안 한다.
@@ -678,7 +679,8 @@ export function makeServer(deps = {}) {
     if (!workRef || !session.principalRef) return { workRef, proposalAdmission };
 
     const scopeRef = { principalRef: session.principalRef, projectRef: workRef };
-    const receipts = (session.ledgerEntries ?? []).slice(ledgerFrom);
+    const receipts = (session.ledgerEntries ?? []).slice(ledgerFrom)
+      .filter((receipt) => receipt?.origin !== 'runtime_observation');
     for (let index = 0; index < receipts.length; index += 1) {
       const receipt = receipts[index];
       if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
@@ -878,7 +880,8 @@ export function makeServer(deps = {}) {
     try {
       result = await runTurn({ ...input, turnRef }, ctx);
     } catch (err) {
-      const receipts = ctx.ledger.entries.slice(ledgerStart);
+      const receipts = ctx.ledger.entries.slice(ledgerStart)
+        .filter((receipt) => receipt?.origin !== 'runtime_observation');
       const workingState = deriveWorkingState(session.workingState, { receipts });
       const attempted = receipts.length > 0;
       result = {
@@ -909,7 +912,8 @@ export function makeServer(deps = {}) {
     const terminal = result.kind === 'reply'
       && result.modelUnavailable !== true
       && !(result.ledger?.unconfirmed?.length);
-    const currentReceipts = ctx.ledger.entries.slice(ledgerStart);
+    const currentReceipts = ctx.ledger.entries.slice(ledgerStart)
+      .filter((receipt) => receipt?.origin !== 'runtime_observation');
     const hasForeignControlProposal = Boolean(
       result.memorySuggestion
       || result.memoryWithdrawal

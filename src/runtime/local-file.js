@@ -9,7 +9,7 @@
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
 import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile } from 'node:fs/promises';
-import { join, dirname, basename, relative, isAbsolute, extname } from 'node:path';
+import { join, dirname, basename, relative, isAbsolute, extname, resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -20,6 +20,44 @@ import { extractDocument } from './document-intake.js';
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 const VERSION_PREVIEW_FILES = 6;
 const VERSION_PREVIEW_CHARS = 1200;
+export const WORKSET_LIST_LIMIT = 64;
+
+function worksetDigest(value) {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function worksetRootIdentity(path) {
+  const canonical = resolve(String(path));
+  return { path: canonical, rootRef: `wr1.${worksetDigest(canonical).slice(0, 24)}` };
+}
+
+/** 허용 범위와 current 작업셋을 분리하고, 실제 이름·종류 목록 Receipt를 같은 턴 현실로 만든다. */
+export async function observeWorksetReality({ tools, selfState, roots = [], currentBasis, limit = WORKSET_LIST_LIMIT } = {}) {
+  const candidates = [...new Set(roots.map((v) => resolve(String(v))))].sort().map(worksetRootIdentity);
+  if (candidates.length !== 1) return { reality: { status: 'unknown',
+    reason: candidates.length ? 'multiple_allowed_roots' : 'no_allowed_root', currentRoot: null, candidates }, receipt: null };
+  if (currentBasis !== 'explicit_file_roots' && currentBasis !== 'selected_observed_root') {
+    return { reality: { status: 'unknown', reason: 'allowed_scope_not_current', currentRoot: null, candidates }, receipt: null };
+  }
+  const currentRoot = candidates[0];
+  const raw = await tools.run('local.file', { action: 'list', path: currentRoot.path, offset: 0, limit }, selfState,
+    { worksetObservation: true, callRef: `workset-list:${currentRoot.rootRef}` });
+  const baseReceipt = { ...raw, origin: 'runtime_observation' };
+  if ((raw?.failureState ?? 'none') !== 'none' || !raw?.result) {
+    return { reality: { status: 'unknown', reason: 'list_failed', currentRoot, candidates }, receipt: baseReceipt };
+  }
+  const actualRoot = worksetRootIdentity(raw.result.path ?? currentRoot.path);
+  const members = (raw.result.items ?? []).map((item) => ({ name: String(item.name), kind: item.kind === 'folder' ? 'folder' : 'file' }));
+  const total = Number(raw.result.total ?? members.length);
+  const nextOffset = Number.isInteger(raw.result.nextOffset) ? raw.result.nextOffset : null;
+  const sourceSetRef = raw.result.sourceSetRef
+    ?? `ws1.${worksetDigest({ root: actualRoot.path, offset: 0, total, nextOffset, members }).slice(0, 32)}`;
+  const receipt = { ...baseReceipt, result: { ...raw.result, items: members, sourceSetRef } };
+  const page = { offset: 0, observed: members.length, total, truncated: nextOffset !== null,
+    ...(nextOffset !== null ? { nextOffset } : {}) };
+  return { reality: { status: total === 0 ? 'observed_empty' : 'observed', currentRoot: actualRoot, candidates,
+    members, membersComplete: nextOffset === null, page, sourceSetRef }, receipt };
+}
 
 function userVisiblePath(abs, roots) {
   const root = [...roots]
@@ -571,11 +609,24 @@ export function makeLocalFileTool(deps = {}) {
           const items = [];
           for (const e of entries) {
             if (e.name.startsWith('.')) continue;
+            // F-65 runtime 관측은 작업셋의 이름·종류만 본다. public list의 수정시각·CSV 표사실은
+            // 모델이 고른 파일 손에만 남고, 턴 머리 관측이 내용을 몰래 읽는 길은 없다.
+            if (executionContext.worksetObservation === true) {
+              items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file' });
+              continue;
+            }
             // C 감사 F2.3 · 수정 시각도 사실이다 — 이게 없으면 "어느 게 최신이야"에 런타임이
             // 줄 수 있는 것이 이름뿐이라, 이름의 '최종' 문자열이 판단을 대신하게 된다(H08 실측).
             let modifiedAt;
             try { modifiedAt = new Date((await stat(join(abs, e.name))).mtimeMs).toISOString(); } catch { /* 못 보면 안 쓴다 */ }
             items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', ...(modifiedAt ? { modifiedAt } : {}) });
+          }
+          if (executionContext.worksetObservation === true) {
+            // continuation offset이 readdir의 우연한 순서에 흔들리지 않게 관측 전용으로만 정렬한다.
+            items.sort((a, b) => {
+              const an = a.name.normalize('NFC'); const bn = b.name.normalize('NFC');
+              return an < bn ? -1 : an > bn ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+            });
           }
           const 문값 = 문(items.length, args);
           const 쪽 = items.slice(문값.시작, 문값.끝);
@@ -584,7 +635,7 @@ export function makeLocalFileTool(deps = {}) {
           // 진단: E4-R3 과 X1 세 판이 같은 후보·같은 재료에서 갈렸고, 갈린 지점은 목록 뒤
           // 읽으러 들어가느냐였다 — 멈춘 자리(목록)에 이름·시각뿐이라 일반론이 쉬웠다.
           // 레버 ① 의 목록판: 이 쪽의 CSV 앞 5개만 · 256KB 상한 · 애매하면 안 낸다.
-          {
+          if (executionContext.worksetObservation !== true) {
             let 셈 = 0;
             for (const it of 쪽) {
               if (it.kind !== 'file' || !it.name.normalize('NFC').toLowerCase().endsWith('.csv') || 셈 >= 5) continue;
@@ -603,6 +654,8 @@ export function makeLocalFileTool(deps = {}) {
               : '그 폴더는 비어 있어요.',
             {
               path: abs, items: 쪽, total: items.length, offset: 문값.시작,
+              ...(executionContext.worksetObservation === true ? { sourceSetRef: `ws1.${createHash('sha256')
+                .update(JSON.stringify({ path: abs, members: items })).digest('hex').slice(0, 32)}` } : {}),
               ...(문값.다음 !== undefined ? { nextOffset: 문값.다음 } : {}),
             },
           );
