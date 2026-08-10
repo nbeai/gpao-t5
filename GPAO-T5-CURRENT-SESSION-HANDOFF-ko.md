@@ -7,19 +7,28 @@
 
 ## 최신 작업선 · 2026-08-10
 
-- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `1b43918`.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `51bca5b`.
 - 활성 sidecar: `/private/tmp/t5-f64-purpose-completion-v2` · `codex/f64-purpose-completion-v2`.
-  F-64 목적 결과·source 결산·Receipt·WorkRef·execution event 결속만 소유한다. F-60·F-67과
-  PM 홀드아웃은 불가침이다. F-66b 격리선은 독립 반대감사 입장 뒤 정본에 반영하고 수거했다.
+  최초 F-64 통합 시도의 실패 원형이며 추가 편집·병합·push 금지다. 독립 감사자가 첫 실패의
+  원인·반례와 `51bca5b`의 대체 수리를 실제 제품 경로로 모두 대조한 뒤에만 수거한다.
+- F-64 slice-1 개발 입장 범위: 사용자 발화에서 기계적으로 특정된 단일 파일 경로·본문과 명시된
+  `sourcePolicy(none|all_current)`가 함께 있을 때만 raw write·실제 readback·seal check·별도 signed
+  completion Receipt·같은 ReceiptRef의 `execution_completed`·최근 완료가 한 WorkRef로 선다. 하나라도
+  없거나 어긋나면 raw 실행 증거만 남고 완료·deliverable·WorkRef·work-state·chat 승격은 0이다.
+- F-64 미닫힘: L5 다중/행정 산출물, L6 자동화의 후보·승인·job/run 실물, L7 해시 결과. slice-1은
+  제품 완결이나 F-64 닫힘이 아니다. 다음 개발선은 세 가족을 유료 호출 없이 결정형 복제해 slice-1
+  계약 확장인지 별도 사실 소유자인지 한 번에 판정하는 것이다.
+- 다음 격리선은 L5·L6·L7 재현 하네스와 원본 증거만 소유한다. 판정 전 제품 수리·유료 예비 7
+  재실행·PM 홀드아웃 열람은 금지한다. F-60·F-67도 계속 불가침이다.
 - F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
   WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
   runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
 - F-66b 미닫힘: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded
   입장 채널. 따라서 F-66 전체 닫힘이 아니며 다음 개발선은 F-64 목적 결과·완료 결속이다.
-- 검증: 전체 3,496/3,496 · 유휴 게이트 PASS(CPU 58.7초≤87.4 · 유휴 9.6초≤20).
-  앞선 CPU 142.5초 차단 회차는 동시에 돌던 전체 테스트 2벌을 기계 확인한 뒤 분리 재측정했다.
-- 제외: F-60은 오너 지시로 미해결 봉인. F-64 후보 `c0fd5cc6`은 원본 미달로 병합 차단된 채
-  브랜치만 보존한다.
+- 검증: 전체 3,517/3,517 · F-64 slice-1 독립 감사 PASS. 정본 게이트의 제품 항목은 전부 PASS이고,
+  위 보존 sidecar가 인수인계에 등록되기 전 실행의 workspace 감사 1건만 BLOCKED였다.
+- 제외: F-60은 오너 지시로 미해결 봉인. F-67은 확장 후보로 불가침. PM 홀드아웃과 유료 예비 7
+  재실행은 L5·L6·L7 결정형 판정 뒤 대상·횟수를 결과 전에 동결할 때까지 열지 않는다.
 - 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
 
 ## 감사 인계 · 2026-08-04 — **설치파일 직전 단계 종결 요청**
