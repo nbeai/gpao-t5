@@ -196,7 +196,10 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
   description: '사용자의 요청 결과가 대화 답변인지, 실제 파일 생성·변경인지 구분한다.',
   parameters: {
     type: 'object',
-    properties: { output: { type: 'string', enum: ['chat', 'file'] } },
+    properties: {
+      output: { type: 'string', enum: ['chat', 'file'] },
+      sourcePolicy: { type: 'string', enum: ['none', 'all_current'] },
+    },
     required: ['output'],
   },
 });
@@ -211,7 +214,7 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
   // 미충족 사실은 실행 뒤 원장 대조가 그대로 말한다(강제는 기준선에서 이미 걷혔다).
   if (!심문허용()) {
     return directWrite
-      ? { assessment: 'file', deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }] }
+      ? { assessment: 'file', sourcePolicy: 'unknown', deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }] }
       : { assessment: 'not_applicable', deliverables: [] };
   }
   // 쓰기 호출도 곧바로 사용자의 완료 의도로 간주하지 않는다. 실사용에서 모델이
@@ -237,24 +240,27 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
       { ...tc, workContractAssessment: { kind: 'file' } },
       { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },
     );
-    const structured = typeof out === 'string' ? null
+    const structuredCall = typeof out === 'string' ? null
       : out?.toolCalls?.find((call) => call?.name === WORK_DELIVERABLE_SCHEMA.name
-        && ['chat', 'file'].includes(call?.args?.output))?.args?.output;
+        && ['chat', 'file'].includes(call?.args?.output));
+    const structured = structuredCall?.args?.output;
+    const sourcePolicy = ['none', 'all_current'].includes(structuredCall?.args?.sourcePolicy)
+      ? structuredCall.args.sourcePolicy : 'unknown';
     const judgment = structured === 'file' || structured === 'chat'
       ? structured : parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
     if (judgment === 'file') {
       return {
-        assessment: 'file',
+        assessment: 'file', sourcePolicy,
         deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: directWrite ? 'direct' : 'derived' }],
       };
     }
-    if (judgment === 'chat') return { assessment: 'chat', deliverables: [] };
+    if (judgment === 'chat') return { assessment: 'chat', sourcePolicy, deliverables: [] };
   }
   // 구조 채널을 모르는 기존 provider는 직접 쓰기 호출이라는 보수적 계약을 유지한다.
   // 실제 모델이 CHAT을 구조로 반환한 경우에는 위에서 이미 쓰기 후보를 제거했다.
   if (directWrite) {
     return {
-      assessment: 'file',
+      assessment: 'file', sourcePolicy: 'unknown',
       deliverables: [{ id: 'primary-file-output', kind: 'file', operation: 'write', binding: 'direct' }],
     };
   }
@@ -802,9 +808,11 @@ export async function runTurn(input, ctx) {
   {
     const roots = ctx.tools?.tools?.['local.file']?.scopeRoots ?? [];
     const explicitRoots = String((ctx.processEnv ?? process.env).GPAO_T5_FILE_ROOTS ?? '').trim();
-    const observed = await observeWorksetReality({ tools: ctx.tools, selfState, roots,
+    ctx.turnSelfState = selfState;
+    ctx.reobserveWorkset = () => observeWorksetReality({ tools: ctx.tools, selfState, roots,
       configuredRoots: explicitRoots ? defaultFileRoots(ctx.processEnv ?? process.env) : [],
       currentBasis: explicitRoots ? 'explicit_file_roots' : undefined });
+    const observed = await ctx.reobserveWorkset();
     ctx.worksetReality = observed.reality;
     if (observed.receipt) {
       observed.receipt.sourceWorkRef = ctx.sourceCoverageWorkRef ?? null;
@@ -1458,6 +1466,7 @@ export async function runTurn(input, ctx) {
   planIntent = {
     ...planIntent,
     deliverableAssessment: completionContract.assessment,
+    sourcePolicy: completionContract.sourcePolicy ?? 'unknown',
     ...(completionContract.deliverables.length ? { deliverables: completionContract.deliverables } : {}),
   };
   if (planIntent.neededTools?.includes('local.file') && !planIntent.fileOp) {
@@ -1587,11 +1596,37 @@ export async function runTurn(input, ctx) {
     const contract = canonicalDurableEvidence({
       kind: 'file',
       sourceTurnRef: input.turnRef,
+      sourcePolicy: planIntent.sourcePolicy ?? 'unknown',
+      ...(() => {
+        const parsed = parseFileRequest(input.text ?? '');
+        const root = ctx.initialWorksetReality?.currentRoot?.path;
+        if (!root || parsed.action !== 'write' || parsed.ambiguous || !parsed.provenance?.independent
+          || parsed.provenance.pathCount !== 1) {
+          return { completionBasis: 'unverified' };
+        }
+        const expected = resolve(root, parsed.path);
+        return { completionBasis: 'direct_exact', userBinding: {
+          expectedPathDigest: createHash('sha256').update(expected).digest('hex'),
+          expectedContentDigest: createHash('sha256').update(parsed.text).digest('hex'),
+        } };
+      })(),
+      ...(planIntent.sourcePolicy === 'all_current' && ctx.initialWorksetReality?.sourceSetRef
+        ? { sourceBinding: { workRef: ctx.sourceCoverageWorkRef,
+          sourceSetRef: ctx.initialWorksetReality.sourceSetRef } } : {}),
       deliverables: structuredClone(plan.deliverables),
     });
-    plan.workRef = ctx.workRef;
-    plan.completionContract = contract;
-    plan.completionContractRef = await ctx.issueCompletionContractRef(contract);
+    if (contract.completionBasis !== 'direct_exact'
+      && ['none', 'all_current'].includes(contract.sourcePolicy)) {
+      // 명시 경로·본문이 입장하지 못한 FILE 실행은 그대로 남기되 완료 후보가 아니다.
+      ctx.completionAdmissionRejected = true;
+      plan.deliverables = [];
+    } else {
+      plan.workRef = ctx.workRef;
+      plan.completionContract = contract;
+      ctx.deferCompletionSettlement = contract.completionBasis === 'direct_exact'
+        && ['none', 'all_current'].includes(contract.sourcePolicy);
+      plan.completionContractRef = await ctx.issueCompletionContractRef(contract);
+    }
   }
 
   // 4-auto) 반복 신호가 있으면 자동화 후보만 조용히 표면화(P6-3). 후보는 실행이 아니다 —
@@ -1998,6 +2033,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       workRef: plan.workRef,
       completionContract: plan.completionContract,
       completionContractRef: plan.completionContractRef,
+      deferSignature: ctx.deferCompletionSettlement === true,
       execute: executeBeforeSignature,
     });
   };
@@ -2851,6 +2887,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 산출물 신분이 없어, 열 명세 같은 추가 요청에 모델이 같은 파일을 고치지 않고 새로 만들었다
   // (S4 결과 파일 2개 · 2/4). 판정은 계약(plan)과 원장(영수증)의 대조뿐이다 — 문구 판정 0.
   const 산출물영수증들 = plan.deliverableAssessment === 'file'
+    && ctx.deferCompletionSettlement !== true
     ? turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file'
       && r?.actualCall?.args?.action === 'write'
@@ -2907,7 +2944,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     && !(workingState.awaiting?.length)
     && !workingState.blocked
     && 실제로한일.length > 0;
-  const 완료 = 끝났나 ? {
+  const 완료 = 끝났나 && ctx.deferCompletionSettlement !== true ? {
     status: 'completed',
     request: intent.currentRequest,
     completedTurn: workingState.turnNo,

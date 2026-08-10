@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { finalizeSourceCoverage, runTurn, stateReviewNeeded } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
@@ -65,7 +65,7 @@ import { TurnTiming, assertBrowserTimingUpdate } from '../kernel/l0-evidence/tur
 import { TurnTimingStore } from './turn-timing-store.js';
 import { migrateTurnRefs, nextTurnSeq, makeTurnRef, stampTurn } from '../kernel/l0-evidence/turn-ref.js';
 import {
-  containsSensitiveValue, maskSensitiveValues, SENSITIVE_VALUE_PLACEHOLDER,
+  canonicalDurableEvidence, containsSensitiveValue, maskSensitiveValues, SENSITIVE_VALUE_PLACEHOLDER,
 } from '../kernel/l0-evidence/sensitive-text.js';
 import { observeSessions } from '../kernel/l5-growth/tcell-observe.js';
 import { recordShown } from '../kernel/l5-growth/tcell-shown.js';
@@ -650,6 +650,148 @@ export function makeServer(deps = {}) {
     return out;
   }
 
+  const hexDigest = (value) => createHash('sha256').update(String(value)).digest('hex');
+  const executionReceipt = (receipt) => receipt?.origin !== 'runtime_observation'
+    && receipt?.origin !== 'runtime_verification';
+
+  /** F-64 slice 1: 실행 성공과 사용자 목적 완료를 분리한다.
+   * 이 함수가 true를 반환한 한 경우만 완료 Receipt·사건·recentOutcome을 함께 세운다. */
+  async function settleSingleFileCompletion({ ctx, session, result, turnRef, ledgerFrom }) {
+    if (ctx.deferCompletionSettlement !== true) return { attempted: false, passed: false };
+    const priorWorkingState = session.workingState;
+    const candidates = ctx.ledger.entries.slice(ledgerFrom).filter((receipt) =>
+      receipt?._completionCandidate
+      && receipt?.actualCall?.tool === 'local.file'
+      && receipt?.actualCall?.args?.action === 'write'
+      && Array.isArray(receipt?.deliverableRefs)
+      && receipt.deliverableRefs.length === 1
+      && !receipt.receiptRef);
+    const fail = () => {
+      delete result.workingState;
+      delete result.recentOutcome;
+      delete result.deliverables;
+      return { attempted: true, passed: false };
+    };
+    if (candidates.length !== 1) return fail();
+    const raw = candidates[0];
+    const contract = raw.completionContract;
+    const policy = contract?.sourcePolicy;
+    if (contract?.completionBasis !== 'direct_exact'
+      || !['none', 'all_current'].includes(policy)
+      || !contract?.userBinding?.expectedPathDigest
+      || !contract?.userBinding?.expectedContentDigest) return fail();
+    if (policy === 'none' && contract.sourceBinding) return fail();
+    if (policy === 'all_current') {
+      const binding = contract.sourceBinding;
+      const coverage = ctx.sourceCoverage;
+      if (!binding || binding.workRef !== ctx.sourceCoverageWorkRef
+        || binding.sourceSetRef !== ctx.initialWorksetReality?.sourceSetRef
+        || coverage?.workRef !== binding.workRef || coverage?.sourceSetRef !== binding.sourceSetRef
+        || coverage?.complete !== true || (coverage?.counts?.unresolved ?? 1) !== 0) return fail();
+      const again = await ctx.reobserveWorkset?.();
+      if (!again?.reality?.membersComplete) return fail();
+      const current = new Map((again.reality.members ?? []).map((m) => [`${m.kind}:${m.name}`, m]));
+      if ((ctx.initialWorksetReality?.members ?? []).some((member) => {
+        const now = current.get(`${member.kind}:${member.name}`);
+        return !now || !member.revisionRef || now.revisionRef !== member.revisionRef;
+      })) return fail();
+    }
+    const executed = raw._completionCandidate;
+    const actualPath = executed?.result?.path;
+    const writeDigest = executed?.result?.digest;
+    if (!actualPath || !writeDigest
+      || hexDigest(actualPath) !== contract.userBinding.expectedPathDigest
+      || writeDigest !== contract.userBinding.expectedContentDigest) return fail();
+
+    const verifyRead = async (phase) => {
+      const receipt = await ctx.tools.run('local.file', { action: 'read', path: actualPath },
+        ctx.turnSelfState, { callRef: `completion-${phase}:${turnRef.turnSeq}` });
+      const durable = canonicalDurableEvidence({ ...receipt, origin: 'runtime_verification',
+        verificationPhase: phase, turnRef });
+      ctx.ledger.append(durable);
+      if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
+        || receipt?.result?.path !== actualPath || receipt?.result?.nextOffset !== undefined
+        || !receipt?.result?.sourceRevisionRef
+        || hexDigest(receipt?.result?.text ?? '') !== contract.userBinding.expectedContentDigest) return null;
+      return { receipt, durable };
+    };
+    const readback = await verifyRead('readback');
+    if (!readback) return fail();
+    const sealCheck = await verifyRead('seal_check');
+    if (!sealCheck || sealCheck.receipt.result.sourceRevisionRef !== readback.receipt.result.sourceRevisionRef) return fail();
+
+    const completionReceipt = {
+      ...executed,
+      origin: 'completion_settlement',
+      result: {
+        path: actualPath, digest: writeDigest,
+        sourceRevisionRef: sealCheck.receipt.result.sourceRevisionRef,
+      },
+      verification: {
+        writeCallRef: executed?.actualCall?.callRef ?? null,
+        rawWriteReceiptDigest: workEvidenceDigest(raw),
+        readbackReceiptDigest: workEvidenceDigest(readback.durable),
+        sealCheckReceiptDigest: workEvidenceDigest(sealCheck.durable),
+        readbackCallRef: readback.receipt?.actualCall?.callRef ?? null,
+        sealCheckCallRef: sealCheck.receipt?.actualCall?.callRef ?? null,
+        expectedPathDigest: contract.userBinding.expectedPathDigest,
+        expectedContentDigest: contract.userBinding.expectedContentDigest,
+        ...(policy === 'all_current' ? {
+          sourceWorkRef: contract.sourceBinding.workRef,
+          sourceSetRef: contract.sourceBinding.sourceSetRef,
+        } : {}),
+      },
+    };
+    try {
+      const sealed = await workEventStore.sealCompletionCandidate({
+        turnRef, turnOrdinal: 700, receipt: completionReceipt,
+      });
+      const evidenceLedger = [...ctx.ledger.entries];
+      const priorWorkRef = session.workRef;
+      const priorState = session.workingState;
+      ctx.ledger.append(sealed);
+      const outcome = { status: 'completed', request: result?.goal?.statement ?? '',
+        completedTurn: (priorWorkingState?.turnNo ?? 0) + 1 };
+      const deliverables = [{ path: sealed.result.path, digest: sealed.result.digest,
+        receiptRef: sealed.receiptRef }];
+      // A: 실행 증거와 signed completion Receipt만 먼저 지속한다. 성과 투영은 아직 0이다.
+      session.ledgerEntries = ctx.ledger.entries;
+      session.workRef = priorWorkRef;
+      session.workingState = priorState;
+      await store.save(session);
+      try {
+        // B: exact ReceiptRef를 WorkEvent에 입장한다.
+        await workEventStore.append({
+          type: 'execution_completed', workRef: sealed.workRef,
+          subjectRef: await workEventStore.issueSubjectRef({ turnRef, eventOrdinal: 1400 }),
+          scopeRef: { principalRef: session.principalRef, projectRef: sealed.workRef },
+          evidence: { completionContractRef: sealed.completionContractRef,
+            receiptRef: sealed.receiptRef, verificationPassed: true },
+        });
+      } catch (error) {
+        const index = ctx.ledger.entries.indexOf(sealed);
+        if (index >= 0) ctx.ledger.entries.splice(index, 1);
+        session.ledgerEntries = evidenceLedger;
+        session.workRef = priorWorkRef;
+        session.workingState = priorState;
+        await store.save(session);
+        throw error;
+      }
+      // C: 사건이 선 뒤에만 같은 settlement를 recent/deliverable/work state로 투영한다.
+      session.workRef = sealed.workRef;
+      result.workingState = deriveWorkingState(priorWorkingState, {
+        receipts: [sealed], outcome, deliverables,
+      });
+      result.recentOutcome = outcome;
+      result.deliverables = deliverables;
+      session.workingState = result.workingState;
+      await store.save(session);
+      return { attempted: true, passed: true, receiptRef: sealed.receiptRef };
+    } catch {
+      return fail();
+    }
+  }
+
   async function 기록된작업사건({
     session, inputText, result, turnRef, ledgerFrom, shownProjects = [], proposal = null,
     provisionalWorkRef = null,
@@ -685,7 +827,8 @@ export function makeServer(deps = {}) {
 
     const scopeRef = { principalRef: session.principalRef, projectRef: workRef };
     const receipts = (session.ledgerEntries ?? []).slice(ledgerFrom)
-      .filter((receipt) => receipt?.origin !== 'runtime_observation');
+      .filter(executionReceipt)
+      .filter((receipt) => receipt?.origin !== 'completion_settlement');
     for (let index = 0; index < receipts.length; index += 1) {
       const receipt = receipts[index];
       if (receipt?.lifecycle !== 'delivered' || receipt?.failureState !== 'none'
@@ -890,8 +1033,7 @@ export function makeServer(deps = {}) {
     try {
       result = await runTurn({ ...input, turnRef }, ctx);
     } catch (err) {
-      const receipts = ctx.ledger.entries.slice(ledgerStart)
-        .filter((receipt) => receipt?.origin !== 'runtime_observation');
+      const receipts = ctx.ledger.entries.slice(ledgerStart).filter(executionReceipt);
       const workingState = deriveWorkingState(session.workingState, { receipts });
       const attempted = receipts.length > 0;
       result = {
@@ -911,6 +1053,15 @@ export function makeServer(deps = {}) {
     // F-66b: 실행 여부와 무관하게 initial source set의 read/unresolved 현실을 같은 원장에 남긴다.
     // runtime observation이므로 사용자 실행·완료·WorkEvent 계산에서는 기존 경계대로 제외된다.
     finalizeSourceCoverage(ctx, turnRef);
+    await settleSingleFileCompletion({ ctx, session, result, turnRef, ledgerFrom: ledgerStart })
+      .catch(() => {
+        if (ctx.deferCompletionSettlement === true) {
+          delete result.workingState; delete result.recentOutcome; delete result.deliverables;
+        }
+      });
+    if (ctx.completionAdmissionRejected === true) {
+      delete result.workingState; delete result.recentOutcome; delete result.deliverables;
+    }
     // 모델 통제 후보는 사용자 응답·transcript의 일부가 아니다. 즉시 분리한다.
     delete result.workStateProposal;
     // 웹·채널 어느 표면이든 transcript나 memory.json에 결과를 쓰기 전에 같은 경계를 지난다.
@@ -925,8 +1076,7 @@ export function makeServer(deps = {}) {
     const terminal = result.kind === 'reply'
       && result.modelUnavailable !== true
       && !(result.ledger?.unconfirmed?.length);
-    const currentReceipts = ctx.ledger.entries.slice(ledgerStart)
-      .filter((receipt) => receipt?.origin !== 'runtime_observation');
+    const currentReceipts = ctx.ledger.entries.slice(ledgerStart).filter(executionReceipt);
     const hasForeignControlProposal = Boolean(
       result.memorySuggestion
       || result.memoryWithdrawal
@@ -2709,6 +2859,16 @@ export function makeServer(deps = {}) {
       turnRef: channelTurnRef,
     }, ctx);
     finalizeSourceCoverage(ctx, channelTurnRef);
+    await settleSingleFileCompletion({ ctx, session, result, turnRef: channelTurnRef,
+      ledgerFrom: channelStampFrom.ledgerFrom })
+      .catch(() => {
+        if (ctx.deferCompletionSettlement === true) {
+          delete result.workingState; delete result.recentOutcome; delete result.deliverables;
+        }
+      });
+    if (ctx.completionAdmissionRejected === true) {
+      delete result.workingState; delete result.recentOutcome; delete result.deliverables;
+    }
     const workStateProposal = result.workStateProposal ?? null;
     delete result.workStateProposal;
     // 외부 채널 답은 곧 전송 페이로드이자 durable transcript 다. 웹과 같은 경계를 쓴다.

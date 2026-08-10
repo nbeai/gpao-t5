@@ -208,7 +208,7 @@ export class WorkEventStore {
 
   /** 계약을 먼저 검증한 뒤 그 경계 안에서 실행하고, 성공한 완료 영수증을 즉시 봉인한다. */
   async runCompletionExecution({
-    turnRef, turnOrdinal, workRef, completionContract, completionContractRef, execute,
+    turnRef, turnOrdinal, workRef, completionContract, completionContractRef, execute, deferSignature = false,
   }) {
     if (typeof execute !== 'function') throw new TypeError('완료 계약 실행 함수가 필요하다');
     const key = await this._key();
@@ -222,10 +222,22 @@ export class WorkEventStore {
     const receipt = Array.isArray(executed?.deliverableRefs) && executed.deliverableRefs.length > 0
       ? receiptReadyForSignature(executed, turnRef) : executed;
     if (!Array.isArray(receipt?.deliverableRefs) || receipt.deliverableRefs.length === 0) return receipt;
+    if (deferSignature) {
+      Object.defineProperty(receipt, '_completionCandidate', {
+        value: structuredClone(executed), enumerable: false,
+      });
+      return receipt;
+    }
     const receiptRef = await this._issueReceiptRef({
       turnRef, turnOrdinal, receipt, completionExecution: true,
     });
     return { ...receipt, receiptRef };
+  }
+
+  async sealCompletionCandidate({ turnRef, turnOrdinal, receipt }) {
+    const ready = receiptReadyForSignature(receipt, turnRef);
+    const receiptRef = await this._issueReceiptRef({ turnRef, turnOrdinal, receipt: ready, completionExecution: true });
+    return { ...ready, receiptRef };
   }
 
   async _validateRefs(candidate, key) {

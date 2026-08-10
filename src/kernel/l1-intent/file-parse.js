@@ -43,7 +43,9 @@ export function parseFileRequest(text) {
     return { action: 'list', path: named ?? '.' };
   }
 
-  const path = t.match(FILE_TOKEN)?.[1];
+  const pathMatches = [...t.matchAll(new RegExp(FILE_TOKEN.source, 'g'))];
+  const pathMatch = pathMatches[0];
+  const path = pathMatch?.[1];
   if (!path) return { action, ambiguous: true, clarifyReason: 'no_path' };
 
   if (action === 'move') {
@@ -55,9 +57,18 @@ export function parseFileRequest(text) {
   }
 
   if (action === 'write') {
-    const body = t.match(QUOTED)?.[1];
+    const pathStart = pathMatch.index + pathMatch[0].indexOf(path);
+    const pathSpan = { start: pathStart, end: pathStart + path.length };
+    const quotes = [...t.matchAll(new RegExp(QUOTED.source, 'g'))].map((match) => {
+      const start = match.index + match[0].indexOf(match[1]);
+      return { body: match[1], span: { start, end: start + match[1].length } };
+    });
+    const selected = quotes.find(({ span }) => span.end <= pathSpan.start || pathSpan.end <= span.start);
+    const body = selected?.body;
     if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content' };
-    return { action, path, text: body };
+    return { action, path, text: body,
+      provenance: { source: 'user_utterance', path: pathSpan, text: selected.span,
+        pathCount: pathMatches.length, independent: pathMatches.length === 1 } };
   }
 
   return { action, path };

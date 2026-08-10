@@ -81,6 +81,9 @@ function opaqueDurablePath(path) {
   if (['workRef', 'completionContractRef', 'receiptRef', 'sourceWorkRef', 'sourceSetRef'].includes(joined)) return true;
   if (['actualCall.providerCallId', 'actualCall.callRef', 'result.digest',
     'result.sourceRevisionRef', 'result.sourceSetRef', 'result.memberRef'].includes(joined)) return true;
+  if (['sourceBinding.workRef', 'sourceBinding.sourceSetRef',
+    'completionContract.sourceBinding.workRef', 'completionContract.sourceBinding.sourceSetRef',
+    'verification.sourceWorkRef', 'verification.sourceSetRef'].includes(joined)) return true;
   if (/^(?:turnRef|sourceTurnRef|completionContract\.sourceTurnRef)\./.test(joined)) return true;
   if (/^(?:deliverableRefs\.\d+|deliverables\.\d+\.id|completionContract\.deliverables\.\d+\.id)$/.test(joined)) return true;
   return false;

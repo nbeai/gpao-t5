@@ -309,6 +309,8 @@ export const 허용파일 = [
   'src/runtime/desktop-identity.js',   // CU-1 계열 A — 신분을 한 벌로만 만든다
   'src/runtime/desktop-driver-answer.js',   // CU-1 계열 B — 드라이버 답을 한 자리에서 읽는다
   'src/kernel/l0-evidence/sensitive-text.js',   // F-32 — 비밀만 가리고 나머지는 준다
+  // F-64 slice 1 — 사용자 exact path와 quoted body의 독립 span만 완료 계약 재료로 입장한다.
+  'src/kernel/l1-intent/file-parse.js',
   'src/surface/server.js',
   // S4 캡슐 — 격리 실행. `sandbox.js` 에 캡슐 프로파일(프로세스 생성 0)을 텄고,
   // `terminal-run.js` 는 `redactEnv` 를 내보내기만 했다(한 자리에서 나오게).
