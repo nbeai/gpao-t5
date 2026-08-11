@@ -108,18 +108,46 @@ test('칸0 계측기: 기관 열 전부에 대해 있는 동사 / 요구 동사 
   assert.equal(화면.missing.length, 0, `화면 손 상한은 새 동사 추가 없음 — 실측 ${JSON.stringify(화면.missing)}`);
 });
 
-test('칸0 계측기: 확정 계열을 대본 모델 관통으로 잰다 — 자동화·에이전트·스킬 ○ / 기억 ✕', async () => {
+// **이 검사는 2026-08-11 에 기대값이 뒤집혔다. 기준 완화가 아니라 계측 교정이다**(C5).
+//
+// 원본 기대값: `자동화·에이전트·스킬 ○ / 기억 ✕` — **틀린 채로 초록이었다.**
+// 계측기가 저장소 배열 길이를 「확정」으로 셌고, 이 검사가 그 정의를 못박고 있었다.
+// 그래서 `state:'proposed'` 로 앉은 스킬·담당이 ○ 로 나갔다. 같은 표 안에서 자동화가
+// `binding_not_active` 로 떨어질 때조차 ○ 였다 — 계측기가 자기 표에서 모순을 냈다.
+//
+// 교정: 「선다」의 판정을 **제품이 실제로 쓰는 게이트**(canInfluence · canStartAgentRun ·
+// isInfluenceEligible · projectAutomations)로 옮겼다. 검사도 그 축으로 다시 쓴다.
+// 사유·원본 기대값을 여기 남긴다(C5 — 원본 실패 보존 + 이유 기록). 오너 지시 2026-08-11.
+test('칸0 계측기: 확정 계열은 **저장이 아니라 활성**으로 잰다 — 저장>활성이면 안 선 것이다', async () => {
   const { stdout } = await 계측(['--json']);
   const 결과 = JSON.parse(stdout);
   const 표 = new Map(결과.settlementLineage.map((s) => [s.key, s]));
-  assert.equal(표.get('skill')?.settles, true, '스킬은 저장까지 간다');
-  assert.equal(표.get('agent')?.settles, true, '에이전트는 저장까지 간다');
-  assert.equal(표.get('automation')?.settles, true,
-    `자동화는 commit 으로 job 까지 간다 — 거절 사유 ${표.get('automation')?.rejectedReason ?? '없음'}`);
-  // **기억만 다르다**(계획서 §3 성질 3). 후보는 서는데 승격이 0 이다.
-  assert.equal(표.get('memory')?.settles, false, '기억은 후보에서 멈춘다');
-  assert.ok(표.get('memory')?.candidates > 0, '기억 후보는 실제로 선다 — 제안 자체가 안 되는 것이 아니다');
-  assert.equal(표.get('memory')?.settled, 0, '승격은 0 이다');
+
+  // 두 값을 **따로** 낸다. 하나로 접으면 오늘의 오판이 그대로 돌아온다.
+  for (const key of ['skill', 'agent', 'memory', 'automation']) {
+    const 줄 = 표.get(key);
+    assert.ok(Number.isInteger(줄?.stored), `${key}: 저장 수가 정수로 서야 한다`);
+    assert.ok(Number.isInteger(줄?.settled), `${key}: 활성 수가 정수로 서야 한다`);
+    assert.ok(줄.settled <= 줄.stored, `${key}: 활성이 저장보다 많을 수 없다`);
+    assert.ok(줄.gate, `${key}: 어떤 게이트로 셌는지 함께 낸다 — 판정 근거 없는 숫자는 안 쓴다`);
+    assert.equal(줄.settles, 줄.settled > 0, `${key}: 「섰나」는 활성으로만 판정한다`);
+  }
+
+  // 스킬·에이전트 — **만들어는 지는데 켜지지 않는다.** 제안 동사는 후보 상태로만 앉히고,
+  // 활성으로 올리는 경로가 모델에게도 화면에도 없다(코드 대조 2026-08-11).
+  assert.ok(표.get('skill').stored > 0, '스킬 제안은 저장까지 간다 — 제안 자체가 안 되는 것이 아니다');
+  assert.equal(표.get('skill').settles, false, '스킬은 활성이 0 이라 안 선다');
+  assert.ok(표.get('agent').stored > 0, '담당 제안은 저장까지 간다');
+  assert.equal(표.get('agent').settles, false, '담당은 활성이 0 이라 안 선다');
+
+  // 기억 — 후보는 서는데 승격이 0 (계획서 §3 성질 3).
+  assert.ok(표.get('memory').candidates > 0, '기억 후보는 실제로 선다');
+  assert.equal(표.get('memory').settles, false, '기억은 후보에서 멈춘다');
+
+  // 자동화 — **씨앗(활성 스킬·활성 담당)이 있는 방에서만** commit 이 붙는다.
+  // 씨앗 없는 방에서는 `binding_not_active` 로 떨어진다(신선 설치가 그 조건이다).
+  assert.equal(표.get('automation').settles, true,
+    `자동화는 commit 으로 살아 있는 예약까지 간다 — 거절 사유 ${표.get('automation').rejectedReason ?? '없음'}`);
 });
 
 test('칸0 계측기: 캐시 접두 안정성을 낸다 (제품 원가)', async () => {
