@@ -16,6 +16,7 @@ import { secretFields, missingFields, verifyApiKey } from './api-key.js';
 import { admitHttpTools, probeHttpTool } from './http-tool.js';
 import { admitCliTools, probeCli, probeCliTool } from './cli-tool.js';
 import { admitMcpTools, revokeAdmitted } from './tool-admission.js';
+import { skillIndex } from '../surface/skill-docs.js';
 
 /**
  * 이 런타임이 **실제로 실행할 수 있는** 연결 방식. 선언된 방식이 여기 없으면 그건 "실행기 없음"이고,
@@ -470,6 +471,37 @@ export function makeConnectorConnectTool(deps = {}) {
       const ctx = deps.ctx?.();
       const connectors = deps.connectors?.() ?? [];
       const id = String(args.connector ?? '').trim();
+      // ── **부른 이름이 스킬 이름 그대로면 그건 서비스가 아니다** (콘솔 라이브 2026-08-12) ──
+      //
+      // 밟은 회차: 프롬프트의 스킬 목록에 「네이버 검색 — 네이버 검색 결과를 주소로 바로
+      // 읽는다」가 있는데, 모델이 그것을 **서비스로 읽고** `connector.connect{connector:
+      // '네이버 검색'}` 을 불렀다. `findConnector` 가 부분일치로 「네이버」 커넥터를 잡아
+      // 비밀 입력면을 띄웠고, 「네이버에서 팔식당 검색해서 후기 분석해줘」 회차가 여러 번
+      // 이 자리에서 API 키 요구로 죽었다(오너 직접 시험 포함).
+      //
+      // `findConnector` 의 부분일치를 조이는 길은 막혀 있다 — 같은 방향이 「노션 붙여줘」를
+      // 살리는 자리이기도 하다(그 계약을 무는 검사가 있다). 그래서 **이름이 스킬과 정확히
+      // 같을 때만** 가른다. 낱말 목록도 문구 그물도 아니고, 이미 있는 스킬 색인과의 동일성이다.
+      //
+      // 막고 끝내지 않는다 — 그 일 하는 법이 적힌 문서를 다음 수단으로 준다.
+      const 같은이름스킬 = (() => {
+        const 고르기 = (v) => String(v ?? '').toLowerCase().replace(/[\s\-_]/g, '');
+        const q = 고르기(id);
+        if (!q) return null;
+        try { return (skillIndex() ?? []).find((sk) => 고르기(sk.name) === q) ?? null; } catch { return null; }
+      })();
+      if (같은이름스킬) {
+        return {
+          blocked: true,
+          userSafeSummary: `"${id}" 는 붙이는 서비스가 아니라 **이 컴퓨터에서 하는 법이 적힌 문서**예요 — 연결 없이 됩니다.`,
+          nextSafeAction: '그 문서를 읽고 적힌 대로 하면 돼요.',
+          다음수단: [{
+            방법: 'local.file', action: 'read', path: 같은이름스킬.path,
+            왜: `${같은이름스킬.name} — ${같은이름스킬.description ?? '하는 법이 적혀 있다'}`,
+          }],
+          diagnosticTrace: { reason: 'skill_not_service', skill: 같은이름스킬.name },
+        };
+      }
       const c = findConnector(connectors, id);
       if (!c) {
         // **아는 목록을 사실로 준다.** 안 주면 모델이 빈자리를 상상으로 메운다 —
