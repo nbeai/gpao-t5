@@ -141,6 +141,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // 0 은 상한이 아니라 없음이다(2026-08-09) — 응답 상한 0 이 진단을 즉시 자르던 자리.
     'src/runtime/model-doctor.js',
     'src/runtime/tool-runner.js',
+    // **미분류 MCP 도구가 전부 승인으로 떨어졌다**(F2 · 상태 지도 §12 · 2026-08-12).
+    // 단순 조회 하나도 매 호출 카드였다 — 헌장이 물을 수 있다고 정한 넷에 안 닿는데도.
+    // 낮추는 근거는 서버가 밝힌 것(`annotations.readOnlyHint`)뿐, 이름으로는 안 짐작한다.
+    'src/runtime/tool-admission.js',
     'src/surface/demo-context.js',
     'src/runtime/chatgpt-model-client.js',
     'src/runtime/local-file.js',

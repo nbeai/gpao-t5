@@ -58,20 +58,47 @@ function 사람말(text) {
 }
 
 /**
+ * **도구가 스스로 밝힌 것만 읽는다** — 종류 파생의 정의역(F2 · 2026-08-12).
+ *
+ * MCP 규약의 tool annotations 에는 `readOnlyHint` 가 있다. 서버가 그걸 `true` 로 **밝히면**
+ * 그건 짐작이 아니라 **선언**이고, 선언은 사실이다. 밝힌 손을 `read` 로 두면 자동성 헌장이
+ * 그대로 통과시킨다 — 조회는 헌장 넷(비밀값·되돌릴 수 없는 파괴·새 상대 첫 전송·돈)에 안 닿는다.
+ *
+ * **안 하는 것 셋**(전부 「지어내기」다):
+ *   ① 이름으로 짐작하지 않는다. `search_*`·`get_*`·`list_*` 는 이름이지 선언이 아니다 —
+ *      `search-slot.js:21` 이 이미 못 박은 규율이다(*"이름으로 짐작하면 … 그게 곧 코어를
+ *      고치는 일이다"*). 이름으로 낮추면 `search_and_delete` 하나에 그 규칙이 무너진다.
+ *   ② `readOnlyHint:false` 를 다른 종류로 승격하지 않는다. "읽기가 아니다"는 무엇인지를
+ *      말해 주지 않는다 — 그건 여전히 미상이다.
+ *   ③ 불리언이 아닌 값(`"true"`·1)을 참으로 읽지 않는다. 규약이 정한 모양이 아니면
+ *      서버가 무엇을 뜻했는지 우리가 모른다.
+ *
+ * @returns {{toolKind:string, needsApproval:boolean, 근거:string|null}}
+ */
+export function mcp종류판정(tool = {}) {
+  if (tool?.annotations?.readOnlyHint === true) {
+    return { toolKind: 'read', needsApproval: false, 근거: 'annotations.readOnlyHint' };
+  }
+  // 못 밝혔다 → 지금 그대로 미상. 미상은 자동으로 안 흘린다(`authority.js:186`).
+  return { toolKind: 'unknown_kind', needsApproval: true, 근거: null };
+}
+
+/**
  * MCP 도구 선언 → T5 ToolDescriptor. **읽기/쓰기 판정은 지어내지 않는다** —
- * MCP 는 그 축을 안 주므로 `unknown_kind` 로 둔다. 그러면 기존 권한 층이
- * "모르면 승인"으로 다룬다(안전 쪽으로 떨어지는 기존 계약 그대로).
+ * 서버가 밝힌 축(`annotations.readOnlyHint`)이 있으면 그것만 읽고, 없으면 `unknown_kind` 로
+ * 둔다. 그러면 기존 권한 층이 "모르면 승인"으로 다룬다(안전 쪽으로 떨어지는 기존 계약 그대로).
  */
 export function mcpToolDescriptor({ server, connector, tool }) {
+  const 종류 = mcp종류판정(tool);
   return defineTool({
     id: mcpToolId(server, tool.name, connector),
     label: tool.title || tool.name,
     owner: 'mcp',
     connector,
     availability: [{ kind: 'connected' }],
-    // 종류 미상 → 승인 경계로. MCP 서버가 나중에 축을 주면 그때 좁힌다.
-    toolKind: 'unknown_kind',
-    needsApproval: true,
+    // 밝힌 만큼만 좁힌다. 안 밝혔으면 미상 → 승인 경계로.
+    toolKind: 종류.toolKind,
+    needsApproval: 종류.needsApproval,
     reversible: undefined,
     capability: tool.description || `${server ?? connector ?? '연결된 서비스'} 의 ${tool.name}`,
     schema: {
@@ -118,18 +145,24 @@ export function 읽는인자(args = {}, inputSchema = {}) {
  *
  * @param {{server:string, connector?:string, tools:Array, session:{callTool:Function}}} p
  * @param {{tools:{tools:object}, descriptors:Array, env:{connections:Array}}} ctx  살아 있는 배열·객체를 그대로 받는다
- * @returns {{admitted:string[], skipped:string[]}}
+ * @returns {{admitted:string[], skipped:string[], 종류판정:Array<{id:string,toolKind:string,근거:string|null}>}}
  */
 export function admitMcpTools(p, ctx) {
   const admitted = [];
   const skipped = [];
+  // **무엇을 무슨 근거로 낮췄는가.** 승인을 한 칸이라도 내리는 판단은 자국을 남긴다 —
+  // 남기지 않으면 나중에 "왜 이 손은 카드가 안 뜨지"를 코드를 읽어야만 알 수 있고,
+  // 그건 판정을 못 미덥게 만든다. 근거가 없으면 `null` 로 **없다고 적는다**(빈칸 금지).
+  const 종류판정 = [];
   for (const tool of p.tools ?? []) {
     if (!tool?.name) { skipped.push(String(tool?.name ?? '(이름 없음)')); continue; }
+    const 종류 = mcp종류판정(tool);
     const d = mcpToolDescriptor({ server: p.server, connector: p.connector, tool });
 
     // ① 손 — 실제 실행. 결과는 사람 말로 요약해 돌려준다(원장은 ToolRunner 가 남긴다).
+    //    **선언과 같은 값을 쓴다** — 두 곳에 따로 적으면 한쪽만 낮아져 갈라진다(§4.4 두 진실 금지).
     ctx.tools.tools[d.id] = {
-      toolKind: 'unknown_kind',
+      toolKind: d.toolKind,
       // 승인 카드가 무엇을 허락하는지 말해야 한다(게이트가 needsApproval 에 previewOf 를 요구).
       previewOf(args = {}) {
         // **어디에 붙었는지는 두 모양이다.** 설정에 등록된 서버는 이름으로, 주소로 붙은
@@ -177,8 +210,9 @@ export function admitMcpTools(p, ctx) {
     if (ci >= 0) ctx.env.connections[ci] = conn; else ctx.env.connections.push(conn);
 
     admitted.push(d.id);
+    종류판정.push({ id: d.id, toolKind: 종류.toolKind, 근거: 종류.근거 });
   }
-  return { admitted, skipped };
+  return { admitted, skipped, 종류판정 };
 }
 
 /** 편입 취소 — 셋을 **같이** 걷어낸다. 하나만 지우면 그 자리가 유령이 된다. */

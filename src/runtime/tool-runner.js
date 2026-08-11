@@ -2,7 +2,7 @@
 // 결과는 항상 ToolReceipt 로 기록한다(못 쓴 도구를 쓴 척 금지). 진단면은 diagnosticTrace 로 분리.
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
 import { receipt, blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
 
 /**
@@ -18,12 +18,54 @@ import { receipt, blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
 export const 흘림배수 = 4;
 const 상태자리 = () => process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
 let 흘림일련 = 0;
+
+/**
+ * **흘림 파일의 수명 — 회전(C3 · 2026-08-12).**
+ *
+ * 예전엔 쓰기만 하고 지우는 자가 없었다. 한 턴에 몇 개씩 나오고 세션은 계속 도니, 그건
+ * 수명이 아니라 무한 누적이다. 사용자 디스크에 우리가 남기는 것에 끝이 없으면 안 된다.
+ *
+ * 헤르메스는 같은 자리를 **자리 선택**으로 풀었다 — `tool_result_storage.py:41`
+ * (`STORAGE_DIR = "/tmp/hermes-results"`) · `:48` (*"Return the best **temp-backed**
+ * storage dir for this environment."*). temp 에 두고 OS 가 걷게 한다.
+ * 우리는 그 길을 못 쓴다: 우리 흘림 파일은 모델이 `local.file read` 로 **이어 읽는 문**이라
+ * 읽기 범위 안(상태 자리)에 살아야 한다. 그래서 같은 목적을 회전으로 이룬다.
+ *
+ * **기준이 나이가 아니라 개수인 이유**: 아직 이어 읽을 수 있는 것은 「최근 것」이지
+ * 「몇 시간 안에 쓴 것」이 아니다. 시계로 자르면 오래 도는 한 턴의 문이 그 턴 안에서
+ * 사라질 수 있다(「시간은 학습의 근거가 아니다」 — 시계는 lease·TTL 에만).
+ *
+ * **방금 쓴 것은 절대 안 걷는다**(정렬이 이름의 시각·일련번호를 그대로 따른다).
+ */
+export const 흘림보관수 = Number(process.env.GPAO_T5_RESULT_KEEP) > 0
+  ? Number(process.env.GPAO_T5_RESULT_KEEP)
+  : 50;
+
+/** 오래된 것부터 걷는다. **옆길이다** — 실패해도 본선(결과·영수증)을 막지 않는다. */
+async function 흘림회전(방) {
+  try {
+    const 목록 = (await readdir(방)).filter((f) => f.startsWith('결과-') && f.endsWith('.json'));
+    if (목록.length <= 흘림보관수) return;
+    // 이름이 `결과-<도구>-<epoch ms>-<일련>.json` 이라 **이름 순서가 곧 쓴 순서**다
+    // (같은 밀리초에 둘이 나와도 일련이 가른다). 파일 시각(mtime)을 다시 묻지 않는 이유:
+    // 묻는 만큼 syscall 이 늘고, 이름이 이미 우리가 적은 사실이다.
+    const 순서 = 목록.map((f) => {
+      const m = /-(\d+)-(\d+)\.json$/.exec(f);
+      return { f, ms: m ? Number(m[1]) : 0, 순: m ? Number(m[2]) : 0 };
+    }).sort((a, b) => (a.ms - b.ms) || (a.순 - b.순));
+    for (const { f } of 순서.slice(0, 순서.length - 흘림보관수)) {
+      await unlink(join(방, f)).catch(() => {}); // 남이 이미 지웠어도 그냥 넘어간다
+    }
+  } catch { /* 회전 실패가 흘림을 깨지 않는다 */ }
+}
+
 async function 큰결과흘리기(원문, toolId) {
   const 방 = join(상태자리(), 'results');
   await mkdir(방, { recursive: true });
   흘림일련 += 1;
   const path = join(방, `결과-${String(toolId).replace(/[^a-zA-Z0-9._-]/g, '_')}-${Date.now()}-${흘림일련}.json`);
   await writeFile(path, 원문, 'utf8');
+  await 흘림회전(방); // **쓴 뒤에** 돈다 — 방금 쓴 문은 보관수 안에 있으므로 살아남는다
   return path;
 }
 

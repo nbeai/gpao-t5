@@ -190,7 +190,26 @@ export function liveDeps(processEnv = {}, deps = {}) {
     ...(desktopAct ? { desktopAct } : {}),
     // **찾는 손.** 읽는 손과 나뉘어 있어야 모델이 목록을 보고 출처를 고를 수 있다.
     // 같은 검색 층(무키 → 키)을 쓰지만, 이쪽은 **읽지 않는다**.
-    webSearch: makeWebSearchTool({ timeoutMs: webTimeoutMs }),
+    // **자격은 환경에서 온다 — 있으면 층이 서고 없으면 그 층을 건너뛴다**(F1 · 2026-08-12).
+    //
+    // 여기가 `{timeoutMs}` 만 넘기던 동안 `web-search.js` 의 3층(무키 DDG → SearXNG → Tavily)은
+    // **1층만 실재**했다. 2·3층은 `needs` 검사에서 매번 걸러졌고 — 값을 읽을 자리가 소스
+    // 어디에도 없었으니 당연하다 — DDG 가 봇 차단(anomaly)을 내는 날엔 그 턴의 검색이
+    // 그대로 끝났다. 아래로 갈 층이 하나도 없었다.
+    //
+    // 이름을 새로 짓지 않는다. 이미 이 생태계가 쓰는 이름을 그대로 읽는다 —
+    // 오픈클로 `docs/tools/web.md:241` (*"Tavily -- `TAVILY_API_KEY` …"*) ·
+    // `docs/tools/searxng-search.md:99` (*"Set `SEARXNG_BASE_URL` as an alternative to config"*).
+    // 다른 도구를 쓰느라 이미 세워 둔 사람은 **T5 에서 아무것도 안 하고** 층이 하나 는다.
+    // (바로 위 `liveChannels` 가 `SLACK_BOT_TOKEN`·`TELEGRAM_BOT_TOKEN` 을 읽는 것과 같은 관습이다.)
+    //
+    // **없으면 없는 대로다.** 기본 키를 박거나 공개 인스턴스를 짐작해 넣지 않는다 —
+    // 그건 사장님 이름으로 남의 자원을 쓰는 것이고, 되는 척하다 그날 조용히 실패한다.
+    webSearch: makeWebSearchTool({
+      timeoutMs: webTimeoutMs,
+      searchApiKey: processEnv.TAVILY_API_KEY,
+      searchInstanceUrl: processEnv.SEARXNG_BASE_URL,
+    }),
     webCollector: makeWebCollector({
       timeoutMs: webTimeoutMs, manners,
       // 실제 robots.txt 를 확인한다. 안 넘기면 검사가 아예 안 돌아 "수집을 막은 페이지는 읽지 못한다"는
