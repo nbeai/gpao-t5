@@ -290,5 +290,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'scripts/checks/fact-purity.mjs',
     // 5단계 다리(PM 지시 2026-08-09) — 설치본에서 동봉 화면 손 기동 검증.
     'scripts/verify-package.mjs',
+    // 파일 스킬(2026-08-11) — 능력을 도구가 아니라 문서 한 장으로 늘린다. 넓힌 이유는
+    // `preflight.mjs` 의 `허용파일` 주석에 적혀 있다.
+    'src/surface/skill-docs.js',
   ]);
 });

@@ -14,6 +14,7 @@ import { buildIdentityFacts } from '../kernel/identity.js';
 import { judgmentCharter } from '../kernel/judgment-charter.js';
 import { 화면다루는법 } from '../kernel/screen-guidance.js';
 import { modelPromptProfile } from '../kernel/model-prompt-profile.js';
+import { skillIndex, skillPromptSection } from '../surface/skill-docs.js';
 import { workingStateFacts } from '../kernel/l0-evidence/working-state.js';
 import { workStateFacts } from '../kernel/l1-intent/work-state.js';
 import { responseSurfaceFacts } from '../kernel/l0-evidence/response-surface.js';
@@ -123,6 +124,11 @@ export function buildModelMessages(tc) {
   // 사람에게 떠넘겼다(라이브 2026-08-06 · 여섯 번). 손과 그 손 쓰는 법은 같이 가야 한다.
   const 화면법 = 화면다루는법(tc.connectedTools);
   if (화면법) sys.push(화면법);
+  // **파일 스킬**(`src/skills/*/SKILL.md` · 사용자 집 `skills/`). 이름·설명·경로만 싣는다 —
+  // 본문은 모델이 필요할 때 읽는다(그래야 스킬이 늘어도 프롬프트가 안 먹힌다).
+  // 여기(안정 구역)에 두는 이유: 파일이 바뀔 때만 바뀌므로 캐시 접두가 산다.
+  const 스킬 = skillPromptSection(skillIndex());
+  if (스킬) sys.push(스킬);
 
   // ── 캐시 경계 ──────────────────────────────────────────────────────────
   // 위(정체성·헌장)는 매 턴 같다. 아래는 **세션 안에서 잘 안 변하는 사실** → 여기까지가 고정 접두다.

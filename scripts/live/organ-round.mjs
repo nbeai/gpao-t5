@@ -61,6 +61,10 @@ const 기준자 = {
       const { stdout } = await run('ps', ['-Ao', 'command']);
       return stdout.split('\n').filter((l) => l.includes('gpao-t5-browser') && !l.includes('Helper')).length;
     } catch { return 0; }
+  /** `file` 이 뭐라고 읽는가. 확장자가 아니라 **내용**이 판정한다 — 빈 파일에 이름만 붙는 것을 막는다. */
+  async 무슨파일(경로) {
+    if (!existsSync(경로)) return null;
+    try { const { stdout } = await run('file', ['-b', 경로]); return stdout.trim(); } catch { return null; }
   },
 };
 
@@ -140,6 +144,21 @@ export const 문장표 = Object.freeze([
       };
     },
   },
+  {
+    // **A 층 문장이지만 여기서 잰다** — 7과목 하네스는 화면·브라우저 손이 서면 시험을 거부하고,
+    // 이 회차는 그 손들을 켜 놓고 돈다. 판정은 기계 사실 하나다: 그 자리에 파일이 실재하고
+    // `file` 이 내용으로 엑셀이라고 읽는가. 확장자만 맞는 빈 파일은 통과가 아니다.
+    // 고정물: 러너가 임시 방을 만들고 `GPAO_T5_FILE_ROOTS` 로 물린다(아래 `방만들기`).
+    칸: '칸5 생성', 문장: '이 폴더에 8월_정산.xlsx 로 표 하나 만들어줘.',
+    async 판정(회차) {
+      const 자리 = join(회차?.파일방 ?? '', '8월_정산.xlsx');
+      const 무엇 = await 기준자.무슨파일(자리);
+      return {
+        사실: 무엇 ? `file="${무엇}"` : `그 자리에 파일이 없다(${회차?.파일방})`,
+        통과: Boolean(무엇 && /Microsoft Excel/i.test(무엇)),
+      };
+    },
+  },
 ]);
 
 async function 방만들기() {
@@ -163,7 +182,7 @@ async function 서버띄우기(방, port) {
 }
 
 /** 한 문장을 끝까지 밟는다. 승인 카드는 세고 승인한다 — 카드 수가 곧 「사용자 손」이다. */
-async function 한문장(base, cookie, 항목, 카드상한 = 4) {
+async function 한문장(base, cookie, 항목, 파일방, 카드상한 = 4) {
   const post = async (body) => {
     const r = await fetch(`${base}/turn`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
@@ -186,10 +205,8 @@ async function 한문장(base, cookie, 항목, 카드상한 = 4) {
   const 손기록 = (결과?.turnExchange ?? []);
   const 손 = 손기록.map((x) => `${x.tool}${x.args?.action ? ':' + x.args.action : ''}`);
   await new Promise((ok) => setTimeout(ok, 1500));   // 창 관리자가 반영할 틈을 준다
-  const 판정 = await 항목.판정({ 손기록, 답: 결과?.reply ?? '' });
-  // **손기록 원본도 남긴다.** 조인 자가 왜 그렇게 판정했는지는 걸음의 인자를 봐야 안다 —
-  // 요약 문자열만 남기면 회차 뒤에 사람이 다시 추측한다(2026-08-11 실측: `검색함=O ·
-  // 검색뒤읽음=X` 의 뜻을 원본 없이 못 갈랐다).
+  const 판정 = await 항목.판정({ 손기록, 답: 결과?.reply ?? '', 파일방 });
+  // **손기록 원본도 남긴다.** 조인 자가 왜 그렇게 판정했는지는 걸음의 인자를 봐야 안다.
   return { 칸: 항목.칸, 문장: 항목.문장, 카드, 걸린, 손, ...판정, 답: (결과?.reply ?? '').slice(0, 200), 손기록 };
 }
 
@@ -215,7 +232,7 @@ export async function 실기기회차({ port = 0, 목록 = 문장표 } = {}) {
   try {
     const cookie = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
     const 줄들 = [];
-    for (const 항목 of 목록) 줄들.push(await 한문장(base, cookie, 항목));
+    for (const 항목 of 목록) 줄들.push(await 한문장(base, cookie, 항목, join(방, 'files')));
     await writeFile(join(방, '회차.json'), JSON.stringify({ 방, 줄들 }, null, 2), 'utf8');
     return { 방, 줄들 };
   } finally {
@@ -223,12 +240,24 @@ export async function 실기기회차({ port = 0, 목록 = 문장표 } = {}) {
   }
 }
 
+/**
+ * `--only=<조각>` — 문장표에서 그 조각을 칸이나 문장에 담은 줄만 돌린다.
+ * **문장을 새로 짓는 문이 아니다**(즉흥 문장 금지 · §9). 동결된 표에서 고르기만 한다.
+ * 아무것도 안 걸리면 **조용히 전부 돌리지 않는다** — 0줄 회차를 통과로 읽지 않게 멈춘다.
+ */
+export function 고르기(목록, only) {
+  const 조각 = String(only ?? '').trim();
+  if (!조각) return 목록;
+  return 목록.filter((x) => x.칸.includes(조각) || x.문장.includes(조각));
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
-  // `--only=<조각>` — 한 문장만 돌린다(칸·문장 어디에 걸려도 된다). 유료 회차를 아끼는 자리다.
-  // 동결 문장표에서 **고르기만** 한다 — 즉흥 문장은 여기로도 못 들어온다(§9).
-  const 조각 = (process.argv.slice(2).find((a) => a.startsWith('--only=')) ?? '').slice(7).trim();
-  const 목록 = 조각 ? 문장표.filter((x) => x.칸.includes(조각) || x.문장.includes(조각)) : 문장표;
-  if (!목록.length) { console.error(`--only=${조각} 에 걸리는 문장이 문장표에 없다`); process.exit(2); }
+  const only = (process.argv.slice(2).find((a) => a.startsWith('--only=')) ?? '').slice('--only='.length);
+  const 목록 = 고르기(문장표, only);
+  if (!목록.length) {
+    console.error(`--only=${only} 에 걸리는 문장이 없다. 문장표: ${문장표.map((x) => x.칸).join(' · ')}`);
+    process.exit(2);
+  }
   const { 방, 줄들 } = await 실기기회차({ 목록 });
   console.log(표(줄들));
   console.log(`\n회차 원본: ${방}/회차.json`);
