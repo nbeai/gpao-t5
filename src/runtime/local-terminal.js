@@ -7,6 +7,7 @@
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
 import { runCommand, executionBlock } from './terminal-run.js';
+import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
@@ -104,6 +105,9 @@ export function makeLocalTerminalTool(deps = {}) {
   // 거기가 빈 작업 폴더면 모델이 아무리 찾아도 안 나와서 결국 "경로를 알려줘"로 떠넘긴다(실측).
   // 쓰기는 커널이 막으므로 넓게 둘러보는 것 자체는 안전하다 — 좁혀야 할 이유가 없다.
   const cwdOf = () => deps.cwd ?? homedir();
+  // 샌드박스 유무는 **주입 가능해야 한다** — 아니면 이 판정의 검사가 macOS 에서 영영
+  // 건너뛰고(수리했는데 안 도는 검사), 정작 무는 자리는 리눅스다.
+  const 샌드박스있나 = deps.sandboxAvailable ?? sandboxAvailable;
 
   /**
    * 계획 단계에서 부른다(실행 아님). 등급을 정할 사실을 만든다.
@@ -113,6 +117,32 @@ export function makeLocalTerminalTool(deps = {}) {
     const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
     if (risk) return { command, cwd: blank(opts.cwd) ?? cwdOf(), lifecycle: risk, changes: true };
     const cwd = blank(opts.cwd) ?? cwdOf();
+    // ── **샌드박스가 없으면 탐침은 아무것도 증명하지 못한다** (상태 지도 §12-S2 · 2026-08-12) ──
+    //
+    // `runCommand` 는 `sandboxAvailable()` 이 false 면 모드와 무관하게 생 `/bin/zsh` 로 간다
+    // (terminal-run.js:43). 그러면 쓰기·네트워크·시그널이 **아무것도 안 막힌 채 실제로 실행**되고,
+    // 막힌 자국이 없으니 `looksBlocked` 가 false → `changes:false` → `read` → **자동**이 된다.
+    // 즉 **샌드박스의 부재가 안전의 증거로 읽혔다.** 그 판을 여기서 끊는다.
+    //
+    // 오픈북(오픈클로 `docs/tools/exec.md:98-100`): *"sandboxing is off by default …
+    // explicit host=sandbox **fails closed** instead of silently running on the gateway host …
+    // Enable sandboxing or use host=gateway **with approvals**."*
+    //   → 축 둘: ① 조용히 맨몸으로 돌지 않는다 ② 맨몸 경로는 **승인을 탄다**.
+    // 우리 판으로 옮기면: 명령을 못 돌게 막지는 않되(리눅스에서 터미널이 통째로 죽는다),
+    // **탐침이 「안 바꾼다」를 주장하지 못하게** 한다. 판정은 `unknown_kind` 로 떨어지고
+    // 미상은 언제나 카드다(fail-closed) — 헌장의 「모르면 조여지는 쪽」 그대로다.
+    //
+    // 캡슐(capsule.js:105)은 같은 조건에서 아예 열기를 거부한다. 두 손이 같은 전제에 다른
+    // 답을 내던 것도 여기서 정렬된다 — 터미널은 돌되 자동 자격을 못 얻는다.
+    if (!샌드박스있나()) {
+      return {
+        command, cwd,
+        샌드박스없음: true,
+        // `changes` 를 참으로 세우지 않는다 — 그건 "바꾼다"는 **주장**이고 우리는 모른다.
+        // 칸을 아예 안 만들면 `toolActionKind` 가 `unknown_kind`(카드)로 간다(action-plan.js:203).
+        probe: { 못잼: 'sandbox_unavailable' },
+      };
+    }
     const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
     return { command, cwd, probe: r, changes: looksBlocked(r) };
   }
