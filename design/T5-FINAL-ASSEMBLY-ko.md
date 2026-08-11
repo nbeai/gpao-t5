@@ -9,6 +9,36 @@
 
 ---
 
+## 0-A. **책부터 연다** (오너 2026-08-11 · 이 문서에서 가장 위)
+
+> *"세상에서 가장 미련한 게 오픈북 시험인데 책을 안 여는 것이다."*
+
+```
+막히면    책을 연다
+오류나면   책을 연다
+안 되면    책을 연다
+```
+
+**책은 이 컴퓨터에 이미 다 있다.** 6일 동안 한 줄도 안 읽고 T5 코드만 보며 추측했다.
+
+```
+쿠아 정본    /Users/jyp/.cua-driver/skills/cua-driver/
+            SKILL.md 1019줄 · MACOS.md 508 · EMBEDDING.md 558 · BROWSER.md 427
+            읽기 전용 명령: cua-driver --help · list-tools · describe <tool> · manifest ·
+                          permissions status --json · dump-docs
+오픈클로     $(npm root -g)/openclaw   docs/agent-runtime-architecture.md 부터. dist 는 번들
+헤르메스     /Users/jyp/.hermes/hermes-agent/   파이썬 소스
+클로드코드    이 세션 자신 — 다만 **산문 자기보고 금지.** 전사(jsonl)에서 세어라
+```
+
+**대가는 숫자로 남았다(2026-08-11)**: 책 안 열고 — 문서 45커밋 · 세운 가설 6개 전부 폐기 ·
+계측기 오류 4회. 책 열고 — 포팅 목록 15줄(파일:줄 포함) · 쿠아 결함 넷 귀속이 30분 만에 갈림.
+
+**추측이 빨라 보인다. 여섯 번 다 틀렸고 되돌리는 데 몇 시간씩 갔다.**
+그리고 읽으면 발명할 게 없어져서 자꾸 만들 거리를 찾았다 — 그것도 이유였다.
+
+---
+
 ## 0. 30초 안에 서는 법
 
 ```bash
