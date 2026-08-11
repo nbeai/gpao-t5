@@ -19,7 +19,16 @@ const KOREAN_BARE_CREDENTIAL = /(?<![A-Za-z0-9_가-힣])(?:비밀번호|토큰|�
 const JWT = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
 const URL_CREDENTIAL = /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i;
 const KOREAN_RESIDENT_ID = /\b\d{6}-?[1-4]\d{6}\b/;
-const PAYMENT_CARD_CANDIDATE = /(?:^|[^\d])((?:\d[ -]?){12,18}\d)(?=$|[^\d])/g;
+// 카드번호는 **십진 수사**다 — 숫자와 구분자(공백·하이픈)로만 이루어진 한 덩어리다.
+// 경계를 "앞뒤가 숫자만 아니면 된다"로 두면 **글자와 숫자가 섞인 기계 지문 한가운데의
+// 숫자 토막**이 카드번호로 잡힌다. 그래서 경계를 **영숫자 아님**으로 세운다.
+//   예: sha256 `2759a99b360e101eec[0938111019692]bdaaacc1b3…` — 대괄호 안 13자리가
+//   Luhn 을 통과한다(정말 통과한다). 앞이 `c`, 뒤가 `b` 라 옛 경계는 이걸 카드로 읽었고,
+//   그 지문을 담은 자동화 job 이 화면에서 통째로 사라졌다(자세한 사고 기록은 hasPaymentCard).
+// 이 경계는 **판정을 느슨하게 하지 않는다** — 진짜 카드번호는 라벨·공백·구두점·한글 뒤에
+// 오지 영문자에 붙어 오지 않는다. 아래 UUID 제거는 그대로 남긴다(하이픈을 품은 UUID 는
+// 이 경계로도 13자리 이상 숫자열을 만들 수 있다).
+const PAYMENT_CARD_CANDIDATE = /(?:^|[^0-9A-Za-z])((?:\d[ -]?){12,18}\d)(?=$|[^0-9A-Za-z])/g;
 const LONG_MACHINE_TOKEN = /[A-Za-z0-9_-]{28,}/g;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_IN_TEXT = /(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![0-9a-f])/gi;
@@ -42,6 +51,25 @@ function luhn(value) {
   return sum % 10 === 0;
 }
 
+/**
+ * **기계 지문을 카드번호로 읽던 자리**(2026-08-12 · 본선 간헐 빨강의 원인).
+ *
+ * 증상: `npm test` 전수를 돌리면 3~6회 중 1회꼴로 서로 다른 파일이 빨개졌다. 단독으로도,
+ * 좁은 묶음으로도, 부하를 걸어도 재현되지 않았다 — 부하가 아니라 **난수**가 방아쇠였기 때문이다.
+ *
+ * 원인: sha256 지문(`settlementRef`·`settlementDigest`·`sourceSetRef`·`revisionRef` …)은
+ * 매번 다른 16진 문자열이다. 그 안에 **13~19자리 연속 숫자열**이 생기고 그것이 Luhn 을
+ * 통과할 확률이 지문 하나당 대략 1/500 이다. 검사 한 판이 지문 수천 개를 만드니
+ * 전수 회차의 20~25% 에서 최소 하나가 걸렸다. 걸리면 `containsSensitiveValue` 가 참이 되고,
+ * `canonicalDurableEvidence` 가 그 지문을 가림표로 바꾼다. 그러면
+ *   · `automationEntryVisible` 이 거짓 → **승인된 자동화가 화면 목록에서 통째로 사라진다**
+ *   · 완료 결산이 `sourceSetRef` 대조에서 미끄러진다 → **끝난 일이 안 끝난 것으로 남는다**
+ * 검사가 아니라 **제품이 무작위로 깨지고 있었다.** 검사는 그걸 정직하게 비추고 있었다.
+ *
+ * 같은 계열의 앞선 사고가 UUID 였고(아래 `UUID_IN_TEXT` 제거), 그때는 UUID 만 빼서 막았다.
+ * 한 종류씩 빼는 방식이라 지문이 새 모양으로 오면 또 뚫린다 — 이번엔 **경계 자체**를 고쳐
+ * "영숫자에 파묻힌 숫자 토막은 수사가 아니다"를 한 줄로 세운다(PAYMENT_CARD_CANDIDATE).
+ */
 function hasPaymentCard(value) {
   PAYMENT_CARD_CANDIDATE.lastIndex = 0;
   const withoutMachineIds = String(value).replace(UUID_IN_TEXT, ' ');

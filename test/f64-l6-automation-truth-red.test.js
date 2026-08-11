@@ -985,15 +985,30 @@ test('4차 감사 선빨강: settlement 필드가 전부 없는 구형 schema2 �
   } finally { await new Promise((resolve) => app.server.close(resolve)); }
 });
 
-test('5차 감사 A: verified automationControl settlement의 card-like hash만 기계 신분으로 보존한다', () => {
+// **기대값이 뒤집혔다**(2026-08-12 · C5 — 기준 완화가 아니라 현실 이동).
+//
+// 원본 선행조건: `containsSensitiveValue(settlementRef) || containsSensitiveValue(settlementDigest)`
+// 가 **참**이어야 한다. 그 참은 계약이 아니라 **결함**이었다 — 카드번호 판정의 경계가
+// `[^\d]` 라서 sha256 지문 한가운데의 13~19자리 숫자열이 Luhn 을 통과하면 카드로 읽혔다.
+// 지문 하나당 약 0.43% 이고, 검사 한 판이 지문을 수천 개 만드니 **전수 회차의 20~25% 가
+// 무작위로 빨개졌다**(본선 간헐 빨강의 원인). 제품에서는 승인된 자동화가 화면 목록에서
+// 통째로 사라지고, 끝난 일이 안 끝난 것으로 남았다.
+//
+// 경계를 `[^0-9A-Za-z]` 로 고쳐 원인을 없앴다(sensitive-text.js `PAYMENT_CARD_CANDIDATE`).
+// 그래서 이 자리의 선행조건은 이제 **거짓이 정답이다.** 대신 이 검사가 원래 물던 계약
+// — 「verified 기계 신분은 보존, 같은 이름의 딴 자리는 가림」 — 은 그대로 두고,
+// 보존이 **verification 에 걸려 있다**는 것을 반례로 새로 문다(빈 통과 방지).
+test('5차 감사 A: verified automationControl settlement의 기계 지문은 카드번호가 아니고 같은 이름의 딴 자리는 가려진다', () => {
   const settlement = sealAutomationSettlement({
     kind: 'automation_control_settlement', operation: 'status',
     principalRef: 'p', jobRef: 'j', jobRevision: 1, state: 'scheduled',
     trigger: { kind: 'weekly' }, nextRunAt: 1, observedAt: 18, ordinal: 0,
     mutated: false, verificationPassed: true,
   });
-  assert.equal(containsSensitiveValue(settlement.settlementRef)
-    || containsSensitiveValue(settlement.settlementDigest), true);
+  assert.equal(containsSensitiveValue(settlement.settlementRef), false,
+    `기계 지문을 카드번호로 읽었다 — ${settlement.settlementRef}`);
+  assert.equal(containsSensitiveValue(settlement.settlementDigest), false,
+    `기계 지문을 카드번호로 읽었다 — ${settlement.settlementDigest}`);
   const result = {
     automationControl: { settlement: structuredClone(settlement) },
     nested: { settlementRef: 'api_key=not-a-machine-ref', previousSettlementDigest: 'Bearer abc123SECRET' },
@@ -1004,6 +1019,14 @@ test('5차 감사 A: verified automationControl settlement의 card-like hash만 
   assert.equal(result.nested.settlementRef, SENSITIVE_VALUE_PLACEHOLDER);
   assert.equal(result.nested.previousSettlementDigest, SENSITIVE_VALUE_PLACEHOLDER);
   assert.equal(result.actualCall.args.settlementDigest, SENSITIVE_VALUE_PLACEHOLDER);
+
+  // 반례: 봉인이 안 맞는 settlement 는 같은 경로에 있어도 기계 신분 면제를 못 받는다.
+  // 이게 없으면 위의 deepEqual 은 "가릴 것이 없어서" 통과하는 빈 초록이 된다.
+  const forged = { ...structuredClone(settlement), settlementRef: 'Bearer abc123SECRET' };
+  const forgedResult = { automationControl: { settlement: forged } };
+  redactSensitiveResult(forgedResult);
+  assert.equal(forgedResult.automationControl.settlement.settlementRef, SENSITIVE_VALUE_PLACEHOLDER,
+    '봉인이 안 맞는데도 기계 신분이라며 비밀값을 그대로 내보냈다');
 });
 
 test('delivery intent: 봉인된 local conversation target이 없는 legacy chat 후보는 승인되지 않는다', async () => {
