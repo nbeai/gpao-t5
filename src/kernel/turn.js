@@ -2075,6 +2075,12 @@ function 이어받기정리(state, connectors = []) {
 }
 
 async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitted = [], sendArgs, requestText = intent.currentRequest, 앞선막힘 = [], 첫응답나머지 = [], 이월된것 = new Set(), 계획호출신분 = {}) {
+  // **표면을 요청한 손은 이 턴에 다시 안 부른다**(콘솔 라이브 2026-08-12).
+  //
+  // 2026-07-27 실측: 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 **같은 손을 다시 골라**
+  // 카드가 두 번 떴다. 그 사실은 그대로 옳다 — 사용자가 값을 넣기 전까지 **그 손은** 같은 자리다.
+  // 그래서 손 단위로 막는다. 턴 전체를 멈추는 것과는 다른 일이다(아래 `목적미달이어가기` 참조).
+  const 표면요청한손 = new Set();
   // **손이 늘거나 줄면 모델이 보는 현실도 그 자리에서 바뀐다.**
   //
   // 실측(오너 라이브 2026-07-28, G-1A): "컨텍스트세븐에서 리액트 훅 문서 찾아줘 + 주소" 에
@@ -2297,6 +2303,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
+    // **표면을 요청한 손은 그 자리에서 기록한다**(콘솔 라이브 2026-08-12). 예전엔 걸음 루프
+    // 쪽에서만 적어서, 계획 레인이 먼저 그 손을 돌린 턴에서는 기록이 안 남았다 —
+    // 그러면 뒤이은 되부름이 **같은 손을 다시 부른다**(2026-07-27 카드 두 장 사고의 재발).
+    if (rec?.surfaceRequest) 표면요청한손.add(toolId);
     // 완료 산출물은 서명 경계 직전에 이미 한 번 동봉했다. unsigned 중간 Receipt만 여기서 동봉한다.
     if (!rec?.deliverableRefs?.length) 자리공백동봉(rec, turnReceipts, ctx);
     현실다시();
@@ -2604,7 +2614,25 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   /** **한 고리.** 목적에 안 닿았으면 사실을 주고 손 전량으로 되돌린다. */
   const 목적미달이어가기 = async () => {
     if (이어간횟수 >= 이어가기상한 || 예산소진(쓴것(), 예산)) return false;
-    if (turnReceipts.some((r) => r.surfaceRequest)) return false;   // 공은 이미 사용자에게 넘어갔다
+    // ── **표면 요청은 그 손을 멈추지 턴의 목적을 멈추지 않는다** (콘솔 라이브 2026-08-12) ──
+    //
+    // 예전엔 표면 요청이 하나라도 있으면 여기서 무조건 물러났다. 근거는 *"사용자가 값을 넣기
+    // 전까지는 무엇을 해도 같은 자리다"* 였는데, 그 문장은 **그 손에 대해서만** 참이다.
+    //
+    // 밟은 라이브: 「네이버에서 팔식당 검색해서 플레이스 후기 분석해줄 수 있어?」 →
+    // 모델이 부른 손은 `connector.connect` **하나뿐**(원장 실측)이고, 그것이 Client ID·Secret
+    // 입력면을 요청하자 턴이 그대로 닫혔다. 그리고 답은 *"후기를 복사해서 붙여 주세요"* 였다.
+    // 그런데 공개 페이지를 읽는 데 자격은 필요 없고 `web.search`·`web.collect`·`browser.observe`·
+    // `desktop.screen` 은 **한 번도 안 불렸다**. 「무엇을 해도 같은 자리」가 거짓이었던 것이다.
+    //
+    // 그래서 무는 자리를 바꾼다: 표면을 요청한 **그 손**은 다시 안 부르고(`표면요청한손`),
+    // 안 써 본 손이 남아 있으면 목적은 계속 쫓는다. 남은 손이 없으면 예전처럼 물러난다 —
+    // 그때는 정말로 사용자 차례다.
+    if (turnReceipts.some((r) => r.surfaceRequest)) {
+      const 써본손 = new Set(turnReceipts.filter((r) => r?.actualCall?.tool).map((r) => r.actualCall.tool));
+      const 남은손 = 있는손().filter((id) => !써본손.has(id) && !표면요청한손.has(id));
+      if (!남은손.length) return false;   // 갈 곳이 없다 — 공은 사용자에게 넘어갔다
+    }
     const 미달 = 목적미달();
     if (!Object.keys(미달).length) return false;                    // 목적에 닿았다 — 끝낸다
     const 손들 = modelSchemasFor(selfState, ctx.modelControls);
@@ -2816,6 +2844,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **이월 행동은 자동으로 실행하지 않는다** — 지난 턴에 못 끝낸 일이 지금 발화에 섞여
     // 조용히 도는 것을 막는다. 버리지 않고 아래 승인 경계로 올린다(카드에 그대로 실린다).
     const 이번이월 = 이월된것.has(지문) || 이월된것.has(지문of(toolId, 이번.args));
+    // **표면을 요청한 손은 이 턴에 다시 안 부른다**(2026-07-27 카드 두 장 사고). 인자가 달라도
+    // 같다 — 사용자가 값을 넣기 전까지 그 손이 갈 수 있는 자리는 하나뿐이다.
+    if (표면요청한손.has(toolId)) {
+      못한호출남기기({ ...이번, args }, '표면대기', '아직 사용자 입력을 기다리는 중이라 다시 하지 않았어요.');
+      if (대기호출.length) continue;
+      if (await 목적미달이어가기()) continue;
+      break;
+    }
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     if (rung.has(지문)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
@@ -3100,7 +3136,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
     // 다시 골랐다. 그래서 **승인 카드가 두 번** 떴다. 더 부른다고 될 일이 아니다 —
     // 사용자가 값을 넣기 전까지는 무엇을 해도 같은 자리다.
-    if (rec.surfaceRequest) { 멈춘이유 = undefined; break; }
+    if (rec.surfaceRequest) {
+      // 그 손은 여기서 멈춘다 — 사용자가 값을 넣기 전까지 같은 자리다(2026-07-27).
+      // **턴의 목적은 여기서 멈추지 않는다**: 안 써 본 손이 남아 있으면 계속 쫓는다.
+      // 남은 손이 없으면 `목적미달이어가기` 가 스스로 false 를 내고 그때 턴이 닫힌다.
+      표면요청한손.add(toolId);
+      멈춘이유 = undefined;
+      대기호출.length = 0;                        // 그 손 뒤에 줄 서 있던 것은 이 자리에서 무의미하다
+      if (await 목적미달이어가기()) continue;
+      break;
+    }
 
     // 사실이 늘었으니 상태·문맥을 다시 만든 뒤 이어서 묻는다(이전 걸음 결과 위에서 판단하게).
     // F6.1: 걸음 파생은 같은 사용자 턴이다(turnNo 불변). F6.2: 이 걸음이 실패면 그 실패의
