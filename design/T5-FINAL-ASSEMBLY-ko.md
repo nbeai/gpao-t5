@@ -54,6 +54,144 @@
 
 ---
 
+## 0-B. ★ 컴퓨터유즈의 결승선 — **동작 열 개**. 카톡·크롬이 아니다
+
+> 오너 2026-08-11: *"카톡, 크롬 신기하게 움직이는 거 구경하려고 이거 시켰냐.
+> **컴퓨터유즈의 원활한 작동을 위해서 이걸 하나의 종합 사례로 말한 것**이다."*
+
+**결승선은 이 열 개가 아무 앱에서나 도는 것이다.**
+
+```
+①  앱을 찾는다        이름으로. 안 떠 있으면 켠다
+②  연다
+③  그 안에서 대상을 찾는다   목록의 특정 항목 · 탭 · 방 · 파일
+④  띄운다 / 이동한다
+⑤  읽는다            화면에 보이는 글자
+⑥  스크롤한다         화면 밖의 것을 본다
+⑦  입력한다           칸에 글자
+⑧  확정한다           엔터 · 버튼
+⑨  결과를 읽는다       내가 한 것이 어떻게 됐나
+⑩  그걸로 일한다       요약 · 판단 · 다음 걸음
+```
+
+**표본 두 줄** — 이것을 **재는 자**로만 쓴다. 목표가 아니다.
+
+```
+카톡   열고 → 대화목록에서 「사일런트서비스」 방 찾고 → 띄우고 → 스크롤해서 읽고
+       → 입력하고 → 엔터                                    (① ② ③ ④ ⑤ ⑥ ⑦ ⑧)
+크롬   열고 → 탭 추가 → 네이버 이동 → 검색어 입력 → 결과 보고 → 요약
+                                                          (① ② ④ ⑦ ⑧ ⑨ ⑩)
+```
+
+**★ 카톡·크롬만 파면 그 두 앱 전용 도구가 된다.** 오너가 이미 지적했다 —
+*"테스트를 반복하면서 카카오톡과 크롬브라우저 전용 도구화가 되어가는 것 같다."*
+그러니 **셋째 앱(메모·파인더·넘버스 등)으로도 같은 열 개를 재라.** 두 사슬만 초록이면
+아직 아무것도 아니다.
+
+**PM 이 실제로 저지른 오류(2026-08-11)**: 「앱을 연다」 하나만 재고 초록이라 보고했다.
+사슬의 첫 칸이다. 열 개 중 하나다. **한 칸을 결승선으로 올리지 마라.**
+
+---
+
+## 0-C. 비교군에서 배운 것 — **근거 파일:줄까지** (2026-08-11 학습 결과)
+
+**대화창에만 있으면 다음 세션이 또 처음부터 상상한다.** 그래서 여기 적는다.
+막히면 이 표를 보고 **그쪽 원문을 직접 열어라**(자리는 §0-A).
+
+### 오픈클로
+
+```
+스킬          SKILL.md 파일 한 장. name·description·requires:{bins}·install
+             프롬프트엔 **이름·설명·경로·sha만**, 본문은 모델이 read 로 읽는다. 번들 53장
+             대부분 **기존 CLI 를 셸로 모는 법**을 가르친다
+             docs/concepts/system-prompt.md:257-262,281-290 · skills/apple-notes/SKILL.md
+브라우저      **직접 친다** — type·fill·press 가 snapshot ref 위에서
+             docs/tools/browser-control.md:188-216
+프로필        **둘을 갖는다** — 격리 전용 + profile="user"(로그인된 실크롬 attach)
+             docs/tools/browser-login.md:19 · browser.md:19,122
+루프 감지     knownPollNoProgress · globalCircuitBreakerThreshold:30 · historySize:30
+             **detectors.pingPong 기본 true**(A→B→A→B) · unknownToolThreshold:10
+             docs/tools/loop-detection.md:79-85
+걸음 상한     **없다.** 48h 타임아웃뿐 · docs/concepts/agent-loop.md:167
+턴 중간 조종   기본 모드 steer — "멈춰" 말고 "그거 말고 저거" · docs/concepts/queue-steering.md:22-27
+도구 검색     3계층 점진 노출 · docs/tools/tool-search.md:62-71        ← **안 옮긴다**
+승인 auto     allowlist → auto_review → 사람 · docs/tools/permission-modes.md:34,54-58  ← **안 옮긴다**
+```
+
+### 헤르메스
+
+```
+목표 미달     **손을 쥔 채 재개** — 완성된 답을 억누르고 루프로 되돌아간다(최대 2회)
+             agent/verification_stop.py:205-212 · agent/conversation_loop.py:7151-7156
+종결 판정     **원장에서.** 종결 도구 호출 없으면 턴을 안 닫고 합성 넛지 후 continue
+             agent/kanban_stop.py:69 · conversation_loop.py:7165-7205
+             ★ 단서: **선언된 종결 도구가 있는 워커에서만** 돈다(kanban_stop.py:24,29-37)
+             → T5 실측: 같은 원장에 답만 다른 회차가 있어 **원장만으로는 못 가른다**
+검증 방아쇠   "코드를 바꿨다"는 선언 → 검증 도구를 안 불렀으면 되돌린다 · verification_stop.py:24-52
+실패 원문     `[TOOL_ERROR]` + **원문 2,000자 절단**을 일반 tool 메시지로 · model_tools.py:707,710-723
+큰 결과      10만자↑ → **파일로 흘리고** 1,500자 미리보기 + **경로**
+             tools/tool_result_storage.py:144 · budget_config.py:17,19 · terminal_tool.py:3120-3134
+걸음 상한     max_iterations = 90 · agent/agent_init.py:470
+캡슐 환불     execute_code 턴은 예산 환불 · agent/iteration_budget.py:28-29,45-49
+브라우저 타이핑 browser_type · tools/toolsets.py:54-58
+화면 손      computer_use **23동사** (T5 desktop.act 17)
+하드스톱     기본 끔 · tool_guardrails.py:72-73                        ← **T5 와 같다**
+승인 smart   보조 LLM 이 먼저 심사 · tools/approval.py:3946            ← **안 옮긴다**
+```
+
+### 클로드코드 (이 세션 전사 실측 · 산문 자기보고 아님)
+
+```
+도구 호출    856회 · **Bash 677 = 79%**
+연속 구간    중앙 2 · 최대 9   ← PM 이 "20~50번"이라 한 것은 **틀렸다.** T5 와 같다
+도구 오류    18회. 전부 겪고 계속 갔다
+진짜 차이    한 턴에 몇 번이 아니라 **턴을 계속 이어간다** — 그건 사용자가 이어줘서다
+스킬        마크다운 파일. 있으면 쓰인다. 승인·replay 상태기계 없음
+승인의 축    **정의가 아니라 행동**에 붙는다 → T5 canAutoExecute()=언제나 false 를 찾아낸 축
+```
+
+### 쿠아 — **정본이 이 컴퓨터에 있다**(§0-A 자리)
+
+```
+창 전환      bring_to_front{pid, window_id}
+             성공 = "independently verified as focused + first in layer-0 order"
+             **"Request acceptance alone is a partial result, never as activation"**
+             → activated · exact_window_effect 는 **문서·스키마 어디에도 없다**(dump-docs 0건)
+행동 뒤      verify_state 또는 fresh snapshot 으로 **postcondition 을 다시 본다** · SKILL.md:339
+frontmost    **최대 z_index.** 전부 null 이면 **명시 폴백** — 배열 순서 금지 · describe list_windows
+창 필드      window_id · pid · app_name · title · **bounds · z_index · is_on_screen ·
+             space_ids · current_space_id · on_current_space**
+보장 안 함    get_accessibility_tree 는 active·frontmost 를 보장한다는 문장이 없다
+요소 상한    get_window_state 기본 ≤2,000 · depth ≤25 (T5 400 은 **맞게** 쓴다)
+세션        start_session{session, capture_scope} → end_session
+            capture_scope auto = **window 스코프로 시작**, escalate_session 전까지 데스크톱 잠김
+            사다리 5단계 SKILL.md:541-558. 안 끝내면 idle-TTL 회수
+권한        `mcp` 단독이 정본(manifest). --direct 는 **TCC 를 호스트에 귀속**
+            빼면 CuaDriver.app 프록시 → com.trycua.driver (실측 accessibility·screen_recording true)
+브라우저 프로필 --grant existing-profile 은 **serve 인자** — 데몬을 우리가 안 띄우면 못 준다
+데몬        **상주가 정본.** 명시 종료는 cua-driver stop
+★ MACOS.md:115-122  사용자가 **명시적으로** frontmost 를 요청한 경우에만 osascript activate 가
+            정당. 그리고 **스킬팩 5개 파일에 bring_to_front 낱말이 0번**
+부수        cua-driver skills install 이 Claude Code 링크를 만든다(지금 Hermes 에만)
+```
+
+### T5 가 이미 맞게 하던 것 — 읽어서 확인됨. **다시 안 건드린다**
+
+```
+쿠아 기동 인자(mcp 단독) · TCC 귀속 · 요소 상한 400 · 데몬 상주
+하드스톱 기본 끔 · 실패 결과를 사용자에게 안 숨김 · PTC 문맥 격리 · 스키마+산문 병행
+```
+
+### 안 옮기는 것 둘 — 이유 확정
+
+```
+도구 검색·점진 노출   분모가 28. 커넥터·MCP 가 수백이 되기 전엔 순 손해
+승인 자동심사        저쪽은 **diff 읽는 사람** 전제 + 셸 패턴 매칭.
+                   우리 행동종류 축이 비개발자 경계 그 자체다(§7)
+```
+
+---
+
 ## 0. 30초 안에 서는 법
 
 ```bash
