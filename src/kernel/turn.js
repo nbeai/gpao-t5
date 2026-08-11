@@ -2520,18 +2520,32 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (산출물미충족()) 사실.unmetDeliverable = true;
 
     // ② 찾아 놓고 한 곳도 안 열었다 — 얕게 끝난 찾기도 같은 얼굴이다.
-    const 찾은것들 = turnReceipts
-      .filter((r) => r?.actualCall?.tool === 'local.locate' && (r.failureState ?? 'none') === 'none');
-    const 후보들 = 찾은것들.flatMap((r) => r?.result?.candidates ?? []);
+    //
+    // **찾는 손은 파일 쪽만이 아니다**(콘솔 라이브 2026-08-12). 예전엔 `local.locate` 만 봤다.
+    // 밟은 회차: 「팔식당 플레이스 후기 분석」에서 `web.search` 가 후보 여덟을 물어 왔고
+    // 모델은 **그중 하나도 안 열고** 주소를 지어내 열었다가(DNS 오류) *"복붙해 주세요"* 로 닫았다.
+    // 자리를 찾는 일(파일)과 곳을 찾는 일(웹)은 같은 얼굴이다 — 손 이름으로 가르지 않는다.
+    //
+    // 「열었나」도 같은 결로 넓힌다: 파일은 `local.file read`, 웹은 후보의 **그 주소**를
+    // 실제로 부른 것. 아무 주소나 연 것은 후보를 연 것이 아니다(지어낸 주소가 그 자리다).
+    const 찾은것들 = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none'
+      && ['local.locate', 'web.search'].includes(r?.actualCall?.tool));
+    const 후보들 = 찾은것들.flatMap((r) => r?.result?.candidates ?? r?.result?.후보 ?? []);
     const 얕은찾기 = !후보들.length ? 찾은것들.filter((r) => (r?.result?.candidates ?? []).length === 0
       && (r?.result?.canWiden || (r?.result?.placesToLook ?? []).length)) : [];
-    const 읽었다 = turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
+    // 후보가 가리키는 곳(파일 경로 또는 주소)을 이번 턴에 실제로 부른 적이 있나.
+    const 부른인자글 = 부른것들.map((r) => { try { return JSON.stringify(r.actualCall.args ?? {}); } catch { return ''; } });
+    const 후보를열었다 = 후보들.some((c) => {
+      const 곳 = String(c?.url ?? c?.path ?? '').trim();
+      return 곳 && 부른인자글.some((a) => a.includes(곳));
+    });
+    const 읽었다 = 후보를열었다 || turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file' && ['read', 'versions'].includes(r?.actualCall?.args?.action));
     if (!읽었다 && 빈손으로끝났나(답글원문)) {
       if (후보들.length) {
         사실.candidatesUnopened = {
           수: 후보들.length,
-          자리들: [...new Set(후보들.map((c) => String(c.path ?? '')))].filter(Boolean).slice(0, 5),
+          자리들: [...new Set(후보들.map((c) => String(c.url ?? c.path ?? '')))].filter(Boolean).slice(0, 5),
         };
       } else if (얕은찾기.length) {
         사실.searchNotExhausted = {
