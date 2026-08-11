@@ -995,15 +995,40 @@ export function makeLocalFileTool(deps = {}) {
           const entries = await readdir(abs, { withFileTypes: true });
           const candidates = [];
           const 전체이름들 = [];
+          // **보호 대상은 조건에 맞아도 안 옮긴다** (상태 지도 §12-S1 · 2026-08-12).
+          //
+          // `read`(:748)·`versions`(:821)·`locate` 는 전부 `protectionBlocks` 를 거는데
+          // 이 루프에만 없었다. 점파일은 아래 `startsWith('.')` 가 걸러서 `.env` 류는
+          // 빠졌지만, **점으로 시작하지 않는 비밀 이름**(`id_rsa` · `credentials` ·
+          // `*.pem/.key/.p12/.pfx/.keystore/.jks` · `*secret*` · `*token*` · `wallet.dat` ·
+          // `*.kdbx` · `rclone.conf`)은 그대로 통과했다. 그리고 이 손은 `reversible:true` 라
+          // 헌장 ②의 조건이 자동을 열어 **카드 없이** 실행된다 — `extensions:['.pem']`
+          // 하나면 개인키가 조용히 옮겨진다.
+          //
+          // 걸러낸 것은 숨기지 않는다. 세어서 사유와 함께 `skipped` 에 남긴다 —
+          // 조용한 제외는 「무엇이 안 옮겨졌는지 모르는 성공」이 된다.
+          const 보호됨 = [];
           for (const e of entries) {
             if (!e.isFile() || e.name.startsWith('.')) continue;
             const full = join(abs, e.name);
             let info;
             try { info = await stat(full); } catch { continue; }
             전체이름들.push(e.name);
-            if (matcher.test(e.name, info)) candidates.push(e.name);
+            if (!matcher.test(e.name, info)) continue;
+            if (protectionBlocks(full, { write: true })) { 보호됨.push(e.name); continue; }
+            candidates.push(e.name);
           }
           candidates.sort();
+          보호됨.sort();
+          if (!candidates.length && 보호됨.length) {
+            // 조건에는 맞았는데 전부 보호 대상이었다 — 「조건에 맞는 게 없다」와 다른 사실이다.
+            // 이걸 안 가르면 사용자는 조건을 고치려 들고, 실제로는 조건이 맞았다.
+            return fail(
+              `조건에 맞는 것은 있었지만 ${보호됨.length}개가 보호 대상(열쇠·자격 같은 자리)이라 옮기지 않았어요.`,
+              '그 파일들은 제가 옮기지 않아요. 다른 조건으로 다시 찾아볼까요?',
+              { 보호로건너뜀: 보호됨, 훑은수: 전체이름들.length },
+            );
+          }
           if (!candidates.length) {
             // **왜 0인지를 말한다.** 조건들은 서로 **AND** 로 걸린다 — `namePrefix` 와
             // `nameIncludes` 를 함께 주면 "그 접두어로 시작하면서 그 낱말도 든" 파일만이다.
@@ -1029,7 +1054,8 @@ export function makeLocalFileTool(deps = {}) {
           await mkdir(destDir, { recursive: true });
 
           const moved = [];
-          const skipped = [];
+          // 보호로 걸러낸 것을 먼저 싣는다 — 목적지 충돌과 같은 자리에서 사실로 보인다.
+          const skipped = 보호됨.map((name) => ({ name, reason: 'protected' }));
           for (const name of candidates) {
             const from = join(abs, name);
             const to = join(destDir, name);
@@ -1052,10 +1078,11 @@ export function makeLocalFileTool(deps = {}) {
           if (!moved.length) {
             return fail('조건에 맞는 파일은 있었지만 대상에 같은 이름이 있어서 옮기지 않았어요.', '다른 폴더나 다른 이름 규칙으로 옮길까요?');
           }
+          const 보호말 = 보호됨.length ? `, 보호 대상 ${보호됨.length}개는 건드리지 않았어요` : '';
           return ok(
             skipped.length
-              ? `${moved.length}개를 옮겼고, 같은 이름 ${skipped.length}개는 그대로 두었어요.`
-              : `${moved.length}개를 옮겼어요.`,
+              ? `${moved.length}개를 옮겼고, 같은 이름 ${skipped.length - 보호됨.length}개는 그대로 두었어요${보호말}.`
+              : `${moved.length}개를 옮겼어요${보호말}.`,
             { from: abs, to: destDir, moved, skipped, remainingSource: await remainingSummary(abs) },
           );
         }
