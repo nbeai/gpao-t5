@@ -43,7 +43,20 @@ const 브라우저전부끄기 = 브.브라우저전부끄기 ?? 없는손('브�
 const 종료훅걸렸나 = 브.종료훅걸렸나 ?? 없는손('종료훅걸렸나');
 
 // ── 가짜 크롬 — 실기기 0. CDP 는 계약이지 구현이 아니다 ──────────────────────
-function 가짜크롬({ 평가 = () => 0 } = {}) {
+/** 페이지 스크립트의 답. `칸` 을 주면 요소 사실을 그것으로 답한다. */
+function 답하기(칸) {
+  return (expr) => {
+    if (expr.includes('있나: false')) return 칸 ?? { 있나: false };   // 요소 사실 뜨기
+    if (expr.includes('.focus(')) return 'ok';                        // 짚기
+    if (expr.includes('innerText||""')) return 600;                   // 정착 대기(길이가 안 자란다)
+    return 화면();                                                     // 관찰
+  };
+}
+
+/** 시험은 렌더 정착을 기다릴 필요가 없다 — 기다림은 실기기의 사실이지 계약이 아니다. */
+const 빠르게 = { settleMs: 5, maxWaitMs: 30 };
+
+function 가짜크롬({ 평가 = 답하기() } = {}) {
   const 켠것 = []; const 보낸것 = [];
   const launch = (path, args) => {
     const p = { path, args, killed: false, kill() { p.killed = true; } };
@@ -134,15 +147,8 @@ test('빨강④ 엔터는 **검색 칸에서만** — 상대가 있는 칸의 �
 
 // ── ③ 손 — ref 위에서 친다. 좌표는 없다 ─────────────────────────────────────
 test('빨강⑤ ref 로 짚은 칸에 CDP 로 글자를 넣는다(좌표 타이핑은 열지 않는다)', async () => {
-  const 크롬 = 가짜크롬({
-    평가: (expr) => {
-      if (expr.includes('data-t5-ref') && expr.includes('있나')) return 칸사실.검색;
-      if (expr.includes('focus()')) return 'ok';
-      if (expr.includes('innerText||""')) return 600;
-      return 화면();
-    },
-  });
-  const b = makeBrowser({ browserPath: '/bin/chrome', ...크롬 });
+  const 크롬 = 가짜크롬({ 평가: 답하기(칸사실.검색) });
+  const b = makeBrowser({ browserPath: '/bin/chrome', ...빠르게, ...크롬 });
   const r = await b.type('e1', '전세사기');
   assert.equal(r.typed, true, `못 쳤다: ${JSON.stringify(r)}`);
   const 넣기 = 크롬.보낸것.filter((c) => c.method === 'Input.insertText');
@@ -154,15 +160,8 @@ test('빨강⑤ ref 로 짚은 칸에 CDP 로 글자를 넣는다(좌표 타이�
 });
 
 test('빨강⑥ 검색 칸에서 엔터를 친다(검색이 끝나야 결과가 온다)', async () => {
-  const 크롬 = 가짜크롬({
-    평가: (expr) => {
-      if (expr.includes('data-t5-ref') && expr.includes('있나')) return 칸사실.검색;
-      if (expr.includes('focus()')) return 'ok';
-      if (expr.includes('innerText||""')) return 600;
-      return 화면();
-    },
-  });
-  const b = makeBrowser({ browserPath: '/bin/chrome', ...크롬 });
+  const 크롬 = 가짜크롬({ 평가: 답하기(칸사실.검색) });
+  const b = makeBrowser({ browserPath: '/bin/chrome', ...빠르게, ...크롬 });
   const r = await b.press('e1', 'Enter');
   assert.equal(r.pressed, true, `엔터를 못 쳤다: ${JSON.stringify(r)}`);
   const 키 = 크롬.보낸것.filter((c) => c.method === 'Input.dispatchKeyEvent');
@@ -189,7 +188,7 @@ test('빨강⑦ 손이 물러날 때는 **실패가 아니라 경계**로 말하
 // ── ④ 프로필 둘 — 격리용과 실계정용 ─────────────────────────────────────────
 test('빨강⑧ 프로필이 둘이다 — 기본은 격리(매번 새 자리), 영속은 **같은 자리를 재사용**한다', async () => {
   const 격리 = 가짜크롬({ 평가: () => 화면() });
-  const b1 = makeBrowser({ browserPath: '/bin/chrome', ...격리 });
+  const b1 = makeBrowser({ browserPath: '/bin/chrome', ...빠르게, ...격리 });
   await b1.open('https://x.example');
   const 자리1 = (격리.켠것[0].args.find((a) => a.startsWith('--user-data-dir=')) ?? '').slice(16);
   await b1.close();
@@ -200,7 +199,7 @@ test('빨강⑧ 프로필이 둘이다 — 기본은 격리(매번 새 자리), 
   await b1.close();
 
   const 영속 = 가짜크롬({ 평가: () => 화면() });
-  const b2 = makeBrowser({ browserPath: '/bin/chrome', profile: 'persistent', profileDir: '/tmp/t5-persist-시험', ...영속 });
+  const b2 = makeBrowser({ browserPath: '/bin/chrome', profile: 'persistent', profileDir: '/tmp/t5-persist-시험', ...빠르게, ...영속 });
   await b2.open('https://x.example');
   await b2.close();
   await b2.open('https://x.example');
@@ -229,7 +228,7 @@ test('빨강⑨ 어느 프로필로 봤는지 **영수증에 찍힌다**(사용�
 test('빨강⑩ 켠 크롬은 프로세스가 끝날 때 함께 꺼진다(회차마다 하나씩 새지 않는다)', async () => {
   const 시작 = 살아있는브라우저수();
   const 크롬 = 가짜크롬({ 평가: () => 화면() });
-  const b = makeBrowser({ browserPath: '/bin/chrome', ...크롬 });
+  const b = makeBrowser({ browserPath: '/bin/chrome', ...빠르게, ...크롬 });
   await b.open('https://x.example');
   assert.equal(살아있는브라우저수(), 시작 + 1, '켠 브라우저가 어디에도 안 적힌다 — 누가 끄나');
   assert.equal(종료훅걸렸나(), true, '프로세스 종료 훅이 없다 — 나가면 크롬이 남는다');
@@ -241,7 +240,7 @@ test('빨강⑩ 켠 크롬은 프로세스가 끝날 때 함께 꺼진다(회차
 
 test('빨강⑪ 같은 손을 두 번 불러도 크롬은 하나다(같은 포트에 둘을 띄우지 않는다)', async () => {
   const 크롬 = 가짜크롬({ 평가: () => 화면() });
-  const b = makeBrowser({ browserPath: '/bin/chrome', ...크롬 });
+  const b = makeBrowser({ browserPath: '/bin/chrome', ...빠르게, ...크롬 });
   await Promise.all([b.open('https://x.example'), b.snapshot(), b.snapshot()]);
   assert.equal(크롬.켠것.length, 1, `동시에 부르면 크롬이 ${크롬.켠것.length}개 뜬다`);
   await b.close();
