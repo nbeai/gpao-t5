@@ -2652,9 +2652,32 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 손들 = modelSchemasFor(selfState, ctx.modelControls);
     if (!손들.length) return false;
     이어간횟수 += 1;
-    // 지시가 아니라 **원장의 사실**이다. 스트리밍은 안 붙인다 — 버릴 문장을 사용자 화면에
-    // 흘리면 앞 답에 이어붙는다(완료검증이 실측으로 물었던 자리).
-    const 되부름 = await ctx.model.respond({ ...tc, ...미달 }, {
+    // ── **약속으로 턴을 닫지 않는다** (오픈북 · 헤르메스 kanban_stop.py:88-101) ──────
+    //
+    // 사실만 system 블록에 놓고 손을 돌려주는 것으로는 부족했다. 콘솔 라이브(2026-08-12):
+    // `goalNotReached` 를 두 번 받고도 모델이 손을 안 고르고 *"흐름은 이렇게 잡을게요 …
+    // 분석해 드릴게요."* 라는 **계획**으로 턴을 닫았다. 사실은 갔는데 행동이 안 났다.
+    //
+    // 비교군은 같은 자리에서 셋을 더 한다:
+    //   ① 넛지를 **user 역할 메시지**로 넣는다 — system 사실보다 강하게 선다
+    //      (`conversation_loop.py:7182-7185` 가 `{"role":"user", content: nudge}` 를 append)
+    //   ② 문장이 지시다 — *"Do this immediately in your next response — do not narrate
+    //      intent"* · *"Never end a turn with only a promise of future action."*
+    //      (`kanban_stop.py:96-100`)
+    //   ③ 횟수로 묶는다(`max_attempts 2`) — 우리는 `이어가기상한` 이 이미 그 자리다
+    //
+    // **이것은 손을 고르는 판단을 뺏는 것이 아니다.** 무엇을 부를지는 그대로 모델의 몫이고,
+    // 여기서 말하는 것은 **턴의 계약** 하나다 — 판단 헌장이 이미 그 층에 있다(§24).
+    // 통로도 새로 안 만든다: 이 저장소가 이어쓰기 지시에 쓰던 그 자리(`recentTurns`)를 쓴다.
+    const 계약말 = [
+      '방금 답은 아직 목적에 안 닿았어요.',
+      '지금 응답에서 **손을 부르거나**, 못 하는 이유를 원장에 남은 사실로 말해 주세요.',
+      '「~할게요」 같은 예고만으로 끝내지 말아 주세요 — 예고는 한 일이 아니에요.',
+    ].join(' ');
+    const 되부름 = await ctx.model.respond({
+      ...tc, ...미달,
+      recentTurns: [...(tc.recentTurns ?? []), { role: 'user', text: 계약말 }],
+    }, {
       search: wantedWeb, effort: 'medium', tools: 손들,
     }).catch(() => null);
     // **통제 호출은 「되게 만든 것」이 아니다** — 제안·기억만 다시 내면 미달은 그대로인데
