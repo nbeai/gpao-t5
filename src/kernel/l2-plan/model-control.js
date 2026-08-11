@@ -102,15 +102,21 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
   },
 }, {
   name: 'automation.control',
-  description: 'AutomationRealitySnapshot에서 본 정확한 예약 하나의 현재 상태를 확인하거나, 사용자의 현재 요청대로 일시정지·재개한다. 후보 생성이 아니라 기존 예약의 가역 제어다.',
+  description: 'AutomationRealitySnapshot에서 본 정확한 예약 하나를 사용자의 현재 요청대로 다룬다.'
+    + ' commit=아직 켜지지 않은 후보를 실제 예약으로 확정(사용자가 켜 달라고 했을 때) ·'
+    + ' pause/resume=이미 켜진 예약의 가역 제어 · status=현재 상태 확인.'
+    + ' 확정·정지·재개는 모두 되돌릴 수 있어 사용자에게 다시 묻지 않는다(자동성 헌장 — 묻는 것은'
+    + ' 비밀값·되돌릴 수 없는 파괴·새 상대 첫 전송·돈 넷뿐). 실행 시점의 경계는 그대로다.',
   parameters: {
     type: 'object',
     properties: {
-      operation: { type: 'string', enum: ['pause', 'resume', 'status'] },
-      targetJobRef: { type: 'string' },
-      targetJobRevision: { type: 'integer' },
+      operation: { type: 'string', enum: ['commit', 'pause', 'resume', 'status'] },
+      targetJobRef: { type: 'string', description: 'pause·resume·status 일 때, 스냅샷에서 본 예약 하나' },
+      targetJobRevision: { type: 'integer', description: 'pause·resume·status 일 때, 그 예약의 현재 개정' },
+      targetCandidateRef: { type: 'string', description: 'commit 일 때, 스냅샷에서 본 후보의 candidateRef' },
+      targetCandidateRevision: { type: 'integer', description: 'commit 일 때, 그 후보의 현재 개정' },
     },
-    required: ['operation', 'targetJobRef', 'targetJobRevision'],
+    required: ['operation'],
   },
 }, {
   name: 'automation.observe',
@@ -464,6 +470,17 @@ export function splitModelControlCalls(toolCalls = []) {
     if (c.name === 'skill.propose') { skillProposal = c.args ?? null; continue; }
     if (c.name === 'automation.propose') { automationProposal = c.args ?? null; continue; }
     if (c.name === 'automation.control') {
+      // **commit 은 후보를 지목하고, 나머지는 예약을 지목한다**(칸 A1 · 2026-08-11).
+      // 지목 대상이 다르므로 필수 인자도 다르다 — 모자라면 통제 자체를 세우지 않는다(fail-closed).
+      if (c.args?.operation === 'commit') {
+        const targetCandidateRef = String(c.args?.targetCandidateRef ?? '').trim();
+        const targetCandidateRevision = Number.isInteger(c.args?.targetCandidateRevision)
+          ? c.args.targetCandidateRevision : null;
+        if (targetCandidateRef && targetCandidateRevision !== null) {
+          automationControl = { operation: 'commit', targetCandidateRef, targetCandidateRevision };
+        }
+        continue;
+      }
       const operation = ['pause', 'resume', 'status'].includes(c.args?.operation) ? c.args.operation : null;
       const targetJobRef = String(c.args?.targetJobRef ?? '').trim();
       const targetJobRevision = Number.isInteger(c.args?.targetJobRevision) ? c.args.targetJobRevision : null;

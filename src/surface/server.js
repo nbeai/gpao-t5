@@ -768,8 +768,305 @@ export function makeServer(deps = {}) {
     return { proposal: admitted, reality: await automationRealityFor(session.principalRef) };
   }
 
+  /**
+   * **자동화 확정 코어**(칸 A1 · 2026-08-11). 원래 `POST /automation/approve` 안에 있던 몸통을
+   * 그대로 꺼냈다 — 로직을 바꾸지 않았다. 표면 클릭과 모델의 확정이 **같은 함수**를 쓴다
+   * (두 진실 금지). 반환은 `{ status, body }` 이고 HTTP 도 모델 경로도 이 값으로 답한다.
+   */
+  async function 자동화확정(input) {
+    const okBody = (status, body) => ({ status, body });
+      await automationReady();
+      if (Object.hasOwn(input, 'name') && containsSensitiveValue(input.name)) {
+        return okBody(422, {
+          error: '자동화 계약을 확정하지 못했어요.', reason: 'sensitive_input',
+        });
+      }
+      const [skills, profiles, candidateState] = await Promise.all([
+        skillStore.load(), profileStore.load(), autoStore.load(),
+      ]);
+      const candidatePreview = candidateState.candidates.find(
+        (entry) => entry.candidateId === input.candidateId,
+      );
+      const deliveryTargetSession = candidatePreview?.deliveryIntent === 'chat'
+        ? await store.load(candidatePreview.deliveryTarget?.conversationRef)
+        : null;
+      const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
+      const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
+      if (['inputTemplate', 'authorityEnvelope', 'deliveryPolicy'].some((key) => Object.hasOwn(input, key))) {
+        return okBody(400, { error: '실행 내용과 권한은 확인한 후보에서만 정해져요.' });
+      }
+      const now = automationNow();
+      let outcome = { ok: false, reason: 'candidate_not_found' };
+      await autoStore.update((state) => {
+        const index = (state.candidates ?? []).findIndex((entry) => entry.candidateId === input.candidateId);
+        if (index < 0) return state;
+        const cand = state.candidates[index];
+        const expectedRevision = input.candidateRevision ?? cand.revision ?? 1;
+        if ((cand.revision ?? 1) !== expectedRevision) {
+          outcome = { ok: false, reason: 'candidate_revision_changed' }; return state;
+        }
+        if (input.controlRef && input.controlRef !== cand.controlRef) {
+          outcome = { ok: false, reason: 'candidate_control_changed' }; return state;
+        }
+        if (cand.approved || cand.current === false || cand.superseded
+          || (Number.isFinite(cand.expiresAt) && cand.expiresAt < now)) {
+          outcome = { ok: false, reason: 'candidate_not_current' }; return state;
+        }
+        if (cand.deliveryIntent === 'chat'
+          && (!deliveryTargetSession || deliveryTargetSession.origin != null
+            || deliveryTargetSession.archivedAt || deliveryTargetSession.deletedAt
+            || cand.deliveryTarget?.kind !== 'local_conversation'
+            || deliveryTargetSession.id !== cand.deliveryTarget.conversationRef
+            || deliveryTargetSession.principalRef !== cand.principalRef
+            || deliveryTargetSession.principalRef !== cand.deliveryTarget.principalRef
+            || deliveryTargetSession.createdAt !== cand.deliveryTarget.conversationCreatedAt)) {
+          outcome = { ok: false, reason: 'delivery_target_changed' }; return state;
+        }
+        const operation = cand.operation ?? 'create';
+        const trigger = cand.trigger ?? input.trigger;
+        if (!trigger) { outcome = { ok: false, reason: 'trigger_missing' }; return state; }
+        let record;
+        if (operation === 'update') {
+          const jobIndex = state.jobs.findIndex((job) => job.id === cand.targetJobRef
+            && job.principalRef === cand.principalRef);
+          if (jobIndex < 0) { outcome = { ok: false, reason: 'target_not_current' }; return state; }
+          const target = state.jobs[jobIndex];
+          if ((target.jobRevision ?? 0) !== cand.targetJobRevision
+            || target.updatedAt !== cand.targetJobUpdatedAt
+            || !['scheduled', 'paused', 'needs_review'].includes(target.state)) {
+            outcome = { ok: false, reason: 'target_revision_changed' }; return state;
+          }
+          const exactSkill = skill
+            && skill.id === target.skillRef?.id
+            && skill.version === target.skillRef?.version
+            && skill.contentHash === target.skillRef?.contentHash;
+          const exactProfile = profile && profile.id === target.agentProfileId;
+          if (!exactSkill || !exactProfile) {
+            outcome = { ok: false, reason: 'binding_not_active' }; return state;
+          }
+          if (Number.isFinite(target.authorityEnvelope?.expiresAt)
+            && target.authorityEnvelope.expiresAt < now) {
+            outcome = { ok: false, reason: 'authority_expired' }; return state;
+          }
+          if ((Object.hasOwn(input, 'expiresAt')
+              && input.expiresAt !== target.authorityEnvelope?.expiresAt)
+            || (Object.hasOwn(input, 'maxRuns')
+              && input.maxRuns !== target.authorityEnvelope?.maxRuns)) {
+            outcome = { ok: false, reason: 'authority_change_not_allowed' }; return state;
+          }
+          let approvedCandidate = {
+            ...cand, approved: true, current: false, approvedAt: now,
+            revision: (cand.revision ?? 1) + 1,
+          };
+          const previousSettlement = {
+            ref: target.latestSettlementRef,
+            digest: target.latestSettlementDigest,
+          };
+          record = {
+            ...target,
+            trigger: structuredClone(trigger),
+            nextRunAt: trigger.nextRunAt,
+            updatedAt: now,
+            jobRevision: (target.jobRevision ?? 0) + 1,
+          };
+          Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
+          approvedCandidate = {
+            ...approvedCandidate,
+            jobRef: record.id,
+            settlementRef: record.latestSettlementRef,
+            settlementDigest: record.latestSettlementDigest,
+          };
+          const jobs = [...state.jobs];
+          jobs[jobIndex] = record;
+          const candidates = [...state.candidates];
+          candidates[index] = approvedCandidate;
+          outcome = { ok: true, operation, record, candidate: candidates[index] };
+          return appendAutomationSettlement(
+            { ...state, candidates, jobs },
+            approvalSettlementEntry(approvedCandidate, record, operation, now, previousSettlement),
+          );
+        }
+        if (!skill || !profile) {
+          outcome = { ok: false, reason: 'binding_not_active' }; return state;
+        }
+        const bound = bindAutomationCandidate(cand, skill, profile, {
+          trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
+          deliveryIntent: cand.deliveryIntent,
+        });
+        if (!bound.ok) {
+          outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;
+        }
+        if (cand.deliveryIntent === 'chat') {
+          bound.deliveryPolicy = {
+            mode: 'local_conversation', target: structuredClone(cand.deliveryTarget),
+          };
+        }
+        const proposed = {
+          schemaVersion: 2,
+          id: randomUUID(),
+          principalRef: cand.principalRef,
+          name: input.name ?? cand.statement,
+          skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
+          trigger,
+          agentProfileId: profile.id,
+          inputTemplate: bound.inputTemplate,
+          authorityEnvelope: bound.authorityEnvelope,
+          deliveryPolicy: bound.deliveryPolicy,
+          state: 'proposed',
+          nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
+          lastRunId: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const approved = transitionState('automationJob', proposed, 'approved', now);
+        const scheduled = approved.ok
+          ? transitionState('automationJob', approved.record, 'scheduled', now)
+          : approved;
+        if (!scheduled.ok) {
+          outcome = { ok: false, reason: scheduled.reason, errors: scheduled.errors }; return state;
+        }
+        const candidates = [...state.candidates];
+        let approvedCandidate = {
+          ...cand, approved: true, current: false, approvedAt: now,
+          revision: (cand.revision ?? 1) + 1,
+        };
+        record = { ...scheduled.record, jobRevision: 1 };
+        Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
+        approvedCandidate = {
+          ...approvedCandidate,
+          jobRef: record.id,
+          settlementRef: record.latestSettlementRef,
+          settlementDigest: record.latestSettlementDigest,
+        };
+        candidates[index] = approvedCandidate;
+        outcome = { ok: true, operation, record, candidate: approvedCandidate };
+        return appendAutomationSettlement(
+          { ...state, candidates, jobs: [...state.jobs, record] },
+          approvalSettlementEntry(approvedCandidate, record, operation, now),
+        );
+      });
+      if (!outcome.ok) {
+        const status = outcome.reason === 'candidate_not_found' ? 404
+          : outcome.reason?.includes('revision') || outcome.reason === 'candidate_not_current'
+            || outcome.reason === 'candidate_control_changed' ? 409 : 422;
+        return okBody(status, {
+          error: status === 404 ? '자동화 후보를 찾지 못했어요.' : '자동화 계약을 확정하지 못했어요.',
+          reason: outcome.reason, ...(outcome.errors ? { errors: outcome.errors } : {}),
+        });
+      }
+      const readback = await autoStore.load();
+      const saved = readback.jobs.find((job) => job.id === outcome.record.id);
+      const savedCandidate = readback.candidates.find(
+        (entry) => entry.candidateId === outcome.candidate.candidateId,
+      );
+      const savedSettlement = readback.settlements?.find(
+        (entry) => entry.settlementRef === outcome.candidate.settlementRef,
+      );
+      if (!saved || saved.updatedAt !== outcome.record.updatedAt
+        || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)
+        || savedCandidate?.jobRef !== saved.id
+        || savedCandidate?.settlementRef !== savedSettlement?.settlementRef
+        || savedCandidate?.settlementDigest !== savedSettlement?.settlementDigest
+        || saved.latestSettlementRef !== savedSettlement?.settlementRef
+        || saved.latestSettlementDigest !== savedSettlement?.settlementDigest
+        || savedSettlement?.jobRef !== saved.id
+        || savedSettlement?.jobRevision !== (saved.jobRevision ?? 0)
+        || !verifyAutomationSettlement(savedSettlement)
+        || JSON.stringify(savedSettlement)
+          !== JSON.stringify(approvalSettlementEntry(
+            outcome.candidate, saved, outcome.operation, now,
+            outcome.operation === 'update' ? {
+              ref: savedSettlement.previousSettlementRef,
+              digest: savedSettlement.previousSettlementDigest,
+            } : null,
+          ))
+        || savedSettlement?.settlementDigest !== saved.latestSettlementDigest) {
+        return okBody(500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
+      }
+      const settlement = {
+        kind: 'automation_settlement',
+        verificationPassed: true,
+        candidateRef: outcome.candidate.candidateId,
+        candidateRevision: outcome.candidate.revision,
+        controlRef: outcome.candidate.controlRef,
+        operation: outcome.operation,
+        jobRef: saved.id,
+        state: saved.state,
+        trigger: saved.trigger,
+        nextRunAt: saved.nextRunAt,
+        jobRevision: saved.jobRevision,
+        settlementRef: savedSettlement.settlementRef,
+        settlementDigest: savedSettlement.settlementDigest,
+        storeReadback: true,
+      };
+      return okBody(200, {
+        ok: true, jobId: saved.id, state: saved.state, nextRunAt: saved.nextRunAt, settlement,
+      });
+  }
+
   async function 자동화제어적용(control, session) {
     await automationReady();
+    // ── **commit — 후보를 실제 예약으로 확정한다**(칸 A1 · 2026-08-11) ──────────────
+    //
+    // 왜 여기가 자동인가: 예약 등록은 **가역**(pause·cancel)이고 비밀값·되돌릴 수 없는 파괴·
+    // 새 상대 첫 전송·돈 어디에도 없다. 자동성 헌장은 그 넷만 묻는다 — 넷 밖에서 사용자
+    // 클릭을 강제하던 것이 결함이었다(F-70 · 이 저장소 첫 귀속 A).
+    //
+    // 확정 자체는 **표면 클릭이 쓰는 그 함수**(`자동화확정`)를 그대로 부른다. 두 진실을
+    // 만들지 않는다 — 없는 후보·바뀐 개정·불활성 바인딩의 거절도 전부 그 코어의 것이다.
+    // 실행 시점 경계는 손대지 않았다: tick 은 여전히 헌장 넷 행동을 무인 실행하지 않는다.
+    if (control.operation === 'commit') {
+      const state = await autoStore.load();
+      const cand = (state.candidates ?? []).find((entry) => entry.candidateId === control.targetCandidateRef
+        && entry.principalRef === session.principalRef);
+      // 남의 principal 후보는 애초에 보이지도 확정되지도 않는다(방 경계).
+      if (!cand) {
+        return {
+          control: { rejected: true, reason: 'candidate_not_found' },
+          reality: await automationRealityFor(session.principalRef),
+        };
+      }
+      // **권한창은 표면과 같은 값이다**(두 진실 금지 · `surface/web/index.html` 의 승인 폼).
+      // 반복 예약은 무기한 권한을 못 받는다(`repeated_requires_expiry`) — 그 경계는 그대로 두고,
+      // 사용자가 화면에서 켤 때와 대화로 켤 때가 **같은 창**을 받게 맞춘다. 30일·30회.
+      const 기본권한창 = cand.operation === 'update' ? {}
+        : { expiresAt: automationNow() + 30 * 24 * 3600 * 1000, maxRuns: 30 };
+      const 결과 = await 자동화확정({
+        candidateId: cand.candidateId,
+        candidateRevision: control.targetCandidateRevision,
+        controlRef: cand.controlRef,
+        ...기본권한창,
+        skillId: cand.skillRef?.id ?? (await skillStore.load()).skills
+          .find((entry) => entry.state === 'active')?.id,
+        agentProfileId: cand.agentProfileId ?? (await profileStore.load()).profiles
+          .find((entry) => entry.state === 'active')?.id,
+      });
+      if (결과.status !== 200) {
+        return {
+          control: { rejected: true, reason: 결과.body?.reason ?? 'commit_rejected' },
+          reality: await automationRealityFor(session.principalRef),
+        };
+      }
+      // **확정도 readback 으로 확인한 것만 사실이다** — 제어(pause/resume)와 같은 수위다.
+      const 확정 = 결과.body;
+      const 다시 = await autoStore.load();
+      const 선것 = (다시.jobs ?? []).find((job) => job.id === 확정.jobId
+        && job.principalRef === session.principalRef);
+      if (!선것 || 선것.state !== 확정.state) {
+        return {
+          control: { rejected: true, reason: 'control_readback_mismatch' },
+          reality: await automationRealityFor(session.principalRef),
+        };
+      }
+      return {
+        control: {
+          operation: 'commit', jobRef: 선것.id, jobRevision: 선것.jobRevision ?? 0,
+          state: 선것.state, nextRunAt: 선것.nextRunAt, mutated: true,
+          settlement: 확정.settlement, storeReadback: true,
+        },
+        reality: await automationRealityFor(session.principalRef),
+      };
+    }
     let outcome = { ok: false, reason: 'job_not_found' };
     await autoStore.update((state) => {
       const index = state.jobs.findIndex((job) => job.id === control.targetJobRef
@@ -2457,233 +2754,8 @@ export function makeServer(deps = {}) {
       // 실행 계약을 지어내지 않는다 — 정확한 스킬·역할·권한·트리거를 사용자가 확인해야 한다.
       if (req.method === 'POST' && url === '/automation/approve') {
         const input = JSON.parse((await readBody(req)) || '{}');
-        await automationReady();
-        if (Object.hasOwn(input, 'name') && containsSensitiveValue(input.name)) {
-          return sendJson(res, 422, {
-            error: '자동화 계약을 확정하지 못했어요.', reason: 'sensitive_input',
-          });
-        }
-        const [skills, profiles, candidateState] = await Promise.all([
-          skillStore.load(), profileStore.load(), autoStore.load(),
-        ]);
-        const candidatePreview = candidateState.candidates.find(
-          (entry) => entry.candidateId === input.candidateId,
-        );
-        const deliveryTargetSession = candidatePreview?.deliveryIntent === 'chat'
-          ? await store.load(candidatePreview.deliveryTarget?.conversationRef)
-          : null;
-        const skill = skills.skills.find((entry) => entry.id === input.skillId && entry.state === 'active');
-        const profile = profiles.profiles.find((entry) => entry.id === input.agentProfileId && entry.state === 'active');
-        if (['inputTemplate', 'authorityEnvelope', 'deliveryPolicy'].some((key) => Object.hasOwn(input, key))) {
-          return sendJson(res, 400, { error: '실행 내용과 권한은 확인한 후보에서만 정해져요.' });
-        }
-        const now = automationNow();
-        let outcome = { ok: false, reason: 'candidate_not_found' };
-        await autoStore.update((state) => {
-          const index = (state.candidates ?? []).findIndex((entry) => entry.candidateId === input.candidateId);
-          if (index < 0) return state;
-          const cand = state.candidates[index];
-          const expectedRevision = input.candidateRevision ?? cand.revision ?? 1;
-          if ((cand.revision ?? 1) !== expectedRevision) {
-            outcome = { ok: false, reason: 'candidate_revision_changed' }; return state;
-          }
-          if (input.controlRef && input.controlRef !== cand.controlRef) {
-            outcome = { ok: false, reason: 'candidate_control_changed' }; return state;
-          }
-          if (cand.approved || cand.current === false || cand.superseded
-            || (Number.isFinite(cand.expiresAt) && cand.expiresAt < now)) {
-            outcome = { ok: false, reason: 'candidate_not_current' }; return state;
-          }
-          if (cand.deliveryIntent === 'chat'
-            && (!deliveryTargetSession || deliveryTargetSession.origin != null
-              || deliveryTargetSession.archivedAt || deliveryTargetSession.deletedAt
-              || cand.deliveryTarget?.kind !== 'local_conversation'
-              || deliveryTargetSession.id !== cand.deliveryTarget.conversationRef
-              || deliveryTargetSession.principalRef !== cand.principalRef
-              || deliveryTargetSession.principalRef !== cand.deliveryTarget.principalRef
-              || deliveryTargetSession.createdAt !== cand.deliveryTarget.conversationCreatedAt)) {
-            outcome = { ok: false, reason: 'delivery_target_changed' }; return state;
-          }
-          const operation = cand.operation ?? 'create';
-          const trigger = cand.trigger ?? input.trigger;
-          if (!trigger) { outcome = { ok: false, reason: 'trigger_missing' }; return state; }
-          let record;
-          if (operation === 'update') {
-            const jobIndex = state.jobs.findIndex((job) => job.id === cand.targetJobRef
-              && job.principalRef === cand.principalRef);
-            if (jobIndex < 0) { outcome = { ok: false, reason: 'target_not_current' }; return state; }
-            const target = state.jobs[jobIndex];
-            if ((target.jobRevision ?? 0) !== cand.targetJobRevision
-              || target.updatedAt !== cand.targetJobUpdatedAt
-              || !['scheduled', 'paused', 'needs_review'].includes(target.state)) {
-              outcome = { ok: false, reason: 'target_revision_changed' }; return state;
-            }
-            const exactSkill = skill
-              && skill.id === target.skillRef?.id
-              && skill.version === target.skillRef?.version
-              && skill.contentHash === target.skillRef?.contentHash;
-            const exactProfile = profile && profile.id === target.agentProfileId;
-            if (!exactSkill || !exactProfile) {
-              outcome = { ok: false, reason: 'binding_not_active' }; return state;
-            }
-            if (Number.isFinite(target.authorityEnvelope?.expiresAt)
-              && target.authorityEnvelope.expiresAt < now) {
-              outcome = { ok: false, reason: 'authority_expired' }; return state;
-            }
-            if ((Object.hasOwn(input, 'expiresAt')
-                && input.expiresAt !== target.authorityEnvelope?.expiresAt)
-              || (Object.hasOwn(input, 'maxRuns')
-                && input.maxRuns !== target.authorityEnvelope?.maxRuns)) {
-              outcome = { ok: false, reason: 'authority_change_not_allowed' }; return state;
-            }
-            let approvedCandidate = {
-              ...cand, approved: true, current: false, approvedAt: now,
-              revision: (cand.revision ?? 1) + 1,
-            };
-            const previousSettlement = {
-              ref: target.latestSettlementRef,
-              digest: target.latestSettlementDigest,
-            };
-            record = {
-              ...target,
-              trigger: structuredClone(trigger),
-              nextRunAt: trigger.nextRunAt,
-              updatedAt: now,
-              jobRevision: (target.jobRevision ?? 0) + 1,
-            };
-            Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
-            approvedCandidate = {
-              ...approvedCandidate,
-              jobRef: record.id,
-              settlementRef: record.latestSettlementRef,
-              settlementDigest: record.latestSettlementDigest,
-            };
-            const jobs = [...state.jobs];
-            jobs[jobIndex] = record;
-            const candidates = [...state.candidates];
-            candidates[index] = approvedCandidate;
-            outcome = { ok: true, operation, record, candidate: candidates[index] };
-            return appendAutomationSettlement(
-              { ...state, candidates, jobs },
-              approvalSettlementEntry(approvedCandidate, record, operation, now, previousSettlement),
-            );
-          }
-          if (!skill || !profile) {
-            outcome = { ok: false, reason: 'binding_not_active' }; return state;
-          }
-          const bound = bindAutomationCandidate(cand, skill, profile, {
-            trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
-            deliveryIntent: cand.deliveryIntent,
-          });
-          if (!bound.ok) {
-            outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;
-          }
-          if (cand.deliveryIntent === 'chat') {
-            bound.deliveryPolicy = {
-              mode: 'local_conversation', target: structuredClone(cand.deliveryTarget),
-            };
-          }
-          const proposed = {
-            schemaVersion: 2,
-            id: randomUUID(),
-            principalRef: cand.principalRef,
-            name: input.name ?? cand.statement,
-            skillRef: { id: skill.id, version: skill.version, contentHash: skill.contentHash },
-            trigger,
-            agentProfileId: profile.id,
-            inputTemplate: bound.inputTemplate,
-            authorityEnvelope: bound.authorityEnvelope,
-            deliveryPolicy: bound.deliveryPolicy,
-            state: 'proposed',
-            nextRunAt: trigger?.nextRunAt ?? trigger?.at ?? null,
-            lastRunId: null,
-            createdAt: now,
-            updatedAt: now,
-          };
-          const approved = transitionState('automationJob', proposed, 'approved', now);
-          const scheduled = approved.ok
-            ? transitionState('automationJob', approved.record, 'scheduled', now)
-            : approved;
-          if (!scheduled.ok) {
-            outcome = { ok: false, reason: scheduled.reason, errors: scheduled.errors }; return state;
-          }
-          const candidates = [...state.candidates];
-          let approvedCandidate = {
-            ...cand, approved: true, current: false, approvedAt: now,
-            revision: (cand.revision ?? 1) + 1,
-          };
-          record = { ...scheduled.record, jobRevision: 1 };
-          Object.assign(record, automationSettlementIdentity(approvedCandidate, record, operation, now));
-          approvedCandidate = {
-            ...approvedCandidate,
-            jobRef: record.id,
-            settlementRef: record.latestSettlementRef,
-            settlementDigest: record.latestSettlementDigest,
-          };
-          candidates[index] = approvedCandidate;
-          outcome = { ok: true, operation, record, candidate: approvedCandidate };
-          return appendAutomationSettlement(
-            { ...state, candidates, jobs: [...state.jobs, record] },
-            approvalSettlementEntry(approvedCandidate, record, operation, now),
-          );
-        });
-        if (!outcome.ok) {
-          const status = outcome.reason === 'candidate_not_found' ? 404
-            : outcome.reason?.includes('revision') || outcome.reason === 'candidate_not_current'
-              || outcome.reason === 'candidate_control_changed' ? 409 : 422;
-          return sendJson(res, status, {
-            error: status === 404 ? '자동화 후보를 찾지 못했어요.' : '자동화 계약을 확정하지 못했어요.',
-            reason: outcome.reason, ...(outcome.errors ? { errors: outcome.errors } : {}),
-          });
-        }
-        const readback = await autoStore.load();
-        const saved = readback.jobs.find((job) => job.id === outcome.record.id);
-        const savedCandidate = readback.candidates.find(
-          (entry) => entry.candidateId === outcome.candidate.candidateId,
-        );
-        const savedSettlement = readback.settlements?.find(
-          (entry) => entry.settlementRef === outcome.candidate.settlementRef,
-        );
-        if (!saved || saved.updatedAt !== outcome.record.updatedAt
-          || JSON.stringify(saved.trigger) !== JSON.stringify(outcome.record.trigger)
-          || savedCandidate?.jobRef !== saved.id
-          || savedCandidate?.settlementRef !== savedSettlement?.settlementRef
-          || savedCandidate?.settlementDigest !== savedSettlement?.settlementDigest
-          || saved.latestSettlementRef !== savedSettlement?.settlementRef
-          || saved.latestSettlementDigest !== savedSettlement?.settlementDigest
-          || savedSettlement?.jobRef !== saved.id
-          || savedSettlement?.jobRevision !== (saved.jobRevision ?? 0)
-          || !verifyAutomationSettlement(savedSettlement)
-          || JSON.stringify(savedSettlement)
-            !== JSON.stringify(approvalSettlementEntry(
-              outcome.candidate, saved, outcome.operation, now,
-              outcome.operation === 'update' ? {
-                ref: savedSettlement.previousSettlementRef,
-                digest: savedSettlement.previousSettlementDigest,
-              } : null,
-            ))
-          || savedSettlement?.settlementDigest !== saved.latestSettlementDigest) {
-          return sendJson(res, 500, { error: '저장된 자동화 상태를 확인하지 못했어요.', reason: 'readback_mismatch' });
-        }
-        const settlement = {
-          kind: 'automation_settlement',
-          verificationPassed: true,
-          candidateRef: outcome.candidate.candidateId,
-          candidateRevision: outcome.candidate.revision,
-          controlRef: outcome.candidate.controlRef,
-          operation: outcome.operation,
-          jobRef: saved.id,
-          state: saved.state,
-          trigger: saved.trigger,
-          nextRunAt: saved.nextRunAt,
-          jobRevision: saved.jobRevision,
-          settlementRef: savedSettlement.settlementRef,
-          settlementDigest: savedSettlement.settlementDigest,
-          storeReadback: true,
-        };
-        return sendJson(res, 200, {
-          ok: true, jobId: saved.id, state: saved.state, nextRunAt: saved.nextRunAt, settlement,
-        });
+        const 결과 = await 자동화확정(input);
+        return sendJson(res, 결과.status, 결과.body);
       }
       // tick은 런타임 이벤트로만 실행된다(§8.3). 사용자 버튼이 아니다 — 트러스트 토큰 없으면 거부.
       // 정상 구동은 in-process 스케줄러(server.runtimeTick). 이 라우트는 런타임/운영·테스트 전용.
