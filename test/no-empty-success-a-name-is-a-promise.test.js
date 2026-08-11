@@ -100,14 +100,26 @@ test('반례: 글 형식(.md·.csv·.json·확장자 없음)과 빈 .txt 는 안
 
 test('가릴 서명이 없는 형식은 「확인 못 함」으로 적는다', async () => {
   const { tool } = await 판();
-  const r = await tool.handler({ action: 'write', path: '슬라이드.key', text: '내용' });
+  // `.key` 로 재지 않는다 — 그건 보호 영역(비밀 열쇠)이라 다른 자가 먼저 문다(실측).
+  const r = await tool.handler({ action: 'write', path: '그림.psd', text: '내용' });
   assert.equal(r.blocked, undefined, '모르는 것을 실패로 단정하지 않는다');
   assert.equal(r.result.형식확인, '확인 못 함',
     `못 가린 것이 조용히 성공으로 접혔다: ${JSON.stringify(r.result)}`);
 });
 
 // ── ② 그다음 걸음 — 막힌 걸음이 서면 다른 손이 열린다 ───────────────────────
-
+//
+// **대본이 이 검사를 대신 통과하지 못하게 한다.** 대본 모델이 "두 번째 부름엔 셸"이라고
+// 적혀 있으면 런타임이 아무 일도 안 해도 초록이 된다(첫 판이 그랬다 — 수리를 걷어도 통과했다).
+// 그래서 대본은 **런타임이 기계 사실을 줬을 때만** 셸을 고른다: `tc.goalNotReached` 는
+// P6-L ③(turn.js:2530-2538)이 원장에서 만들어 넣는 칸이고, 대본이 만들 수 없는 값이다.
+// 그 칸이 안 오면 대본은 라이브가 실제로 한 그대로 — *"만들었어요"* 로 끝난다.
+//
+// 비교군의 같은 축(읽고 적는다 · PM 지시 2026-08-11):
+//   헤르메스 `agent/verification_stop.py:205-270` — 증거 없는 완료 주장에 **가짜 사용자 턴**을
+//   끼워 넣어 되돌린다(`conversation_loop.py:7043-7076` · `finish_reason="verification_required"`,
+//   최대 2회). T5 의 P6-L ③·완료검증이어가기와 같은 자리다. 다만 **그 그물은 실패한 걸음을
+//   먹고 산다** — 빈 성공은 실패가 아니라서 그물에 안 걸린다. ①이 그 입력을 고친다.
 test('빈 .xlsx 가 막히면 그 턴 안에서 터미널 손이 쥐어지고 실제로 돈다', async () => {
   const 방 = await realpath(await mkdtemp(join(tmpdir(), 'no-empty-turn-')));
   const 돈명령 = [];
@@ -122,6 +134,7 @@ test('빈 .xlsx 가 막히면 그 턴 안에서 터미널 손이 쥐어지고 �
     },
   };
   const 받은도구 = [];
+  const 받은사실 = [];
   const model = {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
@@ -130,20 +143,32 @@ test('빈 .xlsx 가 막히면 그 턴 안에서 터미널 손이 쥐어지고 �
         this.썼나 = true;
         return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '8월_정산.xlsx', text: '' } }] };
       }
-      // 다른 손이 손에 쥐어지면 셸로 진짜 파일을 만든다. 안 쥐어지면 할 수 있는 게 없다.
-      if (opts.tools?.some((t) => t.name === 'local.terminal') && !this.셸냈나) {
+      // **런타임이 「목표가 안 섰다」는 기계 사실을 줬을 때만** 다른 손으로 간다.
+      // 사실이 안 오면 라이브가 실제로 한 대로 끝난다 — 모델은 자기가 만들었다고 믿는다.
+      if (tc?.goalNotReached && opts.tools?.some((t) => t.name === 'local.terminal') && !this.셸냈나) {
+        받은사실.push(tc.goalNotReached);
         this.셸냈나 = true;
         return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: `zip -q -r -X ${방}/8월_정산.xlsx .` } }] };
       }
       return '만들었어요.';
     },
   };
-  await runTurn({ text: '이 폴더에 8월_정산.xlsx 로 표 하나 만들어줘.' }, {
+  // 방(ctx)은 한 벌이다 — 카드를 승인하려면 `ctx.pending` 이 이어져야 한다.
+  const ctx = {
     env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
     tools: demoTools({ localFile: makeLocalFileTool({ roots: [방], dataDir: 방 }), localTerminal: 터미널 }),
     model,
-  });
-  assert.ok(받은도구.some((목록) => 목록.includes('local.terminal')),
-    `빈 .xlsx 뒤 어느 응답에도 셸을 안 줬다 — 「성공」으로 닫혀 다른 손 조항이 안 열린 것이다.\n받은 도구: ${JSON.stringify(받은도구)}`);
+  };
+  let r = await runTurn({ text: '이 폴더에 8월_정산.xlsx 로 표 하나 만들어줘.' }, ctx);
+  // 셸은 되돌릴 수 없는 실행이라 카드가 선다 — 채점기와 같은 자리다(러너도 승인한다).
+  // 이 단위가 재는 것은 카드 축이 아니라 **다른 손으로 갔는가**이므로, 카드는 눌러 준다.
+  let 카드 = 0;
+  while (r?.kind === 'approval' && 카드 < 3) { 카드 += 1; r = await runTurn({ approve: r.pendingId }, ctx); }
+  assert.ok(받은사실.length,
+    `빈 .xlsx 뒤에 「목표가 안 섰다」는 사실이 한 번도 안 왔다 — 「성공」으로 닫혀 그 조항이 안 열린 것이다.\n받은 도구: ${JSON.stringify(받은도구)}`);
+  assert.ok(받은사실[0].안써본손?.includes('local.terminal'),
+    `안 써 본 손에 셸이 없다: ${JSON.stringify(받은사실[0])}`);
+  assert.ok((받은사실[0].다음수단 ?? []).some((x) => x.방법 === 'local.terminal'),
+    `손이 쥔 다음 수단이 안 실렸다 — 문구가 아니라 부를 수 있는 값이어야 한다: ${JSON.stringify(받은사실[0])}`);
   assert.equal(돈명령.length, 1, `셸이 실제로 돌지 않았다: ${JSON.stringify(돈명령)}`);
 });

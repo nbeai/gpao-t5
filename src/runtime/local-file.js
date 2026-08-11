@@ -232,6 +232,72 @@ function 쓴숫자대조(text, 표맥락) {
 }
 
 /**
+ * **이름은 약속이다** — `.xlsx` 라고 적어 놓고 글을 쓰면 그건 엑셀 파일이 아니다.
+ *
+ * 라이브 실측(2026-08-11 · 실기기 채점기): *"이 폴더에 8월_정산.xlsx 로 표 하나 만들어줘"*
+ * → `local.locate → local.file:write` → 기준자 `file="empty"`. **0바이트 파일**을 만들고
+ * 그 턴이 성공으로 닫혔다. 사용자는 파일이 생겼다고 듣고, 열어 보고서야 안다.
+ * 거짓 성공이 하나 더 무는 것이 있다 — 성공한 걸음은 **막힌 걸음이 아니라서**
+ * P6-L ③(`막히면 다른 손으로`)이 안 열린다. 그래서 셸이 한 번도 안 불린다.
+ *
+ * **비교군 축을 먼저 가져왔다**(정본 §4 0단계 · 읽은 자리를 적는다).
+ *   · 헤르메스 `tools/tts_tool.py:3073-3078` — 만든 파일이 **0바이트면 성공이 아니다**
+ *     (`"TTS generation produced no output"`). 주석 :1305-1313 이 그 병을 이름으로 적어 뒀다:
+ *     호출은 성공했는데 사용자에게 간 것은 **0초짜리 음성 방울**이었다. 우리 `file="empty"` 다.
+ *   · 같은 파일 `:1332-1365` `_repair_ogg_container` — `.ogg` 이름에 mp3/wav 바이트가 들어오면
+ *     **머리 바이트로 알아채고**(`audio_container.py`) 고치거나 정직한 확장자로 이름을 바꾼다.
+ *     이름과 내용이 어긋나는 것을 **서명으로** 가른다 — 이 아래 자가 그 축이다.
+ *   · 그런데 **헤르메스도 쓰기 쪽에는 이 자가 없다**: `tools/file_tools.py:1757-1837`
+ *     `write_file_tool` 은 `binary_extensions.py:20` 의 `.xlsx/.docx/.pptx` 를 **안 본다** —
+ *     글을 `.xlsx` 이름으로 쓰면 성공하고 `verified:true` 까지 붙는다(해시는 글이 잘 앉았다는
+ *     사실이라 맞다). 오픈클로는 더 없다: `dist/sessions-DIwWArcp.js:7505` 의 성공 문장은
+ *     디스크가 아니라 **쓰려던 길이**를 말한다. 그러니 여기는 배낄 자리가 아니라 **없는 자리**다.
+ *
+ * 가르는 것은 **기계**다: 실제로 쓸 바이트의 앞머리를 알려진 서명과 맞춘다.
+ * 이름으로 막지 않는다 — 내용이 진짜 zip 이면 `.xlsx` 로 저장된다(아래 검사가 못 박는다).
+ * 텍스트 형식(.txt·.md·.csv…)은 이 자의 정의역이 **아니다**.
+ * 그 밖(가릴 서명이 없는 형식)은 「확인 못 함」으로 적는다 — 0 이나 성공으로 접지 않는다.
+ */
+const 서명 = (...bytes) => Buffer.from(bytes);
+const 형식약속표 = [
+  { 이름: '엑셀 파일(zip 꾸러미)', 확장자: ['.xlsx', '.xlsm'], 서명들: [서명(0x50, 0x4b)], 스킬: '엑셀 파일 만들기' },
+  { 이름: '워드 파일(zip 꾸러미)', 확장자: ['.docx'], 서명들: [서명(0x50, 0x4b)], 스킬: 'PDF·워드 파일 만들기' },
+  { 이름: '슬라이드 파일(zip 꾸러미)', 확장자: ['.pptx'], 서명들: [서명(0x50, 0x4b)] },
+  { 이름: 'zip 꾸러미', 확장자: ['.zip', '.jar', '.hwpx', '.odt', '.ods', '.odp'], 서명들: [서명(0x50, 0x4b)] },
+  { 이름: 'PDF 문서', 확장자: ['.pdf'], 서명들: [Buffer.from('%PDF-')], 스킬: 'PDF·워드 파일 만들기' },
+  { 이름: 'PNG 그림', 확장자: ['.png'], 서명들: [서명(0x89, 0x50, 0x4e, 0x47)] },
+  { 이름: 'JPEG 그림', 확장자: ['.jpg', '.jpeg'], 서명들: [서명(0xff, 0xd8, 0xff)] },
+  { 이름: 'GIF 그림', 확장자: ['.gif'], 서명들: [Buffer.from('GIF87a'), Buffer.from('GIF89a')] },
+  { 이름: '옛 오피스/한글 문서', 확장자: ['.doc', '.xls', '.ppt', '.hwp'], 서명들: [서명(0xd0, 0xcf, 0x11, 0xe0)] },
+  { 이름: 'RTF 문서', 확장자: ['.rtf'], 서명들: [Buffer.from('{\\rtf')] },
+  { 이름: 'SQLite 데이터베이스', 확장자: ['.sqlite', '.db'], 서명들: [Buffer.from('SQLite format 3\0')] },
+];
+// 글이 곧 내용인 형식 — 여기에 서명을 요구하면 평범한 저장이 전부 막힌다(반례 검사가 문다).
+const 글형식 = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.jsonl', '.xml', '.html',
+  '.htm', '.svg', '.yaml', '.yml', '.ini', '.conf', '.log', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
+  '.py', '.rb', '.sh', '.zsh', '.bash', '.sql', '.css', '.scss', '.go', '.rs', '.java', '.c', '.h',
+  '.cpp', '.hpp', '.swift', '.kt', '.php', '.pl', '.lua', '.toml', '.env', '.gitignore', '.rst', '.tex']);
+
+/**
+ * 이 이름·내용이 서로 맞는가. 판정은 셋뿐이다 — `해당없음`(글 형식·확장자 없음) ·
+ * `맞음`/`어긋남`(서명으로 가림) · `확인못함`(가릴 서명이 없다).
+ * @param {{path:string, bytes:Buffer}} 것
+ */
+export function 형식판정({ path, bytes }) {
+  const ext = extname(String(path ?? '')).toLowerCase();
+  if (!ext || 글형식.has(ext)) return { 상태: '해당없음', ext };
+  const 약속 = 형식약속표.find((f) => f.확장자.includes(ext));
+  if (!약속) return { 상태: '확인못함', ext };
+  const 앞 = Buffer.isBuffer(bytes) ? bytes : Buffer.from(String(bytes ?? ''), 'utf8');
+  const 맞음 = 약속.서명들.some((sig) => 앞.length >= sig.length && 앞.subarray(0, sig.length).equals(sig));
+  return { 상태: 맞음 ? '맞음' : '어긋남', ext, 형식: 약속.이름, 스킬: 약속.스킬,
+    ...(맞음 ? {} : { 이유: 앞.length === 0 ? '내용이 비어 있다' : '알려진 서명이 아니다',
+      기대: 약속.서명들.map((s) => s.toString('hex')).join('|'), 받은: 앞.subarray(0, 8).toString('hex'),
+      바이트: 앞.length }),
+  };
+}
+
+/**
  * @param {{roots?:string[], trashDir?:string, dataDir?:string, readFile?:Function}} [deps]
  */
 export function makeLocalFileTool(deps = {}) {
@@ -899,6 +965,21 @@ export function makeLocalFileTool(deps = {}) {
               `정리 결과는 다른 이름(예: ${basename(abs).replace(/\.[^.]*$/, '')}-정리본)으로 저장할까요?`,
             );
           }
+          // **이름이 약속한 형식과 내용이 어긋나면 성공으로 닫지 않는다**(2026-08-11 실측 · 위 주석).
+          // **쓰기 전에** 가른다 — 뒤에서 가르면 껍데기가 자리에 남고(다음 손이 「이미 있다」에
+          // 막힌다) 덮어쓰기였다면 원본이 이미 휴지통에 담긴 뒤다. 여기서 막으면 실물은 그대로다.
+          const 형식 = 형식판정({ path: abs, bytes: Buffer.from(text, 'utf8') });
+          if (형식.상태 === '어긋남') {
+            return fail(
+              `${basename(abs)} 은(는) 이름이 ${형식.형식}을(를) 약속하는데 저장하려는 내용이 그 형식이 아니라서(${형식.이유}) 저장하지 않았어요.`,
+              `${형식.형식}은(는) 글쓰기로는 못 만들어요 — 터미널로 진짜 파일을 만들어 드릴게요.`,
+              { 확인: 'signature', 기대: 형식.기대, 받은: 형식.받은, 바이트: 형식.바이트 },
+              // 모델이 그대로 부를 수 있는 값이다(사람 문장이 아니다 · `tool-receipt.js` 계약).
+              [{ 방법: 'local.terminal',
+                왜: `${형식.형식}은(는) 셸로 만든다${형식.스킬 ? ` — 파일 스킬 「${형식.스킬}」에 만드는 법이 있다` : ''}. 만든 뒤 \`file\` 로 확인한다` },
+              { 방법: 'local.file', action: 'write', 왜: `글로 남길 내용이면 ${basename(abs).replace(/\.[^.]*$/, '')}.md 처럼 글 형식 이름으로 저장한다` }],
+            );
+          }
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
           await writeFile(abs, text, 'utf8');
@@ -909,11 +990,17 @@ export function makeLocalFileTool(deps = {}) {
           await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
           // 실물의 숫자 대조 사실 — 루프 안에서 모델이 손을 쥔 채 받는 되부름(위 쓴숫자대조 주석).
           const 대조말 = 쓴숫자대조(text, executionContext?.표맥락) ?? '';
+          // **못 가린 것을 성공으로 접지 않는다.** 서명을 아는 형식은 위에서 갈렸고, 여기 남는
+          // 것은 「이름이 형식을 약속하는데 우리가 그 형식을 기계로 못 가리는」 자리다(.key 등).
+          // 성공은 성공이되 **무엇을 확인 못 했는지**를 같은 지면에 적는다 — 모델도 사용자도 본다.
+          const 확인못함 = 형식.상태 === '확인못함';
           return ok(
             (parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
-              : `${basename(abs)} 을(를) 만들었어요.`) + 대조말,
+              : `${basename(abs)} 을(를) 만들었어요.`) + 대조말
+            + (확인못함 ? ` (${형식.ext} 형식이 맞는지는 제가 확인 못 했어요 — 글로 쓴 내용 그대로예요.)` : ''),
             {
               path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked),
+              ...(확인못함 ? { 형식확인: '확인 못 함' } : {}),
               // C 감사 F2.1 · **산출물의 내용 신분.** lane 은 digest 가 있으면 그것을 신분으로
               // 쓰는데 생산자가 없어 항상 경로+턴 폴백이었다 — 같은 경로가 나중에 바뀌어도
               // "같은 산출물"로 이어지는 병. 쓰기가 자기 내용의 digest 를 낸다.
