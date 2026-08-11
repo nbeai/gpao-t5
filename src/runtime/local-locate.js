@@ -439,6 +439,9 @@ export function makeLocalLocateTool(deps = {}) {
 
       const 후보 = [];
       let 본폴더 = 0; let 멈춤 = false; const 안본자리 = [];
+      // **필터 전에 잘린 폴더**(§12-J6). 어디서 몇 개를 못 봤는지를 기계 사실로 모은다 —
+      // 이게 없으면 「폴더 N개를 훑었어요」가 「다 봤어요」로 읽힌다.
+      const 잘린폴더 = [];
       const 대기 = [{ dir: from, d: 0 }];
       const 지금 = Date.now();
 
@@ -446,8 +449,16 @@ export function makeLocalLocateTool(deps = {}) {
         const { dir, d } = 대기.shift();
         if (본폴더 >= MAX_DIRS) { 멈춤 = true; break; }
         let entries;
-        try { entries = (await readdir(dir, { withFileTypes: true })).slice(0, MAX_ENTRIES_PER_DIR); }
+        // **절단은 필터 앞에 있다** — 401번째부터는 이름이 정확히 맞아도 후보가 될 기회조차
+        // 없다. 그 사실을 여기서 세어 두지 않으면 아래 어디에서도 복원할 수 없다(§12-J6).
+        // 상한 값 자체는 안 건드린다 — 바꿀 근거가 없다. 바꾸는 것은 **침묵**뿐이다.
+        let 전부;
+        try { 전부 = await readdir(dir, { withFileTypes: true }); }
         catch { continue; }
+        entries = 전부.length > MAX_ENTRIES_PER_DIR ? 전부.slice(0, MAX_ENTRIES_PER_DIR) : 전부;
+        if (전부.length > MAX_ENTRIES_PER_DIR) {
+          잘린폴더.push({ path: dir, seen: MAX_ENTRIES_PER_DIR, unseen: 전부.length - MAX_ENTRIES_PER_DIR });
+        }
         본폴더 += 1;
 
         const 성 = 성격(entries);
@@ -558,6 +569,20 @@ export function makeLocalLocateTool(deps = {}) {
       후보.sort((a, b) => (b.이름맞음 === 'exact' ? 1 : 0) - (a.이름맞음 === 'exact' ? 1 : 0));
       const 고른것 = 후보.slice(0, 물었나 && !짚었나 ? 2 : MAX_CANDIDATES);
       const 정확한것 = 고른것.filter((c) => c.이름맞음 === 'exact');
+      // ── **못 본 것을 말한다**(§12-J6 · 2026-08-12) ────────────────────────────
+      // 비교군의 축은 둘 다 「잘라 버리되 잘랐다고 말한다」다 —
+      //   쿠아 `SKILL.md:665-668`: 트리가 너무 크면 파일로 내보내고 **그 경로를 준다**.
+      //   클로드코드: *"Output too large (106.3KB). Full output saved to: …"*
+      // 우리는 전체를 줄 수 없다(수천 항목은 그 자체가 덤프다). 그러나 **잘렸다는 사실과
+      // 어디서 몇 개인지**는 줄 수 있고, 그것 없이는 침묵이 곧 거짓말이다.
+      //
+      // **찾았을 때도 뺀 자리에 붙인다.** 후보가 나왔다고 조용해지면, 401번째에 있던 더 나은
+      // 것은 영영 없는 것이 된다 — 모델도 사용자도 그 사실을 볼 자리가 없다.
+      const 못본총 = 잘린폴더.reduce((n, f) => n + f.unseen, 0);
+      const 잘림말 = 잘린폴더.length
+        ? ` 다만 항목이 아주 많은 폴더 ${잘린폴더.length}곳은 앞 ${MAX_ENTRIES_PER_DIR}개만 봤어요`
+          + ` — 거기서 ${못본총}개는 못 봤어요(더 좁혀 주시면 그 안을 볼게요).`
+        : '';
 
       return {
         result: {
@@ -573,8 +598,13 @@ export function makeLocalLocateTool(deps = {}) {
             ? { placesToLook: await 자리목록() } : {}),
           ...(멈춤 ? { stoppedAtLimit: true } : {}),
           ...(안본자리.length ? { skippedProtected: 안본자리.length } : {}),
+          // 폴더 상한(`stoppedAtLimit`)과 **다른 절단**이다 — 그건 폴더를 덜 연 것이고,
+          // 이건 연 폴더 안을 덜 본 것이다. 둘을 한 칸에 섞으면 어느 쪽인지 못 가린다.
+          ...(잘린폴더.length
+            ? { truncatedFolders: 잘린폴더.slice(0, 20), unseenEntries: 못본총, entryLimitPerFolder: MAX_ENTRIES_PER_DIR }
+            : {}),
         },
-        userSafeSummary: 고른것.length === 0
+        userSafeSummary: (고른것.length === 0
           // **얼마나 훑었는지를 함께 말한다.** `본폴더` 는 이미 세고 있었는데 사용자면 문장에만
           // 안 실렸다 — 사실을 갖고 있으면서 침묵한 것이다.
           //
@@ -605,7 +635,9 @@ export function makeLocalLocateTool(deps = {}) {
             ? `${고른것[0].path} 인 것 같아요 (${고른것[0].why}).`
             // 같은 이유로 여기도 재고가 먼저다 — 괄호의 "정확히 맞는 건 없어요"가 문장의
             // 알맹이가 되면 모델은 다섯 후보를 들고도 빈손이라고 믿는다.
-            : `자료가 있는 자리 ${고른것.length}곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.`,
+            : `자료가 있는 자리 ${고른것.length}곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.`)
+          // **모든 갈래에 붙는다.** 어느 문장으로 끝나든 못 본 것은 못 본 것이다.
+          + 잘림말,
         ...(고른것.length === 0 || (물었나 && !짚었나) ? { nextSafeAction: 이름으로골라 } : {}),
       };
     },
