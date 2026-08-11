@@ -263,8 +263,11 @@ export function buildModelMessages(tc) {
     const lines = [];
     // 손 **이름만** 준다. 무엇을 하는 손인지는 능력 문장이 이미 말했고, 어떻게 쓸지는 모델이 정한다.
     if (e.reach?.length) {
-      lines.push(`바깥 자료에도 닿을 수 있는 손: ${e.reach
-        .map((h) => `${h.label}${h.operation ? ` — ${h.operation}` : ''}${h.limit ? ` (${h.limit})` : ''}`).join(' · ')}`);
+      // **손마다 한 줄**(칸 1 · S6). 여기도 `join(' · ')` 이라 손 여럿의 자기 소개가
+      // 한 줄로 뭉쳤고, 그러면 그 줄의 부정·한계가 누구 것인지 자리로 안 남는다 —
+      // 위 `네가 지금 바로 쓰는 손` 과 **같은 병**이라 같이 고친다(절단 시험이 찾았다).
+      lines.push(`바깥 자료에도 닿을 수 있는 손:\n${e.reach
+        .map((h) => `- ${h.label}${h.operation ? ` — ${h.operation}` : ''}${h.limit ? ` (${h.limit})` : ''}`).join('\n')}`);
     }
     const 연결됨 = e.services?.filter((s) => s.connected) ?? [];
     const 미연결 = e.services?.filter((s) => !s.connected) ?? [];
