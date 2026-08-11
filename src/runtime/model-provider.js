@@ -491,8 +491,12 @@ export function buildModelMessages(tc) {
   // 계약 ②(행동 이력은 모델의 것)를 시제 있는 모양으로 지키는 것이지 지우는 것이 아니다.
   {
     const 이미 = new Set();
+    // **앞 턴에도 된 것과 안 된 것이 있다**(J2 · 지도 §12). 예전엔 여기서 `확인됨: true` 를
+    // **전부에게** 박았다 — 아래 렌더가 `확인됨 ? '' : ' (미확인)'` 이라, 지난 턴 실패가
+    // 성공과 **같은 표식 없는 줄**로 섰다. 모델은 그걸 한 일로 읽고 없는 기억 위에 답을 썼다.
+    // 상태는 `priorExchange` 가 실어 온다(task-context) — 여기서는 지어내지 않고 읽기만 한다.
     const 앞선것들 = [
-      ...(tc.priorExchange ?? []).map((f) => ({ ...f, 확인됨: true })),
+      ...(tc.priorExchange ?? []).map((f) => ({ ...f, 확인됨: (f.failureState ?? 'none') === 'none' })),
       ...(tc.priorFacts ?? []),
     ].filter((f) => f.summary && !이미.has(f.summary) && 이미.add(f.summary));
     if (앞선것들.length) {
@@ -500,7 +504,8 @@ export function buildModelMessages(tc) {
       // 맞는 행동이다 — 못 하게 막으면 제품이 나빠지고, 길이 없으면 모델은 **말로 때운다**
       // (라이브: 원장 0 인데 *"방금 다시 확인해 봤어요"*). 오늘 노드 R 에서 세운 구조 그대로다.
       커널블록.push('[앞선 턴에서 한 것] (이번 턴이 아니다 — 지금 다시 한 것처럼 말하지 않는다)\n'
-        + 앞선것들.map((f) => `- ${f.summary}${f.확인됨 ? '' : ' (미확인)'}`
+        + 앞선것들.map((f) => `- ${f.summary}`
+          + `${f.확인됨 ? '' : `${f.failureState ? ` (미확인: ${f.failureState})` : ' (미확인)'}`}`
           + `${f.providerCallId || f.ref ? ` (호출 신분: ${f.providerCallId ?? f.ref})` : ''}`
           + `${f.calledWith ? `\n  부른 인자: ${f.calledWith}` : ''}`).join('\n')
         + '\n확인을 물으면 손으로 **다시 보고** 답한다. 안 보고 "확인했다"고 말하지 않는다 —'
@@ -521,7 +526,10 @@ export function buildModelMessages(tc) {
         // 그것이 어떻게 됐는지만 답한다. 이 줄이 없으면 모델이 자기가 쓴 내용을 다시 지어낸다.
         + (f.calledWith ? `\n  부른 인자: ${f.calledWith}` : '')
         + (f.attemptedWith ? `\n  실패한 시도의 제안값(확인된 사실 아님): ${f.attemptedWith}` : '')
-        + (f.data ? `\n  결과: ${f.data}` : ''))
+        + (f.data ? `\n  결과: ${f.data}` : '')
+        // J1 — **갈래가 다르다고 사실이 달라지지 않는다.** 실행 전에 막혀 서술로 남는 손도
+        // 다음 길을 쥐고 있다(`nextSafeAction`). 교환 갈래와 같은 렌더를 쓴다.
+        + 다음길줄(f).map((줄) => `\n  ${줄}`).join(''))
       .join('\n')}`);
   }
   if (tc.connectionAdmission) {
@@ -677,6 +685,40 @@ const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, conte
  * 사용자 지시와 같은 층위에서 경쟁하지 않는다(예전엔 사용자 메시지 안에 섞여 들어가서
  * 괄호 한 줄로 "이건 사용자의 요청이 아니다"라고 적어 막아야 했다).
  */
+/**
+ * **손이 쥐어 준 다음 길**(J1 · 지도 §11 말미 · §12 J1).
+ *
+ * 이 네 칸(`다른후보`·`다음수단`·`막힌곳`·`nextSafeAction`)은 영수증에서 나와 패킷까지
+ * 멀쩡히 실려 왔는데 **어떤 와이어도 읽지 않았다.** 검사는 "패킷에 필드가 있는가"까지만
+ * 재서 내내 초록이었다 — 안 준 손은 흔적이 없다.
+ *
+ * 밟은 라이브 둘이 이 자리의 값이다:
+ *   · 「팔식당」   검색이 후보 여덟을 물어 왔는데 읽기가 막히자 한 곳도 안 열고
+ *                 사용자에게 주소 복사를 요구했다. 후보는 턴이 쥐고 있었다.
+ *   · 「펜션.pdf」 읽기가 막히며 손이 다음 손을 적어 줬는데 모델에게 안 갔다.
+ *
+ * 비교군은 전부 **칸을 고르지 않는다**: Hermes 는 `tool_error(message, **extra)`
+ * (`tools/registry.py:930`)로 실패도 성공과 같은 JSON 그릇에 담고 그 문자열을 그대로
+ * `role:"tool"` 에 싣는다(`agent/conversation_loop.py:6306`). OpenClaw 는 크기와 그림만
+ * 손댄다(`docs/concepts/agent-loop.md:132`). 클로드코드도 원문 그대로다.
+ *
+ * **사실만 적는다 — 지시문을 만들지 않는다.** 무엇을 쥐고 있고 어디서 막혔는지만 놓고,
+ * 무엇을 쓸지는 모델이 고른다(§24). 없는 칸에는 아무 줄도 안 붙는다(잔소리를 늘리지 않는다).
+ */
+const 다음길줄 = (x) => [
+  x.다른후보?.length
+    ? `이번 턴에 받아 둔 다른 후보: ${x.다른후보
+      .map((c) => (c?.title ? `${c.title} — ${c.url}` : String(c?.url ?? ''))).filter(Boolean).join(' / ')}` : '',
+  x.다음수단?.length
+    ? `이 손이 쥔 다음 수단: ${x.다음수단.map((m) => `${m?.방법 ?? ''}`
+      + `${m?.url ? `(${m.url})` : ''}${m?.offset != null ? `(offset ${m.offset})` : ''}`
+      + `${m?.왜 ? ` — ${m.왜}` : ''}`).filter((v) => v.trim()).join(' / ')}` : '',
+  x.막힌곳?.length
+    ? `이번 턴에 부딪힌 벽: ${x.막힌곳
+      .map((b) => `${b?.url ?? ''}${b?.fetchState ? ` (${b.fetchState})` : ''}`).filter((v) => v.trim()).join(' / ')}` : '',
+  x.nextSafeAction ? `이 손이 적어 둔 다음 손: ${x.nextSafeAction}` : '',
+].filter((v) => v && String(v).trim());
+
 const 교환결과 = (x) => [
   x.summary,
   x.surface ? surfaceLines(x.surface) : '',
@@ -685,7 +727,12 @@ const 교환결과 = (x) => [
   x.failureState && x.failureState !== 'none'
     ? `실행 상태: ${x.failureState} — 이 호출의 결과 내용은 확인 안 됨(사실로 쓰지 않는다)` : '',
   x.실패원문 ? `실패 원문(기계가 낸 그대로 · 확인 안 됨): ${x.실패원문}` : '',
+  // 막힌 뒤에 무엇이 남아 있는가. 결과 내용은 확인 안 됐어도 **후보와 벽은 밟은 사실이다.**
+  ...다음길줄(x),
 ].filter((v) => v && String(v).trim()).join('\n');
+
+/** 와이어 넷이 같은 사실을 싣게 하는 단일 렌더(J3). ChatGPT(Responses) 경로가 이것을 쓴다. */
+export { 교환결과 as 교환결과렌더 };
 
 /**
  * **모델이 발급한 신분을 그대로 돌려준다.** 이 와이어는 id 를 요구하므로 없으면 T5 내부
