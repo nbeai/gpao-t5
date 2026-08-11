@@ -90,6 +90,42 @@ const 창 = (id, { pid = 1048, app = '카카오톡', title = '', z = null, 보�
 // ① 「수락」을 「활성화」로 읽지 않는다
 // ═══════════════════════════════════════════════════════════════════════
 
+// ── 층을 나눠 문다 ───────────────────────────────────────────────────────
+// 절단으로 확인했다(2026-08-11): **①-A(드라이버 층 성공 칸)를 되돌려도 손 층 검사는
+// 초록이었다** — ①-B(행동 뒤 재관측)가 뒤에서 받아 주기 때문이다. 뒤에서 받아 주는 것은
+// 좋지만, 그러면 **앞 층 봉인이 없다.** 앞 층이 조용히 썩어도 아무도 모른다.
+// 그래서 `드라이버확인` 을 **드라이버 층에서 직접** 문다.
+test('드라이버 층 — 문서 밖 칸(activated)은 확인 표식을 못 얻는다', async () => {
+  const { 드라이버 } = 대본({
+    앞으로답: { activated: true, exact_window_effect: { verified: true } },
+    windows: [창(22, { title: '카카오톡', z: 3 })],
+  });
+  const r = await 드라이버.act({ 행동: 'focus', 대상: { pid: 1048 } });
+  assert.notEqual(r?.확인됨, true,
+    `**dump-docs 0건짜리 칸으로 확인 표식을 만들었다**: ${JSON.stringify(r)}`);
+});
+
+test('드라이버 층 — effect:partial 은 확인이 아니라 부분결과다', async () => {
+  const { 드라이버 } = 대본({
+    앞으로답: { effect: 'partial', delivery: { delivered_count: 1 } },
+    windows: [창(22, { title: '카카오톡', z: 3 })],
+  });
+  const r = await 드라이버.act({ 행동: 'focus', 대상: { pid: 1048 } });
+  assert.notEqual(r?.확인됨, true, '수락을 활성화로 읽었다');
+  assert.equal(r?.부분결과, true,
+    `정본이 "partial result" 라고 이름 붙인 것을 안 옮겼다 — 위층이 구분할 수가 없다: ${JSON.stringify(r)}`);
+});
+
+test('드라이버 층 — effect:confirmed 만 확인 표식을 얻는다', async () => {
+  const { 드라이버 } = 대본({
+    앞으로답: { effect: 'confirmed', code: 'bring_to_front_exact_window_verified' },
+    windows: [창(22, { title: '카카오톡', z: 3 })],
+  });
+  const r = await 드라이버.act({ 행동: 'focus', 대상: { pid: 1048 } });
+  assert.equal(r?.확인됨, true, `정본 어휘를 못 읽는다: ${JSON.stringify(r)}`);
+  assert.equal(r?.근거, 'effect.confirmed', '무엇을 믿었는지가 안 남는다');
+});
+
 test('정본에 없는 칸(activated·exact_window_effect)으로 창 전환을 닫지 않는다', async () => {
   // 드라이버는 우리가 지어낸 두 칸을 주고, **앞 창은 안 바뀐다**(Claude 가 그대로 z 최대).
   const { 드라이버 } = 대본({
