@@ -658,6 +658,10 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   // 정직한 사실이 나간다. 판정 근거는 원장이다 — 성공 영수증이 하나라도 있으면 개입하지 않는다
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
   const 거짓성공 = 읽은척차단(receipts, reply, { 출처계약손 });
+  // 커널이 답을 갈아치우면 **모델이 이어 쓸 것도 없다** — 잘림 사실은 여기서 꺼진다(J9).
+  // 조건을 두 줄로 나눈 이유: 아래 반환문은 `answer-authorship-lanes` 가 **글자 그대로** 무는
+  // 자리다(갈아치움 칸이 몰래 늘지 않게 하는 자). 그 자를 건드리지 않고 사실만 끈다.
+  if (거짓성공?.blocked) ctx.답잘림 = false;
   if (거짓성공?.blocked) return 거짓성공.정직한답;
   // **출구 검증은 여기 묶는다**(§2-C). `답완성` 은 답이 나가는 모든 자리가 지나는 한 문이다 —
   // 자리마다 적으면 언젠가 하나가 빠지고, 빠진 그 경로로 거짓 완료가 그대로 나간다.
@@ -667,7 +671,9 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
-  const 다시 = userFacingModelText(typeof retry === 'string' ? retry : retry?.text ?? '');
+  // **답을 낸 호출이 바뀌었다** — 잘림 사실도 이 호출의 것으로 바뀐다(J9).
+  const 다시 = userFacingModelText(답으로삼기(ctx, retry, ''));
+  if (!다시) ctx.답잘림 = false;   // 원장 문장으로 끝낸다 — 이어 쓸 것이 없다
   return 출구검증(다시 || fallbackReplyFrom(receipts), { tc, ctx, receipts, 파일계약빈손 });
 }
 
@@ -682,6 +688,35 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
  * `답완성` 옆에 두는 이유: 답이 나가는 자리가 여럿이라 자리마다 적으면 언젠가 하나가 빠지고,
  * 빠진 그 경로로 거짓 완료가 그대로 나간다(구조원칙 §2-C).
  */
+/**
+ * **완료 대조를 한 턴에 한 번만 계산한다**(C2 · 상태 지도 §12).
+ *
+ * 대조가 도는 자리는 둘이고 **둘 다 남는다**: 걸음 루프의 `목적미달()` 은 *되게 만드는* 자리이고
+ * 출구의 `출구검증()` 은 *정직하게 말하게 하는* 자리다. 역할이 다르므로 하나를 없애면 그건
+ * 재사용이 아니라 그물 제거다. 다만 **자가 같으면 답도 같다** — `완료주장검증` 은 인자만 보는
+ * 순수 함수인데, 부를 때마다 대화 전체 원장을 새로 직렬화하고 이름·명령 대조를 처음부터 다시
+ * 돌렸다. 원장이 길수록 그대로 사용자 대기시간이다.
+ *
+ * **메모는 원장이 안 바뀐 동안만 산다.** 영수증이 하나라도 붙으면(`원장.append` 의 한 문) 지워진다 —
+ * 그래야 재사용이 낡은 판정을 되살리지 않는다. 값이 아니라 **사실의 나이**로 무는 방식이다.
+ */
+function 완료검증한번(ctx, 인자) {
+  const 셈 = ctx.완료검증셈 ?? (ctx.완료검증셈 = { 잰것: 0, 재사용: 0 });   // 턴 머리에서 새로 선다
+  const 자리글 = JSON.stringify(인자.자리종류 ?? null);
+  const 메모 = ctx.완료검증메모;
+  if (메모 && 메모.reply === 인자.reply && 메모.자리글 === 자리글
+    && 메모.돌려줬나 === Boolean(인자.이미돌려줬나) && 메모.원장글 === 인자.원장글) {
+    셈.재사용 += 1;
+    return 메모.값;
+  }
+  셈.잰것 += 1;
+  const 값 = 완료주장검증(인자);
+  ctx.완료검증메모 = {
+    reply: 인자.reply, 자리글, 돌려줬나: Boolean(인자.이미돌려줬나), 원장글: 인자.원장글, 값,
+  };
+  return 값;
+}
+
 async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 = false }) {
   // **원장글**: 이 턴의 영수증 + 앞 턴 교환 + **이 대화의 전체 영수증**(ctx.ledger).
   // 답이 가리킨 자리가 여기 없으면 지어낸 것이다. 두 벌을 따로 만들지 않는다 —
@@ -693,7 +728,7 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   const 원장글 = JSON.stringify([receipts ?? [], tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]);
   // F-54 후반 — **자리 종류**를 함께 준다(파일 자리 명부 · 이번 턴 화면 자리).
   // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
-  const 검증 = 완료주장검증({
+  const 검증 = 완료검증한번(ctx, {
     reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
     자리종류: {
       // **이번 턴 머리의 관측이 진실이다** — 이전 턴 상태(workingState.places)는 새 세션
@@ -726,6 +761,9 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
     completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
   }, { onDelta: ctx.onAnswerDelta, effort: 'medium' }).catch(() => null);
   const 고친답 = userFacingModelText(typeof 다시 === 'string' ? 다시 : (다시?.text ?? ''));
+  // 되부름이 **실제로 답을 냈을 때만** 잘림 사실이 그 호출의 것으로 바뀐다(J9). 빈손으로
+  // 돌아오면 아래에서 앞 답이 그대로 나가므로 앞 사실도 그대로 서야 한다.
+  if (고친답.trim()) ctx.답잘림 = typeof 다시 === 'string' ? false : Boolean(다시?.잘림);
   // ── **보정 실패는 거짓 답으로 회귀하지 않는다**(P-OP 수리 계약 FILE-⑦ · 2026-08-10) ──
   //
   // 실측(S4 재현): 되부름 뒤 모델이 같은 거짓 완료를 반복하면 "한 턴에 한 번" 계약이
@@ -741,6 +779,7 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   if (재검증.재거짓) {
     ctx.출구그물 = { 사실: 검증.모델에게, 재거짓: 재검증.사실 };
     ctx.미리보기?.retract?.();
+    ctx.답잘림 = false;   // 아래 두 갈래는 커널이 원장으로 쓴 답이다 — 이어 쓸 것이 없다(J9)
     // **미완료 문장은 계약이 빈손일 때만이다**(수리 재실행 실측 2026-08-10 · S4 R2 7턴).
     // 성공한 실행이 있는 턴에서 이름 변형만 반복됐을 때 "완료하지 못했어요"라고 하면
     // **반대 방향의 거짓**이 된다 — 실물은 있다. 그때는 원장의 영수증 문장(실제 파일
@@ -774,6 +813,24 @@ function 잘림말붙이기(답, 잘렸나) {
   return `${글.trimEnd()}\n\n— 남은 부분이 더 있어요. "이어서" 라고 하시면 마저 쓸게요.`;
 }
 
+/**
+ * **나가는 답을 고르는 한 자리**(J9 · 상태 지도 §12).
+ *
+ * 예전엔 `답잘림` 이 **호출 ① 하나**만 보고, 안내는 **빠른 경로 하나**에만 붙었다. 손을 쓴 턴의
+ * 답이 끊기면 사용자는 아무 말 없이 잘린 답을 받았다 — 라이브가 잡은 그 사고(2026-08-05)와
+ * 같은 모양인데 경로만 다르다.
+ *
+ * 자리마다 `out.잘림` 을 읽는 방식으로는 또 하나가 빠진다(§2-C). 그래서 **답을 고르는 일과
+ * 잘림을 적는 일을 한 함수**로 묶는다: 답을 낸 호출이 바뀌면 사실도 같이 바뀐다.
+ * 이 호출이 글을 안 냈으면 앞 답도 앞 사실도 그대로 둔다 — 안 낸 것이 사실을 지우면 안 된다.
+ */
+function 답으로삼기(ctx, out, 현재답 = '') {
+  const 글 = typeof out === 'string' ? out : out?.text;
+  if (글 === undefined || 글 === null) return 현재답;
+  ctx.답잘림 = typeof out === 'string' ? false : Boolean(out?.잘림);
+  return 글;
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -782,6 +839,11 @@ export async function runTurn(input, ctx) {
   미리보기원장(ctx);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
+  // **완료 대조 재사용은 한 턴 안에서만 산다**(C2). `ctx` 는 턴을 넘어 살아 있으므로 여기서
+  // 안 비우면 지난 턴의 판정이 이번 턴 답 위에 설 수 있다 — 재사용이 낡은 판정을 되살리면
+  // 그건 원가 절감이 아니라 그물 구멍이다. 계측(진단면)도 이 턴의 것만 센다.
+  ctx.완료검증메모 = undefined;
+  ctx.완료검증셈 = { 잰것: 0, 재사용: 0 };
   // ── **왕복은 이 작업의 모든 모델 호출이다** (오너 구속 계약 ① 2026-08-04) ──────────
   // 세는 자리를 아홉 군데(계획·심문 두 종·이어쓰기·산출물·최종 답·재시도)에 흩으면 언젠가
   // 하나가 빠지고, 그러면 "비용 축"이 실제 비용의 절반만 세게 된다 — 초안이 정확히 그랬다.
@@ -794,7 +856,16 @@ export async function runTurn(input, ctx) {
   }
   // **새 발화는 예산을 새로 연다. 승인 재개는 이어받는다** — 재개마다 0 이면 카드가 여러 번
   // 뜰 때 예산이 무한이 된다(같은 일을 계속 이어가는 것이므로 같은 예산 안에서 끝나야 한다).
-  if (typeof input.text === 'string' && input.text.trim()) ctx.왕복수 = 0;
+  //
+  // **네 축이 같은 자리에서 열린다**(S4 수리 2026-08-12). 예전엔 이 줄이 왕복 하나만 열었고
+  // 나머지 셋은 `executePlan` 의 지역 변수라 **진입마다** 0 이 됐다 — 리셋 자리가 둘로 갈리면
+  // 언젠가 한쪽만 지켜진다. 리셋은 여기 한 줄뿐이다(`turn-budget.js:15-17` 의 규율 그대로).
+  if (typeof input.text === 'string' && input.text.trim()) {
+    ctx.왕복수 = 0;
+    ctx.되돌릴수있는것수 = 0;
+    ctx.그밖수 = 0;
+    ctx.일한ms = 0;
+  }
   // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
   // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
   if (typeof input.text === 'string' && input.text.trim()) {
@@ -1149,7 +1220,9 @@ export async function runTurn(input, ctx) {
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
   let modelChosen = null;
   let earlyReply = null;
-  let 답잘림 = false;   // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다)
+  // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다). **이 턴의 사실은 `ctx` 가 든다**
+  // (J9): 지역 변수면 `executePlan` 안에서 답을 낸 호출을 못 본다 — 복합 경로가 통째로 빠졌다.
+  ctx.답잘림 = false;
   // **화면 자리는 턴 머리에서 한 번 관측한다**(F-54). 턴 끝 파생에만 실으면 이번 턴 모델은
   // 화면을 영영 못 본다(첫 턴 측정이 정확히 그 자리다 — M1). 여기서 관측해 이번 턴의
   // workingState 에 얹고, 턴 끝 파생도 같은 관측을 이어받는다(드라이버 호출은 턴에 1회).
@@ -1209,12 +1282,12 @@ export async function runTurn(input, ctx) {
       effort: 'medium',
       tools: modelSchemasFor(selfState, ctx.modelControls),
     });
-    earlyReply = typeof out === 'string' ? out : out?.text ?? '';
     // **잘린 답을 다 쓴 답인 것처럼 내지 않는다**(절대 게이트 1 — 거짓 성공).
     // 라이브(오너 2026-08-05): 답이 `예를 들어 스윙이면` 에서 문장 한가운데 끊겼는데
     // T5 는 아무 말 없이 그대로 내보냈다. 사용자는 왜 끊겼는지 알 길이 없었다.
     // 종료 사유는 관측되고 있었지만 `onCallIdentity` 곁길로만 흘러 여기서 아무도 안 읽었다.
-    if (out?.잘림) 답잘림 = true;
+    // 답을 고르는 일과 잘림을 적는 일은 `답으로삼기` 한 자리에 묶여 있다(J9).
+    earlyReply = 답으로삼기(ctx, out, '');
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
@@ -1242,6 +1315,29 @@ export async function runTurn(input, ctx) {
   // 손이 하나 늘었다고 질문이 늘면 그건 개선이 아니라 실패다(§3.1 · 오너 지시). 그래서
   // 늘리는 쪽 장치는 하나도 안 만들었다 — 모델이 안 부르면 이 자리는 통째로 안 돈다.
   if (물음) {
+    // **실행은 안 하되, 안 했다는 사실은 남긴다**(J4 · 상태 지도 §12).
+    //
+    // 호출이 실행 없이 끝나는 자리는 여섯인데 다섯은 전부 `못한호출남기기` 로 사유가 남는다
+    // (없는손·예산소진·되풀이·승인대기중단·되묻기중단). **이 자리만 없었다** — 같은 응답의
+    // 작업 호출이 실행·영수증·원장 어디에도 안 남아, 모델은 다음 턴에 그게 갔다고 믿는다.
+    // F-68 의 형제다(조용한 축소 금지).
+    //
+    // 어휘는 걸음 루프의 형제와 **같은 것**을 쓴다(`되묻기중단`). 새 사유를 만들면 소비자
+    // (원장 대조·work state)가 어느 쪽을 봐야 할지 갈린다.
+    for (const [i, call] of (modelChosen ?? []).entries()) {
+      ledger.append(receipt({
+        intended: `${call?.name ?? '(이름 없음)'} 실행`,
+        actualCall: null,
+        제안한호출: {
+          tool: call?.name, args: call?.args ?? {},
+          ...(call?.providerCallId ? { providerCallId: call.providerCallId } : {}),
+          callRef: `되묻기${i + 1}`,
+        },
+        failureState: 'blocked',
+        userSafeSummary: '먼저 확인할 게 있어 이건 아직 안 했어요.',
+        diagnosticTrace: { callId: call?.providerCallId, 순번: i + 1, tool: call?.name, reason: '되묻기중단' },
+      }));
+    }
     return {
       kind: 'clarify',
       question: 물음.question,
@@ -1323,7 +1419,7 @@ export async function runTurn(input, ctx) {
         if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
         if (분리.rest.length) {
           modelChosen = 분리.rest;
-          if (typeof out !== 'string' && out?.text) earlyReply = out.text;
+          if (typeof out !== 'string' && out?.text) earlyReply = 답으로삼기(ctx, out, earlyReply);   // J9
         }
       }
     }
@@ -1349,7 +1445,7 @@ export async function runTurn(input, ctx) {
       if (분리.memoryCorrection) memoryCorrection = 분리.memoryCorrection;
       if (분리.rest.length) {
         modelChosen = 분리.rest;
-        if (typeof out !== 'string' && out?.text) earlyReply = out.text;
+        if (typeof out !== 'string' && out?.text) earlyReply = 답으로삼기(ctx, out, earlyReply);   // J9
       }
     }
   }
@@ -1368,7 +1464,7 @@ export async function runTurn(input, ctx) {
       automationProposal: structuredClone(automationProposal),
       automationReality: structuredClone(ctx.automationReality),
     }, { search, effort: 'medium' });
-    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+    return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
   const 자동화제어후답 = async (baseTc, currentReply, search) => {
     if (!automationControl || typeof ctx.applyAutomationControl !== 'function'
@@ -1383,7 +1479,7 @@ export async function runTurn(input, ctx) {
       automationControl: structuredClone(automationControl),
       automationReality: structuredClone(ctx.automationReality),
     }, { search, effort: 'medium' });
-    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+    return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
   const 자동화관찰후답 = async (baseTc, currentReply, search) => {
     if (!automationObserve || typeof ctx.observeAutomation !== 'function') return currentReply;
@@ -1398,7 +1494,7 @@ export async function runTurn(input, ctx) {
     });
     const separated = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     통제제안받기(separated);
-    return typeof out === 'string' ? out : (out?.text ?? currentReply);
+    return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
 
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
@@ -1417,14 +1513,17 @@ export async function runTurn(input, ctx) {
     // authoritative 입장/readback을 지나야 하며 raw 모델 args로 표면에 나가면 안 된다.
     earlyReply = await 자동화입장후답(earlyTc, earlyReply, earlyWantedWeb);
     earlyReply = await 자동화제어후답(earlyTc, earlyReply, earlyWantedWeb);
+    // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
+    // **잘림은 답을 다 만든 뒤에 읽는다**(J9) — `답완성` 이 재시도·되부름으로 답을 갈아치우면
+    // 잘림 사실도 그 호출의 것으로 바뀌어 있다.
+    const 빠른답 = 미리보기정렬(await 답완성({
+      reply: earlyReply,
+      tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,
+      ctx, search: earlyWantedWeb,
+    }), ctx.미리보기);
     return {
       kind: 'reply',
-      // 빈 답을 그대로 돌려주던 자리다(H 진단 계열 ③ · P1). 계열 ④: 화면에 나간 조각과 정렬.
-      reply: 잘림말붙이기(미리보기정렬(await 답완성({
-        reply: earlyReply,
-        tc: completionContract.assessment === 'chat' ? { ...earlyTc, chatOutputContract: true } : earlyTc,
-        ctx, search: earlyWantedWeb,
-      }), ctx.미리보기), 답잘림),
+      reply: 잘림말붙이기(빠른답, ctx.답잘림),
       shownMemoryRefs, // S5-1: 손을 안 쓴 턴도 **모델 앞에 놓인 것**은 같다
       modelCitedRefs,  // S5-2: 모델의 주장(사용 사실 아님)
       memoryCorrection, // S5-3: 정정 신호(상관의 재료)
@@ -2024,8 +2123,20 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 예산 = 턴예산(ctx.processEnv ?? process.env);
   // **외부효과 뒷단은 비용 모델이 아니다**(오너 구속 계약 ④). 되돌릴 수 있는 것과 없는 것을
   // 따로 센다 — 도구별 비용표를 만들지 않고 이미 있는 `reversible` 선언에서 파생한다.
-  let 되돌릴수있는것쓴것 = 0;
-  let 그밖쓴것 = 0;
+  //
+  // **세 축 다 `ctx` 가 든다 — 왕복과 같은 규율이다**(S4 · 상태 지도 §12).
+  //
+  // 여기 있던 것은 `let` 지역 변수 셋이었다. `executePlan` 은 승인 재개마다 **새로 불린다** —
+  // 그래서 카드가 N 번 뜨면 되돌릴 수 없는 실행이 3×N 이었다. `turn-budget.js:15-17` 은
+  // 이미 규율을 적어 놓았다: *"승인 재개에도 누적한다(리셋하면 무한이다)."* 왕복만 그 규율을
+  // 지켰다 — 예산을 든 자리가 왕복은 `ctx`, 나머지는 이 함수의 스택이었기 때문이다.
+  //
+  // 오픈북(헤르메스 `agent/iteration_budget.py`): 예산은 객체 하나가 들고 `consume()` 이 한
+  // 자리에서 깎는다. 되돌리는 자리는 `refund()` **하나뿐**이고 이름이 붙어 있다 — 진입할 때마다
+  // 조용히 0 이 되는 자리는 없다. 여기서도 리셋 자리는 **새 발화 하나**다(아래 `예산새로열기`).
+  const 되돌릴수있는것쓴것 = () => ctx.되돌릴수있는것수 ?? 0;
+  const 그밖쓴것 = () => ctx.그밖수 ?? 0;
+  const 외부효과셈 = (칸) => { ctx[칸] = (ctx[칸] ?? 0) + 1; };
   // **좁은 칸은 `reversible: false` 를 선언한 손만이다.**
   //
   // 한 번 "모르면 좁은 칸"으로 뒀다가 회귀 22건이 물었다(실측 2026-08-04): `reversible` 을
@@ -2035,19 +2146,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이미 승인 경계가 잡는다 — `toolActionKind` 가 미상을 승인으로 보내고 헌장 넷이 그 위에 선다.
   // 여기서 한 번 더 좁히면 안전이 아니라 마비가 된다(자동성이 의무다).
   const 되돌릴수있나 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId)?.reversible !== false;
-  const 시작시각 = nowMs(ctx);
+  // **벽시계도 이어받는다 — 다만 재는 것은 「T5 가 일한 시간」이다.**
+  //
+  // 진입마다 0 이면 카드 N 번에 600초×N 이라 위 두 칸과 같은 병이다. 그렇다고 발화 시각부터
+  // 재면 **사용자가 카드를 들여다본 시간**까지 예산이 먹는다 — 이 축의 정의가 정확히 그 반대다
+  // (`turn-budget.js:21` *"사용자가 실제로 기다리는 시간"*). 승인을 기다리는 동안 기다리는 쪽은
+  // 사용자가 아니라 T5 다. 그래서 **이 함수 안에서 흐른 시간만** 누적분에 얹는다.
+  const 진입시각 = nowMs(ctx);
+  const 진입전일한ms = ctx.일한ms ?? 0;
+  const 지난ms = () => (ctx.일한ms = 진입전일한ms + (nowMs(ctx) - 진입시각));
   // 사용자 취소는 예산과 무관하게 즉시다. 표면이 이 이음새를 채우면 큐 전체가 그 자리에서 선다.
   const 취소됐나 = () => Boolean(ctx.취소됐나?.() || ctx.abortSignal?.aborted);
   const 쓴것 = () => ({
-    왕복쓴것: ctx.왕복수 ?? 0, 되돌릴수있는것쓴것, 그밖쓴것,
-    지난ms: nowMs(ctx) - 시작시각, 취소됨: 취소됐나(),
+    왕복쓴것: ctx.왕복수 ?? 0, 되돌릴수있는것쓴것: 되돌릴수있는것쓴것(), 그밖쓴것: 그밖쓴것(),
+    지난ms: 지난ms(), 취소됨: 취소됐나(),
   });
   const 예산사실 = () => ({
     // **모델 방의 사실**이다(계약 ④). 지시가 아니라 남은 양이다 — 어떻게 쓸지는 모델이 정한다.
     turnBudget: {
       왕복쓴것: ctx.왕복수 ?? 0, 왕복예산: 예산.왕복,
-      되돌릴수있는것쓴것, 되돌릴수있는것예산: 예산.되돌릴수있는것,
-      그밖쓴것, 그밖예산: 예산.그밖,
+      되돌릴수있는것쓴것: 되돌릴수있는것쓴것(), 되돌릴수있는것예산: 예산.되돌릴수있는것,
+      그밖쓴것: 그밖쓴것(), 그밖예산: 예산.그밖,
     },
     // **지금 몇 번 더 뻗을 수 있나**(PM 실측 2026-08-07 · 노드 R).
     //
@@ -2062,7 +2181,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 강제가 아니다(⛔) — 사실을 줄 뿐이고 어떻게 쓸지는 모델이 정한다.
     toolStepsLeft: Math.max(0, Math.min(
       예산.왕복 - (ctx.왕복수 ?? 0),
-      예산.되돌릴수있는것 - 되돌릴수있는것쓴것,
+      예산.되돌릴수있는것 - 되돌릴수있는것쓴것(),
       걸음정지선 - turnReceipts.length,
     )),
     ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
@@ -2183,7 +2302,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
-    if (되돌릴수있나(toolId)) 되돌릴수있는것쓴것 += 1; else 그밖쓴것 += 1;
+    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
     원장.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
@@ -2466,7 +2585,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // ⑤ 답이 원장이 받치지 않는 완료를 말한다 — 출구와 **같은 자·같은 원장**(두 벌 금지).
     const 답글 = userFacingModelText(답글원문);
     if (String(답글).trim()) {
-      const 검증 = 완료주장검증({
+      // C2 — 출구와 **같은 자·같은 원장**이므로 계산도 같다. 자리는 둘 다 남기고 계산만 재사용한다.
+      const 검증 = 완료검증한번(ctx, {
         reply: 답글, receipts: turnReceipts,
         원장글: JSON.stringify([turnReceipts, tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]),
         자리종류: {
@@ -2974,7 +3094,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
-    if (되돌릴수있나(toolId)) 되돌릴수있는것쓴것 += 1; else 그밖쓴것 += 1;
+    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
 
     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
@@ -3071,7 +3191,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     });
   }
 
-  let reply = userFacingModelText(typeof finalOut === 'string' ? finalOut : finalOut?.text ?? '');
+  // **복합 경로도 잘림을 본다**(J9 · 상태 지도 §12). 예전엔 `답잘림` 이 호출 ① 만 보고 안내는
+  // 빠른 경로에만 붙어서, **손을 쓴 턴의 잘린 답**은 아무 말 없이 나갔다. 잘림 사실은
+  // **마지막 답을 낸 호출**의 것이다 — 아래 `답완성`·`출구검증` 이 답을 갈아치우면 거기서 갱신된다.
+  let reply = userFacingModelText(답으로삼기(ctx, finalOut, ''));
   if (멈춘이유 && !reply.trim()) reply = '';
   // 도구를 빼고 한 번 더 묻는 자리 — **빠른 경로와 같은 계약을 쓴다**(`답완성`).
   // 손은 다시 쥐여 주지 않고 `answerOnly` 사실을 준다. 실제로 도구 예산을 다 쓴 것이 아닌데
@@ -3118,6 +3241,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // H09 P0 는 화면 정렬보다 세다: 스트리밍으로 이미 나간 거짓 서술을 정렬이 되살리면, 지속되는
   // 답에서만큼은 원장의 정직한 사실이 이긴다(나간 조각 보존 계약의 유일한 예외 — 거짓 성공).
   const 거짓성공정렬후 = 읽은척차단(turnReceipts, reply, { 출처계약손: 출처계약손목록() });
+  if (거짓성공정렬후?.blocked) ctx.답잘림 = false;   // 위와 같은 이유 · 같은 자를 지킨다(J9)
   if (거짓성공정렬후?.blocked) reply = 거짓성공정렬후.정직한답;
 
   // ── **출구 검증**(정본 §S5 H08 재개봉) ────────────────────────────────────
@@ -3185,7 +3309,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   return {
     kind: 'reply',
-    reply,
+    // J9 — 빠른 경로와 **같은 안내, 같은 자**다. 손을 썼다고 잘림이 덜 잘린 것이 되지 않는다.
+    reply: 잘림말붙이기(reply, ctx.답잘림),
     identityUpdate: ctx.identityUpdate, // P-ID-1: 승인 재개 경로에서도 이름 지정을 잃지 않는다
     usedSkill: ctx.usedSkill,           // Phase 0-4: 어떤 배운 작업이 도왔는지(조용히 바뀌지 않는다)
     selfStateSummary: summary,
