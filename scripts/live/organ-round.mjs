@@ -85,22 +85,58 @@ export const 문장표 = Object.freeze([
     //
     // 그래서 **영수증으로 판정한다** — 어느 손이든 네이버를 실제로 열고 읽었으면 통과다.
     // 손의 종류는 안 묻는다(브라우저 손이든 화면 손이든 사용자 목적은 같다).
+    // **자가 느슨했다**(오너 지적 2026-08-11). 위 판정은 「네이버를 지목했고 무언가 읽었다」만
+    // 물어서, **첫 화면만 열고 검색은 안 한 회차가 통과했다.** 사용자 문장은
+    // *"전세사기 **검색 결과** 알려줘"* 다 — 물어야 할 것은 **검색이 실제로 일어났는가**이고,
+    // 그것은 문구가 아니라 기계로 가릴 수 있다.
+    //
+    // ── **자를 두 번 고쳤다. 두 번째는 계측기 결함 수리다**(2026-08-11 · 이력을 남긴다) ──
+    //
+    // 1차(느슨): 「네이버 지목 + 아무거나 읽음」 → **첫 화면만 열어도 통과했다.**
+    // 2차(조임): 「검색 걸음 + **그 뒤에** 읽기 걸음」 → 조였는데 **거짓 실패**를 만들었다.
+    //   실측 회차 O3QoMu 가 `web.collect https://search.naver.com/...` **한 걸음으로**
+    //   검색이자 읽기를 했는데, "뒤에"를 요구해서 ✕ 가 찍혔다. 한 걸음이 둘 다일 수 있다.
+    //   그리고 `search.naver` 를 문자열로만 봐서 `www.naver.com/search.naver?...`
+    //   (메인으로 리다이렉트된 **잘못된 주소**)도 검색으로 세었다.
+    // 3차(지금): 조건을 **하나**로 세운다 — *"검색 결과를 실제로 읽은 성공한 걸음이 있는가."*
+    //
+    //   길 ㉮ 주소로 읽기   읽기손(browser.observe·web.collect·desktop.screen)의 인자에
+    //                     **호스트가 `search.naver.com`** 인 주소가 있다.
+    //                     호스트로 보는 이유가 위 실측이다 — 경로 문자열은 틀린 주소를 통과시킨다
+    //   길 ㉯ 화면으로 읽기 실크롬 검색창에 질의어를 **넣은** 걸음(`desktop.act:type`) 뒤에
+    //                     성공한 화면 읽기가 있다. 이 길에는 주소가 인자에 안 실린다
+    // 손의 종류는 안 묻는다 — 브라우저 손이든 화면 손이든 사용자 목적은 같다
+    // (2026-08-11 PM 오류의 교훈).
+    //
+    // **못 재는 것을 적어 둔다**: 읽은 페이지의 실제 내용·최종 주소는 영수증에서 가려져
+    // (`[민감정보]`) 여기서 볼 수 없다. 그래서 이 자는 *"검색 결과 주소를 읽었다"* 까지만
+    // 말하고 *"답이 그 결과에 근거한다"* 는 말하지 않는다.
     칸: '칸4 자력완결', 문장: '네이버 열어서 전세사기 검색 결과 알려줘.',
     async 판정(회차) {
       const 손들 = 회차?.손기록 ?? [];
-      const 네이버열림 = 손들.some((x) => /naver/i.test(JSON.stringify(x?.args ?? {})));
-      const 읽음 = 손들.some((x) => ['browser.observe', 'web.collect', 'desktop.screen']
-        .includes(x?.tool) && (x?.failureState ?? 'none') === 'none');
-      // **실크롬 상태도 함께 찍는다**(판정에는 안 쓴다). 시작 상태가 더러우면
-      // 영수증만으로는 「T5 가 연 것」과 「이미 열려 있던 것」이 안 갈린다 —
-      // 오너 지적 2026-08-11: 그 회차에 네이버 탭이 이미 앞에 있었다.
-      const [앞, 주소] = await Promise.all([기준자.앞창(), 기준자.크롬주소()]);
-      const [크롬, 잔재] = await Promise.all([기준자.실크롬떠있나(), 기준자.헤드리스잔재()]);
+      const 성공 = (x) => (x?.failureState ?? 'none') === 'none';
+      const 글 = (x) => JSON.stringify(x?.args ?? {});
+      const 읽기손 = ['browser.observe', 'web.collect', 'desktop.screen'];
+      const 질의어 = /전세\s*사기|%EC%A0%84%EC%84%B8%EC%82%AC%EA%B8%B0/i;
+      const 네이버열림 = 손들.some((x) => /naver/i.test(글(x)));
+      // 검색 결과 **호스트**를 읽기손이 잡았는가.
+      const 주소로읽음 = 손들.some((x) => 성공(x) && 읽기손.includes(x?.tool)
+        && /\/\/search\.naver\.com[/"?]/i.test(글(x)));
+      // **어느 손이든** 검색창에 치고 그 뒤에 읽었는가. 브라우저 손이 직접 치게 된 뒤로
+      // 화면 손만 세면 거짓 실패가 난다(2026-08-11 실측).
+      const 친번호 = 손들.findIndex((x) => 성공(x)
+        && ['desktop.act', 'browser.act'].includes(x?.tool)
+        && ['type', 'press', 'press_key'].includes(x?.args?.action) && 질의어.test(글(x)));
+      const 친뒤읽음 = 친번호 >= 0 && 손들.slice(친번호 + 1)
+        .some((x) => 성공(x) && [...읽기손, 'browser.act'].includes(x?.tool));
+      const 결과읽음 = 주소로읽음 || 친뒤읽음;
+      const [앞, 크롬, 잔재] = await Promise.all([
+        기준자.앞창(), 기준자.실크롬떠있나(), 기준자.헤드리스잔재()]);
       return {
-        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 읽기성공=${읽음 ? 'O' : 'X'}`
-          + ` | 실크롬=${크롬 ? 'O' : 'X'} · 앞창=${앞} · 주소=${주소 ?? '읽지 못함'}`
-          + ` | T5 헤드리스 잔재 ${잔재}개`,
-        통과: 네이버열림 && 읽음,
+        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 결과주소읽음=${주소로읽음 ? 'O' : 'X'}`
+          + ` · 쳐서읽음=${친뒤읽음 ? 'O' : 'X'} · 앞창=${앞}`
+          + ` | 실크롬=${크롬 ? 'O' : 'X'} · T5 헤드리스 잔재 ${잔재}개`,
+        통과: 네이버열림 && 결과읽음,
       };
     },
   },
@@ -151,7 +187,10 @@ async function 한문장(base, cookie, 항목, 카드상한 = 4) {
   const 손 = 손기록.map((x) => `${x.tool}${x.args?.action ? ':' + x.args.action : ''}`);
   await new Promise((ok) => setTimeout(ok, 1500));   // 창 관리자가 반영할 틈을 준다
   const 판정 = await 항목.판정({ 손기록, 답: 결과?.reply ?? '' });
-  return { 칸: 항목.칸, 문장: 항목.문장, 카드, 걸린, 손, ...판정, 답: (결과?.reply ?? '').slice(0, 200) };
+  // **손기록 원본도 남긴다.** 조인 자가 왜 그렇게 판정했는지는 걸음의 인자를 봐야 안다 —
+  // 요약 문자열만 남기면 회차 뒤에 사람이 다시 추측한다(2026-08-11 실측: `검색함=O ·
+  // 검색뒤읽음=X` 의 뜻을 원본 없이 못 갈랐다).
+  return { 칸: 항목.칸, 문장: 항목.문장, 카드, 걸린, 손, ...판정, 답: (결과?.reply ?? '').slice(0, 200), 손기록 };
 }
 
 function 표(줄들) {
@@ -185,8 +224,11 @@ export async function 실기기회차({ port = 0, 목록 = 문장표 } = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
-  const 고름 = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length);
-  const 목록 = 고름 ? 문장표.filter((x) => x.문장.includes(고름) || x.칸.includes(고름)) : 문장표;
+  // `--only=<조각>` — 한 문장만 돌린다(칸·문장 어디에 걸려도 된다). 유료 회차를 아끼는 자리다.
+  // 동결 문장표에서 **고르기만** 한다 — 즉흥 문장은 여기로도 못 들어온다(§9).
+  const 조각 = (process.argv.slice(2).find((a) => a.startsWith('--only=')) ?? '').slice(7).trim();
+  const 목록 = 조각 ? 문장표.filter((x) => x.칸.includes(조각) || x.문장.includes(조각)) : 문장표;
+  if (!목록.length) { console.error(`--only=${조각} 에 걸리는 문장이 문장표에 없다`); process.exit(2); }
   const { 방, 줄들 } = await 실기기회차({ 목록 });
   console.log(표(줄들));
   console.log(`\n회차 원본: ${방}/회차.json`);
