@@ -349,11 +349,32 @@ export function compactResult(result, maxChars = 1200) {
     // 같은 자리의 다른 파일 — 부분합을 전체처럼 말하는 병의 재료 칸(매듭 ① · 2026-08-08).
     // 사실만 준다: 읽었는지 안 읽었는지는 모델의 교환 이력이 안다.
     if (result.같은자리파일?.length) lines.push(`같은 자리의 다른 파일: ${result.같은자리파일.join(' · ')}`);
+    // ── **손이 이미 쪽을 넘겼으면 그 문을 그대로 옮긴다**(정본 §S3 · 2026-08-11) ──
+    //
+    // `local.file read` 는 `offset`·`limit`·`nextOffset` 을 **이미 갖고 있다**(local-file.js §문).
+    // 그런데 모델 입력에는 그 값이 한 번도 안 실렸다 — 손에 문이 있는데 모델은 손잡이를 못 봤다.
+    // 새 저장소를 만들 일이 아니라 있는 문을 여는 일이다.
+    const 쪽시작 = Number.isFinite(Number(result.offset)) ? Number(result.offset) : 0;
+    if (result.totalChars != null) {
+      lines.push(`이 파일 전체 ${result.totalChars}자 중 offset ${쪽시작} 부터 ${String(result.text).length}자를 받았다`
+        + (result.nextOffset != null ? ` · 다음 쪽은 local.file read 에 offset=${result.nextOffset}` : ''));
+    }
     const keep = Math.max(maxChars - lines.join('\n').length - 40, 200);
-    const t = String(result.text).replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-    const body = t.length <= keep
-      ? t
-      : `${t.slice(0, Math.ceil(keep * 0.7))}\n…(가운데 ${t.length - keep}자 생략)…\n${t.slice(-(keep - Math.ceil(keep * 0.7)))}`;
+    // **접기 계산은 날것 위에서 한다.** 공백 정리를 먼저 하면 글자 수가 밀려 문의 offset 이
+    // 어긋난다 — 어긋난 문은 문이 아니라 또 하나의 거짓이다. 정리는 실을 조각에만 건다.
+    const 날것 = String(result.text);
+    const 정리 = (s) => s.replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    let body;
+    if (날것.trim().length <= keep) body = 정리(날것);
+    else {
+      const 앞 = Math.ceil(keep * 0.7);
+      const 뒤 = keep - 앞;
+      const 뺀양 = 날것.length - 앞 - 뒤;
+      // **문**: 뺀 가운데는 이 파일의 `offset` 부터 `limit` 만큼이다. 모델이 그대로 부를 수 있는 값.
+      body = `${정리(날것.slice(0, 앞))}\n…(가운데 ${뺀양}자 생략 — 그 부분은 `
+        + `local.file read 에 offset=${쪽시작 + 앞} · limit=${뺀양} 로 이어 받는다)…\n`
+        + `${정리(날것.slice(-뒤))}`;
+    }
     return `${lines.join('\n')}\n내용:\n${body}`;
   }
 
@@ -890,6 +911,15 @@ export function buildTaskContext(p) {
         })()),
         // 실패한 호출의 결과는 확인된 값이 아니다 — 내용을 사실처럼 싣지 않고 상태만 준다.
         // 결과 상한은 창 예산의 파생값이다(노드 W) — 창을 알면 원문이 접히지 않고 간다.
+        //
+        // ⚠ **여기에 진단면 원문을 실으려다 봉인 셋에 물렸다**(2026-08-11 · 실측 후 되돌림).
+        // 정본 §6 은 *"「확인 안 됨」 표식을 달아서 주기는 준다"* 를 요구하지만, 이 자리는
+        // 모델 입력이자 **저장되는 턴 봉투**다(turn.js:3228 → server 가 대화에 저장 → 다음 턴
+        // priorExchange). 그래서 지금 코드가 무는 것은 셋이고 전부 의도된 봉인이다:
+        //   · s1-execution-wall.js:141   "진단면 내부 분류값이 모델 입력으로 새면 안 된다"
+        //   · recovery-failure-injection A · B · B'  "내부 오류/연결/전송 진단이 결과에 샜다"
+        // 진단면은 지금 **어디에도 저장되지 않는 유일한 칸**이다(원장·표면 모두 안 싣는다).
+        // 그 바닥을 이 슬라이스 안에서 조용히 내리지 않는다 — 오너·감사 판단으로 올린다.
         ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result, p.창예산?.결과자 ?? undefined) }),
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
         // **막혔을 때야말로 다음 수가 필요하다**(라이브 2026-08-05).

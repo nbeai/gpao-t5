@@ -72,6 +72,23 @@ test('① 반례 — 물음·제안·정직한 미완료는 그대로 지나간�
   }
 });
 
+test('① 반례 — 파일 손을 안 쓴 턴의 슬래시는 자리가 아니다 (f64-l6 실측)', () => {
+  // 문 앞의 완료형 판정을 걷자 이 반례가 즉시 나왔다: 자동화 턴의 답에 든 `Asia/Seoul` 이
+  // 「원장에 없는 자리」로 잡혀 **사용자 답이 통째로 막혔다.** 정의역은 파일 손을 쓴 턴이다.
+  const r = 완료주장검증({
+    reply: '{"jobRef":"status-job","trigger":{"timezone":"Asia/Seoul"},"state":"scheduled"}',
+    receipts: [{
+      intended: '자동화 조회',
+      actualCall: { tool: 'automation.observe', args: {} },
+      failureState: 'none',
+      userSafeSummary: '예약을 확인했어요.',
+      result: { jobs: 1 },
+    }],
+    원장글: '',
+  });
+  assert.equal(r.일치, true, '파일 손을 안 쓴 턴의 슬래시를 없는 자리로 물었다');
+});
+
 test('① 빈손 판정은 원장을 받으면 원장이 지배한다 — 어미는 보조로 내려간다', () => {
   // 지금은 `게요·겠습니다·겠어요` 와 물음표만 본다. 같은 뜻을 다른 어미로 쓰면 새 나간다.
   const 약속들 = [
@@ -100,7 +117,21 @@ test('① 빈손 판정은 원장을 받으면 원장이 지배한다 — 어미
 //   *"사유 없는 실패가 회차 원본에 남아 원인 확정을 막았고, 모델은 그 빈자리를
 //     「환경이 막혀서」로 메웠다."*
 
-test('② 막힌 손의 기계 원문이 「확인 안 됨」 표식과 함께 모델에게 간다', () => {
+// **되돌림 기록 — 이 슬라이스에서 ② 는 안 했다**(2026-08-11).
+//
+// 수리를 붙여 봤고, 봉인 셋이 물었다. 전부 *의도된* 봉인이고 문구가 정확히 이 일을 금지한다:
+//   · `s1-execution-wall.js:141`  "진단면 내부 분류값이 **모델 입력**으로 새면 안 된다"
+//   · `recovery-failure-injection` A(EIO·/dev/x0) · B(ECONNREFUSED) · B'(fetch failed)
+//     — 셋 다 `JSON.stringify(turnResult)` 을 재는데, 그 봉투에 `turnExchange` 가 들어 있다
+//       (turn.js:3228 → 서버가 대화에 저장 → 다음 턴 `priorExchange`).
+//
+// 즉 ② 는 한 줄 공백이 아니라 **정면 계약 충돌**이다. 정본 §6 은 *"「확인 안 됨」 표식을
+// 달아서 주기는 준다"* 를 요구하고, 봉인 셋은 *"진단면은 모델 입력에 안 간다"* 를 요구한다.
+// `diagnosticTrace` 는 지금 원장에도 표면에도 안 실리는 **유일한 비저장 칸**이라, 여기를 여는
+// 것은 안전 바닥을 내리는 변경이다 — 이 단위의 상한(*안전 바닥 0*)이 금지한 자리다.
+// 그래서 **안 한다.** 아래 반대 시험만 남겨, 성공 경로의 비노출은 계속 못박는다.
+
+test('② 되돌림 뒤에도 실패 상태 토큰과 사람말 요약은 그대로 간다', () => {
   const tc = buildTaskContext({
     intent: interpret('카카오톡 창을 앞으로 띄워줘'),
     selfState,
@@ -115,11 +146,11 @@ test('② 막힌 손의 기계 원문이 「확인 안 됨」 표식과 함께 �
   });
   const x = (tc.turnExchange ?? [])[0];
   assert.ok(x, '실패 교환이 없다');
-  const 글 = JSON.stringify(x);
-  assert.match(글, /kAXErrorCannotComplete/, '실패의 기계 원문이 모델에게 0자 간다');
-  assert.match(글, /확인 안 됨/, '표식 없이 실었다 — 그러면 사실로 승격된다');
-  assert.equal(x.failureState, 'failed', '상태 토큰은 그대로여야 한다');
+  assert.equal(x.failureState, 'failed', '상태 토큰이 사라졌다');
   assert.equal(x.data, undefined, '실패한 결과를 data 로 승격했다');
+  // 지금 모델이 받는 전부 — 이 줄이 ② 의 크기다. 고칠 때 이 값이 바뀐다.
+  assert.doesNotMatch(JSON.stringify(x), /kAXError/,
+    '진단면이 모델 입력에 실렸다 — 봉인 셋(s1-execution-wall:141 · recovery A·B·B\')과 충돌한다');
 });
 
 test('② 성공한 실행에는 진단면이 붙지 않는다 — 문은 실패에만 열린다', () => {
@@ -136,24 +167,6 @@ test('② 성공한 실행에는 진단면이 붙지 않는다 — 문은 실패
     }],
   });
   assert.doesNotMatch(JSON.stringify(tc), /내부스택표식ZZ/, '성공 교환에 진단면이 샜다');
-});
-
-test('② 기계 원문도 조용히 자르지 않는다 — 뺀 양을 밝힌다', () => {
-  const 긴것 = 'E'.repeat(9000);
-  const tc = buildTaskContext({
-    intent: interpret('터미널로 확인해줘'),
-    selfState,
-    receipts: [{
-      intended: '실행',
-      actualCall: { tool: 'local.terminal', args: { command: 'ls' } },
-      failureState: 'failed',
-      userSafeSummary: '실행에 실패했어요.',
-      diagnosticTrace: { message: 긴것 },
-    }],
-  });
-  const 글 = String((tc.turnExchange ?? [])[0]?.실패원문 ?? '');
-  assert.ok(글.length > 100 && 글.length < 4000, `상한이 없다: ${글.length}자`);
-  assert.match(글, /생략/, '조용히 잘랐다 — 뺀 양을 안 밝혔다');
 });
 
 // ── ③ 잘라낸 가운데로 가는 문 ────────────────────────────────────────────
