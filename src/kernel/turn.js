@@ -198,8 +198,8 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
     properties: {
       output: { type: 'string', enum: ['chat', 'file'] },
       sourcePolicy: { type: 'string', enum: ['none', 'all_current', 'selected'] },
-      verification: { type: 'string', enum: ['direct_exact', 'process_sha256'],
-        description: '파일 결과를 확인할 실제 근거. process_sha256은 선택 원본의 터미널 SHA-256 출력과 결과 readback을 결속한다.' },
+      verification: { type: 'string', enum: ['direct_exact', 'process_sha256', 'admin_grounded'],
+        description: '파일 결과를 확인할 실제 근거. process_sha256은 선택 원본의 터미널 SHA-256 출력과 결과 readback을 결속한다. admin_grounded는 현재 자료마다 실제 읽은 근거를 결과물의 해당 사실과 결속한다.' },
     },
     required: ['output'],
   },
@@ -247,7 +247,7 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
     const structured = structuredCall?.args?.output;
     const sourcePolicy = ['none', 'all_current', 'selected'].includes(structuredCall?.args?.sourcePolicy)
       ? structuredCall.args.sourcePolicy : 'unknown';
-    const verification = ['direct_exact', 'process_sha256'].includes(structuredCall?.args?.verification)
+    const verification = ['direct_exact', 'process_sha256', 'admin_grounded'].includes(structuredCall?.args?.verification)
       ? structuredCall.args.verification : 'unknown';
     const judgment = structured === 'file' || structured === 'chat'
       ? structured : parseDeliverableJudgment(typeof out === 'string' ? out : out?.text);
@@ -1668,6 +1668,12 @@ export async function runTurn(input, ctx) {
           return { completionBasis: 'unverified' };
         }
         const expected = resolve(root, parsed.path);
+        if (planIntent.verification === 'admin_grounded'
+          && planIntent.sourcePolicy === 'all_current') {
+          return { completionBasis: 'admin_grounded', userBinding: {
+            expectedPathDigest: createHash('sha256').update(expected).digest('hex'),
+          } };
+        }
         if (planIntent.verification === 'process_sha256'
           && planIntent.sourcePolicy === 'selected') {
           return { completionBasis: 'process_sha256', userBinding: {
@@ -1690,7 +1696,12 @@ export async function runTurn(input, ctx) {
     const processHashAdmitted = contract.completionBasis === 'process_sha256'
       && contract.sourcePolicy === 'selected'
       && contract.processBinding?.algorithm === 'sha256';
-    const sliceAdmitted = directAdmitted || processHashAdmitted;
+    const adminGroundedAdmitted = contract.completionBasis === 'admin_grounded'
+      && contract.sourcePolicy === 'all_current'
+      && contract.userBinding?.expectedPathDigest
+      && contract.sourceBinding?.workRef
+      && contract.sourceBinding?.sourceSetRef;
+    const sliceAdmitted = directAdmitted || processHashAdmitted || adminGroundedAdmitted;
     if (!sliceAdmitted) {
       // 명시 경로·본문이 입장하지 못한 FILE 실행은 그대로 남기되 완료 후보가 아니다.
       ctx.completionAdmissionRejected = true;
