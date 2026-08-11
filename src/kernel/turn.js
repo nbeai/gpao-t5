@@ -547,16 +547,38 @@ export function fallbackReplyFrom(receipts = []) {
   //
   // 원장에는 그대로 남고 모델도 받는다(조용한 축소 아님). **사용자면 문장에만 안 들어간다** —
   // 두 면은 원래 다른 계약이다. 다만 **그것뿐이면 빈 답을 주지 않는다**(그게 더 나쁘다).
+  //
+  // ── **막힌 것만 보고 된 것을 버리지 않는다** (F-84 · 콘솔 라이브 실측 2026-08-12) ──────
+  //
+  // 밟은 회차: *"내 컴퓨터에 PDF 파일 있어? 찾아서 어디 있는지 알려줘."* → 손 3건
+  // (`local.file` ok · `local.capsule` blocked · `local.locate` ok **후보 5건**) 인데 답은
+  // *"한 캡슐에서 부를 수 있는 손을 다 썼어요(200번). 조건을 좁혀 다시 해볼까요?"* 하나였다.
+  // `capsule.js:318 userSafeSummary` + `:321 nextSafeAction` 과 **문자 그대로 같다** — 이
+  // 함수가 지은 것이다(재현으로 확인: 최종 답 === `fallbackReplyFrom(영수증)`).
+  //
+  // 원인은 아래 `blocked` 갈래가 **막힌 영수증만** 읽었기 때문이다. 성공한 손이 가져온 것은
+  // 원장에 있었는데 사용자에게 한 글자도 안 갔다. 커널이 답을 쓸 수밖에 없는 자리라면
+  // **원장에 남은 사실을 다 읽어야 한다** — 된 것 먼저, 막힌 것 다음.
+  //
+  // 그리고 **되물음으로 닫지 않는다**(헌장 2등 「네 가지만 묻는다」 — 비밀번호·되돌릴 수 없는
+  // 파괴·새 상대 첫 발송·돈). 막힌 손의 `nextSafeAction` 은 그 넷 중 아무것도 아니다.
+  // 다만 **된 것이 하나도 없으면** 그 다음 길이 우리가 가진 전부다 — 그때는 예전 그대로
+  // 실어야 막다른 답이 안 된다(`fallback-reply-is-user-facing` 이 무는 자리).
   const 사람에게 = receipts.filter((r) => r.failureState !== 'cancelled');
   const 볼것 = 사람에게.length ? 사람에게 : receipts;
   const blocked = 볼것.filter((r) => r.failureState && r.failureState !== 'none');
+  const 된말 = [...new Set(볼것.filter((r) => (r.failureState ?? 'none') === 'none')
+    .map((r) => r?.userSafeSummary).filter(Boolean))];
   if (!blocked.length) {
-    const done = 볼것.map((r) => r?.userSafeSummary).filter(Boolean).join(' ').trim();
+    const done = 된말.join(' ').trim();
     return done || '방금 요청은 처리했어요.';
   }
   const what = blocked.map((r) => r.userSafeSummary).filter(Boolean).join(' ');
-  const next = blocked.map((r) => r.nextSafeAction).filter(Boolean)[0];
-  return `${what}${next ? ` ${next}` : ''}`.trim();
+  if (!된말.length) {
+    const next = blocked.map((r) => r.nextSafeAction).filter(Boolean)[0];
+    return `${what}${next ? ` ${next}` : ''}`.trim();
+  }
+  return [...된말, what].filter(Boolean).join(' ').trim();
 }
 
 
@@ -2766,11 +2788,32 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // **통제 호출은 「되게 만든 것」이 아니다** — 제안·기억만 다시 내면 미달은 그대로인데
     // 부작용(새 후보 등록)은 생긴다. 이 고리가 여는 것은 **작업 걸음**뿐이다.
     const 고른것 = splitModelControlCalls(typeof 되부름 === 'string' ? [] : (되부름?.toolCalls ?? [])).rest;
+    // ── **되부름이 낸 글은 버리지 않는다 — 낼 것이 없을 때 되살린다** (F-84 · 오픈북) ────
+    //
+    // 예전엔 아래 `finalOut = 되부름` 이 **걸음을 골랐을 때만** 돌았다. 그래서 되부름이
+    // *"캡슐은 한도로 막혔고 대신 찾기 손으로 후보 5곳을 확인했어요: …"* 처럼 **정확히 우리가
+    // 원하던 답**을 내고 손을 안 골랐을 때, 그 글이 통째로 사라졌다(재현으로 확인). 그리고
+    // 앞 답이 비어 있으면 `답완성` 의 빈답 그물이 원장으로 답을 새로 지었다 —
+    // 모델이 이미 쓴 답이 있는데 커널이 대신 쓴 것이다.
+    //
+    // 비교군은 같은 자리에서 **되살린다**(헤르메스 `agent/turn_finalizer.py:106-122`):
+    //   `continuation_budget_exhausted = final_response is None and bool(_pending_verification_response)`
+    //   → `final_response = _pending_verification_response`
+    //   *"Preserve that exact answer instead of replacing it with another fallible model call."*
+    // 조건이 `final_response is None` 인 것까지 그대로 가져온다 — **앞 답이 있으면 안 건드린다.**
+    // 멀쩡한 답을 되부름의 글로 갈아치우는 것은 이 고리가 할 일이 아니다.
+    const 되살리기 = () => {
+      const 앞답 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
+      const 되부름글 = typeof 되부름 === 'string' ? 되부름 : (되부름?.text ?? '');
+      if (!String(앞답).trim() && String(되부름글).trim()) finalOut = 되부름;
+    };
     if (!고른것.length) {                                            // 안 골랐다 — 수단이 소진된 것이다
+      되살리기();
       if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
       return false;
     }
     if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) {
+      되살리기();
       if (미달.unmetDeliverable) 멈춘이유 = '이미 한 것과 같은 실행만 남아 멈췄어요';
       return false;                                                  // 없는 진전을 짜내지 않는다
     }
