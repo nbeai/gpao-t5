@@ -177,7 +177,14 @@ export const 기준지문 = Object.freeze({
   // 배치도 함께 움직인다. **접두는 살아 있다** — 새 채널을 통제 목록 **끝**에 붙였다(불변식 A).
   // 처음엔 맨 앞에 뒀다가 기억 채널 넷이 밀려 접두가 죽었고(옛 배치와 6/10 만 겹쳤다),
   // 직접 재서 잡고 끝으로 옮겼다. 손 축만 재는 검사는 통제 채널 이동을 안 본다 — 이 칸이 잡는다.
-  순서: '09467637a99877f2',
+  // 2026-08-11 · **셸이 앞에 선다**(09467637 → cd04c6ae · 손 19개 그대로 · 스키마 그대로).
+  // `local.terminal` 선언을 `local.file` 앞으로 한 칸 옮겼다. 옮긴 근거는 라이브 실측이다:
+  // "엑셀 만들어줘"가 「생성 부품 0건」으로 끝났는데 셸에서는 zip+XML 로 그냥 만들어지고,
+  // 네이버는 이름으로 먼저 잡힌 브라우저 손으로 가서 주소를 지어냈다. 의미별 손이 앞에 있으면
+  // 모델은 그 이름을 먼저 잡고, 셸은 마지막 수단이 된다. **런타임 정렬이 아니다** —
+  // 선언 한 번 이동이고(불변식 A 는 "늘어난 손이 앞을 밀지 않는다"를 말한다) 손 집합·스키마
+  // 내용은 한 글자도 안 바뀌었다. 이 칸이 정확히 그 이동을 잡으라고 있는 칸이다.
+  순서: 'cd04c6ae22d55480',
 });
 
 /**
@@ -509,6 +516,12 @@ export const 허용파일 = [
   // 5단계 다리(PM 지시 2026-08-09) — 설치 산출물에서 동봉 화면 손이 실제로 뜨는지까지
   // 다리가 검증한다(①⑥은 설치본 기준으로만 성립 — 소스 손 차용 측정 금지).
   'scripts/verify-package.mjs',
+  // **파일 스킬**(2026-08-11) — 능력을 손(계약 객체)이 아니라 **문서 한 장**으로 늘리는 길.
+  // 오늘 진 자리 둘("네이버 주소를 지어냈다" · "엑셀 생성 부품 0건")은 손이 없어서가 아니라
+  // **하는 법이 어디에도 없어서**였다. `src/skills/*/SKILL.md` 와 사용자 집 `skills/` 를 읽어
+  // 프롬프트에는 **이름·설명·경로만** 싣는다(본문은 모델이 필요할 때 읽는다).
+  // 실행도 승인도 replay 도 안 탄다 — 읽을거리다. 기존 스킬 계약은 그대로 옆에 있다.
+  'src/surface/skill-docs.js',
 ];
 
 /** 계약·하네스·검사는 제품 행동이 아니므로 비교에서 제외한다(변경돼도 팔의 차이가 아니다). */
@@ -578,6 +591,7 @@ export function 변경파일(repo = process.cwd(), base = 기준선) {
  */
 export async function 현실지문({ sovereign }) {
   const 이전 = process.env.T5_MODEL_SOVEREIGN;
+  const 스킬끔 = process.env.GPAO_T5_NO_FILE_SKILLS;
   if (sovereign) process.env.T5_MODEL_SOVEREIGN = '1';
   else delete process.env.T5_MODEL_SOVEREIGN;
   try {
@@ -599,6 +613,11 @@ export async function 현실지문({ sovereign }) {
       // 자가 아니다 — 자동 탐색을 끄고 잰다.
       GPAO_T5_NO_AUTO_SCREEN_BIN: '1',
     };
+    // **파일 스킬도 같은 이유로 끈다**(2026-08-11). `src/skills/*/SKILL.md` 목록은 이름·설명과
+    // 함께 **절대 경로**를 프롬프트에 싣는데, 그 경로는 체크아웃마다 다르다(worktree·설치 자리).
+    // 사용자 집(`~/GPAO-T5/skills`)에 사용자가 놓은 장까지 더해지면 지문이 **이 컴퓨터에 뭐가
+    // 있느냐**를 재게 된다 — 화면 손 자동 탐색에서 이미 한 번 밟은 자리다(위 주석).
+    process.env.GPAO_T5_NO_FILE_SKILLS = '1';
     const { env: liveEnv } = liveDeps(env, {});
     const selfState = buildSelfState(liveEnv, {});
     const schemas = modelSchemasFor(selfState, undefined);
@@ -622,6 +641,8 @@ export async function 현실지문({ sovereign }) {
   } finally {
     if (이전 === undefined) delete process.env.T5_MODEL_SOVEREIGN;
     else process.env.T5_MODEL_SOVEREIGN = 이전;
+    if (스킬끔 === undefined) delete process.env.GPAO_T5_NO_FILE_SKILLS;
+    else process.env.GPAO_T5_NO_FILE_SKILLS = 스킬끔;
   }
 }
 
