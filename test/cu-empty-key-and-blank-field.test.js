@@ -86,6 +86,61 @@ test('그 칸에서 엔터를 치는 것은 여전히 카드다 — 넣기와 �
     '아는 상대인데도 묻는다 — 반복 마찰을 줄이는 자리가 죽었다(사거리 비대칭병 재발)');
 });
 
+// ── 결재 ① 나머지 절반 (§5-2 · 2026-08-12) — 검색 칸의 엔터는 확정이라 자동이다 ──
+//
+// 실측(2026-08-11): 네이버 검색 한 문장에 카드 2장 — 그중 하나가 검색창의 엔터였다.
+// 검색 확정에는 헌장 ③ 의 「상대」가 없다. 판정 재료는 탐침이 읽은 AX 역할 하나다.
+test('검색 칸의 엔터는 전송이 아니라 확정이다 — 자동으로 간다', async () => {
+  const kind = toolActionKind({
+    toolId: 'desktop.act',
+    args: {
+      action: 'press_key', 값: 'return',
+      눌러본사실: { 칸내용: '전세사기', 칸역할: 'AXSearchField', 본창: { app: 'Google Chrome' } },
+    },
+  });
+  assert.equal(kind, 'search', `검색 확정이 search 로 안 선다 — kind=${kind}`);
+  const { decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
+  assert.equal(decideAutoGrant({ kind }), true,
+    '**검색 확정에 카드가 뜬다** — 결재 ① 나머지 절반이 집행되지 않았다');
+});
+
+test('검색 아닌 칸의 엔터는 역할이 있어도 그대로 카드다 — 규율이 안 느슨해진다', async () => {
+  const { decideAutoGrant } = await import('../src/kernel/l2-plan/authority.js');
+  for (const 역할 of ['AXTextArea', 'AXTextField', 'AXComboBox', '', undefined]) {
+    const kind = toolActionKind({
+      toolId: 'desktop.act',
+      args: {
+        action: 'press_key', 값: 'return',
+        눌러본사실: { 칸내용: '안녕', ...(역할 !== undefined ? { 칸역할: 역할 } : {}), 본창: { app: 'K' } },
+      },
+    });
+    assert.equal(kind, 'field_input', `역할 ${역할 ?? '(없음)'} 에서 kind=${kind} — 검색 확정이 넓게 문다`);
+    assert.equal(decideAutoGrant({ kind }), false,
+      `**${역할 ?? '(없음)'} 칸의 엔터가 카드 없이 나간다** — 헌장 ③ 게이트가 죽었다`);
+  }
+});
+
+test('탐침이 검색 칸의 역할을 실어 온다 — 판정 재료는 신고가 아니라 기계 사실이다', async () => {
+  const 검색칸 = {
+    id: 's1:3', 토큰: 's1:3', 스냅샷: 's1', 번호: 3,
+    role: 'AXSearchField', label: '검색', value: '전세사기', 창: 9, pid: 77, isEnabled: true,
+  };
+  const 손 = makeDesktopActTool({
+    drivers: [{
+      id: 'f', status: () => ({ permissions: { accessibility: 'granted' } }),
+      observe: () => ({
+        frontmost: { name: 'Chrome' }, windows: [{ id: 9, pid: 77 }],
+        본창: { id: 9, app: 'Google Chrome', title: 'NAVER', pid: 77 }, elements: [검색칸],
+      }),
+      act: () => ({ ok: true }),
+    }],
+  });
+  const 눌러본사실 = await 손.probe({ action: 'press_key', app: 'Google Chrome', 값: 'return' });
+  assert.equal(눌러본사실?.칸내용, '전세사기');
+  assert.equal(눌러본사실?.칸역할, 'AXSearchField',
+    `**탐침이 역할을 버린다** — 검색 확정 판정이 설 재료가 없다: ${JSON.stringify(눌러본사실)}`);
+});
+
 test('글자를 넣는 칸이 아니면 그대로 미상이다 — 규율이 안 느슨해진다', async () => {
   const 손 = makeDesktopActTool({
     drivers: [{

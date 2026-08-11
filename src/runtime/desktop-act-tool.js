@@ -450,7 +450,10 @@ export function makeDesktopActTool(deps = {}) {
        const 글자칸들 = 요소전부.filter((e) => /^AX(TextField|TextArea|ComboBox|SearchField)$/i.test(String(e?.role ?? '')));
        const 값있는 = 글자칸들.filter((e) => typeof e?.value === 'string' && e.value.trim());
        const 칸내용 = 값있는.length === 1 ? 값있는[0].value : null;
-       return { 찾음: false, 본창, ...(칸내용 ? { 칸내용 } : {}) };
+       // **그 칸의 역할도 기계 사실이다**(결재 ① 나머지 절반 · 2026-08-12). 검색 칸(AXSearchField)의
+       // 엔터는 전송이 아니라 확정이고, 그 판정 재료는 문구·앱 이름이 아니라 이 역할 하나다.
+       // 내용이 안 서면 역할도 안 싣는다 — 실행될 칸을 모르는데 역할만 주면 그게 지어낸 사실이다.
+       return { 찾음: false, 본창, ...(칸내용 ? { 칸내용, 칸역할: String(값있는[0].role ?? '') } : {}) };
      }
      if (!Array.isArray(요소들)) return 밭(모름);
      // **탐침도 손과 같은 자로 찾는다**(계열 A). 손은 신분으로 찾는데 탐침만 이름으로 찾으면,

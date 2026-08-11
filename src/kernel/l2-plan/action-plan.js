@@ -151,6 +151,17 @@ export function toolActionKind({ toolId, args, selfState }) {
       // 키는 return/enter 만이다 — 다른 키는 그 칸의 내용을 실행하는 걸음이 아니다.
       const 엔터걸음 = a === 'press_key' && /^(return|enter)$/i.test(String(args?.값 ?? '').trim())
         && typeof args?.눌러본사실?.칸내용 === 'string' && args.눌러본사실.칸내용.trim() !== '';
+      // ── 결재 ① 의 나머지 절반 — **검색 칸의 엔터는 전송이 아니라 확정이다** (§5-2 · 2026-08-12) ──
+      //
+      // 검색창에 친 글자를 실행하는 엔터는 질의를 그 화면에 내는 걸음이지 상대에게 보내는
+      // 걸음이 아니다 — 종류의 사실은 `search` 다(헌장 ③ 의 「상대」가 없다). 판정 재료는
+      // 문구·앱 이름이 아니라 탐침이 읽은 **그 칸의 AX 역할 하나**다(AXSearchField —
+      // 앱별 패치가 아니라 기계 사실). 실측(2026-08-11): 네이버 검색 한 문장에 카드 2장이
+      // 떴고 그중 하나가 이 엔터였다 — 검색 확정에 뜨는 카드는 안전이 아니라 마찰이다.
+      // 역할이 안 읽히면 이 가지는 안 선다 → `field_input` 그대로(fail-closed). 채팅
+      // 입력칸(AXTextArea·AXTextField)은 여기 안 걸리고 헌장 ③ 게이트가 그대로 문다.
+      const 검색확정 = 엔터걸음
+        && /^AXSearchField$/i.test(String(args?.눌러본사실?.칸역할 ?? '').trim());
       // ── **결재 ① 집행 — 칸에 글자 넣기는 자동이다** (오너 승인 · 지시 2026-08-11) ──
       //
       // (가-2)가 `type` 을 통째로 `field_input`(기본 카드)으로 올린 것은 *"그 칸이 전송
@@ -179,8 +190,9 @@ export function toolActionKind({ toolId, args, selfState }) {
       kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
         : args?.기대?.바깥으로 === true ? 'send'
           : 짚은칸에넣기 ? 'organize'
-            : a === 'type' || 엔터걸음 ? 'field_input'
-              : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
+            : 검색확정 ? 'search'
+              : a === 'type' || 엔터걸음 ? 'field_input'
+                : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
