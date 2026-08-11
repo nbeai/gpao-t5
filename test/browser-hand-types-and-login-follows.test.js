@@ -27,7 +27,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as 브 from '../src/runtime/browser.js';
-import { makeBrowserActTool } from '../src/runtime/browser-tool.js';
+import { makeBrowserActTool, makeBrowserObserveTool } from '../src/runtime/browser-tool.js';
 import { demoDescriptors } from '../src/surface/demo-context.js';
 
 // **선빨강이 한 줄로 뭉치지 않게 한다.** 이름 가져오기(named import)로 받으면 아직 없는
@@ -248,4 +248,29 @@ test('빨강⑪ 같은 손을 두 번 불러도 크롬은 하나다(같은 포�
   await Promise.all([b.open('https://x.example'), b.snapshot(), b.snapshot()]);
   assert.equal(크롬.켠것.length, 1, `동시에 부르면 크롬이 ${크롬.켠것.length}개 뜬다`);
   await b.close();
+});
+
+// ── ⑥ 만든 것과 닿은 것은 다르다 ────────────────────────────────────────────
+// **라이브 2회차가 찾은 구멍**(2026-08-11): 손도 경계도 옳았는데 모델이 `ref:"search"` 라는
+// 없는 이름을 지어내 쳤고 손은 `gone` 으로 물러났다. `canType` 이 영수증에는 있는데
+// 모델이 읽는 압축본(`compactResult` 브라우저 갈래)은 `canOpen` 만 문장으로 푼다.
+// 짚을 이름이 안 가면 ref 규율은 「좌표를 안 쓴다」가 아니라 「아무것도 못 친다」가 된다.
+test('빨강⑫ 짚을 이름이 모델에게 닿는다 — 관찰 요약에 칠 수 있는 칸이 실린다', async () => {
+  const 글자칸 = [
+    { ref: 'e7', label: '검색어입력', 사실: 칸사실.검색 },
+    { ref: 'e8', label: '비밀번호', 사실: 칸사실.비밀번호 },
+    { ref: 'e9', label: '올릴 파일', 사실: 칸사실.파일 },
+  ];
+  const tool = makeBrowserObserveTool({
+    browser: { profileKind: () => 'isolated', async open() { return 화면({ 글자칸 }); } },
+  });
+  const r = await tool.handler({ action: 'open', url: 'https://x.example/s' });
+  assert.match(r.userSafeSummary, /ref=e7/,
+    `모델이 읽는 문장에 짚을 이름이 없다: ${r.userSafeSummary}`);
+  assert.match(r.userSafeSummary, /검색어입력/);
+  // 보안 칸·파일 칸은 **안 적는다** — 어차피 손이 물러나므로 적으면 헛걸음을 부른다.
+  assert.ok(!/ref=e8/.test(r.userSafeSummary), `보안 칸을 짚으라고 권하면 안 된다: ${r.userSafeSummary}`);
+  assert.ok(!/ref=e9/.test(r.userSafeSummary), `파일 칸을 짚으라고 권하면 안 된다: ${r.userSafeSummary}`);
+  // 영수증 쪽에는 **전부** 남는다(경계를 숨기는 것과 권하지 않는 것은 다르다).
+  assert.deepEqual(r.result.observation.canType.map((c) => c.kind), ['search', 'secure', 'file']);
 });

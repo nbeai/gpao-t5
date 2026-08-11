@@ -78,6 +78,30 @@ const STOP_REASON = {
   reached_requested: undefined,
 };
 
+/**
+ * **짚을 이름이 모델에게 닿는 자리.**
+ *
+ * 라이브 실측(2026-08-11 · 2회차): 모델이 `ref:"search"` 라는 **없는 이름**을 지어내 쳤고
+ * 손이 `gone` 으로 물러났다. 손도 경계도 옳았는데 **이름이 모델에게 안 갔다** —
+ * `compactResult` 의 브라우저 갈래가 `canOpen` 만 문장으로 풀고 `canType` 은 안 푼다.
+ * 그 자리(`task-category` 계열 파일)는 다른 단위가 잡고 있어 여기서 안 건드린다.
+ *
+ * 대신 **손이 자기 사실을 자기 문장에 싣는다.** `userSafeSummary` 는 어떤 경로로도 모델에게
+ * 그대로 간다(`summary`). 만든 것과 닿은 것은 다르다 — 닿는 자리에 놓는다.
+ * 보안 칸·파일 칸은 여기 안 적는다: 어차피 손이 물러나므로 적으면 헛걸음을 부른다.
+ */
+function 칠수있는칸말(facts) {
+  // 두 개까지만. 이 문장은 **사용자도 읽는다** — 목록을 쏟으면 사람 말이 아니게 된다.
+  // (모델용 날것과 사용자용 사람 말을 두 벌로 가르는 것은 다른 단위의 일이다 · 계획서 §6.)
+  const 쓸것 = (facts.canType ?? []).filter((f) => f.kind === 'search' || f.kind === 'text').slice(0, 2);
+  if (!쓸것.length) return '';
+  const 하나 = (f) => {
+    const 이름 = String(f.label ?? '').replace(/[.。]+$/, '').trim() || (f.kind === 'search' ? '검색창' : '글자칸');
+    return `${이름}${f.kind === 'search' ? '(검색창)' : ''}[ref=${f.ref}]`;
+  };
+  return ` 바로 글자를 넣을 수 있는 칸: ${쓸것.map(하나).join(' · ')}.`;
+}
+
 /** 화면 한 장 → 도구 결과(영수증 재료). observe·act 가 같은 형태로 남긴다. */
 function toReceipt(view, { action, acted, profile }) {
   const facts = observationFacts(view);
@@ -97,10 +121,10 @@ function toReceipt(view, { action, acted, profile }) {
       sourceUrl: facts.url, title: facts.title ?? facts.url,
       excerpt: text.slice(0, 500), confidence: 0.7, // 직접 본 화면 — 검색 요약보다 높다
     })],
-    userSafeSummary: facts.thin
+    userSafeSummary: (facts.thin
       // 열렸다는 것과 읽었다는 것은 다르다. 내용이 없으면 없다고 말한다(본 척 금지).
       ? `화면은 열렸는데 글이 거의 없어요(${facts.seen?.chars ?? 0}자): ${facts.title ?? facts.url}.`
-      : `화면으로 확인했어요: ${facts.title ?? facts.url}.`,
+      : `화면으로 확인했어요: ${facts.title ?? facts.url}.`) + 칠수있는칸말(facts),
     ...(facts.moreBelow
       ? { nextSafeAction: `${stopNote ? `${stopNote} ` : ''}화면 아래쪽이 남아 있어요 — 더 내리면 새로 불러오는 내용이 있을 수 있어요. 계속 볼까요?` }
       : (stopNote ? { nextSafeAction: stopNote } : {})),
