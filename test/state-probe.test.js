@@ -181,6 +181,40 @@ test('칸0 계측기: 정답을 계측기 본체에 적어 넣지 않는다 (하
   assert.equal(/개수:\s*\d+/.test(소스), false, '동사 수 기대치를 상수로 박지 않는다');
 });
 
+test('칸0 계측기: 체감 지표를 저장된 회차 기록에서 사후 집계한다 — 비율은 안 낸다', async () => {
+  const { stdout } = await 계측(['--json']);
+  const e = JSON.parse(stdout).experience;
+  assert.ok(e.recordFiles > 0, '집계한 회차 기록이 있어야 한다');
+  assert.ok(e.turnsScanned > 0, '집계한 턴이 있어야 한다');
+  // ① 승인 대기 · ④ 결과 없이 닫힌 턴은 건수와 **목록**을 낸다.
+  assert.ok(Number.isInteger(e.승인대기.count));
+  assert.ok(Array.isArray(e.승인대기.turns));
+  assert.ok(Number.isInteger(e.결과없이닫힌턴.count));
+  assert.ok(Array.isArray(e.결과없이닫힌턴.turns));
+  // 비율은 계측기가 내지 않는다 — 분모(과업/문답)는 사람 판정이다.
+  assert.equal(typeof e.비율, 'string');
+  for (const 칸 of ['승인대기', '결과없이닫힌턴']) {
+    assert.equal(Object.hasOwn(e[칸], 'rate'), false, `${칸}: 비율을 내면 안 된다`);
+    assert.equal(Object.hasOwn(e[칸], '비율'), false, `${칸}: 비율을 내면 안 된다`);
+  }
+  // 묶음별로도 낸다 — 합계만 내면 어느 시험의 수인지 알 수 없다.
+  assert.ok(e.byRecordSet.length > 0);
+  assert.ok(Array.isArray(e.skippedSets), '집계에서 빠진 묶음을 숨기지 않는다');
+});
+
+test('칸0 계측기: 못 잰 것은 0 이 아니라 「계측 불가 · 사유」로 낸다', async () => {
+  const { stdout } = await 계측(['--json']);
+  const e = JSON.parse(stdout).experience;
+  // ③ 거짓 건수 — 회차 기록에 손의 전·후 값이 없다. **0 으로 적으면 계측기가 거짓말을 시작한다.**
+  assert.equal(e.거짓건수.계측불가, true, '거짓 건수를 숫자로 적으면 안 된다');
+  assert.ok(e.거짓건수.사유?.length > 0, '계측 불가에는 사유가 붙는다');
+  assert.equal(Object.hasOwn(e.거짓건수, 'count'), false, '못 잰 것에 건수를 달지 않는다');
+  // ⑤ ask.user — 노출 여부는 재고, 사용 횟수는 기록에 칸이 없어 계측 불가다.
+  assert.equal(e.askUser.exposedToModel, true, 'ask.user 는 모델에게 노출된다');
+  assert.equal(e.askUser.usageCount.계측불가, true, '사용 횟수를 0 으로 적으면 안 된다');
+  assert.ok(e.askUser.usageCount.사유?.length > 0);
+});
+
 test('칸0 계측기: 사람이 읽는 표를 내고 종료 코드는 0 이다', async () => {
   const { stdout } = await 계측([]);
   assert.ok(stdout.includes('손 인벤토리'), '사람이 읽는 표에 손 인벤토리가 있어야 한다');
@@ -189,6 +223,8 @@ test('칸0 계측기: 사람이 읽는 표를 내고 종료 코드는 0 이다',
   assert.ok(stdout.includes('확정 계열'), '표에 확정 계열이 있어야 한다');
   assert.ok(stdout.includes('캐시 접두 안정성'), '표에 캐시 접두 안정성이 있어야 한다');
   assert.ok(stdout.includes('미측정(유료 필요)'), '표에 유료 필요 항목이 있어야 한다');
+  assert.ok(stdout.includes('체감 지표'), '표에 체감 지표가 있어야 한다');
+  assert.ok(stdout.includes('계측 불가'), '표가 못 잰 것을 「계측 불가」로 말해야 한다');
 });
 
 test('칸0 계측기: 채널 ⑦ 은 mail.send 를 「있음」으로 세지 않는다 (선언만 있고 손이 없다)', async () => {
@@ -200,4 +236,22 @@ test('칸0 계측기: 채널 ⑦ 은 mail.send 를 「있음」으로 세지 않
   const 채널 = 결과.organs.find((o) => o.key === 'channel');
   assert.ok(채널.missing.some((m) => m.includes('mail.send')),
     `선언만 있는 손을 「있음」으로 세면 안 된다 — 실측 ${JSON.stringify(채널.missing)}`);
+});
+
+test('칸0 계측기: 사람이 읽는 표가 JSON 과 같은 사실을 말한다 (칸 이름이 어긋나면 빨개진다)', async () => {
+  // 첫 판에서 표가 지워진 칸 이름(`handlerInjectable`)을 읽어 **모든 손을 손 없음**으로
+  // 그렸다 — JSON 은 맞았는데 사람이 보는 자리만 틀렸다. 계측기가 사람에게 거짓을
+  // 보여주면 계측기가 아니다. 두 출력이 같은 사실을 말하는지 여기서 문다.
+  const [{ stdout: 표 }, { stdout: 제이슨 }] = await Promise.all([계측([]), 계측(['--json'])]);
+  const 결과 = JSON.parse(제이슨);
+  const 손자리있는손 = 결과.hands.filter((h) => h.handlerSlotExists).length;
+  assert.ok(손자리있는손 > 0, 'JSON 기준으로 손 자리가 있는 손이 하나는 있다');
+  const 구간 = 표.split('\n## ').find((s) => s.startsWith('손 인벤토리')) ?? '';
+  const 줄들 = 구간.split('\n')
+    .filter((l) => l.startsWith('| ') && 결과.hands.some((h) => l.startsWith(`| ${h.id} `)));
+  assert.equal(줄들.length, 결과.hands.length, '표가 손 전부를 그린다');
+  const 마지막칸 = (l) => { const c = l.split('|'); return (c[c.length - 2] ?? '').trim(); };
+  const 표에서손자리 = 줄들.filter((l) => 마지막칸(l) === '○').length;
+  assert.equal(표에서손자리, 손자리있는손,
+    `표의 「손 자리」 칸이 JSON 과 어긋난다 — 표 ${표에서손자리} vs JSON ${손자리있는손}`);
 });

@@ -538,6 +538,159 @@ async function 계획서인용() {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. 체감 지표 — **이미 저장된 회차 기록에서 사후 집계만** 한다.
+//     새로 돌리지 않는다(유료 0 · 실기기 0). 원장에 상시로 찍는 일은 다른 칸이다.
+//
+// 규율 둘(PM 2026-08-11):
+//   · **비율을 내지 않는다.** "과업 턴인가 순수 문답인가"는 사람 판정이고, 계측기가
+//     흉내내는 순간 자[尺]가 오염된다. 건수와 목록만 낸다.
+//   · **못 잰 것을 0 으로 적지 않는다.** 값 대신 「계측 불가 · 사유」를 적는다 —
+//     아무것도 안 재 놓고 초록불이 켜져 있던 것이 우리가 당한 병이다.
+// ─────────────────────────────────────────────────────────────────────────────
+const 회차기록뿌리 = 'docs/03-verification/evidence';
+const 제안칸 = ['skillProposal', 'automationProposal', 'agentProposal', 'memorySuggestion',
+  'memoryCorrection', 'memoryWithdrawal', 'toolCandidate'];
+
+/** 회차 기록 파일 하나에서 T5 턴 배열을 꺼낸다. 모양이 아니면 null — 억지로 읽지 않는다. */
+function 턴배열(값) {
+  const 턴들 = 값?.턴들;
+  if (!Array.isArray(턴들) || !턴들.length) return null;
+  return 턴들.every((t) => t && typeof t === 'object' && typeof t.kind === 'string') ? 턴들 : null;
+}
+
+async function 체감지표({ recordsDir, exposedNames }) {
+  const 파일들 = (await 파일훑기(recordsDir)).filter((p) => p.endsWith('.json'));
+  const 과업 = [];
+  let askUser글자히트 = 0;
+  const 묶음이름 = (p) => (p.startsWith(`${recordsDir}/`) ? p.slice(recordsDir.length + 1).split('/')[0] : p);
+  const 본묶음 = new Set();
+  const 잡힌묶음 = new Set();
+  for (const 상대 of 파일들) {
+    본묶음.add(묶음이름(상대));
+    let 글;
+    try { 글 = await readFile(join(저장소, 상대), 'utf8'); } catch { continue; }
+    if (글.includes('ask.user')) askUser글자히트 += 1;
+    let 값;
+    try { 값 = JSON.parse(글); } catch { continue; }
+    const 턴들 = 턴배열(값);
+    if (턴들) { 과업.push({ file: 상대, turns: 턴들 }); 잡힌묶음.add(묶음이름(상대)); }
+  }
+  // **집계에서 빠진 묶음을 숨기지 않는다.** 빠진 이유는 "결과가 0" 이 아니라
+  // **T5 턴 모양(턴들[].kind)이 아니어서**다 — 다른 제품의 회차이거나 다른 하네스의 기록이다.
+  const skippedSets = [...본묶음].filter((s) => !잡힌묶음.has(s)).sort();
+
+  const 승인대기 = [];
+  const 결과없이닫힘 = [];
+  const 걸음들 = [];
+  let 원장없는턴 = 0;
+  let 걸음없는턴 = 0;
+  let 전체턴 = 0;
+
+  for (const { file, turns } of 과업) {
+    for (let i = 0; i < turns.length; i += 1) {
+      const t = turns[i];
+      전체턴 += 1;
+      if (t.kind === 'approval') 승인대기.push(`${file}#${i}`);
+
+      // ② 걸음 수 — 모델이 손을 이어 쓴 걸음(turnExchange). 없는 기록은 **안 센다.**
+      if (Array.isArray(t.turnExchange)) 걸음들.push(t.turnExchange.length);
+      else 걸음없는턴 += 1;
+
+      // ④ 「결과 없이 닫힌 턴」 — 문구를 안 읽는다. 아무 일도 안 일어났는지만 본다.
+      //    도구 호출 0 · 통제 제안 0 · 원장 영수증 0 · 승인 카드 아님.
+      const l = t.ledger;
+      if (!l || typeof l !== 'object') { 원장없는턴 += 1; continue; }
+      const 영수증 = (l.confirmed?.length ?? 0) + (l.unconfirmed?.length ?? 0) + (l.estimated?.length ?? 0);
+      const 걸음 = Array.isArray(t.turnExchange) ? t.turnExchange.length : 0;
+      const 제안 = 제안칸.some((k) => t[k]);
+      if (t.kind !== 'approval' && 영수증 === 0 && 걸음 === 0 && !제안) {
+        결과없이닫힘.push(`${file}#${i}`);
+      }
+    }
+  }
+
+  const 중앙값 = (xs) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+
+  // **묶음별로도 낸다.** 전체 합계는 회차 묶음이 섞인 값이라 어느 시험의 수인지 알 수 없다 —
+  // 감사가 특정 회차(예: 오늘 19세션)를 짚으려면 그 묶음의 수가 따로 있어야 한다.
+  const 묶음 = new Map();
+  for (const { file, turns } of 과업) {
+    const 이름 = file.startsWith(`${recordsDir}/`)
+      ? file.slice(recordsDir.length + 1).split('/')[0] : file;
+    const b = 묶음.get(이름) ?? { set: 이름, files: 0, turns: 0, 승인대기: 0, 결과없이닫힘: 0, 걸음: [] };
+    b.files += 1;
+    for (const t of turns) {
+      b.turns += 1;
+      if (t.kind === 'approval') b.승인대기 += 1;
+      if (Array.isArray(t.turnExchange)) b.걸음.push(t.turnExchange.length);
+      const l = t.ledger;
+      if (!l || typeof l !== 'object') continue;
+      const 영수증 = (l.confirmed?.length ?? 0) + (l.unconfirmed?.length ?? 0) + (l.estimated?.length ?? 0);
+      const 걸음 = Array.isArray(t.turnExchange) ? t.turnExchange.length : 0;
+      if (t.kind !== 'approval' && 영수증 === 0 && 걸음 === 0 && !제안칸.some((k) => t[k])) b.결과없이닫힘 += 1;
+    }
+    묶음.set(이름, b);
+  }
+  const byRecordSet = [...묶음.values()].map((b) => ({
+    set: b.set, files: b.files, turns: b.turns,
+    승인대기: b.승인대기, 결과없이닫힘: b.결과없이닫힘,
+    최대걸음: b.걸음.length ? Math.max(...b.걸음) : null,
+    중앙걸음: 중앙값(b.걸음),
+    걸음기록없음: b.turns - b.걸음.length,
+  })).sort((a, b) => a.set.localeCompare(b.set));
+
+  return {
+    byRecordSet,
+    skippedSets,
+    skippedNote: 'T5 턴 모양(턴들[].kind)이 아니라 집계에서 빠진 묶음이다 — 결과가 0 이라는 뜻이 아니다.'
+      + ' 다른 회차 묶음을 재려면 `--records <자리>` 로 그 자리를 준다.',
+    source: `${recordsDir} 아래 이미 저장된 회차 기록에서 **사후 집계** (새로 돌리지 않는다)`,
+    filesScanned: 파일들.length,
+    recordFiles: 과업.length,
+    turnsScanned: 전체턴,
+    // 비율은 내지 않는다 — 분모(과업 턴인가 문답인가)는 사람 판정이다.
+    비율: '내지 않는다 — 과업/문답 구분은 감사가 눈으로 한다(분모가 동결된 7과목 재시험이 비율의 자리)',
+
+    승인대기: { count: 승인대기.length, turns: 승인대기.slice(0, 40), truncated: 승인대기.length > 40 },
+
+    걸음수: 걸음들.length
+      ? { measurableTurns: 걸음들.length, max: Math.max(...걸음들), median: 중앙값(걸음들),
+        기록없는턴: 걸음없는턴 }
+      : { 계측불가: true,
+        사유: `회차 기록 ${전체턴}턴 중 turnExchange 를 담은 턴이 0 이다 — 걸음 수를 셀 재료가 없다`,
+        기록없는턴: 걸음없는턴 },
+
+    // ③ 거짓 건수 — **계측 불가.** 0 으로 적지 않는다.
+    거짓건수: { 계측불가: true,
+      사유: '두 재료가 회차 기록에 없다 — ① 손의 전·후 값(desktop.*·browser.* 의 전/후 대조)이'
+        + ' 저장돼 있지 않고, ② "완료를 주장했나"는 답변 본문 판정이라 본문 정규식으로 세면'
+        + ' 오늘 감사가 당한 오판(문구 수로 실제 성공 3건을 실패로 판정)을 그대로 반복한다.'
+        + ' 재는 자리는 원장에 전·후를 상시로 찍는 칸(성질 2 · 칸 3)이지 계측기가 아니다.' },
+
+    결과없이닫힌턴: { count: 결과없이닫힘.length, turns: 결과없이닫힘.slice(0, 40),
+      truncated: 결과없이닫힘.length > 40,
+      정의: '도구 호출 0 · 통제 제안 0 · 원장 영수증 0 · 승인 카드 아님 — 문구는 안 읽는다',
+      판정불가턴: 원장없는턴,
+      주의: 원장없는턴 ? `원장(ledger) 칸이 없는 턴 ${원장없는턴}개는 세지 않았다 — 0 으로 접지 않는다` : null },
+
+    askUser: {
+      exposedToModel: exposedNames.includes('ask.user'),
+      channelAt: 'src/kernel/l2-plan/model-control.js (MODEL_CONTROL_SCHEMAS)',
+      usageCount: { 계측불가: true,
+        사유: '통제 호출은 splitModelControlCalls 가 turnExchange 밖에서 갈라내므로'
+          + ' 회차 기록의 손 목록에 안 실린다 — 「몇 번 썼나」를 셀 칸이 기록에 없다' },
+      글자히트파일수: askUser글자히트,
+      글자히트주의: '위 수는 파일에 그 글자가 있었다는 것뿐이다 — 사용 횟수가 아니다(F-56)',
+    },
+  };
+}
+
 /** package.json 의 의존성 — 문서 생성 부품 부재의 두 번째 근거. */
 async function 의존성() {
   const pkg = JSON.parse(await readFile(join(저장소, 'package.json'), 'utf8'));
@@ -800,10 +953,10 @@ function 사람표(결과) {
   줄.push('계측기는 판정하지 않는다 — 기계 사실만 적는다. 종료 코드는 항상 0.');
 
   줄.push(표('손 인벤토리 (descriptor 의 action enum)',
-    ['손 id', '이름', '동사수', '동사', '기본손', '주입가능'],
+    ['손 id', '이름', '동사수', '동사', '기본손', '손 자리'],
     결과.hands.map((h) => [h.id, h.label ?? '', h.verbCount ?? '—',
       h.verbs ? h.verbs.join(' ') : 'enum 없음',
-      h.handlerInDefaultRoom ? '○' : '✕', h.handlerInjectable ? '○' : '✕'])));
+      h.handlerInDefaultRoom ? '○' : '✕', h.handlerSlotExists ? '○' : '✕'])));
 
   줄.push(표(`모델 노출 도구 — 서버 실기동 한 턴에서 캡처 (총 ${결과.modelExposedTools.count}개)`,
     ['#', '도구 이름'],
@@ -862,6 +1015,33 @@ function 사람표(결과) {
   줄.push(`  안정부 크기 최소~최대: ${결과.cachePrefix.systemStableCharsMin}~${결과.cachePrefix.systemStableCharsMax}자`);
   줄.push(`  도구 목록 지문 종류 수: ${결과.cachePrefix.toolListShaKinds}`);
   줄.push(`  출처: ${결과.cachePrefix.source}`);
+
+  const e = 결과.experience;
+  const 못잼 = (v) => (v?.계측불가 ? `계측 불가 — ${v.사유}` : null);
+  줄.push(`\n## 체감 지표 — 저장된 회차 기록 사후 집계`);
+  줄.push(`  집계 대상: ${e.recordFiles}개 회차 기록 · ${e.turnsScanned}턴 (훑은 파일 ${e.filesScanned})`);
+  줄.push(`  출처: ${e.source}`);
+  줄.push(`  비율: ${e.비율}`);
+  줄.push(`  ① 승인 대기로 끝난 턴: ${e.승인대기.count}건`
+    + (e.승인대기.count ? ` — ${e.승인대기.turns.slice(0, 6).join(', ')}${e.승인대기.truncated ? ' …' : ''}` : ''));
+  줄.push(`  ② 걸음 수(turnExchange): ${못잼(e.걸음수)
+    ?? `최대 ${e.걸음수.max} · 중앙값 ${e.걸음수.median} (셀 수 있는 턴 ${e.걸음수.measurableTurns} · 기록 없는 턴 ${e.걸음수.기록없는턴})`}`);
+  줄.push(`  ③ 거짓 건수: ${못잼(e.거짓건수)}`);
+  줄.push(`  ④ 결과 없이 닫힌 턴: ${e.결과없이닫힌턴.count}건 — ${e.결과없이닫힌턴.정의}`);
+  if (e.결과없이닫힌턴.count) {
+    줄.push(`      ${e.결과없이닫힌턴.turns.slice(0, 8).join(', ')}${e.결과없이닫힌턴.truncated ? ' …' : ''}`);
+  }
+  if (e.결과없이닫힌턴.주의) 줄.push(`      ${e.결과없이닫힌턴.주의}`);
+  줄.push(`  ⑤ ask.user — 모델 노출 ${e.askUser.exposedToModel ? '있음' : '없음'}`
+    + ` · 사용 횟수: ${못잼(e.askUser.usageCount)}`);
+  줄.push(`      글자 히트 파일 ${e.askUser.글자히트파일수}개 — ${e.askUser.글자히트주의}`);
+  줄.push(표('체감 지표 · 회차 묶음별 (합계는 여러 시험이 섞인 값이다 — 짚으려면 여기서 본다)',
+    ['회차 묶음', '기록', '턴', '승인대기', '결과없이닫힘', '최대걸음', '중앙걸음', '걸음기록없음'],
+    e.byRecordSet.map((b) => [b.set, String(b.files), String(b.turns), String(b.승인대기),
+      String(b.결과없이닫힘), b.최대걸음 === null ? '기록없음' : String(b.최대걸음),
+      b.중앙걸음 === null ? '기록없음' : String(b.중앙걸음), String(b.걸음기록없음)])));
+  줄.push(`  집계에서 빠진 묶음 ${e.skippedSets.length}개: ${e.skippedSets.join(', ') || '없음'}`);
+  줄.push(`    ${e.skippedNote}`);
 
   줄.push(`\n## 코드에서 파생한 그 밖의 사실`);
   줄.push(`  문서 읽기 형식: 확장자 ${결과.readFormats.extensions.length}개(${결과.readFormats.extensions.join(' ')})`
@@ -944,6 +1124,11 @@ async function main() {
     await rm(방, { recursive: true, force: true });
   }
 
+  // 체감 지표는 **저장된 회차 기록**을 읽는다 — `--records <자리>` 로 다른 회차 묶음을 줄 수 있다.
+  const 회차인자 = process.argv.indexOf('--records');
+  const recordsDir = 회차인자 > 0 ? process.argv[회차인자 + 1] : 회차기록뿌리;
+  const experience = await 체감지표({ recordsDir, exposedNames: modelExposedTools.names });
+
   const organs = 기관결손({ hands, channels, absence });
   const 결과 = {
     probe: 'state-probe',
@@ -956,6 +1141,7 @@ async function main() {
     absence,
     settlementLineage: settlement,
     cachePrefix,
+    experience,
     readFormats,
     browserCdp,
     windowTable,
