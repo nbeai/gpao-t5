@@ -9,11 +9,14 @@
 //
 // **코드 프로젝트만 찾는 도구가 아니다.** T5 사용자의 작업 대상은 정산 엑셀·계약서 pdf·
 // 원고 폴더·디자인 시안일 때가 더 많다. 두 갈래 표식을 같은 무게로 본다.
+import { execFile } from 'node:child_process';
 import { readdir, realpath, stat } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { join, basename, dirname, sep } from 'node:path';
 import { homedir } from 'node:os';
+import { promisify } from 'node:util';
 import { protectionFor } from './local-protection.js';
 
+const exec = promisify(execFile);
 const MAX_CANDIDATES = 5;
 const MAX_DIRS = 4000;        // 한 번에 들여다볼 폴더 수(넘으면 멈추고 그 사실을 남긴다)
 const MAX_ENTRIES_PER_DIR = 400;
@@ -167,16 +170,26 @@ const 부른종류 = (말) => 종류말.find(([re]) => re.test(말))?.[1];
  * **부르는 말 → 확장자**만 잇는다. 판정(무엇이 참인가)에 쓰는 문구 그물이 아니라
  * **질의 어휘**다 — 사용자가 그 형식을 뭐라고 부르는지는 우리가 정할 수 없는 사실이다.
  */
+/**
+ * **확장자 목록이 정본이고 자는 거기서 나온다**(2026-08-12).
+ *
+ * 예전엔 칸이 정규식 하나였다. 아래 「세는 자」가 OS 색인에 물어보려면 같은 형식의
+ * **낱개 확장자**가 필요한데, 정규식(`/\.(xlsx?|xlsm|xlsb)$/`)에서 그걸 되꺼낼 수는 없다.
+ * 그렇다고 색인용 표를 따로 두면 **두 벌 목록**이 되어 언젠가 벌어진다(§4-6).
+ * 그래서 목록을 정본으로 두고 정규식을 거기서 만든다 — 자는 하나뿐이다.
+ */
 const 형식말 = [
-  [/엑셀|excel|스프레드시트|xlsx?|xlsm/i, /\.(xlsx?|xlsm|xlsb)$/i],
-  [/pdf|피디에프/i, /\.pdf$/i],
-  [/워드|word|docx?/i, /\.docx?$/i],
-  [/한글\s*파일|hwpx?|아래아/i, /\.hwpx?$/i],
-  [/파워포인트|ppt|프레젠테이션|슬라이드/i, /\.pptx?$/i],
-  [/csv|씨에스브이/i, /\.csv$/i],
-  [/텍스트\s*파일|txt|메모장/i, /\.(txt|rtf)$/i],
-  [/마크다운|markdown|\.md\b/i, /\.md$/i],
+  [/엑셀|excel|스프레드시트|xlsx?|xlsm/i, ['xlsx', 'xls', 'xlsm', 'xlsb']],
+  [/pdf|피디에프/i, ['pdf']],
+  [/워드|word|docx?/i, ['docx', 'doc']],
+  [/한글\s*파일|hwpx?|아래아/i, ['hwpx', 'hwp']],
+  [/파워포인트|ppt|프레젠테이션|슬라이드/i, ['pptx', 'ppt']],
+  [/csv|씨에스브이/i, ['csv']],
+  [/텍스트\s*파일|txt|메모장/i, ['txt', 'rtf']],
+  [/마크다운|markdown|\.md\b/i, ['md']],
 ];
+/** 확장자 목록 → 이름을 재는 자. 예전 정규식과 정확히 같은 것을 만든다. */
+const 확장자자 = (확장자들) => new RegExp(`\\.(${확장자들.join('|')})$`, 'i');
 /**
  * 부른 말이 형식을 가리키면 그 확장자 자. 아니면 null — 없는 자를 지어내지 않는다.
  *
@@ -188,8 +201,56 @@ const 형식말 = [
 const 부른형식 = (말) => {
   const 원문 = String(말 ?? '');
   if (/[^\s,/\\]+\.[a-z0-9]{1,8}(?![a-z0-9])/i.test(원문)) return null;   // 이름에 딸린 확장자
-  return 형식말.find(([re]) => re.test(원문))?.[1] ?? null;
+  const 확장자들 = 형식말.find(([re]) => re.test(원문))?.[1];
+  return 확장자들 ? { 자: 확장자자(확장자들), 확장자: 확장자들 } : null;
 };
+
+// ── **형식 질의는 「어느 것?」이 아니라 「있어? 몇 개? 어디?」다** (라이브 6회차 · 2026-08-12) ──
+//
+// `MAX_CANDIDATES = 5` 는 **고르기 자**다. "정산 자료 봐줘"에는 맞다 — 다섯을 보여 주면
+// 고르는 건 모델이 한다(§24). 그런데 사용자가 **형식**으로 부를 때 묻는 것은 고르기가 아니다:
+//   ⑤ "문서 폴더에 텍스트 파일" → 5칸을 다 쓴 목록을 「이렇게 있어요」로 냈다(빠뜨렸다).
+//   ⑥ "내 컴퓨터에 텍스트 파일" → 5칸이 Downloads 로 차자 *"**전부** 다운로드 안에"* 라고 답했다.
+//   ④ "내 컴퓨터에 PDF"        → 손이 못 세니 모델이 캡슐로 직접 훑다 예산에서 죽었다.
+// 셋은 결함 셋이 아니라 **하나**다 — 세기 질문에 고르기 자를 댔다.
+//
+// **새 손도 새 갈래도 만들지 않는다.** 형식 갈래(`부른형식`)는 이미 서 있다. 그 갈래가
+// 쥔 자만 바꾼다.
+
+/** 걸음이 못 들어가는 자리인가. 위 `SKIP` 과 **같은 목록**을 경로 조각에 적용한다(두 벌 금지). */
+const 건너뛴자리 = (path, from) =>
+  String(path).slice(String(from).length).split(sep).some((칸) => SKIP.has(칸));
+
+/**
+ * **OS 색인에 한 번 물어본다** — §14 「더한다」에 등재된 항목이다:
+ *   `design/T5-STATE-MAP-ko.md:517` — *"OS 색인 활용 | mdfind 사용 0(613줄 자체 구현) |
+ *   비교군은 OS 도구를 그대로 | 더한다"*
+ * 클로드코드(나)는 "내 컴퓨터에 PDF 있어?"에 디렉터리를 재귀로 걷지 않는다. 색인을 한 번
+ * 부르고 전수를 센다. 걸음은 `depth`(기본 3)에 갇혀 있어서 ⑥의 「전부」가 나왔다.
+ *
+ * **자 고르기는 실측으로 정했다**(실물 홈 `~/Downloads` 실제 `.pdf` = 87):
+ *   `kMDItemFSName == '*.pdf'c`             →  14  ← **점이 토크나이저를 깬다. 쓰면 안 된다**
+ *                                                  (이름에 빈칸이 있는 파일이 통째로 빠진다)
+ *   `mdfind -name '.pdf'`                   →  85  ← 2개 놓침
+ *   `kMDItemContentType == 'com.adobe.pdf'` →  87  = 정확하나 **UTI 표**를 새로 들여야 한다
+ *   `kMDItemFSName == '*pdf'c`              →  87  = 정확, **표가 필요 없다** ← 이걸 쓴다
+ *
+ * 점을 뺀 꼴은 상위집합이라 `…/skills/xlsx` 같은 **폴더**도 걸린다. 그건 위 `확장자자`
+ * 로 거른다 — **색인은 자가 아니라 닿는 범위**다. 무엇이 그 형식인지는 우리가 판정한다.
+ *
+ * 바깥 프로세스 규율은 `document-intake.js:36-44` 선례 그대로다(절대 경로 · `timeout` ·
+ * `maxBuffer`). 매달리면 턴이 죽으므로 **어떤 실패든 `null`** 이고, 그러면 걸음으로 되돌아간다.
+ * macOS 가 아니면 `ENOENT` 로 여기서 끝난다 — 그것도 `null` 이다.
+ */
+const 색인시간제한 = 4_000;
+const 색인최대바이트 = 4_000_000;
+async function 색인에물어보기(from, 확장자들) {
+  const 질의 = 확장자들.map((e) => `kMDItemFSName == '*${e}'c`).join(' || ');
+  const { stdout } = await exec('/usr/bin/mdfind', ['-onlyin', from, 질의], {
+    encoding: 'utf8', timeout: 색인시간제한, maxBuffer: 색인최대바이트,
+  });
+  return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+}
 
 /** 왜 이게 후보인지 사람 말로. 근거 없는 후보는 사용자가 고를 수 없다. */
 function 근거(성, 이름맞음, 최근일, 요청에서부름 = false, 기간) {
@@ -544,7 +605,7 @@ export function makeLocalLocateTool(deps = {}) {
           const 맞음 = e.isDirectory() ? null : 이름맞음종류(e.name, 말, 낱말들);
           // **형식을 부른 경우 이름이 안 맞아도 그 형식이면 후보다.** 「엑셀 파일 찾아줘」의
           // 대상은 이름이 아니라 확장자다 — 이름만 보면 영영 0이 나온다(위 `형식말` 주석).
-          const 형식맞음 = !e.isDirectory() && 찾는형식 ? 찾는형식.test(e.name) : false;
+          const 형식맞음 = !e.isDirectory() && 찾는형식 ? 찾는형식.자.test(e.name) : false;
           if (e.isDirectory() || e.name.startsWith('.') || (!맞음 && !형식맞음)) continue;
           const full = join(dir, e.name);
           // 비밀 이름 파일(.env·토큰·키)은 후보로도 안 올린다 — 보여주면 그리로 가게 된다.
@@ -576,6 +637,74 @@ export function makeLocalLocateTool(deps = {}) {
           // 보호 영역은 후보로도 올리지 않는다 — 열어 볼 자리가 아니다.
           if (protectionFor(full)) { 안본자리.push(full); continue; }
           대기.push({ dir: full, d: d + 1 });
+        }
+      }
+
+      // ── **세기**(형식 질의일 때만) ──────────────────────────────────────────
+      // 걸음은 이미 **전부** 세어 놓았다 — `후보` 에 다 들어 있고 아래 `slice(0,5)` 가
+      // 자를 뿐이다. 이 파일이 두 번 쓴 그 말과 같은 자리다: **아는 것을 안 주고 있었다.**
+      let 세기;
+      if (찾는형식) {
+        // **같은 파일을 같다고 읽는다.** 걸음(`readdir`)은 디스크가 적힌 대로 NFD 를 주고
+        // 색인(`mdfind`)은 NFC 를 준다 — `Set` 은 그 둘을 **다른 파일로 센다.**
+        // 실물 홈에서 잡았다(2026-08-12): `엑셀 파일` → *"모두 2개 — …/2026-08 정산(1개) ·
+        // …/2026-08 정산(1개)"*, 실제로는 하나다. `pdf` 는 170 이 나왔는데 사용자 자리
+        // 실측은 133 이었고, 「색인이 못 봤다」던 37개가 통째로 **같은 파일의 다른 표기**였다.
+        // 없는 파일을 세고, 없는 자리를 만들고, 색인을 모함한다 — 셋 다 한 원인이다.
+        // 이 파일 286행이 볼륨 이름에 대해 같은 매듭을 이미 풀었다. 세는 자에서 세 번째 얼굴이다.
+        const 같은키 = (p) => String(p).normalize('NFC');
+        const 걸음집합 = new Set(후보
+          .filter((c) => c.kind === 'file' && 찾는형식.자.test(basename(c.path)))
+          .map((c) => 같은키(c.path)));
+
+        // 색인은 **닿는 범위**를 넓힐 뿐 판정하지 않는다. 우리 자로 거르고, 보호구역과
+        // 걸음이 안 들어가는 자리(`SKIP`)는 색인이 알아도 내지 않는다 — 자가 두 벌이면 안 된다.
+        let 색인원본 = null;
+        try { 색인원본 = await (deps.mdfind ?? 색인에물어보기)(from, 찾는형식.확장자); }
+        catch { 색인원본 = null; }          // 매달리지 않는다 — 걸음으로 되돌아간다
+        let 뺀시스템자리 = 0;
+        const 색인집합 = new Set();
+        for (const p of 색인원본 ?? []) {
+          if (!찾는형식.자.test(basename(p))) continue;      // 폴더 `…/skills/xlsx` 등
+          if (protectionFor(p)) continue;                    // 세기에서도 안 샌다
+          if (건너뛴자리(p, from)) { 뺀시스템자리 += 1; continue; }
+          색인집합.add(같은키(p));
+        }
+        // **색인이 0을 냈다고 파일이 없는 것은 아니다.** 비색인 볼륨·외장·방금 만든 파일은
+        // 색인이 조용히 0을 낸다 — 그걸 사실로 받으면 그게 ⑥의 거짓 완결이다.
+        // 걸음이 본 것이 있는데 색인이 하나도 못 냈으면 **색인이 이 자리를 못 보는 것**이다.
+        const 색인씀 = 색인집합.size > 0;
+        const 전부 = 색인씀 ? new Set([...색인집합, ...걸음집합]) : 걸음집합;
+        // 색인이 못 본 것 = 걸음만 아는 것. 있으면 그 사실이 답에 남는다(반대시험 ④).
+        const 색인놓침 = 색인씀 ? [...걸음집합].filter((p) => !색인집합.has(p)).length : 0;
+
+        // 자리별 분포. ⑥의 *"전부 다운로드 안에"* 는 이 칸이 비어서 나온 말이다.
+        const 자리별 = new Map();
+        for (const p of 전부) 자리별.set(dirname(p), (자리별.get(dirname(p)) ?? 0) + 1);
+
+        세기 = {
+          formatTotal: 전부.size,
+          formatByPlace: [...자리별].map(([path, count]) => ({ path, count }))
+            .sort((a, b) => b.count - a.count).slice(0, 12),
+          formatPlaceCount: 자리별.size,
+          countedBy: 색인씀 ? 'index+walk' : 'walk',
+          ...(색인놓침 ? { indexMissed: 색인놓침 } : {}),
+          ...(뺀시스템자리 ? { excludedSystemPlaces: 뺀시스템자리 } : {}),
+        };
+
+        // 색인만 아는 파일(걸음의 `depth` 밖)도 고를 수 있어야 한다 — 세어 놓고 어디인지
+        // 못 말하면 반쪽이다. 다섯 칸을 채울 만큼만 `stat` 한다(수백 개를 다 열지 않는다).
+        for (const p of 색인집합) {
+          if (후보.length >= MAX_CANDIDATES * 2 || 걸음집합.has(같은키(p))) continue;
+          let 최근일; let mtimeMs;
+          try { mtimeMs = (await stat(p)).mtimeMs; 최근일 = Math.floor((지금 - mtimeMs) / 86_400_000); }
+          catch { continue; }              // 색인에만 남은 유령 항목은 후보가 아니다
+          후보.push({
+            path: p, kind: 'file', kindLabel: '파일',
+            why: ['부르신 형식의 파일이에요', 시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
+            confidence: 'medium', 형식일치: true, 이름맞음: null, modifiedDaysAgo: 최근일,
+            ...(mtimeMs ? { modifiedAt: new Date(mtimeMs).toISOString() } : {}),
+          });
         }
       }
 
@@ -628,9 +757,35 @@ export function makeLocalLocateTool(deps = {}) {
           + ` — 거기서 ${못본총}개는 못 봤어요(더 좁혀 주시면 그 안을 볼게요).`
         : '';
 
+      // **세었으면 세었다고 말한다**(형식 질의 전용). 비교군 둘 다 「자르되 잘랐다고 말하고
+      // 다음 길을 준다」가 축이다 — 오픈클로 `find`:
+      //   *"1000 results limit reached. Use limit=2000 for more, or refine pattern"*
+      //   (`openclaw/dist/sessions-DIwWArcp.js:6349`)
+      // 헤르메스 `search_files`:
+      //   *"[Hint: Results truncated. Use offset=50 to see more, or narrow with a more
+      //   specific pattern or file_glob.]"* (`hermes-agent/tools/file_tools.py:2140`)
+      // 우리는 **자르지 않고 센다**(그게 이 회차에서 바꾼 자다). 그래도 같은 의무는 남는다 —
+      // 어느 자로 쟀는지, 무엇을 못 봤는지, 무엇을 뺐는지.
+      const 세기말 = (() => {
+        if (!세기?.formatTotal) return '';
+        const 앞 = 세기.formatByPlace.slice(0, 5)
+          .map((p) => `${p.path}(${p.count}개)`).join(' · ');
+        const 나머지 = 세기.formatPlaceCount > 5 ? ` 외 ${세기.formatPlaceCount - 5}곳` : '';
+        const 잰자 = 세기.countedBy === 'index+walk'
+          ? 'OS 색인으로 셌어요' : `폴더를 직접 훑어 셌어요(${depth}단계까지)`;
+        return `"${말}"은 모두 ${세기.formatTotal}개예요 — ${앞}${나머지}. (${잰자}`
+          + (세기.indexMissed ? `, 색인이 못 본 ${세기.indexMissed}개는 직접 훑어 채웠어요` : '')
+          + (세기.countedBy === 'walk'
+            ? ' — 색인을 못 써서 그 아래는 못 봤을 수 있어요' : '')
+          + (세기.excludedSystemPlaces
+            ? `, 앱이 쓰는 자리(Library 등) ${세기.excludedSystemPlaces}개는 뺐어요` : '')
+          + ')';
+      })();
+
       return {
         result: {
           candidates: 고른것,
+          ...(세기 ?? {}),
           // 어느 이름을 어느 자리로 읽었는지 함께 남긴다 — 나중에 "왜 거기를 봤나"를 따질 수 있어야 한다.
           searched: { from, ...(고른자리.name ? { fromName: 고른자리.name } : {}), depth, folders: 본폴더 },
           ...(후보.length > 고른것.length ? { moreCandidates: 후보.length - 고른것.length } : {}),
@@ -648,7 +803,9 @@ export function makeLocalLocateTool(deps = {}) {
             ? { truncatedFolders: 잘린폴더.slice(0, 20), unseenEntries: 못본총, entryLimitPerFolder: MAX_ENTRIES_PER_DIR }
             : {}),
         },
-        userSafeSummary: (고른것.length === 0
+        // **세었으면 세기가 답이다.** 「어느 것?」 문장들은 고르기 갈래의 것이고, 형식 질의에
+        // 그걸 내면 ⑤처럼 다섯 개를 「이렇게 있어요」로 내밀게 된다.
+        userSafeSummary: (세기말 ? 세기말 : 고른것.length === 0
           // **얼마나 훑었는지를 함께 말한다.** `본폴더` 는 이미 세고 있었는데 사용자면 문장에만
           // 안 실렸다 — 사실을 갖고 있으면서 침묵한 것이다.
           //
