@@ -15,10 +15,18 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
-import { extractDocument } from './document-intake.js';
+import { extractDocument, documentFormat } from './document-intake.js';
 import { identifyWorksetMembers } from '../kernel/l1-intent/source-coverage.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
+// **문서 형식(pdf·docx·xlsx·hwp…)의 상한은 따로 둔다** (F-82 · 2026-08-12).
+// 문서는 원시 바이트가 프롬프트에 실리지 않는다 — 본문 추출문이 실리고, 그 길이는
+// 아래 문(창 예산)과 큰 결과 흘리기(tool-runner)가 재단한다. 그런데 원시 크기 상한이
+// 추출보다 먼저 서 있어서 2.1MB 짜리 `펜션:리조트.pdf` 를 "너무 커서 못 읽어요"로
+// 거부했다(오너 라이브 실측 — 모델은 그 접힌 실패를 "권한 차단"으로 지어내 사용자에게
+// 파일을 직접 열어 달라고 했다). 추출은 별도 프로세스(PDFKit·osascript)라 메모리 위험이
+// 다르다 — 상한은 유지하되 문서답게 둔다.
+const MAX_DOC_BYTES = 50_000_000;
 const VERSION_PREVIEW_FILES = 6;
 const VERSION_PREVIEW_CHARS = 1200;
 export const WORKSET_LIST_LIMIT = 64;
@@ -705,7 +713,8 @@ export function makeLocalFileTool(deps = {}) {
 
         if (action === 'read') {
           const info = await stat(abs);
-          if (info.size > MAX_READ_BYTES) {
+          // 문서 형식이면 문서 상한(MAX_DOC_BYTES)을 쓴다 — 위 상수 주석(F-82)이 이유다.
+          if (info.size > (documentFormat(abs) ? MAX_DOC_BYTES : MAX_READ_BYTES)) {
             return fail('파일이 너무 커서 통째로 읽지 못했어요.', '필요한 부분을 알려주시면 그 부분만 볼게요.');
           }
           const bytes = await readFile(abs);

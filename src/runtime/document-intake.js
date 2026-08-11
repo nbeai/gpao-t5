@@ -142,7 +142,12 @@ async function extractPdf(path, bytes) {
     'const doc = $.PDFDocument.alloc.initWithURL(url);',
     "if (!doc) throw new Error('pdf_open_failed');",
     "const text = doc.string ? ObjC.unwrap(doc.string) : '';",
-    'console.log(text);',
+    // **JXA 의 console.log 는 stderr 로 나간다** (F-82 · 실측 2026-08-12: 같은 PDF 가
+    // stdout 0자 · stderr 23,512자). command() 는 stdout 만 받으므로 추출문 전체가
+    // 조용히 버려졌고, 압축 스트림 PDF(실세계 대부분)는 아래 비압축 폴백도 못 읽어
+    // "본문을 안전하게 꺼내지 못했어요"가 됐다 — 표준출력 핸들에 직접 쓴다.
+    'const out = $.NSFileHandle.fileHandleWithStandardOutput;',
+    'out.writeData($(text).dataUsingEncoding($.NSUTF8StringEncoding));',
   ].join('\n');
   try {
     const extracted = (await command('/usr/bin/osascript', ['-l', 'JavaScript', '-e', script, '--', path])).trim();
