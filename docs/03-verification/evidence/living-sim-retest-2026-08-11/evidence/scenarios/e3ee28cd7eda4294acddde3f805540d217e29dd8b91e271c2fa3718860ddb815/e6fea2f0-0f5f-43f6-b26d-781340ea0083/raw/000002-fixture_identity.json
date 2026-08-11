@@ -1,0 +1,65 @@
+{
+  "type": "fixture_identity",
+  "files": [],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘.",
+      "rendered": "매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "실제로 등록하기 전에 언제 무슨 일이 생기는지 먼저 보여줘.",
+      "rendered": "실제로 등록하기 전에 언제 무슨 일이 생기는지 먼저 보여줘."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "등록됐으면 다음 실행이 언제인지 확인해줘.",
+      "rendered": "등록됐으면 다음 실행이 언제인지 확인해줘."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "user_text",
+      "frozen": "월요일 말고 화요일 오전 10시로 바꿀게.",
+      "rendered": "월요일 말고 화요일 오전 10시로 바꿀게."
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "user_text",
+      "frozen": "이번 주만 잠깐 멈춰줘.",
+      "rendered": "이번 주만 잠깐 멈춰줘."
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "아니 다시 켜자. 다른 자동화는 건드리지 마.",
+      "rendered": "아니 다시 켜자. 다른 자동화는 건드리지 마."
+    },
+    {
+      "entryIndex": 8,
+      "inputKind": "user_text",
+      "frozen": "지금 최종 요일과 시간, 켜짐 상태, 다음 실행을 쉽게 말해줘.",
+      "rendered": "지금 최종 요일과 시간, 켜짐 상태, 다음 실행을 쉽게 말해줘."
+    }
+  ]
+}

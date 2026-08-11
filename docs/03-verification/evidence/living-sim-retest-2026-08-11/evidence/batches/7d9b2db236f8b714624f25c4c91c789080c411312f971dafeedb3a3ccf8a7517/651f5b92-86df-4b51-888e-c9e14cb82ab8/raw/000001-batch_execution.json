@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "type": "batch_execution",
+  "runId": "living-sim-retest-20260811-02",
+  "historyRunId": "living-sim-batch::living-sim-retest-20260811-02",
+  "attemptId": "651f5b92-86df-4b51-888e-c9e14cb82ab8",
+  "source": {
+    "kind": "source",
+    "gitSha": "51fc38ff33fc55e5eeac9b79eaaa279aeac86e7e",
+    "dirty": false,
+    "worktreeDigest": "bcba2f8b28d7552ce65ef19b3a4946ce1895957cf6586f12b3ef0e4d87235640",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "scenarioFileSha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0",
+  "scenarioIds": [
+    "L1-settlement-files",
+    "L2-customer-policy",
+    "L3-policy-research",
+    "L4-content-document",
+    "L5-admin-preparation",
+    "L6-schedule-automation",
+    "L7-pc-mixed-work"
+  ],
+  "qualification": {
+    "manifestPath": "/tmp/t5-retest-0811/qualification-evidence/living-sim-retest-qualification-20260811-02-32516ee5-4d54-4f47-b89a-55c3bfc0c20e/manifest.json",
+    "historyDir": "/tmp/t5-retest-0811/qualification-history",
+    "sha256": "0802076daf294c08c021b802113e2eb07a82e73c2d485155f4c0369150c7d2dd",
+    "runId": "living-sim-retest-qualification-20260811-02",
+    "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e"
+  },
+  "execution": {
+    "separateProcessPerScenario": true,
+    "parallel": false,
+    "resultBasedSelection": false
+  },
+  "startedAt": "2026-08-11T00:41:21.654Z"
+}

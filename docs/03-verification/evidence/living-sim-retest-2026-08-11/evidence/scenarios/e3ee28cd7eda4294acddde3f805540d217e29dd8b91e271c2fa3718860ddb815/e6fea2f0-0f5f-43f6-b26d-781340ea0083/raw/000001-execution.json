@@ -1,0 +1,32 @@
+{
+  "type": "execution",
+  "batchRunId": "living-sim-retest-20260811-02",
+  "runId": "living-sim-retest-20260811-02::L6-schedule-automation",
+  "attemptId": "e6fea2f0-0f5f-43f6-b26d-781340ea0083",
+  "scenarioId": "L6-schedule-automation",
+  "source": {
+    "kind": "source",
+    "gitSha": "51fc38ff33fc55e5eeac9b79eaaa279aeac86e7e",
+    "dirty": false,
+    "worktreeDigest": "bcba2f8b28d7552ce65ef19b3a4946ce1895957cf6586f12b3ef0e4d87235640",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "scenarioFileSha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0",
+  "scenarioDigest": "105296d9e7e8148dd0ab9423177f7e655177f01b21701fe763ff006f82e9ec63",
+  "qualification": {
+    "manifestPath": "/tmp/t5-retest-0811/qualification-evidence/living-sim-retest-qualification-20260811-02-32516ee5-4d54-4f47-b89a-55c3bfc0c20e/manifest.json",
+    "historyDir": "/tmp/t5-retest-0811/qualification-history",
+    "sha256": "0802076daf294c08c021b802113e2eb07a82e73c2d485155f4c0369150c7d2dd",
+    "runId": "living-sim-retest-qualification-20260811-02",
+    "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e"
+  },
+  "credentialIdentity": {
+    "source": "saved-model-connection",
+    "provider": "openai",
+    "configuredModelId": "gpt-5.1",
+    "baseUrl": "https://api.openai.com/v1",
+    "baseOrigin": "https://api.openai.com"
+  },
+  "executionKind": "headless_isolated",
+  "startedAt": "2026-08-11T00:49:34.327Z"
+}

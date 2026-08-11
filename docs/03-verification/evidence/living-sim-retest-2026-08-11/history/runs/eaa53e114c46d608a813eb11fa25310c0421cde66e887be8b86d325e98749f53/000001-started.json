@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-batch::living-sim-retest-20260811-02",
+  "attemptId": "651f5b92-86df-4b51-888e-c9e14cb82ab8",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/tmp/t5-retest-0811/evidence",
+  "recordedAt": "2026-08-11T00:41:21.650Z"
+}

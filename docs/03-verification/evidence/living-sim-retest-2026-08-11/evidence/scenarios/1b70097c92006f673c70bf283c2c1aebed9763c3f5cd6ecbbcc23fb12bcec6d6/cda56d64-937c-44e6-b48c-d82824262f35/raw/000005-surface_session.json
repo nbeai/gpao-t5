@@ -1,0 +1,9 @@
+{
+  "type": "surface_session",
+  "endpoint": "/sessions",
+  "sessionId": "dfdee5af-33c0-48b9-abd6-bcc995fdc42e",
+  "response": {
+    "id": "dfdee5af-33c0-48b9-abd6-bcc995fdc42e",
+    "title": "새 대화"
+  }
+}

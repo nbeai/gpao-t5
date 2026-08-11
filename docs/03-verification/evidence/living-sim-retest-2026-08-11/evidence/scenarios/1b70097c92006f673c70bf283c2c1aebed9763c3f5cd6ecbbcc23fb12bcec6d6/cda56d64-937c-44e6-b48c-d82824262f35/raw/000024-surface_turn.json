@@ -1,0 +1,11 @@
+{
+  "type": "surface_turn",
+  "entryIndex": 4,
+  "inputKind": "action",
+  "endpoint": null,
+  "sessionId": "dfdee5af-33c0-48b9-abd6-bcc995fdc42e",
+  "action": "approve_current_if_present",
+  "currentPendingId": null,
+  "outcome": "no_current_card",
+  "response": null
+}

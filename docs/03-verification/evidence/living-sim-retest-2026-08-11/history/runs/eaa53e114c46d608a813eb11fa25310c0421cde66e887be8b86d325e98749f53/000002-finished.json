@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-batch::living-sim-retest-20260811-02",
+  "attemptId": "651f5b92-86df-4b51-888e-c9e14cb82ab8",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "60def1c50ad74120877a719ac6565e9d28273fd3246969eacf09ae41fe812d80",
+  "recordedAt": "2026-08-11T00:51:24.322Z"
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-retest-20260811-02::L5-admin-preparation",
+  "attemptId": "0e5787f1-ee6a-45c1-a10d-821cef958df9",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "71346317327e4bc89d7ba57fe3fae677d0cbb3111ce302bb83c19a20936c2222",
+  "recordedAt": "2026-08-11T00:49:33.618Z"
+}

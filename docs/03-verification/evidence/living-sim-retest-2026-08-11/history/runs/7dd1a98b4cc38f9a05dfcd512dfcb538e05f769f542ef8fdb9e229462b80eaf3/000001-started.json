@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-retest-20260811-02::L2-customer-policy",
+  "attemptId": "4f5d3e5b-7f69-4123-83fc-379886324e34",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-locUf0",
+  "recordedAt": "2026-08-11T00:43:11.130Z"
+}

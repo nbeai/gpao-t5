@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-retest-20260811-02::L6-schedule-automation",
+  "attemptId": "e6fea2f0-0f5f-43f6-b26d-781340ea0083",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-D8lVYI",
+  "recordedAt": "2026-08-11T00:49:34.310Z"
+}
