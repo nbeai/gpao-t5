@@ -26,7 +26,7 @@ const run = promisify(execFile);
 const 저장소 = resolve(new URL('../..', import.meta.url).pathname);
 
 /** 독립 기준자 — T5 드라이버를 안 쓴다. 이게 이 러너의 전부다. */
-const 기준자 = {
+const 기준자 = {  // 메서드끼리 서로 부른다(호출 시점이라 선언 순서와 무관)
   async 앞창() {
     try {
       const { stdout } = await run('osascript', ['-e',
@@ -34,11 +34,19 @@ const 기준자 = {
       return stdout.trim();
     } catch { return null; }
   },
+  /**
+   * **크롬을 켜지 않고** 주소를 본다. `tell application "Google Chrome"` 은 꺼져 있으면
+   * **크롬을 켠다** — 실제로 그 부작용이 「실크롬=O」로 찍혀 거짓 판정을 냈다
+   * (2026-08-11 · 오너가 "내 눈엔 아무것도 안 보이는데" 로 잡았다. 계측기 오류 다섯 번째).
+   * 안 떠 있으면 `null` 이다. **측정 도구가 측정 대상을 만들면 안 된다.**
+   */
   async 크롬주소() {
+    if (!(await 기준자.실크롬떠있나())) return null;
     try {
       const { stdout } = await run('osascript', ['-e',
-        'tell application "Google Chrome" to get URL of active tab of front window']);
-      return stdout.trim();
+        'tell application "System Events" to tell process "Google Chrome" to '
+        + 'return value of attribute "AXTitle" of window 1']);
+      return stdout.trim() || null;
     } catch { return null; }
   },
   파일있나(경로) { return existsSync(경로); },
