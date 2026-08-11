@@ -109,17 +109,31 @@ const 기관규격 = Object.freeze([
   },
   {
     key: 'browser-hand', 번호: '⑥', name: '브라우저 손',
-    // 계획서 §4⑥ 상한 + §9 결정② — 「읽기 위한 조작」은 두 손 모두 자동.
-    상한: '①(읽기 위한 조작)까지 — 이동·타이핑·스크롤·탭 전환·뒤로. 폼 제출·구매·전송은 열지 않는다',
+    // 계획서 §4⑥ 상한 (PM 자기 정정 2026-08-11) — **정밀 읽기 전용.**
+    상한: '정밀 읽기 전용 — 이동·스냅샷·스크롤·탭 전환·뒤로·텍스트 추출/요소 목록.'
+      + ' 타이핑·폼 제출·전송·구매는 열지 않는다',
     계획서층: '1(신축) + 의도된 봉인',
+    // **타이핑은 요구가 아니다 — 미구현이라서가 아니라 안 여는 것이 설계다**(계획서 §4⑥ 정정).
+    // 첫 판은 §9 결정②의 표를 따라 `browser.act:type` 을 요구에 넣어 「빠진 것」으로 냈다.
+    // 그 표는 **권한 등급**(자동이냐 카드냐)이고 여기 상한은 **능력 목록**인데 섞은 것이다.
+    // 타이핑이 필요한 자리는 로그인·폼이고 그 문은 화면 손 하나다 — 여기 없는 것이 정상이다.
+    // 그래서 `browser.act:type` 부재는 **결손이 아니라 경계**이고, 결손 표에 올리지 않는다.
     요구: [
       { 요구: '이동', 손: ['browser.observe:open', 'browser.act:navigate'] },
       { 요구: '스냅샷', 손: ['browser.observe:snapshot'] },
       { 요구: '스크롤', 손: ['browser.act:scroll'] },
-      { 요구: '타이핑', 손: ['browser.act:type'] },
       { 요구: '탭 전환', 손: ['browser.act:tab', 'browser.act:switch_tab'] },
       { 요구: '뒤로', 손: ['browser.act:back'] },
+      // 정밀 읽기의 알맹이 둘 — action enum 이 아니라 **관찰 결과 칸**이라 부품으로 확인한다.
+      { 요구: '텍스트 추출', 부품: 'browser-text-extract' },
+      { 요구: '요소 목록', 부품: 'browser-element-list-to-model' },
     ],
+    주의: '타이핑은 요구에서 뺐다 — CDP Input.* 미구현이라서가 아니라 **안 여는 것이 설계**다'
+      + '(계획서 §4⑥ · PM 자기 정정 2026-08-11).'
+      + ' 요소 목록은 **반쪽이다**: OBSERVE_SCRIPT 가 링크·버튼·탭을 40개까지 모으는데'
+      + '(browser.js `actionable`), 모델에게 가는 것은 탭·펼침 12개뿐이다'
+      + '(browser-tool.js `canOpen` 이 role==="tab" 또는 expanded 만 남긴다).'
+      + ' 링크·버튼은 모아 놓고 안 준다 — 부재가 아니라 **전달에서 잘린다.**',
   },
   {
     key: 'channel', 번호: '⑦', name: '채널',
@@ -204,6 +218,23 @@ const 부재규격 = Object.freeze([
     경로: ['src'],
     생성전용: ['makeConnectorDeclareTool', 'makeConnectorConnectTool'],
     모호: ['connector.declare', 'connector.connect'],
+  },
+  {
+    subject: 'browser-text-extract',
+    질문: '스냅샷이 페이지 **텍스트**를 함께 내고, 그것이 모델 영수증까지 가나',
+    경로: ['src/runtime/browser.js', 'src/runtime/browser-tool.js'],
+    // 생산(OBSERVE_SCRIPT 가 글을 담는가)과 전달(영수증에 실리는가)을 같이 본다.
+    생성전용: ['textTotal', 'body?.innerText', 'markdown:'],
+    모호: ['text:', 'excerpt'],
+  },
+  {
+    subject: 'browser-element-list-to-model',
+    질문: '브라우저가 모은 **요소 목록이 모델에게 그대로** 가나 (browser-tool.js 영수증)',
+    경로: ['src/runtime/browser-tool.js'],
+    // 목록을 통째로 실어 보낸다면 영수증에 이런 칸이 있어야 한다. 없으면 **전달에서 잘린 것**이다.
+    생성전용: ['actionable:', 'elements:', 'clickable:', '요소목록:'],
+    // 잘리는 자리를 함께 낸다 — "안 만들었다"가 아니라 "모아 놓고 걸러낸다"는 것이 사실이다.
+    모호: ['canOpen', 'actionable'],
   },
   {
     subject: 'channel-inbox',
@@ -981,6 +1012,9 @@ function 사람표(결과) {
       줄.push(`  ${o.번호} ${o.name} · 계획서 문구인데 enum 에 1:1 로 못 거는 말: `
         + o.모호.map((m) => `「${m.계획서표현}」(${m.왜})`).join(', '));
     }
+    // **경계와 결손은 다르다.** 안 여는 것이 설계인 자리를 「빠진 것」으로 세면 계측기가
+    // 없는 결함을 만들어 낸다 — ⑥ 타이핑이 정확히 그랬다(PM 자기 정정 2026-08-11).
+    if (o.주의) 줄.push(`  ${o.번호} ${o.name} · 주의: ${o.주의}`);
   }
 
   줄.push(표('부재 확인 (F-56 — 무엇을 찾았는지 함께 적는다)',

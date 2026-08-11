@@ -181,6 +181,44 @@ test('칸0 계측기: 정답을 계측기 본체에 적어 넣지 않는다 (하
   assert.equal(/개수:\s*\d+/.test(소스), false, '동사 수 기대치를 상수로 박지 않는다');
 });
 
+test('칸0 계측기 ⑥: 타이핑은 결손이 아니다 — 안 여는 것이 설계다', async () => {
+  const { stdout } = await 계측(['--json']);
+  const 결과 = JSON.parse(stdout);
+  const 브라우저 = 결과.organs.find((o) => o.key === 'browser-hand');
+  // 계획서 §4⑥(PM 자기 정정 2026-08-11): 정밀 읽기 전용. 타이핑은 **요구가 아니다.**
+  // 경계를 결손으로 세면 계측기가 없는 결함을 만들어 낸다 — 첫 판이 그랬다.
+  assert.equal(브라우저.required.some((r) => r.startsWith('타이핑')), false,
+    `타이핑은 ⑥ 의 요구가 아니다 — 실측 ${JSON.stringify(브라우저.required)}`);
+  assert.equal(브라우저.missing.some((m) => m.includes('browser.act:type')), false,
+    `타이핑 부재를 결손으로 세면 안 된다 — 실측 ${JSON.stringify(브라우저.missing)}`);
+  assert.ok(브라우저.주의?.includes('안 여는 것이 설계'), '왜 요구가 아닌지 한 줄이 함께 가야 한다');
+  // 그러나 손 자체에 type 이 없다는 **기계 사실**은 그대로 낸다(② 검사가 무는 자리).
+  const 손 = 결과.hands.find((h) => h.id === 'browser.act');
+  assert.equal(손.verbs.includes('type'), false);
+});
+
+test('칸0 계측기 ⑥: 정밀 읽기의 알맹이 — 텍스트 추출은 있고, 요소 목록은 전달에서 잘린다', async () => {
+  const { stdout } = await 계측(['--json']);
+  const 결과 = JSON.parse(stdout);
+  const 브라우저 = 결과.organs.find((o) => o.key === 'browser-hand');
+  assert.ok(브라우저.required.some((r) => r.startsWith('텍스트 추출')), '텍스트 추출이 요구에 있다');
+  assert.ok(브라우저.required.some((r) => r.startsWith('요소 목록')), '요소 목록이 요구에 있다');
+  assert.ok(브라우저.have.some((h) => h.startsWith('텍스트 추출')),
+    `텍스트 추출은 코드에 있다 — 실측 ${JSON.stringify(브라우저.have)}`);
+  assert.ok(브라우저.missing.some((m) => m.startsWith('요소 목록')),
+    `요소 목록은 모델까지 안 간다 — 실측 ${JSON.stringify(브라우저.missing)}`);
+
+  // F-56: 「없음」이라 적었으면 **찾은 자리**가 함께 있어야 한다.
+  const 글 = 결과.absence.find((a) => a.subject === 'browser-text-extract');
+  assert.ok(글.foundCount > 0, '텍스트 추출은 히트가 있어야 한다');
+  const 요소 = 결과.absence.find((a) => a.subject === 'browser-element-list-to-model');
+  assert.equal(요소.foundCount, 0);
+  assert.ok(요소.searchedTerms.length > 0 && 요소.searchedPaths.length > 0, '검색어·경로를 함께 낸다');
+  // 모아 놓고 걸러내는 자리를 짚어야 한다 — "안 만들었다"와 "잘라서 안 준다"는 다른 사실이다.
+  assert.ok(요소.ambiguousCount > 0 && 요소.ambiguous.some((h) => h.term === 'canOpen'),
+    `잘리는 자리(canOpen)를 찾은 자리로 내야 한다 — 실측 ${JSON.stringify(요소.ambiguous)}`);
+});
+
 test('칸0 계측기: 체감 지표를 저장된 회차 기록에서 사후 집계한다 — 비율은 안 낸다', async () => {
   const { stdout } = await 계측(['--json']);
   const e = JSON.parse(stdout).experience;
