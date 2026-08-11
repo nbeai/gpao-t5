@@ -2465,6 +2465,68 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
     return true;
   };
+  // ── **막히면 다른 손으로 간다 — 한 손만 쓰고 끝나지 않는다** (P6-L ③ · 2026-08-11) ──
+  //
+  // 위 두 이어가기는 손을 **좁혀서** 되돌려준다(파일 쓰기 손만 · locate/file 둘만). 그래서
+  // **원래 계획 안에서만** 이어간다 — 무엇을 쓸지가 결과를 보기 전에 정해지고, 되부름이 그
+  // 안을 돈다. 바로 위 :2362 주석의 *"같은 `.log` bulk_move 를 여덟 번"* 이 그 증상이다:
+  // 밀어붙였는데 손이 좁아 같은 것만 나왔다.
+  //
+  // 실측 넷이 한 얼굴이다(2026-08-11):
+  //   L1 정산   `local.locate ×7 → local.file:read 실패 → 끝`   (쓰기 0 · 산출물 없음)
+  //   L7 PC     같은 모양
+  //   네이버     `browser.observe:open → browser.act:scroll → 끝`(실크롬으로 못 넘어감)
+  //   카톡      `desktop.act:focus 막힘("창이 여러 개") → 끝`
+  // **넷 다 「다른 손으로 가 볼 자리」가 없어서 멈췄다.** 938턴 걸음 중앙값 2 의 얼굴이다.
+  //
+  // 비교군의 축은 문구가 아니라 이것이다 — **한 번 하고 결과를 보고 그 다음을 정한다.
+  // 막히면 같은 손을 반복하는 게 아니라 다른 손으로 간다.** 그래서 여기서는 손을 **안 좁힌다**:
+  // `modelSchemasFor` 전량을 그대로 준다(PM 지시 2026-08-11). 무엇을 고를지는 모델의 몫이고,
+  // 안 고르면 그대로 끝난다 — 위 두 조항의 규율 그대로 `requiredTool` 은 쓰지 않는다.
+  //
+  // 여는 것은 원장의 기계 사실뿐이다(문구 목록 0):
+  //   ① 이 턴에 막힌 걸음이 있고 **같은 걸음으로 회복되지 않았다**(출구 그물과 같은 걸음키)
+  //   ② 손을 썼는데 답이 **빈손**(심문·약속)으로 끝났다 — 후보이어가기와 같은 자를 쓴다
+  // 그리고 **안 써 본 손이 남아 있을 때만** 연다. 다 써 봤으면 갈 곳이 없다 —
+  // 없는 길을 권하면 그게 거짓 약속이다.
+  //
+  // 손이 넓어지므로 **같은 지문 차단이 더 중요해진다**(아래 마지막 줄). 그것이 없으면
+  // 넓힌 손이 같은 실행을 다시 내는 통로가 된다.
+  let 다른손요청수 = 0;
+  const 다른손이어가기 = async () => {
+    if (다른손요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;      // 한 턴에 한 번만
+    const 부른것들 = turnReceipts.filter((r) => r?.actualCall?.tool);
+    if (!부른것들.length) return false;                                 // 손을 안 쓴 턴은 이 그물 밖이다
+    if (turnReceipts.some((r) => r.surfaceRequest)) return false;       // 공은 이미 사용자에게 넘어갔다
+    // 걸음 단위로 본다 — 같은 손이 다른 동작으로 성공했다고 막힌 동작이 풀리는 것이 아니다
+    // (출구 검증의 `걸음키` 와 같은 자. 두 벌로 만들지 않는다).
+    const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
+    const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
+    const 막힌것 = 부른것들.filter((r) => r.failureState
+      && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
+    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
+    if (!막힌것.length && !빈손으로끝났나(답글)) return false;
+    const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
+    const 안써본손 = 있는손().filter((id) => !써본손.has(id));
+    if (!안써본손.length) return false;                                 // 다 써 봤다 — 갈 곳이 없다
+    // **좁히지 않는다.** 통제 채널까지 포함한 그대로다 — 되묻기(`ask.user`)도 모델의 선택지다.
+    const 손들 = modelSchemasFor(selfState, ctx.modelControls);
+    if (!손들.length) return false;
+    다른손요청수 += 1;
+    finalOut = await ctx.model.respond({
+      ...tc,
+      goalNotReached: {
+        막힌걸음: [...new Set(막힌것.map(걸음키))].slice(0, 5),
+        막힌말: [...new Set(막힌것.map((r) => String(r.userSafeSummary ?? '')).filter(Boolean))].slice(0, 3),
+        // 손이 실제로 쥔 다음 수(창 후보·주소 등) — 사람 문장이 아니라 모델이 부를 수 있는 값이다.
+        다음수단: 막힌것.flatMap((r) => r.다음수단 ?? []).slice(0, 5),
+        안써본손: 안써본손.slice(0, 12),
+      },
+    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
+    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false; // 안 골랐다 — 그대로 끝난다
+    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
+    return true;
+  };
   // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
   //
   // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
@@ -2623,6 +2685,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
         // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
         if (await 산출물이어가기()) continue;
+        // 손을 썼는데 막힌 채이거나 빈손으로 끝나려 하고, **아직 안 써 본 손이 남았다** —
+        // 원장 사실을 주고 손 전량을 그대로 되돌려 한 번 더 고르게 한다(P6-L ③).
+        if (await 다른손이어가기()) continue;
         break;
       }
       대기호출.push(...줄세우기(next));
