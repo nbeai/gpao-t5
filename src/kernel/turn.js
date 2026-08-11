@@ -2073,6 +2073,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let 현재호출신분 = {};
   const 실행문맥 = () => ({
     currentRequest: intent.currentRequest,
+    // §5-3 c — 큰 결과 흘림 기준의 분모(창 예산의 파생값 · 모르면 tool-runner 가 옛 고정값으로 간다).
+    결과자: ctx.창예산?.결과자,
     readScopeRoots: [...new Set(turnReceipts.flatMap((rec) => rec.readScopeRoots ?? []))],
     // **이번 턴의 표 맥락** — 읽은 CSV 합·이웃 합·폴더 명부(⑫ 접근 전환 · PM 승인 2026-08-08).
     // 출구 되부름은 손이 없어 실물을 못 고친다(회차 I 실증). 손이 살아 있는 루프 안에서
@@ -3321,8 +3323,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     workingState,
     // **이번 턴에 모델이 실제로 부른 것** — 다음 턴이 이어받아 자기 이력으로 되돌려 준다
     // (정본 §S2 필수 계약 ②). 서버가 대화에 함께 저장해 재시작 뒤에도 살아남는다.
-    // 여기서 다시 만들지 않는다 — 모델 앞에 실제로 놓였던 그 배열을 그대로 넘긴다.
-    turnExchange: tc?.turnExchange ?? [],
+    // 여기서 다시 만들지 않는다 — 모델 앞에 실제로 놓였던 그 배열을 넘기되, **실패 원문만 걷는다**:
+    // §5-3 은 모델 입력과 사용자 출력을 가른다. `실패원문`(진단면 원문)은 모델 입력에만 살고,
+    // 저장 봉투·사용자 결과에는 안 실린다 — 내부 오류/연결/전송 진단이 사용자 결과에 새지
+    // 않는 봉인(recovery-failure-injection A·B·B')이 이 자리를 문다. 다음 턴 priorExchange 는
+    // 어차피 신분·요약·인자만 옮기므로(task-context E1) 여기서 걷어도 잃는 것이 없다.
+    turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 확인안됨, ...남는것 }) => 남는것),
     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
     // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
     // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.

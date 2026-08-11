@@ -1,6 +1,31 @@
 // L3 · ToolRunner — 도구 실행 런타임. 실행 가능 게이트를 통과한 것만 실제 호출한다.
 // 결과는 항상 ToolReceipt 로 기록한다(못 쓴 도구를 쓴 척 금지). 진단면은 diagnosticTrace 로 분리.
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { receipt, blockedReceipt } from '../kernel/l0-evidence/tool-receipt.js';
+
+/**
+ * §5-3 c · **큰 결과는 파일로 흘린다** (Hermes tool_result_storage.py 축 흡수 — 구조만, 값은 우리 창에서).
+ *
+ * 기준: 결과 원문(JSON)이 창 예산의 결과자(`executionContext.결과자` · 모르면 옛 고정값 1,200자)의
+ * **네 배**를 넘으면, 요약이 아무리 정직해도 알맹이 대부분이 모델 입력 밖이다. 그때 원문을
+ * 상태 자리 아래 한 디렉터리(`results/`)에 그대로 남기고, 모델에는 요약+경로+전체 크기를 준다 —
+ * 모델은 그 경로를 `local.file read` (offset·limit) 로 이어 읽는다(같은 상한·같은 문).
+ * 네 배인 이유: 결과자 안이면 원문이 통째로 실리고(파일 불필요), 그 근처면 접기 표식이 문이 된다.
+ * 그보다 크게 넘는 것만 파일이 문이다 — 작게 넘는 것까지 흘리면 파일 소음이다.
+ */
+export const 흘림배수 = 4;
+const 상태자리 = () => process.env.GPAO_T5_DATA_DIR ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions');
+let 흘림일련 = 0;
+async function 큰결과흘리기(원문, toolId) {
+  const 방 = join(상태자리(), 'results');
+  await mkdir(방, { recursive: true });
+  흘림일련 += 1;
+  const path = join(방, `결과-${String(toolId).replace(/[^a-zA-Z0-9._-]/g, '_')}-${Date.now()}-${흘림일련}.json`);
+  await writeFile(path, 원문, 'utf8');
+  return path;
+}
 
 /**
  * **다음 턴에 이어야 할 대상은 도구가 낸다.** `previewOf(args)` 와 같은 모양의 계약이다.
@@ -154,7 +179,17 @@ export class ToolRunner {
         connectionDiscovery: out?.connectionDiscovery,
         userSafeSummary: out?.userSafeSummary ?? `${toolId} 실행 완료.`,
       }), tool);
-      return withReadScope(rec, tool, executionContext);
+      const 확정 = await withReadScope(rec, tool, executionContext);
+      // §5-3 c — 기준을 크게 넘는 원문은 파일로 흘리고 영수증에 그 문(경로·전체 크기)만 싣는다.
+      // 흘리기 실패는 본선을 막지 않는다 — 요약은 그대로 간다(옆길은 본선을 막지 않는다).
+      try {
+        const 결과자 = Number(executionContext?.결과자) > 0 ? Number(executionContext.결과자) : 1200;
+        const 원문 = JSON.stringify(확정.result ?? null);
+        if (원문.length > 결과자 * 흘림배수) {
+          return { ...확정, 흘린원문: { path: await 큰결과흘리기(원문, toolId), totalChars: 원문.length } };
+        }
+      } catch { /* 흘림은 부가 공급이다 — 실패해도 결과·영수증은 그대로다 */ }
+      return 확정;
     } catch (err) {
       return receipt({
         intended,

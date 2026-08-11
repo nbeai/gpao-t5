@@ -77,6 +77,32 @@ test('매 턴 바뀌는 것이 캐시 접두로 올라오지 않는다', () => {
   assert.ok(!/\d{2}:\d{2}/.test(앞부분), '정확한 시각이 접두 앞쪽에 있으면 매 턴 캐시가 깨진다');
 });
 
+// ── F-73 · 캐시 접두 불변식 (등재 2026-08-11 · 재현: 호출 15회 중 지문 6종) ──
+// 흔든 것은 시각이 아니었다 — **턴 안에서 바뀌는 사실**(왕복 예산·남은 걸음·승인 대기·
+// 진행 상태)이 캐시 경계 **위**(고정 접두)에 있었다. 같은 턴의 걸음마다 왕복쓴것이 올라
+// 접두 지문이 갈렸고, 캐시는 사실상 매 호출 미스였다(도구 스키마 전액 재청구 — 제품 원가).
+test('턴 안에서 바뀌는 사실(예산·남은 걸음·승인 대기·진행 상태)이 고정 접두를 흔들지 않는다 (F-73)', () => {
+  const 만들기 = (over = {}) => buildModelMessages(buildTaskContext({
+    intent: { desiredOutcome: 'x', currentRequest: '안녕' }, selfState,
+    now: { local: '2026-08-12 09:00', timeZone: 'Asia/Seoul' }, ...over,
+  }));
+  const 예산 = (왕복쓴것) => ({
+    왕복쓴것, 왕복예산: 8, 되돌릴수있는것쓴것: 왕복쓴것, 되돌릴수있는것예산: 20, 그밖쓴것: 0, 그밖예산: 4,
+  });
+  const a = 만들기({ toolStepsLeft: 12, turnBudget: 예산(0) });
+  const b = 만들기({
+    toolStepsLeft: 3, turnBudget: 예산(5), toolBudgetSpent: false,
+    plan: { autoAllowed: [], needsApproval: [{ action: '전송 승인 대기' }], forbidden: [] },
+    workingState: { subject: { key: '/방/큰표.csv', kind: 'file', label: '큰표.csv' } },
+  });
+  assert.equal(a.systemStable, b.systemStable,
+    '턴 안에서 바뀌는 사실이 접두를 깨면 캐시는 매 호출 미스다(F-73 — 도구 스키마 전액 재청구)');
+  // 옮겼다고 사라지면 안 된다 — 같은 사실이 변동 구역에 그대로 있다.
+  assert.match(b.systemVolatile, /3번 더 이어 쓸 수 있다/, '남은 걸음 사실이 사라졌다(H08 거짓 소진 재발)');
+  assert.match(b.systemVolatile, /이번 턴 예산/, '예산 사실이 사라졌다');
+  assert.match(b.systemVolatile, /승인 필요/, '승인 대기 사실이 사라졌다');
+});
+
 test('이번 턴 실행 사실은 system 이 아니라 대화 쪽에 있다', () => {
   const b = 본문({
     receipts: [{
