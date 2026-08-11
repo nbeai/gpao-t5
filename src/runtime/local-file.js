@@ -566,15 +566,28 @@ export function makeLocalFileTool(deps = {}) {
           // 변조 가능했고, 재시작 뒤 낡은 기록·바뀐 범위·심볼릭 링크가 전부 열린 문이었다.
           // "모든 경로는 범위 안에서만"(위 계약 §)에 undo 만 예외일 이유가 없다.
           // resolveInScope 는 realpath 로 판정하므로 링크 탈출도 여기서 잡힌다.
+          //
+          // §12-F4 (2026-08-12) — **되돌리기가 쓰기와 같은 자를 쓴다.** 여기만 `roots`(선언
+          // 루트)를 봤는데, 실제 쓰기는 바로 위에서 만든 `activeRoots`(선언 루트 ∪ 홈)로
+          // 실행됐다. `GPAO_T5_FILE_ROOTS` 로 좁힌 구성에서는 그래서 이 조합이 성립했다:
+          //   ① 홈 안에 쓴다 → 된다(카드는 *"되돌려줘로 되살릴 수 있어요"* 라고 약속한다)
+          //   ② 되돌린다     → *"작업 범위 밖"* 이라며 거절한다
+          // **카드가 못 지킬 약속을 한 자리다.** 위 §의 "두 진실 금지"가 여기에도 그대로 든다 —
+          // 되돌릴 수 있는 자리가 쓸 수 있는 자리보다 좁으면 되돌림 선언 자체가 조건부 거짓이 된다.
+          //
+          // 자를 **넓히는** 것이 아니다. 쓰기가 이미 쓰던 그 자를 되돌리기도 쓰게 하는 것뿐이고,
+          // 보호 영역 검사(바로 아래 `protectionBlocks`)와 사본 경계(`to` 는 휴지통 또는 범위
+          // 안)는 그대로 선다 — 그건 범위와 다른 층이다. undo 는 readOnly 가 아니므로
+          // `activeRoots` 에 `readScopeRoots` 는 섞이지 않는다(탐색 성공이 되돌림 권한이 되지 않는다).
           let 되돌릴곳; let 담긴곳;
           try {
-            되돌릴곳 = await resolveInScope(last.from, { roots, home });
+            되돌릴곳 = await resolveInScope(last.from, { roots: activeRoots, home });
             // 사본(to)도 경계를 지난다 — from 만 검사하면 로그 변조로 임의 경로의 파일(비밀 포함)을
             // 범위 안으로 "되돌려" 끌어올 수 있다. 정당한 to 는 두 곳뿐이다: 휴지통(쓰기·삭제가
             // 담근 자리 — 라이브 GPAO_T5_DATA_DIR 격리에서는 파일 루트 밖일 수 있다)과
             // 범위 안(move 의 목적지). 같은 realpath 판정이라 링크 탈출도 막힌다.
             담긴곳 = last.to
-              ? await resolveInScope(last.to, { roots, home }).catch((e) => {
+              ? await resolveInScope(last.to, { roots: activeRoots, home }).catch((e) => {
                 if (!e?.isScopeError) throw e;
                 return resolveInScope(last.to, { roots: [trashDir], home });
               })

@@ -37,6 +37,10 @@ import { sandboxProfile, sandboxAvailable } from './sandbox.js';
 import { wireToolName } from './model-provider.js';
 import { redactEnv } from './terminal-run.js';
 import { 표맥락에서 } from './local-file.js';
+// **승인 판정은 커널의 것을 그대로 부른다**(§12-S3). 캡슐용 두 번째 판정을 쓰지 않는다 —
+// 두 벌이 되면 언젠가 갈리고, 그 갈림이 `tool-boundary.js` 머리에 이미 기록된 사고다.
+import { 실행전판정 } from '../kernel/l2-plan/tool-boundary.js';
+import { decideAutoGrant } from '../kernel/l2-plan/authority.js';
 
 /**
  * 캡슐 상한 — **잠정 동결값**. Hermes(300s·50호출·50KB) 와 OpenClaw code-mode 를 대조해 정했다.
@@ -94,10 +98,13 @@ const 캡슐꼬리 = `
  * @param {string} p.cwd             작업 폴더(손이 쓰는 자리 — 캡슐은 여기도 직접 못 만진다)
  * @param {string[]} [p.허용손]      RPC 로 열 손. 안 주면 아무 것도 못 부른다(모르면 막는다)
  * @param {Object} [p.상한]
+ * @param {boolean} [p.이번이월]     앞 턴에서 넘어온 같은 일인가 — 커널 게이트가 그대로 본다
+ * @param {Object} [p.이번발화]      `parseFileRequest` 결과 — 발화밖 파괴 판정용
  * @param {Function} [p.샌드박스가능] 주입용(검사)
  */
 export async function 캡슐실행({
   코드, tools, selfState, cwd, 허용손 = [], 상한: 상한덮기 = {}, env, 샌드박스가능 = sandboxAvailable,
+  이번이월 = false, 이번발화,
 }) {
   const 상한 = 캡슐상한(상한덮기);
   // **커널 격리가 없으면 열지 않는다.** 없는 능력을 있는 척하지 않는다 —
@@ -135,6 +142,8 @@ export async function 캡슐실행({
   await writeFile(프로파일, sandboxProfile('capsule', { scratch, runtime: process.execPath }), 'utf8');
 
   const 영수증 = [];
+  /** 게이트가 물어서 **안 한** 호출들. 조용히 안 하는 것은 거짓 성공의 사촌이라 사실로 남긴다. */
+  const 거부 = [];
   let 멈춘이유;
   let out = ''; let err = '';
   const 열린손 = new Set(허용손.filter((id) => !통제채널.has(id)));
@@ -193,11 +202,44 @@ export async function 캡슐실행({
       멈춘이유 = 멈춘이유 ?? `한 캡슐에서 부를 수 있는 손을 다 썼어요(${상한.호출}번).`;
       return { ok: false, error: '이 캡슐의 호출 한도를 다 썼어요.' };
     }
+    // ── **승인 게이트도 같은 자를 지난다**(§12-S3 · 2026-08-12) ────────────────
+    // 여기서 곧장 `tools.run` 을 부르던 동안 캡슐 안은 **승인 판정이 없는 자리**였다:
+    // `이번이월`·`발화밖파괴` 로 카드가 떠야 할 호출과 어휘 밖 손(`unknown_kind`)이 전부
+    // 그냥 돌았다. 허용손이 `local.file`(reversible:true) 하나라 실효 차이는 좁았지만,
+    // 경계는 좁아서 안전한 게 아니라 서 있어서 안전한 것이다.
+    //
+    // 비교군이 같은 자리를 사고번호까지 달아 기록해 뒀다 —
+    //   Hermes `tools/code_execution_tool.py:1405-1407`:
+    //   *"Wrapped so the thread inherits the turn's approval context + callbacks
+    //     … else gateway sandbox tool calls silently auto-approve dangerous commands."*
+    //
+    // **판정 함수는 복제하지 않는다.** 커널이 걸음 경로에서 쓰는 그것(`실행전판정` →
+    // `decideAutoGrant`)을 그대로 부른다 — 두 층이 같은 질문에 다른 답을 내면 그게 결함이다.
+    //
+    // 면제(`승인면제`)는 여기서 안 본다. 면제의 재료(`허락한손`·`허락한걸음`·아는 상대)는
+    // **이번 대화에서 사용자가 허락한 것**인데 캡슐은 그 대화를 안 갖고 있다. 모르면 조여지는
+    // 쪽이다 — 캡슐은 커널보다 헐거울 수 없고, 다만 더 조일 수는 있다.
+    const { 판정인자, 판정행동 } = await 실행전판정({
+      toolId: tool, args: args ?? {}, selfState, tools, 이번이월, 이번발화,
+    });
+    if (!decideAutoGrant(판정행동)) {
+      // **카드는 여기서 안 띄운다 — 스크립트는 대화가 아니다.** 그 호출 하나만 거부하고
+      // 사유를 남긴다. 캡슐 전체를 죽이지 않는 것은, 나머지 걸음이 멀쩡하면 그것까지
+      // 버릴 이유가 없기 때문이다(사용자 손을 늘리지 않는다).
+      const 사유 = `승인이 필요한 일이라 캡슐 안에서는 하지 않았어요(${판정행동.kind}).`;
+      거부.push({ tool, kind: 판정행동.kind, 사유, ...(이번이월 ? { 이월: true } : {}) });
+      return {
+        ok: false,
+        error: 사유,
+        next: '이 걸음은 캡슐 밖에서 직접 시키면 승인 카드로 여쭤볼 수 있어요.',
+      };
+    }
     // **캡슐 안 쓰기도 같은 자를 지난다**(회차 K R1 실측 2026-08-08). 캡슐 스크립트가
     // 매출정산만 합산한 "합계" 실물을 냈는데, 내부 쓰기가 대조 밖이라 그대로 나갔다 —
     // 캡슐 길이 늘 기계 합 경로라는 J R3 기반 가정이 K 에서 반증됐다. 캡슐이 지금까지
     // 모은 자기 원장(영수증)에서 표 맥락을 만들어 안의 손에도 넘긴다(커널과 같은 한 벌).
-    const rec = await tools.run(tool, args ?? {}, selfState, { currentRequest: '캡슐 실행', 표맥락: 표맥락에서(영수증) });
+    // 인자는 **판정이 본 그것**을 그대로 넘긴다 — 판정과 실행이 다른 값을 보면 원장이 갈린다.
+    const rec = await tools.run(tool, 판정인자 ?? args ?? {}, selfState, { currentRequest: '캡슐 실행', 표맥락: 표맥락에서(영수증) });
     영수증.push(rec);
     const 됐나 = (rec?.failureState ?? 'none') === 'none';
     // **모델의 자연 짐작이 사실에 닿게 편다**(⑫ 회차 G R2 실측 2026-08-08 · 구조 층).
@@ -236,6 +278,9 @@ export async function 캡슐실행({
     stdout: out.slice(0, 상한.출력바이트),
     stderr: err.slice(0, 상한.출력바이트),
     영수증,
+    // 게이트가 문 호출은 **위층에도 사실로 올린다**(§12-S3). 여기서 안 실으면 위층은
+    // "스크립트가 조건을 못 맞췄나 보다"로 읽고, 그건 도구가 이유를 안 준 자리다.
+    ...(거부.length ? { 거부 } : {}),
     ...(멈춘이유 ? { 멈춘이유 } : {}),
   };
 }
@@ -262,6 +307,10 @@ export function makeCapsuleTool(설정 = {}) {
         cwd: 설정.cwd ?? 문맥.cwd ?? process.cwd(),
         허용손: 설정.허용손 ?? ['local.file'],
         상한: 설정.상한 ?? {},
+        // 커널 게이트의 재료를 **실행 문맥에서 그대로 받는다**(§12-S3). 호출자가 안 주면
+        // 없는 것이고, 없으면 그 조항은 안 무는 것이 옳다 — 여기서 지어내지 않는다.
+        이번이월: 문맥.이번이월 ?? false,
+        이번발화: 문맥.이번발화,
       });
       if (!결과.ok) {
         return {
@@ -273,6 +322,12 @@ export function makeCapsuleTool(설정 = {}) {
         };
       }
       const 실행수 = (결과.영수증 ?? []).length;
+      // **승인이 필요해 안 한 걸음은 맨 앞에 붙는다**(§12-S3). 이게 없으면 "손을 한 번도
+      // 쓰지 않았어요"만 가고, 모델은 조건이 안 맞은 줄로 읽어 이유를 지어낸다.
+      const 거부들 = 결과.거부 ?? [];
+      const 거부말 = 거부들.length
+        ? ` 승인이 필요해서 안 한 걸음이 ${거부들.length}개 있어요(${[...new Set(거부들.map((r) => r.tool))].join(' · ')}) — 캡슐 안에서는 여쭤볼 수 없어요.`
+        : '';
       // 실제로 **바꾼** 호출이 몇 번인가. 읽기만 한 것과 구분한다 — 섞으면 "처리했어요"가
       // 아무것도 안 바꾼 실행에도 붙는다.
       const 바뀐것 = (결과.영수증 ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
@@ -286,6 +341,9 @@ export function makeCapsuleTool(설정 = {}) {
           did: (결과.영수증 ?? []).map((r) => r.userSafeSummary).filter(Boolean).slice(0, 20),
           // 원장용 사실. 모델 입력에는 위 `did` 요약만 가고 이건 안 간다(덤프 금지).
           innerReceipts: 결과.영수증,
+          // 승인이 필요해 **안 한** 걸음. 한 것과 같은 자리에 둔다 — 못 한 것이 안 보이면
+          // 위층은 "다 했다"로 읽는다(§12-S3).
+          ...(거부들.length ? { refusedForApproval: 거부들 } : {}),
         },
         // **바뀐 게 없으면 없다고 말한다**(정직한 0 — S3 와 같은 계약). 실측(2026-08-04
         // 라이브): 스크립트가 응답 모양을 잘못 읽어 빈 배열을 받고 아무것도 안 옮겼는데
@@ -295,10 +353,14 @@ export function makeCapsuleTool(설정 = {}) {
           // 끝나 호출 0·출력 0 이었는데 모델은 이유를 못 받아 "옮겼다"고 답했다.
           // 도구가 이유를 안 주면 모델은 이유를 지어낸다 — 파일 손에서 이미 겪은 병이다.
           ? `스크립트를 돌렸는데 손은 한 번도 쓰지 않았어요.${결과.stderr?.trim() ? ` 스크립트가 낸 오류: ${결과.stderr.trim().slice(0, 300)}` : ''}`
-            + `${!결과.stderr?.trim() && !결과.stdout?.trim() ? ' (출력도 없어요 — 함수를 정의만 하고 부르지 않았거나 조건이 하나도 안 맞았을 수 있어요.)' : ''}`
+            // **이유를 아는데 짐작을 내놓지 않는다.** 게이트가 물어서 안 한 것이면 그게 이유다 —
+            // 그 자리에 "조건이 안 맞았을 수 있어요"를 붙이면 사실 위에 짐작을 덮는 것이다.
+            + `${!거부들.length && !결과.stderr?.trim() && !결과.stdout?.trim() ? ' (출력도 없어요 — 함수를 정의만 하고 부르지 않았거나 조건이 하나도 안 맞았을 수 있어요.)' : ''}`
+            + 거부말
           : 바뀐것 === 0
-            ? `스크립트로 ${실행수}번 불렀는데 읽기만 했고 바뀐 것은 없어요.`
-            : `스크립트로 ${실행수}번 처리했어요(그중 ${바뀐것}번이 실제로 바꿨어요).`,
+            ? `스크립트로 ${실행수}번 불렀는데 읽기만 했고 바뀐 것은 없어요.${거부말}`
+            : `스크립트로 ${실행수}번 처리했어요(그중 ${바뀐것}번이 실제로 바꿨어요).${거부말}`,
+        ...(거부들.length ? { nextSafeAction: '승인이 필요한 걸음은 캡슐 밖에서 직접 시켜 주시면 카드로 여쭤볼게요.' } : {}),
       };
     },
   };

@@ -166,7 +166,7 @@ ENOENT(→ `다음수단: local.locate`).
 
 ### 3-2. `local.locate` — 찾는 법
 
-BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개** · 총 4,000폴더.
+BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개**(필터 전 절단 — 잘리면 `truncatedFolders`·`unseenEntries` 로 **어디서 몇 개를 못 봤는지** 결과와 요약에 함께 나간다) · 총 4,000폴더(`stoppedAtLimit`).
 낱말화: NFC·소문자 → 구분자 분해 → 접미 제거 → **길이 2 이상**. `이름.확장자` 꼴이면 그 확장자는 낱말에서 뺀다.
 매칭: `exact`(이름 == 부른말 또는 확장자 뗀 이름 == 부른말) / `partial`(낱말 포함) / null.
 **`blocked` 를 한 번도 안 낸다** — 못 찾음은 빈 후보 + `nextSafeAction`.
@@ -192,7 +192,8 @@ BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개** · 총 4,000폴더.
 ### 3-5. 브라우저 손
 
 프로필 둘: 격리(기본 · 헤드리스 · 임시 · 종료 시 삭제) / 영속(`GPAO_T5_BROWSER_LOGIN=1` · 비헤드리스 · 로그인 남음).
-기동: `--remote-debugging-port=9412 --user-data-dir=… [--headless=new] --no-first-run --disable-extensions --mute-audio`.
+기동: `--remote-debugging-port=<잡은자리> --user-data-dir=… [--headless=new] --no-first-run --disable-extensions --mute-audio`.
+자리는 9412 부터 **띄우기 전에 비었는지 물어보고** 잡는다(차 있으면 옆으로, 열 자리가 다 차면 정직하게 막는다 · §12-S5 닫힘) — 남의 크롬에는 안 붙는다.
 **탭을 한 번만 만들고(`Target.createTarget about:blank`) 그 세션 위에서만 돈다.** 탭 단위로 닫지 않는다. 유휴 120초면 종료.
 `browser.act` 실제 능력: `scroll`(최대 5회/20초) · `click`(**`role="tab"` 또는 `aria-expanded` 만** — 링크 못 누름) · `type`(ref 기반, 보안칸 거부) · `press`(**엔터만**, 검색 칸 또는 GET 폼일 때만).
 예의: 같은 호스트 1.2초 간격 · 10분 캐시 · 429/503 백오프 최대 15분 — `web.collect` 와 **같은 인스턴스 공유**.
@@ -207,7 +208,9 @@ BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개** · 총 4,000폴더.
 
 macOS 만(`sandbox-exec`). 표면은 `t5.call(tool,args)` **하나**. 허용손은 현재 `local.file` 하나.
 상한: 60초 · 호출 200 · 출력 각 16KB. 통제채널 차단.
-**RPC 가 승인 판정을 안 지난다**(§12-S3).
+RPC 도 **커널과 같은 승인 판정**을 지난다(`실행전판정` → `decideAutoGrant` · §12-S3 닫힘).
+승인이 필요하면 **그 호출만** 거부하고 사유를 결과에 싣는다 — 캡슐 안에서 카드는 안 띄운다(스크립트는 대화가 아니다).
+면제(`허락한손`·아는 상대)는 안 본다 — 그 재료는 대화의 것이라 캡슐에 없다(커널보다 헐거울 수 없다).
 
 ---
 
@@ -450,23 +453,23 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 |---|---|---|---|
 | S1 | ~~안전~~ **닫힘** | `bulk_move` 만 개별 파일 보호 판정을 안 했다 — 점 없는 비밀 이름이 카드 없이 옮겨졌다. `b3eea28` 에서 루프에 `protectionBlocks(full,{write:true})` 를 걸어 닫음. 잔여 없음 | local-file.js:1018 · 검사 `test/s1-bulk-move-protects-secrets.test.js` |
 | S2 | ~~안전~~ **닫힘** | 비-macOS 에서 터미널이 샌드박스 없이 돌고, **부재가 안전의 증거로 읽혔다**(아무것도 안 막히니 `changes:false`→`read`→자동). 명령은 그대로 돌되 **탐침이 무죄를 주장하지 못하게** 막아 `unknown_kind`→카드로 보낸다. 오픈북: 오픈클로 `docs/tools/exec.md:98-100`(fail closed · with approvals) | local-terminal.js:134 · 검사 `test/s2-no-sandbox-cannot-prove-innocence.test.js` |
-| S3 | **안전** | 캡슐 RPC 가 승인 판정을 안 지난다(이월·발화밖파괴 카드가 건너뛰어짐) | capsule.js:200 |
+| S3 | ~~안전~~ **닫힘** | 캡슐 RPC 가 승인 판정을 안 지났다 — `이번이월`·`발화밖파괴`·`unknown_kind` 가 캡슐 안에서 통째로 건너뛰어졌다. 펌프가 `tools.run` 앞에서 **커널의 그 판정**(`실행전판정`→`decideAutoGrant`)을 부르게 했다(복제 없음). 승인이 필요하면 그 호출만 거부하고 사유를 `거부`·`refusedForApproval` 로 싣는다. 오픈북: Hermes `code_execution_tool.py:1405-1407`(승인 맥락을 잃으면 *"silently auto-approve dangerous commands"*) | capsule.js:196 · 검사 `test/s3-capsule-calls-pass-the-approval-gate.test.js` |
 | S4 | **안전** | `되돌릴 수 없는 것 3` 이 executePlan 진입마다 리셋 — 카드 N번 뜨면 3×N | turn.js:2027 |
-| S5 | **안전** | 브라우저 포트 9412 고정 · 소유권 확인 없음 → 남의 크롬에 붙을 수 있다 | browser.js:358 |
+| S5 | ~~안전~~ **닫힘** | 포트 9412 고정 · 소유권 확인 없음 → `/json/version` 이 답하기만 하면 **남의 크롬**을 몰았다. 띄우기 **전에** 자리를 물어 비었을 때만 잡고, 차 있으면 옆으로 옮기고, 열 자리가 다 차면 정직하게 막는다. 오픈북: 오픈클로 `docs/tools/browser.md:247-249`(*"auto-assign `cdpPort`"*)·`:283`(*"attachOnly … only attach if one is already running"*) + 집안 선례 `port-claim.js` 세 갈래. 남은 창: 자리 확인과 크롬이 실제로 잡기까지의 몇 초(코드에 적어 둠) | browser.js:330 · 검사 `test/s5-browser-does-not-attach-to-someone-elses-chrome.test.js` |
 | S6 | **안전** | `legacy-default-agent`(A2·전 도구)가 유일 활성 역할이면 무조건 선택된다 | server.js:1041 |
 | J1 | ~~정직~~ **닫힘** | 손이 준 `다음수단·다른후보·막힌곳·nextSafeAction` 이 어떤 와이어에도 안 실렸다. `24754f6` 에서 `다음길줄` 을 세워 교환·서술 두 자리에서 와이어 넷이 읽는다(사실 진술만·지시문 없음) | model-provider.js:685 · 검사 `test/every-wire-carries-the-next-path.test.js` |
 | J2 | ~~정직~~ **닫힘(절반은 남음)** | 지난 턴 실패가 성공처럼 서던 자리. `24754f6` 에서 상태 토큰을 옮기고 `(미확인: failed)` 로 표시. **남은 것**: `priorExchange` 는 여전히 요약만이고 결과 원문은 안 실린다(E1 계약 — 의도된 것) | task-context.js:1013 · model-provider.js:497 |
 | J3 | ~~정직~~ **닫힘** | ChatGPT 와이어만 사실을 빼던 자리. `24754f6` 에서 렌더를 복제하지 않고 `교환결과렌더` 를 그대로 부른다 — 칸이 늘면 넷이 같이 는다 | chatgpt-model-client.js:44 |
 | J4 | **정직** | `ask.user` 가 오면 같은 응답의 실행 호출이 사유 없이 증발 | turn.js:1244 |
 | J5 | **정직** | `desktop.act` 미지원 동사 거절 문구가 낡음("창 띄우기·끄기까지예요" — 실제 17동사) | desktop-act-tool.js:508 |
-| J6 | **정직** | locate 가 폴더당 400개에서 **필터 전에** 자르는데 표식이 없다 | local-locate.js:449 |
+| J6 | ~~정직~~ **닫힘** | locate 가 폴더당 400개에서 **필터 전에** 자르는데 표식이 없었다 — 「폴더 N개를 훑었어요」가 「다 봤어요」로 읽혔다. 상한(400)은 그대로 두고 **침묵만** 고쳤다: `truncatedFolders[{path,seen,unseen}]`·`unseenEntries` 를 결과에 싣고, **모든 요약 갈래**에 한 줄을 붙인다(찾았을 때도). 오픈북: 쿠아 `SKILL.md:665-668`(트리가 크면 파일로 내보내고 경로를 준다) · 클로드코드 실측(*"Output too large (106.3KB). Full output saved to: …"*) | local-locate.js:449 · 검사 `test/j6-locate-says-what-it-did-not-look-at.test.js` |
 | J7 | **정직** | 따옴표 든 CSV 는 표 안전망 전체가 조용히 꺼진다(꺼진 사실이 안 실림) | local-file.js:126 |
 | J8 | **정직** | 「승인을 기다리는 일」 줄이 모델에게 영영 안 간다(`turn.pendingApprovals` 를 넘기는 호출자 0) | working-state.js:171 |
 | J9 | **정직** | 도구를 쓴 턴의 답이 잘려도 「잘렸다」 안내가 안 붙는다(빠른 경로에만) | turn.js:1423 |
 | F1 | **마찰** | 실제 검색기가 DDG 하나뿐 — SearXNG·Tavily 키를 넘기는 배선도 env 도 없다 | live-context.js:193 |
 | F2 | **마찰** | 미분류 MCP 도구가 전부 `unknown_kind`+승인 → 조회도 카드 | tool-admission.js:65 |
 | F3 | **마찰** | 비밀 이름 정규식이 일반 자료도 잡는다(`token-정산.xlsx` 읽기 차단, 사유 미고지). `b3eea28` 이후 `bulk_move` 도 같은 정규식을 쓴다 — `정산.pem` 류가 이동에서 제외된다(이쪽은 사유를 고지한다) | file-scope.js · local-file.js:1018 |
-| F4 | **마찰** | `undo` 범위 자가 write 보다 좁다 → 홈에 쓰고 못 되돌리는 조합 | local-file.js:571 |
+| F4 | ~~마찰~~ **닫힘** | `undo` 만 선언 루트(`roots`)를 봤고 쓰기는 `activeRoots`(루트 ∪ 홈)로 돌았다 → `GPAO_T5_FILE_ROOTS` 로 좁힌 구성에서 **홈에 쓰고 못 되돌리는 조합**이 성립했다(카드는 "되살릴 수 있어요"라고 약속했다). 되돌리기가 **쓰기와 같은 자**(`activeRoots`)를 쓰게 했다 — 보호 검사와 사본 경계(휴지통 또는 범위 안)는 그대로 | local-file.js:571 · 검사 `test/f4-undo-uses-the-same-ruler-as-write.test.js` |
 | F5 | **마찰** | 채널 계층 일부가 모든 외부 전송을 항상 A2 로 선언(상위 헌장 ③ 과 충돌) | (코덱스 §13) |
 | C1 | **원가** | 캐시 접두를 실제로 쓰는 공급자는 Anthropic 하나. beai 는 원천 불가 | model-provider.js:901 |
 | C2 | **원가** | `완료주장검증` 이 한 턴에 두 번 돈다(걸음 루프 + 출구) | turn.js:2469 · 696 |

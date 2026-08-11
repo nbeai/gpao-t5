@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 
 const 맥락 = (폴더) => [{
   폴더,
@@ -70,7 +71,11 @@ test('캡슐 안 쓰기도 같은 자를 지난다 — 내부 부분합 실물�
         userSafeSummary: r.userSafeSummary, nextSafeAction: r.nextSafeAction,
         actualCall: { tool, args }, result: r.result,
       })) },
-      selfState: {},
+      // **손의 선언을 준다**(§12-S3 이후). 캡슐 안 호출도 이제 커널과 같은 승인 게이트를
+      // 지나는데, 그 게이트는 되돌림 여부를 `connectedTools` 의 선언에서 읽는다(헌장 ②).
+      // 빈 selfState 는 "되돌릴 수 있다고 아무도 안 밝힌 쓰기"라 카드로 간다 — 라이브에서는
+      // 늘 선언이 있으므로, 여기서 실물과 같은 사실을 준다(판정 자를 건드리지 않는다).
+      selfState: buildSelfState(demoEnv({ include: ['local.file'], hands: ['local.file'] })),
     });
     const r = await capsule.handler({
       code: `
