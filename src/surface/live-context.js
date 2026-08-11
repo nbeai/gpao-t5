@@ -203,7 +203,18 @@ export function liveDeps(processEnv = {}, deps = {}) {
       roots: defaultFileRoots(processEnv),
       homeDir: localHome,
     }),
-    localTerminal: makeLocalTerminalTool({ dataDir: stateDir }),
+    // **셸도 서버가 받은 구성을 본다**(라이브 실측 2026-08-11 · 4회차).
+    //
+    // 셸의 자식 프로세스는 여태 **서버를 띄운 프로세스의 env** 를 받았다. 그래서 서버에 준
+    // 구성(`GPAO_T5_FILE_ROOTS` 등)을 셸은 **아예 못 봤다** — 파일 손은 `defaultFileRoots(processEnv)`
+    // 로 그 폴더를 아는데 셸만 몰랐다. 실측: *"이 폴더에 8월_정산.xlsx 만들어줘"* 가 진짜
+    // 엑셀을 만들고도(`file` → Microsoft Excel 2007+) 사용자가 가리킨 폴더가 아니라 **홈에**
+    // 떨어졌다 — 문서가 알려 준 `printenv GPAO_T5_FILE_ROOTS` 가 빈 값이었기 때문이다.
+    // 두 손이 다른 자를 보면 사용자에겐 "파일마다 되다 안 되다"로 보인다(`local-file.js` 의 그 계약).
+    //
+    // **기본 자리(cwd)는 안 건드린다** — 격리 증명 ③이 "터미널 기본 자리 = 격리 홈"을 재고
+    // 있고, 작업 폴더로 옮기면 그 축이 흔들린다. 자리는 홈, 아는 것은 구성 — 둘은 다른 문제다.
+    localTerminal: makeLocalTerminalTool({ dataDir: stateDir, env: processEnv }),
     // S4 캡슐 — **커널 격리를 쓸 수 있을 때만 선다.** 없는 능력을 있는 척하지 않는다
     // (`sandboxAvailable()` 이 false 면 손 목록에 아예 안 들어가고 descriptor 도 안 딸려온다).
     // 안에서 부를 수 있는 손은 파일 하나다 — 넓히려면 그 손의 격리 성질을 먼저 증명한다.

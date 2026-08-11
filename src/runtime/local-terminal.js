@@ -82,10 +82,10 @@ function 네트워크만열어볼까(r) {
  * *돌려 보고 안다*: 네트워크에만 막혔으면 네트워크만 열고 한 번 더 돌린다. 거기서도 막히면
  * 그건 진짜 변경 시도이므로 승인으로 간다.
  */
-async function 재보기(run, command, { cwd, timeoutMs }) {
-  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
+async function 재보기(run, command, { cwd, timeoutMs, env }) {
+  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs, env });
   if (!네트워크만열어볼까(첫판)) return 첫판;
-  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs });
+  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs, env });
   // **reach 에서도 막혔으면 첫판을 그대로 쓴다.** 승인 카드에 실릴 이유는 probe 가 말한 것이
   // 정확하다 — reach 는 네트워크를 연 뒤의 두 번째 벽이라 사용자에게는 덜 정확한 설명이 된다.
   return looksBlocked(둘째판) ? 첫판 : 둘째판;
@@ -103,7 +103,13 @@ export function makeLocalTerminalTool(deps = {}) {
   // 기본 자리는 **사용자의 홈**이다. process.cwd() 는 서버를 띄운 자리라 사용자와 무관하고,
   // 거기가 빈 작업 폴더면 모델이 아무리 찾아도 안 나와서 결국 "경로를 알려줘"로 떠넘긴다(실측).
   // 쓰기는 커널이 막으므로 넓게 둘러보는 것 자체는 안전하다 — 좁혀야 할 이유가 없다.
+  // **셸이 서는 자리는 파일 손이 서는 자리와 같아야 한다**(live-context 가 같은 값을 준다).
+  // 구성이 없으면 예전 그대로 홈이다 — `defaultFileRoots` 의 기본이 홈이라 값이 같다.
   const cwdOf = () => deps.cwd ?? homedir();
+  // 자식 프로세스가 볼 환경. 안 주면 서버를 띄운 프로세스의 env 라, 서버가 받은 구성
+  // (`GPAO_T5_FILE_ROOTS` 등)을 셸이 **아예 못 본다** — 문서가 `printenv` 로 알려 주는 자리가
+  // 빈 값이 되고, 만든 파일이 사용자가 가리킨 폴더가 아니라 홈에 떨어진다(실측 2026-08-11).
+  const envOf = () => deps.env;
 
   /**
    * 계획 단계에서 부른다(실행 아님). 등급을 정할 사실을 만든다.
@@ -113,7 +119,7 @@ export function makeLocalTerminalTool(deps = {}) {
     const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
     if (risk) return { command, cwd: blank(opts.cwd) ?? cwdOf(), lifecycle: risk, changes: true };
     const cwd = blank(opts.cwd) ?? cwdOf();
-    const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
+    const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs, env: envOf() });
     return { command, cwd, probe: r, changes: looksBlocked(r) };
   }
 
@@ -178,8 +184,8 @@ export function makeLocalTerminalTool(deps = {}) {
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
       const r = mode === 'granted'
-        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs })
-        : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
+        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs, env: envOf() })
+        : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs, env: envOf() }));
       // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
       // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.
       // 실행기가 결과에 `mode` 를 실어 주므로 지어내지 않고 그 사실을 읽는다.

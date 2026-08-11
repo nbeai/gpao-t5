@@ -17,6 +17,9 @@ import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previe
 import { protectionBlocks, protectionMessage } from './local-protection.js';
 import { extractDocument } from './document-intake.js';
 import { identifyWorksetMembers } from '../kernel/l1-intent/source-coverage.js';
+// 파일 스킬 목록(이름·설명·경로). 막힌 자리에서 **그 문서를 여는 명령**을 쥐여 주는 데만 쓴다 —
+// 프롬프트에 싣는 소비자는 `model-provider.js:17` 이고 여기는 두 번째 소비자다.
+import { skillIndex } from '../surface/skill-docs.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
 const VERSION_PREVIEW_FILES = 6;
@@ -260,11 +263,11 @@ function 쓴숫자대조(text, 표맥락) {
  */
 const 서명 = (...bytes) => Buffer.from(bytes);
 const 형식약속표 = [
-  { 이름: '엑셀 파일(zip 꾸러미)', 확장자: ['.xlsx', '.xlsm'], 서명들: [서명(0x50, 0x4b)], 스킬: '엑셀 파일 만들기' },
-  { 이름: '워드 파일(zip 꾸러미)', 확장자: ['.docx'], 서명들: [서명(0x50, 0x4b)], 스킬: 'PDF·워드 파일 만들기' },
+  { 이름: '엑셀 파일(zip 꾸러미)', 확장자: ['.xlsx', '.xlsm'], 서명들: [서명(0x50, 0x4b)], 스킬: '엑셀' },
+  { 이름: '워드 파일(zip 꾸러미)', 확장자: ['.docx'], 서명들: [서명(0x50, 0x4b)], 스킬: '워드' },
   { 이름: '슬라이드 파일(zip 꾸러미)', 확장자: ['.pptx'], 서명들: [서명(0x50, 0x4b)] },
   { 이름: 'zip 꾸러미', 확장자: ['.zip', '.jar', '.hwpx', '.odt', '.ods', '.odp'], 서명들: [서명(0x50, 0x4b)] },
-  { 이름: 'PDF 문서', 확장자: ['.pdf'], 서명들: [Buffer.from('%PDF-')], 스킬: 'PDF·워드 파일 만들기' },
+  { 이름: 'PDF 문서', 확장자: ['.pdf'], 서명들: [Buffer.from('%PDF-')], 스킬: 'PDF' },
   { 이름: 'PNG 그림', 확장자: ['.png'], 서명들: [서명(0x89, 0x50, 0x4e, 0x47)] },
   { 이름: 'JPEG 그림', 확장자: ['.jpg', '.jpeg'], 서명들: [서명(0xff, 0xd8, 0xff)] },
   { 이름: 'GIF 그림', 확장자: ['.gif'], 서명들: [Buffer.from('GIF87a'), Buffer.from('GIF89a')] },
@@ -277,6 +280,28 @@ const 글형식 = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', 
   '.htm', '.svg', '.yaml', '.yml', '.ini', '.conf', '.log', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.sh', '.zsh', '.bash', '.sql', '.css', '.scss', '.go', '.rs', '.java', '.c', '.h',
   '.cpp', '.hpp', '.swift', '.kt', '.php', '.pl', '.lua', '.toml', '.env', '.gitignore', '.rst', '.tex']);
+
+/**
+ * **막힌 자리에서 손이 쥐어 주는 것은 문구가 아니라 부를 수 있는 값이다**
+ * (`task-context.js:591` 이 실패 영수증의 `다음수단` 을 그대로 모델에게 올린다).
+ *
+ * 라이브 실측 2회차(2026-08-11 · 이 수리 뒤): 위 자가 빈 `.xlsx` 를 막는 데는 성공했는데,
+ * 그 앞에서 모델은 **`python` 으로** zip+XML 을 조립하려다 *"이 환경에 python 이 없어서"* 로
+ * 끝냈다(`/usr/bin/python3` 은 있고 `python` 은 없다 · `which` 실측). 스킬 문서는 `zip` 명령만
+ * 쓰는데 **본문을 안 읽었다** — 프롬프트에 실리는 것은 이름·설명·경로뿐이라(`skill-docs.js:138`)
+ * 본문은 모델이 스스로 열어야 한다. 비교군도 같은 구조다(오픈클로 `formatSkillsForPrompt` —
+ * `dist/skill-version-C02E2GyH.js:34-53` "Use the read tool to load a skill's file").
+ *
+ * 그래서 **문을 여는 첫 명령을 손이 쥐여 준다.** 여기서 문서를 다시 쓰지 않는다(중복 금지) —
+ * 그 문서를 여는 `cat` 한 줄이다. 헤르메스의 축과 같다: 실패 힌트는 진단문이 아니라
+ * **다음 행동**이어야 한다(`tools/terminal_hints.py:11-19`).
+ */
+function 스킬문서찾기(낱말) {
+  if (!낱말) return null;
+  try {
+    return skillIndex().find((s) => String(s.name ?? '').includes(낱말)) ?? null;
+  } catch { return null; }   // 스킬 목록을 못 읽어도 쓰기 판정은 이미 났다
+}
 
 /**
  * 이 이름·내용이 서로 맞는가. 판정은 셋뿐이다 — `해당없음`(글 형식·확장자 없음) ·
@@ -970,13 +995,18 @@ export function makeLocalFileTool(deps = {}) {
           // 막힌다) 덮어쓰기였다면 원본이 이미 휴지통에 담긴 뒤다. 여기서 막으면 실물은 그대로다.
           const 형식 = 형식판정({ path: abs, bytes: Buffer.from(text, 'utf8') });
           if (형식.상태 === '어긋남') {
+            const 스킬 = 스킬문서찾기(형식.스킬);
             return fail(
               `${basename(abs)} 은(는) 이름이 ${형식.형식}을(를) 약속하는데 저장하려는 내용이 그 형식이 아니라서(${형식.이유}) 저장하지 않았어요.`,
               `${형식.형식}은(는) 글쓰기로는 못 만들어요 — 터미널로 진짜 파일을 만들어 드릴게요.`,
               { 확인: 'signature', 기대: 형식.기대, 받은: 형식.받은, 바이트: 형식.바이트 },
               // 모델이 그대로 부를 수 있는 값이다(사람 문장이 아니다 · `tool-receipt.js` 계약).
-              [{ 방법: 'local.terminal',
-                왜: `${형식.형식}은(는) 셸로 만든다${형식.스킬 ? ` — 파일 스킬 「${형식.스킬}」에 만드는 법이 있다` : ''}. 만든 뒤 \`file\` 로 확인한다` },
+              // **자리와 첫 명령을 함께 준다.** 막힌 호출의 인자는 「확인되지 않은 절대 경로」로
+              // 가려져 모델에게 안 가므로(`task-context.js:900`), 손이 푼 자리는 여기로만 간다.
+              [...(스킬 ? [{ 방법: 'local.terminal', command: `cat "${스킬.path}"`,
+                왜: `이 컴퓨터에서 ${형식.형식}을(를) 만드는 법이 「${스킬.name}」에 있다 — 그 문서는 **이 컴퓨터에 실제로 있는 명령만** 쓴다(없는 명령을 쓰는 문서는 목록에 안 올라온다). 읽고 그대로 실행한다` }] : []),
+              { 방법: 'local.terminal', ...(스킬 ? {} : { command: `command -v zip file` }),
+                왜: `만들 자리는 ${abs} 다. 셸로 만든 뒤 \`file "${abs}"\` 로 형식을 확인한다` },
               { 방법: 'local.file', action: 'write', 왜: `글로 남길 내용이면 ${basename(abs).replace(/\.[^.]*$/, '')}.md 처럼 글 형식 이름으로 저장한다` }],
             );
           }

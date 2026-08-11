@@ -28,6 +28,8 @@ import { join } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { executionBlock } from '../src/runtime/terminal-run.js';
+import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 
 async function 판() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'no-empty-success-')));
@@ -171,4 +173,53 @@ test('빈 .xlsx 가 막히면 그 턴 안에서 터미널 손이 쥐어지고 �
   assert.ok((받은사실[0].다음수단 ?? []).some((x) => x.방법 === 'local.terminal'),
     `손이 쥔 다음 수단이 안 실렸다 — 문구가 아니라 부를 수 있는 값이어야 한다: ${JSON.stringify(받은사실[0])}`);
   assert.equal(돈명령.length, 1, `셸이 실제로 돌지 않았다: ${JSON.stringify(돈명령)}`);
+});
+
+// ── ③ 그 뒤에 나온 자리 — **막혔는데 exit 0 이라 승인 카드가 안 떴다** ─────────
+//
+// 라이브 3회차(2026-08-11 · 위 두 수리 뒤). 사슬은 설계대로 돌았다:
+// ```
+// local.file:write .xlsx ""    → 막힘(위 ①)
+// local.terminal cat SKILL.md  → 손이 쥐여 준 그 명령을 그대로 불렀다(위 ②)
+// local.terminal <문서의 zip 조립>  → **여기서 죽었다**
+// ```
+// probe 샌드박스가 `mktemp -d` 와 `mkdir` 을 막았고(설계대로다 — probe 는 아무것도 못 바꾼다),
+// stderr 는 `Operation not permitted` 로 가득했는데 **명령 사슬의 마지막이 `file "$OUT"` 이라
+// exit code 가 0** 이었다. `executionBlock` 은 첫 줄에서 `exitCode === 0` 이면 「막힌 것 없음」
+// 으로 돌아선다 → `changes:false` → **승인 카드가 안 뜨고 진짜 실행이 영영 안 온다.**
+// 모델은 그 stderr 를 시스템의 거부로 읽고 *"임시 폴더를 못 쓰는 제한 때문에 못 만들었어요"*
+// 로 끝냈다 — `terminal-run.js` 의 그 주석이 이미 경고해 둔 바로 그 오독이다.
+//
+// 같은 병이 그 파일에 이미 한 번 적혀 있다(`실패를삼킴`): **exit code 가 사실을 못 담는 자리.**
+// 거기는 `|| true` 였고 여기는 `;` 사슬이다. 재는 것은 목록이 아니라 기계 사실 하나다 —
+// **우리 샌드박스가 실제로 무언가를 거부했는가.**
+test('선빨강: 막혔는데 마지막 명령이 성공해 exit 0 이면 승인 카드가 안 뜬다', () => {
+  const b = executionBlock({
+    exitCode: 0,
+    command: 'W=$(mktemp -d); mkdir -p "$W/xl"; zip -q -r -X "$OUT" .; file "$OUT"',
+    stdout: '',
+    stderr: 'mktemp: mkdtemp failed on /var/folders/x/T/tmp.AAA: Operation not permitted\n'
+      + 'mkdir: /xl: Operation not permitted\n',
+  });
+  assert.ok(b, '샌드박스가 막았는데 「막힌 것 없음」으로 읽었다 — 승인 카드가 안 뜨고 진짜 실행이 안 온다');
+  assert.equal(b.kind, 'sandbox');
+  assert.match(b.userWhy, /확인만 받으면/, '되는 일을 못 하는 일처럼 말하면 모델이 포기한다');
+});
+
+test('그 명령은 승인으로 간다 — probe 가 막혔으면 changes 다', async () => {
+  const tool = makeLocalTerminalTool({
+    run: async (c) => ({ exitCode: 0, stdout: '', command: c,
+      stderr: 'mkdir: /xl: Operation not permitted' }),
+  });
+  const p = await tool.probe('mkdir -p "$W/xl"; file x', {});
+  assert.equal(p.changes, true, 'probe 가 막은 쓰기가 승인 없이 지나간다 — 그리고 영영 실행되지 않는다');
+});
+
+test('반례: 진짜로 아무것도 안 막힌 exit 0 은 그대로 자동이다', () => {
+  assert.equal(executionBlock({ exitCode: 0, command: 'ls -al', stdout: 'a.txt\n', stderr: '' }), undefined,
+    '읽기만 한 명령에 승인 카드를 붙이면 마찰이 늘고 자동성 헌장을 어긴다');
+  // 남의 말 속의 문구는 우리 샌드박스의 거부가 아니다 — stdout 은 내용이지 판정 재료가 아니다.
+  assert.equal(executionBlock({ exitCode: 0, command: 'cat 안내.txt',
+    stdout: '이 문서에는 Operation not permitted 라는 문구가 나옵니다', stderr: '' }), undefined,
+    '읽은 글 안의 문구를 우리 거부로 읽으면 모든 읽기가 승인 카드가 된다');
 });

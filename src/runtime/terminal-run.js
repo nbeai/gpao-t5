@@ -182,7 +182,30 @@ export function executionBlock(r) {
         + ' — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요',
     };
   }
-  if (r.exitCode === 0) return undefined;
+  // **우리가 막은 사실은 exit code 보다 세다**(라이브 실측 2026-08-11 · 3회차).
+  //
+  // 위 `실패를삼킴` 과 **같은 병의 다른 얼굴**이다: exit code 가 사실을 못 담는 자리.
+  // 거기는 `|| true` 였고 여기는 `;` 사슬이다 — 실측 원문:
+  // ```
+  // W=$(mktemp -d); mkdir -p "$W/xl"; …; zip -q -r -X "$OUT" .; file "$OUT"
+  // stderr  mktemp: mkdtemp failed …: Operation not permitted
+  //         mkdir: /xl: Operation not permitted
+  // exit    0        ← 사슬의 **마지막** `file` 이 성공해서다
+  // ```
+  // probe 가 정확히 제 일을 했는데(쓰기를 막았다) 아래 첫 줄이 「막힌 것 없음」으로 돌아섰고,
+  // `changes:false` 라 **승인 카드가 안 떴다.** 진짜 실행은 영영 오지 않고, 모델은 그 stderr 를
+  // 시스템의 거부로 읽어 *"임시 폴더를 못 쓰는 제한 때문에 못 만들었어요"* 로 끝냈다 —
+  // 위 :150 주석이 경고한 그 오독이다. 엑셀 한 줄이 여기서 죽었다.
+  //
+  // 목록으로 알아맞히지 않는다. 재는 것은 기계 사실 하나다 — **우리 샌드박스가 실제로 거부했나.**
+  // `stderr` 만 본다: `stdout` 은 읽어 온 **내용**이라, 남의 글 속 문구를 우리 거부로 읽으면
+  // `cat` 한 번에 승인 카드가 뜬다(반례 검사가 문다).
+  const 우리가막음 = /operation not permitted|permission denied|read-only file system|\bEPERM\b|\bEACCES\b|\bEROFS\b/i;
+  if (r.exitCode === 0) {
+    return 우리가막음.test(String(r.stderr ?? ''))
+      ? { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' }
+      : undefined;
+  }
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
   if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
