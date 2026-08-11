@@ -65,16 +65,37 @@ export const 문장표 = Object.freeze([
     //
     // 그래서 **영수증으로 판정한다** — 어느 손이든 네이버를 실제로 열고 읽었으면 통과다.
     // 손의 종류는 안 묻는다(브라우저 손이든 화면 손이든 사용자 목적은 같다).
+    // **자가 느슨했다**(오너 지적 2026-08-11). 위 판정은 「네이버를 지목했고 무언가 읽었다」만
+    // 물어서, **첫 화면만 열고 검색은 안 한 회차가 통과했다.** 사용자 문장은
+    // *"전세사기 **검색 결과** 알려줘"* 다 — 물어야 할 것은 **검색이 실제로 일어났는가**이고,
+    // 그것은 문구가 아니라 기계로 가릴 수 있다.
+    //
+    // 조인 자 셋(전부 손기록의 기계 사실 · 모델 문장은 안 본다):
+    //   ① 네이버를 지목했다
+    //   ② **검색이 일어났다** — 성공한 걸음의 인자에 `search.naver`(검색 결과 주소)가 있거나,
+    //      질의어를 실제로 **넣은/보낸** 걸음(type·검색 질의)이 있다
+    //   ③ ② **뒤에** 성공한 읽기 걸음이 있다 — 결과를 읽지 않으면 "알려줘"가 안 닫힌다
+    // ②를 주소 하나로만 잡지 않는 이유: T5 손이 실크롬을 몰든 자기 브라우저를 몰든
+    // 사용자 목적은 같다(손의 종류는 안 묻는다 · 2026-08-11 PM 오류의 교훈).
     칸: '칸4 자력완결', 문장: '네이버 열어서 전세사기 검색 결과 알려줘.',
     async 판정(회차) {
       const 손들 = 회차?.손기록 ?? [];
-      const 네이버열림 = 손들.some((x) => /naver/i.test(JSON.stringify(x?.args ?? {})));
-      const 읽음 = 손들.some((x) => ['browser.observe', 'web.collect', 'desktop.screen']
-        .includes(x?.tool) && (x?.failureState ?? 'none') === 'none');
+      const 성공 = (x) => (x?.failureState ?? 'none') === 'none';
+      const 글 = (x) => JSON.stringify(x?.args ?? {});
+      const 네이버열림 = 손들.some((x) => /naver/i.test(글(x)));
+      // ② 검색 자체. 주소로 잡히거나(결과 페이지) 질의어를 넣은 걸음으로 잡힌다.
+      const 검색번호 = 손들.findIndex((x) => 성공(x) && (
+        /search\.naver/i.test(글(x))
+        || (/전세\s*사기/.test(글(x)) && ['desktop.act', 'browser.act', 'web.collect'].includes(x?.tool))
+      ));
+      // ③ 검색 뒤의 읽기.
+      const 읽음 = 검색번호 >= 0 && 손들.slice(검색번호 + 1).some((x) => 성공(x)
+        && ['browser.observe', 'web.collect', 'desktop.screen'].includes(x?.tool));
       const 앞 = await 기준자.앞창();
       return {
-        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 읽기성공=${읽음 ? 'O' : 'X'} · 앞창=${앞}`,
-        통과: 네이버열림 && 읽음,
+        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 검색함=${검색번호 >= 0 ? 'O' : 'X'}`
+          + ` · 검색뒤읽음=${읽음 ? 'O' : 'X'} · 앞창=${앞}`,
+        통과: 네이버열림 && 검색번호 >= 0 && 읽음,
       };
     },
   },
@@ -159,7 +180,12 @@ export async function 실기기회차({ port = 0, 목록 = 문장표 } = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
-  const { 방, 줄들 } = await 실기기회차({});
+  // `--only=<조각>` — 한 문장만 돌린다(칸·문장 어디에 걸려도 된다). 유료 회차를 아끼는 자리다.
+  // 동결 문장표에서 **고르기만** 한다 — 즉흥 문장은 여기로도 못 들어온다(§9).
+  const 조각 = (process.argv.slice(2).find((a) => a.startsWith('--only=')) ?? '').slice(7).trim();
+  const 목록 = 조각 ? 문장표.filter((x) => x.칸.includes(조각) || x.문장.includes(조각)) : 문장표;
+  if (!목록.length) { console.error(`--only=${조각} 에 걸리는 문장이 문장표에 없다`); process.exit(2); }
+  const { 방, 줄들 } = await 실기기회차({ 목록 });
   console.log(표(줄들));
   console.log(`\n회차 원본: ${방}/회차.json`);
   process.exit(줄들.some((r) => r.통과 === false) ? 1 : 0);
