@@ -21,8 +21,17 @@
 ② 닫는 문장     이 계획서 §2 를 사람이 손으로 안 고쳐도 된다
 ③ 선빨강        3b49571 — 검사 203줄만. 구현 전 15/15 빨강
 ④ PM 위임장     이 문서 아래 「자름과 상한」 + 계획서 §6 칸 0 규격
-자리            worktree-agent-ac3ddb14ca27a1200 (병합 전 · PASS 뒤 PM 이 병합·수거)
-커밋            3b49571 선빨강 → b83ee8e 구현 → 09bf305 체감 지표 → (보완 1회 진행 중)
+자리            origin/claude/kan0-state-probe (병합 전 · PASS 뒤 PM 이 병합)
+커밋            3b49571 선빨강 → b83ee8e 구현 → 09bf305 체감 지표 → 50e6a16 보완
+방              **수거 완료** — worktree 2개(정본·git 관리)만 남음. 진입 감사 PASS
+```
+
+**감사가 선빨강을 직접 빨갛게 보는 법** (규약 ④ — 못 보면 그 자체로 BLOCK)
+```bash
+git fetch origin claude/kan0-state-probe
+git worktree add /tmp/kan0-audit 3b49571
+cd /tmp/kan0-audit && node --test test/state-probe.test.js
+# 기대: tests 15 · pass 0 · fail 15 · 종료 코드 1 (그 커밋엔 계측기 본체가 없다)
 ```
 
 **자름과 상한**: 제품 코드 0줄 · 새 문서 0 · 유료 호출 0 · 실기기 0 · 오너 실사용 자리 0 ·
