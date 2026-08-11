@@ -16,6 +16,8 @@ import { 완료주장검증, 빈손으로끝났나 } from '../src/kernel/l2-plan
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { interpret } from '../src/kernel/l1-intent/intent.js';
 import { buildTaskContext, compactResult } from '../src/kernel/l1-intent/task-context.js';
+import { buildModelMessages, MODEL_PROVIDERS } from '../src/runtime/model-provider.js';
+import { ToolRunner } from '../src/runtime/tool-runner.js';
 
 const selfState = buildSelfState({
   model: { id: 'beai5-stub' },
@@ -111,46 +113,114 @@ test('① 빈손 판정은 원장을 받으면 원장이 지배한다 — 어미
 
 // ── ② 실패의 기계 원문을 모델에게 ────────────────────────────────────────
 //
-// 계약 *"실패한 결과를 사실로 승격하지 않는다"* 는 옳고 그대로 둔다. 그런데 지금은 승격만
-// 막는 게 아니라 **내용을 통째로 안 준다** — 모델이 받는 것은 5값 상태 토큰과 사람말 요약뿐이다.
+// 계약 *"실패한 결과를 사실로 승격하지 않는다"* 는 옳고 그대로 둔다. 그런데 예전에는 승격만
+// 막는 게 아니라 **내용을 통째로 안 줬다** — 모델이 받는 것은 5값 상태 토큰과 사람말 요약뿐이었다.
 // T5 자신의 시험이 이미 그 대가를 적어 뒀다(cu-c-effect-not-dispatch):
 //   *"사유 없는 실패가 회차 원본에 남아 원인 확정을 막았고, 모델은 그 빈자리를
 //     「환경이 막혀서」로 메웠다."*
-
-// **되돌림 기록 — 이 슬라이스에서 ② 는 안 했다**(2026-08-11).
 //
-// 수리를 붙여 봤고, 봉인 셋이 물었다. 전부 *의도된* 봉인이고 문구가 정확히 이 일을 금지한다:
-//   · `s1-execution-wall.js:141`  "진단면 내부 분류값이 **모델 입력**으로 새면 안 된다"
-//   · `recovery-failure-injection` A(EIO·/dev/x0) · B(ECONNREFUSED) · B'(fetch failed)
-//     — 셋 다 `JSON.stringify(turnResult)` 을 재는데, 그 봉투에 `turnExchange` 가 들어 있다
-//       (turn.js:3228 → 서버가 대화에 저장 → 다음 턴 `priorExchange`).
-//
-// 즉 ② 는 한 줄 공백이 아니라 **정면 계약 충돌**이다. 정본 §6 은 *"「확인 안 됨」 표식을
-// 달아서 주기는 준다"* 를 요구하고, 봉인 셋은 *"진단면은 모델 입력에 안 간다"* 를 요구한다.
-// `diagnosticTrace` 는 지금 원장에도 표면에도 안 실리는 **유일한 비저장 칸**이라, 여기를 여는
-// 것은 안전 바닥을 내리는 변경이다 — 이 단위의 상한(*안전 바닥 0*)이 금지한 자리다.
-// 그래서 **안 한다.** 아래 반대 시험만 남겨, 성공 경로의 비노출은 계속 못박는다.
+// 계획서 §5-3(오너 승인 2026-08-12)이 이 절단을 닫았다 — Hermes model_tools.py 의
+// `[TOOL_ERROR]`+실패 원문 2,000자 축을 흡수하되, 표식(`확인안됨`)을 반드시 단다.
+// 봉인 셋과의 충돌은 **밭을 갈라** 푼다:
+//   · 모델 입력(turnExchange)에는 실패 원문이 **실린다** — 이 파일이 그것을 문다.
+//   · 저장 봉투(턴 결과·사용자 결과)에서는 **걷힌다** — recovery A·B·B' 가 그대로 문다.
+//   · 실행 전에 막힌 호출의 diagnosticTrace(커널 내부 분류값)는 원문이 아니다 —
+//     s1-execution-wall:141 이 그대로 문다.
 
-test('② 되돌림 뒤에도 실패 상태 토큰과 사람말 요약은 그대로 간다', () => {
+const 실패영수증 = () => ({
+  intended: '창 앞으로',
+  actualCall: { tool: 'desktop.act', args: { action: 'focus', app: 'KakaoTalk' } },
+  failureState: 'failed',
+  userSafeSummary: '그 창을 앞으로 못 옮겼어요.',
+  diagnosticTrace: { 오류: 'AXUIElementPerformAction kAXErrorCannotComplete (-25204)' },
+  nextSafeAction: '다시 시도할까요?',
+});
+
+test('② 실제로 부른 호출이 실패하면 기계 원문이 「확인 안 됨」 표식과 함께 모델 교환에 실린다', () => {
   const tc = buildTaskContext({
-    intent: interpret('카카오톡 창을 앞으로 띄워줘'),
-    selfState,
-    receipts: [{
-      intended: '창 앞으로',
-      actualCall: { tool: 'desktop.act', args: { action: 'focus', app: 'KakaoTalk' } },
-      failureState: 'failed',
-      userSafeSummary: '그 창을 앞으로 못 옮겼어요.',
-      diagnosticTrace: { 오류: 'AXUIElementPerformAction kAXErrorCannotComplete (-25204)' },
-      nextSafeAction: '다시 시도할까요?',
-    }],
+    intent: interpret('카카오톡 창을 앞으로 띄워줘'), selfState, receipts: [실패영수증()],
   });
   const x = (tc.turnExchange ?? [])[0];
   assert.ok(x, '실패 교환이 없다');
   assert.equal(x.failureState, 'failed', '상태 토큰이 사라졌다');
+  assert.equal(x.확인안됨, true, '표식 없이 주면 실패 내용이 사실로 승격된다 — 표식이 계약이다');
+  assert.match(String(x.실패원문 ?? ''), /kAXError/, '실패의 기계 원문이 모델 교환에 없다(§5-3 절단 그대로)');
   assert.equal(x.data, undefined, '실패한 결과를 data 로 승격했다');
-  // 지금 모델이 받는 전부 — 이 줄이 ② 의 크기다. 고칠 때 이 값이 바뀐다.
-  assert.doesNotMatch(JSON.stringify(x), /kAXError/,
-    '진단면이 모델 입력에 실렸다 — 봉인 셋(s1-execution-wall:141 · recovery A·B·B\')과 충돌한다');
+  assert.match(String(x.summary ?? ''), /못 옮겼어요/, '사람말 요약은 그대로 남는다(다음 입력 봉인 유지)');
+});
+
+test('② 실패 원문은 와이어까지 간다 — 도구 결과 메시지에 「확인 안 됨」 딱지로 실린다', () => {
+  const tc = buildTaskContext({
+    intent: interpret('카카오톡 창을 앞으로 띄워줘'), selfState, receipts: [실패영수증()],
+  });
+  const 전문 = MODEL_PROVIDERS.openai.body(
+    { modelId: 'm', maxTokens: 10, baseUrl: 'http://x' }, buildModelMessages(tc), {},
+  );
+  assert.match(전문, /kAXError/, '교환에는 실렸는데 와이어 렌더가 떨어뜨렸다 — 안 준 손은 흔적이 없다');
+  assert.match(전문, /확인 안 됨/, '원문이 표식 없이 나가면 모델이 실패 내용을 사실로 읽는다');
+});
+
+test('② 실패 원문 상한 2,000자 — 자른 사실과 전체 크기를 밝힌다(조용한 절단 금지)', () => {
+  const 긴 = `머리표식AA ${'x'.repeat(9000)}`;
+  const tc = buildTaskContext({
+    intent: interpret('실행해줘'), selfState,
+    receipts: [{ ...실패영수증(), diagnosticTrace: { stderr: 긴 } }],
+  });
+  const x = tc.turnExchange[0];
+  assert.ok(x.실패원문.includes('머리표식AA'), '앞머리가 사라졌다');
+  assert.ok(x.실패원문.length <= 2200, `상한이 안 선다: ${x.실패원문.length}자`);
+  assert.match(x.실패원문, /전체 \d+자/, '뺀 양을 안 밝히면 조용한 절단이다');
+});
+
+test('② 실행 전에 막힌 호출(부르지 않은 것)에는 실패 원문을 만들지 않는다 — 내부 분류값 봉인 유지', () => {
+  // s1-execution-wall:141 과 같은 정의역: 이 diagnosticTrace 는 기계 원문이 아니라
+  // 커널 내부 분류값(순번·callId·reason)이다. 여기에 문을 열면 그 봉인이 문다.
+  const tc = buildTaskContext({
+    intent: interpret('옮겨줘'), selfState,
+    receipts: [{
+      intended: '파일 도구 실행',
+      actualCall: null,
+      제안한호출: { tool: 'local.file', args: { action: 'move', path: 'a.png', to: 'images/a.png' } },
+      failureState: 'blocked',
+      userSafeSummary: '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.',
+      diagnosticTrace: { callId: 'wire_5', 순번: 5, tool: 'local.file', reason: '걸음상한' },
+    }],
+  });
+  const x = (tc.turnExchange ?? [])[0];
+  assert.ok(x, '못 부른 호출도 교환으로는 돌아간다(계약 ②)');
+  assert.equal(x.실패원문, undefined, '부르지도 않은 호출에 실패 원문이 생겼다');
+  assert.equal(JSON.stringify(tc).includes('걸음상한'), false, '진단면 내부 분류값이 모델 입력으로 샜다');
+});
+
+test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉투)에서는 걷힌다', async () => {
+  // 수리 전/후 한 쌍의 자리: 같은 실패 영수증이 예전엔 {failureState}만 갔고,
+  // 지금은 실패 원문+표식이 **모델 입력에** 실리되 저장 봉투에는 없다(봉인 A 그대로).
+  const { runTurn } = await import('../src/kernel/turn.js');
+  const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+  const 던지는손 = {
+    async probe(command) { return { command, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+    async handler() { throw new Error('EIO: disk error at /dev/x0'); },
+  };
+  const 입력들 = [];
+  let 냈나 = false;
+  const 모델 = {
+    async respond(tc, opts = {}) {
+      입력들.push(JSON.stringify(tc));
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (!opts.tools?.length) return '못 봐서 확인하지 못했어요';
+      if (!냈나) { 냈나 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+      return { text: '못 봐서 확인하지 못했어요', toolCalls: [] };
+    },
+  };
+  const r = await runTurn(
+    { text: '작업 폴더 봐줘' },
+    { env: demoEnv(), tools: demoTools({ localTerminal: 던지는손 }), model: 모델 },
+  );
+  const 뒤입력 = 입력들[입력들.length - 1];
+  assert.ok(뒤입력.includes('EIO'), '실패의 기계 원문이 다음 모델 입력에 없다 — §5-3 절단 그대로다');
+  assert.ok(뒤입력.includes('확인안됨') || 뒤입력.includes('확인 안 됨'), '원문이 표식 없이 실렸다');
+  assert.ok(!JSON.stringify(r).includes('EIO') && !JSON.stringify(r).includes('/dev/x0'),
+    '실패 원문이 저장 봉투(사용자 결과)로 샜다 — 봉인 A 가 물어야 할 자리다');
 });
 
 test('② 성공한 실행에는 진단면이 붙지 않는다 — 문은 실패에만 열린다', () => {
@@ -202,4 +272,103 @@ test('③ 손이 이미 쪽을 넘긴 파일은 그 다음 쪽 문을 그대로 
 test('③ 반례 — 통째로 실린 짧은 파일에는 문을 달지 않는다', () => {
   const 요약 = compactResult({ path: '/방/작은표.csv', text: '항목,금액\n임대료,500000\n', bytes: 30 });
   assert.doesNotMatch(요약, /offset=/, '자르지도 않았는데 문을 달아 소음을 만들었다');
+});
+
+// ── ④ 그 밖 결과의 접기와 큰 결과 흘리기 (§5-3 b·c) ──────────────────────
+//
+// b: 갈래 없는 결과(맨 아래 JSON 갈래)가 산문 접기(`…가운데 N자 생략…`)로 뭉개졌다 —
+//    뺀 양은 밝히는데 **전체 크기·실은 범위·다음 위치**가 없어 모델이 나머지를 셈할 수 없었다.
+// c: 결과 원문이 창 예산의 결과자를 크게 넘으면(기준은 tool-runner 에 값으로 있다) 상태 자리
+//    아래 파일로 흘리고, 모델에는 요약+경로+전체 크기를 준다(Hermes tool_result_storage 축).
+//    흘린 경로는 local.file read 로 **실제로 이어 읽혀야** 문이다.
+
+test('④ 갈래 없는 큰 결과는 산문으로 뭉개지 않는다 — 전체 크기·실은 범위·다음 위치를 밝힌다', () => {
+  const 요약 = compactResult({ 목록: Array.from({ length: 300 }, (_, i) => `항목${i}`) }, 500);
+  assert.match(요약, /전체 \d+자/, '전체 크기를 모델이 못 본다');
+  assert.match(요약, /실은 범위/, '실은 범위 표식이 없다 — 조용한 절단이다');
+  assert.match(요약, /다음 위치 \d+/, '다음 위치가 없다 — 잘렸다는 말만 하고 막은 것이다');
+  assert.ok(요약.includes('항목0'), '앞머리가 사라졌다');
+  assert.ok(요약.includes('항목299'), '결론(끝부분)이 사라졌다');
+});
+
+const 흘림방 = async () => {
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return { dir: await mkdtemp(join(tmpdir(), 'raw-spill-')), join };
+};
+const 큰결과손 = {
+  async handler() {
+    return {
+      result: { rows: Array.from({ length: 400 }, (_, i) => ({ i, note: `자료${i}` })) },
+      userSafeSummary: '자료를 읽었어요.',
+    };
+  },
+};
+const 흘림셀프 = buildSelfState({
+  model: { id: 'beai5-stub' },
+  connections: [{ id: 'local.terminal', connected: true, executable: true }],
+});
+
+test('④ 결과 원문이 기준을 넘으면 상태 자리 아래 파일로 흘리고, 모델 입력에 경로·전체 크기가 실린다', async () => {
+  const { dir, join } = await 흘림방();
+  const 원래 = process.env.GPAO_T5_DATA_DIR;
+  process.env.GPAO_T5_DATA_DIR = dir;
+  try {
+    const runner = new ToolRunner({ 'local.terminal': 큰결과손 });
+    const rec = await runner.run('local.terminal', {}, 흘림셀프, { 결과자: 200 });
+    assert.equal(rec.failureState, 'none');
+    assert.ok(rec.흘린원문?.path, '큰 결과가 파일로 흘러가지 않았다');
+    assert.ok(rec.흘린원문.path.startsWith(join(dir, 'results')),
+      `상태 자리 아래 한 디렉터리가 아니다: ${rec.흘린원문.path}`);
+    const { readFile } = await import('node:fs/promises');
+    assert.equal(await readFile(rec.흘린원문.path, 'utf8'), JSON.stringify(rec.result),
+      '흘린 파일이 원문 그대로가 아니다');
+    // 모델 입력의 결과 자리에 문이 실린다 — 경로·전체 크기·이어 읽는 손.
+    const tc = buildTaskContext({
+      intent: interpret('자료 봐줘'), selfState: 흘림셀프, receipts: [rec], 창예산: { 결과자: 200 },
+    });
+    const x = tc.turnExchange[0];
+    assert.ok(x.data.includes(rec.흘린원문.path), '흘린 경로가 모델에게 안 갔다 — 문이 없는 절단이다');
+    assert.match(x.data, /전체 \d+자/, '전체 크기가 모델에게 안 갔다');
+    assert.match(x.data, /local\.file read/, '이어 읽을 손이 안 적혔다');
+  } finally {
+    if (원래 === undefined) delete process.env.GPAO_T5_DATA_DIR;
+    else process.env.GPAO_T5_DATA_DIR = 원래;
+  }
+});
+
+test('④ 흘린 파일은 local.file read 로 실제로 이어 읽힌다', async () => {
+  const { dir } = await 흘림방();
+  const 원래 = process.env.GPAO_T5_DATA_DIR;
+  process.env.GPAO_T5_DATA_DIR = dir;
+  try {
+    const runner = new ToolRunner({ 'local.terminal': 큰결과손 });
+    const rec = await runner.run('local.terminal', {}, 흘림셀프, { 결과자: 200 });
+    assert.ok(rec.흘린원문?.path, '흘린 파일이 없다');
+    const { makeLocalFileTool } = await import('../src/runtime/local-file.js');
+    const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
+    const out = await localFile.handler({ action: 'read', path: rec.흘린원문.path });
+    assert.ok(!out.failed && !out.blocked, `흘린 경로를 읽는 손이 막혔다: ${out.userSafeSummary}`);
+    assert.ok(String(out.result?.text ?? '').includes('자료399'), '이어 읽은 내용이 원문이 아니다');
+  } finally {
+    if (원래 === undefined) delete process.env.GPAO_T5_DATA_DIR;
+    else process.env.GPAO_T5_DATA_DIR = 원래;
+  }
+});
+
+test('④ 반례 — 기준 아래 결과는 흘리지 않는다(파일 소음 금지)', async () => {
+  const { dir } = await 흘림방();
+  const 원래 = process.env.GPAO_T5_DATA_DIR;
+  process.env.GPAO_T5_DATA_DIR = dir;
+  try {
+    const runner = new ToolRunner({
+      'local.terminal': { async handler() { return { result: { ok: true }, userSafeSummary: '했어요.' }; } },
+    });
+    const rec = await runner.run('local.terminal', {}, 흘림셀프, { 결과자: 200 });
+    assert.equal(rec.흘린원문, undefined, '작은 결과까지 파일로 흘렸다 — 소음이다');
+  } finally {
+    if (원래 === undefined) delete process.env.GPAO_T5_DATA_DIR;
+    else process.env.GPAO_T5_DATA_DIR = 원래;
+  }
 });

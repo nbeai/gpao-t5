@@ -39,9 +39,9 @@ test('봉인: 읽은 것이 접히지 않는다 — 창 예산이 오면 웹 본
   const 본문 = '기온 43.7도 폭염경보. '.repeat(400); // ≈ 8,800자 — 그날 본문의 두 배
   const 결과 = { url: 'https://w.example', text: 본문 };
   const 옛것 = compactResult(결과);
-  assert.match(String(옛것), /생략/, '옛 상한이 안 접으면 이 봉인은 재는 것이 없다');
+  assert.match(String(옛것), /잘림|생략/, '옛 상한이 안 접으면 이 봉인은 재는 것이 없다');
   const 새것 = compactResult(결과, 창예산({ modelId: 'gpt-5.1' }).결과자);
-  assert.doesNotMatch(String(새것), /생략/, '창을 아는데도 읽은 것이 접혔다 — 08-05 사고 그대로다');
+  assert.doesNotMatch(String(새것), /잘림|생략/, '창을 아는데도 읽은 것이 접혔다 — 08-05 사고 그대로다');
   assert.match(String(새것), /43\.7/);
 });
 

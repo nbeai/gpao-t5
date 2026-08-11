@@ -378,10 +378,17 @@ export function compactResult(result, maxChars = 1200) {
     return `${lines.join('\n')}\n내용:\n${body}`;
   }
 
-  // ④ 그 밖(작은 결과) — 통째로 주되, 넘치면 가운데를 접는다(앞부분만 남기지 않는다).
+  // ④ 그 밖(작은 결과) — **구조(JSON)를 그대로 준다**(§5-3 b · 2026-08-12).
+  // 예전엔 `fold` 로 접었다 — 뺀 양은 밝혔지만 전체 크기·실은 범위·다음 위치가 없어
+  // 모델이 나머지를 셈할 수 없었다(잘렸다는 말만 하고 막은 것). 넘치면 앞·끝을 남기고
+  // 그 셋을 값으로 밝힌다. 나머지 원문은 영수증에 그대로 있고, 크게 넘치면 흘린 파일이
+  // 문이 된다(`흘린원문` — tool-runner §5-3 c).
   const json = JSON.stringify(result);
   if (!json || json === '{}') return undefined;
-  return fold(json, maxChars);
+  if (json.length <= maxChars) return json;
+  const 앞 = Math.ceil(maxChars * 0.7);
+  const 뒤 = Math.max(maxChars - 앞, 0);
+  return `${json.slice(0, 앞)}\n…[잘림: 전체 ${json.length}자 · 실은 범위 0-${앞} 과 끝 ${json.length - 뒤}-${json.length} · 가운데 다음 위치 ${앞}]…\n${json.slice(-뒤)}`;
 }
 
 /**
@@ -583,6 +590,46 @@ function 가본곳모으기(receipts = []) {
  * 그게 답 갈아치우기의 축소판이다. 빈 자리에만 **턴이 이미 가진 후보**를 놓는다.
  * 어느 것이 좋은지는 정하지 않는다(§1.2 · 절대원칙 8).
  */
+/**
+ * **실패의 기계 원문** (§5-3 a · 오너 승인 2026-08-12 · Hermes model_tools.py `[TOOL_ERROR]` 축 흡수).
+ *
+ * 예전엔 실패하면 상태 토큰과 사람말 요약만 갔다 — 승격을 막은 게 아니라 내용을 통째로 안 줬고,
+ * 모델은 빈자리를 「환경이 막혀서」로 메웠다(cu-c-effect-not-dispatch 실측). 유지하는 계약:
+ * 실패 내용을 **사실로 승격하지 않는다** — `확인안됨` 표식을 달아 **주기는 준다**.
+ *
+ * 정의역은 **실제로 부른 호출**(actualCall 이 있는 영수증)뿐이다. 실행 전에 막힌 것의
+ * diagnosticTrace 는 기계 원문이 아니라 커널 내부 분류값(callId·순번·reason)이다 —
+ * 그 비노출 봉인(s1-execution-wall:141)은 그대로 선다.
+ *
+ * 이 칸은 **모델 입력에만 산다.** 저장 봉투(턴 결과·세션 저장·사용자 결과)에서는 걷힌다
+ * (turn.js 결과 조립 — 봉인 recovery A·B·B' 가 그 자리를 문다).
+ */
+const 실패원문상한 = 2000; // Hermes 와 같은 축 — 값은 그쪽 실측을 그대로 쓴다(2,000자 절단)
+function 실패원문칸(r) {
+  if (!r?.actualCall) return {};
+  const 진단 = r.diagnosticTrace;
+  const 원문 = 진단 == null ? '' : (typeof 진단 === 'string' ? 진단 : JSON.stringify(진단));
+  if (!원문 || 원문 === '{}') return { 확인안됨: true };
+  return {
+    확인안됨: true,
+    실패원문: 원문.length <= 실패원문상한
+      ? 원문
+      : `${원문.slice(0, 실패원문상한)}…[잘림: 전체 ${원문.length}자 중 앞 ${실패원문상한}자만 실음]`,
+  };
+}
+
+/**
+ * 결과 요약에 **흘린 원문 파일의 문**을 단다(§5-3 c). 흘린 게 없으면 요약 그대로다.
+ * 요약(compactResult)은 판단 크기의 사실이고, 흘린 파일은 원문 전체로 가는 문이다 — 둘 다 준다.
+ */
+function 자료실기(r, 결과자) {
+  const 요약 = compactResult(r.result, 결과자 ?? undefined);
+  const 흘림 = r.흘린원문;
+  if (!흘림?.path) return 요약;
+  const 문 = `원문 전체 ${흘림.totalChars}자는 파일로 남겼다: ${흘림.path} — 나머지는 local.file read (offset·limit) 로 이어 읽는다.`;
+  return 요약 ? `${요약}\n${문}` : 문;
+}
+
 function 막힌자리메우기(r, { 턴후보 = [], 이미가본곳 = new Set() } = {}) {
   const 손이쥔후보 = r?.다른후보 ?? [];
   const 후보 = 손이쥔후보.length
@@ -914,18 +961,16 @@ export function buildTaskContext(p) {
             ?? (호출.callRef ? 그림들.get(호출.callRef) : undefined);
           return g ? { 그림: g } : {};
         })()),
-        // 실패한 호출의 결과는 확인된 값이 아니다 — 내용을 사실처럼 싣지 않고 상태만 준다.
+        // 실패한 호출의 결과는 확인된 값이 아니다 — `data` 로 승격하지 않고 상태를 준다.
         // 결과 상한은 창 예산의 파생값이다(노드 W) — 창을 알면 원문이 접히지 않고 간다.
         //
-        // ⚠ **여기에 진단면 원문을 실으려다 봉인 셋에 물렸다**(2026-08-11 · 실측 후 되돌림).
-        // 정본 §6 은 *"「확인 안 됨」 표식을 달아서 주기는 준다"* 를 요구하지만, 이 자리는
-        // 모델 입력이자 **저장되는 턴 봉투**다(turn.js:3228 → server 가 대화에 저장 → 다음 턴
-        // priorExchange). 그래서 지금 코드가 무는 것은 셋이고 전부 의도된 봉인이다:
-        //   · s1-execution-wall.js:141   "진단면 내부 분류값이 모델 입력으로 새면 안 된다"
-        //   · recovery-failure-injection A · B · B'  "내부 오류/연결/전송 진단이 결과에 샜다"
-        // 진단면은 지금 **어디에도 저장되지 않는 유일한 칸**이다(원장·표면 모두 안 싣는다).
-        // 그 바닥을 이 슬라이스 안에서 조용히 내리지 않는다 — 오너·감사 판단으로 올린다.
-        ...(실패 ? { failureState: r.failureState } : { data: compactResult(r.result, p.창예산?.결과자 ?? undefined) }),
+        // §5-3 a(오너 승인 2026-08-12): 실패의 **기계 원문은 준다** — `확인안됨` 표식과 함께
+        // (`실패원문칸`). 2026-08-11 되돌림 때 물렸던 봉인 셋과는 밭을 갈라 공존한다:
+        //   · s1-execution-wall:141 — 정의역 밖(부르지 않은 호출에는 원문 칸을 만들지 않는다)
+        //   · recovery A·B·B'      — 저장 봉투에서 걷는다(turn.js 결과 조립이 `실패원문`을 뺀다)
+        ...(실패
+          ? { failureState: r.failureState, ...실패원문칸(r) }
+          : { data: 자료실기(r, p.창예산?.결과자) }),
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
         // **막혔을 때야말로 다음 수가 필요하다**(라이브 2026-08-05).
         //
@@ -995,7 +1040,8 @@ export function buildTaskContext(p) {
       summary: r.userSafeSummary, // diagnosticTrace 는 절대 넣지 않는다
       // 결과의 **알맹이**도 준다. 요약만 주면 모델이 "목록을 붙여달라"고 되묻는다(실측: 파일 목록을
       // 실제로 읽어 놓고 "도구가 없어 못 본다"고 답했다). 진단면은 여전히 안 넣는다.
-      data: compactResult(r.result, p.창예산?.결과자 ?? undefined),
+      // 흘린 원문 파일이 있으면 그 문(경로·전체 크기)도 함께 간다(§5-3 c).
+      data: 자료실기(r, p.창예산?.결과자),
       // **무엇으로 불렀는가**도 준다. 요약과 결과만 주면 모델은 자기가 보낸 인자를 다시 못 본다.
       // 그러면 "무엇을 적었는지"를 기억으로 재구성한다 — 실측(2026-07-27 라이브, 텔레그램·화면
       // 양쪽): `메모5.md` 에 실제로 쓴 목록과 T5 가 "이렇게 적었어"라며 보고한 목록이 **세 줄 다

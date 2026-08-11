@@ -170,11 +170,17 @@ export function buildModelMessages(tc) {
     sys.push('모델 호출 비용은 현재 T5가 직접 집계하지 않는다. 비용을 안다고 추측하지 않는다.');
   }
   if (tc.nativeSearch) sys.push('너 자신의 내장 검색으로 최신 정보를 직접 찾을 수 있다.');
+  // ── **턴 안에서 바뀌는 사실은 접두에 안 올린다** (F-73 · 재현 2026-08-11 · 수리 2026-08-12) ──
+  // 아래 사실들(몫 소진·남은 걸음·예산·되풀이 신호·진행 상태·승인 대기…)은 같은 턴의
+  // 걸음마다 값이 바뀐다. 예전엔 전부 캐시 경계 **위**에 있었고, 그래서 안정 접두 지문이
+  // 호출 15회에 6종으로 갈렸다 — 캐시가 사실상 매 호출 미스였고 도구 스키마 전액이 매 턴
+  // 재청구됐다(제품 원가). 사실은 하나도 빼지 않는다 — **자리만** 캐시 경계 아래로 옮긴다.
+  const 턴변동 = [];
   // **사실 한 줄.** 손이 없어진 게 아니라 이번 턴 몫을 다 썼다는 것 — 다음 턴에는 다시 쓴다.
-  if (tc.toolBudgetSpent) sys.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
+  if (tc.toolBudgetSpent) 턴변동.push('이번 턴에 쓸 수 있는 손은 다 썼다. 손이 없어진 게 아니라 이번 답에서만 더 못 부른다 — 다음 턴에는 다시 쓸 수 있다.');
   // 출구 검증이 되돌린 사실 — 답이 원장과 어긋났다. **사실 한 줄이지 지시가 아니다.**
-  if (tc.completionMismatch?.사실) sys.push(tc.completionMismatch.사실);
-  if (tc.answerOnly) sys.push('실행 사실과 현재 요청은 이미 위에 있다. 새 행동을 약속하거나 다음 턴으로 미루지 말고, 사용자에게 보낼 최종 답만 지금 작성한다.');
+  if (tc.completionMismatch?.사실) 턴변동.push(tc.completionMismatch.사실);
+  if (tc.answerOnly) 턴변동.push('실행 사실과 현재 요청은 이미 위에 있다. 새 행동을 약속하거나 다음 턴으로 미루지 말고, 사용자에게 보낼 최종 답만 지금 작성한다.');
   // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
   // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).
   // **숫자가 곧 배급 신호다**(아껴 쓰지 않게 한다 · 오너 지시 2026-08-11).
@@ -188,7 +194,7 @@ export function buildModelMessages(tc) {
   // 아니다」를 함께 준다 — 세어 줄 것이 없으면 셀 수 없다. 진짜 모자랄 때만 숫자를 준다.
   // (다 썼을 때는 위 `toolBudgetSpent` 가 따로 말한다.)
   if (tc.toolStepsLeft) {
-    sys.push(tc.toolStepsLeft > 넉넉한걸음
+    턴변동.push(tc.toolStepsLeft > 넉넉한걸음
       ? '이번 턴에 손을 이어 쓸 몫은 넉넉하다. 아껴 쓰라는 뜻이 아니다 —'
         + ' 목적이 설 때까지 필요한 만큼 이어 쓰고, 한 걸음이 막히면 다른 손으로 간다.'
       : `이번 턴에 손을 아직 ${tc.toolStepsLeft}번 더 이어 쓸 수 있다.`);
@@ -201,23 +207,23 @@ export function buildModelMessages(tc) {
     const b = tc.turnBudget;
     const 남은되돌릴수있는것 = Math.max((b.되돌릴수있는것예산 ?? 0) - (b.되돌릴수있는것쓴것 ?? 0), 0);
     const 남은그밖 = Math.max((b.그밖예산 ?? 0) - (b.그밖쓴것 ?? 0), 0);
-    sys.push(`이번 턴 예산: 너를 다시 부를 수 있는 횟수 ${Math.max(b.왕복예산 - b.왕복쓴것, 0)}번 남음(${b.왕복예산} 중 ${b.왕복쓴것} 씀),`
+    턴변동.push(`이번 턴 예산: 너를 다시 부를 수 있는 횟수 ${Math.max(b.왕복예산 - b.왕복쓴것, 0)}번 남음(${b.왕복예산} 중 ${b.왕복쓴것} 씀),`
       + ` 되돌릴 수 있는 손 ${남은되돌릴수있는것}번 남음(${b.되돌릴수있는것예산} 중 ${b.되돌릴수있는것쓴것} 씀),`
       + ` 그 밖의 손 ${남은그밖}번 남음(${b.그밖예산} 중 ${b.그밖쓴것} 씀).`
       + ' 한 응답에 여러 손을 함께 내면 왕복 하나로 그만큼 실행된다.');
   }
   // 되풀이 신호 — **사실만** 싣는다. "그만해라"가 아니라 "이런 일이 있었다"이다.
-  for (const g of tc.guardrailNotes ?? []) sys.push(g.사람말);
+  for (const g of tc.guardrailNotes ?? []) 턴변동.push(g.사람말);
   // 3축: 지금 답이 어디로 나가는지. **지시가 아니라 사실 한 줄**이다 — 텔레그램은 서식이 안 먹는다는
   // 성질을 알려주면 모델이 스스로 조절한다("짧게 써라"라고 시키지 않는다, §24).
   const surfaceFact = responseSurfaceFacts(tc.surface);
-  if (surfaceFact) sys.push(surfaceFact);
+  if (surfaceFact) 턴변동.push(surfaceFact);
   // 자기 파악 세 번째 축: 지금 이 대화에서 어디까지 왔는가. "그거·거기·그 페이지"가 여기서 풀린다.
   const working = workingStateFacts(tc.workingState);
-  if (working) sys.push(`[이 대화에서 지금까지]\n${working}`);
+  if (working) 턴변동.push(`[이 대화에서 지금까지]\n${working}`);
   const projectWorking = workStateFacts(tc.projectWorkState);
   if (projectWorking) {
-    sys.push(`[현재 작업 브리프 — 사건 원장에서 확인됨]\n${projectWorking}`);
+    턴변동.push(`[현재 작업 브리프 — 사건 원장에서 확인됨]\n${projectWorking}`);
   }
 
   // ── **S4 · 집 문서**(2026-08-05) — 사용자가 적어 둔 것 ─────────────────────
@@ -271,15 +277,16 @@ export function buildModelMessages(tc) {
         lines.push(`source 목록 관측이 끝나지 않음 · 아직 관측하지 못한 수 ${c.unobserved ?? '미상'}`);
       }
     }
-    sys.push(`[현재 작업셋의 기계 현실]\n${lines.join('\n')}`);
+    턴변동.push(`[현재 작업셋의 기계 현실]\n${lines.join('\n')}`);
   }
 
   const af = tc.authorityFacts ?? {};
-  if (af.needsApproval?.length) sys.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
-  if (af.forbidden?.length) sys.push(`금지: ${af.forbidden.join(', ')}`);
+  if (af.needsApproval?.length) 턴변동.push(`승인 필요(아직 실행 안 됨): ${af.needsApproval.join(', ')}`);
+  if (af.forbidden?.length) 턴변동.push(`금지: ${af.forbidden.join(', ')}`);
 
-  // 물어봤을 때만 자기인지 상세를 싣는다(오너 결정: 필요할 때만 찾아 반영).
-  if (tc.selfhoodDetail) sys.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
+  // 물어봤을 때만 자기인지 상세를 싣는다(오너 결정: 필요할 때만 찾아 반영) — 켜지는 턴이
+  // 따로 있으니 접두가 아니라 변동 구역이다(F-73).
+  if (tc.selfhoodDetail) 턴변동.push(`[너에 대한 자세한 사실]\n${tc.selfhoodDetail}`);
 
   // ── **안정 구역의 맨 끝** — 바뀌면 여기 뒤만 무효화된다(불변식 A 예외 ②와 같은 원리) ──
   let 바깥현실 = null;
@@ -349,6 +356,9 @@ export function buildModelMessages(tc) {
   // 무효화한다 — 표식은 붙어 있는데 한 번도 안 맞는 상태가 된다(헤르메스: 프롬프트 안정성).
   const 고정접두 = sys.join('\n');
   if (tc.now?.local) sys.push(`[지금] ${tc.now.local}`);
+  // 턴 안에서 바뀌는 사실(위에서 모은 `턴변동`)은 여기 — 캐시 경계 아래 — 에 실린다(F-73).
+  // 내용은 그대로고 자리만 다르다: 모델은 같은 사실을 보고, 접두 지문은 흔들리지 않는다.
+  sys.push(...턴변동);
 
   // **이름이 거짓말하지 않게 한다**(2026-08-05 · 검토가 이 자리를 오독했다).
   // 예전 이름은 `usr` 였고 `커널블록.push(...)` 만 보면 "사용자 메시지에 넣는다"로 읽힌다.
@@ -667,8 +677,15 @@ const openaiHistory = (m) => (m.history ?? []).map((h) => ({ role: h.role, conte
  * 사용자 지시와 같은 층위에서 경쟁하지 않는다(예전엔 사용자 메시지 안에 섞여 들어가서
  * 괄호 한 줄로 "이건 사용자의 요청이 아니다"라고 적어 막아야 했다).
  */
-const 교환결과 = (x) => [x.summary, x.surface ? surfaceLines(x.surface) : '', x.data ? `결과: ${x.data}` : '']
-  .filter((v) => v && String(v).trim()).join('\n');
+const 교환결과 = (x) => [
+  x.summary,
+  x.surface ? surfaceLines(x.surface) : '',
+  x.data ? `결과: ${x.data}` : '',
+  // §5-3 a — 실패의 상태와 기계 원문. 표식(확인 안 됨)이 계약이다: 내용은 주되 사실로 승격하지 않는다.
+  x.failureState && x.failureState !== 'none'
+    ? `실행 상태: ${x.failureState} — 이 호출의 결과 내용은 확인 안 됨(사실로 쓰지 않는다)` : '',
+  x.실패원문 ? `실패 원문(기계가 낸 그대로 · 확인 안 됨): ${x.실패원문}` : '',
+].filter((v) => v && String(v).trim()).join('\n');
 
 /**
  * **모델이 발급한 신분을 그대로 돌려준다.** 이 와이어는 id 를 요구하므로 없으면 T5 내부
