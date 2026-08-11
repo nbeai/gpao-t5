@@ -170,10 +170,12 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
 });
 
 // P6-1 기억: 선호 발화 → 후보(자동 승격 아님) → confirm → 승격.
-test('선호 발화는 후보로만 저장되고 confirm 후에만 승격된다', async () => {
+// §5-5(2026-08-12): "항상"·"기억해줘" 류 **명시 지속 의도가 있으면 자동 승격**으로 바뀌었다 —
+//   이 검사는 지속 의도 **없는** 약한 신호가 여전히 카드(후보)로만 남는 경계를 지킨다.
+test('지속 의도 없는 선호 발화는 후보로만 저장되고 confirm 후에만 승격된다', async () => {
   await withServer(async (base) => {
     const s = await (await post(base, '/sessions')).json();
-    await post(base, '/turn', { sessionId: s.id, text: '보고서는 항상 글로 받는 게 좋아' });
+    await post(base, '/turn', { sessionId: s.id, text: '보고서는 글로 받는 게 좋아' });
     const m1 = await getj(base, '/memory');
     assert.equal(m1.promoted.length, 0, '자동 승격 금지');
     assert.equal(m1.candidates.length, 1);

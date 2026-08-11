@@ -12,6 +12,15 @@
 const PRINCIPLE_SIGNAL = /무조건|반드시.*확인|절대.*(마|말|하지)|(할|보낼|전송할|올릴) ?땐|전에.*확인|확인받/;
 const PREFERENCE_SIGNAL = /(좋아|선호|받고 싶|줬으면|앞으로.*(로|으로|기본)|항상.*(로|으로) 받|글로 받|표로 받)/;
 
+// §5-5·§7 집행(오너 결정): 저장·활성은 안 묻는다 — 단 넷이 함께 선다(출처가 오너 대화 · replay 통과 ·
+//   즉시 가시 · 되돌리기 한 번). 아래 표지는 그중 "사용자 원문의 명시 지속 의도"를 판정한다.
+//   모델이 지어낸 제안에는 이 표지가 **사용자 원문에** 없으므로 자동 승격 문을 지나지 못한다.
+const PERSIST_INTENT = /기억해\s*[줘둬두주]|기억해\s*달라|기억해라|앞으로는|앞으로도|항상/;
+// 일회성 예외 — "이번만" 류는 이 대화에서 끝난다. 다음 대화에 남기면 §5-5 위반(자동 승격 금지).
+const ONE_TIME_SIGNAL = /이번만|이번 ?한 ?번|이번엔|오늘만|오늘은|지금만/;
+// 민감정보 — 자동 승격 절대 금지. 사용자가 카드로 직접 확정하는 길만 남긴다(막힌 쪽이 안전한 방향).
+const SENSITIVE_SIGNAL = /비밀번호|비번|암호|계좌|카드 ?번호|주민(등록)? ?번호|여권|공인인증|API ?키|토큰|시크릿/i;
+
 /**
  * 사용자 발화에서 기억 승격 후보를 감지한다(자동 승격 아님 — 후보만).
  * @param {string} text
@@ -23,7 +32,46 @@ export function detectCandidate(text) {
   // 운영 원리가 선호보다 강한 신호 — 먼저 검사.
   if (PRINCIPLE_SIGNAL.test(t)) return { kind: 'operating_principle', statement: t };
   if (PREFERENCE_SIGNAL.test(t)) return { kind: 'preference', statement: t };
+  // §5-5: "기억해줘" 류 명시 지속 의도는 그 자체가 후보 신호다 — 위 범주 규칙이 못 알아들어도
+  //   사용자가 직접 시켰다("나 커피 안 마셔. 앞으로 기억해줘"). 기본 kind는 선호.
+  if (PERSIST_INTENT.test(t)) return { kind: 'preference', statement: t };
   return null;
+}
+
+/**
+ * 자동 승격 자격 중 **원문에서 판정하는 몫**(§5-5 자격 일곱의 ②지속 의도 · ④민감정보 아님 · ⑤일회성 아님).
+ * ①출처(오너 대화 원문)·③현재 요청 관련은 호출 자리가 보장하고(턴의 사용자 원문 그 자체를 판정한다),
+ * ⑥replay 통과·⑦즉시 가시+되돌리기 한 번은 승격 실행부(서버)가 잇는다.
+ * @param {string} text 사용자 원문
+ * @returns {{ok:boolean, reason?:'no_persist_intent'|'one_time'|'sensitive'}}
+ */
+export function autoPromoteEligible(text) {
+  const t = String(text ?? '').trim();
+  if (!PERSIST_INTENT.test(t)) return { ok: false, reason: 'no_persist_intent' };
+  if (ONE_TIME_SIGNAL.test(t)) return { ok: false, reason: 'one_time' };
+  if (SENSITIVE_SIGNAL.test(t)) return { ok: false, reason: 'sensitive' };
+  return { ok: true };
+}
+
+// 지속 의도·일회성 표지를 뗀 알맹이(주제 비교 전용). 저장은 언제나 원문 그대로 — 비교만 알맹이로 한다.
+//   표지를 안 떼면 "기억해줘"끼리 겹쳐 모든 기억이 같은 주제로 보인다.
+const INTENT_MARKERS_G = /기억해\s*[줘둬두주][가-힣]*|기억해\s*달라[가-힣]*|기억해라|앞으로[는도]?|항상|이번 ?한 ?번|이번만|이번엔|오늘만|오늘은|지금만/g;
+function stripIntentMarkers(text) {
+  return String(text ?? '').replace(INTENT_MARKERS_G, ' ').trim();
+}
+
+/**
+ * 새 지시가 과거 기억을 이긴다(§5-5 검증 — "새 지시가 과거 기억을 이김"의 지속 상태화).
+ * 같은 주제(표지 뗀 알맹이의 양방향 낱말 겹침)의 과거 승격 항목이면 새 명시 지시가 대체한다.
+ * rollbackable=false(고정 원칙)는 대체하지 않는다. 겹침이 없으면 둘 다 산다(좁게).
+ * @param {string} newStatement 새로 승격되는 사용자 원문
+ * @param {object} oldEntry 과거 promoted 항목
+ */
+export function supersedes(newStatement, oldEntry) {
+  if (!oldEntry || oldEntry.rollbackable === false) return false;
+  const a = stripIntentMarkers(newStatement);
+  const b = stripIntentMarkers(oldEntry.statement);
+  return isRelevant(a, b) && isRelevant(b, a);
 }
 
 /**

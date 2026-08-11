@@ -26,7 +26,7 @@ import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
 import { SessionStore } from './session-store.js';
 import { MemoryStore } from './memory-store.js';
-import { makeCandidate, runReplay, promote } from '../kernel/l1-intent/context-mesh.js';
+import { makeCandidate, runReplay, promote, autoPromoteEligible, supersedes } from '../kernel/l1-intent/context-mesh.js';
 import { makeInferredTrait, makeOperatingPreference, confirmOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
 import { normalizeInboundEvent } from '../kernel/l1-intent/inbound-gate.js';
 import { connectorReadiness, sendNeedsApproval } from '../kernel/l2-plan/connector-profile.js';
@@ -201,7 +201,38 @@ export function makeServer(deps = {}) {
       if (dup) { result.memorySuggestion = undefined; }
       else {
         const c = makeCandidate(randomUUID(), result.memorySuggestion.kind, result.memorySuggestion.statement);
-        memory.candidates.push(c); await memStore.save(memory); result.memorySuggestion.candidateId = c.candidateId;
+        // §5-5·§7 집행: 사용자 원문에 명시 지속 의도("기억해줘"·"앞으로는"·"항상")가 있으면 **카드 없이
+        //   자동 승격**한다. 저장·활성은 안 묻는다(정의는 세상에 영향 0) — 대신 자격이 함께 선다:
+        //   ①출처가 오너 대화(이 지속부는 /turn·/turn/stream 사용자 원문만 온다 — 채널 인바운드는 안 탄다)
+        //   ②지속 의도 ④민감정보 아님 ⑤일회성 아님(autoPromoteEligible이 원문에서 판정)
+        //   ③현재 요청 관련(문장이 이번 발화 그 자체) ⑥replay 통과(아래) ⑦즉시 가시+되돌리기 한 번
+        //   (promoted 플래그 → 기존 제안 카드 통로가 "기억했어요+되돌리기"로 보인다).
+        //   모델이 지어낸 제안은 사용자 원문에 지속 의도가 없으므로 이 문을 못 지나 지금처럼 카드다
+        //   — 모델 제안이 사용자 확정으로 승격되면 4등(기억)이 결함으로 뒤집힌다.
+        const source = input.source ?? 'user_chat';
+        const elig = hasText && source === 'user_chat' ? autoPromoteEligible(input.text) : { ok: false };
+        let autoPromoted = false;
+        if (elig.ok) {
+          const past = [...memory.promoted, ...memory.candidates].map((e) => e.statement);
+          const replayPassed = runReplay(c, past);
+          if (replayPassed) {
+            // 확정 주체는 사용자 원문("기억해줘") — 모델이 아니다. promote 게이트는 그대로 지나간다.
+            const r = promote(c, { userConfirmed: true, replayPassed });
+            // 새 지시가 과거 기억을 이긴다(§5-5 검증): 같은 주제의 과거 승격 기억은 새 명시 지시로 대체.
+            memory.promoted = memory.promoted.filter((e) => !(e.kind === c.kind && supersedes(c.statement, e)));
+            memory.promoted.push(r.entry);
+            await memStore.save(memory);
+            result.memorySuggestion = {
+              kind: c.kind, statement: c.statement, candidateId: c.candidateId,
+              promoted: true, influenceScope: r.entry.influenceScope, rollbackable: r.entry.rollbackable !== false,
+            };
+            autoPromoted = true;
+          }
+        }
+        // 자격이 안 서면(지속 의도 없음·일회성·민감정보·replay 실패) 지금처럼 후보 카드로만 남는다(영향 0).
+        if (!autoPromoted) {
+          memory.candidates.push(c); await memStore.save(memory); result.memorySuggestion.candidateId = c.candidateId;
+        }
       }
     }
     if (result.automationSuggestion?.action) {

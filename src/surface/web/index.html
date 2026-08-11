@@ -953,7 +953,22 @@ function renderAutomationSuggestion(box, sug) {
 }
 
 // 기억 후보를 조용히 제안. preference=바로 기억, operating_principle=검토(replay) 후 적용.
+// §5-5: 명시 "기억해줘"는 서버가 이미 승격해 온다(promoted) — 묻는 카드 대신 같은 통로로
+//   "기억해 뒀어요 + 되돌리기"를 바로 보여준다. 저장은 안 묻고, 즉시 가시와 한 번 철회는 지킨다(§7).
 function renderSuggestion(box, sug) {
+  if (sug.promoted) {
+    const done = el('sug-done');
+    done.appendChild(el('sug-line', `말씀하신 대로 기억해 뒀어요. 앞으로 ${sug.influenceScope ?? '관련된 이후 대화'}에 반영해요. 아니면 되돌려 주세요.`));
+    const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기';
+    undo.style.marginTop = 'var(--sp-2)';
+    undo.onclick = async () => {
+      await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId }) });
+      done.replaceChildren(el('sug-line', '되돌렸어요. 앞으로 반영하지 않아요.'));
+    };
+    done.appendChild(undo);
+    box.appendChild(done);
+    return;
+  }
   const isPrin = sug.kind === 'operating_principle';
   const card = el('suggest');
   card.appendChild(el('sug-t', isPrin ? '운영 원칙으로 기억할까요? (검토 후 적용)' : '이걸 기본으로 기억할까요?'));
