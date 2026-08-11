@@ -287,3 +287,20 @@ test('F-64 direct_exact parser는 non-path body quote 후보 둘을 ambiguous로
   assert.equal(parsed.ambiguous, true);
   assert.equal(parsed.clarifyReason, 'ambiguous_content');
 });
+
+// ── 반대시험 ① (계획서 §5-1) — 파일 이름만 .xlsx 이고 내용이 잘못이면 실패다 ──────
+//
+// 이름(확장자)은 산출물이 아니다. 계약된 내용과 실물 readback 이 어긋나면 `.xlsx` 라는
+// 이름이 서 있어도 완료 세 축(completion Receipt · execution_completed · recentOutcome)은
+// 전부 0이어야 한다. 실행 증거(원본 write)는 남는다 — 지우면 원장이 거짓이 된다.
+test('반대시험 ①: 이름만 .xlsx 이고 내용이 계약과 다르면 완료가 서지 않는다', async () => {
+  const out = await runCase({
+    request: "보고서.xlsx 파일에 '7월 합계 120000'을 저장해줘.",
+    outputName: '보고서.xlsx', outputText: '엉뚱한 내용',
+  });
+  assert.equal(out.writes.length, 1, '틀린 실행도 실제 일어난 증거이므로 남는다');
+  assert.equal(out.completions.length, 0, '이름이 .xlsx 로 맞다는 것만으로 완료 Receipt가 서면 안 된다');
+  assert.equal(out.events.filter((e) => e.type === 'execution_completed').length, 0);
+  assert.equal(out.saved.workingState?.recentOutcome?.status === 'completed', false);
+  assert.equal(out.saved.workingState?.deliverables?.length ?? 0, 0);
+});
