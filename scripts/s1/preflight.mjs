@@ -318,6 +318,12 @@ export const 허용파일 = [
   // 떨어졌다 — 사용자에게는 "연결이 되지 않아요"였다. 진단은 응답과 다른 일이라 상한을 지킨다.
   'src/runtime/model-doctor.js',
   'src/runtime/tool-runner.js',
+  // **미분류 MCP 도구가 전부 승인으로 떨어졌다**(F2 · 상태 지도 §12 · 2026-08-12).
+  // 편입이 붙는 손 전부를 `unknown_kind`+`needsApproval` 로 만들어 단순 조회 하나도
+  // 매 호출 카드였다 — 자동성 헌장이 물을 수 있다고 정한 넷에 닿지도 않는데.
+  // 낮추는 근거는 **서버가 밝힌 것**(`annotations.readOnlyHint`)뿐이고, 안 밝히면
+  // 지금 그대로 미상(카드)이다. 이름으로 짐작하지 않는다.
+  'src/runtime/tool-admission.js',
   'src/surface/demo-context.js',
   // ChatGPT 계정 경로는 **별도 클라이언트**라 위 공급자 순회에 안 잡혔고, 그래서 교환이
   // 통째로 빠지고 신분이 `callId` 라는 세 번째 이름으로 새던 것이 오래 안 보였다.
