@@ -316,6 +316,9 @@ export function makeBrowser(deps = {}) {
   // 같은 IP 로 나가므로 429 도 함께 맞는다(실측: 내가 web.collect 로 만든 제한에 브라우저도 걸렸다).
   const manners = deps.manners ?? makeHostManners();
   const port = deps.port ?? 9412;
+  // **자리는 못 박지 않는다**(§12-S5). 9412 가 차 있으면 그 옆을 본다 — 자세한 이유는 `빈자리찾기`.
+  const 포트탐색창 = deps.portSearch ?? 10;
+  const 자리물음ms = deps.portProbeMs ?? 700;   // `port-claim.js` 의 `기다림` 과 같은 값
   const idleMs = deps.idleMs ?? 120_000;
   const 겉fetch = deps.fetchImpl ?? fetch;
   const 붙기 = deps.connect ?? cdpConnection;
@@ -325,6 +328,49 @@ export function makeBrowser(deps = {}) {
   // 영속 자리는 사람이 한 번 로그인해야 값이 생긴다 — 헤드리스면 그 한 번이 영영 안 온다.
   const 헤드리스 = deps.headless ?? (프로필종류 === 'isolated');
   let proc; let conn; let profileDir; let sessionId; let idleTimer; let 준비중; let 명부표;
+  /** 이번에 **우리가 연** 자리. 부른 값이 아니라 실제로 잡은 값이다(§12-S5). */
+  let 쓰는포트;
+
+  // ── **자리 소유권**(§12-S5 · 2026-08-12) ──────────────────────────────────
+  // 예전엔 9412 를 못 박고, 띄운 뒤 `/json/version` 이 답하기만 하면 그 답의
+  // `webSocketDebuggerUrl` 에 그대로 붙었다. 그 자리에 **남의 크롬**(사용자가 디버깅 포트를
+  // 열어 둔 실계정 크롬 · 다른 도구가 띄운 크롬)이 있으면 우리 크롬은 자리를 못 잡고,
+  // 우리는 남의 브라우저를 몰고 다닌다. 아래 `ensure` 의 주석이 같은 사고의 **집안 얼굴**을
+  // 이미 기록해 뒀다 — *"뒤엣것은 포트를 못 잡아 앞엣것에 붙었다."* 집 밖의 얼굴이 이것이다.
+  //
+  // 오픈클로가 가른 축(`docs/tools/browser.md:247-249` · `:283`):
+  //   *"Local `openclaw` profiles auto-assign `cdpPort`/`cdpUrl` …"*
+  //   *"`attachOnly: true` means never launch a local browser; only attach if one is
+  //     already running."*
+  // → ① 관리하는 프로필의 자리는 **자동으로 잡는다**(고정 아님)
+  //   ② 남이 띄운 것에 붙는 것은 **명시로 고르는 별도 모드**이지 사고가 아니다.
+  //
+  // T5 에는 같은 축이 이미 산다 — `src/surface/port-claim.js` 의 세 갈래
+  // (① 비었으면 그대로 ② 우리 것이면 그리로 ③ 남이면 빈 자리로 옮긴다).
+  // **새 축을 만들지 않고 그 축을 여기에도 세운다.** 다만 ② 는 여기 없다:
+  // 남의 크롬에는 `installId` 같은 신분이 없어 "우리 것"임을 증명할 방법이 없고,
+  // 증명 못 하는 것은 남이다(모르면 조여지는 쪽).
+
+  /** 그 자리에 **이미 누가 있나.** 아직 안 띄웠으니, 답하는 것이 있으면 그건 우리가 아니다. */
+  async function 자리임자있나(p) {
+    try {
+      const r = await 겉fetch(`http://127.0.0.1:${p}/json/version`,
+        { signal: AbortSignal.timeout(자리물음ms) });
+      // 크롬이 아니어도 마찬가지다 — 무엇이 앉아 있든 우리 크롬은 그 자리를 못 잡는다.
+      return Boolean(r);
+    } catch { return false; }   // 아무도 안 받는다 = 빈 자리
+  }
+
+  /** 빈 자리를 찾는다. 없으면 **정직하게 막는다** — 남의 것으로 대신하지 않는다. */
+  async function 빈자리찾기() {
+    for (let p = port; p < port + 포트탐색창; p += 1) {
+      if (!(await 자리임자있나(p))) return p;
+    }
+    throw Object.assign(
+      new Error('브라우저를 띄울 빈 자리를 못 찾았어요 — 다른 프로그램이 그 자리들을 쓰고 있어요.'),
+      { 자리없음: true },
+    );
+  }
 
   const touch = () => {
     clearTimeout(idleTimer);
@@ -348,6 +394,8 @@ export function makeBrowser(deps = {}) {
       await rm(profileDir, { recursive: true, force: true }).catch(() => {});
     }
     profileDir = undefined;
+    // 자리는 놓아 준다 — 다음에 다시 잡는다(그 사이에 남이 앉을 수 있고, 그때는 또 옮긴다).
+    쓰는포트 = undefined;
   }
 
   async function 띄우기() {
@@ -355,8 +403,11 @@ export function makeBrowser(deps = {}) {
     if (!browserPath) throw Object.assign(new Error('no_browser'), { noBrowser: true });
     if (영속자리) { await mkdir(영속자리, { recursive: true }).catch(() => {}); profileDir = 영속자리; }
     else profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-browser-'));
+    // **띄우기 전에 자리를 확인한다.** 띄운 뒤에 물으면 답하는 게 우리 것인지 남의 것인지
+    // 구분할 방법이 없다 — 그 구분이 없던 것이 §12-S5 다.
+    쓰는포트 = await 빈자리찾기();
     proc = (deps.launch ?? spawn)(browserPath, [
-      `--remote-debugging-port=${port}`,
+      `--remote-debugging-port=${쓰는포트}`,
       `--user-data-dir=${profileDir}`,
       ...(헤드리스 ? ['--headless=new'] : []),
       '--no-first-run', '--no-default-browser-check', '--disable-extensions',
@@ -371,9 +422,14 @@ export function makeBrowser(deps = {}) {
 
     let version;
     for (let i = 0; i < 40 && !version; i += 1) {
-      try { version = await (await 겉fetch(`http://127.0.0.1:${port}/json/version`)).json(); }
+      try { version = await (await 겉fetch(`http://127.0.0.1:${쓰는포트}/json/version`)).json(); }
       catch { await sleep(250); }
     }
+    // 남은 창 하나는 정직하게 적어 둔다: 자리를 확인하고 크롬이 실제로 그 자리를 잡기까지의
+    // 몇 초 사이에 남이 채 갈 수 있다. 그때는 여기서 남의 것에 붙는다. 이걸 닫으려면 크롬이
+    // 프로필 자리에 쓰는 `DevToolsActivePort` 를 봐야 하는데, 그 파일은 비정상 종료 뒤 낡은
+    // 값으로 남아 **멀쩡한 기동을 거절**시킨다(마찰이 늘면 그 변경은 개선이 아니다).
+    // 재현된 사고는 "이미 앉아 있는 남"이고, 그 자리는 위에서 닫혔다.
     if (!version) { await close(); throw new Error('브라우저가 뜨지 않았어요'); }
     conn = 붙기(version.webSocketDebuggerUrl);
     await conn.ready;
@@ -422,6 +478,12 @@ export function makeBrowser(deps = {}) {
      * 영수증이 이걸 그대로 찍는다. 사용자가 "로그인된 걸로 봤나"를 알아야 하기 때문이다.
      */
     profileKind() { return 프로필종류; },
+
+    /**
+     * **지금 우리가 연 자리**(§12-S5). 부른 값이 아니라 실제로 잡은 값이다 — 9412 가 차 있어
+     * 옮겼으면 옮긴 자리가 나온다. 아직 안 띄웠으면 `undefined`.
+     */
+    사용중인포트() { return 쓰는포트; },
 
     /** 지금 이 호스트가 쉬는 중이면 남은 시간(ms). 도구가 이걸 보고 시도조차 안 한다. */
     coolingMs(url) { return manners.coolingMs(url); },

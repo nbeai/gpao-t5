@@ -66,7 +66,17 @@ function 가짜크롬({ 평가 = 답하기() } = {}) {
     const p = { path, args, killed: false, kill() { p.killed = true; } };
     켠것.push(p); return p;
   };
-  const fetchImpl = async () => ({ json: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1/x' }) });
+  // **띄우기 전에는 아무도 안 받는다**(§12-S5 이후). 예전 대역은 포트와 무관하게, 그리고
+  // **아직 크롬을 안 띄웠는데도** 답했다 — 즉 "그 자리에 이미 브라우저가 있다"는 거짓 사실을
+  // 계약 검사에 심어 둔 것이다. 소유권 판정(빈 자리 찾기)은 정확히 그 물음을 물으므로,
+  // 대역이 거짓말을 하면 잴 수가 없다. 켠 뒤에, 켠 그 자리에서만 답한다.
+  const fetchImpl = async (url) => {
+    const 물은포트 = Number(String(url).split(':').pop().split('/')[0]);
+    if (!켠것.some((p) => p.args.includes(`--remote-debugging-port=${물은포트}`))) {
+      throw Object.assign(new Error('연결 거부'), { code: 'ECONNREFUSED' });
+    }
+    return { json: async () => ({ webSocketDebuggerUrl: `ws://127.0.0.1:${물은포트}/x` }) };
+  };
   const connect = () => ({
     ready: Promise.resolve(),
     async send(method, params) {
