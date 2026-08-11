@@ -61,6 +61,7 @@ const 기준자 = {
       const { stdout } = await run('ps', ['-Ao', 'command']);
       return stdout.split('\n').filter((l) => l.includes('gpao-t5-browser') && !l.includes('Helper')).length;
     } catch { return 0; }
+  },
   /** `file` 이 뭐라고 읽는가. 확장자가 아니라 **내용**이 판정한다 — 빈 파일에 이름만 붙는 것을 막는다. */
   async 무슨파일(경로) {
     if (!existsSync(경로)) return null;
