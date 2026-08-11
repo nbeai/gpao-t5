@@ -42,6 +42,26 @@ const 기준자 = {
     } catch { return null; }
   },
   파일있나(경로) { return existsSync(경로); },
+  /**
+   * **오너의 실크롬만 센다.** T5 브라우저 손이 켜는 헤드리스는 같은 실행파일이라
+   * `pgrep -x "Google Chrome"` 로는 안 갈린다 — 실제로 T5 가 남긴 헤드리스 다섯이
+   * 떠 있는데 「크롬 실행중」으로 읽혔다(2026-08-11 · 오너 지적으로 드러남).
+   * 임시 프로필(`gpao-t5-browser`)·`--headless` 를 뺀 것만 실크롬이다.
+   */
+  async 실크롬떠있나() {
+    try {
+      const { stdout } = await run('ps', ['-Ao', 'command']);
+      return stdout.split('\n').some((l) => l.includes('Google Chrome.app/Contents/MacOS/Google Chrome')
+        && !l.includes('--headless') && !l.includes('gpao-t5-browser') && !l.includes('Helper'));
+    } catch { return false; }
+  },
+  /** T5 가 남긴 헤드리스 잔재 수 — 회차마다 하나씩 새는지 본다. */
+  async 헤드리스잔재() {
+    try {
+      const { stdout } = await run('ps', ['-Ao', 'command']);
+      return stdout.split('\n').filter((l) => l.includes('gpao-t5-browser') && !l.includes('Helper')).length;
+    } catch { return 0; }
+  },
 };
 
 /**
@@ -71,9 +91,15 @@ export const 문장표 = Object.freeze([
       const 네이버열림 = 손들.some((x) => /naver/i.test(JSON.stringify(x?.args ?? {})));
       const 읽음 = 손들.some((x) => ['browser.observe', 'web.collect', 'desktop.screen']
         .includes(x?.tool) && (x?.failureState ?? 'none') === 'none');
-      const 앞 = await 기준자.앞창();
+      // **실크롬 상태도 함께 찍는다**(판정에는 안 쓴다). 시작 상태가 더러우면
+      // 영수증만으로는 「T5 가 연 것」과 「이미 열려 있던 것」이 안 갈린다 —
+      // 오너 지적 2026-08-11: 그 회차에 네이버 탭이 이미 앞에 있었다.
+      const [앞, 주소] = await Promise.all([기준자.앞창(), 기준자.크롬주소()]);
+      const [크롬, 잔재] = await Promise.all([기준자.실크롬떠있나(), 기준자.헤드리스잔재()]);
       return {
-        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 읽기성공=${읽음 ? 'O' : 'X'} · 앞창=${앞}`,
+        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 읽기성공=${읽음 ? 'O' : 'X'}`
+          + ` | 실크롬=${크롬 ? 'O' : 'X'} · 앞창=${앞} · 주소=${주소 ?? '읽지 못함'}`
+          + ` | T5 헤드리스 잔재 ${잔재}개`,
         통과: 네이버열림 && 읽음,
       };
     },
@@ -159,7 +185,9 @@ export async function 실기기회차({ port = 0, 목록 = 문장표 } = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
-  const { 방, 줄들 } = await 실기기회차({});
+  const 고름 = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length);
+  const 목록 = 고름 ? 문장표.filter((x) => x.문장.includes(고름) || x.칸.includes(고름)) : 문장표;
+  const { 방, 줄들 } = await 실기기회차({ 목록 });
   console.log(표(줄들));
   console.log(`\n회차 원본: ${방}/회차.json`);
   process.exit(줄들.some((r) => r.통과 === false) ? 1 : 0);
