@@ -1219,6 +1219,15 @@ export async function runTurn(input, ctx) {
   // 판단한 말에도 손이 필요할 수 있다("오늘 날씨" 사건). 모델이 도구를 고르면 아래 계획·승인·실행
   // 경로로 내려가고, 안 고르면 그 응답이 곧 답이다(추가 호출 없음).
   let modelChosen = null;
+  // **호출을 하나도 안 낸 응답**과 「일 걸음만 없는 응답」은 다른 사실이다(F-83 반대시험).
+  // 통제 호출(기억 철회·작업 상태·자동화·물음)은 실행이 아니라서 `modelChosen` 에 안 담기지만,
+  // 모델이 **고른 행동**이기는 하다. 그 턴을 「아무것도 안 골랐다」로 읽으면 방금 한 일을 못 본
+  // 채 되부르게 된다(회귀가 잡았다: `memory.withdraw` 한 턴이 목적미달로 끌려갔다).
+  // 채널을 열거하지 않는다 — **낸 호출이 있었나** 하나만 센다.
+  let 모델이낸호출수 = 0;
+  const 낸호출세기 = (out) => {
+    모델이낸호출수 += typeof out === 'string' ? 0 : (out?.toolCalls?.length ?? 0);
+  };
   let earlyReply = null;
   // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다). **이 턴의 사실은 `ctx` 가 든다**
   // (J9): 지역 변수면 `executePlan` 안에서 답을 낸 호출을 못 본다 — 복합 경로가 통째로 빠졌다.
@@ -1290,6 +1299,7 @@ export async function runTurn(input, ctx) {
     earlyReply = 답으로삼기(ctx, out, '');
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
+    낸호출세기(out);
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     통제제안받기(분리);
     if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
@@ -1412,6 +1422,7 @@ export async function runTurn(input, ctx) {
         const out = await ctx.model.respond({ ...earlyTc, unmetDeliverable: true }, {
           effort: 'medium', tools: writeTools, requiredTool: 'local.file',
         });
+        낸호출세기(out);
         const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
         통제제안받기(분리);
         if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
@@ -1438,6 +1449,7 @@ export async function runTurn(input, ctx) {
       const out = await ctx.model.respond({ ...earlyTc, actionRequired: true }, {
         effort: 'medium', tools: fileTools, requiredTool: 붙일손,
       });
+      낸호출세기(out);
       const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
       통제제안받기(분리);
       if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
@@ -1497,8 +1509,40 @@ export async function runTurn(input, ctx) {
     return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
 
+  // ── **손이 필요한 턴은 빠른 경로의 자리가 아니다** (F-83 · 콘솔 라이브 2026-08-12) ──
+  //
+  // 빠른 경로는 *"손이 필요 없다"* 는 판단 위에 선 출구다. 그런데 **필요 여부를 판단한 것과
+  // 모델이 고른 것이 어긋나는 회차**가 있다: 의도는 찾는 손을 지목했는데(`neededTools`)
+  // 모델은 하나도 안 골랐다. 밟은 회차 — *"내 컴퓨터에 엑셀 파일 있어? 찾아서 알려줘."* →
+  // 손 0건 · *"파일 시스템에 직접 접근 권한이 없는 상태라서…"* 로 턴이 그대로 닫혔다.
+  // 바로 위 `붙일손` 재요청까지 지나고도 안 골랐다는 뜻이라, **그 답이 이 턴의 마지막 말**이다.
+  //
+  // 목적을 재는 한 고리(`목적미달이어가기`)는 `executePlan` 안에 산다. 빠른 경로로 나가면
+  // 그 고리를 통째로 안 지나므로, 이런 턴은 **출구를 가른다** — 고리를 복제하지 않고
+  // 복합 경로로 보낸다(조항을 늘리는 것이 아니라 자리를 가르는 일이다). 무는 판단은 그대로
+  // `목적미달()` 의 몫이라, 목적에 닿은 턴이면 거기서 조용히 지나간다.
+  //
+  // 오픈북 — 비교군도 **답이 나가기 직전**을 그 자리로 쓴다: 헤르메스는 종결 걸음이 원장에
+  // 없으면 완성된 답을 억누르고 손을 쥔 채 루프로 되돌리고(`conversation_loop.py:7196-7205`
+  // — `final_response = None; continue`), 오픈클로는 `before_agent_reply` 를 답이 나가기 전
+  // 자리로 둔다(`docs/concepts/agent-loop.md:96`).
+  //
+  // 인사·잡담은 여기 안 걸린다 — `neededTools` 가 비어 있으면 잴 목적이 애초에 없다.
+  //
+  // **손이 걷힌 턴과 안 고른 턴은 다르다**(회귀가 잡았다): *"대화에 먼저 보여줘. 파일은 아직
+  // 만들지 마."* 는 모델이 파일 손을 골랐고 CHAT 계약이 그것을 **걷어 낸** 턴이다
+  // (`chatDiscardedFileCall`). 목적을 안 쫓은 것이 아니라 사용자가 지금은 하지 말라고 한 것이라,
+  // 그 턴을 되부르면 방금 걷어 낸 손을 도로 권하게 된다. F-83 의 얼굴은 **걷어 낼 것조차
+  // 없었던** 턴이다 — 모델이 스스로 하나도 안 골랐다.
+  const 손이필요한데0건 = !modelChosen && !chatDiscardedFileCall && !모델이낸호출수
+    && Boolean(intent.neededTools?.length);
+  // **이 턴의 사실은 `ctx` 가 든다**(`답잘림` 과 같은 자리 · J9). `목적미달()` 은 `executePlan`
+  // 안에 살아서 "모델이 호출을 하나도 안 냈다"를 직접 볼 수 없다 — 그 자리에서 보이는 것은
+  // **실행 영수증**뿐이고, 영수증 0 은 통제 호출만 낸 턴(기억 철회 등)과 구별이 안 된다.
+  ctx.손0건으로닫으려함 = 손이필요한데0건;
+
   // 3) fast path — 손이 필요 없다고 모델이 판단했다. 이미 받은 답을 그대로 준다(추가 호출 없음).
-  if (!modelChosen && !influence
+  if (!modelChosen && !influence && !손이필요한데0건
       && (completionContract.assessment === 'chat'
         || (intent.answerMode === 'fast_chat' && completionContract.assessment === 'not_applicable'))) {
     // 도구를 안 쓴 턴도 **대화의 한 턴이다.** 여기서 상태를 안 넘기면 턴 수가 멈춰서, 옛 대상이
@@ -2578,22 +2622,61 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
 
     // ④ 걸음이 막힌 채이거나, 손이 적어 준 길을 한 번도 안 갔다(F-81 팔식당·PDF).
-    if (부른것들.length) {
-      const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
-      const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
-      const 막힌것 = 부른것들.filter((r) => r.failureState
-        && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
-      // 손이 스스로 돌려준 다음 수단·후보를, 이 턴에 실제로 향해 부른 적이 있나.
-      const 쥐어준수단 = 부른것들.flatMap((r) => [
-        ...(r.다음수단 ?? []).map((m) => String(m?.url ?? m?.what ?? '')),
-        ...(r.다른후보 ?? []).map((c) => String(c?.url ?? c?.path ?? '')),
-      ]).filter(Boolean);
-      const 안밟은수단 = [...new Set(쥐어준수단)].filter((수단) => !부른것들.some((r) => {
-        try { return JSON.stringify(r.actualCall.args ?? {}).includes(수단); } catch { return false; }
-      }));
-      const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
-      const 안써본손 = 있는손().filter((id) => !써본손.has(id));
-      if (막힌것.length || 빈손으로끝났나(답글원문) || 안밟은수단.length) {
+    //
+    // ── **0건도 「한 번도 안 갔다」다** (F-83 · 콘솔 라이브 2026-08-12) ──────────────
+    //
+    // 예전엔 이 갈래가 `if (부른것들.length)` 안에 살았다. 그래서 **가장 심한 미달**인
+    // 손 0건이 갈래 자체를 못 세웠다. 밟은 회차: *"내 컴퓨터에 엑셀 파일 있어? 찾아서 어디
+    // 있는지 알려줘."* → 손 0건 · *"이 컴퓨터 파일 시스템에 직접 접근 권한이 없는 상태라서…"*
+    // 프롬프트에는 `local.file`·`local.locate` 가 실려 있었다. 한 번도 안 간 것이 아니라
+    // **한 걸음도 안 뗀 것**인데, 전제가 그 자리를 통째로 건너뛰었다.
+    //
+    // 갈래를 새로 만들지 않는다 — 전제를 **입구 하나에서 둘로** 가른다. 아래 값들은 0건에서
+    // 그대로 옳게 무너진다: 막힌것·안밟은수단은 빈 배열이 되고, `안써본손` 은 **있는 손 전량**이
+    // 된다. 그것이 이 갈래가 원래 말하려던 사실이다.
+    const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
+    const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
+    const 막힌것 = 부른것들.filter((r) => r.failureState
+      && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
+    // 손이 스스로 돌려준 다음 수단·후보를, 이 턴에 실제로 향해 부른 적이 있나.
+    const 쥐어준수단 = 부른것들.flatMap((r) => [
+      ...(r.다음수단 ?? []).map((m) => String(m?.url ?? m?.what ?? '')),
+      ...(r.다른후보 ?? []).map((c) => String(c?.url ?? c?.path ?? '')),
+    ]).filter(Boolean);
+    const 안밟은수단 = [...new Set(쥐어준수단)].filter((수단) => !부른것들.some((r) => {
+      try { return JSON.stringify(r.actualCall.args ?? {}).includes(수단); } catch { return false; }
+    }));
+    const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
+    const 안써본손 = 있는손().filter((id) => !써본손.has(id));
+    // **한 걸음도 안 뗐다** — 이 갈래가 원래 말하려던 사실의 극단이다(F-83).
+    //
+    // 말투만 보면 *"…없는 상태라서 확인해 드릴 수 없습니다"* 는 심문도 약속도 아니어서 샌다.
+    // 비교군의 축은 문장을 아예 안 보는 것이다 — 종결 걸음이 원장에 없으면 턴을 안 닫는다
+    // (헤르메스 `kanban_stop.py:88-101` · `conversation_loop.py:7196-7205`). 그 축을 쓰는
+    // 자리가 `빈손으로끝났나` 의 둘째 인자다(원장을 주면 원장이 지배한다).
+    //
+    // ⚠️ **말투 판정을 대체하지 않는다 — 옆에 세운다.** 원장으로 갈아 끼웠더니 「보기만 하고
+    // 약속으로 끝난 턴」(browser.observe 1건 성공 + *"이어서 검색해 볼게요"*)이 된걸음 1 이라
+    // 조용해졌다(회귀가 잡았다). 걸음이 **하나라도 돈 턴**의 빈손은 여전히 말투가 말하고,
+    // 원장이 말하는 것은 **아예 안 부른 턴**이다. 둘은 다른 사실이라 둘 다 남는다.
+    // 정직한 미완 고지는 그 함수 첫 줄이 먼저 걷어 낸다 — 이 갈래는 거기 안 닿는다.
+    //
+    // ⚠️ **영수증 0 만으로 세우지 않는다.** 통제 호출(기억 철회 등)만 낸 턴도 영수증이 0이고,
+    // 그 턴은 사용자가 시킨 일을 **이미 한** 턴이다(회귀가 잡았다: `memory.withdraw` 한 턴이
+    // 목적미달로 끌려가 되부름이 돌았다). 그래서 「호출을 하나도 안 냈다」는 사실은 그것을
+    // 실제로 셀 수 있는 자리(`runTurn`)가 재서 `ctx` 로 건넨다.
+    const 한걸음도안뗐다 = ctx.손0건으로닫으려함 === true && !부른것들.length
+      && 빈손으로끝났나(답글원문, { 가져온것: 0 });
+    // **입구가 둘이고, 걸음이 돈 턴의 입구는 예전 그대로다.** 말투 판정을 영수증 0 인 턴에까지
+    // 열면 *"알겠어요."* 같은 평범한 마무리가 전부 약속으로 잡힌다(회귀가 잡았다 — 기억 철회
+    // 턴이 그 문장으로 끝난다). 말투는 **걸음이 하나라도 돈 턴**의 것이고, 걸음이 0인 턴은
+    // 위의 `한걸음도안뗐다` 가 유일한 입구다.
+    const 걸음이말하는미달 = 부른것들.length
+      && (막힌것.length || 빈손으로끝났나(답글원문) || 안밟은수단.length);
+    if (걸음이말하는미달 || 한걸음도안뗐다) {
+      // **안 써 본 손이 없으면 세우지 않는다** — 없는 길을 권하는 되부름은 잔소리다.
+      // (손이 아예 없는 판에서도 여기서 멎는다.)
+      if (안써본손.length || 막힌것.length || 안밟은수단.length) {
         사실.goalNotReached = {
           ...(막힌것.length ? {
             막힌걸음: [...new Set(막힌것.map(걸음키))].slice(0, 5),
