@@ -153,6 +153,44 @@ const 종류말 = [
 ];
 const 부른종류 = (말) => 종류말.find(([re]) => re.test(말))?.[1];
 
+/**
+ * **형식으로도 찾는다** (콘솔 라이브 2026-08-12 · 오너 지시 「특화된 집게가 아니라 진짜 손」).
+ *
+ * 밟은 회차: *"내 컴퓨터에 엑셀 파일 있어? 찾아서 어디 있는지 알려줘."* →
+ * 이 손이 **이름으로만** 후보를 올려 `엑셀` 이라는 이름의 파일이 없으니 후보 0을 냈고,
+ * 모델이 캡슐로 직접 훑다 Desktop·Documents·Downloads 셋만 보고
+ * *"이 컴퓨터에는 엑셀 형식 파일이 없다"* 고 단정했다. 실제 파일은 `~/GPAO-T5/…/…xlsx` 였다.
+ * **손이 못 하니 모델이 임시로 만들었고, 임시로 만든 것은 범위를 틀렸다.**
+ *
+ * 새 표를 발명하지 않는다 — 위 `DOC_EXT`·`IMAGE_EXT`·`TEXT_EXT` 가 이미 형식을 알고,
+ * `표준폴더말`(다운로드→Downloads)이 「부르는 말 → 기계 값」 대응의 선례다. 같은 결로
+ * **부르는 말 → 확장자**만 잇는다. 판정(무엇이 참인가)에 쓰는 문구 그물이 아니라
+ * **질의 어휘**다 — 사용자가 그 형식을 뭐라고 부르는지는 우리가 정할 수 없는 사실이다.
+ */
+const 형식말 = [
+  [/엑셀|excel|스프레드시트|xlsx?|xlsm/i, /\.(xlsx?|xlsm|xlsb)$/i],
+  [/pdf|피디에프/i, /\.pdf$/i],
+  [/워드|word|docx?/i, /\.docx?$/i],
+  [/한글\s*파일|hwpx?|아래아/i, /\.hwpx?$/i],
+  [/파워포인트|ppt|프레젠테이션|슬라이드/i, /\.pptx?$/i],
+  [/csv|씨에스브이/i, /\.csv$/i],
+  [/텍스트\s*파일|txt|메모장/i, /\.(txt|rtf)$/i],
+  [/마크다운|markdown|\.md\b/i, /\.md$/i],
+];
+/**
+ * 부른 말이 형식을 가리키면 그 확장자 자. 아니면 null — 없는 자를 지어내지 않는다.
+ *
+ * **`이름.확장자` 꼴은 형식 질의가 아니다.** 「존재하지않는이름.md」는 *그 파일*을 부른
+ * 것이지 「.md 전부」를 부른 것이 아니다 — 그렇게 읽으면 없는 파일을 물었는데 남의 파일이
+ * 후보로 선다(검사 `s3-locate-honest ⑥` 가 그것을 문다). 위 `이름낱말()` 이 같은 꼴을
+ * 이미 가르고 있다: **앞에 이름이 붙어 있는가**가 기준이고, 여기서도 같은 자를 쓴다.
+ */
+const 부른형식 = (말) => {
+  const 원문 = String(말 ?? '');
+  if (/[^\s,/\\]+\.[a-z0-9]{1,8}(?![a-z0-9])/i.test(원문)) return null;   // 이름에 딸린 확장자
+  return 형식말.find(([re]) => re.test(원문))?.[1] ?? null;
+};
+
 /** 왜 이게 후보인지 사람 말로. 근거 없는 후보는 사용자가 고를 수 없다. */
 function 근거(성, 이름맞음, 최근일, 요청에서부름 = false, 기간) {
   const 조각 = [];
@@ -436,6 +474,7 @@ export function makeLocalLocateTool(deps = {}) {
       // **확장자는 낱말이 아니다**(S3) — `YOON.md` 가 모든 `.md` 를 잡던 자리.
       const 낱말들 = 이름낱말(말);
       const 찾는종류 = 부른종류(말);
+      const 찾는형식 = 부른형식(말);   // 「엑셀 파일」처럼 형식을 부른 경우의 확장자 자
 
       const 후보 = [];
       let 본폴더 = 0; let 멈춤 = false; const 안본자리 = [];
@@ -503,7 +542,10 @@ export function makeLocalLocateTool(deps = {}) {
         // 파일로 올린다 — 폴더처럼 성격을 추측하지 않고(파일은 열지 않는다), 이름과 시각만 근거로 준다.
         for (const e of entries) {
           const 맞음 = e.isDirectory() ? null : 이름맞음종류(e.name, 말, 낱말들);
-          if (e.isDirectory() || e.name.startsWith('.') || !맞음) continue;
+          // **형식을 부른 경우 이름이 안 맞아도 그 형식이면 후보다.** 「엑셀 파일 찾아줘」의
+          // 대상은 이름이 아니라 확장자다 — 이름만 보면 영영 0이 나온다(위 `형식말` 주석).
+          const 형식맞음 = !e.isDirectory() && 찾는형식 ? 찾는형식.test(e.name) : false;
+          if (e.isDirectory() || e.name.startsWith('.') || (!맞음 && !형식맞음)) continue;
           const full = join(dir, e.name);
           // 비밀 이름 파일(.env·토큰·키)은 후보로도 안 올린다 — 보여주면 그리로 가게 된다.
           if (protectionFor(full)) { 안본자리.push(full); continue; }
@@ -513,11 +555,13 @@ export function makeLocalLocateTool(deps = {}) {
             path: full,
             kind: 'file',
             kindLabel: '파일',
-            why: [맞음 === 'exact' ? '이름이 정확히 맞아요' : '이름에 그 낱말이 있어요',
-              시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
+            why: [맞음 === 'exact' ? '이름이 정확히 맞아요'
+              : 맞음 ? '이름에 그 낱말이 있어요' : '부르신 형식의 파일이에요',
+            시각말(최근일, mtimeMs)].filter(Boolean).join(' · '),
             // **확신은 정확히 맞을 때만 준다.** 낱말이 들었다는 것은 후보의 근거이지
             // "그 파일"이라는 근거가 아니다 — 그 둘을 같은 등급으로 주면 모델이 고를 수 없다.
             confidence: 맞음 === 'exact' ? 'high' : 'medium',
+            ...(!맞음 && 형식맞음 ? { 형식일치: true } : {}),
             이름맞음: 맞음,
             modifiedDaysAgo: 최근일,
             // 기계 대조 가능한 시각 — "최종본" 판단은 이름이 아니라 이 사실 위에서 선다(H08).
