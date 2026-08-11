@@ -61,6 +61,16 @@ export function makeWebSearchTool(deps = {}) {
           blocked: true, fetchState: 'blocked',
           userSafeSummary: suggest?.userSafeSummary ?? '지금은 웹에서 찾아보지 못했어요.',
           nextSafeAction: suggest?.nextSafeAction ?? '읽을 페이지 주소를 주시면 그건 바로 읽을 수 있어요.',
+          // **몇 층을 실제로 밟고 막혔는지는 기계 사실이다**(F1 · 2026-08-12).
+          //
+          // 여기가 비어 있던 동안 모델이 받은 것은 *"지금은 웹에서 찾아보지 못했어요"* 한 줄뿐이었다.
+          // 검색기가 셋 다 돌고 막힌 것인지, **하나만 있어서** 그 하나가 봇 차단을 맞고 끝난 것인지
+          // 구분할 수가 없다. 사실을 안 주면 모델은 사실을 만든다 — 그 자리에서 나온 말이
+          // 「웹 검색이 안 되는 환경」이었다(없는 한계를 지어내는 자리).
+          //
+          // 사용자면(`userSafeSummary`)에는 안 싣는다 — 사장님이 읽을 말이 아니다.
+          // 진단면은 실패 영수증의 기계 원문 칸으로 모델에게만 간다(`task-context.js:608` 실패원문칸).
+          diagnosticTrace: { 검색기: { 시도함: found.tried ?? [], 건너뜀: found.건너뜀 ?? [] } },
           // 못 찾았어도 **길은 남는다** — 주소를 알면 읽는 손이 바로 연다.
           다음수단: [{ 방법: 'search', 왜: '다른 말로 다시 찾는다' }],
         };

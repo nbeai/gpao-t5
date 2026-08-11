@@ -133,15 +133,21 @@ export function makeWebSearch(deps = {}) {
     /** @param {string} query */
     async search(query) {
       const q = String(query ?? '').trim();
-      if (!q) return { state: 'empty_query', tried: [] };
+      if (!q) return { state: 'empty_query', tried: [], 건너뜀: [] };
       const tried = [];
+      // **안 돈 층도 사실이다.** 예전엔 `tried` 만 냈다 — 그러면 "하나만 해 보고 막혔다"와
+      // "셋 다 해 보고 막혔다"가 부르는 쪽에서 같은 모양이 된다. 둘은 다른 사실이고,
+      // 모델이 그걸 모르면 「웹이 원래 안 되나 보다」로 읽는다(없는 한계를 지어내는 자리).
+      // 판정은 안 한다 — 어느 층이 무엇이 없어서 안 돌았는지만 그대로 적는다.
+      const 건너뜀 = [];
       for (const p of order) {
         // **못 쓰는 드라이버는 시도조차 안 한다** — 그런데 그 판정을 **이름으로 짐작하지 않는다.**
         // 드라이버가 `needs` 로 밝힌 것을 그대로 본다(위 주석). 안 밝힌 드라이버는 옛 이름
         // 규칙으로 되돌아간다 — 있던 셋의 행동을 안 바꾸기 위해서다(대조군 보존).
         const 필요한것 = Array.isArray(p.needs) ? p.needs
           : (p.id === 'tavily' ? ['apiKey'] : p.id === 'searxng' ? ['instanceUrl'] : []);
-        if (필요한것.some((k) => !deps[k])) continue;
+        const 없는것 = 필요한것.filter((k) => !deps[k]);
+        if (없는것.length) { 건너뜀.push({ id: p.id, label: p.label, 없는것 }); continue; }
         tried.push(p.id);
         let rows = null;
         try {
@@ -155,9 +161,9 @@ export function makeWebSearch(deps = {}) {
           const 드라이버몫 = Object.fromEntries(필요한것.map((k) => [k, deps[k]]));
           rows = await p.run(q, { fetchImpl, timeoutMs, apiKey: deps.apiKey, instanceUrl: deps.instanceUrl, ...드라이버몫 });
         } catch { rows = null; } // 한 층이 죽어도 다음 층으로(막다른 답 금지)
-        if (rows?.length) return { state: 'ok', provider: p.id, providerLabel: p.label, results: rows, tried };
+        if (rows?.length) return { state: 'ok', provider: p.id, providerLabel: p.label, results: rows, tried, 건너뜀 };
       }
-      return { state: 'unavailable', tried };
+      return { state: 'unavailable', tried, 건너뜀 };
     },
     /** 키 연결 없이 시도할 수 있는 경로가 있는가(권유 판단에 쓴다). */
     hasKeylessPath: () => true, // 덕덕고는 항상 시도한다(되는 날엔 설정 0)
