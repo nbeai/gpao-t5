@@ -813,6 +813,22 @@ async function 확정계열({ 방, 상태 }) {
   const { MemoryStore } = await import(join(저장소, 'src/surface/memory-store.js'));
   const { AUTOMATION_SCHEMA_VERSION, contentHash, skillHashSource } =
     await import(join(저장소, 'src/kernel/l5-growth/automation-contracts.js'));
+  // **활성 게이트는 제품에서 빌린다.** 계측기가 제 손으로 상태 문자열을 판정하면
+  // 제품이 게이트를 바꾼 날 계측기만 옛말을 하게 된다 — 문서가 낡는 것과 같은 병이다.
+  const { canInfluence } = await import(join(저장소, 'src/kernel/l5-growth/skill-learning.js'));
+  const { canStartAgentRun } = await import(join(저장소, 'src/kernel/l5-growth/agent-profile.js'));
+  const { isInfluenceEligible } = await import(join(저장소, 'src/kernel/l1-intent/context-mesh.js'));
+  const { projectAutomations } = await import(join(저장소, 'src/surface/automation-surface.js'));
+  const 활성게이트 = {
+    // 스킬: 대화에 영향을 줄 자격 — admitted + 확인 + replay 통과(스키마 2 는 state==='active')
+    skill: { 이름: 'canInfluence()', 세기: (a) => a.filter((e) => canInfluence(e)).length },
+    // 담당: 실행을 시작할 자격 — 활성 + 경계 유효
+    agent: { 이름: 'canStartAgentRun()', 세기: (a) => a.filter((e) => canStartAgentRun(e)).length },
+    // 기억: 다음 턴 재료로 실릴 자격
+    memory: { 이름: 'isInfluenceEligible()', 세기: (a) => a.filter((e) => isInfluenceEligible(e)).length },
+    // 자동화: 화면에 살아 있는 예약으로 서는 것(목록 단위 판정이라 항목별이 아니다)
+    automation: { 이름: 'projectAutomations().active', 세기: (a) => projectAutomations(a).active.length },
+  };
 
   const NOW = 1_786_287_600_000;
   const 저장 = {
@@ -920,13 +936,21 @@ async function 확정계열({ 방, 상태 }) {
       const 사진 = await 저장[계열.key].load();
       const 후보수 = 계열.후보칸 ? (사진[계열.후보칸]?.length ?? 0) : null;
       const 원래확정 = 계열.key === 'skill' ? 씨앗.skills : 계열.key === 'agent' ? 씨앗.profiles : 0;
-      const 확정수 = Math.max(0, (사진[계열.확정칸]?.length ?? 0) - 원래확정);
+      const 담긴것 = 사진[계열.확정칸] ?? [];
+      const 저장수 = Math.max(0, 담긴것.length - 원래확정);
+      // **「저장됐다」와 「선다」는 다른 문장이다**(2026-08-11 · 오너 지시로 수리).
+      // 앞서는 배열 길이를 확정칸에 적었고, 그래서 `state:'proposed'` 로 앉은 스킬·담당이
+      // ✅ 로 나갔다. 같은 표 안에서 자동화가 `binding_not_active` 로 떨어지는데도 ✅ 였다 —
+      // 계측기가 자기 표에서 모순을 냈다. 판별은 **제품이 실제로 쓰는 게이트 그대로** 쓴다
+      // (위 import 넷). 여기에 상태 문자열을 적어 넣지 않는다 — 적는 순간 제품이 게이트를
+      // 바꿔도 계측기가 안 따라오고, 그게 문서가 낡는 것과 똑같은 병이다(판정 기준 ①).
+      const 활성수 = Math.max(0, 활성게이트[계열.key].세기(담긴것) - 원래확정);
       결과.push({
         key: 계열.key, name: 계열.name, channel: 계열.채널, utterance: 계열.발화,
         candidateField: 계열.후보칸 ?? null, candidates: 후보수,
-        settledField: 계열.확정칸, settled: 확정수,
-        seeded: 원래확정,
-        settles: 확정수 > 0,
+        settledField: 계열.확정칸, stored: 저장수, settled: 활성수,
+        gate: 활성게이트[계열.key].이름, seeded: 원래확정,
+        settles: 활성수 > 0,
         ...(확정거절 ? { rejectedReason: 확정거절 } : {}),
       });
     }
@@ -1035,12 +1059,17 @@ function 사람표(결과) {
   }
 
   줄.push(표('확정 계열 — 대본 모델 관통 (서버·저장소·권한 판정은 진짜 · 모델 판단만 대본)',
-    ['계열', '채널', '후보', '확정', '섰나', '비고'],
+    ['계열', '채널', '후보', '저장', '활성(선 것)', '활성 게이트', '섰나', '비고'],
     결과.settlementLineage.map((s) => [s.name, s.channel,
       s.candidateField ? `${s.candidateField}=${s.candidates}` : '—',
-      `${s.settledField}=${s.settled}${s.seeded ? ` (씨앗 ${s.seeded} 뺀 값)` : ''}`,
+      `${s.settledField}=${s.stored}${s.seeded ? ` (씨앗 ${s.seeded} 뺀 값)` : ''}`,
+      `${s.settled}`,
+      s.gate ?? '—',
       s.settles ? '✅' : '❌',
       s.rejectedReason ? `확정 거절: ${s.rejectedReason}` : ''])));
+  줄.push('  **「섰나」는 활성 열로 판정한다** — 저장은 됐는데 활성이 0 이면 그 계열은 안 선 것이다.');
+  줄.push('  활성 판별은 계측기가 하지 않는다 — 제품이 쓰는 게이트 함수를 그대로 불러 센다(위 열).');
+  줄.push('  저장>활성 이면 「만들어는 지는데 켜지지 않는다」는 뜻이고, 켜는 경로를 찾는 것이 그 계열의 일이다.');
 
   줄.push(`\n## 캐시 접두 안정성 (제품 원가 — 감사 비용이 아니다)`);
   줄.push(`  모델 호출 ${결과.cachePrefix.calls}회 중 안정 접두를 뜬 판 ${결과.cachePrefix.stableCaptured}개`);
