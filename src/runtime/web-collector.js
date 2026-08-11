@@ -101,14 +101,26 @@ export function preferReadableUrl(raw) {
   try { u = new URL(raw); } catch { return raw; }
   const host = u.hostname.toLowerCase();
   // 네이버 지도/플레이스: 지도 경로의 place id 를 모바일 플레이스 주소로.
-  if (host === 'map.naver.com' || host === 'naver.me') {
+  // **`maps`(s 붙은 것)도 같은 서비스다**(콘솔 라이브 2026-08-12 · 오너 지식):
+  // 모델이 `maps.naver.com/p/search/…` 를 열었고 그 화면은 「검색 결과가 없습니다」였다.
+  // 데스크톱 지도는 JS 앱이라 헤드리스에서 결과를 안 뿌린다 — 모바일이 SSR 로 준다.
+  if (host === 'map.naver.com' || host === 'maps.naver.com' || host === 'naver.me') {
     const id = u.pathname.match(/place\/(\d+)/)?.[1] ?? u.searchParams.get('id');
     if (id) return `https://m.place.naver.com/place/${id}/home`;
+    // 지도에서 **찾는** 걸음은 지도가 아니라 모바일 검색이 답한다(오너 지식 2026-08-12:
+    // *"m.naver.com 에서 검색하는 게 낫다"*). 질의는 경로나 파라미터 어느 쪽에도 온다.
+    const q = u.pathname.match(/\/search\/([^/?]+)/)?.[1] ?? u.searchParams.get('query') ?? u.searchParams.get('q');
+    if (q) return `https://m.search.naver.com/search.naver?query=${q}`;
   }
   if (host === 'place.naver.com') return `https://m.place.naver.com${u.pathname}${u.search}`;
   // 그 외 네이버 계열은 모바일 호스트가 같은 경로를 SSR 로 준다.
   if (/^(search|blog|news|cafe|shopping)\.naver\.com$/.test(host)) {
     return `https://m.${host}${u.pathname}${u.search}`;
+  }
+  // 네이버 첫 화면도 모바일이 읽힌다. 질의가 붙어 있으면 검색 자리로 바로 보낸다.
+  if (host === 'naver.com' || host === 'www.naver.com') {
+    const q = u.searchParams.get('query') ?? u.searchParams.get('q');
+    return q ? `https://m.search.naver.com/search.naver?query=${q}` : 'https://m.naver.com';
   }
   return raw;
 }

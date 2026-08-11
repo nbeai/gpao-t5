@@ -15,6 +15,7 @@
 // 없다는 것은 실패가 아니라 능력의 한계다 — failureState 로 쓰지 않는다.
 import { makeSourceEvidence, validateWebInput } from '../kernel/l2-plan/web-tool.js';
 import { 칸종류 } from './browser.js';
+import { preferReadableUrl } from './web-collector.js';
 import { waitPhrase } from './host-manners.js';
 
 // 이만큼도 안 되면 **화면은 열렸지만 내용이 없는 것**이다(차단·안내·빈 페이지).
@@ -155,7 +156,12 @@ export function makeBrowserObserveTool(deps = {}) {
       const target = args.url ?? args.request ?? '';
       const v = validateWebInput({ url: target, request: target });
       if (!v.ok) return { blocked: true, fetchState: 'blocked', userSafeSummary: `열 수 없어요: ${v.reason}` };
-      const open = v.normalized.url ?? target;
+      // **읽히는 주소로 고쳐 연다** — `web.collect` 가 쓰던 그 규칙을 브라우저 손도 쓴다
+      // (콘솔 라이브 2026-08-12). 예전엔 이 규칙이 웹 손에만 있어서, 모델이
+      // `maps.naver.com/p/search/팔식당` 을 **브라우저로** 열자 데스크톱 지도(JS 앱)가
+      // 헤드리스에서 「검색 결과가 없습니다」를 뿌렸다. 같은 사실을 두 손이 따로 알면
+      // 한쪽만 고쳐지고 다른 쪽이 그대로 남는다 — 한 함수를 둘이 같이 쓴다.
+      const open = preferReadableUrl(v.normalized.url ?? target);
       // 그 사이트가 쉬라고 했으면 **브라우저로도 안 연다.** 손이 둘이라고 두 번 두드리지 않는다.
       const cooling = browser.coolingMs?.(open) ?? 0;
       if (cooling > 0) {
