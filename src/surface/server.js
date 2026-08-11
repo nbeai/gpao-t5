@@ -8,7 +8,7 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { finalizeSourceCoverage, runTurn, stateReviewNeeded } from '../kernel/turn.js';
@@ -1153,7 +1153,10 @@ export function makeServer(deps = {}) {
       && policy === 'selected'
       && contract?.processBinding?.algorithm === 'sha256'
       && contract?.userBinding?.expectedPathDigest;
-    if (!directExact && !processHash) return fail();
+    const adminGrounded = contract?.completionBasis === 'admin_grounded'
+      && policy === 'all_current'
+      && contract?.userBinding?.expectedPathDigest;
+    if (!directExact && !processHash && !adminGrounded) return fail();
     if ((policy === 'none' || policy === 'selected') && contract.sourceBinding) return fail();
     let sourceStillStable = async () => true;
     if (policy === 'all_current') {
@@ -1180,6 +1183,42 @@ export function makeServer(deps = {}) {
     if (!actualPath || !writeDigest
       || hexDigest(actualPath) !== contract.userBinding.expectedPathDigest
       || (directExact && writeDigest !== contract.userBinding.expectedContentDigest)) return fail();
+
+    let adminVerification;
+    if (adminGrounded) {
+      const root = ctx.initialWorksetReality?.currentRoot?.path;
+      const members = (ctx.initialWorksetReality?.members ?? []).filter((member) => member?.kind === 'file');
+      if (!root || members.length === 0 || members.length > 64) return fail();
+      const expectedPaths = new Set(members.map((member) => resolve(root, member.name)));
+      const sourceReads = ctx.ledger.entries.slice(ledgerFrom).filter((receipt) => executionReceipt(receipt)
+        && receipt?.actualCall?.tool === 'local.file' && receipt?.actualCall?.args?.action === 'read'
+        && expectedPaths.has(receipt?.result?.path) && receipt?.result?.nextOffset === undefined
+        && receipt?.result?.sourceRevisionRef && typeof receipt?.result?.text === 'string');
+      const readsByPath = new Map();
+      for (const receipt of sourceReads) {
+        if (readsByPath.has(receipt.result.path)) return fail();
+        readsByPath.set(receipt.result.path, receipt);
+      }
+      if (readsByPath.size !== expectedPaths.size) return fail();
+      const rows = executed?.actualCall?.args?.evidenceRows;
+      if (!Array.isArray(rows) || rows.length === 0 || rows.length > 256
+        || rows.some((row) => !row || typeof row !== 'object'
+          || Object.keys(row).sort().join(',') !== 'quote,source'
+          || typeof row.source !== 'string' || typeof row.quote !== 'string'
+          || !row.quote.trim() || containsSensitiveValue(row.quote))) return fail();
+      const outputText = executed?.actualCall?.args?.text;
+      const key = (row) => `${row.source}\u0000${row.quote}`;
+      const actualKeys = rows.map(key);
+      const declaredSources = new Set(rows.map((row) => row.source));
+      if (new Set(actualKeys).size !== actualKeys.length
+        || declaredSources.size !== expectedPaths.size
+        || [...expectedPaths].some((path) => !declaredSources.has(path))
+        || typeof outputText !== 'string' || hexDigest(outputText) !== writeDigest
+        || rows.some((row) => !expectedPaths.has(row.source)
+          || !readsByPath.get(row.source)?.result?.text?.includes(row.quote)
+          || !outputText.includes(row.quote))) return fail();
+      adminVerification = { sourceReads, evidenceDigests: actualKeys.map(hexDigest) };
+    }
 
     let processVerification;
     if (processHash) {
@@ -1233,6 +1272,7 @@ export function makeServer(deps = {}) {
         || receipt?.result?.path !== actualPath || receipt?.result?.nextOffset !== undefined
         || !receipt?.result?.sourceRevisionRef
         || (directExact && hexDigest(receipt?.result?.text ?? '') !== contract.userBinding.expectedContentDigest)
+        || (adminGrounded && hexDigest(receipt?.result?.text ?? '') !== writeDigest)
         || (processHash && !String(receipt?.result?.text ?? '')
           .includes(processVerification.sourceBefore.contentDigest))) return null;
       return { receipt, durable };
@@ -1274,6 +1314,12 @@ export function makeServer(deps = {}) {
         sealCheckCallRef: sealCheck.receipt?.actualCall?.callRef ?? null,
         expectedPathDigest: contract.userBinding.expectedPathDigest,
         ...(directExact ? { expectedContentDigest: contract.userBinding.expectedContentDigest } : {}),
+        ...(adminGrounded ? {
+          expectedContentDigest: writeDigest,
+          groundedSourceReceiptDigests: adminVerification.sourceReads.map(workEvidenceDigest),
+          groundedSourceRevisionRefs: adminVerification.sourceReads.map((receipt) => receipt.result.sourceRevisionRef),
+          groundedEvidenceDigests: adminVerification.evidenceDigests,
+        } : {}),
         ...(policy === 'all_current' ? {
           sourceWorkRef: contract.sourceBinding.workRef,
           sourceSetRef: contract.sourceBinding.sourceSetRef,

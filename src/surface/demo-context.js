@@ -633,6 +633,13 @@ const DESCRIPTORS = [
           limit: { type: 'number', description: 'list 는 항목 수, read 는 글자 수. 안 주면 전부' },
           text: { type: 'string', description: 'write 일 때 저장할 내용' },
           source: { type: 'string', description: 'write 가 어떤 원본을 정리한 결과물이면 그 원본 경로 — 원본 자리 덮어쓰기를 막고 별도 결과물임을 기록한다' },
+          evidenceRows: {
+            type: 'array',
+            description: '여러 현재 자료를 근거로 결과물을 만들 때, 결과물에 쓴 사실과 실제 읽은 출처를 연결하는 근거 목록. 결과물의 제목·문장 순서·형식은 정하지 않는다.',
+            items: { type: 'object', properties: {
+              source: { type: 'string' }, quote: { type: 'string' },
+            }, required: ['source', 'quote'] },
+          },
         },
         required: ['action'],
       },
