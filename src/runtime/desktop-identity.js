@@ -70,6 +70,42 @@ export function 신분찾기(요소들, 대상) {
   return 요소들.find((e) => 대상.label && String(e?.label ?? '') === String(대상.label)) ?? null;
 }
 
+/**
+ * **창 하나를 모델이 가를 수 있게 적는다** (정본 `describe list_windows` · 2026-08-11).
+ *
+ * 정본이 창마다 주는 축은 열이고, 그중 **가르는 것은 넷**이다:
+ *   `bounds`(자리·크기) · `z_index`(앞뒤) · `is_on_screen`(화면에 있나) · `on_current_space`(같은 화면인가)
+ * 정본에 「무제목 창은 후보가 아니다」 같은 규칙은 **없다.** 제목이 없으면 나머지 넷으로 가른다.
+ *
+ * 우리는 이 넷을 **다 읽어 놓고** 후보 문장에는 `앱 · 제목` 만 실었다. 그래서 카톡 창 넷이
+ * 모델에게 `카카오톡 · (제목 없음)` **네 줄 똑같이** 갔고, 고를 수 없으니 걸음이 죽었다.
+ * 한 자리에서 만든다 — 두 손(`desktop-tool` · `desktop-act-tool`)이 다른 문장을 쓰면
+ * 모델이 보는 축이 손마다 달라진다.
+ *
+ * @param {{app?:string,title?:string,층?:number|null,보임?:boolean,같은화면?:boolean,bounds?:object}} 창
+ * @returns {string}
+ */
+export function 창설명(창 = {}) {
+  const 조각 = [];
+  const 앱 = String(창.app ?? '').trim();
+  const 제목 = String(창.title ?? '').trim();
+  조각.push(앱 ? `${앱} · ${제목 || '(제목 없음)'}` : (제목 || '(제목 없음)'));
+  const b = 창.bounds ?? null;
+  const w = Number(b?.w ?? b?.width);
+  const h = Number(b?.h ?? b?.height);
+  if (Number.isFinite(w) && Number.isFinite(h)) {
+    const x = Number(b?.x); const y = Number(b?.y);
+    조각.push(`${Math.round(w)}×${Math.round(h)}`
+      + (Number.isFinite(x) && Number.isFinite(y) ? ` @${Math.round(x)},${Math.round(y)}` : ''));
+  }
+  // **`층` 이 없는 것은 「뒤」가 아니라 「모른다」다** — 정본이 그렇게 못박는다
+  // (*"null means stacking order is unavailable and callers must not infer one"*).
+  조각.push(Number.isFinite(창.층) ? `앞뒤 z${창.층}` : '앞뒤 모름');
+  if (창.보임 === false) 조각.push('화면 밖');
+  if (창.같은화면 === false) 조각.push('다른 화면(Space)');
+  return 조각.join(' · ');
+}
+
 /** 신분이 **짝이 맞는가** — 토큰이 자기 스냅샷 것인가. 섞이면 아무 데도 안 눌린다. */
 export function 짝이맞나(신분값) {
   const 토큰 = String(신분값?.토큰 ?? '');

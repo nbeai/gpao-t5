@@ -27,7 +27,7 @@ function 가짜({ 부른것 = [], 앞세우면됨 = true } = {}) {
       부른것.push({ 이름, 인자 });
       if (이름 === 'list_windows') return { windows: [창] };
       if (이름 === 'get_accessibility_tree') return { windows: [], apps: [{ name: 'Claude', pid: 1, active: true }] };
-      if (이름 === 'bring_to_front') { 앞세웠나 = true; return { activated: true }; }
+      if (이름 === 'bring_to_front') { 앞세웠나 = true; return { effect: 'confirmed' }; }
       if (이름 === 'press_key') {
         if (인자?.delivery_mode === 'foreground' && 앞세우면됨) return { effect: 'confirmed', route: 'foreground' };
         return {

@@ -1,4 +1,4 @@
-import { 신분, 신분찾기 } from './desktop-identity.js';
+import { 신분, 신분찾기, 창설명 } from './desktop-identity.js';
 import { 드라이버답 } from './desktop-driver-answer.js';
 // L3 · **화면 손 · 행동 (CU C)** — 첫 손. 눌렀는지가 아니라 **됐는지**로 판정한다.
 //
@@ -87,8 +87,27 @@ function 그림지문(그림) {
  * 이 표가 C 의 알맹이다. 여기 없는 행동은 **대조할 값이 없다는 뜻**이고,
  * 대조할 값이 없으면 성공을 주장할 수 없다 — 그래서 애초에 안 받는다.
  */
+// (표는 아래 `대조할값`. 그 앞에 표가 쓰는 자 하나를 둔다.)
+/**
+ * **맨 앞 창의 id — 배열 순서로 지어내지 않는다** (정본 `describe list_windows`).
+ *
+ * *"z_index (integer or null; … **null means stacking order is unavailable and callers must not
+ *   infer one**). To select a frontmost candidate, **take the maximum integer z_index**;
+ *   if every value is null, use an explicit fallback **instead of relying on array order**."*
+ *
+ * 관찰이 준 `windows` 는 이미 `층`(z_index) 내림차순이다. 그러니 **`층` 이 있는 첫 창**이 맨 앞이고,
+ * 하나도 없으면 **모른다**(null). 창 id 로 지목한 `focus` 의 사후조건이 이 값으로 갈린다.
+ */
+function 앞창id(본것) {
+  const w = (본것?.windows ?? []).find((x) => Number.isFinite(x?.층));
+  return w?.id ?? null;
+}
+
 const 대조할값 = {
-  focus: (본것) => ({ frontmost: 본것?.frontmost?.name ?? null }),
+  // **앞 창은 이름과 창 id 를 함께 잰다.** 이름만으로는 무제목 창 넷을 가진 앱에서
+  // "어느 창이 앞인가"를 못 가른다 — 모델이 `focus window:14213` 으로 지목한 그 창이
+  // 실제로 앞에 왔는지가 사후조건이고, 그건 창 id 로만 잴 수 있다.
+  focus: (본것) => ({ frontmost: 본것?.frontmost?.name ?? null, 앞창: 앞창id(본것) }),
   // **스크롤은 모를 이유가 없다** — 성공 조건이 하나뿐이다: 화면이 달라졌나.
   // cua 는 스크롤 위치를 안 준다(늘 `null`). 재는 자리가 비어 있으니 A14 가 매번
   // "모르겠다"로 갔고, 모델은 그걸 *"자동 스크롤이 막혀 있어서"* 로 읽었다(라이브 2026-08-06).
@@ -156,12 +175,31 @@ function 누른값(본것, args) {
  * @returns {true|false|null}  null = 목표를 정의할 수 없다(변화로 판정한다)
  */
 function 목표도달(행동, args, 후) {
+  // **창을 지목했으면 그 창이 앞에 왔는가로 잰다** (정본 `describe bring_to_front`:
+  // *"success means the exact ordinary macOS window was independently verified as the focused
+  //   window and first in WindowServer layer-0 order"*).
+  // 앱 이름보다 이것이 좁다 — 카톡처럼 한 앱이 창 넷을 가진 자리에서 이름 대조는
+  // **엉뚱한 창이 앞에 와도 통과시킨다.** 창 id 를 알면 그것으로 가른다.
+  const 원한창 = args?.window ?? args?.대상?.창 ?? args?.대상?.window ?? null;
+  if (행동 === 'focus' && 원한창 != null && Number.isFinite(Number(원한창))) {
+    // 앞 창을 못 재면(z_index 가 하나도 없다) **모른다** — 안 왔다고 단정하지 않는다.
+    if (후?.앞창 == null) return null;
+    return Number(후.앞창) === Number(원한창);
+  }
   const 대상 = String(args?.app ?? '').trim().toLowerCase();
   if (!대상) return null;
   const 앞 = String(후?.frontmost ?? '').toLowerCase();
+  // **앞 창을 못 읽었으면 「안 됐다」가 아니라 「모른다」다.**
+  //
+  // ② 를 고치면서 드러났다: `frontmost` 는 이제 **최대 z_index 를 못 재면 null** 이다
+  // (정본이 배열 순서 폴백을 금지하므로 모를 때는 정직하게 빈다). 그 null 을 예전 식
+  // `Boolean(앞) && …` 로 읽으면 **모르는 것이 전부 실패**가 된다 — 관측 실패를 행동 실패로
+  // 바꾸는 것이고, 우리가 A14 의 거울상으로 이미 네 번 밟은 병이다.
+  if (!앞) return null;
   if (행동 === 'focus' || 행동 === 'launch') {
     // 이름이 딱 같지 않아도 된다 — 사용자는 "크롬"이라 하고 OS 는 "Google Chrome"이라 한다.
-    return Boolean(앞) && (앞.includes(대상) || 대상.includes(앞));
+    // (`앞` 이 비는 경우는 위에서 이미 `null`(모른다)로 갈렸다.)
+    return 앞.includes(대상) || 대상.includes(앞);
   }
   if (행동 === 'quit') return !(앞.includes(대상) || 대상.includes(앞));
   return null;
@@ -774,10 +812,50 @@ async handler(args) {
         }
         if (낸것?.확인됨 === true) {
           const 후확인 = 재기(await 드라이버.observe(볼자리(누르는것.has(행동) ? 'window' : 'screen')).catch(() => null), args);
+          // ── **찍어 놓고 안 보던 자리** (정본 정면대조 2026-08-11) ─────────────────
+          //
+          // `SKILL.md:339` — *"After any action, keep using `verify_state` or **a fresh state
+          // snapshot for the actual task postcondition**. The multimodal harness owns … the
+          // decision to stop, retry, or advance the ladder."*
+          // 그리고 바로 위 문단: *"These fields describe **the actuator**; they do not declare
+          // the user's task complete."*
+          //
+          // 우리는 `후확인` 을 **찍기는 했는데 비교하지 않았다.** 드라이버가 확인했다고 하면
+          // 그 자리에서 `goal_verified` + *"앞으로 띄웠어요"* 가 나갔고, `목표도달()` 은 이
+          // 갈래에서 **한 번도 안 돌았다.** 그래서 「앞으로 띄웠어요 vs 전·후 frontmost 동일」
+          // 이 두 번(별개 세션) 났다(§2 계측기 · 자기보고 거짓).
+          //
+          // 이제 같은 자를 여기에도 댄다. 셋으로만 갈린다:
+          //   false → 드라이버는 확인했다는데 **상태가 아니다.** 성공을 안 낸다
+          //   null  → 잴 자가 없다(창 z 를 모른다·앱 이름이 없다). 드라이버 확인을 그대로 쓰되
+          //           **무엇으로 확인했는지 적는다** — 모르는 것을 재확인으로 위장하지 않는다
+          //   true  → 둘 다 맞다. 그때만 「확인까지 했다」고 말한다
+          const 후도달 = 누르는것.has(행동) ? null : 목표도달(행동, args, 후확인);
+          if (후도달 === false) {
+            return {
+              failed: true,
+              // **드라이버가 한 말과 우리가 본 것이 다르다.** 둘 다 사실로 적는다 —
+              // 한쪽을 지우면 다음 사람이 어느 층이 틀렸는지 못 찾는다.
+              userSafeSummary: '요청은 받아들여졌는데, 다시 봤을 때 그 상태가 아니었어요.',
+              진행: {
+                단계: 'dispatched', 판정: 'unsatisfied',
+                근거: `드라이버는 확인(${낸것.근거})했는데 재관측이 어긋난다`,
+                전, 후: 후확인,
+              },
+              다음수단: [
+                { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
+                { 방법: 'retry', 왜: '창 관리자 반영이 늦었을 수 있다' },
+              ],
+            };
+          }
           return {
             result: {
               단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후: 후확인,
-              확인방법: `드라이버 확인(${낸것.근거})`,
+              // **무엇으로 확인했는지 한 칸에 다 적는다.** 「드라이버가 그렇게 말했다」와
+              // 「우리가 다시 봐서 그랬다」는 세기가 다르고, 원장은 그 차이를 알아야 한다.
+              확인방법: 후도달 === true
+                ? `드라이버 확인(${낸것.근거}) + 행동 뒤 재관측`
+                : `드라이버 확인(${낸것.근거}) · 재관측으로는 못 가름`,
               // **부분적으로 됐으면 남은 길을 함께 준다.** 라이브(2026-08-05): 켠 뒤
               // *"화면 앞으로 오지는 않았어요"* 만 말했더니 모델이 **focus 를 한 번도 안 부르고**
               // *"앞으로 가져오는 동작이 막혀 있어서"* 라며 사용자에게 떠넘겼다.
@@ -787,7 +865,11 @@ async handler(args) {
                 : {}),
             },
             userSafeSummary: 행동 === 'focus'
-              ? `${args?.app ?? '그 창'} 을(를) 앞으로 띄웠어요.`
+              // **재관측으로 가른 것과 못 가른 것을 같은 문장으로 말하지 않는다.**
+              // 못 가른 채 「띄웠어요」라고 하던 것이 자기보고 거짓의 제조 자리였다.
+              ? (후도달 === true
+                ? `${후확인?.frontmost ?? args?.app ?? '그 창'} 을(를) 앞으로 띄웠어요.`
+                : `${args?.app ?? '그 창'} 을(를) 앞으로 띄웠어요 — 화면에서 다시 확인하지는 못했어요.`)
               // **켠 것과 앞에 둔 것은 다른 일이다.** 뭉뚱그리면 사용자는 앞에 왔다고 듣고
               // 화면을 보고 어리둥절해진다(cua 는 켜고도 앞으로 안 올린다).
               : 행동 === 'launch'
@@ -800,8 +882,14 @@ async handler(args) {
             blocked: true,
             userSafeSummary: `그 앱 창이 여러 개라 어느 것을 앞으로 띄울지 알 수 없어요.`,
             후보: 낸것.골라야함,
+            // **모델이 고를 수 있는 축을 문장에 싣는다** (정본 `describe list_windows`).
+            //
+            // 예전 문장은 `${c.app} · ${c.title || '(제목 없음)'}` 하나였다. 카톡처럼 창 넷이
+            // 다 무제목이면 모델에게 `카카오톡 · (제목 없음)` 이 **네 줄 똑같이** 갔다 —
+            // 고를 수가 없으니 되묻거나 멈춘다(§8 카톡 빨강). 축이 없어서가 아니라 안 실어서다.
+            // 드라이버가 창마다 주는 것: `bounds · z_index · is_on_screen · on_current_space`.
             다음수단: 낸것.골라야함.slice(0, 5).map((c) => ({
-              방법: 'focus', window: c.window, 왜: `${c.app} · ${c.title || '(제목 없음)'}`,
+              방법: 'focus', window: c.window, 왜: 창설명(c),
             })),
           };
         }

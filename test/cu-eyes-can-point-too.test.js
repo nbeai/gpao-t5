@@ -166,7 +166,7 @@ test('창을 가리키는 이름이 하나다 — 두 이름으로 부르면 한
       if (이름 === 'list_windows') return { windows: [창] };
       if (이름 === 'get_accessibility_tree') return { windows: [] };
       if (이름 === 'list_apps') return { apps: [{ name: '카카오톡', pid: 77, running: true }] };
-      return { activated: true };
+      return { effect: 'confirmed' };
     },
   };
   // 손이 깔아 주는 이름은 `창` 이다(요소 신분과 같은 말). 드라이버가 그걸 못 보면
