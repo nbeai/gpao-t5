@@ -51,13 +51,19 @@ test('칸0 계측기 ①: desktop.act 동사 17개를 코드에서 떠서 낸다
   assert.ok(화면손.verbs.includes('type'), 'desktop.act 는 칸에 글자를 넣을 수 있다(성질 1 의 근거)');
 });
 
-test('칸0 계측기 ②: browser.act 동사에 type·navigate 가 없다', async () => {
+// **기대값이 뒤집혔다**(2026-08-11 · C5 — 기준 완화가 아니라 현실 이동).
+// 원본: `browser.act 동사에 type·navigate 가 없다`. `type` 부재는 PM 이 「정밀 읽기 전용」
+// 으로 정한 결과였고, 실측이 그 결정을 뒤집었다 — 브라우저로 열어 놓고 글자를 치려니
+// 화면 손(픽셀)으로 돌아갔고 **승인 카드 2장**이 떴다(「사용자 손 0회」가 깨진 자리).
+// `navigate` 는 그대로 없다 — 주소로 여는 것은 `browser.observe:open` 하나로 족하다.
+test('칸0 계측기 ②: browser.act 동사에 type·press 는 있고 navigate 는 없다', async () => {
   const { stdout } = await 계측(['--json']);
   const 결과 = JSON.parse(stdout);
   const 브라우저손 = 결과.hands.find((h) => h.id === 'browser.act');
   assert.ok(브라우저손, 'browser.act 손이 인벤토리에 있어야 한다');
   assert.ok(Array.isArray(브라우저손.verbs), 'browser.act 는 action enum 이 있다');
-  assert.equal(브라우저손.verbs.includes('type'), false, `browser.act 에 type 은 없다 — 실측 ${JSON.stringify(브라우저손.verbs)}`);
+  assert.equal(브라우저손.verbs.includes('type'), true, `browser.act 에 type 이 있다 — 실측 ${JSON.stringify(브라우저손.verbs)}`);
+  assert.equal(브라우저손.verbs.includes('press'), true, `browser.act 에 press 가 있다 — 실측 ${JSON.stringify(브라우저손.verbs)}`);
   assert.equal(브라우저손.verbs.includes('navigate'), false, `browser.act 에 navigate 는 없다 — 실측 ${JSON.stringify(브라우저손.verbs)}`);
 });
 
@@ -161,15 +167,22 @@ test('칸0 계측기: 캐시 접두 안정성을 낸다 (제품 원가)', async 
   assert.ok(c.systemStableCharsMin > 0 && c.systemStableCharsMax >= c.systemStableCharsMin, '안정부 크기 최소~최대');
 });
 
-test('칸0 계측기: 브라우저 CDP 를 코드에서 떠서 Input.* 부재를 근거와 함께 낸다', async () => {
+// **기대값이 뒤집혔다**(2026-08-11). 원본: `Input.* 부재를 근거와 함께 낸다`.
+// 타이핑을 열면서 `Input.insertText`·`Input.dispatchKeyEvent` 를 배선했다. 부재를 세던
+// 검사는 이제 **존재**를 센다 — 그리고 열린 것이 그 둘뿐임(마우스 좌표 이벤트는 없음)을
+// 함께 문다. 좌표 타이핑을 열지 않았다는 것이 이 슬라이스의 경계이기 때문이다.
+test('칸0 계측기: 브라우저 CDP 를 코드에서 떠서 Input.* 를 근거와 함께 낸다', async () => {
   const { stdout } = await 계측(['--json']);
   const 결과 = JSON.parse(stdout);
   const b = 결과.browserCdp;
   for (const d of ['Page', 'Runtime', 'Target']) {
     assert.ok(b.domains.includes(d), `${d} 도메인이 있어야 한다 — 실측 ${JSON.stringify(b.domains)}`);
   }
-  assert.equal(b.hasInputDomain, false, `Input.* 는 없다 — 실측 ${JSON.stringify(b.inputHits)}`);
-  assert.ok(b.inputSearchedTerms.length > 0, '부재를 주장하려면 검색어를 함께 낸다(F-56)');
+  assert.equal(b.hasInputDomain, true, `Input.* 가 있다 — 실측 ${JSON.stringify(b.inputHits)}`);
+  assert.ok(b.inputHits.includes('Input.insertText'), `글자는 insertText 로 넣는다 — 실측 ${JSON.stringify(b.inputHits)}`);
+  assert.equal(b.inputHits.includes('Input.dispatchMouseEvent'), false,
+    `좌표로 짚는 길은 열지 않았다 — 실측 ${JSON.stringify(b.inputHits)}`);
+  assert.ok(b.inputSearchedTerms.length > 0, '있다/없다를 주장하려면 검색어를 함께 낸다(F-56)');
 });
 
 test('칸0 계측기: 창 예산 표·문서 읽기 형식·l5-growth 고아를 코드에서 센다', async () => {
@@ -209,20 +222,30 @@ test('칸0 계측기: 정답을 계측기 본체에 적어 넣지 않는다 (하
   assert.equal(/개수:\s*\d+/.test(소스), false, '동사 수 기대치를 상수로 박지 않는다');
 });
 
-test('칸0 계측기 ⑥: 타이핑은 결손이 아니다 — 안 여는 것이 설계다', async () => {
+// **기대값이 뒤집혔다**(2026-08-11). 원본: `타이핑은 결손이 아니다 — 안 여는 것이 설계다`.
+// 그 「설계」는 PM 결정이었고 실측이 뒤집었다(승인 카드 2장). 이제 타이핑은 요구이고
+// **채워져 있다.** 대신 **열지 않은 것이 여전히 안 열려 있는지**를 같은 줄에서 문다 —
+// 뒤집으면서 경계까지 함께 넓히는 것이 가장 흔한 사고라서다.
+test('칸0 계측기 ⑥: 타이핑은 요구이고 채워졌다 — 그러나 폼 제출·구매는 여전히 안 열렸다', async () => {
   const { stdout } = await 계측(['--json']);
   const 결과 = JSON.parse(stdout);
   const 브라우저 = 결과.organs.find((o) => o.key === 'browser-hand');
-  // 계획서 §4⑥(PM 자기 정정 2026-08-11): 정밀 읽기 전용. 타이핑은 **요구가 아니다.**
-  // 경계를 결손으로 세면 계측기가 없는 결함을 만들어 낸다 — 첫 판이 그랬다.
-  assert.equal(브라우저.required.some((r) => r.startsWith('타이핑')), false,
-    `타이핑은 ⑥ 의 요구가 아니다 — 실측 ${JSON.stringify(브라우저.required)}`);
+  assert.ok(브라우저.required.some((r) => r.startsWith('타이핑')),
+    `타이핑이 ⑥ 의 요구다 — 실측 ${JSON.stringify(브라우저.required)}`);
   assert.equal(브라우저.missing.some((m) => m.includes('browser.act:type')), false,
-    `타이핑 부재를 결손으로 세면 안 된다 — 실측 ${JSON.stringify(브라우저.missing)}`);
-  assert.ok(브라우저.주의?.includes('안 여는 것이 설계'), '왜 요구가 아닌지 한 줄이 함께 가야 한다');
-  // 그러나 손 자체에 type 이 없다는 **기계 사실**은 그대로 낸다(② 검사가 무는 자리).
+    `타이핑 요구가 아직 비어 있다 — 실측 ${JSON.stringify(브라우저.missing)}`);
+  assert.equal(브라우저.missing.some((m) => m.includes('browser.act:press')), false,
+    `검색 엔터 요구가 아직 비어 있다 — 실측 ${JSON.stringify(브라우저.missing)}`);
+  // 손의 **기계 사실**로도 확인한다(② 검사가 무는 자리와 같은 값).
   const 손 = 결과.hands.find((h) => h.id === 'browser.act');
-  assert.equal(손.verbs.includes('type'), false);
+  assert.equal(손.verbs.includes('type'), true);
+  assert.equal(손.verbs.includes('press'), true);
+  // 경계 — 뒤집힌 것은 타이핑 하나뿐이다.
+  for (const 안연것 of ['submit', 'upload', 'buy', 'navigate']) {
+    assert.equal(손.verbs.includes(안연것), false, `${안연것} 은 안 열었다 — 실측 ${JSON.stringify(손.verbs)}`);
+  }
+  assert.ok(/폼 제출·전송·구매는 열지 않는다/.test(브라우저.상한 ?? ''),
+    `상한에 안 여는 것이 그대로 남아야 한다 — 실측 ${브라우저.상한}`);
 });
 
 test('칸0 계측기 ⑥: 정밀 읽기의 알맹이 — 텍스트 추출은 있고, 요소 목록은 전달에서 잘린다', async () => {

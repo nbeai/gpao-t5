@@ -11,8 +11,14 @@
 // 우리가 아는 것은 화면의 **일반 구조**뿐이다 — 무엇이 보이는가, 얼마나 남았는가, 무엇을 누를 수
 // 있는가. 탭·더보기는 접근성 트리의 역할(role)에서 나온다. 사이트 이름은 이 파일에 없다.
 //
-// **오너 브라우저를 건드리지 않는다.** 격리된 임시 프로필로 헤드리스 실행한다 — 로그인 세션·쿠키를
-// 빌려 쓰지 않는다(로그인 우회 금지).
+// **프로필이 둘이다**(2026-08-11 · 이 슬라이스). 하나로는 두 요구를 못 채운다:
+//   ⓐ 격리(`isolated` · **기본값**)  매번 새 임시 자리 · 헤드리스 · 끝나면 삭제.
+//                                    시험·측정이 서로를 오염시키지 않아야 해서 이쪽이 기본이다.
+//   ⓑ 영속(`persistent`)             **같은 자리를 재사용**한다. 사람이 한 번 로그인해 두면
+//                                    다음 회차에 따라온다. 로그인하려면 사람이 봐야 하므로
+//                                    헤드리스가 아니다.
+// 어느 쪽으로 봤는지는 **영수증에 찍는다**(`profileKind()`). 사용자가 "로그인된 걸로 봤나"를
+// 알 수 있어야 하고, 그게 없어서 실측에서 거짓 약속이 두 번 나왔다.
 //
 // ── ⚠ 그 "별도 결정"이 났다 (오너 결정 2026-08-06 · BUTLER §9 D2) ──────────────
 // **사용자 브라우저를 쓴다. 전용 프로필을 만들지 않는다.**
@@ -31,10 +37,47 @@
 // **이 문단을 지우려면 4단계를 구현한 뒤에 지운다.** 지금 지우면 결정이 사라진다.
 import { spawn } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeHostManners } from './host-manners.js';
+
+// ── 켰으면 끈다 ─────────────────────────────────────────────────────────────
+// **실측 2026-08-11**: 헤드리스 크롬이 다섯 개 떠 있었고 가장 오래된 것이 39분째였다.
+// 원인은 하나다 — 끄는 경로(`close`)가 **놀 때(idle)만** 불렸고, 그 타이머는 `unref` 라
+// 노드가 먼저 나가면 영영 안 온다. 그리고 채점기는 `process.exit()` 로 나간다.
+// macOS 에서 자식은 부모를 따라 죽지 않으므로, 그 순간 크롬은 고아가 되어 남는다.
+//
+// 그래서 **명부와 종료 훅**을 둔다. 손이 하나 서면 명부에 오르고, 프로세스가 나갈 때
+// 명부를 그대로 비운다. 훅은 한 번만 건다(손이 여럿이어도 훅은 하나).
+const 살아있는손 = new Set();
+let 훅걸림 = false;
+
+/** 지금 이 프로세스가 켜 둔 브라우저 수. 검사와 진단이 같은 값을 본다. */
+export function 살아있는브라우저수() { return 살아있는손.size; }
+/** 종료 훅이 실제로 걸렸나. 「걸었다고 적어 두기」가 아니라 기계 사실이다. */
+export function 종료훅걸렸나() { return 훅걸림; }
+
+/** 명부에 있는 것을 전부 끈다. **동기다** — `exit` 훅에서는 비동기가 안 돈다. */
+export function 브라우저전부끄기() {
+  for (const 끄기 of [...살아있는손]) { try { 끄기(); } catch { /* 이미 죽음 */ } }
+  살아있는손.clear();
+}
+
+function 훅걸기() {
+  if (훅걸림) return;
+  훅걸림 = true;
+  process.on('exit', 브라우저전부끄기);
+  // 신호는 **한 번만 받고 되쏜다**(표준 관용구). 리스너를 달면 노드의 기본 종료가 없어지므로,
+  // 우리 몫만 치우고 같은 신호를 다시 올려 원래대로 돌려준다. 다른 데서 이미 받고 있으면
+  // 그쪽이 끝을 맡는다 — 남의 종료 절차를 가로채지 않는다.
+  for (const 신호 of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(신호, () => {
+      브라우저전부끄기();
+      if (process.listenerCount(신호) === 0) process.kill(process.pid, 신호);
+    });
+  }
+}
 
 /** 시스템에 설치된 브라우저를 찾는다. 없으면 없는 대로 — 없는 손을 있다고 하지 않는다. */
 export const BROWSER_CANDIDATES = [
@@ -93,6 +136,109 @@ function cdpConnection(wsUrl) {
   };
 }
 
+// ── 칸이 무엇인지는 **요소가 말한다** ────────────────────────────────────────
+// 문구 목록("검색"·"비밀번호"·"보내기")으로 가르지 않는다 — 그건 영어·아이콘·다른 말에
+// 늘 뚫리고, 화면 문구로 등급을 정하는 것은 A10 위반이다(`desktop-act-tool.js` 가 같은 이유로
+// 같은 결론에 닿았다). 대신 **표준이 이미 정해 둔 구조**를 읽는다: 요소 종류(type)·역할(role)·
+// 자동완성 힌트(autocomplete)·감싼 폼의 method.
+//
+// **페이지 안에서는 판정하지 않는다.** 스크립트는 사실만 떠 오고, 가르는 것은 여기 노드다 —
+// 안에서도 가르면 같은 규칙이 두 벌이 되고, 한쪽만 고치는 날이 온다(1축).
+
+/** 요소 하나에서 뜰 **사실**. 관찰 스크립트와 짚기 스크립트가 이 한 조각을 나눠 쓴다. */
+const 요소사실뜨기 = `(el) => {
+  const cs = getComputedStyle(el);
+  const r = el.getBoundingClientRect();
+  const form = el.closest('form');
+  return {
+    있나: true,
+    태그: String(el.tagName || '').toLowerCase(),
+    type: String(el.getAttribute('type') || '').toLowerCase(),
+    role: String(el.getAttribute('role') || '').toLowerCase(),
+    autocomplete: String(el.getAttribute('autocomplete') || '').toLowerCase(),
+    편집가능: el.isContentEditable === true,
+    읽기전용: el.readOnly === true || el.disabled === true || el.getAttribute('aria-readonly') === 'true',
+    보임: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden',
+    폼: form ? {
+      method: String(form.getAttribute('method') || 'get').toLowerCase(),
+      role: String(form.getAttribute('role') || '').toLowerCase(),
+    } : null,
+  };
+}`;
+
+/** ref 하나의 사실을 뜬다. **없으면 없다고 답한다** — 못 읽은 것을 자동으로 흘리지 않는다. */
+export const 요소사실스크립트 = (ref) => `(() => {
+  const el = document.querySelector('[data-t5-ref=${JSON.stringify(String(ref))}]');
+  if (!el) return { 있나: false };
+  return (${요소사실뜨기})(el);
+})()`;
+
+/** 그 요소를 **짚는다**(포커스). 좌표가 아니라 ref 다. 커서 자리에 치는 길은 열지 않는다. */
+const 짚기스크립트 = (ref) => `(() => {
+  const el = document.querySelector('[data-t5-ref=${JSON.stringify(String(ref))}]');
+  if (!el) return 'gone';
+  try { el.focus({ preventScroll: false }); } catch (e) { return 'gone'; }
+  if (document.activeElement !== el && !el.contains(document.activeElement)) return 'no_focus';
+  return 'ok';
+})()`;
+
+// 비밀값을 담으라고 **브라우저 표준이 이미 표시해 둔** 자동완성 힌트들. 헌장 ①·④ 의 자리다.
+const 비밀힌트 = /(^|\s)(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp|cc-exp-month|cc-exp-year|cc-name)(\s|$)/;
+// 글자를 받는 input type. **화이트리스트다** — 모르는 종류는 글자칸이 아니다(fail-closed).
+const 글자받는type = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'number']);
+
+/**
+ * 이 칸이 무엇인가. `secure`·`file`·`search`·`text`·`unknown`·`gone`.
+ * **모름은 `text` 로 흘리지 않는다** — 모르면 `unknown` 이고, `unknown` 은 손이 물러나는 자리다.
+ */
+export function 칸종류(f) {
+  if (!f?.있나) return 'gone';
+  const type = String(f.type ?? '').toLowerCase();
+  const role = String(f.role ?? '').toLowerCase();
+  if (type === 'password' || 비밀힌트.test(` ${String(f.autocomplete ?? '').toLowerCase()} `)) return 'secure';
+  if (type === 'file') return 'file';
+  const 검색폼 = f.폼?.role === 'search';
+  if (type === 'search' || role === 'searchbox' || (검색폼 && (f.태그 === 'input' || f.편집가능 === true))) return 'search';
+  if (f.편집가능 === true) return 'text';
+  if (f.태그 === 'textarea') return 'text';
+  if (f.태그 === 'input' && 글자받는type.has(type)) return 'text';
+  return 'unknown';
+}
+
+/**
+ * **글자를 쳐도 되나.** 글자는 이 컴퓨터를 벗어나지 않으므로 헌장 넷 중 ①(비밀값)만 닿는다 —
+ * 보안 칸은 사람이 직접 넣고, 나머지 글자칸은 자동이다(계획서 §7: 묻는 것 넷 밖은 전부 자동).
+ */
+export function 타이핑판정(f) {
+  const 종류 = 칸종류(f);
+  if (종류 === 'gone') return { 된다: false, 이유: 'gone', 종류 };
+  if (f.보임 !== true) return { 된다: false, 이유: 'not_visible', 종류 };
+  if (f.읽기전용 === true) return { 된다: false, 이유: 'not_editable', 종류 };
+  if (종류 === 'secure') return { 된다: false, 이유: 'secure_field', 종류 };
+  if (종류 === 'file') return { 된다: false, 이유: 'file_input', 종류 };
+  if (종류 === 'unknown') return { 된다: false, 이유: 'unknown_field', 종류 };
+  return { 된다: true, 종류 };
+}
+
+/**
+ * **엔터를 쳐도 되나.** 엔터는 글자와 다르다 — 그 순간 무언가가 밖으로 나간다.
+ *
+ * 검색은 상대가 없다(헌장 ③ 의 "새 상대"가 성립하지 않는다). 그래서 검색 칸의 엔터는 자동이다.
+ * 그 밖은 **이 손이 안 연다** — 상대에게 나가는 걸음은 승인 카드를 갖춘 화면 손이 이미 맡고
+ * 있고, 여기에 카드 없는 두 번째 길을 내면 그게 곧 헌장 ③ 의 우회로다.
+ *
+ * 「검색」의 판정 근거도 문구가 아니라 표준이다: `type=search` · `role=searchbox` ·
+ * `role=search` 폼, 그리고 **method 가 GET 인 폼**(HTTP 명세가 안전·멱등으로 정의한 것).
+ * 대화 입력칸은 대개 폼이 아예 없거나 POST 다 → 여기 안 걸린다(fail-closed).
+ */
+export function 엔터판정(f) {
+  const 칠수있나 = 타이핑판정(f);
+  if (!칠수있나.된다) return 칠수있나;
+  const GET폼 = Boolean(f.폼) && (f.폼.role === 'search' || String(f.폼.method ?? 'get').toLowerCase() === 'get');
+  if (칠수있나.종류 !== 'search' && !GET폼) return { 된다: false, 이유: 'not_search', 종류: 칠수있나.종류 };
+  return { 된다: true, 종류: 칠수있나.종류 };
+}
+
 /**
  * 화면에서 **일반적으로** 읽어낼 것들. 사이트를 모르는 채로 본다.
  * - 보이는 본문과 그 길이
@@ -124,8 +270,25 @@ const OBSERVE_SCRIPT = `(() => {
     actionable.push({ ref, role, text: t, expanded: e.getAttribute('aria-expanded') ?? undefined, href });
     if (actionable.length >= 40) break;
   }
+  // **글자칸에도 ref 를 준다.** 없으면 "ref 로 짚은 칸에만 친다"는 규율이 성립할 수가 없다 —
+  // 짚을 이름이 없으니 좌표로 돌아가게 되고, 그게 승인 카드 2장이 뜬 자리였다(실측 2026-08-11).
+  // **판정은 여기서 안 한다.** 사실만 실어 보내고 종류는 노드가 가른다(1축).
+  const 글자칸 = [];
+  for (const e of document.querySelectorAll('input,textarea,[contenteditable=""],[contenteditable="true"],[role="searchbox"],[role="textbox"]')) {
+    if (!vis(e)) continue;
+    const ref = 'e' + (++n);
+    e.setAttribute('data-t5-ref', ref);
+    글자칸.push({
+      ref,
+      // 칸 이름은 화면이 준 것 그대로. **여기에 값(사용자가 이미 친 글)은 싣지 않는다.**
+      label: (e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.getAttribute('name') || '').trim().slice(0, 40),
+      사실: (${요소사실뜨기})(e),
+    });
+    if (글자칸.length >= 20) break;
+  }
   const de = document.scrollingElement || document.documentElement;
   return {
+    글자칸,
     title: document.title,
     url: location.href,
     // **텍스트는 화면에 보이는 만큼이 아니라 지금 DOM 에 있는 전부다**(innerText 의 성질).
@@ -139,9 +302,14 @@ const OBSERVE_SCRIPT = `(() => {
   };
 })()`;
 
+/** 로그인이 남는 자리의 기본값. 세션 저장소와 **같은 뿌리**를 쓴다(자리를 새로 만들지 않는다). */
+export const 기본영속프로필 = () => join(homedir(), '.local/state/gpao-t5/browser-profile');
+
 /**
  * 브라우저 손. **하나의 인스턴스를 재사용**하고, 놀면 스스로 닫는다(좀비 금지).
- * @param {{browserPath?:string, headless?:boolean, port?:number, idleMs?:number, launch?:Function}} [deps]
+ * @param {{browserPath?:string, headless?:boolean, port?:number, idleMs?:number, launch?:Function,
+ *          profile?:'isolated'|'persistent', profileDir?:string,
+ *          fetchImpl?:Function, connect?:Function}} [deps]
  */
 export function makeBrowser(deps = {}) {
   // P2-11: web.collect 와 **같은 예의를 공유한다.** 손이 둘인데 한쪽만 절제하면 소용없다 —
@@ -149,7 +317,14 @@ export function makeBrowser(deps = {}) {
   const manners = deps.manners ?? makeHostManners();
   const port = deps.port ?? 9412;
   const idleMs = deps.idleMs ?? 120_000;
-  let proc; let conn; let profileDir; let sessionId; let idleTimer;
+  const 겉fetch = deps.fetchImpl ?? fetch;
+  const 붙기 = deps.connect ?? cdpConnection;
+  // **기본은 안전한 쪽**(오너 규율: 모르면 조여지는 쪽). 영속은 명시로만 켜진다.
+  const 프로필종류 = deps.profile === 'persistent' ? 'persistent' : 'isolated';
+  const 영속자리 = 프로필종류 === 'persistent' ? (deps.profileDir ?? 기본영속프로필()) : undefined;
+  // 영속 자리는 사람이 한 번 로그인해야 값이 생긴다 — 헤드리스면 그 한 번이 영영 안 온다.
+  const 헤드리스 = deps.headless ?? (프로필종류 === 'isolated');
+  let proc; let conn; let profileDir; let sessionId; let idleTimer; let 준비중; let 명부표;
 
   const touch = () => {
     clearTimeout(idleTimer);
@@ -157,33 +332,50 @@ export function makeBrowser(deps = {}) {
     idleTimer.unref?.();
   };
 
+  /** 명부에서 빼고 죽인다. **동기다** — 종료 훅이 이걸 그대로 부른다. */
+  function 중단() {
+    if (명부표) { 살아있는손.delete(명부표); 명부표 = undefined; }
+    try { proc?.kill(); } catch { /* 이미 죽음 */ }
+    proc = undefined;
+  }
+
   async function close() {
     clearTimeout(idleTimer);
     conn?.close(); conn = undefined; sessionId = undefined;
-    proc?.kill(); proc = undefined;
-    if (profileDir) { await rm(profileDir, { recursive: true, force: true }).catch(() => {}); profileDir = undefined; }
+    중단();
+    // **영속 자리는 지우지 않는다** — 지우면 그게 곧 격리다(로그인이 안 남는다).
+    if (프로필종류 === 'isolated' && profileDir) {
+      await rm(profileDir, { recursive: true, force: true }).catch(() => {});
+    }
+    profileDir = undefined;
   }
 
-  async function ensure() {
-    if (conn && sessionId) { touch(); return; }
+  async function 띄우기() {
     const browserPath = deps.browserPath ?? await findBrowser();
     if (!browserPath) throw Object.assign(new Error('no_browser'), { noBrowser: true });
-    profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-browser-'));
+    if (영속자리) { await mkdir(영속자리, { recursive: true }).catch(() => {}); profileDir = 영속자리; }
+    else profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-browser-'));
     proc = (deps.launch ?? spawn)(browserPath, [
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${profileDir}`,
-      ...(deps.headless === false ? [] : ['--headless=new']),
+      ...(헤드리스 ? ['--headless=new'] : []),
       '--no-first-run', '--no-default-browser-check', '--disable-extensions',
       '--disable-background-networking', '--mute-audio',
     ], { stdio: 'ignore' });
+    // **켜자마자 명부에 올린다.** 아래에서 뜨기를 기다리다 실패해도 고아가 안 남게,
+    // 성공 뒤가 아니라 여기다(실측된 누수 다섯 개 중 일부가 이 사이에서 났다).
+    const 죽일것 = proc;
+    명부표 = () => { try { 죽일것.kill(); } catch { /* 이미 죽음 */ } };
+    살아있는손.add(명부표);
+    훅걸기();
 
     let version;
     for (let i = 0; i < 40 && !version; i += 1) {
-      try { version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); }
+      try { version = await (await 겉fetch(`http://127.0.0.1:${port}/json/version`)).json(); }
       catch { await sleep(250); }
     }
     if (!version) { await close(); throw new Error('브라우저가 뜨지 않았어요'); }
-    conn = cdpConnection(version.webSocketDebuggerUrl);
+    conn = 붙기(version.webSocketDebuggerUrl);
     await conn.ready;
     const { result: target } = await conn.send('Target.createTarget', { url: 'about:blank' });
     const { result: sess } = await conn.send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
@@ -193,33 +385,98 @@ export function makeBrowser(deps = {}) {
     touch();
   }
 
+  /**
+   * **한 번에 하나만 띄운다.** 예전엔 손 둘(observe·act)이 같은 턴에 겹쳐 들어오면 각자
+   * `mkdtemp` → `spawn` 을 해서 **같은 포트에 크롬 둘**이 났고, 뒤엣것은 포트를 못 잡아
+   * 앞엣것에 붙었다 — 그 앞엣것을 아무도 안 껐다(누수의 두 번째 얼굴).
+   */
+  async function ensure() {
+    if (conn && sessionId) { touch(); return; }
+    준비중 ??= 띄우기().finally(() => { 준비중 = undefined; });
+    return 준비중;
+  }
+
   async function evaluate(expression) {
     const { result } = await conn.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
     if (result?.exceptionDetails) throw new Error(result.exceptionDetails.text ?? '페이지 스크립트 실패');
     return result?.result?.value;
   }
 
+  /** 본문이 더 안 자랄 때까지 기다린다 — 사이트마다 렌더 시점이 달라 고정 대기는 거짓말이 된다. */
+  async function 정착대기({ settleMs = deps.settleMs ?? 900, maxWaitMs = deps.maxWaitMs ?? 12_000 } = {}) {
+    let last = -1; const until = Date.now() + maxWaitMs;
+    while (Date.now() < until) {
+      await sleep(settleMs);
+      const n = await evaluate('(document.body?.innerText||"").length').catch(() => 0);
+      if (n > 0 && n === last) break;
+      last = n;
+    }
+  }
+
   return {
     /** 지금 이 컴퓨터에 브라우저가 있는가 — 없으면 **선언하지 않는다**(없는 손 금지). */
     async available() { return Boolean(deps.browserPath ?? await findBrowser()); },
+
+    /**
+     * **어느 자리에서 보고 있나** — `isolated`(로그인 없음) / `persistent`(로그인이 남는 자리).
+     * 영수증이 이걸 그대로 찍는다. 사용자가 "로그인된 걸로 봤나"를 알아야 하기 때문이다.
+     */
+    profileKind() { return 프로필종류; },
 
     /** 지금 이 호스트가 쉬는 중이면 남은 시간(ms). 도구가 이걸 보고 시도조차 안 한다. */
     coolingMs(url) { return manners.coolingMs(url); },
 
     /** 주소를 열고 화면을 본다. 렌더가 끝날 때까지 기다린다(고정 대기 아님). */
-    async open(url, { settleMs = 900, maxWaitMs = 12_000 } = {}) {
+    async open(url, opts = {}) {
       await ensure();
       await manners.pace(url); // 같은 곳에 연달아 묻지 않는다
       await conn.send('Page.navigate', { url }, sessionId);
-      // 본문이 더 안 자랄 때까지 기다린다 — 사이트마다 렌더 시점이 다르므로 고정 대기는 거짓말이 된다.
-      let last = -1; const until = Date.now() + maxWaitMs;
-      while (Date.now() < until) {
-        await sleep(settleMs);
-        const n = await evaluate('(document.body?.innerText||"").length').catch(() => 0);
-        if (n > 0 && n === last) break;
-        last = n;
-      }
+      await 정착대기(opts);
       return evaluate(OBSERVE_SCRIPT);
+    },
+
+    /**
+     * **관찰이 준 ref 의 칸에 글자를 넣는다.** 좌표는 안 쓴다 — 마우스로 짚는 길은 이 손에 없고,
+     * 그래서 "커서가 어디 있는지 모르는 채로 친다"는 자리가 애초에 생기지 않는다.
+     *
+     * 넣기 전에 **그 칸이 무엇인지 화면에 다시 물어본다**(터미널 probe·화면 손과 같은 규율).
+     * 보안 칸·파일 칸·모르는 요소면 여기서 물러난다 — 실패가 아니라 경계다.
+     */
+    async type(ref, text) {
+      await ensure();
+      const 사실 = await evaluate(요소사실스크립트(ref));
+      const 판정 = 타이핑판정(사실);
+      if (!판정.된다) return { typed: false, reason: 판정.이유, kind: 판정.종류 };
+      if (await evaluate(짚기스크립트(ref)) !== 'ok') return { typed: false, reason: 'gone', kind: 판정.종류 };
+      // `Input.insertText` 는 **짚은 칸의 커서 자리**에 넣는다. 키를 한 자씩 흉내 내지 않으므로
+      // 자동완성 목록이 가로채는 사고가 적고, 한글 조합(IME)도 그대로 들어간다.
+      await conn.send('Input.insertText', { text: String(text ?? '') }, sessionId);
+      await sleep(300); // 자동완성·유효성 검사가 그릴 틈
+      return { typed: true, ref, kind: 판정.종류, ...(await evaluate(OBSERVE_SCRIPT)) };
+    },
+
+    /**
+     * **검색을 끝내는 걸음.** 엔터만 연다 — 다른 키는 무엇이 되는지 약속할 수 없다.
+     * 검색 칸이 아니면 물러난다(`엔터판정` 참조): 상대에게 나가는 걸음은 승인 카드를 갖춘
+     * 화면 손이 이미 맡고 있고, 여기에 카드 없는 두 번째 길을 내지 않는다.
+     */
+    async press(ref, key = 'Enter') {
+      await ensure();
+      if (!/^(enter|return)$/i.test(String(key ?? '').trim())) {
+        return { pressed: false, reason: 'key_not_opened' };
+      }
+      const 사실 = await evaluate(요소사실스크립트(ref));
+      const 판정 = 엔터판정(사실);
+      if (!판정.된다) return { pressed: false, reason: 판정.이유, kind: 판정.종류 };
+      if (await evaluate(짚기스크립트(ref)) !== 'ok') return { pressed: false, reason: 'gone', kind: 판정.종류 };
+      const 공통 = {
+        key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      };
+      await conn.send('Input.dispatchKeyEvent', { type: 'keyDown', ...공통 }, sessionId);
+      await conn.send('Input.dispatchKeyEvent', { type: 'keyUp', ...공통 }, sessionId);
+      await 정착대기({ settleMs: deps.settleMs ?? 700, maxWaitMs: deps.maxWaitMs ?? 12_000 });
+      return { pressed: true, ref, kind: 판정.종류, ...(await evaluate(OBSERVE_SCRIPT)) };
     },
 
     /** 지금 화면을 다시 본다(조작 뒤 확인용). */
@@ -267,7 +524,8 @@ export function makeBrowser(deps = {}) {
      * 탭(role=tab)과 펼침(aria-expanded)뿐이다. 링크는 여기서 안 누른다 — 주소를 알고 있으니
      * `open(href)` 로 가면 되고, 그게 "무엇을 열었는지"가 원장에 주소로 남아 더 정직하다.
      * 단어 목록("결제·주문"을 막자)이 아니라 **역할**로 좁혔다 — 사이트를 몰라도 통한다.
-     * 입력·전송은 이 슬라이스에 아예 없다(만들지 않았으므로 실수로도 못 한다).
+     * **누르기는 여전히 탭·더보기뿐이다** — 폼 제출·구매 버튼은 여기서 안 연다.
+     * 글자는 `type` 이, 검색을 끝내는 엔터는 `press` 가 각자 자기 경계를 지고 맡는다.
      */
     async click(ref) {
       await ensure();

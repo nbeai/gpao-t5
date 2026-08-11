@@ -203,6 +203,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'scripts/dir-size.mjs',
     // 주석만 — 오너 결정(사용자 브라우저를 쓴다)을 그 자리에 기록했다. 구현 아님.
     'src/runtime/browser.js',
+    // 브라우저 손이 글자를 친다(2026-08-11) — 새 동사의 경계 문장과 프로필 도장이 여기 산다.
+    'src/runtime/browser-tool.js',
     'src/surface/demo-context.js',
     'src/surface/live-context.js',
     'src/runtime/tool-runner.js',

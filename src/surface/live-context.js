@@ -103,7 +103,17 @@ export function liveDeps(processEnv = {}, deps = {}) {
   // 자기보존 경계(lifecycle guard)도 이 경로를 알아야 "내 기억을 지우는 명령"을 알아본다.
   const stateDir = processEnv.GPAO_T5_DATA_DIR ?? defaultSessionDir();
   const localHome = processEnv.GPAO_T5_HOME ?? processEnv.HOME;
-  const browserHand = browserPath ? (deps.browser ?? makeBrowser({ browserPath, manners })) : undefined;
+  // **브라우저 프로필은 둘이다**(2026-08-11). 기본은 격리(로그인이 안 따라온다 · 헤드리스)이고,
+  // 명시로만 영속 자리가 선다 — 로그인이 남는 자리를 켜는 것은 되돌리기 어려운 결정이라
+  // 기본값은 조여지는 쪽에 둔다. 어느 쪽으로 봤는지는 손이 영수증에 찍는다(추측 금지).
+  const 로그인따라오게 = processEnv.GPAO_T5_BROWSER_LOGIN === '1';
+  const browserHand = browserPath ? (deps.browser ?? makeBrowser({
+    browserPath,
+    manners,
+    ...(로그인따라오게
+      ? { profile: 'persistent', ...(processEnv.GPAO_T5_BROWSER_PROFILE_DIR ? { profileDir: processEnv.GPAO_T5_BROWSER_PROFILE_DIR } : {}) }
+      : {}),
+  })) : undefined;
   // discovery는 서버가 소유한 같은 커넥터 배열을 읽는다. 나중에 붙거나 끊긴 상태도 다음 턴에서
   // 같은 진실을 본다. 도구가 서비스 목록을 따로 복제하지 않는다.
   let connectors = [];
