@@ -2355,255 +2355,161 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 이번 라이브의 진짜 결함은 "57개를 안 옮겼다"가 아니라 **"57개가 남았다고 말하지 않았다"**
   // 였다. 그건 실행을 밀어붙여 고칠 일이 아니라 **남은 수를 사실로 손에 쥐여 주면** 닫힌다 —
   // `compactResult` 의 묶음 이동 요약에 `남은자리말` 을 실었다(같은 날).
-  const 산출물이어가기 = async () => {
-    if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= 산출물재요청상한) return false;
-    const derived = (plan.deliverables ?? []).some((wanted) => wanted.binding === 'derived');
-    // ActionPlan 이 요구한 것은 파일 손 일반이 아니라 **성공한 write 영수증**이다. 같은 전체
-    // 스키마를 다시 주면 모델이 방금 끝낸 versions/read 를 되풀이한다. 작업 종류만 계약과
-    // 맞추고, 경로·내용·원본 선택은 모델에 남긴다.
-    const fileTools = fileWriteTools(selfState, ctx.modelControls, { derived });
-    if (!fileTools.length) { 멈춘이유 = '파일 결과물을 남길 손이 없어 멈췄어요'; return false; }
-    산출물요청수 += 1;
-    // **강제하지 않는다.** `requiredTool` 은 모델에게서 "안 한다"는 선택지를 뺏는다 —
-    // 그러면 낼 것이 없을 때 억지로 무언가를 만들어 낸다(실측: 쓰레기 로그 파일).
-    // 계약이 덜 찼다는 **사실**(`unmetDeliverable`)을 주고 고르는 것은 모델에 남긴다.
-    finalOut = await ctx.model.respond({ ...tc, unmetDeliverable: true }, {
-      onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: fileTools,
-    });
-    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) {
-      멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
-      return false;
-    }
-    // **모델이 같은 것을 다시 내면 멈춘다.** 이건 판단이 아니라 기계 사실이다 —
-    // 이미 이 턴에서 돈 지문을 그대로 다시 냈다는 것은 모델이 낼 것이 없다는 뜻이다.
-    //
-    // 라이브 실측(2026-08-04, 재봉인 관통): 정리 요청에 FILE 계약이 서자 이 이어가기가
-    // `unmetDeliverable` 을 계속 밀었고, 모델은 **같은 `.log` bulk_move 를 여덟 번** 냈다.
-    // 중복 차단이 매번 막아 실물은 안전했지만 왕복 8개와 원장 8줄이 그냥 탔고, 그 턴의
-    // 이동은 261 에서 멈췄다(같은 문장·다른 턴에서 367). 밀어붙이는 것이 진전을 만들지 않았다.
-    //
-    // 계약 문장을 바꾸는 게 아니다 — 계약은 그대로 미충족으로 남고, 출구 검증이 그 사실을
-    // 원장으로 말한다. 여기서 그만두는 것은 **없는 진전을 짜내지 않는 것**뿐이다.
-    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) {
-      멈춘이유 = '이미 한 것과 같은 실행만 남아 멈췄어요';
-      return false;
-    }
-    return true;
-  };
-  // ── **후보를 받아 놓고 빈손으로 끝나지 않는다** (3단계 매듭 ① · 2026-08-08) ────
+  // ── **운전법은 하나다** (오너 지시 2026-08-12 · 조항 다섯을 한 고리로 합쳤다) ─────
   //
-  // 실측(⑬ 아홉 회차): locate 가 정확한 후보 다섯을 받아 놓고 모델이 **하나도 안 열고**
-  // 사용자에게 열다섯을 되묻거나(심문), 목록까지 열고 *"바로 해 볼게요"* 로 끝냈다(약속).
-  // 헌장 문장(*"하겠다고 말했으면 같은 답 안에서 그 손을 부른다"*)은 실린 채로 뚫렸다 —
-  // 문구 지시의 네 번째 실패. 그래서 지시가 아니라 **구조**로 만든다: 산출물이어가기와
-  // 같은 모양의 되부름이고, 강제하지 않는다 — 원장의 사실만 주고 고르는 것은 모델에 남긴다
-  // (안 고르면 그대로 끝난다). 정직한 미완료·증거 가져온 뒤의 표적 질문은 안 걸린다
-  // (⑬ 채점 해석 · 오너 승인 2026-08-08).
-  let 후보요청수 = 0;
-  const 후보이어가기 = async () => {
-    if (후보요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;   // 한 턴에 한 번만
+  //   목적을 정한다 → 손을 고른다 → 한다 → 결과를 원장에서 본다
+  //   → 목적에 안 닿았으면 **아직 안 써본 손으로 다시** → 수단이 소진되면 그 사실을 말한다
+  //
+  // 예전엔 이 고리가 조항 다섯(산출물·후보·부분읽기·다른손·완료검증)으로 쪼개져 있었다.
+  // 새 실패가 나올 때마다 조항을 하나 더 붙였고 — 좌회전이 안 되니 좌회전 코드를 붙인 것이다 —
+  // 조항마다 손을 다르게 좁혀서 서로 막았다(오너 지적 2026-08-12: *"운전법이 아니라
+  // 경우의 수다"*). 「후보를 찾았는데 안 열었다」도 「파일을 못 만들었다」도 「창이 안
+  // 바뀌었다」도 **전부 목적에 안 닿음**이고, 대응은 하나다.
+  //
+  // 조항들에서 남길 것은 **정책이 아니라 사실 탐지기**뿐이다. 각 탐지기의 실측 근거(⑬ 아홉
+  // 회차 · L1 locate×7 · ⑤ 부분합 · F-81 팔식당 · Hermes verification_stop)는 git 이력에 있다.
+  //
+  // 규율 — 다섯 조항이 각자 비싸게 배운 것을 한 벌로:
+  //   · 손을 **안 좁힌다**. `modelSchemasFor` 전량 그대로 — 무엇을 고를지는 모델의 몫이다
+  //   · `requiredTool` 없음 — "안 한다"는 선택지를 뺏으면 억지 산출물이 나온다(쓰레기 로그)
+  //   · **말은 안 건드린다** — 모델이 작업 걸음을 골랐을 때만 답을 바꾼다(완료검증이 배운 것:
+  //     바로 덮었더니 되부름 문장이 원래 답을 밀어내 출구 그물의 대상이 사라졌다)
+  //   · 같은 지문만 다시 내면 그만둔다 — 없는 진전을 짜내지 않는다(같은 bulk_move 여덟 번)
+  //   · **소진은 여기서 판정하지 않는다.** 갈 곳이 없으면 모델이 아무것도 안 고르고, 그때
+  //     턴은 그대로 끝나 출구가 그 사실을 사용자 말로 세운다
+
+  /**
+   * 이 턴의 **목적 미달 사실**. 판단이 아니라 원장에서 읽은 값만 담는다.
+   * 빈 객체면 목적에 닿은 것이고, 그러면 되부르지 않는다.
+   */
+  const 목적미달 = () => {
+    const 사실 = {};
+    const 답글원문 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
+    const 부른것들 = turnReceipts.filter((r) => r?.actualCall?.tool);
+
+    // ① 계약이 요구한 파일 산출물이 원장에 없다.
+    if (산출물미충족()) 사실.unmetDeliverable = true;
+
+    // ② 찾아 놓고 한 곳도 안 열었다 — 얕게 끝난 찾기도 같은 얼굴이다.
     const 찾은것들 = turnReceipts
       .filter((r) => r?.actualCall?.tool === 'local.locate' && (r.failureState ?? 'none') === 'none');
     const 후보들 = 찾은것들.flatMap((r) => r?.result?.candidates ?? []);
-    // **얕게 끝난 찾기도 빈손이다**(⑫ 실측 2/3: "바탕화면에 저장해줘"의 바탕화면을 검색
-    // 자리로 오독 → 후보 0 → 넓힐 길(canWiden·placesToLook)이 결과에 실려 있는데 안 넓히고
-    // 사용자에게 위치를 물었다). 후보가 있는데 안 연 것과 같은 병의 다른 얼굴이다.
     const 얕은찾기 = !후보들.length ? 찾은것들.filter((r) => (r?.result?.candidates ?? []).length === 0
       && (r?.result?.canWiden || (r?.result?.placesToLook ?? []).length)) : [];
-    if (!후보들.length && !얕은찾기.length) return false;
     const 읽었다 = turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
-      && r?.actualCall?.tool === 'local.file'
-      && ['read', 'versions'].includes(r?.actualCall?.args?.action));
-    if (읽었다) return false;                                       // 증거를 가져왔다 — 빈손이 아니다
-    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
-    if (!빈손으로끝났나(답글)) return false;                        // 답이 곧 결과일 수 있다(자리 물음 등)
-    후보요청수 += 1;
-    const 손들 = modelSchemasFor(selfState, ctx.modelControls)
-      .filter((t) => ['local.file', 'local.locate'].includes(t.name));
-    if (!손들.length) return false;
-    finalOut = await ctx.model.respond({
-      ...tc,
-      ...(후보들.length ? {
-        candidatesUnopened: {
+      && r?.actualCall?.tool === 'local.file' && ['read', 'versions'].includes(r?.actualCall?.args?.action));
+    if (!읽었다 && 빈손으로끝났나(답글원문)) {
+      if (후보들.length) {
+        사실.candidatesUnopened = {
           수: 후보들.length,
           자리들: [...new Set(후보들.map((c) => String(c.path ?? '')))].filter(Boolean).slice(0, 5),
-        },
-      } : {
-        searchNotExhausted: {
+        };
+      } else if (얕은찾기.length) {
+        사실.searchNotExhausted = {
           ...(얕은찾기.some((r) => r?.result?.canWiden)
             ? { 깊이: Math.max(...얕은찾기.map((r) => Number(r?.result?.suggestDepth) || 0)) } : {}),
           자리들: [...new Set(얕은찾기.flatMap((r) => (r?.result?.placesToLook ?? [])
-            .map((p) => String(p?.name ?? p ?? ''))))].filter(Boolean).slice(0, 6),
+            .map((pl) => String(pl?.name ?? pl ?? ''))))].filter(Boolean).slice(0, 6),
+        };
+      }
+    }
+
+    // ③ 같은 자리를 반만 읽고 숫자를 말한다 — 부분합에 "총"이 붙는 자리.
+    if (!(plan.deliverables ?? []).length && /\d/.test(답글원문) && !미완료를밝혔나(답글원문)) {
+      const 쓴적 = turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
+        && r?.actualCall?.tool === 'local.file'
+        && ['write', 'move', 'bulk_move', 'delete'].includes(r?.actualCall?.args?.action));
+      const 읽은들 = 쓴적 ? [] : turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none'
+        && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
+        && (r?.result?.같은자리파일 ?? []).length);
+      if (읽은들.length) {
+        const 읽은이름 = new Set(읽은들.map((r) => String(r?.result?.path ?? '').split('/').pop()));
+        const 안읽은 = [...new Set(읽은들.flatMap((r) => r.result.같은자리파일))].filter((n) => !읽은이름.has(n));
+        if (안읽은.length) {
+          사실.partialRead = {
+            자리: String(읽은들[0]?.result?.path ?? '').split('/').slice(0, -1).join('/'),
+            읽은: [...읽은이름], 안읽은: 안읽은.slice(0, 6),
+          };
+        }
+      }
+    }
+
+    // ④ 걸음이 막힌 채이거나, 손이 적어 준 길을 한 번도 안 갔다(F-81 팔식당·PDF).
+    if (부른것들.length) {
+      const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
+      const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
+      const 막힌것 = 부른것들.filter((r) => r.failureState
+        && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
+      // 손이 스스로 돌려준 다음 수단·후보를, 이 턴에 실제로 향해 부른 적이 있나.
+      const 쥐어준수단 = 부른것들.flatMap((r) => [
+        ...(r.다음수단 ?? []).map((m) => String(m?.url ?? m?.what ?? '')),
+        ...(r.다른후보 ?? []).map((c) => String(c?.url ?? c?.path ?? '')),
+      ]).filter(Boolean);
+      const 안밟은수단 = [...new Set(쥐어준수단)].filter((수단) => !부른것들.some((r) => {
+        try { return JSON.stringify(r.actualCall.args ?? {}).includes(수단); } catch { return false; }
+      }));
+      const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
+      const 안써본손 = 있는손().filter((id) => !써본손.has(id));
+      if (막힌것.length || 빈손으로끝났나(답글원문) || 안밟은수단.length) {
+        사실.goalNotReached = {
+          ...(막힌것.length ? {
+            막힌걸음: [...new Set(막힌것.map(걸음키))].slice(0, 5),
+            막힌말: [...new Set(막힌것.map((r) => String(r.userSafeSummary ?? '')).filter(Boolean))].slice(0, 3),
+            다음수단: 막힌것.flatMap((r) => r.다음수단 ?? []).slice(0, 5),
+          } : {}),
+          ...(안밟은수단.length ? { 안밟은수단: 안밟은수단.slice(0, 8) } : {}),
+          안써본손: 안써본손.slice(0, 12),
+        };
+      }
+    }
+
+    // ⑤ 답이 원장이 받치지 않는 완료를 말한다 — 출구와 **같은 자·같은 원장**(두 벌 금지).
+    const 답글 = userFacingModelText(답글원문);
+    if (String(답글).trim()) {
+      const 검증 = 완료주장검증({
+        reply: 답글, receipts: turnReceipts,
+        원장글: JSON.stringify([turnReceipts, tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]),
+        자리종류: {
+          파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((pl) => pl?.label ?? pl).filter(Boolean),
+          화면: ctx.이번턴화면자리 ?? [],
         },
-      }),
-    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
-    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false; // 모델이 안 골랐다 — 그대로
-    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
-    return true;
+      });
+      if (!검증.일치) 사실.completionMismatch = { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 };
+    }
+    return 사실;
   };
-  // ── **읽던 자리를 반만 읽고 끝나지 않는다** (감사 판정의 나비 자리 · 2026-08-08) ──
-  //
-  // 실측: ⑤가 3/3, ⑫ R3 이 같은 갈래 — 한 폴더의 두 자료 중 하나만 읽고 부분합에
-  // "총·이번 달" 이름을 붙였다(채점 기준: 그 순간 그 숫자는 거짓이다). 읽기 결과에 실어 준
-  // "같은 자리의 다른 파일" 사실만으로는 안 움직였다 — 그래서 커널이 원장을 대조해
-  // **안 읽은 것의 목록**을 사실로 되돌린다. 판단은 모델에 남는다(다 읽거나, 범위를 이름에 밝히거나).
-  let 부분읽기요청수 = 0;
-  const 부분읽기이어가기 = async () => {
-    if (부분읽기요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;
-    // **관할을 가른다** — 파일 산출물 계약이 있으면 산출물이어가기의 일이고(두 그물이 같은
-    // 턴을 당기면 걸음만 탄다), 쓰기가 이미 됐으면 읽기-답 턴이 아니다. 그리고 부분 읽기가
-    // 거짓이 되는 자리는 **숫자 주장**이다(부분합에 "총" — 감사 채점 기준). 숫자 없는 답에
-    // 이 그물을 물리면 정상 요약 턴마다 왕복 하나가 탄다.
-    if ((plan.deliverables ?? []).length) return false;
-    if (turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
-      && r?.actualCall?.tool === 'local.file'
-      && ['write', 'move', 'bulk_move', 'delete'].includes(r?.actualCall?.args?.action))) return false;
-    const 읽은들 = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none'
-      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
-      && (r?.result?.같은자리파일 ?? []).length);
-    if (!읽은들.length) return false;
-    const 읽은이름 = new Set(읽은들.map((r) => String(r?.result?.path ?? '').split('/').pop()));
-    const 안읽은 = [...new Set(읽은들.flatMap((r) => r.result.같은자리파일))]
-      .filter((n) => !읽은이름.has(n));
-    if (!안읽은.length) return false;
-    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
-    if (미완료를밝혔나(답글)) return false;                 // 못 본 것을 밝히면 정직한 끝이다
-    if (!/\d/.test(답글)) return false;                    // 숫자 주장이 아니면 부분합 위험이 없다
-    부분읽기요청수 += 1;
-    const 손들 = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 'local.file');
-    if (!손들.length) return false;
-    finalOut = await ctx.model.respond({
-      ...tc,
-      partialRead: { 자리: String(읽은들[0]?.result?.path ?? '').split('/').slice(0, -1).join('/'),
-        읽은: [...읽은이름], 안읽은: 안읽은.slice(0, 6) },
-    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
-    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false;
-    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
-    return true;
-  };
-  // ── **막히면 다른 손으로 간다 — 한 손만 쓰고 끝나지 않는다** (P6-L ③ · 2026-08-11) ──
-  //
-  // 위 두 이어가기는 손을 **좁혀서** 되돌려준다(파일 쓰기 손만 · locate/file 둘만). 그래서
-  // **원래 계획 안에서만** 이어간다 — 무엇을 쓸지가 결과를 보기 전에 정해지고, 되부름이 그
-  // 안을 돈다. 바로 위 :2362 주석의 *"같은 `.log` bulk_move 를 여덟 번"* 이 그 증상이다:
-  // 밀어붙였는데 손이 좁아 같은 것만 나왔다.
-  //
-  // 실측 넷이 한 얼굴이다(2026-08-11):
-  //   L1 정산   `local.locate ×7 → local.file:read 실패 → 끝`   (쓰기 0 · 산출물 없음)
-  //   L7 PC     같은 모양
-  //   네이버     `browser.observe:open → browser.act:scroll → 끝`(실크롬으로 못 넘어감)
-  //   카톡      `desktop.act:focus 막힘("창이 여러 개") → 끝`
-  // **넷 다 「다른 손으로 가 볼 자리」가 없어서 멈췄다.** 938턴 걸음 중앙값 2 의 얼굴이다.
-  //
-  // 비교군의 축은 문구가 아니라 이것이다 — **한 번 하고 결과를 보고 그 다음을 정한다.
-  // 막히면 같은 손을 반복하는 게 아니라 다른 손으로 간다.** 그래서 여기서는 손을 **안 좁힌다**:
-  // `modelSchemasFor` 전량을 그대로 준다(PM 지시 2026-08-11). 무엇을 고를지는 모델의 몫이고,
-  // 안 고르면 그대로 끝난다 — 위 두 조항의 규율 그대로 `requiredTool` 은 쓰지 않는다.
-  //
-  // 여는 것은 원장의 기계 사실뿐이다(문구 목록 0):
-  //   ① 이 턴에 막힌 걸음이 있고 **같은 걸음으로 회복되지 않았다**(출구 그물과 같은 걸음키)
-  //   ② 손을 썼는데 답이 **빈손**(심문·약속)으로 끝났다 — 후보이어가기와 같은 자를 쓴다
-  // 그리고 **안 써 본 손이 남아 있을 때만** 연다. 다 써 봤으면 갈 곳이 없다 —
-  // 없는 길을 권하면 그게 거짓 약속이다.
-  //
-  // 손이 넓어지므로 **같은 지문 차단이 더 중요해진다**(아래 마지막 줄). 그것이 없으면
-  // 넓힌 손이 같은 실행을 다시 내는 통로가 된다.
-  let 다른손요청수 = 0;
-  const 다른손이어가기 = async () => {
-    if (다른손요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;      // 한 턴에 한 번만
-    const 부른것들 = turnReceipts.filter((r) => r?.actualCall?.tool);
-    if (!부른것들.length) return false;                                 // 손을 안 쓴 턴은 이 그물 밖이다
-    if (turnReceipts.some((r) => r.surfaceRequest)) return false;       // 공은 이미 사용자에게 넘어갔다
-    // 걸음 단위로 본다 — 같은 손이 다른 동작으로 성공했다고 막힌 동작이 풀리는 것이 아니다
-    // (출구 검증의 `걸음키` 와 같은 자. 두 벌로 만들지 않는다).
-    const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
-    const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
-    const 막힌것 = 부른것들.filter((r) => r.failureState
-      && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
-    const 답글 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
-    if (!막힌것.length && !빈손으로끝났나(답글)) return false;
-    const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
-    const 안써본손 = 있는손().filter((id) => !써본손.has(id));
-    if (!안써본손.length) return false;                                 // 다 써 봤다 — 갈 곳이 없다
-    // **좁히지 않는다.** 통제 채널까지 포함한 그대로다 — 되묻기(`ask.user`)도 모델의 선택지다.
+
+  let 이어간횟수 = 0;
+  const 이어가기상한 = Math.max(산출물재요청상한, 6);
+  /** **한 고리.** 목적에 안 닿았으면 사실을 주고 손 전량으로 되돌린다. */
+  const 목적미달이어가기 = async () => {
+    if (이어간횟수 >= 이어가기상한 || 예산소진(쓴것(), 예산)) return false;
+    if (turnReceipts.some((r) => r.surfaceRequest)) return false;   // 공은 이미 사용자에게 넘어갔다
+    const 미달 = 목적미달();
+    if (!Object.keys(미달).length) return false;                    // 목적에 닿았다 — 끝낸다
     const 손들 = modelSchemasFor(selfState, ctx.modelControls);
     if (!손들.length) return false;
-    다른손요청수 += 1;
-    finalOut = await ctx.model.respond({
-      ...tc,
-      goalNotReached: {
-        막힌걸음: [...new Set(막힌것.map(걸음키))].slice(0, 5),
-        막힌말: [...new Set(막힌것.map((r) => String(r.userSafeSummary ?? '')).filter(Boolean))].slice(0, 3),
-        // 손이 실제로 쥔 다음 수(창 후보·주소 등) — 사람 문장이 아니라 모델이 부를 수 있는 값이다.
-        다음수단: 막힌것.flatMap((r) => r.다음수단 ?? []).slice(0, 5),
-        안써본손: 안써본손.slice(0, 12),
-      },
-    }, { onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium', tools: 손들 });
-    if (typeof finalOut === 'string' || !finalOut?.toolCalls?.length) return false; // 안 골랐다 — 그대로 끝난다
-    if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
-    return true;
-  };
-  // ── **목표가 안 섰으면 손을 쥔 채 되돌아간다** (④ · PM 지시 2026-08-11) ────────
-  //
-  // T5 에는 완료 검증이 **하나**뿐이었고 그것이 **출구**에 있었다(`출구검증`). 출구 되부름은
-  // `answerOnly` 라 손이 없다 — 주석 :138 이 그 대가를 이미 적어 뒀다:
-  // **발화 2/2 · 행동 0/2.** 그물이 정확히 물었는데 모델이 할 수 있는 것은 **말을 고치는 것**
-  // 뿐이었다. "됐다고 했지만 안 됐다"를 알고도 되게 만들 수가 없다.
-  //
-  // 비교군의 축(Hermes `verification_stop`): 목표 미달이면 **완성된 답을 억누르고 손을 쥔 채
-  // 루프로 되돌아간다**(최대 2회). 우리도 같은 축인데 자리가 틀렸다 — 검증이 루프 **밖**이라
-  // 손이 이미 없었다.
-  //
-  // 그래서 **검증을 출구에서 루프 안으로 한 벌 더 들여온다.** 자를 새로 만들지 않는다:
-  // 출구가 쓰는 그 `완료주장검증` 을, 출구가 쓰는 그 원장 위에서, 같은 자로 돌린다.
-  // 앞의 네 조항(후보·부분읽기·산출물·다른손)과 같은 모양이고 같은 규율이다 —
-  // `requiredTool` 없음 · 손을 안 좁힘 · 안 고르면 그대로 끝남 · 한 턴에 한 번.
-  //
-  // 출구의 그물은 **그대로 둔다.** 둘은 하는 일이 다르다: 여기는 *되게 만드는* 자리,
-  // 출구는 *정직하게 말하게 하는* 자리다. 여기서 손을 줬는데도 안 됐으면 출구가 그 사실을
-  // 사용자 말로 세운다(`이미돌려줬나` 는 출구만 세우므로 여기서 그 칸을 태우지 않는다).
-  let 완료검증요청수 = 0;
-  const 완료검증이어가기 = async () => {
-    if (완료검증요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;   // 한 턴에 한 번만
-    if (turnReceipts.some((r) => r.surfaceRequest)) return false;      // 공은 이미 사용자에게 넘어갔다
-    const 답글 = userFacingModelText(typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? ''));
-    if (!String(답글).trim()) return false;                            // 빈 답은 `답완성` 의 자리다
-    // **출구와 같은 원장·같은 자**(두 벌 금지). 형태가 갈리면 같은 답에 두 판정이 나온다.
-    const 검증 = 완료주장검증({
-      reply: 답글, receipts: turnReceipts,
-      원장글: JSON.stringify([turnReceipts, tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]),
-      자리종류: {
-        파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
-        화면: ctx.이번턴화면자리 ?? [],
-      },
-    });
-    if (검증.일치) return false;
-    const 손들 = modelSchemasFor(selfState, ctx.modelControls);
-    if (!손들.length) return false;
-    완료검증요청수 += 1;
-    // 지시가 아니라 **원장의 사실**이다 — 출구가 주는 것과 같은 칸(`completionMismatch`).
-    // 다른 것은 하나뿐이다: **손을 함께 준다.** 무엇을 할지는 모델이 정하고, 안 고르면 끝난다.
-    //
-    // **앞의 답을 갈아치우지 않는다.** 여기서 `finalOut` 을 바로 덮었더니 회귀 11건이 물었다 —
-    // 모델이 손을 **안 고르면** 이 되부름의 문장이 원래 답을 밀어내고, 출구 그물이 보는 대상이
-    // 바뀌어 진단(`출구그물`)도 되돌림 재료도 사라졌다. 이 조항이 하는 일은 *행동을 여는 것*
-    // 하나뿐이다 — **말은 건드리지 않는다.** 그래서 스트리밍도 안 붙인다(버릴 문장을 사용자
-    // 화면에 흘리면 앞 답에 이어붙는다 · 실측으로 물었다).
-    // **그물이 찢어졌다고 지나가던 것을 버리지 않는다**(출구검증과 같은 규율). 이 왕복이
-    // 터지면 멀쩡한 답이 통째로 "연결이 잠시 끊겼어요"가 된다 — 회귀가 그것을 물었다.
-    const 되부름 = await ctx.model.respond({
-      ...tc, completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
-    }, { search: wantedWeb, effort: 'medium', tools: 손들 }).catch(() => null);
-    // **통제 호출은 「되게 만든 것」이 아니다.** 제안·기억 같은 통제 채널만 다시 내는 것은
-    // 원장의 미달을 하나도 못 채우면서 **부작용(새 후보 등록)은 만든다** — 회귀가 물었다
-    // (자동화 제안 대본이 되부름에서 후보를 하나 더 내 앞의 후보가 낡아 404 가 났다).
-    // 이 조항이 여는 것은 **작업 걸음**뿐이고, 그것이 없으면 앞의 답 그대로 끝난다.
+    이어간횟수 += 1;
+    // 지시가 아니라 **원장의 사실**이다. 스트리밍은 안 붙인다 — 버릴 문장을 사용자 화면에
+    // 흘리면 앞 답에 이어붙는다(완료검증이 실측으로 물었던 자리).
+    const 되부름 = await ctx.model.respond({ ...tc, ...미달 }, {
+      search: wantedWeb, effort: 'medium', tools: 손들,
+    }).catch(() => null);
+    // **통제 호출은 「되게 만든 것」이 아니다** — 제안·기억만 다시 내면 미달은 그대로인데
+    // 부작용(새 후보 등록)은 생긴다. 이 고리가 여는 것은 **작업 걸음**뿐이다.
     const 고른것 = splitModelControlCalls(typeof 되부름 === 'string' ? [] : (되부름?.toolCalls ?? [])).rest;
-    if (!고른것.length) return false;                                  // 안 골랐다 — 앞의 답 그대로
-    if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
-    finalOut = 되부름;
+    if (!고른것.length) {                                            // 안 골랐다 — 수단이 소진된 것이다
+      if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
+      return false;
+    }
+    if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) {
+      if (미달.unmetDeliverable) 멈춘이유 = '이미 한 것과 같은 실행만 남아 멈췄어요';
+      return false;                                                  // 없는 진전을 짜내지 않는다
+    }
+    finalOut = 되부름;                                               // 걸음을 골랐을 때만 답을 바꾼다
     return true;
   };
+
   // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
   //
   // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
@@ -2769,21 +2675,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
       const next = 분리.rest;
       if (!next.length) {
-        // 후보를 받아 놓고 빈손(심문·약속)으로 끝나려 하면 — 원장 사실을 주고 한 번 되부른다.
-        if (await 후보이어가기()) continue;
-        // 읽던 자리를 반만 읽고 끝나려 하면 — 안 읽은 목록을 사실로 주고 한 번 되부른다.
-        if (await 부분읽기이어가기()) continue;
-        // 필요한 파일 산출물이 원장에 없는데 손이 남았다 — 읽기·탐색으로 끝났다고 말하지 않고
-        // 파일 손 안에서 다음 행동을 고르게 한다. action·경로·내용 판단은 모델의 것이고,
-        // 실행은 기존 승인·권한·중복·걸음 상한을 그대로 탄다. write 영수증이 생길 때까지 같은
-        // 계약을 다시 대조하므로 "다음에 저장하겠다"는 말이 완료를 대신하지 못한다.
-        if (await 산출물이어가기()) continue;
-        // 손을 썼는데 막힌 채이거나 빈손으로 끝나려 하고, **아직 안 써 본 손이 남았다** —
-        // 원장 사실을 주고 손 전량을 그대로 되돌려 한 번 더 고르게 한다(P6-L ③).
-        if (await 다른손이어가기()) continue;
-        // 답은 다 썼는데 **원장이 그 완료를 뒷받침하지 않는다** — 출구에서 말만 고치게 하지
-        // 말고, 손이 살아 있는 여기서 되게 만들 기회를 준다(마지막 조항 · PM 2026-08-11).
-        if (await 완료검증이어가기()) continue;
+        // **한 고리.** 목적에 안 닿았으면(계약 미충족·안 연 후보·반만 읽음·막힌 걸음·안 밟은
+        // 수단·원장이 안 받치는 완료 — 전부 같은 것) 사실을 주고 손 전량으로 되돌린다.
+        // 모델이 걸음을 고르면 계속, 안 고르면 그대로 끝난다(그게 수단 소진이다).
+        if (await 목적미달이어가기()) continue;
         break;
       }
       대기호출.push(...줄세우기(next));
@@ -2810,7 +2705,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (대기호출.length) continue;
       // 반복 읽기는 실행하지 않는다. 다만 별도 파일 완료 계약까지 같이 버리지는 않는다.
       // 중복 방지와 완료 판정은 서로 다른 경계다.
-      if (await 산출물이어가기()) continue;
+      if (await 목적미달이어가기()) continue;
       멈춘이유 = '같은 일을 되풀이하려 해서 멈췄어요';
       break;
     }

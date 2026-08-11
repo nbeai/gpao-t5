@@ -187,12 +187,16 @@ test('산출물 의무: FILE 판단이면 쓰기 영수증까지 파일 손 안�
       // 뺏어, 낼 것이 없을 때 억지로 무언가를 만들게 한다(실측: 쓰레기 로그 파일이 완료 계약을
       // 충족시켰다). 재는 계약은 그대로다 — **미충족이면 파일 손을 다시 쥐여 주고 턴이 이어진다.**
       assert.ok(tc.unmetDeliverable, '계약이 아직 안 찼다는 사실을 줘야 모델이 이어간다');
-      assert.equal(opts.tools?.[0]?.name, 'local.file', '미충족 완료 계약이 파일 손을 다시 주지 않았다');
       assert.ok(!opts.requiredTool, '고르는 것은 모델 몫이다 — 강제하면 없는 산출물을 지어낸다');
-      assert.deepEqual(opts.tools[0].parameters.properties.action.enum, ['write'],
-        '완료 계약이 write 영수증을 요구하는데 읽기 손까지 다시 열었다');
-      assert.ok(opts.tools[0].parameters.required.includes('source'),
-        '변환 산출물인데 원본 결합 근거를 요구하지 않았다');
+      // **손을 안 좁힌다**(오너 지시 2026-08-12 · 한 고리). 예전 이 검사는 되부름이
+      // `local.file{action:['write']}` **하나만** 주는 것을 요구했다 — 그 좁힘이 바로,
+      // 파일 손이 막혔을 때 터미널·추출기·화면으로 갈아타지 못하게 만든 중간층이었다
+      // (F-82 PDF · F-81 팔식당). 재는 것은 그대로다: 사실을 주는가, 강제하지 않는가,
+      // 그리고 **쓰기 영수증이 실제로 서는가**(아래 본체 단언). 손 목록은 전량이어야 한다.
+      const 손이름 = (opts.tools ?? []).map((t) => t.name);
+      assert.ok(손이름.includes('local.file'), '파일 손이 되부름에 없다');
+      assert.ok(손이름.length > 1,
+        `되부름이 손을 좁혔다(${손이름.join(',')}) — 막히면 갈아탈 곳이 없어진다`);
       return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: '견적서-정리.md', text: '정리', source: '견적서.md' } }] };
     },
   };
