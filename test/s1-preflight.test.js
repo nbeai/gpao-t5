@@ -71,6 +71,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/kernel/l2-plan/tool-descriptor.js',
     // 그 축을 selfState 가 나른다.
     'src/kernel/l0-evidence/self-state.js',
+    // **동사의 사용자 말과 손별 한계가 모델에게 가는 자리**(칸 1 · 2026-08-11).
+    // 동사 목록을 enum 에서 생성하고(손을 빼면 말도 빠진다), 선언된 `limits` 를 손·동사와
+    // 함께 낸다 — 지금까지 실행 가능한 손의 `limits` 는 모델에게 한 글자도 안 갔다.
+    'src/kernel/tool-labels.js',
     // 화면 손을 스스로 찾는다 — 환경변수를 손으로 넣어야 붙는 손은 제품에 없는 손이다.
     'src/runtime/desktop-bin.js',
     // **화면 손 실행 파일**(오너 결정 2026-08-07: T5 설치에 같이 담는다).

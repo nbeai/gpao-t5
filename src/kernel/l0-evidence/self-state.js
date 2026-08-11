@@ -1,7 +1,7 @@
 // L0 · SelfStateSnapshot 조립 (Operational Selfhood 계약, §6)
 // T5 는 매 턴 자기 가용 범위를 안다. 추정하지 않고 실제 연결·자격 신호로 채운다.
 import { AUTH_STATE } from '../contracts.js';
-import { toolLabel, toolCapabilityLine } from '../tool-labels.js';
+import { toolLabel, toolCapabilityLine, scopedLimitLines } from '../tool-labels.js';
 
 /**
  * provider 자격 신호를 modelAuthState 로 분류한다.
@@ -152,6 +152,10 @@ export function buildSelfState(env, deps = {}) {
       connector: t.connector,          // 어느 서비스의 손인가(커넥터 진실층이 여기서 파생한다)
       capability: t.capability,
       operatorFact: t.operatorFact,
+      // **동사의 사용자 말**(칸 1). 여기서 흘리면 능력 문장이 다시 산문 하나뿐이 되고,
+      // enum 에 있는 동사가 글에서 조용히 빠진다 — `scroll` 이 정확히 그렇게 빠져서
+      // T5 가 시도조차 않고 사람에게 떠넘겼다(라이브 2026-08-06). 성질 1 의 배선이다.
+      행위: t.행위,
       // **무엇을 보는 손인가**(노드 ③). 커널이 *"같은 것을 보는 다른 손"* 을 고르는 축이다 —
       // 여기서 안 나르면 `다음길` 이 비교할 재료를 못 받는다.
       보는것: t.보는것,
@@ -225,6 +229,10 @@ export function selfStateSummary(selfState) {
     readyCapabilities: selfState.connectedTools.filter((t) => t.executable).map((t) => toolCapabilityLine(t.id, selfState)),
     approvalRequired: selfState.riskyActions ?? [],
     limits: selfState.limits,
+    // **한계를 손·동사와 함께**(칸 1 · 성질 1). 위 `limits` 는 **못 쓰는 손**의 사정이고,
+    // 이건 **쓰는 손에 걸린 한계**다 — 선언(`descriptor.limits`)돼 있었지만 모델에게 가는
+    // 길이 없어서 지금까지 전부 능력 산문 안의 부정문으로 흩어져 있었다.
+    scopedLimits: scopedLimitLines(selfState),
     nextSafeAction: selfState.nextSafeAction,
   };
 }

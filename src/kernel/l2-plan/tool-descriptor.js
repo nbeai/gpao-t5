@@ -26,6 +26,16 @@ import { FAILURE } from '../contracts.js';
  *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
  * @param {string} [d.operatorFact]  T5가 사용자 대신 맡을 수 있는 운영 사실. 능력 설명과 달리
  *   짧고, 현재 손을 고르는 판단 재료로만 쓴다. 경로나 순서를 처방하지 않는다.
+ * @param {Record<string, {말:string, 별칭?:string[]}>} [d.행위]  **동사 하나하나의 사용자 말**
+ *   (칸 1 · 성질 1). `action` enum 은 기계 이름이라 모델이 읽는 글에 그대로 못 쓴다 —
+ *   그래서 지금까지 능력 문장이 **자유 산문**이었고, `scroll` 은 enum 에 있는데 글에 없어서
+ *   T5 가 시도조차 않고 사람에게 떠넘겼다(라이브 2026-08-06).
+ *
+ *   여기 적으면 **enum 이 곧 모델이 읽는 말**이 된다 — 동사를 더하면 말이 따라 늘고,
+ *   손을 빼면 말도 빠진다(칸 실행 규격 8). 그리고 **부정이 어느 동사에 걸리는지**를
+ *   기계가 알 수 있게 된다(`부정정의역위반`). `별칭` 은 같은 동사를 가리키는 다른 말이며,
+ *   **그 동사를 유일하게 가리키는 말만** 적는다 — "켜"처럼 여러 손이 나눠 쓰는 말은
+ *   별칭이 아니다(그걸 넣으면 봉인이 엉뚱한 곳을 문다).
  * @param {string} [d.readReach]  **이 손이 어디까지 볼 수 있는가**(사용자 말 한 줄).
  *   P0-b(오너 결정 2026-08-02 · 능력 유지 + 고지): 파일 손은 작업 폴더 안만 다루지만
  *   터미널 손은 이 컴퓨터에서 읽을 수 있는 자리를 본다 — 그게 있어야 "폴더를 복사해 오세요"
@@ -47,6 +57,7 @@ export function defineTool(d) {
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
     operatorFact: d.operatorFact,
+    행위: d.행위,                        // 동사 하나하나의 사용자 말 — enum 과 모델이 읽는 글을 잇는다(칸 1)
     // **무엇을 보는 손인가**(노드 ③ · 2026-08-06). `operatorFact` 는 **모델이 읽는 글**이고
     // 이 축은 **커널이 읽는 값**이다. 한 손이 막혔을 때 *"같은 것을 보는 다른 손"* 을 가리키려면
     // 비교할 수 있어야 한다 — 글로는 못 비교한다.
@@ -109,6 +120,8 @@ export function toConnection(descriptor, facts = {}) {
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     operatorFact: descriptor.operatorFact,
+    // 여기서 떨어뜨리면 모델은 enum 에 있는 동사를 **모르는 채** 남는다 — 성질 1 이 그 병이었다.
+    행위: descriptor.행위,
     // **무엇을 보는 손인가**(노드 ③) — 여기서 흘리면 커널이 옆 손을 못 고른다.
     보는것: descriptor.보는것,
     readReach: descriptor.readReach,    // 고지 사실도 손 이름과 함께 끝까지 간다(P0-b)
@@ -217,13 +230,19 @@ export function 부정정의역위반({ descriptors = [], systemPrompt = '', too
   const byId = new Map(descriptors.map((d) => [d.id, d]));
   const 위반 = [];
 
+  // **정의역: 모델이 부를 수 있는 손.** 스키마가 노출된 손만 이 봉인이 문다 —
+  // 부를 수 없는 손은 모델이 그 동사를 몰라도 손해가 없고, 그 손 이름이 남의 글에
+  // 언급된 것을 "갔다"로 읽으면 봉인이 엉뚱한 것을 문다(관측 안 됨 ≠ 부재의 반대 실수).
+  // 노출 기준은 `toolSchemasFor` 와 같다(`executable && schema` → `{name: id}`).
+  const 노출 = new Set((tools ?? []).map((t) => t?.name).filter(Boolean));
+  const 노출됐나 = (id) => 노출.has(id);
+
   // ── S0 · **못 잰 것을 0 으로 적지 않는다** ────────────────────────────────
   // 동사의 사용자 말(`행위`)이 없으면 토큰 색인이 비고, 그러면 S1·S2·S3 가 **아무것도 못 찾는다.**
   // 그 침묵을 초록으로 읽으면 그 순간 이 봉인이 거짓말을 시작한다 —
   // 「계측 불가 · 사유」로 적는다. 이 줄이 남아 있는 한 아래 조항들은 **판정이 아니다.**
   for (const h of 손) {
-    const 갔나 = systemPrompt.includes(h.label) || 도구글.includes(`"${h.id}"`);
-    if (!갔나) continue;
+    if (!노출됐나(h.id)) continue;
     const 빠진동사 = h.행위 ? h.동사.filter((v) => !h.행위[v]?.말) : h.동사;
     if (!빠진동사.length) continue;
     위반.push({ 조항: 'S0 계측불가', 손: h.id, 자리: '행위', 동사: 빠진동사.join(','),
@@ -290,10 +309,7 @@ export function 부정정의역위반({ descriptors = [], systemPrompt = '', too
   // S4 · 능력 대칭 — **지우고 초록 띄우기 차단**. 등록된 동사는 손 이름과 함께 실려야 한다.
   const 줄 = systemPrompt.split('\n');
   for (const h of 손) {
-    const d = byId.get(h.id);
-    // 이번 판에 그 손이 모델에게 갔는지부터 본다(관측 안 됨 ≠ 부재).
-    const 갔나 = systemPrompt.includes(h.label) || 도구글.includes(`"${h.id}"`);
-    if (!갔나 || !h.행위) continue;                    // 미선언은 위에서 S0 로 이미 적었다
+    if (!노출됐나(h.id) || !h.행위) continue;          // 미선언은 위에서 S0 로 이미 적었다
     const 그손줄 = 줄.filter((l) => l.includes(h.label));
     for (const v of h.동사) {
       const 말 = h.행위[v]?.말;

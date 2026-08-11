@@ -134,8 +134,23 @@ test('브라우저 부재를 실패로 기록하지 않는다 — 능력 한계�
   const { toolCapabilityLine } = await import('../src/kernel/tool-labels.js');
   const self = buildSelfState(demoEnv());
   const line = toolCapabilityLine('web.collect', self);
-  assert.match(line, /눌러 보지는 못한다|버튼·탭|스크롤/, '못 하는 것도 능력 문장이 말해야 한다');
   assert.match(line, /주소를 직접 받으면/, '되는 길도 함께 말한다(막다른 답 금지)');
+
+  // ── **자리가 옮겨졌다 · 기준은 안 낮췄다**(칸 1 · 2026-08-11) ─────────────────
+  // 예전 이 줄은 `능력 문장`에 *"눌러 보지는 못한다|버튼·탭|스크롤"* 이 있는지를 봤다.
+  // 그 문장들은 **이 손이 안 가진 동사**(브라우저·화면 손의 click·scroll)를 부정한 것이었고,
+  // 능력 문장은 프롬프트에서 다른 손과 **한 줄로 뭉쳐** 실려 부정에 손 경계가 없었다 —
+  // 모델이 "칸에 글자를 넣는다"와 "…하지 않는다"를 한 화면에서 읽은 그 구조(성질 1).
+  //
+  // 사실은 **안 지웠다. 구조로 옮겼다.** 지금은 `limits` 레코드가 손·동사와 함께 나가고,
+  // 그 동사를 가진 손을 함께 가리킨다. 그래서 이 시험은 **더 세게** 문다 —
+  // 「말하기만 하면 된다」가 아니라 「어느 손의 어느 동사인지·누가 그걸 하는지까지 말한다」.
+  const { scopedLimitLines } = await import('../src/kernel/tool-labels.js');
+  const 한계 = scopedLimitLines(self).filter((l) => l.startsWith('웹 자료 수집'));
+  assert.ok(한계.some((l) => /아래로 내리기/.test(l) && /브라우저 화면 넘기기/.test(l)),
+    `못 하는 것이 **어느 동사에 걸리는지와 그걸 하는 손**까지 모델에게 가야 한다: ${한계.join(' | ')}`);
+  assert.ok(한계.some((l) => /로그인이 필요하거나/.test(l)),
+    `덮는 손이 없는 진짜 한계도 그대로 간다: ${한계.join(' | ')}`);
   // 능력 부재가 영수증의 실패로 새면 T5 가 "막혔다"고 말하게 된다(P2-8 과 충돌).
   const { FAILURE } = await import('../src/kernel/contracts.js');
   assert.equal(FAILURE?.browser_unavailable, undefined, '능력 부재를 실패 어휘에 넣지 않는다');

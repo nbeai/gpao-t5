@@ -129,7 +129,23 @@ export function buildModelMessages(tc) {
   // 예전엔 "T5 가 **대신** 실행할 수 있는 도구"였다. 모델은 매 턴 그 줄을 읽고 자기가 아니라
   // 남이 실행한다고 배웠고, 실제로 터미널이 멀쩡히 도는데도 사용자에게 명령어를 적어 주며
   // 떠넘겼다(헤르메스 대조 실측: 같은 미션을 헤르메스는 한 번에 끝냈다).
-  if (sf.readyTools?.length) sys.push(`네가 지금 바로 쓰는 손: ${sf.readyTools.join(', ')}`);
+  // **손마다 한 줄**(칸 1 · 성질 1). 예전엔 `join(', ')` 이라 손 스물여덟의 능력 문장이
+  // **한 줄로 뭉쳤다.** 그 한 줄 안에서 "칸에 글자를 넣는다"(화면 다루기)와
+  // "글을 쓰지 않는다"(브라우저)가 나란히 있었고, 모델은 그걸 한 화면에서 읽었다 —
+  // 문장은 둘 다 옳은데 **경계가 없어서** 부정이 남의 손까지 덮었다.
+  // 줄을 가르면 부정이 어느 손 것인지가 **자리로** 남는다(안정 구역이라 캐시는 그대로다).
+  if (sf.readyTools?.length) {
+    sys.push(sf.readyTools.length === 1
+      ? `네가 지금 바로 쓰는 손: ${sf.readyTools[0]}`
+      : `네가 지금 바로 쓰는 손:\n${sf.readyTools.map((t) => `- ${t}`).join('\n')}`);
+  }
+  // **한계는 자기 손·자기 동사에 걸린다.** 선언(`descriptor.limits`)은 있었는데 모델에게 가는
+  // 길이 없어서 지금까지 전부 능력 산문 안의 부정문으로 살았다(그래서 경계를 넘었다).
+  // 여기서는 늘 「손 · 동사」를 앞에 달고 나가고, 다른 손이 하는 일이면 그 손을 가리킨다.
+  if (sf.scopedLimits?.length) {
+    sys.push(`[손마다 걸린 한계 — 그 손의 그 동사에만 걸린다. 다른 손까지 덮는 말이 아니다]\n${
+      sf.scopedLimits.map((l) => `- ${l}`).join('\n')}`);
+  }
   if (sf.approvalRequired?.length) sys.push(`네가 쓰되 실행 직전에 확인 한 번을 받는 손: ${sf.approvalRequired.join(', ')}`);
   if (sf.limits?.length) sys.push(`아직 안 되는 것: ${sf.limits.join('; ')}`);
   const runtime = tc.runtimeEnvironment;
