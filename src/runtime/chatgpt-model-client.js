@@ -6,7 +6,7 @@ import {
   ModelTimeoutError, modelStallMs, modelDevBaselineMs, recordModelBaseline,
 } from './model-timeout.js';
 import { ModelProviderError } from './model-provider.js';
-import { buildModelMessages } from './model-provider.js';
+import { buildModelMessages, 교환결과렌더 } from './model-provider.js';
 import { dumpModelInput } from './prompt-dump.js';
 
 export const CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex/responses';
@@ -30,11 +30,17 @@ export function responsesHistory(m) {
  * 규약: 모델의 호출은 `function_call`, 그 결과는 같은 `call_id` 의 `function_call_output`.
  * 신분은 공급자가 준 것이 이기고, 없으면 T5 내부 `ref` 를 쓴다(이 규약은 `call_id` 를
  * 요구한다 — 다만 그건 공급자 신분을 지어내는 것이 아니라 원장에 없다는 사실이 그대로 남는다).
+ *
+ * **결과 렌더는 지어내지 않고 빌려 쓴다**(J3 · 지도 §12). 예전엔 이 자리가 `[summary, data]`
+ * 둘뿐이라 `surface`·`failureState`·`실패원문`·손이 쥔 다음 길이 **이 와이어에서만** 빠졌다.
+ * 같은 실패를 두고 **ChatGPT 계정으로 쓰는 사용자만 다른 사실을 받았다** — `그림` 사고
+ * (2026-08-06 · 아래 `화면증거`)와 정확히 같은 계열이 결과 칸에서 한 번 더 난 것이다.
+ * 그래서 렌더를 복제하지 않고 다른 셋이 쓰는 것을 **그대로** 부른다: 칸이 늘면 넷이 같이 는다.
  */
 export function responsesExchange(m) {
   return (m?.exchange ?? []).flatMap((x) => {
     const 신분 = x.providerCallId ?? x.ref;
-    const 결과 = [x.summary, x.data ? `결과: ${x.data}` : ''].filter((v) => v && String(v).trim()).join('\n');
+    const 결과 = 교환결과렌더(x);
     return [
       { type: 'function_call', call_id: 신분, name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) },
       { type: 'function_call_output', call_id: 신분, output: 결과 },

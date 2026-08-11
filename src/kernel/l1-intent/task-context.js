@@ -1009,6 +1009,16 @@ export function buildTaskContext(p) {
           // 규약 재생을 걷어도 신분은 시제 딱지 밭으로 그대로 간다(봉인 넷이 이걸 문다).
           ...(x?.providerCallId ? { providerCallId: x.providerCallId } : {}),
           ...(x?.ref ? { ref: x.ref } : {}),
+          // **된 것과 안 된 것을 한 얼굴로 만들지 않는다**(J2 · 지도 §12).
+          //
+          // 여기서 상태를 안 옮기면 model-provider 가 앞선 것들을 **전부 `확인됨:true`** 로
+          // 세웠다. 그래서 「그 창 띄웠어요」와 「그 창을 못 띄웠어요」가 같은 표식 없는 줄로
+          // 나란히 섰고, 모델은 지난 턴 실패를 **한 일**로 읽었다(라이브: *"내가 아까 어떤 식당
+          // 검색해 달라고 했지?"* 에 없는 기억을 사실처럼 답한 회차의 재료).
+          //
+          // 옮기는 것은 **상태 토큰 하나**다. 결과 원문(`data`)·실패 원문은 그대로 안 싣는다 —
+          // 바로 위 E1 계약이다(원문이 손에 있으면 모델은 다시 안 보고 말로 때운다).
+          ...((x?.failureState ?? 'none') !== 'none' ? { failureState: x.failureState } : {}),
         }))
         .filter((f) => f.summary);
     }
