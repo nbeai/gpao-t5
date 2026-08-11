@@ -58,12 +58,24 @@ export const 문장표 = Object.freeze([
     async 판정() { const a = await 기준자.앞창(); return { 사실: a, 통과: a === 'Google Chrome' }; },
   },
   {
+    // **판정을 실크롬 주소로 잡았다가 틀렸다**(2026-08-11 · PM 오류). T5 브라우저 손은
+    // 자기 임시 헤드리스 프로필을 몬다 — 그 손으로 몇 걸음을 걷든 실크롬 주소는 안 변한다.
+    // 그런데 사용자 문장은 *"검색 결과 알려줘"* 이지 *"실크롬에서 해라"* 가 아니다.
+    // 자가 구조적으로 통과 불가였고, 되는 것을 실패로 찍었다.
+    //
+    // 그래서 **영수증으로 판정한다** — 어느 손이든 네이버를 실제로 열고 읽었으면 통과다.
+    // 손의 종류는 안 묻는다(브라우저 손이든 화면 손이든 사용자 목적은 같다).
     칸: '칸4 자력완결', 문장: '네이버 열어서 전세사기 검색 결과 알려줘.',
-    async 판정() {
-      const [앞, 주소] = await Promise.all([기준자.앞창(), 기준자.크롬주소()]);
-      if (주소 === null) return { 사실: `앞창=${앞} · 주소=읽지 못함`, 통과: null };
-      const 통과 = /naver\./.test(주소) && /(search|query|전세)/i.test(decodeURIComponent(주소));
-      return { 사실: `앞창=${앞} · ${주소.slice(0, 90)}`, 통과 };
+    async 판정(회차) {
+      const 손들 = 회차?.손기록 ?? [];
+      const 네이버열림 = 손들.some((x) => /naver/i.test(JSON.stringify(x?.args ?? {})));
+      const 읽음 = 손들.some((x) => ['browser.observe', 'web.collect', 'desktop.screen']
+        .includes(x?.tool) && (x?.failureState ?? 'none') === 'none');
+      const 앞 = await 기준자.앞창();
+      return {
+        사실: `네이버 지목=${네이버열림 ? 'O' : 'X'} · 읽기성공=${읽음 ? 'O' : 'X'} · 앞창=${앞}`,
+        통과: 네이버열림 && 읽음,
+      };
     },
   },
 ]);
@@ -109,9 +121,10 @@ async function 한문장(base, cookie, 항목, 카드상한 = 4) {
     결과 = await post({ sessionId: s.id, approve: 결과.pendingId });
   }
   const 걸린 = Math.round((Date.now() - 시작) / 1000);
-  const 손 = (결과?.turnExchange ?? []).map((x) => `${x.tool}${x.args?.action ? ':' + x.args.action : ''}`);
+  const 손기록 = (결과?.turnExchange ?? []);
+  const 손 = 손기록.map((x) => `${x.tool}${x.args?.action ? ':' + x.args.action : ''}`);
   await new Promise((ok) => setTimeout(ok, 1500));   // 창 관리자가 반영할 틈을 준다
-  const 판정 = await 항목.판정();
+  const 판정 = await 항목.판정({ 손기록, 답: 결과?.reply ?? '' });
   return { 칸: 항목.칸, 문장: 항목.문장, 카드, 걸린, 손, ...판정, 답: (결과?.reply ?? '').slice(0, 200) };
 }
 
