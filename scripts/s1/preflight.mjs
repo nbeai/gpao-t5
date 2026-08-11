@@ -160,7 +160,16 @@ export const 기준지문 = Object.freeze({
   // 그대로). F-64 L5: local.file write 에 evidenceRows(원천 경로+실제 인용) 선언 추가.
   // 결과물의 제목·문장 순서·형식은 정하지 않는다 — 조종이 아니라 근거 결속의 기계 재료다.
   // admin_grounded 완료 결산이 이 근거를 실제 read Receipt·결과 readback과 대조한다.
-  스키마: 'c76730c202bf3a63',
+  // 2026-08-11 · **부정이 자기 손 안에 갇힌다**(c76730c2 → 131e8dce · 손 19개 그대로).
+  // 칸 1(성질 1 · 모델이 자기 손을 모른다). 손이 **안 가진 동사를 부정하던** 스키마 설명
+  // 세 자리를 고쳤다 — 부정을 지운 것이 아니라 `limits` 구조 레코드(동사 표식·coveredBy)로
+  // **옮겼고**, 그 레코드가 이제 프롬프트에 손·동사와 함께 실린다:
+  //   `browser.act`      "링크는 누르지 않는다" → limits{동사:'click'}
+  //   `desktop.screen`   "앞으로 가져오지 않고" → limits{동사:'focus', coveredBy:'desktop.act'}
+  //   `web.collect`      "…스크롤 뒤에 있는 내용은…" → limits{동사:'scroll', coveredBy:'browser.act'}
+  // 셋 다 **다른 손이 실제로 가진 동사**를 부정하고 있었고, 능력 문장들은 프롬프트에서
+  // 뭉쳐 실려 그 부정에 손 경계가 없었다(5/5 재현의 구조). 손 수·순서는 안 움직였다.
+  스키마: '131e8dce637d6c62',
   도구수: 19,
   // 2026-08-05 · **배치를 처음 동결한다.** 여태 지문은 `.sort()` 로 재서 순서를 안 봤다 —
   // `web.collect` 가 `web.search` 보다 앞이던 우연한 배치도 그래서 안 잡혔다.
@@ -204,6 +213,11 @@ export const 허용파일 = [
   'src/kernel/l2-plan/tool-descriptor.js',
   // 그 축을 selfState 가 나른다 — 안 나르면 커널이 비교할 재료를 못 받는다.
   'src/kernel/l0-evidence/self-state.js',
+  // **동사의 사용자 말과 손별 한계가 모델에게 가는 자리**(칸 1 · 2026-08-11).
+  // `toolCapabilityLine` 이 enum 에서 동사 목록을 생성하고(손을 빼면 말도 빠진다),
+  // `scopedLimitLines` 가 선언된 `limits` 를 **손·동사와 함께** 낸다 — 지금까지 실행
+  // 가능한 손의 `limits` 는 선언돼 있어도 모델에게 한 글자도 안 갔다.
+  'src/kernel/tool-labels.js',
   // **손을 스스로 찾는 자리**(PM 판정 2026-08-06). `GPAO_T5_CUA_BIN` 을 아무데서도 안 세워
   // 사장님이 켠 T5 에는 화면 손이 0개였다 — 실험실에서만 되던 것을 제품에 잇는다.
   'src/runtime/desktop-bin.js',

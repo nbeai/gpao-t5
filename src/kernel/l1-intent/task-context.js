@@ -606,6 +606,12 @@ export function buildTaskContext(p) {
     limits: 사실공급(p.processEnv)
       ? summary.limits
       : (intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits),
+    // **손·동사에 걸린 한계**(칸 1). `readyTools` 와 **같은 문**을 탄다 — 능력 설명이 실리는
+    // 턴에는 그 한계도 함께 실려야 한다. 둘을 갈라 놓으면 모델은 능력만 읽거나 한계만 읽고,
+    // 그게 성질 1(자기 손을 모른다)과 거짓 한계를 동시에 만든다.
+    scopedLimits: intent.answerMode === 'fast_chat' && !p.selfhoodDetail
+      ? []
+      : (summary.scopedLimits ?? []),
     // 승인 필요 손은 자기 상태를 물었을 때만 상세히 준다. 평범한 대화에 권한 설명을 매번
     // 싣지 않되, 물었을 때 모델이 추측으로 위험 범위를 만들지 않게 한다.
     approvalRequired: p.selfhoodDetail ? summary.approvalRequired : [],

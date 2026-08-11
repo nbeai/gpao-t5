@@ -26,6 +26,16 @@ import { FAILURE } from '../contracts.js';
  *   그럴듯한 하위 기능을 지어낸다(오너 실사용: 미구현 기능 세 개를 약속했다). 구현과 함께 갱신한다.
  * @param {string} [d.operatorFact]  T5가 사용자 대신 맡을 수 있는 운영 사실. 능력 설명과 달리
  *   짧고, 현재 손을 고르는 판단 재료로만 쓴다. 경로나 순서를 처방하지 않는다.
+ * @param {Record<string, {말:string, 별칭?:string[]}>} [d.행위]  **동사 하나하나의 사용자 말**
+ *   (칸 1 · 성질 1). `action` enum 은 기계 이름이라 모델이 읽는 글에 그대로 못 쓴다 —
+ *   그래서 지금까지 능력 문장이 **자유 산문**이었고, `scroll` 은 enum 에 있는데 글에 없어서
+ *   T5 가 시도조차 않고 사람에게 떠넘겼다(라이브 2026-08-06).
+ *
+ *   여기 적으면 **enum 이 곧 모델이 읽는 말**이 된다 — 동사를 더하면 말이 따라 늘고,
+ *   손을 빼면 말도 빠진다(칸 실행 규격 8). 그리고 **부정이 어느 동사에 걸리는지**를
+ *   기계가 알 수 있게 된다(`부정정의역위반`). `별칭` 은 같은 동사를 가리키는 다른 말이며,
+ *   **그 동사를 유일하게 가리키는 말만** 적는다 — "켜"처럼 여러 손이 나눠 쓰는 말은
+ *   별칭이 아니다(그걸 넣으면 봉인이 엉뚱한 곳을 문다).
  * @param {string} [d.readReach]  **이 손이 어디까지 볼 수 있는가**(사용자 말 한 줄).
  *   P0-b(오너 결정 2026-08-02 · 능력 유지 + 고지): 파일 손은 작업 폴더 안만 다루지만
  *   터미널 손은 이 컴퓨터에서 읽을 수 있는 자리를 본다 — 그게 있어야 "폴더를 복사해 오세요"
@@ -47,6 +57,7 @@ export function defineTool(d) {
     reversibleNote: d.reversibleNote,
     capability: d.capability,           // 없으면 라벨만 말한다 — 없는 설명을 지어내지 않는다
     operatorFact: d.operatorFact,
+    행위: d.행위,                        // 동사 하나하나의 사용자 말 — enum 과 모델이 읽는 글을 잇는다(칸 1)
     // **무엇을 보는 손인가**(노드 ③ · 2026-08-06). `operatorFact` 는 **모델이 읽는 글**이고
     // 이 축은 **커널이 읽는 값**이다. 한 손이 막혔을 때 *"같은 것을 보는 다른 손"* 을 가리키려면
     // 비교할 수 있어야 한다 — 글로는 못 비교한다.
@@ -109,6 +120,8 @@ export function toConnection(descriptor, facts = {}) {
     connector: descriptor.connector,
     capability: descriptor.capability,  // 능력 문장도 descriptor 가 진실이다(수동 맵 금지)
     operatorFact: descriptor.operatorFact,
+    // 여기서 떨어뜨리면 모델은 enum 에 있는 동사를 **모르는 채** 남는다 — 성질 1 이 그 병이었다.
+    행위: descriptor.행위,
     // **무엇을 보는 손인가**(노드 ③) — 여기서 흘리면 커널이 옆 손을 못 고른다.
     보는것: descriptor.보는것,
     readReach: descriptor.readReach,    // 고지 사실도 손 이름과 함께 끝까지 간다(P0-b)
@@ -116,6 +129,243 @@ export function toConnection(descriptor, facts = {}) {
     limits: descriptor.limits,          // 선언된 한계 — 손 이름과 함께 다녀야 하는 사실
     schema: descriptor.schema,          // 모델 노출도 같은 선언에서 나온다
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 부정 정의역 봉인 — 칸 1(성질 1 · 모델이 자기 손을 모른다)
+//
+// **무엇을 무나**: "부정문이 사라졌나"가 **아니다.** 그건 지우면 초록이 뜬다.
+// 이 봉인이 무는 것은 **부정이 자기 손 안에 갇혀 있나**이다 —
+//
+//   S1 경계없는부정  평문(capability·operatorFact)은 프롬프트에서 **한 줄로 뭉쳐 실린다**
+//                   (`네가 지금 바로 쓰는 손: A — …, B — …`). 거기서 동사를 부정하면
+//                   그 부정이 어느 손 것인지 구조로 남지 않는다 → `limits` 레코드로 옮겨라
+//   S2 표식         모든 `limits` 레코드는 **자기가 거는 동사**를 밝힌다. 동사를 안 밝힌
+//                   레코드가 어떤 손의 동사를 말하면 빨강(표식없음).
+//                   밝힌 동사가 그 손(또는 `coveredBy` 가 가리키는 손)의 enum 에 없으면
+//                   빨강(거짓한계 — **없는 한계를 지어낸 것**)
+//   S3 국소성       그 손이 **안 가진 동사**를 부정하면 빨강. 다른 손 것을 말해야 하면
+//                   `coveredBy` 로 **그 동사를 가진 손을 가리켜야** 한다(부정이 아니라 이관)
+//   S4 능력대칭     enum 에 있는 동사는 전부 **그 손 이름과 함께 모델에게 실려야** 한다.
+//                   ← **지우고 초록 띄우기를 막는 조항이다.** 부정을 지워 S1~S3 를 통과해도
+//                     긍정 진술이 없으면 S4 가 빨갛다. 손을 빼면 말도 빠지고(칸 실행 규격 8),
+//                     동사를 더하면 말이 따라 는다
+//
+// **하드코딩 0**: 기대값(어떤 손이 어떤 동사를 갖는가·그 동사를 뭐라 부르는가)은 전부
+// **등록부에서 파생**한다. 여기 적힌 목록은 기대값이 아니라 **탐지기**다(부정 어휘 하나).
+//
+// **모델 답을 판정하지 않는다.** 재는 것은 **우리가 조립해 보낸 프롬프트**다 — 우리가 쓴 글이라
+// 결정적이고, 본문 정규식으로 모델을 오판한 그 방식(감사 교정치)과 방향이 반대다.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 부정 **탐지기**. 기대값이 아니다 — 무엇이 한계 진술인지 찾기만 한다.
+ * 여기에 걸린 절이 곧 위반은 아니다(위반은 아래 네 조항이 정한다).
+ */
+export const 부정어휘 = Object.freeze([
+  '하지 않', '지 않는다', '지 않고', '지 않으', '지 못한다', '지 못하',
+  '못 한다', '못한다', '못 하', '못 읽', '못 넣', '못 누르', '못 본다',
+  '안 한다', '안 하', '않는다', '없고', '없다', '아니다', '금지', '제외',
+]);
+
+/** 손이 가진 동사 목록 — **등록부가 진실**이다(`action` enum 이 정의역). */
+export function 동사정의역(descriptor) {
+  const e = descriptor?.schema?.parameters?.properties?.action?.enum;
+  return Array.isArray(e) && e.length ? e : null;
+}
+
+/** 문장을 절로 가른다. 한 절 안에 동사와 부정이 함께 있을 때만 "그 동사를 부정했다"고 본다. */
+const 절나누기 = (s) => String(s ?? '').split(/[.。\n·—]|(?<=다)\s+/).map((x) => x.trim()).filter(Boolean);
+
+const 부정있나 = (절) => 부정어휘.some((n) => 절.includes(n));
+
+/**
+ * 동사 → 그 동사를 가리키는 **사용자 말** 색인. 말은 손이 `행위` 로 선언한다 —
+ * 커널이 지어내면 그게 또 하나의 진실이 된다(1축).
+ * @returns {{토큰소유:Map<string, Array<{id:string,동사:string}>>, 손:Array}}
+ */
+export function 행위색인(descriptors = []) {
+  const 토큰소유 = new Map();
+  const 손 = [];
+  for (const d of descriptors) {
+    const enumv = 동사정의역(d);
+    if (!enumv) continue;
+    const 표 = d.행위 ?? null;
+    손.push({ id: d.id, label: d.label ?? d.id, 동사: enumv, 행위: 표 });
+    for (const v of enumv) {
+      const 말 = 표?.[v];
+      if (!말) continue;
+      const 토큰 = [말.말, ...(말.별칭 ?? [])].filter((t) => typeof t === 'string' && t.trim());
+      for (const t of 토큰) {
+        if (!토큰소유.has(t)) 토큰소유.set(t, []);
+        토큰소유.get(t).push({ id: d.id, 동사: v });
+      }
+    }
+  }
+  return { 토큰소유, 손 };
+}
+
+/** 그 절이 건드린 (토큰 → 소유 손) 목록. */
+function 절이건드린동사(절, 토큰소유) {
+  const out = [];
+  for (const [tok, owners] of 토큰소유) if (절.includes(tok)) out.push({ 토큰: tok, 소유: owners });
+  return out;
+}
+
+/**
+ * **봉인 본체.** 등록부와 **실제로 조립돼 나간 것**을 함께 받아 위반을 낸다.
+ * 등록부에만 있고 모델에게 안 간 글은 세지 않는다 — 부품 검사가 아니라 관통 검사다(C4).
+ *
+ * @param {Object} p
+ * @param {Array} p.descriptors  손 선언(등록부)
+ * @param {string} p.systemPrompt  `buildModelMessages(tc).system` — 실제로 간 시스템 프롬프트
+ * @param {Array} [p.tools]  모델에게 실제로 노출한 도구 스키마 배열
+ * @returns {Array<{조항:string, 손:string, 자리:string, 절?:string, 동사?:string, 말?:string, 사유:string}>}
+ */
+export function 부정정의역위반({ descriptors = [], systemPrompt = '', tools = [] }) {
+  const { 토큰소유, 손 } = 행위색인(descriptors);
+  const 도구글 = JSON.stringify(tools ?? []);
+  const 실렸나 = (t) => typeof t === 'string' && t.trim()
+    && (systemPrompt.includes(t.trim()) || 도구글.includes(t.trim()));
+  const byId = new Map(descriptors.map((d) => [d.id, d]));
+  const 위반 = [];
+
+  // **정의역: 모델이 부를 수 있는 손.** 스키마가 노출된 손만 이 봉인이 문다 —
+  // 부를 수 없는 손은 모델이 그 동사를 몰라도 손해가 없고, 그 손 이름이 남의 글에
+  // 언급된 것을 "갔다"로 읽으면 봉인이 엉뚱한 것을 문다(관측 안 됨 ≠ 부재의 반대 실수).
+  // 노출 기준은 `toolSchemasFor` 와 같다(`executable && schema` → `{name: id}`).
+  const 노출 = new Set((tools ?? []).map((t) => t?.name).filter(Boolean));
+  const 노출됐나 = (id) => 노출.has(id);
+
+  // ── S0 · **못 잰 것을 0 으로 적지 않는다** ────────────────────────────────
+  // 동사의 사용자 말(`행위`)이 없으면 토큰 색인이 비고, 그러면 S1·S2·S3 가 **아무것도 못 찾는다.**
+  // 그 침묵을 초록으로 읽으면 그 순간 이 봉인이 거짓말을 시작한다 —
+  // 「계측 불가 · 사유」로 적는다. 이 줄이 남아 있는 한 아래 조항들은 **판정이 아니다.**
+  for (const h of 손) {
+    if (!노출됐나(h.id)) continue;
+    const 빠진동사 = h.행위 ? h.동사.filter((v) => !h.행위[v]?.말) : h.동사;
+    if (!빠진동사.length) continue;
+    위반.push({ 조항: 'S0 계측불가', 손: h.id, 자리: '행위', 동사: 빠진동사.join(','),
+      사유: h.행위
+        ? 'enum 에 있는데 행위 표에 사용자 말이 없다 — 그 동사에 걸린 부정을 찾을 수가 없다'
+        : `enum 동사 ${h.동사.length}개의 사용자 말이 선언되지 않았다 — 이 손에 대해 S1·S2·S3 는 판정이 아니라 침묵이다` });
+  }
+
+  for (const d of descriptors) {
+    // 평문 — 프롬프트에서 **다른 손과 한 줄로 뭉친다.** 그래서 여기의 부정은 경계가 없다.
+    const 평문 = { capability: d.capability, operatorFact: d.operatorFact };
+    // 스키마 — 함수 이름 안에 실려 나가므로 **구조로 이미 그 손 것이다.** 자기 동사 부정은 봐준다.
+    const 스키마 = {};
+    if (d.schema?.description) 스키마['schema.description'] = d.schema.description;
+    for (const [k, v] of Object.entries(d.schema?.parameters?.properties ?? {})) {
+      if (typeof v?.description === 'string') 스키마[`schema.${k}`] = v.description;
+    }
+
+    for (const [자리, 글] of Object.entries({ ...평문, ...스키마 })) {
+      if (!실렸나(글)) continue;                       // 모델에게 안 간 글은 이 봉인의 대상이 아니다
+      const 평문인가 = Object.hasOwn(평문, 자리);
+      for (const 절 of 절나누기(글)) {
+        if (!부정있나(절)) continue;
+        const 건드린것 = 절이건드린동사(절, 토큰소유);
+        if (!건드린것.length) continue;                // 동사를 안 건드린 부정은 정의역 문제가 아니다
+        const 남의것 = 건드린것.filter((h) => !h.소유.some((o) => o.id === d.id));
+        if (남의것.length) {
+          위반.push({ 조항: 'S3 국소성', 손: d.id, 자리, 절,
+            동사: 남의것.map((h) => h.소유.map((o) => `${o.id}:${o.동사}`).join('/')).join(' '),
+            사유: '이 손이 안 가진 동사를 부정한다 — 부정 말고 `limits.coveredBy` 로 **그 동사를 가진 손을 가리켜라**' });
+        } else if (평문인가) {
+          위반.push({ 조항: 'S1 경계없는부정', 손: d.id, 자리, 절,
+            동사: 건드린것.map((h) => h.소유.map((o) => `${o.id}:${o.동사}`).join('/')).join(' '),
+            사유: '평문은 프롬프트에서 다른 손과 한 줄로 뭉친다 — 이 부정을 `limits` 레코드(동사 표식)로 옮겨라' });
+        }
+      }
+    }
+
+    // S2 · 구조 레코드의 표식
+    for (const lim of d.limits ?? []) {
+      const 대상 = lim.coveredBy ? byId.get(lim.coveredBy) : d;
+      if (lim.coveredBy && !대상) {
+        위반.push({ 조항: 'S2 표식', 손: d.id, 자리: 'limits', 절: lim.says,
+          사유: `coveredBy "${lim.coveredBy}" 라는 손이 등록부에 없다` });
+        continue;
+      }
+      const 대상enum = 동사정의역(대상);
+      if (lim.동사) {
+        if (!대상enum || !대상enum.includes(lim.동사)) {
+          위반.push({ 조항: 'S2 거짓한계', 손: d.id, 자리: 'limits', 절: lim.says, 동사: lim.동사,
+            사유: `"${lim.동사}" 는 ${대상?.id ?? '?'} 의 enum 에 없다 — 없는 동사에 한계를 걸었다` });
+        }
+        continue;
+      }
+      const 건드린것 = 절이건드린동사(String(lim.says ?? ''), 토큰소유);
+      if (건드린것.length) {
+        위반.push({ 조항: 'S2 표식없음', 손: d.id, 자리: 'limits', 절: lim.says,
+          동사: 건드린것.map((h) => h.소유.map((o) => `${o.id}:${o.동사}`).join('/')).join(' '),
+          사유: '동사를 말하면서 어느 동사인지 표식이 없다 — `동사` 를 적어라' });
+      }
+    }
+  }
+
+  // S4 · 능력 대칭 — **지우고 초록 띄우기 차단**. 등록된 동사는 손 이름과 함께 실려야 한다.
+  const 줄 = systemPrompt.split('\n');
+  for (const h of 손) {
+    if (!노출됐나(h.id) || !h.행위) continue;          // 미선언은 위에서 S0 로 이미 적었다
+    const 그손줄 = 줄.filter((l) => l.includes(h.label));
+    for (const v of h.동사) {
+      const 말 = h.행위[v]?.말;
+      if (!말) continue;
+      if (!그손줄.some((l) => l.includes(말))) {
+        위반.push({ 조항: 'S4 말이안실림', 손: h.id, 자리: '시스템 프롬프트', 동사: v, 말,
+          사유: `"${말}" 이 "${h.label}" 이름과 같은 줄로 모델에게 가지 않았다 — 모델은 이 동사를 모른다` });
+      }
+    }
+  }
+
+  // ── S5 · 전달 — **구조로 옮긴 한계는 실제로 가야 한다** ────────────────────
+  // 절단 시험에서 찾았다(2026-08-11): 한계 렌더링을 통째로 걷어도 S1~S4 가 전부 초록이었다.
+  // S1·S3 는 "프롬프트에 있는 부정"만 보므로, **부정을 아무 데도 안 실으면** 조용히 통과한다 —
+  // 그건 "부정이 자기 손 안에 갇혔다"가 아니라 **한계가 사라진 것**이다(다른 병).
+  // 선언(`limits`)은 있는데 모델이 못 받으면 모델은 그 사실을 짐작으로 채운다 —
+  // 그게 브라우저 로그인 거짓 약속 2회의 원인이었다(`limits` 계약이 생긴 이유 그 자체).
+  for (const d of descriptors) {
+    if (!노출됐나(d.id)) continue;
+    for (const lim of d.limits ?? []) {
+      if (!lim?.says) continue;
+      const 그손줄 = 줄.filter((l) => l.includes(d.label ?? d.id));
+      if (!그손줄.some((l) => l.includes(lim.says))) {
+        위반.push({ 조항: 'S5 한계가안실림', 손: d.id, 자리: '시스템 프롬프트', 동사: lim.동사, 절: lim.says,
+          사유: `선언된 한계가 "${d.label ?? d.id}" 이름과 함께 모델에게 가지 않았다 — 안 주면 모델이 짐작으로 채운다` });
+      }
+    }
+  }
+  // ── S6 · 줄 분리 — **한 줄에 두 손을 담지 않는다** ────────────────────────
+  // 절단 시험에서 찾았다(2026-08-11): 능력 줄을 옛 `join(', ')` 으로 되돌려도 S1~S5 가
+  // 전부 초록이었다. 그런데 **S1 이 스키마 설명을 봐주는 근거가 바로 이 분리**다 —
+  // 스키마는 함수 이름 안에 실려 구조로 그 손 것이고, 평문은 뭉치면 그렇지 않다.
+  // 뭉침이 돌아오면 S1 의 전제가 무너지므로, 전제 자체를 봉인한다.
+  //
+  // **다른 손을 「가리키는」 것은 위반이 아니다** — 그게 이 칸의 수리다(`coveredBy`).
+  // 무는 것은 **주어가 둘인 줄**, 곧 서로 다른 손의 **자기 소개 산문**이 한 줄에 같이 있는 것이다.
+  const 산문 = descriptors
+    .map((d) => ({ id: d.id, 글: [d.capability, d.operatorFact].filter((x) => typeof x === 'string' && x.length > 20) }))
+    .filter((x) => x.글.length);
+  for (const l of 줄) {
+    const 담긴손 = 산문.filter((x) => x.글.some((g) => l.includes(g))).map((x) => x.id);
+    if (담긴손.length > 1) {
+      위반.push({ 조항: 'S6 한줄에두손', 손: 담긴손.join('+'), 자리: '시스템 프롬프트',
+        절: l.slice(0, 120),
+        사유: '한 줄에 손 여럿의 자기 소개가 뭉쳐 있다 — 그 줄의 진술이 누구 것인지 자리로 안 남는다. 손마다 한 줄로 실어라' });
+    }
+  }
+  return 위반;
+}
+
+/**
+ * "등록된 동사를 **그 손 밖의** 어떤 진술도 부정하지 않는다" 한 문장만 따로 묻는다.
+ * 칸 1 이 반드시 함께 물기로 한 조항이다(예: `desktop.act:type`).
+ */
+export function 손밖에서부정된동사(위반, 손id, 동사) {
+  return 위반.filter((v) => v.조항 === 'S3 국소성' && v.손 !== 손id && String(v.동사 ?? '').includes(`${손id}:${동사}`));
 }
 
 /**
