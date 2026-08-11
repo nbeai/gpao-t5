@@ -8,6 +8,12 @@
 // 시간**으로 이루면 느린 모델과 죽은 모델을 구분하지 못한다 — 그래서 정상 응답이 사용자 앞에서
 // 잘렸다. 무한 매달림은 이제 어댑터가 **정체(진짜 죽음)** 로 끊어 막는다. 이 데코레이터는
 // 남아 있고(`GPAO_T5_MODEL_TIMEOUT_MS`), 기본값만 0 이다.
+//
+// **2026-08-12 · 0 을 정지선으로 되돌린다**(C4). 위 판단은 그대로 옳고 되돌리지 않는다 —
+// 되돌리는 것은 **숫자의 성격**이 아니라 **부재**다. 정체 감시가 그 자리를 대신 지키기로
+// 했는데 **단발 경로에는 정체 감시가 없다**(`model-provider.js:1366` · `stallMs: 0`).
+// 그래서 그 경로만 총시간 0 + 정체 0 = 무한이 됐다. 새 기본값은 정상 응답에 절대
+// 안 닿는 자리에 선다(아래 `MODEL_HTTP_CEILING_MS` 주석 — 선행자 실측 근거 포함).
 
 export class ModelTimeoutError extends Error {
   /** @param {number} ms @param {'총시간'|'정체'} [사유] 무엇이 잘랐는지 — 기본은 총 시간(옛 경로) */
@@ -40,15 +46,48 @@ const 수 = (v, 기본) => {
   return Number.isFinite(n) && n >= 0 ? n : 기본;
 };
 
-/**
- * 서버 바깥 경계(`withModelTimeout`)의 상한. **기본 0 = 무제한.**
- * 예전 기본은 180초였고, 그 앞엔 30초였다 — 둘 다 "총 걸린 시간"으로 자르는 자였다.
- * 안쪽 어댑터가 정체(진짜 죽음)로 자르므로 바깥에서 총 시간을 또 재지 않는다.
- */
-export const modelResponseTimeoutMs = (env = {}) => 수(env.GPAO_T5_MODEL_TIMEOUT_MS, 0);
+// ── 폭주 정지선(C4 · 2026-08-12) · **배급이 아니다** ──────────────────────────
+//
+// 2026-08-09 에 총시간 상한을 0 으로 내린 판단은 그대로 옳다. 30초·180초로 자르던 자는
+// 느린 모델과 죽은 모델을 구분하지 못했고, 정상 응답이 사용자 앞에서 잘렸다.
+// *"20초의 99.9%는 모델 판단 시간이다. 왕복을 깎아 모델을 멍청하게 만들지 않는다."*
+//
+// **그런데 0 은 상한이 아니라 부재다.** 그 자리를 대신 지키기로 한 「정체 감시」가
+// 단발 경로에는 없다 — `model-provider.js:1366` 이 `{ totalMs: timeoutMs, stallMs: 0 }` 로
+// 부른다. 단발 POST 에는 셀 조각이 없으니 그 0 자체는 옳다. 문제는 **총시간도 0** 이라는
+// 것이다: 소켓만 살아 있으면 그 턴은 안 끝나고, `withSessionQueue` 가 직렬화하므로
+// **그 세션의 후속 턴이 전부 막힌다**(P-STAB-1 이 애초에 세워진 이유 그대로).
+//
+// 그래서 세우는 것은 **마지막 그물**이다. 정상 응답에 절대 안 닿을 만큼 뒤에 세운다:
+//
+//   · 선행자 실측(헤르메스 `agent/reasoning_timeouts.py`) — 무응답을 시계로 자르되
+//     추론 모델에는 바닥을 올려 준다. `:7` 스트림 정체 기본 180s · `:9` 단발 정체 기본 90s ·
+//     `:66,93,116` 가장 깊은 바닥이 **600s**(nemotron-3-ultra · o1 · claude-fable).
+//     같은 파일 `:24` — *"It is a FLOOR … Never lowers an existing threshold."*
+//   · 그러므로 **알려진 가장 깊은 추론 예산이 600초**다. 우리 그물은 그보다 뒤여야 한다.
+//   · 흐르는 스트림은 이 선에 닿기 한참 전에 정체 감시(180s)가 먼저 잡는다 —
+//     이 숫자가 실제로 무는 것은 **아무것도 안 흐르는데 소켓만 살아 있는** 경우다.
 
-/** 어댑터 HTTP 총 시간 상한. **기본 0 = 무제한**(조이는 길은 환경변수로 남긴다). */
-export const modelHttpTimeoutMs = (env = {}) => 수(env.GPAO_T5_MODEL_HTTP_TIMEOUT_MS, 0);
+/** 한 HTTP 요청의 마지막 그물. 600s(가장 깊은 추론 예산)보다 뒤에 선다. */
+export const MODEL_HTTP_CEILING_MS = 900_000;
+
+/**
+ * 한 턴 전체의 마지막 그물. **파생값이다** — 손으로 또 적으면 두 숫자가 갈라진다.
+ * `model-provider.js:1256` 이 첫판 + 이어쓰기 3회, 최대 4번 왕복한다.
+ * 이어쓰기는 **모델이 실제로 답을 쓰고 있을 때만** 일어나므로(잘림 응답을 받아야 돈다),
+ * 죽은 모델은 첫 왕복에서 위 상한에 걸려 끝난다 — 이 선은 그다음 자리의 그물이다.
+ */
+export const MODEL_TURN_CEILING_MS = MODEL_HTTP_CEILING_MS * 4;
+
+/**
+ * 서버 바깥 경계(`withModelTimeout`)의 상한. 기본은 **턴 정지선**이다.
+ * 예전 기본은 0(무제한)이었고, 그 앞은 180초·30초였다 — 앞의 둘은 배급이었고 0 은 부재였다.
+ * **`=0` 을 주면 옛 무제한 그대로다**(선택을 없애는 게 아니라 기본값만 뒤집는다).
+ */
+export const modelResponseTimeoutMs = (env = {}) => 수(env.GPAO_T5_MODEL_TIMEOUT_MS, MODEL_TURN_CEILING_MS);
+
+/** 어댑터 HTTP 총 시간 상한. 기본은 **요청 정지선**(조이는 길·끄는 길은 환경변수로 남긴다). */
+export const modelHttpTimeoutMs = (env = {}) => 수(env.GPAO_T5_MODEL_HTTP_TIMEOUT_MS, MODEL_HTTP_CEILING_MS);
 
 /** 정체 판정 기준. 0 이면 정체 감시도 끈다(순수 무제한). */
 export const modelStallMs = (env = {}) => 수(env.GPAO_T5_MODEL_STALL_MS, DEFAULT_MODEL_STALL_MS);
