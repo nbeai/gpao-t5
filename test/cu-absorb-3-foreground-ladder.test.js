@@ -38,7 +38,7 @@ function 가짜({ 부른것 = [], 앞세우면읽힘 = true } = {}) {
       부른것.push({ 이름, 인자 });
       if (이름 === 'list_windows') return { windows: [창] };
       if (이름 === 'get_accessibility_tree') return { windows: [], apps: [{ name: 'Claude', pid: 1, active: true }] };
-      if (이름 === 'bring_to_front') { 앞세웠나 = true; return { activated: true, code: 'ok' }; }
+      if (이름 === 'bring_to_front') { 앞세웠나 = true; return { effect: 'confirmed', code: 'ok' }; }
       if (이름 === 'get_window_state') {
         if (앞세웠나 && 앞세우면읽힘) {
           return { snapshot_id: 's2', elements: [{ element_token: 's2:1', role: 'AXTextArea', value: '오늘 할 일' }] };

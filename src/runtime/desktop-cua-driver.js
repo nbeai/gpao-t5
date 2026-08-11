@@ -2,22 +2,24 @@ import { 거절인가, 거절사유 } from './desktop-driver-answer.js';
 import { 그림크기재기 } from './image-size.js';
 // L3 · **화면 슬롯의 두 번째 드라이버 — cua-driver (MCP stdio)**
 //
-// 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다. **임베디드 모드.**
+// 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다.
 //
 // ── 왜 갈아타나 ─────────────────────────────────────────────────────────
 // **크로스 플랫폼이 요구다**(오너: *"PC 운영체제가 무엇이든 상관없이 작동해야겠지"*).
 // Peekaboo 는 macOS 전용이다. cua-driver 는 platform-macos 37K줄 · windows 32K줄 ·
 // linux 33K줄로 **셋 다 실물**이다(감사 2026-08-05).
 //
-// ── 왜 임베디드인가 ─────────────────────────────────────────────────────
-// `EMBEDDING.md` 원문: *"macOS TCC 는 실행 파일 경로가 아니라 **책임 프로세스**에 귀속한다.
-// 서명된 앱이 자식을 spawn 하면 그 자식의 TCC 검사는 **그 앱의** 권한으로 답한다."*
+// ── 어떤 모드로 띄우나 — **임베디드가 아니다**(2026-08-07 오너 결정 · 이 주석 정정 2026-08-11) ─
+// 처음엔 임베디드(`mcp --direct`)로 갔다. 근거는 `EMBEDDING.md` 의
+// *"macOS TCC 는 실행 파일 경로가 아니라 **책임 프로세스**에 귀속한다"* 였고, 앱을 하나 더
+// 깔지 않아도 되는 것이 이득이었다.
 //
-//   Standalone   `CuaDriver.app` 을 따로 깔고 그 앱에 권한 → **사용자가 앱을 하나 더 깐다**(§15 마찰)
-//   임베디드     T5 가 spawn 하고 **T5 의 권한을 물려받는다** → 앱 하나 · 승인 한 번
-//
-// 그래서 `mcp --direct` 로 띄운다. 실물이 그 사실을 스스로 밝힌다 —
-// `check_permissions` 가 `source.attribution: "host"` 를 낸다.
+// **그 이득을 접었다.** `--direct` 의 정의가 *"on macOS this explicitly accepts host TCC
+// attribution"* 이라, T5 를 띄운 프로세스(개발 기계에서는 셸)의 권한을 빌려 쓴다 —
+// 회차마다 권한이 흔들렸고 사장님 컴퓨터에서는 *"터미널이 화면을 기록하려 합니다"* 가 떴다.
+// 지금은 `args: ['mcp']` 뿐이고(아래 `기동인자`), 드라이버가 스스로
+// `open -n -g -a CuaDriver --args serve` 로 데몬을 띄워 프록시한다. TCC 는
+// `com.trycua.driver` 번들에 붙어 안 흔들린다. **코드가 정본이고 이 주석이 낡았었다.**
 //
 // ── 텔레메트리 ──────────────────────────────────────────────────────────
 // **기본값이 켜짐이다**(실물 확인: `Telemetry: enabled (source: default)`).
@@ -76,6 +78,49 @@ export function 기동인자({ binPath, 기존프로필허용: _프로필 = fals
 
 /** 권한 값 → 우리 어휘. **모르는 값은 안 된 쪽으로**(모름은 확인 쪽이다). */
 const 권한말 = (v) => (v === true ? 'granted' : 'denied');
+
+/**
+ * **누가 맨 앞인가 — 정본이 정한 축 하나로만 고른다** (정본 대조 2026-08-11).
+ *
+ * `describe list_windows` 원문:
+ *   *"z_index (integer or null; higher values are closer to the front; **null means stacking
+ *     order is unavailable and callers must not infer one**). … To select a frontmost candidate,
+ *     **take the maximum integer z_index**; if every value is null, **use an explicit fallback
+ *     instead of relying on array order**."*
+ *
+ * 우리는 정확히 그 금지된 폴백을 쓰고 있었다 —
+ * `(얕은것.apps).find(a=>a.active) ?? (얕은것.apps)[0]`. 뒤의 `[0]` 이 배열 순서다.
+ * 그리고 `describe get_accessibility_tree` 는 `active`·`frontmost` 를 **보장한다고 적지 않는다**
+ * (문장 자체가 없다) — 그것을 첫 축으로 세운 것도 문서 밖이었다.
+ *
+ * 그래서 순서를 뒤집는다: **① 최대 z_index → ② 드라이버가 밝힌 `active` → ③ 모른다(null).**
+ * 배열 순서는 어느 자리에서도 안 쓴다. 모르면 `frontmost` 칸을 아예 안 만든다 —
+ * **지어낸 앞 창이 「앞으로 띄웠어요」의 근거가 되는 자리**가 여기다(F: 자기보고 거짓).
+ *
+ * @param {Array<{층?:number|null, pid?:number, app?:string}>} 창들  `observe` 가 만든 창 목록
+ * @param {Array<object>} 앱들  `get_accessibility_tree` 의 `apps`
+ * @returns {{name:string|null, bundleId:string|null, pid:number|null}|null}
+ */
+export function 맨앞앱(창들 = [], 앱들 = []) {
+  const 맨앞 = (Array.isArray(창들) ? 창들 : [])
+    .filter((w) => Number.isFinite(w?.층))
+    .reduce((a, b) => (a == null || b.층 > a.층 ? b : a), null);
+  const 목록 = Array.isArray(앱들) ? 앱들 : [];
+  if (맨앞) {
+    const 앱 = 목록.find((a) => Number.isInteger(a?.pid) && Number(a.pid) === Number(맨앞.pid)) ?? null;
+    return {
+      name: 앱?.name ?? 맨앞.app ?? null,
+      bundleId: 앱?.bundle_id ?? null,
+      pid: Number.isInteger(맨앞.pid) ? 맨앞.pid : (앱?.pid ?? null),
+    };
+  }
+  // z 가 **하나도** 없다 = 쌓임 순서를 모른다. 명시적 폴백은 드라이버가 스스로 밝힌 `active` 뿐이고,
+  // 그것도 없으면 **모른다**. 여기서 `[0]` 을 집으면 그 순간 거짓 frontmost 가 만들어진다.
+  const 밝힌것 = 목록.find((a) => a?.active === true) ?? null;
+  return 밝힌것
+    ? { name: 밝힌것.name ?? null, bundleId: 밝힌것.bundle_id ?? null, pid: 밝힌것.pid ?? null }
+    : null;
+}
 
 /**
  * MCP stdio 한 줄 클라이언트. **여기서 판정하지 않는다** — 부르고 결과를 옮긴다.
@@ -180,10 +225,37 @@ export function makeCuaDriver(deps = {}) {
   // 오너 결정(2026-08-06): *"연결을 한 번 맺고 유지한다."* 드라이버가 상주하니 조건이 선다.
   const 붙은브라우저 = new Set();
   const 브라우저세션 = 'gpao-t5';
+  // ── **세션은 명시적으로 열고 닫는다** (정본 정면대조 2026-08-11) ─────────────────
+  //
+  // `start_session`·`end_session`·`escalate_session`·`get_session_state` — 전 소스 grep **0건**
+  // 이었다. 우리는 `session:'gpao-t5'` 를 `browser_prepare`·`get_browser_state` 두 곳에만 실어
+  // **암묵 생성**하고 아무도 안 끝냈다. 정본이 그 자리를 정확히 적어 뒀다:
+  //   *"A cursor is shown only for a declared session — call this (**or pass `session` on your
+  //     first action**) to opt in. … End it with `end_session` (**or let the idle-TTL reclaim
+  //     it**)."*
+  // 즉 지금 배선도 세션을 만들기는 한다 — 다만 **선언한 적이 없고 끝낸 적도 없어서**
+  // 정책(`capture_scope`)이 우리 것이 아니고 회수가 idle-TTL 에 맡겨져 있었다.
+  //
+  // **범위를 여기서 넘기지 않는다.** 다른 호출(`list_windows`·`get_window_state`·행동들)에
+  // `session` 을 새로 얹지 않는다 — 얹는 순간 그 호출들이 세션 스코프 심사를 받게 되고,
+  // `auto` 는 **window 스코프로 시작해 데스크톱 도구를 잠근다**(정본: *"auto starts window-only
+  // and requires explicit escalation before desktop tools"*). 지금 되는 것이 막히면 안 된다는
+  // 지시가 있어, **이미 세션을 쓰던 자리(브라우저)만** 정본 순서로 세운다.
+  // `escalate_session` 은 **일부러 안 부른다** — 한 번 올리면 그 세션은 되돌릴 수 없고
+  // (*"escalation permanently switches that session to desktop scope"*), 우리는 창 스코프로
+  // 충분하다.
+  let 세션열림 = false;
   // ⚠ 이 한 줄의 **모양**을 봉인이 문다(`cu-node4` — 허가가 드라이버에서 프로세스까지 가는지를
   // 소스 문자열로 대조한다). 줄을 쪼개면 배선이 살아 있어도 빨개진다 — 한 줄로 둔다.
   // `spawnImpl` 은 수명 봉인이 실드라이버를 띄우며 자식을 지켜보려고 지난다(검사 주입).
   const mcp = deps.mcp ?? makeMcpStdio({ binPath: deps.binPath, 기존프로필허용: deps.기존프로필허용 === true, ...(deps.spawnImpl ? { spawnImpl: deps.spawnImpl } : {}) });
+  const 세션열기 = async () => {
+    if (세션열림) return;                     // idempotent 지만 왕복을 낭비하지 않는다
+    // 못 열려도 하던 일을 막지 않는다 — 예전 배선(암묵 생성)이 그대로 받는다.
+    await mcp.call('start_session', { session: 브라우저세션, capture_scope: 'auto' })
+      .catch(() => null);
+    세션열림 = true;
+  };
 
   return {
     id: 'cua',
@@ -220,10 +292,21 @@ export function makeCuaDriver(deps = {}) {
     },
 
     /**
-     * **띄운 것은 걷는다**(스윕 5번). 러너·검사처럼 수명이 있는 쪽이 명시적으로 부를 문이다 —
-     * unref 가 새는 것을 막고, 이것은 **끝났음을 지금 선언**한다(둘 다 있어야 한다).
+     * **띄운 것은 걷고, 연 세션은 닫는다**(스윕 5번 + 정본 세션 사다리).
+     * 러너·검사처럼 수명이 있는 쪽이 명시적으로 부를 문이다 — unref 가 새는 것을 막고,
+     * 이것은 **끝났음을 지금 선언**한다(둘 다 있어야 한다).
+     * *"End a session declared with `start_session`: removes its agent cursor, stops any
+     *   recording it owns, and clears its per-session config."*
+     * 안 닫으면 idle-TTL 이 회수할 때까지 커서·설정·녹화가 남는다 — 사용자 화면의 것이다.
      */
-    close() { try { mcp.끄기?.(); } catch { /* 이미 죽었으면 그만 */ } },
+    async close() {
+      if (세션열림) {
+        세션열림 = false;
+        await mcp.call('end_session', { session: 브라우저세션 }).catch(() => null);
+      }
+      붙은브라우저.clear();
+      try { mcp.끄기?.(); } catch { /* 이미 죽었으면 그만 */ }
+    },
 
     async status() {
       const p = await mcp.call('check_permissions', {});
@@ -334,7 +417,6 @@ export function makeCuaDriver(deps = {}) {
         || args?.window != null);
       const 목록 = await mcp.call('list_windows', 지목함 ? {} : { on_screen_only: true }).catch(() => null);
       const 얕은것 = await mcp.call('get_accessibility_tree', {});
-      const 앞앱 = (얕은것?.apps ?? []).find((a) => a.active) ?? (얕은것?.apps ?? [])[0] ?? null;
       const 날것창 = (목록?.windows ?? (Array.isArray(목록) ? 목록 : null)) ?? 얕은것?.windows ?? [];
       const 창들 = 날것창.map((w) => ({
         id: w.window_id ?? w.id, title: w.title ?? '', app: w.app_name ?? w.app, pid: w.pid,
@@ -360,6 +442,8 @@ export function makeCuaDriver(deps = {}) {
 
       // **앞에서부터 줄 세운다** — 앞 창은 맨 위다(비교군과 같은 계약).
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
+      // **앞 앱은 정렬한 창에서 고른다**(정본 `list_windows` — 최대 z_index). 배열 순서 금지.
+      const 앞앱 = 맨앞앱(창들, 얕은것?.apps ?? []);
       let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null; let 얕게걷기지연 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
@@ -440,16 +524,31 @@ export function makeCuaDriver(deps = {}) {
         // **여럿이면 임의로 안 연다**(A02). 엉뚱한 대화를 읽고 그것을 사실로 말하게 된다.
         if (앱것.length > 1 && args?.window == null) {
           return {
-            ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+            ...(앞앱 ? { frontmost: 앞앱 } : {}),
             windows: 창들,
-            창을골라야함: 앱것.map((w) => ({ window: w.id, title: w.title, app: w.app })),
+            // **가를 축을 함께 싣는다** (정본 정면대조 2026-08-11).
+            //
+            // `describe list_windows` 가 창마다 주는 것: `window_id · pid · app_name · title ·
+            // bounds · z_index · is_on_screen · space_ids · current_space_id · on_current_space`.
+            // 우리는 그걸 **다 읽어 놓고**(위 `창들`) 후보에는 `{window,title,app}` 셋만 올렸다.
+            // 그래서 무제목 창이 넷인 카톡에서 모델에게 간 것이 `카카오톡 · (제목 없음)` ×4 다 —
+            // **축이 없어서가 아니라 안 실어서** 고를 수가 없었다(§8 카톡 빨강).
+            // 정본에는 「무제목 창은 후보가 아니다」 같은 규칙이 없다. 가르는 것은 이 넷이다.
+            창을골라야함: 앱것.map((w) => ({
+              window: w.id, title: w.title, app: w.app,
+              ...(w.bounds ? { bounds: w.bounds } : {}),
+              층: w.층,                       // z_index — 큰 값이 앞. null 이면 "모른다"이지 뒤가 아니다
+              보임: w.보임,                    // is_on_screen
+              ...(w.같은화면 === false ? { 같은화면: false } : {}),
+              ...(w.같은화면 === true ? { 같은화면: true } : {}),
+            })),
           };
         }
         // **못 찾으면 앞 창으로 떨어지지 않는다.** 그건 오대상 관찰이고,
         // 모델은 지목한 앱을 봤다고 믿은 채 남의 창 내용으로 답한다.
         if ((앱이름 || 제목) && !앱것.length && args?.window == null) {
           return {
-            ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+            ...(앞앱 ? { frontmost: 앞앱 } : {}),
             windows: 창들,
             그앱없음: `'${args.창제목 ?? args.app}' 을(를) 가진 창을 못 찾았어요`,
             후보: [...new Set(창들.map((w) => w.app).filter(Boolean))].slice(0, 12),
@@ -640,6 +739,11 @@ export function makeCuaDriver(deps = {}) {
           // 로그인해야 보이는 자리가 여기서 열린다(카드사·배달앱·플레이스).
           if (기존프로필허용 && /chrome|chromium|edge|brave|크롬/i.test(String(대상.app ?? ''))) {
             try {
+              // **세션을 먼저 선언한다**(정본 순서: `start_session` → 작업 → `end_session`).
+              // 예전엔 `browser_prepare` 가 `session` 을 실어 암묵 생성했다 — 정본이 그것도
+              // 허용하지만("or pass session on your first action"), 그러면 `capture_scope` 를
+              // 우리가 안 고른 것이 되고 닫는 자리도 없다.
+              await 세션열기();
               if (!붙은브라우저.has(대상.pid)) {
                 const 붙이기 = () => mcp.call('browser_prepare', {
                   pid: 대상.pid, window_id: 대상.id, session: 브라우저세션,
@@ -752,7 +856,7 @@ export function makeCuaDriver(deps = {}) {
       }
 
       return {
-        ...(앞앱 ? { frontmost: { name: 앞앱.name, bundleId: 앞앱.bundle_id, pid: 앞앱.pid } } : {}),
+        ...(앞앱 ? { frontmost: 앞앱 } : {}),
         windows: 창들,
         ...(요소 ? { elements: 요소 } : {}),
         // **무엇을 봤는지 남긴다** — 같은 앱 창이 여럿일 수 있고, 안 적으면
@@ -911,13 +1015,39 @@ export function makeCuaDriver(deps = {}) {
       // actuator; they do not declare the user's task complete."* 누르기의 판정은 모델이
       // 선언한 의미 효과이고, 그건 `verify_state`(손 쪽)가 받는다.
       const 행동이곧목표 = new Set(['focus', 'launch', 'quit', 'move', 'resize']);
+      // ── **성공 칸은 정본이 정의한 것만 쓴다** (정본 정면대조 2026-08-11) ──────────
+      //
+      // 여기 있던 두 칸은 **어느 문서에도 없다.** `cua-driver dump-docs` 전문 검색:
+      //   `exact_window_effect`  0건 · `activated`(행동 결과 칸)  0건 · `focused_window_id` 0건
+      // 스키마에도 없다. 우리가 라이브 응답 한 번을 보고 **이름을 지어 성공 칸으로 세운 것**이고,
+      // 그 칸 하나 때문에 「앞으로 띄웠어요 vs 전·후 frontmost 동일」이 두 번 났다(§2 계측기).
+      //
+      // 정본이 정한 어휘는 하나다(`SKILL.md` — Read action facts):
+      //   `confirmed` … publishable value readback or window-change evidence
+      //   `partial`   … only delivery.delivered_count was delivered
+      //   `unverifiable` · `suspected_noop` · `refused`
+      // 그리고 `describe bring_to_front` 가 이 손을 콕 집어 못박는다 —
+      //   *"success means the exact ordinary macOS window was **independently verified** as the
+      //    focused window and first in WindowServer layer-0 order. **Request acceptance alone is
+      //    reported as a partial result, never as activation.**"*
+      //
+      // 그래서 `confirmed` 만 확인으로 받는다. `partial` 은 **수락**이지 성공이 아니므로
+      // 확인 표식을 안 붙이고 **부분결과로 표시만 한다** — 위층이 그때 상태를 다시 관측한다
+      // (`SKILL.md:339` *"After any action, keep using verify_state or a fresh state snapshot
+      //  for the actual task postcondition."*).
+      //
+      // `launch_state` 는 남긴다 — 그건 `describe launch_app` 이 명시하는 칸이다
+      // (*"launch_state distinguishes whether the request was sent, the process is running,
+      //   and a window is ready"*). 문서 밖 칸이 아니다.
       const 드라이버확인 = (r) => {
         if (!r || typeof r !== 'object' || r.확인됨 === true) return r;
-        const 근거 = r.exact_window_effect?.verified === true || r.activated === true
-          ? (r.code ?? 'driver_verified')
-          : r.launch_state?.process_running === true ? 'launch_state.process_running'
-            : r.effect === 'confirmed' ? 'effect.confirmed' : null;
-        return 근거 ? { ...r, 확인됨: true, 근거 } : r;
+        if (r.effect === 'confirmed') return { ...r, 확인됨: true, 근거: 'effect.confirmed' };
+        if (r.launch_state?.process_running === true) {
+          return { ...r, 확인됨: true, 근거: 'launch_state.process_running' };
+        }
+        // **수락은 성공이 아니다.** 정본이 그 말을 그대로 쓴다("partial result, never as activation").
+        if (r.effect === 'partial') return { ...r, 부분결과: true };
+        return r;
       };
       // 요소를 짚는 값과 창을 가리키는 값 — **한 자리에서 만든다**(계열 A).
       const 짚기 = () => ({
@@ -971,14 +1101,41 @@ export function makeCuaDriver(deps = {}) {
           // 그건 실패가 아니라 **"어느 것이냐"** 다 — A02 와 같은 규율이고, 우리도 같은 답을 해야 한다.
           // 실패로 뭉개면 모델이 "안 된다"고 하고, 성공으로 뭉개면 거짓 성공이 된다.
           if (Array.isArray(r?.candidates) && r.candidates.length) {
-            const 후보 = r.candidates.map((c) => ({
-              window: c.window_id, title: c.title ?? '', app: c.app_name ?? c.app ?? '',
-              보임: (c.is_on_screen ?? c.visible) !== false,
-            }));
+            // **가를 축을 정본 자리에서 채운다** (정본 정면대조 2026-08-11).
+            //
+            // `candidates` 는 문서에 없는 칸이라(dump-docs 0건) 무엇이 실려 오는지 보장이 없다.
+            // 축은 **문서가 보장하는 자리**에서 가져온다 — `describe list_windows` 가 창마다
+            // `bounds · z_index · is_on_screen · on_current_space` 를 준다고 적어 뒀다.
+            // 되묻는 갈래는 드물게만 지나므로 여기서 한 번 더 부르는 값이 있다.
+            const 창표 = new Map(((await mcp.call('list_windows', {}).catch(() => null))?.windows ?? [])
+              .map((w) => [Number(w?.window_id), w]));
+            const 후보 = r.candidates.map((c) => {
+              const w = 창표.get(Number(c.window_id)) ?? {};
+              return {
+                window: c.window_id, title: c.title ?? w.title ?? '',
+                app: c.app_name ?? c.app ?? w.app_name ?? '',
+                보임: (c.is_on_screen ?? w.is_on_screen ?? c.visible) !== false,
+                층: Number.isFinite(w.z_index) ? w.z_index : null,
+                ...(w.bounds ? {
+                  bounds: {
+                    x: w.bounds.x, y: w.bounds.y,
+                    w: w.bounds.w ?? w.bounds.width, h: w.bounds.h ?? w.bounds.height,
+                  },
+                } : {}),
+                ...(w.on_current_space === false ? { 같은화면: false } : {}),
+                ...(w.on_current_space === true ? { 같은화면: true } : {}),
+              };
+            });
             // **안 보이는 창은 고를 것이 아니다.** 계산기 하나에 숨은 창이 넷 딸려 와서
             // *"창이 여러 개라 알 수 없어요"* 가 나갔다(라이브 2026-08-05) — 보이는 건 하나뿐이었다.
             // 고를 수 없는 것을 고르라고 하는 건 고를 수 있는 척하는 것이다.
-            const 보이는것 = 후보.filter((c) => c.보임);
+            let 보이는것 = 후보.filter((c) => c.보임);
+            // **다른 화면(Space)의 창도 고를 것이 아니다** — `focus` 갈래가 이 축을 안 봤다.
+            // `bring_to_front` 는 Space 를 넘는다는 보장이 없고, 넘어가면 사용자 화면이 통째로
+            // 바뀐다. 같은 화면에 있는 것이 있으면 그것부터다. 하나도 없으면 안 거른다
+            // (`on_current_space` 를 안 준 드라이버에서 후보를 통째로 없애지 않는다).
+            const 같은화면것 = 보이는것.filter((c) => c.같은화면 !== false);
+            if (같은화면것.length) 보이는것 = 같은화면것;
             if (보이는것.length === 1) {
               return mcp.call('bring_to_front', {
                 window_id: 보이는것[0].window, ...(pid != null ? { pid } : {}),
@@ -986,8 +1143,11 @@ export function makeCuaDriver(deps = {}) {
             }
             return { 골라야함: 보이는것.length ? 보이는것 : 후보 };
           }
-          // 드라이버가 스스로 검증해서 준다(`verified:true`·`focused_window_id`) —
-          // 표식은 아래 `드라이버확인` 한 자리가 붙인다.
+          // **여기서 판정하지 않는다.** 드라이버가 `effect` 로 말하고(정본 어휘 다섯),
+          // 표식은 아래 `드라이버확인` 한 자리가 붙인다. 그리고 그 표식이 붙어도
+          // **위층(손)이 행동 뒤 상태를 다시 관측해** 목표 도달을 가른다(`SKILL.md:339`).
+          // 예전 이 자리 주석은 `verified:true`·`focused_window_id` 를 근거로 적었는데
+          // **둘 다 문서에 없는 이름**이었다(dump-docs 0건).
           return r;
         },
         // **켜기는 "켜졌나"로 확인한다 — "앞에 떴나"가 아니다.**
@@ -1171,8 +1331,17 @@ export function makeCuaDriver(deps = {}) {
       const 못박았나 = 낸것?.effect === 'refused'
         || (낸것?.effect === 'unverifiable' && 짚은자리(대상) != null);
       if (못박았나 && (대상.pid || 대상.창)) {
-        const 앞앱 = (await mcp.call('get_accessibility_tree', {}).catch(() => null))
-          ?.apps?.find((a) => a.active);
+        const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
+        // **되돌릴 곳도 같은 축으로 고른다**(정본 `list_windows` — 최대 z_index → `active` → 모른다).
+        // 예전엔 `apps.find(a=>a.active)` 하나였다. 그 칸은 계약이 보장한 적이 없다.
+        const 앞앱 = 맨앞앱(
+          (본것?.windows ?? []).map((w) => ({
+            층: Number.isFinite(w?.z_index) ? w.z_index : null,
+            pid: w?.pid,
+            app: w?.app_name ?? w?.app,
+          })),
+          본것?.apps ?? [],
+        );
         const 되돌릴pid = Number(앞앱?.pid);
         const 앞세움 = await mcp.call('bring_to_front', {
           ...(대상.pid ? { pid: 대상.pid } : {}), ...(대상.창 ? { window_id: 대상.창 } : {}),

@@ -54,7 +54,7 @@ function 가짜cua(부른것, { apps = [계산기, 클로드], launch = null } =
           launch_state: { process_running: true, requested: true, window_ready: true },
         };
       }
-      if (이름 === 'bring_to_front') return { activated: true, code: 'bring_to_front_exact_window_verified' };
+      if (이름 === 'bring_to_front') return { effect: 'confirmed', code: 'bring_to_front_exact_window_verified' };
       if (이름 === 'check_permissions') return { permissions: { accessibility: 'granted' } };
       return {};
     },
@@ -241,7 +241,11 @@ test('보이는 창이 여럿이면 그때는 고르게 한다', async () => {
 
 // ── 라이브 3차 — 확인해 준 것을 실패로 내지 않는다 ────────────────────────
 // 앞의 고침이 길을 하나 더 만들었다(후보에서 하나 고르기). **거기에 확인 표식을 안 붙여서**
-// 드라이버가 `activated:true` 로 확인해 준 focus 가 실패로 나갔다 — 내가 낸 회귀다.
+// 드라이버가 확인해 준 focus 가 실패로 나갔다 — 내가 낸 회귀다.
+// **2026-08-11 정정**: 이 파일의 가짜는 원래 `{activated:true, exact_window_effect:{verified:true}}`
+// 를 냈다. 그 두 칸은 **어느 문서·스키마에도 없다**(`cua-driver dump-docs` 전문 검색 0건) —
+// 우리가 라이브 응답 하나를 보고 이름을 지어 성공 칸으로 세운 것이고, 가짜가 그 지어낸 모양을
+// 되받아 **계약이 아니라 우리 상상을 지키고 있었다.** 정본 어휘는 `effect: confirmed` 하나다.
 // 그리고 `frontmost` 는 오버레이(Claude)를 가리켜서 우리 전후 대조로는 focus 를 영영 못 본다.
 // **드라이버가 확인해 주는 것이 유일한 길**이라, 표식을 흘리면 그대로 거짓 실패가 된다.
 test('후보에서 하나 골라 다시 부를 때도 확인 표식이 붙는다', async () => {
@@ -255,7 +259,7 @@ test('후보에서 하나 골라 다시 부를 때도 확인 표식이 붙는다
         return 몇번 === 1
           ? { candidates: [{ window_id: 9, app: '계산기', title: '계산기', visible: true },
             { window_id: 10, app: '계산기', title: '', visible: false }] }
-          : { activated: true, code: 'bring_to_front_exact_window_verified' };
+          : { effect: 'confirmed', code: 'bring_to_front_exact_window_verified' };
       }
       return {};
     },
@@ -271,7 +275,7 @@ test('창 id 만 줘도 그 창 주인의 pid 를 찾아 부른다 — cua 는 p
     async call(이름, 인자) {
       부른것.push({ 이름, 인자 });
       if (이름 === 'get_accessibility_tree') return { windows: [{ id: 14213, app: '계산기', pid: 32079 }] };
-      if (이름 === 'bring_to_front') return { activated: true, code: 'ok' };
+      if (이름 === 'bring_to_front') return { effect: 'confirmed', code: 'ok' };
       return {};
     },
   };
@@ -373,7 +377,7 @@ test('앱 목록이 낡아도 떠 있는 창으로 찾는다', async () => {
       if (이름 === 'get_accessibility_tree') {
         return { windows: [{ window_id: 14346, app_name: '계산기', pid: 41816, title: '계산기' }] };
       }
-      if (이름 === 'bring_to_front') return { activated: true, code: 'ok' };
+      if (이름 === 'bring_to_front') return { effect: 'confirmed', code: 'ok' };
       return {};
     },
   };
@@ -392,7 +396,7 @@ test('영문 이름으로 물어도 떠 있는 창으로 찾는다 — 창은 �
       if (이름 === 'get_accessibility_tree') {
         return { windows: [{ window_id: 14346, app_name: '계산기', pid: 41816 }] };
       }
-      if (이름 === 'bring_to_front') return { activated: true, code: 'ok' };
+      if (이름 === 'bring_to_front') return { effect: 'confirmed', code: 'ok' };
       return {};
     },
   };

@@ -19,6 +19,7 @@
 // 비례하고(불변식 B), status/observe 는 같은 대상·같은 권한·같은 영수증 계약을 지난다.
 
 import { createHash } from 'node:crypto';
+import { 창설명 } from './desktop-identity.js';
 
 /**
  * **요소의 신분 지문**(반대시험 A04 준비 · CU B).
@@ -279,7 +280,12 @@ export function makeDesktopTool(deps = {}) {
       try { return await drivers[0]?.places?.() ?? null; } catch { return null; }
     },
     /** 띄운 드라이버를 걷는다(스윕 5번) — 수명이 있는 쪽(러너·검사)이 부른다. */
-    close() { for (const d of drivers) { try { d?.close?.(); } catch { /* 이미 죽었으면 그만 */ } } },
+    // **약속을 돌려준다** — 드라이버의 `close()` 가 세션을 끝내는 왕복을 하나 하기 때문이다
+    // (정본: `start_session` → 작업 → `end_session`). 안 돌려주면 기다릴 수 있는 쪽도 못 기다린다.
+    // `allSettled` 라 예전처럼 **터지지 않는다** — 무시하고 부르던 자리는 그대로 돈다.
+    close() {
+      return Promise.allSettled(drivers.map(async (d) => d?.close?.()));
+    },
     // **실행 문맥이 발화를 들고 온다**(`turn.js` `실행문맥()` — `currentRequest`).
     // 화면 손은 그 발화를 **하나에만** 쓴다: 로그인해 둔 브라우저의 동의 시트를 눌러도 되는지.
     // 그 누름은 문을 따는 일이라 **시킨 자리에서만** 해야 한다(BUTLER §B).
@@ -396,8 +402,14 @@ export function makeDesktopTool(deps = {}) {
             : {}),
           ...(본것?.창을골라야함?.length
             ? {
+              // **가를 축을 함께 준다**(정본 `describe list_windows` · 2026-08-11).
+              // 제목만으로는 무제목 창 넷을 못 가른다 — 그때 `창제목` 도 쓸 수 없으니
+              // **창 id 도 함께** 준다(제목이 없으면 그것이 유일한 손잡이다).
               다음수단: 본것.창을골라야함.slice(0, 8).map((c) => ({
-                방법: 'observe', 창제목: c.title, 왜: `${c.app ?? ''} · ${c.title}`.trim(),
+                방법: 'observe',
+                ...(String(c.title ?? '').trim() ? { 창제목: c.title } : {}),
+                window: c.window,
+                왜: 창설명(c),
               })),
             }
             // **화면을 줬으면 그 다음 길도 준다**(오너 2026-08-06 · 손과 눈).
@@ -498,8 +510,11 @@ export function makeDesktopTool(deps = {}) {
         // 있으면 고른다 — 오너 규율: *"자동성이 의무다 — 승인으로 안전을 사지 마라."*
         // 제목은 **자르지 않는다**: 모델이 그대로 되붙여 다시 불러야 한다.
         userSafeSummary: (본것?.창을골라야함?.length
-          ? `그 앱 창이 ${본것.창을골라야함.length}개예요 — ${본것.창을골라야함.slice(0, 6).map((c) => `'${c.title}'`).join(' · ')}.`
-            + ' 사용자가 말한 것에 맞는 창을 **골라 `창제목` 으로 다시 보면 된다**'
+          // **제목만 늘어놓지 않는다.** 무제목 창 넷이면 `'' · '' · '' · ''` 가 나가고,
+          // 그 문장을 읽은 모델은 고를 수가 없어 사용자에게 되묻는다(§8 카톡 빨강).
+          // 정본이 창마다 주는 가르는 축 넷을 같이 적는다.
+          ? `그 앱 창이 ${본것.창을골라야함.length}개예요 — ${본것.창을골라야함.slice(0, 6).map((c) => `[${c.window}] ${창설명(c)}`).join(' / ')}.`
+            + ' 사용자가 말한 것에 맞는 창을 **골라 `창제목`(없으면 `window`) 으로 다시 보면 된다**'
             + ' — 무엇을 말하는지 알 수 없을 때만 사용자에게 묻는다.'
           : null)
           // **왜 그런지가 원인 그 자체일 때는 그것부터 말한다**(2026-08-07).

@@ -226,7 +226,7 @@ test('드라이버 확인이 있으면 그것을 근거로 쓴다 — 근거를 
       if (name === 'check_permissions') return { accessibility: true, screen_recording: true };
       if (name === 'list_apps') return { apps: [{ name: 'Finder', pid: 678 }] };
       if (name === 'get_accessibility_tree') return { apps: [{ name: 'Claude', pid: 1, active: true }], windows: [] };
-      if (name === 'bring_to_front') return { activated: true, code: 'bring_to_front_exact_window_verified', exact_window_effect: { verified: true } };
+      if (name === 'bring_to_front') return { effect: 'confirmed', code: 'bring_to_front_exact_window_verified' };
       return {};
     },
   } }));
