@@ -430,11 +430,20 @@ export function makeDesktopActTool(deps = {}) {
      // 글자를 넣는 칸은 비어 있어도 지우면 돌아간다. 그건 AX 분류가 말해 주는 사실이지
      // 우리가 문구로 알아맞히는 것이 아니다(계열 E 아님).
      const 역할 = String(그것.role ?? 그것.type ?? '');
+     // **보안 칸은 찾은 것으로 내주지 않는다**(헌장 ① · 결재 ① 집행 2026-08-11).
+     //
+     // 창 신분 탐침(위 `창신분만` 가지)은 이미 Secure 가 낀 창의 내용을 안 세운다. 그런데
+     // 요소 탐침은 그 규율이 없어서 `AXSecureTextField` 도 `찾음:true` 로 나갔다 — 값 유무로
+     // `값있음` 까지 따라 서면 **비밀값 칸이 자동의 재료를 그대로 만든다.** 「칸에 글자 넣기는
+     // 자동」이 서는 순간 그 구멍은 비밀값이 조용히 들어가는 자리가 된다.
+     // 못 찾은 것으로 돌려보내면 등급이 미상이 되고, 미상은 언제나 카드다(fail-closed).
+     if (/secure/i.test(역할)) return 밭({ 찾음: false, 보안칸: true });
      const 글자칸 = /^AX(TextField|TextArea|ComboBox|SearchField)$/i.test(역할);
      return {
        찾음: true,
        값있음: (그것.value !== undefined && 그것.value !== null) || 글자칸,
        역할: 그것.role ?? null,
+       보안칸: false,
        ...(본창 ? { 본창 } : {}),
      };
    },

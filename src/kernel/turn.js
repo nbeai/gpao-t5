@@ -181,15 +181,29 @@ async function 화면자리(ctx) {
   } catch { return undefined; }
 }
 
-// 한 턴에 손을 이어 쓸 수 있는 횟수. 상한의 목적은 무한 루프·비용 폭주 방지다.
-// H08 라이브 실측(2026-08-01): 실제 파일 목적은 자리 찾기(이름 승계 실패 포함 1~2걸음) →
-// 최종본 판별 → 읽기 → 별도 결과물 쓰기로 4걸음을 정직하게 넘는다. 4에서는 모델이 일을
-// 정확히 알고도 "손을 다 써서 다음 턴에 하겠다"며 멈췄다 — t5demo-idle 과 같은 병(손 부족).
-// 되풀이는 지문(호출지문)이 따로 막으므로, 상한은 목적 완주가 걸리지 않는 6으로 둔다.
-// **예전 고정 상한.** 이제 예산(`turn-budget.js`)이 두 축으로 센다 — 왕복(비용)과
-// 걸음(폭주 방지). 이 값은 `산출물이어가기` 의 재요청 횟수 뒷단으로만 남는다.
-// 왜 6 이 문제였는지는 `turn-budget.js` 머리말에 적혀 있다(비용 안 드는 축을 조였다).
-const MAX_TOOL_STEPS = 6;
+// ── **무엇이 진짜 상한인가** (아껴 쓰지 않게 한다 · 오너 지시 2026-08-11) ──────
+//
+// 옛 `MAX_TOOL_STEPS = 6` 은 이름이 상한이었지 **루프를 무는 자리가 아니었다.** 걸음 루프
+// (`while (!예산소진(...))`)는 이미 예산이 물고 있다. 6 은 두 곳에만 남아 있었고 뜻이 서로 달랐다:
+//   ㉮ `toolStepsLeft` — 모델 방에 실리는 **남은 걸음 숫자**. 6 은 여기서 배급 신호였다
+//   ㉯ `산출물이어가기` 의 재요청 횟수 뒷단 — 걸음 수와 아무 상관 없는 별개 축
+// 하나의 상수가 두 질문에 답하고 있었고, 그래서 "상한을 올린다"가 무슨 뜻인지 아무도 몰랐다.
+// 그래서 상수 하나를 키우지 않고 **둘로 가른다.**
+
+/**
+ * **걸음 폭주 정지선.** 배급이 아니다 — 한 턴이 끝없이 길어지는 것만 막는다.
+ * 비용 축은 예산 한 곳(`turn-budget.js` 왕복)이고, 실제로 루프를 무는 것도 거기다.
+ * 값은 예산의 왕복과 같은 대(비교군 실측 20~50)로 둔다 — 여기가 왕복보다 작으면
+ * 예산을 올린 것이 시늉이 된다(옛 6 이 정확히 그 모양이었다).
+ */
+const 걸음정지선 = 40;
+/**
+ * **산출물 재요청 뒷단** — 걸음 수와 무관한 별개 축이라 따로 선다.
+ * 값은 옛 6 그대로다(행동 변화 0). 밀어붙이는 것이 진전을 만들지 않는다는 실측이
+ * `산출물이어가기` 주석에 있다(같은 `.log` bulk_move 를 여덟 번 냈다) — 여기는 올릴 자리가
+ * 아니고, 걸음 상한이 커진다고 따라 커져서도 안 된다.
+ */
+const 산출물재요청상한 = 6;
 const WORK_DELIVERABLE_SCHEMA = Object.freeze({
   name: 'work.deliverable',
   description: '사용자의 요청 결과가 대화 답변인지, 실제 파일 생성·변경인지 구분한다.',
@@ -1180,7 +1194,7 @@ export async function runTurn(input, ctx) {
       // 첫 턴에 손을 쓸지 말지 정하는 자리가 바로 여기이고, 여기가 비어 있으면 모델은
       // 능력만 알고 *지금 써도 되는지*를 모른 채 *"…해 드려야 해요"* 라고 미래형으로 답한다.
       // 아직 아무것도 안 썼으니 남은 걸음은 상한 그대로다.
-      toolStepsLeft: Math.min(MAX_TOOL_STEPS, 턴예산(ctx.processEnv ?? process.env).왕복),
+      toolStepsLeft: Math.min(걸음정지선, 턴예산(ctx.processEnv ?? process.env).왕복),
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
@@ -2049,7 +2063,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     toolStepsLeft: Math.max(0, Math.min(
       예산.왕복 - (ctx.왕복수 ?? 0),
       예산.되돌릴수있는것 - 되돌릴수있는것쓴것,
-      MAX_TOOL_STEPS - turnReceipts.length,
+      걸음정지선 - turnReceipts.length,
     )),
     ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
   });
@@ -2340,7 +2354,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 였다. 그건 실행을 밀어붙여 고칠 일이 아니라 **남은 수를 사실로 손에 쥐여 주면** 닫힌다 —
   // `compactResult` 의 묶음 이동 요약에 `남은자리말` 을 실었다(같은 날).
   const 산출물이어가기 = async () => {
-    if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= MAX_TOOL_STEPS) return false;
+    if (!산출물미충족() || 예산소진(쓴것(), 예산) || 산출물요청수 >= 산출물재요청상한) return false;
     const derived = (plan.deliverables ?? []).some((wanted) => wanted.binding === 'derived');
     // ActionPlan 이 요구한 것은 파일 손 일반이 아니라 **성공한 write 영수증**이다. 같은 전체
     // 스키마를 다시 주면 모델이 방금 끝낸 versions/read 를 되풀이한다. 작업 종류만 계약과
@@ -2527,6 +2541,67 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if (finalOut.toolCalls.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
     return true;
   };
+  // ── **목표가 안 섰으면 손을 쥔 채 되돌아간다** (④ · PM 지시 2026-08-11) ────────
+  //
+  // T5 에는 완료 검증이 **하나**뿐이었고 그것이 **출구**에 있었다(`출구검증`). 출구 되부름은
+  // `answerOnly` 라 손이 없다 — 주석 :138 이 그 대가를 이미 적어 뒀다:
+  // **발화 2/2 · 행동 0/2.** 그물이 정확히 물었는데 모델이 할 수 있는 것은 **말을 고치는 것**
+  // 뿐이었다. "됐다고 했지만 안 됐다"를 알고도 되게 만들 수가 없다.
+  //
+  // 비교군의 축(Hermes `verification_stop`): 목표 미달이면 **완성된 답을 억누르고 손을 쥔 채
+  // 루프로 되돌아간다**(최대 2회). 우리도 같은 축인데 자리가 틀렸다 — 검증이 루프 **밖**이라
+  // 손이 이미 없었다.
+  //
+  // 그래서 **검증을 출구에서 루프 안으로 한 벌 더 들여온다.** 자를 새로 만들지 않는다:
+  // 출구가 쓰는 그 `완료주장검증` 을, 출구가 쓰는 그 원장 위에서, 같은 자로 돌린다.
+  // 앞의 네 조항(후보·부분읽기·산출물·다른손)과 같은 모양이고 같은 규율이다 —
+  // `requiredTool` 없음 · 손을 안 좁힘 · 안 고르면 그대로 끝남 · 한 턴에 한 번.
+  //
+  // 출구의 그물은 **그대로 둔다.** 둘은 하는 일이 다르다: 여기는 *되게 만드는* 자리,
+  // 출구는 *정직하게 말하게 하는* 자리다. 여기서 손을 줬는데도 안 됐으면 출구가 그 사실을
+  // 사용자 말로 세운다(`이미돌려줬나` 는 출구만 세우므로 여기서 그 칸을 태우지 않는다).
+  let 완료검증요청수 = 0;
+  const 완료검증이어가기 = async () => {
+    if (완료검증요청수 >= 1 || 예산소진(쓴것(), 예산)) return false;   // 한 턴에 한 번만
+    if (turnReceipts.some((r) => r.surfaceRequest)) return false;      // 공은 이미 사용자에게 넘어갔다
+    const 답글 = userFacingModelText(typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? ''));
+    if (!String(답글).trim()) return false;                            // 빈 답은 `답완성` 의 자리다
+    // **출구와 같은 원장·같은 자**(두 벌 금지). 형태가 갈리면 같은 답에 두 판정이 나온다.
+    const 검증 = 완료주장검증({
+      reply: 답글, receipts: turnReceipts,
+      원장글: JSON.stringify([turnReceipts, tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]),
+      자리종류: {
+        파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
+        화면: ctx.이번턴화면자리 ?? [],
+      },
+    });
+    if (검증.일치) return false;
+    const 손들 = modelSchemasFor(selfState, ctx.modelControls);
+    if (!손들.length) return false;
+    완료검증요청수 += 1;
+    // 지시가 아니라 **원장의 사실**이다 — 출구가 주는 것과 같은 칸(`completionMismatch`).
+    // 다른 것은 하나뿐이다: **손을 함께 준다.** 무엇을 할지는 모델이 정하고, 안 고르면 끝난다.
+    //
+    // **앞의 답을 갈아치우지 않는다.** 여기서 `finalOut` 을 바로 덮었더니 회귀 11건이 물었다 —
+    // 모델이 손을 **안 고르면** 이 되부름의 문장이 원래 답을 밀어내고, 출구 그물이 보는 대상이
+    // 바뀌어 진단(`출구그물`)도 되돌림 재료도 사라졌다. 이 조항이 하는 일은 *행동을 여는 것*
+    // 하나뿐이다 — **말은 건드리지 않는다.** 그래서 스트리밍도 안 붙인다(버릴 문장을 사용자
+    // 화면에 흘리면 앞 답에 이어붙는다 · 실측으로 물었다).
+    // **그물이 찢어졌다고 지나가던 것을 버리지 않는다**(출구검증과 같은 규율). 이 왕복이
+    // 터지면 멀쩡한 답이 통째로 "연결이 잠시 끊겼어요"가 된다 — 회귀가 그것을 물었다.
+    const 되부름 = await ctx.model.respond({
+      ...tc, completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
+    }, { search: wantedWeb, effort: 'medium', tools: 손들 }).catch(() => null);
+    // **통제 호출은 「되게 만든 것」이 아니다.** 제안·기억 같은 통제 채널만 다시 내는 것은
+    // 원장의 미달을 하나도 못 채우면서 **부작용(새 후보 등록)은 만든다** — 회귀가 물었다
+    // (자동화 제안 대본이 되부름에서 후보를 하나 더 내 앞의 후보가 낡아 404 가 났다).
+    // 이 조항이 여는 것은 **작업 걸음**뿐이고, 그것이 없으면 앞의 답 그대로 끝난다.
+    const 고른것 = splitModelControlCalls(typeof 되부름 === 'string' ? [] : (되부름?.toolCalls ?? [])).rest;
+    if (!고른것.length) return false;                                  // 안 골랐다 — 앞의 답 그대로
+    if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) return false;
+    finalOut = 되부름;
+    return true;
+  };
   // ── 모델이 낸 호출은 **하나도 합치지 않고 하나도 버리지 않는다** ─────────────
   //
   // S1 실모델 실측(2026-08-04, 회차 6): 모델이 한 응답에 `local.file move` 를 다섯 개 냈는데
@@ -2688,6 +2763,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 손을 썼는데 막힌 채이거나 빈손으로 끝나려 하고, **아직 안 써 본 손이 남았다** —
         // 원장 사실을 주고 손 전량을 그대로 되돌려 한 번 더 고르게 한다(P6-L ③).
         if (await 다른손이어가기()) continue;
+        // 답은 다 썼는데 **원장이 그 완료를 뒷받침하지 않는다** — 출구에서 말만 고치게 하지
+        // 말고, 손이 살아 있는 여기서 되게 만들 기회를 준다(마지막 조항 · PM 2026-08-11).
+        if (await 완료검증이어가기()) continue;
         break;
       }
       대기호출.push(...줄세우기(next));

@@ -58,12 +58,43 @@ const ctx = (model, 손) => ({ env: demoEnv(), model, tools: demoTools({ localTe
 //
 // 상한을 **없애는 것이 아니다.** 무한 루프 방지는 그대로 두고, "정직한 목적 하나"가
 // 상한에 걸리지 않게 한다. 20걸음은 지어낸 값이 아니라 비교군의 실측 하한이다.
+/** 환경으로 한 축만 열어 두고 재는 자리. 다른 축이 대신 물면 무엇을 쟀는지 모른다. */
+async function 축하나만열고(env, 일) {
+  const 원래 = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try { return await 일(); } finally {
+    for (const [k, v] of Object.entries(원래)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+}
+
 test('한 목적이 스무 걸음이면 스무 걸음을 간다 — 6·12 에 걸려 사람에게 넘기지 않는다', async () => {
+  // **재는 축을 하나로 세운다.** 이 대본이 쓰는 `local.terminal` 은 손 선언이
+  // `reversible: false` 라 **되돌릴 수 없는 실행 뒷단(그밖 3)** 이 세 걸음째에 먼저 문다.
+  // 그건 걸음·왕복과 다른 축(안전 뒷단)이고 이 단위가 건드리는 자리가 아니다 —
+  // 여기서 열어 두지 않으면 ①② 를 고쳐도 3에서 잘려 **무엇을 쟀는지 모르게 된다.**
+  // (그 축 자체는 아래 검사가 사실로 못 박는다.)
   const 손 = 기록하는손();
-  const 스물 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
-  await runTurn({ text: '끝까지 해줘' }, ctx(걸음마다(스물), 손));
+  await 축하나만열고({ GPAO_T5_TURN_IRREVERSIBLE: '999' }, async () => {
+    const 스물 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+    await runTurn({ text: '끝까지 해줘' }, ctx(걸음마다(스물), 손));
+  });
   assert.equal(손.불린것.length, 20,
     `**${손.불린것.length}걸음에서 잘렸다** — 모델은 다음 걸음을 알고 있는데 런타임이 아끼게 만든다`);
+});
+
+// **발견을 사실로 남긴다**(고치지 않는다 · 범위 밖). 오너가 특정한 넷 말고 다섯 번째 축이
+// 있다: 손 선언이 `reversible:false` 인 손(터미널)은 **한 턴에 세 걸음**이 끝이다. 그 축은
+// 「승인받은 되돌릴 수 없는 실행」을 세려던 자리인데 실제로는 **손 선언**으로 세므로,
+// probe 가 `changes:false` 로 본 `ls` 도 함께 깎인다. 옛 상한과 같은 종류의 어긋남이지만
+// 안전 뒷단이라 이 단위에서 건드리지 않는다 — 오너 판단으로 올린다.
+test('발견: 터미널 turn 은 그밖 3 이 먼저 문다 — 이 단위가 고친 축이 아니다', async () => {
+  const 손 = 기록하는손();
+  const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+  await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
+  assert.equal(손.불린것.length, 턴예산({}).그밖,
+    `그밖 축의 사실이 바뀌었다(${손.불린것.length}) — 안 건드린 자리가 움직였으면 그것부터 본다`);
 });
 
 test('왕복 예산이 비교군 하한(20)을 담는다 — 비용 축은 예산 한 곳이다', () => {
@@ -136,8 +167,9 @@ test('보안 칸은 자동에서 빠진다 — 헌장 ①(비밀값은 사람만
 });
 
 test('탐침이 그 창의 요소 목록을 못 읽었으면 카드다 — 모름은 자동이 아니다', () => {
+  // 못 찾음 · 돌려 본 사실 없음 — 둘 다 「무엇에 넣는지 모른다」이고, 모름은 확인 쪽이다.
   assert.equal(decideAutoGrant({ kind: 등급({ action: 'type', 대상: { label: '검색창' }, 값: 'x', 눌러본사실: { 찾음: false } }) }), false);
-  assert.equal(등급({ action: 'type', 대상: { label: '검색창' }, 값: 'x' }), UNKNOWN_KIND,
+  assert.equal(decideAutoGrant({ kind: 등급({ action: 'type', 대상: { label: '검색창' }, 값: 'x' }) }), false,
     '돌려 본 사실이 아예 없는데 자동으로 흘렀다');
 });
 
@@ -181,4 +213,71 @@ test('탐침은 보안 칸을 「찾음」으로 내주지 않는다 — 자동�
   assert.notEqual(눌러본사실?.찾음, true,
     `**보안 칸이 「찾음」으로 나온다** — 자동 조건의 재료가 그대로 선다: ${JSON.stringify(눌러본사실)}`);
   assert.equal(decideAutoGrant({ kind: 등급({ action: 'type', 대상: { id: 's1:3' }, 값: 'x', 눌러본사실 }) }), false);
+});
+
+// ── ⑤ **목표가 안 섰으면 손을 쥔 채 되돌아간다** (PM 지시 2026-08-11) ──────────
+//
+// T5 의 완료 검증은 **출구**에 하나뿐이었고, 출구 되부름은 `answerOnly` 라 손이 없다.
+// `turn.js:138` 이 그 대가를 이미 적어 뒀다 — **발화 2/2 · 행동 0/2.** 그물이 정확히
+// 물었는데 모델이 할 수 있는 것은 말을 고치는 것뿐이었다.
+// 비교군(Hermes `verification_stop`)의 축은 *"목표 미달이면 완성된 답을 억누르고 **손을
+// 쥔 채** 루프로 되돌아간다"* 이고, 우리는 자를 이미 갖고 있었다 — 자리가 밖이었을 뿐이다.
+/** 손을 한 걸음 쓰고 나서 **원장에 없는 완료**를 주장하는 대본. 그물이 물어야 하는 자리다. */
+function 거짓완료대본({ 되부름답 }) {
+  const 받은문맥 = [];
+  let 차례 = 0;
+  return {
+    받은문맥,
+    model: {
+      async respond(tc, opts = {}) {
+        받은문맥.push({ mismatch: tc?.completionMismatch?.사실 ?? null, 손수: opts.tools?.length ?? 0 });
+        차례 += 1;
+        if (차례 === 1) return { text: '', toolCalls: [명령('ls')] };   // 한 걸음은 실제로 쓴다
+        if (tc?.completionMismatch) return 되부름답(opts);
+        return { text: '파일 50개를 다 옮겼어요.', toolCalls: [] };      // 원장에 이동 0
+      },
+    },
+  };
+}
+
+test('원장이 완료를 안 받쳐 주면 손을 다시 준다 — 말만 고치게 두지 않는다', async () => {
+  const 손 = 기록하는손();
+  let 손받았나 = false;
+  const 대본 = 거짓완료대본({
+    되부름답: (opts) => {
+      if (opts.tools?.length) { 손받았나 = true; return { text: '', toolCalls: [명령('pwd')] }; }
+      return { text: '옮기지 못했어요.', toolCalls: [] };
+    },
+  });
+  await runTurn({ text: '파일 옮겨줘' }, ctx(대본.model, 손));
+  const 되부름 = 대본.받은문맥.filter((x) => x.mismatch);
+  assert.ok(되부름.length, '**원장이 안 받쳐 주는 완료 주장인데 되부름이 아예 없다**');
+  assert.ok(되부름.some((x) => x.손수 > 0),
+    `**되부름에 손이 하나도 없다**(${JSON.stringify(되부름)}) — 말만 고치고 행동은 못 고친다(발화 2/2 · 행동 0/2)`);
+  assert.equal(손받았나, true);
+  assert.ok(손.불린것.includes('pwd'), `되부름이 고른 걸음이 실행되지 않았다: ${JSON.stringify(손.불린것)}`);
+});
+
+test('되부름에 손을 줘도 안 고르면 그대로 끝난다 — 강제가 아니다', async () => {
+  const 손 = 기록하는손();
+  const 대본 = 거짓완료대본({ 되부름답: () => ({ text: '실제로는 못 옮겼어요.', toolCalls: [] }) });
+  const r = await runTurn({ text: '파일 옮겨줘' }, ctx(대본.model, 손));
+  assert.deepEqual(손.불린것, ['ls'], '안 고른 걸음이 실행됐다 — requiredTool 을 쓰면 안 된다');
+  assert.equal(r.kind, 'reply');
+});
+
+test('원장이 완료를 받쳐 주면 되부르지 않는다 — 멀쩡한 턴에 왕복을 붙이지 않는다', async () => {
+  const 받은문맥 = [];
+  let 차례 = 0;
+  const 손 = 기록하는손();
+  const 모델 = {
+    async respond(tc) {
+      받은문맥.push(Boolean(tc?.completionMismatch));
+      차례 += 1;
+      if (차례 === 1) return { text: '', toolCalls: [명령('ls')] };
+      return { text: '목록 봤어요.', toolCalls: [] };
+    },
+  };
+  await runTurn({ text: '뭐 있는지 봐줘' }, ctx(모델, 손));
+  assert.ok(!받은문맥.some(Boolean), '실제로 한 일이 있는 턴에 되부름이 붙었다 — 왕복이 그냥 탄다');
 });
