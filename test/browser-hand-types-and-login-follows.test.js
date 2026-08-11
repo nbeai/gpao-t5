@@ -25,6 +25,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import * as 브 from '../src/runtime/browser.js';
 import { makeBrowserActTool, makeBrowserObserveTool } from '../src/runtime/browser-tool.js';
@@ -55,6 +57,8 @@ function 답하기(칸) {
 
 /** 시험은 렌더 정착을 기다릴 필요가 없다 — 기다림은 실기기의 사실이지 계약이 아니다. */
 const 빠르게 = { settleMs: 5, maxWaitMs: 30 };
+/** 영속 프로필 시험 자리 — 임시 뿌리 안에 둔다(오너 자리·/tmp 직할에 안 만든다). */
+const 영속시험자리 = join(tmpdir(), 'gpao-t5-browser-persist-시험');
 
 function 가짜크롬({ 평가 = 답하기() } = {}) {
   const 켠것 = []; const 보낸것 = [];
@@ -199,13 +203,13 @@ test('빨강⑧ 프로필이 둘이다 — 기본은 격리(매번 새 자리), 
   await b1.close();
 
   const 영속 = 가짜크롬({ 평가: () => 화면() });
-  const b2 = makeBrowser({ browserPath: '/bin/chrome', profile: 'persistent', profileDir: '/tmp/t5-persist-시험', ...빠르게, ...영속 });
+  const b2 = makeBrowser({ browserPath: '/bin/chrome', profile: 'persistent', profileDir: 영속시험자리, ...빠르게, ...영속 });
   await b2.open('https://x.example');
   await b2.close();
   await b2.open('https://x.example');
   const 둘 = 영속.켠것.map((p) => p.args.find((a) => a.startsWith('--user-data-dir=')));
   assert.equal(둘[0], 둘[1], '영속 프로필인데 자리가 매번 바뀐다 — 로그인이 안 따라온다');
-  assert.equal(둘[0], '--user-data-dir=/tmp/t5-persist-시험');
+  assert.equal(둘[0], `--user-data-dir=${영속시험자리}`);
   assert.equal(b2.profileKind(), 'persistent');
   // 영속은 **헤드리스가 아니다** — 사람이 한 번 로그인해야 남는다.
   assert.ok(!영속.켠것[0].args.includes('--headless=new'), '영속 프로필을 헤드리스로 열면 사람이 로그인할 수 없다');
