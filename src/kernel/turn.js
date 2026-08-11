@@ -2691,11 +2691,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
   대기호출.push(...줄세우기(첫응답나머지));
 
+  // ── **큐 잔여 중에 온 응답의 호출은 증발하지 않는다** (F-68 · 반대시험 ⑤ · 2026-08-12) ──
+  //
+  // 재현(결정적 · `걸음증발-재현프로브.mjs` MODE=early): read 3건 배치의 첫 걸음(계획 레인)
+  // 뒤 재호출이 write 를 냈는데, 큐(첫응답나머지)에 read 2건이 남아 있어 그 응답은 루프
+  // 머리(분리→줄세우기)에 닿기 전이었다. 큐가 비는 순간 아래 바닥 재호출이 `finalOut` 을
+  // **덮어써서** write 가 실행도 카드도 blocked 영수증도 없이 사라졌다 —
+  // 「걸음은 증발하지 않는다 — 실행되거나, 카드가 뜨거나, 사유가 남는다」의 위반(F-20 계열).
+  //
+  // 수리는 새 그물이 아니라 **있는 길로 잇는 것**이다: 루프 머리가 아직 안 걷은 응답이면
+  // 바닥에서 다시 부르지 않는다. 그러면 다음 반복의 머리가 그 응답을 정상 경로(분리→통제
+  // 채널→줄세우기→기존 판정·승인·원장)로 걷는다 — paced 재현이 이미 증명한 그 관통이다.
+  let 걷은응답 = null;
+  const 안걷은호출남았나 = () => 걷은응답 !== finalOut && typeof finalOut !== 'string'
+    && splitModelControlCalls(finalOut?.toolCalls ?? []).rest.length > 0;
+
   while (!예산소진(쓴것(), 예산)) {
     if (!대기호출.length) {
       // 걸음도 같은 분리 경계를 지난다 — 통제 호출은 걸음이 아니다(실행·승인·원장에 안 탄다).
       // executePlan 은 결과를 직접 못 돌려주므로 ctx 로 실어 나른다.
       const 분리 = splitModelControlCalls(typeof finalOut === 'string' ? [] : (finalOut?.toolCalls ?? []));
+      걷은응답 = finalOut;   // 이 응답은 지금 이 자리가 걷는다 — 바닥 재호출이 덮어써도 된다
       ctx.collectWorkState?.(분리);
       if (분리.memorySuggestion) ctx.제안된기억 = 분리.memorySuggestion;
       if (분리.skillProposal) ctx.제안된스킬 = 분리.skillProposal;
@@ -2839,7 +2855,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       });
       // **줄이 남았으면 모델을 다시 부르지 않는다.** 모델은 이미 다음에 할 것을 골라 놨다 —
       // 여기서 되물으면 왕복 하나를 쓰고 그 사이 골라 둔 호출이 이번 응답에 덮인다.
-      if (!대기호출.length) {
+      // **안 걷은 응답도 덮지 않는다**(F-68) — 다음 반복의 머리가 그 호출들을 걷는다.
+      if (!대기호출.length && !안걷은호출남았나()) {
         finalOut = await ctx.model.respond(tc, {
           onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
           ...(예산소진(쓴것(), 예산) ? {} : { tools: modelSchemasFor(selfState, ctx.modelControls) }),
@@ -3112,7 +3129,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     });
     // **줄에 남은 것을 먼저 다 걷는다.** 모델이 한 응답에 다섯을 냈으면 다섯을 다 하고 묻는다 —
     // 하나 하고 되물으면 왕복 다섯 번이 되고, 그게 437개 앞에서 상한 6과 곱해져 벽이 됐다.
-    if (!대기호출.length) {
+    // **큐가 도는 동안 온 응답(안 걷은 호출)도 여기서 덮지 않는다**(F-68 · 반대시험 ⑤) —
+    // 다음 반복의 머리가 분리→줄세우기로 걷어 기존 판정·승인·원장을 그대로 태운다.
+    if (!대기호출.length && !안걷은호출남았나()) {
       finalOut = await ctx.model.respond(tc, {
         onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
         // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
