@@ -769,6 +769,27 @@ async handler(args) {
       } catch { 전 = null; }
       if (Array.isArray(마지막본것?.elements)) 지금요소 = 마지막본것.elements;
 
+      // **모델이 보낸 대상과 실제 실행 대상은 다르다**(F-113 접착 계약).
+      // 모델의 원래 args 에는 창·pid 가 없을 수 있다. 손은 실행 직전 fresh 관찰에서 그 값을
+      // 채우지만, 그 사실을 결과에 남기지 않으면 ToolRunner/Receipt는 다시 원래 args만 보고
+      // 어느 창의 어느 요소에 나갔는지 잃는다. raw 드라이버 답이나 snapshot token을 싣지 않고,
+      // 같은 관찰에서 나온 안정축만 `실행신분` 한 모양으로 남긴다.
+      const 실행요소 = 신분찾기(마지막본것?.elements ?? [], args?.대상);
+      const 신분정수 = (값) => 값 !== null && 값 !== undefined && 값 !== ''
+        && Number.isInteger(Number(값)) && Number(값) > 0 ? Number(값) : null;
+      const 실행창 = 신분정수(실행요소?.창 ?? 마지막본것?.본창?.id);
+      const 실행pid = 신분정수(실행요소?.pid ?? 마지막본것?.본창?.pid);
+      const 요소신분 = 실행요소 ? {
+        ...(실행요소.번호 != null && Number.isInteger(Number(실행요소.번호))
+          ? { 번호: Number(실행요소.번호) } : {}),
+        ...(String(실행요소.role ?? 실행요소.type ?? '').trim()
+          ? { 역할: String(실행요소.role ?? 실행요소.type).trim() } : {}),
+        ...(String(실행요소.label ?? '').trim() ? { label: String(실행요소.label).trim() } : {}),
+      } : null;
+      const 실행신분 = 실행창 != null && 실행pid != null
+        ? { 창: 실행창, pid: 실행pid, ...(요소신분 && Object.keys(요소신분).length ? { 요소: 요소신분 } : {}) }
+        : null;
+
       // **실행 직전 fresh 관찰이 비면 옛 신분과 섞지 않는다**(F-113 실물 Calculator).
       // 같은 창을 연속 관찰해도 AX 요소가 한 번 보였다가 다음 호출부터 `[]` 가 될 수 있다.
       // 앞 관찰의 id/토큰을 모델 인자에서 되살려 실행하면 어느 스냅샷의 무엇을 눌렀는지
@@ -796,7 +817,7 @@ async handler(args) {
         // 우리가 방금 다시 본 화면에 그 신분이 있다 — 여기서 채운다.
         // **신분은 한 자리에서만 만든다**(계열 A · `desktop-identity.js`).
         // 조각을 여기서 따로 집다가 토큰·스냅샷 회차가 어긋났고, 그러면 아무 데도 안 눌린다.
-        const 관찰것 = 신분찾기(지금요소, args?.대상);
+        const 관찰것 = 실행요소;
         낸것 = await 드라이버.act({
           // 글자 넣기는 **요소에 직접**(계열 G) — 위 가드가 신분을 이미 확인했다.
           행동: 행동 === 'type' ? 'set_value' : 행동,
@@ -846,7 +867,7 @@ async handler(args) {
           return {
             failed: true,
             userSafeSummary: `그렇게 하지 못했어요 — ${답읽기.근거}`,
-            진행: { 단계: 'dispatched', 판정: 'refused', 근거: 답읽기.근거, 전 },
+            진행: { 단계: 'dispatched', 판정: 'refused', 근거: 답읽기.근거, 전, ...(실행신분 ? { 실행신분 } : {}) },
             다음수단: [
               { 방법: 'observe', 왜: '지금 화면을 다시 보고 무엇을 짚을지 정한다' },
               ...(요소짚는것.has(행동) && !눈으로짚음
@@ -886,7 +907,7 @@ async handler(args) {
               진행: {
                 단계: 'dispatched', 판정: 'unsatisfied',
                 근거: `드라이버는 확인(${낸것.근거})했는데 재관측이 어긋난다`,
-                전, 후: 후확인,
+                전, 후: 후확인, ...(실행신분 ? { 실행신분 } : {}),
               },
               다음수단: [
                 { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
@@ -897,6 +918,7 @@ async handler(args) {
           return {
             result: {
               단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후: 후확인,
+              ...(실행신분 ? { 실행신분 } : {}),
               // **무엇으로 확인했는지 한 칸에 다 적는다.** 「드라이버가 그렇게 말했다」와
               // 「우리가 다시 봐서 그랬다」는 세기가 다르고, 원장은 그 차이를 알아야 한다.
               확인방법: 후도달 === true
@@ -963,6 +985,7 @@ async handler(args) {
         return {
           result: {
             단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 확인방법: '드라이버가 낸 답',
+            ...(실행신분 ? { 실행신분 } : {}),
             ...(글 !== null ? { 글 } : {}),
             ...(낸것?.waited_s != null ? { 기다린초: 낸것.waited_s } : {}),
           },
@@ -1013,6 +1036,7 @@ async handler(args) {
           return {
             result: {
               단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전,
+              ...(실행신분 ? { 실행신분 } : {}),
               확인방법: `드라이버 판정(verify_state${답?.근거 ? `·${답.근거}` : ''})`,
               ...(전앞창 && 뒤앞창 && 전앞창 !== 뒤앞창 ? { 앞창바뀜: true, 앞창: 뒤앞창 } : {}),
             },
@@ -1023,7 +1047,7 @@ async handler(args) {
           return {
             failed: true,
             userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
-            진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전 },
+            진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, ...(실행신분 ? { 실행신분 } : {}) },
             다음수단: [
               { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
               { 방법: 'retry', 왜: '반영이 늦었을 수 있다' },
@@ -1037,6 +1061,7 @@ async handler(args) {
             단계: 'dispatched',
             ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}),
             판정: 'unknown', 전,
+            ...(실행신분 ? { 실행신분 } : {}),
             ...(순환기대 ? { 근거: 'circular_postcondition' } : 답?.근거 ? { 근거: 답.근거 } : {}),
           },
           // **다시 하라고 권하지 않는다.** 이미 됐을 수 있다.
@@ -1136,7 +1161,7 @@ async handler(args) {
           // 성공을 주장하는 것이 아니다(A14) — 정본 §7 의 `dispatched` 를 그대로 말할 뿐이고,
           // `goal_verified` 가 아니라는 것은 판정과 뒷문장이 함께 말한다.
           userSafeSummary: '했어요. 다만 그 결과를 화면에서 확인하지는 못했어요 — 됐는지 안 됐는지는 모르겠어요.',
-          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후, ...(실행신분 ? { 실행신분 } : {}) },
           // **다시 하라고 권하지 않는다.** 이미 됐을 수 있다.
           다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
         };
@@ -1145,7 +1170,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
-          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후, ...(실행신분 ? { 실행신분 } : {}) },
           다음수단: [
             { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
             { 방법: 'retry', 왜: '앱이 뜨는 데 시간이 걸렸을 수 있다' },
@@ -1156,6 +1181,7 @@ async handler(args) {
         return {
           result: {
             단계: 'goal_verified', 행동, ...(args?.기대?.바깥으로 === true ? { 바깥으로: true } : {}), ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 전, 후,
+            ...(실행신분 ? { 실행신분 } : {}),
             확인방법: Object.keys(후).join('·'),
             // **안 바뀐 것도 사실이다.** 이미 그 상태였다는 것을 숨기면 모델이 자기가 바꾼 줄 안다.
             ...(같은가(전, 후) ? { 이미그상태였다: true } : {}),
@@ -1177,7 +1203,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행 전 상태를 못 찍어서 됐는지 안 됐는지 모르겠어요.',
-          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unknown', 전, 후, ...(실행신분 ? { 실행신분 } : {}) },
           다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],
         };
       }
@@ -1187,7 +1213,7 @@ async handler(args) {
         return {
           failed: true,
           userSafeSummary: '실행은 했는데 화면이 안 바뀌었어요.',
-          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후 },
+          진행: { 단계: 'dispatched', ...(눈으로짚음 ? { 짚은자리: { x: Number(args.대상.x), y: Number(args.대상.y) } } : {}), 판정: 'unsatisfied', 전, 후, ...(실행신분 ? { 실행신분 } : {}) },
           다음수단: [
             { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
             { 방법: 'retry', 왜: '앱이 뜨는 데 시간이 걸렸을 수 있다' },
@@ -1201,6 +1227,7 @@ async handler(args) {
           단계: 'goal_verified',
           행동,
           전, 후,
+          ...(실행신분 ? { 실행신분 } : {}),
           // 무엇을 근거로 됐다고 하는지 함께 낸다 — 이게 없으면 다음 사람이 이 성공을 못 믿는다.
           확인방법: Object.keys(후).join('·'),
         },

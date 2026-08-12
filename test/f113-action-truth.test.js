@@ -5,7 +5,7 @@ import { makeDesktopActTool } from '../src/runtime/desktop-act-tool.js';
 import { makeCuaDriver } from '../src/runtime/desktop-cua-driver.js';
 
 const 버튼 = (스냅샷 = 's9') => ({
-  id: 'seven', 토큰: `${스냅샷}:7`, 스냅샷, role: 'AXButton', label: '7',
+  id: 'seven', 토큰: `${스냅샷}:7`, 스냅샷, 번호: 7, role: 'AXButton', label: '7',
   창: 813, pid: 18355, isEnabled: true,
 });
 
@@ -22,11 +22,17 @@ test('행동과 verify는 마지막 fresh 관찰의 같은 창·pid를 쓴다', 
     act: async () => ({ effect: 'unverifiable' }),
     verify: async (기대) => { 검증.push(기대); return { 판정: 'satisfied', 근거: 'value_readback' }; },
   };
-  const r = await makeDesktopActTool({ drivers: [d] }).handler({
-    action: 'click', app: '계산기', 대상: { id: 'seven', label: '7' },
+  const 원래args = {
+    action: 'click', app: '계산기', 창제목: '계산기', 대상: { id: 'seven', label: '7' },
     기대: { 요소: 'display', 값: '56' },
-  });
+  };
+  const r = await makeDesktopActTool({ drivers: [d] }).handler(원래args);
   assert.equal(r.result?.단계, 'goal_verified');
+  assert.equal(원래args.window, undefined, '모델 원래 args에 창을 역기록했다');
+  assert.equal(원래args.대상.pid, undefined, '모델 원래 args에 pid를 역기록했다');
+  assert.deepEqual(r.result?.실행신분, {
+    창: 813, pid: 18355, 요소: { 번호: 7, 역할: 'AXButton', label: '7' },
+  });
   assert.equal(검증.length, 1);
   assert.equal(검증[0].창, 813);
   assert.equal(검증[0].pid, 18355);
@@ -51,13 +57,19 @@ test('누른 버튼 자체의 존재는 순환 사후조건이라 목적 성공�
         : { 판정: 'unknown', 근거: 'no_selector', 그림: { mime: 'image/png', base64: 'A'.repeat(200) } };
     },
   };
-  const r = await makeDesktopActTool({ drivers: [d] }).handler({
-    action: 'click', app: '계산기', 대상: { id: 'seven', label: '7' },
+  const 원래args = {
+    action: 'click', app: '계산기', 창제목: '계산기', 대상: { id: 'seven', label: '7' },
     기대: { 요소: 'seven', 값: '7' },
-  });
+  };
+  const r = await makeDesktopActTool({ drivers: [d] }).handler(원래args);
   assert.equal(r.result, undefined, '버튼 존재가 클릭 목적 성공이 됐다');
   assert.equal(r.진행?.판정, 'unknown');
   assert.equal(r.진행?.근거, 'circular_postcondition');
+  assert.deepEqual(r.진행?.실행신분, {
+    창: 813, pid: 18355, 요소: { 번호: 7, 역할: 'AXButton', label: '7' },
+  });
+  assert.equal(원래args.대상.창, undefined);
+  assert.equal(원래args.대상.pid, undefined);
   assert.equal(검증[0].라벨, undefined, '순환 요소를 exists 술어로 보냈다');
   assert.ok(r.그림, 'unknown의 visual evidence가 다음 판단으로 가지 않는다');
 });
