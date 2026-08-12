@@ -185,7 +185,7 @@ test('서버: /model/connections 목록·전환·바인딩·삭제가 HTTP 로 �
   await mc.connect({ provider: 'beai', key: 'beai_sk_http' });
   await mc.connect({ provider: 'gemini', key: 'g_key_http' });
   const server = makeServer({ store: new SessionStore(dir), env, model: mc.model, modelConnection: mc, modelDoctor: () => mc.doctor() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (p, body) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   try {
@@ -210,7 +210,7 @@ test('서버: /model/connections 목록·전환·바인딩·삭제가 HTTP 로 �
 test('서버: 연결 관리자 미배선(demo)이면 목록은 빈 값, 변경은 400', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-multisrv2-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     assert.deepEqual((await (await fetch(`${base}/model/connections`)).json()).connections, []);

@@ -34,7 +34,173 @@ test('evidenceFacts 는 userSafeSummary 만 담고 diagnosticTrace 를 담지 �
     userSafeSummary: '공개 자료로 확인', diagnosticTrace: { stack: 'secret' },
   }];
   const tc = buildTaskContext({ intent, selfState, receipts });
-  const json = JSON.stringify(tc.evidenceFacts);
+  // 성공한 실행은 교환으로 간다 — 진단면 비노출 계약은 **어느 자리로 가든** 그대로다.
+  const json = JSON.stringify([tc.evidenceFacts, tc.turnExchange]);
   assert.match(json, /공개 자료로 확인/);
   assert.doesNotMatch(json, /secret|stack/);
+});
+
+test('실패한 호출의 절대 경로는 실행 사실로 승격되거나 원문 재공급되지 않는다', () => {
+  const intent = interpret('다운로드에 뭐 있어?');
+  const tc = buildTaskContext({ intent, selfState, receipts: [{
+    intended: '파일 목록',
+    actualCall: { tool: 'local.file', args: { action: 'list', path: '/Users/someone/Downloads' } },
+    failureState: 'blocked', userSafeSummary: '그 자리는 확인하지 못했어요.',
+  }] });
+  // S1 슬라이스는 실패한 호출의 **자리**를 서술→교환으로 옮긴다(계약 ②). 옮겨도 이 성질은
+  // 그대로다 — 확인되지 않은 절대 경로는 어느 자리에서도 원문으로 재공급되지 않는다.
+  const 실패기록 = tc.evidenceFacts?.[0] ?? tc.turnExchange?.[0];
+  assert.ok(실패기록, '실패 사실이 어느 자리에도 없다');
+  assert.equal(실패기록.calledWith, undefined, '실패한 인자를 실행 사실 칸에 넣었다');
+  assert.match(JSON.stringify(실패기록), /확인되지 않은 절대 경로/);
+  assert.doesNotMatch(JSON.stringify(tc), /\/Users\/someone/);
+});
+
+// ── C 감사 F4.2 · 파일 본문의 줄 구조를 모델 입력에서 지우지 않는다 ───────
+// 실측(감사 2026-08-01): local.file read 결과가 ③ JSON 갈래로 떨어져 \s+ 접기에
+// 줄바꿈이 전부 사라졌다 — CSV·정산표의 행 경계를 모델이 근거 없이 재구성해야 했다.
+test('F4.2: 파일 읽기 결과는 줄 구조를 보존해 모델에 간다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 파일결과 = { path: '/자리/정산.csv', text: '항목,금액\n임대료,500000\n전기요금,120000\n', bytes: 40 };
+  const 요약 = compactResult(파일결과);
+  assert.match(요약, /임대료,500000\n전기요금,120000/,
+    `줄 경계가 사라졌다 — 행 재구성은 근거 없는 추측이 된다: ${JSON.stringify(요약)}`);
+});
+
+test('F4.2: 긴 파일은 접되, 접었다는 표식과 앞뒤가 남는다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 줄들 = Array.from({ length: 200 }, (_, i) => `${i}행,${i * 1000}`).join('\n');
+  const 요약 = compactResult({ path: '/자리/큰표.csv', text: 줄들, bytes: 줄들.length });
+  assert.ok(요약.length < 1500, '접기가 안 됐다 — 프롬프트를 삼킨다');
+  assert.match(요약, /생략/, '접었다는 표식이 없다 — 모델이 전부 본 줄 안다');
+  assert.match(요약, /0행,0/, '앞부분이 사라졌다');
+  assert.match(요약, /199행,199000/, '결론(뒷부분)이 통째로 사라졌다');
+});
+
+test('bulk_move 결과는 수백 경로 배열 대신 다음 판단 요약으로 간다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const moved = Array.from({ length: 120 }, (_, i) => ({
+    from: `/Downloads/a${i}.pdf`,
+    to: `/Downloads/정리됨/문서/a${i}.pdf`,
+  }));
+  const 요약 = compactResult({
+    from: '/Downloads',
+    to: '/Downloads/정리됨/문서',
+    moved,
+    skipped: [{ from: '/Downloads/이미있음.pdf', reason: 'destination_exists' }],
+  });
+
+  assert.match(요약, /bulk 이동: 120개/);
+  assert.match(요약, /건너뜀: 1개/);
+  assert.ok(요약.length < 600, `대량 경로 배열이 그대로 들어갔다: ${요약.length}자`);
+  assert.doesNotMatch(요약, /a119\.pdf/, '긴 이동 목록의 꼬리가 모델 입력을 삼킨다');
+});
+
+test('bulk_move 실행 합계는 최종 답이 어림하지 않도록 별도 사실로 선다', () => {
+  const intent = interpret('다운로드 정리해줘');
+  const receipts = [
+    {
+      intended: '문서 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '3개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/정리/문서',
+        moved: [{}, {}, {}],
+        skipped: [{}],
+      },
+    },
+    {
+      intended: '이미지 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '2개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/정리/이미지',
+        moved: [{}, {}],
+        skipped: [],
+      },
+    },
+    {
+      intended: '남은 항목 확인',
+      actualCall: { tool: 'local.file', args: { action: 'list', path: '/Downloads' } },
+      failureState: 'none',
+      userSafeSummary: '3개를 찾았어요.',
+      result: {
+        path: '/Downloads',
+        items: [
+          { name: '정리', kind: 'folder' },
+          { name: '남은앱.dmg', kind: 'file' },
+          { name: '애매한파일.bin', kind: 'file' },
+          { name: '또다른앱.dmg', kind: 'file' },
+        ],
+      },
+    },
+  ];
+  const tc = buildTaskContext({ intent, selfState, receipts });
+
+  assert.deepEqual(tc.verifiedExecutionFacts.bulkMove, {
+    calls: 2,
+    moved: 5,
+    skipped: 1,
+    remainingSources: [
+      {
+        path: '/Downloads',
+        items: 4,
+        files: 3,
+        folders: 1,
+        topExtensions: [
+          { ext: '.dmg', count: 2 },
+          { ext: '.bin', count: 1 },
+        ],
+      },
+    ],
+    destinations: [
+      { to: '/Downloads/정리/문서', moved: 3 },
+      { to: '/Downloads/정리/이미지', moved: 2 },
+    ],
+  });
+});
+
+test('bulk_move 뒤 별도 list 가 없어도 남은 루트 분포가 판단 사실으로 선다', () => {
+  const intent = interpret('다운로드 정리해줘');
+  const receipts = [
+    {
+      intended: '백업 이동',
+      actualCall: { tool: 'local.file', args: { action: 'bulk_move' } },
+      failureState: 'none',
+      userSafeSummary: '11개를 옮겼어요.',
+      result: {
+        from: '/Downloads',
+        to: '/Downloads/backup',
+        moved: Array.from({ length: 11 }, () => ({})),
+        skipped: [],
+        remainingSource: {
+          path: '/Downloads',
+          items: 349,
+          files: 340,
+          folders: 9,
+          topExtensions: [
+            { ext: '.pdf', count: 80 },
+            { ext: '.jpg', count: 44 },
+          ],
+        },
+      },
+    },
+  ];
+  const tc = buildTaskContext({ intent, selfState, receipts });
+  assert.deepEqual(tc.verifiedExecutionFacts.bulkMove.remainingSources, [
+    {
+      path: '/Downloads',
+      items: 349,
+      files: 340,
+      folders: 9,
+      topExtensions: [
+        { ext: '.pdf', count: 80 },
+        { ext: '.jpg', count: 44 },
+      ],
+    },
+  ]);
 });

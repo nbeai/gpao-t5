@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-retest-qualification-20260811-02",
+  "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-harness-qualification-NlxtDR",
+  "recordedAt": "2026-08-11T00:41:02.705Z"
+}

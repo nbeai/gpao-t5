@@ -26,6 +26,29 @@ export function defineConnector(p) {
     kind: p.kind ?? 'channel',
     authState: p.authState ?? 'none',
     connected: p.connected ?? false,
+    // ── P5-B-0 진실층 최소판 ───────────────────────────────────────────────
+    // **커넥터는 자기만 아는 것을 든다**: 이 서비스가 무엇이고, 어떤 연결·자격·설정이 필요한가.
+    // 도구 목록과 승인 정책은 **여기 두지 않는다** — 도구 층(ToolDescriptor·handler·
+    // toolActionKind·needsApproval)에서 파생한다. 양쪽에 두면 승인의 진실이 둘이 되고,
+    // 그게 이 층을 만든 이유 그 자체다(2026-07-27 하루에 두 진실 사고가 세 번 났다).
+    category: p.category,               // 'channel' | 'mail' | 'commerce' | 'calendar' …
+    // **사용자가 부르는 말.** 말귀가 별도 목록을 들면 커넥터가 늘 때 또 어긋난다 —
+    // 커넥터가 자기 별칭을 든다(P5-B-0.5).
+    aliases: p.aliases ?? [],
+    userJobs: p.userJobs ?? [],          // 사용자 말로 "이걸로 뭘 할 수 있나"
+    requiredSetup: p.requiredSetup ?? [],// 연결 전에 사용자가 갖춰야 하는 것(사람 말)
+    scopes: p.scopes ?? [],              // 요청할 권한 범위
+    limits: p.limits ?? [],              // 이 서비스로도 못 하는 것(정직한 한계)
+    setupGuide: p.setupGuide,            // 연결 방법 한 줄(사람 말)
+    // P5-B-1A: 이 컴퓨터에서 T5 가 **직접 확인할 수 있는** 흔적 선언(동기화 폴더·MCP 설정·
+    // CLI·앱·인증 파일의 존재). 확인은 러너(local-signs.js)가 하되 러너는 서비스를 모른다 —
+    // 서비스 지식은 이 선언에만 산다(previewOf·subjectOf 와 같은 계약 패턴).
+    localSigns: p.localSigns,
+    // P5-B-1B: **연결 방식 선언.** 실행기는 kind 만 안다 — 서비스 지식은 여기에만 산다.
+    authMethods: p.authMethods,
+    localeRelevance: p.localeRelevance,  // 'kr' 등 — 한국 사용자에게 얼마나 가까운가
+    lastCheckedAt: p.lastCheckedAt,      // 마지막 연결 확인 시각(추측 금지)
+    lastError: p.lastError,              // 마지막 실패 이유(사람 말)
   };
 }
 

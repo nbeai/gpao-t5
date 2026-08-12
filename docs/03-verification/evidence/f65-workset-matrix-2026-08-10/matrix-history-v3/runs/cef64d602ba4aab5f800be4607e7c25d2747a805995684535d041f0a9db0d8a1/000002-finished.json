@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "f65-workset-matrix-20260810-v3::L1-workset-settlement--W0P0O0",
+  "attemptId": "8699166d-6354-4e7d-8540-54debe8ff13c",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "7f6a69b60650209aefbdf8473fe6e31a1db7b33710090b353d7d45a84cf4dc39",
+  "recordedAt": "2026-08-10T00:47:12.558Z"
+}

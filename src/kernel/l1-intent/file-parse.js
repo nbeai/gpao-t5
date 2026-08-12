@@ -19,7 +19,7 @@ const ACTION_PATTERNS = [
 ];
 
 // 파일명: 확장자가 있는 토큰(한글 파일명도 받는다). 경로 구분자도 허용.
-const FILE_TOKEN = /(?:^|[\s'"“”‘’(])([^\s'"“”‘’()]+\.[A-Za-z0-9]{1,8})(?=$|[\s'"“”‘’),.])/;
+const FILE_TOKEN = /(?:^|[\s'"“”‘’(])([^\s'"“”‘’()]+\.[A-Za-z0-9]{1,8})(?=(?:을|를|은|는|이|가|에서|으로|로)?(?:$|[\s'"“”‘’),.]))/;
 // 따옴표 안 내용 = 파일에 쓸 내용
 const QUOTED = /['"“”‘’]([^'"“”‘’]{1,4000})['"“”‘’]/;
 
@@ -43,7 +43,9 @@ export function parseFileRequest(text) {
     return { action: 'list', path: named ?? '.' };
   }
 
-  const path = t.match(FILE_TOKEN)?.[1];
+  const pathMatches = [...t.matchAll(new RegExp(FILE_TOKEN.source, 'g'))];
+  const pathMatch = pathMatches[0];
+  const path = pathMatch?.[1];
   if (!path) return { action, ambiguous: true, clarifyReason: 'no_path' };
 
   if (action === 'move') {
@@ -55,9 +57,25 @@ export function parseFileRequest(text) {
   }
 
   if (action === 'write') {
-    const body = t.match(QUOTED)?.[1];
-    if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content' };
-    return { action, path, text: body };
+    const pathStart = pathMatch.index + pathMatch[0].indexOf(path);
+    const pathSpan = { start: pathStart, end: pathStart + path.length };
+    const quotes = [...t.matchAll(new RegExp(QUOTED.source, 'g'))].map((match) => {
+      const start = match.index + match[0].indexOf(match[1]);
+      return { body: match[1], span: { start, end: start + match[1].length } };
+    });
+    const bodyCandidates = quotes.filter(({ span }) => span.end <= pathSpan.start || pathSpan.end <= span.start);
+    const pathProvenance = { source: 'user_utterance', path: pathSpan,
+      pathCount: pathMatches.length, independent: pathMatches.length === 1 };
+    if (bodyCandidates.length > 1) {
+      return { action, path, ambiguous: true, clarifyReason: 'ambiguous_content',
+        provenance: pathProvenance };
+    }
+    const selected = bodyCandidates[0];
+    const body = selected?.body;
+    if (!body) return { action, path, ambiguous: true, clarifyReason: 'no_content',
+      provenance: pathProvenance };
+    return { action, path, text: body,
+      provenance: { ...pathProvenance, text: selected.span } };
   }
 
   return { action, path };

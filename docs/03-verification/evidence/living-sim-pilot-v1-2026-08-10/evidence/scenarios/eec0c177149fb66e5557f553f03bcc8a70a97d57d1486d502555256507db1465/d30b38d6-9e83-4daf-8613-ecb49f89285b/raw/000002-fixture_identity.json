@@ -1,0 +1,62 @@
+{
+  "type": "fixture_identity",
+  "files": [],
+  "web": {
+    "origin": "http://127.0.0.1:65237",
+    "host": "127.0.0.1",
+    "protocol": "http:",
+    "fixtures": [
+      {
+        "path": "/current.html",
+        "sha256": "702f944b9c397ce439f490691a23a434bfbf1ce482af1880e50820ee3d059a20"
+      },
+      {
+        "path": "/future.html",
+        "sha256": "5b4a9c65b7cecb8949e45093e940ed7ba98e09df42593b2e2acf20aa2a05dee5"
+      },
+      {
+        "path": "/old.html",
+        "sha256": "cb71e7683b4e1ad3481ed8a4bc04cd081a349b65e75ca51d82d6a30b72c9cd34"
+      }
+    ]
+  },
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "지금 신청할 수 있는 소상공인 지원이 있는지 이 세 자료를 비교해줘: {{WEB_BASE}}/old.html, {{WEB_BASE}}/current.html, {{WEB_BASE}}/future.html. 나는 1인 공방이고 사업자는 낸 지 2년 됐어.",
+      "rendered": "지금 신청할 수 있는 소상공인 지원이 있는지 이 세 자료를 비교해줘: http://127.0.0.1:65237/old.html, http://127.0.0.1:65237/current.html, http://127.0.0.1:65237/future.html. 나는 1인 공방이고 사업자는 낸 지 2년 됐어.",
+      "baseIdentity": "http://127.0.0.1:65237"
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "마감된 거랑 아직 시작 안 한 건 섞지 말고 나눠줘.",
+      "rendered": "마감된 거랑 아직 시작 안 한 건 섞지 말고 나눠줘."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "지금 가능한 것의 조건과 내가 확인해야 할 걸 쉽게 말해줘.",
+      "rendered": "지금 가능한 것의 조건과 내가 확인해야 할 걸 쉽게 말해줘."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "지원금만 보지 말고 내가 실제로 내야 하는 돈도 알려줘.",
+      "rendered": "지원금만 보지 말고 내가 실제로 내야 하는 돈도 알려줘."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "user_text",
+      "frozen": "어느 자료에서 봤는지 제목과 날짜를 붙여줘.",
+      "rendered": "어느 자료에서 봤는지 제목과 날짜를 붙여줘."
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "user_text",
+      "frozen": "그럼 지금 준비할 것과 9월에 다시 볼 것을 짧게 정리해줘.",
+      "rendered": "그럼 지금 준비할 것과 9월에 다시 볼 것을 짧게 정리해줘."
+    }
+  ]
+}

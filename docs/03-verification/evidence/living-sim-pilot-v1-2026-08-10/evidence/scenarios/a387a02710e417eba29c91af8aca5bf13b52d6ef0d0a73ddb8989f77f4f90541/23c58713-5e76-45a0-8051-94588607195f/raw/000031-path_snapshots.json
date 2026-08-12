@@ -1,0 +1,48 @@
+{
+  "type": "path_snapshots",
+  "protected": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "before": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ],
+    "after": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ]
+  },
+  "sources": {
+    "paths": [
+      "/private/tmp/t5-ls-rc5NHI/fixture/고객_인터뷰.txt",
+      "/private/tmp/t5-ls-rc5NHI/fixture/브랜드_메모.md"
+    ],
+    "before": [
+      {
+        "path": "/private/tmp/t5-ls-rc5NHI/fixture/고객_인터뷰.txt",
+        "digest": "1addce87b59ebfde9ad47c1c6e4a390cb047cc98886aad9bea1fcace16ef6dea"
+      },
+      {
+        "path": "/private/tmp/t5-ls-rc5NHI/fixture/브랜드_메모.md",
+        "digest": "a832be897f571c23b0496d8f8b746550124d77034c407a8c96fd84bf821bc54b"
+      }
+    ],
+    "after": [
+      {
+        "path": "/private/tmp/t5-ls-rc5NHI/fixture/고객_인터뷰.txt",
+        "digest": "1addce87b59ebfde9ad47c1c6e4a390cb047cc98886aad9bea1fcace16ef6dea"
+      },
+      {
+        "path": "/private/tmp/t5-ls-rc5NHI/fixture/브랜드_메모.md",
+        "digest": "a832be897f571c23b0496d8f8b746550124d77034c407a8c96fd84bf821bc54b"
+      }
+    ]
+  },
+  "protectedChanged": [],
+  "sourceChanged": []
+}

@@ -1,0 +1,146 @@
+// P5-B 진입 전 · 승인 카드는 **모델이 보낸 인자가 아니라 해석된 결과**를 보여야 한다.
+//
+// 실측 결함(2026-07-27, 실제 텔레그램 방):
+//   원장 → local.file {"action":"write","path":"GPAO-T5/메모4.md"}
+//   실제 생성 → /Users/jyp/GPAO-T5/GPAO-T5/메모4.md
+//
+// 런타임은 정상이었다(상대 경로를 작업 루트 기준으로 풀었다). 문제는 **승인 카드가 인자를 그대로
+// 실었다**는 것이다. 카드에 `GPAO-T5/메모4.md` 라고만 떠서, 루트 이름이 두 번 들어간 것을
+// 사용자가 누르기 전에 알 길이 없었다. 무엇을 허락하는지 모르는 승인은 승인이 아니다.
+//
+// 전송도 같다. `slack.post`·`telegram.send` 는 계약이 없어 `${라벨} 실행` 으로 떨어졌고,
+// **되돌릴 수 없는 행동**인데 받는 곳도 문면도 안 보였다.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, basename } from 'node:path';
+import { runTurn } from '../src/kernel/turn.js';
+import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
+import { makeChannelSender } from '../src/runtime/channel-sender.js';
+
+const 고른다 = (calls) => {
+  let used = false;
+  return { async respond(_tc, opts = {}) {
+    if (!used && opts.tools?.length) { used = true; return { text: '', toolCalls: calls }; }
+    return opts.tools?.length ? { text: '했어요', toolCalls: [] } : '했어요';
+  } };
+};
+
+async function 작업루트() {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-preview-'));
+  return { dir, tool: makeLocalFileTool({ roots: [dir], dataDir: dir }) };
+}
+
+// ── 실측 결함 재현: 루트 이름이 두 번 ──────────────────────────────────────
+// 자동성 헌장(2026-08-03) 이후 되돌릴 수 있는 쓰기에는 승인 카드가 없다. **재는 결함은 그대로다** —
+// 사용자에게 보이는 자리가 **인자 원문이 아니라 풀린 실제 자리**인가. 그 해석은 도구의
+// `previewOf` 가 소유하므로(`scope: userVisiblePath(abs, roots)`) 관측점을 거기로 옮긴다.
+// 카드가 뜨는 행동(전송)에서는 아래 전송 검사들이 같은 사실을 카드에서 다시 확인한다.
+test('모델이 작업 루트 이름을 경로에 또 넣으면, 실제로 생길 자리를 보여준다', async () => {
+  const { dir, tool } = await 작업루트();
+  const 루트이름 = basename(dir);
+  const p = tool.previewOf({ action: 'write', path: `${루트이름}/메모4.md`, text: '네번째' });
+  // 핵심: **인자 원문**(`<루트이름>/메모4.md`)만 보여주고 끝나면 안 된다.
+  assert.equal(p.scope, `${루트이름}/${루트이름}/메모4.md`,
+    `루트가 두 번 들어간 실제 자리는 보이되 내부 절대 경로는 숨겨야 한다 — 실제: ${p.scope}`);
+  assert.doesNotMatch(p.scope, /^\//);
+});
+
+test('평범한 경우에도 인자가 아니라 풀린 자리를 보여준다', async () => {
+  const { dir, tool } = await 작업루트();
+  const p = tool.previewOf({ action: 'write', path: '메모.md', text: 'ㅎㅇ' });
+  assert.equal(p.scope, `${basename(dir)}/메모.md`);
+  assert.doesNotMatch(p.scope, /^\//, '사용자면에 내부 절대 경로를 노출한다');
+  assert.match(p.impact, /메모\.md/);
+  assert.notEqual(p.impact, '로컬 파일 실행', '도구 이름만 있는 빈 문구는 승인이 아니다');
+});
+
+test('되돌릴 수 있는지를 이 작업에 대해 말한다(휴지통 사실)', async () => {
+  const { tool } = await 작업루트();
+  const p = tool.previewOf({ action: 'delete', path: '회의록.md' });
+  assert.match(p.cancel, /휴지통|되살릴 수 있어요/);
+  assert.doesNotMatch(p.cancel, /되돌릴 수 없/, '되돌릴 수 있는 삭제를 겁주면 안 된다');
+});
+
+test('읽기는 승인 카드가 없으므로 미리보기도 내지 않는다', async () => {
+  const { tool } = await 작업루트();
+  assert.equal(tool.previewOf({ action: 'read', path: 'a.md' }), undefined);
+  assert.equal(tool.previewOf({ action: 'list' }), undefined);
+});
+
+// ── 전송: 되돌릴 수 없다. 받는 곳과 문면이 승인 전에 보여야 한다 ────────────
+test('전송 카드에 받는 곳과 보낼 문면이 그대로 보인다', () => {
+  const sender = makeChannelSender({ channel: 'telegram', token: 't', defaultTarget: '99887' });
+  const p = sender.previewOf({ text: '오늘 정산 끝났습니다' });
+  assert.match(p.impact, /오늘 정산 끝났습니다/, '문면이 안 보이면 무엇을 허락하는지 모른다');
+  assert.match(p.scope, /99887/, '받는 곳이 안 보이면 어디로 가는지 모른다');
+  assert.match(p.cancel, /되돌릴 수 없어요/, '전송을 되돌릴 수 있는 척하면 안 된다');
+});
+
+test('문면을 요약하지 않는다 — 승인한 것과 나간 것이 갈라지면 안 된다', () => {
+  const sender = makeChannelSender({ channel: 'slack', token: 't', defaultTarget: '#general' });
+  const 원문 = '가나다라마바사'.repeat(5);
+  assert.ok(sender.previewOf({ text: 원문 }).impact.includes(원문), '짧은 글은 통째로 보여야 한다');
+});
+
+test('받는 곳이 없으면 있는 척하지 않는다', () => {
+  const sender = makeChannelSender({ channel: 'slack', token: 't' });
+  assert.match(sender.previewOf({ text: '안녕' }).scope, /정해지지 않았어요/);
+});
+
+test('보낼 내용이 없으면 미리보기를 지어내지 않는다', () => {
+  const sender = makeChannelSender({ channel: 'slack', token: 't', defaultTarget: '#a' });
+  assert.equal(sender.previewOf({ text: '   ' }), undefined);
+});
+
+// 실측(오너 라이브 2026-07-28, 웹 화면): 파일 저장 승인 카드를 거절했더니
+//   버튼  → "보내지 마"
+//   응답  → "보내지 않았어요. 초안은 그대로 있어요."
+// 보내는 일이 아니었고 초안도 없었다. 거절 문구가 커널에 한 줄로 박혀 있어서
+// 모든 승인을 전송으로 말한 것이다. 카드는 무엇을 하려는지 정확히 보여줬는데
+// 거절 응답만 다른 세계에 살고 있었다 — 같은 승인에 두 개의 진실.
+//
+// 커널은 무슨 도구였는지 몰라야 한다. 그래서 **도구가 카드에 쓴 자기 말**을 인용한다.
+// 탈것을 파일 쓰기에서 **터미널**로 옮겼다(헌장 2026-08-03). 재는 것은 그대로다 —
+// 거절 문구가 커널 고정 문구가 아니라 **실제로 하려던 일**을 말하는가(원래 결함: 파일 저장을
+// 거절했는데 "보내지 않았어요"라고 했다). 전송으로 바꾸면 이 단언 자체가 무의미해지므로,
+// 전송이 아니면서 여전히 묻는 손이 필요하다: `local.terminal` 은 `reversible:false` 라
+// 헌장 ②(되돌릴 수 없는 파괴)에 걸려 그대로 승인을 받는다.
+test('거절 문구는 실제로 하려던 일을 말한다 — 전부 전송으로 말하지 않는다', async () => {
+  const 지운다 = 'rm -rf 임시폴더';
+  const c = {
+    env: demoEnv(),
+    model: 고른다([{ name: 'local.terminal', args: { command: 지운다 } }]),
+    tools: demoTools({
+      localTerminal: {
+        async probe(command) { return { command, cwd: '/어딘가', changes: true, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+        async handler() { return { result: { stdout: '' }, userSafeSummary: '실행했어요' }; },
+      },
+    }),
+  };
+  const r1 = await runTurn({ text: `${지운다} 해줘` }, c);
+  assert.equal(r1.kind, 'approval', '되돌릴 수 없는 명령은 헌장 ② 라 승인 경계다');
+  const r2 = await runTurn({ reject: r1.pendingId }, c);
+  assert.equal(r2.kind, 'reply');
+  assert.ok(!/보내|초안/.test(r2.reply), `없는 전송을 말했다: ${r2.reply}`);
+  assert.match(r2.reply, /임시폴더|rm/, `무엇을 건너뛰었는지가 없다: ${r2.reply}`);
+});
+
+// 실측(오너 라이브 2026-07-28): 도구는 이미 정확한 문장을 냈는데 카드에는 도구 전체에 붙은
+// 고정 문구(`reversibleNote`)가 떴다. 없던 파일을 만드는 승인에 "휴지통에 남아 되살릴 수
+// 있어요" — 되살릴 원본이 없었다. 같은 카드에 두 개의 진실이 있었고 **덜 아는 쪽이 이겼다.**
+test('카드의 되돌리기 문구는 도구가 이 작업에 대해 낸 문장을 쓴다', async () => {
+  const { explainAuthority } = await import('../src/kernel/l2-plan/authority.js');
+  const r = explainAuthority({
+    kind: 'write', revocable: true,
+    reversibleNote: '휴지통에 남아 "되돌려줘"로 되살릴 수 있어요',
+    preview: { impact: 'x', cancel: '새로 만드는 거예요 — 만든 파일을 휴지통으로 보내요' },
+  });
+  assert.equal(r.reversible, '새로 만드는 거예요 — 만든 파일을 휴지통으로 보내요');
+
+  // 도구가 말이 없으면 기존 문구가 그대로 남는다(고치면서 다른 도구를 벗기지 않는다)
+  const 없을때 = explainAuthority({ kind: 'write', revocable: true, reversibleNote: '휴지통에 남아요' });
+  assert.equal(없을때.reversible, '휴지통에 남아요');
+});

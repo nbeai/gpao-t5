@@ -1,0 +1,318 @@
+// S5-1 · `shownMemoryRefs` — **모델 앞에 실제로 놓인 것만 사실로 남긴다.**
+//
+// 계획 §4.5 는 세 가지를 엄격히 가른다: 보임(사실) · 모델 주장(cite) · 정정 상관(통계).
+// 이 슬라이스는 **첫째 칸 하나**다. 무엇이 렌더됐는지를 그 턴의 신분과 함께 남긴다.
+//
+// 위험은 "기록이 렌더와 갈리는 것"이다. 후보를 세어 넣거나, 관련 없어 안 들어간 기억을
+// 넣거나, 렌더 뒤에 다시 계산해서 다른 답이 나오면 — 그 위에 쌓을 상관·감쇠가 전부 거짓이 된다.
+// 그래서 기록은 **렌더된 그 배열**에서만 나온다.
+//
+// 노출 경계: 내부 ID 는 사용자 답변에도 모델 입력에도 나가지 않는다. 사람이 아는 문장만 간다.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { MemoryStore } from '../src/surface/memory-store.js';
+import { SessionStore } from '../src/surface/session-store.js';
+import { EventLog } from '../src/surface/event-log.js';
+import { makeServer } from '../src/surface/server.js';
+import { demoTools } from '../src/surface/demo-context.js';
+
+const 원리 = '월별 수치 정리를 요청하면 표로 정리한다';
+const 적용사례 = [
+  '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 이거 좀 정리해줘.',
+  '8월 것도. 1350 / 900 / 신규 11 / 이탈 5',
+  '9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2',
+];
+
+/** 승격된 원리 하나 · 승격된 선호 하나 · **렌더되면 안 되는** 후보/관찰. */
+async function 기억심기(mem) {
+  const m = await mem.load();
+  m.promoted = [
+    {
+      candidateId: 'p-원리', kind: 'operating_principle', statement: 원리,
+      principleId: 'p-원리', principleVersion: 2,
+      admitted: true, userConfirmed: true, replayPassed: true,
+      scopeSignals: { appliesWhen: 적용사례, notWhen: [] },
+    },
+    {
+      candidateId: 'pref-보고서', kind: 'preference', statement: '보고서는 짧은 목록으로 정리한다',
+      admitted: true, userConfirmed: true,
+    },
+  ];
+  // 아래 둘은 **어떤 경우에도 렌더되지 않는다** — 후보와 관찰은 영향 0 레인이다.
+  m.candidates = [{
+    candidateId: 'c-후보', kind: 'operating_principle', statement: '월별 수치는 무조건 표로만 낸다',
+    admitted: false, userConfirmed: false, replayPassed: false,
+  }];
+  m.observed = [{ candidateId: 'o-관찰', kind: 'inferred_trait', statement: '숫자를 좋아한다' }];
+  await mem.save(m);
+}
+
+async function 서버세우기() {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-shown-'));
+  const mem = new MemoryStore(dir);
+  const 받은것 = [];
+  const server = makeServer({
+    store: new SessionStore(dir), eventLog: new EventLog(dir), tools: demoTools(),
+    model: { async respond(tc) { 받은것.push(tc); return '정리했어요.'; } },
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (p, b) => fetch(`${base}${p}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b ?? {}),
+  }).then((r) => r.json());
+  return { dir, mem, server, base, post, 받은것 };
+}
+
+const shown = (memory) => memory.shownRefs ?? [];
+
+test('S5-1: 모델 입력에 렌더된 것만 shown 으로 남는다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' });
+
+    // 실제로 모델 앞에 놓인 것.
+    const tc = 받은것.at(-1);
+    // **선호는 발화와 무관하게 실린다**(F-18 · 2026-08-05). 사용자에 대한 사실은 무엇을
+    // 물었느냐로 참·거짓이 되지 않는다. 이 검사가 지키는 것은 그대로다 —
+    // **렌더된 것과 shown 이 같다**(기록만 맞고 렌더가 틀리면 아무 의미가 없다).
+    assert.deepEqual(new Set(tc.admittedContext), new Set([원리, '보고서는 짧은 목록으로 정리한다']),
+      '사례가 맞는 원리와 선호가 함께 렌더된다');
+
+    const 기록 = shown(await mem.load());
+    assert.equal(기록.length, 1, '턴 하나에 기록 하나');
+    assert.deepEqual(new Set(기록[0].refs.map((r) => r.ref)), new Set(['p-원리', 'pref-보고서']),
+      '렌더된 그 항목들만 shown — 렌더와 기록이 어긋나면 인용·정정이 헛돈다');
+  } finally { server.close(); }
+});
+
+test('S5-1: 렌더되지 않은 후보·관찰은 shown 0', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' });
+
+    const 기록된 = shown(await mem.load()).flatMap((x) => x.refs.map((r) => r.ref));
+    assert.equal(기록된.includes('c-후보'), false, '후보는 렌더되지 않으므로 shown 아님');
+    assert.equal(기록된.includes('o-관찰'), false, '관찰 레인도 shown 아님');
+    // 모델 입력에도 없다(이중 확인 — 기록만 맞고 렌더가 틀리면 아무 의미가 없다).
+    const 입력 = JSON.stringify(받은것.at(-1));
+    assert.equal(입력.includes('월별 수치는 무조건 표로만 낸다'), false);
+    assert.equal(입력.includes('숫자를 좋아한다'), false);
+  } finally { server.close(); }
+});
+
+test('S5-1: 관련 없는 요청이면 렌더 0 · shown 0', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '점심 하나만 골라줘' });
+
+    // **원리는 사례로 범위가 정해진다 — 무관한 요청에는 안 든다**(그 계약은 그대로다).
+    // 선호는 사용자에 대한 사실이라 든다(F-18 · 2026-08-05).
+    const 렌더 = 받은것.at(-1).admittedContext ?? [];
+    assert.ok(!렌더.includes(원리), '사례가 안 맞는 원리가 렌더됐다 — 검증된 범위를 벗어났다');
+    assert.deepEqual(렌더, ['보고서는 짧은 목록으로 정리한다'], '선호는 그대로 실린다');
+    const 기록 = shown(await mem.load());
+    assert.deepEqual(기록.flatMap((x) => x.refs).map((r) => r.ref), ['pref-보고서'],
+      '렌더된 것과 shown 이 같다');
+  } finally { server.close(); }
+});
+
+test('S5-1: 이어받을 작업(lane)도 렌더됐으면 shown 에 남는다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    // 앞 대화에서 산출물을 남긴다 → 새 대화에서 lane 이 공급된다.
+    const s1 = await post('/sessions');
+    await post('/turn', { sessionId: s1.id, text: '7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 이거 좀 정리해줘.' });
+    const s2 = await post('/sessions');
+    await post('/turn', { sessionId: s2.id, text: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' });
+
+    const tc = 받은것.at(-1);
+    assert.ok((tc.carryableWork ?? []).length > 0, '새 대화에 lane 이 공급됐다');
+    const 마지막 = shown(await mem.load()).at(-1);
+    const lane기록 = 마지막.refs.filter((r) => r.kind === 'lane');
+    assert.equal(lane기록.length, tc.carryableWork.length, '렌더된 lane 수와 같다');
+    assert.ok(lane기록.every((r) => r.ref), 'lane 도 신분으로 남는다');
+  } finally { server.close(); }
+});
+
+test('S5-1: 기록은 그 턴의 TurnRef 와 묶인다', async () => {
+  const { dir, mem, server, post } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' });
+
+    const { readFileSync } = await import('node:fs');
+    const 세션 = JSON.parse(readFileSync(join(dir, `${s.id}.json`), 'utf8'));
+    const assistant = [...세션.transcript].reverse().find((e) => e.role === 'assistant');
+    const 기록 = shown(await mem.load()).at(-1);
+    assert.deepEqual(기록.turnRef, assistant.turnRef, '같은 턴의 신분이다');
+    assert.equal(기록.turnRef.sessionId, s.id);
+    assert.equal(Number.isInteger(기록.turnRef.turnSeq), true);
+  } finally { server.close(); }
+});
+
+test('S5-1: 내부 ID 는 사용자 답변에도 모델 입력에도 나가지 않는다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    const 답 = await post('/turn', { sessionId: s.id, text: '10월 것도. 1600 / 1000 / 신규 12 / 이탈 4' });
+
+    const 내부ID = ['p-원리', 'pref-보고서', 'c-후보', 'o-관찰'];
+    for (const id of 내부ID) {
+      assert.equal(String(답.reply ?? '').includes(id), false, `사용자 답변에 ${id} 노출`);
+      assert.equal(JSON.stringify(받은것.at(-1)).includes(id), false, `모델 입력에 ${id} 노출`);
+    }
+    // 사람이 아는 문장은 그대로 간다.
+    assert.ok(JSON.stringify(받은것.at(-1)).includes(원리));
+  } finally { server.close(); }
+});
+
+test('S5-1: 기록이 무한히 쌓이지 않는다', async () => {
+  const { mem, server, post } = await 서버세우기();
+  try {
+    await 기억심기(mem);
+    const s = await post('/sessions');
+    for (let i = 0; i < 6; i += 1) {
+      await post('/turn', { sessionId: s.id, text: `${10 + i}월 것도. 1600 / 1000 / 신규 12 / 이탈 4` });
+    }
+    const { SHOWN_CAP } = await import('../src/kernel/l5-growth/tcell-shown.js');
+    const 기록 = shown(await mem.load());
+    assert.ok(기록.length <= SHOWN_CAP, `기록 ${기록.length} ≤ 상한 ${SHOWN_CAP}`);
+    assert.ok(기록.length > 0);
+  } finally { server.close(); }
+});
+
+// ── 계약 자체 ──────────────────────────────────────────────────────────────
+test('S5-1: 렌더된 배열에 없는 것은 후보로 들고 있어도 shown 이 아니다', async () => {
+  const { shownFromRendered } = await import('../src/kernel/l5-growth/tcell-shown.js');
+  const r = shownFromRendered({
+    turnRef: { sessionId: 's', turnSeq: 2 },
+    렌더된: ['보인 문장'],
+    후보들: [
+      { ref: 'a', kind: 'preference', statement: '보인 문장' },
+      { ref: 'b', kind: 'operating_principle', statement: '안 보인 문장' },
+    ],
+  });
+  assert.deepEqual(r.refs, [{ ref: 'a', kind: 'preference', statement: '보인 문장' }],
+    '렌더된 것만 남는다(문장도 함께 — 정정이 지목할 대상이 된다)');
+});
+
+test('S5-1: 신분 없는 항목은 shown 에 남기지 않는다(무엇을 가리키는지 모르는 기록은 쓸모없다)', async () => {
+  const { shownFromRendered } = await import('../src/kernel/l5-growth/tcell-shown.js');
+  const r = shownFromRendered({
+    turnRef: { sessionId: 's', turnSeq: 2 },
+    렌더된: ['현재 목표: 보고서 정리', '보인 문장'],
+    후보들: [
+      { ref: null, kind: 'active_goal', statement: '현재 목표: 보고서 정리' },
+      { ref: 'a', kind: 'preference', statement: '보인 문장' },
+    ],
+  });
+  assert.deepEqual(r.refs.map((x) => x.ref), ['a']);
+});
+
+test('S5-1: 기록 상한을 넘기면 오래된 것부터 걷고, 같은 턴은 덮어쓴다', async () => {
+  const { recordShown, SHOWN_CAP } = await import('../src/kernel/l5-growth/tcell-shown.js');
+  let memory = { shownRefs: [] };
+  for (let i = 0; i < SHOWN_CAP + 10; i += 1) {
+    memory = { shownRefs: recordShown(memory, { turnRef: { sessionId: 's', turnSeq: i }, refs: [{ ref: `r-${i}`, kind: 'preference' }] }) };
+  }
+  assert.equal(memory.shownRefs.length, SHOWN_CAP, `상한 ${SHOWN_CAP} 을 넘지 않는다`);
+  assert.equal(memory.shownRefs.at(-1).turnRef.turnSeq, SHOWN_CAP + 9, '최근 것이 남는다');
+  assert.equal(memory.shownRefs[0].turnRef.turnSeq, 10, '오래된 것부터 걷힌다');
+
+  // 재처리는 통계를 부풀리지 않는다.
+  const 전 = memory.shownRefs.length;
+  memory = { shownRefs: recordShown(memory, { turnRef: { sessionId: 's', turnSeq: SHOWN_CAP + 9 }, refs: [{ ref: 'r-바뀜', kind: 'preference' }] }) };
+  assert.equal(memory.shownRefs.length, 전, '같은 턴은 하나로 유지된다');
+  assert.equal(memory.shownRefs.at(-1).refs[0].ref, 'r-바뀜');
+});
+
+// ── 채널 중복 제거(§5-K 제한의 구조 봉합) — 원천 발화가 이력에 있으면 재공급하지 않는다 ──
+// §5-J·§5-K 원시: 같은 선호가 대화 이력(선언 턴)과 기억 블록에 **중복 공급**되면 모델이
+// 저장 채널을 구속 규칙으로 승격해 현재 명시 요청을 눌렀다(활성 2/6 vs 이력 단독 6/6).
+// 판정은 저장 근거(evidence.utteranceQuote)와 이번에 실제로 보내는 이력의 **정확 동일성**
+// 뿐이다 — 낱말 규칙·의미 유사도·부분 일치 없음. shown 은 렌더된 그 배열에서 나온다.
+
+const 선언문 = '앞으로 보고서는 표보다 짧은 목록으로 정리해줘.';
+
+async function 선호심기(mem) {
+  const m = await mem.load();
+  m.promoted = [{
+    candidateId: 'pref-중복', kind: 'preference', statement: 선언문,
+    tier: 'auto_reversible', admitted: true, userConfirmed: true,
+    evidence: { utteranceQuote: 선언문, speechAct: 'declaration', appliesTo: 'from_now_on' },
+  }];
+  await mem.save(m);
+}
+
+test('중복 억제: 원천 발화가 같은 대화 이력에 있으면 기억 블록으로 다시 넣지 않는다 — shown 도 같이 0', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: 선언문 });               // 원천 발화가 이력에 들어간다
+    await post('/turn', { sessionId: s.id, text: '이번 보고서만 표로 만들어줘.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), false,
+      '이력에 이미 있는 원천 발화가 기억 블록으로 중복 공급되면 안 된다');
+    // 선언 턴 자체의 렌더는 정상이다(그때는 이력에 없었다) — 측정 턴은 렌더 0 이라 기록도
+    // 없어야 하므로, pref 를 담은 shown 기록은 **선언 턴 하나뿐**이어야 한다.
+    const 담은기록 = shown(await mem.load()).filter((x) => (x.refs ?? []).some((r) => r.ref === 'pref-중복'));
+    assert.equal(담은기록.length, 1, 'shown 은 실제 렌더와 같은 사실을 본다 — 중복 공급 턴의 기록이 있으면 안 된다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 원천 발화가 없는 새 대화에서는 기억이 정상 공급된다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘. 매출 1500, 비용 950.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), true, '새 대화에서는 기억이 일을 해야 한다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 정확 동일성만 본다 — 포함 관계·도우미 발화로는 억제하지 않는다', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    await 선호심기(mem);
+    const s = await post('/sessions');
+    // 원천을 **포함**하지만 동일하지 않은 사용자 발화를 **이력에** 넣는다 — 부분 일치로
+    // 억제하는 돌연변이는 이 이력을 보고 물려야 한다(처음엔 현재 발화로만 보내 안 물렸다).
+    await post('/turn', { sessionId: s.id, text: `아까 "${선언문}" 라고 했던 거 기억하지?` });
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘. 매출 1500, 비용 950.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes(선언문), true,
+      '부분 일치로 억제하면 의미 판정이 된다 — 정확 동일성만 기계 사실이다');
+  } finally { server.close(); }
+});
+
+test('중복 억제: 저장 근거가 없는 항목은 억제하지 않는다(공급 쪽으로 fail-open)', async () => {
+  const { mem, server, post, 받은것 } = await 서버세우기();
+  try {
+    const m = await mem.load();
+    m.promoted = [{
+      candidateId: 'pref-근거없음', kind: 'preference', statement: '보고서는 짧은 목록으로 정리한다',
+      admitted: true, userConfirmed: true, // evidence 없음 — 옛 저장본
+    }];
+    await mem.save(m);
+    const s = await post('/sessions');
+    await post('/turn', { sessionId: s.id, text: '보고서는 짧은 목록으로 정리한다' }); // 우연히 같은 문장
+    await post('/turn', { sessionId: s.id, text: '월간 보고서 정리해줘.' });
+    const tc = 받은것.at(-1);
+    assert.equal((tc.admittedContext ?? []).includes('보고서는 짧은 목록으로 정리한다'), true,
+      '저장 근거 없는 항목을 statement 추측으로 억제하면 안 된다 — 근거로만 판정한다');
+  } finally { server.close(); }
+});

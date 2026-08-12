@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-pilot-v1-20260810-01::L6-schedule-automation",
+  "attemptId": "845df92d-119f-4579-840b-fde97c058b59",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "48b6c7eb88d16fbaa7f9eaa2878dba49b81d3fbfc2bf9d4d8b92d8c21b2a5e7f",
+  "recordedAt": "2026-08-09T19:37:51.563Z"
+}

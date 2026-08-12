@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "t5-production90",
+  "title": "T5 Production 90 Wave 0 contracts",
+  "$defs": {
+    "status": {
+      "enum": ["PASS", "PRODUCT_FAIL", "MODEL_FAIL", "EXTERNAL_BLOCKED", "HARNESS_INVALID", "NOT_RUN"]
+    },
+    "metric": {
+      "type": "object",
+      "required": ["id", "factKey", "kind", "denominator", "passRule", "evidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9_.-]+$"},
+        "factKey": {"type": "string", "pattern": "^[a-z0-9_.-]+$"},
+        "kind": {"enum": ["deterministic", "variable", "human"]},
+        "denominator": {
+          "type": "object",
+          "required": ["unit", "planned"],
+          "properties": {"unit": {"type": "string"}, "planned": {"type": "integer", "minimum": 1}}
+        },
+        "passRule": {
+          "type": "object",
+          "required": ["target"],
+          "properties": {"target": {"type": "number", "minimum": 0, "maximum": 1}}
+        },
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "hardGate": {"enum": ["P0", "P1"]}
+      },
+      "additionalProperties": false
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["id", "title", "kind", "metrics", "denominator", "environment", "authority", "privacy", "failurePolicy"],
+      "properties": {
+        "id": {"type": "string"}, "title": {"type": "string"},
+        "kind": {"enum": ["deterministic", "variable", "human"]},
+        "metrics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "denominator": {"type": "object", "required": ["unit", "planned"]},
+        "environment": {"type": "object", "required": ["artifact"]},
+        "authority": {"type": "object", "required": ["externalEffects"]},
+        "privacy": {"type": "object", "required": ["rawSecrets"], "properties": {"rawSecrets": {"const": false}}},
+        "failurePolicy": {"type": "object", "required": ["providerError"]},
+        "steps": {"type": "array"}, "observations": {"type": "array"}
+      }
+    },
+    "runResult": {
+      "type": "object",
+      "required": ["runId", "scenarioId", "manifestDigest", "buildDigest", "environmentDigest", "results"],
+      "properties": {
+        "runId": {"type": "string"}, "scenarioId": {"type": "string"},
+        "manifestDigest": {"type": "string"}, "buildDigest": {"type": "string"},
+        "environmentDigest": {"type": "string"}, "modelReceipt": {"type": ["object", "null"]},
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["metricId", "status", "evidenceRefs"],
+            "properties": {
+              "metricId": {"type": "string"}, "status": {"$ref": "#/$defs/status"},
+              "p0": {"type": "boolean"}, "evidenceRefs": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}

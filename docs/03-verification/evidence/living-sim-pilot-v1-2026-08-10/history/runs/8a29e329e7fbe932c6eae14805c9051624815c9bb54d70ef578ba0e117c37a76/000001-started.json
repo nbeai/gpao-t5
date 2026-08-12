@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-pilot-v1-20260810-01::L5-admin-preparation",
+  "attemptId": "57f179dc-ee20-416c-8e1d-a6404e0c3f94",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-ke1mU5",
+  "recordedAt": "2026-08-09T19:35:38.053Z"
+}

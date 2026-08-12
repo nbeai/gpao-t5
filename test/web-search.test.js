@@ -125,8 +125,11 @@ test('provider 선언: 무키/키 구분이 명시돼 있다', () => {
 
 // ── 능력 설명이 실제와 어긋나지 않는다 (감사 지적: 되는데 "못 한다"고 말했다) ──
 test('web.collect 능력 설명이 검색 가능을 반영한다 — T5 가 자기를 틀리게 설명하면 안 된다', async () => {
+  // 1축: 능력 문장은 descriptor 파생이다 — selfState 를 통해 읽는다(수동 맵 없음).
   const { toolCapabilityLine } = await import('../src/kernel/tool-labels.js');
-  const line = toolCapabilityLine('web.collect');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { demoEnv } = await import('../src/surface/demo-context.js');
+  const line = toolCapabilityLine('web.collect', buildSelfState(demoEnv()));
   assert.ok(!/검색어로 찾아 주는 기능은 아직 없다/.test(line), '기능이 생겼는데 없다고 말하면 안 된다');
   assert.ok(/찾아서 읽는다|찾아 준다|검색/.test(line), '찾을 수 있다는 사실이 설명에 있어야 한다');
   assert.ok(/출처/.test(line), '출처와 함께 준다는 것도 사용자가 알아야 한다');

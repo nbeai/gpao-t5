@@ -81,7 +81,9 @@ test('확실한 무효(자격 거부·모델 없음·결제)는 여전히 거절
 test('buildWelcomeContext: 규격만 지시하고 문장은 모델에 맡긴다(사실은 자기상태에서)', () => {
   const tc = buildWelcomeContext(buildSelfState(demoEnv()));
   assert.equal(tc.answerMode, 'fast_chat');
-  assert.ok(tc.currentRequest.includes('1~3문장'));
+  assert.ok(tc.currentRequest.includes('한 문장'));
+  assert.ok(tc.currentRequest.includes('능력 나열'));
+  assert.ok(tc.currentRequest.includes('도움 제안'));
   assert.ok(tc.currentRequest.includes('언급하지 마'));      // 내부 단계·도구 id 금지
   assert.ok(Array.isArray(tc.selfStateFacts.readyTools));    // 근거는 실제 자기상태
   assert.deepEqual(tc.authorityFacts.needsApproval, []);     // 인사는 실행이 아니다
@@ -110,7 +112,7 @@ test('서버: 첫 실행이면 needed=true, 연결하면 false, 건너뛰면 영
   const mc = makeModelConnection({ env, processEnv: {}, store: new ModelConnectionStore(dir), fetchImpl: impl });
   const onboardingStore = new OnboardingStore(dir);
   const server = makeServer({ store: new SessionStore(dir), env, model: mc.model, modelConnection: mc, onboardingStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     assert.equal((await (await fetch(`${base}/onboarding`)).json()).needed, true);
@@ -133,7 +135,7 @@ test('서버 /welcome: 인사를 transcript 에 남기되 숨은 지시는 남�
   await mc.connect({ provider: 'beai', key: 'k' });
   const sessionStore = new SessionStore(dir);
   const server = makeServer({ store: sessionStore, env, model: mc.model, modelConnection: mc, onboardingStore: new OnboardingStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
@@ -160,7 +162,7 @@ test('서버 /welcome: 이미 오간 대화에는 인사가 끼어들지 않는�
   await mc.connect({ provider: 'beai', key: 'k' });
   const sessionStore = new SessionStore(dir);
   const server = makeServer({ store: sessionStore, env, model: mc.model, modelConnection: mc, onboardingStore: new OnboardingStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
@@ -181,7 +183,7 @@ test('서버 /welcome: 이미 오간 대화에는 인사가 끼어들지 않는�
 test('서버 /welcome: 모델 미연결이면 인사를 만들지 않고 정직하게 안내한다(fail-closed)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-onbsrv3-'));
   const server = makeServer({ store: new SessionStore(dir), onboardingStore: new OnboardingStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();

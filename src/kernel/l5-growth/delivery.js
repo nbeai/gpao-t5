@@ -19,6 +19,7 @@ export function makeDelivery(p) {
     channel: p.channel ?? p.tool,
     target: p.target,
     artifact: p.artifact,         // { text } 등 — durable, 재생성 없음
+    args: p.args ?? null,         // 원 승인·실행 인자 그대로 — 재전달이 필드를 잃지 않게(C7-ACTION-001)
     state: 'attempting',
     attempts: 0,
     lastError: null,

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-retest-20260811-02::L3-policy-research",
+  "attemptId": "1e247dcd-b006-40d5-90b0-010a66b3e5e7",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/private/tmp/t5-ls-poNDBE",
+  "recordedAt": "2026-08-11T00:45:26.047Z"
+}

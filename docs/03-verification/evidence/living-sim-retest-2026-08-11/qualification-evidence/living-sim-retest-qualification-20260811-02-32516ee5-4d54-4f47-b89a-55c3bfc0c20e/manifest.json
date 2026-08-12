@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "runId": "living-sim-retest-qualification-20260811-02",
+  "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e",
+  "executionKind": "headless_isolated",
+  "status": "QUALIFIED",
+  "artifact": {
+    "kind": "source",
+    "gitSha": "51fc38ff33fc55e5eeac9b79eaaa279aeac86e7e",
+    "dirty": false,
+    "worktreeDigest": "bcba2f8b28d7552ce65ef19b3a4946ce1895957cf6586f12b3ef0e4d87235640",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "model": {
+    "provider": "scripted-loopback",
+    "model": "qualification-scripted-v1",
+    "adapter": "anthropic-messages",
+    "configuredModelId": "claude-opus-4-8",
+    "settings": {
+      "configured": {
+        "baseUrl": "http://127.0.0.1:64080",
+        "maxTokens": 8192,
+        "modelTimeoutMs": 0,
+        "httpTimeoutMs": 0
+      },
+      "observedCalls": [
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        },
+        {
+          "model": "claude-opus-4-8",
+          "maxTokens": 8192,
+          "stream": false,
+          "temperature": null
+        }
+      ]
+    }
+  },
+  "fixtureHash": "f50f7a835fbb124b538fdee16082ced274e1484157f6b9fee51a6d45cc4daee1",
+  "isolation": {
+    "ok": true,
+    "결과": [
+      {
+        "항목": "파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "scopeRoots=[\"/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-harness-qualification-NlxtDR/fixture\"]"
+      },
+      {
+        "항목": "파일 손의 ~/Documents 가 오너 홈이 아니다",
+        "통과": true,
+        "사실": "격리 방의 Documents 를 본다"
+      },
+      {
+        "항목": "터미널 기본 자리가 격리 홈",
+        "통과": true,
+        "사실": "cwd=격리 루트"
+      },
+      {
+        "항목": "터미널 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "exit=0"
+      }
+    ]
+  },
+  "protectedState": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "beforeSnapshotDigest": "0147a07b7e311ad9c07883de15294b06d5a9a72224af23915e57f2348c9cd8a0",
+    "afterSnapshotDigest": "0147a07b7e311ad9c07883de15294b06d5a9a72224af23915e57f2348c9cd8a0",
+    "changed": []
+  },
+  "declaredPaths": {
+    "paths": [
+      "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-harness-qualification-NlxtDR/fixture/qualification.txt"
+    ],
+    "beforeSnapshotDigest": "8d4085f610edcb3fb5d95a9490f4d8cdd48ba5c2d70e9f825dce24169ea46419",
+    "afterSnapshotDigest": "8d4085f610edcb3fb5d95a9490f4d8cdd48ba5c2d70e9f825dce24169ea46419",
+    "changed": []
+  },
+  "machineFacts": {
+    "turnRefs": [
+      {
+        "sessionId": "953ed5d3-0d1c-4284-8ce4-3608bb3c805e",
+        "turnSeq": 1
+      },
+      {
+        "sessionId": "953ed5d3-0d1c-4284-8ce4-3608bb3c805e",
+        "turnSeq": 2
+      }
+    ],
+    "sessionWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6Ijk1M2VkNWQzLTBkMWMtNDI4NC04Y2U0LTM2MDhiYjNjODA1ZSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MH0.-ZXmRYFiLXTgYzXWfM5dJQUbxN9iGo8dcYaTxZgEiDM",
+    "workEvent": {
+      "eventId": "we1.7-2HltbE5rtnJpoyEykZFWTZJhPsoGBboy4U_AELo40",
+      "type": "agreement_set",
+      "turnRef": {
+        "sessionId": "953ed5d3-0d1c-4284-8ce4-3608bb3c805e",
+        "turnSeq": 1
+      },
+      "workRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6Ijk1M2VkNWQzLTBkMWMtNDI4NC04Y2U0LTM2MDhiYjNjODA1ZSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MH0.-ZXmRYFiLXTgYzXWfM5dJQUbxN9iGo8dcYaTxZgEiDM",
+      "statementDigest": "43d6b8af29bedfc3c62f218e1d08bed71d983b5dbb27a6426c826048fa6c6c61"
+    },
+    "receipt": {
+      "lifecycle": "delivered",
+      "failureState": "none",
+      "tool": "local.file",
+      "turnRef": {
+        "sessionId": "953ed5d3-0d1c-4284-8ce4-3608bb3c805e",
+        "turnSeq": 2
+      }
+    },
+    "nextTurnContext": {
+      "hasContext": true,
+      "carriesWorkRef": true,
+      "surfaceContextDigest": "f446c0e7ba9fcde5ed7e8270d8791244a3ea45f6700bfc4a2081109bfa52c8af",
+      "contextSource": "provider-request-system",
+      "contextDigest": "dd96f6ffa370a49a62a3691f3a1e10b7562c440b412340e36822fa6e385c4803",
+      "projectedEventId": "we1.7-2HltbE5rtnJpoyEykZFWTZJhPsoGBboy4U_AELo40",
+      "projectedStatementDigest": "43d6b8af29bedfc3c62f218e1d08bed71d983b5dbb27a6426c826048fa6c6c61"
+    },
+    "surfaceKinds": [
+      "reply",
+      "reply"
+    ]
+  },
+  "rawEvidence": [
+    {
+      "name": "probe.json",
+      "sha256": "4e52353cf9773b06eafea8c737de425aac4fedd9804df78f1e19241de77c94de"
+    }
+  ]
+}

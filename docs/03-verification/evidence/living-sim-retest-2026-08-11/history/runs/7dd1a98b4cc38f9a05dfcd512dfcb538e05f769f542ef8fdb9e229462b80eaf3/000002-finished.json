@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-retest-20260811-02::L2-customer-policy",
+  "attemptId": "4f5d3e5b-7f69-4123-83fc-379886324e34",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "810d7dd06aa38717fefc1ff6fd4c60c12a23b57250cd28339f5ace92d016c5d8",
+  "recordedAt": "2026-08-11T00:45:25.652Z"
+}

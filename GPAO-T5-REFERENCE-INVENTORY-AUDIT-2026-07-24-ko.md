@@ -78,7 +78,8 @@ GPAO-T5 Phase 0 Reference Inventory 는 봉인 가능하다.
 
 ## 4. Phase 1 지시
 
-다음 산출물은 `GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md` 로 한다.
+당시 다음 산출물은 `docs/archive/retired-plans/GPAO-T5-PRODUCT-CONSTITUTION-2026-07-24-ko.md`였다.
+현재 제품 철학의 최상위 정본으로 사용하지 않는다.
 
 Phase 1 작성 기준:
 

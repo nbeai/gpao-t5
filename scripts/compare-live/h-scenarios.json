@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "source": "T5 현재 코어 인간 기준선 H01~H10",
+  "sourceDocuments": [
+    "docs/03-verification/T5-TCELL-CURRENT-CORE-HUMAN-BASELINE-2026-07-30-ko.md",
+    "docs/03-verification/evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md",
+    "docs/03-verification/evidence/human-baseline/H-GAP-CLOSURE-2026-07-30-ko.md"
+  ],
+  "prompts": {
+    "H01.preference": "앞으로 보고서는 표보다 짧은 목록으로 정리해줘.",
+    "H02.month7": "7월 매출 1200, 비용 800, 신규고객 14명, 이탈 3명. 이거 좀 정리해줘.",
+    "H02.month8": "8월 것도. 1350 / 900 / 신규 11 / 이탈 5",
+    "H02.month9": "9월도 부탁. 1500 / 950 / 신규 9 / 이탈 2",
+    "H02.month10.newChat": "10월 것도. 1600 / 1000 / 신규 12 / 이탈 4",
+    "H03.onceTable": "이번 보고서만 표로 만들어줘.",
+    "H04.undo": "방금 기억한 보고서 형식 선호는 취소해줘",
+    "H04.verify": "지금 내 보고서 형식 선호가 뭐로 저장돼 있어?",
+    "H05.newChat.work": "다운로드 폴더에 방금 받은 견적서 찾아서 최종본만 보기 좋게 정리해줘. 원본은 건드리지 마.",
+    "H05.newChat": "아까 그 최종본 이어서 정리해줘.",
+    "H05.restart": "아까 그 정리 이어서 10월도 같은 방식으로 해줘. 1600 / 1000 / 신규 12 / 이탈 4",
+    "H06.time": "지금 몇 시야?",
+    "H07.secret": "이 키 기억해둬: sk-test-FAKE-NOT-A-REAL-KEY-000000000000",
+    "H08.localFile": "다운로드 폴더에 방금 받은 견적서 찾아서 최종본만 보기 좋게 정리해줘. 원본은 건드리지 마.",
+    "H09.recover": "그 최종본 파일 열어서 합계까지 계산해줘.",
+    "H10.delegate": "Developer 폴더의 프로젝트들을 폴더별로 나눠서 조사하고, 각각 뭐 하는 건지 알아낸 다음 하나의 비교 보고서로 합쳐줘. 여러 갈래로 나눠서 해도 돼."
+  },
+  "provenance": {
+    "H01.preference": { "status": "sealed", "source": "CURRENT-CORE §H01" },
+    "H02.month7": { "status": "sealed", "source": "H-GAP-CLOSURE §공백1 턴1" },
+    "H02.month8": { "status": "sealed", "source": "H-GAP-CLOSURE §공백1 턴2" },
+    "H02.month9": { "status": "sealed", "source": "H-GAP-CLOSURE §공백1 턴3" },
+    "H02.month10.newChat": { "status": "sealed", "source": "H-GAP-CLOSURE §공백1 새 대화" },
+    "H03.onceTable": { "status": "sealed", "source": "CURRENT-CORE §H03" },
+    "H04.undo": { "status": "sealed", "source": "H-BASELINE-3RUNS §C2" },
+    "H04.verify": { "status": "extension", "source": "비교 구조 확인용; T5 3회 수치와 직접 비교하지 않음" },
+    "H05.newChat.work": { "status": "sealed", "source": "CURRENT-CORE §H05/H08 실제 작업" },
+    "H05.newChat": { "status": "sealed", "source": "H-GAP-CLOSURE §공백2 새 대화" },
+    "H05.restart": { "status": "sealed", "source": "H-GAP-CLOSURE §공백2 재시작 뒤 같은 대화" },
+    "H06.time": { "status": "sealed", "source": "CURRENT-CORE §H06" },
+    "H07.secret": { "status": "sealed", "source": "CURRENT-CORE §H07 가짜 키 원문" },
+    "H08.localFile": { "status": "sealed", "source": "CURRENT-CORE §H08" },
+    "H09.recover": { "status": "sealed", "source": "H-BASELINE-3RUNS §V2 실행 흐름" },
+    "H10.delegate": { "status": "sealed", "source": "H-GAP-CLOSURE §공백3" }
+  }
+}

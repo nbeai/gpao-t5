@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-pilot-v1-20260810-01::L2-customer-policy",
+  "attemptId": "ac7cf273-be7f-407c-aae5-424e0bb1284d",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "5fbd2f64ff964f2279fd663a6df12829d9f2cc92b66da2f10012971216414e48",
+  "recordedAt": "2026-08-09T19:33:53.796Z"
+}

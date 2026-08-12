@@ -1,0 +1,57 @@
+{
+  "type": "path_snapshots",
+  "protected": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "before": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "92341d4cbd60e5b99032e21a763b9cbc219ca49faf20d21c49cd7e88c11e1cc4"
+      }
+    ],
+    "after": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "92341d4cbd60e5b99032e21a763b9cbc219ca49faf20d21c49cd7e88c11e1cc4"
+      }
+    ]
+  },
+  "sources": {
+    "paths": [
+      "/private/tmp/t5-ls-Ha372g/fixture/보유서류.txt",
+      "/private/tmp/t5-ls-Ha372g/fixture/우리상황.txt",
+      "/private/tmp/t5-ls-Ha372g/fixture/위생설비_지원공고.txt"
+    ],
+    "before": [
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/보유서류.txt",
+        "digest": "fbec8ff8ab911e28d1a8c6be113ce616dda7bb9fb8c13572dd104512e30b5e12"
+      },
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/우리상황.txt",
+        "digest": "a989d8f2262f33a7bcd160de8df3d2d61d882ba3de5a950c8b1cef1f07f999e9"
+      },
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/위생설비_지원공고.txt",
+        "digest": "652ffa591dfaa44b9482ceb280c7e5c4a882a24f65ef29992f852f646b274af9"
+      }
+    ],
+    "after": [
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/보유서류.txt",
+        "digest": "fbec8ff8ab911e28d1a8c6be113ce616dda7bb9fb8c13572dd104512e30b5e12"
+      },
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/우리상황.txt",
+        "digest": "a989d8f2262f33a7bcd160de8df3d2d61d882ba3de5a950c8b1cef1f07f999e9"
+      },
+      {
+        "path": "/private/tmp/t5-ls-Ha372g/fixture/위생설비_지원공고.txt",
+        "digest": "652ffa591dfaa44b9482ceb280c7e5c4a882a24f65ef29992f852f646b274af9"
+      }
+    ]
+  },
+  "protectedChanged": [],
+  "sourceChanged": []
+}

@@ -1,0 +1,1662 @@
+# GPAO-T5 현재 세션 인수인계
+
+- 갱신: 2026-08-04 (Asia/Seoul)
+- 공식 개발 폴더: `/Users/jyp/Developer/t5-p-op`
+- 권위 지도: `docs/PROJECT-AUTHORITY-MAP-ko.md`
+- 성격: 새 개발·감사 세션이 현재 사실과 다음 작업을 오인하지 않게 하는 단일 진입 문서
+
+## ★ 최우선 — 최종 조립 프로그램 (2026-08-11 오너 지시)
+
+- 정본: `design/T5-FINAL-ASSEMBLY-ko.md` — **성질 넷 + 기관 열 · 칸 0~11 · 조건 C1~C9 · 결승선 단일 문장**(오너 재동결 2026-08-11 · 마지막 계획서).
+  `design/T5-PLAN.md` 의 모든 노드보다 앞선다. 이어받는 세션은 그 문서 §7(인수인계 규약)부터 읽는다.
+- 이 프로그램 밖의 노드를 새로 열지 않는다. 진행 중이던 F-64 조각은 칸 A3 아래로 흡수한다.
+
+## ★ 감사 대기 — 칸 1 자기 손 인지 (등재 2026-08-11 · C7 소집)
+
+```
+대상          origin/claude/kan1-audit-final · **16f7aee** (통합본 · 해시 동결)
+① 계측기 출력  node scripts/state-probe.mjs (칸 0 병합돼 있음)
+② 닫는 문장    "웹 검색창에 글자 칠 수 있어?" 10/10 + 이어진 과업에서 실제로 친다
+              ★ **유료 실모델로만 잰다 — PM 몫. 이 단위는 그 문장을 재지 않았다**
+③ 선빨강      7da532e — 6개 중 5개 빨강 (S0/S1/S3 · S2 · S4 · 지정조항 · type 말)
+④ PM 위임장    계획서 §3 성질 1 + 그 아래 「PM 선행 조사」 블록
+검사          npm test 3,635 / 실패 0 (종료 0 · 재실행 확인)
+방            수거 완료 · worktree 2개(정본·git 관리)만
+```
+
+**PM 이 병합 전에 손댄 것 하나 — 장부 번호 충돌 해소**: 에이전트 기점(`9f7db94`)이
+PM 의 F-76 등재보다 앞서 **F-76 이 둘**이 됐다. 에이전트 것을 **F-79 로 재번호**했다
+(내용 무변경). 충돌은 장부 한 파일뿐이었고 제품 파일은 겹치지 않았다.
+
+**감사가 특히 볼 자리 셋(PM 이 청함)**
+```
+가  구조 불변식이 진짜인가   봉인 7조항이 「부정문이 사라졌나」가 아니라
+                          「부정이 자기 손 안에 갇혀 있나」를 무는가.
+                          지우고 초록 띄우기가 막히는가(S4 가 그 자리다)
+나  F-78 이 정직한가        구현자가 **자기 봉인의 구멍을 스스로 등재**했다 —
+                          「이관 한계 레코드를 통째로 지우면 안 문다」.
+                          막지 않은 사유(막으려면 하드코딩 기준선이 필요)가 타당한가
+다  기준선 이동 둘          preflight 스키마 지문(손 19·순서) · tool-labels 허용 등재.
+                          **완화인가 이동인가** — C5 의 그 갈림이다
+```
+
+**관측(결함 아님 · 재현 없음)**: 통합본 전체 회귀 1회차에서 `f64-l6-automation-truth-red`
+1건 실패 → 단독 47/47 ×2 · 전체 재실행 3,635/0. 본선 게이트도 1회차 실패했으나
+**실패한 검사 이름이 로그에 없었고** 2회차 PASS(3,627건 · 종료 0). 둘 다 동시성 산물로 본다.
+
+---
+
+## ★ 감사 대기 — 칸 0 상태 계측기 (등재 2026-08-11 · C7 소집)
+
+**PM 은 판정하지 않는다.** 아래는 인계 계약 넷(계획서 §8)이고, 판정은 문맥을 안 물려받은
+감사자의 몫이다. 등재 전까지 상태표에 「닫힘」을 쓰지 않는다.
+
+```
+① 계측기 출력   node scripts/state-probe.mjs   (유료 0 · 실기기 0 · 종료 코드 항상 0)
+② 닫는 문장     이 계획서 §2 를 사람이 손으로 안 고쳐도 된다
+③ 선빨강        3b49571 — 검사 203줄만. 구현 전 15/15 빨강
+④ PM 위임장     이 문서 아래 「자름과 상한」 + 계획서 §6 칸 0 규격
+자리            origin/claude/kan0-state-probe (병합 전 · PASS 뒤 PM 이 병합)
+커밋            3b49571 선빨강 → b83ee8e 구현 → 09bf305 체감 지표 → 50e6a16 보완
+방              **수거 완료** — worktree 2개(정본·git 관리)만 남음. 진입 감사 PASS
+```
+
+**감사가 선빨강을 직접 빨갛게 보는 법** (규약 ④ — 못 보면 그 자체로 BLOCK)
+```bash
+git fetch origin claude/kan0-state-probe
+git worktree add /tmp/kan0-audit 3b49571
+cd /tmp/kan0-audit && node --test test/state-probe.test.js
+# 기대: tests 15 · pass 0 · fail 15 · 종료 코드 1 (그 커밋엔 계측기 본체가 없다)
+```
+
+**자름과 상한**: 제품 코드 0줄 · 새 문서 0 · 유료 호출 0 · 실기기 0 · 오너 실사용 자리 0 ·
+**하드코딩 0(위반 시 즉시 BLOCK)**. 대본 모델로 실경로 관통은 허용.
+
+**감사가 볼 넷**: ① 하드코딩 0 ② 정답지 전량 일치(불일치 1건이면 BLOCK) ③ 상한 준수
+④ 선빨강 실재. **계측기를 직접 돌린다** — 읽기만 하면 구현자의 주장을 검토하는 데 그친다.
+
+**감사 범위에 PM 의 자름도 넣는다**: 이번에 실제로 PM 이 틀렸다 — 브라우저 손 상한에
+타이핑을 넣었다 뺐다 하는 모순이 계획서 안에 있었고 계측기가 그것을 그대로 냈다.
+같은 종류가 더 있는지 본다.
+
+**PM 이 미리 밟은 것(감사를 대신하지 않는다 · 참고)**: 직접 실행해 정답지와 전량 일치 확인 —
+와이어 28 · 문서 생성 0 · 읽기 4종 · CDP `Input.*` 0 · 고아 `tcell-verdict.js` · 창표 3종 ·
+채널 수신 0 · 확정 계열(자동화·스킬·에이전트 ○ / 기억 ✕). **F-73 재현**(안정 접두 지문 6종).
+체감 지표는 「계측 불가」를 0 으로 접지 않았다(③ 거짓 · ⑤ ask.user 사용 횟수).
+
+---
+
+## 최신 작업선 · 2026-08-11
+
+- **야간 전권 라인 독립 재감사 기록(2026-08-11 오전): PASS · 정정 2건.** 밤 작업에 손대지
+  않은 관리 라인이 `24daf7a·e9e3d1f·51fc38f·d6999f0` 전량을 한 번에 감사했다. 직접 실행:
+  L5 봉인 8/8 · 절단 1회 재현(결속 가드 제거 → 2건 빨강 → 원복) · gate 3,604 PASS ·
+  workspace PASS · 재시험 원본 독립 재계산 229/229 일치(원본 221+매니페스트 8, 소스
+  `51fc38f` clean·동결 시나리오 SHA 일치) · 성적 판정 표본 3/3 raw 대조 일치(L6 정직
+  "꺼져 있음·등록 없음" / L1 완주 숫자·결과 파일 / L4 격리홈 `Documents/봄꽃다발_안내문.md`
+  오폴더+완료 주장) · F-68 을 정본 본선에서 결정적 재현(write 증발·차단 기록 0). 제품
+  경로에 모양 강제 없음 — 검증은 rows↔출처 실재·인용 실재 결속만(PM 지적 반영 확인).
+  **정정 ①** `e9e3d1f` 의 "제품 수리 0줄"은 멈춤 수리 기준이다 — 병합 자체는 src/ 70줄
+  (L5 조각 구현·WIP 인수)을 포함한다. **정정 ②** F-68 재현 프로브가 수거된 워크트리 경로를
+  하드코딩해 보존본 그대로는 실행 불가 — 경로 인자화가 후속 한 줄(감사자는 경로 치환
+  사본으로 재현 성공). 두 정정 모두 실질 결론을 바꾸지 않는다. F-64 닫힘 판정은 이제
+  Dual-Role 유보 없이 PM·오너 몫이다.
+- 정본: `/Users/jyp/Developer/t5-p-op` · `claude/p-op-1-a-system-view` · 기준 `d36885e`.
+- 활성 sidecar: 없음. 최초 F-64 실패 실험 `/private/tmp/t5-f64-purpose-completion-v2`은 독립 감사
+  수거 PASS와 오너의 미커밋 7파일·706줄 영구 삭제 승인을 받은 뒤 제거했다. 커밋 `37868ec`과
+  브랜치 계보는 보존되고 미커밋 WIP는 복구할 수 없다.
+- F-64 L7 process/hash 조각은 `aded078..c2e8fb9`에서 구현하고 정본 `08625c0..d36885e`로
+  통합했다. 사용자 발화의 명시 단일 결과 경로, 모델의 구조 판정
+  `sourcePolicy:selected + verification:process_sha256`, 실제 선택 source의 full-read Receipt와
+  current revision, terminal `exitCode:0`의 단일 SHA-256 token, 결과 파일 readback·seal check,
+  마지막 source revision이 모두 같을 때만 별도 signed completion Receipt·같은 ReceiptRef의
+  `execution_completed`·recentOutcome이 함께 선다. 명령 실패·빈 stdout·다른 source·변형 digest·
+  artifact readback 불일치에서는 raw 실행 증거만 남고 완료 세 축은 0이다.
+- **L7 독립감사 기록(2026-08-11): PASS.** 구현자와 분리된 읽기·실행 감사선
+  `f64_settlement_design_audit`가 `aded078..c2e8fb9` 전체를 한 번에 감사했다. 감사선 직접 실행은
+  동결 정상 1건+반례 5갈래 suite 7/7, 관련 112/112, 전체 3,596/3,596, gate 제품 항목 전부 PASS,
+  `git diff --check` PASS였고 파일 변경·provider 호출·commit·merge·push는 0이었다. 감사 판정은
+  이 process/hash 구조 단위의 통합 PASS이며, L7의 다중 source 선택 의미·L5·전체 F-64 완료로
+  확대하지 않는다. 구현 커밋의 `needs independent audit` 표시는 이 후속 감사 기록으로 해소한다.
+- **L7 종료 공정 계수:** 닫는 목록은 선빨강 `aded078`(02:55)이 구현 `c2e8fb9`(02:59)보다 먼저였고,
+  동결 밖 범위 확장은 0회였다. 개발선은 선빨강 1회 뒤 표적 1회·관련 1회·전체 1회·gate 1회,
+  독립감사 1회를 사용했다. 개발선 최초 전체는 L6 local-chat setup의 병렬 404 한 건으로
+  3,595/3,596이었으며 이를 숨기거나 전체 재실행하지 않았다. 이어 예정된 단일 gate에서
+  3,596/3,596이 통과했고, 독립감사선의 별도 전체도 3,596/3,596이었다. 정본 통합·sidecar 수거 뒤
+  `audit:workspace`는 88 active docs·2 worktrees PASS다.
+- F-64 slice-1 개발 입장 범위: 사용자 발화에서 기계적으로 특정된 단일 파일 경로·본문과 명시된
+  `sourcePolicy(none|all_current)`가 함께 있을 때만 raw write·실제 readback·seal check·별도 signed
+  completion Receipt·같은 ReceiptRef의 `execution_completed`·최근 완료가 한 WorkRef로 선다. 하나라도
+  없거나 어긋나면 raw 실행 증거만 남고 완료·deliverable·WorkRef·work-state·chat 승격은 0이다.
+- F-64 미닫힘: L5 다중 원천의 행정 사실과 결과 문서 결속은 source-derived/admin artifact owner,
+  L6 후보·승인·활성·nextRun은 `AutomationJobStore/AutomationRunLedger` owner, L7 명령 실패·stdout
+  digest·결과 파일 결속은 process/hash owner가 각각 필요하다. 셋을 slice-1 한 원인으로 묶는 주장은
+  결정형 실제 제품 재현과 독립 감사에서 기각됐다.
+- 결정형 재현: `docs/03-verification/evidence/f64-l5-l7-deterministic-probes-2026-08-10/`.
+  원본 L5·L6·L7은 3/3 빨강, 정상·결속 반대조건 5/5 초록, provider·유료 호출 0, 제품 `src/` 변경 0,
+  실사용 상태 전후 digest 불변이다. slice-1은 L5·L7의 거짓 완료 승격을 막지만 사용자 목적 결과를
+  만들지는 않는다. L6 정본은 후보 3·승인/job/run 0으로 정직하지만 사용자 답은 활성·다음 실행을
+  거짓 주장하는 표본이 그대로 재현됐다.
+- 오너가 구현 순서를 `L6 → L7 → L5`로 확정했다. L6 구조 단위 `db81834..3d6f9fd`는 두 독립 감사
+  PASS 뒤 정본에 통합됐다. 구조 제안 한 입장선, final 전 후보 저장·readback, 승인→단일 durable job,
+  same-id update·status·pause·resume, canonical nextRun, bounded observe, AgentRun/maxRuns, candidate→job→
+  control append-only settlement chain, 전체 durable-field 비밀 경계와 legacy schema2 호환을 실제 제품
+  경로로 결속했다. 답 문구 필터·활성 사실 대필·승인 우회는 0이다.
+- L6는 아직 닫히지 않았다. local chat delivery consumer가 없어 `deliveryIntent:chat`은 candidate/setup/job
+  0으로 정직하게 fail-closed하며, 동결 원본의 현실을 무시하는 모델 답 표본도 그대로 남아 있다. 다음
+  L6 격리선은 승인된 job의 due AgentRun 결과를 실제 local conversation delivery와 delivered/failed
+  evidence로 결속하되 실행 성공과 전달 성공을 분리한다. 그 뒤 동결 원본을 결정형으로 다시 판정하고
+  L7로 간다. 유료 예비 7 재실행·PM 홀드아웃·L5/L7 제품 수리는 아직 열지 않는다. F-60·F-67도 불가침이다.
+- F-66b 개발 입장 범위: 같은 턴의 초기 bounded source set을 실제 read Receipt와
+  WorkRef·sourceSetRef·revision으로 결속해 `read/unresolved` 현실을 다음 모델 입력과
+  runtime observation 원장에 공급한다. 서명된 CompletionContract·Receipt 본문은 발급 뒤 변이하지 않는다.
+- F-66b 미닫힘: 같은 목적의 여러 턴 승계, 64개 이후 continuation, folder scope, 검증된 excluded
+  입장 채널. 따라서 F-66 전체 닫힘이 아니며 다음 개발선은 F-64 목적 결과·완료 결속이다.
+- 검증: canonical `npm run gate` PASS · 전체 3,572/3,572 · L6 최종 표적 47/47 · 결정형 프로브
+  관련 92/92 · F-64 slice-1과 L5·L6·L7 프로브 증거 독립 감사 PASS. L6 sidecar 수거 뒤 workspace
+  감사 PASS(88 active docs · worktree 2).
+- 제외: F-60은 오너 지시로 미해결 봉인. F-67은 확장 후보로 불가침. PM 홀드아웃과 유료 예비 7
+  재실행은 L5·L6·L7 결정형 판정 뒤 대상·횟수를 결과 전에 동결할 때까지 열지 않는다.
+- 증거: `docs/03-verification/evidence/f65-workset-postfix-2026-08-10/` 보강 뒤 유료 24판 원본과 PM 판정.
+
+## 감사 인계 · 2026-08-04 — **설치파일 직전 단계 종결 요청**
+
+> **이 절이 아래 모든 진행 상태보다 우선한다.** 개발은 여기서 멈추고 **종료 판정을 감사에 넘긴다**
+> (역할 경계: 개발은 구현팀, 종료 판정은 감사팀).
+
+- 브랜치: `claude/p-op-1-a-system-view` · 판정 범위 `c9e9b45..HEAD` (커밋 94개)
+- 오너가 정한 종료 지점: *"설치파일 만들기 직전 = 개발에서 첫 번째 최종 완성"*
+
+### 재발 여부 — **`REPEAT_PREVENTABLE` 2건, 내가 먼저 신고한다**
+
+§8 계약대로 최상단에 적는다. 숨기지 않는다.
+
+| # | 무엇 | 이전 발생 | 이번 재현 | 기존 방어가 왜 무력했나 |
+|---|---|---|---|---|
+| R1 | **통제 채널 이름이 사용자 화면에 노출** | 2026-08-03 (답 마지막 줄에 `memory.cite:`) | 2026-08-04 말귀 재측정 5번 — 같은 채널, 백틱으로 감싼 형태 | 그때 고친 가드가 **줄 앞 장식을 목록으로 열거**했다(`[ \t>*-]`). 목록은 늘 뚫린다(절대원칙 8). 이번엔 구조로 바꿨다(글자가 아닌 것 전부) |
+| R2 | **재는 자리를 검증 안 하고 결론** | 같은 날 오전(방 배선을 고치고 **엉뚱한 배열**을 재서 초록) | 같은 날 저녁(도청 검출기가 스트리밍을 못 읽어 "모델 잘못"으로 오판) | 계측기 검증 절차가 어디에도 없었다. 이번에 **대조 발화를 같은 실행에 넣는 방식**으로 세웠다(`tap-automation.mjs`) |
+
+R2 는 같은 날 두 번이므로 인스턴스 수정으로 종료 보지 않는다 — **남은 표면 전수 확인이 감사 범위다.**
+
+### 사용자·비용 영향
+
+- **절대 게이트 P0: 0건.** 손상 0 · 사라짐 0 · 승인 전 효과 0 · 거절 뒤 실행 0 · 오대상 0 ·
+  현재 요청 침해 0 · 원장↔실물 불일치 0(재시작 뒤에도).
+- **말귀 축 60 → 51**(동결 규약·같은 모델 `gpt-5.5`). 떨어졌다. 분해:
+  7번 0점은 공급자 오류(`empty response`) · 5번 7→5 는 위 R1 이며 **고쳤다**.
+  OpenClaw 8-03 값은 55 다. **지금 T5 가 낮다.**
+- 실행 능력은 올랐다: 437개 정리 라이브 **이동 376 · 44초 · 승인 0 · 손상 0**.
+
+### 신규 결함 — 발견 12 · 수정 10 · 미해결 4
+
+수정 10건은 전부 **라이브가 잡았고 검사를 먼저 세웠다.** 미해결은 장부에 원인·다음 절차까지 적었다
+(`design/T5-FOLLOWUP-LEDGER-ko.md`).
+
+| 장부 | 무엇 | 상태 |
+|---|---|---|
+| F-9 | 화면이 표를 못 그린다 | 결함 · 미해결 |
+| F-10 | 게이트 CPU 기준선 초과 | **오너 결정 대기** — 내 검사를 빼고 재도 넘는다(환경) |
+| F-11 | 모델의 자동화 제안이 화면에 안 뜬다 | **원인 좁힘 · 미해결** — 커널·서버는 `automationProposal`, 화면은 `automationSuggestion`. 잇는 한 줄이 실행되는데 응답에 안 실렸고 이유를 확정 못 했다 |
+| F-12 | 하지 않은 일을 "이미 해 뒀다" | 관측(재현 1/4) — 넓힐 방법이 문구 목록이라 안 넓혔다 |
+
+### 보존되는 통과 범위 (감사가 다시 밟을 수 있는 것)
+
+| 축 | 기계 사실 | 어디서 |
+|---|---|---|
+| 회귀 | **2,370 / 2,370** | `npm test` |
+| 돌연변이 | **306 / 306** | `npm run audit:mutation` |
+| 계획·문서·작업장·패키지 | PASS | `audit:plan` `audit:docs` `audit:workspace` `verify:package` |
+| 사람 사용시험 13계열 | `ok: true` · pass 5 · blocked 6 · fail 2 · P0 0 | `docs/03-verification/evidence/human-use-2026-08-04/` |
+| 비교군 대조 | 원시 응답 + 채점 + 정직한 읽기 | `docs/03-verification/evidence/malgui-2026-08-04/` |
+| 라이브 헌장 | 9건 PASS(전송 1건 자격 없어 건너뜀) | `npm run live:charter` |
+
+**게이트만 BLOCKED**(CPU·벽시계). 위 F-10 이며 코드가 아니라 환경이다.
+
+### 감사가 직접 밟는 절차 (전부 상설 자산이다)
+
+```bash
+npm test && npm run audit:mutation && npm run gate
+npm run human-use:prepare -- --suite milestone     # 격리 방 생성
+node scripts/human-use/serve.mjs <evidence.json> 0  # 격리 증명 통과해야 문이 열린다
+npm run human-use:verify -- docs/03-verification/evidence/human-use-2026-08-04/evidence.json
+node scripts/human-use/malgui-run.mjs               # 말귀 8문항(동결) 재측정
+node scripts/human-use/tap-automation.mjs           # F-11 도청(계측기 검증 포함)
+S1_FROM=1 S1_ROUNDS=1 node scripts/s1/run.mjs       # 437개 정리 라이브
+```
+
+### 내가 판정하지 않는 것
+
+**이 단계가 닫혔는지는 내가 정하지 않는다.** 위 사실만 낸다. 특히 이 셋은 감사 판단이다:
+① 말귀 51(< OpenClaw 55)로 이 단계를 닫아도 되는가
+② `REPEAT_PREVENTABLE` 2건의 남은 표면 전수 확인 범위
+③ F-11 미해결로 자동화 계열 2개가 fail 인 채 넘어가도 되는가
+
+### 내가 한 실수 (숨기지 않는다)
+
+- 격리를 **증명 없이 선언**해 오너의 실제 `~/Documents` 파일 이름이 모델 공급자로 갔다.
+  되돌릴 수 없다. 지금은 `prove-isolation.mjs` 가 통과해야만 문이 열린다.
+- 문항을 대조하려고 러너를 `import` 했다가 **6문항이 실제로 돌았다**(토큰 소모). 실행 가드를 넣었다.
+- 닫을 수 있었을 때 계속 새 결함을 열어 **종료를 늦췄다.** ⑤(증거 채우기)는 한 시간 작업이었다.
+
+---
+
+## 최신 착수 인수인계 · 2026-08-03 팀 설치본 이후
+
+> **이 절이 아래의 오래된 진행 상태보다 우선한다.** 아래 본문은 T-cell, H단계, Automation,
+> P90, 구조 정리의 원인과 증거를 보존한 역사다. 현재 작업을 고를 때에는 이 절의 Git·패키지·
+> HumanRealTest 상태를 먼저 적용하고, 세부 원인이 필요할 때 아래 역사로 내려간다.
+
+### A. 새 세션이 가장 먼저 이해할 것
+
+GPAO-T5의 존재 이유는 다음과 같다.
+
+> 챗지피티나 클로드와 같은 대화형 AI와 대화하는 것은 채팅만 할 줄 알면 누구에게나 쉽다.
+> T5는 바로 거기서 시작한다. 사용자가 사람과 대화하듯 고민과 목표를 말하면, T5는 자연스러운
+> 응답·대화·도구 사용·작업·자동화를 통해 그것을 달성하도록 돕는다. 인간과 AI가 서로를 경계하지
+> 않고 매끄럽고 자연스럽게 동반하게 만드는 것이 T5의 존재 이유이며 절대 목표다.
+
+T5는 기능이 많은 채팅 앱이나 개발자용 에이전트 껍데기가 아니다. 일반 사용자는 **말만 하면 되고**,
+T5가 자기 상태와 가능한 손을 알고, 모델 앞에 정확한 현실을 놓고, 필요한 일을 실제로 수행하며,
+결과와 실패를 정직하게 남기고, 다음 대화까지 이어야 한다.
+
+모든 판단은 다음 순서를 지킨다.
+
+```text
+사용자 발화 이해
+→ 대화 흐름 이해
+→ 모델 앞 현실 구성
+→ 실제 결과와 주장 구분
+→ 다음 턴·새 대화·재시작 승계
+→ 기능과 자동화
+```
+
+기능을 먼저 만들고 사람의 말을 그 기능에 맞추면 T5가 아니다. Runtime이 모델 대신 사용자의 뜻을
+문구·정규식으로 닫아도 안 된다. OS는 원문, 현재 대상, 기억, 가능한 손, 실행 사실, 권한과 위험을
+정확히 공급하고 자연스러운 해석과 대화는 모델의 언어 능력을 최대한 쓴다.
+
+### B. 개발 판정의 두 영역
+
+오너가 현재 개발에서 확정한 명제다.
+
+#### 절대 기능
+
+기계적으로 반드시 맞아야 한다. 한 번이라도 어기면 평균 점수로 상쇄하지 않는다.
+
+- 실행하지 않은 일을 성공·완료라고 말하지 않는다.
+- 잘못된 파일·사람·대화·자동화를 대상으로 실행하지 않는다.
+- 승인 전 효과, 거절 뒤 실행, 의도하지 않은 중복 실행이 없다.
+- 현재 요청이 과거 미완료 작업·기억·합의보다 우선한다.
+- ToolReceipt·WorkEvent·실물·사용자 답이 같은 사실을 말한다.
+- 비밀과 다른 사용자의 맥락을 노출하지 않는다.
+- 손상된 데이터나 원본을 조용히 초기화·삭제하지 않는다.
+- 설치·종료·재시작·자동시작·제거가 실제 사용자 컴퓨터에서 설명과 일치한다.
+
+#### 상대 성능
+
+공식 절대점수는 없다. 같은 목적을 수행하는 비교 모델·비교 운영체제보다 실제 사용자 경험이
+동등 이상인지 반복 비교한다.
+
+- 말귀, 한국어 생략·정정·감정과 말투의 자연스러움
+- 목적 완수율과 실제 결과 품질
+- 질문·카드·클릭·설정 부담
+- 첫 유용한 내용, 전체 대기, 실패 뒤 복구 속도
+- 장기 대화·새 대화·재시작 승계
+- 파일·웹·연결·자동화·에이전트 작업의 완주력
+
+**절대 기능을 먼저 통과하고 상대 성능을 비교한다.** 자연스럽지만 거짓이면 실패다. 안전하지만
+아무것도 못 하면 T5의 목표에도 실패다. T5는 OpenClaw·Hermes의 기능 수를 복제하는 대신 한국의
+일반 사용자가 자주 겪는 목적을 더 자연스럽고 편리하게 끝내는 것으로 이긴다.
+
+### C. 2026-08-03 현재 기계 사실
+
+| 항목 | 현재 사실 |
+|---|---|
+| 공식 폴더 | `/Users/jyp/Developer/t5-p-op` |
+| 브랜치 | `claude/p-op-1-a-system-view` |
+| HEAD | `edf636133c4d26dd6bbb3c4caeca90668b93f1d8` |
+| 작업 트리 | 이 인수인계 수정 전 clean. 이 문서 변경만 의도된 상태로 다시 확인할 것 |
+| 병존 worktree | 공식선 외 `/Users/jyp/Developer/gpao-t5` 1개. 현재 정본으로 사용 금지 |
+| 제품 회귀 | `2,065/2,065` PASS |
+| plan/docs/workspace | PASS · active docs 110 · worktree 2 |
+| 최신 npm 산출물 | 165파일, 펼친 산출물 부팅·health·온보딩 PASS |
+| 돌연변이 | **301건 중 1건 탈출**. 아래 H절 참조 |
+| 통합 gate | 기능 항목은 통과했으나 CPU `56.5s > 51.625s`, 벽시계 `27.6s > 20s`로 BLOCKED |
+| HumanRealTest | 테스트 40/40, drafts 33, comparison/handoff/refinement 검증 PASS |
+
+`npm run verify:package`는 기본 npm 캐시에 root-owned 파일이 있어 그대로 실행하면 EPERM이 난다.
+제품 문제가 아니다. `npm_config_cache=/private/tmp/t5-npm-cache` 같은 격리 캐시를 사용하고, 로컬
+서버 바인딩이 허용된 환경에서 실행하면 165파일 산출물 부팅과 온보딩까지 통과한다. 홈 캐시 소유권을
+오너 승인 없이 바꾸지 않는다.
+
+### D. 현재 제품 몸체
+
+T5의 일곱 코어는 기능 목록이 아니라 하나의 사용자 흐름이다.
+
+1. **Selfhood**: 실제 모델·도구·연결·권한·한계를 안다.
+2. **Model Operation**: 모델 앞에 정확한 현실과 맥락을 놓고 모델을 문구 기계로 만들지 않는다.
+3. **Intent / Context / T-cell**: 말귀, 기억, 합의·수정·철회·미정, 장기 승계, 관찰·성장·감쇠.
+4. **ActionPlan / Authority**: 자동 실행과 승인 A0~A3, 완료 계약, 현재 요청 우선.
+5. **Router / Execution**: 로컬 파일·문서, 웹, 브라우저, 터미널, 프로세스, 커넥터, MCP/API/CLI,
+   자동화와 제한 위임.
+6. **Work Surface / UX**: 대화, 스트리밍, 확인된 중간 결과, 승인, 기억·성장·도구·연결·자동화 표면.
+7. **Truth / Recovery / Growth**: TurnRef, Receipt, WorkEvent, append-only 원장, 재시작 복원,
+   실패 전환과 복구.
+
+구현·봉인된 큰 줄기는 T-cell H01~H07, PC 손발 H08~H09, Automation AC-2~AC-7, 제한 위임 H10,
+실전 문서 업무, P90-1 장기 작업 상태, P90-2 응답 공백 완화, 세 과밀 파일의 행동 보존형 첫 책임
+추출이다. 과거 숫자와 상세 증거는 아래 역사 및 봉인 문서에서 읽는다. 이 목록은 공개 배포 완료나
+모든 실제 사용자 목적 완수를 뜻하지 않는다.
+
+### E. 1차 macOS 팀 패키징의 정확한 상태
+
+`dist/GPAO-T5-0.1.0-arm64.pkg`는 실제로 만들어진 **Apple Silicon 팀 내부 1차 설치본**이다.
+
+| 항목 | 사실 |
+|---|---|
+| 제품/버전 | GPAO-T5 `0.1.0` |
+| bundle/agent | `kr.co.gpao.t5` / `kr.co.gpao.t5.agent` |
+| 아키텍처 | arm64 전용. Intel·Windows 산출물 없음 |
+| 동봉 런타임 | Node `v24.18.1` arm64, nodejs.org 원본 해시 기록 |
+| 서명·공증 | Developer ID 앱·Installer 서명, 공증 Accepted, staple, Gatekeeper accepted |
+| 배포 해시 | `7d991cd9566b18a372fe8b5b8d07ed029dedeada004b7404f5cfc8e0a2481960` |
+| PKG 기준선 | `5774ab4c827923c7f8d662d78ea2b18adda1dcce` |
+| 동작 확인 | 설치 직후 실행, Dock, 종료 시 Node 종료, 재실행, 로그인 자동시작, 포트 대체,
+  로컬 표면 소유권, 제거 도우미와 데이터 보존을 서명본에서 관통 |
+
+**가장 중요한 현재성 경계:** 메인 HEAD는 `edf6361`이고 PKG 기준선은 `5774ab4`다. 따라서 현재
+`dist`의 서명 PKG에는 아래 F절의 최신 팀 피드백 수정이 들어 있지 않다. 다음 팀 배포본은 현재 HEAD의
+전체 게이트와 HumanRealTest 처분을 먼저 닫고, 새 SHA에서 재빌드·재서명·재공증·새 해시로 배포해야
+한다. 기존 manifest의 PASS를 새 PKG에 복사하지 않는다.
+
+데이터 경로도 주의한다. 설치 신분 문서는 `~/Library/Application Support/GPAO-T5` 이관을 결정으로
+적었지만 현재 런처와 저장소는 기본적으로 `~/.local/state/gpao-t5/sessions`를 쓴다. 팀 안내 문서는
+현재 구현에 맞게 구 경로를 적고 있다. **결정은 있으나 이관 구현은 아직 닫히지 않았다.** 그래서 같은
+Mac 계정에 개발·시험 데이터가 있으면 새 설치 뒤에도 그 대화가 보인다. 완전히 새로운 팀원 계정은
+기존 데이터가 없으면 깨끗하게 시작하지만, `가져오기 / 새로 시작` 선택·이관·백업·복원은 별도 설치
+생명주기로 남아 있다.
+
+현재 1차 패키지가 증명하지 않은 것:
+
+- Intel Mac, Windows 설치 파일
+- 자동 업데이트와 손상 업데이트 rollback
+- Keychain 자격 이관 완료
+- 일반 사용자용 제거 UI와 데이터 삭제 선택 UI
+- 깨끗한 VM/실제 Mac matrix의 반복 설치·업데이트·재부팅·복원
+- 최신 HEAD 반영 PKG
+
+### F. 팀원 실사용 피드백과 최신 수정
+
+팀원 피드백 원문은 Codex 첨부 파일에 있고, 일반화 정본은
+HumanRealTest 문서 폴더의 `14-TEAM-FEEDBACK-SCENARIO-EXPANSION-2026-08-03-ko.md`다.
+
+한 팀원이 설치본에서 Telegram 연결을 시도하며 다음이 겹쳤다.
+
+- 오래된 미완료 Telegram 작업이 새 `대화 전체를 txt로 저장` 요청을 두 번 막았다.
+- 답 끝에 `memory.cite:` 내부 통제 표식이 노출됐다.
+- 답이 끝날 때마다 긴 대화 화면이 맨 위로 튀었다.
+- 연결 화면이 열렸다 닫혀 실패 이유를 읽기 어려웠다.
+- 상태 조회·업데이트 읽기까지 승인이 반복돼 피로가 커졌다.
+- 보내기 능력이 없다고 했다가 보냈다고 하는 등 능력 설명이 모순됐다.
+- 비밀 입력면이 열리지 않았는데 자격 기반 결과를 말하는 모순이 있었다.
+- 봇 정보 조회와 수동 송신 성공을 양방향 연결 완료처럼 확대했다.
+- 실제 receiver, channel credential, durable binding이 없는 상태에서 pairing을 말했고 inbound가 이어지지 않았다.
+- 사용자가 `진행해`라고 반복해도 설정 JSON·Python polling·구현 설명을 되풀이했다.
+- 외장 위치 설치와 stdout/stderr 폐기로 일반 사용자가 터미널 없이는 원인을 알 수 없었다.
+
+최신 커밋 `edf6361`이 직접 닫은 범위는 세 계열이다.
+
+1. 현재 발화의 완결된 파일 작업을 과거 미완료 작업 때문에 막다른 재질문으로 닫지 않는다.
+2. `memory.*`, `skill.propose`, `automation.propose`, `agent.propose` 통제 줄이 답 끝에 붙어도 사용자
+   표면에서 제거한다.
+3. 긴 대화를 다시 그릴 때 완료 전 스크롤 위치를 측정해, 아래를 보던 사용자는 아래에 남고 과거를
+   읽던 사용자는 읽던 위치를 보존한다. 21,558px 라이브 대화에서 수정 전 `scrollTop=0`, 수정 뒤
+   하단 유지가 관측됐다.
+
+이 세 수정으로 팀 피드백 전체가 해결됐다고 말하면 안 된다. Telegram 실제 수신·연결 상태 진실,
+승인 비례성, 비밀 입력, 실패 가시성, 행동 대 설명, 설치 진단은 HumanRealTest에서 아직 닫아야 한다.
+
+### G. HumanRealTest 현재 상태
+
+폴더: `/Users/jyp/Developer/HumanRealTest`
+
+제품 패치 저장소가 아니라 실제 사용자 시나리오·비교·원인 실험·다듬기 원장이다. 메인 T5 코드를
+이 폴더에서 수정하지 않는다. 현재 기계 검증은 40/40, 초안 33개 등록, 비교 mode 5·family 12,
+handoff/refinement 검증 PASS다.
+
+팀 피드백은 텔레그램 한 사례가 아니라 다음 12축으로 분리됐다.
+
+| 축 | 본질 | 유사 적용 |
+|---|---|---|
+| TF-01 | 현재 요청 우선 | 파일 저장·일정 조회·주제 전환 |
+| TF-02 | 반복 요청에서 교착 탈출 | 재시도·명시 중단·새 요청 |
+| TF-03 | 반복 요약·내부 통제 누출 0 | 긴 대화·실패 뒤 복귀 |
+| TF-04 | 스크롤·초점 안정 | 스트리밍·승인 재개·모바일 |
+| TF-05 | 연결 실패의 지속 가시성 | OAuth·커넥터·비밀 입력 |
+| TF-06 | 효과에 비례하는 승인 | 읽기→쓰기·조회→전송 |
+| TF-07 | 능력 설명과 실제 손의 일치 | Sheets·캘린더·브라우저·파일 |
+| TF-08 | 비밀 입력 단일 경로 | API key·OAuth·bot token |
+| TF-09 | 연결 단계의 진실 | credential·receiver·inbound·outbound |
+| TF-10 | 실행 가능하면 행동, 불가하면 정확한 한 blocker | 자동화·파일 변환·연결 |
+| TF-11 | 채널 end-to-end | 연결→수신→처리→회신→재시작→해제 |
+| TF-12 | 설치본 지원 가능성 | 비기본 위치·실패 진단·복구·제거 |
+
+초안은 `DRAFT_NOT_FROZEN`이다. 공식 48쌍에 자동 편입하지 않는다. 특정 Telegram 문구를 고치는
+정규식이 아니라 같은 원리가 Google Sheets, 캘린더, 이메일, Slack, 파일, 브라우저, 설치본에서
+다시 발생하는지 본다. 모델의 “연결됨·보냈음·완료” 자기보고는 증거가 아니다.
+
+연결은 반드시 다음 사실을 분리한다.
+
+```text
+configured
+→ credential_verified
+→ receiver_running
+→ inbound_observed
+→ outbound_delivered
+```
+
+각 단계의 실제 receipt와 외부 도착 증거가 없으면 다음 단계로 부풀리지 않는다.
+
+HumanRealTest의 `.beai-harness/workspace-notes`는 일반 Harness가 만든 보조 기록이며 현재 T5 제품
+정본이 아니다. `handoff/claude-refinement.json`도 P90-2 직후 조정 상태를 담은 역사적 machine
+handoff라 최신 메인 HEAD의 작업 지시로 쓰지 않는다. 현재 착수는 이 고정 인수인계와 Git이 우선한다.
+
+### H. 지금 남아 있는 검증 결함과 문서 불일치
+
+#### H-1. 돌연변이 1건 탈출
+
+`npm run audit:mutation`은 현재 301건 중 다음 1건을 놓친다.
+
+> `현재 발화의 완결된 파일 작업을 흔들린 판정과 함께 버림`
+
+주입은 `currentRequestCalls()` 안의 `return currentFileCallFromText(calls, text)`를 `return null`로
+바꾼다. 현재 회귀는 이 방어가 없어져도 통과한다. 팀 피드백에서 막 고친 “과거 미완료 행동과 현재
+파일 요청이 섞였을 때 현재 요청을 살리는 계약”과 직접 관련된다. **현재 HEAD를 최종 봉인하거나 새
+PKG 기준선으로 삼기 전에 수정 전 실패를 세우고 이 변이를 물려야 한다.** 특정 예문 하나만 통과시키지
+말고 현재 발화의 read/write/변환/내보내기 변형과 과거 미완료 행동의 조합을 확인한다.
+
+#### H-2. gate 검사 비용 BLOCK
+
+현재 `npm run gate`의 기능·안전·정본·2065 회귀는 통과하지만 다음 두 문턱이 빨갛다.
+
+- CPU 56.5초 > 51.625초
+- 벽시계 27.6초 > 20초
+
+문턱을 올리거나 지우지 않는다. 조용한 환경 A/B로 환경 부하와 실제 검사 비용 회귀를 먼저 분리한다.
+최근 추가 검사 몇 건의 시간만 보고 원인이라고 추정하지 않는다. 고아 프로세스, 브라우저 부하,
+타임아웃·실제 대기, 테스트 병렬성, 기준선 측정 조건을 확인한다.
+
+#### H-3. 현재 문서 drift
+
+- `README.md`와 일부 권위 지도는 서명 설치가 아직 남았다고 적지만, arm64 팀 1차 PKG의
+  서명·공증·설치 관통은 이미 수행됐다. 공개/소비자 배포가 남았다는 뜻으로만 읽는다.
+- `P-DIST-1-INSTALL-IDENTITY-FREEZE.md`는 Application Support 이관을 확정했지만 구현은 아직
+  `~/.local/state/gpao-t5/sessions`다.
+- `dist` manifest 기준선은 `5774ab4`; 메인 HEAD는 `edf6361`이다.
+- 아래 역사 본문의 일부 회귀·돌연변이 수치는 당시 증거이며 현재 수치로 복사하지 않는다.
+
+문서 drift를 발견했다고 제품 코드를 바로 바꾸지 않는다. 실제 코드·산출물·실행 증거를 먼저 확정하고
+정본의 현재 상태 표만 고친다.
+
+### I. Claude Code 필수 정독 순서
+
+새 세션은 구현 전에 아래를 직접 읽고, Git과 충돌하는 문장을 표시한다. 요약만 읽고 착수하지 않는다.
+
+#### I-1. 정체성과 판단 기준
+
+1. `AGENTS.md`
+2. 이 문서의 **최신 착수 인수인계** 절
+3. `docs/PROJECT-AUTHORITY-MAP-ko.md`
+4. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+5. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+6. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
+7. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
+
+#### I-2. 개발·감사 방법
+
+1. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
+2. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
+3. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
+4. `GPAO-T5-STRUCTURAL-DEVELOPMENT-PRINCIPLES-2026-07-28-ko.md`
+5. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
+
+#### I-3. 현재 기능·성능·배포 증거
+
+1. `docs/03-product-plan/T5-PRODUCTION-90-COMPLETION-PLAN-2026-08-02-ko.md`
+2. `docs/03-verification/evidence/production90/p90-1/competitive-seal-2026-08-02-ko.md`
+3. `docs/03-verification/evidence/production90/p90-2/latency-density-seal-2026-08-03-ko.md`
+4. `docs/03-verification/T5-MALGUI-COMPARISON-PROTOCOL-2026-08-03-ko.md`
+5. `docs/03-verification/evidence/malgui-2026-08-03/RESULT-ko.md`
+6. `design/P-DIST-1-INSTALL-PIPELINE.md`
+7. `design/P-DIST-1-INSTALL-IDENTITY-FREEZE.md`
+8. `docs/GPAO-T5-INSTALL-AND-USE-GUIDE-ko.md`
+9. `dist/GPAO-T5-0.1.0-arm64.manifest.json`
+
+말귀 비교 첫 8문항은 같은 `gpt-5.5` medium에서 T5 60/64, OpenClaw 55/64였지만, 전달된 답만
+평균내면 OpenClaw 7.86, T5 7.5로 OpenClaw가 근소 우위다. T5는 8/8 완주와 중앙 15.8초,
+OpenClaw는 7/8·22.4초였고 한 실패가 총점 차이를 만들었다. **T5의 광범위 우위로 일반화하지
+않는다.** T5의 현재 상대 과제는 말투 일관성과 전달 답의 세밀한 자연스러움이고, 강점은 완주·속도·
+현재 검색 근거다.
+
+#### I-4. HumanRealTest
+
+1. `/Users/jyp/Developer/HumanRealTest/README.md`
+2. `01-AUDIT-CONTRACT-ko.md`
+3. `05-REFINEMENT-BACKLOG-ko.md`
+4. `09-CLAUDE-REFINEMENT-HANDOFF-ko.md`
+5. `11-PRE-INSTALL-FINAL-AUDIT-RUNBOOK-ko.md`
+6. `12-CONTINUOUS-REAL-USER-SESSION-RUNBOOK-ko.md`
+7. `13-CONTINUOUS-USER-TEST-DEVELOPMENT-HANDOFF-ko.md`
+8. `14-TEAM-FEEDBACK-SCENARIO-EXPANSION-2026-08-03-ko.md`
+9. `manifest.json`과 TF-01~TF-12 JSON 12개
+
+HumanRealTest 기준 폴더는 `/Users/jyp/Developer/HumanRealTest`다. 2~8은 그 안의 문서 폴더, 9는 시나리오 초안 폴더에서 읽는다.
+
+#### I-5. 전체 문서 기본 분석
+
+현재 저장소에는 루트 Markdown 36개, `docs` Markdown 90개, `design` Markdown 52개가 있다.
+`audit:workspace`가 현재 active docs 110개를 판정한다. 새 세션은 큰 변경 전에 다음을 수행한다.
+
+1. `find`/`rg`로 모든 active 문서의 제목·상태·날짜·참조 관계를 목록화한다.
+2. 루트 정본과 active `docs`·`design` 문서를 모두 읽고, 현재 작업과 직접 관련된 문서는 본문·검사·
+   코드까지 대조한다.
+3. `docs/archive/**`는 전수 목록만 확인하고 현재 지시로 쓰지 않는다. 현재 원인의 역사나 회귀 계보가
+   필요할 때만 해당 본문을 읽는다.
+4. `docs/03-verification/evidence/**`의 raw JSONL·이미지는 전부 프롬프트에 싣지 않는다. 판정 문서가
+   참조한 회차만 원본 해시·로그·스크린샷을 대조한다.
+5. 문서의 PASS를 현재 HEAD의 PASS로 복사하지 않고 실제 명령을 다시 실행한다.
+
+### J. `lab_un` 비교군 안내
+
+비교군은 기능 백로그가 아니라 **운영 원리와 상대 성능의 증거**다.
+
+| 비교군 | 고정 경로 | 확인한 커밋 | 주로 볼 것 |
+|---|---|---|---|
+| OpenClaw | `/Users/jyp/Developer/lab_un/openclaw-pure-2026-07-20` | `27f05c8993fb18ad6d65a5912d50966594d9662c` | Gateway, channel lifecycle, pairing/allowlist, session routing, plugin 경계, 진행 사건, daemon/doctor, 앱·음성·Canvas, 설치·업데이트·진단 |
+| Hermes | `/Users/jyp/Developer/lab_un/hermes-agent` | `a61183b56fdb45b9d2a0f2f6b8482e665ccf702f` | stable/context/volatile prompt, CLI/TUI/web, provider·tool registry, transient/permanent 실패, terminal agent, background review·curator, memory·approval·gateway |
+
+OpenClaw는 TypeScript 대형 monorepo다. `README.md`, 루트·하위 `AGENTS.md`, 관련 `docs`, `src`,
+`extensions`, `apps`, 테스트를 함께 읽는다. Hermes는 Python 중심이며 `README.md`, `agent`, `tools`,
+`providers`, `gateway`, `hermes_cli`, `apps`, 테스트를 함께 읽는다. 검색 결과나 T5 비교 문서만으로
+소스 사실을 대신하지 않는다.
+
+흡수 후보:
+
+- 채널의 credential·receiver·inbound·outbound·pairing·disconnect 생명주기
+- public tool progress와 모델 답을 섞지 않는 진행 사건
+- daemon health, doctor, 로그와 사용자가 복구할 수 있는 진단면
+- 세션·채널·agent 격리와 재시작 dedup
+- transient/permanent 실패 분류와 손 전환
+- stable/context/volatile 현실 공급과 응답 뒤 background review
+- 설치·업데이트·제거·앱 생명주기의 검증된 운영 원리
+
+그대로 복제하지 않을 것:
+
+- OpenClaw의 채널 수, 대시보드, 브랜드, 서비스별 코드를 T5 기능 목록으로 옮기기
+- Hermes의 개발자 중심 CLI/TUI 자세를 일반 사용자 기본 경험으로 만들기
+- 비교군의 무경계 자동 기억·넓은 host 권한·설정 부담
+- T5 장부의 진실 판정에 두 번째 확률 모델이나 임베딩을 넣기
+- 비교군 경로·설정·스키마를 T5 내부 계약 이름으로 복사하기
+
+읽기 전용 비교가 기본이다. 비교군 저장소를 수정하거나 실제 계정·채널·유료 모델을 실행할 때는
+별도 권한과 격리 홈이 필요하다. 모델·버전·환경이 다르면 구조 관찰만 유효하며 일반 품질 순위를
+주장하지 않는다.
+
+### K. 팀 피드백 이후의 개발 방법
+
+이제 결함을 한 문장씩 패치하지 않는다.
+
+```text
+실제 사용자 현상 보존
+→ 절대 기능 위반인지 상대 성능 열세인지 분리
+→ 같은 원리의 유사 사례를 여러 도메인에서 찾음
+→ HumanRealTest 시나리오를 결과 전에 동결
+→ 원인을 모델 앞 / 모델 / 모델 뒤 / 표면 / 하네스로 귀속
+→ 공통 계약 한 곳만 수정
+→ 반대시험·돌연변이·기존 회귀
+→ 설치 산출물의 실제 사용자 경로
+→ OpenClaw·Hermes·동일 모델과 자격 있는 비교
+→ 문서와 다음 패키지 기준선 갱신
+```
+
+증상별 예외, 특정 팀원 문장 정규식, Telegram 전용 커널 분기, 고정 말투 템플릿은 금지한다.
+기억이 많이 저장되는 것을 오류로 세지 않는다. 필요한 기억을 정확히 꺼내고, 무관한 기억은 적용하지
+않고, 철회·감쇠·현재 요청 우선을 지키는지가 계약이다.
+
+### L. 지금의 착수 순서
+
+1. **읽기와 현재성 대조**: I절 필수 문서, Git HEAD, package manifest, HumanRealTest, `lab_un`을
+   읽고 충돌표를 만든다. 새 마스터 계획서는 만들지 않는다.
+2. **검증기부터 정상화**: 돌연변이 #293을 실제 계약 검사로 물리고, gate 비용 BLOCK의 원인을
+   A/B로 귀속한다. 문턱 완화 금지.
+3. **팀 피드백 12축 실행 순서 결정**: 절대축 TF-01·02·07·08·09·11을 우선하고, 표면축
+   TF-03·04·05·06·10·12를 실제 사용자 여정에 결합한다. `edf6361`이 닫은 범위는 재개발하지 않고
+   반대시험으로 보존한다.
+4. **Telegram 한 건을 전체 연결 계약으로 검증**: 전용 비밀 입력→credential 확인→receiver 실행→
+   허용 inbound→모델 처리→outbound 실제 도착→재시작 dedup→disconnect를 터미널 대체 없이 관통한다.
+5. **유사 사례 확장**: 같은 계약을 Sheets·캘린더·이메일/Slack·파일 내보내기 중 준비된 fixture에
+   적용해 서비스별 우연한 성공이 아닌지 확인한다.
+6. **최신 설치본 재생성 전 gate**: 2065 회귀, 301 돌연변이 전부, plan/docs/workspace/gate,
+   HumanRealTest 선택 시나리오를 통과한다.
+7. **새 PKG**: 현재 최종 SHA에서 재빌드·재서명·재공증하고 새 manifest·해시·설치 가이드를 만든다.
+   깨끗한 사용자와 기존 데이터 사용자를 분리해 확인한다.
+
+### M. 소유권과 멈춤 경계
+
+- Claude Code는 메인 구현자다. Codex는 독립 감사와 HumanRealTest 시나리오·비교·전체 범위 판정을
+  맡는다. 같은 파일을 동시에 고치지 않는다.
+- `src/surface/server.js`, `src/kernel/turn.js`, `src/kernel/l5-growth/tcell-grow.js`, packaging 공용 파일은
+  단일 소유·직렬로 다룬다.
+- 현재 세 파일은 각각 약 2,758 / 1,819 / 1,006줄이다. HRT-ST-001~003에서 tick scheduler,
+  turn timing, user-facing turn surface, 순수 growth verdict를 행동 보존형으로 추출했다. 줄 수를 줄이는
+  것 자체가 목표가 아니며 팀 피드백 해결 중 추가 대규모 재작성 금지다.
+- 외부 계정·비밀·실제 메시지 전송·삭제·공개 배포·서명 자격 재사용·돈이 드는 비교는 오너 권한이다.
+- 오너에게 명령 실행·routine 브라우저 조작·재현·검사 설계를 넘기지 않는다.
+- 문제가 세 번 반복됐다는 이유로 문턱을 낮추거나 검사·증거를 삭제하지 않는다.
+
+### N. 새 Claude 세션의 첫 보고 형식
+
+착수 전에 아래 사실만 짧게 보고한다. 오너 말을 장황하게 재포장하지 않는다.
+
+```text
+읽은 정본과 현재 HEAD:
+패키지 기준선과 현재 HEAD의 차이:
+팀 피드백 12축 중 이미 코드로 닫힌 범위 / 아직 증거가 없는 범위:
+돌연변이 #293과 gate 비용 BLOCK의 현재 판정:
+이번에 소유할 파일:
+첫 번째 실제 사용자 시나리오와 멈춤 조건:
+```
+
+그 다음에는 설명을 반복하지 말고 실행한다. 테스트 초록만으로 “팀 피드백 해결”이나 “2차 설치본
+준비”를 선언하지 않는다. 실제 사용자가 말로 시작해 목적을 끝내고 실패를 이해하며 다시 이어갈 수
+있을 때만 해당 범위를 닫는다.
+
+## 0. 오너 최상위 결정
+
+1. 현재 T5 코어는 그대로 유지한다.
+2. 과거 TG/CX T-cell 구현은 전면 롤백됐으며 현재 제품 사실이 아니다.
+3. 옛 T-cell 명세를 부분 보수해 재개하지 않는다.
+4. 새 T-cell 계획을 현재 코어 위에 다시 작성하고 오너 확인 뒤에만 구현한다.
+5. T-cell 성공 뒤 스킬·크론·에이전트·자동화·도구·UX·배포 잔여 개발이 이어지게 설계한다.
+6. 중요한 결정·작업 종료·원복·기준선 변경·에이전트 결과 편입 때마다 이 문서를 갱신한다.
+7. 오너가 직접 터미널·브라우저·시험 화면을 조작하는 방식은 불가피한 경우에만 쓴다. 개발팀과
+   감사팀이 일상 조작·재현·측정·증거 수집을 직접 수행한다.
+8. OpenClaw·Hermes 라이브 비교는 준비 결함을 이유로 축소·포기하지 않고 정확하게 완주한다.
+   Claude 구현선의 예방 가능 재발이 계속돼 정상 진행이 어렵다고 판단되면 Codex 감사선이 계측기
+   구현·실행을 직접 인수한다. 이 전환과 기술 조정 부담을 오너에게 넘기지 않는다. 이후 오너가
+   유효한 1회 관찰에서 구조적 사실이 충분히 확보됐다고 판정해 회차 2·3을 중단했으며, 이 결정이
+   현재 정본이다.
+
+## 0-A. 현재 최우선 실행 상태
+
+- 비교 계측기 준비와 유료 회차 1은 종료됐다. 현재 상태는
+  `T5_W6_DEVELOPMENT_PASS`이다 — T-cell H01~H07 봉인에 이어 **PC 손발 H08~H09도
+  결정적 제품 관통으로 종결됐다**(진행표 §5-R). 기존 H09 6회는 실제 실패 호출 0이라 증거를
+  철회했고, 실제 EACCES 제품 경로로 다시 검증했다. H08은 선택적 자기신고를 없애고
+  ActionPlan 완료 계약→write 영수증 신분 결합→실제 gpt-5.1 별도 파일 생성까지 관통했다.
+  역사적 T-cell 봉인 근거는 다음과 같다 — **채널 중복 구조 제거(§5-L: 원천 발화가 이력에 있으면 기억 재공급
+  차단 — 저장 근거 정확 동일성만·fail-open) 후 재판별 9/9 전 기준 충족 → 정본 그대로 최종
+  6회(r44~r49): H01·H04 `PASS`(6/6) · H03 `PASS_WITH_RECORDED_LIMIT`(정본 표 전환 6/6·복귀
+  5/6 — r48 1턴 대화 관성·영구화 0) · **H02 재판정 4/6**(r49 기여 성공) · 보조 모델
+  `claude-opus-4-8` 유효 3회 **3/3 전 구간 성공** · 잘못된 입장·과잉 적용·P0 0 · 구조 장부
+  `PASS_WITH_RECORDED_LIMIT` 종결 · **T-cell H 봉인**(2026-08-01).
+  - T-cell 구현 계약 지위는 `IMPLEMENTATION_CONTRACT_FROZEN`이다. 과거
+    `FINAL_FOR_COMPLETENESS_AUDIT`는 구현 전 문서 단계의 역사이며 현재 실행 상태가 아니다.
+  - S5-1 shown **PASS** · S5-2 cite **격하 PASS**(보조 신호, 실측 3/9 — 감쇠 필수 근거 금지) ·
+    S5-3 correction correlation **제한부 PASS**(지목→shown 대조, 실측 2/3) ·
+    S5-4 가역 감쇠 회로 **라이브 관통 확인**(감쇠 후 입장 0 → 복원 후 입장 O) ·
+    S5-5 성장 표면 **라이브 관통 확인**(화면에서 붙듦·치움·되돌리기 → 다음 턴 입장 복귀).
+  - S5-5 에서 **옛 요약이 내려간 항목을 "반영 중"이라 말하던 것**을 찾아 고쳤다. 화면 두 곳을
+    각각 손보지 않고 `물러남` 판정을 `context-mesh` 한 곳으로 모았다(입장 게이트와 같은 사실).
+  - **완료 흐름 관통**: 후보 → suite 통과 → 승격 → 입장 → 실제 H02 기여 → 과잉 적용 0 이
+    같은 제품 경로·같은 회차에서 이어졌다(`r5-data`).
+  - **검증 도구 오염 종결**(`23b1ffa`): 돌연변이 스윕이 활성 소스를 변조하던 것을 임시 사본
+    격리로 닫았다. 실행 전후 소스 지문 대조가 스윕 안에 있고, 다르면 `exit 2`.
+  - **시험 서버 바인딩 종결**(`48341ce`): 주소 없는 `listen` 이 남의 프로세스와 겹쳐 조용한
+    오답을 내던 것을 루프백 명시로 닫았다. `audit:workspace` 가 재발을 막는다.
+  - **제품 서버 노출 경계 PASS**(`e8e4d65`): 기본 바인딩 `127.0.0.1`, 비루프백은 사람 말로
+    기동 거부. 실측 대조 — 수정 전 LAN `/health` 200, 지금 연결 안 됨.
+- **H07 민감정보 관찰 경계 보강 편입**(`773760e`, 병합 `7a07233`): 관찰·묶음에 사용자 원문을
+  복제하지 않고 TurnRef로만 재구성하며, 민감한 원천 발화는 성장 모델 앞에서 다시 차단한다.
+  옛 저장본의 민감 관찰·묶음 참조도 다음 관찰에서 정리한다. 집중 회귀 132/132 통과.
+- **사람 브라우저 사용 시험(2026-08-02)**: 격리 HOME의 실제 제품 화면과 OAuth `gpt-5.5`로
+  축약 후속 대화·한 턴 형식 예외·최신 파일 판단·문맥 기반 파일 생성·승인 클릭·없는 파일의
+  정직한 복구·설정·테마·새 대화를 직접 조작했다. 같은 턴에서 해소된 범위 실패의 최종 재노출,
+  이미 끝낸 찾기의 재약속, 문맥이 충분한 파일 생성의 불필요한 본문 재질문, 초기 stub 준비됨
+  표시를 수정했다. 원장은 보존하고 사용자 투영만 현재 사실에 맞췄으며 원본 파일은 불변이다.
+  정본 증거: `docs/03-verification/evidence/human-baseline/HUMAN-BROWSER-USE-TEST-2026-08-02-ko.md`.
+- **사람 사용시험 상시화·일곱 영역 재평가(2026-08-02, 겸임 구현 `ab6b7ef`)**: 실제 브라우저만
+  사용자 행동으로 인정하는 시험 에이전트·시나리오 등록부·증거 검증기를 추가했다. 자기상태는 제품/모델,
+  실행 가능한 손/승인 필요 손, 로컬·루프백·비용 미집계를 실제 사실로 구분하며 첫 인사와 상투 문구를
+  줄였다. 자기상태 브라우저 시험은 PASS. 30턴 장기 대화는 수정 우선·보류 재개·문맥 누출 0은
+  성립했으나 오래된 순수 대화 합의가 최종 종합에서 빠져 **제품 P1**로 기록했다. 자동화 승인 화면과
+  canonical 백엔드 계약의 불일치도 P1이다. 정본 평가:
+  `docs/03-verification/T5-SEVEN-DOMAIN-CAPABILITY-REPORT-2026-08-02-ko.md`.
+- **90항 사람 사용시험 보강(2026-08-02)**: 이전 삭제 승인이 새 요청에 다시 붙는 경로를 현재
+  발화 TurnRef·요청 digest로 차단했고, 자동화 실행 계약은 후보 action·skill·담당 profile에서
+  서버가 파생한다. 실패한 모델 추측 경로는 `attemptedWith`로 분리하며 런타임 HOME을 실행 직전에
+  결합한다. 외부 출력 민감값과 형식 수정의 빈 확인말도 닫았다. 실제 브라우저에서 격리 Downloads
+  목록→삭제 승인 1건→무관 요청에서 옛 승인 버튼 0→원본 보존이 관통했다. 회귀 **1,865/1,865**,
+  돌연변이 **216/216**, 공식 gate PASS(CPU 26.4초·벽시계 17.4초), 패키지 151개 실제 기동
+  PASS. 남은 사용자 한계는 도구 턴 첫 글자 약 42초와 장기 순수 대화 합의 P1이다.
+  증거: `docs/03-verification/evidence/human-use-agent/90-item-remediation-2026-08-02-ko.md`.
+- **T5-Codex 사람 사용 비교 3회(2026-08-02)**: 서로 다른 장기 운영 대화(24턴), 실제 파일
+  프로젝트, 실패·웹·자동화·민감정보 대화(18턴)를 실제 T5 브라우저와 `gpt-5.5`로 수행했다.
+  대화/파일 결과 계약, 현재 파일 행동 보존, 최신 공식 근거 날짜 비교, 대상 없는 취소의 파일 작업
+  오염 차단, 중첩 모델 결과의 민감정보 durable 저장 차단을 제품 경로로 닫았다. 재시험에서 대화
+  초안은 카드·질문 0, 최신 웹은 GPT-5.6 공식 근거, 카드번호 원문은 UI·저장·회상 0이었다.
+  남은 P1은 장기 작업상태 종합, 도구 턴 지연, 응답 밀도, 자연어 자동화 취소다. 최신 기준선은
+  회귀 **1,898/1,898** · 돌연변이 **235/235**이며 정본 증거는
+  `docs/03-verification/evidence/human-use-agent/T5-CODEX-HUMAN-USE-COMPARISON-3ROUNDS-2026-08-02-ko.md`다.
+- **프로덕션 90 완성 계획 실행 승인(2026-08-02, Wave 0 진행 중)**: 오너 목표에 따라 모든 영역을 90점대로
+  끌어올리기 위한 네 작업선 — 장기 작업상태, 도구 턴 지연, 소비자 설치 생명주기, 실제 사용 폭 — 을
+  하나의 실행 계약으로 정리했다. 각 작업선은 기능·반복·실환경·인간 체감·복구의 100점표에서 90 이상,
+  마지막 일곱 코어도 각각 90 이상이어야 완료다. 광범위한 구조 재작성과 공개 배포는 이 승인에 포함되지
+  않는다. WorkState 완료의 영수증 근거, 기존 상태 구조와의 단일 진실, 계측 선행, 점수 산식, 설치
+  migration·rollback, P1 수용 조건을 실행 전 계약으로 보강했다. 오너가 실행을 승인했으며 Codex 5.6 Sol이
+  본선 구현·통합을 맡는다. 같은 세션의 자체검증은 `겸임 구현`이고 최종 감사는 독립 세션 몫이다. 정본 계약:
+  `docs/03-product-plan/T5-PRODUCTION-90-COMPLETION-PLAN-2026-08-02-ko.md`.
+- **Production 90 Wave 0 계측 편입 완료(2026-08-02, 겸임 구현)**: 73개 원자 지표·28개 사전 등록
+  여정을 JSON 정본으로 동결하고, 웹 SSE 제품 경로에 서버 입력→큐→첫 진행→첫 답→지속 완료와 브라우저
+  실제 paint→첫 유용 내용→최종 투영 완료를 같은 비민감 신분으로 결합하는 계측을 편입했다. 실제 브라우저
+  한 회차에서 서버 완료 39.4ms, 브라우저 첫 유용 내용 75.9ms, 최종 투영 76.3ms가 같은 신분으로 저장됐고
+  원문·경로·도구 인자는 0이었다. 이 한 회차는 배선 증거이며 공식 p95가 아니다. 회귀 **1,927/1,927**,
+  돌연변이 **240/240**, plan/docs/workspace PASS. 공식 경로별 cold/warm 30회 기준선은 다음 측정 단계다.
+  증거: `docs/03-verification/evidence/production90/wave0/instrumentation-product-path-2026-08-02-ko.md`.
+- **P90-1 장기 작업상태 결정적 구조 편입 완료(2026-08-02, 겸임 구현 `f9a96d7`)**:
+  `WorkEventLedger` append-only hash chain, OS 발급 `WorkRef`·`ReceiptRef`·`CompletionContractRef`·
+  `subjectRef`, 합의·대체·철회·미정·해소·실행완료·대화산출물 사건을 편입했다. 모델 `work.state`는
+  사용자 원문과 현재 원장에 대조되는 후보일 뿐 완료 진실이 아니다. 실제 파일 산출물의 완료는
+  `delivered` 영수증과 완료 계약 결합에서만 선다. 현재 상태는 사건 투영 하나이고 세션에 별도 정본으로
+  저장하지 않는다. 새 대화는 같은 principal에게 실제로 보여준 프로젝트 원문을 정확히 지목할 때만 같은
+  WorkRef를 이어받는다. 모델 호출 없는 30·60·100 **사건 시뮬레이션**·재시작·무관 scope·프롬프트
+  상한·제품 HTTP 산출물 관통이 최초 기준선에서 섰다. 이후 감사에서 사후 완료 계약 오결합, 사건 묶음
+  부분 저장, 다단계 `work.state` 유실이 확인돼 사전 계약 결합·원자 커밋·호출 순서 병합으로 보완했다.
+  최초 기준선은 회귀 **1,984/1,984** · 돌연변이 **246/246** · plan/docs/workspace PASS였으며,
+  감사 보완 뒤 사전 완료 계약 결합·실행 전 계약 검증과 즉시 영수증 봉인·사건 묶음 원자 커밋·
+  다단계와 승인 전후 `work.state` 단일 묶음·최초 발화/WorkRef 승계·UUID 세션 신분의 민감정보
+  오탐까지 닫았다. 별도 5.6 Sol 적대 감사는 P0/P1을 실제 제품 경로로 찾아낸 뒤 최종 `PASS`했다.
+  동결 게이트는 회귀 **2,008/2,008** · 돌연변이 **262/262** · plan/docs/workspace·제품 gate
+  PASS(CPU 26.4초·벽시계 17.3초)다. 이 문단은 최초 구조 기준선이며, 아래 경쟁 봉인 문단이 현재
+  종료 판정을 소유한다. 증거:
+  `docs/03-verification/evidence/production90/p90-1/work-state-implementation-2026-08-02-ko.md`.
+- **P90-1 경쟁 봉인(`P90_1_COMPETITIVE_SEAL_PASS_WITH_RECORDED_LIMITS`, 2026-08-02)**: `22c2533`의
+  **2,008/2,008**과 미커밋 트리 **2,025/2,043** A/B로 전역 `work.state` 보완 호출이 기존
+  모델 호출 순서를 소비한 단일 원인을 확정했다. 보완 호출을 실행·영수증 뒤 종단 정산 경계로 옮기고,
+  기존 WorkRef·승인 재개·좁은 최초 지속 작업 후보에서만 열었다. `activeGoal` 단독 개방과 정산 답
+  덮어쓰기는 금지했다. OS 발급 턴 한정 선택자 `P1` 등으로 새 대화 승계를 정확한 WorkRef에 환원한다.
+  최종 회귀 **2,023/2,023**, 돌연변이 **268/268**이다. 실제 모델 승계 probe와 문서 12턴은 PASS,
+  상태 변화 8/8·누락 0·철회값 부활 0·새 대화 승계 1/1이다. 기존 Hermes·OpenClaw 비교에서 둘 다
+  실패한 새 대화 완전 승계를 성공했고 재시작·철회는 동등 이상이다. 정산 추가 왕복 1회 7.200초는
+  P90-2 잔여로 기록한다. 비교 한계와 digest는
+  `docs/03-verification/evidence/production90/p90-1/competitive-seal-2026-08-02-ko.md`가 정본이다.
+  회귀 상태에서 돈 이전 12턴은 계속 `HARNESS_INVALID`다.
+- **PC 손발 봉인(H08~H09)도 완료**됐다. 전체 H는 네 묶음으로 운영한다:
+  H0 현재 진실 정리 → **T-cell H 봉인(H01~H07, 완료)** → **PC 손발 봉인(H08~H09, 완료)** →
+  Agent Core → **Agent 봉인(H10)** → 전체 제품 봉인. 진행표는
+  `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md` 하나이며 새 계획서는 만들지 않는다.
+  - **명시 한계 ①**: suite 통과 회차는 **변동한다**. 세 번 실측에서 round 1 통과 ·
+    3회차 소진 · round 2 통과였다. "반복 3회면 원리가 선다"가 아니다.
+  - **명시 한계 ②**: 그 변동은 **`maxRounds`(3) 안에서만 흡수된다.** 세 회차를 다 쓰고도 못
+    세우면 그 묶음은 종단이고 자동 부활하지 않는다 — 실제로 한 번 그랬다.
+  - **명시 한계 ③**: OS 가 보장하는 것은 "잘못 배운 원리가 들어가지 않는다"이지 "반드시
+    배운다"가 아니다.
+  - **명시 한계 ④**: 라이브 기여 판정에서 `carryableWork` 가 비어 있지 않았다. "7월을 같이 본
+    것"은 S4 성과가 아니고, S4 기여로 세는 것은 lane·요청 어디에도 없는 요소뿐이다.
+  - **(역사 · 현재 지시 아님)** 한때 성장 재시도에 `cooldown` 시계가 있었고 "round 1 을 몇
+    시간 기다린다"는 기록이 여기 있었다. **그 개념은 제거됐다** — 재시도는 시계가 아니라
+    회차·예산으로 돈다(오너 결정 2026-07-31). 옛 기록을 현재 대기 지시로 읽지 않는다.
+  - **반복 입력 라이브(2026-07-31)**: 시간 대기 없이 round 0 불통과 → round 1 **suite 통과** →
+    `/memory/confirm` 승격까지 갔다. 묶음 신분도 관찰 증가에 안정(`count` 만 증가).
+    실패 이력이 원리 문장에 적용 조건·금지를 실제로 넣었다.
+  - **A급 입장 관문 결함은 닫았다**(감사 범위 판정에 따라 S4 안에서). 검증된 원리는 낱말이
+    아니라 **suite 가 검증한 사례**로 입장한다: 적용 신호는 그 원리를 낳은 반복 발화 원문,
+    비적용 신호는 검증된 negative 사례. 겹침·덮음·비적용 근접 셋을 다 만족해야 든다.
+    지정 반대시험 7건 + 실측에서 찾은 4건 통과, 제품 경로 확인(축약 발화 입장 O · 인접 0 ·
+    lane 0). 선호 기억은 기존 낱말 판정 그대로.
+  - **라이브 관통 확인 완료(2026-07-31, `r5-data`)**: 한 회차 안에서 반복 입력 → 대기 없이
+    round 0→1→2 → **round 2 suite 통과** → `/memory/confirm` 승격 → 축약 발화에 **입장** →
+    답변 기여 → 인접 요청 과잉 적용 0 이 이어졌다. 예산 33/50.
+  - **S3/S4 기여 분리 근거**: 이번 회차는 `carryableWork` 가 있어 "7월을 같이 본 것"은 lane 으로
+    설명될 수 있다. 그러나 답의 **그래프 종류·축 제안**은 사용자 요청에도 lane 사실에도 없고
+    **승격된 원리에만** 있는 지시다 — 그 요소가 S4 기여다.
+  - suite 통과 시점은 회차마다 갈린다(round 1 통과 · 3회차 소진 · round 2 통과를 각각 실측).
+    회차 구조가 그 변동을 흡수한다.
+  - 정본 증거: `docs/03-verification/evidence/human-baseline/S4-REPLAY-2026-07-31-ko.md`
+- **작업장 위생 정리(2026-07-31)**: 비교 결과의 판정·요약 문서는 Git에 보존하되,
+  `scripts/compare-live/{hm-run-1,oc-run-1,INVALID-*,preflight}` 원시 실행 홈(약 1.8GB,
+  75,000파일)과 저장소 안의 `secret-env.sh`·복제 `auth.json`, Downloads의 시험 생성물
+  3개는 제거했다. 원시 실행 홈은 더 이상 로컬 재감사 입력으로 존재하지 않으며, 이후 판단은
+  커밋된 비교 종결·최종 감사 문서를 정본으로 쓴다. 잔류 T5 시험 서버 2개도 종료했다.
+- Claude 고정 범위 감사(대상 `3413c6d`·`5493ade`)는 **PASS**다. 네 항목 전부 반대 재현으로
+  성립을 확인했고(시야·위조 링크 차단, 원문 해시 변조 탐지, 거부 경로 바이트 불변, 제품
+  fixture 접촉의 제품 결과 기록), 성립 회귀(계약 9/21, 회귀 1,227/0, dry-run 부작용 0,
+  preflight 34/34 독립 재실행)도 재현됐다. 재개봉 4조건 해당 없음. 후속 관찰 3건은
+  감사 문서에 기록(분기 순서 의미의 사후 탐지, Developer 실물 쓰기 시야의 기준선 동등성,
+  실 턴 완료 신호의 회차 1 실측). 정본:
+  `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-BOUNDED-AUDIT-2026-07-30-ko.md`
+- 고정 종료 범위 구현 커밋: `3413c6d` (`fix(compare): close frozen credential-preflight scope`).
+- 현재 실행 정본은 `h-scenarios.json` 16개 원문·출처와 `h-branches.json`
+  **9분기·회차당 21턴**이다. 아래 14턴·18턴·31검사 기록은 실패 원인과 수정 계보를 보존한
+  역사 기록이며 현재 실행 근거가 아니다.
+- Claude의 직전 감사에서 남은 종료 범위는 네 건으로 동결했고 Codex 구현·반대 검증을 마쳤다.
+  1. 자격·상태 HOME 격리와 실제 `Downloads`·`Developer` 사용자 시야를 동시에 보장한다.
+  2. 16개 원문 전체와 H04/H05 흐름·21개 실행 행을 기계 대조한다.
+  3. 기존 회차 거부 경로는 그 증거 폴더의 경로·바이트를 바꾸지 않는다.
+  4. fixture 수정·삭제·교체는 제품 결과로 남기고, 계측기 정리 실패만 회차를 무효화한다.
+- 자체 검증: 비교 반대시험 8건, `audit:compare-live` 9분기·21턴 PASS, 두 dry-run PASS,
+  무과금 preflight **34검사 VALID**, 전체 회귀 **1,227건 통과·실패 0**. 유료 호출과 실제
+  오너 자격 사용은 0건이다.
+- 공식 gate의 기능 항목은 모두 통과했으나 성능 항목은 현재 환경에서 CPU 53.5s/40s·벽시계
+  21.9s/20s로 차단됐다. 같은 머신의 직전 기준 커밋 `bbe00a1`도 CPU 51.97s·벽시계
+  21.26s였고 현재 순증은 CPU 약 1.5s·벽시계 0.6s다. 기준선·검사를 바꾸지 않았으며,
+  이 환경 차단을 비교 계측기 네 종료 항목의 재개봉으로 확대하지 않는다.
+- 정본 증거:
+  `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-FROZEN-CLOSURE-2026-07-30-ko.md`
+- 고정 범위 감사는 `714fcda`에서 PASS로 닫혔다. 준비 문서를 다시 늘리지 않는다.
+- 위 자격 입력·회차 1 실행 단계는 역사 기록이다. 회차 1은 실행됐고, 오너 결정으로 회차 2·3과
+  추가 유료 호출은 중단됐다.
+- **유료 회차 1 실행 완료(2026-07-30, 실행 Claude·감사 Codex 역할 복귀).** Hermes 21/21
+  `VALID`(재시작 승계 실행, gpt-5.1). OpenClaw 21/21 `INVALID(1)` — 유일 FAIL은 재시작 증거
+  칸이며 디스크 진실(sessions.json 단일 세션에 B8 4턴 전부)로는 승계가 증명된다. 실행 중
+  계측기 결함 5건을 재현·수정·커밋했고(세션 ID 캡처 구조화 `2e63a83`, 상태 DB 기반 ID 조회·
+  H10 900s `64415bb`, gpt-5.5 카탈로그·usage/디스크 세션 파서 `b851040`) 무효 판 3개는
+  `INVALID-*`로 비용 내역과 함께 보존했다. OpenClaw 토큰 실측 입력 191,454·출력 3,307.
+  세 제품 모델이 서로 다르므로(T5·Hermes gpt-5.1 / OpenClaw gpt-5.5) 제품 구조 우열로
+  보고하지 않는다. Codex 감사 회부 정본:
+  `docs/03-verification/evidence/human-baseline/LIVE-RUN1-REPORT-2026-07-30-ko.md`
+- **오너 결정(2026-07-30)으로 비교를 1회로 종결한다.** 회차 2·3 유료 실행 중단, 추가 유료
+  호출 금지. 비교군 결과는 1회 관찰로만 쓰며 우열·일반화 성능 주장에 쓰지 않는다. 종결
+  목적은 순위가 아니라 T-cell 개발 요구사항 확정이다. 실행표 `runs`는 1로 정정(사유 병기).
+- 구현선이 오너 결정 4·5·6항을 수행했다:
+  - 42턴 사람 판정을 기록·상태 근거만으로 채웠다(원시 행 무변조, 추정 0, 미판정 명시):
+    `docs/03-verification/evidence/human-baseline/RUN1-JUDGMENTS-2026-07-30-ko.md`
+    오염 공시 포함 — 이전 무효 판의 산출물 2건이 Downloads에 잔존한 채 최종 회차가 돌아
+    Hermes H09가 불성립(잠금 우회). OpenClaw 재시작 승계는 디스크 기록으로 성공 판정.
+  - 비교 종결 정본(공백 6·흡수 5·비흡수 4, 순위 없음):
+    `docs/03-verification/evidence/human-baseline/COMPARISON-CONCLUSION-2026-07-30-ko.md`
+    핵심 실측: 두 비교군 모두 H01 무마찰 저장·H04 1턴 철회 성공(T5만 실패), OpenClaw는
+    H07에서 비밀 원문을 durable 기억에 저장(자동 기억의 admission 경계 필요성 실증),
+    H05 새 대화 승계는 세 제품 공통 미해결(T5 차별 목표).
+- Codex 최종 감사는 `PASS_WITH_RECORDED_LIMITS`다. 42턴 원본·핵심 상태·OpenClaw 재시작
+  디스크 증거·비밀 원문 durable 저장·Hermes H09 오염 공시를 대조했고, 비교 결과를 1회
+  구조 관찰로만 쓰는 한 개발 요구사항 입력으로 유효하다. 감사 중 발견한 반복 가능 실수는
+  `runs: 1`만 고치고 같은 스케줄 문서의 126프롬프트·3회차·옛 모델·옛 다음 단계를 남긴
+  **정본 투영 누락**이었다. Codex가 재실행 없이 문서를 직접 정정했다. 감사 정본:
+  `docs/03-verification/evidence/human-baseline/COMPARISON-FINAL-CODEX-AUDIT-2026-07-31-ko.md`
+- 다음: 새 T-cell 계획 감사 차단의 전체 반영. 오너 확인 전 제품 T-cell 구현 금지는 유지한다.
+- 오너 지시로 **새 T-cell 계획 초안을 작성했다**(`0db4005`):
+  `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md` — 지위 `DRAFT_FOR_INDEPENDENT_AUDIT`,
+  Codex 감사 → 보강 → 오너 확인 뒤에만 구현. 계획은 2026-07-31 코어 접점 실측 지도 위에
+  섰다: 접점 5곳(runReplay `context-mesh.js:103`, 입장 관문 `:33/:71`, 모델 통제 채널
+  `model-control.js:15`, 턴 후 직렬 지점 `server.js:370-382`, 증거 계약 `tool-receipt.js:30`)
+  밖의 코어 수정 금지를 감사 가능 경계로 선언했다. 슬라이스 5개(무마찰 가역 기억 → shadow
+  관찰 → 대화 경계 승계 → 반복 학습·실질 replay → 사후 교정)는 각각 사용자 문장 하나의
+  실측 변화로만 닫는다. H04 실패 원인은 접점에서 특정했다 — 모델 통제 채널에
+  `memory.withdraw`가 없다. H07·H03·H06은 전 슬라이스 회귀 금지선이다.
+- 이후 새 T-cell 계획과 개발은 Claude가 구현하고 Codex가 독립 감사하는 원래 역할로 복귀한다.
+  같은 시나리오가 세 번째 재개봉되면 패치 왕복을 중단하고 역할 교대·구조 재설계 회복 절차를 발동한다.
+- Codex 독립 감사 판정은 **`BLOCKED_BEFORE_OWNER_APPROVAL`**이다. 방향과 사용자 성과 지표는
+  보존하되, 실제 응답 후 경계·명시 발화 신분·자동 성장 상태기계·적용 trace·저장소 정합성·
+  백그라운드 모델 신뢰 경계가 닫히지 않아 구현 가능한 계획이 아니다. 제품 코드 변경은 0이며
+  오너 확인·S1 구현은 계속 금지한다. 정본:
+  `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-CODEX-AUDIT-2026-07-31-ko.md`
+- 구현선이 차단 전체를 반영해 **계획 v2 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V2`,
+  같은 파일 전면 재작성). 재발 4건의 교정: ① "응답 뒤"를 코드 위치가 아니라 불변식으로 재정의
+  — 관찰은 durable 산출물의 소비자(tick 워커·watermark·멱등), 턴 경로 diff 0을 기계 증명
+  (전제는 SSE·동기 꼬리 실측 P1·P2로 검증) ② 발화 신분 계약 — utteranceQuote 원문 대조 +
+  speechAct(모델 판단) + 질문·인용·부정·회상 반대시험 4형 ③ 생산 상태기계·재시작 checkpoint
+  계약(§4-3) ④ 정본 투영 누락을 기계 검사로 종결 — `npm run audit:docs`
+  (`scripts/audit-docs.mjs`, 반증 시험 5건, 즉시 실전 끊긴 참조 1건 검출·회귀 통과).
+  신규 차단 교정: 적용 추적(appliedMemoryRefs), MemoryStore 손상 정직성(격리+경고, 조용한
+  빈 상태 금지), 백그라운드 모델 신뢰 경계(도구 0·민감 검출·예산·원장), ActiveWorkLane
+  scope 완결, 수정 허용·금지 구역 재정의(§4-8), POM→Skill/Trigger/Agent 데이터 계약(§7).
+  다음: Codex 재감사 → 오너 확인. 구현 금지 유지.
+- Codex v2 재감사 판정은 **`BLOCKED_BEFORE_OWNER_APPROVAL`**이다. v2의 실질 개선과
+  1,232건 회귀·문서 검사 5건 통과는 보존한다. 다음 재감사 차단 범위는 여섯 항목으로 동결한다:
+  전 표면 공통 불변 turn 신분·순서, 선언 인용과 기억 내용 결합, 저장 근거 기반 replay 실행 증거,
+  admitted와 실제 applied의 분리, 성장 모델의 실제 요청 신분, lane의 프로젝트·사용자 scope.
+  `audit:docs`가 현재 작업·다음 행동의 낡은 투영을 놓치고 PASS한 것은 `REPEAT_PREVENTABLE`로
+  기록했다. 정본:
+  `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-V2-CODEX-REAUDIT-2026-07-31-ko.md`
+- 구현선이 동결 범위만으로 **계획 v3 전체본을 재제출했다**(지위 `REVISED_FOR_REAUDIT_V3`).
+- **S1(무마찰 가역 기억·철회) 코드 완료.** 통제 채널에 `evidence`(utteranceQuote·speechAct)와
+  `memory.withdraw` 를 추가하고 서버에 자동 반영 게이트를 한 자리로 뒀다: 이번 턴 원문의 부분
+  문자열 ∧ speechAct=declaration ∧ kind=preference ∧ **statement===quote** ∧ 민감값 통과일
+  때만 카드 없이 `tier: auto_reversible` 로 즉시 반영하고, 요약·확장 문장은 기존 확인 통로로
+  강등한다(인용과 내용이 갈릴 자유도 자체를 제거). 철회는 promoted 에서 실제로 지우고
+  tombstone·원장을 남기며 없는 기억을 지웠다고 말하지 않는다. 철회 턴에 정규식이 방금 지운
+  문장을 다시 후보로 쌓던 자리도 닫았다. `MemoryStore.load()` 는 ENOENT 만 새 저장소로 보고
+  파싱 오류는 격리 사본·`corrupted`·사람말 경고로 말하며 손상 상태에서는 반영·저장을 멈춘다.
+  표면은 확인 카드 대신 "이렇게 기억해 뒀어요 + 되돌리기"와 "그 기억은 지웠어요"를 보인다.
+  검증: 전용 반대시험 15/15(수정 전 7건 실패 실측), 돌연변이 4종(원문 대조·인용 결합·
+  speechAct·저장 정직성)에서 각각 1~4건 실패하고 복원 시 전량 통과, 전체 회귀 **1,265/0**,
+  `audit:docs`·`audit:workspace`·gate PASS(CPU 22.6s).
+- **S3 감사 판정: `PASS`(2026-07-31, `bcdf77c`).** 웹 `/turn` 과 채널 `handleChannelMessage` 가
+  같은 `carryableWork` 현실을 보고, 허용 채널 사용자 승계·미허용 차단·payload 위조 무효가
+  제품 경로 검사로 고정됐다. 전용 검사 21/21, `audit:docs`·`audit:workspace` PASS.
+- **S3(대화 경계 승계) 구현 제출.** 봉인 기준선에서 3/3 실패하고 비교군 두 제품도 못 한
+  H05 "아까 그 최종본 이어서 정리해줘"가 **라이브 3/3 승계 성공**(되물음 0, 원시 경로 노출 0).
+  세션에 저장된 `carryableWork` 로 lane 이 실제 공급됐음을 확인했다 — 모델이 스스로 폴더를
+  뒤진 것이 아니라 OS 가 사실을 먼저 놓았다.
+  - lane 은 성공한 receipt 에서만 파생하고, scope 는 principalRef(로컬 오너 상수 / 채널은
+    허용목록 binding)·workspaceRef(허용 루트 상대화)·artifactRefs(경로+내용 digest)로 갈린다.
+    `activeGoal` 은 `assumedLabel` 로만 부기한다. 후보가 둘이면 둘 다 사실로 나열하고 OS 가
+    고르지 않는다. 사실 문장에 내부 ID·원시 경로·digest 는 넣지 않는다.
+  - **첫 라이브에서 lane 이 3회 모두 아무것도 공급하지 않았다** — 검사 픽스처가 제품이 만들지
+    않는 `receipt.artifact` 필드를 지어냈기 때문이다. 파생과 픽스처를 실제 형태(`result.path`)로
+    맞춘 뒤 재측정에서 3/3 성공했다. 라이브가 아니면 못 잡을 결함이라 증거에 그대로 남겼다.
+  - 계약 검사 18건(수정 전 전부 실패), 반증 3종에서 각각 1~2건 실패·복원 시 전량 통과,
+    전체 회귀 **1,306/0**, `audit:docs`·`audit:workspace` PASS. 남은 한계 2건은 증거 §5.
+    증거: `docs/03-verification/evidence/human-baseline/S3-LANE-2026-07-31-ko.md`
+  - **감사 P1 보강(채널 경로 배선 누락)**: 웹 `/turn` 만 `carryableWork` 를 갱신하고 채널
+    입구는 빠져 있어 허용된 채널 사용자가 웹 산출물을 못 이어받았다(§4.7 미충족). 반대시험
+    3건으로 수정 전 실패를 실측한 뒤 채널 턴도 같은 방식으로 계산하도록 배선했다. 제품 경로
+    (`handleChannelMessage`)로 확인했고, 허용목록 밖 사용자 공급 0·payload 위조 무효도 함께
+    고정했다. 반증: 채널 배선 제거 1건 실패, 채널 principal 무조건 오너 2건 실패.
+    전체 회귀 **1,309/0**.
+- **S2 감사 판정: `PASS`(2026-07-31, `9c93f5d`).** 같은 tick 안의 상호 실패 격리, 실패의
+  정직한 보고, 사용자 턴 무영향, 소스 텍스트 복구, 전용 검사 21/21, S3 선행 구현 0 확인.
+- **S2(응답 뒤 관찰 shadow) 구현 제출.** 사용자 체감 기능 0, 모델 호출 0, 프롬프트 영향 0.
+  범위는 observation·bundle 까지이며 candidate·replay·admitted·성장 호출은 구현하지 않았다.
+  - 구조 증명: 턴 경로(`runAndPersistTurn`·`runChannelInboundTurn`)에 관찰 코드 **0줄**.
+    관찰은 `server.js:238` 의 tick 안에서만 불린다.
+  - 라이브(실제 서버·`gpt-5.1`): 사용자 턴 3회 **직후 관찰 0** → tick 1회 뒤 관찰 3·watermark
+    `{세션:3}` → **재실행 시 증가 0**(중복 0) → **promoted 0**(기억·프롬프트 무영향).
+  - 계약 검사 18건(수정 전 전부 실패): 세션별 watermark·결정적 ID·2단계 저장 금지·크래시
+    재개 누락 0·입장 관문 0·상한/TTL·소급 턴 제외·상호 실패 격리·kill switch.
+  - 반증 3종에서 각각 1~3건 실패, 복원 시 18/18. 첫 돌연변이가 검사를 통과해 검사를 강화한
+    뒤 다시 잡은 사실도 증거에 남겼다.
+  - **감사 P1·P2 보강(2026-07-31)**: 첫 제출의 실패 격리 검사는 자동화 실패 뒤 관찰 함수를
+    따로 불러 통과했고, 실제 배선도 자동화 예외가 나면 관찰워커에 도달하지 못했다(§4.8 미충족).
+    한 번의 tick 안에서만 판정하는 검사 4건으로 교체하고(수정 전 3건 실패 실측) 자동화도 자기
+    오류 경계를 갖는 워커로 분리했다 — 두 워커가 같은 tick 에서 각자 돌고 실패는 결과에 실린다.
+    반증(자동화 격리 제거)에서 3건 실패. P2: `tcell-observe.js` 의 원문 NUL 2개를 런타임 의미
+    변경 없이 이스케이프로 바꿔 파일이 텍스트로 돌아왔다. 회귀 **1,288/0**.
+  - 전체 회귀 **1,288/0**, `audit:docs`·`audit:workspace` PASS. 증거:
+    `docs/03-verification/evidence/human-baseline/S2-OBSERVE-2026-07-31-ko.md`
+- **S1 감사 판정: `PASS_WITH_RECORDED_LIMIT`(2026-07-31).** 원래 치명 결함(무관 파일 승인
+  카드)이 0/6으로 닫혔고, H01 자동 반영·H04 한 턴 철회가 각각 5/6으로 실제 제품·실제
+  `gpt-5.1`·실제 화면에서 개선됐다. 남은 1/6은 잘못된 저장·오삭제·민감정보 유입·권한 확대가
+  아니라 `statement !== utteranceQuote` 에 의한 **안전 강등**이며 P1로 기록했다. 계약과 계획
+  문서는 변경하지 않았다. T-cell 봉인 전 H01·H04 재측정에서 이 변동을 다시 확인한다.
+- **S1 최종 실측(6회, 실제 서버·`gpt-5.1`·회차마다 기억 0)과 오너 판정(2026-07-31)**:
+  - **무관 파일 되돌리기 승인 카드 0/6** — H04 의 원래 치명 결함이 닫혔다(이전 3/3 발생).
+    오너 판정에 따라 S1 안에서 좁은 충돌 해소로 처리했다: 모델이 `memory.withdraw` 를 실제로
+    부른 턴이고 모델이 파일 도구를 직접 고르지 않았을 때만, 정규식 폴백의 `local.file` undo
+    오탐을 계획에서 걷는다. 파일 되돌리기 능력은 그대로이며 반대시험으로 고정했다.
+  - **H01 자동 반영 5/6 · H04 한 턴 철회 5/6.** "카드 0 완전 달성"이 아니다.
+  - **1/6 은 P1(안전 강등 변동)**: 모델이 정확한 `utteranceQuote` 를 냈지만 statement 를 요약해
+    `statement === utteranceQuote` 를 만족하지 못했고, 게이트가 자동 반영 대신 확인 카드로
+    강등했다. **오삭제·거짓 저장·민감정보 유입 0** — 실패 방향이 안전한 쪽이다. 계획을 다시
+    열지 않는다. T-cell 봉인 전 H01·H04 재측정에서 다시 재고, 개선 후보(인용 우선 반영)는
+    **지금 구현하지 않으며 `statement === utteranceQuote` 조건과 계획 문서도 바꾸지 않는다.**
+  - 충돌 해소 과정에서 기존 구멍도 닫았다 — 도구가 도는 턴의 최종 응답 경로가 기억 철회를
+    서버로 전달하지 않았다(제안과 같은 자리에서 철회도 전달).
+  - 검증: 전용 반대시험 17/17, 돌연변이 5종 실효 확인, 전체 회귀 **1,267/0**,
+    `audit:docs`·`audit:workspace` PASS. gate 성능은 환경 부하(42.2s, 같은 환경 기준 41.7s).
+    증거: `docs/03-verification/evidence/human-baseline/S1-LIVE-2026-07-31-ko.md`
+- **S1 라이브 완료(2026-07-31, 실제 서버·`gpt-5.1`·회차마다 기억 0).** H01 **3/3 카드 0·클릭 0**
+  즉시 반영·되돌리기 제공(봉인: 카드1·클릭1 ×3), H04 **3/3 한 턴 철회 성공**(봉인: 실패 3/3).
+  브라우저 직접 조작으로 "이렇게 기억해 뒀어요 + 되돌리기"의 화면 도달도 확인했다.
+  라이브가 코드 검사에서 통과하던 결함 셋을 드러내 고쳤다: ① `evidence` 가 스키마에서 선택
+  항목이라 모델이 생략할 수 있었다(→ required) ② 모델이 인용은 정확한데 statement 를 요약해
+  강등됐다(→ 게이트 계약은 유지하고 그 기계 규칙을 도구 설명으로 정확히 공급) ③ 승인 턴에서
+  기억 사실이 화면에 안 나왔다(→ 승인 경로에서도 기억 카드 렌더). 증거:
+  `docs/03-verification/evidence/human-baseline/S1-LIVE-2026-07-31-ko.md`
+  공식 gate 성능 항목은 환경 부하로 미통과(42.2s/40s)이며 같은 환경에서 S1 변경을 뺀 기준
+  상태도 41.7s다. 기준선·검사 수는 바꾸지 않았다.
+- **오너 착수 지시로 문서 단계를 종료하고 S0 구현을 제출했다.** 계획 §7 프로토콜대로:
+  ① 반대시험 10건을 먼저 쓰고 수정 전 실패(모듈 부재)를 실측 ② `turn-ref.js` 신설 +
+  웹·SSE·채널 세 경로 배선(server.js +19줄) ③ 돌연변이 반증 2종(스탬프 제거·seq 고정)에서
+  각각 7건 실패, 복원 시 10/10 통과 ④ 전체 회귀 **1,244/0**, `audit:docs`·`audit:workspace`·
+  공식 gate PASS(CPU 23.3s) ⑤ 사용자 가시 변화 0(기존 1,234건 무변경). 계약 준수: seq는
+  세션 내 단조·저장 직렬화 경계 발급(동시 턴 중복 0), 한 턴의 user·assistant·ledger가 같은
+  신분 공유, 세션 간 전역 순서 비요구, migration은 소급 표시를 남기고 귀속 불가 ledger에
+  seq를 지어내지 않으며 멱등. 다음: Codex의 S0 완료 조건 1회 감사 → S1 착수.
+
+- 오너 B 결정(문서 왕복 종료, 심판을 코드로) 뒤, 위생 정리로 원복된 상태에서 구현선이
+  **최종 완결본을 한 파일로 완성했다**(지위 `FINAL_FOR_COMPLETENESS_AUDIT`, 90분 상자 안).
+  v3의 압축 참조를 전부 인라인 전개하고 v3 재감사의 동결 4건을 완결했다: ① replay 영수증-케이스
+  결합(caseInputDigest·requestDigest·outputDigest·저장소 조회 — 영수증 재사용 구조적 불가)
+  ② 실제 모델 호출 신분(connectionInstanceId·credentialRef·ModelSelection·응답 신분
+  responseIdentitySource, not_reported는 검증됨을 주장하지 않음) ③ 오너 principal 결합
+  (localOwnerPrincipalRef + connector binding store 조회, payload 위조 무효) ④ 한 파일
+  완결성(v1~v3·Git 과거본 참조 불요). 다음: Codex 완결성 1회 감사 → 오너 확인 1회 → 문서
+  단계 영구 종료, S0 구현 직진. 이후 보고는 코드 diff·수정 전 실패 반대시험·실제 사용자
+  시나리오 결과로만 한다.
+  F1: 전 표면 공통 TurnRef(세션 내 단조 turnSeq)와 세션별 watermark 지도 — S0 신설.
+  F2: 의미 검증기 대신 **구성적 결합** — auto 승격의 statement는 사용자 원문 인용 그 자체이며
+  요약·확장은 확인 통로로 강등. F3: ReplayCase 스키마와 전이의 OS 가드(계보 실존·실행 receipt·
+  신분 검증·표본 p≥2/n=0/b≥2·허공 인용 금지). F4: `appliedMemoryRefs` 철회 —
+  보임(shown)·주장(cited)·상관(≥2회 통계 감쇠)의 3층 추적으로 교체, 이름이 사실을 앞서지
+  않는다는 불변식을 중단 신호에 추가. F5: 성장 호출마다 요청·응답 모델 신분 대조, 불일치 시
+  산출물 격리·성장 중단. F6: scopeRef를 userRef·workspaceRef(receipt 파생)·artifactRefs
+  (경로+digest)로 완결, activeGoal은 추정 라벨로 강등. §3 항목: 수치 고정표(상한·TTL·pin·
+  미사용≠노후·p95 +5%)·tick 실패 격리·S2 착수 승인 문구 철회. RP-1 대응으로 `audit:docs`를
+  검사 7종으로 확장(사본 일치+상태-단계 연동, 반증 시험 7건) — 확장 직후 실전 인수인계의
+  사본 드리프트를 검출·정정했다.
+- Codex v3 고정 범위 재감사 판정은 **`BLOCKED_BEFORE_OWNER_APPROVAL`**이다. F1·F2·F4와
+  수치·실패 격리는 닫혔다. 남은 고정 종료 범위는 ① F3의 replay 실행 영수증과 해당
+  case·principle·입력·출력 결합 ② F5의 실제 호출 자격·endpoint·요청/응답 모델 신분 대조
+  ③ F6의 같은 오너 웹·채널 userRef 생산 결합 ④ 현재 파일 하나만으로 구현 가능한 계획
+  전체본이다. “전체본”이 `v2 유지`로 과거 Git 본문에 의존한 것은 정본 투영 누락 계열의
+  **`REPEAT_PREVENTABLE`** 재발이다. 다음 재감사는 이 네 건과 기존 통과 회귀만 본다. 정본:
+  `docs/03-verification/evidence/human-baseline/T5-TCELL-PLAN-V3-CODEX-REAUDIT-2026-07-31-ko.md`
+
+## 1. 제품 철학
+
+### T5 7개 코어 지도
+
+T5는 크게 일곱 부분으로 본다. 이 구분은 이후 H단계 검증, 제품 설명, 전체 다듬기에서 공통 언어로
+사용한다.
+
+| 번호 | 코어 | 설명 |
+|---|---|---|
+| 1 | Selfhood / 자기파악 | T5가 자기 상태, 연결, 가능한 손, 현재 한계, 실행 환경을 안다. |
+| 2 | BEAI5 Model Operation / 모델 운용 | 모델이 딱딱한 규칙 기계가 아니라 사용자 의도를 자연스럽게 판단하도록 현실과 맥락을 공급한다. |
+| 3 | Intent / Context / T-cell | 말귀, 현재 요청 해석, 기억, 맥락 승계, 자가학습, 성장을 담당한다. |
+| 4 | ActionPlan / Authority | 무엇을 할지 계획하고, 무엇은 자동으로 하고, 무엇은 승인받아야 하는지 가른다. |
+| 5 | Router / Execution | 파일, 웹, 앱, 터미널, 커넥터, 모델, 에이전트를 실제로 움직이는 손발이다. |
+| 6 | Work Surface / UX | 사용자가 보는 대화 화면, 카드, 승인, 기억 표면, 자동화 표면, 연결 관리를 담당한다. |
+| 7 | Truth Ledger / Recovery / Growth | 무엇을 했는지 남기고, 실패·중단·복구·재시작·성장을 관리한다. |
+
+T-cell은 3번 코어에 속하지만, 성공하면 2번 모델 운용·4번 권한 판단·6번 사용자 표면·7번
+원장/복구/성장까지 함께 좋아져야 한다. 기억 상태만 늘고 카드·클릭·경직된 규칙·불명확한 원장이
+늘어나면 T-cell은 실패다.
+
+### 절대 놓치지 말아야 할 여섯 기준
+
+- 말귀가 제일 중요하다.
+- 카드와 클릭으로 사람을 괴롭히지 마라.
+- 최소 안전, 최대 자동화.
+- 모델을 멍청하게 만들지 마라.
+- 실제 내 컴퓨터에서 쓸모가 있어야 한다.
+- 기억은 많아지는 게 아니라 자연스러워져야 한다.
+
+### 최소 안전 제약, 최대 자동화
+
+- 되돌리기 어려운 외부 전송·공개·결제, 중대한 삭제, 새 지속 권한처럼 치명적인 최소 경계에서만
+  사용자를 멈춘다.
+- 읽기·조사·정리·초안·맥락 연결·도구 선택·가역 로컬 학습·백그라운드 성장·효과 감사는 T5가
+  최대한 알아서 진행한다.
+- 안전은 반복 승인과 기능 삭제가 아니라 정확한 실행 경계, 원장, 격리, archive, rollback, restore,
+  사후 교정으로 만든다.
+
+### 말귀와 사용자 목표
+
+- 사용자의 원문·대화 흐름·현재 현실·목적을 먼저 이해한다.
+- 정규식·분류기·대본·금지문이 모델의 의미 판단을 대신하지 않는다.
+- 질문·카드·클릭·완료 턴·먹통으로 느끼는 공백이 늘면 내부 검사가 통과해도 제품 회귀다.
+- OS는 모델을 통제하는 심사 기관이 아니라 정확한 현실·손발·권한·근거·실행 결과를 공급하는 기관이다.
+
+### T5의 손과 발
+
+- 일반 사용자가 터미널을 몰라도 로컬 파일·프로세스·앱을 능숙하게 다룬다.
+- 웹·브라우저·외부 도구·메신저·자동화를 실제 목표 달성에 연결한다.
+- Claude Code, Codex와 다른 에이전트를 상황에 맞게 운용하고 결과를 현재 맥락과 Truth Ledger로 합친다.
+
+## 2. 비교·흡수 기준
+
+관련 기능을 설계하기 전에 실제 소스·검사·기본값을 확인한다.
+
+- OpenClaw: `/Users/jyp/Developer/lab_un/openclaw-pure-2026-07-20`
+- Hermes: `/Users/jyp/Developer/lab_un/hermes-agent`
+- Claude Code·Codex: 계획, 터미널 운용, 도구 선택, 컨텍스트 유지, 검증, 복구, 에이전트 협업 방식
+
+잘 작동하는 구조를 다시 발명하지 않는다. T5 방식으로 흡수하고 말귀·사용자 성과·자연스러운 자동화에서
+더 나은 실제 경험을 만든다.
+
+## 3. 현재 Git·제품 기준선
+
+**실측 갱신 2026-08-02(Codex W1 감사 지적 반영 — 기준선을 이름으로 분리한다. "현재 HEAD"는
+문서에 적는 순간 낡는다 — 현재는 항상 `git log -1` 이 진실이다)**:
+
+- **배치 1(H08~H09) 봉인 기준**: `a7f839e` (봉인 커밋 `a48675d`·`a7f839e`).
+- **W1 배치 2 착수 기준선**: `a203569` (AC-1 재대조·계약 동결·R2b 1차).
+- W1 게이트 실측(각 기준선 시점 본선 직접 실행): 회귀 1,688→**1,689** · 스윕 153→**154** ·
+  `audit:plan`/`audit:docs`/`audit:workspace` PASS. 이후 수치는 §9 W1 보완 기록이 잇는다.
+- 자동화 자산 7파일(skill-store·automation-store·agent-profile-store·automation-run-ledger·
+  automation-workspace-migration·automation-engine·automation-scheduler)은 AC-1 편입
+  (`c58bdea`) 이후 무변경 — AC-1 재대조의 초점은 주변 계약(T-cell replay·민감 2층·통제 채널·
+  work-contract) 변화와의 정합이다.
+- 활성 worktree 2: 정본(`t5-p-op`)과 역사 관리(`gpao-t5`, §5 삭제 금지 문서화됨 —
+  `codex/operator-harness-p-op-3-discovery`가 체크아웃돼 있으나 현재 작업선 아님).
+
+(아래는 T-cell 재계획 시점의 역사 기준선이다 — 현재 수치가 아니다.)
+
+- 작업 브랜치: `claude/p-op-1-a-system-view`
+- T-cell 롤백 커밋: `77d42d4`
+- 롤백 뒤 철학·비교 기준 반영: `bf2053a`
+- 과거 T-cell 착수 직전 제품 기준: `e4c0132`
+- P-OP-7 최종 판정과 오너 승인은 유지한다.
+- Automation Closure AC-1 정본 편입과 독립 감사 결과는 유지한다.
+- 작업장 정리 뒤 자체 검증: 테스트 **1,214건 통과**, 공식 gate **PASS**
+  (CPU 36.8s/40s · 벽시계 14.2s).
+- 준비 보강 착수 기준 HEAD: `e486a15` (`chore(project): establish one canonical T5 workspace`).
+- 현재 제품 코어 기준: `dab56f6` (`fix(core): restore memory safety before T-cell replanning`).
+- 비교 계측기 재감사 대상 구현 HEAD: `7d8624a`.
+- 비교 계측기 Codex 인수 구현: `1c23a2b` (`fix(compare): harden live benchmark instrumentation`).
+- T-cell과 분리된 현재 코어 안전 복구를 마쳤다. 기억 후보·검색 반영·사용자 모델의 민감정보
+  공통 저장 경계와 반대시험을 추가했으며, T-cell 코드는 다시 넣지 않았다.
+- 현재 변경의 전체 회귀는 **1,219건 통과·실패 0**, 작업장 정본 감사는 PASS다.
+- 기억 민감정보 저장 경계는 읽기 전용 독립 재감사에서 **PASS** 판정을 받았다.
+- 변경 상태 반복 측정 5회는 높은 머신 부하(load average 8.19→15.26)에서 CPU 48.35~52.40s,
+  벽시계 18.47~20.54s였다. 통제된 조용한 환경 측정이 아니므로 40초 기준 변경 근거로 쓰지 않는다.
+- 최종 변경 상태 3회 반복은 CPU 41.07~41.73s(median 41.10s, p95 41.73s),
+  벽시계 14.76~14.87s였다. 이후 낮은 부하의 동일 조건 A/B에서 보강 전 24.85s, 보강 후
+  22.12s였고, 5회 통제 측정은 median 24.05s·p95 24.44s였다. Codex 독립 재실행도
+  **1,219건·CPU 22.9s/40s·벽시계 12.1s로 공식 gate PASS**를 확인했다. CPU 초과는 코드 비용이
+  아니라 환경 부하였으며 기준선과 검사 수는 바꾸지 않았다.
+- C·D·E-1 외부 계정 라이브 검증은 `OUT_OF_SCOPE_BY_OWNER`이며 현재 차단으로 다시 올리지 않는다.
+
+새 세션은 숫자와 HEAD를 그대로 믿지 말고 `git status`, `git log -1`, 실제 검사를 확인해 이 절을 갱신한다.
+
+## 4. 현재 작업 상태
+
+- 상태 토큰: `T5_W6_DEVELOPMENT_PASS` (§0-A·§9·§10 과 같은 값이어야 한다)
+- **H02 성과 계열 수정과 재봉인(2026-08-01, 이 세션)** — 정본은 진행표 §5-E. 요약:
+  - 원인 확정(실패 3회 원시 전수 대조): 실패 사례 16건 중 11건이 **실물 없는 자료 서술**
+    (inputFacts 가 "수치를 제시했다"라고만 쓰고 수치를 안 담음) — 실행 모델의 정직한
+    반응이 원리의 실패로 계산돼 좋은 원리를 소진시켰다. 가설이 실측으로 확정됐다.
+  - 수정(기준 완화 0): 제안 뒤 **사례 유효성 점검**(모델 판단·낱말 규칙 0·무효는 실행/suite
+    비산입·재제안 1회 한정·반복 무효는 회차 접힘), 실행요청 역할 공급, 제안요청 실물 요구,
+    **권한 계약**(touchesAuthority 는 선언·저장 사실에서, 접촉 시 authority 표본 필수·상한 6,
+    비접촉 부담 0), **접촉 최초 출처 심화**(감사 재지적 종결 — 유효성 점검이 원리·사례의 실행
+    범위에서 접촉을 독립 판정, 접촉 = 자기신고 ∨ 독립 판정 합집합, 접촉인데 표본 없으면
+    실행·승격 0). 반대시험 9건(수정 전 실패 실측)·돌연변이 +7종(스윕 102)·회귀 1545/0.
+  - 재봉인 6회: H02 **4/6**(성공 4회 전부 승격→carryable 0 순수 기여→A/B 성립→과잉 0,
+    소진 2회는 안전한 무반응) — 3/6→4/6 개선·실물 없는 사례 계열 소멸. 그러나 동결 산술상
+    **P1 차단 유지**, 통과를 선언하지 않는다. H01 1회 확인 강등(statement 1글자 요약 —
+    S1 봉인의 기록된 변동과 동일 계열)과 그 파생인 H04 1회 안전 무반응은 5/6+안전 규칙로
+    `PASS_WITH_RECORDED_LIMIT`.
+  - **다음 원인(막힌 칸)**: 판정이 재량 문구("~할 수 있다")를 의무로 채점하고, 경계 사례의
+    미세 범위(해석 한 줄·표/목록 형식)를 엄격 채점하는 **판정 채점 계약**의 변동 —
+    다음 수정 후보는 판정요청에 재량 문구의 방향을 사실로 공급하는 것(문턱·표본·회차 불변).
+  - 보조 모델 교차는 주 모델 미통과라 미실행.
+- **라이브 재진단 1회 완료(2026-08-01, 코드 `085f092`)** — 실제 `gpt-5.1` · 새 격리 폴더 ·
+  기억 0 · 제품 HTTP·SSE · 제품 스케줄러 · 18턴 + 표면 조작. 결과는 진행표 §5-C 가 정본:
+  **P0 0 · §5-A 네 계열 전부 소멸** · 빈 답 0/18 · 카드 0 · `answer_delta` 완료 전 도착 18/18 ·
+  미리보기=저장 답 18/18 · 전 장기 레인 민감 원문 0 · H05 재시작 승계 · 표면 되돌리기의
+  다음 턴 복귀. H02 는 3회차 표본 완결(원인 소멸)이나 suite 모델 판정으로 `exhausted` —
+  안전한 무반응(성과 미달, 네 계열 아님 · P0 아님). 관찰 P2: `memory.cite` 가 본문 텍스트로
+  노출 2회(후속 보강 대상).
+- **H01~H07 1회 진단**(`8c74e79`) — 실제 `gpt-5.1` · 격리 폴더 · 제품 HTTP·SSE 경로 · 25턴 ·
+  수정 0. 결과는 [H 진행표](docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md) §5-A.
+  - 결함 계열 넷: ① 민감정보가 관찰 레인으로 유입(`P0`) ② "이번만"이 영구 선호가 되고 다른
+    대화에 입장(`P0`) ③ 빈 답 7/25 와 다음 턴 혼입(`P1`) ④ `answer_delta` 0(`P1`)
+  - 통과: H05(새 대화·재시작 승계, 내부 ID·원시 경로 노출 0) · 성장 표면 · 전 턴 카드 0
+- **코드·자동검증 완료(라이브 재검증 전 — "최종 종결" 아님)**
+  - `12948bd` 계열 ①② — 관찰 레인이 승격 레인과 **같은** 민감정보 경계를 쓰고, 거른 턴도
+    watermark 는 전진한다. 범위는 모델이 말하고(`evidence.appliesTo`) Runtime 은 집행만 한다:
+    `from_now_on` 마찰 0 · `this_turn_only` 미저장 · **범위 미상은 추측 금지**(기존 확인 통로).
+  - `3567d91` 계열 ③ — 최종 답을 만드는 모든 경로가 `답완성` 하나를 지난다. 재시도는 도구
+    없이, 그 턴이 받은 `onDelta` 를 그대로 실어 간다.
+  - **라이브 재진단 전까지 이 둘을 "종결"이라 부르지 않는다.** 자동검증이 닫혔을 뿐이다.
+- **계열 ④ — 코드·자동검증·실제 `gpt-5.1` SSE 실측 완료(H01~H07 재진단 전 — "최종 종결" 아님)**
+  - OpenAI 와이어(openai/openai_oauth/openai_compatible)의 `streamBody` 가 opts 를 받아
+    **비스트리밍과 같은 도구 스키마**로 stream 을 켜고, `streamSse` 가 `tool_calls` 조각을
+    index 별로 누적해 완성 후 정확히 한 번 반환한다. 게이트는 `streamToolCalls` 파서 선언이
+    있는 와이어에만 열린다 — anthropic·gemini 는 파서가 없어 가장하지 않고 단발 유지.
+    **전체 provider 지원이 아니다.**
+  - **미리보기 원장**(`turn.js` `미리보기원장`/`미리보기정렬`): 화면으로 나간 조각과 지속되는
+    최종 reply 가 한 사실이다. 도구를 고르며 흘린 말은 버려지지 않고, 조각을 못 주는 모델도
+    답 전체가 complete 전에 한 조각으로 흐르며, 서버 후처리(민감 기억 안내)가 답을 늘리면
+    그 꼬리도 완료 전에 흐른다.
+  - 반대시험 12건(수정 전 실패 8건 실측) · 돌연변이 6종 등록 · 전체 회귀·게이트 통과.
+  - **라이브 실측(격리 폴더·제품 HTTP·SSE)**: 일반 턴 첫 조각 10.5s/완료 15.8s(조각 585개) ·
+    도구 턴 `tool_progress` 1.4s → 첫 조각 3.2s/완료 7.5s · 도구 실행 정확히 1회 · 두 턴 모두
+    **미리보기 누적 = 저장된 reply** · 빈 답 0 · 서버 로그 오류 0.
+  - 관찰(계열 밖): 모델이 `memory.cite` 를 채널 호출 대신 **본문 텍스트로** 쓴 턴 1회 —
+    재진단에서 다시 본다.
+- **H02 `proposal_short:boundary_sample` — 원인 종결(기준 완화 0).**
+  - **원인 증명(같은 번들·같은 실패 이력·같은 `gpt-5.1` 재현)**: 제안 호출의 출력 상한
+    1024(제품 기본)에서 **3/3 절단**(JSON 미완 → 건진 것 2P/1N/1B → `boundary_sample`),
+    4096 에서 **3/3 완결**(2P/1N/2B·부족 0). 모델은 표본을 냈다 — 상한이 마지막 사례를
+    자르고, 생성 순서상 boundary 가 마지막이라 `boundary_sample` 로 특이하게 떨어진다.
+    실패 이력 반영으로 원리 문장이 회차마다 길어져(실측 ~100→250→330자) 절단 위험이
+    커지는 악순환이었다. 진단 회차의 round 0·1 은 표본을 채워 suite 까지 갔고(각 2P/1N/2B),
+    round 2 만 절단으로 종단됐음을 격리 폴더 저장물로 확인했다.
+  - **수정**: ① 호출 하나가 자기 출력 예산을 말할 수 있다(`opts.maxTokens`, 기본 불변) —
+    제안 호출만 `GROW_CAPS.proposalMaxTokens=4096` 를 쓴다(사례 실행·판정은 기본 그대로).
+    ② `parseProposal` 이 상한(5) 안에서 **필수 표본을 먼저** 채운다 — 여분 positive·authority
+    가 뒤에 온 boundary 를 밀어내던 앞자르기(slice) 폐기. 문턱·표본 최소값·`maxRounds` 불변.
+  - 반대시험 3건(수정 전 실패 실측) · 돌연변이 3종 등록(스윕 95) · 회귀 1536/0(7a57aa0 합류 후).
+  - **실제 제품 관통(새 격리 폴더·제품 HTTP·제품 스케줄러)**: 3회차 **모두 표본 완결**
+    (2P/1N/2B ×3 · `proposal_short` 0). suite 는 3회차 모두 모델 판정으로 실패해 `exhausted`
+    종단 — 실행 답 절단 0, 판정 사유 전부 정당(스스로 만든 엄격한 사례를 답이 못 채움).
+    이는 동결된 명시 한계 ①~③의 안전한 실패이며 자동 부활하지 않는다. 실패 이력 반영도
+    실측: round 0 실패 3종 → round 1 실패 1종으로 좁혀짐.
+  - 관찰(수정 아님): 일부 사례의 expectedFacts 가 inputFacts·원리만으로 달성 불가능한 요구를
+    담아 정당하게 떨어진다 — 사례 구성 품질의 남은 변동이며 재진단·봉인 회차에서 그대로 재본다.
+- 이번 세션이 함께 찾은 **직전 커밋의 어긋남 둘**(둘 다 HEAD 에서 실측, 기준 완화 없이 정정):
+  - `12533ac` 가 `audit:docs` 에 §4·§9·§10 토큰 검사를 추가하면서 **자기 시험의 "깨끗한 상태"
+    fixture 를 갱신하지 않아** 회귀 1건이 HEAD 에서 실패하고 있었다(인수인계의 "회귀 통과"
+    주장과 어긋남). fixture 를 게이트 요구대로 채웠다 — 게이트는 그대로다.
+  - 공식 gate 가 `후속` 카운터 15→17 로 차단되고 있었다. 원인은 `a8d608c` 의 주석 두 줄이
+    "중간 감사 **후속 조건**"이라는 **유래 인용**으로 낱말에 걸린 오탐 — 기준선을 올리지 않고
+    낱말을 사실 그대로("중간 감사가 못박은 조건")로 고쳐 15/15 로 되돌렸다.
+- 현재 수치: 회귀 **1536**(7a57aa0 문서 게이트 확장 합류 후) · 돌연변이 스윕 **95** · `audit:plan`/`docs`/`workspace` PASS ·
+  작업 트리 깨끗 · 잔여 프로세스 0.
+- 공식 gate: 기능 항목 전부 PASS. 성능 항목은 계열 ④ 커밋 시점(AC 전원) **CPU 28.9s/40s
+  PASS** 실측 후, H02 커밋 시점에 기기가 **배터리 + 저전력 모드**(lowpowermode 1)로 바뀌어
+  64.2s/40s 로 차단됐다. 같은 부하에서의 A/B 는 HEAD 52.3s vs 변경 53.1s — **코드 순증
+  +0.8s**. 기준선·검사 수는 바꾸지 않았고, 이 환경 차단을 재개봉으로 확대하지 않는다.
+  AC 전원 복귀 후 gate 재실행으로 재확인한다.
+- **`audit:docs` 가 이 문서의 낡음을 놓쳤다(2026-08-01).** §0-A 가 H 단계를 말하는 동안
+  §9 는 "v3 감사 고정 종료 4건 → S1 제품 구현 시작"을, §10 은 `S4_PASS / S5_IN_PROGRESS` 를
+  말하고 있었는데 게이트는 **PASS** 였다. 상태를 §0-A 한 곳에서만 쟀기 때문이다 — 한 자리만
+  보면 나머지 구역은 얼마든지 낡고, 새 세션은 그 낡은 구역을 읽고 지난 일을 다시 한다.
+  이제 **§4·§9·§10 이 같은 상태 토큰을 말하는지** 검사한다(§10 토큰을 낡게 만들어 무는 것 확인).
+  - S5-1~5 를 하나의 기억·제품 경로로 관통하는 봉인 시험(`test/tcell-s5-seal.test.js`), 제출 문서는
+  `docs/03-verification/evidence/human-baseline/S5-SEAL-SUBMISSION-2026-07-31-ko.md` 다.
+  제출 준비 중 **같은 결함이 세 자리에 있던 것**을 찾아 닫았다 — `/overview`·`/memory`·성장
+  표면이 각자 상태를 재고 있었다. `물러남` 판정을 `context-mesh` 한 곳으로 모았다.
+  **종료 판정은 감사 몫이다. 구현 레인이 S5 완료를 선언하지 않는다.**
+- 현재 제품 코드 편집: 기억 민감정보 저장 경계만 좁게 보강 완료(`겸임 구현`, 독립 재감사 PASS)
+  - 범위는 장기 기억 저장이다. 사용자 대화 원문 transcript는 현재 맥락 복원 계약대로 보존되며,
+    범용 비밀 금고·transcript 마스킹 완료를 주장하지 않는다.
+- T-cell 구현 소유권: 없음. 새 계획 승인 전 제품 코드 작성 금지
+- 현재 차단: replay 실행과 case 결합, 실제 모델 호출 신분, 웹·채널 오너 신분 결합,
+  독립 실행 가능한 계획 전체본. 상세는 v3 Codex 재감사 정본.
+- 준비·비교 역사(현재 차단 아님):
+  - H01~H10 현재 코어 인간 기준선은 **독립 감사 봉인 완료**다.
+    실제 서버·브라우저·`gpt-5.1`, 오너 조작 0, 제품 코드 변경 0을 확인했다.
+    H02는 반복 경험의 자가학습 0, H05는 새 대화 승계 3/3 실패와 재시작 뒤 같은 대화 승계 성공,
+    H10은 에이전트 위임·회수·통합 0이다. 카드 대기 턴의 완료 시각은 계측 한계로 남지만
+    카드·필수 클릭 비용이 확인돼 비교군 착수를 막지 않는다.
+    증거:
+    `docs/03-verification/evidence/human-baseline/H-BASELINE-3RUNS-2026-07-30-ko.md`,
+    `docs/03-verification/evidence/human-baseline/H-GAP-CLOSURE-2026-07-30-ko.md`
+  - OpenClaw·Hermes 1차 코드 사실 대조는 독립 감사 `PASS_WITH_SCOPE_LIMIT`다.
+    Hermes의 응답 뒤 자기평가·유휴 큐레이터·기억 기본 자동 흐름, OpenClaw의 워크스페이스 기억과
+    위임 도구를 확인했다. OpenClaw `agents_wait`는 `tools.swarm` 활성 조건부다.
+    라이브 H01~H10은 두 제품의 모델 자격이 없어 미실행이며 코드 사실로 대체하지 않는다.
+  - 라이브 준비 `22929ca`는 독립 감사 `REWORK_REQUIRED_BEFORE_CREDENTIAL`이다. H10이 일정에서
+    누락됐고, OpenClaw 설치본 `2026.6.11`은 실행 가능한데 pinned 소스 `2026.7.2`의 Node 차단을
+    제품 전체 차단으로 확대했다. Hermes의 자격 오류도 실제 `gpt-5.1` 허용 증거는 아니다.
+  - `60ab999`의 6회 연속 라이브 구동은 감사 중단됐다. H04가 H03의 일회성 예외를 취소했고,
+    H06은 선호 없는 상태였으며, 회차 2·3이 같은 홈에서 겹쳐 독립성이 깨졌다. 회차 1 H02 산출물도
+    삭제 전에 보존되지 않았다. 상위 구동기와 남은 Hermes 호출은 종료했고 Downloads fixture 3개는
+    정리했다. H01·H05·H07·H08·H09·H10의 한 회차 결과는 탐색 관찰로만 보존하며 3회 비교 판정에
+    쓰지 않는다. 증거:
+    `docs/03-verification/evidence/human-baseline/LIVE-RUN-INTERRUPTION-AUDIT-2026-07-30-ko.md`
+  - 위 중단 뒤 만든 `h_runner_v2.py` 수정 1회차도 재중단됐다. 분기별 홈은 분리했지만 B1·B7에서
+    `s1`을 닫지 않은 채 같은 홈의 `s2`를 시작해 실제 Hermes 프로세스 두 개가 동시에 살아 있었다.
+    전역 회차 lock은 러너 내부의 같은-home 다중 writer를 막지 못했다. `Session.close()`도 강제 종료
+    뒤 실제 종료를 확인하지 않았고, H05는 세션 ID가 없어도 새 대화를 시작해 재시작으로 기록할 수
+    있었다. 부모 러너·Hermes·로그 감시는 종료했고 fixture 3개 부재와 프로세스 0을 확인했으며 stale
+    lock을 제거했다. `v2-run-1/`은 보존하되 비교 판정에는 쓰지 않는다. 다음 실행은 홈별 단일 writer,
+    종료 확인, resume fail-fast, 실제 ready 판정, 무과금 프로세스 전실행 검사를 먼저 통과해야 한다.
+    같은 감사 문서의 `수정 1회차 재중단` 절이 정본이다.
+  - 재중단 뒤 구현선이 만든 것과 현재 상태(문서에 아직 없던 진행 중 판단):
+    - 수명주기를 규칙에서 **자료구조**로 옮겼다. `scripts/compare-live/session_lifecycle.py`의
+      `SessionHost`는 홈 하나당 살아있는 세션을 하나로 강제하며, 두 번째 `open()`은 예외다.
+      프로세스 수는 내부 장부가 아니라 `ps -wwE`로 `HERMES_HOME` 일치 프로세스를 세어 확인한다.
+      `close()`는 정상 종료 → SIGTERM → SIGKILL 3단계를 거치고 종료 단계·확인 결과·세션 ID를
+      기록하며, 확인 실패나 잔여 프로세스가 있으면 예외로 중단한다. `wait_ready()`는 입력 프롬프트
+      표식을 본 뒤에만 통과하고, 그 전에 프롬프트를 쓰면 예외다. `--resume`은 검증 실패 시 예외다.
+      같은 결함이 두 판 연속 재발한 이유가 `닫는 것을 잊지 않기`에 의존했기 때문이라는 판단이다.
+    - `scripts/compare-live/preflight.py`는 프롬프트를 보내지 않는 **무과금 전실행**이다. 열기 전 0개 →
+      열린 뒤 1개 → 같은 홈 두 번째 세션 차단 → 정상 종료 확인 → 세션 ID 확보 → 닫은 뒤 0개 →
+      `--resume` 재개 → 재개 종료 확인 → 잔여 0개를 찍는다. 12개 검사 전부 PASS, 모델 호출 0건,
+      세션 ID `20260730_201854_4c6acc`, 종료 단계 `graceful`. 보고서는 스크래치패드
+      `preflight/preflight-report.json`이며 유료 실행 판정에는 쓰지 않는다.
+    - `scripts/compare-live/h-branches.json`이 새 실행표다. 분기 8개·18턴이며 `H01→H03`(B2)과
+      `H01→H04`(B3)를 다른 홈·다른 대화로 나누고, H04 철회가 저장에 반영됐는지 확인하는 턴을
+      더했다. H06은 선호 저장 뒤에 묻고, H08→H09는 같은 파일 대화, H10은 별도 분기, H05는
+      작업 대화 → 새 대화 → 제품 재시작 → 원 대화 재개다. 무효 판정된 14턴 표는 삭제했다.
+    - `scripts/compare-live/verify_run.py`는 회차의 **구조 유효성**을 기계로 검사한다(턴 수, 분기별
+      홈 분리, H04 직전 턴이 H01인지, H06 앞의 H01, H08·H09 동일 대화, H10 분리, H05 재시작 기록,
+      영수증의 fixture manifest 일치, 표면 시간 표기, 기록의 가짜 외 키 문자열 0). 응답의 좋고 나쁨은
+      판정하지 않는다. 지난 회차를 사람 눈으로 통과시킨 실패를 되풀이하지 않기 위한 것이다.
+    - `h-runner.mjs`는 **OpenClaw 전용**으로 남긴다. Hermes `-z`는 승계 표면이 아니어서
+      (`run_oneshot()`이 세션 인자를 받지 않고 `--resume`은 TUI 전용) 같은 파일에 두면 다시 오용된다.
+      OpenClaw `agent --local --json --session-key`는 2턴 시험에서 승계가 확인됐다.
+    - 현재 상태: 제품·러너·감시 프로세스 0개, `~/Downloads` fixture 잔여 0건, stale lock 없음,
+      오너의 실제 `~/.hermes`·`~/.openclaw` 변경 0건. 무효 산출물은
+      `INVALID-multiwriter-v2-run-1/`과 `PARTIAL-killed-at-turn9-v2-run-1/`로 격리했고 판정에 쓰지 않는다.
+      `gpt-5.1`은 실제 호출 성공이 확인됐고, 제품 단가표가 없어 금액은 미확정이다.
+    - 유료 회차는 이 전실행 검사가 감사를 통과한 뒤에만 실행한다. 본 계측기를 `SessionHost` 위로
+      옮기는 배선도 무과금 dry-run으로 먼저 증명해 함께 제출한다.
+  - 구현선 교대(2026-07-30) 뒤 새 구현선이 `e60ed88`을 교차 확인하고 위 배선을 완료했다:
+    - 교차 확인 판정: `SessionHost`의 구조 보장 5건(홈별 단일 writer, 3단계 종료 확인,
+      resume fail-fast, ready 판정, 무과금 전실행)은 확인. 결함 3건을 찾아 수정했다 —
+      `h-runner.mjs`가 `restartBefore`를 기록하지 않아 `verify_run.py` 검사 7이 OpenClaw
+      회차를 항상 무효 판정하던 것, 유출 검사가 `transcript`만 보고 CLI 회차의
+      `stdout`/`stderr`를 건너뛰던 것, OpenClaw 턴에 타임아웃이 없어 유료 회차가 멈춘
+      제품을 무한 대기하던 것(240s·프로세스 그룹 종료로 보강).
+    - Hermes 계측기 `h_runner_v3.py`를 `SessionHost` 위에 새로 썼다. 세션 전환은 종료 증명
+      뒤에만 가능하고, 재시작 승계는 세션 ID가 없으면 분기를 중단하며(감사가 잡은 v2 결함의
+      구조적 차단), 턴 시간 초과·제품 사망은 그 분기만 중단해 다른 분기의 유효성을 지킨다.
+      `h_runner_v2.py`는 차단 유지, 감사 대조용으로만 남긴다.
+    - 두 계측기 dry-run에서 Downloads·작업 디렉터리·프로세스 변화 0을 확인했다.
+      preflight를 새 구현선이 독립 재실행해 12검사 전부 PASS를 재현했다
+      (세션 `20260730_203750_4b92c6`, 정상 종료 2회, 잔여 0).
+    - 키 요청 전 산출 정본을 만들었다:
+      `docs/03-verification/evidence/human-baseline/LIVE-CALL-SCHEDULE-2026-07-30-ko.md`.
+      회차당 18턴·제품당 54프롬프트·총 108프롬프트로 `a34efc4`의 34/68턴 오산을 정정했고,
+      호출 수·비용은 추정하지 않고 회차 1 실측 게이트로 채운다. `secret-env.sh`와 회차
+      산출물은 `.gitignore`로 커밋을 차단했다.
+    - 관찰(원인 미분류): 20:30에 오너 설치본으로 추정되는 일시적 `openclaw` 프로세스 2개가
+      떴다가 수 초 안에 사라졌다. launchd 상주 등록 없음, 상태 폴더 접촉 없음. 재현 전에는
+      확대하지 않는다.
+    - 다음: 이 배선 증거 일체(preflight·dry-run·교차 확인·산출 정본)를 Codex 감사에 제출하고,
+      감사 통과 뒤에만 자격을 받아 유료 회차 1을 실행한다.
+  - 위 배선(`e60ed88..8aa2198`)의 Codex 독립 감사 판정은 `BLOCKED_BEFORE_CREDENTIAL`이다.
+    `preflight.py`는 12/12 PASS를 냈지만 존재하지 않는 session ID도 resume 성공으로 인정하는
+    거짓 양성이 독립 재현됐다. 같은 범위에서 fixture가 같은 이름의 기존 Downloads 사용자 파일을
+    덮어쓴 뒤 삭제할 수 있는 P0, OpenClaw 실패·시간초과를 `verify_run.py`가 VALID로 받을 수 있는
+    공백, OpenClaw 회차 lock·기존 증거 보호 부재, 실행표 불리언을 실제 재시작 증거로 쓰는 문제,
+    프로세스 계측 `-1`에서 실행을 여는 문제를 확인했다. “모델 호출 0”도 측정값이 아니라 상수다.
+    오너 자격 요청과 유료 회차 1은 열지 않는다. 정본 감사:
+    `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-PREFLIGHT-AUDIT-2026-07-30-ko.md`
+  - 구현선이 위 감사에 대응했다. 정본 응답:
+    `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-AUDIT-RESPONSE-2026-07-30-ko.md`
+    - 근본 원인을 명시했다: P0-1·P1-3·P2는 같은 병 — 증거 칸을 관측이 아니라 의도로 채웠고,
+      교차 확인이 자기 쪽 코드에는 반대 검증을 적용하지 않았다. 재발 차단은 구조로 했다:
+      증거는 다르게 나올 수 있었던 관측만, 계측 불능은 차단, preflight에 반대 검증 내장.
+    - 수정 전 실측으로 감사가 몰랐던 사실을 확인했다: 프롬프트 0건 세션은 저장되지 않아
+      기존 재개 PASS는 행복 경로부터 허구였다. 배너는 요청 ID를 에코해 화면의 ID 존재는
+      판별력이 없다. TUI 스크래핑은 옆 칸을 잡는다(`sid=email:`) — 디스크가 진실이다.
+      상속 환경 부팅은 오너 HOME의 copilot 자격을 임시 홈으로 자동 임포트하고 있었고,
+      오너 실제 `~/.hermes` 풀에 openai-api 키가 있어 배선이 새면 자격 파일 없이도 과금
+      가능한 상태였다 — 자식 환경을 `sanitized_env()` 명시 구성으로 바꿨다.
+    - P0-1: 재개는 디스크 선검사 + `Session not found` 마커 이중 검증. 유령·가짜 ID 재개가
+      **차단되어야** preflight PASS(반대 검증 내장). 가짜 키 401 경로로 세션을 영속시켜
+      실제 재개 성공(실패 마커 없음·이전 원문 재생)을 과금 0으로 처음 증명했다.
+    - P0-2: 회차 시작 전 기존 파일 충돌 검사(두 계측기 exit 3 반증 확인) + 배타 생성 +
+      전부-아니면-0 롤백(반증 중 부분 생성 비원자성을 추가 발견해 고침) + 삭제 전 스냅샷.
+    - P1-1: 실패·시간초과 턴은 분기 중단·영수증 기록, verify_run이 INVALID 판정.
+      P1-2: OpenClaw도 같은 `run.lock`·기존 산출물 덮어쓰기 금지. P1-3: `resumedFrom`(디스크
+      진실)·`restartEvidence`(제품 보고 identity 일치) 없이는 재시작 인정 안 함.
+      P1-4: 계측 `-1`은 전 소비처 fail-closed. P2: 상수 제거, `promptsSent`·토큰 미터 0
+      관측·자격 0 부팅의 설정 안내 멈춤(음성 대조)으로 대체.
+    - 재검증: preflight 23검사 PASS, fixture 반증 통과, dry-run 부작용 0, 전체 회귀
+      1,219건 통과·실패 0, 제품 코드 변경 없음. 남은 경계는 응답 문서 §4에 정직 표기
+      (OpenClaw 재시작 증거는 회차 1에서만 실측, 마커는 pinned 소스 기준).
+    - Codex 재감사 판정은 다시 `BLOCKED_BEFORE_CREDENTIAL`, 과정은 `REPEAT_PREVENTABLE`이다.
+      원래 지적한 resume·실패 턴·계측 불능 보강은 실제로 확인됐지만, 유료 결과의 유효성과
+      사용자 파일 안전을 막는 재발이 남았다.
+      1. H02·H10 실행 원문이 봉인된 T5 인간 기준선과 달라 같은 ID 결과를 직접 비교할 수 없다.
+         두 항목은 이전 기준선에서도 잘못 측정했다가 감사로 정정된 항목이다.
+      2. fixture 소유권이 경로 문자열뿐이라, 실행 중 같은 경로의 파일이 교체되면 사용자 파일을
+         fixture로 오인해 권한을 바꾸고 삭제할 수 있다. 이전 P0의 경로≠소유권 재발이다.
+      3. Hermes는 4초 무출력을 실제 턴 완료의 대용물로 써 다음 프롬프트를 보낼 수 있다.
+      4. 정본 폴더에는 OpenClaw 기본 실행 대상 `oc-2026.7.2`와 `node-bin.txt`가 없어
+         문서의 기본 명령으로 실제 회차를 시작할 수 없다.
+      5. 필독 준비 문서에는 폐기된 14턴 실행표가 현재 사실로 남아 18턴 정본과 충돌한다.
+      독립 재검증은 preflight 23/23, dry-run 2종, 전체 회귀 1,219/1,219 PASS다. 이 통과가
+      위 차단을 상쇄하지 않는다. 오너 자격 요청과 유료 회차 1은 계속 열지 않는다. 정본:
+      `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-REAUDIT-2026-07-30-ko.md`
+  - 오너 결정에 따라 위 반복 뒤 **Codex가 비교 계측기 구현을 직접 인수**했다. 현재 상태는
+    `CODEX_SELF_VERIFIED / CLAUDE_INDEPENDENT_AUDIT_PENDING`이며 유료 호출·실제 자격 사용은 0건이다.
+    - H01~H10 원문은 `h-scenarios.json`, 8분기·18턴 실행은 `h-branches.json` 단일 정본으로
+      분리했다. 실행표의 원문 재입력, 중복·누락 번호, 핵심 봉인 원문 변조, 활성 문서의 폐기
+      14턴 잔재는 `audit:compare-live`가 시작 전에 막는다.
+    - fixture는 hard-link anchor·device·inode·SHA-256 생성 신분이 모두 맞을 때만 chmod·정리한다.
+      실행 중 같은 경로가 다른 파일로 교체되면 사용자 파일을 보존하고 회차를 무효로 남긴다.
+    - Hermes는 작업 상태→입력 프롬프트 복귀를 실제 완료 신호로 요구한다. OpenClaw는 설치된 실제
+      실행 파일의 `--version`·필수 `agent` 옵션을 무과금 확인하고 그 경로와 신분을 영수증에 남긴다.
+      현재 확인 신분은 `OpenClaw 2026.6.11 (e085fa1)`이며 pinned `2026.7.2`는 코드 비교 자료다.
+    - 무과금 preflight **31검사 VALID**, 두 dry-run PASS, 전체 회귀 **1,221건 PASS**, 작업장 감사
+      PASS, 공식 gate **CPU 22.0s/40s·벽시계 12.1s PASS**. 제품 코드 변경 0건.
+    - 정본 증거:
+      `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-CODEX-TAKEOVER-2026-07-30-ko.md`
+    - 다음은 Claude의 문제 중심 독립 감사다. 해법을 주지 않고 정본 drift, fixture 교체 경쟁,
+      거짓 완료, 실행 활주로 부재, 문서 잔재를 적대적으로 재현하게 한다. 통과 전에는 오너 자격
+      요청·유료 회차 1을 열지 않는다.
+  - Claude 독립 감사 판정은 **`BLOCKED_BEFORE_CREDENTIAL`**이다. 자체 수치(31검사 VALID·
+    1,221 회귀·계약 PASS)는 전부 독립 재현됐지만 P0 2건이 유료 결과의 유효성을 막는다.
+    1. **P0 `REPEAT_PREVENTABLE`**: 제품 자식의 `HOME`이 샌드박스 홈이라 제품의
+       `~/Downloads`·`~/Developer`가 fixture·시나리오 현실과 분리된다. fixture는 오너 실제
+       Downloads에 생기고 제품은 볼 수 없다(재현: sanitized_env에서 `echo ~/Downloads`).
+       18턴 중 6턴(H05·H08·H09·H10)이 제품 능력이 아니라 격리 설계를 잰다. 기원은 교대 전
+       자격 격리 수정이며 두 구현선 모두 제품 시야 끝단을 검증하지 않았다.
+    2. **P0 `REPEAT_PREVENTABLE`**: H04.undo·H05.restart 원문/조건이 봉인 실측과 다르고
+       (`방금 기억한 보고서 형식 선호는 취소해줘` vs `아니, 방금 건 취소해줘.`; 재시작 성공
+       11.6s는 H02 숫자 대화에서 측정), H04.verify는 봉인에 없는 신조 원문이다. 계약 검사는
+       16개 중 3개만 하드코딩 대조라 H04·H08 원문을 변조해도 PASS다(재현 완료).
+    3. P1: 기존 `hm-run-1` 존재 시 덮어쓰기 거부 경로가 그 폴더 안에 `fixtures-final/`을
+       만든다(재현 완료). P1: 제품이 fixture를 건드리면(H08이 측정하려는 바로 그 행동) 회차
+       18턴 전체가 구조 INVALID로 폐기된다.
+    4. 공격 범위 2·3·5·6·10은 반대 재현에서 성립 확인. 완료 신호는 무과금 경로에서 조기 발화
+       미재현(실 턴은 회차 1에서만 실측 가능). dry-run의 오너 HOME 상속 실행은 상태 변경 0 관측.
+    정본: `docs/03-verification/evidence/human-baseline/LIVE-INSTRUMENT-CLAUDE-AUDIT-2026-07-30-ko.md`
+    오너 자격 요청·유료 회차 1은 계속 열지 않는다.
+  - Claude Code·Codex 작동 방식 대조는 `a34efc4`에서 사실 오류를 철회하고 실제 Codex 실행 기록으로
+    보강했다. 독립 감사 `PASS_WITH_PREP_CORRECTION`이다. H01~H10 전체 라이브 범위는 복원됐으나
+    제품당 34턴·총 68턴 계산은 반복 흐름을 잘못 세어 무효다. 키 요청 전 fixture schedule과
+    실제 호출 수·비용 범위를 다시 산출한다.
+  - 새 T-cell 개발계획 초안 작성·Codex 감사 차단
+- 지정 후속:
+  - 새 T-cell 계획 전체 보강·독립 재감사·오너 확인
+  - T-cell 성공 후 스킬·크론·에이전트·자동화 병렬 개발
+  - 마지막 마감 단계에서 기존 완성 영역 전체를 최소 제약·최대 자동화 기준으로 다듬기
+  - T5 첫 완성본 봉인 뒤 `docs/03-product-plan/T5-POST-COMPLETION-STRUCTURAL-HARDENING-ko.md`의
+    행동 보존형 구조 건전화 작업 시행. 현재 개발을 막거나 중간 계획을 다시 여는 작업이 아니다.
+
+## 5. 문서·작업장 정리
+
+- 옛 T-cell 명세: `docs/archive/retired-plans/`로 퇴역
+- 과거 인수인계: `docs/archive/handoffs/`로 이동
+- `.beai-harness/`, `workspace-notes/`: 로컬 생성 상태, Git 제외
+- 과거 감사·설계·증거: 삭제하지 않고 역사·참고 자료로 보존하되 현재 정본으로 사용하지 않는다.
+- sidecar worktree 5개를 닫았다. 브랜치·커밋은 보존했다.
+- `/Users/jyp/Developer/gpao-t5`는 Git 메타데이터를 호스팅하는 역사 관리 worktree라 삭제하지 않고,
+  `AGENTS.md`와 `README.md` 첫 줄에서 개발 금지를 표시했다.
+- 그 폴더의 사람이 만든 미추적 자료 3개는
+  `/Users/jyp/Developer/t5-worktree-archive/gpao-t5-untracked-2026-07-30/`에 보존했다.
+
+## 6. 에이전트·병렬 작업 원장
+
+결과는 반드시 `채택 / 통합 대기 / 보류 / 폐기`로 분류한다.
+
+| 작업선 | 상태 | 결과·근거 | 다음 처리 |
+|---|---|---|---|
+| Automation AC-1 | 채택 | 정본 편입·독립 감사 완료 | 유지 |
+| Automation AC-2 | 통합 대기 | `codex/automation-ac2` 브랜치·커밋 `53cdaa3`, worktree 닫힘 | T-cell 이후 잔여 계획에서 재감사 |
+| Hermes T-cell 감사선 | 보류 | `codex/hermes-tcell-engineering-audit` 브랜치, worktree 닫힘 | 옛 계획 구현 근거로 사용 금지, 새 계획의 비교 자료로만 재검토 |
+| P-OP-6 surface sidecar | 채택 이력 | 필요한 변경은 정본에 반영됨 | 남은 worktree 정리 |
+| 과거 TG/CX 구현선 | 폐기 | 오너 결정으로 전면 롤백 | Git 역사만 보존 |
+| T-cell 준비 문서 감사 | 채택 | Codex 보조 에이전트 Franklin, 읽기 전용. 정본·모순·갱신 위치 확인 | 이번 준비 문서에 반영 |
+| 기억 비밀 유입 감사 | 채택 | Codex 보조 에이전트 Helmholtz, 읽기 전용. 웹·채널·메타·과거 후보·오탐 범위 재감사 PASS | 현재 코어 보장으로 유지. Claude 교차 확인 완료(2026-07-30): 경계 위치·저장 선행 순서·삭제 보존 확인, 탐지기 무력화 반대 검증으로 테스트 실효 재현. 한계 관찰 — 라벨 없는 소문자 전용 긴 토큰은 fallback 밖(모델 지침이 담당), 28자+ 혼합 정상 토큰은 오탐 가능(선언된 범위와 일치) |
+| OpenClaw·Hermes 비교 1차 | 채택 | `084dfa3`, pinned 소스 코드 사실 대조. 독립 감사 `PASS_WITH_SCOPE_LIMIT` | Claude Code·Codex 대조 뒤 라이브 필요 범위를 최소화 |
+| Claude Code·Codex 비교 | 채택 | `a34efc4`, 실제 Codex 실행 메타데이터와 Claude Code 실행 근거. 감사 `PASS_WITH_PREP_CORRECTION` | 라이브 fixture schedule 계산만 준비 단계에서 정정 |
+
+새 에이전트를 열 때 이 표에 목적·브랜치·소유 파일·종료 조건을 먼저 기록한다. 에이전트 결과가 끝나면
+커밋·검증·정본 접점과 함께 상태를 갱신한다.
+
+## 7. 새 T-cell 계획의 필수 결과
+
+새 계획은 최소한 다음을 실제 생산 경로와 검증으로 연결해야 한다.
+
+계획 작성 전에
+`docs/03-verification/T5-TCELL-CURRENT-CORE-HUMAN-BASELINE-2026-07-30-ko.md`의 H01~H10을
+실행해 현재 비용을 먼저 기록한다. 계획의 각 성과 지표는 이 기준선과 연결돼야 한다.
+
+1. 현재 T5 코어 비침범과 호환 경계
+2. 응답 뒤 백그라운드 관찰·학습과 전경 지연 최소화
+3. 기억·맥락·POM·자가학습·성장의 닫힌 수명주기
+4. 사용자의 현재 지시가 항상 우선인 자연스러운 입장
+5. 가역 학습의 자동 반영과 사후 확인·수정·고정·되돌림
+6. 치명적 외부 영향과 새 지속 권한에만 좁은 승인
+7. OpenClaw·Hermes 대비 흡수 항목, 비흡수 항목, T5 우위 지표
+8. 실제 인간 시나리오에서 카드·클릭·완료 턴·공백 감소
+9. Claude Code·Codex·다른 에이전트를 활용하는 성장·실행 구조
+10. T-cell 성공 뒤 나머지 개발과 전체 제품 마감으로 이어지는 순서
+
+## 8. 개발·감사 협업
+
+- 개발팀은 지정 함수만 작성하지 않는다. 목표 달성에 필요한 누락, 더 나은 구조, 실사용 문제와 경쟁 우위를
+  찾아 생산 경로까지 연결한다.
+- 감사팀은 관련 범위를 끝까지 확인한 뒤 문제·재현·영향·공통 구조·분류·보존 조건을 한 번에 제출한다.
+- 감사에서 이미 확인·학습·문서화한 유형이 다시 발생하면 일반 신규 결함과 섞지 않고 보고서 최상단에
+  **`REPEAT_PREVENTABLE(예방 가능 재발)`**로 강조한다. 기술 심각도와 별도로 과정 심각도를 기록하고,
+  이전 발생 근거·이번 재현·불필요하게 다시 든 시간·비용·오너 부담·기존 방어가 왜 막지 못했는지를
+  함께 밝힌다.
+- 재발 판정은 단순히 증상이 비슷하다는 이유로 붙이지 않는다. 이미 알려진 실패 구조와 예방 조건이
+  있었는데도 같은 구조를 다시 만든 경우에만 붙인다. 반대로 해당하면 표현을 완화하거나 일반 관찰로
+  숨기지 않는다.
+- `REPEAT_PREVENTABLE`이 나오면 해당 인스턴스만 고친 것을 종료로 보지 않는다. 같은 유형의 남은
+  표면을 전수 확인하고, 사람이 기억해야만 지켜지는 규칙이 다시 실패했는지, 기존 검사·문서·자료구조가
+  왜 무력했는지를 감사 범위에 포함한다.
+- 감사 요약은 앞으로 `재발 여부 → 사용자·비용 영향 → 신규 결함 → 보존되는 통과 범위 → 판정` 순서로
+  쓴다. 오너가 같은 실수의 반복을 즉시 알아보고 중단·교체·범위 조정을 판단할 수 있어야 한다.
+- 감사팀은 세부 패치 답안으로 구현자의 사고를 축소하지 않는다.
+- 구현팀이 전체 해법을 설계하고, 감사팀은 제품 능력·자동화·안전·사용자 경험이 함께 좋아졌는지 검증한다.
+- 오너에게 AI 사이의 기술 논쟁과 검사 설계 부담을 넘기지 않는다.
+- 오너에게 요청할 수 있는 직접 행동은 계정 로그인, 동의, 비밀 입력, 비용·외부 권한, 대체할 수 없는
+  최종 제품 판단으로 제한한다. 개발팀이 할 수 있는 명령 실행, 버튼 클릭, 브라우저 조작, 재현과
+  측정을 오너에게 넘기지 않는다.
+
+### Claude Code·Codex 성향 활용 계약
+
+AI 개발 도구의 성향은 없애야 할 결함으로만 보지 않고, 유리한 작업에 배치하되 반복 실패는 구조로
+막는다.
+
+- 오너는 사용자 목적, 말귀, 실제 사용감, 최소 안전·최대 자동화, 완료 기준을 고정한다.
+- Claude Code는 좁고 어려운 구현을 오래 붙잡는 능력, 상태기계·예외·복구를 촘촘히 전개하는 능력,
+  실패 뒤 원인 계열을 깊게 파는 능력을 구현에 사용한다.
+- Claude Code의 부분 과몰입, 통제·문서 비대화, 자기 코드와 검사의 공통 맹점, 기다림·보류 합리화는
+  사용자 성과 한 문장, 허용 범위, 금지 영역, 수정 전 실패, 실제 제품 관통, 종료 조건으로 제한한다.
+- Codex는 Claude의 설명을 평가하는 역할이 아니라 구현 바깥의 실제 제품 경로, 사용자 효과, 전역 상태,
+  경쟁 기준, 검증 도구 자체의 오염 가능성을 독립 확인한다.
+- Codex의 결함 직렬 제출, 해법 과잉 지정, 검사 완벽주의는 감사 전 범위 동결, 결함 계열 전수 확인,
+  차단과 개선 분리, 한 번의 묶음 판정으로 제한한다.
+- 구현은 Claude가 전체 구조를 보고 선택하고, Codex는 확인된 문제·재현·영향·보존 조건·완료 조건을
+  제시한다. 오너에게 두 AI 사이의 기술 조정 부담을 넘기지 않는다.
+- 공통 작업 순서는 `사용자 결과 고정 → 범위·보존 조건 → 수정 전 실패 → 구현 → 실제 제품 관통 →
+  반증 → 독립 감사 → 인수인계`다. 문서와 테스트는 이 흐름의 증거이지 제품 작업을 대신하지 않는다.
+
+## 9. 다음 작업과 종료 조건
+
+상태 토큰: `T5_W6_DEVELOPMENT_PASS` (§0-A·§4·§10 과 같은 값이어야 한다)
+
+### 다음 작업 — **이 순서대로**
+
+1. ~~채널 중복 제거 → 재판별 → 최종 6회~~ — **완료**(§5-L). 상태 토큰은 `TCELL_H_SEAL_7`이다.
+1-1. r49 재판정 + 보조 교차 **종결**(§5-M): 유효 3회(r50·r53·r54) 전부 H02 전 구간 성공 —
+   3/3 ≥ 2/3 충족. **구조 장부 `PASS_WITH_RECORDED_LIMIT` 종결 · T-cell H 봉인.**
+   기록된 제한: gpt-5.1 H02 4/6(모델별 이행) · H03 복귀 1턴 관성 · 관측 기록 시 정리.
+1-2. 민감 관찰 P0(`773760e`) 본선 반영 **완료**(§5-O): 독립 감사·병합(충돌 0), 원문 사례
+   4/4 탐지·도메인 오탐 0, H07 라이브 결정적 검사 통과(원문 노출 0·subject 사본 0),
+   스윕 135/135·회귀 1598/0. **T-cell H01~H07 최종 봉인.**
+2. **PC 손발(H08~H09) 완료** — 진행표 §5-R. H10 은 Agent Core 전까지 금지. H02 추가 수정·반복 금지.
+
+### 전체 잔여 개발 미션 (오너 승인·고정 2026-08-01)
+
+오너가 배치 1 봉인 이후의 **전체 잔여 개발 미션**을 승인·고정했다. 설치 전 오너 선택 지점까지
+가역적 로컬 개발·검사·문서 정합화·병렬 운용·통합·봉인을 **중간 착수 승인 없이** 계속한다.
+새 마스터 계획서는 만들지 않으며 기존 정본(병렬 제안서·자동화 구현 계획서·운영 순환·절대 원칙·
+방법론·구조 원칙·감사 계약)을 그대로 쓴다. 다음 세션은 이 미션의 승인 권한을 이어받는다 —
+오너 재승인 불요. 멈춤 경계: 외부 계정·비밀·결제·전송·공개·삭제·서명·동결 기준 완화·반복 구조
+결함·설치 전 A/B 선택.
+
+**여섯 도막(고정)**: W1 기준선·계약 동결(배치1 종결 확인+AC-1 재대조) → W2 Automation 골격
+(AC-2·3·4 병렬) → W3 Automation 완성(AC-5·6·7+Core Closure) → W4 H10 Agent 봉인 →
+W5 실전 업무(실행계획 1장+시나리오 5~8) → W6 전체 봉인·구조 감사(A/B 자료 제출 = 종료점).
+순서 임의 변경 금지. 봉인된 H01~H09 재개발 금지. 실패는 제품 구조/모델 이행 변동/측정기 결함
+셋으로 귀속 후 해당 범위만 수정.
+
+**병렬 운용**: 본선(Claude)=통합·shared file(`server.js`·`turn.js`·`tool-runner.js`·
+`live-context.js`·공통 descriptor·authority·migration·정본 문서)·직렬 게이트 전담.
+본선 외 활성 최대 4. sidecar 는 집중 검사만, 자동 병합 0, Codex 감사는 도막 종료 시 13항
+패키지로 한 번에.
+
+**공정감시 S(오너 지시)**: 결함 사냥이 아니라 **과정** 감시 — 딴길·과몰입·과잉·판정 미끄러짐·
+측정기 비대·봉인 재개봉. 코드·문서·검사 수정 없이 `계속/조정 권고/중단 권고`+근거만 낸다.
+상시 점유가 아니라 체크포인트(도막 착수·작업선 통합 직전·판정 회차 직전·봉인 제출 직전·수시
+신호)마다 **fresh context 로 새로 소집**한다(본선 맥락을 물려받으면 맹점도 물려받는다).
+검문표: Wave 목표 대조·봉인 재개봉·수정 전 실패 증거·**측정기 반대 검증 증거**·3분류 귀속·
+멈춤 경계·보고-실측 일치·소유 파일 위반·shared file 임의 수정·카드/질문 증가·모델 판단 침범.
+S 는 Codex 독립 감사를 대체하지 않는다.
+
+**현재 Wave: 설치 전 제품 다듬기** — W1~W6과 P90-1·P90-2 개발 봉인을 마쳤고, 오너는
+HumanRealTest 다듬기 → 세 과밀 파일 행동 보존형 정리 → 제품 확인 → 소비자 설치 lifecycle 순서를
+확정했다. 아래 W1 원장은 역사와 재현 근거이며 현재 착수 지시가 아니다.
+W1 순서: 배치 1 실제 종결 확인 → AC-1 재대조(재사용/재구현/폐기 표) → 공통 AgentRun 계약
+동결 → AC-2·3·4 소유권 표 → 배치 2 착수 기준선 커밋 → W1 Codex 감사 패키지.
+
+### 작업선 원장 (W1 · 2026-08-01)
+
+```text
+D-W1 | AC-2/3/4 delta·소유권 조사 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 전체 | 재사용/재구현/폐기 표 + 소유권 표 초안 제출 | **완료·채택** — AC-1 v2 소비자 0(런타임은 v1선), ac2 재사용 6·부분 폐기 2·폐기 5, 위험 11건(R1~R11). 채택 결과 정본: evidence/automation-core/ac-1/AC1-RECHECK-2026-08-01-ko.md
+S-W1 | 공정감시(W1 착수 검토) | 없음(읽기 전용) | 없음 | 미션 §9 + 현재 계획 | 계속/조정/중단 권고 제출 | **완료·조정 권고 반영** — §3 기준선 실측 갱신·진행표 §6 소급 1행·본선 소유 파일 명시·봉인 커밋 구간(fcb6f48..a7f839e) 독립 감사를 W1 패키지에 포함
+본선 | AC-1 대조·AgentRun 계약 동결·통합 | claude/p-op-1-a-system-view | server.js·turn.js·tool-runner.js·live-context.js·공통 descriptor·authority·migration·contracts.js·정본 문서 | — | 배치 2 기준선 커밋 | R2b 자체검증 완료(감사 재확인 대기 — 3판·반대시험 9·돌연변이 154~157)·AgentRun 계약 9항 동결·소유권 표 동결 — AC1-RECHECK 정본
+```
+
+**W2 서두 본선 직렬 선행(병렬 개방 전, AC1-RECHECK §5)**: ① **v1/v2 절단은 미완** —
+런타임(`server.js`)은 여전히 v1 호환층을 쓴다. 이번에 한 것은 절단이 아니라 **stale overwrite·
+동시 저장 경쟁 차단**이다(오너·Codex 지적으로 이름 정정). 절단은 AC-2·AC-3 종료 조건으로 이월.
+② R1 allowedKinds 어휘 확정 ③ model-control 통제 3슬롯 사전 배선 — ①은 부분 이행, ②③은
+자체검증 완료. **전부 감사 대기이며 W2 병렬 개방 여부는 감사가 정한다.** 상세 AC1-RECHECK §5-A. 다음: A(AC-2)·B(AC-3)·B′(AC-4) 병렬 개방.
+
+**W1 보완 수치 착지(S 지적 ⑤)**: R2b 3판 종료 시점 회귀 **1693** → W2 직렬 3항 반영 후
+**1708** · 돌연변이 **164종** · plan/docs/workspace PASS. 각 수치는 그 시점 HEAD 에서 본선이
+직접 실행한 값이다.
+
+### 작업선 원장 (병렬 배치 1 · 2026-08-01 — 완료)
+
+```text
+A-H08 | 파일 탐색·최종본 판별·원본 보존 | worktree-agent-a0585b451f0f633f3 | local-locate.js local-file.js file-scope.js + 해당 test + 신규 H08 검사 | local-protection.js recovery-ladder.js(서명 동결) | H08 종료 조건 §5 | **완료·§5-R PASS**
+B-H09 | 실패 분류·손 전환·거짓 성공 차단 | worktree-agent-aa656316cf7a90bf7 | recovery-ladder.js local-discovery.js local-protection.js + 해당 test + 신규 H09 검사 | (export 서명 변경은 본선 승인) | H09 종료 조건 §5 | **완료·§5-R PASS**
+C-감사 | 읽기 전용 적대 감사 | 없음(읽기 전용) | 없음 | 전체 | 문제·재현·영향·보존 목록 제출 | **완료·채택** — 7항목 전수 발견, ★5(undo 범위 밖 실행·turnNo 인플레·걸음 blocked 미기록·~/Library 무보호·discovery 무경계). 분류: A범위 5건·B범위 4건·본선 파일 5건(turn.js 지문·답-영수증 대조·fold·turnNo·blocked)·통합 후 후속 6건·회색 4건 — A·B 통합 창에서 소화
+D-AC2 | AC-2 delta 표 | 없음(읽기 전용) | 없음 | codex/automation-ac2 + 정본 | delta 표 1장 | **완료·채택** — 텍스트 충돌 0·의미 드리프트 3축(replay 증거는 tcell-replay 계약으로 재구현, 민감 2층·authority 대조 부재), skills.json v1/v2 이중 저장 절단은 본선 소유, 즉시 폐기 5건 목록 확보
+본선 | 통합·배선·게이트 | claude/p-op-1-a-system-view | turn.js action-plan.js demo-context.js 문서 | — | 배치 1 봉인 | **배선 완료** — fileKind versions→read · descriptor(versions·source·루트) · 읽은척차단 관통(답완성 + 미리보기정렬 후 재차단: P0 가 화면 정렬보다 셈) · 집중 109/109
+
+**배치 1 봉인 보류 — 오너 7단계 지시(2026-08-01, 이 순서만 진행)**:
+① C 감사 20건 전부 처분(수정됨/기존 방어/기록된 제한/후속 차단 — F5.1·F6.1·F6.2·F7.1·F7.4 는 코드·검사 근거 필수)
+② H08 제품 경로에서 내용·수정 시각 근거 최종본 판단 + 원본 무변경 + **별도 결과물 실제 생성**(인라인 답은 미완)
+③ H09 실제 접근 실패에서 반복 0·거짓 성공 0·다른 손/다음 행동 관통
+④ 특정 문구·키워드 강제 금지 — 도구 현실·descriptor·실행 결과가 자연스럽게 올바른 판단으로 이어지는지 확인
+⑤ 회귀·스윕·plan/docs/workspace 직렬 1회 ⑥ 동결 판정 회차 + Codex 독립 감사 통과 후에만 봉인
+⑦ 봉인 전 AC-1·Automation 착수 금지
+
+**배치 1 중간 결과(역사, §5-Q)**: 당시 선택적 `work.deliverable` 구조로는 H08 별도 결과물이 0/6이었고,
+H09 여섯 회차는 실제 실패 호출이 없어 증거가 아니었다. **현재 판정은 이 문장이 아니라 진행표
+§5-R**이다 — 자기신고 제거·ActionPlan 완료 계약·write 영수증 결합·실제 EACCES 재검증·실제
+gpt-5.1 파일 생성 관통으로 H08·H09 `PASS` 종결.
+```
+실제 작업 파일로 역할을 확인했다. A-H08은 신규 `h08-quote-final` 검사와 H08 소유 파일을,
+B-H09는 H09 소유 파일만 다룬다. 본선은 이 매핑과 파일 소유권을 대조한 뒤에만 통합한다.
+
+3. H07 민감정보 관찰 경계 보강은 정본에 병합됐다(`773760e` → `7a07233`). 감사 sidecar 를
+   닫은 뒤 회귀 **1598/1598** · 돌연변이 **135/135** · plan/docs/workspace 게이트 PASS로
+   병합 상태를 확정했다. 브랜치와 커밋 이력은 보존했다.
+4. H08~H09 착수 전
+   `docs/03-product-plan/T5-REMAINING-DEVELOPMENT-PARALLEL-EXECUTION-PROPOSAL-2026-08-01-ko.md`를
+   Claude와 검토했고 오너가 승인했다. 현재 지위는 `APPROVED_FOR_EXECUTION`이며, 기술 협의 결과와
+   수정된 소유 경계를 반영한 병렬 배치 1의 실행 계약이다.
+
+
+### (역사) 준비 단계 종료 조건 — 이미 통과, 현재 지시 아님
+
+- 공식 폴더와 정본 문서가 하나로 식별된다.
+- 옛 T-cell 명세와 과거 인수인계가 현재 작업을 지시하지 않는다.
+- 활성 worktree·에이전트·브랜치가 분류돼 있다.
+- Git 작업 트리가 의도한 변경만 포함한다.
+- 문서 참조 검사가 끊긴 경로와 상충 지시를 찾지 않는다.
+- 현재 코어의 기억 민감정보 유입 경계가 웹·채널·검색·사용자 모델·과거 후보 승격에서 닫힌다.
+- H01~H10 현재 결과와 통제 성능 측정값이 추정 없이 기록된다.
+- 새 T-cell 계획이 독립 감사와 오너 확인을 통과하기 전 T-cell 제품 코드는 추가하지 않는다. 현재 코어
+  수정은 재현된 안전 보장 복구처럼 계획과 독립된 좁은 결함에 한하고 독립 감사를 받는다.
+
+## 10. 새 세션 시작용 여섯 줄
+
+```text
+현재 작업: HumanRealTest 다듬기 진행. 완료 뒤 `server.js` → `turn.js` → `tcell-grow.js` 행동 보존형 정리.
+현재 상태: `T5_W6_DEVELOPMENT_PASS` — T-cell H01~H07, PC 손발 H08~H09, Automation
+AC-2~AC-7, 제한 위임 H10, 실전 업무 7시나리오, 결정적 전체 제품 경로가 모두 섰다.
+H10은 실제 OAuth `gpt-5.5` `/turn`에서 `local.locate`가 확인한 사용자 지정 폴더를 같은 턴의
+읽기 범위로만 이어 OS 범위 대조→2개 제한 자식→각 영수증→전원 종단 뒤 통합으로 관통했다.
+약 63초 동안 두 자식이 병렬로 각 폴더를 `local.file` 1회씩 읽었고 범위·권한·예산 위반은 0이었다.
+자식에게 쓰기·장기 기억·자동화·외부 전송 권한을 주지 않는다. 구조화 문서는 PDF·DOCX·XLSX·HWPX
+본문을 읽으며, 구형 HWP는 Spotlight 본문이 없으면 정직하게 차단한다.
+최종 게이트: 회귀 1898/1898 · 돌연변이 235/235 · plan/docs/workspace PASS.
+공식 gate도 조용한 직렬 환경에서 PASS(CPU 24.8s/46.1s · 벽시계 16.5s).
+`npm pack` 산출물 151개 파일도 압축 해제 뒤 실제 부팅·health·온보딩 진입 PASS.
+다음 순서: 다듬기 → 세 파일 정리 → 기존 제품 검사와 HumanRealTest → 소비자 설치 lifecycle.
+외부 공개·서명 자격 사용·실사용자 데이터 삭제는 아직 승인하지 않는다.
+선택 정본: `docs/03-product-plan/T5-INSTALL-VS-STRUCTURAL-HARDENING-DECISION-2026-08-02-ko.md`.
+오너 선택은 B로 확정됐다. 설치본을 먼저 만드는 선택지는 현재 지시가 아니다.
+```

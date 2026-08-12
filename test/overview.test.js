@@ -72,11 +72,17 @@ test('buildOverview: 반영된 검색 기억은 memories.reflected에 id와 함�
 });
 
 // ── 서버 /overview: 실제 store 조합 + 전달은 세션 스코프 ──
-function mem(d) { return { async load() { return d; }, async save(a) { d = a; return a; } }; }
+function mem(d) {
+  return {
+    async load() { return d; },
+    async save(a) { d = a; return a; },
+    async update(fn) { d = await fn(structuredClone(d)); return d; },
+  };
+}
 
 test('GET /overview: 스토어 조합 + 전달은 sessionId 스코프(§6.13)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ov-'));
-  const skillStore = mem({ skills: [{ label: '추천 스킬', state: 'candidate' }, { label: '활성 스킬', state: 'admitted' }] });
+  const skillStore = mem({ skills: [{ name: '추천 스킬', state: 'proposed' }, { name: '활성 스킬', state: 'active' }] });
   const memoryStore = mem({
     candidates: [], observed: [{ kind: 'inferred_trait', statement: '아침형일 수도' }],
     promoted: [{ kind: 'operating_preference', statement: '표로 주세요', admitted: true, userConfirmed: true }],
@@ -87,7 +93,7 @@ test('GET /overview: 스토어 조합 + 전달은 sessionId 스코프(§6.13)', 
     { sessionId: 'other', tool: 'slack.post', target: '#x', state: 'failed' }, // 다른 세션 — 안 보여야
   ] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), skillStore, memoryStore, deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const o = await (await fetch(`http://127.0.0.1:${port}/overview?sessionId=s1`)).json();
@@ -110,28 +116,25 @@ const post = (base, path, body) =>
   fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
 const getj = async (base, path) => (await fetch(`${base}${path}`)).json();
 
-test('액션이 항목을 "아직 아님"→"완료"로 옮긴다(액션 전엔 계속 아직 아님)', async () => {
+test('선호·전달 액션이 "아직 아님"→"완료"로 옮긴다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ov3-'));
   const okSender = { toolKind: 'send', async handler() { return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
-  const skillStore = mem({ skills: [{ id: 'sk1', label: '추천 스킬', state: 'candidate', trigger: 't', steps: ['t'], userConfirmed: false, replayPassed: false }] });
+  const skillStore = mem({ skills: [] });
   const memoryStore = mem({ candidates: [{ candidateId: 'p1', kind: 'operating_preference', statement: '표로 주세요', admitted: false, userConfirmed: false }], promoted: [], observed: [] });
   const deliveryStore = mem({ deliveries: [{ id: 'd1', sessionId: 's1', tool: 'slack.post', target: '#g', artifact: { text: '회의' }, state: 'failed', retriable: true }] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': okSender } }), skillStore, memoryStore, deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const b = `http://127.0.0.1:${server.address().port}`;
   try {
     // 액션 전: 전부 "아직 아님"
     let o = await getj(b, '/overview?sessionId=s1');
-    assert.equal(o.skills.recommended.length, 1); assert.equal(o.skills.active.length, 0);
     assert.equal(o.preferences.pending.length, 1); assert.equal(o.preferences.reflected.length, 0);
     assert.equal(o.deliveries.failed.length, 1); assert.equal(o.deliveries.deliveredCount, 0);
     // 액션(이미 만든 게이트 엔드포인트 그대로)
-    assert.equal((await (await post(b, '/skills/sk1/approve')).json()).state, 'admitted');
     assert.equal((await (await post(b, '/user-model/preferences/p1/confirm')).json()).status, 'admitted');
     assert.equal((await (await post(b, '/deliveries/d1/retry', { sessionId: 's1' })).json()).state, 'delivered');
     // 액션 후: "완료"로 이동, 구분 유지(빈 쪽↔찬 쪽 뒤바뀜)
     o = await getj(b, '/overview?sessionId=s1');
-    assert.equal(o.skills.recommended.length, 0); assert.equal(o.skills.active.length, 1, '승인→활성');
     assert.equal(o.preferences.pending.length, 0); assert.equal(o.preferences.reflected.length, 1, '확인→반영');
     assert.equal(o.deliveries.failed.length, 0); assert.equal(o.deliveries.deliveredCount, 1, '재전달→완료');
   } finally { await new Promise((r) => server.close(r)); }
@@ -141,7 +144,7 @@ test('GET /overview: 반영한 검색 기억이 memories.reflected에 뜨고, �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ovm-'));
   const memoryStore = mem({ candidates: [], promoted: [], observed: [] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const b = `http://127.0.0.1:${server.address().port}`;
   try {
     // 검색 기억 반영
@@ -160,7 +163,7 @@ test('GET /overview: sessionId 없으면 전달은 비어 있음(다른 세션 �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-ov2-'));
   const deliveryStore = mem({ deliveries: [{ sessionId: 's1', tool: 'slack.post', target: '#g', state: 'failed' }] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), deliveryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try {
     const o = await (await fetch(`http://127.0.0.1:${port}/overview`)).json();

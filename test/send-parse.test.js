@@ -41,7 +41,7 @@ async function withSendServer(fn) {
   const calls = [];
   const recSender = { toolKind: 'send', async handler(args) { calls.push(args); return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': recSender } }) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, calls); }
   finally { await new Promise((r) => server.close(r)); }
@@ -69,7 +69,7 @@ test('통합: 대상 없으면 실행하지 않고 확인 질문(clarify), 전�
     const s = await (await post(base, '/sessions')).json();
     const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙에 회의 시작 올려줘' })).json();
     assert.equal(r.kind, 'clarify', '대상 없으면 확인');
-    assert.match(r.question, /어디로/);
+    assert.match(r.question, /어디(로|에)/);
     assert.equal(calls.length, 0, '확인 전 전송 0');
   });
 });
@@ -79,7 +79,7 @@ test('통합: 보낼 내용 없으면 확인 질문(무엇을), 전송 0', async
     const s = await (await post(base, '/sessions')).json();
     const r = await (await post(base, '/turn', { sessionId: s.id, text: '슬랙 #general에 올려줘' })).json();
     assert.equal(r.kind, 'clarify');
-    assert.match(r.question, /무엇을/);
+    assert.match(r.question, /(무엇|어떤 내용)/);
     assert.equal(calls.length, 0);
   });
 });

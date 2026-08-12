@@ -1,0 +1,29 @@
+{
+  "sessionId": "42a5594b-5796-4b6f-b7a5-1763305fd2cf",
+  "턴들": [
+    {
+      "말": "요즘 통장이 자꾸 비어. 뭐가 문제인지 알고 싶어",
+      "걸린ms": 25026,
+      "kind": "reply",
+      "reply": "지금은 답을 만드는 연결이 잠시 불안정해요. 방금 요청은 아직 실행하지 않았어요. 잠시 후 같은 요청을 다시 해볼까요?",
+      "ledger": {
+        "confirmed": [],
+        "unconfirmed": [],
+        "estimated": []
+      },
+      "workingState": {
+        "turnNo": 1,
+        "subjects": []
+      },
+      "nextSafeAction": "잠시 후 같은 요청을 다시 해볼까요?",
+      "modelUnavailable": true,
+      "modelFailure": "timeout",
+      "workStateDiagnostic": {
+        "reviewNeeded": false,
+        "reviewOpened": false,
+        "reportedByMain": false,
+        "durationMs": 0
+      }
+    }
+  ]
+}

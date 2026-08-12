@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { makeWebCollector, httpToFetchState } from '../src/runtime/web-collector.js';
+import { makeWebCollector, httpToFetchState, extractDocumentDates } from '../src/runtime/web-collector.js';
+import { classifyWebFetch } from '../src/kernel/l2-plan/web-tool.js';
 import { assertWebEvidence } from '../src/kernel/l2-plan/web-tool.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
@@ -16,7 +17,11 @@ test('httpToFetchState: 코드·본문 신호로 벽/차단 분리', () => {
   assert.equal(httpToFetchState(200, { body: '<title>문서</title>본문' }), 'ok');
   assert.equal(httpToFetchState(200, { body: '로그인 해주세요' }), 'login_wall', '200이어도 로그인 페이지');
   assert.equal(httpToFetchState(401), 'login_wall');
-  assert.equal(httpToFetchState(429), 'bot_wall');
+  // P2-11: 429 는 **봇 차단이 아니라 속도 제한**이다. 예전엔 bot_wall 로 묶어 "봇 차단이 걸려
+  // 있어요"라고 말했는데, 사실이 아니고 사용자는 "원래 안 되는 사이트"로 오해한다.
+  // 잠시 뒤면 되는 일이고, 대개는 **우리가 너무 자주 물어서** 생긴다(실측 2026-07-27).
+  assert.equal(httpToFetchState(429), 'rate_limited');
+  assert.equal(httpToFetchState(503), 'rate_limited', '서버가 잠시 쉬라는 것도 같다');
   assert.equal(httpToFetchState(403, { body: 'are you human captcha' }), 'bot_wall', '403+봇신호');
   assert.equal(httpToFetchState(403, { body: '접근이 거부되었습니다' }), 'blocked', '403 접근차단');
   assert.equal(httpToFetchState(500), 'blocked');
@@ -29,7 +34,7 @@ test('실브라우징: 로컬 http 서버를 실제 fetch로 수집 → 출처 �
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end('<title>테스트 문서</title><body>공개 본문 내용입니다.</body>');
   });
-  await new Promise((r) => srv.listen(0, r));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   const { port } = srv.address();
   try {
     const collector = makeWebCollector(); // 실제 global fetch — 진짜 브라우징(로컬 대상)
@@ -64,15 +69,21 @@ test('200이지만 로그인 페이지: 본문 신호로 login_wall(못 본 걸 
   assert.equal(out.result, undefined);
 });
 
-test('robots 불허: fetch 없이 robots_disallow', async () => {
+// **정책이 바뀌었다**(오너 판단 2026-08-05). 이 검사는 예전에 "robots 불허면 fetch 자체를
+// 안 한다"를 지켰다. 그런데 그 규칙 때문에 라이브에서 `오늘 한국 증시 상황 알려줘` 가
+// 네이버 금융 robots 에 막혀 T5 가 **사용자에게 지수를 알려 달라**고 요구했다(§0 위반).
+// robots 는 법이 아니라 크롤러 관례이고, T5 는 크롤러가 아니라 사용자 요청 1건을 대신 여는
+// 도구다. 그래서 경계를 옮겼다 — 계약은 없애지 않고 **적용 자리를 바꿨다**.
+// 자세한 근거와 경계는 `test/robots-is-for-crawlers.test.js` 에 있다.
+test('robots 불허라도 사용자가 물은 첫 장은 연다(크롤만 지킨다)', async () => {
   let fetched = false;
   const c = makeWebCollector({
-    fetchImpl: async () => { fetched = true; return fakeFetch(200, 'ok')(); },
+    fetchImpl: async () => { fetched = true; return fakeFetch(200, '<html><body><main><p>본문이 충분히 긴 문단입니다. 여기에 답이 있어요.</p></main></body></html>')(); },
     robotsCheck: async () => false,
   });
   const out = await c.handler({ url: 'http://x/' });
-  assert.equal(out.fetchState, 'robots_disallow');
-  assert.equal(fetched, false, 'robots 불허면 fetch 자체를 안 한다');
+  assert.notEqual(out.fetchState, 'robots_disallow', '사용자가 직접 열면 보이는 페이지를 크롤러 규칙으로 막았다');
+  assert.equal(fetched, true, '한 건은 사용자 대신 여는 것이다 — 열어야 한다');
 });
 
 test('네트워크 실패: timeout으로 정직하게(내용 없음)', async () => {
@@ -134,6 +145,55 @@ test('주소가 없으면 찾아서 읽고, 출처는 실제로 읽은 페이지
   assert.equal(out.result.foundVia.provider, '덕덕고');
 });
 
+test('최신 근거 선택은 상위 후보를 실제로 읽고 발행 시각과 검색 순위를 함께 남긴다', async () => {
+  const rows = [
+    { title: '예전 발표', url: 'https://official.example/old', snippet: '예전 자료' },
+    { title: '새 발표', url: 'https://official.example/new', snippet: '새 자료' },
+    { title: '목록', url: 'https://official.example/all', snippet: '전체 목록' },
+  ];
+  const search = { search: async () => ({ state: 'ok', providerLabel: '시험검색', results: rows }) };
+  const fetched = [];
+  const pages = {
+    'https://official.example/old': '<script type="application/ld+json">{"datePublished":"2026-01-10"}</script><title>예전 발표</title><article>예전 본문입니다.</article>',
+    'https://official.example/new': '<meta property="article:published_time" content="2026-08-01"><title>새 발표</title><article>새 본문입니다.</article>',
+    'https://official.example/all': '<title>목록</title><article>전체 목록 본문입니다.</article>',
+  };
+  const c = makeWebCollector({ search, fetchImpl: async (url) => {
+    fetched.push(url);
+    return { status: 200, url, headers: { get: () => 'text/html' }, text: async () => pages[url] };
+  } });
+  const out = await c.handler({ request: '공식 최신 발표', selectionGoal: 'latest_evidence' });
+  assert.deepEqual(fetched, rows.map((r) => r.url), '첫 결과 하나로 최신을 단정하면 안 된다');
+  assert.equal(out.result.title, '새 발표', '날짜가 확인된 가장 최신 후보가 주 본문이어야 한다');
+  assert.equal(out.result.comparisonCandidates.length, 3);
+  assert.deepEqual(out.result.comparisonCandidates.map((x) => x.rank), [1, 2, 3]);
+  assert.equal(out.result.comparisonCandidates[1].publishedAt, '2026-08-01T00:00:00.000Z');
+  assert.equal(out.sources.length, 3, '실제로 읽은 모든 후보가 출처 원장에 남아야 한다');
+});
+
+test('일반 읽기는 첫 성공에서 끝나 최신 비교 비용을 상시 부과하지 않는다', async () => {
+  const search = { search: async () => ({ state: 'ok', providerLabel: '시험검색', results: [
+    { title: '첫째', url: 'https://a.example/1' }, { title: '둘째', url: 'https://a.example/2' },
+  ] }) };
+  const fetched = [];
+  const c = makeWebCollector({ search, fetchImpl: async (url) => {
+    fetched.push(url);
+    return { status: 200, url, headers: { get: () => 'text/html' }, text: async () => '<title>첫째</title><article>본문</article>' };
+  } });
+  await c.handler({ request: '자료 읽어줘' });
+  assert.deepEqual(fetched, ['https://a.example/1']);
+});
+
+test('문서 시각은 JSON-LD·meta·Last-Modified에서 기계적으로 뽑는다', () => {
+  const jsonLd = extractDocumentDates('<script type="application/ld+json">{"datePublished":"2026-07-01","dateModified":"2026-07-03"}</script>');
+  assert.equal(jsonLd.publishedAt, '2026-07-01T00:00:00.000Z');
+  assert.equal(jsonLd.modifiedAt, '2026-07-03T00:00:00.000Z');
+  const meta = extractDocumentDates('<meta content="2026-08-01T09:00:00+09:00" property="article:published_time">');
+  assert.equal(meta.publishedAt, '2026-08-01T00:00:00.000Z');
+  const header = extractDocumentDates('', { get: (name) => name.toLowerCase() === 'last-modified' ? 'Fri, 31 Jul 2026 12:00:00 GMT' : null });
+  assert.equal(header.modifiedAt, '2026-07-31T12:00:00.000Z');
+});
+
 test('검색 경로가 모두 막히면 정직하게 말하고 대안을 준다(연결 권유는 이때만)', async () => {
   const search = { search: async () => ({ state: 'unavailable', tried: ['duckduckgo'] }) };
   const c = makeWebCollector({ fetchImpl: fakeFetch(200, 'x'), search });
@@ -172,4 +232,65 @@ test('ToolRunner: 실수집 성공은 sources 포함, 차단은 미확인', asyn
   const blocked = await blockTools.run('web.collect', { url: 'http://x/' }, self);
   assert.equal(blocked.failureState, 'blocked');
   assert.ok(!blocked.sources || blocked.sources.length === 0, '차단엔 출처 없음(확인 못 함)');
+});
+
+// 오너 실사용(2026-07-27): 웹 검색·브라우징·스크래핑을 다 붙여 놨는데 **아무것도 못 읽었다**.
+// 원인: 본문 어딘가에 "로그인" 단어가 하나만 있어도 login_wall 로 판정했다. 한국 사이트 대부분에
+// 로그인 링크가 있으니 2층 수집이 통째로 죽어 있었다(위키백과조차 막힘으로 나왔다).
+test('본문을 건졌으면 벽으로 판정하지 않는다(로그인 링크 하나로 막던 오판)', () => {
+  const page = '로그인 회원가입 홈 뉴스 ' + '실제 본문입니다. '.repeat(30);
+  assert.equal(classifyWebFetch({ body: page }), 'login_wall', '건진 게 없으면 신호대로 벽');
+  assert.equal(classifyWebFetch({ body: page, readableChars: 500 }), 'ok', '본문을 건졌으면 읽은 것이다');
+});
+
+test('아무것도 못 건졌는데 로그인 신호만 있으면 그때는 벽이다', () => {
+  assert.equal(classifyWebFetch({ body: '로그인이 필요합니다', readableChars: 20 }), 'login_wall');
+});
+
+test('httpToFetchState 도 건진 분량을 함께 본다', () => {
+  assert.equal(httpToFetchState(200, { body: '로그인', readableChars: 1000 }), 'ok');
+  assert.equal(httpToFetchState(200, { body: '로그인', readableChars: 0 }), 'login_wall');
+  assert.equal(httpToFetchState(401, { body: '', readableChars: 9999 }), 'login_wall', '401 은 분량과 무관하게 벽');
+});
+
+// 오너 지시(2026-07-27): 네이버는 모바일 주소로 바꿔 적용한다.
+// 근거(실측): map.naver.com 은 robots 차단이지만 m.place.naver.com 은 허용이고 내용이 HTML 에 있다.
+test('네이버 지도 주소는 읽을 수 있는 모바일 주소로 바꾼다', async () => {
+  const { preferReadableUrl } = await import('../src/runtime/web-collector.js');
+  assert.equal(
+    preferReadableUrl('https://map.naver.com/p/entry/place/1747125291?lng=127'),
+    'https://m.place.naver.com/place/1747125291/home',
+  );
+  assert.equal(preferReadableUrl('https://blog.naver.com/someone/123'), 'https://m.blog.naver.com/someone/123');
+  assert.equal(preferReadableUrl('https://example.com/a'), 'https://example.com/a', '관계없는 주소는 그대로');
+  assert.equal(preferReadableUrl('그냥 글자'), '그냥 글자', '주소가 아니면 건드리지 않는다');
+});
+
+// robots 는 **후보마다** 확인해야 한다. 원래 주소로만 보면 바꾼 주소가 허용인데도 시도조차 못 한다.
+test('원래 주소가 막혀도 허용된 대체 주소는 시도한다', async () => {
+  const seen = [];
+  const collector = makeWebCollector({
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return { status: 200, url, text: async () => '<html><body><article><p>' + '읽을 수 있는 본문입니다. '.repeat(20) + '</p></article></body></html>' };
+    },
+    robotsCheck: async (u) => !u.includes('map.naver.com'), // 데스크톱만 차단
+  });
+  const out = await collector.handler({ request: 'https://map.naver.com/p/entry/place/123' });
+  assert.ok(!out.blocked, `막히면 안 된다: ${out.userSafeSummary}`);
+  assert.ok(seen.some((u) => u.includes('m.place.naver.com')), '허용된 대체 주소를 시도해야 한다');
+  assert.ok(!seen.some((u) => u.includes('map.naver.com')), 'robots 가 막은 주소는 치지 않는다');
+});
+
+test('사용자 대신 여는 도구임을 밝히는 요청 헤더를 보낸다(헤더 없이는 429 로 막힌다)', async () => {
+  let headers;
+  const collector = makeWebCollector({
+    fetchImpl: async (url, init) => {
+      headers = init?.headers;
+      return { status: 200, url, text: async () => '<html><body><article><p>' + '본문입니다. '.repeat(30) + '</p></article></body></html>' };
+    },
+  });
+  await collector.handler({ request: 'https://example.com/a' });
+  assert.ok(headers?.['user-agent'], 'User-Agent 없이 요청하면 주요 서비스가 막는다(실측 429)');
+  assert.match(headers['accept-language'], /ko/);
 });

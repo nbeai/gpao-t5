@@ -1,0 +1,73 @@
+{
+  "type": "fixture_identity",
+  "files": [
+    {
+      "name": "보유서류.txt",
+      "path": "/private/tmp/t5-ls-ke1mU5/fixture/보유서류.txt",
+      "sha256": "2ed1be38db8072afa5ce961d8334dc16cdc8fdcaf06f58e3f4235346649cd36e"
+    },
+    {
+      "name": "우리상황.txt",
+      "path": "/private/tmp/t5-ls-ke1mU5/fixture/우리상황.txt",
+      "sha256": "27af652a128fc8763f7e337f6ae3873bbcbaeb0d97078851b18fbde9260cadfb"
+    },
+    {
+      "name": "위생설비_지원공고.txt",
+      "path": "/private/tmp/t5-ls-ke1mU5/fixture/위생설비_지원공고.txt",
+      "sha256": "5717d0c230663a72bf53512ae3d1e385d025e43226e9c1a6683dbe9bc938d202"
+    }
+  ],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "이 지원사업에 우리 가게가 신청할 수 있을지 자료를 맞춰봐줘.",
+      "rendered": "이 지원사업에 우리 가게가 신청할 수 있을지 자료를 맞춰봐줘."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "된다고 단정하지 말고 맞는 조건과 확인이 필요한 걸 갈라줘.",
+      "rendered": "된다고 단정하지 말고 맞는 조건과 확인이 필요한 걸 갈라줘."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "지금 가진 서류와 새로 떼야 할 서류도 나눠줘.",
+      "rendered": "지금 가진 서류와 새로 떼야 할 서류도 나눠줘."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "견적서가 오래된 것 같은데 공고 기준으로 문제인지 확인해줘.",
+      "rendered": "견적서가 오래된 것 같은데 공고 기준으로 문제인지 확인해줘."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "user_text",
+      "frozen": "구매는 언제 해야 안전한지도 알려줘.",
+      "rendered": "구매는 언제 해야 안전한지도 알려줘."
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "user_text",
+      "frozen": "신청한 건 아니고 준비만 하는 거야. 신청준비표.md로 정리해줘.",
+      "rendered": "신청한 건 아니고 준비만 하는 거야. 신청준비표.md로 정리해줘."
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "만든 준비표를 다시 읽고 빠진 필수 서류가 없는지 확인해줘.",
+      "rendered": "만든 준비표를 다시 읽고 빠진 필수 서류가 없는지 확인해줘."
+    }
+  ]
+}

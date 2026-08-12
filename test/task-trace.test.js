@@ -4,7 +4,8 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, defaultTargetFor,
+  makeTaskTrace, proposeDefaultTarget, replayDefaultTarget, promoteDefaultTarget, projectDefaultTarget,
+  defaultTargetFor,
 } from '../src/kernel/l5-growth/task-trace.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
@@ -13,16 +14,46 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
 // ── 계약: 기록은 영향 0, 승격(승인+replay)만 영향. ──
 test('DefaultTarget 계약: 제안 dedup · replay 검증 · 조회', () => {
-  const prop = proposeDefaultTarget({ tool: 'slack.post', target: '#general' });
+  const prop = proposeDefaultTarget({ tool: 'slack.post', target: '#general', targetLabel: '공지방' });
   assert.equal(prop.kind, 'default_target');
+  assert.equal(prop.target, '#general');
+  assert.equal(prop.targetLabel, '공지방');
   assert.equal(prop.scope, 'global', '숨은 전역 영향 금지 — scope 명시');
   assert.equal(proposeDefaultTarget({ tool: 'slack.post', target: '#g', promoted: [{ kind: 'default_target', tool: 'slack.post' }] }), null, '이미 기본 있으면 제안 안 함');
   assert.equal(proposeDefaultTarget({ tool: 'slack.post', target: null }), null);
   assert.equal(replayDefaultTarget({ target: '#general' }).ok, true);
+  assert.equal(replayDefaultTarget({ target: '8601204821', targetLabel: '오너' }).ok, true,
+    '실행 식별자가 아니라 검증된 라벨로 replay한다');
   assert.equal(replayDefaultTarget({ target: '' }).ok, false);
-  const prom = promoteDefaultTarget({ kind: 'default_target', tool: 'slack.post', target: '#general' }, 5);
+  const prom = promoteDefaultTarget({ kind: 'default_target', tool: 'slack.post', target: '#general', targetLabel: '공지방' }, 5);
   assert.equal(defaultTargetFor([prom], 'slack.post'), '#general');
+  assert.equal(prom.targetLabel, '공지방');
   assert.equal(defaultTargetFor([prom], 'mail.send'), null);
+});
+
+test('DefaultTarget 표면은 실행 식별자 대신 검증된 라벨만 보인다', () => {
+  const visible = projectDefaultTarget({
+    patternId: 'p1',
+    kind: 'default_target',
+    tool: 'telegram.send',
+    target: '8601204821',
+    targetLabel: '오너',
+    scope: 'global',
+  });
+  assert.equal(visible.targetLabel, '오너');
+  assert.equal(visible.target, undefined);
+  assert.ok(!JSON.stringify(visible).includes('8601204821'));
+
+  const legacy = projectDefaultTarget({
+    kind: 'default_target', tool: 'telegram.send', target: '8601204821', scope: 'global',
+  });
+  assert.equal(legacy.targetLabel, '확인된 대상');
+  assert.ok(!JSON.stringify(legacy).includes('8601204821'), '라벨 없는 과거 숫자 식별자도 노출하지 않는다');
+
+  const humanTarget = projectDefaultTarget({
+    kind: 'default_target', tool: 'slack.post', target: '#general', scope: 'global',
+  });
+  assert.equal(humanTarget.target, '#general', '기존 사람말 대상 응답 호환은 유지한다');
 });
 
 // ── 서버 학습 루프: 1회 대상 명시 → 후보 → 승격 → 2회째 질문 축소 → 되돌리기. A2 우회 없음. ──
@@ -35,7 +66,7 @@ async function withLearnServer(fn) {
   const sender = { toolKind: 'send', async handler(args) { calls.push(args); return { result: { sent: true }, userSafeSummary: '보냈어요.' }; } };
   const traceStore = new TaskTraceStore(dir);
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools({ senders: { 'slack.post': sender } }), traceStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, calls); }
   finally { await new Promise((r) => server.close(r)); }
@@ -101,7 +132,7 @@ test('학습 루프: replay 실패면 승격하지 않는다(잘못된 대상 �
     const ts = new TaskTraceStore(dir);
     await ts.save({ traces: [], proposed: [{ patternId: 'bad', kind: 'default_target', tool: 'slack.post', target: '' }], promoted: [] });
     const srv = makeServer({ store: new SessionStore(dir), traceStore: ts });
-    await new Promise((r) => srv.listen(0, r));
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
     const { port } = srv.address();
     try {
       const r = await (await post(`http://127.0.0.1:${port}`, '/patterns/confirm', { patternId: 'bad' })).json();

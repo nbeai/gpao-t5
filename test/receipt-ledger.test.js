@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { receipt, blockedReceipt, leaksDiagnostics } from '../src/kernel/l0-evidence/tool-receipt.js';
-import { TruthLedger } from '../src/kernel/l0-evidence/ledger.js';
+import { TruthLedger, 확인된사실 } from '../src/kernel/l0-evidence/ledger.js';
 
 // S15: 실행 불가 도구의 receipt 는 actualCall 이 null(호출한 척 금지).
 test('blockedReceipt 는 actualCall 이 null 이고 failureState=blocked', () => {
@@ -85,6 +85,46 @@ test('원장은 확인/미확인/추정을 분리 투영한다', () => {
   const p = L.project();
   assert.deepEqual(p.confirmed, ['A 확인']);
   assert.equal(p.unconfirmed.length, 1);
-  assert.match(p.unconfirmed[0], /대체 경로/);
+  // **미확인에는 막힌 사실이 선다.** 예전엔 여기에 `nextSafeAction`('대체 경로')이 따라붙었는데,
+  // 그 칸은 표면이 **사용자에게** 보여 주는 문장이라 *"…열어 주시면"* 처럼 사람에게 시키는 말이
+  // 들어 있고, 그것이 모델의 다음 행동이 되어 T5 가 할 수 있는 일을 되물었다(판 5판 ⑫ 0/3).
+  // 이제 모델용 길(`다음수단`)이 있을 때만 붙는다 — 이 갈래는 그것이 없는 경우다.
+  assert.match(p.unconfirmed[0], /B는 막힘/);
   assert.deepEqual(p.estimated, ['모델 지식 기반']);
+});
+
+// ── 파생값과 명시값이 어긋난 영수증 ───────────────────────────────────────
+//
+// `receipt()` 는 `r.lifecycle ?? deriveLifecycle(...)` 이다 — 호출자가 수명주기를
+// **직접 말할 수 있다.** 그래서 "결과는 들어 있는데 스스로 attempting 이라고 적힌"
+// 영수증이 만들어질 수 있다. 세 조건(실패 아님·호출함·결과 있음)만 보면 이걸 확인된
+// 사실로 세게 되고, 영수증이 스스로 아니라고 적은 것을 원장이 맞다고 우기게 된다.
+//
+// 확인 판정은 **영수증이 스스로 뭐라고 적혀 있는지**까지 본다.
+test('스스로 attempting 이라 적힌 영수증은 결과가 있어도 확인이 아니다', () => {
+  const 어긋난 = receipt({
+    intended: '읽기', actualCall: { tool: 'local.file' }, result: { rows: 3 },
+    lifecycle: 'attempting', userSafeSummary: '정산 파일을 읽었어요.',
+  });
+  assert.equal(어긋난.lifecycle, 'attempting', '이 시험이 겨누는 영수증이 안 만들어졌다');
+  assert.equal(확인된사실(어긋난), false,
+    '영수증이 스스로 안 끝났다고 적었는데 원장이 확인으로 셌다');
+
+  const L = new TruthLedger();
+  L.append(어긋난);
+  assert.deepEqual(L.project().confirmed, [],
+    '어긋난 영수증이 최종 답의 "확인한 것" 목록에 올랐다');
+});
+
+// 반대 방향의 어긋남: 스스로 delivered 라 적혔지만 **결과가 없다.**
+// lifecycle 만 믿으면 결과 없는 걸음이 확인으로 올라간다 — 두 조건은 서로를 못 대신한다.
+test('스스로 delivered 라 적혀도 결과가 없으면 확인이 아니다', () => {
+  const 어긋난 = receipt({
+    intended: '읽기', actualCall: { tool: 'local.file' },
+    lifecycle: 'delivered', userSafeSummary: '정산 파일을 읽었어요.',
+  });
+  assert.equal(어긋난.lifecycle, 'delivered', '이 시험이 겨누는 영수증이 안 만들어졌다');
+  assert.equal(어긋난.result, undefined, '결과가 없어야 이 시험이 성립한다');
+  assert.equal(확인된사실(어긋난), false,
+    '결과가 없는데 확인으로 셌다 — 원장은 결과 도착까지 본다');
 });

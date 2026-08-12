@@ -1,0 +1,49 @@
+{
+  "턴들": [
+    {
+      "말": "이번 달 얼마 벌었지?",
+      "걸린ms": 9888,
+      "kind": "reply",
+      "reply": "윤님,  \n화면에 나온 정보 기준으로 보면\n\n- 2026년 8월 카드 승인액 합계: **570,000원**\n\n이번 달 카드 매출은 현재까지 **57만 원**이에요.",
+      "pendingId": null,
+      "pending": null,
+      "ledger": {
+        "confirmed": [
+          "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요."
+        ],
+        "unconfirmed": [],
+        "estimated": []
+      },
+      "turnExchange": [
+        {
+          "ref": "p1",
+          "providerCallId": "[민감정보 — 원문은 저장하지 않음]",
+          "tool": "desktop.screen",
+          "args": {
+            "action": "observe",
+            "scope": "window",
+            "app": "Google Chrome",
+            "창제목": "성심카드 가맹점센터",
+            "글자만": true,
+            "limit": 80
+          },
+          "summary": "그 창은 글자로는 못 읽어서 **화면을 보고** 말씀드릴게요.",
+          "그림": {
+            "mime": "image/png",
+            "base64": "[민감정보 — 원문은 저장하지 않음]"
+          },
+          "data": "본 창: Google Chrome · 성심카드 가맹점센터 — 2026년 8월 매출 · 네가 본 화면 1372×1567(지금 보이는 만큼 · 짚을 자리는 이 안에서)\n열린 창 110개\n요소 80개 (전체 234개 / 화면 전체 293개) · 화면 위에서 아래로 (자리를 못 잰 것은 맨 뒤)\n열린 탭 6개\n- 성심카드 가맹점센터 — 2026년 8월 매출 — http://127.0.0.1:4777/card.html\n- Device Activation — https://github.com/login/device?skip_account_picker=true\n- localhost — http://localhost:4173/\n- www.naver.com — https://www.naver.com/\n- Device Activation — https://github.com/login/device/success\n- (4) YouTube — https://www.youtube.com/\n다음 수: observe(offset 80) — 이어서 다음 것들을 본다 · observe(offset 154) — 끝쪽(화면 아래 = 가장 최근)부터 본다\n- Window: 성심카드 가맹점센터 — 2026년 8월 매출 - Chrome - TV (wildwolf) 대상={\"id\":\"s00000004:0\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출 - Chrome - TV (wildwolf)\"} - RadioButton: 0 (이름: www.naver.com - 네트워크 오류) 대상={\"id\":\"s00000004:85\",\"label\":\"www.naver.com - 네트워크 오류\"} - RadioButton: 0 (이름: (4) YouTube - 메모리 사용량 많음 - 801MB) 대상={\"id\":\"s00000004:86\",\"label\":\"(4) YouTube - 메모리 사용량 많음 - 801MB\"} - RadioButton: 0 (이름: localhost - 네트워크 오류) 대상={\"id\":\"s00000004:87\",\"label\":\"localhost - 네트워크 오류\"} - RadioButton: 0 (이름: Device Activation) 대상={\"id\":\"s00000004:88\",\"label\":\"Device Activation\"} - RadioButton: 0 (이름: Device Activation) 대상={\"id\":\"s00000004:89\",\"label\":\"Device Activation\"} - RadioButton: 1 (이름: 성심카드 가맹점센터 — 2026년 8월 매출) 대상={\"id\":\"s00000004:90\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출\"} - Button: 새 탭 대상={\"id\":\"s00000004:92\",\"label\":\"새 탭\"} - Button: Chrome의 Gemini 열기 대상={\"id\":\"s00000004:93\",\"label\":\"Chrome의 Gemini 열기\"} - PopUpButton: 탭 검색 대상={\"id\":\"s00000004:84\",\"label\":\"탭 검색\"} - Button: 닫기 대상={\"id\":\"s00000004:91\",\"label\":\"닫기\"} - Button: 새로고침 대상={\"id\":\"s00000004:1\",\"label\":\"새로고침\"} - PopUpButton: ChatGPT search 대상={\"id\":\"s00000004:6\",\"label\":\"ChatGPT search\"} - PopUpButton: 확장 프로그램 대상={\"id\":\"s00000004:7\",\"label\":\"확장 프로그램\"} - Button: TV (wildwolf) 대상={\"id\":\"s00000004:8\",\"label\":\"TV (wildwolf)\"} - PopUpButton: 새로운 Chrome 사용 가능 대상={\"id\":\"s00000004:9\",\"label\":\"새로운 Chrome 사용 가능\"} - PopUpButton: 사이트 정보 보기 대상={\"id\":\"s00000004:2\",\"label\":\"사이트 정보 보기\"} - TextField: 127.0.0.1:4777/card.html (이름: 주소창 및 검색창) 대상={\"id\":\"s00000004:3\",\"label\":\"주소창 및 검색창\"} - Button: 확대/축소: 90% 대상={\"id\":\"s00000004:4\",\"label\":\"확대/축소: 90%\"} - Button: 현재 탭을 북마크에 추가 대상={\"id\":\"s00000004:5\",\"label\":\"현재 탭을 북마크에 추가\"} - Toolbar: 북마크 대상={\"id\":\"s00000004:10\",\"label\":\"북마크\"} - Button: 탭 그룹 대상={\"id\":\"s00000004:11\",\"label\":\"탭 그룹\"} - PopUpButton: 모든 북마크 대상={\"id\":\"s00000004:12\",\"label\":\"모든 북마크\"} - Button: 설정에서 사용 중지 대상={\"id\":\"s00000004:82\",\"label\":\"설정에서 사용 중지\"} - Button: 닫기 대상={\"id\":\"s00000004:83\",\"label\":\"닫기\"} - StaticText: Chrome이 자동화된 테스트 소프트웨어에 의해 제어되고 있습니다. 대상={\"id\":\"s00000004:81\",\"label\":\"Chrome이 자동화된 테스트 소프트웨어에 의해 제어되고 있습니다.\"} - WebArea: 성심카드 가맹점센터 — 2026년 8월 매출 대상={\"id\":\"s00000004:13\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 매출\"} - Heading: 1 (이름: 성심카드 가맹점센터 — 2026년 8월 카드 매출) 대상={\"id\":\"s00000004:14\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 카드 매출\"} - StaticText: 성심카드 가맹점센터 — 2026년 8월 카드 매출 대상={\"id\":\"s00000004:15\",\"label\":\"성심카드 가맹점센터 — 2026년 8월 카드 매출\"} - StaticText: 가맹점: 지피에이오상회 · 조회 기간: 2026-08-01 ~ 2026-08-09 대상={\"id\":\"s00000004:16\",\"label\":\"가맹점: 지피에이오상회 · 조회 기간: 2026-08-01 ~ 2026-08-09\"} - StaticText: 승인일 대상={\"id\":\"s00000004:20\",\"label\":\"승인일\"} - StaticText: 승인일 대상={\"id\":\"s00000004:48\",\"label\":\"승인일\"} - StaticText: 승인일 대상={\"id\":\"s00000004:74\",\"label\":\"승인일\"} - StaticText: 승인 건수 대상={\"id\":\"s00000004:22\",\"label\":\"승인 건수\"} - StaticText: 승인 건수 대상={\"id\":\"s00000004:57\",\"label\":\"승인 건수\"} - StaticText: 승인 건수 대상={\"id\":\"s00000004:76\",\"label\":\"승인 건수\"} - StaticText: 승인 금액 대상={\"id\":\"s00000004:24\",\"label\":\"승인 금액\"} - StaticText: 승인 금액 대상={\"id\":\"s00000004:66\",\"label\":\"승인 금액\"} - StaticText: 승인 금액 대상={\"id\":\"s00000004:78\",\"label\":\"승인 금액\"} - StaticText: 2026-08-02 대상={\"id\":\"s00000004:27\",\"label\":\"2026-08-02\"} - StaticText: 2026-08-02 대상={\"id\":\"s00000004:50\",\"label\":\"2026-08-02\"} - StaticText: 3건 대상={\"id\":\"s00000004:29\",\"label\":\"3건\"} - StaticText: 3건 대상={\"id\":\"s00000004:59\",\"label\":\"3건\"} - StaticText: 150,000원 대상={\"id\":\"s00000004:31\",\"label\":\"150,000원\"} - StaticText: 150,000원 대상={\"id\":\"s00000004:68\",\"label\":\"150,000원\"} - StaticText: 2026-08-05 대상={\"id\":\"s00000004:34\",\"label\":\"2026-08-05\"} - StaticText: 2026-08-05 대상={\"id\":\"s00000004:52\",\"label\":\"2026-08-05\"} - StaticText: 5건 대상={\"id\":\"s00000004:36\",\"label\":\"5건\"} - StaticText: 5건 대상={\"id\":\"s00000004:61\",\"label\":\"5건\"} - StaticText: 230,000원 대상={\"id\":\"s00000004:38\",\"label\":\"230,000원\"} - StaticText: 230,000원 대상={\"id\":\"s00000004:70\",\"label\":\"230,000원\"} - StaticText: 2026-08-08 대상={\"id\":\"s00000004:41\",\"label\":\"2026-08-08\"} - StaticText: 2026-08-08 대상={\"id\":\"s00000004:54\",\"label\":\"2026-08-08\"} - StaticText: 4건 대상={\"id\":\"s00000004:43\",\"label\":\"4건\"} - StaticText: 4건 대상={\"id\":\"s00000004:63\",\"label\":\"4건\"} - StaticText: 190,000원 대상={\"id\":\"s00000004:45\",\"label\":\"190,000원\"} - StaticText: 190,000원 대상={\"id\":\"s00000004:72\",\"label\":\"190,000원\"} - StaticText: 2026년 8월 카드 승인액 합계: 570,000원 대상={\"id\":\"s00000004:79\",\"label\":\"2026년 8월 카드 승인액 합계: 570,000원\"} - StaticText: ※ 측정 고정물 페이지(가상의 카드사) — 6단계 M1 · 2026-08-09 대상={\"id\":\"s00000004:80\",\"label\":\"※ 측정 고정물 페이지(가상의 카드사) — 6단계 M1 · 2026-08-09\"} - MenuItem: 이 Mac에 관하여 대상={\"id\":\"s00000004:100\",\"label\":\"이 Mac에 관하여\"} - MenuItem: 시스템 정보 대상={\"id\":\"s00000004:101\",\"label\":\"시스템 정보\"} - MenuItem: 시스템 설정…, 2개의 업데이트 대상={\"id\":\"s00000004:102\",\"label\":\"시스템 설정…, 2개의 업데이트\"} - MenuItem: App Store…, 6개의 업데이트 대상={\"id\":\"s00000004:103\",\"label\":\"App Store…, 6개의 업데이트\"} - MenuItem: 최근 사용 항목 대상={\"id\":\"s00000004:104\",\"label\":\"최근 사용 항목\"} - MenuItem: 계산기 대상={\"id\":\"s00000004:106\",\"label\":\"계산기\"} - MenuItem: Finder에서 ‘계산기’ 보기 대상={\"id\":\"s00000004:107\",\"label\":\"Finder에서 ‘계산기’ 보기\"} - MenuItem: 사전 대상={\"id\":\"s00000004:108\",\"label\":\"사전\"} - MenuItem: Finder에서 ‘사전’ 보기 대상={\"id\":\"s00000004:109\",\"label\":\"Finder에서 ‘사전’ 보기\"} - MenuItem: 시스템 설정 대상={\"id\":\"s00000004:110\",\"label\":\"시스템 설정\"} - MenuItem: Finder에서 ‘시스템 설정’ 보기 대상={\"id\":\"s00000004:111\",\"label\":\"Finder에서 ‘시스템 설정’ 보기\"} - MenuItem: 카카오톡 대상={\"id\":\"s00000004:112\",\"label\":\"카카오톡\"} - MenuItem: Finder에서 ‘카카오톡’ 보기 대상={\"id\":\"s00000004:113\",\"label\":\"Finder에서 ‘카카오톡’ 보기\"} - MenuItem: ChatGPT 대상={\"id\":\"s00000004:114\",\"label\":\"ChatGPT\"} - MenuItem: Finder에서 ‘ChatGPT’ 보기 대상={\"id\":\"s00000004:115\",\"label\":\"Finder에서 ‘ChatGPT’ 보기\"} - MenuItem: Google 비밀번호 관리자 대상={\"id\":\"s00000004:116\",\"label\":\"Google 비밀번호 관리자\"} - MenuItem: Finder에서 ‘Google 비밀번호 관리자’ 보기 대상={\"id\":\"s00000004:117\",\"label\":\"Finder에서 ‘Google 비밀번호 관리자’ 보기\"} - MenuItem: Google Chrome 대상={\"id\":\"s00000004:118\",\"label\":\"Google Chrome\"} - MenuItem: Finder에서 ‘Google Chrome’ 보기 대상={\"id\":\"s00000004:119\",\"label\":\"Finder에서 ‘Google Chrome’ 보기\"} - MenuItem: Notion 대상={\"id\":\"s00000004:120\",\"label\":\"Notion\"} - MenuItem: Finder에서 ‘Notion’ 보기 대상={\"id\":\"s00000004:121\",\"label\":\"Finder에서 ‘Notion’ 보기\"}"
+        }
+      ]
+    }
+  ],
+  "홈변경": {
+    "생김": [],
+    "사라짐": []
+  },
+  "stateDir": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-real-state-zFSchp",
+  "설치본": {
+    "자리": "/tmp/t5-pkg-f54b-ej4X/package",
+    "버전": "0.1.0"
+  }
+}

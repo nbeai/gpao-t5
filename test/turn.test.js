@@ -9,10 +9,12 @@ function ctx(overrides = {}) {
   return {
     env: {
       model: { id: 'beai5-stub', authSignal: overrides.authSignal ?? 'ok' },
+      // 1축: 라이브는 descriptor → toConnection 이 label 을 실어 준다. fixture 도 같은 모양이어야
+      // "내부 id 비노출" 계약을 진짜로 검사한다(커널이 id 에서 이름을 지어내면 그게 두 진실이다).
       connections: overrides.connections ?? [
-        { id: 'web.collect', connected: true, executable: true },
-        { id: 'local.file', connected: true, executable: true },
-        { id: 'mail.send', connected: true, executable: false },
+        { id: 'web.collect', label: '웹 자료 수집', connected: true, executable: true },
+        { id: 'local.file', label: '로컬 파일', connected: true, executable: true },
+        { id: 'mail.send', label: '메일 발송', connected: true, executable: false },
       ],
     },
     model: new StubModelClient(),
@@ -32,11 +34,19 @@ test('S01 잡담은 fast path 로 즉답', async () => {
   assert.deepEqual(r.ledger, { confirmed: [], unconfirmed: [], estimated: [] });
 });
 
-// S04: 애매하면 실행 전 멈추고 묻는다.
-test('S04 "그거 정리 좀"은 실행 전 확인 질문', async () => {
-  const r = await runTurn({ text: '그거 정리 좀' }, ctx());
-  assert.equal(r.kind, 'clarify');
-  assert.match(r.question, /무엇을/);
+// S04: 애매하면 **실행하지 않는다.**
+// 계약을 의도대로 되살렸다(2026-07-27). 예전엔 이 시나리오가 "하드코딩 문장으로 되묻는다"를
+// 못 박고 있었는데, 그 구현이 라이브에서 이런 일을 냈다 — 같은 대화·같은 모호함인데
+//   "그거 정리해줘" → clarify(관용어구)   /   "이거 요약해줘" → 팔식당을 정확히 요약
+// 갈린 이유는 "정리"가 ACTION_SIGNALS 정규식에 있고 "요약"은 없었던 것뿐이다.
+// S04 가 지키려던 것은 **안전**(멋대로 실행 금지)이지 특정 문장이 아니다. 그것만 검사한다.
+// 무엇을 말할지는 모델이 정한다(§24) — 되묻든, 아는 대로 답하든, 대상을 확인하든.
+test('S04 맥락 없이 "그거 정리 좀" 이면 멋대로 실행하지 않는다', async () => {
+  const c = ctx();
+  const r = await runTurn({ text: '그거 정리 좀' }, c);
+  assert.deepEqual(c.ledger.entries.filter((e) => e.failureState === 'none'), [],
+    '무엇을 가리키는지 모르는 채로 실행하면 안 된다');
+  assert.ok(['clarify', 'reply', 'approval'].includes(r.kind), `예상 밖 결과: ${r.kind}`);
 });
 
 // S05: complex path — 계획·실행·원장이 보인다.
@@ -60,7 +70,13 @@ test('S15 실행 불가 도구는 쓴 척하지 않고 막힘으로 원장에 �
 
 // S20/S23: 외부 전송이 실행 가능해도 승인 전에는 멈춘다.
 test('S20 실행 가능한 발송은 승인 게이트에서 멈춘다', async () => {
-  const c = ctx({ connections: [{ id: 'mail.send', connected: true, executable: true }] });
+  // P5-B-0: **손이 있어야 실행 가능이다.** 예전엔 `executable:true` 만 적어 손 없는 발송을
+  // 흉내 냈는데, 이제 그 조합은 존재할 수 없다(그게 `mail.send` 유령의 정체였다).
+  // 시나리오의 뜻은 "실행 가능한 발송도 승인에서 멈춘다"이므로 **손을 실제로 붙여서** 본다.
+  const c = ctx({
+    connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler() { return { result: { sent: true } }; } } }),
+  });
   const r = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   assert.equal(r.kind, 'approval');
   assert.ok(r.pending.some((p) => p.tier === 'A2'));
@@ -94,11 +110,16 @@ test('S23 거부는 실행하지 않고 안전 정지', async () => {
   const sent = [];
   const c = ctx({
     connections: [{ id: 'mail.send', connected: true, executable: true }],
-    tools: new ToolRunner({ 'mail.send': { async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+    tools: new ToolRunner({ 'mail.send': {
+      cancelledSummary: () => '보내지 않았어요. 초안은 그대로 있어요.',
+      async handler(a) { sent.push(a); return { result: {}, userSafeSummary: '보냈어요' }; },
+    } }),
   });
   const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
   const r2 = await runTurn({ reject: r1.pendingId }, c);
   assert.equal(r2.kind, 'reply');
+  // 거절 문구는 **도구가 선언한 자기 문장**이 먼저다(cancelledSummary). 여기서는 진짜 전송이라
+  // 전송 문구가 맞다 — 커널이 종류로 갈라 지은 게 아니라 도구가 자기 일을 말한 것이다.
   assert.match(r2.reply, /보내지 않았어요/);
   assert.equal(sent.length, 0, '거부 후 발송 없음');
   // 폐기 후 같은 id 재승인은 무효(재실행 방지).
@@ -184,6 +205,58 @@ test('activeGoal은 관련 발화에만 admitted, 무관 발화엔 주입 안 �
   assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')), '관련 발화엔 목표 admitted');
 });
 
+// 30턴 실측(2026-08-09 · 분리시험 팔A): 상태 요약형 질문("방금 바뀐 것만 … 말해줘")에
+// 옛 목표가 실려 시야가 그 목표로 좁혀졌다 — 변경 3중 1만 답함, 주입을 끄면 3/3 회복.
+// 겹친 낱말은 부탁 형태("말해줘") 하나였다. 목표는 **대상**이 발화에 있을 때만 입장한다.
+test('반대시험(12턴형): 부탁 형태만 겹친 상태 요약형 질문엔 옛 목표가 주입되지 않는다', async () => {
+  const captured = [];
+  const c = ctx();
+  c.model = { async respond(tc) { captured.push(tc); return '응답'; } };
+  c.activeGoal = {
+    understoodTask: '지금까지 확정된 것, 후보인 것, 아직 안 정한 것을 구분해서 짧게 말해줘.',
+    successCriteria: 'x',
+  };
+  // 수리를 걷으면(낱말 겹침 판정으로 되돌리면) "말해줘" 하나로 목표가 실려 이 단언이 빨강이 된다.
+  await runTurn({ text: '방금 바뀐 것만, 옛 값과 현재 값을 나눠서 말해줘.' }, c);
+  assert.ok(!captured[0].admittedContext.some((s) => s.includes('현재 목표')),
+    '부탁 형태의 겹침은 관련이 아니다 — 상태 요약형 질문에 옛 목표를 싣지 않는다');
+
+  // 관통 조건: 마지막 낱말이 같아도 **목표의 대상**을 부른 발화에는 여전히 실린다(작업 이어가기).
+  captured.length = 0;
+  c.activeGoal = { understoodTask: '경쟁사 뉴스 조사해서 짧게 말해줘', successCriteria: 'x' };
+  await runTurn({ text: '경쟁사 것도 마저 말해줘' }, c);
+  assert.ok(captured[0].admittedContext.some((s) => s.includes('경쟁사')),
+    '대상을 부른 발화엔 목표가 그대로 admitted — activeGoal 이 일하는 사례가 죽지 않는다');
+});
+
+// ── 수명주기 v2(2026-08-09 · 코덱스 지적 타당 판정) ──────────────────────────
+//
+// 완료 판정(끝났나)은 "실제로 성공한 실행 하나 이상"을 요구한다 — 실행 턴에는 맞는 계약이지만
+// 도구 0 인 대화 턴은 답을 다 내고도 **영원히 완료가 못 된다.** 그 턴이 세운 목표가 안 닫힌 채
+// 세션에 남아, 다음 턴 입장 판정의 낡은 목표 공급원이 된다(12턴형 병의 수명주기 쪽 뿌리).
+// 답을 낸 대화 턴은 그 턴의 목표를 소진시킨다(goal: null → 서버가 activeGoal 을 지운다).
+test('수명주기: 도구 0 대화 턴이 답을 끝내면 그 턴의 목표는 소진된다(goal: null)', async () => {
+  const c = ctx();
+  c.model = { async respond() { return '오늘 회의 내용은 이렇습니다.'; } };
+  // "정리" 신호로 complex 경로를 타지만 파일·웹 대상이 없어 도구 0 으로 답만 내는 턴.
+  const r = await runTurn({ text: '오늘 회의 내용 짧게 정리해서 말해줘' }, c);
+  assert.equal(r.kind, 'reply');
+  assert.equal(c.ledger.entries.length, 0, '이 시나리오는 도구 0 이어야 한다(전제 확인)');
+  assert.equal(r.goal, null,
+    '답을 낸 대화 턴의 목표가 남으면 다음 턴에 낡은 목표로 실린다 — 소진돼야 한다');
+});
+
+// 관통 조건: 여러 턴짜리 작업(막힘·미확인·대기 승인이 있는 턴)에서는 목표가 일찍 죽지 않는다.
+test('수명주기 관통: 막힌 일이 남은 턴은 목표를 소진하지 않는다', async () => {
+  const c = ctx({
+    tools: new ToolRunner({ 'web.collect': { async handler() { return { blocked: true, userSafeSummary: '그 사이트가 접근을 막고 있어요.' }; } } }),
+  });
+  const r = await runTurn({ text: '이 페이지 조사해서 가져와줘' }, c);
+  assert.equal(r.kind, 'reply');
+  assert.ok(r.ledger.unconfirmed.length >= 1, '막힘이 남는 시나리오다(전제 확인)');
+  assert.ok(r.goal && r.goal.understoodTask, '미확인이 남은 턴의 목표는 살아서 다음 턴이 이어받는다');
+});
+
 // 감사 소보정: 승인 재개 경로에서도 admittedContext가 보존된다(게이트에서 계산한 맥락을 잃지 않음).
 test('승인 재개 후에도 승격된 preference가 admittedContext에 유지된다', async () => {
   const captured = [];
@@ -240,4 +313,24 @@ test('S28 billing_blocked 는 결제 확인 안내(재시도 문구 아님)', as
   const r = await runTurn({ text: '안녕' }, ctx({ authSignal: 'insufficient_quota' }));
   assert.equal(r.selfStateSummary.modelAuthState, 'billing_blocked');
   assert.match(r.selfStateSummary.nextSafeAction, /결제/);
+});
+
+// 실측(오너 라이브 2026-07-28, D 시나리오): "내 노션에서 이번 주 회의록 찾아줘" 한 마디에
+// 승인 카드가 **네 번** 떴다. 같은 손이 인자만 바꿔 다시 물었다 — 사용자가 새로 판단할 것이
+// 없는 질문을 반복하면 승인은 절차가 되고, 사용자는 읽지 않고 누른다.
+test('같은 요청 안에서 같은 손을 두 번 묻지 않는다', async () => {
+  const 부른횟수 = [];
+  const c = ctx({
+    connections: [{ id: 'mail.send', label: '메일 발송', connected: true, executable: true }],
+    tools: new ToolRunner({ 'mail.send': { async handler(a) { 부른횟수.push(a); return { result: {}, userSafeSummary: '보냈어요' }; } } }),
+  });
+  const r1 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(r1.kind, 'approval', '첫 승인은 반드시 받는다');
+  await runTurn({ approve: r1.pendingId }, c);
+  assert.ok(c.허락한손?.has('mail.send'), '허락한 손이 이어지지 않는다');
+
+  // 새 요청이면 허락은 새로 받는다 — 면제가 다음 요청까지 조용히 넘어가면 안 된다
+  const r2 = await runTurn({ text: '이 초안 메일로 보내줘' }, c);
+  assert.equal(c.허락한손, undefined, '면제가 다음 요청까지 넘어갔다');
+  assert.equal(r2.kind, 'approval', '새 요청인데 안 물었다');
 });

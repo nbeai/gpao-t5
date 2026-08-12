@@ -12,9 +12,9 @@
 import { toolLabel, toolCapabilityLine } from './tool-labels.js';
 
 /** "라벨 — 설명" 에서 설명만(문서에서 라벨은 이미 굵게 따로 쓴다 — 중복 표기 방지). */
-function doesOnly(id) {
-  const line = toolCapabilityLine(id);
-  const label = toolLabel(id);
+function doesOnly(id, selfState) {
+  const line = toolCapabilityLine(id, selfState);
+  const label = toolLabel(id, selfState);
   return line.startsWith(`${label} — `) ? line.slice(label.length + 3) : line;
 }
 
@@ -53,13 +53,16 @@ export function buildCapabilityFacts(selfState) {
       healthState: selfState.modelHealthState,
     },
     ready: ready.map((t) => ({
-      label: toolLabel(t.id),
-      does: doesOnly(t.id),
+      label: t.label ?? t.id,
+      does: doesOnly(t.id, selfState),
       needsApproval: Boolean(t.needsApproval),
       risk: RISK_BY_KIND[t.toolKind] ?? null,
+      // P0-b: 작업 폴더보다 넓게 읽는 손은 그 사실을 여기까지 들고 온다. 능력을 줄이는 대신
+      // **어디까지 보는지를 사용자가 알 수 있게** 한다(descriptor 선언이 유일한 진실).
+      readReach: t.readReach ?? null,
     })),
     blocked: blocked.map((t) => ({
-      label: toolLabel(t.id),
+      label: t.label ?? t.id,
       why: BLOCKED_REASON[t.status] ?? BLOCKED_REASON.blocked,
     })),
     granted: selfState.grantedAuthorities ?? [],
@@ -84,7 +87,7 @@ export function renderDerivedSection(facts) {
   const out = ['## 지금 할 수 있는 일', ''];
   if (facts.ready.length) {
     for (const r of facts.ready) {
-      const marks = [r.needsApproval ? '보내기 전 확인을 받습니다' : null, r.risk].filter(Boolean);
+      const marks = [r.needsApproval ? '보내기 전 확인을 받습니다' : null, r.risk, r.readReach].filter(Boolean);
       out.push(`- **${r.label}** — ${r.does}${marks.length ? `\n  - ${marks.join(' / ')}` : ''}`);
     }
   } else {

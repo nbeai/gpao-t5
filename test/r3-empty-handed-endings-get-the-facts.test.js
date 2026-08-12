@@ -1,0 +1,89 @@
+// **후보를 받아 놓고 빈손으로 끝나지 않는다 — 그물의 봉인** (3단계 매듭 ① · 2026-08-08).
+//
+// 실측(⑬ 아홉 회차 · 2026-08-08): locate 가 정확한 후보 다섯을 주고, 모델은 하나도 안 연 채
+// 열다섯을 되물었다(심문). 조건 바꾼 회차에서는 목록까지 열고 "바로 해 볼게요"로 끝냈다(약속).
+// 헌장 문장은 실린 채 뚫렸다 — 그래서 지시가 아니라 구조(원장 사실 + 되부름 한 번)다.
+//
+// 재는 것: ① 두 모양의 판정이 물고 ② 정직한 미완료·결과형 답은 안 문다(반대시험)
+//         ③ 되부름의 사실 블록이 모델 입력에 실제로 실린다
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { 빈손으로끝났나, 미완료를밝혔나 } from '../src/kernel/l2-plan/exit-verification.js';
+import { buildModelMessages } from '../src/runtime/model-provider.js';
+
+test('심문 모양이 걸린다 — ⑬ 실답 그대로', () => {
+  assert.equal(빈손으로끝났나(
+    '통장이 자꾸 비는 건 보통 이 셋 중 하나예요.\n1. 월 평균 실수령 수입은 대략 얼마인가요?\n2. 고정비는요?'), true);
+});
+
+test('약속 모양이 걸린다 — 라이브 실답 그대로', () => {
+  assert.equal(빈손으로끝났나(
+    '7월 정산 CSV 두 개를 읽어서 정리할게요. 바로 이 작업부터 해 볼게요.'), true);
+  assert.equal(빈손으로끝났나('지금부터 자료를 확인해 보겠습니다.'), true);
+});
+
+test('반대시험: 정직한 미완료는 안 걸린다 — 빈손이 아니라 정직이다', () => {
+  const t = '정산 폴더 둘을 읽었는데 8월 자료는 아직 없어서 못 봤어요. 7월은 매출 2,630,000원이에요.';
+  assert.equal(미완료를밝혔나(t), true);
+  assert.equal(빈손으로끝났나(t), false);
+});
+
+test('반대시험: 결과가 곧 답인 문장은 안 걸린다 — 자리 물음의 정답 모양', () => {
+  assert.equal(빈손으로끝났나('그 파일은 ~/GPAO-T5/2026-07 정산 폴더에 있어요.'), false);
+});
+
+test('증거 뒤의 표적 질문은 글자로는 걸린다 — 그래서 그물은 원장(읽기 0)과 함께만 쓴다', () => {
+  // 「한 장면」의 좋은 답도 물음으로 끝난다("지금 볼까요?"). 글자 판정만으로 물면 그 답을 죽인다.
+  // turn 의 그물이 읽기 영수증을 먼저 보고 이 판정을 쓰는 이유가 이 검사에 박혀 있다.
+  assert.equal(빈손으로끝났나('정산을 봤어요. 카드사는 로그인해 두신 크롬으로 볼 수 있는데 지금 볼까요?'), true);
+});
+
+test('되부름의 사실 블록이 모델 입력에 실린다 — 안 실리면 그물이 장식이다', () => {
+  const { system } = buildModelMessages({
+    currentRequest: '요즘 통장이 자꾸 비어',
+    candidatesUnopened: { 수: 5, 자리들: ['/a/2026-07 정산', '/a/2026-08 정산'] },
+  });
+  const 글 = String(system);
+  assert.match(글, /후보 5곳을 받아 놓고 하나도 안 열었다/);
+  assert.match(글, /2026-07 정산/);
+  assert.match(글, /무엇을 안 봤는지 함께 말한다/);
+});
+
+// ── 부분읽기 그물 (감사 판정의 나비 자리 · 2026-08-08) ──────────────────────
+test('반만 읽은 자리의 사실 블록이 모델 입력에 실린다 — 채점 기준(부분합에 총 금지)과 함께', () => {
+  const { system } = buildModelMessages({
+    currentRequest: '이번 달 얼마 벌었지?',
+    partialRead: { 자리: '/a/2026-08 정산', 읽은: ['2026-08 매출정산.csv'], 안읽은: ['8월 정산내역.csv'] },
+  });
+  const 글 = String(system);
+  assert.match(글, /1개를 읽었고 1개는 안 읽었다/);
+  assert.match(글, /8월 정산내역\.csv/);
+  assert.match(글, /"총·전체" 이름을 붙이면 거짓/);
+});
+
+test('읽기 결과의 같은자리파일이 압축을 지나 모델에 간다 — 안 실리면 그물의 재료가 없다', async () => {
+  const { compactResult } = await import('../src/kernel/l1-intent/task-context.js');
+  const 글 = compactResult({
+    path: '/a/2026-08 정산/2026-08 매출정산.csv', text: '거래처,금액\n가나상사,980000\n',
+    같은자리파일: ['8월 정산내역.csv'],
+  }, 5000);
+  assert.match(String(글), /같은 자리의 다른 파일: 8월 정산내역\.csv/);
+});
+
+// ── 출구의 마지막 그물 — 반만 읽고 "총"을 말하면 원장 사실이 돌아온다 ──────────
+test('부분 읽기 + "총" 명명 + 이름 안 부름 = 되돌림 · 이름을 부르면 통과 (감사 채점 기준)', async () => {
+  const { 완료주장검증 } = await import('../src/kernel/l2-plan/exit-verification.js');
+  const receipts = [{
+    failureState: 'none',
+    actualCall: { tool: 'local.file', args: { action: 'read' } },
+    result: { path: '/a/2026-08 정산/2026-08 매출정산.csv', 같은자리파일: ['8월 정산내역.csv'] },
+  }];
+  const 거짓 = 완료주장검증({ reply: '이번 달 매출은 총 2,120,000원이야.', receipts, 원장글: '' });
+  assert.equal(거짓.일치, false, '부분합에 "총"이 붙었는데 그물이 안 물었다');
+  assert.match(거짓.모델에게, /8월 정산내역\.csv/);
+  const 정직 = 완료주장검증({
+    reply: '매출정산.csv 두 건 합계 2,120,000원이야. 다른 거래는 8월 정산내역.csv 에 있을 수 있어.',
+    receipts, 원장글: '',
+  });
+  assert.equal(정직.일치, true, '안 읽은 파일 이름을 불렀으면 범위를 밝힌 것이다 — 정직을 거짓으로 몰았다');
+});

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "f65-workset-postfix-qualification-20260810-d719084",
+  "attemptId": "62208641-39b9-4b23-baa4-26637802b02a",
+  "status": "QUALIFIED",
+  "invalidReason": null,
+  "manifestHash": "70944e510a0f6fe1dc101eb4201c929e4b75d1688584a75026f99a4b0acdc120",
+  "recordedAt": "2026-08-10T08:54:47.717Z"
+}

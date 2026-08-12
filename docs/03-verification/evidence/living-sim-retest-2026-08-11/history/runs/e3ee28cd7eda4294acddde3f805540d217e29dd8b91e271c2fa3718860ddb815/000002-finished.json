@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-retest-20260811-02::L6-schedule-automation",
+  "attemptId": "e6fea2f0-0f5f-43f6-b26d-781340ea0083",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "manifestHash": "cc0df74d398b5091cd9dadc637013b032b0ca85bef52785f312ded58e83320ea",
+  "recordedAt": "2026-08-11T00:50:03.997Z"
+}

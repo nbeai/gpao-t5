@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "living-sim-pilot-batch",
+  "runId": "living-sim-pilot-v1-20260810-01",
+  "historyRunId": "living-sim-batch::living-sim-pilot-v1-20260810-01",
+  "attemptId": "3daa6721-8766-405a-a7b7-289075c5ff44",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "source": {
+    "kind": "source",
+    "gitSha": "7f3929f8e86cae9b65b1ab0982fd7c9fb93ef184",
+    "dirty": false,
+    "worktreeDigest": "1a0fb9f6b85552e25d221e3f9603195b3d18c4655cbb8b6830cf1ac8f1183b40",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "scenarioFile": {
+    "path": "scripts/human-use/living-sim-pilot-v1.json",
+    "sha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0"
+  },
+  "qualification": {
+    "manifestPath": "/private/tmp/t5-living-sim-20260810-qualification-evidence/living-sim-v1-qualification-20260810-01-ec3fe869-6e26-4400-95eb-392b167ef581/manifest.json",
+    "historyDir": "/private/tmp/t5-living-sim-20260810-qualification-history",
+    "sha256": "9b758346d91b65f68cd4d0431c8d803fbf86811689c327ddd6a6ad00ea4971af",
+    "runId": "living-sim-v1-qualification-20260810-01",
+    "attemptId": "ec3fe869-6e26-4400-95eb-392b167ef581"
+  },
+  "scenarioIds": [
+    "L1-settlement-files",
+    "L2-customer-policy",
+    "L3-policy-research",
+    "L4-content-document",
+    "L5-admin-preparation",
+    "L6-schedule-automation",
+    "L7-pc-mixed-work"
+  ],
+  "scenarios": [
+    {
+      "id": "L1-settlement-files",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/557777804f5a4440288478d6855d54ba3a557d95eac6dffac4734dce2a99ba8e/648c0f1a-5ef4-4907-8f61-8518739f11fa/manifest.json",
+      "sha256": "cf4393e18fa9e1257d9719a53c2f6a5a668a96d31f95e82b1fcb60d68c422e0c"
+    },
+    {
+      "id": "L2-customer-policy",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/8b2767f309b7232adb9883496a941e09d93ce6cf338d2952273e6e604e1099f2/ac7cf273-be7f-407c-aae5-424e0bb1284d/manifest.json",
+      "sha256": "5fbd2f64ff964f2279fd663a6df12829d9f2cc92b66da2f10012971216414e48"
+    },
+    {
+      "id": "L3-policy-research",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/eec0c177149fb66e5557f553f03bcc8a70a97d57d1486d502555256507db1465/d30b38d6-9e83-4daf-8613-ecb49f89285b/manifest.json",
+      "sha256": "c53615c8ccc4d8c6c5b9568079bd8f47b6ac8120f19b0d413e504fc84b3cb071"
+    },
+    {
+      "id": "L4-content-document",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/a387a02710e417eba29c91af8aca5bf13b52d6ef0d0a73ddb8989f77f4f90541/23c58713-5e76-45a0-8051-94588607195f/manifest.json",
+      "sha256": "5f422f735d33de8feebe856ffea0d522a666f6356e2bbdc24b3cf7e8d0b7231a"
+    },
+    {
+      "id": "L5-admin-preparation",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/8a29e329e7fbe932c6eae14805c9051624815c9bb54d70ef578ba0e117c37a76/57f179dc-ee20-416c-8e1d-a6404e0c3f94/manifest.json",
+      "sha256": "d372ce50b09680e5e91cb3b750511e2ec8ea4f5a1a6d1ad779127777c6947e42"
+    },
+    {
+      "id": "L6-schedule-automation",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/76183db91e72d3efb628d8ad40fc28ec3dc37ace28e27eb438f768a60d1ffceb/845df92d-119f-4579-840b-fde97c058b59/manifest.json",
+      "sha256": "48b6c7eb88d16fbaa7f9eaa2878dba49b81d3fbfc2bf9d4d8b92d8c21b2a5e7f"
+    },
+    {
+      "id": "L7-pc-mixed-work",
+      "manifestPath": "/private/tmp/t5-living-sim-20260810-evidence/scenarios/7ebfb894ba336f76c1b2caba783faf122a6413e91f4fd18c8215b9f1188b93f1/5b92b16e-3291-4369-97d3-052b3b055d5f/manifest.json",
+      "sha256": "6003841ea694987f11f06fa2e6cd1e6bbbff6cf2c49f4762fb581e268290a9d1"
+    }
+  ],
+  "runPolicy": {
+    "separateProcessPerScenario": true,
+    "parallel": false,
+    "oneRunPerScenario": true,
+    "resultBasedSelection": false
+  },
+  "scoring": "PM_UNJUDGED",
+  "rawEvidence": [
+    {
+      "name": "000001-batch_execution.json",
+      "sha256": "164aab4e553d72720c97f73295c0f09fefd6d894b6771c85174ef4096c16d64b"
+    }
+  ],
+  "startedAt": "2026-08-09T19:31:23.897Z",
+  "finishedAt": "2026-08-09T19:38:36.635Z"
+}

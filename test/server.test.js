@@ -11,7 +11,7 @@ import { SessionStore } from '../src/surface/session-store.js';
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-srv-'));
   const server = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
   try { return await fn(base); }
@@ -26,6 +26,15 @@ test('GET / 는 Work Chat 화면을 준다', async () => {
     const res = await fetch(`${base}/`);
     assert.equal(res.status, 200);
     assert.match(await res.text(), /Work Chat/);
+  });
+});
+
+test('Work Chat 승인 상태 모듈을 실제 서버가 제공한다', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/approval-state.js`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') ?? '', /text\/javascript/);
+    assert.match(await res.text(), /approvalIsActive/);
   });
 });
 
@@ -122,7 +131,7 @@ test('세션 안 승인 재개(approve)는 text 없이도 200, 계획 이어받�
 test('승인 대기가 재시작 후에도 지속돼 이어실행된다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-persist-'));
   const srv1 = makeServer({ store: new SessionStore(dir) });
-  await new Promise((r) => srv1.listen(0, r));
+  await new Promise((r) => srv1.listen(0, '127.0.0.1', r));
   const b1 = `http://127.0.0.1:${srv1.address().port}`;
   const s = await (await post(b1, '/sessions')).json();
   const r1 = await (await post(b1, '/turn', { sessionId: s.id, text: '이 소식 슬랙 #공지에 올려줘' })).json();
@@ -130,7 +139,7 @@ test('승인 대기가 재시작 후에도 지속돼 이어실행된다', async 
   await new Promise((r) => srv1.close(r)); // 재시작
 
   const srv2 = makeServer({ store: new SessionStore(dir) }); // 같은 저장소, 새 프로세스
-  await new Promise((r) => srv2.listen(0, r));
+  await new Promise((r) => srv2.listen(0, '127.0.0.1', r));
   const b2 = `http://127.0.0.1:${srv2.address().port}`;
   try {
     const reloaded = await getj(b2, `/sessions/${s.id}`);
@@ -147,7 +156,7 @@ test('만료된 pending은 activePendingIds에서 제외되고 정리된다', as
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-expire-'));
   const store = new SessionStore(dir);
   const server = makeServer({ store });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const s = await (await post(base, '/sessions')).json();
@@ -194,10 +203,14 @@ test('운영원리는 replay 게이트를 통과해야 승격된다', async () =
     const m1 = await getj(base, '/memory');
     assert.equal(m1.candidates[0].kind, 'operating_principle');
     assert.equal(m1.promoted.length, 0, 'confirm 전 승격 없음(영향 0)');
+    // S4(§4.4): 원칙은 **실행 증거가 결합된 replay suite** 를 통과해야 행동에 들어간다.
+    // 사용자가 눌러도 확인 전이면 승격하지 않고, 조용히 실패하는 대신 그 사실을 말한다.
     const r = await (await post(base, '/memory/confirm', { candidateId: m1.candidates[0].candidateId })).json();
-    assert.equal(r.ok, true, 'replay 통과 시 승격');
+    assert.equal(r.ok, false, '확인 전에는 승격하지 않는다');
+    assert.equal(r.reason, 'replay_pending');
+    assert.match(r.userSafeReason, /사례로 먼저 확인/, '왜 안 됐는지 사람 말로 말한다');
     const m2 = await getj(base, '/memory');
-    assert.equal(m2.promoted.length, 1);
+    assert.equal(m2.promoted.length, 0, 'replay 전 입장 0');
   });
 });
 

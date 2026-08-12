@@ -1,0 +1,13 @@
+{
+  "type": "provider_call",
+  "startedAt": "2026-08-09T19:37:52.100Z",
+  "finishedAt": "2026-08-09T19:38:02.105Z",
+  "durationMs": 10005,
+  "endpointOrigin": "https://api.openai.com",
+  "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "forwardedBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "requestBody": {
+    "unreadableBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "networkError": "This operation was aborted"
+}

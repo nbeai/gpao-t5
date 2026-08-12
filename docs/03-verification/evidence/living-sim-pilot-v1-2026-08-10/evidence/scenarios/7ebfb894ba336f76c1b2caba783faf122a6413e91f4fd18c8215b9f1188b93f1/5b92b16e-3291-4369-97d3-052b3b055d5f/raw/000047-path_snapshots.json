@@ -1,0 +1,66 @@
+{
+  "type": "path_snapshots",
+  "protected": {
+    "paths": [
+      "/Users/jyp/.local/state/gpao-t5"
+    ],
+    "before": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ],
+    "after": [
+      {
+        "path": "/Users/jyp/.local/state/gpao-t5",
+        "digest": "42b340aa7f6473e38daf0a709554814e57fdc9df5c438f63280bdfb52a0591a2"
+      }
+    ]
+  },
+  "sources": {
+    "paths": [
+      "/private/tmp/t5-ls-TlhnR6/fixture/README.txt",
+      "/private/tmp/t5-ls-TlhnR6/fixture/보관/배포설정_2025.txt",
+      "/private/tmp/t5-ls-TlhnR6/fixture/승인본/배포설정.txt",
+      "/private/tmp/t5-ls-TlhnR6/fixture/초안/배포설정_최종.txt"
+    ],
+    "before": [
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/README.txt",
+        "digest": "cf4054b46ea0a43af123bc45cf0da6e7f73179a49b9d9946f3ef3b8eceaf3af6"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/보관/배포설정_2025.txt",
+        "digest": "4c0ec09c4e6e10c30fcf335d53b6edf751310df7cdb7d14054a0d2d26640a7fd"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/승인본/배포설정.txt",
+        "digest": "3c182882472ef1c133a1e6695e3cc895cc7c3f754005943eac7e45f83cdd8af4"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/초안/배포설정_최종.txt",
+        "digest": "4769b079a42c84dbcc3b83bf990e3e6eac534bb7d9fc36a6459b7d57982b3d16"
+      }
+    ],
+    "after": [
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/README.txt",
+        "digest": "cf4054b46ea0a43af123bc45cf0da6e7f73179a49b9d9946f3ef3b8eceaf3af6"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/보관/배포설정_2025.txt",
+        "digest": "4c0ec09c4e6e10c30fcf335d53b6edf751310df7cdb7d14054a0d2d26640a7fd"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/승인본/배포설정.txt",
+        "digest": "3c182882472ef1c133a1e6695e3cc895cc7c3f754005943eac7e45f83cdd8af4"
+      },
+      {
+        "path": "/private/tmp/t5-ls-TlhnR6/fixture/초안/배포설정_최종.txt",
+        "digest": "4769b079a42c84dbcc3b83bf990e3e6eac534bb7d9fc36a6459b7d57982b3d16"
+      }
+    ]
+  },
+  "protectedChanged": [],
+  "sourceChanged": []
+}

@@ -88,9 +88,19 @@
  * @typedef {Object} ToolReceipt         §7 Tool Execution Truth Ledger 계약
  * @property {string} intended
  * @property {{tool:string, args?:*}|null} actualCall  호출 안 했으면 null
+ * @property {{tool:string, args?:*, providerCallId?:string, callRef?:string}} [제안한호출]
+ *   **모델이 고른 호출인데 부르지 않은 것.** 상한·중복·승인대기·없는 손으로 못 간 호출이
+ *   조용히 사라지면 모델은 자기가 시킨 것을 다 했다고 믿은 채 답을 쓴다(거짓 완료의 씨앗).
+ *   그렇다고 `actualCall` 에 넣으면 **원장이 거짓**이 된다 — 부르지 않았기 때문이다.
+ *   두 칸을 나눈다: 실행은 `actualCall`, 제안은 여기. 값(result)은 없다.
  * @property {*} [result]
  * @property {FailureState} failureState
  * @property {ReceiptLifecycle} lifecycle  실행·전달 수명주기(Phase 5.1 §7). 승인 상태는 불허
+ * @property {string[]} [deliverableRefs]  이 실행이 실제로 충족한 ActionPlan 산출물 계약 신분
+ * @property {string} [workRef]  완료 영수증이 실행 전에 결합된 작업 신분
+ * @property {Object} [completionContract]  ActionPlan 확정 때 봉인된 완료 계약 본문
+ * @property {string} [completionContractRef]  위 계약 본문과 WorkRef를 함께 서명한 신분
+ * @property {string[]} [readScopeRoots]  같은 턴에서 도구가 실제 확인한 제한 읽기 범위. 쓰기 권한으로 사용 금지
  * @property {Array<{sourceUrl:string, fetchedAt:number, title:string, excerptHash:string, confidence:number}>} [sources]  출처 근거(P6-2 Slice-2). 웹 도구는 출처 없이 "확인"을 주장하지 못한다
  * @property {string} userSafeSummary     내부 용어 제외, 사용자면 전용
  * @property {*} [diagnosticTrace]        내부 진단·스택·provider 상태. 사용자면 노출 금지
@@ -179,14 +189,23 @@ export const TOOL_STATUS = Object.freeze(['usable', 'needs_auth', 'needs_config'
 export const GRANT_SCOPE = Object.freeze(['once', 'session', 'persist']);
 export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 승인 대기 30분 후 만료 → 재승인 요구
 
+// **승인 모드(manual/smart/strict)는 제거했다**(오너 결정 2026-08-03).
+//
+// 자동성 헌장에는 모드 예외가 없다 — "그 밖의 모든 것은 자동이다". 헌장을 집행하면서
+// 세 모드가 같은 답을 내게 됐고, 그 순간 이것은 조절 손잡이가 아니라 **아무 것도 바꾸지 않는
+// 손잡이**가 됐다. 화면에 남겨 두면 사용자가 고를 수 있다고 믿는 죽은 버튼이고,
+// 코드에 남겨 두면 언젠가 누군가 그 문으로 마찰을 되살린다.
+// 승인 마찰의 강도를 정하는 것은 이제 모드가 아니라 헌장의 넷이다.
+
 /**
- * ApprovalMode (P6-15) — 승인 마찰의 강도. **정책을 느슨하게 하려는 게 아니라 사용자가 덜 헤매게** 하는 표면.
- * 어느 모드도 안전 바닥(SAFETY_FLOOR)을 우회하지 못한다 — 외부 전송·삭제·권한 변경·자동화 활성화·비밀/계정
- * 접근은 항상 승인(A2+). 모드는 저위험(A0/A1)을 얼마나 자연스럽게 통과시키느냐만 조절한다.
- * - manual : 저위험 자연 진행(A0/A1), 그 외 승인. (기존 동작)
- * - smart  : manual과 같되 판단 이유를 사용자 언어로 표면화(기본).
- * - strict : A1(되돌릴 수 있는 로컬 정리)도 확인. A0만 자연 진행.
- * @typedef {'manual'|'smart'|'strict'} ApprovalMode
+ * P-OP-7 Pass 4 · C7-ACTION-001 — **전송 도구 판정의 단일 기준.**
+ * 일반 도구 인자에 `target`이 있다는 이유만으로 sentVia·전달 원장·기본 대상 학습에
+ * 편입되어, 로컬 프로세스 확인이 "전달됐어요"로 기록됐다(두 검증선 재현).
+ * `target` 필드가 아니라 **현재 도구 현실의 toolKind === 'send'** 만 전송이다.
+ * 커널(sentVia)·서버(원장 기록)·재시도·전달 목록이 전부 이 함수 하나로 판정한다.
+ * @param {string} toolId
+ * @param {{connectedTools?:Array<{id:string,toolKind?:string}>}} selfState
  */
-export const APPROVAL_MODES = Object.freeze(['manual', 'smart', 'strict']);
-export const DEFAULT_APPROVAL_MODE = 'smart';
+export function isSendTool(toolId, selfState) {
+  return selfState?.connectedTools?.find((t) => t.id === toolId)?.toolKind === 'send';
+}

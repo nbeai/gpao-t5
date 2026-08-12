@@ -17,7 +17,7 @@ async function withLiveServer(processEnv, fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-cdw-'));
   const { env, tools, descriptors } = liveDeps(processEnv);
   const server = makeServer({ store: new SessionStore(dir), env, tools, descriptors });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }

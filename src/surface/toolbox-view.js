@@ -30,13 +30,18 @@ function categoryOf(d) {
 }
 
 // toolKind·정책 → 사용자 언어 능력 배지(§4.5의 읽기/쓰기/전송 + 출처/승인).
+// **문구는 사실이어야 한다**(오너 지시 2026-08-12 · 헌장 ③). 전송은 이제 *"실행 전에"* 가
+// 아니라 **처음 보내는 상대에게만** 확인을 받는다(`authority.js` `decideAutoGrant` — 손 선언이
+// 헌장 ③ 의 조건 `counterpartKnown` 을 덮던 자리를 걷었다). 옛 문구를 그대로 두면 화면이
+// 사실보다 무겁게 말해서, 사용자는 매번 물어볼 줄 알고 자동을 안 쓴다 — 마찰의 다른 얼굴이다.
+const 확인문구 = (d) => (d.toolKind === 'send' ? '처음 보내는 상대는 확인받아요' : '실행 전에 확인받아요');
 function badgesOf(d) {
   const b = [];
   if (d.toolKind === 'read') b.push('읽어요');
   if (d.toolKind === 'organize') b.push('정리해요');
   if (d.toolKind === 'send') b.push('보내요');
   if (d.toolKind === 'delete') b.push('삭제해요');
-  if (d.needsApproval) b.push('실행 전에 확인받아요');
+  if (d.needsApproval) b.push(확인문구(d));
   if (d.sourcePolicy?.sourceLedgerRequired) b.push('출처를 남겨요');
   return b;
 }
@@ -52,7 +57,7 @@ function blurbOf(d) {
           : '작업을 해요';
   const extra = [];
   if (d.sourcePolicy?.sourceLedgerRequired) extra.push('출처를 남겨요');
-  if (d.needsApproval) extra.push('실행 전에 확인받아요');
+  if (d.needsApproval) extra.push(확인문구(d));
   return extra.length ? `${verb}. ${extra.join(', ')}.` : `${verb}.`;
 }
 
@@ -75,7 +80,7 @@ function personalCard(t) {
     sourceLedgerRequired: false,
     personal: true,
     testState: st,
-    badges: ['개인용', ...(t.toolKind === 'send' ? ['보내요', '실행 전에 확인받아요'] : t.toolKind === 'read' ? ['읽어요'] : ['정리해요'])],
+    badges: ['개인용', ...(t.toolKind === 'send' ? ['보내요', 확인문구(t)] : t.toolKind === 'read' ? ['읽어요'] : ['정리해요'])],
     blurb: '사용자가 준비한 개인 도구예요.',
     // 준비 안내(죽은 버튼 대신 텍스트). 테스트 실패면 실제 사유·다음 안전 행동을 정직하게.
     connectHint: executable ? undefined

@@ -1,0 +1,237 @@
+// **cua 드라이버가 화면 슬롯을 채운다 — 계약은 한 줄도 안 바뀐다.**
+//
+// 오너 결정(2026-08-05): cua-driver 로 가고 T5 층은 우리가 만든다. 임베디드 모드.
+//
+// ── 이 파일이 재는 것 ────────────────────────────────────────────────────
+// **드라이버를 통째로 갈아도 슬롯 계약이 그대로 서는가.** 그게 S8 의 판정이다.
+// `desktop-native-driver`(Peekaboo 실행본) 자리에 `desktop-cua-driver`(MCP stdio) 를 놓아도
+// `id`·`status`·`observe`·`act` 가 같은 모양이면, 손(`desktop-tool`·`desktop-act-tool`)과
+// 그 계약 검사들은 **한 줄도 안 고쳐도** 돈다.
+//
+// ── 실물로 밟은 것(2026-08-05) ──────────────────────────────────────────
+// ```
+// cua-driver 0.17.0 · MCP stdio · initialize → tools/list = 54개
+// check_permissions   {"accessibility":true,"screen_recording":false,
+//                      "source":{"attribution":"host","embedded":false,...}}
+// list_apps           실제 앱 목록
+// get_accessibility_tree  실제 AX 트리
+// ```
+// **매니페스트(contract/manifest.json)만 보고 세 번 틀렸다.** 거기엔 23개뿐이라 나는
+//   ① "cua 는 AX 트리를 안 준다"        → `get_window_state` 가 요소를 준다
+//   ② "app lifecycle 이 없다"           → `launch_app`·`kill_app`·`bring_to_front` 가 있다
+//   ③ "좌표로만 누른다"                 → `element_index`·`element_token` 으로 누른다(som)
+// 라고 적었다. **셋 다 틀렸고 실물엔 다 있다.**
+// 선언을 읽고 판정하지 말고 밟으라는 규율이 여기서 세 번 값을 했다
+// (오픈클로 live test 패턴: *준비됐다고 선언하기 전에 실제로 한 번 불러 본다*).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { makeSlotRegistry } from '../src/kernel/l2-plan/slot-registry.js';
+import { DESKTOP_SLOT, 화면슬롯세우기 } from '../src/runtime/desktop-slot.js';
+import { makeCuaDriver } from '../src/runtime/desktop-cua-driver.js';
+import { makeDesktopTool } from '../src/runtime/desktop-tool.js';
+
+/** MCP 서버를 흉내 낸다 — 실네트워크·실프로세스 없이 계약만 잰다. */
+function 가짜MCP({ 권한 = { accessibility: true, screen_recording: false }, 앱 = [], 창 = [], 요소 = [], 터뜨리기 = null } = {}) {
+  const 부른것 = [];
+  return {
+    부른것,
+    async call(name, args) {
+      부른것.push({ name, args });
+      if (터뜨리기) throw new Error(터뜨리기);
+      if (name === 'check_permissions') return { ...권한, source: { attribution: 'host', embedded: true } };
+      if (name === 'list_apps') return { apps: 앱 };
+      // **실물 모양 그대로 흉내 낸다**(2026-08-05 확인). 가벼운 것과 무거운 것이 나뉘어 있다:
+      //   `get_accessibility_tree`  앱·창 목록(가볍다)
+      //   `get_window_state`        창 하나의 요소 + 번호·토큰(무겁다)
+      // 처음엔 `get_accessibility_tree` 가 요소를 준다고 흉내 냈는데 **그건 옛 짐작**이었다.
+      // 가짜가 실물과 다르면 검사는 있지도 않은 API 를 지키게 된다.
+      if (name === 'get_accessibility_tree') return { apps: 앱, windows: 창 };
+      if (name === 'get_window_state') return { snapshot_id: 'snap1', elements: 요소 };
+      return {};
+    },
+  };
+}
+
+const 손세우기 = (mcp) => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp }));
+  return { 등록소, 손: makeDesktopTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) }) };
+};
+
+// ── S8 판정: 계약을 그대로 채운다 ────────────────────────────────────────
+test('cua 드라이버가 화면 슬롯 계약을 채운다 — 슬롯을 안 고친다', () => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  // 계약 미달이면 여기서 터진다. 안 터지면 `id`·`status`·`observe` 를 갖췄다는 뜻이다.
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp: 가짜MCP() }));
+  assert.equal(등록소.드라이버(DESKTOP_SLOT).length, 1);
+  assert.equal(등록소.드라이버(DESKTOP_SLOT)[0].id, 'cua');
+});
+
+test('권한을 MCP 로 실제로 물어 온다 — 문서나 환경변수가 아니다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: false } });
+  const { 손 } = 손세우기(mcp);
+  const out = await 손.handler({ action: 'status' });
+  assert.ok(mcp.부른것.some((c) => c.name === 'check_permissions'), '실제로 안 물었다');
+  assert.equal(out.result.permissions.accessibility, 'granted');
+  assert.equal(out.result.permissions.screenRecording, 'denied');
+});
+
+// ── 손의 계약이 그대로 산다 (드라이버를 갈아도) ──────────────────────────
+test('권한이 없으면 여전히 빈 목록을 사실로 내지 않는다 — 조용한 0 금지', async () => {
+  const { 손 } = 손세우기(가짜MCP({ 권한: { accessibility: false, screen_recording: false }, 창: [], 요소: [] }));
+  const out = await 손.handler({ action: 'observe' });
+  assert.equal(out.blocked, true, '드라이버를 갈았더니 조용한 0 이 되살아났다');
+  assert.equal(out.result, undefined);
+});
+
+test('요소도 그대로 온다 — 신분·지문·비밀칸 계약이 그대로 선다', async () => {
+  const { 손 } = 손세우기(가짜MCP({
+    권한: { accessibility: true, screen_recording: true },
+    창: [{ window_id: 1, app_name: 'Safari', pid: 9, title: '로그인' }],
+    요소: [
+      { index: 1, element_token: 't1', role: 'AXButton', label: '로그인', bounds: { x: 1, y: 2, w: 3, h: 4 } },
+      { index: 2, element_token: 't2', role: 'AXSecureTextField', label: '비밀번호', value: 'hunter2', bounds: {} },
+    ],
+  }));
+  const out = await 손.handler({ action: 'observe', scope: 'window' });
+  const 비밀 = out.result.elements.find((e) => e.label === '비밀번호');
+  assert.equal(비밀.value, undefined, '드라이버를 갈았더니 비밀값이 샜다(A09)');
+  assert.equal(비밀.비밀칸, true);
+  assert.ok(out.result.elements[0].지문, '지문이 사라졌다(A04)');
+  assert.equal(out.result.관찰내용은데이터, true, '데이터 표식이 사라졌다(A10)');
+});
+
+// ── 텔레메트리 — 우리가 띄우는 프로세스가 몰래 밖으로 보내면 안 된다 ────────
+//
+// 실물 확인(2026-08-05): 기본값이 `enabled (source: default)` 이고,
+// `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` 을 주면 `disabled (source: environment)` 가 된다.
+// **보내는 게 우리가 아니어도 띄운 것이 우리면 원인은 우리다**(헌장 ③).
+test('드라이버를 띄울 때 텔레메트리를 끈다 — 이름이 아니라 인자로', async () => {
+  const { 기동인자 } = await import('../src/runtime/desktop-cua-driver.js');
+  const { env } = 기동인자({ binPath: '/어딘가/cua-driver' });
+  assert.equal(env.CUA_DRIVER_RS_TELEMETRY_ENABLED, '0',
+    '**우리가 띄운 프로세스가 밖으로 보낸다** — 헌장 ③ 이 걸리는 자리다');
+});
+
+// **이 판단이 뒤집혔다**(오너 결정 2026-08-07 · 장착을 공식대로).
+//
+// 예전 근거는 *"standalone 을 고르면 사용자가 CuaDriver.app 을 따로 깔아야 한다(§15 마찰)"*
+// 였다. 마찰을 줄이려 한 것은 맞았는데 **고른 수단이 틀렸다** — `--direct` 의 정의가
+// *"on macOS this explicitly accepts **host TCC attribution**"* 이라, T5 를 띄운 프로세스의
+// 권한을 빌려 쓴다. 개발 기계에서는 Claude Code 셸의 권한이 있어 되는 것처럼 보였고
+// 사장님 컴퓨터에서는 *"터미널이 화면을 기록하려 합니다"* 가 뜬다.
+// **이틀간 권한이 회차마다 흔들린 뿌리가 이것이다.**
+//
+// 마찰은 다른 방법으로 없앴다 — **`.app` 을 동봉해 T5 가 자동으로 놓는다.**
+// 사용자가 따로 깔지 않는다는 목적은 그대로이고, 권한은 이제 `com.trycua.driver` 에 붙는다.
+test('남의 권한을 빌리지 않는다 — 앱은 우리가 놓고, TCC 는 그 앱에 붙는다', async () => {
+  const { 기동인자 } = await import('../src/runtime/desktop-cua-driver.js');
+  const { args } = 기동인자({ binPath: '/어딘가/cua-driver' });
+  assert.deepEqual(args, ['mcp'],
+    `**호스트 TCC 를 상속한다** — 사장님 컴퓨터에서 터미널 권한을 묻게 된다: ${JSON.stringify(args)}`);
+  const { 동봉된앱, 앱설치자리 } = await import('../src/runtime/desktop-bin.js');
+  assert.ok(동봉된앱({ platform: 'darwin', arch: 'arm64' }), '동봉본이 없으면 사용자가 깔아야 한다');
+  assert.equal(앱설치자리({ platform: 'darwin' }), '/Applications/CuaDriver.app');
+});
+
+// ── 드라이버가 없거나 죽어도 정직하다 ───────────────────────────────────
+test('MCP 가 터지면 못 봤다고 한다 — 성공도 침묵도 아니다', async () => {
+  const { 손 } = 손세우기(가짜MCP({ 터뜨리기: 'boom' }));
+  const out = await 손.handler({ action: 'observe' });
+  assert.equal(out.blocked, true);
+  assert.ok(!JSON.stringify(out).includes('boom'), '내부 오류가 사용자면으로 샜다');
+});
+
+// ── som · 번호로 누른다 (실물 확인) ──────────────────────────────────────
+//
+// 오너가 Hermes 스키마에서 꼽은 ①이 **cua 실물에 있다**(2026-08-05 직접 호출):
+//   `get_window_state` 가 `element_index`·`element_token`·`snapshot_id` 를 주고
+//   `click` 이 그것을 받는다. 원문: *"interactive element indices you can click by."*
+//
+// **좌표로 찍으면 무엇을 눌렀는지 원장에 남길 수가 없다.** 번호·토큰이면 남는다.
+test('누를 때 좌표가 아니라 번호·토큰을 보낸다 — 원장에 남길 수 있게', async () => {
+  const mcp = 가짜MCP({
+    권한: { accessibility: true, screen_recording: true },
+    창: [{ window_id: 7, app_name: 'Safari', pid: 9 }],
+    요소: [{ index: 3, element_token: 'tok3', role: 'AXButton', label: '저장', bounds: { x: 10, y: 20, w: 4, h: 4 } }],
+  });
+  const { 등록소 } = 손세우기(mcp);
+  const 드라이버 = 등록소.드라이버(DESKTOP_SLOT)[0];
+  const 본것 = await 드라이버.observe({ scope: 'window' });
+  const e = 본것.elements[0];
+  assert.equal(e.토큰, 'tok3');
+  assert.equal(e.스냅샷, 'snap1', '스냅샷 신분이 없으면 번호가 어느 순간 것인지 모른다');
+
+  await 드라이버.act({ 행동: 'click', 대상: e });
+  const 부름 = mcp.부른것.find((c) => c.name === 'click');
+  assert.equal(부름.args.element_token, 'tok3', '**좌표로 찍었다** — 무엇을 눌렀는지 못 남긴다');
+  assert.equal(부름.args.snapshot_id, 'snap1');
+  assert.equal(부름.args.x, undefined, '좌표를 함께 보내면 어느 쪽으로 눌렸는지 모른다');
+});
+
+test('무거운 관찰은 필요할 때만 — 창 목록만 볼 때는 안 부른다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: true }, 창: [{ window_id: 1, pid: 2 }] });
+  const { 손 } = 손세우기(mcp);
+  await 손.handler({ action: 'observe' });
+  assert.ok(!mcp.부른것.some((c) => c.name === 'get_window_state'),
+    '창 목록만 필요한 턴에 창 하나의 AX 트리를 통째로 훑었다');
+});
+
+// ── 실물이 가르쳐 준 것 셋 (라이브 2026-08-05) ──────────────────────────
+//
+// 검사는 초록인데 라이브가 빨갰다. **가짜 MCP 가 실물의 필수 인자를 안 쟀기 때문이다** —
+// 가짜가 실물과 다르면 검사는 계약이 아니라 모양만 지킨다.
+test('앱 이름을 pid 로 바꿔서 보낸다 — 실물이 pid 를 필수로 받는다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: true },
+    앱: [{ name: 'Finder', pid: 678, active: false }] });
+  const { 등록소 } = 손세우기(mcp);
+  await 등록소.드라이버(DESKTOP_SLOT)[0].act({ 행동: 'focus', 대상: { app: 'Finder' } });
+  const 부름 = mcp.부른것.find((c) => c.name === 'bring_to_front');
+  assert.equal(부름.args.pid, 678, '`app` 을 보냈다 — 실물은 `Missing required integer field: pid` 로 거절한다');
+});
+
+test('대상 앱을 못 찾으면 부르지 않는다 — 빈 인자로 부르면 오대상 실행이다', async () => {
+  const mcp = 가짜MCP({ 권한: { accessibility: true, screen_recording: true }, 앱: [] });
+  const { 등록소 } = 손세우기(mcp);
+  await assert.rejects(() => 등록소.드라이버(DESKTOP_SLOT)[0].act({ 행동: 'focus', 대상: { app: '없는앱' } }));
+  assert.ok(!mcp.부른것.some((c) => c.name === 'bring_to_front'), '못 찾았는데 불렀다');
+});
+
+// **모호하면 실행 0 · 후보를 돌려준다** — 드라이버가 A02 와 같은 규율을 갖고 있다.
+// 실물: Finder 창이 셋이라 `candidates` 만 오고 앞 앱은 안 바뀌었다.
+test('드라이버가 "어느 것이냐"고 하면 실패가 아니다 — 후보를 올린다', async () => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp: {
+    async call(name) {
+      if (name === 'check_permissions') return { accessibility: true, screen_recording: true };
+      if (name === 'list_apps') return { apps: [{ name: 'Finder', pid: 678 }] };
+      if (name === 'get_accessibility_tree') return { apps: [{ name: 'Finder', pid: 678, active: true }], windows: [] };
+      if (name === 'bring_to_front') return { candidates: [{ window_id: 1, title: '가', app_name: 'Finder' }, { window_id: 2, title: '나', app_name: 'Finder' }] };
+      return {};
+    },
+  } }));
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const out = await makeDesktopActTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) }).handler({ action: 'focus', app: 'Finder' });
+  assert.equal(out.blocked, true, '모호한데 실행했거나 실패로 뭉갰다');
+  assert.equal(out.후보?.length, 2);
+  assert.ok(out.다음수단.every((m) => m.window), '어느 창인지 골라 부를 수 없다');
+});
+
+// **드라이버가 스스로 확인해 주면 그것을 쓴다** — 우리 전후 추측은 창 관리자가 반영하기
+// 전에 찍혀 **없는 실패**를 만든다(실물에서 실제로 그랬다).
+test('드라이버 확인이 있으면 그것을 근거로 쓴다 — 근거를 원장에 남긴다', async () => {
+  const 등록소 = 화면슬롯세우기(makeSlotRegistry());
+  등록소.붙이기(DESKTOP_SLOT, makeCuaDriver({ mcp: {
+    async call(name) {
+      if (name === 'check_permissions') return { accessibility: true, screen_recording: true };
+      if (name === 'list_apps') return { apps: [{ name: 'Finder', pid: 678 }] };
+      if (name === 'get_accessibility_tree') return { apps: [{ name: 'Claude', pid: 1, active: true }], windows: [] };
+      if (name === 'bring_to_front') return { effect: 'confirmed', code: 'bring_to_front_exact_window_verified' };
+      return {};
+    },
+  } }));
+  const { makeDesktopActTool } = await import('../src/runtime/desktop-act-tool.js');
+  const out = await makeDesktopActTool({ drivers: 등록소.드라이버(DESKTOP_SLOT) }).handler({ action: 'focus', app: 'Finder', window: 1 });
+  assert.equal(out.result?.단계, 'goal_verified', '드라이버가 확인해 줬는데 없는 실패를 만들었다');
+  assert.match(out.result.확인방법, /드라이버 확인/, '무엇을 믿고 됐다고 하는지가 원장에 없다');
+});

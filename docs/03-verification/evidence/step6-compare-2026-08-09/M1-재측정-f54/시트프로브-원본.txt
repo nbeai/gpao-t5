@@ -1,0 +1,20 @@
+=== 프로브 1: 세션 없이(우리 코드 경로와 동일 조건)
+
+=== 프로브 2: 세션 선언 뒤
+{
+  "active": true,
+  "capture_scope": "auto",
+  "desktop_unlocked": false,
+{
+  "refusal": {
+    "code": "browser_consent_required",
+    "detail": {
+      "authorization_host": null,
+      "authorization_required": true,
+      "legacy_approval_enabled": false,
+      "permission_mode": "standard"
+    },
+    "message": "existing-profile attachment in standard mode requires --grant existing-profile or an embedding authorization host; bounded mode requires a matching manifest"
+  },
+  "status": "refused"
+}

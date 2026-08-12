@@ -6,7 +6,7 @@ import { decideFollowUp } from '../src/kernel/l2-plan/follow-up.js';
 test('충돌 없으면 merge', () => {
   const e = decideFollowUp({ runningTask: '비교표 작성', incomingInput: '환율도 넣어줘', conflict: false });
   assert.equal(e.decision, 'merge');
-  assert.match(e.userNotice, /이어서/);
+  assert.equal(e.userNotice, undefined, '평범한 합류를 시스템 문장으로 반복하지 않는다');
 });
 
 // S08: 충돌하는 지시는 interrupt, 현재 작업 안전 저장 안내.

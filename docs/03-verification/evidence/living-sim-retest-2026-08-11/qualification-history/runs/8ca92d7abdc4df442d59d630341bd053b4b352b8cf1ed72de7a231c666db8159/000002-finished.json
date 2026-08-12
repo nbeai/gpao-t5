@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "living-sim-retest-qualification-20260811-02",
+  "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e",
+  "status": "QUALIFIED",
+  "invalidReason": null,
+  "manifestHash": "0802076daf294c08c021b802113e2eb07a82e73c2d485155f4c0369150c7d2dd",
+  "recordedAt": "2026-08-11T00:41:03.180Z"
+}

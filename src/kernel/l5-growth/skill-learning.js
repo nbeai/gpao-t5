@@ -12,6 +12,8 @@
 //   admitted  : 활성 스킬 — 영향 가능. **단, 자동 실행 아님(외부 행동은 여전히 A2).**
 //   rejected  : 사용자 거절 또는 replay 실패 — 영향 0 영구.
 
+import { validateSkillDefinition } from './automation-contracts.js';
+
 export const SKILL_STATES = Object.freeze(['detected', 'candidate', 'replay_required', 'approved', 'admitted', 'rejected']);
 
 /** 스킬 후보 생성(state='detected', 영향 0). steps/trigger는 관찰된 반복 작업(사용자 언어). */
@@ -118,6 +120,9 @@ export function rejectSkill(sk, reason = 'rejected') {
 
 /** 이 스킬이 행동(계획·추천)에 영향을 줄 자격이 있는가. **admitted + 확인 + replay 통과만.** */
 export function canInfluence(sk) {
+  if (sk?.schemaVersion === 2) {
+    return sk.state === 'active' && validateSkillDefinition(sk).ok;
+  }
   return sk?.state === 'admitted' && sk?.userConfirmed === true && sk?.replayPassed === true;
 }
 
@@ -154,7 +159,16 @@ function triggerMatches(trigger, text) {
  * @returns {Object|null}
  */
 export function applicableSkill(skills, text) {
-  return (skills ?? []).find((sk) => canInfluence(sk) && triggerMatches(sk.trigger, text)) ?? null;
+  return (skills ?? []).find((sk) => {
+    if (!canInfluence(sk)) return false;
+    if (sk?.schemaVersion !== 2) return triggerMatches(sk.trigger, text);
+    const signals = [
+      sk.name,
+      sk.purpose,
+      ...(sk.steps ?? []).map((step) => step?.instruction),
+    ].filter(Boolean);
+    return signals.some((signal) => triggerMatches(signal, text));
+  }) ?? null;
 }
 
 /**
@@ -164,6 +178,14 @@ export function applicableSkill(skills, text) {
  */
 export function skillInfluence(sk) {
   if (!sk || !canInfluence(sk)) return null;
+  if (sk?.schemaVersion === 2) {
+    return {
+      skillId: sk.id,
+      label: sk.name,
+      tool: sk.requiredCapabilities?.[0] ?? null,
+      steps: (sk.steps ?? []).map((step) => step?.instruction ?? step?.kind).filter(Boolean),
+    };
+  }
   return {
     skillId: sk.id,
     label: sk.label,

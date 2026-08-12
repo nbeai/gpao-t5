@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "type": "finished",
+  "runId": "f65-workset-matrix-prepaid-qualification-20260810-e5c000a",
+  "attemptId": "94313be8-97ac-4698-b9cb-35eb62979e45",
+  "status": "QUALIFIED",
+  "invalidReason": null,
+  "manifestHash": "1d3411e1b6d32583a4596090e085dfb9c134c4e9f08790c1553433f6f062ac9c",
+  "recordedAt": "2026-08-10T00:45:27.964Z"
+}

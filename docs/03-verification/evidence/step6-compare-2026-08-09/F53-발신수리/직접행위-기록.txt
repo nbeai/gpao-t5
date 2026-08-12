@@ -1,0 +1,33 @@
+개발라인 직접 행위 시작: 16:25:41
+{
+  "delivery": {
+    "mode": "background"
+  },
+  "effect": "unverifiable",
+  "route": "synthetic_events"
+앞세움 확인(52 frontmost): 16:29:43
+더블클릭: {"delivery":{"mode":"background"},"effect":"unverifiable","route":"synthetic_events"}
+⚠ 오대상: 조용한 채팅방 창(4733) 열림 — 의도 밖. 즉시 닫음: 16:30:38
+닫기2: {"code":"delivery_failed","message":"press_key delivery failed: Unknown key name: cmd+w"}
+닫기3: {"delivery":{"mode":"foreground"},"effect":"unverifiable","route":"global_input"}
+오대상 창 닫기 시도(좌상단 닫기 버튼 좌표): 16:34:46
+클릭2: {"delivery":{"mode":"foreground"},"effect":"unverifiable","route":"global_input"}
+from_zoom 좌표로 방 열기: 17:00:46
+더블클릭: {"candidates":[{"app_name":"카카오톡","is_on_screen":false,"title":"","window_id":175},{"app_name":"카카오톡","is_on_screen":false,"title":"","window_id":174},{"app_nam
+fg 더블클릭: {"delivery":{"mode":"foreground"},"effect":"unverifiable","route":"global_input"}
+토큰으로 방 열기(s0000001c:5 = 넵 명심하겠습니다 행): 17:06:53
+{
+  "delivery": {
+    "mode": "unknown"
+  },
+  "effect": "unverifiable",
+  "route": "synthetic_events"
+}
+제품 턴 발신 시도(방 열린 상태): 17:07:18
+[결과 확인 불가] Enter 뒤 확인 시도 전부 실패:
+  zoom(창 4806) → "ScreenCaptureKit capture failed ... Screenshot error"
+  zoom(창 52)   → 같은 실패
+  get_window_state(4806/52, 깊이제한) → 요소 0
+창 목록은 정상 응답(4806 · 52 살아 있음). 드라이버 캡처 계통만 응답 불가 상태.
+→ **전송 여부를 기계로 확정하지 못했다.** "보냈다"고 적지 않는다.
+제품 턴 발신 측정(폴백 sha d6f208ab · 방 열림·입력창 빈 상태 · 오너가 비움): 20:47:39

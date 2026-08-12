@@ -1,0 +1,23 @@
+{
+  "refusal": {
+    "code": "browser_wrong_target_refused",
+    "message": "no exact Chrome remote-debugging consent sheet appeared for reconnect attempt 1"
+  },
+  "status": "refused"
+}
+=== attempt 2
+{
+  "refusal": {
+    "code": "browser_wrong_target_refused",
+    "message": "no exact Chrome remote-debugging consent sheet appeared for reconnect attempt 1"
+  },
+  "status": "refused"
+}
+=== attempt 3
+{
+  "refusal": {
+    "code": "browser_wrong_target_refused",
+    "message": "no exact Chrome remote-debugging consent sheet appeared for reconnect attempt 1"
+  },
+  "status": "refused"
+}

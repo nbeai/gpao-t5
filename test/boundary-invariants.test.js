@@ -1,0 +1,227 @@
+// P2-5c · 경계 불변식 — **누가 골랐든 같은 답이어야 한다.**
+//
+// 왜 이 파일이 필요한가: 도구 선택이 정규식에서 모델로 넘어갔다(P2-5b). 그러면 "이 문장 → 이 도구"를
+// 고정하던 테스트는 의미가 옅어진다. 대신 지켜야 할 것은 이것이다 —
+//   **모델이 무엇을 고르든, 정규식이 무엇을 고르든, 경계는 똑같이 선다.**
+// 감사관이 요구한 방향이기도 하다("목록이 아니라 불변식을 검사하라").
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, stat, readdir, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runTurn } from '../src/kernel/turn.js';
+import { toolActionKind, buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
+import { decideAutoGrant, isSafetyFloor } from '../src/kernel/l2-plan/authority.js';
+import { callsToIntentParts, allToolSchemas } from '../src/kernel/l2-plan/tool-schema.js';
+import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
+import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+
+const selfState = buildSelfState(demoEnv());
+// 1축: 스키마는 descriptor 파생이다(수동 맵 없음) — selfState 를 통해 읽는다.
+const FILE_ACTIONS = allToolSchemas(selfState)['local.file'].parameters.properties.action.enum;
+
+// 모델이 고른 것을 흉내내는 클라이언트. 실제 모델 대신 지정한 호출을 한 번 돌려준다.
+const chooseOnce = (calls) => {
+  let used = false;
+  return {
+    async respond(_tc, opts = {}) {
+      if (!used && opts.tools?.length) { used = true; return { text: '', toolCalls: calls }; }
+      return opts.tools?.length ? { text: '했어요', toolCalls: [] } : '했어요';
+    },
+  };
+};
+
+async function fileCtx(files = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-bound-'));
+  for (const [name, body] of Object.entries(files)) await writeFile(join(dir, name), body);
+  return {
+    dir,
+    make: (calls) => ({
+      env: demoEnv(),
+      model: chooseOnce(calls),
+      tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: dir }) }),
+    }),
+  };
+}
+
+// ── 1. 같은 작업이면 같은 등급이다(누가 골랐든) ──────────────────────────
+test('불변식: 파일 작업의 권한 등급은 선택자와 무관하다', () => {
+  for (const action of FILE_ACTIONS) {
+    const viaModel = callsToIntentParts([{ name: 'local.file', args: { action, path: 'x.md' } }], selfState).fileOp;
+    const kindModel = toolActionKind({ toolId: 'local.file', args: viaModel, selfState });
+    const kindRegex = toolActionKind({ toolId: 'local.file', args: { action, path: 'x.md' }, selfState });
+    assert.equal(kindModel, kindRegex, `${action}: 경로에 따라 등급이 달라지면 안 된다`);
+  }
+});
+
+test('불변식: 읽기·목록 외의 모든 파일 작업은 승인을 받는다', () => {
+  for (const action of FILE_ACTIONS) {
+    const kind = toolActionKind({ toolId: 'local.file', args: { action }, selfState });
+    const auto = decideAutoGrant({ kind }, 'smart');
+    // versions 는 읽기 전용 최종본 판별(H08) — read 등급이 계약이다.
+    if (action === 'read' || action === 'list' || action === 'versions') assert.equal(auto, true, `${action} 은 자연스럽게 진행돼야 한다`);
+    else assert.equal(auto, false, `${action} 이 승인 없이 실행된다`);
+  }
+});
+
+test('불변식: 전송 도구는 어떤 인자로도 안전 바닥이다', () => {
+  for (const id of ['slack.post', 'telegram.send']) {
+    const kind = toolActionKind({ toolId: id, args: { text: '아무거나' }, selfState });
+    assert.equal(isSafetyFloor(kind), true, `${id} 가 안전 바닥에서 빠졌다`);
+  }
+});
+
+// ── 2. 모델이 고른 위험 작업에서도 사용자는 원본을 잃지 않는다 ───────────
+// 자동성 헌장(2026-08-03)이 이 불변식의 **지키는 방식**을 바꿨다. 예전에는 "승인 대기로 멈춘다"가
+// 보호였다. 헌장은 그 자리를 **되돌림**으로 옮겼다 — "안전은 승인이 아니라 사실 기록(원장)과
+// 되돌리기(휴지통)가 산다"(헌장 §집행). 그래서 재는 것도 옮긴다: 멈추는가가 아니라
+// **원본을 되찾을 수 있는가**. 이것이 헌장 아래에서 사용자를 실제로 지키는 유일한 사실이고,
+// 이 사실이 무너지면 헌장의 전제가 무너진다(같은 이유로 돌연변이 스윕에 휴지통 보장 변이가 있다).
+test('불변식: 모델이 고른 삭제·덮어쓰기는 실행되더라도 원본이 휴지통에 남는다', async () => {
+  for (const action of ['delete', 'write']) {
+    const { dir, make } = await fileCtx({ '대상.md': '내용' });
+    const args = { action, path: '대상.md', text: '새 내용' };
+    const r = await runTurn({ text: '해줘' }, make([{ name: 'local.file', args }]));
+    assert.equal(r.kind, 'reply', `${action}: 헌장은 되돌릴 수 있는 파일 작업을 자동으로 둔다(${r.kind})`);
+    // 실행했으면 반드시 원장에 남는다 — 조용한 실행 금지(§4 와 같은 계약).
+    assert.ok((r.ledger?.confirmed ?? []).length > 0, `${action}: 실행하고 기록을 안 남겼다`);
+    // **원본은 사라지지 않았다.** 휴지통에 원래 내용 그대로 있어야 한다.
+    const 휴지통 = join(dir, '.trash');
+    const 남은것 = await readdir(휴지통).catch(() => []);
+    const 원본 = 남은것.filter((f) => f.endsWith('대상.md'));
+    assert.equal(원본.length, 1, `${action}: 원본이 휴지통에 남지 않았다 — 되돌릴 수 없는 파괴다`);
+    assert.equal(await readFile(join(휴지통, 원본[0]), 'utf8'), '내용', `${action}: 휴지통 사본이 원본이 아니다`);
+  }
+});
+
+// 되돌릴 수 있다는 **선언이 거짓이면** 아무도 막지 않는다 — 그래서 선언과 실제를 대조한다.
+// (헌장 이전에는 승인 카드가 이 자리를 대신 지켰다. 지금은 이 검사가 그 자리다.)
+test('불변식: 파일 손이 내건 되돌림 선언은 실제 동작과 일치한다', async () => {
+  const 파일손 = selfState.connectedTools.find((t) => t.id === 'local.file');
+  assert.equal(파일손?.reversible, true, '선언이 없으면 헌장이 자동으로 두지 않는다');
+  const { dir, make } = await fileCtx({ '지울것.md': '원래 내용' });
+  await runTurn({ text: '지워줘' }, make([{ name: 'local.file', args: { action: 'delete', path: '지울것.md' } }]));
+  const 남은것 = await readdir(join(dir, '.trash')).catch(() => []);
+  assert.ok(남은것.some((f) => f.endsWith('지울것.md')), '선언은 되돌릴 수 있다는데 실제로는 사라졌다');
+});
+
+// ── 3. 범위(scope)는 모델도 못 넘는다 ────────────────────────────────────
+test('불변식: 모델이 작업 폴더 밖을 가리켜도 나가지 않는다', async () => {
+  const { dir, make } = await fileCtx({ '안전.md': '내용' });
+  const r = await runTurn({ text: '읽어줘' }, make([
+    { name: 'local.file', args: { action: 'read', path: '../../../etc/passwd' } },
+  ]));
+  // 읽기는 자동 진행이라 실제로 실행까지 간다 — 그래서 **범위가 막는지**가 여기서 증명된다.
+  const said = JSON.stringify(r.ledger ?? {});
+  assert.ok(!said.includes('root:'), '범위 밖 파일 내용이 새어 나왔다');
+  assert.match(said, /폴더 밖|찾지 못했|문제가 있었/, `막혔다는 사실이 남아야 한다: ${said}`);
+  await stat(join(dir, '안전.md'));
+});
+
+// ── 4. 실행하지 않은 것을 했다고 하지 않는다 ─────────────────────────────
+// **승인 전 효과 0** — 절대 게이트다. 재는 것은 "무엇이 승인을 받느냐"가 아니라 **승인을 기다리는
+// 동안 원장이 실행을 주장하지 않는다**는 것이다. 탈것을 파일 삭제에서 **외부 전송**으로 옮겼다:
+// 헌장이 되돌릴 수 있는 파일 작업을 자동으로 뒀으므로 파일로는 이 상태를 만들 수 없고,
+// 새 상대로의 첫 전송은 헌장 ③ 이라 여전히 승인을 받는다. 계약은 그대로다.
+test('불변식: 승인 대기 상태에서는 원장에 실행 사실이 없다', async () => {
+  const { make } = await fileCtx({ 'a.md': '내용' });
+  const r = await runTurn({ text: '보내줘' }, make([
+    { name: 'slack.post', args: { text: '정리 끝났어요', target: '#일반' } },
+  ]));
+  assert.equal(r.kind, 'approval', '새 상대로의 첫 전송은 헌장 ③ 이라 승인을 받는다');
+  assert.equal((r.ledger?.confirmed ?? []).length, 0, '승인 전에 실행 사실이 남았다');
+  assert.equal((r.ledger?.unconfirmed ?? []).length + (r.ledger?.estimated ?? []).length >= 0, true);
+});
+
+test('불변식: 실행된 것은 반드시 원장에 남는다(조용한 실행 금지)', async () => {
+  const { make } = await fileCtx({ 'a.md': '내용', 'b.md': '내용' });
+  const r = await runTurn({ text: '봐줘' }, make([{ name: 'local.file', args: { action: 'list', path: '.' } }]));
+  assert.equal(r.kind, 'reply');
+  assert.ok((r.ledger?.confirmed ?? []).length > 0, '실행하고 기록을 안 남기면 나중에 무엇을 했는지 모른다');
+});
+
+// ── 5. 모르는 것은 실행하지 않는다 ───────────────────────────────────────
+test('불변식: 등록되지 않은 도구 이름은 실행되지 않는다', async () => {
+  const { make } = await fileCtx();
+  const r = await runTurn({ text: '해줘' }, make([{ name: 'shell.exec', args: { cmd: 'rm -rf /' } }]));
+  assert.ok(r.kind !== 'approval' || !JSON.stringify(r).includes('shell.exec'), '모르는 도구가 계획에 올랐다');
+  assert.deepEqual(r.ledger?.confirmed ?? [], []);
+});
+
+test('불변식: 작업을 모르면 승인 쪽으로 떨어진다(모르면 안전하게)', () => {
+  const kind = toolActionKind({ toolId: 'local.file', args: undefined, selfState });
+  assert.equal(decideAutoGrant({ kind }, 'smart'), false);
+  const plan = buildActionPlan({ intent: { neededTools: ['local.file'] }, selfState });
+  assert.ok(plan.needsApproval.some((g) => g.action === 'local.file'));
+});
+
+// ── 6. 휴지통 계약: 지운 것은 되살릴 수 있다 ─────────────────────────────
+test('불변식: 승인 뒤 삭제해도 되살릴 수 있는 상태로 남는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-bound2-'));
+  await writeFile(join(dir, 'x.md'), '지워질 내용');
+  const tool = makeLocalFileTool({ roots: [dir], dataDir: dir });
+  await tool.handler({ action: 'delete', path: 'x.md' });
+  const trash = (await readdir(join(dir, '.trash'))).filter((f) => !f.startsWith('undo-log'));
+  assert.equal(trash.length, 1, '지운 것이 휴지통에 없으면 "되돌릴 수 있어요"는 거짓말이다');
+});
+
+// ── 7. 빈 답은 절대 내보내지 않는다 ──────────────────────────────────────
+// 오너 실사용(2026-07-27): 네이버 지도 분석 요청에서 **빈 응답이 네 번 연속** 나갔다.
+// 모델이 도구를 고름 → 실행 → robots 로 막힘 → 최종 호출에서 모델이 **또 도구를 고르며**
+// 텍스트를 비워 보냈고, 우리는 그걸 그대로 사용자에게 내보냈다. 사용자는 먹통으로 겪는다.
+test('불변식: 도구가 막혀도 빈 답을 내보내지 않는다', async () => {
+  const blockedWeb = {
+    sourceLedgerRequired: true,
+    async handler() {
+      return { blocked: true, fetchState: 'robots_disallow', userSafeSummary: '그 사이트가 수집을 허용하지 않아요.', nextSafeAction: '아는 범위로 답할까요?' };
+    },
+  };
+  // 최종 호출에서도 계속 도구만 고르는 모델(실제로 그랬다).
+  const alwaysTools = {
+    async respond(_tc, opts = {}) {
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'https://x.example' } }] };
+      return ''; // 도구를 빼고 물어도 비었다 — 최악의 경우
+    },
+  };
+  const r = await runTurn({ text: 'https://x.example 분석해줘' }, {
+    env: demoEnv(), model: alwaysTools, tools: demoTools({ webCollector: blockedWeb }),
+  });
+  assert.equal(r.kind, 'reply');
+  assert.ok((r.reply ?? '').trim().length > 0, '빈 답이 나갔다 — 사용자는 먹통으로 겪는다');
+  assert.match(r.reply, /수집을 허용하지 않아요/, '무엇이 막혔는지 사실대로 말한다');
+  assert.match(r.reply, /답할까요|주소/, '다음에 할 수 있는 것을 준다(막다른 답 금지)');
+});
+
+test('불변식: 모델이 문장을 못 만들어도 무슨 일이 있었는지는 말한다', async () => {
+  const silent = { async respond() { return ''; } };
+  const r = await runTurn({ text: '작업 폴더 목록 정리해줘' }, {
+    env: demoEnv(), model: silent, tools: demoTools(),
+  });
+  assert.ok((r.reply ?? '').trim().length > 0);
+});
+
+// ── 8. 사용자면과 진단면은 섞이지 않는다 ─────────────────────────────────
+// 오너 실사용(2026-07-27): "다음: 실패 시 무엇이 안전하고 다음 안전 행동을 제시한다" 가 화면에 찍혔다.
+// 그건 답이 아니라 **내부 계획 문자열**(plan.recoveryCriteria)이다. 사용자는 무슨 말인지 알 수 없다.
+test('불변식: 도구가 실패해도 내부 계획 문구가 사용자에게 나가지 않는다', async () => {
+  const failing = {
+    async handler() {
+      return { blocked: true, fetchState: 'blocked', userSafeSummary: '그 사이트가 접근을 막았어요.', nextSafeAction: '다른 주소로 해볼까요?' };
+    },
+    sourceLedgerRequired: true,
+  };
+  const model = {
+    async respond(_tc, opts = {}) {
+      if (opts.tools?.length) return { text: '', toolCalls: [{ name: 'web.collect', args: { request: 'https://x.example' } }] };
+      return '못 읽었어요.';
+    },
+  };
+  const r = await runTurn({ text: 'https://x.example 읽어줘' }, {
+    env: demoEnv(), model, tools: demoTools({ webCollector: failing }),
+  });
+  const shown = JSON.stringify({ reply: r.reply, nextSafeAction: r.nextSafeAction, ledger: r.ledger });
+  assert.ok(!shown.includes('실패 시 무엇이 안전하고'), `내부 문구가 새어 나갔다: ${r.nextSafeAction}`);
+  assert.ok(!shown.includes('recoveryCriteria'));
+  assert.equal(r.nextSafeAction, '다른 주소로 해볼까요?', '도구가 남긴 사용자면 문장을 쓴다');
+});

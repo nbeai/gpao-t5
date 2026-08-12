@@ -91,3 +91,31 @@ test('길이 상한을 지킨다(프롬프트 폭주 금지)', () => {
   const { markdown } = extractReadable(long, { maxChars: 1000 });
   assert.ok(markdown.length <= 1000);
 });
+
+
+// ── SPA 대응: 껍데기 HTML 안의 hydration 상태 (오너 실사용: 네이버 플레이스) ──
+test('껍데기 페이지라도 HTML 안에 심긴 상태에서 읽을 것을 건진다', async () => {
+  const { extractHydrationText } = await import('../src/runtime/readable.js');
+  const html = `<html><body><div id="app"></div><script>
+    window.__APOLLO_STATE__ = {"Place:1":{"__typename":"Place","id":"1","name":"팔식당",
+      "address":"서울 강남구 도산대로90길 7","phone":"0507-1349-2556",
+      "imageUrl":"https://x/y.png","desc":"모든 고기는 저희가 구워드립니다"}};
+  </script></body></html>`;
+  const text = extractHydrationText(html);
+  assert.match(text, /팔식당/);
+  assert.match(text, /도산대로90길/);
+  assert.ok(!text.includes('https://x/y.png'), '이미지 주소 같은 내부 값은 빼고 읽을 것만 남긴다');
+});
+
+test('상태가 없으면 지어내지 않는다', async () => {
+  const { extractHydrationText } = await import('../src/runtime/readable.js');
+  assert.equal(extractHydrationText('<html><body>그냥 페이지</body></html>'), '');
+});
+
+test('제목에 제어문자가 섞여도 사용자에게는 깨끗하게 보인다', () => {
+  const raw = '<title>팔식당 : 네이버' + String.fromCharCode(28) + '지도</title>';
+  const title = extractTitle(raw);
+  // eslint-disable-next-line no-control-regex
+  assert.ok(!/[\u0000-\u001f]/.test(title), '제어문자가 남으면 원장·화면이 깨져 보인다');
+  assert.match(title, /팔식당/);
+});

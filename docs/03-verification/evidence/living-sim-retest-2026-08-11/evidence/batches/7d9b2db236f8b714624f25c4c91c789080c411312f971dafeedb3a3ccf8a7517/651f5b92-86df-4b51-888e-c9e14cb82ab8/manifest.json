@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "living-sim-pilot-batch",
+  "runId": "living-sim-retest-20260811-02",
+  "historyRunId": "living-sim-batch::living-sim-retest-20260811-02",
+  "attemptId": "651f5b92-86df-4b51-888e-c9e14cb82ab8",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "source": {
+    "kind": "source",
+    "gitSha": "51fc38ff33fc55e5eeac9b79eaaa279aeac86e7e",
+    "dirty": false,
+    "worktreeDigest": "bcba2f8b28d7552ce65ef19b3a4946ce1895957cf6586f12b3ef0e4d87235640",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "scenarioFile": {
+    "path": "scripts/human-use/living-sim-pilot-v1.json",
+    "sha256": "873fb72de05f1d1143d569a9eeab34e99409d28466202aa434b6dd984df441f0"
+  },
+  "qualification": {
+    "manifestPath": "/tmp/t5-retest-0811/qualification-evidence/living-sim-retest-qualification-20260811-02-32516ee5-4d54-4f47-b89a-55c3bfc0c20e/manifest.json",
+    "historyDir": "/tmp/t5-retest-0811/qualification-history",
+    "sha256": "0802076daf294c08c021b802113e2eb07a82e73c2d485155f4c0369150c7d2dd",
+    "runId": "living-sim-retest-qualification-20260811-02",
+    "attemptId": "32516ee5-4d54-4f47-b89a-55c3bfc0c20e"
+  },
+  "scenarioIds": [
+    "L1-settlement-files",
+    "L2-customer-policy",
+    "L3-policy-research",
+    "L4-content-document",
+    "L5-admin-preparation",
+    "L6-schedule-automation",
+    "L7-pc-mixed-work"
+  ],
+  "scenarios": [
+    {
+      "id": "L1-settlement-files",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/1b70097c92006f673c70bf283c2c1aebed9763c3f5cd6ecbbcc23fb12bcec6d6/cda56d64-937c-44e6-b48c-d82824262f35/manifest.json",
+      "sha256": "eff3e66735091670b76fd14e1536ec1a2d424b5489789819f8a9172d66b48462"
+    },
+    {
+      "id": "L2-customer-policy",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/7dd1a98b4cc38f9a05dfcd512dfcb538e05f769f542ef8fdb9e229462b80eaf3/4f5d3e5b-7f69-4123-83fc-379886324e34/manifest.json",
+      "sha256": "810d7dd06aa38717fefc1ff6fd4c60c12a23b57250cd28339f5ace92d016c5d8"
+    },
+    {
+      "id": "L3-policy-research",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/7840e33fd60110f09ddc799f894b9f1a7ab58faf5de1c0375114cbe7242381bd/1e247dcd-b006-40d5-90b0-010a66b3e5e7/manifest.json",
+      "sha256": "12a61cae6509878ec1c31235ad6c65659ab4c916531a27237421a82d6dedad0e"
+    },
+    {
+      "id": "L4-content-document",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/52af19ec647ba40f1ddc0b86c4ab3cff68499802efc8927bf23c060aa146c261/f386f359-b6be-4806-860f-41eb9e752cbd/manifest.json",
+      "sha256": "fde0b7c8ec0f48ebf03ebcdeab459c82cb6b6cd21ca5eb177246746db377b28d"
+    },
+    {
+      "id": "L5-admin-preparation",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/5f990781914355fe2765d8a2953aec0f2f00d62c82291157c6c99bf99683d2d4/0e5787f1-ee6a-45c1-a10d-821cef958df9/manifest.json",
+      "sha256": "71346317327e4bc89d7ba57fe3fae677d0cbb3111ce302bb83c19a20936c2222"
+    },
+    {
+      "id": "L6-schedule-automation",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/e3ee28cd7eda4294acddde3f805540d217e29dd8b91e271c2fa3718860ddb815/e6fea2f0-0f5f-43f6-b26d-781340ea0083/manifest.json",
+      "sha256": "cc0df74d398b5091cd9dadc637013b032b0ca85bef52785f312ded58e83320ea"
+    },
+    {
+      "id": "L7-pc-mixed-work",
+      "manifestPath": "/tmp/t5-retest-0811/evidence/scenarios/85d3a0570a467fa5d4a4bc277ebca69a307d687664106fdf0cac15d60f8644af/46153b0f-1f9d-40c3-9be1-0dfa9db5fac2/manifest.json",
+      "sha256": "8e0ccc60ccc3a7c233f7ec2dd5bea94bcaebe162c2ea04ea4c2259ecbe509ab0"
+    }
+  ],
+  "runPolicy": {
+    "separateProcessPerScenario": true,
+    "parallel": false,
+    "oneRunPerScenario": true,
+    "resultBasedSelection": false
+  },
+  "scoring": "PM_UNJUDGED",
+  "rawEvidence": [
+    {
+      "name": "000001-batch_execution.json",
+      "sha256": "a21ecbf5b7d1a7b917bd6348caa7bc5fc8578f0c9f5eeffc629a3bfe06cba9c6"
+    }
+  ],
+  "startedAt": "2026-08-11T00:41:21.654Z",
+  "finishedAt": "2026-08-11T00:51:24.321Z"
+}

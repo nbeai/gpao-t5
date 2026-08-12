@@ -81,7 +81,7 @@ const post = (base, path, body) =>
 async function withServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-search-'));
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools() });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`); }
   finally { await new Promise((r) => server.close(r)); }
@@ -118,7 +118,7 @@ async function withMemServer(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-sadm-'));
   const memoryStore = mem({ candidates: [], promoted: [], observed: [] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
   try { return await fn(`http://127.0.0.1:${port}`, memoryStore); }
   finally { await new Promise((r) => server.close(r)); }
@@ -214,7 +214,7 @@ test('POST /memory/rollback: rollbackable=false 기억은 거부(되돌리지 �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-nrb-'));
   const memoryStore = mem({ candidates: [], observed: [], promoted: [{ candidateId: 'x1', kind: 'operating_principle', statement: '고정 원칙', admitted: true, userConfirmed: true, replayPassed: true, rollbackable: false }] });
   const server = makeServer({ store: new SessionStore(dir), env: demoEnv(), tools: demoTools(), memoryStore });
-  await new Promise((r) => server.listen(0, r));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const b = `http://127.0.0.1:${server.address().port}`;
   try {
     const g = await (await post(b, '/memory/rollback', { candidateId: 'x1' })).json();

@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GPAO-T5 · Work Chat</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
 <style>
   /* T3 구조적 DNA 계승 + T5 토큰 체계. 조용한 사이드바 · 넓은 채팅 · 하단 입력 · 접힌 고기능.
      CSS/레이아웃 craft는 OpenClaw ui/ 참고(간격 4px 리듬·모션 3단·웜 그림자·WCAG 대비)로 감각만
@@ -77,10 +78,12 @@
   #side { width:252px; flex:none; background:var(--panel); border-right:1px solid var(--line);
     display:flex; flex-direction:column; height:100dvh; }
   .brand { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-4) var(--sp-4) var(--sp-3); }
-  .brand .logo { width:24px; height:24px; border-radius:var(--r-sm); background:var(--accent); color:var(--accent-ink);
-    display:grid; place-items:center; font-size:12px; font-weight:700; box-shadow:var(--sh-sm); }
+  .brand .logo { width:24px; height:24px; border-radius:var(--r-sm); background:#fff;
+    display:grid; place-items:center; box-shadow:var(--sh-sm); overflow:hidden; }
+  .brand .logo img { width:18px; height:18px; display:block; }
   .brand b { font-weight:650; flex:1; color:var(--fg-strong); letter-spacing:-0.01em; }
-  .brand .ic { color:var(--muted); cursor:pointer; font-size:15px; }
+  .brand .ic, .sidefoot .ic { color:var(--muted); cursor:pointer; font-size:15px;
+    border:0; background:none; padding:2px 4px; font-family:inherit; }
   .nav { padding:var(--sp-1) var(--sp-2); }
   .nav a { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
     color:var(--muted); text-decoration:none; font-size:var(--fs-md); cursor:pointer;
@@ -94,12 +97,61 @@
   .seclabel { padding:var(--sp-3) var(--sp-4) var(--sp-1); font-size:var(--fs-xs); color:var(--faint);
     letter-spacing:.04em; text-transform:uppercase; }
   .sessions { flex:1; overflow-y:auto; padding:0 var(--sp-2); }
-  .sess { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
+  .sess { position:relative; display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
     cursor:pointer; font-size:var(--fs-md); transition:background var(--dur-fast) var(--ease-out); }
   .sess:hover { background:var(--hover); }
   .sess.active { background:var(--elevated); box-shadow:var(--sh-sm); }
+  /* HRT-RF-004: 지금 말하고 있는 대화 하나를 조용히 표시한다. 배경 명도 차이만으로는
+     밝은 테마나 제목이 많을 때 약해서 사용자가 목록을 다시 훑게 된다.
+     신분은 여전히 aria-current 이고 이 선은 **시각 보조**다. 글자·배지를 만들지 않고,
+     흐름에서 자리를 차지하지 않아 행 높이와 제목 말줄임 폭이 그대로다. */
+  .sess.active::before { content:""; position:absolute; inset-inline-start:2px; top:50%;
+    transform:translateY(-50%); width:2px; height:1.05em; border-radius:1px; background:var(--accent); }
   .sess .t { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
   .sess .age { color:var(--faint); font-size:var(--fs-xs); flex:none; }
+  /* P2-4a 목록 정리: 평소엔 조용히 있다가 마우스를 올리면 나타난다(설정판처럼 무겁지 않게) */
+  .sess .pin { flex:none; font-size:12px; opacity:.85; }
+  .sess .origin { flex:none; font-size:12px; opacity:.9; }
+  /* **숨기지 않는다.** opacity:0 으로 감추면 hover 가 없는 터치 기기에서는 메뉴를 열 방법이 아예 없다.
+     평소엔 옅게 두고 마우스를 올리거나 초점이 가면 또렷해진다. */
+  .sess .more { flex:none; color:var(--faint); cursor:pointer; opacity:.5; padding:0 4px; font-size:14px; line-height:1;
+    background:none; border:0; font-family:inherit; min-width:22px; min-height:22px; }
+  .sess .more:focus-visible, .sess:focus-visible { opacity:1; outline:2px solid var(--accent, #8a7); outline-offset:1px; }
+  .sess:hover .more, .sess.menu-open .more { opacity:1; }
+  .sess .more:hover { color:var(--fg); }
+  .sessmenu { position:absolute; z-index:40; background:var(--elevated); border:1px solid var(--line);
+    border-radius:var(--r-sm); box-shadow:var(--sh-md); padding:4px; min-width:148px; font-size:var(--fs-sm); }
+  .sessmenu button { display:block; width:100%; text-align:left; background:none; border:0; color:var(--fg);
+    padding:7px 10px; border-radius:var(--r-sm); cursor:pointer; font:inherit; }
+  .sessmenu button:hover { background:var(--hover); }
+  .sessmenu button.warn { color:var(--danger, #e5534b); }
+  .sessmenu .sep { height:1px; background:var(--line); margin:4px 2px; }
+  .listtabs { display:flex; gap:6px; padding:0 var(--sp-4) var(--sp-2); }
+  .listtabs button { background:none; border:0; color:var(--faint); font:inherit; font-size:var(--fs-xs);
+    cursor:pointer; padding:2px 6px; border-radius:var(--r-sm); }
+  .listtabs button.on { color:var(--fg); background:var(--hover); }
+  .listtabs .spacer { flex:1; }
+  .selbar { display:flex; align-items:center; gap:6px; padding:4px var(--sp-4) var(--sp-2);
+    font-size:var(--fs-xs); color:var(--muted); }
+  /* class 규칙이 [hidden] 의 기본 display:none 을 이긴다 — 안 적으면 선택 바가 늘 떠 있다. */
+  .selbar[hidden] { display:none; }
+  .selbar .spacer { flex:1; }
+  .selbar button { background:none; border:1px solid var(--line); color:var(--fg); font:inherit; font-size:var(--fs-xs);
+    cursor:pointer; padding:3px 8px; border-radius:var(--r-sm); }
+  .selbar button:hover { background:var(--hover); }
+  .selbar button.warn { color:var(--danger, #e5534b); }
+  .sess .chk { flex:none; width:14px; height:14px; margin-right:2px; accent-color:var(--dot, #7a8); }
+  .sechead { display:flex; align-items:center; gap:6px; width:100%; background:none; border:0; cursor:pointer;
+    color:var(--faint); font:inherit; font-size:var(--fs-xs); letter-spacing:.04em; padding:var(--sp-2) var(--sp-3) 4px; }
+  .sechead:hover { color:var(--muted); }
+  .sechead .chev { width:10px; }
+  .sechead .lbl { flex:1; text-align:left; }
+  .sechead .cnt { opacity:.7; }
+  .toastbox { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(8px); z-index:60;
+    background:var(--elevated); border:1px solid var(--line); box-shadow:var(--sh-md); color:var(--fg);
+    padding:10px 14px; border-radius:var(--r-md); font-size:var(--fs-sm); max-width:min(520px, 92vw);
+    opacity:0; pointer-events:none; transition:opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .toastbox.on { opacity:1; transform:translateX(-50%) translateY(0); }
   .sidefoot { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
     border-top:1px solid var(--line); color:var(--muted); }
   .sidefoot .dot { width:8px; height:8px; border-radius:var(--r-full); background:var(--dot); box-shadow:0 0 0 3px var(--accent-glow); }
@@ -168,6 +220,34 @@
   .turn { display:flex; flex-direction:column; gap:var(--sp-2); animation:rise var(--dur-normal) var(--ease-out); }
   @keyframes rise { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
   .msg { max-width:86%; padding:var(--sp-3) var(--sp-4); border-radius:var(--r-lg); white-space:pre-wrap; line-height:var(--lh); }
+  /* 마크다운으로 그린 답변. **말풍선 안**이므로 문서가 아니라 대화처럼 보여야 한다 —
+     제목이 커서 화면을 차지하거나 문단 사이가 벌어지면 채팅이 아니라 보고서로 읽힌다.
+     블록을 직접 그리므로 pre-wrap 은 끈다(안 그러면 태그 사이 줄바꿈이 빈 줄로 보인다). */
+  .msg.bot { white-space:normal; }
+  .msg.bot > :first-child { margin-top:0; }
+  .msg.bot > :last-child { margin-bottom:0; }
+  .msg.bot p { margin:0 0 var(--sp-2); }
+  .msg.bot h1, .msg.bot h2, .msg.bot h3,
+  .msg.bot h4, .msg.bot h5, .msg.bot h6 { margin:var(--sp-3) 0 var(--sp-2); font-size:1em; font-weight:650; line-height:1.35; }
+  .msg.bot h1 { font-size:1.15em; }
+  .msg.bot h2 { font-size:1.08em; }
+  .msg.bot ul, .msg.bot ol { margin:0 0 var(--sp-2); padding-left:1.35em; }
+  .msg.bot li { margin:2px 0; }
+  .msg.bot code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.92em;
+                  background:rgba(127,127,127,0.16); padding:1px 4px; border-radius:4px; }
+  .msg.bot pre { margin:0 0 var(--sp-2); padding:var(--sp-3); border-radius:var(--r-lg);
+                 background:rgba(127,127,127,0.14); overflow-x:auto; }
+  .msg.bot pre code { background:none; padding:0; font-size:0.88em; line-height:1.5; }
+  .msg.bot blockquote { margin:0 0 var(--sp-2); padding-left:var(--sp-3);
+                        border-left:3px solid rgba(127,127,127,0.35); opacity:0.9; }
+  .msg.bot hr { border:0; border-top:1px solid rgba(127,127,127,0.25); margin:var(--sp-3) 0; }
+  /* 표 (F-9) — 넓은 표는 말풍선 안에서 가로로만 민다. 색은 위 코드·인용과 같은 중립 틴트다. */
+  .msg.bot table { border-collapse:collapse; margin:0 0 var(--sp-2); font-size:0.94em;
+                   display:block; overflow-x:auto; max-width:100%; }
+  .msg.bot th, .msg.bot td { border:1px solid rgba(127,127,127,0.3); padding:3px 10px;
+                             text-align:left; vertical-align:top; }
+  .msg.bot th { font-weight:650; background:rgba(127,127,127,0.12); }
+  .msg.bot a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
   .me { align-self:flex-end; background:var(--me); border-bottom-right-radius:var(--r-sm); }
   .who { font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }
   .who.right { align-self:flex-end; }
@@ -195,6 +275,9 @@
   /* P6-15: 조용한 승인 모드 표시 + 승인 이유(사용자 언어). 정책이 아니라 판단을 보여준다. */
   .card .mode { font-size:var(--fs-xs); color:var(--faint); margin-bottom:var(--sp-2); }
   .card .why { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-1) var(--sp-4); line-height:1.6; }
+  /* 적힐 내용은 **줄바꿈 그대로** 보여준다. textContent 로 넣으면 HTML 이 줄을 접어서
+     목록 세 줄이 한 줄로 뭉개진다 — 승인 전에 읽을 수 없으면 보여준 게 아니다. */
+  .card .why .pre { white-space:pre-wrap; word-break:break-word; }
   .card .why b { color:var(--fg); font-weight:600; }
   /* 기억 제안 — 조용한 info-톤, 대화를 막지 않는다. */
   .suggest { align-self:flex-start; max-width:86%; border:1px solid var(--line); border-left:3px solid var(--info);
@@ -202,6 +285,15 @@
   .suggest .sug-t { font-size:var(--fs-sm); color:var(--fg); }
   .suggest .sug-s { font-size:var(--fs-sm); color:var(--muted); margin:var(--sp-1) 0 var(--sp-2); }
   .suggest .btns { margin-top:var(--sp-2); display:flex; gap:var(--sp-2); }
+  /* 확인된 중간 결과. **답변이 아니라 진행 중 사실**이므로 진행 표시(.trace)와 같은 조용한 조를
+     쓴다 — 답과 같은 굵기·색이면 사용자는 같은 말을 두 번 들었다고 느낀다. */
+  .msg.steps { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
+    border-left:2px solid var(--line); display:flex; flex-direction:column; gap:var(--sp-1); }
+  .stopbtn { align-self:flex-start; font-size:var(--fs-sm); margin:0 var(--sp-3) var(--sp-1);
+    padding:var(--sp-1) var(--sp-3); border:1px solid var(--line); border-radius:999px;
+    background:transparent; color:var(--muted); cursor:pointer; }
+  .stopbtn:hover { color:var(--fg); }
+  .stopbtn:disabled { opacity:.5; cursor:default; }
   .trace { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
     display:flex; align-items:center; gap:var(--sp-2); opacity:0.9; }
   .trace::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent);
@@ -226,7 +318,6 @@
     border-radius:var(--r-lg); padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); background:var(--elevated);
     box-shadow:var(--sh-sm); transition:border-color var(--dur-normal) var(--ease-out), box-shadow var(--dur-normal) var(--ease-out); }
   .inbox:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
-  .inbox .plus { color:var(--muted); font-size:18px; padding-bottom:2px; }
   /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
      보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
   #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
@@ -241,9 +332,9 @@
   .statusrow .spacer { flex:1; min-width:8px; }
 
   /* ── 도구함 (2.0-A) ── */
-  #tbov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
-  #tbov.open { display:block; }
-  #tbpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
+  #tbov, #setov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
+  #tbov.open, #setov.open { display:block; }
+  #tbpanel, #setpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
     border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
   .tb-head { padding:var(--sp-5) var(--sp-5) var(--sp-3); border-bottom:1px solid var(--line); }
   .tb-head h2 { font-size:var(--fs-base); color:var(--fg-strong); display:flex; align-items:center; gap:var(--sp-2); }
@@ -295,24 +386,32 @@
 <body>
   <aside id="side">
     <div class="brand">
-      <span class="logo">T5</span><b>GPAO-T5</b>
-      <span class="ic" title="검색">⌕</span>
-    </div>
-    <div class="nav">
-      <a data-soon="더 보기"><span class="em">▾</span>더 보기</a>
-      <a data-soon="스킬"><span class="em">✦</span>스킬</a>
-      <a data-soon="배운 작업"><span class="em">✎</span>배운 작업</a>
-      <a id="nav-toolbox"><span class="em">🜁</span>연결</a>
-      <a data-soon="자동화"><span class="em">◷</span>자동화</a>
+      <span class="logo"><img src="data:image/png;base64,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" alt="GPAO-T5"></span><b>GPAO-T5</b>
+      <button class="ic" id="brandSearch" title="지난 대화 찾기" aria-label="지난 대화 찾기">⌕</button>
     </div>
     <button class="newchat" id="newchat">＋ 새 대화</button>
     <div class="seclabel">세션</div>
+    <div class="listtabs" id="listtabs">
+      <button data-view="active" class="on">대화</button>
+      <button data-view="archived">보관함</button>
+      <button data-view="deleted">휴지통</button>
+      <span class="spacer"></span>
+      <button id="selectMode" title="여러 개 정리">선택</button>
+      <button id="tidyMenu" title="정리">정리</button>
+    </div>
+    <div class="selbar" id="selbar" hidden>
+      <span id="selcount">0개 선택</span>
+      <span class="spacer"></span>
+      <button id="selArchive">숨기기</button>
+      <button id="selDelete" class="warn">지우기</button>
+      <button id="selCancel">취소</button>
+    </div>
     <div class="sessions" id="sessions"></div>
     <div class="sidefoot">
       <span class="dot" title="연결됨"></span>
       <span class="spacer"></span>
-      <span class="ic" title="설정" data-soon="설정">⚙</span>
-      <span class="ic" id="theme" title="테마">◐</span>
+      <button class="ic" id="settingsbtn" title="설정" aria-label="설정">⚙</button>
+      <button class="ic" id="theme" title="테마" aria-label="테마">◐</button>
     </div>
   </aside>
 
@@ -320,8 +419,8 @@
     <div class="crumb">
       <span class="hb" id="hb">☰</span>
       <span class="bc"><span class="appn">GPAO-T5 <span class="sep">›</span> </span>Work Chat</span>
-      <button id="searchbtn" title="과거 대화에서 기억 찾기">🔍<span class="sb-t"> 기억 찾기</span></button>
-      <button id="chip" title="현재 상태 보기">준비됨</button>
+      <button id="searchbtn" title="지난 대화 찾기">🔍<span class="sb-t"> 대화 찾기</span></button>
+      <button id="chip" title="현재 상태 보기">확인 중</button>
     </div>
     <div id="state"></div>
     <div id="search">
@@ -335,14 +434,12 @@
     <div class="composer">
       <div class="cwrap">
         <div class="inbox">
-          <span class="plus">＋</span>
           <textarea id="text" rows="1" placeholder="GPAO-T5에게 메시지 입력" autofocus></textarea>
           <button id="send">보내기</button>
         </div>
         <div class="statusrow">
-          <span id="modelinfo">beai5-stub · 준비됨</span>
+          <span id="modelinfo">모델 확인 중…</span>
           <span class="spacer"></span>
-          <span class="hint">말하면 일이 이어집니다</span>
         </div>
       </div>
     </div>
@@ -359,7 +456,21 @@
     </div>
   </div>
 
+  <div id="setov">
+    <div id="setpanel">
+      <div class="tb-head">
+        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="대화로 돌아가기">✕</button></h2>
+        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">← 대화로 돌아가기</a></p>
+        <div id="set-tabs" class="tb-badges" style="margin-top:var(--sp-2);"></div>
+      </div>
+      <div class="tb-body" id="set-body"></div>
+    </div>
+  </div>
+
 <script type="module">
+// 모델 답변은 **여기 하나로만** 그린다 — 스트리밍 미리보기와 최종 답변이 같은 경로를 쓴다.
+import { renderMarkdownInto } from './markdown.js';
+import { approvalIsActive, projectionOptions } from './approval-state.js';
 const wrap = document.getElementById('wrap');
 const chip = document.getElementById('chip');
 const statePanel = document.getElementById('state');
@@ -375,24 +486,34 @@ document.querySelectorAll('[data-soon]').forEach((n) => {
   n.addEventListener('click', () => sysline(`${n.dataset.soon} 화면은 다음 단계에서 준비됩니다. 지금은 채팅으로 이어가 주세요.`));
 });
 document.getElementById('hb').onclick = () => document.body.classList.toggle('nav-open');
-document.getElementById('theme').onclick = () => {
+function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark';
   if (next) document.documentElement.setAttribute('data-theme', next);
   else document.documentElement.removeAttribute('data-theme');
-};
+}
+document.getElementById('theme').onclick = toggleTheme;
 document.getElementById('newchat').onclick = () => newSession();
 chip.onclick = async () => {
   const open = statePanel.style.display !== 'block';
   statePanel.style.display = open ? 'block' : 'none';
-  // 열 때만 요약을 채운다(안티 대시보드 — 상시 폴링 없음).
-  if (open) { await refreshOverview(); await renderModelConnect(); }
+  // 열 때만 요약을 채운다(안티 대시보드). 모델 연결 **관리**는 설정 허브 한 곳에서만 —
+  // 같은 기능을 두 화면에서 따로 관리하지 않는다(Pre-P-OP-7 UX Closure).
+  if (open) { await refreshOverview(); renderModelSettingsLink(); }
 };
+function renderModelSettingsLink() {
+  let l = document.getElementById('mcLink');
+  if (l) return;
+  l = document.createElement('div'); l.id = 'mcLink'; l.className = 'ov';
+  l.innerHTML = '모델·메신저·연결·스킬 관리는 <a style="cursor:pointer; text-decoration:underline;">설정</a>에서 해요.';
+  l.querySelector('a').onclick = () => { statePanel.style.display = 'none'; openSettings('model'); };
+  statePanel.appendChild(l);
+}
 
 // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 칩 패널에서 키를 연결한다. 서버가 "확실한 무효만 거절"을
 //   보장한다: 확인된 것은 검증됨으로, 도달 못 한 것은 저장하되 "모델 확인 필요"로 표시한다.
 //   응답엔 마스킹 키·사용자 언어만 온다(원본 키·원문 진단 없음). 안티 대시보드: 열 때만.
-async function renderModelConnect() {
+async function renderModelConnect(target) {
   let box = document.getElementById('modelConnect');
   if (!box) {
     box = document.createElement('div'); box.id = 'modelConnect'; box.className = 'ov';
@@ -419,7 +540,7 @@ async function renderModelConnect() {
       </div>
       <div id="mcList" style="margin:4px 0;"></div>
       <div id="mcResult"></div>`;
-    statePanel.appendChild(box);
+    (target ?? statePanel).appendChild(box);
     box.querySelector('#mcProvider').onchange = (e) => {
       box.querySelector('#mcBase').style.display = e.target.value === 'openai_compatible' ? '' : 'none';
     };
@@ -452,6 +573,7 @@ async function renderModelConnect() {
       await refreshModelConnect();
     };
   }
+  if (target && box.parentNode !== target) target.appendChild(box); // 설정 허브로 이동(한 곳 관리)
   await refreshModelConnect();
 }
 
@@ -496,16 +618,37 @@ async function refreshModelConnect() {
     + (st.unofficial ? ' · 공식 지원 아님' : '');
 }
 
+// 첫 모델 응답을 기다리는 동안에도 저장된 연결 사실은 바로 보인다. 정적 stub 를 "준비됨"으로
+// 그리면 실제 OAuth 모델이 연결된 제품이 몇 초 동안 데모처럼 보인다. 여기서는 연결만 말하고,
+// usable/health 기반의 "준비됨" 판정은 기존 renderSelfState 가 첫 실제 턴 뒤에 맡는다.
+async function refreshInitialModelStatus() {
+  const st = await (await fetch('/model/connection')).json().catch(() => null);
+  if (!st?.connected) {
+    modelinfo.textContent = '연결된 모델 없음';
+    chip.textContent = '연결 필요';
+    chip.classList.add('warn');
+    return;
+  }
+  modelinfo.textContent = `${st.modelId} · 연결됨`;
+  chip.textContent = '연결됨';
+  chip.classList.remove('warn');
+}
+
 // ── 기억 찾기 (P6-18) ── 과거 대화 검색. **결과는 "찾은 기억(반영 안 됨)".** 반영은 명시 admit(§6.16)만 —
 //   찾았다고 답변 근거가 되지 않는다. 반영해야 이후 관련 대화에 좁게 쓰인다.
 const searchPanel = document.getElementById('search');
 const qInput = document.getElementById('q');
 const qResults = document.getElementById('qresults');
-document.getElementById('searchbtn').onclick = () => {
-  const open = searchPanel.style.display !== 'block';
+const sbText = document.querySelector('#searchbtn .sb-t');
+function toggleSearch(force) {
+  const open = force ?? (searchPanel.style.display !== 'block');
   searchPanel.style.display = open ? 'block' : 'none';
+  if (sbText) sbText.textContent = open ? ' 닫기' : ' 대화 찾기';
+  document.getElementById('searchbtn').title = open ? '닫기' : '지난 대화 찾기';
   if (open) qInput.focus();
-};
+}
+document.getElementById('searchbtn').onclick = () => toggleSearch();
+document.getElementById('brandSearch').onclick = () => { document.body.classList.remove('nav-open'); toggleSearch(true); };
 async function doSearch() {
   const query = qInput.value.trim();
   if (!query) return;
@@ -520,24 +663,35 @@ qInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); }
 
 function renderQResults(results) {
   qResults.innerHTML = '';
-  if (!results.length) { qResults.textContent = '찾은 기억이 없어요.'; return; }
+  if (!results.length) { qResults.textContent = '찾은 대화가 없어요. 다른 말로 다시 찾아볼까요?'; return; }
   for (const r of results) {
     const card = el('qhit');
     const tag = el('qh-tag');
     const src = r.source || {};
     card.appendChild(tag);
-    if (src.title) card.appendChild(el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`));
-    card.appendChild(el('qh-body', r.statement));
+    const srcEl = src.title ? el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`) : null;
+    if (srcEl) card.appendChild(srcEl);
+    const bodyEl = el('qh-body', r.statement);
+    card.appendChild(bodyEl);
+    // 이동은 반영과 다른 행동이다 — 제목·본문 클릭은 그 대화로 가고, 반영·되돌리기는 버튼만 한다.
+    const 이동 = async () => {
+      if (!src.sessionId) { toast('이 결과의 원본 대화 정보가 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+      const ok = await fetch('/sessions/' + src.sessionId).then((x) => x.ok).catch(() => false);
+      if (!ok) { toast('그 대화가 지워졌거나 열 수 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+      await selectSession(src.sessionId);
+      toggleSearch(false);
+    };
+    for (const n of [srcEl, bodyEl]) if (n) { n.style.cursor = 'pointer'; n.title = '이 대화로 이동'; n.onclick = 이동; }
     const btn = document.createElement('button'); btn.className = 'qh-act';
     card.appendChild(btn);
     let admittedId = null;
     // 찾음(반영 안 됨) ↔ 반영됨 토글 — 반영하기가 있으면 되돌리기도 같은 수준.
     function setFound() {
-      card.classList.remove('done'); tag.textContent = '찾은 기억 · 반영 안 됨'; btn.textContent = '반영하기'; btn.disabled = false;
+      card.classList.remove('done'); tag.textContent = '찾은 대화 · 현재 대화에 반영 안 됨'; btn.textContent = '반영하기'; btn.disabled = false;
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const a = await (await fetch('/search/admit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statement: r.statement, source: src }) })).json();
+          const a = await memAction('/search/admit', { statement: r.statement, source: src });
           // 되돌리기 id(candidateId)가 있을 때만 "반영됨"으로 — id 없이 반영됨으로 보이면 못 되돌린다(대칭 보장).
           if (a.admitted && a.candidateId) { admittedId = a.candidateId; setReflected(); } else btn.disabled = false;
         } catch { btn.disabled = false; }
@@ -548,7 +702,7 @@ function renderQResults(results) {
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const g = await (await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: admittedId }) })).json();
+          const g = await memAction('/memory/rollback', { candidateId: admittedId });
           if (g.rolledBack) setFound(); else btn.disabled = false; // 되돌리면 다시 "반영 안 됨"으로
         } catch { btn.disabled = false; }
       };
@@ -573,10 +727,230 @@ async function openToolbox(focusId) {
     const r = await (await fetch('/toolbox')).json();
     tbTools = r.tools || [];
     renderToolbox('', focusId);
+    await renderPendingSenders();
+    await renderInvalidDeclared();
     if (!focusId) tbSearch.focus();
   } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
 }
 function closeToolbox() { tbov.classList.remove('open'); }
+
+// ── 설정 허브 (Pre-P-OP-7 UX Closure) ── 새 관리 콘솔이 아니라 **이미 있는 기능의 정리**다.
+// 각 영역은 지금 실제로 조회·관리할 수 있는 범위만 보여준다 — 없는 기능을 약속하지 않는다.
+const setov = document.getElementById('setov');
+const setBody = document.getElementById('set-body');
+const setTabs = document.getElementById('set-tabs');
+const SET_SECTIONS = [
+  ['model', '모델'], ['messenger', '메신저'], ['tools', '도구와 연결'],
+  ['skills', '스킬'], ['memory', '기억과 개인정보'], ['looks', '모양'],
+];
+function closeSettings() { setov.classList.remove('open'); }
+async function openSettings(section = 'model') {
+  setov.classList.add('open');
+  document.body.classList.remove('nav-open');
+  setTabs.replaceChildren(...SET_SECTIONS.map(([id, label]) => {
+    const b = document.createElement('button'); b.className = 'tb-badge'; b.textContent = label;
+    b.style.cursor = 'pointer';
+    if (id === section) { b.style.borderColor = 'var(--accent)'; b.style.color = 'var(--fg-strong)'; }
+    b.onclick = () => openSettings(id);
+    return b;
+  }));
+  setBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
+  try { await SET_RENDER[section](); }
+  catch { setBody.replaceChildren(mk('div', 'tb-empty', '이 영역을 지금 불러오지 못했어요. 잠시 후 다시 열어 볼까요?')); }
+}
+const SET_RENDER = {
+  async model() {
+    setBody.replaceChildren();
+    await renderModelConnect(setBody);
+  },
+  async messenger() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '메신저 연결 상태'));
+    try {
+      const { channels } = await (await fetch('/channels')).json();
+      for (const c of channels ?? []) box.appendChild(mk('div', 'tb-hint', `${c.label} — ${c.userSafe}`));
+    } catch { box.appendChild(mk('div', 'tb-hint', '상태를 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+    await renderPendingSenders(setBody); // 허용목록 관리 — 도구함과 같은 렌더러(두 진실 금지)
+  },
+  async tools() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '도구와 연결'));
+    box.appendChild(mk('div', 'tb-hint', '도구함에서 실제 연결 상태를 보고, 눌러서 시험하고, 붙일 수 없게 된 선언을 정리할 수 있어요.'));
+    const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '도구함 열기';
+    b.onclick = () => { closeSettings(); openToolbox(); };
+    box.appendChild(b);
+    setBody.appendChild(box);
+  },
+  async skills() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '스킬'));
+    try {
+      const { skills } = await (await fetch('/skills')).json();
+      if (!skills?.length) box.appendChild(mk('div', 'tb-hint', '아직 배운 스킬이 없어요. 같은 작업이 반복되면 후보로 제안돼요 — 자동으로 켜지지는 않아요.'));
+      for (const sk of skills ?? []) {
+        const row = mk('div', 'tb-hint', `${sk.label ?? sk.id} — ${sk.state === 'admitted' ? '활성화됨' : sk.state === 'candidate' || sk.state === 'replay_required' ? '추천됨(아직 아님)' : sk.state}`);
+        if (sk.state === 'candidate' || sk.state === 'replay_required') {
+          const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '승인';
+          b.onclick = async () => { await fetch(`/skills/${sk.id}/approve`, { method: 'POST' }); SET_RENDER.skills(); };
+          row.appendChild(b);
+        }
+        box.appendChild(row);
+      }
+    } catch { box.appendChild(mk('div', 'tb-hint', '스킬 목록을 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+  },
+  async memory() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '기억과 개인정보'));
+    try {
+      const o = await (await fetch(`/overview?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
+      const rows = document.createElement('div');
+      const actsHtml = (items, pairs, key) => (items && items.length)
+        ? items.map((it) => `${esc(it[key])} ${pairs.map(([act, label]) => `<button class="ov-act" data-act="${esc(act)}" data-id="${esc(it.id)}">${esc(label)}</button>`).join('')}`).join('<br>')
+        : '없음';
+      rows.className = 'ov';
+      rows.innerHTML = [
+        `<div class="ov-row"><span class="ov-on">반영 중 선호</span> <span class="ov-k">${actsHtml(o.preferences.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-off">확인 대기</span> <span class="ov-k">${actsHtml(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+      ].join('');
+      box.appendChild(rows);
+      // S5-5 · **하나의 목록**을 그대로 그린다. 상태를 화면에서 다시 계산하지 않는다 —
+      // 그러면 서버와 화면이 다른 말을 하게 된다.
+      try {
+        const st = await (await fetch('/memory/state')).json();
+        const 이름 = { preference: '선호', operating_principle: '원리', lane: '이어받을 작업' };
+        const 상태말 = {
+          active: '쓰이는 중', pinned: '붙들어 둠', archived: '치워 둠', decayed: '내려감',
+        };
+        const 버튼 = (it) => {
+          const b = [];
+          if (it.state === 'archived' || it.state === 'decayed') b.push(['restore-memory', '되돌리기']);
+          else {
+            b.push(it.state === 'pinned' ? ['unpin-memory', '붙듦 해제'] : ['pin-memory', '붙들어 두기']);
+            b.push(['archive-memory', '치워 두기']);
+          }
+          return b.map(([a, l]) => `<button class="ov-act" data-act="${a}" data-id="${esc(it.id)}">${esc(l)}</button>`).join('');
+        };
+        const 성장 = document.createElement('div');
+        성장.className = 'ov';
+        성장.innerHTML = (st.items ?? []).length
+          ? (st.items ?? []).map((it) => `<div class="ov-row"><span class="${it.state === 'active' || it.state === 'pinned' ? 'ov-on' : 'ov-off'}">${esc(이름[it.kind] ?? it.kind)} · ${esc(상태말[it.state] ?? it.state)}</span> <span class="ov-k">${esc(it.statement ?? '')} ${버튼(it)}</span></div>`).join('')
+          : '<div class="ov-row"><span class="ov-off">아직 없음</span></div>';
+        box.appendChild(mk('div', 'tb-name', '기억·원리·이어받을 작업'));
+        box.appendChild(성장);
+        box.appendChild(mk('div', 'tb-hint', '치우거나 내려간 것은 지워지지 않아요 — 언제든 되돌릴 수 있고, 붙들어 두면 자동으로 내려가지 않아요.'));
+      } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
+
+      const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
+      box.appendChild(mk('div', 'tb-hint', `기억 기록 영수증 ${led.entries?.length ?? 0}건 — 내용 원문은 기록에 저장되지 않아요(지문만).`));
+      box.appendChild(mk('div', 'tb-hint', '기억은 확인한 것만 반영되고, 언제든 되돌릴 수 있어요. 확인 전 후보는 아무 영향이 없어요.'));
+    } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
+    setBody.appendChild(box);
+  },
+  async looks() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', '모양'));
+    const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '밝은·어두운 테마 전환';
+    b.onclick = toggleTheme;
+    box.appendChild(b);
+    setBody.appendChild(box);
+  },
+};
+document.getElementById('settingsbtn').onclick = () => openSettings();
+document.getElementById('set-x').onclick = closeSettings;
+document.getElementById('set-back').onclick = closeSettings;
+setov.onclick = (e) => { if (e.target === setov) closeSettings(); };
+// 기억 액션은 공통 통로(memAction·onOverviewAction)를 그대로 쓴다 — 표면마다 갈라지지 않게.
+setBody.addEventListener('click', async (e) => {
+  if (!e.target.closest('.ov-act')) return;
+  await onOverviewAction(e);
+  if (setov.classList.contains('open')) SET_RENDER.memory().catch(() => {});
+});
+
+// P-OP-6 · **무효가 된 선언도 "없음"이 아니다.** 붙일 수 없게 된 사용자 선언을 이유와 함께
+// 보여주고, 정리할 길을 준다(사용자가 만든 것은 사용자가 거둔다). 진실은 /connectors/truth 가 낸다.
+async function renderInvalidDeclared() {
+  let t;
+  try { t = await (await fetch('/connectors/truth')).json(); } catch { return; }
+  const 무효 = t.invalidDeclared ?? [];
+  if (!무효.length) return;
+  const box = mk('div', 'tb-card');
+  box.appendChild(mk('div', 'tb-name', '지금은 붙일 수 없는 서비스'));
+  for (const d of 무효) {
+    const row = mk('div', 'tb-hint', `${d.label} — ${d.userSafe ?? '지금은 붙일 수 없어요'}`);
+    const btn = document.createElement('button');
+    btn.className = 'tb-test'; btn.textContent = '정리';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        const out = await (await fetch('/connectors/declared/remove', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: d.id }),
+        })).json();
+        if (out.ok) { toast(`${d.label} 선언을 정리했어요.`); box.remove(); await renderInvalidDeclared(); }
+        else btn.disabled = false;
+      } catch { btn.disabled = false; }
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
+  tbBody.appendChild(box);
+}
+
+// P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
+// 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —
+// 누가 언제 몇 번 말을 걸었는지만.
+async function renderPendingSenders(target = tbBody) {
+  let data;
+  try { data = await (await fetch('/channels/allowlist?channel=telegram')).json(); } catch { return; }
+  const pending = data.pending ?? [];
+  const allowed = data.allowed ?? [];
+  if (!pending.length && !allowed.length) return;
+  const box = mk('div', 'tb-card');
+  box.appendChild(mk('div', 'tb-name', '텔레그램에서 말을 건 사람'));
+  if (pending.length) {
+    for (const p of pending) {
+      const row = mk('div', 'tb-hint', `${p.username ? '@' + p.username : 'id ' + p.userId} · ${p.count}번 시도 — 아직 받지 않았어요`);
+      const btn = document.createElement('button');
+      btn.className = 'tb-test'; btn.textContent = '이 사람 허용';
+      btn.onclick = async () => {
+        const out = await (await fetch('/channels/allowlist', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ channel: 'telegram', userId: p.userId, username: p.username }),
+        })).json();
+        if (out.userSafeSummary) toast(out.userSafeSummary);
+        await renderPendingSenders(target);
+      };
+      row.appendChild(btn);
+      box.appendChild(row);
+    }
+  }
+  for (const a of allowed) {
+    const row = mk('div', 'tb-hint', `${a.label ? a.label + ' · ' : ''}${a.username ? '@' + a.username : 'id ' + a.userId} — 받는 중`);
+    const btn = document.createElement('button');
+    btn.className = 'tb-test'; btn.textContent = '해제';
+    btn.onclick = async () => {
+      const out = await (await fetch('/channels/allowlist', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel: 'telegram', revoke: a.userId ?? a.username }),
+      })).json();
+      if (out.userSafeSummary) toast(out.userSafeSummary);
+      await renderPendingSenders(target);
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
+  const old = document.getElementById('pendingSenders');
+  if (old) old.remove();
+  box.id = 'pendingSenders';
+  target.prepend(box);
+}
 
 function renderToolbox(q, focusId) {
   const query = (q || '').trim().toLowerCase();
@@ -631,18 +1005,46 @@ function toolCard(t) {
   card.onclick = () => card.classList.toggle('open');
   return card;
 }
-document.getElementById('nav-toolbox').onclick = openToolbox;
 document.getElementById('tb-x').onclick = closeToolbox;
 tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
 tbSearch.oninput = () => renderToolbox(tbSearch.value);
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
+// 짧은 알림 — 무엇이 일어났고 되돌릴 수 있는지 한 줄로. 대화창을 알림 콘솔로 만들지 않는다.
+let toastTimer;
+function toast(text) {
+  let box = document.getElementById('toast');
+  if (!box) { box = el('toastbox'); box.id = 'toast'; document.body.appendChild(box); }
+  box.textContent = text; box.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => box.classList.remove('on'), 3200);
+}
 // 실제로 스크롤되는 건 #log 다(#wrap 은 안쪽 div — overflow 없음). 빈 상자에 scrollIntoView 를
 // 걸면 내용이 붙기 전 위치로 가서 아무 일도 안 일어난다(오너 실사용에서 "머무른다"의 원인).
 const logEl = document.getElementById('log');
 /** 이미 아래쪽을 보고 있을 때만 따라간다 — 위로 올려 읽는 중이면 낚아채지 않는다. */
 function nearBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120; }
 function scrollToBottom(force = false) { if (force || nearBottom()) logEl.scrollTop = logEl.scrollHeight; }
+
+/**
+ * 대화를 **통째로 갈아끼울 때** 보던 자리를 지킨다.
+ *
+ * 실측(2026-08-03, 팀원): 답이 하나 끝날 때마다 화면이 맨 위 대화로 튀었다. `대화투영` 이
+ * `wrap.innerHTML = ''` 로 전부 새로 그리면 스크롤이 0 이 되는데, 그 뒤에 부르는
+ * `scrollToBottom()` 은 **새 DOM 을 재서** "사용자가 위쪽을 보고 있다"고 판정해 버린다.
+ * 그래서 아무 것도 안 하고, 사용자는 맨 위에 남는다.
+ *
+ * 그러니 "따라 보고 있었는가"는 **갈아끼우기 전에** 재야 한다. 위로 올려 읽던 중이었다면
+ * 그 자리를 되돌려 준다 — 읽던 곳을 잃는 것도 맨 위로 튀는 것만큼 나쁘다.
+ */
+async function 자리지키며(그리기) {
+  const 따라보고있었다 = nearBottom();
+  const 보던자리 = logEl.scrollTop;
+  const r = await 그리기();
+  if (따라보고있었다) logEl.scrollTop = logEl.scrollHeight;
+  else logEl.scrollTop = Math.min(보던자리, logEl.scrollHeight);
+  return r;
+}
 function add(node) { wrap.appendChild(node); scrollToBottom(); return node; }
 function turnBox() { const t = el('turn'); add(t); return t; }
 function sysline(t) { const b = turnBox(); b.appendChild(el('who', 'GPAO-T5')); b.appendChild(el('msg bot', t)); }
@@ -655,31 +1057,254 @@ function relAge(ts) {
   const h = Math.floor(m / 60); if (h < 24) return `${h}시간`;
   return `${Math.floor(h / 24)}일`;
 }
-async function loadSessions() {
+// P2-4a: 목록 보기(대화 / 보관함 / 휴지통). 기본은 지운 것·숨긴 것이 빠진 목록이다.
+let listView = 'active';
+const listQuery = () => (listView === 'archived' ? '/sessions?archived=1'
+  : listView === 'deleted' ? '/sessions?deleted=1' : '/sessions');
+
+async function sessionAction(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const out = await r.json();
+  if (out.userSafeSummary) toast(out.userSafeSummary);
+  return out;
+}
+
+function closeSessMenu() {
+  document.querySelectorAll('.sessmenu').forEach((m) => m.remove());
+  document.querySelectorAll('.sess.menu-open').forEach((x) => x.classList.remove('menu-open'));
+}
+
+function openSessMenu(item, s, anchor) {
+  closeSessMenu();
+  item.classList.add('menu-open');
+  const menu = el('sessmenu');
+  menu.setAttribute('role', 'menu');
+  const add = (label, fn, cls) => {
+    const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls;
+    b.onclick = async (ev) => { ev.stopPropagation(); closeSessMenu(); await fn(); await loadSessions(); };
+    menu.appendChild(b);
+  };
+  if (s.deletedAt) {
+    add('되돌리기', () => sessionAction('/sessions/restore', { sessionId: s.id }));
+  } else {
+    add('이름 바꾸기', async () => {
+      const next = prompt('대화 이름', s.title || '');
+      if (next === null) return;
+      await sessionAction('/sessions/meta', { sessionId: s.id, title: next });
+    });
+    add(s.pinned ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    add(s.archivedAt ? '목록으로 되돌리기' : '숨기기', () => sessionAction('/sessions/archive', { sessionId: s.id, archived: !s.archivedAt }));
+    menu.appendChild(el('sep'));
+    // 지우기는 휴지통으로 간다 — 무엇이 사라지고 무엇이 복구되는지는 서버 문구가 말한다(P2-3 계약).
+    add('지우기', async () => {
+      const out = await sessionAction('/sessions/delete', { sessionId: s.id });
+      // 지금 열려 있는 대화를 지웠으면 빈 화면에 갇히지 않게 옮긴다. **곧바로 새 대화를 만들지
+      // 않는다** — 지운 자리에 빈 대화가 생기면 "내용만 지워지고 목록엔 그대로"로 보인다.
+      if (s.id === currentSessionId) {
+        if (out.nextSessionId) await selectSession(out.nextSessionId);
+        else await newSession();
+      }
+    }, 'warn');
+  }
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
+  menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+  setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
+}
+
+// P2-4b 여러 개 정리. 선택은 화면 상태일 뿐 — 실제 판단·기록은 서버가 한다.
+let selectMode = false;
+const selected = new Set();
+const selbar = document.getElementById('selbar');
+
+function syncSelBar() {
+  selbar.hidden = !selectMode;
+  document.getElementById('selcount').textContent = `${selected.size}개 선택`;
+}
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selected.clear();
+  syncSelBar();
+  loadSessions();
+}
+async function bulk(action) {
+  if (!selected.size) { toast('먼저 정리할 대화를 골라 주세요.'); return; }
+  const ids = [...selected];
+  const out = await sessionAction('/sessions/bulk', { ids, action });
+  // 지금 열려 있던 대화가 정리 대상이었으면 갈 곳으로 옮긴다(빈 화면에 갇히지 않게).
+  if (ids.includes(currentSessionId)) {
+    if (out.nextSessionId) await selectSession(out.nextSessionId);
+    else await newSession();
+  }
+  setSelectMode(false);
+}
+document.getElementById('selectMode').onclick = () => setSelectMode(!selectMode);
+document.getElementById('selCancel').onclick = () => setSelectMode(false);
+document.getElementById('selArchive').onclick = () => bulk('archive');
+document.getElementById('selDelete').onclick = () => bulk('delete');
+
+// 정리 메뉴 — "전체 삭제"를 바로 노출하지 않는다. 무엇이 몇 개 정리되는지 먼저 말한다.
+document.getElementById('tidyMenu').onclick = async (ev) => {
+  ev.stopPropagation();
+  closeSessMenu();
   const { sessions } = await (await fetch('/sessions')).json();
-  sessionsEl.innerHTML = '';
-  for (const s of sessions) {
+  const empty = sessions.filter((s) => (s.turns ?? 0) === 0 && s.id !== currentSessionId);
+  const old = sessions.filter((s) => !s.pinned && Date.now() - s.updatedAt > 30 * 24 * 3600 * 1000);
+  const menu = el('sessmenu'); menu.setAttribute('role', 'menu');
+  const add = (label, fn) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.onclick = async (e) => { e.stopPropagation(); closeSessMenu(); await fn(); await loadSessions(); };
+    menu.appendChild(b);
+  };
+  if (empty.length) add(`빈 대화 ${empty.length}개 지우기`, () => sessionAction('/sessions/bulk', { ids: empty.map((s) => s.id), action: 'delete' }));
+  if (old.length) add(`30일 넘게 안 쓴 대화 ${old.length}개 숨기기`, () => sessionAction('/sessions/bulk', { ids: old.map((s) => s.id), action: 'archive' }));
+  if (!empty.length && !old.length) add('정리할 게 없어요', async () => {});
+  document.body.appendChild(menu);
+  const r = ev.target.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+  setTimeout(() => document.addEventListener('click', closeSessMenu, { once: true }), 0);
+};
+
+// 어느 메신저에서 온 대화인지 한눈에. 채널이 늘면 여기 한 줄씩(사례 전용 분기 금지).
+const CHANNEL_ICON = { telegram: '✈️', 'slack.channel': '💼', slack: '💼', mail: '✉️' };
+
+// 구역 접기 상태는 화면만의 일이라 브라우저에 남긴다(서버 왕복 없음).
+const foldKey = (name) => `gpao-t5.fold.${name}`;
+const isFolded = (name) => localStorage.getItem(foldKey(name)) === '1';
+function sectionHeader(name, label, count, onToggle) {
+  const h = document.createElement('button');
+  h.className = 'sechead';
+  h.setAttribute('aria-expanded', String(!isFolded(name)));
+  h.innerHTML = '';
+  h.appendChild(el('chev', isFolded(name) ? '▸' : '▾'));
+  h.appendChild(el('lbl', label));
+  h.appendChild(el('cnt', String(count)));
+  h.onclick = () => {
+    localStorage.setItem(foldKey(name), isFolded(name) ? '0' : '1');
+    onToggle();
+  };
+  return h;
+}
+
+function sessionRow(s) {
+  {
     const item = el('sess'); if (s.id === currentSessionId) item.classList.add('active');
+    // 목록 항목은 실제로 누를 수 있는 것이다 — 키보드·보조기기에서도 그렇게 보여야 한다.
+    item.setAttribute('role', 'button'); item.tabIndex = 0;
+    item.setAttribute('aria-current', s.id === currentSessionId ? 'true' : 'false');
+    if (selectMode) {
+      const chk = document.createElement('input');
+      chk.type = 'checkbox'; chk.className = 'chk'; chk.checked = selected.has(s.id);
+      chk.setAttribute('aria-label', `${s.title || '새 대화'} 선택`);
+      chk.onclick = (ev) => {
+        ev.stopPropagation();
+        if (chk.checked) selected.add(s.id); else selected.delete(s.id);
+        syncSelBar();
+      };
+      item.appendChild(chk);
+    }
+    if (s.pinned) item.appendChild(el('pin', '📌'));
+    // 메신저에서 시작된 대화는 화면에서 구분되어야 한다 — 어디서 온 말인지 모르면 헷갈린다(오너 지적).
+    if (s.origin?.channel) {
+      const mark = el('origin', CHANNEL_ICON[s.origin.channel] ?? '💬');
+      mark.title = `${s.origin.channel}에서 온 대화`;
+      item.appendChild(mark);
+    }
     const t = el('t', s.title || '새 대화'); const age = el('age', relAge(s.updatedAt));
-    item.appendChild(t); item.appendChild(age);
-    item.onclick = () => selectSession(s.id);
-    sessionsEl.appendChild(item);
+    const more = document.createElement('button');
+    more.className = 'more'; more.textContent = '⋯';
+    more.setAttribute('aria-label', `${s.title || '새 대화'} 관리`);
+    more.onclick = (ev) => { ev.stopPropagation(); openSessMenu(item, s, more); };
+    item.appendChild(t); item.appendChild(age); item.appendChild(more);
+    item.onkeydown = (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); }
+    };
+    // 선택 모드에서는 행을 눌러도 대화가 열리지 않는다 — 고르는 중이다.
+    item.onclick = () => {
+      if (selectMode) {
+        const chk = item.querySelector('.chk');
+        chk.checked = !chk.checked;
+        if (chk.checked) selected.add(s.id); else selected.delete(s.id);
+        syncSelBar();
+        return;
+      }
+      // 지운 대화는 열 수 없다(서버도 404). 되돌린 뒤에 열린다.
+      if (s.deletedAt) { toast('되돌린 뒤에 열 수 있어요.'); return; }
+      selectSession(s.id);
+    };
+    return item;
   }
 }
+
+async function loadSessions() {
+  const { sessions } = await (await fetch(listQuery())).json();
+  sessionsEl.innerHTML = '';
+  if (!sessions.length) {
+    sessionsEl.appendChild(el('seclabel', listView === 'archived' ? '숨긴 대화가 없어요'
+      : listView === 'deleted' ? '휴지통이 비어 있어요' : '대화가 없어요'));
+    return;
+  }
+  // 즐겨찾기는 **같은 개념(pinned)의 구역 표현**이다 — "위에 두기"를 두 개 만들지 않는다.
+  // 보관함·휴지통은 정리용 보기라 구역을 나누지 않는다(그 안에서 또 접으면 되레 헷갈린다).
+  const fav = listView === 'active' ? sessions.filter((s) => s.pinned) : [];
+  const rest = listView === 'active' ? sessions.filter((s) => !s.pinned) : sessions;
+
+  if (fav.length) {
+    sessionsEl.appendChild(sectionHeader('fav', '즐겨찾기', fav.length, loadSessions));
+    if (!isFolded('fav')) for (const s of fav) sessionsEl.appendChild(sessionRow(s));
+  }
+  if (rest.length) {
+    // 즐겨찾기가 없으면 굳이 "대화" 머리글로 한 줄 더 쓰지 않는다(빈 구역·군더더기 금지).
+    if (fav.length) sessionsEl.appendChild(sectionHeader('rest', '대화', rest.length, loadSessions));
+    if (!fav.length || !isFolded('rest')) for (const s of rest) sessionsEl.appendChild(sessionRow(s));
+  }
+}
+
+document.getElementById('listtabs').onclick = async (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  listView = b.dataset.view;
+  document.querySelectorAll('#listtabs button').forEach((x) => x.classList.toggle('on', x === b));
+  await loadSessions();
+};
 async function newSession() {
   const s = await (await fetch('/sessions', { method: 'POST' })).json();
   currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
   document.body.classList.remove('nav-open'); text.focus();
 }
+// 대화 한 벌을 **한 함수로만** 그린다.
+//
+// 실측(오너 라이브 2026-07-28, G-1B): 승인 없이 재시작한 뒤 `이어줘` 하면 서버는 유효한 승인을
+// 하나만 들고 있는데, 화면에는 승인 버튼이 둘 보였다. 실시간으로 받은 결과를 그 자리에 덧붙이기만
+// 해서 **이미 지난 카드가 계속 살아 보였다**(새로고침하면 맞게 나왔다 — 같은 화면에서만 틀렸다).
+// 누르면 "찾지 못했어요"로 끝나 실행은 안 되지만, 누르기 전까지 사용자는 어느 버튼이 유효한지
+// 알 수 없다. 죽은 버튼이다.
+//
+// 화면이 승인 상태를 따로 추측하지 않는다. **서버의 유효 승인 목록(activePendingIds)이 단일
+// 진실**이고, 턴·승인·거절이 끝나면 그 사실로 대화를 다시 투영한다.
+// 다만 **마지막 결과만 현재**로 그린다 — `historical` 은 비밀 입력면·기억 제안 같은 지금 필요한
+// 자리까지 숨기므로, 전부 과거로 그리면 방금 열린 입력창이 사라진다.
+async function 대화투영(s) {
+  const active = s.activePendingIds || [];
+  const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
+  wrap.innerHTML = '';
+  (s.transcript || []).forEach((e, i) => {
+    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
+    else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
+  });
+  return s;
+}
+
+/** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
+async function 대화다시그리기() {
+  if (!currentSessionId) return;
+  await 자리지키며(async () => 대화투영(await (await fetch('/sessions/' + currentSessionId)).json()));
+}
+
 async function selectSession(id) {
   currentSessionId = id;
-  const s = await (await fetch('/sessions/' + id)).json();
-  const active = s.activePendingIds || [];
-  wrap.innerHTML = '';
-  for (const e of s.transcript || []) {
-    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
-    else if (e.role === 'assistant') { renderResult(e.result, { historical: true, activePendingIds: active }); }
-  }
+  await 대화투영(await (await fetch('/sessions/' + id)).json());
   await loadSessions();
   scrollToBottom(true); // 대화를 열면 마지막 대목부터 보인다(위에서부터 읽게 두지 않는다)
   document.body.classList.remove('nav-open');
@@ -718,13 +1343,18 @@ function renderOverview(o) {
   const acts = (items, act, fmt, label) => items && items.length
     ? items.map((it) => `${esc(fmt(it))} <button class="ov-act" data-act="${esc(act)}" data-id="${esc(it.id)}">${esc(label)}</button>`).join(' · ')
     : '없음';
+  // 두 갈래 결정(확인/지우기)이 있는 항목 — 승인 대기는 어느 턴에서도 정리할 수 있어야
+  // 죽은 후보가 쌓이지 않는다(H 감사 2026-07-29).
+  const acts2 = (items, pairs, fmt) => items && items.length
+    ? items.map((it) => `${esc(fmt(it))} ${pairs.map(([act, label]) => `<button class="ov-act" data-act="${esc(act)}" data-id="${esc(it.id)}">${esc(label)}</button>`).join('')}`).join(' · ')
+    : '없음';
   const row = (cls, label, body) => `<div class="ov-row"><span class="${cls}">${esc(label)}</span> <span class="ov-k">${body}</span></div>`;
   const sec = (title, rows) => `<div class="ov-sec"><div class="ov-h">${esc(title)}</div>${rows}</div>`;
   el.innerHTML = [
     sec('연결', row('ov-on', '받을 준비됨', list(o.connections.ready, (c) => c.label)) + row('ov-off', '연결/로그인 필요', list(o.connections.notReady, (c) => c.label))),
     sec('스킬', row('ov-on', '활성화됨', list(o.skills.active, (s) => s.label)) + row('ov-off', '추천됨(아직 아님)', acts(o.skills.recommended, 'approve-skill', (s) => s.label, '승인'))),
     sec('선호', row('ov-on', '반영 중', acts(o.preferences.reflected, 'rollback-memory', (x) => x.statement, '되돌리기')) // 반영하기와 같은 수준의 되돌리기
-      + row('ov-off', '확인 대기', acts(o.preferences.pending, 'confirm-pref', (x) => x.statement, '확인(반영)'))
+      + row('ov-off', '확인 대기', acts2(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], (x) => x.statement))
       + row('ov-off', '추정됨(반영 안 함)', list(o.preferences.inferred, (x) => x.statement))), // 추정은 액션 없음(읽기 전용)
     sec('전달', row('ov-on', `보냄 ${o.deliveries.deliveredCount}건`, '') + row('ov-off', '전달 실패(다시 보낼 수 있어요)', acts(o.deliveries.failed, 'retry-delivery', (d) => d.target || d.label, '다시 보내기'))),
     // 검색으로 반영한 기억도 같은 자리서 되돌린다(선호 되돌리기와 같은 수준).
@@ -747,17 +1377,76 @@ async function onOverviewAction(e) {
   try {
     if (act === 'retry-delivery') await fetch(`/deliveries/${id}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) });
     else if (act === 'approve-skill') await fetch(`/skills/${id}/approve`, { method: 'POST' });
-    else if (act === 'confirm-pref') await fetch(`/user-model/preferences/${id}/confirm`, { method: 'POST' });
-    else if (act === 'rollback-memory') await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: id }) });
+    // 확인은 종류 공통 통로(/memory/confirm) 하나로 — 운영 원리는 거기서 replay 게이트를 탄다.
+    // 기억 변경은 전부 memAction — 영수증 누락 표시가 표면마다 갈라지지 않게.
+    else if (act === 'confirm-pref') await memAction('/memory/confirm', { candidateId: id });
+    else if (act === 'reject-memory') await memAction('/memory/reject', { candidateId: id });
+    else if (act === 'rollback-memory') await memAction('/memory/rollback', { candidateId: id });
+    // S5-5 · 성장 표면. 붙들기·치우기·되돌리기 — 카드도 승인도 만들지 않는다.
+    else if (act === 'pin-memory') await memAction('/memory/pin', { id, pinned: true });
+    else if (act === 'unpin-memory') await memAction('/memory/pin', { id, pinned: false });
+    else if (act === 'archive-memory') await memAction('/memory/archive', { id });
+    else if (act === 'restore-memory') await memAction('/memory/restore', { id });
     await refreshOverview();
   } catch { btn.disabled = false; }
+}
+
+// P-OP-4 · **기억 변경은 화면 어디서든 이 함수 하나로.** 응답 해석(영수증 누락 표시)이 표면마다
+// 흩어지면, 서버만 정직하고 화면은 다른 결론을 내는 자리가 다시 생긴다(감사 지적).
+async function memAction(path, body) {
+  const j = await (await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) })).json().catch(() => null);
+  if (j && j.receiptWritten === false) receiptNote();
+  return j;
+}
+
+// 영수증 누락 알림 — 표면과 무관하게 화면 상단 한 곳. 동작(반영·철회)은 성공했다는 사실과 분리해 말한다.
+function receiptNote() {
+  let n = document.getElementById('receiptNote');
+  if (!n) {
+    n = document.createElement('div'); n.id = 'receiptNote';
+    n.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:var(--panel,#fff);border:1px solid #a15c00;color:#a15c00;padding:6px 12px;border-radius:8px;z-index:999;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.08)';
+    document.body.appendChild(n);
+  }
+  n.textContent = '반영은 됐지만 기록을 남기지 못했어요. 기록 상태를 확인해 주세요.';
+  clearTimeout(n._t); n._t = setTimeout(() => n.remove(), 8000);
+}
+
+/**
+ * 접힌 라벨은 **숫자가 아니라 사실**을 말한다(오너 결정 2026-08-03).
+ *
+ * 실측: 턴이 끝나면 진행 표시(`steps`)는 제거되고 복원되지 않는다. 그때 화면에 남는 것은
+ * 최종 답 한 줄과 이 접힌 머리뿐인데, 그 머리가 **"도구 1개"** 라고 말했다. 참이지만
+ * 사용자가 알고 싶은 것이 아니다 — 대리지표를 결과 자리에 세운 것이고, 팀원이 "진행을 본 적
+ * 없다"고 한 이유다. 정보가 사라진 게 아니라 **접혀 있었고, 접힌 이름이 아무것도 안 말했다.**
+ *
+ * 바로 아래 `body` 에 이미 정확한 문장이 있으므로 새 데이터도 새 UI도 만들지 않는다.
+ * **확인된 사실이 있을 때만 그것을 라벨로 올린다** — 미확인·추정을 라벨에 올리면 접힌 줄만
+ * 보고 "됐구나" 하고 넘어간다. 그건 숫자보다 나쁘다(거짓을 짧게 말하는 것).
+ */
+function 기록라벨(ledger) {
+  const 확인 = ledger?.confirmed ?? [];
+  const 미확인 = ledger?.unconfirmed ?? [];
+  const 전체 = 확인.length + 미확인.length + (ledger?.estimated?.length || 0);
+  // **못 한 것도 사실이다.** 확인된 것이 없을 때 "도구 N개"로 떨어지면, 막힌 턴에서 화면에
+  // 남는 것은 모델의 산문 한 줄뿐이고 기계 사실은 접힌 채 숨는다(2026-08-03 실측: 연결이
+  // 막혔는데 답은 "확인했어요."였고 접힌 이름은 "도구 1개"였다).
+  // 다만 **확인처럼 적지는 않는다** — `미확인:` 표를 달아 그대로 올린다. 표 없이 올리면
+  // 펼치지 않는 사용자가 됐다고 믿는다(그건 숫자보다 나쁘다).
+  const 고른것 = 확인.length ? { 말: 확인[0], 표: '' } : 미확인.length ? { 말: 미확인[0], 표: '미확인: ' } : null;
+  if (!고른것) return `작업 기록 · 도구 ${전체}개`;
+  const 첫 = `${고른것.표}${String(고른것.말).replace(/[.\s]+$/, '')}`;
+  const 나머지 = 전체 - 1;
+  return 나머지 > 0 ? `${첫} 외 ${나머지}건` : 첫;
 }
 
 function renderRecord(box, ledger) {
   const n = (ledger?.confirmed.length || 0) + (ledger?.unconfirmed.length || 0) + (ledger?.estimated.length || 0);
   if (!n) return;
   const rec = el('record');
-  const head = el('head'); head.innerHTML = `<span class="tw">▸</span> 작업 기록 · 도구 ${n}개`;
+  const head = el('head');
+  const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
+  head.appendChild(tw);
+  head.appendChild(document.createTextNode(` ${기록라벨(ledger)}`)); // OS 가 만든 문장 — HTML 로 해석하지 않는다
   const body = el('body');
   body.textContent = [
     ledger.confirmed.length ? '확인: ' + ledger.confirmed.join('; ') : '',
@@ -777,17 +1466,22 @@ async function turn(payload) {
 function renderResult(r, opts = {}) {
   const { historical, activePendingIds } = opts;
   renderSelfState(r.selfStateSummary);
-  if (r.followUp) sysline(r.followUp.userNotice);
+  if (r.followUp?.decision === 'interrupt') sysline(r.followUp.userNotice);
   if (r.kind === 'clarify') { sysline(r.question); return; }
   if (r.kind === 'gated') { return; }   // 조용히 무시된 외부 이벤트 — 사용자 화면에 남기지 않음
 
   if (r.kind === 'approval') {
     const box = turnBox();
+    // 기억을 지운 사실은 승인 턴에서도 말한다. 상태만 바뀌고 화면이 침묵하면 사용자에게는
+    // "안 지워졌다"와 구분되지 않는다(S1 라이브 실측: 철회는 됐는데 표면이 말하지 않았다).
+    if (!historical && r.memoryApplied) renderMemoryApplied(box, r.memoryApplied);
+    if (!historical && r.memoryWithdrawn) renderMemoryWithdrawn(box, r.memoryWithdrawn);
+    if (r.memoryStoreWarning) box.appendChild(el('sug-line', r.memoryStoreWarning));
+    // 승인은 카드 자체가 현재 상태다. 같은 내용을 별도 말풍선으로 반복하지 않는다.
     const card = el('card');
     card.appendChild(el('h4', '실행 전 승인이 필요해요'));
-    // P6-15: 현재 승인 모드를 조용히 표시(정책 아님, 판단을 보여줄 뿐). smart는 기본이라 굳이 강조 안 함.
-    const modeLabel = { manual: '수동', smart: '스마트', strict: '엄격' }[r.approvalMode];
-    if (modeLabel) card.appendChild(el('mode', `승인 모드: ${modeLabel} · 위험한 일만 멈춰서 확인해요`));
+    // 승인 모드 표시는 제거했다(오너 결정 2026-08-03) — 세 모드가 같은 답을 내게 되면서
+    // 사용자가 고를 수 있다고 믿는 죽은 버튼이 됐다. 마찰의 강도는 이제 헌장의 넷이 정한다.
     for (const p of r.pending) {
       const row = el('row');
       const cls = p.tier === 'A3' ? 'a3' : 'a2';
@@ -800,10 +1494,20 @@ function renderResult(r, opts = {}) {
         const w = el('why'); w.innerHTML = `<b>왜 확인하나요</b> ${esc(p.reason.why)}`; card.appendChild(w);
       }
       // P6-7: send류는 어디에/무엇을을 사용자 언어로 분명히 보여준다(문장 전체가 아니라 분리된 내용).
-      if (p.preview?.what != null || p.preview?.where != null) {
+      //
+      // 2026-07-27 정정: 여기가 **도구 미리보기 계약(previewOf)의 `scope`·`duration` 을 안 그렸다.**
+      // 계약도 데이터도 맞았는데 화면만 빠져서, 실측에서 모델이 작업 루트 이름을 경로에 또 넣어
+      // `~/GPAO-T5/GPAO-T5/메모5.md` 에 파일이 생겼는데도 카드에는 `메모5.md 에 저장해요`만 떴다 —
+      // 누르기 전에 알 길이 없었다. `local.process` 의 "끌 때까지 계속 돌아요(이 대화를 닫아도
+      // 남아 있어요)" 도 같은 이유로 한 번도 화면에 못 나왔다. **소스가 아니라 산출물을 봐야 한다.**
+      const 자리 = p.preview?.where ?? p.preview?.scope;
+      const 기간 = p.preview?.duration;
+      if (p.preview?.what != null || 자리 != null || 기간 != null) {
         const d = el('why');
-        if (p.preview.where != null) d.appendChild(el(null, `어디에: ${p.preview.where}`));
-        if (p.preview.what != null) d.appendChild(el(null, `무엇을: ${p.preview.what}`));
+        // 어디에 일어나는가 + 얼마나 지속되는가를 한 줄로. 승인 카드가 길어지면 기계적으로 누르게 된다.
+        if (자리 != null) d.appendChild(el(null, `어디에: ${자리}${기간 != null ? ` · ${기간}` : ''}`));
+        else if (기간 != null) d.appendChild(el(null, `얼마나: ${기간}`));
+        if (p.preview.what != null) d.appendChild(el('pre', `무엇을: ${p.preview.what}`));
         card.appendChild(d);
       } else if (p.reason?.whatChanges) {
         const c = el('why'); c.innerHTML = `<b>무엇이 바뀌나요</b> ${esc(p.reason.whatChanges)}`; card.appendChild(c);
@@ -812,29 +1516,52 @@ function renderResult(r, opts = {}) {
       const rev = p.reason?.reversible ?? p.preview?.cancel;
       if (rev) { const rv = el('why'); rv.innerHTML = `<b>되돌리기</b> ${esc(rev)}`; card.appendChild(rv); }
     }
-    // 재접속(historical)이라도 그 승인이 아직 유효하면(activePendingIds) 다시 눌러 이어실행할 수 있다.
-    // 만료·해소돼 목록에 없으면 정직하게 지난 요청으로만 표시(죽은 버튼 금지).
-    const stillActive = historical ? (activePendingIds || []).includes(r.pendingId) : true;
+    // 현재 결과인지와 승인이 살아 있는지는 다른 사실이다. 마지막 결과라도 서버의 활성 목록에서
+    // 빠졌으면 만료·해소된 요청이다. historical은 비밀 입력면·제안의 현재성만 판단한다.
+    const stillActive = approvalIsActive(r.pendingId, activePendingIds, historical);
     if (!stillActive) { card.appendChild(el('row hist', '지난 승인 요청')); box.appendChild(card); return; }
     const btns = el('btns');
     const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '승인';
-    const no = document.createElement('button'); no.className = 'act no'; no.textContent = '보내지 마';
-    yes.onclick = async () => { card.remove(); renderResult(await turn({ approve: r.pendingId })); await loadSessions(); };
-    no.onclick = async () => { card.remove(); renderResult(await turn({ reject: r.pendingId })); await loadSessions(); };
+    const no = document.createElement('button'); no.className = 'act no';
+    // **모든 거절이 전송은 아니다.** 파일 저장·연결·실행에도 같은 버튼이 뜬다 —
+    // '보내지 마' 는 보내는 일에만 맞는 말이다(실측 2026-07-28: 파일 저장 카드에 이 말이 떴다).
+    no.textContent = '하지 마';
+    // 승인·거절 뒤에도 **서버 사실로 다시 투영한다** — 부분적으로 DOM 카드만 고치면
+    // 이번 턴이 무효화한 옛 카드가 화면에 그대로 남는다(G-1B 실측).
+    yes.onclick = async () => { card.remove(); await turn({ approve: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
+    no.onclick = async () => { card.remove(); await turn({ reject: r.pendingId }); await 대화다시그리기(); await loadSessions(); };
     btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
     box.appendChild(card); return;
   }
 
   const box = turnBox();
   box.appendChild(el('who', 'GPAO-T5'));
-  const bot = el('msg bot', r.reply);
-  if (r.nextSafeAction) bot.textContent += `\n\n다음: ${r.nextSafeAction}`;
-  box.appendChild(bot);
+  // 답변은 마크다운으로 그린다(원문 기호가 화면에 찍히지 않게). 안전은 renderMarkdown 이 진다 —
+  // 먼저 전부 escape 하고 우리가 만든 태그만 넣는다(수집한 페이지의 HTML 이 섞여도 글자로 보인다).
+  const 답문 = r.reply?.trim() ? r.reply : (r.nextSafeAction ?? '');
+  // 모델이 구조화 후보만 제출한 턴은 제안 카드가 곧 응답이다. 빈 답 말풍선을 먼저 만들지 않는다.
+  if (답문.trim()) {
+    const bot = el('msg bot');
+    renderMarkdownInto(bot, 답문);
+    box.appendChild(bot);
+  }
   renderRecord(box, r.ledger);
+  // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
+  // 거치지 않고 전용 통로로 저장소에 곧장 간다. 재접속 시엔 다시 띄우지 않는다(지난 요청이다).
+  if (!historical && r.surfaceRequest?.kind === 'secret_input') renderSecretInput(box, r.surfaceRequest);
   // 기억 승격 후보 — 대화를 막지 않고 조용히 제안(자동 승격 아님, 헌법 §3-5). 재접속 시엔 다시 안 띄운다.
   if (!historical && r.memorySuggestion) renderSuggestion(box, r.memorySuggestion);
+  // S1: 선언한 선호는 카드 없이 이미 반영됐다. 확인을 구하지 않고, 되돌릴 길만 곁에 둔다
+  // (봉인 실측: 그 확인 카드가 지킨 실제 위험은 0 이었다).
+  if (!historical && r.memoryApplied) renderMemoryApplied(box, r.memoryApplied);
+  if (!historical && r.memoryWithdrawn) renderMemoryWithdrawn(box, r.memoryWithdrawn);
+  if (r.memoryStoreWarning) box.appendChild(el('sug-line', r.memoryStoreWarning));
   // 자동화 제안 — 반복 신호를 조용히 제안(P6-3). 후보는 실행이 아니다: 승인 전엔 아무것도 실행 안 함.
-  if (!historical && r.automationSuggestion?.candidateId) renderAutomationSuggestion(box, r.automationSuggestion);
+  // **두 출처를 다 받는다.** 관찰(T-cell)은 `automationSuggestion`, 모델 제안은
+  // `automationProposal` 로 온다 — 이름이 갈려서 **모델이 낸 자동화 제안은 화면에 한 번도
+  // 뜬 적이 없다**(F-11, 라이브 3회 재현). 어느 쪽이든 사용자에겐 같은 카드다.
+  const 자동화후보 = r.automationSuggestion ?? r.automationProposal;
+  if (!historical && 자동화후보?.candidateId) renderAutomationSuggestion(box, 자동화후보);
   // 능력 부족 통합 안내(2.0-C-0) — 커넥터(연결)·도구(준비)를 하나의 카드로. 제안과 달리 "작업 복귀 경로"라
   // 재접속/새로고침(historical)에도 남긴다. 버튼은 실제 다음 행동만 수행(죽은 버튼 아님). 승인/대상확인은
   // 각각 approval·clarify 흐름이 담당(패킷은 그 분류도 담지만 렌더는 여기서 연결/도구만).
@@ -869,7 +1596,7 @@ function renderDeliveryFailed(box, df) {
 function renderPatternCandidate(box, pc) {
   const card = el('suggest');
   card.appendChild(el('sug-t', '이 도구의 기본 대상으로 기억할까요?'));
-  card.appendChild(el('sug-s', `${pc.target}`));
+  card.appendChild(el('sug-s', `${pc.targetLabel ?? '확인된 대상'}`));
   // 숨은 전역 영향 금지 — 범위를 사용자 언어로 정직하게(이 슬라이스는 모든 대화 공통).
   card.appendChild(el('sug-line', '모든 대화에서 이 도구의 기본 대상으로 기억해요. 다음엔 "어디로?"를 묻지 않아요. 보낼 때 승인은 계속 받고, 되돌릴 수 있어요.'));
   const btns = el('btns');
@@ -879,7 +1606,7 @@ function renderPatternCandidate(box, pc) {
     card.remove();
     if (!r.ok) { box.appendChild(el('sug-done', r.userSafeReason ? `설정하지 않았어요. ${r.userSafeReason}` : '설정하지 않았어요.')); return; }
     const done = el('sug-done');
-    done.appendChild(el('sug-line', `모든 대화에서 이 도구는 ${r.target}로 보내요(기본 대상, 승인은 계속 받아요).`));
+    done.appendChild(el('sug-line', `모든 대화에서 이 도구는 ${r.targetLabel ?? '확인된 대상'}로 보내요(기본 대상, 승인은 계속 받아요).`));
     const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기'; undo.style.marginTop = 'var(--sp-2)';
     undo.onclick = async () => {
       await fetch('/patterns/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: r.tool }) });
@@ -930,22 +1657,85 @@ function renderAutomationSuggestion(box, sug) {
   card.appendChild(el('sug-s', `"${sug.statement}"`));
   card.appendChild(el('sug-line', '승인 전엔 아무것도 실행하지 않아요. 켜도 범위·만료(기본 30일)·취소가 있고 실행은 원장에 남아요.'));
   const btns = el('btns');
-  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '자동화 승인';
+  const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = '자동화 설정';
   const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
   yes.onclick = async () => {
-    const expiresAt = Date.now() + 30 * 24 * 3600 * 1000; // 기본 30일 범위 — 만료·재승인 보장(무기한 금지)
-    const r = await (await fetch('/automation/approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId, expiresAt }) })).json();
-    card.remove();
-    if (!r.ok) { box.appendChild(el('sug-done', '자동화를 켜지 못했어요.')); return; }
-    const done = el('sug-done');
-    done.appendChild(el('sug-line', `자동화를 예약했어요${r.external ? ' (외부 전송 — 승인 범위 유지)' : ''}. 30일 후 만료돼요.`));
-    const cancel = document.createElement('button'); cancel.className = 'act no'; cancel.textContent = '취소'; cancel.style.marginTop = 'var(--sp-2)';
-    cancel.onclick = async () => {
-      await fetch('/automation/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: r.jobId }) });
-      done.replaceChildren(el('sug-line', '자동화를 취소했어요. 앞으로 실행하지 않아요.'));
+    yes.disabled = true;
+    const setup = await (await fetch(`/automation/setup?candidateId=${encodeURIComponent(sug.candidateId)}`)).json();
+    yes.disabled = false;
+    if (!setup.ok || !setup.skills?.length || !setup.profiles?.length) {
+      // **막다른 답 금지.** 예전엔 "활성 스킬이 아직 없어요."로 끝났다 — 사용자는 무엇을
+      // 해야 하는지 모른 채 카드만 닫았다. T5 의 자동화는 **이미 배운 일을 정해진 시각에
+      // 반복**하는 것이므로, 아직 배운 것이 없으면 그 사실과 **다음 한 걸음**을 함께 말한다.
+      const reason = !setup.skills?.length
+        ? '이 일을 자동으로 맡길 준비가 아직 안 됐어요. 같은 일을 한 번 저와 함께 해 보면 그걸 배워서 반복할 수 있어요.'
+        : !setup.profiles?.length
+          ? '이 일을 맡을 담당이 아직 없어요. "이 일만 맡을 담당을 만들어줘"라고 말해 주시면 만들어 둘게요.'
+          : (setup.error ?? '설정 정보를 불러오지 못했어요.');
+      card.appendChild(el('sug-line', reason));
+      return;
+    }
+    btns.remove();
+    const form = el('sug-line');
+    const select = (items) => {
+      const node = document.createElement('select');
+      for (const item of items) {
+        const option = document.createElement('option'); option.value = item.id; option.textContent = item.label;
+        node.appendChild(option);
+      }
+      return node;
     };
-    done.appendChild(cancel);
-    box.appendChild(done);
+    const skill = select(setup.skills);
+    const profile = select(setup.profiles);
+    const fixedTrigger = setup.candidate?.trigger ?? null;
+    const cadence = document.createElement('select');
+    cadence.innerHTML = '<option value="weekly">매주</option><option value="daily">매일</option>';
+    const time = document.createElement('input'); time.type = 'time'; time.value = '09:00';
+    form.append('스킬 ', skill, ' · 담당 ', profile);
+    if (fixedTrigger) {
+      const days = fixedTrigger.kind === 'weekly' ? ` · 요일 ${fixedTrigger.weekdays.join(',')}` : '';
+      form.append(` · ${fixedTrigger.kind}${days} · ${fixedTrigger.localTime ?? new Date(fixedTrigger.at).toLocaleString()}`);
+    } else {
+      form.append(' · ', cadence, ' ', time);
+    }
+    const confirm = document.createElement('button'); confirm.className = 'act primary'; confirm.textContent = '이 설정으로 켜기';
+    const back = document.createElement('button'); back.className = 'act no'; back.textContent = '닫기';
+    confirm.onclick = async () => {
+      confirm.disabled = true;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const now = Date.now();
+      const trigger = fixedTrigger ?? (cadence.value === 'daily'
+        ? { kind: 'daily', timezone, localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' }
+        : { kind: 'weekly', timezone, weekdays: [new Date().getDay()], localTime: time.value, nextRunAt: now, misfirePolicy: 'catch_up_once' });
+      const response = await fetch('/automation/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: sug.candidateId, candidateRevision: setup.candidate?.revision,
+          controlRef: setup.candidate?.controlRef,
+          skillId: skill.value, agentProfileId: profile.value,
+          trigger,
+          ...(setup.candidate?.operation === 'update'
+            ? {} : { expiresAt: now + 30 * 24 * 3600 * 1000, maxRuns: 30 }),
+        }),
+      });
+      const r = await response.json();
+      confirm.disabled = false;
+      if (!response.ok || !r.ok) { form.appendChild(el('sug-line', r.error ?? '자동화를 켜지 못했어요.')); return; }
+      card.remove();
+      const done = el('sug-done');
+      done.appendChild(el('sug-line', '자동화를 예약했어요. 30일 뒤에는 다시 확인받아요.'));
+      const cancel = document.createElement('button'); cancel.className = 'act no'; cancel.textContent = '취소'; cancel.style.marginTop = 'var(--sp-2)';
+      cancel.onclick = async () => {
+        const response = await fetch('/automation/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: r.jobId }) });
+        if (!response.ok) { done.appendChild(el('sug-line', '취소하지 못했어요. 자동화 목록에서 상태를 확인해 주세요.')); return; }
+        done.replaceChildren(el('sug-line', '자동화를 취소했어요. 앞으로 실행하지 않아요.'));
+      };
+      done.appendChild(cancel);
+      box.appendChild(done);
+    };
+    back.onclick = () => card.remove();
+    const controls = el('btns'); controls.appendChild(confirm); controls.appendChild(back);
+    card.appendChild(form); card.appendChild(controls);
   };
   no.onclick = () => card.remove();
   btns.appendChild(yes); btns.appendChild(no); card.appendChild(btns);
@@ -953,16 +1743,131 @@ function renderAutomationSuggestion(box, sug) {
 }
 
 // 기억 후보를 조용히 제안. preference=바로 기억, operating_principle=검토(replay) 후 적용.
+/**
+ * 비밀 입력창 (P5-B-1B). 리모컨의 **배터리 뚜껑**이지 회로도가 아니다 —
+ * 사용자는 값을 넣을 뿐이고, 어디에 어떻게 저장되는지는 T5 가 다룬다.
+ *
+ * 값은 이 카드에서 `/connectors/secret` 으로만 나간다. 대화 입력창을 거치지 않으므로
+ * transcript·원장·모델 입력 어디에도 남지 않는다. **화면에서도 기본은 가림이다.**
+ */
+function renderSecretInput(box, req) {
+  const card = el('card');
+  card.appendChild(el('h4', `${req.label} 연결`));
+  card.appendChild(el('row', '아래 값은 이 창에서 바로 안전한 곳에 저장돼요. 대화에는 남지 않아요.'));
+  // **값을 어디서 받아오는지까지 T5 가 안내한다.** 사용자가 주소를 찾아 헤매지 않게,
+  // 그리고 "개발자센터에서 앱을 등록하세요" 같은 말을 사용자가 해석하지 않아도 되게.
+  if (req.issue?.url || req.issue?.steps?.length) {
+    for (const s of req.issue.steps ?? []) card.appendChild(el('row', `· ${s}`));
+    if (req.issue.url) {
+      const open = document.createElement('button');
+      open.className = 'act'; open.type = 'button';
+      open.textContent = req.issue.buttonLabel ?? '받으러 가기';
+      open.onclick = () => window.open(req.issue.url, '_blank', 'noopener');
+      card.appendChild(open);
+    }
+  }
+  const 칸들 = new Map();
+  for (const f of req.fields ?? []) {
+    const wrap = el('row');
+    const label = document.createElement('label');
+    label.textContent = f.label;
+    label.style.cssText = 'display:block;font-size:.85em;opacity:.8;margin-bottom:.25em';
+    const input = document.createElement('input');
+    input.type = f.secret ? 'password' : 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.style.cssText = 'width:100%;padding:.5em;font-family:inherit';
+    if (f.hint) input.placeholder = f.hint;
+    wrap.appendChild(label); wrap.appendChild(input);
+    if (f.secret) {
+      // 보기/숨기기는 있되 **기본은 숨김**. 어깨너머로 읽히는 것도 유출이다.
+      const toggle = document.createElement('button');
+      toggle.className = 'act'; toggle.type = 'button'; toggle.textContent = '보기';
+      toggle.onclick = () => {
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? '보기' : '숨기기';
+      };
+      wrap.appendChild(toggle);
+    }
+    card.appendChild(wrap);
+    칸들.set(f.name, input);
+  }
+  const 결과 = el('row');
+  const save = document.createElement('button');
+  save.className = 'act primary'; save.textContent = '저장하고 연결 확인';
+  save.onclick = async () => {
+    save.disabled = true; 결과.textContent = '확인하는 중…';
+    const values = {};
+    for (const [k, input] of 칸들) values[k] = input.value;
+    let r;
+    try {
+      r = await (await fetch('/connectors/secret', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ connector: req.connector, values }),
+      })).json();
+    } catch { r = { ok: false, userSafeSummary: '지금 저장하지 못했어요. 잠시 뒤 다시 해주세요.' }; }
+    // **성공이든 실패든 입력칸을 비운다.** 화면에 남은 값도 유출 경로다.
+    for (const input of 칸들.values()) input.value = '';
+    save.disabled = false;
+    결과.textContent = r.ok ? (r.userSafeSummary ?? '연결됐어요.')
+      : `${r.userSafeSummary ?? '연결하지 못했어요.'}${r.nextSafeAction ? ` ${r.nextSafeAction}` : ''}`;
+    if (r.ok) { card.querySelectorAll('input,button').forEach((n) => { n.disabled = true; }); }
+  };
+  card.appendChild(save);
+  card.appendChild(결과);
+  box.appendChild(card);
+}
+
+// 반영 알림 — 묻지 않는다. "이렇게 기억해 뒀어요"와 되돌리기 한 번.
+function renderMemoryApplied(box, applied) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', '이렇게 기억해 뒀어요'));
+  card.appendChild(el('sug-s', `"${applied.statement}"`));
+  if (applied.receiptWritten === false) {
+    card.appendChild(el('sug-line', '반영은 했지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+  }
+  const btns = el('btns');
+  const undo = document.createElement('button');
+  undo.className = 'act'; undo.textContent = '되돌리기';
+  undo.onclick = async () => {
+    undo.disabled = true;
+    const res = await fetch('/memory/rollback', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ candidateId: applied.undoId }),
+    }).then((x) => x.json()).catch(() => null);
+    card.replaceChildren(el('sug-t', res?.rolledBack ? '되돌렸어요' : '되돌리지 못했어요'));
+  };
+  btns.appendChild(undo);
+  card.appendChild(btns);
+  box.appendChild(card);
+}
+
+// 철회 알림 — 무엇을 지웠는지 사람 말로. 승인 절차를 늘리지 않는다.
+function renderMemoryWithdrawn(box, w) {
+  const card = el('suggest');
+  card.appendChild(el('sug-t', '그 기억은 지웠어요'));
+  card.appendChild(el('sug-s', `"${w.statement}"`));
+  if (w.receiptWritten === false) {
+    card.appendChild(el('sug-line', '지웠지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+  }
+  box.appendChild(card);
+}
+
 function renderSuggestion(box, sug) {
   const isPrin = sug.kind === 'operating_principle';
   const card = el('suggest');
   card.appendChild(el('sug-t', isPrin ? '운영 원칙으로 기억할까요? (검토 후 적용)' : '이걸 기본으로 기억할까요?'));
   card.appendChild(el('sug-s', `"${sug.statement}"`));
+  // 후보가 생길 때(proposed) 영수증이 빠졌으면 카드가 처음부터 그 사실을 보인다(감사 지적).
+  if (sug.receiptWritten === false) {
+    card.appendChild(el('sug-line', '후보는 적었지만 기록은 남기지 못했어요. 기록 상태를 확인해 주세요.'));
+    receiptNote();
+  }
   const btns = el('btns');
   const yes = document.createElement('button'); yes.className = 'act primary'; yes.textContent = isPrin ? '검토 후 적용' : '기억하기';
   const no = document.createElement('button'); no.className = 'act no'; no.textContent = '아니요';
   yes.onclick = async () => {
-    const r = await (await fetch('/memory/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: sug.candidateId }) })).json();
+    const r = await memAction('/memory/confirm', { candidateId: sug.candidateId });
     card.remove();
     if (!r.ok) {
       box.appendChild(el('sug-done', r.reason === 'replay_failed' ? '과거와 충돌해 적용하지 않았어요.' : '적용하지 않았어요.'));
@@ -971,11 +1876,12 @@ function renderSuggestion(box, sug) {
     // 권한 표면(감사 보정): 무엇을·어디에 반영·되돌리기. 운영원리는 "기본 검토"로 정직하게.
     const done = el('sug-done');
     const head = isPrin ? '원칙으로 기억했어요 (기본 검토).' : '기억했어요.';
-    done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.`));
+    const 영수증꼬리 = r.receiptWritten === false ? ' (기록은 남기지 못했어요 — 기록 상태를 확인해 주세요.)' : '';
+    done.appendChild(el('sug-line', `${head} 앞으로 ${r.influenceScope ?? '관련된 이후 대화'}에 반영해요.${영수증꼬리}`));
     const undo = document.createElement('button'); undo.className = 'act no'; undo.textContent = '되돌리기';
     undo.style.marginTop = 'var(--sp-2)';
     undo.onclick = async () => {
-      await fetch('/memory/rollback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: r.candidateId }) });
+      await memAction('/memory/rollback', { candidateId: r.candidateId });
       done.replaceChildren(el('sug-line', '되돌렸어요. 앞으로 반영하지 않아요.'));
     };
     done.appendChild(undo);
@@ -988,27 +1894,48 @@ function renderSuggestion(box, sug) {
 
 async function submit() {
   const t = text.value.trim(); if (!t) return;
+  const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
+  // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
+  // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
+  const 멈춤 = el('stopbtn'); 멈춤.textContent = '멈추기';
+  멈춤.onclick = async () => {
+    멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';
+    await fetch('/turn/cancel', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    }).catch(() => {});
+    trace.textContent = '멈추는 중이에요 — 하던 걸음까지만 끝내요…';
+  };
+  box.appendChild(멈춤);
+  const 멈춤치우기 = () => 멈춤.remove();
+  const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
-    const recovery = await streamTurn(t, trace);
+    const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
+    const recovery = streamed.recovery;
     trace.remove();
     if (recovery) {
       renderRecovery(box, recovery);
+      await streamed.reportComplete();
       return;
     }
-    const sess = await (await fetch(`/sessions/${currentSessionId}`)).json();
-    const last = (sess.transcript || []).filter((e) => e.role === 'assistant').at(-1);
-    if (last) renderResult(last.result); // 스트림이 실행·지속한 그 결과(중복 실행 없음)
-    scrollToBottom(); // 최종 결과로 교체된 뒤에도 아래를 보고 있게
+    // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
+    // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
+    // 통째로 갈아끼우므로 "따라 보고 있었는가"를 **미리** 재야 한다(아래 자리지키며 주석).
+    await 자리지키며(async () => 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json()));
+    await streamed.reportComplete();
     await loadSessions();
   } catch {
     trace.remove();
     sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    멈춤치우기(); // 오류로 끝나도 버튼이 남지 않는다
   }
 }
 
@@ -1021,9 +1948,28 @@ function renderRecovery(box, r) {
 
 // 진행 상태를 조용히 표시. 모델 사고 원문이 아니라 trace_status/tool_progress 등 사용자 언어 상태만.
 // 사용자 원문은 POST 본문으로만 보내고(URL 노출 금지), streamId로만 구독한다(프라이버시).
-async function streamTurn(t, trace) {
+function afterVisiblePaint(startedAt) {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+    elapsedMs: performance.now() - startedAt,
+    visibilityState: ['visible', 'hidden', 'prerender'].includes(document.visibilityState)
+      ? document.visibilityState : 'hidden',
+  }))));
+}
+
+async function reportVisibleTiming(measurementId, event, sample) {
+  if (!measurementId || !sample) return;
+  await fetch('/turn/metrics/visible', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    keepalive: true,
+    body: JSON.stringify({ measurementId, event, ...sample }),
+  }).catch(() => {}); // 계측 실패가 대화 흐름을 막지 않는다
+}
+
+async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
   const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t }) })).json();
   if (!start.streamId) throw new Error('stream-start');
+  firstFeedbackPaint.then((sample) => reportVisibleTiming(start.measurementId, 'first_feedback_visible', sample));
   return new Promise((resolve, reject) => {
     const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
     const es = new EventSource(url);
@@ -1046,36 +1992,92 @@ async function streamTurn(t, trace) {
     // P-STR-1: 답변 조각을 오는 대로 그린다(미리보기). 완료되면 지속된 결과로 **교체**한다 —
     // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
     let preview = null;
+    let previewText = '';
+    let firstGroundedReported = false;
+    // P90-2: 확인된 중간 결과. 기다리는 동안 화면이 비어 있지 않게, **이미 일어난 사실만**
+    // 쌓는다(성공 영수증의 사용자 문장 — 커널이 실행 뒤에만 내보낸다). 미리보기와 같은
+    // 계약이다: 진행 중엔 보이고 완료되면 지속된 결과가 대체한다.
+    let steps = null;
+    const markGrounded = () => {
+      if (firstGroundedReported) return;
+      firstGroundedReported = true;
+      afterVisiblePaint(surfaceStartedAt).then((sample) => reportVisibleTiming(
+        start.measurementId, 'first_grounded_content', sample,
+      ));
+    };
+    es.addEventListener('partial_result', (e) => {
+      try {
+        const { text } = JSON.parse(e.data);
+        if (!text) return;
+        if (!steps) {
+          steps = document.createElement('div');
+          steps.className = 'msg steps';
+          trace.parentNode.insertBefore(steps, trace);
+        }
+        const line = document.createElement('div');
+        line.textContent = text;          // OS 가 만든 문장 — 마크다운으로 해석하지 않는다
+        steps.appendChild(line);
+        markGrounded();                   // 확인된 사실이 화면에 닿은 순간이 첫 유용한 내용이다
+        scrollToBottom();
+      } catch {}
+    });
+    // **되돌린 답은 앞의 것을 지우고 다시 쓴다**(F-8). 이어붙이면 서로 어긋난 두 답이
+    // 한 답으로 보인다 — 라이브에서 "터미널로 가져올게요" 뒤에 "직접 실행할 수는 없어요"가 붙었다.
+    es.addEventListener('answer_reset', () => {
+      previewText = '';
+      if (preview) renderMarkdownInto(preview, '');
+    });
     es.addEventListener('answer_delta', (e) => {
       try {
         const { text: piece } = JSON.parse(e.data);
         if (!piece) return;
         if (!preview) {
           trace.textContent = '';
+          // 확인된 중간 결과는 **기다림을 채우는 것**이다. 답이 오기 시작하면 채울 공백이
+          // 없으므로 자리를 내준다 — 남겨두면 같은 사실을 두 번 말하는 화면이 된다.
+          steps?.remove(); steps = null;
           preview = document.createElement('div');
           preview.className = 'msg';
           trace.parentNode.insertBefore(preview, trace);
         }
-        preview.textContent += piece;
+        previewText += piece;
+        renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
+        markGrounded();
         scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
       } catch {}
     });
-    es.addEventListener('complete', () => { done = true; preview?.remove(); es.close(); resolve(recovery); });
-    es.onerror = () => { es.close(); done ? resolve() : reject(new Error('stream')); };
+    const completed = () => ({
+      recovery,
+      reportComplete: async () => reportVisibleTiming(
+        start.measurementId, 'turn_complete', await afterVisiblePaint(surfaceStartedAt),
+      ),
+    });
+    // 임시 표면은 **스트림이 끝나면** 걷는다. 완료만 끝이 아니다 — 끊긴 턴에서도 끝난다.
+    // 철거를 완료 한 곳에만 걸면, 연결이 끊겼을 때 검증 안 된 미리보기 답과 확인 사실이
+    // "연결에 문제가 있었어요" 아래에 그대로 눌러앉는다.
+    const 임시표면정리 = () => { preview?.remove(); preview = null; steps?.remove(); steps = null; };
+    es.addEventListener('complete', () => { done = true; 임시표면정리(); es.close(); resolve(completed()); });
+    es.onerror = () => { 임시표면정리(); es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
   });
 }
 send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
-text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
+// 한글·일본어·중국어는 **조합 중**에 Enter 가 온다(조합 확정 Enter). 그때 보내면 확정되지 않은
+// 마지막 글자가 입력칸에 남아 다음 말 앞에 붙는다 — "단어 끝 글자가 자동으로 입력된다"의 정체다.
+// 문장에 띄어쓰기가 있으면 이미 조합이 끝나 있어 증상이 안 보였다(오너 실사용 지적).
+text.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  if (e.isComposing || e.keyCode === 229) return; // 조합 확정용 Enter — 보내지 않는다
+  e.preventDefault();
+  submit();
+});
 
 // ── 첫 실행 온보딩 (P-ONB-2) ── 새 화면을 만들지 않는다. 모델 연결 패널을 펼쳐 두고
 //   "무엇을 얻는지" 언어로 한 줄 안내 + 건너뛰기. 서버가 needed 를 판정한다(URL 쿼리 아님).
 async function maybeRunOnboarding() {
   const ob = await (await fetch('/onboarding')).json().catch(() => null);
   if (!ob?.needed || !ob.canConnect) return false;
-  statePanel.style.display = 'block';
-  await refreshOverview();
-  await renderModelConnect();
+  await openSettings('model');
   const box = document.getElementById('modelConnect');
   if (box && !document.getElementById('obNote')) {
     const note = document.createElement('div');
@@ -1087,7 +2089,7 @@ async function maybeRunOnboarding() {
     document.getElementById('obSkip').onclick = async () => {
       await fetch('/onboarding/skip', { method: 'POST' });
       note.remove();
-      statePanel.style.display = 'none';
+      closeSettings();
     };
   }
   return true;
@@ -1107,6 +2109,7 @@ async function maybeWelcome(sessionId) {
 
 // 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
 (async () => {
+  await refreshInitialModelStatus();
   try {
     const { sessions } = await (await fetch('/sessions')).json();
     if (sessions.length) await selectSession(sessions[0].id);

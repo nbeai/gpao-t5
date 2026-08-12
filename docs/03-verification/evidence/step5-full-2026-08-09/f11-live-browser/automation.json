@@ -1,0 +1,1 @@
+{"schemaVersion":2,"candidates":[{"candidateId":"82809dcf-f739-4fd5-bfd8-62d5f3c76af6","statement":"매주 월요일 아침에 지난주 정산 정리해서 알려줘","kind":"weekly","action":{"tool":"local.file","args":{}},"state":"proposed","approved":false,"createdAt":1786198040267}],"jobs":[]}

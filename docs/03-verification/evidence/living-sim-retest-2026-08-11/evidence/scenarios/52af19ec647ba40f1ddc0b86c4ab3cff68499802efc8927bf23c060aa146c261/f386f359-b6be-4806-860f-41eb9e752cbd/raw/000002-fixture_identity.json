@@ -1,0 +1,68 @@
+{
+  "type": "fixture_identity",
+  "files": [
+    {
+      "name": "고객_인터뷰.txt",
+      "path": "/private/tmp/t5-ls-Nq3eA2/fixture/고객_인터뷰.txt",
+      "sha256": "65228626ee7b01958a8d3eecf8f5be7e13f5b190bf16b01faca59af617bd4028"
+    },
+    {
+      "name": "브랜드_메모.md",
+      "path": "/private/tmp/t5-ls-Nq3eA2/fixture/브랜드_메모.md",
+      "sha256": "8ae5ce33a36b9e5a2cd7acff3666ac03684e9c450f9069f9eb85031c5a986053"
+    }
+  ],
+  "web": null,
+  "frozenTurns": [
+    {
+      "entryIndex": 0,
+      "inputKind": "user_text",
+      "frozen": "두 자료를 읽고 봄 꽃다발 안내문에 꼭 들어갈 내용을 먼저 추려줘.",
+      "rendered": "두 자료를 읽고 봄 꽃다발 안내문에 꼭 들어갈 내용을 먼저 추려줘."
+    },
+    {
+      "entryIndex": 1,
+      "inputKind": "user_text",
+      "frozen": "대상은 처음 주문하는 사람이고, 너무 광고처럼 쓰지 마.",
+      "rendered": "대상은 처음 주문하는 사람이고, 너무 광고처럼 쓰지 마."
+    },
+    {
+      "entryIndex": 2,
+      "inputKind": "user_text",
+      "frozen": "초안을 대화에 먼저 보여줘. 아직 파일은 만들지 말고.",
+      "rendered": "초안을 대화에 먼저 보여줘. 아직 파일은 만들지 말고."
+    },
+    {
+      "entryIndex": 3,
+      "inputKind": "user_text",
+      "frozen": "할인 얘기는 빼고 주문 방법을 더 쉽게 고쳐줘.",
+      "rendered": "할인 얘기는 빼고 주문 방법을 더 쉽게 고쳐줘."
+    },
+    {
+      "entryIndex": 4,
+      "inputKind": "user_text",
+      "frozen": "좋아. 같은 폴더에 봄꽃다발_안내문.md로 저장해줘.",
+      "rendered": "좋아. 같은 폴더에 봄꽃다발_안내문.md로 저장해줘."
+    },
+    {
+      "entryIndex": 5,
+      "inputKind": "action",
+      "action": "approve_current_if_present",
+      "frozen": {
+        "action": "approve_current_if_present"
+      }
+    },
+    {
+      "entryIndex": 6,
+      "inputKind": "user_text",
+      "frozen": "저장한 걸 다시 읽고 지역, 마감 시간, 주문 방법이 빠지지 않았는지 확인해줘.",
+      "rendered": "저장한 걸 다시 읽고 지역, 마감 시간, 주문 방법이 빠지지 않았는지 확인해줘."
+    },
+    {
+      "entryIndex": 7,
+      "inputKind": "user_text",
+      "frozen": "실제로 만든 것과 아직 하지 않은 일을 나눠서 한 문장씩 말해줘.",
+      "rendered": "실제로 만든 것과 아직 하지 않은 일을 나눠서 한 문장씩 말해줘."
+    }
+  ]
+}

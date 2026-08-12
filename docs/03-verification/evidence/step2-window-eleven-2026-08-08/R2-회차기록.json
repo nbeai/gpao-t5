@@ -1,0 +1,68 @@
+{
+  "회차": 2,
+  "시각": "2026-08-07T15:52:16.512Z",
+  "productCommit": "b66d84d40bd8dc0c65e4e5f529cb24b2444a3487",
+  "미커밋": [
+    "M scripts/s1/preflight.mjs",
+    " M src/kernel/l1-intent/conversation.js",
+    " M src/kernel/l1-intent/task-context.js",
+    " M src/kernel/turn.js",
+    " M src/runtime/local-locate.js",
+    " M src/surface/model-connection.js",
+    " M src/surface/server.js",
+    " M test/s1-preflight.test.js",
+    "?? src/kernel/l1-intent/model-window.js",
+    "?? test/r8-say-what-period-the-folder-holds.test.js",
+    "?? test/w-window-budget-feeds-the-limits.test.js"
+  ],
+  "model": "gpt-5.1",
+  "방": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-round2-xvTjqk",
+  "고정물지문": {
+    "GPAO-T5/2026-07 정산/2026-07 매출정산.csv": "d5fc0480f1e6",
+    "GPAO-T5/2026-07 정산/7월 정산내역.csv": "fa3234984063",
+    "GPAO-T5/2026-08 정산/2026-08 매출정산.csv": "a26c08c269c3",
+    "GPAO-T5/2026-08 정산/8월 정산내역.csv": "ec7a01ca67fb",
+    "GPAO-T5/보관/2026-06 정산/2026-06 매출정산.csv": "96f6e19889d2",
+    "GPAO-T5/보관/2026-06 정산/6월 정산내역.csv": "4fa201043cf6",
+    "GPAO-T5/보관/2026-06 정산/정산_0615.csv": "6242f99fc8bc",
+    "GPAO-T5/메모7.md": "1d3be51c80b9",
+    "GPAO-T5/메모8.md": "09c7a7afdccb",
+    "GPAO-T5/정리본.md": "072229de9744",
+    "GPAO-T5/견적서_A사_최종.csv": "48c87ea7dc5d"
+  },
+  "격리증명": [
+    {
+      "항목": "파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)",
+      "통과": true,
+      "사실": "scopeRoots=[\"/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-round2-xvTjqk/GPAO-T5\"]"
+    },
+    {
+      "항목": "파일 손의 ~/Documents 가 오너 홈이 아니다",
+      "통과": true,
+      "사실": "격리 방의 Documents 를 본다"
+    },
+    {
+      "항목": "터미널 기본 자리가 격리 홈",
+      "통과": true,
+      "사실": "cwd=격리 루트"
+    },
+    {
+      "항목": "터미널 `~` 가 격리 방이다(표식으로 확인)",
+      "통과": true,
+      "사실": "exit=0"
+    }
+  ],
+  "문항": {
+    "⑪": {
+      "kind": "reply",
+      "동반": {
+        "확인": 0,
+        "미확인": 0,
+        "뻗었나": false
+      },
+      "답": "아침에 보리차 마셨다고 한 거 말하는 거지?"
+    }
+  },
+  "계측기": null,
+  "전제": {}
+}

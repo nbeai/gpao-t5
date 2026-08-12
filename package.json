@@ -1,9 +1,9 @@
 {
   "name": "gpao-t5",
-  "version": "0.0.0-slice1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "GPAO-T5 Original AI Operating System — First Build Slice (Work Chat kernel vertical)",
+  "description": "GPAO-T5 Original AI Operating System — local development build",
   "engines": {
     "node": ">=20"
   },
@@ -12,12 +12,23 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "vendor"
   ],
   "scripts": {
-    "test": "node --test",
+    "audit:compare-live": "python3 scripts/compare-live/compare_contract.py",
+    "test": "node --test --test-concurrency=3",
     "start": "node src/surface/server.js",
+    "audit:workspace": "node scripts/audit-project-entry.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "gate": "node scripts/gate.mjs"
+    "gate": "node scripts/gate.mjs",
+    "live:charter": "node scripts/live/charter.mjs",
+    "audit:docs": "node scripts/audit-docs.mjs",
+    "audit:plan": "node scripts/audit-plan.mjs",
+    "audit:mutation": "node scripts/audit-mutation.mjs",
+    "p90-1:live-reseal": "node scripts/production90/p90-1-live-reseal.mjs",
+    "human-use:prepare": "node scripts/human-use/prepare.mjs",
+    "human-use:verify": "node scripts/human-use/verify-evidence.mjs",
+    "preview:isolated": "GPAO_T5_DATA_DIR=/tmp/t5-preview-state GPAO_T5_HOME=/tmp/t5-preview-home node src/surface/server.js"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "type": "started",
+  "runId": "living-sim-v1-qualification-20260810-01",
+  "attemptId": "ec3fe869-6e26-4400-95eb-392b167ef581",
+  "executionKind": "headless_isolated",
+  "isolatedRoot": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-harness-qualification-E8bwJJ",
+  "recordedAt": "2026-08-09T19:30:43.325Z"
+}

@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 2,
+  "kind": "f65-workset-counterfactual-cell",
+  "runId": "f65-workset-matrix-postfix-20260810-v4::L5-workset-admin--W1P1O0",
+  "attemptId": "33a3edc0-442d-47ea-9fd7-8b6736ef59ad",
+  "status": "RECORDED",
+  "invalidReason": null,
+  "cell": {
+    "scenarioId": "L5-workset-admin",
+    "W": true,
+    "P": true,
+    "O": false,
+    "cellId": "L5-workset-admin--W1P1O0"
+  },
+  "source": {
+    "kind": "source",
+    "gitSha": "d7190844adef5609f553e689281bbec91cae99df",
+    "dirty": false,
+    "worktreeDigest": "7f782d1eb78c3315aee90b8b37910cc4980f0dd7538d17b5bba01bc94fc7a00f",
+    "changesDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "config": {
+    "path": "scripts/human-use/f65-workset-matrix-v1.json",
+    "sha256": "f80204bdb4455105e79a318a677c722f83c2bdd632e868a2b53d2ac75d7ae2f2"
+  },
+  "fixture": {
+    "rows": [
+      {
+        "name": "사업자등록증.txt",
+        "sha256": "1fbde3f10d0c080603de2a125dd15468b8a683d9705115af7072abd815e6d323",
+        "bytes": 32
+      },
+      {
+        "name": "임대차계약서.txt",
+        "sha256": "2eff88a2c8bc7b18abde842b55d3796fcc787968c4217277c662fc2c854718dc",
+        "bytes": 30
+      },
+      {
+        "name": "통장사본.txt",
+        "sha256": "b857404a88ec2f0239cedfd4540284099dadf8ffa4216e67f56f7d9fb49b4dc1",
+        "bytes": 24
+      }
+    ],
+    "sha256": "882afc52563d9638c173cf7785547353063a2592e67551ae27e1f2f8331f4cc3"
+  },
+  "isolation": {
+    "ok": true,
+    "결과": [
+      {
+        "항목": "파일 손이 보는 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "scopeRoots=[\"/private/tmp/t5-ls-cRc7Ns/fixture\"]"
+      },
+      {
+        "항목": "파일 손의 ~/Documents 가 오너 홈이 아니다",
+        "통과": true,
+        "사실": "격리 방의 Documents 를 본다"
+      },
+      {
+        "항목": "터미널 기본 자리가 격리 홈",
+        "통과": true,
+        "사실": "cwd=격리 루트"
+      },
+      {
+        "항목": "터미널 `~` 가 격리 방이다(표식으로 확인)",
+        "통과": true,
+        "사실": "exit=0"
+      }
+    ]
+  },
+  "machine": {
+    "firstToolTarget": {
+      "tool": "local.file",
+      "action": "list",
+      "target": "/private/tmp/t5-ls-cRc7Ns/fixture"
+    },
+    "sourceFilesReadCoverage": {
+      "read": [
+        "사업자등록증.txt",
+        "임대차계약서.txt",
+        "통장사본.txt"
+      ],
+      "total": 3
+    },
+    "userRestatementBurden": 0,
+    "derivedArtifactIdentity": {
+      "candidates": [
+        {
+          "identity": {
+            "path": "/private/tmp/t5-ls-cRc7Ns/fixture/신청준비_체크리스트.txt",
+            "relativePath": "신청준비_체크리스트.txt",
+            "sha256": "fcb8d9ad7bc2f3f1c52f5b7dcc1ea25be0320a3c27c582ef5f8b7a897fe2c699",
+            "bytes": 529,
+            "extension": ".txt",
+            "artifactKind": "preparation_checklist_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "contentRows": [
+            {
+              "fact": "사업자등록번호",
+              "present": true
+            },
+            {
+              "fact": "2026-12-31",
+              "present": true
+            },
+            {
+              "fact": "예금주",
+              "present": true
+            }
+          ],
+          "writeReceipts": [
+            {
+              "receiptRef": "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImFhNmRjM2IwLTU5MWQtNGM0Mi05ZGQzLTg0MzNiYjNiNThmNCIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NCwicmVjZWlwdERpZ2VzdCI6Ijg4ODNiZjY1MjM1ZDYxZTdjNWQwNDAyNjY3NTUzYTMyYjExYTgyNmYxMmM2ZmZhM2Y4NTE2MGRiMDQyMWJjMjIiLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTVzFHYUU1dFVtcE5Na2wzVEZSVk5VMVhVWFJPUjAwd1RXa3dOVnBIVVhwTVZHY3dUWHBPYVZscVRtbE9WR2h0VGtOSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzQxWTBSaFdWRlpSM1pQWTFVNFlsTjBaemRHUld4d1luSmpiWFoxTkVOV2RXRjRabUZJUVdGdGNEbEZJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUptTVdVeU56TmlPREl5WldRNFlUQXhOMlJpTlRVM1lUSmtNMkkwWm1JMU1qWTFNVGxqTWpFNE1qVmpaRFF3TTJSak1XUXdORE00WkdVeE9UQXpZalkzSW4wLi1udHZleFB4Rm10Y250bnJOd2EwV0NNckdCU2toOS1OWEJ2cUs0eWZiOXcifQ.6MY8bZg_qLuv_xCi7XR0fm1SjqnEHBNrZSt1EGEcY2Q",
+              "completionContractRef": "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29udHJhY3REaWdlc3QiOiJmMWUyNzNiODIyZWQ4YTAxN2RiNTU3YTJkM2I0ZmI1MjY1MTljMjE4MjVjZDQwM2RjMWQwNDM4ZGUxOTAzYjY3In0.-ntvexPxFmtcntnrNwa0WCMrGBSkh9-NXBvqK4yfb9w",
+              "deliverableRefs": [
+                "primary-file-output"
+              ],
+              "action": "write",
+              "lifecycle": "delivered"
+            }
+          ],
+          "pass": true
+        }
+      ],
+      "candidateCount": 1,
+      "validCount": 1,
+      "ambiguity": "single",
+      "sourceFilesUnchanged": {
+        "pass": true,
+        "changed": []
+      },
+      "workspaceBoundary": {
+        "pass": true,
+        "outsideSuccessful": []
+      },
+      "sourceOverwrite": {
+        "pass": true,
+        "receipts": []
+      },
+      "pass": true
+    },
+    "requiredContentCoverage": {
+      "candidates": [
+        {
+          "artifact": {
+            "path": "/private/tmp/t5-ls-cRc7Ns/fixture/신청준비_체크리스트.txt",
+            "relativePath": "신청준비_체크리스트.txt",
+            "sha256": "fcb8d9ad7bc2f3f1c52f5b7dcc1ea25be0320a3c27c582ef5f8b7a897fe2c699",
+            "bytes": 529,
+            "extension": ".txt",
+            "artifactKind": "preparation_checklist_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "rows": [
+            {
+              "fact": "사업자등록번호",
+              "present": true
+            },
+            {
+              "fact": "2026-12-31",
+              "present": true
+            },
+            {
+              "fact": "예금주",
+              "present": true
+            }
+          ],
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    "completionTruthConsistency": {
+      "ambiguity": "single",
+      "candidates": [
+        {
+          "artifact": {
+            "path": "/private/tmp/t5-ls-cRc7Ns/fixture/신청준비_체크리스트.txt",
+            "relativePath": "신청준비_체크리스트.txt",
+            "sha256": "fcb8d9ad7bc2f3f1c52f5b7dcc1ea25be0320a3c27c582ef5f8b7a897fe2c699",
+            "bytes": 529,
+            "extension": ".txt",
+            "artifactKind": "preparation_checklist_text_file",
+            "artifactKindMachineBasis": "new_regular_file_with_required_content"
+          },
+          "artifactPass": true,
+          "receiptRefs": [
+            "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImFhNmRjM2IwLTU5MWQtNGM0Mi05ZGQzLTg0MzNiYjNiNThmNCIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NCwicmVjZWlwdERpZ2VzdCI6Ijg4ODNiZjY1MjM1ZDYxZTdjNWQwNDAyNjY3NTUzYTMyYjExYTgyNmYxMmM2ZmZhM2Y4NTE2MGRiMDQyMWJjMjIiLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTVzFHYUU1dFVtcE5Na2wzVEZSVk5VMVhVWFJPUjAwd1RXa3dOVnBIVVhwTVZHY3dUWHBPYVZscVRtbE9WR2h0VGtOSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzQxWTBSaFdWRlpSM1pQWTFVNFlsTjBaemRHUld4d1luSmpiWFoxTkVOV2RXRjRabUZJUVdGdGNEbEZJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUptTVdVeU56TmlPREl5WldRNFlUQXhOMlJpTlRVM1lUSmtNMkkwWm1JMU1qWTFNVGxqTWpFNE1qVmpaRFF3TTJSak1XUXdORE00WkdVeE9UQXpZalkzSW4wLi1udHZleFB4Rm10Y250bnJOd2EwV0NNckdCU2toOS1OWEJ2cUs0eWZiOXcifQ.6MY8bZg_qLuv_xCi7XR0fm1SjqnEHBNrZSt1EGEcY2Q"
+          ],
+          "completionContractRefs": [
+            "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29udHJhY3REaWdlc3QiOiJmMWUyNzNiODIyZWQ4YTAxN2RiNTU3YTJkM2I0ZmI1MjY1MTljMjE4MjVjZDQwM2RjMWQwNDM4ZGUxOTAzYjY3In0.-ntvexPxFmtcntnrNwa0WCMrGBSkh9-NXBvqK4yfb9w"
+          ],
+          "matchingExecutionCompleted": [],
+          "recentOutcome": true,
+          "consistent": false,
+          "verifiedComplete": false
+        }
+      ],
+      "selected": {
+        "artifact": {
+          "path": "/private/tmp/t5-ls-cRc7Ns/fixture/신청준비_체크리스트.txt",
+          "relativePath": "신청준비_체크리스트.txt",
+          "sha256": "fcb8d9ad7bc2f3f1c52f5b7dcc1ea25be0320a3c27c582ef5f8b7a897fe2c699",
+          "bytes": 529,
+          "extension": ".txt",
+          "artifactKind": "preparation_checklist_text_file",
+          "artifactKindMachineBasis": "new_regular_file_with_required_content"
+        },
+        "artifactPass": true,
+        "receiptRefs": [
+          "rr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImFhNmRjM2IwLTU5MWQtNGM0Mi05ZGQzLTg0MzNiYjNiNThmNCIsInR1cm5TZXEiOjF9LCJ0dXJuT3JkaW5hbCI6NCwicmVjZWlwdERpZ2VzdCI6Ijg4ODNiZjY1MjM1ZDYxZTdjNWQwNDAyNjY3NTUzYTMyYjExYTgyNmYxMmM2ZmZhM2Y4NTE2MGRiMDQyMWJjMjIiLCJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29tcGxldGlvbkNvbnRyYWN0UmVmIjoiY3IxLmV5SjNiM0pyVW1WbUlqb2lkM0l4TG1WNVNqQmtXRXAxVlcxV2JVbHFjRGRKYms1c1l6Tk9jR0l5TlVwYVEwazJTVzFHYUU1dFVtcE5Na2wzVEZSVk5VMVhVWFJPUjAwd1RXa3dOVnBIVVhwTVZHY3dUWHBPYVZscVRtbE9WR2h0VGtOSmMwbHVVakZqYlRWVVdsaEZhVTlxUmpsTVEwb3pZak5LY2xRelNtdGhWelZvWWtOSk5rMUlNQzQxWTBSaFdWRlpSM1pQWTFVNFlsTjBaemRHUld4d1luSmpiWFoxTkVOV2RXRjRabUZJUVdGdGNEbEZJaXdpWTI5dWRISmhZM1JFYVdkbGMzUWlPaUptTVdVeU56TmlPREl5WldRNFlUQXhOMlJpTlRVM1lUSmtNMkkwWm1JMU1qWTFNVGxqTWpFNE1qVmpaRFF3TTJSak1XUXdORE00WkdVeE9UQXpZalkzSW4wLi1udHZleFB4Rm10Y250bnJOd2EwV0NNckdCU2toOS1OWEJ2cUs0eWZiOXcifQ.6MY8bZg_qLuv_xCi7XR0fm1SjqnEHBNrZSt1EGEcY2Q"
+        ],
+        "completionContractRefs": [
+          "cr1.eyJ3b3JrUmVmIjoid3IxLmV5SjBkWEp1VW1WbUlqcDdJbk5sYzNOcGIyNUpaQ0k2SW1GaE5tUmpNMkl3TFRVNU1XUXROR00wTWkwNVpHUXpMVGcwTXpOaVlqTmlOVGhtTkNJc0luUjFjbTVUWlhFaU9qRjlMQ0ozYjNKclQzSmthVzVoYkNJNk1IMC41Y0RhWVFZR3ZPY1U4YlN0ZzdGRWxwYnJjbXZ1NENWdWF4ZmFIQWFtcDlFIiwiY29udHJhY3REaWdlc3QiOiJmMWUyNzNiODIyZWQ4YTAxN2RiNTU3YTJkM2I0ZmI1MjY1MTljMjE4MjVjZDQwM2RjMWQwNDM4ZGUxOTAzYjY3In0.-ntvexPxFmtcntnrNwa0WCMrGBSkh9-NXBvqK4yfb9w"
+        ],
+        "matchingExecutionCompleted": [],
+        "recentOutcome": true,
+        "consistent": false,
+        "verifiedComplete": false
+      },
+      "consistent": false,
+      "verifiedComplete": false
+    },
+    "semantic": "PM_UNJUDGED"
+  },
+  "semantic": "PM_UNJUDGED",
+  "providerMeter": {
+    "observedCalls": 6,
+    "responseModelIds": [
+      "gpt-5.1-2025-11-13"
+    ],
+    "usage": {
+      "callsWithUsage": 6,
+      "promptTokens": 77657,
+      "completionTokens": 873,
+      "totalTokens": 78530,
+      "raw": [
+        {
+          "prompt_tokens": 14925,
+          "completion_tokens": 31,
+          "total_tokens": 14956,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 6766,
+          "completion_tokens": 25,
+          "total_tokens": 6791,
+          "prompt_tokens_details": {
+            "cached_tokens": 6144,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15254,
+          "completion_tokens": 87,
+          "total_tokens": 15341,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 15994,
+          "completion_tokens": 217,
+          "total_tokens": 16211,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 16471,
+          "completion_tokens": 265,
+          "total_tokens": 16736,
+          "prompt_tokens_details": {
+            "cached_tokens": 4096,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        {
+          "prompt_tokens": 8247,
+          "completion_tokens": 248,
+          "total_tokens": 8495,
+          "prompt_tokens_details": {
+            "cached_tokens": 4224,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      ]
+    },
+    "expectedUpperBoundsForMeteringOnly": {
+      "providerCallsPerCell": 12,
+      "totalTokensPerCell": 200000,
+      "enforced": false
+    },
+    "enforced": false
+  },
+  "protectedState": {
+    "path": "/Users/jyp/.local/state/gpao-t5",
+    "changed": []
+  },
+  "fixtureState": {
+    "sourcePaths": [
+      "/private/tmp/t5-ls-cRc7Ns/fixture/사업자등록증.txt",
+      "/private/tmp/t5-ls-cRc7Ns/fixture/임대차계약서.txt",
+      "/private/tmp/t5-ls-cRc7Ns/fixture/통장사본.txt"
+    ],
+    "changed": []
+  },
+  "rawEvidence": [
+    {
+      "name": "cell.json",
+      "sha256": "4727c160957e5bd6da591b76cf3bcce21a39641e921e6c6152f2ef20353609bc"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 //   - operating_preference(승인된 운영 선호): userConfirmed + admission 이후에만 좁게 입장(context-mesh 재사용,
 //     candidates→promoted 레인). 관련될 때만 좁게(broad memory, narrow influence).
 // 핵심 경계: **추정을 승인으로 자동 승격하지 않는다.** 추정은 관찰일 뿐, 사용자가 명시 확인해야 운영 선호가 된다.
-import { promote } from './context-mesh.js';
+import { promote, 물러남 } from './context-mesh.js';
 
 export const USER_MODEL_KINDS = Object.freeze(['inferred_trait', 'operating_preference']);
 
@@ -52,9 +52,16 @@ export function confirmOperatingPreference(pref) {
   return promote(pref, { userConfirmed: true });
 }
 
+// 사용자 확인으로 반영되는 모든 기억 종류 — **투영의 단일 진실**(H 감사 2026-07-29).
+// 예전엔 operating_preference 만 투영해서, 대화에서 생긴 preference/operating_principle 후보는
+// 저장소에 있어도 사용자가 볼 자리가 없었다(승인·철회 불가 — 죽은 후보로 쌓였다).
+// recalled_context 는 기억 검색의 반영분으로 overview 의 "기억" 절이 따로 그린다.
+const CONFIRMABLE_KINDS = new Set(['preference', 'operating_principle', 'operating_preference']);
+
 /**
  * 사용자 모델을 표면용으로 투영 — **"추정됨"과 "반영 중"을 분명히 분리**(P6-18에서 다르게 보여주기 위함).
- *   추정 성향: 항상 admitted:false, influence:'none'. 운영 선호: 확인 대기 / 반영 중.
+ *   추정 성향: 항상 admitted:false, influence:'none'. 확인 대상 기억: 확인 대기 / 반영 중.
+ *   이 함수가 기억 대기·반영 상태의 **단일 투영**이다 — 표면이 저장소를 직접 읽고 추측하지 않는다.
  * @param {{observed?:object[], candidates?:object[], promoted?:object[]}} memory
  */
 export function projectUserModel(memory) {
@@ -62,10 +69,14 @@ export function projectUserModel(memory) {
     .filter((t) => t.kind === 'inferred_trait')
     .map((t) => ({ statement: t.statement, evidence: t.evidence ?? [], admitted: false, influence: 'none' }));
   const pending = (memory?.candidates ?? [])
-    .filter((c) => c.kind === 'operating_preference')
-    .map((c) => ({ id: c.candidateId, statement: c.statement, status: 'pending_confirm', admitted: false }));
+    .filter((c) => CONFIRMABLE_KINDS.has(c.kind))
+    .map((c) => ({ id: c.candidateId, kind: c.kind, statement: c.statement, status: 'pending_confirm', admitted: false }));
+  // 내려간 것·치워 둔 것은 여기서 빠진다. 이 투영에는 상태 칸이 없어 "반영 중"이라고만
+  // 말할 수 있는데, 물러난 항목을 그렇게 부르면 화면이 실제와 다른 말을 한다. 사라지는
+  // 것이 아니라 상태를 아는 목록(§6-S5 성장 표면)에서 상태와 되돌리기와 함께 보인다.
   const admitted = (memory?.promoted ?? [])
-    .filter((p) => p.kind === 'operating_preference')
-    .map((p) => ({ id: p.candidateId, statement: p.statement, status: 'admitted', admitted: true })); // id: 되돌리기용
+    .filter((p) => !물러남(p))
+    .filter((p) => CONFIRMABLE_KINDS.has(p.kind))
+    .map((p) => ({ id: p.candidateId, kind: p.kind, statement: p.statement, status: 'admitted', admitted: true })); // id: 되돌리기용
   return { inferredTraits, operatingPreferences: [...pending, ...admitted] };
 }

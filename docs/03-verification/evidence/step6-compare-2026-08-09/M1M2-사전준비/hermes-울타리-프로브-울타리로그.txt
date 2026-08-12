@@ -1,0 +1,12 @@
+2026-08-08T18:01:15.339Z manifest → 거부(후퇴 유도)
+2026-08-08T18:01:15.339Z 부명령 통과: check-update --json
+2026-08-08T18:01:15.370Z 부명령 통과: --help
+2026-08-08T18:01:15.403Z 부명령 통과: serve --embedded --socket /tmp/t5cmp-hermes-probe-8OzRd3/tmp/hc-b550b72891e2.sock --no-permissions-gate --permission-mode unrestricted --dangerously-bypass-approvals
+2026-08-08T18:01:15.403Z 부명령 통과: status --socket /tmp/t5cmp-hermes-probe-8OzRd3/tmp/hc-b550b72891e2.sock
+2026-08-08T18:01:15.542Z 부명령 통과: status --socket /tmp/t5cmp-hermes-probe-8OzRd3/tmp/hc-b550b72891e2.sock
+2026-08-08T18:01:15.597Z 허용 tools/call start_session {"session":"hermes-e3c9f87a36f9"}
+2026-08-08T18:01:15.601Z 중단급 tools/call set_config {"max_image_dimension":1456,"session":"hermes-e3c9f87a36f9"}
+2026-08-08T18:01:15.602Z 차단 tools/call set_agent_cursor_enabled {"enabled":false,"cursor_id":"hermes-e3c9f87a36f9","session":"hermes-e3c9f87a36f9"}
+2026-08-08T18:01:15.602Z 허용 tools/call list_windows {"on_screen_only":true,"session":"hermes-e3c9f87a36f9"}
+2026-08-08T18:01:18.393Z 허용 tools/call end_session {"session":"hermes-e3c9f87a36f9"}
+2026-08-08T18:01:18.434Z 부명령 통과: stop --socket /tmp/t5cmp-hermes-probe-8OzRd3/tmp/hc-b550b72891e2.sock
