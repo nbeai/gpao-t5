@@ -2407,7 +2407,22 @@ export function makeServer(deps = {}) {
         const target = result.memoryWithdrawal.target;
         const hit = (now.promoted ?? []).find((e) => e.statement === target)
           ?? (now.promoted ?? []).find((e) => e.statement.includes(target) || target.includes(e.statement));
-        if (!hit) return; // 없는 것을 지웠다고 말하지 않는다
+        // **못 맞혔으면 조용히 지나가지 않는다**(H04 라이브 0/5 의 그 자리).
+        //
+        // 예전엔 여기가 그냥 `return` 이었다. 그래서 모델이 지목에 실패해도 서버는 아무 말도
+        // 남기지 않았고, 그 사이 **산문은 이미 "지웠다"고 말한 뒤였다** — 정본이 짚은
+        // 말·상태 불일치가 정확히 이 한 줄에서 났다. 상태가 안 변했다는 사실은 사실대로 남긴다.
+        //
+        // 자를 넓혀서 맞히지는 않는다(글자 유사도 기각 — 맞는 것 0.154 vs 무관한 것 0.148 로
+        // 판별력이 0 이라, 넓히면 **엉뚱한 기억을 지운다**). 못 맞힌 것은 못 맞혔다고 적고,
+        // 무엇이 저장돼 있는지를 함께 실어 사용자가 다음 한 마디로 고를 수 있게 한다.
+        if (!hit) {
+          result.memoryWithdrawMiss = {
+            target,
+            stored: (now.promoted ?? []).map((e) => e.statement),
+          };
+          return; // 없는 것을 지웠다고 말하지 않는다
+        }
         now.promoted = now.promoted.filter((e) => e !== hit);
         markClosed(now, hit.candidateId, 'withdrawn');
         await memStore.save(now);

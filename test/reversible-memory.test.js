@@ -141,6 +141,83 @@ test('S1/H04: 없는 기억을 철회하라 하면 지웠다고 말하지 않는
   } finally { server.close(); }
 });
 
+// ── ②-b H04 실물 모양: 모델은 **자기 답변 문장**을 target 에 넣는다 ─────────────
+//
+// 위 두 검사는 오래 초록이었는데 라이브는 0/5 였다. 스텁이 **저장된 문장 그대로**를 먹였기
+// 때문이다(`target: H01`) — 실물에서 모델이 넣는 것은 그 문장이 아니라 **방금 자기가 한 말**
+// 이다. 그래서 검사는 서버의 대조를 한 번도 밟지 못했고, 못 밟는 자리에서 사고가 났다.
+// 아래는 라이브에서 실제로 관측된 그 모양을 그대로 먹인다.
+const 모델자기답변 = '앞으로 보고 성격의 답변은 표 없이 짧은 목록으로 정리해 드릴게요.';
+
+test('S1/H04: 모델이 자기 답변 문장을 지목하면 — 조용히 지나가지 않는다', async () => {
+  const { server, base, mem } = await standUp([
+    propose(H01, declared(H01)),
+    { name: 'memory.withdraw', args: { target: 모델자기답변, reason: '사용자가 취소를 말함' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: H01 });
+    const r = await post(base, '/turn', { sessionId: s.id, text: H04 });
+
+    // 거짓 성공 0 — 못 지웠으면 지웠다고 하지 않는다.
+    assert.equal(r.memoryWithdrawn, undefined, '못 맞힌 지목으로 철회가 서지 않는다');
+    // **그리고 조용하지 않다.** 예전엔 여기서 `return` 하고 끝이라, 산문만 "지웠다"고 말했다.
+    assert.ok(r.memoryWithdrawMiss, '무엇을 못 찾았는지 사실로 남는다');
+    assert.equal(r.memoryWithdrawMiss.target, 모델자기답변, '무엇을 찾으려 했는지 적는다');
+    assert.deepEqual(r.memoryWithdrawMiss.stored, [H01], '무엇이 저장돼 있는지 함께 적는다');
+  } finally { server.close(); }
+});
+
+test('S1/H04: 못 맞힌 지목은 엉뚱한 기억을 지우지 않는다(그물이 안 넓어진다)', async () => {
+  const 무관 = '앞으로 회의록은 화요일에 정리해줘.';
+  const { server, base, mem } = await standUp([
+    propose(H01, declared(H01)),
+    propose(무관, declared(무관)),
+    { name: 'memory.withdraw', args: { target: 모델자기답변, reason: '취소' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: H01 });
+    await post(base, '/turn', { sessionId: s.id, text: 무관 });
+    const r = await post(base, '/turn', { sessionId: s.id, text: H04 });
+
+    assert.equal(r.memoryWithdrawn, undefined, '거짓 성공 0');
+    const m = await mem.load();
+    assert.equal(m.promoted.length, 2, '둘 다 그대로 남는다 — 아무것도 안 지운다');
+  } finally { server.close(); }
+});
+
+test('S1/H04: 저장된 문장으로 지목하면 예전 길이 그대로 산다(산문 통로 보존)', async () => {
+  // ⑥ 사용자가 "그거 지워"라고 해서 모델이 **저장된 문장의 일부**로 지목하는 길은 살아 있다.
+  const { server, base, mem } = await standUp([
+    propose(H01, declared(H01)),
+    { name: 'memory.withdraw', args: { target: '표보다 짧은 목록', reason: '취소' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    await post(base, '/turn', { sessionId: s.id, text: H01 });
+    const r = await post(base, '/turn', { sessionId: s.id, text: H04 });
+
+    assert.ok(r.memoryWithdrawn, '부분 지목은 예전처럼 선다');
+    assert.equal(r.memoryWithdrawn.statement, H01);
+    assert.equal(r.memoryWithdrawMiss, undefined, '맞혔으면 못 찾았다고 하지 않는다');
+    assert.equal((await mem.load()).promoted.length, 0);
+  } finally { server.close(); }
+});
+
+test('S1/H04: 지울 것이 하나도 없으면 저장 목록을 빈 채로 정직하게 적는다', async () => {
+  const { server, base } = await standUp([
+    { name: 'memory.withdraw', args: { target: '있지도 않은 선호' } },
+  ]);
+  try {
+    const s = await post(base, '/sessions');
+    const r = await post(base, '/turn', { sessionId: s.id, text: H04 });
+    assert.equal(r.memoryWithdrawn, undefined, '거짓 성공 0');
+    assert.ok(r.memoryWithdrawMiss, '못 찾은 사실은 남는다');
+    assert.deepEqual(r.memoryWithdrawMiss.stored, [], '저장된 것이 없다는 사실을 그대로 적는다');
+  } finally { server.close(); }
+});
+
 // ── ③ 인용과 내용의 구성적 결합 ───────────────────────────────────────────
 test('S1: 요약·확장된 statement 는 자동 반영되지 않는다(확인 통로로 강등)', async () => {
   const { server, base, mem } = await standUp([
@@ -367,4 +444,49 @@ h04시험('H04: withdraw 설명은 저장된 기억 전체를 대상으로 말�
 h04시험('H04: propose 설명이 취소·중단 발화의 교통(withdraw)을 말한다 — 철회가 새 기억으로 쌓이지 않게', () => {
   const p = 통제스키마.find((s) => s.name === 'memory.propose');
   assert3.match(p.description, /withdraw/, '취소 발화가 propose 로 흘러 새 기억이 되는 길이 열려 있다');
+});
+
+// ── H04 라이브 0/5 의 층: **모델은 어느 문장으로 지목해야 하는지 몰랐다** ──────
+//
+// 실측한 것: 모델은 `memory.withdraw` 를 부른다. 그런데 `target` 에 **자기 답변 문장**을
+// 넣는다("앞으로 보고 성격의 답변은 …드릴게요"). 저장된 것은 사용자 원문이라 대조가 안 된다.
+//
+// 계측(scratch): 철회 턴에 `admittedContext` 는 **비어 있다** — 방금 저장된 기억은
+// `dropHistoryDuplicates`(context-mesh.js:310)가 이력 중복으로 걸러, 기억 블록에 안 실린다.
+// 그래서 모델이 지목에 쓸 수 있는 문장은 **대화 이력 안의 사용자 원문**뿐이다. 그리고 자동
+// 반영된 기억의 `statement` 는 **사용자 원문 그 자체**라(makeAutoReversible) 이력만으로 맞힐
+// 수 있다 — 모델은 재료를 다 갖고 있었고, **어느 것을 쓰라는 말만 없었다.**
+//
+// 같은 병을 오늘 세 번 앓았다(local.locate 형식·xlsx·예약). 셋 다 설명서 한 줄로 닫혔다.
+// 헤르메스도 같은 축을 쓴다 — `cronjob_tools.py:1399` *"Never guess job IDs — always list first."*
+h04시험('H04: withdraw 설명이 **저장된 문장**으로 지목하라고 말한다 — 자기 답변을 넣지 않게', () => {
+  const w = 통제스키마.find((s) => s.name === 'memory.withdraw');
+  const 지목 = `${w.description}\n${w.parameters?.properties?.target?.description ?? ''}`;
+  assert3.match(지목, /사용자(가 한 말|의 원문|가 말한)/,
+    '무엇으로 지목해야 하는지(사용자 원문) 안 알려주면 모델은 자기 답변을 넣는다');
+  // 문구가 아니라 **뜻**을 잰다: "네/자기 답변"을 넣지 말라는 경고가 서 있는가.
+  assert3.match(지목, /(네|자기)(가 방금 쓴| )?\s*답변/,
+    '자기 답변 문장을 넣지 말라는 말이 없다 — 라이브 0/5 가 정확히 그 모양이었다');
+  assert3.match(지목, /넣지 않는다|넣지 마라|아니라/, '경고가 금지형으로 서 있지 않다');
+});
+
+h04시험('H04: withdraw 설명이 "모르면 추측하지 말고 물어라"를 지킨다(헤르메스 축)', () => {
+  const w = 통제스키마.find((s) => s.name === 'memory.withdraw');
+  assert3.match(w.description, /물어|묻는다/, '못 찾을 때 추측 대신 묻는 길이 설명에 없다');
+});
+
+// ── 말·상태 일치는 **화면까지** 가야 성립한다 ────────────────────────────────
+//
+// 순서가 이렇다: 모델이 산문을 쓰고 → 서버가 지운다. 그래서 모델은 대조 결과를 모른 채
+// 이미 *"지웠어요"* 라고 말한 뒤다. 라이브 재현 회차의 답이 정확히 그랬다 —
+// *"앞으로는 보고서 답변 형식을 따로 고정하지 않고 …구성하겠습니다"* 인데 기억은 남아 있었다.
+// 서버가 사실을 남겨도 **화면이 조용하면** 사용자에게는 지워진 것과 구분되지 않는다.
+h04시험('H04: 못 찾았다는 사실이 화면 렌더까지 닿는다', async () => {
+  const { readFile: 읽기 } = await import('node:fs/promises');
+  const { fileURLToPath: 경로 } = await import('node:url');
+  const { dirname: 폴더, join: 잇기 } = await import('node:path');
+  const html = await 읽기(잇기(폴더(경로(import.meta.url)), '..', 'src', 'surface', 'web', 'index.html'), 'utf8');
+  assert3.match(html, /memoryWithdrawMiss/, '서버가 남긴 사실을 화면이 한 번도 안 읽으면 조용한 것과 같다');
+  assert3.match(html, /renderMemoryWithdrawMiss\s*\(box/, '못 찾음 카드를 그리는 자리가 없다');
+  assert3.match(html, /아직 지우지 않았습니다/, '사용자 말로 "안 지워졌다"를 말하지 않는다');
 });
