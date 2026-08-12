@@ -301,5 +301,13 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     // 파일 스킬(2026-08-11) — 능력을 도구가 아니라 문서 한 장으로 늘린다. 넓힌 이유는
     // `preflight.mjs` 의 `허용파일` 주석에 적혀 있다.
     'src/surface/skill-docs.js',
+    // 불필요한 승인 카드 제거(오너 지시 2026-08-12) — 헌장 ③ 은 「새 상대에게 첫 전송」만인데
+    // 발신 손 셋의 `needsApproval: true` 가 그 조건을 덮어 같은 사람에게 백 번째 보내도
+    // 카드였다. 손 수·스키마·프롬프트 불변, 바뀐 것은 등급뿐. 넓힌 이유는 `preflight.mjs` 에.
+    'src/kernel/l2-plan/authority.js',
+    // 같은 수리 — `needsApproval` 한 칸에 뭉쳐 있던 세 사실(손 선언·이번이월·발화밖)을 가른다.
+    'src/kernel/l2-plan/tool-boundary.js',
+    // 같은 수리의 화면 쪽 — 배지 문구를 사실에 맞춘다(「처음 보내는 상대는 확인받아요」).
+    'src/surface/toolbox-view.js',
   ]);
 });

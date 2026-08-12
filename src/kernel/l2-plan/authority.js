@@ -167,9 +167,31 @@ export const AUTO_SAFE_KINDS = Object.freeze({
  */
 export function decideAutoGrant(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
+  // **이번 요청이 아닌 것은 헌장보다 위다** — 이월된 일·발화 밖 파괴는 되돌릴 수 있어도,
+  // 아는 상대라도 묻는다(`tool-boundary.js` 가 세우는 이번 턴 사실).
+  if (action?.이번턴사실로카드) return false;
   // 도구가 명시로 확인을 요구하면 존중한다 — 다만 이 선언은 이제 **예외**다. 손 전체에
   // 기본값으로 다는 것(옛 http/cli 도구)은 헌장 위반이고, 그 기본값들은 걷어냈다.
-  if (action?.needsApproval) return false;
+  //
+  // ── **헌장 ③ 이 연 조건을 손 선언이 덮지 못한다** (오너 지시 2026-08-12:
+  //    *"불필요한 승인카드는 모두 없애야해"*) ─────────────────────────────────
+  //
+  // 이 줄이 `isCharterAsk` **위**에 있어서 손 선언 한 줄이 헌장이 **조건으로 연** 것을 덮었다.
+  // 발신 손 셋(`mail.send`·`slack.post`·`telegram.send`)이 `needsApproval: true` 를 달고
+  // 있었고, 그래서 헌장 ③(*"새 상대에게 **첫** 외부 전송"*)의 조건 `counterpartKnown` 이
+  // 영영 안 열렸다 — **같은 사람에게 백 번째 보내도 매번 카드**였다. 판정도 배선도
+  // (`action-plan.js:277`) 서 있는 채로 이 한 줄에 막혀 있었다.
+  //
+  // **`send` 하나만 양보시킨다.** 헌장 넷 중 「아는 상대」라는 조건을 명시한 것이 ③뿐이고,
+  // 막힌 것도 그것뿐이다. 나머지 바닥(`delete`·`write`)의 조건은 되돌림이고, 그건 손이
+  // `reversible` 을 밝히면 되는 일이라 선언과 부딪치지 않는다.
+  //
+  // ⚠️ **넓게 잡았다가 되돌린 자리다.** 처음엔 안전 바닥 전체에서 선언을 양보시켰는데,
+  // 회귀가 **이월된 파괴가 자동 실행**되는 방향을 잡았다(`s6c-carryover-contract`).
+  // 이월은 `needsApproval` 칸을 함께 쓰고 있었기 때문이다 — 그 뭉침은 위
+  // `tool-boundary.js` 에서 `이번턴사실로카드` 로 갈랐고, 여기서는 범위를 좁힌다.
+  // **두 겹으로 막는 것이 옳다**: 뭉침을 풀되, 푼 칸에 기대지 않고 범위도 좁힌다.
+  if (action?.needsApproval && kind !== 'send') return false;
   // 헌장 넷에 실제로 닿으면 묻는다. 조건(되돌림·아는 상대)이 자동을 여는 것까지 여기서 본다.
   if (isCharterAsk(action)) return false;
   // 그 밖의 전부는 자동 — 헌장이 자동으로 둔 것(automate·기억 승격·자격 사용·연결 준비)과

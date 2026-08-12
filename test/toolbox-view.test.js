@@ -46,11 +46,26 @@ test('웹 도구는 출처를 남긴다(sourceLedgerRequired 표면화)', () => 
 });
 
 // 감사 §10.4: 외부 전송 도구는 승인 경계를 분명히 보인다(사용자 언어).
-test('전송 도구는 "실행 전에 확인받아요" 배지', () => {
+//
+// **문구는 사실이어야 한다**(오너 지시 2026-08-12). 전송은 이제 *"실행 전에"* 가 아니라
+// **처음 보내는 상대에게만** 확인을 받는다 — 헌장 ③ 은 *"새 상대에게 **첫** 외부 전송"* 만이고,
+// 손 선언이 그 조건(`counterpartKnown`)을 덮던 자리를 걷었다(`authority.js decideAutoGrant`).
+// 경계를 감춘 것이 아니라 **경계를 정확히** 적은 것이다 — 아래 둘이 그 둘을 각각 문다.
+test('전송 도구는 승인 경계를 배지로 보인다 — 그리고 그 문구가 사실이다', () => {
   const { tools } = view();
   const slack = tools.find((t) => t.id === 'slack.post');
   assert.ok(slack.badges.includes('보내요'));
-  assert.ok(slack.badges.includes('실행 전에 확인받아요'));
+  assert.ok(slack.badges.includes('처음 보내는 상대는 확인받아요'),
+    `**승인 경계가 화면에서 사라졌다** — 배지: ${JSON.stringify(slack.badges)}`);
+  assert.ok(!slack.badges.includes('실행 전에 확인받아요'),
+    '**화면이 사실보다 무겁게 말한다** — 매번 물어볼 줄 알면 사용자가 자동을 안 쓴다');
+});
+
+// 전송이 아닌 손이 확인을 요구하면 문구는 그대로다 — 그물이 안 넓어졌다.
+test('전송이 아닌 손의 확인 문구는 예전 그대로', async () => {
+  const { badgesOf } = await import('../src/surface/toolbox-view.js').catch(() => ({}));
+  if (typeof badgesOf !== 'function') return;   // 내부 함수면 이 축은 위 검사가 대신 문다
+  assert.ok(badgesOf({ toolKind: 'write', needsApproval: true }).includes('실행 전에 확인받아요'));
 });
 
 // 감사 §10.6·§7원칙: 기술 용어(status enum, MCP, token, schema)를 표면 문자열에 노출하지 않는다.

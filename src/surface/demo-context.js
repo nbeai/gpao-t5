@@ -933,6 +933,31 @@ const DESCRIPTORS = [
       },
     },
   }),
+  // ── **헌장 ③ 은 「새 상대에게 첫 전송」만이다** (오너 지시 2026-08-12: *"불필요한 승인카드는
+  // 모두 없애야해"*) ─────────────────────────────────────────────────────────
+  //
+  // 발신 손 셋이 `needsApproval: true` 를 달고 있었다. 그런데 `decideAutoGrant` 의 **첫 줄**이
+  // 그것을 먼저 보고 끝낸다 — `counterpartKnown`(아는 상대)은 그 다음 줄에서야 본다.
+  // 그래서 **같은 사람에게 백 번째 보내도 매번 카드**였다. 헌장이 자동으로 둔 것을 손 선언이 막았다.
+  //
+  // 판정도 배선도 이미 서 있었다: `authority.js` `case 'send': return counterpartKnown !== true` ·
+  // `action-plan.js:277` 이 `counterpartKnown` 을 세워 넘긴다. 그 파일이 같은 자리를 이미 한 번
+  // 진단해 뒀다 — *"만들어 놓고 안 이었다."* 이번엔 이어 놓고 **한 줄이 덮고 있었다.**
+  //
+  // `authority.js:170` 이 이 규율을 못 박아 뒀다: *"이 선언은 이제 **예외**다. 손 전체에
+  // 기본값으로 다는 것은 헌장 위반이고, 그 기본값들은 걷어냈다."* — 발신 셋이 안 걷혔던 것이다.
+  //
+  // **선언은 남긴다 — 없앨 것은 그것이 헌장을 덮는 힘이지 사실이 아니다.** 이 선언은 도구함
+  // 배지·능력 문장이 읽는 **사실**이기도 하다("이 손은 확인을 받을 수 있다"). 지웠더니 T5 가
+  // 자기 능력을 말할 때 「승인 필요한 것」칸이 통째로 비었다(회귀 3건이 그것을 잡았다) —
+  // 그건 거짓이다. 새 상대·돈·공개·권한은 여전히 묻는다.
+  // 그래서 가르는 자리는 여기가 아니라 `authority.js` 다: **안전 바닥 어휘 안에서는 헌장이
+  // 유일한 자**이고, 어휘 밖(원격 커넥터가 스스로 조이는 것)에서만 이 선언이 이긴다.
+  //
+  // **경계는 안 넓어졌다**: 새 상대 첫 전송은 그대로 카드이고(`counterpartKnown !== true`),
+  // 상대를 못 알아내면 카드이며(fail-closed), 승인 경로가 상대를 기억한 뒤에만 조용해진다
+  // (`rememberCounterpart`). `reversible: false` 도 그대로다 — 전송이 되돌릴 수 없다는 것은
+  // 사실이고, 사실을 고쳐 카드를 없애지 않는다.
   defineTool({ reversible: false, id: 'mail.send', label: '메일 발송', owner: 'channel', availability: [{ kind: 'connected' }, { kind: 'auth' }], toolKind: 'send', needsApproval: true,
     // P5-B-0 오너 결정(2026-07-27): **선언을 지우지 않고 연결 전 기능으로 낮춘다.**
     // 실행할 손이 없으므로 실행 가능 도구가 아니다 — model schema·도구함·능력 문장 어디에도
@@ -954,9 +979,9 @@ const DESCRIPTORS = [
       },
     } }),
   defineTool({ reversible: false, id: 'slack.post', label: '슬랙 게시', owner: 'channel', connector: 'slack.channel', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
-    capability: '슬랙에 글을 올린다(올리기 전 확인을 받는다).',
+    capability: '슬랙에 글을 올린다(처음 보내는 상대에게만 확인을 받는다).',
     schema: {
-      description: '슬랙에 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
+      description: '슬랙에 메시지를 보낸다. **처음 보내는 상대에게만** 사용자 승인을 받고, 이미 보낸 적 있는 상대에게는 그대로 보낸다.',
       parameters: {
         type: 'object',
         properties: {
@@ -1084,9 +1109,9 @@ const DESCRIPTORS = [
     },
   }),
   defineTool({ reversible: false, id: 'telegram.send', label: '텔레그램 전송', owner: 'channel', connector: 'telegram', availability: [{ kind: 'connected' }], toolKind: 'send', needsApproval: true,
-    capability: '텔레그램으로 보낸다(보내기 전 확인을 받는다).',
+    capability: '텔레그램으로 보낸다(처음 보내는 상대에게만 확인을 받는다).',
     schema: {
-      description: '텔레그램으로 메시지를 보낸다. 보내기 전에 사용자 승인을 받는다.',
+      description: '텔레그램으로 메시지를 보낸다. **처음 보내는 상대에게만** 사용자 승인을 받고, 이미 보낸 적 있는 상대에게는 그대로 보낸다.',
       parameters: {
         type: 'object',
         properties: {
