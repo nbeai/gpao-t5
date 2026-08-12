@@ -482,6 +482,16 @@
   .steps-head.open .tw { transform:rotate(90deg); }
   .msg.steps.folded .steps-body { display:none; }
   .msg.steps.folded .steps-body.open { display:flex; flex-direction:column; gap:var(--sp-1); margin-top:var(--sp-1); }
+
+  /* ── 조각 F · 확장 통로를 하나로 (UX 기획 §2 F · 2026-08-12) ────────────────
+     §1 규약 그대로 맨 끝에 덧붙인다. 위의 `#tbov, #setov` 줄은 **한 글자도 안 고쳤다** —
+     기존 화면 둘은 그 규칙으로 그대로 서고, 이 규칙은 **다음에 올 화면**을 받는다.
+     그래서 새 화면은 CSS 를 안 건드린다: 마크업에 `class="ov"` · `class="ovpanel"` 만 준다.
+     (겹쳐도 결과가 같다 — 같은 값이다. 나중에 기존 둘의 id 규칙을 걷어낼 때 이 자리가 정본이다.) */
+  .ov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
+  .ov.open { display:block; }
+  .ovpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
+    border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
 </style>
 </head>
 <body>
@@ -813,6 +823,54 @@ function renderQResults(results) {
   }
 }
 
+// ── 조각 F · 확장 통로를 하나로 (UX 기획 §2 F · 2026-08-12) ────────────────────
+//
+// 지금 새 화면 하나를 더하려면 **다섯 곳**을 고쳐야 했다:
+//   ① 마크업  ② CSS 선택자 목록 셋(`#tbov, #setov` …)  ③ 열기/닫기 함수 한 벌
+//   ④ 진입 배선  ⑤ 닫기 배선 셋(✕ · 배경 클릭 · Esc)
+// 그중 **넷은 화면마다 똑같은 일**이다. 똑같은 일이 화면 수만큼 복사되면 하나를 빠뜨린 화면이
+// 생긴다 — 실제로 그랬다: **Esc 는 조각 B 가 붙이기 전까지 두 화면 다 없었다.**
+//
+// 그래서 그 넷을 여기 한 벌로 모은다. 이제 새 화면은 **두 곳**이다 — 마크업 한 덩이
+// (`class="ov"`)와 등록 한 줄. CSS 는 맨 끝 `/* 조각 F */` 의 `.ov`·`.ovpanel` 이 받는다.
+//
+// ★ 등록표만 만들고 아무도 안 쓰면 그건 **만든 것이지 닿은 것이 아니다.** 그래서 이번에
+//   기존 화면 둘(도구함·설정)을 **실제로 이 통로로 옮겼다.** 소비자 0인 통로는 안 남긴다.
+// ★ 해시 라우팅·깊은 링크는 이번에 **안 한다**(기획 §4) — 범위가 크고 지금 불편을 안 줄인다.
+const 오버레이표 = new Map();
+
+/** 화면 하나를 통로에 올린다. 올리면 열기·닫기·배경 클릭·✕·Esc·사이드바 접기가 함께 붙는다. */
+function 오버레이등록({ 이름, 덮개, 닫기단추 = [], 열릴때 }) {
+  const 겉 = document.getElementById(덮개);
+  if (!겉) return null;                       // 없는 화면은 등록하지 않는다(죽은 문 금지)
+  오버레이표.set(이름, { 이름, 겉, 열릴때 });
+  겉.addEventListener('click', (e) => { if (e.target === 겉) 오버레이닫기(이름); });
+  for (const id of 닫기단추) {
+    const b = document.getElementById(id);
+    if (b) b.onclick = () => 오버레이닫기(이름);
+  }
+  return 이름;
+}
+// 연 **순서**를 센다. 안 세면 Esc 가 「맨 나중에 연 것」이 아니라 **등록 순서**로 닫는다 —
+// 첫 판이 그랬고, 라이브에서 둘을 같이 열어 보고서야 드러났다. 주석에는 「맨 나중에 연 것」이라
+// 적혀 있었으니 **말이 맞고 코드가 틀린** 자리였다. 코드를 말에 맞춘다.
+let 열림순번 = 0;
+async function 오버레이열기(이름, ...인자) {
+  const 문 = 오버레이표.get(이름);
+  if (!문) return;
+  문.겉.classList.add('open');
+  문.연때 = ++열림순번;
+  document.body.classList.remove('nav-open');   // 좁은 화면에서 사이드바가 위에 남지 않게
+  await 문.열릴때?.(...인자);
+}
+function 오버레이닫기(이름) { 오버레이표.get(이름)?.겉.classList.remove('open'); }
+/** 지금 열려 있는 것들 — **연 순서대로**. Esc 가 하나만 닫는 근거다(조각 B). */
+function 열린오버레이() {
+  return [...오버레이표.values()]
+    .filter((문) => 문.겉.classList.contains('open'))
+    .sort((a, b) => (a.연때 ?? 0) - (b.연때 ?? 0));
+}
+
 // ── 도구함 (2.0-A) — 실제 /toolbox 상태만 보여준다(없는 도구 안 만듦, 죽은 버튼 없음). ──
 const tbov = document.getElementById('tbov');
 const tbBody = document.getElementById('tb-body');
@@ -820,20 +878,27 @@ const tbSearch = document.getElementById('tb-search');
 let tbTools = [];
 const mk = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
 
-async function openToolbox(focusId) {
-  tbov.classList.add('open');
-  document.body.classList.remove('nav-open');
-  tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
-  try {
-    const r = await (await fetch('/toolbox')).json();
-    tbTools = r.tools || [];
-    renderToolbox('', focusId);
-    await renderPendingSenders();
-    await renderInvalidDeclared();
-    if (!focusId) tbSearch.focus();
-  } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
-}
-function closeToolbox() { tbov.classList.remove('open'); }
+// 조각 F: 이 화면은 이제 **통로에 올라간 것 하나**다. 열고 닫고 배경을 누르고 ✕ 를 누르고
+// Esc 를 받는 일은 통로가 한다 — 여기 남는 것은 **이 화면만의 내용**이다.
+오버레이등록({
+  이름: '도구함',
+  덮개: 'tbov',
+  닫기단추: ['tb-x'],
+  열릴때: async (focusId) => {
+    tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
+    try {
+      const r = await (await fetch('/toolbox')).json();
+      tbTools = r.tools || [];
+      renderToolbox('', focusId);
+      await renderPendingSenders();
+      await renderInvalidDeclared();
+      if (!focusId) tbSearch.focus();
+    } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
+  },
+});
+// 부르는 자리가 여럿이라 이름은 그대로 둔다(옮기는 일과 이름 바꾸는 일을 한 커밋에 섞지 않는다).
+async function openToolbox(focusId) { await 오버레이열기('도구함', focusId); }
+function closeToolbox() { 오버레이닫기('도구함'); }
 
 // ╔══ 조각 E 투영 시작 ═══════════════════════════════════════════════════════════
 // **자동화 목록 투영 한 벌**(기획서 §2 조각 E · §5 · §6-2). 화면이 상태를 제 손으로 다시
@@ -1077,10 +1142,12 @@ const SET_SECTIONS = [
   ['model', '모델'], ['messenger', '메신저'], ['tools', '도구와 연결'],
   ['skills', '스킬'], ['automation', '자동화'], ['memory', '기억과 개인정보'], ['looks', '모양'],
 ];
-function closeSettings() { setov.classList.remove('open'); }
-async function openSettings(section = 'model') {
-  setov.classList.add('open');
-  document.body.classList.remove('nav-open');
+// 조각 F: 설정도 같은 통로에 올린다. 닫는 문이 둘(✕ · 「대화로 돌아가기」)이라 둘 다 등록한다 —
+// 전에는 각각 따로 배선돼 있었고, 그런 자리가 바로 하나를 빠뜨리게 되는 자리다.
+오버레이등록({ 이름: '설정', 덮개: 'setov', 닫기단추: ['set-x', 'set-back'], 열릴때: (section) => 설정그리기(section) });
+function closeSettings() { 오버레이닫기('설정'); }
+async function openSettings(section = 'model') { await 오버레이열기('설정', section); }
+async function 설정그리기(section = 'model') {
   setTabs.replaceChildren(...SET_SECTIONS.map(([id, label]) => {
     const b = document.createElement('button'); b.className = 'tb-badge'; b.textContent = label;
     b.style.cursor = 'pointer';
@@ -1292,9 +1359,7 @@ const SET_RENDER = {
   },
 };
 document.getElementById('settingsbtn').onclick = () => openSettings();
-document.getElementById('set-x').onclick = closeSettings;
-document.getElementById('set-back').onclick = closeSettings;
-setov.onclick = (e) => { if (e.target === setov) closeSettings(); };
+// 조각 F: ✕ · 「대화로 돌아가기」 · 배경 클릭 배선 셋을 여기서 걷었다 — 등록 한 줄이 대신한다.
 // 기억 액션은 공통 통로(memAction·onOverviewAction)를 그대로 쓴다 — 표면마다 갈라지지 않게.
 setBody.addEventListener('click', async (e) => {
   if (!e.target.closest('.ov-act')) return;
@@ -1433,8 +1498,7 @@ function toolCard(t) {
   card.onclick = () => card.classList.toggle('open');
   return card;
 }
-document.getElementById('tb-x').onclick = closeToolbox;
-tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
+// 조각 F: ✕ · 배경 클릭 배선 둘을 여기서 걷었다 — 등록 한 줄이 대신한다.
 tbSearch.oninput = () => renderToolbox(tbSearch.value);
 
 function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
@@ -2834,8 +2898,10 @@ document.addEventListener('keydown', (e) => {
   //   그래서 선택자가 아니라 **속성**을 본다.
   const 멈춤 = [...document.querySelectorAll('.stopbtn')].find((b) => !b.disabled);
   if (멈춤) { e.preventDefault(); 멈춤.click(); return; }
-  if (setov.classList.contains('open')) { e.preventDefault(); closeSettings(); return; }
-  if (tbov.classList.contains('open')) { e.preventDefault(); closeToolbox(); return; }
+  // 조각 F: 화면 이름을 하나씩 적지 않는다. 통로에 올라온 것 중 열린 것을 **하나만** 닫는다 —
+  // 여기 이름을 적으면 새 화면이 늘 때마다 이 줄을 고쳐야 하고, 그게 「다섯 곳」의 다섯째였다.
+  const 열린것 = 열린오버레이();
+  if (열린것.length) { e.preventDefault(); 오버레이닫기(열린것.at(-1).이름); return; }
   if (searchPanel.style.display === 'block') { e.preventDefault(); toggleSearch(false); return; }
   if (손바.classList.contains('on')) { e.preventDefault(); 손바숨기기(); }
 });

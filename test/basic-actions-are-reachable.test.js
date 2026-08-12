@@ -99,8 +99,11 @@ test('Esc 는 한 번에 하나만 닫는다 — 무엇이 닫혔는지 사용�
     assert.match(l, /return;\s*\}$/, `갈래가 return 으로 안 끝나면 한 번에 둘이 닫힌다: ${l.trim()}`);
   }
   // 순서가 곧 우선순위다 — 돌고 있는 일을 세우는 것이 맨 앞이어야 한다.
-  assert.ok(esc.indexOf('멈춤.click()') < esc.indexOf('closeSettings()'),
-    '돌고 있는 일이 있으면 그것부터 세운다');
+  // (2026-08-12 · 조각 F 가 화면 닫기를 통로로 옮겼다. 지키는 사실은 그대로이고 **비교 대상만**
+  //  `closeSettings()` 에서 통로 호출로 바뀐다 — 이름을 하나씩 적지 않는 것이 F 의 요지다.)
+  const 통로닫기 = esc.indexOf('오버레이닫기(열린것');
+  assert.ok(통로닫기 > 0, '화면 닫기가 Esc 갈래에 없다');
+  assert.ok(esc.indexOf('멈춤.click()') < 통로닫기, '돌고 있는 일이 있으면 그것부터 세운다');
 });
 
 // 라이브에서 잡은 자리다(2026-08-12). 첫 판은 `.stopbtn:not(:disabled)` 로 걸렀는데,
