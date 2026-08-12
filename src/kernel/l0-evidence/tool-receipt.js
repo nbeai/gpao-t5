@@ -55,6 +55,10 @@ export function receipt(r) {
     userSafeSummary: r.userSafeSummary,
     diagnosticTrace: r.diagnosticTrace,
     nextSafeAction: r.nextSafeAction,
+    // 실패한 손이 어디까지 갔는지에 대한 **기계 사실**. 실패 결과 원문과 진단면을
+    // 이 진행 칸으로 승격하지 않고도, 제출 전 거절(refused)과 제출 뒤 미확인(unknown)을
+    // 구분해 다음 손을 고를 수 있게 한다. 판정은 도구가 낸 값을 그대로 보존한다.
+    진행: r.진행,
     // 같은 턴에서 실제 확인한 폴더만 싣는 읽기 범위 사실. 영구 권한도 쓰기 권한도 아니다.
     readScopeRoots: r.readScopeRoots,
     // 막힌 **종류**(사이트 차단·로그인벽·범위 밖…). 다음 계단을 이걸로 정한다(P2-6 사다리).

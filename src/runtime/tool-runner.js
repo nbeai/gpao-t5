@@ -200,13 +200,22 @@ export class ToolRunner {
       }
       // transient 실패(재시도 여지) — handler가 정직한 사용자면 메시지와 함께 알린다. blocked(permanent)와 분리.
       if (out && out.failed) {
+        const 다음수단 = Array.isArray(out.다음수단) ? out.다음수단 : undefined;
+        const 미확인 = out.진행?.판정 === 'unknown';
         return receipt({
           intended,
           actualCall: 부른것,
           failureState: FAILURE.FAILED,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
           diagnosticTrace: out.diagnosticTrace,
-          nextSafeAction: out.nextSafeAction ?? '잠시 후 다시 시도할까요?',
+          // 제출 뒤 효과를 모르는 행동에 generic retry를 붙이면 중복 효과를 낼 수 있다.
+          // 손이 낸 구조화된 다음 수가 있으면 그것을 모델이 고르게 하고, 없더라도
+          // unknown을 "같은 호출 재시도"로 바꾸어 말하지 않는다.
+          nextSafeAction: out.nextSafeAction
+            ?? (다음수단?.length ? '실제 상태를 확인할 다음 수가 있어요 — 그 중 하나를 골라 이어가세요.'
+              : (미확인 ? undefined : '잠시 후 다시 시도할까요?')),
+          진행: out.진행,
+          다음수단,
         });
       }
       const rec = withSubject(receipt({

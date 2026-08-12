@@ -977,6 +977,10 @@ export function buildTaskContext(p) {
         ...(실패
           ? { failureState: r.failureState, ...실패원문칸(r) }
           : { data: 자료실기(r, p.창예산?.결과자) }),
+        // 실패라는 한 단어로 제출 전 거절과 제출 뒤 미확인을 뭉개지 않는다. 도구가
+        // 영수증에 남긴 진행 사실만 싣는다. 결과 원문·diagnosticTrace·그림 수명은
+        // 각각 기존 실패원문/진단면/옆길 계약을 그대로 타며 이 칸으로 승격되지 않는다.
+        ...(실패 && r.진행 ? { 진행: r.진행 } : {}),
         ...(실패 && r.nextSafeAction ? { nextSafeAction: r.nextSafeAction } : {}),
         // **막혔을 때야말로 다음 수가 필요하다**(라이브 2026-08-05).
         //

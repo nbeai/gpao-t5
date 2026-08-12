@@ -3,6 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
+import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
+import { interpret } from '../src/kernel/l1-intent/intent.js';
 import { buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
 import { 완료주장검증 } from '../src/kernel/l2-plan/exit-verification.js';
 
@@ -52,7 +54,14 @@ test('failed 화면 행동의 dispatched/unknown과 observe 다음 손이 원장
   assert.doesNotMatch(String(rec.nextSafeAction ?? ''), /다시 시도/,
     '모르는 채 다시 누르면 중복 실행이다');
 
-  const tc = buildTaskContext({ receipts: [rec] });
+  const tc = buildTaskContext({
+    intent: interpret('계산기에서 눌러'),
+    selfState: buildSelfState({
+      model: { id: 'beai5-stub' },
+      connections: [{ id: 'desktop.act', connected: true, executable: true }],
+    }),
+    receipts: [rec],
+  });
   const exchange = tc.turnExchange?.[0] ?? {};
   assert.equal(exchange.진행?.판정, 'unknown', '원장에만 남고 모델 입력에서 진행 사실이 사라졌다');
   assert.deepEqual(exchange.다음수단?.map((x) => x.방법), ['observe'], '다음 손이 모델에게 도달하지 않았다');
