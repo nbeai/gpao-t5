@@ -511,6 +511,15 @@
   .ov.open { display:block; }
   .ovpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
     border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
+
+  /* ── 줄 선 말이 보인다 (비교군 정밀분석 §3 처방1 · 2026-08-13) ────────────────
+     §1 규약대로 맨 끝에 덧붙인다.
+     **안 도는 것에 도는 표시를 남기지 않는다** — `.trace::before` 의 뛰는 점은
+     「지금 일하는 중」이라는 뜻이다. 줄 서 있는 것도, 취소된 것도 일하고 있지 않다.
+     같은 점을 그대로 두면 화면이 거짓말을 한다(멈춤이 안 보이던 것과 같은 계열). */
+  .trace.queued::before { animation:none; background:var(--muted); }
+  .trace.still::before { display:none; }
+  .trace.still { opacity:.75; }
 </style>
 </head>
 <body>
@@ -2534,13 +2543,39 @@ async function submit() {
   const 내말 = el('msg me', t); box.appendChild(내말);
   동작줄(box, 내말, 'me');
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
-  // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
-  const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  // ── 줄 선 말이 보인다 (비교군 정밀분석 §3 처방1 · 2026-08-13) ─────────────────────
+  //
+  // 서버는 **이미** 한 세션의 턴을 줄 세운다(`server.js` `withSessionQueue`). 안 깨진다.
+  // **없던 것은 그 사실을 말하는 화면뿐이었다** — 답이 흐르는 중에 말을 보내면 두 번째
+  // 「요청을 이해하고 있어요…」가 서고 「멈추기」가 둘이 됐다. 사람은 자기 말이 먹힌 건지
+  // 줄 서 있는 건지 알 길이 없었다. 조각 D 와 같은 병이다: **있는 사실을 화면이 안 말했다.**
+  //
+  // 오픈클로는 이 자리에 모드 넷을 둔다(`concepts/queue-steering.md`: steer·followup·collect·
+  // interrupt). T5 가 지금 하는 것은 `followup` 이다 — **그걸 그대로 말한다.** 실제로 하는 것과
+  // 다른 이름을 붙이지 않는다(끼워 넣기는 커널이 필요해 여기서 안 한다).
+  const 앞선것 = [...document.querySelectorAll('.stopbtn')].some((b) => !b.disabled);
+  const trace = el('trace', 앞선것 ? '앞의 답이 끝나면 이어서 할게요 — 줄 서 있어요' : '요청을 이해하고 있어요…');
+  if (앞선것) trace.classList.add('queued');
+  box.appendChild(trace);
   // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
   // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
   // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
-  const 멈춤 = el('stopbtn'); 멈춤.textContent = '멈추기';
+  //
+  // 줄 서 있는 동안은 **멈출 것이 없다** — 아직 아무것도 안 돌고 있다. 그래서 「멈추기」 대신
+  // 「차례 취소」다: 사람이 마음을 바꾸는 길이고, 죽은 버튼을 안 만드는 길이다.
+  const 멈춤 = el('stopbtn'); 멈춤.textContent = 앞선것 ? '차례 취소' : '멈추기';
+  let 취소됨 = false;
   멈춤.onclick = async () => {
+    // 줄 서 있던 것을 취소하는 것은 **서버를 부를 일이 아니다** — 아직 아무것도 안 돌고 있다.
+    // 이 화면의 차례만 접는다(서버의 큐는 이 요청이 아예 안 들어간 것과 같아진다).
+    if (멈춤.textContent === '차례 취소') {
+      취소됨 = true;
+      trace.textContent = '보내지 않았어요 — 입력칸에 그대로 돌려놨어요.';
+      trace.className = 'trace still';   // 안 도는 것에 도는 표시를 남기지 않는다
+      멈춤.remove();
+      입력칸에얹기(t);   // 사람의 말을 버리지 않는다(조각 B 와 같은 규율)
+      return;
+    }
     멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';
     await fetch('/turn/cancel', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -2552,6 +2587,13 @@ async function submit() {
   const 멈춤치우기 = () => 멈춤.remove();
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
+  // 앞의 답이 끝날 때까지 기다린다 — 서버도 줄을 세우지만, **먼저 화면에서** 기다려야
+  // 「차례 취소」가 진짜 취소가 된다(이미 서버로 떠난 것은 못 물린다).
+  while (앞선것 && !취소됨 && [...document.querySelectorAll('.stopbtn')].some((b) => b !== 멈춤 && !b.disabled)) {
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  if (취소됨) { 멈춤치우기(); return; }
+  if (앞선것) { trace.textContent = '요청을 이해하고 있어요…'; trace.classList.remove('queued'); 멈춤.textContent = '멈추기'; }
   try {
     const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
     const recovery = streamed.recovery;
