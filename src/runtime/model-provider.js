@@ -753,6 +753,37 @@ function 연결경로(p) {
 /** 도구 이름은 서버마다 허용 문자가 다르다(점 불가 등). 와이어에서만 바꾸고 응답에서 되돌린다. */
 export const wireToolName = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
 
+// ── **와이어 이름 → 커널 이름. 되찾는 자리는 여기 하나다** (F-93 · 2026-08-12) ──────
+//
+// `wireToolName` 의 역방향이다. 호출 **이름**은 이미 이 파일의 `byWire` 가 되돌린다
+// (`.map((c) => byWire.has(c.name) ? … : null)`). 그런데 손 이름이 **인자 안에** 실려 오는
+// 자리가 있다 — `automation.propose` 의 `tool` 칸이 그렇다. 인자는 그 경계를 안 지나므로
+// 모델이 자기가 보는 이름(`local_file`)이나 OpenAI 함수 이름 관례(`functions.local_file`)로
+// 적어 내면 커널 이름만 아는 쪽이 못 알아본다. 라이브 26회차 상관 6/6:
+//   `tool=functions.local_file` → job 0건(실패 전부) · `tool=local.file` → job 1건(성공 전부)
+//
+// **이름이 두 벌인 것은 우리 사정이지 모델 잘못이 아니다** — 캡슐이 2026-08-04 에 같은 자리를
+// 겪고 그렇게 적어 뒀다(`capsule.js:186-190`: *"다섯 번 재시도했고 매번 호출 0이었다"*).
+// 그때는 캡슐 안에 손으로 풀었다. 두 벌이 되면 언젠가 갈리므로 이번에 한 자리로 모았다 —
+// F-91 이 같은 매듭(`actualCall ?? 제안한호출`)을 한 자리에서만 푼 것과 같은 결이다.
+//
+// **그물은 안 넓어진다.** 되찾는 근거는 문자열 규칙이 아니라 **부르는 쪽이 준 실재 손 목록**이다.
+// 목록에 없는 이름은 그대로 돌려주고, 판정은 예전 그대로 뒤층(`toolActionKind` → 헌장)이 한다.
+// 접두는 `functions.` 하나만 본다 — 아무 접두나 벗기면 `아무손.local_file` 이 열린다.
+const 와이어접두 = 'functions.';
+export function kernelToolName(부른이름, 손이름들 = []) {
+  if (typeof 부른이름 !== 'string' || !부른이름.trim()) return 부른이름;
+  const ids = [...손이름들];
+  const 이름 = 부른이름.trim();
+  const 후보 = 이름.startsWith(와이어접두) ? [이름, 이름.slice(와이어접두.length)] : [이름];
+  for (const c of 후보) {
+    if (ids.includes(c)) return c;
+    const 되찾은 = ids.find((id) => wireToolName(id) === c);
+    if (되찾은) return 되찾은;
+  }
+  return 부른이름;
+}
+
 function requiredWireTool(opts = {}) {
   if (!opts.requiredTool || !opts.tools?.some((tool) => tool.name === opts.requiredTool)) return null;
   return wireToolName(opts.requiredTool);

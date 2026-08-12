@@ -34,7 +34,7 @@ import { mkdtemp, writeFile, readFile, rm, readdir, realpath, mkdir } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
-import { wireToolName } from './model-provider.js';
+import { kernelToolName } from './model-provider.js';
 import { redactEnv } from './terminal-run.js';
 import { 표맥락에서 } from './local-file.js';
 // **승인 판정은 커널의 것을 그대로 부른다**(§12-S3). 캡슐용 두 번째 판정을 쓰지 않는다 —
@@ -188,10 +188,11 @@ export async function 캡슐실행({
     // `wireToolName` 이 바꾼다) — 그래서 스크립트에도 그 이름을 쓴다. 캡슐만 `local.file` 을
     // 요구하면 모델이 매번 헛손질하고, 실측(2026-08-04 라이브)에서 정확히 그랬다:
     // 다섯 번 재시도했고 매번 호출 0이었다. **이름이 두 벌인 것은 우리 사정이지 모델 잘못이 아니다.**
-    const tool = 열린손.has(부른이름)
-      ? 부른이름
-      : ([...열린손].find((id) => wireToolName(id) === 부른이름) ?? 부른이름);
-    if (통제채널.has(tool) || [...통제채널].some((id) => wireToolName(id) === 부른이름)) {
+    //
+    // 되찾는 규칙 자체는 여기 있지 않다 — `kernelToolName` 한 자리에 있다(F-93 · 2026-08-12).
+    // 예전엔 이 자리에 손으로 풀어 뒀고, 같은 매듭이 자동화에서 안 풀려 예약이 18/26 만 섰다.
+    const tool = kernelToolName(부른이름, 열린손);
+    if (통제채널.has(kernelToolName(부른이름, 통제채널))) {
       // 성질 ⑥ — 캡슐이 자기 권한·기억·자동화를 건드리지 못한다. 와이어 이름으로도 막는다.
       return { ok: false, error: '그 채널은 캡슐에서 부를 수 없어요(권한·기억·자동화는 캡슐 밖의 일이에요).' };
     }

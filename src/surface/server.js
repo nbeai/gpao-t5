@@ -17,6 +17,7 @@ import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/wor
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from '../kernel/l2-plan/model-control.js';
+import { kernelToolName } from '../runtime/model-provider.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
@@ -719,8 +720,31 @@ export function makeServer(deps = {}) {
     });
   }
 
-  async function 자동화후보입장(proposal, session, 사용자말 = '') {
+  /**
+   * **모델이 보는 이름으로 부른 예약도 선다**(F-93 · 2026-08-12).
+   *
+   * 여기가 **입구**다 — 모델이 적어 낸 손 이름이 T5 의 레코드가 되는 첫 자리이고, 자동화
+   * 후보가 서는 문은 이 함수 하나다. 저장 **전에** 한 번 펴 두면 그 뒤(확정·1회용 지시문·
+   * 실행 역할·권한 봉투·tick 실행)는 전부 커널 이름 한 벌만 본다.
+   *
+   * 왜 뒤층이 아닌가. 대조하는 자리마다 두 이름을 다 보게 하면 이름이 **두 벌로 살고**
+   * 언젠가 갈린다(이 저장소의 반복 흉터). `toolActionKind` 를 관대하게 만드는 것은 더 나쁘다 —
+   * 그 함수는 승인·자동화·tick 이 함께 쓰는 판정자라, 거기를 넓히면 자동화가 아닌 자리까지
+   * 같이 넓어진다. 되찾는 규칙 자체는 `kernelToolName` 한 자리에 있고 캡슐도 그것을 쓴다.
+   *
+   * **그물은 안 넓어진다**: 근거가 문자열 접두가 아니라 지금 실재하는 손 목록이고, 못 되찾은
+   * 이름은 손대지 않고 그대로 흘려보낸다 — 거절은 예전 그대로 뒤층이 한다.
+   */
+  function 손이름펴기(proposal) {
+    if (typeof proposal?.tool !== 'string') return proposal;
+    const 손 = (buildSelfState(env, { tools }).connectedTools ?? []).map((t) => t.id);
+    const 편이름 = kernelToolName(proposal.tool, 손);
+    return 편이름 === proposal.tool ? proposal : { ...proposal, tool: 편이름 };
+  }
+
+  async function 자동화후보입장(원제안, session, 사용자말 = '') {
     await automationReady();
+    const proposal = 손이름펴기(원제안);
     if (!automationEntryVisible(proposal)) return {
       proposal: { rejected: true, reason: 'sensitive_input' },
       reality: await automationRealityFor(session.principalRef),
