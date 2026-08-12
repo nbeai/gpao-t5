@@ -36,8 +36,36 @@ function isDeliverableWork(receipt) {
   if (action === 'write') {
     return typeof receipt?.result?.path === 'string' && typeof receipt?.result?.digest === 'string';
   }
-  // 옮김·지움은 대상 경로가 결과에 남으면 실제로 일어난 것이다(휴지통 계약은 손이 지킨다).
-  return (action === 'move' || action === 'delete') && typeof receipt?.result?.path === 'string';
+  // 지움은 대상 경로가 결과에 남으면 실제로 일어난 것이다(휴지통 계약은 손이 지킨다).
+  if (action === 'delete') return typeof receipt?.result?.path === 'string';
+
+  // ── **옮김은 자리가 둘인 일이다** (F-108 · 2026-08-13) ────────────────────
+  //
+  // 예전엔 여기서도 `result.path` 를 찾았다. 그런데 손은 그 칸을 안 낸다 —
+  // `local-file.js:1134` 의 `move` 는 `{ from, to }` 를, `:1241` 의 `bulk_move` 는
+  // `{ from, to, moved, skipped, remainingSource }` 를 낸다. 그리고 `bulk_move` 는
+  // **action 이름부터** 옛 열거(`move`·`delete`)에 없었다. 두 겹으로 안 맞았다.
+  //
+  // 손이 옳다. 옮김은 **어디서 어디로**인 일이고 `path` 한 칸으로는 그걸 못 말한다.
+  // 계약이 손의 실제 모양을 따라간다 — 이 저장소가 이미 배운 것이다:
+  // *"손이 스스로 쥔 것이 있으면 그것을 쓴다. 커널은 빈 자리만 메운다."*
+  //
+  // 사용자 자리에서 무슨 일이 났나: *"다운로드 폴더 유형별로 정리해줘"* — 위 주석이
+  // 이 조항의 존재 이유로 박아 둔 바로 그 실측이다. 파일은 진짜로 옮겨지고, 원장은
+  // 성공이라 적고, 출구 검증은 *"정리했어요"* 를 통과시키는데 **완료로는 안 기록됐다.**
+  // 그래서 다음 턴의 *"아까 그거 이어줘"* 에 T5 가 끝난 일을 다시 하려 든다.
+  //
+  // **「돌긴 돌았다」는 한 일이 아니다** — 묶음은 실제로 옮겨진 것이 하나라도 있어야 한다.
+  // `path` 도 계속 받는다 — 옛 계약을 깨지 않는다. 새로 받는 것은 손이 **실제로 내는** `to` 다.
+  if (action === 'move') {
+    const r = receipt?.result ?? {};
+    return (typeof r.to === 'string' && r.to.length > 0)
+      || (typeof r.path === 'string' && r.path.length > 0);
+  }
+  if (action === 'bulk_move') {
+    return Array.isArray(receipt?.result?.moved) && receipt.result.moved.length > 0;
+  }
+  return false;
 }
 const isSuccessfulWrite = isDeliverableWork;
 
