@@ -745,7 +745,19 @@ const DESCRIPTORS = [
           // **문**(정본 §S3) — 모델이 스키마에서 봐야 쓴다. 안 주면 예전과 똑같이 전부 온다.
           offset: { type: 'number', description: 'list·read 를 이어서 받을 자리. 응답의 nextOffset 을 그대로 넣는다' },
           limit: { type: 'number', description: 'list 는 항목 수, read 는 글자 수. 안 주면 전부' },
-          text: { type: 'string', description: 'write 일 때 저장할 내용' },
+          // **엑셀은 T5 가 직접 짓는다**(F-86 · 콘솔 라이브 2026-08-12). 손은 이미 표 본문을
+          // 진짜 xlsx(zip)로 만드는데(`document-intake.js buildXlsx`) 여기에 한 글자도 없어서
+          // 모델이 그 능력을 못 봤다: 같은 발화 **7회차 전부** `.xlsx` 쓰기를 시도조차 안 하고
+          // 부품(`[Content_Types].xml`·`xl/`)을 폴더에 풀어 `zip` 으로 묶으려다 끝났다.
+          // 1회는 파일이 없는데 "만들어 뒀어요"(거짓 성공), 여러 회는 "터미널에서 실행하세요".
+          // **모르는 것은 모델이지 손이 아니다** — 오늘 `local.locate` 세기에서 같은 병을 고쳤다.
+          text: {
+            type: 'string',
+            description: 'write 일 때 저장할 내용.'
+              + ' **`.xlsx` 이름으로 저장하면 진짜 엑셀 파일이 만들어진다** —'
+              + ' 표 본문을 그대로 넣으면 된다(줄바꿈으로 행, 쉼표로 칸, 첫 줄이 열 이름).'
+              + ' xlsx 부품을 폴더에 풀어 조립하거나 zip 으로 묶지 않는다 — 그 길은 부스러기만 남는다.',
+          },
           source: { type: 'string', description: 'write 가 어떤 원본을 정리한 결과물이면 그 원본 경로 — 원본 자리 덮어쓰기를 막고 별도 결과물임을 기록한다' },
           evidenceRows: {
             type: 'array',
