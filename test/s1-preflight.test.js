@@ -62,6 +62,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
   // 넓힐 때는 이 시험이 먼저 걸린다 — 그게 이 시험의 일이다. 넓힌 이유는 `preflight.mjs`
   // 의 `허용파일` 주석에 적혀 있어야 한다(2026-08-04: 실행 벽 수정으로 기준선 이동).
   assert.deepEqual(허용파일, [
+    'src/kernel/l2-plan/work-contract.js',
     'src/runtime/connector-connect.js',
     // **문서 본문을 실제로 꺼내는 자리**(F-82 · 2026-08-12). JXA console.log 가 stderr 로
     // 나가 압축 PDF 추출문 전체가 조용히 버려졌다 — 실세계 PDF 읽기가 통째로 죽어 있었다.
