@@ -85,8 +85,30 @@ if (!agents.includes('previous T-cell specification is retired')) fail('AGENTS.m
 const worktrees = execFileSync('git', ['worktree', 'list', '--porcelain'], {
   cwd: root,
   encoding: 'utf8',
-}).split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice(9));
-for (const path of worktrees) {
+}).split('\n\n').map((덩이) => {
+  const 줄 = 덩이.split('\n');
+  const path = (줄.find((l) => l.startsWith('worktree ')) ?? '').slice(9);
+  const head = (줄.find((l) => l.startsWith('HEAD ')) ?? '').slice(5);
+  return path ? { path, head } : null;
+}).filter(Boolean);
+
+// ── **작업 방을 여는 것은 결함이 아니다** (F-101 · 오너 지적 2026-08-12) ─────────────
+//
+// 옛 판은 뿌리와 `/gpao-t5` 를 뺀 **모든 worktree 를 무조건 실패**시켰다. 그런데 메시지는
+// *"인수인계에 없는"* 이라, **인계에 적어 두면 풀린다고 들렸다** — 코드는 인계 문서를 한 줄도
+// 안 읽으므로 그런 길은 **없었다.** 자가 자기 기준을 거짓말하고 있었다.
+//
+// 그리고 오너가 병렬 작업을 **방 분리로** 하라고 정했다(`scripts/lane.mjs` · 장부 F-100).
+// 옛 판대로면 **시킨 구조를 쓰는 순간 이 감사가 빨개진다.** 오너: *"방을 나눌수록 점검이 더
+// 빨개진다 — 점검표 쪽을 고쳐야 한다."*
+//
+// **이 자가 원래 지키려던 것은 방 개수가 아니다** — ①「살아 있는데 잊힌 작업」과
+// ②「낡은 방을 정본으로 착각」이다(AGENTS.md 병렬 개발 계약). 그래서 그 둘만 잰다:
+//   · 작업 방이면 **본선에 안 들어간 커밋이 있을 때만** 실패한다(= 잊힌 작업)
+//   · 작업 방이 아닌 자리에 열린 방은 **여전히 실패**한다(그물이 안 넓어진다)
+// 바뀌는 것은 **깨끗한 작업 방 하나뿐**이다.
+const 작업방인가 = (p) => p.includes('/t5-lanes/') || p.includes('/.claude/worktrees/');
+for (const { path, head } of worktrees) {
   if (resolve(path) === resolve(root)) continue;
   if (path.endsWith('/gpao-t5')) {
     const marker = resolve(path, 'AGENTS.md');
@@ -95,7 +117,20 @@ for (const path of worktrees) {
     }
     continue;
   }
-  fail(`인수인계에 없는 sidecar worktree가 열려 있음: ${relative(root, path)}`);
+  if (작업방인가(path)) {
+    // 본선(이 감사가 도는 자리의 HEAD)에 안 들어간 커밋만 센다. 0 이면 잊힌 것이 없다.
+    let 남은 = 0;
+    try {
+      남은 = Number(execFileSync('git', ['rev-list', '--count', `HEAD..${head}`], {
+        cwd: root, encoding: 'utf8',
+      }).trim());
+    } catch { 남은 = 0; }   // 못 세면 판정하지 않는다(모름을 결함으로 세우지 않는다)
+    if (남은 > 0) {
+      fail(`작업 방에 본선에 안 들어간 작업이 있음(커밋 ${남은}개): ${relative(root, path)}`);
+    }
+    continue;
+  }
+  fail(`작업 방이 아닌 자리에 worktree가 열려 있음: ${relative(root, path)}`);
 }
 
 // 시험 서버는 **루프백에만 붙는다.** 주소를 안 주면 와일드카드(`::`)로 붙는데, macOS·BSD 는
