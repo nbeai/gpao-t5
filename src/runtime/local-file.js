@@ -15,7 +15,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
 import { protectionBlocks, protectionMessage } from './local-protection.js';
-import { extractDocument, documentFormat } from './document-intake.js';
+import {
+  extractDocument, documentFormat, documentSignatureMatches, documentSignatureExpectation, buildXlsx,
+} from './document-intake.js';
 import { identifyWorksetMembers } from '../kernel/l1-intent/source-coverage.js';
 
 const MAX_READ_BYTES = 1_000_000; // 너무 큰 파일은 통째로 읽지 않는다(메모리·프롬프트 보호)
@@ -237,6 +239,48 @@ function 쓴숫자대조(text, 표맥락) {
     }
   }
   return 조각.length ? ` (숫자 대조: ${조각.slice(0, 2).join(' / ')})` : null;
+}
+
+/**
+ * 쉼표(또는 탭)로 나눈 **표 본문을 행 배열로**. 애매하면 `null` — 틀린 표는 없는 표보다 나쁘다.
+ *
+ * 위 `표사실` 과 같은 자를 쓰지 않는 이유: 그건 **합계를 세는 자**라 머리줄·숫자열 조건이
+ * 더 까다롭고(합계를 못 내면 `null`), 여기는 **모양만 표면 되는 자리**다 — 글자만 든 표도
+ * 엑셀로 만들 수 있다. 판정 목적이 다르면 자도 다르다.
+ */
+function 표행들(전문) {
+  const 글 = String(전문 ?? '').replace(/^\uFEFF/, '');
+  if (!글.trim()) return null;
+  if (/^\s*[<{[]/.test(글)) return null;      // XML·JSON 조각은 표가 아니다 — 밟은 그 자리다
+  if (글.includes('"')) return null;          // 따옴표 CSV 는 이 단순한 자의 밖이다
+  if (글.includes('\u0000')) return null;            // 바이너리 부스러기는 표가 아니다
+  const 줄들 = 글.split(/\r?\n/).filter((l) => l.trim() !== '');
+  if (!줄들.length || 줄들.length > 5000) return null;
+  const 구분 = !줄들[0].includes(',') && 줄들[0].includes('\t') ? '\t' : ',';
+  const 행들 = 줄들.map((l) => l.split(구분).map((s) => s.trim()));
+  if (!행들.some((r) => r.length >= 2)) return null;  // 열이 하나뿐이면 표라고 부르지 않는다
+  if (행들.some((r) => r.length > 256)) return null;
+  return 행들;
+}
+
+/**
+ * 이 글이 **오피스 꾸러미 부품**인가 (F-86 · 콘솔 라이브 4/4 실측 2026-08-12).
+ *
+ * 라이브에서 모델은 `.xlsx` 쓰기를 **한 번도 시도하지 않았다.** 자기가 아는 방법 —
+ * 부품을 폴더에 풀고 `zip` 으로 묶기 — 으로 갔고, 묶는 손이 없어 매번 마지막 계단에서
+ * 끝났다. 사용자 폴더에 `.rels`·`[Content_Types].xml`·`sheet1.xml`·`workbook.xml`·
+ * `workbook.xml.rels` 다섯이 남았고, 답은 *"터미널에서 아래만 실행하면 돼요"* 로
+ * zip 명령을 사용자에게 넘겼다.
+ *
+ * **이름으로 판정하지 않는다** — 이름은 근거가 아니라는 것이 이 매듭 전체의 교훈이다.
+ * 오피스 꾸러미 안에서만 쓰이는 네임스페이스가 글에 있으면 그건 부품이다. 사용자가 쓰려던
+ * 평범한 `workbook.xml` 은 이 자에 안 걸린다(검사 ⑧-b).
+ */
+function 꾸러미부품인가(text) {
+  const 글 = String(text ?? '');
+  if (글.length > 2_000_000) return false;
+  return /schemas\.openxmlformats\.org\/(package\/2006\/(content-types|relationships)|spreadsheetml\/2006\/main|officeDocument\/2006\/relationships)/
+    .test(글) || /schemas\.openxmlformats\.org\/wordprocessingml\/2006\/main/.test(글);
 }
 
 /**
@@ -921,9 +965,99 @@ export function makeLocalFileTool(deps = {}) {
               `정리 결과는 다른 이름(예: ${basename(abs).replace(/\.[^.]*$/, '')}-정리본)으로 저장할까요?`,
             );
           }
+          // ── F-86 · **이름이 형식을 약속하면 실물이 그 형식이어야 한다** (2026-08-12) ──
+          //
+          // 밟은 콘솔 라이브: 모델이 `xl/worksheets/sheet1.xml` **한 조각**(462바이트)을 그대로
+          // `8월지출_항목별합계.xlsx` 로 저장했고, 답은 *"엑셀 파일 열어보세요"* 였다. 합계 셋은
+          // 맞았는데 실물은 엑셀이 아니다 — `xxd` 앞 4바이트가 `3c 77 6f 72`("<wor")이고
+          // `unzip` 은 아카이브가 아니라고 한다. **Spotlight(`mdls`)조차 확장자만 보고**
+          // `org.openxmlformats.spreadsheetml.sheet` 라고 말했다. 사용자는 안 열리는 파일을 받는다.
+          //
+          // 자는 이미 있었다 — `documentSignatureMatches` 가 **읽는 문에만** 서 있었다(H:170).
+          // 새 자를 만들지 않고 그 자를 쓰는 문에도 세운다. 정의역은 **형식 서명을 아는 확장자뿐**
+          // 이다: `.txt`·`.md`·`.csv` 와 모르는 확장자는 예전 그대로 지나간다(fail-open 이 옳은
+          // 유일한 자리 — 없는 자로 막으면 그물이 능력을 잡아먹는다).
+          //
+          // 그리고 **막고 끝내지 않는다**: xlsx 는 표 본문이면 진짜 엑셀로 만들어 준다(아래).
+          const 형식 = documentFormat(abs);
+          // **부품을 사용자 자리에 풀지 않는다.** 형식 자보다 먼저 선다 — 부품의 이름은
+          // `.xml`·`.rels` 라 형식 자에는 안 걸리고(그게 옳다), 걸려야 할 것은 *무엇을 하려는
+          // 중인가* 다. 여기가 T5 가 "모델이 지금 엑셀을 손수 조립한다"를 아는 유일한 지점이고,
+          // 그래서 여기서 완성품으로 가는 길을 준다(막다른 답이 아니라 갈아탈 길).
+          if (!형식 && 꾸러미부품인가(text)) {
+            // **모델이 보낸 그 표기 그대로** 자리를 만든다. `userVisiblePath` 를 쓰면 홈이 뿌리인
+            // 구성에서 `jyp/GPAO-T5/…` 같은 반쪽 경로가 나오고, 모델이 그걸 그대로 부르면 작업
+            // 루트 기준으로 풀려 엉뚱한 자리에 생긴다(라이브 실측 2026-08-12 — 카드가 인자를
+            // 보여주면 승인이 아니라던 §previewOf 와 같은 병의 다음수단 판).
+            const 보낸것 = String(args.path ?? '');
+            const 자리 = 보낸것.includes('/') ? 보낸것.slice(0, 보낸것.lastIndexOf('/')) : '.';
+            return fail(
+              `${basename(abs)} 은(는) 엑셀·워드 파일의 **부품**이라 폴더에 그대로 풀지 않았어요`
+              + ' — 부품이 흩어지면 사용자에게는 열 수 없는 조각만 남아요.',
+              '표 내용을 쉼표로 나눈 줄(첫 줄은 열 이름)로 주시면 제가 완성된 엑셀 파일 하나로 만들어 드릴게요.',
+              undefined,
+              [{
+                방법: 'local.file', action: 'write', path: `${자리}/결과.xlsx`,
+                왜: '부품을 풀고 zip 으로 묶을 필요가 없다 — `.xlsx` 이름에 표 본문(쉼표로 나눈 줄 · 첫 줄 열 이름 · 따옴표 없이)을 text 로 한 번 저장하면 진짜 엑셀 파일이 만들어진다',
+              }],
+            );
+          }
+          let 실물 = null;                 // null 이면 글자 그대로 쓴다(예전 경로 그대로)
+          if (형식) {
+            const 쓸바이트 = Buffer.from(text, 'utf8');
+            if (!documentSignatureMatches(형식, 쓸바이트)) {
+              // (나) 능력 — 표 하나짜리 엑셀은 T5 가 짓는다. 셸도 임시 폴더도 안 쓴다.
+              const 행들 = 형식 === 'xlsx' ? 표행들(text) : null;
+              if (행들) {
+                try { 실물 = buildXlsx(행들); } catch { 실물 = null; }
+              }
+              if (!실물) {
+                const 앞4 = 쓸바이트.length
+                  ? [...쓸바이트.subarray(0, 4)].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+                  : '(빈 내용)';
+                const 만들수있음 = 형식 === 'xlsx';
+                return fail(
+                  `${basename(abs)} 은(는) 이름은 ${형식} 인데 내용이 ${형식} 이 아니라 저장하지 않았어요`
+                  + ` — ${형식} 은 ${documentSignatureExpectation(형식)} 로 시작해야 하는데`
+                  + ` 지금 내용은 \`${앞4}\` 로 시작해요. 이대로 두면 이름만 ${형식} 이고 열리지 않아요.`,
+                  만들수있음
+                    ? '표 내용을 쉼표로 나눈 줄(첫 줄은 열 이름)로 주시면 제가 진짜 엑셀 파일로 만들어 드릴게요.'
+                    : `아직 ${형식} 파일을 직접 만들지는 못해요. 같은 내용을 글 파일(.txt·.md)로 저장해 둘까요?`,
+                  undefined,
+                  // 모델이 **그대로 부를 수 있는** 다음 수. 문구가 아니라 값이다(fail 주석의 계약).
+                  만들수있음
+                    ? [{
+                      방법: 'local.file', action: 'write', path: args.path,
+                      왜: 'text 를 쉼표로 나눈 표 본문(첫 줄 열 이름 · 따옴표 없이)으로 바꿔 같은 이름에 다시 저장하면 진짜 xlsx 로 만들어 준다',
+                    }]
+                    : [{
+                      방법: 'local.file', action: 'write',
+                      path: String(args.path ?? '').replace(/\.[^.]*$/, '.md'),
+                      왜: `${형식} 은 만들 수 없다 — 같은 내용을 글 파일로 저장하면 사용자가 잃는 것이 없다`,
+                    }],
+                );
+              }
+            }
+          }
           await mkdir(dirname(abs), { recursive: true });
           const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
-          await writeFile(abs, text, 'utf8');
+          await writeFile(abs, 실물 ?? text, 실물 ? undefined : 'utf8');
+          // **쓴 뒤에 되읽어 확인한다** (F-86 · 오픈북: 헤르메스 `file_operations.py:1601-1626`
+          // 이 `sha256sum` 으로 디스크를 되읽고 어긋나면 *하드 에러*로 올린다 — *"a mismatch is
+          // surfaced as a hard error instead of silent corruption"*). 우리도 만들었다고 말하기
+          // 전에 실물을 한 번 더 본다. 어긋나면 만든 것을 치우고 **원본을 제자리로 되돌린다** —
+          // 실패가 사용자 파일 손실이 되면 안 된다(move 의 부분 실패 처리와 같은 계약).
+          if (형식) {
+            const 되읽음 = await nodeReadFile(abs).catch(() => null);
+            if (!되읽음 || !documentSignatureMatches(형식, 되읽음)) {
+              await rm(abs).catch(() => {});
+              if (parked) await rename(parked, abs).catch(() => {});
+              return fail(
+                `${basename(abs)} 을(를) 저장한 뒤 되읽어 보니 ${형식} 형식이 아니어서 되돌렸어요.`,
+                '같은 내용을 글 파일(.txt·.md)로 저장해 둘까요?',
+              );
+            }
+          }
           // **새로 만든 것도 되돌릴 수 있어야 한다.** 예전엔 덮어쓰기만 표에 남겼다 —
           // 실측(오너 라이브 2026-07-28): 승인 카드가 "되돌려줘로 되살릴 수 있어요"라고 약속하고
           // 저장했는데 "되돌릴 작업이 없다"가 나왔다. 카드가 못 지킬 약속을 한 것이다.
@@ -931,15 +1065,23 @@ export function makeLocalFileTool(deps = {}) {
           await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
           // 실물의 숫자 대조 사실 — 루프 안에서 모델이 손을 쥔 채 받는 되부름(위 쓴숫자대조 주석).
           const 대조말 = 쓴숫자대조(text, executionContext?.표맥락) ?? '';
+          // 엑셀을 지어 준 회차는 **무엇을 만들었는지 그대로 말한다** — "저장했어요"만 있으면
+          // 사용자도 모델도 글자를 그대로 넣은 것과 구분할 수 없다(밟은 회차가 그 자리다).
+          const 만든말 = 실물 ? ` (표 ${표행들(text).length}행을 엑셀 파일로 만들었어요)` : '';
           return ok(
             (parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
-              : `${basename(abs)} 을(를) 만들었어요.`) + 대조말,
+              : `${basename(abs)} 을(를) 만들었어요.`) + 만든말 + 대조말,
             {
-              path: abs, bytes: Buffer.byteLength(text), overwritten: Boolean(parked),
+              path: abs, bytes: 실물 ? 실물.length : Buffer.byteLength(text), overwritten: Boolean(parked),
+              // 이름이 약속한 형식으로 **실제로** 저장됐다는 기계 사실. 답이 "엑셀로 만들었다"고
+              // 말할 근거는 이것뿐이다(이름은 근거가 아니다 — 밟은 회차가 증명했다).
+              ...(형식 ? { format: 형식, formatVerified: true } : {}),
               // C 감사 F2.1 · **산출물의 내용 신분.** lane 은 digest 가 있으면 그것을 신분으로
               // 쓰는데 생산자가 없어 항상 경로+턴 폴백이었다 — 같은 경로가 나중에 바뀌어도
               // "같은 산출물"로 이어지는 병. 쓰기가 자기 내용의 digest 를 낸다.
-              digest: createHash('sha256').update(text).digest('hex'),
+              // **실제로 디스크에 간 바이트**의 신분이다 — 엑셀을 지어 준 회차는 글자와 실물이
+              // 다르므로 글자의 digest 를 내면 산출물 신분이 실물을 안 가리킨다(F-86).
+              digest: createHash('sha256').update(실물 ?? text).digest('hex'),
               // 원본을 안 건드렸다는 건 **말할 수 있는 사실**이어야 한다 — 결과에 남긴다.
               ...(원본 ? { originalUntouched: true, source: 원본 } : {}),
             },
