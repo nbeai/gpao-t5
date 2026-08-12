@@ -16,8 +16,15 @@ import { join } from 'node:path';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 
 // tmp 밖의 홈 모양 — F7.3(시스템을 품는 임시 경로 면제 제거)을 안 밟는 자리(F-46 봉인에서 배움).
+// 단 저장소 루트에 바로 파면 안 된다: `artifactIdentity`(scripts/human-use/harness-qualification.mjs:228)
+// 가 `git ls-files --others --exclude-standard` 로 뜬 목록을 300ms 동안 훑는데, 그 사이 만들었다
+// 지운 방이 ENOENT 를 만들어 전체 회귀가 간헐로 빨개졌다(2026-08-12 실측). `tmp/` 는 .gitignore
+// 되어 있어 그 정의역 밖이면서 SCRATCH(os.tmpdir·/tmp)도 아니다 — 두 성질을 다 지킨다.
+const 방뿌리 = join(process.cwd(), 'tmp');
+
 async function 무대() {
-  const H = await mkdtemp(join(process.cwd(), '.tmp-anchor-'));
+  await mkdir(방뿌리, { recursive: true });
+  const H = await mkdtemp(join(방뿌리, '.tmp-anchor-'));
   const A = join(H, 'GPAO-T5');
   await mkdir(A, { recursive: true });
   await mkdir(join(H, 'Desktop'), { recursive: true });
