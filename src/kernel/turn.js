@@ -724,7 +724,9 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
  */
 function 완료검증한번(ctx, 인자) {
   const 셈 = ctx.완료검증셈 ?? (ctx.완료검증셈 = { 잰것: 0, 재사용: 0 });   // 턴 머리에서 새로 선다
-  const 자리글 = JSON.stringify(인자.자리종류 ?? null);
+  // **재료가 바뀌면 재사용하지 않는다.** 자동화 사실(F-88)도 판정을 가르는 재료이므로 열쇠에
+  // 든다 — 안 넣으면 같은 답·같은 원장글에서 후보만 선 판정이 job 이 선 턴까지 따라간다.
+  const 자리글 = JSON.stringify([인자.자리종류 ?? null, 인자.자동화 ?? null]);
   const 메모 = ctx.완료검증메모;
   if (메모 && 메모.reply === 인자.reply && 메모.자리글 === 자리글
     && 메모.돌려줬나 === Boolean(인자.이미돌려줬나) && 메모.원장글 === 인자.원장글) {
@@ -748,6 +750,22 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   // 원장에 있는 이름은 몇 턴 전이든 원장의 이름이다. 대화문(recentTurns)은 넣지 않는다 —
   // 변형 이름이 두 번 말해지면 사실이 되는 길을 열지 않는다.
   const 원장글 = JSON.stringify([receipts ?? [], tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]);
+  // ── **자동화 사실은 부르는 쪽이 센다**(F-88 · F-83 의 `ctx.손0건으로닫으려함` 과 같은 자리) ──
+  //
+  // 후보·예약은 영수증이 아니라 **통제 채널**(`automation.propose`·`automation.control`)로
+  // 흐른다 — 그래서 출구 그물이 영수증만 봐서는 영영 못 본다. 그물이 스스로 다시 세면
+  // 두 진실이 되므로, 세는 자리는 여기 하나다.
+  //
+  // **후보가 선 턴에만 싣는다.** 후보 0 인 턴에 `{0,0}` 을 실으면 판정은 그대로인데 메모
+  // 열쇠만 갈려서, 같은 원장·같은 답을 두 번 계산한다(C2 가 그것을 잡았다).
+  const 이번턴자동화 = ctx.automationProposal?.statement && ctx.automationProposal?.rejected !== true
+    ? {
+      이번턴후보: 1,
+      // **readback 으로 확인된 `jobRef` 만 사실이다** — `자동화제어적용` 이 그 수위로 돌려준다
+      // (`control_readback_mismatch` 는 거절이다). 확정·재개 어느 쪽이든 예약이 선 것이다.
+      이번턴job: ctx.automationControl?.jobRef && ctx.automationControl?.rejected !== true ? 1 : 0,
+    }
+    : null;
   // F-54 후반 — **자리 종류**를 함께 준다(파일 자리 명부 · 이번 턴 화면 자리).
   // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
   const 검증 = 완료검증한번(ctx, {
@@ -759,6 +777,8 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
       파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((p) => p?.label ?? p).filter(Boolean),
       화면: ctx.이번턴화면자리 ?? [],
     },
+    // F-88 — **후보는 예약이 아니다**(계획서 §5-1 반대시험 ③).
+    ...(이번턴자동화 ? { 자동화: 이번턴자동화 } : {}),
   });
   if (검증.일치) return reply;
   ctx.출구되돌림 = true;
