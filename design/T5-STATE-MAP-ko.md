@@ -33,7 +33,7 @@
 모델      gpt-5.1 기본 · 공급자 와이어 5종(openai·anthropic·gemini·chatgpt·beai)
 ```
 
-**T5 는 부품이 없는 제품이 아니다.** 파일·터미널·프로세스·화면·브라우저·웹·채널·커넥터·기억·자동화·위임이 전부 실물로 있고, 영수증 수명주기와 해시체인 원장까지 있다. **문제는 §11 이음매 여덟이다.**
+**T5 는 부품이 없는 제품이 아니다.** 파일·터미널·프로세스·화면·브라우저·웹·채널·커넥터·기억·자동화·위임이 전부 실물로 있고, 영수증 수명주기와 해시체인 원장까지 있다. **문제는 §11 이음매다 — 목록은 아홉이고 그중 하나(③)는 절반이 닫혔다**(제목의 「여덟」은 ⑨ 가 더해지며 안 고쳐진 값이었다).
 
 ---
 
@@ -295,9 +295,9 @@ bulk 이동 갈래는 `skipped` 를 사유별로 세어 접는다 — `protected
 
 `lifecycle==='delivered'` ∧ `failureState==='none'` ∧ `actualCall` ∧ `result!==undefined` ∧ `result?.applied !== false`
 
-### 6-3. 출구 검증 11조항 (`exit-verification.js:311`)
+### 6-3. 출구 검증 11조항 (`exit-verification.js:415`)
 
-안 돌린 명령 · **거짓 실패** · 반만 읽고 "총" · 읽고도 안 실은 파일 · 폴더 합계 미기재 · 자리 종류 하나만 봄 · 막힌 걸음 미고지 · 지어낸 실물 · 실행 0인데 완료 주장 · 개수 2배 초과 어긋남.
+안 돌린 명령 · **거짓 실패** · 반만 읽고 "총" · 읽고도 안 실은 파일 · 폴더 합계 미기재 · 자리 종류 하나만 봄 · 막힌 걸음 미고지 · 지어낸 실물(**정의역: 파일 실물을 다루는 손을 쓴 턴만** — `local.file`·`local.locate`·`local.capsule`. 예전 `/^local\./` 는 터미널까지 물어 참인 답을 죽였다 · F-95) · 실행 0인데 완료 주장 · 개수 2배 초과 어긋남.
 문 앞 필터: 빈 답 · 질문형 · `미완료를밝혔나` 는 대조 제외.
 
 ### 6-4. WorkEventLedger (durable)
@@ -402,9 +402,10 @@ v2 수명주기(제안→replay(A0·외부효과0)→승인→활성)는 코드�
 
 ---
 
-## 11. ★★ 이음매 여덟 — 이 지도의 결론
+## 11. ★★ 이음매 아홉 — 이 지도의 결론
 
-한 경로는 `목적 → 권한 → 실행 → 사후확인 → 원장 → 답` 하나여야 한다. 지금 여덟 군데가 갈라져 있다.
+한 경로는 `목적 → 권한 → 실행 → 사후확인 → 원장 → 답` 하나여야 한다. 목록은 **아홉**이고, ③ 은 증거 문장만 닫혔다.
+(제목이 「여덟」이었던 것은 ⑨ 를 더하며 안 고친 것이다 — **세는 자가 자기 목록과 안 맞았다.**)
 
 ```
 ①  실행 레인 둘        계획 경로엔 probe 가 관통 안 함 → 같은 desktop.act type 이
@@ -415,9 +416,10 @@ v2 수명주기(제안→replay(A0·외부효과0)→승인→활성)는 코드�
                      working-state(recentOutcome) / exit-verification(11조항)
                      모델에게 가는 이름은 셋째·넷째를 안 가리킨다   [삼각확인]
 
-③  질문 통로 셋        승인 카드 · ask.user · 복구 되묻기.
-                     ask.user 가 오면 **같은 응답의 실행 호출이 통째로 증발**한다
-                     (다른 증발 자리 다섯은 사유가 남는데 이 자리만 없다)  [삼각확인]
+③  질문 통로 셋        승인 카드 · ask.user · 복구 되묻기.  ← **통로 셋은 그대로 열려 있다**
+                     ~~ask.user 가 오면 같은 응답의 실행 호출이 통째로 증발한다~~
+                     → **닫힘**(536b3bb · test/j4-clarify-does-not-vanish-calls.test.js).
+                     증발 절만 닫혔고 이음매 자체는 남는다 — 「무효」가 아니다
 
 ④  등록부 둘          제품이 demo-context 를 정본으로 쓴다(live-context.js:5).
                      시험용 스텁과 제품 선언이 한 파일에 산다
@@ -445,6 +447,16 @@ v2 수명주기(제안→replay(A0·외부효과0)→승인→활성)는 코드�
                      turn.js 이음매① 주석). 한쪽을 고칠 때 다른 쪽이 안 따라오면 그때 갈라진다.
                      위험도: 지금 사용자 피해 0 · 갈라짐 대기
 ```
+
+**~~그리고 「이 턴이 파일을 다뤘나」를 한 파일 안에서 두 자로 쟀다~~ → 한 벌로(`ffb3a3f` · 2026-08-12).**
+`exit-verification.js` 안에서 `지어낸실물` 의 정의역은 `/^local\./` 였고 `완료주장검증` 의 `파일봄` 은
+`local.file|locate|capsule` 이었다 — **한 손이 두 자에서 다른 종류였다.** 넓은 쪽이 F-95 를 만들었다:
+터미널 읽기 턴에서 답의 `Node.js` 가 **파일 이름으로 뽑혀**, 모델이 쓴 참인 답(`v24.14.0`)이
+「지어낸 실물」로 몰려 커널 대체문으로 갈아치워졌다(라이브 3/3 → 수리 후 5/5).
+지금은 `파일실물손` 상수 한 자리를 둘이 함께 쓴다(`파일봄` 행동은 표본 12로 동치 확인).
+⑨ 계열 「두 벌」이 **둘째로** 줄었다. 검사 `test/f95-honest-answer-is-not-a-fabricated-file.test.js`.
+남은 절반(이름 자가 확장자꼴 제품명을 파일로 읽는 것)은 **정규식을 안 건드리고** 장부 F-96 에
+재현 레시피와 함께 열어 뒀다 — 목록으로 막는 길은 이미 두 번 뚫렸다.
 
 **~~그리고 손 이름 정규화가 두 벌이었다~~ → 한 자리로(`0be311b` · 2026-08-12).**
 모델은 도구를 `local_file`·`functions.local_file` 로 본다(`wireToolName` 이 바꾼 이름). 호출 *이름*은
@@ -474,28 +486,30 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | S1 | ~~안전~~ **닫힘** | `bulk_move` 만 개별 파일 보호 판정을 안 했다 — 점 없는 비밀 이름이 카드 없이 옮겨졌다. `b3eea28` 에서 루프에 `protectionBlocks(full,{write:true})` 를 걸어 닫음. 잔여 없음 | local-file.js:1018 · 검사 `test/s1-bulk-move-protects-secrets.test.js` |
 | S2 | ~~안전~~ **닫힘** | 비-macOS 에서 터미널이 샌드박스 없이 돌고, **부재가 안전의 증거로 읽혔다**(아무것도 안 막히니 `changes:false`→`read`→자동). 명령은 그대로 돌되 **탐침이 무죄를 주장하지 못하게** 막아 `unknown_kind`→카드로 보낸다. 오픈북: 오픈클로 `docs/tools/exec.md:98-100`(fail closed · with approvals) | local-terminal.js:134 · 검사 `test/s2-no-sandbox-cannot-prove-innocence.test.js` |
 | S3 | ~~안전~~ **닫힘** | 캡슐 RPC 가 승인 판정을 안 지났다 — `이번이월`·`발화밖파괴`·`unknown_kind` 가 캡슐 안에서 통째로 건너뛰어졌다. 펌프가 `tools.run` 앞에서 **커널의 그 판정**(`실행전판정`→`decideAutoGrant`)을 부르게 했다(복제 없음). 승인이 필요하면 그 호출만 거부하고 사유를 `거부`·`refusedForApproval` 로 싣는다. 오픈북: Hermes `code_execution_tool.py:1405-1407`(승인 맥락을 잃으면 *"silently auto-approve dangerous commands"*) | capsule.js:196 · 검사 `test/s3-capsule-calls-pass-the-approval-gate.test.js` |
-| S4 | **안전** | `되돌릴 수 없는 것 3` 이 executePlan 진입마다 리셋 — 카드 N번 뜨면 3×N | turn.js:2027 |
+| S4 | ~~안전~~ **닫힘**(536b3bb · test/s4-irreversible-cap-is-per-request.test.js) | `되돌릴 수 없는 것 3` 이 executePlan 진입마다 리셋 — 카드 N번 뜨면 3×N | turn.js:2027 |
 | S5 | ~~안전~~ **닫힘** | 포트 9412 고정 · 소유권 확인 없음 → `/json/version` 이 답하기만 하면 **남의 크롬**을 몰았다. 띄우기 **전에** 자리를 물어 비었을 때만 잡고, 차 있으면 옆으로 옮기고, 열 자리가 다 차면 정직하게 막는다. 오픈북: 오픈클로 `docs/tools/browser.md:247-249`(*"auto-assign `cdpPort`"*)·`:283`(*"attachOnly … only attach if one is already running"*) + 집안 선례 `port-claim.js` 세 갈래. 남은 창: 자리 확인과 크롬이 실제로 잡기까지의 몇 초(코드에 적어 둠) | browser.js:330 · 검사 `test/s5-browser-does-not-attach-to-someone-elses-chrome.test.js` |
 | S6 | **안전** | `legacy-default-agent`(A2·전 도구)가 유일 활성 역할이면 무조건 선택된다 | server.js:1041 |
 | J1 | ~~정직~~ **닫힘** | 손이 준 `다음수단·다른후보·막힌곳·nextSafeAction` 이 어떤 와이어에도 안 실렸다. `24754f6` 에서 `다음길줄` 을 세워 교환·서술 두 자리에서 와이어 넷이 읽는다(사실 진술만·지시문 없음) | model-provider.js:685 · 검사 `test/every-wire-carries-the-next-path.test.js` |
 | J2 | ~~정직~~ **닫힘(절반은 남음)** | 지난 턴 실패가 성공처럼 서던 자리. `24754f6` 에서 상태 토큰을 옮기고 `(미확인: failed)` 로 표시. **남은 것**: `priorExchange` 는 여전히 요약만이고 결과 원문은 안 실린다(E1 계약 — 의도된 것) | task-context.js:1013 · model-provider.js:497 |
 | J3 | ~~정직~~ **닫힘** | ChatGPT 와이어만 사실을 빼던 자리. `24754f6` 에서 렌더를 복제하지 않고 `교환결과렌더` 를 그대로 부른다 — 칸이 늘면 넷이 같이 는다 | chatgpt-model-client.js:44 |
-| J4 | **정직** | `ask.user` 가 오면 같은 응답의 실행 호출이 사유 없이 증발 | turn.js:1244 |
+| J4 | ~~정직~~ **닫힘**(536b3bb · test/j4-clarify-does-not-vanish-calls.test.js) | `ask.user` 가 오면 같은 응답의 실행 호출이 사유 없이 증발 | turn.js:1244 |
 | J5 | **정직** | `desktop.act` 미지원 동사 거절 문구가 낡음("창 띄우기·끄기까지예요" — 실제 17동사) | desktop-act-tool.js:508 |
 | J6 | ~~정직~~ **닫힘** | locate 가 폴더당 400개에서 **필터 전에** 자르는데 표식이 없었다 — 「폴더 N개를 훑었어요」가 「다 봤어요」로 읽혔다. 상한(400)은 그대로 두고 **침묵만** 고쳤다: `truncatedFolders[{path,seen,unseen}]`·`unseenEntries` 를 결과에 싣고, **모든 요약 갈래**에 한 줄을 붙인다(찾았을 때도). 오픈북: 쿠아 `SKILL.md:665-668`(트리가 크면 파일로 내보내고 경로를 준다) · 클로드코드 실측(*"Output too large (106.3KB). Full output saved to: …"*) | local-locate.js:449 · 검사 `test/j6-locate-says-what-it-did-not-look-at.test.js` |
 | J7 | **정직** | 따옴표 든 CSV 는 표 안전망 전체가 조용히 꺼진다(꺼진 사실이 안 실림) | local-file.js:126 |
 | J8 | **정직** | 「승인을 기다리는 일」 줄이 모델에게 영영 안 간다(`turn.pendingApprovals` 를 넘기는 호출자 0) | working-state.js:171 |
-| J9 | **정직** | 도구를 쓴 턴의 답이 잘려도 「잘렸다」 안내가 안 붙는다(빠른 경로에만) | turn.js:1423 |
+| J9 | ~~정직~~ **닫힘**(536b3bb · test/j9-truncation-notice-on-tool-turns.test.js) | 도구를 쓴 턴의 답이 잘려도 「잘렸다」 안내가 안 붙는다(빠른 경로에만) | turn.js:1423 |
+| J11 | ~~정직~~ **닫힘** | 커널이 **모델이 쓴 참인 답을 버리고** 영수증 문장으로 갈아치웠다. `지어낸실물` 의 정의역이 `/^local\./` 라 터미널 읽기 턴까지 물었고, 답의 `Node.js` 가 **파일 이름으로 뽑혀** 원장에 없다고 판정됐다(라이브 3/3 · 모델은 세 번 다 `v24.14.0` 을 썼다). `ffb3a3f` 에서 정의역을 그 그물의 자기 겨냥(파일 실물 손)으로 되돌리고 **자 두 벌을 한 벌로** 합쳤다. 수리 후 라이브 5/5 | exit-verification.js:280 · `파일실물손` :202 · 검사 `test/f95-honest-answer-is-not-a-fabricated-file.test.js` |
+| J12 | **정직** | **모델 답을 런타임 문장으로 갈아치우는 자리가 4인데 자는 2만 센다.** 계획서 §3-A 는 「지금 2자리 · 목표 0」이라 적혀 있고, `answer-authorship-lanes.test.js:31` 은 `turn.js` 안의 `/정직한답/g` **글자 수**를 세어 2를 요구한다 — ③④ 에는 그 낱말이 없어 **구조적으로 안 걸린다**. `turn.js:827` 주석은 스스로 *"셋째 갈아치움 칸이다"* 라고 적어 뒀는데 표도 자도 안 고쳤다. J11 이 그 셋째 칸에서 났다. **계획서 표는 고쳤고 자는 안 고쳤다**(다음 슬라이스 · 장부 F-97) | turn.js:687·3503·838·840 · 자 `test/answer-authorship-lanes.test.js:31` |
 | J10 | ~~정직~~ **닫힘** | 모델이 손을 **자기가 보는 이름**(`local_file`·`functions.local_file`)으로 적으면 예약이 안 섰다 — 후보만 서고 job 0, 그런데 답은 「켜 뒀어요」였다(라이브 26회차 중 18회만 섬 · 상관 6/6). `0be311b` 에서 `kernelToolName` 한 자리로 모으고 **입구에서 한 번** 편다. 그물은 안 넓어진다(근거가 접두 규칙이 아니라 실재 손 목록) · 「아무 스킬에나 묶는 자리」 봉인은 반대시험 ④로 다시 세운 채 그대로 | model-provider.js:`kernelToolName` · server.js:`손이름펴기` · 검사 `test/f93-automation-hand-name.test.js` |
-| F1 | **마찰** | 실제 검색기가 DDG 하나뿐 — SearXNG·Tavily 키를 넘기는 배선도 env 도 없다 | live-context.js:193 |
-| F2 | **마찰** | 미분류 MCP 도구가 전부 `unknown_kind`+승인 → 조회도 카드 | tool-admission.js:65 |
+| F1 | ~~마찰~~ **닫힘**(0684285 · test/f1-search-tiers-are-actually-reachable.test.js) | 실제 검색기가 DDG 하나뿐 — SearXNG·Tavily 키를 넘기는 배선도 env 도 없다 | live-context.js:193 |
+| F2 | ~~마찰~~ **닫힘**(1ac96be · test/f2-mcp-kind-from-declared-facts.test.js) | 미분류 MCP 도구가 전부 `unknown_kind`+승인 → 조회도 카드 | tool-admission.js:65 |
 | F3 | **마찰** | 비밀 이름 정규식이 일반 자료도 잡는다(`token-정산.xlsx` 읽기 차단, 사유 미고지). `b3eea28` 이후 `bulk_move` 도 같은 정규식을 쓴다 — `정산.pem` 류가 이동에서 제외된다(이쪽은 사유를 고지한다) | file-scope.js · local-file.js:1018 |
 | F4 | ~~마찰~~ **닫힘** | `undo` 만 선언 루트(`roots`)를 봤고 쓰기는 `activeRoots`(루트 ∪ 홈)로 돌았다 → `GPAO_T5_FILE_ROOTS` 로 좁힌 구성에서 **홈에 쓰고 못 되돌리는 조합**이 성립했다(카드는 "되살릴 수 있어요"라고 약속했다). 되돌리기가 **쓰기와 같은 자**(`activeRoots`)를 쓰게 했다 — 보호 검사와 사본 경계(휴지통 또는 범위 안)는 그대로 | local-file.js:571 · 검사 `test/f4-undo-uses-the-same-ruler-as-write.test.js` |
 | F5 | **마찰** | 채널 계층 일부가 모든 외부 전송을 항상 A2 로 선언(상위 헌장 ③ 과 충돌) | (코덱스 §13) |
 | C1 | **원가** | 캐시 접두를 실제로 쓰는 공급자는 Anthropic 하나. beai 는 원천 불가 | model-provider.js:901 |
-| C2 | **원가** | `완료주장검증` 이 한 턴에 두 번 돈다(걸음 루프 + 출구) | turn.js:2469 · 696 |
-| C3 | **원가** | `results/` 흘림 파일에 삭제·회전이 없다 — 무한 누적 | tool-runner.js:21 |
-| C4 | **원가** | 모델 응답 총시간 상한 기본 0(무제한) · 단발 경로는 정체 감시도 0 | model-timeout.js:48 |
+| C2 | ~~원가~~ **닫힘**(536b3bb · test/c2-completion-check-runs-once.test.js) | `완료주장검증` 이 한 턴에 두 번 돈다(걸음 루프 + 출구) | turn.js:2469 · 696 |
+| C3 | ~~원가~~ **닫힘**(89cc001 · test/c3-result-spill-rotates.test.js) | `results/` 흘림 파일에 삭제·회전이 없다 — 무한 누적 | tool-runner.js:21 |
+| C4 | ~~원가~~ **닫힘**(66a735d · test/c4-model-runaway-stopline.test.js) | 모델 응답 총시간 상한 기본 0(무제한) · 단발 경로는 정체 감시도 0 | model-timeout.js:48 |
 | X1 | — | 작업 트리에 살아 있는 자격 파일 `scripts/compare-live/secret-env.sh`(600·git 무시) | — |
 | X2 | — | `organ-round.mjs` 문장표가 자기 주석과 모순(뺐다는 창 전환 두 줄이 배열에 그대로) | organ-round.mjs:87-99 |
 | X3 | — | A층(living-sim)이 `EXTERNAL_EFFECT_HANDS` 를 거부해 화면·브라우저·발신 손은 **자격·계보 검증을 한 번도 안 받는다** | living-sim-runner.js |
