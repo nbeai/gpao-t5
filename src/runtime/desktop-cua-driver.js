@@ -226,14 +226,21 @@ export function makeCuaDriver(deps = {}) {
   // 오너 결정(2026-08-06): *"연결을 한 번 맺고 유지한다."* 드라이버가 상주하니 조건이 선다.
   const 붙은브라우저 = new Set();
   // 픽셀 좌표도 요소 토큰과 같은 **관측 신분**을 가져야 한다. 그림을 실제로 낸 관찰만
-  // 여기에 들어오며, 행동은 그 불투명 스냅샷 신분과 같은 창·pid·그림을 다시 확인한다.
+  // 여기에 들어오며, 행동은 그 불투명 스냅샷 신분과 같은 창·pid·좌표 프레임을 확인한다.
   const 그림스냅샷들 = new Map();
-  const 그림해시 = (그림) => createHash('sha256').update(String(그림?.base64 ?? 그림 ?? '')).digest('hex');
+  const 창별최신그림 = new Map();
+  let 그림차례 = 0;
   const 그림기록 = (그림, 창, 크기) => {
     if (!그림?.base64 || 창?.id == null || 창?.pid == null) return null;
-    const 해시 = 그림해시(그림);
-    const 신분값 = `px:${해시.slice(0, 24)}`;
-    그림스냅샷들.set(신분값, { 해시, 창: Number(창.id), pid: Number(창.pid), 크기 });
+    const 창값 = Number(창.id); const pid값 = Number(창.pid);
+    const 창키 = `${pid값}:${창값}`;
+    const 앞신분 = 창별최신그림.get(창키);
+    if (앞신분) 그림스냅샷들.delete(앞신분);
+    그림차례 += 1;
+    const 불투명값 = createHash('sha256').update(`${그림차례}\0${창키}`).digest('hex').slice(0, 24);
+    const 신분값 = `px:${불투명값}`;
+    그림스냅샷들.set(신분값, { 창: 창값, pid: pid값, 크기 });
+    창별최신그림.set(창키, 신분값);
     while (그림스냅샷들.size > 8) 그림스냅샷들.delete(그림스냅샷들.keys().next().value);
     return 신분값;
   };
@@ -1303,8 +1310,11 @@ export function makeCuaDriver(deps = {}) {
       // 요소 신분이 전혀 없는 픽셀 폴백에만 건다.
       const 좌표만줌 = !대상.토큰 && 대상.번호 == null && !대상.id;
       const 짚음 = 좌표만줌 ? 짚은자리(대상) : null;
-      const 좌표신분 = 짚음 ? 그림스냅샷들.get(String(대상.스냅샷 ?? '')) : null;
+      const 요청신분 = String(대상.스냅샷 ?? '');
+      const 좌표신분 = 짚음 ? 그림스냅샷들.get(요청신분) : null;
+      const 최신신분 = 짚음 ? 창별최신그림.get(`${Number(대상.pid)}:${Number(대상.창)}`) : null;
       if (짚음 && (!좌표신분
+        || 최신신분 !== 요청신분
         || 좌표신분.창 !== Number(대상.창)
         || 좌표신분.pid !== Number(대상.pid)
         || !(Number(좌표신분.크기?.w) > 0) || !(Number(좌표신분.크기?.h) > 0)
@@ -1329,7 +1339,12 @@ export function makeCuaDriver(deps = {}) {
           x1: 0, y1: 0, x2: 가로 * 2, y2: 세로 * 2,
         }).catch(() => null);
         const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
-        if (!이미지 || 그림해시(String(이미지.data)) !== 좌표신분.해시) {
+        const 새크기 = 이미지 && (Number(이미지.width) > 0
+          ? { w: Number(이미지.width), h: Number(이미지.height) }
+          : 그림크기재기(String(이미지.data)));
+        if (!이미지
+          || Number(새크기?.w) !== Number(좌표신분.크기?.w)
+          || Number(새크기?.h) !== Number(좌표신분.크기?.h)) {
           return { effect: 'refused', code: 'stale_pixel_snapshot' };
         }
       }

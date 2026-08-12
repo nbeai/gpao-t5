@@ -93,7 +93,7 @@ test('같은 창·같은 그림에서 관측한 좌표만 from_zoom으로 실행
   assert.equal(실행?.인자?.y, 250);
 });
 
-test('관측 뒤 그림이 달라지면 오래된 좌표를 실행하지 않는다', async () => {
+test('caret·animation으로 JPEG 바이트가 달라도 최신 관측의 같은 좌표 프레임이면 실행한다', async () => {
   let 그림번호 = 0;
   const 가짜 = 픽셀가짜(() => (++그림번호 === 1 ? 'Q' : 'R').repeat(2_000));
   const 드라이버 = makeCuaDriver({ mcp: 가짜.mcp });
@@ -102,8 +102,23 @@ test('관측 뒤 그림이 달라지면 오래된 좌표를 실행하지 않는�
     행동: 'click',
     대상: { 창: 9, pid: 77, x: 120, y: 250, 스냅샷: 관측.그림스냅샷 },
   });
-  assert.equal(결과.code, 'stale_pixel_snapshot');
-  assert.equal(가짜.부른것.some((x) => x.이름 === 'click'), false, '달라진 화면의 옛 좌표를 눌렀다');
+  assert.equal(결과.effect, 'confirmed');
+  assert.equal(가짜.부른것.some((x) => x.이름 === 'click'), true,
+    '같은 좌표 프레임인데 JPEG 바이트 변화만으로 관측 좌표를 버렸다');
+});
+
+test('같은 창의 새 그림 관측이 나오면 이전 좌표 스냅샷은 stale이다', async () => {
+  const 가짜 = 픽셀가짜();
+  const 드라이버 = makeCuaDriver({ mcp: 가짜.mcp });
+  const 이전 = await 드라이버.observe({ scope: 'window', app: '카카오톡' });
+  const 최신 = await 드라이버.observe({ scope: 'window', app: '카카오톡' });
+  assert.notEqual(이전.그림스냅샷, 최신.그림스냅샷, '새 관측이 새 신분을 발급하지 않았다');
+  const 결과 = await 드라이버.act({
+    행동: 'click',
+    대상: { 창: 9, pid: 77, x: 120, y: 250, 스냅샷: 이전.그림스냅샷 },
+  });
+  assert.equal(결과.effect, 'refused');
+  assert.equal(가짜.부른것.some((x) => x.이름 === 'click'), false, '새 관측 뒤 옛 좌표를 눌렀다');
 });
 
 test('미지원 거절 자기보고는 실제 17개 동사와 같은 진실을 쓴다', async () => {
