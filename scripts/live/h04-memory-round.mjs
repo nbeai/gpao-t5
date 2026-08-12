@@ -128,13 +128,17 @@ export async function 방하나(credential, 손없이, 더쥘손 = []) {
       const wc = await importFrom('src/runtime/web-collector.js');
       손구현['web.collect'] = wc.makeWebCollector({});
     }
-    if (더쥘손.includes('browser.observe')) {
-      const bt = await importFrom('src/runtime/browser-tool.js');
-      손구현['browser.observe'] = bt.makeBrowserObserveTool({});
-    }
-    if (더쥘손.includes('browser.act')) {
-      const bt2 = await importFrom('src/runtime/browser-tool.js');
-      손구현['browser.act'] = bt2.makeBrowserActTool({});
+    if (더쥘손.some((h) => h.startsWith('browser.'))) {
+      // **진짜 브라우저를 물린다.** 안 물리면 손이 늘 `NO_BROWSER` 를 내고,
+      // 그러면 「길이 막혔다」와 「길을 안 냈다」를 구별할 수 없다(F-105 규율).
+      const [bt, br] = await Promise.all([
+        importFrom('src/runtime/browser-tool.js'), importFrom('src/runtime/browser.js'),
+      ]);
+      const 크롬 = br.findBrowserSync();
+      if (!크롬) throw new Error('이 컴퓨터에 브라우저가 없다 — 브라우저 손을 시험할 수 없다');
+      const 브라우저 = br.makeBrowser({ browserPath: 크롬 });
+      if (더쥘손.includes('browser.observe')) 손구현['browser.observe'] = bt.makeBrowserObserveTool({ browser: 브라우저 });
+      if (더쥘손.includes('browser.act')) 손구현['browser.act'] = bt.makeBrowserActTool({ browser: 브라우저 });
     }
     if (더쥘손.includes('local.locate')) {
       const ll = await importFrom('src/runtime/local-locate.js');
