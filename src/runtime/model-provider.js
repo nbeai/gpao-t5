@@ -454,21 +454,81 @@ export function buildModelMessages(tc) {
   // 도구 반환값으로** 건넨다 — *"silently dropping the user's 'tell me when it runs' intent …
   // Surface it at create time so the agent can relay it instead of promising a delivery that
   // never happens."* 해법이 문장 지침이 아니라 **기계 통지**라는 점이 핵심이고, 여기가 그 자리다.
+  //
+  // ── **선 예약에는 「안 도는 조건」이 함께 간다** (A3 · 2026-08-12) ────────────────
+  //
+  // 위 F-88 수리는 후보 레인만 봤다. 그 사이 명시 예약이 **그 자리에서 켜지게** 되면서
+  // (닫는문서 §4 넓힘 1번) 이 블록이 job 이 선 턴에도 오게 됐는데, 글은 후보 레인 그대로였다.
+  // 실측(2026-08-12): 원장 `automation.json` 에 jobs 1건(`state:'scheduled'`)인 턴에서
+  // 커널이 *"**후보이지 예약이 아니다** · 선 예약(job): **0건** · 켜려면 commit 을 불러라"*
+  // 라고 적고 있었다 — **F-88 이 걷은 거짓의 반대 방향**이고 무게는 같다(사용자는 켜진
+  // 예약을 안 켜졌다고 듣는다). 그래서 레인을 글에서도 가른다.
+  //
+  // 그리고 **안 도는 조건**이 여기 한 글자도 안 왔다. 값은 켜는 손이 이미 기계로 계산해
+  // 반환값에 싣고 있었는데(`server.js` 안도는조건 → `automation-contracts.js`
+  // `자동화안도는조건`) 모델 입력에 없었다 — 모델이 안 옮긴 게 아니라 **받은 적이 없다**.
+  // 「말해라」를 더하지 않는다. 여기 적는 것은 전부 **그 레코드에서 온 값**이고,
+  // 마지막 한 줄만 그 값이 왜 사용자 자리의 사실인지를 말한다(무엇이 참인가).
+  //
+  // 오픈북 둘 다 **생성 시점 기계 통지**이지 문장 지침이 아니다:
+  //   헤르메스 `tools/cronjob_tools.py:341-375` — *"Surface it at create time so the agent can
+  //   relay it instead of promising a delivery that never happens."* (그 문자열은 create
+  //   응답에 이어붙어 나간다 · `:1122-1124`)
+  //   클로드코드 `create_scheduled_task` 설명서 — *"Scheduled tasks run while this app is open.
+  //   If the app is closed when a task is due, it runs on next launch."*
   if (tc.automationProposal?.statement) {
     const 후보 = tc.automationProposal;
-    // 이 턴에 제어가 실제로 예약을 세웠나 — `readback` 으로 확인된 `jobRef` 만 사실이다.
-    const 선것 = tc.automationControl?.rejected !== true ? tc.automationControl?.jobRef : null;
-    const 켜는법 = 후보.candidateRef && Number.isFinite(Number(후보.revision))
-      ? `automation.control(operation='commit', targetCandidateRef='${후보.candidateRef}',`
-        + ` targetCandidateRevision=${후보.revision}) 를 부르면 job 이 선다`
-      : 'automation.control(operation=\'commit\') 로 이 후보를 확정해야 job 이 선다';
-    커널블록.push(`[이번 턴에 세운 예약 후보]\n- 문장: ${후보.statement}\n`
-      + `- 상태: ${후보.state ?? 'proposed'} — **후보이지 예약이 아니다.** 이번 턴에 방금 세웠다`
-      + '(앞 턴에서 온 것이 아니다)\n'
-      + `- 이 후보로 선 예약(job): ${선것 ? `${선것} 1건` : '0건'}\n`
-      + `- 켜려면: ${켜는법}\n`
-      + 'T5 는 이 예약을 실제로 세울 수 있다. 다만 후보는 시각이 돼도 혼자 돌지 않는다 —'
-      + ' job 이 서야 돈다.');
+    // 이 턴에 예약이 실제로 섰나 — `readback` 으로 확인된 `jobRef` 만 사실이다.
+    // **두 자리에서 온다**: 확정 동사(`automationControl`)와 명시 예약의 즉시 확정(후보 쪽).
+    const 선것 = (tc.automationControl?.rejected !== true ? tc.automationControl?.jobRef : null)
+      ?? (후보.rejected !== true ? 후보.jobRef : null) ?? null;
+    if (선것) {
+      // 값은 전부 켜는 손 반환값 그대로다. 없는 칸은 **적지 않는다**(지어내지 않는다).
+      const nr = 후보.notRunning ?? {};
+      const 줄 = [];
+      if (nr.requiresAppRunning === true) {
+        줄.push(`- 이 예약은 T5 가 켜져 있을 때만 돈다 — 데몬·cron·launchd 가 아니다`
+          + `(${nr.schedulerKind ?? 'in_process'}${Number.isFinite(nr.tickIntervalMs)
+            ? ` · ${Math.round(nr.tickIntervalMs / 1000)}초마다 확인` : ''}).`
+          + ' T5 가 꺼져 있는 동안에는 그 시각이 지나가도 안 돈다');
+      }
+      if (nr.misfirePolicy === 'catch_up_once') {
+        줄.push(`- 꺼져 있어 놓친 회차는 다음에 T5 를 켤 때 최대 ${nr.catchUpLimit}회만 따라잡는다`
+          + ' — 그보다 오래 꺼져 있었으면 나머지는 안 돈다');
+      } else if (nr.misfirePolicy === 'skip') {
+        줄.push('- 꺼져 있어 놓친 회차는 따라잡지 않고 통째로 버린다(misfirePolicy=skip)');
+      }
+      if (Number.isFinite(nr.authorityExpiresAt) || Number.isFinite(nr.maxRuns)) {
+        줄.push('- 권한창: '
+          + [Number.isFinite(nr.authorityExpiresAt)
+            ? `${new Date(nr.authorityExpiresAt).toISOString()} 까지` : null,
+          Number.isFinite(nr.maxRuns) ? `최대 ${nr.maxRuns}회` : null].filter(Boolean).join(' · ')
+          + '. 그 뒤에는 안 돈다');
+      }
+      커널블록.push('[이번 턴에 선 예약]\n'
+        + `- 문장: ${후보.statement}\n`
+        + `- 상태: ${후보.state ?? 'scheduled'} — **후보가 아니라 실제로 선 예약(job)이다.**`
+        + ' 이번 턴에 방금 섰다(앞 턴에서 온 것이 아니다)\n'
+        + `- 예약(job): ${선것} 1건\n`
+        + (Number.isFinite(후보.nextRunAt)
+          ? `- 다음 실행: ${new Date(후보.nextRunAt).toISOString()}\n` : '')
+        + (줄.length ? `${줄.join('\n')}\n` : '')
+        + (nr.deliversTo ? `- 결과가 가는 자리: ${nr.deliversTo}\n` : '')
+        + '이 예약은 시각이 되면 T5 가 스스로 돌린다. 위 조건들은 그것이 **안 도는** 경우다 —'
+        + ' 사용자가 그것을 모르면 「켜 뒀어요」는 절반만 참이다.');
+    } else {
+      const 켜는법 = 후보.candidateRef && Number.isFinite(Number(후보.revision))
+        ? `automation.control(operation='commit', targetCandidateRef='${후보.candidateRef}',`
+          + ` targetCandidateRevision=${후보.revision}) 를 부르면 job 이 선다`
+        : 'automation.control(operation=\'commit\') 로 이 후보를 확정해야 job 이 선다';
+      커널블록.push(`[이번 턴에 세운 예약 후보]\n- 문장: ${후보.statement}\n`
+        + `- 상태: ${후보.state ?? 'proposed'} — **후보이지 예약이 아니다.** 이번 턴에 방금 세웠다`
+        + '(앞 턴에서 온 것이 아니다)\n'
+        + `- 이 후보로 선 예약(job): 0건\n`
+        + `- 켜려면: ${켜는법}\n`
+        + 'T5 는 이 예약을 실제로 세울 수 있다. 다만 후보는 시각이 돼도 혼자 돌지 않는다 —'
+        + ' job 이 서야 돈다.');
+    }
   }
   if (tc.automationReality) {
     커널블록.push(`[자동화 현실]\n${JSON.stringify(tc.automationReality)}`);
