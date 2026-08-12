@@ -880,9 +880,16 @@ async function 오버레이열기(이름, ...인자) {
   문.겉.classList.add('open');
   문.연때 = ++열림순번;
   document.body.classList.remove('nav-open');   // 좁은 화면에서 사이드바가 위에 남지 않게
+  주소쓰기(`/화면/${이름}`);   // 조각 G: 화면도 주소를 갖는다 — 통로에 올라온 것은 전부 공짜로
   await 문.열릴때?.(...인자);
 }
-function 오버레이닫기(이름) { 오버레이표.get(이름)?.겉.classList.remove('open'); }
+function 오버레이닫기(이름) {
+  const 문 = 오버레이표.get(이름);
+  if (!문 || !문.겉.classList.contains('open')) return;
+  문.겉.classList.remove('open');
+  // 화면을 닫으면 주소는 **그 아래 있던 대화**로 돌아간다(빈 주소로 떨어뜨리지 않는다).
+  if (!열린오버레이().length) 주소쓰기(currentSessionId ? `/s/${currentSessionId}` : '');
+}
 /** 지금 열려 있는 것들 — **연 순서대로**. Esc 가 하나만 닫는 근거다(조각 B). */
 function 열린오버레이() {
   return [...오버레이표.values()]
@@ -1890,6 +1897,7 @@ async function selectSession(id) {
   await loadSessions();
   scrollToBottom(true); // 대화를 열면 마지막 대목부터 보인다(위에서부터 읽게 두지 않는다)
   document.body.classList.remove('nav-open');
+  주소쓰기(`/s/${id}`);   // 조각 G: 연 대화가 주소에 남는다(뒤로가기·링크가 여기서 생긴다)
 }
 
 function renderSelfState(s) {
@@ -2960,13 +2968,58 @@ document.addEventListener('keydown', (e) => {
   if (손바.classList.contains('on')) { e.preventDefault(); 손바숨기기(); }
 });
 
+// ── 조각 G · 대화와 화면에 **주소**가 생긴다 (기획 §4 「F 다음」 · 2026-08-13) ─────────
+//
+// 기획 §4 는 이것을 *"값은 있으나 범위가 크고(뒤로가기·상태 복원·검사 9개) 지금 불편을 안
+// 줄인다 — **F 다음**"* 으로 미뤄 뒀다. F 가 닫혔으므로 지금이 그 자리다.
+//
+// 조사가 낸 사실: `hash`·`pushState` **0건**. **세션조차 주소가 없었다.**
+// 그래서 링크로 대화를 열 수도, 뒤로가기로 돌아올 수도, 새로고침 뒤 같은 자리로 돌아올 수도
+// 없었다. 오너가 *"페이지도 하나도 새로 생성된 게 없네"* 라고 한 말이 가장 정확하게 참인 자리다 —
+// 화면이 없었던 게 아니라 **주소가 없어서 「페이지」라는 개념 자체가 없었다.**
+//
+// ★ 조각 F 가 없었으면 이 조각은 화면 수만큼 커졌다. 통로에 올라온 화면은 **이름 하나**로
+//   주소를 얻는다 — 이 블록에 화면 이름을 하나도 안 적었다. 새 화면이 늘어도 여기는 안 는다.
+// ★ 주소는 **정본이 아니라 그림자**다. 주소를 바꾸면 화면이 따라오고, 화면이 바뀌면 주소가
+//   따라온다. 되돌아오는 고리를 끊는 자물쇠는 `주소읽는중` 하나뿐이다.
+let 주소읽는중 = false;
+function 주소쓰기(길, { 밀기 = true } = {}) {
+  if (주소읽는중) return;                       // 주소를 읽어 화면을 세우는 중이면 되쓰지 않는다
+  const 새 = `#${길}`;
+  if (location.hash === 새) return;             // 같은 자리를 뒤로가기 목록에 쌓지 않는다
+  try { history[밀기 ? 'pushState' : 'replaceState'](null, '', 새); } catch { location.hash = 길; }
+}
+const 지금길 = () => decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
+
+/** 주소를 읽어 화면을 그 자리로 세운다. 뒤로가기·직접 입력·새로고침이 전부 여기로 온다. */
+async function 주소따라가기() {
+  주소읽는중 = true;
+  try {
+    const 길 = 지금길();
+    const 화면 = /^\/화면\/(.+)$/.exec(길);
+    // 주소가 말하지 않는 화면은 닫는다 — 안 닫으면 뒤로가기가 아무것도 안 한 것처럼 보인다.
+    for (const 문 of 열린오버레이()) if (!화면 || 문.이름 !== 화면[1]) 오버레이닫기(문.이름);
+    const 대화 = /^\/s\/([\w-]+)$/.exec(길);
+    if (대화 && 대화[1] !== currentSessionId) await selectSession(대화[1]);
+    if (화면 && 오버레이표.has(화면[1])) await 오버레이열기(화면[1]);
+  } catch { /* 주소가 가리키던 것이 사라졌을 수 있다 — 화면을 깨지 않는다 */ }
+  finally { 주소읽는중 = false; }
+}
+window.addEventListener('hashchange', 주소따라가기);
+window.addEventListener('popstate', 주소따라가기);
+
 // 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
 (async () => {
   await refreshInitialModelStatus();
   try {
-    const { sessions } = await (await fetch('/sessions')).json();
-    if (sessions.length) await selectSession(sessions[0].id);
-    else await newSession();
+    // 조각 G: **주소가 먼저다.** 링크로 들어온 사람에게 최근 대화를 열어 주면 그 링크는 거짓말이 된다.
+    const 온길 = 지금길();
+    if (/^\/(s|화면)\//.test(온길)) { await 주소따라가기(); }
+    else {
+      const { sessions } = await (await fetch('/sessions')).json();
+      if (sessions.length) await selectSession(sessions[0].id);
+      else await newSession();
+    }
   } catch { await newSession(); }
   try {
     const onboarding = await maybeRunOnboarding();
