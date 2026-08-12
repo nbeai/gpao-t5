@@ -431,6 +431,9 @@ export function makeServer(deps = {}) {
   const automationRuntime = deps.automationRuntime ?? new CanonicalAutomationRuntime({
     dir: store.dir,
     env,
+    // **예약이 대화와 같은 집을 보게 한다**(F-109). 이 줄이 없으면 `~/Downloads` 가
+    // OS 진짜 홈으로 펴져서, 대화로 되던 일이 그 시각에 `path out of scope` 로 죽는다.
+    processEnv: deps.processEnv ?? process.env,
     tools,
     memStore,
     withMemory,

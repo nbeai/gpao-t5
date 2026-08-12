@@ -32,6 +32,25 @@ const 회차수 = Number(process.argv[5] ?? 5);
 // 시각을 당기는 것이 아니다(§1 규율은 그대로) — 재는 자의 **폴링 주기**만 줄인다.
 const 틱 = process.env.GPAO_T5_TICK_MS ?? '3000';
 
+// ── **손 검사 모드**(손 관리자 지시 2026-08-13) ──────────────────────────────
+//
+// 손 관리자 판정: *"지금까지의 5/5 는 **관절·원장 검사**이고, 손 검사는 회차 3 의 문장
+// 하나를 사람이 읽은 n=1 이다. 그 n=1 이 하필 **음성 결과**다 — 「새로 생긴 .pdf 는 0개」.
+// 대본에 PDF 를 심는 자리가 없다. 그러니 이 0 은 「0이 맞다」가 아니라 **「이 자로는 못 본다」**다."*
+//
+// 오너 정본(2026-08-13): *"목적대로 정상 작동하면 그게 만점인거지. **개발에는 만점 외에는
+// 점수가 없어. 백점만점이 아니면 다 빵점인거야.**"*
+//
+// 그래서 두 판을 더한다. 기본 동작은 **그대로 둔다** — 봉인된 판정을 흔들지 않는다.
+//   `--양성`  집을 격리하고 PDF 를 **실제로 심는다**. 답이 그 개수를 맞혀야 만점.
+//   `--실패`  첫 수단을 막는다(폴더가 없다). 도착 문장이 셋 중 무엇인가 —
+//            (가) 진짜 복구 (나) 원인 붙은 통지 → 만점 / (다) 침묵 → 빵점.
+//
+// **집을 격리하는 이유**: 안 하면 오너의 진짜 `~/Downloads` 를 본다(HOME 을 안 바꾼다).
+// 재는 자가 사용자 자리를 건드리면 안 되고, 거기엔 심을 수도 없다.
+const 모드 = process.argv.includes('--양성') ? '양성' : (process.argv.includes('--실패') ? '실패' : '기본');
+const 심을PDF = 3;
+
 const 잠깐 = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 회차 하나. **자기 자리·자기 포트**를 쓰고 끝나면 자기가 치운다. */
@@ -60,6 +79,23 @@ async function 회차(번호, 요청포트) {
     }
   };
 
+  // **집을 격리하고 판을 깐다**(손 검사 모드에서만). 기본 모드는 예전 그대로 오너 집을 본다.
+  const 집 = join(방, 'home');
+  const 받은것 = join(집, 'Downloads');
+  const 판깔기 = async () => {
+    if (모드 === '기본') return;
+    await mkdir(받은것, { recursive: true });
+    if (모드 === '양성') {
+      // **진짜 PDF 로 심는다** — 매직 시그니처가 없으면 손이 형식을 못 알아본다.
+      for (let i = 1; i <= 심을PDF; i += 1) {
+        await writeFile(join(받은것, `영수증-${i}.pdf`),
+          '%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+      }
+    }
+    // '실패' 모드는 폴더를 **없앤다** — 첫 수단이 그 자리에서 막힌다.
+    if (모드 === '실패') await rm(받은것, { recursive: true, force: true });
+  };
+
   const 서버띄우기 = async () => {
     // **제품 진입점으로 띄운다.** `src/surface/server.js` 를 직접 부르면 `liveDeps()` 를 안 지나
     // 손이 덜 선다 — 그러면 `model-control.js:428` 의 `hands.length` 게이트가
@@ -75,6 +111,7 @@ async function 회차(번호, 요청포트) {
     서버 = spawn('node', ['bin/gpao-t5.mjs', '--no-open'], {
       cwd: 뿌리, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PORT: String(요청포트), GPAO_T5_DATA_DIR: 자리, GPAO_T5_TICK_MS: 틱,
+        ...(모드 === '기본' ? {} : { GPAO_T5_HOME: 집 }),
         ...(process.env.GPAO_T5_PROMPT_DUMP ? { GPAO_T5_PROMPT_DUMP: process.env.GPAO_T5_PROMPT_DUMP } : {}) },
     });
     // ★ **서버가 알려준 포트를 쓴다.** 제품 진입점은 포트가 막혀 있으면 **실패하지 않고
@@ -146,6 +183,7 @@ async function 회차(번호, 요청포트) {
 
   try {
     await 연결옮기기();
+    await 판깔기();          // 손 검사 모드에서만 — 기본은 아무것도 안 한다
     await 서버띄우기();
     쿠키 = String((await fetch(기지() + '/')).headers.get('set-cookie') ?? '').split(';')[0];
     const s = (await 부르기('/sessions', {})).값;
@@ -263,6 +301,25 @@ async function 회차(번호, 요청포트) {
       await 잠깐(1000);
     }
     const 확정배달 = 배달.filter((d) => d.state === 'delivered' && d.receipt?.exactCount === 1);
+    // ── **손 검사** — 「돌았다·도착했다」는 관절·원장 검사다. 목적은 따로 잰다 ──────
+    if (모드 !== '기본') {
+      const 온글 = 도착.map((x) => String(x?.text ?? x?.result?.reply ?? x?.content ?? '')).join('\n');
+      판정.도착글 = 온글;
+      if (모드 === '양성') {
+        // 숫자를 세는 판이다. **심은 수가 답에 있어야 한다** — 없으면 이 자는 눈이 먼 것이다.
+        const 숫자들 = [...온글.matchAll(/(\d+)\s*(개|건)/g)].map((m) => Number(m[1]));
+        판정.손검사 = 숫자들.includes(심을PDF);
+        판정.손검사말 = '심은 ' + 심을PDF + '개 · 답이 말한 수 [' + 숫자들.join(',') + ']';
+      } else {
+        // 실패 판이다. **침묵이 아니라 원인이 붙은 통지**가 와야 한다.
+        const 왔나 = 온글.trim().length > 0;
+        const 원인 = /없|못|실패|찾을 수|막|폴더/.test(온글);
+        판정.손검사 = 왔나 && 원인;
+        판정.손검사말 = 왔나 ? (원인 ? '원인 붙은 통지' : '왔는데 원인이 없다') : '침묵';
+      }
+      console.log('\n■ 손 검사 [' + 모드 + '] ' + (판정.손검사 ? '만점' : '빵점') + ' — ' + 판정.손검사말);
+      console.log('   도착 문장: ' + 온글.replace(/\n/g, ' ').slice(0, 400));
+    }
     console.log(`\n■ 실물 ③ 배달 원장 ${배달.length}건 (delivered·exactCount=1 → ${확정배달.length}건)`);
     for (const d of 배달.slice(-2)) console.log(`     ${d.state} · exactCount=${d.receipt?.exactCount ?? '?'} · conv=${String(d.target?.conversationRef ?? '').slice(0, 8)}`);
     console.log(`■ 실물 ④ 대화 도착 ${도착.length}건`);
@@ -282,7 +339,11 @@ async function 회차(번호, 요청포트) {
     // 나는 그것을 환각으로 의심했다 — **모델은 정직했고 재는 자가 거짓말했다.**
     await 서버죽이기();
     await 잠깐(500);
-    await rm(방, { recursive: true, force: true }).catch(() => {});
+    // **실패한 회차의 방은 남긴다**. 치워 버리면 왜 실패했는지 아무도 못 본다 —
+    // 재는 자가 증거를 지우는 것은 안 잰 것과 같다(F-105 계열).
+    const 남길까 = 판정.실패 || (모드 !== '기본' && 판정.손검사 !== true);
+    if (남길까) console.log(`  ▸ 못 닫은 회차라 방을 남긴다: ${방}`);
+    else await rm(방, { recursive: true, force: true }).catch(() => {});
   }
 }
 

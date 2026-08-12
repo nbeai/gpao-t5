@@ -15,7 +15,7 @@ import {
 import { replayJudgementPrompt } from '../kernel/l5-growth/replay-verdict.js';
 import { toolActionKind } from '../kernel/l2-plan/action-plan.js';
 import { runTurn } from '../kernel/turn.js';
-import { resolveInScope } from './file-scope.js';
+import { homeOf, resolveInScope } from './file-scope.js';
 import { AgentRunCancellationError } from './agent-run-registry.js';
 import { SkillDefinitionStore } from '../surface/skill-store.js';
 import { AutomationJobStore } from '../surface/automation-store.js';
@@ -153,7 +153,13 @@ async function assertInvocationScope(id, args, scope, runtimeReality) {
     throw new Error('agent_target_outside_scope');
   }
   for (const path of invocationPaths(args)) {
-    await resolveInScope(path, { roots: scope.workspaceRoots });
+    // **`~` 는 그 사용자의 집이다**(F-109 · 2026-08-13).
+    //
+    // 집을 안 넘기면 `resolveInScope` 가 `homedir()` — **OS 의 진짜 홈**으로 편다.
+    // 봉투에 그 사용자의 집이 적혀 있는데도 안 봤다. 그래서 대화로 부르면 되는 일이
+    // 예약으로 돌면 `path out of scope` 로 죽었고, 그 실패는 사용자에게 가지도 않았다.
+    // `local-file.js` 의 여덟 자리는 전부 집을 넘긴다 — **이 한 줄만 빠져 있었다.**
+    await resolveInScope(path, { roots: scope.workspaceRoots, home: scope.home ?? homeOf(scope.env) });
   }
 }
 
@@ -218,6 +224,10 @@ export class TCellReplayEvidenceAdapter {
 export class CanonicalAutomationRuntime {
   constructor({
     dir, env, tools, modelFor, memStore, withMemory, now = () => Date.now(),
+    // **집을 아는 것은 이쪽이다**(F-109). `env` 는 SelfState 입력 객체이지 OS 환경변수가
+    // 아니다 — 거기엔 `GPAO_T5_HOME` 이 없다. `server.js:687` 도 작업 뿌리를 만들 때
+    // `deps.processEnv ?? process.env` 를 쓴다. 같은 것을 봐야 예약과 대화가 같은 집을 본다.
+    processEnv = process.env,
     owner = ownerForProcess(),
     beforeRun = async () => {},
     skillStore = new SkillDefinitionStore(dir),
@@ -227,6 +237,7 @@ export class CanonicalAutomationRuntime {
     migrate = true,
   }) {
     this.env = env;
+    this.processEnv = processEnv;
     this.tools = tools;
     this.modelFor = modelFor;
     this.now = now;
@@ -468,9 +479,11 @@ export class CanonicalAutomationRuntime {
     }
 
     const ledger = new TruthLedger();
+    // **집을 함께 넘긴다**(F-109). 봉투에는 그 사용자의 작업 뿌리가 있지만 「집이 어디냐」는
+    // 없다. 안 넘기면 `~` 가 OS 진짜 홈으로 펴져서, 대화로 되던 일이 예약으로 돌면 죽는다.
     const tools = scopedAgentTools(
-      this.tools, request.scope, request.budget, request.signal, request.heartbeat,
-      request.runtimeReality,
+      this.tools, { ...request.scope, env: this.processEnv }, request.budget, request.signal,
+      request.heartbeat, request.runtimeReality,
     );
     if (this.cancelledRuns.has(request.run.id)) throw new AgentRunCancellationError('job_cancelled');
     const skill = request.run.skillSnapshot;

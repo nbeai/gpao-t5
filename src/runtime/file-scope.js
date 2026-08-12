@@ -27,8 +27,23 @@ import { realpath, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
+/**
+ * **사용자의 집이 어디인가 — 이 한 곳이 답한다.**
+ *
+ * 예전엔 같은 식이 이 파일 안에서만 두 번 쓰였고(`defaultFileRoots` · `부르는이름들`),
+ * 자동화가 **세 번째로 갈라졌다** — 거기서는 아예 안 물어보고 OS 홈으로 폈다.
+ * 그 결과 *"매일 아침 다운로드 폴더의 새 PDF 개수를 알려줘"* 예약이 그 시각에
+ * `path out of scope: /Users/…/Downloads` 로 조용히 죽었다. 배달 0 · 도착 0 —
+ * **사용자는 아무것도 못 받았다**(F-109 · 2026-08-13).
+ *
+ * 집은 하나다. 묻는 자리도 하나여야 한다.
+ */
+export function homeOf(env = process.env) {
+  return env?.GPAO_T5_HOME ?? env?.HOME ?? homedir();
+}
+
 export function defaultFileRoots(env = process.env) {
-  const home = env.GPAO_T5_HOME ?? env.HOME ?? homedir();
+  const home = homeOf(env);
   const raw = env.GPAO_T5_FILE_ROOTS;
   if (raw && raw.trim()) {
     // C 감사 F7.5 · 상대 경로는 **cwd 가 아니라 홈** 기준으로 푼다 — 서버를 어디서 켰는지에
@@ -289,7 +304,7 @@ function 부르는이름(target) {
  * 루트는 지어내지 않고 마지막 폴더 이름만 말한다 — 경로는 어디에도 싣지 않는다.
  */
 export function 부르는이름들(roots = defaultFileRoots(), env = process.env) {
-  const home = env.GPAO_T5_HOME ?? env.HOME ?? homedir();
+  const home = homeOf(env);
   const 이름 = roots.map((r) => {
     // **홈이면 홈이라고 말한다.** 예전엔 폴더 이름(`jyp`)을 그대로 불러
     // *"제가 다루는 폴더(jyp) 안에서"* 가 나갔다 — 사용자도 모델도 그게 무슨 말인지 모른다.
