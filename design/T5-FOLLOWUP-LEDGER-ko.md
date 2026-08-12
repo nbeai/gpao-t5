@@ -658,12 +658,17 @@ answer-authorship-lanes 참조)."* 셋째 칸을 만들면서 그 사실을 주�
 
 **① 병합하면 규율을 어긴다 — 이것만으로 충분하다**
 ```
-그 가지가 더하는 문서 중  design/T5-TCELL-GOVERNANCE-ENGINE-IMPLEMENTATION-SPEC-2026-07-28-ko.md
+그 가지가 더하는 문서 중  **퇴역한 T-cell 거버넌스 명세**(경로는 여기 안 적는다 — 아래 ※)
 그 파일은               scripts/audit-project-entry.mjs:50 의 **금지 참조 목록 첫 줄**이다
 AGENTS.md               "previous T-cell specification is retired … never regains authority"
 ⇒ 병합하는 순간 진입 감사가 "현재 문서가 퇴역 지시를 참조함" 으로 실패한다
 ```
 **퇴역한 설계를 되살리는 가지다.** 다른 레인도 오늘 같은 자리에서 한 번 되돌렸다고 적었다.
+
+※ **그 파일 이름을 여기 적었다가 진입 감사가 물었다**(`현재 문서가 퇴역 지시를 참조함`).
+자가 옳다 — 금지 목록은 *"활성 문서가 그 경로를 담지 마라"* 이고 장부도 활성 문서다.
+**이름 없이 가리키면 사실은 그대로 남고 자도 산다.** 경로가 필요하면
+`scripts/audit-project-entry.mjs` 의 `forbiddenReferences` 첫 줄에서 읽어라.
 
 **② 제품 쪽은 이미 본선에 있다**
 ```
