@@ -316,20 +316,20 @@ function 관찰뒤화면손(기존 = [], 본것 = {}, args = {}, 상태 = {}) {
       });
     }
 
-    // 빈 AX/그림 한 장은 남은 범위의 증거가 아니다. 관찰자가 has-more/viewport remainder를
-    // 실제로 밝힌 경우에만 scroll 후보를 세운다. 신호가 없으면 미측정으로 남긴다.
-    const 남은 = 본것?.남은화면범위 ?? 본것?.remainingRange ?? 본것?.viewportRemainder ?? null;
-    const 더있음 = 남은?.있음 === true || 남은?.has_more === true || 남은?.moreBelow === true;
-    if (args?.scope === 'window' && 더있음 && 본것?.본창) {
+    // 그림의 내용은 모델이 판단한다. 커널은 `찾는말`과 AX 결과라는 기계 사실만 대조하고,
+    // 그림에서도 대상이 안 보인 경우에만 고를 **조건부** scroll을 준다. 더 있다고 주장하지
+    // 않으며 방향도 추측하지 않는다. 그림이 없으면 모델이 그 조건을 판정할 수 없으므로 안 준다.
+    const 찾는말 = String(args?.찾는말 ?? '').trim();
+    const 같은글 = (v) => String(v ?? '').toLowerCase().includes(찾는말.toLowerCase());
+    const AX일치 = Boolean(찾는말) && (본것?.elements ?? [])
+      .some((e) => 같은글(e?.label) || 같은글(e?.value));
+    if (args?.scope === 'window' && 찾는말 && !AX일치 && 본것?.그림 && 본것?.본창) {
       수단.push({
         방법: 'scroll', ...대상,
         자동실행: false,
-        ...(Array.isArray(남은?.방향) && 남은.방향.length === 1
-          ? { 값: 남은.방향[0] }
-          : { 방향선택필요: true }),
-        관찰근거: String(남은?.reason ?? 남은?.이유 ?? '관찰 결과가 화면에 남은 범위가 있음을 밝혔다'),
-        왜: '찾는 내용이 지금 보이는 범위 밖에 있다고 판단될 때 목적에 맞는 방향으로 민다'
-          + ` (관찰 신호: ${String(남은?.reason ?? 남은?.이유 ?? '남은 범위 있음')})`,
+        방향선택필요: true,
+        관찰근거: `AX 결과에서 ${JSON.stringify(찾는말)}과 일치하는 항목이 없고 현재 그림이 첨부됐다`,
+        왜: `첨부 그림에서도 ${JSON.stringify(찾는말)}이 안 보일 때만 목적에 맞는 방향으로 민다`,
       });
       수단.push({
         방법: 'observe', scope: 'window', ...대상,

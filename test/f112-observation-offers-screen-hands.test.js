@@ -35,11 +35,6 @@ const 다른화면AX미해결 = {
     recommended: 'foreground',
     reason: 'the screenshot is the requested window but background input is refused',
   },
-  남은화면범위: {
-    있음: true,
-    방향: ['up'],
-    reason: 'scrollable viewport has older content above the observed range',
-  },
 };
 
 test('다른 Space·AX 미해결 신호에서 focus·픽셀·scroll+재관찰을 선택지로 함께 준다', async () => {
@@ -51,6 +46,8 @@ test('다른 Space·AX 미해결 신호에서 focus·픽셀·scroll+재관찰을
   assert.ok(길.some((x) => x.방법 === 'click' && x.좌표근거 === '첨부된그림' && x.좌표필수 === true),
     `픽셀은 그림에서 짚은 좌표만 써야 한다: ${JSON.stringify(길)}`);
   assert.ok(길.some((x) => x.방법 === 'scroll'), `더 볼 화면을 미는 손이 없다: ${JSON.stringify(길)}`);
+  assert.match(JSON.stringify(길), /첨부 그림에서도.*안 보일 때만/,
+    `그림을 모델이 판단할 조건이 없다: ${JSON.stringify(길)}`);
   assert.ok(길.some((x) => x.방법 === 'observe' && x.앞선손 === 'scroll'),
     `스크롤 뒤 다시 보는 손이 없다: ${JSON.stringify(길)}`);
   assert.match(JSON.stringify(길), /off_space_or_ax_unresolved|foreground/,
@@ -72,21 +69,37 @@ test('같은 화면에서 AX 요소를 찾았으면 다른 Space용 focus나 막
     windows: [{ id: 9, app: '카카오톡', title: '박종윤', 같은화면: true }],
     본창: { id: 9, pid: 1048, app: '카카오톡', title: '박종윤', 같은화면: true },
     elements: [{ id: 's1:1', role: 'AXTextArea', value: 'TNT입니다' }],
+    그림: { mime: 'image/jpeg', base64: 'PIXELS' },
   }).handler({ action: 'observe', scope: 'window', app: '카카오톡', 찾는말: 'TNT' });
   const 길 = r.result?.다음수단 ?? [];
   assert.equal(길.some((x) => x.방법 === 'focus'), false, `없는 Space 문제를 만들었다: ${JSON.stringify(길)}`);
   assert.equal(길.some((x) => x.방법 === 'scroll'), false, `찾았는데도 무조건 민다: ${JSON.stringify(길)}`);
 });
 
-test('다른 Space라는 사실만으로 focus를 권하지 않고, 빈 화면만으로 scroll을 권하지 않는다', async () => {
-  const { 올려야할길: _없음, 남은화면범위: _모름, ...신호없는관찰 } = 다른화면AX미해결;
+test('다른 Space라는 사실만으로 focus를 권하지 않는다', async () => {
+  const { 올려야할길: _없음, ...신호없는관찰 } = 다른화면AX미해결;
   const r = await 손(신호없는관찰)
     .handler({ action: 'observe', scope: 'window', app: '카카오톡', 찾는말: 'TNT' });
   const 길 = r.result?.다음수단 ?? [];
   assert.equal(길.some((x) => x.방법 === 'focus'), false,
     `off-Space만 보고 화면을 뺏으려 한다: ${JSON.stringify(길)}`);
+});
+
+test('그림이 없으면 AX 불일치만으로 scroll을 권하지 않는다', async () => {
+  const { 그림: _없음, 그림크기: _자없음, ...그림없는관찰 } = 다른화면AX미해결;
+  const r = await 손(그림없는관찰)
+    .handler({ action: 'observe', scope: 'window', app: '카카오톡', 찾는말: 'TNT' });
+  const 길 = r.result?.다음수단 ?? [];
   assert.equal(길.some((x) => x.방법 === 'scroll'), false,
-    `남은 범위를 재지 않고 무조건 민다: ${JSON.stringify(길)}`);
+    `그림을 판단할 수 없는데 민다: ${JSON.stringify(길)}`);
+});
+
+test('찾는말이 없으면 그림과 빈 AX만으로 scroll을 권하지 않는다', async () => {
+  const r = await 손(다른화면AX미해결)
+    .handler({ action: 'observe', scope: 'window', app: '카카오톡' });
+  const 길 = r.result?.다음수단 ?? [];
+  assert.equal(길.some((x) => x.방법 === 'scroll'), false,
+    `목적 대상이 없는데 무조건 민다: ${JSON.stringify(길)}`);
 });
 
 test('조작 capability가 없으면 focus·click·scroll을 가능한 손으로 약속하지 않는다', async () => {
