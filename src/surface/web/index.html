@@ -444,6 +444,25 @@
   #actbar button:hover { background:var(--hover); color:var(--fg-strong); }
   #actbar button.done { color:var(--ok); }
 
+  /* 기본 동작 줄 — **말풍선 바로 아래에 늘 서 있다**(2026-08-12 오너 지적: 호버는 안 보인다).
+     말풍선 **밖**·같은 턴 상자 안이라 조각 A 의 겹쳐맞추기가 안 건드린다.
+     늘 보이되 조용하게: 작고 흐리다가 그 턴에 손이 가면 진해진다.
+     — 안 보이는 기능은 없는 기능이고, 시끄러운 기능은 잔소리다. 그 사이가 여기다. */
+  .acts { display:flex; gap:var(--sp-1); margin-top:calc(var(--sp-1) * -1); align-self:flex-start; }
+  .acts.right { align-self:flex-end; }
+  .acts button { font:inherit; font-size:var(--fs-sm); line-height:1; width:26px; height:24px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border:none; border-radius:var(--r-sm); background:transparent; color:var(--muted);
+    /* ⚠ 쉬는 상태를 흐리게 두지 않는다. 첫 판은 .55 였는데, 그건 「호버해야 보인다」를
+       투명도로 다시 만든 것이다 — 오너 지적의 핵심은 **안 보이면 없는 것**이라는 쪽이다.
+       색으로 조용하게 하고(--muted), 밝기로 숨기지는 않는다. */
+    opacity:1; cursor:pointer; transition:opacity var(--dur-fast) var(--ease-out),
+      background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+  .turn:hover .acts button { color:var(--fg); }
+  .acts button:hover { background:var(--hover); color:var(--fg-strong); opacity:1; }
+  .acts button:focus-visible { opacity:1; outline:2px solid var(--accent); outline-offset:1px; }
+  .acts button.done { color:var(--ok); opacity:1; }
+
   /* ── 조각 D · 손이 한 일이 남는다 (UX 기획 §2 D · 2026-08-12) ──────────────
      §1 규약 그대로 맨 끝에 덧붙인다. 조각 A·B 블록은 안 건드렸다.
 
@@ -1849,7 +1868,11 @@ async function 대화투영(s) {
   const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
   wrap.innerHTML = '';
   (s.transcript || []).forEach((e, i) => {
-    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
+    if (e.role === 'user') {
+      const box = turnBox(); box.appendChild(el('who right', '사용자'));
+      const 내말 = el('msg me', e.text); box.appendChild(내말);
+      동작줄(box, 내말, 'me');   // 조각 B: 말풍선 **아래**에 늘 서 있는 줄(호버 아님)
+    }
     else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
   });
   return s;
@@ -2125,6 +2148,7 @@ function renderResult(r, opts = {}) {
     // `속성맞추기` 가 새것 기준으로 지운다.
     bot.__원문 = 답문;
     box.appendChild(bot);
+    동작줄(box, bot, 'bot');   // 조각 B: 답 **아래** 한 줄. 늘 보인다
   }
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
@@ -2498,7 +2522,9 @@ async function submit() {
   const t = text.value.trim(); if (!t) return;
   const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
-  const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
+  const box = turnBox(); box.appendChild(el('who right', '사용자'));
+  const 내말 = el('msg me', t); box.appendChild(내말);
+  동작줄(box, 내말, 'me');
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
@@ -2686,6 +2712,9 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
           // 완료 순간 같은 글의 높이가 619.8px → 447.4px 로 튄다(실측 -27.8%). 읽던 줄이 달아난다.
           preview.className = 'msg bot';
           trace.parentNode.insertBefore(preview, trace);
+          // 조각 B: 흐르는 **중에도** 복사가 돼야 한다(기획 §2 B 반대시험 ①). 답이 끝나면
+          // 대화투영이 이 상자를 통째로 갈아끼우고 그때 renderResult 가 같은 줄을 다시 세운다.
+          동작줄(trace.parentNode, preview, 'bot');
         }
         previewText += piece;
         renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
@@ -2768,6 +2797,12 @@ async function maybeWelcome(sessionId) {
 //   ② **못 하는 것에는 버튼을 안 만든다**(*"죽은 버튼 대신 텍스트"*). 셋을 실제로 감춘다 —
 //      클립보드가 없는 브라우저에서는 복사가 아예 없고, 앞선 사용자 발화를 못 찾으면
 //      「같은 질문 다시」가 없고, 답이 흐르는 중에는 새 턴을 여는 버튼이 없다.
+// ★ 2026-08-12 정정 — **호버는 UX 가 아니었다.**
+//   첫 판은 말풍선에 마우스를 올려야 뜨는 떠 있는 막대였다. 오너가 새 화면을 받고 처음 한 말이
+//   *"뭐가 변한 게 하나도 없는 것 같은데?"* 였다 — **있는데 안 보이면 없는 것과 같다**(멈춤이
+//   투명 배경·회색 글자였던 것과 **정확히 같은 병**이다. 그걸 고치면서 같은 병을 새로 만들었다).
+//   그래서 기본 동작은 **말풍선 아래 늘 서 있는 한 줄**로 바꾼다. 호버는 그 줄을 **진하게만** 한다.
+//   떠 있는 막대는 코드블록 하나에만 남는다 — 그건 말풍선 안의 조각이라 아래에 줄을 놓을 수 없다.
 const 복사가능 = !!(navigator.clipboard && navigator.clipboard.writeText);
 const 손바 = document.createElement('div');
 손바.id = 'actbar';
@@ -2815,38 +2850,58 @@ function 단추(라벨, 제목, 눌렀을때) {
 /** 손이 간 것 하나에 맞는 막대를 세운다. **만들 수 있는 것만 만든다.** */
 function 손바세우기(대상, 종류) {
   손바.textContent = '';
-  if (종류 === 'code') {
-    if (!복사가능) return false;
-    손바.appendChild(단추('코드 복사', '이 코드블록만 복사해요', (b) => 복사하기(대상.innerText, b)));
-  } else if (종류 === 'me') {
-    if (복사가능) 손바.appendChild(단추('복사', '내가 보낸 말을 복사해요', (b) => 복사하기(대상.textContent, b)));
+  // 떠 있는 막대에 남는 것은 **코드블록 하나뿐**이다. 코드블록은 말풍선 *안*의 조각이라
+  // 아래에 줄을 놓을 자리가 없고, 안에 버튼을 넣으면 조각 A 의 겹쳐맞추기가 지운다.
+  if (종류 !== 'code' || !복사가능) return false;
+  손바.appendChild(단추('코드 복사', '이 코드블록만 복사해요', (b) => 복사하기(대상.innerText, b)));
+  return 손바.childElementCount > 0;
+}
+
+/**
+ * ── 기본 동작 줄 — **말풍선 바로 아래에 늘 서 있다** (2026-08-12 오너 지적 반영) ──────
+ *
+ * 말풍선 **밖**, 같은 턴 상자 안에 놓는다. 안에 넣으면 조각 A 의 `겹쳐맞추기` 가 흐르는 동안
+ * 자식 노드를 제자리 맞춤하면서 지운다 — 그래서 「아래」가 구조적으로도 맞는 자리다.
+ *
+ * 늘 보이되 **조용하다**(작고 흐린 아이콘). 그 턴에 손이 가면 진해진다. 안 보이는 기능은
+ * 없는 기능이고, 시끄러운 기능은 잔소리다 — 그 사이가 여기다.
+ */
+function 동작줄(상자, 대상, 종류) {
+  const 줄 = el(`acts ${종류 === 'me' ? 'right' : ''}`.trim());
+  const 아이콘 = (기호, 라벨, 제목, 눌렀을때) => {
+    const b = 단추(기호, 제목, 눌렀을때);
+    b.setAttribute('aria-label', 라벨);   // 기호만 있으면 읽어 주는 도구에 아무 말도 안 남는다
+    return b;
+  };
+  if (종류 === 'me') {
+    if (복사가능) 줄.appendChild(아이콘('⧉', '복사', '내가 보낸 말을 복사해요', (b) => 복사하기(대상.textContent, b)));
     // **수정은 삭제가 아니라 분기다**(비교군 §6-2). 위의 말과 그 아래 답은 **그대로 둔다** —
     // 고친 말은 새 말로 내려가 붙는다. 그래서 언제든 원래 것으로 돌아갈 수 있다.
-    손바.appendChild(단추('고쳐 다시 보내기', '이 말을 입력칸에 올려요 — 고쳐서 보내면 새 답이 아래에 붙어요', () => {
+    줄.appendChild(아이콘('✎', '고쳐 다시 보내기', '이 말을 입력칸에 올려요 — 고쳐서 보내면 새 답이 아래에 붙어요', () => {
       입력칸에얹기(대상.textContent);
-      손바숨기기();
       toast('입력칸에 올렸어요 — 고쳐서 보내면 새 답이 맨 아래에 붙어요. 위의 말과 답은 그대로 남아요.');
     }));
   } else {
-    const 원문 = 대상.__원문 ?? 대상.innerText;
-    if (복사가능) 손바.appendChild(단추('복사', '이 답을 복사해요', (b) => 복사하기(원문, b)));
+    if (복사가능) 줄.appendChild(아이콘('⧉', '복사', '이 답을 복사해요', (b) => 복사하기(대상.__원문 ?? 대상.innerText, b)));
     // 「같은 질문 다시」 — T5 는 답을 **갈아치우지 못한다**(되감기 개념이 없다 · 기획 §4).
-    // 그러니 「재생성」이라 부르지 않는다. 하는 일 그대로 적는다: 같은 질문을 다시 보낸다.
-    // 앞선 발화가 없으면(인사말 등) 이 버튼은 **아예 안 선다**.
-    const 질문 = 앞선발화(대상);
-    if (질문 && !흐르는중()) {
-      손바.appendChild(단추('같은 질문 다시', '같은 질문을 한 번 더 보내요 — 위의 답은 그대로 남아요', async () => {
-        손바숨기기();
-        // 막대를 띄운 뒤에 답이 흐르기 시작했을 수 있다 — **누르는 순간에 다시 본다.**
-        // 흐르는 중에 또 보내면 한 대화에 두 턴이 겹친다.
+    // 그러니 「재생성」이라 부르지 않는다. 하는 일 그대로다: 같은 질문을 다시 보낸다.
+    // 앞선 발화가 없으면(인사말 등) 이 아이콘은 **아예 안 선다**(죽은 버튼 금지).
+    if (앞선발화(대상) && !흐르는중()) {
+      줄.appendChild(아이콘('↻', '같은 질문 다시', '같은 질문을 한 번 더 보내요 — 위의 답은 그대로 남아요', async () => {
+        // 흐르는 중에 또 보내면 한 대화에 두 턴이 겹친다 — **누르는 순간에** 본다.
         if (흐르는중()) { toast('지금 답이 오는 중이에요 — 끝나면 다시 눌러 주세요.'); return; }
+        const 질문 = 앞선발화(대상);
+        if (!질문) return;
         입력칸에얹기(질문);
         toast('같은 질문을 다시 보냈어요 — 새 답이 맨 아래에 붙어요. 위의 답은 그대로 남아요.');
         await submit();
       }));
     }
   }
-  return 손바.childElementCount > 0;
+  // 상자 끝이 아니라 **말풍선 바로 다음**에 꽂는다 — 흐르는 중에는 뒤에 진행 표시·멈춤이
+  // 더 붙으므로, 끝에 붙이면 「답 아래」가 아니라 「멈추기 아래」가 된다.
+  if (줄.childElementCount) 대상.parentNode?.insertBefore(줄, 대상.nextSibling);
+  return 줄;
 }
 
 function 손바붙이기(대상) {
@@ -2863,13 +2918,12 @@ function 손바붙이기(대상) {
 
 logEl.addEventListener('pointerover', (e) => {
   if (e.pointerType === 'touch') return;         // 손가락에는 호버가 없다 — 헛돌지 않게 뺀다
+  // 말풍선은 이제 **아래 줄**이 받는다. 떠 있는 막대는 코드블록 하나만 남는다.
   const 코드 = e.target.closest?.('pre');
-  const 말 = e.target.closest?.('.msg.me, .msg.bot');
-  const 대상 = 코드 ?? 말;
-  if (!대상 || !logEl.contains(대상)) return;
-  if (대상 === 손댄것) return;
-  손댄것 = 대상;
-  if (손바세우기(대상, 코드 ? 'code' : (대상.classList.contains('me') ? 'me' : 'bot'))) 손바붙이기(대상);
+  if (!코드 || !logEl.contains(코드)) { if (손댄것) 손바숨기기(); return; }
+  if (코드 === 손댄것) return;
+  손댄것 = 코드;
+  if (손바세우기(코드, 'code')) 손바붙이기(코드);
   else 손바숨기기();
 });
 logEl.addEventListener('pointerleave', (e) => { if (!손바.contains(e.relatedTarget)) 손바숨기기(); });

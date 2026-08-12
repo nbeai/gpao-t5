@@ -33,9 +33,32 @@ test('조각 B 블록이 index.html 안에 있다 — 없으면 아래 검사가
 // ── ① 조각 A 와 부딪히지 않는다 ─────────────────────────────────────────────
 // 조각 A 의 `겹쳐맞추기` 는 흐르는 동안 말풍선의 자식 노드를 제자리 맞춤한다. 말풍선 **안**에
 // 버튼을 넣으면 다음 조각에 지워지고, A 반대시험 ⑥(화면 DOM == renderMarkdown 출력)이 깨진다.
+// ★ 2026-08-12 오너 지적으로 **무는 사실이 바뀐 자리**(무르게 한 것이 아니라 더 세졌다).
+//   첫 판은 호버해야 뜨는 떠 있는 막대였다. 오너가 새 화면을 받고 처음 한 말이
+//   *"뭐가 변한 게 하나도 없는 것 같은데?"* 였다 — **있는데 안 보이면 없는 것과 같다.**
+//   멈춤이 투명 배경·회색 글자였던 것과 정확히 같은 병을, 그걸 고치면서 새로 만들었다.
+//   그래서 이제 문는다: 기본 동작은 **말풍선 아래에 늘 서 있는 줄**이어야 하고, 호버로만
+//   나타나면 안 된다. 떠 있는 막대는 코드블록 하나에만 남는다.
+test('기본 동작은 **늘 보이는 줄**이다 — 호버해야 나타나면 없는 것과 같다', () => {
+  assert.match(B블록, /function 동작줄\(상자, 대상, 종류\)/, '아래에 놓는 줄이 있어야 한다');
+  assert.match(html, /동작줄\(box, 내말, 'me'\)/, '사용자 발화 아래에 줄이 서야 한다(투영·전송 두 자리)');
+  assert.match(html, /동작줄\(box, bot, 'bot'\)/, '답 아래에 줄이 서야 한다');
+  // 늘 보이는 것이 기본이고, 호버는 **진하게만** 한다 — 나타나게 하는 것이 아니다.
+  assert.match(html, /\.turn:hover \.acts button \{ color:var\(--fg\); \}/, "호버는 진하게만 한다");
+  assert.match(html, /opacity:1; cursor:pointer/, "쉬는 상태를 흐리게 두면 호버 규칙을 투명도로 다시 만든 것이다");
+  assert.doesNotMatch(html, /\.acts \{[^}]*display:none/, '줄을 숨기면 첫 판의 병으로 돌아간다');
+  // 호버 막대에 남는 것은 코드블록뿐이다.
+  const 호버 = B블록.slice(B블록.indexOf("logEl.addEventListener('pointerover'"));
+  assert.doesNotMatch(호버.slice(0, 500), /\.msg\.me|\.msg\.bot/,
+    '말풍선을 다시 호버로 돌리면 오너가 지적한 그 자리로 돌아간다');
+});
+
 test('동작 막대는 말풍선 안이 아니라 body 에 뜬다 — 조각 A 의 겹쳐맞추기와 안 부딪힌다', () => {
   assert.match(B블록, /document\.body\.appendChild\(손바\)/,
     '막대는 body 에 붙어야 한다 — 말풍선·대화상자 안에 넣으면 흐르는 중에 지워진다');
+  // 아래 줄도 말풍선 **밖**이어야 한다 — 안에 넣으면 흐르는 동안 겹쳐맞추기가 지운다.
+  assert.match(B블록, /대상\.parentNode\?\.insertBefore\(줄, 대상\.nextSibling\)/,
+    '줄은 말풍선이 아니라 **턴 상자**에 붙는다');
   assert.doesNotMatch(B블록, /\.innerHTML\s*=/,
     '조각 B 는 innerHTML 을 쓰지 않는다 — 모델 텍스트가 들어가는 자리는 renderMarkdownInto 하나뿐이다');
   const css = html.slice(html.indexOf('#actbar {'), html.indexOf('#actbar {') + 400);
@@ -56,16 +79,17 @@ test('복사는 그린 글자가 아니라 **모델이 쓴 원문**을 준다 �
 test('클립보드를 못 쓰는 브라우저에서는 복사 버튼을 아예 안 만든다', () => {
   assert.match(B블록, /const 복사가능 = !!\(navigator\.clipboard && navigator\.clipboard\.writeText\)/,
     '있는지부터 물어야 한다 — 눌러 보고 실패하는 버튼이 죽은 버튼이다');
-  assert.match(B블록, /if \(!복사가능\) return false;/, '코드블록 갈래도 같은 자로 막아야 한다');
-  assert.match(B블록, /if \(복사가능\) 손바\.appendChild/g,
-    '말풍선 갈래는 복사가능 일 때만 복사 단추를 세운다');
+  assert.match(B블록, /if \(종류 !== 'code' \|\| !복사가능\) return false;/,
+    '코드블록 갈래도 같은 자로 막아야 한다');
+  assert.match(B블록, /if \(복사가능\) 줄\.appendChild\(아이콘\('⧉'/,
+    '아래 줄도 복사가능 일 때만 복사 아이콘을 세운다');
 });
 
 test('앞선 사용자 발화를 못 찾으면 「같은 질문 다시」가 안 선다', () => {
   assert.match(B블록, /function 앞선발화\(답\)[\s\S]*?return null;/,
     '못 찾으면 null 을 내야 한다 — 지어낸 질문을 다시 보내지 않는다');
-  assert.match(B블록, /if \(질문 && !흐르는중\(\)\)/,
-    '질문이 있고 지금 답이 안 흐를 때만 세운다');
+  assert.match(B블록, /if \(앞선발화\(대상\) && !흐르는중\(\)\) \{/,
+    '앞선 발화가 있을 때만 「같은 질문 다시」를 세운다');
 });
 
 test('답이 흐르는 중에는 새 턴을 여는 버튼이 안 서고, 서 있었더라도 누를 때 다시 본다', () => {
@@ -128,7 +152,8 @@ test('⌘K 는 대화 찾기, ⌘Enter 는 보내기 — 이미 있는 것의 �
 
 // ── ⑦ 수정은 삭제가 아니라 분기다 ──────────────────────────────────────────
 test('고쳐 다시 보내기는 위의 말과 답을 안 지운다 — 그리고 그 사실을 사용자에게 말한다', () => {
-  const 갈래 = B블록.slice(B블록.indexOf("단추('고쳐 다시 보내기'"), B블록.indexOf("단추('고쳐 다시 보내기'") + 500);
+  const 시작 = B블록.indexOf("'고쳐 다시 보내기'");
+  const 갈래 = B블록.slice(시작, 시작 + 500);
   assert.doesNotMatch(갈래, /remove\(\)|innerHTML|deleteTurn|삭제/,
     '고치기가 앞의 말·답을 지우면 「언제든 원래 것으로 돌아갈 수 있다」가 깨진다');
   assert.match(갈래, /toast\(/, '그 아래 답이 어떻게 되는지 말해 줘야 한다(반대시험 ③)');
