@@ -134,7 +134,10 @@ T5 의 `대화투영` 은 transcript **전부**를 그린다. 오너 세션 파�
 
 ## 5. 다음 공부가 먼저 해야 할 일
 
-1. **오픈클로·헤르메스 원문을 이 기계에 놓는다.** 지금은 기획서에 인용된 문장 밖으로 못 나간다.
+1. **원문은 이미 이 기계에 있다**(§0). 이번엔 UX 에 닿는 문서 넷만 열었다 —
+   `openclaw/docs/web/{control-ui,webchat}.md` · `hermes .../checkpoints-and-rollback.md`.
+   **안 읽은 것**: openclaw `docs/web/{dashboard,tui}.md`·`concepts/` 전부 · hermes
+   `user-guide/features/` 전부·`sessions.md`. 다음 회차는 거기서 시작한다.
 2. **비교군을 「도구 목록」이 아니라 「사람이 어디서 막히나」로 뽑는다.** 기능표를 베끼면
    T5 가 T5 가 아니게 된다(기획 §4).
 3. **오너 실사용 한 회차를 통째로 관찰한다.** 이번 세션의 가장 정확한 발견 둘(호버·답 두 번)은
