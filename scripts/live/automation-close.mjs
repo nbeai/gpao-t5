@@ -81,6 +81,24 @@ try {
   console.log('   ' + 답.replace(/\n/g, '\n   ').slice(0, 900) + '\n');
 
   // ── ① job 이 섰나 (T5 말이 아니라 파일) ──────────────────────────────────
+  // **응답 직후에 읽으면 못 본다**(밟음 2026-08-12): 저장이 응답보다 늦어 후보 1건을
+  // 0건으로 읽었고, 하마터면 「모델이 없는 후보를 말한다」는 결함을 지어낼 뻔했다.
+  // 파일이 멎을 때까지 기다린다 — 재는 자가 틀리면 재는 것이 전부 거짓이 된다.
+  const 멎을때까지 = async () => {
+    let 앞 = '';
+    for (let i = 0; i < 12; i += 1) {
+      await 잠깐(500);
+      const 지금 = await readFile(자동화파일(), 'utf8').catch(() => '');
+      if (지금 && 지금 === 앞) return;
+      앞 = 지금;
+    }
+  };
+  await 멎을때까지();
+  if (process.env.자리진단) {
+    const { readdir } = await import('node:fs/promises');
+    console.log('  [진단] 자리:', 자리);
+    console.log('  [진단] 파일:', (await readdir(자리).catch((e) => [e.message])).join(' '));
+  }
   let a = await 자동화읽기();
   const 후보 = a.candidates ?? []; let jobs = a.jobs ?? [];
   console.log(`■ 실물 ① automation.json — 후보 ${후보.length}건 · job ${jobs.length}건`);
