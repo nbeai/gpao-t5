@@ -763,7 +763,17 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
       이번턴후보: 1,
       // **readback 으로 확인된 `jobRef` 만 사실이다** — `자동화제어적용` 이 그 수위로 돌려준다
       // (`control_readback_mismatch` 는 거절이다). 확정·재개 어느 쪽이든 예약이 선 것이다.
-      이번턴job: ctx.automationControl?.jobRef && ctx.automationControl?.rejected !== true ? 1 : 0,
+      //
+      // **세는 자리가 둘이다**(A3 · 2026-08-12). 명시 예약이 그 자리에서 켜지게 되면서
+      // (닫는문서 §4 넓힘 1번) job 이 서는 길이 **확정 동사 없이도** 생겼다 —
+      // `자동화후보입장` 이 `직접예약켜기` 로 세우고 그 `jobRef` 는 후보 쪽에 실린다
+      // (`server.js` — `admitted.jobRef`, 역시 원장 재읽기로 확인된 값이다).
+      // 여기가 `automationControl` 만 세는 바람에 **직접 레인의 job 이 0 으로 세어졌고**,
+      // 그물이 정직한 「켜 뒀어요」를 물어 되돌렸다(실측 2026-08-12: 원장 jobs 1건인데
+      // 최종 답이 「알겠어.」로 바뀌었다). 참을 거짓으로 모는 것은 F-88 이 걷은 거짓의
+      // **반대 방향**이고, 같은 자에서 같은 무게로 틀린 것이다.
+      이번턴job: (ctx.automationControl?.jobRef && ctx.automationControl?.rejected !== true)
+        || (ctx.automationProposal?.jobRef && ctx.automationProposal?.rejected !== true) ? 1 : 0,
     }
     : null;
   // F-54 후반 — **자리 종류**를 함께 준다(파일 자리 명부 · 이번 턴 화면 자리).
