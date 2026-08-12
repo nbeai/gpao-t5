@@ -360,14 +360,33 @@ export function makeCuaDriver(deps = {}) {
      */
     async verify(기대 = {}) {
       const 라벨 = String(기대.라벨 ?? '').trim();
-      const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
-      const 창들 = 본것?.windows ?? [];
-      const 창 = 창들.find((w) => Number(w?.window_id ?? w?.id) === Number(기대.창)) ?? 창들[0] ?? null;
-      const pid = Number.isInteger(창?.pid) ? 창.pid : 본것?.frontmost?.pid;
+      // **행동에 쓴 창과 사후 검증 창은 한 신분이어야 한다**(F-113 · 실모델 Calculator).
+      //
+      // 전에는 여기서 접근성 트리를 새로 읽고, 지목한 창이 없으면 `창들[0]` 을 썼다.
+      // 실행은 창 A 에 나갔는데 검증은 그 순간 첫 번째였던 창 B 를 볼 수 있었다. 특히 AX 가
+      // 간헐적으로 빈 Calculator 에서는 이 새 관찰이 실행 직전 관찰과 갈라져, 버튼은 눌렀으나
+      // 엉뚱한 창의 술어로 목적 성공/실패를 만들었다. 실행 손이 방금 확인한 `창·pid` 가 있으면
+      // 그것을 그대로 쓴다. 하나가 비었을 때만 기계 사실로 보충하되, 지목한 창이 관찰에 없으면
+      // 첫 창으로 넘어가지 않는다 — **모르는 것은 다른 창의 사실이 아니다.**
+      const 정수신분 = (값) => 값 !== null && 값 !== undefined && 값 !== ''
+        && Number.isInteger(Number(값)) ? Number(값) : null;
+      let pid = 정수신분(기대.pid);
+      let 창id = 정수신분(기대.창);
+      if (pid == null || 창id == null) {
+        const 본것 = await mcp.call('get_accessibility_tree', {}).catch(() => null);
+        const 창들 = 본것?.windows ?? [];
+        const 창 = 창id != null
+          ? 창들.find((w) => Number(w?.window_id ?? w?.id) === 창id) ?? null
+          : null;
+        if (창id != null && !창) {
+          return { 판정: 'unknown', 근거: 창들.length ? 'exact_window_not_observed' : 'no_window' };
+        }
+        if (창id == null) 창id = Number(창?.window_id ?? 창?.id);
+        if (pid == null) pid = Number.isInteger(창?.pid) ? 창.pid : null;
+      }
       // **pid 와 window_id 는 둘 다 필수다**(스키마 `required`). 하나라도 빠지면
       // `invalid_arguments` 로 떨어지고, 그건 "확인 못 했다"가 아니라 **우리가 잘못 부른 것**이다.
       // 창 목록을 날것으로 부르면 키가 `window_id` 다 — `id` 만 보다가 실제로 빠뜨렸다.
-      const 창id = Number(창?.window_id ?? 창?.id);
       if (!Number.isInteger(pid) || !Number.isInteger(창id)) {
         return { 판정: 'unknown', 근거: 'no_window' };
       }
