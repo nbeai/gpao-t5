@@ -28,8 +28,11 @@ import { 드라이버답 } from './desktop-driver-answer.js';
 /** C 가 받는 넷. 여기 없는 것은 **없다고 정직하게 말한다**(있는 척도 조용한 실패도 아니다). */
 // **마우스·키보드로 되는 모든 것**(흡수 ④ · 오너 지시 2026-08-06).
 // 여덟만 받던 동안 사용자 일의 절반이 막혀 있었다 — 맥락 메뉴도, Enter 도, 단축키도.
-const 받는행동 = new Set(['focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type',
-  'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait']);
+export const DESKTOP_ACT_ACTIONS = Object.freeze([
+  'focus', 'scroll', 'move', 'resize', 'launch', 'quit', 'click', 'type',
+  'double_click', 'right_click', 'drag', 'press_key', 'hotkey', 'menu', 'copy', 'paste', 'wait',
+]);
+const 받는행동 = new Set(DESKTOP_ACT_ACTIONS);
 /** 요소를 짚어 누르는 것들 — 신분·기대·A02 규율이 똑같이 걸린다. */
 const 요소짚는것 = new Set(['click', 'type', 'double_click', 'right_click']);
 /**
@@ -521,7 +524,7 @@ async handler(args) {
         // 있는 척하면 못 지킬 약속이 된다.
         return {
           blocked: true,
-          userSafeSummary: `그건 아직 못 해요 — 지금은 창을 앞으로 띄우거나, 내리거나, 옮기거나, 앱을 켜고 끄는 것까지예요.`,
+          userSafeSummary: `그 동작은 아직 받지 못해요. 지금 가능한 동작은 ${DESKTOP_ACT_ACTIONS.join(' · ')} 예요.`,
           다음수단: [{ 방법: 'observe', 왜: '무엇이 있는지 먼저 본다' }],
         };
       }
@@ -594,8 +597,16 @@ async handler(args) {
       //
       // 좌표는 원장에 **그대로 적는다**(무엇을 눌렀는지 못 적는 것이 아니라 자리로 적는다).
       // 그리고 되돌림을 약속할 수 없으니 **언제나 사람에게 한 번 묻는다**(action-plan).
-      const 눈으로짚음 = Number.isFinite(Number(args?.대상?.x)) && Number.isFinite(Number(args?.대상?.y))
+      const 좌표만줌 = Number.isFinite(Number(args?.대상?.x)) && Number.isFinite(Number(args?.대상?.y))
         && !args?.대상?.토큰 && args?.대상?.번호 == null && !args?.대상?.id;
+      const 눈으로짚음 = 좌표만줌 && Boolean(String(args?.대상?.스냅샷 ?? '').trim());
+      if (좌표만줌 && !눈으로짚음) {
+        return {
+          blocked: true,
+          userSafeSummary: '그 좌표가 어느 화면 관찰에서 나온 것인지 확인할 수 없어 누르지 않았어요. 화면을 다시 보고 그 스냅샷의 좌표로 짚을게요.',
+          다음수단: [{ 방법: 'observe', 왜: '지금 창의 화면과 스냅샷 신분을 함께 다시 받는다' }],
+        };
+      }
       // **눌러서 커서를 뒀으면 키보드는 거기에 친다.** 사람은 누르고 친다 —
       // 라이브에서 모델이 좌표로 입력칸을 눌러 놓고도 *"어디에 넣을지 안 짚으셨어요"* 로 막혔다.
       // 규율은 그대로다: 커서가 어디 있는지 **우리가 모르므로** 이 걸음은 언제나 카드를 거친다.

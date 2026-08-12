@@ -31,15 +31,20 @@ function 가짜(부른것 = []) {
       if (이름 === 'get_window_state') return { elements: [] };   // AX 가 없는 창
       return { effect: 'confirmed' };
     },
-    async 조각들() { return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000) }]; },
+    async 조각들() { return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000), width: 500, height: 1000 }]; },
   };
+}
+
+async function 본자리(드라이버, x, y) {
+  const 관측 = await 드라이버.observe({ scope: 'window', 창제목: 'n.BEAI' });
+  return { 창: 9, pid: 77, x, y, 스냅샷: 관측.그림스냅샷 };
 }
 
 // ── 드라이버 — 좌표를 그대로 보낸다 ─────────────────────────────────────
 test('화면에서 본 자리를 누른다 — AX 가 없는 창에서 유일한 길이다', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜(부른것) })
-    .act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 300, y: 900 } });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜(부른것) });
+  await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 300, 900) });
   const c = 부른것.find((x) => x.이름 === 'click');
   assert.equal(c?.인자?.x, 300, `**눈으로 본 자리를 못 누른다**: ${JSON.stringify(c?.인자)}`);
   assert.equal(c?.인자?.y, 900);
@@ -66,7 +71,7 @@ test('이름이 없어도 화면에서 본 자리면 받는다 — 눈이 곧 �
       act: (요청) => { 간것.push(요청); return { effect: 'confirmed' }; },
     }],
   });
-  const r = await 손.handler({ action: 'click', app: 'KakaoTalk', 대상: { x: 300, y: 900 } });
+  const r = await 손.handler({ action: 'click', app: 'KakaoTalk', 대상: { x: 300, y: 900, 스냅샷: 'px:fixture' } });
   assert.equal(간것.length, 1, `**눈으로 본 자리를 손이 안 받는다**: ${r.userSafeSummary}`);
   assert.equal(간것[0]?.대상?.x, 300);
 });
@@ -80,7 +85,7 @@ test('무엇을 눌렀는지 원장에 남는다 — 좌표뿐이어도 사실�
       act: () => ({ effect: 'confirmed' }),
     }],
   });
-  const r = await 손.handler({ action: 'click', app: 'KakaoTalk', 대상: { x: 300, y: 900 } });
+  const r = await 손.handler({ action: 'click', app: 'KakaoTalk', 대상: { x: 300, y: 900, 스냅샷: 'px:fixture' } });
   assert.match(JSON.stringify(r.result ?? r.진행 ?? {}), /300/,
     `**어디를 눌렀는지 안 남는다**: ${JSON.stringify(r).slice(0, 220)}`);
 });
@@ -213,8 +218,12 @@ test('좌표로 짚었으면 키보드로 친다 — 놓을 요소가 없다', a
       if (이름 === 'get_accessibility_tree') return { windows: [] };
       return { effect: 'confirmed' };
     },
+    async 조각들() {
+      return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000), width: 500, height: 1000 }];
+    },
   };
-  await makeCuaDriver({ mcp }).act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, x: 210, y: 820 }, 값: '오늘도 힘!' });
+  const 드라이버 = makeCuaDriver({ mcp });
+  await 드라이버.act({ 행동: 'set_value', 대상: await 본자리(드라이버, 210, 820), 값: '오늘도 힘!' });
   const 이름들 = 부른것.map((c) => c.이름);
   assert.ok(이름들.includes('type_text'),
     `**놓을 요소가 없는데 set_value 로 간다** — 화면을 보고 눌러 놓고 글자를 못 넣는다: ${이름들.join(',')}`);

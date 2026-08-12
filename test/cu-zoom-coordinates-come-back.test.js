@@ -37,9 +37,15 @@ function 가짜(부른것 = []) {
   };
 }
 
+async function 본자리(드라이버, x, y) {
+  const 관측 = await 드라이버.observe({ scope: 'window', 창제목: 'n.BEAI' });
+  return { 창: 9, pid: 77, x, y, 스냅샷: 관측.그림스냅샷 };
+}
+
 test('그림을 보고 짚은 좌표는 zoom 기준이라고 말한다 — 안 그러면 엉뚱한 데를 누른다', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜(부른것) }).act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 250, y: 640 } });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜(부른것) });
+  await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 250, 640) });
   const c = 부른것.find((x) => x.이름 === 'click');
   assert.equal(c?.인자?.from_zoom, true,
     `**zoom 그림 좌표를 창 좌표인 척 보낸다** — 드라이버가 딴 데를 누른다: ${JSON.stringify(c?.인자)}`);
@@ -52,8 +58,8 @@ test('그림을 보고 짚은 좌표는 zoom 기준이라고 말한다 — 안 �
 // **`click(from_zoom)` 이 커서를 두고, `type_text` 가 친다.** 그 순서가 아래 검사다.
 test('글자 넣을 자리는 click 이 되돌린다 — type_text 는 그 자를 모른다', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜(부른것) })
-    .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, x: 250, y: 640 }, 값: 'ㄱ' });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜(부른것) });
+  await 드라이버.act({ 행동: 'set_value', 대상: await 본자리(드라이버, 250, 640), 값: 'ㄱ' });
   const 누름 = 부른것.find((x) => x.이름 === 'click');
   assert.equal(누름?.인자?.from_zoom, true, `**커서를 딴 자로 둔다**: ${JSON.stringify(누름?.인자)}`);
   const 침 = 부른것.find((x) => x.이름 === 'type_text');
@@ -116,8 +122,8 @@ test('zoom 은 창 좌상단 0,0 의 스크린샷 픽셀로 요청한다 — 화
 // 자리를 짚었으면 **눌러서 커서를 두고**, 그 다음 친다.
 test('좌표로 글자를 넣으면 먼저 눌러 커서를 둔다 — 안 그러면 아무 데도 안 들어간다', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜(부른것) })
-    .act({ 행동: 'set_value', 대상: { 창: 9, pid: 77, x: 250, y: 640 }, 값: '오늘도 힘!' });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜(부른것) });
+  await 드라이버.act({ 행동: 'set_value', 대상: await 본자리(드라이버, 250, 640), 값: '오늘도 힘!' });
   const 순서 = 부른것.map((c) => c.이름).filter((n) => n === 'click' || n === 'type_text');
   assert.deepEqual(순서, ['click', 'type_text'],
     `**커서를 안 두고 친다** — "했어요"라고 하는데 화면은 그대로다: ${순서.join(' → ')}`);

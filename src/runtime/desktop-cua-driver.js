@@ -30,6 +30,7 @@ import { 그림크기재기 } from './image-size.js';
 // 사용자 컴퓨터에서 사용자 모르게 밖으로 나가는 것은 헌장 ③ 이 걸리는 자리다.
 // 이름으로 껐다고 믿지 않는다 — 기동 인자에 박고, 그 인자를 검사가 잰다.
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 /**
  * **드라이버를 어떻게 띄우는가** — 인자와 환경을 한 자리에 둔다.
@@ -224,6 +225,18 @@ export function makeCuaDriver(deps = {}) {
   // 드라이버가 한국어 시트를 못 읽는다**(`consent_ui.rs` 가 "remote debugging" 을 찾는다).
   // 오너 결정(2026-08-06): *"연결을 한 번 맺고 유지한다."* 드라이버가 상주하니 조건이 선다.
   const 붙은브라우저 = new Set();
+  // 픽셀 좌표도 요소 토큰과 같은 **관측 신분**을 가져야 한다. 그림을 실제로 낸 관찰만
+  // 여기에 들어오며, 행동은 그 불투명 스냅샷 신분과 같은 창·pid·그림을 다시 확인한다.
+  const 그림스냅샷들 = new Map();
+  const 그림해시 = (그림) => createHash('sha256').update(String(그림?.base64 ?? 그림 ?? '')).digest('hex');
+  const 그림기록 = (그림, 창, 크기) => {
+    if (!그림?.base64 || 창?.id == null || 창?.pid == null) return null;
+    const 해시 = 그림해시(그림);
+    const 신분값 = `px:${해시.slice(0, 24)}`;
+    그림스냅샷들.set(신분값, { 해시, 창: Number(창.id), pid: Number(창.pid), 크기 });
+    while (그림스냅샷들.size > 8) 그림스냅샷들.delete(그림스냅샷들.keys().next().value);
+    return 신분값;
+  };
   const 브라우저세션 = 'gpao-t5';
   // ── **세션은 명시적으로 열고 닫는다** (정본 정면대조 2026-08-11) ─────────────────
   //
@@ -444,7 +457,7 @@ export function makeCuaDriver(deps = {}) {
       창들.sort((x, y) => (y.층 ?? -1) - (x.층 ?? -1));
       // **앞 앱은 정렬한 창에서 고른다**(정본 `list_windows` — 최대 z_index). 배열 순서 금지.
       const 앞앱 = 맨앞앱(창들, 얕은것?.apps ?? []);
-      let 요소 = null; let 스냅샷 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null; let 얕게걷기지연 = null;
+      let 요소 = null; let 스냅샷 = null; let 그림스냅샷값 = null; let 본창 = null; let 못읽은이유값 = null; let 화면사실값 = null; let 올려야할길값 = null; let 앞세워읽음값 = false; let 그림값 = null; let 그림크기값 = null; let 탭들값 = null; let 동의안내값 = null; let 얕게걷기지연 = null;
       if (args?.scope === 'window') {
         // 어느 창인가 — 모델이 지목했으면 그것, 아니면 앞 창.
         //
@@ -836,6 +849,7 @@ export function makeCuaDriver(deps = {}) {
                 그림크기값 = Number(이미지.width) > 0
                   ? { w: Number(이미지.width), h: Number(이미지.height) }
                   : 그림크기재기(String(이미지.data));
+                그림스냅샷값 = 그림기록(그림값, 본창, 그림크기값);
               }
               // **그림 크기가 창과 다른 것은 정상이다.** `zoom` 계약이 그렇다 —
               // *"cropped JPEG … with **20% padding** added on each side. The output image is
@@ -868,6 +882,7 @@ export function makeCuaDriver(deps = {}) {
         ...(화면사실값 ? { 화면사실: 화면사실값 } : {}),
         ...(그림값 ? { 그림: 그림값 } : {}),
         ...(그림크기값 ? { 그림크기: 그림크기값 } : {}),
+        ...(그림스냅샷값 ? { 그림스냅샷: 그림스냅샷값 } : {}),
         ...(탭들값?.length ? { 탭들: 탭들값 } : {}),
         ...(동의안내값 ? { 동의안내: 동의안내값 } : {}),
         // 폴백이 돌았는가·얼마 걸렸는가(진단면 · PM 조건). 안 돌면 칸을 안 만든다.
@@ -1284,8 +1299,21 @@ export function makeCuaDriver(deps = {}) {
       // 안에서도 안 살아 있다 — 실측(2026-08-06): *"from_zoom=true but no zoom context
       // for pid 4340. **Call zoom first.**"* 그래서 행동 직전에 같은 영역을 다시 찍는다.
       // 늘 창 전체(0,0~w×2,h×2)를 찍으므로 **관찰 때와 같은 자**다.
-      const 짚음 = 짚은자리(대상);
-      if (짚음 && 대상.창 && typeof mcp.조각들 === 'function') {
+      // 요소 신분이 있으면 언제나 그것이 좌표보다 이긴다. 좌표 계보 검사는 오직
+      // 요소 신분이 전혀 없는 픽셀 폴백에만 건다.
+      const 좌표만줌 = !대상.토큰 && 대상.번호 == null && !대상.id;
+      const 짚음 = 좌표만줌 ? 짚은자리(대상) : null;
+      const 좌표신분 = 짚음 ? 그림스냅샷들.get(String(대상.스냅샷 ?? '')) : null;
+      if (짚음 && (!좌표신분
+        || 좌표신분.창 !== Number(대상.창)
+        || 좌표신분.pid !== Number(대상.pid)
+        || !(Number(좌표신분.크기?.w) > 0) || !(Number(좌표신분.크기?.h) > 0)
+        || Number(짚음.x) < 0 || Number(짚음.y) < 0
+        || Number(짚음.x) >= Number(좌표신분.크기?.w)
+        || Number(짚음.y) >= Number(좌표신분.크기?.h))) {
+        return { effect: 'refused', code: 'pixel_snapshot_required' };
+      }
+      if (짚음) {
         // 테두리는 **손이 줬으면 그걸**, 없으면 **창 목록에서** 가져온다 —
         // 모델이 안 준다고 좌표계를 못 세우면, 볼 줄은 아는데 만질 줄을 모르게 된다.
         const 테 = 대상.bounds ?? (await mcp.call('list_windows', { on_screen_only: false })
@@ -1293,11 +1321,16 @@ export function makeCuaDriver(deps = {}) {
           .catch(() => null));
         const 가로 = Number(테?.w ?? 테?.width ?? 0);
         const 세로 = Number(테?.h ?? 테?.height ?? 0);
-        if (가로 > 0 && 세로 > 0) {
-          await mcp.조각들('zoom', {
-            window_id: 대상.창, ...(대상.pid ? { pid: 대상.pid } : {}),
-            x1: 0, y1: 0, x2: 가로 * 2, y2: 세로 * 2,
-          }).catch(() => null);
+        if (!대상.창 || typeof mcp.조각들 !== 'function' || !(가로 > 0) || !(세로 > 0)) {
+          return { effect: 'refused', code: 'pixel_snapshot_required' };
+        }
+        const 조각 = await mcp.조각들('zoom', {
+          window_id: 대상.창, ...(대상.pid ? { pid: 대상.pid } : {}),
+          x1: 0, y1: 0, x2: 가로 * 2, y2: 세로 * 2,
+        }).catch(() => null);
+        const 이미지 = (조각 ?? []).find((x) => x?.type === 'image' && x?.data);
+        if (!이미지 || 그림해시(String(이미지.data)) !== 좌표신분.해시) {
+          return { effect: 'refused', code: 'stale_pixel_snapshot' };
         }
       }
 

@@ -48,13 +48,22 @@ function 가짜({ 부른것 = [], 열리는칸 = 'foreground' } = {}) {
       }
       return { ok: true };
     },
+    async 조각들(이름, 인자) {
+      부른것.push({ 이름, 인자, 조각: true });
+      return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000), width: 500, height: 1000 }];
+    },
   };
+}
+
+async function 본자리(드라이버, x, y) {
+  const 관측 = await 드라이버.observe({ scope: 'window', 창제목: '카카오톡' });
+  return { 창: 9, pid: 77, x, y, 스냅샷: 관측.그림스냅샷 };
 }
 
 test('확인이 안 되면 사다리를 올린다 — escalation 이 없어도', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜({ 부른것 }) })
-    .act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 100, y: 200 } });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜({ 부른것 }) });
+  await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 100, 200) });
   const 누름 = 부른것.filter((c) => c.이름 === 'click');
   assert.equal(누름.length, 2,
     `**한 칸에서 멈춘다** — 드라이버가 조용히 실패하면 영영 못 오른다: ${누름.length}회`);
@@ -63,15 +72,15 @@ test('확인이 안 되면 사다리를 올린다 — escalation 이 없어도',
 });
 
 test('그렇게 했다는 사실을 남긴다 — 조용히 화면을 만지지 않는다', async () => {
-  const r = await makeCuaDriver({ mcp: 가짜({}) })
-    .act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 100, y: 200 } });
+  const 드라이버 = makeCuaDriver({ mcp: 가짜({}) });
+  const r = await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 100, 200) });
   assert.equal(r?.앞세워함, true, `화면을 만졌는데 말이 없다: ${JSON.stringify(r).slice(0, 200)}`);
 });
 
 test('두 칸 넘게 안 오른다 — 같은 칸을 조용히 재시도하지 않는다', async () => {
   const 부른것 = [];
-  await makeCuaDriver({ mcp: 가짜({ 부른것, 열리는칸: '없는칸' }) })
-    .act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 100, y: 200 } }).catch(() => null);
+  const 드라이버 = makeCuaDriver({ mcp: 가짜({ 부른것, 열리는칸: '없는칸' }) });
+  await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 100, 200) }).catch(() => null);
   assert.ok(부른것.filter((c) => c.이름 === 'click').length <= 2,
     '**계속 매달린다** — 사용자만 기다린다');
 });
@@ -89,7 +98,8 @@ test('확인된 걸음은 안 올린다 — 된 일을 두 번 하지 않는다'
       return { ok: true };
     },
   };
-  await makeCuaDriver({ mcp }).act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 1, y: 2 } });
+  const 드라이버 = makeCuaDriver({ mcp });
+  await 드라이버.act({ 행동: 'click', 대상: await 본자리(드라이버, 1, 2) });
   assert.equal(부른것.filter((c) => c.이름 === 'click').length, 1,
     '**됐다는데 또 누른다** — 두 번 눌리면 안 되는 것도 있다');
 });
@@ -168,15 +178,16 @@ test('좌표로 짚으면 행동 직전에 좌표계를 세운다 — "call zoom
     },
     async 조각들(이름, 인자) {
       부른것.push({ 이름, 인자, 조각: true });
-      return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000) }];
+      return [{ type: 'image', mimeType: 'image/jpeg', data: 'Q'.repeat(2000), width: 500, height: 1000 }];
     },
   };
-  const r = await makeCuaDriver({ mcp })
-    .act({ 행동: 'click', 대상: { 창: 9, pid: 77, x: 210, y: 840, bounds: { x: 0, y: 0, w: 430, h: 664 } } })
+  const 드라이버 = makeCuaDriver({ mcp });
+  const 대상 = { ...await 본자리(드라이버, 210, 840), bounds: { x: 0, y: 0, w: 430, h: 664 } };
+  const r = await 드라이버.act({ 행동: 'click', 대상 })
     .catch((e) => ({ 오류: e.message }));
   assert.ok(!r?.오류, `**좌표계를 안 세우고 눌러 거절당한다**: ${r?.오류}`);
   const 순서 = 부른것.filter((c) => ['zoom', 'click'].includes(c.이름)).map((c) => c.이름);
-  assert.deepEqual(순서, ['zoom', 'click'], `찍고 나서 눌러야 한다: ${순서.join(' → ')}`);
+  assert.deepEqual(순서.slice(-2), ['zoom', 'click'], `관측 뒤 행동 직전에도 다시 찍어야 한다: ${순서.join(' → ')}`);
 });
 
 // ── 카드는 **화면을 뺏을 수 있다**는 것도 말해야 한다 ───────────────────
