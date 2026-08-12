@@ -415,6 +415,34 @@
     padding:var(--sp-1) var(--sp-3); box-shadow:var(--sh-lg); cursor:pointer; white-space:nowrap;
     transition:background var(--dur-fast) var(--ease-out); }
   #tobottom:hover { background:var(--hover); }
+
+  /* ── 조각 B · 기본 동작을 준다 (UX 기획 §2 B · 2026-08-12) ────────────────
+     §1 동시 작업 조건 그대로: **맨 끝에 조각 이름과 함께 덧붙이고 위의 어떤 줄도 안 고친다.**
+     바로 위가 조각 A 다 — 그 블록도 안 건드렸다. */
+
+  /* 멈춤은 **있는데 안 보였다**(투명 배경 · 회색 글자 — 조사 §0 ③).
+     답이 흐르는 동안 사용자가 쥘 수 있는 손잡이는 이것 하나뿐인데 배경에 묻혀 있었다.
+     새 버튼을 만들지 않는다 — 있는 버튼의 조만 올린다. */
+  .stopbtn { color:var(--fg); background:var(--bot); border-color:var(--line-strong);
+    box-shadow:var(--sh-sm); font-weight:550; }
+  .stopbtn::before { content:"■"; font-size:.72em; margin-right:var(--sp-1); vertical-align:1px; color:var(--danger); }
+  .stopbtn:hover { background:var(--hover); color:var(--fg-strong); }
+  .stopbtn:disabled::before { color:var(--muted); }
+
+  /* 기본 동작 막대 — ★ **말풍선 안에 넣지 않는다.**
+     조각 A 의 `겹쳐맞추기` 가 흐르는 동안 자식 노드를 제자리에서 맞춘다. 안에 버튼을 넣으면
+     ① 다음 조각에 지워지고 ② 「화면 DOM == renderMarkdown 출력」계약(A 반대시험 ⑥)이 깨진다.
+     `position:fixed` 라 대화 높이(scrollHeight)도 안 건드린다 — 따라가기 계산과 완전히 무관하다
+     (조각 A 가 「맨 아래로」를 높이 0 으로 붙인 것과 같은 이유다). */
+  #actbar { position:fixed; z-index:20; display:none; gap:var(--sp-1);
+    padding:2px; border-radius:var(--r-md); background:var(--elevated);
+    border:1px solid var(--line-strong); box-shadow:var(--sh-md); }
+  #actbar.on { display:flex; }
+  #actbar button { font:inherit; font-size:var(--fs-xs); line-height:1.6;
+    padding:2px var(--sp-2); border:none; border-radius:var(--r-sm);
+    background:transparent; color:var(--muted); cursor:pointer; white-space:nowrap; }
+  #actbar button:hover { background:var(--hover); color:var(--fg-strong); }
+  #actbar button.done { color:var(--ok); }
 </style>
 </head>
 <body>
@@ -1972,6 +2000,10 @@ function renderResult(r, opts = {}) {
   if (답문.trim()) {
     const bot = el('msg bot');
     renderMarkdownInto(bot, 답문);
+    // 조각 B: 복사는 **모델이 쓴 원문**을 준다(그린 글자가 아니라). 표·코드·목록이 붙여넣는
+    // 자리에서 그대로 산다. 속성이 아니라 **JS 속성**으로 단다 — 속성으로 달면 조각 A 의
+    // `속성맞추기` 가 새것 기준으로 지운다.
+    bot.__원문 = 답문;
     box.appendChild(bot);
   }
   renderRecord(box, r.ledger);
@@ -2558,6 +2590,156 @@ async function maybeWelcome(sessionId) {
   })).json().catch(() => null);
   if (r?.state === 'greeted' && r.text) renderResult({ kind: 'reply', reply: r.text }, {});
 }
+
+// ── 조각 B · 기본 동작을 준다 (UX 기획 §2 B · 2026-08-12) ──────────────────────
+//
+// 조사 §0 ③ 이 낸 것: 복사 0 · 수정 0 · 재생성 0 · 코드블록 복사 0 · Esc 0 · ⌘K 0.
+// *"새 화면을 만들지 않는다"* 는 원칙이 **서버 상태를 하나도 안 만드는 기본 동작**까지 삼켰다.
+// 이 넷은 「죽은 버튼」이 될 수 없는 것들이다 — 못 할 상황 자체가 없다.
+//
+// ★ 이 조각이 지킨 두 계약
+//   ① **말풍선 안에 아무것도 안 넣는다.** 조각 A 의 `겹쳐맞추기` 가 흐르는 동안 자식 노드를
+//      제자리 맞춤한다 — 안에 버튼을 넣으면 다음 조각에 지워지고, 「화면 DOM 이
+//      renderMarkdown 출력과 글자까지 같다」(A 반대시험 ⑥)가 그 자리에서 깨진다.
+//      그래서 막대는 **body 에 position:fixed 로 한 개**만 두고 손이 간 곳을 따라간다.
+//   ② **못 하는 것에는 버튼을 안 만든다**(*"죽은 버튼 대신 텍스트"*). 셋을 실제로 감춘다 —
+//      클립보드가 없는 브라우저에서는 복사가 아예 없고, 앞선 사용자 발화를 못 찾으면
+//      「같은 질문 다시」가 없고, 답이 흐르는 중에는 새 턴을 여는 버튼이 없다.
+const 복사가능 = !!(navigator.clipboard && navigator.clipboard.writeText);
+const 손바 = document.createElement('div');
+손바.id = 'actbar';
+document.body.appendChild(손바);
+let 손댄것 = null;
+
+const 흐르는중 = () => !!document.querySelector('.stopbtn');
+function 손바숨기기() { 손바.classList.remove('on'); 손댄것 = null; }
+
+/** 답 하나 위에 있던 **사용자 발화**를 찾는다. 못 찾으면 null — 그러면 버튼을 안 만든다. */
+function 앞선발화(답) {
+  let 칸 = 답.closest('.turn');
+  while (칸) {
+    칸 = 칸.previousElementSibling;
+    const 나 = 칸?.querySelector?.('.msg.me');
+    if (나) return 나.textContent;
+  }
+  return null;
+}
+
+async function 복사하기(글, 단추) {
+  try {
+    await navigator.clipboard.writeText(글);
+    const 옛 = 단추.textContent;
+    단추.textContent = '복사됨'; 단추.classList.add('done');
+    setTimeout(() => { 단추.textContent = 옛; 단추.classList.remove('done'); }, 1200);
+  } catch { toast('복사하지 못했어요 — 글을 직접 긁어서 복사해 주세요.'); }
+}
+
+/** 입력칸에 글을 얹고 손이 이어서 고칠 수 있게 둔다(보내지는 않는다). */
+function 입력칸에얹기(글) {
+  text.value = 글;
+  text.dispatchEvent(new Event('input', { bubbles: true })); // 높이 재계산은 있는 배선이 한다
+  text.focus();
+  text.setSelectionRange(text.value.length, text.value.length);
+}
+
+function 단추(라벨, 제목, 눌렀을때) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = 라벨; b.title = 제목;
+  b.onclick = (e) => { e.preventDefault(); 눌렀을때(b); };
+  return b;
+}
+
+/** 손이 간 것 하나에 맞는 막대를 세운다. **만들 수 있는 것만 만든다.** */
+function 손바세우기(대상, 종류) {
+  손바.textContent = '';
+  if (종류 === 'code') {
+    if (!복사가능) return false;
+    손바.appendChild(단추('코드 복사', '이 코드블록만 복사해요', (b) => 복사하기(대상.innerText, b)));
+  } else if (종류 === 'me') {
+    if (복사가능) 손바.appendChild(단추('복사', '내가 보낸 말을 복사해요', (b) => 복사하기(대상.textContent, b)));
+    // **수정은 삭제가 아니라 분기다**(비교군 §6-2). 위의 말과 그 아래 답은 **그대로 둔다** —
+    // 고친 말은 새 말로 내려가 붙는다. 그래서 언제든 원래 것으로 돌아갈 수 있다.
+    손바.appendChild(단추('고쳐 다시 보내기', '이 말을 입력칸에 올려요 — 고쳐서 보내면 새 답이 아래에 붙어요', () => {
+      입력칸에얹기(대상.textContent);
+      손바숨기기();
+      toast('입력칸에 올렸어요 — 고쳐서 보내면 새 답이 맨 아래에 붙어요. 위의 말과 답은 그대로 남아요.');
+    }));
+  } else {
+    const 원문 = 대상.__원문 ?? 대상.innerText;
+    if (복사가능) 손바.appendChild(단추('복사', '이 답을 복사해요', (b) => 복사하기(원문, b)));
+    // 「같은 질문 다시」 — T5 는 답을 **갈아치우지 못한다**(되감기 개념이 없다 · 기획 §4).
+    // 그러니 「재생성」이라 부르지 않는다. 하는 일 그대로 적는다: 같은 질문을 다시 보낸다.
+    // 앞선 발화가 없으면(인사말 등) 이 버튼은 **아예 안 선다**.
+    const 질문 = 앞선발화(대상);
+    if (질문 && !흐르는중()) {
+      손바.appendChild(단추('같은 질문 다시', '같은 질문을 한 번 더 보내요 — 위의 답은 그대로 남아요', async () => {
+        손바숨기기();
+        // 막대를 띄운 뒤에 답이 흐르기 시작했을 수 있다 — **누르는 순간에 다시 본다.**
+        // 흐르는 중에 또 보내면 한 대화에 두 턴이 겹친다.
+        if (흐르는중()) { toast('지금 답이 오는 중이에요 — 끝나면 다시 눌러 주세요.'); return; }
+        입력칸에얹기(질문);
+        toast('같은 질문을 다시 보냈어요 — 새 답이 맨 아래에 붙어요. 위의 답은 그대로 남아요.');
+        await submit();
+      }));
+    }
+  }
+  return 손바.childElementCount > 0;
+}
+
+function 손바붙이기(대상) {
+  const r = 대상.getBoundingClientRect();
+  const l = logEl.getBoundingClientRect();
+  손바.classList.add('on');
+  const w = 손바.offsetWidth, h = 손바.offsetHeight;
+  const x = Math.min(Math.max(r.right - w, l.left + 4), l.right - w - 4);
+  // 상자 위에 걸치되 대화 창 밖으로는 안 나간다(머리글을 덮으면 그게 더 방해다).
+  const y = Math.max(r.top - h + 4, l.top + 2);
+  손바.style.left = `${Math.round(x)}px`;
+  손바.style.top = `${Math.round(y)}px`;
+}
+
+logEl.addEventListener('pointerover', (e) => {
+  if (e.pointerType === 'touch') return;         // 손가락에는 호버가 없다 — 헛돌지 않게 뺀다
+  const 코드 = e.target.closest?.('pre');
+  const 말 = e.target.closest?.('.msg.me, .msg.bot');
+  const 대상 = 코드 ?? 말;
+  if (!대상 || !logEl.contains(대상)) return;
+  if (대상 === 손댄것) return;
+  손댄것 = 대상;
+  if (손바세우기(대상, 코드 ? 'code' : (대상.classList.contains('me') ? 'me' : 'bot'))) 손바붙이기(대상);
+  else 손바숨기기();
+});
+logEl.addEventListener('pointerleave', (e) => { if (!손바.contains(e.relatedTarget)) 손바숨기기(); });
+손바.addEventListener('pointerleave', (e) => { if (!logEl.contains(e.relatedTarget)) 손바숨기기(); });
+// 스크롤하면 자리가 어긋난다 — 따라 옮기고, 창 밖으로 나가면 접는다.
+// (막대는 body 에 fixed 라 이 상자의 높이 계산에는 아무 영향이 없다.)
+logEl.addEventListener('scroll', () => {
+  if (!손댄것) return;
+  if (!logEl.contains(손댄것)) { 손바숨기기(); return; }
+  const r = 손댄것.getBoundingClientRect(), l = logEl.getBoundingClientRect();
+  if (r.bottom < l.top || r.top > l.bottom) { 손바숨기기(); return; }
+  손바붙이기(손댄것);
+}, { passive: true });
+
+// ── 자판 (기획 §2 B-5) ── 손이 반사적으로 가는 자리. **새 기능이 아니라 이미 있는 것의 입구**다.
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); toggleSearch(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); return; }
+  if (e.key !== 'Escape') return;
+  // Esc 는 **하나만** 한다. 이 순서가 곧 "지금 사용자가 세우고 싶은 것"의 순서다 —
+  // 돌고 있는 일이 있으면 그것부터. 한 번에 둘을 닫으면 무엇이 닫혔는지 사용자가 모른다.
+  // ⚠ `.stopbtn` 은 `<button>` 이 아니라 **`<div>`** 다(`el('stopbtn')` 이 만든다).
+  //   `:disabled` 는 폼 요소에만 붙는 유사클래스라 div 에는 **절대 안 맞는다** — 첫 판에서
+  //   `:not(:disabled)` 로 걸렀더니 이미 「멈추는 중」인 턴에서도 이 갈래가 먹어 Esc 가
+  //   아무것도 못 닫았다(라이브에서 잡았다: 찾기 패널이 Esc 로 안 닫혔다).
+  //   그래서 선택자가 아니라 **속성**을 본다.
+  const 멈춤 = [...document.querySelectorAll('.stopbtn')].find((b) => !b.disabled);
+  if (멈춤) { e.preventDefault(); 멈춤.click(); return; }
+  if (setov.classList.contains('open')) { e.preventDefault(); closeSettings(); return; }
+  if (tbov.classList.contains('open')) { e.preventDefault(); closeToolbox(); return; }
+  if (searchPanel.style.display === 'block') { e.preventDefault(); toggleSearch(false); return; }
+  if (손바.classList.contains('on')) { e.preventDefault(); 손바숨기기(); }
+});
 
 // 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
 (async () => {
