@@ -9,6 +9,13 @@
 - Agreement needs no decorative paraphrase. Audit and planning output must contribute net-new information rather than repackaging context.
 - Create a new term, artifact, test layer, or process only when an existing contract cannot hold the necessary work, and state that concrete necessity plainly.
 
+## Start here (2026-08-13)
+
+Read `design/NEXT-SESSION.md` first. It is the single onboarding document for a session that
+knows nothing: what to read, what standards apply, the development rules, what "done" means,
+who declares completion, how to use the four standing agents, what to work on now, and what not
+to touch. It points back into the authorities below rather than replacing them.
+
 ## Single top product authority (mandatory)
 
 Before any planning, implementation, review, verification, handoff, or release work, read and obey:
