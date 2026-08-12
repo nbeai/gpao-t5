@@ -70,15 +70,6 @@ async function 제안턴({ 열어둠 = false } = {}) {
   } finally { if (!열어둠) await close(); }
 }
 
-/** 사슬 전체를 한 번에 잰다 — 후보 생성 → 화면이 읽는 이름 → 설정 문이 연다. */
-async function 사슬(base, r) {
-  const 후보 = r.automationSuggestion ?? r.automationProposal;
-  const setup = 후보?.candidateId
-    ? await (await fetch(`${base}/automation/setup?candidateId=${후보.candidateId}`)).json()
-    : { error: '후보 없음' };
-  return { 후보, 화면이름: r.automationSuggestion, setup };
-}
-
 test('① 서버가 자동화 후보를 만든다', async () => {
   const { r } = await 제안턴();
   const 후보 = r.automationSuggestion ?? r.automationProposal;
@@ -94,15 +85,22 @@ test('② 화면이 **받는 형태로** 온다(카드가 뜬다)', async () => 
   assert.ok(화면이받는것?.candidateId, '어느 이름으로도 후보가 안 왔다 — 카드가 안 뜬다');
 });
 
-test('③ **설정 문이 열린다** — 카드를 눌렀을 때 막다른 길이 아니다', async () => {
+test('③ **막다른 길이 아니다** — 명시 예약은 그 자리에서 켜져 답이 이어진다', async () => {
   const { base, r, close } = await 제안턴({ 열어둠: true });
   try {
-    const { setup } = await 사슬(base, r);
-    assert.equal(setup.ok, true,
-      `카드를 눌러도 설정이 안 열린다(죽은 버튼): ${setup.error ?? JSON.stringify(setup).slice(0, 120)}`);
-    // **스킬·역할이 없는 것은 결함이 아니다** — T5 의 자동화는 "이미 배운 스킬을 정해진
-    // 시각에 반복"하는 것이고, 새 설치엔 배운 것이 없다. 결함은 그때 **막다른 답**이 되는 것이다.
-    // 여기서는 문이 열리는 것까지만 잰다(404 가 아니어야 한다).
+    // **2026-08-12 계약 이동**(`design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번).
+    // 옛 판은 *"카드를 눌렀을 때 설정 문(`/automation/setup`)이 열리는가"* 를 쟀다. 그것이
+    // 「막다른 길 아님」의 유일한 형태였기 때문이다 — 명시 요청도 후보로만 섰으니까.
+    // 이제 사용자가 **스스로 시점을 말한** 요청("매일 아침 9시에 …")은 그 자리에서 켜진다
+    // (자동성 헌장 `kernel/l2-plan/authority.js`: *"automate → 자동. 문지기는 사후 교정 표면"*).
+    // 그러면 누를 카드가 아니라 **선 예약**이 답이다. 재는 것은 그대로다: 막다른 길이 아닐 것.
+    const 후보 = r.automationSuggestion ?? r.automationProposal;
+    assert.ok(후보?.jobRef, `켜지지도 설정이 열리지도 않는다(죽은 버튼): ${JSON.stringify(후보).slice(0, 200)}`);
+    assert.equal(후보.state, 'scheduled', '켜졌다면 예정 상태여야 한다');
+    // **안 도는 조건도 같이 온다** — 「켜 뒀어요」만 주는 것이 새 막다른 길이다.
+    assert.equal(후보.notRunning?.requiresAppRunning, true, 'T5 가 꺼져 있으면 안 돈다는 사실이 빠졌다');
+    const 화면 = await (await fetch(`${base}/automation`)).json();
+    assert.equal(화면.jobs.length, 1, '자동화 화면에 그 예약이 보여야 한다');
   } finally { await close(); }
 });
 

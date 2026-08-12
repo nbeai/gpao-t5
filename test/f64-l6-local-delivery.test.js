@@ -90,7 +90,12 @@ test('L6 local delivery red: natural local web chat proposal은 actionable candi
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
-test('natural chat candidate setup approval은 서버가 봉인한 현재 local conversation만 job에 결속한다', async () => {
+// **2026-08-12 계약 이동**(`design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번).
+// 재는 것은 그대로다 — *"job 의 전달 대상은 **서버가 봉인한 현재 local conversation** 하나이고,
+// 그 세션 id 는 어떤 공개 표면에도 새지 않는다."* 바뀐 것은 그 job 이 서는 **경로** 하나다:
+// 사용자가 스스로 시점을 말한 요청("매주 …")은 승인 카드 없이 그 자리에서 켜진다
+// (자동성 헌장 `kernel/l2-plan/authority.js`: *"automate → 자동. 문지기는 사후 교정 표면"*).
+test('natural chat 명시 예약은 서버가 봉인한 현재 local conversation만 job에 결속한다', async () => {
   const dir = await room(); const store = new SessionStore(dir);
   const server = makeServer({ store, model: chatProposalModel(), env: demoEnv(), tools: demoTools(),
     processEnv: { HOME: dir, GPAO_T5_HOME: dir, GPAO_T5_DATA_DIR: dir, GPAO_T5_FILE_ROOTS: dir } });
@@ -104,20 +109,15 @@ test('natural chat candidate setup approval은 서버가 봉인한 현재 local 
     const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((r) => r.json());
     const proposed = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, text: '매주 결과를 이 대화에 남겨줘' }) }).then((r) => r.json());
-    const setup = await fetch(`${base}/automation/setup?candidateId=${proposed.automationProposal.candidateId}`).then((r) => r.json());
-    assert.equal(JSON.stringify(setup).includes(session.id), false);
+    assert.ok(proposed.automationProposal?.jobRef,
+      `명시 예약이 안 켜졌다: ${JSON.stringify(proposed.automationProposal)}`);
+    // **대화 신분은 어떤 공개 표면에도 안 샌다** — 켜지는 경로가 바뀌어도 이 경계는 그대로다.
     const publicAutomation = await fetch(`${base}/automation`).then((r) => r.json());
     assert.equal(JSON.stringify(publicAutomation).includes(session.id), false);
-    const approvedResponse = await fetch(`${base}/automation/approve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-      candidateId: setup.candidate.candidateId, candidateRevision: setup.candidate.revision,
-      controlRef: setup.candidate.controlRef, skillId: skill.id, agentProfileId: profile.id,
-      expiresAt: Date.now() + 86_400_000, maxRuns: 3,
-    }) });
-    assert.equal(approvedResponse.status, 200, JSON.stringify(await approvedResponse.clone().json()));
-    const approved = await approvedResponse.json();
+    assert.equal(JSON.stringify(proposed.automationProposal).includes(session.id), false);
     const jobs = await server.automationRuntime.jobStore.load();
     const durableSession = await store.load(session.id);
-    const job = jobs.jobs.find((entry) => entry.id === approved.jobId);
+    const job = jobs.jobs.find((entry) => entry.id === proposed.automationProposal.jobRef);
     assert.deepEqual(job.deliveryPolicy, { mode: 'local_conversation', target: {
       kind: 'local_conversation', conversationRef: session.id,
       principalRef: 'local-owner', conversationCreatedAt: durableSession.createdAt,

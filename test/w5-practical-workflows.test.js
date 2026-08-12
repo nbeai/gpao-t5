@@ -248,7 +248,17 @@ test('W5 자료 조사: 읽은 내용은 출처와 결합되고 출처 없는 �
   assert.equal(bad.result, undefined, '근거 없는 조사 결과가 성공처럼 남았다');
 });
 
-test('W5 반복 업무: 후보 한 번만 제안하고 사용자 승인 전에는 자동 실행하지 않는다', async () => {
+// **2026-08-12 계약 이동**(`design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번).
+// 옛 이름은 *"사용자 승인 전에는 자동 실행하지 않는다"* 였고, 그때 「승인」은 **예약 등록**을
+// 뜻했다. 자동성 헌장(`kernel/l2-plan/authority.js`)이 그 자리를 이미 닫아 뒀다 —
+// *"automate → 자동. 문지기는 사후 교정 표면(오너: 사전 게이트 금지)"*, 오너 지시 2026-08-12
+// *"불필요한 승인카드는 모두 없애야해."* 예약 등록은 가역이고(pause·cancel) 헌장 넷
+// (비밀값·불가역 파괴·새 상대 첫 전송·돈) 어디에도 없다.
+//
+// **안 바뀐 것이 이 검사의 알맹이다**: ① 카드 한 장을 강요하지 않는다(pendingId 없음)
+// ② 같은 발화를 두 번 해도 등록은 하나 ③ **예정 시각 전에는 실행 0**(runs 0).
+// 예약이 섰다는 것과 실행됐다는 것은 다르다 — 후자의 경계는 그대로다.
+test('W5 반복 업무: 명시 예약은 한 번만 등록하고 예정 시각 전에는 실행하지 않는다', async () => {
   const proposedTurns = new Set();
   const model = { async respond(tc, call = {}) {
     const turnKey = JSON.stringify(tc.turnRef ?? [tc.currentRequest, tc.currentTime]);
@@ -276,19 +286,22 @@ test('W5 반복 업무: 후보 한 번만 제안하고 사용자 승인 전에�
       text: '매주 금요일 로컬 파일 목록을 정리해줘',
     });
     const firstCandidate = first.body.automationSuggestion ?? first.body.automationProposal;
-    assert.ok(firstCandidate?.candidateId, '반복 업무 후보가 사용자에게 보이지 않는다');
-    assert.equal(first.body.pendingId, undefined, '후보를 보여주는 단계에서 실행 승인을 강요했다');
+    assert.ok(firstCandidate?.candidateId, '반복 업무 예약이 사용자에게 보이지 않는다');
+    assert.equal(first.body.pendingId, undefined, '켜는 단계에서 실행 승인 카드를 강요했다');
     const view = await fetch(`${base}/automation`).then((response) => response.json());
-    assert.equal(view.candidates.length, 1);
-    assert.equal(view.jobs.length, 0, '사용자 승인 전 반복 작업이 자동으로 활성화됐다');
-    assert.equal(view.runs.length, 0, '사용자 승인 전 실행 영수증이 생겼다');
+    assert.equal(view.jobs.length, 1, '명시 예약이 그 자리에서 안 켜졌다');
+    assert.equal(view.jobs[0].state, 'scheduled');
+    assert.equal(view.runs.length, 0, '**예정 시각 전에 실행 영수증이 생겼다** — 등록과 실행은 다르다');
 
     const second = await postJson(base, '/turn', {
       sessionId: session.id,
       text: '매주 금요일 로컬 파일 목록을 정리해줘',
     });
     const secondCandidate = second.body.automationSuggestion ?? second.body.automationProposal;
-    assert.equal(secondCandidate == null, true, '같은 후보 카드를 반복해서 보여준다');
+    assert.equal(secondCandidate?.candidateId, undefined, '같은 예약 카드를 또 세운다');
+    const after = await fetch(`${base}/automation`).then((response) => response.json());
+    assert.equal(after.jobs.length, 1, '두 번 말했다고 예약이 둘 서면 안 된다');
+    assert.equal(after.runs.length, 0, '예정 시각 전에는 여전히 실행 0');
   });
 });
 
