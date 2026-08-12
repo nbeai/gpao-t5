@@ -97,7 +97,16 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
         properties: {
           kind: { type: 'string', enum: ['once', 'interval', 'daily', 'weekly'] },
           timezone: { type: 'string' },
-          at: { type: 'number' },
+          // **`at` 만 절대값이라 모델이 틀릴 수 있는 유일한 칸이다**(F-90 · 2026-08-12).
+          // `daily`·`weekly` 는 `localTime` 벽시계 문자열만 받아 커널이 달력에서 계산하므로
+          // 라이브 3/3 이었고, `once` 는 이 칸이 비어 있어 1/3 이었다(`at:0` → 1970년 예약).
+          // 자를 안 주면 모델은 초를 주거나 0 을 준다 — 있는 것을 있다고 적는다.
+          at: {
+            type: 'number',
+            description: 'once 전용. 실행 시각을 **epoch 밀리초 정수**로 준다(초가 아니다 —'
+              + ' 초를 주면 1970년이 되어 예약이 서고도 영원히 안 온다). 사용자가 말한 벽시계'
+              + ' 시각을 timezone 기준으로 환산한 값이고, **반드시 지금보다 미래**여야 한다.',
+          },
           intervalMs: { type: 'number' },
           weekdays: { type: 'array', items: { type: 'integer' } },
           localTime: { type: 'string' },

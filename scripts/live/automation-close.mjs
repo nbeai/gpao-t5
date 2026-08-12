@@ -182,7 +182,14 @@ async function 회차(번호, 요청포트) {
       console.log(`     job: ${String(j.name ?? '').slice(0, 60)}`);
       console.log(`          skillRef=${j.skillRef?.id ?? '(없음)'} · nextRunAt=${new Date(j.trigger?.nextRunAt ?? j.nextRunAt ?? 0).toISOString()}`);
     }
-    for (const c of 후보) console.log(`     후보(${c.state}): ${String(c.statement ?? '').slice(0, 60)}`);
+    for (const c of 후보) {
+      console.log(`     후보(${c.state}): ${String(c.statement ?? '').slice(0, 60)}`);
+      // **왜 안 섰는지를 적는다**(F-90 · 2026-08-12). 판정은 안 바꾼다 — 「①에서 멈췄다」만
+      // 적고 원인을 안 적으면 회차마다 같은 것을 다시 재게 된다(앞 회차가 그랬다).
+      console.log(`          lane=${c.lane ?? '(없음)'} · trigger=${JSON.stringify(c.trigger ?? null)}`);
+      console.log(`          tool=${c.action?.tool ?? '(없음)'} · args=${JSON.stringify(c.action?.args ?? null).slice(0, 160)}`);
+      if (c.commitRejected) console.log(`          commitRejected=${JSON.stringify(c.commitRejected)}`);
+    }
     판정.job = jobs.length > 0;
     // ② 지시문이 **이 발화에서 파생된 1회용 스킬**인가 — 남의 스킬에 묶이면 다른 일이 돈다.
     판정.지시문 = jobs.some((j) => String(j.skillRef?.id ?? '').startsWith('direct-automation:'));
