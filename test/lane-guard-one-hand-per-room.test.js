@@ -127,11 +127,36 @@ test('방④: 산출물·시크릿 차단이 그대로 선다 — 새 검사가 
 // 을 고쳐도 **본 worktree 가 그 가지를 체크아웃하기 전까지는 안 돈다.**
 // 그 사실을 모르면 「박았다」고 적고 실제로는 아무것도 안 무는 자를 세우게 된다
 // (「만든 것과 닿은 것은 다르다」 · 오늘 이 저장소에서 세 번 난 병).
-test('방⑤: 훅 자리가 **상대경로**다 — 훅이 가지를 따라다녀야 이 수리가 닿는다', async () => {
+test('방⑤: 훅이 **이 가지에** 있다 — 저장소가 스스로 주장할 수 있는 사실', async () => {
+  const { readFile, stat } = await import('node:fs/promises');
+  const 본문 = await readFile(훅, 'utf8');
+  assert.match(본문, /MERGE_HEAD/, '병합 창을 보는 자리가 훅에 있어야 한다');
+  assert.match(본문, /GPAO_T5_MERGE_OWNER/, '지나가는 길이 훅에 적혀 있어야 한다');
+  assert.match(본문, /core\.quotepath=false/, '한글 이름 산출물 구멍을 막은 자리가 남아 있어야 한다');
+  const s = await stat(훅);
+  assert.ok(s.mode & 0o111, '훅이 실행 가능해야 한다 — 아니면 git 이 조용히 건너뛴다');
+});
+
+// ── ⑥ 설치는 **환경 사실**이다 — 저장소가 주장할 수 없다 ────────────────────────
+//
+// 첫 판은 이 자리에서 `git config --get core.hooksPath` 를 **무조건 요구**했다. 그런데 그 설정은
+// **커밋에 안 들어간다**(로컬 `.git/config` · README 가 손 설치라고 적어 뒀다). 그래서
+// **신선한 클론에서 이 검사가 통째로 터졌다** — `Command failed: git config --get core.hooksPath`.
+// CI 는 `actions/checkout` 위에서 도니까 **본선이 CI 에서 빨갰다.** 내가 낸 빨강이다.
+//
+// **자가 제품이 아니라 이 기계의 설정을 재고 있었다**(「재는 자가 틀리면 재는 것이 전부 거짓이다」).
+// 저장소가 주장할 수 있는 것은 위 ⑤(훅이 가지에 있다)까지고, 설치 여부는 **있을 때만** 잰다.
+test('방⑥: 훅 자리가 잡혀 있다면 **상대경로**여야 한다 — 훅이 가지를 따라다니게', async (t) => {
   const { readFile } = await import('node:fs/promises');
-  const 자리 = execFileSync('git', ['config', '--get', 'core.hooksPath'],
-    { cwd: 뿌리, encoding: 'utf8' }).trim();
-  assert.ok(자리, 'core.hooksPath 가 없으면 훅이 아예 안 돈다');
+  let 자리 = '';
+  try {
+    자리 = execFileSync('git', ['config', '--get', 'core.hooksPath'],
+      { cwd: 뿌리, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { 자리 = ''; }   // 설정이 없으면 git 이 1 로 끝난다 — 그건 실패가 아니라 **안 깔렸다**는 사실
+  if (!자리) {
+    return t.skip('core.hooksPath 가 이 클론에 없다 — 설치는 환경 사실이라 저장소가 못 잰다'
+      + ' (설치: git config core.hooksPath .githooks · README 참조)');
+  }
   assert.ok(!자리.startsWith('/'),
     `**훅 자리가 절대경로다(${자리}).** 그러면 연결 worktree 가 몇 개든 **본 worktree 가\n`
     + '체크아웃한 가지의 훅 하나**만 돈다 — 이 가지에서 훅을 고쳐도 아무것도 안 문다.\n'
