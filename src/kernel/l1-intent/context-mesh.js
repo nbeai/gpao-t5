@@ -14,6 +14,12 @@ import { 사실공급 } from '../model-sovereign.js';
 const PRINCIPLE_SIGNAL = /무조건|반드시.*확인|절대.*(마|말|하지)|(할|보낼|전송할|올릴) ?땐|전에.*확인|확인받/;
 const PREFERENCE_SIGNAL = /(좋아|선호|받고 싶|줬으면|앞으로.*(로|으로|기본)|항상.*(로|으로) 받|글로 받|표로 받)/;
 
+// §5-5: 사용자가 **대놓고 시킨** 지속 의도("기억해줘"·"앞으로는"). 이 표지는 후보를 넓히는
+//   데만 쓴다 — 범위 판정(앞으로인가 이번만인가)에는 쓰지 않는다. 그 판정은 모델이 하고
+//   서버가 대조한다(`자동반영가능`). 낱말로 범위를 짐작하면 "이번만"이 영구 선호로 새던
+//   그 구멍이 다시 열린다(병합 판정 2026-08-12 · 브랜치 69a4678 의 정규식 자격문을 기각한 이유).
+const PERSIST_INTENT = /기억해\s*[줘둬두주]|기억해\s*달라|기억해라|앞으로는|앞으로도|항상/;
+
 /**
  * 사용자 발화에서 기억 승격 후보를 감지한다(자동 승격 아님 — 후보만).
  * @param {string} text
@@ -25,6 +31,9 @@ export function detectCandidate(text) {
   // 운영 원리가 선호보다 강한 신호 — 먼저 검사.
   if (PRINCIPLE_SIGNAL.test(t)) return { kind: 'operating_principle', statement: t };
   if (PREFERENCE_SIGNAL.test(t)) return { kind: 'preference', statement: t };
+  // §5-5: "기억해줘" 류 명시 지속 의도는 그 자체가 후보 신호다 — 위 범주 규칙이 못 알아들어도
+  //   사용자가 직접 시켰다("나 커피 안 마셔. 앞으로 기억해줘"). 기본 kind는 선호.
+  if (PERSIST_INTENT.test(t)) return { kind: 'preference', statement: t };
   return null;
 }
 

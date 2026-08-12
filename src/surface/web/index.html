@@ -1853,6 +1853,9 @@ function renderMemoryWithdrawn(box, w) {
   box.appendChild(card);
 }
 
+// §5-5 즉시 가시는 위 `renderMemoryApplied`(memoryApplied) 한 통로로만 그린다 — 서버가
+//   카드 없이 반영한 기억은 그쪽으로 온다. 여기 두 번째 "기억해 뒀어요"를 두면 화면이
+//   같은 사실을 두 자리에서 말하게 되고, 언젠가 한쪽만 고쳐져 갈린다(병합 판정 2026-08-12).
 function renderSuggestion(box, sug) {
   const isPrin = sug.kind === 'operating_principle';
   const card = el('suggest');
