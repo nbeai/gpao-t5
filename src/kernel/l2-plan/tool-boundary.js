@@ -40,10 +40,27 @@ import { isKnownCounterpart } from './known-counterpart.js';
  * @returns {Promise<{판정인자: object, kind: string, 판정행동: {kind: string, revocable?: boolean, needsApproval?: boolean}}>}
  */
 export async function 실행전판정({ toolId, args, selfState, tools, 이번이월 = false, 이번발화 }) {
+  // ── **못 재면 조인다**(fail-closed · 이음매 ① · 2026-08-12) ────────────────
+  //
+  // 탐침은 화면·샌드박스 같은 바깥 현실을 만진다 — 터지는 것이 정상 범위다. 그런데 이 자리는
+  // `await …probe(…)` 를 맨몸으로 불렀다. 계획 경로까지 여기로 들어오면(아래 turn.js 수리)
+  // 탐침 하나가 터질 때 **턴 전체가 죽는다** — 그건 조이는 것도 여는 것도 아니고 그냥 사라지는 것이다.
+  //
+  // 못 잰 것은 **안 실린다.** 그러면 `action-plan` 의 자동 조건(`눌러본사실.찾음===true`)이
+  // 애초에 안 서서 미상·field_input 으로 떨어지고, 미상은 언제나 카드다.
+  // 오픈클로 `docs/tools/exec.md:98-100`: *"Explicit `host=sandbox` still fails closed instead of
+  // silently running on the gateway host."* — 재는 길이 막히면 조용히 진행하지 않는다.
+  const 재본다 = async (fn) => { try { return await fn(); } catch { return null; } };
   // 등급 판정. 명령은 **돌려 봐야 아니까** 계획 때와 똑같이 probe 를 먼저 탄다.
   let 판정인자 = args;
-  if (toolId === 'local.terminal' && typeof args?.command === 'string') {
-    const probed = await tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd });
+  // **같은 사실을 두 번 묻지 않는다**(이음매 ①). 앞 레인이 이미 재서 실어 보낸 인자가 오면
+  // 그대로 쓴다 — 재는 것은 왕복이고 왕복은 사용자 비용이다(0번 비용: 에너지·시간).
+  // 두 번 재면 느린 것보다 **답이 갈리는 것**이 문제다: 화면은 그 사이에 바뀐다(두 진실 금지).
+  const 이미잰것 = toolId === 'local.terminal'
+    ? args?.probeResult !== undefined || args?.changes !== undefined
+    : args?.눌러본사실 !== undefined;
+  if (!이미잰것 && toolId === 'local.terminal' && typeof args?.command === 'string') {
+    const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
     판정인자 = {
       ...args,
       // **probe 가 알아낸 자리를 그대로 받는다.** 빈 칸은 없는 칸이라 손이 기본 자리로 푸는데
@@ -63,9 +80,9 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // 창 넷(`focus` 등)에는 probe 가 `{해당없음:true}` 로 답한다 — 볼 일이 없는데 안 읽는다.
   // press_key·hotkey 는 **창 신분만** 탐침한다(F-58 (가-2)) — 실질의 창을 모델 신고가 아니라
   // 기계 사실로 세우는 자리다. 요소 탐색은 없으니 등급 판정(값있음)은 그대로 미상이다.
-  if (toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type'
+  if (!이미잰것 && toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type'
     || args?.action === 'press_key' || args?.action === 'hotkey')) {
-    const 돌려본것 = await tools?.tools?.[toolId]?.probe?.(args);
+    const 돌려본것 = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args));
     // 돌려 본 사실을 **판정인자에 실어 보낸다** — 원장도 사용자도 왜 물었는지 볼 수 있어야 한다.
     if (돌려본것 && !돌려본것.해당없음) 판정인자 = { ...args, 눌러본사실: 돌려본것 };
   }

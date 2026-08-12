@@ -1719,25 +1719,45 @@ export async function runTurn(input, ctx) {
   //   · 아무것도 안 바꿨다 → 그 자체가 증명이라 A0 로 그냥 진행한다.
   //   · 뭔가 바꾸려다 막혔다 → A2 승인 카드로 간다. 승인 뒤에만 granted 로 실제 실행한다.
   // 위험 명령 목록으로 알아맞히지 않는 이유는 실측이다 — 목록은 find -delete 하나에 뚫린다.
-  if (planIntent.neededTools?.includes('local.terminal')) {
-    const asked = modelToolArgs?.['local.terminal'];
-    const command = typeof asked?.command === 'string' ? asked.command.trim() : '';
-    if (command) {
-      // **등급 판정은 경계 한 자리에서 한다**(S6-c 2번). 여기 같은 로직이 한 벌 더 있었다 —
-      // probe 를 돌리고 `{changes, granted, probeResult}` 를 만드는 열 줄이 `tool-boundary.js`
-      // 와 줄 단위로 같았다. 두 벌이면 한쪽만 고쳐지고, 실제로 그랬다:
-      // **probe 가 풀어 준 자리(cwd)를 계획 경로만 챙기고 걸음 경로는 버렸다.**
-      //
-      // 경계가 지키는 계약은 그대로다:
-      //   · probe 를 못 돌렸으면 `changes` 를 비워 둔다 — 미상은 승인으로 간다(read 로 안 흘린다).
-      //   · probe 결과를 **그대로 싣는다.** 안 그러면 도구가 같은 명령을 한 번 더 돌린다 —
-      //     느린 것보다, `date`·`ls` 처럼 두 번 돌리면 답이 달라지는 명령에서 사용자에게 보인 것과
-      //     원장에 남은 것이 갈라지는 게 문제다(두 진실 금지).
-      const { 판정인자: 터미널판정인자 } = await 실행전판정({
-        toolId: 'local.terminal', args: { command, cwd: asked.cwd }, selfState, tools: ctx.tools,
-      });
-      planIntent = { ...planIntent, terminalOp: 터미널판정인자 };
+  //
+  // ── **판정은 손 이름을 안 가린다**(이음매 ① · §5-2 결재 ① · 2026-08-12) ────────
+  //
+  // 여기는 `'local.terminal'` **하나만 이름으로 박아** 두고 경계를 탔다. 걸음 경로(:3088)는
+  // 같은 판정을 **모든 손에** 건다. 그래서 화면 손의 탐침이 계획 경로에서는 안 돌았고,
+  // `눌러본사실` 이 없는 채로 등급이 매겨졌다 — **같은 `desktop.act type` 이 첫 수에는
+  // 카드(`field_input`), 후속 걸음에서는 자동(`organize`)** 이 됐다(`action-plan.js:186`).
+  // 사용자가 보기엔 같은 행동인데 T5 가 두 번 다르게 군 것이다.
+  //
+  // **새 분류도 새 게이트도 새 조항도 만들지 않는다.** 결함은 조항이 아니라 **자리**였다 —
+  // 이 경로도 걸음 경로와 **같은 질문을 같은 함수**(`실행전판정`)에 물으면 된다.
+  // (오너 2026-08-12: *"운전법이 아니라 경우의 수가 된다."*)
+  //
+  // 값은 싸다: 탐침을 가진 손은 지금 **둘뿐**이고(`local.terminal`·`desktop.act`), 나머지
+  // 손에게 이 질문은 인자를 그대로 돌려받는 순수 계산이다. 화면 손도 창 넷(`focus` 등)에는
+  // `{해당없음:true}` 로 답해 화면을 안 읽는다.
+  //
+  // 경계가 지키는 계약은 그대로다:
+  //   · probe 를 못 돌렸으면 잰 것을 안 싣는다 — 미상은 승인으로 간다(read 로 안 흘린다).
+  //   · probe 결과를 **그대로 싣는다.** 안 그러면 도구가 같은 것을 한 번 더 돌린다 —
+  //     느린 것보다, `date`·`ls` 처럼 두 번 돌리면 답이 달라지는 것에서 사용자에게 보인 것과
+  //     원장에 남은 것이 갈라지는 게 문제다(두 진실 금지). 화면은 더하다 — 그 사이에 바뀐다.
+  //   · **잰 인자가 곧 실행 인자다**(`sendArgs` 로 그대로 내려간다 · :1911). 판정과 실행이
+  //     다른 인자를 보면 그것이 두 진실이다.
+  for (const id of planIntent.neededTools ?? []) {
+    // 터미널만 인자 모양을 다듬어 넣던 기존 계약이 있다 — 그 자리는 그대로 둔다.
+    const 낸것 = modelToolArgs?.[id];
+    let 물을것 = 낸것;
+    if (id === 'local.terminal') {
+      const command = typeof 낸것?.command === 'string' ? 낸것.command.trim() : '';
+      if (!command) continue;
+      물을것 = { command, cwd: 낸것.cwd };
     }
+    if (!물을것) continue;
+    const { 판정인자 } = await 실행전판정({ toolId: id, args: 물을것, selfState, tools: ctx.tools });
+    if (id === 'local.terminal') { planIntent = { ...planIntent, terminalOp: 판정인자 }; continue; }
+    // 잰 사실을 **판정이 보는 자리와 실행이 보는 자리 둘 다**에 싣는다(같은 객체 하나).
+    planIntent = { ...planIntent, toolArgs: { ...(planIntent.toolArgs ?? {}), [id]: 판정인자 } };
+    modelToolArgs = { ...modelToolArgs, [id]: 판정인자 };
   }
   // 모델이 다른 사용자 홈을 짐작해도, 사용자가 이번 발화에서 직접 부른 표준 폴더라면
   // 현재 런타임이 실제로 연 루트로 맞춘다. 미리보기·승인·실행이 모두 같은 인자를 본다.
