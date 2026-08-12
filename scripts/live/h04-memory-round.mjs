@@ -196,7 +196,7 @@ export async function 방하나(credential, 손없이, 더쥘손 = []) {
     // (`server.js:1832`). 응답에서 찾으면 항상 `[]` 가 나오고, 그 빈 배열이 「실패 흔적 없음」으로
     // 읽힌다 — **「0건」을 「없다」로 읽는** 바로 그 병이다(F-104). 저장본에서 읽는다.
     const 세션원장 = async (id) => ((await store.load(id))?.ledgerEntries ?? []);
-    return { post, 멎은기억, 새세션, close, room, 세션원장 };
+    return { post, 멎은기억, 새세션, close, room, 세션원장, 브라우저있나: 더쥘손.some((h) => h.startsWith("browser.")) };
   } catch (error) {
     if (server) await new Promise((r) => server.close(r));
     restoreEnv();

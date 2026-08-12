@@ -174,7 +174,7 @@ function 누른값(본것, args) {
  *
  * @returns {true|false|null}  null = 목표를 정의할 수 없다(변화로 판정한다)
  */
-function 목표도달(행동, args, 후) {
+export function 목표도달(행동, args, 후) {
   // **창을 지목했으면 그 창이 앞에 왔는가로 잰다** (정본 `describe bring_to_front`:
   // *"success means the exact ordinary macOS window was independently verified as the focused
   //   window and first in WindowServer layer-0 order"*).
@@ -188,6 +188,22 @@ function 목표도달(행동, args, 후) {
   }
   const 대상 = String(args?.app ?? '').trim().toLowerCase();
   if (!대상) return null;
+  // ── **켜졌나는 커널이 재지 않는다**(F-111 · 오너 라이브 2026-08-13) ─────────
+  //
+  // 오너가 밟았다: *"내 카톡 열어봐"* → `launch` 가 **failed**. 카톡은 이미 떠 있었고
+  // 창이 셋이었는데 **다른 Space** 라 `frontmost` 가 아니었다. 모델은 그 실패를
+  // **「앱 여는 게 막혀 있다」**로 읽고 사용자에게 떠넘겼다 — *"물리적으로 못 합니다."*
+  //
+  // 원장이 남긴 근거가 그 자리를 정확히 가리킨다:
+  //   `"드라이버는 확인(list_apps.running)했는데 **재관측이 어긋난다**"`
+  // **드라이버는 켜졌다고 했다.** 그런데 커널이 `frontmost` 로 다시 재서 뒤집었다.
+  //
+  // 이 파일 위쪽이 이미 적어 뒀다 — *"켜기·끄기가 됐는지는 **드라이버가 확인해 준다**
+  // (`launch_state`·`kill`) — 그게 더 정확하다."* 창이 없어도 앱은 켜져 있을 수 있고,
+  // 다른 Space 에 있어도 켜져 있는 것이다. **재는 자가 둘이면 언젠가 갈린다.**
+  // 그래서 여기서는 `null`(모른다)을 내고 드라이버의 확인을 이기려 들지 않는다.
+  // 앞에 두는 것은 `focus` 의 일이고, 그 길은 이 영수증의 `다음수단` 이 이미 가리킨다.
+  if (행동 === 'launch') return null;
   const 앞 = String(후?.frontmost ?? '').toLowerCase();
   // **앞 창을 못 읽었으면 「안 됐다」가 아니라 「모른다」다.**
   //
@@ -196,7 +212,7 @@ function 목표도달(행동, args, 후) {
   // `Boolean(앞) && …` 로 읽으면 **모르는 것이 전부 실패**가 된다 — 관측 실패를 행동 실패로
   // 바꾸는 것이고, 우리가 A14 의 거울상으로 이미 네 번 밟은 병이다.
   if (!앞) return null;
-  if (행동 === 'focus' || 행동 === 'launch') {
+  if (행동 === 'focus') {
     // 이름이 딱 같지 않아도 된다 — 사용자는 "크롬"이라 하고 OS 는 "Google Chrome"이라 한다.
     // (`앞` 이 비는 경우는 위에서 이미 `null`(모른다)로 갈렸다.)
     return 앞.includes(대상) || 대상.includes(앞);

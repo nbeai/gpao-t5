@@ -69,7 +69,9 @@ export const 요구들 = [
     // 리뷰 분석이면 리뷰에서 나온 **구체 표현**이 있어야 하고, 사용자에게 되넘기면 미달이다.
     잰다: (a) => {
       const 떠넘김 = /복사해서|붙여 ?주|직접 (열어|들어가)|리뷰 (원문|몇 개)만? ?(붙여|알려)/.test(a);
-      const 인용 = (a.match(/["“][^"”]{6,}["”]/g) ?? []).length;
+      // **인용은 짧다** — 리뷰에서 자주 나오는 말은 "친절해요"(5자)·"맛있어요" 같은 것이다.
+      // 6자를 요구했더니 양성 대조가 어긋났다(자가 실재하는 달성을 못 통과시켰다).
+      const 인용 = (a.match(/["“][^"”]{3,}["”]/g) ?? []).length;
       const 항목 = /장점|단점|불만|칭찬|재방문|긍정|부정/.test(a);
       return { 값: `인용 ${인용} · 항목 ${항목} · 떠넘김 ${떠넘김}`, 됐나: !떠넘김 && 항목 && 인용 >= 2 };
     },
@@ -139,8 +141,12 @@ export function 양성대조() {
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.includes('--run')) throw new Error('--run 없이는 모델을 호출하지 않는다');
-  const 고른 = argv.filter((a) => !a.startsWith('--'));
-  const 출력 = argv.includes('--output') ? argv[argv.indexOf('--output') + 1] : null;
+  const 출력자리 = argv.indexOf('--output');
+  const 출력 = 출력자리 >= 0 ? argv[출력자리 + 1] : null;
+  // **옵션의 값을 「고른 것」으로 먹지 않는다.** 처음엔 `--` 로 시작 안 하는 것을 전부
+  // 골라진 요구로 봤다 — 그래서 `--output <경로>` 를 주면 경로가 필터가 되고
+  // **아무 회차도 안 돌면서 0/0 이 나왔다.** 0/0 을 「다 실패」로 읽으면 그게 F-105 다.
+  const 고른 = argv.filter((a, i) => !a.startsWith('--') && i !== 출력자리 + 1);
 
   // **자를 먼저 보인다.** 어긋나면 회차를 아예 돌리지 않는다 — 못 믿을 자로 잰 값은 값이 아니다.
   const 대조 = 양성대조();
@@ -166,18 +172,37 @@ async function main() {
       const v = q.잰다(답);
       // **코드 기준 성공과 사용자 기준 성공을 나란히 적는다** — 그 틈이 이 대본의 존재 이유다.
       const 코드성공 = 손.length > 0 && 손.every((h) => h.실패 === 'none');
-      회차.push({ id: q.id, 말: q.말, 코드성공, 목적달성: v.됐나, 잰값: v.값, 손, 답 });
-      process.stdout.write(`${q.id.padEnd(16)} ${v.됐나 ? '달성' : '★미달'} | 코드성공 ${코드성공 ? 'O' : 'X'} | ${v.값.padEnd(26)} | ${손.map((h) => h.tool.replace(/^(web|browser|local|desktop)\./, (m) => m[0] + '.') + (h.상태 === 'ok' ? '' : `:${h.상태}`)).join(' ')}\n`);
+      // ── **셋째 칸: 판이 깔렸나**(손 관리자 지적 ⑤ · 2026-08-13) ──────────────
+      //
+      // 「빵점」의 원인은 셋인데 둘로 적으면 안 갈린다:
+      //   손이 못 했다 / **판이 없었다** / 자가 눈멀었다
+      // 웹 판에서 「판」은 **브라우저가 실제로 물렸나**다. 안 물린 채 재고
+      // 「브라우저로 안 넘어간다」고 적을 뻔한 적이 있다(F-107 · 이 세션 §⑤②).
+      // 판이 없으면 그 회차는 값이 아니라 **미측정**이다.
+      // 판이 깔렸다 = ① 브라우저를 실제로 물었다 ② **웹 길이 막히지 않았다**.
+      // 둘째가 없으면 그 회차는 값이 아니다 — 손을 잰 게 아니라 남의 문을 잰 것이다.
+      const 길막힘 = 손.filter((h) => h.실패 === 'blocked' || h.상태 === 'blocked');
+      const 판깔림 = 방.브라우저있나 !== false && 길막힘.length === 0;
+      회차.push({
+        id: q.id, 말: q.말, 판깔림, 코드성공, 목적달성: v.됐나, 잰값: v.값, 손, 답,
+        ...(길막힘.length ? { 막힌손: 길막힘.map((h) => h.tool) } : {}),
+        판정: 판깔림 ? (v.됐나 ? '달성' : '미달')
+          : (길막힘.length ? `미측정(길 막힘: ${길막힘.map((h) => h.tool).join(' ')})` : '미측정(판 없음)'),
+      });
+      process.stdout.write(`${q.id.padEnd(16)} ${판깔림 ? (v.됐나 ? '달성  ' : '★미달 ') : '미측정'} | 판 ${판깔림 ? 'O' : (길막힘.length ? '막힘' : 'X')} | 코드성공 ${코드성공 ? 'O' : 'X'} | ${v.값.padEnd(26)} | ${손.map((h) => h.tool.replace(/^(web|browser|local|desktop)\./, (m) => m[0] + '.') + (h.상태 === 'ok' ? '' : `:${h.상태}`)).join(' ')}\n`);
     } catch (e) {
       회차.push({ id: q.id, 터짐: e.message });
       process.stdout.write(`${q.id.padEnd(16)} ★터짐 ${e.message.slice(0, 60)}\n`);
     } finally { if (방) await 방.close(); }
   }
 
-  const 잰것 = 회차.filter((x) => !x.터짐);
+  const 잰것 = 회차.filter((x) => !x.터짐 && x.판깔림);
+  const 미측정 = 회차.filter((x) => x.터짐 || !x.판깔림);
   const 달성 = 잰것.filter((x) => x.목적달성).length;
   const 틈 = 잰것.filter((x) => x.코드성공 && !x.목적달성);
-  process.stdout.write(`\n── 손 검사 ──\n목적 달성 ${달성}/${잰것.length}\n`);
+  process.stdout.write(`\n── 손 검사 ──\n목적 달성 ${달성}/${잰것.length}`);
+  // **미측정을 빵점과 섞지 않는다** — 섞으면 「이 자로는 못 본다」가 「못 했다」로 읽힌다.
+  process.stdout.write(미측정.length ? `  · **미측정 ${미측정.length}건**(판 없음·터짐)\n` : '\n');
   process.stdout.write(`**코드는 성공인데 목적은 실패** ${틈.length}건${틈.length ? `: ${틈.map((x) => x.id).join(' · ')}` : ''}\n`);
   if (출력) {
     await writeFile(resolve(출력), JSON.stringify({ 양성대조: 대조.줄, 회차 }, null, 2), 'utf8');

@@ -108,8 +108,36 @@ const worktrees = execFileSync('git', ['worktree', 'list', '--porcelain'], {
 //   · 작업 방이 아닌 자리에 열린 방은 **여전히 실패**한다(그물이 안 넓어진다)
 // 바뀌는 것은 **깨끗한 작업 방 하나뿐**이다.
 const 작업방인가 = (p) => p.includes('/t5-lanes/') || p.includes('/.claude/worktrees/');
+
+/**
+ * **주 worktree 는 어디인가 — git 에게 묻는다.**
+ *
+ * 경로 모양으로 짐작하지 않는다(`/t5-p-op` 로 끝나면 본선 같은 식). 설치마다 이름이 다르고,
+ * 짐작은 언젠가 어긋난다. `--git-common-dir` 은 **어느 방에서 물어도 같은 답**을 준다 —
+ * 주 worktree 의 `.git` 이다. 그 부모가 본선 폴더다.
+ *
+ * 못 물으면 `null` 을 낸다 — 그러면 예외가 안 서고 예전대로 실패한다(모르면 안 봐준다).
+ */
+function 주worktree() {
+  try {
+    const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      cwd: root, encoding: 'utf8',
+    }).trim();
+    return common.endsWith('/.git') ? resolve(common, '..') : null;
+  } catch { return null; }
+}
 for (const { path, head } of worktrees) {
   if (resolve(path) === resolve(root)) continue;
+  // **주 worktree(본선 폴더)는 「남의 방」이 아니다**(F-101 보탬 · UX 레인 보고 2026-08-13).
+  //
+  // 이 자가 **자기가 선 자리에 따라 다른 답**을 냈다. 본선에서 돌리면 초록인데
+  // 작업 방 안에서 돌리면 본선 폴더가 「작업 방이 아닌 자리」로 잡혀 빨개진다 —
+  // UX 레인이 실제로 막혔다(같은 검사, 다른 결과: 본선 실패 0 · 방 실패 3).
+  //
+  // 무르게 하지 않는다. **예외를 새 사실로 문다** — git 이 말하는 주 worktree 인지
+  // `--git-common-dir` 로 확인하고, 그 사실이 안 서면 예전대로 실패시킨다.
+  // 이 자가 지키려던 것은 방 개수가 아니라 **잊힌 작업**이고, 그건 아래 커밋 수가 잡는다.
+  if (resolve(path) === 주worktree()) continue;
   if (path.endsWith('/gpao-t5')) {
     const marker = resolve(path, 'AGENTS.md');
     if (!existsSync(marker) || !readFileSync(marker, 'utf8').includes('HISTORICAL GIT ADMIN WORKTREE')) {
