@@ -44,7 +44,11 @@ const 셸 = (...a) => execFileSync(a[0], a.slice(1), { cwd: 뿌리, encoding: 'u
  * 읽어서 **언제나 빈 배열**을 돌려줬고, 그래서 ①이 거짓 초록으로 통과했다 —
  * 자가 아무것도 안 재고 있었다(「재는 자가 틀리면 재는 것이 전부 거짓이다」).
  */
-function 방사유() {
+// ⚠️ **내가 만든 방의 사유만 센다**(2026-08-12 밟음). 첫 판은 감사가 낸 worktree 줄을 전부
+// 셌는데, **다른 레인이 실제로 `../t5-lanes/ux` 를 열고 커밋 1개를 들고 있어** 그 사유가
+// 섞여 들어와 ①②③ 이 빨갛게 나왔다. 제품은 옳게 작동했고 **검사가 환경에 의존한** 것이다.
+// (좋은 소식이기도 하다 — 오너가 시킨 방 분리를 다른 손이 실제로 쓰고 있다는 뜻이다.)
+function 방사유(자리 = null) {
   try {
     execFileSync('node', ['scripts/audit-project-entry.mjs'], { cwd: 뿌리, encoding: 'utf8' });
     return [];
@@ -53,7 +57,8 @@ function 방사유() {
       // **어휘로 거르면 문구를 고칠 때 자가 먼저 눈이 먼다.** 첫 판은 'worktree' 글자만
       // 걸렀는데 새 거절문은 한국어(`작업 방에 …`)라 **아무것도 안 잡혔고 ②가 거짓 초록**이었다.
       // 두 어휘를 다 본다 — 이 검사가 무는 것은 문구가 아니라 **방에 대한 판정**이다.
-      .split('\n').filter((l) => l.startsWith('- ') && /worktree|작업 방/.test(l));
+      .split('\n').filter((l) => l.startsWith('- ') && /worktree|작업 방/.test(l))
+      .filter((l) => !자리 || l.includes(자리));
   }
 }
 
@@ -86,7 +91,7 @@ async function 작업방(이름, { 커밋 = false } = {}) {
 test('F101 ①: 깨끗한 작업 방을 여는 것은 결함이 아니다 — 방을 나누라고 해 놓고 벌하지 않는다', async () => {
   const 방 = await 작업방('깨끗한방');
   try {
-    assert.deepEqual(방사유(), [],
+    assert.deepEqual(방사유(방.자리), [],
       '**방을 나누자마자 감사가 빨개진다** — 오너가 시킨 구조(scripts/lane.mjs)를 쓰는 순간이다. '
       + '이 자가 지키려던 것은 방 개수가 아니라 「잊힌 작업」이고, 그건 ②가 잡는다');
   } finally { await 방.치우기(); }
@@ -96,7 +101,7 @@ test('F101 ①: 깨끗한 작업 방을 여는 것은 결함이 아니다 — �
 test('F101 ②: 본선에 안 들어간 커밋을 든 방은 **여전히** 잡힌다 — 그물이 안 넓어졌다', async () => {
   const 방 = await 작업방('일이남은방', { 커밋: true });
   try {
-    const 사유 = 방사유();
+    const 사유 = 방사유(방.자리);
     assert.equal(사유.length, 1,
       `**잊힌 작업이 있는 방을 놓쳤다** — 이 자의 존재 이유가 죽는다. 나온 사유: ${JSON.stringify(사유)}`);
     assert.match(사유[0], /안 들어간|본선|잊/,
@@ -112,7 +117,7 @@ test('F101 ③: 작업 방이 아닌 자리에 열린 방은 여전히 잡힌다
   셸('git', 'worktree', 'add', '-q', '-b', 가지, 자리, 'HEAD');
   try {
     // 이 자리는 `t5-lanes`·`.claude/worktrees` 어느 쪽도 아니다 — 그물 밖이면 안 된다.
-    assert.equal(방사유().length, 1,
+    assert.equal(방사유(자리).length, 1,
       '**아무 자리에나 열린 방이 통과했다** — 그물이 넓어졌다');
   } finally {
     셸('git', 'worktree', 'remove', '--force', 자리);

@@ -25,9 +25,9 @@
 ## 1. 한 장 요약
 
 ```
-규모      src 193파일 · 커널 82(18,643줄) · 런타임 64(17,066) · 표면 43(11,341) = 47,050줄
-          검사 400파일 · 3,763건 · 스크립트 25묶음
-결합점    turn.js 3,242줄 · server.js 4,098줄 — 둘이 import 130개를 직접 문다
+규모      src 193파일 · 커널 82(19,642줄) · 런타임 64(18,171) · 표면 44(14,267) = 52,080줄
+          검사 446파일 · 4,061건 · 스크립트 25묶음        ← 2026-08-12 f97383a 실측
+결합점    turn.js 3,625줄 · server.js 4,324줄 — 둘이 import 130개를 직접 문다
 모델 노출  28 = 작업 손 17 + 통제 채널 11 (+ connector 2 는 대부분 자리에서 안 보임)
 표면      엔드포인트 76 핸들러 / 79 경로 · 저장소 25 · 커넥터 선언 8(전부 미연결)
 모델      gpt-5.1 기본 · 공급자 와이어 5종(openai·anthropic·gemini·chatgpt·beai)
@@ -124,7 +124,7 @@
 | `local.terminal` | local-terminal.js (272) | — (`command`) | probe 결과로 read/write, write 는 **항상 카드** | desc 391자 + readReach 81 |
 | `local.locate` | local-locate.js (613) | — (`what`/`from`/`depth`) | read → 자동 | desc 516자 |
 | `local.process` | local-process.js (231) | start status logs stop (4) | start=write(자동) · stop=organize | desc 245자 |
-| `local.system` | local-system.js (83) | — (`limit`) | read | desc 90자 |
+| `local.system` | local-system.js (156) | — (`limit`) · **두 축을 한 번에**: 프로세스 + 남은 저장 공간(`df -k /`) | read | desc 227자 |
 | `local.discovery` | local-discovery.js (238) | — (`subject`) | read | desc 141자 |
 | `local.capsule` | capsule.js (305) | — (`code`) | — (macOS 만) | desc 54 + code 666자 |
 | `web.search` | web-search-tool.js | — | read | desc 231자 |
@@ -163,6 +163,12 @@ ENOENT(→ `다음수단: local.locate`).
 **상한**: `MAX_READ_BYTES 1,000,000` · `MAX_DOC_BYTES 50,000,000` · 이웃 이름 8 · 이웃 표 3 · CSV 표 판정 2~5,000줄 · undo 50건.
 
 **문서 추출 5형식**(`document-intake.js`): pdf(PDFKit/JXA → 비압축 폴백) · docx(textutil → unzip XML) · xlsx(unzip + sharedStrings) · hwpx(unzip) · hwp(mdls Spotlight). **매직 시그니처 검사 선행**.
+
+**문서 생성 — 읽기만 있는 것이 아니다**(F-104 가 밟은 지도 쪽 뿌리 · 2026-08-12).
+`local.file write` 는 `.xlsx` 이름 + 쉼표로 나눈 표 본문을 받으면 **진짜 zip 엑셀을 짓는다**
+(`document-intake.js:282 buildXlsx` · 라이브러리 0). pdf·docx 는 **파일 스킬**이 만든다
+(`src/skills/pdf-docx/SKILL.md` — `cupsfilter`·`textutil`). 이 줄이 「추출」만 적혀 있어서
+다음 사람이 **「생성은 없다」로 갔고**, 계측기가 낸 0건이 그 오독을 굳혔다.
 
 ### 3-2. `local.locate` — 찾는 법
 
@@ -380,10 +386,33 @@ tick 60초 → 관찰(watermark·민감 제외) → 묶음(모양겹침 0.45 · 
 브라우저 실측: [자동화 설정] → *"준비가 아직 안 됐어요"* · `jobs: []`.
 유일한 공급원은 v1 이관 산물 `legacy-default-agent`(A2·전 도구 허용) — 있는 설치에선 `find(active)` 가 **가장 넓은 권한의 역할을 무조건 집는다**.
 
-### 9-3. 스킬
+### 9-3. 스킬 — **「스킬」이 두 가지다. 한 이름을 쓴다**
 
-v2 수명주기(제안→replay(A0·외부효과0)→승인→활성)는 코드로 닫혀 있고 승인·활성 두 지점 모두 저장본 재검증.
-**그런데 `POST /skills/detect` 가 만드는 후보는 `replayCases: []`** 이고 정규화는 2P/1N/2B/1A 를 필수로 요구한다 → **감지 경로 스킬은 영원히 replay 를 못 넘는다.** 저장된 스킬 0개.
+이 절이 오래 **한쪽만** 적고 있었다. 그래서 *"T5 에 스킬 0개"* 로 읽혔는데, 실제로는
+**세 장이 매 턴 모델 프롬프트의 고정 접두에 실려 나가고 있었다.** F-104 가 *"pdf·docx 는
+진짜 없다"* 를 두 번 적었을 때 **지도를 봤어도 안 잡혔을** 이유가 이것이다.
+
+```
+계약 스킬   <DATA>/skills.json · skill-store.js
+           제안 → replay(2P/1N/2B/1A) → 승인 → 활성 상태기계를 탄다
+           T5 가 대신 실행을 약속하는 것 → 그만큼 문다
+           **실측 저장본 0개**
+
+파일 스킬   src/skills/<이름>/SKILL.md · 사용자 집 ~/GPAO-T5/skills
+           **등록도 승인도 replay 도 없다 — 파일이 있으면 쓰인다**
+           아무것도 실행하지 않는다(읽을거리다 · 실행은 기존 손)
+           프롬프트에는 **이름·설명·경로만**, 본문은 모델이 필요할 때 read 로 읽는다
+           `requires.bins` 가 없는 컴퓨터에서는 목록에 안 올린다
+           **실측 3장**: naver-search · pdf-docx · xlsx
+```
+
+**둘은 대체 관계가 아니다.** `skill-docs.js:15-17` 이 스스로 못박았다 — *"이 길은 승인·replay
+상태기계를 **타지 않는다** … 기존 스킬 계약을 대체하지 않는다 — 옆에 난 다른 길이다."*
+§4-1 캐시 접두의 「스킬 목록」은 **파일 스킬** 쪽이다(`model-provider.js:130`).
+
+**계약 스킬이 막히는 자리는 그대로다**: `POST /skills/detect` 가 만드는 후보는
+`replayCases: []` 인데 정규화는 2P/1N/2B/1A 를 필수로 요구한다 → **감지 경로 스킬은 영원히
+replay 를 못 넘는다.**
 
 ---
 
@@ -391,12 +420,21 @@ v2 수명주기(제안→replay(A0·외부효과0)→승인→활성)는 코드�
 
 **검사** 400파일 3,763건 · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
 **두꺼운 곳**: 화면손 62파일 497건 · 결함번호 회귀 58/454 · T-cell 15/295.
-**빈 곳**: 문서 **생성** 검사 0 · inbox 0 · 설치/업데이트/제거 0 · 사용자 이미지→모델 3(전부 화면손) · 환경변수로 갈리는 검사 0.
+**빈 곳**: inbox 0 · 설치/업데이트/제거 0 · 사용자 이미지→모델 3(전부 화면손) · 환경변수로 갈리는 검사 0.
+~~문서 **생성** 검사 0~~ → **거짓이었다**(F-104 · 2026-08-12). `test/xlsx-writer-must-reach-the-model.test.js`
+가 `459ddfa`(08-12 10:43)로 이미 있었고, 이 지도의 마지막 갱신(18:24)보다 **여덟 시간 앞선다.**
+계측기의 0건이 이 줄로 굳었고, 그 줄을 읽은 사람이 「생성은 없다」로 갔다.
 
-**게이트**(`gate.mjs` 1,001줄) 항목: 선언↔손 양방향 · 안전 바닥 3모드 · 터미널 미끼 5갈래 · 프로세스 자기보존 · 위생(산출물 누수) · locate 가짜 홈 · 프롬프트 예산(`[지금]` 이 80% 뒤) · 능력 문장↔limits · 커넥터 진실 6종 · previewOf · 한 사실 한 층 4갈래 · 서비스 이름 누수 · §1-B 사실층 순수성 · descriptor 단일 진실 · 후속표시 상한 · **전체 검사 1회 실행**(CPU·유휴 판정) · 산출물 커밋 감시.
+**게이트**(`gate.mjs` 1,001줄) 항목: **진입 감사**(`:38` → `audit-project-entry.mjs` — 재는 것은
+방 개수가 아니라 ①살아 있는데 잊힌 작업 ②작업 방이 아닌 자리에 열린 방 둘이다 · X4) ·
+선언↔손 양방향 · 안전 바닥 3모드 · 터미널 미끼 5갈래 · 프로세스 자기보존 · 위생(산출물 누수) · locate 가짜 홈 · 프롬프트 예산(`[지금]` 이 80% 뒤) · 능력 문장↔limits · 커넥터 진실 6종 · previewOf · 한 사실 한 층 4갈래 · 서비스 이름 누수 · §1-B 사실층 순수성 · descriptor 단일 진실 · 후속표시 상한 · **전체 검사 1회 실행**(CPU·유휴 판정) · 산출물 커밋 감시.
 기준선 5값 중 자동 갱신은 `deferred`·`serviceNameLeaks` 둘뿐.
 
-**계측기**(`state-probe.mjs` 1,234줄): 유료 0·실기기 0·오너 자리 접촉 0. 손 인벤토리 · **서버 실기동 한 턴으로 모델 노출 도구 캡처** · 통제 채널 · 기관 10 결손 · 부재 확인 7주제 · 확정 계열 4 · 캐시 접두 안정성 · 코드 파생 사실 · **미측정은 계획서 §2 를 인용**(값을 지어내지 않는다) · 체감 지표 사후 집계.
+**계측기**(`state-probe.mjs` 1,325줄): 유료 0·실기기 0·오너 자리 접촉 0.
+**부재 규격마다 「양성 대조」가 필수다**(F-104 · 2026-08-12) — 이 자가 *"없다"* 라고 말하기 전에
+**실재하는 것을 그 검색법으로 잡아 보인다.** 대조가 안 서면 그 줄은 「없다」가 아니라
+**「이 자로는 못 본다」**로 나간다. 그 전에는 검색어가 외부 라이브러리 이름뿐이라 자체 구현
+(`buildXlsx`)과 파일 스킬(`SKILL.md`)을 못 보고 0건을 냈다. 손 인벤토리 · **서버 실기동 한 턴으로 모델 노출 도구 캡처** · 통제 채널 · 기관 10 결손 · 부재 확인 7주제 · 확정 계열 4 · 캐시 접두 안정성 · 코드 파생 사실 · **미측정은 계획서 §2 를 인용**(값을 지어내지 않는다) · 체감 지표 사후 집계.
 
 **라이브 러너**: `organ-round.mjs`(실기기 · 독립 기준자 6종 · 동결 문장 4줄 · 승인 카드 1장 = 사용자 손 1회) · `charter.mjs`(대본 모델 · 판정 4축) · A층 `living-sim-runner.mjs`(기계 조건 **3개뿐**, 나머지는 `PM_UNJUDGED` · `EXTERNAL_EFFECT_HANDS` 쓸 수 있으면 **시험 거부**).
 
@@ -510,6 +548,8 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | C2 | ~~원가~~ **닫힘**(536b3bb · test/c2-completion-check-runs-once.test.js) | `완료주장검증` 이 한 턴에 두 번 돈다(걸음 루프 + 출구) | turn.js:2469 · 696 |
 | C3 | ~~원가~~ **닫힘**(89cc001 · test/c3-result-spill-rotates.test.js) | `results/` 흘림 파일에 삭제·회전이 없다 — 무한 누적 | tool-runner.js:21 |
 | C4 | ~~원가~~ **닫힘**(66a735d · test/c4-model-runaway-stopline.test.js) | 모델 응답 총시간 상한 기본 0(무제한) · 단발 경로는 정체 감시도 0 | model-timeout.js:48 |
+| X4 | ~~정직~~ **닫힘**(3a95836) | 진입 감사가 **자기 기준을 거짓말했다** — 메시지는 「인수인계에 없는 sidecar worktree」인데 코드는 인계를 한 줄도 안 읽고 뿌리 밖 worktree 를 무조건 실패시켰다. 오너가 시킨 방 분리(`scripts/lane.mjs`)를 쓰는 순간 게이트가 빨개졌다. 지금은 작업 방은 **본선에 안 들어간 커밋이 있을 때만** 실패하고, 못 세면 판정하지 않는다. 커밋 순간을 무는 자는 `.githooks/pre-commit`(`core.hooksPath` **상대경로** — 훅이 가지를 따라다닌다) · 장부 F-100·F-101 | `scripts/audit-project-entry.mjs` · `gate.mjs:38` · 검사 `test/f101-lane-rooms-are-not-defects.test.js`(4건) |
+| X5 | ~~정직~~ **닫힘**(f97383a) | 계측기가 **「0건」을 「없다」로 읽었다** — `document-create` 검색어가 전부 외부 라이브러리 이름이라 자체 구현(`buildXlsx`)과 파일 스킬(`SKILL.md`)을 못 봤다. 그 0 이 §10 「문서 생성 검사 0」으로 굳었고, **틀린 사실이 `test/state-probe.test.js` 의 `assert.equal(found.length, 0)` 으로 잠겨 있었다.** 지금은 규격마다 **양성 대조**가 필수다. **제품에서 이미 두 번 고친 병이다** — S2(부재가 안전의 증거로 읽힘) · J6(절단을 다 봤다로 읽음) · 장부 F-104 | `scripts/state-probe.mjs:199-245` · 검사 `test/f104-absence-needs-a-ruler-that-bites.test.js`(3건) |
 | X1 | — | 작업 트리에 살아 있는 자격 파일 `scripts/compare-live/secret-env.sh`(600·git 무시) | — |
 | X2 | — | `organ-round.mjs` 문장표가 자기 주석과 모순(뺐다는 창 전환 두 줄이 배열에 그대로) | organ-round.mjs:87-99 |
 | X3 | — | A층(living-sim)이 `EXTERNAL_EFFECT_HANDS` 를 거부해 화면·브라우저·발신 손은 **자격·계보 검증을 한 번도 안 받는다** | living-sim-runner.js |
@@ -547,8 +587,11 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 완료 정의             넷                               하나(헤르메스는 종결 도구)       고친다 ★
 질문 통로             셋(카드·ask.user·되묻기)          하나                          고친다
 등록부                demo-context 가 제품 정본          제품 등록부 분리                고친다
-도구 설명             914자~28자 편차 · operatorFact 4손 없음  오픈클로 SKILL.md 53장    더한다
-셸 우선                local.terminal 있으나 하위        클로드코드 Bash 79%             더한다
+도구 설명             **절반 움직였다** — SKILL.md 방식이 들어왔다(파일 스킬 3장 · §9-3).
+                       남은 것은 operatorFact 결손 4손과 자수 편차뿐                   절반
+셸 우선                **움직였다(a878f3b · 08-11)** — 선언 순서에서 local.terminal 이 local.file 보다
+                       앞이고(demo-context.js:650 vs :727 · "선언 순서가 곧 배치다"),
+                       도구쓰는순서 ③ 이 "이 컴퓨터에서 되는 일은 터미널로 먼저"다      ✔ 닫힘
 OS 색인 활용           **더했다(2026-08-12)** — 형식 질의는 mdfind 로 전수·분포를 세고,   
                        색인이 0 이면 「없다」가 아니라 「못 본다」로 읽고 걸음으로 되돌아간다.
                        걸음(613줄)은 그대로 — 색인은 자가 아니라 닿는 범위다.
