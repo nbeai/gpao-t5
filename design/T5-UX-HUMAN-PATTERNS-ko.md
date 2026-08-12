@@ -9,19 +9,21 @@
 
 ---
 
-## 0. 볼 수 있는 것과 못 보는 것 (짐작으로 메우지 않는다)
+## 0. ⚠ 첫 판의 §0 은 **틀렸다** — 안 재고 없다고 말했다 (2026-08-13 오너 지적 둘)
 
 ```
-① 클로드코드(나 자신)     ★ 내부까지 아는 유일한 교재. 이번 공부의 본체
-② T5                      읽을 수 있다
-③ 오픈클로 · 헤르메스       **원문이 이 기계에 없다**(2026-08-13 확인).
-                          기획서 §6 의 인용은 앞선 세션이 다른 자리에서 가져온 것이다.
-                          여기서는 **그 인용문 밖으로 나가지 않는다** — 본 척하지 않는다
-④ 그 밖의 서비스           웹이 필요하다. 안 봤다
+내가 쓴 것                                    실제
+오픈클로·헤르메스 원문이 이 기계에 없다   →   **둘 다 있다.** 설치본까지 있다
+  ~/.local/.../node_modules/openclaw/docs/   (web/control-ui.md · web/webchat.md · concepts/ · tools/ …)
+  ~/.hermes/hermes-agent/                    (website/docs/user-guide/ · hermes_cli/ · tools/)
+웹이 필요하다. 안 봤다                  →   **볼 수 있다.** 도구를 안 불렀을 뿐이다
 ```
-③④ 를 채우려면 원문을 이 기계에 놓거나 웹을 열어야 한다. **그 전까지 ③④ 칸은 비워 둔다.**
+**내가 한 「검사」는 `~/Developer` 한 곳에서 파일 이름 셋을 찾은 것뿐이었다.** 못 찾은 것을
+없는 것으로 적었다 — 이 저장소가 수십 번 적어 온 *"부재는 증거가 아니다"* 를 내가 어겼다.
+같은 세션에서 **세 번째** 같은 병이다(호버 · 링크 공유 · 이것). 그래서 이 항목을 맨 앞에 남긴다:
+**「없다」는 「있다」보다 비싼 주장이다. 어디를 얼마나 뒤졌는지 못 적으면 말하지 않는다.**
 
----
+아래 §2·§2-3 은 그 원문을 **실제로 열어서** 다시 쓴 것이다.
 
 ## 1. 관통 발견 — 사람은 **기능**을 안 찾는다. **손이 가던 자리**로 간다
 
@@ -52,6 +54,44 @@
 | **끌어다 놓는다 / 붙여넣는다** — 파일을 | 경로 붙여넣기·드롭이 통한다 | **없다** | 후보(§4) |
 | **타이핑으로 찾는다** — 메뉴를 뒤지지 않는다 | `/` 로 명령이 뜬다 | `⌘K` 는 대화 찾기뿐 | 보류(§4) |
 | **돌아가고 싶다** — 방금 보던 자리로 | 주소·뒤로가기 | 조각 G 가 닫음 | 닫힘 |
+
+### 2-3. 원문을 열어서 얻은 것 셋 (인용 자리를 그대로 적는다)
+
+**① 사람이 방금 한 말은 한 순간도 사라지면 안 된다** — 오픈클로 `docs/web/control-ui.md:190`
+> *"During an active send and the final history refresh, the chat view keeps **local optimistic**
+> user/assistant messages visible if `chat.history` briefly returns an older snapshot;
+> the canonical transcript replaces those local messages once the Gateway history catches up."*
+
+**T5 에 그대로 있는 위험이다.** `submit` 은 끝에서 `대화투영(GET /sessions/…)` 으로 화면을
+**통째로 갈아끼운다.** 서버 스냅샷이 한 박자 늦으면 방금 친 내 말이 화면에서 없어진다 —
+이번 세션 측정에서 **실제로 `.msg.me` 가 사라지는 것을 봤다**(그때는 내 대본 탓으로 넘겼는데,
+같은 구멍을 선행자는 「낙관적 유지」로 막고 있었다). ★ 다음 조각 후보 1순위.
+
+**② 큰 대화는 창을 잘라 받는다** — 같은 문서 `:103` · `:186-188`
+> *"…request a **bounded recent window** with per-message text caps so large sessions do not force
+> the browser to render a full transcript payload before the chat becomes usable."*
+> 그리고 잘린 것을 더 못 가져오면 *"shows an **explicit unavailable state** instead of silently
+> repeating the truncated preview."*
+
+T5 의 `대화투영` 은 transcript **전부**를 그린다. 오너 세션 파일은 이미 196KB 다.
+뒷줄이 더 중요하다 — **못 가져오면 못 가져왔다고 말한다.** T5 의 「모르면 모른다고 한다」와 같은 축이다.
+
+**③ 사람은 되돌리기를 거의 안 쓴다** — 헤르메스 `website/docs/user-guide/checkpoints-and-rollback.md`
+> *"Checkpoints are **opt-in** as of v2 — **most users never use `/rollback`**, and the shadow-store
+> storage is non-trivial over time, so the default is off."*
+
+기획 §4 가 「대화 rewind/checkpoint 안 함」으로 정한 것에 **근거가 생겼다.** 지금까지는 우리 판단이었는데,
+같은 것을 만들어 본 쪽이 **실사용을 보고 기본을 껐다.** 베끼지 않는 것이 맞다.
+
+### 2-4. 웹에서 얻은 것 — 그리고 **관습이 우리와 갈린 자리**
+
+업계 관습은 **데스크톱은 호버, 터치는 상시**다([LibreChat #13712](https://github.com/danny-avila/LibreChat/pull/13712) ·
+[Setproduct](https://www.setproduct.com/blog/ai-chat-interface-ui-design)).
+그런데 **오너는 데스크톱에서 못 찾았다.** 갈린 이유는 전제다 — 그 관습은 사용자가 **다른 챗에서
+이미 배워 와서 「거기 있겠거니」 하고 손을 올린다**는 것을 전제한다. T5 의 그 동작은 **어제 생겼고**
+아무도 배워 온 적이 없다. **모르는 기능은 호버 뒤에 두면 없는 기능이다.**
+→ 상시가 맞다. 다만 관습에서 가져올 것 하나: 숨기더라도 **포커스와 접근성 트리에는 남긴다**
+(그래서 아이콘에 `aria-label` 을 달았다 — 기호만 두면 읽어 주는 도구에 아무 말도 안 남는다).
 
 ### 2-1. T5 가 이미 더 나은 자리 (베끼면 안 되는 것)
 
