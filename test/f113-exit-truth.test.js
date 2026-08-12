@@ -7,7 +7,7 @@ import { 완료주장검증, 절대재검증 } from '../src/kernel/l2-plan/exit-
 const 미확인 = (id = 's4:5', label = '7') => ({
   failureState: 'failed',
   lifecycle: 'failed',
-  actualCall: { tool: 'desktop.act', args: { action: 'click', 대상: { id, label } } },
+  actualCall: { tool: 'desktop.act', args: { action: 'click', app: '계산기', 대상: { id, label, 창: 9, pid: 77 } } },
   진행: { 단계: 'dispatched', 판정: 'unknown', 근거: 'effect.unverifiable' },
   userSafeSummary: '했어요. 다만 결과를 확인하지는 못했어요.',
 });
@@ -15,15 +15,15 @@ const 미확인 = (id = 's4:5', label = '7') => ({
 const 확인된행동 = (id = 's4:5', label = '7') => ({
   failureState: 'none',
   lifecycle: 'delivered',
-  actualCall: { tool: 'desktop.act', args: { action: 'click', 대상: { id, label } } },
+  actualCall: { tool: 'desktop.act', args: { action: 'click', app: '계산기', 대상: { id, label, 창: 9, pid: 77 } } },
   result: { 단계: 'goal_verified', 행동: 'click' },
 });
 
 const 스냅샷행동 = ({ id, app = '계산기', 창제목 = '계산기', label = '7', role = 'AXButton',
-  failureState = 'failed', 단계 = 'dispatched' }) => ({
+  창 = 9, pid = 77, failureState = 'failed', 단계 = 'dispatched' }) => ({
   failureState,
   lifecycle: failureState === 'none' ? 'delivered' : 'failed',
-  actualCall: { tool: 'desktop.act', args: { action: 'click', app, 창제목, 대상: { id, label, role } } },
+  actualCall: { tool: 'desktop.act', args: { action: 'click', app, 창제목, 대상: { id, label, role, 창, pid } } },
   ...(failureState === 'none'
     ? { result: { 단계, 행동: 'click' } }
     : { 진행: { 단계: 'dispatched', 판정: 'unknown', 근거: 'effect.unverifiable' } }),
@@ -122,6 +122,32 @@ test('같은 app·label·role·snapshot ordinal이어도 안정된 location axis
     ...스냅샷행동({ id: 's5:5', failureState: 'none', 단계: 'goal_verified' }),
     actualCall: { tool: 'desktop.act', args: { action: 'click', app: '계산기', 대상: { id: 's5:5', label: '7', role: 'AXButton' } } },
   };
+  const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [before, fresh] });
+  assert.equal(v.일치, false);
+});
+
+test('exact snapshot-local id가 같아도 다른 app·window의 요소를 거짓 회복하지 않는다', () => {
+  const before = 스냅샷행동({ id: 's4:5', app: '계산기', 창: 9 });
+  const other = 스냅샷행동({ id: 's4:5', app: '다른앱', 창: 18, pid: 88,
+    failureState: 'none', 단계: 'goal_verified' });
+  const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [before, other] });
+  assert.equal(v.일치, false);
+});
+
+test('같은 app·창제목·label이어도 window id가 다르면 회복이 아니다', () => {
+  const before = 스냅샷행동({ id: 's4:5', 창제목: '동일 제목', 창: 9 });
+  const other = 스냅샷행동({ id: 's5:5', 창제목: '동일 제목', 창: 10,
+    failureState: 'none', 단계: 'goal_verified' });
+  const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [before, other] });
+  assert.equal(v.일치, false);
+});
+
+test('창 제목만 같고 window·pid·bounds·fingerprint가 없으면 안정 위치 신분이 아니다', () => {
+  const args = (id) => ({ action: 'click', app: '계산기', 창제목: '동일 제목',
+    대상: { id, label: '7', role: 'AXButton' } });
+  const before = { ...스냅샷행동({ id: 's4:5' }), actualCall: { tool: 'desktop.act', args: args('s4:5') } };
+  const fresh = { ...스냅샷행동({ id: 's5:5', failureState: 'none', 단계: 'goal_verified' }),
+    actualCall: { tool: 'desktop.act', args: args('s5:5') } };
   const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [before, fresh] });
   assert.equal(v.일치, false);
 });

@@ -176,7 +176,6 @@ function 미해결강한화면걸음(receipts) {
     .filter((r) => (r?.failureState ?? 'none') === 'none'
       && 호출(r)?.tool === 'desktop.act'
       && r?.result?.단계 === 'goal_verified')
-  const 된걸음 = new Set(확인된걸음들.map(키));
 
   // 재관측하면 스냅샷 접두사는 바뀐다(`s4:5` → `s5:5`). 그 문자열만 보면
   // 같은 버튼을 fresh 근거로 확인해도 영원히 미해결이다. 그렇다고 label만 보면
@@ -210,10 +209,14 @@ function 미해결강한화면걸음(receipts) {
     for (const k of ['windowTitle', 'window', 'pid', 'role', 'fingerprint', 'bounds']) {
       if ((a[k] || b[k]) && (!a[k] || !b[k] || a[k] !== b[k])) return false;
     }
-    return ['windowTitle', 'window', 'pid', 'fingerprint', 'bounds'].some((k) => a[k] && b[k] && a[k] === b[k]);
+    // 창 제목은 여러 창이 같을 수 있다. 다른 신분을 제한하는 대조 칸일 뿐,
+    // 그것 하나로 위치를 입증하지 는 못한다.
+    return ['window', 'pid', 'fingerprint', 'bounds'].some((k) => a[k] && b[k] && a[k] === b[k]);
   };
-  const 회복됐나 = (failed) => 된걸음.has(키(failed))
-    || 확인된걸음들.some((ok) => 같은실제요소(요소신분(failed), 요소신분(ok)));
+  // exact snapshot-local id도 다른 앱·창에서 재사용될 수 있다. 문자열 동일을
+  // 지름길로 쓰지 않고 fresh 토큰과 같은 구조 대조를 반드시 통과시킨다.
+  const 회복됐나 = (failed) => 확인된걸음들
+    .some((ok) => 같은실제요소(요소신분(failed), 요소신분(ok)));
   return [...new Set((receipts ?? [])
     .filter((r) => {
       const call = 호출(r);
