@@ -58,7 +58,25 @@ try {
    · 오너 자리(\`~/.local/state/gpao-t5\`)는 **읽기만**. 자격 사본을 남기지 마라
    · **음성 결과가 나오면 자를 먼저 의심하고 다른 방법으로 한 번 더 재라**`);
 
-// ④ 지금 상태
+// ④ 본선에 안 들어간 작업이 있는가 — **문서에 적으면 안 읽는다. 점검이 매번 말한다.**
+// (오늘 배운 것: 나쁜 반복은 문장이 아니라 구조로 막는다. 좋은 것도 같다 —
+//  살아 있는데 잊힌 작업은 「안 좋은 유사성」이 되기 전에 매번 눈에 띄어야 한다.)
+try {
+  const 브랜치 = 셸('git', 'worktree', 'list', '--porcelain')
+    .split('\n').filter((l) => l.startsWith('branch ')).map((l) => l.replace('branch refs/heads/', ''));
+  const 남은 = [];
+  for (const b of 브랜치) {
+    try {
+      const n = Number(셸('git', 'rev-list', '--count', `HEAD..${b}`));
+      if (n > 0) 남은.push(`${b} (커밋 ${n}개)`);
+    } catch { /* 지워진 브랜치 */ }
+  }
+  재다('본선에 안 들어간 작업이 없다', 남은.length === 0,
+    남은.length ? `병합 안 된 브랜치 ${남은.length}개:\n   ${남은.join('\n   ')}` : '전부 본선에 있다',
+    '버릴 것인지 살릴 것인지 **읽고 판정**하라. 자동 병합으로 밀지 마라 — 조용히 한쪽이 죽는다');
+} catch { /* 무시 */ }
+
+// ⑤ 지금 상태
 try {
   const 더러운 = 셸('git', 'status', '--short').split('\n').filter((l) => l && !l.startsWith('??'));
   재다('작업트리가 깨끗하다', 더러운.length === 0,
