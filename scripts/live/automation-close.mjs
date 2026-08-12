@@ -45,7 +45,9 @@ const 서버띄우기 = async () => {
   // 손이 덜 선다 — 그러면 `model-control.js:428` 의 `hands.length` 게이트가
   // `automation.propose` 를 통째로 걷어내고, 모델은 "예약이 막혀 있다"고 정직하게 답한다.
   // 사용자가 실제로 쓰는 것은 이 진입점이므로, 재는 것도 이것이어야 한다(2026-08-12 밟음).
-  서버 = spawn('node', ['bin/gpao-t5.mjs'], {
+  서버 = // ★ `--no-open` 없이 띄우면 **기동할 때마다 오너 크롬에 탭이 열린다**(2026-08-12 밟음).
+  // 대본이 서버를 수십 번 띄우므로 탭도 수십 개다. 계측기가 사용자 화면을 어지럽히면 안 된다.
+  spawn('node', ['bin/gpao-t5.mjs', '--no-open'], {
     cwd: 뿌리, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(요청포트), GPAO_T5_DATA_DIR: 자리,
       ...(process.env.GPAO_T5_PROMPT_DUMP ? { GPAO_T5_PROMPT_DUMP: process.env.GPAO_T5_PROMPT_DUMP } : {}) },
