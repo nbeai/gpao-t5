@@ -25,7 +25,7 @@ function serializeSession(path, task) {
 }
 
 // P2-4a 목록 정리성. 제목은 사용자 입력이므로 손질한다 — 제어문자·줄바꿈이 목록을 깨뜨린다.
-const MAX_TITLE = 60;
+export const MAX_TITLE = 60;
 export const DEFAULT_TITLE = '새 대화';
 // 지운 대화는 바로 없애지 않는다(복구 가능). 다만 **영원히 두지도 않는다** — 그러면 "지웠는데
 // 디스크는 안 준다"가 된다(§18). 파일 손발의 휴지통 상한과 같은 원리.
@@ -37,6 +37,47 @@ export function sanitizeTitle(raw) {
   const cleaned = String(raw ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!cleaned) return DEFAULT_TITLE;
   return cleaned.length > MAX_TITLE ? cleaned.slice(0, MAX_TITLE) : cleaned;
+}
+
+/**
+ * 조각 C · 차수를 붙인 제목. `n<=1` 이면 원본 그대로 — **안 겹치는데 번호를 붙이지 않는다.**
+ * 상한 60자를 넘으면 앞을 줄여서라도 **번호를 살린다**(번호가 잘리면 구별이 죽는다).
+ */
+function 차수제목(base, n) {
+  if (n <= 1) return base;
+  const 꼬리 = ` (${n})`;
+  const 남는자리 = Math.max(1, MAX_TITLE - 꼬리.length);
+  return base.length + 꼬리.length <= MAX_TITLE ? base + 꼬리 : `${base.slice(0, 남는자리)}${꼬리}`;
+}
+
+/**
+ * 조각 C · **목록에서 같은 제목이 나란히 뜨지 않게** 한다.
+ *
+ * 왜 발화에서 뽑거나 모델에게 짓게 하지 않는가 — 오너 실물 실측(2026-08-12)이 기각했다.
+ * 안 지운 세션 95개 중 81개가 제목이 바이트 단위로 같은 12묶음에 있는데, 그 12묶음 **전부
+ * 첫 발화 전문이 1종**이다(30자 절단 탓이 아니라 입력이 정말로 같다). 결정적 함수든 모델이든
+ * **같은 입력에서 갈릴 근거가 없다** — 왕복만 늘고 구별은 0이다.
+ * 실제로 갈리는 축은 "그 대화가 몇 번째인가" 하나뿐이라 차수를 붙인다. 왕복 0 · 모델 0.
+ *
+ * @param {string} raw 첫 발화에서 뽑은 제목 후보
+ * @param {string[]} used 이미 쓰이는 제목들(숨긴 것·지운 것 포함 — 되살리면 다시 겹친다)
+ */
+export function distinctTitle(raw, used = []) {
+  const base = sanitizeTitle(raw);
+  const 이미쓴다 = new Set((used ?? []).map((t) => String(t ?? '')));
+  if (!이미쓴다.has(base)) return base;
+  // **첫 빈자리가 아니라 가장 큰 차수 다음**을 준다. 가운데를 지운 자리에 번호를 다시 쓰면
+  // 휴지통에서 되살리는 순간 또 겹친다(지금 고치는 그 병이 되돌아온다).
+  let 최대 = 1;
+  for (const t of 이미쓴다) {
+    const m = /^(.*) \((\d+)\)$/.exec(t);
+    if (!m) continue;
+    const n = Number(m[2]);
+    // 사람이 제목에 손으로 넣은 "(3)" 을 차수로 오해하지 않는다 — 우리가 지을 문자열과
+    // **정확히 같을 때만** 우리 차수로 센다.
+    if (n > 최대 && 차수제목(base, n) === t) 최대 = n;
+  }
+  return 차수제목(base, 최대 + 1);
 }
 
 /** 목록 정렬: 고정 먼저 → 각 묶음 안에서 최근순. */
@@ -173,6 +214,70 @@ export class SessionStore {
     const out = [];
     for (const f of files) {
       try { out.push(JSON.parse(await readFile(join(this.dir, f), 'utf8'))); } catch { /* 손상 제외 */ }
+    }
+    return out;
+  }
+
+  /**
+   * 조각 C · **이미 저장된 겹침을 한 번 푼다.** 앞으로 만드는 대화만 갈라 놓으면 오너가
+   * 지금 열어 보는 목록은 그대로다 — 밟은 그 자리(반대시험 ①)가 안 고쳐진다.
+   * 실측 2026-08-12: 오너 실물 95개 중 69개가 겹쳐 있었다.
+   *
+   * 규율 셋:
+   *  · **사람이 붙인 이름(`manualTitle`)은 한 글자도 안 건드린다.** 그 이름을 **먼저 전부
+   *    잡아 두고** 자동 제목을 그 밖에서 고른다 — 사람이 고른 이름이 언제나 이긴다
+   *  · 자동 제목끼리는 **먼저 만든 대화가 원래 제목을 갖는다**(생성순)
+   *  · **`updatedAt` 을 안 건드린다** — 손대면 목록 순서가 통째로 뒤집힌다(고치려다 더 헷갈린다)
+   * 두 번 돌려도 결과가 같다(겹침이 없어지면 아무것도 안 쓴다).
+   * @returns {Promise<number>} 이름이 바뀐 대화 수
+   */
+  async repairDuplicateTitles() {
+    await this._ensure();
+    const files = (await readdir(this.dir)).filter((f) => f.endsWith('.json') && SAFE_ID.test(f.slice(0, -5)));
+    const rows = [];
+    for (const f of files) {
+      try { rows.push({ f, s: JSON.parse(await readFile(join(this.dir, f), 'utf8')) }); } catch { /* 손상 제외 */ }
+    }
+    rows.sort((a, b) => (a.s.createdAt ?? 0) - (b.s.createdAt ?? 0));
+    // 사람이 붙인 이름을 **먼저 전부** 잡는다. 자동 제목은 그 밖에서만 고른다.
+    const 쓰는중 = rows.filter(({ s }) => s.manualTitle).map(({ s }) => s.title || DEFAULT_TITLE);
+    let 고친수 = 0;
+    for (const { f, s } of rows) {
+      if (s.manualTitle) continue;
+      const 지금제목 = s.title || DEFAULT_TITLE;
+      const 새제목 = distinctTitle(지금제목, 쓰는중);
+      쓰는중.push(새제목);
+      if (새제목 === 지금제목) continue;
+      const path = join(this.dir, f);
+      // eslint-disable-next-line no-await-in-loop
+      await serializeSession(path, async () => {
+        // 다시 읽는다 — 세는 동안 누가 이름을 바꿨으면 그 사람이 이긴다.
+        let 지금 = null;
+        try { 지금 = JSON.parse(await readFile(path, 'utf8')); } catch { return; }
+        if (지금.manualTitle || (지금.title || DEFAULT_TITLE) !== 지금제목) return;
+        지금.title = 새제목; // updatedAt 은 그대로 둔다
+        await writeAtomic(path, JSON.stringify(지금));
+        고친수 += 1;
+      }).catch(() => {}); // 한 파일이 안 써져도 나머지는 고친다
+    }
+    return 고친수;
+  }
+
+  /**
+   * 조각 C · 지금 쓰이고 있는 제목 전부. **숨긴 것·지운 것도 센다** — 보관함에서 꺼내거나
+   * 휴지통에서 되살리면 그 제목이 목록으로 돌아오기 때문이다.
+   * 제목만 필요하므로 목록 메타를 만들지 않는다.
+   * @returns {Promise<string[]>}
+   */
+  async usedTitles() {
+    await this._ensure();
+    const files = (await readdir(this.dir)).filter((f) => f.endsWith('.json') && SAFE_ID.test(f.slice(0, -5)));
+    const out = [];
+    for (const f of files) {
+      try {
+        const s = JSON.parse(await readFile(join(this.dir, f), 'utf8'));
+        out.push(s.title || DEFAULT_TITLE);
+      } catch { /* 손상 파일은 건너뛴다 — 제목 짓기가 목록 조회보다 엄격할 이유가 없다 */ }
     }
     return out;
   }

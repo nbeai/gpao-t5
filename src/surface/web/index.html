@@ -381,6 +381,10 @@
     .statusrow .hint { display:none; }
     #tbpanel { width:100%; border-left:none; }
   }
+  /* 조각 C — 세션 제목 차수. `.sess .t` 는 flex:1 + ellipsis 라 뒤가 잘린다.
+     차수는 **잘리면 안 되는 부분**이므로 `.age` 처럼 flex:none 으로 따로 세운다.
+     새 색을 만들지 않고 있는 변수를 쓴다(테마 두 벌이 그대로 따라온다). */
+  .sess .ord { flex:none; color:var(--faint); font-size:var(--fs-xs); font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -1212,12 +1216,19 @@ function sessionRow(s) {
       mark.title = `${s.origin.channel}에서 온 대화`;
       item.appendChild(mark);
     }
-    const t = el('t', s.title || '새 대화'); const age = el('age', relAge(s.updatedAt));
+    // 조각 C: 차수 꼬리 `(2)` 는 **말줄임에 잘리는 바로 그 자리**에 있다(`.sess .t` 는
+    // text-overflow:ellipsis 로 뒤를 자른다). 서버가 제목을 갈라 놨는데 화면이 도로 붙여
+    // 보이면 고친 게 아니다 — 꼬리를 별도 칸(flex:none)으로 빼서 **항상 보이게** 한다.
+    const 제목 = s.title || '새 대화';
+    const 차수 = /^(.*) \((\d+)\)$/.exec(제목);
+    const t = el('t', 차수 ? 차수[1] : 제목); const age = el('age', relAge(s.updatedAt));
+    let ord = null;
+    if (차수) { ord = el('ord', `(${차수[2]})`); ord.title = `같은 말로 시작한 ${차수[2]}번째 대화`; }
     const more = document.createElement('button');
     more.className = 'more'; more.textContent = '⋯';
     more.setAttribute('aria-label', `${s.title || '새 대화'} 관리`);
     more.onclick = (ev) => { ev.stopPropagation(); openSessMenu(item, s, more); };
-    item.appendChild(t); item.appendChild(age); item.appendChild(more);
+    item.appendChild(t); if (ord) item.appendChild(ord); item.appendChild(age); item.appendChild(more);
     item.onkeydown = (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); }
     };

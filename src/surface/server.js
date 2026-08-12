@@ -41,7 +41,7 @@ import { 기억파일쓰기, 기억파일읽기, 집파일반영 } from './memor
 import { DEFAULT_IDENTITY } from '../kernel/identity.js';
 import { makeWelcome } from './welcome.js';
 import { demoEnv, demoTools } from './demo-context.js';
-import { SessionStore } from './session-store.js';
+import { SessionStore, distinctTitle } from './session-store.js';
 import { MemoryStore, MemoryLedger, markClosed } from './memory-store.js';
 import { makeCandidate, makeAutoReversible, promote, confirmCandidate, 물러남 } from '../kernel/l1-intent/context-mesh.js';
 import { makeInferredTrait, makeOperatingPreference, projectUserModel } from '../kernel/l1-intent/user-model.js';
@@ -2093,8 +2093,14 @@ export function makeServer(deps = {}) {
     if (onAnswerReset && !sensitiveInput) ctx.onAnswerReset = onAnswerReset;
     if (hasText) {
       // 첫 발화로 제목을 붙이되, **사용자가 직접 붙인 이름은 덮어쓰지 않는다**(P2-4a).
+      // 조각 C: 앞 30자가 이미 쓰이고 있으면 차수를 붙인다 — 오너 실물에서 안 지운 세션 95개 중
+      // 81개가 **바이트 단위로 같은 제목**이었다(가장 큰 묶음 24개). 목록 조회는 첫 발화 때
+      // 한 번뿐이고 모델 왕복은 안 는다(반대시험 ④).
       if (!session.manualTitle && !session.transcript.some((e) => e.role === 'user')) {
-        session.title = durableUserText(input.text).trim().slice(0, 30);
+        session.title = distinctTitle(
+          durableUserText(input.text).trim().slice(0, 30),
+          await store.usedTitles().catch(() => []), // 목록을 못 읽어도 제목은 붙는다(대화가 먼저다)
+        );
       }
       session.transcript.push({ role: 'user', text: durableUserText(input.text) });
     }
@@ -4162,6 +4168,10 @@ export async function startLiveServer(opts = {}) {
 }
 
 async function startLiveServerInner(opts, bootStore) {
+  // 조각 C: 이미 저장된 같은 제목을 부팅 때 한 번 푼다. 여기가 값싼 시점이고(잠금을 이미 잡아
+  // 단일 writer 다), 두 번 돌려도 결과가 같다. 못 고쳐도 대화는 그대로 뜬다 — 목록 정리성은
+  // 대화보다 아래다.
+  await bootStore.repairDuplicateTitles().catch(() => 0);
   // P5-1: 저장된 채널 자격을 **liveDeps 보다 먼저** 읽어 같은 env 키로 합친다. 안 그러면 수신기는
   // 도는데 채널 상태는 "연결 안 됨"이라 인바운드가 channel_not_ready 로 막힌다(실측).
   const channelCreds = opts.channelCredentialStore ?? new ChannelCredentialStore(bootStore.dir);
