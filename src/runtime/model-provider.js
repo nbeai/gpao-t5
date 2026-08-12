@@ -435,9 +435,40 @@ export function buildModelMessages(tc) {
   // `turn.js` 에서 만들어져 표면까지 가는데 여기 **한 번도 안 나왔다.** 그래서 T5 는
   // 예약 후보를 실제로 만들어 놓고도 *"스스로 먼저 말 걸 수 없어요"* 라고 답했다 —
   // **거짓 실패**다. 만든 것이 사실이 되지 못하면 안 만든 것과 같다.
+  //
+  // ── **「이미 만들어 둔 것이다」를 걷는다** (F-88 · 콘솔 라이브 3/3 · 2026-08-12) ──────
+  //
+  // 위 수리는 **만든 것을 모델이 알게** 했다. 그런데 알린 문장이 거짓이었다 — 이번 턴에
+  // *방금* 세운 후보를 *"이미 만들어 둔 것"* 이라고 적었고, 오너가 밟은 답이 그 글자를
+  // 그대로 되뱉었다: *"이미 그 자동화 후보를 한 번 만들어 둔 상태라 … 바로 활성화해 둘게요."*
+  // 실물은 `automation.json` 에 candidates 1건(`proposed`) · **jobs 0건**. 사용자는 켜졌다고
+  // 믿고 창을 닫고, 9시에 아무 일도 안 일어난다. **모델이 지어낸 게 아니라 우리가 말했다**
+  // — F-85 와 같은 계열이다(우리가 심은 문장이 답이 되어 나온다).
+  //
+  // 뭉쳐 있던 셋을 가른다. **지시가 아니라 사실이다** — 「이렇게 말해라」가 아니라 무엇이 참인가:
+  //   · 이번 턴에 세운 것인가, 앞 턴에서 온 것인가
+  //   · 후보(`proposed`)인가, 실제로 선 예약(job)인가 — 사용자에게 전혀 다른 사실이다
+  //   · 켜려면 무엇이 더 필요한가 — 모델이 그걸 말해야 사용자가 켤 수 있다
+  //
+  // 오픈북(헤르메스 `tools/cronjob_tools.py:341-375`): 안 닿는 예약을 **생성 시점에 계산해
+  // 도구 반환값으로** 건넨다 — *"silently dropping the user's 'tell me when it runs' intent …
+  // Surface it at create time so the agent can relay it instead of promising a delivery that
+  // never happens."* 해법이 문장 지침이 아니라 **기계 통지**라는 점이 핵심이고, 여기가 그 자리다.
   if (tc.automationProposal?.statement) {
-    커널블록.push(`[이번 턴에 세운 예약 후보]\n- ${tc.automationProposal.statement}\n`
-      + '이미 만들어 둔 것이다 — "그런 기능이 없다"고 말하지 않는다. 사용자에게 이대로 할지 물으면 된다.');
+    const 후보 = tc.automationProposal;
+    // 이 턴에 제어가 실제로 예약을 세웠나 — `readback` 으로 확인된 `jobRef` 만 사실이다.
+    const 선것 = tc.automationControl?.rejected !== true ? tc.automationControl?.jobRef : null;
+    const 켜는법 = 후보.candidateRef && Number.isFinite(Number(후보.revision))
+      ? `automation.control(operation='commit', targetCandidateRef='${후보.candidateRef}',`
+        + ` targetCandidateRevision=${후보.revision}) 를 부르면 job 이 선다`
+      : 'automation.control(operation=\'commit\') 로 이 후보를 확정해야 job 이 선다';
+    커널블록.push(`[이번 턴에 세운 예약 후보]\n- 문장: ${후보.statement}\n`
+      + `- 상태: ${후보.state ?? 'proposed'} — **후보이지 예약이 아니다.** 이번 턴에 방금 세웠다`
+      + '(앞 턴에서 온 것이 아니다)\n'
+      + `- 이 후보로 선 예약(job): ${선것 ? `${선것} 1건` : '0건'}\n`
+      + `- 켜려면: ${켜는법}\n`
+      + 'T5 는 이 예약을 실제로 세울 수 있다. 다만 후보는 시각이 돼도 혼자 돌지 않는다 —'
+      + ' job 이 서야 돈다.');
   }
   if (tc.automationReality) {
     커널블록.push(`[자동화 현실]\n${JSON.stringify(tc.automationReality)}`);
