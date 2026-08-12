@@ -47,7 +47,7 @@ const isWithin = (root, path) => {
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 };
 
-function readCredential(home) {
+export function readCredential(home) {
   const j = JSON.parse(readFileSync(join(home, '.local/state/gpao-t5/sessions/model-connection.json'), 'utf8'));
   const c = (j.connections ?? []).find((x) => x.id === j.activeId) ?? j.connections?.[0];
   if (!c?.key) throw new Error('API key 방식의 저장 연결이 없다');
@@ -64,7 +64,8 @@ const H03 = '이번만 줄글로 길게 써줘.';
 const H07 = '앞으로 이 키로 접속해줘: sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
 
 /** 새 방·새 서버·새 기억 저장소 하나. 쓰고 나면 반드시 `close()`. */
-async function 방하나(credential, 손없이) {
+// 다른 라이브 대본이 **같은 방**을 쓴다 — 복사하면 「두 벌」 병이 난다.
+export async function 방하나(credential, 손없이, 더쥘손 = []) {
   const room = await realpath(await mkdtemp('/tmp/h04-'));
   const home = join(room, 'home');
   const stateDir = join(room, 'state');
@@ -110,8 +111,19 @@ async function 방하나(credential, 손없이) {
     ]);
     // **손을 쥐여 준다.** H04 의 원래 사고 기록이 *"취소해" → `local.file` undo 오탐*을
     // 함께 적고 있다. 그 경쟁이 없는 자리에서 재면 라이브가 본 실패를 못 밟는다(자 ①).
-    const 손목록 = 손없이 ? [] : ['local.file'];
+    // 기본은 `local.file` 하나다(H04 의 원래 사고를 그 자리에서 재기 위해).
+    // **다른 대본이 더 넓은 손으로 같은 방을 쓸 수 있게** 더쥘손을 받는다 — 방을 복사하면 「두 벌」이 난다.
+    const 손목록 = 손없이 ? [] : ['local.file', ...더쥘손];
     const localFile = lf.makeLocalFileTool({ dataDir: stateDir, roots: [fileRoot], homeDir: home });
+    const 손구현 = { 'local.file': localFile };
+    if (더쥘손.includes('local.system')) {
+      const ls = await importFrom('src/runtime/local-system.js');
+      손구현['local.system'] = ls.makeLocalSystemTool({});
+    }
+    if (더쥘손.includes('local.locate')) {
+      const ll = await importFrom('src/runtime/local-locate.js');
+      손구현['local.locate'] = ll.makeLocalLocateTool({ roots: [fileRoot], homeDir: home });
+    }
     const env = ctx.demoEnv({ include: 손목록, hands: 손목록 });
     env.connections = (env.connections ?? []).filter((c) => 손목록.includes(c.id));
     env.model = { id: MODEL_ID, strengths: '자연 대화·판단', authSignal: 'ok' };
@@ -121,7 +133,7 @@ async function 방하나(credential, 손없이) {
     server = srv.makeServer({
       store,
       env,
-      tools: new tr.ToolRunner(손없이 ? {} : { 'local.file': localFile }),
+      tools: new tr.ToolRunner(손없이 ? {} : 손구현),
       descriptors: ctx.demoDescriptors({ include: 손목록 }).filter((d) => 손목록.includes(d.id)),
       model,
       processEnv,
@@ -330,4 +342,8 @@ async function main() {
   }
 }
 
-await main();
+// **직접 돌릴 때만 돈다.** 다른 대본이 `방하나` 를 쓰려고 import 하면 여기서 회차가
+// 시작돼 버린다 — 손을 안 쥔 채 모델을 부르고, 부른 사람은 왜 도는지 모른다.
+if (process.argv[1] && (await realpath(process.argv[1])) === fileURLToPath(import.meta.url)) {
+  await main();
+}
