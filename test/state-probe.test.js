@@ -22,13 +22,22 @@ const 저장소 = dirname(dirname(fileURLToPath(import.meta.url)));
 const 계측기 = join(저장소, 'scripts', 'state-probe.mjs');
 
 /** 계측기를 실제로 돌린다. 종료 코드는 항상 0 이어야 한다(계측기는 판정하지 않는다). */
+// ★ **같은 계측을 열일곱 번 다시 돌리고 있었다**(F-104 곁가지 · 2026-08-12).
+// 이 파일의 검사 대부분이 `계측(['--json'])` 을 각자 새 프로세스로 부른다 — 한 번에 ~0.8초라
+// 게이트의 **테스트 CPU 기준선**(§17)을 이 파일 하나가 크게 밀어 올렸다.
+// 계측기는 **같은 입력에 같은 값을 내는 읽기 전용**이므로 인자별로 한 번만 돌리고 나눠 쓴다.
+// 기준선을 올리는 것이 금지(C5)라, 자를 무르게 하는 대신 **같은 것을 여러 번 재는 낭비**를 없앤다.
+const 계측결과 = new Map();
 async function 계측(args = []) {
-  const { stdout, stderr } = await run(process.execPath, [계측기, ...args], {
-    cwd: 저장소,
-    maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, GPAO_T5_STATE_PROBE_TEST: '1' },
-  });
-  return { stdout, stderr };
+  const 열쇠 = JSON.stringify(args);
+  if (!계측결과.has(열쇠)) {
+    계측결과.set(열쇠, run(process.execPath, [계측기, ...args], {
+      cwd: 저장소,
+      maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, GPAO_T5_STATE_PROBE_TEST: '1' },
+    }).then(({ stdout, stderr }) => ({ stdout, stderr })));
+  }
+  return 계측결과.get(열쇠);
 }
 
 test('칸0 계측기: 실행되고 기계 판독용 JSON 을 낸다', async () => {
@@ -85,12 +94,21 @@ test('칸0 계측기 ④: 서버 실기동으로 모델이 실제 받은 도구 
   assert.ok(노출.names.length > 0, '도구 이름이 하나라도 잡혀야 한다');
 });
 
-test('칸0 계측기: 문서 생성 부품 0건을 근거(검색어·경로)와 함께 낸다', async () => {
+// ★ **이 검사가 틀린 사실을 못박고 있었다**(F-104 · 2026-08-12).
+// 옛 판은 `assert.equal(부재.found.length, 0)` — *"문서 생성 부품은 0건이다"* 를 **계약으로**
+// 세웠다. 그런데 그건 사실이 아니었다: xlsx 는 `document-intake.js:buildXlsx` 가 **직접 만들고**,
+// pdf·docx 는 `src/skills/pdf-docx/SKILL.md` 가 `cupsfilter`·`textutil` 로 **만든다.**
+// 계측기 검색어가 외부 라이브러리 이름뿐이라 0건이 나왔고, **그 0 을 이 검사가 봉인했다** —
+// 그래서 아무도 못 고쳤고 지도·계획서가 「기관 ⑧ = 없음」을 받아 적었다.
+// 자를 무르게 하는 것이 아니라 **틀린 동결을 푸는 것**이다. 계약은 F-56 그대로 남는다:
+// *"부재를 주장하려면 무엇을 찾았는지 함께 낸다."*
+test('칸0 계측기: 부재 주장은 근거(검색어·경로·양성대조)와 함께 낸다', async () => {
   const { stdout } = await 계측(['--json']);
   const 결과 = JSON.parse(stdout);
-  const 부재 = 결과.absence.find((a) => a.subject === 'document-create');
-  assert.ok(부재, '문서 생성 부품 부재 확인 항목이 있어야 한다');
-  assert.equal(부재.found.length, 0, `생성 부품은 0건이다 — 실측 ${JSON.stringify(부재.found)}`);
+  const 부재 = 결과.absence.find((a) => a.subject === 'xlsx-create');
+  assert.ok(부재, 'xlsx 생성 부재 확인 항목이 있어야 한다');
+  assert.ok(부재.found.length > 0,
+    '**xlsx 생성기는 실재한다** — 0건이 나오면 자가 또 눈이 먼 것이다(F-104)');
   // F-56: 관측 안 됨 ≠ 부재. 무엇을 찾았는지 함께 내야 부재를 주장할 수 있다.
   assert.ok(부재.searchedTerms?.length > 0, '검색어를 함께 내야 한다');
   assert.ok(부재.searchedPaths?.length > 0, '검색 경로를 함께 내야 한다');
@@ -107,8 +125,10 @@ test('칸0 계측기: 기관 열 전부에 대해 있는 동사 / 요구 동사 
     assert.ok(Array.isArray(기관.missing), `${기관.key}: 빠진 것`);
   }
   // ⑧ 문서 만들기는 만들기 동사가 전부 빠져 있다(계획서 §4 — 유일한 진짜 신축)
+  // ⑧ 문서 만들기 — **셋 다 있다**(F-104 정정): xlsx 자체 구현 · pdf·docx 스킬.
   const 문서 = 결과.organs.find((o) => o.key === 'document-create');
-  assert.ok(문서.missing.length > 0, '문서 만들기는 빠진 것이 있어야 한다(생성 부품 0건)');
+  assert.equal(문서.missing.length, 0,
+    `문서 만들기 셋은 실재한다(xlsx 자체 구현 · pdf·docx 스킬) — 실측 ${JSON.stringify(문서.missing)}`);
   // ⑤ 화면 손은 상한이 "새 동사 추가 없음" 이므로 빠진 동사가 0 이다 — 결손은 동사가 아니라 쓰임이다
   const 화면 = 결과.organs.find((o) => o.key === 'screen-hand');
   assert.equal(화면.missing.length, 0, `화면 손 상한은 새 동사 추가 없음 — 실측 ${JSON.stringify(화면.missing)}`);

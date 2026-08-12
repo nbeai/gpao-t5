@@ -158,9 +158,12 @@ const 기관규격 = Object.freeze([
     상한: 'xlsx(표·수식 없음·서식 최소) · pdf(A4·인쇄 가능) · docx. 이 셋 밖은 이번 프로그램 아님',
     계획서층: '1 — 유일한 진짜 신축. 대체 수단 없음',
     요구: [
-      { 요구: 'xlsx 만들기', 부품: 'document-create' },
-      { 요구: 'pdf 만들기', 부품: 'document-create' },
-      { 요구: 'docx 만들기', 부품: 'document-create' },
+      // ★ **형식별로 가른다**(F-104 · 2026-08-12). 첫 판은 셋을 한 부품('document-create')에
+      // 걸어 놨다 — 그래서 xlsx 표지를 더하자 **pdf·docx 까지 「있음」으로 뒤집혔다**.
+      // 부재를 잘못 선언한 자를 고치다 **반대로 눈멀게 한** 자리다. 형식마다 자기 자를 갖는다.
+      { 요구: 'xlsx 만들기', 부품: 'xlsx-create' },
+      { 요구: 'pdf 만들기', 부품: 'pdf-create' },
+      { 요구: 'docx 만들기', 부품: 'docx-create' },
     ],
   },
   {
@@ -192,16 +195,69 @@ const 기관규격 = Object.freeze([
 // 검색어를 두 갈래로 나눈다:
 //   생성전용  그 말이 나오면 **만드는 부품**이라고 볼 수 있는 것 → `found`
 //   모호      읽기에도 쓰이는 말 → `ambiguous` 로 file:line 까지 내서 사람이 직접 본다
+//
+// ── ★ 양성 대조 — **부재는 이것 없이 선언하지 못한다** (F-104 · 2026-08-12) ──────────
+//
+// 이 자가 2026-08-12 에 **오보를 냈다**: `document-create` 검색어가 전부 외부 라이브러리
+// 이름(`exceljs`·`pdf-lib`·`sheetjs`…)이라, 라이브러리 없이 자체 구현한 T5 의 xlsx 생성기를
+// 못 보고 0건을 냈다. 그 0 이 「기관 ⑧ 문서 만들기 = 없음」으로 출력돼 **지도와 계획서가
+// 받아 적었다.** 실제로는 `document-intake.js:buildXlsx` 가 진짜 엑셀을 만든다.
+//
+// **「0」이 「없다」인지 「안 봤다」인지 자가 스스로 구분해야 한다.** 그래서 규격마다
+// **실재하는 것을 이 검색법으로 잡아 보이는 대조**를 함께 둔다. 대조가 안 걸리면 그 줄은
+// 「없다」가 아니라 **「이 자로는 못 본다」**로 나간다 — 다음 사람이 부재로 안 읽는다.
+//
+// 오너 2026-08-12: *"그 맨날 틀리는 자 좀 어떻게 해봐라."* 고백이 아니라 구조로 답한다.
+// 같은 병을 제품에서 이미 두 번 고쳤다 — S2(부재가 안전의 증거로 읽힘) · J6(절단을 다 봤다로 읽음).
 // ─────────────────────────────────────────────────────────────────────────────
 const 부재규격 = Object.freeze([
+  {
+    subject: 'xlsx-create',
+    질문: 'xlsx 를 **만드는** 부품이 있나',
+    경로: ['src', 'scripts', 'bin', 'vendor', 'package.json'],
+    // T5 는 라이브러리를 안 쓴다 — zip 을 직접 짜고(buildXlsx) 표 본문을 행으로 나눈다(표행들).
+    생성전용: ['buildXlsx', '표행들', 'exceljs', 'excel4node', 'xlsx-populate', 'sheetjs', 'XLSX.write'],
+    모호: ['xlsx'],
+    양성대조: { 말: 'buildXlsx', 자리: 'src/runtime/document-intake.js', 검색어로잡힌다: true,
+      왜: '자체 구현 xlsx 생성기를 이 검색법이 실제로 잡는 것을 보인다' },
+  },
+  {
+    subject: 'pdf-create',
+    질문: 'pdf 를 **만드는** 부품이 있나',
+    경로: ['src', 'scripts', 'bin', 'vendor', 'package.json'],
+    생성전용: ['buildPdf', 'cupsfilter', 'printToPDF', 'pdf-lib', 'jspdf', 'pdfmake', 'wkhtmltopdf'],
+    모호: ['pdf', 'PDFKit'],
+    // ★ **부재가 아니었다**(F-104 · 2026-08-12). 내가 「pdf 없다」로 두 번 적었는데,
+    // 이 자를 고치자 `src/skills/pdf-docx/SKILL.md` 가 나왔다 — 손이 아니라 **스킬**로 있다.
+    // 자를 고친 값이 이것이다: 자가 **나를 정정했다.**
+    양성대조: { 말: 'cupsfilter', 자리: 'src/skills/pdf-docx/SKILL.md', 검색어로잡힌다: true,
+      왜: 'pdf 생성은 스킬 파일로 실재한다 — 이 검색법이 그것을 잡는 것을 보인다' },
+  },
+  {
+    subject: 'docx-create',
+    질문: 'docx 를 **만드는** 부품이 있나',
+    경로: ['src', 'scripts', 'bin', 'vendor', 'package.json'],
+    생성전용: ['buildDocx', 'textutil', 'docxtemplater', 'officegen', 'new Packer'],
+    모호: ['docx'],
+    // ★ 같은 자리 — docx 도 스킬로 있다(textutil).
+    양성대조: { 말: 'textutil', 자리: 'src/skills/pdf-docx/SKILL.md', 검색어로잡힌다: true,
+      왜: 'docx 생성은 스킬 파일로 실재한다 — 이 검색법이 그것을 잡는 것을 보인다' },
+  },
   {
     subject: 'document-create',
     질문: 'xlsx·pdf·docx 를 **만드는** 부품이 있나',
     경로: ['src', 'scripts', 'bin', 'vendor', 'package.json'],
     생성전용: ['exceljs', 'pdf-lib', 'jspdf', 'pdfmake', 'officegen', 'docxtemplater', 'excel4node',
       'xlsx-populate', 'sheetjs', 'XLSX.write', 'XLSX.utils.book_new', 'new Packer', 'wkhtmltopdf',
-      'printToPDF', 'libreoffice', 'soffice', 'pandoc'],
+      'printToPDF', 'libreoffice', 'soffice', 'pandoc',
+      // ★ **자체 구현 표지** — 이것이 없어서 오보가 났다(F-104). T5 는 라이브러리를 안 쓴다:
+      //   xlsx 는 zip 을 직접 짜고(buildXlsx), 표 본문을 행으로 나눈다(표행들).
+      //   외부 이름만 찾는 자는 우리가 만든 것을 영영 못 본다.
+      'buildXlsx', '표행들'],
     모호: ['PDFKit', 'PDFDocument', 'xlsx', 'docx', 'hwp'],
+    // ★ 오보를 낸 자리. 검색어가 외부 라이브러리뿐이라 **자체 구현을 못 봤다**.
+    양성대조: { 말: 'buildXlsx', 자리: 'src/runtime/document-intake.js', 검색어로잡힌다: true,
+      왜: 'T5 는 라이브러리 없이 xlsx 를 짓는다 — 그 구현을 이 검색법이 실제로 잡는 것을 보인다' },
   },
   {
     subject: 'user-image-to-model',
@@ -211,6 +267,9 @@ const 부재규격 = Object.freeze([
       'src/runtime/capsule.js', 'src/runtime/file-scope.js'],
     생성전용: ['그림:', 'image_url', 'input_image', 'inlineData', 'media_type', 'toBase64Image'],
     모호: ['image/', '.png', '.jpg', 'jpeg', 'base64'],
+    // 진짜 부재다. 그래서 **같은 말이 실재하는 자리**에서 이 검색법이 무는 것을 보인다.
+    양성대조: { 말: 'image_url', 자리: 'src/runtime/model-provider.js', 검색어로잡힌다: true,
+      왜: '같은 검색어가 모델 쪽 그림 통로는 잡는다 — 그러므로 파일 손 쪽 0건은 진짜 부재다' },
   },
   {
     subject: 'model-image-intake',
@@ -218,6 +277,8 @@ const 부재규격 = Object.freeze([
     경로: ['src/runtime/model-provider.js', 'src/runtime/chatgpt-model-client.js'],
     생성전용: ['image_url', 'input_image', 'inlineData', 'media_type'],
     모호: [],
+    양성대조: { 말: 'inlineData', 자리: 'src/runtime/model-provider.js', 검색어로잡힌다: true,
+      왜: '세 공급자 블록 중 하나를 이 검색법이 실제로 잡는 것을 보인다' },
   },
   {
     subject: 'connector-hands',
@@ -225,6 +286,8 @@ const 부재규격 = Object.freeze([
     경로: ['src'],
     생성전용: ['makeConnectorDeclareTool', 'makeConnectorConnectTool'],
     모호: ['connector.declare', 'connector.connect'],
+    양성대조: { 말: 'makeConnectorConnectTool', 자리: 'src/runtime/connector-connect.js', 검색어로잡힌다: true,
+      왜: '손 팩토리 이름 검색이 실재하는 팩토리를 잡는 것을 보인다' },
   },
   {
     subject: 'browser-text-extract',
@@ -233,6 +296,8 @@ const 부재규격 = Object.freeze([
     // 생산(OBSERVE_SCRIPT 가 글을 담는가)과 전달(영수증에 실리는가)을 같이 본다.
     생성전용: ['textTotal', 'body?.innerText', 'markdown:'],
     모호: ['text:', 'excerpt'],
+    양성대조: { 말: 'textTotal', 자리: 'src/runtime/browser.js', 검색어로잡힌다: true,
+      왜: '본문 글자를 담는 칸을 이 검색법이 실제로 잡는 것을 보인다' },
   },
   {
     subject: 'browser-element-list-to-model',
@@ -240,6 +305,9 @@ const 부재규격 = Object.freeze([
     경로: ['src/runtime/browser-tool.js'],
     // 목록을 통째로 실어 보낸다면 영수증에 이런 칸이 있어야 한다. 없으면 **전달에서 잘린 것**이다.
     생성전용: ['actionable:', 'elements:', 'clickable:', '요소목록:'],
+    // browser.js 는 목록을 모은다(actionable). 이 자가 보는 것은 **전달 자리**(browser-tool.js)다.
+    양성대조: { 말: 'actionable', 자리: 'src/runtime/browser.js', 검색어로잡힌다: true,
+      왜: '모으는 자리는 이 검색법에 걸린다 — 그러므로 전달 자리의 0건은 「안 만들었다」가 아니라 「모아 놓고 안 준다」다' },
     // 잘리는 자리를 함께 낸다 — "안 만들었다"가 아니라 "모아 놓고 걸러낸다"는 것이 사실이다.
     모호: ['canOpen', 'actionable'],
   },
@@ -247,7 +315,11 @@ const 부재규격 = Object.freeze([
     subject: 'channel-inbox',
     질문: '받은 것을 **조회**하는 손이 있나 (계획서 ⑦: 와이어 28개 중 0)',
     경로: ['src/surface/demo-context.js', 'src/surface/live-context.js', 'src/runtime'],
-    생성전용: ['makeChannelInbox', 'inboxTool', "id: 'telegram.inbox'", "id: 'slack.inbox'", "id: 'mail.inbox'"],
+    생성전용: ['makeChannelInbox', 'inboxTool', "id: 'telegram.inbox'", "id: 'slack.inbox'", "id: 'mail.inbox'", "id: 'telegram.send'"],
+    // 진짜 부재다(와이어 28개 중 0). 그래서 **같은 모양의 있는 손**을 이 검색법이 잡는 것을 보인다 —
+    // 보내는 손은 `id: 'telegram.send'` 로 선언돼 있고, 받는 손은 그 자리에 아예 없다.
+    양성대조: { 말: "id: 'telegram.send'", 자리: 'src/surface/demo-context.js', 검색어로잡힌다: true,
+      왜: '같은 선언 모양의 발신 손은 잡힌다 — 그러므로 수신 손 0건은 눈이 먼 것이 아니라 진짜 부재다' },
     모호: ['inbox', 'handleChannelMessage', 'receive'],
   },
 ]);
@@ -416,9 +488,19 @@ async function 부재확인() {
         }
       }
     }
+    // ── **양성 대조를 먼저 돌린다**(F-104). 이 자가 실재하는 것을 잡는지 스스로 증명한다.
+    // 대조가 안 걸리면 이 줄은 「없다」가 아니라 **「이 자로는 못 본다」**로 나간다.
+    let 대조섰나 = null;
+    if (규격.양성대조) {
+      const 원문 = await readFile(join(저장소, 규격.양성대조.자리), 'utf8').catch(() => null);
+      대조섰나 = 원문 !== null && 원문.includes(규격.양성대조.말);
+    }
     결과.push({
       subject: 규격.subject,
       question: 규격.질문,
+      control: 규격.양성대조 ? { ...규격.양성대조, 섰나: 대조섰나 } : null,
+      // **부재를 선언할 자격** — 대조가 안 섰으면 0건을 부재로 읽지 않는다.
+      canClaimAbsence: 대조섰나 === true,
       searchedTerms: [...규격.생성전용],
       ambiguousTerms: [...규격.모호],
       searchedPaths: [...규격.경로],
@@ -1057,7 +1139,16 @@ function 사람표(결과) {
     줄.push(`    검색어: ${a.searchedTerms.join(', ')}`);
     줄.push(`    경로:   ${a.searchedPaths.join(', ')}`);
     if (a.found.length) 줄.push(`    히트:   ${a.found.slice(0, 8).map((f) => `${f.term}@${f.at}`).join(', ')}`);
-    else 줄.push('    히트:   0건 — 위 검색어·경로 범위에서 관측되지 않았다');
+    else if (a.canClaimAbsence) {
+      줄.push('    히트:   0건 — 위 검색어·경로 범위에서 관측되지 않았다');
+      줄.push(`    ★ 대조:  이 자는 눈이 멀지 않았다 — ${a.control.말}@${a.control.자리} 를 실제로 잡는다`);
+      줄.push(`             (${a.control.왜})`);
+    } else {
+      // **여기가 F-104 가 막는 자리다.** 대조가 안 서면 0건을 부재로 읽지 않는다.
+      줄.push('    히트:   0건 — 그런데 **이 자로는 못 본다**(양성 대조 실패)');
+      줄.push(`    ★ 경고:  ${a.control ? `대조 ${a.control.말}@${a.control.자리} 가 안 걸렸다` : '양성 대조가 없다'}`);
+      줄.push('             이 줄을 「없다」로 읽지 마라 — 「안 봤다」와 구분이 안 된다(F-104)');
+    }
     if (a.ambiguousCount) {
       줄.push(`    모호(읽기에도 쓰이는 말 — 부재의 반증이 아니다): `
         + a.ambiguous.slice(0, 6).map((f) => `${f.term}@${f.at}`).join(', ')
