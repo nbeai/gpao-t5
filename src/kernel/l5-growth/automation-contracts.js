@@ -154,6 +154,18 @@ export function bindAutomationCandidate(candidate, skill, profile, options = {})
   const trigger = options.trigger;
   const checkedTrigger = validateTriggerSpec(trigger);
   if (!checkedTrigger.ok) return { ok: false, reason: 'invalid_trigger', errors: checkedTrigger.errors };
+  // **여기가 생성 시점이다** — 안 도는 예약은 세우지 않는다(F-90 · 오픈클로 would never fire).
+  // `now` 를 안 준 부름은 예전 그대로 통과한다(구조 검사만 탄다) — 이 층은 「지금」을 아는
+  // 자리에서만 잰다. 막을 때는 무엇이·왜·어떻게를 함께 올린다.
+  if (finite(options.now)) {
+    const 설자리 = 예약이설자리있는가(trigger, options.now);
+    if (!설자리.ok) {
+      return {
+        ok: false, reason: 'invalid_trigger', errors: [설자리.reason],
+        안서는이유: 설자리,
+      };
+    }
+  }
   const repeated = trigger.kind !== 'once';
   const expiresAt = repeated ? options.expiresAt : null;
   if (repeated && !finite(expiresAt)) return { ok: false, reason: 'repeated_requires_expiry' };
@@ -312,6 +324,10 @@ export function 직접예약재료(candidate, { workspaceRoots = [], now }) {
   if (!isAuthorityKind(kind)) return { ok: false, reason: 'candidate_action_unknown' };
   const tier = classifyTier({ kind });
   if (!A.includes(tier)) return { ok: false, reason: 'candidate_action_forbidden' };
+  // **여기가 명시 예약이 실제로 서는 자리다**(F-90). 안 도는 시각이면 세우지 않는다 —
+  // 조용히 서서 안 도는 job 이 「켜 뒀어요」가 되는 것이 이 버그의 알맹이였다.
+  const 설자리 = 예약이설자리있는가(candidate?.trigger, now);
+  if (!설자리.ok) return { ok: false, reason: 'trigger_has_no_future', 안서는이유: 설자리 };
   const skill = 직접예약스킬(candidate, now);
   if (!skill) return { ok: false, reason: 'direct_instruction_incomplete' };
   return { ok: true, skill, profile: 직접예약담당({ tool, ceiling: tier, workspaceRoots, now }) };
@@ -343,6 +359,74 @@ export function 자동화안도는조건(job, { catchUpLimit, tickIntervalMs, ca
   };
 }
 
+// ── **「유한한 수」는 시각의 자가 아니다** (F-90 · 2026-08-12) ────────────────────
+//
+// `once` 만 새던 이유는 **누가 시각을 계산하는가**였다. `daily`·`weekly` 는 모델이
+// `localTime`(벽시계 문자열)만 주고 커널이 달력에서 계산한다 — 모델이 틀릴 자리가 없다.
+// `once` 는 모델이 epoch ms 절대값을 직접 주는데, 받는 쪽이 `Number.isFinite` 만 봤다.
+// 그래서 `at:0`(1970년) · 초를 밀리초 자리에 준 값 · 서기 5만년이 **전부 같은 문**으로
+// 들어왔고, job 은 서는데 `nextRunAt:0` 이라 실행이 `scheduledFor=0` 으로 끝나고
+// 배달이 0건이었다(라이브 3회차: once 는 3/3 서고 **1/3 만 돌았다**).
+//
+// 오픈북 — 비교군은 「확인 절차」로 믿지 않고 **표현 불가능**으로 막는다:
+//   오픈클로 `dist/jobs-B5P8XABM.js:489-496` — 절대 안 도는 잡은 **생성 자체를 거부**한다:
+//     `cron expression "..." has no upcoming run time and would never fire`
+//
+// 두 층으로 나눈 이유가 있다. **구조 검사는 「지금」을 몰라야 한다** — 어제 선 `once` 가
+// 오늘 저장소에서 읽힐 때 무효가 되면 원장이 깨지고 놓친 회차 따라잡기(⑥)가 죽는다.
+// 그래서 지나간 시각은 구조상 유효하되 **새로 세우는 자리**에서만 막는다.
+const 시각하한 = 1e12; // 2001-09-09. 이 아래는 1970년 근처이거나 **초를 밀리초 자리에 준 값**이다
+const 시각상한 = 1e13; // 2286-11-20. 이 위는 사람이 예약하는 시각이 아니다
+// 모델이 「지금」을 잰 순간과 서버가 재는 순간 사이의 왕복만 흡수한다. 이 값을 키워
+// 「어제」까지 받으면 잘못 만든 시각과 놓친 회차를 구분하는 선이 사라진다.
+const 예약왕복유예 = 5 * 60_000;
+
+function 시각인가(value) {
+  return Number.isInteger(value) && value >= 시각하한 && value < 시각상한;
+}
+
+/**
+ * **이 예약이 설 자리가 있는가.** 생성 시점에만 묻는다(구조 검사와 다른 층이다).
+ *
+ * 거절로 끝내지 않는다 — 무엇을 받았고·왜 안 되고·어떻게 고치는지를 함께 싣는다.
+ * 헤르메스가 안 닿는 조건을 생성 시점 반환값에 싣는 것과 같은 결이다
+ * (`tools/cronjob_tools.py:341-375`). 값은 전부 받은 레코드와 `now` 에서 온다.
+ */
+export function 예약이설자리있는가(trigger, now) {
+  const t = trigger ?? {};
+  const 기본 = { 지금: finite(now) ? now : null, 받은값: t.at ?? null };
+  if (!finite(now)) {
+    return { ok: false, reason: 'now_unknown', ...기본, 고칠길: '지금 시각을 아는 자리에서 물어라.' };
+  }
+  // `daily`·`weekly`·`interval` 은 시각을 **커널이 달력·주기에서 계산**한다 — 모델이 틀린
+  // 절대값을 넣을 자리가 없고, 다음 회차가 늘 있다. 여기서 재는 것은 `once` 축뿐이다
+  // (§2 「그물을 안 넓힌다」 — 안 새던 종류에 새 문을 만들지 않는다).
+  if (t.kind !== 'once') return { ok: true, ...기본 };
+  if (!시각인가(t.at)) {
+    const 초로보임 = Number.isInteger(t.at) && t.at > 0 && t.at < 시각하한
+      && t.at * 1000 >= 시각하한 && t.at * 1000 < 시각상한;
+    return {
+      ok: false,
+      reason: 초로보임 ? 'at_looks_like_seconds' : 'at_not_an_instant',
+      ...기본,
+      고칠길: 초로보임
+        ? `초가 아니라 **밀리초**로 준다 — 받은 값에 1000 을 곱하면 ${t.at * 1000} 이다.`
+        : `epoch **밀리초** 정수로 준다(지금이 ${now}). 사용자가 말한 벽시계 시각을 그 자리 시간대로 환산한 값이어야 한다.`,
+    };
+  }
+  // **「지금」은 지나간 시각이 아니다.** 모델이 `Date.now()` 로 「지금 한 번」을 예약하면
+  // 서버가 재는 순간에는 이미 몇 밀리초~몇 초 전이다. 그 왕복을 흡수할 만큼만 봐준다 —
+  // 그보다 오래된 값은 앱이 꺼져 놓친 회차가 아니라 **모델이 시각을 잘못 만든 것**이다
+  // (놓친 회차 따라잡기는 이미 선 job 의 일이고 `planTriggerOccurrences` 가 맡는다).
+  if (t.at < now - 예약왕복유예) {
+    return {
+      ok: false, reason: 'at_already_passed', ...기본,
+      고칠길: `이미 지나간 시각이다(지금 ${now}, 받은 값은 ${Math.round((now - t.at) / 60_000)}분 전). 사용자가 말한 것이 **다음번** 그 시각이면 하루/한 주를 더한 값으로 준다.`,
+    };
+  }
+  return { ok: true, ...기본 };
+}
+
 export function validateTriggerSpec(trigger) {
   const t = trigger ?? {};
   const errors = errorsFor([
@@ -352,6 +436,13 @@ export function validateTriggerSpec(trigger) {
     ['misfirePolicy must be skip or catch_up_once', MISFIRE_POLICIES.includes(t.misfirePolicy)],
     ['nextRunAt must be finite or null', t.nextRunAt === null || finite(t.nextRunAt)],
   ]);
+  // **레코드 계약은 여기서 안 조인다**(F-90 · 재서 확인한 자리).
+  // `at:0` 을 여기서 막으면 맞는 것 같지만, 이 검사는 **저장된 레코드를 읽을 때도** 돈다
+  // (`automation-store.js:156` → `assertStateRecords`). 그리고 실패하면 파일 하나가 아니라
+  // **automation.json 전체가 손상 취급**되어 읽기 표면이 unknown 으로 닫힌다.
+  // 즉 이 버그로 이미 `at:0` job 이 저장된 사용자 — 정확히 이 수리가 구해야 할 사람 — 의
+  // 멀쩡한 daily·weekly 예약까지 통째로 날린다. 버그보다 나쁜 수리다.
+  // 그래서 **못 쓰는 시각은 「세우는 자리」에서만 막는다**(`예약이설자리있는가`).
   if (t.kind === 'once' && !finite(t.at)) errors.push('once trigger requires at');
   if (t.kind === 'interval' && !(finite(t.intervalMs) && t.intervalMs > 0)) errors.push('interval trigger requires positive intervalMs');
   if (t.kind === 'daily' && !string(t.localTime)) errors.push('daily trigger requires localTime');
