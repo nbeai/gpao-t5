@@ -148,6 +148,8 @@ export function defineWebSearchTool(d = {}) {
     availability: [{ kind: 'connected' }],
     toolKind: 'read',
     needsApproval: false,
+    // **웹을 보는 손은 다 이 축을 단다**(F-107) — 하나만 달면 옆에 설 손이 안 보인다.
+    보는것: '웹',
     // **사용자면 문장은 사람 이름으로 말한다.** 손끼리 서로를 가리키는 것은 모델이 읽는
     // `schema.description` 의 일이다 — 이 문장은 SOUL.md 파생 구역에 그대로 나가 사용자가 읽는다.
     capability: '웹에서 무엇이 있는지 **후보를 찾아 목록으로 준다**(제목·주소·짧은 요약).'
@@ -302,7 +304,20 @@ export function classifyWebFetch(raw = {}) {
   // 모르는 것을 아는 척하지 않는다.
   if (raw.readable != null) {
     const 안내뺀글자 = String(raw.readable).split('\n')
-      .filter((l) => !/login|signin|sign ?in|로그인|계정|가입/i.test(l)).join('').trim().length;
+      .filter((l) => !/login|signin|sign ?in|로그인|계정|가입/i.test(l))
+      // **아직 안 그려진 자리는 글자가 아니다**(F-107 · 오너 라이브 2026-08-12).
+      //
+      // 네이버 플레이스를 HTML 로 긁으면 3,038자가 온다 — 그런데 그 본문이 이렇다:
+      //   `방문자 리뷰 {{value}}` · `{{year}} {{style}} 우수{{type}}` · `고도 {{value}}m`
+      // 자바스크립트가 채워 넣을 **자리표시자**다. 사람 화면에는 저 글자가 안 보인다.
+      // 그런데 이 자가 그걸 알맹이로 세서 `ok` 를 냈고, 그러니 `shell` 이 안 서고,
+      // 그러니 커널의 「같은 것을 보는 손」도 안 돌았다. T5 는 오너에게
+      // *"안쪽까지 열어볼 수 없다"* 라고 답했다 — 화면 손을 쥐고서.
+      //
+      // **알맹이의 좋고 나쁨을 재는 것이 아니다.** 렌더링이 안 끝난 자리를 글자수에서
+      // 빼는, **이 손 자신의 셈** 문제다(커널에 두 번째 알맹이 판정기를 두지 않는다).
+      .filter((l) => !/\{\{[^}]{0,40}\}\}/.test(l))
+      .join('').trim().length;
     if (안내뺀글자 >= MIN_SUBSTANCE_CHARS) return 'ok';
   } else if (알맹이수 !== null && 알맹이수 >= MIN_READABLE_CHARS) {
     return 'ok';

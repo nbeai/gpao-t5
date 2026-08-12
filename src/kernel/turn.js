@@ -483,11 +483,40 @@ const 시키는말 = /옮[기겨]|복사(해|하)|붙여넣|Finder|파인더|직
  * 축(`보는것`)은 descriptor 가 선언한다. 커널은 이름을 모른 채 축만 비교한다.
  */
 function 옆손찾기(막힌손, 손들 = []) {
-  const 축 = (id) => (손들.find((t) => t?.id === id) ?? {}).보는것;
-  const 막힌축 = new Set([...막힌손].map(축).filter(Boolean));
+  // **축은 여럿일 수 있다**(F-107). 화면 손은 「화면」이면서 「웹」이다 — 브라우저 창은 화면에
+  // 있고 그 안의 웹 페이지를 그 손이 본다. 오너 정본(2026-08-12): *"뭐가 막든간에 시각적
+  // 효과까지 발휘하면 리뷰 읽을 수 있어. 그게 컴퓨터유즈잖아."* 네이버가 막은 것은 HTTP
+  // 층이고 **화면에 그려진 픽셀은 못 막는다.** 축이 하나뿐이면 그 사실을 못 쓴다.
+  const 축들 = (id) => [(손들.find((t) => t?.id === id) ?? {}).보는것].flat().filter(Boolean);
+  const 막힌축 = new Set([...막힌손].flatMap(축들));
   if (!막힌축.size) return null;
-  const 옆 = 손들.find((t) => t?.id && !막힌손.has(t.id) && t.보는것 && 막힌축.has(t.보는것));
+  const 옆 = 손들.find((t) => t?.id && !막힌손.has(t.id)
+    && [t.보는것].flat().filter(Boolean).some((축) => 막힌축.has(축)));
   return 옆 ? (옆.label ?? 옆.id) : null;
+}
+
+/**
+ * **빈손으로 돌아온 걸음** — 성공했는데 가져온 것이 없다.
+ *
+ * 오너가 밟았다(2026-08-12 · 세션 6a412df3). *"네이버 플레이스 리뷰 분석해줘"* 에
+ * `web.collect` 5회 · `browser.observe` 3회가 **전부 `failureState: none`** 으로 돌았는데
+ * 물고 온 것은 메뉴 문구와 차단 안내뿐이었다. T5 는 *"안쪽까지 열어볼 수 없다"* 로 끝냈고
+ * 오너가 두 번 말했다 — *"너한테 그 도구 다 있어."* 화면 손은 한 번도 안 썼다.
+ *
+ * **커널이 알맹이를 재는 것이 아니다.** 여기서 보는 셋은 전부 **손이 스스로 낸 사실**이다:
+ * `읽은상태: 'shell'`(`web-tool.js` 가 메뉴·링크를 뺀 글자수로 계산) ·
+ * `observation.thin`(`browser-tool.js` 가 200자 미만이면 단다) · `blocked`/`fetchState`.
+ * 알맹이가 좋은지 나쁜지는 안 묻는다 — **있었는지 없었는지만** 묻고, 그건 손이 말해 준다.
+ *
+ * 왜 「막힘」에 넣는가: 사용자 자리에서 **못 읽은 것과 읽을 게 없던 것은 같다.** 목적이 한
+ * 걸음 앞에서 멈춘다. 「막혔다」로 세야 `옆손찾기` 가 돌고, 그래야 같은 것을 보는 다른 손이 선다.
+ */
+function 빈손으로돌아왔나(r) {
+  const res = r?.result ?? {};
+  if (res.읽은상태 === 'shell') return true;              // 손: "메뉴뿐이라 알맹이가 없었어요"
+  if (res.observation?.thin === true) return true;        // 손: "열렸는데 글이 거의 없어요"
+  if (res.blocked === true || res.fetchState === 'blocked') return true;
+  return false;
 }
 
 export function 다음길(receipts, 있는손, 손들 = []) {
@@ -500,8 +529,11 @@ export function 다음길(receipts, 있는손, 손들 = []) {
   // 둘 다 다음 턴에 다른 손으로 실제로 해냈다. 도구는 자기 한계만 알지 T5 를 모른다 —
   // 그래서 **경계를 여기서 친다.** 도구가 늘어도, 새 도구가 무슨 문장을 뱉든 이 경계는 그대로다:
   // 이번 턴에 막히지 않은 손이 하나라도 있으면, 사용자를 시키는 문장은 다음 길이 될 수 없다.
+  // **빈손으로 돌아온 걸음도 막힌 걸음이다**(F-107). 예전에는 `failureState` 만 봤다 —
+  // 그래서 오너 턴처럼 손이 전부 성공(none)하고 껍데기만 물고 온 자리에서는 이 아래가
+  // **아예 안 돌았다.** 손은 스스로 「알맹이가 없었다」고 말하고 있었는데 커널이 안 들었다.
   const 막힌손 = new Set(
-    receipts.filter((r) => r && (r.failureState ?? 'none') !== 'none')
+    receipts.filter((r) => r && ((r.failureState ?? 'none') !== 'none' || 빈손으로돌아왔나(r)))
       .map((r) => r.actualCall?.tool).filter(Boolean),
   );
   const 다른손있음 = (있는손 ?? []).some((id) => !막힌손.has(id));

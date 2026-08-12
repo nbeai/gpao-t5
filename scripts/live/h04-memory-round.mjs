@@ -120,6 +120,22 @@ export async function 방하나(credential, 손없이, 더쥘손 = []) {
       const ls = await importFrom('src/runtime/local-system.js');
       손구현['local.system'] = ls.makeLocalSystemTool({});
     }
+    if (더쥘손.includes('web.search')) {
+      const ws = await importFrom('src/runtime/web-search-tool.js');
+      손구현['web.search'] = ws.makeWebSearchTool({});
+    }
+    if (더쥘손.includes('web.collect')) {
+      const wc = await importFrom('src/runtime/web-collector.js');
+      손구현['web.collect'] = wc.makeWebCollector({});
+    }
+    if (더쥘손.includes('browser.observe')) {
+      const bt = await importFrom('src/runtime/browser-tool.js');
+      손구현['browser.observe'] = bt.makeBrowserObserveTool({});
+    }
+    if (더쥘손.includes('browser.act')) {
+      const bt2 = await importFrom('src/runtime/browser-tool.js');
+      손구현['browser.act'] = bt2.makeBrowserActTool({});
+    }
     if (더쥘손.includes('local.locate')) {
       const ll = await importFrom('src/runtime/local-locate.js');
       손구현['local.locate'] = ll.makeLocalLocateTool({ roots: [fileRoot], homeDir: home });
