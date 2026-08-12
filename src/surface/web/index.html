@@ -443,6 +443,45 @@
     background:transparent; color:var(--muted); cursor:pointer; white-space:nowrap; }
   #actbar button:hover { background:var(--hover); color:var(--fg-strong); }
   #actbar button.done { color:var(--ok); }
+
+  /* ── 조각 D · 손이 한 일이 남는다 (UX 기획 §2 D · 2026-08-12) ──────────────
+     §1 규약 그대로 맨 끝에 덧붙인다. 조각 A·B 블록은 안 건드렸다.
+
+     관통 원칙(기획 §6-1): **판단에 꼭 필요한 최소치만 1차 화면에.**
+     기본은 접힌 한 줄이고, 펼쳐야 한 줄씩 보인다. 잔소리를 늘리지 않는다. */
+
+  /* 기록 본문을 **한 덩이 글**에서 **한 걸음 한 줄**로. 앞의 표식이 상태를 말한다 —
+     실패한 손이 성공한 것과 같은 글자로 서 있으면 펼쳐도 구별이 안 된다. */
+  /* ⚠ 여기에 `display:` 를 쓰면 안 된다. 위의 `.record .body { display:none }` 보다
+     specificity 가 높아 **기록이 늘 펼쳐진 채로 선다** — 「기본은 접힌 한 줄」이 그 자리에서
+     깨진다. 첫 판에 `display:flex` 로 썼다가 **라이브에서 잡혔다**(검사는 코드만 읽어서
+     못 잡았다 — 계산된 스타일을 재야 보이는 종류다). 접고 펴는 것은 머리의 inline
+     `display` 가 한다. 줄 간격은 flex 의 gap 대신 이웃 여백으로 준다. */
+  .record .body.rows { white-space:normal; }
+  .rec-row + .rec-row { margin-top:var(--sp-1); }
+  .rec-row { display:flex; gap:var(--sp-2); align-items:baseline; }
+  .rec-row .m { flex:none; width:1.1em; text-align:center; font-size:.85em; line-height:1.5; }
+  .rec-row .t { flex:1 1 auto; min-width:0; }
+  .rec-row.ok .m { color:var(--ok); }
+  .rec-row.unk .m { color:var(--warn); }
+  .rec-row.est .m { color:var(--muted); }
+  /* 「미확인」·「추정」은 **말로도** 붙인다 — 색만으로 가르면 색을 못 보는 사람에게는
+     성공과 같은 줄이 된다(그건 숫자보다 나쁘다: 거짓을 짧게 말하는 것). */
+  .rec-row .tag { flex:none; font-size:var(--fs-xs); color:var(--muted);
+    border:1px solid var(--line); border-radius:var(--r-sm); padding:0 4px; }
+  .rec-row.unk .tag { color:var(--warn); border-color:var(--warn); }
+
+  /* 흐르는 중의 걸음들 — 답이 시작되면 **지우지 않고 접는다**(기획 §2 D).
+     지우면 "진행을 본 적이 없다"가 되고, 펼쳐 두면 같은 사실을 두 번 말하는 화면이 된다.
+     그래서 **접힌 한 줄**이 답이다. 접힌 이름은 숫자가 아니라 첫 사실을 말한다. */
+  .msg.steps.folded { border-left-color:var(--line-strong); }
+  .steps-head { display:inline-flex; align-items:center; gap:var(--sp-2); cursor:pointer;
+    color:var(--muted); transition:color var(--dur-fast) var(--ease-out); }
+  .steps-head:hover { color:var(--fg); }
+  .steps-head .tw { display:inline-block; transition:transform var(--dur-fast) var(--ease-out); }
+  .steps-head.open .tw { transform:rotate(90deg); }
+  .msg.steps.folded .steps-body { display:none; }
+  .msg.steps.folded .steps-body.open { display:flex; flex-direction:column; gap:var(--sp-1); margin-top:var(--sp-1); }
 </style>
 </head>
 <body>
@@ -1903,12 +1942,29 @@ function renderRecord(box, ledger) {
   const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
   head.appendChild(tw);
   head.appendChild(document.createTextNode(` ${기록라벨(ledger)}`)); // OS 가 만든 문장 — HTML 로 해석하지 않는다
+  // ── 조각 D ── 펼친 안쪽을 **한 걸음 한 줄**로 세운다.
+  //
+  // 전에는 셋을 `'; '` 로 이어 붙인 한 덩이 글이었다. 그러면 펼쳐도 **실패한 손이 성공한
+  // 것과 같은 글자로** 서 있다 — 「확인: A; B  미확인: C」 에서 C 가 못 한 일이라는 것이
+  // 눈에 안 들어온다(기획 §2 D 반대시험 둘째). 표식·꼬리표·색 셋을 같이 준다:
+  // 색만으로 가르면 색을 못 보는 사람에게는 여전히 같은 줄이다.
+  //
+  // 새 데이터도 새 문장도 안 만든다 — **있는 배열 셋을 있는 그대로 줄로 놓는 것뿐**이다.
   const body = el('body');
-  body.textContent = [
-    ledger.confirmed.length ? '확인: ' + ledger.confirmed.join('; ') : '',
-    ledger.unconfirmed.length ? '미확인: ' + ledger.unconfirmed.join('; ') : '',
-    ledger.estimated.length ? '추정: ' + ledger.estimated.join('; ') : '',
-  ].filter(Boolean).join('\n');
+  body.classList.add('rows');
+  const 줄놓기 = (목록, 조, 표식, 꼬리표) => {
+    for (const 말 of 목록 ?? []) {
+      const row = el(`rec-row ${조}`);
+      const m = el('m'); m.textContent = 표식;
+      const t = el('t'); t.textContent = String(말);   // OS 가 만든 문장 — HTML 로 해석하지 않는다
+      row.appendChild(m); row.appendChild(t);
+      if (꼬리표) { const g = el('tag'); g.textContent = 꼬리표; row.appendChild(g); }
+      body.appendChild(row);
+    }
+  };
+  줄놓기(ledger.confirmed, 'ok', '●', '');
+  줄놓기(ledger.unconfirmed, 'unk', '○', '미확인');
+  줄놓기(ledger.estimated, 'est', '◌', '추정');
   head.onclick = () => { const o = body.style.display === 'block'; body.style.display = o ? 'none' : 'block'; head.classList.toggle('open', !o); };
   rec.appendChild(head); rec.appendChild(body); box.appendChild(rec);
 }
@@ -2487,6 +2543,10 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
         start.measurementId, 'first_grounded_content', sample,
       ));
     };
+    // 조각 D: 걸음 말들을 들고 있는다 — 답이 시작될 때 **지우지 않고 접기** 위해서다(아래).
+    const 걸음말 = [];
+    let 걸음몸 = null;
+    let 걸음머리글 = null;   // 접힌 뒤에도 걸음이 더 오면 이름이 낡는다 — 그때 여기를 고친다
     es.addEventListener('partial_result', (e) => {
       try {
         const { text } = JSON.parse(e.data);
@@ -2494,15 +2554,53 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
         if (!steps) {
           steps = document.createElement('div');
           steps.className = 'msg steps';
+          걸음몸 = document.createElement('div');
+          걸음몸.className = 'steps-body open';   // 기다리는 동안은 그대로 보인다(자리를 채우는 것이 일이다)
+          steps.appendChild(걸음몸);
           trace.parentNode.insertBefore(steps, trace);
         }
+        걸음말.push(text);
         const line = document.createElement('div');
         line.textContent = text;          // OS 가 만든 문장 — 마크다운으로 해석하지 않는다
-        steps.appendChild(line);
+        걸음몸.appendChild(line);
+        걸음이름갱신();                    // 접힌 뒤에 온 걸음도 이름에 센다(안 하면 「외 N건」이 낡는다)
         markGrounded();                   // 확인된 사실이 화면에 닿은 순간이 첫 유용한 내용이다
         scrollToBottom();
       } catch {}
     });
+    /**
+     * ── 조각 D ── 답이 오기 시작하면 걸음들을 **접는다. 지우지 않는다.**
+     *
+     * 전에는 `steps.remove()` 였다. 사유도 적혀 있었다 — *"채울 공백이 없으므로 자리를 내준다.
+     * 남겨두면 같은 사실을 두 번 말하는 화면이 된다."* 앞 절반은 맞고 뒤 절반이 이 조각이
+     * 고치는 자리다: **펼친 채 남기면** 두 번 말하는 화면이 맞지만, **접힌 한 줄**은 아니다.
+     * 지웠기 때문에 팀원이 *"진행을 본 적이 없다"* 고 했다 — 정보가 없었던 게 아니라 사라졌다.
+     *
+     * 접힌 이름은 **숫자가 아니라 첫 사실**이다(기록라벨과 같은 규율 · 오너 결정 2026-08-03).
+     * "걸음 3개" 는 참이지만 사용자가 알고 싶은 것이 아니다.
+     */
+    const 걸음이름 = () => {
+      const 첫 = String(걸음말[0] ?? '').replace(/[.\s]+$/, '');
+      const 나머지 = 걸음말.length - 1;
+      return 나머지 > 0 ? `${첫} 외 ${나머지}건` : 첫;
+    };
+    const 걸음이름갱신 = () => { if (걸음머리글) 걸음머리글.textContent = ` ${걸음이름()}`; };
+    const 걸음접기 = () => {
+      if (!steps || steps.classList.contains('folded')) return;
+      const 머리 = document.createElement('div');
+      머리.className = 'steps-head';
+      const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
+      머리.appendChild(tw);
+      걸음머리글 = document.createTextNode(` ${걸음이름()}`);
+      머리.appendChild(걸음머리글);
+      머리.onclick = () => {
+        const 열림 = 걸음몸.classList.toggle('open');
+        머리.classList.toggle('open', 열림);
+      };
+      steps.insertBefore(머리, 걸음몸);
+      걸음몸.classList.remove('open');
+      steps.classList.add('folded');
+    };
     // **되돌린 답은 앞의 것을 지우고 다시 쓴다**(F-8). 이어붙이면 서로 어긋난 두 답이
     // 한 답으로 보인다 — 라이브에서 "터미널로 가져올게요" 뒤에 "직접 실행할 수는 없어요"가 붙었다.
     es.addEventListener('answer_reset', () => {
@@ -2517,7 +2615,8 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
           trace.textContent = '';
           // 확인된 중간 결과는 **기다림을 채우는 것**이다. 답이 오기 시작하면 채울 공백이
           // 없으므로 자리를 내준다 — 남겨두면 같은 사실을 두 번 말하는 화면이 된다.
-          steps?.remove(); steps = null;
+          // 조각 D: **자리는 내주되 지우지는 않는다** — 접힌 한 줄로 남긴다(위 `걸음접기`).
+          걸음접기();
           preview = document.createElement('div');
           // **최종 답과 같은 조**여야 한다(조각 A). `msg` 만 주면 마크다운 간격·말풍선이 안 붙어
           // 완료 순간 같은 글의 높이가 619.8px → 447.4px 로 튄다(실측 -27.8%). 읽던 줄이 달아난다.
