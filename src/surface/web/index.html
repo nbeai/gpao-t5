@@ -400,6 +400,21 @@
   .ae-why { margin-top:var(--sp-2); }
   .ae-why > summary { font-size:var(--fs-xs); color:var(--muted); cursor:pointer; }
   .ae-why > summary:hover { color:var(--fg); }
+
+  /* ── 조각 A · 스트리밍이 사람 속도로 흐른다 (2026-08-12) ───────────────────────
+     UX 기획 §1 의 동시 작업 조건: **새 스타일은 맨 끝에 조각 이름과 함께 덧붙이고
+     기존 줄은 고치지 않는다.** 위의 어떤 줄도 이 조각이 건드리지 않았다. */
+
+  /* 「맨 아래로」 — 스크롤 상자 안에 **높이 0** 으로 붙어 대화 높이를 안 바꾼다(따라가기 계산이
+     자기 꼬리를 물지 않게). 기본은 숨김 — 따라가기가 꺼졌을 때만 선다(죽은 버튼 금지). */
+  #tobottom-slot { position:sticky; bottom:0; height:0; display:none; }
+  #tobottom-slot.on { display:block; }
+  #tobottom { position:absolute; bottom:var(--sp-3); left:50%; transform:translateX(-50%);
+    font:inherit; font-size:var(--fs-sm); color:var(--fg); background:var(--bot);
+    border:1px solid var(--line-strong); border-radius:var(--r-full);
+    padding:var(--sp-1) var(--sp-3); box-shadow:var(--sh-lg); cursor:pointer; white-space:nowrap;
+    transition:background var(--dur-fast) var(--ease-out); }
+  #tobottom:hover { background:var(--hover); }
 </style>
 </head>
 <body>
@@ -1370,7 +1385,63 @@ function toast(text) {
 const logEl = document.getElementById('log');
 /** 이미 아래쪽을 보고 있을 때만 따라간다 — 위로 올려 읽는 중이면 낚아채지 않는다. */
 function nearBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120; }
-function scrollToBottom(force = false) { if (force || nearBottom()) logEl.scrollTop = logEl.scrollHeight; }
+
+// ── 조각 A · 따라가기는 **문턱이 아니라 사람의 뜻**으로 정한다 (UX 기획 §2 A · 2026-08-12) ──
+//
+// 격리 서버 실측이 문턱 120px 규칙을 양쪽으로 다 깼다.
+//   · 조각이 잘면(토큰 크기) 100px 올려 읽는 사람을 **여덟 번 중 일곱 번 도로 끌어내렸다**(최대 399px)
+//   · 조각이 굵으면(12줄) 한 조각에 문턱을 넘겨 **따라가기가 즉사**해 답 끝에서 2,406px 뒤에 남았다
+// 같은 한 줄이 정반대 두 증상을 만든 것은, 그 줄이 재는 것이 **거리**이지 **사람의 뜻**이 아니어서다.
+// 그래서 규칙을 바꾼다: **한 번 올리면 그 답이 끝날 때까지 안 끌어내린다.** 다시 켜지는 자리는
+// 셋뿐이다 — 새 발화 · 다른 대화 열기 · 사용자가 스스로 바닥까지 내려온 때.
+let 따라간다 = true;
+let 우리가옮긴자리 = null;   // 우리가 옮긴 것과 사용자가 올린 것을 가르는 유일한 표식
+let 예약된따라가기 = 0;
+
+/** 우리가 자리를 옮길 때는 **옮긴 값을 남긴다** — 안 남기면 우리 스크롤을 사용자 것으로 오해한다. */
+function 자리옮김(y) {
+  if (예약된따라가기) { cancelAnimationFrame(예약된따라가기); 예약된따라가기 = 0; }
+  logEl.scrollTop = Math.max(0, y);
+  우리가옮긴자리 = logEl.scrollTop;
+}
+
+logEl.addEventListener('scroll', () => {
+  if (우리가옮긴자리 != null && Math.abs(logEl.scrollTop - 우리가옮긴자리) < 2) return; // 우리가 옮긴 것
+  우리가옮긴자리 = null;
+  따라간다 = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 8; // 스스로 바닥에 닿으면 다시 따라간다
+  맨아래버튼갱신();
+}, { passive: true });
+
+/**
+ * **조각마다 재고 쓰지 않는다.** 조사가 낸 값: 조각당 3.82ms 중 마크다운 파싱은 0.024ms —
+ * 나머지는 그린 직후 `scrollHeight` 를 읽어 브라우저에게 레이아웃을 강제로 다시 시킨 값이다.
+ * 그래서 한 프레임에 **한 번만**, 그리고 **읽기를 다 한 뒤에 쓴다**.
+ */
+function scrollToBottom(force = false) {
+  if (force) { 따라간다 = true; 맨아래버튼갱신(); }
+  if (!따라간다 || 예약된따라가기) return;
+  예약된따라가기 = requestAnimationFrame(() => {
+    예약된따라가기 = 0;
+    if (!따라간다) return;
+    const 목표 = Math.max(0, logEl.scrollHeight - logEl.clientHeight); // 읽기
+    우리가옮긴자리 = 목표;
+    logEl.scrollTop = 목표;                                            // 쓰기
+  });
+}
+
+// 「맨 아래로」 — **따라가기가 꺼져 있을 때만** 있다. 이미 아래를 보고 있는 사람에게 누를 데를
+// 주면 그게 죽은 버튼이다(*"죽은 버튼 대신 텍스트"*). 스크롤 상자 안에 높이 0 으로 붙어 있어
+// 대화 높이(scrollHeight)를 바꾸지 않는다 — 바꾸면 따라가기 계산이 자기 꼬리를 문다.
+const 맨아래집 = document.createElement('div');
+맨아래집.id = 'tobottom-slot';
+const 맨아래 = document.createElement('button');
+맨아래.id = 'tobottom';
+맨아래.type = 'button';
+맨아래.textContent = '맨 아래로 ↓';
+맨아래.onclick = () => { 따라간다 = true; 자리옮김(logEl.scrollHeight); 맨아래버튼갱신(); };
+맨아래집.appendChild(맨아래);
+logEl.appendChild(맨아래집);
+function 맨아래버튼갱신() { 맨아래집.classList.toggle('on', !따라간다); }
 
 /**
  * 대화를 **통째로 갈아끼울 때** 보던 자리를 지킨다.
@@ -1387,8 +1458,12 @@ async function 자리지키며(그리기) {
   const 따라보고있었다 = nearBottom();
   const 보던자리 = logEl.scrollTop;
   const r = await 그리기();
-  if (따라보고있었다) logEl.scrollTop = logEl.scrollHeight;
-  else logEl.scrollTop = Math.min(보던자리, logEl.scrollHeight);
+  // 통째로 갈아끼웠으니 「따라가는 중인가」도 여기서 다시 세운다(조각 A). 안 세우면 갈아끼우기
+  // 전의 판정이 남아, 위로 올려 읽던 사람이 다음 조각에 도로 끌려 내려간다.
+  따라간다 = 따라보고있었다;
+  맨아래버튼갱신();
+  if (따라보고있었다) 자리옮김(logEl.scrollHeight);
+  else 자리옮김(Math.min(보던자리, logEl.scrollHeight));
   return r;
 }
 function add(node) { wrap.appendChild(node); scrollToBottom(); return node; }
@@ -2412,7 +2487,9 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
           // 없으므로 자리를 내준다 — 남겨두면 같은 사실을 두 번 말하는 화면이 된다.
           steps?.remove(); steps = null;
           preview = document.createElement('div');
-          preview.className = 'msg';
+          // **최종 답과 같은 조**여야 한다(조각 A). `msg` 만 주면 마크다운 간격·말풍선이 안 붙어
+          // 완료 순간 같은 글의 높이가 619.8px → 447.4px 로 튄다(실측 -27.8%). 읽던 줄이 달아난다.
+          preview.className = 'msg bot';
           trace.parentNode.insertBefore(preview, trace);
         }
         previewText += piece;
