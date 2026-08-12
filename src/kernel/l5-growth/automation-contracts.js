@@ -181,21 +181,30 @@ export function bindAutomationCandidate(candidate, skill, profile, options = {})
   //
   // 넓히는 것은 **읽기까지**다. 첫 수단의 kind 는 그대로 두고 `read` 만 더한다 —
   // `write`·`send` 로 가는 문은 안 연다(사용자가 없는 자리다).
-  // **넓히는 것은 「명시 예약」 프로필뿐이다**(F-110 · 실측으로 좁혔다).
+  // **봉투는 실행 시점과 같은 자로 걸러 담는다**(F-110 · 2026-08-13).
   //
-  // 처음엔 프로필의 폭을 그대로 담았는데 성장 프로필까지 걸려 tick 이 통째로 죽었다 —
-  // `agent-runner.js:217` 의 등가 검사가 `boundedChildToolAllowlist`(실재하는 손으로 좁힌
-  // 결과)와 봉투를 맞추는데, 봉투가 더 넓으면 던진다. 되던 것을 깨뜨렸다.
+  // 처음엔 프로필의 폭을 그대로 담았다가 성장 자동화 tick 셋을 죽였다. 이유는 하나다 —
+  // 실행 진입(`agent-runner.js:217`)이 `boundedChildToolAllowlist` 로 **그 순간 실재하는
+  // 손**만 남긴 뒤 봉투와 **같은지** 본다. 봉투가 더 넓으면 던진다.
   //
-  // `직접예약담당` 은 `[tool, ...관측손]` 으로 만들므로 **첫 자리가 그 일을 맡은 손**이다.
-  // 그 모양일 때만 곁손을 인정한다 — 성장 프로필은 자기 폭을 스스로 정한다.
+  // 그래서 「명시 예약이면 넓힌다」 같은 짐작으로 가르지 않고, **같은 함수로 미리 거른다.**
+  // 두 벌을 만들지 않는다 — 거르는 규칙이 두 곳에 있으면 언젠가 갈린다(이 저장소가
+  // F-91·F-93·F-95 로 데인 자리다).
+  //
+  // `selfState` 를 안 주면 넓히지 않는다. **모르면 안 넓히는 쪽**이 옳다 —
+  // 사용자가 없는 시각에 도는 봉투다.
   const 프로필손 = profile.toolAllowlist ?? [];
-  const 명시예약프로필 = 프로필손[0] === tool && 프로필손.length > 1;
-  const 곁손들 = 명시예약프로필 ? 프로필손.slice(1) : [];
+  const 걸러진 = options.selfState
+    ? childToolAllowlist(프로필손, 프로필손, options.selfState)
+    : [tool];
+  const 곁손들 = 걸러진.filter((t) => t !== tool);
   const authorityEnvelope = {
     ceiling: tier,
-    allowedKinds: [kind],
-    allowedTools: [tool],
+    // 손만 넓히고 kind 를 안 넓히면 넓힌 손은 장식이다 — 「목록 본 뒤 그 파일을 읽기」조차
+    // `agent_tool_kind_outside_scope` 로 막힌다(손 관리자 2026-08-13).
+    // 넓히는 것은 **읽기까지**다. `write`·`send` 로 가는 문은 안 연다.
+    allowedKinds: [...new Set(곁손들.length ? [kind, 'read'] : [kind])],
+    allowedTools: [tool, ...곁손들],
     allowedTargets: 행동대상(args),
     workspaceRoots: [...(profile.workspaceScope ?? [])],
     expiresAt,

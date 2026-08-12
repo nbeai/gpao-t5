@@ -1068,6 +1068,8 @@ export function makeServer(deps = {}) {
         const bound = bindAutomationCandidate(cand, skill, profile, {
           trigger, expiresAt: input.expiresAt, maxRuns: input.maxRuns,
           deliveryIntent: cand.deliveryIntent,
+          // **봉투를 실행 시점과 같은 자로 거르게 한다**(F-110). 안 넘기면 안 넓힌다.
+          selfState: buildSelfState(env, { tools }),
         });
         if (!bound.ok) {
           outcome = { ok: false, reason: bound.reason, errors: bound.errors }; return state;

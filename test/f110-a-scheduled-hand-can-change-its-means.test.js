@@ -79,12 +79,15 @@ test('F110 ②: **조작하는 손은 안 준다** — 사용자가 없는 자�
 //
 // 손 관리자 지적 그대로: 손을 여럿 줘도 `allowedKinds:[kind]` 가 남아 있으면
 // 「목록 본 뒤 그 파일을 읽기」조차 `agent_tool_kind_outside_scope` 로 막힌다.
-// **③ 은 아직 안 닫혔다**(2026-08-13). 봉투를 넓혔더니 `agent-runner.js:217` 의 등가 검사가
-// `boundedChildToolAllowlist`(실재하는 손으로 좁힌 결과)와 안 맞아 **tick 이 통째로 죽었다** —
-// 성장 자동화 검사 셋이 빨개졌다. 되던 것을 깨뜨렸으므로 되돌렸다.
-// 남은 길: 봉투를 넓히는 대신 **등가 검사 쪽이 「좁혀진 결과」를 인정**하게 하거나,
-// 봉투를 selfState 로 한 번 걸러서 담는다. 어느 쪽이든 `agent-run.js` 를 함께 봐야 한다.
-test.skip('F110 ③: 봉투가 **읽기 종류를 허락한다** — 손만 넓히고 kind 를 안 넓히면 장식이다', () => {
+// **③ 은 한 번 되돌렸다가 다시 닫았다**(2026-08-13).
+//
+// 처음엔 프로필의 폭을 그대로 봉투에 담았다가 **tick 이 통째로 죽었다** — `agent-runner.js:217`
+// 이 `boundedChildToolAllowlist`(그 순간 실재하는 손으로 좁힌 결과)와 봉투를 **같은지** 보는데
+// 봉투가 더 넓으면 던진다. 성장 자동화 검사 셋이 빨개졌고, 되던 것을 깼으므로 되돌렸다.
+//
+// 두 번째 길이 옳았다 — **같은 함수로 미리 거른다.** 「명시 예약이면 넓힌다」 같은 짐작으로
+// 가르지 않는다(그 짐작도 한 번 틀렸다). 거르는 규칙이 두 곳에 있으면 언젠가 갈린다.
+test('F110 ③: 봉투가 **읽기 종류를 허락한다** — 손만 넓히고 kind 를 안 넓히면 장식이다', () => {
   const 결과 = bindAutomationCandidate(
     {
       // **실제 후보 모양 그대로** — 오너 자리 automation.json 에 저장된 것과 같은 꼴이다.
@@ -99,6 +102,12 @@ test.skip('F110 ③: 봉투가 **읽기 종류를 허락한다** — 손만 넓�
     {
       now: 1_786_000_000_000,
       expiresAt: 1_789_000_000_000,
+      // **실행 시점과 같은 자로 거르게 한다** — 서버가 `selfState` 를 넘긴다(server.js).
+      // 안 넘기면 안 넓힌다(모르면 안 넓히는 쪽이 옳다 · 사용자가 없는 시각의 봉투다).
+      selfState: {
+        connectedTools: [{ id: 'local.file', toolKind: 'read' },
+          ...관측손.map((id) => ({ id, toolKind: 'read' }))],
+      },
       // trigger 는 **options** 로 온다(automation-contracts.js:154) — candidate 가 아니다.
       trigger: {
         kind: 'daily', timezone: 'Asia/Seoul', misfirePolicy: 'catch_up_once',
