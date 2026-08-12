@@ -319,32 +319,43 @@ test('서버: 취소한 자동화는 tick에서 실행되지 않는다', async (
   });
 });
 
-// 산출물 검증(원칙 1): 모델의 구조 제안이 /turn→후보 저장으로 관통하는지.
-test('서버: structured model proposal → 제안 카드 + 후보 저장(실경로)', async () => {
+// 산출물 검증(원칙 1): 모델의 구조 제안이 /turn→원장 저장으로 관통하는지.
+//
+// **2026-08-12 계약 이동**(`design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번). 옛 판은 여기서
+// *"후보로 저장됨(자동 승인 아님)"* 을 쟀다. 사용자가 **스스로 시점을 말한** 요청("매주 …")은
+// 이제 명시 예약 레인이고 그 자리에서 켜진다 — 자동성 헌장(`kernel/l2-plan/authority.js`):
+// *"automate → 자동. 문지기는 사후 교정 표면(오너: 사전 게이트 금지)"*, 그리고 오너 지시
+// (2026-08-12) *"불필요한 승인카드는 모두 없애야해."* 오픈클로도 같은 경계다
+// (`docs/concepts/commitments.md:98-100`: 명시 요청은 스케줄러 레인, 추론만 후보 레인).
+// 재는 것은 그대로다 — **모델 구조 제안이 실경로로 원장까지 관통하는가.**
+test('서버: structured model proposal → 제안 카드 + 원장 저장(실경로)', async () => {
   await withServer(async (base) => {
     const s = await postj(base, '/sessions');
     const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp 파일 목록 정리해줘' });
     assert.ok(r.automationProposal, '구조 제안 → 제안 카드');
     assert.ok(r.automationProposal.candidateId, 'UI 승인용 candidateId');
     const view = await getj(base, '/automation');
-    assert.equal(view.candidates.length, 1, '후보로 저장됨(자동 승인 아님)');
-    // 같은 발화 재입력 → 중복 제안 안 함
+    assert.equal(view.jobs.length, 1, '명시 예약은 그 자리에서 켜진다');
+    assert.equal(view.candidates.length, 0, '켜진 것은 후보 목록에 남지 않는다');
+    // 같은 발화 재입력 → 중복 등록 안 함(이미 켜져 있으면 그 예약이 답이다).
+    // 같은 controlRef 로 다시 오면 `alreadyScheduled` 로 그 예약을 돌려준다 —
+    // 두 번 말했다고 예약이 둘 서지 않는다(a1-commit-hand 가 그 자리를 정면으로 문다).
     const r2 = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp 파일 목록 정리해줘' });
-    assert.equal(r2.automationProposal, null, '이미 제안한 것은 다시 제안하지 않는다');
-    assert.equal((await getj(base, '/automation')).candidates.length, 1);
+    assert.equal(r2.automationProposal?.candidateId, undefined, '새 후보 카드를 또 세우지 않는다');
+    assert.equal((await getj(base, '/automation')).jobs.length, 1, '예약은 여전히 하나');
   }, { model: structuredAutomationModel('/tmp/t5-automation-list.txt') });
 });
 
-// 전체 경로 회귀(감사 보정): /sessions → /turn structured proposal → approve → tick → runs 1.
-test('서버: 전체 경로 /turn structured proposal → approve → tick → 원장 runs 1', async () => {
+// 전체 경로 회귀(감사 보정): /sessions → /turn structured proposal → tick → runs 1.
+// 위와 같은 계약 이동 — 중간의 `/automation/approve` 손짓이 명시 예약에서 사라졌다.
+// `/automation/approve` 라우트 자체는 아래 `canonicalApproval` 검사들이 그대로 무다.
+test('서버: 전체 경로 /turn structured proposal → tick → 원장 runs 1', async () => {
   await withServer(async (base, autoStore, server, runLedger) => {
     const s = await postj(base, '/sessions');
     const r = await postj(base, '/turn', { sessionId: s.id, text: '매주 /tmp/t5-automation-fixture.txt 읽어서 정리해줘' });
-    const candidateId = r.automationProposal.candidateId;
-    const stored = (await getj(base, '/automation')).candidates[0];
-    assert.equal(stored.action?.args?.action, 'read');
-    const appr = await postj(base, '/automation/approve', canonicalApproval(candidateId));
-    assert.equal(appr.ok, true, JSON.stringify(appr));
+    assert.ok(r.automationProposal?.jobRef, `명시 예약이 안 켜졌다: ${JSON.stringify(r.automationProposal)}`);
+    const stored = (await getj(base, '/automation')).jobs[0];
+    assert.equal(stored.authorityEnvelope?.allowedTools?.[0], 'local.file');
     const ticked = await tickj(base);
     assert.equal(ticked.ran.length, 1);
     assert.equal(ticked.ran[0].status, 'succeeded', JSON.stringify(await runLedger.load()));

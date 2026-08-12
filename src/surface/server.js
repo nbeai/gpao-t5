@@ -95,8 +95,11 @@ import { makeDelivery, applyDeliveryResult, isRetriable } from '../kernel/l5-gro
 import { isSendTool } from '../kernel/contracts.js';
 import { detectSkillCandidate } from '../kernel/l5-growth/skill-learning.js';
 import { admitTickTrigger, 자동화후보저장가능 } from '../kernel/l5-growth/automation.js';
-import { bindAutomationCandidate, transitionState } from '../kernel/l5-growth/automation-contracts.js';
-import { nextTriggerOccurrence } from '../kernel/l5-growth/trigger-spec.js';
+import {
+  bindAutomationCandidate, transitionState,
+  명시된시점인가, 직접예약재료, 자동화안도는조건, 재사용가능한스킬인가,
+} from '../kernel/l5-growth/automation-contracts.js';
+import { MAX_CATCH_UP_OCCURRENCES, nextTriggerOccurrence } from '../kernel/l5-growth/trigger-spec.js';
 import { CanonicalAutomationRuntime } from '../runtime/canonical-automation-runtime.js';
 import { liveDeps } from './live-context.js';
 import { WorkEventStore } from './work-event-store.js';
@@ -177,6 +180,14 @@ async function readBody(req) {
 function sendJson(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
+}
+
+/**
+ * **틱 주기는 한 자리에서 나온다.** 사용자에게 「안 도는 조건」으로 나가는 값과 실제로 도는
+ * 값이 갈리면, 그 고지는 사실이 아니라 장식이다(두 진실 금지).
+ */
+export function 틱주기(processEnv = process.env) {
+  return Number(processEnv.GPAO_T5_TICK_MS ?? 60_000);
 }
 
 /**
@@ -660,7 +671,55 @@ export function makeServer(deps = {}) {
     return null;
   }
 
-  async function 자동화후보입장(proposal, session) {
+  /**
+   * **명시 예약의 실행 재료를 세운다**(닫는문서 §4 넓힘 1번 · 2026-08-12).
+   *
+   * 후보는 이미 `action:{tool,args}` 와 `trigger` 를 갖고 있다 — 재료가 이미 있는데
+   * 실행 계약이 **남의 스킬**에서 왔다(`server.js` 옛 :1039-1042 의 `?? 첫 활성 스킬`).
+   * 여기서 후보 자기 것으로 1회용 지시문과 실행 역할을 세워 그 자리를 없앤다.
+   *
+   * 프로필은 **제품에 이미 있던 길**(`AgentProfileStore.propose`→`activate`)을 지난다 —
+   * 호출자가 0이던 그 길이다(지도 이음매 ⑧). 새 저장소·새 게이트를 만들지 않는다.
+   */
+  async function 직접예약재료보장(cand) {
+    const 재료 = 직접예약재료(cand, {
+      workspaceRoots: defaultFileRoots(deps.processEnv ?? process.env),
+      now: automationNow(),
+    });
+    if (!재료.ok) return 재료;
+    const { skill, profile } = 재료;
+    await skillStore.update((state) => ({
+      ...state,
+      skills: [...(state.skills ?? []).filter((entry) => entry.id !== skill.id), skill],
+    }));
+    const 있는것 = (await profileStore.load()).profiles.find((entry) => entry.id === profile.id);
+    if (!있는것) {
+      // 같은 순간 다른 턴이 세웠으면 propose 가 던진다 — 아래에서 다시 읽어 확인한다.
+      await profileStore.propose(profile, automationNow()).catch(() => {});
+    }
+    const 세운것 = (await profileStore.load()).profiles.find((entry) => entry.id === profile.id);
+    if (!세운것) return { ok: false, reason: 'direct_profile_unavailable' };
+    if (세운것.state !== 'active') {
+      if (!['proposed', 'paused'].includes(세운것.state)) {
+        return { ok: false, reason: 'direct_profile_not_activatable' };
+      }
+      await profileStore.activate(세운것.id, automationNow()).catch(() => {});
+      const 켠것 = (await profileStore.load()).profiles.find((entry) => entry.id === profile.id);
+      if (켠것?.state !== 'active') return { ok: false, reason: 'direct_profile_unavailable' };
+    }
+    return { ok: true, skillId: skill.id, agentProfileId: profile.id };
+  }
+
+  /** 선 job 하나에서 **안 도는 조건**을 기계로 뽑는다(값은 전부 그 레코드·런타임 사실에서). */
+  function 안도는조건(job, candidateExpiresAt = null) {
+    return 자동화안도는조건(job, {
+      catchUpLimit: MAX_CATCH_UP_OCCURRENCES,
+      tickIntervalMs: 틱주기(deps.processEnv ?? process.env),
+      candidateExpiresAt,
+    });
+  }
+
+  async function 자동화후보입장(proposal, session, 사용자말 = '') {
     await automationReady();
     if (!automationEntryVisible(proposal)) return {
       proposal: { rejected: true, reason: 'sensitive_input' },
@@ -680,6 +739,7 @@ export function makeServer(deps = {}) {
     };
     let stored;
     let duplicateStored = false;
+    let alreadyScheduled = false;
     await autoStore.update((state) => {
       const now = automationNow();
       const operation = proposal.operation;
@@ -737,6 +797,10 @@ export function makeServer(deps = {}) {
         state: 'proposed',
         approved: false,
         superseded: false,
+        // **어느 레인인가**(닫는문서 §4 넓힘 1번). 모델이 `automation.propose` 를 부른 것이
+        // 첫 조건이고, 사용자가 스스로 시점을 말한 것이 두 번째다 — 둘 다 참일 때만 명시다.
+        // 오픈클로 경계(commitments.md:98-100): 명시 요청은 스케줄러 레인, 추론만 후보 레인.
+        lane: 명시된시점인가(사용자말) ? 'direct' : 'inferred',
         expiresAt: now + (24 * 60 * 60 * 1000),
         createdAt: now,
       };
@@ -745,6 +809,16 @@ export function makeServer(deps = {}) {
         entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
         && entry.current !== false && entry.approved !== true && entry.superseded !== true);
       if (duplicate) { stored = duplicate; duplicateStored = true; return state; }
+      // **이미 켜져 있으면 또 세우지 않는다.** 명시 예약이 즉시 켜지게 되면서 생긴 자리다 —
+      // 같은 문장을 두 번 말하면 확정된 후보가 목록에서 빠지므로 위 중복 검사가 못 잡고
+      // **예약이 둘** 선다(a1 실측: 후보 2 · job 2). 오픈클로도 같은 것을 `declarationKey`
+      // 로 막는다. 살아 있는 job 이 붙은 같은 controlRef 는 그 예약 자체가 답이다.
+      const 이미선것 = (state.candidates ?? []).find((entry) =>
+        entry.principalRef === session.principalRef && entry.controlRef === draft.controlRef
+        && entry.approved === true && typeof entry.jobRef === 'string'
+        && (state.jobs ?? []).some((job) => job.id === entry.jobRef
+          && !['cancelled', 'expired'].includes(job.state)));
+      if (이미선것) { stored = 이미선것; alreadyScheduled = true; return state; }
       const candidates = (state.candidates ?? []).map((entry) => (
         operation === 'update' && entry.principalRef === session.principalRef
           && entry.operation === 'update' && entry.targetJobRef === targetJob.id
@@ -759,13 +833,78 @@ export function makeServer(deps = {}) {
       proposal: { rejected: true, reason: 'automation_reality_unknown' },
       reality: await automationRealityFor(session.principalRef),
     };
+    // 같은 예약이 이미 켜져 있으면 **그 예약 자체**가 답이다 — 카드를 또 세우지 않는다.
+    if (alreadyScheduled) {
+      const 선것 = (await autoStore.load()).jobs.find((job) => job.id === stored.jobRef);
+      return {
+        proposal: 선것 ? {
+          alreadyScheduled: true, jobRef: 선것.id, state: 선것.state,
+          nextRunAt: 선것.nextRunAt, statement: stored.statement,
+          notRunning: 안도는조건(선것),
+        } : null,
+        reality: await automationRealityFor(session.principalRef),
+      };
+    }
     const admitted = duplicateStored ? null : stored.rejected ? stored : {
       candidateId: stored.candidateId, candidateRef: stored.candidateId,
       revision: stored.revision, controlRef: stored.controlRef,
       operation: stored.operation, statement: stored.statement, state: 'proposed',
       ...(stored.targetJobRef ? { targetJobRef: stored.targetJobRef } : {}),
     };
+    // ── **명시 예약은 그 자리에서 켜진다**(닫는문서 §4 넓힘 1번 · 2026-08-12) ─────────
+    //
+    // 헌장이 이미 답을 적어 뒀다(`kernel/l2-plan/authority.js`): `automate` → **자동**.
+    // 문지기는 사후 교정 표면이고, 오너는 사전 게이트를 금지했다. 예약 등록은 가역이고
+    // (pause·cancel) 비밀값·불가역 파괴·새 상대 첫 전송·돈 어디에도 없다 — 헌장 넷 밖은
+    // 자동이어야 한다. 그러므로 **명시 예약을 켜는 데 승인 카드를 요구하지 않는다.**
+    //
+    // 실행 시점의 경계는 한 글자도 안 건드렸다: 자동화가 부르는 손은 그대로 헌장 판정을
+    // 탄다(`automation-engine.js` 가 `toolActionKind` 를 부르는 그 자리).
+    if (admitted && !admitted.rejected && stored.lane === 'direct') {
+      const 켬 = await 직접예약켜기(stored);
+      if (켬.ok) {
+        admitted.state = 켬.state;
+        admitted.jobRef = 켬.jobRef;
+        admitted.nextRunAt = 켬.nextRunAt;
+        admitted.settlement = 켬.settlement;
+        // ── **안 도는 조건을 함께 낸다**(반대시험 ④) ────────────────────────────
+        // 도는 것만으로는 절반이다. T5 는 상시 켜져 있는 서버가 아니라 사용자가 여는 앱이고,
+        // 꺼져 있으면 안 돈다 — 그 사실을 안 말하면 「켜 뒀어요」는 거짓이다.
+        admitted.notRunning = 켬.notRunning;
+      } else {
+        admitted.commitRejected = { reason: 켬.reason };
+        admitted.notRunning = 안도는조건(null, stored.expiresAt);
+      }
+    }
     return { proposal: admitted, reality: await automationRealityFor(session.principalRef) };
+  }
+
+  /** 명시 예약 하나를 실제 job 으로 세운다. 확정 자체는 **표면 클릭이 쓰는 그 함수**를 쓴다. */
+  async function 직접예약켜기(cand) {
+    const 재료 = await 직접예약재료보장(cand);
+    if (!재료.ok) return 재료;
+    // 권한창은 표면·대화와 같은 값이다(두 진실 금지 · 30일·30회).
+    const 결과 = await 자동화확정({
+      candidateId: cand.candidateId,
+      candidateRevision: cand.revision,
+      controlRef: cand.controlRef,
+      ...(cand.operation === 'update' ? {}
+        : { expiresAt: automationNow() + 30 * 24 * 3600 * 1000, maxRuns: 30 }),
+      skillId: 재료.skillId,
+      agentProfileId: 재료.agentProfileId,
+    });
+    if (결과.status !== 200) {
+      return { ok: false, reason: 결과.body?.reason ?? 'commit_rejected' };
+    }
+    // **선 것만 사실이다** — 원장을 다시 읽어 확인한 값으로 답한다.
+    const 선것 = (await autoStore.load()).jobs.find((job) => job.id === 결과.body.jobId);
+    if (!선것 || 선것.state !== 결과.body.state) {
+      return { ok: false, reason: 'commit_readback_mismatch' };
+    }
+    return {
+      ok: true, jobRef: 선것.id, state: 선것.state, nextRunAt: 선것.nextRunAt,
+      settlement: 결과.body.settlement, notRunning: 안도는조건(선것),
+    };
   }
 
   /**
@@ -1031,15 +1170,33 @@ export function makeServer(deps = {}) {
       // 사용자가 화면에서 켤 때와 대화로 켤 때가 **같은 창**을 받게 맞춘다. 30일·30회.
       const 기본권한창 = cand.operation === 'update' ? {}
         : { expiresAt: automationNow() + 30 * 24 * 3600 * 1000, maxRuns: 30 };
+      // ── **아무 스킬에나 묶지 않는다**(반대시험 ③ · 2026-08-12) ──────────────────
+      //
+      // 옛 판은 후보가 스킬을 안 가리키면 **활성 스킬 배열의 첫 항목**을 집었다. 후보 레코드에
+      // `skillRef` 칸이 아예 없으니(17칸 전수 확인) 그 폴백이 **늘** 이겼다. 재현된 사고:
+      // 사용자 *"새 PDF 개수"* → 확정된 job 의 skillRef = `skill-invoice`(월말 청구서 정리) ·
+      // 실행 지시문 = 그 스킬의 purpose+steps · 사용자에겐 *"켜 뒀어요"*.
+      // `bindAutomationCandidate` 는 **도구 일치만** 본다 — 목적은 안 본다.
+      //
+      // 이제: 명시 예약은 자기 지시문을 세우고, 그 밖에 스킬을 안 가리키는 후보는 **거절**한다.
+      // 목적이 다른 일을 매일 자동으로 도는 것보다 안 켜지는 것이 낫다(fail-closed).
+      const 결합 = cand.skillRef?.id && cand.agentProfileId
+        ? { ok: true, skillId: cand.skillRef.id, agentProfileId: cand.agentProfileId }
+        : cand.lane === 'direct' ? await 직접예약재료보장(cand)
+          : { ok: false, reason: 'skill_binding_required' };
+      if (!결합.ok) {
+        return {
+          control: { rejected: true, reason: 결합.reason },
+          reality: await automationRealityFor(session.principalRef),
+        };
+      }
       const 결과 = await 자동화확정({
         candidateId: cand.candidateId,
         candidateRevision: control.targetCandidateRevision,
         controlRef: cand.controlRef,
         ...기본권한창,
-        skillId: cand.skillRef?.id ?? (await skillStore.load()).skills
-          .find((entry) => entry.state === 'active')?.id,
-        agentProfileId: cand.agentProfileId ?? (await profileStore.load()).profiles
-          .find((entry) => entry.state === 'active')?.id,
+        skillId: 결합.skillId,
+        agentProfileId: 결합.agentProfileId,
       });
       if (결과.status !== 200) {
         return {
@@ -1877,7 +2034,7 @@ export function makeServer(deps = {}) {
     }
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
-    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
+    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session, input.text ?? '');
     ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
     ctx.observeAutomation = (observation) => 자동화관찰(observation, session);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state'];
@@ -1899,7 +2056,8 @@ export function makeServer(deps = {}) {
     ctx.channelTargets = await channelTargetsFor(); // P6-7 후반: 보낼 수 있는 곳(허용된 대화)의 사실 공급
     // Phase 0-4: 승격된 스킬을 턴에 넘긴다. 커널이 canInfluence 로 다시 거르므로 전부 넘겨도
     // 미승인 스킬은 영향 0 이다(게이트는 커널에 하나만 둔다 — 여기서 미리 거르면 이중 진실).
-    ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
+    ctx.skills = ((await skillStore.load()).skills ?? [])
+      .filter((skill) => skill.state === 'active' && 재사용가능한스킬인가(skill));
     if (emit) ctx.emit = emit; // P6-12: 진행 상태 스트리밍(사용자 언어, 모델 사고 원문 아님)
     // P-STR-1: 답변 조각. **durable 에 남기지 않는다** — 토큰마다 EventLog append 는 §6.21 후속의
     // "EventLog 무한 성장"을 우리가 직접 만드는 셈이다. 진실은 지속된 완성 결과 하나, 조각은 미리보기.
@@ -2744,7 +2902,9 @@ export function makeServer(deps = {}) {
             deliveryIntent: candidate.deliveryIntent,
             expiresAt: candidate.expiresAt,
           },
+          // 명시 예약의 **1회용 지시문**은 스킬 후보가 아니다 — 재사용 스킬만 고를 수 있다.
           skills: skills.skills.filter((entry) => entry.state === 'active'
+            && 재사용가능한스킬인가(entry)
             && (entry.requiredCapabilities ?? []).includes(tool)).map((entry) => ({ id: entry.id, label: entry.name })),
           profiles: profiles.profiles.filter((entry) => entry.state === 'active'
             && (entry.toolAllowlist ?? []).includes(tool)).map((entry) => ({ id: entry.id, label: entry.name })),
@@ -3743,11 +3903,12 @@ export function makeServer(deps = {}) {
     }
     await automationReady();
     ctx.automationReality = await automationRealityFor(session.principalRef);
-    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session);
+    ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session, input.text ?? '');
     ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
     ctx.observeAutomation = (observation) => 자동화관찰(observation, session);
     ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state'];
-    ctx.skills = ((await skillStore.load()).skills ?? []).filter((skill) => skill.state === 'active');
+    ctx.skills = ((await skillStore.load()).skills ?? [])
+      .filter((skill) => skill.state === 'active' && 재사용가능한스킬인가(skill));
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
     // 목록 없이 지목만 시키면 모델은 지어내고, 지어낸 것은 대조에서 전부 떨어진다.
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
@@ -4039,7 +4200,7 @@ async function startLiveServerInner(opts, bootStore) {
     .catch(() => {});
   if (opts.startScheduler !== false) {
     // in-process 반복 스케줄러(§8.3). trusted_runtime_event로만 tick을 돈다. cron/daemon 아님(unref).
-    const tickMs = Number(processEnv.GPAO_T5_TICK_MS ?? 60_000);
+    const tickMs = 틱주기(processEnv);
     const timer = setInterval(() => {
       server.runtimeTick().catch((error) => console.error('[runtime:tick]', error?.message ?? error));
     }, tickMs);

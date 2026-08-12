@@ -374,16 +374,26 @@ test('L5 정상 변형: 원천 사실이 바뀌면 read Receipt에서 조립한 
   assert.doesNotMatch(sibling.text, /지방세 완납증명서 없음/u);
 });
 
-test('L6 원본 형제: 후보 3·승인/job/run 0은 활성 자동화 목적 결과가 아니다', async () => {
+// **동결 관측을 손으로 옮긴다**(2026-08-12 · `design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번).
+// `preflight.mjs` 의 기준지문과 같은 규율이다: *"제품 코드가 정당하게 바뀌면 이 값을 손으로
+// 옮기고 왜 바뀌었는지 함께 적는다 — 스스로 갱신되는 기준선은 기준선이 아니다."*
+//
+// 옛 동결값 `[후보 3, 승인 0, job 0, run 0]` 은 **명시 요청이 추론 레인에 갇혀 있던** 원본
+// 결함의 사진이었다. 자동성 헌장(`kernel/l2-plan/authority.js`: *"automate → 자동"*)과
+// 오너 지시(2026-08-12 *"불필요한 승인카드는 모두 없애야해"*)대로 명시 예약이 그 자리에서
+// 켜지므로, 같은 발화 셋은 이제 `[3, 3, 3, 0]` 을 낸다.
+// **안 움직인 축이 이 검사의 알맹이다**: run 0 — 등록은 실행이 아니다.
+test('L6 원본이 닫혔다: 같은 발화 셋이 job 3 으로 서고 예정 시각 전 실행은 0', async () => {
   const observed = await l6Case();
-  const honest = await l6Case('후보만 있고 아직 켜지지 않았어요. 다음 실행은 정해지지 않았어요.');
-  process.stdout.write(`${JSON.stringify({ probe: 'L6-red', observed })}\n`);
-  assert.deepEqual([observed.candidates, observed.approved, observed.jobs, observed.runs], [3, 0, 0, 0]);
-  assert.equal(observed.surfaceReply, L6_FALSE_SURFACE_CLAIM, '동결된 거짓 surface fixture 신분');
-  assert.equal(observed.falseSurfaceClaim, true);
-  assert.deepEqual([honest.candidates, honest.approved, honest.jobs, honest.runs], [3, 0, 0, 0]);
-  assert.equal(honest.falseSurfaceClaim, false, '정직한 불확실 답은 같은 store0에서 거짓 surface 사건이 아니다');
-  assert.equal(observed.purposeMet, CLOSE ? true : false);
+  const 옛정직문 = await l6Case('후보만 있고 아직 켜지지 않았어요. 다음 실행은 정해지지 않았어요.');
+  process.stdout.write(`${JSON.stringify({ probe: 'L6-closed', observed })}\n`);
+  assert.deepEqual([observed.candidates, observed.approved, observed.jobs, observed.runs], [3, 3, 3, 0]);
+  assert.equal(observed.surfaceReply, L6_FALSE_SURFACE_CLAIM, '동결된 surface fixture 신분');
+  assert.equal(observed.purposeMet, true, '명시 예약이 실제로 켜져 있어야 한다');
+  // 옛 "정직한" 문장은 이제 **원장과 어긋난다** — 기준은 문장이 아니라 원장이다.
+  assert.deepEqual([옛정직문.candidates, 옛정직문.approved, 옛정직문.jobs, 옛정직문.runs], [3, 3, 3, 0]);
+  assert.equal(옛정직문.purposeMet, true,
+    '원장이 움직였는데 옛 문장을 그대로 두면 그것이 새 거짓말이다');
 });
 
 test('L6 정상 반대조건: 실제 setup·approve 경로가 예약 job을 만들고 기존 job과 실행 원장을 보존한다', async () => {

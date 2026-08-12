@@ -185,6 +185,164 @@ export function bindAutomationCandidate(candidate, skill, profile, options = {})
   };
 }
 
+// ── **명시 예약 레인**(닫는문서 §4 넓힘 1번 · 2026-08-12) ─────────────────────────
+//
+// 오픈북이 경계를 못박아 뒀다 — 오픈클로 `docs/concepts/commitments.md:98-100`:
+//   *"Exact user requests already belong to the scheduler path. Commitments are only for
+//    inferred follow-ups: the moments where the user did not ask for a reminder, but the
+//    conversation clearly created a useful future check-in."*
+// 그리고 비교군 둘 다 **만들면 즉시 켜진다**가 예외 없는 기본값이다
+// (오픈클로 `dist/jobs-B5P8XABM.js:835` · 헤르메스 `cron/jobs.py:1414-1415`).
+//
+// T5 는 그 경계를 **사용자 자기 말**에서 잰다. 모델이 무엇을 적었는지가 아니라 —
+// 모델이 `automation.propose` 를 부른 것은 이미 첫 번째 조건이고, 여기가 두 번째다.
+// 두 조건이 함께 참일 때만 명시 레인이다(그물이 넓어지지 않게 하는 것이 이 함수의 일이다).
+//
+// **스킬 경로를 버리지 않는다** — 검증된 재현 절차라는 T5 고유 설계는 그대로 옆에 둔다.
+// 가르는 것은 「어느 레인인가」이지 「스킬을 없애는 것」이 아니다.
+const 반복표현 = /매일|매주|매달|매월|매년|매 ?시간|날마다|주마다|달마다|평일마다|주말마다|격주|격일|정기적|주기적|(?:하루|이틀|일주일|한 ?달)에 ?한 ?번/;
+const 시각표현 = /\d{1,2}\s*시(?!간)|\d{1,2}\s*:\s*\d{2}|오전|오후|아침|저녁|새벽|정오|자정/;
+const 날짜표현 = /내일|모레|글피|다음\s*주|다음\s*달|[월화수목금토일]요일|\d{1,2}\s*월\s*\d{1,2}\s*일/;
+
+/**
+ * **사용자가 시점을 스스로 말했는가.** 명시 예약 레인의 machine 판정 — 모델의 자기 신고가
+ * 아니라 사용자 발화 원문에서 잰다(커널은 알맹이를 재지 않고 온 것을 적는다).
+ */
+export function 명시된시점인가(text) {
+  const t = String(text ?? '');
+  if (!t.trim()) return false;
+  return 반복표현.test(t) || 시각표현.test(t) || 날짜표현.test(t);
+}
+
+/**
+ * **자족적 지시문.** 실행은 새 세션에서 이 대화 없이 시작한다 —
+ * `canonical-automation-runtime.js:477-500` 이 `memory:{}`·`recentTurns:[]`·`activeGoal:null`
+ * 로 부르므로 이 대화의 맥락이 **구조적으로** 안 실린다. 헤르메스가 같은 사실을 코드·문서·
+ * CLI 네 곳에 박아 뒀다(`tools/cronjob_tools.py:1401`): *"Jobs run in a fresh session with
+ * no current-chat context, so prompts must be self-contained."*
+ *
+ * 그래서 저장하는 것은 **스킬 참조가 아니라 지시문 자체**다.
+ */
+export function 직접예약지시문(candidate) {
+  const tool = candidate?.action?.tool;
+  const args = candidate?.action?.args ?? {};
+  return [
+    `사용자가 시킨 일: ${candidate?.statement ?? ''}`,
+    `이 일의 목적: ${candidate?.skillPurpose ?? ''}`,
+    `쓸 손과 인자: ${tool} · ${JSON.stringify(args)}`,
+    candidate?.deliveryIntent === 'chat'
+      ? '이 실행은 새 세션에서 이 대화 없이 시작한다. 판정문이 아니라 사용자에게 줄 답 자체를 쓴다.'
+      : '이 실행은 새 세션에서 이 대화 없이 시작한다. 결과를 남기기만 한다.',
+  ];
+}
+
+/**
+ * 후보 하나에서 파생한 **1회용 실행 지시문 레코드**. 이름은 스킬이지만 재사용 스킬이 아니다 —
+ * `source.kind`(`direct_automation`)로 갈라 두고, 모델에게 보이는 활성 스킬 목록과 설정 화면의
+ * 스킬 후보에서는 뺀다(`재사용가능한스킬인가`). 그렇게 두지 않으면 명시 예약 하나가 「검증된
+ * 재현 절차」인 척 스킬 자리에 올라간다.
+ *
+ * 이 자리가 있어야 **아무 스킬에나 묶는 자리**가 필요 없어진다.
+ */
+export function 직접예약스킬(candidate, now) {
+  const tool = candidate?.action?.tool;
+  if (!string(tool) || !object(candidate?.action?.args) || !string(candidate?.statement)) return null;
+  const skill = {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: `direct-automation:${candidate.candidateId}`,
+    name: candidate.statement,
+    // **사용자가 말한 그 일**이 목적이다 — 남의 스킬 목적이 아니다.
+    purpose: candidate.statement,
+    version: 1,
+    contentHash: '',
+    inputs: [],
+    steps: 직접예약지시문(candidate).map((instruction) => ({ kind: 'direct_automation', instruction })),
+    resultContract: { kind: 'user_reply' },
+    requiredCapabilities: [tool],
+    authorityHints: [],
+    replayCases: [],
+    source: {
+      kind: 'direct_automation',
+      candidateRef: candidate.candidateId,
+      sessionId: null,
+      traceIds: [],
+    },
+    state: 'active',
+    createdAt: now,
+    updatedAt: now,
+    previousVersion: null,
+  };
+  skill.contentHash = contentHash(skillHashSource(skill));
+  const checked = validateSkillDefinition(skill);
+  return checked.ok ? skill : null;
+}
+
+/** 재사용 가능한 스킬인가 — 명시 예약의 1회용 지시문은 스킬 목록에 오르지 않는다. */
+export function 재사용가능한스킬인가(skill) {
+  return skill?.source?.kind !== 'direct_automation';
+}
+
+/** 명시 예약 전용 실행 역할. 손 하나·권한 한 칸으로 결정되므로 id 가 결정적이다. */
+export function 직접예약담당({ tool, ceiling, workspaceRoots = [], now }) {
+  return {
+    schemaVersion: AUTOMATION_SCHEMA_VERSION,
+    id: `direct-automation-agent:${tool}:${ceiling}`,
+    name: `명시 예약 실행 역할(${tool})`,
+    purpose: '사용자가 시각을 정해 맡긴 일 하나를 그 시각에 그대로 수행한다',
+    modelRole: 'worker',
+    toolAllowlist: [tool],
+    workspaceScope: [...workspaceRoots],
+    defaultBudgets: { maxToolCalls: 8, timeoutMs: 120_000, maxCost: 1, maxConcurrency: 1 },
+    authorityCeiling: ceiling,
+    state: 'active',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
+ * 명시 예약 후보 → (1회용 지시문, 실행 역할). 못 만들면 **거절 이유**를 낸다 —
+ * 여기서 `null` 을 내면 위층이 다시 「아무 스킬에나」로 떨어지므로 이유를 붙여 닫는다.
+ */
+export function 직접예약재료(candidate, { workspaceRoots = [], now }) {
+  const tool = candidate?.action?.tool;
+  const args = candidate?.action?.args;
+  if (!string(tool) || !object(args)) return { ok: false, reason: 'candidate_action_incomplete' };
+  const kind = toolActionKind({ toolId: tool, args });
+  if (!isAuthorityKind(kind)) return { ok: false, reason: 'candidate_action_unknown' };
+  const tier = classifyTier({ kind });
+  if (!A.includes(tier)) return { ok: false, reason: 'candidate_action_forbidden' };
+  const skill = 직접예약스킬(candidate, now);
+  if (!skill) return { ok: false, reason: 'direct_instruction_incomplete' };
+  return { ok: true, skill, profile: 직접예약담당({ tool, ceiling: tier, workspaceRoots, now }) };
+}
+
+/**
+ * **안 도는 조건 — 기계가 계산한다.** 모델 설명서에 「말해라」라고 적는 것이 아니다.
+ * 헤르메스가 같은 함정을 문장 지침이 아니라 **생성 시점 기계 통지**로 봉인했다
+ * (`tools/cronjob_tools.py:341-375`): *"silently dropping the user's 'tell me when it runs'
+ * intent is the trap reported in #51568. Surface it at create time so the agent can relay it
+ * instead of promising a delivery that never happens."*
+ *
+ * 값은 전부 **선 레코드와 런타임 사실**에서 온다 — 지어내지 않는다.
+ */
+export function 자동화안도는조건(job, { catchUpLimit, tickIntervalMs, candidateExpiresAt = null }) {
+  const misfirePolicy = job?.trigger?.misfirePolicy ?? null;
+  return {
+    // 데몬·cron·launchd 가 아니다. 서버가 꺼져 있으면 아무것도 안 돈다.
+    schedulerKind: 'in_process_interval',
+    tickIntervalMs,
+    requiresAppRunning: true,
+    misfirePolicy,
+    // 놓친 회차는 다음 기동 때 최대 이만큼만 따라잡는다. 'skip' 이면 통째로 버린다.
+    catchUpLimit: misfirePolicy === 'catch_up_once' ? catchUpLimit : 0,
+    authorityExpiresAt: job?.authorityEnvelope?.expiresAt ?? null,
+    maxRuns: job?.authorityEnvelope?.maxRuns ?? null,
+    deliversTo: job?.deliveryPolicy?.mode ?? null,
+    ...(candidateExpiresAt === null ? {} : { candidateExpiresAt }),
+  };
+}
+
 export function validateTriggerSpec(trigger) {
   const t = trigger ?? {};
   const errors = errorsFor([

@@ -208,7 +208,17 @@ function proposalModel({ finalReply = FALSE_REPLY, capture = [] } = {}) {
   } };
 }
 
-test('L6 원본 동결 관측: 후보 셋·승인/job/run 0의 canonical 현실이 종료 답과 일치한다', async () => {
+// **동결 관측을 손으로 옮긴다**(2026-08-12 · `design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번).
+// `preflight.mjs` 기준지문과 같은 규율 — 값을 손으로 옮기고 왜 바뀌었는지 함께 적는다.
+//
+// 옛 동결값 `[후보 3, 카드 0, 승인 0, job 0, run 0]` 과 종료문 *"승인 전 후보 3개 … 켜진
+// 자동화는 0개"* 는 **명시 요청이 추론 레인에 갇혀 있던** 원본의 사진이었다. 자동성 헌장
+// (`kernel/l2-plan/authority.js`: *"automate → 자동. 문지기는 사후 교정 표면"*)과 오너 지시
+// (2026-08-12)대로 명시 예약이 그 자리에서 켜지므로 같은 발화 셋이 `[3, 0, 3, 3, 0]` 을 낸다.
+//
+// **이 검사의 알맹이는 숫자가 아니라 일치다**: 같은 provider 가 canonical 현실을 보고 종료
+// 문장을 그 원장에 맞춘다. 원장이 움직이면 문장도 함께 움직여야 참이다.
+test('L6 동결 관측: canonical 현실(후보 0·job 3)이 종료 답과 일치한다', async () => {
   const observed = await withProduct({ model: proposalModel() }, async (app) => {
     const turns = [];
     turns.push(await app.turn('매주 월요일 오전 9시 반에 지난주 정산을 확인하라고 알려줘.'));
@@ -232,16 +242,17 @@ test('L6 원본 동결 관측: 후보 셋·승인/job/run 0의 canonical 현실�
       purposeMet: state.jobs.some((job) => job.state === 'scheduled' && job.nextRunAt === TUESDAY.nextRunAt),
     };
   });
-  process.stdout.write(`${JSON.stringify({ probe: 'L6-original-red', observed })}\n`);
+  process.stdout.write(`${JSON.stringify({ probe: 'L6-closed', observed })}\n`);
   assert.deepEqual(
     [observed.candidates, observed.cards, observed.approved, observed.jobs, observed.runs],
-    [3, 0, 0, 0, 0],
+    [3, 0, 3, 3, 0],
   );
-  assert.equal(observed.surfaceCandidates, 3, '모델 제안은 후보 표면까지만 닿는다');
-  assert.equal(observed.actionableSetups, 3, 'candidateId는 실제 setup으로 이어지는 신분이다');
-  assert.equal(observed.reply, '승인 전 후보 3개가 있고, 켜진 자동화는 0개예요.',
-    '같은 provider가 canonical candidate/job 현실을 보고 원본 종료문장을 바꾼다');
-  assert.equal(observed.purposeMet, false, '승인하지 않은 후보는 제품 완료가 아니다');
+  assert.equal(observed.cards, 0, '켜는 데 승인 카드를 강요하지 않는다(헌장 넷 밖은 자동)');
+  assert.equal(observed.runs, 0, '**등록은 실행이 아니다** — 예정 시각 전 실행 실물은 0');
+  assert.equal(observed.surfaceCandidates, 3, '모델 제안이 사용자 표면까지 닿는다');
+  assert.equal(observed.reply, '승인 전 후보 0개가 있고, 켜진 자동화는 3개예요.',
+    '같은 provider가 canonical candidate/job 현실을 보고 종료문장을 그 원장에 맞춘다');
+  assert.equal(observed.purposeMet, true, '사용자가 말한 시각으로 실제 예약이 서 있어야 한다');
 });
 
 test('정상 경계: setup→approve는 정확히 한 job을 만들고 승인 전 effect0·예정 전 run0·다른 job 불변', async () => {
@@ -378,7 +389,12 @@ test('후보 계약: full trigger/action/purpose/delivery와 principal/revision/
     const stored = (await app.automationStore.load()).candidates
       .find((entry) => entry.candidateId === result.automationProposal.candidateId);
     assert.equal(stored.principalRef, 'local-owner');
-    assert.deepEqual([stored.revision, stored.current, stored.operation], [1, true, 'create']);
+    // **2026-08-12 계약 이동**(닫는문서 §4 넓힘 1번). 재는 것은 그대로다 — 후보 레코드가
+    // trigger/action/purpose/delivery 와 principal·개정·현재성을 **보존**하는가. 명시 예약이
+    // 그 자리에서 켜지므로 수명주기 세 칸만 확정 뒤 값이 된다(revision 2 · current false).
+    assert.deepEqual([stored.revision, stored.current, stored.operation], [2, false, 'create']);
+    assert.equal(stored.approved, true, '명시 예약은 켜진 뒤 그 후보가 확정 표시를 갖는다');
+    assert.equal(typeof stored.jobRef, 'string', '확정된 후보는 자기가 세운 예약을 가리킨다');
     assert.deepEqual(stored.trigger, MONDAY, '제안에 실린 임의 nextRunAt 대신 runtime TriggerProvider가 계산한다');
     assert.deepEqual(stored.action, { tool: 'local.file', args: { action: 'read', path: '지난주정산.txt' } });
     assert.deepEqual([stored.skillPurpose, stored.deliveryIntent], ['지난주 정산 확인', 'none']);
@@ -600,9 +616,15 @@ test('반대조건: 없는 id 변경은 404이고 기존 job·run 원장을 바�
   });
 });
 
-test('P0 실제 스키마 경로: 자연 제안은 final 전 입장·readback reality를 보고 승인 뒤 job1로 이어진다', async () => {
+// **2026-08-12 계약 이동**(`design/T5-AUTOMATION-CLOSE-ko.md` §4 넓힘 1번). 재는 것은 그대로다:
+// ① provider schema 의 필수 계약 ② **같은 모델이 입장·readback 현실을 본 뒤에 답한다**
+// ③ 그 발화 하나가 실제 job 1 로 이어진다. 바뀐 것은 ③ 의 경로다 — 명시 예약은 승인 카드를
+// 거치지 않는다(자동성 헌장 `kernel/l2-plan/authority.js`: *"automate → 자동"*). 그래서
+// 모델이 볼 현실도 「후보가 섰다」가 아니라 **「예약이 섰다」**로 바뀐다.
+test('P0 실제 스키마 경로: 자연 제안은 final 전 입장·readback reality를 보고 job1로 이어진다', async () => {
   const seenSchemas = [];
-  const honestReply = '월요일 오전 9시 반 후보를 준비했어요. 아직 승인 전이에요.';
+  const 본현실 = new Set();          // 이 턴에서 입장 결과와 readback 현실을 실제로 본 적이 있는가
+  const honestReply = '월요일 오전 9시 반으로 켜 뒀어요.';
   const model = { async respond(tc, opts = {}) {
     const proposalSchema = opts.tools?.find((entry) => entry.name === 'automation.propose');
     if (proposalSchema) {
@@ -614,9 +636,12 @@ test('P0 실제 스키마 경로: 자연 제안은 final 전 입장·readback re
         skillPurpose: '지난주 정산 확인', deliveryIntent: 'none',
       } }] };
     }
-    const admitted = tc.automationProposal?.candidateId;
-    const observed = tc.automationReality?.candidates?.items?.some((entry) => entry.candidateRef === admitted);
-    return admitted && observed ? honestReply : FALSE_REPLY;
+    // 모델은 **입장 결과와 readback 현실 둘 다** 보고서야 참말을 할 수 있다.
+    const 세운것 = tc.automationProposal?.jobRef;
+    if (세운것 && tc.automationReality?.jobs?.items?.some((entry) => entry.jobRef === 세운것)) {
+      본현실.add(세운것);
+    }
+    return 본현실.size > 0 ? honestReply : FALSE_REPLY;
   } };
   await withProduct({ model }, async (app) => {
     const result = await app.turn('매주 월요일 오전 9시 반에 지난주 정산을 확인해줘.');
@@ -624,19 +649,13 @@ test('P0 실제 스키마 경로: 자연 제안은 final 전 입장·readback re
     assert.deepEqual(required.slice().sort(), [
       'action', 'deliveryIntent', 'operation', 'skillPurpose', 'statement', 'tool', 'trigger',
     ].sort(), '승인 준비에 필요한 구조가 실제 provider schema의 필수 계약이어야 한다');
-    assert.equal(result.reply, honestReply, '같은 모델이 입장·readback 현실을 본 뒤 후보 상태로 답한다');
+    assert.equal(result.reply, honestReply, '같은 모델이 입장·readback 현실을 본 뒤 원장대로 답한다');
     const candidateId = result.automationProposal?.candidateId;
     const stored = (await app.automationStore.load()).candidates.find((entry) => entry.candidateId === candidateId);
     assert.deepEqual(stored?.action, { tool: 'local.file', args: { action: 'read', path: '지난주정산.txt' } });
-    const setup = await app.request('GET', `/automation/setup?candidateId=${candidateId}`);
-    assert.equal(setup.status, 200);
-    const approval = await app.request('POST', '/automation/approve', {
-      candidateId, candidateRevision: result.automationProposal.revision,
-      controlRef: result.automationProposal.controlRef,
-      skillId: 'l6-skill', agentProfileId: 'l6-agent',
-      expiresAt: 2_000_000_000_000, maxRuns: 20,
-    });
-    assert.equal(approval.status, 200, JSON.stringify(approval));
+    // **안 도는 조건이 켜는 손의 반환값에 실린다** — 「켜 뒀어요」만 주면 절반이다.
+    assert.equal(result.automationProposal.notRunning?.requiresAppRunning, true);
+    assert.equal(result.automationProposal.notRunning?.catchUpLimit, 1);
     assert.equal((await app.automationStore.load()).jobs.length, 1);
   });
 });
@@ -1046,7 +1065,10 @@ test('delivery intent: 봉인된 local conversation target이 없는 legacy chat
   });
 });
 
-test('delivery intent actual /turn: 자연 local chat 제안은 서버 target에 결속된 setup 후보이고 승인 전 job0이다', async () => {
+// **2026-08-12 계약 이동**(닫는문서 §4 넓힘 1번). 재는 것은 그대로다 — `deliveryIntent:'chat'`
+// 명시 예약이 **서버가 봉인한 현재 대화**에 결속되고, 그 대화 신분이 공개 표면에 안 샌다.
+// 바뀐 것은 켜지는 경로 하나다(자동성 헌장: `automate → 자동`).
+test('delivery intent actual /turn: 자연 local chat 명시 예약은 서버 target에 결속되어 켜진다', async () => {
   const model = { async respond(_tc, opts = {}) {
     if (opts.tools?.some((entry) => entry.name === 'automation.propose')) {
       return { text: '', toolCalls: [{ name: 'automation.propose', args: {
@@ -1061,11 +1083,14 @@ test('delivery intent actual /turn: 자연 local chat 제안은 서버 target에
   await withProduct({ model }, async (app) => {
     const result = await app.turn('매주 월요일 정산 결과를 이 대화로 알려줘');
     assert.equal(typeof result.automationProposal?.candidateId, 'string');
-    const setup = await app.request('GET', `/automation/setup?candidateId=${result.automationProposal.candidateId}`);
+    assert.equal(typeof result.automationProposal?.jobRef, 'string', '명시 예약이 안 켜졌다');
     const state = await app.automationStore.load();
-    assert.equal(setup.status, 200);
-    assert.equal(state.candidates.length, 1);
-    assert.equal(state.jobs.length, 0);
+    assert.equal(state.jobs.length, 1);
+    assert.equal(state.jobs[0].deliveryPolicy?.mode, 'local_conversation',
+      '이 대화로 알려 달라고 했으면 전달 대상이 그 대화에 결속돼야 한다');
+    // 대화 신분은 공개 표면에 안 샌다.
+    const 공개 = await app.request('GET', '/automation');
+    assert.equal(JSON.stringify(공개.body).includes(state.jobs[0].deliveryPolicy.target.conversationRef), false);
   });
 });
 
