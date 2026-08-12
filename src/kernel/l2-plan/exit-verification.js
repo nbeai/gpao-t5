@@ -172,11 +172,48 @@ function 미해결강한화면걸음(receipts) {
     const target = 대상신분(call);
     return `${call?.tool ?? ''}|${action}${target ? `|${target}` : ''}`;
   };
-  const 된걸음 = new Set((receipts ?? [])
+  const 확인된걸음들 = (receipts ?? [])
     .filter((r) => (r?.failureState ?? 'none') === 'none'
       && 호출(r)?.tool === 'desktop.act'
       && r?.result?.단계 === 'goal_verified')
-    .map(키));
+  const 된걸음 = new Set(확인된걸음들.map(키));
+
+  // 재관측하면 스냅샷 접두사는 바뀐다(`s4:5` → `s5:5`). 그 문자열만 보면
+  // 같은 버튼을 fresh 근거로 확인해도 영원히 미해결이다. 그렇다고 label만 보면
+  // 다른 앱·창·위치의 동명 요소를 섞는다. 원장에 **이미 있는** 신분만 쓴다:
+  // 앱 + label + AX 요소 서수(토큰·id의 끝 번호). 창·pid·role·지문·bounds가
+  // 어느 한쪽에라도 실렸으면 다른 쪽에도 같이 있고 값이 같아야 한다. 부족한 값을
+  // 관찰 계약으로 지어내지 않는다.
+  const 값 = (v) => (typeof v === 'string' || typeof v === 'number') && String(v).trim()
+    ? String(v).trim() : '';
+  const 요소신분 = (r) => {
+    const call = 호출(r);
+    const a = call?.args ?? {};
+    const t = a.대상 ?? a.target ?? {};
+    const token = 값(t.토큰 ?? t.token ?? t.id);
+    const ordinal = 값(t.번호 ?? t.index) || /:(\d+)$/.exec(token)?.[1] || '';
+    return {
+      action: 값(a.action ?? a.op), app: 값(a.app ?? t.app),
+      label: 값(t.label ?? t.이름), ordinal,
+      windowTitle: 값(a.창제목 ?? a.windowTitle), window: 값(t.창 ?? a.window_id ?? a.windowId),
+      pid: 값(t.pid ?? a.pid), role: 값(t.role ?? t.type),
+      fingerprint: 값(t.지문 ?? t.fingerprint),
+      bounds: t.bounds && typeof t.bounds === 'object' ? JSON.stringify(t.bounds) : '',
+    };
+  };
+  const 같은실제요소 = (a, b) => {
+    // ordinal은 스냅샷 안의 서수일 뿐, 다중창에서 위치를 증명하지 못한다.
+    // 따라서 접두사를 벗겨도 남는 location axis(창제목·창 id·pid·bounds·지문) 중
+    // 최소 하나가 **양쪽에 공통으로 있고 같아야** 한다. 그것도 없으면 동일성은 미측정이다.
+    if (!a.action || !a.app || !a.label || !a.ordinal) return false;
+    if (a.action !== b.action || a.app !== b.app || a.label !== b.label || a.ordinal !== b.ordinal) return false;
+    for (const k of ['windowTitle', 'window', 'pid', 'role', 'fingerprint', 'bounds']) {
+      if ((a[k] || b[k]) && (!a[k] || !b[k] || a[k] !== b[k])) return false;
+    }
+    return ['windowTitle', 'window', 'pid', 'fingerprint', 'bounds'].some((k) => a[k] && b[k] && a[k] === b[k]);
+  };
+  const 회복됐나 = (failed) => 된걸음.has(키(failed))
+    || 확인된걸음들.some((ok) => 같은실제요소(요소신분(failed), 요소신분(ok)));
   return [...new Set((receipts ?? [])
     .filter((r) => {
       const call = 호출(r);
@@ -185,7 +222,7 @@ function 미해결강한화면걸음(receipts) {
         && r?.failureState === 'failed'
         && 진행?.단계 === 'dispatched'
         && 진행?.판정 === 'unknown'
-        && !된걸음.has(키(r));
+        && !회복됐나(r);
     })
     .map(키))];
 }
