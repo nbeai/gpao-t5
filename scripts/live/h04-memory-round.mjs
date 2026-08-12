@@ -160,7 +160,11 @@ async function 방하나(credential, 손없이) {
       if (server) await new Promise((r) => server.close(r));
       restoreEnv();
     };
-    return { post, 멎은기억, 새세션, close, room };
+    // 원장은 **응답에 없다**. `/turn` 은 `result` 만 보내고 `ledgerEntries` 는 세션에만 붙는다
+    // (`server.js:1832`). 응답에서 찾으면 항상 `[]` 가 나오고, 그 빈 배열이 「실패 흔적 없음」으로
+    // 읽힌다 — **「0건」을 「없다」로 읽는** 바로 그 병이다(F-104). 저장본에서 읽는다.
+    const 세션원장 = async (id) => ((await store.load(id))?.ledgerEntries ?? []);
+    return { post, 멎은기억, 새세션, close, room, 세션원장 };
   } catch (error) {
     if (server) await new Promise((r) => server.close(r));
     restoreEnv();
@@ -237,6 +241,44 @@ async function 한회차(round, credential, 손없이 = false) {
     } finally { await 방.close(); }
   }
 
+  // ── M6: 원장 반대시험 **조항 ⑥** 의 정의역 밖 — 거짓 실패가 실제로 나는가 ──────
+  //
+  // 왜 여기인가: 조항 ⑥(*"실제 결과가 있는데 모델이 실패라고 말하면 거짓 실패도 회수"*)의
+  // 여는 조건은 `실제 > 0`(**바꾼 것**)인데, 기억은 **통제 채널**이라 영수증을 안 남긴다.
+  // 자동화만 F-88 이 세는 자리를 따로 만들어 뒀다(`turn.js:761-778`). 함수 층 대조군으로
+  // 확정했다 — 자동화 후보1·job0 + "불가능"은 물리고(일치=false), 기억이 선 턴 + "할 수 없어요"는
+  // **안 물린다**(일치=true). **공백은 참이다. 남은 것은 사용자가 실제로 그 말을 듣는가다.**
+  //
+  // 발화는 H01 과 **같은 평범한 문장**을 쓴다(연출 금지 조건 1 — 실패를 유도하지 않는다).
+  // 방은 새로 판다(자 ②). 판정은 여기서 안 한다 — **원본만 남기고 제품의 자로 사후 판정**한다
+  // (연출 금지 조건 3·6 · 판정자 구멍 3: `우리말만` 사본을 만들지 않는다).
+  {
+    const 방 = await 방하나(credential, 손없이);
+    try {
+      const s = await 방.새세션();
+      const r = await 방.post('/turn', { sessionId: s, text: H01 });
+      const m = await 방.멎은기억();
+      const 답 = String(r.result?.reply ?? r.reply ?? '');
+      const 원장 = await 방.세션원장(s);
+      판정.M6 = {
+        // 사실 축 — **memoryApplied 다**(감시자 (다)-4: candidates 는 후보이지 사실이 아니다).
+        기억섰나: Boolean(r.memoryApplied),
+        답,
+        // 무효 사유 둘 — 있으면 그 회차는 분자에 못 넣는다(구멍 1·2).
+        실패흔적: 원장.some((e) => e?.failureState && !['none', 'cancelled'].includes(e.failureState)),
+        통제실패: Boolean(r.memoryWithdrawMiss),
+        // 사후 판정에 쓸 원본. **이 턴에는 자를 대지 않았다** — `실제 > 0` 이 안 열려
+        // 결과가 자명하게 `일치=true` 다. 대신 양성 대조를 따로 세웠다(m6-positive-control.txt).
+        // 이 원장 2건은 둘 다 `origin: runtime_observation`(workset list · source 결산)이고
+        // **사용자 실행 영수증이 아니다** — 원장 채널은 살아 있는데 ⑥ 의 문이 안 열린다는 실측이다.
+        // **비면 미측정이다** — 0건과 구분한다(F-104).
+        원장잼: 원장.length,
+        원장,
+        promoted: (m.promoted ?? []).length,
+      };
+    } finally { await 방.close(); }
+  }
+
   return { round, 판정 };
 }
 
@@ -250,7 +292,8 @@ async function main() {
       const r = await 한회차(i, credential, args.손없이 === true);
       회차들.push(r);
       for (const [k, v] of Object.entries(r.판정)) {
-        process.stdout.write(`  ${k}: ${v.통과 ? '초록' : '빨강'}`);
+        const 색 = v.통과 === undefined ? `원본(원장 ${v.원장잼 ?? '?'}건)` : (v.통과 ? '초록' : '빨강');
+        process.stdout.write(`  ${k}: ${색}`);
         if (k === 'H04') process.stdout.write(` · 조용한실패=${v.조용한실패} · 모델지목=${JSON.stringify(v.모델지목)}`);
         process.stdout.write('\n');
       }
@@ -267,6 +310,18 @@ async function main() {
   }
   // 반대시험 ④ 는 회차 전체를 관통하는 사실이라 따로 센다.
   const H04잰것 = 회차들.filter((r) => r.판정?.H04);
+  // M6 은 **원본 수집**이다 — 통과/실패가 아니라 「무엇이 실측됐나」를 적는다.
+  // `원장미측정` 이 0 이 아니면 그 회차의 `실패흔적` 은 0건이 아니라 **안 본 것**이다(F-104).
+  {
+    const M6잰것 = 회차들.filter((r) => r.판정?.M6);
+    if (M6잰것.length) {
+      const 있다 = (f) => M6잰것.filter(f).length;
+      집계.M6기억섰다 = `${있다((r) => r.판정.M6.기억섰나)}/${M6잰것.length}`;
+      집계.M6거짓실패 = `${있다((r) => /실패|불가능|할 수 없|못 하|안 됩니다/.test(r.판정.M6.답))}/${M6잰것.length}`;
+      집계.M6원장미측정 = `${있다((r) => !(r.판정.M6.원장잼 > 0))}/${M6잰것.length}`;
+      집계.M6무효 = `${있다((r) => r.판정.M6.실패흔적 || r.판정.M6.통제실패)}/${M6잰것.length}`;
+    }
+  }
   집계.조용한실패 = `${H04잰것.filter((r) => r.판정.H04.조용한실패).length}/${H04잰것.length}`;
   process.stdout.write(`\n── 판정표 ──\n${JSON.stringify(집계, null, 2)}\n`);
   if (args.output) {
