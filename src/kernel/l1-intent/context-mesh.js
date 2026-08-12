@@ -9,7 +9,7 @@
 // 후보 감지 신호(범주 — 특정 대화 전용 규칙이 아니라 일반 언어 범주). 모델이 뒷단에서 정교화한다.
 // 운영원리 = T5 행동을 규율하는 규칙(확인/금지 의미). 선호 = 사용자가 좋아하는 방식.
 // 주의: '받'(수신)은 선호에도 흔하므로 원리 신호에서 제외한다.
-import { bestShapeOverlap, bestShapeMatch, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
+import { bestShapeSimilarity, bestShapeMatch, SHAPE_SIMILARITY } from '../l0-evidence/text-shape.js';
 import { 사실공급 } from '../model-sovereign.js';
 const PRINCIPLE_SIGNAL = /무조건|반드시.*확인|절대.*(마|말|하지)|(할|보낼|전송할|올릴) ?땐|전에.*확인|확인받/;
 const PREFERENCE_SIGNAL = /(좋아|선호|받고 싶|줬으면|앞으로.*(로|으로|기본)|항상.*(로|으로) 받|글로 받|표로 받)/;
@@ -91,8 +91,30 @@ function 사례로관련(entry, requestText) {
   // 사용자가 같은 요청에 **명시적으로 다른 형식**을 덧붙이면(`…근데 표 대신 문장 요약으로 줘`)
   // 원리는 그대로 든다. 감추지 않는 것이 맞다 — 모델이 현재 지시와 함께 보고 판단할 일이지,
   // Runtime 이 대신 지워 줄 일이 아니다(그건 모델 판단을 규칙으로 대체하는 것이다).
-  const 비적용 = bestShapeOverlap(requestText, s.notWhen ?? []);
-  return 비적용 < 적용.overlap;
+  //
+  // ── **두 쪽을 같은 자로 재야 한다**(F-89 · 2026-08-12) ────────────────────────────
+  //
+  // 여기서 오래 틀렸다. 적용은 `bestShapeMatch`(겹침 **그리고** 덮음, 두 축)로 재면서
+  // 비적용은 `bestShapeOverlap`(겹침만, 한 축)으로 재고, 그 둘의 **숫자를 크기 비교**했다.
+  // 겹침은 작은 쪽 기준이라 **요청을 통째로 품은 비적용 본보기는 무조건 1.000** 이다.
+  //
+  // negative 사례의 `inputFacts` 에는 그 상황의 사용자 발화가 실제 값 그대로 들어간다
+  // (성장 제안 계약이 그렇게 요구한다 — *"발화면 그 문장"*). 그래서 비적용 본보기가 적용
+  // 발화를 **포함**하고, 1.000 으로 적용과 동점이 되어 이 엄격 부등호에서 진다.
+  //
+  // 오너 실물 실측(2026-08-12): `scopeSignals` 를 가진 5건 중 3건이 자기 `appliesWhen` 을
+  // 글자 하나까지 그대로 넣어도 입장하지 못했고, 그 3건이 `replayReport.pass=true` 인
+  // **2건을 전부** 품었다 — 검증을 통과한 원리는 하나도 모델 앞에 서지 못했다.
+  //
+  // 고친 것은 **부등호가 아니라 자**다. 부등호를 뒤집는 것은 수리가 아니다: 동점이 나는
+  // 이유가 사라지지 않아 진짜 비적용 상황까지 함께 통과한다. 성장 쪽에서 그 발화 줄을
+  // 걷어내는 안도 실측했고 기각했다 — 잡음과 판별력이 **같은 줄**에 있어(`… 도구를 쓸 수
+  // 있는지부터 말해줘`) 줄을 지우면 비적용 판정 자체가 죽는다.
+  //
+  // **문턱과 관문은 그대로다.** 위 겹침·덮음 0.45 관문을 통과한 뒤에만 여기 오므로,
+  // 무관한 발화는 예전과 똑같이 문 앞에서 끊긴다 — 그물은 넓어지지 않았다.
+  const 비적용 = bestShapeSimilarity(requestText, s.notWhen ?? []);
+  return 비적용 < bestShapeSimilarity(requestText, s.appliesWhen);
 }
 
 export function isRelevant(statement, requestText) {
