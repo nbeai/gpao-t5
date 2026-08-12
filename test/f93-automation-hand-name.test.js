@@ -184,8 +184,13 @@ test('F93 ②: local.file 은 예전 그대로 선다 — 되던 것이 안 되�
     await app.turn('매일 아침 9시에 다운로드 폴더에 새로 생긴 PDF 개수를 알려줘.');
     const 원장 = await app.원장();
     assert.equal((원장.jobs ?? []).length, 1, '커널 이름으로 부른 예약이 회귀했다');
-    assert.deepEqual(원장.jobs[0].authorityEnvelope.allowedTools, ['local.file'],
+    const 봉투손 = 원장.jobs[0].authorityEnvelope.allowedTools;
+    assert.ok(봉투손.includes('local.file'),
       '권한 봉투가 커널 이름을 그대로 들고 있어야 한다');
+    // **폭은 F-110 이 넓혔다** — 첫 수단이 막히면 갈아탈 관측 손이 함께 선다.
+    // 이 검사가 무는 것은 「하나인가」가 아니라 **「이름이 커널 이름인가」**다.
+    assert.ok(봉투손.every((t) => !t.includes('functions.') && !t.includes('_')),
+      `봉투에 와이어 이름이 섞였다: ${봉투손.join(' · ')}`);
   } finally { await app.close(); }
 });
 
@@ -261,8 +266,12 @@ test('F93 ⑥: 원장·스킬·담당 어디에도 와이어 이름이 남지 �
     const 원장 = await app.원장();
     const job = (원장.jobs ?? [])[0];
     assert.ok(job, '① 이 먼저 초록이어야 한다');
-    assert.deepEqual(job.authorityEnvelope.allowedTools, ['local.file'],
+    // **폭은 F-110 이 넓혔다**(예약도 막히면 갈아탈 관측 손이 함께 선다).
+    // 이 검사가 무는 것은 폭이 아니라 **이름의 결**이다 — 와이어 이름이 새면 실행이 손을 못 찾는다.
+    assert.ok(job.authorityEnvelope.allowedTools.includes('local.file'),
       'job 의 권한 봉투가 커널 이름을 들고 있어야 한다 — 실행은 이 이름으로 손을 부른다');
+    assert.ok(job.authorityEnvelope.allowedTools.every((t) => t.includes('.') && !t.includes('functions.')),
+      'job 봉투에 와이어 이름이 섞였다');
     const 후보 = (원장.candidates ?? []).find((c) => c.jobRef === job.id);
     assert.equal(후보?.action?.tool, 'local.file',
       '**후보 레코드에 와이어 이름이 남았다** — 두 벌이 살면 언젠가 갈린다');
@@ -272,8 +281,12 @@ test('F93 ⑥: 원장·스킬·담당 어디에도 와이어 이름이 남지 �
     const 담당 = (await app.agentProfileStore.load()).profiles
       .find((p) => p.id === job.agentProfileId);
     assert.ok(담당, '실행 역할이 저장소에 실재해야 한다');
-    assert.deepEqual(담당.toolAllowlist, ['local.file'],
-      '**실행 역할의 허용 손에 와이어 이름이 남았다** — 실행 때 그 이름으로는 못 부른다');
+    // **폭은 F-110 이 넓혔다.** 이 검사가 무는 것은 이름의 결이다 — 와이어 이름(`_` 구분,
+    // `functions.` 접두)이 남으면 실행 때 그 이름으로 손을 못 부른다.
+    assert.ok(담당.toolAllowlist.includes('local.file'),
+      '**실행 역할이 첫 수단을 잃었다** — 맡긴 그 일을 할 손이 없다');
+    assert.ok(담당.toolAllowlist.every((t) => t.includes('.') && !t.startsWith('functions.')),
+      `**실행 역할의 허용 손에 와이어 이름이 남았다** — 실행 때 그 이름으로는 못 부른다: ${담당.toolAllowlist.join(' · ')}`);
     for (const 파일 of ['automation.json', 'skills.json', 'agent-profiles.json']) {
       const 본문 = await app.파일(파일);
       assert.ok(!본문.includes('local_file'),

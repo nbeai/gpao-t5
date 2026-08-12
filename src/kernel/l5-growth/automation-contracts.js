@@ -174,6 +174,24 @@ export function bindAutomationCandidate(candidate, skill, profile, options = {})
     if (profile.workspaceScope.length !== 1) return { ok: false, reason: 'relative_path_needs_workspace' };
     inputTemplate.path = resolve(profile.workspaceScope[0], inputTemplate.path);
   }
+  // **봉투는 프로필이 쥔 폭을 그대로 담는다**(F-110). 예전엔 `[tool]`·`[kind]` 하나씩이라,
+  // 프로필이 여럿을 쥐어도 실행 진입의 등가 검사(`agent-runner.js:212-220`)에서 던졌다.
+  // 그리고 손만 넓히고 kind 를 안 넓히면 「목록 본 뒤 그 파일을 읽기」조차 막힌다 —
+  // 넓힌 손이 장식이 된다. 둘을 함께 넓힌다.
+  //
+  // 넓히는 것은 **읽기까지**다. 첫 수단의 kind 는 그대로 두고 `read` 만 더한다 —
+  // `write`·`send` 로 가는 문은 안 연다(사용자가 없는 자리다).
+  // **넓히는 것은 「명시 예약」 프로필뿐이다**(F-110 · 실측으로 좁혔다).
+  //
+  // 처음엔 프로필의 폭을 그대로 담았는데 성장 프로필까지 걸려 tick 이 통째로 죽었다 —
+  // `agent-runner.js:217` 의 등가 검사가 `boundedChildToolAllowlist`(실재하는 손으로 좁힌
+  // 결과)와 봉투를 맞추는데, 봉투가 더 넓으면 던진다. 되던 것을 깨뜨렸다.
+  //
+  // `직접예약담당` 은 `[tool, ...관측손]` 으로 만들므로 **첫 자리가 그 일을 맡은 손**이다.
+  // 그 모양일 때만 곁손을 인정한다 — 성장 프로필은 자기 폭을 스스로 정한다.
+  const 프로필손 = profile.toolAllowlist ?? [];
+  const 명시예약프로필 = 프로필손[0] === tool && 프로필손.length > 1;
+  const 곁손들 = 명시예약프로필 ? 프로필손.slice(1) : [];
   const authorityEnvelope = {
     ceiling: tier,
     allowedKinds: [kind],
@@ -294,15 +312,35 @@ export function 재사용가능한스킬인가(skill) {
   return skill?.source?.kind !== 'direct_automation';
 }
 
-/** 명시 예약 전용 실행 역할. 손 하나·권한 한 칸으로 결정되므로 id 가 결정적이다. */
-export function 직접예약담당({ tool, ceiling, workspaceRoots = [], now }) {
+/**
+ * 명시 예약 전용 실행 역할.
+ *
+ * **첫 수단 옆에 관측 손을 함께 쥔다**(F-110 · 2026-08-13). 예전에는 `[tool]` 하나였고,
+ * 그래서 예약이 도는 순간 모델 앞에 손이 **하나뿐**이었다 — 그 하나가 빈손으로 돌아와도
+ * 갈아탈 것이 없다. 대화에서는 되는 일이 예약에서는 안 됐다.
+ *
+ * 넓히는 상한은 **tier 다, 도구 목록이 아니다.** 헌장이 요구한 문은 넷뿐이고
+ * (비밀·파괴·새 상대·돈) 도구 이름 고정은 그 넷에 없다. 그래서 A0 관측 손까지만 더한다 —
+ * 사용자가 없는 시각에 도는 자리이므로 조작하는 손은 주지 않는다.
+ *
+ * `관측손` 은 **부르는 쪽이 정한다** — 이 함수는 어떤 손이 있는지 모른다.
+ * 그쪽이 손 목록과 tier 를 아는 자리다(`server.js`).
+ */
+export function 직접예약담당({ tool, ceiling, workspaceRoots = [], now, 관측손 = [] }) {
+  // 첫 수단이 앞에 온다 — 그 일을 하라고 맡긴 손이다. 나머지는 갈아탈 자리다.
+  const 손들 = [...new Set([tool, ...관측손])];
+  const 곁 = 손들.length - 1;
   return {
     schemaVersion: AUTOMATION_SCHEMA_VERSION,
-    id: `direct-automation-agent:${tool}:${ceiling}`,
-    name: `명시 예약 실행 역할(${tool})`,
-    purpose: '사용자가 시각을 정해 맡긴 일 하나를 그 시각에 그대로 수행한다',
+    // **id 에 곁손 수를 넣는다.** 폭이 달라지면 다른 역할이다 — 사용자가 좁게 승인한
+    // 예전 역할이 넓은 폭으로 조용히 재사용되면 그것이 몰래 넓히기다.
+    id: `direct-automation-agent:${tool}:${ceiling}${곁 ? `+${곁}` : ''}`,
+    // **승인 카드에 이 이름이 그대로 나간다**(web/index.html 의 「담당」). 폭을 숨기지 않는다.
+    name: `명시 예약 실행 역할(${tool}${곁 ? ` · 막히면 관측 손 ${곁}개로 바꿔 봄` : ''})`,
+    purpose: `사용자가 시각을 정해 맡긴 일 하나를 그 시각에 그대로 수행한다${
+      곁 ? '. 첫 수단이 막히면 같은 것을 보는 관측 손으로 바꿔 본다(읽기만 한다)' : ''}`,
     modelRole: 'worker',
-    toolAllowlist: [tool],
+    toolAllowlist: 손들,
     workspaceScope: [...workspaceRoots],
     defaultBudgets: { maxToolCalls: 8, timeoutMs: 120_000, maxCost: 1, maxConcurrency: 1 },
     authorityCeiling: ceiling,
@@ -316,7 +354,7 @@ export function 직접예약담당({ tool, ceiling, workspaceRoots = [], now }) 
  * 명시 예약 후보 → (1회용 지시문, 실행 역할). 못 만들면 **거절 이유**를 낸다 —
  * 여기서 `null` 을 내면 위층이 다시 「아무 스킬에나」로 떨어지므로 이유를 붙여 닫는다.
  */
-export function 직접예약재료(candidate, { workspaceRoots = [], now }) {
+export function 직접예약재료(candidate, { workspaceRoots = [], now, 관측손 = [] }) {
   const tool = candidate?.action?.tool;
   const args = candidate?.action?.args;
   if (!string(tool) || !object(args)) return { ok: false, reason: 'candidate_action_incomplete' };
@@ -330,7 +368,7 @@ export function 직접예약재료(candidate, { workspaceRoots = [], now }) {
   if (!설자리.ok) return { ok: false, reason: 'trigger_has_no_future', 안서는이유: 설자리 };
   const skill = 직접예약스킬(candidate, now);
   if (!skill) return { ok: false, reason: 'direct_instruction_incomplete' };
-  return { ok: true, skill, profile: 직접예약담당({ tool, ceiling: tier, workspaceRoots, now }) };
+  return { ok: true, skill, profile: 직접예약담당({ tool, ceiling: tier, workspaceRoots, now, 관측손 }) };
 }
 
 /**

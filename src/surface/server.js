@@ -686,9 +686,19 @@ export function makeServer(deps = {}) {
    * 호출자가 0이던 그 길이다(지도 이음매 ⑧). 새 저장소·새 게이트를 만들지 않는다.
    */
   async function 직접예약재료보장(cand) {
+    // **갈아탈 손을 골라 넘긴다**(F-110). 이 자리가 손 목록과 tier 를 아는 곳이다.
+    //
+    // 고르는 규칙은 tier 다 — 관측(A0)까지. 이름으로 고르지 않는다. 다만 둘은 손으로 뺀다:
+    //   `agent.delegate` 예약 안에서 자식을 또 띄우는 재귀
+    //   `browser.act`     분류는 read 지만 실제로 화면을 만진다(사용자가 없는 자리다)
+    const 관측손 = (buildSelfState(env, { tools }).connectedTools ?? [])
+      .filter((t) => t?.toolKind === 'read' && t?.needsApproval !== true)
+      .map((t) => t.id)
+      .filter((id) => id !== 'agent.delegate' && id !== 'browser.act');
     const 재료 = 직접예약재료(cand, {
       workspaceRoots: defaultFileRoots(deps.processEnv ?? process.env),
       now: automationNow(),
+      관측손,
     });
     if (!재료.ok) return 재료;
     const { skill, profile } = 재료;
