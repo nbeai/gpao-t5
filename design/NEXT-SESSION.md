@@ -34,7 +34,7 @@ local.process·system·discovery             각 0/3
 `npm run gate` 가 **exit 1** 이다. 내 변경 이전에도 같은 빨강이었다(stash 로 갈라 확인).
 ```
 사유 ①  인수인계에 없는 sidecar worktree 수십 개 — ../gpao-t5/.claude/worktrees/agent-…
-사유 ②  문서 "후속/아직" 표현 14 → 19 (§16-B)
+사유 ②  문서 미룸 표현이 늘었다 (§16-B — 사용자가 부딪히는 것은 미루지 않는다)
 ```
 `npm test` 는 3,995 초록이고 `audit:docs` 는 PASS 다. **게이트가 늘 빨가면 게이트가 아무것도
 안 막는다** — 규율(*"본선은 늘 초록"*)이 지금 안 서 있다. 장부 F-94 에 등재해 뒀다.
