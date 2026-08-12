@@ -120,6 +120,12 @@ export function compactResult(result, maxChars = 1200) {
       const 그림자 = 그림있나
         ? ` · 네가 본 화면 ${result.그림크기.w}×${result.그림크기.h}(지금 보이는 만큼 · 짚을 자리는 이 안에서)` : '';
       lines.push(`본 창: ${본창.app ?? ''}${본창.title ? ` · ${본창.title}` : ''}${본창.앞창인가 ? ' (앞 창)' : ''}${자}${그림자}`);
+      // 픽셀 좌표도 요소 토큰처럼 **관찰 신분과 함께** 되붙여야 한다. 드라이버가
+      // `그림스냅샷`을 만들어도 이 압축 갈래가 버리면 모델은 같은 그림에서 짚은 좌표를
+      // 실행 손에 건넬 수 없고, 결국 좌표를 지어내거나 사용자에게 떠넘긴다.
+      if (result.그림스냅샷) {
+        lines.push(`화면 관찰 신분: ${result.그림스냅샷} (이 그림에서 x·y를 짚을 때 대상.스냅샷으로 함께 준다)`);
+      }
     }
     else if (result.frontmost?.name) lines.push(`앞 앱: ${result.frontmost.name}`);
     const 창수 = (result.windows ?? []).length;
