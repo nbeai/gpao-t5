@@ -3,7 +3,7 @@
 // 지시문 장문 주입이 아니다(T3 tool-path-briefing 실증 원리). 무관한 사실을 나열하지 않는다.
 import { extname } from 'node:path';
 import { selfStateSummary } from '../l0-evidence/self-state.js';
-import { sameSiteLinks } from '../l0-evidence/working-state.js';
+import { sameSiteLinks, 빈손으로돌아왔나 } from '../l0-evidence/working-state.js';
 import { operatorReality } from './operator-reality.js';
 import { 실패도교환, 사실공급 } from '../model-sovereign.js';
 
@@ -984,7 +984,19 @@ export function buildTaskContext(p) {
         //
         // 손이 스스로 쥔 것이 있으면 **그것을 쓴다.** 커널은 **빈 자리만 메운다** —
         // 손의 사실을 갈아치우면 그게 답 갈아치우기의 축소판이다.
-        ...(실패 ? 막힌자리메우기(r, { 턴후보, 이미가본곳 }) : {}),
+        // **빈손으로 돌아온 걸음도 여기 든다**(F-107 · 오너 지시 2026-08-13).
+        //
+        // 오너 정본: *"**강제가 아니라 유도**야. 모델 다루는 법을 절대 잊지마.
+        // 엘엘엠을 깡통으로 만드는건 한순간이니까."* — 그래서 여기서 **아무것도 시키지
+        // 않는다.** 새 규칙도 분기도 없다. 고치는 것은 **같은 사실의 눈에 띄는 정도** 하나다.
+        //
+        // 밟은 비대칭: 손이 막히면 「안 가 본 곳」이 `다음길줄` 을 타고 **문장**으로 간다.
+        // 그런데 껍데기를 물고 온 걸음은 `failureState:'none'` 이라 이 문을 그냥 지나가고,
+        // 같은 사실이 결과 JSON 덩어리 **안에만** 남는다. 사용자 자리에서 둘은 같은 일인데
+        // (목적이 한 걸음 앞에서 멈춘다) 한쪽만 잘 보인다. 그 기울기를 편다.
+        //
+        // 고르는 것은 여전히 모델이다 — 커널은 **볼 것을 같은 무게로 놓기만** 한다.
+        ...((실패 || 빈손으로돌아왔나(r)) ? 막힌자리메우기(r, { 턴후보, 이미가본곳 }) : {}),
         ...(r.막힌곳?.length ? { 막힌곳: r.막힌곳 } : {}),
       };
     });

@@ -41,7 +41,7 @@ import {
   bindDeliverableReceipt, fileWorkIsInPlay, parseDeliverableJudgment, unsatisfiedDeliverables,
 } from './l2-plan/work-contract.js';
 import { nextRung, rungMessage, 읽은척차단, 호출지문 } from './l2-plan/recovery-ladder.js';
-import { deriveWorkingState, workingStateFacts } from './l0-evidence/working-state.js';
+import { deriveWorkingState, workingStateFacts, 빈손으로돌아왔나 } from './l0-evidence/working-state.js';
 import { resolveResponseSurface } from './l0-evidence/response-surface.js';
 import { detectPersonalToolRequest } from './l2-plan/personal-tool.js';
 import { resolveCapability } from './l2-plan/capability-resolution.js';
@@ -495,29 +495,6 @@ function 옆손찾기(막힌손, 손들 = []) {
   return 옆 ? (옆.label ?? 옆.id) : null;
 }
 
-/**
- * **빈손으로 돌아온 걸음** — 성공했는데 가져온 것이 없다.
- *
- * 오너가 밟았다(2026-08-12 · 세션 6a412df3). *"네이버 플레이스 리뷰 분석해줘"* 에
- * `web.collect` 5회 · `browser.observe` 3회가 **전부 `failureState: none`** 으로 돌았는데
- * 물고 온 것은 메뉴 문구와 차단 안내뿐이었다. T5 는 *"안쪽까지 열어볼 수 없다"* 로 끝냈고
- * 오너가 두 번 말했다 — *"너한테 그 도구 다 있어."* 화면 손은 한 번도 안 썼다.
- *
- * **커널이 알맹이를 재는 것이 아니다.** 여기서 보는 셋은 전부 **손이 스스로 낸 사실**이다:
- * `읽은상태: 'shell'`(`web-tool.js` 가 메뉴·링크를 뺀 글자수로 계산) ·
- * `observation.thin`(`browser-tool.js` 가 200자 미만이면 단다) · `blocked`/`fetchState`.
- * 알맹이가 좋은지 나쁜지는 안 묻는다 — **있었는지 없었는지만** 묻고, 그건 손이 말해 준다.
- *
- * 왜 「막힘」에 넣는가: 사용자 자리에서 **못 읽은 것과 읽을 게 없던 것은 같다.** 목적이 한
- * 걸음 앞에서 멈춘다. 「막혔다」로 세야 `옆손찾기` 가 돌고, 그래야 같은 것을 보는 다른 손이 선다.
- */
-function 빈손으로돌아왔나(r) {
-  const res = r?.result ?? {};
-  if (res.읽은상태 === 'shell') return true;              // 손: "메뉴뿐이라 알맹이가 없었어요"
-  if (res.observation?.thin === true) return true;        // 손: "열렸는데 글이 거의 없어요"
-  if (res.blocked === true || res.fetchState === 'blocked') return true;
-  return false;
-}
 
 export function 다음길(receipts, 있는손, 손들 = []) {
   const 계단 = nextRung(receipts, 있는손);
