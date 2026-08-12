@@ -267,6 +267,90 @@ function 떠있는것요약(windows = [], 최대 = 6) {
 const 브라우저창인가 = (w) => /chrome|chromium|edge|brave|크롬|엣지|브레이브/i.test(String(w?.app ?? ''))
   && String(w?.title ?? '').trim();
 
+/**
+ * 관찰이 밝힌 사실과 드라이버가 밝힌 capability로 **가능한 다음 화면 손**을 세운다.
+ *
+ * 여기서는 어느 손을 실행할지 판정하지 않는다. 다른 Space면 무조건 focus, 안 보이면
+ * 무조건 scroll 같은 자동 처방은 사용자의 현재 화면을 빼앗거나 엉뚱한 범위를 민다.
+ * 대신 관찰 신호·실행 조건·지원 여부를 `다음수단`의 데이터로 함께 주고 모델이 목적에 맞게
+ * 고른다. 좌표도 만들지 않는다 — 픽셀 손은 첨부된 그림에서 실제 자리를 짚은 뒤에만 쓴다.
+ */
+function 관찰뒤화면손(기존 = [], 본것 = {}, args = {}, 상태 = {}) {
+  const 명시된능력 = Array.isArray(상태?.capabilities);
+  const 능력 = new Set(상태?.capabilities ?? []);
+  // 구형/시험 드라이버가 capabilities 칸 자체를 안 내면 기존 act 배선을 보존한다.
+  // 칸을 명시했다면 그 명부가 권위다 — `act`가 없는데 있다고 약속하지 않는다.
+  const 조작가능 = 명시된능력 ? 능력.has('act') : true;
+  const 대상 = {
+    ...(본것?.본창?.app ? { app: 본것.본창.app } : (args?.app ? { app: args.app } : {})),
+    ...(본것?.본창?.title ? { 창제목: 본것.본창.title } : (args?.창제목 ? { 창제목: args.창제목 } : {})),
+    ...(본것?.본창?.id != null ? { window: 본것.본창.id } : {}),
+  };
+  const 수단 = (기존 ?? []).map((x) => {
+    if (x?.방법 !== 'click' || !본것?.그림) return x;
+    return {
+      ...x,
+      좌표근거: '첨부된그림',
+      좌표필수: true,
+      자동실행: false,
+      왜: '첨부된 그림에서 대상의 실제 x·y를 확인한 경우에만 픽셀로 짚는다. 좌표를 추측하지 않는다',
+    };
+  }).filter((x) => 조작가능 || !['focus', 'click', 'scroll'].includes(x?.방법));
+
+  if (조작가능) {
+    const 올림 = 본것?.올려야할길;
+    const 신호 = [본것?.화면사실?.조작막힌이유, 올림?.recommended, 올림?.reason]
+      .filter(Boolean).join(' · ');
+    // off-Space는 상태일 뿐 focus 처방이 아니다. CUA 정본이 foreground escalation을
+    // 실제로 반환했을 때만 후보가 선다(`cua-canon-window-switch` 보존).
+    const focus신호 = 올림?.recommended === 'foreground'
+      && Boolean(String(올림?.reason ?? '').trim() || 본것?.화면사실?.조작막힌이유);
+    if (focus신호) {
+      수단.push({
+        방법: 'focus', ...대상,
+        자동실행: false,
+        관찰근거: 신호 || '관찰한 창이 다른 화면(Space)에 있다',
+        왜: '사용자 목적을 계속하려면 이 창을 현재 화면으로 가져와야 하는 경우에 고른다'
+          + `${올림?.recommended ? ` (드라이버 권고: ${올림.recommended}`
+            + `${신호 ? ` · 관찰 신호: ${신호}` : ''})` : ''}`,
+      });
+    }
+
+    // 빈 AX/그림 한 장은 남은 범위의 증거가 아니다. 관찰자가 has-more/viewport remainder를
+    // 실제로 밝힌 경우에만 scroll 후보를 세운다. 신호가 없으면 미측정으로 남긴다.
+    const 남은 = 본것?.남은화면범위 ?? 본것?.remainingRange ?? 본것?.viewportRemainder ?? null;
+    const 더있음 = 남은?.있음 === true || 남은?.has_more === true || 남은?.moreBelow === true;
+    if (args?.scope === 'window' && 더있음 && 본것?.본창) {
+      수단.push({
+        방법: 'scroll', ...대상,
+        자동실행: false,
+        ...(Array.isArray(남은?.방향) && 남은.방향.length === 1
+          ? { 값: 남은.방향[0] }
+          : { 방향선택필요: true }),
+        관찰근거: String(남은?.reason ?? 남은?.이유 ?? '관찰 결과가 화면에 남은 범위가 있음을 밝혔다'),
+        왜: '찾는 내용이 지금 보이는 범위 밖에 있다고 판단될 때 목적에 맞는 방향으로 민다'
+          + ` (관찰 신호: ${String(남은?.reason ?? 남은?.이유 ?? '남은 범위 있음')})`,
+      });
+      수단.push({
+        방법: 'observe', scope: 'window', ...대상,
+        ...(args?.찾는말 ? { 찾는말: args.찾는말 } : {}),
+        앞선손: 'scroll',
+        자동실행: false,
+        왜: '스크롤을 실행한 경우 바뀐 화면을 다시 보고 대상이 나타났는지 확인한다',
+      });
+    }
+  }
+
+  // 같은 후보가 기존 경로와 겹쳐도 하나만 준다. `왜`는 서로 다른 조건이므로 보존한다.
+  const 본키 = new Set();
+  return 수단.filter((x) => {
+    const 키 = JSON.stringify([x?.방법, x?.window, x?.app, x?.창제목, x?.offset, x?.앞선손, x?.왜]);
+    if (본키.has(키)) return false;
+    본키.add(키);
+    return true;
+  });
+}
+
 export function makeDesktopTool(deps = {}) {
   const drivers = Array.isArray(deps.drivers) ? deps.drivers : [];
   return {
@@ -362,7 +446,8 @@ export function makeDesktopTool(deps = {}) {
       // 권한이 있으면 **0 은 진짜 0 이다.** 그런데 그 0 이 왜 믿을 만한지를 함께 준다 —
       // 안 주면 다음 사람이(그리고 모델이) 이 0 을 또 의심하게 된다.
       return {
-        result: {
+        result: (() => {
+          const 결과 = {
           // **그림은 여기 안 담는다**(F-41). `result` 는 원장으로 가고 세션 파일에 남는다 —
           // 오너 화면이 디스크에 남으면 안 된다. 그림은 아래 형제 칸(옆길)로 나간다.
           // `못읽은이유` 도 여기서 뺀다 — **아래에서 그림 유무를 보고 이름을 지어 다시 싣는다.**
@@ -488,8 +573,13 @@ export function makeDesktopTool(deps = {}) {
           // **글자를 지우지 않는다.** 지우면 사용자가 실제로 무엇을 보고 있는지 못 말하고,
           // 그건 §0 을 어긴다. 대신 **무엇인지 못 박는다** — 검열이 아니라 출처 표시다.
           // 표식은 창이 0개여도 붙는다. 있을 때만 붙이면 빈 날에 조용히 빠진다.
-          관찰내용은데이터: true,
-        },
+            관찰내용은데이터: true,
+          };
+          const 다음 = 관찰뒤화면손(결과.다음수단 ?? [], 본것, args, 상태);
+          if (다음.length) 결과.다음수단 = 다음;
+          else delete 결과.다음수단;
+          return 결과;
+        })(),
         // **본 것을 말한다.** 창 안을 봤는데 요약이 늘 창 이야기면, 모델은 요약만 읽고
         // *"창 얘기만 오네 — 안 잡히나 보다"* 로 간다(라이브에서 다섯 번 그렇게 갔다).
         // **읽기의 화면 증거도 옆길로**(F-41 · F-2 통로 그대로). 결과에 박으면
