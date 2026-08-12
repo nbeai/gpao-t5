@@ -150,6 +150,60 @@ function 바꾼개수(rec) {
 }
 
 /**
+ * 화면 행동은 드라이버에 제출됐지만 효과를 확인하지 못한 순간이 있다.
+ * 이때 다른 click 하나가 되었다고 앞의 click까지 회복된 것은 아니다. 도구·동사와
+ * 원장에 실린 대상 신분을 함께 보고, 같은 걸음의 후속 성공만 회복으로 인정한다.
+ *
+ * 여기서 재는 것은 내용 정답이 아니라 원장의 `dispatched/unknown` 사실이다. 커널이
+ * 계산기 결과나 앱별 목적을 풀이하지 않는다.
+ */
+function 미해결강한화면걸음(receipts) {
+  const 호출 = (r) => r?.actualCall ?? r?.제안한호출 ?? null;
+  const 대상신분 = (call) => {
+    const a = call?.args ?? {};
+    const t = a.대상 ?? a.target ?? {};
+    const 값 = t.토큰 ?? t.token ?? t.id ?? t.label ?? t.이름
+      ?? a.window_id ?? a.windowId ?? a.app ?? '';
+    return typeof 값 === 'string' || typeof 값 === 'number' ? String(값) : '';
+  };
+  const 키 = (r) => {
+    const call = 호출(r);
+    const action = call?.args?.action ?? call?.args?.op ?? '';
+    const target = 대상신분(call);
+    return `${call?.tool ?? ''}|${action}${target ? `|${target}` : ''}`;
+  };
+  const 된걸음 = new Set((receipts ?? [])
+    .filter((r) => (r?.failureState ?? 'none') === 'none'
+      && 호출(r)?.tool === 'desktop.act'
+      && r?.result?.단계 === 'goal_verified')
+    .map(키));
+  return [...new Set((receipts ?? [])
+    .filter((r) => {
+      const call = 호출(r);
+      const 진행 = r?.진행 ?? r?.result?.진행;
+      return call?.tool === 'desktop.act'
+        && r?.failureState === 'failed'
+        && 진행?.단계 === 'dispatched'
+        && 진행?.판정 === 'unknown'
+        && !된걸음.has(키(r));
+    })
+    .map(키))];
+}
+
+function 미해결화면사실(reply, receipts) {
+  const 걸음들 = 미해결강한화면걸음(receipts);
+  if (!걸음들.length) return null;
+  // `아직` 같은 일반 미완료는 무관한 파일 이야기만 밝혀도 참이 된다.
+  // 여기서는 답이 **효과 미확인 자체**를 밝힌 경우만 걷어낸다. 앱·목적·결과값은
+  // 읽지 않고, 확인되지 않은 행동을 밝히는 한국어 구조만 본다.
+  const 답 = 우리말만(reply);
+  const 화면미확인밝힘 = /효과.{0,8}(확인.{0,3}못|미확인)|확인.{0,6}(못했|못 했|안 됐|되지 않)|(눌|클릭|조작|행동).{0,10}(못|안 됐|실패)/.test(답);
+  if (화면미확인밝힘) return null;
+  return `이 턴에 드라이버로 제출됐지만 효과를 확인하지 못한 화면 행동이 남아 있다: ${걸음들.join(' · ')}.`
+    + ' 답은 그 사실을 말하지 않는다.';
+}
+
+/**
  * 답이 가리킨 **자리 이름**들 — 경로처럼 생긴 토막에서 마지막 마디만 뽑는다.
  *
  * 왜 마지막 마디인가: 모델은 `Downloads/_정리됨/설치_및_압축/` 처럼 사람이 읽을 형태로 쓴다.
@@ -317,6 +371,10 @@ function 원장속말(receipts) {
  * 셋뿐이다: 실행 0 완료 주장 · 원장 밖 파일 이름 · 원장 밖 자리.
  */
 export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일계약빈손 = false }) {
+  // 한 번의 보정 왕복 뒤에도 같은 `dispatched/unknown` 위에 결과를 쓰면
+  // 두 번째 모델 호출을 만들지 않고 같은 원장 사실로 거짓만 걷는다.
+  const 화면사실 = 미해결화면사실(reply, receipts);
+  if (화면사실) return { 재거짓: true, 사실: 화면사실 };
   // **일반 대화는 통제하지 않는다**(수리 계약 원문: "파일 산출물 존재만 절대 게이트").
   // 실행 0 완료 주장을 여기서 다시 재면 "요청한 내용을 정리했어요" 같은 정당한 대화 완료가
   // 잡아먹힌다(전체 회귀 실측 — work-state 정산 검사 2건이 그렇게 빨개졌다).
@@ -424,6 +482,14 @@ export function 완료주장검증({
   const 확인된실행 = (receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
     && r?.actualCall?.tool && r?.result !== undefined).length;
   const 지나감 = { 일치: true, 사용자에게: true, 실제 };
+
+  // 순서는 영향이다. 자리 불일치는 탐색 폭의 진실이지만, 효과 미확인 화면 행동은
+  // 방금 사용자에게 낼 결과의 직접 전제다. 같은 원장 사실을 먼저 놓아 무관한
+  // 자리 공백이 단 한 번의 되부름을 소비하지 못하게 한다.
+  const 화면사실 = 미해결화면사실(reply, receipts);
+  if (화면사실) {
+    return { 일치: false, 사용자에게: false, 실제, 모델에게: 화면사실 };
+  }
 
   // **한 턴에 한 번만 돌려준다.** 두 번 되돌리면 왕복이 무한이 되고, 그 비용은 사용자가 문다.
   if (이미돌려줬나) return 지나감;
