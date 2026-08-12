@@ -500,6 +500,9 @@ export const 허용파일 = [
   'src/runtime/tool-runner.js',
   // F-5 멈춤 — 표면(HTTP 문 + 화면 버튼)에서 커널 취소 이음새까지.
   'src/surface/web/index.html',
+  // UX 처방 ⑤(2026-08-13) — 검색 결과가 대화 첫머리가 아니라 실제로 맞은 대목을
+  // 보여 주고 원 대화의 같은 위치로 이동하려면, 후보가 일치 위치를 함께 내야 한다.
+  'src/kernel/l5-growth/session-search.js',
   // §S5 출구 검증 — 완료 주장을 원장과 대조하고 어긋나면 모델에게 되돌린다.
   'src/kernel/l2-plan/exit-verification.js',
   // **P-OP 결함 가족 A-②**(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다.

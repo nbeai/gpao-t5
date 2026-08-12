@@ -83,9 +83,31 @@ export async function 크롬띄우기({ url, width = 1280, height = 860, headles
   };
 
   const 닫기 = async () => {
+    const 소켓종료 = new Promise((resolve) => {
+      if (ws.readyState === WebSocket.CLOSED) resolve();
+      else {
+        ws.addEventListener('close', resolve, { once: true });
+        ws.addEventListener('error', resolve, { once: true });
+      }
+    });
+    // CDP 대상부터 닫아야 클라이언트 WebSocket의 close handshake가 끝난다. 소켓을 먼저
+    // 닫고 곧바로 Chrome을 죽이면 Node의 WebSocket 종료 타이머가 대본을 붙잡는다.
+    try { await fetch(`http://127.0.0.1:${포트}/json/close/${encodeURIComponent(대상.id)}`); } catch {}
+    await Promise.race([소켓종료, sleep(1000)]);
     try { ws.close(); } catch {}
+    await Promise.race([소켓종료, sleep(1000)]);
+    const 끝남 = () => new Promise((resolve) => {
+      if (proc.exitCode != null || proc.signalCode != null) resolve();
+      else proc.once('exit', resolve);
+    });
+    const 종료 = 끝남();
     proc.kill();
-    await sleep(400);
+    await Promise.race([종료, sleep(2000)]);
+    if (proc.exitCode == null && proc.signalCode == null) {
+      proc.kill('SIGKILL');
+      await Promise.race([끝남(), sleep(1000)]);
+    }
+    await Promise.race([소켓종료, sleep(1000)]);
     await rm(프로필, { recursive: true, force: true });  // **내가 만든 경로만** 지운다
   };
 

@@ -220,6 +220,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/surface/live-context.js',
     'src/runtime/tool-runner.js',
     'src/surface/web/index.html',
+    // UX 처방 ⑤(2026-08-13) — 검색 후보가 실제 일치 대목과 위치를 표면에 전달한다.
+    'src/kernel/l5-growth/session-search.js',
     'src/kernel/l2-plan/exit-verification.js',
     // P-OP 결함 가족 A-②(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다(입장 경계만).
     'src/surface/work-state-admission.js',

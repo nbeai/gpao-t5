@@ -24,7 +24,8 @@ try {
       const bs = [...document.querySelectorAll('button, [role=button], .ov-act')];
       const 목록 = bs.map((b) => ({
         화면: 이름,
-        글: (b.textContent || '').trim().slice(0, 24),
+        // 숨긴 아이콘까지 세면 화면에 없는 말이 어휘로 잡힌다. 사람이 보는 글만 잰다.
+        글: (b.innerText || b.textContent || '').trim().slice(0, 24),
         라벨: b.getAttribute('aria-label') || b.title || null,
         보임: 보이나(b),
         꺼짐: !!b.disabled,
@@ -53,10 +54,18 @@ try {
     document.getElementById('chip')?.click(); await 뜸(200);
 
     // ── 3. 도구함 ─────────────────────────────────────────────────
-    document.getElementById('tbov').classList.add('open'); await 뜸(700);
-    out.화면.push({ 이름: '도구함', 열림: true, 보이는버튼: 훑기('도구함'),
+    // 사람이 하는 길: 설정 → 도구와 연결 → 도구함 열기. classList로 문을 강제로 열면
+    // 진입 버튼이 끊겨도 걷기가 초록이 되는 바로 그 거짓 양성이다.
+    document.getElementById('settingsbtn').click(); await 뜸(500);
+    const 도구탭 = [...document.querySelectorAll('#set-tabs button')].find((b) => b.textContent.trim() === '도구와 연결');
+    도구탭?.click(); await 뜸(700);
+    const 도구문 = [...document.querySelectorAll('#set-body button')].find((b) => b.textContent.trim() === '도구함 열기');
+    도구문?.click(); await 뜸(700);
+    const 도구함열림 = document.getElementById('tbov').classList.contains('open');
+    if (!도구함열림) out.문제.push({ 화면: '도구함', 왜: '사람이 누를 진입 경로로 열리지 않는다' });
+    out.화면.push({ 이름: '도구함', 열림: 도구함열림, 보이는버튼: 훑기('도구함'),
       비고: (document.getElementById('tb-body')?.textContent || '').trim().slice(0, 60) });
-    document.getElementById('tbov').classList.remove('open'); await 뜸(200);
+    document.getElementById('tb-x')?.click(); await 뜸(200);
 
     // ── 4. 설정 7탭 — **하나씩 실제로 연다** ────────────────────────
     // 모듈 안 함수는 못 부른다 — **사람이 하는 그대로** 버튼을 눌러서 간다.
@@ -77,7 +86,7 @@ try {
 
     // ── 5. 말 대조 — 같은 뜻이 화면마다 다른 말을 쓰나 ───────────────
     const 사전 = { 지움: ['지우기','삭제','치워 두기','휴지통','제거'], 되돌림: ['되돌리기','복구','되살리기','붙듦 해제'],
-      닫기: ['닫기','✕','대화로 돌아가기','취소'], 보냄: ['보내기','다시 보내기','전송'] };
+      닫기: ['닫기','✕','대화로 돌아가기'], 보냄: ['보내기','다시 보내기','전송'] };
     for (const [뜻, 말들] of Object.entries(사전)) {
       const 쓰인것 = [...new Set(out.버튼전수.filter((b) => 말들.some((w) => b.글 === w || b.라벨 === w)).map((b) => b.글 || b.라벨))];
       out.말[뜻] = 쓰인것;
@@ -87,4 +96,8 @@ try {
   })()`, 180000);
   console.log(JSON.stringify(결과, null, 2));
   if (process.argv[4]) await writeFile(process.argv[4], JSON.stringify(결과, null, 2));
-} finally { await 크롬.닫기(); }
+} finally {
+  await 크롬.닫기();
+  // Node 내장 fetch의 keep-alive만 남는다. 측정·출력·자원 정리 뒤 대본을 끝낸다.
+  setTimeout(() => process.exit(process.exitCode ?? 0), 0).unref();
+}

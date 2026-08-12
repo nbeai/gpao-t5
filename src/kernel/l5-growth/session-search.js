@@ -17,9 +17,35 @@ function entryText(entry) {
   return '';
 }
 
-function clip(text, n = 140) {
+function matchRange(text, query) {
+  const lower = text.toLocaleLowerCase();
+  const q = query.toLocaleLowerCase();
+  let at = lower.indexOf(q);
+  let length = q.length;
+  if (at < 0) {
+    const found = q.split(/\s+/).filter(Boolean)
+      .map((part) => ({ at: lower.indexOf(part), length: part.length }))
+      .filter((x) => x.at >= 0).sort((a, b) => a.at - b.at)[0];
+    if (found) ({ at, length } = found);
+  }
+  return at < 0 ? null : { at, length };
+}
+
+function clipAround(text, query, n = 180) {
   const t = String(text ?? '').trim();
-  return t.length > n ? `${t.slice(0, n)}…` : t;
+  const matched = matchRange(t, query);
+  if (!matched) return { snippet: t.length > n ? `${t.slice(0, n)}…` : t };
+  const room = Math.max(0, n - matched.length);
+  const start = Math.max(0, Math.min(matched.at - Math.floor(room / 2), t.length - n));
+  const end = Math.min(t.length, start + n);
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < t.length ? '…' : '';
+  return {
+    snippet: `${prefix}${t.slice(start, end)}${suffix}`,
+    matchStart: prefix.length + matched.at - start,
+    matchLength: matched.length,
+    matchText: t.slice(matched.at, matched.at + matched.length),
+  };
 }
 
 /**
@@ -34,11 +60,11 @@ export function searchTranscripts(sessions, query) {
   if (!q) return [];
   const hits = [];
   for (const s of sessions ?? []) {
-    for (const entry of s.transcript ?? []) {
+    for (const [entryIndex, entry] of (s.transcript ?? []).entries()) {
       const text = entryText(entry);
       // isRelevant(질의어, 대화텍스트): 질의 단어가 대화에 나타나면 히트(조사 근사 포함).
       if (text && isRelevant(q, text)) {
-        hits.push({ sessionId: s.id, title: s.title, role: entry.role, snippet: clip(text) });
+        hits.push({ sessionId: s.id, title: s.title, role: entry.role, entryIndex, ...clipAround(text, q) });
       }
     }
   }
@@ -56,7 +82,10 @@ export function makeSearchCandidate(hit, candidateId) {
     candidateId,
     kind: RECALLED_KIND,
     statement: hit.snippet,
-    source: { sessionId: hit.sessionId, title: hit.title, role: hit.role }, // 출처(어느 대화에서 왔는지)
+    source: {
+      sessionId: hit.sessionId, title: hit.title, role: hit.role,
+      entryIndex: hit.entryIndex, matchStart: hit.matchStart, matchLength: hit.matchLength, matchText: hit.matchText,
+    }, // 출처(어느 대화의 어느 대목에서 왔는지)
     admitted: false,
     replayPassed: false,
     userConfirmed: false, // 사용자가 "이 맥락 써도 돼"라고 admit하기 전엔 영향 0

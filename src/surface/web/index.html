@@ -370,7 +370,7 @@
       transition:transform var(--dur-normal) var(--ease-out); box-shadow:var(--sh-lg); }
     body.nav-open #side { transform:translateX(0); }
     .crumb .hb { display:inline; }
-    /* 모바일 크럼 압축: 앱 이름·구분자 숨겨 "Work Chat"만, 검색 버튼은 아이콘만 — 한 줄에 들어간다. */
+    /* 모바일 크럼 압축: 앱 이름·구분자 숨겨 "Work Chat"만, 닫힌 검색 버튼은 아이콘만 — 한 줄에 들어간다. */
     .crumb { padding:var(--sp-3) var(--sp-3); }
     .crumb .appn { display:none; }
     #searchbtn .sb-t { display:none; }
@@ -520,6 +520,17 @@
   .trace.queued::before { animation:none; background:var(--muted); }
   .trace.still::before { display:none; }
   .trace.still { opacity:.75; }
+
+  /* 조각 H — 닫는 말은 어디서나 「닫기」 하나다. 글자가 된 오버레이 문과 검색의 열린
+     상태가 같은 크기로 서고, 375px에서도 검색을 닫을 때는 말 자체가 사라지지 않는다. */
+  .tb-head .tb-x { font-size:var(--fs-sm); }
+  #searchbtn.closing #search-icon { display:none; }
+  #searchbtn.closing .sb-t { display:inline; }
+  .history-cut { margin:0 auto var(--sp-4); padding:var(--sp-2) var(--sp-3); width:fit-content;
+    max-width:100%; border:1px solid var(--line); border-radius:var(--r-full); color:var(--muted);
+    background:var(--panel); font-size:var(--fs-xs); text-align:center; }
+  .qh-body mark { background:var(--warn-subtle); color:inherit; border-radius:3px; padding:0 2px; }
+  .turn.search-target { outline:2px solid var(--warn); outline-offset:4px; border-radius:var(--r-md); }
 </style>
 </head>
 <body>
@@ -543,7 +554,7 @@
       <span class="spacer"></span>
       <button id="selArchive">숨기기</button>
       <button id="selDelete" class="warn">지우기</button>
-      <button id="selCancel">취소</button>
+      <button id="selCancel">닫기</button>
     </div>
     <div class="sessions" id="sessions"></div>
     <div class="sidefoot">
@@ -558,7 +569,7 @@
     <div class="crumb">
       <span class="hb" id="hb">☰</span>
       <span class="bc"><span class="appn">GPAO-T5 <span class="sep">›</span> </span>Work Chat</span>
-      <button id="searchbtn" title="지난 대화 찾기">🔍<span class="sb-t"> 대화 찾기</span></button>
+      <button id="searchbtn" title="지난 대화 찾기"><span id="search-icon">🔍</span><span class="sb-t"> 대화 찾기</span></button>
       <button id="chip" title="현재 상태 보기">확인 중</button>
     </div>
     <div id="state"></div>
@@ -587,7 +598,7 @@
   <div id="tbov">
     <div id="tbpanel">
       <div class="tb-head">
-        <h2>🜁 도구함 <button class="tb-x" id="tb-x" title="닫기">✕</button></h2>
+        <h2>🜁 도구함 <button class="tb-x" id="tb-x" title="닫기">닫기</button></h2>
         <p>T5가 작업에 사용할 도구예요. 연결 상태는 실제 실행 상태와 같아요.</p>
         <input class="tb-search" id="tb-search" placeholder="도구 검색" />
       </div>
@@ -598,8 +609,8 @@
   <div id="setov">
     <div id="setpanel">
       <div class="tb-head">
-        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="대화로 돌아가기">✕</button></h2>
-        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">← 대화로 돌아가기</a></p>
+        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="닫기">닫기</button></h2>
+        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">닫기</a></p>
         <div id="set-tabs" class="tb-badges" style="margin-top:var(--sp-2);"></div>
       </div>
       <div class="tb-body" id="set-body"></div>
@@ -779,11 +790,15 @@ const searchPanel = document.getElementById('search');
 const qInput = document.getElementById('q');
 const qResults = document.getElementById('qresults');
 const sbText = document.querySelector('#searchbtn .sb-t');
+const searchIcon = document.getElementById('search-icon');
 function toggleSearch(force) {
   const open = force ?? (searchPanel.style.display !== 'block');
   searchPanel.style.display = open ? 'block' : 'none';
   if (sbText) sbText.textContent = open ? ' 닫기' : ' 대화 찾기';
-  document.getElementById('searchbtn').title = open ? '닫기' : '지난 대화 찾기';
+  const searchButton = document.getElementById('searchbtn');
+  searchButton.title = open ? '닫기' : '지난 대화 찾기';
+  searchButton.classList.toggle('closing', open);
+  searchIcon.style.display = open ? 'none' : '';
   if (open) qInput.focus();
 }
 document.getElementById('searchbtn').onclick = () => toggleSearch();
@@ -810,7 +825,17 @@ function renderQResults(results) {
     card.appendChild(tag);
     const srcEl = src.title ? el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`) : null;
     if (srcEl) card.appendChild(srcEl);
-    const bodyEl = el('qh-body', r.statement);
+    const bodyEl = el('qh-body');
+    const statement = String(r.statement ?? '');
+    const matchStart = Number(src.matchStart);
+    const matchLength = Number(src.matchLength);
+    if (Number.isInteger(matchStart) && Number.isInteger(matchLength) && matchStart >= 0 && matchLength > 0
+      && matchStart + matchLength <= statement.length) {
+      bodyEl.append(document.createTextNode(statement.slice(0, matchStart)));
+      const mark = document.createElement('mark');
+      mark.textContent = statement.slice(matchStart, matchStart + matchLength);
+      bodyEl.append(mark, document.createTextNode(statement.slice(matchStart + matchLength)));
+    } else bodyEl.textContent = statement;
     card.appendChild(bodyEl);
     // 이동은 반영과 다른 행동이다 — 제목·본문 클릭은 그 대화로 가고, 반영·되돌리기는 버튼만 한다.
     const 이동 = async () => {
@@ -819,6 +844,17 @@ function renderQResults(results) {
       if (!ok) { toast('그 대화가 지워졌거나 열 수 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
       await selectSession(src.sessionId);
       toggleSearch(false);
+      const matchText = String(src.matchText ?? '').trim();
+      const roleClass = src.role === 'user' ? '.msg.me' : '.msg.bot';
+      const matched = matchText ? [...document.querySelectorAll(roleClass)].find((n) => n.textContent.includes(matchText)) : null;
+      if (matched) {
+        const turn = matched.closest('.turn');
+        turn?.classList.add('search-target');
+        matched.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setTimeout(() => turn?.classList.remove('search-target'), 1800);
+      } else if (document.querySelector('.history-cut')) {
+        toast('이 대목은 접힌 이전 대화에 있어요. 검색 결과의 문장을 그대로 확인해 주세요.');
+      }
     };
     for (const n of [srcEl, bodyEl]) if (n) { n.style.cursor = 'pointer'; n.title = '이 대화로 이동'; n.onclick = 이동; }
     const btn = document.createElement('button'); btn.className = 'qh-act';
@@ -1864,7 +1900,12 @@ document.getElementById('listtabs').onclick = async (ev) => {
 };
 async function newSession() {
   const s = await (await fetch('/sessions', { method: 'POST' })).json();
-  currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
+  currentSessionId = s.id;
+  // 낙관 턴의 기준은 **이 대화의** 저장 수다. 직전 대화의 수를 물려받으면 새 대화 첫 턴이
+  // 이미 저장된 뒤에도 `서버사용자수 <= 기준사용자수`가 되어 화면에 한 벌 더 붙는다.
+  마지막서버사용자수 = 0;
+  마지막서버답수 = 0;
+  wrap.innerHTML = ''; await loadSessions();
   document.body.classList.remove('nav-open'); text.focus();
 }
 // 대화 한 벌을 **한 함수로만** 그린다.
@@ -1879,11 +1920,26 @@ async function newSession() {
 // 진실**이고, 턴·승인·거절이 끝나면 그 사실로 대화를 다시 투영한다.
 // 다만 **마지막 결과만 현재**로 그린다 — `historical` 은 비밀 입력면·기억 제안 같은 지금 필요한
 // 자리까지 숨기므로, 전부 과거로 그리면 방금 열린 입력창이 사라진다.
+let 마지막서버사용자수 = 0;
+let 마지막서버답수 = 0;
+const 최근대화표시한도 = 80;
 async function 대화투영(s) {
   const active = s.activePendingIds || [];
-  const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
+  const 대화 = s.transcript || [];
+  const 표시대화 = 대화.slice(-최근대화표시한도);
+  const 접은수 = 대화.length - 표시대화.length;
+  const 서버사용자수 = 대화.filter((e) => e.role === 'user').length;
+  const 서버답수 = 대화.filter((e) => e.role === 'assistant').length;
+  const 마지막 = 표시대화.map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
+  // 서버 저장이 화면보다 한 박자 늦을 때 통째 투영이 방금 친 말·받은 답을 지우지 않게 맡아 둔다.
+  // 노드 자체를 다시 붙이므로 진행 표시·버튼의 실제 배선도 복제되지 않는다.
+  const 낙관턴 = [...wrap.querySelectorAll('.turn[data-optimistic-users]')]
+    .filter((턴) => 턴.getAttribute('data-optimistic-session') === s.id);
   wrap.innerHTML = '';
-  (s.transcript || []).forEach((e, i) => {
+  if (접은수 > 0) {
+    wrap.appendChild(el('history-cut', `이전 대화 ${접은수}개는 화면에서 접어 두었어요. 저장된 원문은 그대로예요.`));
+  }
+  표시대화.forEach((e, i) => {
     if (e.role === 'user') {
       const box = turnBox(); box.appendChild(el('who right', '사용자'));
       const 내말 = el('msg me', e.text); box.appendChild(내말);
@@ -1891,6 +1947,18 @@ async function 대화투영(s) {
     }
     else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
   });
+  for (const 턴 of 낙관턴) {
+    const 기준사용자수 = Number(턴.getAttribute('data-optimistic-users'));
+    const 기준답수 = Number(턴.getAttribute('data-optimistic-assistants'));
+    if (서버사용자수 <= 기준사용자수) { wrap.appendChild(턴); continue; }
+    if (서버답수 <= 기준답수) {
+      // 사용자는 서버에 닿았고 답만 늦었다. 같은 말을 두 번 보이지 않고 받은 답 쪽만 지킨다.
+      턴.querySelectorAll('.who.right,.msg.me,.acts.right').forEach((n) => n.remove());
+      if (턴.childElementCount) wrap.appendChild(턴);
+    }
+  }
+  마지막서버사용자수 = 서버사용자수;
+  마지막서버답수 = 서버답수;
   return s;
 }
 
@@ -2539,7 +2607,11 @@ async function submit() {
   const t = text.value.trim(); if (!t) return;
   const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
+  const 앞선낙관턴수 = wrap.querySelectorAll('.turn[data-optimistic-users]').length;
   const box = turnBox(); box.appendChild(el('who right', '사용자'));
+  box.setAttribute('data-optimistic-session', currentSessionId);
+  box.setAttribute('data-optimistic-users', String(마지막서버사용자수 + 앞선낙관턴수));
+  box.setAttribute('data-optimistic-assistants', String(마지막서버답수 + 앞선낙관턴수));
   const 내말 = el('msg me', t); box.appendChild(내말);
   동작줄(box, 내말, 'me');
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
@@ -2602,6 +2674,15 @@ async function submit() {
       renderRecovery(box, recovery);
       await streamed.reportComplete();
       return;
+    }
+    // 받은 답은 서버의 늦은 스냅샷보다 먼저 화면에 도착한 사실이다. 투영 직전에 임시
+    // 미리보기를 지우더라도 같은 노드에 맡겨 두고, 서버 답이 잡히는 순간에만 걷는다.
+    if (streamed.answerText) {
+      const localAnswer = el('msg bot');
+      renderMarkdownInto(localAnswer, streamed.answerText);
+      localAnswer.__원문 = streamed.answerText;
+      box.appendChild(localAnswer);
+      동작줄(box, localAnswer, 'bot');
     }
     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
@@ -2774,6 +2855,7 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
     });
     const completed = () => ({
       recovery,
+      answerText: previewText,
       reportComplete: async () => reportVisibleTiming(
         start.measurementId, 'turn_complete', await afterVisiblePaint(surfaceStartedAt),
       ),

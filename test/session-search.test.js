@@ -44,6 +44,17 @@ test('searchTranscripts: user 발화와 assistant reply 모두 검색 대상', (
   assert.ok(hits.some((h) => h.role === 'assistant'));
 });
 
+test('검색어가 긴 글 뒤쪽에 있어도 스니펫 안에 맞은 대목과 위치가 함께 온다', () => {
+  const long = [{ id: 'long', title: '긴 대화', transcript: [
+    { role: 'user', text: `${'앞부분 '.repeat(50)}진짜찾을말 뒤의 문장` },
+  ] }];
+  const [hit] = searchTranscripts(long, '진짜찾을말');
+  assert.match(hit.snippet, /진짜찾을말/);
+  assert.equal(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength), '진짜찾을말');
+  assert.equal(hit.matchText, '진짜찾을말');
+  assert.equal(hit.entryIndex, 0);
+});
+
 // ── 안전 불변식: 검색 결과는 raw로 영향 0, admission 통과해야 영향 ──
 test('검색 후보는 raw 상태에서 영향 0 — 라우터 admittedContext에 안 들어간다', () => {
   const [hit] = searchTranscripts(sessions, '부오상회');
