@@ -151,3 +151,35 @@ test('창 제목만 같고 window·pid·bounds·fingerprint가 없으면 안정 
   const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [before, fresh] });
   assert.equal(v.일치, false);
 });
+
+test('ToolRunner Receipt의 실행신분으로 s4→s5 fresh goal_verified가 같은 실제 요소를 회복한다', () => {
+  // 보존 라이브처럼 model args에는 창·pid가 없다. desktop.act가 실행 직전 fresh
+  // observation으로 남긴 공통 신분만이 두 Receipt를 잇는다.
+  const call = (id) => ({ tool: 'desktop.act', args: { action: 'click', app: '계산기', 대상: { id, label: '7' } } });
+  const 신분 = { 창: 813, pid: 18355, 요소: { 번호: 5, 역할: 'AXButton', label: '7' } };
+  const failed = {
+    failureState: 'failed', lifecycle: 'failed', actualCall: call('s4:5'),
+    진행: { 단계: 'dispatched', 판정: 'unknown', 근거: 'effect.unverifiable', 실행신분: 신분 },
+  };
+  const success = {
+    failureState: 'none', lifecycle: 'delivered', actualCall: call('s5:5'),
+    result: { 단계: 'goal_verified', 행동: 'click', 실행신분: 신분 },
+  };
+  const v = 완료주장검증({ reply: '확인된 화면 결과입니다.', receipts: [failed, success] });
+  assert.equal(v.일치, true);
+});
+
+test('ToolRunner Receipt 실행신분의 window가 다르면 동명 fresh 요소도 fail-closed다', () => {
+  const call = (id) => ({ tool: 'desktop.act', args: { action: 'click', app: '계산기', 대상: { id, label: '7' } } });
+  const 요소 = { 번호: 5, 역할: 'AXButton', label: '7' };
+  const failed = {
+    failureState: 'failed', actualCall: call('s4:5'),
+    진행: { 단계: 'dispatched', 판정: 'unknown', 실행신분: { 창: 813, pid: 18355, 요소 } },
+  };
+  const other = {
+    failureState: 'none', actualCall: call('s5:5'),
+    result: { 단계: 'goal_verified', 실행신분: { 창: 900, pid: 18355, 요소 } },
+  };
+  const v = 완료주장검증({ reply: '다 끝냈어요.', receipts: [failed, other] });
+  assert.equal(v.일치, false);
+});

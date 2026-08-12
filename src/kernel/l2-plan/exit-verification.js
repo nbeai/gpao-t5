@@ -189,13 +189,18 @@ function 미해결강한화면걸음(receipts) {
     const call = 호출(r);
     const a = call?.args ?? {};
     const t = a.대상 ?? a.target ?? {};
+    // A 실행선과 확정한 공통 계약. 모델이 보낸 args보다, 실행 직전 fresh
+    // observation에서 desktop.act가 남긴 신분이 지배한다. failed와 goal_verified가
+    // 같은 모양을 서로 다른 상태 칸에 남긴다.
+    const 실행신분 = r?.진행?.실행신분 ?? r?.result?.실행신분 ?? null;
+    const 요소 = 실행신분?.요소 ?? null;
     const token = 값(t.토큰 ?? t.token ?? t.id);
-    const ordinal = 값(t.번호 ?? t.index) || /:(\d+)$/.exec(token)?.[1] || '';
+    const ordinal = 값(요소?.번호) || 값(t.번호 ?? t.index) || /:(\d+)$/.exec(token)?.[1] || '';
     return {
       action: 값(a.action ?? a.op), app: 값(a.app ?? t.app),
-      label: 값(t.label ?? t.이름), ordinal,
-      windowTitle: 값(a.창제목 ?? a.windowTitle), window: 값(t.창 ?? a.window_id ?? a.windowId),
-      pid: 값(t.pid ?? a.pid), role: 값(t.role ?? t.type),
+      label: 값(요소?.label) || 값(t.label ?? t.이름), ordinal,
+      windowTitle: 값(a.창제목 ?? a.windowTitle), window: 값(실행신분?.창) || 값(t.창 ?? a.window_id ?? a.windowId),
+      pid: 값(실행신분?.pid) || 값(t.pid ?? a.pid), role: 값(요소?.역할) || 값(t.role ?? t.type),
       fingerprint: 값(t.지문 ?? t.fingerprint),
       bounds: t.bounds && typeof t.bounds === 'object' ? JSON.stringify(t.bounds) : '',
     };
