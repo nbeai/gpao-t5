@@ -221,6 +221,19 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
     required: ['output'],
   },
 });
+const WORK_DELIVERABLE_VERIFICATION_SCHEMA = Object.freeze({
+  name: 'work.deliverable',
+  description: '방금 재읽은 실제 결과 파일이 사용자 요청을 만족하는지 판정한다. 내용이 틀리거나 불완전하면 satisfied=false로 제출한다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      output: { type: 'string', enum: ['file'] },
+      satisfied: { type: 'boolean' },
+      reason: { type: 'string' },
+    },
+    required: ['output', 'satisfied'],
+  },
+});
 async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
   if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
@@ -287,6 +300,29 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
   // 판단 불능을 CHAT 으로 꾸미지 않는다. 사용자 답은 막지 않되 완료 상태는 만들지 않는다.
   return { assessment: 'unknown', deliverables: [] };
 }
+
+/** 요청에 원본과 별도 결과 절대경로가 함께 명시된 파생 파일 작업. */
+function localDerivedFileContract(text) {
+  const parsed = parseFileRequest(text ?? '');
+  if (parsed.action !== 'write' || parsed.clarifyReason !== 'no_content') return null;
+  const paths = [...String(text ?? '').matchAll(/\/(?:[^\s'"“”‘’`,]+\/?)+/g)]
+    .map((match) => match[0].replace(/[.)\]}]+$/g, '')
+      .replace(/(?:안의|안에|에서|으로|로|의|을|를|은|는|이|가)$/u, ''))
+    .map((path) => resolve(path));
+  if (paths.length < 2) return null;
+  // 파생 요청은 원본 경로 뒤에 결과 경로를 말한다. 기존 parser는 첫 경로만 주므로
+  // 두 경로 발화에서는 마지막 명시 경로를 output으로 쓴다.
+  const output = localPathIdentity(paths.at(-1));
+  const sources = [...new Set(paths.slice(0, -1).map(localPathIdentity).filter((path) => path !== output))];
+  return sources.length ? { output, sources } : null;
+}
+
+const localPathIdentity = (path) => {
+  const value = resolve(String(path ?? ''));
+  if (value === '/var' || value.startsWith('/var/')) return `/private${value}`;
+  if (value === '/tmp' || value.startsWith('/tmp/')) return `/private${value}`;
+  return value;
+};
 
 /**
  * 파일 산출물 계약이 요구하는 쓰기 손. 일반 파일 스키마를 복제하지 않고 action 과 필수 결과만
@@ -2594,6 +2630,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       return 결과신분들(rec).some((축) => 축.창 === 실패신분.창 && 축.pid === 실패신분.pid);
     });
   };
+  const 새쓰기뒤결과재읽기 = (toolId, args) => {
+    const contract = localDerivedFileContract(requestText);
+    if (!contract || toolId !== 'local.file' || args?.action !== 'read'
+      || localPathIdentity(args?.path) !== contract.output) return false;
+    let lastRead = -1;
+    for (let i = turnReceipts.length - 1; i >= 0; i -= 1) {
+      const call = turnReceipts[i]?.actualCall;
+      if (call?.tool === 'local.file' && call?.args?.action === 'read'
+        && localPathIdentity(call?.args?.path) === contract.output) { lastRead = i; break; }
+    }
+    if (lastRead < 0) return false;
+    return turnReceipts.slice(lastRead + 1).some((rec) => {
+      if ((rec?.failureState ?? 'none') !== 'none') return false;
+      if (rec?.actualCall?.tool === 'local.file' && rec?.actualCall?.args?.action === 'write') {
+        return localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === contract.output;
+      }
+      return rec?.actualCall?.tool === 'local.terminal' && rec?.result?.applied === true
+        && rec?.result?.writeEffect?.verified === true
+        && localPathIdentity(rec?.result?.writeEffect?.target?.path) === contract.output;
+    });
+  };
 
   let steps = 0;      // 실제로 실행한 도구 걸음
   // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
@@ -2692,6 +2749,68 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // ActionPlan 의 결과 형태와 실제 실행 영수증을 한 자리에서 대조한다. 다른 도구가 우연히
   // 남긴 digest 는 파일 산출물이 아니며, local.file write 의 path+digest 만 충족으로 센다.
   const 산출물미충족 = () => unsatisfiedDeliverables(plan, turnReceipts).length > 0;
+
+  // 파생 파일은 성공 write만으로 끝나지 않는다. 최신 실물을 다시 읽고, 그 내용이 사용자
+  // 목적을 만족하는지는 모델이 판정한다. 런타임은 경로·write·readback이라는 기계 사실만 묶는다.
+  const artifactAssessments = new Map();
+  const derivedArtifactState = () => {
+    const contract = localDerivedFileContract(requestText);
+    if (!contract) return { kind: 'none' };
+    let writeIndex = -1;
+    for (let i = turnReceipts.length - 1; i >= 0; i -= 1) {
+      const rec = turnReceipts[i];
+      if ((rec?.failureState ?? 'none') !== 'none') continue;
+      const fileWrite = rec?.actualCall?.tool === 'local.file'
+        && rec?.actualCall?.args?.action === 'write'
+        && localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === contract.output;
+      const terminalWrite = rec?.actualCall?.tool === 'local.terminal'
+        && rec?.result?.applied === true && rec?.result?.writeEffect?.verified === true
+        && rec?.result?.writeEffect?.changed === true
+        && localPathIdentity(rec?.result?.writeEffect?.target?.path) === contract.output;
+      if (fileWrite || terminalWrite) { writeIndex = i; break; }
+    }
+    if (writeIndex < 0) return { kind: 'none' };
+    const write = turnReceipts[writeIndex];
+    const key = createHash('sha256').update(JSON.stringify([
+      writeIndex, write?.actualCall?.callRef, write?.result?.digest,
+      write?.actualCall?.args?.text, write?.actualCall?.args?.command,
+    ])).digest('hex');
+    const assessed = artifactAssessments.get(key);
+    if (assessed) return assessed.satisfied
+      ? { kind: 'satisfied', output: contract.output, key }
+      : { kind: 'mismatch', output: contract.output, key, reason: assessed.reason };
+    const readback = turnReceipts.slice(writeIndex + 1).findLast((rec) =>
+      (rec?.failureState ?? 'none') === 'none'
+      && rec?.actualCall?.tool === 'local.file' && rec?.actualCall?.args?.action === 'read'
+      && localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === contract.output
+      && typeof rec?.result?.text === 'string' && rec?.result?.nextOffset === undefined);
+    return readback
+      ? { kind: 'assessment_required', output: contract.output, key, readback }
+      : { kind: 'readback_required', output: contract.output, key };
+  };
+  const assessDerivedArtifact = async () => {
+    const state = derivedArtifactState();
+    if (state.kind !== 'assessment_required') return state;
+    const out = await ctx.model.respond({
+      ...tc,
+      deliverableVerification: {
+        output: state.output,
+        readback: { path: state.readback.result.path, text: state.readback.result.text },
+      },
+    }, {
+      effort: 'medium', tools: [WORK_DELIVERABLE_VERIFICATION_SCHEMA],
+      requiredTool: WORK_DELIVERABLE_VERIFICATION_SCHEMA.name,
+    }).catch(() => null);
+    const call = typeof out === 'string' ? null : out?.toolCalls?.find((candidate) =>
+      candidate?.name === WORK_DELIVERABLE_VERIFICATION_SCHEMA.name
+      && candidate?.args?.output === 'file' && typeof candidate?.args?.satisfied === 'boolean');
+    if (!call) return state;
+    artifactAssessments.set(state.key, {
+      satisfied: call.args.satisfied,
+      reason: String(call.args.reason ?? '').trim() || (call.args.satisfied ? 'satisfied' : 'mismatch'),
+    });
+    return derivedArtifactState();
+  };
   let 산출물요청수 = 0;
   // ── **`남은정리이어가기` 를 걷었다** (오너 판단 2026-08-04) ────────────────────
   //
@@ -2745,6 +2864,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
     // ① 계약이 요구한 파일 산출물이 원장에 없다.
     if (산출물미충족()) 사실.unmetDeliverable = true;
+    const artifact = derivedArtifactState();
+    if (artifact.kind === 'readback_required') {
+      사실.artifactReadbackRequired = { path: artifact.output,
+        reason: 'latest_derived_output_has_not_been_read_back' };
+    } else if (artifact.kind === 'assessment_required') {
+      사실.artifactAssessmentRequired = { path: artifact.output,
+        reason: 'derived_output_readback_has_no_valid_model_assessment' };
+    } else if (artifact.kind === 'mismatch') {
+      사실.artifactMismatch = { path: artifact.output, reason: artifact.reason,
+        nextSafeAction: '재읽기에서 확인한 불일치를 같은 턴에 바로잡고 결과를 다시 읽어 확인하세요.' };
+    }
 
     // ② 찾아 놓고 한 곳도 안 열었다 — 얕게 끝난 찾기도 같은 얼굴이다.
     //
@@ -2973,7 +3103,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
       return false;
     }
-    if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {})))) {
+    if (고른것.every((c) => rung.has(지문of(c?.name, c?.args ?? {}))
+      && !새쓰기뒤결과재읽기(c?.name, c?.args ?? {}))) {
       되살리기();
       if (미달.unmetDeliverable) 멈춘이유 = '이미 한 것과 같은 실행만 남아 멈췄어요';
       return false;                                                  // 없는 진전을 짜내지 않는다
@@ -3151,6 +3282,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         // 위에서 모두 실행했지만, 아무 호출도 더 고르지 않았다면 목적 고리가 같은 완료
         // 불일치를 먼저 물어 출구와 왕복을 중복시킨다(F91). 정직한 답은 출구 한 자리에서 받는다.
         if (위험상한막힌호출있음) break;
+        await assessDerivedArtifact();
         // **한 고리.** 목적에 안 닿았으면(계약 미충족·안 연 후보·반만 읽음·막힌 걸음·안 밟은
         // 수단·원장이 안 받치는 완료 — 전부 같은 것) 사실을 주고 손 전량으로 되돌린다.
         // 모델이 걸음을 고르면 계속, 안 고르면 그대로 끝난다(그게 수단 소진이다).
@@ -3181,7 +3313,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       break;
     }
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
-    if (rung.has(지문) && !새증거뒤재시도(지문)) {
+    if (rung.has(지문) && !새증거뒤재시도(지문) && !새쓰기뒤결과재읽기(toolId, args)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
       // 그건 호출이 하나뿐이던 시절의 계약이다. 다섯 중 하나가 중복이라고 나머지 넷을
       // 버리면 그게 바로 이번에 없앤 그 병이다. 건너뛴 사실은 남는다.
