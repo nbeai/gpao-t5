@@ -84,6 +84,13 @@ test('stderr 문구만으로 명령 실패를 꾸며내지 않는다', async () 
   assert.equal(rec.result?.effect?.commandExit, 'success');
 });
 
+test('문법 오류와 permission 토막이 함께 있어도 고쳐지지 않을 승인으로 보내지 않는다', () => {
+  const block = executionBlock({ command: 'node -e "broken"', exitCode: 1, stdout: '',
+    stderr: 'zsh:1: permission denied: /usr/local/bin\nSyntaxError: Unexpected token\n' });
+  assert.equal(block?.kind, 'code');
+  assert.equal(block?.why, 'failed');
+});
+
 test('exit 0 읽기 probe는 성공으로 유지하되 실행 효과의 두 층을 사실대로 남긴다', async () => {
   const rec = await 영수증(0, { stdout: 'observed\n' });
   assert.equal(rec.failureState, 'none');

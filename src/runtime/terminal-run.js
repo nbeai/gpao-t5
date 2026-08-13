@@ -212,6 +212,13 @@ export function executionBlock(r) {
   if (/not privileged|requires root|must be run as root/i.test(t)) {
     return { kind: 'permission', why: 'privilege', userWhy: '컴퓨터 설정을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
+  // 문법·파싱 오류가 함께 있으면 권한을 열어도 같은 명령은 성공하지 않는다. 특히 인라인
+  // 스크립트의 따옴표가 깨지면 그 안의 토막이 명령 치환으로 실행돼 permission 문구까지 섞일
+  // 수 있다. 이때 permission을 먼저 읽어 승인 카드를 띄우면 사용자는 고쳐지지 않을 명령을
+  // 허락하게 된다. 명령 자체의 확정 오류를 먼저 돌려 모델이 다른 방법을 고르게 한다.
+  if (/\bSyntaxError\b|\bParseError\b|parse error|unexpected token|non-terminated string/i.test(t)) {
+    return { kind: 'code', why: 'failed', userWhy: '명령이 문법 오류로 끝났어요' };
+  }
   // **남의 프로세스를 건드리려다 막힌 것.** 파일 쓰기와 섞으면 승인 카드가 "파일을 바꿔야
   // 해서"라고 거짓을 말한다 — 사용자는 무엇을 허락하는지 모른 채 누르게 된다.
   // 실측 사고(오너 라이브 2026-07-28): `killall openclaw` 가 probe 에서 **실제로 죽였다.**
