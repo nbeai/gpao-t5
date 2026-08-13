@@ -4,6 +4,7 @@
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
+import { realpath } from 'node:fs/promises';
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
 import { externalReality, realitySignature, realityDelta } from './l1-intent/external-service.js';
@@ -2080,6 +2081,16 @@ export async function runTurn(input, ctx) {
   // 만들라고 한 사실까지 사라지면 안 된다. 실행 운전은 이 최소 사실을 계속 쓴다.
   plan.requestedDerivedFile = plan.deliverables.some((d) => d?.kind === 'file'
     && d?.operation === 'write' && d?.binding === 'derived');
+  // 사용자가 직접 적은 파일 신분만 보존한다. 의미로 원본을 추측하지 않고, 출력 파일은
+  // 실행 직전 writeEffect 대상과 대조해 제외한다. glob은 사용자가 적은 범위 그대로 유지한다.
+  plan.requestedFileRefs = [...String(input.text ?? '').matchAll(
+    /(?:^|[\s'"“”‘’(])([^\s'"“”‘’()]+\.[A-Za-z0-9]{1,8})(?=(?:을|를|은|는|이|가|와|과|에서|으로|로)?(?:$|[\s'"“”‘’),.]))/g,
+  )].map((m) => m[1]);
+  plan.requestedFileIdentities = await Promise.all(plan.requestedFileRefs.map(async (ref) => ({
+    ref,
+    canonical: (ref.includes('*') || ref.includes('?')) ? null
+      : await realpath(ref).catch(() => resolve(ref)),
+  })));
   // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
@@ -3154,6 +3165,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (안써본손.length || 막힌것.length || 안밟은수단.length || 고칠수있는미완료) {
         사실.goalNotReached = {
           ...(원본관측필요 ? { 원본관측필요: true } : {}),
+          ...(원본관측필요 ? { 원본후보: [...new Set(막힌것.flatMap((r) => r?.원본후보 ?? []))].slice(0, 12) } : {}),
           ...(고칠수있는미완료 ? { 산출물미완료: true } : {}),
           ...(빈산출물근거없음 ? {
             빈산출물근거없음: true,
@@ -3249,6 +3261,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ] : []),
       ...(미달.goalNotReached?.원본관측필요 ? [
         '파생 파일 쓰기는 원문 내용 영수증이 없어 실행되지 않았어요.',
+        ...(미달.goalNotReached.원본후보?.length
+          ? [`사용자가 지정한 원본 후보: ${미달.goalNotReached.원본후보.join(' · ')}`] : []),
         '다음 걸음은 local.file의 read로 실제 원본 내용을 읽는 것입니다. 그 read 영수증 뒤에 터미널 실행을 다시 고르세요.',
       ] : []),
     ].join(' ');
@@ -3604,9 +3618,24 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 파생 산출물인데 실제 원문 내용 영수증이 0이면 쓰기보다 관찰이 먼저다. 이름 목록(ls)은
     // 내용 관측이 아니다. 특정 셸 문법을 해석하지 않고 신분·revision을 가진 파일 손 read만
     // 근거로 쓴다. 모델은 같은 턴에 손을 다시 받아 읽기→실행으로 이어 간다.
-    const 원문내용관측 = turnReceipts.some((r) => (r?.failureState ?? 'none') === 'none'
+    const 쓸경로 = String(판정인자?.writeEffect?.target?.path ?? '');
+    const 쓸이름 = basename(쓸경로);
+    const 원본표기 = (plan.requestedFileIdentities ?? []).filter(({ ref, canonical }) => {
+      const clean = String(ref).replace(/[을를은는이가와과]$/, '');
+      return clean && clean !== 쓸경로 && basename(clean) !== 쓸이름;
+    });
+    const 읽은경로 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
-      && typeof r?.result?.text === 'string');
+      && typeof r?.result?.text === 'string').map((r) => resolve(String(r.result?.path ?? r.actualCall.args?.path ?? '')));
+    const 표기일치 = ({ ref, canonical }) => {
+      const clean = String(ref).replace(/[을를은는이가와과]$/, '');
+      const escaped = basename(clean).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+      const namePattern = new RegExp(`^${escaped}$`);
+      return 읽은경로.some((path) => (clean.includes('/') && !clean.includes('*') && !clean.includes('?'))
+        ? path === canonical : namePattern.test(basename(path)));
+    };
+    const 원문내용관측 = 원본표기.length
+      ? 원본표기.every(표기일치) : 읽은경로.length > 0;
     if (plan.requestedDerivedFile === true && toolId === 'local.terminal'
       && 판정인자?.writeEffect?.kind === 'filesystem_write' && !원문내용관측) {
       // 실제로 실행하지 않은 호출은 중복 실행 지문으로 소비하지 않는다. 원문을 읽은 뒤 같은
@@ -3616,6 +3645,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         '파생 결과를 쓰기 전에 원본 파일 내용을 실제로 읽어야 해서 아직 실행하지 않았어요.');
       rec.nextSafeAction = '로컬 파일 읽기로 원본의 실제 형식과 내용을 확인한 뒤 같은 턴에 다시 실행해요.';
       rec.다음수단 = [{ what: 'local.file read' }];
+      rec.원본후보 = 원본표기.map(({ ref }) => ref).slice(0, 12);
       if (await 목적미달이어가기()) continue;
       멈춘이유 = '원본 내용 관측이 없어 파생 쓰기를 실행하지 않았어요';
       break;
