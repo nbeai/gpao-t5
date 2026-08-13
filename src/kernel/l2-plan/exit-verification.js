@@ -563,6 +563,7 @@ function 우리말만(reply) {
  */
 export function 완료주장검증({
   reply, receipts = [], 원장글 = '', 이미돌려줬나 = false, 자리종류 = null, 자동화 = null,
+  검증된파일산출물 = false,
 }) {
   const 실제 = (receipts ?? []).reduce((s, r) => s + 바꾼개수(r), 0);
   // **확인된 실행이 하나라도 있는가.** 읽기도 실행이다 — 읽고 답한 턴은 "말로만 끝남"이 아니다.
@@ -687,7 +688,11 @@ export function 완료주장검증({
   const 못한걸음 = [...new Set((receipts ?? [])
     .filter((r) => r?.failureState && r.failureState !== 'none' && r.failureState !== 'cancelled'
       && 무슨호출(r)?.tool && !된걸음.has(걸음키(r)))
-    .map(걸음키))];
+    .map(걸음키))]
+    // 터미널은 목적을 이루는 여러 손 중 하나다. 파일 손으로 결과를 만들고 같은 실물을
+    // 다시 읽어 확인했다면, 앞선 터미널 실패는 원장에는 남아도 완료를 부정하지 않는다.
+    // 전송·화면처럼 그 행동 자체가 목적인 실패는 그대로 남는다.
+    .filter((key) => !(검증된파일산출물 && key.startsWith('local.terminal|')));
 
   // ── **반만 읽고 "총"을 말한다** (감사 채점 기준 2026-08-08 · 원장 대조) ──────
   //

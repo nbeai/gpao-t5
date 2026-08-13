@@ -54,6 +54,36 @@ test('막혔다가 같은 걸음으로 다시 해서 됐으면 지나간다 — 
   assert.equal(r.사용자에게, true, '막혔다가 다시 해서 된 것을 거짓으로 봤다 — 정직한 회복이 막힌다');
 });
 
+test('터미널이 실패해도 파일 손으로 만들고 재읽었으면 목적 회복이다', () => {
+  const path = '/work/inventory.tsv';
+  const receipts = [
+    막힘('local.terminal'),
+    { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'write', path } }, result: { path } },
+    { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path, text: 'ok\n' } },
+  ];
+  const r = 완료주장검증({
+    reply: `\`${path}\`를 만들고 다시 읽어 확인했습니다.`,
+    receipts,
+    원장글: JSON.stringify(receipts),
+    검증된파일산출물: true,
+  });
+  assert.equal(r.사용자에게, true, '다른 손으로 목적을 완수했는데 옛 터미널 실패가 정답을 폐기했다');
+});
+
+test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는다', () => {
+  const path = '/work/report.txt';
+  const r = 완료주장검증({
+    reply: `${path}를 만들고 전송했습니다.`,
+    receipts: [
+      막힘('telegram.send'),
+      { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'write', path } }, result: { path } },
+      { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path, text: 'ok\n' } },
+    ],
+    검증된파일산출물: true,
+  });
+  assert.equal(r.사용자에게, false, '파일 성공으로 별도 전송 실패까지 숨겼다');
+});
+
 test('막힌 걸음이 없으면 지나간다', () => {
   const r = 완료주장검증({ reply: '눌렀어요.', receipts: [성공('desktop.act', 'click')] });
   assert.equal(r.사용자에게, true);

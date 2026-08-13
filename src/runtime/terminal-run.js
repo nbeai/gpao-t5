@@ -194,7 +194,7 @@ export function executionBlock(r) {
   if (r.exitCode === 0) return undefined;
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
-  if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
+  if (/\bEPERM\b|\bEACCES\b/i.test(t) && /\b(?:listen|bind|port|socket|server)\b/i.test(t)) {
     // **나가서 읽는 것과 포트를 여는 것은 다른 사실이다**(오너 결정 2026-08-06 을 배선하다 밟음).
     // 둘 다 `network` 로 부르던 것을 갈랐다 — 읽기성 네트워크는 자동으로 열리는데, 포트를 여는
     // 것은 이 컴퓨터를 **바깥에서 닿을 수 있게 만드는** 상태 변경이라 그대로 승인이다.
@@ -271,7 +271,7 @@ export function blockedWriteTarget(r, { cwd } = {}) {
   for (const line of lines) {
     const shell = line.match(/^(?:zsh:\d+:\s*)?(?:operation not permitted|permission denied|read-only file system):\s*(.+)$/i);
     const python = line.match(/^(?:PermissionError|OSError):\s*\[Errno\s+(?:1|13|30)\][^:]*:\s*(['"])(.+)\1$/i);
-    const node = line.match(/\b(?:path|dest|destination)\s+(['"])(.+?)\1\s*$/i);
+    const node = line.match(/\b(?:path|dest|destination)\s*(?::|=)?\s+(['"])(.+?)\1\s*,?$/i);
     const found = shell?.[1] ?? python?.[2] ?? node?.[2];
     if (!found) continue;
     const clean = found.trim().replace(/^(['"])(.*)\1$/, '$2');
@@ -279,7 +279,20 @@ export function blockedWriteTarget(r, { cwd } = {}) {
     if (subject && subject !== clean) return null;
     subject = clean;
   }
-  return subject ? resolve(String(cwd ?? r?.cwd ?? process.cwd()), subject) : null;
+  if (!subject) return null;
+
+  // 셸이 맨 앞에서 작업 폴더를 명시적으로 옮긴 뒤 상대 파일에 쓰는 흔한 형태다.
+  // `cd /work/job && ... > result.tsv`의 거부 진단은 `result.tsv`만 말하므로, 실행기에 넘긴
+  // cwd로 풀면 전혀 다른 파일을 승인하게 된다. 임의 셸을 해석하지 않고, 확장 없는 리터럴
+  // `cd … &&` 한 칸만 인정한다. 틀려도 granted 샌드박스는 이 한 대상만 열기 때문에 다른
+  // 파일은 계속 커널에서 막힌다.
+  const command = String(r?.command ?? '').trim();
+  const leadingCd = command.match(/^cd\s+(?:'([^']+)'|"([^"$`]+)"|([^\s;&|$`]+))\s*&&/);
+  const literalCd = leadingCd?.[1] ?? leadingCd?.[2] ?? leadingCd?.[3] ?? null;
+  const base = literalCd
+    ? resolve(String(cwd ?? r?.cwd ?? process.cwd()), literalCd.replace(/\\([\\ ])/g, '$1'))
+    : resolve(String(cwd ?? r?.cwd ?? process.cwd()));
+  return resolve(base, subject);
 }
 
 /**

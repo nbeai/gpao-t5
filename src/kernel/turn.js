@@ -750,7 +750,11 @@ function 완료검증한번(ctx, 인자) {
   const 셈 = ctx.완료검증셈 ?? (ctx.완료검증셈 = { 잰것: 0, 재사용: 0 });   // 턴 머리에서 새로 선다
   // **재료가 바뀌면 재사용하지 않는다.** 자동화 사실(F-88)도 판정을 가르는 재료이므로 열쇠에
   // 든다 — 안 넣으면 같은 답·같은 원장글에서 후보만 선 판정이 job 이 선 턴까지 따라간다.
-  const 자리글 = JSON.stringify([인자.자리종류 ?? null, 인자.자동화 ?? null]);
+  const 자리글 = JSON.stringify([
+    인자.자리종류 ?? null,
+    인자.자동화 ?? null,
+    Boolean(인자.검증된파일산출물),
+  ]);
   const 메모 = ctx.완료검증메모;
   if (메모 && 메모.reply === 인자.reply && 메모.자리글 === 자리글
     && 메모.돌려줬나 === Boolean(인자.이미돌려줬나) && 메모.원장글 === 인자.원장글) {
@@ -763,6 +767,36 @@ function 완료검증한번(ctx, 인자) {
     reply: 인자.reply, 자리글, 돌려줬나: Boolean(인자.이미돌려줬나), 원장글: 인자.원장글, 값,
   };
   return 값;
+}
+
+/** 모델이 만든 파일을 실제 파일 손이 뒤에서 다시 읽었는가. 내용의 의미는 재지 않는다. */
+function 검증된파일산출물인가(receipts = []) {
+  const 펼친것 = [];
+  const 펴기 = (rec) => {
+    펼친것.push(rec);
+    for (const inner of rec?.result?.innerReceipts ?? []) 펴기(inner);
+  };
+  for (const rec of receipts ?? []) 펴기(rec);
+
+  const 쓴자리 = new Set();
+  for (const rec of 펼친것) {
+    if ((rec?.failureState ?? 'none') !== 'none') continue;
+    if (rec?.actualCall?.tool === 'local.terminal') {
+      const effect = rec?.result?.writeEffect;
+      const path = String(effect?.target?.path ?? '').trim();
+      if (path && effect?.verified === true && effect?.changed === true && rec?.result?.applied === true) {
+        쓴자리.add(path);
+      }
+      continue;
+    }
+    if (rec?.actualCall?.tool !== 'local.file') continue;
+    const action = rec?.actualCall?.args?.action;
+    const path = String(rec?.result?.path ?? rec?.actualCall?.args?.path ?? '').trim();
+    if (!path) continue;
+    if (action === 'write') 쓴자리.add(path);
+    if (action === 'read' && 쓴자리.has(path)) return true;
+  }
+  return false;
 }
 
 async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 = false }) {
@@ -804,6 +838,7 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
   const 검증 = 완료검증한번(ctx, {
     reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
+    검증된파일산출물: 검증된파일산출물인가(receipts),
     자리종류: {
       // **이번 턴 머리의 관측이 진실이다** — 이전 턴 상태(workingState.places)는 새 세션
       // 첫 턴에 비어 있어 그물이 침묵한다(실측: 오너 창 하나를 태웠다). 관측이 없던 옛
@@ -1938,7 +1973,11 @@ export async function runTurn(input, ctx) {
     if (id === 'local.terminal') {
       const command = typeof 낸것?.command === 'string' ? 낸것.command.trim() : '';
       if (!command) continue;
-      물을것 = { command, cwd: 낸것.cwd };
+      물을것 = {
+        command,
+        ...(typeof 낸것?.cwd === 'string' && 낸것.cwd.trim() ? { cwd: 낸것.cwd } : {}),
+        ...(Number.isFinite(낸것?.timeoutMs) ? { timeoutMs: 낸것.timeoutMs } : {}),
+      };
     }
     if (!물을것) continue;
     const { 판정인자 } = await 실행전판정({ toolId: id, args: 물을것, selfState, tools: ctx.tools });
@@ -2993,10 +3032,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 갈래를 새로 만들지 않는다 — 전제를 **입구 하나에서 둘로** 가른다. 아래 값들은 0건에서
     // 그대로 옳게 무너진다: 막힌것·안밟은수단은 빈 배열이 되고, `안써본손` 은 **있는 손 전량**이
     // 된다. 그것이 이 갈래가 원래 말하려던 사실이다.
-    const 걸음키 = (r) => `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
+    const 걸음키 = (r) => r.actualCall.tool === 'local.terminal'
+      ? `local.terminal|${String(r.actualCall.args?.command ?? '').trim()}`
+      : `${r.actualCall.tool}|${r.actualCall.args?.action ?? r.actualCall.args?.op ?? ''}`;
     const 된걸음 = new Set(부른것들.filter((r) => (r.failureState ?? 'none') === 'none').map(걸음키));
+    const 파일로목적회복 = 검증된파일산출물인가(turnReceipts);
     const 막힌것 = 부른것들.filter((r) => r.failureState
-      && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r)));
+      && !['none', 'cancelled'].includes(r.failureState) && !된걸음.has(걸음키(r))
+      && !(파일로목적회복 && r.actualCall.tool === 'local.terminal'));
     // 손이 스스로 돌려준 다음 수단·후보를, 이 턴에 실제로 향해 부른 적이 있나.
     const 쥐어준수단 = 부른것들.flatMap((r) => [
       ...(r.다음수단 ?? []).map((m) => String(m?.url ?? m?.what ?? '')),
@@ -3007,6 +3050,82 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }));
     const 써본손 = new Set(부른것들.map((r) => r.actualCall.tool));
     const 안써본손 = 있는손().filter((id) => !써본손.has(id));
+    // **정직한 미완료와 작업 종료는 같은 말이 아니다.** 아직 아무 실물도 못 만든 턴의
+    // 정직한 실패 보고는 그대로 나가야 한다. 반대로 가역 산출물을 실제로 만들었고 모델
+    // 자신이 그 결과가 요청에 못 미친다고 밝혔는데 손이 남았다면, 그것은 보고할 때가 아니라
+    // 고칠 때다. 내용의 정답은 커널이 재지 않는다 — 성공한 쓰기 사실과 모델의 자기 판정만
+    // 다시 모델에게 돌려준다.
+    const 만든가역산출물 = 부른것들.some((r) => (r.failureState ?? 'none') === 'none' && (
+      (r.actualCall.tool === 'local.file' && r.actualCall.args?.action === 'write' && r.result?.path)
+      || (r.actualCall.tool === 'local.terminal' && r.result?.writeEffect?.reversible === true
+        && r.result?.writeEffect?.changed === true && r.result?.applied === true)
+      || (r.result?.innerReceipts ?? []).some((inner) => (inner.failureState ?? 'none') === 'none'
+        && inner.actualCall?.tool === 'local.file' && inner.actualCall?.args?.action === 'write'
+        && inner.result?.path)
+    ));
+    // 파생 결과가 0바이트인데 같은 자리에 원본 후보가 있고, 그 후보를 실제로 본 영수증이
+    // 하나도 없으면 "자료에 해당 값이 없다"는 결론은 아직 근거가 아니다. 내용의 뜻이나
+    // 정답을 커널이 판정하지 않는다. 오직 결과가 비었다는 사실, 이웃 원본의 신분, 실제 read
+    // 영수증만 결속한다. 특정 확장자·명령·과업을 알지 않는 작은 운전 경계다.
+    const 파생계약 = (plan.deliverables ?? []).some((d) => d?.binding === 'derived');
+    const 쓴경로들 = [...new Set(부른것들.flatMap((r) => {
+      if ((r.failureState ?? 'none') !== 'none') return [];
+      if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'write') {
+        return [String(r.result?.path ?? r.actualCall.args?.path ?? '')];
+      }
+      if (r.actualCall?.tool === 'local.terminal' && r.result?.writeEffect?.changed === true) {
+        return [String(r.result?.writeEffect?.target?.path ?? '')];
+      }
+      return [];
+    }).filter(Boolean))];
+    const 빈파생읽기 = 파생계약 ? 부른것들.findLast((r) => {
+      if ((r.failureState ?? 'none') !== 'none') return false;
+      if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
+        return Number(r.result?.bytes) === 0 && 쓴경로들.includes(String(r.result?.path ?? ''));
+      }
+      if (r.actualCall?.tool === 'local.terminal' && !r.result?.writeEffect
+        && String(r.result?.stdout ?? '') === '') {
+        const command = String(r.actualCall.args?.command ?? '');
+        return 쓴경로들.some((path) => command.includes(path) || command.includes(path.split('/').pop()));
+      }
+      return false;
+    }) : null;
+    const 빈결과경로 = 빈파생읽기?.actualCall?.tool === 'local.file'
+      ? String(빈파생읽기?.result?.path ?? '')
+      : (쓴경로들.find((path) => String(빈파생읽기?.actualCall?.args?.command ?? '')
+        .includes(path.split('/').pop())) ?? 쓴경로들[0] ?? '');
+    const 원본후보 = [...new Set((빈파생읽기?.result?.같은자리파일 ?? [])
+      .filter((name) => name && !빈결과경로.endsWith(`/${name}`)))];
+    const 관측한원본 = new Set();
+    for (const r of 부른것들) {
+      if ((r.failureState ?? 'none') !== 'none') continue;
+      if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
+        const path = String(r.result?.path ?? r.actualCall.args?.path ?? '');
+        if (path && path !== 빈결과경로) 관측한원본.add(path.split('/').pop());
+      }
+      if (r.actualCall?.tool === 'local.terminal' && !r.result?.writeEffect
+        && String(r.result?.stdout ?? '').length) {
+        const command = String(r.actualCall.args?.command ?? '');
+        for (const name of 원본후보) if (command.includes(name)) 관측한원본.add(name);
+      }
+    }
+    // 이름 목록만 내는 탐색(ls)과 프로그램 존재 확인은 원문 관측이 아니다. 원본 이름을
+    // 아직 특정하지 못한 경우에도 내용 stdout이나 file read가 하나도 없다면 같은 사실이다.
+    const 내용관측있음 = 부른것들.some((r) => {
+      if ((r.failureState ?? 'none') !== 'none') return false;
+      if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
+        return String(r.result?.path ?? '') !== 빈결과경로;
+      }
+      if (r.actualCall?.tool !== 'local.terminal' || r.result?.writeEffect
+        || !String(r.result?.stdout ?? '').length) return false;
+      const command = String(r.actualCall.args?.command ?? '').trim();
+      return !/^(?:ls(?:\s|$)|command\s+-v\b|which\b|type\b)/.test(command)
+        && !쓴경로들.some((path) => command.includes(path.split('/').pop()));
+    });
+    const 빈산출물근거없음 = Boolean(빈파생읽기 && !내용관측있음
+      && (!원본후보.length || 원본후보.some((name) => !관측한원본.has(name))));
+    const 고칠수있는미완료 = 만든가역산출물
+      && (미완료를밝혔나(답글원문) || 빈산출물근거없음);
     // **한 걸음도 안 뗐다** — 이 갈래가 원래 말하려던 사실의 극단이다(F-83).
     //
     // 말투만 보면 *"…없는 상태라서 확인해 드릴 수 없습니다"* 는 심문도 약속도 아니어서 샌다.
@@ -3031,12 +3150,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 턴이 그 문장으로 끝난다). 말투는 **걸음이 하나라도 돈 턴**의 것이고, 걸음이 0인 턴은
     // 위의 `한걸음도안뗐다` 가 유일한 입구다.
     const 걸음이말하는미달 = 부른것들.length
-      && (막힌것.length || 빈손으로끝났나(답글원문) || 안밟은수단.length);
+      && (막힌것.length || 빈손으로끝났나(답글원문) || 안밟은수단.length || 고칠수있는미완료);
     if (걸음이말하는미달 || 한걸음도안뗐다) {
       // **안 써 본 손이 없으면 세우지 않는다** — 없는 길을 권하는 되부름은 잔소리다.
       // (손이 아예 없는 판에서도 여기서 멎는다.)
-      if (안써본손.length || 막힌것.length || 안밟은수단.length) {
+      if (안써본손.length || 막힌것.length || 안밟은수단.length || 고칠수있는미완료) {
         사실.goalNotReached = {
+          ...(고칠수있는미완료 ? { 산출물미완료: true } : {}),
+          ...(빈산출물근거없음 ? {
+            빈산출물근거없음: true,
+            안읽은원본: 원본후보.filter((name) => !관측한원본.has(name)).slice(0, 8),
+          } : {}),
           ...(막힌것.length ? {
             막힌걸음: [...new Set(막힌것.map(걸음키))].slice(0, 5),
             막힌말: [...new Set(막힌것.map((r) => String(r.userSafeSummary ?? '')).filter(Boolean))].slice(0, 3),
@@ -3115,6 +3239,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       '방금 답은 아직 목적에 안 닿았어요.',
       '지금 응답에서 **손을 부르거나**, 못 하는 이유를 원장에 남은 사실로 말해 주세요.',
       '「~할게요」 같은 예고만으로 끝내지 말아 주세요 — 예고는 한 일이 아니에요.',
+      ...(미달.goalNotReached?.산출물미완료 ? [
+        `가역 산출물은 이미 생겼고 모델 왕복은 ${쓴것().왕복쓴것}/${예산.왕복}만 썼어요.`,
+        '실행 몫이 소진됐다고 추측하거나 다음 턴으로 미루지 말고, 지금 손을 불러 고치고 다시 확인해 주세요.',
+      ] : []),
+      ...(미달.goalNotReached?.빈산출물근거없음 ? [
+        ...(미달.goalNotReached.안읽은원본.length
+          ? [`빈 결과의 근거로 아직 읽지 않은 원본 후보: ${미달.goalNotReached.안읽은원본.join(' · ')}`]
+          : ['빈 결과를 뒷받침할 원본 내용 관측 영수증이 아직 없어요.']),
+        '빈 결과를 곧바로 "해당 자료 없음"으로 해석하지 말고, 원본을 실제로 읽은 뒤 처리식을 고쳐 결과를 다시 확인해 주세요.',
+      ] : []),
     ].join(' ');
     const 되부름 = await ctx.model.respond({
       ...tc, ...미달,
@@ -3145,6 +3279,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (!String(앞답).trim() && String(되부름글).trim()) finalOut = 되부름;
     };
     if (!고른것.length) {                                            // 안 골랐다 — 수단이 소진된 것이다
+      // 가역 산출물이 이미 있는데 모델 자신이 미완료라고 밝힌 경우, 호출 없는 첫 응답은
+      // 수단 소진의 증거가 아니다. 실제 남은 예산을 줬는데도 한 번 더 손을 안 고를 때만
+      // 그 판단을 존중한다. 무한 강제는 하지 않는다.
+      if (미달.goalNotReached?.산출물미완료 && 이어간횟수 < 2) {
+        const 새글 = typeof 되부름 === 'string' ? 되부름 : (되부름?.text ?? '');
+        if (String(새글).trim()) finalOut = 되부름;
+        return true;
+      }
       되살리기();
       if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
       return false;
@@ -3342,7 +3484,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const rawArgs = Object.keys(이번.args).length ? 이번.args : { request: intent.currentRequest };
     const args = toolId === 'local.file'
       ? runtimeFileArgs(rawArgs, requestText, ctx.tools?.tools?.['local.file']?.scopeRoots)
-      : rawArgs;
+      : toolId === 'local.terminal'
+        ? {
+          command: String(rawArgs?.command ?? '').trim(),
+          ...(typeof rawArgs?.cwd === 'string' && rawArgs.cwd.trim() ? { cwd: rawArgs.cwd } : {}),
+          ...(Number.isFinite(rawArgs?.timeoutMs) ? { timeoutMs: rawArgs.timeoutMs } : {}),
+        }
+        : rawArgs;
 
     const 지문 = 지문of(toolId, args);
     // **이월 행동은 자동으로 실행하지 않는다** — 지난 턴에 못 끝낸 일이 지금 발화에 섞여

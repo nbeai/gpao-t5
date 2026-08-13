@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
-import { executionBlock } from '../src/runtime/terminal-run.js';
+import { blockedWriteTarget, executionBlock } from '../src/runtime/terminal-run.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { interpret } from '../src/kernel/l1-intent/intent.js';
@@ -72,6 +72,24 @@ for (const [exitCode, stderr] of [[1, 'generic failure'], [127, 'command not fou
   });
 }
 
+test('최상위 exit 0이어도 파이프 안 command not found는 부분 실패다', async () => {
+  const rec = await 영수증(0, { stderr: 'zsh:1: command not found: stat\n' });
+  assert.equal(rec.failureState, 'failed');
+  assert.equal(rec.lifecycle, 'delivered');
+  assert.equal(rec.result?.effect?.commandExit, 'partial_failure');
+  assert.equal(rec.result?.failReason, 'nested_command_failure');
+  assert.match(rec.result?.stderr ?? '', /command not found: stat/);
+});
+
+test('최상위 exit 0이어도 awk 구문 오류가 stderr에 남으면 부분 실패다', async () => {
+  const rec = await 영수증(0, {
+    stderr: 'awk: non-terminated string %s\\t%d... at source line 1\n',
+  });
+  assert.equal(rec.failureState, 'failed');
+  assert.equal(rec.result?.effect?.commandExit, 'partial_failure');
+  assert.equal(rec.result?.failReason, 'nested_command_failure');
+});
+
 test('exit 0 읽기 probe는 성공으로 유지하되 실행 효과의 두 층을 사실대로 남긴다', async () => {
   const rec = await 영수증(0, { stdout: 'observed\n' });
   assert.equal(rec.failureState, 'none');
@@ -93,6 +111,33 @@ test('리다이렉션 대상을 뒤 명령의 파일 인자 때문에 실행파�
   });
   assert.equal(block?.kind, 'sandbox');
   assert.equal(block?.why, 'write');
+});
+
+test('맨 앞 cd 뒤 상대 쓰기 대상은 실제 셸 작업 폴더에서 푼다', () => {
+  const target = blockedWriteTarget({
+    command: "cd '/tmp/work/s3' && find . -type f > inventory.tsv",
+    cwd: '/', exitCode: 1, stdout: '',
+    stderr: 'zsh:1: operation not permitted: inventory.tsv',
+  }, { cwd: '/' });
+  assert.equal(target, '/tmp/work/s3/inventory.tsv');
+});
+
+test('변수로 정한 cd는 추측하지 않고 원래 cwd에 남긴다', () => {
+  const target = blockedWriteTarget({
+    command: 'cd "$TARGET" && echo x > result.tsv',
+    cwd: '/safe/base', exitCode: 1, stdout: '',
+    stderr: 'zsh:1: operation not permitted: result.tsv',
+  }, { cwd: '/safe/base' });
+  assert.equal(target, '/safe/base/result.tsv');
+});
+
+test('Node 표준 오류의 path 콜론 표기도 실제 쓰기 대상으로 읽는다', () => {
+  const target = blockedWriteTarget({
+    command: "node -e 'writeFileSync(\"/tmp/work/report.tsv\", \"x\")'",
+    cwd: '/tmp/work', exitCode: 1, stdout: '',
+    stderr: "Error: EPERM: operation not permitted, open '/tmp/work/report.tsv'\n  path: '/tmp/work/report.tsv'\n",
+  }, { cwd: '/tmp/work' });
+  assert.equal(target, '/tmp/work/report.tsv');
 });
 
 test('env·command 앞말 뒤의 실제 실행파일 판별은 유지한다', () => {

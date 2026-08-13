@@ -91,6 +91,16 @@ function looksBlocked(r) {
   return block?.kind === 'sandbox' || block?.kind === 'permission';
 }
 
+/** 최상위 셸이 0을 돌려도 파이프·치환 안의 자식이 명백히 실패한 경우. 경고 일반은 실패로 만들지 않는다. */
+function definiteNestedFailure(r) {
+  if (r?.exitCode !== 0) return false;
+  const stderr = String(r?.stderr ?? '');
+  return /(?:^|\n)(?:zsh|bash|sh)(?::\d+)?:\s*command not found:/i.test(stderr)
+    || /(?:^|\n)find:[^\n]*unknown primary or operator/i.test(stderr)
+    || /(?:^|\n)awk:\s*(?:syntax error|non-terminated|illegal statement)[^\n]*/i.test(stderr)
+    || /(?:^|\n)xargs:[^\n]*terminated with signal/i.test(stderr);
+}
+
 /**
  * **네트워크만 열면 되는지 알아맞히지 않는다 — 열어 보고 안다.**
  *
@@ -284,7 +294,8 @@ export function makeLocalTerminalTool(deps = {}) {
       return {
         key: `cmd:${command}`, kind: 'command', label: String(command),
         detail: rec.result?.cwd, exitCode: code,
-        failed: typeof code === 'number' && code !== 0,
+        failed: rec.result?.effect?.commandExit === 'partial_failure'
+          || (typeof code === 'number' && code !== 0),
       };
     },
     /** 승인 카드에 실릴 사실 — 명령 원문과 자리. 도구가 만든다(커널에 if 를 늘리지 않는다). */
@@ -392,7 +403,8 @@ export function makeLocalTerminalTool(deps = {}) {
         };
       }
 
-      const commandSucceeded = r?.exitCode === 0 && !r?.stopped;
+      const 내부실패 = definiteNestedFailure(r);
+      const commandSucceeded = r?.exitCode === 0 && !r?.stopped && !내부실패;
       const writeVerification = prepared
         ? (commandSucceeded ? await finishWrite(prepared)
           : (await rollbackWrite(prepared), { ok: false, why: 'command_failed', rolledBack: true }))
@@ -402,10 +414,12 @@ export function makeLocalTerminalTool(deps = {}) {
       // 직접 관측해 processState로 주며, 명령 성공/실패는 exit code만 말한다.
       // 주입 대역처럼 processState가 없으면 추측하지 않고 unknown으로 남긴다.
       const 프로세스상태 = r?.processState ?? 'unknown';
-      const 명령끝 = r?.exitCode === 0
+      const 명령끝 = 내부실패
+        ? 'partial_failure'
+        : r?.exitCode === 0
         ? 'success'
         : (typeof r?.exitCode === 'number' ? 'failure' : 'unknown');
-      const 명령실패 = 명령끝 === 'failure' || writeVerification?.ok === false
+      const 명령실패 = 명령끝 === 'failure' || 명령끝 === 'partial_failure' || writeVerification?.ok === false
         || r?.stopped != null || 프로세스상태 === 'not_started';
       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
@@ -428,7 +442,8 @@ export function makeLocalTerminalTool(deps = {}) {
         ...(종료확인 ? { terminated: 종료확인 } : {}),
         stdout: r.stdout, stderr: r.stderr,
         // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
-        ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+        ...(내부실패 ? { failedBy: 'code', failReason: 'nested_command_failure' }
+          : 끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
         ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
         ...(r.stopped ? { stopped: r.stopped } : {}),
         ...(args.writeEffect ? { writeEffect: {
@@ -473,6 +488,7 @@ export function makeLocalTerminalTool(deps = {}) {
           // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
           // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
           // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
+          : 내부실패 ? '명령 안의 일부가 실패했어요 — 오류 출력을 보고 다른 방법으로 이어갈게요.'
           : r.exitCode === 0 ? (실제모드 === 'granted' ? '실행했어요.'
             : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
               : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
