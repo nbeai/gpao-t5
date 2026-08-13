@@ -2527,12 +2527,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
     if (직전 < 0) return false;
     const 실패 = turnReceipts[직전];
-    if (실패?.failureState === 'none' || 실패?.진행?.단계 !== 'dispatched'
+    // 이 증거 모양을 생산·소비하는 손은 화면 행동/관찰 한 쌍이다. 임의 플러그인이
+    // `{action:'observe', result:{본창:{id,pid}}}` 모양을 흉내 내도 재실행 권한이 되지 않는다.
+    if (실패?.actualCall?.tool !== 'desktop.act' || 실패?.failureState === 'none'
+      || 실패?.진행?.단계 !== 'dispatched'
       || 실패?.진행?.판정 !== 'unsatisfied') return false;
     const 다음방법 = new Set((실패.다음수단 ?? []).map((m) => String(m?.방법 ?? '')).filter(Boolean));
-    if (!다음방법.has('retry')) return false;
-    다음방법.delete('retry');
-    if (!다음방법.size) return false;
+    if (!다음방법.has('retry') || !다음방법.has('observe')) return false;
     const 실패신분 = 안정신분(실패?.진행?.실행신분 ?? 실패?.result?.실행신분);
     if (!실패신분) return false;
     return turnReceipts.slice(직전 + 1).some((rec) => {
@@ -2540,8 +2541,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const call = rec.actualCall;
       // 새 실행 영수증의 신분이 없는 결과는 같은 관찰을 복사한 값인지 가를 수 없다.
       if (!call?.callRef && !call?.providerCallId) return false;
-      const 방법 = String(call?.args?.action ?? call?.args?.op ?? '');
-      if (!다음방법.has(방법)) return false;
+      if (call?.tool !== 'desktop.screen' || call?.args?.action !== 'observe') return false;
       return 결과신분들(rec).some((축) => 축.창 === 실패신분.창 && 축.pid === 실패신분.pid);
     });
   };

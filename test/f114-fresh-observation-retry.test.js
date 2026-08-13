@@ -9,6 +9,8 @@ const 초점 = { name: 'desktop.act', args: { action: 'focus', app: '계산기' 
 const 관찰 = { name: 'desktop.screen', args: {
   action: 'observe', scope: 'window', app: '계산기', 깊이: 3, limit: 40, 글자만: false,
 } };
+const 상태관찰 = { name: 'desktop.screen', args: { action: 'status', app: '계산기' } };
+const 가짜관찰 = { name: 'fixture.observe', args: { action: 'observe', app: '계산기' } };
 
 function 순서모델(calls, answer = '화면 행동 결과를 확인하지 못했어요.') {
   let i = 0;
@@ -23,7 +25,13 @@ function 순서모델(calls, answer = '화면 행동 결과를 확인하지 못�
   };
 }
 
-function 화면판({ 첫초점성공 = false, 관찰창 = 813, 관찰pid = 18355 } = {}) {
+function 화면판({
+  첫초점성공 = false,
+  진행판정 = 'unsatisfied',
+  다음방법 = ['observe', 'retry'],
+  관찰창 = 813,
+  관찰pid = 18355,
+} = {}) {
   let focusCalls = 0;
   const desktopAct = {
     async handler() {
@@ -32,13 +40,10 @@ function 화면판({ 첫초점성공 = false, 관찰창 = 813, 관찰pid = 18355
         failed: true,
         userSafeSummary: '실행은 했는데 원하신 상태가 되지 않았어요.',
         진행: {
-          단계: 'dispatched', 판정: 'unsatisfied',
+          단계: 'dispatched', 판정: 진행판정,
           실행신분: { 창: 813, pid: 18355 },
         },
-        다음수단: [
-          { 방법: 'observe', 왜: '지금 실제 상태를 보고 다시 판단한다' },
-          { 방법: 'retry', 왜: '앱이 뜨는 데 시간이 걸렸을 수 있다' },
-        ],
+        다음수단: 다음방법.map((방법) => ({ 방법, 왜: `${방법} 수단` })),
       };
       return {
         result: { 단계: 'goal_verified', 행동: 'focus', 실행신분: { 창: 813, pid: 18355 } },
@@ -61,8 +66,28 @@ function 화면판({ 첫초점성공 = false, 관찰창 = 813, 관찰pid = 18355
   const opts = { desktop, desktopAct };
   return {
     calls: () => focusCalls,
-    ctx(model) {
-      return { env: demoEnv(opts), tools: demoTools(opts), model };
+    ctx(model, { 가짜손 = false } = {}) {
+      const tools = demoTools(opts);
+      const env = demoEnv(opts);
+      if (가짜손) {
+        tools.tools['fixture.observe'] = {
+          async handler() {
+            return {
+              result: { 본창: { id: 813, app: '계산기', pid: 18355 } },
+              userSafeSummary: '시험용 결과를 냈어요.',
+            };
+          },
+        };
+        env.connections.push({
+          id: 'fixture.observe', label: '시험 관찰', connected: true, executable: true, hasHandler: true,
+          toolKind: 'read', reversible: true,
+          schema: {
+            description: '시험용 관찰',
+            parameters: { type: 'object', properties: { action: { type: 'string' }, app: { type: 'string' } } },
+          },
+        });
+      }
+      return { env, tools, model };
     },
   };
 }
@@ -109,4 +134,40 @@ test('다른 창의 fresh observe는 실패한 행동의 증거 세대를 바꾸
     p.ctx(순서모델([초점, 관찰, 초점])),
   );
   assert.equal(p.calls(), 1, '다른 창·pid 관찰로 동일 focus 재실행이 열렸다');
+});
+
+test('unknown 행동은 같은 실행신분의 fresh observe 뒤에도 재시도하지 않는다', async () => {
+  const p = 화면판({ 진행판정: 'unknown' });
+  await runTurn(
+    { text: '계산기 창을 앞으로 가져오고 실제로 그렇게 됐는지 확인해줘' },
+    p.ctx(순서모델([초점, 관찰, 초점])),
+  );
+  assert.equal(p.calls(), 1, '효과를 모르는 행동이 fresh 관찰을 중복 효과 재실행권으로 썼다');
+});
+
+test('action=observe와 같은 창·pid를 흉내 낸 무관한 손은 재시도 문을 열지 않는다', async () => {
+  const p = 화면판();
+  await runTurn(
+    { text: '계산기 창을 앞으로 가져오고 실제로 그렇게 됐는지 확인해줘' },
+    p.ctx(순서모델([초점, 가짜관찰, 초점]), { 가짜손: true }),
+  );
+  assert.equal(p.calls(), 1, '도구 신분을 확인하지 않고 결과 모양만으로 재시도 문이 열렸다');
+});
+
+test('desktop.screen이라도 observe가 아닌 action은 새 관찰 세대가 아니다', async () => {
+  const p = 화면판({ 다음방법: ['status', 'retry'] });
+  await runTurn(
+    { text: '계산기 창을 앞으로 가져오고 실제로 그렇게 됐는지 확인해줘' },
+    p.ctx(순서모델([초점, 상태관찰, 초점])),
+  );
+  assert.equal(p.calls(), 1, '화면 상태 확인을 창 내용의 fresh observe로 오인했다');
+});
+
+test('실패 손이 observe를 다음 수로 내지 않았으면 우연히 끼어든 observe로 재시도하지 않는다', async () => {
+  const p = 화면판({ 다음방법: ['inspect', 'retry'] });
+  await runTurn(
+    { text: '계산기 창을 앞으로 가져오고 실제로 그렇게 됐는지 확인해줘' },
+    p.ctx(순서모델([초점, 관찰, 초점])),
+  );
+  assert.equal(p.calls(), 1, '생산자가 권하지 않은 관찰이 재시도 근거로 승격됐다');
 });
