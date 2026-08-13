@@ -4,7 +4,7 @@
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { createHash } from 'node:crypto';
 import { basename, dirname, resolve } from 'node:path';
-import { realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
 import { externalReality, realitySignature, realityDelta } from './l1-intent/external-service.js';
@@ -3828,7 +3828,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       for (const name of 관측된이름.slice(0, 32)) {
         const path = resolve(기준폴더, name);
         const canonical = await realpath(path).catch(() => null);
-        if (!canonical || canonical === 출력신분) continue;
+        const file = canonical ? await lstat(canonical).catch(() => null) : null;
+        if (!canonical || !file?.isFile() || canonical === 출력신분) continue;
         원본표기.push({ ref: path, canonical });
       }
     }
