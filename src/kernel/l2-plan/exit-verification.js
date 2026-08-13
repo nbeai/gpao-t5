@@ -499,7 +499,7 @@ export function 절대재검증({
   if (파일계약빈손 && 완료주장인가(reply)) {
     return { 재거짓: true, 사실: '이 턴의 완료 계약은 파일 산출물인데 성공한 파일 변경 영수증이 하나도 없다. 답은 끝냈다고 말하고 있다.' };
   }
-  if (의미검증빈손 && 완료주장인가(reply)) {
+  if (의미검증빈손 && String(reply ?? '').trim()) {
     return { 재거짓: true, 사실: '파생 결과의 구조화된 대조 판정을 받지 못해 내용 일치를 확인하지 못했다. 답은 확인·수리를 끝냈다고 말하고 있다.' };
   }
   if (!대조대상인가(reply)) return { 재거짓: false };
@@ -624,7 +624,7 @@ export function 완료주장검증({
     && r?.actualCall?.tool && r?.result !== undefined).length;
   const 지나감 = { 일치: true, 사용자에게: true, 실제 };
 
-  if (의미검증빈손 && 완료주장인가(reply)) {
+  if (의미검증빈손 && String(reply ?? '').trim()) {
     return {
       일치: false,
       사용자에게: false,
