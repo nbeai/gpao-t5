@@ -43,6 +43,14 @@ test('그 축이 모델 프롬프트까지 간다 — 소비자가 0곳이면 �
   assert.match(글, /터미널로 먼저/, '순서가 모델에게 안 간다');
 });
 
+test('공통 운전 고리는 관찰→실행→기계 결과 대조→같은 턴 수정이다', () => {
+  const s = 순서();
+  assert.match(s, /실제 입력의 형식과 내용을 관찰/, '입력 현실보다 처리법을 먼저 고른다');
+  assert.match(s, /stdout·stderr·exit code/, '실행 결과의 기계 사실을 대조하지 않는다');
+  assert.match(s, /방법을 바꿔 같은 턴에 다시 실행·확인/, '실패 뒤 설명으로 끝나고 다음 행동이 없다');
+  assert.doesNotMatch(s, /마지막 절대경로|local\.file로 읽/, '특정 산출물 문장이나 손을 공통 고리에 박았다');
+});
+
 test('셸이 의미별 로컬 손보다 앞에 놓인다 — 배치는 선언 순서로 한다', () => {
   const 이름 = demoDescriptors({}).map((d) => d.id);
   const 셸 = 이름.indexOf('local.terminal');
