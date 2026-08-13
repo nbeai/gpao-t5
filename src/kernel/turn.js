@@ -2753,6 +2753,40 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 파생 파일은 성공 write만으로 끝나지 않는다. 최신 실물을 다시 읽고, 그 내용이 사용자
   // 목적을 만족하는지는 모델이 판정한다. 런타임은 경로·write·readback이라는 기계 사실만 묶는다.
   const artifactAssessments = new Map();
+  const derivedSourceState = () => {
+    const contract = localDerivedFileContract(requestText);
+    if (!contract) return { kind: 'none' };
+    const missing = [];
+    for (const root of contract.sources) {
+      const directRead = turnReceipts.some((rec) => (rec?.failureState ?? 'none') === 'none'
+        && rec?.actualCall?.tool === 'local.file' && rec?.actualCall?.args?.action === 'read'
+        && localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === root
+        && typeof rec?.result?.text === 'string' && rec?.result?.nextOffset === undefined);
+      if (directRead) continue;
+      const listing = turnReceipts.findLast((rec) => (rec?.failureState ?? 'none') === 'none'
+        && rec?.actualCall?.tool === 'local.file' && rec?.actualCall?.args?.action === 'list'
+        && localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === root
+        && Array.isArray(rec?.result?.items));
+      if (!listing) {
+        const readFailed = turnReceipts.some((rec) => rec?.actualCall?.tool === 'local.file'
+          && rec?.actualCall?.args?.action === 'read'
+          && localPathIdentity(rec?.actualCall?.args?.path) === root
+          && (rec?.failureState ?? 'none') !== 'none');
+        missing.push({ action: readFailed ? 'list' : 'read', path: root });
+        continue;
+      }
+      const files = listing.result.items.filter((item) => item?.kind === 'file').map((item) => item.name);
+      for (const name of files) {
+        const path = localPathIdentity(`${root}/${name}`);
+        const read = turnReceipts.some((rec) => (rec?.failureState ?? 'none') === 'none'
+          && rec?.actualCall?.tool === 'local.file' && rec?.actualCall?.args?.action === 'read'
+          && localPathIdentity(rec?.result?.path ?? rec?.actualCall?.args?.path) === path
+          && typeof rec?.result?.text === 'string' && rec?.result?.nextOffset === undefined);
+        if (!read) missing.push({ action: 'read', path });
+      }
+    }
+    return missing.length ? { kind: 'missing', missing } : { kind: 'complete' };
+  };
   const derivedArtifactState = () => {
     const contract = localDerivedFileContract(requestText);
     if (!contract) return { kind: 'none' };
@@ -2791,6 +2825,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const assessDerivedArtifact = async () => {
     const state = derivedArtifactState();
     if (state.kind !== 'assessment_required') return state;
+    if (derivedSourceState().kind !== 'complete') return state;
     const out = await ctx.model.respond({
       ...tc,
       deliverableVerification: {
@@ -2864,6 +2899,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
 
     // ① 계약이 요구한 파일 산출물이 원장에 없다.
     if (산출물미충족()) 사실.unmetDeliverable = true;
+    const sourceState = derivedSourceState();
+    if (sourceState.kind === 'missing') {
+      사실.sourceInspectionMissing = {
+        reason: 'derived_output_requires_factual_source_read',
+        required: sourceState.missing.slice(0, 16),
+      };
+    }
     const artifact = derivedArtifactState();
     if (artifact.kind === 'readback_required') {
       사실.artifactReadbackRequired = { path: artifact.output,

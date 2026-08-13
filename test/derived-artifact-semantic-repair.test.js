@@ -30,6 +30,8 @@ test('재읽은 파생 파일이 목적과 다르면 같은 턴에 수정하고 
         output: 'file', satisfied, reason: satisfied ? 'exact' : 'wrong total',
       } }] };
     }
+    if (tc?.sourceInspectionMissing) return { text: '', toolCalls: [{ name: 'local.file',
+      args: tc.sourceInspectionMissing.required[0] }] };
     if (tc?.artifactMismatch) return { text: '', toolCalls: [{ name: 'local.file', args: {
       action: 'write', path: output, text: 'A\t7\n', source: [input],
     } }] };
