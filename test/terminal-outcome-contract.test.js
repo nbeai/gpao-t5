@@ -4,7 +4,8 @@
 // 실패 영수증에서도 보존한다. 앱·명령 이름이 아니라 공통 exit 계약을 잰다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { blockedWriteTarget, executionBlock, runCommand } from '../src/runtime/terminal-run.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
@@ -72,6 +73,24 @@ for (const [exitCode, stderr] of [[1, 'generic failure'], [127, 'command not fou
     assert.match(modelInput, /commandExit/, 'effect가 실제 모델 입력까지 닿지 않았다');
   });
 }
+
+test('없는 실행파일 뒤에는 PATH에서 실제 실행 가능한 버전 대안을 다음 수로 돌려준다', async () => {
+  const bin = await mkdtemp('/private/tmp/t5-terminal-alt-bin-');
+  const alternative = join(bin, 'generic-command3');
+  await writeFile(alternative, '#!/bin/sh\nexit 0\n', 'utf8');
+  await chmod(alternative, 0o755);
+  const command = 'generic-command --flag'; const cwd = '/private/tmp';
+  const tool = makeLocalTerminalTool({ cwd, processEnv: { PATH: bin }, run: async () => ({
+    command, cwd, mode: 'probe', processState: 'delivered', exitCode: 127, durationMs: 1,
+    stdout: '', stderr: 'zsh:1: command not found: generic-command\n',
+  }) });
+  const rec = await new ToolRunner({ 'local.terminal': tool }).run(
+    'local.terminal', { command }, selfState,
+  );
+  assert.equal(rec.failureState, 'failed');
+  assert.deepEqual(rec.다음수단, [{ what: 'generic-command3', command: 'generic-command3', path: alternative }]);
+  assert.match(rec.nextSafeAction, /generic-command3/);
+});
 
 test('pipefail 실행기는 파이프 앞 자식의 실패를 최상위 exit로 보존한다', async () => {
   const r = await runCommand('t5-definitely-missing-command | cat', { mode: 'raw' });

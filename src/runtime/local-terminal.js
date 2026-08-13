@@ -12,7 +12,8 @@ import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
 import { alive } from './local-process.js';
-import { copyFile, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -203,6 +204,29 @@ export function makeLocalTerminalTool(deps = {}) {
   const 샌드박스있나 = deps.sandboxAvailable ?? sandboxAvailable;
   const trashDir = dataDir ? join(dataDir, '.trash') : null;
   const undoFile = trashDir ? join(trashDir, 'undo-log.json') : null;
+
+  async function installedCommandAlternatives(result) {
+    const text = `${result?.stderr ?? ''}\n${result?.stdout ?? ''}`;
+    const missing = text.match(/command not found:\s*([^\s'";]+)/i)?.[1]?.split('/').pop();
+    if (!missing || !/^[A-Za-z0-9._+-]+$/.test(missing)) return [];
+    const escaped = missing.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const versioned = new RegExp(`^${escaped}(?:[0-9]+(?:\\.[0-9]+)*)$`);
+    const dirs = [...new Set(String((deps.processEnv ?? process.env).PATH ?? '')
+      .split(':').map((p) => p.trim()).filter(Boolean))];
+    const found = [];
+    for (const dir of dirs) {
+      let names;
+      try { names = await readdir(dir); } catch { continue; }
+      for (const name of names) {
+        if (!versioned.test(name)) continue;
+        const path = join(dir, name);
+        try { await access(path, fsConstants.X_OK); } catch { continue; }
+        found.push({ what: name, command: name, path });
+        if (found.length >= 5) return found;
+      }
+    }
+    return found;
+  }
 
   async function appendUndo(entry) {
     if (!undoFile) throw new Error('undo store unavailable');
@@ -570,6 +594,8 @@ export function makeLocalTerminalTool(deps = {}) {
           : (await rollbackWrite(prepared), { ok: false, why: 'command_failed', rolledBack: true }))
         : null;
       const 끝난이유 = executionBlock(r);
+      const 설치된대안 = 끝난이유?.kind === 'env' && 끝난이유?.why === 'missing'
+        ? await installedCommandAlternatives(r) : [];
       // 프로세스가 결과를 돌려준 것과 명령이 성공한 것은 별개다. 실행기는 시작 여부를
       // 직접 관측해 processState로 주며, 명령 성공/실패는 exit code만 말한다.
       // 주입 대역처럼 processState가 없으면 추측하지 않고 unknown으로 남긴다.
@@ -628,6 +654,10 @@ export function makeLocalTerminalTool(deps = {}) {
         // 실패 결과를 보존해야 하는 손만 명시적으로 같은 객체를 낸다. 일반 failed.result를
         // 전부 올리면 제출 뒤 효과 미확인 손의 사적 결과까지 사실처럼 저장되는 기존 계약을 깬다.
         ...(명령실패 ? { failureResult: 결과 } : {}),
+        ...(설치된대안.length ? {
+          다음수단: 설치된대안,
+          nextSafeAction: `이 컴퓨터에 설치된 대안(${설치된대안.map((x) => x.command).join(', ')})으로 같은 목적을 이어가세요.`,
+        } : {}),
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
         userSafeSummary: writeVerification?.ok === false
