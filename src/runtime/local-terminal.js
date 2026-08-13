@@ -227,9 +227,12 @@ export function makeLocalTerminalTool(deps = {}) {
     // 준비 시점에 확인한 실제 부모를 최종 적용 대상으로 봉인한다.
     const realParent = await realpath(parent);
     const parentHandle = await open(realParent, 'r');
-    const stageDir = join(dataDir, '.terminal-stage', randomUUID());
+    // macOS의 /var는 /private/var 별칭이다. sandbox literal과 셸이 실제로 여는 경로를
+    // 같은 신분으로 맞추지 않으면 정상 stage 쓰기까지 EPERM으로 막힌다.
+    const stageSeed = join(dataDir, '.terminal-stage', randomUUID());
+    await mkdir(stageSeed, { recursive: true });
+    const stageDir = await realpath(stageSeed);
     const stagePath = join(stageDir, basename(path));
-    await mkdir(stageDir, { recursive: true });
     if (effect.operation === 'create') {
       if (now.exists !== false) { await parentHandle.close(); await rm(stageDir, { recursive: true, force: true }); return null; }
       await writeFile(stagePath, '');
