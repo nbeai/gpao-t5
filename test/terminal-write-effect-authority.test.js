@@ -107,6 +107,39 @@ test('라이브 모양: Python heredoc의 일반 write-open도 진단 대상과 
   assert.equal(await readFile(stage.actualTarget, 'utf8'), 'ok\n');
 });
 
+test('제품 경로: 하위 input cwd에서 형제 output에 만드는 결과도 work 안이면 승인 0이다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-sibling-output-'));
+  const work = join(root, 'work');
+  const input = join(work, 'job', 'input');
+  const output = join(work, 'job', 'output');
+  const state = join(root, 'state');
+  await mkdir(input, { recursive: true });
+  await mkdir(output, { recursive: true });
+  const target = join(output, 'result.tsv');
+  const command = "printf 'ok\\n' > ../output/result.tsv";
+  let grantedRuns = 0;
+  const tool = makeLocalTerminalTool({
+    cwd: input, workspaceRoot: work, dataDir: state, sandboxAvailable: () => true,
+    run: async (_command, opts = {}) => {
+      if (opts.mode !== 'granted') return { command, cwd: input, mode: 'probe',
+        processState: 'delivered', exitCode: 1, stdout: '',
+        stderr: 'zsh:1: operation not permitted: ../output/result.tsv\n', durationMs: 1 };
+      grantedRuns += 1;
+      await writeFile(target, 'ok\n', 'utf8');
+      return { command, cwd: input, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    },
+  });
+  const probed = await tool.probe(command, { cwd: input });
+  assert.equal(probed.writeEffect?.reversible, true);
+  assert.equal(probed.writeEffect?.target?.path, target);
+  const executed = await tool.handler({ command, cwd: input, changes: true, granted: true,
+    probeResult: probed.probe, writeEffect: probed.writeEffect });
+  assert.equal(executed.blocked, undefined);
+  assert.equal(grantedRuns, 1);
+  assert.equal(await readFile(target, 'utf8'), 'ok\n');
+});
+
 test('가역 실행 명령이 실패하면 만든 파일을 회수하고 성공 효과로 기록하지 않는다', async () => {
   const stage = await 제품경로({
     target: (work) => join(work, 'partial.tsv'), command: "printf x > partial.tsv",

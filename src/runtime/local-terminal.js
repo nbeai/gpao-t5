@@ -44,11 +44,11 @@ function inside(root, target) {
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-async function reversibleWriteEffect(probe, cwd, dataDir) {
+async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
   const path = blockedWriteTarget(probe, { cwd });
   if (!path) return undefined;
   const before = await existingFileState(path);
-  const authorized = inside(cwd, path) && !protectionFor(path);
+  const authorized = inside(workspaceRoot, path) && !protectionFor(path);
   const operation = before.exists === false ? 'create'
     : before.exists === true && before.kind === 'file' ? 'overwrite' : 'unknown';
   const reversible = Boolean(dataDir && authorized
@@ -162,6 +162,9 @@ export function makeLocalTerminalTool(deps = {}) {
   // 거기가 빈 작업 폴더면 모델이 아무리 찾아도 안 나와서 결국 "경로를 알려줘"로 떠넘긴다(실측).
   // 쓰기는 커널이 막으므로 넓게 둘러보는 것 자체는 안전하다 — 좁혀야 할 이유가 없다.
   const cwdOf = () => deps.cwd ?? homedir();
+  // 실행 cwd는 input 같은 하위 폴더일 수 있다. 승인 경계는 그 순간의 cwd가 아니라
+  // T5가 사용자 작업에 열어 둔 work 루트다.
+  const workspaceRoot = deps.workspaceRoot ?? (deps.cwd ? deps.cwd : join(homedir(), 'work'));
   // 샌드박스 유무는 **주입 가능해야 한다** — 아니면 이 판정의 검사가 macOS 에서 영영
   // 건너뛰고(수리했는데 안 도는 검사), 정작 무는 자리는 리눅스다.
   const 샌드박스있나 = deps.sandboxAvailable ?? sandboxAvailable;
@@ -182,7 +185,7 @@ export function makeLocalTerminalTool(deps = {}) {
 
   async function prepareWrite(effect, cwd) {
     const path = effect?.target?.path;
-    if (!effect?.reversible || !path || !trashDir || !inside(cwd, path)
+    if (!effect?.reversible || !path || !trashDir || !inside(workspaceRoot, path)
       || effect.target?.authorizedWorkspace !== true || protectionFor(path)) return null;
     const now = await existingFileState(path);
     if (effect.operation === 'create') {
@@ -266,7 +269,8 @@ export function makeLocalTerminalTool(deps = {}) {
     }
     const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
     const changes = looksBlocked(r);
-    const writeEffect = changes ? await reversibleWriteEffect(r, cwd, dataDir) : undefined;
+    const writeEffect = changes
+      ? await reversibleWriteEffect(r, cwd, dataDir, workspaceRoot) : undefined;
     return { command, cwd, probe: r, changes, ...(writeEffect ? { writeEffect } : {}) };
   }
 
