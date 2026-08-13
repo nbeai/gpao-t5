@@ -2086,11 +2086,6 @@ export async function runTurn(input, ctx) {
   plan.requestedFileRefs = [...String(input.text ?? '').matchAll(
     /(?:^|[\s'"“”‘’(])([^\s'"“”‘’()]+\.[A-Za-z0-9]{1,8})(?=(?:을|를|은|는|이|가|와|과|에서|으로|로)?(?:$|[\s'"“”‘’),.]))/g,
   )].map((m) => m[1]);
-  plan.requestedFileIdentities = await Promise.all(plan.requestedFileRefs.map(async (ref) => ({
-    ref,
-    canonical: (ref.includes('*') || ref.includes('?')) ? null
-      : await realpath(ref).catch(() => resolve(ref)),
-  })));
   // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
@@ -3620,13 +3615,46 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 근거로 쓴다. 모델은 같은 턴에 손을 다시 받아 읽기→실행으로 이어 간다.
     const 쓸경로 = String(판정인자?.writeEffect?.target?.path ?? '');
     const 쓸이름 = basename(쓸경로);
-    const 원본표기 = (plan.requestedFileIdentities ?? []).filter(({ ref, canonical }) => {
-      const clean = String(ref).replace(/[을를은는이가와과]$/, '');
-      return clean && clean !== 쓸경로 && basename(clean) !== 쓸이름;
+    const 정본경로 = async (path) => await realpath(path).catch(async () => {
+      const parent = await realpath(resolve(path, '..')).catch(() => resolve(path, '..'));
+      return resolve(parent, basename(path));
     });
-    const 읽은경로 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
+    const 출력신분 = await 정본경로(쓸경로);
+    const 출력폴더 = 쓸경로 ? resolve(쓸경로, '..') : resolve(String(판정인자?.cwd ?? '.'));
+    // 이름 목록은 내용 관측으로 세지 않는다. 여기서는 사용자가 적은 glob을 실제로 관측된
+    // 파일 이름으로 펼치는 데만 쓴다. 그 뒤에도 각각 local.file read 영수증이 있어야 한다.
+    const 관측된이름 = [...new Set(turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.terminal' && !r?.result?.writeEffect)
+      .flatMap((r) => String(r?.result?.stdout ?? '').split(/\r?\n/))
+      .map((line) => line.trim()).filter((line) => line && !line.includes('/') && !/\s/.test(line)))];
+    const 원본표기 = [];
+    for (const raw of plan.requestedFileRefs ?? []) {
+      const clean = String(raw).replace(/[을를은는이가와과]$/, '');
+      if (!clean) continue;
+      if (clean.includes('*') || clean.includes('?')) {
+        const escaped = basename(clean).replace(/[.+^${}()|[\]\\]/g, '\\$&')
+          .replace(/\*/g, '.*').replace(/\?/g, '.');
+        const pattern = new RegExp(`^${escaped}$`);
+        for (const name of 관측된이름.filter((n) => pattern.test(n))) {
+          const path = resolve(출력폴더, name);
+          원본표기.push({ ref: path, canonical: await realpath(path).catch(() => path) });
+        }
+      } else {
+        const candidates = clean.startsWith('/')
+          ? [resolve(clean)]
+          : [resolve(출력폴더, clean), resolve(String(판정인자?.cwd ?? 출력폴더), clean)];
+        const existing = await Promise.all(candidates.map(async (path) => ({
+          path, canonical: await realpath(path).catch(() => null), fallback: await 정본경로(path),
+        })));
+        const found = existing.find((x) => x.canonical) ?? existing[0];
+        if ((found.canonical ?? found.fallback) === 출력신분) continue;
+        원본표기.push({ ref: clean, canonical: found.canonical ?? found.fallback });
+      }
+    }
+    const 읽은표기 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
       && typeof r?.result?.text === 'string').map((r) => resolve(String(r.result?.path ?? r.actualCall.args?.path ?? '')));
+    const 읽은경로 = await Promise.all(읽은표기.map((path) => realpath(path).catch(() => path)));
     const 표기일치 = ({ ref, canonical }) => {
       const clean = String(ref).replace(/[을를은는이가와과]$/, '');
       const escaped = basename(clean).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
