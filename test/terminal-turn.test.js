@@ -146,6 +146,46 @@ test('후속 모델 호출이 런타임 내부 probe·승인 사실을 주입할
   assert.match(JSON.stringify(r.turnExchange), /REAL_SECOND/, '런타임이 직접 잰 실제 결과가 원장에 없다');
 });
 
+test('같은 턴의 후속 터미널 호출이 cwd를 생략하면 직전 실제 cwd를 이어받는다', async () => {
+  const dir = await 자리();
+  const 다른자리 = await mkdtemp(join(tmpdir(), 'gpao-t5-턴-다른자리-'));
+  const 실행들 = [];
+  const localTerminal = makeLocalTerminalTool({ cwd: '/', sandboxAvailable: () => true,
+    run: async (command, opts = {}) => {
+      실행들.push({ command, cwd: opts.cwd });
+      return {
+        command, cwd: opts.cwd, mode: opts.mode ?? 'probe', processState: 'delivered',
+        exitCode: 0, stdout: `${opts.cwd}\n`, stderr: '', changes: false,
+      };
+    } });
+  let n = 0;
+  const model = {
+    async respond(_tc, opts = {}) {
+      if (!opts.tools?.length) return '두 실행을 확인했습니다.';
+      n += 1;
+      if (n === 1) return { text: '', toolCalls: [{ name: 'local.terminal', args: {
+        command: 'first-in-work', cwd: dir,
+      } }] };
+      if (n === 2) return { text: '', toolCalls: [{ name: 'local.terminal', args: {
+        command: 'second-without-cwd',
+      } }] };
+      if (n === 3) return { text: '', toolCalls: [{ name: 'local.terminal', args: {
+        command: 'third-explicit-cwd', cwd: 다른자리,
+      } }] };
+      return { text: '두 실행을 확인했습니다.', toolCalls: [] };
+    },
+  };
+  const r = await runTurn({ text: '작업 폴더에서 이어서 실행하고 마지막에는 다른 폴더로 가줘' }, {
+    env: demoEnv(), model, tools: demoTools({ localTerminal }),
+  });
+  const 둘째 = 실행들.find((x) => x.command === 'second-without-cwd');
+  const 셋째 = 실행들.find((x) => x.command === 'third-explicit-cwd');
+  assert.equal(둘째?.cwd, dir, `cwd를 생략한 후속 명령이 작업 폴더를 잃었다: ${JSON.stringify(실행들)}`);
+  assert.equal(셋째?.cwd, 다른자리, '모델이 명시한 새 cwd보다 직전 cwd를 우선했다');
+  assert.equal(r.turnExchange.find((x) => x.args?.command === 'second-without-cwd')?.args?.cwd, dir,
+    '실행한 cwd가 원장 호출 인자에 남지 않았다');
+});
+
 test('앞선 터미널 성공이 다른 명령의 실패를 회복한 것으로 지우지 않는다', async () => {
   const dir = await 자리();
   const localTerminal = makeLocalTerminalTool({ cwd: dir, sandboxAvailable: () => true,

@@ -3645,12 +3645,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 이번 = 대기호출.shift();
     const toolId = 이번.tool;
     const rawArgs = Object.keys(이번.args).length ? 이번.args : { request: intent.currentRequest };
+    const 직전터미널cwd = turnReceipts.findLast((r) => r?.actualCall?.tool === 'local.terminal')
+      ?.result?.cwd ?? turnReceipts.findLast((r) => r?.actualCall?.tool === 'local.terminal')
+        ?.actualCall?.args?.cwd;
     const args = toolId === 'local.file'
       ? runtimeFileArgs(rawArgs, requestText, ctx.tools?.tools?.['local.file']?.scopeRoots)
       : toolId === 'local.terminal'
         ? {
           command: String(rawArgs?.command ?? '').trim(),
-          ...(typeof rawArgs?.cwd === 'string' && rawArgs.cwd.trim() ? { cwd: rawArgs.cwd } : {}),
+          ...((typeof rawArgs?.cwd === 'string' && rawArgs.cwd.trim()) || 직전터미널cwd
+            ? { cwd: (typeof rawArgs?.cwd === 'string' && rawArgs.cwd.trim()) ? rawArgs.cwd : 직전터미널cwd }
+            : {}),
           ...(Number.isFinite(rawArgs?.timeoutMs) ? { timeoutMs: rawArgs.timeoutMs } : {}),
         }
         : rawArgs;
