@@ -224,6 +224,16 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
   await writeFile(source, 'item,amount\nB,4\n');
   const command = `printf 'B\\t4\\nitem\\t0\\n' > ${output}`;
   let grantedRuns = 0; let phase = 0; let sawVerification = false;
+  const outputReadRevisions = [];
+  const localFile = makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') });
+  const localFileHandler = localFile.handler.bind(localFile);
+  localFile.handler = async (args) => {
+    const handled = await localFileHandler(args);
+    if ((args?.action ?? 'read') === 'read' && args?.path === output) {
+      outputReadRevisions.push(handled?.result?.sourceRevisionRef);
+    }
+    return handled;
+  };
   const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
     sandboxAvailable: () => true, run: async (_command, opts = {}) => {
       if (_command === 'ls') return { command: _command, cwd: dir, mode: opts.mode ?? 'probe',
@@ -252,10 +262,13 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
   } };
   await runTurn({ text: `${source}를 집계해 환불을 차감한 ${output} 결과 파일을 만들어줘.` }, {
     env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
-    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') }), localTerminal }),
+    tools: demoTools({ localFile, localTerminal }),
     model,
   });
   assert.equal(grantedRuns, 1);
   assert.equal(sawVerification, true, '실물 재읽기 뒤 의미 대조 차례가 모델에게 오지 않았다');
   assert.equal(await readFile(output, 'utf8'), 'B\t-4\n');
+  assert.equal(outputReadRevisions.length, 2, '수리 뒤 새 revision을 다시 읽지 않았다');
+  assert.notEqual(outputReadRevisions[0], outputReadRevisions[1],
+    '수리 전후 읽기 영수증이 같은 revision이다');
 });

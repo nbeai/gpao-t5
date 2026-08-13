@@ -2763,6 +2763,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 흔들렸고(과소 차단), `local.file` 의 action 을 못 봐 **읽고 나서 쓰는 정상 걸음**을
   // "같은 일 되풀이"로 끊었다(과대 차단). 사다리의 실패지문과 **같은 정규화 지문**을 쓴다.
   const 지문of = (toolId, args) => 호출지문(toolId, args);
+  // 실행 영수증에는 가능하면 realpath가 실린다. 이 동기 비교는 macOS가 같은 임시 실물을
+  // `/var`와 `/private/var` 두 표기로 돌려주는 마지막 별칭까지 한 신분으로 묶는다.
+  const 파일신분 = (value) => resolve(String(value ?? '')).replace(/^\/var(?=\/)/, '/private/var');
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
 
   // **같은 호출인가와 같은 증거 세대인가를 섞지 않는다** (F-114b · BomM92).
@@ -2815,6 +2818,28 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (!call?.callRef && !call?.providerCallId) return false;
       if (call?.tool !== 'desktop.screen' || call?.args?.action !== 'observe') return false;
       return 결과신분들(rec).some((축) => 축.창 === 실패신분.창 && 축.pid === 실패신분.pid);
+    });
+  };
+  // 같은 경로 read라도 그 뒤 write가 성공했다면 새 revision을 보는 첫 read다. 실행 인자만
+  // 보는 중복 지문이 수리 후 검증을 막지 않게, 같은 파일의 실제 쓰기 영수증으로만 연다.
+  const 새쓰기뒤재읽기 = (지문, toolId, args) => {
+    if (toolId !== 'local.file' || (args?.action ?? 'read') !== 'read' || !args?.path) return false;
+    let priorRead = -1;
+    for (let i = turnReceipts.length - 1; i >= 0; i -= 1) {
+      const call = turnReceipts[i]?.actualCall;
+      if (call?.tool && 지문of(call.tool, call.args ?? {}) === 지문) { priorRead = i; break; }
+    }
+    if (priorRead < 0) return false;
+    const wanted = 파일신분(args.path);
+    return turnReceipts.slice(priorRead + 1).some((rec) => {
+      if ((rec?.failureState ?? 'none') !== 'none') return false;
+      if (rec.actualCall?.tool === 'local.file' && rec.actualCall?.args?.action === 'write') {
+        return 파일신분(rec.result?.path ?? rec.actualCall.args?.path) === wanted;
+      }
+      return rec.actualCall?.tool === 'local.terminal'
+        && rec.result?.writeEffect?.verified === true
+        && 파일신분(rec.result?.writeEffect?.target?.canonicalPath
+          ?? rec.result?.writeEffect?.target?.path) === wanted;
     });
   };
 
@@ -3083,18 +3108,20 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         return [String(r.result?.path ?? r.actualCall.args?.path ?? '')];
       }
       if (r.actualCall?.tool === 'local.terminal' && r.result?.writeEffect?.changed === true) {
-        return [String(r.result?.writeEffect?.target?.path ?? '')];
+        return [String(r.result?.writeEffect?.target?.canonicalPath
+          ?? r.result?.writeEffect?.target?.path ?? '')];
       }
       return [];
     }).filter(Boolean))];
     const 파생산출물재읽음 = 쓴경로들.length > 0 && 부른것들.some((r) =>
       (r.failureState ?? 'none') === 'none' && r.actualCall?.tool === 'local.file'
       && r.actualCall?.args?.action === 'read'
-      && 쓴경로들.includes(String(r.result?.path ?? r.actualCall.args?.path ?? '')));
+      && 쓴경로들.map(파일신분).includes(파일신분(r.result?.path ?? r.actualCall.args?.path)));
     const 빈파생읽기 = 파생계약 ? 부른것들.findLast((r) => {
       if ((r.failureState ?? 'none') !== 'none') return false;
       if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
-        return Number(r.result?.bytes) === 0 && 쓴경로들.includes(String(r.result?.path ?? ''));
+        return Number(r.result?.bytes) === 0
+          && 쓴경로들.map(파일신분).includes(파일신분(r.result?.path));
       }
       if (r.actualCall?.tool === 'local.terminal' && !r.result?.writeEffect
         && String(r.result?.stdout ?? '') === '') {
@@ -3568,7 +3595,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       break;
     }
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
-    if (rung.has(지문) && !새증거뒤재시도(지문)) {
+    if (rung.has(지문) && !새증거뒤재시도(지문) && !새쓰기뒤재읽기(지문, toolId, args)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
       // 그건 호출이 하나뿐이던 시절의 계약이다. 다섯 중 하나가 중복이라고 나머지 넷을
       // 버리면 그게 바로 이번에 없앤 그 병이다. 건너뛴 사실은 남는다.
@@ -3992,13 +4019,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 새파생경로 = toolId === 'local.terminal' && plan.requestedDerivedFile === true
       && (rec.failureState ?? 'none') === 'none' && rec.result?.writeEffect?.verified === true
       && rec.result?.writeEffect?.changed === true
-      ? String(rec.result?.writeEffect?.target?.path ?? '') : '';
+      ? String(rec.result?.writeEffect?.target?.canonicalPath
+        ?? rec.result?.writeEffect?.target?.path ?? '') : '';
     if (새파생경로 && ctx.tools?.tools?.['local.file']
       && !turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
         && r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read'
-        && String(r.result?.path ?? r.actualCall.args?.path ?? '') === 새파생경로)
+        && 파일신분(r.result?.path ?? r.actualCall.args?.path) === 파일신분(새파생경로))
       && !대기호출.some((c) => c.tool === 'local.file' && c.args?.action === 'read'
-        && String(c.args?.path ?? '') === 새파생경로)) {
+        && 파일신분(c.args?.path) === 파일신분(새파생경로))) {
       대기호출.unshift(내부걸음('local.file', { action: 'read', path: 새파생경로 }, {
         runtimeRecovery: 'derived_readback',
       }));

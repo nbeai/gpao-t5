@@ -71,8 +71,8 @@ async function safeWriteIdentity(path, workspaceRoot, state) {
   }
 }
 
-async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
-  const path = blockedWriteTarget(probe, { cwd });
+async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd, observedPath) {
+  const path = observedPath ?? blockedWriteTarget(probe, { cwd });
   if (!path) return undefined;
   const before = await existingFileState(path);
   const lexicalAuthorized = inside(workspaceRoot, path) && !protectionFor(path);
@@ -266,6 +266,40 @@ export function makeLocalTerminalTool(deps = {}) {
     return command.split(variants[0]).join(prepared.stagePath);
   }
 
+  // 조건식·`||` 안의 쓰기는 전체 exit 0으로 끝날 수 있다. stderr 문자열만 믿지 않고,
+  // 진단이 가리킨 대상 하나를 격리 파일로 치환한 뒤 파일·네트워크·시그널이 닫힌 witness
+  // sandbox에서 변화가 실제 생겼는지 확인한다. 사용자 파일에는 닿지 않는다.
+  async function confirmMaskedWrite(command, probeResult, cwd) {
+    if (probeResult?.exitCode !== 0 || !dataDir) return null;
+    const path = blockedWriteTarget(probeResult, { cwd, allowSuccessfulDiagnostic: true });
+    if (!path) return null;
+    const before = await existingFileState(path);
+    const stageSeed = join(dataDir, '.terminal-probe', randomUUID());
+    await mkdir(stageSeed, { recursive: true });
+    // macOS의 /var 별칭을 sandbox literal과 같은 실제 신분으로 맞춘다.
+    const stageDir = await realpath(stageSeed);
+    const stagePath = join(stageDir, basename(path));
+    try {
+      if (before.exists === true && before.kind === 'file' && !before.tooLarge) {
+        await copyFile(path, stagePath);
+      } else {
+        // sandbox literal은 새 디렉터리 엔트리 생성 권한까지 열지 않는다. 고유 sentinel 파일을
+        // 먼저 만들고, truncate·빈 파일 생성도 digest 변화로 관측한다.
+        await writeFile(stagePath, `t5-write-witness:${randomUUID()}\n`, 'utf8');
+      }
+      const staged = stagedCommand(command, { path, stagePath }, cwd);
+      if (!staged) return null;
+      const stageBefore = await existingFileState(stagePath);
+      const checked = await run(staged, { mode: 'witness', cwd, writeTarget: stagePath });
+      const stageAfter = await existingFileState(stagePath);
+      const changed = checked?.exitCode === 0 && stageAfter.exists === true
+        && (stageBefore.exists !== true || stageAfter.sha256 !== stageBefore.sha256);
+      return changed ? path : null;
+    } finally {
+      await rm(stageDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
   async function rollbackWrite(prepared) {
     if (!prepared) return;
     if (prepared.backup) await rm(prepared.backup, { force: true }).catch(() => {});
@@ -343,7 +377,8 @@ export function makeLocalTerminalTool(deps = {}) {
     }
     await rm(prepared.stageDir, { recursive: true, force: true }).catch(() => {});
     await prepared.parentHandle?.close().catch(() => {});
-    return { ok: true, changed: true, after };
+    const canonicalPath = await realpath(prepared.path).catch(() => prepared.path);
+    return { ok: true, changed: true, after, canonicalPath };
   }
 
   /**
@@ -381,9 +416,10 @@ export function makeLocalTerminalTool(deps = {}) {
       };
     }
     const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
-    const changes = looksBlocked(r);
+    const maskedWritePath = await confirmMaskedWrite(command, r, cwd);
+    const changes = looksBlocked(r) || Boolean(maskedWritePath);
     const writeEffect = changes
-      ? await reversibleWriteEffect(r, cwd, dataDir, workspaceRoot) : undefined;
+      ? await reversibleWriteEffect(r, cwd, dataDir, workspaceRoot, maskedWritePath) : undefined;
     return { command, cwd, probe: r, changes, ...(writeEffect ? { writeEffect } : {}) };
   }
 
@@ -569,7 +605,10 @@ export function makeLocalTerminalTool(deps = {}) {
         ...(r.stopped ? { stopped: r.stopped } : {}),
         ...(args.writeEffect ? { writeEffect: {
           operation: args.writeEffect.operation,
-          target: args.writeEffect.target,
+          target: {
+            ...args.writeEffect.target,
+            ...(writeVerification?.canonicalPath ? { canonicalPath: writeVerification.canonicalPath } : {}),
+          },
           reversible: args.writeEffect.reversible === true,
           verified: writeVerification?.ok === true,
           ...(writeVerification ? {

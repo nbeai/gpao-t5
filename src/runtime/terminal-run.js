@@ -31,7 +31,7 @@ function fold(text, max = MAX_OUTPUT) {
 /**
  * 명령 한 번 실행. **이 함수는 승인을 판단하지 않는다** — 시키는 모드로 돌리고 사실만 돌려준다.
  * @param {string} command 셸 명령 원문
- * @param {{mode?:'probe'|'granted'|'raw', cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal, writeTarget?:string}} opts
+ * @param {{mode?:'probe'|'reach'|'witness'|'granted'|'raw', cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal, writeTarget?:string}} opts
  */
 export async function runCommand(command, opts = {}) {
   const mode = opts.mode ?? 'probe';
@@ -47,7 +47,8 @@ export async function runCommand(command, opts = {}) {
     const file = join(profileDir, 'p.sb');
     // `reach` 도 쓰기가 막힌 모드다 — 셸이 heredoc 을 못 쓰면 읽기만 하는 명령이
     // "파일을 바꾸려 했다"로 잡힌다(아래 주석의 그 사고). probe 와 같은 이유로 같이 연다.
-    if (mode === 'probe' || mode === 'reach' || (mode === 'granted' && opts.writeTarget)) {
+    if (mode === 'probe' || mode === 'reach' || mode === 'witness'
+      || (mode === 'granted' && opts.writeTarget)) {
       // 이번 실행만 쓰는 임시 자리. 셸의 heredoc·here-string 이 여기에 쓴다 — 이게 없으면
       // 읽기만 하는 명령이 "파일을 바꾸려 했다"로 잡혀 승인 카드로 간다(sandbox.js 주석 참고).
       // realpath 로 편다: macOS 의 /var 는 /private/var 로 가는 심볼릭 링크라, 편 경로가 아니면
@@ -55,7 +56,8 @@ export async function runCommand(command, opts = {}) {
       scratch = await realpath(await mkdir(join(profileDir, 'tmp')).then(() => join(profileDir, 'tmp')));
     }
     // allowRead: 커넥터가 선언한 자리만 도로 연다(그 명령의 자기 자격). 선언이 없으면 그대로 막힌다.
-    const profileMode = mode === 'granted' && opts.writeTarget ? 'reversible' : mode;
+    const profileMode = (mode === 'granted' || mode === 'witness') && opts.writeTarget
+      ? 'reversible' : mode;
     await writeFile(file, sandboxProfile(profileMode, {
       scratch, allowRead: opts.allowRead, writeTarget: opts.writeTarget,
     }), 'utf8');
@@ -274,9 +276,10 @@ export function executionBlock(r) {
  * 셸 문법이나 명령의 의도를 추론하지 않는다. macOS sandbox가 남긴 진단의 대상만 읽는다.
  * 대상이 없거나 모호하면 자동 쓰기 자격을 만들지 않는다.
  */
-export function blockedWriteTarget(r, { cwd } = {}) {
+export function blockedWriteTarget(r, { cwd, allowSuccessfulDiagnostic = false } = {}) {
   const block = executionBlock(r);
-  if (block?.kind !== 'sandbox' || block?.why !== 'write' || r?.exitCode === 0) return null;
+  if (!allowSuccessfulDiagnostic
+    && (block?.kind !== 'sandbox' || block?.why !== 'write' || r?.exitCode === 0)) return null;
   const lines = String(r?.stderr ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   let subject = null;
   for (const line of lines) {

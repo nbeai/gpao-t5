@@ -109,6 +109,26 @@ test('probe가 중간 실패를 보존한 뒤 echo 포함 쓰기도 staging 적�
   assert.equal(receipt?.result?.writeEffect?.undoAvailable, true);
 });
 
+test('실제 macOS: exit 0 오류문 출력과 조건식 안의 진짜 쓰기를 실물 witness로 가른다', async (t) => {
+  if (process.platform !== 'darwin') return t.skip('macOS sandbox contract');
+  const root = await mkdtemp(join(tmpdir(), 'terminal-masked-write-witness-'));
+  const work = join(root, 'work'); const state = join(root, 'state');
+  await mkdir(work, { recursive: true });
+  const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state });
+
+  const fake = await tool.probe("printf 'zsh:1: operation not permitted: fake.tsv\\n' >&2; exit 0", { cwd: work });
+  assert.equal(fake.changes, false, '프로그램이 출력한 문자열만으로 쓰기 효과를 만들었다');
+
+  const command = "printf 'ok\\n' > report.tsv || echo FALLBACK; echo DONE";
+  const probed = await tool.probe(command, { cwd: work });
+  assert.equal(probed.changes, true, '조건식 안의 실제 쓰기 효과를 놓쳤다');
+  assert.equal(probed.writeEffect?.reversible, true);
+  const executed = await tool.handler({ command, cwd: work, granted: true,
+    probeResult: probed.probe, writeEffect: probed.writeEffect });
+  assert.equal(executed.result?.writeEffect?.verified, true);
+  assert.equal(await readFile(join(work, 'report.tsv'), 'utf8'), 'ok\n');
+});
+
 test('라이브 모양: Python heredoc의 일반 write-open도 진단 대상과 합치면 새 산출물로 실행된다', async () => {
   const command = "python3 - << 'PY'\nout_path = 'report.tsv'\nwith open(out_path, 'w', newline='') as f:\n    f.write('ok\\n')\nPY";
   const stage = await 제품경로({
