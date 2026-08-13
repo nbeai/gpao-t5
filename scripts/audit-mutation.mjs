@@ -1795,9 +1795,11 @@ export const MUTATIONS = [
   { 이름: 'cua 가 verify_state 를 안 부름(계약이 죽는다)', 파일: CUA, 검사: T_CU_F,
     찾기: "      const r = 인자 ? await mcp.call('verify_state', 인자).catch(() => null) : null;",
     바꾸기: "      const r = null;" },
-  { 이름: '신분 없이도 확인을 시킴', 파일: CUA, 검사: T_CU_F,
-    찾기: "      const 인자 = 라벨 ? {",
-    바꾸기: "      const 인자 = true ? {" },
+  { 이름: '신분 없이도 확인을 시킴', 파일: CUA, 검사: 'test/cu-f-verify-identity-countertest.test.js',
+    // `const 인자 = 라벨 ?` 만 true 로 바꾸면 호출 뒤의 판정 guard가 그대로라 안전하게
+    // unknown으로 남는다. 실제 계약의 뿌리인 요소 신분을 없애 호출과 판정을 함께 흔든다.
+    찾기: "      const 라벨 = String(기대.라벨 ?? '').trim();",
+    바꾸기: "      const 라벨 = String(기대.라벨 ?? '').trim() || '__mutation_missing_identity__';" },
   { 이름: '가라앉기를 안 기다림(창 관리자보다 먼저 찍어 없는 실패를 만든다)', 파일: CUA, 검사: T_CU_F,
     찾기: "        stable_samples: 2,",
     바꾸기: "        stable_samples: 0," },
