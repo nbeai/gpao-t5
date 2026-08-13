@@ -82,6 +82,35 @@ test('실패한 npm test를 파일 생성 성공으로 덮어 통과했다고 �
   assert.equal(second.재거짓, true, '첫 되부름 뒤 같은 거짓을 반복하면 사용자에게 샌다');
 });
 
+test('실행기가 제시한 설치 대안으로 같은 턴에 복구한 missing 명령은 미해결 실패가 아니다', () => {
+  const receipts = [
+    {
+      failureState: 'failed',
+      actualCall: { tool: 'local.terminal', args: { command: 'python job.py' } },
+      다음수단: [{ what: 'python3', command: 'python3', path: '/usr/bin/python3' }],
+    },
+    {
+      failureState: 'none', actualCall: { tool: 'local.terminal', args: { command: 'python3 job.py' } },
+      result: { exitCode: 0, stdout: 'done\n', stderr: '' },
+    },
+  ];
+  const second = 절대재검증({ reply: 'python3 대안으로 작업을 완료했습니다.', receipts });
+  assert.equal(second.재거짓, false, `실제 대안 복구를 영원한 실패로 남겼다: ${second.사실}`);
+});
+
+test('제시된 대안과 무관한 터미널 성공은 앞선 실패를 지우지 않는다', () => {
+  const receipts = [
+    {
+      failureState: 'failed',
+      actualCall: { tool: 'local.terminal', args: { command: 'npm test' } },
+      다음수단: [{ what: 'npm3', command: 'npm3' }],
+    },
+    { failureState: 'none', actualCall: { tool: 'local.terminal', args: { command: 'ls' } }, result: { exitCode: 0 } },
+  ];
+  const second = 절대재검증({ reply: '테스트를 통과했습니다.', receipts });
+  assert.equal(second.재거짓, true, '무관한 터미널 성공이 실패한 테스트를 지웠다');
+});
+
 test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는다', () => {
   const path = '/work/report.txt';
   const r = 완료주장검증({

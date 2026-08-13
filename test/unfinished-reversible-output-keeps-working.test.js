@@ -162,7 +162,7 @@ test('다른 폴더의 glob 원본은 그 폴더 신분을 보존해 모두 읽�
       return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
         stdout: '', stderr: '', durationMs: 1 };
     } });
-  const model = { async respond(tc) {
+  const model = { async respond(tc, opts = {}) {
     if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
       output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
     } }] };
@@ -201,7 +201,7 @@ test('모델이 쓰기만 반복해도 정확한 원본 read를 실행 줄에 �
       return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
         stdout: '', stderr: '', durationMs: 1 };
     } });
-  const model = { async respond(tc) {
+  const model = { async respond(tc, opts = {}) {
     if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
       output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
     } }] };
@@ -245,7 +245,7 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
       return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
         stdout: '', stderr: '', durationMs: 1 };
     } });
-  const model = { async respond(tc) {
+  const model = { async respond(tc, opts = {}) {
     if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
       output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
     } }] };
@@ -257,12 +257,17 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
         verdict: 'mismatch', reason: '환불이 더해졌고 헤더가 데이터로 들어갔다', replacementText: 'B\t-4\n',
       } }] };
     }
-    return '환불을 차감하고 불필요한 헤더 행을 제거한 결과를 다시 확인했습니다.';
+    const answer = phase === 2
+      ? '현재 결과는 B 4이고 item 0 행도 남아 있습니다.'
+      : '환불을 차감하고 불필요한 헤더 행을 제거한 결과를 다시 확인했습니다.';
+    opts.onDelta?.(answer);
+    return answer;
   } };
-  await runTurn({ text: `${source}를 집계해 환불을 차감한 ${output} 결과 파일을 만들어줘.` }, {
+  let resets = 0;
+  const r = await runTurn({ text: `${source}를 집계해 환불을 차감한 ${output} 결과 파일을 만들어줘.` }, {
     env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
     tools: demoTools({ localFile, localTerminal }),
-    model,
+    model, onAnswerDelta() {}, onAnswerReset() { resets += 1; },
   });
   assert.equal(grantedRuns, 1);
   assert.equal(sawVerification, true, '실물 재읽기 뒤 의미 대조 차례가 모델에게 오지 않았다');
@@ -270,6 +275,8 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
   assert.equal(outputReadRevisions.length, 2, '수리 뒤 새 revision을 다시 읽지 않았다');
   assert.notEqual(outputReadRevisions[0], outputReadRevisions[1],
     '수리 전후 읽기 영수증이 같은 revision이다');
+  assert.ok(resets >= 1, '수리 전 중간 답을 화면에서 거두지 않았다');
+  assert.doesNotMatch(r.reply, /B\s*4|item\s*0/, '수리 전 내용이 최종 답에 이어 붙었다');
 });
 
 test('폴더 안 자료를 요청하면 실제 목록에서 관측한 이웃 파일을 읽고 파생 쓰기를 재개한다', async () => {

@@ -3351,6 +3351,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         if (output && source) {
           파생의미검증미확인 = false;
           ctx.파생의미검증미확인 = false;
+          // 불일치를 발견한 순간 앞 답은 중간 상태가 된다. 수리 뒤의 최종 답에 이어 붙이면
+          // "파일은 비어 있다"와 "완료했다"가 한 답에 함께 남는다. 실제 화면과 저장 답을
+          // 같은 세대로 바꾸고, 아래 write→fresh read 뒤 새 답만 흐르게 한다.
+          ctx.미리보기?.retract?.();
           finalOut = { text: '', toolCalls: [{ name: 'local.file', args: {
             action: 'write', path: output, text: judgment.replacementText, source,
           } }] };

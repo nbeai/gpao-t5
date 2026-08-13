@@ -469,8 +469,24 @@ export function 절대재검증({
   };
   const 성공키 = new Set((receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
     && r?.actualCall?.tool).map(실행키));
-  const 남은실패 = [...new Set((receipts ?? []).filter((r) => r?.failureState
-    && !['none', 'cancelled'].includes(r.failureState) && 실행키(r) && !성공키.has(실행키(r)))
+  // 실행기가 직접 찾아 준 설치 대안을 같은 턴에 실제로 성공시켰다면 원래 missing 명령은
+  // 복구된 실패다. 아무 터미널 성공이나 회복으로 세지 않는다 — 실패 영수증의 `다음수단`과
+  // 뒤 성공 명령의 첫 실행파일이 정확히 맞아야 한다. 그래서 `npm test` 실패 뒤 무관한
+  // 파일/명령 성공은 계속 남고, `python` 부재 뒤 제시된 `python3` 성공만 닫힌다.
+  const 대안으로회복했나 = (failed, index) => {
+    if ((failed?.actualCall ?? failed?.제안한호출)?.tool !== 'local.terminal') return false;
+    const alternatives = (failed?.다음수단 ?? []).flatMap((x) => [x?.command, x?.path, x?.what])
+      .map((x) => String(x ?? '').trim()).filter(Boolean);
+    if (!alternatives.length) return false;
+    return (receipts ?? []).slice(index + 1).some((later) => {
+      if ((later?.failureState ?? 'none') !== 'none' || later?.actualCall?.tool !== 'local.terminal') return false;
+      const command = String(later.actualCall.args?.command ?? '').trim();
+      return alternatives.some((alt) => command === alt || command.startsWith(`${alt} `));
+    });
+  };
+  const 남은실패 = [...new Set((receipts ?? []).filter((r, index) => r?.failureState
+    && !['none', 'cancelled'].includes(r.failureState) && 실행키(r) && !성공키.has(실행키(r))
+    && !대안으로회복했나(r, index))
     .map(실행키))];
   if (남은실패.length && !미완료를밝혔나(reply)) {
     return { 재거짓: true, 사실: `실패한 실행이 끝내 성공하지 않았는데 답은 그 사실을 밝히지 않는다: ${남은실패.join(' · ')}` };
