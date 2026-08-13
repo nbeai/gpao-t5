@@ -102,13 +102,7 @@ export function declarationOnlyKinds() {
  */
 export function classifyTier(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
-  const tier = tierOfKind(kind);
-  // 도구 선언이 "확인받고 하라"고 하면 등급이 낮게 나와도 최소 A2 다(하드코딩 우회 차단).
-  // **등급만 올리고 종류는 그대로 둔다** — 예전엔 여기 오기 전에 kind 자체를 send 로 바꿔
-  // 달았고, 그래서 조회·연결 카드에까지 "메시지를 실제로 밖으로 보내는 일이라"가 떴다
-  // (실측 2026-07-28). 바뀐 이름은 등급을 지키는 대신 사실을 버린다.
-  if (action?.needsApproval && (tier === TIER.A0 || tier === TIER.A1)) return TIER.A2;
-  return tier;
+  return tierOfKind(kind);
 }
 
 function tierOfKind(kind) {
@@ -151,6 +145,56 @@ export const AUTO_SAFE_KINDS = Object.freeze({
   reversibleLocal: LOW_RISK_REVERSIBLE, // A1 — 되돌릴 수 있는 로컬 정리
 });
 
+export const AUTHORITY_DISPOSITION = Object.freeze({
+  AUTO: 'auto',
+  APPROVAL: 'approval',
+  OBSERVE: 'observe',
+  BLOCKED: 'blocked',
+  OUT_OF_SCOPE: 'out_of_scope',
+});
+
+/**
+ * 사람에게 묻는 경계와 실행 가능성은 다른 축이다.
+ * 승인카드는 실제 효과가 헌장의 세 승인 경계에 닿을 때만 만든다. 미상·요청 밖·비밀은
+ * 각각 관측/재계획·실행 제외·보호 차단으로 간다. 정적 needsApproval은 참고 정보일 뿐
+ * 판정을 바꾸지 않는다.
+ */
+export function authorityDecision(action = {}) {
+  const kind = action.kind ?? UNKNOWN_KIND;
+
+  if (action.outOfScope === true || action.이번턴사실로카드 === true) {
+    return { disposition: AUTHORITY_DISPOSITION.OUT_OF_SCOPE, boundary: null, reason: 'current_request_only' };
+  }
+  if (kind === 'export_sensitive' || action.secretInput === true) {
+    return { disposition: AUTHORITY_DISPOSITION.BLOCKED, boundary: null, reason: 'protected_secret_surface' };
+  }
+  if (!isAuthorityKind(kind)) {
+    return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'effect_not_classified' };
+  }
+  if (kind === 'pay') {
+    return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'money', reason: 'money' };
+  }
+  if (kind === 'write' || kind === 'delete') {
+    if (action.revocable === false) {
+      return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'irreversible_destruction', reason: 'irreversible_destruction' };
+    }
+    if (action.revocable !== true) {
+      return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'reversibility_not_observed' };
+    }
+    return { disposition: AUTHORITY_DISPOSITION.AUTO, boundary: null, reason: 'reversible_effect' };
+  }
+  if (kind === 'send' || kind === 'publish') {
+    if (action.counterpartKnown === true) {
+      return { disposition: AUTHORITY_DISPOSITION.AUTO, boundary: null, reason: 'known_counterpart' };
+    }
+    if (action.counterpartKnown === false) {
+      return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'first_external_send', reason: 'first_external_send' };
+    }
+    return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'counterpart_not_resolved' };
+  }
+  return { disposition: AUTHORITY_DISPOSITION.AUTO, boundary: null, reason: 'outside_closed_approval_list' };
+}
+
 /**
  * **헌장 판정** — 승인 없이 진행할지 결정한다.
  *
@@ -166,76 +210,7 @@ export const AUTO_SAFE_KINDS = Object.freeze({
  * @returns {boolean} true면 승인 없이 진행.
  */
 export function decideAutoGrant(action) {
-  const kind = action?.kind ?? UNKNOWN_KIND;
-  // **이번 요청이 아닌 것은 헌장보다 위다** — 이월된 일·발화 밖 파괴는 되돌릴 수 있어도,
-  // 아는 상대라도 묻는다(`tool-boundary.js` 가 세우는 이번 턴 사실).
-  if (action?.이번턴사실로카드) return false;
-  // 도구가 명시로 확인을 요구하면 존중한다 — 다만 이 선언은 이제 **예외**다. 손 전체에
-  // 기본값으로 다는 것(옛 http/cli 도구)은 헌장 위반이고, 그 기본값들은 걷어냈다.
-  //
-  // ── **헌장 ③ 이 연 조건을 손 선언이 덮지 못한다** (오너 지시 2026-08-12:
-  //    *"불필요한 승인카드는 모두 없애야해"*) ─────────────────────────────────
-  //
-  // 이 줄이 `isCharterAsk` **위**에 있어서 손 선언 한 줄이 헌장이 **조건으로 연** 것을 덮었다.
-  // 발신 손 셋(`mail.send`·`slack.post`·`telegram.send`)이 `needsApproval: true` 를 달고
-  // 있었고, 그래서 헌장 ③(*"새 상대에게 **첫** 외부 전송"*)의 조건 `counterpartKnown` 이
-  // 영영 안 열렸다 — **같은 사람에게 백 번째 보내도 매번 카드**였다. 판정도 배선도
-  // (`action-plan.js:277`) 서 있는 채로 이 한 줄에 막혀 있었다.
-  //
-  // **`send` 하나만 양보시킨다.** 헌장 넷 중 「아는 상대」라는 조건을 명시한 것이 ③뿐이고,
-  // 막힌 것도 그것뿐이다. 나머지 바닥(`delete`·`write`)의 조건은 되돌림이고, 그건 손이
-  // `reversible` 을 밝히면 되는 일이라 선언과 부딪치지 않는다.
-  //
-  // ⚠️ **넓게 잡았다가 되돌린 자리다.** 처음엔 안전 바닥 전체에서 선언을 양보시켰는데,
-  // 회귀가 **이월된 파괴가 자동 실행**되는 방향을 잡았다(`s6c-carryover-contract`).
-  // 이월은 `needsApproval` 칸을 함께 쓰고 있었기 때문이다 — 그 뭉침은 위
-  // `tool-boundary.js` 에서 `이번턴사실로카드` 로 갈랐고, 여기서는 범위를 좁힌다.
-  // **두 겹으로 막는 것이 옳다**: 뭉침을 풀되, 푼 칸에 기대지 않고 범위도 좁힌다.
-  if (action?.needsApproval && kind !== 'send') return false;
-  // 헌장 넷에 실제로 닿으면 묻는다. 조건(되돌림·아는 상대)이 자동을 여는 것까지 여기서 본다.
-  if (isCharterAsk(action)) return false;
-  // 그 밖의 전부는 자동 — 헌장이 자동으로 둔 것(automate·기억 승격·자격 사용·연결 준비)과
-  // 저위험 어휘, 조건을 통과한 send·write·delete 가 모두 여기로 온다.
-  return true;
-}
-
-/**
- * 이 행동이 헌장의 넷에 **실제로 닿는가**. 종류가 목록에 있는 것만으로는 부족하다 —
- * 되돌릴 수 있는 삭제·쓰기, 이미 허락한 상대로의 전송은 헌장이 자동으로 두었다.
- */
-function isCharterAsk(action) {
-  const kind = action?.kind ?? UNKNOWN_KIND;
-  // **어휘 밖은 전부 미상이다.** 리터럴 `unknown_kind` 만 걸러 내면, 종류를 스스로 적어 내는
-  // 원격 커넥터가 `transfer_money` · `crm_write` 같은 이름으로 헌장을 그냥 지나간다(실측 2026-08-03).
-  // 헌장 ④(돈)에 정면으로 닿는 이름조차 자동이 됐다. 어휘(`AUTHORITY_KINDS`)에 없으면
-  // 분류가 안 된 것이고, 분류가 안 된 것은 자동으로 흘리지 않는다 — 이 파일 머리의 규칙 그대로다.
-  if (!isAuthorityKind(kind)) return true;
-  if (!isSafetyFloor(kind)) return false;   // 헌장 목록 밖(어휘 안) → 안 묻는다
-  switch (kind) {
-    // ② 되돌릴 수 없는 파괴만. 다만 **되돌릴 수 있다고 밝혀야 자동**이다 — 삭제와 같은 기본.
-    // 예전 판은 `revocable === false` 만 파괴로 봤다. 그러면 되돌림을 **선언하지 않은** 손이
-    // 전부 자동이 된다: 원격 SaaS 쓰기(`http-tool` 은 read 가 아니면 `reversible: undefined`)에는
-    // 휴지통이 없는데 구글 시트 덮어쓰기가 확인 없이 돌았다(실측 2026-08-03).
-    // 헌장 ② 는 "백업 없는 덮어쓰기"를 묻는다 — 백업이 있다는 것은 손이 밝혀야 하는 사실이다.
-    // 로컬 파일 손은 휴지통을 선언하므로(`reversible: true`) 그대로 자동이다.
-    case 'write':
-      return action?.revocable !== true;
-    // 삭제도 같은 기본 — 되돌릴 수 있다고 **밝혀야**(휴지통) 자동. 빈 값은 파괴로 본다.
-    case 'delete':
-      return action?.revocable !== true;
-    // ③ 새 상대 첫 전송만. 이미 허락한 상대(counterpartKnown)에는 안 묻는다.
-    case 'send':
-      return action?.counterpartKnown !== true;
-    // ③ 파생 — 창의 칸에 글자 넣기(F-58 (가-2) · PM 2026-08-09). 종류는 기계가 아는 사실이고,
-    // 그 칸이 전송 입력인지 메모인지는 모른다 — 모름은 자동이 아니라 확인 쪽이다.
-    // 조용해지는 조건은 send 와 같다: 사용자가 이미 허락한 그 실질(앱·창·내용 — 신분이
-    // 안 서면 열쇠가 없어 영영 이 조건에 안 닿는다 · fail-closed).
-    case 'field_input':
-      return action?.counterpartKnown !== true;
-    // ②·③·④ 의 연장 — 비밀 본문·공개·결제·권한 변경은 조건 없이 항상.
-    default:
-      return true;
-  }
+  return authorityDecision(action).disposition === AUTHORITY_DISPOSITION.AUTO;
 }
 
 /**
@@ -250,7 +225,8 @@ function isCharterAsk(action) {
  */
 export function grantFor(action) {
   const tier = classifyTier(action);
-  const approvalRequired = !decideAutoGrant(action);
+  const decision = authorityDecision(action);
+  const approvalRequired = decision.disposition === AUTHORITY_DISPOSITION.APPROVAL;
   const revocable = action.revocable ?? (tier !== TIER.A3);
   /** @type {import('../contracts.js').AuthorityGrant} */
   const grant = {
@@ -259,7 +235,10 @@ export function grantFor(action) {
     action: action.label ?? action.kind,
     safetyFloor: isSafetyFloor(action.kind),
     approvalRequired,
-    granted: !approvalRequired, // 저위험은 자동 진행, 승인 필요는 대기
+    granted: decision.disposition === AUTHORITY_DISPOSITION.AUTO,
+    disposition: decision.disposition,
+    boundary: decision.boundary,
+    decisionReason: decision.reason,
     revocable,
     // P6-15: A0-A3 판단을 사용자 언어로. 정책이 아니라 "왜/무엇이/되돌릴 수 있나"를 보여줄 뿐.
     reason: explainAuthority(action),
@@ -285,6 +264,8 @@ export function grantFor(action) {
  * @param {import('../contracts.js').AuthorityGrant} grant
  */
 export function isExecutionAllowed(grant) {
+  if (grant?.disposition && grant.disposition !== AUTHORITY_DISPOSITION.AUTO
+    && grant.disposition !== AUTHORITY_DISPOSITION.APPROVAL) return false;
   if (!grant.approvalRequired) return true;
   return grant.granted === true;
 }

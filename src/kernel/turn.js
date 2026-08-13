@@ -26,7 +26,9 @@ import { 손제시기록 } from './l2-plan/tool-offer.js';
 import { dump손제시 } from '../runtime/prompt-dump.js';
 import { observeWorksetReality, 표맥락에서 } from '../runtime/local-file.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
-import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
+import {
+  isExecutionAllowed, decideAutoGrant, isSafetyFloor, authorityDecision, AUTHORITY_DISPOSITION,
+} from './l2-plan/authority.js';
 import { decideFollowUp } from './l2-plan/follow-up.js';
 import { admitInboundEvent } from './l1-intent/inbound-gate.js';
 import { detectCandidate, admittedEntries, dropHistoryDuplicates, isGoalRelevant } from './l1-intent/context-mesh.js';
@@ -3341,7 +3343,28 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 되돌릴 수 없는 것은 손 면제가 덮지 않는다(헌장 ②). 손 선언이 유일한 진실이다.
       되돌릴수있나: 판정행동.revocable,
     });
-    if (!면제.면제 && !decideAutoGrant(판정행동)) {
+    const 권위판정 = authorityDecision(판정행동);
+    if (!면제.면제 && 권위판정.disposition !== AUTHORITY_DISPOSITION.AUTO
+      && 권위판정.disposition !== AUTHORITY_DISPOSITION.APPROVAL) {
+      const 안내 = 권위판정.disposition === AUTHORITY_DISPOSITION.OUT_OF_SCOPE
+        ? '현재 요청에 포함되지 않은 행동이라 실행하지 않았어요. 지금 요청 안에서 다시 계획합니다.'
+        : 권위판정.disposition === AUTHORITY_DISPOSITION.BLOCKED
+          ? '비밀값은 대화나 일반 도구로 다루지 않고 보호 입력면에서만 받아요.'
+          : '효과를 아직 분류하지 못해 실행하지 않았어요. 격리된 관측이나 더 분명한 손으로 다시 계획합니다.';
+      const rec = blockedReceipt(
+        plan.understoodTask ?? intent.desiredOutcome ?? '요청 수행',
+        toolId,
+        안내,
+        권위판정.disposition === AUTHORITY_DISPOSITION.OBSERVE
+          ? '효과를 확인할 수 있는 probe 또는 다른 손으로 다시 시도해요.'
+          : '현재 요청의 범위와 보호 경계를 지키는 다른 경로로 이어가요.',
+        { tool: toolId, authorityDisposition: 권위판정.disposition, reason: 권위판정.reason },
+      );
+      원장.append(rec);
+      turnReceipts.push(rec);
+      continue;
+    }
+    if (!면제.면제 && 권위판정.disposition === AUTHORITY_DISPOSITION.APPROVAL) {
       // **여기서 실행하지 않는다.** 승인은 사용자의 것이고, 이어 쓰기가 그 경계를 넘지 못한다.
       //
       // 예전엔 여기서 그냥 `break` 했다. 승인 대기를 만들지 않으니 **카드가 뜨지 않았고**,

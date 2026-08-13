@@ -2,7 +2,7 @@
 // toolsToUse 는 SelfState 가 실행 가능 판정한 것만. needsApproval 은 A2·A3.
 import { isToolExecutable } from '../l0-evidence/self-state.js';
 import { toolLabel } from '../tool-labels.js';
-import { grantFor, UNKNOWN_KIND, isSafetyFloor } from './authority.js';
+import { grantFor, UNKNOWN_KIND, isSafetyFloor, AUTHORITY_DISPOSITION } from './authority.js';
 import { containsSensitivePayload } from '../l0-evidence/sensitive-text.js';
 import { counterpartRef } from './known-counterpart.js';
 import { isSendTool } from '../contracts.js';
@@ -226,13 +226,15 @@ export function buildActionPlan(p) {
   const needed = intent.neededTools ?? [];
 
   // 실행 가능한 도구만 계획에 올린다(목록 존재 ≠ 실행 가능).
-  const toolsToUse = needed.filter((id) => isToolExecutable(selfState, id));
+  const candidates = needed.filter((id) => isToolExecutable(selfState, id));
   const blockedTools = needed.filter((id) => !isToolExecutable(selfState, id));
 
+  const toolsToUse = [];
   const autoAllowed = [];
+  const authorityDeferred = [];
   /** @type {import('../contracts.js').AuthorityGrant[]} */
   const needsApproval = [];
-  for (const id of toolsToUse) {
+  for (const id of candidates) {
     // 권한 종류는 descriptor(toolKind)를 먼저 믿는다 — 하드코딩 맵에 없어도 새 도구가 새지 않게.
     // toolKind가 아예 없으면(권한 종류 미상) read로 흘리지 않고 unknown으로 둔다 → 자동 진행 금지(감사 blocker).
     //   단, 기존 known id(web.collect 등)는 TOOL_KIND 맵으로 그대로 동작한다.
@@ -294,8 +296,15 @@ export function buildActionPlan(p) {
       needsApproval: tool?.needsApproval,
     });
     const grant = grantFor(asAction(kind), mode);
-    if (grant.approvalRequired) needsApproval.push(grant);
-    else autoAllowed.push(id);
+    if (grant.disposition === AUTHORITY_DISPOSITION.APPROVAL) {
+      toolsToUse.push(id);
+      needsApproval.push(grant);
+    } else if (grant.disposition === AUTHORITY_DISPOSITION.AUTO) {
+      toolsToUse.push(id);
+      autoAllowed.push(id);
+    } else {
+      authorityDeferred.push({ toolId: id, disposition: grant.disposition, reason: grant.decisionReason });
+    }
   }
 
   const forbidden = [];
@@ -314,6 +323,9 @@ export function buildActionPlan(p) {
       : '실패 시 무엇이 안전하고 다음 안전 행동을 제시한다',
     // 실행 불가로 계획에서 빠진 도구를 정직하게 남긴다(죽은 버튼 금지, 복구 근거).
     blockedTools,
+    // 승인으로 바꾸지 않은 미상·비밀·요청 밖 행동. 실행하지 않고 모델이 다른 손을 고르거나
+    // 관측 가능한 호출로 좁히게 한다.
+    authorityDeferred,
     // 요청의 결과 형태는 모델이 판단하고, 충족 여부는 실제 영수증으로만 판정한다.
     deliverables: intent.deliverables ?? [],
     // 전용 판단이 형식을 지키지 못한 경우 CHAT 으로 꾸미지 않고 완료 상태만 보류한다.
