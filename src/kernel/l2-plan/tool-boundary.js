@@ -72,6 +72,7 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       changes: probed?.changes,
       granted: probed?.changes === true,
       probeResult: probed?.probe,
+      ...(probed?.writeEffect ? { writeEffect: probed.writeEffect } : {}),
     };
   }
   // **화면 누르기도 돌려 봐야 안다**(CU E). 터미널과 같은 자리, 같은 이유다 —
@@ -100,7 +101,8 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
     kind,
     판정행동: {
       kind,
-      revocable: 손선언?.reversible,
+      revocable: toolId === 'local.terminal' && 판정인자?.writeEffect?.reversible === true
+        ? true : 손선언?.reversible,
       // ── **한 칸에 세 사실이 뭉쳐 있었다** (오너 지시 2026-08-12:
       //    *"불필요한 승인카드는 모두 없애야해"*) ────────────────────────────
       //

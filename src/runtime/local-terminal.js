@@ -6,12 +6,68 @@
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
-import { runCommand, executionBlock } from './terminal-run.js';
+import { runCommand, executionBlock, blockedWriteTarget } from './terminal-run.js';
 import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
 import { alive } from './local-process.js';
+import { copyFile, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { basename, isAbsolute, join, relative } from 'node:path';
+
+const MAX_REVERSIBLE_PREIMAGE = 50_000_000;
+const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+async function existingFileState(path) {
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) return { exists: true, kind: 'symlink', size: info.size };
+    if (info.isDirectory()) return { exists: true, kind: 'directory', size: info.size };
+    if (!info.isFile()) return { exists: true, kind: 'other', size: info.size };
+    if (info.size > MAX_REVERSIBLE_PREIMAGE) {
+      return { exists: true, kind: 'file', size: info.size, tooLarge: true };
+    }
+    const bytes = await readFile(path);
+    return {
+      exists: true, kind: 'file', size: info.size,
+      sha256: digest(bytes), mtimeMs: info.mtimeMs,
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { exists: false };
+    return { exists: 'unknown', error: error?.code ?? 'UNKNOWN' };
+  }
+}
+
+function inside(root, target) {
+  const rel = relative(root, target);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+async function reversibleWriteEffect(probe, cwd, dataDir) {
+  const path = blockedWriteTarget(probe, { cwd });
+  if (!path) return undefined;
+  const before = await existingFileState(path);
+  const authorized = inside(cwd, path) && !protectionFor(path);
+  const operation = before.exists === false ? 'create'
+    : before.exists === true && before.kind === 'file' ? 'overwrite' : 'unknown';
+  const reversible = Boolean(dataDir && authorized
+    && (operation === 'create'
+      || (operation === 'overwrite' && before.sha256 && !before.tooLarge)));
+  return {
+    kind: 'filesystem_write', operation,
+    target: { path, authorizedWorkspace: authorized, existsBefore: before.exists,
+      ...(before.kind ? { kind: before.kind } : {}) },
+    beforeState: before.exists === true
+      ? { kind: before.kind, size: before.size, ...(before.sha256 ? { sha256: before.sha256 } : {}) }
+      : { exists: before.exists },
+    reversible,
+    undo: { available: reversible,
+      strategy: operation === 'create' ? 'remove_created'
+        : operation === 'overwrite' ? 'restore_preimage' : 'none' },
+    evidence: 'sandbox_diagnostic',
+  };
+}
 
 /**
  * 빈 칸은 **없는 칸이다.** 모델은 안 쓰는 인자도 `''` 로 채워 보내므로 `??` 로 받으면
@@ -101,6 +157,7 @@ export function describeCommand(command, probe) {
 
 export function makeLocalTerminalTool(deps = {}) {
   const run = deps.run ?? runCommand;
+  const dataDir = deps.dataDir;
   // 기본 자리는 **사용자의 홈**이다. process.cwd() 는 서버를 띄운 자리라 사용자와 무관하고,
   // 거기가 빈 작업 폴더면 모델이 아무리 찾아도 안 나와서 결국 "경로를 알려줘"로 떠넘긴다(실측).
   // 쓰기는 커널이 막으므로 넓게 둘러보는 것 자체는 안전하다 — 좁혀야 할 이유가 없다.
@@ -108,6 +165,70 @@ export function makeLocalTerminalTool(deps = {}) {
   // 샌드박스 유무는 **주입 가능해야 한다** — 아니면 이 판정의 검사가 macOS 에서 영영
   // 건너뛰고(수리했는데 안 도는 검사), 정작 무는 자리는 리눅스다.
   const 샌드박스있나 = deps.sandboxAvailable ?? sandboxAvailable;
+  const trashDir = dataDir ? join(dataDir, '.trash') : null;
+  const undoFile = trashDir ? join(trashDir, 'undo-log.json') : null;
+
+  async function appendUndo(entry) {
+    if (!undoFile) throw new Error('undo store unavailable');
+    await mkdir(trashDir, { recursive: true });
+    let entries = [];
+    try { entries = JSON.parse(await readFile(undoFile, 'utf8')); } catch { /* first record */ }
+    if (!Array.isArray(entries)) entries = [];
+    entries.push(entry);
+    const tmp = `${undoFile}.${randomUUID()}.tmp`;
+    await writeFile(tmp, JSON.stringify(entries.slice(-50), null, 2), 'utf8');
+    await rename(tmp, undoFile);
+  }
+
+  async function prepareWrite(effect, cwd) {
+    const path = effect?.target?.path;
+    if (!effect?.reversible || !path || !trashDir || !inside(cwd, path)
+      || effect.target?.authorizedWorkspace !== true || protectionFor(path)) return null;
+    const now = await existingFileState(path);
+    if (effect.operation === 'create') {
+      return now.exists === false ? { operation: 'create', path, before: now, backup: null } : null;
+    }
+    if (effect.operation !== 'overwrite' || now.exists !== true || now.kind !== 'file'
+      || now.sha256 !== effect.beforeState?.sha256) return null;
+    await mkdir(trashDir, { recursive: true });
+    const backup = join(trashDir, `terminal-${randomUUID()}-${basename(path)}`);
+    await copyFile(path, backup);
+    return { operation: 'overwrite', path, before: now, backup };
+  }
+
+  async function rollbackWrite(prepared) {
+    if (!prepared) return;
+    if (prepared.operation === 'create') {
+      await rm(prepared.path, { force: true }).catch(() => {});
+    } else if (prepared.backup) {
+      await copyFile(prepared.backup, prepared.path).catch(() => {});
+      await rm(prepared.backup, { force: true }).catch(() => {});
+    }
+  }
+
+  async function finishWrite(prepared) {
+    const after = await existingFileState(prepared.path);
+    if (after.exists !== true || after.kind !== 'file' || !after.sha256) {
+      await rollbackWrite(prepared);
+      return { ok: false, why: 'target_not_verified' };
+    }
+    const changed = prepared.operation === 'create' || after.sha256 !== prepared.before.sha256;
+    if (!changed) {
+      if (prepared.backup) await rm(prepared.backup, { force: true }).catch(() => {});
+      return { ok: true, changed: false, after };
+    }
+    try {
+      await appendUndo({
+        id: randomUUID(), op: prepared.operation === 'create' ? 'create' : 'write',
+        from: prepared.path, to: prepared.backup, at: new Date().toISOString(),
+        source: 'local.terminal',
+      });
+    } catch {
+      await rollbackWrite(prepared);
+      return { ok: false, why: 'undo_record_failed', rolledBack: true };
+    }
+    return { ok: true, changed: true, after };
+  }
 
   /**
    * 계획 단계에서 부른다(실행 아님). 등급을 정할 사실을 만든다.
@@ -144,7 +265,9 @@ export function makeLocalTerminalTool(deps = {}) {
       };
     }
     const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
-    return { command, cwd, probe: r, changes: looksBlocked(r) };
+    const changes = looksBlocked(r);
+    const writeEffect = changes ? await reversibleWriteEffect(r, cwd, dataDir) : undefined;
+    return { command, cwd, probe: r, changes, ...(writeEffect ? { writeEffect } : {}) };
   }
 
   return {
@@ -165,6 +288,7 @@ export function makeLocalTerminalTool(deps = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) return undefined;
       const block = executionBlock(args.probeResult);
+      const reversibleWrite = args.writeEffect?.reversible === true;
       return {
         impact: `${command}`,
         scope: `${blank(args.cwd) ?? cwdOf()} 에서`,
@@ -172,7 +296,10 @@ export function makeLocalTerminalTool(deps = {}) {
         // P0-c: 승인 전에 **무엇이 이미 확인됐는지.** 카드와 영수증이 같은 사실을 말해야 한다 —
         // probe 결과를 받은 카드는 그 명령이 이미 한 번(변경 차단 상태로) 돌았다는 뜻이다.
         ...(args.probeResult ? { checked: '바꾸는 걸 막아 둔 채 한 번 시험해 봤어요 — 지금까지 바뀐 건 없어요.' } : {}),
-        cancel: (block?.kind === 'sandbox' || block?.kind === 'permission') ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
+        cancel: reversibleWrite
+          ? (args.writeEffect.operation === 'create'
+            ? '만든 파일을 지워 되돌릴 수 있어요' : '원본을 보존해 되돌릴 수 있어요')
+          : (block?.kind === 'sandbox' || block?.kind === 'permission') ? `${block.userWhy} — 실제로 하면 되돌리기 어려울 수 있어요`
           : '실행한 뒤에는 되돌리기 어려울 수 있어요',
       };
     },
@@ -203,12 +330,29 @@ export function makeLocalTerminalTool(deps = {}) {
           nextSafeAction: '작업 폴더를 알려주시면 거기서 할게요.' };
       }
 
-      // 이미 계획 단계에서 probe 를 했고 승인을 받았으면 granted 로 실제 실행한다.
+      // 되돌림이 준비된 단일 작업공간 파일 쓰기는 헌장 ②의 파괴가 아니다.
+      // 승인으로 전체 쓰기를 열지 않고 sandbox가 그 파일 하나만 연다.
       const mode = args.granted ? 'granted' : 'probe';
+      let prepared = null;
+      if (mode === 'granted' && args.writeEffect?.reversible === true) {
+        try { prepared = await prepareWrite(args.writeEffect, cwd); } catch { prepared = null; }
+        if (!prepared) {
+          return {
+            blocked: true, failed: true, lifecycle: 'failed',
+            result: { command, cwd, applied: false, writeEffect: {
+              operation: args.writeEffect.operation, target: args.writeEffect.target,
+              reversible: true, verified: false, stale: true,
+            } },
+            userSafeSummary: '확인 뒤 대상 상태가 바뀌어 실행하지 않았어요.',
+            nextSafeAction: '현재 상태를 다시 확인하고 새 계획을 세울게요.',
+          };
+        }
+      }
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
       const r = mode === 'granted'
-        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs })
+        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs,
+          ...(prepared ? { writeTarget: prepared.path } : {}) })
         : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
       // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
       // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.
@@ -244,6 +388,11 @@ export function makeLocalTerminalTool(deps = {}) {
         };
       }
 
+      const commandSucceeded = r?.exitCode === 0 && !r?.stopped;
+      const writeVerification = prepared
+        ? (commandSucceeded ? await finishWrite(prepared)
+          : (await rollbackWrite(prepared), { ok: false, why: 'command_failed', rolledBack: true }))
+        : null;
       const 끝난이유 = executionBlock(r);
       // 프로세스가 결과를 돌려준 것과 명령이 성공한 것은 별개다. 실행기는 시작 여부를
       // 직접 관측해 processState로 주며, 명령 성공/실패는 exit code만 말한다.
@@ -252,7 +401,8 @@ export function makeLocalTerminalTool(deps = {}) {
       const 명령끝 = r?.exitCode === 0
         ? 'success'
         : (typeof r?.exitCode === 'number' ? 'failure' : 'unknown');
-      const 명령실패 = 명령끝 === 'failure' || r?.stopped != null || 프로세스상태 === 'not_started';
+      const 명령실패 = 명령끝 === 'failure' || writeVerification?.ok === false
+        || r?.stopped != null || 프로세스상태 === 'not_started';
       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
       // "바로 다시 살아났어요"라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
@@ -277,7 +427,18 @@ export function makeLocalTerminalTool(deps = {}) {
         ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
         ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
         ...(r.stopped ? { stopped: r.stopped } : {}),
-        applied: 실제로돌았나,
+        ...(args.writeEffect ? { writeEffect: {
+          operation: args.writeEffect.operation,
+          target: args.writeEffect.target,
+          reversible: args.writeEffect.reversible === true,
+          verified: writeVerification?.ok === true,
+          ...(writeVerification ? {
+            changed: writeVerification.changed === true,
+            undoAvailable: writeVerification.ok === true && writeVerification.changed === true,
+            ...(writeVerification.why ? { verificationFailure: writeVerification.why } : {}),
+          } : {}),
+        } } : {}),
+        applied: prepared ? writeVerification?.ok === true && writeVerification.changed === true : 실제로돌았나,
       };
       return {
         ...(명령실패 ? { failed: true } : {}),
@@ -290,7 +451,9 @@ export function makeLocalTerminalTool(deps = {}) {
         ...(명령실패 ? { failureResult: 결과 } : {}),
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
-        userSafeSummary: 종료확인?.length && r.exitCode === 0
+        userSafeSummary: writeVerification?.ok === false
+          ? '결과 파일을 확인하지 못해 이전 상태로 되돌렸어요.'
+          : 종료확인?.length && r.exitCode === 0
           ? (종료확인.every((x) => !x.stillRunning)
             ? `껐어요 — ${종료확인.map((x) => x.pid).join(', ')} 는 지금 없어요.`
             : `일부는 아직 돌고 있어요 — 남은 것: ${종료확인.filter((x) => x.stillRunning).map((x) => x.pid).join(', ')}.`)

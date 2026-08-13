@@ -36,13 +36,15 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'|'reach'|'capsule'} mode
+ * @param {'probe'|'granted'|'reach'|'capsule'|'reversible'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime } = {}) {
+export function sandboxProfile(mode, {
+  secrets = secretPaths(), scratch, allowRead = [], runtime, writeTarget,
+} = {}) {
   const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
@@ -101,6 +103,11 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     // 메일도 보낸다 — 파일 쓰기가 아니라서 위 규칙에 안 걸린다.
     '(deny appleevent-send)',
     denySecrets,
+    // 되돌림이 준비된 터미널 쓰기는 승인 뒤 전체 컴퓨터 쓰기를 여는 것이 아니다.
+    // probe가 실제로 막힌 파일 하나만 열고 다른 쓰기·네트워크·시그널은 계속 닫는다.
+    ...(mode === 'reversible' && writeTarget
+      ? [`(allow file-write* (literal ${lit(writeTarget)}))`]
+      : []),
     // **금지 뒤에 온다** — 선언한 자리 하나만 도로 열기 위해서다(순서가 곧 우선순위).
     열어줄것,
     '',

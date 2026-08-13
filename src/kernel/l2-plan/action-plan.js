@@ -66,6 +66,7 @@ export function toolActionKind({ toolId, args, selfState }) {
   const tool = selfState?.connectedTools?.find((t) => t.id === toolId);
   let kind = tool?.toolKind ?? TOOL_KIND[toolId] ?? UNKNOWN_KIND;
   if (toolId === 'local.file') kind = fileKind(args);
+  if (toolId === 'local.terminal' && args?.writeEffect?.kind === 'filesystem_write') kind = 'write';
   // P6-T3: 프로세스도 **작업으로 판정한다.** 도구 하나로 뭉뚱그리면 켜기까지 자동으로 새어
   // 사용자가 모르는 사이 포트가 점유된다(라이브 실측: "서버 띄워봐"에 승인 없이 떴다).
   if (toolId === 'local.process') {
@@ -251,7 +252,8 @@ export function buildActionPlan(p) {
     let kind = toolActionKind({ toolId: id, args: 판정인자, selfState });
     // 승인 카드는 **이번 요청의 구체 사실**을 말해야 한다. "로컬 파일 실행"으로는 무엇이 사라지는지
     // 알 수 없다(실측). 되돌릴 수 있는지도 종류가 아니라 **도구가 밝힌 사실**을 쓴다.
-    const reversible = tool?.reversible;
+    const reversible = id === 'local.terminal' && 판정인자?.writeEffect?.reversible === true
+      ? true : tool?.reversible;
     const cancelText = reversible === true ? (tool.reversibleNote ?? '되돌릴 수 있어요')
       : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
         : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
