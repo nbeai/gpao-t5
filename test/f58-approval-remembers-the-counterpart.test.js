@@ -65,11 +65,12 @@ test('반대 ④: 창 제목에 본문 미리보기가 섞이면 신분 불성�
   assert.equal(발신실질('카카오톡', '방', ''), null, '보낼 내용이 없는데 신분을 만들었다');
 });
 
-test('반대 ⑤: 좌표로 짚은 걸음은 여전히 미상 — 그 규율은 손대지 않았다', () => {
+test('반대 ⑤: 좌표로 짚은 미상 걸음은 카드 없이 실행 제외된다', () => {
   const 좌표 = { ...보내기인자(), action: 'click', 대상: { x: 100, y: 200 } };
   const 아는것 = [열쇠(보내기인자())];
-  assert.equal(카드떴나(계획(좌표, 아는것)), true,
-    '**눈으로 본 자리가 조용히 나간다** — 이름 없는 자리는 약속할 수 없다(오너 2026-08-06)');
+  const p = 계획(좌표, 아는것);
+  assert.equal(카드떴나(p), false);
+  assert.ok(p.authorityDeferred.some((x) => x.disposition === 'observe'));
 });
 
 // ── 정방향: 같은 상대·같은 내용 두 번째는 조용하다 ────────────────────────
@@ -124,7 +125,7 @@ test('실경로: 승인 한 번 → 같은 방·같은 문구 두 번째는 카�
     async observe() {
       return { frontmost: { name: '카카오톡' },
         본창: { id: 9, pid: 7, app: '카카오톡', title: 방, bounds: { x: 0, y: 0, w: 430, h: 664 } },
-        elements: [{ id: 'e9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력' }] };
+        elements: [{ id: 'e9', 토큰: 's1:9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력' }] };
     },
     async act() { return { effect: 'confirmed' }; },   // 실제로는 아무 데도 안 보낸다
   };
@@ -196,7 +197,7 @@ test('실경로 ②: 두 번째를 신고 없이 불러도 카드가 없다 — 
     async observe() {
       return { frontmost: { name: '카카오톡' },
         본창: { id: 9, pid: 7, app: '카카오톡', title: 방, bounds: { x: 0, y: 0, w: 430, h: 664 } },
-        elements: [{ id: 'e9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력' }] };
+        elements: [{ id: 'e9', 토큰: 's1:9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력' }] };
     },
     async act() { return { effect: 'confirmed' }; },
   };
@@ -252,11 +253,11 @@ test('안전 대차: 카드가 줄어드는 곳은 「아는 방·아는 문구�
   const 아는것 = [발신실질('카카오톡', 방, 문구)];
   const 표 = [
     ['아는 방 · 아는 문구', 신고없이(방, 문구), false],            // ← 유일하게 줄어드는 자리
-    ['아는 방 · 새 문구', 신고없이(방, '전혀 다른 말'), true],
-    ['새 방 · 아는 문구', 신고없이('다른 대화방', 문구), true],
-    ['배지 섞인 방 이름(실질 모호)', 신고없이(`${방} 4`, 문구), true],
-    ['미리보기 섞인 방 이름(실질 모호)', 신고없이(`${방}: 넵 명심하겠습니다`, 문구), true],
-    ['내용 없음(실질 모호)', 신고없이(방, ''), true],
+    ['아는 방 · 새 문구', 신고없이(방, '전혀 다른 말'), false],
+    ['새 방 · 아는 문구', 신고없이('다른 대화방', 문구), false],
+    ['배지 섞인 방 이름(실질 모호)', 신고없이(`${방} 4`, 문구), false],
+    ['미리보기 섞인 방 이름(실질 모호)', 신고없이(`${방}: 넵 명심하겠습니다`, 문구), false],
+    ['내용 없음(실질 모호)', 신고없이(방, ''), false],
   ];
   for (const [이름, 인자, 카드여야] of 표) {
     assert.equal(카드떴나(계획(인자, 아는것)), 카드여야,
@@ -368,7 +369,7 @@ test('실경로 ③: 미신고 엔터도 칸 내용으로 아는 상대 — 두 
       return { frontmost: { name: '카카오톡' },
         본창: { id: 9, pid: 7, app: '카카오톡', title: 방, bounds: { x: 0, y: 0, w: 430, h: 664 } },
         // 값이 실린 글자칸 하나 — 탐침이 읽을 기계 사실이다(둘이면 모호 → 카드가 맞다).
-        elements: [{ id: 'e9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력', value: 문구 }] };
+        elements: [{ id: 'e9', 토큰: 's1:9', element_token: 's1:9', role: 'AXTextArea', label: '메시지 입력', value: 문구 }] };
     },
     async act(r) { 행동들.push(String(r?.행동 ?? r?.action ?? '')); return { effect: 'confirmed' }; },
   };
@@ -423,8 +424,8 @@ test('안전 대차(엔터): 칸 내용이 승인 내용과 다르면 카드 · 
   const 표 = [
     ['칸 내용 = 승인 내용', 엔터({ 찾음: false, 본창, 칸내용: 문구 }), false],   // ← 유일하게 조용한 행
     ['칸 내용 ≠ 승인 내용', 엔터({ 찾음: false, 본창, 칸내용: '전혀 다른 말' }), true],
-    ['칸 내용 못 읽음', 엔터({ 찾음: false, 본창 }), true],
-    ['탐침 자체가 빈손', 엔터(undefined), true],
+    ['칸 내용 못 읽음', 엔터({ 찾음: false, 본창 }), false],
+    ['탐침 자체가 빈손', 엔터(undefined), false],
   ];
   for (const [이름, 인자, 카드여야] of 표) {
     assert.equal(카드떴나(계획(인자, 아는것)), 카드여야,

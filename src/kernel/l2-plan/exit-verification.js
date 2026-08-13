@@ -454,6 +454,18 @@ export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일�
   // 두 번째 모델 호출을 만들지 않고 같은 원장 사실로 거짓만 걷는다.
   const 화면사실 = 미해결화면사실(reply, receipts);
   if (화면사실) return { 재거짓: true, 사실: 화면사실 };
+  // 모델이 고른 호출이 auto/approval 밖의 권위 경계에서 실행되지 않았다면 그 목적은
+  // 기계적으로 미완료다. 일반 blockedReceipt(관측·통제 채널)는 건드리지 않는다 — 오직
+  // authority disposition 과 제안 호출 신분이 함께 선 영수증만 본다. 첫 대조 뒤 모델이
+  // 정직한 미완료로 고쳤으면 그대로 통과하고, 같은 완료 거짓을 반복했을 때만 회수한다.
+  const 미해결권위호출 = (receipts ?? []).filter((r) => r?.failureState === 'blocked'
+    && r?.제안한호출?.tool && r?.diagnosticTrace?.authorityDisposition);
+  if (미해결권위호출.length && !미완료를밝혔나(reply)) {
+    return {
+      재거짓: true,
+      사실: `권위 경계에서 실행되지 않은 호출이 ${미해결권위호출.length}건 남아 있는데 답은 그 미완료를 밝히지 않는다.`,
+    };
+  }
   // **일반 대화는 통제하지 않는다**(수리 계약 원문: "파일 산출물 존재만 절대 게이트").
   // 실행 0 완료 주장을 여기서 다시 재면 "요청한 내용을 정리했어요" 같은 정당한 대화 완료가
   // 잡아먹힌다(전체 회귀 실측 — work-state 정산 검사 2건이 그렇게 빨개졌다).

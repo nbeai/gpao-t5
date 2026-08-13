@@ -5,7 +5,7 @@ import { buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
 
 // 감사 보정(보안): 하드코딩 TOOL_KIND 맵에 없는 새 descriptor 도구라도 needsApproval:true면
 // ActionPlan.needsApproval(A2 승인)로 반드시 들어간다 — 승인 우회 차단.
-test('custom.send(맵에 없음)이 needsApproval:true면 A2 승인에서 멈춘다', () => {
+test('custom.send라는 이름과 needsApproval:true만으로 승인카드를 만들지 않는다', () => {
   const selfState = buildSelfState({
     model: { id: 'm' },
     connections: [
@@ -18,11 +18,8 @@ test('custom.send(맵에 없음)이 needsApproval:true면 A2 승인에서 멈춘
     neededTools: ['custom.send'], answerMode: 'complex_work', authorityBoundary: 'A0',
   };
   const plan = buildActionPlan({ intent, selfState });
-  assert.ok(!plan.autoAllowed.includes('custom.send'), '자동 허용되면 안 된다');
-  const grant = plan.needsApproval.find((g) => g.action === 'custom.send');
-  assert.ok(grant, 'needsApproval에 들어가야 한다');
-  assert.equal(grant.tier, 'A2');
-  assert.equal(grant.approvalRequired, true);
+  assert.ok(plan.autoAllowed.includes('custom.send'), '선언된 read 효과는 자동이어야 한다');
+  assert.equal(plan.needsApproval.length, 0, '정적 플래그가 카드를 만들었다');
 });
 
 // descriptor 없이 하드코딩 맵 경로도 유지(하위호환): mail.send는 여전히 send=A2.

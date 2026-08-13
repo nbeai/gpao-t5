@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildActionPlan } from '../src/kernel/l2-plan/action-plan.js';
 import { 실행전판정 } from '../src/kernel/l2-plan/tool-boundary.js';
-import { decideAutoGrant } from '../src/kernel/l2-plan/authority.js';
+import { authorityDecision } from '../src/kernel/l2-plan/authority.js';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 
@@ -28,14 +28,20 @@ const 판 = (선언) => ({
 function 계획경로결정(선언) {
   const { selfState, intent } = 판(선언);
   const plan = buildActionPlan({ intent, selfState });
-  return plan.needsApproval?.some((g) => g.action === '손' || g.label === '손') ? '승인' : '자동';
+  if (plan.needsApproval?.some((g) => g.action === '손' || g.label === '손')) return '승인';
+  if (plan.autoAllowed?.includes('손')) return '자동';
+  return plan.authorityDeferred?.find((g) => g.toolId === '손')?.disposition ?? '누락';
 }
 
 /** 걸음 경로의 답 — 경계가 만든 판정행동을 `decideAutoGrant` 가 가른다. */
 async function 걸음경로결정(선언) {
   const { selfState } = 판(선언);
   const { 판정행동 } = await 실행전판정({ toolId: '손', args: { x: 1 }, selfState });
-  return decideAutoGrant(판정행동) ? '자동' : '승인';
+  const d = authorityDecision({
+    ...판정행동,
+    ...(선언.toolKind === 'send' ? { counterpartKnown: false } : {}),
+  }).disposition;
+  return d === 'approval' ? '승인' : d === 'auto' ? '자동' : d;
 }
 
 // 헌장이 실제로 가르는 축만 넣는다. 조합 폭발을 피하되 **갈리는 축은 다 넣는다.**
@@ -70,7 +76,7 @@ test('① **같은 선언이면 두 경로가 같은 답을 낸다** — 자동/
 test('② **되돌림을 안 밝힌 손은 자동으로 안 간다** — 모르는 것을 안전하다고 하지 않는다', async () => {
   for (const kind of ['write', 'delete']) {
     for (const [이름, 결정] of [['계획', () => 계획경로결정({ toolKind: kind })], ['걸음', () => 걸음경로결정({ toolKind: kind })]]) {
-      assert.equal(await 결정(), '승인',
+      assert.equal(await 결정(), 'observe',
         `${이름} 경로: 되돌림을 **선언하지 않은** ${kind} 이 자동으로 갔다.\n`
         + '실측 2026-08-03: `http-tool` 은 read 가 아니면 `reversible: undefined` 인데\n'
         + '구글 시트 덮어쓰기가 확인 없이 돌았다 — 원격 SaaS 에는 휴지통이 없다.');
@@ -81,7 +87,7 @@ test('② **되돌림을 안 밝힌 손은 자동으로 안 간다** — 모르�
 test('③ **어휘 밖 종류는 자동으로 안 간다** — 이름을 스스로 적어 내 헌장을 지나가지 못한다', async () => {
   for (const [이름, 결정] of [['계획', () => 계획경로결정({ toolKind: 'transfer_money', reversible: true })],
     ['걸음', () => 걸음경로결정({ toolKind: 'transfer_money', reversible: true })]]) {
-    assert.equal(await 결정(), '승인',
+    assert.equal(await 결정(), 'observe',
       `${이름} 경로: **분류되지 않은 종류가 자동으로 갔다.**\n`
       + '실측 2026-08-03: 종류를 스스로 적어 내는 원격 커넥터가 `transfer_money`·`crm_write` 같은\n'
       + '이름으로 헌장을 그냥 지나갔다 — 헌장 ④(돈)에 정면으로 닿는 이름조차 자동이었다.');
@@ -98,10 +104,10 @@ test('④ **되돌릴 수 있다고 밝힌 것은 두 경로 다 자동** — �
   }
 });
 
-test('⑤ **손이 확인을 요구하면 두 경로가 존중한다** — 선언을 흉내로 덮지 않는다', async () => {
+test('⑤ **정적 확인요구는 두 경로 모두 헌장 밖 카드를 만들지 않는다**', async () => {
   const 선언 = { toolKind: 'read', reversible: true, needsApproval: true };
-  assert.equal(계획경로결정(선언), '승인', '계획 경로: 손이 확인을 요구했는데 자동으로 갔다');
-  assert.equal(await 걸음경로결정(선언), '승인', '걸음 경로: 손이 확인을 요구했는데 자동으로 갔다');
+  assert.equal(계획경로결정(선언), '자동');
+  assert.equal(await 걸음경로결정(선언), '자동');
 });
 
 // ── ⑥ **헌장 ③ 이 두 곳에 적혀 있다** ────────────────────────────────────────
@@ -173,6 +179,6 @@ test('⑦ **같은 호출이면 두 경로가 같은 답** — 발화가 말 안
     + `  계획: ${JSON.stringify(계획)}\n  걸음: ${JSON.stringify(걸음)}`);
   assert.equal(계획.지운것, 0,
     '사용자가 시키지 않은 삭제가 승인 없이 실행됐다 — 절대 게이트 "현재 요청 침해"의 자리다');
-  assert.equal(계획.카드떴나, true,
-    '발화 밖 파괴인데 카드가 안 떴다 — 사용자는 읽기를 시켰고 모델은 다른 것을 지우려 했다');
+  assert.equal(계획.카드떴나, false,
+    '발화 밖 파괴를 승인카드로 바꾸면 안 된다');
 });

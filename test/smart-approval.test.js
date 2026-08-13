@@ -40,16 +40,16 @@ test('A1(되돌릴 수 있는 로컬 정리)은 자연 진행한다', () => {
 });
 
 // ── 안전 바닥: 어느 모드도 우회 못 한다(반대 테스트 포함) ──
-test('A2 외부 전송은 승인 유지(모든 모드)', () => {
-  const g = grantFor({ kind: 'send', label: 'slack.post' });
+test('새 상대 첫 외부 전송은 승인 유지', () => {
+  const g = grantFor({ kind: 'send', label: 'slack.post', counterpartKnown: false });
   assert.equal(g.tier, 'A2');
   assert.equal(g.approvalRequired, true, '새 상대 첫 전송은 헌장 ③');
   assert.equal(g.granted, false);
   assert.equal(isExecutionAllowed(g), false, '미승인 전송은 실행 불가');
 });
 
-test('삭제성 요청(A3)은 승인 유지(모든 모드)', () => {
-  const g = grantFor({ kind: 'delete' });   // 되돌림을 안 밝힌 삭제 — 헌장 ②
+test('비가역 삭제만 승인 유지', () => {
+  const g = grantFor({ kind: 'delete', revocable: false });
   assert.equal(g.tier, 'A3');
   assert.equal(g.approvalRequired, true);
   assert.equal(isExecutionAllowed(g), false);
@@ -57,40 +57,47 @@ test('삭제성 요청(A3)은 승인 유지(모든 모드)', () => {
 
 // 반대 테스트(핵심): Smart(가장 느슨) 모드라도 안전 바닥은 자동 승인되지 않는다.
 // 외부 전송·삭제·권한 변경·자동화 활성화·비밀/계정 접근 전부 — 어떤 모드에서도 auto-grant 금지.
-test('안전 바닥은 Smart 포함 어느 모드에서도 자동 승인 불가', () => {
-  for (const kind of SAFETY_FLOOR_KINDS) {
-    assert.equal(isSafetyFloor(kind), true);
-    assert.equal(decideAutoGrant({ kind }), false, `${kind} 가 조건 없이 자동으로 샜다`);
-    const g = grantFor({ kind });
-    assert.equal(g.approvalRequired, true, `${kind} 는 승인 필요`);
-    assert.equal(g.safetyFloor, true);
+test('실제 헌장 효과만 승인 카드를 만든다', () => {
+  for (const action of [
+    { kind: 'pay' },
+    { kind: 'delete', revocable: false },
+    { kind: 'write', revocable: false },
+    { kind: 'send', counterpartKnown: false },
+    { kind: 'publish', counterpartKnown: false },
+  ]) {
+    const g = grantFor(action);
+    assert.equal(g.approvalRequired, true, JSON.stringify(action));
     assert.equal(g.granted, false);
   }
 });
 
 // 안전 바닥은 tier 분류가 흔들려도(회귀) 독립적으로 auto를 막는다 — 사용자 지정 kind가 매핑에 없어도.
-test('안전 바닥은 tier가 낮게 나와도 auto를 막는다(독립 불변식)', () => {
+test('헌장 밖 권한·설정 종류는 정적 등급만으로 카드가 되지 않는다', () => {
   // 매핑에 없는 kind는 최소 A2(애매하면 높은 등급) + allowlist에도 없어 자동 진행 안 함.
   assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A2');
   // 헌장(2026-08-03)이 바닥 목록을 12→8 로 줄였다. **지키는 불변식은 그대로다** —
   // tier 분류가 낮게 회귀해도 바닥은 독립으로 자동을 막는다. 재는 종류만 현재 바닥으로 옮긴다.
   // 내려온 넷(automate·promote_memory·access_secret·connect_account)은 헌장의 결정이며,
   // 그것들이 다시 카드가 되면 `test/autonomy-charter.test.js` 가 반대 방향에서 잡는다.
-  assert.equal(decideAutoGrant({ kind: 'grant_permission' }), false);
-  assert.equal(decideAutoGrant({ kind: 'escalate' }), false);
+  assert.equal(grantFor({ kind: 'grant_permission' }).approvalRequired, false);
+  assert.equal(grantFor({ kind: 'grant_permission' }).disposition, 'observe');
+  assert.equal(grantFor({ kind: 'escalate' }).approvalRequired, false);
+  assert.equal(grantFor({ kind: 'escalate' }).disposition, 'observe');
   assert.equal(decideAutoGrant({ kind: 'pay' }), false);
   assert.equal(decideAutoGrant({ kind: 'export_sensitive' }), false);
-  assert.equal(decideAutoGrant({ kind: 'publish' }), false);
+  assert.equal(grantFor({ kind: 'export_sensitive' }).approvalRequired, false, '비밀은 보호 차단이지 카드가 아니다');
+  assert.equal(decideAutoGrant({ kind: 'publish', counterpartKnown: false }), false);
 });
 
 // ── 모르는 kind는 자동 진행 금지(감사 blocker 1) ── 새 도구·플러그인·커넥터가 매핑에 없어도 A0로 새면 안 된다.
-test('unknown kind는 자동 승인되지 않는다(애매하면 높은 등급)', () => {
+test('unknown kind는 실행·카드 양쪽에서 빠져 관측/재계획으로 간다', () => {
   assert.equal(decideAutoGrant({ kind: 'unknown_kind' }), false);
   assert.equal(decideAutoGrant({ kind: 'transfer_money' }), false);
   assert.equal(decideAutoGrant({ kind: 'crm_write' }), false);
   const g = grantFor({ kind: 'unknown_kind' });
-  assert.equal(g.approvalRequired, true, 'unknown은 승인 필요');
+  assert.equal(g.approvalRequired, false, 'unknown은 승인 사유가 아니다');
   assert.equal(g.granted, false);
+  assert.equal(g.disposition, 'observe');
   assert.equal(classifyTier({ kind: 'unknown_kind' }), 'A2', '모르는 kind는 최소 A2');
 });
 
@@ -112,9 +119,9 @@ test('실행 가능한 unknown toolKind 도구는 autoAllowed로 새지 않는�
     intent: { neededTools: ['evil.tool'], desiredOutcome: '뭔가 실행' },
     selfState
   });
-  assert.ok(plan.toolsToUse.includes('evil.tool'), '실행 가능 판정은 됨');
+  assert.equal(plan.toolsToUse.includes('evil.tool'), false, '효과 미상 호출은 실행 목록에서 빠진다');
   assert.equal(plan.autoAllowed.includes('evil.tool'), false, 'unknown은 자동 허용으로 새지 않는다');
-  assert.ok(plan.needsApproval.some((g) => g.action === 'evil.tool'), '승인 게이트로 올라간다');
+  assert.ok(plan.authorityDeferred.some((g) => g.toolId === 'evil.tool' && g.disposition === 'observe'));
 });
 
 // ── kind 자체가 비어 있는 것도 안전하지 않은 것으로 본다(감사 blocker) ── 누락 ≠ read.
@@ -122,7 +129,7 @@ test('kind 누락은 자동 진행 금지(누락 ≠ read)', () => {
   assert.equal(decideAutoGrant({}), false, 'kind 없는 행동은 자동 승인 안 함');
   assert.equal(decideAutoGrant({ label: '새 도구' }), false);
   const g = grantFor({ label: '새 도구' });
-  assert.equal(g.approvalRequired, true, 'kind 없으면 승인 필요');
+  assert.equal(g.approvalRequired, false, 'kind 없음은 승인 사유가 아니다');
   assert.equal(g.granted, false);
   assert.equal(classifyTier({}), 'A2', 'kind 누락은 최소 A2');
 });
@@ -137,9 +144,9 @@ test('toolKind 없는(비어 있는) 도구는 read로 흘리지 않고 승인�
     intent: { neededTools: ['custom.danger'], desiredOutcome: '뭔가 실행' },
     selfState
   });
-  assert.ok(plan.toolsToUse.includes('custom.danger'), '실행 가능 판정은 됨');
+  assert.equal(plan.toolsToUse.includes('custom.danger'), false, '미분류 호출은 실행 목록에서 빠진다');
   assert.equal(plan.autoAllowed.includes('custom.danger'), false, 'toolKind 없음도 자동 허용으로 새지 않는다');
-  assert.ok(plan.needsApproval.some((g) => g.action === 'custom.danger'), '승인 게이트로 올라간다');
+  assert.ok(plan.authorityDeferred.some((g) => g.toolId === 'custom.danger'));
 });
 
 // 기존 known id는 하드코딩 맵(TOOL_KIND)으로 그대로 동작한다(깨지지 않게).
@@ -159,7 +166,7 @@ test('known id fallback 유지: toolKind 없어도 TOOL_KIND 맵대로 동작', 
   // 감사 blocker B1: local.file 은 같은 도구가 읽기도 삭제도 한다. **무슨 작업인지 모르면** 자연
   // 진행하지 않는다 — 예전엔 fileOp 없는 경로가 organize/read 로 떨어져 삭제가 승인 없이 실행됐다.
   assert.equal(plan.autoAllowed.includes('local.file'), false, '작업 미상인 파일 도구는 자동 진행 금지');
-  assert.ok(plan.needsApproval.some((g) => g.action === 'local.file'), '승인 게이트로 올라간다');
+  assert.ok(plan.authorityDeferred.some((g) => g.toolId === 'local.file'), '작업 미상은 관측/재계획으로 간다');
 });
 
 // ── 승인 이유(사용자 언어) ──
@@ -169,7 +176,7 @@ test('explainAuthority: 자동 진행은 왜 진행했는지, 승인 필요는 �
   assert.match(a0.why, /바로 진행/);
   assert.match(a0.whatChanges, /없어요/);
 
-  const send = explainAuthority({ kind: 'send', label: 'slack.post' });
+  const send = explainAuthority({ kind: 'send', label: 'slack.post', counterpartKnown: false });
   assert.equal(send.needsApproval, true);
   assert.equal(send.safetyFloor, true);
   assert.ok(send.why && send.whatChanges && send.reversible);

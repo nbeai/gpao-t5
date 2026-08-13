@@ -188,11 +188,15 @@ export function toolActionKind({ toolId, args, selfState }) {
         && args?.눌러본사실?.찾음 === true                        // ①③
         && args?.눌러본사실?.보안칸 !== true                       // ②
         && !/secure/i.test(String(args?.눌러본사실?.역할 ?? ''));   // ② 역할로도 한 번 더
-      kind = 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
+      const 보안입력 = a === 'type' && (args?.눌러본사실?.보안칸 === true
+        || /secure/i.test(String(args?.눌러본사실?.역할 ?? '')));
+      kind = 보안입력 ? 'export_sensitive'
+        : 좌표로짚음 || 커서에침 ? UNKNOWN_KIND
         : args?.기대?.바깥으로 === true ? 'send'
           : 짚은칸에넣기 ? 'organize'
             : 검색확정 ? 'search'
-              : a === 'type' || 엔터걸음 ? 'field_input'
+              : 엔터걸음 ? 'send'
+                : a === 'type' ? 'field_input'
                 : args?.눌러본사실?.값있음 === true ? 'organize' : UNKNOWN_KIND;
     }
     else if (a === 'quit') kind = 'write';
@@ -303,7 +307,12 @@ export function buildActionPlan(p) {
       toolsToUse.push(id);
       autoAllowed.push(id);
     } else {
-      authorityDeferred.push({ toolId: id, disposition: grant.disposition, reason: grant.decisionReason });
+      authorityDeferred.push({
+        toolId: id, disposition: grant.disposition, reason: grant.decisionReason,
+        // 실행은 하지 않지만 같은 호출이 모델 루프에서 다시 제안됐는지 가를 기계 신분은 보존한다.
+        // 사용자면 영수증에는 싣지 않고 공통 호출 지문에만 쓴다.
+        args: 판정인자 ?? { request: intent.currentRequest },
+      });
     }
   }
 

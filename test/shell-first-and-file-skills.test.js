@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
 import { buildModelMessages } from '../src/runtime/model-provider.js';
@@ -113,10 +113,11 @@ test('없는 명령을 요구하는 스킬은 목록에 안 올라간다 — 못
   assert.ok(!이름.includes('유령'), `이 컴퓨터에 없는 법이 목록에 올랐다: ${이름.join(' · ')}`);
 });
 
-test('프롬프트에 계정 이름이 안 실린다 — 홈 아래면 `~/` 로 적는다', () => {
-  const 덩어리 = skillPromptSection(skillIndex());
+test('프롬프트에 계정 이름이 안 실린다 — 홈 아래 경로만 `~/` 로 적는다', () => {
+  const 목록 = skillIndex();
+  const 덩어리 = skillPromptSection(목록);
   assert.ok(!/\/Users\//.test(덩어리), `프롬프트에 계정 경로가 실렸다: ${덩어리}`);
-  assert.match(덩어리, /~\/.*SKILL\.md/);
+  if (목록.some((s) => s.path.startsWith(`${homedir()}/`))) assert.match(덩어리, /~\/.*SKILL\.md/);
 });
 
 test('프롬프트에는 이름·설명·경로만 — 본문을 실으면 스킬이 늘수록 프롬프트가 먹힌다', () => {

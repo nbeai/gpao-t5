@@ -48,27 +48,27 @@ test('F2 · 손 레지스트리의 toolKind 도 같이 내려간다(선언과 �
 });
 
 // ── 안 밝힌 것은 그대로 미상(카드) ─────────────────────────────────────────
-test('F2 반대시험 · 아무것도 안 밝힌 도구는 지금 그대로 unknown_kind + 승인', () => {
+test('F2 반대시험 · 아무것도 안 밝힌 도구는 unknown_kind + 카드 0', () => {
   const d = mcpToolDescriptor({ server: 'svc', connector: 'svc', tool: { name: 'ask_question' } });
   assert.equal(d.toolKind, 'unknown_kind');
-  assert.equal(d.needsApproval, true);
-  assert.equal(decideAutoGrant({ kind: d.toolKind, needsApproval: d.needsApproval }), false, '미상은 카드다');
+  assert.equal(d.needsApproval, false);
+  assert.equal(decideAutoGrant({ kind: d.toolKind, needsApproval: d.needsApproval }), false, '미상은 실행하지 않는다');
 });
 
-test('F2 반대시험 · readOnlyHint:false 를 밝힌 도구도 미상(카드) — 「아니다」는 「읽기」가 아니다', () => {
+test('F2 반대시험 · readOnlyHint:false 를 밝힌 도구도 미상(카드 0) — 「아니다」는 「읽기」가 아니다', () => {
   const d = mcpToolDescriptor({
     server: 'svc', connector: 'svc',
     tool: { name: 'create_page', annotations: { readOnlyHint: false } },
   });
   assert.equal(d.toolKind, 'unknown_kind');
-  assert.equal(d.needsApproval, true);
+  assert.equal(d.needsApproval, false);
 });
 
 test('F2 반대시험 · 이름이 조회처럼 생겨도 밝히지 않으면 안 낮춘다(이름으로 짐작 금지)', () => {
   for (const name of ['search_everything', 'get_all', 'list_users', 'read_file']) {
     const d = mcpToolDescriptor({ server: 'svc', connector: 'svc', tool: { name } });
     assert.equal(d.toolKind, 'unknown_kind', `${name} 은 이름일 뿐 선언이 아니다`);
-    assert.equal(d.needsApproval, true);
+    assert.equal(d.needsApproval, false);
   }
 });
 

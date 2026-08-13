@@ -62,6 +62,16 @@ import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절�
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
+function 승인효과지문(tool, args, 도구함) {
+  const p = 도구함?.tools?.[tool]?.previewOf?.(args ?? {}) ?? null;
+  // preview가 없는 손은 관측 결과 원문이 아니라 실행 효과 인자를 봉인한다.
+  // probeResult는 승인과 실행 사이 바뀔 수 있는 관측값이고, command/cwd/writeEffect 등은
+  // 사용자가 허락한 효과다. 관측값 변화만으로 새 카드를 만들지 않되 효과 변화는 잡는다.
+  const { probeResult: _probeResult, ...효과인자 } = args ?? {};
+  const 재료 = p ? [p.impact ?? null, p.scope ?? null, p.duration ?? null, p.cancel ?? null, p.발신실질 ?? null]
+    : 효과인자;
+  return createHash('sha256').update(JSON.stringify(재료)).digest('hex');
+}
 function 모델앞선영수증(entries, turnReceipts) {
   return (entries ?? []).filter((e) => !turnReceipts.includes(e) && e?.origin !== 'runtime_observation');
 }
@@ -1077,6 +1087,132 @@ export async function runTurn(input, ctx) {
     // **원래 물어본 자리를 잃지 않는다.** 방에서 시킨 일을 화면에서 승인해도, 그 뒤 걸음에서
     // 승인이 또 필요해지면 그 카드도 방으로 가야 한다(L9 — 결과는 요청이 온 자리로).
     ctx.askedFrom = saved.askedFrom ?? ctx.askedFrom;
+    // 승인과 실행 사이의 현실은 바뀔 수 있다. 카드는 당시의 효과를 허락한 것이지,
+    // 지금 다른 효과가 된 호출을 허락한 것이 아니다. 봉인된 의도는 재해석하지 않되
+    // 도구가 현재 현실에서 내는 기계 사실(probe → effect)은 실행 직전에 다시 잰다.
+    // 보호·미상·요청 밖으로 바뀌었으면 실행 목록에서 빼고 같은 공통 모델 루프로 돌린다.
+    let 재개Intent = structuredClone(saved.intent);
+    const 재개Plan = structuredClone(saved.plan);
+    const 재개SendArgs = structuredClone(saved.sendArgs ?? {});
+    const 재개차단 = [];
+    const 재승인 = [];
+    for (const toolId of 재개Plan.toolsToUse ?? []) {
+      const 원래인자 = 재개SendArgs[toolId]
+        ?? 재개Intent.toolArgs?.[toolId]
+        ?? (toolId === 'local.terminal' ? 재개Intent.terminalOp : null)
+        ?? (toolId === 'local.file' ? 재개Intent.fileOp : null)
+        ?? {};
+      const { 판정인자, 판정행동 } = await 실행전판정({
+        toolId, args: 원래인자, selfState, tools: ctx.tools, fresh: true,
+      });
+      // send 는 상대가 **해결됐는지**와 **이미 아는 상대인지**를 함께 줘야 한다.
+      // 둘 다 생략하면 authority 는 미상으로 보아 observe 한다. 화면 손은 도구가 현재
+      // 화면에서 만든 발신실질, 채널 손은 확정 target만 신분으로 쓴다.
+      const 발신실질 = 판정행동.kind === 'send'
+        ? ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {})?.발신실질 ?? null
+        : null;
+      const 전송대상 = 판정행동.kind === 'send' ? String(판정인자?.target ?? '').trim() : '';
+      const 상대해결 = Boolean(발신실질 || 전송대상);
+      const 상대앎 = 발신실질
+        ? ctx.knownCounterparts?.has?.(발신실질) === true
+        : (전송대상 ? isKnownCounterpart(ctx.knownCounterparts, toolId, 전송대상) : false);
+      const 현재권위 = authorityDecision({
+        ...판정행동,
+        // 재개하는 호출은 바로 이 봉인된 send에 대한 승인을 이미 받았다. 상대 신분을
+        // 현재 도구가 구조화해 주면 known 여부까지 재고, 구조화하지 않는 옛 send도
+        // '새 상대'로 보수 판정해 approval 경계에 둔다. 어느 쪽이든 방금 승인으로 실행된다.
+        ...(판정행동.kind === 'send' ? { counterpartKnown: 상대해결 ? 상대앎 : false } : {}),
+      });
+      if (현재권위.disposition === AUTHORITY_DISPOSITION.APPROVAL) {
+        const 옛허락 = (saved.plan?.needsApproval ?? []).find((g) => g.action === toolId);
+        const 현재미리보기 = ctx.tools?.tools?.[toolId]?.previewOf?.(판정인자 ?? {}) ?? null;
+        // 승인은 등급이 아니라 사용자가 본 효과에 붙는다. 같은 approval 등급이어도
+        // 상대·대상·범위가 바뀌면 다른 행동이다. 미리보기가 없는 옛 손은 봉인 인자와
+        // 현재 인자가 정확히 같을 때만 같은 효과로 본다(값은 비교만 하고 새로 저장하지 않는다).
+        // 승인 생성 순간 같은 도구가 만든 비밀 없는 digest와 현재 digest를 비교한다.
+        // 옛 지속 pending에는 이 칸이 없으므로 기존 카드 효과 칸을 한 번만 호환한다.
+        const 옛지문 = saved.승인효과지문?.[toolId] ?? (() => {
+          const p = 옛허락?.approvalPreview;
+          if (!p) return createHash('sha256').update(JSON.stringify(원래인자)).digest('hex');
+          return createHash('sha256').update(JSON.stringify([
+            p.impact ?? null, p.scope ?? null, p.duration ?? null, p.cancel ?? null, p.발신실질 ?? null,
+          ])).digest('hex');
+        })();
+        const 현재지문 = 승인효과지문(toolId, 판정인자, ctx.tools);
+        const 같은효과 = 옛지문 === 현재지문;
+        if (!같은효과) {
+          재승인.push({ toolId, 판정인자, 현재미리보기 });
+          continue;
+        }
+        재개SendArgs[toolId] = 판정인자;
+        continue;
+      }
+      if (현재권위.disposition === AUTHORITY_DISPOSITION.AUTO) {
+        재개SendArgs[toolId] = 판정인자;
+        continue;
+      }
+      재개차단.push({ toolId, disposition: 현재권위.disposition, reason: 현재권위.reason });
+      // 현재 보호 경계가 된 값은 원장·모델 문맥 어느 쪽에도 남기지 않는다.
+      delete 재개SendArgs[toolId];
+      if (재개Intent.toolArgs) delete 재개Intent.toolArgs[toolId];
+      if (toolId === 'local.terminal') delete 재개Intent.terminalOp;
+      if (toolId === 'local.file') delete 재개Intent.fileOp;
+    }
+    if (재개차단.length) {
+      const 막힌손 = new Set(재개차단.map((x) => x.toolId));
+      재개Plan.toolsToUse = (재개Plan.toolsToUse ?? []).filter((id) => !막힌손.has(id));
+      재개Plan.needsApproval = (재개Plan.needsApproval ?? []).filter((g) => !막힌손.has(g.action));
+      재개Plan.authorityDeferred = [...(재개Plan.authorityDeferred ?? []), ...재개차단];
+      재개Intent = {
+        ...재개Intent,
+        neededTools: (재개Intent.neededTools ?? []).filter((id) => !막힌손.has(id)),
+      };
+    }
+    if (재승인.length) {
+      const 새손 = new Set(재승인.map((x) => x.toolId));
+      for (const now of 재승인) {
+        재개SendArgs[now.toolId] = now.판정인자;
+        const grant = (재개Plan.needsApproval ?? []).find((g) => g.action === now.toolId);
+        if (grant) {
+          grant.approvalPreview = now.현재미리보기 ?? grant.approvalPreview;
+          // 현재 preview가 상대 신분을 못 세우면 옛 신분을 절대 물려주지 않는다.
+          // 새 상대를 모르는 것보다 실행하지 않은 옛 상대를 기억하는 것이 더 위험하다.
+          if (now.현재미리보기?.발신실질) grant.상대열쇠 = now.현재미리보기.발신실질;
+          else delete grant.상대열쇠;
+          if (grant.reason && now.현재미리보기?.impact) grant.reason.whatChanges = now.현재미리보기.impact;
+          if (grant.reason && now.현재미리보기?.cancel) grant.reason.reversible = now.현재미리보기.cancel;
+        }
+      }
+      // 옛 카드는 이미 소비됐다. 현재 효과를 보여 주는 새 카드 하나만 살아 있게 한다.
+      const pendingId = ctx.newId ? ctx.newId() : `p${(ctx._seq = (ctx._seq ?? 0) + 1)}`;
+      이전대기를지난것으로(ctx);
+      ctx.pending.set(pendingId, {
+        ...saved,
+        intent: 재개Intent,
+        plan: 재개Plan,
+        sendArgs: 재개SendArgs,
+        승인효과지문: {
+          ...(saved.승인효과지문 ?? {}),
+          ...Object.fromEntries(재승인.map((x) => [x.toolId, 승인효과지문(x.toolId, x.판정인자, ctx.tools)])),
+        },
+        grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
+      });
+      const grants = (재개Plan.needsApproval ?? []).filter((g) => 새손.has(g.action));
+      return {
+        kind: 'approval', pendingId,
+        reply: '실행할 대상이나 효과가 바뀌어 현재 내용으로 다시 확인이 필요해요.',
+        pending: grants.map((g) => ({
+          action: g.action,
+          label: toolLabel(g.action, selfState),
+          tier: g.tier,
+          safetyFloor: g.safetyFloor ?? false,
+          preview: g.approvalPreview,
+          reason: g.reason,
+        })),
+        understoodTask: 재개Plan.understoodTask,
+        selfStateSummary: summary,
+      };
+    }
     // **헌장 ③ — 사람이 허락한 상대를 기억한다.** 여기가 유일한 저장 자리다:
     // `input.approve` 는 사용자가 카드를 직접 누른 경로이고, 그것만이 미래를 열 수 있다
     // (OpenClaw: `allow-always` 는 explicit-approval 에서만 커밋된다). 자동으로 흘러간 전송은
@@ -1089,7 +1225,7 @@ export async function runTurn(input, ctx) {
       // 보여 준 그 실질(`상대열쇠` — previewOf 가 낸 앱·방·내용)이다. 카드가 A 를 보여 주고
       // 기억이 B 로 저장되면 사용자가 승인한 것과 조용해지는 것이 어긋난다(PM 조건 ①).
       // 신분이 안 선 카드(정규화 실패)는 열쇠가 없으므로 아무것도 저장하지 않는다 — 다음에도 묻는다.
-      for (const 행동 of saved.plan?.needsApproval ?? []) {
+      for (const 행동 of 재개Plan.needsApproval ?? []) {
         if (행동?.상대열쇠) ctx.knownCounterparts.add(행동.상대열쇠);
       }
     }
@@ -1103,7 +1239,7 @@ export async function runTurn(input, ctx) {
     ctx.허락한걸음 = new Set(saved.허락한걸음 ?? []);
     // 승인 재개 시 게이트에서 계산한 admitted·sendArgs를 함께 이어받는다(맥락·정밀 전송 인자 유지).
     const result = await executePlan(
-      saved.intent, saved.plan, selfState, ctx, ledger, summary, saved.admitted ?? [], saved.sendArgs,
+      재개Intent, 재개Plan, selfState, ctx, ledger, summary, saved.admitted ?? [], 재개SendArgs,
       // **승인 재개에는 이월이 없다.** 재개는 새 발화가 아니라 사용자가 방금 본 그 카드의
       // 이어짐이다 — 여기서 이월을 다시 재면 사용자가 승인한 바로 그 행동이 또 카드로 돌아온다.
       saved.intent?.currentRequest, [], [], new Set(), saved.호출신분 ?? {},
@@ -2096,6 +2232,10 @@ export async function runTurn(input, ctx) {
     이전대기를지난것으로(ctx);
     ctx.pending.set(pendingId, {
       intent, plan, admitted, sendArgs,
+      승인효과지문: Object.fromEntries(pendingGrants.map((g) => {
+        const args = sendArgs?.[g.action] ?? intent.toolArgs?.[g.action] ?? {};
+        return [g.action, 승인효과지문(g.action, args, ctx.tools)];
+      })),
       // **최초 계획 승인도 신분을 봉인한다.** 걸음 경로에만 걸어 뒀다가, 첫 응답이 바로
       // 승인 경계인 흔한 경우("임시폴더 지워줘")에서 재개 뒤 신분이 끊겼다(실측 2026-08-04).
       // 사용자가 승인한 것이 **모델이 낸 그 호출**이라는 사실은 경계를 넘어 살아 있어야 한다.
@@ -2445,6 +2585,40 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     return rec;
   };
+
+  // 승인 아닌 권위 경계는 두 레인이 같은 영수증으로 모델 루프에 돌려준다.
+  // 실행 목록에서 뺀 것만으로 끝내면 첫 계획에서는 왜 빠졌는지가 사라지고,
+  // 같은 호출이 후속 걸음에 왔을 때만 사실이 생겨 두 레인이 갈린다.
+  const 권위차단남기기 = ({ toolId, disposition, reason }) => {
+    const 안내 = disposition === AUTHORITY_DISPOSITION.OUT_OF_SCOPE
+      ? '현재 요청에 포함되지 않은 행동이라 실행하지 않았어요. 지금 요청 안에서 다시 계획합니다.'
+      : disposition === AUTHORITY_DISPOSITION.BLOCKED
+        ? '비밀값은 대화나 일반 도구로 다루지 않고 보호 입력면에서만 받아요.'
+        : '효과를 아직 분류하지 못해 실행하지 않았어요. 격리된 관측이나 더 분명한 손으로 다시 계획합니다.';
+    // 통제 채널의 일반 blockedReceipt 와 달리, 모델이 실제로 골랐지만 권위 경계가
+    // 실행 전에 막은 호출이다. actualCall 을 지어내지 않되 제안한 도구 신분은 보존한다.
+    // 인자는 비밀값을 품을 수 있으므로 원장에는 절대 싣지 않는다.
+    const rec = receipt({
+      intended: plan.understoodTask ?? intent.desiredOutcome ?? '요청 수행',
+      actualCall: null,
+      제안한호출: { tool: toolId, args: {} },
+      failureState: 'blocked',
+      userSafeSummary: 안내,
+      nextSafeAction: disposition === AUTHORITY_DISPOSITION.OBSERVE
+        ? '효과를 확인할 수 있는 probe 또는 다른 손으로 다시 시도해요.'
+        : '현재 요청의 범위와 보호 경계를 지키는 다른 경로로 이어가요.',
+      diagnosticTrace: { tool: toolId, authorityDisposition: disposition, reason },
+    });
+    원장.append(rec);
+    turnReceipts.push(rec);
+    return rec;
+  };
+
+  const 권위차단지문 = new Set();
+  for (const deferred of plan.authorityDeferred ?? []) {
+    권위차단남기기(deferred);
+    권위차단지문.add(호출지문(deferred.toolId, deferred.args ?? {}));
+  }
 
 
   for (const [순번, toolId] of plan.toolsToUse.entries()) {
@@ -3182,6 +3356,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (await 목적미달이어가기()) continue;
       break;
     }
+    // 계획 레인의 권위 차단은 toolsToUse/rung에서 빠진다. 따라서 일반 중복 검사보다 먼저
+    // 같은 공통 호출 지문으로 잡아야 첫 계획과 후속 레인이 영수증 하나를 공유한다.
+    if (권위차단지문.has(지문) && !새증거뒤재시도(지문)) {
+      if (대기호출.length) continue; // 다른 안전한 손은 그대로 실행한다.
+      tc = buildTaskContext({
+        processEnv: ctx.processEnv, 창예산: ctx.창예산,
+        carryableWork: ctx.carryableWork, priorShown: ctx.priorShown,
+        externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+        admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+        priorReceipts: 모델앞선영수증(ledger.entries, turnReceipts), 이번턴그림,
+        surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
+        nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
+        workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
+        automationReality: ctx.automationReality,
+        recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()), ...예산사실(), ...(ctx.selfhood ?? {}),
+      });
+      if (await 목적미달이어가기()) continue;
+      멈춘이유 = '권위 경계에서 실행하지 않았어요';
+      break;
+    }
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
     if (rung.has(지문) && !새증거뒤재시도(지문)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
@@ -3343,25 +3538,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 되돌릴 수 없는 것은 손 면제가 덮지 않는다(헌장 ②). 손 선언이 유일한 진실이다.
       되돌릴수있나: 판정행동.revocable,
     });
-    const 권위판정 = authorityDecision(판정행동);
-    if (!면제.면제 && 권위판정.disposition !== AUTHORITY_DISPOSITION.AUTO
+    const 권위판정 = authorityDecision({
+      ...판정행동,
+      ...(kind === 'send' ? { counterpartKnown: 면제.이유 === '아는상대' } : {}),
+    });
+    // 보호·미상·요청 밖은 승인의 반대편이지 승인 면제 대상이 아니다.
+    // 과거에 허락한 같은 걸음이어도 비밀 보호나 현재 요청 경계를 열 수 없다.
+    if (권위판정.disposition !== AUTHORITY_DISPOSITION.AUTO
       && 권위판정.disposition !== AUTHORITY_DISPOSITION.APPROVAL) {
-      const 안내 = 권위판정.disposition === AUTHORITY_DISPOSITION.OUT_OF_SCOPE
-        ? '현재 요청에 포함되지 않은 행동이라 실행하지 않았어요. 지금 요청 안에서 다시 계획합니다.'
-        : 권위판정.disposition === AUTHORITY_DISPOSITION.BLOCKED
-          ? '비밀값은 대화나 일반 도구로 다루지 않고 보호 입력면에서만 받아요.'
-          : '효과를 아직 분류하지 못해 실행하지 않았어요. 격리된 관측이나 더 분명한 손으로 다시 계획합니다.';
-      const rec = blockedReceipt(
-        plan.understoodTask ?? intent.desiredOutcome ?? '요청 수행',
-        toolId,
-        안내,
-        권위판정.disposition === AUTHORITY_DISPOSITION.OBSERVE
-          ? '효과를 확인할 수 있는 probe 또는 다른 손으로 다시 시도해요.'
-          : '현재 요청의 범위와 보호 경계를 지키는 다른 경로로 이어가요.',
-        { tool: toolId, authorityDisposition: 권위판정.disposition, reason: 권위판정.reason },
-      );
-      원장.append(rec);
-      turnReceipts.push(rec);
+      권위차단남기기({ toolId, disposition: 권위판정.disposition, reason: 권위판정.reason });
+      권위차단지문.add(지문);
       continue;
     }
     if (!면제.면제 && 권위판정.disposition === AUTHORITY_DISPOSITION.APPROVAL) {
@@ -3448,6 +3634,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           // 에서 인자를 꺼낸다(570줄) — 여기에 안 실으면 승인 뒤 `{request: 발화원문}` 으로
           // 실행돼 엉뚱한 일이 된다. 판정과 실행이 **같은 인자**를 봐야 한다(두 진실 금지).
           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
+          승인효과지문: { [toolId]: 승인효과지문(toolId, 판정인자, ctx.tools) },
           // 승인 뒤 실행도 **같은 신분**으로 간다 — 사용자가 승인한 그 호출이라는 사실이
           // 원장과 모델 이력에서 끊기지 않는다.
           호출신분: { ...계획호출신분, ...(이번.providerCallId ? { [toolId]: { providerCallId: 이번.providerCallId } } : {}) },

@@ -52,7 +52,7 @@ function blurbOf(d) {
     : d.toolKind === 'send' ? '메시지를 보내요'
       // 같은 도구가 보기도 하고 바꾸기도 한다. 도구 단위 needsApproval 은 false 인데 실제로는
       // 바꾸거나 지울 때 승인을 받는다 — 카드가 "확인 없이 정리한다"고 읽히면 안 된다(감사 지적).
-      : d.toolKind === 'organize' ? '파일을 보고 정리해요. 바꾸거나 지울 땐 먼저 확인받아요'
+      : d.toolKind === 'organize' ? '파일을 보고 정리해요. 되돌릴 수 있는 변경은 바로 하고 기록을 남겨요'
         : d.toolKind === 'read' ? '자료를 읽어요'
           : '작업을 해요';
   const extra = [];

@@ -114,7 +114,7 @@ test('검색 아닌 칸의 엔터는 역할이 있어도 그대로 카드다 —
         눌러본사실: { 칸내용: '안녕', ...(역할 !== undefined ? { 칸역할: 역할 } : {}), 본창: { app: 'K' } },
       },
     });
-    assert.equal(kind, 'field_input', `역할 ${역할 ?? '(없음)'} 에서 kind=${kind} — 검색 확정이 넓게 문다`);
+    assert.equal(kind, 'send', `역할 ${역할 ?? '(없음)'} 에서 kind=${kind} — 외부 확정 효과가 send 로 서지 않는다`);
     assert.equal(decideAutoGrant({ kind }), false,
       `**${역할 ?? '(없음)'} 칸의 엔터가 카드 없이 나간다** — 헌장 ③ 게이트가 죽었다`);
   }

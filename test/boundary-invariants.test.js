@@ -149,11 +149,12 @@ test('불변식: 등록되지 않은 도구 이름은 실행되지 않는다', a
   assert.deepEqual(r.ledger?.confirmed ?? [], []);
 });
 
-test('불변식: 작업을 모르면 승인 쪽으로 떨어진다(모르면 안전하게)', () => {
+test('불변식: 작업을 모르면 카드가 아니라 관측/재계획으로 떨어진다', () => {
   const kind = toolActionKind({ toolId: 'local.file', args: undefined, selfState });
   assert.equal(decideAutoGrant({ kind }, 'smart'), false);
   const plan = buildActionPlan({ intent: { neededTools: ['local.file'] }, selfState });
-  assert.ok(plan.needsApproval.some((g) => g.action === 'local.file'));
+  assert.equal(plan.needsApproval.length, 0);
+  assert.ok(plan.authorityDeferred.some((g) => g.toolId === 'local.file' && g.disposition === 'observe'));
 });
 
 // ── 6. 휴지통 계약: 지운 것은 되살릴 수 있다 ─────────────────────────────

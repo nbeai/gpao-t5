@@ -238,16 +238,15 @@ test('주소로 붙은 MCP 도구도 어디에 붙었는지 사람 말로 말한
 
 // 같은 카드에서 "메시지를 실제로 밖으로 보내는 일이라"도 떴다 — 조회였다.
 // 계획 층이 승인을 강제하려고 종류를 `send` 로 바꿔 달았고, 그 이름의 문구가 실렸다.
-test('승인을 강제하려고 바꾼 종류가 사용자에게 전송으로 보이지 않는다', async () => {
+test('정적 승인 플래그가 읽기 카드나 전송 설명을 만들지 않는다', async () => {
   const { buildActionPlan } = await import('../src/kernel/l2-plan/action-plan.js');
   const selfState = {
     connectedTools: [{ id: 'x.read', label: '조회', connected: true, executable: true, toolKind: 'read', needsApproval: true }],
     currentModel: { id: 'm' }, limits: [],
   };
   const plan = buildActionPlan({ intent: { neededTools: ['x.read'], toolArgs: { 'x.read': {} } }, selfState, mode: 'smart' });
-  const g = (plan.needsApproval ?? [])[0];
-  assert.ok(g, '승인 강제가 풀리면 안 된다');
-  assert.ok(!/보내는 일/.test(g.reason?.why ?? ''), `없는 전송을 말했다: ${g.reason?.why}`);
+  assert.equal(plan.needsApproval.length, 0);
+  assert.ok(plan.autoAllowed.includes('x.read'));
 });
 
 // 실측(오너 라이브 2026-07-28): 주소로 붙은 MCP 의 손이 원장에 `mcp.undefined.ask_question`
@@ -600,7 +599,7 @@ test('현실 갱신 ④ 같은 id 로 세션도 스키마도 갈리면 둘 다 �
 });
 
 // 관통 검사 — 노출까지만 보지 않는다. 실제로 골라 실행되고, 영수증이 정확히 한 번인지까지.
-test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 새 손 실행 → 영수증 각 1건', async () => {
+test('현실 갱신 ⑤ 새 미분류 손은 같은 턴에 보이되 카드·실행 없이 재계획된다', async () => {
   const { runTurn } = await import('../src/kernel/turn.js');
   const { TruthLedger } = await import('../src/kernel/l0-evidence/ledger.js');
   const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
@@ -641,24 +640,23 @@ test('현실 갱신 ⑤ 기존 손 실행 → 새 손 편입 → 같은 턴에 �
 
   // 새 손은 승인 경계다(MCP 는 종류를 안 주므로 "모르면 승인"). 카드가 **그 손**을 가리키는지
   // 보고, 승인 뒤에 실제로 도는지까지 본다 — 노출까지만 보면 절반이다.
-  assert.equal(r1.kind, 'approval', `새 손이 승인 없이 지나갔거나 안 골라졌다: ${r1.kind}`);
-  assert.ok((r1.pending ?? []).some((p) => String(p.action).includes('d-new')),
-    '승인 카드가 새 손을 가리키지 않는다');
-  await runTurn({ approve: r1.pendingId }, ctx).catch(() => {});
+  assert.notEqual(r1.kind, 'approval', '미분류 자체가 카드가 됐다');
+  assert.equal(r1.pendingId, undefined);
 
   // **"실행"과 "골랐지만 안 했다"를 가른다.** 다중 호출 병합을 걷어낸 뒤(2026-08-04)
   // 런타임은 못 한 호출도 영수증으로 남긴다 — `actualCall` 만 세면 그 둘이 한 덩어리가 된다.
   // 재는 것은 **실행**이므로 성공한 것만 센다.
   const 실행된것 = ledger.entries.filter((e) => (e.failureState ?? 'none') === 'none').map((e) => e.actualCall?.tool);
   const 새손실행 = 실행된것.filter((t) => String(t).includes('d-new'));
-  assert.equal(새손실행.length, 1, `새 손 실행이 ${새손실행.length}건 — 실행됐고 한 번만이어야 한다`);
+  assert.equal(새손실행.length, 0, `효과 미분류 새 손이 ${새손실행.length}건 실행됐다`);
   assert.equal(실행된것.filter((t) => t === 'web.collect').length, 1, '기존 손이 중복 실행됐다');
 
   // 그리고 **두 번째로 고른 것이 왜 안 갔는지가 남아 있어야 한다**(조용한 축소 금지).
-  const 안한것 = ledger.entries.filter((e) => String(e.제안한호출?.tool ?? e.actualCall?.tool).includes('d-new')
+  const 안한것 = ledger.entries.filter((e) => String(e.제안한호출?.tool ?? e.actualCall?.tool
+      ?? e.diagnosticTrace?.tool).includes('d-new')
     && (e.failureState ?? 'none') !== 'none');
-  assert.equal(안한것.length, 1, '되풀이라 건너뛴 사실이 사라졌다 — 모델은 자기가 두 번 시켰다고 믿는다');
-  assert.equal(안한것[0].result, undefined, '실행하지 않았는데 결과가 있으면 지어낸 것이다');
+  assert.equal(안한것.length, 1, '미분류 호출 하나에 차단 사실이 정확히 하나여야 한다');
+  assert.ok(안한것.every((e) => e.result === undefined), '실행하지 않았는데 결과가 있으면 지어낸 것이다');
 });
 
 // 오너 검토(2026-07-28): `있는손` 목록이 한 번만 만들어져, 뒤 걸음에서 손이 늘거나 줄어도

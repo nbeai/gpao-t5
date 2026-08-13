@@ -37,9 +37,10 @@ import { isKnownCounterpart } from './known-counterpart.js';
  * @param {object} [p.tools]           `ctx.tools` — probe 를 가진 도구 등록부
  * @param {boolean} [p.이번이월]        앞 턴에서 넘어온 같은 일인가
  * @param {object} [p.이번발화]         `parseFileRequest` 결과 — 발화밖 파괴 판정용
+ * @param {boolean} [p.fresh]           승인 뒤처럼 현실을 반드시 다시 재야 하는 실행 경계
  * @returns {Promise<{판정인자: object, kind: string, 판정행동: {kind: string, revocable?: boolean, needsApproval?: boolean}}>}
  */
-export async function 실행전판정({ toolId, args, selfState, tools, 이번이월 = false, 이번발화 }) {
+export async function 실행전판정({ toolId, args, selfState, tools, 이번이월 = false, 이번발화, fresh = false }) {
   // ── **못 재면 조인다**(fail-closed · 이음매 ① · 2026-08-12) ────────────────
   //
   // 탐침은 화면·샌드박스 같은 바깥 현실을 만진다 — 터지는 것이 정상 범위다. 그런데 이 자리는
@@ -56,9 +57,9 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // **같은 사실을 두 번 묻지 않는다**(이음매 ①). 앞 레인이 이미 재서 실어 보낸 인자가 오면
   // 그대로 쓴다 — 재는 것은 왕복이고 왕복은 사용자 비용이다(0번 비용: 에너지·시간).
   // 두 번 재면 느린 것보다 **답이 갈리는 것**이 문제다: 화면은 그 사이에 바뀐다(두 진실 금지).
-  const 이미잰것 = toolId === 'local.terminal'
+  const 이미잰것 = !fresh && (toolId === 'local.terminal'
     ? args?.probeResult !== undefined || args?.changes !== undefined
-    : args?.눌러본사실 !== undefined;
+    : args?.눌러본사실 !== undefined);
   if (!이미잰것 && toolId === 'local.terminal' && typeof args?.command === 'string') {
     const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
     판정인자 = {
@@ -83,9 +84,12 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // 기계 사실로 세우는 자리다. 요소 탐색은 없으니 등급 판정(값있음)은 그대로 미상이다.
   if (!이미잰것 && toolId === 'desktop.act' && (args?.action === 'click' || args?.action === 'type'
     || args?.action === 'press_key' || args?.action === 'hotkey')) {
-    const 돌려본것 = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args));
+    // fresh 재판정에는 과거 probe 사실을 인자에서 걷는다. 도구가 그 칸을 보고
+    // 현재 화면 관찰을 생략하면 승인 전 현실이 다시 현재 사실인 척 살아난다.
+    const 탐침인자 = fresh ? (({ 눌러본사실, ...나머지 }) => 나머지)(args ?? {}) : args;
+    const 돌려본것 = await 재본다(() => tools?.tools?.[toolId]?.probe?.(탐침인자));
     // 돌려 본 사실을 **판정인자에 실어 보낸다** — 원장도 사용자도 왜 물었는지 볼 수 있어야 한다.
-    if (돌려본것 && !돌려본것.해당없음) 판정인자 = { ...args, 눌러본사실: 돌려본것 };
+    if (돌려본것 && !돌려본것.해당없음) 판정인자 = { ...탐침인자, 눌러본사실: 돌려본것 };
   }
   const kind = toolActionKind({ toolId, args: 판정인자, selfState });
   // **판정은 계획 경로와 같은 사실 위에서 한다**(두 층이 같은 질문에 다른 답을 내면 결함이다).

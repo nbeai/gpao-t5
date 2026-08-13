@@ -11,7 +11,7 @@ test('읽기·요약은 A0 자동', () => {
 
 // S20: 외부 전송은 A2, 승인 없이는 실행 불가.
 test('외부 전송(A2)은 승인 전 실행 불가', () => {
-  const g = grantFor({ label: '메일 발송', kind: 'send' });
+  const g = grantFor({ label: '메일 발송', kind: 'send', counterpartKnown: false });
   assert.equal(g.tier, 'A2');
   assert.equal(g.approvalRequired, true);
   assert.equal(g.granted, false);
@@ -20,13 +20,13 @@ test('외부 전송(A2)은 승인 전 실행 불가', () => {
 });
 
 test('승인되면 실행 허용', () => {
-  const g = grantFor({ label: '메일 발송', kind: 'send' });
+  const g = grantFor({ label: '메일 발송', kind: 'send', counterpartKnown: false });
   assert.equal(isExecutionAllowed({ ...g, granted: true }), true);
 });
 
 // S22: 삭제·결제·공개는 A3, 기본 non-revocable.
-test('삭제(A3)는 강한 승인, 되돌리기 불가 기본', () => {
-  const g = grantFor({ label: '삭제', kind: 'delete' });
+test('비가역 삭제(A3)는 강한 승인, 되돌리기 불가', () => {
+  const g = grantFor({ label: '삭제', kind: 'delete', revocable: false });
   assert.equal(g.tier, 'A3');
   assert.equal(g.approvalRequired, true);
   assert.equal(g.revocable, false);

@@ -83,31 +83,25 @@ for (const [이름, 모델만들기] of 경로들) {
       `${이름}: **지난 턴에서 온 삭제가 이번 발화에 섞여 조용히 실행됐다.**\n`
       + `실행된 것: ${JSON.stringify(지운것(p))}\n`
       + '절대 게이트 "현재 요청 침해"의 자리다 — 사용자는 이번에 그걸 시키지 않았다.');
-    assert.equal(r.kind, 'approval',
-      `${이름}: **이월이 카드로도 안 섰다.** 버리는 대신 보인다는 계약이 여기서 무너진다 —\n`
-      + '사용자가 정말 원했으면 한 번 누르면 끝인데, 지금은 아무 일도 안 일어난다.');
+    assert.notEqual(r.kind, 'approval', `${이름}: 요청 밖 이월이 승인카드로 바뀌었다`);
+    assert.match(JSON.stringify(p.원장), /out_of_scope|current_request_only/,
+      `${이름}: 실행 제외 이유가 원장에 없다`);
   });
 
-  test(`② **카드에 무엇을 하려는지가 적혀 있다** — ${이름}`, async () => {
+  test(`② **이월은 카드가 아니라 요청 밖 실행 제외로 남는다** — ${이름}`, async () => {
     const p = 판();
     const r = await runTurn({ text: '작업 폴더 정리 좀 도와줘' }, p.ctx(모델만들기(이월호출)));
-    assert.equal(r.kind, 'approval');
-    const 카드 = (r.pending ?? []).find((x) => x.action === 'local.file');
-    assert.ok(카드, `${이름}: 파일 카드가 없다 — 무엇을 묻는지 알 수 없다`);
-    assert.match(JSON.stringify(카드), /지난것\.md/,
-      `${이름}: **무엇을 지우려는지가 카드에 없다.** 사용자가 무엇을 허락하는지 모르는 승인은 승인이 아니다.\n`
-      + `카드: ${JSON.stringify(카드)}`);
+    assert.notEqual(r.kind, 'approval');
+    assert.equal(r.pendingId, undefined);
+    assert.match(JSON.stringify(p.원장), /out_of_scope|current_request_only/);
   });
 
-  test(`③ **승인하면 그것이 실행된다** — 카드가 헛되지 않다 — ${이름}`, async () => {
+  test(`③ **이월은 승인으로 되살릴 수 없고 실행 0이다** — ${이름}`, async () => {
     const p = 판();
     const 판모음 = p.ctx(모델만들기(이월호출));
-    const 카드 = await runTurn({ text: '작업 폴더 정리 좀 도와줘' }, 판모음);
-    assert.equal(카드.kind, 'approval');
-    await runTurn({ approve: 카드.pendingId }, 판모음);
-    assert.deepEqual(지운것(p).map((a) => a.path), ['지난것.md'],
-      `${이름}: **승인했는데 그 일이 안 일어났다.** 실측 2026-07-28 의 병이다 —\n`
-      + '승인 카드가 두 번 뜨고 대상은 끝내 안 꺼졌다. 승인을 눌러도 아무 일이 안 나면 승인이 아니다.');
+    const 결과 = await runTurn({ text: '작업 폴더 정리 좀 도와줘' }, 판모음);
+    assert.notEqual(결과.kind, 'approval');
+    assert.deepEqual(지운것(p), []);
   });
 }
 
@@ -152,5 +146,6 @@ test('⑤ **이월이 이번 요청을 막지 않는다** — 이번 것이 먼�
     '**이번 요청이 이월 하나 때문에 안 돌았다.** 지난 턴의 못 끝낸 일이 앞에 섰다고\n'
     + `이번에 시킨 일을 못 하면, 사용자는 자기 요청이 사라진 것으로 본다.\n실행된 것: ${JSON.stringify(p.실행된)}`);
   assert.deepEqual(지운것(p), [], '이월된 파괴가 자동 실행됐다');
-  assert.equal(r.kind, 'approval', '이월이 카드로 서지 않았다 — 버리는 대신 보인다는 계약');
+  assert.notEqual(r.kind, 'approval', '이월이 승인카드로 바뀌었다');
+  assert.match(JSON.stringify(p.원장), /out_of_scope|current_request_only/);
 });

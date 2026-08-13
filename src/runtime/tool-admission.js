@@ -80,7 +80,7 @@ export function mcp종류판정(tool = {}) {
     return { toolKind: 'read', needsApproval: false, 근거: 'annotations.readOnlyHint' };
   }
   // 못 밝혔다 → 지금 그대로 미상. 미상은 자동으로 안 흘린다(`authority.js:186`).
-  return { toolKind: 'unknown_kind', needsApproval: true, 근거: null };
+  return { toolKind: 'unknown_kind', needsApproval: false, 근거: null };
 }
 
 /**

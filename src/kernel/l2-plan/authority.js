@@ -31,14 +31,9 @@ export const UNKNOWN_KIND = 'unknown_kind';
  */
 export const SAFETY_FLOOR_KINDS = Object.freeze([
   'send',             // ③ 새 상대 첫 전송만 — 아는 상대는 자동
-  'field_input',      // ③ 파생(F-58 (가-2) · PM 2026-08-09) — 창의 칸에 글자 넣기. 그 칸이
-                      //    밖으로 이어지는지 기계가 모른다 → 기본 카드. 아는 상대·같은 내용·
-                      //    창 신분 성립(fail-closed)일 때만 자동 — send 와 같은 조건이다
   'delete', 'write',  // ② 되돌릴 수 없을 때만 — 휴지통·백업이 있으면 자동
   'pay',              // ④ 항상
-  'export_sensitive', // ② 의 연장 — 새어 나간 비밀은 되돌릴 수 없다. 항상
   'publish',          // ③ 의 연장 — 공개는 언제나 새 상대(세상)다. 항상
-  'escalate', 'grant_permission', // 권한 변경 — 심각한 안전 훼손 축. 항상(현재 내는 손 없음)
 ]);
 
 // 저위험 어휘의 원천. `AUTO_SAFE_KINDS`(자동 진행 판정)와 `AUTHORITY_KINDS`(어휘 전체)가
@@ -47,6 +42,8 @@ const LOW_RISK_ALWAYS = Object.freeze(['read', 'summarize', 'search', 'draft']);
 const LOW_RISK_REVERSIBLE = Object.freeze(['organize', 'title', 'archive']);
 // 헌장이 승인 목록에서 내린 종류들 — 어휘에는 남는다(자동화 envelope 의 allowedKinds 등).
 export const CHARTER_AUTO_KINDS = Object.freeze(['automate', 'promote_memory', 'access_secret', 'connect_account']);
+const PROTECTED_KINDS = Object.freeze(['export_sensitive']);
+const OBSERVATION_ONLY_KINDS = Object.freeze(['field_input', 'escalate', 'grant_permission']);
 
 /** 이 행동이 **사람 확인이 걸릴 수 있는** 종류인가(조건은 decideAutoGrant 가 본다). */
 export function isSafetyFloor(kind) {
@@ -62,6 +59,7 @@ export function isSafetyFloor(kind) {
  */
 export const AUTHORITY_KINDS = Object.freeze([
   ...LOW_RISK_ALWAYS, ...LOW_RISK_REVERSIBLE, ...CHARTER_AUTO_KINDS, ...SAFETY_FLOOR_KINDS,
+  ...PROTECTED_KINDS, ...OBSERVATION_ONLY_KINDS,
 ]);
 
 /** 이 문자열이 행동 종류 어휘인가(도구 id·자유 문자열 배제). */
@@ -171,19 +169,26 @@ export function authorityDecision(action = {}) {
   if (!isAuthorityKind(kind)) {
     return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'effect_not_classified' };
   }
+  if (OBSERVATION_ONLY_KINDS.includes(kind)) {
+    return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'effect_not_classified' };
+  }
   if (kind === 'pay') {
     return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'money', reason: 'money' };
   }
   if (kind === 'write' || kind === 'delete') {
-    if (action.revocable === false) {
+    const revocable = action.revocable ?? action.reversible;
+    if (revocable === false) {
       return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'irreversible_destruction', reason: 'irreversible_destruction' };
     }
-    if (action.revocable !== true) {
+    if (revocable !== true) {
       return { disposition: AUTHORITY_DISPOSITION.OBSERVE, boundary: null, reason: 'reversibility_not_observed' };
     }
     return { disposition: AUTHORITY_DISPOSITION.AUTO, boundary: null, reason: 'reversible_effect' };
   }
-  if (kind === 'send' || kind === 'publish') {
+  if (kind === 'publish') {
+    return { disposition: AUTHORITY_DISPOSITION.APPROVAL, boundary: 'first_external_send', reason: 'public_external_send' };
+  }
+  if (kind === 'send') {
     if (action.counterpartKnown === true) {
       return { disposition: AUTHORITY_DISPOSITION.AUTO, boundary: null, reason: 'known_counterpart' };
     }
@@ -227,7 +232,7 @@ export function grantFor(action) {
   const tier = classifyTier(action);
   const decision = authorityDecision(action);
   const approvalRequired = decision.disposition === AUTHORITY_DISPOSITION.APPROVAL;
-  const revocable = action.revocable ?? (tier !== TIER.A3);
+  const revocable = action.revocable ?? action.reversible ?? (tier !== TIER.A3);
   /** @type {import('../contracts.js').AuthorityGrant} */
   const grant = {
     tier,
@@ -315,12 +320,14 @@ const WHY_APPROVAL = {
 export function explainAuthority(action) {
   const kind = action?.kind ?? UNKNOWN_KIND;
   const tier = classifyTier(action);
-  const auto = decideAutoGrant(action);
+  const decision = authorityDecision(action);
+  const auto = decision.disposition === AUTHORITY_DISPOSITION.AUTO;
+  const approval = decision.disposition === AUTHORITY_DISPOSITION.APPROVAL;
   const floor = isSafetyFloor(kind);
   // **되돌릴 수 있는지는 도구가 아는 사실이다.** 종류만 보고 추측하면 거짓말이 된다 —
   // 로컬 파일 삭제는 휴지통으로 가서 되돌릴 수 있는데 카드가 "되돌릴 수 없음"이라고 겁을 줬다(실측).
   // 도구가 밝힌 사실(revocable)이 있으면 그것이 이긴다. 모르면 안전하게 "어렵다"로.
-  const declared = action?.revocable;
+  const declared = action?.revocable ?? action?.reversible;
   const irreversible = declared === false
     || (declared === undefined && (kind === 'delete' || kind === 'pay' || kind === 'publish' || tier === TIER.A3));
   // 그리고 **이 작업에 대해** 도구가 낸 문장이 도구 전체 문구보다 먼저다. `reversibleNote` 는
@@ -337,12 +344,19 @@ export function explainAuthority(action) {
     why = tier === TIER.A0
       ? '읽고 정리해 보여드리는 일이라 승인 없이 바로 진행했어요.'
       : '되돌릴 수 있는 가벼운 정리라 승인 없이 바로 진행했어요.';
-  } else {
+  } else if (approval) {
     why = WHY_APPROVAL[kind] ?? '되돌리기 어렵거나 밖으로 나가는 일이라 실행 전에 확인받아요.';
+  } else if (decision.disposition === AUTHORITY_DISPOSITION.BLOCKED) {
+    why = '비밀값은 승인으로 내보내지 않고 보호 입력면에서만 다뤄요.';
+  } else if (decision.disposition === AUTHORITY_DISPOSITION.OUT_OF_SCOPE) {
+    why = '이번 요청 범위 밖 행동이라 실행하지 않아요.';
+  } else {
+    why = '효과가 아직 분류되지 않아 안전한 관측이나 재계획으로 먼저 좁혀요.';
   }
   // 무엇이 바뀌는지는 **이번 요청의 구체 사실**로 말한다. 일반론("상태가 바뀌어요")은 정책문이고,
   // 사용자는 그걸 읽고도 무엇이 사라지는지 모른다(P2-3 목표).
   const whatChanges = action?.preview?.impact
-    ?? (auto ? '바깥으로 나가거나 되돌리기 어려운 변화는 없어요.' : '지정한 항목이 바뀌어요.');
-  return { tier, needsApproval: !auto, safetyFloor: floor, why, whatChanges, reversible };
+    ?? (auto ? '바깥으로 나가거나 되돌리기 어려운 변화는 없어요.'
+      : approval ? '지정한 항목이 바뀌어요.' : '아직 실행하지 않았어요.');
+  return { tier, needsApproval: approval, safetyFloor: floor, why, whatChanges, reversible };
 }

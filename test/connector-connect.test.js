@@ -108,12 +108,12 @@ test('편입된 손은 실제로 불린다(선언만 올리지 않는다)', asyn
   assert.match(out.userSafeSummary, /search 실행함/, 'MCP 서버까지 실제로 왕복해야 한다');
 });
 
-test('승인이 필요한 편입 손은 미리보기를 낸다(게이트 계약)', async () => {
+test('효과 미분류 편입 손은 카드 없이 관측/재계획하고 미리보기 사실은 보존한다', async () => {
   const ctx = 빈컨텍스트();
   admitMcpTools({ server: 'svc', connector: 'svc', tools: [{ name: 'search' }], session: { callTool: async () => ({}) } }, ctx);
   const t = ctx.tools.tools[mcpToolId('svc', 'search')];
   const d = ctx.descriptors[0];
-  assert.equal(d.needsApproval, true, '종류 미상은 승인으로 — 지어내지 않는다');
+  assert.equal(d.needsApproval, false, '종류 미상 자체가 승인 사유가 되면 안 된다');
   assert.ok(typeof t.previewOf === 'function', '무엇을 허락하는지 모르는 승인은 승인이 아니다');
   assert.match(t.previewOf({ q: 'x' }).impact, /svc/);
 });
@@ -188,7 +188,7 @@ test('선언만 있고 실행 방식이 없는 연결도 승인 카드로 만들
   assert.match(result.userSafeSummary, /바로 시작할 수 있는 연결 방식이 없어요/);
 });
 
-test('연결 승인을 거절하면 전송 취소가 아니라 연결을 시작하지 않았다고 말한다', async () => {
+test('연결 자체는 승인카드 없이 실행되며 전송으로 오인되지 않는다', async () => {
   const declared = defineConnector({ id: 'svc', label: '가상서비스', connected: false });
   declared.authMethods = [{ kind: 'mcp', server: 'svc' }];
   const connect = makeConnectorConnectTool({ ctx: 빈컨텍스트, connectors: () => [declared] });
@@ -202,10 +202,9 @@ test('연결 승인을 거절하면 전송 취소가 아니라 연결을 시작�
     tools: new ToolRunner({ 'connector.connect': connect }),
     ledger: new TruthLedger(), pending: new Map(), connectors: [declared], executableKinds: ['mcp'],
   };
-  const pending = await runTurn({ text: '가상서비스 연결해줘' }, ctx);
-  assert.equal(pending.kind, 'approval');
-  const rejected = await runTurn({ reject: pending.pendingId }, ctx);
-  assert.match(rejected.reply, /연결은 시작하지 않았어요/);
+  const result = await runTurn({ text: '가상서비스 연결해줘' }, ctx);
+  assert.notEqual(result.kind, 'approval');
+  assert.equal(result.pendingId, undefined);
 });
 
 // ── ③ 해제 ────────────────────────────────────────────────────────────────

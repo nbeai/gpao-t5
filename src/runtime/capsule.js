@@ -40,7 +40,7 @@ import { 표맥락에서 } from './local-file.js';
 // **승인 판정은 커널의 것을 그대로 부른다**(§12-S3). 캡슐용 두 번째 판정을 쓰지 않는다 —
 // 두 벌이 되면 언젠가 갈리고, 그 갈림이 `tool-boundary.js` 머리에 이미 기록된 사고다.
 import { 실행전판정 } from '../kernel/l2-plan/tool-boundary.js';
-import { decideAutoGrant } from '../kernel/l2-plan/authority.js';
+import { authorityDecision, AUTHORITY_DISPOSITION } from '../kernel/l2-plan/authority.js';
 
 /**
  * 캡슐 상한 — **잠정 동결값**. Hermes(300s·50호출·50KB) 와 OpenClaw code-mode 를 대조해 정했다.
@@ -223,16 +223,25 @@ export async function 캡슐실행({
     const { 판정인자, 판정행동 } = await 실행전판정({
       toolId: tool, args: args ?? {}, selfState, tools, 이번이월, 이번발화,
     });
-    if (!decideAutoGrant(판정행동)) {
+    const 권위판정 = authorityDecision(판정행동);
+    if (권위판정.disposition !== AUTHORITY_DISPOSITION.AUTO) {
       // **카드는 여기서 안 띄운다 — 스크립트는 대화가 아니다.** 그 호출 하나만 거부하고
       // 사유를 남긴다. 캡슐 전체를 죽이지 않는 것은, 나머지 걸음이 멀쩡하면 그것까지
       // 버릴 이유가 없기 때문이다(사용자 손을 늘리지 않는다).
-      const 사유 = `승인이 필요한 일이라 캡슐 안에서는 하지 않았어요(${판정행동.kind}).`;
+      const 사유 = 권위판정.disposition === AUTHORITY_DISPOSITION.APPROVAL
+        ? `실제 승인 경계에 닿아 캡슐 안에서는 하지 않았어요(${판정행동.kind}).`
+        : 권위판정.disposition === AUTHORITY_DISPOSITION.BLOCKED
+          ? '비밀값은 캡슐이나 일반 도구로 다루지 않았어요.'
+          : 권위판정.disposition === AUTHORITY_DISPOSITION.OUT_OF_SCOPE
+            ? '현재 요청 범위 밖 행동이라 캡슐 안에서 실행하지 않았어요.'
+            : `효과가 아직 분류되지 않아 캡슐 안에서 실행하지 않았어요(${판정행동.kind}).`;
       거부.push({ tool, kind: 판정행동.kind, 사유, ...(이번이월 ? { 이월: true } : {}) });
       return {
         ok: false,
         error: 사유,
-        next: '이 걸음은 캡슐 밖에서 직접 시키면 승인 카드로 여쭤볼 수 있어요.',
+        next: 권위판정.disposition === AUTHORITY_DISPOSITION.APPROVAL
+          ? '이 걸음은 캡슐 밖에서 직접 시키면 실제 경계에 대한 카드로 여쭤볼 수 있어요.'
+          : '효과를 확인할 수 있는 probe 또는 더 분명한 손으로 다시 계획해요.',
       };
     }
     // **캡슐 안 쓰기도 같은 자를 지난다**(회차 K R1 실측 2026-08-08). 캡슐 스크립트가

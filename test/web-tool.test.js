@@ -80,9 +80,9 @@ test('validateWebInput: hostname 기준 — ?next 우회 차단, subdomain 허�
 });
 
 // 감사 보정 4(반대 테스트): 세션모드로 auth≠approval 분리.
-test('세션모드: user_approved=승인 필요, authenticated=auth 축(승인 아님), anonymous=A0', () => {
+test('세션모드: 세션 출처와 인증은 읽기 승인 사유가 아니다', () => {
   assert.equal(defineWebTool({ sessionMode: 'anonymous' }).needsApproval, false);
-  assert.equal(defineWebTool({ sessionMode: 'user_approved' }).needsApproval, true);
+  assert.equal(defineWebTool({ sessionMode: 'user_approved' }).needsApproval, false);
   const authd = defineWebTool({ sessionMode: 'authenticated' });
   assert.equal(authd.needsApproval, false);
   assert.ok(authd.availability.some((s) => s.kind === 'auth'), 'authenticated는 auth availability');

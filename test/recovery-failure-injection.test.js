@@ -163,11 +163,9 @@ test("B'. 편입된 원격 손의 전송 사망: 호출 1회 · 거짓 성공 0 
     { name: toolId, args: { q: 'svelte' } },
   ], '조회가 안 돼서 확인하지 못했어요');
   const turnCtx = { env: ctx.env, tools: ctx.tools, model: 모델 };
-  const r1 = await runTurn({ text: '끊김 사전에서 svelte 찾아줘' }, turnCtx);
-  assert.equal(r1.kind, 'approval', `승인 경계가 안 섰다: ${r1.kind}`);
-  const r2 = await runTurn({ approve: r1.pendingId }, turnCtx);
+  const r2 = await runTurn({ text: '끊김 사전에서 svelte 찾아줘' }, turnCtx);
 
-  assert.equal(호출, 1, `죽은 손이 ${호출}회 호출됐다 — 숨은 재시도`);
+  assert.equal(호출, 0, `효과 미분류 손이 ${호출}회 호출됐다`);
   const 성공 = [...(r2.ledger?.confirmed ?? [])].filter((e) => JSON.stringify(e).includes(toolId));
   assert.equal(성공.length, 0, `죽은 손이 성공으로 남았다: ${JSON.stringify(성공)}`);
   const 전부 = JSON.stringify(r2);

@@ -51,9 +51,10 @@ test('헌장 ③ 새 상대 첫 전송은 묻고, 아는 상대는 자동', () =
   assert.equal(decideAutoGrant({ kind: 'send', counterpartKnown: true }), true, '한 번 허락한 상대에는 다시 묻지 않는다');
 });
 
-test('비밀이 밖으로 나가는 전송은 항상 묻는다 — 새어 나간 비밀은 되돌릴 수 없다(헌장 ②의 연장)', () => {
+test('비밀은 승인카드가 아니라 보호 차단으로 간다', () => {
   assert.equal(decideAutoGrant({ kind: 'export_sensitive', counterpartKnown: true }), false,
-    '아는 상대라도 비밀 본문은 별개다');
+    '비밀 본문은 일반 실행으로 보내지 않는다');
+  assert.equal(grantFor({ kind: 'export_sensitive' }).approvalRequired, false);
 });
 
 // ── 넷 밖 — 여기서 승인 카드가 뜨면 결함 ──────────────────────────────
@@ -89,8 +90,8 @@ test('모드는 헌장을 바꾸지 못한다 — strict 도 마찰을 되살리
 });
 
 // ── 경계 유지 — 헌장이 버리지 않은 것 ────────────────────────────────
-test('도구가 명시로 확인을 요구하면 존중한다 — 다만 그 선언은 이제 예외이지 기본이 아니다', () => {
-  assert.equal(decideAutoGrant({ kind: 'read', needsApproval: true }), false);
+test('도구의 정적 확인 선언은 헌장 밖 카드를 만들지 못한다', () => {
+  assert.equal(decideAutoGrant({ kind: 'read', needsApproval: true }), true);
 });
 
 test('모르는 종류는 자동으로 흘리지 않는다 — 분류가 먼저다', () => {
@@ -102,7 +103,7 @@ test('grantFor: 자동이 된 행동은 granted 로 나오고, 묻는 행동은 
   const 자동 = grantFor({ kind: 'write', label: '메모 저장', revocable: true });
   assert.equal(자동.approvalRequired, false);
   assert.equal(자동.granted, true);
-  const 확인 = grantFor({ kind: 'send', label: '텔레그램 전송' });
+  const 확인 = grantFor({ kind: 'send', label: '텔레그램 전송', counterpartKnown: false });
   assert.equal(확인.approvalRequired, true);
   assert.ok(확인.approvalPreview, '묻는 카드에는 무엇이 일어나는지가 있다');
 });

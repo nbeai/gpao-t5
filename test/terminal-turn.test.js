@@ -57,10 +57,16 @@ test('승인 카드에 명령 원문이 보인다(무엇을 허락하는지 알�
   assert.match(JSON.stringify(r), /rm -f 있던\.md/, '"터미널 실행"으로는 무엇을 허락하는지 모른다');
 });
 
-test('네트워크가 필요한 명령도 승인에서 멈춘다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('네트워크 읽기만 증명된 명령은 카드 없이 결과를 돌려준다', async () => {
   const dir = await 자리();
-  const r = await runTurn({ text: '설치해줘' }, ctx(dir, 명령('curl -s -m 5 https://example.com')));
-  assert.equal(r.kind, 'approval', '인터넷으로 나가는 명령이 승인 없이 실행된다');
+  const localTerminal = makeLocalTerminalTool({ cwd: dir, sandboxAvailable: () => true,
+    run: async (_command, opts = {}) => opts.mode === 'probe'
+      ? { mode: 'probe', processState: 'delivered', exitCode: 1, stdout: '', stderr: 'Operation not permitted' }
+      : { mode: 'reach', processState: 'delivered', exitCode: 0, stdout: 'public body', stderr: '' } });
+  const r = await runTurn({ text: '공개 자료 읽어줘' }, {
+    env: demoEnv(), model: 고른다(명령('curl https://example.test')), tools: demoTools({ localTerminal }),
+  });
+  assert.notEqual(r.kind, 'approval', '공개 읽기를 독립 승인 사유로 삼았다');
 });
 
 test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는다', async () => {
@@ -77,7 +83,7 @@ test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는
     `승인하면 되는 일을 실패로 말하면 모델이 포기한다: ${result.userSafeSummary}`);
 });
 
-test('probe 를 못 돌리면 승인으로 간다(모르면 막는다)', async () => {
+test('probe 를 못 돌리면 카드 없이 실행을 빼고 재계획한다', async () => {
   const dir = await 자리();
   const 손없음 = {
     env: demoEnv(), model: 고른다(명령('아무거나')),
@@ -85,7 +91,8 @@ test('probe 를 못 돌리면 승인으로 간다(모르면 막는다)', async (
     tools: demoTools({ localTerminal: { async handler() { return { result: {} }; } } }),
   };
   const r = await runTurn({ text: '해줘' }, 손없음);
-  assert.equal(r.kind, 'approval', 'probe 없이 등급을 read 로 흘렸다');
+  assert.notEqual(r.kind, 'approval', '모름을 승인 사유로 바꿨다');
+  assert.equal(r.ledger?.confirmed?.length ?? 0, 0, '효과 미상 호출을 실행했다');
 });
 
 test('승인 전에는 새 파일도 안 생긴다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {

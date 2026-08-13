@@ -104,9 +104,10 @@ test('되돌릴 수 없는 전송은 그대로 말한다(안심시키지 않는�
 // 돌연변이 스윕의 휴지통 보장 변이가 잡는다 — 보호를 없앤 것이 아니라 옮겼다.)
 test('삭제를 자동으로 여는 것은 문구가 아니라 되돌림 선언이다', () => {
   assert.equal(authorityGrant({ kind: 'delete', revocable: true }).approvalRequired, false, '휴지통이 있으면 자동');
-  assert.equal(authorityGrant({ kind: 'delete' }).approvalRequired, true, '되돌림을 안 밝히면 묻는다');
-  assert.equal(authorityGrant({ kind: 'delete', reversibleNote: '되살릴 수 있어요' }).approvalRequired, true,
-    '부드러운 문구만으로는 게이트가 풀리지 않는다');
+  assert.equal(authorityGrant({ kind: 'delete' }).approvalRequired, false, '모름은 카드가 아니라 관측으로 간다');
+  assert.equal(authorityGrant({ kind: 'delete' }).disposition, 'observe');
+  assert.equal(authorityGrant({ kind: 'delete', reversibleNote: '되살릴 수 있어요' }).disposition, 'observe',
+    '부드러운 문구만으로는 실행이 열리지 않는다');
   assert.equal(authorityGrant({ kind: 'delete' }).tier, 'A3', '등급표는 그대로다');
 });
 
