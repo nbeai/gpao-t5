@@ -12,9 +12,10 @@ import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
 import { alive } from './local-process.js';
-import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
-import { basename, dirname, isAbsolute, join, relative } from 'node:path';
+import { spawn } from 'node:child_process';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 const MAX_REVERSIBLE_PREIMAGE = 50_000_000;
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -74,8 +75,9 @@ async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
   const path = blockedWriteTarget(probe, { cwd });
   if (!path) return undefined;
   const before = await existingFileState(path);
-  const authorized = inside(workspaceRoot, path) && !protectionFor(path)
-    && await safeWriteIdentity(path, workspaceRoot, before);
+  const lexicalAuthorized = inside(workspaceRoot, path) && !protectionFor(path);
+  const identitySafe = lexicalAuthorized && await safeWriteIdentity(path, workspaceRoot, before);
+  const authorized = lexicalAuthorized && identitySafe;
   const operation = before.exists === false ? 'create'
     : before.exists === true && before.kind === 'file' ? 'overwrite' : 'unknown';
   const reversible = Boolean(dataDir && authorized
@@ -92,7 +94,7 @@ async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
         ...(before.ino != null ? { ino: before.ino } : {}),
         ...(before.nlink != null ? { nlink: before.nlink } : {}) }
       : { exists: before.exists },
-    reversible,
+    reversible, identitySafe,
     undo: { available: reversible,
       strategy: operation === 'create' ? 'remove_created'
         : operation === 'overwrite' ? 'restore_preimage' : 'none' },
@@ -220,31 +222,78 @@ export function makeLocalTerminalTool(deps = {}) {
       || effect.target?.authorizedWorkspace !== true || protectionFor(path)) return null;
     const now = await existingFileState(path);
     if (!await safeWriteIdentity(path, workspaceRoot, now)) return null;
+    const parent = dirname(path);
+    // 사용자가 준 부모 경로가 나중에 symlink로 바뀌어도 그 새 목적지를 따라가지 않는다.
+    // 준비 시점에 확인한 실제 부모를 최종 적용 대상으로 봉인한다.
+    const realParent = await realpath(parent);
+    const parentHandle = await open(realParent, 'r');
+    const stageDir = join(dataDir, '.terminal-stage', randomUUID());
+    const stagePath = join(stageDir, basename(path));
+    await mkdir(stageDir, { recursive: true });
     if (effect.operation === 'create') {
-      return now.exists === false ? { operation: 'create', path, before: now, backup: null } : null;
+      if (now.exists !== false) { await parentHandle.close(); await rm(stageDir, { recursive: true, force: true }); return null; }
+      await writeFile(stagePath, '');
+      return { operation: 'create', path, before: now, backup: null,
+        realParent, parentHandle, stageDir, stagePath };
     }
     if (effect.operation !== 'overwrite' || now.exists !== true || now.kind !== 'file'
       || now.nlink !== 1 || now.sha256 !== effect.beforeState?.sha256
       || (effect.beforeState?.dev != null && now.dev !== effect.beforeState.dev)
-      || (effect.beforeState?.ino != null && now.ino !== effect.beforeState.ino)) return null;
+      || (effect.beforeState?.ino != null && now.ino !== effect.beforeState.ino)) {
+      await parentHandle.close(); await rm(stageDir, { recursive: true, force: true }); return null;
+    }
     await mkdir(trashDir, { recursive: true });
     const backup = join(trashDir, `terminal-${randomUUID()}-${basename(path)}`);
     await copyFile(path, backup);
-    return { operation: 'overwrite', path, before: now, backup };
+    // 원본을 stage로 복사한 뒤 그 사본만 셸에 준다. 최종 파일은 검증된 사본으로만 교체된다.
+    await copyFile(path, stagePath);
+    return { operation: 'overwrite', path, before: now, backup,
+      realParent, parentHandle, stageDir, stagePath };
+  }
+
+  function stagedCommand(command, prepared, cwd) {
+    const relativePath = relative(cwd, prepared.path);
+    const variants = [prepared.path, relativePath,
+      dirname(prepared.path) === resolve(cwd) ? basename(prepared.path) : '']
+      .filter((v) => v && v !== '.' && command.includes(v))
+      .sort((a, b) => b.length - a.length);
+    if (!variants.length) return null;
+    // 가장 구체적인 한 표기만 바꾼다. 절대경로를 stage로 바꾼 뒤 basename까지 다시
+    // 치환하면 stage 경로 자체가 중첩되어 다른 파일을 가리킨다.
+    return command.split(variants[0]).join(prepared.stagePath);
   }
 
   async function rollbackWrite(prepared) {
     if (!prepared) return;
-    if (prepared.operation === 'create') {
-      await rm(prepared.path, { force: true }).catch(() => {});
-    } else if (prepared.backup) {
-      await copyFile(prepared.backup, prepared.path).catch(() => {});
-      await rm(prepared.backup, { force: true }).catch(() => {});
-    }
+    if (prepared.backup) await rm(prepared.backup, { force: true }).catch(() => {});
+    await rm(prepared.stageDir, { recursive: true, force: true }).catch(() => {});
+    await prepared.parentHandle?.close().catch(() => {});
+  }
+
+  // Node에는 renameat(2)가 공개되어 있지 않다. 이미 연 부모 FD를 자식의 fd 3으로 넘겨
+  // 최종 이름만 그 디렉터리에 적용한다. 경로가 실행 중 symlink로 바뀌어도 밖을 따라가지 않는다.
+  // 인자는 exec 문자열이 아니라 argv로 전달하므로 셸 해석도 없다.
+  async function dirFdOperation(prepared, operation, source = '') {
+    const program = operation === 'rename'
+      ? 'import os,sys; os.rename(sys.argv[1],sys.argv[2],dst_dir_fd=3)'
+      : 'import os,sys; os.unlink(sys.argv[1],dir_fd=3)';
+    const argv = operation === 'rename'
+      ? ['-c', program, source, basename(prepared.path)]
+      : ['-c', program, basename(prepared.path)];
+    return await new Promise((resolveDone) => {
+      let stderr = '';
+      const child = spawn('/usr/bin/python3', argv, {
+        stdio: ['ignore', 'ignore', 'pipe', prepared.parentHandle.fd],
+      });
+      child.stderr.on('data', (chunk) => { stderr += String(chunk); });
+      child.once('error', (error) => resolveDone({ ok: false, error: error?.code ?? 'SPAWN' }));
+      child.once('close', (code) => resolveDone(code === 0
+        ? { ok: true } : { ok: false, error: stderr.trim() || `exit_${code}` }));
+    });
   }
 
   async function finishWrite(prepared) {
-    const after = await existingFileState(prepared.path);
+    const after = await existingFileState(prepared.stagePath);
     if (after.exists !== true || after.kind !== 'file' || !after.sha256) {
       await rollbackWrite(prepared);
       return { ok: false, why: 'target_not_verified' };
@@ -252,7 +301,25 @@ export function makeLocalTerminalTool(deps = {}) {
     const changed = prepared.operation === 'create' || after.sha256 !== prepared.before.sha256;
     if (!changed) {
       if (prepared.backup) await rm(prepared.backup, { force: true }).catch(() => {});
+      await rm(prepared.stageDir, { recursive: true, force: true }).catch(() => {});
+      await prepared.parentHandle?.close().catch(() => {});
       return { ok: true, changed: false, after };
+    }
+    // 실행 중 부모 경로가 바뀌었으면 적용하지 않는다. 최종 적용은 사용자가 준 경로가 아니라
+    // 준비 때 봉인한 실제 부모에 원자 rename하므로, 검사 직후 symlink가 생겨도 밖을 따라가지 않는다.
+    try {
+      if (await realpath(dirname(prepared.path)) !== prepared.realParent) {
+        await rollbackWrite(prepared);
+        return { ok: false, why: 'target_identity_changed', rolledBack: true };
+      }
+    } catch {
+      await rollbackWrite(prepared);
+      return { ok: false, why: 'target_identity_changed', rolledBack: true };
+    }
+    const applied = await dirFdOperation(prepared, 'rename', prepared.stagePath);
+    if (!applied.ok) {
+      await rollbackWrite(prepared);
+      return { ok: false, why: 'atomic_apply_failed', rolledBack: true };
     }
     try {
       await appendUndo({
@@ -261,9 +328,18 @@ export function makeLocalTerminalTool(deps = {}) {
         source: 'local.terminal',
       });
     } catch {
+      if (prepared.backup) {
+        const restoreStage = join(prepared.stageDir, `restore-${randomUUID()}`);
+        await copyFile(prepared.backup, restoreStage).catch(() => {});
+        await dirFdOperation(prepared, 'rename', restoreStage).catch(() => {});
+      } else {
+        await dirFdOperation(prepared, 'unlink').catch(() => {});
+      }
       await rollbackWrite(prepared);
       return { ok: false, why: 'undo_record_failed', rolledBack: true };
     }
+    await rm(prepared.stageDir, { recursive: true, force: true }).catch(() => {});
+    await prepared.parentHandle?.close().catch(() => {});
     return { ok: true, changed: true, after };
   }
 
@@ -372,6 +448,20 @@ export function makeLocalTerminalTool(deps = {}) {
       // 되돌림이 준비된 단일 작업공간 파일 쓰기는 헌장 ②의 파괴가 아니다.
       // 승인으로 전체 쓰기를 열지 않고 sandbox가 그 파일 하나만 연다.
       const mode = args.granted ? 'granted' : 'probe';
+      // 경로 문자열은 작업공간 안이어도 hardlink·부모 symlink의 실제 대상은 밖일 수 있다.
+      // 이 신분 실패는 사용자가 카드에서 본 대상과 실제 변경 대상이 다른 것이므로, 승인이
+      // 전체 쓰기를 여는 근거가 될 수 없다. 승인 재개에서도 같은 봉인을 다시 지킨다.
+      if (mode === 'granted' && args.writeEffect?.identitySafe === false) {
+        return {
+          blocked: true, failed: true, lifecycle: 'failed',
+          result: { command, cwd, applied: false, writeEffect: {
+            operation: args.writeEffect.operation, target: args.writeEffect.target,
+            reversible: false, verified: false, identitySafe: false,
+          } },
+          userSafeSummary: '표시된 경로와 실제 파일 신분이 같다고 확인할 수 없어 실행하지 않았어요.',
+          nextSafeAction: '독립된 작업 폴더 파일로 다시 계획할게요.',
+        };
+      }
       let prepared = null;
       if (mode === 'granted' && args.writeEffect?.reversible === true) {
         try { prepared = await prepareWrite(args.writeEffect, cwd); } catch { prepared = null; }
@@ -387,11 +477,19 @@ export function makeLocalTerminalTool(deps = {}) {
           };
         }
       }
+      const 실행명령 = prepared ? stagedCommand(command, prepared, cwd) : command;
+      if (prepared && !실행명령) {
+        await rollbackWrite(prepared);
+        return { blocked: true, failed: true, lifecycle: 'failed',
+          result: { command, cwd, applied: false },
+          userSafeSummary: '최종 파일 대신 격리된 산출물에 실행할 수 없어 안전하게 멈췄어요.',
+          nextSafeAction: '파일 손이나 더 단순한 명령으로 다시 계획할게요.' };
+      }
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
       const r = mode === 'granted'
-        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs,
-          ...(prepared ? { writeTarget: prepared.path } : {}) })
+        ? await run(실행명령, { mode, cwd, timeoutMs: args.timeoutMs,
+          ...(prepared ? { writeTarget: prepared.stagePath } : {}) })
         : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
       // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
       // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.

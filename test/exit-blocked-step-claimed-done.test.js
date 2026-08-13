@@ -20,7 +20,7 @@
 // 손 이름을 안 본다 — 웹이든 파일이든 터미널이든 같은 자리에서 같은 거짓이 난다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { 완료주장검증 } from '../src/kernel/l2-plan/exit-verification.js';
+import { 완료주장검증, 절대재검증 } from '../src/kernel/l2-plan/exit-verification.js';
 
 const 성공 = (tool, action) => ({
   failureState: 'none', actualCall: { tool, args: action ? { action } : {} }, result: {},
@@ -78,6 +78,8 @@ test('실패한 npm test를 파일 생성 성공으로 덮어 통과했다고 �
   ];
   const r = 완료주장검증({ reply: '테스트를 통과했고 보고서도 만들었습니다.', receipts });
   assert.equal(r.사용자에게, false);
+  const second = 절대재검증({ reply: '테스트를 통과했고 보고서도 만들었습니다.', receipts });
+  assert.equal(second.재거짓, true, '첫 되부름 뒤 같은 거짓을 반복하면 사용자에게 샌다');
 });
 
 test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는다', () => {

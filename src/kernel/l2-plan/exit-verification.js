@@ -454,6 +454,24 @@ export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일�
   // 두 번째 모델 호출을 만들지 않고 같은 원장 사실로 거짓만 걷는다.
   const 화면사실 = 미해결화면사실(reply, receipts);
   if (화면사실) return { 재거짓: true, 사실: 화면사실 };
+  // 첫 되부름 뒤에도 실제 실패를 성공으로 반복하면 두 번째 모델 호출은 만들지 않고 거짓만
+  // 회수한다. 파일 하나의 성공이 별도 `npm test` 실패를 지울 수 없고, 같은 정확한 명령이
+  // 뒤에서 성공했을 때만 회복이다. 이것은 부드러운 의미 판정이 아니라 실행 원장의 절대 사실이다.
+  const 실행키 = (r) => {
+    const call = r?.actualCall ?? r?.제안한호출;
+    if (!call?.tool) return '';
+    if (call.tool === 'local.terminal') return `${call.tool}|${String(call.args?.command ?? '').trim()}`;
+    const target = call.args?.path ?? call.args?.target ?? call.args?.url ?? '';
+    return `${call.tool}|${call.args?.action ?? call.args?.op ?? ''}|${target}`;
+  };
+  const 성공키 = new Set((receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
+    && r?.actualCall?.tool).map(실행키));
+  const 남은실패 = [...new Set((receipts ?? []).filter((r) => r?.failureState
+    && !['none', 'cancelled'].includes(r.failureState) && 실행키(r) && !성공키.has(실행키(r)))
+    .map(실행키))];
+  if (남은실패.length && !미완료를밝혔나(reply)) {
+    return { 재거짓: true, 사실: `실패한 실행이 끝내 성공하지 않았는데 답은 그 사실을 밝히지 않는다: ${남은실패.join(' · ')}` };
+  }
   // 모델이 고른 호출이 auto/approval 밖의 권위 경계에서 실행되지 않았다면 그 목적은
   // 기계적으로 미완료다. 일반 blockedReceipt(관측·통제 채널)는 건드리지 않는다 — 오직
   // authority disposition 과 제안 호출 신분이 함께 선 영수증만 본다. 첫 대조 뒤 모델이

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { link, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, rename, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -31,7 +31,7 @@ async function 제품경로({ target, command, stderr, apply, seed, grantedExitC
         stdout: '', stderr: stderr(actualTarget), durationMs: 1,
       };
       grantedRuns += 1;
-      await apply(actualTarget);
+      await apply(opts.writeTarget ?? actualTarget);
       return {
         command, cwd: work, mode: 'granted', processState: 'delivered', exitCode: grantedExitCode,
         stdout: 'done\n', stderr: grantedExitCode === 0 ? '' : 'failed after write\n', durationMs: 1,
@@ -125,7 +125,7 @@ test('제품 경로: 하위 input cwd에서 형제 output에 만드는 결과도
         processState: 'delivered', exitCode: 1, stdout: '',
         stderr: 'zsh:1: operation not permitted: ../output/result.tsv\n', durationMs: 1 };
       grantedRuns += 1;
-      await writeFile(target, 'ok\n', 'utf8');
+      await writeFile(opts.writeTarget ?? target, 'ok\n', 'utf8');
       return { command, cwd: input, mode: 'granted', processState: 'delivered', exitCode: 0,
         stdout: '', stderr: '', durationMs: 1 };
     },
@@ -170,7 +170,7 @@ test('제품 경로: 기존 로컬 파일의 단일 overwrite는 preimage를 보
         stdout: '', stderr: 'zsh:1: operation not permitted: report.tsv\n', durationMs: 1,
       };
       grantedRuns += 1;
-      await writeFile(beforePath, 'after\n', 'utf8');
+      await writeFile(opts.writeTarget ?? beforePath, 'after\n', 'utf8');
       return { command, cwd: work, mode: 'granted', processState: 'delivered', exitCode: 0,
         stdout: '', stderr: '', durationMs: 1 };
     },
@@ -210,12 +210,21 @@ test('작업공간 밖 파일의 hardlink는 가역 overwrite로 자동 실행�
   await writeFile(outside, 'SECRET\n', 'utf8');
   await link(outside, target);
   const command = "printf 'CHANGED\\n' > report.tsv";
+  let grantedRuns = 0;
   const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state,
-    sandboxAvailable: () => true, run: async () => ({ command, cwd: work, mode: 'probe',
-      processState: 'delivered', exitCode: 1, stdout: '',
-      stderr: 'zsh:1: operation not permitted: report.tsv\n', durationMs: 1 }) });
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (opts.mode === 'granted') { grantedRuns += 1; await writeFile(target, 'CHANGED\n', 'utf8'); }
+      return { command, cwd: work, mode: opts.mode ?? 'probe', processState: 'delivered',
+        exitCode: opts.mode === 'granted' ? 0 : 1, stdout: '',
+        stderr: opts.mode === 'granted' ? '' : 'zsh:1: operation not permitted: report.tsv\n', durationMs: 1 };
+    } });
   const probed = await tool.probe(command, { cwd: work });
   assert.equal(probed.writeEffect?.reversible, false);
+  assert.equal(probed.writeEffect?.identitySafe, false);
+  const approved = await tool.handler({ command, cwd: work, granted: true,
+    probeResult: probed.probe, writeEffect: probed.writeEffect });
+  assert.equal(approved.blocked, true);
+  assert.equal(grantedRuns, 0);
   assert.equal(await readFile(outside, 'utf8'), 'SECRET\n');
 });
 
@@ -225,13 +234,51 @@ test('작업공간 안 부모 symlink가 밖을 가리키면 새 파일 자동 �
   await mkdir(work, { recursive: true }); await mkdir(outside, { recursive: true });
   await symlink(outside, join(work, 'linked'));
   const command = "printf 'x\\n' > linked/report.tsv";
+  let grantedRuns = 0;
   const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state,
-    sandboxAvailable: () => true, run: async () => ({ command, cwd: work, mode: 'probe',
-      processState: 'delivered', exitCode: 1, stdout: '',
-      stderr: 'zsh:1: operation not permitted: linked/report.tsv\n', durationMs: 1 }) });
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (opts.mode === 'granted') { grantedRuns += 1; await writeFile(join(outside, 'report.tsv'), 'x\n'); }
+      return { command, cwd: work, mode: opts.mode ?? 'probe', processState: 'delivered',
+        exitCode: opts.mode === 'granted' ? 0 : 1, stdout: '',
+        stderr: opts.mode === 'granted' ? '' : 'zsh:1: operation not permitted: linked/report.tsv\n', durationMs: 1 };
+    } });
   const probed = await tool.probe(command, { cwd: work });
   assert.equal(probed.writeEffect?.reversible, false);
+  assert.equal(probed.writeEffect?.identitySafe, false);
+  const approved = await tool.handler({ command, cwd: work, granted: true,
+    probeResult: probed.probe, writeEffect: probed.writeEffect });
+  assert.equal(approved.blocked, true);
+  assert.equal(grantedRuns, 0);
   await assert.rejects(readFile(join(outside, 'report.tsv'), 'utf8'), /ENOENT/);
+});
+
+test('probe 뒤 부모가 바깥 symlink로 바뀌어도 격리 산출물을 밖에 적용하지 않는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-parent-swap-boundary-'));
+  const work = join(root, 'work'); const safe = join(work, 'safe');
+  const parked = join(work, 'safe-parked'); const outside = join(root, 'outside');
+  const state = join(root, 'state');
+  await mkdir(safe, { recursive: true }); await mkdir(outside, { recursive: true });
+  const command = "printf 'x\\n' > safe/report.tsv";
+  const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state,
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (opts.mode !== 'granted') return { command, cwd: work, mode: 'probe',
+        processState: 'delivered', exitCode: 1, stdout: '',
+        stderr: 'zsh:1: operation not permitted: safe/report.tsv\n', durationMs: 1 };
+      // prepareWrite가 실제 부모를 봉인한 직후, 다른 프로세스가 사용자가 본 경로를 바꾼 상황.
+      await rename(safe, parked);
+      await symlink(outside, safe);
+      await writeFile(opts.writeTarget, 'x\n', 'utf8');
+      return { command, cwd: work, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    } });
+  const probed = await tool.probe(command, { cwd: work });
+  assert.equal(probed.writeEffect?.reversible, true);
+  const executed = await tool.handler({ command, cwd: work, granted: true,
+    probeResult: probed.probe, writeEffect: probed.writeEffect });
+  assert.equal(executed.failed, true);
+  assert.equal(executed.result?.writeEffect?.verified, false);
+  await assert.rejects(readFile(join(outside, 'report.tsv'), 'utf8'), /ENOENT/);
+  await assert.rejects(readFile(join(parked, 'report.tsv'), 'utf8'), /ENOENT/);
 });
 
 for (const blocked of [
