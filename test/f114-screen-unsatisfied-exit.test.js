@@ -91,6 +91,44 @@ test('화면 행동 실패를 밝힌 정직한 답은 통과한다', () => {
   assert.equal(절대재검증({ reply, receipts }).재거짓, false);
 });
 
+test('focus 실패 자체만 밝힌 답도 정직한 미완료로 두 검증을 통과한다', () => {
+  const receipts = [실패한화면행동(), 화면관찰];
+  for (const reply of [
+    '계산기 창을 앞으로 가져오지 못했어요.',
+    '계산기 창을 앞으로 가져오는 데 실패했어요.',
+    '계산기 창은 여전히 앞으로 오지 않았어요.',
+  ]) {
+    assert.equal(완료주장검증({ reply, receipts, 자리종류: 주변자리 }).일치, true, reply);
+    assert.equal(절대재검증({ reply, receipts }).재거짓, false, reply);
+  }
+});
+
+test('미완료와 함께 확인 안 된 화면 결과를 주장하면 계속 차단한다', () => {
+  const receipts = [실패한화면행동(), 화면관찰];
+  const reply = '계산기 창을 앞으로 가져오지 못했지만 결과는 56입니다.';
+  const first = 완료주장검증({ reply, receipts, 자리종류: 주변자리 });
+  assert.equal(first.일치, false);
+  assert.match(String(first.모델에게), /desktop\.act\|focus/);
+  const again = 절대재검증({ reply, receipts });
+  assert.equal(again.재거짓, true);
+  assert.match(String(again.사실), /desktop\.act\|focus/);
+});
+
+test('무관한 부정 한 마디는 확인 안 된 화면 결과의 성공 주장을 열지 않는다', () => {
+  const receipts = [실패한화면행동(), 화면관찰];
+  for (const reply of [
+    '파일은 늦지 않았어요. 계산기 결과는 56입니다.',
+    '파일은 아직 못 봤어요. 계산기 결과는 56입니다.',
+  ]) {
+    const first = 완료주장검증({ reply, receipts, 자리종류: 주변자리 });
+    assert.equal(first.일치, false, reply);
+    assert.match(String(first.모델에게), /desktop\.act\|focus/);
+    const again = 절대재검증({ reply, receipts });
+    assert.equal(again.재거짓, true, reply);
+    assert.match(String(again.사실), /desktop\.act\|focus/);
+  }
+});
+
 test('단순 현재 화면 읽기는 행동 성공 계보를 요구하지 않는다', () => {
   const v = 완료주장검증({
     reply: '지금 화면에 보이는 숫자는 3,179입니다.', receipts: [화면관찰],

@@ -158,21 +158,8 @@ function 바꾼개수(rec) {
  * `unknown` 또는 `unsatisfied` 로 남은 사실이다. 커널이 계산기 결과나 앱별 목적을
  * 풀이하지 않는다.
  */
-function 미해결강한화면걸음(receipts) {
+function 미해결강한화면영수증들(receipts) {
   const 호출 = (r) => r?.actualCall ?? r?.제안한호출 ?? null;
-  const 대상신분 = (call) => {
-    const a = call?.args ?? {};
-    const t = a.대상 ?? a.target ?? {};
-    const 값 = t.토큰 ?? t.token ?? t.id ?? t.label ?? t.이름
-      ?? a.window_id ?? a.windowId ?? a.app ?? '';
-    return typeof 값 === 'string' || typeof 값 === 'number' ? String(값) : '';
-  };
-  const 키 = (r) => {
-    const call = 호출(r);
-    const action = call?.args?.action ?? call?.args?.op ?? '';
-    const target = 대상신분(call);
-    return `${call?.tool ?? ''}|${action}${target ? `|${target}` : ''}`;
-  };
   const 확인된걸음들 = (receipts ?? [])
     .filter((r) => (r?.failureState ?? 'none') === 'none'
       && 호출(r)?.tool === 'desktop.act'
@@ -234,7 +221,7 @@ function 미해결강한화면걸음(receipts) {
   // 지름길로 쓰지 않고 fresh 토큰과 같은 구조 대조를 반드시 통과시킨다.
   const 회복됐나 = (failed) => 확인된걸음들
     .some((ok) => 같은실행대상(요소신분(failed), 요소신분(ok)));
-  return [...new Set((receipts ?? [])
+  return (receipts ?? [])
     .filter((r) => {
       const call = 호출(r);
       const 진행 = r?.진행 ?? r?.result?.진행;
@@ -243,21 +230,56 @@ function 미해결강한화면걸음(receipts) {
         && 진행?.단계 === 'dispatched'
         && ['unknown', 'unsatisfied'].includes(진행?.판정)
         && !회복됐나(r);
-    })
-    .map(키))];
+    });
+}
+
+function 미해결화면대조(reply, receipts) {
+  const 미해결영수증들 = 미해결강한화면영수증들(receipts);
+  if (!미해결영수증들.length) return { 사실: null, 정직: false };
+  const 걸음들 = [...new Set(미해결영수증들.map((r) => {
+    const call = r?.actualCall ?? r?.제안한호출 ?? null;
+    const a = call?.args ?? {};
+    const t = a.대상 ?? a.target ?? {};
+    const target = t.토큰 ?? t.token ?? t.id ?? t.label ?? t.이름
+      ?? a.window_id ?? a.windowId ?? a.app ?? '';
+    return `${call?.tool ?? ''}|${a.action ?? a.op ?? ''}${target ? `|${target}` : ''}`;
+  }))];
+  // 일반 미완료 표현은 무관한 파일 이야기만 밝혀도 참이 된다.
+  // 여기서는 답이 **효과 미확인 자체**를 밝힌 경우만 걷어낸다. 앱별 뜻이나 결과값을
+  // 풀이하지 않고, 영수증의 대상 신분과 확인되지 않은 행동을 밝히는 구조만 본다.
+  const 답 = 우리말만(reply);
+  const 화면미확인표현 = /효과.{0,8}(확인.{0,3}못|미확인)|확인.{0,6}(못했|못 했|안 됐|되지 않)|(눌|클릭|조작|행동).{0,10}(못|하지\s*않|안 됐|실패)/.test(답);
+  // 앱별 동사 사전을 여기 또 만들지 않는다. 답의 모든 서술 마디가 미완료이고,
+  // 그 답이 미해결 영수증에 이미 실린 앱·대상을 직접 부른 경우에는 그 영수증의
+  // 실패 자체를 밝힌 것이다. 반대로 "파일은 아직…" 뒤에 화면 결과를 붙인 답은
+  // 미완료가 아닌 마디가 남아 이 갈래를 못 탄다.
+  const 마디들 = 답.split(/[.!?\n,;]+|지만|으나|는데|고(?=\s)|며(?=\s)/)
+    .map((x) => x.trim()).filter(Boolean);
+  // 전역 `미완료를밝혔나`를 넓히면 파일·숫자·자동화 등 다른 출구까지 부정어 하나로
+  // 열리므로, 화면 영수증과 신분 대조를 마친 이 좁은 자리에서만 실패 서술 구조를 잰다.
+  const 화면실패서술 = (x) => /못\s*(했|해)|실패|지\s*않았|안\s*(됐|했)/.test(x);
+  const 전부미완료 = 마디들.length > 0 && 마디들.every(화면실패서술);
+  const 답이부른신분 = 미해결영수증들.some((r) => {
+    const call = r?.actualCall ?? r?.제안한호출 ?? null;
+    const a = call?.args ?? {};
+    const t = a.대상 ?? a.target ?? {};
+    const 신분 = r?.진행?.실행신분 ?? r?.result?.실행신분 ?? null;
+    return [a.app, t.app, t.label, t.이름, 신분?.요소?.label]
+      .some((v) => (typeof v === 'string' || typeof v === 'number')
+        && String(v).trim() && 답.includes(String(v).trim()));
+  });
+  const 화면미확인밝힘 = 화면미확인표현 && 답이부른신분;
+  const 영수증실패밝힘 = 전부미완료 && 답이부른신분;
+  if (화면미확인밝힘 || 영수증실패밝힘) return { 사실: null, 정직: true };
+  return {
+    사실: `이 턴에 드라이버로 제출됐지만 효과를 확인하지 못한 화면 행동이 남아 있다: ${걸음들.join(' · ')}.`
+      + ' 답은 그 사실을 말하지 않는다.',
+    정직: false,
+  };
 }
 
 function 미해결화면사실(reply, receipts) {
-  const 걸음들 = 미해결강한화면걸음(receipts);
-  if (!걸음들.length) return null;
-  // 일반 미완료 표현은 무관한 파일 이야기만 밝혀도 참이 된다.
-  // 여기서는 답이 **효과 미확인 자체**를 밝힌 경우만 걷어낸다. 앱·목적·결과값은
-  // 읽지 않고, 확인되지 않은 행동을 밝히는 한국어 구조만 본다.
-  const 답 = 우리말만(reply);
-  const 화면미확인밝힘 = /효과.{0,8}(확인.{0,3}못|미확인)|확인.{0,6}(못했|못 했|안 됐|되지 않)|(눌|클릭|조작|행동).{0,10}(못|하지\s*않|안 됐|실패)/.test(답);
-  if (화면미확인밝힘) return null;
-  return `이 턴에 드라이버로 제출됐지만 효과를 확인하지 못한 화면 행동이 남아 있다: ${걸음들.join(' · ')}.`
-    + ' 답은 그 사실을 말하지 않는다.';
+  return 미해결화면대조(reply, receipts).사실;
 }
 
 /**
@@ -543,7 +565,8 @@ export function 완료주장검증({
   // 순서는 영향이다. 자리 불일치는 탐색 폭의 진실이지만, 효과 미확인 화면 행동은
   // 방금 사용자에게 낼 결과의 직접 전제다. 같은 원장 사실을 먼저 놓아 무관한
   // 자리 공백이 단 한 번의 되부름을 소비하지 못하게 한다.
-  const 화면사실 = 미해결화면사실(reply, receipts);
+  const 화면대조 = 미해결화면대조(reply, receipts);
+  const 화면사실 = 화면대조.사실;
   if (화면사실) {
     return { 일치: false, 사용자에게: false, 실제, 모델에게: 화면사실 };
   }
@@ -889,7 +912,7 @@ export function 완료주장검증({
   // 답이 그걸 **밝히지 않으면** 사실을 돌려준다. 문구 목록을 늘리는 대신 재는 자리를 옮긴 것이다.
   // (아래 자리로 옮긴 이유: 개수·자리 대조는 완료 주장일 때만 뜻이 있지만, **못 한 걸음은
   //  주장 형태와 무관하게 사실**이다.)
-  if (못한걸음.length && !미완료를밝혔나(reply)) {
+  if (못한걸음.length && !화면대조.정직 && !미완료를밝혔나(reply)) {
     return {
       일치: false,
       사용자에게: false,
@@ -939,6 +962,10 @@ export function 완료주장검증({
     const 지어낸것 = 지어낸실물(reply, receipts, 원장글);
     if (지어낸것) return { 일치: false, 사용자에게: false, 실제, 모델에게: 지어낸것 };
   }
+
+  // 화면 영수증과 그 대상 신분에 맞춰 실패 자체를 밝힌 답은 완료 주장이 아니다.
+  // 이 판정을 다시 문구로 재지 않고 위에서 내린 같은 대조 결과를 쓴다.
+  if (화면대조.정직) return 지나감;
 
   if (!완료주장인가(reply)) return 지나감;
 
