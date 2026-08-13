@@ -151,6 +151,7 @@ const T_WORK_ATOMICITY = 'test/work-event-atomicity.test.js';
 const T_WORK_COMPLETION = 'test/work-state-completion-binding.test.js';
 const T_WORK_MULTISTAGE = 'test/work-state-multistage.test.js';
 const T_WORK_CONTROL = 'test/work-state-control.test.js';
+const T_WORK_AGREEMENT_SOURCE = 'test/work-agreement-quote-source.test.js';
 
 /**
  * 주입 목록. 각 줄은 "이 계약이 깨지면 어떤 검사가 울어야 하는가"의 기록이다.
@@ -166,9 +167,10 @@ export const MUTATIONS = [
   { 이름: '다른 프로젝트 scope 사건도 현재 상태로 투영', 파일: WORK_STATE, 검사: T_WORK_STATE,
     찾기: '      if (!exactScope(record.scopeRef, expectedScope) || !nonempty(record.eventId)) continue;',
     바꾸기: '      if (!nonempty(record.eventId)) continue;' },
-  { 이름: '사용자가 말하지 않은 모델 합의를 작업 사건으로 수용', 파일: WORK_ADMISSION, 검사: T_WORK_ADMISSION,
-    찾기: "  return typeof quote === 'string' && quote.length > 0 && String(text ?? '').includes(quote);",
-    바꾸기: "  return typeof quote === 'string' && quote.length > 0;" },
+  { 이름: '사용자가 말하지 않은 모델 합의를 작업 사건으로 수용', 파일: WORK_ADMISSION,
+    검사: T_WORK_AGREEMENT_SOURCE,
+    찾기: "  if (String(inputText ?? '').includes(quote)) return turnRef;",
+    바꾸기: "  if (typeof quote === 'string' && quote.length > 0) return turnRef;" },
   { 이름: '실제로 보여주지 않은 프로젝트 선택자도 새 대화가 이어받음', 파일: WORK_ADMISSION, 검사: T_WORK_ADMISSION,
     찾기: '      || (proposal.continueFromRef && byRef.length !== 1)',
     바꾸기: '      || (proposal.continueFromRef && false)' },
