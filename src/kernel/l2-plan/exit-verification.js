@@ -452,6 +452,7 @@ function 원장속말(receipts) {
 export function 절대재검증({
   reply, receipts = [], 원장글 = '', 파일계약빈손 = false, 의미검증빈손 = false,
 }) {
+  의미검증빈손 ||= receipts.some((r) => r?.diagnosticTrace?.reason === 'structured_result_check_missing');
   // 한 번의 보정 왕복 뒤에도 같은 `dispatched/unknown` 위에 결과를 쓰면
   // 두 번째 모델 호출을 만들지 않고 같은 원장 사실로 거짓만 걷는다.
   const 화면사실 = 미해결화면사실(reply, receipts);
@@ -614,6 +615,7 @@ export function 완료주장검증({
   reply, receipts = [], 원장글 = '', 이미돌려줬나 = false, 자리종류 = null, 자동화 = null,
   의미검증빈손 = false,
 }) {
+  의미검증빈손 ||= receipts.some((r) => r?.diagnosticTrace?.reason === 'structured_result_check_missing');
   const 실제 = (receipts ?? []).reduce((s, r) => s + 바꾼개수(r), 0);
   // **확인된 실행이 하나라도 있는가.** 읽기도 실행이다 — 읽고 답한 턴은 "말로만 끝남"이 아니다.
   //

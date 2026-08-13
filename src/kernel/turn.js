@@ -3321,6 +3321,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         : checked?.toolCalls?.find((call) => call?.name === WORK_RESULT_CHECK_SCHEMA.name)?.args;
       파생의미검증미확인 = !judgment || judgment.verdict === 'unable';
       ctx.파생의미검증미확인 = 파생의미검증미확인;
+      if (파생의미검증미확인) {
+        const rec = receipt({
+          intended: '파생 결과의 원본·요구 대조',
+          actualCall: null,
+          failureState: 'blocked',
+          userSafeSummary: '결과 파일의 내용 일치 여부를 확인하지 못했어요.',
+          diagnosticTrace: { reason: 'structured_result_check_missing' },
+        });
+        원장.append(rec);
+        turnReceipts.push(rec);
+      }
       if (judgment?.verdict === 'mismatch' && typeof judgment.replacementText === 'string') {
         const writes = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none').flatMap((r) => {
           if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'write') {
