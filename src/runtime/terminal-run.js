@@ -41,7 +41,7 @@ export async function runCommand(command, opts = {}) {
 
   let profileDir; let argv; let scratch;
   if (mode === 'raw' || !sandboxAvailable()) {
-    argv = ['/bin/zsh', ['-c', command]];
+    argv = ['/bin/zsh', ['-o', 'pipefail', '-c', command]];
   } else {
     profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-sb-'));
     const file = join(profileDir, 'p.sb');
@@ -59,7 +59,7 @@ export async function runCommand(command, opts = {}) {
     await writeFile(file, sandboxProfile(profileMode, {
       scratch, allowRead: opts.allowRead, writeTarget: opts.writeTarget,
     }), 'utf8');
-    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-c', command]];
+    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-o', 'pipefail', '-c', command]];
   }
 
   try {

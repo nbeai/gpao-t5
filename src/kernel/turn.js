@@ -753,7 +753,6 @@ function 완료검증한번(ctx, 인자) {
   const 자리글 = JSON.stringify([
     인자.자리종류 ?? null,
     인자.자동화 ?? null,
-    Boolean(인자.검증된파일산출물),
   ]);
   const 메모 = ctx.완료검증메모;
   if (메모 && 메모.reply === 인자.reply && 메모.자리글 === 자리글
@@ -838,7 +837,6 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
   const 검증 = 완료검증한번(ctx, {
     reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
-    검증된파일산출물: 검증된파일산출물인가(receipts),
     자리종류: {
       // **이번 턴 머리의 관측이 진실이다** — 이전 턴 상태(workingState.places)는 새 세션
       // 첫 턴에 비어 있어 그물이 침묵한다(실측: 오너 창 하나를 태웠다). 관측이 없던 옛
@@ -3103,11 +3101,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         const path = String(r.result?.path ?? r.actualCall.args?.path ?? '');
         if (path && path !== 빈결과경로) 관측한원본.add(path.split('/').pop());
       }
-      if (r.actualCall?.tool === 'local.terminal' && !r.result?.writeEffect
-        && String(r.result?.stdout ?? '').length) {
-        const command = String(r.actualCall.args?.command ?? '');
-        for (const name of 원본후보) if (command.includes(name)) 관측한원본.add(name);
-      }
     }
     // 이름 목록만 내는 탐색(ls)과 프로그램 존재 확인은 원문 관측이 아니다. 원본 이름을
     // 아직 특정하지 못한 경우에도 내용 stdout이나 file read가 하나도 없다면 같은 사실이다.
@@ -3116,11 +3109,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
         return String(r.result?.path ?? '') !== 빈결과경로;
       }
-      if (r.actualCall?.tool !== 'local.terminal' || r.result?.writeEffect
-        || !String(r.result?.stdout ?? '').length) return false;
-      const command = String(r.actualCall.args?.command ?? '').trim();
-      return !/^(?:ls(?:\s|$)|command\s+-v\b|which\b|type\b)/.test(command)
-        && !쓴경로들.some((path) => command.includes(path.split('/').pop()));
+      // 임의 셸 stdout만으로 "어느 원본 내용을 읽었다"고 만들지 않는다. `printf file.log`
+      // 같은 출력과 실제 `cat file.log`를 일반 셸 파서 없이 구분할 수 없기 때문이다.
+      // 이 좁은 빈 결과 복구 경계에서는 신분·revision이 있는 파일 read만 원문 관측이다.
+      return false;
     });
     const 빈산출물근거없음 = Boolean(빈파생읽기 && !내용관측있음
       && (!원본후보.length || 원본후보.some((name) => !관측한원본.has(name))));

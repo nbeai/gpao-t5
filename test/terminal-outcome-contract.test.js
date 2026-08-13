@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
-import { blockedWriteTarget, executionBlock } from '../src/runtime/terminal-run.js';
+import { blockedWriteTarget, executionBlock, runCommand } from '../src/runtime/terminal-run.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { interpret } from '../src/kernel/l1-intent/intent.js';
@@ -72,22 +72,16 @@ for (const [exitCode, stderr] of [[1, 'generic failure'], [127, 'command not fou
   });
 }
 
-test('최상위 exit 0이어도 파이프 안 command not found는 부분 실패다', async () => {
-  const rec = await 영수증(0, { stderr: 'zsh:1: command not found: stat\n' });
-  assert.equal(rec.failureState, 'failed');
-  assert.equal(rec.lifecycle, 'delivered');
-  assert.equal(rec.result?.effect?.commandExit, 'partial_failure');
-  assert.equal(rec.result?.failReason, 'nested_command_failure');
-  assert.match(rec.result?.stderr ?? '', /command not found: stat/);
+test('pipefail 실행기는 파이프 앞 자식의 실패를 최상위 exit로 보존한다', async () => {
+  const r = await runCommand('t5-definitely-missing-command | cat', { mode: 'raw' });
+  assert.notEqual(r.exitCode, 0);
+  assert.match(r.stderr, /command not found/);
 });
 
-test('최상위 exit 0이어도 awk 구문 오류가 stderr에 남으면 부분 실패다', async () => {
-  const rec = await 영수증(0, {
-    stderr: 'awk: non-terminated string %s\\t%d... at source line 1\n',
-  });
-  assert.equal(rec.failureState, 'failed');
-  assert.equal(rec.result?.effect?.commandExit, 'partial_failure');
-  assert.equal(rec.result?.failReason, 'nested_command_failure');
+test('stderr 문구만으로 명령 실패를 꾸며내지 않는다', async () => {
+  const rec = await 영수증(0, { stderr: 'awk: non-terminated string이라는 사용자 데이터\n' });
+  assert.equal(rec.failureState, 'none');
+  assert.equal(rec.result?.effect?.commandExit, 'success');
 });
 
 test('exit 0 읽기 probe는 성공으로 유지하되 실행 효과의 두 층을 사실대로 남긴다', async () => {

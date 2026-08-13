@@ -12,9 +12,9 @@ import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
 import { alive } from './local-process.js';
-import { copyFile, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
-import { basename, isAbsolute, join, relative } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 
 const MAX_REVERSIBLE_PREIMAGE = 50_000_000;
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -32,6 +32,7 @@ async function existingFileState(path) {
     return {
       exists: true, kind: 'file', size: info.size,
       sha256: digest(bytes), mtimeMs: info.mtimeMs,
+      dev: info.dev, ino: info.ino, nlink: info.nlink,
     };
   } catch (error) {
     if (error?.code === 'ENOENT') return { exists: false };
@@ -44,11 +45,37 @@ function inside(root, target) {
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
+function insideOrSame(root, target) {
+  const rel = relative(root, target);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/** 문자열 containment가 아니라 현재 커널이 보는 실제 부모·파일 신분을 확인한다. */
+async function safeWriteIdentity(path, workspaceRoot, state) {
+  try {
+    const [realRoot, realParent] = await Promise.all([
+      realpath(workspaceRoot), realpath(dirname(path)),
+    ]);
+    if (!insideOrSame(realRoot, realParent)) return false;
+    if (protectionFor(realParent)) return false;
+    if (state?.exists === true) {
+      // hardlink는 이 경로 하나만 되돌려도 같은 inode의 다른 이름이 이미 바뀐 뒤다.
+      if (state.kind !== 'file' || state.nlink !== 1) return false;
+      const realTarget = await realpath(path);
+      if (!insideOrSame(realRoot, realTarget) || protectionFor(realTarget)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
   const path = blockedWriteTarget(probe, { cwd });
   if (!path) return undefined;
   const before = await existingFileState(path);
-  const authorized = inside(workspaceRoot, path) && !protectionFor(path);
+  const authorized = inside(workspaceRoot, path) && !protectionFor(path)
+    && await safeWriteIdentity(path, workspaceRoot, before);
   const operation = before.exists === false ? 'create'
     : before.exists === true && before.kind === 'file' ? 'overwrite' : 'unknown';
   const reversible = Boolean(dataDir && authorized
@@ -59,7 +86,11 @@ async function reversibleWriteEffect(probe, cwd, dataDir, workspaceRoot = cwd) {
     target: { path, authorizedWorkspace: authorized, existsBefore: before.exists,
       ...(before.kind ? { kind: before.kind } : {}) },
     beforeState: before.exists === true
-      ? { kind: before.kind, size: before.size, ...(before.sha256 ? { sha256: before.sha256 } : {}) }
+      ? { kind: before.kind, size: before.size,
+        ...(before.sha256 ? { sha256: before.sha256 } : {}),
+        ...(before.dev != null ? { dev: before.dev } : {}),
+        ...(before.ino != null ? { ino: before.ino } : {}),
+        ...(before.nlink != null ? { nlink: before.nlink } : {}) }
       : { exists: before.exists },
     reversible,
     undo: { available: reversible,
@@ -89,16 +120,6 @@ const blank = (v) => {
 function looksBlocked(r) {
   const block = executionBlock(r);
   return block?.kind === 'sandbox' || block?.kind === 'permission';
-}
-
-/** 최상위 셸이 0을 돌려도 파이프·치환 안의 자식이 명백히 실패한 경우. 경고 일반은 실패로 만들지 않는다. */
-function definiteNestedFailure(r) {
-  if (r?.exitCode !== 0) return false;
-  const stderr = String(r?.stderr ?? '');
-  return /(?:^|\n)(?:zsh|bash|sh)(?::\d+)?:\s*command not found:/i.test(stderr)
-    || /(?:^|\n)find:[^\n]*unknown primary or operator/i.test(stderr)
-    || /(?:^|\n)awk:\s*(?:syntax error|non-terminated|illegal statement)[^\n]*/i.test(stderr)
-    || /(?:^|\n)xargs:[^\n]*terminated with signal/i.test(stderr);
 }
 
 /**
@@ -198,11 +219,14 @@ export function makeLocalTerminalTool(deps = {}) {
     if (!effect?.reversible || !path || !trashDir || !inside(workspaceRoot, path)
       || effect.target?.authorizedWorkspace !== true || protectionFor(path)) return null;
     const now = await existingFileState(path);
+    if (!await safeWriteIdentity(path, workspaceRoot, now)) return null;
     if (effect.operation === 'create') {
       return now.exists === false ? { operation: 'create', path, before: now, backup: null } : null;
     }
     if (effect.operation !== 'overwrite' || now.exists !== true || now.kind !== 'file'
-      || now.sha256 !== effect.beforeState?.sha256) return null;
+      || now.nlink !== 1 || now.sha256 !== effect.beforeState?.sha256
+      || (effect.beforeState?.dev != null && now.dev !== effect.beforeState.dev)
+      || (effect.beforeState?.ino != null && now.ino !== effect.beforeState.ino)) return null;
     await mkdir(trashDir, { recursive: true });
     const backup = join(trashDir, `terminal-${randomUUID()}-${basename(path)}`);
     await copyFile(path, backup);
@@ -403,8 +427,7 @@ export function makeLocalTerminalTool(deps = {}) {
         };
       }
 
-      const 내부실패 = definiteNestedFailure(r);
-      const commandSucceeded = r?.exitCode === 0 && !r?.stopped && !내부실패;
+      const commandSucceeded = r?.exitCode === 0 && !r?.stopped;
       const writeVerification = prepared
         ? (commandSucceeded ? await finishWrite(prepared)
           : (await rollbackWrite(prepared), { ok: false, why: 'command_failed', rolledBack: true }))
@@ -414,12 +437,10 @@ export function makeLocalTerminalTool(deps = {}) {
       // 직접 관측해 processState로 주며, 명령 성공/실패는 exit code만 말한다.
       // 주입 대역처럼 processState가 없으면 추측하지 않고 unknown으로 남긴다.
       const 프로세스상태 = r?.processState ?? 'unknown';
-      const 명령끝 = 내부실패
-        ? 'partial_failure'
-        : r?.exitCode === 0
+      const 명령끝 = r?.exitCode === 0
         ? 'success'
         : (typeof r?.exitCode === 'number' ? 'failure' : 'unknown');
-      const 명령실패 = 명령끝 === 'failure' || 명령끝 === 'partial_failure' || writeVerification?.ok === false
+      const 명령실패 = 명령끝 === 'failure' || writeVerification?.ok === false
         || r?.stopped != null || 프로세스상태 === 'not_started';
       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
@@ -442,8 +463,7 @@ export function makeLocalTerminalTool(deps = {}) {
         ...(종료확인 ? { terminated: 종료확인 } : {}),
         stdout: r.stdout, stderr: r.stderr,
         // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
-        ...(내부실패 ? { failedBy: 'code', failReason: 'nested_command_failure' }
-          : 끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+        ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
         ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
         ...(r.stopped ? { stopped: r.stopped } : {}),
         ...(args.writeEffect ? { writeEffect: {
@@ -488,7 +508,6 @@ export function makeLocalTerminalTool(deps = {}) {
           // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
           // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
           // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
-          : 내부실패 ? '명령 안의 일부가 실패했어요 — 오류 출력을 보고 다른 방법으로 이어갈게요.'
           : r.exitCode === 0 ? (실제모드 === 'granted' ? '실행했어요.'
             : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
               : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')

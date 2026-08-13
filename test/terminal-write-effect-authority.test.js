@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -199,6 +199,39 @@ test('제품 경로: 기존 로컬 파일의 단일 overwrite는 preimage를 보
   const undone = await localFile.handler({ action: 'undo' });
   assert.equal(undone.result?.undone, 'write');
   assert.equal(await readFile(beforePath, 'utf8'), 'before\n');
+});
+
+test('작업공간 밖 파일의 hardlink는 가역 overwrite로 자동 실행하지 않는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-hardlink-boundary-'));
+  const work = join(root, 'work'); const state = join(root, 'state');
+  await mkdir(work, { recursive: true });
+  const outside = join(root, 'outside-secret.txt');
+  const target = join(work, 'report.tsv');
+  await writeFile(outside, 'SECRET\n', 'utf8');
+  await link(outside, target);
+  const command = "printf 'CHANGED\\n' > report.tsv";
+  const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state,
+    sandboxAvailable: () => true, run: async () => ({ command, cwd: work, mode: 'probe',
+      processState: 'delivered', exitCode: 1, stdout: '',
+      stderr: 'zsh:1: operation not permitted: report.tsv\n', durationMs: 1 }) });
+  const probed = await tool.probe(command, { cwd: work });
+  assert.equal(probed.writeEffect?.reversible, false);
+  assert.equal(await readFile(outside, 'utf8'), 'SECRET\n');
+});
+
+test('작업공간 안 부모 symlink가 밖을 가리키면 새 파일 자동 쓰기를 열지 않는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-parent-symlink-boundary-'));
+  const work = join(root, 'work'); const outside = join(root, 'outside'); const state = join(root, 'state');
+  await mkdir(work, { recursive: true }); await mkdir(outside, { recursive: true });
+  await symlink(outside, join(work, 'linked'));
+  const command = "printf 'x\\n' > linked/report.tsv";
+  const tool = makeLocalTerminalTool({ cwd: work, workspaceRoot: work, dataDir: state,
+    sandboxAvailable: () => true, run: async () => ({ command, cwd: work, mode: 'probe',
+      processState: 'delivered', exitCode: 1, stdout: '',
+      stderr: 'zsh:1: operation not permitted: linked/report.tsv\n', durationMs: 1 }) });
+  const probed = await tool.probe(command, { cwd: work });
+  assert.equal(probed.writeEffect?.reversible, false);
+  await assert.rejects(readFile(join(outside, 'report.tsv'), 'utf8'), /ENOENT/);
 });
 
 for (const blocked of [

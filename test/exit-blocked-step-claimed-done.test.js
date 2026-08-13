@@ -54,7 +54,7 @@ test('막혔다가 같은 걸음으로 다시 해서 됐으면 지나간다 — 
   assert.equal(r.사용자에게, true, '막혔다가 다시 해서 된 것을 거짓으로 봤다 — 정직한 회복이 막힌다');
 });
 
-test('터미널이 실패해도 파일 손으로 만들고 재읽었으면 목적 회복이다', () => {
+test('터미널 실패 뒤 파일 손으로 회복했어도 실패 사실을 숨기지는 않는다', () => {
   const path = '/work/inventory.tsv';
   const receipts = [
     막힘('local.terminal'),
@@ -62,12 +62,22 @@ test('터미널이 실패해도 파일 손으로 만들고 재읽었으면 목�
     { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path, text: 'ok\n' } },
   ];
   const r = 완료주장검증({
-    reply: `\`${path}\`를 만들고 다시 읽어 확인했습니다.`,
+    reply: `처음 터미널 실행은 실패했고, 파일 손으로 \`${path}\`를 만들고 다시 읽어 확인했습니다.`,
     receipts,
     원장글: JSON.stringify(receipts),
-    검증된파일산출물: true,
   });
-  assert.equal(r.사용자에게, true, '다른 손으로 목적을 완수했는데 옛 터미널 실패가 정답을 폐기했다');
+  assert.equal(r.사용자에게, true, '실패와 회복을 모두 밝힌 정직한 답을 폐기했다');
+});
+
+test('실패한 npm test를 파일 생성 성공으로 덮어 통과했다고 말할 수 없다', () => {
+  const path = '/work/test-report.txt';
+  const receipts = [
+    { ...막힘('local.terminal'), actualCall: { tool: 'local.terminal', args: { command: 'npm test' } } },
+    { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'write', path } }, result: { path } },
+    { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path, text: 'failed\n' } },
+  ];
+  const r = 완료주장검증({ reply: '테스트를 통과했고 보고서도 만들었습니다.', receipts });
+  assert.equal(r.사용자에게, false);
 });
 
 test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는다', () => {
@@ -79,7 +89,6 @@ test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는�
       { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'write', path } }, result: { path } },
       { failureState: 'none', actualCall: { tool: 'local.file', args: { action: 'read', path } }, result: { path, text: 'ok\n' } },
     ],
-    검증된파일산출물: true,
   });
   assert.equal(r.사용자에게, false, '파일 성공으로 별도 전송 실패까지 숨겼다');
 });
