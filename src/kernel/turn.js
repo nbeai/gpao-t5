@@ -3122,6 +3122,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       && (!원본후보.length || 원본후보.some((name) => !관측한원본.has(name))));
     const 고칠수있는미완료 = 만든가역산출물
       && (미완료를밝혔나(답글원문) || 빈산출물근거없음);
+    const 원본관측필요 = 막힌것.some((r) => r?.diagnosticTrace?.reason === '원본미관측');
     // **한 걸음도 안 뗐다** — 이 갈래가 원래 말하려던 사실의 극단이다(F-83).
     //
     // 말투만 보면 *"…없는 상태라서 확인해 드릴 수 없습니다"* 는 심문도 약속도 아니어서 샌다.
@@ -3152,6 +3153,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // (손이 아예 없는 판에서도 여기서 멎는다.)
       if (안써본손.length || 막힌것.length || 안밟은수단.length || 고칠수있는미완료) {
         사실.goalNotReached = {
+          ...(원본관측필요 ? { 원본관측필요: true } : {}),
           ...(고칠수있는미완료 ? { 산출물미완료: true } : {}),
           ...(빈산출물근거없음 ? {
             빈산출물근거없음: true,
@@ -3244,6 +3246,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           ? [`빈 결과의 근거로 아직 읽지 않은 원본 후보: ${미달.goalNotReached.안읽은원본.join(' · ')}`]
           : ['빈 결과를 뒷받침할 원본 내용 관측 영수증이 아직 없어요.']),
         '빈 결과를 곧바로 "해당 자료 없음"으로 해석하지 말고, 원본을 실제로 읽은 뒤 처리식을 고쳐 결과를 다시 확인해 주세요.',
+      ] : []),
+      ...(미달.goalNotReached?.원본관측필요 ? [
+        '파생 파일 쓰기는 원문 내용 영수증이 없어 실행되지 않았어요.',
+        '다음 걸음은 local.file의 read로 실제 원본 내용을 읽는 것입니다. 그 read 영수증 뒤에 터미널 실행을 다시 고르세요.',
       ] : []),
     ].join(' ');
     const 되부름 = await ctx.model.respond({
