@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -138,4 +138,48 @@ test('파생 터미널 쓰기는 원문 내용 관측 뒤에만 실행하고 같
   assert.equal(sawObservationRecovery, true, '원문을 읽는 같은 턴 복구로 돌아가지 않았다');
   assert.equal(grantedRuns, 1, '관측 전 쓰기가 실행됐거나 관측 후 쓰기가 실행되지 않았다');
   assert.equal(await readFile(output, 'utf8'), 'A\t12\n');
+});
+
+test('다른 폴더의 glob 원본은 그 폴더 신분을 보존해 모두 읽은 뒤 실행한다', async () => {
+  const dir = await mkdtemp('/private/tmp/t5-derived-glob-folders-');
+  const input = join(dir, 'input'); const outputDir = join(dir, 'output');
+  const east = join(input, 'sales-east.csv'); const west = join(input, 'sales-west.csv');
+  const output = join(outputDir, 'summary.tsv');
+  await mkdir(input); await mkdir(outputDir);
+  await writeFile(east, 'item,amount\nA,12\n');
+  await writeFile(west, 'item,amount\nA,18\n');
+  const command = `printf 'A\\t30\\n' > ${output}`;
+  let grantedRuns = 0; let phase = 0;
+  const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (opts.mode !== 'granted') return _command === 'ls input'
+        ? { command: _command, cwd: dir, mode: 'probe', processState: 'delivered', exitCode: 0,
+          stdout: 'sales-east.csv\nsales-west.csv\n', stderr: '', durationMs: 1 }
+        : { command: _command, cwd: dir, mode: 'probe', processState: 'delivered', exitCode: 1,
+          stdout: '', stderr: `zsh:1: operation not permitted: ${output}\n`, durationMs: 1 };
+      grantedRuns += 1;
+      await writeFile(opts.writeTarget, 'A\t30\n');
+      return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    } });
+  const model = { async respond(tc) {
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
+      output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
+    } }] };
+    if (phase === 0) { phase = 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls input', cwd: dir } }] }; }
+    if (phase === 1) { phase = 2; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
+    if ((tc?.goalNotReached?.원본관측필요 || tc?.unmetDeliverable) && phase === 2) {
+      phase = 3; return { text: '', toolCalls: [east, west].map((path) => ({ name: 'local.file', args: { action: 'read', path } })) };
+    }
+    if (phase === 3) { phase = 4; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
+    if (phase === 4) { phase = 5; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: output } }] }; }
+    return '두 입력을 모두 읽고 집계 결과를 다시 확인했습니다.';
+  } };
+  await runTurn({ text: 'input/sales-*.csv를 모두 집계해 output/summary.tsv 결과 파일을 만들어줘.' }, {
+    env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') }), localTerminal }),
+    model,
+  });
+  assert.equal(grantedRuns, 1, 'glob 디렉터리를 잃어 원본을 읽고도 실행되지 않았다');
+  assert.equal(await readFile(output, 'utf8'), 'A\t30\n');
 });

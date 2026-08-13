@@ -3,7 +3,7 @@
 //                 → Truth Ledger → 다음 안전 행동.
 // 판정 기준: 사용자는 채팅만 한다고 느끼지만, 뒤에서 자기파악·권한·원장·복구가 자연스럽게 돈다.
 import { createHash } from 'node:crypto';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { realpath } from 'node:fs/promises';
 import { buildSelfState, selfStateSummary } from './l0-evidence/self-state.js';
 import { detectSelfNaming } from './l1-intent/self-naming.js';
@@ -3260,6 +3260,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           ? [`사용자가 지정한 원본 후보: ${미달.goalNotReached.원본후보.join(' · ')}`] : []),
         '다음 걸음은 local.file의 read로 실제 원본 내용을 읽는 것입니다. 그 read 영수증 뒤에 터미널 실행을 다시 고르세요.',
       ] : []),
+      ...(미달.goalNotReached?.막힌걸음?.length ? [
+        '실패를 정확히 설명한 것은 완료가 아닙니다. 같은 실패 호출을 반복하지 말고, 다른 명령이나 아직 쓰지 않은 손으로 지금 목적을 계속 수행하세요.',
+      ] : []),
     ].join(' ');
     const 되부름 = await ctx.model.respond({
       ...tc, ...미달,
@@ -3293,7 +3296,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 가역 산출물이 이미 있는데 모델 자신이 미완료라고 밝힌 경우, 호출 없는 첫 응답은
       // 수단 소진의 증거가 아니다. 실제 남은 예산을 줬는데도 한 번 더 손을 안 고를 때만
       // 그 판단을 존중한다. 무한 강제는 하지 않는다.
-      if (미달.goalNotReached?.산출물미완료 && 이어간횟수 < 2) {
+      if ((미달.goalNotReached?.산출물미완료
+        || (미달.goalNotReached?.막힌걸음?.length && 미달.goalNotReached?.안써본손?.length))
+        && 이어간횟수 < 2) {
         const 새글 = typeof 되부름 === 'string' ? 되부름 : (되부름?.text ?? '');
         if (String(새글).trim()) finalOut = 되부름;
         return true;
@@ -3635,10 +3640,23 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         const escaped = basename(clean).replace(/[.+^${}()|[\]\\]/g, '\\$&')
           .replace(/\*/g, '.*').replace(/\?/g, '.');
         const pattern = new RegExp(`^${escaped}$`);
-        for (const name of 관측된이름.filter((n) => pattern.test(n))) {
-          const path = resolve(출력폴더, name);
-          원본표기.push({ ref: path, canonical: await realpath(path).catch(() => path) });
+        const names = 관측된이름.filter((n) => pattern.test(n));
+        const rawDir = dirname(clean);
+        const bases = clean.startsWith('/')
+          ? [resolve(rawDir)]
+          : [resolve(출력폴더, rawDir), resolve(String(판정인자?.cwd ?? 출력폴더), rawDir)];
+        for (const name of names) {
+          const candidates = await Promise.all(bases.map(async (base) => {
+            const path = resolve(base, name);
+            return { path, canonical: await realpath(path).catch(() => null) };
+          }));
+          const found = candidates.find((x) => x.canonical);
+          if (!found || found.canonical === 출력신분) continue;
+          원본표기.push({ ref: found.path, canonical: found.canonical });
         }
+        // glob을 아직 실제 이름으로 펼치지 못했다면 아무 파일 read 하나로 통과시키지 않는다.
+        // 목록 관측 뒤 각각의 정확한 신분이 생길 때까지 쓰기는 미실행으로 남는다.
+        if (!names.length) 원본표기.push({ ref: clean, canonical: null });
       } else {
         const candidates = clean.startsWith('/')
           ? [resolve(clean)]
@@ -3646,8 +3664,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         const existing = await Promise.all(candidates.map(async (path) => ({
           path, canonical: await realpath(path).catch(() => null), fallback: await 정본경로(path),
         })));
+        // 출력이 아직 존재하지 않아도 가능한 기준 폴더 중 하나가 정확한 출력 신분이면 원본에서
+        // 제외한다. 첫 번째(출력 폴더 기준) 후보만 보면 `output/output/file`이 선택되어 출력 자체를
+        // 읽어야 하는 원본으로 오인한다.
+        if (existing.some((x) => (x.canonical ?? x.fallback) === 출력신분)) continue;
         const found = existing.find((x) => x.canonical) ?? existing[0];
-        if ((found.canonical ?? found.fallback) === 출력신분) continue;
         원본표기.push({ ref: clean, canonical: found.canonical ?? found.fallback });
       }
     }
@@ -3655,13 +3676,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
       && typeof r?.result?.text === 'string').map((r) => resolve(String(r.result?.path ?? r.actualCall.args?.path ?? '')));
     const 읽은경로 = await Promise.all(읽은표기.map((path) => realpath(path).catch(() => path)));
-    const 표기일치 = ({ ref, canonical }) => {
-      const clean = String(ref).replace(/[을를은는이가와과]$/, '');
-      const escaped = basename(clean).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
-      const namePattern = new RegExp(`^${escaped}$`);
-      return 읽은경로.some((path) => (clean.includes('/') && !clean.includes('*') && !clean.includes('?'))
-        ? path === canonical : namePattern.test(basename(path)));
-    };
+    const 표기일치 = ({ canonical }) => Boolean(canonical)
+      && 읽은경로.some((path) => path === canonical);
     const 원문내용관측 = 원본표기.length
       ? 원본표기.every(표기일치) : 읽은경로.length > 0;
     if (plan.requestedDerivedFile === true && toolId === 'local.terminal'
