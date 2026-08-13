@@ -959,6 +959,14 @@ export const MUTATIONS = [
     찾기: "          다음수단: [{ 방법: 'observe', 왜: '지금 실제 상태를 보고 됐는지부터 확인한다' }],\n        };\n      }\n      if (도달 === false) {",
     바꾸기: "          다음수단: [{ 방법: 'observe', 왜: 'x' }, { 방법: 'retry', 왜: 'x' }],\n        };\n      }\n      if (도달 === false) {" },
 
+  // F-114b · 새 관찰은 실패 손의 **실행 신분을 다시 확인했을 때만** 같은 호출의
+  // 재시도 문을 연다. 신분 없는 실패를 허용하면 뒤의 아무 계산기 관찰이 같은 focus를
+  // 다시 내보내는 근거로 승격되어, 무엇을 재시도하는지 모른 채 중복 실행한다.
+  { 이름: '실행 신분 없는 실패도 새 관찰 뒤 같은 화면 행동을 재시도',
+    파일: TURN, 검사: 'test/f114-fresh-observation-retry.test.js',
+    찾기: '    if (!실패신분) return false;',
+    바꾸기: '    if (!실패신분) return true;' },
+
   // **CU D — 무엇이 바뀌면 된 것인지 모델이 먼저 말한다.**
   { 이름: '기대 효과 없이 누름(됐는지 잴 방법이 없는 클릭)',
     파일: 'src/runtime/desktop-act-tool.js', 검사: 'test/cu-d-click-declares-effect.test.js',
