@@ -2493,6 +2493,59 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 지문of = (toolId, args) => 호출지문(toolId, args);
   const rung = new Set(plan.toolsToUse.map((t) => 지문of(t, sendArgs?.[t] ?? { request: intent.currentRequest })));
 
+  // **같은 호출인가와 같은 증거 세대인가를 섞지 않는다** (F-114b · BomM92).
+  //
+  // 계산기 라이브에서 `focus` 는 드라이버가 실제로 보냈지만 목표 상태가 아니었다. 손은
+  // `observe → retry` 를 다음 수로 냈고, 그 뒤 새 화면 영수증은 바로 그 창·pid 를 다시
+  // 확인했다. 모델이 그 새 사실 위에서 같은 `focus` 를 골랐지만 `rung` 은 인자만 보고
+  // 첫 호출과 같다고 취소했다. 새 관찰을 하라는 길과 관찰 뒤 다시 판단할 길이 서로 끊겼다.
+  //
+  // 그렇다고 중복 문을 넓히면 안 된다. 특히 결과를 모르는 클릭·전송은 같은 호출을 다시
+  // 내보내면 두 번 효과가 날 수 있다. 그래서 재시도를 여는 사실은 모두 영수증에 있어야 한다:
+  //   · 직전 동일 호출이 `dispatched/unsatisfied` 였고(unknown 아님),
+  //   · 그 손이 `retry` 와 먼저 밟을 관찰 수단을 함께 냈으며,
+  //   · 그 뒤 성공한 새 호출 영수증이 그 수단을 밟고,
+  //   · 결과가 직전 실행의 안정 신분(창·pid)을 둘 다 다시 확인했다.
+  // 같은 인자만 반복하거나, 다른 창의 관찰이 끼거나, 직전 호출이 성공했으면 문은 그대로 닫힌다.
+  const 안정신분 = (값) => {
+    if (!값 || typeof 값 !== 'object') return null;
+    const 창 = 값.창 ?? 값.id ?? 값.windowId;
+    const pid = 값.pid ?? 값.processId;
+    return 창 !== undefined && 창 !== null && pid !== undefined && pid !== null
+      ? { 창: String(창), pid: String(pid) } : null;
+  };
+  const 결과신분들 = (rec) => [
+    rec?.result?.실행신분,
+    rec?.result?.본창,
+    rec?.result?.window,
+  ].map(안정신분).filter(Boolean);
+  const 새증거뒤재시도 = (지문) => {
+    let 직전 = -1;
+    for (let i = turnReceipts.length - 1; i >= 0; i -= 1) {
+      const call = turnReceipts[i]?.actualCall;
+      if (call?.tool && 지문of(call.tool, call.args ?? {}) === 지문) { 직전 = i; break; }
+    }
+    if (직전 < 0) return false;
+    const 실패 = turnReceipts[직전];
+    if (실패?.failureState === 'none' || 실패?.진행?.단계 !== 'dispatched'
+      || 실패?.진행?.판정 !== 'unsatisfied') return false;
+    const 다음방법 = new Set((실패.다음수단 ?? []).map((m) => String(m?.방법 ?? '')).filter(Boolean));
+    if (!다음방법.has('retry')) return false;
+    다음방법.delete('retry');
+    if (!다음방법.size) return false;
+    const 실패신분 = 안정신분(실패?.진행?.실행신분 ?? 실패?.result?.실행신분);
+    if (!실패신분) return false;
+    return turnReceipts.slice(직전 + 1).some((rec) => {
+      if ((rec?.failureState ?? 'none') !== 'none' || rec?.result == null) return false;
+      const call = rec.actualCall;
+      // 새 실행 영수증의 신분이 없는 결과는 같은 관찰을 복사한 값인지 가를 수 없다.
+      if (!call?.callRef && !call?.providerCallId) return false;
+      const 방법 = String(call?.args?.action ?? call?.args?.op ?? '');
+      if (!다음방법.has(방법)) return false;
+      return 결과신분들(rec).some((축) => 축.창 === 실패신분.창 && 축.pid === 실패신분.pid);
+    });
+  };
+
   let steps = 0;      // 실제로 실행한 도구 걸음
   // **지금 있는 손**을 사다리에 함께 준다. 계단은 도구 종류만 보고 정할 수 없다 —
   // "다른 손으로 이어서 볼게요"는 그 손이 실제로 있을 때만 참이다(없으면 거짓 약속이 된다).
@@ -3075,7 +3128,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       break;
     }
     // 같은 손을 같은 인자로 두 번 쓰지 않는다 — 결과가 마음에 안 든다고 반복하면 제자리를 돈다.
-    if (rung.has(지문)) {
+    if (rung.has(지문) && !새증거뒤재시도(지문)) {
       // **줄에 아직 남은 것이 있으면 이 하나만 건너뛴다.** 예전엔 여기서 턴을 통째로 멈췄는데,
       // 그건 호출이 하나뿐이던 시절의 계약이다. 다섯 중 하나가 중복이라고 나머지 넷을
       // 버리면 그게 바로 이번에 없앤 그 병이다. 건너뛴 사실은 남는다.
