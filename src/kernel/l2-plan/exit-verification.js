@@ -154,8 +154,9 @@ function 바꾼개수(rec) {
  * 이때 다른 click 하나가 되었다고 앞의 click까지 회복된 것은 아니다. 도구·동사와
  * 원장에 실린 대상 신분을 함께 보고, 같은 걸음을 나중에 확인한 성공만 회복으로 인정한다.
  *
- * 여기서 재는 것은 내용 정답이 아니라 원장의 `dispatched/unknown` 사실이다. 커널이
- * 계산기 결과나 앱별 목적을 풀이하지 않는다.
+ * 여기서 재는 것은 내용 정답이 아니라 원장의 `dispatched` 뒤 효과 판정이
+ * `unknown` 또는 `unsatisfied` 로 남은 사실이다. 커널이 계산기 결과나 앱별 목적을
+ * 풀이하지 않는다.
  */
 function 미해결강한화면걸음(receipts) {
   const 호출 = (r) => r?.actualCall ?? r?.제안한호출 ?? null;
@@ -205,12 +206,23 @@ function 미해결강한화면걸음(receipts) {
       bounds: t.bounds && typeof t.bounds === 'object' ? JSON.stringify(t.bounds) : '',
     };
   };
-  const 같은실제요소 = (a, b) => {
+  const 같은실행대상 = (a, b) => {
+    if (!a.action || !a.app || a.action !== b.action || a.app !== b.app) return false;
+    // focus·launch처럼 요소가 없는 행동도 있다. 이 경우에도 "같은 앱"만으로 회복하지
+    // 않고, 드라이버가 실행 직전에 남긴 창 신분(window/pid) 중 하나가 양쪽에 있어
+    // 같을 때만 같은 실행 대상으로 인정한다.
+    const 요소행동 = a.label || a.ordinal || b.label || b.ordinal;
+    if (!요소행동) {
+      for (const k of ['window', 'pid']) {
+        if ((a[k] || b[k]) && (!a[k] || !b[k] || a[k] !== b[k])) return false;
+      }
+      return ['window', 'pid'].some((k) => a[k] && b[k] && a[k] === b[k]);
+    }
     // ordinal은 스냅샷 안의 서수일 뿐, 다중창에서 위치를 증명하지 못한다.
     // 따라서 접두사를 벗겨도 남는 location axis(창제목·창 id·pid·bounds·지문) 중
     // 최소 하나가 **양쪽에 공통으로 있고 같아야** 한다. 그것도 없으면 동일성은 미측정이다.
-    if (!a.action || !a.app || !a.label || !a.ordinal) return false;
-    if (a.action !== b.action || a.app !== b.app || a.label !== b.label || a.ordinal !== b.ordinal) return false;
+    if (!a.label || !a.ordinal || !b.label || !b.ordinal) return false;
+    if (a.label !== b.label || a.ordinal !== b.ordinal) return false;
     for (const k of ['windowTitle', 'window', 'pid', 'role', 'fingerprint', 'bounds']) {
       if ((a[k] || b[k]) && (!a[k] || !b[k] || a[k] !== b[k])) return false;
     }
@@ -221,7 +233,7 @@ function 미해결강한화면걸음(receipts) {
   // exact snapshot-local id도 다른 앱·창에서 재사용될 수 있다. 문자열 동일을
   // 지름길로 쓰지 않고 fresh 토큰과 같은 구조 대조를 반드시 통과시킨다.
   const 회복됐나 = (failed) => 확인된걸음들
-    .some((ok) => 같은실제요소(요소신분(failed), 요소신분(ok)));
+    .some((ok) => 같은실행대상(요소신분(failed), 요소신분(ok)));
   return [...new Set((receipts ?? [])
     .filter((r) => {
       const call = 호출(r);
@@ -229,7 +241,7 @@ function 미해결강한화면걸음(receipts) {
       return call?.tool === 'desktop.act'
         && r?.failureState === 'failed'
         && 진행?.단계 === 'dispatched'
-        && 진행?.판정 === 'unknown'
+        && ['unknown', 'unsatisfied'].includes(진행?.판정)
         && !회복됐나(r);
     })
     .map(키))];
@@ -242,7 +254,7 @@ function 미해결화면사실(reply, receipts) {
   // 여기서는 답이 **효과 미확인 자체**를 밝힌 경우만 걷어낸다. 앱·목적·결과값은
   // 읽지 않고, 확인되지 않은 행동을 밝히는 한국어 구조만 본다.
   const 답 = 우리말만(reply);
-  const 화면미확인밝힘 = /효과.{0,8}(확인.{0,3}못|미확인)|확인.{0,6}(못했|못 했|안 됐|되지 않)|(눌|클릭|조작|행동).{0,10}(못|안 됐|실패)/.test(답);
+  const 화면미확인밝힘 = /효과.{0,8}(확인.{0,3}못|미확인)|확인.{0,6}(못했|못 했|안 됐|되지 않)|(눌|클릭|조작|행동).{0,10}(못|하지\s*않|안 됐|실패)/.test(답);
   if (화면미확인밝힘) return null;
   return `이 턴에 드라이버로 제출됐지만 효과를 확인하지 못한 화면 행동이 남아 있다: ${걸음들.join(' · ')}.`
     + ' 답은 그 사실을 말하지 않는다.';
