@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import { runCommand } from '../src/runtime/terminal-run.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { sandboxProfile } from '../src/runtime/sandbox.js';
 
@@ -71,6 +72,7 @@ test('가역 실행 profile은 증명된 대상 하나만 열고 다른 쓰기·
   assert.match(profile, /deny network\*/);
   assert.match(profile, /deny signal/);
   assert.match(profile, /deny appleevent-send/);
+  assert.match(profile, /deny process-exec\* \(literal "\/usr\/bin\/osascript"\)/);
 });
 
 test('제품 경로: 없던 로컬 산출물 생성은 probe 대상·사전 상태·undo가 서면 승인 0으로 실행된다', async () => {
@@ -127,6 +129,13 @@ test('실제 macOS: exit 0 오류문 출력과 조건식 안의 진짜 쓰기를
     probeResult: probed.probe, writeEffect: probed.writeEffect });
   assert.equal(executed.result?.writeEffect?.verified, true);
   assert.equal(await readFile(join(work, 'report.tsv'), 'utf8'), 'ok\n');
+
+  const appTarget = join(work, 'app.tsv'); await writeFile(appTarget, 'sentinel\n');
+  const appControl = await runCommand(
+    `printf 'ok\\n' > ${appTarget}; /usr/bin/osascript -e 'tell application "System Events" to get name'`,
+    { mode: 'witness', cwd: work, writeTarget: appTarget },
+  );
+  assert.notEqual(appControl.exitCode, 0, 'witness에서 앱 제어 실행파일이 열렸다');
 });
 
 test('라이브 모양: Python heredoc의 일반 write-open도 진단 대상과 합치면 새 산출물로 실행된다', async () => {

@@ -251,13 +251,12 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
     } }] };
     if (phase === 0) { phase = 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls', cwd: dir } }] }; }
     if (phase === 1) { phase = 2; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
-    if (tc?.goalNotReached?.산출물대조필요 && phase === 2) {
+    if (tc?.resultVerificationAssessment && phase === 2) {
       sawVerification = true; phase = 3;
-      return { text: '', toolCalls: [{ name: 'local.file', args: {
-        action: 'write', path: output, text: 'B\t-4\n', source,
+      return { text: '', toolCalls: [{ name: 'work.result_check', args: {
+        verdict: 'mismatch', reason: '환불이 더해졌고 헤더가 데이터로 들어갔다', replacementText: 'B\t-4\n',
       } }] };
     }
-    if (phase === 3) { phase = 4; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: output } }] }; }
     return '환불을 차감하고 불필요한 헤더 행을 제거한 결과를 다시 확인했습니다.';
   } };
   await runTurn({ text: `${source}를 집계해 환불을 차감한 ${output} 결과 파일을 만들어줘.` }, {

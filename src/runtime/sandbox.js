@@ -53,6 +53,12 @@ export function sandboxProfile(mode, {
   if (mode === 'granted') {
     return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }
+  const reversibleAppControlDeny = mode === 'reversible' ? [
+    // sandbox-exec의 appleevent-send 규칙만으로는 `osascript ... get name`이 실제 통과한다.
+    // 자동 가역 쓰기와 witness는 앱 제어가 목적이 아니므로 대표 시스템 진입점을 exec에서 닫는다.
+    // 사용자가 명시적으로 승인한 일반 granted 실행은 이 제한을 받지 않는다.
+    '/usr/bin/osascript', '/usr/bin/open', '/usr/bin/shortcuts', '/usr/bin/automator',
+  ].map((path) => `(deny process-exec* (literal ${lit(path)}))`) : [];
   return [
     '(version 1)',
     '(allow default)',
@@ -71,6 +77,7 @@ export function sandboxProfile(mode, {
     ...(mode === 'capsule'
       ? ['(deny process-exec*)', ...(runtime ? [`(allow process-exec* (literal ${lit(runtime)}))`] : [])]
       : []),
+    ...reversibleAppControlDeny,
     '(deny file-write*)',
     // 출력·터미널은 열어 둔다 — 이걸 막으면 명령이 화면에 아무 말도 못 한다.
     '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',

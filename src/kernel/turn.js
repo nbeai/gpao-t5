@@ -234,6 +234,21 @@ const WORK_DELIVERABLE_SCHEMA = Object.freeze({
     required: ['output'],
   },
 });
+const WORK_RESULT_CHECK_SCHEMA = Object.freeze({
+  name: 'work.result_check',
+  description: '실제로 읽은 원본과 실제 결과 파일을 사용자 요청의 연산·필터·정렬·형식에 맞춰 대조한다.'
+    + ' 일치하면 matches, 하나라도 다르면 mismatch와 결과 파일 전체를 대체할 정확한 replacementText를 낸다.'
+    + ' 실행을 했다고 말하는 채널이 아니라 판정과 수리 재료를 구조로 내는 채널이다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      verdict: { type: 'string', enum: ['matches', 'mismatch', 'unable'] },
+      reason: { type: 'string' },
+      replacementText: { type: 'string', description: 'mismatch일 때 요청 형식에 맞는 결과 파일 전체 내용' },
+    },
+    required: ['verdict', 'reason'],
+  },
+});
 async function fileDeliverablesFor({ model, tc, calls, intent }) {
   const intentHasFileWork = intent?.neededTools?.some((id) => id === 'local.file' || id === 'local.locate');
   if (!fileWorkIsInPlay(calls) && !intentHasFileWork) return { assessment: 'not_applicable', deliverables: [] };
@@ -3266,7 +3281,48 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 손들 = modelSchemasFor(selfState, ctx.modelControls);
     if (!손들.length) return false;
     이어간횟수 += 1;
-    if (미달.goalNotReached?.산출물대조필요) 파생의미검증요청함 = true;
+    if (미달.goalNotReached?.산출물대조필요) {
+      파생의미검증요청함 = true;
+      // 자유 산문으로 대조를 받으면 모델이 "틀렸다"고 알아낸 뒤 도구 호출 없이 "고쳤다"고
+      // 서술할 수 있다. 판정은 구조 채널로 받고, mismatch의 전체 replacementText만 기존
+      // local.file 쓰기 경계에 다시 넣는다. 실행·권위·undo·영수증은 새 길이 아니라 그대로다.
+      const checked = await ctx.model.respond({
+        ...tc, ...미달,
+        resultVerificationAssessment: {
+          instruction: '원본과 결과 실물을 다시 계산해 대조하고 구조 판정만 제출하세요.',
+        },
+      }, {
+        effort: 'medium', tools: [WORK_RESULT_CHECK_SCHEMA], requiredTool: WORK_RESULT_CHECK_SCHEMA.name,
+      }).catch(() => null);
+      const judgment = typeof checked === 'string' ? null
+        : checked?.toolCalls?.find((call) => call?.name === WORK_RESULT_CHECK_SCHEMA.name)?.args;
+      if (judgment?.verdict === 'mismatch' && typeof judgment.replacementText === 'string') {
+        const writes = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none').flatMap((r) => {
+          if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'write') {
+            return [String(r.result?.path ?? r.actualCall.args?.path ?? '')];
+          }
+          if (r.actualCall?.tool === 'local.terminal' && r.result?.writeEffect?.verified === true) {
+            return [String(r.result?.writeEffect?.target?.canonicalPath
+              ?? r.result?.writeEffect?.target?.path ?? '')];
+          }
+          return [];
+        }).filter(Boolean);
+        const output = writes.at(-1);
+        const source = turnReceipts.find((r) => (r.failureState ?? 'none') === 'none'
+          && r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read'
+          && output && 파일신분(r.result?.path ?? r.actualCall.args?.path) !== 파일신분(output))
+          ?.result?.path;
+        if (output && source) {
+          finalOut = { text: '', toolCalls: [{ name: 'local.file', args: {
+            action: 'write', path: output, text: judgment.replacementText, source,
+          } }] };
+          return true;
+        }
+      }
+      // 일치 판정이나 수리 재료 부족도 모델 현실로 돌린다. 이후 완료 주장은 같은 원장 출구
+      // 검증을 통과해야 하며, mismatch를 실행 없이 "고쳤다"고 말할 수는 없다.
+      tc = { ...tc, resultVerification: judgment ?? { verdict: 'unable', reason: 'structured_check_missing' } };
+    }
     // ── **약속으로 턴을 닫지 않는다** (오픈북 · 헤르메스 kanban_stop.py:88-101) ──────
     //
     // 사실만 system 블록에 놓고 손을 돌려주는 것으로는 부족했다. 콘솔 라이브(2026-08-12):
@@ -4016,15 +4072,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     실행효과세기(toolId, 판정인자, rec);
     // 성공한 파생 파일은 모델이 임의 `cat` 명령을 다시 고르길 기다리지 않고 정확한 파일 손으로
     // 재읽는다. 이 read도 평소 scope와 영수증 경계를 타며, 내용 검증의 공통 입력이 된다.
-    const 새파생경로 = toolId === 'local.terminal' && plan.requestedDerivedFile === true
-      && (rec.failureState ?? 'none') === 'none' && rec.result?.writeEffect?.verified === true
-      && rec.result?.writeEffect?.changed === true
-      ? String(rec.result?.writeEffect?.target?.canonicalPath
-        ?? rec.result?.writeEffect?.target?.path ?? '') : '';
+    const 새파생경로 = plan.requestedDerivedFile === true && (rec.failureState ?? 'none') === 'none'
+      ? (toolId === 'local.terminal' && rec.result?.writeEffect?.verified === true
+          && rec.result?.writeEffect?.changed === true
+        ? String(rec.result?.writeEffect?.target?.canonicalPath
+          ?? rec.result?.writeEffect?.target?.path ?? '')
+        : toolId === 'local.file' && rec.actualCall?.args?.action === 'write'
+          ? String(rec.result?.path ?? rec.actualCall.args?.path ?? '') : '')
+      : '';
     if (새파생경로 && ctx.tools?.tools?.['local.file']
-      && !turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
-        && r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read'
-        && 파일신분(r.result?.path ?? r.actualCall.args?.path) === 파일신분(새파생경로))
       && !대기호출.some((c) => c.tool === 'local.file' && c.args?.action === 'read'
         && 파일신분(c.args?.path) === 파일신분(새파생경로))) {
       대기호출.unshift(내부걸음('local.file', { action: 'read', path: 새파생경로 }, {
