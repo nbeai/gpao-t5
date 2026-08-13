@@ -202,12 +202,17 @@ export class ToolRunner {
       if (out && out.failed) {
         const 다음수단 = Array.isArray(out.다음수단) ? out.다음수단 : undefined;
         const 미확인 = out.진행?.판정 === 'unknown';
-        return receipt({
+        return withSubject(receipt({
           intended,
           actualCall: 부른것,
+          // 실패해도 실행 결과는 사라지지 않는다. stdout/stderr/exit/effect는 성공 주장이
+          // 아니라 다음 판단에 필요한 관측 사실이다. 영수증에는 원형을, 모델 입력에는
+          // 저장되지 않는 diagnosticTrace 경로로 같은 실패 원문을 보낸다.
+          result: out.failureResult,
           failureState: FAILURE.FAILED,
+          lifecycle: out.lifecycle,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
-          diagnosticTrace: out.diagnosticTrace,
+          diagnosticTrace: out.diagnosticTrace ?? out.failureResult,
           // 제출 뒤 효과를 모르는 행동에 generic retry를 붙이면 중복 효과를 낼 수 있다.
           // 손이 낸 구조화된 다음 수가 있으면 그것을 모델이 고르게 하고, 없더라도
           // unknown을 "같은 호출 재시도"로 바꾸어 말하지 않는다.
@@ -216,7 +221,7 @@ export class ToolRunner {
               : (미확인 ? undefined : '잠시 후 다시 시도할까요?')),
           진행: out.진행,
           다음수단,
-        });
+        }), tool);
       }
       const rec = withSubject(receipt({
         intended,

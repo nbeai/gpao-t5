@@ -51,7 +51,10 @@ import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
-import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
+import {
+  턴예산, 가드레일신호, 예산소진, 소진사유, 실행효과분류,
+  위험상한소진, 위험상한사유,
+} from './turn-budget.js';
 import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -926,6 +929,7 @@ export async function runTurn(input, ctx) {
     ctx.되돌릴수있는것수 = 0;
     ctx.그밖수 = 0;
     ctx.일한ms = 0;
+    ctx.최근실행효과 = undefined;
   }
   // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
   // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
@@ -1315,6 +1319,7 @@ export async function runTurn(input, ctx) {
   let earlyTc;
   let earlyWantedWeb = false;
   {
+    const 첫예산 = 턴예산(ctx.processEnv ?? process.env);
     const tc = earlyTc = buildTaskContext({
       processEnv: ctx.processEnv,
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
@@ -1337,7 +1342,13 @@ export async function runTurn(input, ctx) {
       // 첫 턴에 손을 쓸지 말지 정하는 자리가 바로 여기이고, 여기가 비어 있으면 모델은
       // 능력만 알고 *지금 써도 되는지*를 모른 채 *"…해 드려야 해요"* 라고 미래형으로 답한다.
       // 아직 아무것도 안 썼으니 남은 걸음은 상한 그대로다.
-      toolStepsLeft: Math.min(걸음정지선, 턴예산(ctx.processEnv ?? process.env).왕복),
+      toolStepsLeft: 걸음정지선,
+      turnBudget: {
+        왕복쓴것: ctx.왕복수 ?? 0, 왕복예산: 첫예산.왕복,
+        되돌릴수있는것쓴것: ctx.되돌릴수있는것수 ?? 0,
+        되돌릴수있는것예산: 첫예산.되돌릴수있는것,
+        그밖쓴것: ctx.그밖수 ?? 0, 그밖예산: 첫예산.그밖,
+      },
       ...selfhood,
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
@@ -2268,15 +2279,33 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 되돌릴수있는것쓴것 = () => ctx.되돌릴수있는것수 ?? 0;
   const 그밖쓴것 = () => ctx.그밖수 ?? 0;
   const 외부효과셈 = (칸) => { ctx[칸] = (ctx[칸] ?? 0) + 1; };
-  // **좁은 칸은 `reversible: false` 를 선언한 손만이다.**
-  //
-  // 한 번 "모르면 좁은 칸"으로 뒀다가 회귀 22건이 물었다(실측 2026-08-04): `reversible` 을
-  // 선언하지 않은 손이 많아서(MCP·web.collect·일부 커넥터) 정상 읽기·탐색 흐름이 3에서 끊겼다.
-  //
-  // 이 뒷단이 막는 것은 **되돌릴 수 없는 외부효과의 폭주**이지 "모르는 것"이 아니다. 모르는 것은
-  // 이미 승인 경계가 잡는다 — `toolActionKind` 가 미상을 승인으로 보내고 헌장 넷이 그 위에 선다.
-  // 여기서 한 번 더 좁히면 안전이 아니라 마비가 된다(자동성이 의무다).
-  const 되돌릴수있나 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId)?.reversible !== false;
+  let 위험상한막힌호출있음 = false;
+  // descriptor는 손 전체의 상한이고, 예산은 **이번 실제 호출의 효과**를 센다. 실행 경계가 실제
+  // 인자/probe로 만든 행동 종류와 영수증을 한곳에서 분류한다. 명령 문자열이나 도구별 목록은 없다.
+  const 실행효과세기 = (toolId, args, rec) => {
+    const 선언 = selfState.connectedTools?.find((t) => t.id === toolId);
+    const 분류 = 실행효과분류({
+      actionKind: toolActionKind({ toolId, args, selfState }),
+      declaredReversible: 선언?.reversible,
+      receipt: rec,
+    });
+    ctx.최근실행효과 = { tool: toolId, ...분류 };
+    if (분류.등급 === '되돌릴수있음') 외부효과셈('되돌릴수있는것수');
+    if (분류.등급 === '되돌릴수없음') 외부효과셈('그밖수');
+    return 분류;
+  };
+  // 위험 상한은 **이번 호출의 등급**에만 문다. 터미널 probe가 변경 0을 확인한 호출은
+  // descriptor의 넓은 `reversible:false`와 달리 외부효과가 없다. 그 직접 증거가 없으면
+  // 미래 손과 알 수 없는 kind를 안전하다고 추정하지 않고 손 선언의 상한을 보존한다.
+  const 실행전위험등급 = (toolId, args) => {
+    if (args?.changes === false) return '없음';
+    const 선언 = selfState.connectedTools?.find((t) => t.id === toolId);
+    return 선언?.reversible === false ? '되돌릴수없음' : '되돌릴수있음';
+  };
+  const 위험에막혔나 = (toolId, args) => {
+    const 등급 = 실행전위험등급(toolId, args);
+    return 위험상한소진(쓴것(), 예산, 등급) ? { 등급, 말: 위험상한사유(등급) } : null;
+  };
   // **벽시계도 이어받는다 — 다만 재는 것은 「T5 가 일한 시간」이다.**
   //
   // 진입마다 0 이면 카드 N 번에 600초×N 이라 위 두 칸과 같은 병이다. 그렇다고 발화 시각부터
@@ -2292,7 +2321,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     왕복쓴것: ctx.왕복수 ?? 0, 되돌릴수있는것쓴것: 되돌릴수있는것쓴것(), 그밖쓴것: 그밖쓴것(),
     지난ms: 지난ms(), 취소됨: 취소됐나(),
   });
-  const 예산사실 = () => ({
+  const 예산사실 = () => {
+    const 되풀이 = 가드레일신호(turnReceipts);
+    const 효과 = ctx.최근실행효과;
+    const 효과사실 = 효과 ? [{
+      종류: '실행효과', tool: 효과.tool, 횟수: 1,
+      사람말: 효과.실제효과
+        ? `방금 ${효과.tool} 호출은 실행 경계에서 ${효과.행동종류}(으)로 판정됐고 실제 외부효과는 ${효과.등급}이다.`
+        : `방금 ${효과.tool} 호출은 실행 경계에서 ${효과.행동종류}(으)로 판정됐고 실제 변경 효과가 없었다. 되돌릴 수 없는 실행 예산은 쓰지 않았다.`,
+    }] : [];
+    return ({
     // **모델 방의 사실**이다(계약 ④). 지시가 아니라 남은 양이다 — 어떻게 쓸지는 모델이 정한다.
     turnBudget: {
       왕복쓴것: ctx.왕복수 ?? 0, 왕복예산: 예산.왕복,
@@ -2308,15 +2346,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     //
     // 그래서 모델은 *능력*은 알고 *지금 써도 되는지*는 몰랐다. ⑤가
     // *"읽어서 계산해 드려야 해요"* 라고 **미래형**으로 말한 것이 그 모양이다.
-    // 위 `turnBudget` 은 두 축의 원자료이고, 이건 **모델이 바로 읽는 한 숫자**다.
+    // 위 `turnBudget`은 왕복·위험별 잔량이고, 이건 **총 도구 걸음 정지선**까지의
+    // 잔량이다. 위험 잔량 3을 총 걸음으로 줄이면, 영수증으로 변경 0이 증명된 안전한
+    // 읽기를 더 실행할 수 있는데도 모델에게 3번만 남았다고 거짓을 준다. 세 잔량을 섞지 않고
+    // 모델이 아래 risk별 사실과 함께 스스로 수단을 고르게 한다.
     // 강제가 아니다(⛔) — 사실을 줄 뿐이고 어떻게 쓸지는 모델이 정한다.
     toolStepsLeft: Math.max(0, Math.min(
-      예산.왕복 - (ctx.왕복수 ?? 0),
-      예산.되돌릴수있는것 - 되돌릴수있는것쓴것(),
       걸음정지선 - turnReceipts.length,
     )),
-    ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
+    ...([...되풀이, ...효과사실].length ? { guardrailNotes: [...되풀이, ...효과사실] } : {}),
   });
+  };
   // **이번에 실행 중인 호출의 신분.** 계획 경로도 바로 아래 `계약실행`을 지나므로
   // 실행문맥보다 먼저 서야 한다.
   /** @type {{providerCallId?:string, callRef?:string}} */
@@ -2425,6 +2465,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       '예산소진', 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.');
       continue;
     }
+    const 위험막힘 = 위험에막혔나(toolId, args);
+    if (위험막힘) {
+      위험상한막힌호출있음 = true;
+      못한호출남기기({ tool: toolId, args, callId: `p${순번 + 1}`, 순번: 순번 + 1,
+        ...(계획호출신분?.[toolId]?.providerCallId
+          ? { providerCallId: 계획호출신분[toolId].providerCallId } : {}) },
+      '예산소진', 위험막힘.말);
+      continue;
+    }
     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
@@ -2437,7 +2486,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
+    실행효과세기(toolId, args, rec);
     원장.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
@@ -3098,6 +3147,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
       const next = 분리.rest;
       if (!next.length) {
+        // 위험 상한으로 못 한 호출은 이미 원장 사실이다. 모델이 새 안전 호출을 함께 냈다면
+        // 위에서 모두 실행했지만, 아무 호출도 더 고르지 않았다면 목적 고리가 같은 완료
+        // 불일치를 먼저 물어 출구와 왕복을 중복시킨다(F91). 정직한 답은 출구 한 자리에서 받는다.
+        if (위험상한막힌호출있음) break;
         // **한 고리.** 목적에 안 닿았으면(계약 미충족·안 연 후보·반만 읽음·막힌 걸음·안 밟은
         // 수단·원장이 안 받치는 완료 — 전부 같은 것) 사실을 주고 손 전량으로 되돌린다.
         // 모델이 걸음을 고르면 계속, 안 고르면 그대로 끝난다(그게 수단 소진이다).
@@ -3201,6 +3254,37 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       toolId, args, selfState, tools: ctx.tools, 이번이월, 이번발화,
     });
     let 판정인자 = 경계인자;
+    // 한 위험 등급이 찼다고 턴 전체를 닫지 않는다. 이 호출만 사실로 남기고 다음 안전한
+    // 읽기·다른 등급의 손으로 간다. probe 뒤라서 판정과 실행이 같은 인자를 본다.
+    const 위험막힘 = 위험에막혔나(toolId, 판정인자);
+    if (위험막힘) {
+      위험상한막힌호출있음 = true;
+      const 막힌영수증 = 못한호출남기기({ ...이번, args: 판정인자 }, '예산소진', 위험막힘.말);
+      workingState = 이어받기정리(deriveWorkingState(workingState, {
+        receipts: [막힌영수증], withinTurn: true, blocked: 위험막힘.말,
+      }), ctx.connectors);
+      // 실행 직전 상한에 걸린 영수증도 마지막 답의 재료다. 직전 성공 뒤 만든 tc를 그대로
+      // 쓰면 이 호출만 모델 시야에서 빠져 "다 했다"고 답한다(S6-c). `turnExchange`를 손으로
+      // 만들지 않고 같은 정본 조립기를 다시 태워 실패 인자 가림·호출 신분 계약도 보존한다.
+      tc = buildTaskContext({
+        processEnv: ctx.processEnv, 창예산: ctx.창예산,
+        carryableWork: ctx.carryableWork, priorShown: ctx.priorShown,
+        externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted,
+        admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+        priorReceipts: 모델앞선영수증(ledger.entries, turnReceipts), 이번턴그림,
+        surface: ctx.surface, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
+        nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
+        workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
+        automationReality: ctx.automationReality,
+        recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()), ...예산사실(), ...(ctx.selfhood ?? {}),
+      });
+      if (대기호출.length) continue;
+      // 마지막 위험 호출까지 막힌 뒤 목적 고리를 여기서 한 번 더 부르면 출구의 동일한
+      // 미완료 대조와 겹쳐 모델에게 같은 사실이 두 번 간다. 큐는 이미 모두 결산됐으므로
+      // 출구 한 자리에서 정직한 최종 답을 받는다.
+      break;
+    }
     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
@@ -3405,7 +3489,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
+    실행효과세기(toolId, 판정인자, rec);
 
     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
@@ -3482,6 +3566,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 자리에 들어가 미완료가 사라진다. 새 enum 을 열지 않고 기존 어휘를 그대로 쓴다.
   const 소진말 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
   남은줄거두기();
+  // 위험 상한으로 실행하지 않은 호출은 뒤의 안전한 성공이 지우지 못한다. 성공은 그 안전한
+  // 호출이 된 사실일 뿐, 상한을 넘은 별도 호출이 된 사실은 아니다. 원장의 미완료와 다음 턴
+  // 상태가 갈리지 않게 최종 상태에 같은 blocked 사실을 남긴다.
+  const 위험미완료 = turnReceipts.findLast((r) => r?.diagnosticTrace?.reason === '예산소진'
+    && /^되돌릴 수 (?:없는|있는) 일은/.test(r?.userSafeSummary ?? ''));
+  if (위험미완료) {
+    workingState = 이어받기정리(deriveWorkingState(workingState, {
+      receipts: [], withinTurn: true, blocked: 위험미완료.userSafeSummary,
+    }), ctx.connectors);
+  }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (예산소진(쓴것(), 예산) && !멈춘이유) 멈춘이유 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼 하고 멈췄어요';
   // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.

@@ -1049,8 +1049,19 @@ export function buildTaskContext(p) {
   // 실행 결과가 있으면 사실로만 덧붙인다(진단면 제외 — userSafeSummary 만).
   // **`turnExchange` 가 가져간 것은 여기 없다** — 같은 사실을 두 번 주지 않는다.
   const 남은것 = (p.receipts ?? []).filter((r) => !부른것.includes(r));
-  if (남은것.length) {
-    packet.evidenceFacts = 남은것.map((r) => ({
+  const 전달된실패호출 = 부른것.filter((r) => r.actualCall
+    && (r.failureState ?? 'none') !== 'none' && r.lifecycle === 'delivered').map((r) => ({
+    tool: r.actualCall.tool,
+    action: 'called',
+    ...(r.actualCall.callRef ? { callRef: r.actualCall.callRef } : {}),
+    deliveryState: 'delivered',
+    failureState: r.failureState,
+    // 세부 결과는 turnExchange 한 곳에만 둔다. 이 사실은 evidenceFacts-only 0회 판정에
+    // 실제 호출 존재만 공급하며 인자·출력·진단·비밀을 복제하지 않는다.
+    summary: `${r.actualCall.tool} 호출은 전달됐고 실패 결과가 돌아왔다.`,
+  }));
+  if (남은것.length || 전달된실패호출.length) {
+    packet.evidenceFacts = [...남은것.map((r) => ({
       // **신분은 여기에도 온다.** 서술로 남는 것들(부르지도 못한 것 · 없는 손 · 상한에 걸린 것)도
       // 모델이 낸 호출이면 그 신분이 있다. 없으면 모델은 "내가 call_SKIP 으로 시킨 게 어떻게
       // 됐지"를 물을 수 없고, 안 간 것을 간 것으로 세어 답을 쓴다(오너 지시 2026-08-04).
@@ -1099,7 +1110,7 @@ export function buildTaskContext(p) {
       // 하나로 합친 판정이 아니라 사실 나열이므로, 무엇을 쓸지는 모델이 고른다(§24).
       ...((r.failureState ?? 'none') !== 'none' && r.nextSafeAction
         ? { nextSafeAction: r.nextSafeAction } : {}),
-    }));
+    })), ...전달된실패호출];
   }
 
   return packet;

@@ -202,13 +202,19 @@ test('③ 남은 큐는 **다음 발화에 붙어 실행되지 않는다**(침�
 });
 
 // ── ④ 외부효과 뒷단 · 벽시계 · 취소 ────────────────────────────────────────
-test('④ 되돌릴 수 없는 손은 **좁게** 잡힌다(비용이 아니라 외부효과다)', async () => {
+test('④ descriptor가 좁아도 읽기 호출은 외부효과 예산을 쓰지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'budget-irrev-'));
   const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
   const 돈것 = [];
   const localTerminal = {
     async probe(command) { return { command, cwd: dir, changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
-    async handler(a) { 돈것.push(a.command); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir }, userSafeSummary: '했어요.' }; },
+    async handler(a) {
+      돈것.push(a.command);
+      return {
+        result: { command: a.command, exitCode: 0, stdout: '', cwd: dir, applied: false },
+        userSafeSummary: '확인만 했어요.',
+      };
+    },
   };
   let 냈나 = false;
   const model = {
@@ -236,8 +242,8 @@ test('④ 되돌릴 수 없는 손은 **좁게** 잡힌다(비용이 아니라 �
     if (원래 === undefined) delete process.env.GPAO_T5_TURN_IRREVERSIBLE;
     else process.env.GPAO_T5_TURN_IRREVERSIBLE = 원래;
   }
-  assert.ok(돈것.length <= 2,
-    `되돌릴 수 없는 손이 ${돈것.length}번 돌았다 — 외부효과 뒷단이 안 문다: ${돈것.join(', ')}`);
+  assert.equal(돈것.length, 8,
+    `읽기 호출이 descriptor의 좁은 예산에 잘렸다: ${돈것.join(', ')}`);
 });
 
 test('④ 사용자 취소는 **큐 전체**를 세운다(도구 timeout 으로는 못 잡는 자리)', async () => {

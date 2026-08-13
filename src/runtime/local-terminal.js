@@ -245,6 +245,14 @@ export function makeLocalTerminalTool(deps = {}) {
       }
 
       const 끝난이유 = executionBlock(r);
+      // 프로세스가 결과를 돌려준 것과 명령이 성공한 것은 별개다. 실행기는 시작 여부를
+      // 직접 관측해 processState로 주며, 명령 성공/실패는 exit code만 말한다.
+      // 주입 대역처럼 processState가 없으면 추측하지 않고 unknown으로 남긴다.
+      const 프로세스상태 = r?.processState ?? 'unknown';
+      const 명령끝 = r?.exitCode === 0
+        ? 'success'
+        : (typeof r?.exitCode === 'number' ? 'failure' : 'unknown');
+      const 명령실패 = 명령끝 === 'failure' || r?.stopped != null || 프로세스상태 === 'not_started';
       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
       // "바로 다시 살아났어요"라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
@@ -259,18 +267,27 @@ export function makeLocalTerminalTool(deps = {}) {
       const 종료확인 = 끈PID.length
         ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
         : undefined;
+      const 결과 = {
+        command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
+        effect: { process: 프로세스상태, commandExit: 명령끝 },
+        // 끈 대상의 **지금 상태**. 이름 검색 결과가 아니라 PID 로 직접 확인한 사실이다.
+        ...(종료확인 ? { terminated: 종료확인 } : {}),
+        stdout: r.stdout, stderr: r.stderr,
+        // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
+        ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+        ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
+        ...(r.stopped ? { stopped: r.stopped } : {}),
+        applied: 실제로돌았나,
+      };
       return {
-        result: {
-          command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
-          // 끈 대상의 **지금 상태**. 이름 검색 결과가 아니라 PID 로 직접 확인한 사실이다.
-          ...(종료확인 ? { terminated: 종료확인 } : {}),
-          stdout: r.stdout, stderr: r.stderr,
-          // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
-          ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
-          ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
-          ...(r.stopped ? { stopped: r.stopped } : {}),
-          applied: 실제로돌았나,
-        },
+        ...(명령실패 ? { failed: true } : {}),
+        // 자식이 exit 결과를 전달한 실패는 lifecycle delivered다. 시작조차 못 했을 때만
+        // delivery 실패다. unknown은 기존 주입 대역의 동작을 지어내지 않고 둔다.
+        lifecycle: 프로세스상태 === 'not_started' ? 'failed' : 'delivered',
+        result: 결과,
+        // 실패 결과를 보존해야 하는 손만 명시적으로 같은 객체를 낸다. 일반 failed.result를
+        // 전부 올리면 제출 뒤 효과 미확인 손의 사적 결과까지 사실처럼 저장되는 기존 계약을 깬다.
+        ...(명령실패 ? { failureResult: 결과 } : {}),
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
         userSafeSummary: 종료확인?.length && r.exitCode === 0

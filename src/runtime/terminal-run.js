@@ -101,6 +101,9 @@ export async function runCommand(command, opts = {}) {
     const stdout = fold(out); const stderr = fold(err);
     return {
       command, cwd, mode,
+      // 자식 프로세스가 시작돼 종료 결과를 돌려준 사실과, 그 명령의 exit 성공은 다른 층이다.
+      // exit 1/127도 프로세스 전달은 완료됐다. 반대로 spawn error는 명령 exit가 아니다.
+      processState: spawnError ? 'not_started' : 'delivered',
       exitCode, durationMs: Date.now() - startedAt,
       stdout: stdout.text, stderr: stderr.text,
       truncated: stdout.truncated || stderr.truncated,
@@ -133,11 +136,14 @@ function 명령어자리인가(이름, command) {
   const 조각들 = String(command ?? '').split(/\||&&|\|\||;|\bthen\b|\bdo\b|\$\(|`/);
   const 이름끝 = 이름.split('/').pop();
   return 조각들.some((조각) => {
-    const 첫단어 = 조각.trim().split(/\s+/)[0] ?? '';
-    if (!첫단어) return false;
-    // `env`·`command` 같은 앞말이 붙어도 뒤가 실제 명령이다. 앞 두 단어까지만 본다.
-    const 후보 = 조각.trim().split(/\s+/).slice(0, 2).map((w) => w.split('/').pop());
-    return 후보.includes(이름끝);
+    const 단어 = 조각.trim().split(/\s+/).filter(Boolean);
+    if (!단어.length) return false;
+    // 둘째 토큰을 무조건 실행파일로 보면 `rm report.tmp` 같은 파일 인자가 앞선
+    // `> report.tmp` 쓰기 거부를 실행파일 거부로 뒤집는다. 둘째가 실행파일인 것은
+    // 실제 셸 앞말 `env`·`command` 뒤뿐이다.
+    const 앞말 = 단어[0].split('/').pop();
+    const 실행칸 = (앞말 === 'env' || 앞말 === 'command') ? 단어[1] : 단어[0];
+    return 실행칸?.split('/').pop() === 이름끝;
   });
 }
 

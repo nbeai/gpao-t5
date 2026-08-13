@@ -94,12 +94,14 @@ test('승인 전에는 새 파일도 안 생긴다', { skip: !sandboxAvailable()
   assert.deepEqual((await readdir(dir)).sort(), ['있던.md'], '승인 전에 파일이 생겼다');
 });
 
-test('실패한 명령은 실패로 이어받는다(성공처럼 넘기지 않는다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('실패한 명령은 실패 영수증으로 남는다(성공 대상처럼 넘기지 않는다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
   const dir = await 자리();
   const r = await runTurn({ text: '돌려봐' }, ctx(dir, 명령('exit 3')));
-  const 대상 = (r.workingState?.subjects ?? []).find((x) => x.kind === 'command');
-  assert.equal(대상?.failed, true, '실패한 명령이 성공으로 남으면 다음 턴이 거짓 위에서 진행된다');
-  assert.equal(대상?.exitCode, 3);
+  const exchange = (r.turnExchange ?? []).find((x) => x.tool === 'local.terminal');
+  assert.equal(exchange?.failureState, 'failed', '실패한 명령이 다음 턴에 성공 이력으로 남았다');
+  assert.match(JSON.stringify(exchange?.args), /exit 3/, '무엇을 시도했는지까지 사라졌다');
+  assert.ok(!(r.workingState?.subjects ?? []).some((x) => x.kind === 'command'),
+    '실패한 명령을 최근 성공 대상으로 승격했다');
 });
 
 // ── 모델은 안 쓰는 칸도 빈 문자열로 채워 보낸다 ──────────────────────────

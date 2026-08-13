@@ -21,7 +21,9 @@
 // 사실을 모델 방에 놓고 판단은 모델이 한다(계약 ①·④).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { 턴예산, 가드레일신호, 예산소진 } from '../src/kernel/turn-budget.js';
+import {
+  턴예산, 가드레일신호, 예산소진, 실행효과분류, 위험상한소진,
+} from '../src/kernel/turn-budget.js';
 
 const 성공 = (tool, i = 0) => ({
   intended: `${tool} 실행`, failureState: 'none', userSafeSummary: `${tool} 했어요.`,
@@ -59,12 +61,33 @@ test('말이 안 되는 값은 기본값으로 되돌린다(0 이나 음수로 �
   assert.deepEqual(턴예산({ GPAO_T5_TURN_ROUNDTRIPS: '헛소리' }), 기본);
 });
 
-test('소진 판정은 어느 축이든 하나만 닿아도 참이다', () => {
+test('reversible false 선언은 실제 무효과 증명 없이 action kind로 낮추지 않는다', () => {
+  const receipt = (result) => ({ actualCall: { tool: 'future.hand' }, result });
+  for (const actionKind of ['read', 'search', 'organize', 'future_kind']) {
+    assert.equal(실행효과분류({
+      actionKind, declaredReversible: false, receipt: receipt({ applied: true }),
+    }).등급, '되돌릴수없음', `${actionKind}이 정적 false 상한을 낮춰다`);
+  }
+  assert.equal(실행효과분류({
+    actionKind: 'future_kind', declaredReversible: false,
+    receipt: receipt({ applied: false }),
+  }).등급, '없음');
+  assert.equal(실행효과분류({
+    actionKind: 'future_kind', declaredReversible: false,
+    receipt: receipt({ probeChangedNothing: true }),
+  }).등급, '없음');
+});
+
+test('전역 종단은 왕복·벽시계이고 위험 상한은 같은 위험 호출에만 문다', () => {
   const b = { 왕복: 3, 되돌릴수있는것: 10, 그밖: 2, 벽시계ms: 1000 };
   assert.equal(예산소진({ 왕복쓴것: 2, 되돌릴수있는것쓴것: 2, 그밖쓴것: 1, 지난ms: 10 }, b), false);
   assert.equal(예산소진({ 왕복쓴것: 3, 되돌릴수있는것쓴것: 0, 그밖쓴것: 0, 지난ms: 0 }, b), true, '비용 축');
-  assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 10, 그밖쓴것: 0, 지난ms: 0 }, b), true, '되돌릴 수 있는 뒷단');
-  assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 0, 그밖쓴것: 2, 지난ms: 0 }, b), true, '되돌릴 수 없는 뒷단');
+  assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 10, 그밖쓴것: 2, 지난ms: 0 }, b), false,
+    '위험 상한 하나가 턴 전체를 닫았다');
+  assert.equal(위험상한소진({ 되돌릴수있는것쓴것: 10 }, b, '되돌릴수있음'), true);
+  assert.equal(위험상한소진({ 그밖쓴것: 2 }, b, '되돌릴수없음'), true);
+  assert.equal(위험상한소진({ 그밖쓴것: 2 }, b, '없음'), false,
+    '비가역 상한이 안전한 읽기까지 막았다');
   assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 0, 그밖쓴것: 0, 지난ms: 1000 }, b), true, '벽시계');
 });
 

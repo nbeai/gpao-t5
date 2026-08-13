@@ -47,7 +47,10 @@ function 기록하는손() {
       async probe(command) { return { command, cwd: '/어딘가', changes: /rm |> /.test(command), probe: { exitCode: 0, stdout: '', stderr: '' } }; },
       async handler(args) {
         불린것.push(args.command);
-        return { result: { command: args.command, exitCode: 0, stdout: '결과', cwd: '/어딘가' }, userSafeSummary: '실행했어요.' };
+        return {
+          result: { command: args.command, exitCode: 0, stdout: '결과', cwd: '/어딘가', applied: false },
+          userSafeSummary: '확인만 했어요.',
+        };
       },
     },
   };
@@ -58,43 +61,23 @@ const ctx = (model, 손) => ({ env: demoEnv(), model, tools: demoTools({ localTe
 //
 // 상한을 **없애는 것이 아니다.** 무한 루프 방지는 그대로 두고, "정직한 목적 하나"가
 // 상한에 걸리지 않게 한다. 20걸음은 지어낸 값이 아니라 비교군의 실측 하한이다.
-/** 환경으로 한 축만 열어 두고 재는 자리. 다른 축이 대신 물면 무엇을 쟀는지 모른다. */
-async function 축하나만열고(env, 일) {
-  const 원래 = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
-  Object.assign(process.env, env);
-  try { return await 일(); } finally {
-    for (const [k, v] of Object.entries(원래)) {
-      if (v === undefined) delete process.env[k]; else process.env[k] = v;
-    }
-  }
-}
-
 test('한 목적이 스무 걸음이면 스무 걸음을 간다 — 6·12 에 걸려 사람에게 넘기지 않는다', async () => {
-  // **재는 축을 하나로 세운다.** 이 대본이 쓰는 `local.terminal` 은 손 선언이
-  // `reversible: false` 라 **되돌릴 수 없는 실행 뒷단(그밖 3)** 이 세 걸음째에 먼저 문다.
-  // 그건 걸음·왕복과 다른 축(안전 뒷단)이고 이 단위가 건드리는 자리가 아니다 —
-  // 여기서 열어 두지 않으면 ①② 를 고쳐도 3에서 잘려 **무엇을 쟀는지 모르게 된다.**
-  // (그 축 자체는 아래 검사가 사실로 못 박는다.)
+  // 이 대본의 probe는 실제 변경 없음이다. 터미널 손 전체의 선언이 아니라 이번 호출 효과를
+  // 세므로, 읽기 스무 걸음은 비가역 축을 열어 달라는 시험용 우회 없이 끝까지 가야 한다.
   const 손 = 기록하는손();
-  await 축하나만열고({ GPAO_T5_TURN_IRREVERSIBLE: '999' }, async () => {
-    const 스물 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
-    await runTurn({ text: '끝까지 해줘' }, ctx(걸음마다(스물), 손));
-  });
+  const 스물 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+  await runTurn({ text: '끝까지 해줘' }, ctx(걸음마다(스물), 손));
   assert.equal(손.불린것.length, 20,
     `**${손.불린것.length}걸음에서 잘렸다** — 모델은 다음 걸음을 알고 있는데 런타임이 아끼게 만든다`);
 });
 
-// **발견을 사실로 남긴다**(고치지 않는다 · 범위 밖). 오너가 특정한 넷 말고 다섯 번째 축이
-// 있다: 손 선언이 `reversible:false` 인 손(터미널)은 **한 턴에 세 걸음**이 끝이다. 그 축은
-// 「승인받은 되돌릴 수 없는 실행」을 세려던 자리인데 실제로는 **손 선언**으로 세므로,
-// probe 가 `changes:false` 로 본 `ls` 도 함께 깎인다. 옛 상한과 같은 종류의 어긋남이지만
-// 안전 뒷단이라 이 단위에서 건드리지 않는다 — 오너 판단으로 올린다.
-test('발견: 터미널 turn 은 그밖 3 이 먼저 문다 — 이 단위가 고친 축이 아니다', async () => {
+test('변경 없는 터미널 호출은 손 선언이 false여도 그밖 예산을 먹지 않는다', async () => {
   const 손 = 기록하는손();
   const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
-  await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
-  assert.equal(손.불린것.length, 턴예산({}).그밖,
-    `그밖 축의 사실이 바뀌었다(${손.불린것.length}) — 안 건드린 자리가 움직였으면 그것부터 본다`);
+  const 문맥 = ctx(걸음마다(많이), 손);
+  await runTurn({ text: '계속해' }, 문맥);
+  assert.equal(손.불린것.length, 20);
+  assert.equal(문맥.그밖수 ?? 0, 0);
 });
 
 test('왕복 예산이 비교군 하한(20)을 담는다 — 비용 축은 예산 한 곳이다', () => {
@@ -143,7 +126,7 @@ test('넉넉히 남았으면 숫자를 안 준다 — 숫자는 그 자체가 �
 });
 
 test('진짜 모자랄 때는 숫자를 준다 — 거짓 소진(H08)이 되살아나지 않는다', () => {
-  assert.match(태우기({ toolStepsLeft: 2 }), /2번 더 이어 쓸 수 있다/,
+  assert.match(태우기({ toolStepsLeft: 2 }), /총 도구 걸음[^\n]*2번 더 이어 쓸 수 있다/,
     '모자란 것을 안 알려주면 모델이 빈칸을 소진으로 메운다');
 });
 
