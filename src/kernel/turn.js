@@ -3678,6 +3678,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 읽은경로 = await Promise.all(읽은표기.map((path) => realpath(path).catch(() => path)));
     const 표기일치 = ({ canonical }) => Boolean(canonical)
       && 읽은경로.some((path) => path === canonical);
+    const 안읽은원본표기 = 원본표기.filter((표기) => !표기일치(표기));
     const 원문내용관측 = 원본표기.length
       ? 원본표기.every(표기일치) : 읽은경로.length > 0;
     if (plan.requestedDerivedFile === true && toolId === 'local.terminal'
@@ -3690,6 +3691,27 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       rec.nextSafeAction = '로컬 파일 읽기로 원본의 실제 형식과 내용을 확인한 뒤 같은 턴에 다시 실행해요.';
       rec.다음수단 = [{ what: 'local.file read' }];
       rec.원본후보 = 원본표기.map(({ ref }) => ref).slice(0, 12);
+      // 이 경계는 이미 읽어야 할 정확한 파일 신분을 알고 있다. 모델에게 같은 명령을 다시
+      // 고르게 하며 왕복을 태우지 않고, 안전한 local.file read를 평소 실행 줄에 세운 뒤 원래
+      // 호출을 한 번만 재시도한다. read도 기존 scope·영수증·예산 경계를 그대로 타며, 경로를
+      // 특정하지 못했거나 파일 손이 없으면 자동으로 열지 않는다.
+      if (이번.sourceRecoveryAttempted !== true && 안읽은원본표기.length
+        && 안읽은원본표기.every(({ canonical }) => Boolean(canonical))
+        && ctx.tools?.tools?.['local.file']) {
+        const 내부걸음 = (tool, nextArgs, extra = {}) => {
+          호출일련 += 1;
+          return { callId: `걸음${호출일련}`, 순번: 호출일련, tool, args: nextArgs, ...extra };
+        };
+        const reads = 안읽은원본표기.map(({ canonical }) => 내부걸음('local.file', {
+          action: 'read', path: canonical,
+        }, { runtimeRecovery: 'source_grounding' }));
+        const retry = 내부걸음('local.terminal', 이번.args, {
+          sourceRecoveryAttempted: true,
+          ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
+        });
+        대기호출.unshift(...reads, retry);
+        continue;
+      }
       if (await 목적미달이어가기()) continue;
       멈춘이유 = '원본 내용 관측이 없어 파생 쓰기를 실행하지 않았어요';
       break;

@@ -183,3 +183,35 @@ test('다른 폴더의 glob 원본은 그 폴더 신분을 보존해 모두 읽�
   assert.equal(grantedRuns, 1, 'glob 디렉터리를 잃어 원본을 읽고도 실행되지 않았다');
   assert.equal(await readFile(output, 'utf8'), 'A\t30\n');
 });
+
+test('모델이 쓰기만 반복해도 정확한 원본 read를 실행 줄에 세워 같은 턴에 회복한다', async () => {
+  const dir = await mkdtemp('/private/tmp/t5-derived-runtime-grounding-');
+  const source = join(dir, 'sales.csv'); const output = join(dir, 'summary.tsv');
+  await writeFile(source, 'item,amount\nA,12\n');
+  const command = `printf 'A\\t12\\n' > ${output}`;
+  let grantedRuns = 0; let phase = 0;
+  const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (opts.mode !== 'granted') return { command: _command, cwd: dir, mode: 'probe',
+        processState: 'delivered', exitCode: 1, stdout: '',
+        stderr: `zsh:1: operation not permitted: ${output}\n`, durationMs: 1 };
+      grantedRuns += 1; await writeFile(opts.writeTarget, 'A\t12\n');
+      return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    } });
+  const model = { async respond(tc) {
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
+      output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
+    } }] };
+    if (phase === 0) { phase = 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
+    if (phase === 1) { phase = 2; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: output } }] }; }
+    return '원본에 근거해 결과를 만들고 다시 확인했습니다.';
+  } };
+  await runTurn({ text: `${source}를 집계해 ${output} 결과 파일을 만들어줘.` }, {
+    env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') }), localTerminal }),
+    model,
+  });
+  assert.equal(grantedRuns, 1, '정확한 원본 read 뒤 원래 쓰기를 자동 재개하지 않았다');
+  assert.equal(await readFile(output, 'utf8'), 'A\t12\n');
+});
