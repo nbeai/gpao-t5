@@ -2076,6 +2076,10 @@ export async function runTurn(input, ctx) {
   }
   // F-58 — 이 대화에서 이미 허락한 상대를 함께 넘긴다(헌장 ③ 의 조건이 서는 자리).
   const plan = buildActionPlan({ intent: planIntent, selfState, knownCounterparts: ctx.knownCounterparts });
+  // 완료계약 입장 실패로 deliverables 배열이 아래에서 비워져도, 사용자가 원본에서 새 파일을
+  // 만들라고 한 사실까지 사라지면 안 된다. 실행 운전은 이 최소 사실을 계속 쓴다.
+  plan.requestedDerivedFile = plan.deliverables.some((d) => d?.kind === 'file'
+    && d?.operation === 'write' && d?.binding === 'derived');
   // P90-1: 완료 계약은 실행 뒤 영수증을 보고 만들지 않는다. ActionPlan이 확정된 이 자리에서
   // WorkRef와 결합해 발급하고, 승인 재개도 이 봉인된 plan을 그대로 사용한다.
   if (plan.deliverableAssessment === 'file' && plan.deliverables.length
@@ -3591,6 +3595,25 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       toolId, args, selfState, tools: ctx.tools, 이번이월, 이번발화,
     });
     let 판정인자 = 경계인자;
+    // 파생 산출물인데 실제 원문 내용 영수증이 0이면 쓰기보다 관찰이 먼저다. 이름 목록(ls)은
+    // 내용 관측이 아니다. 특정 셸 문법을 해석하지 않고 신분·revision을 가진 파일 손 read만
+    // 근거로 쓴다. 모델은 같은 턴에 손을 다시 받아 읽기→실행으로 이어 간다.
+    const 원문내용관측 = turnReceipts.some((r) => (r?.failureState ?? 'none') === 'none'
+      && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
+      && typeof r?.result?.text === 'string');
+    if (plan.requestedDerivedFile === true && toolId === 'local.terminal'
+      && 판정인자?.writeEffect?.kind === 'filesystem_write' && !원문내용관측) {
+      // 실제로 실행하지 않은 호출은 중복 실행 지문으로 소비하지 않는다. 원문을 읽은 뒤 같은
+      // 명령을 다시 고르는 것은 반복이 아니라 새 근거 위의 첫 실행이다.
+      rung.delete(지문);
+      const rec = 못한호출남기기({ ...이번, args: 판정인자 }, '원본미관측',
+        '파생 결과를 쓰기 전에 원본 파일 내용을 실제로 읽어야 해서 아직 실행하지 않았어요.');
+      rec.nextSafeAction = '로컬 파일 읽기로 원본의 실제 형식과 내용을 확인한 뒤 같은 턴에 다시 실행해요.';
+      rec.다음수단 = [{ what: 'local.file read' }];
+      if (await 목적미달이어가기()) continue;
+      멈춘이유 = '원본 내용 관측이 없어 파생 쓰기를 실행하지 않았어요';
+      break;
+    }
     // 한 위험 등급이 찼다고 턴 전체를 닫지 않는다. 이 호출만 사실로 남기고 다음 안전한
     // 읽기·다른 등급의 손으로 간다. probe 뒤라서 판정과 실행이 같은 인자를 본다.
     const 위험막힘 = 위험에막혔나(toolId, 판정인자);
