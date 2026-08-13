@@ -305,7 +305,7 @@ export function classifyWebFetch(raw = {}) {
   if (raw.readable != null) {
     const 안내뺀글자 = String(raw.readable).split('\n')
       .filter((l) => !/login|signin|sign ?in|로그인|계정|가입/i.test(l))
-      // **아직 안 그려진 자리는 글자가 아니다**(F-107 · 오너 라이브 2026-08-12).
+      // **화면에 그려지지 않은 자리는 글자가 아니다**(F-107 · 오너 라이브 2026-08-12).
       //
       // 네이버 플레이스를 HTML 로 긁으면 3,038자가 온다 — 그런데 그 본문이 이렇다:
       //   `방문자 리뷰 {{value}}` · `{{year}} {{style}} 우수{{type}}` · `고도 {{value}}m`
