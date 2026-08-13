@@ -1009,6 +1009,7 @@ export async function runTurn(input, ctx) {
     ctx.그밖수 = 0;
     ctx.일한ms = 0;
     ctx.최근실행효과 = undefined;
+    ctx.파생의미검증미확인 = false;
   }
   // **새 요청이면 허락은 새로 받는다.** 승인 면제는 한 요청 안에서만 이어진다 —
   // ctx 는 턴을 넘어 살아 있으므로 여기서 비우지 않으면 다음 요청까지 조용히 넘어간다.
@@ -3022,7 +3023,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let 파생의미검증요청함 = false;
   // required tool을 공급자가 지키지 못한 경우 산문을 판정으로 받아들이지 않는다. 이 사실은
   // 출구까지 살아서, 실물이 있어도 "검증·수리 완료"라는 거짓 답을 닫는다.
-  let 파생의미검증미확인 = false;
+  let 파생의미검증미확인 = ctx.파생의미검증미확인 === true;
   const 목적미달 = () => {
     const 사실 = {};
     const 답글원문 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
@@ -3319,6 +3320,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const judgment = typeof checked === 'string' ? null
         : checked?.toolCalls?.find((call) => call?.name === WORK_RESULT_CHECK_SCHEMA.name)?.args;
       파생의미검증미확인 = !judgment || judgment.verdict === 'unable';
+      ctx.파생의미검증미확인 = 파생의미검증미확인;
       if (judgment?.verdict === 'mismatch' && typeof judgment.replacementText === 'string') {
         const writes = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none').flatMap((r) => {
           if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'write') {
@@ -3337,6 +3339,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           ?.result?.path;
         if (output && source) {
           파생의미검증미확인 = false;
+          ctx.파생의미검증미확인 = false;
           finalOut = { text: '', toolCalls: [{ name: 'local.file', args: {
             action: 'write', path: output, text: judgment.replacementText, source,
           } }] };
@@ -4271,7 +4274,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     receipts: turnReceipts,
     출처계약손: 출처계약손목록(),
     파일계약빈손,
-    의미검증빈손: 파생의미검증미확인,
+    의미검증빈손: 파생의미검증미확인 || ctx.파생의미검증미확인 === true,
   });
   // **답을 대필하지 않는다.** 한때 여기서 `/끝냈|완료|끝났|다 했/` 을 잡아 "부분 완료입니다…"를
   // 앞에 붙였다. 문구 판정은 다음 문장에서 또 새고(§4-6), 무엇보다 최종 답은 모델의 것이다

@@ -116,6 +116,19 @@ test('원장에 한 줄로 실행한 셸을 답에서 줄연결로 보여 줘도
   assert.equal(v.일치, true, v.모델에게);
 });
 
+test('실행한 heredoc 전체를 답에 보여 줘도 본문 줄을 별도 미실행 명령으로 오인하지 않는다', () => {
+  const command = [
+    "python3 - << 'PY'",
+    "with open('output.tsv', 'w') as f:",
+    "    f.write('A\\t12\\n')",
+    'PY',
+  ].join('\n');
+  const reply = `완료했습니다.\n\n\`\`\`bash\n${command}\n\`\`\``;
+  const receipts = [성공('local.terminal', { command }, { exitCode: 0, stdout: '', stderr: '' })];
+  const v = 완료주장검증({ reply, receipts, 원장글: JSON.stringify(receipts) });
+  assert.equal(v.일치, true, v.모델에게);
+});
+
 test('파생 결과 구조 판정이 없으면 파일이 있어도 검증 완료 주장을 막는다', () => {
   const receipts = [성공('local.file', { action: 'write', path: '/tmp/output.tsv' }, { path: '/tmp/output.tsv' })];
   const v = 완료주장검증({

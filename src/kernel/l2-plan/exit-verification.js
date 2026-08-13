@@ -532,10 +532,27 @@ function 안돌린명령(reply, 원장글) {
     .replace(/[ \t]+/g, ' ')
     .trim();
   const 원장표준 = 표준명령(원장글);
+  const 기록명령들 = [];
+  try {
+    const 걷기 = (value) => {
+      if (Array.isArray(value)) { for (const item of value) 걷기(item); return; }
+      if (!value || typeof value !== 'object') return;
+      if (value.tool === 'local.terminal' && typeof value.args?.command === 'string') {
+        기록명령들.push(value.args.command);
+      }
+      for (const child of Object.values(value)) 걷기(child);
+    };
+    걷기(JSON.parse(String(원장글 ?? '')));
+  } catch { /* 옛 호출자는 JSON 아닌 원장 문자열도 건넨다 — 기존 포함 대조로 물러난다. */ }
+  const 기록과같나 = (candidate) => 기록명령들.some((command) => command.trim() === candidate.trim()
+    || 표준명령(command) === 표준명령(candidate));
   // **명령 이름을 목록으로 적지 않는다**(§4-6 · 절대원칙 8: 목록은 늘 뚫린다).
   // 게이트도 이것을 잡는다 — 커널 말귀 층에 서비스·도구 이름 분기가 늘면 침범이다.
   // 대신 **구조**로 본다: 셸이라고 **모델이 스스로 표시한** 코드블록만.
   for (const m of String(reply ?? '').matchAll(/```(bash|sh|shell|zsh|console|terminal)\n([\s\S]*?)```/g)) {
+    // heredoc을 포함한 스크립트는 블록 안 각 줄이 별도 셸 명령이 아니다. 원장에 블록 전체와
+    // 같은 실행이 있으면 내부 Python/AWK 줄을 다시 명령으로 쪼개지 않는다.
+    if (기록과같나(m[2])) continue;
     const 논리줄들 = m[2].replace(/\\\r?\n[ \t]*/g, ' ').split('\n');
     for (const 줄 of 논리줄들) {
       const c = 표준명령(줄.trim().replace(/^[$#>]\s*/, '')); // 프롬프트 기호는 명령이 아니다
@@ -544,7 +561,7 @@ function 안돌린명령(reply, 원장글) {
       명령들.add(c);
     }
   }
-  return [...명령들].filter((c) => !원장표준.includes(c));
+  return [...명령들].filter((c) => !기록과같나(c) && !원장표준.includes(c));
 }
 
 /**
