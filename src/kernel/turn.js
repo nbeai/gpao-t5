@@ -3819,6 +3819,19 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         원본표기.push({ ref: clean, canonical: found.canonical ?? found.fallback });
       }
     }
+    // 사용자가 "이 폴더의 로그 둘"처럼 폴더와 자료 종류만 말하면 requestedFileRefs에는
+    // 개별 파일명이 없다. 직전에 터미널로 실제 목록을 확인했다면 그 관측된 이웃 파일을
+    // 아무 read 하나가 아니라 정확한 canonical 신분으로 세운다. 읽기는 기존 local.file
+    // scope를 그대로 타고, 출력 자신과 존재하지 않는 이름은 제외한다.
+    if (!원본표기.length && 관측된이름.length && 쓸경로) {
+      const 기준폴더 = resolve(String(판정인자?.cwd ?? 출력폴더));
+      for (const name of 관측된이름.slice(0, 32)) {
+        const path = resolve(기준폴더, name);
+        const canonical = await realpath(path).catch(() => null);
+        if (!canonical || canonical === 출력신분) continue;
+        원본표기.push({ ref: path, canonical });
+      }
+    }
     const 읽은표기 = turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file' && r?.actualCall?.args?.action === 'read'
       && typeof r?.result?.text === 'string').map((r) => resolve(String(r.result?.path ?? r.actualCall.args?.path ?? '')));

@@ -271,3 +271,39 @@ test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차�
   assert.notEqual(outputReadRevisions[0], outputReadRevisions[1],
     '수리 전후 읽기 영수증이 같은 revision이다');
 });
+
+test('폴더 안 자료를 요청하면 실제 목록에서 관측한 이웃 파일을 읽고 파생 쓰기를 재개한다', async () => {
+  const dir = await mkdtemp('/private/tmp/t5-derived-observed-neighbors-');
+  const one = join(dir, 'app-1.log'); const two = join(dir, 'app-2.log');
+  const output = join(dir, 'summary.tsv');
+  await writeFile(one, 'ERROR E_CONN\n'); await writeFile(two, 'ERROR E_PARSE\n');
+  const command = `printf 'E_CONN\\t1\\nE_PARSE\\t1\\n' > ${output}`;
+  let phase = 0; let grantedRuns = 0;
+  const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (_command === 'ls') return { command: _command, cwd: dir, mode: opts.mode ?? 'probe',
+        processState: 'delivered', exitCode: 0, stdout: 'app-1.log\napp-2.log\n', stderr: '', durationMs: 1 };
+      if (opts.mode !== 'granted') return { command: _command, cwd: dir, mode: 'probe',
+        processState: 'delivered', exitCode: 1, stdout: '',
+        stderr: `zsh:1: operation not permitted: ${output}\n`, durationMs: 1 };
+      grantedRuns += 1; await writeFile(opts.writeTarget, 'E_CONN\t1\nE_PARSE\t1\n');
+      return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    } });
+  const model = { async respond(tc) {
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
+      output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
+    } }] };
+    if (phase === 0) { phase = 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls', cwd: dir } }] }; }
+    if (phase === 1) { phase = 2; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
+    if (tc?.resultVerificationAssessment) return { text: '', toolCalls: [{ name: 'work.result_check', args: { verdict: 'matches', reason: '두 로그의 오류가 모두 반영됨' } }] };
+    return '두 로그를 집계해 결과 파일을 만들고 다시 확인했습니다.';
+  } };
+  await runTurn({ text: `${dir}의 로그 둘을 분석해 오류 코드별 횟수를 ${output}로 만들어줘.` }, {
+    env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') }), localTerminal }),
+    model,
+  });
+  assert.equal(grantedRuns, 1);
+  assert.equal(await readFile(output, 'utf8'), 'E_CONN\t1\nE_PARSE\t1\n');
+});
