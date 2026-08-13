@@ -449,7 +449,9 @@ function 원장속말(receipts) {
  * 부드러운 그물(개수 어림·부분합·자리 종류)은 여기서 재지 않는다 — 재는 것은 지어낸 실물
  * 셋뿐이다: 실행 0 완료 주장 · 원장 밖 파일 이름 · 원장 밖 자리.
  */
-export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일계약빈손 = false }) {
+export function 절대재검증({
+  reply, receipts = [], 원장글 = '', 파일계약빈손 = false, 의미검증빈손 = false,
+}) {
   // 한 번의 보정 왕복 뒤에도 같은 `dispatched/unknown` 위에 결과를 쓰면
   // 두 번째 모델 호출을 만들지 않고 같은 원장 사실로 거짓만 걷는다.
   const 화면사실 = 미해결화면사실(reply, receipts);
@@ -497,6 +499,9 @@ export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일�
   if (파일계약빈손 && 완료주장인가(reply)) {
     return { 재거짓: true, 사실: '이 턴의 완료 계약은 파일 산출물인데 성공한 파일 변경 영수증이 하나도 없다. 답은 끝냈다고 말하고 있다.' };
   }
+  if (의미검증빈손 && 완료주장인가(reply)) {
+    return { 재거짓: true, 사실: '파생 결과의 구조화된 대조 판정을 받지 못해 내용 일치를 확인하지 못했다. 답은 확인·수리를 끝냈다고 말하고 있다.' };
+  }
   if (!대조대상인가(reply)) return { 재거짓: false };
   const 사실 = 지어낸실물(reply, receipts, 원장글);
   return 사실 ? { 재거짓: true, 사실 } : { 재거짓: false };
@@ -519,18 +524,27 @@ export function 절대재검증({ reply, receipts = [], 원장글 = '', 파일�
  */
 function 안돌린명령(reply, 원장글) {
   const 명령들 = new Set();
+  // 같은 셸 명령을 답에서는 읽기 좋게 `\\` 줄연결로 펼치고 원장에는 한 줄로 저장할 수
+  // 있다. 표시는 달라도 셸 프로그램은 같다. 실행 여부 대조에서만 그 표기를 정규화한다 —
+  // 명령을 다시 실행하거나 의미를 해석하지 않는다.
+  const 표준명령 = (value) => String(value ?? '')
+    .replace(/\\\r?\n[ \t]*/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+  const 원장표준 = 표준명령(원장글);
   // **명령 이름을 목록으로 적지 않는다**(§4-6 · 절대원칙 8: 목록은 늘 뚫린다).
   // 게이트도 이것을 잡는다 — 커널 말귀 층에 서비스·도구 이름 분기가 늘면 침범이다.
   // 대신 **구조**로 본다: 셸이라고 **모델이 스스로 표시한** 코드블록만.
   for (const m of String(reply ?? '').matchAll(/```(bash|sh|shell|zsh|console|terminal)\n([\s\S]*?)```/g)) {
-    for (const 줄 of m[2].split('\n')) {
-      const c = 줄.trim().replace(/^[$#>]\s*/, '');       // 프롬프트 기호는 명령이 아니다
+    const 논리줄들 = m[2].replace(/\\\r?\n[ \t]*/g, ' ').split('\n');
+    for (const 줄 of 논리줄들) {
+      const c = 표준명령(줄.trim().replace(/^[$#>]\s*/, '')); // 프롬프트 기호는 명령이 아니다
       if (!c || c.startsWith('#')) continue;               // 주석은 실행이 아니다
       if (c.length < 3) continue;
       명령들.add(c);
     }
   }
-  return [...명령들].filter((c) => !원장글.includes(c));
+  return [...명령들].filter((c) => !원장표준.includes(c));
 }
 
 /**
@@ -581,6 +595,7 @@ function 우리말만(reply) {
  */
 export function 완료주장검증({
   reply, receipts = [], 원장글 = '', 이미돌려줬나 = false, 자리종류 = null, 자동화 = null,
+  의미검증빈손 = false,
 }) {
   const 실제 = (receipts ?? []).reduce((s, r) => s + 바꾼개수(r), 0);
   // **확인된 실행이 하나라도 있는가.** 읽기도 실행이다 — 읽고 답한 턴은 "말로만 끝남"이 아니다.
@@ -591,6 +606,15 @@ export function 완료주장검증({
   const 확인된실행 = (receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
     && r?.actualCall?.tool && r?.result !== undefined).length;
   const 지나감 = { 일치: true, 사용자에게: true, 실제 };
+
+  if (의미검증빈손 && 완료주장인가(reply)) {
+    return {
+      일치: false,
+      사용자에게: false,
+      실제,
+      모델에게: '파생 결과의 구조화된 대조 판정을 받지 못해 내용 일치를 확인하지 못했다. 확인·수리를 끝냈다고 말할 수 없다.',
+    };
+  }
 
   // 순서는 영향이다. 자리 불일치는 탐색 폭의 진실이지만, 효과 미확인 화면 행동은
   // 방금 사용자에게 낼 결과의 직접 전제다. 같은 원장 사실을 먼저 놓아 무관한

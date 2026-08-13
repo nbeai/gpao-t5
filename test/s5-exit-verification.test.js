@@ -100,6 +100,31 @@ test('같은 턴에서 두 번 반환하지 않는다(무한 왕복 금지)', ()
   assert.equal(v.일치, true, '한 턴에 두 번 되돌리면 왕복이 무한이 된다 — 한 번만 준다');
 });
 
+test('원장에 한 줄로 실행한 셸을 답에서 줄연결로 보여 줘도 실행 누락으로 오인하지 않는다', () => {
+  const command = "awk -F, '{sum[$1]+=$2} END {for (k in sum) print k, sum[k]}' input.csv | sort > output.tsv; cat output.tsv";
+  const reply = [
+    '집계를 끝냈습니다.',
+    '```bash',
+    "awk -F, '{sum[$1]+=$2} END {for (k in sum) print k, sum[k]}' \\",
+    '  input.csv \\',
+    '  | sort > output.tsv; \\',
+    '  cat output.tsv',
+    '```',
+  ].join('\n');
+  const receipts = [성공('local.terminal', { command }, { exitCode: 0, stdout: 'A 12\n', stderr: '' })];
+  const v = 완료주장검증({ reply, receipts, 원장글: JSON.stringify(receipts) });
+  assert.equal(v.일치, true, v.모델에게);
+});
+
+test('파생 결과 구조 판정이 없으면 파일이 있어도 검증 완료 주장을 막는다', () => {
+  const receipts = [성공('local.file', { action: 'write', path: '/tmp/output.tsv' }, { path: '/tmp/output.tsv' })];
+  const v = 완료주장검증({
+    reply: '결과 파일을 만들고 다시 확인해 완료했습니다.', receipts, 의미검증빈손: true,
+  });
+  assert.equal(v.일치, false);
+  assert.match(v.모델에게, /구조화된 대조 판정|확인하지 못/);
+});
+
 // ── ⑤ 커널 출구에 실제로 붙었는가 ──────────────────────────────────────────
 //
 // 단위검사는 판정 함수만 잰다. **배선이 끊겨 있어도 전부 초록이다** — 그래서 여기서

@@ -715,7 +715,10 @@ function 이전대기를지난것으로(ctx) {
  * **같은 스트리밍 계약**으로 간다 — 하필 이 답만 조각으로 안 흐르면 사용자는 제일 오래
  * 기다린 자리에서 제일 늦게 본다.
  */
-async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약손 = [], 파일계약빈손 = false }) {
+async function 답완성({
+  reply, tc, ctx, search, receipts = [], 출처계약손 = [], 파일계약빈손 = false,
+  의미검증빈손 = false,
+}) {
   // H09 P0(거짓 성공): 이번 턴 읽기가 전패했는데 답이 내용을 서술하면, 그 답 대신 영수증의
   // 정직한 사실이 나간다. 판정 근거는 원장이다 — 성공 영수증이 하나라도 있으면 개입하지 않는다
   // (부분 성공 턴의 오차단 방지 — 경계·검사는 recovery-ladder, 관통은 이 단일 확정 지점).
@@ -729,14 +732,18 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   // 자리마다 적으면 언젠가 하나가 빠지고, 빠진 그 경로로 거짓 완료가 그대로 나간다.
   // 실측(2026-08-04): `executePlan` 에만 붙였더니 **손을 안 고른 턴**이 그 앞에서 돌아가
   // 그대로 통과했다 — 그게 정본이 말한 "말로만 끝남"의 바로 그 자리였다.
-  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts, 파일계약빈손 });
+  if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), {
+    tc, ctx, receipts, 파일계약빈손, 의미검증빈손,
+  });
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
     onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
   // **답을 낸 호출이 바뀌었다** — 잘림 사실도 이 호출의 것으로 바뀐다(J9).
   const 다시 = userFacingModelText(답으로삼기(ctx, retry, ''));
   if (!다시) ctx.답잘림 = false;   // 원장 문장으로 끝낸다 — 이어 쓸 것이 없다
-  return 출구검증(다시 || fallbackReplyFrom(receipts), { tc, ctx, receipts, 파일계약빈손 });
+  return 출구검증(다시 || fallbackReplyFrom(receipts), {
+    tc, ctx, receipts, 파일계약빈손, 의미검증빈손,
+  });
 }
 
 /**
@@ -814,7 +821,9 @@ function 검증된파일산출물인가(receipts = []) {
   return false;
 }
 
-async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 = false }) {
+async function 출구검증(reply, {
+  tc, ctx, receipts = [], 파일계약빈손 = false, 의미검증빈손 = false,
+}) {
   // **원장글**: 이 턴의 영수증 + 앞 턴 교환 + **이 대화의 전체 영수증**(ctx.ledger).
   // 답이 가리킨 자리가 여기 없으면 지어낸 것이다. 두 벌을 따로 만들지 않는다 —
   // 모델이 받은 것과 같은 사실 위에서 대조한다.
@@ -852,7 +861,7 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   // F-54 후반 — **자리 종류**를 함께 준다(파일 자리 명부 · 이번 턴 화면 자리).
   // 그물이 "한 종류만 보고 끝냈는가"를 원장과 대조할 재료다(판단은 그물이, 답은 모델이).
   const 검증 = 완료검증한번(ctx, {
-    reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림),
+    reply, receipts, 원장글, 이미돌려줬나: Boolean(ctx.출구되돌림), 의미검증빈손,
     자리종류: {
       // **이번 턴 머리의 관측이 진실이다** — 이전 턴 상태(workingState.places)는 새 세션
       // 첫 턴에 비어 있어 그물이 침묵한다(실측: 오너 창 하나를 태웠다). 관측이 없던 옛
@@ -900,7 +909,13 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
   // **셋째 갈아치움 칸이다**(계획 §3-A 회계 · answer-authorship-lanes 참조). 앞 둘(거짓
   // 성공 게이트)과 같은 P0 성질 — 모델에게 이미 한 번 돌려줬고, 그 뒤에도 반복된 거짓만
   // 잡는다. 일반 대화는 이 칸에 오지 않는다(파일 산출물 존재만 절대 게이트).
-  const 재검증 = 절대재검증({ reply: 고친답.trim() ? 고친답 : reply, receipts, 원장글, 파일계약빈손 });
+  const 재검증 = 절대재검증({
+    reply: 고친답.trim() ? 고친답 : reply,
+    receipts,
+    원장글,
+    파일계약빈손,
+    의미검증빈손,
+  });
   if (재검증.재거짓) {
     ctx.출구그물 = { 사실: 검증.모델에게, 재거짓: 재검증.사실 };
     ctx.미리보기?.retract?.();
@@ -909,6 +924,9 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
     // 성공한 실행이 있는 턴에서 이름 변형만 반복됐을 때 "완료하지 못했어요"라고 하면
     // **반대 방향의 거짓**이 된다 — 실물은 있다. 그때는 원장의 영수증 문장(실제 파일
     // 이름이 실려 있다)으로 끝낸다. 어느 쪽이든 지어낸 이름은 사용자에게 가지 않는다.
+    if (의미검증빈손) {
+      return '결과 파일은 만들었지만 요청 내용과 일치하는지 확인하지 못했어요.';
+    }
     if (!파일계약빈손) return fallbackReplyFrom(receipts);
     const 막힘 = (receipts ?? []).some((r) => r?.failureState && !['none', 'cancelled'].includes(r.failureState));
     return [
@@ -3002,6 +3020,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
    * 빈 객체면 목적에 닿은 것이고, 그러면 되부르지 않는다.
    */
   let 파생의미검증요청함 = false;
+  // required tool을 공급자가 지키지 못한 경우 산문을 판정으로 받아들이지 않는다. 이 사실은
+  // 출구까지 살아서, 실물이 있어도 "검증·수리 완료"라는 거짓 답을 닫는다.
+  let 파생의미검증미확인 = false;
   const 목적미달 = () => {
     const 사실 = {};
     const 답글원문 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
@@ -3242,6 +3263,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       const 검증 = 완료검증한번(ctx, {
         reply: 답글, receipts: turnReceipts,
         원장글: JSON.stringify([turnReceipts, tc?.turnExchange ?? [], ctx.ledger?.entries ?? []]),
+        의미검증빈손: 파생의미검증미확인,
         자리종류: {
           파일: (ctx.이번턴파일자리 ?? ctx.workingState?.places ?? []).map((pl) => pl?.label ?? pl).filter(Boolean),
           화면: ctx.이번턴화면자리 ?? [],
@@ -3296,6 +3318,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }).catch(() => null);
       const judgment = typeof checked === 'string' ? null
         : checked?.toolCalls?.find((call) => call?.name === WORK_RESULT_CHECK_SCHEMA.name)?.args;
+      파생의미검증미확인 = !judgment || judgment.verdict === 'unable';
       if (judgment?.verdict === 'mismatch' && typeof judgment.replacementText === 'string') {
         const writes = turnReceipts.filter((r) => (r.failureState ?? 'none') === 'none').flatMap((r) => {
           if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'write') {
@@ -3313,6 +3336,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           && output && 파일신분(r.result?.path ?? r.actualCall.args?.path) !== 파일신분(output))
           ?.result?.path;
         if (output && source) {
+          파생의미검증미확인 = false;
           finalOut = { text: '', toolCalls: [{ name: 'local.file', args: {
             action: 'write', path: output, text: judgment.replacementText, source,
           } }] };
@@ -4240,7 +4264,14 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }), ctx.connectors);
   }
   reply = await 답완성({
-    reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록(), 파일계약빈손,
+    reply,
+    tc,
+    ctx,
+    search: wantedWeb,
+    receipts: turnReceipts,
+    출처계약손: 출처계약손목록(),
+    파일계약빈손,
+    의미검증빈손: 파생의미검증미확인,
   });
   // **답을 대필하지 않는다.** 한때 여기서 `/끝냈|완료|끝났|다 했/` 을 잡아 "부분 완료입니다…"를
   // 앞에 붙였다. 문구 판정은 다음 문장에서 또 새고(§4-6), 무엇보다 최종 답은 모델의 것이다
