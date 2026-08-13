@@ -13,7 +13,7 @@ const 계약답 = (tc) => tc?.workContractAssessment
   ? { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] }
   : null;
 
-async function 제품경로({ target, command, stderr, apply, seed, grantedExitCode = 0 }) {
+async function 제품경로({ target, command, stderr, apply, seed, grantedExitCode = 0, probeExitCode = 1 }) {
   const root = await mkdtemp(join(tmpdir(), 'terminal-write-effect-product-'));
   const work = join(root, 'work');
   const state = join(root, 'state');
@@ -27,8 +27,8 @@ async function 제품경로({ target, command, stderr, apply, seed, grantedExitC
     sandboxAvailable: () => true,
     run: async (_command, opts = {}) => {
       if (opts.mode !== 'granted') return {
-        command, cwd: work, mode: 'probe', processState: 'delivered', exitCode: 1,
-        stdout: '', stderr: stderr(actualTarget), durationMs: 1,
+        command, cwd: work, mode: 'probe', processState: 'delivered', exitCode: probeExitCode,
+        stdout: probeExitCode === 0 ? 'EXIT:1\n' : '', stderr: stderr(actualTarget), durationMs: 1,
       };
       grantedRuns += 1;
       await apply(opts.writeTarget ?? actualTarget);
@@ -93,6 +93,20 @@ test('제품 경로: 없던 로컬 산출물 생성은 probe 대상·사전 상�
   const undone = await stage.localFile.handler({ action: 'undo' });
   assert.equal(undone.result?.undone, 'create', '터미널 생성이 공통 undo 원장에 안 묶였다');
   await assert.rejects(readFile(stage.actualTarget, 'utf8'), /ENOENT/);
+});
+
+test('뒤 echo가 실패 코드를 가린 쓰기도 staging 적용과 undo까지 간다', async () => {
+  const command = "printf 'ok\\n' > report.tsv; echo \"EXIT:$?\"";
+  const stage = await 제품경로({
+    target: (work) => join(work, 'report.tsv'), command, probeExitCode: 0,
+    stderr: () => 'zsh:1: operation not permitted: report.tsv\n',
+    apply: (target) => writeFile(target, 'ok\n', 'utf8'),
+  });
+  assert.equal(stage.grantedRuns, 1);
+  assert.equal(await readFile(stage.actualTarget, 'utf8'), 'ok\n');
+  const receipt = terminalReceiptOf(stage.result);
+  assert.equal(receipt?.result?.writeEffect?.verified, true);
+  assert.equal(receipt?.result?.writeEffect?.undoAvailable, true);
 });
 
 test('라이브 모양: Python heredoc의 일반 write-open도 진단 대상과 합치면 새 산출물로 실행된다', async () => {

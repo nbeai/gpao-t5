@@ -84,6 +84,18 @@ test('stderr 문구만으로 명령 실패를 꾸며내지 않는다', async () 
   assert.equal(rec.result?.effect?.commandExit, 'success');
 });
 
+test('뒤 echo가 exit 0으로 가려도 셸이 남긴 실제 리다이렉션 거부와 대상은 보존한다', () => {
+  const cwd = '/private/tmp/t5-masked-write';
+  const command = `cd ${cwd} && printf x > report.tsv; echo "EXIT:$?"`;
+  const probe = { command, cwd: '/private/tmp', exitCode: 0, stdout: 'EXIT:1\n',
+    stderr: 'zsh:1: operation not permitted: report.tsv\n' };
+  assert.deepEqual(executionBlock(probe), {
+    kind: 'sandbox', why: 'write',
+    userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요',
+  });
+  assert.equal(blockedWriteTarget(probe, { cwd: '/private/tmp' }), `${cwd}/report.tsv`);
+});
+
 test('문법 오류와 permission 토막이 함께 있어도 고쳐지지 않을 승인으로 보내지 않는다', () => {
   const block = executionBlock({ command: 'node -e "broken"', exitCode: 1, stdout: '',
     stderr: 'zsh:1: permission denied: /usr/local/bin\nSyntaxError: Unexpected token\n' });
