@@ -192,6 +192,8 @@ test('모델이 쓰기만 반복해도 정확한 원본 read를 실행 줄에 �
   let grantedRuns = 0; let phase = 0;
   const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
     sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (_command === 'ls') return { command: _command, cwd: dir, mode: opts.mode ?? 'probe',
+        processState: 'delivered', exitCode: 0, stdout: 'refunds.csv\n', stderr: '', durationMs: 1 };
       if (opts.mode !== 'granted') return { command: _command, cwd: dir, mode: 'probe',
         processState: 'delivered', exitCode: 1, stdout: '',
         stderr: `zsh:1: operation not permitted: ${output}\n`, durationMs: 1 };
@@ -214,4 +216,46 @@ test('모델이 쓰기만 반복해도 정확한 원본 read를 실행 줄에 �
   });
   assert.equal(grantedRuns, 1, '정확한 원본 read 뒤 원래 쓰기를 자동 재개하지 않았다');
   assert.equal(await readFile(output, 'utf8'), 'A\t12\n');
+});
+
+test('재읽은 파생 결과가 원본·요구와 다르면 모델 검증 차례에서 같은 턴에 수리한다', async () => {
+  const dir = await mkdtemp('/private/tmp/t5-derived-semantic-repair-');
+  const source = join(dir, 'refunds.csv'); const output = join(dir, 'net.tsv');
+  await writeFile(source, 'item,amount\nB,4\n');
+  const command = `printf 'B\\t4\\nitem\\t0\\n' > ${output}`;
+  let grantedRuns = 0; let phase = 0; let sawVerification = false;
+  const localTerminal = makeLocalTerminalTool({ cwd: dir, workspaceRoot: dir, dataDir: join(dir, '.state'),
+    sandboxAvailable: () => true, run: async (_command, opts = {}) => {
+      if (_command === 'ls') return { command: _command, cwd: dir, mode: opts.mode ?? 'probe',
+        processState: 'delivered', exitCode: 0, stdout: 'refunds.csv\n', stderr: '', durationMs: 1 };
+      if (opts.mode !== 'granted') return { command: _command, cwd: dir, mode: 'probe',
+        processState: 'delivered', exitCode: 1, stdout: '',
+        stderr: `zsh:1: operation not permitted: ${output}\n`, durationMs: 1 };
+      grantedRuns += 1; await writeFile(opts.writeTarget, 'B\t4\nitem\t0\n');
+      return { command: _command, cwd: dir, mode: 'granted', processState: 'delivered', exitCode: 0,
+        stdout: '', stderr: '', durationMs: 1 };
+    } });
+  const model = { async respond(tc) {
+    if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: {
+      output: 'file', sourcePolicy: 'all_current', verification: 'admin_grounded',
+    } }] };
+    if (phase === 0) { phase = 1; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls', cwd: dir } }] }; }
+    if (phase === 1) { phase = 2; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, cwd: dir } }] }; }
+    if (tc?.goalNotReached?.산출물대조필요 && phase === 2) {
+      sawVerification = true; phase = 3;
+      return { text: '', toolCalls: [{ name: 'local.file', args: {
+        action: 'write', path: output, text: 'B\t-4\n', source,
+      } }] };
+    }
+    if (phase === 3) { phase = 4; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: output } }] }; }
+    return '환불을 차감하고 불필요한 헤더 행을 제거한 결과를 다시 확인했습니다.';
+  } };
+  await runTurn({ text: `${source}를 집계해 환불을 차감한 ${output} 결과 파일을 만들어줘.` }, {
+    env: demoEnv({ include: ['local.file', 'local.terminal'], hands: ['local.file', 'local.terminal'] }),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [dir], dataDir: join(dir, '.files') }), localTerminal }),
+    model,
+  });
+  assert.equal(grantedRuns, 1);
+  assert.equal(sawVerification, true, '실물 재읽기 뒤 의미 대조 차례가 모델에게 오지 않았다');
+  assert.equal(await readFile(output, 'utf8'), 'B\t-4\n');
 });

@@ -2961,6 +2961,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
    * 이 턴의 **목적 미달 사실**. 판단이 아니라 원장에서 읽은 값만 담는다.
    * 빈 객체면 목적에 닿은 것이고, 그러면 되부르지 않는다.
    */
+  let 파생의미검증요청함 = false;
   const 목적미달 = () => {
     const 사실 = {};
     const 답글원문 = typeof finalOut === 'string' ? finalOut : (finalOut?.text ?? '');
@@ -3086,6 +3087,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
       return [];
     }).filter(Boolean))];
+    const 파생산출물재읽음 = 쓴경로들.length > 0 && 부른것들.some((r) =>
+      (r.failureState ?? 'none') === 'none' && r.actualCall?.tool === 'local.file'
+      && r.actualCall?.args?.action === 'read'
+      && 쓴경로들.includes(String(r.result?.path ?? r.actualCall.args?.path ?? '')));
     const 빈파생읽기 = 파생계약 ? 부른것들.findLast((r) => {
       if ((r.failureState ?? 'none') !== 'none') return false;
       if (r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read') {
@@ -3177,6 +3182,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       }
     }
 
+    // 파생 결과의 의미는 셸 파서나 커널이 계산하지 않는다. 원본과 출력의 정확한 실물이 모두
+    // 모델 현실에 들어온 뒤, 모델이 사용자 요구의 연산·필터·정렬·형식을 독립 대조하는 차례를
+    // 한 번 갖게 한다. 이 차례는 판정이 아니라 검증 입력이며 턴마다 한 번만 열린다.
+    if (plan.requestedDerivedFile === true && 만든가역산출물 && 파생산출물재읽음
+      && !파생의미검증요청함) {
+      사실.goalNotReached = {
+        ...(사실.goalNotReached ?? {}), 산출물대조필요: true,
+        안써본손: (사실.goalNotReached?.안써본손 ?? 안써본손).slice(0, 12),
+      };
+    }
+
     // ⑤ 답이 원장이 받치지 않는 완료를 말한다 — 출구와 **같은 자·같은 원장**(두 벌 금지).
     const 답글 = userFacingModelText(답글원문);
     if (String(답글).trim()) {
@@ -3223,6 +3239,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     const 손들 = modelSchemasFor(selfState, ctx.modelControls);
     if (!손들.length) return false;
     이어간횟수 += 1;
+    if (미달.goalNotReached?.산출물대조필요) 파생의미검증요청함 = true;
     // ── **약속으로 턴을 닫지 않는다** (오픈북 · 헤르메스 kanban_stop.py:88-101) ──────
     //
     // 사실만 system 블록에 놓고 손을 돌려주는 것으로는 부족했다. 콘솔 라이브(2026-08-12):
@@ -3263,6 +3280,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ...(미달.goalNotReached?.막힌걸음?.length ? [
         '실패를 정확히 설명한 것은 완료가 아닙니다. 같은 실패 호출을 반복하지 말고, 다른 명령이나 아직 쓰지 않은 손으로 지금 목적을 계속 수행하세요.',
       ] : []),
+      ...(미달.goalNotReached?.산출물대조필요 ? [
+        '파생 결과의 독립 대조 차례입니다. 실제 원본 내용과 재읽은 결과를 사용자 요청의 연산·필터·정렬·형식별로 다시 계산해 비교하세요.',
+        '하나라도 다르면 설명으로 끝내지 말고 지금 도구를 불러 수정하고 다시 읽으세요. 모두 맞을 때만 완료 답을 쓰세요.',
+      ] : []),
     ].join(' ');
     const 되부름 = await ctx.model.respond({
       ...tc, ...미달,
@@ -3297,6 +3318,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 수단 소진의 증거가 아니다. 실제 남은 예산을 줬는데도 한 번 더 손을 안 고를 때만
       // 그 판단을 존중한다. 무한 강제는 하지 않는다.
       if ((미달.goalNotReached?.산출물미완료
+        || 미달.goalNotReached?.산출물대조필요
         || (미달.goalNotReached?.막힌걸음?.length && 미달.goalNotReached?.안써본손?.length))
         && 이어간횟수 < 2) {
         const 새글 = typeof 되부름 === 'string' ? 되부름 : (되부름?.text ?? '');
@@ -3376,6 +3398,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       });
     }
     return 선것;
+  };
+  const 내부걸음 = (tool, nextArgs, extra = {}) => {
+    호출일련 += 1;
+    return { callId: `걸음${호출일련}`, 순번: 호출일련, tool, args: nextArgs, ...extra };
   };
 
   // 이번 발화가 가리킨 자리 — 계획 경로와 **같은 기준**으로 판정한다(두 진실 금지).
@@ -3698,10 +3724,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (이번.sourceRecoveryAttempted !== true && 안읽은원본표기.length
         && 안읽은원본표기.every(({ canonical }) => Boolean(canonical))
         && ctx.tools?.tools?.['local.file']) {
-        const 내부걸음 = (tool, nextArgs, extra = {}) => {
-          호출일련 += 1;
-          return { callId: `걸음${호출일련}`, 순번: 호출일련, tool, args: nextArgs, ...extra };
-        };
         const reads = 안읽은원본표기.map(({ canonical }) => 내부걸음('local.file', {
           action: 'read', path: canonical,
         }, { runtimeRecovery: 'source_grounding' }));
@@ -3965,6 +3987,22 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
     실행효과세기(toolId, 판정인자, rec);
+    // 성공한 파생 파일은 모델이 임의 `cat` 명령을 다시 고르길 기다리지 않고 정확한 파일 손으로
+    // 재읽는다. 이 read도 평소 scope와 영수증 경계를 타며, 내용 검증의 공통 입력이 된다.
+    const 새파생경로 = toolId === 'local.terminal' && plan.requestedDerivedFile === true
+      && (rec.failureState ?? 'none') === 'none' && rec.result?.writeEffect?.verified === true
+      && rec.result?.writeEffect?.changed === true
+      ? String(rec.result?.writeEffect?.target?.path ?? '') : '';
+    if (새파생경로 && ctx.tools?.tools?.['local.file']
+      && !turnReceipts.some((r) => (r.failureState ?? 'none') === 'none'
+        && r.actualCall?.tool === 'local.file' && r.actualCall?.args?.action === 'read'
+        && String(r.result?.path ?? r.actualCall.args?.path ?? '') === 새파생경로)
+      && !대기호출.some((c) => c.tool === 'local.file' && c.args?.action === 'read'
+        && String(c.args?.path ?? '') === 새파생경로)) {
+      대기호출.unshift(내부걸음('local.file', { action: 'read', path: 새파생경로 }, {
+        runtimeRecovery: 'derived_readback',
+      }));
+    }
 
     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을

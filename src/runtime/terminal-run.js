@@ -59,7 +59,11 @@ export async function runCommand(command, opts = {}) {
     await writeFile(file, sandboxProfile(profileMode, {
       scratch, allowRead: opts.allowRead, writeTarget: opts.writeTarget,
     }), 'utf8');
-    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-o', 'pipefail', '-c', command]];
+    // probe/reach는 중간 실패를 뒤의 `echo`가 성공으로 덮지 못하게 한다. 실제 실행(granted)은
+    // 사용자가 의도한 원문 의미를 유지하고, 안전 시험만 fail-fast로 돌려 쓰기·실패 신호를
+    // 정확히 회수한다. 조건식·`||` 안의 예상 실패는 zsh errexit 규칙대로 예외다.
+    const probeOptions = mode === 'probe' || mode === 'reach' ? ['-o', 'errexit'] : [];
+    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-o', 'pipefail', ...probeOptions, '-c', command]];
   }
 
   try {
@@ -183,12 +187,6 @@ const 실패를삼킴 = /\|\|\s*(?:true|:)\s*(?:$|&|;|\))|2\s*>\s*(?:\/dev\/null
 
 export function executionBlock(r) {
   if (!r) return undefined;
-  const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
-  // `cmd > out; echo "EXIT:$?"`처럼 뒤 명령이 앞의 실패를 0으로 덮어도, macOS sandbox가
-  // 셸 자체 형식으로 남긴 쓰기 거부는 사라지지 않는다. 이 줄을 무시하면 실제 파일은 없는데
-  // 원장은 성공이 된다. 임의 stderr 단어가 아니라 셸의 리다이렉션 거부 한 줄만 읽는다.
-  const 가려진쓰기거부 = r.exitCode === 0 && String(r.stderr ?? '').split(/\r?\n/).some((line) =>
-    /^(?:zsh:\d+:\s*)?(?:operation not permitted|permission denied|read-only file system):\s*\S+/i.test(line.trim()));
   if (r.exitCode === 0 && 실패를삼킴.test(String(r.command ?? ''))) {
     return {
       kind: 'sandbox',
@@ -197,7 +195,8 @@ export function executionBlock(r) {
         + ' — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요',
     };
   }
-  if (r.exitCode === 0 && !가려진쓰기거부) return undefined;
+  if (r.exitCode === 0) return undefined;
+  const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
   if (/\bEPERM\b|\bEACCES\b/i.test(t) && /\b(?:listen|bind|port|socket|server)\b/i.test(t)) {
     // **나가서 읽는 것과 포트를 여는 것은 다른 사실이다**(오너 결정 2026-08-06 을 배선하다 밟음).
@@ -277,7 +276,7 @@ export function executionBlock(r) {
  */
 export function blockedWriteTarget(r, { cwd } = {}) {
   const block = executionBlock(r);
-  if (block?.kind !== 'sandbox' || block?.why !== 'write') return null;
+  if (block?.kind !== 'sandbox' || block?.why !== 'write' || r?.exitCode === 0) return null;
   const lines = String(r?.stderr ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   let subject = null;
   for (const line of lines) {

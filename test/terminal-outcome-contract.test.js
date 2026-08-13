@@ -4,6 +4,7 @@
 // 실패 영수증에서도 보존한다. 앱·명령 이름이 아니라 공통 exit 계약을 잰다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { blockedWriteTarget, executionBlock, runCommand } from '../src/runtime/terminal-run.js';
 import { ToolRunner } from '../src/runtime/tool-runner.js';
@@ -84,16 +85,20 @@ test('stderr 문구만으로 명령 실패를 꾸며내지 않는다', async () 
   assert.equal(rec.result?.effect?.commandExit, 'success');
 });
 
-test('뒤 echo가 exit 0으로 가려도 셸이 남긴 실제 리다이렉션 거부와 대상은 보존한다', () => {
-  const cwd = '/private/tmp/t5-masked-write';
+test('뒤 echo가 있어도 probe 셸은 실제 리다이렉션 실패를 exit 0으로 가리지 않는다', async () => {
+  const cwd = await mkdtemp('/private/tmp/t5-masked-write-');
   const command = `cd ${cwd} && printf x > report.tsv; echo "EXIT:$?"`;
-  const probe = { command, cwd: '/private/tmp', exitCode: 0, stdout: 'EXIT:1\n',
-    stderr: 'zsh:1: operation not permitted: report.tsv\n' };
-  assert.deepEqual(executionBlock(probe), {
-    kind: 'sandbox', why: 'write',
-    userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요',
-  });
+  const probe = await runCommand(command, { mode: 'probe', cwd: '/private/tmp' });
+  assert.notEqual(probe.exitCode, 0);
+  assert.equal(executionBlock(probe)?.why, 'write');
   assert.equal(blockedWriteTarget(probe, { cwd: '/private/tmp' }), `${cwd}/report.tsv`);
+});
+
+test('프로그램이 오류 문구를 stderr에 출력만 한 exit 0은 쓰기 효과가 아니다', () => {
+  const fake = { command: "printf 'zsh:1: operation not permitted: report.tsv\\n' >&2", cwd: '/tmp',
+    exitCode: 0, stdout: '', stderr: 'zsh:1: operation not permitted: report.tsv\n' };
+  assert.equal(executionBlock(fake), undefined);
+  assert.equal(blockedWriteTarget(fake, { cwd: '/tmp' }), null);
 });
 
 test('문법 오류와 permission 토막이 함께 있어도 고쳐지지 않을 승인으로 보내지 않는다', () => {
