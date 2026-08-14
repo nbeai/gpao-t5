@@ -259,8 +259,21 @@ export function makeLocalTerminalTool(deps = {}) {
       const 종료확인 = 끈PID.length
         ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
         : undefined;
-      return {
-        result: {
+      const failureResult = {
+        command, cwd,
+        exitCode: r.exitCode,
+        processDelivery: 'delivered',
+        commandOutcome: {
+          status: r.stopped ? 'stopped' : (r.exitCode === 0 ? 'success' : 'failure'),
+          exitCode: r.stopped ? null : r.exitCode, signal: null,
+          ...(r.stopped ? { stopReason: r.stopped } : {}),
+        },
+        stdout: r.stdout, stderr: r.stderr,
+        effects: { state: 'unknown' },
+        ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+        applied: 실제로돌았나,
+      };
+      const result = {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
           // 끈 대상의 **지금 상태**. 이름 검색 결과가 아니라 PID 로 직접 확인한 사실이다.
           ...(종료확인 ? { terminated: 종료확인 } : {}),
@@ -270,7 +283,12 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: 실제로돌았나,
-        },
+        };
+      const failed = r.exitCode !== 0 || Boolean(r.stopped);
+      return {
+        // 직접 tool 계약을 쓰는 기존 소비자는 result를 계속 읽는다. ToolRunner는 실패일 때
+        // failureResult만 원장·모델 교환으로 올려 범용 실패 result 노출을 막는다.
+        ...(failed ? { failed: true, lifecycle: 'delivered', failureResult, result } : { result }),
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
         userSafeSummary: 종료확인?.length && r.exitCode === 0

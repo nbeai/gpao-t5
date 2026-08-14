@@ -110,18 +110,29 @@ export function deriveWorkingState(prevState, turn = {}) {
   const screenPlaces = turn.screenPlaces;
   const receipts = turn.receipts ?? [];
 
-  // 이번 턴에 실제로 다룬 대상들(성공분만).
-  const fresh = [];
+  // 전달된 대상은 성공·실패 모두 다음 턴의 “아까 그 명령/오류” 신분이다.
+  // 막힘·대기 해제에는 성공 대상만 쓴다.
+  const observedSubjects = [];
+  const successfulSubjects = [];
   for (const r of receipts) {
-    if (!r || (r.failureState ?? 'none') !== 'none') continue;
+    if (!r?.actualCall) continue;
+    // 새 영수증은 실제 프로세스 전달을 명시한다. 이전 성공 영수증은 lifecycle 칸이
+    // 없었으므로, 그 경우에만 기존의 성공 사실을 호환해 읽는다. 실패·차단을 성공으로
+    // 추정하지는 않는다.
+    const delivered = r.lifecycle === 'delivered'
+      || (r.lifecycle == null && (r.failureState ?? 'none') === 'none');
+    if (!delivered) continue;
     const s = subjectFrom(r);
-    if (s) fresh.push({ ...s, lastTurn: turnNo });
+    if (!s) continue;
+    const subject = { ...s, lastTurn: turnNo };
+    observedSubjects.push(subject);
+    if ((r.failureState ?? 'none') === 'none') successfulSubjects.push(subject);
   }
 
   // 새 것이 앞, 오래된 것은 뒤로. 같은 대상을 다시 다루면 **최신 정보로 갱신**되고 앞으로 나온다.
   const merged = [];
   const seen = new Set();
-  for (const s of [...fresh, ...(prev.subjects ?? [])]) {
+  for (const s of [...observedSubjects, ...(prev.subjects ?? [])]) {
     if (seen.has(s.key)) continue;
     seen.add(s.key);
     // 오래 안 쓰인 대상은 내린다 — 옛것이 영원히 "현재"인 척하지 않는다.
@@ -132,7 +143,7 @@ export function deriveWorkingState(prevState, turn = {}) {
 
   // 막힌 것: 이번 턴에 막혔으면 갱신, 아니면 이전 것을 이어간다(다음 턴에도 다음 길을 기억한다).
   // 다만 이번 턴에 뭔가 성공했으면 막힘은 푼다 — 되는 길을 찾았는데 "막혔다"고 남기면 거짓이다.
-  const blocked = turn.blocked ?? (fresh.length ? undefined : prev.blocked);
+  const blocked = turn.blocked ?? (successfulSubjects.length ? undefined : prev.blocked);
 
   // P5-B-1B · **하다 만 일은 다음 턴이 이어받는다.** 실측(오너 2026-07-28): 비밀 입력창을
   // 띄우고 사용자가 창을 닫으면 그 사실이 어디에도 안 남았다 — 다음 턴에 "아까 네이버 붙이다
@@ -154,7 +165,7 @@ export function deriveWorkingState(prevState, turn = {}) {
   // 키 모양이 둘이다: 표면 요청은 대상 이름 그대로, subjectOf 는 `종류:이름` 으로 온다.
   // 같은 것을 다르게 부르면 영원히 안 풀린다 — 앞의 종류를 떼고 맞춘다.
   const 벗기기 = (k) => String(k ?? '').replace(/^[a-z_]+:/, '');
-  const 풀린것 = new Set(fresh.map((s) => 벗기기(s.key)));
+  const 풀린것 = new Set(successfulSubjects.map((s) => 벗기기(s.key)));
   const awaiting = [...이번에멈춘것, ...(prev.awaiting ?? [])]
     .filter((a, i, all) => all.findIndex((x) => x.key === a.key) === i)
     .filter((a) => !풀린것.has(벗기기(a.key)))

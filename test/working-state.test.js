@@ -87,6 +87,41 @@ test('실패한 실행은 대상이 되지 않고, 그 결과 내용도 사실�
   assert.match(facts, /막혔던 것과 다음 길: 그 사이트가 막아서/, '막힌 이유와 다음 길은 다음 턴에도 기억한다');
 });
 
+test('전달된 실패 명령은 대상에 남지만 기존 막힘을 풀지 않는다', () => {
+  const before = deriveWorkingState(null, { receipts: [], blocked: '승인이 필요해요' });
+  const after = deriveWorkingState(before, { receipts: [{
+    actualCall: { tool: 'local.terminal', args: { command: 'exit 3' } },
+    lifecycle: 'delivered', failureState: 'failed',
+    subject: { key: 'cmd:exit 3', kind: 'command', label: 'exit 3', failed: true, exitCode: 3 },
+  }] });
+  assert.equal(after.subjects?.[0]?.key, 'cmd:exit 3');
+  assert.equal(after.subjects?.[0]?.failed, true);
+  assert.equal(after.subjects?.[0]?.exitCode, 3);
+  assert.equal(after.blocked, '승인이 필요해요', '실패 관측이 기존 막힘을 성공처럼 풀었다');
+});
+
+test('실행 전 차단은 command subject를 만들지 않는다', () => {
+  const state = deriveWorkingState(null, { receipts: [{
+    actualCall: null,
+    제안한호출: { tool: 'local.terminal', args: { command: 'rm report.tsv' } },
+    failureState: 'blocked',
+  }] });
+  assert.equal(state.subjects?.length ?? 0, 0);
+});
+
+test('같은 전달 명령이 성공하면 실패 subject를 최신 성공 사실로 바꾼다', () => {
+  const failed = deriveWorkingState(null, { receipts: [{
+    actualCall: { tool: 'local.terminal', args: { command: 'job' } }, lifecycle: 'delivered', failureState: 'failed',
+    subject: { key: 'cmd:job', kind: 'command', label: 'job', failed: true, exitCode: 3 },
+  }] });
+  const recovered = deriveWorkingState(failed, { receipts: [{
+    actualCall: { tool: 'local.terminal', args: { command: 'job' } }, lifecycle: 'delivered', failureState: 'none',
+    subject: { key: 'cmd:job', kind: 'command', label: 'job', failed: false, exitCode: 0 },
+  }] });
+  assert.equal(recovered.subjects?.[0]?.failed, false);
+  assert.equal(recovered.subjects?.[0]?.exitCode, 0);
+});
+
 test('막힌 뒤 다른 길로 성공하면 "막혔다"가 풀린다(되는 길을 찾았는데 막혔다고 하면 거짓이다)', () => {
   const s = run([
     { receipts: [{ failureState: 'blocked', actualCall: { tool: 'web.collect' } }], blocked: '막혔어요' },

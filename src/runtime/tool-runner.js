@@ -89,6 +89,19 @@ function withSubject(rec, tool) {
   return { ...rec, subject: s };
 }
 
+// 실행에는 모델이 낸 원 인자를 그대로 쓴다. 다만 실패 영수증은 세션 원장에도 오래 남으므로,
+// probe stdout/stderr를 호출 인자라는 우회로로 저장하지 않는다. 실제 실패 원문은 명시적인
+// failureResult 경로에서만 현재 모델 교환으로 전달된다.
+function callForReceipt(call) {
+  const args = call?.args;
+  if (!args || typeof args !== 'object' || !Object.prototype.hasOwnProperty.call(args, 'probeResult')) return call;
+  const { probeResult, ...safeArgs } = args;
+  return {
+    ...call,
+    args: { ...safeArgs, probeResult: '[탐침 결과는 실패 영수증에만 있음]' },
+  };
+}
+
 /** 도구가 실제 결과에서 파생한 같은 턴 읽기 범위를 영수증에 붙인다. */
 async function withReadScope(rec, tool, executionContext) {
   let roots;
@@ -160,7 +173,7 @@ export class ToolRunner {
         } catch (e) {
           return receipt({
             intended,
-            actualCall: 부른것,
+            actualCall: callForReceipt(부른것),
             failureState: FAILURE.FAILED,
             userSafeSummary: SOURCE_CONTRACT_FAILED,
             diagnosticTrace: { reason: e?.message },
@@ -175,7 +188,7 @@ export class ToolRunner {
       if (out && out.blocked) {
         return receipt({
           intended,
-          actualCall: 부른것,
+          actualCall: callForReceipt(부른것),
           failureState: FAILURE.BLOCKED,
           // 어떤 종류로 막혔는지(사이트 차단·로그인벽·범위 밖…)를 잃지 않는다 — 다음 계단을 그걸로 정한다.
           fetchState: out.fetchState,
@@ -202,12 +215,13 @@ export class ToolRunner {
       if (out && out.failed) {
         const 다음수단 = Array.isArray(out.다음수단) ? out.다음수단 : undefined;
         const 미확인 = out.진행?.판정 === 'unknown';
-        return receipt({
+        return withSubject(receipt({
           intended,
-          actualCall: 부른것,
-          // 실패한 실행 결과는 성공 사실이 아니다. 그러나 실제 프로세스가 낸 exit·stdout·stderr·cwd는
-          // 다음 판단에 필요한 관측값이다. `failureState`가 이 값의 미확정 신분을 유지한다.
-          result: out.result,
+          actualCall: callForReceipt(부른것),
+          // 실패 도구의 일반 result는 내부 구조일 수 있다. 명시적으로 failureResult 계약을
+          // 낸 도구만 모델 판단용 미확정 관측값으로 보존한다.
+          result: out.failureResult,
+          lifecycle: out.lifecycle,
           failureState: FAILURE.FAILED,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
           diagnosticTrace: out.diagnosticTrace,
@@ -219,11 +233,11 @@ export class ToolRunner {
               : (미확인 ? undefined : '잠시 후 다시 시도할까요?')),
           진행: out.진행,
           다음수단,
-        });
+        }), tool);
       }
       const rec = withSubject(receipt({
         intended,
-        actualCall: 부른것,
+        actualCall: callForReceipt(부른것),
         result: out?.result ?? out,
         failureState: FAILURE.NONE,
         // 성공했어도 **무엇을 얻었는지**는 손이 밝힌다(예: 찾는 손은 후보 목록이지 내용이 아니다).
@@ -247,7 +261,7 @@ export class ToolRunner {
     } catch (err) {
       return receipt({
         intended,
-        actualCall: 부른것,
+        actualCall: callForReceipt(부른것),
         failureState: FAILURE.FAILED,
         userSafeSummary: `${toolId} 실행 중 문제가 있었어요.`, // 내부 오류 비노출
         diagnosticTrace: { message: err?.message, stack: err?.stack },

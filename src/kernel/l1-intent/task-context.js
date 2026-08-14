@@ -1113,6 +1113,10 @@ function 확인되지않은인자(value) {
   if (Array.isArray(value)) return value.map(확인되지않은인자);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    // probeResult 는 실행 전 탐침의 stdout/stderr를 품을 수 있다. 실패한 실제 실행의
+    // 원문은 failureResult로 모델에게만 따로 전달한다. 호출 인자/저장 봉투로 같은 원문을
+    // 우회시켜서는 안 된다.
+    if (key === 'probeResult') return [key, '[확인되지 않은 탐침 결과]'];
     const pathLike = /(?:path|directory|root|cwd)$/i.test(key);
     if (pathLike && typeof item === 'string' && item.startsWith('/')) {
       return [key, '[확인되지 않은 절대 경로]'];

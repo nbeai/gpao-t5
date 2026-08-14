@@ -202,7 +202,7 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉�
     async handler() {
       return {
         failed: true,
-        result: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER', exitCode: 7, cwd: '/failure-origin' },
+        failureResult: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER', exitCode: 7, cwd: '/failure-origin' },
         userSafeSummary: '명령이 오류로 끝났어요.',
       };
     },
@@ -214,7 +214,19 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉�
       입력들.push(JSON.stringify(tc));
       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
       if (!opts.tools?.length) return '못 봐서 확인하지 못했어요';
-      if (!냈나) { 냈나 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
+      if (!냈나) {
+        냈나 = true;
+        return {
+          text: '',
+          toolCalls: [{
+            name: 'local.terminal',
+            args: {
+              command: 'ls',
+              probeResult: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER' },
+            },
+          }],
+        };
+      }
       return { text: '못 봐서 확인하지 못했어요', toolCalls: [] };
     },
   };
