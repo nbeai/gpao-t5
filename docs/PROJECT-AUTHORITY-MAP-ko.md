@@ -11,10 +11,14 @@
 
 1. `AGENTS.md`
 2. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
-3. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
-4. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
-5. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
-6. 현재 작업과 직접 관련된 계획·계약·증거
+3. `design/T5-FINAL-ASSEMBLY-ko.md` — **최종 조립 정본**(오너 재동결 2026-08-11).
+   `design/T5-PLAN.md` 의 모든 노드보다 앞선다. 판정하는 법(§3 · 콘솔 라이브와 회차 규격) ·
+   슬라이스 규격(§4) · 순서(§5) · 지뢰와 HOME 격리(§9·§9-1)가 여기 있다.
+   다른 문서와 어긋나면 이것이 이긴다. **사본을 만들지 말고 그 문서를 고친다.**
+4. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
+5. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
+6. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
+7. 현재 작업과 직접 관련된 계획·계약·증거
 
 현재 사용자 체감과 배포 완성도를 90점대로 끌어올리는 작업 계약은
 `docs/03-product-plan/T5-PRODUCTION-90-COMPLETION-PLAN-2026-08-02-ko.md`에서 읽는다.
@@ -31,7 +35,7 @@
 | 최상위 | 오너 철학·제품 목적·최종 판단 | `GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md` |
 | A | 최상위 원칙의 집행 계약 | Model-OS 운영 순환, 개발 공학 원칙, 환경 헌장 |
 | B | 현재 프로젝트 사실 | 현재 세션 인수인계, 실제 Git, 실행 보드, 봉인 증거 |
-| C | 현재 작업 계약 | 오너가 승인한 최신 작업 계획·구현 계약 |
+| C | 현재 작업 계약 | `design/T5-FINAL-ASSEMBLY-ko.md`(최종 조립 정본 · 계획 노드보다 앞선다), 오너가 승인한 최신 작업 계획·구현 계약 |
 | D | 참고 자산 | OpenClaw·Hermes 실제 소스, Claude Code·Codex 작동 원리, 과거 설계·감사 |
 | E | 역사 기록 | `docs/archive/**`, 과거 인수인계, 퇴역 계획 |
 

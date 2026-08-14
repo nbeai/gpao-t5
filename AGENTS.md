@@ -46,6 +46,15 @@ After the single top authority, read these execution and engineering documents:
      implementation, live evidence, independent audit, and durable project knowledge.
    - Use it as the operating cycle for new work. It does not replace the single top product authority.
 
+The current canonical assembly (owner re-freeze 2026-08-11) — it comes before every plan node:
+
+5a. `design/T5-FINAL-ASSEMBLY-ko.md` — **the canonical assembly. It outranks every node of `design/T5-PLAN.md`.**
+   - §3 is the only place that defines how anything is judged done: console live only, plus the live round
+     spec (count, diversity, scoring, multi-turn freeze) that is fixed before a round is run.
+   - §4 is the four-step slice discipline (comparison axis → pre-red → repair → re-judgment).
+     §5 is the owner-approved order. §9/§9-1 are the live mines, including HOME isolation.
+   - When this and another document disagree, this one wins. Fix the other document — do not keep a second copy.
+
 The one and only plan (owner directive 2026-08-06):
 
 5b. `design/T5-PLAN.md` — **what T5 builds next. There is no second plan.**
@@ -56,6 +65,9 @@ The one and only plan (owner directive 2026-08-06):
    - Other `design/` plan documents are **evidence, not plans**. The three former plans carry a banner saying so
      and naming which node reads them. Do not take work orders from them.
    - Never create a new plan document. Add a node to this one.
+   - **Plan prose is edited on the main line only.** Measured 2026-08-14: two teams edited the same node on
+     their own branches, the completion contract split in two, and neither version was on the main line.
+     Do the work in a lane; land the plan edit on main.
    - Progress belongs in `git log`, open defects in `design/T5-FOLLOWUP-LEDGER-ko.md` — not in the plan.
    - **Closing a node means re-running the whole alignment board**, not just the sentence you fixed:
      `docs/03-verification/T5-ALIGNMENT-BOARD-ko.md`. All nine items, or the node is not closed.
@@ -101,6 +113,10 @@ Mandatory final pre-human validation gate:
 Mandatory independent audit and collaboration contract:
 
 9. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
+   - **Owner declaration 2026-08-14: this contract's closing-judgment clauses are abolished. The only judge is
+     the actual console live result — `design/T5-FINAL-ASSEMBLY-ko.md` §3.** The document carries the same
+     banner at its head and is kept, not deleted. What stays in force is everything below about parallel
+     development and scope hygiene; read the clauses about who declares completion as retired.
    - Every implementation, audit, resumed, handoff, and release session must read and obey it.
    - Audit must inspect the whole relevant range and submit the complete problem set together: reproduction,
      impact, shared structural scope, classification, preserved behavior, and stop condition.
@@ -179,8 +195,9 @@ Working-environment rules (see the Engineering Environment Charter):
 - Do not commit generated outputs (build/, dist/, out/). Source and generated outputs stay physically separate.
 - Builds are deterministic: no Date.now/random in outputs; stamp from content hashes computed on the final (post-transform) artifact.
 - When multiple agents work at once, isolate by `git worktree`; do not co-edit one file; merge via PR. Solo work needs no worktree.
-- Tool roles: Claude Code implements (code, tests, refactors); Codex refines the brief up front and audits after (docs, design, scenarios, ledger, release judgment). The point is that the maker and the doubter are separate. Audit is execution audit, not review-only (Absolute Principle 1).
-- Exception: when the implementer (Claude Code) is unavailable, the other may take over implementation — but must consciously note that hand and eye are now one, apply artifact-execution verification and failure tests more strictly, re-audit that stretch independently when the implementer returns, and never push irreversible/external actions solo (user approval becomes the gate). The reverse applies when Codex is unavailable.
-- Dual-role marking (mandatory): any work where one actor both implemented and audited must be tagged so it can be found and re-audited later. Add a commit trailer `Dual-Role: <actor> (impl+audit — needs independent audit)` and mark the stretch as `겸임 구현` in the ledger/notes. The returning independent auditor reviews these first and clears the mark on pass.
+- Judgment (owner declaration 2026-08-14): **"유일한 감사는 실제 콘솔 라이브 결과다. 그게 틀리면 틀린 것이고 그게 맞으면 맞는 것이다."** Whoever implements runs the live rounds and judges from them; if that judgment is wrong, the next live round catches it. Do not wait for a separate human or model auditor to declare something closed, and do not treat an auditor's opinion as the project's direction — that is how the audit became the project manager and pulled work narrow, partisan, or excessive. The one place the rules live is `design/T5-FINAL-ASSEMBLY-ko.md` §3; do not restate them here.
+- Two exceptions the owner kept: (a) **safety belts stay** — secret leakage, irreversible destruction, and touching the owner's own state are damage by the time a live round reveals them, so `scripts/human-use/prove-isolation.mjs` and its siblings remain mandatory brakes, not audits; (b) **live rounds fix their count and scoring axes before running** — cherry-picked rounds are a lie. The frozen round spec is `design/T5-FINAL-ASSEMBLY-ko.md` §3.
+- Because maker and judge are now the same actor, the discipline that replaces a second pair of eyes is the frozen live spec plus the standing rule that irreversible or external actions are never pushed solo — user approval remains that gate.
+- Dual-role marking (kept, meaning changed 2026-08-14): tag work where one actor both implemented and judged with the commit trailer `Dual-Role: <actor> (impl+audit — needs independent audit)`. **It now means: not a main-line candidate until a live round's raw output is attached.** It no longer means "waiting for a human auditor" — 25 such commits in the last 200 waited for an audit that never came, and 23 of them sat over a day on no list at all. Where a live round cannot be run at all (instrument or ruler repairs), write down why it cannot, and that note is what clears the tag.
 - Remote sync: local commits are frequent and free; push to origin at each major milestone (charter/spec sealed, roadmap phase done, first build slice complete, a domain closed, merge after audit passes). Do not let origin trail local for long. `main` stays green — never push a half-done or unaudited state. Force pushes / history rewrites / tags / releases need user approval; ordinary fast-forward pushes proceed at milestones.
 - Enforcement gates (hooks/CI/test gates) are intentionally deferred to Phase 5, when real code and a build pipeline exist. Everyday local work stays frictionless.
