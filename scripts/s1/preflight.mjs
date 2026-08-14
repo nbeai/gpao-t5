@@ -276,7 +276,17 @@ export const 기준지문 = Object.freeze({
   //   터미널: "여러 파일을 … 명령 하나로 끝난다(wc·grep·find·sort)"
   // 증거: docs/03-verification/evidence/terminal-2026-08-15/ (맨몸대조군-*.json · 기준선 §3-b)
   // 검사: test/f117-file-hand-declares-aggregation-limit.test.js (터미널 없는 설치는 안 가리킴)
-  스키마: '172d14025dffb46d',
+  // 2026-08-15 · **F-120**(172d1402 → 26196497). 파일 손에 copy 동사가 없어서 모델이
+  // bulk_move 로 대신하다 원본 불변을 깨고 "Finder 에서 하세요"로 떠넘겼다(live5
+  // run-150448 과업3 · 저장소에 커밋된 라이브 원본). 늘어난 것: action enum 아홉째(copy) ·
+  // 스키마에 성질 한 문장("copy 는 원본을 두고 사본을 만든다 — 사본이 필요한 일에 move 를
+  // 쓰지 않는다") · to 설명에 copy. 등급은 특례 없이 write 차선(불변식 유지 · action-plan.js).
+  // 검사: test/f120-file-hand-can-copy.test.js · model-tool-choice.test.js 동결 갱신.
+  // 같은 날 표본 2 (26196497 → 4546615d): copy 만으로는 다중 파일 형상이 다시 bulk_move 로
+  // 미끄러졌다(봉인 라이브 — "복사해 둬"에 bulk_move, 시작문서가 통째로 비었다). 같은 입자의
+  // 복사(bulk_copy)를 bulk_move 와 **한 갈래**로 싣는다 — 늘어난 것: enum 열째 · 성질 한 문장
+  // ("여러 파일의 사본은 bulk_copy 다"). 손 관리자가 착수 판정에 건 조건 그대로다.
+  스키마: '4546615ddd4c9dce',
   도구수: 19,
   // 2026-08-05 · **배치를 처음 동결한다.** 여태 지문은 `.sort()` 로 재서 순서를 안 봤다 —
   // `web.collect` 가 `web.search` 보다 앞이던 우연한 배치도 그래서 안 잡혔다.

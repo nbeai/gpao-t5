@@ -8,7 +8,7 @@
 //   · 덮어쓰기·삭제는 **되돌릴 수 있다** — 원본을 휴지통으로 옮기고 되돌리기 표를 남긴다.
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
-import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile, realpath } from 'node:fs/promises';
+import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile, cp, realpath } from 'node:fs/promises';
 import { join, dirname, basename, relative, isAbsolute, extname, resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -473,7 +473,7 @@ export function makeLocalFileTool(deps = {}) {
         const abs = await resolveInScope(args.path ?? '', { roots: [...roots, home ?? homedir()], home });
         const prot = protectionBlocks(abs, { write: true });
         if (prot) return { allowed: false, ...protectionMessage(prot, { write: true }) };
-        if (action === 'move') {
+        if (action === 'move' || action === 'copy') {
           // **목적지도 원본과 같은 자를 본다**(2026-08-08 · ⑫ 회차 E 실측 · F-46 프랙탈).
           // write 는 홈 전체가 열리는데 move 의 to 만 좁은 자라서, "만들고 바탕화면으로
           // 옮기기"가 두 번 거절됐고 모델은 "권한이 없다"고 알렸다 — 행동이 다르다고 자가
@@ -483,7 +483,7 @@ export function makeLocalFileTool(deps = {}) {
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
         }
-        if (action === 'bulk_move') {
+        if (action === 'bulk_move' || action === 'bulk_copy') {
           const dest = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           const destProt = protectionBlocks(dest, { write: true });
           if (destProt) return { allowed: false, ...protectionMessage(destProt, { write: true }) };
@@ -544,6 +544,7 @@ export function makeLocalFileTool(deps = {}) {
           ? `${이름} 에 저장해요(원본은 그대로 두어요)`
         : action === 'write' ? `${이름} 에 저장해요`
         : action === 'move' ? `${이름} 을(를) ${userVisiblePath(previewPathOf(args.to, roots, home), 카드루트)} 로 옮겨요`
+        : action === 'copy' ? `${이름} 을(를) ${userVisiblePath(previewPathOf(args.to, roots, home), 카드루트)} 로 복사해요 — 원본은 그대로 두어요`
             : `${이름} 을(를) ${action} 해요`;
       // **무엇이 적히는가.** 자리만 보여주면 사용자는 "무엇을 허락하는지" 절반만 안다 —
       // 실측(2026-07-27): 오너가 "뭘 적을지도 같이 알려줘"라고 물었는데 카드에는 파일 이름과
@@ -566,7 +567,10 @@ export function makeLocalFileTool(deps = {}) {
           ? '원본은 휴지통에 남아요 — "되돌려줘"로 되살릴 수 있어요'
           : action === 'write'
             ? '새로 만드는 거예요 — "되돌려줘"라고 하시면 만든 파일을 휴지통으로 보내요'
-            : '"되돌려줘"로 되살릴 수 있어요',
+            // 복사에는 잃는 것이 없다 — 되살릴 원본을 약속하면 카드가 거짓말이 된다(2026-07-28 계열).
+            : action === 'copy'
+              ? '원본은 처음부터 그대로예요 — "되돌려줘"라고 하시면 사본을 치워요'
+              : '"되돌려줘"로 되살릴 수 있어요',
       };
     },
     async handler(args = {}, executionContext = {}) {
@@ -1134,12 +1138,60 @@ export function makeLocalFileTool(deps = {}) {
           return ok(`${basename(abs)} 을(를) ${basename(dest)} 로 옮겼어요.`, { from: abs, to: dest });
         }
 
-        if (action === 'bulk_move') {
+        // ── F-120 · 복사 동사가 없어서 모델이 이동으로 대신했다 ─────────────────────
+        //
+        // 라이브 실측(live5 run-150448 과업3): 복사가 필요하자 bulk_move 로 옮겨 원본 불변을
+        // 깨고, 되돌린 뒤 "Finder 에서 Cmd+C→Cmd+V 하세요"라고 사용자에게 시켰다 — 떠넘김.
+        // 복사는 이 손에서 가장 가역적인 쓰기다: 원본 무접촉, undo = 사본 치우기.
+        // 계약은 move 를 준용한다(범위·보호·조용한 덮어쓰기 금지). undo 는 move 식(사본→원본
+        // rename)이 아니라 **만든 것을 치우는 길**(to=null 갈래)로 간다 — move 식으로 적으면
+        // 되돌리기가 원본을 휴지통에 보낸다.
+        if (action === 'copy') {
+          const dest = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
+          const destProt = protectionBlocks(dest, { write: true });
+          if (destProt) {
+            const msg = protectionMessage(destProt, { write: true });
+            return { blocked: true, scopeState: 'protected', ...msg };
+          }
+          let destExists = false;
+          try { await stat(dest); destExists = true; } catch { /* 없으면 진행 */ }
+          if (destExists) {
+            return fail(
+              `${basename(dest)} 이(가) 이미 있어서 복사하지 않았어요(덮어쓰면 기존 내용이 사라져요).`,
+              '다른 이름으로 복사하거나, 기존 파일을 먼저 확인할까요?',
+            );
+          }
+          const copyInfo = await stat(abs);
+          await mkdir(dirname(dest), { recursive: true });
+          if (copyInfo.isDirectory()) await cp(abs, dest, { recursive: true });
+          else await copyFile(abs, dest);
+          await pushUndo(undoEntry('copy', dest, null));
+          return ok(
+            `${basename(abs)} 을(를) ${basename(dest)} 로 복사했어요 — 원본은 그대로예요.`,
+            // 원본을 안 건드렸다는 건 말할 수 있는 사실이어야 한다(read 갈래의 전례).
+            { from: abs, to: dest, originalUntouched: true },
+          );
+        }
+
+        // ── F-120 표본 2 · bulk_copy — bulk_move 와 한 갈래다 ──────────────────────
+        //
+        // copy 를 만들고도 사고가 재현됐다(봉인 라이브 2026-08-15): "md 파일들을 백업 폴더에
+        // **복사**해 둬"에 모델이 bulk_move 를 골라 시작문서가 통째로 비었다. 다중 파일 형상은
+        // "여러 파일을 한 번에"를 광고하는 bulk 입자로 가고, 성질 문장은 입자 모양을 못 이긴다
+        // (F-117 에서 배운 그 기전). 여는 근거는 디스크 재현 사실 하나다 — 그 회차의 방에서
+        // 시작문서 폴더가 통째로 비어 있었다(사본이 아니라 이동이었다).
+        // 두 동사는 고르기·보호·0 진단이 같은 일이라 **갈래 하나에 연산만 다르게** 싣는다 —
+        // 쌍둥이 80줄 복제는 다음 수리가 한쪽만 고치는 문이 된다.
+        if (action === 'bulk_move' || action === 'bulk_copy') {
+          const 복사냐 = action === 'bulk_copy';
+          const 말 = 복사냐
+            ? { 하려면: '복사하려면', 할: '복사할', 하지: '복사하지', 했: '복사했' }
+            : { 하려면: '옮기려면', 할: '옮길', 하지: '옮기지', 했: '옮겼' };
           const info = await stat(abs);
-          if (!info.isDirectory()) return fail('여러 파일을 옮기려면 폴더를 대상으로 해야 해요.', '폴더를 알려주시면 조건에 맞는 파일만 옮길게요.');
+          if (!info.isDirectory()) return fail(`여러 파일을 ${말.하려면} 폴더를 대상으로 해야 해요.`, `폴더를 알려주시면 조건에 맞는 파일만 ${말.할}게요.`);
           const matcher = bulkMatch(args.match);
           if (!matcher.hasAny) {
-            return fail('옮길 조건이 없어서 아무 파일도 옮기지 않았어요.', '확장자나 이름 조건을 알려주시면 그 조건에 맞는 것만 옮길게요.');
+            return fail(`${말.할} 조건이 없어서 아무 파일도 ${말.하지} 않았어요.`, `확장자나 이름 조건을 알려주시면 그 조건에 맞는 것만 ${말.할}게요.`);
           }
           const destDir = await resolveInScope(args.to ?? '', { roots: [...roots, home ?? homedir()], home });
           const destProt = protectionBlocks(destDir, { write: true });
@@ -1179,8 +1231,8 @@ export function makeLocalFileTool(deps = {}) {
             // 조건에는 맞았는데 전부 보호 대상이었다 — 「조건에 맞는 게 없다」와 다른 사실이다.
             // 이걸 안 가르면 사용자는 조건을 고치려 들고, 실제로는 조건이 맞았다.
             return fail(
-              `조건에 맞는 것은 있었지만 ${보호됨.length}개가 보호 대상(열쇠·자격 같은 자리)이라 옮기지 않았어요.`,
-              '그 파일들은 제가 옮기지 않아요. 다른 조건으로 다시 찾아볼까요?',
+              `조건에 맞는 것은 있었지만 ${보호됨.length}개가 보호 대상(열쇠·자격 같은 자리)이라 ${말.하지} 않았어요.`,
+              `그 파일들은 제가 ${말.하지} 않아요. 다른 조건으로 다시 찾아볼까요?`,
               { 보호로건너뜀: 보호됨, 훑은수: 전체이름들.length },
             );
           }
@@ -1201,8 +1253,8 @@ export function makeLocalFileTool(deps = {}) {
             const 낱개 = 각각.map((x) => `${x.조건} ${x.잡히는수}개`).join(' · ');
             const 여럿 = 각각.length > 1;
             return fail(
-              `조건에 맞는 파일이 없어서 옮기지 않았어요.${낱개 ? ` 조건별로는 ${낱개} 인데, 조건은 모두 만족해야 해요.` : ''}`,
-              여럿 ? '조건을 하나씩 나눠서 부르면 각각 옮길 수 있어요.' : '다른 조건으로 다시 찾아볼까요?',
+              `조건에 맞는 파일이 없어서 ${말.하지} 않았어요.${낱개 ? ` 조건별로는 ${낱개} 인데, 조건은 모두 만족해야 해요.` : ''}`,
+              여럿 ? `조건을 하나씩 나눠서 부르면 각각 ${말.할} 수 있어요.` : '다른 조건으로 다시 찾아볼까요?',
               { 조건별: 각각, 모두만족해야함: true, 훑은수: 전체이름들.length },
             );
           }
@@ -1221,24 +1273,29 @@ export function makeLocalFileTool(deps = {}) {
               continue;
             }
             await copyFile(from, to);
-            try {
-              await rm(from);
-            } catch (e) {
-              try { await rm(to); } catch { /* 사본 정리 실패는 아래에서 실패로 보고 */ }
-              return fail(`${name} 을(를) 옮기다 멈췄어요 — 원본은 그대로 있어요.`, '원본 폴더의 권한을 확인한 뒤 다시 할까요?');
+            if (!복사냐) {
+              try {
+                await rm(from);
+              } catch (e) {
+                try { await rm(to); } catch { /* 사본 정리 실패는 아래에서 실패로 보고 */ }
+                return fail(`${name} 을(를) 옮기다 멈췄어요 — 원본은 그대로 있어요.`, '원본 폴더의 권한을 확인한 뒤 다시 할까요?');
+              }
             }
-            await pushUndo(undoEntry('move', from, to));
+            // 복사의 undo 는 사본 치우기(to=null 갈래) — move 식으로 적으면 원본이 휴지통으로 간다.
+            await pushUndo(복사냐 ? undoEntry('copy', to, null) : undoEntry('move', from, to));
             moved.push({ from, to });
           }
           if (!moved.length) {
-            return fail('조건에 맞는 파일은 있었지만 대상에 같은 이름이 있어서 옮기지 않았어요.', '다른 폴더나 다른 이름 규칙으로 옮길까요?');
+            return fail(`조건에 맞는 파일은 있었지만 대상에 같은 이름이 있어서 ${말.하지} 않았어요.`, `다른 폴더나 다른 이름 규칙으로 ${말.할}까요?`);
           }
           const 보호말 = 보호됨.length ? `, 보호 대상 ${보호됨.length}개는 건드리지 않았어요` : '';
           return ok(
             skipped.length
-              ? `${moved.length}개를 옮겼고, 같은 이름 ${skipped.length - 보호됨.length}개는 그대로 두었어요${보호말}.`
-              : `${moved.length}개를 옮겼어요${보호말}.`,
-            { from: abs, to: destDir, moved, skipped, remainingSource: await remainingSummary(abs) },
+              ? `${moved.length}개를 ${말.했}고, 같은 이름 ${skipped.length - 보호됨.length}개는 그대로 두었어요${보호말}.`
+              : `${moved.length}개를 ${말.했}어요${보호말}${복사냐 ? ' — 원본은 그대로예요' : ''}.`,
+            복사냐
+              ? { from: abs, to: destDir, copied: moved, skipped, originalUntouched: true }
+              : { from: abs, to: destDir, moved, skipped, remainingSource: await remainingSummary(abs) },
           );
         }
 
@@ -1249,7 +1306,7 @@ export function makeLocalFileTool(deps = {}) {
           return ok(`${basename(abs)} 을(를) 지웠어요(되돌릴 수 있어요).`, { path: abs, recoverable: true });
         }
 
-        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·읽기·저장·옮기기·지우기·되돌리기·최종본 확인(versions)이 가능해요.');
+        return fail(`'${action}' 은(는) 제가 할 수 있는 파일 작업이 아니에요.`, '보기·읽기·저장·복사·옮기기·지우기·되돌리기·최종본 확인(versions)이 가능해요.');
       } catch (e) {
         return failureOf(e, target);
       }

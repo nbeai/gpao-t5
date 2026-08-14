@@ -72,7 +72,11 @@ try {
     const turn = await post('/turn', { sessionId: s.id, text });
     const sess = JSON.parse(await readFile(join(state, `${s.id}.json`), 'utf8'));
     // ledgerEntries 는 세션 누적이다 — 이번 턴 몫만 잘라 쓴다(원본에 턴별 사실이 서게).
-    const 누적손 = (sess.ledgerEntries ?? []).map((e) => e?.actualCall?.tool).filter(Boolean);
+    // 파일 손은 동사가 판정 재료다(copy 인지 move 인지) — 도구:동사로 적는다.
+    const 누적손 = (sess.ledgerEntries ?? [])
+      .map((e) => (e?.actualCall?.tool
+        ? `${e.actualCall.tool}${e.actualCall.args?.action ? `:${e.actualCall.args.action}` : ''}` : null))
+      .filter(Boolean);
     const 손 = 누적손.slice(이전손수);
     이전손수 = 누적손.length;
     console.log('─'.repeat(70));

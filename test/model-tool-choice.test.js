@@ -42,7 +42,16 @@ test('실행할 수 없는 도구는 모델에게 보여주지 않는다(되는 
 test('스키마에 무엇을 할 수 있는지가 담긴다(모델이 고르려면 알아야 한다)', () => {
   const file = toolSchemasFor(selfState).find((t) => t.name === 'local.file');
   assert.match(file.description, /파일/);
-  assert.deepEqual(file.parameters.properties.action.enum, ['list', 'read', 'write', 'move', 'bulk_move', 'delete', 'undo', 'versions']);
+  // F-120(2026-08-15): copy·bulk_copy 추가 — 복사가 없어서 모델이 bulk_move 로 대신하다
+  // 원본 불변을 깼다(live5 run-150448 과업3). 그리고 copy 만으로는 다중 파일 형상에서
+  // 다시 bulk_move 로 미끄러졌다(봉인 라이브 표본 2 — 시작문서가 통째로 비었다).
+  // 동사 동결을 손으로 옮긴다.
+  assert.deepEqual(file.parameters.properties.action.enum,
+    ['list', 'read', 'write', 'copy', 'move', 'bulk_copy', 'bulk_move', 'delete', 'undo', 'versions']);
+  assert.match(file.description, /copy 는 원본을 두고 사본을 만든다/,
+    '사본이 필요한 일에 move 로 새지 않으려면 복사의 존재와 성질이 스키마에 있어야 한다');
+  assert.match(file.description, /여러 파일의 사본은 bulk_copy/,
+    '다중 파일 형상이 bulk_move 로 미끄러지지 않으려면 같은 입자의 복사가 보여야 한다');
   assert.match(file.description, /bulk_move/, '긴 정리는 낱개 move 대신 한 입자로 고르게 해야 한다');
   assert.match(file.description, /placeholder.*write 하지 않는다/,
     '정리 폴더 생성용 더미 파일을 만들라고 오해시키면 실물 새 파일이 생긴다');

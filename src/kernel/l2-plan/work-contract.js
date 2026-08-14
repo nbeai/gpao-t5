@@ -65,6 +65,16 @@ function isDeliverableWork(receipt) {
   if (action === 'bulk_move') {
     return Array.isArray(receipt?.result?.moved) && receipt.result.moved.length > 0;
   }
+  // copy(F-120)도 자리가 둘인 일이다 — 손이 내는 것은 { from, to, originalUntouched }.
+  // 여기 없으면 F-108 그대로 재발한다: 사본은 진짜로 생겼는데 완료로 안 세져
+  // 다음 턴 "아까 그거 이어줘"가 끝난 복사를 다시 한다(감시자 검문이 착수 전에 잡음).
+  if (action === 'copy') {
+    return typeof receipt?.result?.to === 'string' && receipt.result.to.length > 0;
+  }
+  // bulk_copy(F-120 표본 2)는 bulk_move 와 같은 계약 — 실제로 생긴 사본이 하나는 있어야 한다.
+  if (action === 'bulk_copy') {
+    return Array.isArray(receipt?.result?.copied) && receipt.result.copied.length > 0;
+  }
   return false;
 }
 const isSuccessfulWrite = isDeliverableWork;

@@ -20,6 +20,13 @@ export function fileKind(fileOp) {
     case 'write': case 'move': case 'bulk_move': case 'undo': return 'write';
     // versions 는 읽기 전용 판별(같은 이름 식구의 시각·내용 대조)이다 — 파일을 바꾸지 않는다.
     case 'read': case 'list': case 'versions': return 'read';
+    // copy·bulk_copy(F-120)는 원본 무접촉·undo=사본 치우기라 파괴가 없지만, **특례 등급을
+    // 내지 않는다** — 검사 불변식("읽기·목록·versions 외 파일 동사는 전부 승인 판정을
+    // 지난다")이 바꾸는 동사 전부를 한 차선에 세워 두었다(보호는 카드가 아니라
+    // 원장+되돌리기가 산다 · 자동성 헌장). 동사마다 차선이 갈라지면 한 곳을 고치면 다른
+    // 곳으로 샌다(:60-62 사고). 실마찰도 안 는다 — 같은 write 차선의 bulk_move 가
+    // 라이브에서 카드 0 으로 돌았다(과업3).
+    case 'copy': case 'bulk_copy': return 'write';
     // **모르면 read 로 흘리지 않는다.** fileOp 가 없는 경로(스킬이 도구만 밀어 넣는 경우)에서
     // read 로 떨어져 삭제가 승인 없이 실행됐다. 미상은 승인으로 간다.
     default: return UNKNOWN_KIND;
@@ -42,6 +49,8 @@ export function describeAction(toolId, args) {
     case 'delete': return `${name} 을(를) 지웁니다`;
     case 'write': return `${name} 에 내용을 저장합니다(기존 내용은 휴지통으로)`;
     case 'move': return args.to ? `${name} 을(를) ${args.to} 로 옮깁니다` : `${name} 을(를) 옮깁니다`;
+    case 'copy': return args.to ? `${name} 을(를) ${args.to} 로 복사합니다(원본은 그대로)` : `${name} 을(를) 복사합니다(원본은 그대로)`;
+    case 'bulk_copy': return args.to ? `${name} 안의 조건 맞는 파일들을 ${args.to} 로 복사합니다(원본은 그대로)` : `${name} 안의 조건 맞는 파일들을 복사합니다(원본은 그대로)`;
     case 'bulk_move': return args.to ? `${name} 안의 조건 맞는 파일들을 ${args.to} 로 옮깁니다` : `${name} 안의 조건 맞는 파일들을 옮깁니다`;
     case 'undo': return '방금 한 파일 작업을 되돌립니다';
     default: return null;

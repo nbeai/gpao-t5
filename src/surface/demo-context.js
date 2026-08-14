@@ -780,7 +780,7 @@ const DESCRIPTORS = [
     // "~/Documents 도 다룬다"고 답했고, 실제로 시키자 "작업 폴더 밖"으로 막혔다.
     // 거짓 성공은 아니었지만 **능력 진술이 실제 범위와 달랐다.** 방은 아래 `방채우기` 가
     // 런타임의 진짜 `scopeRoots` 로 채운다 — 손이 자기 방을 말한다.
-    capability: '{방} 안에서 파일과 폴더를 보고·읽고·만들고·옮기고·지운다.'
+    capability: '{방} 안에서 파일과 폴더를 보고·읽고·만들고·복사하고·옮기고·지운다.'
       + ' 한 번에 **한 자리**를 다룬다 — 조건이 분명한 여러 파일은 bulk_move 로 한꺼번에 옮긴다.'
       + ' 같은 이름 식구의 최종본 판별(versions)도 한다. 지우거나 덮어쓴 것은 되돌릴 수 있다.',
     operatorFact: '{방} 의 자료를 직접 읽고 정리한다.',
@@ -788,7 +788,9 @@ const DESCRIPTORS = [
       list: { 말: '파일 목록 보기' },
       read: { 말: '파일 읽기' },
       write: { 말: '파일에 쓰기' },
+      copy: { 말: '파일·폴더 복사하기(원본은 그대로)' },
       move: { 말: '파일·폴더 옮기기' },
+      bulk_copy: { 말: '조건에 맞는 여러 파일 한꺼번에 복사하기(원본은 그대로)' },
       bulk_move: { 말: '조건에 맞는 여러 파일 한꺼번에 옮기기' },
       delete: { 말: '파일 지우기' },
       undo: { 말: '지우거나 덮어쓴 것 되돌리기' },
@@ -796,17 +798,17 @@ const DESCRIPTORS = [
     },
     // 모델 노출 스키마도 같은 선언에 둔다(1축) — 예전엔 tool-schema.js 의 수동 맵에 있었다.
     schema: {
-      description: '**읽기는 이 컴퓨터의 홈 전체**에서 된다 — 사용자가 "내 컴퓨터"라고 하면 그 뜻이다(열쇠·인증서 자리, 앱이 보관한 개인 데이터, 시스템 폴더는 열리지 않는다). **저장·옮기기·지우기도 홈 안에서** 한다 — 사용자가 시킨 것은 그대로 하고, 시키지 않은 파괴는 승인 카드로 먼저 묻는다(지운 것은 휴지통에 남아 되돌릴 수 있다). 기본 자리는 {방} 이다. move 는 파일과 폴더 모두 가능하다. bulk_move 는 확장자·이름·수정일 조건에 맞는 여러 파일을 한 번에 옮기며, 목적지 폴더는 필요하면 자동으로 만든다. 정리 폴더를 만들려고 __keep 같은 placeholder 파일을 write 하지 않는다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
+      description: '**읽기는 이 컴퓨터의 홈 전체**에서 된다 — 사용자가 "내 컴퓨터"라고 하면 그 뜻이다(열쇠·인증서 자리, 앱이 보관한 개인 데이터, 시스템 폴더는 열리지 않는다). **저장·옮기기·지우기도 홈 안에서** 한다 — 사용자가 시킨 것은 그대로 하고, 시키지 않은 파괴는 승인 카드로 먼저 묻는다(지운 것은 휴지통에 남아 되돌릴 수 있다). 기본 자리는 {방} 이다. copy 는 원본을 두고 사본을 만든다 — 사본이 필요한 일에 move 를 쓰지 않는다(원본이 자리를 잃는다). 여러 파일의 사본은 bulk_copy 다. move 는 파일과 폴더 모두 가능하다. bulk_copy·bulk_move 는 확장자·이름·수정일 조건에 맞는 여러 파일을 한 번에 다루며(copy 는 사본, move 는 이동), 목적지 폴더는 필요하면 자동으로 만든다. 정리 폴더를 만들려고 __keep 같은 placeholder 파일을 write 하지 않는다. versions 는 같은 이름 식구를 수정 시각·실제 내용으로 대조해 최종본을 판별한다(읽기 전용). 되돌리기도 가능.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['list', 'read', 'write', 'move', 'bulk_move', 'delete', 'undo', 'versions'] },
+          action: { type: 'string', enum: ['list', 'read', 'write', 'copy', 'move', 'bulk_copy', 'bulk_move', 'delete', 'undo', 'versions'] },
           path: { type: 'string', description: '대상 파일·폴더(작업 폴더 기준 상대 경로 또는 허용 폴더의 절대 경로)' },
           name: { type: 'string', description: 'versions 로 폴더 안의 같은 이름 식구를 비교할 때 공통 이름(예: 견적서)' },
-          to: { type: 'string', description: 'move 또는 bulk_move 때 옮길 위치. 부모 폴더는 필요하면 자동으로 만들어진다.' },
+          to: { type: 'string', description: 'copy·move·bulk_move 때 갈 위치. 부모 폴더는 필요하면 자동으로 만들어진다.' },
           match: {
             type: 'object',
-            description: 'bulk_move 조건. 조건이 없으면 실행하지 않는다.',
+            description: 'bulk_copy·bulk_move 조건. 조건이 없으면 실행하지 않는다.',
             properties: {
               extensions: { type: 'array', items: { type: 'string' }, description: '옮길 확장자 목록(예: .pdf, .jpg)' },
               nameIncludes: { type: 'array', items: { type: 'string' }, description: '파일 이름에 들어갈 낱말' },
@@ -1002,7 +1004,7 @@ const DESCRIPTORS = [
               + '합계가 0 이면 열 이름부터 의심한다.\n'
               + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt}], total, offset, nextOffset }` · '
               + 'read → `{ path, text, bytes, totalChars, offset, nextOffset, table?:{rows, columns:["열이름"], sums:{"열이름":합계} }` — CSV 의 숫자 열 합계. columns 는 문자열 배열이다 · '
-              + 'move → `{ from, to }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'
+              + 'copy → `{ from, to, originalUntouched }` · move → `{ from, to }` · bulk_copy → `{ copied:[], skipped:[], originalUntouched }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'
               + 'console.log 로 낸 것만 답으로 돌아온다(중간 결과는 안 실린다). '
               + '파일시스템·네트워크·셸은 막혀 있다 — 손은 t5.call 로만.',
           },

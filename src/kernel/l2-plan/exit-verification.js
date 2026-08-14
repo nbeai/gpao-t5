@@ -141,6 +141,8 @@ function 바꾼개수(rec) {
   if ((rec?.failureState ?? 'none') !== 'none') return 0;
   const r = rec?.result;
   if (Array.isArray(r?.moved)) return r.moved.length;              // bulk_move
+  if (Array.isArray(r?.copied)) return r.copied.length;            // bulk_copy(F-120) — 안 세면
+  // 40개 복사가 1로 세져 "40개를 복사했어요"라는 정직한 답이 거짓 완료 주장으로 잡힌다
   if (Array.isArray(r?.innerReceipts)) {
     return r.innerReceipts.reduce((s, x) => s + 바꾼개수(x), 0);   // 캡슐 — 안쪽을 센다
   }

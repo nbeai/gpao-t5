@@ -265,8 +265,11 @@ export function compactResult(result, maxChars = 1200) {
   // ②-a 대량 파일 이동 — 수백 개 경로 배열을 그대로 주면 모델이 다음 판단 대신 결과 더미에 묻힌다.
   // 원본 상세는 영수증에 남고, 모델 방에는 "어떤 조건 실행이 실제로 어느 정도 효과를 냈는지"만
   // 판단 가능한 크기로 돌린다. 조용히 자르지 않고, 표본만 실었다는 사실을 함께 말한다.
-  if (Array.isArray(result.moved) && typeof result.from === 'string' && typeof result.to === 'string') {
-    const moved = result.moved;
+  // bulk_copy(F-120)도 같은 압축을 탄다 — 안 타면 대량 복사에서 경로 더미가 모델 방에 간다.
+  const 일괄 = Array.isArray(result.moved) ? { 목록: result.moved, 동사: '이동' }
+    : Array.isArray(result.copied) ? { 목록: result.copied, 동사: '복사' } : null;
+  if (일괄 && typeof result.from === 'string' && typeof result.to === 'string') {
+    const moved = 일괄.목록;
     const skipped = Array.isArray(result.skipped) ? result.skipped : [];
     const baseName = (value) => String(value ?? '').split('/').filter(Boolean).at(-1) ?? String(value ?? '');
     const sample = moved
@@ -283,11 +286,11 @@ export function compactResult(result, maxChars = 1200) {
       .map(([reason, count]) => `${reason} ${count}개`)
       .join(' · ');
     return [
-      `bulk 이동: ${moved.length}개`,
+      `bulk ${일괄.동사}: ${moved.length}개`,
       `출발: ${result.from}`,
       `도착: ${result.to}`,
       sample.length
-        ? `이동 표본: ${sample.join(' · ')}${moved.length > sample.length ? ` (전체 ${moved.length}개 중 ${sample.length}개만 실음)` : ''}`
+        ? `${일괄.동사} 표본: ${sample.join(' · ')}${moved.length > sample.length ? ` (전체 ${moved.length}개 중 ${sample.length}개만 실음)` : ''}`
         : '',
       skipped.length ? `건너뜀: ${skipped.length}개${skippedReasons ? ` — ${skippedReasons}` : ''}` : '',
       // **남은 수를 뺀 채로 주면 모델은 끝났는지 알 수 없다.**
