@@ -94,11 +94,11 @@ try {
   const receipts = await outputReceipts(entries, output);
   const terminal = entries.filter((entry) => entry?.actualCall?.tool === 'local.terminal');
   const missing = terminal.some((entry) => /logstat/.test(entry.actualCall?.args?.command ?? '') && Number(entry.result?.exitCode ?? entry.result?.commandExit?.code) !== 0);
-  // 단순 pwd·ls 성공은 복구가 아니다. 실패 뒤의 다른 터미널 명령이 실제 집계 TSV를
-  // stdout으로 낸 영수증일 때만 S2의 복구로 센다.
+  // 단순 pwd·ls 성공은 복구가 아니다. 실패 뒤의 다른 터미널 명령이 실제 집계 TSV만
+  // stdout으로 냈을 때만 S2의 복구로 센다. CRLF는 전송 차이로만 정규화한다.
   const recovered = terminal.some((entry) => !/logstat/.test(entry.actualCall?.args?.command ?? '')
     && Number(entry.result?.exitCode ?? entry.result?.commandExit?.code) === 0
-    && String(entry.result?.stdout ?? '').includes(expected));
+    && String(entry.result?.stdout ?? '').replace(/\r\n/g, '\n') === expected);
   const sourceUnchanged = (await Promise.all(Object.keys(sources).map(async (name) => sha256(await readFile(join(work, name))) === sourceHashes[name]))).every(Boolean);
   const approvals = entries.filter((entry) => entry?.failureState === 'approval_required').length;
   const report = {
