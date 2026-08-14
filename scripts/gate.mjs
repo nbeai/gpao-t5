@@ -35,10 +35,18 @@ const bad = (m) => { failures.push(m); console.log(`  ✗ ${m}`); };
 
 // ── ⓪ 정본 진입 경로가 과거 계획·worktree로 갈라지지 않는다 ─────────────
 try {
-  execFileSync(process.execPath, ['scripts/audit-project-entry.mjs'], { cwd: root, stdio: 'pipe' });
+  // 감사의 **경고**(작업 중인 방 · F-101 보탬 2)는 실패가 아니라서 stdout 으로 나온다. 여기서 안 보이면
+  // 게이트가 초록인 순간 그 줄이 통째로 사라진다 — 미등재 커밋을 아무도 못 보게 된다.
+  const 감사출력 = execFileSync(process.execPath, ['scripts/audit-project-entry.mjs'], {
+    cwd: root, stdio: 'pipe', encoding: 'utf8',
+  });
   ok('프로젝트 정본·퇴역 문서·worktree 경계');
+  for (const l of 감사출력.split('\n')) if (l.includes('⚠')) console.log(`    ${l.trim()}`);
 } catch (error) {
-  bad(`프로젝트 진입 감사 실패: ${error.stdout?.toString() || error.stderr?.toString() || error.message}`);
+  // **두 줄기를 다 싣는다.** stdout 만 보면(예전 판) 경고가 실린 순간 stderr 의 **실패 목록이
+  // 통째로 가려진다** — 판정 이유가 안 보이는 게이트가 된다.
+  const 원문 = [error.stdout?.toString(), error.stderr?.toString()].filter(Boolean).join('\n').trim();
+  bad(`프로젝트 진입 감사 실패: ${원문 || error.message}`);
 }
 
 // ── ① 선언한 도구는 라이브에 실제 손이 있다 (§16-C 불변식) ────────────────
