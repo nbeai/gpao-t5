@@ -259,6 +259,19 @@ export function makeLocalTerminalTool(deps = {}) {
       const 종료확인 = 끈PID.length
         ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
         : undefined;
+      // ── **못 한 이유를 말했으면 이어갈 자리도 준다**(라이브 실측 2026-08-13) ──────────
+      //
+      // 없는 작업 폴더 때문에 아무것도 안 돌았을 때, 영수증에는 못 돈 사실만 있고 `다음수단` 은
+      // 비어 있었다. 그런데 **이 손은 자기가 아는 자리를 갖고 있다**(`cwdOf()`) — 답을 쥔 채로
+      // 안 준 것이다. 모델은 같은 잘못된 자리로 세 번 더 갔고 과업이 통째로 실패했다.
+      //
+      // **강제가 아니라 유도다.** "이 자리를 써라"가 아니라 *이 손이 아는 자리는 여기다* 라는
+      // 사실 하나를 눈에 띄게 놓는다. 어디서 다시 할지는 모델이 고른다(§24) — 커널이 대신
+      // 고르면 모델은 그만큼 판단을 안 한다.
+      const 기본자리 = cwdOf();
+      const 다음수단 = 끝난이유?.why === 'cwd_missing' && 기본자리 !== cwd
+        ? [{ 방법: 'run', cwd: 기본자리, 왜: `이 손이 아는 자리 — 방금 쓴 ${cwd} 는 이 컴퓨터에 없다` }]
+        : undefined;
       return {
         result: {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
@@ -267,6 +280,9 @@ export function makeLocalTerminalTool(deps = {}) {
           stdout: r.stdout, stderr: r.stderr,
           // 코드 실패 / 실행 환경 / 샌드박스 차단을 구분해 남긴다(섞으면 사용자가 잘못 판단한다).
           ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+          // 결과 안에 싣는다 — 성공 갈래의 영수증은 손의 바깥 칸을 안 옮기고 `result` 만
+          // 옮긴다(tool-runner). 여기 두어야 모델 입력(compactResult)까지 실제로 닿는다.
+          ...(다음수단 ? { 다음수단 } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: 실제로돌았나,

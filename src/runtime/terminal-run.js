@@ -7,6 +7,7 @@
 //   ① probe 로 먼저 돌린다 — 성공하면 아무것도 안 바꿨다는 증명이라 그대로 쓴다.
 //   ② 막히면 승인을 받고 granted 로 다시 돌린다. 그때도 비밀 자리는 닫혀 있다.
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { writeFile, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -184,6 +185,36 @@ export function executionBlock(r) {
   }
   if (r.exitCode === 0) return undefined;
   const t = `${r.stderr ?? ''}\n${r.stdout ?? ''}`;
+  // **전달조차 안 된 것.** 위 `not_executable` 과 같은 논리의 형제 갈래다 — 바꾸려다 막힌 게
+  // 아니라 **아무것도 돌지 않았다**. 다만 저쪽은 셸이 exec 을 거부한 것이고, 여기는 셸까지도
+  // 못 갔다. `실행을 시작하지 못했어요` 는 이 파일 97줄 한 자리에서만 붙으므로, 그 문자열의
+  // 존재가 곧 **spawn 실패**라는 기계 사실이다. 아무것도 안 돌았으니 아래 갈래들이 읽을 자국은
+  // 애초에 있을 수 없다 — 그래서 다른 갈래보다 먼저 본다.
+  //
+  // 라이브 실측(gpt-5.1 4회 중 2회 · 2026-08-13): 모델이 없는 작업 폴더(`/home/work`)를 줬고
+  // spawn 이 `ENOENT` 로 죽었는데, 이 자리가 그걸 아래 `missing` 과 한 갈래로 묶어 두어
+  // T5 가 **"그 명령이 이 컴퓨터에 없어요"** 라고 말했다. 같은 회차에서 `printf` 에도 같은 말을
+  // 했다 — printf 는 이 컴퓨터에 있다. **거짓 진단이다.** 모델은 그 말을 믿고 같은 자리로
+  // 세 번 더 갔고 과업이 통째로 실패했다.
+  //
+  // 두 사실을 섞지 않는다: 명령이 없는 것(`missing`)과 **명령을 놓을 자리가 없는 것**.
+  // 자리가 실제로 없는지는 알아맞히지 않고 **본다** — spawn 의 오류말은 실행 파일 이름만
+  // 말하지(`spawn /usr/bin/sandbox-exec ENOENT`) 무엇이 없었는지는 말해 주지 않는다.
+  if (/실행을 시작하지 못했어요/.test(t)) {
+    const 자리없음 = typeof r.cwd === 'string' && r.cwd !== '' && !existsSync(r.cwd);
+    return 자리없음
+      ? {
+        kind: 'env',
+        why: 'cwd_missing',
+        userWhy: `${r.cwd} 라는 자리가 없어서 아무것도 실행되지 않았어요 — 명령이 있고 없고와는 상관없어요`,
+      }
+      : {
+        kind: 'env',
+        why: 'not_started',
+        // 무엇이 없었는지 모르면 **모른다고 말한다.** 지어낸 원인이 거짓 진단의 재료였다.
+        userWhy: '실행을 시작하지도 못했어요 — 아무것도 실행되지 않았어요',
+      };
+  }
   // 포트를 열려다 막힌 것 — 서버를 띄우는 테스트·빌드에서 가장 흔하다.
   if (/\bEPERM\b|\bEACCES\b/i.test(t) && /listen|bind|port|socket|server/i.test(t)) {
     // **나가서 읽는 것과 포트를 여는 것은 다른 사실이다**(오너 결정 2026-08-06 을 배선하다 밟음).
@@ -242,7 +273,10 @@ export function executionBlock(r) {
   if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
     return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
   }
-  if (/command not found|No such file or directory: |ENOENT.*spawn|실행을 시작하지 못했어요/i.test(t)) {
+  // **여기는 셸이 명령을 찾아본 뒤에 없다고 말한 자리다.** spawn 실패(`실행을 시작하지
+  // 못했어요`)는 위에서 갈라 나갔다 — 셸이 그 명령을 읽어 보지도 못한 것을 여기 두면
+  // 있는 명령을 없다고 말하게 된다(라이브 실측 2026-08-13).
+  if (/command not found|No such file or directory: |ENOENT.*spawn/i.test(t)) {
     return { kind: 'env', why: 'missing', userWhy: '그 명령이 이 컴퓨터에 없어요' };
   }
   return { kind: 'code', why: 'failed', userWhy: '명령이 오류로 끝났어요' };
