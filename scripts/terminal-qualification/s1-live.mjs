@@ -5,11 +5,37 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { startLiveServer } from '../../src/surface/server.js';
+import { makeServer } from '../../src/surface/server.js';
+import { SessionStore } from '../../src/surface/session-store.js';
+import { EventLog } from '../../src/surface/event-log.js';
+import { MemoryStore } from '../../src/surface/memory-store.js';
+import { liveDeps } from '../../src/surface/live-context.js';
+import { defineTool, toConnection } from '../../src/kernel/l2-plan/tool-descriptor.js';
 import { 저장된연결 } from '../s1/run.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const expected = 'A\t23000\nB\t15000\nC\t11000\n';
+
+// 이 도구는 T5 제품 도구가 아니다. S1 평가 하네스가 이 한 세션에만 제공하는
+// 객관 oracle이며, turn.js는 이 도구의 존재·PASS·실패를 특별 취급하지 않는다.
+function s1Verifier(output) {
+  return {
+    async handler() {
+      const actual = await readFile(output, 'utf8').catch(() => null);
+      if (actual === expected) {
+        return { pass: true, expectedDigest: sha256(expected), actualDigest: sha256(actual),
+          summary: 'S1 artifact verifier: PASS' };
+      }
+      return {
+        pass: false,
+        expectedDigest: sha256(expected),
+        actualDigest: actual === null ? null : sha256(actual),
+        mismatch: { kind: 'artifact_bytes', expected, actual },
+        summary: 'S1 artifact verifier: FAIL — artifact bytes differ from the requested result.',
+      };
+    },
+  };
+}
 
 async function json(base, cookie, path, body = undefined) {
   const response = await fetch(`${base}${path}`, {
@@ -48,7 +74,9 @@ const root = await mkdtemp(join(tmpdir(), 't5-terminal-s1-live-'));
 const home = join(root, 'home');
 const state = join(root, 'state');
 const work = join(home, 'work');
-await Promise.all([mkdir(home), mkdir(state), mkdir(work)]);
+// `home` 과 `home/work` 를 병렬 mkdir 하면 부모 생성 순서에 따라 러너가 ENOENT로
+// 멈출 수 있다. 제품 판정 전 격리 환경부터 확정한다.
+await Promise.all([mkdir(work, { recursive: true }), mkdir(state, { recursive: true })]);
 const files = {
   'sales-east.tsv': 'A\t10000\nB\t15000\n',
   'sales-west.tsv': 'A\t15000\nC\t11000\n',
@@ -64,17 +92,34 @@ let server;
 const previousHome = process.env.HOME;
 process.env.HOME = home;
 try {
-server = await startLiveServer({
-  port: 0,
-  processEnv: {
+  const processEnv = {
     HOME: home, GPAO_T5_HOME: home, GPAO_T5_DATA_DIR: state, GPAO_T5_FILE_ROOTS: work,
     GPAO_T5_TCELL: 'off', GPAO_T5_NO_AUTO_SCREEN_BIN: '1', GPAO_T5_CUA_BIN: '',
     GPAO_T5_MODEL_PROVIDER: connection.provider ?? 'openai', OPENAI_API_KEY: connection.자격,
     GPAO_T5_MODEL_BASE_URL: connection.상류 ?? 'https://api.openai.com/v1',
-    GPAO_T5_MODEL_ID: connection.modelId ?? 'gpt-5.1',
-  },
-  startScheduler: false,
-});
+    // 비교와 회귀 측정에서 같은 T5 제품 경로에 다른 연결 모델을 명시할 수 있다.
+    GPAO_T5_MODEL_ID: process.env.T5_LIVE_MODEL_ID ?? connection.modelId ?? 'gpt-5.1',
+  };
+  const live = liveDeps(processEnv);
+  const verifyDescriptor = defineTool({
+    id: 'task.verify', label: 'S1 결과 검사', owner: 'plugin', availability: [{ kind: 'connected' }],
+    toolKind: 'read', needsApproval: false,
+    capability: '이 평가 과업의 실제 결과 파일을 객관적으로 검사한다.',
+    operatorFact: '평가 하네스가 제공한 결과 검사를 실행한다.',
+    schema: {
+      description: 'S1 평가 하네스가 제공한 결과 검사다. 결과 파일을 만든 뒤 호출한다. FAIL이면 mismatch 영수증을 보고 원본 자료와 요청을 다시 확인해 고치고 재검사한다.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  });
+  live.tools.tools['task.verify'] = s1Verifier(output);
+  live.env.connections.push({ ...toConnection(verifyDescriptor, { connected: true }), hasHandler: true });
+  live.descriptors.push(verifyDescriptor);
+  server = makeServer({
+    store: new SessionStore(state), eventLog: new EventLog(state), memStore: new MemoryStore(state),
+    env: live.env, tools: live.tools, descriptors: live.descriptors, model: live.model,
+    processEnv,
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const cookie = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
   const session = await json(base, cookie, '/sessions', {});
@@ -82,7 +127,8 @@ server = await startLiveServer({
     '홈 폴더 안 work 폴더의 sales-east.tsv, sales-west.tsv, refunds.tsv를 모두 읽어 순매출을 계산해 주세요.',
     'sales는 더하고 refunds는 빼서 A, B, C 순서의 탭 TSV net.tsv를 만드세요.',
     '터미널로 계산할 때는 결과를 표준 출력으로 확인하고, 파일 저장은 파일 도구로 하세요.',
-    'net.tsv를 다시 읽어 실제 내용이 맞는지 확인한 뒤 완료를 알려 주세요.',
+    'net.tsv를 다시 읽고 S1 결과 검사 도구를 호출해 실제 내용이 맞는지 확인한 뒤 완료를 알려 주세요.',
+    '이 평가에서는 S1 결과 검사 도구의 PASS 영수증이 나오기 전에는 계산 설명만으로 완료할 수 없습니다.',
   ].join(' ');
   const turn = await json(base, cookie, '/turn', { sessionId: session.id, text: prompt });
   const persisted = JSON.parse(await readFile(join(state, `${session.id}.json`), 'utf8'));
@@ -95,10 +141,13 @@ server = await startLiveServer({
   const report = {
     schemaVersion: 1,
     scenario: 'terminal-s1-net-settlement',
+    modelId: processEnv.GPAO_T5_MODEL_ID,
     sourceHead: (await import('node:child_process')).execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     artifact: { expected, observed: artifact, matches: artifact === expected },
     sourceUnchanged: sourceUnchanged.every(Boolean), approvals,
     outputWriteReceipts: writes.length, outputReadReceipts: reads.length,
+    verifierReceipts: (persisted.ledgerEntries ?? []).filter((entry) => entry?.actualCall?.tool === 'task.verify')
+      .map((entry) => ({ pass: entry.result?.pass === true, mismatch: entry.result?.mismatch ?? null })),
     terminalReceipts: (persisted.ledgerEntries ?? []).filter((entry) => entry?.actualCall?.tool === 'local.terminal').map((entry) => ({
       command: entry.actualCall?.args?.command ?? null,
       cwd: entry.actualCall?.args?.cwd ?? null,
@@ -114,7 +163,9 @@ server = await startLiveServer({
       path: entry?.actualCall?.args?.path ?? entry?.result?.path ?? null,
     })),
     finalReply: turn.reply ?? turn.text ?? null,
-    pass: artifact === expected && sourceUnchanged.every(Boolean) && approvals === 0 && writes.length >= 1 && reads.length >= 1,
+    pass: artifact === expected && sourceUnchanged.every(Boolean) && approvals === 0
+      && writes.length >= 1 && reads.length >= 1
+      && (persisted.ledgerEntries ?? []).some((entry) => entry?.actualCall?.tool === 'task.verify' && entry.result?.pass === true),
   };
   console.log(JSON.stringify(report, null, 2));
   process.exitCode = report.pass ? 0 : 1;
