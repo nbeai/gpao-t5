@@ -108,6 +108,11 @@ export async function runCommand(command, opts = {}) {
       omittedChars: (stdout.omittedChars ?? 0) + (stderr.omittedChars ?? 0),
       // **끝난 이유를 남긴다.** 시간이 다 돼서 죽인 것과 명령이 실패한 것은 다른 사실이다.
       ...(killed ? { stopped: killed } : {}),
+      // **샌드박스가 실제로 섰다는 증명**(F-118). mode 라벨은 증명이 아니다 — 위 :44 에서
+      // 샌드박스가 없으면 probe 라벨로도 생 /bin/zsh 가 돈다. 「변경 없이 확인됐다」는 사실은
+      // 라벨이 아니라 이 칸에서만 나와야 한다(손 관리자 지적 2026-08-15 — 없으면
+      // "샌드박스의 부재가 안전의 증거로 읽혔다" 판이 다른 문으로 다시 열린다).
+      ...(profileDir ? { sandboxed: true } : {}),
     };
   } finally {
     if (profileDir) await rm(profileDir, { recursive: true, force: true });

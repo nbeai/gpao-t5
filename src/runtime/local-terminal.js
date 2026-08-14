@@ -302,6 +302,19 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: 실제로돌았나,
+          // ── F-118 · 성공한 probe 관측이 원장에서 「추정」으로 분류됐다 ─────────────────
+          //
+          // A0 계약(파일 머리)은 "probe 성공 = 아무것도 안 바꿨다는 증명. 그대로 답한다"인데,
+          // applied:false 만 실으니 확인된사실(ledger.js)이 떨어져 그 관측이
+          // "호출 없이 모델 지식으로만 답한 경우"(estimated)로 갔다 — 제품이 그 결과로
+          // 답하면서 원장은 그 근거를 추정이라 적는, 한 제품 두 진실.
+          //
+          // applied 의 뜻(변경이 실렸나)은 그대로다 — 뒤집으면 2026-08-03(실패 삼킨 쓰기가
+          // confirmed) 재개봉. 대신 막힌 갈래(:237)가 이미 쓰는 칸을 성공 갈래에도 싣는다.
+          // 발동 조건은 mode 라벨이 아니라 **실행기가 증명한 sandboxed** 다(terminal-run.js) —
+          // 샌드박스 없는 호스트에선 probe 라벨로도 생 zsh 가 돌아서, 라벨로 걸면
+          // 실제로 바꾼 명령이 「변경 없이 확인」으로 선다(손 관리자·감시자 동시 지적).
+          ...(실제모드 === 'probe' && r?.sandboxed === true ? { probeChangedNothing: true } : {}),
         },
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
