@@ -156,6 +156,42 @@ test('openai 와이어: /chat/completions + Bearer, choices 추출', async () =>
   assert.equal(body.max_tokens, undefined);
 });
 
+test('GPT-5.6 + 도구는 Responses API로 보내고 call_id 영수증을 되돌린다', async () => {
+  const { impl, calls } = fakeFetch(200, {
+    model: 'gpt-5.6-sol',
+    output: [{ type: 'function_call', name: 'local_file', arguments: '{"action":"read","path":"a.tsv"}', call_id: 'call_1' }],
+  });
+  const cfg = resolveModelConfig({ OPENAI_API_KEY: 'sk-o', GPAO_T5_MODEL_ID: 'gpt-5.6' });
+  const reply = await makeProviderModelClient(cfg, { fetchImpl: impl }).respond(TC, {
+    effort: 'medium', tools: [{ name: 'local.file', description: '파일', parameters: { type: 'object', properties: {} } }],
+  });
+  assert.deepEqual(reply.toolCalls, [{ name: 'local.file', args: { action: 'read', path: 'a.tsv' }, providerCallId: 'call_1' }]);
+  assert.equal(calls[0].url, 'https://api.openai.com/v1/responses');
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.reasoning.effort, 'medium');
+  assert.equal(body.tools[0].name, 'local_file');
+  assert.equal(body.input.at(-1).content[0].text, TC.currentRequest);
+});
+
+test('GPT-5.6 Responses 다음 호출은 같은 call_id에 실제 도구 영수증을 붙인다', async () => {
+  const { impl, calls } = fakeFetch(200, { model: 'gpt-5.6-sol', output_text: '읽은 내용을 반영했어요.', output: [] });
+  const cfg = resolveModelConfig({ OPENAI_API_KEY: 'sk-o', GPAO_T5_MODEL_ID: 'gpt-5.6' });
+  const reply = await makeProviderModelClient(cfg, { fetchImpl: impl }).respond({
+    ...TC,
+    turnExchange: [{
+      tool: 'local.file', args: { action: 'read', path: 'sales.tsv' }, providerCallId: 'call_sales',
+      summary: 'sales.tsv를 읽었어요.', result: { text: 'A\\t10' }, ref: 'internal-ref',
+    }],
+  }, { tools: [{ name: 'local.file', description: '파일', parameters: { type: 'object', properties: {} } }] });
+  assert.equal(reply.text, '읽은 내용을 반영했어요.');
+  const input = JSON.parse(calls[0].init.body).input;
+  const call = input.find((item) => item.type === 'function_call');
+  const output = input.find((item) => item.type === 'function_call_output');
+  assert.equal(call.call_id, 'call_sales');
+  assert.equal(output.call_id, 'call_sales');
+  assert.match(output.output, /sales\.tsv를 읽었어요/);
+});
+
 test('openai_oauth: 같은 와이어에 OAuth access token 을 Bearer 로 쓴다(주입 seam)', async () => {
   const { impl, calls } = fakeFetch(200, { choices: [{ message: { content: 'ok' } }] });
   const cfg = resolveModelConfig({ OPENAI_OAUTH_ACCESS_TOKEN: 'oauth-t' });

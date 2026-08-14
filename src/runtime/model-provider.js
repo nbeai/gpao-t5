@@ -881,6 +881,26 @@ const openaiExchange = (m, cfg) => 마지막그림만(m.exchange ?? []).flatMap(
   ...openai그림(x, cfg),
 ]);
 
+// Responses API 는 도구 호출과 그 결과를 각각 input item 으로 받는다. 이력은 T5 가
+// 이미 보관하므로 previous_response_id 에 기대지 않는다. 즉 공급자 교체가 turn/원장
+// 의미를 바꾸지 않고, 실제 도구 영수증만 다음 모델 판단으로 돌아간다.
+const openaiResponsesInput = (m, cfg) => [
+  ...openaiHistory(m),
+  { type: 'message', role: 'user', content: [{ type: 'input_text', text: m.user }] },
+  ...마지막그림만(m.exchange ?? []).flatMap((x) => [
+    { type: 'function_call', call_id: 교환신분(x), name: wireToolName(x.tool), arguments: JSON.stringify(x.args ?? {}) },
+    { type: 'function_call_output', call_id: 교환신분(x), output: 교환결과(x) },
+    // Responses 입력도 화면은 별도 message 로 보낸다. 텍스트·그림의 안전 표식은 Chat 경로와 같다.
+    ...openai그림(x, cfg).map((message) => ({
+      type: 'message', role: 'user', content: Array.isArray(message.content)
+        ? message.content.map((part) => part.type === 'image_url'
+          ? { type: 'input_image', image_url: part.image_url.url }
+          : { type: 'input_text', text: part.text })
+        : [{ type: 'input_text', text: message.content }],
+    })),
+  ]),
+];
+
 /**
  * **못 보는 자리는 화면을 보여 준다**(CU F-2 · 오너 승인 2026-08-05).
  *
@@ -1056,6 +1076,48 @@ const OPENAI_WIRE = {
   // — 없는 provider(anthropic·gemini)는 가장하지 않고 단발을 유지한다.
   streamToolCalls: (ev) => (Array.isArray(ev?.choices?.[0]?.delta?.tool_calls) ? ev.choices[0].delta.tool_calls : null),
 };
+
+// GPT-5.6 reasoning + function tools 는 Responses API 로 보낸다. 일반 OpenAI 모델과
+// 호환 서버는 검증된 Chat Completions 와이어를 그대로 쓴다.
+const OPENAI_RESPONSES_WIRE = {
+  defaultBase: 'https://api.openai.com/v1',
+  endpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/responses`,
+  headers: OPENAI_WIRE.headers,
+  body: (cfg, m, opts = {}) => JSON.stringify({
+    model: cfg.modelId,
+    instructions: m.system,
+    input: openaiResponsesInput(m, cfg),
+    max_output_tokens: cfg.maxTokens,
+    ...(opts.effort ? { reasoning: { effort: opts.effort } } : {}),
+    ...(opts.tools?.length ? {
+      tools: opts.tools.map((t) => ({
+        type: 'function', name: wireToolName(t.name), description: t.description, parameters: t.parameters,
+      })),
+    } : {}),
+    ...(requiredWireTool(opts) ? { tool_choice: { type: 'function', name: requiredWireTool(opts) } } : {}),
+  }),
+  extract: (json) => {
+    if (typeof json?.output_text === 'string') return json.output_text;
+    const parts = (json?.output ?? []).filter((item) => item?.type === 'message')
+      .flatMap((item) => item.content ?? []).filter((part) => part?.type === 'output_text')
+      .map((part) => part.text).filter((text) => typeof text === 'string');
+    return parts.length ? parts.join('') : undefined;
+  },
+  extractToolCalls: (json) => (json?.output ?? [])
+    .filter((item) => item?.type === 'function_call')
+    .map((item) => parseWireCall(item.name, item.arguments, item.call_id))
+    .filter(Boolean),
+  errorSignal: (status, json) =>
+    [status, json?.error?.code, json?.error?.type, json?.error?.message].filter(Boolean).join(' '),
+  modelsEndpoint: (cfg) => `${cfg.baseUrl.replace(/\/$/, '')}/models`,
+  listModels: (json) => json?.data?.map((m) => m.id).filter(Boolean),
+  responseModel: (json) => json?.model ?? null,
+};
+
+const isGpt56 = (modelId) => /^gpt-5\.6(?:-|$)/i.test(String(modelId ?? ''));
+const providerWire = (cfg) => cfg?.provider === 'openai' && isGpt56(cfg.modelId)
+  ? OPENAI_RESPONSES_WIRE
+  : MODEL_PROVIDERS[cfg?.provider];
 
 export const MODEL_PROVIDERS = {
   anthropic: {
@@ -1415,7 +1477,7 @@ function 잘렸나(json) {
 }
 
 export function makeProviderModelClient(baseCfg, deps = {}) {
-  const spec = MODEL_PROVIDERS[baseCfg.provider];
+  const spec = providerWire(baseCfg);
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS; // 0 = 총 시간 상한 없음
   const stallMs = deps.stallMs ?? modelStallMs(deps.env ?? process.env); // 진짜 죽음만 자른다
