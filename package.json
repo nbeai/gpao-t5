@@ -20,6 +20,7 @@
     "test": "node --test --test-concurrency=3",
     "start": "node src/surface/server.js",
     "audit:workspace": "node scripts/audit-project-entry.mjs",
+    "model:facts": "node scripts/model-connection-facts.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
