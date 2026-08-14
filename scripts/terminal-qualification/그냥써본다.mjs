@@ -16,6 +16,7 @@ import { EventLog } from '/Users/jyp/Developer/t5-p-op/src/surface/event-log.js'
 import { MemoryStore } from '/Users/jyp/Developer/t5-p-op/src/surface/memory-store.js';
 import { liveDeps } from '/Users/jyp/Developer/t5-p-op/src/surface/live-context.js';
 import { 저장된연결 } from '/Users/jyp/Developer/t5-p-op/scripts/s1/run.mjs';
+import { 재료실측 as 재료실측하기 } from './재료실측.mjs';
 
 const 발화 = process.argv.slice(2);
 if (!발화.length) { console.error('발화를 인자로 준다'); process.exit(1); }
@@ -63,13 +64,9 @@ try {
     { cwd: '/Users/jyp/Developer/t5-p-op' })).stdout.trim();
   // 재료의 **복사 시점 실측**을 같이 남긴다(손 관리자 지적) — 저장소 파일은 계속 바뀌므로,
   // 채점 시점 저장소가 아니라 그 회차가 실제로 본 바이트가 진값이어야 한다.
-  const 재료실측 = {};
-  const { execFile: ef } = await import('node:child_process');
-  const wc = (await promisify(ef)('/bin/zsh', ['-c', 'find . -type f -exec wc -c {} +'], { cwd: work })).stdout;
-  for (const line of wc.trim().split('\n')) {
-    const m = line.trim().match(/^(\d+)\s+(.+)$/);
-    if (m && m[2] !== 'total') 재료실측[m[2]] = Number(m[1]);
-  }
+  // 수집은 재료실측.mjs 하나뿐이다 — 셸 find|wc 를 쓰던 옛 줄은 주변 로케일이 C 면
+  // 비ASCII 이름을 `?` 로 잃었다(§7-t). 복제하지 마라.
+  const 재료실측 = await 재료실측하기(work);
   const 원본 = {
     schemaVersion: 1, 시각: new Date().toISOString(), sourceHead,
     모델: { provider: 연결.provider ?? 'openai', modelId: process.env.T5_LIVE_MODEL_ID ?? 연결.modelId ?? 'gpt-5.1' },

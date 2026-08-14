@@ -14,6 +14,7 @@ import { EventLog } from '/Users/jyp/Developer/t5-p-op/src/surface/event-log.js'
 import { MemoryStore } from '/Users/jyp/Developer/t5-p-op/src/surface/memory-store.js';
 import { liveDeps } from '/Users/jyp/Developer/t5-p-op/src/surface/live-context.js';
 import { 저장된연결 } from '/Users/jyp/Developer/t5-p-op/scripts/s1/run.mjs';
+import { 재료실측, 재료실측원문 } from './재료실측.mjs';
 
 const 발화 = process.argv.slice(2);
 if (!발화.length) { console.error('발화를 인자로 준다'); process.exit(1); }
@@ -47,7 +48,8 @@ const 연결 = 저장된연결(homedir());
 if (!연결?.자격) throw new Error('저장된 모델 연결이 없다');
 const 실행 = promisify(execFile);
 const sourceHead = (await 실행('git', ['rev-parse', 'HEAD'], { cwd: '/Users/jyp/Developer/t5-p-op' })).stdout.trim();
-const wc = (await 실행('/bin/zsh', ['-c', 'find . -type f -exec wc -c {} +'], { cwd: work })).stdout;
+// 형제 수집기와 **같은 함수**를 쓴다 — 옛 셸 find|wc 는 로케일이 C 면 이름을 잃었다(§7-t).
+const wc = 재료실측원문(await 재료실측(work));
 
 const 옛HOME = process.env.HOME;
 process.env.HOME = home;
