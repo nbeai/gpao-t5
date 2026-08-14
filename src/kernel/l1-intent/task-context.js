@@ -5,7 +5,7 @@ import { extname } from 'node:path';
 import { selfStateSummary } from '../l0-evidence/self-state.js';
 import { sameSiteLinks, 빈손으로돌아왔나 } from '../l0-evidence/working-state.js';
 import { operatorReality } from './operator-reality.js';
-import { 실패도교환, 사실공급 } from '../model-sovereign.js';
+import { 실패도교환 } from '../model-sovereign.js';
 
 /**
  * 도구 결과에서 **사용자면 데이터**만 압축해 뽑는다. 통째로 넣으면 프롬프트가 폭주하고,
@@ -761,12 +761,38 @@ export function buildTaskContext(p) {
   const selfStateFacts = {
     model: summary.model,
     modelAuthState: summary.modelAuthState,
-    // Phase 2-2 다이어트(§11 "무관한 사실을 나열하지 않는다"): 능력 **설명 문장**은 도구를 실제로
-    // 쓰는 턴이나 능력을 물어본 턴에만. 인사 한 마디에 설명서를 통째로 실으면 모델이 그걸 읽고
-    // 번호 목록으로 되읊는다(실측). 가벼운 턴에는 도구 **이름만** 준다 — 과장 금지는 이름만으로도 선다.
-    readyTools: intent.answerMode === 'fast_chat' && !p.selfhoodDetail
-      ? (summary.ready ?? [])
-      : (summary.readyCapabilities ?? summary.ready),
+    // ── **F-115 · 발화 분류는 사실 공급의 열쇠가 아니다**(오너 지시 2026-08-14) ──────
+    //
+    // 여기 있던 것은 Phase 2-2 「다이어트」였다: `answerMode === 'fast_chat'` 이면 능력
+    // **설명 문장**을 빼고 도구 **이름만** 주고, 한계(`limits`·`scopedLimits`)는 통째로 비웠다.
+    // 이유는 "인사 한 마디에 설명서를 실으면 모델이 번호 목록으로 되읊는다"였다.
+    //
+    // 그 자리가 **손을 못 뻗는 원인**이었다(라이브 4회차 · gpt-5.1 · 터미널 호출 0회).
+    //   `순매출.tsv 로 저장해줘` · `파일로 남겨줘` · `합쳐서 요약해줘` · `ERROR 를 세서 알려줘`
+    // 넷 다 `fast_chat` 이다 — `저장`·`남겨`·`요약`·`세다` 가 `ACTION_SIGNALS` 에 없어서다.
+    // 그 턴에 빠지는 문장 안에 이것이 있었다(`demo-context.js` · `local.terminal`):
+    //   *"실행 직전에 확인 카드가 한 번 뜨고, 승인되면 네가 이어서 실행한다 —
+    //     **사용자에게 명령어를 적어 주지 않는다.**"*
+    // **떠넘김을 막으라고 넣은 문장이, 떠넘김이 나는 턴에는 안 갔다.**
+    //
+    // 낱말을 더하지 않는다(절대원칙 4 · 목록은 항상 뚫린다 — 다음 낱말에서 또 난다).
+    // **계약을 끊는다**: 도구 스키마는 이미 `answerMode` 와 무관하게 전량 간다
+    // (`turn.js` · `modelSchemasFor`). 그런데 **그 손을 쓰는 법만** 분류로 빠지고 있었다 —
+    // 커널이 대신 고르는 것보다 나쁘다. **고를 재료를 뺏는 것**이기 때문이다.
+    // 「강제가 아니라 유도」의 정반대라서, 여기서는 분류를 안 본다.
+    //
+    // `answerMode` 가 응답의 길이·깊이를 정하는 자리(`model-client.js` · 스트리밍 분기)는
+    // 그대로다. 끊은 것은 **사실 공급** 하나다.
+    //
+    // **캐시는 되레 붙는다**(밟은 사실): 이 세 칸은 `model-provider.js` 의 캐시 경계 **위**
+    // (고정 접두)에 앉는다. 분류로 갈리는 동안 안정 접두 지문이 발화마다 2종으로 갈렸고
+    // (3,312자 ↔ 4,724자), 잡담과 일이 번갈아 오면 매 턴 접두가 통째로 무효였다 —
+    // F-73 이 걷어 낸 것과 같은 병이 발화 축으로 남아 있었다. 항상 실으면 지문이 1종이 된다.
+    //
+    // 원 주석이 걱정한 *"인사에 능력을 번호 목록으로 되읊는다"* 는 **사실을 지워서** 막을 것이
+    // 아니다 — 그건 헌장(묻지 않은 능력 나열 금지)이 무는 자리다. 사실을 지우면 모델은
+    // 짐작으로 답한다("슬랙 보낼 수 있어?" 실측).
+    readyTools: summary.readyCapabilities ?? summary.ready,
     // ── **한계는 사실이다 — 분류기가 지우지 않는다**(S7 ③ · F-18 · 2026-08-05) ──────
     //
     // 예전 주석은 *"한계는 그 도구가 걸리는 턴에서만 쓸모 있다. 잡담에는 소음이다"* 였다.
@@ -774,17 +800,14 @@ export function buildTaskContext(p) {
     // 79자를 아끼려고 "무엇을 못 하는지"를 통째로 지우면, 모델은 "슬랙 보낼 수 있어?"에
     // 짐작으로 답한다 — 사실을 안 주면 모델은 사실을 만든다(이 흐름에서 여러 번 밟았다).
     //
-    // 원 주석이 걱정한 *"설명서를 통째로 실어 번호 목록으로 되읊는"* 것은 바로 위
-    // `readyCapabilities`(능력 **설명 문장**) 쪽이고 `limits` 가 아니다 — 그건 안 건드린다.
-    limits: 사실공급(p.processEnv)
-      ? summary.limits
-      : (intent.answerMode === 'fast_chat' && !p.selfhoodDetail ? [] : summary.limits),
+    // **F-18 ① 은 플래그를 졸업했다**(F-115). `사실공급(T5_FACTS_UNFILTERED)` 이 켜져야만
+    // 서던 이 사실은 이제 기본값이다 — 위 `readyTools` 와 **같은 문**을 타야 하기 때문이다.
+    // 플래그는 `context-mesh.js`(F-18 ② · 검증 사례 없는 원칙)에서 계속 산다.
+    limits: summary.limits,
     // **손·동사에 걸린 한계**(칸 1). `readyTools` 와 **같은 문**을 탄다 — 능력 설명이 실리는
     // 턴에는 그 한계도 함께 실려야 한다. 둘을 갈라 놓으면 모델은 능력만 읽거나 한계만 읽고,
     // 그게 성질 1(자기 손을 모른다)과 거짓 한계를 동시에 만든다.
-    scopedLimits: intent.answerMode === 'fast_chat' && !p.selfhoodDetail
-      ? []
-      : (summary.scopedLimits ?? []),
+    scopedLimits: summary.scopedLimits ?? [],
     // 승인 필요 손은 자기 상태를 물었을 때만 상세히 준다. 평범한 대화에 권한 설명을 매번
     // 싣지 않되, 물었을 때 모델이 추측으로 위험 범위를 만들지 않게 한다.
     approvalRequired: p.selfhoodDetail ? summary.approvalRequired : [],
