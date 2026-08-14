@@ -61,10 +61,19 @@ try {
   console.log(`방: ${root}\n작업 폴더에 넣은 것: 시작문서/ · README.md · AGENTS.md\n`);
   const sourceHead = (await promisify(execFile)('git', ['rev-parse', 'HEAD'],
     { cwd: '/Users/jyp/Developer/t5-p-op' })).stdout.trim();
+  // 재료의 **복사 시점 실측**을 같이 남긴다(손 관리자 지적) — 저장소 파일은 계속 바뀌므로,
+  // 채점 시점 저장소가 아니라 그 회차가 실제로 본 바이트가 진값이어야 한다.
+  const 재료실측 = {};
+  const { execFile: ef } = await import('node:child_process');
+  const wc = (await promisify(ef)('/bin/zsh', ['-c', 'find . -type f -exec wc -c {} +'], { cwd: work })).stdout;
+  for (const line of wc.trim().split('\n')) {
+    const m = line.trim().match(/^(\d+)\s+(.+)$/);
+    if (m && m[2] !== 'total') 재료실측[m[2]] = Number(m[1]);
+  }
   const 원본 = {
     schemaVersion: 1, 시각: new Date().toISOString(), sourceHead,
     모델: { provider: 연결.provider ?? 'openai', modelId: process.env.T5_LIVE_MODEL_ID ?? 연결.modelId ?? 'gpt-5.1' },
-    재료: ['시작문서/', 'README.md', 'AGENTS.md'], 회차: [],
+    재료: ['시작문서/', 'README.md', 'AGENTS.md'], 재료실측, 회차: [],
   };
   let 이전손수 = 0;
   for (const [i, text] of 발화.entries()) {
