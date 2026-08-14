@@ -1,0 +1,919 @@
+diff --git a/src/kernel/l0-evidence/ledger.js b/src/kernel/l0-evidence/ledger.js
+index ba4e7c78..53e035af 100644
+--- a/src/kernel/l0-evidence/ledger.js
++++ b/src/kernel/l0-evidence/ledger.js
+@@ -86,7 +86,15 @@ export class TruthLedger {
+ 
+   /** @param {import('../contracts.js').ToolReceipt} rec */
+   append(rec) {
+-    this.entries.push(rec);
++    // 실패 원문은 같은 턴의 모델 판단용 관측이지 세션 기억이 아니다. turnReceipts 는 원본을
++    // 계속 쥐고, TruthLedger 는 지속 가능한 공개 사실만 별도 투영한다.
++    if ((rec?.failureState ?? FAILURE.NONE) !== FAILURE.NONE
++      && rec?.actualCall?.tool === 'local.terminal') {
++      const { result, ...durable } = rec;
++      this.entries.push(structuredClone(durable));
++    } else {
++      this.entries.push(rec);
++    }
+     return rec;
+   }
+ 
+diff --git a/src/kernel/l0-evidence/working-state.js b/src/kernel/l0-evidence/working-state.js
+index c486cab6..155f2d00 100644
+--- a/src/kernel/l0-evidence/working-state.js
++++ b/src/kernel/l0-evidence/working-state.js
+@@ -110,18 +110,29 @@ export function deriveWorkingState(prevState, turn = {}) {
+   const screenPlaces = turn.screenPlaces;
+   const receipts = turn.receipts ?? [];
+ 
+-  // 이번 턴에 실제로 다룬 대상들(성공분만).
+-  const fresh = [];
++  // 전달된 대상은 성공·실패 모두 다음 턴의 “아까 그 명령/오류” 신분이다.
++  // 막힘·대기 해제에는 성공 대상만 쓴다.
++  const observedSubjects = [];
++  const successfulSubjects = [];
+   for (const r of receipts) {
+-    if (!r || (r.failureState ?? 'none') !== 'none') continue;
++    if (!r?.actualCall) continue;
++    // 새 영수증은 실제 프로세스 전달을 명시한다. 이전 성공 영수증은 lifecycle 칸이
++    // 없었으므로, 그 경우에만 기존의 성공 사실을 호환해 읽는다. 실패·차단을 성공으로
++    // 추정하지는 않는다.
++    const delivered = r.lifecycle === 'delivered'
++      || (r.lifecycle == null && (r.failureState ?? 'none') === 'none');
++    if (!delivered) continue;
+     const s = subjectFrom(r);
+-    if (s) fresh.push({ ...s, lastTurn: turnNo });
++    if (!s) continue;
++    const subject = { ...s, lastTurn: turnNo };
++    observedSubjects.push(subject);
++    if ((r.failureState ?? 'none') === 'none') successfulSubjects.push(subject);
+   }
+ 
+   // 새 것이 앞, 오래된 것은 뒤로. 같은 대상을 다시 다루면 **최신 정보로 갱신**되고 앞으로 나온다.
+   const merged = [];
+   const seen = new Set();
+-  for (const s of [...fresh, ...(prev.subjects ?? [])]) {
++  for (const s of [...observedSubjects, ...(prev.subjects ?? [])]) {
+     if (seen.has(s.key)) continue;
+     seen.add(s.key);
+     // 오래 안 쓰인 대상은 내린다 — 옛것이 영원히 "현재"인 척하지 않는다.
+@@ -132,7 +143,7 @@ export function deriveWorkingState(prevState, turn = {}) {
+ 
+   // 막힌 것: 이번 턴에 막혔으면 갱신, 아니면 이전 것을 이어간다(다음 턴에도 다음 길을 기억한다).
+   // 다만 이번 턴에 뭔가 성공했으면 막힘은 푼다 — 되는 길을 찾았는데 "막혔다"고 남기면 거짓이다.
+-  const blocked = turn.blocked ?? (fresh.length ? undefined : prev.blocked);
++  const blocked = turn.blocked ?? (successfulSubjects.length ? undefined : prev.blocked);
+ 
+   // P5-B-1B · **하다 만 일은 다음 턴이 이어받는다.** 실측(오너 2026-07-28): 비밀 입력창을
+   // 띄우고 사용자가 창을 닫으면 그 사실이 어디에도 안 남았다 — 다음 턴에 "아까 네이버 붙이다
+@@ -154,7 +165,7 @@ export function deriveWorkingState(prevState, turn = {}) {
+   // 키 모양이 둘이다: 표면 요청은 대상 이름 그대로, subjectOf 는 `종류:이름` 으로 온다.
+   // 같은 것을 다르게 부르면 영원히 안 풀린다 — 앞의 종류를 떼고 맞춘다.
+   const 벗기기 = (k) => String(k ?? '').replace(/^[a-z_]+:/, '');
+-  const 풀린것 = new Set(fresh.map((s) => 벗기기(s.key)));
++  const 풀린것 = new Set(successfulSubjects.map((s) => 벗기기(s.key)));
+   const awaiting = [...이번에멈춘것, ...(prev.awaiting ?? [])]
+     .filter((a, i, all) => all.findIndex((x) => x.key === a.key) === i)
+     .filter((a) => !풀린것.has(벗기기(a.key)))
+diff --git a/src/kernel/l1-intent/task-context.js b/src/kernel/l1-intent/task-context.js
+index 263f3ae1..1109d207 100644
+--- a/src/kernel/l1-intent/task-context.js
++++ b/src/kernel/l1-intent/task-context.js
+@@ -611,13 +611,34 @@ function 가본곳모으기(receipts = []) {
+  * (turn.js 결과 조립 — 봉인 recovery A·B·B' 가 그 자리를 문다).
+  */
+ const 실패원문상한 = 2000; // Hermes 와 같은 축 — 값은 그쪽 실측을 그대로 쓴다(2,000자 절단)
++function 실패관측값(value) {
++  if (value == null || typeof value !== 'object') return compactResult(value, 실패원문상한);
++  // 실패 관측은 문자열로 뭉개지 않는다. command/cwd/exit/stdout/stderr/전달/효과 칸을
++  // 모델이 직접 구분해 다음 수를 고를 수 있어야 한다. 긴 문자열만 칸 안에서 조용하지 않게 접는다.
++  const 접기 = (item) => {
++    if (typeof item === 'string') return item.length <= 실패원문상한
++      ? item
++      : `${item.slice(0, 실패원문상한)}…[잘림: 전체 ${item.length}자 중 앞 ${실패원문상한}자만 실음]`;
++    if (Array.isArray(item)) return item.map(접기);
++    if (item && typeof item === 'object') return Object.fromEntries(
++      Object.entries(item).map(([key, child]) => [key, 접기(child)]),
++    );
++    return item;
++  };
++  return 접기(value);
++}
++
+ function 실패원문칸(r) {
+   if (!r?.actualCall) return {};
+   const 진단 = r.diagnosticTrace;
+   const 원문 = 진단 == null ? '' : (typeof 진단 === 'string' ? 진단 : JSON.stringify(진단));
+-  if (!원문 || 원문 === '{}') return { 확인안됨: true };
++  // 실패 결과는 성공 data가 아니다. 하지만 실제 실행이 낸 stdout·stderr·exit·cwd는
++  // 모델이 다음 방법을 고를 때 필요한 관측 사실이므로, 같은 미확정 표식 아래에만 싣는다.
++  const 결과 = r.result === undefined ? undefined : 실패관측값(r.result);
++  if (!원문 || 원문 === '{}') return { 확인안됨: true, ...(결과 !== undefined ? { 실패결과: 결과 } : {}) };
+   return {
+     확인안됨: true,
++    ...(결과 !== undefined ? { 실패결과: 결과 } : {}),
+     실패원문: 원문.length <= 실패원문상한
+       ? 원문
+       : `${원문.slice(0, 실패원문상한)}…[잘림: 전체 ${원문.length}자 중 앞 ${실패원문상한}자만 실음]`,
+@@ -1109,6 +1130,10 @@ function 확인되지않은인자(value) {
+   if (Array.isArray(value)) return value.map(확인되지않은인자);
+   if (!value || typeof value !== 'object') return value;
+   return Object.fromEntries(Object.entries(value).map(([key, item]) => {
++    // probeResult 는 실행 전 탐침의 stdout/stderr를 품을 수 있다. 실패한 실제 실행의
++    // 원문은 failureResult로 모델에게만 따로 전달한다. 호출 인자/저장 봉투로 같은 원문을
++    // 우회시켜서는 안 된다.
++    if (key === 'probeResult') return [key, '[확인되지 않은 탐침 결과]'];
+     const pathLike = /(?:path|directory|root|cwd)$/i.test(key);
+     if (pathLike && typeof item === 'string' && item.startsWith('/')) {
+       return [key, '[확인되지 않은 절대 경로]'];
+diff --git a/src/kernel/turn.js b/src/kernel/turn.js
+index 0c5583d7..2c55cc95 100644
+--- a/src/kernel/turn.js
++++ b/src/kernel/turn.js
+@@ -1708,9 +1708,12 @@ export async function runTurn(input, ctx) {
+       if (call?.name && 본것.has(call.name)) { 추가호출.push(call); continue; }
+       if (call?.name) 본것.add(call.name);
+       대표.push(call);
+-      // 계획 경로가 실행할 대표 호출의 **공급자 신분**을 손 이름에 걸어 둔다. 계획은
+-      // `plan.toolsToUse`(손 이름)로 도는 구조라 여기서만 이어 붙일 수 있다.
+-      if (call?.name && call?.providerCallId) 계획호출신분[call.name] = { providerCallId: call.providerCallId };
++      // 계획 경로는 실행하면서 probe·grant 문맥을 인자에 덧댄다. actualCall 은 그 실행
++      // 봉투가 아니라 모델이 요청한 공개 호출 사실을 보존해야 하므로 여기서 수명을 가른다.
++      if (call?.name) 계획호출신분[call.name] = {
++        ...(call.providerCallId ? { providerCallId: call.providerCallId } : {}),
++        publicCallArgs: structuredClone(call.args ?? {}),
++      };
+     }
+     modelChosen = 대표;
+   }
+@@ -3343,7 +3346,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
+           // 승인 뒤 실행도 **같은 신분**으로 간다 — 사용자가 승인한 그 호출이라는 사실이
+           // 원장과 모델 이력에서 끊기지 않는다.
+-          호출신분: { ...계획호출신분, ...(이번.providerCallId ? { [toolId]: { providerCallId: 이번.providerCallId } } : {}) },
++          호출신분: {
++            ...계획호출신분,
++            [toolId]: {
++              ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
++              publicCallArgs: structuredClone(이번.args ?? {}),
++            },
++          },
+           askedFrom: ctx.askedFrom,
+           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
+           허락한손: [...(ctx.허락한손 ?? []), toolId],
+@@ -3396,6 +3405,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+     현재호출신분 = {
+       ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
+       callRef: 이번.callId,
++      publicCallArgs: structuredClone(이번.args ?? {}),
+     };
+     const rec = await 계약실행(toolId, 판정인자);
+     // 완료 산출물은 서명 경계 직전에 이미 한 번 동봉했다. unsigned 중간 Receipt만 여기서 동봉한다.
+@@ -3663,12 +3673,12 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+     workingState,
+     // **이번 턴에 모델이 실제로 부른 것** — 다음 턴이 이어받아 자기 이력으로 되돌려 준다
+     // (정본 §S2 필수 계약 ②). 서버가 대화에 함께 저장해 재시작 뒤에도 살아남는다.
+-    // 여기서 다시 만들지 않는다 — 모델 앞에 실제로 놓였던 그 배열을 넘기되, **실패 원문만 걷는다**:
+-    // §5-3 은 모델 입력과 사용자 출력을 가른다. `실패원문`(진단면 원문)은 모델 입력에만 살고,
++    // 여기서 다시 만들지 않는다 — 모델 앞에 실제로 놓였던 그 배열을 넘기되, **실패 원문·결과만 걷는다**:
++    // §5-3 은 모델 입력과 사용자 출력을 가른다. `실패원문`·`실패결과`는 모델 입력에만 살고,
+     // 저장 봉투·사용자 결과에는 안 실린다 — 내부 오류/연결/전송 진단이 사용자 결과에 새지
+     // 않는 봉인(recovery-failure-injection A·B·B')이 이 자리를 문다. 다음 턴 priorExchange 는
+     // 어차피 신분·요약·인자만 옮기므로(task-context E1) 여기서 걷어도 잃는 것이 없다.
+-    turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 확인안됨, ...남는것 }) => 남는것),
++    turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 실패결과, 확인안됨, ...남는것 }) => 남는것),
+     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
+     // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
+     // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.
+diff --git a/src/runtime/local-terminal.js b/src/runtime/local-terminal.js
+index 8ddd8134..e44b67ec 100644
+--- a/src/runtime/local-terminal.js
++++ b/src/runtime/local-terminal.js
+@@ -151,6 +151,9 @@ export function makeLocalTerminalTool(deps = {}) {
+     probe,
+     /** 방금 돌린 명령이 다음 턴의 대상이다 — "아까 그 오류", "다시 돌려봐"가 여기서 이어진다. */
+     subjectOf(rec) {
++      // 프로세스에 전달되지 않은 호출은 "아까 실행한 명령"이 아니다. actualCall 의 공개
++      // 요청 사실은 남겨도, 다음 턴 command subject 로 승격하지 않는다.
++      if ((rec?.failureState ?? 'none') !== 'none' && rec?.result?.processDelivery !== 'delivered') return null;
+       const command = rec?.result?.command ?? rec?.actualCall?.args?.command;
+       if (!command) return null;
+       const code = rec.result?.exitCode;
+@@ -245,6 +248,9 @@ export function makeLocalTerminalTool(deps = {}) {
+       }
+ 
+       const 끝난이유 = executionBlock(r);
++      // 기존 주입 실행기들은 전달 여부 칸이 없지만 이미 실행 결과를 돌려준 계약이었다.
++      // 실제 runCommand 는 spawn error 만 `not_delivered` 로 명시한다.
++      const processDelivery = r?.processDelivery ?? 'delivered';
+       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
+       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
+       // "바로 다시 살아났어요"라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
+@@ -259,8 +265,21 @@ export function makeLocalTerminalTool(deps = {}) {
+       const 종료확인 = 끈PID.length
+         ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
+         : undefined;
+-      return {
+-        result: {
++      const failureResult = {
++        command, cwd,
++        exitCode: r.exitCode,
++        processDelivery,
++        commandOutcome: {
++          status: r.stopped ? 'stopped' : (r.exitCode === 0 ? 'success' : 'failure'),
++          exitCode: r.stopped ? null : r.exitCode, signal: null,
++          ...(r.stopped ? { stopReason: r.stopped } : {}),
++        },
++        stdout: r.stdout, stderr: r.stderr,
++        effects: { state: 'unknown' },
++        ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
++        applied: 실제로돌았나 && processDelivery === 'delivered',
++      };
++      const result = {
+           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
+           // 끈 대상의 **지금 상태**. 이름 검색 결과가 아니라 PID 로 직접 확인한 사실이다.
+           ...(종료확인 ? { terminated: 종료확인 } : {}),
+@@ -269,8 +288,18 @@ export function makeLocalTerminalTool(deps = {}) {
+           ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
+           ...(r.stopped ? { stopped: r.stopped } : {}),
+-          applied: 실제로돌았나,
+-        },
++          applied: 실제로돌았나 && processDelivery === 'delivered',
++        };
++      const failed = r.exitCode !== 0 || Boolean(r.stopped);
++      return {
++        // 직접 tool 계약을 쓰는 기존 소비자는 result를 계속 읽는다. ToolRunner는 실패일 때
++        // failureResult만 원장·모델 교환으로 올려 범용 실패 result 노출을 막는다.
++        ...(failed ? {
++          failed: true,
++          lifecycle: processDelivery === 'delivered' ? 'delivered' : 'failed',
++          failureResult,
++          result,
++        } : { result }),
+         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
+         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
+         userSafeSummary: 종료확인?.length && r.exitCode === 0
+diff --git a/src/runtime/terminal-run.js b/src/runtime/terminal-run.js
+index be96fa28..ae9c72e3 100644
+--- a/src/runtime/terminal-run.js
++++ b/src/runtime/terminal-run.js
+@@ -101,6 +101,9 @@ export async function runCommand(command, opts = {}) {
+     const stdout = fold(out); const stderr = fold(err);
+     return {
+       command, cwd, mode,
++      // spawn 의 `error` 는 셸 프로세스 자체가 시작되지 않았다는 사실이다. exit -1 과
++      // 섞으면 "명령이 실패했다"와 "명령에 전달되지 않았다"가 같은 영수증이 된다.
++      processDelivery: spawnError ? 'not_delivered' : 'delivered',
+       exitCode, durationMs: Date.now() - startedAt,
+       stdout: stdout.text, stderr: stderr.text,
+       truncated: stdout.truncated || stderr.truncated,
+diff --git a/src/runtime/tool-runner.js b/src/runtime/tool-runner.js
+index 53c5b0cd..355fa09d 100644
+--- a/src/runtime/tool-runner.js
++++ b/src/runtime/tool-runner.js
+@@ -89,6 +89,19 @@ function withSubject(rec, tool) {
+   return { ...rec, subject: s };
+ }
+ 
++// 실행 인자에는 probe·grant 같은 런타임 문맥이 붙는다. actualCall 은 그 실행 문맥을
++// placeholder 로 위조하는 자리가 아니라, 모델이 공개적으로 요청한 호출 사실의 수명이다.
++const 내부실행인자 = new Set(['probeResult', 'changes', 'granted', '눌러본사실']);
++function 공개인자(args) {
++  if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
++  return Object.fromEntries(Object.entries(args).filter(([key]) => !내부실행인자.has(key)));
++}
++
++function callForReceipt(call, executionContext) {
++  const args = executionContext?.publicCallArgs ?? 공개인자(call?.args);
++  return { ...call, args: structuredClone(args ?? {}) };
++}
++
+ /** 도구가 실제 결과에서 파생한 같은 턴 읽기 범위를 영수증에 붙인다. */
+ async function withReadScope(rec, tool, executionContext) {
+   let roots;
+@@ -160,7 +173,7 @@ export class ToolRunner {
+         } catch (e) {
+           return receipt({
+             intended,
+-            actualCall: 부른것,
++            actualCall: callForReceipt(부른것, executionContext),
+             failureState: FAILURE.FAILED,
+             userSafeSummary: SOURCE_CONTRACT_FAILED,
+             diagnosticTrace: { reason: e?.message },
+@@ -175,7 +188,7 @@ export class ToolRunner {
+       if (out && out.blocked) {
+         return receipt({
+           intended,
+-          actualCall: 부른것,
++          actualCall: callForReceipt(부른것, executionContext),
+           failureState: FAILURE.BLOCKED,
+           // 어떤 종류로 막혔는지(사이트 차단·로그인벽·범위 밖…)를 잃지 않는다 — 다음 계단을 그걸로 정한다.
+           fetchState: out.fetchState,
+@@ -202,9 +215,13 @@ export class ToolRunner {
+       if (out && out.failed) {
+         const 다음수단 = Array.isArray(out.다음수단) ? out.다음수단 : undefined;
+         const 미확인 = out.진행?.판정 === 'unknown';
+-        return receipt({
++        return withSubject(receipt({
+           intended,
+-          actualCall: 부른것,
++          actualCall: callForReceipt(부른것, executionContext),
++          // 실패 도구의 일반 result는 내부 구조일 수 있다. 명시적으로 failureResult 계약을
++          // 낸 도구만 모델 판단용 미확정 관측값으로 보존한다.
++          result: out.failureResult,
++          lifecycle: out.lifecycle,
+           failureState: FAILURE.FAILED,
+           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
+           diagnosticTrace: out.diagnosticTrace,
+@@ -216,11 +233,11 @@ export class ToolRunner {
+               : (미확인 ? undefined : '잠시 후 다시 시도할까요?')),
+           진행: out.진행,
+           다음수단,
+-        });
++        }), tool);
+       }
+       const rec = withSubject(receipt({
+         intended,
+-        actualCall: 부른것,
++        actualCall: callForReceipt(부른것, executionContext),
+         result: out?.result ?? out,
+         failureState: FAILURE.NONE,
+         // 성공했어도 **무엇을 얻었는지**는 손이 밝힌다(예: 찾는 손은 후보 목록이지 내용이 아니다).
+@@ -244,7 +261,7 @@ export class ToolRunner {
+     } catch (err) {
+       return receipt({
+         intended,
+-        actualCall: 부른것,
++        actualCall: callForReceipt(부른것, executionContext),
+         failureState: FAILURE.FAILED,
+         userSafeSummary: `${toolId} 실행 중 문제가 있었어요.`, // 내부 오류 비노출
+         diagnosticTrace: { message: err?.message, stack: err?.stack },
+diff --git a/src/surface/session-store.js b/src/surface/session-store.js
+index 9a2a4869..a3ecedcd 100644
+--- a/src/surface/session-store.js
++++ b/src/surface/session-store.js
+@@ -24,6 +24,44 @@ function serializeSession(path, task) {
+   });
+ }
+ 
++function durableSession(session) {
++  // SessionStore 의 기존 직렬화와 같은 JSON 정의역을 먼저 만든다. pending plan 안에는
++  // 실행 중에만 쓰는 함수가 있을 수 있어 structuredClone 정의역은 더 좁다.
++  const durable = JSON.parse(JSON.stringify(session));
++  const terminalResumeArgs = (args) => {
++    if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
++    const { probeResult, ...resumeArgs } = args;
++    return resumeArgs;
++  };
++  // terminal probe 와 실패 원문은 같은 턴의 모델 관측이지 세션 기억은 아니다. 승인으로 턴이
++  // 쪼개지면 같은 객체가 intent·sendArgs·이미 한 걸음 세 자리에 봉인되므로, 디스크 투영에서
++  // 그 terminal 자리들을 함께 걷는다. command·cwd·changes·granted 는 재시작 뒤 사용자가
++  // 승인한 바로 그 호출을 실행하는 봉인이므로 그대로 둔다.
++  for (const pending of Object.values(durable.pendingApprovals ?? {})) {
++    if (pending?.sendArgs?.['local.terminal']) {
++      pending.sendArgs['local.terminal'] = terminalResumeArgs(pending.sendArgs['local.terminal']);
++    }
++    if (pending?.intent?.toolArgs?.['local.terminal']) {
++      pending.intent.toolArgs['local.terminal'] = terminalResumeArgs(
++        pending.intent.toolArgs['local.terminal'],
++      );
++    }
++    if (pending?.intent?.terminalOp) {
++      pending.intent.terminalOp = terminalResumeArgs(pending.intent.terminalOp);
++    }
++    if (Array.isArray(pending?.이미한걸음)) {
++      pending.이미한걸음 = pending.이미한걸음.map((step) => {
++        if (step?.actualCall?.tool !== 'local.terminal' || (step.failureState ?? 'none') === 'none') {
++          return step;
++        }
++        const { result, ...durableFailure } = step;
++        return durableFailure;
++      });
++    }
++  }
++  return durable;
++}
++
+ // P2-4a 목록 정리성. 제목은 사용자 입력이므로 손질한다 — 제어문자·줄바꿈이 목록을 깨뜨린다.
+ export const MAX_TITLE = 60;
+ export const DEFAULT_TITLE = '새 대화';
+@@ -176,7 +214,7 @@ export class SessionStore {
+       session.transcript.push(...durableDeliveries
+         .filter((entry) => !known.has(entry.deliveryRef)).map((entry) => structuredClone(entry)));
+       session.updatedAt = Date.now();
+-      await writeAtomic(path, JSON.stringify(session));
++      await writeAtomic(path, JSON.stringify(durableSession(session)));
+       return session;
+     });
+   }
+diff --git a/test/f64-l5-l7-deterministic-probes.test.js b/test/f64-l5-l7-deterministic-probes.test.js
+index 5d74de59..b08b18a6 100644
+--- a/test/f64-l5-l7-deterministic-probes.test.js
++++ b/test/f64-l5-l7-deterministic-probes.test.js
+@@ -305,10 +305,18 @@ async function l7Case(correct, { mutateStdout = false } = {}) {
+   const expected = sha(Buffer.from(L7_SOURCE));
+   let main = 0;
+   let modelObservedStdout = '';
++  let modelObservedExit;
+   const model = { async respond(tc, opts = {}) {
+     if (tc.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
+     if (!opts.tools?.length) return '해시 정보를 기록했어요.';
+     main += 1;
++    const failedTerminal = (tc.turnExchange ?? []).find((exchange) => exchange.tool === 'local.terminal'
++      && exchange.확인안됨 === true && exchange.실패결과 !== undefined);
++    if (failedTerminal) {
++      const failure = typeof failedTerminal.실패결과 === 'string'
++        ? JSON.parse(failedTerminal.실패결과) : failedTerminal.실패결과;
++      modelObservedExit = failure?.exitCode;
++    }
+     if (main === 1) return { text: '', toolCalls: [
+       { name: 'local.terminal', args: { command: correct ? `shasum -a 256 ${join(x.root, '승인본/배포설정.txt')}` : 'md5 승인본/배포설정.txt' } },
+       ...(!correct ? [{ name: 'local.file', args: {
+@@ -339,7 +347,7 @@ async function l7Case(correct, { mutateStdout = false } = {}) {
+     const text = await readFile(join(x.root, '배포_점검.txt'), 'utf8');
+     const completion = saved.ledgerEntries.filter((r) => r.origin === 'completion_settlement' || r.receiptRef).length;
+     const terminalStdout = String(terminal?.result?.stdout ?? '');
+-    return { terminalExit: terminal?.result?.exitCode, terminalStdout, modelObservedStdout, expectedDigest: expected,
++    return { terminalExit: terminal?.result?.exitCode ?? modelObservedExit, terminalStdout, modelObservedStdout, expectedDigest: expected,
+       stdoutHasExpected: terminalStdout.includes(expected), outputDigest: sha(Buffer.from(text)),
+       artifact: text, hashRecorded: text.includes(expected), completion };
+   });
+diff --git a/test/raw-to-model-what-the-model-sees.test.js b/test/raw-to-model-what-the-model-sees.test.js
+index df3afb38..73940c09 100644
+--- a/test/raw-to-model-what-the-model-sees.test.js
++++ b/test/raw-to-model-what-the-model-sees.test.js
+@@ -199,7 +199,13 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉
+   const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
+   const 던지는손 = {
+     async probe(command) { return { command, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+-    async handler() { throw new Error('EIO: disk error at /dev/x0'); },
++    async handler() {
++      return {
++        failed: true,
++        failureResult: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER', exitCode: 7, cwd: '/failure-origin' },
++        userSafeSummary: '명령이 오류로 끝났어요.',
++      };
++    },
+   };
+   const 입력들 = [];
+   let 냈나 = false;
+@@ -208,7 +214,19 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉
+       입력들.push(JSON.stringify(tc));
+       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+       if (!opts.tools?.length) return '못 봐서 확인하지 못했어요';
+-      if (!냈나) { 냈나 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'ls' } }] }; }
++      if (!냈나) {
++        냈나 = true;
++        return {
++          text: '',
++          toolCalls: [{
++            name: 'local.terminal',
++            args: {
++              command: 'ls',
++              probeResult: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER' },
++            },
++          }],
++        };
++      }
+       return { text: '못 봐서 확인하지 못했어요', toolCalls: [] };
+     },
+   };
+@@ -217,10 +235,11 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉
+     { env: demoEnv(), tools: demoTools({ localTerminal: 던지는손 }), model: 모델 },
+   );
+   const 뒤입력 = 입력들[입력들.length - 1];
+-  assert.ok(뒤입력.includes('EIO'), '실패의 기계 원문이 다음 모델 입력에 없다 — §5-3 절단 그대로다');
+-  assert.ok(뒤입력.includes('확인안됨') || 뒤입력.includes('확인 안 됨'), '원문이 표식 없이 실렸다');
+-  assert.ok(!JSON.stringify(r).includes('EIO') && !JSON.stringify(r).includes('/dev/x0'),
+-    '실패 원문이 저장 봉투(사용자 결과)로 샜다 — 봉인 A 가 물어야 할 자리다');
++  assert.ok(뒤입력.includes('FAILURE_STDOUT_MARKER') && 뒤입력.includes('FAILURE_STDERR_MARKER'),
++    '실패 실행 결과가 다음 모델 입력에 없다');
++  assert.ok(뒤입력.includes('확인안됨') || 뒤입력.includes('확인 안 됨'), '실패 결과가 표식 없이 실렸다');
++  assert.ok(!JSON.stringify(r).includes('FAILURE_STDOUT_MARKER') && !JSON.stringify(r).includes('FAILURE_STDERR_MARKER'),
++    '실패 실행 결과가 저장 봉투(사용자 결과)로 샜다 — 봉인 A 가 물어야 할 자리다');
+ });
+ 
+ test('② 성공한 실행에는 진단면이 붙지 않는다 — 문은 실패에만 열린다', () => {
+diff --git a/test/s1-preflight.test.js b/test/s1-preflight.test.js
+index 9c55e9ef..fb0a8cdb 100644
+--- a/test/s1-preflight.test.js
++++ b/test/s1-preflight.test.js
+@@ -7,7 +7,12 @@
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ 
+-import { preflight, 현실지문, 변경파일, 기준지문, 허용파일, 기준선 } from '../scripts/s1/preflight.mjs';
++import { preflight, 현실지문, 변경파일, 기준지문, 허용파일, 기준선, 무시 } from '../scripts/s1/preflight.mjs';
++
++test('preflight: 터미널 S1/S2 라이브 러너는 측정 하네스로 등록돼 있다', () => {
++  assert.ok(무시.some((pattern) => pattern.test('scripts/terminal-qualification/s1-live.mjs')));
++  assert.ok(무시.some((pattern) => pattern.test('scripts/terminal-qualification/s2-live.mjs')));
++});
+ 
+ test('preflight: 현재 상태는 통과한다(기준선과 같다)', async () => {
+   const { 결과, 통과 } = await preflight();
+diff --git a/test/terminal-failure-receipt.test.js b/test/terminal-failure-receipt.test.js
+new file mode 100644
+index 00000000..a7005900
+--- /dev/null
++++ b/test/terminal-failure-receipt.test.js
+@@ -0,0 +1,351 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { ToolRunner } from '../src/runtime/tool-runner.js';
++import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
++import { buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
++import { interpret } from '../src/kernel/l1-intent/intent.js';
++import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
++import { runCommand } from '../src/runtime/terminal-run.js';
++import { makeServer } from '../src/surface/server.js';
++import { SessionStore } from '../src/surface/session-store.js';
++import { demoDescriptors, demoEnv } from '../src/surface/demo-context.js';
++
++const selfState = buildSelfState({
++  model: { id: 'test' },
++  connections: [{ id: 'local.terminal', connected: true, executable: true }],
++});
++
++test('실행된 터미널 실패는 원시 stdout·stderr·exit·cwd 영수증을 보존한다', async () => {
++  const runner = new ToolRunner({
++    'local.terminal': {
++      async handler() {
++        return {
++          failed: true,
++          failureResult: {
++            command: 'missing-command', cwd: '/isolated/work', exitCode: 127,
++            stdout: 'partial output', stderr: 'command not found',
++          },
++          userSafeSummary: '명령이 이 컴퓨터에 없어요.',
++        };
++      },
++    },
++  });
++
++  const receipt = await runner.run('local.terminal', { command: 'missing-command' }, selfState);
++  assert.equal(receipt.actualCall?.tool, 'local.terminal');
++  assert.equal(receipt.failureState, 'failed');
++  assert.deepEqual(receipt.result, {
++    command: 'missing-command', cwd: '/isolated/work', exitCode: 127,
++    stdout: 'partial output', stderr: 'command not found',
++  });
++  const exchange = buildTaskContext({ intent: interpret('명령을 실행해 주세요.'), selfState, receipts: [receipt] }).turnExchange[0];
++  assert.equal(exchange.확인안됨, true, '실패 결과를 성공 data로 승격했다');
++  assert.equal(exchange.실패결과.stdout, 'partial output');
++  assert.equal(exchange.실패결과.stderr, 'command not found');
++  assert.equal(exchange.실패결과.exitCode, 127);
++  assert.equal(exchange.실패결과.cwd, '/isolated/work');
++  assert.equal(exchange.data, undefined, '실패 결과를 확인된 성공 값으로 보냈다');
++});
++
++test('실제 local.terminal exit 127은 전달된 실패로 원시 결과를 보낸다', async () => {
++  const terminal = makeLocalTerminalTool({
++    cwd: '/isolated/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 127, stdout: 'partial output', stderr: 'command not found' }),
++  });
++  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
++    'local.terminal', { command: 'missing-command' }, selfState,
++  );
++  assert.equal(receipt.actualCall?.tool, 'local.terminal');
++  assert.equal(receipt.failureState, 'failed');
++  assert.equal(receipt.lifecycle, 'delivered');
++  assert.equal(receipt.result?.commandOutcome?.status, 'failure');
++  assert.equal(receipt.result?.commandOutcome?.exitCode, 127);
++  assert.equal(receipt.result?.processDelivery, 'delivered');
++  assert.equal(receipt.result?.effects?.state, 'unknown');
++  const exchange = buildTaskContext({ intent: interpret('명령을 실행해 주세요.'), selfState, receipts: [receipt] }).turnExchange[0];
++  assert.equal(exchange.확인안됨, true);
++  assert.equal(exchange.data, undefined);
++  assert.equal(exchange.실패결과.stdout, 'partial output');
++  assert.equal(exchange.실패결과.stderr, 'command not found');
++  assert.equal(exchange.실패결과.processDelivery, 'delivered');
++  assert.deepEqual(exchange.실패결과.effects, { state: 'unknown' });
++});
++
++test('실패한 terminal probe 원문은 모델에는 failureResult로만, 저장용 호출 인자에는 남기지 않는다', async () => {
++  const terminal = makeLocalTerminalTool({
++    cwd: '/isolated/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 127, stdout: 'AUDIT_STDOUT', stderr: 'AUDIT_STDERR' }),
++  });
++  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
++    'local.terminal', {
++      command: 'missing-command',
++      probeResult: { stdout: 'AUDIT_STDOUT', stderr: 'AUDIT_STDERR' },
++    }, selfState,
++  );
++  assert.deepEqual(receipt.actualCall?.args, { command: 'missing-command' },
++    '공개 actualCall을 내부 probe placeholder로 위조했다');
++  const exchange = buildTaskContext({ intent: interpret('명령을 실행해 주세요.'), selfState, receipts: [receipt] }).turnExchange[0];
++  assert.equal(exchange.실패결과.stdout, 'AUDIT_STDOUT');
++  assert.equal(exchange.실패결과.stderr, 'AUDIT_STDERR');
++  assert.doesNotMatch(JSON.stringify(exchange.args), /AUDIT_STDOUT|AUDIT_STDERR/);
++  assert.deepEqual(exchange.args, { command: 'missing-command' });
++});
++
++test('승인 전 차단 terminal probe 원문도 영수증 호출 인자에 저장하지 않는다', async () => {
++  const terminal = makeLocalTerminalTool({
++    cwd: '/isolated/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 1, stdout: 'BLOCKED_STDOUT', stderr: 'BLOCKED_STDERR: Operation not permitted' }),
++  });
++  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
++    'local.terminal', {
++      command: 'printf x > report.tsv',
++      probeResult: { stdout: 'BLOCKED_STDOUT', stderr: 'BLOCKED_STDERR: Operation not permitted' },
++    }, selfState,
++  );
++  assert.equal(receipt.failureState, 'blocked');
++  assert.deepEqual(receipt.actualCall?.args, { command: 'printf x > report.tsv' },
++    '차단 actualCall을 내부 probe placeholder로 위조했다');
++});
++
++test('실제 /turn 실패 원문은 같은 턴 모델에만 가고 HTTP·transcript·SessionStore 원장에는 남지 않는다', async () => {
++  const state = await mkdtemp(join(tmpdir(), 'terminal-failure-durable-'));
++  const modelInputs = [];
++  let called = false;
++  const model = {
++    async respond(tc, opts = {}) {
++      modelInputs.push(structuredClone(tc));
++      if (tc?.workContractAssessment) {
++        return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
++      }
++      if (opts.tools?.length && !called) {
++        called = true;
++        return { text: '', toolCalls: [{
++          providerCallId: 'call_terminal_failure', name: 'local.terminal',
++          args: { command: 'missing-command' },
++        }] };
++      }
++      return { text: '다른 방법을 확인해 볼게요.', toolCalls: [] };
++    },
++  };
++  const terminal = makeLocalTerminalTool({
++    cwd: '/actual/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => ({
++      command, cwd, mode, processDelivery: 'delivered', exitCode: 127,
++      stdout: 'DURABLE_STDOUT_MARKER', stderr: 'DURABLE_STDERR_MARKER',
++    }),
++  });
++  const store = new SessionStore(state);
++  const server = makeServer({
++    store,
++    env: demoEnv({ include: ['local.terminal'], hands: ['local.terminal'] }),
++    descriptors: demoDescriptors({ include: ['local.terminal'] }),
++    tools: new ToolRunner({ 'local.terminal': terminal }), model,
++    modelTimeoutMs: 0, processEnv: { GPAO_T5_TCELL: 'off' },
++  });
++  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
++  try {
++    const base = `http://127.0.0.1:${server.address().port}`;
++    const cookie = ((await fetch(`${base}/`)).headers.get('set-cookie') ?? '').split(';')[0];
++    const session = await (await fetch(`${base}/sessions`, {
++      method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
++    })).json();
++    const response = await (await fetch(`${base}/turn`, {
++      method: 'POST', headers: { 'content-type': 'application/json', cookie },
++      body: JSON.stringify({ sessionId: session.id, text: '없는 명령을 실행해줘' }),
++    })).json();
++    const saved = await store.load(session.id);
++    const durableText = JSON.stringify(saved);
++    const responseText = JSON.stringify(response);
++    const modelText = JSON.stringify(modelInputs);
++    assert.match(modelText, /DURABLE_STDOUT_MARKER/);
++    assert.match(modelText, /DURABLE_STDERR_MARKER/);
++    assert.match(modelText, /확인안됨|확인 안 됨/);
++    assert.doesNotMatch(responseText, /DURABLE_STDOUT_MARKER|DURABLE_STDERR_MARKER/);
++    assert.doesNotMatch(durableText, /DURABLE_STDOUT_MARKER|DURABLE_STDERR_MARKER/);
++    assert.doesNotMatch(durableText, /probeResult|탐침 결과는 실패 영수증에만 있음/,
++      '지속 세션 JSON에 내부 probe 또는 placeholder가 남았다');
++    const failed = saved.ledgerEntries.find((entry) => entry?.actualCall?.tool === 'local.terminal');
++    assert.ok(failed, '실패 실행의 공개 영수증이 지속 원장에서 사라졌다');
++    assert.deepEqual(failed.actualCall.args, { command: 'missing-command' },
++      '모델이 요청한 공개 호출 사실과 actualCall이 다르다');
++    assert.equal(failed.failureState, 'failed');
++    assert.equal(failed.result, undefined, '지속 원장에 같은 턴 전용 실패 관측이 남았다');
++  } finally {
++    await new Promise((resolve) => server.close(resolve));
++  }
++});
++
++test('실제 /turn 실패 뒤 쓰기 승인은 원문 없이 지속되고 재시작 뒤 정확히 한 번 실행된다', async () => {
++  const state = await mkdtemp(join(tmpdir(), 'terminal-failure-pending-'));
++  const modelInputs = [];
++  const 실패명령 = 'missing-command';
++  const 승인명령 = 'printf done > result.txt';
++  let 승인실행수 = 0;
++  const model = {
++    async respond(tc, opts = {}) {
++      modelInputs.push(structuredClone(tc));
++      if (tc?.workContractAssessment) {
++        return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
++      }
++      if (!opts.tools?.length) return { text: '이어 실행했어요.', toolCalls: [] };
++      const terminalSteps = (tc?.turnExchange ?? []).filter((step) => step?.tool === 'local.terminal');
++      if (!terminalSteps.length) {
++        return { text: '', toolCalls: [{
++          providerCallId: 'call_failed_before_approval', name: 'local.terminal',
++          args: { command: 실패명령 },
++        }] };
++      }
++      if (!terminalSteps.some((step) => step?.args?.command === 승인명령)) {
++        return { text: '실패를 확인했고 다른 걸음을 이어갈게요.', toolCalls: [{
++          providerCallId: 'call_pending_after_failure', name: 'local.terminal',
++          args: { command: 승인명령 },
++        }] };
++      }
++      return { text: '이어 실행했어요.', toolCalls: [] };
++    },
++  };
++  const terminal = makeLocalTerminalTool({
++    cwd: '/actual/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => {
++      if (command === 실패명령) {
++        return {
++          command, cwd, mode, processDelivery: 'delivered', exitCode: 127,
++          stdout: 'PENDING_FAILURE_STDOUT', stderr: 'PENDING_FAILURE_STDERR',
++        };
++      }
++      if (mode === 'granted') 승인실행수 += 1;
++      return mode === 'granted'
++        ? { command, cwd, mode, processDelivery: 'delivered', exitCode: 0, stdout: 'done', stderr: '' }
++        : {
++          command, cwd, mode, processDelivery: 'delivered', exitCode: 1,
++          stdout: 'PENDING_PROBE_STDOUT', stderr: 'PENDING_PROBE_STDERR: Operation not permitted',
++        };
++    },
++  });
++  const serverOptions = (store) => ({
++    store,
++    env: demoEnv({ include: ['local.terminal'], hands: ['local.terminal'] }),
++    descriptors: demoDescriptors({ include: ['local.terminal'] }),
++    tools: new ToolRunner({ 'local.terminal': terminal }), model,
++    modelTimeoutMs: 0, processEnv: { GPAO_T5_TCELL: 'off' },
++  });
++  const post = (base, body) => fetch(`${base}/turn`, {
++    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
++  }).then((response) => response.json());
++
++  const firstStore = new SessionStore(state);
++  const firstServer = makeServer(serverOptions(firstStore));
++  await new Promise((resolve) => firstServer.listen(0, '127.0.0.1', resolve));
++  let sessionId;
++  let pendingId;
++  try {
++    const base = `http://127.0.0.1:${firstServer.address().port}`;
++    const session = await (await fetch(`${base}/sessions`, {
++      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
++    })).json();
++    sessionId = session.id;
++    const pendingResponse = await post(base, { sessionId, text: '없는 명령을 실행하고 이어서 결과를 저장해줘' });
++    pendingId = pendingResponse.pendingId;
++    assert.equal(pendingResponse.kind, 'approval');
++    assert.equal(승인실행수, 0, '승인 전에 실제 쓰기가 실행됐다');
++    assert.doesNotMatch(JSON.stringify(pendingResponse), /PENDING_(?:FAILURE|PROBE)_(?:STDOUT|STDERR)/,
++      'HTTP 승인 응답에 같은 턴 실행 원문이 샜다');
++
++    const saved = await firstStore.load(sessionId);
++    const pending = saved.pendingApprovals?.[pendingId];
++    assert.ok(pending, '공개 pending 신분이 지속되지 않았다');
++    assert.equal(pending.호출신분?.['local.terminal']?.providerCallId, 'call_pending_after_failure');
++    assert.deepEqual(pending.호출신분?.['local.terminal']?.publicCallArgs, { command: 승인명령 });
++    assert.equal(pending.intent?.toolArgs?.['local.terminal']?.command, 승인명령);
++    assert.equal(pending.intent?.terminalOp?.command, 승인명령);
++    assert.equal(pending.sendArgs?.['local.terminal']?.command, 승인명령);
++    const pendingFailure = (pending.이미한걸음 ?? []).find((step) => step?.failureState === 'failed'
++      && step?.actualCall?.tool === 'local.terminal');
++    assert.ok(pendingFailure, '승인 전 실패 걸음이 관측되지 않았다');
++    assert.equal(pendingFailure.subject?.key, `cmd:${실패명령}`, '전달된 실패 command subject가 사라졌다');
++    assert.equal(saved.workingState?.subjects?.find((subject) => subject.key === `cmd:${실패명령}`)?.failed,
++      true, '실패 subject가 지속 상태에서 성공처럼 풀렸다');
++    const durableText = JSON.stringify(saved);
++    assert.doesNotMatch(durableText, /PENDING_(?:FAILURE|PROBE)_(?:STDOUT|STDERR)/,
++      '지속 pending에 같은 턴 전용 실패·probe 원문이 남았다');
++    assert.doesNotMatch(durableText, /probeResult/,
++      '지속 pending에 terminal 내부 probe가 남았다');
++    assert.match(JSON.stringify(modelInputs), /PENDING_FAILURE_STDOUT/,
++      '실행 실패 원문이 같은 턴 모델 관측에서 사라졌다');
++    assert.match(JSON.stringify(modelInputs), /PENDING_FAILURE_STDERR/,
++      '실행 실패 원문이 같은 턴 모델 관측에서 사라졌다');
++  } finally {
++    await new Promise((resolve) => firstServer.close(resolve));
++  }
++
++  const restartedStore = new SessionStore(state);
++  const restartedServer = makeServer(serverOptions(restartedStore));
++  await new Promise((resolve) => restartedServer.listen(0, '127.0.0.1', resolve));
++  try {
++    const base = `http://127.0.0.1:${restartedServer.address().port}`;
++    const reloaded = await (await fetch(`${base}/sessions/${sessionId}`)).json();
++    assert.ok(reloaded.activePendingIds.includes(pendingId), '재시작 뒤 승인 대기가 사라졌다');
++    const resumed = await post(base, { sessionId, approve: pendingId });
++    assert.equal(resumed.kind, 'reply', '재시작 뒤 승인 실행이 다시 대기로 돌아갔다');
++    assert.equal(승인실행수, 1, '승인한 terminal 쓰기가 정확히 한 번 실행되지 않았다');
++    const saved = await restartedStore.load(sessionId);
++    assert.deepEqual(saved.pendingApprovals, {}, '승인 실행 뒤 pending이 제거되지 않았다');
++    const terminalReceipts = saved.ledgerEntries.filter((entry) => entry?.actualCall?.tool === 'local.terminal');
++    assert.ok(terminalReceipts.some((entry) => entry.failureState === 'failed'
++      && entry.actualCall.args?.command === 실패명령), '앞선 실패 사실이 성공처럼 풀렸다');
++    assert.ok(terminalReceipts.some((entry) => entry.failureState === 'none'
++      && entry.actualCall.args?.command === 승인명령), '승인한 실행의 성공 사실이 남지 않았다');
++    assert.doesNotMatch(JSON.stringify(saved), /PENDING_(?:FAILURE|PROBE)_(?:STDOUT|STDERR)|probeResult/,
++      '승인 완료 뒤 지속 세션에 같은 턴 전용 원문·probe가 남았다');
++  } finally {
++    await new Promise((resolve) => restartedServer.close(resolve));
++  }
++});
++
++test('실제 runCommand는 프로세스 전달 실패를 delivered로 기록하지 않고 command subject로 올리지 않는다', async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 'terminal-delivery-'));
++  const delivered = await runCommand('exit 9', { mode: 'raw', cwd });
++  assert.equal(delivered.processDelivery, 'delivered');
++  assert.equal(delivered.exitCode, 9);
++
++  const missingCwd = join(cwd, 'does-not-exist');
++  const notDelivered = await runCommand('exit 9', { mode: 'raw', cwd: missingCwd });
++  assert.equal(notDelivered.processDelivery, 'not_delivered');
++  assert.equal(notDelivered.exitCode, -1);
++
++  const terminal = makeLocalTerminalTool({ cwd: missingCwd, run: runCommand, sandboxAvailable: () => true });
++  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
++    'local.terminal', { command: 'exit 9', granted: true }, selfState,
++  );
++  assert.equal(receipt.lifecycle, 'failed', 'spawn 미전달을 delivered 수명으로 기록했다');
++  assert.equal(receipt.result?.processDelivery, 'not_delivered');
++  assert.equal(receipt.result?.applied, false, '프로세스 미전달을 적용된 실행으로 기록했다');
++  assert.equal(receipt.subject, undefined, '프로세스에 전달되지 않은 명령을 command subject로 만들었다');
++});
++
++test('시간 제한 중단은 signal이 아니라 stopReason으로 기록한다', async () => {
++  const terminal = makeLocalTerminalTool({
++    cwd: '/isolated/work', sandboxAvailable: () => true,
++    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 143, stopped: 'timeout', stdout: '', stderr: '' }),
++  });
++  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
++    'local.terminal', { command: 'long-job' }, selfState,
++  );
++  assert.equal(receipt.failureState, 'failed');
++  assert.equal(receipt.result?.commandOutcome?.status, 'stopped');
++  assert.equal(receipt.result?.commandOutcome?.exitCode, null);
++  assert.equal(receipt.result?.commandOutcome?.signal, null);
++  assert.equal(receipt.result?.commandOutcome?.stopReason, 'timeout');
++});
++
++test('명시적 failureResult 없는 실패 도구의 내부 result는 모델 교환에 노출하지 않는다', async () => {
++  const receipt = await new ToolRunner({
++    other: { async handler() { return { failed: true, result: { internalSecret: 'do-not-expose' }, userSafeSummary: '실패' }; } },
++  }).run('other', {}, buildSelfState({ model: { id: 'test' }, connections: [{ id: 'other', connected: true, executable: true }] }));
++  assert.equal(receipt.result, undefined);
++  const exchange = buildTaskContext({ intent: interpret('실행해 주세요.'), selfState, receipts: [receipt] }).turnExchange[0];
++  assert.doesNotMatch(JSON.stringify(exchange), /do-not-expose/);
++});
+diff --git a/test/working-state.test.js b/test/working-state.test.js
+index 1d89150b..03cab4fb 100644
+--- a/test/working-state.test.js
++++ b/test/working-state.test.js
+@@ -87,6 +87,41 @@ test('실패한 실행은 대상이 되지 않고, 그 결과 내용도 사실
+   assert.match(facts, /막혔던 것과 다음 길: 그 사이트가 막아서/, '막힌 이유와 다음 길은 다음 턴에도 기억한다');
+ });
+ 
++test('전달된 실패 명령은 대상에 남지만 기존 막힘을 풀지 않는다', () => {
++  const before = deriveWorkingState(null, { receipts: [], blocked: '승인이 필요해요' });
++  const after = deriveWorkingState(before, { receipts: [{
++    actualCall: { tool: 'local.terminal', args: { command: 'exit 3' } },
++    lifecycle: 'delivered', failureState: 'failed',
++    subject: { key: 'cmd:exit 3', kind: 'command', label: 'exit 3', failed: true, exitCode: 3 },
++  }] });
++  assert.equal(after.subjects?.[0]?.key, 'cmd:exit 3');
++  assert.equal(after.subjects?.[0]?.failed, true);
++  assert.equal(after.subjects?.[0]?.exitCode, 3);
++  assert.equal(after.blocked, '승인이 필요해요', '실패 관측이 기존 막힘을 성공처럼 풀었다');
++});
++
++test('실행 전 차단은 command subject를 만들지 않는다', () => {
++  const state = deriveWorkingState(null, { receipts: [{
++    actualCall: null,
++    제안한호출: { tool: 'local.terminal', args: { command: 'rm report.tsv' } },
++    failureState: 'blocked',
++  }] });
++  assert.equal(state.subjects?.length ?? 0, 0);
++});
++
++test('같은 전달 명령이 성공하면 실패 subject를 최신 성공 사실로 바꾼다', () => {
++  const failed = deriveWorkingState(null, { receipts: [{
++    actualCall: { tool: 'local.terminal', args: { command: 'job' } }, lifecycle: 'delivered', failureState: 'failed',
++    subject: { key: 'cmd:job', kind: 'command', label: 'job', failed: true, exitCode: 3 },
++  }] });
++  const recovered = deriveWorkingState(failed, { receipts: [{
++    actualCall: { tool: 'local.terminal', args: { command: 'job' } }, lifecycle: 'delivered', failureState: 'none',
++    subject: { key: 'cmd:job', kind: 'command', label: 'job', failed: false, exitCode: 0 },
++  }] });
++  assert.equal(recovered.subjects?.[0]?.failed, false);
++  assert.equal(recovered.subjects?.[0]?.exitCode, 0);
++});
++
+ test('막힌 뒤 다른 길로 성공하면 "막혔다"가 풀린다(되는 길을 찾았는데 막혔다고 하면 거짓이다)', () => {
+   const s = run([
+     { receipts: [{ failureState: 'blocked', actualCall: { tool: 'web.collect' } }], blocked: '막혔어요' },

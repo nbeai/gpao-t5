@@ -1,0 +1,530 @@
+diff --git a/test/batch-terminal-recovery.test.js b/test/batch-terminal-recovery.test.js
+new file mode 100644
+index 00000000..ed8bf022
+--- /dev/null
++++ b/test/batch-terminal-recovery.test.js
+@@ -0,0 +1,524 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp, mkdir, writeFile, readFile, symlink, link, rename, readdir } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
++import { makeLocalFileTool } from '../src/runtime/local-file.js';
++import { ToolRunner } from '../src/runtime/tool-runner.js';
++import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
++import { demoEnv, demoTools } from '../src/surface/demo-context.js';
++import { 실행전판정 } from '../src/kernel/l2-plan/tool-boundary.js';
++import { grantFor } from '../src/kernel/l2-plan/authority.js';
++import { runTurn } from '../src/kernel/turn.js';
++import { sandboxAvailable } from '../src/runtime/sandbox.js';
++import { runCommand } from '../src/runtime/terminal-run.js';
++
++const enforcedProbe = (command, cwd, stderr = 'opaque failure') => ({
++  command, cwd, mode: 'probe', exitCode: 1, stdout: '', stderr,
++  processDelivery: 'delivered',
++  sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
++});
++
++test('RED: terminal 권위는 오류 문자열이 아니라 구조화 sandbox enforcement만 따른다', async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 't5-terminal-enforcement-'));
++  for (const stderr of [
++    'operation not permitted: output.tsv',
++    'Network is unreachable',
++    'ordinary application assertion failed',
++  ]) {
++    let replays = 0;
++    const tool = makeLocalTerminalTool({ cwd, sandboxAvailable: () => true, run: async () => {
++      replays += 1;
++      throw new Error('sandbox probe must never be replayed as granted');
++    } });
++    const probeResult = enforcedProbe('opaque-command', cwd, stderr);
++    const out = await tool.handler({ command: 'opaque-command', cwd, probeResult }, {
++      selfState: buildSelfState(demoEnv()),
++    });
++    assert.equal(replays, 0);
++    assert.equal(out.failed, true);
++    assert.equal(out.needsGrant, undefined);
++    assert.equal(out.failureResult.processDelivery, 'delivered');
++    assert.equal(out.failureResult.exitCode, 1);
++    assert.equal(out.failureResult.stderr, stderr);
++    assert.deepEqual(out.failureResult.effects, {
++      state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects',
++    });
++  }
++});
++
++test('RED: actual-host probe는 sandbox 적용 여부를 구조화해 보고한다', {
++  skip: !sandboxAvailable() && 'actual host sandbox unavailable',
++}, async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 't5-terminal-host-enforcement-'));
++  const out = await runCommand('exit 7', { mode: 'probe', cwd });
++  assert.deepEqual(out.sandboxEnforcement, {
++    state: 'enforced', policy: 'deny-external-effects',
++  });
++  assert.equal(out.processDelivery, 'delivered');
++  assert.equal(out.exitCode, 7);
++});
++
++const writeProbe = (command, cwd) => ({
++  command, cwd, mode: 'probe', exitCode: 1, stdout: '',
++  stderr: 'zsh: operation not permitted: result.tsv', processDelivery: 'delivered',
++  sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
++});
++
++test('격리 probe nonzero는 승인 인자가 섞여도 재실행하지 않고 구조화 파일 손을 준다', async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 't5-batch-terminal-'));
++  let executions = 0;
++  const tool = makeLocalTerminalTool({ cwd, run: async () => {
++    executions += 1;
++    return { command: 'printf x > result.tsv', cwd, mode: 'granted', exitCode: 0, stdout: '', stderr: '' };
++  } });
++  const probeResult = writeProbe('printf x > result.tsv', cwd);
++  const selfState = buildSelfState(demoEnv());
++  const out = await tool.handler({ command: probeResult.command, cwd, probeResult, granted: true }, { selfState });
++
++  assert.equal(executions, 0, '승인 뒤 원 direct-write 명령을 실행했다');
++  assert.equal(out.failed, true);
++  assert.equal(out.failureResult.command, probeResult.command);
++  assert.equal(out.failureResult.cwd, cwd);
++  assert.equal(out.failureResult.processDelivery, 'delivered');
++  assert.equal(out.failureResult.applied, false);
++  assert.deepEqual(out.failureResult.effects, {
++    state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects',
++  });
++  assert.ok(out.다음수단.some((step) => step.방법 === 'local.file' && step.action === 'write'));
++  assert.ok(out.다음수단.some((step) => step.방법 === 'web.collect'));
++  assert.ok(out.다음수단.some((step) => step.방법 === 'telegram.send'));
++  assert.ok(out.다음수단.every((step) => selfState.connectedTools.some((tool) => tool.id === step.방법 && tool.status === 'usable')),
++    '연결되지 않은 가짜 방법을 다음 수단으로 냈다');
++});
++
++test('격리 실패 전달 사실과 다음 수단은 ToolReceipt에 함께 남는다', async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 't5-batch-receipt-'));
++  const tool = makeLocalTerminalTool({ cwd, run: async () => { throw new Error('원 셸 실행 금지'); } });
++  const runner = new ToolRunner({ 'local.terminal': tool });
++  const state = buildSelfState(demoEnv({
++    include: ['local.terminal', 'local.file', 'web.collect'],
++    hands: ['local.terminal', 'local.file', 'web.collect'],
++  }));
++  const rec = await runner.run('local.terminal', {
++    command: 'printf x > result.tsv', cwd,
++    probeResult: writeProbe('printf x > result.tsv', cwd), granted: true,
++  }, state);
++
++  assert.equal(rec.failureState, 'failed');
++  assert.equal(rec.lifecycle, 'delivered');
++  assert.equal(rec.result.processDelivery, 'delivered');
++  assert.equal(rec.result.applied, false);
++  assert.equal(rec.actualCall.args.command, 'printf x > result.tsv');
++  assert.ok(rec.다음수단.some((step) => step.방법 === 'local.file' && step.action === 'write'));
++});
++
++test('구조화 손이 연결되지 않았으면 실행 불가능한 다음수단을 지어내지 않는다', async () => {
++  const cwd = await mkdtemp(join(tmpdir(), 't5-batch-no-alternative-'));
++  const tool = makeLocalTerminalTool({ cwd, run: async () => { throw new Error('원 셸 실행 금지'); } });
++  const runner = new ToolRunner({ 'local.terminal': tool });
++  const state = buildSelfState(demoEnv({ include: ['local.terminal'], hands: ['local.terminal'] }));
++  const rec = await runner.run('local.terminal', {
++    command: 'opaque-write', cwd, probeResult: writeProbe('opaque-write', cwd),
++  }, state);
++  assert.equal(rec.result.processDelivery, 'delivered');
++  assert.equal(rec.다음수단, undefined);
++});
++
++test('가역 local.file write는 승인 없이 자동 권위를 얻는다', async () => {
++  const state = buildSelfState(demoEnv({ include: ['local.file'], hands: ['local.file'] }));
++  const args = { action: 'write', path: 'result.tsv', text: 'a\t1\n' };
++  const judged = await 실행전판정({ toolId: 'local.file', args, selfState: state });
++  const grant = grantFor(judged.판정행동);
++  assert.equal(judged.kind, 'write');
++  assert.equal(grant.approvalRequired, false, '가역 구조화 쓰기에 불필요한 승인 카드가 생긴다');
++});
++
++test('local.file write는 hardlink 대상을 거절해 범위 밖 실물을 바꾸지 않는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-file-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-file-outside-'));
++  const external = join(outside, 'external.txt');
++  await writeFile(external, 'outside-original');
++  await link(external, join(root, 'linked.txt'));
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++
++  const out = await tool.handler({ action: 'write', path: 'linked.txt', text: 'replacement' });
++  assert.equal(out.blocked, true, '외부 inode와 연결된 hardlink를 덮어썼다');
++  assert.equal(await readFile(external, 'utf8'), 'outside-original');
++});
++
++test('local.file write는 symlink 탈출에서 외부 실물을 바꾸지 않는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-file-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-file-outside-'));
++  const external = join(outside, 'external.txt');
++  await writeFile(external, 'outside-original');
++  await symlink(external, join(root, 'linked.txt'));
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++
++  const out = await tool.handler({ action: 'write', path: 'linked.txt', text: 'replacement' });
++  assert.equal(out.blocked, true);
++  assert.equal(await readFile(external, 'utf8'), 'outside-original');
++});
++
++test('부모가 원자 commit 직전에 바뀌면 write를 중단하고 외부 실물을 보존한다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-file-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-file-outside-'));
++  const parent = join(root, 'work');
++  const moved = join(root, 'work-old');
++  await mkdir(parent);
++  const external = join(outside, 'result.txt');
++  await writeFile(external, 'outside-original');
++  let hookRan = false;
++  const tool = makeLocalFileTool({
++    roots: [root], homeDir: root, dataDir: root,
++    async beforeAtomicCommit() {
++      hookRan = true;
++      await rename(parent, moved);
++      await symlink(outside, parent);
++    },
++  });
++
++  const out = await tool.handler({ action: 'write', path: 'work/result.txt', text: 'replacement' });
++  assert.equal(hookRan, true, 'commit 직전 부모 신분 재검증 지점이 없다');
++  assert.equal(out.blocked, true);
++  assert.equal(await readFile(external, 'utf8'), 'outside-original');
++  assert.deepEqual(await atomicDebris(root), [], '부모 바꿔치기 중단 뒤 temp가 남았다');
++});
++
++test('RED: 검사 직후 atomic rename 창에서 부모가 바뀌어도 외부를 덮어쓰지 않는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-rename-race-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-rename-race-outside-'));
++  const parent = join(root, 'work');
++  const moved = join(root, 'work-old');
++  await mkdir(parent);
++  await writeFile(join(parent, 'result.txt'), 'original');
++  await writeFile(join(outside, 'result.txt'), 'outside-original');
++  let raced = false;
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root,
++    async atomicRename(from, to) {
++      raced = true;
++      await rename(parent, moved);
++      await symlink(outside, parent);
++      await rename(from, to);
++    },
++  });
++
++  const out = await tool.handler({ action: 'write', path: 'work/result.txt', text: 'replacement' });
++  assert.equal(raced, true);
++  assert.equal(out.blocked, true, 'check-use race 뒤 성공을 선언했다');
++  assert.equal(await readFile(join(outside, 'result.txt'), 'utf8'), 'outside-original');
++  assert.equal(await readFile(join(moved, 'result.txt'), 'utf8'), 'original');
++});
++
++test('RED: commit 직후 부모가 바뀌어도 외부 불변·이동된 원본 복원을 지킨다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-postcommit-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-postcommit-outside-'));
++  const parent = join(root, 'work');
++  const moved = join(root, 'work-old');
++  await mkdir(parent);
++  await writeFile(join(parent, 'result.txt'), 'original');
++  await writeFile(join(outside, 'result.txt'), 'outside-original');
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root,
++    async afterAtomicCommit() {
++      await rename(parent, moved);
++      await symlink(outside, parent);
++    },
++  });
++
++  const out = await tool.handler({ action: 'write', path: 'work/result.txt', text: 'replacement' });
++  assert.equal(out.blocked, true);
++  assert.equal(await readFile(join(outside, 'result.txt'), 'utf8'), 'outside-original');
++  assert.equal(await readFile(join(moved, 'result.txt'), 'utf8'), 'original');
++});
++
++test('RED: .trash가 외부 symlink면 backup·undo를 외부에 만들지 않는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-trash-root-'));
++  const outside = await mkdtemp(join(tmpdir(), 't5-trash-outside-'));
++  await writeFile(join(root, 'result.txt'), 'original');
++  await symlink(outside, join(root, '.trash'));
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++
++  const out = await tool.handler({ action: 'write', path: 'result.txt', text: 'replacement' });
++  assert.equal(out.blocked, true);
++  assert.equal(await readFile(join(root, 'result.txt'), 'utf8'), 'original');
++  assert.deepEqual(await readdir(outside), [], '외부에 backup/undo 실물을 만들었다');
++});
++
++test('plaintext write는 실제 디스크 bytes/digest를 exact readback하고 undo한다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-file-root-'));
++  const path = join(root, 'result.tsv');
++  await writeFile(path, 'old\n');
++  const tool = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++  const out = await tool.handler({ action: 'write', path: 'result.tsv', text: 'a\t1\n' });
++
++  assert.equal(await readFile(path, 'utf8'), 'a\t1\n');
++  assert.equal(out.result.readbackExact, true);
++  assert.equal(out.result.readbackDigest, out.result.digest);
++  await tool.handler({ action: 'undo' });
++  assert.equal(await readFile(path, 'utf8'), 'old\n');
++});
++
++async function atomicDebris(root) {
++  const found = [];
++  async function walk(dir) {
++    for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
++      const path = join(dir, entry.name);
++      if (entry.isDirectory()) await walk(path);
++      else if (/\.t5-.*\.tmp$/.test(entry.name) || (dir.endsWith('/.trash') && !entry.name.endsWith('undo-log.json'))) found.push(path);
++    }
++  }
++  await walk(root);
++  return found;
++}
++
++for (const failure of ['temp-write', 'commit', 'readback', 'undo-log']) {
++  test(`atomic ${failure} 실패는 기존 원본을 즉시 복원하고 temp·거짓 성공을 남기지 않는다`, async () => {
++    const root = await mkdtemp(join(tmpdir(), `t5-atomic-${failure}-`));
++    const path = join(root, 'result.txt');
++    await writeFile(path, 'original');
++    const deps = { roots: [root], homeDir: root, dataDir: root };
++    if (failure === 'temp-write') deps.atomicWriteFile = async () => { throw new Error('injected temp write failure'); };
++    if (failure === 'commit') deps.atomicRename = async () => { throw new Error('injected commit failure'); };
++    if (failure === 'readback') deps.afterAtomicCommit = async ({ path: target }) => { await writeFile(target, 'corrupt'); };
++    if (failure === 'undo-log') deps.beforeUndoLog = async () => { throw new Error('injected undo log failure'); };
++    const tool = makeLocalFileTool(deps);
++
++    const out = await tool.handler({ action: 'write', path: 'result.txt', text: 'replacement' });
++    assert.equal(out.blocked, true, `실패를 성공으로 냈다: ${JSON.stringify(out)}`);
++    assert.equal(await readFile(path, 'utf8'), 'original');
++    assert.deepEqual(await atomicDebris(root), [], '실패 뒤 temp/고아 backup이 남았다');
++  });
++}
++
++const mainTools = (opts) => (opts?.tools ?? []).some((tool) => tool.name === 'local.terminal');
++
++for (const lane of ['계획', '걸음']) {
++  test(`${lane} 레인: direct write는 approval 0으로 닫고 같은 턴 stdout→local.file write/read로 복구한다`, async () => {
++    const root = await mkdtemp(join(tmpdir(), `t5-batch-${lane}-`));
++    const calls = [];
++    const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true, async run(command, opts) {
++      calls.push({ command, mode: opts.mode });
++      if (command === 'opaque-direct-write') {
++        return { command, cwd: root, mode: opts.mode, exitCode: 1, stdout: '',
++          stderr: 'operation not permitted: opaque-output', processDelivery: 'delivered',
++          sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
++      }
++      if (command === 'opaque-stdout-compute') {
++        return { command, cwd: root, mode: opts.mode, exitCode: 0, stdout: 'name\tcount\na\t2\n',
++          stderr: '', processDelivery: 'delivered',
++          sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
++      }
++      throw new Error(`unexpected terminal command: ${command}`);
++    } });
++    const localFile = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++    const ledgerEntries = [];
++    let step = 0;
++    const model = { async respond(_tc, opts = {}) {
++      if (!mainTools(opts)) return '완료';
++      step += 1;
++      if (lane === '걸음' && step === 1) {
++        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'list', path: root } }] };
++      }
++      const n = lane === '걸음' ? step - 1 : step;
++      if (n === 1) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'opaque-direct-write', cwd: root } }] };
++      if (n === 2) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'opaque-stdout-compute', cwd: root } }] };
++      if (n === 3) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: 'result.tsv', text: 'name\tcount\na\t2\n' } }] };
++      if (n === 4) return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: 'result.tsv' } }] };
++      return '완료';
++    } };
++    const result = await runTurn({ text: '계산 결과를 result.tsv로 만들어 확인해줘' }, {
++      env: demoEnv(), model,
++      tools: demoTools({ localTerminal: terminal, localFile }),
++      pending: new Map(),
++      ledger: { entries: ledgerEntries, append(rec) { ledgerEntries.push(rec); return rec; } },
++    });
++
++    assert.notEqual(result.kind, 'approval', 'direct write 복구에 승인 카드가 생겼다');
++    assert.equal(calls.filter((call) => call.command === 'opaque-direct-write' && call.mode === 'granted').length, 0,
++      '원 direct-write 명령이 granted로 실행됐다');
++    assert.equal(calls.filter((call) => call.command === 'opaque-direct-write').length, 1,
++      '안전 probe 뒤 원 명령을 다시 실행했다');
++    assert.equal(await readFile(join(root, 'result.tsv'), 'utf8'), 'name\tcount\na\t2\n');
++    const terminalBlocked = ledgerEntries.find((rec) => rec.actualCall?.args?.command === 'opaque-direct-write');
++    assert.equal(terminalBlocked?.result?.processDelivery, 'delivered');
++    assert.equal(terminalBlocked?.result?.applied, false);
++    const write = ledgerEntries.find((rec) => rec.actualCall?.tool === 'local.file' && rec.actualCall?.args?.action === 'write');
++    const read = ledgerEntries.find((rec) => rec.actualCall?.tool === 'local.file' && rec.actualCall?.args?.action === 'read');
++    assert.equal(write?.failureState, 'none');
++    assert.equal(write?.result?.readbackExact, true);
++    assert.equal(read?.result?.text, 'name\tcount\na\t2\n');
++  });
++}
++
++test('actual-host: 셸 direct write는 실물 0, stdout→local.file만 실물을 만든다', {
++  skip: !sandboxAvailable() && 'sandbox unavailable',
++}, async (t) => {
++  const root = await mkdtemp(join(tmpdir(), 't5-batch-actual-host-'));
++  const terminal = makeLocalTerminalTool({ cwd: root });
++  const operational = await terminal.probe('true');
++  if (operational.changes !== false || operational.probe?.exitCode !== 0) {
++    t.skip('sandbox probe is not operational on this host');
++    return;
++  }
++  const localFile = makeLocalFileTool({ roots: [root], homeDir: root, dataDir: root });
++  const ledgerEntries = [];
++  let step = 0;
++  const model = { async respond(_tc, opts = {}) {
++    if (!mainTools(opts)) return '완료';
++    step += 1;
++    if (step === 1) return { text: '', toolCalls: [{ name: 'local.terminal', args: {
++      command: "printf 'shell' > result.tsv", cwd: root,
++    } }] };
++    if (step === 2) return { text: '', toolCalls: [{ name: 'local.terminal', args: {
++      command: "printf 'name\\tcount\\na\\t2\\n'", cwd: root,
++    } }] };
++    if (step === 3) return { text: '', toolCalls: [{ name: 'local.file', args: {
++      action: 'write', path: 'result.tsv', text: 'name\tcount\na\t2\n',
++    } }] };
++    if (step === 4) return { text: '', toolCalls: [{ name: 'local.file', args: {
++      action: 'read', path: 'result.tsv',
++    } }] };
++    return '완료';
++  } };
++  const out = await runTurn({ text: '계산 결과를 result.tsv로 만들어 확인해줘' }, {
++    env: demoEnv(), model, tools: demoTools({ localTerminal: terminal, localFile }), pending: new Map(),
++    ledger: { entries: ledgerEntries, append(rec) { ledgerEntries.push(rec); return rec; } },
++  });
++
++  assert.notEqual(out.kind, 'approval');
++  assert.equal(await readFile(join(root, 'result.tsv'), 'utf8'), 'name\tcount\na\t2\n');
++  const blocked = ledgerEntries.find((rec) => rec.actualCall?.args?.command?.includes("printf 'shell'"));
++  assert.equal(blocked?.result?.processDelivery, 'delivered');
++  assert.equal(blocked?.result?.applied, false);
++});
++
++for (const [name, stderr] of [
++  ['write', 'operation not permitted: output.txt'],
++  ['network', 'Network is unreachable'],
++  ['listen', 'EACCES: listen 0.0.0.0:3000'],
++  ['signal', 'kill 4242 failed: operation not permitted'],
++  ['generic-eperm', 'PermissionError: Operation not permitted'],
++]) {
++  test(`${name} 문구와 무관하게 enforced nonzero는 approval0·granted0·delivered로 남는다`, async () => {
++    const root = await mkdtemp(join(tmpdir(), `t5-effect-${name}-`));
++    let grantedRuns = 0;
++    const entries = [];
++    const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true,
++      run: async (command, { mode, cwd }) => {
++        if (mode === 'granted') grantedRuns += 1;
++        return { command, mode, cwd, processDelivery: 'delivered', exitCode: 1, stdout: '', stderr,
++          sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
++      } });
++    const out = await runTurn({ text: '이 효과를 처리해줘' }, {
++      env: demoEnv(), model: (() => { let sent = false; return { async respond(_tc, opts = {}) {
++        if (!sent && mainTools(opts)) { sent = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: `opaque-${name}`, cwd: root } }] }; }
++        return '다음 구조화 수단을 선택할게요.';
++      } }; })(),
++      tools: demoTools({ localTerminal: terminal }), pending: new Map(),
++      ledger: { entries, append(rec) { entries.push(rec); return rec; } },
++    });
++    assert.notEqual(out.kind, 'approval');
++    assert.equal(grantedRuns, 0);
++    const rec = entries.find((item) => item.actualCall?.args?.command === `opaque-${name}`);
++    assert.equal(rec?.result?.processDelivery, 'delivered');
++    assert.equal(rec?.result?.applied, false);
++    assert.equal(rec?.lifecycle, 'delivered');
++  });
++}
++
++test('sandbox 자체가 없으면 에러 문구 해석 없이 approval0·실행0·not_run으로 닫힌다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-effect-no-sandbox-'));
++  let runs = 0;
++  const entries = [];
++  const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => false,
++    run: async () => { runs += 1; throw new Error('호스트 셸을 열면 안 된다'); } });
++  const out = await runTurn({ text: '명령을 처리해줘' }, {
++    env: demoEnv(), model: (() => { let sent = false; return { async respond(_tc, opts = {}) {
++      if (!sent && mainTools(opts)) { sent = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'opaque-no-sandbox', cwd: root } }] }; }
++      return '구조화 손으로 이어갈게요.';
++    } }; })(), tools: demoTools({ localTerminal: terminal }), pending: new Map(),
++    ledger: { entries, append(rec) { entries.push(rec); return rec; } },
++  });
++  assert.notEqual(out.kind, 'approval');
++  assert.equal(runs, 0);
++  const rec = entries.find((item) => item.actualCall?.args?.command === 'opaque-no-sandbox');
++  assert.equal(rec?.result?.processDelivery, 'not_run');
++  assert.equal(rec?.result?.applied, false);
++});
++
++test('probe exit0 읽기·계산은 자동 실행 사실으로 남는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-effect-read-'));
++  const entries = [];
++  const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true,
++    run: async (command, { mode, cwd }) => ({ command, mode, cwd, processDelivery: 'delivered', exitCode: 0, stdout: '42\n', stderr: '',
++      sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } }) });
++  const out = await runTurn({ text: '계산해줘' }, {
++    env: demoEnv(), model: (() => { let sent = false; return { async respond(_tc, opts = {}) {
++      if (!sent && mainTools(opts)) { sent = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'opaque-read', cwd: root } }] }; }
++      return '42';
++    } }; })(), tools: demoTools({ localTerminal: terminal }), pending: new Map(),
++    ledger: { entries, append(rec) { entries.push(rec); return rec; } },
++  });
++  assert.notEqual(out.kind, 'approval');
++  const rec = entries.find((item) => item.actualCall?.args?.command === 'opaque-read');
++  assert.equal(rec?.failureState, 'none');
++  assert.equal(rec?.result?.stdout, '42\n');
++});
++
++for (const [name, exitCode, stderr] of [
++  ['env', 127, 'command not found: opaque-env'],
++  ['code', 3, 'application failed'],
++]) {
++  test(`${name} 실패는 승인·reroute로 꾸미지 않고 실제 exit 실패로 남는다`, async () => {
++    const root = await mkdtemp(join(tmpdir(), `t5-effect-${name}-`));
++    const entries = [];
++    const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true,
++      run: async (command, { mode, cwd }) => ({ command, mode, cwd, processDelivery: 'delivered', exitCode, stdout: '', stderr,
++        sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } }) });
++    const out = await runTurn({ text: '명령을 확인해줘' }, {
++      env: demoEnv(), model: (() => { let sent = false; return { async respond(_tc, opts = {}) {
++        if (!sent && mainTools(opts)) { sent = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: `opaque-${name}`, cwd: root } }] }; }
++        return '실패를 확인했어요.';
++      } }; })(), tools: demoTools({ localTerminal: terminal }), pending: new Map(),
++      ledger: { entries, append(rec) { entries.push(rec); return rec; } },
++    });
++    assert.notEqual(out.kind, 'approval');
++    const rec = entries.find((item) => item.actualCall?.args?.command === `opaque-${name}`);
++    assert.equal(rec?.failureState, 'failed');
++    assert.equal(rec?.result?.exitCode, exitCode);
++    assert.equal(rec?.result?.processDelivery, 'delivered');
++  });
++}
++
++test('구조화된 lifecycleRisk는 미증명 효과 reroute와 분리되어 승인 경계를 유지한다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-effect-lifecycle-'));
++  let ran = 0;
++  const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true,
++    run: async () => { ran += 1; return { exitCode: 0, stdout: '', stderr: '' }; } });
++  const out = await runTurn({ text: '프로세스를 꺼줘' }, {
++    env: demoEnv(), model: (() => { let sent = false; return { async respond(_tc, opts = {}) {
++      if (!sent && mainTools(opts)) { sent = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'kill 424242', cwd: root } }] }; }
++      return '꺼졌어요.';
++    } }; })(),
++    tools: demoTools({ localTerminal: terminal }), pending: new Map(),
++  });
++  assert.equal(out.kind, 'approval');
++  assert.equal(ran, 0);
++});
++
++test('구조화 lifecycle 승인 뒤에는 granted를 한 번 실행하고 효과0으로 위장하지 않는다', async () => {
++  const root = await mkdtemp(join(tmpdir(), 't5-effect-lifecycle-granted-'));
++  const modes = [];
++  const terminal = makeLocalTerminalTool({ cwd: root, sandboxAvailable: () => true,
++    run: async (command, { mode, cwd }) => {
++      modes.push(mode);
++      return { command, cwd, mode, processDelivery: 'delivered', exitCode: 0, stdout: '', stderr: '',
++        sandboxEnforcement: { state: 'enforced', policy: 'protect-secrets-only' } };
++    } });
++  const out = await terminal.handler({ command: 'kill 424242', cwd: root, granted: true,
++    probeResult: enforcedProbe('kill 424242', root, 'operation not permitted') });
++  assert.deepEqual(modes, ['granted']);
++  assert.equal(out.result.applied, true);
++  assert.notDeepEqual(out.result.effects, { state: 'none' });
++});

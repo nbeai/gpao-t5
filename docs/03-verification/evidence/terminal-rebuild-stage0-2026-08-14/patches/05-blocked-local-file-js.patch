@@ -1,0 +1,185 @@
+diff --git a/src/runtime/local-file.js b/src/runtime/local-file.js
+index 014a8622..3128ea43 100644
+--- a/src/runtime/local-file.js
++++ b/src/runtime/local-file.js
+@@ -8,12 +8,12 @@
+ //   · 덮어쓰기·삭제는 **되돌릴 수 있다** — 원본을 휴지통으로 옮기고 되돌리기 표를 남긴다.
+ //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
+ //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
+-import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile, realpath } from 'node:fs/promises';
++import { readFile as nodeReadFile, writeFile, readdir, stat, lstat, mkdir, rename, rm, copyFile, realpath } from 'node:fs/promises';
+ import { join, dirname, basename, relative, isAbsolute, extname, resolve } from 'node:path';
+ import { randomUUID, createHash } from 'node:crypto';
+ import { existsSync, readFileSync } from 'node:fs';
+ import { homedir } from 'node:os';
+-import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들 } from './file-scope.js';
++import { resolveInScope, ensureRoot, outOfScopeMessage, defaultFileRoots, previewPathOf, 부르는이름들, isWithin } from './file-scope.js';
+ import { protectionBlocks, protectionMessage } from './local-protection.js';
+ import {
+   extractDocument, documentFormat, documentSignatureMatches, documentSignatureExpectation, buildXlsx,
+@@ -288,6 +288,8 @@ function 꾸러미부품인가(text) {
+  */
+ export function makeLocalFileTool(deps = {}) {
+   const readFile = deps.readFile ?? nodeReadFile; // 실패 주입도 실제 파일 손 경계를 타게 한다.
++  const atomicWriteFile = deps.atomicWriteFile ?? writeFile;
++  const atomicRename = deps.atomicRename ?? rename;
+   const roots = deps.roots ?? defaultFileRoots();
+   const home = deps.homeDir; // 검사 주입용 — 미지정이면 file-scope 가 실제 홈을 쓴다
+   const trashDir = deps.trashDir ?? join(deps.dataDir ?? roots[0], '.trash');
+@@ -324,6 +326,18 @@ export function makeLocalFileTool(deps = {}) {
+     return parked;
+   }
+ 
++  // 원자 덮어쓰기는 원본을 먼저 치우지 않는다. 같은 파일시스템의 임시 파일을 완성한 뒤
++  // rename으로 한 번에 교체하므로, 백업은 사본으로 남겨야 커밋 전까지 원본이 제자리에 있다.
++  async function copyToTrash(abs) {
++    try { await stat(abs); } catch { return null; }
++    await mkdir(trashDir, { recursive: true });
++    const parked = join(trashDir, `${Date.now()}-${randomUUID().slice(0, 8)}-${basename(abs)}`);
++    await copyFile(abs, parked);
++    return parked;
++  }
++
++  const sameIdentity = (a, b) => Boolean(a && b && a.dev === b.dev && a.ino === b.ino);
++
+   const ok = (userSafeSummary, result) => ({ result, userSafeSummary });
+   // **말과 길은 소비자가 다르다.** `nextSafeAction` 은 표면이 사용자에게 보여 주는 한 문장이고,
+   // `다음수단` 은 모델이 그대로 부를 수 있는 값이다(`tool-receipt.js` 계약).
+@@ -1039,53 +1053,101 @@ export function makeLocalFileTool(deps = {}) {
+               }
+             }
+           }
+-          await mkdir(dirname(abs), { recursive: true });
+-          const parked = await toTrash(abs); // 덮어쓰기면 원본을 휴지통으로(되돌릴 수 있게)
+-          await writeFile(abs, 실물 ?? text, 실물 ? undefined : 'utf8');
+-          // **쓴 뒤에 되읽어 확인한다** (F-86 · 오픈북: 헤르메스 `file_operations.py:1601-1626`
+-          // 이 `sha256sum` 으로 디스크를 되읽고 어긋나면 *하드 에러*로 올린다 — *"a mismatch is
+-          // surfaced as a hard error instead of silent corruption"*). 우리도 만들었다고 말하기
+-          // 전에 실물을 한 번 더 본다. 어긋나면 만든 것을 치우고 **원본을 제자리로 되돌린다** —
+-          // 실패가 사용자 파일 손실이 되면 안 된다(move 의 부분 실패 처리와 같은 계약).
+-          if (형식) {
++          const parent = dirname(abs);
++          await mkdir(parent, { recursive: true });
++          // 실제 부모와 대상 신분을 커밋 앞뒤에서 같은 값으로 본다. hardlink는 범위 밖 별칭을
++          // 증명할 수 없으므로 덮어쓰지 않는다. 명령·경로 의미를 추론하지 않고 inode 사실만 쓴다.
++          const parentReal = await realpath(parent);
++          const parentBefore = await stat(parentReal);
++          let targetBefore = null;
++          try { targetBefore = await lstat(abs); } catch { /* 새 파일 */ }
++          if (targetBefore?.nlink > 1) {
++            return fail(
++              `${basename(abs)} 은(는) 다른 경로와 같은 실물을 공유해서 덮어쓰지 않았어요.`,
++              '공유되지 않은 새 파일 이름으로 저장할 수 있어요.',
++            );
++          }
++
++          const bytes = Buffer.isBuffer(실물) ? 실물 : Buffer.from(text, 'utf8');
++          // temp는 대상과 같은 허용 root에 두되 바뀔 수 있는 즉시 부모 밖에 둔다. 그래야 부모가
++          // commit 직전에 이름을 바꿔치기해도 원래 temp 경로를 알고 걷을 수 있다. 같은 root라
++          // rename은 여전히 한 파일시스템의 원자 교체다(EXDEV면 실패·복원으로 닫힌다).
++          const realActiveRoots = await Promise.all(activeRoots.map((root) => realpath(root).catch(() => resolve(root))));
++          const tempRoot = realActiveRoots.filter((root) => isWithin(root, parentReal))
++            .sort((a, b) => b.length - a.length)[0] ?? parentReal;
++          const temp = join(tempRoot, `.${basename(abs)}.t5-${randomUUID()}.tmp`);
++          let parked = null;
++          let committed = false;
++          try {
++            await atomicWriteFile(temp, bytes, { flag: 'wx' });
++            parked = targetBefore ? await copyToTrash(abs) : null;
++
++            // 결정론적 적대 검사용 주입점. 실제 실행에서는 없고, 이 점 뒤에 같은 신분을 다시
++            // 묻기 때문에 부모 바꿔치기가 커밋 권한이 되지 않는다.
++            await deps.beforeAtomicCommit?.({ path: abs, parent: parentReal, temp });
++
++            const parentNowReal = await realpath(parent);
++            const parentNow = await stat(parentNowReal);
++            if (parentNowReal !== parentReal || !sameIdentity(parentBefore, parentNow)) {
++              return fail('저장 직전에 대상 폴더가 바뀌어서 쓰지 않았어요.', '현재 폴더를 다시 확인한 뒤 저장할 수 있어요.');
++            }
++            let targetNow = null;
++            try { targetNow = await lstat(abs); } catch { /* 여전히 새 파일 */ }
++            if ((targetBefore === null) !== (targetNow === null)
++              || (targetBefore && (!sameIdentity(targetBefore, targetNow) || targetNow.nlink > 1))) {
++              return fail('저장 직전에 대상 파일이 바뀌어서 쓰지 않았어요.', '현재 파일을 다시 읽은 뒤 저장할 수 있어요.');
++            }
++
++            await atomicRename(temp, abs);
++            committed = true;
++            await deps.afterAtomicCommit?.({ path: abs, parent: parentReal });
+             const 되읽음 = await nodeReadFile(abs).catch(() => null);
+-            if (!되읽음 || !documentSignatureMatches(형식, 되읽음)) {
++            const exact = Boolean(되읽음 && 되읽음.equals(bytes));
++            if (!exact || (형식 && !documentSignatureMatches(형식, 되읽음))) {
+               await rm(abs).catch(() => {});
+               if (parked) await rename(parked, abs).catch(() => {});
++              committed = false;
+               return fail(
+-                `${basename(abs)} 을(를) 저장한 뒤 되읽어 보니 ${형식} 형식이 아니어서 되돌렸어요.`,
+-                '같은 내용을 글 파일(.txt·.md)로 저장해 둘까요?',
++                `${basename(abs)} 을(를) 저장한 뒤 실제 내용이 달라서 되돌렸어요.`,
++                '같은 내용을 다시 계산한 뒤 저장할 수 있어요.',
+               );
+             }
++
++            try {
++              await deps.beforeUndoLog?.({ path: abs, digest: createHash('sha256').update(되읽음).digest('hex') });
++              await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
++            } catch (e) {
++              await rm(abs).catch(() => {});
++              if (parked) await rename(parked, abs).catch(() => {});
++              committed = false;
++              throw e;
++            }
++
++            const digest = createHash('sha256').update(되읽음).digest('hex');
++            // 실물의 숫자 대조 사실 — 루프 안에서 모델이 손을 쥔 채 받는 되부름(위 쓴숫자대조 주석).
++            const 대조말 = 쓴숫자대조(text, executionContext?.표맥락) ?? '';
++            const 만든말 = 실물 ? ` (표 ${표행들(text).length}행을 엑셀 파일로 만들었어요)` : '';
++            return ok(
++              (parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
++                : `${basename(abs)} 을(를) 만들었어요.`) + 만든말 + 대조말,
++              {
++                path: abs, bytes: 되읽음.length, overwritten: Boolean(parked),
++                ...(형식 ? { format: 형식, formatVerified: true } : {}),
++                digest, readbackDigest: digest, readbackExact: true,
++                ...(원본 ? { originalUntouched: true, source: 원본 } : {}),
++              },
++            );
++          } finally {
++            // rename 전 중단이면 임시 파일만 걷는다. 성공 뒤에는 temp가 이미 사라졌다.
++            if (!committed) {
++              await rm(temp).catch(() => {});
++              if (parked) await rm(parked).catch(() => {});
++            }
+           }
+           // **새로 만든 것도 되돌릴 수 있어야 한다.** 예전엔 덮어쓰기만 표에 남겼다 —
+           // 실측(오너 라이브 2026-07-28): 승인 카드가 "되돌려줘로 되살릴 수 있어요"라고 약속하고
+           // 저장했는데 "되돌릴 작업이 없다"가 나왔다. 카드가 못 지킬 약속을 한 것이다.
+           // 만들기의 되돌리기는 복원이 아니라 **만든 것을 치우는 것**이라 되살릴 원본(`to`)이 없다.
+-          await pushUndo(parked ? undoEntry('write', abs, parked) : undoEntry('create', abs, null));
+-          // 실물의 숫자 대조 사실 — 루프 안에서 모델이 손을 쥔 채 받는 되부름(위 쓴숫자대조 주석).
+-          const 대조말 = 쓴숫자대조(text, executionContext?.표맥락) ?? '';
+-          // 엑셀을 지어 준 회차는 **무엇을 만들었는지 그대로 말한다** — "저장했어요"만 있으면
+-          // 사용자도 모델도 글자를 그대로 넣은 것과 구분할 수 없다(밟은 회차가 그 자리다).
+-          const 만든말 = 실물 ? ` (표 ${표행들(text).length}행을 엑셀 파일로 만들었어요)` : '';
+-          return ok(
+-            (parked ? `${basename(abs)} 을(를) 새 내용으로 저장했어요(이전 내용은 되돌릴 수 있어요).`
+-              : `${basename(abs)} 을(를) 만들었어요.`) + 만든말 + 대조말,
+-            {
+-              path: abs, bytes: 실물 ? 실물.length : Buffer.byteLength(text), overwritten: Boolean(parked),
+-              // 이름이 약속한 형식으로 **실제로** 저장됐다는 기계 사실. 답이 "엑셀로 만들었다"고
+-              // 말할 근거는 이것뿐이다(이름은 근거가 아니다 — 밟은 회차가 증명했다).
+-              ...(형식 ? { format: 형식, formatVerified: true } : {}),
+-              // C 감사 F2.1 · **산출물의 내용 신분.** lane 은 digest 가 있으면 그것을 신분으로
+-              // 쓰는데 생산자가 없어 항상 경로+턴 폴백이었다 — 같은 경로가 나중에 바뀌어도
+-              // "같은 산출물"로 이어지는 병. 쓰기가 자기 내용의 digest 를 낸다.
+-              // **실제로 디스크에 간 바이트**의 신분이다 — 엑셀을 지어 준 회차는 글자와 실물이
+-              // 다르므로 글자의 digest 를 내면 산출물 신분이 실물을 안 가리킨다(F-86).
+-              digest: createHash('sha256').update(실물 ?? text).digest('hex'),
+-              // 원본을 안 건드렸다는 건 **말할 수 있는 사실**이어야 한다 — 결과에 남긴다.
+-              ...(원본 ? { originalUntouched: true, source: 원본 } : {}),
+-            },
+-          );
+         }
+ 
+         if (action === 'move') {

@@ -1,0 +1,113 @@
+{
+  "kind": "terminal-rebuild-stage0-decomposition",
+  "recordedAt": "2026-08-14",
+  "canonical": {
+    "path": "/Users/jyp/Developer/t5-p-op",
+    "sha": "b8298137198bd230a7612323909bf9a39430baac",
+    "preservedDirty": [
+      "design/NEXT-SESSION.md",
+      ".t5check-tojson/",
+      "docs/03-verification/evidence/prime-agent-openbook-2026-08-13/"
+    ],
+    "preservationEvidence": "Git path and status only. Pre-stage byte hashes were not recorded, so byte-for-byte preservation is not claimed."
+  },
+  "rebuild": {
+    "path": "/Users/jyp/Developer/t5-lanes/terminal-rebuild",
+    "sha": "99c3d32b929f158ab2daa63543af19b4eed3166f",
+    "mixedWorktreePreserved": true
+  },
+  "checks": {
+    "manifestPatchHashes": "15/15 PASS",
+    "structuredCandidateApplyCheckOn99c3d32b": "PASS",
+    "auditDocs": "PASS",
+    "auditPlan": "PASS",
+    "auditWorkspace": "EXPECTED RED: pre-existing off-root and unmerged worktrees, plus the new isolated stage lines; no workspace was removed or rewritten in Stage 0",
+    "independentStage0Audit": "PASS after correcting the 02 product/harness split to cover all 15 source-range paths; auditor modified 0 files"
+  },
+  "admissionRule": "No patch is admitted by test count alone. Each candidate needs its stage red, focused and adversarial checks, full regression, actual-host or applicable live evidence, and an auditor who did not implement it.",
+  "candidates": [
+    {
+      "id": "committed-harness",
+      "patch": "patches/01-committed-harness.patch",
+      "sha256": "cb01d701c575fdf0666ab0368cf012109d0b1b6287ede177ad66898c21ece855",
+      "sourceRange": "b8298137198bd230a7612323909bf9a39430baac..9272f7b5fcff5adfbcf6766410dfd342aebc0ea8",
+      "decision": "defer",
+      "ownerStage": 4,
+      "reason": "Product-external Q1/Q2 harness candidate; no durable independent PASS is linked to the commits."
+    },
+    {
+      "id": "committed-failure-observation",
+      "patches": [
+        { "path": "patches/02a-committed-failure-observation-product.patch", "sha256": "468c722de9d40b7be3af39f54ca43f26487ab5510a8ecf890a9c914a8260f8b3" },
+        { "path": "patches/02b-committed-failure-observation-harness.patch", "sha256": "99428db1f1a6fe81e3057c085900e93bace4b47c955458965c3dbe3719775fa0" }
+      ],
+      "sourceRange": "9272f7b5fcff5adfbcf6766410dfd342aebc0ea8..df881a7ef8d70776cd590f6de6af2f17c06d6776",
+      "decision": "candidate",
+      "ownerStage": 1,
+      "reason": "Product/direct-test and qualification-harness adjustments are physically separate. The model-visible, durable-private failure contract must be independently re-audited with the structured executor."
+    },
+    {
+      "id": "committed-authority-effects",
+      "patch": "patches/03-committed-authority-effects.patch",
+      "sha256": "b273a25b34aa9e0a370346a5ccac48a4ef8751a01beb5737fbd30a96531c0e8c",
+      "sourceRange": "df881a7ef8d70776cd590f6de6af2f17c06d6776..99c3d32b929f158ab2daa63543af19b4eed3166f",
+      "decision": "candidate",
+      "ownerStage": 1,
+      "reason": "Actual-effect budgeting candidate; must be re-audited against structured execution and safe-read continuation."
+    },
+    {
+      "id": "structured-terminal-prototype",
+      "patches": [
+        { "path": "patches/04-dirty-structured-terminal-tracked.patch", "sha256": "30f935e4b417359271c7db7966923b53b208d876967cdbec9f0803deba3a5d15" },
+        { "path": "patches/04b-dirty-structured-terminal-new-test.patch", "sha256": "d6c62b907e4f996ee686eb9b01d26492539b6d052ab33c8629817e4c824ab14b" }
+      ],
+      "decision": "candidate",
+      "ownerStage": 1,
+      "reason": "Provider-neutral executable/argv prototype. It is unsealed and cannot be applied without its preceding commit chain."
+    },
+    {
+      "id": "node-local-file-atomic-prototype",
+      "patch": "patches/05-blocked-local-file-js.patch",
+      "sha256": "97cfefd54c0fef6e0243f5e6af69fed8146e25b964997ac1bc17a48312516957",
+      "decision": "reject",
+      "ownerStage": 2,
+      "reason": "Hostile parent-swap, rollback, and trash-boundary counterexamples invalidate this implementation. Stage 2 restarts at create-only scope."
+    },
+    {
+      "id": "mixed-batch-test",
+      "patch": "patches/05b-blocked-mixed-batch-test.patch",
+      "sha256": "8d807b7d6b51f0f3b7ebeb3ebc4971a74f02d6919f34636456d9d009dab7cd79",
+      "decision": "evidence-only",
+      "ownerStage": 0,
+      "reason": "Terminal and local.file contracts are mixed. This patch must never be applied as a unit."
+    },
+    {
+      "id": "native-general-file-broker",
+      "patches": [
+        { "path": "patches/06-deferred-native-packaging-tracked.patch", "sha256": "236862ec70c1329f965b9c90736e5f0bbcd153df79801f436459b0945afced3b" },
+        { "path": "patches/06b-deferred-native-build-script.patch", "sha256": "8ef2f5b9c5847cc0bf5a374cd6b40065b3f62d50cbd28df653cf277701897485" },
+        { "path": "patches/06c-deferred-native-readme.patch", "sha256": "e740afe883f47178a3b34dbfb0b12460bbba7810cf0748fc1d5b0de7ac61116e" },
+        { "path": "patches/06d-deferred-native-protocol.patch", "sha256": "cccc88b19b188b276f23f60f600c75df41f2840efef885366a65402c0787a823" },
+        { "path": "patches/06e-deferred-native-c.patch", "sha256": "dac382b4c4836ea6d8b3c7f08c5559b995fbf8b3e4d0b7c45c0d930f02abf6c5" },
+        { "path": "patches/06f-deferred-native-client.patch", "sha256": "fccdf03f64439d7d5ba44acd5e6beab0734c28068bfa8f82cf9485319800c694" },
+        { "path": "patches/06g-deferred-native-test.patch", "sha256": "b509b03398ea2065f7adc9dc5308d62be5ac65ba775400c07abc0799459dc981" }
+      ],
+      "decision": "defer",
+      "ownerStage": "6B",
+      "reason": "General overwrite, journal, metadata, and concurrency scope exceeds create-only Stage 2 and remains independently blocked."
+    }
+  ],
+  "overlap": {
+    "committedAndDirtyPaths": [
+      "src/kernel/l2-plan/tool-boundary.js",
+      "src/kernel/turn.js",
+      "src/runtime/local-terminal.js",
+      "src/runtime/terminal-run.js",
+      "src/runtime/tool-runner.js",
+      "test/terminal-effect-budget.test.js",
+      "test/terminal-failure-receipt.test.js",
+      "test/terminal-read-network-is-automatic.test.js"
+    ],
+    "rule": "Do not apply the dirty structured patch directly to the canonical base. Stage 1 starts from the preserved rebuild HEAD and re-audits the full dependency chain."
+  }
+}

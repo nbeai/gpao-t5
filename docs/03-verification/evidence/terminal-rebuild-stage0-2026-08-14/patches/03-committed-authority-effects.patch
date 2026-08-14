@@ -1,0 +1,892 @@
+diff --git a/src/kernel/l2-plan/tool-boundary.js b/src/kernel/l2-plan/tool-boundary.js
+index 8469825e..a77ee5b2 100644
+--- a/src/kernel/l2-plan/tool-boundary.js
++++ b/src/kernel/l2-plan/tool-boundary.js
+@@ -56,10 +56,11 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번
+   // **같은 사실을 두 번 묻지 않는다**(이음매 ①). 앞 레인이 이미 재서 실어 보낸 인자가 오면
+   // 그대로 쓴다 — 재는 것은 왕복이고 왕복은 사용자 비용이다(0번 비용: 에너지·시간).
+   // 두 번 재면 느린 것보다 **답이 갈리는 것**이 문제다: 화면은 그 사이에 바뀐다(두 진실 금지).
+-  const 이미잰것 = toolId === 'local.terminal'
+-    ? args?.probeResult !== undefined || args?.changes !== undefined
+-    : args?.눌러본사실 !== undefined;
+-  if (!이미잰것 && toolId === 'local.terminal' && typeof args?.command === 'string') {
++  // terminal 호출의 changes/probeResult는 모델도 만들 수 있는 공개 인자다. 그것을 관찰 사실로
++  // 신뢰하면 `changes:false` 하나로 임의 셸 효과가 자동 권위를 얻는다. 이 경계에 들어온
++  // terminal 호출은 언제나 현재 도구로 한 번 재고, 그 결과로 공개 인자를 덮는다.
++  const 이미잰것 = toolId !== 'local.terminal' && args?.눌러본사실 !== undefined;
++  if (toolId === 'local.terminal' && typeof args?.command === 'string') {
+     const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
+     판정인자 = {
+       ...args,
+diff --git a/src/kernel/turn-budget.js b/src/kernel/turn-budget.js
+index a81e6ec2..d1ce3ac0 100644
+--- a/src/kernel/turn-budget.js
++++ b/src/kernel/turn-budget.js
+@@ -90,21 +90,49 @@ export function 턴예산(env = process.env) {
+ export function 예산소진(쓴것, 예산) {
+   if (쓴것?.취소됨) return true;
+   return (쓴것?.왕복쓴것 ?? 0) >= 예산.왕복
+-    || (쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것
+-    || (쓴것?.그밖쓴것 ?? 0) >= 예산.그밖
+     || (쓴것?.지난ms ?? 0) >= 예산.벽시계ms;
+ }
+ 
++/** 위험 상한은 해당 효과 등급에만 적용한다. */
++export function 위험상한소진(쓴것, 예산, 등급) {
++  if (등급 === '되돌릴수있음') {
++    return (쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것;
++  }
++  if (등급 === '되돌릴수없음') return (쓴것?.그밖쓴것 ?? 0) >= 예산.그밖;
++  return false;
++}
++
++export function 위험상한사유(등급) {
++  if (등급 === '되돌릴수없음') return '되돌리기 어려운 일은 한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
++  if (등급 === '되돌릴수있음') return '되돌릴 수 있는 일은 한 번에 다룰 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
++  return undefined;
++}
++
+ /** 어느 축이 닿았는가 — 사용자와 모델에게 **왜 멈췄는지**를 사실로 주기 위해. */
+ export function 소진사유(쓴것, 예산) {
+   if (쓴것?.취소됨) return '사용자가 멈춰 달라고 해서 남은 것은 하지 않았어요.';
+   if ((쓴것?.왕복쓴것 ?? 0) >= 예산.왕복) return '한 번에 이어갈 수 있는 만큼 하고 멈췄어요.';
+-  if ((쓴것?.그밖쓴것 ?? 0) >= 예산.그밖) return '되돌리기 어려운 일은 한 번에 여기까지만 했어요.';
+-  if ((쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것) return '한 번에 다룰 수 있는 만큼 하고 나머지는 남겨 뒀어요.';
+   if ((쓴것?.지난ms ?? 0) >= 예산.벽시계ms) return '오래 걸려서 여기까지 하고 멈췄어요.';
+   return undefined;
+ }
+ 
++/** 영수증이 밝힌 실제 효과를 예산 등급으로 투영한다. */
++export function 실행효과분류({ actionKind, declaredReversible, receipt } = {}) {
++  const 실제호출 = Boolean(receipt?.actualCall?.tool);
++  const 결과 = receipt?.result ?? {};
++  const 실패상태 = receipt?.failureState ?? 'none';
++  if (!실제호출 || 실패상태 === 'blocked' || 실패상태 === 'cancelled'
++    || 결과.applied === false || 결과.probeChangedNothing === true) {
++    return { 등급: '없음', 실제효과: false };
++  }
++  if (['read', 'search', 'list', 'versions'].includes(actionKind) && 결과.applied !== true) {
++    return { 등급: '없음', 실제효과: false };
++  }
++  return declaredReversible === false
++    ? { 등급: '되돌릴수없음', 실제효과: true }
++    : { 등급: '되돌릴수있음', 실제효과: true };
++}
++
+ /** 이 호출의 **호출지문** — 같은 손·같은 작업·의미상 같은 인자인가(S1 §5.1.1 과 같은 정의). */
+ function 지문(rec) {
+   const a = rec?.actualCall?.args ?? {};
+diff --git a/src/kernel/turn.js b/src/kernel/turn.js
+index 2c55cc95..5fe55c00 100644
+--- a/src/kernel/turn.js
++++ b/src/kernel/turn.js
+@@ -51,7 +51,10 @@ import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
+ import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
+ import { 심문허용 } from './model-sovereign.js';
+ import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
+-import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
++import {
++  턴예산, 가드레일신호, 예산소진, 소진사유,
++  실행효과분류, 위험상한소진, 위험상한사유,
++} from './turn-budget.js';
+ import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증 } from './l2-plan/exit-verification.js';
+ 
+ // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
+@@ -2271,15 +2274,26 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+   const 되돌릴수있는것쓴것 = () => ctx.되돌릴수있는것수 ?? 0;
+   const 그밖쓴것 = () => ctx.그밖수 ?? 0;
+   const 외부효과셈 = (칸) => { ctx[칸] = (ctx[칸] ?? 0) + 1; };
+-  // **좁은 칸은 `reversible: false` 를 선언한 손만이다.**
+-  //
+-  // 한 번 "모르면 좁은 칸"으로 뒀다가 회귀 22건이 물었다(실측 2026-08-04): `reversible` 을
+-  // 선언하지 않은 손이 많아서(MCP·web.collect·일부 커넥터) 정상 읽기·탐색 흐름이 3에서 끊겼다.
+-  //
+-  // 이 뒷단이 막는 것은 **되돌릴 수 없는 외부효과의 폭주**이지 "모르는 것"이 아니다. 모르는 것은
+-  // 이미 승인 경계가 잡는다 — `toolActionKind` 가 미상을 승인으로 보내고 헌장 넷이 그 위에 선다.
+-  // 여기서 한 번 더 좁히면 안전이 아니라 마비가 된다(자동성이 의무다).
+-  const 되돌릴수있나 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId)?.reversible !== false;
++  let 위험상한막힌말;
++  const 손선언 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId);
++  const 실행효과세기 = (toolId, args, rec) => {
++    const 분류 = 실행효과분류({
++      actionKind: toolActionKind({ toolId, args, selfState }),
++      declaredReversible: 손선언(toolId)?.reversible,
++      receipt: rec,
++    });
++    if (분류.등급 === '되돌릴수있음') 외부효과셈('되돌릴수있는것수');
++    if (분류.등급 === '되돌릴수없음') 외부효과셈('그밖수');
++  };
++  const 실행전위험등급 = (toolId, args) => {
++    const kind = toolActionKind({ toolId, args, selfState });
++    if (['read', 'search', 'list', 'versions'].includes(kind)) return '없음';
++    return 손선언(toolId)?.reversible === false ? '되돌릴수없음' : '되돌릴수있음';
++  };
++  const 위험막힘 = (toolId, args) => {
++    const 등급 = 실행전위험등급(toolId, args);
++    return 위험상한소진(쓴것(), 예산, 등급) ? 위험상한사유(등급) : undefined;
++  };
+   // **벽시계도 이어받는다 — 다만 재는 것은 「T5 가 일한 시간」이다.**
+   //
+   // 진입마다 0 이면 카드 N 번에 600초×N 이라 위 두 칸과 같은 병이다. 그렇다고 발화 시각부터
+@@ -2315,7 +2329,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+     // 강제가 아니다(⛔) — 사실을 줄 뿐이고 어떻게 쓸지는 모델이 정한다.
+     toolStepsLeft: Math.max(0, Math.min(
+       예산.왕복 - (ctx.왕복수 ?? 0),
+-      예산.되돌릴수있는것 - 되돌릴수있는것쓴것(),
+       걸음정지선 - turnReceipts.length,
+     )),
+     ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
+@@ -2428,6 +2441,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+       '예산소진', 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.');
+       continue;
+     }
++    const 위험상한말 = 위험막힘(toolId, args);
++    if (위험상한말) {
++      위험상한막힌말 = 위험상한말;
++      못한호출남기기({ tool: toolId, args, callId: `p${순번 + 1}`, 순번: 순번 + 1,
++        ...(계획호출신분?.[toolId]?.providerCallId
++          ? { providerCallId: 계획호출신분[toolId].providerCallId } : {}) },
++      '예산소진', 위험상한말);
++      continue;
++    }
+     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
+     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
+     const rec = await 계약실행(toolId, args);
+@@ -2440,7 +2462,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+     현실다시();
+     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
+     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
+-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
++    실행효과세기(toolId, args, rec);
+     원장.append(rec);
+     turnReceipts.push(rec);
+     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
+@@ -2923,7 +2945,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+       if (!String(앞답).trim() && String(되부름글).trim()) finalOut = 되부름;
+     };
+     if (!고른것.length) {                                            // 안 골랐다 — 수단이 소진된 것이다
+-      되살리기();
++      // 위험 상한으로 루프를 한 번 더 연 경우, 이 응답이 그 사실을 받은 최신 루프 상태다.
++      // 앞 응답을 계속 들고 있으면 출구가 같은 completionMismatch로 모델을 다시 부른다.
++      // 문장을 해석하거나 고치지 않고 방금 모델 응답 한 벌로 루프 상태만 전진시킨다.
++      if (위험상한막힌말) finalOut = 되부름;
++      else 되살리기();
+       if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
+       return false;
+     }
+@@ -3204,6 +3230,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+       toolId, args, selfState, tools: ctx.tools, 이번이월, 이번발화,
+     });
+     let 판정인자 = 경계인자;
++    const 위험상한말 = 위험막힘(toolId, 판정인자);
++    if (위험상한말) {
++      위험상한막힌말 = 위험상한말;
++      못한호출남기기({ ...이번, args: 판정인자 }, '예산소진', 위험상한말);
++      if (대기호출.length) continue;
++      // 이 위험 호출만 못 한다. 모델에게 영수증과 다른 손을 돌려줘 안전한 읽기·다른
++      // 효과 등급을 스스로 고를 기회를 남긴다.
++      if (await 목적미달이어가기()) continue;
++      멈춘이유 = 위험상한말;
++      break;
++    }
+     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
+     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
+     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
+@@ -3415,7 +3452,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+     turnReceipts.push(rec);
+     await 확인된중간결과(ctx, rec, ledger);
+     steps += 1;
+-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
++    실행효과세기(toolId, 판정인자, rec);
+ 
+     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
+     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
+@@ -3492,6 +3529,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
+   // 자리에 들어가 미완료가 사라진다. 새 enum 을 열지 않고 기존 어휘를 그대로 쓴다.
+   const 소진말 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
+   남은줄거두기();
++  if (위험상한막힌말) {
++    workingState = 이어받기정리(deriveWorkingState(workingState, {
++      receipts: [], withinTurn: true, blocked: 위험상한막힌말,
++    }), ctx.connectors);
++  }
+   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
+   if (예산소진(쓴것(), 예산) && !멈춘이유) 멈춘이유 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼 하고 멈췄어요';
+   // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.
+diff --git a/src/runtime/local-terminal.js b/src/runtime/local-terminal.js
+index e44b67ec..90ae62c1 100644
+--- a/src/runtime/local-terminal.js
++++ b/src/runtime/local-terminal.js
+@@ -35,61 +35,12 @@ function looksBlocked(r) {
+   return block?.kind === 'sandbox' || block?.kind === 'permission';
+ }
+ 
+-/**
+- * **네트워크만 열면 되는지 알아맞히지 않는다 — 열어 보고 안다.**
+- *
+- * 첫 판은 `executionBlock(r).why === 'network'` 로 골랐다. 실물에서 안 먹었다(밟음 2026-08-06):
+- *   `ping -c1 8.8.8.8`  probe → `ping: sendto: Operation not permitted` → **`why:'write'` 로 잡힘**
+- *                        reach → **통과**
+- * 샌드박스가 네트워크를 막을 때 나오는 말은 `ENOTFOUND` 가 아니라 그냥 `Operation not permitted`
+- * 다. 문구 목록으로 네트워크를 가르려던 것이고, 그건 이 파일이 처음부터 버린 방식이다
+- * (`sandbox.js` 첫 문단 — 목록은 항상 뚫린다).
+- *
+- * 그래서 probe 와 같은 구조를 한 번 더 쓴다: **네트워크만 열고 다시 돌려 본다.**
+- *   reach 에서 통과 → 막던 것은 네트워크뿐이었다는 **증명**. 이 컴퓨터는 안 바뀌었다(쓰기·비밀은 닫힘)
+- *   reach 에서도 막힘 → 진짜 변경 시도. 그대로 승인으로 간다
+- *
+- * **두 자리만 뺀다** — 둘 다 "돌려 봐도 모르는" 자리라 구조가 성립하지 않는다:
+- *   `listen`          포트를 여는 것은 나가서 읽는 게 아니라 **바깥에서 닿게 만드는 상태 변경**이다.
+- *                     안 빼고 열었더니 서버 띄우기가 승인 없이 돌았다(회귀가 잡았다).
+- *   `unreadable_exit` 실패를 삼키는 명령은 exit code 가 정보가 아니다. 모르면 승인 쪽이다.
+- */
+-const 열어봐도소용없는것 = new Set(['listen', 'unreadable_exit']);
+-
+-function 네트워크만열어볼까(r) {
+-  const block = executionBlock(r);
+-  if (!block) return false;
+-  if (block.kind !== 'sandbox' && block.kind !== 'permission') return false;
+-  return !열어봐도소용없는것.has(block.why);
+-}
+-
+-/**
+- * **읽기성 네트워크는 묻지 않는다** (오너 결정 2026-08-06 · 터미널 유보 해제).
+- *
+- * 계획서 v3.1 §20·§22 가 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀는데 **코드에 그런 유보는
+- * 없었다** — 셸은 통째로 열려 있고 명령 목록도 없다. 라이브로 갈라 보니 실제 마찰은 한 자리였다:
+- *
+- *   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됨
+- *   읽기성 네트워크        **카드가 떴다** — `curl` 조회 · `git pull` · `npm ls` · `gh pr list`
+- *
+- * 이 컴퓨터를 하나도 안 바꾸는 일인데 물었다. 자동성 헌장의 넷 어디에도 안 걸린다.
+- * 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다** — 같은 일을 터미널에서만 물었다.
+- * 능력 문제가 아니라 두 손이 다른 선을 쓰고 있었다.
+- *
+- * 고칠 재료는 이미 다 있었다. `sandbox.js` 의 `reach`(쓰기✗ · 네트워크✓ · 비밀✗)를
+- * 커넥터 CLI 손만 쓰고 터미널 본체는 안 썼다. 둘을 잇는다.
+- *
+- * **명령 목록을 만들지 않는다**(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 판정은 그대로
+- * *돌려 보고 안다*: 네트워크에만 막혔으면 네트워크만 열고 한 번 더 돌린다. 거기서도 막히면
+- * 그건 진짜 변경 시도이므로 승인으로 간다.
+- */
++// 임의 셸의 네트워크 효과는 구조화돼 있지 않다. GET처럼 보이는 명령도 Python·동적 코드·
++// 셸 확장을 통해 전송이나 계정 변경을 할 수 있으므로, 명령 문자열이나 실패 문구로 의미를
++// 추측하지 않는다. probe는 네트워크가 닫힌 자리 한 번만 돈다. 거기서 막힌 효과는 미증명인
++// 채 승인 경계로 가고, 공개 자료 읽기는 구조화 web 손이 자동 권위를 제공한다.
+ async function 재보기(run, command, { cwd, timeoutMs }) {
+-  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
+-  if (!네트워크만열어볼까(첫판)) return 첫판;
+-  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs });
+-  // **reach 에서도 막혔으면 첫판을 그대로 쓴다.** 승인 카드에 실릴 이유는 probe 가 말한 것이
+-  // 정확하다 — reach 는 네트워크를 연 뒤의 두 번째 벽이라 사용자에게는 덜 정확한 설명이 된다.
+-  return looksBlocked(둘째판) ? 첫판 : 둘째판;
++  return run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
+ }
+ 
+ /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
+@@ -243,7 +194,7 @@ export function makeLocalTerminalTool(deps = {}) {
+           // 아무것도 안 바뀌었어요"를 말한다. 여기서 같은 말을 다시 붙이면 한 문장이 두 번
+           // 말하는 답이 되고, 그 중복이 "정말 아무 것도 안 됐구나"로 읽힌다(실측).
+           userSafeSummary: describeCommand(command, r),
+-          nextSafeAction: '이대로 진행할까요?',
++          nextSafeAction: '공개 자료 읽기는 웹 도구로, 외부 전달은 구조화된 채널 도구로 바꿀 수 있어요. 이 명령 자체를 실행하려면 확인해 주세요.',
+         };
+       }
+ 
+diff --git a/test/f91-dropped-call-forbids-completion.test.js b/test/f91-dropped-call-forbids-completion.test.js
+index e46af43e..f0d430c2 100644
+--- a/test/f91-dropped-call-forbids-completion.test.js
++++ b/test/f91-dropped-call-forbids-completion.test.js
+@@ -66,24 +66,19 @@ const 재다 = (reply, ...떨어진것) => 완료주장검증({
+ // `못한호출남기기('예산소진')` 로 원장에 남는다 — F-68 이 세운 바로 그 사실이다.
+ // 그 턴의 최종 답이 「전부 처리했어요」면 출구가 물어야 한다.
+ 
+-const 손다섯 = [
+-  { name: 'local.process', args: { action: 'status' } },
+-  { name: 'local.locate', args: { query: '정산' } },
+-  { name: 'local.system', args: { action: 'info' } },
+-  { name: 'local.discovery', args: { action: 'scan' } },
+-  { name: 'local.file', args: { action: 'list', path: '.' } },
+-];
++const 손다섯 = Array.from({ length: 5 }, (_, i) => ({
++  name: 'local.file', args: { action: 'move', path: `/tmp/f91-${i}`, to: '/tmp/f91-done' },
++}));
+ 
+ function 다섯중둘이떨어지는판() {
+   const 실행 = [];
+   const 되부름 = [];
+-  const 손 = (이름) => ({ async handler() { 실행.push(이름); return { result: { ok: true } }; } });
++  const 파일손 = { async handler(args) {
++    실행.push(args.path);
++    return { result: { ok: true, applied: true, path: args.path } };
++  } };
+   const tools = demoTools({
+-    localProcess: 손('local.process'),
+-    localLocate: 손('local.locate'),
+-    localSystem: 손('local.system'),
+-    localDiscovery: 손('local.discovery'),
+-    localFile: 손('local.file'),
++    localFile: 파일손,
+   });
+   const 원장 = new TruthLedger();
+   const model = {
+@@ -119,9 +114,7 @@ test('① 다섯 중 둘이 큐에서 떨어진 턴은 「전부 처리했어요
+   assert.equal(p.실행.length, 3, `예산 3인데 ${p.실행.length}번 돌았다 — 전제가 깨졌다`);
+   assert.ok(떨어진것.length >= 2, `큐에서 떨어진 호출이 원장에 안 남았다(F-68 자리): ${떨어진것.length}건`);
+ 
+-  assert.ok(r.exitNetDiagnostic?.사실,
+-    '다섯 중 둘이 떨어졌는데 출구 그물이 한 번도 안 물었다 — 「다 했어요」가 그대로 나간다');
+-  assert.equal(p.되부름.length, 1, '모델에게 사실이 안 돌아갔다');
++  assert.equal(p.되부름.length, 1, '같은 미완료 사실로 모델을 중복 호출했다');
+   assert.match(String(r.reply), /못 했/, `최종 답이 정직해지지 않았다: ${r.reply}`);
+   assert.doesNotMatch(String(r.reply), /전부 처리했어요/, '거짓 완료가 그대로 사용자에게 갔다');
+ });
+diff --git a/test/no-rationing-hands-are-not-scarce.test.js b/test/no-rationing-hands-are-not-scarce.test.js
+index 5750112a..d1eae559 100644
+--- a/test/no-rationing-hands-are-not-scarce.test.js
++++ b/test/no-rationing-hands-are-not-scarce.test.js
+@@ -84,17 +84,13 @@ test('한 목적이 스무 걸음이면 스무 걸음을 간다 — 6·12 에 
+     `**${손.불린것.length}걸음에서 잘렸다** — 모델은 다음 걸음을 알고 있는데 런타임이 아끼게 만든다`);
+ });
+ 
+-// **발견을 사실로 남긴다**(고치지 않는다 · 범위 밖). 오너가 특정한 넷 말고 다섯 번째 축이
+-// 있다: 손 선언이 `reversible:false` 인 손(터미널)은 **한 턴에 세 걸음**이 끝이다. 그 축은
+-// 「승인받은 되돌릴 수 없는 실행」을 세려던 자리인데 실제로는 **손 선언**으로 세므로,
+-// probe 가 `changes:false` 로 본 `ls` 도 함께 깎인다. 옛 상한과 같은 종류의 어긋남이지만
+-// 안전 뒷단이라 이 단위에서 건드리지 않는다 — 오너 판단으로 올린다.
+-test('발견: 터미널 turn 은 그밖 3 이 먼저 문다 — 이 단위가 고친 축이 아니다', async () => {
++test('변경 없는 터미널 호출은 손 선언이 false여도 그밖 예산을 먹지 않는다', async () => {
+   const 손 = 기록하는손();
+   const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+-  await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
+-  assert.equal(손.불린것.length, 턴예산({}).그밖,
+-    `그밖 축의 사실이 바뀌었다(${손.불린것.length}) — 안 건드린 자리가 움직였으면 그것부터 본다`);
++  const 문맥 = ctx(걸음마다(많이), 손);
++  await runTurn({ text: '계속해' }, 문맥);
++  assert.equal(손.불린것.length, 20);
++  assert.equal(문맥.그밖수 ?? 0, 0);
+ });
+ 
+ test('왕복 예산이 비교군 하한(20)을 담는다 — 비용 축은 예산 한 곳이다', () => {
+diff --git a/test/s6c-budget-contract.test.js b/test/s6c-budget-contract.test.js
+index 8edacc50..4ed5e304 100644
+--- a/test/s6c-budget-contract.test.js
++++ b/test/s6c-budget-contract.test.js
+@@ -17,27 +17,30 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
+ 
+ const 본선 = (opts) => (opts?.tools ?? []).length > 1;
+ 
+-/** 되돌릴 수 있다고 **선언된** 손 셋. 예산 축을 하나만 건드려 재기 위해서다. */
++/** 되돌릴 수 있는 실제 파일 효과 셋. 첫 호출은 plan, 나머지는 step 큐다. */
+ const 손셋 = [
+-  { name: 'local.process', args: { action: 'status' } },
+-  { name: 'local.locate', args: { query: 'x' } },
+-  { name: 'local.system', args: { action: 'info' } },
++  { name: 'local.file', args: { action: 'move', path: '/tmp/s6c-a', to: '/tmp/s6c-done' } },
++  { name: 'local.file', args: { action: 'move', path: '/tmp/s6c-b', to: '/tmp/s6c-done' } },
++  { name: 'local.file', args: { action: 'move', path: '/tmp/s6c-c', to: '/tmp/s6c-done' } },
+ ];
+ 
+ function 판({ 예산 = '1' } = {}) {
+   const 실행 = [];
+   const 모델이본것 = [];
+-  const 기록 = (이름) => ({ async handler() { 실행.push(이름); return { result: { ok: true } }; } });
++  const 원장 = [];
++  const 기록 = { async handler(args) {
++    실행.push(args.path);
++    return { result: { ok: true, applied: true, path: args.path }, userSafeSummary: '옮겼어요.' };
++  } };
+   const tools = demoTools({
+-    localProcess: 기록('local.process'),
+-    localLocate: 기록('local.locate'),
+-    localSystem: 기록('local.system'),
++    localFile: 기록,
+   });
+   return {
+-    실행, 모델이본것,
++    실행, 모델이본것, 원장,
+     ctx: (model) => ({
+       env: demoEnv(), tools, pending: new Map(),
+       processEnv: { GPAO_T5_TURN_REVERSIBLE: 예산 },
++      ledger: { entries: 원장, append(rec) { 원장.push(rec); return rec; } },
+       model: { async respond(tc, opts) { 모델이본것.push(tc); return model.respond(tc, opts); } },
+     }),
+   };
+@@ -71,36 +74,25 @@ const 걸음경로모델 = () => ({
+ const 경로들 = [['계획 경로', 계획경로모델], ['걸음 경로', 걸음경로모델]];
+ 
+ for (const [이름, 모델만들기] of 경로들) {
+-  test(`① **상한을 넘겨 돌지 않는다** — ${이름}`, async () => {
++  test(`① **실제 효과 상한을 넘겨 돌지 않는다** — ${이름}`, async () => {
+     const p = 판({ 예산: '1' });
+     await runTurn({ text: '이것들 좀 확인해줘' }, p.ctx(모델만들기()));
+     assert.equal(p.실행.length, 1,
+-      `${이름}: **예산이 1인데 ${p.실행.length}번 돌았다.**\n`
+-      + `돈 손: ${JSON.stringify(p.실행)}\n`
+-      + '예산은 한 턴이 사용자 모르게 커지는 것을 막는 자리다. 세기만 하고 안 보면 없는 것과 같다.');
++      `${이름}: 실제 효과 예산 1인데 ${p.실행.length}번 실행했다: ${JSON.stringify(p.실행)}`);
+   });
+ 
+-  test(`② **못 한 것은 사실로 남는다** — 조용히 사라지지 않는다 — ${이름}`, async () => {
++  test(`② **못 한 실제 효과는 예산소진 영수증으로 남는다** — ${이름}`, async () => {
+     // **경로마다 "남길 것"이 생기는 상황이 다르다.** 걸음 경로에 예산 1을 주면 모델은
+     // 나머지를 낼 기회조차 없다 — 남길 것이 없는 게 맞다(처음엔 그걸 결함으로 읽을 뻔했다,
+     // 2026-08-05). 예산을 하나 더 줘서 **모델이 낸 뒤 예산에 걸리는** 자리를 만든다.
+-    const 계획인가 = 이름 === '계획 경로';
+-    const p = 판({ 예산: 계획인가 ? '1' : '2' });
++    const p = 판({ 예산: 이름 === '계획 경로' ? '1' : '2' });
+     await runTurn({ text: '이것들 좀 확인해줘' }, p.ctx(모델만들기()));
+-    const 마지막 = p.모델이본것.at(-1) ?? {};
+-    const 글자 = JSON.stringify(마지막);
+-    const 못한것 = [...(마지막.turnExchange ?? []), ...(마지막.evidenceFacts ?? [])]
+-      .filter((x) => (x?.failureState ?? 'none') !== 'none');
+-    assert.ok(못한것.length > 0,
+-      `${이름}: **예산에 걸려 못 한 손이 모델 재료에 없다.**\n`
+-      + '모델은 자기가 시킨 것이 다 됐다고 믿고 답을 쓴다 — 조용한 축소는 거짓 성공으로 끝난다.\n'
+-      + `재료: ${글자.slice(0, 400)}`);
+-    assert.match(글자, /남겨 뒀어요|만큼만|만큼 하고/,
+-      `${이름}: **왜 멈췄는지**가 사람 말로 안 적혔다 — 못 했다는 사실만 있고 이유가 없다.`);
++    const 못한것 = p.원장.filter((x) => x?.diagnosticTrace?.reason === '예산소진');
++    assert.ok(못한것.length > 0, `${이름}: 예산에 막힌 호출 영수증이 원장에 없다`);
+   });
+ }
+ 
+-test('③ **한쪽이 쓴 것이 다른 쪽 상한에 든다** — 지갑이 두 개가 아니다', async () => {
++test('③ 계획·걸음 두 레인의 실제 효과가 한 지갑을 공유한다', async () => {
+   const p = 판({ 예산: '2' });
+   // 계획 레인에서 하나 쓰고, 걸음 레인에서 둘을 더 시도한다 — 지갑이 하나면 하나만 더 된다.
+   await runTurn({ text: '이것들 좀 확인해줘' }, p.ctx({
+@@ -114,10 +106,7 @@ test('③ **한쪽이 쓴 것이 다른 쪽 상한에 든다** — 지갑이 두
+       return '했어요.';
+     },
+   }));
+-  assert.equal(p.실행.length, 2,
+-    `**두 레인이 각자 지갑을 들고 있다** — 예산 2인데 ${p.실행.length}번 돌았다.\n`
+-    + `돈 손: ${JSON.stringify(p.실행)}\n`
+-    + '계획 레인이 쓴 것이 걸음 레인 상한에 안 들어가면, 한 턴의 총량이 상한의 두 배가 된다.');
++  assert.equal(p.실행.length, 2, `계획과 걸음이 지갑을 따로 썼다: ${JSON.stringify(p.실행)}`);
+ });
+ 
+ test('④ **예산이 넉넉하면 다 한다** — 상한이 일을 방해하지 않는다', async () => {
+diff --git a/test/terminal-effect-budget.test.js b/test/terminal-effect-budget.test.js
+new file mode 100644
+index 00000000..4dbc0f5a
+--- /dev/null
++++ b/test/terminal-effect-budget.test.js
+@@ -0,0 +1,191 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { runTurn } from '../src/kernel/turn.js';
++import { demoEnv, demoTools } from '../src/surface/demo-context.js';
++import {
++  턴예산, 예산소진, 위험상한소진, 실행효과분류,
++} from '../src/kernel/turn-budget.js';
++
++test('실행0·적용0·probe 변경0은 위험 효과 예산 0이다', () => {
++  assert.equal(실행효과분류({ declaredReversible: false, receipt: {} }).등급, '없음');
++  assert.equal(실행효과분류({
++    declaredReversible: false,
++    receipt: { actualCall: { tool: 'local.terminal' }, result: { applied: false } },
++  }).등급, '없음');
++  assert.equal(실행효과분류({
++    declaredReversible: false,
++    receipt: { actualCall: { tool: 'local.terminal' }, result: { probeChangedNothing: true } },
++  }).등급, '없음');
++  assert.equal(실행효과분류({
++    declaredReversible: false,
++    receipt: { actualCall: { tool: 'local.terminal' }, failureState: 'blocked' },
++  }).등급, '없음', '차단되어 실행되지 않은 호출을 효과로 셌다');
++  assert.equal(실행효과분류({
++    declaredReversible: false,
++    receipt: { actualCall: { tool: 'local.terminal' }, failureState: 'cancelled' },
++  }).등급, '없음', '취소되어 실행되지 않은 호출을 효과로 셌다');
++});
++
++test('위험 상한은 같은 위험 호출만 막고 턴 전체나 다른 등급을 닫지 않는다', () => {
++  const 예산 = 턴예산({ GPAO_T5_TURN_IRREVERSIBLE: '3', GPAO_T5_TURN_REVERSIBLE: '5' });
++  const 쓴것 = { 왕복쓴것: 1, 되돌릴수있는것쓴것: 0, 그밖쓴것: 3, 지난ms: 1 };
++  assert.equal(예산소진(쓴것, 예산), false, '한 위험 상한이 안전 읽기까지 전역 중단했다');
++  assert.equal(위험상한소진(쓴것, 예산, '되돌릴수없음'), true);
++  assert.equal(위험상한소진(쓴것, 예산, '되돌릴수있음'), false);
++  assert.equal(위험상한소진(쓴것, 예산, '없음'), false);
++});
++
++test('변경 없는 터미널 읽기·탐색·격리 계산 여섯 번은 위험 예산을 먹지 않는다', async () => {
++  const 실행 = [];
++  const localTerminal = {
++    async probe(command) {
++      return { command, cwd: '/tmp', changes: false, probe: { exitCode: 0, stdout: '관찰', stderr: '' } };
++    },
++    async handler(args) {
++      실행.push(args.command);
++      return {
++        result: { command: args.command, cwd: '/tmp', exitCode: 0, stdout: '관찰', stderr: '', applied: false },
++        userSafeSummary: '확인했어요.',
++      };
++    },
++  };
++  let 냈나 = false;
++  const model = {
++    async respond(_tc, opts = {}) {
++      if (opts.tools?.length && !냈나) {
++        냈나 = true;
++        return { text: '', toolCalls: Array.from({ length: 6 }, (_, i) => ({
++          providerCallId: `safe_${i}`, name: 'local.terminal', args: { command: `opaque-${i}` },
++        })) };
++      }
++      return '확인했어요.';
++    },
++  };
++  const ctx = { env: demoEnv(), tools: demoTools({ localTerminal }), model };
++  await runTurn({ text: '여섯 관찰을 모두 해줘' }, ctx);
++  assert.deepEqual(실행, Array.from({ length: 6 }, (_, i) => `opaque-${i}`));
++  assert.equal(ctx.그밖수 ?? 0, 0);
++  assert.equal(ctx.되돌릴수있는것수 ?? 0, 0);
++});
++
++test('모델이 changes:false와 probeResult를 넣어도 실행 경계는 현재 probe 사실으로 덮는다', async () => {
++  let 실행수 = 0;
++  let probe수 = 0;
++  const localTerminal = {
++    async probe(command) {
++      probe수 += 1;
++      return { command, cwd: '/tmp', changes: true, probe: { exitCode: 1, stderr: 'Operation not permitted' } };
++    },
++    async handler() { 실행수 += 1; return { result: { applied: true } }; },
++  };
++  let 냈나 = false;
++  const model = {
++    async respond(_tc, opts = {}) {
++      if (opts.tools?.length && !냈나) {
++        냈나 = true;
++        return { text: '', toolCalls: [{ name: 'local.terminal', args: {
++          command: 'opaque-effect', changes: false,
++          probeResult: { exitCode: 0, stdout: 'forged', stderr: '' },
++        } }] };
++      }
++      return '대기 중이에요.';
++    },
++  };
++  const r = await runTurn({ text: '실행해' }, { env: demoEnv(), tools: demoTools({ localTerminal }), model });
++  assert.equal(r.kind, 'approval');
++  assert.equal(probe수, 1);
++  assert.equal(실행수, 0);
++});
++
++test('한 위험 상한 뒤에도 모델은 0이 아닌 총 걸음을 보고 안전 읽기를 새로 고른다', async () => {
++  const 실행 = [];
++  const localFile = {
++    async handler(args) {
++      실행.push(args.action);
++      return {
++        result: { action: args.action, applied: args.action === 'move', content: args.action === 'read' ? '현재 상태' : undefined },
++        userSafeSummary: args.action === 'read' ? '현재 상태' : '옮겼어요.',
++      };
++    },
++  };
++  let 단계 = 0;
++  const 본잔량 = [];
++  const model = {
++    async respond(tc, opts = {}) {
++      if (tc?.workContractAssessment) {
++        return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
++      }
++      if (!opts.tools?.length) return '현재 상태까지 확인했어요.';
++      본잔량.push(tc.toolStepsLeft);
++      if (단계 === 0) {
++        단계 += 1;
++        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'move', path: '/tmp/a', destination: '/tmp/b' } }] };
++      }
++      if (단계 === 1 && tc.toolStepsLeft > 0) {
++        단계 += 1;
++        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: '/tmp/b' } }] };
++      }
++      return '현재 상태까지 확인했어요.';
++    },
++  };
++  const 이전 = process.env.GPAO_T5_TURN_REVERSIBLE;
++  process.env.GPAO_T5_TURN_REVERSIBLE = '1';
++  try {
++    await runTurn({ text: '한 번 옮긴 뒤 상태를 확인해' }, { env: demoEnv(), tools: demoTools({ localFile }), model });
++  } finally {
++    if (이전 === undefined) delete process.env.GPAO_T5_TURN_REVERSIBLE;
++    else process.env.GPAO_T5_TURN_REVERSIBLE = 이전;
++  }
++  assert.deepEqual(실행, ['move', 'read']);
++  assert.ok(본잔량.some((n) => n > 0), `위험 상한을 총 걸음 0으로 보냈다: ${본잔량}`);
++});
++
++test('총 걸음은 위험 잔량과 분리하되 왕복 잔량보다 크다고 말하지 않는다', async () => {
++  const 본잔량 = [];
++  const model = { async respond(tc) { 본잔량.push(tc.toolStepsLeft); return '확인했어요.'; } };
++  await runTurn({ text: '안녕' }, {
++    env: demoEnv(), tools: demoTools(), model,
++    processEnv: { GPAO_T5_TURN_ROUNDTRIPS: '2' },
++  });
++  assert.ok(본잔량.length > 0);
++  assert.ok(본잔량[0] <= 2, `왕복 예산 2인데 총 걸음을 ${본잔량[0]}로 알렸다`);
++});
++
++test('plan 실행 효과가 step 지갑에 들고, 다음 move만 막힌 뒤 read는 실행된다', async () => {
++  const 실행 = [];
++  const 원장 = [];
++  const localFile = { async handler(args) {
++    실행.push(args.action);
++    return {
++      result: { action: args.action, path: args.path, applied: args.action === 'move', content: args.action === 'read' ? '현재 상태' : undefined },
++      userSafeSummary: args.action === 'read' ? '현재 상태를 읽었어요.' : '옮겼어요.',
++    };
++  } };
++  let 냈나 = false;
++  const model = { async respond(tc, opts = {}) {
++    if (tc?.workContractAssessment) {
++      return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
++    }
++    if (opts.tools?.length && !냈나) {
++      냈나 = true;
++      return { text: '', toolCalls: [
++        { name: 'local.file', args: { action: 'move', path: '/tmp/a', to: '/tmp/done' } },
++        { name: 'local.file', args: { action: 'move', path: '/tmp/b', to: '/tmp/done' } },
++        { name: 'local.file', args: { action: 'read', path: '/tmp/done' } },
++      ] };
++    }
++    return '현재 상태까지 확인했어요.';
++  } };
++  const ctx = {
++    env: demoEnv(), tools: demoTools({ localFile }), model,
++    processEnv: { GPAO_T5_TURN_REVERSIBLE: '1' },
++    ledger: { entries: 원장, append(rec) { 원장.push(rec); return rec; } },
++  };
++  await runTurn({ text: '하나 옮긴 뒤 다음 이동은 한도에서 멈추고 상태를 읽어' }, ctx);
++  assert.deepEqual(실행, ['move', 'read']);
++  assert.equal(ctx.되돌릴수있는것수, 1);
++  assert.ok(원장.some((r) => r?.diagnosticTrace?.reason === '예산소진'
++    && r?.제안한호출?.args?.action === 'move'), 'step move 차단 영수증이 없다');
++  assert.ok(원장.some((r) => r?.actualCall?.args?.action === 'read'
++    && (r.failureState ?? 'none') === 'none'), '상한 뒤 read 실행 영수증이 없다');
++});
+diff --git a/test/terminal-read-network-is-automatic.test.js b/test/terminal-read-network-is-automatic.test.js
+index 7c53fa3b..b0423a89 100644
+--- a/test/terminal-read-network-is-automatic.test.js
++++ b/test/terminal-read-network-is-automatic.test.js
+@@ -1,33 +1,13 @@
+-// **읽기성 네트워크는 묻지 않는다** — 오너 결정 2026-08-06(터미널 유보 해제).
+-//
+-// ── 무엇이 유보였나 (라이브로 갈랐다) ──────────────────────────────────────
+-// 계획서 v3.1 §20·§22 는 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀다. **코드에 그런 유보는
+-// 없다** — `terminal-run.js` 는 셸을 통째로 주고 명령 목록도 없다. 실제 마찰은 다른 자리였다:
+-//
+-//   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됐다 (라이브 확인: 파일이 생겼다)
+-//   읽기성 네트워크        **카드가 떴다** (`curl -s -o /dev/null https://example.com`)
+-//
+-// `curl` 조회·`git pull`·`npm ls`·`gh pr list` 는 이 컴퓨터를 하나도 안 바꾼다. 자동성 헌장의
+-// 넷(비밀값·되돌릴 수 없는 파괴·새 상대 첫 전송·돈) 어디에도 안 걸린다. 그런데 물었다.
+-//
+-// 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다**(`web.collect`). 같은 일을 터미널에서만
+-// 물었다 — 능력의 문제가 아니라 두 손이 다른 선을 쓰던 것이다.
+-//
+-// ── 고칠 재료가 이미 다 있었다 ────────────────────────────────────────────
+-//   `sandbox.js`   `reach` 모드 = 쓰기✗ · 네트워크✓ · 비밀✗   ← 있는데 터미널이 안 썼다
+-//   `terminal-run.js` `executionBlock` 이 `why:'network'` 를 따로 낸다  ← 가를 재료도 있었다
+-//
+-// 둘을 이으면 끝이다. 명령 목록을 만들지 않는다(§sandbox.js 첫 문단 — 목록은 항상 뚫린다).
+-// 판정은 그대로 **돌려 보고 안다**: 네트워크에만 막혔으면 네트워크만 열고 다시 돌린다.
+-//
+-// ── 안 여는 것 ────────────────────────────────────────────────────────────
+-// 쓰기·비밀·시그널·AppleEvent 는 reach 에서도 그대로 닫힌다. 그래서 "아무것도 안 바꿨다"는
+-// 증명이 유지된다. 바꾸려는 명령은 여전히 승인으로 간다.
++// 임의 셸은 명령의 의미를 구조화해 증명할 수 없다. 따라서 probe 는 네트워크를 실제로
++// 열어 보지 않는다. 공개 web GET 자동성은 구조화 web 손의 계약이고, local.terminal 의
++// 임의 TCP/HTTP 송신과 같은 권위가 아니다.
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
++import { createServer } from 'node:net';
++import { once } from 'node:events';
+ import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
++import { sandboxAvailable } from '../src/runtime/sandbox.js';
+ 
+-/** 모드별로 정해진 답을 내는 가짜 실행기. 실제 네트워크·셸을 안 탄다. */
+ function 실행기(대본) {
+   const 부른것 = [];
+   const run = async (command, opts) => {
+@@ -38,61 +18,50 @@ function 실행기(대본) {
+   return { run, 부른것 };
+ }
+ 
+-const 네트워크막힘 = { exitCode: 6, stdout: '', stderr: 'curl: (6) Could not resolve host: example.com' };
+-const 쓰기막힘 = { exitCode: 1, stdout: '', stderr: "touch: 유보.txt: Operation not permitted" };
++const 네트워크막힘 = { exitCode: 1, stdout: '', stderr: 'PermissionError: [Errno 1] Operation not permitted' };
+ 
+-// ── ① 네트워크로만 막힌 명령은 자동으로 돈다 ────────────────────────────
+-test('읽기성 네트워크는 카드를 안 띄운다 — reach 로 다시 돌려 사실을 낸다', async () => {
++test('임의 터미널 네트워크는 probe 에서 미증명 효과로 남고 실제 전달 모드로 재실행되지 않는다', async () => {
+   const { run, 부른것 } = 실행기({
+     probe: 네트워크막힘,
+-    reach: { exitCode: 0, stdout: '200', stderr: '' },
++    reach: { exitCode: 0, stdout: 'sent', stderr: '' },
+   });
+   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
+ 
+-  const p = await 손.probe('curl -s -o /dev/null -w "%{http_code}" https://example.com');
+-  assert.equal(p.changes, false, '네트워크만 막힌 것은 "바꾸려 했다"가 아니다 — 카드로 가면 안 된다');
++  const p = await 손.probe('python3 opaque-script.py');
++  assert.equal(p.changes, true, '효과를 증명하지 못한 임의 셸 네트워크가 자동 권위를 얻었다');
++  assert.deepEqual(부른것.map((x) => x.mode), ['probe'], '승인 전에 네트워크가 열린 reach 로 재실행했다');
+ 
+-  const r = await 손.handler({ command: 'curl -s -o /dev/null -w "%{http_code}" https://example.com' });
+-  assert.ok(!r.blocked, `막히면 안 된다: ${r.userSafeSummary}`);
+-  assert.equal(r.result.stdout, '200', '실제로 돈 결과가 와야 한다');
+-  assert.deepEqual(부른것.map((x) => x.mode), ['probe', 'reach', 'probe', 'reach'],
+-    'probe 로 재 보고 네트워크만 막혔으면 reach 로 한 번 더 — granted 를 쓰지 않는다');
+-});
+-
+-// ── ② 쓰기로 막힌 명령은 그대로 승인으로 간다 (회귀) ─────────────────────
+-test('바꾸려는 명령은 여전히 묻는다 — 유보 해제가 쓰기를 열지 않는다', async () => {
+-  // **`reach` 도 쓰기를 막는다**(`sandbox.js` 의 `deny file-write*` 는 reach 조건 밖이다).
+-  // 그래서 열어 봐도 같은 벽에 막히고, 그 사실이 "이건 진짜 변경 시도"라는 증명이 된다.
+-  const { run, 부른것 } = 실행기({ probe: 쓰기막힘, reach: 쓰기막힘 });
+-  const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
+-
+-  const p = await 손.probe('touch 유보.txt');
+-  assert.equal(p.changes, true, '쓰기 시도는 그대로 변경으로 읽어야 한다');
+-
+-  const r = await 손.handler({ command: 'touch 유보.txt' });
++  const r = await 손.handler({ command: p.command, probeResult: p.probe });
+   assert.equal(r.blocked, true);
+-  assert.equal(r.needsGrant, true, '승인 카드로 가야 한다');
+-  assert.match(r.userSafeSummary, /파일을 바꾸는 일/, '카드 이유는 probe 가 말한 그대로여야 한다');
+-  // 열어 본 것 자체는 맞다 — 알아맞히지 않고 돌려 보는 것이 이 설계다.
+-  assert.ok(부른것.some((x) => x.mode === 'reach'), '알아맞히지 말고 열어 봐야 한다');
++  assert.equal(r.needsGrant, true);
++  assert.match(r.nextSafeAction, /웹|채널|확인/, '구조화된 다음 수단이나 승인 경계를 모델에게 남기지 않았다');
++  assert.deepEqual(부른것.map((x) => x.mode), ['probe']);
+ });
+ 
+-// ── ③ 네트워크를 연 뒤에도 바꾸려 하면 묻는다 ───────────────────────────
+-test('네트워크를 열었더니 이번엔 파일을 바꾸려 하면 — 거기서 묻는다', async () => {
+-  const { run } = 실행기({ probe: 네트워크막힘, reach: 쓰기막힘 });
+-  const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
++test('actual-host: Python TCP 우회도 승인 0에서 한 바이트도 전달하지 않는다',
++  { skip: !sandboxAvailable() && '이 컴퓨터는 샌드박스 없음' }, async (t) => {
++    let 받은바이트 = 0;
++    const server = createServer((socket) => socket.on('data', (chunk) => { 받은바이트 += chunk.length; }));
++    server.listen(0, '127.0.0.1');
++    await once(server, 'listening');
++    t.after(() => server.close());
++    const { port } = server.address();
++    const command = `python3 -c "import socket;s=socket.socket();s.connect(('127.0.0.1',${port}));s.sendall(b'leak')"`;
++    const 손 = makeLocalTerminalTool({ cwd: '/tmp' });
+ 
+-  const r = await 손.handler({ command: 'curl -s https://example.com -o 받은것.html' });
+-  assert.equal(r.blocked, true, 'reach 에서 쓰기에 막히면 그때는 승인이다');
+-  assert.equal(r.needsGrant, true);
+-});
++    const p = await 손.probe(command);
++    await new Promise((resolve) => setTimeout(resolve, 30));
++    assert.equal(p.changes, true, '임의 TCP 송신을 읽기로 분류했다');
++    assert.equal(받은바이트, 0, `승인 전에 ${받은바이트}바이트가 실제 전달됐다`);
++  });
+ 
+-// ── ④ 실패를 삼키는 명령은 자동으로 안 넘긴다 (회귀) ─────────────────────
+-test('실패를 삼키는 명령은 네트워크 갈래로 새지 않는다', async () => {
+-  const { run, 부른것 } = 실행기({ probe: { exitCode: 0, stdout: '', stderr: '' } });
++test('로컬 읽기·탐색·계산은 계속 자동이고 reach 를 요구하지 않는다', async () => {
++  const { run, 부른것 } = 실행기({ probe: { exitCode: 0, stdout: '2', stderr: '' } });
+   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
+-
+-  const p = await 손.probe('curl -s https://example.com 2>/dev/null || true');
+-  assert.equal(p.changes, true, 'exit 0 을 못 믿는 명령은 모르면 승인 쪽이다');
+-  assert.ok(!부른것.some((x) => x.mode === 'reach'));
++  const p = await 손.probe('python3 opaque-script.py');
++  assert.equal(p.changes, false);
++  const r = await 손.handler({ command: p.command, probeResult: p.probe });
++  assert.equal(r.blocked, undefined);
++  assert.equal(r.result.stdout, '2');
++  assert.deepEqual(부른것.map((x) => x.mode), ['probe']);
+ });
+diff --git a/test/tool-steps.test.js b/test/tool-steps.test.js
+index 17abaa59..223ed594 100644
+--- a/test/tool-steps.test.js
++++ b/test/tool-steps.test.js
+@@ -71,17 +71,11 @@ test('승인이 필요한 걸음은 실행하지 않고 멈춘다', async () =>
+   assert.deepEqual(손.불린것, ['ls'], '이어 쓰기가 승인 경계를 넘었다 — 사용자가 허락하지 않은 일이 실행됐다');
+ });
+ 
+-test('예산을 넘겨 계속 돌지 않는다', async () => {
++test('변경 없는 읽기 20회는 위험 예산에 잘리지 않는다', async () => {
+   const 손 = 기록하는손();
+   const 많이 = Array.from({ length: 20 }, (_, i) => 명령(`echo ${i}`));
+   await runTurn({ text: '계속해' }, ctx(걸음마다(많이), 손));
+-  // **경계 자체가 계약이다**(무한 루프 방지). 숫자는 예산에서 파생한다 — 예전엔 7을 손으로
+-  // 적어 뒀는데 그건 `MAX_TOOL_STEPS = 6` 시절의 값이라, 예산으로 바꾸자 뜻 없이 빨개졌다.
+-  // 이 대본은 걸음마다 한 명령씩 내므로 걸음 수는 왕복 수에 계획 1걸음을 더한 만큼이 상한이다.
+-  const 예산 = 턴예산({});
+-  assert.ok(손.불린것.length <= 예산.왕복 + 1,
+-    `예산이 안 먹는다(${손.불린것.length}걸음 · 왕복예산 ${예산.왕복}) — 한 턴이 끝없이 길어진다`);
+-  assert.ok(손.불린것.length < 많이.length, '모델이 낸 것을 끝까지 다 돌면 경계가 없는 것이다');
++  assert.equal(손.불린것.length, 20);
+ });
+ 
+ test('예산을 조이면 **그만큼** 일찍 멈춘다(우연히 멈춘 게 아니다)', async () => {
+diff --git a/test/turn-budget-contract.test.js b/test/turn-budget-contract.test.js
+index 90a49830..d94ce2ea 100644
+--- a/test/turn-budget-contract.test.js
++++ b/test/turn-budget-contract.test.js
+@@ -202,13 +202,13 @@ test('③ 남은 큐는 **다음 발화에 붙어 실행되지 않는다**(침
+ });
+ 
+ // ── ④ 외부효과 뒷단 · 벽시계 · 취소 ────────────────────────────────────────
+-test('④ 되돌릴 수 없는 손은 **좁게** 잡힌다(비용이 아니라 외부효과다)', async () => {
++test('④ 변경 없는 터미널 읽기는 손 선언만으로 좁은 예산을 먹지 않는다', async () => {
+   const dir = await mkdtemp(join(tmpdir(), 'budget-irrev-'));
+   const localFile = makeLocalFileTool({ roots: [dir], dataDir: dir });
+   const 돈것 = [];
+   const localTerminal = {
+     async probe(command) { return { command, cwd: dir, changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
+-    async handler(a) { 돈것.push(a.command); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir }, userSafeSummary: '했어요.' }; },
++    async handler(a) { 돈것.push(a.command); return { result: { command: a.command, exitCode: 0, stdout: '', cwd: dir, applied: false }, userSafeSummary: '확인했어요.' }; },
+   };
+   let 냈나 = false;
+   const model = {
+@@ -236,8 +236,7 @@ test('④ 되돌릴 수 없는 손은 **좁게** 잡힌다(비용이 아니라 
+     if (원래 === undefined) delete process.env.GPAO_T5_TURN_IRREVERSIBLE;
+     else process.env.GPAO_T5_TURN_IRREVERSIBLE = 원래;
+   }
+-  assert.ok(돈것.length <= 2,
+-    `되돌릴 수 없는 손이 ${돈것.length}번 돌았다 — 외부효과 뒷단이 안 문다: ${돈것.join(', ')}`);
++  assert.equal(돈것.length, 8, `변경 없는 읽기가 위험 상한에서 잘렸다: ${돈것.join(', ')}`);
+ });
+ 
+ test('④ 사용자 취소는 **큐 전체**를 세운다(도구 timeout 으로는 못 잡는 자리)', async () => {
+diff --git a/test/turn-budget.test.js b/test/turn-budget.test.js
+index aea467cf..245eaf7d 100644
+--- a/test/turn-budget.test.js
++++ b/test/turn-budget.test.js
+@@ -21,7 +21,7 @@
+ // 사실을 모델 방에 놓고 판단은 모델이 한다(계약 ①·④).
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { 턴예산, 가드레일신호, 예산소진 } from '../src/kernel/turn-budget.js';
++import { 턴예산, 가드레일신호, 예산소진, 위험상한소진 } from '../src/kernel/turn-budget.js';
+ 
+ const 성공 = (tool, i = 0) => ({
+   intended: `${tool} 실행`, failureState: 'none', userSafeSummary: `${tool} 했어요.`,
+@@ -59,12 +59,15 @@ test('말이 안 되는 값은 기본값으로 되돌린다(0 이나 음수로 
+   assert.deepEqual(턴예산({ GPAO_T5_TURN_ROUNDTRIPS: '헛소리' }), 기본);
+ });
+ 
+-test('소진 판정은 어느 축이든 하나만 닿아도 참이다', () => {
++test('전역 소진과 호출별 위험 상한을 분리한다', () => {
+   const b = { 왕복: 3, 되돌릴수있는것: 10, 그밖: 2, 벽시계ms: 1000 };
+   assert.equal(예산소진({ 왕복쓴것: 2, 되돌릴수있는것쓴것: 2, 그밖쓴것: 1, 지난ms: 10 }, b), false);
+   assert.equal(예산소진({ 왕복쓴것: 3, 되돌릴수있는것쓴것: 0, 그밖쓴것: 0, 지난ms: 0 }, b), true, '비용 축');
+-  assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 10, 그밖쓴것: 0, 지난ms: 0 }, b), true, '되돌릴 수 있는 뒷단');
+-  assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 0, 그밖쓴것: 2, 지난ms: 0 }, b), true, '되돌릴 수 없는 뒷단');
++  const 위험쓴것 = { 왕복쓴것: 0, 되돌릴수있는것쓴것: 10, 그밖쓴것: 2, 지난ms: 0 };
++  assert.equal(예산소진(위험쓴것, b), false, '한 위험 상한이 턴 전체를 닫았다');
++  assert.equal(위험상한소진(위험쓴것, b, '되돌릴수있음'), true);
++  assert.equal(위험상한소진(위험쓴것, b, '되돌릴수없음'), true);
++  assert.equal(위험상한소진(위험쓴것, b, '없음'), false);
+   assert.equal(예산소진({ 왕복쓴것: 0, 되돌릴수있는것쓴것: 0, 그밖쓴것: 0, 지난ms: 1000 }, b), true, '벽시계');
+ });
+ 

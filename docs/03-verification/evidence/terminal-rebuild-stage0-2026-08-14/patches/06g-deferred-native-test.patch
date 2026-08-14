@@ -1,0 +1,476 @@
+diff --git a/test/file-broker-native.test.js b/test/file-broker-native.test.js
+new file mode 100644
+index 00000000..bbb93767
+--- /dev/null
++++ b/test/file-broker-native.test.js
+@@ -0,0 +1,470 @@
++import { test, before } from 'node:test';
++import assert from 'node:assert/strict';
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++import {
++  chmod, link, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, utimes, writeFile,
++} from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { dirname, join } from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import {
++  FileBrokerClient,
++  FileBrokerUnavailableError,
++  fileBrokerPlatformSupported,
++} from '../src/runtime/file-broker-client.js';
++
++const run = promisify(execFile);
++const repo = fileURLToPath(new URL('..', import.meta.url));
++let binaryPath;
++
++before(async () => {
++  if (process.platform !== 'darwin' || process.arch !== 'arm64') return;
++  const out = await mkdtemp(join(tmpdir(), 't5-file-broker-bin-'));
++  binaryPath = join(out, 't5-file-broker');
++  await run('xcrun', [
++    'clang', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
++    '-DT5_BROKER_TESTING=1',
++    '-mmacosx-version-min=13.0',
++    join(repo, 'src/native/file-broker/file-broker.c'), '-o', binaryPath,
++  ]);
++});
++
++async function fixture({ stateMode = 0o700 } = {}) {
++  const base = await mkdtemp(join(tmpdir(), 't5-file-broker-test-'));
++  const root = join(base, 'root');
++  const state = join(base, 'state');
++  await mkdir(root);
++  await mkdir(state, { mode: stateMode });
++  await chmod(state, stateMode);
++  return { base, root, state };
++}
++
++async function open(f) {
++  return FileBrokerClient.open({ rootDir: f.root, stateDir: f.state, binaryPath, testing: f.testing });
++}
++
++async function waitFor(path, timeoutMs = 5_000) {
++  const deadline = Date.now() + timeoutMs;
++  while (Date.now() < deadline) {
++    try { await stat(path); return; } catch (error) { if (error?.code !== 'ENOENT') throw error; }
++    await new Promise((resolve) => setTimeout(resolve, 5));
++  }
++  throw new Error(`timed out waiting for ${path}`);
++}
++
++async function releasePause(stateDir, stage) {
++  await writeFile(join(stateDir, `.t5fb-test-${stage}.resume`), 'resume');
++}
++
++test('native file broker test suite has its exact supported host', { skip: process.platform === 'darwin' && process.arch === 'arm64' ? false : 'darwin-arm64 only' }, () => {
++  assert.equal(process.platform, 'darwin');
++  assert.equal(process.arch, 'arm64');
++});
++
++test('PUT is root-relative, creates parents, preserves bytes, and returns a durable explicit undo ref', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const bytes = Buffer.from([0, 1, 2, 10, 255, 0, 65]);
++  const put = await client.put({ path: 'nested/result.bin', data: bytes });
++  assert.match(put.undoRef, /^u1\.[a-f0-9]{32}$/);
++  assert.deepEqual(await readFile(join(f.root, 'nested/result.bin')), bytes);
++  assert.equal(put.readbackExact, true);
++  assert.equal((await stat(join(f.root, 'nested/result.bin'))).isFile(), true);
++
++  await client.close();
++  const reopened = await open(f);
++  t.after(() => reopened.close());
++  const recovered = await reopened.recover();
++  assert.ok(recovered.undoRefs.includes(put.undoRef));
++  const undone = await reopened.undoRef(put.undoRef);
++  assert.equal(undone.undone, true);
++  await assert.rejects(readFile(join(f.root, 'nested/result.bin')), { code: 'ENOENT' });
++});
++
++test('overwrite undo restores exact old bytes and refuses to clobber a later writer', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  await writeFile(join(f.root, 'report.txt'), Buffer.from('old\0bytes'));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const first = await client.put({ path: 'report.txt', data: Buffer.from('new\0bytes') });
++  assert.deepEqual(await readFile(join(f.root, 'report.txt')), Buffer.from('new\0bytes'));
++  await client.undoRef(first.undoRef);
++  assert.deepEqual(await readFile(join(f.root, 'report.txt')), Buffer.from('old\0bytes'));
++
++  const second = await client.put({ path: 'report.txt', data: Buffer.from('broker-value') });
++  await writeFile(join(f.root, 'report.txt'), 'later-writer');
++  await assert.rejects(client.undoRef(second.undoRef), (error) => error?.code === 'TARGET_CHANGED');
++  assert.equal(await readFile(join(f.root, 'report.txt'), 'utf8'), 'later-writer');
++});
++
++test('UNDO rejects an atomic later-writer replacement even when its bytes are identical', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  await writeFile(join(f.root, 'report.txt'), 'old');
++  const client = await open(f);
++  t.after(() => client.close());
++  const put = await client.put({ path: 'report.txt', data: Buffer.from('same-new-bytes') });
++  const replacement = join(f.root, 'replacement');
++  await writeFile(replacement, 'same-new-bytes');
++  await rename(replacement, join(f.root, 'report.txt'));
++  await assert.rejects(client.undoRef(put.undoRef), (error) => error?.code === 'TARGET_CHANGED');
++  assert.equal(await readFile(join(f.root, 'report.txt'), 'utf8'), 'same-new-bytes');
++});
++
++test('overwrite UNDO restores mode, owner, timestamps, and extended attributes with old bytes', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const target = join(f.root, 'tool.sh');
++  await writeFile(target, '#!/bin/sh\necho old\n');
++  await chmod(target, 0o755);
++  const oldTime = new Date('2024-01-02T03:04:05.000Z');
++  await utimes(target, oldTime, oldTime);
++  await run('xattr', ['-w', 'com.gpao.t5.file-broker-test', 'kept-xattr', target]);
++  await run('chflags', ['hidden', target]);
++  const before = await stat(target);
++  const beforeFlags = (await run('stat', ['-f', '%Sf', target])).stdout.trim();
++  const client = await open(f);
++  t.after(() => client.close());
++  const put = await client.put({ path: 'tool.sh', data: Buffer.from('new') });
++  await client.undoRef(put.undoRef);
++  const after = await stat(target);
++  assert.equal(after.mode & 0o777, before.mode & 0o777);
++  assert.equal(after.uid, before.uid);
++  assert.equal(after.gid, before.gid);
++  assert.equal(after.mtimeMs, before.mtimeMs);
++  assert.equal((await run('stat', ['-f', '%Sf', target])).stdout.trim(), beforeFlags);
++  assert.equal((await run('xattr', ['-p', 'com.gpao.t5.file-broker-test', target])).stdout.trim(), 'kept-xattr');
++  assert.equal(await readFile(target, 'utf8'), '#!/bin/sh\necho old\n');
++});
++
++test('immutable or append-only targets fail before creating an undeletable state backup', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  const target = join(f.root, 'immutable.txt');
++  await writeFile(target, 'old');
++  await run('chflags', ['uchg', target]);
++  t.after(async () => { await run('chflags', ['nouchg', target]).catch(() => {}); await rm(f.base, { recursive: true, force: true }); });
++  const client = await open(f);
++  t.after(() => client.close());
++  await assert.rejects(
++    client.put({ path: 'immutable.txt', data: Buffer.from('new') }),
++    (error) => error?.code === 'TARGET_REJECTED',
++  );
++  assert.deepEqual(await readdir(f.state), ['.t5fb.lock']);
++  assert.equal(await readFile(target, 'utf8'), 'old');
++});
++
++test('component escape, symlink traversal, and hardlink overwrite fail closed without outside effects', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  const outside = join(f.base, 'outside');
++  await mkdir(outside);
++  await writeFile(join(outside, 'kept.txt'), 'kept');
++  await symlink(outside, join(f.root, 'link'));
++  await writeFile(join(f.root, 'hard-a'), 'hard');
++  await link(join(f.root, 'hard-a'), join(f.root, 'hard-b'));
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  for (const path of ['../outside/kept.txt', '/tmp/absolute', 'link/kept.txt', 'hard-a']) {
++    await assert.rejects(client.put({ path, data: Buffer.from('changed') }));
++  }
++  assert.equal(await readFile(join(outside, 'kept.txt'), 'utf8'), 'kept');
++  assert.equal(await readFile(join(f.root, 'hard-a'), 'utf8'), 'hard');
++  assert.equal(await readFile(join(f.root, 'hard-b'), 'utf8'), 'hard');
++});
++
++test('state directory is sealed to the current uid and mode 0700', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture({ stateMode: 0o755 });
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  await assert.rejects(open(f), (error) => error?.code === 'STATE_NOT_SEALED');
++});
++
++test('root and sealed state capabilities must be ancestry-disjoint', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const base = await mkdtemp(join(tmpdir(), 't5-file-broker-nested-state-'));
++  const root = join(base, 'root');
++  const state = join(root, '.broker-state');
++  await mkdir(root);
++  await mkdir(state, { mode: 0o700 });
++  await writeFile(join(state, 'sentinel'), 'sealed');
++  const f = { base, root, state };
++  t.after(() => rm(base, { recursive: true, force: true }));
++  await assert.rejects(
++    open(f),
++    (error) => error?.code === 'STATE_NOT_DISJOINT',
++  );
++  assert.deepEqual(await readdir(state), ['sentinel']);
++
++  const reverseBase = await mkdtemp(join(tmpdir(), 't5-file-broker-reverse-state-'));
++  const reverseState = join(reverseBase, 'state');
++  const reverseRoot = join(reverseState, 'root');
++  await mkdir(reverseState, { mode: 0o700 });
++  await mkdir(reverseRoot);
++  t.after(() => rm(reverseBase, { recursive: true, force: true }));
++  await assert.rejects(
++    open({ base: reverseBase, root: reverseRoot, state: reverseState }),
++    (error) => error?.code === 'STATE_NOT_DISJOINT',
++  );
++});
++
++test('root and state final path symlinks are rejected before capabilities are passed', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  const rootLink = join(f.base, 'root-link');
++  const stateLink = join(f.base, 'state-link');
++  await symlink(f.root, rootLink);
++  await symlink(f.state, stateLink);
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  await assert.rejects(
++    FileBrokerClient.open({ rootDir: rootLink, stateDir: f.state, binaryPath }),
++    (error) => error?.code === 'ROOT_SYMLINK',
++  );
++  await assert.rejects(
++    FileBrokerClient.open({ rootDir: f.root, stateDir: stateLink, binaryPath }),
++    (error) => error?.code === 'STATE_SYMLINK',
++  );
++});
++
++test('PUT parent rename plus outside symlink swap cannot redirect the atomic commit', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'put_before_commit';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  const originalParent = join(f.root, 'dir');
++  const movedParent = join(f.base, 'moved-dir');
++  const outside = join(f.base, 'outside');
++  await mkdir(originalParent);
++  await mkdir(outside);
++  await writeFile(join(outside, 'sentinel'), 'unchanged');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const pending = client.put({ path: 'dir/result.txt', data: Buffer.from('must-not-escape') });
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await rename(originalParent, movedParent);
++  await symlink(outside, originalParent);
++  await releasePause(f.state, stage);
++  await assert.rejects(pending, (error) => error?.code === 'PARENT_CHANGED');
++  assert.equal(await readFile(join(outside, 'sentinel'), 'utf8'), 'unchanged');
++  await assert.rejects(readFile(join(outside, 'result.txt')), { code: 'ENOENT' });
++  await assert.rejects(readFile(join(movedParent, 'result.txt')), { code: 'ENOENT' });
++});
++
++test('PUT refuses a target created by another writer during the pre-commit window', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'put_before_commit';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  await mkdir(join(f.root, 'dir'));
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const target = join(f.root, 'dir', 'result.txt');
++  const pending = client.put({ path: 'dir/result.txt', data: Buffer.from('broker') });
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await writeFile(target, 'later-writer');
++  await releasePause(f.state, stage);
++  await assert.rejects(pending, (error) => error?.code === 'TARGET_CHANGED');
++  assert.equal(await readFile(target, 'utf8'), 'later-writer');
++});
++
++test('PUT detects a parent moved immediately after rename and restores the original through its held fd', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'put_after_rename';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  const originalParent = join(f.root, 'dir');
++  const movedParent = join(f.base, 'moved-dir');
++  const outside = join(f.base, 'outside');
++  await mkdir(originalParent);
++  await mkdir(outside);
++  await writeFile(join(originalParent, 'result.txt'), 'original');
++  await writeFile(join(outside, 'result.txt'), 'outside-original');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const pending = client.put({ path: 'dir/result.txt', data: Buffer.from('new') });
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await rename(originalParent, movedParent);
++  await symlink(outside, originalParent);
++  await releasePause(f.state, stage);
++  await assert.rejects(pending, (error) => error?.code === 'PARENT_CHANGED');
++  assert.equal(await readFile(join(outside, 'result.txt'), 'utf8'), 'outside-original');
++  assert.equal(await readFile(join(movedParent, 'result.txt'), 'utf8'), 'original');
++});
++
++test('UNDO parent rename plus outside symlink swap preserves both outside and current target', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'undo_before_commit';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  const originalParent = join(f.root, 'dir');
++  const movedParent = join(f.base, 'moved-dir');
++  const outside = join(f.base, 'outside');
++  await mkdir(originalParent);
++  await mkdir(outside);
++  await writeFile(join(originalParent, 'result.txt'), 'old');
++  await writeFile(join(outside, 'sentinel'), 'unchanged');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const put = await client.put({ path: 'dir/result.txt', data: Buffer.from('new') });
++  const pending = client.undoRef(put.undoRef);
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await rename(originalParent, movedParent);
++  await symlink(outside, originalParent);
++  await releasePause(f.state, stage);
++  await assert.rejects(pending, (error) => error?.code === 'PARENT_CHANGED');
++  assert.equal(await readFile(join(outside, 'sentinel'), 'utf8'), 'unchanged');
++  await assert.rejects(readFile(join(outside, 'result.txt')), { code: 'ENOENT' });
++  assert.equal(await readFile(join(movedParent, 'result.txt'), 'utf8'), 'new');
++});
++
++test('UNDO detects a parent moved after its effect and restores the broker value through its held fd', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'undo_after_effect';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  const originalParent = join(f.root, 'dir');
++  const movedParent = join(f.base, 'moved-dir');
++  const outside = join(f.base, 'outside');
++  await mkdir(originalParent);
++  await mkdir(outside);
++  await writeFile(join(originalParent, 'result.txt'), 'old');
++  await writeFile(join(outside, 'result.txt'), 'outside-original');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const put = await client.put({ path: 'dir/result.txt', data: Buffer.from('new') });
++  const pending = client.undoRef(put.undoRef);
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await rename(originalParent, movedParent);
++  await symlink(outside, originalParent);
++  await releasePause(f.state, stage);
++  await assert.rejects(pending, (error) => error?.code === 'PARENT_CHANGED');
++  assert.equal(await readFile(join(outside, 'result.txt'), 'utf8'), 'outside-original');
++  assert.equal(await readFile(join(movedParent, 'result.txt'), 'utf8'), 'new');
++});
++
++test('state path symlink swap cannot redirect journal or backup writes away from sealed fd 4', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const stage = 'put_after_capability_validation';
++  const f = await fixture();
++  f.testing = { pause: stage };
++  const movedState = join(f.base, 'state-moved');
++  const outside = join(f.base, 'outside-state');
++  await mkdir(outside, { mode: 0o700 });
++  await writeFile(join(outside, 'sentinel'), 'unchanged');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++
++  const pending = client.put({ path: 'result.txt', data: Buffer.from('safe') });
++  await waitFor(join(f.state, `.t5fb-test-${stage}.ready`));
++  await rename(f.state, movedState);
++  await symlink(outside, f.state);
++  await releasePause(movedState, stage);
++  const put = await pending;
++  assert.match(put.undoRef, /^u1\./);
++  assert.equal(await readFile(join(f.root, 'result.txt'), 'utf8'), 'safe');
++  assert.deepEqual(await readdir(outside), ['sentinel']);
++  assert.ok((await readdir(movedState)).some((name) => name === `${put.undoRef}.meta`));
++});
++
++test('post-rename journal failure returns RECOVERY_REQUIRED with durable ref, then RECOVER reconciles truth', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  f.testing = { fail: 'put_mark_committed' };
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++  let undoRef;
++  await assert.rejects(
++    client.put({ path: 'result.txt', data: Buffer.from('committed-before-journal-error') }),
++    (error) => {
++      assert.equal(error?.code, 'RECOVERY_REQUIRED');
++      assert.match(error?.undoRef, /^u1\.[a-f0-9]{32}$/);
++      undoRef = error.undoRef;
++      return true;
++    },
++  );
++  assert.equal(await readFile(join(f.root, 'result.txt'), 'utf8'), 'committed-before-journal-error');
++  client.testing = null;
++  await assert.rejects(
++    client.put({ path: 'result.txt', data: Buffer.from('must-wait') }),
++    (error) => error?.code === 'RECOVERY_REQUIRED',
++  );
++  assert.equal(await readFile(join(f.root, 'result.txt'), 'utf8'), 'committed-before-journal-error');
++  const recovered = await client.recover();
++  assert.ok(recovered.undoRefs.includes(undoRef));
++  const second = await client.put({ path: 'result.txt', data: Buffer.from('after-recover') });
++  await client.undoRef(second.undoRef);
++  assert.equal(await readFile(join(f.root, 'result.txt'), 'utf8'), 'committed-before-journal-error');
++  await assert.rejects(client.undoRef(undoRef), (error) => error?.code === 'TARGET_CHANGED');
++});
++
++test('global recovery gate blocks a different already-open client until explicit RECOVER', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  f.testing = { fail: 'put_mark_committed' };
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const failing = await open(f);
++  t.after(() => failing.close());
++  f.testing = null;
++  const observer = await open(f);
++  t.after(() => observer.close());
++
++  await assert.rejects(
++    failing.put({ path: 'first.txt', data: Buffer.from('first') }),
++    (error) => error?.code === 'RECOVERY_REQUIRED',
++  );
++  await assert.rejects(
++    observer.put({ path: 'second.txt', data: Buffer.from('second') }),
++    (error) => error?.code === 'RECOVERY_REQUIRED' && /^u1\./.test(error?.undoRef),
++  );
++  await assert.rejects(readFile(join(f.root, 'second.txt')), { code: 'ENOENT' });
++  assert.equal((await observer.recover()).undoRefs.length, 1);
++  const second = await observer.put({ path: 'second.txt', data: Buffer.from('second') });
++  assert.match(second.undoRef, /^u1\./);
++});
++
++test('RECOVER removes only provably orphaned broker snapshots and preserves unrelated sealed state', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  const orphanRef = `u1.${'a'.repeat(32)}`;
++  await writeFile(join(f.state, `${orphanRef}.old`), 'orphan-old');
++  await writeFile(join(f.state, `${orphanRef}.new`), 'orphan-new');
++  await writeFile(join(f.state, 'unrelated'), 'keep');
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++  assert.deepEqual((await client.recover()).undoRefs, []);
++  assert.deepEqual(await readdir(f.state), ['.t5fb.lock', 'unrelated']);
++});
++
++test('SELF_TEST proves broker capabilities and protocol version without touching a target', { skip: process.platform !== 'darwin' || process.arch !== 'arm64' }, async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  const client = await open(f);
++  t.after(() => client.close());
++  assert.deepEqual(await client.selfTest(), {
++    protocol: 1,
++    rootCapability: true,
++    sealedStateCapability: true,
++    atomicRename: 'renameatx_np',
++    fullFsync: true,
++  });
++});
++
++test('client fails closed on a missing binary and platform support is exact', async (t) => {
++  const f = await fixture();
++  t.after(() => rm(f.base, { recursive: true, force: true }));
++  await assert.rejects(
++    FileBrokerClient.open({ rootDir: f.root, stateDir: f.state, binaryPath: join(f.base, 'missing') }),
++    (error) => error instanceof FileBrokerUnavailableError && error.code === 'BROKER_MISSING',
++  );
++  assert.equal(fileBrokerPlatformSupported('linux', 'arm64'), false);
++  assert.equal(fileBrokerPlatformSupported('darwin', 'x64'), false);
++  assert.equal(fileBrokerPlatformSupported('darwin', 'arm64'), true);
++});
