@@ -20,6 +20,48 @@ function fold(text, keep) {
 }
 
 /**
+ * 터미널 출력 한 갈래(stdout 또는 stderr)를 **줄 경계에서만** 접는다.
+ *
+ * 글자로 자르면 행이 반토막 나고, 모델은 그 반토막을 값으로 읽는다(실측: `ls -la` 의 크기 칸이
+ * 잘려 파일 크기가 통째로 다른 수가 됐다). 파일 갈래(③)가 이미 같은 이유로 `fold` 를 버렸다 —
+ * *"`fold` 의 `\s+` 접기가 CSV 행 경계를 통째로 지웠다"*. 터미널은 표·로그라 더 심하다.
+ *
+ * 그리고 **문을 함께 준다**(정본 §S3 — 뺀 양 · 뺀 것의 성질 · 문). 뺀 가운데는 같은 명령의
+ * 그 **줄 범위**이므로, 모델이 그대로 부를 수 있는 값(`sed -n 'A,Bp'`)으로 적는다.
+ * 잘렸다는 사실만 주고 문을 안 주면 그건 알려준 게 아니라 막은 것이다.
+ */
+function 터미널본문(라벨, 원문, 예산, command) {
+  const 줄들 = 원문.split('\n');
+  const 머리 = `${라벨} 전체 ${줄들.length}줄 ${원문.length}자`;
+  if (원문.length <= 예산) return `${머리}:\n${원문}`;
+
+  const 앞예산 = Math.ceil(예산 * 0.6);
+  const 앞 = []; let 앞자 = 0;
+  for (const l of 줄들) {
+    if (앞자 + l.length + 1 > 앞예산) break;
+    앞.push(l); 앞자 += l.length + 1;
+  }
+  const 뒤 = []; let 뒤자 = 0;
+  const 뒤예산 = 예산 - 앞자;
+  for (let i = 줄들.length - 1; i >= 앞.length; i -= 1) {
+    if (뒤자 + 줄들[i].length + 1 > 뒤예산) break;
+    뒤.unshift(줄들[i]); 뒤자 += 줄들[i].length + 1;
+  }
+  // 줄 하나가 예산보다 길다 — 줄 경계가 없으니 글자로 자르되 **그 사실을 말한다.**
+  // 줄 범위로 나눌 수 없으니 줄 범위 문도 안 준다(없는 문을 가리키지 않는다).
+  if (!앞.length && !뒤.length) {
+    const 앞쪽 = Math.ceil(예산 * 0.6);
+    return `${머리}:\n${원문.slice(0, 앞쪽)}\n…[가운데 ${원문.length - 예산}자 생략 — `
+      + `줄바꿈이 없어 줄 범위로 나눌 수 없다]…\n${원문.slice(-(예산 - 앞쪽))}`;
+  }
+  const 뺀줄 = 줄들.length - 앞.length - 뒤.length;
+  if (뺀줄 <= 0) return `${머리}:\n${원문}`;
+  const 문 = `…[${라벨} 가운데 ${뺀줄}줄(${원문.length - 앞자 - 뒤자}자)은 이 답에 없다 — `
+    + `그 범위는 \`${command} | sed -n '${앞.length + 1},${줄들.length - 뒤.length}p'\` 로 이어 받는다]…`;
+  return [`${머리}:`, 앞.join('\n'), 문, 뒤.join('\n')].filter((s) => s !== '').join('\n');
+}
+
+/**
  * 실행 결과 → **모델이 판단할 수 있는 요약 사실**.
  *
  * 예전엔 `JSON.stringify(result).slice(0, 1200)` 이었다. 앞부분만 남기는 절단이라 뒤에 있던
@@ -382,6 +424,63 @@ export function compactResult(result, maxChars = 1200) {
         + `${정리(날것.slice(-뒤))}`;
     }
     return `${lines.join('\n')}\n내용:\n${body}`;
+  }
+
+  // ③-b **터미널 — 원문 그대로.** (기본 ③ · 2026-08-14)
+  //
+  // 여기에 갈래가 **없어서** 터미널 결과가 맨 아래 JSON 통짜(④)로 떨어지고 있었다. 결과 둘:
+  //   · `stdout` 의 줄바꿈이 JSON 안에서 `\n` **리터럴로 이스케이프**된다 — 표·로그의 행 구조가
+  //     한 줄로 눌린다. **파일 갈래(③)는 이미 같은 병을 고쳤다**(`fold` 의 `\s+` 접기가 CSV
+  //     행 경계를 지운 자리). 터미널만 안 고쳐져 있었다.
+  //   · 잘릴 때 **JSON 문자열 한가운데**가 끊겨 모델이 깨진 JSON 을 받는다. 실측: 600줄
+  //     `ls -la`(35,408자)가 gpt-5.1 창에 11,400자(32%)만, 그나마 조각으로 실렸다.
+  //   · 그리고 **이어 받을 문이 없었다.** `local.file read` 갈래는 `offset`·`limit` 로 이어 받는
+  //     문을 준다 — 터미널은 「잘렸다」만 말하고 나머지를 가져올 방법이 없었다.
+  //
+  // 저장소가 이미 이 축을 적어 뒀다(`design/T5-STATE-MAP-ko.md:586` · 아래 §S2 주석):
+  // *"헤르메스는 실패도 성공과 같은 그릇에 담아 그대로 싣는다 … 클로드코드도 원문 그대로다."*
+  //
+  // **판정하지 않는다.** 손이 낸 기계 사실(`applied`·`failedBy`·`stopped`·`terminated`)을 그대로
+  // 옮길 뿐이고, 무엇을 말할지는 모델이 정한다(§24).
+  if (typeof result.command === 'string'
+    && (typeof result.stdout === 'string' || typeof result.stderr === 'string'
+      || typeof result.exitCode === 'number' || result.probeRan === true)) {
+    const 머리 = [`명령: ${result.command}`];
+    if (result.cwd) 머리.push(`자리: ${result.cwd}`);
+    if (result.exitCode != null) 머리.push(`끝난 코드: ${result.exitCode}`);
+    if (result.durationMs != null) 머리.push(`걸린 시간: ${result.durationMs}ms`);
+    // **`applied` 는 원장이 이미 읽는 기계 사실이다**(ledger.js `확인된사실`). 모델도 같은 것을
+    // 봐야 한다 — 안 그러면 "확인만 했어요"인 걸음을 모델이 실행으로 읽고 그 위에서 다음을 짠다.
+    if (result.applied === true) 머리.push('실제로 돌았다');
+    else if (result.applied === false) 머리.push('실제로는 안 돌았다 — 확인만 한 것이라 이 컴퓨터는 그대로다');
+    if (result.blockedBy) 머리.push(`막은 것: ${result.blockedBy}${result.blockReason ? ` · ${result.blockReason}` : ''}`);
+    if (result.probeRan) 머리.push('탐침이 한 번 돌았다 — 지금까지 바뀐 것은 없다');
+    if (result.failedBy) 머리.push(`끝난 이유: ${result.failedBy}${result.failReason ? ` · ${result.failReason}` : ''}`);
+    if (result.stopped) 머리.push(`멈춘 이유: ${result.stopped}`);
+    if (Array.isArray(result.terminated) && result.terminated.length) {
+      머리.push(`끈 대상: ${result.terminated.map((t) => `${t.pid} ${t.stillRunning ? '아직 돌고 있음' : '지금 없음'}`).join(' · ')}`);
+    }
+    // 실행기가 이미 접은 것(30,000자 상한)도 절단이다 — 두 절단을 겹쳐 놓고 한쪽만 말하지 않는다.
+    if (result.truncated) 머리.push(`실행기가 먼저 ${result.omittedChars ?? 0}자를 접었다(원문이 실행기 상한을 넘었다)`);
+    if (result.다음수단?.length) {
+      머리.push(`다음 수: ${result.다음수단.map((n) => `${n.방법}${n.cwd ? `(${n.cwd})` : ''} — ${n.왜}`).join(' · ')}`);
+    }
+
+    const 나가는것 = [머리.join('\n')];
+    const 남은예산 = () => Math.max(maxChars - 나가는것.join('\n').length, 200);
+    const stderr원문 = String(result.stderr ?? result.probe?.stderr ?? '');
+    const stdout원문 = String(result.stdout ?? result.probe?.stdout ?? '');
+    // **stderr 를 먼저 담는다.** exit 0 이 아닌 것의 알맹이는 거기 있고 대개 짧다 —
+    // stdout 이 예산을 다 먹으면 정작 왜 실패했는지가 모델 입력 밖으로 밀린다.
+    if (stderr원문.trim()) {
+      나가는것.push(터미널본문('stderr', stderr원문, Math.max(Math.floor(남은예산() * 0.5), 200), result.command));
+    }
+    if (stdout원문.trim()) {
+      나가는것.push(터미널본문('stdout', stdout원문, 남은예산(), result.command));
+    }
+    // **빈 것도 사실이다** — 아무 말이 없으면 모델은 "못 받았다"와 "원래 없었다"를 못 가른다.
+    if (나가는것.length === 1) 나가는것.push('stdout·stderr 둘 다 비어 있었다.');
+    return 나가는것.join('\n');
   }
 
   // ④ 그 밖(작은 결과) — **구조(JSON)를 그대로 준다**(§5-3 b · 2026-08-12).

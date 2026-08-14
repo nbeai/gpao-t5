@@ -236,6 +236,22 @@ export function makeLocalTerminalTool(deps = {}) {
             probeRan: true,
             probeChangedNothing: true,   // 커널이 막아서 증명된 것: 이 컴퓨터는 안 바뀌었다
           },
+          // ── **실패의 기계 원문을 그 칸에 넣는다**(기본 ③ · 2026-08-14) ──────────────
+          //
+          // `실패원문칸`(task-context.js §5-3 a)은 헤르메스의 「실패 원문 2,000자」 축을
+          // 이미 흡수해 놓았다. 그런데 그 칸이 읽는 것은 `diagnosticTrace` 하나인데
+          // **이 갈래가 그 칸을 안 세웠다** — 그래서 축은 흡수됐는데 터미널에서만 안 돌았고,
+          // 모델은 막힌 호출에서 `{확인안됨:true}` 만 받았다(실측 원문: 상태 토큰 한 줄이 전부).
+          //
+          // 여기 담는 것은 **판정이 아니라 우리가 돌려 보고 받은 사실**이다: 어떤 코드로
+          // 끝났고, 셸이 뭐라고 했고, 무엇이 막았는가. 사람말 요약(`describeCommand`)은
+          // 그대로 두 손 위에 남는다 — 사용자면과 진단면을 섞지 않는 계약(§7)은 그대로다.
+          // 이 칸은 **모델 입력에만 산다**(turn.js 결과 조립이 저장 봉투에서 걷는다).
+          diagnosticTrace: {
+            blockedBy: block?.kind, blockReason: block?.why,
+            exitCode: r?.exitCode, stderr: r?.stderr, stdout: r?.stdout,
+            probeChangedNothing: true,
+          },
           // `describeCommand` 가 이미 "확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직
           // 아무것도 안 바뀌었어요"를 말한다. 여기서 같은 말을 다시 붙이면 한 문장이 두 번
           // 말하는 답이 되고, 그 중복이 "정말 아무 것도 안 됐구나"로 읽힌다(실측).

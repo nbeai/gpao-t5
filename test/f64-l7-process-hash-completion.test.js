@@ -59,8 +59,11 @@ async function runCase({ terminal = 'correct', artifact = 'exact', source = 'a.t
     if (main === 3) {
       const exchange = (tc.turnExchange ?? []).findLast?.((entry) => entry.tool === 'local.terminal')
         ?? [...(tc.turnExchange ?? [])].reverse().find((entry) => entry.tool === 'local.terminal');
-      const data = typeof exchange?.data === 'string' ? JSON.parse(exchange.data) : exchange?.data;
-      observedStdout = String(data?.stdout ?? '');
+      // **모델이 실제로 받는 글에서 뽑는다.** 터미널 결과는 이제 JSON 통짜가 아니라 줄 구조가
+      // 살아 있는 원문으로 온다(task-context `③-b 터미널` · 2026-08-14). 재는 것은 그대로다 —
+      // 실행 stdout 이 결과 파일로 정확히 옮겨졌을 때만 완료가 선다.
+      const 글 = typeof exchange?.data === 'string' ? exchange.data : JSON.stringify(exchange?.data ?? '');
+      observedStdout = 글.match(/^stdout 전체 [^\n]*:\n([\s\S]*)$/m)?.[1] ?? '';
       const body = artifact === 'mutated'
         ? observedStdout.replace(/[0-9a-f]/u, (value) => value === '0' ? '1' : '0')
         : observedStdout || '해시 계산 실패\n';

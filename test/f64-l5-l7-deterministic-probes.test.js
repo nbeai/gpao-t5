@@ -82,6 +82,22 @@ function exchangeData(exchange) {
   try { return JSON.parse(exchange.data); } catch { return {}; }
 }
 
+/**
+ * **모델이 실제로 받는 글에서 stdout 을 뽑는다.**
+ *
+ * 터미널 결과는 이제 JSON 통짜가 아니라 줄 구조가 살아 있는 원문으로 온다
+ * (task-context `③-b 터미널` · 2026-08-14). 파일 읽기가 이미 `내용:\n` 로 같은 길을 가고
+ * 있었고(바로 아래 `successfulReadTexts`), 터미널만 JSON 이라 스텁이 `JSON.parse` 로 읽고
+ * 있었다. **재는 것은 그대로다** — 실행 stdout 이 결과 파일로 정확히 옮겨졌는가.
+ * 다만 스텁이 보는 것을 실모델이 보는 것과 같게 맞춘다.
+ */
+function exchangeStdout(exchange) {
+  const 값 = exchangeData(exchange).stdout;
+  if (typeof 값 === 'string') return 값;
+  const 글 = typeof exchange?.data === 'string' ? exchange.data : '';
+  return 글.match(/^stdout 전체 [^\n]*:\n([\s\S]*)$/m)?.[1];
+}
+
 function successfulReadTexts(tc) {
   return (tc.turnExchange ?? [])
     .filter((exchange) => exchange.tool === 'local.file'
@@ -318,8 +334,8 @@ async function l7Case(correct, { mutateStdout = false } = {}) {
     ] };
     if (main === 2 && correct) {
       const terminalExchange = (tc.turnExchange ?? []).find((exchange) => exchange.tool === 'local.terminal'
-        && typeof exchangeData(exchange).stdout === 'string');
-      const stdout = String(exchangeData(terminalExchange).stdout ?? '');
+        && typeof exchangeStdout(exchange) === 'string');
+      const stdout = String(exchangeStdout(terminalExchange) ?? '');
       modelObservedStdout = stdout;
       const artifactStdout = mutateStdout
         ? stdout.replace(/[0-9a-f]/u, (character) => character === '0' ? '1' : '0')
