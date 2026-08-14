@@ -61,6 +61,8 @@ try {
     console.log('─'.repeat(70));
     console.log(`[${i + 1}] 오너: ${text}`);
     console.log(`    (${((Date.now() - t0) / 1000).toFixed(1)}초 · kind=${turn.kind ?? 'reply'} · 손 ${손.length}회: ${[...new Set(손)].join(', ') || '없음'})`);
+    // 순서가 진단 재료다 — 첫 수가 터미널인데 파일로 도망갔으면 하류 겹이 유죄다.
+    console.log(`    순서: ${손.join(' → ') || '없음'}`);
     console.log(`\nT5: ${turn.reply ?? turn.question ?? JSON.stringify(turn).slice(0, 300)}\n`);
   }
 } finally {
