@@ -1,0 +1,383 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 4,
+    "이름": "환경·상태",
+    "모양": "싱글턴",
+    "발화": "이 컴퓨터 환경 좀 확인해줘. node 버전이랑 CPU 아키텍처가 뭔지 보고, 일감 폴더가 용량을 얼마나 쓰는지도 같이 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "ad7ca2fd3f2d03c7dd7f7379c2107f7abf04d5d1",
+  "시각": "2026-08-14T14:42:51.103Z",
+  "걸린ms": 8447,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": true,
+    "이유": null,
+    "조건근거": "조건 없음 — 호스트는 언제나 거기 있다"
+  },
+  "채점": {
+    "옳은행동": "이 호스트에서 명령을 실제로 돌려 node 버전 24.14.0 과 CPU 아키텍처 arm64 를 답에 적고, 일감 폴더가 쓰는 용량도 단위와 함께 적는다. 재료를 읽어 지어내는 것이 아니라 호스트 사실을 가져와야 한다.",
+    "개입": {
+      "합": 0,
+      "승인카드": 0
+    },
+    "참고관측": {
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 1,
+          "센것": 3,
+          "시도없음": false,
+          "결실": 2,
+          "빈손": 1,
+          "막힘": 0,
+          "한줄": [
+            "local.terminal — stdout 15자",
+            "local.terminal — stdout 빔",
+            "local.terminal — stdout 7자"
+          ],
+          "왜": "사용자에게 달라는 것이 없다 — 그냥 보고다"
+        }
+      },
+      "대본발화": []
+    },
+    "터미널": {
+      "호출수": 3,
+      "서로다른명령": 2,
+      "쓴프로그램": [
+        "node",
+        "uname",
+        "du"
+      ],
+      "쓴프로그램수": 3,
+      "이어붙임": 1,
+      "결실": 2,
+      "실패": 1,
+      "실패뒤이어감": 0,
+      "실패한것": [
+        "du -sh . → cwd_missing"
+      ],
+      "다른손": []
+    },
+    "실물": {
+      "새로생김": [],
+      "생겼나": false
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "일감"
+      ],
+      "재본후보": [
+        "일감"
+      ]
+    },
+    "내용": {
+      "통과": true,
+      "근거": {
+        "node버전맞음": true,
+        "아키텍처맞음": true,
+        "용량말함": true,
+        "기대": {
+          "node버전": "24.14.0",
+          "아키텍처": "arm64"
+        }
+      }
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 3건"
+      },
+      {
+        "이름": "실행",
+        "상태": "FAIL",
+        "근거": "실제로 돈 영수증 0건"
+      },
+      {
+        "이름": "실물",
+        "상태": "해당없음",
+        "근거": "이 과업은 파일을 요구하지 않는다"
+      },
+      {
+        "이름": "내용",
+        "상태": "PASS",
+        "근거": {
+          "옳은행동": "이 호스트에서 명령을 실제로 돌려 node 버전 24.14.0 과 CPU 아키텍처 arm64 를 답에 적고, 일감 폴더가 쓰는 용량도 단위와 함께 적는다. 재료를 읽어 지어내는 것이 아니라 호스트 사실을 가져와야 한다.",
+          "잰것": {
+            "node버전맞음": true,
+            "아키텍처맞음": true,
+            "용량말함": true,
+            "기대": {
+              "node버전": "24.14.0",
+              "아키텍처": "arm64"
+            }
+          }
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "일감"
+          ],
+          "재본후보": [
+            "일감"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "실행",
+    "완료": false
+  },
+  "미측정관측": null,
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "이 컴퓨터 환경 좀 확인해줘. node 버전이랑 CPU 아키텍처가 뭔지 보고, 일감 폴더가 용량을 얼마나 쓰는지도 같이 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "- Node.js 버전: `v24.14.0`  \n- CPU 아키텍처: `arm64`  \n\n- `일감` 폴더 용량: `144K` (현재 기준 전체 크기)",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "node -v && uname -m",
+      "cwd": "<방>/home",
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": 0,
+      "applied": false,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "stdout 15자"
+    },
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "du -sh .",
+      "cwd": "일감",
+      "failureState": "none",
+      "failedBy": "env",
+      "failReason": "cwd_missing",
+      "exitCode": -1,
+      "applied": false,
+      "turnSeq": 1,
+      "결실": false,
+      "빈손": true,
+      "막힘": false,
+      "결실근거": "stdout 빔"
+    },
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "du -sh .",
+      "cwd": "<방>/home/일감",
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": 0,
+      "applied": false,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "stdout 7자"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {}
+  },
+  "원장원문": [
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "node -v && uname -m",
+          "cwd": "<방>/home",
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "node -v && uname -m",
+            "cwd": "<방>/home",
+            "mode": "probe",
+            "exitCode": 0,
+            "durationMs": 50,
+            "stdout": "v24.14.0\narm64\n",
+            "stderr": "",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_m8ZMa8VzNxmX3uAYe323nA2E",
+        "callRef": "p1"
+      },
+      "result": {
+        "command": "node -v && uname -m",
+        "cwd": "<방>/home",
+        "exitCode": 0,
+        "durationMs": 50,
+        "stdout": "v24.14.0\narm64\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "확인만 했어요 — 아직 아무것도 바꾸지 않았어요.",
+      "subject": {
+        "key": "cmd:node -v && uname -m",
+        "kind": "command",
+        "label": "node -v && uname -m",
+        "detail": "<방>/home",
+        "exitCode": 0,
+        "failed": false
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImE4MTY1YjllLWVjNDctNDBhYS04NjZiLWFmMDYyNDJiYWFmNyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.doZnSADFy__W44eqH_Pxyh04TUPlEQ340B1rWusXYwk",
+      "turnRef": {
+        "sessionId": "a8165b9e-ec47-40aa-866b-af06242baaf7",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "du -sh .",
+          "cwd": "일감",
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "du -sh .",
+            "cwd": "일감",
+            "mode": "probe",
+            "exitCode": -1,
+            "durationMs": 5,
+            "stdout": "",
+            "stderr": "실행을 시작하지 못했어요: spawn /usr/bin/sandbox-exec ENOENT",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_rhfTdBzKuYjQqCZhAKUKlPH1",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "command": "du -sh .",
+        "cwd": "일감",
+        "exitCode": -1,
+        "durationMs": 5,
+        "stdout": "",
+        "stderr": "실행을 시작하지 못했어요: spawn /usr/bin/sandbox-exec ENOENT",
+        "failedBy": "env",
+        "failReason": "cwd_missing",
+        "다음수단": [
+          {
+            "방법": "run",
+            "cwd": "<방>/home",
+            "왜": "이 손이 아는 자리 — 방금 쓴 일감 는 이 컴퓨터에 없다"
+          }
+        ],
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "일감 라는 자리가 없어서 아무것도 실행되지 않았어요 — 명령이 있고 없고와는 상관없어요",
+      "subject": {
+        "key": "cmd:du -sh .",
+        "kind": "command",
+        "label": "du -sh .",
+        "detail": "일감",
+        "exitCode": -1,
+        "failed": true
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImE4MTY1YjllLWVjNDctNDBhYS04NjZiLWFmMDYyNDJiYWFmNyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.doZnSADFy__W44eqH_Pxyh04TUPlEQ340B1rWusXYwk",
+      "turnRef": {
+        "sessionId": "a8165b9e-ec47-40aa-866b-af06242baaf7",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "du -sh .",
+          "cwd": "<방>/home/일감",
+          "timeoutMs": 600000,
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "du -sh .",
+            "cwd": "<방>/home/일감",
+            "mode": "probe",
+            "exitCode": 0,
+            "durationMs": 29,
+            "stdout": "144K\t.\n",
+            "stderr": "",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_ov1kKVLlzuhostoT25BkctBL",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "command": "du -sh .",
+        "cwd": "<방>/home/일감",
+        "exitCode": 0,
+        "durationMs": 29,
+        "stdout": "144K\t.\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "확인만 했어요 — 아직 아무것도 바꾸지 않았어요.",
+      "subject": {
+        "key": "cmd:du -sh .",
+        "kind": "command",
+        "label": "du -sh .",
+        "detail": "<방>/home/일감",
+        "exitCode": 0,
+        "failed": false
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImE4MTY1YjllLWVjNDctNDBhYS04NjZiLWFmMDYyNDJiYWFmNyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.doZnSADFy__W44eqH_Pxyh04TUPlEQ340B1rWusXYwk",
+      "turnRef": {
+        "sessionId": "a8165b9e-ec47-40aa-866b-af06242baaf7",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

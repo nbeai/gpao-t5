@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "scenario": "terminal-s2-missing-command-recovery",
+  "modelId": "gpt-5.1",
+  "harnessAdaptation": "baseline-b829813: processDelivery 칸이 없는 영수증은 exit code 존재로 delivered 를 판정. 그 외 판정 규칙은 동결본과 같다.",
+  "sourceHead": "cd62f0a13d04daab77a5a2c637768d2c0dd5a300",
+  "artifact": {
+    "expected": "E_CONN\t3\nE_PARSE\t1\n",
+    "observed": null,
+    "matches": false
+  },
+  "sourceUnchanged": true,
+  "approvals": 0,
+  "initialMissingCommandObserved": true,
+  "alternativeTerminalSuccess": false,
+  "outputWriteReceipts": 0,
+  "outputReadReceipts": 0,
+  "verifierReceipts": [],
+  "terminalReceipts": [
+    {
+      "command": "logstat --help",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+      "failureState": "none"
+    },
+    {
+      "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sort | uniq -c",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+      "failureState": "none"
+    },
+    {
+      "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sed 's/.*://g' | sort | uniq -c",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+      "failureState": "none"
+    }
+  ],
+  "runtimeTerminalObservations": [
+    {
+      "command": "logstat --help",
+      "observation": {
+        "command": "logstat --help",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+        "exitCode": 127,
+        "durationMs": 30,
+        "stdout": "",
+        "stderr": "zsh:1: command not found: logstat\n",
+        "failedBy": "env",
+        "failReason": "missing",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sort | uniq -c",
+      "observation": {
+        "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sort | uniq -c",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+        "exitCode": 0,
+        "durationMs": 29,
+        "stdout": "   2 api.log:E_CONN\n   1 api.log:E_PARSE\n   1 worker.log:E_CONN\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sed 's/.*://g' | sort | uniq -c",
+      "observation": {
+        "command": "cd work && grep -Eo 'E_CONN|E_PARSE' api.log worker.log | sed 's/.*://g' | sort | uniq -c",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-9Bbvyt/home",
+        "exitCode": 0,
+        "durationMs": 38,
+        "stdout": "   3 E_CONN\n   1 E_PARSE\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none"
+    }
+  ],
+  "finalReply": "이번 턴에서는 새로 명령을 실행하거나 파일을 다룰 수 있는 권한이 없어서, 추가 작업을 실제로 수행하지 못했습니다.  \n\n앞선 턴까지 확인된 정보로는:\n\n- `api.log`, `worker.log`에서 `E_CONN`과 `E_PARSE`를 추출·집계한 결과(표준 출력 기준):\n\n```text\n   3 E_CONN\n   1 E_PARSE\n```\n\n따라서 요구하신 `error-summary.tsv`의 내용은, 헤더 없이 탭 구분자로 다음 한 줄이어야 합니다:\n\n```text\n3\tE_CONN\t1\tE_PARSE\n```\n\n하지만 이번 턴에는  \n- 터미널로 이 내용을 다시 출력해 확인하거나  \n- 파일 도구로 `error-summary.tsv`를 실제로 생성·저장하거나  \n- 그 파일을 다시 읽고 S2 결과 검사 도구를 호출하는 작업을 수행하지 못했습니다.\n\n즉, S2 결과 검사 PASS 영수증을 아직 받지 못한 상태입니다.  \n지금 할 수 있는 범위에서는 여기까지가 정확한 진행 상황입니다.",
+  "pass": false
+}

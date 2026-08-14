@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "scenario": "terminal-s1-net-settlement",
+  "modelId": "gpt-5.1",
+  "sourceHead": "cb96da6f9a8808ff47be443755b5a6009383a743",
+  "artifact": {
+    "expected": "A\t23000\nB\t15000\nC\t11000\n",
+    "observed": null,
+    "matches": false
+  },
+  "sourceUnchanged": true,
+  "approvals": 0,
+  "outputWriteReceipts": 0,
+  "outputReadReceipts": 0,
+  "verifierReceipts": [],
+  "terminalReceipts": [
+    {
+      "command": "cd ~/work && paste sales-east.tsv sales-west.tsv refunds.tsv",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s1-live-yVWWF3/home",
+      "exitCode": 0,
+      "stdout": "A\t10000\tA\t15000\tA\t2000\nB\t15000\tC\t11000\t\n",
+      "stderr": "",
+      "processState": null,
+      "failureState": "none"
+    }
+  ],
+  "receiptTools": [
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s1-live-yVWWF3/home/work"
+    },
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "sales-east.tsv"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "sales-west.tsv"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "refunds.tsv"
+    },
+    {
+      "tool": null,
+      "action": null,
+      "path": null
+    },
+    {
+      "tool": null,
+      "action": null,
+      "path": null
+    },
+    {
+      "tool": null,
+      "action": null,
+      "path": null
+    }
+  ],
+  "finalReply": "A 23000\nB 15000\nC 11000",
+  "pass": false
+}

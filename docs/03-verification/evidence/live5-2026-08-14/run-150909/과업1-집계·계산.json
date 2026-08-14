@@ -1,0 +1,594 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 1,
+    "이름": "집계·계산",
+    "모양": "싱글턴",
+    "발화": "일감 폴더에 로그랑 표가 같이 있어. 로그 폴더에서 ERROR 가 코드별로 몇 건인지 세고, 표/매출-동부.tsv 의 금액 합계도 같이 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "59d68451cb5b2c3216b90d8b9432ffac625cac8b",
+  "시각": "2026-08-14T15:09:09.437Z",
+  "걸린ms": 13804,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": true,
+    "이유": null,
+    "조건근거": "조건 없음 — 재료가 이미 자리에 있다"
+  },
+  "채점": {
+    "옳은행동": "로그 폴더의 로그 셋을 전부 훑어 E_CONN 4건 · E_PARSE 1건 · E_TIMEOUT 1건을 답에 적고, 표/매출-동부.tsv 두 줄을 더한 25000 을 함께 적는다. 파일은 만들지 않고 원본도 건드리지 않는다.",
+    "개입": {
+      "합": 0,
+      "승인카드": 0
+    },
+    "참고관측": {
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 1,
+          "센것": 6,
+          "시도없음": false,
+          "결실": 6,
+          "빈손": 0,
+          "막힘": 0,
+          "한줄": [
+            "local.locate — candidates 3건",
+            "local.file(list) — items 3건",
+            "local.file(read) — text 16자",
+            "local.file(read) — text 134자",
+            "local.file(read) — text 106자",
+            "local.file(read) — text 111자"
+          ],
+          "왜": "사용자에게 달라는 것이 없다 — 그냥 보고다"
+        }
+      },
+      "대본발화": []
+    },
+    "터미널": {
+      "호출수": 0,
+      "서로다른명령": 0,
+      "쓴프로그램": [],
+      "쓴프로그램수": 0,
+      "이어붙임": 0,
+      "결실": 0,
+      "실패": 0,
+      "실패뒤이어감": 0,
+      "실패한것": [],
+      "다른손": [
+        "local.locate",
+        "local.file"
+      ]
+    },
+    "실물": {
+      "새로생김": [],
+      "생겼나": false
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "매출-동부"
+      ],
+      "재본후보": [
+        "로그",
+        "매출-동부"
+      ]
+    },
+    "내용": {
+      "통과": false,
+      "근거": {
+        "코드별": [
+          {
+            "코드": "E_CONN",
+            "통과": false,
+            "근거": "E_CONN 는 있는데 40자 안에 4 가 없다"
+          },
+          {
+            "코드": "E_PARSE",
+            "통과": true,
+            "근거": "E_PARSE: 1건  \n  - 2026-08-12 10:07 (api-"
+          },
+          {
+            "코드": "E_TIMEOUT",
+            "통과": true,
+            "근거": "E_TIMEOUT: 1건  \n  - 2026-08-13 08:41 (wo"
+          }
+        ],
+        "동부합계": "25000 를 답에서 찾았다"
+      }
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 6건"
+      },
+      {
+        "이름": "실행",
+        "상태": "PASS",
+        "근거": "실제로 돈 영수증 6건"
+      },
+      {
+        "이름": "실물",
+        "상태": "해당없음",
+        "근거": "이 과업은 파일을 요구하지 않는다"
+      },
+      {
+        "이름": "내용",
+        "상태": "FAIL",
+        "근거": {
+          "옳은행동": "로그 폴더의 로그 셋을 전부 훑어 E_CONN 4건 · E_PARSE 1건 · E_TIMEOUT 1건을 답에 적고, 표/매출-동부.tsv 두 줄을 더한 25000 을 함께 적는다. 파일은 만들지 않고 원본도 건드리지 않는다.",
+          "잰것": {
+            "코드별": [
+              {
+                "코드": "E_CONN",
+                "통과": false,
+                "근거": "E_CONN 는 있는데 40자 안에 4 가 없다"
+              },
+              {
+                "코드": "E_PARSE",
+                "통과": true,
+                "근거": "E_PARSE: 1건  \n  - 2026-08-12 10:07 (api-"
+              },
+              {
+                "코드": "E_TIMEOUT",
+                "통과": true,
+                "근거": "E_TIMEOUT: 1건  \n  - 2026-08-13 08:41 (wo"
+              }
+            ],
+            "동부합계": "25000 를 답에서 찾았다"
+          }
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "매출-동부"
+          ],
+          "재본후보": [
+            "로그",
+            "매출-동부"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "내용",
+    "완료": false
+  },
+  "미측정관측": null,
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "일감 폴더에 로그랑 표가 같이 있어. 로그 폴더에서 ERROR 가 코드별로 몇 건인지 세고, 표/매출-동부.tsv 의 금액 합계도 같이 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "정리해서 말해 줄게.\n\n1) ERROR 코드별 건수  \n- E_CONN: 3건  \n  - 2026-08-12 10:03 (api-2026-08-12.log)  \n  - 2026-08-13 09:12, 09:15 (api-2026-08-13.log)  \n- E_PARSE: 1건  \n  - 2026-08-12 10:07 (api-2026-08-12.log)  \n- E_TIMEOUT: 1건  \n  - 2026-08-13 08:41 (worker-2026-08-13.log)\n\n2) 표/매출-동부.tsv 금액 합계  \n- 내용:  \n  - A 10000  \n  - B 15000  \n- 합계: 25,000",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 3건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "일감/로그",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 3건"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/표/매출-동부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/로그/api-2026-08-12.log",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 134자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/로그/api-2026-08-13.log",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 106자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/로그/worker-2026-08-13.log",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 111자"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {}
+  },
+  "원장원문": [
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "일감",
+          "depth": 3
+        },
+        "providerCallId": "call_ewCcckHrvDEkf4xdegw9IDLd",
+        "callRef": "p1"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이번 요청에서 이름을 직접 부른 폴더예요 · 이름이 맞아요 · 오늘 고쳤어요",
+            "confidence": "high",
+            "explicitlyRequested": true,
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/로그",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이번 요청에서 이름을 직접 부른 폴더예요 · 2026-08 자료예요 · 오늘 고쳤어요",
+            "자료기간": "2026-08",
+            "confidence": "high",
+            "explicitlyRequested": true,
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/받은자료",
+            "kind": "documents",
+            "kindLabel": "문서·자료",
+            "why": "문서 19개 · 오늘 고쳤어요",
+            "confidence": "low",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 19,
+              "image": 0,
+              "text": 6,
+              "code": 0,
+              "mark": 0
+            }
+          }
+        ],
+        "searched": {
+          "from": "<방>/home",
+          "depth": 3,
+          "folders": 9
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 3곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "readScopeRoots": [
+        "/private<방>/home/일감",
+        "/private<방>/home/일감/로그"
+      ],
+      "subject": {
+        "key": "place_candidates:<방>/home/일감|<방>/home/일감/로그|<방>/home/일감/받은자료",
+        "kind": "place_candidates",
+        "label": "3곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감(이번 요청에서 이름을 직접 부른 폴더예요 · 이름이 맞아요 · 오늘 고쳤어요) · <방>/home/일감/로그(이번 요청에서 이름을 직접 부른 폴더예요 · 2026-08 자료예요 · 오늘 고쳤어요) · <방>/home/일감/받은자료(문서 19개 · 오늘 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감",
+          "<방>/home/일감/로그",
+          "<방>/home/일감/받은자료"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "일감/로그",
+          "limit": 200
+        },
+        "providerCallId": "call_w6lQh9xIcpkeyXjH9T2lsf31",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/로그",
+        "items": [
+          {
+            "name": "api-2026-08-12.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:09:09.431Z"
+          },
+          {
+            "name": "api-2026-08-13.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:09:09.431Z"
+          },
+          {
+            "name": "worker-2026-08-13.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:09:09.431Z"
+          }
+        ],
+        "total": 3,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "3개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/로그",
+        "kind": "file",
+        "label": "/private<방>/home/일감/로그"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/표/매출-동부.tsv",
+          "limit": 50000
+        },
+        "providerCallId": "call_aG6NcPacc2mnSr00cxynogqL",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-동부.tsv",
+        "text": "A\t10000\nB\t15000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.addeca5e0f9a6fae8380355f5b63",
+        "같은자리파일": [
+          "매출-서부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:09:09.432Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-동부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-서부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-동부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-동부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/로그/api-2026-08-12.log",
+          "limit": 200000
+        },
+        "providerCallId": "call_oaOaM7ynslrZ20qhzRNggPjx",
+        "callRef": "걸음3"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/로그/api-2026-08-12.log",
+        "text": "2026-08-12 10:00 INFO 시작\n2026-08-12 10:03 ERROR E_CONN 상류 연결이 끊겼다\n2026-08-12 10:07 ERROR E_PARSE 응답 형식이 이상하다\n2026-08-12 11:20 INFO 정상\n",
+        "bytes": 176,
+        "totalChars": 134,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.8884e58aebeaf3b519bd7d251731",
+        "같은자리파일": [
+          "api-2026-08-13.log",
+          "worker-2026-08-13.log"
+        ],
+        "modifiedAt": "2026-08-14T15:09:09.431Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "api-2026-08-12.log 을(를) 읽었어요. (같은 자리에 2개 더: api-2026-08-13.log · worker-2026-08-13.log)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/로그/api-2026-08-12.log",
+        "kind": "file",
+        "label": "/private<방>/home/일감/로그/api-2026-08-12.log"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/로그/api-2026-08-13.log",
+          "limit": 200000
+        },
+        "providerCallId": "call_vtZE21pIRbQ5uqT4DAhEo7TY",
+        "callRef": "걸음4"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/로그/api-2026-08-13.log",
+        "text": "2026-08-13 09:12 ERROR E_CONN 상류 연결이 끊겼다\n2026-08-13 09:15 ERROR E_CONN 재시도가 실패했다\n2026-08-13 14:02 INFO 정상\n",
+        "bytes": 142,
+        "totalChars": 106,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.7cf7bacae2461fe81bd6f8f397ab",
+        "같은자리파일": [
+          "api-2026-08-12.log",
+          "worker-2026-08-13.log"
+        ],
+        "modifiedAt": "2026-08-14T15:09:09.431Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "api-2026-08-13.log 을(를) 읽었어요. (같은 자리에 2개 더: api-2026-08-12.log · worker-2026-08-13.log)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/로그/api-2026-08-13.log",
+        "kind": "file",
+        "label": "/private<방>/home/일감/로그/api-2026-08-13.log"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/로그/worker-2026-08-13.log",
+          "limit": 200000
+        },
+        "providerCallId": "call_PhKUi8VPMJ7dz4P2whIKJAhO",
+        "callRef": "걸음5"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/로그/worker-2026-08-13.log",
+        "text": "2026-08-13 08:00 INFO 시작\n2026-08-13 08:41 ERROR E_TIMEOUT 작업이 60초를 넘겼다\n2026-08-13 09:15 ERROR E_CONN 재시도가 실패했다\n",
+        "bytes": 147,
+        "totalChars": 111,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.e1bba74d6bf7efe71121c3a1a31d",
+        "같은자리파일": [
+          "api-2026-08-12.log",
+          "api-2026-08-13.log"
+        ],
+        "modifiedAt": "2026-08-14T15:09:09.431Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "worker-2026-08-13.log 을(를) 읽었어요. (같은 자리에 2개 더: api-2026-08-12.log · api-2026-08-13.log)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/로그/worker-2026-08-13.log",
+        "kind": "file",
+        "label": "/private<방>/home/일감/로그/worker-2026-08-13.log"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImVkMzFiYzcxLTRjMDgtNDA0ZC04YzgzLWY4Y2JmNGFkOTg5YyIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.4RFJTLfBzxlZQPoZkiqHJ7zLiuIjKDrxG3A7bI2eyh4",
+      "turnRef": {
+        "sessionId": "ed31bc71-4c08-404d-8c83-f8cbf4ad989c",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

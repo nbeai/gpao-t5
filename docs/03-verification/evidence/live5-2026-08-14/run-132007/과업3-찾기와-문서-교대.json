@@ -1,0 +1,651 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 3,
+    "이름": "찾기와-문서-교대",
+    "모양": "싱글턴",
+    "발화": "지난달 매출 표가 어디 있는지 못 찾겠어. 일감 폴더에서 찾아주고, 회의메모에 그 얘기가 나온 게 있으면 뭐라고 적혀 있는지도 같이 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "3ce512165436f918c51662893f3622d7d872dfeb",
+  "시각": "2026-08-14T13:20:27.073Z",
+  "걸린ms": 13864,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": true,
+    "이유": null,
+    "조건근거": "조건 없음"
+  },
+  "채점": {
+    "개입": {
+      "합": 0,
+      "승인카드": 0,
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 1,
+          "센것": 7,
+          "결실": 7,
+          "빈손": 0,
+          "막힘": 0,
+          "한줄": [
+            "local.locate — candidates 5건",
+            "local.file(list) — items 3건",
+            "local.locate — candidates 2건",
+            "local.file(read) — text 14자",
+            "local.file(read) — text 14자",
+            "local.file(read) — text 102자",
+            "local.file(read) — text 118자"
+          ]
+        }
+      },
+      "대본발화": []
+    },
+    "실물": {
+      "새로생김": [],
+      "생겼나": false
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "보관",
+        "2026-07"
+      ],
+      "재본후보": [
+        "보관",
+        "2026-07"
+      ]
+    },
+    "내용": {
+      "통과": true,
+      "근거": {
+        "답이가리킨자리": [
+          "보관",
+          "2026-07"
+        ],
+        "답이인용한메모": [
+          "7월",
+          "보관 폴더"
+        ],
+        "쓴손": [
+          "local.locate",
+          "local.file"
+        ]
+      }
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 7건"
+      },
+      {
+        "이름": "실행",
+        "상태": "PASS",
+        "근거": "실제로 돈 영수증 7건"
+      },
+      {
+        "이름": "실물",
+        "상태": "해당없음",
+        "근거": "이 과업은 파일을 요구하지 않는다"
+      },
+      {
+        "이름": "내용",
+        "상태": "PASS",
+        "근거": {
+          "답이가리킨자리": [
+            "보관",
+            "2026-07"
+          ],
+          "답이인용한메모": [
+            "7월",
+            "보관 폴더"
+          ],
+          "쓴손": [
+            "local.locate",
+            "local.file"
+          ]
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "보관",
+            "2026-07"
+          ],
+          "재본후보": [
+            "보관",
+            "2026-07"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "끝까지",
+    "완료": true
+  },
+  "미측정관측": null,
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "지난달 매출 표가 어디 있는지 못 찾겠어. 일감 폴더에서 찾아주고, 회의메모에 그 얘기가 나온 게 있으면 뭐라고 적혀 있는지도 같이 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "지금 기준으로 보면:\n\n1. **지난달(7월) 매출 표 위치**\n- 경로: `일감/보관/2026-07/`\n- 파일:\n  - `매출-동부.tsv`\n  - `매출-서부.tsv`\n\n각 파일 안 내용은:\n- `매출-동부.tsv`\n  - `A 8200`\n  - `B 9000`\n- `매출-서부.tsv`\n  - `A 5000`\n  - `C 6000`\n\n2. **회의메모에 나온 관련 내용**\n\n`일감/문서/회의메모-2026-08-12.md` 에 이렇게 적혀 있어:\n\n> - 7월 매출 표는 보관 폴더로 옮겨 뒀다. 이번 달 것과 섞이지 않게.  \n> - 7월은 B 제품이 예상보다 약했다. 8월에 다시 본다.  \n> - 환불은 7월에 B 에서 한 건 있었다.\n\n이 메모 내용 그대로 지금 보관 폴더(`보관/2026-07/`)에 지난달 매출 표가 들어가 있는 상태야.",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 5건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "표",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 3건"
+    },
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 2건"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "보관/2026-07/매출-동부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 14자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "보관/2026-07/매출-서부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 14자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "문서/회의메모-2026-08-10.md",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 102자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "문서/회의메모-2026-08-12.md",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 118자"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {}
+  },
+  "원장원문": [
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "지난달 매출 표",
+          "from": "일감",
+          "depth": 5
+        },
+        "providerCallId": "call_T6BUNUPHAOBRGyhVmllp1aU2",
+        "callRef": "p1"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감/표",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이름이 맞아요 · 오늘 고쳤어요",
+            "confidence": "medium",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/표/매출-동부.tsv",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          },
+          {
+            "path": "<방>/home/일감/표/매출-서부.tsv",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          },
+          {
+            "path": "<방>/home/일감/보관/2026-07/매출-동부.tsv",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.072Z"
+          },
+          {
+            "path": "<방>/home/일감/보관/2026-07/매출-서부.tsv",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.072Z"
+          }
+        ],
+        "searched": {
+          "from": "<방>/home/일감",
+          "fromName": "일감",
+          "depth": 5,
+          "folders": 6
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 5곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "readScopeRoots": [
+        "/private<방>/home/일감"
+      ],
+      "subject": {
+        "key": "place_candidates:<방>/home/일감/표|<방>/home/일감/표/매출-동부.tsv|<방>/home/일감/표/매출-서부.tsv|<방>/home/일감/보관/2026-07/매출-동부.tsv|<방>/home/일감/보관/2026-07/매출-서부.tsv",
+        "kind": "place_candidates",
+        "label": "5곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감/표(이름이 맞아요 · 오늘 고쳤어요) · <방>/home/일감/표/매출-동부.tsv(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요) · <방>/home/일감/표/매출-서부.tsv(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요) · <방>/home/일감/보관/2026-07/매출-동부.tsv(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요) · <방>/home/일감/보관/2026-07/매출-서부.tsv(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감/표",
+          "<방>/home/일감/표/매출-동부.tsv",
+          "<방>/home/일감/표/매출-서부.tsv",
+          "<방>/home/일감/보관/2026-07/매출-동부.tsv",
+          "<방>/home/일감/보관/2026-07/매출-서부.tsv"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "표",
+          "limit": 100
+        },
+        "providerCallId": "call_ABZRduFCKFDzPodn14dVCK84",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표",
+        "items": [
+          {
+            "name": "매출-동부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          },
+          {
+            "name": "매출-서부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          },
+          {
+            "name": "환불.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          }
+        ],
+        "total": 3,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "3개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "회의메모",
+          "from": "일감",
+          "depth": 5
+        },
+        "providerCallId": "call_N5TgVH9y8lDg4J2PCkLHRPeh",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감/문서/회의메모-2026-08-10.md",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.071Z"
+          },
+          {
+            "path": "<방>/home/일감/문서/회의메모-2026-08-12.md",
+            "kind": "file",
+            "kindLabel": "파일",
+            "why": "이름에 그 낱말이 있어요 · 1분 전에 고쳤어요",
+            "confidence": "medium",
+            "이름맞음": "partial",
+            "modifiedDaysAgo": 0,
+            "modifiedAt": "2026-08-14T13:20:27.072Z"
+          }
+        ],
+        "searched": {
+          "from": "<방>/home/일감",
+          "fromName": "일감",
+          "depth": 5,
+          "folders": 6
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 2곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "readScopeRoots": [
+        "/private<방>/home/일감"
+      ],
+      "subject": {
+        "key": "place_candidates:<방>/home/일감/문서/회의메모-2026-08-10.md|<방>/home/일감/문서/회의메모-2026-08-12.md",
+        "kind": "place_candidates",
+        "label": "2곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감/문서/회의메모-2026-08-10.md(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요) · <방>/home/일감/문서/회의메모-2026-08-12.md(이름에 그 낱말이 있어요 · 1분 전에 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감/문서/회의메모-2026-08-10.md",
+          "<방>/home/일감/문서/회의메모-2026-08-12.md"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "보관/2026-07/매출-동부.tsv",
+          "limit": 500
+        },
+        "providerCallId": "call_ugJMRX788Vj7RnLD2DseD6XM",
+        "callRef": "걸음3"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/보관/2026-07/매출-동부.tsv",
+        "text": "A\t8200\nB\t9000\n",
+        "bytes": 14,
+        "totalChars": 14,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.e9e05043d20e21506bd5277a0309",
+        "같은자리파일": [
+          "매출-서부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T13:20:27.072Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-동부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-서부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/보관/2026-07/매출-동부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/보관/2026-07/매출-동부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "보관/2026-07/매출-서부.tsv",
+          "limit": 500
+        },
+        "providerCallId": "call_lNvI8xrfimyDRO8RwJSL0YlB",
+        "callRef": "걸음4"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/보관/2026-07/매출-서부.tsv",
+        "text": "A\t5000\nC\t6000\n",
+        "bytes": 14,
+        "totalChars": 14,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.f66db5d80451eeff2d3383a1af92",
+        "같은자리파일": [
+          "매출-동부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T13:20:27.072Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-서부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-동부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/보관/2026-07/매출-서부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/보관/2026-07/매출-서부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "문서/회의메모-2026-08-10.md",
+          "limit": 2000
+        },
+        "providerCallId": "call_OOBLfx59zsFJtIvKDLch4i2j",
+        "callRef": "걸음5"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/문서/회의메모-2026-08-10.md",
+        "text": "# 주간 회의 2026-08-10\n\n- 배포는 목요일로 미룬다.\n- 로그에 E_CONN 이 계속 뜬다는 얘기가 나왔다. 원인은 아직 모른다.\n- 다음 회의 때 표 정리 상태를 본다.\n",
+        "bytes": 202,
+        "totalChars": 102,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.6c6c97524df4dfd2faba1edd3926",
+        "같은자리파일": [
+          "회의메모-2026-08-12.md"
+        ],
+        "modifiedAt": "2026-08-14T13:20:27.071Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "회의메모-2026-08-10.md 을(를) 읽었어요. (같은 자리에 1개 더: 회의메모-2026-08-12.md)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/문서/회의메모-2026-08-10.md",
+        "kind": "file",
+        "label": "/private<방>/home/일감/문서/회의메모-2026-08-10.md"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "문서/회의메모-2026-08-12.md",
+          "limit": 2000
+        },
+        "providerCallId": "call_eB253CluZ4sIlgCJtOqJGmtG",
+        "callRef": "걸음6"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/문서/회의메모-2026-08-12.md",
+        "text": "# 주간 회의 2026-08-12\n\n- 7월 매출 표는 보관 폴더로 옮겨 뒀다. 이번 달 것과 섞이지 않게.\n- 7월은 B 제품이 예상보다 약했다. 8월에 다시 본다.\n- 환불은 7월에 B 에서 한 건 있었다.\n",
+        "bytes": 234,
+        "totalChars": 118,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.d2f83a754dc5b46266d82f95149e",
+        "같은자리파일": [
+          "회의메모-2026-08-10.md"
+        ],
+        "modifiedAt": "2026-08-14T13:20:27.072Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "회의메모-2026-08-12.md 을(를) 읽었어요. (같은 자리에 1개 더: 회의메모-2026-08-10.md)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/문서/회의메모-2026-08-12.md",
+        "kind": "file",
+        "label": "/private<방>/home/일감/문서/회의메모-2026-08-12.md"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjkxMTY3Yjc4LTc1M2EtNGJkMy05ODhlLThkOTJjNjdkYWE4MiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.CxK5ZYpeCLRQhsn9lP-ai428CVsjRQ7nm-1eHs0y6gA",
+      "turnRef": {
+        "sessionId": "91167b78-753a-4bd3-988e-8d92c67daa82",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

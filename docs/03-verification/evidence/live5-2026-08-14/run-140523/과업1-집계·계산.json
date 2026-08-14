@@ -1,0 +1,533 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 1,
+    "이름": "집계·계산",
+    "모양": "싱글턴",
+    "발화": "일감 폴더에 로그랑 표가 같이 있어. 로그 폴더에서 ERROR 가 코드별로 몇 건인지 세고, 표/매출-동부.tsv 의 금액 합계도 같이 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "753e41089268b7d13fd6f09e2e24dce780cd5add",
+  "시각": "2026-08-14T14:05:23.071Z",
+  "걸린ms": 13093,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": true,
+    "이유": null,
+    "조건근거": "조건 없음 — 재료가 이미 자리에 있다"
+  },
+  "채점": {
+    "옳은행동": "로그 폴더의 로그 셋을 전부 훑어 E_CONN 4건 · E_PARSE 1건 · E_TIMEOUT 1건을 답에 적고, 표/매출-동부.tsv 두 줄을 더한 25000 을 함께 적는다. 파일은 만들지 않고 원본도 건드리지 않는다.",
+    "개입": {
+      "합": 0,
+      "승인카드": 0
+    },
+    "참고관측": {
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 1,
+          "센것": 5,
+          "시도없음": false,
+          "결실": 4,
+          "빈손": 0,
+          "막힘": 1,
+          "한줄": [
+            "local.file(list) — items 5건",
+            "local.file(read) — 막혔다(failed)",
+            "local.file(read) — text 16자",
+            "local.file(list) — items 3건",
+            "local.terminal — stdout 11자"
+          ],
+          "왜": "사용자에게 달라는 것이 없다 — 그냥 보고다"
+        }
+      },
+      "대본발화": []
+    },
+    "터미널": {
+      "호출수": 1,
+      "서로다른명령": 1,
+      "쓴프로그램": [
+        "cd",
+        "grep",
+        "awk",
+        "sort",
+        "uniq"
+      ],
+      "쓴프로그램수": 5,
+      "이어붙임": 1,
+      "결실": 1,
+      "실패": 0,
+      "실패뒤이어감": 0,
+      "실패한것": [],
+      "다른손": [
+        "local.file"
+      ]
+    },
+    "실물": {
+      "새로생김": [],
+      "생겼나": false
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "로그",
+        "매출-동부"
+      ],
+      "재본후보": [
+        "로그",
+        "매출-동부"
+      ]
+    },
+    "내용": {
+      "통과": false,
+      "근거": {
+        "코드별": [
+          {
+            "코드": "E_CONN",
+            "통과": false,
+            "근거": "E_CONN 가 답에 없다"
+          },
+          {
+            "코드": "E_PARSE",
+            "통과": false,
+            "근거": "E_PARSE 가 답에 없다"
+          },
+          {
+            "코드": "E_TIMEOUT",
+            "통과": false,
+            "근거": "E_TIMEOUT 가 답에 없다"
+          }
+        ],
+        "동부합계": "25000 를 답에서 찾았다"
+      }
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 5건"
+      },
+      {
+        "이름": "실행",
+        "상태": "PASS",
+        "근거": "실제로 돈 영수증 3건"
+      },
+      {
+        "이름": "실물",
+        "상태": "해당없음",
+        "근거": "이 과업은 파일을 요구하지 않는다"
+      },
+      {
+        "이름": "내용",
+        "상태": "FAIL",
+        "근거": {
+          "옳은행동": "로그 폴더의 로그 셋을 전부 훑어 E_CONN 4건 · E_PARSE 1건 · E_TIMEOUT 1건을 답에 적고, 표/매출-동부.tsv 두 줄을 더한 25000 을 함께 적는다. 파일은 만들지 않고 원본도 건드리지 않는다.",
+          "잰것": {
+            "코드별": [
+              {
+                "코드": "E_CONN",
+                "통과": false,
+                "근거": "E_CONN 가 답에 없다"
+              },
+              {
+                "코드": "E_PARSE",
+                "통과": false,
+                "근거": "E_PARSE 가 답에 없다"
+              },
+              {
+                "코드": "E_TIMEOUT",
+                "통과": false,
+                "근거": "E_TIMEOUT 가 답에 없다"
+              }
+            ],
+            "동부합계": "25000 를 답에서 찾았다"
+          }
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "로그",
+            "매출-동부"
+          ],
+          "재본후보": [
+            "로그",
+            "매출-동부"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "내용",
+    "완료": false
+  },
+  "미측정관측": null,
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "일감 폴더에 로그랑 표가 같이 있어. 로그 폴더에서 ERROR 가 코드별로 몇 건인지 세고, 표/매출-동부.tsv 의 금액 합계도 같이 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "- 로그 폴더 ERROR 집계:  \n  - `ERROR` 코드 6건\n\n- `표/매출-동부.tsv` 금액 합계:  \n  - A 10000  \n  - B 15000  \n  → 합계: **25,000**",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": ".",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 5건"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "로그",
+      "command": null,
+      "cwd": null,
+      "failureState": "blocked",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": false,
+      "빈손": false,
+      "막힘": true,
+      "결실근거": "막혔다(failed)"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "표/매출-동부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "로그",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 3건"
+    },
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+      "cwd": "<방>/home",
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": 0,
+      "applied": false,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "stdout 11자"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {}
+  },
+  "원장원문": [
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": ".",
+          "limit": 200
+        },
+        "providerCallId": "call_lKqKjnODQr7VIxLqk8DzftJ3",
+        "callRef": "p1"
+      },
+      "result": {
+        "path": "/private<방>/home/일감",
+        "items": [
+          {
+            "name": "로그",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          },
+          {
+            "name": "문서",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          },
+          {
+            "name": "받은자료",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T14:05:23.069Z"
+          },
+          {
+            "name": "보관",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          },
+          {
+            "name": "표",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          }
+        ],
+        "total": 5,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "5개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감",
+        "kind": "file",
+        "label": "/private<방>/home/일감"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "로그",
+          "limit": 1000
+        },
+        "providerCallId": "call_Sow2ImdT2nknXQDt2nQWACWq",
+        "callRef": "걸음1"
+      },
+      "failureState": "blocked",
+      "lifecycle": "failed",
+      "userSafeSummary": "그건 파일이 아니라 폴더예요.",
+      "nextSafeAction": "폴더 안을 보여드릴까요?",
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "표/매출-동부.tsv",
+          "limit": 10000
+        },
+        "providerCallId": "call_vFMEgFMYWI72sQMs2HKYDR2q",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-동부.tsv",
+        "text": "A\t10000\nB\t15000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.e43a5fa943b41428e7bb9eb6438a",
+        "같은자리파일": [
+          "매출-서부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T14:05:23.065Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-동부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-서부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-동부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-동부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "로그",
+          "limit": 200
+        },
+        "providerCallId": "call_Qmxy3NIAXqNmEv6vpzdHChSn",
+        "callRef": "걸음3"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/로그",
+        "items": [
+          {
+            "name": "api-2026-08-12.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T14:05:23.064Z"
+          },
+          {
+            "name": "api-2026-08-13.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          },
+          {
+            "name": "worker-2026-08-13.log",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T14:05:23.065Z"
+          }
+        ],
+        "total": 3,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "3개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/로그",
+        "kind": "file",
+        "label": "/private<방>/home/일감/로그"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+          "timeoutMs": 120000,
+          "cwd": "<방>/home",
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+            "cwd": "<방>/home",
+            "mode": "probe",
+            "exitCode": 0,
+            "durationMs": 31,
+            "stdout": "   6 ERROR\n",
+            "stderr": "",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_LqThASoxIqsIEYwlCcVf8eL3",
+        "callRef": "걸음4"
+      },
+      "result": {
+        "command": "cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+        "cwd": "<방>/home",
+        "exitCode": 0,
+        "durationMs": 31,
+        "stdout": "   6 ERROR\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "확인만 했어요 — 아직 아무것도 바꾸지 않았어요.",
+      "subject": {
+        "key": "cmd:cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+        "kind": "command",
+        "label": "cd /private<방>/home/일감/로그 && grep \"ERROR\" *.log | awk '{print $3}' | sort | uniq -c | sort -nr",
+        "detail": "<방>/home",
+        "exitCode": 0,
+        "failed": false
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "로컬 파일 실행",
+      "actualCall": null,
+      "제안한호출": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "표/매출-동부.tsv",
+          "limit": 10000
+        },
+        "providerCallId": "call_0njHaspTeyLQqRXTbxj27XgI",
+        "callRef": "걸음5"
+      },
+      "failureState": "cancelled",
+      "lifecycle": "none",
+      "userSafeSummary": "방금 한 것과 같은 일이라 다시 하지 않았어요.",
+      "diagnosticTrace": {
+        "callId": "걸음5",
+        "순번": 5,
+        "tool": "local.file",
+        "reason": "되풀이"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjAxYjZlMjZkLWIxOTYtNGIwYS1iZDhiLTY5Nzk0NTQ0ZmU1OCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.nfpMqg3oLErzrgnM9z-BjEtDJkliDAYxodh_fk83vag",
+      "turnRef": {
+        "sessionId": "01b6e26d-b196-4b0a-bd8b-69794544fe58",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

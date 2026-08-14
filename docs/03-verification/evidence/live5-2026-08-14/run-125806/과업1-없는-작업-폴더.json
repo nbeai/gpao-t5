@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 1,
+    "이름": "없는-작업-폴더",
+    "모양": "싱글턴",
+    "발화": "일감 폴더 안 로그 폴더에 로그가 쌓여 있어. 터미널로 ERROR 가 코드별로 몇 건인지 세서 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "19d166c3371214e8508b17c83458197805c065c5",
+  "시각": "2026-08-14T12:58:06.990Z",
+  "걸린ms": 6606,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": false,
+    "이유": "모델이 없는 작업 폴더를 한 번도 안 댔다 — 이 수리의 정의역이 서지 않았다"
+  },
+  "채점": null,
+  "미측정관측": {
+    "개입": {
+      "합": 0,
+      "승인카드": 0,
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "대본발화": []
+    },
+    "실물": {
+      "새로생김": [],
+      "생겼나": false
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": false,
+      "말한자리": [],
+      "재본후보": [
+        "로그"
+      ]
+    },
+    "내용": {
+      "통과": true,
+      "근거": [
+        {
+          "코드": "E_CONN",
+          "통과": true,
+          "근거": "E_CONN: 4건  \n- E_TIMEOUT: 1건  \n- E_PARSE"
+        },
+        {
+          "코드": "E_PARSE",
+          "통과": true,
+          "근거": "E_PARSE: 1건  \n\n다른 형식으로 보고 싶으면(예: 파일별 집계,"
+        },
+        {
+          "코드": "E_TIMEOUT",
+          "통과": true,
+          "근거": "E_TIMEOUT: 1건  \n- E_PARSE: 1건  \n\n다른 형식으로"
+        }
+      ]
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 2건"
+      },
+      {
+        "이름": "실행",
+        "상태": "FAIL",
+        "근거": "실제로 돈 영수증 0건"
+      },
+      {
+        "이름": "실물",
+        "상태": "해당없음",
+        "근거": "이 과업은 파일을 요구하지 않는다"
+      },
+      {
+        "이름": "내용",
+        "상태": "PASS",
+        "근거": [
+          {
+            "코드": "E_CONN",
+            "통과": true,
+            "근거": "E_CONN: 4건  \n- E_TIMEOUT: 1건  \n- E_PARSE"
+          },
+          {
+            "코드": "E_PARSE",
+            "통과": true,
+            "근거": "E_PARSE: 1건  \n\n다른 형식으로 보고 싶으면(예: 파일별 집계,"
+          },
+          {
+            "코드": "E_TIMEOUT",
+            "통과": true,
+            "근거": "E_TIMEOUT: 1건  \n- E_PARSE: 1건  \n\n다른 형식으로"
+          }
+        ]
+      },
+      {
+        "이름": "자리고지",
+        "상태": "FAIL",
+        "근거": {
+          "알렸나": false,
+          "말한자리": [],
+          "재본후보": [
+            "로그"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "실행",
+    "완료": false
+  },
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "일감 폴더 안 로그 폴더에 로그가 쌓여 있어. 터미널로 ERROR 가 코드별로 몇 건인지 세서 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "터미널에서 ERROR 코드를 기준으로 집계한 결과야.\n\n- E_CONN: 4건  \n- E_TIMEOUT: 1건  \n- E_PARSE: 1건  \n\n다른 형식으로 보고 싶으면(예: 파일별 집계, 날짜별 집계) 말해 줘.",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "cd ~/일감 && find . -type d -name '로그' -print",
+      "cwd": "<방>/home",
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": 0,
+      "applied": false
+    },
+    {
+      "tool": "local.terminal",
+      "action": null,
+      "path": null,
+      "command": "cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+      "cwd": "<방>/home",
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": 0,
+      "applied": false
+    }
+  ],
+  "파일변화": {
+    "새로생김": [],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {}
+  },
+  "원장원문": [
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "cd ~/일감 && find . -type d -name '로그' -print",
+          "cwd": "<방>/home",
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "cd ~/일감 && find . -type d -name '로그' -print",
+            "cwd": "<방>/home",
+            "mode": "probe",
+            "exitCode": 0,
+            "durationMs": 33,
+            "stdout": "./로그\n",
+            "stderr": "",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_GTiMOkP7Y7D8h5MzsFREZBXb",
+        "callRef": "p1"
+      },
+      "result": {
+        "command": "cd ~/일감 && find . -type d -name '로그' -print",
+        "cwd": "<방>/home",
+        "exitCode": 0,
+        "durationMs": 33,
+        "stdout": "./로그\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "확인만 했어요 — 아직 아무것도 바꾸지 않았어요.",
+      "subject": {
+        "key": "cmd:cd ~/일감 && find . -type d -name '로그' -print",
+        "kind": "command",
+        "label": "cd ~/일감 && find . -type d -name '로그' -print",
+        "detail": "<방>/home",
+        "exitCode": 0,
+        "failed": false
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImZlOWJlNzY0LWVjNDItNDUzZC05YTE2LTk3MGNhOTM1NjMyMCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3pxbfmUscGAHohMut8BwlFWZ-lFUV2wPFJdTu84GWgw",
+      "turnRef": {
+        "sessionId": "fe9be764-ec42-453d-9a16-970ca9356320",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.terminal 실행",
+      "actualCall": {
+        "tool": "local.terminal",
+        "args": {
+          "command": "cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+          "timeoutMs": 600000,
+          "cwd": "<방>/home",
+          "changes": false,
+          "granted": false,
+          "probeResult": {
+            "command": "cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+            "cwd": "<방>/home",
+            "mode": "probe",
+            "exitCode": 0,
+            "durationMs": 39,
+            "stdout": "   4 E_CONN\n   1 E_TIMEOUT\n   1 E_PARSE\n",
+            "stderr": "",
+            "truncated": false,
+            "omittedChars": 0
+          }
+        },
+        "providerCallId": "call_oo1eWQF367JlWZfn5dgfjH1E",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "command": "cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+        "cwd": "<방>/home",
+        "exitCode": 0,
+        "durationMs": 39,
+        "stdout": "   4 E_CONN\n   1 E_TIMEOUT\n   1 E_PARSE\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "확인만 했어요 — 아직 아무것도 바꾸지 않았어요.",
+      "subject": {
+        "key": "cmd:cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+        "kind": "command",
+        "label": "cd ~/일감/로그 && grep -h \"ERROR\" * | awk -F'ERROR' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -nr",
+        "detail": "<방>/home",
+        "exitCode": 0,
+        "failed": false
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImZlOWJlNzY0LWVjNDItNDUzZC05YTE2LTk3MGNhOTM1NjMyMCIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3pxbfmUscGAHohMut8BwlFWZ-lFUV2wPFJdTu84GWgw",
+      "turnRef": {
+        "sessionId": "fe9be764-ec42-453d-9a16-970ca9356320",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

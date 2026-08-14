@@ -1,0 +1,534 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 2,
+    "이름": "변환·가공",
+    "모양": "싱글턴",
+    "발화": "표 폴더에 이번 달 매출이랑 환불이 들어 있어. 동부랑 서부를 더하고 환불을 빼서 순매출을 내줘. 결과는 표 폴더에 순매출.tsv 로 저장해줘 — 헤더 없이 A, B, C 순서로 「이름<탭>금액」 세 줄, 줄 끝은 개행."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "59d68451cb5b2c3216b90d8b9432ffac625cac8b",
+  "시각": "2026-08-14T15:05:01.080Z",
+  "걸린ms": 11590,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": true,
+    "이유": null,
+    "조건근거": "조건 없음 — 재료가 이미 자리에 있다"
+  },
+  "채점": {
+    "옳은행동": "표/매출-동부.tsv 와 표/매출-서부.tsv 를 더하고 표/환불.tsv 를 뺀 값을 A·B·C 순서로, 헤더 없이 「이름<탭>금액」 세 줄에 줄 끝 개행까지 맞춰 표 폴더에 순매출.tsv 로 저장하고 저장한 자리를 답에 말한다. 원본 셋은 그대로 둔다.",
+    "개입": {
+      "합": 0,
+      "승인카드": 0
+    },
+    "참고관측": {
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 1,
+          "센것": 6,
+          "시도없음": false,
+          "결실": 6,
+          "빈손": 0,
+          "막힘": 0,
+          "한줄": [
+            "local.locate — candidates 2건",
+            "local.file(list) — items 3건",
+            "local.file(read) — text 16자",
+            "local.file(read) — text 16자",
+            "local.file(read) — text 7자",
+            "local.file(write) — 기록됐다(24)"
+          ],
+          "왜": "사용자에게 달라는 것이 없다 — 그냥 보고다"
+        }
+      },
+      "대본발화": []
+    },
+    "터미널": {
+      "호출수": 0,
+      "서로다른명령": 0,
+      "쓴프로그램": [],
+      "쓴프로그램수": 0,
+      "이어붙임": 0,
+      "결실": 0,
+      "실패": 0,
+      "실패뒤이어감": 0,
+      "실패한것": [],
+      "다른손": [
+        "local.locate",
+        "local.file"
+      ]
+    },
+    "실물": {
+      "새로생김": [
+        "표/순매출.tsv"
+      ],
+      "생겼나": true
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "순매출.tsv"
+      ],
+      "재본후보": [
+        "표/순매출.tsv",
+        "순매출.tsv"
+      ]
+    },
+    "내용": {
+      "통과": true,
+      "근거": "표/순매출.tsv 가 바이트까지 같다"
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 6건"
+      },
+      {
+        "이름": "실행",
+        "상태": "PASS",
+        "근거": "실제로 돈 영수증 6건"
+      },
+      {
+        "이름": "실물",
+        "상태": "PASS",
+        "근거": [
+          "표/순매출.tsv"
+        ]
+      },
+      {
+        "이름": "내용",
+        "상태": "PASS",
+        "근거": {
+          "옳은행동": "표/매출-동부.tsv 와 표/매출-서부.tsv 를 더하고 표/환불.tsv 를 뺀 값을 A·B·C 순서로, 헤더 없이 「이름<탭>금액」 세 줄에 줄 끝 개행까지 맞춰 표 폴더에 순매출.tsv 로 저장하고 저장한 자리를 답에 말한다. 원본 셋은 그대로 둔다.",
+          "잰것": "표/순매출.tsv 가 바이트까지 같다"
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "순매출.tsv"
+          ],
+          "재본후보": [
+            "표/순매출.tsv",
+            "순매출.tsv"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "끝까지",
+    "완료": true
+  },
+  "미측정관측": null,
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "표 폴더에 이번 달 매출이랑 환불이 들어 있어. 동부랑 서부를 더하고 환불을 빼서 순매출을 내줘. 결과는 표 폴더에 순매출.tsv 로 저장해줘 — 헤더 없이 A, B, C 순서로 「이름<탭>금액」 세 줄, 줄 끝은 개행.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "표 폴더에 순매출.tsv 만들어 놨어.\n\n계산은 이렇게 했어(공백은 실제로는 탭):\n\n- 동부:  \n  - A 10000  \n  - B 15000  \n\n- 서부:  \n  - A 15000  \n  - C 11000  \n\n- 환불:  \n  - A 2000  \n\n통합 후(동부+서부−환불):\n\n- A: 10000 + 15000 − 2000 = 23000  \n- B: 15000  \n- C: 11000  \n\n`순매출.tsv` 내용은 아래와 같아:\n\nA\\t23000  \nB\\t15000  \nC\\t11000  \n\n각 줄 끝에는 개행 들어가 있어.",
+      "question": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 2건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "<방>/home/일감/표",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 3건"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "/private<방>/home/일감/표/매출-동부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "/private<방>/home/일감/표/매출-서부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "/private<방>/home/일감/표/환불.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 7자"
+    },
+    {
+      "tool": "local.file",
+      "action": "write",
+      "path": "/private<방>/home/일감/표/순매출.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "기록됐다(24)"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [
+      "표/순매출.tsv"
+    ],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {
+      "표/순매출.tsv": "A\t23000\nB\t15000\nC\t11000\n"
+    }
+  },
+  "원장원문": [
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "표 폴더",
+          "depth": 3
+        },
+        "providerCallId": "call_sXvwfDsyOXEeKn9Ii88DQ5Z0",
+        "callRef": "p1"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감/표",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이름이 맞아요 · 오늘 고쳤어요",
+            "confidence": "medium",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/받은자료",
+            "kind": "documents",
+            "kindLabel": "문서·자료",
+            "why": "문서 19개 · 오늘 고쳤어요",
+            "confidence": "low",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 19,
+              "image": 0,
+              "text": 6,
+              "code": 0,
+              "mark": 0
+            }
+          }
+        ],
+        "searched": {
+          "from": "<방>/home",
+          "depth": 3,
+          "folders": 9
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 2곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "subject": {
+        "key": "place_candidates:<방>/home/일감/표|<방>/home/일감/받은자료",
+        "kind": "place_candidates",
+        "label": "2곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감/표(이름이 맞아요 · 오늘 고쳤어요) · <방>/home/일감/받은자료(문서 19개 · 오늘 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감/표",
+          "<방>/home/일감/받은자료"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "<방>/home/일감/표",
+          "limit": 50
+        },
+        "providerCallId": "call_Rd0CV5ayFOkvCq8q7r7sKP4u",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표",
+        "items": [
+          {
+            "name": "매출-동부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:05:01.074Z"
+          },
+          {
+            "name": "매출-서부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:05:01.074Z"
+          },
+          {
+            "name": "환불.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:05:01.074Z"
+          }
+        ],
+        "total": 3,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "3개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "/private<방>/home/일감/표/매출-동부.tsv"
+        },
+        "providerCallId": "call_5JWo9fUtSPw30Aj7BPAkWJGy",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-동부.tsv",
+        "text": "A\t10000\nB\t15000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.2451bdf551d8f41f1d6195ab2edf",
+        "같은자리파일": [
+          "매출-서부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:05:01.074Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-동부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-서부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-동부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-동부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "/private<방>/home/일감/표/매출-서부.tsv"
+        },
+        "providerCallId": "call_6Hr6yYsD4ZjCcBmuSbK2qdIv",
+        "callRef": "걸음3"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-서부.tsv",
+        "text": "A\t15000\nC\t11000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.5d1799d31ec89d6588480b97d12f",
+        "같은자리파일": [
+          "매출-동부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:05:01.074Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-서부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-동부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-서부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-서부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "/private<방>/home/일감/표/환불.tsv"
+        },
+        "providerCallId": "call_F5TkJiAV6AzTY5xqIKHao41A",
+        "callRef": "걸음4"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/환불.tsv",
+        "text": "A\t2000\n",
+        "bytes": 7,
+        "totalChars": 7,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.06e85fb492fbd05873cc6127a6c4",
+        "같은자리파일": [
+          "매출-동부.tsv",
+          "매출-서부.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:05:01.074Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "환불.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-동부.tsv · 매출-서부.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/환불.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/환불.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "write",
+          "path": "/private<방>/home/일감/표/순매출.tsv",
+          "text": "A\t23000\nB\t15000\nC\t11000\n",
+          "source": "/private<방>/home/일감/표"
+        },
+        "providerCallId": "call_b7TcMqyfKkjxySgmM0dQ2IyA",
+        "callRef": "걸음5"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/순매출.tsv",
+        "bytes": 24,
+        "overwritten": false,
+        "digest": "6877ae5812a6caf14e108e73c7d8b877bcdef5fa3480f45e9707b112b2b5b9d6",
+        "originalUntouched": true,
+        "source": "/private<방>/home/일감/표"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "순매출.tsv 을(를) 만들었어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/순매출.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/순매출.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6IjVhYmNhMjZiLTMxYjYtNDE5Yy05NWRlLWYxOGFjNDM4YTVjZiIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.all6mKgVVjnc9XkYPw9LE85-ZghuMdTK5CFlSS2uZEs",
+      "turnRef": {
+        "sessionId": "5abca26b-31b6-419c-95de-f18ac438a5cf",
+        "turnSeq": 1
+      }
+    }
+  ]
+}

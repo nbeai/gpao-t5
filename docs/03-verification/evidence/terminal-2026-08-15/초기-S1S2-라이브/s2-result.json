@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "scenario": "terminal-s2-missing-command-recovery",
+  "modelId": "gpt-5.1",
+  "harnessAdaptation": "baseline-b829813: processDelivery 칸이 없는 영수증은 exit code 존재로 delivered 를 판정. 그 외 판정 규칙은 동결본과 같다.",
+  "sourceHead": "cb96da6f9a8808ff47be443755b5a6009383a743",
+  "artifact": {
+    "expected": "E_CONN\t3\nE_PARSE\t1\n",
+    "observed": "3\t1\n",
+    "matches": false
+  },
+  "sourceUnchanged": true,
+  "approvals": 0,
+  "initialMissingCommandObserved": true,
+  "alternativeTerminalSuccess": false,
+  "outputWriteReceipts": 1,
+  "outputReadReceipts": 1,
+  "verifierReceipts": [
+    {
+      "pass": false,
+      "mismatch": {
+        "kind": "artifact_bytes",
+        "expected": "E_CONN\t3\nE_PARSE\t1\n",
+        "actual": "3\t1\n"
+      }
+    }
+  ],
+  "terminalReceipts": [
+    {
+      "command": "logstat --help",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home",
+      "failureState": "none"
+    },
+    {
+      "command": "grep -ho 'E_CONN\\|E_PARSE' work/api.log work/worker.log | sort | uniq -c",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home",
+      "failureState": "none"
+    },
+    {
+      "command": "grep -ho 'E_CONN\\|E_PARSE' api.log worker.log | sort | uniq -c",
+      "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home/work",
+      "failureState": "none"
+    }
+  ],
+  "runtimeTerminalObservations": [
+    {
+      "command": "logstat --help",
+      "observation": {
+        "command": "logstat --help",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home",
+        "exitCode": 127,
+        "durationMs": 14,
+        "stdout": "",
+        "stderr": "zsh:1: command not found: logstat\n",
+        "failedBy": "env",
+        "failReason": "missing",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "grep -ho 'E_CONN\\|E_PARSE' work/api.log work/worker.log | sort | uniq -c",
+      "observation": {
+        "command": "grep -ho 'E_CONN\\|E_PARSE' work/api.log work/worker.log | sort | uniq -c",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home",
+        "exitCode": 0,
+        "durationMs": 22,
+        "stdout": "   3 E_CONN\n   1 E_PARSE\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "grep -ho 'E_CONN\\|E_PARSE' api.log worker.log | sort | uniq -c",
+      "observation": {
+        "command": "grep -ho 'E_CONN\\|E_PARSE' api.log worker.log | sort | uniq -c",
+        "cwd": "/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-s2-live-klZmHT/home/work",
+        "exitCode": 0,
+        "durationMs": 32,
+        "stdout": "   3 E_CONN\n   1 E_PARSE\n",
+        "stderr": "",
+        "applied": false
+      },
+      "failureState": "none"
+    }
+  ],
+  "finalReply": "api.log, worker.log에서 ERROR 코드 집계 결과:\n\n- E_CONN: 3회  \n- E_PARSE: 1회  \n\nTSV 형식(E_CONN, E_PARSE 순, 탭 구분, 헤더 없음):\n\nE_CONN\\t3  \nE_PARSE\\t1",
+  "pass": false
+}

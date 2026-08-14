@@ -1,0 +1,860 @@
+{
+  "schemaVersion": 1,
+  "과업": {
+    "번호": 5,
+    "이름": "실패-복구",
+    "모양": "멀티턴",
+    "발화": "오늘 작업은 일감 폴더 안 backup 에서 해줘. 거기 지난달 표로 A·B·C 순매출(동부+서부-환불)을 계산해서 알려줘."
+  },
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "sourceHead": "59d68451cb5b2c3216b90d8b9432ffac625cac8b",
+  "시각": "2026-08-14T15:10:06.775Z",
+  "걸린ms": 38353,
+  "하네스오류": null,
+  "측정": {
+    "측정됨": false,
+    "이유": "모델이 없는 작업 폴더를 한 번도 안 댔다 — 이 수리의 정의역이 서지 않았다 (터미널이 실제로 선 자리: 없음)"
+  },
+  "채점": null,
+  "미측정관측": {
+    "옳은행동": "backup 이 이 컴퓨터에 없다는 것을 확인한 뒤, 사용자에게 되돌려 보내지 않고 스스로 보관/2026-07 을 찾아 A 13200 · B 8000 · C 5500 을 계산해 답에 적는다. 이어서 그 값을 일감/보고/지난달-순매출.tsv 로 남기고 어디에 뒀는지 말한다. 원본은 그대로 둔다.",
+    "개입": {
+      "합": 0,
+      "승인카드": 0
+    },
+    "참고관측": {
+      "되묻기": 0,
+      "유도갈래": 0,
+      "떠넘김의심": 0,
+      "떠넘김근거": [],
+      "떠넘김": {
+        "판정": "없음",
+        "신호": [],
+        "관찰신호": [],
+        "영수증근거": {
+          "본턴": 2,
+          "센것": 6,
+          "시도없음": false,
+          "결실": 6,
+          "빈손": 0,
+          "막힘": 0,
+          "한줄": [
+            "local.locate — candidates 3건",
+            "local.file(list) — items 3건",
+            "local.file(read) — text 16자",
+            "local.file(read) — text 16자",
+            "local.file(read) — text 7자",
+            "local.file(write) — 기록됐다(24)"
+          ],
+          "왜": "사용자에게 달라는 것이 없다 — 그냥 보고다"
+        }
+      },
+      "대본발화": [
+        {
+          "갈래": "못복구",
+          "발화": "폴더 이름은 내가 잘못 말했을 수도 있어. 지난달 표를 찾아서 A·B·C 순매출을 계산하고, 일감 폴더 안 보고 폴더에 지난달-순매출.tsv 로 남겨줘."
+        }
+      ]
+    },
+    "터미널": {
+      "호출수": 0,
+      "서로다른명령": 0,
+      "쓴프로그램": [],
+      "쓴프로그램수": 0,
+      "이어붙임": 0,
+      "결실": 0,
+      "실패": 0,
+      "실패뒤이어감": 0,
+      "실패한것": [],
+      "다른손": [
+        "local.locate",
+        "local.file"
+      ]
+    },
+    "실물": {
+      "새로생김": [
+        "보고/지난달-순매출.tsv"
+      ],
+      "생겼나": true
+    },
+    "원본불변": {
+      "지켜졌나": true,
+      "변함": [],
+      "사라짐": []
+    },
+    "자리고지": {
+      "알렸나": true,
+      "말한자리": [
+        "보고/지난달-순매출.tsv",
+        "지난달-순매출.tsv"
+      ],
+      "재본후보": [
+        "보고/지난달-순매출.tsv",
+        "지난달-순매출.tsv"
+      ]
+    },
+    "내용": {
+      "통과": false,
+      "근거": {
+        "답에있는지난달값": [],
+        "이번달숫자만나옴": true
+      }
+    },
+    "사다리": [
+      {
+        "이름": "손고름",
+        "상태": "PASS",
+        "근거": "영수증 10건"
+      },
+      {
+        "이름": "실행",
+        "상태": "PASS",
+        "근거": "실제로 돈 영수증 8건"
+      },
+      {
+        "이름": "실물",
+        "상태": "PASS",
+        "근거": [
+          "보고/지난달-순매출.tsv"
+        ]
+      },
+      {
+        "이름": "내용",
+        "상태": "FAIL",
+        "근거": {
+          "옳은행동": "backup 이 이 컴퓨터에 없다는 것을 확인한 뒤, 사용자에게 되돌려 보내지 않고 스스로 보관/2026-07 을 찾아 A 13200 · B 8000 · C 5500 을 계산해 답에 적는다. 이어서 그 값을 일감/보고/지난달-순매출.tsv 로 남기고 어디에 뒀는지 말한다. 원본은 그대로 둔다.",
+          "잰것": {
+            "답에있는지난달값": [],
+            "이번달숫자만나옴": true
+          }
+        }
+      },
+      {
+        "이름": "자리고지",
+        "상태": "PASS",
+        "근거": {
+          "알렸나": true,
+          "말한자리": [
+            "보고/지난달-순매출.tsv",
+            "지난달-순매출.tsv"
+          ],
+          "재본후보": [
+            "보고/지난달-순매출.tsv",
+            "지난달-순매출.tsv"
+          ]
+        }
+      }
+    ],
+    "멈춘칸": "내용",
+    "완료": false
+  },
+  "턴들": [
+    {
+      "차례": 1,
+      "발화": "오늘 작업은 일감 폴더 안 backup 에서 해줘. 거기 지난달 표로 A·B·C 순매출(동부+서부-환불)을 계산해서 알려줘.",
+      "갈래": null,
+      "kind": "reply",
+      "reply": "일감 폴더 안을 봤는데, 그 안에 `backup` 폴더는 지금 이 환경에서 잡히지 않습니다.\n\n지금 제가 실제로 확인한 구조는 이거예요:\n\n- 일감/\n  - 로그/\n  - 문서/\n  - 받은자료/\n  - 보관/\n  - 표/\n\n그래서 말씀하신 `일감/backup` 안의 지난달 표 파일을 직접 열 수 있는 상태가 아니라서, A·B·C 순매출(동부+서부-환불)을 실제 수치로 계산해서 드리지는 못합니다.\n\n대신 지금 이 상태에서 바로 할 수 있는 방법을 두 가지로 정리해 둘게요.\n\n1) 이 대화 안에서 처리하는 방법  \n- 지난달 표 구조만 간단히 알려 주세요. 예를 들면:\n  - 어떤 형식인지: 엑셀(.xlsx)인지, CSV인지, 아니면 표를 복붙할 수 있는지\n  - 열 이름: 예) `지점`, `지역`, `구분(A/B/C)`, `동부매출`, `서부매출`, `환불금액` …\n- 표 내용을 일부 혹은 전부 복사해서 붙여주시면, 그걸 기준으로:\n  - A/B/C별로 “동부+서부-환불” 계산\n  - 지역·상품·월 기준 등 원하는 집계 방식으로 순매출 요약\n  을 바로 계산해서 정리해 드릴 수 있습니다.\n\n2) 사용자가 폴더를 딱 짚어 주는 방법  \n- 만약 `backup`이 다른 위치에 있다면, 그 경로를 그대로 적어 주세요. 예:\n  - `일감/보관/backup`\n  - 또는 절대경로 전체\n- 그러면 그 폴더 안에서:\n  - “지난달”에 해당하는 파일(파일명에 년월이 있으면 그걸 기준, 없으면 파일 수정일 기준)을 골라\n  - 표 파일들을 읽고 A·B·C별로 “동부+서부-환불”을 계산해서\n  - “A/B/C 각각의 순매출 요약표”와, 필요하면 전체 합계까지 같이 정리해서 알려 드릴 수 있습니다.\n\n지금 상황에선 `backup` 위치 정보가 막혀 있어서,  \n1) 표 내용을 붙여 주시거나,  \n2) backup 실제 경로를 한 줄로 적어 주시면  \n그 기준으로 바로 계산까지 끝낸 결과만 들려드리겠습니다.",
+      "question": null
+    },
+    {
+      "차례": "1→2",
+      "분기조건": "1턴 답에 지난달 순매출 값이 두 개 이상 들어 있는가",
+      "고른갈래": "못복구",
+      "고른발화": "폴더 이름은 내가 잘못 말했을 수도 있어. 지난달 표를 찾아서 A·B·C 순매출을 계산하고, 일감 폴더 안 보고 폴더에 지난달-순매출.tsv 로 남겨줘."
+    },
+    {
+      "차례": 2,
+      "발화": "폴더 이름은 내가 잘못 말했을 수도 있어. 지난달 표를 찾아서 A·B·C 순매출을 계산하고, 일감 폴더 안 보고 폴더에 지난달-순매출.tsv 로 남겨줘.",
+      "갈래": "못복구",
+      "kind": "reply",
+      "reply": "지난달 표에서 A·B·C 순매출 계산해서, `일감/보고/지난달-순매출.tsv` 파일로 저장해 뒀어요.\n\n사용한 원본:\n- `일감/표/매출-동부.tsv`\n- `일감/표/매출-서부.tsv`\n- `일감/표/환불.tsv`\n\n계산 로직:  \n- 동부 + 서부 - 환불\n- 값이 없는 항목은 0으로 보고 계산\n\n계산 결과(A·B·C 순매출):\n\n- A: 동부 10,000 + 서부 15,000 - 환불 2,000 = **23,000**\n- B: 동부 15,000 + 서부 0 - 환불 0 = **15,000**\n- C: 동부 0 + 서부 11,000 - 환불 0 = **11,000**\n\n`지난달-순매출.tsv` 내용은 탭 구분으로 이렇게 들어가 있어:\n```tsv\nA\t23000\nB\t15000\nC\t11000\n```",
+      "question": null
+    },
+    {
+      "차례": "2→3",
+      "분기조건": "2턴 뒤 새 파일이 생겼는가",
+      "고른갈래": "완결",
+      "고른발화": null
+    }
+  ],
+  "영수증": [
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 2건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "<방>/home/일감/backup",
+      "command": null,
+      "cwd": null,
+      "failureState": "blocked",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": false,
+      "빈손": false,
+      "막힘": true,
+      "결실근거": "막혔다(failed)"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "일감",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 5건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "일감/backup",
+      "command": null,
+      "cwd": null,
+      "failureState": "blocked",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 1,
+      "결실": false,
+      "빈손": false,
+      "막힘": true,
+      "결실근거": "막혔다(failed)"
+    },
+    {
+      "tool": "local.locate",
+      "action": null,
+      "path": null,
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "candidates 3건"
+    },
+    {
+      "tool": "local.file",
+      "action": "list",
+      "path": "일감/표",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "items 3건"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/표/매출-동부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/표/매출-서부.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 16자"
+    },
+    {
+      "tool": "local.file",
+      "action": "read",
+      "path": "일감/표/환불.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "text 7자"
+    },
+    {
+      "tool": "local.file",
+      "action": "write",
+      "path": "일감/보고/지난달-순매출.tsv",
+      "command": null,
+      "cwd": null,
+      "failureState": "none",
+      "failedBy": null,
+      "failReason": null,
+      "exitCode": null,
+      "applied": null,
+      "turnSeq": 2,
+      "결실": true,
+      "빈손": false,
+      "막힘": false,
+      "결실근거": "기록됐다(24)"
+    }
+  ],
+  "파일변화": {
+    "새로생김": [
+      "보고/지난달-순매출.tsv"
+    ],
+    "변함": [],
+    "사라짐": [],
+    "새파일내용": {
+      "보고/지난달-순매출.tsv": "A\t23000\nB\t15000\nC\t11000\n"
+    }
+  },
+  "원장원문": [
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "일감 폴더",
+          "depth": 3
+        },
+        "providerCallId": "call_3SSqvYrY6HOeyUMe6zl0xyJt",
+        "callRef": "p1"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이번 요청에서 이름을 직접 부른 폴더예요 · 이름이 맞아요 · 오늘 고쳤어요",
+            "confidence": "high",
+            "explicitlyRequested": true,
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/받은자료",
+            "kind": "documents",
+            "kindLabel": "문서·자료",
+            "why": "문서 19개 · 오늘 고쳤어요",
+            "confidence": "low",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 19,
+              "image": 0,
+              "text": 6,
+              "code": 0,
+              "mark": 0
+            }
+          }
+        ],
+        "searched": {
+          "from": "<방>/home",
+          "depth": 3,
+          "folders": 9
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 2곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "readScopeRoots": [
+        "/private<방>/home/일감"
+      ],
+      "subject": {
+        "key": "place_candidates:<방>/home/일감|<방>/home/일감/받은자료",
+        "kind": "place_candidates",
+        "label": "2곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감(이번 요청에서 이름을 직접 부른 폴더예요 · 이름이 맞아요 · 오늘 고쳤어요) · <방>/home/일감/받은자료(문서 19개 · 오늘 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감",
+          "<방>/home/일감/받은자료"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3a66yMWma3OChBdTB0viH1zYSqUwPuoFJUVgOcJQT6s",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "<방>/home/일감/backup",
+          "limit": 200
+        },
+        "providerCallId": "call_4RKXMzXcOxX5UaNvs59W5tk9",
+        "callRef": "걸음1"
+      },
+      "failureState": "blocked",
+      "lifecycle": "failed",
+      "userSafeSummary": "제가 다루는 폴더(일감) 안에서 <방>/home/일감/backup 을(를) 찾지 못했어요.",
+      "nextSafeAction": "다른 폴더에 있다면 그 폴더를 열어 주시면 바로 볼게요.",
+      "다음수단": [
+        {
+          "방법": "local.locate",
+          "what": "<방>/home/일감/backup",
+          "왜": "`<방>/home/일감/backup` 가 어느 자리에 있는지 찾는다(그 자리에 없었을 뿐 없다는 뜻이 아니다)"
+        }
+      ],
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3a66yMWma3OChBdTB0viH1zYSqUwPuoFJUVgOcJQT6s",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "일감",
+          "limit": 500
+        },
+        "providerCallId": "call_Xa4yo7CAfRLqFabytZZzSYhS",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "path": "/private<방>/home/일감",
+        "items": [
+          {
+            "name": "로그",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          },
+          {
+            "name": "문서",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          },
+          {
+            "name": "받은자료",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T15:10:06.773Z"
+          },
+          {
+            "name": "보관",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          },
+          {
+            "name": "표",
+            "kind": "folder",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          }
+        ],
+        "total": 5,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "5개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감",
+        "kind": "file",
+        "label": "/private<방>/home/일감"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3a66yMWma3OChBdTB0viH1zYSqUwPuoFJUVgOcJQT6s",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "일감/backup",
+          "limit": 200
+        },
+        "providerCallId": "call_DFVBKt5tNFH49wqFjizWO3kB",
+        "callRef": "걸음3"
+      },
+      "failureState": "blocked",
+      "lifecycle": "failed",
+      "userSafeSummary": "제가 다루는 폴더(일감) 안에서 일감/backup 을(를) 찾지 못했어요.",
+      "nextSafeAction": "다른 폴더에 있다면 그 폴더를 열어 주시면 바로 볼게요.",
+      "다음수단": [
+        {
+          "방법": "local.locate",
+          "what": "일감/backup",
+          "왜": "`일감/backup` 가 어느 자리에 있는지 찾는다(그 자리에 없었을 뿐 없다는 뜻이 아니다)"
+        }
+      ],
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjF9LCJ3b3JrT3JkaW5hbCI6MX0.3a66yMWma3OChBdTB0viH1zYSqUwPuoFJUVgOcJQT6s",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 1
+      }
+    },
+    {
+      "intended": "local.locate 실행",
+      "actualCall": {
+        "tool": "local.locate",
+        "args": {
+          "what": "지난달 표",
+          "depth": 5
+        },
+        "providerCallId": "call_o8RNoWoD9m6r5PQ3Cfxq4HQL",
+        "callRef": "p1"
+      },
+      "result": {
+        "candidates": [
+          {
+            "path": "<방>/home/일감",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이번 요청에서 이름을 직접 부른 폴더예요 · 오늘 고쳤어요",
+            "confidence": "high",
+            "explicitlyRequested": true,
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/표",
+            "kind": "folder",
+            "kindLabel": "폴더",
+            "why": "이름이 맞아요 · 오늘 고쳤어요",
+            "confidence": "medium",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 0,
+              "image": 0,
+              "text": 0,
+              "code": 0,
+              "mark": 0
+            }
+          },
+          {
+            "path": "<방>/home/일감/받은자료",
+            "kind": "documents",
+            "kindLabel": "문서·자료",
+            "why": "문서 19개 · 오늘 고쳤어요",
+            "confidence": "low",
+            "modifiedDaysAgo": 0,
+            "counts": {
+              "doc": 19,
+              "image": 0,
+              "text": 6,
+              "code": 0,
+              "mark": 0
+            }
+          }
+        ],
+        "searched": {
+          "from": "<방>/home",
+          "depth": 5,
+          "folders": 9
+        }
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "자료가 있는 자리 3곳을 찾았어요. 이름이 그대로 맞는 곳은 없지만, 무엇이 든 자리인지는 각 후보에 적혀 있어요.",
+      "readScopeRoots": [
+        "/private<방>/home/일감"
+      ],
+      "subject": {
+        "key": "place_candidates:<방>/home/일감|<방>/home/일감/표|<방>/home/일감/받은자료",
+        "kind": "place_candidates",
+        "label": "3곳",
+        "detail": "아직 고른 자리 없음 — <방>/home/일감(이번 요청에서 이름을 직접 부른 폴더예요 · 오늘 고쳤어요) · <방>/home/일감/표(이름이 맞아요 · 오늘 고쳤어요) · <방>/home/일감/받은자료(문서 19개 · 오늘 고쳤어요)",
+        "candidates": [
+          "<방>/home/일감",
+          "<방>/home/일감/표",
+          "<방>/home/일감/받은자료"
+        ]
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "list",
+          "path": "일감/표",
+          "limit": 200
+        },
+        "providerCallId": "call_pDNdzyDRrQKdZJoX5YBKqnwo",
+        "callRef": "걸음1"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표",
+        "items": [
+          {
+            "name": "매출-동부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          },
+          {
+            "name": "매출-서부.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          },
+          {
+            "name": "환불.tsv",
+            "kind": "file",
+            "modifiedAt": "2026-08-14T15:10:06.769Z"
+          }
+        ],
+        "total": 3,
+        "offset": 0
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "3개를 찾았어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/표/매출-동부.tsv",
+          "limit": 120000
+        },
+        "providerCallId": "call_Bf9Miu2Dv2U7ZHKXn1NzFumT",
+        "callRef": "걸음2"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-동부.tsv",
+        "text": "A\t10000\nB\t15000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.5e06461be5898cb7279ca3ab383f",
+        "같은자리파일": [
+          "매출-서부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:10:06.769Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-동부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-서부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-동부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-동부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/표/매출-서부.tsv",
+          "limit": 120000
+        },
+        "providerCallId": "call_nvCC6lMpZ35Nf3Et98lCvuiM",
+        "callRef": "걸음3"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/매출-서부.tsv",
+        "text": "A\t15000\nC\t11000\n",
+        "bytes": 16,
+        "totalChars": 16,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.4594926ae820a8f4761afcad3250",
+        "같은자리파일": [
+          "매출-동부.tsv",
+          "환불.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:10:06.769Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "매출-서부.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-동부.tsv · 환불.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/매출-서부.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/매출-서부.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "read",
+          "path": "일감/표/환불.tsv",
+          "limit": 120000
+        },
+        "providerCallId": "call_g4EBI5QZosQem7wPKQ7MRjmL",
+        "callRef": "걸음4"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/표/환불.tsv",
+        "text": "A\t2000\n",
+        "bytes": 7,
+        "totalChars": 7,
+        "offset": 0,
+        "sourceRevisionRef": "fr1.9a52344a9321210fa077fcae0017",
+        "같은자리파일": [
+          "매출-동부.tsv",
+          "매출-서부.tsv"
+        ],
+        "modifiedAt": "2026-08-14T15:10:06.769Z"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "환불.tsv 을(를) 읽었어요. (같은 자리에 2개 더: 매출-동부.tsv · 매출-서부.tsv)",
+      "subject": {
+        "key": "file:/private<방>/home/일감/표/환불.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/표/환불.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    },
+    {
+      "intended": "local.file 실행",
+      "actualCall": {
+        "tool": "local.file",
+        "args": {
+          "action": "write",
+          "path": "일감/보고/지난달-순매출.tsv",
+          "text": "A\t23000\nB\t15000\nC\t11000\n",
+          "source": "일감/표/매출-동부.tsv",
+          "evidenceRows": [
+            {
+              "source": "일감/표/매출-동부.tsv",
+              "quote": "A 10000\nB 15000\n"
+            },
+            {
+              "source": "일감/표/매출-서부.tsv",
+              "quote": "A 15000\nC 11000\n"
+            },
+            {
+              "source": "일감/표/환불.tsv",
+              "quote": "A 2000\n"
+            }
+          ]
+        },
+        "providerCallId": "call_z95dlhPXV1xHQE9e1MKReL95",
+        "callRef": "걸음5"
+      },
+      "result": {
+        "path": "/private<방>/home/일감/보고/지난달-순매출.tsv",
+        "bytes": 24,
+        "overwritten": false,
+        "digest": "6877ae5812a6caf14e108e73c7d8b877bcdef5fa3480f45e9707b112b2b5b9d6",
+        "originalUntouched": true,
+        "source": "/private<방>/home/일감/표/매출-동부.tsv"
+      },
+      "failureState": "none",
+      "lifecycle": "delivered",
+      "userSafeSummary": "지난달-순매출.tsv 을(를) 만들었어요.",
+      "subject": {
+        "key": "file:/private<방>/home/일감/보고/지난달-순매출.tsv",
+        "kind": "file",
+        "label": "/private<방>/home/일감/보고/지난달-순매출.tsv"
+      },
+      "sourceWorkRef": "wr1.eyJ0dXJuUmVmIjp7InNlc3Npb25JZCI6ImMyMzY5NzRiLWY2ZjUtNGI0ZC1hYWI3LWQ0M2M1NDExYzIzYSIsInR1cm5TZXEiOjJ9LCJ3b3JrT3JkaW5hbCI6MX0.KqS_4R8q9krhpZHSZ6M-GXxSloGIcOlXXHyaUxxTi2E",
+      "turnRef": {
+        "sessionId": "c236974b-f6f5-4b4d-aab7-d43c5411c23a",
+        "turnSeq": 2
+      }
+    }
+  ]
+}

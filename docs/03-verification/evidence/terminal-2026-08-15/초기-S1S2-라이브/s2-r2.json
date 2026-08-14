@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "scenario": "terminal-s2-missing-command-recovery",
+  "modelId": "gpt-5.1",
+  "harnessAdaptation": "baseline-b829813: processDelivery 칸이 없는 영수증은 exit code 존재로 delivered 를 판정. 그 외 판정 규칙은 동결본과 같다.",
+  "sourceHead": "cb96da6f9a8808ff47be443755b5a6009383a743",
+  "artifact": {
+    "expected": "E_CONN\t3\nE_PARSE\t1\n",
+    "observed": null,
+    "matches": false
+  },
+  "sourceUnchanged": true,
+  "approvals": 0,
+  "initialMissingCommandObserved": true,
+  "alternativeTerminalSuccess": false,
+  "outputWriteReceipts": 0,
+  "outputReadReceipts": 0,
+  "verifierReceipts": [],
+  "terminalReceipts": [
+    {
+      "command": "logstat --help",
+      "cwd": "/home/work",
+      "failureState": "none"
+    },
+    {
+      "command": "grep \"ERROR\" api.log | awk '{print $2}' | sort | uniq -c",
+      "cwd": "/home/work",
+      "failureState": "none"
+    },
+    {
+      "command": "printf \"E_CONN\\tE_PARSE\\n\"",
+      "cwd": "/home/work",
+      "failureState": "none"
+    }
+  ],
+  "runtimeTerminalObservations": [
+    {
+      "command": "logstat --help",
+      "observation": {
+        "command": "logstat --help",
+        "cwd": "/home/work",
+        "exitCode": -1,
+        "durationMs": 36,
+        "stdout": "",
+        "stderr": "실행을 시작하지 못했어요: spawn /usr/bin/sandbox-exec ENOENT",
+        "failedBy": "env",
+        "failReason": "missing",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "grep \"ERROR\" api.log | awk '{print $2}' | sort | uniq -c",
+      "observation": {
+        "command": "grep \"ERROR\" api.log | awk '{print $2}' | sort | uniq -c",
+        "cwd": "/home/work",
+        "exitCode": -1,
+        "durationMs": 25,
+        "stdout": "",
+        "stderr": "실행을 시작하지 못했어요: spawn /usr/bin/sandbox-exec ENOENT",
+        "failedBy": "env",
+        "failReason": "missing",
+        "applied": false
+      },
+      "failureState": "none"
+    },
+    {
+      "command": "printf \"E_CONN\\tE_PARSE\\n\"",
+      "observation": {
+        "command": "printf \"E_CONN\\tE_PARSE\\n\"",
+        "cwd": "/home/work",
+        "exitCode": -1,
+        "durationMs": 33,
+        "stdout": "",
+        "stderr": "실행을 시작하지 못했어요: spawn /usr/bin/sandbox-exec ENOENT",
+        "failedBy": "env",
+        "failReason": "missing",
+        "applied": false
+      },
+      "failureState": "none"
+    }
+  ],
+  "finalReply": "그 명령이 이 컴퓨터에 없어요 api.log 을(를) 읽었어요. (같은 자리에 1개 더: worker.log) worker.log 을(를) 읽었어요. (같은 자리에 1개 더: api.log)",
+  "pass": false
+}
