@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "시각": "2026-08-14T18:55:53.366Z",
+  "sourceHead": "8f3e3ac2071d4e6935b7faedfd95359b2accaa3f",
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "재료": [
+    "시작문서/",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "재료실측": {
+    "./README.md": 11373,
+    "./????/README.md": 14601,
+    "./????/????.md": 15837,
+    "./????/T5-?????-2026-08-11.md": 10337,
+    "./????/?-????-??-???.md": 14868,
+    "./AGENTS.md": 16051
+  },
+  "회차": [
+    {
+      "오너": "여기 md 파일 전부 몇 개야?",
+      "kind": "reply",
+      "걸린ms": 5696,
+      "손순서": [
+        "local.file:list",
+        "local.file:list",
+        "local.terminal"
+      ],
+      "답": "지금 자리 기준으로 `.md` 파일은 총 6개예요.",
+      "터미널명령": [
+        "find . -name '*.md' -maxdepth 5 | wc -l"
+      ]
+    }
+  ]
+}
