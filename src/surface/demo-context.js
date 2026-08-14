@@ -1002,7 +1002,7 @@ const DESCRIPTORS = [
               // 그대로 파일에 썼다(실제 열은 "금액"). 형식은 짐작이 아니라 확인의 대상이다.
               + '표(CSV 등)의 열 이름은 짐작하지 않는다 — 스크립트 안에서 첫 줄(헤더)을 읽어 그 이름을 쓰고, '
               + '합계가 0 이면 열 이름부터 의심한다.\n'
-              + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt}], total, offset, nextOffset }` · '
+              + 'local.file 의 result: list → `{ path, items:[{name, kind:"file"|"folder", modifiedAt, childCount?}], total, offset, nextOffset }` — childCount 는 폴더 안 항목 수(100에서 끊김) · '
               + 'read → `{ path, text, bytes, totalChars, offset, nextOffset, table?:{rows, columns:["열이름"], sums:{"열이름":합계} }` — CSV 의 숫자 열 합계. columns 는 문자열 배열이다 · '
               + 'copy → `{ from, to, originalUntouched }` · move → `{ from, to }` · bulk_copy → `{ copied:[], skipped:[], originalUntouched }` · bulk_move → `{ moved:[], skipped:[], remainingSource:{files, topExtensions} }`.\n'
               + 'console.log 로 낸 것만 답으로 돌아온다(중간 결과는 안 실린다). '

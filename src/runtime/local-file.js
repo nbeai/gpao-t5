@@ -8,7 +8,7 @@
 //   · 덮어쓰기·삭제는 **되돌릴 수 있다** — 원본을 휴지통으로 옮기고 되돌리기 표를 남긴다.
 //   · 승인 등급은 기존 계약 그대로: write·delete 는 SAFETY_FLOOR 라 항상 승인(A2+)을 받는다.
 //   · 실패는 종류별로 사용자 언어. 못 한 것을 한 척하지 않는다.
-import { readFile as nodeReadFile, writeFile, readdir, stat, mkdir, rename, rm, copyFile, cp, realpath } from 'node:fs/promises';
+import { readFile as nodeReadFile, writeFile, readdir, opendir, stat, mkdir, rename, rm, copyFile, cp, realpath } from 'node:fs/promises';
 import { join, dirname, basename, relative, isAbsolute, extname, resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -757,6 +757,31 @@ export function makeLocalFileTool(deps = {}) {
                 const t = 표사실((await readFile(p)).toString('utf8'));
                 if (t) { it.table = t; 셈 += 1; }
               } catch { /* 이웃을 못 읽어도 목록은 이미 됐다 */ }
+            }
+            // ── F-121 · 폴더가 캄캄하다 — 잴 것이 있다는 사실이 목록에 없었다 ─────────────
+            //
+            // 라이브 n=10(기준선 §7-g): 최상위만 재고 「무근거 단정」 8회. 폴더 항목이
+            // 이름·시각뿐이라 안에 무엇이 있는지 개수조차 안 보였다(오너 원실측 §0:
+            // "겉보기로는 짧을 가능성이 큽니다"). 재라고 말하지 않는다 — **잴 것이 있음이
+            // 보이게 한다**(유도). 이 쪽의 폴더만 · 한 층 · 101번째에서 끊는다(opendir
+            // 스트리밍 — readdir 전체 적재 함정 회피 · 손 관리자 규격). 못 보면 칸을 안 쓴다.
+            // 자리는 CSV 표사실과 같은 「쪽 뒤」다. 비용의 기계 사실(감시자 정정): limit 미지정이면
+            // 쪽=전체라 폴더 수 상한은 없다 — 폴더당 101 스트리밍 상한만 있다. 폴더 수 캡은
+            // 실패 재현이 생기면 그때 단다(없는 실패를 미리 고치지 않는다).
+            // 턴 머리 관측(worksetObservation)은 이 블록 밖이다 — F-65 경계(f121 ④가 문다).
+            for (const it of 쪽) {
+              if (it.kind !== 'folder') continue;
+              try {
+                const d = await opendir(join(abs, it.name));
+                let n = 0; let 넘침 = false;
+                for await (const ent of d) {
+                  if (ent.name.startsWith('.')) continue;
+                  n += 1;
+                  if (n > 100) { 넘침 = true; break; }
+                }
+                if (넘침) { it.childCount = 100; it.childCountCapped = true; }
+                else it.childCount = n;
+              } catch { /* 못 보면 칸을 안 쓴다 */ }
             }
           }
           return ok(
