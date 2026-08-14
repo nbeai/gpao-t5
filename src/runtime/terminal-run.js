@@ -72,6 +72,19 @@ export async function runCommand(command, opts = {}) {
         ...redactEnv(opts.env ?? process.env),
         GPAO_T5_IN_TOOL: '1',
         ...(scratch ? { TMPDIR: scratch, TMP: scratch, TEMP: scratch, TMPPREFIX: join(scratch, 'zsh') } : {}),
+        // ── F-119 · 로케일이 빈칸이면 자식 셸이 한국어 이름을 못 찍는다 ────────────────
+        //
+        // 라이브 실측(2026-08-15): 모델이 find|wc 를 돌렸는데 stdout 의 한국어 이름이
+        // 전부 ???? 로 와서 답이 "시작문서 폴더 안의 **어떤** .md 파일"이 됐다 — BSD wc·find 는
+        // C 로케일에서 못 찍는 글자를 ? 로 치환한다. GUI 로 뜬 앱·격리 라이브는 LANG 이 없다.
+        //
+        // 채우는 사실은 언어가 아니라 **문자집합**이다(손 관리자 실측: 언어 없는 `UTF-8` 값을
+        // macOS 가 LC_CTYPE 로 받는다) — 이 컴퓨터의 파일 체계(APFS)가 UTF-8 이라는 현실 한 칸.
+        // LC_CTYPE 만이라 정렬·날짜·숫자·메시지 언어는 안 딸려 바뀐다. 그리고 **빈칸일 때만**:
+        // LANG·LC_* 가 하나라도 있으면 사용자가 고른 것이므로 아무것도 안 얹는다(강제 금지 —
+        // f119 반례 ②③이 문다). redactEnv(비밀 가림) 뒤에 로케일 키 하나만 더한다(감시자 판별식).
+        ...(Object.keys(opts.env ?? process.env).some((k) => k === 'LANG' || k.startsWith('LC_'))
+          ? {} : { LC_CTYPE: 'UTF-8' }),
       },
       stdio: ['ignore', 'pipe', 'pipe'], // stdin 은 닫는다: 비밀번호·y/n 프롬프트에서 영원히 멈추지 않게
     });
