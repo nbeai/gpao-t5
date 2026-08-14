@@ -695,6 +695,12 @@ export function 완료주장검증({
   const 무슨호출 = (rec) => rec?.actualCall ?? rec?.제안한호출 ?? null;
   const 걸음키 = (rec) => {
     const 호출 = 무슨호출(rec);
+    // 터미널은 action 칸이 없으므로 손 이름만으로 묶으면 `npm test` 실패가 `pwd` 성공으로
+    // 사라진다. 명령 원문은 실행기가 실제로 관측해 영수증에 남긴 신분이므로, 의미를 해석하지
+    // 않고 정확한 실행 단위만 구분한다.
+    if (호출?.tool === 'local.terminal') {
+      return `${호출.tool}|${String(호출.args?.command ?? '').trim()}|${String(호출.args?.cwd ?? '').trim()}`;
+    }
     const 것 = 대상(호출);
     return `${호출?.tool ?? ''}|${호출?.args?.action ?? 호출?.args?.op ?? ''}${것 ? `|${것}` : ''}`;
   };

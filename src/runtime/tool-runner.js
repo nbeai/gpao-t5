@@ -198,6 +198,22 @@ export class ToolRunner {
               : '공개 자료/대체 경로로 이어갈까요?'),
         });
       }
+      // 원 명령을 실행하지 않고 안전한 다른 손으로 넘긴 경우다. 실행 실패나 사용자 취소로
+      // 꾸미지 않는다: actualCall과 not_run 결과, 전환 이유, 다음 수는 모두 원장에 남긴다.
+      // 이 전환은 파일 산출물의 실제 write/readback이 성공하면 정상 완료를 막지 않는다.
+      if (out && out.rerouted) {
+        return withSubject(receipt({
+          intended,
+          actualCall: 부른것,
+          result: out.result,
+          failureState: FAILURE.CANCELLED,
+          lifecycle: out.lifecycle,
+          userSafeSummary: out.userSafeSummary ?? `${toolId} 실행을 안전한 다른 손으로 넘겼어요.`,
+          diagnosticTrace: out.diagnosticTrace ?? { reason: 'rerouted' },
+          nextSafeAction: out.nextSafeAction,
+          다음수단: out.다음수단,
+        }), tool);
+      }
       // transient 실패(재시도 여지) — handler가 정직한 사용자면 메시지와 함께 알린다. blocked(permanent)와 분리.
       if (out && out.failed) {
         const 다음수단 = Array.isArray(out.다음수단) ? out.다음수단 : undefined;

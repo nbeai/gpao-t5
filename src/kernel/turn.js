@@ -422,6 +422,11 @@ export function unresolvedTurnReceipts(receipts = []) {
   // "이미 했다"가 "아직 못 했다"로 잡혀 턴 전체가 미완료가 된다(실측 2026-08-04).
   const 무슨호출 = (rec) => rec?.actualCall ?? rec?.제안한호출 ?? null;
   return receipts.filter((rec, index) => {
+    // terminal의 direct file write는 실행 실패가 아니라 실행 전에 구조화된 파일 손으로 넘긴
+    // 정책 전환이다. 원문 호출·not_run·다음 수는 turnExchange에 남지만, 뒤의 실제 파일
+    // write/readback까지 끝난 작업을 영구 미완료로 묶어서는 안 된다.
+    if (rec?.failureState === 'cancelled'
+      && rec?.diagnosticTrace?.reason === 'structured_commit_required') return false;
     // **런타임이 "이미 했다"고 취소한 것은 미해결이 아니다.** 같은 손·같은 작업이 이번 턴에
     // 이미 성공했기 때문에 안 한 것이므로, 그 성공이 이것을 해결한다(아래 "뒤의 성공이 앞의
     // 실패를 해결한다"의 거울상). 이 구분이 없으면 다중 호출 중 하나가 중복이라는 이유로

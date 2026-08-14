@@ -82,6 +82,25 @@ test('실패한 npm test를 파일 생성 성공으로 덮어 통과했다고 �
   assert.equal(second.재거짓, true, '첫 되부름 뒤 같은 거짓을 반복하면 사용자에게 샌다');
 });
 
+test('실패한 터미널 명령은 무관한 터미널 성공으로 회복되지 않는다', () => {
+  const receipts = [
+    { ...막힘('local.terminal'), actualCall: { tool: 'local.terminal', args: { command: 'npm test' } } },
+    성공('local.terminal'),
+  ];
+  receipts[1].actualCall.args.command = 'pwd';
+  const r = 완료주장검증({ reply: '테스트를 통과했습니다.', receipts });
+  assert.equal(r.사용자에게, false);
+});
+
+test('같은 명령도 다른 작업 폴더 성공으로 회복되지 않는다', () => {
+  const receipts = [
+    { ...막힘('local.terminal'), actualCall: { tool: 'local.terminal', args: { command: 'npm test', cwd: '/work/a' } } },
+    { ...성공('local.terminal'), actualCall: { tool: 'local.terminal', args: { command: 'npm test', cwd: '/work/b' } } },
+  ];
+  const r = 완료주장검증({ reply: '테스트를 통과했습니다.', receipts });
+  assert.equal(r.사용자에게, false);
+});
+
 test('파일을 확인했어도 전송 실패는 회복으로 지우지 않는다', () => {
   const path = '/work/report.txt';
   const r = 완료주장검증({

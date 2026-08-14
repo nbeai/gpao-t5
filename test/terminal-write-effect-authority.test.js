@@ -73,7 +73,7 @@ test('가역 실행 profile은 증명된 대상 하나만 열고 다른 쓰기·
   assert.match(profile, /deny appleevent-send/);
 });
 
-test('제품 경로: 없던 로컬 산출물 생성은 probe 대상·사전 상태·undo가 서면 승인 0으로 실행된다', async () => {
+test('제품 경로: 셸 리다이렉션 산출물은 명령을 고쳐 실행하지 않고 stdout→파일 손 복구를 남긴다', async () => {
   const command = "awk '{print $1}' input.log > report.tsv";
   const stage = await 제품경로({
     target: (work) => join(work, 'report.tsv'),
@@ -82,32 +82,25 @@ test('제품 경로: 없던 로컬 산출물 생성은 probe 대상·사전 상�
     apply: (target) => writeFile(target, 'E42\t3\n', 'utf8'),
   });
 
-  assert.notEqual(stage.result.kind, 'approval', '새 산출물 생성이 정적 terminal descriptor 때문에 카드로 갔다');
-  assert.equal(stage.grantedRuns, 1, '가역 생성이 자동 실행되지 않았다');
-  assert.equal(await readFile(stage.actualTarget, 'utf8'), 'E42\t3\n');
-  const terminalReceipt = terminalReceiptOf(stage.result);
-  assert.deepEqual(terminalReceipt?.result?.writeEffect?.target?.path, stage.actualTarget);
-  assert.equal(terminalReceipt?.result?.writeEffect?.operation, 'create');
-  assert.equal(terminalReceipt?.result?.writeEffect?.reversible, true);
-
-  const undone = await stage.localFile.handler({ action: 'undo' });
-  assert.equal(undone.result?.undone, 'create', '터미널 생성이 공통 undo 원장에 안 묶였다');
+  assert.notEqual(stage.result.kind, 'approval');
+  assert.equal(stage.grantedRuns, 0, '원 명령을 stage 경로로 바꿔 실행하면 안 된다');
   await assert.rejects(readFile(stage.actualTarget, 'utf8'), /ENOENT/);
+  assert.match(JSON.stringify(stage.result.turnExchange ?? []), /파일을 직접 쓰는 셸 명령/);
 });
 
-test('라이브 모양: Python heredoc의 일반 write-open도 진단 대상과 합치면 새 산출물로 실행된다', async () => {
+test('Python heredoc도 경로 치환 없이 같은 복구 사실을 남긴다', async () => {
   const command = "python3 - << 'PY'\nout_path = 'report.tsv'\nwith open(out_path, 'w', newline='') as f:\n    f.write('ok\\n')\nPY";
   const stage = await 제품경로({
     target: (work) => join(work, 'report.tsv'), command,
     stderr: () => "Traceback (most recent call last):\nPermissionError: [Errno 1] Operation not permitted: 'report.tsv'\n",
     apply: (target) => writeFile(target, 'ok\n', 'utf8'),
   });
-  assert.notEqual(stage.result.kind, 'approval');
-  assert.equal(stage.grantedRuns, 1);
-  assert.equal(await readFile(stage.actualTarget, 'utf8'), 'ok\n');
+  assert.equal(stage.grantedRuns, 0);
+  await assert.rejects(readFile(stage.actualTarget, 'utf8'), /ENOENT/);
+  assert.match(JSON.stringify(stage.result.turnExchange ?? []), /파일을 직접 쓰는 셸 명령/);
 });
 
-test('제품 경로: 하위 input cwd에서 형제 output에 만드는 결과도 work 안이면 승인 0이다', async () => {
+test('하위 cwd의 형제 output도 셸 문자열을 바꾸지 않는다', async () => {
   const root = await mkdtemp(join(tmpdir(), 'terminal-sibling-output-'));
   const work = join(root, 'work');
   const input = join(work, 'job', 'input');
@@ -135,23 +128,24 @@ test('제품 경로: 하위 input cwd에서 형제 output에 만드는 결과도
   assert.equal(probed.writeEffect?.target?.path, target);
   const executed = await tool.handler({ command, cwd: input, changes: true, granted: true,
     probeResult: probed.probe, writeEffect: probed.writeEffect });
-  assert.equal(executed.blocked, undefined);
-  assert.equal(grantedRuns, 1);
-  assert.equal(await readFile(target, 'utf8'), 'ok\n');
+  assert.equal(executed.rerouted, true);
+  assert.equal(grantedRuns, 0);
+  await assert.rejects(readFile(target, 'utf8'), /ENOENT/);
+  assert.equal(executed.result?.writeEffect?.requiresStructuredCommit, true);
 });
 
-test('가역 실행 명령이 실패하면 만든 파일을 회수하고 성공 효과로 기록하지 않는다', async () => {
+test('셸 리다이렉션 실패는 실행 전 복구로 남고 파일을 만들지 않는다', async () => {
   const stage = await 제품경로({
     target: (work) => join(work, 'partial.tsv'), command: "printf x > partial.tsv",
     stderr: () => 'zsh:1: operation not permitted: partial.tsv\n',
     apply: (target) => writeFile(target, 'partial\n', 'utf8'), grantedExitCode: 1,
   });
-  assert.equal(stage.grantedRuns, 1);
+  assert.equal(stage.grantedRuns, 0);
   await assert.rejects(readFile(stage.actualTarget, 'utf8'), /ENOENT/);
-  assert.match(stage.result.ledger.unconfirmed.join('\n'), /이전 상태로 되돌렸어요/);
+  assert.match(JSON.stringify(stage.result.turnExchange ?? []), /파일을 직접 쓰는 셸 명령/);
 });
 
-test('제품 경로: 기존 로컬 파일의 단일 overwrite는 preimage를 보존하고 승인 0·undo·검증까지 간다', async () => {
+test('기존 파일 overwrite도 터미널 경로 치환 없이 원본을 보존한다', async () => {
   const command = "printf 'after\\n' > report.tsv";
   let beforePath;
   const root = await mkdtemp(join(tmpdir(), 'terminal-write-effect-before-'));
@@ -188,17 +182,10 @@ test('제품 경로: 기존 로컬 파일의 단일 overwrite는 preimage를 보
   const ctx = { env: demoEnv(), tools: demoTools({ localFile, localTerminal }), model };
   const result = await runTurn({ text: '작업 폴더의 report.tsv를 새 결과로 갱신해' }, ctx);
 
-  assert.notEqual(result.kind, 'approval', 'preimage를 보존할 수 있는 overwrite가 카드로 갔다');
-  assert.equal(grantedRuns, 1);
-  assert.equal(await readFile(beforePath, 'utf8'), 'after\n');
-  const terminalReceipt = terminalReceiptOf(result);
-  assert.equal(terminalReceipt?.result?.writeEffect?.operation, 'overwrite');
-  assert.equal(terminalReceipt?.result?.writeEffect?.verified, true);
-  assert.equal(terminalReceipt?.result?.writeEffect?.reversible, true);
-
-  const undone = await localFile.handler({ action: 'undo' });
-  assert.equal(undone.result?.undone, 'write');
+  assert.notEqual(result.kind, 'approval');
+  assert.equal(grantedRuns, 0);
   assert.equal(await readFile(beforePath, 'utf8'), 'before\n');
+  assert.match(JSON.stringify(result.turnExchange ?? []), /파일을 직접 쓰는 셸 명령/);
 });
 
 test('작업공간 밖 파일의 hardlink는 가역 overwrite로 자동 실행하지 않는다', async () => {
@@ -252,7 +239,7 @@ test('작업공간 안 부모 symlink가 밖을 가리키면 새 파일 자동 �
   await assert.rejects(readFile(join(outside, 'report.tsv'), 'utf8'), /ENOENT/);
 });
 
-test('probe 뒤 부모가 바깥 symlink로 바뀌어도 격리 산출물을 밖에 적용하지 않는다', async () => {
+test('probe 뒤 부모가 바뀌어도 셸 직접 쓰기는 실행하지 않는다', async () => {
   const root = await mkdtemp(join(tmpdir(), 'terminal-parent-swap-boundary-'));
   const work = join(root, 'work'); const safe = join(work, 'safe');
   const parked = join(work, 'safe-parked'); const outside = join(root, 'outside');
@@ -275,8 +262,8 @@ test('probe 뒤 부모가 바깥 symlink로 바뀌어도 격리 산출물을 밖
   assert.equal(probed.writeEffect?.reversible, true);
   const executed = await tool.handler({ command, cwd: work, granted: true,
     probeResult: probed.probe, writeEffect: probed.writeEffect });
-  assert.equal(executed.failed, true);
-  assert.equal(executed.result?.writeEffect?.verified, false);
+  assert.equal(executed.rerouted, true);
+  assert.equal(executed.result?.writeEffect?.requiresStructuredCommit, true);
   await assert.rejects(readFile(join(outside, 'report.tsv'), 'utf8'), /ENOENT/);
   await assert.rejects(readFile(join(parked, 'report.tsv'), 'utf8'), /ENOENT/);
 });
@@ -302,4 +289,72 @@ for (const blocked of [
   });
   assert.equal(stage.result.kind, 'approval');
   assert.equal(stage.grantedRuns, 0);
+});
+
+test('턴 경로: direct write 실패 뒤 모델은 stdout 계산과 local.file 저장으로 같은 턴에 복구한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-stdout-file-recovery-'));
+  const work = join(root, 'work'); const state = join(root, 'state');
+  await mkdir(work, { recursive: true });
+  const target = join(work, 'report.tsv');
+  const direct = "awk '{print $1}' input.log > report.tsv";
+  const compute = "printf 'E42\\t3\\n'";
+  const terminal = makeLocalTerminalTool({
+    cwd: work, workspaceRoot: work, dataDir: state, sandboxAvailable: () => true,
+    run: async (command, opts = {}) => {
+      if (command === direct) return {
+        command, cwd: work, mode: opts.mode ?? 'probe', processState: 'delivered', exitCode: 1,
+        stdout: '', stderr: 'zsh:1: operation not permitted: report.tsv\n', durationMs: 1,
+      };
+      return {
+        command, cwd: work, mode: opts.mode ?? 'probe', processState: 'delivered', exitCode: 0,
+        stdout: 'E42\t3\n', stderr: '', durationMs: 1,
+      };
+    },
+  });
+  const localFile = makeLocalFileTool({ roots: [work], home: work, dataDir: state });
+  let sawStructuredRecovery = false;
+  let phase = 0;
+  const model = { async respond(tc, opts = {}) {
+    if (tc?.workContractAssessment) {
+      return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
+    }
+    if (!opts.tools?.length) return '결과 파일을 만들었습니다.';
+    phase += 1;
+    if (phase === 1) {
+      return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: direct, cwd: work } }] };
+    }
+    if (phase === 2) {
+      assert.match(tc.recoveryHint ?? '', /표준 출력.*local\.file/);
+      sawStructuredRecovery = true;
+      return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: compute, cwd: work } }] };
+    }
+    if (phase === 3) {
+      const computation = (tc.turnExchange ?? []).find((entry) => entry.tool === 'local.terminal'
+        && String(entry.args?.command ?? '') === compute);
+      const computedText = JSON.parse(computation?.data ?? '{}').stdout;
+      assert.equal(computedText, 'E42\t3\n');
+      return { text: '', toolCalls: [{ name: 'local.file', args: {
+        action: 'write', path: target, text: computedText,
+      } }] };
+    }
+    if (phase === 4) {
+      return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'read', path: target } }] };
+    }
+    return { text: '결과 파일을 만들었습니다.', toolCalls: [] };
+  } };
+  const result = await runTurn({ text: 'input.log에서 집계해 report.tsv로 만들어줘' }, {
+    env: demoEnv(), model, tools: demoTools({ localTerminal: terminal, localFile }),
+  });
+
+  assert.equal(sawStructuredRecovery, true, '직접 write가 실행되지 않은 사실이 다음 모델 판단에 안 갔다');
+  assert.equal(await readFile(target, 'utf8'), 'E42\t3\n');
+  const outputRead = (result.turnExchange ?? []).find((entry) => entry.tool === 'local.file'
+    && entry.args?.action === 'read' && entry.args?.path === target);
+  assert.match(String(outputRead?.data ?? ''), /E42\s+3/,
+    '파일 결과를 만든 뒤 같은 생성본을 다시 읽지 않았다');
+  assert.doesNotMatch(JSON.stringify(result.ledger.confirmed), /awk '\{print \$1\}' input\.log > report\.tsv/,
+    '직접 write 명령을 성공 영수증으로 남겼다');
+  assert.match(JSON.stringify(result.turnExchange ?? []), /파일을 직접 쓰는 셸 명령은 실행하지 않았어요/,
+    '처음 direct write가 실행되지 않은 사실이 원장에서 사라졌다');
+  assert.equal(result.goal, null, `대체 경로로 산출물을 만든 뒤에도 작업이 미완료로 남았다: ${JSON.stringify(result)}`);
 });

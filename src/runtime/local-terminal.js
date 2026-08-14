@@ -255,15 +255,12 @@ export function makeLocalTerminalTool(deps = {}) {
   }
 
   function stagedCommand(command, prepared, cwd) {
-    const relativePath = relative(cwd, prepared.path);
-    const variants = [prepared.path, relativePath,
-      dirname(prepared.path) === resolve(cwd) ? basename(prepared.path) : '']
-      .filter((v) => v && v !== '.' && command.includes(v))
-      .sort((a, b) => b.length - a.length);
-    if (!variants.length) return null;
-    // 가장 구체적인 한 표기만 바꾼다. 절대경로를 stage로 바꾼 뒤 basename까지 다시
-    // 치환하면 stage 경로 자체가 중첩되어 다른 파일을 가리킨다.
-    return command.split(variants[0]).join(prepared.stagePath);
+    // 셸 문자열의 경로를 stage 경로로 바꾸는 것은 프로그램 의미를 바꾸는 일이다.
+    // Python 변수·여러 출력·입출력 같은 이름의 경우 원 명령과 동치임을 일반적으로 증명할 수
+    // 없다. 터미널은 원 명령과 영수증만 책임지고, 계산 결과의 파일 적용은 local.file 손이
+    // 책임진다. 이 함수는 의도적으로 어떤 명령도 재작성하지 않는다.
+    void command; void prepared; void cwd;
+    return null;
   }
 
   async function rollbackWrite(prepared) {
@@ -465,6 +462,23 @@ export function makeLocalTerminalTool(deps = {}) {
           nextSafeAction: '독립된 작업 폴더 파일로 다시 계획할게요.',
         };
       }
+      // 가역 파일 쓰기는 `local.file` 이 원자 적용·undo를 책임진다. 여기서 stage를 준비하거나
+      // 셸 문자열을 바꾸는 순간 이미 사용자 프로그램의 의미를 추측하게 된다. 그러므로 terminal
+      // 쪽은 어떤 임시 파일도 만들지 않고, 모델이 stdout 계산과 구조화된 파일 쓰기를 고르게 한다.
+      if (mode === 'granted' && args.writeEffect?.reversible === true) {
+        return { rerouted: true, lifecycle: 'delivered',
+          result: {
+            command, cwd, applied: false,
+            effect: { process: 'not_run', commandExit: 'unknown' },
+            writeEffect: {
+              operation: args.writeEffect.operation, target: args.writeEffect.target,
+              reversible: true, verified: false, requiresStructuredCommit: true,
+            },
+          },
+          userSafeSummary: '파일을 직접 쓰는 셸 명령은 실행하지 않았어요.',
+          diagnosticTrace: { reason: 'structured_commit_required' },
+          nextSafeAction: '계산은 파일 리다이렉션 없이 표준 출력으로 실행한 뒤, 그 결과를 local.file 쓰기로 저장하세요.' };
+      }
       let prepared = null;
       if (mode === 'granted' && args.writeEffect?.reversible === true) {
         try { prepared = await prepareWrite(args.writeEffect, cwd); } catch { prepared = null; }
@@ -483,10 +497,17 @@ export function makeLocalTerminalTool(deps = {}) {
       const 실행명령 = prepared ? stagedCommand(command, prepared, cwd) : command;
       if (prepared && !실행명령) {
         await rollbackWrite(prepared);
-        return { blocked: true, failed: true, lifecycle: 'failed',
-          result: { command, cwd, applied: false },
-          userSafeSummary: '최종 파일 대신 격리된 산출물에 실행할 수 없어 안전하게 멈췄어요.',
-          nextSafeAction: '파일 손이나 더 단순한 명령으로 다시 계획할게요.' };
+        return { failed: true, lifecycle: 'delivered',
+          failureResult: {
+            command, cwd, applied: false,
+            effect: { process: 'not_run', commandExit: 'unknown' },
+            writeEffect: {
+              operation: args.writeEffect.operation, target: args.writeEffect.target,
+              reversible: true, verified: false, requiresStructuredCommit: true,
+            },
+          },
+          userSafeSummary: '파일을 직접 쓰는 셸 명령은 실행하지 않았어요.',
+          nextSafeAction: '계산은 파일 리다이렉션 없이 표준 출력으로 실행한 뒤, 그 결과를 local.file 쓰기로 저장하세요.' };
       }
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
