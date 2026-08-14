@@ -277,6 +277,8 @@ if/else 로 손을 대신 고름              고를 수 있는 것을 빠짐없
 오픈클로            ~/.local/node-v24.14.0-darwin-arm64/lib/node_modules/openclaw/dist/
                    (번들이지만 원본 포맷 · `//#region src/...` 로 원래 경로까지 보존)
 헤르메스            ~/.hermes/hermes-agent/  (파이썬 · venv 는 건너뛴다)
+프라임에이전트      `docs/03-verification/evidence/prime-agent-openbook-2026-08-13/README-ko.md`
+                   (고정 SHA 소스 지도 · 참고군이며 새 계획·공식 비교군이 아니다)
 ```
 **도구 목록이 아니라 「모델 운전법」을 본다** — 프롬프트 조립부와 에이전트 루프부터.
 이번 세션이 캔 것은 정본 **§0-C** 에 근거 줄까지 적혀 있다(훔칠 것 다섯·훔치지 말 것 하나).
