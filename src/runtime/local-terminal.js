@@ -35,61 +35,12 @@ function looksBlocked(r) {
   return block?.kind === 'sandbox' || block?.kind === 'permission';
 }
 
-/**
- * **네트워크만 열면 되는지 알아맞히지 않는다 — 열어 보고 안다.**
- *
- * 첫 판은 `executionBlock(r).why === 'network'` 로 골랐다. 실물에서 안 먹었다(밟음 2026-08-06):
- *   `ping -c1 8.8.8.8`  probe → `ping: sendto: Operation not permitted` → **`why:'write'` 로 잡힘**
- *                        reach → **통과**
- * 샌드박스가 네트워크를 막을 때 나오는 말은 `ENOTFOUND` 가 아니라 그냥 `Operation not permitted`
- * 다. 문구 목록으로 네트워크를 가르려던 것이고, 그건 이 파일이 처음부터 버린 방식이다
- * (`sandbox.js` 첫 문단 — 목록은 항상 뚫린다).
- *
- * 그래서 probe 와 같은 구조를 한 번 더 쓴다: **네트워크만 열고 다시 돌려 본다.**
- *   reach 에서 통과 → 막던 것은 네트워크뿐이었다는 **증명**. 이 컴퓨터는 안 바뀌었다(쓰기·비밀은 닫힘)
- *   reach 에서도 막힘 → 진짜 변경 시도. 그대로 승인으로 간다
- *
- * **두 자리만 뺀다** — 둘 다 "돌려 봐도 모르는" 자리라 구조가 성립하지 않는다:
- *   `listen`          포트를 여는 것은 나가서 읽는 게 아니라 **바깥에서 닿게 만드는 상태 변경**이다.
- *                     안 빼고 열었더니 서버 띄우기가 승인 없이 돌았다(회귀가 잡았다).
- *   `unreadable_exit` 실패를 삼키는 명령은 exit code 가 정보가 아니다. 모르면 승인 쪽이다.
- */
-const 열어봐도소용없는것 = new Set(['listen', 'unreadable_exit']);
-
-function 네트워크만열어볼까(r) {
-  const block = executionBlock(r);
-  if (!block) return false;
-  if (block.kind !== 'sandbox' && block.kind !== 'permission') return false;
-  return !열어봐도소용없는것.has(block.why);
-}
-
-/**
- * **읽기성 네트워크는 묻지 않는다** (오너 결정 2026-08-06 · 터미널 유보 해제).
- *
- * 계획서 v3.1 §20·§22 가 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀는데 **코드에 그런 유보는
- * 없었다** — 셸은 통째로 열려 있고 명령 목록도 없다. 라이브로 갈라 보니 실제 마찰은 한 자리였다:
- *
- *   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됨
- *   읽기성 네트워크        **카드가 떴다** — `curl` 조회 · `git pull` · `npm ls` · `gh pr list`
- *
- * 이 컴퓨터를 하나도 안 바꾸는 일인데 물었다. 자동성 헌장의 넷 어디에도 안 걸린다.
- * 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다** — 같은 일을 터미널에서만 물었다.
- * 능력 문제가 아니라 두 손이 다른 선을 쓰고 있었다.
- *
- * 고칠 재료는 이미 다 있었다. `sandbox.js` 의 `reach`(쓰기✗ · 네트워크✓ · 비밀✗)를
- * 커넥터 CLI 손만 쓰고 터미널 본체는 안 썼다. 둘을 잇는다.
- *
- * **명령 목록을 만들지 않는다**(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 판정은 그대로
- * *돌려 보고 안다*: 네트워크에만 막혔으면 네트워크만 열고 한 번 더 돌린다. 거기서도 막히면
- * 그건 진짜 변경 시도이므로 승인으로 간다.
- */
+// 임의 셸의 네트워크 효과는 구조화돼 있지 않다. GET처럼 보이는 명령도 Python·동적 코드·
+// 셸 확장을 통해 전송이나 계정 변경을 할 수 있으므로, 명령 문자열이나 실패 문구로 의미를
+// 추측하지 않는다. probe는 네트워크가 닫힌 자리 한 번만 돈다. 거기서 막힌 효과는 미증명인
+// 채 승인 경계로 가고, 공개 자료 읽기는 구조화 web 손이 자동 권위를 제공한다.
 async function 재보기(run, command, { cwd, timeoutMs }) {
-  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
-  if (!네트워크만열어볼까(첫판)) return 첫판;
-  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs });
-  // **reach 에서도 막혔으면 첫판을 그대로 쓴다.** 승인 카드에 실릴 이유는 probe 가 말한 것이
-  // 정확하다 — reach 는 네트워크를 연 뒤의 두 번째 벽이라 사용자에게는 덜 정확한 설명이 된다.
-  return looksBlocked(둘째판) ? 첫판 : 둘째판;
+  return run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
 }
 
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
@@ -243,7 +194,7 @@ export function makeLocalTerminalTool(deps = {}) {
           // 아무것도 안 바뀌었어요"를 말한다. 여기서 같은 말을 다시 붙이면 한 문장이 두 번
           // 말하는 답이 되고, 그 중복이 "정말 아무 것도 안 됐구나"로 읽힌다(실측).
           userSafeSummary: describeCommand(command, r),
-          nextSafeAction: '이대로 진행할까요?',
+          nextSafeAction: '공개 자료 읽기는 웹 도구로, 외부 전달은 구조화된 채널 도구로 바꿀 수 있어요. 이 명령 자체를 실행하려면 확인해 주세요.',
         };
       }
 

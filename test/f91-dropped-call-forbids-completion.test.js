@@ -66,24 +66,19 @@ const 재다 = (reply, ...떨어진것) => 완료주장검증({
 // `못한호출남기기('예산소진')` 로 원장에 남는다 — F-68 이 세운 바로 그 사실이다.
 // 그 턴의 최종 답이 「전부 처리했어요」면 출구가 물어야 한다.
 
-const 손다섯 = [
-  { name: 'local.process', args: { action: 'status' } },
-  { name: 'local.locate', args: { query: '정산' } },
-  { name: 'local.system', args: { action: 'info' } },
-  { name: 'local.discovery', args: { action: 'scan' } },
-  { name: 'local.file', args: { action: 'list', path: '.' } },
-];
+const 손다섯 = Array.from({ length: 5 }, (_, i) => ({
+  name: 'local.file', args: { action: 'move', path: `/tmp/f91-${i}`, to: '/tmp/f91-done' },
+}));
 
 function 다섯중둘이떨어지는판() {
   const 실행 = [];
   const 되부름 = [];
-  const 손 = (이름) => ({ async handler() { 실행.push(이름); return { result: { ok: true } }; } });
+  const 파일손 = { async handler(args) {
+    실행.push(args.path);
+    return { result: { ok: true, applied: true, path: args.path } };
+  } };
   const tools = demoTools({
-    localProcess: 손('local.process'),
-    localLocate: 손('local.locate'),
-    localSystem: 손('local.system'),
-    localDiscovery: 손('local.discovery'),
-    localFile: 손('local.file'),
+    localFile: 파일손,
   });
   const 원장 = new TruthLedger();
   const model = {
@@ -119,9 +114,7 @@ test('① 다섯 중 둘이 큐에서 떨어진 턴은 「전부 처리했어요
   assert.equal(p.실행.length, 3, `예산 3인데 ${p.실행.length}번 돌았다 — 전제가 깨졌다`);
   assert.ok(떨어진것.length >= 2, `큐에서 떨어진 호출이 원장에 안 남았다(F-68 자리): ${떨어진것.length}건`);
 
-  assert.ok(r.exitNetDiagnostic?.사실,
-    '다섯 중 둘이 떨어졌는데 출구 그물이 한 번도 안 물었다 — 「다 했어요」가 그대로 나간다');
-  assert.equal(p.되부름.length, 1, '모델에게 사실이 안 돌아갔다');
+  assert.equal(p.되부름.length, 1, '같은 미완료 사실로 모델을 중복 호출했다');
   assert.match(String(r.reply), /못 했/, `최종 답이 정직해지지 않았다: ${r.reply}`);
   assert.doesNotMatch(String(r.reply), /전부 처리했어요/, '거짓 완료가 그대로 사용자에게 갔다');
 });

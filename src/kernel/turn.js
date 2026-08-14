@@ -51,7 +51,10 @@ import { applicableSkill, skillInfluence } from './l5-growth/skill-learning.js';
 import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
-import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
+import {
+  턴예산, 가드레일신호, 예산소진, 소진사유,
+  실행효과분류, 위험상한소진, 위험상한사유,
+} from './turn-budget.js';
 import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증 } from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
@@ -2271,15 +2274,26 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   const 되돌릴수있는것쓴것 = () => ctx.되돌릴수있는것수 ?? 0;
   const 그밖쓴것 = () => ctx.그밖수 ?? 0;
   const 외부효과셈 = (칸) => { ctx[칸] = (ctx[칸] ?? 0) + 1; };
-  // **좁은 칸은 `reversible: false` 를 선언한 손만이다.**
-  //
-  // 한 번 "모르면 좁은 칸"으로 뒀다가 회귀 22건이 물었다(실측 2026-08-04): `reversible` 을
-  // 선언하지 않은 손이 많아서(MCP·web.collect·일부 커넥터) 정상 읽기·탐색 흐름이 3에서 끊겼다.
-  //
-  // 이 뒷단이 막는 것은 **되돌릴 수 없는 외부효과의 폭주**이지 "모르는 것"이 아니다. 모르는 것은
-  // 이미 승인 경계가 잡는다 — `toolActionKind` 가 미상을 승인으로 보내고 헌장 넷이 그 위에 선다.
-  // 여기서 한 번 더 좁히면 안전이 아니라 마비가 된다(자동성이 의무다).
-  const 되돌릴수있나 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId)?.reversible !== false;
+  let 위험상한막힌말;
+  const 손선언 = (toolId) => selfState.connectedTools?.find((t) => t.id === toolId);
+  const 실행효과세기 = (toolId, args, rec) => {
+    const 분류 = 실행효과분류({
+      actionKind: toolActionKind({ toolId, args, selfState }),
+      declaredReversible: 손선언(toolId)?.reversible,
+      receipt: rec,
+    });
+    if (분류.등급 === '되돌릴수있음') 외부효과셈('되돌릴수있는것수');
+    if (분류.등급 === '되돌릴수없음') 외부효과셈('그밖수');
+  };
+  const 실행전위험등급 = (toolId, args) => {
+    const kind = toolActionKind({ toolId, args, selfState });
+    if (['read', 'search', 'list', 'versions'].includes(kind)) return '없음';
+    return 손선언(toolId)?.reversible === false ? '되돌릴수없음' : '되돌릴수있음';
+  };
+  const 위험막힘 = (toolId, args) => {
+    const 등급 = 실행전위험등급(toolId, args);
+    return 위험상한소진(쓴것(), 예산, 등급) ? 위험상한사유(등급) : undefined;
+  };
   // **벽시계도 이어받는다 — 다만 재는 것은 「T5 가 일한 시간」이다.**
   //
   // 진입마다 0 이면 카드 N 번에 600초×N 이라 위 두 칸과 같은 병이다. 그렇다고 발화 시각부터
@@ -2315,7 +2329,6 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 강제가 아니다(⛔) — 사실을 줄 뿐이고 어떻게 쓸지는 모델이 정한다.
     toolStepsLeft: Math.max(0, Math.min(
       예산.왕복 - (ctx.왕복수 ?? 0),
-      예산.되돌릴수있는것 - 되돌릴수있는것쓴것(),
       걸음정지선 - turnReceipts.length,
     )),
     ...(가드레일신호(turnReceipts).length ? { guardrailNotes: 가드레일신호(turnReceipts) } : {}),
@@ -2428,6 +2441,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       '예산소진', 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.');
       continue;
     }
+    const 위험상한말 = 위험막힘(toolId, args);
+    if (위험상한말) {
+      위험상한막힌말 = 위험상한말;
+      못한호출남기기({ tool: toolId, args, callId: `p${순번 + 1}`, 순번: 순번 + 1,
+        ...(계획호출신분?.[toolId]?.providerCallId
+          ? { providerCallId: 계획호출신분[toolId].providerCallId } : {}) },
+      '예산소진', 위험상한말);
+      continue;
+    }
     현재호출신분 = { ...(계획호출신분?.[toolId] ?? {}), callRef: `p${순번 + 1}` };
     await ctx.emit?.('tool_progress', { text: `${toolLabel(toolId, selfState)} 실행 중이에요` }); // P6-12: 진행 상태(사고 원문 아님)
     const rec = await 계약실행(toolId, args);
@@ -2440,7 +2462,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현실다시();
     // **계획 경로 실행도 예산에 잡힌다.** 걸음 루프에만 계수기를 달았더니 뒷단이 하나씩
     // 헐거워졌다(실측: 그밖 예산 2인데 3번 돌았다) — 왕복에서 겪은 것과 같은 병이다.
-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
+    실행효과세기(toolId, args, rec);
     원장.append(rec);
     turnReceipts.push(rec);
     // 출처가 있으면 근거 추가를 알린다(evidence_added) — 웹 도구가 "확인했다"의 근거를 남긴 순간.
@@ -2923,7 +2945,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (!String(앞답).trim() && String(되부름글).trim()) finalOut = 되부름;
     };
     if (!고른것.length) {                                            // 안 골랐다 — 수단이 소진된 것이다
-      되살리기();
+      // 위험 상한으로 루프를 한 번 더 연 경우, 이 응답이 그 사실을 받은 최신 루프 상태다.
+      // 앞 응답을 계속 들고 있으면 출구가 같은 completionMismatch로 모델을 다시 부른다.
+      // 문장을 해석하거나 고치지 않고 방금 모델 응답 한 벌로 루프 상태만 전진시킨다.
+      if (위험상한막힌말) finalOut = 되부름;
+      else 되살리기();
       if (미달.unmetDeliverable) 멈춘이유 = '파일 결과물 실행을 고르지 않아 멈췄어요';
       return false;
     }
@@ -3204,6 +3230,17 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       toolId, args, selfState, tools: ctx.tools, 이번이월, 이번발화,
     });
     let 판정인자 = 경계인자;
+    const 위험상한말 = 위험막힘(toolId, 판정인자);
+    if (위험상한말) {
+      위험상한막힌말 = 위험상한말;
+      못한호출남기기({ ...이번, args: 판정인자 }, '예산소진', 위험상한말);
+      if (대기호출.length) continue;
+      // 이 위험 호출만 못 한다. 모델에게 영수증과 다른 손을 돌려줘 안전한 읽기·다른
+      // 효과 등급을 스스로 고를 기회를 남긴다.
+      if (await 목적미달이어가기()) continue;
+      멈춘이유 = 위험상한말;
+      break;
+    }
     // P6-7 · **계획 경로와 같은 계약을 걸음 경로에도.** 계획 경로(sendGrant)는 대상이 확정되기
     // 전에 전송을 승인으로 보내지 않는다 — 여기만 빠져 있어서, 모델이 도구 호출로 전송을 고르면
     // **빈 대상 카드**가 떴다(라이브 실측 2026-07-29 F: "내 텔레그램으로" → 받는 곳 미정 카드 →
@@ -3415,7 +3452,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     turnReceipts.push(rec);
     await 확인된중간결과(ctx, rec, ledger);
     steps += 1;
-    if (되돌릴수있나(toolId)) 외부효과셈('되돌릴수있는것수'); else 외부효과셈('그밖수');
+    실행효과세기(toolId, 판정인자, rec);
 
     // **표면 요청이 나오면 공은 사용자에게 넘어간다 — 그 턴은 여기서 멈춘다.**
     // 실측(오너, 2026-07-27): 비밀 입력창을 띄웠는데 모델이 그걸 실패로 보고 같은 손을
@@ -3492,6 +3529,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 자리에 들어가 미완료가 사라진다. 새 enum 을 열지 않고 기존 어휘를 그대로 쓴다.
   const 소진말 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
   남은줄거두기();
+  if (위험상한막힌말) {
+    workingState = 이어받기정리(deriveWorkingState(workingState, {
+      receipts: [], withinTurn: true, blocked: 위험상한막힌말,
+    }), ctx.connectors);
+  }
   // 상한·승인·되풀이로 멈췄으면 **여기까지 한 일과 다음 할 일**을 정직하게 말하게 한다.
   if (예산소진(쓴것(), 예산) && !멈춘이유) 멈춘이유 = 소진사유(쓴것(), 예산) ?? '한 번에 할 수 있는 만큼 하고 멈췄어요';
   // 산출물 의무 미이행은 완료가 아니다 — 계획과 원장(영수증)의 불일치가 기계 사실이다.

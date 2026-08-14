@@ -90,19 +90,47 @@ export function 턴예산(env = process.env) {
 export function 예산소진(쓴것, 예산) {
   if (쓴것?.취소됨) return true;
   return (쓴것?.왕복쓴것 ?? 0) >= 예산.왕복
-    || (쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것
-    || (쓴것?.그밖쓴것 ?? 0) >= 예산.그밖
     || (쓴것?.지난ms ?? 0) >= 예산.벽시계ms;
+}
+
+/** 위험 상한은 해당 효과 등급에만 적용한다. */
+export function 위험상한소진(쓴것, 예산, 등급) {
+  if (등급 === '되돌릴수있음') {
+    return (쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것;
+  }
+  if (등급 === '되돌릴수없음') return (쓴것?.그밖쓴것 ?? 0) >= 예산.그밖;
+  return false;
+}
+
+export function 위험상한사유(등급) {
+  if (등급 === '되돌릴수없음') return '되돌리기 어려운 일은 한 번에 할 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
+  if (등급 === '되돌릴수있음') return '되돌릴 수 있는 일은 한 번에 다룰 수 있는 만큼만 하고 나머지는 남겨 뒀어요.';
+  return undefined;
 }
 
 /** 어느 축이 닿았는가 — 사용자와 모델에게 **왜 멈췄는지**를 사실로 주기 위해. */
 export function 소진사유(쓴것, 예산) {
   if (쓴것?.취소됨) return '사용자가 멈춰 달라고 해서 남은 것은 하지 않았어요.';
   if ((쓴것?.왕복쓴것 ?? 0) >= 예산.왕복) return '한 번에 이어갈 수 있는 만큼 하고 멈췄어요.';
-  if ((쓴것?.그밖쓴것 ?? 0) >= 예산.그밖) return '되돌리기 어려운 일은 한 번에 여기까지만 했어요.';
-  if ((쓴것?.되돌릴수있는것쓴것 ?? 0) >= 예산.되돌릴수있는것) return '한 번에 다룰 수 있는 만큼 하고 나머지는 남겨 뒀어요.';
   if ((쓴것?.지난ms ?? 0) >= 예산.벽시계ms) return '오래 걸려서 여기까지 하고 멈췄어요.';
   return undefined;
+}
+
+/** 영수증이 밝힌 실제 효과를 예산 등급으로 투영한다. */
+export function 실행효과분류({ actionKind, declaredReversible, receipt } = {}) {
+  const 실제호출 = Boolean(receipt?.actualCall?.tool);
+  const 결과 = receipt?.result ?? {};
+  const 실패상태 = receipt?.failureState ?? 'none';
+  if (!실제호출 || 실패상태 === 'blocked' || 실패상태 === 'cancelled'
+    || 결과.applied === false || 결과.probeChangedNothing === true) {
+    return { 등급: '없음', 실제효과: false };
+  }
+  if (['read', 'search', 'list', 'versions'].includes(actionKind) && 결과.applied !== true) {
+    return { 등급: '없음', 실제효과: false };
+  }
+  return declaredReversible === false
+    ? { 등급: '되돌릴수없음', 실제효과: true }
+    : { 등급: '되돌릴수있음', 실제효과: true };
 }
 
 /** 이 호출의 **호출지문** — 같은 손·같은 작업·의미상 같은 인자인가(S1 §5.1.1 과 같은 정의). */

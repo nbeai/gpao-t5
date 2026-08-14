@@ -56,10 +56,11 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // **같은 사실을 두 번 묻지 않는다**(이음매 ①). 앞 레인이 이미 재서 실어 보낸 인자가 오면
   // 그대로 쓴다 — 재는 것은 왕복이고 왕복은 사용자 비용이다(0번 비용: 에너지·시간).
   // 두 번 재면 느린 것보다 **답이 갈리는 것**이 문제다: 화면은 그 사이에 바뀐다(두 진실 금지).
-  const 이미잰것 = toolId === 'local.terminal'
-    ? args?.probeResult !== undefined || args?.changes !== undefined
-    : args?.눌러본사실 !== undefined;
-  if (!이미잰것 && toolId === 'local.terminal' && typeof args?.command === 'string') {
+  // terminal 호출의 changes/probeResult는 모델도 만들 수 있는 공개 인자다. 그것을 관찰 사실로
+  // 신뢰하면 `changes:false` 하나로 임의 셸 효과가 자동 권위를 얻는다. 이 경계에 들어온
+  // terminal 호출은 언제나 현재 도구로 한 번 재고, 그 결과로 공개 인자를 덮는다.
+  const 이미잰것 = toolId !== 'local.terminal' && args?.눌러본사실 !== undefined;
+  if (toolId === 'local.terminal' && typeof args?.command === 'string') {
     const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
     판정인자 = {
       ...args,
