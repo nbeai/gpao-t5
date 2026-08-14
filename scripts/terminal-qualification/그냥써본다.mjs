@@ -72,13 +72,12 @@ try {
     const turn = await post('/turn', { sessionId: s.id, text });
     const sess = JSON.parse(await readFile(join(state, `${s.id}.json`), 'utf8'));
     // ledgerEntries 는 세션 누적이다 — 이번 턴 몫만 잘라 쓴다(원본에 턴별 사실이 서게).
-    // 파일 손은 동사가 판정 재료다(copy 인지 move 인지) — 도구:동사로 적는다.
-    const 누적손 = (sess.ledgerEntries ?? [])
-      .map((e) => (e?.actualCall?.tool
-        ? `${e.actualCall.tool}${e.actualCall.args?.action ? `:${e.actualCall.args.action}` : ''}` : null))
-      .filter(Boolean);
-    const 손 = 누적손.slice(이전손수);
-    이전손수 = 누적손.length;
+    // 파일 손은 동사가, 터미널은 명령 원문이 판정 재료다. **필터한 목록 위에서 잘라야**
+    // 인덱스가 안 어긋난다(actualCall 없는 항목이 원장에 섞여 있다).
+    const 누적호출 = (sess.ledgerEntries ?? []).filter((e) => e?.actualCall?.tool);
+    const 이번호출 = 누적호출.slice(이전손수);
+    이전손수 = 누적호출.length;
+    const 손 = 이번호출.map((e) => `${e.actualCall.tool}${e.actualCall.args?.action ? `:${e.actualCall.args.action}` : ''}`);
     console.log('─'.repeat(70));
     console.log(`[${i + 1}] 오너: ${text}`);
     console.log(`    (${((Date.now() - t0) / 1000).toFixed(1)}초 · kind=${turn.kind ?? 'reply'} · 손 ${손.length}회: ${[...new Set(손)].join(', ') || '없음'})`);
@@ -88,6 +87,9 @@ try {
     원본.회차.push({
       오너: text, kind: turn.kind ?? 'reply', 걸린ms: Date.now() - t0,
       손순서: 손, 답: turn.reply ?? turn.question ?? null,
+      // 터미널 명령 원문 — 깊이 진단 재료(무엇을 쟀는지). 이게 없으면 「얕다」의 원인을 못 가른다.
+      터미널명령: 이번호출.filter((e) => e.actualCall.tool === 'local.terminal')
+        .map((e) => e.actualCall.args?.command).filter(Boolean),
     });
   }
   const 증거집 = '/Users/jyp/Developer/t5-p-op/docs/03-verification/evidence/terminal-2026-08-15/그냥써본다-원본';
