@@ -151,6 +151,9 @@ export function makeLocalTerminalTool(deps = {}) {
     probe,
     /** 방금 돌린 명령이 다음 턴의 대상이다 — "아까 그 오류", "다시 돌려봐"가 여기서 이어진다. */
     subjectOf(rec) {
+      // 프로세스에 전달되지 않은 호출은 "아까 실행한 명령"이 아니다. actualCall 의 공개
+      // 요청 사실은 남겨도, 다음 턴 command subject 로 승격하지 않는다.
+      if ((rec?.failureState ?? 'none') !== 'none' && rec?.result?.processDelivery !== 'delivered') return null;
       const command = rec?.result?.command ?? rec?.actualCall?.args?.command;
       if (!command) return null;
       const code = rec.result?.exitCode;
@@ -245,6 +248,9 @@ export function makeLocalTerminalTool(deps = {}) {
       }
 
       const 끝난이유 = executionBlock(r);
+      // 기존 주입 실행기들은 전달 여부 칸이 없지만 이미 실행 결과를 돌려준 계약이었다.
+      // 실제 runCommand 는 spawn error 만 `not_delivered` 로 명시한다.
+      const processDelivery = r?.processDelivery ?? 'delivered';
       // **끈 것은 그 PID 로 확인한다.** 실측(오너 라이브 2026-07-29): 대상이 실제로 죽었는데
       // T5 가 `pgrep -af '<이름>'` 으로 확인하려다 **그 명령을 실행하는 셸 자신**을 후보로 잡아
       // "바로 다시 살아났어요"라고 보고하고 부모·launchd 까지 조사하겠다고 했다.
@@ -262,7 +268,7 @@ export function makeLocalTerminalTool(deps = {}) {
       const failureResult = {
         command, cwd,
         exitCode: r.exitCode,
-        processDelivery: 'delivered',
+        processDelivery,
         commandOutcome: {
           status: r.stopped ? 'stopped' : (r.exitCode === 0 ? 'success' : 'failure'),
           exitCode: r.stopped ? null : r.exitCode, signal: null,
@@ -271,7 +277,7 @@ export function makeLocalTerminalTool(deps = {}) {
         stdout: r.stdout, stderr: r.stderr,
         effects: { state: 'unknown' },
         ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
-        applied: 실제로돌았나,
+        applied: 실제로돌았나 && processDelivery === 'delivered',
       };
       const result = {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
@@ -282,13 +288,18 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
-          applied: 실제로돌았나,
+          applied: 실제로돌았나 && processDelivery === 'delivered',
         };
       const failed = r.exitCode !== 0 || Boolean(r.stopped);
       return {
         // 직접 tool 계약을 쓰는 기존 소비자는 result를 계속 읽는다. ToolRunner는 실패일 때
         // failureResult만 원장·모델 교환으로 올려 범용 실패 result 노출을 막는다.
-        ...(failed ? { failed: true, lifecycle: 'delivered', failureResult, result } : { result }),
+        ...(failed ? {
+          failed: true,
+          lifecycle: processDelivery === 'delivered' ? 'delivered' : 'failed',
+          failureResult,
+          result,
+        } : { result }),
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
         // 끈 대상이 있으면 **그 사실을 먼저** 말한다(이름 검색으로 다시 헷갈리지 않게).
         userSafeSummary: 종료확인?.length && r.exitCode === 0

@@ -1708,9 +1708,12 @@ export async function runTurn(input, ctx) {
       if (call?.name && 본것.has(call.name)) { 추가호출.push(call); continue; }
       if (call?.name) 본것.add(call.name);
       대표.push(call);
-      // 계획 경로가 실행할 대표 호출의 **공급자 신분**을 손 이름에 걸어 둔다. 계획은
-      // `plan.toolsToUse`(손 이름)로 도는 구조라 여기서만 이어 붙일 수 있다.
-      if (call?.name && call?.providerCallId) 계획호출신분[call.name] = { providerCallId: call.providerCallId };
+      // 계획 경로는 실행하면서 probe·grant 문맥을 인자에 덧댄다. actualCall 은 그 실행
+      // 봉투가 아니라 모델이 요청한 공개 호출 사실을 보존해야 하므로 여기서 수명을 가른다.
+      if (call?.name) 계획호출신분[call.name] = {
+        ...(call.providerCallId ? { providerCallId: call.providerCallId } : {}),
+        publicCallArgs: structuredClone(call.args ?? {}),
+      };
     }
     modelChosen = 대표;
   }
@@ -3343,7 +3346,13 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           sendArgs: { ...(sendArgs ?? {}), [toolId]: 판정인자 },
           // 승인 뒤 실행도 **같은 신분**으로 간다 — 사용자가 승인한 그 호출이라는 사실이
           // 원장과 모델 이력에서 끊기지 않는다.
-          호출신분: { ...계획호출신분, ...(이번.providerCallId ? { [toolId]: { providerCallId: 이번.providerCallId } } : {}) },
+          호출신분: {
+            ...계획호출신분,
+            [toolId]: {
+              ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
+              publicCallArgs: structuredClone(이번.args ?? {}),
+            },
+          },
           askedFrom: ctx.askedFrom,
           // 지금까지 이 요청에서 허락받은 손 — 승인 뒤에도 이어져야 같은 질문을 안 한다.
           허락한손: [...(ctx.허락한손 ?? []), toolId],
@@ -3396,6 +3405,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     현재호출신분 = {
       ...(이번.providerCallId ? { providerCallId: 이번.providerCallId } : {}),
       callRef: 이번.callId,
+      publicCallArgs: structuredClone(이번.args ?? {}),
     };
     const rec = await 계약실행(toolId, 판정인자);
     // 완료 산출물은 서명 경계 직전에 이미 한 번 동봉했다. unsigned 중간 Receipt만 여기서 동봉한다.

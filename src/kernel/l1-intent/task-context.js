@@ -611,17 +611,34 @@ function 가본곳모으기(receipts = []) {
  * (turn.js 결과 조립 — 봉인 recovery A·B·B' 가 그 자리를 문다).
  */
 const 실패원문상한 = 2000; // Hermes 와 같은 축 — 값은 그쪽 실측을 그대로 쓴다(2,000자 절단)
+function 실패관측값(value) {
+  if (value == null || typeof value !== 'object') return compactResult(value, 실패원문상한);
+  // 실패 관측은 문자열로 뭉개지 않는다. command/cwd/exit/stdout/stderr/전달/효과 칸을
+  // 모델이 직접 구분해 다음 수를 고를 수 있어야 한다. 긴 문자열만 칸 안에서 조용하지 않게 접는다.
+  const 접기 = (item) => {
+    if (typeof item === 'string') return item.length <= 실패원문상한
+      ? item
+      : `${item.slice(0, 실패원문상한)}…[잘림: 전체 ${item.length}자 중 앞 ${실패원문상한}자만 실음]`;
+    if (Array.isArray(item)) return item.map(접기);
+    if (item && typeof item === 'object') return Object.fromEntries(
+      Object.entries(item).map(([key, child]) => [key, 접기(child)]),
+    );
+    return item;
+  };
+  return 접기(value);
+}
+
 function 실패원문칸(r) {
   if (!r?.actualCall) return {};
   const 진단 = r.diagnosticTrace;
   const 원문 = 진단 == null ? '' : (typeof 진단 === 'string' ? 진단 : JSON.stringify(진단));
   // 실패 결과는 성공 data가 아니다. 하지만 실제 실행이 낸 stdout·stderr·exit·cwd는
   // 모델이 다음 방법을 고를 때 필요한 관측 사실이므로, 같은 미확정 표식 아래에만 싣는다.
-  const 결과 = r.result === undefined ? undefined : compactResult(r.result, 실패원문상한);
-  if (!원문 || 원문 === '{}') return { 확인안됨: true, ...(결과 ? { 실패결과: 결과 } : {}) };
+  const 결과 = r.result === undefined ? undefined : 실패관측값(r.result);
+  if (!원문 || 원문 === '{}') return { 확인안됨: true, ...(결과 !== undefined ? { 실패결과: 결과 } : {}) };
   return {
     확인안됨: true,
-    ...(결과 ? { 실패결과: 결과 } : {}),
+    ...(결과 !== undefined ? { 실패결과: 결과 } : {}),
     실패원문: 원문.length <= 실패원문상한
       ? 원문
       : `${원문.slice(0, 실패원문상한)}…[잘림: 전체 ${원문.length}자 중 앞 ${실패원문상한}자만 실음]`,

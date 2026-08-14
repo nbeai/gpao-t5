@@ -86,7 +86,15 @@ export class TruthLedger {
 
   /** @param {import('../contracts.js').ToolReceipt} rec */
   append(rec) {
-    this.entries.push(rec);
+    // 실패 원문은 같은 턴의 모델 판단용 관측이지 세션 기억이 아니다. turnReceipts 는 원본을
+    // 계속 쥐고, TruthLedger 는 지속 가능한 공개 사실만 별도 투영한다.
+    if ((rec?.failureState ?? FAILURE.NONE) !== FAILURE.NONE
+      && rec?.actualCall?.tool === 'local.terminal') {
+      const { result, ...durable } = rec;
+      this.entries.push(structuredClone(durable));
+    } else {
+      this.entries.push(rec);
+    }
     return rec;
   }
 

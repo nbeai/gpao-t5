@@ -101,6 +101,9 @@ export async function runCommand(command, opts = {}) {
     const stdout = fold(out); const stderr = fold(err);
     return {
       command, cwd, mode,
+      // spawn 의 `error` 는 셸 프로세스 자체가 시작되지 않았다는 사실이다. exit -1 과
+      // 섞으면 "명령이 실패했다"와 "명령에 전달되지 않았다"가 같은 영수증이 된다.
+      processDelivery: spawnError ? 'not_delivered' : 'delivered',
       exitCode, durationMs: Date.now() - startedAt,
       stdout: stdout.text, stderr: stderr.text,
       truncated: stdout.truncated || stderr.truncated,

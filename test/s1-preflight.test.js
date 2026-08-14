@@ -7,7 +7,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { preflight, 현실지문, 변경파일, 기준지문, 허용파일, 기준선 } from '../scripts/s1/preflight.mjs';
+import { preflight, 현실지문, 변경파일, 기준지문, 허용파일, 기준선, 무시 } from '../scripts/s1/preflight.mjs';
+
+test('preflight: 터미널 S1/S2 라이브 러너는 측정 하네스로 등록돼 있다', () => {
+  assert.ok(무시.some((pattern) => pattern.test('scripts/terminal-qualification/s1-live.mjs')));
+  assert.ok(무시.some((pattern) => pattern.test('scripts/terminal-qualification/s2-live.mjs')));
+});
 
 test('preflight: 현재 상태는 통과한다(기준선과 같다)', async () => {
   const { 결과, 통과 } = await preflight();

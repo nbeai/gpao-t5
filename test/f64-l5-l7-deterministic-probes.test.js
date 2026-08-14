@@ -305,10 +305,18 @@ async function l7Case(correct, { mutateStdout = false } = {}) {
   const expected = sha(Buffer.from(L7_SOURCE));
   let main = 0;
   let modelObservedStdout = '';
+  let modelObservedExit;
   const model = { async respond(tc, opts = {}) {
     if (tc.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'file' } }] };
     if (!opts.tools?.length) return '해시 정보를 기록했어요.';
     main += 1;
+    const failedTerminal = (tc.turnExchange ?? []).find((exchange) => exchange.tool === 'local.terminal'
+      && exchange.확인안됨 === true && exchange.실패결과 !== undefined);
+    if (failedTerminal) {
+      const failure = typeof failedTerminal.실패결과 === 'string'
+        ? JSON.parse(failedTerminal.실패결과) : failedTerminal.실패결과;
+      modelObservedExit = failure?.exitCode;
+    }
     if (main === 1) return { text: '', toolCalls: [
       { name: 'local.terminal', args: { command: correct ? `shasum -a 256 ${join(x.root, '승인본/배포설정.txt')}` : 'md5 승인본/배포설정.txt' } },
       ...(!correct ? [{ name: 'local.file', args: {
@@ -339,7 +347,7 @@ async function l7Case(correct, { mutateStdout = false } = {}) {
     const text = await readFile(join(x.root, '배포_점검.txt'), 'utf8');
     const completion = saved.ledgerEntries.filter((r) => r.origin === 'completion_settlement' || r.receiptRef).length;
     const terminalStdout = String(terminal?.result?.stdout ?? '');
-    return { terminalExit: terminal?.result?.exitCode, terminalStdout, modelObservedStdout, expectedDigest: expected,
+    return { terminalExit: terminal?.result?.exitCode ?? modelObservedExit, terminalStdout, modelObservedStdout, expectedDigest: expected,
       stdoutHasExpected: terminalStdout.includes(expected), outputDigest: sha(Buffer.from(text)),
       artifact: text, hashRecorded: text.includes(expected), completion };
   });

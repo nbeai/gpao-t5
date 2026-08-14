@@ -69,6 +69,21 @@ try {
     GPAO_T5_MODEL_ID: process.env.T5_LIVE_MODEL_ID ?? connection.modelId ?? 'gpt-5.1',
   };
   const live = liveDeps(env);
+  // 실패 원문은 같은 턴 판단에만 산다. SessionStore readback 으로 그 원문을 다시 꺼내
+  // S2를 판정하면 제품의 수명 계약을 깨야만 하네스가 통과한다. 실제 handler 경계에서
+  // 이번 실행 동안만 관측하고, 지속 원장은 공개 호출·상태 검증에만 쓴다.
+  const terminalRuns = [];
+  const terminalTool = live.tools.tools['local.terminal'];
+  const terminalHandler = terminalTool.handler.bind(terminalTool);
+  terminalTool.handler = async (args, context) => {
+    const out = await terminalHandler(args, context);
+    terminalRuns.push({
+      command: args?.command ?? null,
+      observation: structuredClone(out?.failureResult ?? out?.result ?? null),
+      failureState: out?.failed ? 'failed' : (out?.blocked ? 'blocked' : 'none'),
+    });
+    return out;
+  };
   const descriptor = defineTool({
     id: 'task.verify', label: 'S2 결과 검사', owner: 'plugin', availability: [{ kind: 'connected' }], toolKind: 'read', needsApproval: false,
     capability: '이 평가 과업의 실제 결과 파일을 객관적으로 검사한다.', operatorFact: '평가 하네스가 제공한 결과 검사를 실행한다.',
@@ -93,12 +108,14 @@ try {
   const artifact = await readFile(output, 'utf8').catch(() => null);
   const receipts = await outputReceipts(entries, output);
   const terminal = entries.filter((entry) => entry?.actualCall?.tool === 'local.terminal');
-  const missing = terminal.some((entry) => /logstat/.test(entry.actualCall?.args?.command ?? '') && Number(entry.result?.exitCode ?? entry.result?.commandExit?.code) !== 0);
+  const missing = terminalRuns.some((run) => /logstat/.test(run.command ?? '')
+    && run.observation?.processDelivery === 'delivered'
+    && Number(run.observation?.exitCode ?? run.observation?.commandExit?.code) !== 0);
   // 단순 pwd·ls 성공은 복구가 아니다. 실패 뒤의 다른 터미널 명령이 실제 집계 TSV만
   // stdout으로 냈을 때만 S2의 복구로 센다. CRLF는 전송 차이로만 정규화한다.
-  const recovered = terminal.some((entry) => !/logstat/.test(entry.actualCall?.args?.command ?? '')
-    && Number(entry.result?.exitCode ?? entry.result?.commandExit?.code) === 0
-    && String(entry.result?.stdout ?? '').replace(/\r\n/g, '\n') === expected);
+  const recovered = terminalRuns.some((run) => !/logstat/.test(run.command ?? '')
+    && Number(run.observation?.exitCode ?? run.observation?.commandExit?.code) === 0
+    && String(run.observation?.stdout ?? '').replace(/\r\n/g, '\n') === expected);
   const sourceUnchanged = (await Promise.all(Object.keys(sources).map(async (name) => sha256(await readFile(join(work, name))) === sourceHashes[name]))).every(Boolean);
   const approvals = entries.filter((entry) => entry?.failureState === 'approval_required').length;
   const report = {
@@ -109,7 +126,8 @@ try {
     outputWriteReceipts: receipts.filter((entry) => entry.actualCall?.args?.action === 'write').length,
     outputReadReceipts: receipts.filter((entry) => ['read', 'open'].includes(entry.actualCall?.args?.action)).length,
     verifierReceipts: entries.filter((entry) => entry?.actualCall?.tool === 'task.verify').map((entry) => ({ pass: entry.result?.pass === true, mismatch: entry.result?.mismatch ?? null })),
-    terminalReceipts: terminal.map((entry) => ({ command: entry.actualCall?.args?.command ?? null, cwd: entry.actualCall?.args?.cwd ?? null, exitCode: entry.result?.exitCode ?? entry.result?.commandExit?.code ?? null, stdout: entry.result?.stdout ?? null, stderr: entry.result?.stderr ?? null, processState: entry.result?.processState ?? entry.result?.effect?.process ?? null, failureState: entry.failureState ?? null })),
+    terminalReceipts: terminal.map((entry) => ({ command: entry.actualCall?.args?.command ?? null, cwd: entry.actualCall?.args?.cwd ?? null, failureState: entry.failureState ?? null })),
+    runtimeTerminalObservations: terminalRuns,
     finalReply: turn.reply ?? turn.text ?? null,
   };
   report.pass = report.artifact.matches && sourceUnchanged && approvals === 0 && missing && recovered && report.outputWriteReceipts >= 1 && report.outputReadReceipts >= 1 && report.verifierReceipts.some((entry) => entry.pass);

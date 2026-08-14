@@ -24,6 +24,44 @@ function serializeSession(path, task) {
   });
 }
 
+function durableSession(session) {
+  // SessionStore 의 기존 직렬화와 같은 JSON 정의역을 먼저 만든다. pending plan 안에는
+  // 실행 중에만 쓰는 함수가 있을 수 있어 structuredClone 정의역은 더 좁다.
+  const durable = JSON.parse(JSON.stringify(session));
+  const terminalResumeArgs = (args) => {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
+    const { probeResult, ...resumeArgs } = args;
+    return resumeArgs;
+  };
+  // terminal probe 와 실패 원문은 같은 턴의 모델 관측이지 세션 기억은 아니다. 승인으로 턴이
+  // 쪼개지면 같은 객체가 intent·sendArgs·이미 한 걸음 세 자리에 봉인되므로, 디스크 투영에서
+  // 그 terminal 자리들을 함께 걷는다. command·cwd·changes·granted 는 재시작 뒤 사용자가
+  // 승인한 바로 그 호출을 실행하는 봉인이므로 그대로 둔다.
+  for (const pending of Object.values(durable.pendingApprovals ?? {})) {
+    if (pending?.sendArgs?.['local.terminal']) {
+      pending.sendArgs['local.terminal'] = terminalResumeArgs(pending.sendArgs['local.terminal']);
+    }
+    if (pending?.intent?.toolArgs?.['local.terminal']) {
+      pending.intent.toolArgs['local.terminal'] = terminalResumeArgs(
+        pending.intent.toolArgs['local.terminal'],
+      );
+    }
+    if (pending?.intent?.terminalOp) {
+      pending.intent.terminalOp = terminalResumeArgs(pending.intent.terminalOp);
+    }
+    if (Array.isArray(pending?.이미한걸음)) {
+      pending.이미한걸음 = pending.이미한걸음.map((step) => {
+        if (step?.actualCall?.tool !== 'local.terminal' || (step.failureState ?? 'none') === 'none') {
+          return step;
+        }
+        const { result, ...durableFailure } = step;
+        return durableFailure;
+      });
+    }
+  }
+  return durable;
+}
+
 // P2-4a 목록 정리성. 제목은 사용자 입력이므로 손질한다 — 제어문자·줄바꿈이 목록을 깨뜨린다.
 export const MAX_TITLE = 60;
 export const DEFAULT_TITLE = '새 대화';
@@ -176,7 +214,7 @@ export class SessionStore {
       session.transcript.push(...durableDeliveries
         .filter((entry) => !known.has(entry.deliveryRef)).map((entry) => structuredClone(entry)));
       session.updatedAt = Date.now();
-      await writeAtomic(path, JSON.stringify(session));
+      await writeAtomic(path, JSON.stringify(durableSession(session)));
       return session;
     });
   }
