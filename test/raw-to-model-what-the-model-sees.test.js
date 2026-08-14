@@ -199,7 +199,13 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉�
   const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
   const 던지는손 = {
     async probe(command) { return { command, cwd: '/x', changes: false, probe: { exitCode: 0, stdout: '', stderr: '' } }; },
-    async handler() { throw new Error('EIO: disk error at /dev/x0'); },
+    async handler() {
+      return {
+        failed: true,
+        result: { stdout: 'FAILURE_STDOUT_MARKER', stderr: 'FAILURE_STDERR_MARKER', exitCode: 7, cwd: '/failure-origin' },
+        userSafeSummary: '명령이 오류로 끝났어요.',
+      };
+    },
   };
   const 입력들 = [];
   let 냈나 = false;
@@ -217,10 +223,11 @@ test('② 실패 원문은 모델 입력에만 산다 — 턴 결과(저장 봉�
     { env: demoEnv(), tools: demoTools({ localTerminal: 던지는손 }), model: 모델 },
   );
   const 뒤입력 = 입력들[입력들.length - 1];
-  assert.ok(뒤입력.includes('EIO'), '실패의 기계 원문이 다음 모델 입력에 없다 — §5-3 절단 그대로다');
-  assert.ok(뒤입력.includes('확인안됨') || 뒤입력.includes('확인 안 됨'), '원문이 표식 없이 실렸다');
-  assert.ok(!JSON.stringify(r).includes('EIO') && !JSON.stringify(r).includes('/dev/x0'),
-    '실패 원문이 저장 봉투(사용자 결과)로 샜다 — 봉인 A 가 물어야 할 자리다');
+  assert.ok(뒤입력.includes('FAILURE_STDOUT_MARKER') && 뒤입력.includes('FAILURE_STDERR_MARKER'),
+    '실패 실행 결과가 다음 모델 입력에 없다');
+  assert.ok(뒤입력.includes('확인안됨') || 뒤입력.includes('확인 안 됨'), '실패 결과가 표식 없이 실렸다');
+  assert.ok(!JSON.stringify(r).includes('FAILURE_STDOUT_MARKER') && !JSON.stringify(r).includes('FAILURE_STDERR_MARKER'),
+    '실패 실행 결과가 저장 봉투(사용자 결과)로 샜다 — 봉인 A 가 물어야 할 자리다');
 });
 
 test('② 성공한 실행에는 진단면이 붙지 않는다 — 문은 실패에만 열린다', () => {

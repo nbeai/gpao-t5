@@ -205,6 +205,9 @@ export class ToolRunner {
         return receipt({
           intended,
           actualCall: 부른것,
+          // 실패한 실행 결과는 성공 사실이 아니다. 그러나 실제 프로세스가 낸 exit·stdout·stderr·cwd는
+          // 다음 판단에 필요한 관측값이다. `failureState`가 이 값의 미확정 신분을 유지한다.
+          result: out.result,
           failureState: FAILURE.FAILED,
           userSafeSummary: out.userSafeSummary ?? `${toolId} 실행에 실패했어요.`,
           diagnosticTrace: out.diagnosticTrace,

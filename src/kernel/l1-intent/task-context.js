@@ -615,9 +615,13 @@ function 실패원문칸(r) {
   if (!r?.actualCall) return {};
   const 진단 = r.diagnosticTrace;
   const 원문 = 진단 == null ? '' : (typeof 진단 === 'string' ? 진단 : JSON.stringify(진단));
-  if (!원문 || 원문 === '{}') return { 확인안됨: true };
+  // 실패 결과는 성공 data가 아니다. 하지만 실제 실행이 낸 stdout·stderr·exit·cwd는
+  // 모델이 다음 방법을 고를 때 필요한 관측 사실이므로, 같은 미확정 표식 아래에만 싣는다.
+  const 결과 = r.result === undefined ? undefined : compactResult(r.result, 실패원문상한);
+  if (!원문 || 원문 === '{}') return { 확인안됨: true, ...(결과 ? { 실패결과: 결과 } : {}) };
   return {
     확인안됨: true,
+    ...(결과 ? { 실패결과: 결과 } : {}),
     실패원문: 원문.length <= 실패원문상한
       ? 원문
       : `${원문.slice(0, 실패원문상한)}…[잘림: 전체 ${원문.length}자 중 앞 ${실패원문상한}자만 실음]`,
