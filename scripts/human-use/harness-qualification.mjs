@@ -229,9 +229,23 @@ export async function artifactIdentity({ sourceRoot, pkgPath } = {}) {
       cwd: root, encoding: 'buffer', maxBuffer: 16 * 1024 * 1024,
     }).toString('utf8').split('\0').filter(Boolean).sort();
     const files = [];
+    // **임베디드 git 저장소는 디렉터리 한 줄로 온다** (밟음 2026-08-14 · 본선 b829813).
+    // `git ls-files --others` 는 중첩 저장소의 내용을 안 펴고 `<경로>/` 하나로 낸다.
+    // 갈래가 심볼릭 링크·파일 둘뿐이라 그 줄이 `readFile` 에서 `EISDIR` 로 터졌고,
+    // `runHarnessQualification` 이 `probe_crashed` 로 내려 자격 관문 9건 + preflight 1건이
+    // 무너졌다 — **제품은 하나도 안 틀렸는데 자가 죽어서 전부 빨갰다.**
+    // 임베디드 저장소는 불법 상태가 아니므로 받아서 사실대로 적는다: 바이트는 못 읽으니
+    // digest 를 지어내지 않고, 대신 **그 자리를 이름으로 고지한다**(부재를 침묵으로 대신하지
+    // 않는다 · F-104 계열). 있고 없음은 신분을 바꾼다 — 목록에 남으므로 조용히 버려지지 않는다.
+    const embeddedRepos = [];
     for (const name of names) {
       const path = join(root, name);
       const stat = await lstat(path);
+      if (stat.isDirectory()) {
+        embeddedRepos.push(name);
+        files.push({ path: name, type: 'embedded_repo' });
+        continue;
+      }
       files.push(stat.isSymbolicLink()
         ? { path: name, type: 'symlink', target: await readlink(path) }
         : { path: name, type: 'file', mode: stat.mode & 0o777, sha256: digest(await readFile(path)) });
@@ -239,6 +253,8 @@ export async function artifactIdentity({ sourceRoot, pkgPath } = {}) {
     return {
       kind: 'source', gitSha, dirty: status.length > 0,
       worktreeDigest: digest(files), changesDigest: digest(status),
+      // 이 신분이 **담지 못한 자리**. 비어 있으면 전량을 담았다는 뜻이다.
+      embeddedRepos,
     };
   }
   const bytes = await readFile(resolve(pkgPath));
