@@ -340,6 +340,24 @@ export function executionBlock(r) {
   if (/command not found|No such file or directory: |ENOENT.*spawn/i.test(t)) {
     return { kind: 'env', why: 'missing', userWhy: '그 명령이 이 컴퓨터에 없어요' };
   }
+  // **막혔다고 말하는 말투가 하나가 아니다** (라이브 정면 대조 2026-08-16 · §7-ai).
+  //
+  // 오너 부탁 *"이 폴더 전체를 압축해서 백업본 하나 만들어줘"* 에서 비교군은 zip 으로 갈아타
+  // 파일을 실제로 만들었는데, T5 는 tar 를 세 번 치고 **사용자에게 명령을 넘겼다.**
+  // 원인은 모델이 아니었다 — `zip`·`cp` 는 `Permission denied` 를 내어 위 갈래에서 잡히고
+  // `blocked`→사다리(`other_tool`)가 **이미 켜지는데**, `tar` 만 이렇게 말한다:
+  //     tar: Failed to open 'backup.tar.gz'
+  // 그래서 `code/failed` 로 떨어져 승인도 사다리도 **둘 다 안 열렸다.** 이음새가 없던 자리다.
+  //
+  // **도구 이름 목록을 만들지 않는다**(이 파일이 처음부터 버린 방식이다). 가르는 근거는
+  // 위 `명령이지목한자리인가` 와 **같은 축**이다 — 「열지·만들지 못했다」고 말한 그 자리를
+  // **명령이 스스로 지목했는가**. 지목했으면 그 자리에 손을 댄 것이고, 막혔다면 쓰려 한 증거다.
+  // 지목 안 한 자리(순회하다 만난 경로)나 자리를 안 밝힌 실패(`grep` 미검출 등)는 그대로 둔다 —
+  // **정상적인 비영 종료를 실패로 만들지 않는다.**
+  const 열지못한자리 = t.match(/(?:failed to (?:open|create)|cannot (?:open|create)|can't (?:open|create))\s*[:\s]?\s*['"`]?([^'"`\s,]+)/i)?.[1];
+  if (열지못한자리 && 명령이지목한자리인가(열지못한자리, r.command)) {
+    return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
+  }
   return { kind: 'code', why: 'failed', userWhy: '명령이 오류로 끝났어요' };
 }
 
