@@ -55,6 +55,29 @@ test('반대시험 — 진짜 막힌 쓰기는 그대로 「바꾼다」다 (안
   assert.equal(toolActionKind({ toolId: 'local.terminal', args: p }), 'write');
 });
 
+// ── 둘째 갈래 (라이브 12-57-57 에서 재현 · §7-x-3) ────────────────────────
+// 같은 거짓 문장을 내는 갈래가 **둘**이었다. 첫 라이브가 unreadable_exit 를 먼저 밟았을 뿐이다.
+// 이 회차의 명령에는 `2>/dev/null` 이 없다:
+//   find . -maxdepth 3 -type f \( -iname '*log*' -o -iname '*error*' \) -print
+// 그런데 카드가 **"파일을 바꾸는 일이라"**고 말했다 — catch-all(terminal-run.js) 이
+// `Permission denied|operation not permitted|EPERM|EACCES` 를 전부 `why:'write'` 로 단정한다.
+// `find` 가 **읽을 수 없는 폴더**를 만나면 그 말이 나온다. 증거는 「막혔다」뿐이다.
+test('읽다가 막힌 것을 「바꾸려던 것」으로 단정하지 않는다', () => {
+  const b = executionBlock({ command: 'find . -type f -print', exitCode: 1, stdout: '', stderr: 'find: ./Library/Mail: Permission denied' });
+  assert.equal(b.kind, 'sandbox', '막힌 것은 사실이므로 승인 경로는 그대로다');
+  assert.notEqual(b.why, 'write', '증거는 「막혔다」뿐이다 — 「바꾸려 했다」는 주장이다');
+  assert.doesNotMatch(b.userWhy, /바꾸는 일|덮어쓰/, '사용자에게 거짓을 말하지 않는다');
+});
+
+test('반대시험 — 쓰려 했다는 증거가 있으면 그대로 write 다 (보존 시험)', () => {
+  // 막힌 이름이 **명령이 쓰려던 자리**(리다이렉트 대상)면 그건 추측이 아니라 증거다.
+  // 이 칸은 수리 전에도 초록이고 수리 후에도 초록이어야 한다 — 안전이 안 깎였다는 증명이다.
+  // (`Read-only file system` 을 새로 잡는 것은 **이번 사용자 결과에 필요 없는 신규 탐지**라
+  //  뺐다 — 문구 목록 확장은 이 저장소가 이미 버린 방식이다. 감시자 조정 3 · §7-y 표에 「안 밟음」)
+  const b = executionBlock({ command: 'echo x > out.txt', exitCode: 1, stdout: '', stderr: 'zsh: operation not permitted: out.txt' });
+  assert.equal(b.why, 'write');
+});
+
 test('미상 승인 카드는 모른다고 말하고, 승인은 그대로 요구한다', () => {
   const r = explainAuthority({ kind: UNKNOWN_KIND, toolId: 'local.terminal' });
   assert.equal(r.needsApproval, true, '모르면 승인으로 — 이 규칙은 안 바뀐다');
