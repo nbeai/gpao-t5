@@ -2,18 +2,24 @@
 
 > 갱신 2026-08-15 (J12 3차 봉인 직후 · 인계 관리자 R 이 **직접 실행해 센 값만** 적는다)
 >
-> **① 지금 상태**
+> **① 지금 상태 — 해시·개수는 여기 안 적는다. 직접 재라**
 > ```
-> HEAD        55c284c3  fix(J12 3차): 파악을 마친 물음은 빈손이 아니다
-> 브랜치      claude/p-op-1-a-system-view · 작업트리 **깨끗**(git status --short 빈 출력)
-> 미푸시      **0**   origin/claude/p-op-1-a-system-view == HEAD (git log @{u}..HEAD = 0)
-> 본선 대비    origin/main 기준으로는 **1,309** — 이 브랜치가 한 번도 본선에 안 들어갔다.
->             `git log origin/HEAD..HEAD` 를 치면 이 숫자가 나온다. **사고가 아니다.**
->             다만 「본선 미병합 1,309」 자체는 열린 위험이다 (→ §6)
-> 검사        **4,246 통과 · 실패 0 · 러너 보류(skip) 0 · todo 0**  (npm test 실행값)
-> 게이트      **빨강 1건** — 프로젝트 진입 감사 (npm run gate 실행값 · 내역 §9-1)
-> 병합 안 된 브랜치 4   codex/terminal-core(20) · codex/terminal-rebuild(7) ·
->                     codex/terminal-stage1(8) · lane/ux(12)   — 전부 판정 대기 (→ §6)
+> ⚠️ 이 칸에 HEAD 해시·미푸시 수·검사 수를 박아 두면 **다음 커밋에서 자동으로 거짓이 된다.**
+>    그리고 쓴 사람에게는 그것을 발견할 시점이 없다 — 방금 쓴 문서를 다시 열 이유가 없으니까.
+>    낡았다는 사실은 **다음 세션이 읽을 때 처음 드러난다.** 그래서 명령으로 돌려놓는다:
+>
+>    HEAD·브랜치   git rev-parse --short HEAD · git branch --show-current
+>    미푸시        git log --oneline @{u}..HEAD | wc -l
+>    본선 대비     git log --oneline origin/main..HEAD | wc -l
+>    작업트리      git status --short        (빈 출력이면 깨끗)
+>    검사          npm test                  (끝의 pass/fail/skip 을 그대로 옮겨 적는다)
+>    게이트        npm run gate
+>    미병합 브랜치  node scripts/agent-start.mjs
+>
+> 대신 여기 적는 것은 **안 낡는 사실**이다:
+>   브랜치          claude/p-op-1-a-system-view — 하루치 터미널 수리가 전부 여기 있다
+>   마지막 봉인      영역 전수 진단(§7-v) — 승인 등급이 뒤집힌 것을 라이브로 잡았다
+>   다음 한 걸음     아래 ② 를 보라
 > ```
 > 이 문서는 요약이 아니다. **다음 세션이 아무것도 다시 발견하지 않게 하는 자료다.**
 > 앞판(b71f31f9 시점)의 숫자·표적·「다음 한 걸음」은 전부 낡았다 — 이 판이 정본이다.
