@@ -144,6 +144,24 @@ export function makeLocalTerminalTool(deps = {}) {
       };
     }
     const r = await 재보기(run, command, { cwd, timeoutMs: opts.timeoutMs });
+    // ── **「막혔다」와 「바꾸려 했다」는 다른 사실이다** (라이브 실측 2026-08-15 · §7-w) ──
+    //
+    // 오너: *"로그 폴더에 최근 에러 있는지 봐줘"* → 모델이 고른 명령은 아무것도 안 바꾸는
+    // 읽기였는데(`find … 2>/dev/null | head`), 승인 카드가 **"내용을 남기거나 덮어쓰는
+    // 일이라"**고 말했고 사용자는 답을 못 받았다. 같은 발화 2/2 재현.
+    //
+    // 방아쇠는 `Permission denied` 가 아니라 명령 안의 `2>/dev/null` 이다 — `실패를삼킴` 이
+    // 물어 `unreadable_exit` 가 된다. 그 갈래가 말하는 것은 **"exit code 가 정보가 아니다"**,
+    // 즉 **판정 불능**이지 "바꾼다"가 아니다. 도구 문장은 이미 정직했는데(`userWhy`),
+    // 여기서 `looksBlocked` 로 뭉뚱그려 **모름을 주장으로 승격**했다.
+    //
+    // 위 :141(샌드박스 없음)이 이미 같은 판단을 했다 — *"`changes` 를 참으로 세우지 않는다"*.
+    // 같은 규칙을 여기에도 균일하게 편다(특례 아님). 판정은 `unknown_kind` 로 떨어지고
+    // **미상은 언제나 카드다** — 승인은 오히려 조여진다(미상에는 자동 탈출구가 없다).
+    // 명령을 **명시로** 넘긴다 — `실패를삼킴` 은 구문 사실이라 명령 문자열이 있어야 물 수 있는데,
+    // 실행기가 결과에 그 칸을 담아 줄지는 실행기 사정이다. 그 우연에 판정을 매달지 않는다.
+    const 막힘 = executionBlock({ ...r, command: r?.command ?? command });
+    if (막힘?.why === 'unreadable_exit') return { command, cwd, probe: r, 판정불능: 막힘.why };
     return { command, cwd, probe: r, changes: looksBlocked(r) };
   }
 

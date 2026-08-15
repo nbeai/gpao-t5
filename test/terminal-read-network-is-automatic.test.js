@@ -26,6 +26,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import { toolActionKind } from '../src/kernel/l2-plan/action-plan.js';
+import { explainAuthority, UNKNOWN_KIND } from '../src/kernel/l2-plan/authority.js';
 
 /** 모드별로 정해진 답을 내는 가짜 실행기. 실제 네트워크·셸을 안 탄다. */
 function 실행기(대본) {
@@ -93,6 +95,14 @@ test('실패를 삼키는 명령은 네트워크 갈래로 새지 않는다', as
   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
 
   const p = await 손.probe('curl -s https://example.com 2>/dev/null || true');
-  assert.equal(p.changes, true, 'exit 0 을 못 믿는 명령은 모르면 승인 쪽이다');
+  // 계약은 **"모르면 승인 쪽"**이고 그건 그대로다. 바뀐 것은 그 계약을 세우는 방식이다 —
+  // 예전엔 `changes:true`(= "바꾼다"는 **주장**)로 세웠고, 그래서 카드가 아무것도 안 바꾸는
+  // 명령에 "내용을 남기거나 덮어쓰는 일이라"고 **거짓**을 말했다(라이브 실측 2026-08-15 · §7-w).
+  // 이제는 판정 불능을 판정 불능으로 두고 **미상 → 무조건 카드**로 간다(오히려 조인다).
+  // 그래서 여기서 무는 것도 구현 모양이 아니라 **제품 결과**다.
+  assert.notEqual(p.changes, false, '「안 바꾼다」로 흘려 자동으로 보내지 않는다');
+  assert.equal(toolActionKind({ toolId: 'local.terminal', args: p }), UNKNOWN_KIND);
+  assert.equal(explainAuthority({ kind: UNKNOWN_KIND, toolId: 'local.terminal' }).needsApproval, true,
+    'exit 0 을 못 믿는 명령은 모르면 승인 쪽이다');
   assert.ok(!부른것.some((x) => x.mode === 'reach'));
 });
