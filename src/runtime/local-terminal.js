@@ -30,6 +30,26 @@ const blank = (v) => {
  * 여기서 하는 일은 "승인을 물을까, 그냥 실패를 알릴까"를 고르는 것뿐이라, 틀려도 최악은
  * `npm test` 실패에 승인을 묻거나(불편) 안 묻고 결과를 보여주는 것(안전)이다.
  */
+/**
+ * **「막혔다」와 「바꾸려 했다」는 다른 사실이다** (라이브 실측 2026-08-15 · §7-y).
+ *
+ * `changes` 는 두 칸짜리 통로(true/false)인데 사실은 셋이다 — 바꾼다·안 바꾼다·**모른다**.
+ * 예전엔 `changes: looksBlocked(r)` 라서 **모른다가 자동으로 「바꾼다」로 굴러떨어졌고**,
+ * 그래서 아무것도 안 바꾸는 `find … | head` 가 *"내용을 남기거나 덮어쓰는 일이라"* 는 카드로
+ * 갔다(같은 발화 2/2 재현 · 사용자는 답을 못 받았다).
+ *
+ * 갈래마다 특례를 뚫지 않는다 — 그러면 명령 모양이 늘 때마다 거짓말이 하나씩 는다.
+ * `executionBlock` 이 이미 아는 `why` 를 **안 버리고** 한 규칙으로 읽는다:
+ * 아래 다섯만 **변경 시도의 증거**이고, 나머지 막힘은 「모른다」다(→ 미상 → 언제나 카드).
+ */
+const 변경시도증거 = new Set([
+  'listen',    // 포트를 여는 것 = 바깥에서 닿게 만드는 상태 변경
+  'network',   // 밖으로 나가려 했다 (읽기성인지는 reach 재시험이 따로 가른다)
+  'privilege', // 컴퓨터 설정을 바꾸려다 OS 권한에 막혔다
+  'signal',    // 돌고 있는 프로그램을 끄려 했다
+  'write',     // 막힌 이름이 **쓰려던 자리**(리다이렉트 대상)였다 — 추측이 아니라 증거다
+]);
+
 function looksBlocked(r) {
   const block = executionBlock(r);
   return block?.kind === 'sandbox' || block?.kind === 'permission';
@@ -161,8 +181,10 @@ export function makeLocalTerminalTool(deps = {}) {
     // 명령을 **명시로** 넘긴다 — `실패를삼킴` 은 구문 사실이라 명령 문자열이 있어야 물 수 있는데,
     // 실행기가 결과에 그 칸을 담아 줄지는 실행기 사정이다. 그 우연에 판정을 매달지 않는다.
     const 막힘 = executionBlock({ ...r, command: r?.command ?? command });
-    if (막힘?.why === 'unreadable_exit') return { command, cwd, probe: r, 판정불능: 막힘.why };
-    return { command, cwd, probe: r, changes: looksBlocked(r) };
+    const 막혔나 = 막힘?.kind === 'sandbox' || 막힘?.kind === 'permission';
+    if (!막혔나) return { command, cwd, probe: r, changes: false };   // 막힌 게 없다 = 안 바꾼다
+    if (변경시도증거.has(막힘.why)) return { command, cwd, probe: r, changes: true };
+    return { command, cwd, probe: r, 판정불능: 막힘.why };
   }
 
   return {

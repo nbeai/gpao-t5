@@ -148,6 +148,26 @@ export async function runCommand(command, opts = {}) {
  * 막힌 이름이 **명령이 놓이는 자리**에 있었는가. 파이프·`&&`·`;` 뒤도 명령 자리다.
  * 리다이렉트 대상(`> out`)은 명령 자리가 아니다 — 그래서 쓰기 시도와 안 섞인다.
  */
+/**
+ * 막힌 자리를 **명령이 스스로 지목했는가**. 같은 파일의 `명령어자리인가` 와 짝이다 —
+ * 위험 명령 목록으로 알아맞히지 않고 **구문 사실**로 가른다(§7-y).
+ *
+ *   `touch 유보.txt` · `echo x > out.txt` → 막힌 이름이 명령 안에 있다 = 그 자리에 손을 댔다.
+ *                                          막혔다면 그건 추측이 아니라 **쓰려 했다는 증거**다
+ *   `find . -type f`  → `find: ./Library/Mail: Permission denied` — 그 경로는 명령에 **없다**.
+ *                       순회하다 만난 자리다 = 「막혔다」는 사실뿐, 무엇을 하려 했는지는 모른다
+ *
+ * 첫 판은 리다이렉트 대상만 봤다가 `touch 유보.txt`(리다이렉트 없는 진짜 쓰기)를 「모른다」로
+ * 흘렸다 — 회귀가 잡았다. 자리는 리다이렉트가 아니라 **지목 여부**다.
+ */
+function 명령이지목한자리인가(이름, command) {
+  const cmd = String(command ?? '');
+  if (!cmd || !이름) return false;               // 명령을 모르면 증명도 없다 — 「모른다」로 간다
+  if (cmd.includes(이름)) return true;
+  const 이름끝 = 이름.split('/').pop();
+  return Boolean(이름끝) && cmd.split(/[\s;|&<>()'"]+/).some((조각) => 조각.split('/').pop() === 이름끝);
+}
+
 function 명령어자리인가(이름, command) {
   const 조각들 = String(command ?? '').split(/\||&&|\|\||;|\bthen\b|\bdo\b|\$\(|`/);
   const 이름끝 = 이름.split('/').pop();
@@ -287,9 +307,32 @@ export function executionBlock(r) {
       userWhy: `${막힌이름} 은(는) 이 자리에서는 띄울 수 없는 도구예요 — 아무것도 실행되지 않았어요`,
     };
   }
-  // 파일을 바꾸려다 막힌 것
+  // **막힌 것과 바꾸려 한 것은 다른 사실이다** (라이브 실측 2026-08-15 · §7-y).
+  //
+  // 오너: *"로그 폴더에 최근 에러 있는지 봐줘"* → `find . -type f -print` 가
+  // `find: ./Library/Mail: Permission denied` 로 막혔고, 카드가 **"내용을 남기거나 덮어쓰는
+  // 일이라"**고 말했다. 아무것도 안 바꾸는 명령이었고 사용자는 답을 못 받았다.
+  //
+  // 이 한 칸에 성질이 다른 둘이 들어 있었다:
+  //   `echo x > out.txt` → "operation not permitted: **out.txt**"  막힌 이름 = **쓰려던 자리**
+  //   `find . -type f`   → "**./Library/Mail**: Permission denied"  막힌 이름 = **순회하던 경로**
+  // 앞은 쓰려 했다는 **증거**고, 뒤는 「막혔다」는 사실뿐이다.
+  //
+  // 가르는 근거는 목록이 아니라 **구문 사실**이다 — 이 파일이 위에서 exec 거부를 가를 때 쓴
+  // 그 방법(`명령어자리인가`)의 확장이다. 막힌 이름이 명령의 **리다이렉트 대상**이면 쓰기,
+  // 명령 문자열에 그 자리가 없으면 **모른다**. 모르면 승인으로 가되(kind 는 그대로 sandbox)
+  // **모른다고 말한다** — 안 밟은 사실을 카드에 적으면 사용자는 일어나지도 않을 변경에 승인한다.
   if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
-    return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
+    const 막힌자리 = 막힌이름
+      ?? t.match(/[:\s]([^\s:]+):\s*(?:permission denied|operation not permitted)/i)?.[1];
+    if (막힌자리 && 명령이지목한자리인가(막힌자리, r.command)) {
+      return { kind: 'sandbox', why: 'write', userWhy: '파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요' };
+    }
+    return {
+      kind: 'sandbox',
+      why: 'blocked_unproven',
+      userWhy: '이 자리에서 막힌 게 있는데 무엇을 바꾸려던 것인지는 시험만으로 확정 못 했어요 — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요',
+    };
   }
   // **여기는 셸이 명령을 찾아본 뒤에 없다고 말한 자리다.** spawn 실패(`실행을 시작하지
   // 못했어요`)는 위에서 갈라 나갔다 — 셸이 그 명령을 읽어 보지도 못한 것을 여기 두면

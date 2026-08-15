@@ -48,8 +48,14 @@ function 실행기(대본) {
   });
 }
 const 아무것도안막힘 = {};
-const 쓰기막힘 = { probe: { exitCode: 1, stdout: '', stderr: 'zsh:1: operation not permitted: out.txt' },
-  reach: { exitCode: 1, stdout: '', stderr: 'zsh:1: operation not permitted: out.txt' } };
+// 막힘 대본은 **그 명령이 실제로 낼 말**이어야 한다. 예전엔 세 명령에 `out.txt` 하나를 물려
+// `rm -rf ./임시` 가 `out.txt` 에서 막혔다고 말했다 — 그 짝은 실물에 없다.
+// 이제 판정이 「막힌 자리를 명령이 지목했나」를 보므로(§7-y), 대본이 어긋나면 실물과 다른 것을 잰다.
+const 쓰기막힘대본 = (대상) => ({
+  probe: { exitCode: 1, stdout: '', stderr: `zsh:1: operation not permitted: ${대상}` },
+  reach: { exitCode: 1, stdout: '', stderr: `zsh:1: operation not permitted: ${대상}` },
+});
+const 쓰기막힘 = 쓰기막힘대본('out.txt');
 const 네트워크만막힘 = { probe: { exitCode: 6, stdout: '', stderr: 'curl: (6) Could not resolve host: example.com' },
   reach: { exitCode: 0, stdout: '200', stderr: '' } };
 
@@ -77,10 +83,21 @@ test('① 읽기 명령은 승인 카드 없이 자동이다 — 선언이 말�
 // ── ② 안전 바닥: 바꾸는 명령은 그대로 카드다 ──────────────────────────────
 //    **문구를 고쳐서 판정이 헐거워지면 이 수리는 실패다.**
 test('② 바꾸는 명령은 여전히 확인 카드로 간다 — 문구 수리가 게이트를 열지 않는다', async () => {
-  for (const cmd of ['echo hi > out.txt', 'rm -rf ./임시', 'npm install lodash']) {
-    const r = await 카드로가나(cmd, 쓰기막힘);
-    assert.equal(r.kind, 'write', `${cmd}: 변경 시도가 읽기로 샜다`);
+  // **안전 계약은 셋 다 같다: 카드로 간다.** 그것이 이 검사가 지키는 것이다.
+  // 종류 이름은 갈린다 — 막힌 자리를 명령이 **지목했으면** `write`(증거 있음),
+  // 명령에 없는 파생 자리(`npm install` 의 node_modules)에서 막히면 `unknown_kind`(모른다).
+  // 후자는 **구체성만 잃고 게이트는 조여진다**(미상은 자동 탈출구가 없다 · §7-y-5).
+  // 「모른다」를 「바꾼다」로 되돌리면 아무것도 안 바꾸는 명령이 다시 "덮어쓰는 일"이라 불린다 —
+  // 그게 이 수리가 없앤 거짓이다(라이브 2/2 재현).
+  for (const [cmd, 막힌자리, 기대종류] of [
+    ['echo hi > out.txt', 'out.txt', 'write'],
+    ['rm -rf ./임시', './임시', 'write'],
+    ['npm install lodash', 'node_modules', 'unknown_kind'],
+  ]) {
+    const r = await 카드로가나(cmd, 쓰기막힘대본(막힌자리));
     assert.equal(r.카드, true, `${cmd}: 바꾸는 명령이 카드 없이 돈다 — 헌장 ②가 뚫렸다`);
+    assert.notEqual(r.kind, 'read', `${cmd}: 변경 시도가 읽기로 샜다`);
+    assert.equal(r.kind, 기대종류, `${cmd}: 증거 유무와 종류 이름이 어긋났다`);
   }
   // 못 재면 조인다(fail-closed) — 탐침이 아무것도 못 냈으면 미상이고 미상은 언제나 카드다.
   const tools = { tools: { 'local.terminal': { probe: async () => { throw new Error('탐침 실패'); } } } };
