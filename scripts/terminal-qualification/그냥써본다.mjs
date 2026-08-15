@@ -29,6 +29,14 @@ await mkdir(work, { recursive: true });
 await mkdir(state, { recursive: true });
 // **진짜 문서를 넣는다.** 오너가 직접 쓴 자리 + 저장소 문서 몇 개.
 await cp('/Users/jyp/Developer/t5-p-op/docs/00-START-HERE', join(work, '시작문서'), { recursive: true });
+// ── **방이 깊이를 가르게 한다** (§7-ab · 2026-08-15) ────────────────────────
+// 옛 방은 최상위 AGENTS.md(16,051)가 전체 1위였고 방 안 최대가 15,837 — 차이 214B(1.35%)라
+// **「최상위만 잰 답」과 「전수로 잰 답」이 같은 이름**을 냈다. 두 팔이 같은 값을 내는 시험은
+// 판별력이 0이다(세 배치가 그 방에서 돌았고 깊이에 대해 아무 말도 못 했다).
+// 그래서 **최상위보다 큰 실제 저장소 문서 하나**를 `시작문서/` 안에 넣는다 — 45,534B(2.8배).
+// 지어낸 파일이 아니고, 방을 더 예쁘게 만들지도 않는다. **갈리면 거기서 멈춘다.**
+await cp('/Users/jyp/Developer/t5-p-op/docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md',
+  join(work, '시작문서', 'T5-비전과-성능철학.md'));
 await cp('/Users/jyp/Developer/t5-p-op/README.md', join(work, 'README.md'));
 await cp('/Users/jyp/Developer/t5-p-op/AGENTS.md', join(work, 'AGENTS.md'));
 
