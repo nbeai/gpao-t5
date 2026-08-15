@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "시각": "2026-08-15T12:28:57.620Z",
+  "sourceHead": "230767321e96a401928a74799240b7e9c5f1b3b0",
+  "모델": {
+    "provider": "openai",
+    "modelId": "gpt-5.1"
+  },
+  "재료": [
+    "시작문서/",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "재료실측": {
+    "./AGENTS.md": 16051,
+    "./README.md": 11373,
+    "./시작문서/README.md": 14601,
+    "./시작문서/T5-공장도달표-2026-08-11.md": 10337,
+    "./시작문서/새-세션에게-보낼-메세지.md": 14868,
+    "./시작문서/현재상황.md": 15837
+  },
+  "회차": [
+    {
+      "오너": "로그 폴더에 최근 에러 있는지 봐줘",
+      "kind": "approval",
+      "걸린ms": 10638,
+      "손순서": [
+        "local.file:list",
+        "local.locate",
+        "local.terminal",
+        "local.system",
+        "local.file:list"
+      ],
+      "답": null,
+      "터미널명령": [
+        "cd ~ && find . -maxdepth 3 -type d -iname '*log*'"
+      ]
+    }
+  ]
+}

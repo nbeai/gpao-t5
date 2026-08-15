@@ -93,6 +93,10 @@ try {
     원본.회차.push({
       오너: text, kind: turn.kind ?? 'reply', 걸린ms: Date.now() - t0,
       손순서: 손, 답: turn.reply ?? turn.question ?? null,
+      // 승인 카드로 끝난 턴은 「답 없음」이 아니라 **사용자가 카드를 본 것**이다.
+      // 카드 내용을 안 남기면 「왜 막혔나」(자리 밖인가·동사 등급인가)를 영영 못 가른다 —
+      // 2026-08-15 진단에서 순수 읽기 둘이 카드에서 멈췄는데 이유를 못 읽었다(§7-v).
+      카드: (turn.kind ?? 'reply') === 'approval' ? JSON.stringify(turn).slice(0, 2000) : undefined,
       // 터미널 명령 원문 — 깊이 진단 재료(무엇을 쟀는지). 이게 없으면 「얕다」의 원인을 못 가른다.
       터미널명령: 이번호출.filter((e) => e.actualCall.tool === 'local.terminal')
         .map((e) => e.actualCall.args?.command).filter(Boolean),
