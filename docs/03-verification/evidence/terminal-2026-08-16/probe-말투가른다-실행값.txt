@@ -1,0 +1,42 @@
+
+══ ① 리터럴 이름 · cwd=작업
+   cmd            tar -czf backup.tar.gz .
+   failureState   "blocked"
+   userSafeSummary "`tar -czf backup.tar.gz .` — 파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요"
+   nextRung       other_tool
+   다음길(모델입력) "이대로 진행할까요? 같은 것을 보는 손이 있어요 — 로컬 파일로 해 볼게요."
+
+══ ② 리터럴 이름 · cd 접두 · cwd=home
+   cmd            cd 작업 && tar -czf backup.tar.gz .
+   failureState   "blocked"
+   userSafeSummary "`cd 작업 && tar -czf backup.tar.gz .` — 파일을 바꾸는 일이라 확인만 받으면 바로 실행해요 — 미리 시험해 봤고 아직 아무것도 안 바뀌었어요"
+   nextRung       other_tool
+   다음길(모델입력) "이대로 진행할까요? 같은 것을 보는 손이 있어요 — 로컬 파일로 해 볼게요."
+
+══ ③ 명령치환 이름 · cwd=작업
+   cmd            tar -czf backup-$(date +%Y%m%d).tar.gz .
+   failureState   "none"
+   userSafeSummary "실행했는데 오류로 끝났어요(코드 1)."
+   nextRung       null  ← 사다리 안 켜짐
+   다음길(모델입력) undefined
+
+══ ④ 명령치환 + cd 접두 · cwd=home (**라이브가 친 모양**)
+   cmd            cd 작업 && tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz .
+   failureState   "none"
+   userSafeSummary "실행했는데 오류로 끝났어요(코드 1)."
+   nextRung       null  ← 사다리 안 켜짐
+   다음길(모델입력) undefined
+
+══ ⑤ zip 리터럴 · cwd=작업
+   cmd            zip -r backup.zip .
+   failureState   "blocked"
+   userSafeSummary "`zip -r backup.zip .` — 이 자리에서 막힌 게 있는데 무엇을 바꾸려던 것인지는 시험만으로 확정 못 했어요 — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요"
+   nextRung       other_tool
+   다음길(모델입력) "이대로 진행할까요? 같은 것을 보는 손이 있어요 — 로컬 파일로 해 볼게요."
+
+══ ⑥ zip 명령치환 + cd · cwd=home
+   cmd            cd 작업 && zip -r backup-$(date +%s).zip .
+   failureState   "blocked"
+   userSafeSummary "`cd 작업 && zip -r backup-$(date +%s).zip .` — 이 자리에서 막힌 게 있는데 무엇을 바꾸려던 것인지는 시험만으로 확정 못 했어요 — 확인만 받으면 바로 실행해요. 아직 아무것도 안 바뀌었어요"
+   nextRung       other_tool
+   다음길(모델입력) "이대로 진행할까요? 같은 것을 보는 손이 있어요 — 로컬 파일로 해 볼게요."
