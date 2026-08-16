@@ -149,7 +149,8 @@ try {
     verifierReceipts: (persisted.ledgerEntries ?? []).filter((entry) => entry?.actualCall?.tool === 'task.verify')
       .map((entry) => ({ pass: entry.result?.pass === true, mismatch: entry.result?.mismatch ?? null })),
     terminalReceipts: (persisted.ledgerEntries ?? []).filter((entry) => entry?.actualCall?.tool === 'local.terminal').map((entry) => ({
-      command: entry.actualCall?.args?.command ?? null,
+      executable: entry.actualCall?.args?.executable ?? null,
+      argv: entry.actualCall?.args?.argv ?? null,
       cwd: entry.actualCall?.args?.cwd ?? null,
       exitCode: entry.result?.exitCode ?? entry.result?.commandExit?.code ?? null,
       stdout: entry.result?.stdout ?? null,

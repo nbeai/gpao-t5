@@ -197,11 +197,12 @@ export function toolActionKind({ toolId, args, selfState }) {
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
   }
-  // P6-T2: 명령은 **돌려 봐야 안다.** 계획 단계에서 probe(쓰기·네트워크·비밀읽기 차단)를 돌리고
-  // 그 결과가 등급을 정한다 — 위험 명령 목록으로 알아맞히지 않는다(목록은 항상 뚫린다).
-  // probe 결과가 없으면 '미상'으로 둔다: 모르면 승인으로 간다(read 로 흘리지 않는다).
+  // L-T 1단계: executable/argv 구조는 효과 0 격리 계산, legacy/malformed 입력은 실행 0이다.
+  // executable 이름·argv 내용·경로의 의미는 판정하지 않는다.
   if (toolId === 'local.terminal') {
-    kind = args?.changes === true ? 'write' : args?.changes === false ? 'read' : UNKNOWN_KIND;
+    const structured = args?.structuredExecution === true
+      || (typeof args?.executable === 'string' && Array.isArray(args?.argv));
+    kind = structured || args?.terminalNoExecution === true ? 'isolated_compute' : UNKNOWN_KIND;
   }
   // 외부 전송의 본문에 민감값이 있으면 일반 send(A2)가 아니라 export_sensitive(A3)다.
   // 모델의 자기신고가 아니라 실제 실행 인자에서 파생하므로 새 전송 도구도 같은 경계를 탄다.

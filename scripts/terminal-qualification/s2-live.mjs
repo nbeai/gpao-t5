@@ -78,7 +78,8 @@ try {
   terminalTool.handler = async (args, context) => {
     const out = await terminalHandler(args, context);
     terminalRuns.push({
-      command: args?.command ?? null,
+      executable: args?.executable ?? null,
+      argv: args?.argv ?? null,
       observation: structuredClone(out?.failureResult ?? out?.result ?? null),
       failureState: out?.failed ? 'failed' : (out?.blocked ? 'blocked' : 'none'),
     });
@@ -108,12 +109,12 @@ try {
   const artifact = await readFile(output, 'utf8').catch(() => null);
   const receipts = await outputReceipts(entries, output);
   const terminal = entries.filter((entry) => entry?.actualCall?.tool === 'local.terminal');
-  const missing = terminalRuns.some((run) => /logstat/.test(run.command ?? '')
+  const missing = terminalRuns.some((run) => /(?:^|\/)logstat$/.test(run.executable ?? '')
     && run.observation?.processDelivery === 'delivered'
     && Number(run.observation?.exitCode ?? run.observation?.commandExit?.code) !== 0);
   // 단순 pwd·ls 성공은 복구가 아니다. 실패 뒤의 다른 터미널 명령이 실제 집계 TSV만
   // stdout으로 냈을 때만 S2의 복구로 센다. CRLF는 전송 차이로만 정규화한다.
-  const recovered = terminalRuns.some((run) => !/logstat/.test(run.command ?? '')
+  const recovered = terminalRuns.some((run) => !/(?:^|\/)logstat$/.test(run.executable ?? '')
     && Number(run.observation?.exitCode ?? run.observation?.commandExit?.code) === 0
     && String(run.observation?.stdout ?? '').replace(/\r\n/g, '\n') === expected);
   const sourceUnchanged = (await Promise.all(Object.keys(sources).map(async (name) => sha256(await readFile(join(work, name))) === sourceHashes[name]))).every(Boolean);
@@ -126,7 +127,9 @@ try {
     outputWriteReceipts: receipts.filter((entry) => entry.actualCall?.args?.action === 'write').length,
     outputReadReceipts: receipts.filter((entry) => ['read', 'open'].includes(entry.actualCall?.args?.action)).length,
     verifierReceipts: entries.filter((entry) => entry?.actualCall?.tool === 'task.verify').map((entry) => ({ pass: entry.result?.pass === true, mismatch: entry.result?.mismatch ?? null })),
-    terminalReceipts: terminal.map((entry) => ({ command: entry.actualCall?.args?.command ?? null, cwd: entry.actualCall?.args?.cwd ?? null, failureState: entry.failureState ?? null })),
+    terminalReceipts: terminal.map((entry) => ({ executable: entry.actualCall?.args?.executable ?? null,
+      argv: entry.actualCall?.args?.argv ?? null, cwd: entry.actualCall?.args?.cwd ?? null,
+      failureState: entry.failureState ?? null })),
     runtimeTerminalObservations: terminalRuns,
     finalReply: turn.reply ?? turn.text ?? null,
   };

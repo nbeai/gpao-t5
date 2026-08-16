@@ -36,18 +36,43 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'|'reach'|'capsule'} mode
+ * @param {'probe'|'granted'|'reach'|'capsule'|'structured'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime } = {}) {
+export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime, target, targets = [], handshake } = {}) {
   const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
   // 넓히지 않는다: 커넥터가 선언한 경로만, 그것도 읽기만 연다. 선언에 없으면 그대로 막힌다.
   const 열어줄것 = allowRead.map((p) => `(allow file-read* (subpath ${lit(p)}))`).join('\n');
+  if (mode === 'structured') {
+    return [
+      '(version 1)',
+      '(deny default)',
+      // 고정 broker와 선택된 leaf 하나만 exec할 수 있다. leaf가 Python이어도 다른 프로그램으로
+      // 갈아타는 exec/fork는 이 목록 밖이라 닫힌다.
+      ...(runtime ? [`(allow process-exec* (literal ${lit(runtime)}))`] : []),
+      ...(target ? [`(allow process-exec* (literal ${lit(target)}))`] : []),
+      ...targets.map((path) => `(allow process-exec* (literal ${lit(path)}))`),
+      '(deny process-fork)',
+      // 계산 leaf가 실행 파일·입력·동적 라이브러리를 읽는 능력.
+      '(allow file-read*)',
+      '(allow process-info*)',
+      '(allow sysctl-read)',
+      '(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo"))',
+      // 이미 열린 stdout/stderr/handshake pipe에만 데이터를 쓸 수 있다. 새 파일 open/create는
+      // deny-default라 여전히 불가능하다.
+      '(allow file-write-data)',
+      ...(handshake ? [`(allow file-write* (literal ${lit(handshake)}))`] : []),
+      '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',
+      denySecrets,
+      열어줄것,
+      '',
+    ].join('\n');
+  }
   if (mode === 'granted') {
     return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }

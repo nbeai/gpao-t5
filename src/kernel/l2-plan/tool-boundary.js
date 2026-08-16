@@ -51,28 +51,23 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // 오픈클로 `docs/tools/exec.md:98-100`: *"Explicit `host=sandbox` still fails closed instead of
   // silently running on the gateway host."* — 재는 길이 막히면 조용히 진행하지 않는다.
   const 재본다 = async (fn) => { try { return await fn(); } catch { return null; } };
-  // 등급 판정. 명령은 **돌려 봐야 아니까** 계획 때와 똑같이 probe 를 먼저 탄다.
+  // 등급 판정. 화면처럼 실제 관찰이 필요한 손만 probe를 탄다.
   let 판정인자 = args;
   // **같은 사실을 두 번 묻지 않는다**(이음매 ①). 앞 레인이 이미 재서 실어 보낸 인자가 오면
   // 그대로 쓴다 — 재는 것은 왕복이고 왕복은 사용자 비용이다(0번 비용: 에너지·시간).
   // 두 번 재면 느린 것보다 **답이 갈리는 것**이 문제다: 화면은 그 사이에 바뀐다(두 진실 금지).
-  // terminal 호출의 changes/probeResult는 모델도 만들 수 있는 공개 인자다. 그것을 관찰 사실로
-  // 신뢰하면 `changes:false` 하나로 임의 셸 효과가 자동 권위를 얻는다. 이 경계에 들어온
-  // terminal 호출은 언제나 현재 도구로 한 번 재고, 그 결과로 공개 인자를 덮는다.
+  // terminal의 공개 구조만 읽고 실행 의미는 추론하지 않는다.
   const 이미잰것 = toolId !== 'local.terminal' && args?.눌러본사실 !== undefined;
-  if (toolId === 'local.terminal' && typeof args?.command === 'string') {
-    const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
+  if (toolId === 'local.terminal') {
+    // L-T 1단계는 공개 구조만 판정한다. 문자열 셸도 handler가 not_run으로 닫으므로 probe·승인·
+    // granted 재실행을 만들지 않는다. executable/argv의 뜻이나 경로는 해석하지 않는다.
+    const structured = typeof args?.executable === 'string' && Array.isArray(args?.argv);
     판정인자 = {
       ...args,
-      // **probe 가 알아낸 자리를 그대로 받는다.** 빈 칸은 없는 칸이라 손이 기본 자리로 푸는데
-      // (`local-terminal.js:57` — `blank(opts.cwd) ?? cwdOf()`), 그 사실을 여기서 버리면
-      // 원장에는 빈 자리가 남는다. 실행 자리는 handler 가 같은 식으로 다시 풀어 안 갈리지만,
-      // **기록이 갈린다** — 감사도 사용자도 그 명령이 어디서 돌았는지 못 본다.
-      // 계획 경로는 처음부터 이걸 받고 있었다(`turn.js` 의 terminalOp). 두 벌이라 한쪽만 챙긴 자리다.
-      ...(probed?.cwd ? { cwd: probed.cwd } : {}),
-      changes: probed?.changes,
-      granted: probed?.changes === true,
-      probeResult: probed?.probe,
+      structuredExecution: structured,
+      terminalNoExecution: !structured,
+      changes: false,
+      granted: false,
     };
   }
   // **화면 누르기도 돌려 봐야 안다**(CU E). 터미널과 같은 자리, 같은 이유다 —

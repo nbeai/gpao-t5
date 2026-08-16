@@ -7,14 +7,132 @@
 //   ① probe 로 먼저 돌린다 — 성공하면 아무것도 안 바꿨다는 증명이라 그대로 쓴다.
 //   ② 막히면 승인을 받고 granted 로 다시 돌린다. 그때도 비밀 자리는 닫혀 있다.
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { writeFile, readFile, mkdtemp, mkdir, realpath, rm, access } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
 
 export const DEFAULT_TIMEOUT_MS = 120_000;
 export const MAX_TIMEOUT_MS = 600_000;
 const MAX_OUTPUT = 30_000; // 모델 입력을 삼키지 않게. 넘으면 **잘랐다고 말한다**(조용한 절단 금지).
+const STRUCTURED_BROKER = '/usr/bin/perl';
+const STRUCTURED_LEAVES = new Set([
+  '/bin/cat', '/bin/kill', '/usr/bin/awk', '/usr/bin/false', '/usr/bin/find',
+  '/usr/bin/notifyutil', '/usr/bin/osascript', '/usr/bin/printf', '/usr/bin/python3',
+  '/Applications/ChatGPT.app/Contents/Resources/rg', '/opt/homebrew/bin/rg', '/usr/local/bin/rg',
+]);
+// 모델 target에 전달되지 않는 broker 전용 인자로, profile 안에서 READY를 쓰고 exec 실패만
+// EXEC_ERROR로 덧붙인다. sandbox_apply 실패면 파일 자체가 생기지 않는다.
+const STRUCTURED_BROKER_CODE = [
+  'my $handshake = shift @ARGV;',
+  'my $target = shift @ARGV;',
+  'open(my $ready, ">", $handshake) or exit 125;',
+  'print $ready "READY\\n";',
+  'close($ready);',
+  'exec {$target} $target, @ARGV;',
+  'open(my $failed, ">>", $handshake);',
+  'print $failed "EXEC_ERROR:$!\\n";',
+  'close($failed);',
+  'exit 127;',
+].join(' ');
+
+/**
+ * 공급자 중립 단일 프로세스 배치 실행. 셸을 열거나 argv를 문자열로 재조립하지 않는다.
+ * 기존 runCommand의 probe/granted/raw 의미와 독립인 L-T 1단계 경로다.
+ */
+export async function runProgram(executable, argv = [], opts = {}) {
+  const cwd = opts.cwd ?? process.cwd();
+  const timeoutMs = Math.min(Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const base = {
+    executable, argv: Array.isArray(argv) ? [...argv] : argv, cwd,
+    effects: { state: 'none', basis: 'structured_sandbox' }, applied: false,
+  };
+  const notRun = (state) => ({ ...base, processDelivery: 'not_run', exitCode: null,
+    stdout: '', stderr: '', enforcement: { state, profileApplied: false, targetStarted: false } });
+  if (typeof executable !== 'string' || !isAbsolute(executable)
+    || !Array.isArray(argv) || argv.some((item) => typeof item !== 'string')) {
+    return notRun('invalid_spec');
+  }
+  if (!STRUCTURED_LEAVES.has(executable)) {
+    return notRun('unsupported_leaf');
+  }
+  const available = opts.sandboxAvailable ?? sandboxAvailable;
+  if (!available()) {
+    return notRun('unavailable');
+  }
+  try {
+    await access(executable, fsConstants.X_OK);
+  } catch {
+    return notRun('unavailable');
+  }
+  const brokerPath = await realpath(STRUCTURED_BROKER).catch(() => null);
+  const targetPath = executable === '/usr/bin/python3'
+    ? '/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python'
+    : await realpath(executable).catch(() => null);
+  if (!brokerPath || !targetPath) return notRun('unavailable');
+
+  const profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-structured-'));
+  try {
+    const profile = join(profileDir, 'p.sb');
+    const handshakePath = join(profileDir, 'target-start');
+    await writeFile(handshakePath, '', 'utf8');
+    await writeFile(profile, sandboxProfile('structured', {
+      secrets: opts.secrets, allowRead: opts.allowRead,
+      runtime: brokerPath, target: targetPath,
+      targets: [],
+      handshake: handshakePath,
+    }), 'utf8');
+    const child = spawn('/usr/bin/sandbox-exec', ['-f', profile, brokerPath, '-e',
+      STRUCTURED_BROKER_CODE, handshakePath, targetPath, ...argv], {
+      cwd,
+      env: { ...redactEnv(opts.env ?? process.env), GPAO_T5_IN_TOOL: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = ''; let err = ''; let stopped = null; let spawnError;
+    child.stdout.on('data', (data) => { out += data; });
+    child.stderr.on('data', (data) => { err += data; });
+    const timer = setTimeout(() => {
+      stopped = 'timeout';
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 2000).unref();
+    }, timeoutMs);
+    const onAbort = () => { stopped = 'aborted'; child.kill('SIGTERM'); };
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    const exitCode = await new Promise((resolve) => {
+      child.on('error', (error) => { spawnError = error; resolve(-1); });
+      child.on('close', (code) => resolve(code ?? -1));
+    });
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onAbort);
+    if (spawnError) err += `${err ? '\n' : ''}실행을 시작하지 못했어요: ${spawnError.message}`;
+    const stdout = fold(out); const stderr = fold(err);
+    const handshake = await readFile(handshakePath, 'utf8').catch(() => '');
+    const profileApplied = handshake.startsWith('READY\n');
+    const targetStarted = profileApplied && !handshake.includes('EXEC_ERROR:');
+    if (!profileApplied || !targetStarted || spawnError) {
+      const failed = notRun('enforcement_unproven');
+      failed.enforcement.brokerExitCode = exitCode;
+      failed.enforcement.handshakeState = handshake.startsWith('READY\n')
+        ? (handshake.includes('EXEC_ERROR:') ? 'exec_error' : 'ready') : 'absent';
+      return { ...failed, durationMs: Date.now() - startedAt };
+    }
+    return {
+      ...base,
+      processDelivery: 'delivered',
+      enforcement: { state: 'enforced', policy: 'single-process-no-effects',
+        profileApplied: true, targetStarted: true },
+      exitCode, stdout: stdout.text, stderr: stderr.text,
+      durationMs: Date.now() - startedAt,
+      truncated: stdout.truncated || stderr.truncated,
+      omittedChars: (stdout.omittedChars ?? 0) + (stderr.omittedChars ?? 0),
+      ...(stopped ? { stopped } : {}),
+    };
+  } finally {
+    await rm(profileDir, { recursive: true, force: true });
+  }
+}
 
 /** 가운데를 접는다. 앞은 무슨 일이 시작됐는지, 뒤는 어떻게 끝났는지 — 둘 다 필요하다. */
 function fold(text, max = MAX_OUTPUT) {

@@ -3720,7 +3720,15 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 저장 봉투·사용자 결과에는 안 실린다 — 내부 오류/연결/전송 진단이 사용자 결과에 새지
     // 않는 봉인(recovery-failure-injection A·B·B')이 이 자리를 문다. 다음 턴 priorExchange 는
     // 어차피 신분·요약·인자만 옮기므로(task-context E1) 여기서 걷어도 잃는 것이 없다.
-    turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 실패결과, 확인안됨, ...남는것 }) => 남는것),
+    turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 실패결과, 확인안됨, ...남는것 }) => {
+      // 구조화 터미널의 stdout/stderr는 이 턴의 모델 판단에만 쓴다. 성공 data도 실패 원문과
+      // 같은 raw이므로 사용자 반환·세션 저장 봉투에는 싣지 않는다. 호출 신분과 요약은 남긴다.
+      if (남는것.tool === 'local.terminal') {
+        const { data, ...공개사실 } = 남는것;
+        return 공개사실;
+      }
+      return 남는것;
+    }),
     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
     // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
     // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.
