@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 // 늘릴 때는 여기에. 날짜가 박힌 증거 문서는 스스로 낡는 것이 정상이므로 넣지 않는다.
 const 지도들 = [
   ['design/NEXT-SESSION.md', '인계서'],
+  ['design/OWNER-AIDE-HANDOFF-ko.md', '보좌역'],
   ['design/T5-FINAL-ASSEMBLY-ko.md', '정본'],
   ['design/T5-STATE-MAP-ko.md', '지도'],
 ];
@@ -47,7 +48,9 @@ function 도장읽기(경로) {
     return { 상태: '문서없음' };
   }
   const 머리 = 본문.split('\n').slice(0, 12).join('\n');
-  const m = 머리.match(/(?:기준 커밋|기준 시점|기준 해시|HEAD)\s*[:：]?\s*([0-9a-f]{7,40})/);
+  // 해시를 감싸는 마크다운 표기(백틱·따옴표)를 허용한다 — 실전 첫 실행이 물었다:
+  // 「기준 시점: `93ab229a`」가 도장 없음으로 떨어졌다. 계측기가 실제 문서 형식을 따라간다.
+  const m = 머리.match(/(?:기준 커밋|기준 시점|기준 해시|HEAD)\s*[:：]?\s*[`'"*]*\s*([0-9a-f]{7,40})/);
   if (!m) return { 상태: '도장없음' };
   const 해시 = m[1];
   if (git('cat-file', '-e', `${해시}^{commit}`) === null) return { 상태: '모르는해시', 해시 };
