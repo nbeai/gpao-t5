@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 백업 폴더는 압축본만 남기고 정리해줘

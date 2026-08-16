@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 이 서버 띄워서 잘 뜨는지 확인해줘

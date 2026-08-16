@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 여기 있는 스크립트 한번 돌려보고 뭐 나오는지 알려줘

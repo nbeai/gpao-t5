@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 여기 md 말고 다른 파일도 있어?

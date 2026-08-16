@@ -1,0 +1,54 @@
+total 192
+drwxr-xr-x@ 14 jyp  staff    448 Aug 16 17:30 .
+drwx------@  3 jyp  staff     96 Aug 16 17:27 ..
+-rw-r--r--@  1 jyp  staff  16051 Aug 16 17:27 AGENTS.md
+-rw-r--r--@  1 jyp  staff  11373 Aug 16 17:27 README.md
+drwxr-xr-x@  4 jyp  staff    128 Aug 16 17:29 node_modules
+-rw-r--r--@  1 jyp  staff    488 Aug 16 17:29 package-lock.json
+-rw-r--r--@  1 jyp  staff    187 Aug 16 17:27 package.json
+drwxr-xr-x@  7 jyp  staff    224 Aug 16 17:28 백업
+-rw-r--r--@  1 jyp  staff     35 Aug 16 17:30 서버.log
+-rw-r--r--@  1 jyp  staff    448 Aug 16 17:27 서버.mjs
+drwxr-xr-x@  7 jyp  staff    224 Aug 16 17:27 시작문서
+-rw-r--r--@  1 jyp  staff  42078 Aug 16 17:29 시작문서_백업_20260816.zip
+-rw-r--r--@  1 jyp  staff   1104 Aug 16 17:27 집계.mjs
+-rw-r--r--@  1 jyp  staff    477 Aug 16 17:29 집계결과.txt
+
+./node_modules:
+total 8
+drwxr-xr-x@  4 jyp  staff  128 Aug 16 17:29 .
+drwxr-xr-x@ 14 jyp  staff  448 Aug 16 17:30 ..
+-rw-r--r--@  1 jyp  staff  380 Aug 16 17:29 .package-lock.json
+drwxr-xr-x@  9 jyp  staff  288 Aug 16 17:29 picocolors
+
+./node_modules/picocolors:
+total 56
+drwxr-xr-x@ 9 jyp  staff   288 Aug 16 17:29 .
+drwxr-xr-x@ 4 jyp  staff   128 Aug 16 17:29 ..
+-rw-r--r--@ 1 jyp  staff   787 Aug 16 17:29 LICENSE
+-rw-r--r--@ 1 jyp  staff   622 Aug 16 17:29 README.md
+-rw-r--r--@ 1 jyp  staff   552 Aug 16 17:29 package.json
+-rw-r--r--@ 1 jyp  staff   598 Aug 16 17:29 picocolors.browser.js
+-rw-r--r--@ 1 jyp  staff   138 Aug 16 17:29 picocolors.d.ts
+-rw-r--r--@ 1 jyp  staff  2663 Aug 16 17:29 picocolors.js
+-rw-r--r--@ 1 jyp  staff  1013 Aug 16 17:29 types.d.ts
+
+./백업:
+total 216
+drwxr-xr-x@  7 jyp  staff    224 Aug 16 17:28 .
+drwxr-xr-x@ 14 jyp  staff    448 Aug 16 17:30 ..
+-rw-r--r--@  1 jyp  staff  14601 Aug 16 17:28 README.md
+-rw-r--r--@  1 jyp  staff  10337 Aug 16 17:28 T5-공장도달표-2026-08-11.md
+-rw-r--r--@  1 jyp  staff  45534 Aug 16 17:28 T5-비전과-성능철학.md
+-rw-r--r--@  1 jyp  staff  14868 Aug 16 17:28 새-세션에게-보낼-메세지.md
+-rw-r--r--@  1 jyp  staff  15837 Aug 16 17:28 현재상황.md
+
+./시작문서:
+total 216
+drwxr-xr-x@  7 jyp  staff    224 Aug 16 17:27 .
+drwxr-xr-x@ 14 jyp  staff    448 Aug 16 17:30 ..
+-rw-r--r--@  1 jyp  staff  14601 Aug 16 17:27 README.md
+-rw-r--r--@  1 jyp  staff  10337 Aug 16 17:27 T5-공장도달표-2026-08-11.md
+-rw-r--r--@  1 jyp  staff  45534 Aug 16 17:27 T5-비전과-성능철학.md
+-rw-r--r--@  1 jyp  staff  14868 Aug 16 17:27 새-세션에게-보낼-메세지.md
+-rw-r--r--@  1 jyp  staff  15837 Aug 16 17:27 현재상황.md
