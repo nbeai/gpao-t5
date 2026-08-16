@@ -894,6 +894,8 @@ export function buildTaskContext(p) {
     recoveryHint: p.recoveryHint,
     // 자기 파악 세 번째 축(운용 상태) — 실제 기록만. 모델 추정은 넣지 않는다(오염 방지).
     workingState: p.workingState,
+    // §7-bs 순수 사실 칸 — tc 는 명시 복사만 하므로 여기서 잇는다(안 이으면 조용히 떨어진다).
+    산출물사실: p.산출물사실 ?? [],
     projectWorkState: p.projectWorkState,
     // F-65: runtime이 실제로 관측한 bounded 현재 작업셋. 허용 범위 자체와 구분하며,
     // 목록 실패/절단도 그대로 보존한다. 판단이나 도구 순서는 포함하지 않는다.

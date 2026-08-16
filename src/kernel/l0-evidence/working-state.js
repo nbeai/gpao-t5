@@ -20,7 +20,10 @@ const MAX_LINKS = 8;
 // 이번 턴·직전 턴에 다룬 것만 "방금"이다. 그 뒤로는 배경 사실로 내려온다(고집 금지).
 const CURRENT_WITHIN_TURNS = 1;
 // 이만큼 안 쓰이면 뷰에서 내린다 — 옛 대상이 영원히 현재인 척하지 않는다.
-const FORGET_AFTER_TURNS = 8;
+// §7-bs: 산출물사실 칸(세션 차선)도 같은 상수를 쓴다(균일 수명) — 그래서 export.
+export const FORGET_AFTER_TURNS = 8;
+// §7-bs: 렌더 상한도 한 이름으로(산출물 5칸 — 손 관리자 산수 6>5 조건부 축출은 한계 등재).
+const MAX_DELIVERABLES = 5;
 // 실측(6턴 실사용): 이 블록은 492~558자였다. 그 두 배를 상한으로 둔다 — 이 뷰가 프롬프트를
 // 삼키면 정작 대화 이력이 밀려난다. 넘치면 **오래된 것부터** 버린다.
 export const MAX_FACTS_CHARS = 1200;
@@ -184,7 +187,7 @@ export function deriveWorkingState(prevState, turn = {}) {
   const 새산출물 = (turn.deliverables ?? []).filter((d) => typeof d?.path === 'string');
   const 산출물모음 = [...새산출물.map((d) => ({ path: d.path, lastTurn: turnNo })), ...이전산출물]
     .filter((d, i, all) => all.findIndex((x) => x.path === d.path) === i)
-    .slice(0, 5);
+    .slice(0, MAX_DELIVERABLES);
   const deliverables = 산출물모음.length ? 산출물모음 : undefined;
 
   return {
@@ -207,7 +210,7 @@ export function deriveWorkingState(prevState, turn = {}) {
  * 시제를 정확히 쓴다 — 방금 다룬 것만 "방금"이라고 한다. 이게 대상을 **푸는** 장치다:
  * 사용자가 화제를 바꾸면 옛 대상은 자연히 "몇 턴 전"으로 내려가고 현재를 주장하지 않는다.
  */
-export function workingStateFacts(stateOrNull) {
+export function workingStateFacts(stateOrNull, 산출물사실 = []) {
   const state = stateOrNull ?? {};
   const turnNo = state.turnNo ?? 0;
   const subjects = state.subjects ?? [];
@@ -253,8 +256,16 @@ export function workingStateFacts(stateOrNull) {
   // 고정하지 않는다 — 여러 산출물 작업이 실사용이다). "다룬 파일"은 읽은 것도 섞여 산출물의
   // 신분이 아니었다 — 그래서 모델이 추가 명세 요청에 새 파일을 만들었다. 무엇을 할지는
   // 모델이 정한다 — 이미 만들어진 결과물이 무엇인지는 원장이 정한다.
-  if (state.deliverables?.length) {
-    lines.push(`이 작업에서 만든 결과물 파일: ${state.deliverables.map((d) => d.path).join(' · ')}`);
+  // §7-bs 합류(이동 아님 — 이동은 F-64 정산 턴 공급을 조용히 죽인다 · 검문 (3-b)):
+  // 완료 투영(state.deliverables)과 사실 칸(산출물사실 — 거부 턴에도 세션 차선으로 승계)을
+  // **같은 문장 한 줄**로 합친다. 문장은 사실 시제 그대로 — 완료 낱말은 recentOutcome 줄의
+  // 독점이다(이중 채널이 방어선 · 손 관리자 §7-bs). 인자가 없으면 종전과 동일하게 렌더된다.
+  const 산출물자리들 = [...new Set([
+    ...(state.deliverables ?? []).map((d) => d.path),
+    ...산출물사실.map((e) => e?.path).filter(Boolean),
+  ])].slice(0, MAX_DELIVERABLES);
+  if (산출물자리들.length) {
+    lines.push(`이 작업에서 만든 결과물 파일: ${산출물자리들.join(' · ')}`);
   }
   for (const s of current) {
     if (s.kind === 'web') {

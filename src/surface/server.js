@@ -13,7 +13,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { finalizeSourceCoverage, runTurn, stateReviewNeeded } from '../kernel/turn.js';
 import { TruthLedger, projectReceipts } from '../kernel/l0-evidence/ledger.js';
-import { deriveWorkingState, workingStateFacts } from '../kernel/l0-evidence/working-state.js';
+import { deriveWorkingState, workingStateFacts, FORGET_AFTER_TURNS } from '../kernel/l0-evidence/working-state.js';
 import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from '../kernel/l2-plan/model-control.js';
@@ -1561,6 +1561,9 @@ export function makeServer(deps = {}) {
       hadWorkGoal: session.hadWorkGoal === true,
       // 자기 파악 세 번째 축 — 이 대화에서 지금까지 실제로 한 일. 다음 턴이 "그거"를 이어받는다.
       workingState: session.workingState ?? null,
+      // §7-bs 순수 사실 칸 — 세션 차선으로 승계된 산출물 자리(수명은 세션 턴 카운터 기준으로
+      // 저장 시 이미 걸러 둔다 · 거부 턴에도 산다 · 완료 기계는 안 읽는다).
+      산출물사실: session.산출물사실 ?? [],
       projectWorkState: projectedWorkState,
       // Phase 2-1: 같은 대화의 최근 발화. **현재 발화를 transcript 에 넣기 전에** 만든다 —
       // 지금 말은 currentRequest 로 따로 가므로 이력에 또 들어가면 두 번 말한 게 된다.
@@ -2348,6 +2351,17 @@ export function makeServer(deps = {}) {
     if (result.goal || result.spentGoal) session.hadWorkGoal = true;
     // 자기 파악 세 번째 축 — 이 대화에서 실제로 한 일을 지속한다(다음 턴의 "그거"가 여기서 풀린다).
     if (result.workingState) session.workingState = result.workingState;
+    // §7-bs — 순수 사실 칸의 세션 승계. workingState 삭제(위 완료 기계)와 **독립**이다.
+    // 감쇠 원천은 세션 턴 카운터(거부 턴에도 전진 — workingState.turnNo 는 거부 턴 정체 · 검문).
+    session.산출물턴수 = (session.산출물턴수 ?? 0) + 1;
+    {
+      const 새사실 = (result.산출물사실 ?? []).map((e) => ({ path: e.path, turn: session.산출물턴수 }));
+      const 모음 = [...새사실, ...(session.산출물사실 ?? [])]
+        .filter((e, i, all) => all.findIndex((x) => x.path === e.path) === i)
+        .filter((e) => session.산출물턴수 - e.turn <= FORGET_AFTER_TURNS)
+        .slice(0, 10);
+      if (모음.length || session.산출물사실?.length) session.산출물사실 = 모음;
+    }
     // C7-ACTION-001 이중 방어: 커널이 걸러도, 원장·학습 직전에 같은 술어로 한 번 더 판정한다.
     if (result.sentVia?.tool && result.sentVia.target
       && isSendTool(result.sentVia.tool, buildSelfState(env, { tools }))) {
@@ -4038,6 +4052,16 @@ export function makeServer(deps = {}) {
       // 수명주기 v2: 목표가 세워졌다는 역사(최초 작업 정산의 억제 사실)는 소진돼도 남는다.
       if (result.goal || result.spentGoal) session.hadWorkGoal = true;
       if (result.workingState) session.workingState = result.workingState;
+      // §7-bs — 두 표면 같은 승계(한쪽만 고치면 표면마다 다른 사실이 서는 옛 사고 · 검문).
+      session.산출물턴수 = (session.산출물턴수 ?? 0) + 1;
+      {
+        const 새사실 = (result.산출물사실 ?? []).map((e) => ({ path: e.path, turn: session.산출물턴수 }));
+        const 모음 = [...새사실, ...(session.산출물사실 ?? [])]
+          .filter((e, i, all) => all.findIndex((x) => x.path === e.path) === i)
+          .filter((e) => session.산출물턴수 - e.turn <= FORGET_AFTER_TURNS)
+          .slice(0, 10);
+        if (모음.length || session.산출물사실?.length) session.산출물사실 = 모음;
+      }
       await store.save(session);
       if (!completionFailed) try {
         await 기록된작업사건({

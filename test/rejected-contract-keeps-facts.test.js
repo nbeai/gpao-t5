@@ -19,6 +19,7 @@ import { SessionStore } from '../src/surface/session-store.js';
 import { demoTools } from '../src/surface/demo-context.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import { buildModelMessages } from '../src/runtime/model-provider.js';
 
 async function 방() {
   const d = await mkdtemp(join(tmpdir(), 'rejected-facts-'));
@@ -67,7 +68,10 @@ test('닻(터미널 거부 모양) — 거부 턴에서도 터미널 산출물�
   let 둘째턴 = false;
   const model = {
     async respond(tc, opts = {}) {
-      if (둘째턴) 둘째턴입력.push(JSON.stringify(tc?.workingState?.deliverables ?? null));
+      // §7-bs 계약: 사실이 **모델 프롬프트 원문**에 닿아야 한다(검문 조정 1 — tc 필드 존재만
+      // 물면 model-provider 렌더 인자가 떨어져도 초록이 된다 · 「만든 것과 닿은 것」).
+      // 그래서 tc 를 그대로 담아 두고, 단언은 buildModelMessages(tc) 산출 문자열로 한다.
+      if (둘째턴) 둘째턴입력.push(tc);
       // 서면이 열리면 FILE — deliverables 가 서고, 사용자 문장에 명시 경로가 없어 입장 거부로 간다.
       if (tc?.workContractAssessment) return { text: 'FILE', toolCalls: [] };
       if (!opts.tools?.length) return '끝.';
@@ -97,7 +101,7 @@ test('닻(터미널 거부 모양) — 거부 턴에서도 터미널 산출물�
     // 셋째 자백: 스텁 모델은 프로바이더 렌더 **이전**의 tc 를 받는다 — 줄 문장이 아니라
     // tc.workingState.deliverables(객체)가 스텁 계측의 정의역이다. 문장 렌더는
     // model-provider.js:222 + working-state 검사망이 문다. subjects 의 명령 메아리도 이걸로 피한다.
-    assert.ok(model.입력들().some((x) => x.includes('묶음.tgz')),
+    assert.ok(model.입력들().some((tc) => JSON.stringify(buildModelMessages(tc)).includes('묶음.tgz')),
       '**입장 거부가 사실의 승계를 끊었다** — 실물은 디스크에, 영수증은 원장에 있는데 '
       + 'workingState 삭제로 세션에 안 실려(server 2350) 다음 턴 모델이 자기 산출물의 자리를 못 받는다');
   } finally { await new Promise((r) => server.close(r)); }
@@ -110,7 +114,10 @@ test('★ 선빨강 — 거부 턴에서도 파일 손 write 의 사실이 다�
   let 둘째턴 = false;
   const model = {
     async respond(tc, opts = {}) {
-      if (둘째턴) 둘째턴입력.push(JSON.stringify(tc?.workingState?.deliverables ?? null));
+      // §7-bs 계약: 사실이 **모델 프롬프트 원문**에 닿아야 한다(검문 조정 1 — tc 필드 존재만
+      // 물면 model-provider 렌더 인자가 떨어져도 초록이 된다 · 「만든 것과 닿은 것」).
+      // 그래서 tc 를 그대로 담아 두고, 단언은 buildModelMessages(tc) 산출 문자열로 한다.
+      if (둘째턴) 둘째턴입력.push(tc);
       if (tc?.workContractAssessment) return { text: 'FILE', toolCalls: [] };
       if (!opts.tools?.length) return '끝.';
       if (둘째턴) return { text: '아까 적었어요.', toolCalls: [] };
@@ -129,7 +136,7 @@ test('★ 선빨강 — 거부 턴에서도 파일 손 write 의 사실이 다�
     model.두번째로();
     const r2 = await turn({ sessionId, text: '방금 만든 거 어디 있어?' });
     assert.equal(r2.kind, 'reply');
-    assert.ok(model.입력들().some((x) => x.includes('기록.md')),
+    assert.ok(model.입력들().some((tc) => JSON.stringify(buildModelMessages(tc)).includes('기록.md')),
       '입장 거부가 파일 손 write 사실의 승계까지 끊었다 — 같은 결함의 둘째 갈래');
   } finally { await new Promise((r) => server.close(r)); }
 });

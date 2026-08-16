@@ -1328,6 +1328,8 @@ export async function runTurn(input, ctx) {
       // 자기 파악 세 번째 축: **지금 이 대화에서 어디까지 왔는가**. 이게 없으면 "리뷰 읽어봐"의
       // "리뷰"가 무엇인지 몰라 엉뚱한 것을 검색한다(오너 실사용).
       workingState: ctx.workingState,
+      // §7-bs 순수 사실 칸 — 지난 턴들의 산출물 자리(세션 차선 · 거부 턴에도 승계).
+      산출물사실: ctx.산출물사실 ?? [],
       worksetReality: ctx.worksetReality,
       automationReality: ctx.automationReality,
       projectWorkState: ctx.projectWorkState,
@@ -3614,6 +3616,10 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       withinTurn: true,
       deliverables: 산출물영수증들.flatMap((r) => 산출물자리들(r).map((path) => ({ path }))),
     }), ctx.connectors);
+    // §7-bs — 같은 사실을 **완료 투영과 분리된 순수 사실 칸**에도 싣는다. 거부 턴에서 서버가
+    // workingState 를 지워도(F-64 동결 불변) 이 차선은 세션으로 승계된다. 완료 기계는 이 칸을
+    // 읽지 않는다(소비자 0 닻).
+    ctx.이번턴산출물 = [...new Set(산출물영수증들.flatMap((r) => 산출물자리들(r)))];
   }
   reply = await 답완성({
     reply, tc, ctx, search: wantedWeb, receipts: turnReceipts, 출처계약손: 출처계약손목록(), 파일계약빈손,
@@ -3736,12 +3742,16 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 않는 봉인(recovery-failure-injection A·B·B')이 이 자리를 문다. 다음 턴 priorExchange 는
     // 어차피 신분·요약·인자만 옮기므로(task-context E1) 여기서 걷어도 잃는 것이 없다.
     turnExchange: (tc?.turnExchange ?? []).map(({ 실패원문, 확인안됨, ...남는것 }) => 남는것),
+    // §7-bs — 이번 턴의 순수 사실 칸. 서버가 세션 차선(session.산출물사실)으로 승계한다.
+    // 거부 턴의 workingState 삭제(F-64 동결)와 무관하게 산다 — 완료 기계는 안 읽는다.
+    ...(ctx.이번턴산출물?.length ? { 산출물사실: ctx.이번턴산출물.map((path) => ({ path })) } : {}),
     // P2-7 2축: **모델이 이번 턴에 무엇을 현재 상태로 봤는가.** 엔진이 아니라 필드 하나다.
     // 왜 남기는가: 흐름이 어긋났을 때 프롬프트를 추측으로 고치다 세 번 헛짚었다(2026-07-27).
     // 라이브 요청을 눈으로 보고 나서야 원인이 드러났다 — 볼 수 없으면 또 추측하게 된다.
     // **사용자 화면에는 안 나간다.** 나중에 "무엇을 보고 그렇게 판단했나"(거버넌스·자가학습)가
     // 여기서 답해질 자리를 지금 막지 않으려는 것이다.
-    contextShown: workingStateFacts(workingState),
+    contextShown: workingStateFacts(workingState,
+      [...(ctx.산출물사실 ?? []), ...(ctx.이번턴산출물 ?? []).map((path) => ({ path }))]),
     // 2.0-B: 연결이 필요한 도구가 있으면 채팅 안 연결 안내 카드로(원래 작업 보존).
     connectionNeeded,
     // P5-B-1B: 도구가 **사용자에게 열어 달라고 요청한 표면**(예: 비밀 입력창). 커널은 종류만 안다.

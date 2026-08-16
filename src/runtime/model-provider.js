@@ -219,7 +219,8 @@ export function buildModelMessages(tc) {
   const surfaceFact = responseSurfaceFacts(tc.surface);
   if (surfaceFact) 턴변동.push(surfaceFact);
   // 자기 파악 세 번째 축: 지금 이 대화에서 어디까지 왔는가. "그거·거기·그 페이지"가 여기서 풀린다.
-  const working = workingStateFacts(tc.workingState);
+  // §7-bs 합류 — 완료 투영과 분리된 순수 사실 칸(산출물사실)을 같은 문장 한 줄로 합쳐 낸다.
+  const working = workingStateFacts(tc.workingState, tc.산출물사실 ?? []);
   if (working) 턴변동.push(`[이 대화에서 지금까지]\n${working}`);
   const projectWorking = workStateFacts(tc.projectWorkState);
   if (projectWorking) {
