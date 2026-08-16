@@ -531,6 +531,9 @@
     background:var(--panel); font-size:var(--fs-xs); text-align:center; }
   .qh-body mark { background:var(--warn-subtle); color:inherit; border-radius:3px; padding:0 2px; }
   .turn.search-target { outline:2px solid var(--warn); outline-offset:4px; border-radius:var(--r-md); }
+
+  /* 조각 I — 원장 검증 전 답은 답이 아니다. 내부 누적기는 살리되 화면에는 내보내지 않는다. */
+  [data-unverified-answer] { display:none !important; }
 </style>
 </head>
 <body>
@@ -2669,8 +2672,8 @@ async function submit() {
   try {
     const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
     const recovery = streamed.recovery;
-    trace.remove();
     if (recovery) {
+      trace.remove();
       renderRecovery(box, recovery);
       await streamed.reportComplete();
       return;
@@ -2683,6 +2686,7 @@ async function submit() {
       localAnswer.__원문 = streamed.answerText;
       box.appendChild(localAnswer);
       동작줄(box, localAnswer, 'bot');
+      trace.remove();
     }
     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
@@ -2833,24 +2837,16 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
         const { text: piece } = JSON.parse(e.data);
         if (!piece) return;
         if (!preview) {
-          trace.textContent = '';
-          // 확인된 중간 결과는 **기다림을 채우는 것**이다. 답이 오기 시작하면 채울 공백이
-          // 없으므로 자리를 내준다 — 남겨두면 같은 사실을 두 번 말하는 화면이 된다.
-          // 조각 D: **자리는 내주되 지우지는 않는다** — 접힌 한 줄로 남긴다(위 `걸음접기`).
-          걸음접기();
+          // 이 조각은 아직 원장 검증 전이다. 화면에 먼저 내보내면 answer_reset 때 사용자가
+          // 「서로 다른 답 → 사라짐 → 새 답」을 본다. 내부에서만 모으고 완료 답 한 벌만 그린다.
+          trace.textContent = '답을 확인하고 있어요…';
           preview = document.createElement('div');
-          // **최종 답과 같은 조**여야 한다(조각 A). `msg` 만 주면 마크다운 간격·말풍선이 안 붙어
-          // 완료 순간 같은 글의 높이가 619.8px → 447.4px 로 튄다(실측 -27.8%). 읽던 줄이 달아난다.
           preview.className = 'msg bot';
+          preview.setAttribute('data-unverified-answer', '');
           trace.parentNode.insertBefore(preview, trace);
-          // 조각 B: 흐르는 **중에도** 복사가 돼야 한다(기획 §2 B 반대시험 ①). 답이 끝나면
-          // 대화투영이 이 상자를 통째로 갈아끼우고 그때 renderResult 가 같은 줄을 다시 세운다.
-          동작줄(trace.parentNode, preview, 'bot');
         }
         previewText += piece;
-        renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
-        markGrounded();
-        scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
+        renderMarkdownInto(preview, previewText);
       } catch {}
     });
     const completed = () => ({

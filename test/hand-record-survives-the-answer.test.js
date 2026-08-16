@@ -21,12 +21,14 @@ function 본문(머리) {
 }
 
 // ── ① 지우지 않는다. 접는다 ────────────────────────────────────────────────
-test('답이 시작돼도 걸음들을 지우지 않는다 — 접는다', () => {
+test('검증 전 답이 시작돼도 걸음들을 지우거나 접지 않는다', () => {
   const 답시작 = html.slice(html.indexOf("if (!preview) {"), html.indexOf("previewText += piece;"));
   assert.ok(답시작.length > 0, 'answer_delta 의 첫 조각 갈래를 못 찾았다');
   assert.doesNotMatch(답시작, /steps\?\.remove\(\)/,
     '지우면 「진행을 본 적이 없다」로 돌아간다 — 정보가 없었던 게 아니라 사라진 것이었다');
-  assert.match(답시작, /걸음접기\(\)/, '자리는 내주되 접힌 한 줄로 남긴다');
+  assert.doesNotMatch(답시작, /걸음접기\(\)/,
+    '검증 전 답은 화면에 안 보이므로, 확인된 걸음을 접어 자리를 내줄 이유가 없다');
+  assert.match(답시작, /data-unverified-answer/, '검증 전 답은 내부 누적기에만 있어야 한다');
 });
 
 test('접힌 것은 **기본이 닫힘**이다 — 잔소리를 늘리지 않는다', () => {

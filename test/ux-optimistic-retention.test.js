@@ -18,3 +18,11 @@ test('새 대화는 직전 대화의 서버 발화 수를 물려받지 않는다
   assert.match(body, /마지막서버사용자수 = 0/);
   assert.match(body, /마지막서버답수 = 0/);
 });
+
+test('원장이 통과시키기 전 답 조각은 화면에 내보내지 않는다', () => {
+  const delta = html.slice(html.indexOf("es.addEventListener('answer_delta'"), html.indexOf('const completed ='));
+  assert.match(delta, /data-unverified-answer/);
+  assert.match(html, /\[data-unverified-answer\]\s*\{\s*display:none/);
+  assert.match(delta, /답을 확인하고 있어요/);
+  assert.doesNotMatch(delta, /동작줄\(trace\.parentNode, preview/);
+});

@@ -31,6 +31,7 @@ function json(res, body, status = 200) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(body));
 }
+const 기다림 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function 고정물서버() {
   let 새대화저장됨 = false;
@@ -100,7 +101,14 @@ async function 고정물서버() {
         res.writeHead(200, {
           'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive',
         });
+        // 실제 커널 회수 순서: 첫 답을 흘린 뒤 되돌리고 다른 최종 답을 낸다. 첫 답이 화면에
+        // 한 프레임이라도 보이면 오너가 본 「다른 답→사라짐→새 답」 회귀다.
+        res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: '폐기될 임시 답입니다.' })}\n\n`);
+        await 기다림(250);
+        res.write('event: answer_reset\ndata: {}\n\n');
+        await 기다림(250);
         res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: '안녕하세요. 무엇을 같이 해볼까요?' })}\n\n`);
+        await 기다림(250);
         새대화저장됨 = true;
         res.write('event: complete\ndata: {}\n\n');
         res.end();
@@ -215,6 +223,9 @@ try {
   // 오너 실사용 회귀: 발화가 많은 대화를 본 뒤 새 대화에서 한 번 말해도 한 벌만 보여야 한다.
   await 크롬.돌리기(`document.querySelector('#newchat').click()`);
   await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 0`);
+  await 크롬.돌리기(`window.__uxAnswerFrames = []; window.__uxAnswerObserver = new MutationObserver(() => {
+    window.__uxAnswerFrames.push(document.querySelector('#wrap')?.innerText || '');
+  }); window.__uxAnswerObserver.observe(document.querySelector('#wrap'), { childList:true, subtree:true, characterData:true });`);
   await 크롬.돌리기(`document.querySelector('#text').value = '안녕'; document.querySelector('#send').click()`);
   await 크롬.준비대기(`document.querySelectorAll('#wrap .msg.bot').length > 0`);
   const 새대화중복 = await 크롬.돌리기(`(() => ({
@@ -222,6 +233,9 @@ try {
     답: [...document.querySelectorAll('#wrap .msg.bot')].filter((x) => x.textContent.includes('무엇을 같이 해볼까요')).length,
   }))()`);
   새대화중복.통과 = 새대화중복.사용자 === 1 && 새대화중복.답 === 1;
+  const 검증전답노출 = await 크롬.돌리기(`window.__uxAnswerObserver.disconnect(); window.__uxAnswerFrames.some((x) => x.includes('폐기될 임시 답'))`);
+  새대화중복.검증전답노출 = 검증전답노출;
+  새대화중복.통과 = 새대화중복.통과 && !검증전답노출;
   const 통과 = 결과.every((x) => x.통과) && 낙관적유지.통과 && 큰대화.통과 && 검색스니펫.통과 && 새대화중복.통과;
   console.log(JSON.stringify({ 폭, 주소: base, 결과, 낙관적유지, 큰대화, 검색스니펫, 새대화중복, 통과 }, null, 2));
   process.exitCode = 통과 ? 0 : 1;
