@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 로그 폴더에 최근 에러 있는지 봐줘

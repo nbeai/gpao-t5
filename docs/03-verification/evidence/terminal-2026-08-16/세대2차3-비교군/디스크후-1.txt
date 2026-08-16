@@ -1,0 +1,30 @@
+total 80
+drwxr-xr-x@ 9 jyp  staff    288 Aug 16 21:40 .
+drwx------@ 3 jyp  staff     96 Aug 16 21:40 ..
+-rw-r--r--@ 1 jyp  staff  16051 Aug 16 21:40 AGENTS.md
+-rw-r--r--@ 1 jyp  staff  11373 Aug 16 21:40 README.md
+-rw-r--r--@ 1 jyp  staff    187 Aug 16 21:40 package.json
+drwxr-xr-x@ 7 jyp  staff    224 Aug 16 21:40 백업
+-rw-r--r--@ 1 jyp  staff    448 Aug 16 21:40 서버.mjs
+drwxr-xr-x@ 7 jyp  staff    224 Aug 16 21:40 시작문서
+-rw-r--r--@ 1 jyp  staff   1273 Aug 16 21:40 집계.mjs
+
+./백업:
+total 216
+drwxr-xr-x@ 7 jyp  staff    224 Aug 16 21:40 .
+drwxr-xr-x@ 9 jyp  staff    288 Aug 16 21:40 ..
+-rw-r--r--@ 1 jyp  staff  14601 Aug 16 21:40 README.md
+-rw-r--r--@ 1 jyp  staff  10337 Aug 16 21:40 T5-공장도달표-2026-08-11.md
+-rw-r--r--@ 1 jyp  staff  45534 Aug 16 21:40 T5-비전과-성능철학.md
+-rw-r--r--@ 1 jyp  staff  14868 Aug 16 21:40 새-세션에게-보낼-메세지.md
+-rw-r--r--@ 1 jyp  staff  15837 Aug 16 21:40 현재상황.md
+
+./시작문서:
+total 216
+drwxr-xr-x@ 7 jyp  staff    224 Aug 16 21:40 .
+drwxr-xr-x@ 9 jyp  staff    288 Aug 16 21:40 ..
+-rw-r--r--@ 1 jyp  staff  14601 Aug 16 21:40 README.md
+-rw-r--r--@ 1 jyp  staff  10337 Aug 16 21:40 T5-공장도달표-2026-08-11.md
+-rw-r--r--@ 1 jyp  staff  45534 Aug 16 21:40 T5-비전과-성능철학.md
+-rw-r--r--@ 1 jyp  staff  14868 Aug 16 21:40 새-세션에게-보낼-메세지.md
+-rw-r--r--@ 1 jyp  staff  15837 Aug 16 21:40 현재상황.md

@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 제일 큰 것 세 개를 큰 순서대로 알려줘

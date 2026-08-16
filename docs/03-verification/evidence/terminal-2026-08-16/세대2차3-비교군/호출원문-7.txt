@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 이거 돌리려면 뭐 필요한지 보고, 필요한 거 깔아줘
