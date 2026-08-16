@@ -345,7 +345,10 @@ export function compactResult(result, maxChars = 1200) {
       ? ` (표 ${t.rows}행 · 열: ${(t.columns ?? []).slice(0, 5).join('·')} · 합계 ${Object.entries(t.sums).slice(0, 2)
         .map(([열, v]) => `${열} ${Number(v).toLocaleString('ko-KR')}`).join(' · ')})`
       : '');
-    const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}${표말(i.table)}`;
+    // ② 집계 범위(§7-ay) · 크기도 싣는다 — items 에만 넣으면 **모델에 안 닿는다**(감시자 ⑤ ·
+    // 「만든 것과 닿은 것은 다르다」). 바이트 그대로(진값 기준 · 사람 단위 변환은 모델 몫).
+    // 항목당 +8~12자 — 이름예산(maxChars*0.6) 안에서 실리는 개수가 그만큼 준다(측정해 신고).
+    const 줄 = (i) => `- ${i.name}${i.kind === 'folder' ? '/' : ''}${i.size !== undefined ? ` ${i.size}B` : ''}${i.modifiedAt ? 시각말(i.modifiedAt) : ''}${표말(i.table)}`;
     const 머리 = `자리: ${result.path}`;
     const 이름예산 = Math.floor(maxChars * 0.6); // 나머지는 "뺀 것"을 정직하게 말하는 데 쓴다
     const 실은것 = [];

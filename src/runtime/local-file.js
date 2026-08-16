@@ -724,9 +724,18 @@ export function makeLocalFileTool(deps = {}) {
             }
             // C 감사 F2.3 · 수정 시각도 사실이다 — 이게 없으면 "어느 게 최신이야"에 런타임이
             // 줄 수 있는 것이 이름뿐이라, 이름의 '최종' 문자열이 판단을 대신하게 된다(H08 실측).
-            let modifiedAt;
-            try { modifiedAt = new Date((await stat(join(abs, e.name))).mtimeMs).toISOString(); } catch { /* 못 보면 안 쓴다 */ }
-            items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', ...(modifiedAt ? { modifiedAt } : {}) });
+            // ── ② 집계 범위(§7-ay) · **무게 재료** — 목록에 크기 칸이 아예 없었다 ─────────
+            // 라이브(집계-선빨강-회차1): "제일 두꺼운 문서" 물음에 모델이 목록(관측)까지 하고도
+            // 잴 재료가 없어 이름만 보고 단정했다 — 진값 45,534B 를 두고 16,051B 오답.
+            // stat 은 modifiedAt 때문에 **이미 항목마다 돈다** — size 는 같은 결과에서 공짜다.
+            // 파일만 싣는다(폴더의 st.size 는 안 크기가 아니다 — 거짓 재료 금지). 단위는 바이트(진값 기준).
+            let modifiedAt; let size;
+            try {
+              const st = await stat(join(abs, e.name));
+              modifiedAt = new Date(st.mtimeMs).toISOString();
+              if (!e.isDirectory()) size = st.size;
+            } catch { /* 못 보면 안 쓴다 — 못 잼과 안 잼은 다르다(§7-ay 울타리) */ }
+            items.push({ name: e.name, kind: e.isDirectory() ? 'folder' : 'file', ...(modifiedAt ? { modifiedAt } : {}), ...(size !== undefined ? { size } : {}) });
           }
           if (executionContext.worksetObservation === true) {
             // continuation offset이 readdir의 우연한 순서에 흔들리지 않게 관측 전용으로만 정렬한다.
