@@ -28,6 +28,8 @@ const execFile = promisify(execFileCb);
 const 저장소 = new URL('../../', import.meta.url).pathname.replace(/\/$/, '');
 const 낼자리 = process.argv[2];
 const 자가검증 = process.argv.includes('--자가검증');
+// §7-bd 와이어 재생 — **단발(발화 9만)**. 전체 재판 재실행은 §7-az 가 금지한다(4번째 재판).
+const 칸8단발 = process.argv.includes('--칸8');
 if (!낼자리 && !자가검증) { console.error('출력 경로를 준다 (또는 --자가검증)'); process.exit(1); }
 
 // §7-az-1 — 발화 열 · 순서 고정. 결과 본 뒤 변경 금지.
@@ -121,7 +123,7 @@ if (자가검증) {
   process.exit(0);
 }
 
-await 재판(발화들, 낼자리);
+await 재판(칸8단발 ? [발화들[8]] : 발화들, 낼자리);
 
 
 async function 재판(재판발화들, 낼경로) {
