@@ -741,7 +741,11 @@ export function 완료주장검증({
       const 목록들 = (receipts ?? []).filter((r) => (r?.failureState ?? 'none') === 'none'
         && r?.actualCall?.tool === 'local.file' && Array.isArray(r?.result?.items));
       // 목록 **밖** 원장 — 목록 자신을 넣으면 모든 항목이 "다른 출처로 잼"이 되어 취소가 전부를 삼킨다.
-      const 목록밖원장 = 표기맞춤2(`${원장글 ?? ''}\n${원장속말((receipts ?? []).filter((r) => !목록들.includes(r)))}`);
+      // ⚠️ `원장글` 도 안 쓴다(갈래 판별 실측 2026-08-16): 턴이 주는 원장글은 **전체 영수증의
+      //    JSON** 이라 목록 항목 이름이 그대로 들어 있다 — 넣는 순간 취소 조항이 표적을 삼켜
+      //    게이트가 턴 안에서만 침묵했다(단위 검사는 원장글 없이 불러 못 봤다 — 자의 맹점).
+      //    취소의 근거는 목록 아닌 **영수증의 실측**(터미널 stdout·read)만이다.
+      const 목록밖원장 = 표기맞춤2(원장속말((receipts ?? []).filter((r) => !목록들.includes(r))));
       const 안잰 = [];
       for (const r of 목록들) {
         for (const it of r.result.items) {
