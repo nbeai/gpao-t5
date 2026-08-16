@@ -30,6 +30,9 @@ const 낼자리 = process.argv[2];
 const 자가검증 = process.argv.includes('--자가검증');
 // §7-bd 와이어 재생 — **단발(발화 9만)**. 전체 재판 재실행은 §7-az 가 금지한다(4번째 재판).
 const 칸8단발 = process.argv.includes('--칸8');
+// §7-bg-1 · ② 일반화 — 새 방(설계문서/ = design 실문서 3 + AGENTS.md) + 새 발화 1종 · 결과 보기 전 이식.
+const 방B = process.argv.includes('--방B');
+const 발화2b = { 칸: '②b', text: '여기서 용량 제일 큰 파일이 뭐야?' };
 if (!낼자리 && !자가검증) { console.error('출력 경로를 준다 (또는 --자가검증)'); process.exit(1); }
 
 // §7-az-1 — 발화 열 · 순서 고정. 결과 본 뒤 변경 금지.
@@ -89,6 +92,15 @@ async function 방만들기() {
   await mkdir(work, { recursive: true });
   await mkdir(state, { recursive: true });
   // 기존 방 구성(§7-ab) + §7-az 실행물 셋. §7-af 숫자와 합치지 않는다(방이 다르다).
+  if (방B) {
+    // §7-bg-1 방 B — 다른 실문서 세트(설계문서/). ② 계열만 소환한다.
+    await mkdir(join(work, '설계문서'), { recursive: true });
+    for (const f of ['T5-FINAL-ASSEMBLY-ko.md', 'T5-PLAN.md', 'T5-STATE-MAP-ko.md']) {
+      await cp(join(저장소, 'design', f), join(work, '설계문서', f));
+    }
+    await cp(join(저장소, 'AGENTS.md'), join(work, 'AGENTS.md'));
+    return { root, home, state, work };
+  }
   await cp(join(저장소, 'docs/00-START-HERE'), join(work, '시작문서'), { recursive: true });
   await cp(join(저장소, 'docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md'),
     join(work, '시작문서', 'T5-비전과-성능철학.md'));
@@ -137,7 +149,7 @@ if (자가검증) {
   process.exit(0);
 }
 
-await 재판(칸8단발 ? [발화들[8]] : 발화들, 낼자리);
+await 재판(방B ? [발화2b] : (칸8단발 ? [발화들[8]] : 발화들), 낼자리);
 
 
 async function 재판(재판발화들, 낼경로) {
