@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 여기서 제일 두꺼운 문서 하나만 딱 집어줘

@@ -1,0 +1,1 @@
+claude --continue -p --output-format json --dangerously-skip-permissions 이 폴더 전체를 압축해서 백업본 하나 만들어줘
