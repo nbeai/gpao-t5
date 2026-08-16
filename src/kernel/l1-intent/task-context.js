@@ -77,10 +77,15 @@ function 터미널본문(라벨, 원문, 예산, command) {
 function 남은자리말(remainingSource) {
   const r = remainingSource;
   if (!r || typeof r.files !== 'number') return '';
-  if (r.files === 0) return `남은 파일: 0개 (${r.path} 에 파일이 더 없다)`;
+  // 폴더는 침묵하면 「다 봤다」로 읽힌다(J6 계보 · §7-cd 실측): 치우던 자리 **안**으로
+  // 옮겨 하위폴더가 새로 섰는데 이 문장이 파일만 세서, 「압축본만 남았다」는 완료 주장
+  // 옆에 반박 사실이 못 섰다 — 모델이 받은 것은 「남은 파일: 1개 (.gz)」뿐이었다.
+  // 세기만 한다 — 무엇을 할지는 모델과 사용자의 것이다(아래 남은 수 주석의 그 원칙).
+  const 폴더말 = typeof r.folders === 'number' && r.folders > 0 ? ` · 남은 폴더: ${r.folders}개` : '';
+  if (r.files === 0) return `남은 파일: 0개 (${r.path} 에 파일이 더 없다)${폴더말}`;
   const 분포 = (r.topExtensions ?? []).slice(0, 8)
     .map((x) => `${x.ext === '[no-ext]' ? '확장자 없음' : x.ext} ${x.count}개`).join(' · ');
-  return `남은 파일: ${r.files}개 (${r.path})${분포 ? `\n남은 것의 종류: ${분포}` : ''}`;
+  return `남은 파일: ${r.files}개 (${r.path})${폴더말}${분포 ? `\n남은 것의 종류: ${분포}` : ''}`;
 }
 
 /**
@@ -603,21 +608,26 @@ function verifiedExecutionFacts(receipts = []) {
   }
   const remainingSources = [];
   for (const path of sources) {
-    const lastList = [...receipts].reverse().find((r) => r?.actualCall?.tool === 'local.file'
+    // 자는 **원장 배열 인덱스**(수령 순서)다 — 시계 비교 금지(§7-ce-1 정정 ②). 예전엔
+    // lastList 가 무조건 이겨서, 옮기기 **전**에 본 목록(files:6 · .md 5)이 옮긴 뒤의
+    // remainingSource(files:1 · 폴더 1)를 덮었다 — 같은 모델 입력 안에 「남은 파일 1개」와
+    // 낡은 6개가 정면 모순으로 함께 실렸다(§7-cd ④ 실측). 더 나중 영수증이 더 새 실측이다 —
+    // 방향 무관 균일: 옮긴 뒤 다시 본 list 는 그대로 이긴다(그때는 list 가 실측이다).
+    const listIdx = receipts.findLastIndex((r) => r?.actualCall?.tool === 'local.file'
       && (r.failureState ?? 'none') === 'none'
       && r.result?.path === path
       && Array.isArray(r.result?.items));
-    const lastBulkSummary = [...receipts].reverse().find((r) => r?.actualCall?.tool === 'local.file'
+    const bulkIdx = receipts.findLastIndex((r) => r?.actualCall?.tool === 'local.file'
       && (r.failureState ?? 'none') === 'none'
       && r.result?.from === path
       && r.result?.remainingSource
       && typeof r.result.remainingSource.files === 'number');
-    if (!lastList && lastBulkSummary) {
-      remainingSources.push(lastBulkSummary.result.remainingSource);
+    if (bulkIdx > listIdx) {
+      remainingSources.push(receipts[bulkIdx].result.remainingSource);
       continue;
     }
-    if (!lastList) continue;
-    const items = lastList.result.items;
+    if (listIdx < 0) continue;
+    const items = receipts[listIdx].result.items;
     const extensionCounts = new Map();
     for (const item of items) {
       if (item?.kind !== 'file') continue;
