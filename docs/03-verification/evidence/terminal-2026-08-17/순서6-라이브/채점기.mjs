@@ -80,7 +80,11 @@ export async function 자가검증(저장소) {
 }
 
 // 단독 실행: node 채점기.mjs --자가검증 <저장소뿌리> | node 채점기.mjs <회차.json…>
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 가드는 경로 복원 대조다 — 한글 경로가 URL 에서 퍼센트 인코딩되어 `file://` 문자열 비교가
+// 늘 거짓이 됐고, 본문을 건너뛴 채 종료코드 0(빈 초록)이 났다(첫 실행 실측 — 계측기 결함).
+const { fileURLToPath } = await import('node:url');
+const { resolve } = await import('node:path');
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   if (process.argv.includes('--자가검증')) {
     const 결과 = await 자가검증(process.argv[3] ?? new URL('../../../../../', import.meta.url).pathname);
     console.log(JSON.stringify(결과, null, 1));
