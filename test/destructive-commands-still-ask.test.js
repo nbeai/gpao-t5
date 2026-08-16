@@ -22,7 +22,7 @@
 // (되돌릴 수 없는 파괴)에 그대로 걸려야 하고, 그 사실은 **수리 전후로 안 움직여야** 한다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runTurn } from '../src/kernel/turn.js';
@@ -143,6 +143,20 @@ test('울타리 ① — 새 이름 생성 뒤에 파괴를 붙인 복합 명령�
     '복합 명령의 **한 조각**(새 이름)만 보고 전체를 자동으로 흘렸다 — 뒤에 rm 이 붙어 있다');
   assert.deepEqual((await readdir(자리)).sort(), ['b.md', '시작문서'],
     '승인 전에 무엇인가 실행됐다');
+});
+
+// 울타리 ①-b **cd 변형 덮어쓰기** — 자리를 틀리게 특정하면 폴백보다 나쁘다 (손 관리자 2026-08-16).
+// `cd 시작문서 && echo 망함 > a.md` 의 막힌 자리는 「a.md」로 잡히는데, 그걸 **cwd 기준으로**
+// stat 하면 방/a.md 는 없으므로 「새 이름 = 자동」으로 굴러떨어진다. 그리고 granted 로
+// 명령 전체가 돌면 **시작문서/a.md(실존)를 덮는다.** 오답 자동은 카드 유지보다 나쁘다 —
+// 자리 해석이 확정 안 되는 모양(구획 여럿·cd 이동)은 전부 카드로 남아야 한다.
+test('울타리 ①-b — cd 로 자리를 옮긴 덮어쓰기는 여전히 카드다 (틀린 기준으로 stat 하지 않는다)', async () => {
+  const 자리 = await 방();
+  const 결과 = await 첫턴('cd 시작문서 && echo 망함 > a.md', 자리);
+  assert.equal(결과.kind, 'approval',
+    '**자리를 cwd 기준으로 잘못 읽고 「새 이름」으로 승격했다** — 실제 자리에는 a.md 가 실존한다');
+  assert.equal(await readFile(join(자리, '시작문서', 'a.md'), 'utf8'), 'hello',
+    '승인 전에 기존 파일이 덮였다');
 });
 
 // 울타리 ② 새 이름인데 **시스템 자리** — 「없는 자리 = 안전」이 아니다.
