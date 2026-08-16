@@ -18,6 +18,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../src/surface/server.js';
+import { 완료주장검증 } from '../src/kernel/l2-plan/exit-verification.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoTools } from '../src/surface/demo-context.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -136,6 +137,33 @@ test('닻 — 「처음엔 안 됐는데 다시 해서 지워졌어요」 혼합
   assert.equal(r.kind, 'reply');
   assert.ok((r.reply ?? '').includes('지워졌'),
     '그물이 정직한 회복 서술을 물었다 — 과거의 막힘 언급은 최종 결과 뒤집기가 아니다');
+});
+
+// 오너 지시 ③ — 발동은 답을 죽이는 게 아니라 참값으로 세우는 것이다. 되돌림 사실문에
+// 원장 참값이 실려야 모델이 그 값으로 고쳐 쓸 수 있다(A1 한계 ④를 A2 에선 정의의 일부로).
+test('발동 시 되돌림 사실문에 원장 참값이 실린다 (가: 실측줄 · 나: 성공 사실)', () => {
+  const ls영수증 = {
+    actualCall: { tool: 'local.terminal', args: { command: 'ls -l' } }, failureState: 'none',
+    result: { command: 'ls -l', exitCode: 0, stdout: '15837 정산.csv\n11373 보고.md', stderr: '' },
+  };
+  const 가 = 완료주장검증({ reply: '정산.csv 크기는 15,868바이트예요.', receipts: [ls영수증], 원장글: JSON.stringify([ls영수증]) });
+  assert.equal(가.일치, false);
+  assert.ok((가.모델에게 ?? '').includes('15837'), '(가) 사실문에 원장 실측값이 없다 — 모델이 고쳐 쓸 참값을 못 받는다');
+  const rm영수증 = {
+    actualCall: { tool: 'local.terminal', args: { command: 'rm 잠금.pid' } }, failureState: 'none',
+    result: { command: 'rm 잠금.pid', exitCode: 0, stdout: '', stderr: '' },
+  };
+  const 나 = 완료주장검증({ reply: 'OS 제한으로 잠금.pid 삭제가 안 됐어요.', receipts: [rm영수증], 원장글: '[]' });
+  assert.equal(나.일치, false);
+  assert.ok((나.모델에게 ?? '').includes('성공(exit 0)'), '(나) 사실문에 성공 사실이 없다 — 모델이 뒤집힌 값을 바로잡을 근거를 못 받는다');
+  // 검문 실측 반영 — 여러 파일 문장에서 사실문의 짝은 그 수의 파일이다(참값 오귀속 방지).
+  const 여럿 = 완료주장검증({
+    reply: '정산.csv 는 15,837바이트, 보고.md 는 11,400바이트예요.',
+    receipts: [ls영수증], 원장글: JSON.stringify([ls영수증]),
+  });
+  assert.equal(여럿.일치, false);
+  assert.ok((여럿.모델에게 ?? '').includes('11373 보고.md') && (여럿.모델에게 ?? '').includes('보고.md 의 값'),
+    `사실문이 틀린 수의 짝 파일 실측줄을 안 실었다 — 참값 오귀속(검문 실측 재발). 사실문: ${여럿.모델에게}`);
 });
 
 test('닻 — 원장이 실제 실패(exit 1)를 찍은 턴의 「안 됐어요」는 산다 ((나) 축 참값 닻 · 검문 요구)', async () => {
