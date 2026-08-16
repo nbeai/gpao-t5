@@ -39,7 +39,9 @@ test('변경 없는 터미널 읽기·탐색·격리 계산 여섯 번은 위험
   const 실행 = [];
   const localTerminal = {
     async probe(command) {
-      return { command, cwd: '/tmp', changes: false, probe: { exitCode: 0, stdout: '관찰', stderr: '' } };
+      const sandboxEnforcement = { state: 'enforced', policy: 'deny-external-effects' };
+      return { command, cwd: '/tmp', changes: false, sandboxEnforcement,
+        probe: { exitCode: 0, stdout: '관찰', stderr: '', sandboxEnforcement } };
     },
     async handler(args) {
       실행.push(args.command);

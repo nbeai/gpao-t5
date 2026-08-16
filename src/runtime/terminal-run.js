@@ -4,12 +4,13 @@
 // 그러면 사용자가 다시 터미널을 켜야 한다 — 그게 우리가 없애려는 바로 그 실패다.
 //
 // 안전은 명령을 좁혀서가 아니라 **실행 환경**에서 온다(sandbox.js):
-//   ① probe 로 먼저 돌린다 — 성공하면 아무것도 안 바꿨다는 증명이라 그대로 쓴다.
-//   ② 막히면 승인을 받고 granted 로 다시 돌린다. 그때도 비밀 자리는 닫혀 있다.
+//   ① probe 로 한 번 돌리고, 고정 wrapper의 별도 FD handshake로 sandbox 적용을 증명한다.
+//   ② 성공·실패 모두 원시 결과를 돌려준다. 승인·재실행 여부는 이 실행기가 판단하지 않는다.
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { writeFile, mkdtemp, mkdir, realpath, rm, access, stat } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, delimiter, isAbsolute, resolve, basename } from 'node:path';
 import { sandboxProfile, sandboxAvailable } from './sandbox.js';
 
 export const DEFAULT_TIMEOUT_MS = 120_000;
@@ -28,6 +29,126 @@ function fold(text, max = MAX_OUTPUT) {
   };
 }
 
+const SHELL_EXECUTABLES = new Set([
+  'sh', 'zsh', 'bash', 'dash', 'ksh', 'csh', 'tcsh', 'fish',
+]);
+
+async function executablePath(program, cwd, env) {
+  const requested = String(program ?? '').trim();
+  if (!requested) return null;
+  const candidates = requested.includes('/')
+    ? [isAbsolute(requested) ? requested : resolve(cwd, requested)]
+    : String(env.PATH ?? process.env.PATH ?? '').split(delimiter).filter(Boolean)
+      .map((dir) => resolve(dir, requested));
+  for (const candidate of candidates) {
+    try {
+      const actual = await realpath(candidate);
+      const info = await stat(actual);
+      await access(actual, constants.X_OK);
+      if (!info.isFile() || SHELL_EXECUTABLES.has(basename(actual))) continue;
+      return actual;
+    } catch { /* 다음 PATH 후보 */ }
+  }
+  return null;
+}
+
+/**
+ * 구조화된 단일 프로세스 실행. 사용자 문자열은 셸 프로그램으로 조립하지 않고 argv 경계를
+ * 그대로 유지한다. 고정 wrapper는 sandbox marker를 FD3에 쓴 뒤 `exec "$@"`만 수행한다.
+ * @param {{executable?:string, program?:string, argv?:string[], cwd?:string, timeoutMs?:number}} invocation
+ * @param {{env?:object, signal?:AbortSignal}} opts
+ */
+export async function runProgram(invocation = {}, opts = {}) {
+  const cwd = String(invocation.cwd ?? opts.cwd ?? process.cwd());
+  const requested = invocation.executable ?? invocation.program;
+  const rawArgv = invocation.argv;
+  const safeArgv = Array.isArray(rawArgv) && rawArgv.every((arg) => typeof arg === 'string')
+    ? [...rawArgv] : null;
+  const timeoutMs = Math.min(Number(invocation.timeoutMs ?? opts.timeoutMs) || DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const base = {
+    executable: typeof requested === 'string' ? requested : undefined,
+    argv: safeArgv ?? [], cwd, mode: 'structured',
+  };
+  if (!safeArgv || !sandboxAvailable()) {
+    return { ...base, processDelivery: 'not_run', exitCode: null, stdout: '', stderr: '',
+      sandboxEnforcement: { state: 'unavailable' }, effects: { state: 'none' } };
+  }
+  const env = redactEnv(opts.env ?? process.env);
+  const executable = await executablePath(requested, cwd, env);
+  if (!executable) {
+    return { ...base, processDelivery: 'not_run', exitCode: null, stdout: '', stderr: '',
+      sandboxEnforcement: { state: 'unavailable' }, effects: { state: 'none' } };
+  }
+
+  const profileDir = await mkdtemp(join(tmpdir(), 'gpao-t5-structured-'));
+  const scratch = await realpath(await mkdir(join(profileDir, 'tmp')).then(() => join(profileDir, 'tmp')));
+  const profile = join(profileDir, 'p.sb');
+  // macOS의 `/bin/sh`는 내부에서 `/bin/bash` variant를 다시 exec한다. 그러면 initial exec
+  // allowlist가 wrapper 외 하나 더 열리고 handshake 전에 실패할 수도 있다. 고정 bash wrapper
+  // 하나를 직접 올려 사용자 argv를 `exec "$@"`로 넘긴다. 사용자 executable의 shell은 위에서 거부한다.
+  const wrapperExecutable = '/bin/bash';
+  await writeFile(profile, sandboxProfile('structured', {
+    scratch, executable, runtime: wrapperExecutable,
+  }), 'utf8');
+  const markerText = 'GPAO_T5_STRUCTURED_READY';
+  const wrapper = `printf "${markerText}\\n" >&3 || exit 125; exec 3>&-; exec "$@"`;
+  try {
+    const child = spawn('/usr/bin/sandbox-exec', [
+      '-f', profile, wrapperExecutable, '-c', wrapper, 't5-structured', executable, ...safeArgv,
+    ], {
+      cwd,
+      env: {
+        ...env,
+        GPAO_T5_IN_TOOL: '1',
+        TMPDIR: scratch, TMP: scratch, TEMP: scratch,
+      },
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    });
+    let out = ''; let err = ''; let marker = ''; let stopped = null;
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    child.stderr.on('data', (chunk) => { err += chunk; });
+    child.stdio[3]?.on('data', (chunk) => { marker += chunk; });
+    const timer = setTimeout(() => {
+      stopped = 'timeout'; child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 2000).unref();
+    }, timeoutMs);
+    const onAbort = () => { stopped = 'aborted'; child.kill('SIGTERM'); };
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    let spawnError;
+    const exitCode = await new Promise((done) => {
+      child.once('error', (error) => { spawnError = error; done(-1); });
+      child.once('close', (code) => done(code ?? -1));
+    });
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onAbort);
+    if (spawnError) err += `${err ? '\n' : ''}실행을 시작하지 못했어요: ${spawnError.message}`;
+    const enforced = marker.split(/\r?\n/).includes(markerText);
+    const stdout = fold(out); const stderr = fold(err);
+    if (!enforced) {
+      return {
+        ...base, executable, processDelivery: 'not_run', exitCode: null,
+        stdout: '', stderr: '', durationMs: Date.now() - startedAt,
+        diagnosticStderr: stderr.text,
+        sandboxEnforcement: { state: 'unavailable' }, effects: { state: 'none' },
+      };
+    }
+    return {
+      ...base, executable, resolvedExecutable: executable,
+      processDelivery: 'delivered', completed: true, exitCode,
+      durationMs: Date.now() - startedAt,
+      stdout: stdout.text, stderr: stderr.text,
+      truncated: stdout.truncated || stderr.truncated,
+      omittedChars: (stdout.omittedChars ?? 0) + (stderr.omittedChars ?? 0),
+      ...(stopped ? { stopped } : {}),
+      sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
+      effects: { state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects' },
+    };
+  } finally {
+    await rm(profileDir, { recursive: true, force: true });
+  }
+}
+
 /**
  * 명령 한 번 실행. **이 함수는 승인을 판단하지 않는다** — 시키는 모드로 돌리고 사실만 돌려준다.
  * @param {string} command 셸 명령 원문
@@ -39,7 +160,7 @@ export async function runCommand(command, opts = {}) {
   const timeoutMs = Math.min(Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
   const startedAt = Date.now();
 
-  let profileDir; let argv; let scratch;
+  let profileDir; let argv; let scratch; let expectsSandboxHandshake = false;
   if (mode === 'raw' || !sandboxAvailable()) {
     argv = ['/bin/zsh', ['-c', command]];
   } else {
@@ -56,7 +177,13 @@ export async function runCommand(command, opts = {}) {
     }
     // allowRead: 커넥터가 선언한 자리만 도로 연다(그 명령의 자기 자격). 선언이 없으면 그대로 막힌다.
     await writeFile(file, sandboxProfile(mode, { scratch, allowRead: opts.allowRead }), 'utf8');
-    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-c', command]];
+    // stderr 문구는 sandbox 적용 여부의 증거가 아니다. 고정 wrapper가 프로파일 안에 실제로
+    // 들어온 뒤 별도 FD에 marker를 쓰고, 그 다음에만 사용자 셸을 exec한다. 사용자 명령은
+    // wrapper 문자열에 끼워 넣지 않고 argv로 전달한다.
+    expectsSandboxHandshake = true;
+    argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/sh', '-c',
+      'printf "GPAO_T5_SANDBOX_READY\\n" >&3; exec 3>&-; exec /bin/zsh -c "$1"',
+      't5-sandbox', command]];
   }
 
   try {
@@ -72,12 +199,13 @@ export async function runCommand(command, opts = {}) {
         GPAO_T5_IN_TOOL: '1',
         ...(scratch ? { TMPDIR: scratch, TMP: scratch, TEMP: scratch, TMPPREFIX: join(scratch, 'zsh') } : {}),
       },
-      stdio: ['ignore', 'pipe', 'pipe'], // stdin 은 닫는다: 비밀번호·y/n 프롬프트에서 영원히 멈추지 않게
+      stdio: expectsSandboxHandshake ? ['ignore', 'pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
     });
 
-    let out = ''; let err = ''; let killed = null;
+    let out = ''; let err = ''; let sandboxMarker = ''; let killed = null;
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { err += d; });
+    child.stdio[3]?.on('data', (d) => { sandboxMarker += d; });
 
     const timer = setTimeout(() => {
       killed = 'timeout';
@@ -99,11 +227,20 @@ export async function runCommand(command, opts = {}) {
     opts.signal?.removeEventListener('abort', onAbort);
 
     const stdout = fold(out); const stderr = fold(err);
+    const sandboxEnforced = expectsSandboxHandshake
+      && sandboxMarker.split(/\r?\n/).includes('GPAO_T5_SANDBOX_READY');
+    const sandboxPolicy = mode === 'probe' || mode === 'capsule'
+      ? 'deny-external-effects'
+      : mode === 'reach' ? 'deny-host-mutations' : 'protect-secrets-only';
     return {
       command, cwd, mode,
       // spawn 의 `error` 는 셸 프로세스 자체가 시작되지 않았다는 사실이다. exit -1 과
       // 섞으면 "명령이 실패했다"와 "명령에 전달되지 않았다"가 같은 영수증이 된다.
-      processDelivery: spawnError ? 'not_delivered' : 'delivered',
+      processDelivery: spawnError || (expectsSandboxHandshake && !sandboxEnforced)
+        ? 'not_delivered' : 'delivered',
+      ...(expectsSandboxHandshake ? { sandboxEnforcement: sandboxEnforced
+        ? { state: 'enforced', policy: sandboxPolicy }
+        : { state: 'unavailable' } } : {}),
       exitCode, durationMs: Date.now() - startedAt,
       stdout: stdout.text, stderr: stderr.text,
       truncated: stdout.truncated || stderr.truncated,

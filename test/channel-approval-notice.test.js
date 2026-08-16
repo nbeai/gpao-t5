@@ -30,7 +30,7 @@ const 도구ID들 = demoDescriptors().map((d) => d.id);
 const 고른다 = (text) => ({
   async respond(_tc, opts = {}) {
     if (opts.tools?.length) {
-      return { text, toolCalls: [{ name: 'local.terminal', args: { command: 'rm -f 있던.md' } }] };
+      return { text, toolCalls: [{ name: 'local.terminal', args: { command: 'kill 424242' } }] };
     }
     // 빈 문자열을 그대로 돌려준다 — 모델이 아무 말도 안 한 턴을 재현해야 폴백 문구를 볼 수 있다.
     return text;

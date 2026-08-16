@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { sandboxAvailable } from '../src/runtime/sandbox.js';
-import { toolActionKind } from '../src/kernel/l2-plan/action-plan.js';
+import { 실행전판정 } from '../src/kernel/l2-plan/tool-boundary.js';
 import { decideAutoGrant } from '../src/kernel/l2-plan/authority.js';
 
 // 샌드박스 유무를 주입한다 — 이 판정이 무는 자리는 리눅스인데 검사는 macOS 에서 돈다.
@@ -32,19 +32,21 @@ test('샌드박스가 없으면 탐침이 「안 바꾼다」를 주장하지 �
   assert.equal(r?.샌드박스없음, true, '못 쟀다는 사실이 결과에 안 실렸다');
 });
 
-test('그 탐침 결과는 미상으로 판정되고 미상은 카드다', async () => {
-  const r = await 손(false).probe('ls -la');
-  const kind = toolActionKind({ toolId: 'local.terminal', args: { command: 'ls -la', ...r } });
-  assert.equal(kind, 'unknown_kind', `못 잰 탐침이 ${kind} 로 섰다`);
-  assert.equal(decideAutoGrant({ kind }), false, '**못 잰 명령이 카드 없이 실행된다**');
+test('그 탐침 결과는 read가 아닌 probe_observation으로 판정되고 자동 not_run 경계로 간다', async () => {
+  const terminal = 손(false);
+  const judged = await 실행전판정({ toolId: 'local.terminal', args: { command: 'ls -la' },
+    selfState: { connectedTools: [{ id: 'local.terminal', status: 'usable' }] },
+    tools: { tools: { 'local.terminal': terminal } } });
+  assert.equal(judged.kind, 'probe_observation');
+  assert.equal(decideAutoGrant(judged.판정행동), true);
+  assert.equal(judged.판정인자.probeResult.sandboxEnforcement.state, 'unavailable');
 });
 
 test('샌드박스가 있으면 예전 그대로 — 그물이 안 넓어졌다', { skip: !sandboxAvailable() }, async () => {
   const r = await 손(true).probe('ls -la');
   assert.equal(r?.샌드박스없음, undefined, '샌드박스가 있는데 못 잼 표식이 붙었다');
   assert.equal(typeof r?.changes, 'boolean', `changes 판정이 사라졌다: ${JSON.stringify(r)}`);
-  const kind = toolActionKind({ toolId: 'local.terminal', args: { command: 'ls -la', ...r } });
-  assert.ok(['read', 'write'].includes(kind), `읽기 명령이 ${kind} 로 섰다 — 마찰이 늘었다`);
+  assert.equal(r.sandboxEnforcement?.state, 'enforced');
 });
 
 test('수명주기 위험은 샌드박스와 무관하게 먼저 잡힌다', async () => {

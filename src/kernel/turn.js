@@ -1794,8 +1794,17 @@ export async function runTurn(input, ctx) {
     let 물을것 = 낸것;
     if (id === 'local.terminal') {
       const command = typeof 낸것?.command === 'string' ? 낸것.command.trim() : '';
-      if (!command) continue;
-      물을것 = { command, cwd: 낸것.cwd };
+      const executable = typeof (낸것?.executable ?? 낸것?.program) === 'string'
+        ? (낸것.executable ?? 낸것.program).trim() : '';
+      // 옛 command 입력도 경계까지 보내 미실행 영수증을 만든다. 새 계약은 executable과
+      // argv의 경계를 그대로 보존하며, 여기서 셸 문자열로 조립하거나 해석하지 않는다.
+      if (executable && Array.isArray(낸것?.argv)) {
+        물을것 = {
+          executable, argv: [...낸것.argv], cwd: 낸것.cwd,
+          ...(낸것.timeoutMs != null ? { timeoutMs: 낸것.timeoutMs } : {}),
+        };
+      } else if (command) 물을것 = { command, cwd: 낸것.cwd };
+      else continue;
     }
     if (!물을것) continue;
     const { 판정인자 } = await 실행전판정({ toolId: id, args: 물을것, selfState, tools: ctx.tools });

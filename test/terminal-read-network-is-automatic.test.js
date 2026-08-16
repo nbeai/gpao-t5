@@ -18,7 +18,8 @@ function 실행기(대본) {
   return { run, 부른것 };
 }
 
-const 네트워크막힘 = { exitCode: 1, stdout: '', stderr: 'PermissionError: [Errno 1] Operation not permitted' };
+const 네트워크막힘 = { exitCode: 1, stdout: '', stderr: 'PermissionError: [Errno 1] Operation not permitted',
+  processDelivery: 'delivered', sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
 
 test('임의 터미널 네트워크는 probe 에서 미증명 효과로 남고 실제 전달 모드로 재실행되지 않는다', async () => {
   const { run, 부른것 } = 실행기({
@@ -28,13 +29,15 @@ test('임의 터미널 네트워크는 probe 에서 미증명 효과로 남고 �
   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
 
   const p = await 손.probe('python3 opaque-script.py');
-  assert.equal(p.changes, true, '효과를 증명하지 못한 임의 셸 네트워크가 자동 권위를 얻었다');
+  assert.equal(p.changes, false);
   assert.deepEqual(부른것.map((x) => x.mode), ['probe'], '승인 전에 네트워크가 열린 reach 로 재실행했다');
 
   const r = await 손.handler({ command: p.command, probeResult: p.probe });
-  assert.equal(r.blocked, true);
-  assert.equal(r.needsGrant, true);
-  assert.match(r.nextSafeAction, /웹|채널|확인/, '구조화된 다음 수단이나 승인 경계를 모델에게 남기지 않았다');
+  assert.equal(r.failed, true);
+  assert.equal(r.needsGrant, undefined, '미증명 효과를 승인으로 열었다');
+  assert.equal(r.failureResult.processDelivery, 'delivered');
+  assert.equal(r.failureResult.applied, false);
+  assert.equal(r.다음수단, undefined, '연결되지 않은 구조화 손을 지어냈다');
   assert.deepEqual(부른것.map((x) => x.mode), ['probe']);
 });
 
@@ -51,7 +54,10 @@ test('actual-host: Python TCP 우회도 승인 0에서 한 바이트도 전달�
 
     const p = await 손.probe(command);
     await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(p.changes, true, '임의 TCP 송신을 읽기로 분류했다');
+    assert.equal(p.sandboxEnforcement?.state, 'enforced');
+    const r = await 손.handler({ command: p.command, probeResult: p.probe });
+    assert.equal(r.failureResult?.processDelivery, 'delivered');
+    assert.equal(r.failureResult?.applied, false);
     assert.equal(받은바이트, 0, `승인 전에 ${받은바이트}바이트가 실제 전달됐다`);
   });
 

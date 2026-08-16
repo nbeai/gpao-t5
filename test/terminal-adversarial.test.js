@@ -154,7 +154,7 @@ test('읽기만 하는 명령은 셸 관용구를 써도 승인으로 올라가�
     `읽기만 하는데 "바꾼다"로 판정됐다 — 사용자는 읽기 하나에 승인을 눌러야 한다:\n  ${잘못판정.join('\n  ')}`);
 });
 
-test('같은 관용구라도 바꾸려 들면 여전히 막힌다(관용구가 아니라 결과로 판정한다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('같은 관용구라도 격리 밖 실물은 바꾸지 못한다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
   const tool = makeLocalTerminalTool();
   const 샌것 = [];
   const 피해난것 = [];
@@ -167,13 +167,13 @@ test('같은 관용구라도 바꾸려 들면 여전히 막힌다(관용구가 �
   for (const [이름, 만들기] of 바꾸는것) {
     const dir = await 미끼밭();
     const r = await tool.probe(만들기(dir), { cwd: dir, timeoutMs: 15_000 });
-    if (r.changes !== true) 샌것.push(`${이름} → changes=${r.changes}`);
+    if (r.sandboxEnforcement?.state !== 'enforced') 샌것.push(`${이름} → enforcement=${r.sandboxEnforcement?.state}`);
     const 피해 = await 그대로인가(dir);
     if (피해.length) 피해난것.push(`${이름} → ${피해.join(', ')}`);
   }
   assert.deepEqual(피해난것, [], '임시 자리를 열어 준 것이 미끼밭까지 열었다');
   assert.deepEqual(샌것, [],
-    `바꾸는 명령이 자동 실행으로 샜다:\n  ${샌것.join('\n  ')}`);
+    `격리 적용 사실이 없다:\n  ${샌것.join('\n  ')}`);
 });
 
 test('임시 자리는 이번 실행에만 있고 끝나면 남지 않는다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {

@@ -46,15 +46,20 @@ test('③ **발화 밖 파괴는 승인으로 간다**(현재 요청 침해 0)',
 test('④ 터미널은 **돌려 봐야 안다** — probe 결과가 판정 인자에 실린다', async () => {
   let 물어본것 = null;
   const tools = { tools: { 'local.terminal': {
-    async probe(cmd, opts) { 물어본것 = { cmd, opts }; return { changes: true, probe: 'rm' }; },
+    async probe(cmd, opts) { 물어본것 = { cmd, opts }; return {
+      changes: false,
+      sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
+      probe: { sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } },
+    }; },
   } } };
   const r = await 실행전판정({
     toolId: 'local.terminal', args: { command: 'rm -rf ./x', cwd: '/tmp' },
     selfState: 상태(), tools,
   });
   assert.deepEqual(물어본것, { cmd: 'rm -rf ./x', opts: { cwd: '/tmp' } }, 'probe 를 안 탔다');
-  assert.equal(r.판정인자.changes, true, 'probe 가 알아낸 사실이 판정 인자에 안 실렸다');
-  assert.equal(r.판정인자.granted, true);
+  assert.equal(r.판정인자.probeObservation, true, '격리 관측 사실이 판정 인자에 안 실렸다');
+  assert.equal(r.kind, 'probe_observation', '격리 관측을 read로 세탁했다');
+  assert.equal(r.판정인자.granted, false);
 });
 
 test('⑤ **경계는 실행하지 않는다** — 판정만 돌려준다', async () => {

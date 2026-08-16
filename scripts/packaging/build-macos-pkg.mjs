@@ -23,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildMacFileBroker } from './build-file-broker.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const 신분 = {
@@ -72,6 +73,9 @@ async function main() {
   const 펼침 = join(work, 'packed');
   await mkdir(펼침, { recursive: true });
   실행('tar', ['xzf', join(REPO, tgz), '-C', 펼침]);
+  // 네이티브 파일 브로커는 런타임에 컴파일하지 않는다. npm pack 을 펼친 격리 staging에만
+  // arm64 산출물을 만들고, 이후 ditto/codesign/manifest가 실제 배송 파일을 다룬다.
+  const 파일브로커 = await buildMacFileBroker(join(펼침, 'package'));
   // `cp` 는 확장속성을 함께 옮기고, 그러면 pkgbuild 가 payload 에 `._` 리소스포크를 만든다
   // (실측 182개 — 설치되지는 않지만 사용자에게 나가는 아카이브에 실린다).
   // `ditto --norsrc --noextattr --noacl` 이 macOS 의 정석이다.
@@ -198,6 +202,7 @@ echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어
     // **안에서 바깥으로.** 번들을 먼저 서명하면 그 뒤에 안쪽 실행 파일을 건드리는 순간 겉
     // 서명이 깨지고, Gatekeeper 에서 "손상된 앱"이 된다.
     서명(join(contents, 'Resources', 'runtime', 'bin', 'node'), ['--entitlements', 자격]);
+    서명(join(contents, 'Resources', 'app', 'src', 'native', 'file-broker', 'bin', 'darwin-arm64', 't5-file-broker'));
     서명(join(root, `${신분.이름}.app`));
     실행('codesign', ['--verify', '--deep', '--strict', '--verbose=2', join(root, `${신분.이름}.app`)],
       { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -230,6 +235,12 @@ echo "${신분.이름} 을 제거했어요. 대화와 기억은 그대로 있어
       다운로드URL: 다운로드URL,
       원본tarball해시: tarball해시,          // 공식 SHASUMS256.txt 와 대조한 값
       담은실행파일해시: await 해시(join(contents, 'Resources', 'runtime', 'bin', 'node')),
+    },
+    파일브로커: {
+      프로토콜: 1,
+      아키텍처: 'arm64',
+      담은실행파일해시: await 해시(join(contents, 'Resources', 'app', 'src', 'native', 'file-broker', 'bin', 'darwin-arm64', 't5-file-broker')),
+      staging실행파일해시: await 해시(파일브로커),
     },
     // **이 해시는 빌드 직후의 것이다.** 공증 티켓을 붙이면(staple) 파일이 바뀌어 해시도 바뀐다.
     // 그걸 "배포 파일 해시"라고 적어 두면 받은 사람이 대조했을 때 틀린다 — 이름으로 구분한다.

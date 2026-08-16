@@ -92,7 +92,7 @@ test('E-4: 손이 실제로 내는 종류는 전부 권한 어휘 안에 있다(
     ['local.file', { action: 'read' }], ['local.file', { action: 'write' }],
     ['local.file', { action: 'delete' }], ['local.file', { action: 'move' }],
     ['local.file', { action: 'undo' }], ['local.file', { action: 'list' }],
-    ['local.terminal', { changes: false }], ['local.terminal', { changes: true }],
+    ['local.terminal', { probeObservation: true }], ['local.terminal', { changes: true }],
     ['local.process', { action: 'status' }], ['local.process', { action: 'start' }],
     ['local.process', { action: 'stop' }],
     ['mail.send', { to: 'a@b.c', body: 'password: hunter2222' }],   // send → export_sensitive 파생

@@ -60,8 +60,33 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
   // 신뢰하면 `changes:false` 하나로 임의 셸 효과가 자동 권위를 얻는다. 이 경계에 들어온
   // terminal 호출은 언제나 현재 도구로 한 번 재고, 그 결과로 공개 인자를 덮는다.
   const 이미잰것 = toolId !== 'local.terminal' && args?.눌러본사실 !== undefined;
-  if (toolId === 'local.terminal' && typeof args?.command === 'string') {
-    const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
+  if (toolId === 'local.terminal'
+    && (typeof args?.command === 'string' || typeof (args?.executable ?? args?.program) === 'string')) {
+    const terminal = tools?.tools?.[toolId];
+    const structured = typeof (args?.executable ?? args?.program) === 'string' && Array.isArray(args?.argv);
+    // 계획 레인이 실제로 잰 객체 신분만 다음 실행 레인에서 재사용한다. 공개 필드의
+    // probeResult/marker 값은 모델도 만들 수 있으므로 내용 비교로는 신뢰하지 않는다.
+    const trustedProbe = structured && terminal?.ownsProbeResult?.(args?.probeResult) === true;
+    const measured = trustedProbe ? {
+      ...args,
+      resolvedExecutable: args.probeResult?.resolvedExecutable,
+      probeObservation: true,
+      sandboxEnforcement: args.probeResult?.sandboxEnforcement,
+      probe: args.probeResult,
+    } : await 재본다(() => structured && typeof terminal?.probeInvocation === 'function'
+      ? terminal.probeInvocation(args, { cwd: args.cwd })
+      : terminal?.probe?.(structured ? args : args.command, { cwd: args.cwd }));
+    // probe/broker를 구조적으로 확인하지 못하면 공개 args를 믿거나 granted로 재실행하지 않는다.
+    const probed = measured ?? {
+      ...(args?.cwd ? { cwd: args.cwd } : {}),
+      sandboxEnforcement: { state: 'unavailable' },
+      probe: { 못잼: 'sandbox_unavailable', sandboxEnforcement: { state: 'unavailable' } },
+    };
+    // 권위는 stderr/명령 해석이 아니라 실행기의 sandbox 적용 구조 사실만 읽는다. 적용된
+    // probe와 적용 실패 모두 원 셸을 granted로 재실행하지 않는 효과 0 관측이다.
+    const probeObservation = probed?.probeObservation === true
+      || probed?.sandboxEnforcement?.state === 'enforced'
+      || probed?.sandboxEnforcement?.state === 'unavailable';
     판정인자 = {
       ...args,
       // **probe 가 알아낸 자리를 그대로 받는다.** 빈 칸은 없는 칸이라 손이 기본 자리로 푸는데
@@ -70,8 +95,10 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       // **기록이 갈린다** — 감사도 사용자도 그 명령이 어디서 돌았는지 못 본다.
       // 계획 경로는 처음부터 이걸 받고 있었다(`turn.js` 의 terminalOp). 두 벌이라 한쪽만 챙긴 자리다.
       ...(probed?.cwd ? { cwd: probed.cwd } : {}),
-      changes: probed?.changes,
-      granted: probed?.changes === true,
+      ...(probed?.resolvedExecutable ? { resolvedExecutable: probed.resolvedExecutable } : {}),
+      probeObservation,
+      changes: false,
+      granted: false,
       probeResult: probed?.probe,
     };
   }
@@ -115,7 +142,12 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       // 뭉쳐 두면 한쪽을 풀 때 나머지가 같이 풀린다 — 실제로 그랬다(회귀가 잡았다:
       // 선언을 헌장에 양보시키자 **이월된 파괴가 자동 실행**되는 방향으로 갔다).
       // 그래서 가른다. 등급을 올리는 소비자(`classifyTier:110`)는 예전 칸을 그대로 읽는다.
-      needsApproval: 손선언?.needsApproval || 이번이월 || 발화밖,
+      // 구조화 terminal은 승인으로 넓힐 수 있는 효과 경로가 없다. 실행기가 실제로 세운
+      // probe_observation은 이미 deny-default 단일 실행의 영수증이므로, 옛 임의 셸 descriptor의
+      // 정적 needsApproval을 이어받아 카드를 띄우지 않는다. 이월/발화 밖 사실은 그대로 우선한다.
+      needsApproval: (kind === 'probe_observation' && toolId === 'local.terminal')
+        ? Boolean(이번이월 || 발화밖)
+        : 손선언?.needsApproval || 이번이월 || 발화밖,
       // **이번 요청이 아닌 것은 헌장보다 위다** — 되돌릴 수 있어도, 아는 상대라도 묻는다.
       // (`승인면제:170` 이 이미 같은 규율을 쓴다: *"이월은 정의상 이번 요청이 아니다."*)
       이번턴사실로카드: Boolean(이번이월 || 발화밖),

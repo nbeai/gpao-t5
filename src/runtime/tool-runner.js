@@ -189,6 +189,10 @@ export class ToolRunner {
         return receipt({
           intended,
           actualCall: callForReceipt(부른것, executionContext),
+          // 차단 도구의 일반 result는 싣지 않는다. 다만 도구가 명시적으로 낸
+          // failureResult는 실행하지 않았다는 기계 사실의 계약이다.
+          result: out.failureResult,
+          lifecycle: out.lifecycle,
           failureState: FAILURE.BLOCKED,
           // 어떤 종류로 막혔는지(사이트 차단·로그인벽·범위 밖…)를 잃지 않는다 — 다음 계단을 그걸로 정한다.
           fetchState: out.fetchState,

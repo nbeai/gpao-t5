@@ -1,0 +1,277 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runProgram } from '../src/runtime/terminal-run.js';
+import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import { sandboxAvailable } from '../src/runtime/sandbox.js';
+import { ToolRunner } from '../src/runtime/tool-runner.js';
+import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
+import { buildTaskContext } from '../src/kernel/l1-intent/task-context.js';
+import { interpret } from '../src/kernel/l1-intent/intent.js';
+import { runTurn } from '../src/kernel/turn.js';
+import { demoDescriptors, demoEnv, demoTools } from '../src/surface/demo-context.js';
+
+const hostOnly = { skip: !sandboxAvailable() && '이 컴퓨터는 sandbox-exec 없음' };
+const pythonBinary = '/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python';
+
+async function exists(path) {
+  try { await access(path, constants.F_OK); return true; } catch { return false; }
+}
+
+test('legacy command 문자열은 실행하지 않고 구조화 executable/argv 호출을 안내한다', async () => {
+  let called = 0;
+  const terminal = makeLocalTerminalTool({
+    async runProgram() { called += 1; throw new Error('legacy shell must stay not_run'); },
+  });
+  const out = await terminal.handler({ command: 'printf shell > result.txt', cwd: '/tmp' });
+  assert.equal(called, 0);
+  assert.equal(out.blocked, true);
+  assert.equal(out.failureResult.processDelivery, 'not_run');
+  assert.equal(out.failureResult.applied, false);
+  assert.ok(out.다음수단.some((step) => step.방법 === 'local.terminal'
+    && Array.isArray(step.필드) && step.필드.includes('executable') && step.필드.includes('argv')));
+});
+
+test('provider-independent tool schema는 executable/argv만 모델에 노출한다', () => {
+  const terminal = demoDescriptors({ include: ['local.terminal'] })[0];
+  const parameters = terminal.schema.parameters;
+  assert.deepEqual(parameters.required, ['executable', 'argv']);
+  assert.equal(parameters.properties.command, undefined);
+  assert.equal(parameters.properties.executable.type, 'string');
+  assert.equal(parameters.properties.argv.type, 'array');
+  assert.equal(parameters.properties.argv.items.type, 'string');
+});
+
+test('argv 메타문자는 셸 문법이 아니라 한 인자로 그대로 전달된다', hostOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-argv-'));
+  const marker = join(root, 'must-not-exist');
+  const literal = `$(touch ${marker}); * | & > <`;
+  const out = await runProgram({ executable: '/usr/bin/printf', argv: ['%s', literal], cwd: root });
+  assert.equal(out.sandboxEnforcement?.state, 'enforced');
+  assert.equal(out.processDelivery, 'delivered');
+  assert.equal(out.exitCode, 0);
+  assert.equal(out.stdout, literal);
+  assert.equal(await exists(marker), false);
+});
+
+test('pwd/find/rg/awk/python -c는 single-process 격리에서 관측 결과를 낸다', hostOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-read-'));
+  await writeFile(join(root, 'rows.tsv'), 'name\tcount\na\t2\n', 'utf8');
+  const cases = [
+    ['/bin/pwd', [], root, root],
+    ['/usr/bin/find', [root, '-name', 'rows.tsv', '-maxdepth', '1'], root, 'rows.tsv'],
+    ['/Applications/ChatGPT.app/Contents/Resources/rg', ['-n', 'a\\t2', join(root, 'rows.tsv')], root, '2:a\t2'],
+    ['/usr/bin/awk', ['-F', '\\t', 'NR==2 { print $2 }', join(root, 'rows.tsv')], root, '2'],
+    [pythonBinary, ['-c', 'print(6 * 7)'], root, '42'],
+  ];
+  for (const [executable, argv, cwd, expected] of cases) {
+    const out = await runProgram({ executable, argv, cwd });
+    assert.equal(out.sandboxEnforcement?.state, 'enforced', executable);
+    assert.equal(out.exitCode, 0, `${executable}: ${out.stderr}`);
+    assert.match(out.stdout, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.deepEqual(out.effects, { state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects' });
+  }
+});
+
+test('file write와 fork/background/setsid는 실제 실물을 만들지 않는다', hostOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-effects-'));
+  const file = join(root, 'outside.txt');
+  const child = join(root, 'child.txt');
+  const attempts = [
+    [pythonBinary, ['-c', `open(${JSON.stringify(file)},'w').write('leak')`]],
+    [pythonBinary, ['-c', `import os; os.fork() or open(${JSON.stringify(child)},'w').write('child')`]],
+    [pythonBinary, ['-c', `import os; os.setsid(); os.fork() or open(${JSON.stringify(child)},'w').write('daemon')`]],
+  ];
+  for (const [executable, argv] of attempts) {
+    const out = await runProgram({ executable, argv, cwd: root });
+    assert.equal(out.sandboxEnforcement?.state, 'enforced');
+    assert.notEqual(out.exitCode, 0, '금지 효과가 성공으로 끝났다');
+  }
+  assert.equal(await exists(file), false);
+  assert.equal(await exists(child), false);
+});
+
+test('비밀 이름의 파일은 일반 file-read 허용보다 우선해 닫힌다', hostOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-secret-'));
+  const secret = join(root, '.env');
+  await writeFile(secret, 'DO_NOT_LEAK_STRUCTURED_SECRET', 'utf8');
+  const out = await runProgram({ executable: '/bin/cat', argv: [secret], cwd: root });
+  assert.equal(out.sandboxEnforcement?.state, 'enforced');
+  assert.notEqual(out.exitCode, 0);
+  assert.doesNotMatch(out.stdout, /DO_NOT_LEAK_STRUCTURED_SECRET/);
+});
+
+test('TCP와 Unix IPC는 수신 실물 0이다', hostOnly, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-ipc-'));
+  const socketPath = join(root, 'receiver.sock');
+  let tcpBytes = 0; let unixBytes = 0;
+  const tcp = createServer((socket) => socket.on('data', (chunk) => { tcpBytes += chunk.length; }));
+  tcp.listen(0, '127.0.0.1');
+  await once(tcp, 'listening');
+  const unix = createServer((socket) => socket.on('data', (chunk) => { unixBytes += chunk.length; }));
+  unix.listen(socketPath);
+  await once(unix, 'listening');
+  t.after(() => { tcp.close(); unix.close(); });
+  const port = tcp.address().port;
+  await runProgram({
+    executable: pythonBinary, cwd: root,
+    argv: ['-c', `import socket;s=socket.socket();s.connect(('127.0.0.1',${port}));s.sendall(b'leak')`],
+  });
+  await runProgram({
+    executable: pythonBinary, cwd: root,
+    argv: ['-c', `import socket;s=socket.socket(socket.AF_UNIX);s.connect(${JSON.stringify(socketPath)});s.sendall(b'leak')`],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(tcpBytes, 0);
+  assert.equal(unixBytes, 0);
+});
+
+test('shell/open/pbcopy/osascript는 구조화 executor에서 외부 효과를 만들지 않는다', hostOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-apps-'));
+  const marker = join(root, 'app-effect.txt');
+  const shell = await runProgram({ executable: '/bin/zsh', argv: ['-c', `touch ${marker}`], cwd: root });
+  assert.equal(shell.processDelivery, 'not_run');
+  for (const invocation of [
+    { executable: '/usr/bin/open', argv: [root], cwd: root },
+    { executable: '/usr/bin/pbcopy', argv: [], cwd: root },
+    { executable: '/usr/bin/osascript', argv: ['-e', `do shell script "touch ${marker}"`], cwd: root },
+  ]) {
+    const out = await runProgram(invocation);
+    assert.equal(out.sandboxEnforcement?.state, 'enforced');
+    assert.notEqual(out.exitCode, 0);
+  }
+  assert.equal(await exists(marker), false);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('handshake marker가 없으면 실행 결과를 채택하지 않고 not_run이다', async () => {
+  const terminal = makeLocalTerminalTool({
+    async runProgram(invocation) {
+      return { ...invocation, exitCode: 0, stdout: 'forged', stderr: '', processDelivery: 'not_delivered',
+        sandboxEnforcement: { state: 'unavailable' } };
+    },
+  });
+  const out = await terminal.handler({ executable: '/usr/bin/printf', argv: ['forged'], cwd: '/tmp' });
+  assert.equal(out.blocked, true);
+  assert.equal(out.failureResult.processDelivery, 'not_run');
+  assert.equal(out.failureResult.applied, false);
+  assert.equal(out.failureResult.stdout, undefined);
+});
+
+test('legacy lifecycle command는 terminal 승인이 아니라 local.process 구조화 손으로 돌린다', async () => {
+  let executions = 0;
+  const terminal = makeLocalTerminalTool({
+    async runProgram() { executions += 1; throw new Error('legacy lifecycle must not execute'); },
+  });
+  const out = await terminal.handler({ command: 'kill 424242', cwd: '/tmp' }, {
+    selfState: { connectedTools: [
+      { id: 'local.terminal', status: 'usable' },
+      { id: 'local.process', status: 'usable' },
+    ] },
+  });
+  assert.equal(executions, 0);
+  assert.equal(out.blocked, true);
+  assert.equal(out.failureResult.processDelivery, 'not_run');
+  assert.ok(out.다음수단.some((step) => step.방법 === 'local.process'));
+});
+
+test('구조화 nonzero는 실행·효과·원시 출력을 다음 모델 판단용 실패 영수증으로 보존한다', async () => {
+  const terminal = makeLocalTerminalTool({
+    cwd: '/isolated/work',
+    async runProgram(invocation) {
+      return {
+        ...invocation, resolvedExecutable: '/usr/bin/false', completed: true,
+        exitCode: 127, stdout: 'PARTIAL_STDOUT', stderr: 'RAW_STDERR',
+        processDelivery: 'delivered',
+        sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
+        effects: { state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects' },
+      };
+    },
+  });
+  const selfState = buildSelfState({
+    model: { id: 'test' },
+    connections: [{ id: 'local.terminal', connected: true, executable: true }],
+  });
+  const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
+    'local.terminal', { executable: '/usr/bin/false', argv: ['literal arg'], cwd: '/isolated/work' }, selfState,
+  );
+  assert.equal(receipt.failureState, 'failed');
+  assert.equal(receipt.lifecycle, 'delivered');
+  assert.deepEqual(receipt.actualCall.args, {
+    executable: '/usr/bin/false', argv: ['literal arg'], cwd: '/isolated/work',
+  });
+  assert.equal(receipt.result.exitCode, 127);
+  assert.equal(receipt.result.stdout, 'PARTIAL_STDOUT');
+  assert.equal(receipt.result.stderr, 'RAW_STDERR');
+  assert.equal(receipt.result.processDelivery, 'delivered');
+  assert.deepEqual(receipt.result.effects, {
+    state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects',
+  });
+  const exchange = buildTaskContext({
+    intent: interpret('실행해 주세요.'), selfState, receipts: [receipt],
+  }).turnExchange[0];
+  assert.equal(exchange.확인안됨, true);
+  assert.equal(exchange.data, undefined);
+  assert.equal(exchange.실패결과.stdout, 'PARTIAL_STDOUT');
+  assert.equal(exchange.실패결과.stderr, 'RAW_STDERR');
+  assert.equal(exchange.실패결과.exitCode, 127);
+  assert.equal(exchange.실패결과.processDelivery, 'delivered');
+  assert.equal(exchange.실패결과.effects.state, 'none');
+});
+
+test('actual runTurn은 구조화 probe 한 번을 영수증으로 재사용하고 승인 없이 같은 턴 모델에 준다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-structured-turn-'));
+  let executions = 0;
+  const seen = [];
+  let requested = false;
+  const model = {
+    async respond(tc, opts = {}) {
+      seen.push(structuredClone(tc));
+      if (tc?.workContractAssessment) return '답변';
+      if (opts.tools?.length && !requested) {
+        requested = true;
+        return { text: '', toolCalls: [{
+          providerCallId: 'structured-failure', name: 'local.terminal',
+          args: { executable: '/usr/bin/false', argv: ['literal'], cwd: dir },
+        }] };
+      }
+      return { text: '실패 사실을 보고 다른 수단을 고르겠습니다.', toolCalls: [] };
+    },
+  };
+  const terminal = makeLocalTerminalTool({
+    cwd: dir,
+    async runProgram(invocation) {
+      executions += 1;
+      return {
+        ...invocation, mode: 'structured', resolvedExecutable: '/usr/bin/false', completed: true,
+        exitCode: 9, stdout: 'TURN_STDOUT', stderr: 'TURN_STDERR', processDelivery: 'delivered',
+        sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
+        effects: { state: 'none', basis: 'sandbox_enforced', policy: 'deny-external-effects' },
+      };
+    },
+  });
+  const outcome = await runTurn({ text: '구조화해서 실행해줘' }, {
+    env: demoEnv({ include: ['local.terminal'], hands: ['local.terminal'] }), model,
+    tools: demoTools({ localTerminal: terminal }),
+  });
+  assert.notEqual(outcome.kind, 'approval');
+  assert.equal(executions, 1, 'probe 결과를 버리고 handler에서 같은 프로그램을 재실행했다');
+  const modelText = JSON.stringify(seen);
+  assert.match(modelText, /TURN_STDOUT/);
+  assert.match(modelText, /TURN_STDERR/);
+  assert.match(modelText, /processDelivery/);
+  assert.match(modelText, /effects/);
+  assert.match(modelText, /확인안됨|확인 안 됨/);
+});
+
+test('read fixture sanity', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-structured-fixture-'));
+  const file = join(root, 'a.txt');
+  await writeFile(file, 'ok', 'utf8');
+  assert.equal(await readFile(file, 'utf8'), 'ok');
+});

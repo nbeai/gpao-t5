@@ -197,11 +197,10 @@ export function toolActionKind({ toolId, args, selfState }) {
     else if (a === 'quit') kind = 'write';
     else kind = UNKNOWN_KIND;
   }
-  // P6-T2: 명령은 **돌려 봐야 안다.** 계획 단계에서 probe(쓰기·네트워크·비밀읽기 차단)를 돌리고
-  // 그 결과가 등급을 정한다 — 위험 명령 목록으로 알아맞히지 않는다(목록은 항상 뚫린다).
-  // probe 결과가 없으면 '미상'으로 둔다: 모르면 승인으로 간다(read 로 흘리지 않는다).
+  // 임의 셸을 read로 세탁하지 않는다. 커널 격리 안에서 끝난 probe의 관측은 독립 행동이다.
+  // 이 칸은 실행 경계가 실제 probe 결과로 덮어쓰므로 모델의 공개 신고를 신뢰하지 않는다.
   if (toolId === 'local.terminal') {
-    kind = args?.changes === true ? 'write' : args?.changes === false ? 'read' : UNKNOWN_KIND;
+    kind = args?.probeObservation === true ? 'probe_observation' : UNKNOWN_KIND;
   }
   // 외부 전송의 본문에 민감값이 있으면 일반 send(A2)가 아니라 export_sensitive(A3)다.
   // 모델의 자기신고가 아니라 실제 실행 인자에서 파생하므로 새 전송 도구도 같은 경계를 탄다.

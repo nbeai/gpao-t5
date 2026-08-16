@@ -43,7 +43,7 @@ export const SAFETY_FLOOR_KINDS = Object.freeze([
 
 // 저위험 어휘의 원천. `AUTO_SAFE_KINDS`(자동 진행 판정)와 `AUTHORITY_KINDS`(어휘 전체)가
 // **같은 목록에서 파생**된다 — 두 곳에 손으로 적으면 언젠가 갈린다.
-const LOW_RISK_ALWAYS = Object.freeze(['read', 'summarize', 'search', 'draft']);
+const LOW_RISK_ALWAYS = Object.freeze(['read', 'probe_observation', 'summarize', 'search', 'draft']);
 const LOW_RISK_REVERSIBLE = Object.freeze(['organize', 'title', 'archive']);
 // 헌장이 승인 목록에서 내린 종류들 — 어휘에는 남는다(자동화 envelope 의 allowedKinds 등).
 export const CHARTER_AUTO_KINDS = Object.freeze(['automate', 'promote_memory', 'access_secret', 'connect_account']);
@@ -85,7 +85,7 @@ export function isAuthorityKind(kind) {
  * 아래 목록은 ①을 검사가 물게 하려고 둔다 — 손이 새 종류를 내기 시작하면 여기도 함께 바뀐다.
  */
 export const DERIVED_KINDS = Object.freeze([
-  'read', 'organize', 'write', 'delete', 'send', 'field_input', 'export_sensitive', 'connect_account',
+  'read', 'probe_observation', 'organize', 'write', 'delete', 'send', 'field_input', 'export_sensitive', 'connect_account',
 ]);
 
 /** 아무 손도 내지 않는 어휘(선언·차단용). `DERIVED_KINDS` 의 여집합이다 — 손으로 두 번 적지 않는다. */
@@ -133,6 +133,7 @@ function tierOfKind(kind) {
     case 'archive':
       return TIER.A1;
     case 'read':
+    case 'probe_observation':
     case 'summarize':
     case 'search':
     case 'draft':

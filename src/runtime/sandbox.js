@@ -36,18 +36,43 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'|'reach'|'capsule'} mode
+ * @param {'probe'|'granted'|'reach'|'capsule'|'structured'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime } = {}) {
+export function sandboxProfile(mode, {
+  secrets = secretPaths(), scratch, allowRead = [], runtime, executable,
+} = {}) {
   const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
   // 넓히지 않는다: 커넥터가 선언한 경로만, 그것도 읽기만 연다. 선언에 없으면 그대로 막힌다.
   const 열어줄것 = allowRead.map((p) => `(allow file-read* (subpath ${lit(p)}))`).join('\n');
+  // 구조화 terminal은 셸 문장을 실행하지 않는다. 고정 wrapper(`/bin/sh`)가 별도 argv로
+  // 받은 단일 executable을 `exec "$@"`로 같은 프로세스에 올린다. deny-default에서 읽기와
+  // 출력, 매 실행 scratch, wrapper·검증된 executable의 initial exec만 연다. fork·network·
+  // Mach·AppleEvent·signal·사용자 파일 쓰기는 열어 주는 규칙이 없으므로 기본 거부다.
+  if (mode === 'structured') {
+    return [
+      '(version 1)',
+      '(deny default)',
+      '(allow file-read*)',
+      // 런타임이 자기 stack guard·locale·CPU 정보를 준비하는 관측 권한. 다른 프로세스에
+      // 신호를 보내거나 정보를 읽는 권한은 열지 않는다.
+      '(allow signal (target self))',
+      '(allow process-info* (target self))',
+      '(allow sysctl-read)',
+      '(deny process-fork)',
+      ...(runtime ? [`(allow process-exec* (literal ${lit(runtime)}))`] : []),
+      ...(executable ? [`(allow process-exec* (literal ${lit(executable)}))`] : []),
+      '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',
+      ...(scratch ? [`(allow file-write* (subpath ${lit(scratch)}))`] : []),
+      denySecrets,
+      '',
+    ].join('\n');
+  }
   if (mode === 'granted') {
     return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }
@@ -95,7 +120,8 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     // 원인은 목록이 아니라 구조다. 이 프로파일은 `(allow default)` 에 몇 가지만 막는 꼴이라
     // **명시적으로 안 막은 바깥 효과는 전부 통과한다.** 파일 쓰기와 네트워크만 막고 있었다.
     // `killall` 을 목록에 더하면 다음엔 `pkill`, 그 다음엔 다른 것으로 뚫린다.
-    // 그래서 **효과의 종류**를 닫는다. 막히면 executionBlock 이 변경 시도로 읽고 승인으로 보낸다.
+    // 그래서 **효과의 종류**를 닫는다. 적용 여부는 실행기의 별도 FD handshake로 증명하며,
+    // 오류 문자열을 승인·재실행 판단에 쓰지 않는다.
     '(deny signal)',
     // 다른 앱을 원격 조종하는 통로. `osascript -e 'tell application …'` 한 줄이면 파일도 지우고
     // 메일도 보낸다 — 파일 쓰기가 아니라서 위 규칙에 안 걸린다.

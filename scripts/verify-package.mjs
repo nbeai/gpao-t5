@@ -10,10 +10,11 @@
 //
 // 실패는 비-0 종료. `npm run verify:package` 로 실행하고 CI 가 테스트 뒤에 돌린다.
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtemp, rm, readdir, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { buildMacFileBroker } from './packaging/build-file-broker.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.env.GPAO_T5_VERIFY_PORT ?? 4599);
@@ -65,6 +66,10 @@ try {
   execFileSync('tar', ['-xzf', tarball, '-C', work]);
   const pkgDir = join(work, 'package');
 
+  // 실제 macOS pkg 제작과 같은 staging 변환. 소스 트리나 실행 중 런타임에는 바이너리를
+  // 만들지 않는다. 다른 플랫폼은 정의역 밖이며 client가 fail-closed 하는 단위검사를 쓴다.
+  if (process.platform === 'darwin') await buildMacFileBroker(pkgDir);
+
   // 3) 내용물 검사 — 누락과 과다 **양방향**으로 본다(목록이 아니라 불변식).
   const files = await listFiles(pkgDir);
   const missing = MUST_HAVE.filter((f) => !files.includes(f));
@@ -79,6 +84,19 @@ try {
   // 성립하므로, 소스 쪽 손을 빌려 재지 않고 여기(펼친 산출물)에서 잰다.
   // 권한(TCC)은 안 건드린다 — --version 은 데몬 없이 답하고 끝난다(실측 · exit 0).
   if (process.platform === 'darwin' && process.arch === 'arm64') {
+    const broker = join(pkgDir, 'src/native/file-broker/bin/darwin-arm64/t5-file-broker');
+    await stat(broker);
+    const brokerRoot = join(work, 'broker-root');
+    const brokerState = join(work, 'broker-state');
+    await mkdir(brokerRoot, { mode: 0o700 });
+    await mkdir(brokerState, { mode: 0o700 });
+    const { FileBrokerClient } = await import(pathToFileURL(join(pkgDir, 'src/runtime/file-broker-client.js')).href);
+    const brokerClient = await FileBrokerClient.open({ rootDir: brokerRoot, stateDir: brokerState, binaryPath: broker });
+    const brokerSelfTest = await brokerClient.selfTest();
+    await brokerClient.close();
+    if (brokerSelfTest.protocol !== 1 || brokerSelfTest.rootCapability !== true
+      || brokerSelfTest.sealedStateCapability !== true) fail(`native file broker self-test가 틀렸습니다: ${JSON.stringify(brokerSelfTest)}`);
+    log('native file broker — staging compile · fd capability · self-test 통과');
     const 손확인 = execFileSync(process.execPath, ['-e', `
       import(${JSON.stringify(`file://${join(pkgDir, 'src/runtime/desktop-bin.js')}`)}).then((m) => {
         const p = m.동봉된손();

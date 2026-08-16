@@ -1,0 +1,234 @@
+// Native atomic file broker client. The broker receives directory capabilities,
+// never host path strings. This module deliberately has no compiler fallback:
+// an absent or wrong-platform helper is an unavailable capability, not a reason
+// to silently fall back to ordinary path-based writes.
+import { constants as fsConstants } from 'node:fs';
+import { access, lstat, open, realpath, stat } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const PROTOCOL = 1;
+const MAX_FRAME = 64 * 1024 * 1024 + 8192;
+const OPCODE = Object.freeze({ PUT: 1, UNDO_REF: 2, RECOVER: 3, SELF_TEST: 4 });
+const DEFAULT_BINARY = join(dirname(fileURLToPath(import.meta.url)), '..', 'native', 'file-broker',
+  'bin', 'darwin-arm64', 't5-file-broker');
+
+export function fileBrokerPlatformSupported(platform = process.platform, arch = process.arch) {
+  return platform === 'darwin' && arch === 'arm64';
+}
+
+export class FileBrokerUnavailableError extends Error {
+  constructor(code, message, options) {
+    super(message, options);
+    this.name = 'FileBrokerUnavailableError';
+    this.code = code;
+  }
+}
+
+export class FileBrokerOperationError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'FileBrokerOperationError';
+    this.code = code;
+    Object.assign(this, details);
+  }
+}
+
+function u32(value) {
+  const out = Buffer.alloc(4);
+  out.writeUInt32BE(value, 0);
+  return out;
+}
+
+function u64(value) {
+  const out = Buffer.alloc(8);
+  out.writeBigUInt64BE(BigInt(value), 0);
+  return out;
+}
+
+function frame(opcode, fields = []) {
+  const header = Buffer.from([0x54, 0x35, 0x46, 0x42, PROTOCOL, opcode, 0, 0]);
+  const body = Buffer.concat([header, ...fields]);
+  if (body.length > MAX_FRAME) throw new FileBrokerOperationError('REQUEST_TOO_LARGE', 'file broker request is too large');
+  return Buffer.concat([u32(body.length), body]);
+}
+
+function encodedText(value, max, code) {
+  const text = Buffer.from(String(value), 'utf8');
+  if (text.length === 0 || text.length > max || text.includes(0)) {
+    throw new FileBrokerOperationError(code, 'file broker text field is invalid');
+  }
+  return Buffer.concat([u32(text.length), text]);
+}
+
+function collect(stream, limit = MAX_FRAME + 4) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let length = 0;
+    stream.on('data', (chunk) => {
+      length += chunk.length;
+      if (length > limit) {
+        stream.destroy(new Error('file broker response exceeded its limit'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.once('end', () => resolve(Buffer.concat(chunks)));
+    stream.once('error', reject);
+  });
+}
+
+function parseResponse(bytes) {
+  if (bytes.length < 12) throw new FileBrokerUnavailableError('INVALID_BROKER_RESPONSE', 'native file broker returned a truncated response');
+  const length = bytes.readUInt32BE(0);
+  if (length !== bytes.length - 4 || length > MAX_FRAME
+      || bytes.subarray(4, 8).toString('ascii') !== 'T5FR'
+      || bytes[8] !== PROTOCOL || bytes[10] !== 0 || bytes[11] !== 0) {
+    throw new FileBrokerUnavailableError('INVALID_BROKER_RESPONSE', 'native file broker returned an invalid response frame');
+  }
+  let result;
+  try { result = JSON.parse(bytes.subarray(12).toString('utf8')); } catch (cause) {
+    throw new FileBrokerUnavailableError('INVALID_BROKER_RESPONSE', 'native file broker returned invalid JSON', { cause });
+  }
+  if (bytes[9] !== 0 || result?.ok !== true) {
+    const details = typeof result?.undoRef === 'string' ? { undoRef: result.undoRef } : {};
+    throw new FileBrokerOperationError(result?.code ?? 'BROKER_ERROR', result?.message ?? 'native file broker operation failed', details);
+  }
+  return result;
+}
+
+async function canonicalDirectory(path, kind) {
+  let supplied;
+  try { supplied = await lstat(path); } catch (cause) {
+    throw new FileBrokerUnavailableError(`${kind}_UNAVAILABLE`, `${kind.toLowerCase()} directory is unavailable`, { cause });
+  }
+  if (supplied.isSymbolicLink()) {
+    throw new FileBrokerUnavailableError(`${kind}_SYMLINK`, `${kind.toLowerCase()} capability cannot be a symbolic link`);
+  }
+  let canonical;
+  try { canonical = await realpath(path); } catch (cause) {
+    throw new FileBrokerUnavailableError(`${kind}_UNAVAILABLE`, `${kind.toLowerCase()} directory is unavailable`, { cause });
+  }
+  const info = await stat(canonical);
+  if (!info.isDirectory()) throw new FileBrokerUnavailableError(`${kind}_UNAVAILABLE`, `${kind.toLowerCase()} capability is not a directory`);
+  if (supplied.dev !== info.dev || supplied.ino !== info.ino) {
+    throw new FileBrokerUnavailableError(`${kind}_CHANGED`, `${kind.toLowerCase()} directory changed while resolving its capability`);
+  }
+  const flags = fsConstants.O_RDONLY | (fsConstants.O_DIRECTORY ?? 0) | (fsConstants.O_NOFOLLOW ?? 0);
+  const handle = await open(canonical, flags);
+  const opened = await handle.stat();
+  if (opened.dev !== info.dev || opened.ino !== info.ino) {
+    await handle.close();
+    throw new FileBrokerUnavailableError(`${kind}_CHANGED`, `${kind.toLowerCase()} directory changed while opening its capability`);
+  }
+  return handle;
+}
+
+export class FileBrokerClient {
+  static async open({
+    rootDir,
+    stateDir,
+    binaryPath = DEFAULT_BINARY,
+    timeoutMs = 15_000,
+    testing = null,
+  }) {
+    if (!fileBrokerPlatformSupported()) {
+      throw new FileBrokerUnavailableError('WRONG_PLATFORM', 'native file broker supports darwin arm64 only');
+    }
+    try { await access(binaryPath, fsConstants.X_OK); } catch (cause) {
+      throw new FileBrokerUnavailableError('BROKER_MISSING', 'native file broker executable is missing', { cause });
+    }
+    const root = await canonicalDirectory(rootDir, 'ROOT');
+    let state;
+    try { state = await canonicalDirectory(stateDir, 'STATE'); } catch (error) { await root.close(); throw error; }
+    const client = new FileBrokerClient({ binaryPath, root, state, timeoutMs, testing });
+    try {
+      await client.selfTest();
+      client.initialRecovery = await client.recover();
+    } catch (error) { await client.close(); throw error; }
+    return client;
+  }
+
+  constructor({ binaryPath, root, state, timeoutMs, testing }) {
+    this.binaryPath = binaryPath;
+    this.root = root;
+    this.state = state;
+    this.timeoutMs = timeoutMs;
+    this.testing = testing;
+    this.closed = false;
+    this.recoveryRequired = false;
+  }
+
+  async #request(request) {
+    if (this.closed) throw new FileBrokerUnavailableError('BROKER_CLOSED', 'native file broker client is closed');
+    const env = this.testing ? {
+      ...(this.testing.pause ? { T5FB_TEST_PAUSE: String(this.testing.pause) } : {}),
+      ...(this.testing.fail ? { T5FB_TEST_FAIL: String(this.testing.fail) } : {}),
+    } : {};
+    const child = spawn(this.binaryPath, [], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe', this.root.fd, this.state.fd],
+    });
+    const stdout = collect(child.stdout);
+    const stderr = collect(child.stderr, 16_384);
+    const exit = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+    child.stdin.end(request);
+    let timer;
+    try {
+      const outcome = await Promise.race([
+        Promise.all([stdout, stderr, exit]),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new FileBrokerUnavailableError('BROKER_TIMEOUT', 'native file broker timed out')), this.timeoutMs); }),
+      ]);
+      const [output, errorOutput, status] = outcome;
+      if (status.code !== 0 || status.signal) {
+        throw new FileBrokerUnavailableError('BROKER_EXITED', `native file broker exited before a valid receipt${errorOutput.length ? ': stderr present' : ''}`);
+      }
+      return parseResponse(output);
+    } catch (error) {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      if (error instanceof FileBrokerOperationError || error instanceof FileBrokerUnavailableError) throw error;
+      throw new FileBrokerUnavailableError('BROKER_IO_FAILED', 'native file broker I/O failed', { cause: error });
+    } finally { clearTimeout(timer); }
+  }
+
+  put({ path, data }) {
+    if (this.recoveryRequired) return Promise.reject(new FileBrokerOperationError(
+      'RECOVERY_REQUIRED', 'explicit recover is required before another mutation'));
+    const pathField = encodedText(path, 4096, 'INVALID_PATH');
+    const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data ?? '');
+    return this.#request(frame(OPCODE.PUT, [pathField, u64(bytes.length), bytes])).catch((error) => {
+      if (error?.code === 'RECOVERY_REQUIRED') this.recoveryRequired = true;
+      throw error;
+    });
+  }
+
+  undoRef(ref) {
+    if (this.recoveryRequired) return Promise.reject(new FileBrokerOperationError(
+      'RECOVERY_REQUIRED', 'explicit recover is required before another mutation'));
+    return this.#request(frame(OPCODE.UNDO_REF, [encodedText(ref, 35, 'INVALID_UNDO_REF')])).catch((error) => {
+      if (error?.code === 'RECOVERY_REQUIRED') this.recoveryRequired = true;
+      throw error;
+    });
+  }
+
+  async recover() {
+    const { ok: _ok, ...result } = await this.#request(frame(OPCODE.RECOVER));
+    this.recoveryRequired = false;
+    return result;
+  }
+
+  async selfTest() {
+    const { ok: _ok, ...result } = await this.#request(frame(OPCODE.SELF_TEST));
+    return result;
+  }
+
+  async close() {
+    if (this.closed) return;
+    this.closed = true;
+    await Promise.allSettled([this.root.close(), this.state.close()]);
+  }
+}

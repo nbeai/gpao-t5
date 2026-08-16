@@ -43,49 +43,71 @@ test('확인 명령은 승인 없이 그냥 된다', { skip: !sandboxAvailable()
   assert.equal(명령대상.failed, false, '성공/실패가 사실로 남아야 실패를 성공처럼 이어받지 않는다');
 });
 
-test('파일을 바꾸는 명령은 승인에서 멈추고, 그때 실제로 안 바뀐다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('파일을 바꾸는 임의 셸은 승인으로 열지 않고 구조화 복구로 돌리며 실제로 안 바뀐다', async () => {
   const dir = await 자리();
-  const r = await runTurn({ text: '지워줘' }, ctx(dir, 명령('rm -f 있던.md')));
-  assert.equal(r.kind, 'approval', `승인 없이 진행됐다(${r.kind})`);
-  // **말만 승인이 아니라 파일이 살아있어야 한다.**
-  assert.equal(await readFile(join(dir, '있던.md'), 'utf8'), '원래 내용', '승인 전에 이미 지워졌다');
+  let grantedRuns = 0;
+  const terminal = makeLocalTerminalTool({ cwd: dir, sandboxAvailable: () => true,
+    run: async (command, { mode, cwd }) => {
+      if (mode === 'granted') grantedRuns += 1;
+      return { command, cwd, mode, exitCode: 1, stdout: '', stderr: 'operation not permitted: 있던.md',
+        processDelivery: 'delivered', sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
+    } });
+  const r = await runTurn({ text: '지워줘' }, {
+    env: demoEnv(), model: 고른다(명령('rm -f 있던.md')), tools: demoTools({ localTerminal: terminal }),
+  });
+  assert.notEqual(r.kind, 'approval', '미증명 임의 셸 효과를 승인으로 열었다');
+  assert.equal(grantedRuns, 0, '원 명령을 granted로 실행했다');
+  assert.equal(await readFile(join(dir, '있던.md'), 'utf8'), '원래 내용', '원 명령이 실제 파일을 바꿨다');
 });
 
-test('승인 카드에 명령 원문이 보인다(무엇을 허락하는지 알아야 한다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('구조화된 lifecycle 승인의 카드에는 명령 원문이 보인다', async () => {
   const dir = await 자리();
-  const r = await runTurn({ text: '해줘' }, ctx(dir, 명령('rm -f 있던.md')));
-  assert.match(JSON.stringify(r), /rm -f 있던\.md/, '"터미널 실행"으로는 무엇을 허락하는지 모른다');
+  const r = await runTurn({ text: '꺼줘' }, ctx(dir, 명령('kill 424242')));
+  assert.equal(r.kind, 'approval');
+  assert.match(JSON.stringify(r), /kill 424242/, '"터미널 실행"으로는 무엇을 허락하는지 모른다');
 });
 
-test('네트워크가 필요한 명령도 승인에서 멈춘다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
+test('generic EPERM 네트워크도 의미를 추측하지 않고 미실행·구조화 복구로 닫는다', async () => {
   const dir = await 자리();
-  const r = await runTurn({ text: '설치해줘' }, ctx(dir, 명령('curl -s -m 5 https://example.com')));
-  assert.equal(r.kind, 'approval', '인터넷으로 나가는 명령이 승인 없이 실행된다');
+  let grantedRuns = 0;
+  const terminal = makeLocalTerminalTool({ cwd: dir, sandboxAvailable: () => true,
+    run: async (command, { mode, cwd }) => {
+      if (mode === 'granted') grantedRuns += 1;
+      return { command, cwd, mode, exitCode: 1, stdout: '', stderr: 'PermissionError: Operation not permitted',
+        processDelivery: 'delivered', sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } };
+    } });
+  const r = await runTurn({ text: '외부 자료를 읽어줘' }, {
+    env: demoEnv(), model: 고른다(명령('opaque-network-op')), tools: demoTools({ localTerminal: terminal }),
+  });
+  assert.notEqual(r.kind, 'approval', '미증명 셸 효과를 승인 뒤 실행하도록 열었다');
+  assert.equal(grantedRuns, 0);
 });
 
-test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는다', async () => {
+test('권한 부족으로 막힌 미증명 설정 효과도 승인으로 열지 않고 미실행으로 닫는다', async () => {
   const tool = makeLocalTerminalTool({
-    run: async () => ({ exitCode: 1, stdout: '', stderr: 'launchctl: Not privileged' }),
+    run: async () => ({ exitCode: 1, stdout: '', stderr: 'launchctl: Not privileged', processDelivery: 'delivered',
+      sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } }),
   });
   const planned = await tool.probe('launchctl setenv T5_X 1');
-  assert.equal(planned.changes, true, '권한 부족은 읽기 성공이 아니라 변경 시도다');
+  assert.equal(planned.changes, false);
   const result = await tool.handler({ command: planned.command, probeResult: planned.probe });
-  assert.equal(result.needsGrant, true, '사용자가 승인할 길이 사라지면 안 된다');
-  // 개발자 오류가 아니라 **권한 경계**로 말한다 — 다만 "막혔다"가 아니라 확인 요청으로.
-  assert.match(result.userSafeSummary, /컴퓨터 설정을 바꾸는 일/, '무엇을 하려는 일인지 사용자 말로 말한다');
-  assert.ok(!/오류|에러|실패|막혔/.test(result.userSafeSummary),
-    `승인하면 되는 일을 실패로 말하면 모델이 포기한다: ${result.userSafeSummary}`);
+  assert.equal(result.failed, true);
+  assert.equal(result.failureResult.processDelivery, 'delivered');
+  assert.equal(result.failureResult.applied, false);
 });
 
-test('probe 를 못 돌리면 승인으로 간다(모르면 막는다)', async () => {
+test('probe 를 못 돌리면 승인으로 열지 않고 원 명령을 not_run으로 닫는다', async () => {
   const dir = await 자리();
+  let runs = 0;
+  const terminal = makeLocalTerminalTool({ cwd: dir, sandboxAvailable: () => true,
+    async run() { runs += 1; throw new Error('sandbox broker unavailable'); } });
   const 손없음 = {
     env: demoEnv(), model: 고른다(명령('아무거나')),
-    // probe 를 노출하지 않는 손 — 이 경우에도 read 로 흘러선 안 된다.
-    tools: demoTools({ localTerminal: { async handler() { return { result: {} }; } } }),
+    tools: demoTools({ localTerminal: terminal }),
   };
   const r = await runTurn({ text: '해줘' }, 손없음);
-  assert.equal(r.kind, 'approval', 'probe 없이 등급을 read 로 흘렸다');
+  assert.notEqual(r.kind, 'approval');
+  assert.equal(runs, 1, '실패한 probe 뒤 원 명령을 재실행했다');
 });
 
 test('승인 전에는 새 파일도 안 생긴다', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
@@ -125,7 +147,7 @@ test('빈 문자열 인자는 없는 것으로 본다', { skip: !sandboxAvailabl
 // 사용자에겐 먹통으로 보인다. 카드는 "무엇을 허락하느냐"고, 말은 "무엇을 이해했느냐"다.
 test('승인으로 멈춘 턴에도 T5 는 말을 한다(카드만 뜨고 침묵하지 않는다)', { skip: !sandboxAvailable() && '샌드박스 없음' }, async () => {
   const dir = await 자리();
-  const r = await runTurn({ text: '지워줘' }, ctx(dir, 명령('rm -f 있던.md')));
+  const r = await runTurn({ text: '꺼줘' }, ctx(dir, 명령('kill 424242')));
   assert.equal(r.kind, 'approval', `승인에서 안 멈췄다(${r.kind})`);
   assert.ok((r.reply ?? '').trim(), '승인 카드만 뜨고 아무 말도 안 했다 — 사용자에겐 먹통이다');
 });
@@ -136,13 +158,13 @@ test('모델이 도구를 고르며 한 말을 버리지 않는다(승인으로 
   const 말하며고른다 = {
     async respond(_tc, opts = {}) {
       물어본횟수 += 1;
-      if (opts.tools?.length) return { text: '있던.md 를 지우려고 해요.', toolCalls: 명령('rm -f 있던.md') };
+      if (opts.tools?.length) return { text: '프로세스를 끄려고 해요.', toolCalls: 명령('kill 424242') };
       return '했어요';
     },
   };
-  const r = await runTurn({ text: '지워줘' }, { env: demoEnv(), model: 말하며고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
+  const r = await runTurn({ text: '꺼줘' }, { env: demoEnv(), model: 말하며고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
   assert.equal(r.kind, 'approval');
-  assert.match(r.reply ?? '', /있던\.md/, `모델이 이미 한 말을 버렸다: ${r.reply}`);
+  assert.match(r.reply ?? '', /프로세스/, `모델이 이미 한 말을 버렸다: ${r.reply}`);
   assert.equal(물어본횟수, 1, '이미 말이 있는데 모델을 또 불렀다(토큰 낭비)');
 });
 
@@ -158,11 +180,11 @@ test('승인으로 멈출 때 추가 모델 호출 없이 자기 손과 다음 �
     async respond(tc, opts = {}) {
       본것.push({ tools: opts.tools?.length ?? 0, hint: tc?.recoveryHint });
       // 첫 호출: 도구만 고르고 말은 안 한다(라이브에서 실제로 이랬다).
-      if (본것.length === 1) return { text: '', toolCalls: 명령('rm -f 있던.md') };
-      return '있던.md 를 지우려고 해요. 확인해 주시면 제가 지울게요.';
+      if (본것.length === 1) return { text: '', toolCalls: 명령('kill 424242') };
+      return '프로세스를 끄려고 해요. 확인해 주시면 제가 끌게요.';
     },
   };
-  const r = await runTurn({ text: '지워줘' }, { env: demoEnv(), model: 말없이고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
+  const r = await runTurn({ text: '꺼줘' }, { env: demoEnv(), model: 말없이고른다, tools: demoTools({ localTerminal: makeLocalTerminalTool({ cwd: dir }) }) });
   assert.equal(r.kind, 'approval');
   assert.equal(본것.length, 1, '승인 설명만 만들려고 모델을 다시 불렀다');
   assert.match(r.reply ?? '', /확인/, '왜 멈췄는지가 없다');

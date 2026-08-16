@@ -97,7 +97,7 @@ test('실패한 terminal probe 원문은 모델에는 failureResult로만, 저�
 test('승인 전 차단 terminal probe 원문도 영수증 호출 인자에 저장하지 않는다', async () => {
   const terminal = makeLocalTerminalTool({
     cwd: '/isolated/work', sandboxAvailable: () => true,
-    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 1, stdout: 'BLOCKED_STDOUT', stderr: 'BLOCKED_STDERR: Operation not permitted' }),
+    run: async (command, { cwd, mode }) => ({ command, cwd, mode, exitCode: 1, stdout: 'BLOCKED_STDOUT', stderr: 'BLOCKED_STDERR: Operation not permitted', processDelivery: 'delivered', sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' } }),
   });
   const receipt = await new ToolRunner({ 'local.terminal': terminal }).run(
     'local.terminal', {
@@ -105,7 +105,7 @@ test('승인 전 차단 terminal probe 원문도 영수증 호출 인자에 저�
       probeResult: { stdout: 'BLOCKED_STDOUT', stderr: 'BLOCKED_STDERR: Operation not permitted' },
     }, selfState,
   );
-  assert.equal(receipt.failureState, 'blocked');
+  assert.equal(receipt.failureState, 'failed');
   assert.deepEqual(receipt.actualCall?.args, { command: 'printf x > report.tsv' },
     '차단 actualCall을 내부 probe placeholder로 위조했다');
 });
@@ -135,6 +135,7 @@ test('실제 /turn 실패 원문은 같은 턴 모델에만 가고 HTTP·transcr
     run: async (command, { cwd, mode }) => ({
       command, cwd, mode, processDelivery: 'delivered', exitCode: 127,
       stdout: 'DURABLE_STDOUT_MARKER', stderr: 'DURABLE_STDERR_MARKER',
+      sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
     }),
   });
   const store = new SessionStore(state);
@@ -178,11 +179,11 @@ test('실제 /turn 실패 원문은 같은 턴 모델에만 가고 HTTP·transcr
   }
 });
 
-test('실제 /turn 실패 뒤 쓰기 승인은 원문 없이 지속되고 재시작 뒤 정확히 한 번 실행된다', async () => {
+test('실제 /turn 실패 뒤 구조화된 lifecycle 승인은 원문 없이 지속되고 재시작 뒤 정확히 한 번 실행된다', async () => {
   const state = await mkdtemp(join(tmpdir(), 'terminal-failure-pending-'));
   const modelInputs = [];
   const 실패명령 = 'missing-command';
-  const 승인명령 = 'printf done > result.txt';
+  const 승인명령 = 'kill 424242';
   let 승인실행수 = 0;
   const model = {
     async respond(tc, opts = {}) {
@@ -214,14 +215,17 @@ test('실제 /turn 실패 뒤 쓰기 승인은 원문 없이 지속되고 재시
         return {
           command, cwd, mode, processDelivery: 'delivered', exitCode: 127,
           stdout: 'PENDING_FAILURE_STDOUT', stderr: 'PENDING_FAILURE_STDERR',
+          sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
         };
       }
       if (mode === 'granted') 승인실행수 += 1;
       return mode === 'granted'
-        ? { command, cwd, mode, processDelivery: 'delivered', exitCode: 0, stdout: 'done', stderr: '' }
+        ? { command, cwd, mode, processDelivery: 'delivered', exitCode: 0, stdout: 'done', stderr: '',
+          sandboxEnforcement: { state: 'enforced', policy: 'protect-secrets-only' } }
         : {
           command, cwd, mode, processDelivery: 'delivered', exitCode: 1,
           stdout: 'PENDING_PROBE_STDOUT', stderr: 'PENDING_PROBE_STDERR: Operation not permitted',
+          sandboxEnforcement: { state: 'enforced', policy: 'deny-external-effects' },
         };
     },
   });
