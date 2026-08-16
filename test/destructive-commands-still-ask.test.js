@@ -37,15 +37,23 @@ async function 방() {
   return d;
 }
 
-/** 한 명령만 고르는 모델 — 라이브는 비결정이라 계약을 못 문다. 여기서는 명령을 고정한다. */
-const 한명령모델 = (command) => ({
-  async respond(tc, opts = {}) {
-    if (tc?.workContractAssessment) return { text: '', toolCalls: [] };
-    if (!opts.tools?.length) return '끝.';
-    if (!tc?.evidenceFacts?.length) return { text: '', toolCalls: [{ name: 'local.terminal', args: { command } }] };
-    return { text: '끝.', toolCalls: [] };
-  },
-});
+/**
+ * 한 명령만 — **한 번만** — 고르는 모델. 라이브는 비결정이라 계약을 못 문다.
+ * ⚠️ 「evidenceFacts 가 비면 또 고른다」로 짰다가 밟았다: 자동 실행이 성공해 파일이 생긴 뒤
+ *    스텁이 **같은 명령을 또 골랐고**, 이번엔 기존 파일 덮어쓰기라 카드가 떴다 — 제품이 맞고
+ *    자가 틀렸다. 계약을 무는 스텁은 자기 상태로 한 번만 골라야 한다.
+ */
+const 한명령모델 = (command) => {
+  let 골랐다 = false;
+  return {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: '', toolCalls: [] };
+      if (!opts.tools?.length) return '끝.';
+      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command } }] }; }
+      return { text: '끝.', toolCalls: [] };
+    },
+  };
+};
 
 async function 첫턴(command, 자리) {
   // ⚠️ `cwd` 는 **값**이다(`local-terminal.js`: `deps.cwd ?? homedir()`). 함수를 넘기면
@@ -232,14 +240,45 @@ test('대조군 — 아무것도 안 바꾸는 명령은 카드 없이 지나간
     '읽기만 하는 명령까지 카드로 가면 이 검사는 「터미널은 늘 카드」를 통과시키는 자가 된다');
 });
 
-// ── 수리가 겨누는 자리 — **지금은 사실만 적고 계약으로 안 세운다** ──────────────
-// 새 압축본 하나 만들기(`tar -czf backup.tgz .`)는 아무것도 안 지우는데 **`rm -rf` 와 같은
-// 카드**를 받는다. 이게 비교군과의 거리다(비교군 개입 0 · T5 1~3회 · §7-af).
-// **여기에 「카드 없이 지나간다」를 아직 안 적는다** — 그건 다음 수리가 만들 사실이고,
-// 지금 적으면 결과를 보기 전에 답을 적는 것이 된다. 수리할 때 이 파일에 그 줄을 더하고,
-// **그때 위 셋은 그대로 초록이어야 한다.**
-test('지금 사실 — 새로 만들기만 하는 명령도 파괴와 같은 카드를 받는다 (수리의 표적)', async () => {
-  const 결과 = await 첫턴('tar -czf backup.tgz .', await 방());
-  assert.equal(결과.kind, 'approval',
-    '이 줄이 빨개졌다면 그 수리가 이미 들어간 것이다 — 이 검사를 계약으로 바꿔 적어라');
+// ── (나) 계약 — 옛 「지금 사실」 덫이 수리로 빨개져 계약으로 전환했다 (설계대로) ──
+// `.` 을 통째로 읽어 새 이름 하나를 만드는 것도 같은 부류다 — 읽기는 헌장 넷 어디에도
+// 안 닿고(감시자), 쓰는 자리는 새 이름 하나뿐이다.
+test('(나) 계약 — `.` 전체를 새 압축본 하나로 만드는 것도 카드 없이 끝나고 실물이 남는다', async () => {
+  const 자리 = await 방();
+  const 결과 = await 첫턴('tar -czf backup.tgz .', 자리);
+  assert.notEqual(결과.kind, 'approval', '기존 것을 하나도 안 건드리는 생성이 다시 카드로 돌아갔다');
+  assert.ok((await readdir(자리)).includes('backup.tgz'), '카드는 안 떴는데 실물이 없다');
+});
+
+// ── (나) 계약 — **두 경로가 같은 답을 낸다** (감시자 조건 2 · 2026-08-16) ─────────
+// `revocable` 이 authority 에 닿는 통로는 두 벌이다(걸음 tool-boundary:103 · 계획 action-plan).
+// 한쪽만 고치면 「reversible:false 로 선언된 rm -rf 가 걸음 경로에서만 자동 실행됐다」
+// (tool-boundary.js:9 · 실측 2026-08-03)가 그대로 재발한다. 같은 probe 사실을 두 경로에
+// 넣어 **같은 답**인지 문다. 그리고 `허락한손` 이 이미 차 있는 상태도 문다 — `되돌릴수있나
+// === true` 는 승인 면제 문(tool-boundary:202)까지 여는 열쇠라, 창조 아닌 명령에 그 열쇠가
+// 새면 한 번의 승인이 다른 명령의 면제로 샌다.
+test('(나) 계약 — 계획·걸음 두 경로가 같은 답: 창조는 자동, 파괴는 카드 (허락한손 상태 포함)', async () => {
+  const { 실행전판정 } = await import('../src/kernel/l2-plan/tool-boundary.js');
+  const { buildActionPlan } = await import('../src/kernel/l2-plan/action-plan.js');
+  const { buildSelfState } = await import('../src/kernel/l0-evidence/self-state.js');
+  const { demoEnv: env2 } = await import('../src/surface/demo-context.js');
+  const 자리 = await 방();
+  const tools = demoTools({ localTerminal: makeLocalTerminalTool({ cwd: 자리 }) });
+  const selfState = buildSelfState(env2({ hands: Object.keys(tools.tools) }));
+
+  for (const [command, 창조인가] of [
+    ['tar -czf backup.tar.gz 시작문서', true],
+    ['rm -rf 시작문서', false],
+    ['echo 망함 > b.md', false],
+  ]) {
+    // 걸음 경로
+    const { 판정인자, 판정행동 } = await 실행전판정({ toolId: 'local.terminal', args: { command }, selfState, tools });
+    assert.equal(판정행동.revocable === true, 창조인가,
+      `걸음 경로: \`${command}\` 의 revocable 이 ${창조인가 ? '창조 사실을 못 받았다' : '창조가 아닌데 true 다 — 면제 열쇠가 샌다'}`);
+    // 계획 경로 — 같은 probe 사실로
+    const plan = buildActionPlan({ intent: { neededTools: ['local.terminal'], terminalOp: 판정인자 }, selfState });
+    const 카드없음 = plan.needsApproval.length === 0;
+    assert.equal(카드없음, 창조인가,
+      `계획 경로: \`${command}\` 가 걸음 경로와 다른 답을 냈다 — 두 벌 중 한쪽만 고친 그 사고다`);
+  }
 });

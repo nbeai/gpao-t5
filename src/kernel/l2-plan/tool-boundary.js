@@ -72,6 +72,10 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       changes: probed?.changes,
       granted: probed?.changes === true,
       probeResult: probed?.probe,
+      // **이 명령의 probe 가 밟은 사실만** 나른다 — 손의 정적 선언은 이 칸의 출처가 될 수 없다
+      // (감시자 2026-08-16: 이 값은 승인 면제 문(아래 :202)까지 여는 열쇠라, 명령 밖에서 오면
+      //  한 번의 승인이 다른 명령의 면제로 샌다).
+      ...(probed?.창조만한다 === true ? { 창조만한다: true } : {}),
     };
   }
   // **화면 누르기도 돌려 봐야 안다**(CU E). 터미널과 같은 자리, 같은 이유다 —
@@ -100,7 +104,15 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
     kind,
     판정행동: {
       kind,
-      revocable: 손선언?.reversible,
+      // ── (나) 수리(2026-08-16) — **행동 단위 사실이 정적 선언을 이긴다** ─────────────
+      // 터미널은 `reversible: false` 를 통째로 선언한다 — 명령이 무엇이든 같은 값이라
+      // 새 압축본 하나에도 파괴와 같은 카드가 떴다. `창조만한다` 는 **이 명령의 probe** 가
+      // 밟은 사실이다(빈 자리에 새 이름만 만든다 · local-terminal.js 창조만인가): 헌장 ②의
+      // 질문(백업 없는 덮어쓰기·파괴인가)의 정의역 밖이므로 그 사실로 답한다.
+      // `counterpartKnown`(헌장 ③의 조건)이 이미 쓰는 모양 그대로다 — 새 규칙이 아니다.
+      // 라벨 주의: 이것은 「되돌릴 수 있다」(휴지통 실물이 있는 파일 손의 명제)가 아니라
+      // **「파괴가 없었다」**다 — 문구는 action-plan 의 cancelText 가 가른다.
+      revocable: 판정인자?.창조만한다 === true ? true : 손선언?.reversible,
       // ── **한 칸에 세 사실이 뭉쳐 있었다** (오너 지시 2026-08-12:
       //    *"불필요한 승인카드는 모두 없애야해"*) ────────────────────────────
       //

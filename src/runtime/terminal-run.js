@@ -160,7 +160,7 @@ export async function runCommand(command, opts = {}) {
  * 첫 판은 리다이렉트 대상만 봤다가 `touch 유보.txt`(리다이렉트 없는 진짜 쓰기)를 「모른다」로
  * 흘렸다 — 회귀가 잡았다. 자리는 리다이렉트가 아니라 **지목 여부**다.
  */
-function 명령이지목한자리인가(이름, command) {
+export function 명령이지목한자리인가(이름, command) {
   const cmd = String(command ?? '');
   if (!cmd || !이름) return false;               // 명령을 모르면 증명도 없다 — 「모른다」로 간다
   if (cmd.includes(이름)) return true;
@@ -176,7 +176,7 @@ function 명령이지목한자리인가(이름, command) {
  * 이름으로만 펼쳐지므로 열기에 실패한 새 이름의 출처가 될 수 없고, `?` 는 URL 질의에도 흔해
  * 넣으면 안 걸릴 것이 걸린다. 넓게 잡는 쪽이 안전해 보여도 **미상이 늘면 카드가 는다.**
  */
-function 실행중에이름이정해졌나(command) {
+export function 실행중에이름이정해졌나(command) {
   return /\$\(|`|\$[A-Za-z_{$]/.test(String(command ?? ''));
 }
 
@@ -235,6 +235,35 @@ const 막음자국 = /operation not permitted|not permitted|Permission denied|EP
 /** 이 실행에 **우리가 막은 자국**이 남았는가. exit code 와 무관하게 본다. */
 export function 막음자국있나(r) {
   return 막음자국.test(`${r?.stderr ?? ''}\n${r?.stdout ?? ''}`);
+}
+
+// `executionBlock` 이 쓰기 자리를 잡을 때 쓰는 **그 두 정규식**이다(재사용 · 새 어법 아님).
+// 전역 판(g)으로 한 벌 더 두는 이유: 아래 `쓰려던자리들` 은 첫 일치가 아니라 **전부**를 모은다.
+const 쓰기자리어법들 = [
+  /operation not permitted:\s*['"`]?([^'"`\s,\n]+)/gi,
+  /[:\s]([^\s:]+):\s*(?:permission denied|operation not permitted)/gi,
+  /(?:failed to (?:open|create)|cannot (?:open|create)|can't (?:open|create))\s*[:\s]?\s*['"`]?([^'"`\s,\n]+)/gi,
+];
+
+/**
+ * 이 실행이 **쓰려다 막힌 자리 전부**. `executionBlock` 은 첫 일치 하나로 종류를 정하지만,
+ * 「기존 것을 하나도 안 건드렸는가」는 자리 **전부**를 봐야 답할 수 있는 질문이다 —
+ * 하나만 보면 복합 명령의 나머지 자국을 놓친다(감시자 실측 2026-08-16).
+ */
+export function 쓰려던자리들(r) {
+  const t = `${r?.stderr ?? ''}\n${r?.stdout ?? ''}`;
+  return [...new Set(쓰기자리어법들.flatMap((re) => [...t.matchAll(re)].map((m) => m[1]).filter(Boolean)))];
+}
+
+/**
+ * **명령이 한 구획인가.** 구획이 여럿이면(`&&`·`;`·`|`) probe 는 **첫 실패까지만** 증명한다 —
+ * `&&` 는 앞이 막히면 뒤를 아예 안 돌리므로(감시자 셸 실측), 뒤에 선 파괴는 자국을 남길
+ * 기회조차 없다. 그때 「자국 전부가 새 자리」는 참이어도 증명이 아니다. 같은 이유로 `cd X &&`
+ * 이동 뒤의 자리는 기준이 어긋난다. **여럿이면 이 판정을 포기한다**(카드 유지 · fail-closed).
+ * 구획을 가르는 축은 `명령어자리인가` 가 이미 쓰는 그 구문 사실이다 — 어법이 아니다.
+ */
+export function 한구획인가(command) {
+  return String(command ?? '').split(/\||&&|\|\||;|\bthen\b|\bdo\b/).length === 1;
 }
 
 export function executionBlock(r) {

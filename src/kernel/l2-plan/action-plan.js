@@ -260,10 +260,16 @@ export function buildActionPlan(p) {
     let kind = toolActionKind({ toolId: id, args: 판정인자, selfState });
     // 승인 카드는 **이번 요청의 구체 사실**을 말해야 한다. "로컬 파일 실행"으로는 무엇이 사라지는지
     // 알 수 없다(실측). 되돌릴 수 있는지도 종류가 아니라 **도구가 밝힌 사실**을 쓴다.
-    const reversible = tool?.reversible;
-    const cancelText = reversible === true ? (tool.reversibleNote ?? '되돌릴 수 있어요')
-      : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
-        : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
+    // (나) 수리(2026-08-16) — **행동 단위 사실이 정적 선언을 이긴다**(걸음 경로 tool-boundary 와
+    // 같은 규칙 · 두 경로가 같은 질문에 다른 답을 내면 결함이다). `창조만한다` 는 이 명령의
+    // probe 가 밟은 사실이고, 문구도 사실대로 — 「되돌릴 수 있어요」(휴지통 실물이 있는 파일
+    // 손의 명제)가 아니라 **「기존 것을 안 건드린다」**로 말한다(F-46 모양 금지 · 손 관리자).
+    const 창조만 = 판정인자?.창조만한다 === true;
+    const reversible = 창조만 ? true : tool?.reversible;
+    const cancelText = 창조만 ? '기존 것은 하나도 건드리지 않는 새로 만들기예요'
+      : reversible === true ? (tool.reversibleNote ?? '되돌릴 수 있어요')
+        : reversible === false ? '실행한 뒤에는 되돌릴 수 없어요'
+          : (kind === 'delete' ? '되돌리기 어려울 수 있어요' : '되돌릴 수 있어요');
     // **도구가 만든 미리보기가 먼저다.** 도구는 자기가 무엇을 하는지 가장 정확히 안다.
     // 여기 도구별 if 를 늘리면 새 도구마다 "○○ 실행" 이라는 빈 문구가 또 나온다 —
     // 사용자가 무엇을 허락하는지 모르는 승인은 승인이 아니다(실측: "실행 중인 것 실행").

@@ -6,11 +6,13 @@
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
-import { runCommand, executionBlock, 막음자국있나 } from './terminal-run.js';
+import { runCommand, executionBlock, 막음자국있나, 쓰려던자리들, 한구획인가, 명령이지목한자리인가, 실행중에이름이정해졌나 } from './terminal-run.js';
 import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { alive } from './local-process.js';
 
 /**
@@ -53,6 +55,37 @@ const 변경시도증거 = new Set([
 function looksBlocked(r) {
   const block = executionBlock(r);
   return block?.kind === 'sandbox' || block?.kind === 'permission';
+}
+
+/**
+ * **이 쓰기는 기존 것을 하나도 안 건드리는가** — (나) 수리(2026-08-16 · 오너 승인)의 판별.
+ *
+ * 헌장 ②가 묻는 것은 「백업 없는 덮어쓰기·파괴인가」다(`authority.js:222`). 빈 자리에 새 이름
+ * 하나 만드는 것은 그 질문의 정의역 밖인데, 터미널이 `reversible: false` 를 **통째로** 선언해
+ * 새 압축본 하나에도 파괴와 같은 카드가 떴다 — 비교군은 같은 부탁을 개입 0 으로 끝냈다(§7-af).
+ *
+ * 판별은 **밟은 기계 사실 셋의 교집합**이고, 하나라도 못 밟으면 false(카드 유지 · fail-closed):
+ *   ① 명령이 **한 구획**이다 — 여럿이면 probe 는 첫 실패까지만 증명한다(`&&` 는 뒤를 안 돌린다).
+ *      `cd X &&` 이동 뒤의 자리는 기준이 어긋나 stat 이 거짓을 본다(울타리 ①-b)
+ *   ② 이름이 실행 전에 확정돼 있다 — `$( )` 이름은 대조 자체가 불능이다(§7-ak)
+ *   ③ 쓰려다 막힌 자리 **전부**가: 명령이 스스로 지목했고 · probe 가 돈 자리(cwd) **안**이고 ·
+ *      디스크에 **없다**. 「없는 자리 = 안전」이 아니므로 cwd 밖(시스템 자리)은 지목돼도 제외(울타리 ②)
+ *
+ * 라이브 분포에서 이 판별이 여는 것은 **6중 1**이다(손 관리자 실측) — `cd ..` 부류는 ①에
+ * 걸려 카드로 남는다. 조준을 부풀리지 않는다: 이 판별은 「제자리 새 이름 생성」만 연다.
+ */
+function 창조만인가(r, command, cwd) {
+  if (!한구획인가(command) || 실행중에이름이정해졌나(command)) return false;
+  const 기준 = typeof cwd === 'string' && cwd ? cwd : null;
+  if (!기준) return false;                       // 기준 자리를 모르면 stat 은 거짓을 본다
+  const 자리들 = 쓰려던자리들(r);
+  if (!자리들.length) return false;
+  return 자리들.every((이름) => {
+    if (!명령이지목한자리인가(이름, command)) return false;
+    const 절대 = isAbsolute(이름) ? 이름 : resolve(기준, 이름.replace(/^\.\//, ''));
+    if (!(절대 + sep).startsWith(기준.endsWith(sep) ? 기준 : 기준 + sep)) return false;
+    return !existsSync(절대);
+  });
 }
 
 /**
@@ -205,7 +238,12 @@ export function makeLocalTerminalTool(deps = {}) {
       if (막음자국있나(r)) return { command, cwd, probe: r, 판정불능: 'unreadable_exit' };
       return { command, cwd, probe: r, changes: false };   // 자국도 없다 = 안 바꾼다
     }
-    if (변경시도증거.has(막힘.why)) return { command, cwd, probe: r, changes: true };
+    if (변경시도증거.has(막힘.why)) {
+      return {
+        command, cwd, probe: r, changes: true,
+        ...(막힘.why === 'write' && 창조만인가(r, command, r?.cwd ?? cwd) ? { 창조만한다: true } : {}),
+      };
+    }
     return { command, cwd, probe: r, 판정불능: 막힘.why };
   }
 
