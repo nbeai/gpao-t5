@@ -62,15 +62,19 @@ async function 훑기(뿌리) {
   return out.sort();
 }
 
-async function 포트정리() {
+async function 포트듣는놈들() {
   try {
     const { stdout } = await execFile('/usr/sbin/lsof', ['-ti', `:${서버포트}`]);
-    for (const pid of stdout.trim().split('\n').filter(Boolean)) {
-      try { process.kill(Number(pid), 'SIGTERM'); } catch { /* 이미 죽음 */ }
-    }
-  } catch { /* 아무도 안 듣는 중 — 정리할 것 없음 */ }
+    return stdout.trim().split('\n').filter(Boolean);
+  } catch { return []; }
+}
+/** 포트를 비운다. @returns {Promise<boolean>} 정리 후 해제됐는가 */
+async function 포트정리() {
+  for (const pid of await 포트듣는놈들()) {
+    try { process.kill(Number(pid), 'SIGTERM'); } catch { /* 이미 죽음 */ }
+  }
   await new Promise((r) => setTimeout(r, 300));
-  try { await execFile('/usr/sbin/lsof', ['-ti', `:${서버포트}`]); return false; } catch { return true; }
+  return (await 포트듣는놈들()).length === 0;
 }
 
 async function 방만들기() {
@@ -105,18 +109,30 @@ if (자가검증) {
   await 포트정리();
   console.log(`재료 ⑧ 서버.mjs   ○ 응답: ${응답.trim()}`);
   console.log('재료 ⑥ package.json  ○ (별도 실측 2026-08-16: npm install → node_modules/picocolors 디스크 확인)');
-  console.log('하네스 양성 대조(카드→누름→실행·개입 계상)는 승인까지써본다-회차4(50,635B 실물·개입 1)가 같은 승인 경로로 이미 세웠다 — 이 하네스는 그 경로를 그대로 쓴다');
+  // 하네스 양성 대조(감시자 수리 2) — 과거 초록 인용 금지. **이 하네스의 그 while 루프**로
+  // 승인 왕복 1회를 실제로 태워 「개입 ≥1 + 디스크 실물 ≥1」을 실행값으로 낸다.
+  const 검증원본 = await 재판([발화들[4]], null);   // ⑤p 압축 발화 하나
+  const 회 = 검증원본.회차[0];
+  console.log(`하네스 양성 대조  개입 ${회.개입} · 새 실물 ${회.새로생긴것.length} (${회.새로생긴것.slice(0, 2).join(' · ')})`);
+  if (!(회.개입 >= 1 && 회.새로생긴것.length >= 1)) {
+    console.error('하네스 양성 대조 실패 — 개입 또는 실물이 0. 이 자로 재판을 열 수 없다');
+    process.exit(1);
+  }
   process.exit(0);
 }
 
-const 연결 = 저장된연결(homedir());
-if (!연결?.자격) throw new Error('저장된 모델 연결이 없다');
-const { root, home, state, work } = await 방만들기();
+await 재판(발화들, 낼자리);
 
-const 옛HOME = process.env.HOME;
-process.env.HOME = home;
-let server;
-try {
+
+async function 재판(재판발화들, 낼경로) {
+  const 연결 = 저장된연결(homedir());
+  if (!연결?.자격) throw new Error('저장된 모델 연결이 없다');
+  const { root, home, state, work } = await 방만들기();
+
+  const 옛HOME = process.env.HOME;
+  process.env.HOME = home;
+  let server;
+  try {
   const env = {
     HOME: home, GPAO_T5_HOME: home, GPAO_T5_DATA_DIR: state, GPAO_T5_FILE_ROOTS: work,
     GPAO_T5_TCELL: 'off', GPAO_T5_NO_AUTO_SCREEN_BIN: '1', GPAO_T5_CUA_BIN: '',
@@ -141,12 +157,14 @@ try {
     schemaVersion: 1, 자: '완성재판', 선등록: '§7-az(4fa5a217)', 시각: new Date().toISOString(),
     sourceHead: (await execFile('git', ['rev-parse', 'HEAD'], { cwd: 저장소 })).stdout.trim(),
     모델: { provider: 연결.provider ?? 'openai', modelId: env.GPAO_T5_MODEL_ID },
-    방: root, 발화들: 발화들.map((f) => `${f.칸} ${f.text}`), 회차: [],
+    방: root, 발화들: 재판발화들.map((f) => `${f.칸} ${f.text}`), 회차: [],
   };
   console.log(`방: ${work}`);
+  // 회차 시작 위생(감시자 수리 1) — 앞 회차 잔존이 이번 ⑧ 을 거짓 ○ 으로 만들지 않게.
+  원본.시작포트 = { 듣던pids: await 포트듣는놈들(), 정리후해제: await 포트정리() };
 
   let 이전손수 = 0;
-  for (const [i, 발화] of 발화들.entries()) {
+  for (const [i, 발화] of 재판발화들.entries()) {
     const 전 = await 훑기(work);
     const 진값 = await 재료실측하기(work);          // 발화별 재측정(§7-az-2)
     const 미결카드전 = Object.keys((JSON.parse(await readFile(join(state, `${s.id}.json`), 'utf8').catch(() => '{}'))?.pendingApprovals) ?? {}).length;
@@ -164,8 +182,19 @@ try {
     const 이번 = 누적.slice(이전손수);
     이전손수 = 누적.length;
     const 후 = await 훑기(work);
+    // ⑧ 계측(감시자 수리 1) — 선등록 문자 기준 그대로: **최종답 시점** 프로세스 생존+포트 응답을
+    // 하네스가 ps·curl 로 잰다. T5 의 문장이 아니라 기계가 본 것만 적는다.
+    let 서버스냅 = null;
+    if (발화.칸 === '⑧') {
+      const pids = await 포트듣는놈들();
+      let ps = ''; let curl = null;
+      if (pids.length) { try { ps = (await execFile('/bin/ps', ['-p', pids.join(','), '-o', 'pid=,command='])).stdout.trim(); } catch { /* 죽는 중 */ } }
+      try { curl = (await execFile('/usr/bin/curl', ['-s', '-m', '2', `http://127.0.0.1:${서버포트}/`])).stdout.trim(); } catch { curl = null; }
+      서버스냅 = { pids, ps, 포트응답: curl };
+    }
     원본.회차.push({
       순번: i + 1, 칸: 발화.칸, 발화: 발화.text, kind: turn.kind ?? 'reply', 걸린ms: Date.now() - t0,
+      ...(서버스냅 ? { 서버스냅 } : {}),
       개입, 카드들, 미결카드전,
       답: turn.reply ?? turn.question ?? null,
       exitNetDiagnostic: turn.exitNetDiagnostic ?? null,
@@ -176,15 +205,17 @@ try {
       새로생긴것: 후.filter((x) => !전.includes(x)),
       사라진것: 전.filter((x) => !후.includes(x)),
     });
-    console.log(`[${i + 1}/${발화들.length}] ${발화.칸} ${발화.text}`);
+    console.log(`[${i + 1}/${재판발화들.length}] ${발화.칸} ${발화.text}`);
     console.log(`   kind=${turn.kind ?? 'reply'} · 개입 ${개입} · 새 실물 ${원본.회차.at(-1).새로생긴것.length} · 답: ${String(turn.reply ?? '').slice(0, 90).replace(/\n/g, ' ')}`);
   }
-  // ⑧ 위생 — 세션 끝 포트 정리(교차 오염 방지). 살아 있었는지도 기록.
-  원본.서버정리 = { 살아있었나: !(await 포트정리()) === false, 정리후해제: await 포트정리() };
-  await writeFile(낼자리, JSON.stringify(원본, null, 2));
-  console.log(`원본: ${낼자리}`);
-} finally {
-  if (server) await new Promise((r) => server.close(r));
-  await 포트정리();
-  if (옛HOME === undefined) delete process.env.HOME; else process.env.HOME = 옛HOME;
+  // ⑧ 위생 — 세션 끝: 누가 듣고 있었는지 먼저 재고, 그다음 비운다(이름=뜻 · 감시자 수리 3).
+  const 끝시점pids = await 포트듣는놈들();
+  원본.서버정리 = { 끝시점살아있었나: 끝시점pids.length > 0, pids: 끝시점pids, 정리후해제: await 포트정리() };
+  if (낼경로) { await writeFile(낼경로, JSON.stringify(원본, null, 2)); console.log(`원본: ${낼경로}`); }
+  return 원본;
+  } finally {
+    if (server) await new Promise((r) => server.close(r));
+    await 포트정리();
+    if (옛HOME === undefined) delete process.env.HOME; else process.env.HOME = 옛HOME;
+  }
 }
