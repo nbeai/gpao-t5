@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/세션시작점검.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
