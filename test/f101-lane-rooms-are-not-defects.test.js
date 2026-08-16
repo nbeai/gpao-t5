@@ -74,6 +74,18 @@ function 감사출력() {
 }
 
 /**
+ * 검사 가지 이름을 회차마다 고유하게 만든다.
+ *
+ * ⚠️ **병렬 거짓 빨강**(유산감사 2026-08-16 재현 · 이 파일 안에서 기계 재현 확인): 방 경로는
+ * mkdtemp 로 고유한데 **가지 이름은 상수**(`lane-test/일하는방` 등)였다. 가지는 임시 방이 아니라
+ * **공유 저장소 한 곳**에 서므로, `npm run gate` 와 `npm test` 가 동시에 이 파일을 돌리면
+ * 늦은 쪽이 `fatal: a branch named 'lane-test/일하는방' already exists` 로 빨개졌다 —
+ * 제품이 아니라 검사끼리의 충돌이다. pid+난수를 붙여 회차마다 다른 가지를 판다.
+ * 자(audit-project-entry.mjs)는 가지 이름을 안 본다 — 그물은 그대로다.
+ */
+const 고유가지 = (이름) => `lane-test/${이름}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+
+/**
  * 작업 방 하나를 실제로 연다(실제 경로 · 실제 git). 끝나면 반드시 치운다.
  *
  * `나이시간` — 그 방의 커밋을 **몇 시간 전으로** 찍을지. 「잊힘」은 노화 축으로 재므로
@@ -86,7 +98,7 @@ async function 작업방(이름, { 커밋 = false, 나이시간 = 0 } = {}) {
   const 방뿌리 = join(임시, 't5-lanes');
   await mkdir(방뿌리, { recursive: true });
   const 자리 = join(방뿌리, 이름);
-  const 가지 = `lane-test/${이름}`;
+  const 가지 = 고유가지(이름);
   셸('git', 'worktree', 'add', '-q', '-b', 가지, 자리, 'HEAD');
   if (커밋) {
     await writeFile(join(자리, '방메모.txt'), '아직 본선에 안 들어간 일\n', 'utf8');
@@ -161,7 +173,7 @@ test('F101 ⑤: 갓 만든 미병합 방은 실패가 아니지만 **출력에�
 test('F101 ③: 작업 방이 아닌 자리에 열린 방은 여전히 잡힌다', async () => {
   const 방뿌리 = await mkdtemp(join(tmpdir(), 't5-남의자리-'));
   const 자리 = join(방뿌리, 'unknown-room');
-  const 가지 = 'lane-test/남의자리';
+  const 가지 = 고유가지('남의자리');
   셸('git', 'worktree', 'add', '-q', '-b', 가지, 자리, 'HEAD');
   try {
     // 이 자리는 `t5-lanes`·`.claude/worktrees` 어느 쪽도 아니다 — 그물 밖이면 안 된다.
