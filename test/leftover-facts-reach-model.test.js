@@ -128,6 +128,18 @@ test('★ 선빨강 (나) — 옮긴 뒤의 남은자리 사실이 옮기기 전
     + '있는데 낡은 목록(files:6 · .md 5)이 실려 같은 입력 안에서 「남은 파일 1개」와 모순된다(§7-cd ④ 실측).');
 });
 
+test('★ 선빨강 (가)-2 — 파일이 0이어도 폴더가 남았으면 그 수가 문장에 선다 (§7-ce-1 정정 ①)', async () => {
+  // files===0 조기 반환이 폴더를 침묵시킨다 — (가)가 겨눈 J6 계보의 같은 얼굴.
+  // 「파일이 더 없다」는 참이지만, 폴더 2가 0글자면 침묵이 「다 봤다」로 읽힌다.
+  const 요약 = compactResult({
+    from: '/Downloads', to: '/Downloads/Docs', moved: [{}], skipped: [],
+    remainingSource: { path: '/Downloads', items: 2, files: 0, folders: 2, topExtensions: [] },
+  });
+  assert.match(요약, /남은 파일: 0개/, '0 의 정직 문장이 무너졌다');
+  assert.match(요약, /남은 폴더: 2개/,
+    '**파일 0 문장이 폴더 2를 침묵시켰다** — 남은 것이 있는데 「더 없다」 계열 문장만 나간다(J6 계보)');
+});
+
 test('닻 — 폴더 0개면 문장은 예전 그대로다(없는 것을 말하지 않는다)', async () => {
   const 요약 = compactResult({
     from: '/Downloads', to: '/Downloads/Docs',
