@@ -3566,18 +3566,30 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // (새 저장소 아님 — 세션이 이미 나르는 상태). 실측: 신분 승계("방금 다룬 파일")는 보였는데
   // 산출물 신분이 없어, 열 명세 같은 추가 요청에 모델이 같은 파일을 고치지 않고 새로 만들었다
   // (S4 결과 파일 2개 · 2/4). 판정은 계약(plan)과 원장(영수증)의 대조뿐이다 — 문구 판정 0.
+  // ── ④ 자기 산출물 배치(§7-bn · 2026-08-16) — **배선이 write 전용이었다** ────────────
+  // 3재판 누적 실물: 백업 폴더는 bulk_copy 로, 압축본은 터미널로 생기는데 이 필터가 write 만
+  // 세서 **자기가 방금 만든 것의 자리가 다음 판단에 안 갔다.** 그래서 압축본이 백업 밖에 생기고
+  // 정리 발화의 전제가 깨졌다(판례 :1096 · 세대1 R1·2차 R1·3차 R2). 손 종류 차별 없이 —
+  // 창조·이동의 **목적지 경로**(write=path · bulk_copy/bulk_move=to)를 잇는다. 자리 선택은
+  // 여전히 모델 몫이다(사실 줄 하나 — 기본 배치·폴백 0). 터미널 산출물은 원장에 경로가 없어
+  // 못 잇는다(§7-bn 한계 신고).
+  const 산출물자리 = (r) => {
+    const a = r?.actualCall?.args ?? {};
+    if (a.action === 'write' && typeof a.path === 'string') return a.path;
+    if ((a.action === 'bulk_copy' || a.action === 'bulk_move') && typeof a.to === 'string') return a.to;
+    return null;
+  };
   const 산출물영수증들 = plan.deliverableAssessment === 'file'
     && ctx.deferCompletionSettlement !== true
     ? turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file'
-      && r?.actualCall?.args?.action === 'write'
-      && typeof r?.actualCall?.args?.path === 'string'
+      && 산출물자리(r) !== null
       && r?.result !== undefined)
     : [];
   if (산출물영수증들.length) {
     workingState = 이어받기정리(deriveWorkingState(workingState, {
       withinTurn: true,
-      deliverables: 산출물영수증들.map((r) => ({ path: r.actualCall.args.path })),
+      deliverables: 산출물영수증들.map((r) => ({ path: 산출물자리(r) })),
     }), ctx.connectors);
   }
   reply = await 답완성({
