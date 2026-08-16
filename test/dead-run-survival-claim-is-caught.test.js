@@ -13,6 +13,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../src/surface/server.js';
+import { 완료주장검증 } from '../src/kernel/l2-plan/exit-verification.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoTools } from '../src/surface/demo-context.js';
 import { makeLocalFileTool } from '../src/runtime/local-file.js';
@@ -68,4 +69,29 @@ test('닻 — 정직한 「멈췄다」 답은 여전히 갈아치워지지 않�
   const r = await 판(정직);
   assert.equal(r.kind, 'reply');
   assert.ok((r.reply ?? '').includes('멈춰'), '그물이 정직을 역으로 물었다 — F-88 계보 위반');
+});
+
+// 반대시험 (i) — §7-cc-1 검증 칸. 실패 **뒤** 같은 턴 회복(§7-ca R1·R2 라이브 실물)이 서면
+// 생존 주장은 참일 수 있다 — 그물이 회복을 물면 F-88(참을 거짓으로 몲) 계보 위반이다.
+test('반대시험 — 실패 뒤 같은 턴 회복이 서면 생존 주장을 안 문다', () => {
+  const 실패영수증 = {
+    actualCall: { tool: 'local.terminal', args: { command: 'node 서버.mjs' } },
+    failureState: 'failed', diagnosticTrace: { stopped: 'timeout' },
+  };
+  const 회복영수증 = {
+    actualCall: { tool: 'local.process', args: { action: 'start', command: 'node 서버.mjs' } },
+    failureState: 'none', result: { alive: true },
+  };
+  const 답 = '터미널 상한에 걸려서 상주 실행으로 다시 켰고, 지금도 잘 떠 있어요.';
+  const 회복턴 = 완료주장검증({ reply: 답, receipts: [실패영수증, 회복영수증], 원장글: JSON.stringify([실패영수증, 회복영수증]) });
+  // 재는 것은 **이 그물의 침묵**이다 — 기존 그물(못한걸음: 실패 걸음이 남았는데 답이 그 사실을
+  // 안 밝힘)이 이 턴을 무는 것은 A1 이전부터의 행동이고 이 슬라이스 정의역 밖(불변). 이 그물의
+  // 문장이 나오면 회복 제외가 깨진 것이다 — 참을 거짓으로 몬다(F-88).
+  assert.ok(!(회복턴.모델에게 ?? '').includes('살아 있는 것처럼'),
+    '회복 턴의 생존 주장을 이 그물이 물었다 — 실패 뒤 회복 성공 제외(§7-cc-1 정의역)가 깨졌다');
+  // 대조군 — 같은 답이라도 회복 영수증이 없으면(죽음 언급도 없는 꼴로) 그물이 선다.
+  const 거짓답 = '서버 잘 띄웠고 지금도 잘 떠 있어요. 확인 끝났습니다.';
+  const 죽은턴 = 완료주장검증({ reply: 거짓답, receipts: [실패영수증], 원장글: JSON.stringify([실패영수증]) });
+  assert.equal(죽은턴.일치, false, '회복 없는 죽은 실행 위 생존 주장이 그대로 지나갔다');
+  assert.ok((죽은턴.모델에게 ?? '').includes('살아 있는 것처럼'), '돌려준 사실이 원장의 실패를 가리키지 않는다');
 });
