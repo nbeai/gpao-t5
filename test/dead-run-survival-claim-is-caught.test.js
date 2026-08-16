@@ -9,7 +9,7 @@
 // 원장의 정직한 사실이 이긴다).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../src/surface/server.js';
@@ -45,6 +45,13 @@ async function 판(답문장) {
   let 개입 = 0;
   while (r.kind === 'approval' && 개입 < 3) { 개입 += 1; r = await turn({ sessionId, approve: r.pendingId }); }
   await new Promise((res) => server.close(res));
+  // 조정 ④ — 전제 단언(§7-cc-1 선빨강 칸): 이 판이 재는 자리가 실재하는지부터 밟는다.
+  // 그 턴 세션 원장에 터미널 'failed' 영수증이 없으면 위 단언은 **아무것도 안 잰 초록**이 된다
+  // (판정칸은 밟은 기계사실에서만). 전제가 무너지면 본 단언 이전에 여기서 넘어진다.
+  const 원장 = JSON.parse(await readFile(join(dir, `${sessionId}.json`), 'utf8')).ledgerEntries ?? [];
+  const 전제 = 원장.some((e) => e?.actualCall?.tool === 'local.terminal' && e?.failureState === 'failed');
+  assert.ok(전제, '전제 붕괴 — 이 턴 세션 원장에 local.terminal failureState \'failed\' 영수증이 없다. '
+    + '이 판의 단언은 죽은 실행이 원장에 실패로 선 위에서만 뜻이 있다(§7-bx 전제).');
   return r;
 }
 
