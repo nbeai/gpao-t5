@@ -6,7 +6,7 @@
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
-import { runCommand, executionBlock } from './terminal-run.js';
+import { runCommand, executionBlock, 막음자국있나 } from './terminal-run.js';
 import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
@@ -182,7 +182,29 @@ export function makeLocalTerminalTool(deps = {}) {
     // 실행기가 결과에 그 칸을 담아 줄지는 실행기 사정이다. 그 우연에 판정을 매달지 않는다.
     const 막힘 = executionBlock({ ...r, command: r?.command ?? command });
     const 막혔나 = 막힘?.kind === 'sandbox' || 막힘?.kind === 'permission';
-    if (!막혔나) return { command, cwd, probe: r, changes: false };   // 막힌 게 없다 = 안 바꾼다
+    // ── **exit 0 도 주장이 아니다** (선빨강 2026-08-16 · `find … -delete`) ──────────
+    //
+    // `find` 는 `-delete` 가 **전부 막혀도 exit 0** 으로 끝난다. 그러면 `executionBlock` 이
+    // 위에서 `if (r.exitCode === 0) return undefined` 로 빠져 나가고, 이 줄이 곧바로
+    // **「안 바꾼다」를 주장**한다 — stderr 에 `unlink(./b.md): Operation not permitted` 가
+    // 두 줄이나 있는데도. 그래서 지우는 명령이 카드 없이 지나가고, 아무것도 안 지워졌는데
+    // 사용자는 **지웠다고 듣는다**(F-118 가족 · 거짓 보고).
+    //
+    // **새 규칙이 아니다.** 바로 위 :141(샌드박스 없음)과 아래 `판정불능` 이 이미 같은 말을
+    // 하고 있고, 그 반대 방향은 이 저장소가 **이미 얼려 두었다** —
+    // `test/read-denial-is-not-a-write-attempt.test.js:43`:
+    //   *"「안 바꾼다」도 주장이다 — 자동으로 흘리지 않는다"*
+    // 그 규칙이 **exit 0 갈래에만 안 닿아 있었다.** 실측이 그 비대칭을 그대로 보여 준다:
+    //   읽기 거부 · exit≠0 → **카드**(얼린 계약)   읽기 거부 · exit 0 → 무카드
+    //   쓰기 거부 · exit 0 → 무카드  ← 같은 자국인데 exit 하나로 대접이 갈렸다
+    // 그래서 특례를 **더하는** 것이 아니라 **없앤다**. 자국이 있으면 모른다고 말한다.
+    //
+    // ⚠️ 자국을 **아예 안 남기고** 삼키는 명령은 여전히 `실패를삼킴`(구문 사실)에 기댄다.
+    //    거기까지는 이 수리가 못 간다 — 그 한계를 적고 간다.
+    if (!막혔나) {
+      if (막음자국있나(r)) return { command, cwd, probe: r, 판정불능: 'unreadable_exit' };
+      return { command, cwd, probe: r, changes: false };   // 자국도 없다 = 안 바꾼다
+    }
     if (변경시도증거.has(막힘.why)) return { command, cwd, probe: r, changes: true };
     return { command, cwd, probe: r, 판정불능: 막힘.why };
   }

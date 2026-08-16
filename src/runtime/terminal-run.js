@@ -223,6 +223,20 @@ function 명령어자리인가(이름, command) {
  */
 const 실패를삼킴 = /\|\|\s*(?:true|:)\s*(?:$|&|;|\))|2\s*>\s*(?:\/dev\/null|&1\s*>\s*\/dev\/null)|(?:^|\s)set\s+\+e(?:\s|$)/;
 
+/**
+ * **우리 막음의 자국.** 이 자국이 있으면 「아무것도 안 막혔다」를 주장할 수 없다.
+ *
+ * `executionBlock` 이 exit≠0 갈래에서 쓰던 그 정규식 **그대로**를 밖으로 낸 것이다 —
+ * 새 어법이 아니고 목록도 아니다(어법 갈래 수는 오히려 하나 줄었다 ·
+ * `test/blocked-wording-list-is-frozen.test.js`). 쓰는 자리가 하나 더 생겼을 뿐이다.
+ */
+const 막음자국 = /operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i;
+
+/** 이 실행에 **우리가 막은 자국**이 남았는가. exit code 와 무관하게 본다. */
+export function 막음자국있나(r) {
+  return 막음자국.test(`${r?.stderr ?? ''}\n${r?.stdout ?? ''}`);
+}
+
 export function executionBlock(r) {
   if (!r) return undefined;
   if (r.exitCode === 0 && 실패를삼킴.test(String(r.command ?? ''))) {
@@ -334,7 +348,7 @@ export function executionBlock(r) {
   // 그 방법(`명령어자리인가`)의 확장이다. 막힌 이름이 명령의 **리다이렉트 대상**이면 쓰기,
   // 명령 문자열에 그 자리가 없으면 **모른다**. 모르면 승인으로 가되(kind 는 그대로 sandbox)
   // **모른다고 말한다** — 안 밟은 사실을 카드에 적으면 사용자는 일어나지도 않을 변경에 승인한다.
-  if (/operation not permitted|not permitted|Permission denied|EPERM|EACCES|EROFS/i.test(t)) {
+  if (막음자국.test(t)) {
     const 막힌자리 = 막힌이름
       ?? t.match(/[:\s]([^\s:]+):\s*(?:permission denied|operation not permitted)/i)?.[1];
     if (막힌자리 && 명령이지목한자리인가(막힌자리, r.command)) {
