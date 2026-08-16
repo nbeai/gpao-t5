@@ -458,6 +458,31 @@ export function makeLocalTerminalTool(deps = {}) {
       // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). granted 로 실제 돈 실행에서만
       // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
       const 생긴것 = 관측 && 실제모드 === 'granted' ? await 새로생긴것들(cwd, 관측) : null;
+      // §7-bx — **타임아웃으로 죽은 실행은 실패다**(오너 결정 ③ · 비교군 셋 동형). granted/reach
+      // 로 실제 돈 실행이 상한에서 강제 종료됐는데 성공 모양으로 돌아가면 영수증이
+      // failureState:none 이 되어, 원장은 깨끗한 성공을 말하고 「내용 확인 안 됨」 표식·복구
+      // 사다리가 영영 안 돈다. 부분 stdout·관측은 진단면으로 계속 준다(내용은 주되 사실로
+      // 승격하지 않는다 · :863 계약). result 는 그대로 둔다 — tool-runner 실패 갈래는 result 를
+      // 안 옮기므로 원장 오염이 없고, §7-bv 단위 닻이 산다(검문 ③).
+      if (실제로돌았나 && r.stopped === 'timeout') {
+        return {
+          failed: true,
+          result: {
+            command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
+            stdout: r.stdout, stderr: r.stderr, stopped: r.stopped, applied: 실제로돌았나,
+            ...(다음수단 ? { 다음수단 } : {}),
+          },
+          다음수단,
+          diagnosticTrace: {
+            stopped: 'timeout', exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr,
+            // 잘림은 내용의 성질에 대한 사실이다 — 없으면 모델이 부분을 전체로 읽는다(검문 ①).
+            ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
+            ...(끝난이유 ? { failedBy: 끝난이유.kind, failReason: 끝난이유.why } : {}),
+            ...(생긴것?.length ? { 실행중새로생긴것: 생긴것 } : {}),
+          },
+          userSafeSummary: `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)}초).`,
+        };
+      }
       return {
         result: {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
