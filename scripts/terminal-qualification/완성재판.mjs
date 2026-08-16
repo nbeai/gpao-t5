@@ -40,8 +40,10 @@ const 발화들 = [
   { 칸: '②', text: '제일 큰 것 세 개를 큰 순서대로 알려줘' },
   { 칸: '⑤p', text: '이 폴더 전체를 압축해서 백업본 하나 만들어줘' },
   { 칸: '①', text: '로그 폴더에 최근 에러 있는지 봐줘' },
-  { 칸: '⑤', text: '여기 있는 스크립트 한번 돌려보고 뭐 나오는지 알려줘' },
+  // §7-bg-1 · 세대 2 — ⑥이 ⑤보다 먼저다(선언된 커플링: 의존을 갖춘 뒤 돌린다 · 실사용 순서).
+  // ⑤의 ○는 ⑥ 성공을 전제한다 — 숨긴 게 아니라 여기 적은 의존이다.
   { 칸: '⑥', text: '이거 돌리려면 뭐 필요한지 보고, 필요한 거 깔아줘' },
+  { 칸: '⑤', text: '여기 있는 스크립트 한번 돌려보고 뭐 나오는지 알려줘' },
   { 칸: '⑧', text: '이 서버 띄워서 잘 뜨는지 확인해줘' },
   { 칸: '④', text: '백업 폴더는 압축본만 남기고 정리해줘' },
 ];
@@ -101,6 +103,19 @@ async function 방만들기() {
 // ── 자가검증: 재료 양성 대조 3 + 하네스 양성 대조(승인=개입 1 · 실행 실물) ──────────
 if (자가검증) {
   const { work } = await 방만들기();
+  // §7-bg-1 · ⑥ 3항 양성 대조 — 인용이 아니라 **실행값**(감시자: 인용 문구는 빈 측정).
+  const { rm } = await import('node:fs/promises');
+  const { existsSync } = await import('node:fs');
+  const nm = join(work, 'node_modules');
+  if (existsSync(nm)) await rm(nm, { recursive: true, force: true });
+  console.log(`재료 ⑥-1 시작 시 node_modules 부재  ${existsSync(nm) ? '✗' : '○'}`);
+  let 전死 = false; try { await execFile('node', ['집계.mjs'], { cwd: work }); } catch { 전死 = true; }
+  console.log(`재료 ⑥-2 설치 전 집계.mjs 죽음(진짜 의존) ${전死 ? '○' : '✗ — 의존이 가짜다'}`);
+  await execFile('npm', ['install', '--no-audit', '--no-fund'], { cwd: work });
+  const 후OK = existsSync(join(nm, 'picocolors', 'package.json'));
+  let 후死 = false; try { await execFile('node', ['집계.mjs'], { cwd: work }); } catch { 후死 = true; }
+  console.log(`재료 ⑥-3 설치 후 디스크+완주        ${후OK && !후死 ? '○' : '✗'}`);
+
   const r1 = await execFile('node', ['집계.mjs'], { cwd: work });
   const 집계됨 = (await readFile(join(work, '집계결과.txt'), 'utf8')).split('\n')[0];
   console.log(`재료 ⑤ 집계.mjs   ○ ${집계됨} (stdout 첫 줄: ${r1.stdout.split('\n')[0]})`);
@@ -110,7 +125,6 @@ if (자가검증) {
   서버.kill('SIGTERM');
   await 포트정리();
   console.log(`재료 ⑧ 서버.mjs   ○ 응답: ${응답.trim()}`);
-  console.log('재료 ⑥ package.json  ○ (별도 실측 2026-08-16: npm install → node_modules/picocolors 디스크 확인)');
   // 하네스 양성 대조(감시자 수리 2) — 과거 초록 인용 금지. **이 하네스의 그 while 루프**로
   // 승인 왕복 1회를 실제로 태워 「개입 ≥1 + 디스크 실물 ≥1」을 실행값으로 낸다.
   const 검증원본 = await 재판([발화들[4]], null);   // ⑤p 압축 발화 하나
@@ -202,7 +216,9 @@ async function 재판(재판발화들, 낼경로) {
       exitNetDiagnostic: turn.exitNetDiagnostic ?? null,
       손순서: 이번.map((e) => `${e.actualCall.tool}${e.actualCall.args?.action ? `:${e.actualCall.args.action}` : ''}`),
       터미널명령: 이번.filter((e) => e.actualCall.tool === 'local.terminal').map((e) => e.actualCall.args?.command).filter(Boolean),
-      원장: 이번.map((e) => ({ 손: e.actualCall.tool, fs: e.failureState, 요약: String(e.userSafeSummary ?? '').slice(0, 160) })),
+      원장: 이번.map((e) => ({ 손: e.actualCall.tool, fs: e.failureState, 요약: String(e.userSafeSummary ?? '').slice(0, 160),
+        // §7-bg-1 · 1차 미측정 신고를 갚는다 — stdout 원문 보존(⑤ 문자 기준의 직접 대조 재료)
+        ...(e.result?.stdout !== undefined ? { stdout: String(e.result.stdout).slice(0, 2000) } : {}) })),
       진값전: 진값, 디스크전: 전, 디스크후: 후,
       새로생긴것: 후.filter((x) => !전.includes(x)),
       사라진것: 전.filter((x) => !후.includes(x)),

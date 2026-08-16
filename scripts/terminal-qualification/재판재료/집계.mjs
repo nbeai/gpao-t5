@@ -3,6 +3,8 @@
 // 이 저장소가 회차마다 하는 그 일(재료실측)의 방 안 판이다.
 import { readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+// §7-bg-1 · ⑥ 진짜 의존성 — 설치 없이는 여기서 죽는다(재료 결함 수리: 1차의 picocolors 미사용).
+import pc from 'picocolors';
 const 뿌리 = process.cwd();
 const 줄들 = [];
 let 합 = 0; let 수 = 0;
@@ -18,4 +20,4 @@ async function 걷기(d) {
 await 걷기(뿌리);
 const 본문 = `md ${수}개 · 합계 ${합}바이트\n${줄들.join('\n')}\n`;
 await writeFile(join(뿌리, '집계결과.txt'), 본문);
-console.log(본문);
+console.log(pc.green(본문));
