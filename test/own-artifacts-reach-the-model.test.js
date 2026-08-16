@@ -30,7 +30,7 @@ const 복사모델 = (자리) => {
       if (!opts.tools?.length) return '끝.';
       if (!골랐다) {
         골랐다 = true;
-        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'bulk_copy', path: join(자리, '시작문서'), to: join(자리, '백업') } }] };
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'bulk_copy', path: join(자리, '시작문서'), to: join(자리, '백업'), match: { extensions: ['.md'] } } }] };
       }
       return { text: '복사해 뒀어요.', toolCalls: [] };
     },
@@ -46,6 +46,41 @@ test('★ 선빨강 — bulk_copy 로 만든 산출물 자리가 상태(결과�
     '**bulk_copy 산출물이 결과물 줄에 안 선다** — 배선이 write 전용이라, 다음 턴(압축)의 모델은 '
     + '자기가 방금 만든 백업 폴더의 존재를 상태로 못 받는다. 그래서 압축본이 밖에 생기고 '
     + 'u10 전제가 깨진다(3재판 반복 실물)');
+});
+
+// ── §7-bn-2 계약 분리 — **사실 줄과 완료 봉인은 다른 계약이다** ──────────────────
+// F-64 이월 정산(deferCompletionSettlement)은 단일 write 완료 봉인 계약(server.js
+// settleSingleFileCompletion)이다. 그 깃발이 켜졌다고 bulk_copy 「사실 줄」까지 닫으면
+// 안 된다 — 봉인은 write 에만 건다. ctx 는 runTurn 에 전달한 객체 그대로이므로(895행)
+// 깃발을 심어 소비 계약(3591행)만 문다. **동반물 차이 신고**: 실제 defer=true 는 항상
+// completionContract·completionContractRef·workRef 와 함께만 존재한다(1951행 상위 게이트) —
+// 이 harness 는 그 셋이 없어 제품 경로 재현이 아니며, 등급은 계약 정합 정리다(§7-bn-2).
+test('★ 선빨강 — defer(F-64) 켜져도 bulk_copy 사실 줄은 선다 (봉인은 write 계약이다)', async () => {
+  const 자리 = await 방();
+  const tools = demoTools({ localFile: makeLocalFileTool({ roots: [자리], dataDir: 자리 }) });
+  const ctx = { env: demoEnv(), tools, model: 복사모델(자리), deferCompletionSettlement: true };
+  const r = await runTurn({ text: '시작문서 md 를 백업 폴더에 복사해 둬' }, ctx);
+  assert.ok(JSON.stringify([r.workingState ?? null, r.contextShown ?? null]).includes('백업'),
+    '**defer 깃발이 사실 줄까지 닫았다** — F-64 봉인(단일 write 정산)은 write 계약인데 '
+    + 'bulk_copy 산출물의 자리 공급까지 지워, 다음 판단이 자기 산출물 자리를 못 받는다');
+});
+
+test('보존 — defer(F-64) 켜지면 write 산출물 줄은 커널이 세우지 않는다 (봉인 계약 불변 닻)', async () => {
+  const 자리 = await 방();
+  const tools = demoTools({ localFile: makeLocalFileTool({ roots: [자리], dataDir: 자리 }) });
+  let 골랐다 = false;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: 'FILE', toolCalls: [] };
+      if (!opts.tools?.length) return '끝.';
+      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'write', path: join(자리, '메모.md'), text: '적음' } }] }; }
+      return { text: '적어 뒀어요.', toolCalls: [] };
+    },
+  };
+  const ctx = { env: demoEnv(), tools, model, deferCompletionSettlement: true };
+  const r = await runTurn({ text: '메모 하나 적어줘' }, ctx);
+  assert.ok(!JSON.stringify([r.workingState ?? null, r.contextShown ?? null]).includes('이 작업에서 만든 결과물 파일'),
+    'defer 인데 write 결과물 줄이 커널에서 섰다 — F-64 이월 정산(서버 봉인)이 이중으로 선다');
 });
 
 test('보존 — write 경로는 지금처럼 선다 (기존 배선 불변 닻)', async () => {

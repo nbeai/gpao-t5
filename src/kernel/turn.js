@@ -3579,12 +3579,18 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     if ((a.action === 'bulk_copy' || a.action === 'bulk_move') && typeof a.to === 'string') return a.to;
     return null;
   };
+  // 계약 분리(§7-bn-2): **사실 줄과 완료 봉인은 다른 계약이다.** F-64 이월 정산(defer)은
+  // 「단일 write 의 완료 봉인」(server.js settleSingleFileCompletion)을 미루는 계약이지, 원장에
+  // 성공으로 선 창조·이동의 **자리 사실**까지 미룰 이유가 없다 — 봉인 대상(write)에만 건다.
+  // 등급은 계약 정합 정리다: 3재판 ④의 재현된 가설은 write 전용 정의역(위 산출물자리가 수리)
+  // 이고 — 3재판 ④ 실물의 zip 자리는 이 정의역 밖이다(§7-bn 한계) — defer 가 3재판에서
+  // 켜졌다는 원장 근거는 없다(§7-bn-2 정정).
   const 산출물영수증들 = plan.deliverableAssessment === 'file'
-    && ctx.deferCompletionSettlement !== true
     ? turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file'
       && 산출물자리(r) !== null
-      && r?.result !== undefined)
+      && r?.result !== undefined
+      && (r.actualCall.args.action !== 'write' || ctx.deferCompletionSettlement !== true))
     : [];
   if (산출물영수증들.length) {
     workingState = 이어받기정리(deriveWorkingState(workingState, {
