@@ -50,7 +50,7 @@ const SECRET_DIRS = [
 const SECRET_NAMES = [
   /^\.env(\.|$)/i, /^\.netrc$/i, /^\.npmrc$/i, /^\.pgpass$/i,
   /^id_(rsa|dsa|ecdsa|ed25519)$/i, /^.*\.(pem|key|p12|pfx|keystore|jks)$/i,
-  /^credentials$/i, /^service-account.*\.json$/i, /(^|[-_.])secret/i, /(^|[-_.])token/i,
+  /^credentials$/i, /^service-account.*\.json$/i, /(^|[-_.])secrets?([-_.]|$)/i, /(^|[-_.])tokens?([-_.]|$)/i,
   /^wallet\.dat$/i, /\.kdbx$/i,
   // F7.2: 흔한 **평문 자격증명**이 정확일치 규칙 사이로 빠져 있었다(감사 2026-08-01).
   //   `.git-credentials` 는 `/^credentials$/` 정확일치에 안 걸렸고, 셸 히스토리는 입력한
@@ -71,7 +71,13 @@ const SECRET_NAME_PATHS = [
   `${마지막칸}id_(rsa|dsa|ecdsa|ed25519)$`,
   `\\.(pem|key|p12|pfx|keystore|jks)$`,
   `${마지막칸}credentials$`, `${마지막칸}service-account[^/]*\\.json$`,
-  `${마지막칸}([^/]*[-_.])?secret[^/]*$`, `${마지막칸}([^/]*[-_.])?token[^/]*$`,
+  // ⑥ npm 경로(§7-be · F3 가족 · 오너 위임 안 ㄱ): 접두 매칭 `token[^/]*` 이 **파생 단어**까지
+  // 삼켰다 — npm 내부의 tokenize.js(평범한 코드)가 secret 이 되어 granted 승인 뒤에도 안 열렸고
+  // `Cannot find module './tokenize'` 로 install 이 죽었다(완성재판 R2·R3 실측 · 같은 방 비교군 성공).
+  // 좁히는 축: token/secret 은 **단어로 끝나거나 구분자([-_.])를 지나서만** 이어진다 —
+  // api-token · tokens · token.txt · my_secret-old 는 그대로 막고, tokenize·tokenizer·secretary
+  // 같은 파생어는 정의역 밖. 하한은 검사 닻이 문다(secret-names-do-not-eat-source-files).
+  `${마지막칸}([^/]*[-_.])?secrets?([-_.][^/]*)?$`, `${마지막칸}([^/]*[-_.])?tokens?([-_.][^/]*)?$`,
   `${마지막칸}wallet\\.dat$`, `\\.kdbx$`,
   `${마지막칸}\\.git-credentials$`, `${마지막칸}\\.credentials(\\.[^/]+)?$`,
   `${마지막칸}\\.[^/]*_history$`, `${마지막칸}rclone\\.conf$`,

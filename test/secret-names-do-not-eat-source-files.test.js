@@ -11,7 +11,10 @@ import { protectionFor, secretProtection } from '../src/runtime/local-protection
 
 test('★ 선빨강 — tokenize.js(평범한 코드)가 secret 으로 판정되지 않는다', () => {
   const 판 = protectionFor('/usr/local/lib/node_modules/npm/node_modules/postcss-selector-parser/dist/tokenize.js');
-  assert.equal(판, undefined,
+  // 계약은 「secret 으로 삼키지 않는다」다. /usr/local/lib 이 system 등급인 것은 **다른 정당한
+  // 계약**(파일손이 시스템 자리를 안 바꿈)이고, 샌드박스 읽기 거부(npm 사망)의 근원이 아니다 —
+  // 읽기를 막던 것은 secret 의 namePatterns 였다(수리로 닫힘 · 아래 커널 판 검사).
+  assert.notEqual(판?.kind, 'secret',
     '**이름에 token 이 들어갔다는 이유로 코드 파일이 비밀이 됐다** — granted 승인 뒤에도 안 열려 '
     + 'npm 이 죽는다(재판 원문 오류와 문자 일치 재현). 계약은 비밀 파일이지 파생어가 아니다');
 });
