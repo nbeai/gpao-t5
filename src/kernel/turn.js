@@ -3573,11 +3573,23 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 창조·이동의 **목적지 경로**(write=path · bulk_copy/bulk_move=to)를 잇는다. 자리 선택은
   // 여전히 모델 몫이다(사실 줄 하나 — 기본 배치·폴백 0). 터미널 산출물은 원장에 경로가 없어
   // 못 잇는다(§7-bn 한계 신고).
-  const 산출물자리 = (r) => {
+  const 산출물자리들 = (r) => {
     const a = r?.actualCall?.args ?? {};
-    if (a.action === 'write' && typeof a.path === 'string') return a.path;
-    if ((a.action === 'bulk_copy' || a.action === 'bulk_move') && typeof a.to === 'string') return a.to;
-    return null;
+    if (r?.actualCall?.tool === 'local.file') {
+      if (a.action === 'write' && typeof a.path === 'string') return [a.path];
+      if ((a.action === 'bulk_copy' || a.action === 'bulk_move') && typeof a.to === 'string') return [a.to];
+      return [];
+    }
+    // 터미널 산출물(§7-bq) — 손이 관측해 온 「실행 구간에 새로 생긴 것」의 자리. 상대경로는
+    // 실행 자리(cwd) 기준의 사실이므로 절대경로로 펴서 적는다(어디의 상대인지 모델이 추측하지
+    // 않게) — 자리 선택이 아니라 좌표 명시다.
+    if (r?.actualCall?.tool === 'local.terminal' && Array.isArray(r?.result?.새로생긴것들)) {
+      const 기준 = typeof r.result.cwd === 'string' && r.result.cwd ? r.result.cwd : null;
+      return r.result.새로생긴것들
+        .filter((p) => typeof p === 'string' && p)
+        .map((p) => (기준 ? resolve(기준, p) : p));
+    }
+    return [];
   };
   // 계약 분리(§7-bn-2): **사실 줄과 완료 봉인은 다른 계약이다.** F-64 이월 정산(defer)은
   // 「단일 write 의 완료 봉인」(server.js settleSingleFileCompletion)을 미루는 계약이지, 원장에
@@ -3585,17 +3597,22 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 등급은 계약 정합 정리다: 3재판 ④의 재현된 가설은 write 전용 정의역(위 산출물자리가 수리)
   // 이고 — 3재판 ④ 실물의 zip 자리는 이 정의역 밖이다(§7-bn 한계) — defer 가 3재판에서
   // 켜졌다는 원장 근거는 없다(§7-bn-2 정정).
-  const 산출물영수증들 = plan.deliverableAssessment === 'file'
-    ? turnReceipts.filter((r) => (r?.failureState ?? 'none') === 'none'
+  // 터미널 산출물은 FILE 계약 **옆**에서 공급된다(§7-bq-1 · B2). 조건은 손 이름이 아니라
+  // 관측 사실(새로생긴것들 비어 있지 않음)이다 — probe·reach·상한 포기는 여기서 자동으로
+  // 빠진다. fileWorkIsInPlay·파일계약빈손·defer(write 전용)는 불변(B1 미끄럼 = 중단 신호).
+  const 터미널산출영수증인가 = (r) => (r?.failureState ?? 'none') === 'none'
+    && Array.isArray(r?.result?.새로생긴것들) && r.result.새로생긴것들.length > 0;
+  const 산출물영수증들 = turnReceipts.filter((r) => 터미널산출영수증인가(r)
+    || (plan.deliverableAssessment === 'file'
+      && (r?.failureState ?? 'none') === 'none'
       && r?.actualCall?.tool === 'local.file'
-      && 산출물자리(r) !== null
+      && 산출물자리들(r).length > 0
       && r?.result !== undefined
-      && (r.actualCall.args.action !== 'write' || ctx.deferCompletionSettlement !== true))
-    : [];
+      && (r.actualCall.args.action !== 'write' || ctx.deferCompletionSettlement !== true)));
   if (산출물영수증들.length) {
     workingState = 이어받기정리(deriveWorkingState(workingState, {
       withinTurn: true,
-      deliverables: 산출물영수증들.map((r) => ({ path: 산출물자리(r) })),
+      deliverables: 산출물영수증들.flatMap((r) => 산출물자리들(r).map((path) => ({ path }))),
     }), ctx.connectors);
   }
   reply = await 답완성({

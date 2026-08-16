@@ -12,7 +12,8 @@ import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
-import { isAbsolute, resolve, sep } from 'node:path';
+import { readdir } from 'node:fs/promises';
+import { isAbsolute, resolve, sep, join } from 'node:path';
 import { alive } from './local-process.js';
 
 /**
@@ -150,6 +151,53 @@ export function describeCommand(command, probe) {
   const block = executionBlock(probe);
   if (!block || (block.kind !== 'sandbox' && block.kind !== 'permission')) return `\`${command}\` 실행`;
   return `\`${command}\` — ${block.userWhy}`;
+}
+
+// ── 터미널 산출물 관측(§7-bq) — 상한 재귀 이름 집합과 그 diff ────────────────────
+//
+// 상한을 넘으면 **전부-포기**(null) 다 — 부분 목록은 「이게 전부」라는 거짓 완전 주장이 된다
+// (H09 계보: 빈/잘린 측정을 긍정 증거로 세우지 않는다). 못 재면 안 적는다(fail-closed).
+const 관측상한 = 2000;
+
+/** cwd 아래 상대경로 이름 집합(재귀). 상한 초과·읽기 실패 자리는 건너뛰되 셈에는 넣는다. */
+async function 이름집합(뿌리) {
+  const 모음 = new Set();
+  const 걷기 = async (자리, 앞) => {
+    let 항목들;
+    try { 항목들 = await readdir(자리, { withFileTypes: true }); } catch { return true; }
+    for (const e of 항목들) {
+      if (모음.size >= 관측상한) return false;
+      const 상대 = 앞 ? `${앞}/${e.name}` : e.name;
+      모음.add(상대);
+      if (e.isDirectory() && !(await 걷기(join(자리, e.name), 상대))) return false;
+    }
+    return true;
+  };
+  return (await 걷기(뿌리, '')) ? 모음 : null;
+}
+
+/**
+ * 실행 구간에 새로 생긴 것들(상대경로). **새 폴더는 그 폴더 한 줄로 접고 안 내려간다** —
+ * `bulk_copy` 의 `to`(폴더)가 한 줄인 것과 같은 자리 계약이다(알갱이 선택이지 배치 결정 아님).
+ * npm install 류의 대량 부산물이 이 접기로 한 줄(node_modules)이 된다.
+ * 뜻은 「실행 구간에 새로 생겼다」까지다 — 이 명령이 만들었다고 단정하지 않는다.
+ */
+async function 새로생긴것들(뿌리, 전) {
+  if (!전) return null;
+  const 모음 = [];
+  let 본수 = 0;
+  const 걷기 = async (자리, 앞) => {
+    let 항목들;
+    try { 항목들 = await readdir(자리, { withFileTypes: true }); } catch { return true; }
+    for (const e of 항목들) {
+      if (++본수 > 관측상한) return false;
+      const 상대 = 앞 ? `${앞}/${e.name}` : e.name;
+      if (!전.has(상대)) { 모음.push(상대); continue; }          // 새 항목 — 폴더면 접는다
+      if (e.isDirectory() && !(await 걷기(join(자리, e.name), 상대))) return false;
+    }
+    return true;
+  };
+  return (await 걷기(뿌리, '')) ? 모음.sort() : null;
 }
 
 export function makeLocalTerminalTool(deps = {}) {
@@ -305,6 +353,17 @@ export function makeLocalTerminalTool(deps = {}) {
 
       // 이미 계획 단계에서 probe 를 했고 승인을 받았으면 granted 로 실제 실행한다.
       const mode = args.granted ? 'granted' : 'probe';
+      // ── 터미널 산출물의 자리 관측(§7-bq · 오너 승인 2026-08-16) ──────────────────
+      //
+      // 실행이 디스크에 만든 것의 **경로**가 원장에 안 남아, 모델이 자기 산출물의 자리를
+      // 다음 판단에서 못 받았다(§7-bp ④ R3 실물 — 실행이 만든 것의 자리를 원장이 모른다).
+      // granted 로 실제 도는 실행에만 건다 — probe/reach 는 쓰기가 닫혀 있어(기계 칸
+      // `sandboxed`·`probeChangedNothing`) 안 돈 것의 창조물을 관측하면 그 줄이 거짓이 된다.
+      //
+      // 실행 전/후 cwd 의 이름 집합을 재귀로 훑어 diff 한다. 명령 이름 목록이 아니라 구조
+      // 사실이다(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 칸의 뜻은 「실행 구간에 새로
+      // 생겼다」까지다 — 인과를 단정하지 않는다(커널은 손이 가져온 것을 적는다).
+      const 관측 = mode === 'granted' ? await 이름집합(cwd) : null;
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
       const r = mode === 'granted'
@@ -388,6 +447,9 @@ export function makeLocalTerminalTool(deps = {}) {
       const 다음수단 = 끝난이유?.why === 'cwd_missing' && 기본자리 !== cwd
         ? [{ 방법: 'run', cwd: 기본자리, 왜: `이 손이 아는 자리 — 방금 쓴 ${cwd} 는 이 컴퓨터에 없다` }]
         : undefined;
+      // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). granted 로 실제 돈 실행에서만
+      // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
+      const 생긴것 = 관측 && 실제모드 === 'granted' ? await 새로생긴것들(cwd, 관측) : null;
       return {
         result: {
           command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
@@ -399,6 +461,8 @@ export function makeLocalTerminalTool(deps = {}) {
           // 결과 안에 싣는다 — 성공 갈래의 영수증은 손의 바깥 칸을 안 옮기고 `result` 만
           // 옮긴다(tool-runner). 여기 두어야 모델 입력(compactResult)까지 실제로 닿는다.
           ...(다음수단 ? { 다음수단 } : {}),
+          // 실행 구간에 새로 생긴 것들(상대경로 · cwd 기준) — 커널이 산출물 자리로 잇는다(§7-bq).
+          ...(생긴것?.length ? { 새로생긴것들: 생긴것 } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: 실제로돌았나,

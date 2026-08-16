@@ -42,9 +42,10 @@ function 실행기(자리, 만들것들) {
 
 const 묶는모델 = (자리) => {
   let 골랐다 = false;
-  return {
+  const m = {
+    서면물었다: false,
     async respond(tc, opts = {}) {
-      if (tc?.workContractAssessment) return { text: 'FILE', toolCalls: [] };
+      if (tc?.workContractAssessment) { m.서면물었다 = true; return { text: 'FILE', toolCalls: [] }; }
       if (!opts.tools?.length) return '끝.';
       if (!골랐다) {
         골랐다 = true;
@@ -53,6 +54,7 @@ const 묶는모델 = (자리) => {
       return { text: '묶어 뒀어요.', toolCalls: [] };
     },
   };
+  return m;
 };
 
 async function 판(자리, { run, model }) {
@@ -74,7 +76,8 @@ async function 판(자리, { run, model }) {
 
 test('★ 선빨강 — granted 터미널이 만든 파일의 자리가 결과물 줄에 선다', async () => {
   const 자리 = await 방();
-  const { server, turn, sessionId } = await 판(자리, { run: 실행기(자리, ['보관.tar']), model: 묶는모델(자리) });
+  const model = 묶는모델(자리);
+  const { server, turn, sessionId } = await 판(자리, { run: 실행기(자리, ['보관.tar']), model });
   try {
     const a = await turn({ sessionId, text: '시작문서를 묶어서 보관본 하나 만들어줘' });
     assert.equal(a.kind, 'approval', `승인에서 안 멈췄다: ${a.kind}`);
@@ -87,7 +90,27 @@ test('★ 선빨강 — granted 터미널이 만든 파일의 자리가 결과�
     assert.ok(결과물줄.some((줄) => 줄.includes('보관.tar')),
       '**터미널 산출물의 자리가 결과물 줄에 안 선다** — 원장에 경로 사실이 없어, 다음 판단의 '
       + `모델은 자기가 방금 만든 것의 자리를 못 받는다(§7-bp ④ R3 실물의 커널 자리). 결과물 줄: ${JSON.stringify(결과물줄)}`);
+    // B1 자물쇠(§7-bq-1 닻①): 터미널 산출물 줄은 FILE 계약 **옆**에서 선다 — 서면 왕복이
+    // 열렸다면 fileWorkIsInPlay 가 넓어진 것(B1 미끄럼)이고, 파일계약빈손 거짓 공급이 따라온다.
+    assert.equal(model.서면물었다, false,
+      '터미널만 쓴 턴에 FILE 서면 왕복이 열렸다 — B2(사실 줄 분리)가 아니라 B1(계약 확대)로 미끄러졌다');
   } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('보존 닻 — 관측 상한 초과면 산출물 주장 자체가 없다 (부분 목록 금지 · H09)', async () => {
+  const 자리 = await 방();
+  const run = async (command, { mode } = {}) => {
+    if (mode !== 'granted') {
+      return { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '',
+        stderr: 'cannot create: 많이.txt: Operation not permitted', durationMs: 1 };
+    }
+    for (let i = 0; i < 2100; i += 1) writeFileSync(join(자리, `많이-${i}.txt`), 'x');
+    return { command, cwd: 자리, mode: 'granted', exitCode: 0, stdout: '', stderr: '', durationMs: 1 };
+  };
+  const tool = makeLocalTerminalTool({ cwd: 자리, run, sandboxAvailable: () => true });
+  const r = await tool.handler({ command: 'seq 1 2100 | xargs touch', cwd: 자리, granted: true });
+  assert.equal(r.result.새로생긴것들, undefined,
+    '상한을 넘긴 관측이 부분 목록을 냈다 — 「안 봤음」이 「이게 전부」로 승격된다(H09)');
 });
 
 test('보존 닻 — probe 로만 돈 명령은 산출물 주장을 만들지 않는다', async () => {
