@@ -70,7 +70,20 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       // 계획 경로는 처음부터 이걸 받고 있었다(`turn.js` 의 terminalOp). 두 벌이라 한쪽만 챙긴 자리다.
       ...(probed?.cwd ? { cwd: probed.cwd } : {}),
       changes: probed?.changes,
-      granted: probed?.changes === true,
+      // **`granted` 는 「probe 를 이미 했다」는 사실이다** — 승인 뒤 실행이 이 깃발로
+      // granted 모드를 고른다(local-terminal.js: `args.granted ? 'granted' : 'probe'`).
+      // 예전엔 `changes === true` 일 때만 세워서, **판정불능(미상) 카드는 probe 를 이미
+      // 하고도 깃발이 없었다.** 그래서 사용자가 「이대로 진행할까요?」에 예라고 눌러도
+      // 승인 재개가 probe 를 **또** 돌았다 — 같은 카드 요약이 답으로 되풀이되고 파일은
+      // 영영 안 생겼다(라이브 3/3 · 나후-회차1~3 · §7-an-2 「승인 눌러도 파일 1/4」의 뿌리).
+      // 미상은 언제나 카드이므로 이 깃발이 승인 **전에** 실행을 여는 경로는 없다 —
+      // 실행은 카드 승인(input.approve → executePlan)을 지나야만 이 인자에 닿는다.
+      //
+      // **이 깃발의 뜻은 하나다**(감시자 이름 충돌 지적 · 2026-08-16): 「probe 를 이미 지났고,
+      // handler 가 이 인자로 불렸다면 그 실행은 허가(카드 승인 또는 자동 판정)를 이미 지났다」.
+      // 소비자 둘(실행 모드 선택 · lifecycle 승인 게이트, local-terminal.js)이 같은 뜻으로 읽는다 —
+      // lifecycle 위험 명령도 카드를 지나야만 여기 닿으므로 그 게이트가 열리는 것은 계약대로다.
+      granted: probed?.changes === true || probed?.판정불능 !== undefined,
       probeResult: probed?.probe,
       // **이 명령의 probe 가 밟은 사실만** 나른다 — 손의 정적 선언은 이 칸의 출처가 될 수 없다
       // (감시자 2026-08-16: 이 값은 승인 면제 문(아래 :202)까지 여는 열쇠라, 명령 밖에서 오면

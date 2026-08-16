@@ -250,6 +250,30 @@ test('(나) 계약 — `.` 전체를 새 압축본 하나로 만드는 것도 �
   assert.ok((await readdir(자리)).includes('backup.tgz'), '카드는 안 떴는데 실물이 없다');
 });
 
+// ── ★ 선빨강 — **승인이 실행에 닿지 않는다** (라이브 3/3 · 나후-회차1~3 · 2026-08-16) ──
+//
+// 판정불능(미상) 카드의 계약은 「이대로 진행할까요?」다. 사용자가 눌렀다. 그런데 라이브 3/3 에서
+// 승인 뒤 원장에 granted 실행이 **한 줄도 없고** probe 요약("아직 아무것도 안 바뀌었어요")만
+// 되풀이됐다 — 파일 0/3. 기제: `granted` 깃발이 `probed?.changes === true` 일 때만 서는데
+// (tool-boundary.js:73), 판정불능은 changes 가 없어 깃발이 안 선다. 승인 재개(executePlan)는
+// 그 인자 그대로 handler 를 부르고, handler 는 `args.granted ? 'granted' : 'probe'` 라
+// **probe 를 또 돈다.** 사용자의 승인이 실행에 영영 안 닿는다 — §7-an-2 「승인 눌러도 파일
+// 1/4」의 뿌리다. changes:true 카드는 깃발이 미리 서 있어 이 병이 안 보였다.
+test('★ 선빨강 — 판정불능 카드를 승인하면 실제로 실행된다 (probe 를 또 돌지 않는다)', async () => {
+  const 자리 = await 방();
+  const tools = demoTools({ localTerminal: makeLocalTerminalTool({ cwd: 자리 }) });
+  const ctx = { env: demoEnv(), tools, model: 한명령모델('tar -czf b-$(date +%s).tgz .') };
+  const 첫 = await runTurn({ text: '부탁해' }, ctx);
+  assert.equal(첫.kind, 'approval', '전제: $( ) 이름은 판정불능이라 카드다(울타리 ④)');
+
+  const 이어 = await runTurn({ approve: 첫.pendingId }, ctx);
+  const 실물 = (await readdir(자리)).filter((n) => n.endsWith('.tgz'));
+  assert.ok(실물.length > 0,
+    '**승인을 눌렀는데 실행이 안 됐다.** 원장에는 probe 요약만 또 남는다 — '
+    + '사용자가 「이대로 진행할까요?」에 예라고 답한 그 사실이 granted 로 안 흐른다');
+  assert.notEqual(이어.kind, 'approval', '승인 뒤에 같은 카드가 또 뜨면 죽은 버튼이다');
+});
+
 // ── (나) 계약 — **두 경로가 같은 답을 낸다** (감시자 조건 2 · 2026-08-16) ─────────
 // `revocable` 이 authority 에 닿는 통로는 두 벌이다(걸음 tool-boundary:103 · 계획 action-plan).
 // 한쪽만 고치면 「reversible:false 로 선언된 rm -rf 가 걸음 경로에서만 자동 실행됐다」
