@@ -1,0 +1,4038 @@
+diff --git a/design/NEXT-SESSION-UX.md b/design/NEXT-SESSION-UX.md
+deleted file mode 100644
+index e9ba5aec..00000000
+--- a/design/NEXT-SESSION-UX.md
++++ /dev/null
+@@ -1,147 +0,0 @@
+-# UX 개발 세션 지시문 (새 대화에 이 파일 경로만 주면 된다)
+-
+-> 새 대화를 열고 이렇게만 치면 됩니다:
+-> **`/Users/jyp/Developer/t5-p-op/design/NEXT-SESSION-UX.md 읽고 그대로 진행해`**
+-
+----
+-
+-저장소 `/Users/jyp/Developer/t5-p-op`. 브랜치 `claude/p-op-1-a-system-view`.
+-**보고는 전부 한국어로.** 오너는 윤님이다. 응답 후반에 **오너용 쉬운 설명**을 붙인다
+-(전문 용어 없이, 사용자가 무엇을 겪게 되는지로).
+-
+-## ★ 첫 줄
+-```
+-node scripts/agent-start.mjs
+-cat design/T5-UX-PLAN-ko.md          ← 이 세션의 정본. 전문을 읽어라
+-```
+-점검이 어긋난 칸을 내면 **고치고 시작한다.** 앞선 에이전트 열여덟이 낡은 커밋에서 시작했고,
+-그 점검이 지금은 네 번 중 네 번을 잡는다.
+-
+-## 0. 이 세션이 하는 일
+-
+-`design/T5-UX-PLAN-ko.md` 의 **조각 여섯(A~F)** 을 끝까지 가져간다.
+-기획서에 조각마다 **닫는 문장 · 소유 파일 · 반대시험**이 다 적혀 있다. 그대로 하면 된다.
+-
+-**판정 요지**(기획서 §0): 불편 스물몇의 뿌리는 셋이다.
+-```
+-① 그리는 방식 하나가 세 증상을 만든다 — 조각당 3.82ms 중 파싱은 0.024ms(0.6%),
+-   나머지 99.4%가 강제 동기 레이아웃. 「빠르다」「스크롤이 안 먹는다」「복사가 안 된다」가
+-   여기서 동시에 나온다. ★ 속도를 늦추는 것은 답이 아니다 — 원인이 속도가 아니다
+-② 「새 화면을 만들지 않는다」가 원칙으로 박혀 라우트 80개 중 24개가 화면 없음
+-③ 같은 원칙이 복사·수정·재생성 같은 기본 동작까지 삼켰다
+-```
+-
+-## 1. ★ 먼저 할 일 — 도는 셋을 받아라
+-
+-내가 조각 **A·C·E** 를 에이전트로 띄워 두고 세션을 넘긴다. 브랜치:
+-```
+-조각 A 스트리밍   worktree-agent-ab6a0fd39780b6771     ← **이것만 남았다**
+-조각 C 세션 제목   ✅ 병합 끝 — 아래 「C·E 에서 배운 것」
+-조각 E 자동화 문   ✅ 병합 끝 — 합쳐서 **4,034 초록**
+-
+-**C·E 를 합칠 때 `<style>` 맨 끝이 충돌했다** — 기획서 §1 이 예고한 그 자리다.
+-둘 다 규약을 지켜 덧붙였으므로 **마커만 지우면 둘 다 산다.** A 도 같을 것이다.
+-(마커를 남기면 CSS 가 끊겨 무관한 검사가 빨개진다 — 실제로 그랬다.)
+-```
+-**받는 절차**(오늘 여덟 번 했다 — 그대로 하면 된다):
+-```
+-git merge --no-commit --no-ff <브랜치>     충돌하면 손으로 푼다. 자동 병합으로 밀지 마라
+-npm test                                  전체 초록 확인(3,995+)
+-git commit --no-edit && git push
+-```
+-⚠️ **에이전트 보고를 그대로 믿지 마라.** 오늘 보고와 내 측정이 갈린 적이 있고,
+-**내 자가 틀린 적이 다섯 번**이었다(§4). 반대시험 값은 **네가 다시 재라.**
+-
+-### ★ C·E 에서 배운 것 — A 도 같은 함정에 걸린다
+-
+-**서버만 고치면 고친 게 아니었다.** C 는 제목을 갈라 놓고도 화면에서 똑같아 보일 뻔했다 —
+-`.sess .t` 의 `text-overflow:ellipsis` 가 **정확히 차수가 붙을 자리를 자른다.** 번호를
+-별도 칸으로 떼어서야 실제로 보였다. **오늘 세 번 겪은 「만든 것과 닿은 것은 다르다」의 네 번째다.**
+-
+-그리고 **데이터가 설계를 뒤집었다.** 내가 준 선택지 셋 중 둘(발화에서 특징 추출 · 모델이 제목
+-작성)을 오너 실물 95개가 기각했다 — 겹친 12묶음 전부 **첫 발화가 글자 하나까지 같았다.**
+-무엇을 뽑아도 안 갈린다. **재기 전에 고르지 마라.**
+-
+-**E 는 버튼 하나를 일부러 안 만들었다.** 서버의 `retry` 는 200 을 주지만 scheduled 상태에서는
+-**아무 전이도 안 만든다** — *"200 은 살아 있다는 증거가 아니다."* 「죽은 버튼 대신 텍스트」를
+-그대로 지킨 판정이다. 그리고 **멈춘 job 의 남은 `nextRunAt` 을 「다음 실행」으로 안 적었다**
+-(안 도는 것을 돈다고 말하지 않는다). `tickIntervalMs` 가 `GET /automation` 에 없어서
+-**「N초마다」를 지어내지 않았다.**
+-
+-**E 가 밟은 구조 사실 하나**: 이 저장소는 번들러가 없어 **화면 모듈 파일 하나 = 서버 라우트 한 줄**
+-이다(`server.js:2529-2540`). 새 `.js` 를 만들면 404 가 난다(E 가 실제로 밟았다).
+-그래서 E 는 새 파일을 버리고 `index.html` 안 한 블록으로 넣었다 —
+-**조각 F 가 서버를 만질 때 파일로 들어내면 된다.**
+-
+-셋이 같은 `<style>` 을 건드리면 충돌한다 — 기획서 §1 규약(맨 끝에 `/* 조각 X */` 로 덧붙이기)을
+-지켰는지 보고, 안 지켰으면 **그 자리만 손으로 정리**하라.
+-
+-## 2. 그다음 순서 (기획서 §3)
+-```
+-B 기본 동작   A 가 선행(스트리밍 중 복사는 A 없이는 안 된다)
+-D 손 기록     A 와 같은 파일 구간을 일부 만진다 → A 뒤
+-F 확장 통로   E 를 해 보고 나서 — 두 번째 화면이 생겨야 공통점이 보인다
+-```
+-B·D·F 도 기획서에 닫는 문장·소유·반대시험이 있다. **에이전트에 맡길 때 그 절을 가리켜라** —
+-브리핑을 길게 쓸 필요가 없다.
+-
+-## 3. ★ 안 하는 것 (기획서 §4 — 반드시 읽어라)
+-```
+-매 도구마다 승인 확인      헌장 정면 충돌. 어제 그 반대로 카드를 걷어냈다
+-상시 대시보드·폴링        「안티 대시보드 — 열 때만 채운다」
+-못 하는 것의 버튼         「죽은 버튼 대신 텍스트」
+-해시 라우팅·깊은 링크      값은 있으나 범위가 크다 — F 다음
+-index.html 쪼개기        지금 불편을 안 줄이고, 원문을 읽는 검사 9개와 부딪힌다
+-스트리밍 속도 늦추기       원인이 속도가 아니다
+-산출물 분리(아티팩트)      값은 크나 새 저장 개념·버전·분기가 따라온다 — 여섯을 닫고 별건으로
+-```
+-**좋아 보이는 걸 다 가져오면 T5 가 T5 가 아니게 된다.**
+-
+-## 4. ⚠️ 계측 규율 — 2026-08-12 에 여섯 번 데였다
+-```
+-서버는 node bin/gpao-t5.mjs --no-open     안 그러면 오너 크롬에 탭이 열린다
+-서버가 stdout 으로 알려준 포트를 써라       진입점은 포트가 막히면 조용히 옮긴다.
+-                                         포트를 박으면 **남의 서버와 말하게 된다**
+-process.exit 금지                         finally 를 건너뛰어 좀비가 남는다
+-회차마다 새 방·새 서버                     방을 재사용하면 중복에 걸려 「실패」로 읽힌다
+-응답과 저장은 다른 시각이다                 파일이 멎을 때까지 기다린 뒤 읽는다
+-/tmp 와일드카드 삭제 금지                  mkdtemp 가 돌려준 경로만
+-★ 자격 파일은 아예 열지 마라               model-connection.json 에 API 키 원문이 있다
+-오너 자리(~/.local/state/gpao-t5)는 읽기만
+-```
+-**음성 결과가 나오면 자를 먼저 의심하고 다른 방법으로 한 번 더 재라.**
+-그날 T5 가 *"이미 후보가 5개 떠 있어요"* 라고 했고 나는 환각으로 의심했다. **T5 가 맞았다.**
+-
+-## 5. 손대면 걸리는 검사 (기획서 §8)
+-```
+-audit-mutation.mjs:1384-1401     index.html 의 **정확한 리터럴 문자열 5개**를 찾는다.
+-                                 바꾸면 감사가 대상을 못 찾는다 — 조각 A·D 가 정면
+-test/scroll-keeps-place.test.js  호출 **순서**를 검사 — 조각 A 가 정면
+-그 밖 7개 + verify-package.mjs
+-```
+-바꿔야 하면 **C5 를 지켜라** — 검사를 무르게 하지 말고 **새 사실을 물게** 하고 이유를 적어라.
+-`preflight.mjs` 허용파일에는 `index.html`·`markdown.js` 가 **이미 있다**.
+-
+-## 6. 지금 본선 게이트가 빨갛다 (F-94)
+-`npm run gate` exit 1. worktree 25개는 정리했고 **남은 둘**:
+-```
+-① 문서 「후속/아직」 표현이 늘었다 (§16-B — 사용자가 부딪히는 것은 미루지 않는다)
+-② 검사가 21.2초 유휴 > 20초 (§17 — 잠든 검사·타임아웃 대기를 의심할 것)
+-```
+-`npm test` 는 초록이다. **게이트가 늘 빨가면 게이트가 아무것도 안 막는다** —
+-UX 조각과 별개로 이것도 닫아야 한다. 장부 F-94.
+-
+-## 7. 규율
+-- npm 의존성 0 · 헌장 넷 불변 · **판정 자를 고쳐 초록 만들기 금지**(C5) · **선빨강 먼저**
+-- 새 저장소·표면·게이트 금지 · 한국어 주석 · 주변 관습 유지
+-- `git add -A` 금지(명시 경로만) · 커밋 전 `git branch --show-current` · 끝나면 원격에 푸시
+-- 기준지문 동결 · 허용파일 목록은 **두 벌**(`preflight.mjs` 와 `test/s1-preflight.test.js`)
+-- 에이전트를 쓰면 브리핑 첫 줄에 `node scripts/agent-start.mjs` 를 넣고,
+-  **기획서의 그 조각 절을 가리켜라**(브리핑을 길게 쓰지 마라)
+-
+-## 8. 이 세션 밖의 일 (건드리지 마라)
+-```
+-design/NEXT-SESSION.md          다른 레인 — 자산 채점이 찾은 「①②③은 섰는데 ④가 안 되는 것」 셋
+-design/T5-MEMORY-GRAPH-CLOSE-ko.md  기억 그래프 — 착수 대기(닫는 문장 적혀 있음)
+-codex/operator-harness-p-op-3-discovery  미병합 브랜치 — 읽고 판정할 자리. 자동 병합 금지
+-```
+diff --git a/design/T5-FOLLOWUP-LEDGER-ko.md b/design/T5-FOLLOWUP-LEDGER-ko.md
+index 9e5223d3..3b478426 100644
+--- a/design/T5-FOLLOWUP-LEDGER-ko.md
++++ b/design/T5-FOLLOWUP-LEDGER-ko.md
+@@ -785,6 +785,48 @@ amend 를 되돌리고(`reset --hard origin/…`) 사실을 **이 항목으로**
+  ③ 이 구조를 쓰면 `npm run gate` 가 빨개진다 — 진입 감사와 정면으로 부딪힌다(F-101)
+ ```
+ 
++### F-103 · 열림 — **같은 답이 화면에 두 번 흘렀다**(오너 실사용 · 등재 2026-08-13)
++
++오너가 실물로 잡았다: *"답변이 두 번 연속 출력돼. 물리적으로 두 번이 아니라 **같은 응답을 두
++번에 걸쳐서 반복 스트리밍**한 다음 한 번 출력한다는 소리야."*
++
++**밟은 것**(오너 자리 `6a412df3…` 세션 · 읽기만 했다)
++```
++지속된 답 6개  전부 중복 없음(앞뒤 절반 동일 0/6 · 중복 문단 1/34 하나뿐)
++→ **저장된 답은 멀쩡하다.** 두 번 나온 것은 흐르는 동안의 미리보기뿐이다
++그 턴의 손      web.collect 2회(본문 1200자 → 1600자) = 커널 고리가 최소 두 바퀴 돌았다
++```
++
++**기전**(코드로 짚었다 — 재현은 아직 안 했다)
++```
++turn.js 에서 `ctx.onAnswerDelta` 를 모델에게 넘기는 자리가 **일곱**이다
++  693 · 814 · 1337 · 2564 · 2832 · 3127 · 3411
++turn-surface.js:96-137  그 일곱이 **미리보기 원장 하나**(`pv.shown`)에 함께 쌓는다
++⇒ 한 턴에 모델을 두 번 부르고 두 번 다 답을 쓰면, 화면에는 **답이 두 번 이어 붙는다**
++turn-surface.js:150-156 `미리보기정렬` 의 셋째 갈래 `pv.shown.endsWith(답)` 는 그때
++                        **누적 전체**를 답으로 삼는다 — 즉 저장까지 두 벌이 될 수 있는 길이 있다
++                        (이번 표본에서는 안 밟혔다. `retract()`/`answer_reset` 이 먼저 물린 것으로 보인다)
++```
++**이 병은 새것이 아니다.** `server.js:2092` 주석이 스스로 적어 뒀다 —
++*"실측 2026-08-04: `answer_reset` 이 1회 왔는데도 화면은 두 답이 붙은 채였다."*
++UX 조각 A·B·D 이전부터 있었고, 조각들은 이 자리를 안 건드렸다.
++
++**왜 로그로 못 잡나 — 이것이 이 항목의 알맹이다**
++`answer_delta` 는 **비지속**이다(`event-log.js:2` · `turn-event.js:14,22`). 그래서 사용자가
++화면에서 본 그 일이 **어디에도 안 남는다.** 이번에도 오너의 눈이 유일한 계측기였고, 나는 사후
++파일로는 「저장된 답은 멀쩡하다」까지만 말할 수 있다. **본 것을 못 재는 자리가 있다는 것 자체가
++결함이다** — 여는 순간 첫 일은 「한 턴에 모델을 몇 번 부르고 각각 몇 자를 흘렸는가」를
++지속 기록으로 남기는 것이다(대리지표 말고 그 값 자체).
++
++**안 고쳤다 · 이유**: 여기는 커널(`turn.js`·`turn-surface.js`)이고 **개발 레인 소유**다.
++UX 레인이 손대면 두 손이 같은 파일에 붙는다(F-100 에서 밟은 그 병). 좌표와 기전만 넘긴다.
++
++**열 때 먼저 답할 질문 하나**: 두 번째 모델 호출이 **왜 답을 다시 쓰는가.** 고리를 한 번 더
++도는 것 자체는 설계다(손을 더 쓰려고). 문제는 그 호출이 **손을 안 고르고 답만 다시 쓴 경우**다.
++그 경우를 갈라내면 화면에 흘릴지 말지가 정해진다 — 흘리기를 막는 것은 그다음이다.
++
++---
++
+ ### F-102 · 열림 — 「①②③은 섰는데 ④가 안 되는 것 셋」의 **셋 다 자가 틀린 것**이었다 (밟음·등재 2026-08-12)
+ 
+ 인계가 다음 임무로 지목한 자리다. 오너 개발철학(**증상 이름으로 일을 시작하지 않는다**)대로
+@@ -863,7 +905,7 @@ for (const path of worktrees) {
+ 
+ **F-94 를 안 닫는다.** 게이트 빨강 두 사유는 그대로 오너 판정으로 남는다 — 이건 별개 결함이다.
+ **★ 이 항목의 값은 「병합 사고」가 아니라 「인계 절차가 그 창을 만든다」는 것이다.**
+-`design/NEXT-SESSION-UX.md §1` 이 적어 준 받는 절차가 **정확히 그 순서**다
++역사 커밋 `7ae2a80`의 `design/NEXT-SESSION-UX.md §1`이 적어 준 받는 절차가 **정확히 그 순서**다
+ (`merge --no-commit` → `npm test` → `commit`). 절차가 옳아서 그대로 했고, 그 절차가 창을 냈다.
+ 
+ **─ 반대편(먹은 손)에서 본 사실 — 「커밋 규율로 막는다」가 기계로 지워진다** (같은 사고 · 다른 자리)
+diff --git a/design/T5-UX-COMPARATIVE-STUDY-ko.md b/design/T5-UX-COMPARATIVE-STUDY-ko.md
+new file mode 100644
+index 00000000..ca308827
+--- /dev/null
++++ b/design/T5-UX-COMPARATIVE-STUDY-ko.md
+@@ -0,0 +1,151 @@
++# 비교군 UX 정밀 분석 → T5 현재 → 무엇을 해야 매끄러워지는가 (2026-08-13)
++
++> **권위: 근거 문서(계획서 아님).** OpenClaw·Hermes와 T5 UX를 대조한 당시 연구 증거다.
++> 현재 작업은 `design/T5-FINAL-ASSEMBLY-ko.md`, 전체 계획은 `design/T5-PLAN.md`에서만 정한다.
++> 아래 처방·우선순위·다음 회차를 현재 작업 지시로 사용하지 않는다.
++
++오너 지시: *"한 번 더 비교군의 UX 영역을 정밀하게 분석하고 T5 의 현재와 비교한 다음,
++인간 사용자 입장에서 **더 유연하고 매끄러운** UX 를 갖추려면 어떻게 해야 할지를 연구해봐."*
++
++앞선 문서 `T5-UX-HUMAN-PATTERNS-ko.md` 가 **손버릇**을 봤다면, 이 문서는 **흐름**을 본다.
++
++---
++
++## 0. 이번에 실제로 연 것 / 안 연 것 (범위를 먼저 적는다)
++
++```
++열었다  openclaw  concepts/queue-steering.md · concepts/typing-indicators.md
++                  concepts/session-pruning.md · web/control-ui.md · web/webchat.md
++        hermes    user-guide/features/web-dashboard.md(Chat·Sessions 절)
++                  user-guide/checkpoints-and-rollback.md
++안 열었다 openclaw concepts/{streaming,queue,retry,session,session-tool,compaction,usage-tracking}.md
++                  web/{dashboard,tui,index}.md · tools/ 전부
++        hermes    features/ 나머지 20여 개 · sessions.md · desktop.md · messaging/
++```
++**안 연 것을 안 열었다고 적는다.** 지난 회차에 「없다」를 안 재고 말해 세 번 틀렸다.
++
++---
++
++## 1. 「유연하고 매끄럽다」를 먼저 정의한다 — 안 그러면 기능만 늘어난다
++
++사람이 그렇게 느끼는 조건은 셋이고, **셋 다 「기능이 있다」와 무관하다.**
++
++```
++유연   = 사람이 **마음을 바꿀 수 있다**        중간에 끼어들기 · 고쳐 보내기 · 되돌아가기
++매끄러움 = 사람이 **기다리는 동안 버려지지 않는다**  기다림이 설명되고, 내가 친 것이 안 사라진다
++가벼움  = **커져도 안 느려진다**                대화가 길어져도 화면이 무겁지 않다
++```
++
++---
++
++## 2. 축별 정밀 비교 — 비교군이 실제로 하는 것 ↔ T5 가 실제로 하는 것
++
++### 축 A. 답이 흐르는 **중에 말 걸기** — ★ 가장 큰 격차
++
++| | 하는 일 |
++|---|---|
++| **오픈클로** | 기본 모드가 **`steer`**. 실행 중 들어온 말을 **모델 경계에서 실행 중인 턴 안으로 밀어 넣는다.** 도구 호출 중간은 안 끊고, ①도구 배치 실행 → ②턴 종료 이벤트 → ③큐 비우기 → ④다음 LLM 호출 앞에 사용자 메시지로 붙인다. 모드 넷: `steer`(끼워 넣기) · `followup`(끝나고) · `collect`(모아서 한 턴) · `interrupt`(끊고 새로) — `concepts/queue-steering.md` |
++| **T5 현재** | 서버는 `withSessionQueue(sessionId, …)` 로 **직렬화한다**(`server.js:2774`). 깨지진 않는다. 그러나 **화면이 아무 말도 안 한다** — 보낸 말은 붙고, 두 번째 `요청을 이해하고 있어요…` 가 서고, 「멈추기」가 둘이 되고, 사람은 **자기 말이 먹혔는지 줄 서 있는지 모른다.** 그리고 **끼워 넣기는 아예 없다**: 돌고 있는 턴은 내 새 말을 못 본다 |
++
++**사람 입장의 결핍**: 답이 흘러가는 걸 보다가 *"아 그거 말고 B로"* 가 떠오른다. 지금 T5 에서는
++(ㄱ) 끝날 때까지 기다리거나 (ㄴ) 멈추고 처음부터 다시 말해야 한다. **둘 다 사람의 생각 속도를 버린다.**
++
++### 축 B. 기다림의 **표현**
++
++| | 하는 일 |
++|---|---|
++| **오픈클로** | 타이핑 표시가 **언제 시작할지를 고르게 한다**: `never` → `message`(첫 글자) → `thinking`(첫 추론 조각) → `instant`(루프 시작). 문서가 *"how early it fires"* 순서를 명시 — `concepts/typing-indicators.md` |
++| **T5 현재** | `trace` 한 줄이 **즉시** 뜨고(= `instant` 고정), 조각 D 가 확인된 걸음을 접힌 한 줄로 남긴다. **고를 수 없다** |
++
++**판정**: T5 가 지금 하는 것이 나쁘지 않다. 다만 **하나 배울 것**은 「설정 항목」이 아니라
++*"침묵을 언제 깨는지가 설계 대상"* 이라는 사고다. T5 의 첫 신호는 `요청을 이해했어요` 인데
++그건 **아무 사실도 아니다** — 조각 D 가 만든 「확인된 걸음」이 더 이른 시점에 설 수 있으면
++그게 더 나은 첫 신호다.
++
++### 축 C. 내가 친 말이 **사라지지 않는다**
++
++| | 하는 일 |
++|---|---|
++| **오픈클로** | *"the chat view keeps **local optimistic** user/assistant messages visible if `chat.history` briefly returns an older snapshot"* — `web/control-ui.md:190` |
++| **T5 현재** | `submit` 끝에서 `대화투영(GET /sessions/…)` 이 화면을 **통째로 갈아끼운다.** 서버 스냅샷이 늦으면 방금 친 말이 없어진다. **이번 세션 측정에서 실제로 `.msg.me` 가 사라지는 것을 봤다** |
++
++### 축 D. **커져도 안 느려진다**
++
++| | 하는 일 |
++|---|---|
++| **오픈클로** | ① 화면: *"bounded recent window with per-message text caps so large sessions do not force the browser to render a full transcript"*(`control-ui.md:103`) ② 못 가져오면 **명시적 「없음」 상태**를 보인다 — 잘린 미리보기를 조용히 반복하지 않는다(`:186-188`) ③ 문맥: 오래된 **도구 결과만** 잘라 낸다. 대화 글은 안 건드리고 **디스크 원본은 그대로**(`concepts/session-pruning.md`) |
++| **T5 현재** | `대화투영` 이 transcript **전부**를 그린다. 오너 세션 파일이 이미 **196KB** |
++
++### 축 E. 대화 **관리** 표면
++
++| | 하는 일 |
++|---|---|
++| **헤르메스** | 세션 목록에 출처 아이콘·모델·메시지 수·도구 호출 수·활동 시각, **사람 대화/자동화/전체 필터**, FTS5 **전문 검색 + 하이라이트 스니펫 + 첫 일치로 자동 스크롤**, 펼쳐서 전문 보기, 이름 변경, **JSON 내보내기**, N일 지난 것 **정리**, 삭제 — `features/web-dashboard.md:231` |
++| **T5 현재** | 목록·보관함·휴지통·즐겨찾기·다중 선택 정리·키워드 검색은 **있다**. 없는 것: **자동화 대화 분리**, 검색 결과 **스니펫·자동 스크롤**, **내보내기** |
++
++### 축 F. 되돌리기 — **베끼지 않는 근거**
++
++헤르메스는 체크포인트를 만들어 놓고 v2 에서 **기본을 껐다**: *"**most users never use `/rollback`**"*.
++기획 §4 의 「rewind 안 함」이 우리 추측이 아니라 **남의 실사용 결과**로 뒷받침된다.
++
++---
++
++## 3. 처방 — 값이 큰 순서. 각각 **닫는 문장 · 비용 · 위험**을 붙인다
++
++### 처방 1 (최우선). **줄 선 말이 보인다** — 화면만 고친다. 서버 0
++> **닫는 문장**: 답이 흐르는 중에 말을 보내면, 그 말이 **줄 서 있다는 것과 언제 처리되는지**를 화면이 말한다.
++
++지금 서버는 이미 줄을 세운다(`withSessionQueue`). **없는 것은 그 사실을 말하는 화면뿐이다.**
++- 흐르는 중 전송 → 그 말풍선에 **「다음 차례로 보냈어요」** 표시, 진행 표시는 **하나만**
++- 「멈추기」는 **돌고 있는 것 하나**에만 (지금은 둘이 뜬다)
++- 줄 선 말은 **보내기 전으로 되돌릴 수 있다**(취소 = 사람이 마음을 바꾸는 길)
++
++**비용** 작다(surface). **위험** 낮다. **원리** 조각 D 와 같다 — *있는 사실을 안 보여 준 것*.
++
++### 처방 2. **낙관적 유지** — 내가 친 말은 서버가 늦어도 안 지운다
++> **닫는 문장**: 서버 응답이 늦어도 방금 친 내 말과 방금 받은 답이 화면에서 사라지지 않는다.
++
++`대화투영` 이 통째 교체를 하기 전에, **화면에 있고 서버 스냅샷에 아직 없는 마지막 사용자 발화**를
++남긴다. 서버가 따라잡으면 그때 정본이 대체한다(오픈클로가 하는 그대로).
++**비용** 작다. **위험** 중간 — 「두 진실」을 만들지 않으려면 *잠깐 남기고 반드시 대체된다*는
++규칙을 검사로 못 박아야 한다.
++
++### 처방 3. **끼워 넣기(steering)** — 진짜 유연함. 유일하게 커널이 필요하다
++> **닫는 문장**: 답이 흐르는 중에 *"아니 그거 말고 B"* 라고 하면, **그 턴이** 그 말을 보고 방향을 바꾼다.
++
++오픈클로의 경계 규칙을 그대로 가져올 수 있다: **도구 호출 중간은 안 끊고**, 모델 호출 경계에서만
++큐를 비워 다음 호출 앞에 붙인다. 원장·승인 계약과 안 부딪히는 자리다(이미 일어난 실행은 그대로).
++**비용** 크다(커널 `turn.js`). **위험** 높다 — 지금 개발 레인이 그 파일을 쥐고 있다.
++**그래서 처방 1을 먼저 한다**: 1 이 없으면 3 을 해도 사람은 자기 말이 어디 갔는지 모른다.
++
++### 처방 4. **큰 대화가 화면을 안 무겁게 한다**
++> **닫는 문장**: 대화가 길어져도 여는 순간이 느려지지 않고, 안 그린 부분이 있으면 **있다고 말한다.**
++
++최근 N턴만 그리고 위로 올리면 더 불러온다. ★ 오픈클로의 뒷줄이 핵심이다 — **못 가져온 것을
++조용히 숨기지 않는다.** T5 의 「모르면 모른다고 한다」와 같은 축이라 이 저장소 규율에 정확히 맞는다.
++**비용** 중간. **위험** 중간(조각 A 의 따라가기·자리지키기와 같은 구간).
++
++### 처방 5. 대화 검색이 **어디서 맞았는지** 보여 준다 · 내보내기
++스니펫·하이라이트·첫 일치로 스크롤. **비용** 작다. 내보내기는 서버 라우트가 필요해 **별건**.
++
++---
++
++## 4. 안 한다 — 그리고 이유
++
++| 안 한다 | 이유 |
++|---|---|
++| 대화 rewind/checkpoint | 헤르메스가 만들어 보고 **기본을 껐다**(*most users never use it*). 기획 §4 유지 |
++| 타이핑 표시 모드 설정 | 고르게 하는 것이 아니라 **첫 신호를 사실로 만드는 것**이 답이다(축 B) |
++| 대시보드·상시 폴링 | 「안티 대시보드」 — 열 때만 채운다 |
++| TUI 를 브라우저에 박기(헤르메스 Chat 탭) | 헤르메스는 터미널 UI 를 xterm.js 로 웹에 심는다. T5 는 **웹이 본체**다 — 베끼면 후퇴 |
++| `/` 명령 집합 | T5 의 입구는 **말**이고 그게 더 강하다. 오너 판정 전까지 안 연다 |
++
++---
++
++## 5. 이 연구가 스스로 못 한 것
++
++- 비교군을 **돌려 보지 않았다.** 전부 문서 독해다. 오픈클로 `steer` 가 실제로 어떻게 보이는지는
++  **화면으로 안 봤다** — 다음 회차에 `openclaw` 를 띄워 그 순간을 눈으로 봐야 한다.
++- 헤르메스 web-dashboard 는 1,116줄 중 **Chat·Sessions 두 절만** 읽었다.
++- **오너 실사용 관찰이 여전히 최고의 계측기다.** 이번 세션의 가장 정확한 발견 셋
++  (호버·답 두 번·링크 거짓)은 전부 **오너가 쓰다가** 나왔지 내가 재서 나온 게 아니다.
+diff --git a/design/T5-UX-FULL-WALK-2026-08-13-ko.md b/design/T5-UX-FULL-WALK-2026-08-13-ko.md
+new file mode 100644
+index 00000000..e317ff11
+--- /dev/null
++++ b/design/T5-UX-FULL-WALK-2026-08-13-ko.md
+@@ -0,0 +1,64 @@
++# 전수 걷기 — 화면을 하나씩 열고 버튼을 하나씩 세었다 (2026-08-13)
++
++> **권위: 근거 문서(계획서 아님).** 2026-08-13 화면 걷기의 관측과 한계를 보존한 실행 증거다.
++> 현재 작업은 `design/T5-FINAL-ASSEMBLY-ko.md`, 전체 계획은 `design/T5-PLAN.md`에서만 정한다.
++> 아래 미관측 항목과 다음 회차를 현재 작업 지시나 현재 상태로 사용하지 않는다.
++
++오너 질문: *"전체 페이지, 각 메뉴, 모든 기능들의 배치나 연결 면에서 자신 있어?"* → 그때 답은
++**"아니오"** 였고, 그 근거는 **한 번도 전수로 열어 본 적이 없다**는 것이었다. 이 문서가 그 일이다.
++
++**짐작이 아니라 실제 클릭이다.** 헤드리스 크롬이 사람과 같은 경로로 눌렀다
++(`설정` 버튼 → 탭 버튼 하나씩). 대본은 `scratchpad/walk.mjs`.
++
++---
++
++## 1. 결과 — 화면 11개 · 두 폭에서 각각
++
++| 화면 | 1180px 보이는 버튼 | 375px | 내용 |
++|---|---|---|---|
++| 대화(본화면) | 14 | **12** | — |
++| 대화 찾기 | 15 | 15 | — |
++| 상태(칩) | 14 | 14 | 연결·스킬·선호·기억 요약이 실제로 찬다 |
++| 도구함 | 15 | 15 | — |
++| 설정 · 모델 | 22 | 22 | 모델 연결 |
++| 설정 · 메신저 | 22 | 22 | 텔레그램·슬랙 상태 |
++| 설정 · 도구와 연결 | 23 | 23 | — |
++| 설정 · 스킬 | 22 | 22 | 「아직 배운 스킬이 없어요」 + 어떻게 생기는지 |
++| 설정 · 자동화 | 22 | 22 | 「아직 켜 둔 자동화가 없어요」 + 만드는 법(조각 E) |
++| 설정 · 기억과 개인정보 | 22 | 22 | 선호·기억·원리 목록 |
++| 설정 · 모양 | 23 | 23 | 테마 |
++
++```
++빈 화면(열었는데 아무것도 없는 것)   0 / 11
++탭 버튼이 없어 못 연 곳              0 / 7
++글자도 라벨도 없는 버튼              0
++버튼 관측                          285(화면별 중복 포함)
++```
++**「죽은 문」은 하나도 없었다.** 0개일 때 빈 목록 대신 **다음 행동**을 주는 것도 확인했다
++(스킬·자동화 둘 다 — 기획 §6-2 헤르메스 흡수 항목이 실제로 서 있다).
++
++## 2. 잡힌 문제 — 하나
++
++```
++「닫기」를 세 가지 말로 쓴다:  취소 · ✕ · 🔍 닫기
++```
++같은 뜻인데 화면마다 다른 말이다. **지움·되돌림·보냄 축은 깨끗했다**(각 2가지 이하).
++
++## 3. ⚠ 자[尺]가 두 번 못 닿았다 — 남겨 둔다
++
++- `--window-size=375` 를 줬는데 **실제 폭이 500** 이었다(맥 최소 창 너비). 그대로 적었으면
++  **「모바일 측정 완료」가 거짓**이 될 뻔했다. CDP `Emulation.setDeviceMetricsOverride` 로
++  강제해서 **진짜 375** 를 쟀다.
++- 도구함은 진입 버튼을 못 찾아 `classList` 로 열었다 — **사람 경로가 아니다.** 설정 7탭은
++  전부 사람 경로(버튼 클릭)로 갔다. 도구함 진입점은 **다음에 사람 경로로 다시 밟는다.**
++
++## 4. 이 걷기가 **아직 못 본 것** (전수가 아니다)
++
++```
++승인 카드            헌장 넷이 뜨는 그 순간. **모델과 실제 위험 동작이 있어야 뜬다** — 못 만들었다
++비밀 입력 · 능력 해소   서버가 그 상황을 만들어야 뜬다
++기억 반영/철회 · 자동화 제안 · 패턴 후보 · 전달 실패 · 복구   같음
++```
++이 여덟은 **데이터가 있어야 서는 화면**이라 빈 격리 서버로는 못 띄운다.
++**「안 봤다」로 남긴다** — 없는 것으로 적지 않는다(이번 세션에서 그 실수를 세 번 했다).
++띄우려면 각 상황을 만드는 **고정물 대본**이 필요하고, 그게 다음 회차의 첫 일이다.
+diff --git a/design/T5-UX-HUMAN-PATTERNS-ko.md b/design/T5-UX-HUMAN-PATTERNS-ko.md
+new file mode 100644
+index 00000000..f9bc46c3
+--- /dev/null
++++ b/design/T5-UX-HUMAN-PATTERNS-ko.md
+@@ -0,0 +1,148 @@
++# 인간의 손버릇에서 UX 를 짓는다 — 선행자 공부 (2026-08-13)
++
++> **권위: 근거 문서(계획서 아님).** 인간의 손버릇과 비교군 원문을 조사한 당시 증거다.
++> 현재 작업은 `design/T5-FINAL-ASSEMBLY-ko.md`, 전체 계획은 `design/T5-PLAN.md`에서만 정한다.
++> 아래 후보·다음 공부·순서를 현재 작업 지시로 사용하지 않는다.
++
++오너 지시: *"너는 인간의 행동을 모르잖아. 그러니 이미 범용화되고 잘 사용되고 있는 서비스들을
++보면서 힌트를 얻고 흡수할 걸 흡수하면서 **다양한 인간의 직관적 행동과 결핍과 필요를 헤아려서**
++유엑스를 구성해야 하는 거야."*
++
++이 문서는 **기능 목록이 아니다.** 순서가 반대다 — 사람이 반사적으로 하는 짓을 먼저 적고,
++선행자가 그 짓을 **어떻게 받았는지**를 적고, T5 가 그 자리에서 무엇을 하는지 대조한다.
++
++---
++
++## 0. ⚠ 첫 판의 §0 은 **틀렸다** — 안 재고 없다고 말했다 (2026-08-13 오너 지적 둘)
++
++```
++내가 쓴 것                                    실제
++오픈클로·헤르메스 원문이 이 기계에 없다   →   **둘 다 있다.** 설치본까지 있다
++  ~/.local/.../node_modules/openclaw/docs/   (web/control-ui.md · web/webchat.md · concepts/ · tools/ …)
++  ~/.hermes/hermes-agent/                    (website/docs/user-guide/ · hermes_cli/ · tools/)
++웹이 필요하다. 안 봤다                  →   **볼 수 있다.** 도구를 안 불렀을 뿐이다
++```
++**내가 한 「검사」는 `~/Developer` 한 곳에서 파일 이름 셋을 찾은 것뿐이었다.** 못 찾은 것을
++없는 것으로 적었다 — 이 저장소가 수십 번 적어 온 *"부재는 증거가 아니다"* 를 내가 어겼다.
++같은 세션에서 **세 번째** 같은 병이다(호버 · 링크 공유 · 이것). 그래서 이 항목을 맨 앞에 남긴다:
++**「없다」는 「있다」보다 비싼 주장이다. 어디를 얼마나 뒤졌는지 못 적으면 말하지 않는다.**
++
++아래 §2·§2-3 은 그 원문을 **실제로 열어서** 다시 쓴 것이다.
++
++## 1. 관통 발견 — 사람은 **기능**을 안 찾는다. **손이 가던 자리**로 간다
++
++이번 세션에서 오너가 두 번 지적했고, 두 번 다 같은 뿌리였다.
++
++```
++"뭐가 변한 게 하나도 없는 것 같은데?"        ← 호버해야 보이는 복사 버튼
++"대화 내용 아래에 아이콘 같은 걸로 있어야지"   ← 손이 가는 자리를 지목한 것
++```
++기능은 **있었다.** 못 찾은 게 아니라 **손이 가던 자리에 없었다.**
++그리고 나는 바로 앞에서 「멈춤이 안 보인다」를 고쳐 놓고 같은 병을 새 자리에 다시 지었다.
++**이것이 이 문서가 필요한 이유다** — 나는 기능이 존재하면 됐다고 느끼고, 사람은 손이 닿아야 됐다고 느낀다.
++
++---
++
++## 2. 사람의 손버릇 → 선행자가 받은 법 → T5
++
++「짓」은 사람이 **배우지 않고도 하는 것**만 적는다.
++
++| 사람이 반사적으로 하는 짓 | 클로드코드(나)가 받는 법 | T5 는 지금 | 판정 |
++|---|---|---|---|
++| **방금 한 말을 다시 쓰고 싶다** — 조금만 고쳐서 | 입력칸 `↑` 로 직전 입력이 올라온다(셸·챗 공통 관습) | **없다.** 다시 타이핑해야 한다 | **흡수**(아래 §3) |
++| **읽으면서 만진다** — 답이 흐르는 동안 위로 올려 읽고 긁는다 | 출력 중에도 스크롤·선택이 산다 | 조각 A 가 닫음 | 닫힘 |
++| **멈추고 싶다. 되돌리고 싶은 게 아니다** | `Esc` 로 중단, 한 말은 남는다 | 조각 B 가 Esc 를 이음 | 닫힘 |
++| **지금 어디쯤인지 보고 싶다** — 오래 걸리면 | 할 일 목록이 눈앞에 있고 진행이 갱신된다 | 걸음이 접힌 한 줄(조각 D). **목록은 없다** | 보류(§4) |
++| **말한 그 파일을 열고 싶다** | 경로가 클릭이다 | 파일 이름이 **글자**다 | 후보(§4) |
++| **같은 걸 두 번 묻지 마라** | 같은 종류 승인을 기억한다 | 헌장 넷만 묻는다(이미 더 낫다) | 안 함 |
++| **끌어다 놓는다 / 붙여넣는다** — 파일을 | 경로 붙여넣기·드롭이 통한다 | **없다** | 후보(§4) |
++| **타이핑으로 찾는다** — 메뉴를 뒤지지 않는다 | `/` 로 명령이 뜬다 | `⌘K` 는 대화 찾기뿐 | 보류(§4) |
++| **돌아가고 싶다** — 방금 보던 자리로 | 주소·뒤로가기 | 조각 G 가 닫음 | 닫힘 |
++
++### 2-3. 원문을 열어서 얻은 것 셋 (인용 자리를 그대로 적는다)
++
++**① 사람이 방금 한 말은 한 순간도 사라지면 안 된다** — 오픈클로 `docs/web/control-ui.md:190`
++> *"During an active send and the final history refresh, the chat view keeps **local optimistic**
++> user/assistant messages visible if `chat.history` briefly returns an older snapshot;
++> the canonical transcript replaces those local messages once the Gateway history catches up."*
++
++**T5 에 그대로 있는 위험이다.** `submit` 은 끝에서 `대화투영(GET /sessions/…)` 으로 화면을
++**통째로 갈아끼운다.** 서버 스냅샷이 한 박자 늦으면 방금 친 내 말이 화면에서 없어진다 —
++이번 세션 측정에서 **실제로 `.msg.me` 가 사라지는 것을 봤다**(그때는 내 대본 탓으로 넘겼는데,
++같은 구멍을 선행자는 「낙관적 유지」로 막고 있었다). ★ 다음 조각 후보 1순위.
++
++**② 큰 대화는 창을 잘라 받는다** — 같은 문서 `:103` · `:186-188`
++> *"…request a **bounded recent window** with per-message text caps so large sessions do not force
++> the browser to render a full transcript payload before the chat becomes usable."*
++> 그리고 잘린 것을 더 못 가져오면 *"shows an **explicit unavailable state** instead of silently
++> repeating the truncated preview."*
++
++T5 의 `대화투영` 은 transcript **전부**를 그린다. 오너 세션 파일은 이미 196KB 다.
++뒷줄이 더 중요하다 — **못 가져오면 못 가져왔다고 말한다.** T5 의 「모르면 모른다고 한다」와 같은 축이다.
++
++**③ 사람은 되돌리기를 거의 안 쓴다** — 헤르메스 `website/docs/user-guide/checkpoints-and-rollback.md`
++> *"Checkpoints are **opt-in** as of v2 — **most users never use `/rollback`**, and the shadow-store
++> storage is non-trivial over time, so the default is off."*
++
++기획 §4 가 「대화 rewind/checkpoint 안 함」으로 정한 것에 **근거가 생겼다.** 지금까지는 우리 판단이었는데,
++같은 것을 만들어 본 쪽이 **실사용을 보고 기본을 껐다.** 베끼지 않는 것이 맞다.
++
++### 2-4. 웹에서 얻은 것 — 그리고 **관습이 우리와 갈린 자리**
++
++업계 관습은 **데스크톱은 호버, 터치는 상시**다([LibreChat #13712](https://github.com/danny-avila/LibreChat/pull/13712) ·
++[Setproduct](https://www.setproduct.com/blog/ai-chat-interface-ui-design)).
++그런데 **오너는 데스크톱에서 못 찾았다.** 갈린 이유는 전제다 — 그 관습은 사용자가 **다른 챗에서
++이미 배워 와서 「거기 있겠거니」 하고 손을 올린다**는 것을 전제한다. T5 의 그 동작은 **어제 생겼고**
++아무도 배워 온 적이 없다. **모르는 기능은 호버 뒤에 두면 없는 기능이다.**
++→ 상시가 맞다. 다만 관습에서 가져올 것 하나: 숨기더라도 **포커스와 접근성 트리에는 남긴다**
++(그래서 아이콘에 `aria-label` 을 달았다 — 기호만 두면 읽어 주는 도구에 아무 말도 안 남는다).
++
++### 2-1. T5 가 이미 더 나은 자리 (베끼면 안 되는 것)
++
++- **승인**: 나는 도구마다 묻는다. T5 는 헌장 넷에만 묻는다. **T5 가 옳다** — 베끼면 후퇴다.
++- **원장**: 나는 무엇을 했는지 말로 요약한다. T5 는 **기계 사실**로 남긴다(조각 D 가 그걸 보이게 했다).
++
++### 2-2. ⚠ 내가 교재로서 못 미치는 자리
++
++나는 **터미널**에 산다. 오너는 **브라우저**에 산다. 그래서 내 답 중 상당수(`↑`·`/`·키 위주)는
++그대로 옮기면 안 되고, **같은 결핍을 브라우저 관습으로** 옮겨야 한다. 이 구분을 놓치면
++"클로드코드처럼" 만들다가 웹에서 아무도 안 쓰는 것을 만든다.
++
++---
++
++## 3. 이번에 흡수한 것 — `↑` 로 직전 발화 되부르기
++
++**고른 이유**: 위 표에서 **결핍이 가장 크고 값이 가장 싼 칸**이다. 사람은 하루에도 몇 번씩
++방금 한 말을 조금 고쳐 다시 보낸다. T5 에는 그 길이 **없었다** — 조각 B 의 「고쳐 다시 보내기」는
++*지나간 말*에는 답을 줬지만, **입력칸에 선 사람**에게는 아무것도 안 줬다.
++
++**닫는 문장**: 입력칸이 비어 있을 때 `↑` 를 누르면 내가 방금 보낸 말이 올라온다. 계속 누르면 더 거슬러 간다.
++
++**규율**
++- 입력칸에 **글이 있으면 안 가로챈다** — 커서를 위로 옮기려는 사람이 훨씬 많다
++- 되부른 뒤 `↓` 로 되돌아오고, 맨 아래는 **원래 쓰던 글**이다(빼앗지 않는다)
++- 새 서버 상태를 안 만든다. 화면이 이미 들고 있는 `.msg.me` 를 읽는다(두 벌 금지)
++
++---
++
++## 4. 후보로 남긴 것 — **안 만든 이유를 함께 적는다**
++
++| 후보 | 왜 지금 안 하나 | 열리는 조건 |
++|---|---|---|
++| 파일 이름을 누르면 열린다 | 여는 주체가 화면이 아니라 **손**이다(`local.file`). 승인·경계가 걸린다 — UX 가 아니라 권한 설계 | 헌장 판정 먼저 |
++| 끌어다 놓기 · 붙여넣기 | 서버에 받는 문이 있는지 **안 쟀다**. 없으면 새 라우트 = 새 표면 | 라우트 실측 |
++| `/` 명령 | 명령 집합을 새로 만드는 일이다. 지금 T5 의 입구는 **말**이고 그게 더 강하다 | 오너 판정 |
++| 「지금 어디쯤」 목록 | 커널이 이미 원장을 갖는다. 화면이 다시 계산하면 **두 진실**이 된다 | 커널이 걸음 목록을 내보내면 |
++
++---
++
++## 5. 다음 공부가 먼저 해야 할 일
++
++1. **원문은 이미 이 기계에 있다**(§0). 이번엔 UX 에 닿는 문서 넷만 열었다 —
++   `openclaw/docs/web/{control-ui,webchat}.md` · `hermes .../checkpoints-and-rollback.md`.
++   **안 읽은 것**: openclaw `docs/web/{dashboard,tui}.md`·`concepts/` 전부 · hermes
++   `user-guide/features/` 전부·`sessions.md`. 다음 회차는 거기서 시작한다.
++2. **비교군을 「도구 목록」이 아니라 「사람이 어디서 막히나」로 뽑는다.** 기능표를 베끼면
++   T5 가 T5 가 아니게 된다(기획 §4).
++3. **오너 실사용 한 회차를 통째로 관찰한다.** 이번 세션의 가장 정확한 발견 둘(호버·답 두 번)은
++   전부 **오너가 쓰다가** 나왔지 내가 재서 나온 게 아니다. **사용이 최고의 계측기다.**
+diff --git a/design/T5-UX-PLAN-ko.md b/design/T5-UX-PLAN-ko.md
+index 50d0fb97..0c2a78f6 100644
+--- a/design/T5-UX-PLAN-ko.md
++++ b/design/T5-UX-PLAN-ko.md
+@@ -1,5 +1,10 @@
+ # T5 UX 개선 기획 (2026-08-12)
+ 
++> **권위: 근거 문서(계획서 아님).** 이 문서는 2026-08-12~13 UX 조각의 당시 실행 계약과
++> 판단 근거를 보존한다. 현재 작업은 `design/T5-FINAL-ASSEMBLY-ko.md`, 전체 계획은
++> `design/T5-PLAN.md`에서만 정한다. 이 문서의 순서·남은 일·완료 수치를 현재 작업 지시나
++> 현재 상태로 읽지 않는다.
++
+ 오너 지시: *"멋진 디자인이 아니라 사용자 입장에서 **덜 불편하고, 직관적이고, 깔끔하면서도
+ 효율적인** UX … 클로드코드 너를 참고해서 … 전부 다 적용할 필요는 없지만 …
+ **다른 팀에게 동시 작업으로 맡길** 수 있게 … 필요하면 **이후의 확장성도** 고려."*
+diff --git a/docs/PROJECT-AUTHORITY-MAP-ko.md b/docs/PROJECT-AUTHORITY-MAP-ko.md
+index 08a78a95..a089f386 100644
+--- a/docs/PROJECT-AUTHORITY-MAP-ko.md
++++ b/docs/PROJECT-AUTHORITY-MAP-ko.md
+@@ -106,6 +106,7 @@
+ | **CU 근거** | `CU0-*` 셋 · `T5-COMPUTER-USE-DEVELOPMENT-PLAN`(`SUPERSEDED_IN_PART` — §4~§7·§10~§12만 유효) | v2 가 §8 에서 어느 절을 쓰는지 지목한다 |
+ | **설계(미착수)** | `T5-CONNECTOR-CATALOG-DESIGN` | 카탈로그는 저장소 밖에 산다. 한 항목도 안 걸어 봤다. 선행은 계획서 **노드 A** |
+ | **근거 문서** (계획서 아님) | `T5-BUTLER-HANDS-EXECUTION-PLAN` · `T5-USER-SURFACE-STRENGTHENING-PLAN` · `T5-KOREAN-OWNER-CONNECTION-CENTER-IMPLEMENTATION-PLAN` | **2026-08-06 강등.** 셋 다 머리에 표시가 붙었고 어느 노드가 자기를 읽는지 적혀 있다. 아래 참조 |
++| **UX 계보 근거** (계획서 아님) | `design/T5-UX-PLAN-ko.md` · `design/T5-UX-HUMAN-PATTERNS-ko.md` · `design/T5-UX-COMPARATIVE-STUDY-ko.md` · `design/T5-UX-FULL-WALK-2026-08-13-ko.md` | 2026-08-12~13 UX 조각의 실행 계약·사람 손버릇 연구·비교 연구·화면 걷기 증거다. 현재 작업은 `design/T5-FINAL-ASSEMBLY-ko.md`, 전체 계획은 `design/T5-PLAN.md`만 지시한다 |
+ | 그 밖 | `S2-TRANSITION-LEDGER` · `S4-CAPSULE-PLAN` · `S6-PREP-*` · `S1-RESULT` · `P5-B-1*` · `P-DIST-1-INSTALL-PIPELINE` · `T5-OPERATOR-HARNESS-*` · `T5-2.0-TOOLBOX-*` · `WORK-CHAT-DESIGN-EVIDENCE` · `T5-HANDOFF-2026-08-05-*` | 경로 참조가 살아 있어 남겼다. 다음 정리에서 참조원이 사라지면 함께 옮긴다 |
+ 
+ ### ⚠ 멈춰 있는 계획 셋 — 오너 판단 필요
+diff --git a/scripts/audit-docs.mjs b/scripts/audit-docs.mjs
+index c40efba1..22ab539c 100644
+--- a/scripts/audit-docs.mjs
++++ b/scripts/audit-docs.mjs
+@@ -20,7 +20,7 @@
+ //  9. 제품 메타 노후 — package.json 이 첫 슬라이스를 현재 제품 이름·버전으로 계속 주장하지 않는가
+ // 10. 계획서 도달성 — 맵이 가리킨 노드가 실제로 있고, 노드마다 파일·근거가 있는가
+ //     (오너 규칙 2·3, 2026-08-06: "맵으로 찾아가서 읽을 수 있어야 하고, 연관 내용이 단절 없이 이어져야 한다")
+-import { readFileSync, existsSync } from 'node:fs';
++import { readFileSync, existsSync, readdirSync } from 'node:fs';
+ import { join, dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ 
+@@ -34,6 +34,7 @@ export const PLAN_DOC = 'design/T5-PLAN.md';
+ // 목록이 늘 때 fixture 만 낡아 "깨끗한 상태" 시험이 거짓으로 빨개진다(2026-08-04 실측).
+ export const ENTRY_DOCS = [
+   'GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md',
++  'design/NEXT-SESSION.md',
+   'docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md',
+   'docs/PROJECT-AUTHORITY-MAP-ko.md',
+   'docs/03-verification/T5-TCELL-PRESTART-BRIEFING-2026-07-30-ko.md',
+@@ -46,6 +47,13 @@ export const ENTRY_DOCS = [
+   PLAN_DOC,
+ ];
+ 
++const UX_EVIDENCE_DOCS = [
++  'design/T5-UX-PLAN-ko.md',
++  'design/T5-UX-HUMAN-PATTERNS-ko.md',
++  'design/T5-UX-COMPARATIVE-STUDY-ko.md',
++  'design/T5-UX-FULL-WALK-2026-08-13-ko.md',
++];
++
+ const STALE_CURRENT_PHRASES = [
+   'T-cell implementation plan: **not yet issued**',
+   '새 T-cell 계획은 아직 작성 전이다',
+@@ -84,6 +92,33 @@ const STATUS_PAST_PHRASES = [
+ export function auditDocs(repo = REPO) {
+   const errors = [];
+ 
++  // 0. 세션 입구와 UX 계보 권위.
++  //
++  // 2026-08-13 UX 레인에 `NEXT-SESSION-UX*.md` 두 벌과 `T5-UX-PLAN`이 생겨,
++  // 정본을 전부 읽어도 어느 파일이 현재 일을 명령하는지 다시 갈렸다. 세션 입구는 하나만
++  // 허용하고, UX 조사·걷기·옛 실행 기획은 현재 프로그램에 귀속된 근거로만 남긴다.
++  const designDir = join(repo, 'design');
++  if (existsSync(designDir)) {
++    const sessionEntries = readdirSync(designDir)
++      .filter((name) => /^NEXT-SESSION(?:-.+)?\.md$/.test(name));
++    for (const name of sessionEntries) {
++      if (name !== 'NEXT-SESSION.md') errors.push(`design/${name}: 경쟁 세션 입구다 — design/NEXT-SESSION.md 하나만 허용한다`);
++    }
++  }
++
++  const authorityMapPath = join(repo, 'docs/PROJECT-AUTHORITY-MAP-ko.md');
++  const authorityMap = existsSync(authorityMapPath) ? readFileSync(authorityMapPath, 'utf8') : '';
++  for (const rel of UX_EVIDENCE_DOCS) {
++    const path = join(repo, rel);
++    if (!existsSync(path)) continue;
++    const text = readFileSync(path, 'utf8');
++    const attributed = text.includes('근거 문서(계획서 아님)')
++      && text.includes('design/T5-PLAN.md')
++      && text.includes('design/T5-FINAL-ASSEMBLY-ko.md')
++      && authorityMap.includes(rel);
++    if (!attributed) errors.push(`${rel}: 근거 귀속이 없다 — 단일 계획·현재 프로그램·권위 지도에 연결해야 한다`);
++  }
++
+   for (const rel of ENTRY_DOCS) {
+     const file = join(repo, rel);
+     if (!existsSync(file)) {
+diff --git a/scripts/live/ux-cdp.mjs b/scripts/live/ux-cdp.mjs
+new file mode 100644
+index 00000000..c2591b19
+--- /dev/null
++++ b/scripts/live/ux-cdp.mjs
+@@ -0,0 +1,115 @@
++// 조각 A 반대시험 재측정용 **자기 크롬**. 오너 크롬에 안 붙는다(S5 선례):
++//   · 내 프로필(mkdtemp)  · `--remote-debugging-port=0` 후 **크롬이 적어 준 포트**를 읽는다
++//   · 지우는 것은 내가 만든 경로 하나뿐(공유 자리 와일드카드 금지)
++// 의존성 0 — Node 24 전역 WebSocket 으로 CDP 를 직접 말한다(src/runtime/browser.js 와 같은 방식).
++import { spawn } from 'node:child_process';
++import { mkdtemp, readFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++
++const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++export async function 크롬띄우기({ url, width = 1280, height = 860, headless = true } = {}) {
++  const 프로필 = await mkdtemp(join(tmpdir(), 'a-remeasure-chrome-'));
++  const args = [
++    ...(headless ? ['--headless=new'] : []),
++    `--user-data-dir=${프로필}`,
++    '--remote-debugging-port=0',
++    `--window-size=${width},${height}`,
++    '--no-first-run', '--no-default-browser-check', '--disable-extensions',
++    '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
++    '--disable-backgrounding-occluded-windows',
++    url,
++  ];
++  const proc = spawn(CHROME, args, { stdio: 'ignore' });
++
++  let 포트 = null;
++  for (let i = 0; i < 100 && 포트 == null; i += 1) {
++    await sleep(100);
++    try { 포트 = Number((await readFile(join(프로필, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); } catch {}
++  }
++  if (!포트) { proc.kill(); await rm(프로필, { recursive: true, force: true }); throw new Error('크롬이 포트를 안 적었다'); }
++
++  // 대상 찾기 — 우리가 연 그 페이지
++  let 대상 = null;
++  for (let i = 0; i < 60 && !대상; i += 1) {
++    await sleep(100);
++    try {
++      const list = await (await fetch(`http://127.0.0.1:${포트}/json/list`)).json();
++      대상 = list.find((t) => t.type === 'page' && t.url.startsWith(url.slice(0, 25)));
++    } catch {}
++  }
++  if (!대상) { proc.kill(); await rm(프로필, { recursive: true, force: true }); throw new Error('대상 페이지를 못 찾았다'); }
++
++  const ws = new WebSocket(대상.webSocketDebuggerUrl);
++  await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
++  let id = 0;
++  const 대기 = new Map();
++  ws.onmessage = (e) => {
++    const m = JSON.parse(e.data);
++    const p = 대기.get(m.id);
++    if (p) { 대기.delete(m.id); m.error ? p.reject(new Error(JSON.stringify(m.error))) : p.resolve(m.result); }
++  };
++  const send = (method, params) => new Promise((resolve, reject) => {
++    const 번호 = ++id; 대기.set(번호, { resolve, reject });
++    ws.send(JSON.stringify({ id: 번호, method, params }));
++  });
++
++  /** 페이지에서 식을 돌린다. Promise 면 기다린다. 값은 그대로 돌려받는다. */
++  const 돌리기 = async (expression, timeoutMs = 60000) => {
++    const r = await Promise.race([
++      send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }),
++      sleep(timeoutMs).then(() => { throw new Error(`페이지 식이 ${timeoutMs}ms 안에 안 끝났다`); }),
++    ]);
++    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? '페이지에서 예외');
++    return r.result?.value;
++  };
++
++  /**
++   * 페이지가 **다 서기 전에** 재면 안 된다. 첫 회차에서 밟았다: 계측식을 일찍 넣었더니
++   * 그 뒤 진짜 항해가 커밋되며 "Execution context was destroyed" 로 회차가 통째로 죽었다.
++   * 그리고 그 전에 잰 값(`actbar: false`)은 **제품이 아니라 타이밍**이 낸 거짓 음성이었다.
++   */
++  const 준비대기 = async (조건 = 'true', 회 = 60) => {
++    for (let i = 0; i < 회; i += 1) {
++      try {
++        const ok = await 돌리기(`(() => document.readyState === 'complete' && (${조건}))()`, 5000);
++        if (ok) return true;
++      } catch { /* 항해 중이면 문맥이 죽는다 — 다시 묻는다 */ }
++      await sleep(250);
++    }
++    throw new Error('페이지가 안 선다');
++  };
++
++  const 닫기 = async () => {
++    const 소켓종료 = new Promise((resolve) => {
++      if (ws.readyState === WebSocket.CLOSED) resolve();
++      else {
++        ws.addEventListener('close', resolve, { once: true });
++        ws.addEventListener('error', resolve, { once: true });
++      }
++    });
++    // CDP 대상부터 닫아야 클라이언트 WebSocket의 close handshake가 끝난다. 소켓을 먼저
++    // 닫고 곧바로 Chrome을 죽이면 Node의 WebSocket 종료 타이머가 대본을 붙잡는다.
++    try { await fetch(`http://127.0.0.1:${포트}/json/close/${encodeURIComponent(대상.id)}`); } catch {}
++    await Promise.race([소켓종료, sleep(1000)]);
++    try { ws.close(); } catch {}
++    await Promise.race([소켓종료, sleep(1000)]);
++    const 끝남 = () => new Promise((resolve) => {
++      if (proc.exitCode != null || proc.signalCode != null) resolve();
++      else proc.once('exit', resolve);
++    });
++    const 종료 = 끝남();
++    proc.kill();
++    await Promise.race([종료, sleep(2000)]);
++    if (proc.exitCode == null && proc.signalCode == null) {
++      proc.kill('SIGKILL');
++      await Promise.race([끝남(), sleep(1000)]);
++    }
++    await Promise.race([소켓종료, sleep(1000)]);
++    await rm(프로필, { recursive: true, force: true });  // **내가 만든 경로만** 지운다
++  };
++
++  return { 포트, 돌리기, send, 준비대기, 닫기, 프로필 };
++}
+diff --git a/scripts/live/ux-hidden-fixtures.mjs b/scripts/live/ux-hidden-fixtures.mjs
+new file mode 100644
+index 00000000..2710287e
+--- /dev/null
++++ b/scripts/live/ux-hidden-fixtures.mjs
+@@ -0,0 +1,69 @@
++// UX 정본 §4의 「못 본 여덟」을 제품 렌더러에 넣는 고정 입력.
++// 화면 마크업을 복제하지 않는다. 실제 index.html의 renderResult가 이 사실을 그린다.
++export const 숨은표면고정물 = [
++  {
++    id: 'approval', 이름: '승인 카드', 기대글: ['실행 전 승인이 필요해요', '왜 확인하나요'], 기대버튼: ['승인', '하지 마'],
++    activePendingIds: ['pending-ux-1'],
++    result: {
++      kind: 'approval', pendingId: 'pending-ux-1', pending: [{
++        action: 'local.terminal', label: '휴지통을 비워요', tier: 'A3', safetyFloor: true,
++        preview: { impact: '지운 파일은 되돌릴 수 없어요.', where: '이 컴퓨터의 휴지통', what: '휴지통 안의 모든 파일' },
++        reason: { why: '되돌릴 수 없는 삭제라서 실행 전에 확인해요.', reversible: '실행 뒤에는 되돌릴 수 없어요.' },
++      }],
++    },
++  },
++  {
++    id: 'secret-input', 이름: '비밀 입력', 기대글: ['네이버 연결', '대화에는 남지 않아요'], 기대버튼: ['보기', '저장하고 연결 확인'],
++    result: {
++      kind: 'reply', reply: '연결에 필요한 값을 이 창에서 받아요.',
++      surfaceRequest: {
++        kind: 'secret_input', connector: 'naver', label: '네이버',
++        fields: [
++          { name: 'client_id', label: '클라이언트 ID', secret: false },
++          { name: 'client_secret', label: '클라이언트 비밀값', secret: true },
++        ],
++        issue: { steps: ['네이버 개발자센터에서 애플리케이션 키를 확인해요.'], url: 'https://developers.naver.com/', buttonLabel: '키 받으러 가기' },
++      },
++    },
++  },
++  {
++    id: 'capability-resolution', 이름: '능력 해결', 기대글: ['Notion 연결이 필요해요', '준비되면 이어서 진행할게요'], 기대버튼: ['연결 화면 열기', '나중에'],
++    result: {
++      kind: 'reply', reply: 'Notion 자료를 읽으려면 연결이 필요해요.',
++      capabilityResolution: { capabilityType: 'connector', missingCapability: 'Notion', reason: '아직 연결되지 않았어요.', ref: { toolId: 'notion' } },
++    },
++  },
++  {
++    id: 'memory-change', 이름: '기억 반영과 철회', 기대글: ['이렇게 기억해 뒀어요', '그 기억은 지웠어요'], 기대버튼: ['되돌리기'],
++    result: {
++      kind: 'reply', reply: '말씀하신 선호를 반영하고, 예전 선호는 지웠어요.',
++      memoryApplied: { statement: '보고서는 한국어로 작성해', undoId: 'memory-ux-1' },
++      memoryWithdrawn: { statement: '보고서는 영어로 작성해' },
++    },
++  },
++  {
++    id: 'automation-proposal', 이름: '자동화 제안', 기대글: ['이 작업을 자동으로 반복할까요?', '승인 전엔 아무것도 실행하지 않아요'], 기대버튼: ['자동화 설정', '아니요'],
++    result: {
++      kind: 'reply', reply: '매주 반복되는 작업으로 보입니다.',
++      automationProposal: { candidateId: 'automation-ux-1', statement: '매주 월요일 오전 9시에 지난주 정산표 만들기' },
++    },
++  },
++  {
++    id: 'pattern-candidate', 이름: '기본 대상 제안', 기대글: ['이 도구의 기본 대상으로 기억할까요?', '모든 대화에서'], 기대버튼: ['기본으로 설정', '아니요'],
++    result: {
++      kind: 'reply', reply: '이번에도 같은 채널로 보냈어요.',
++      patternCandidate: { patternId: 'pattern-ux-1', targetLabel: '정산팀 Slack 채널' },
++    },
++  },
++  {
++    id: 'delivery-failure', 이름: '전달 실패', 기대글: ['결과는 만들었는데 전달이 막혔어요', '처음부터 다시 안 해요'], 기대버튼: ['다시 보내기', '나중에'],
++    result: {
++      kind: 'reply', reply: '정산표 파일은 만들었습니다.',
++      deliveryFailed: { deliveryId: 'delivery-ux-1', needsFix: true, userSafeSummary: 'Slack 연결이 끊겨 전달하지 못했어요.' },
++    },
++  },
++  {
++    id: 'recovery', 이름: '회복 안내', 기대글: ['작업을 이어갈 다른 길을 찾았어요.', '다음: 브라우저로 다시 열어 볼까요?'], 기대버튼: [],
++    recovery: { text: '작업을 이어갈 다른 길을 찾았어요.', nextSafeAction: '브라우저로 다시 열어 볼까요?' },
++  },
++];
+diff --git a/scripts/live/ux-hidden-surfaces.mjs b/scripts/live/ux-hidden-surfaces.mjs
+new file mode 100644
+index 00000000..0204329d
+--- /dev/null
++++ b/scripts/live/ux-hidden-surfaces.mjs
+@@ -0,0 +1,387 @@
++// UX 정본 §4의 「못 본 여덟」을 실제 제품 HTML로 띄우고 보이는 글·행동 입구를 잰다.
++// 서버 응답만 고정하며, 카드 DOM/CSS/렌더 함수는 복제하지 않는다.
++import { createServer } from 'node:http';
++import { readFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { dirname, join } from 'node:path';
++
++import { 크롬띄우기 } from './ux-cdp.mjs';
++import { 숨은표면고정물 } from './ux-hidden-fixtures.mjs';
++
++const 여기 = dirname(fileURLToPath(import.meta.url));
++const 웹 = join(여기, '../../src/surface/web');
++const 정적 = new Map([
++  ['/', ['index.html', 'text/html; charset=utf-8']],
++  ['/index.html', ['index.html', 'text/html; charset=utf-8']],
++  ['/markdown.js', ['markdown.js', 'text/javascript; charset=utf-8']],
++  ['/approval-state.js', ['approval-state.js', 'text/javascript; charset=utf-8']],
++]);
++const 고정물표 = new Map(숨은표면고정물.map((x) => [x.id, x]));
++const 변이 = process.argv[3] ?? '';
++
++function 변이한제품HTML(source) {
++  if (변이 === 'anchor-correction-removed') {
++    return source.replace('await 원문자리맞추기(oldStart, oldTop);', '');
++  }
++  if (변이 === 'unique-guard-removed') {
++    return source.replace('마지막서버사용자수 = 서버사용자수;', `if (s.id === 'large' && start < 160) {
++      const duplicate = wrap.querySelector('.turn[data-entry-index]')?.cloneNode(true);
++      if (duplicate) wrap.appendChild(duplicate);
++    }
++    마지막서버사용자수 = 서버사용자수;`);
++  }
++  return source;
++}
++
++function 세션(고정물) {
++  const transcript = [{ role: 'user', text: `${고정물.이름}을 보여줘` }];
++  if (!고정물.recovery) transcript.push({ role: 'assistant', result: 고정물.result });
++  return {
++    id: 고정물.id, title: `고정물 · ${고정물.이름}`, updatedAt: '2026-08-13T00:00:00.000Z',
++    transcript, activePendingIds: 고정물.activePendingIds ?? [],
++  };
++}
++
++function json(res, body, status = 200) {
++  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
++  res.end(JSON.stringify(body));
++}
++
++async function 고정물서버() {
++  let 새대화저장됨 = false;
++  const server = createServer(async (req, res) => {
++    const u = new URL(req.url, 'http://127.0.0.1');
++    if (정적.has(u.pathname)) {
++      const [name, type] = 정적.get(u.pathname);
++      res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
++      const source = await readFile(join(웹, name), 'utf8');
++      res.end(name === 'index.html' ? 변이한제품HTML(source) : source);
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/sessions') {
++      json(res, { sessions: 숨은표면고정물.map(세션) }); return;
++    }
++    const sessionMatch = /^\/sessions\/([^/]+)$/.exec(u.pathname);
++    if (req.method === 'GET' && sessionMatch) {
++      const id = decodeURIComponent(sessionMatch[1]);
++      if (id === 'optimistic') {
++        // 일부러 한 박자 전 스냅샷만 준다. 스트림으로 받은 말이 이 GET 때문에 사라지면 빨강이다.
++        json(res, { id, title: '늦은 서버 스냅샷', updatedAt: '2026-08-13T00:00:00.000Z', transcript: [], activePendingIds: [] });
++        return;
++      }
++      if (id === 'large') {
++        const transcript = Array.from({ length: 240 }, (_, i) => i % 2 === 0
++          ? { role: 'user', text: i === 18 || i === 20 ? '접힌 정확한 원문 — 반복 단어' : `큰 대화 사용자 ${i + 1}` }
++          : { role: 'assistant', result: { kind: 'reply', reply: `큰 대화 답 ${i + 1}` } });
++        json(res, { id, title: '큰 대화', updatedAt: '2026-08-13T00:00:00.000Z', transcript, activePendingIds: [] });
++        return;
++      }
++      if (id === 'boundary') {
++        const transcript = Array.from({ length: 81 }, (_, i) => ({ role: 'user', text: `경계 대화 ${i + 1}` }));
++        json(res, { id, title: '경계 대화', updatedAt: '2026-08-13T00:00:00.000Z', transcript, activePendingIds: [] });
++        return;
++      }
++      if (id === 'small') {
++        const transcript = Array.from({ length: 20 }, (_, i) => ({ role: 'user', text: `작은 대화 ${i + 1}` }));
++        json(res, { id, title: '작은 대화', updatedAt: '2026-08-13T00:00:00.000Z', transcript, activePendingIds: [] });
++        return;
++      }
++      if (id === 'fresh') {
++        const transcript = 새대화저장됨 ? [
++          { role: 'user', text: '안녕' },
++          { role: 'assistant', result: { kind: 'reply', reply: '안녕하세요. 무엇을 같이 해볼까요?' } },
++        ] : [];
++        json(res, { id, title: '안녕', updatedAt: '2026-08-13T00:00:00.000Z', transcript, activePendingIds: [] });
++        return;
++      }
++      const fixed = 고정물표.get(id);
++      json(res, fixed ? 세션(fixed) : { error: 'not_found' }, fixed ? 200 : 404); return;
++    }
++    if (req.method === 'POST' && u.pathname === '/sessions') {
++      json(res, { id: 'fresh', title: '새 대화', transcript: [], activePendingIds: [] }); return;
++    }
++    if (req.method === 'GET' && u.pathname === '/model/connection') {
++      json(res, { connected: true, provider: 'fixture', modelId: 'UX 고정물', source: 'saved' }); return;
++    }
++    if (req.method === 'GET' && u.pathname === '/onboarding') {
++      json(res, { needed: false, canConnect: false, seenWelcome: true }); return;
++    }
++    if (req.method === 'POST' && u.pathname === '/turn/stream-start') {
++      json(res, { streamId: 'ux-recovery-stream', measurementId: 'ux-recovery-measurement' }); return;
++    }
++    if (req.method === 'POST' && u.pathname === '/search') {
++      let body = '';
++      for await (const chunk of req) body += chunk;
++      const query = JSON.parse(body || '{}').query ?? '';
++      if (query === '없는 대목') { json(res, { results: [] }); return; }
++      if (query === '접힌 정확한 원문') {
++        const statement = '…접힌 정확한 원문 — 반복 단어…';
++        const matchText = '접힌 정확한 원문';
++        json(res, { results: [{ statement, source: {
++          sessionId: 'large', title: '큰 대화', role: 'user', entryIndex: 20, matchText,
++          matchStart: statement.indexOf(matchText), matchLength: matchText.length,
++        } }] });
++        return;
++      }
++      const statement = '…앞 문맥에서 찾았습니다. 큰 대화 답 240 그리고 뒤 문맥입니다.';
++      const matchText = '큰 대화 답 240';
++      json(res, { results: [{
++        statement,
++        source: {
++          sessionId: 'large', title: '큰 대화', role: 'assistant', entryIndex: 239, matchText,
++          matchStart: statement.indexOf(matchText), matchLength: matchText.length,
++        },
++      }] });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/turn/stream') {
++      if (u.searchParams.get('sessionId') === 'fresh') {
++        res.writeHead(200, {
++          'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive',
++        });
++        res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: '안녕하세요. 무엇을 같이 해볼까요?' })}\n\n`);
++        새대화저장됨 = true;
++        res.write('event: complete\ndata: {}\n\n');
++        res.end();
++        return;
++      }
++      if (u.searchParams.get('sessionId') === 'optimistic') {
++        res.writeHead(200, {
++          'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive',
++        });
++        res.write(`event: answer_delta\ndata: ${JSON.stringify({ text: '서버 저장을 기다리는 동안에도 이 답은 남아요.' })}\n\n`);
++        res.write('event: complete\ndata: {}\n\n');
++        res.end();
++        return;
++      }
++      const recovery = 고정물표.get('recovery').recovery;
++      res.writeHead(200, {
++        'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive',
++      });
++      res.write(`event: recoverable_error\ndata: ${JSON.stringify(recovery)}\n\n`);
++      res.write('event: complete\ndata: {}\n\n');
++      res.end();
++      return;
++    }
++    // 초기 화면의 보조 읽기와 카드 버튼은 고정물의 핵심이 아니다. 죽은 404로 화면을 흔들지 않는다.
++    if (req.method === 'GET') { json(res, {}); return; }
++    json(res, { ok: true });
++  });
++  await new Promise((resolve, reject) => {
++    server.once('error', reject);
++    server.listen(0, '127.0.0.1', resolve);
++  });
++  return { server, port: server.address().port };
++}
++
++const 폭 = Number(process.argv[2] || 1180);
++const { server, port } = await 고정물서버();
++const base = `http://127.0.0.1:${port}`;
++const 크롬 = await 크롬띄우기({ url: `${base}/#/s/approval`, width: 폭, height: 900 });
++try {
++  await 크롬.send('Emulation.setDeviceMetricsOverride', {
++    width: 폭, height: 900, deviceScaleFactor: 2, mobile: 폭 < 768,
++  });
++  await 크롬.준비대기("!!document.getElementById('actbar') && document.body.innerText.includes('실행 전 승인이 필요해요')");
++  const 결과 = [];
++  for (const fixed of 숨은표면고정물) {
++    await 크롬.돌리기(`location.hash = ${JSON.stringify(`/s/${fixed.id}`)}`);
++    if (fixed.recovery) {
++      await 크롬.준비대기(`location.hash === ${JSON.stringify(`#/s/${fixed.id}`)} && !document.querySelector('.stopbtn')`);
++      await 크롬.돌리기(`(() => {
++        const input = document.getElementById('text');
++        input.value = '막힌 작업을 다른 길로 이어줘';
++        input.dispatchEvent(new Event('input', { bubbles: true }));
++        document.getElementById('send').click();
++      })()`);
++      await 크롬.준비대기(`document.body.innerText.includes(${JSON.stringify(fixed.기대글[0])})`);
++    } else await 크롬.준비대기(`document.body.innerText.includes(${JSON.stringify(fixed.기대글[0])})`);
++    const 측정 = await 크롬.돌리기(`(() => {
++      const visible = (e) => {
++        const r = e.getBoundingClientRect(), s = getComputedStyle(e);
++        return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0.05;
++      };
++      const text = document.body.innerText;
++      const buttons = [...document.querySelectorAll('button')].filter(visible).map((b) => (b.textContent || '').trim());
++      return { viewport: [innerWidth, innerHeight], text, buttons };
++    })()`);
++    const 글 = fixed.기대글.map((x) => ({ 값: x, 보임: 측정.text.includes(x) }));
++    const 버튼 = fixed.기대버튼.map((x) => ({ 값: x, 보임: 측정.buttons.includes(x) }));
++    결과.push({ id: fixed.id, 이름: fixed.이름, 글, 버튼, 통과: [...글, ...버튼].every((x) => x.보임) });
++  }
++  // 처방 2: 스트림은 답을 줬지만 뒤의 GET /sessions는 일부러 빈 옛 스냅샷을 준다.
++  await 크롬.돌리기(`location.hash = '#/s/optimistic'`);
++  await 크롬.준비대기(`location.hash === '#/s/optimistic' && document.querySelectorAll('#wrap .turn').length === 0`);
++  await 크롬.돌리기(`(() => {
++    const input = document.getElementById('text');
++    input.value = '이 말은 서버가 늦어도 남아야 해';
++    input.dispatchEvent(new Event('input', { bubbles: true }));
++    document.getElementById('send').click();
++  })()`);
++  await 크롬.준비대기(`document.body.innerText.includes('서버 저장을 기다리는 동안에도 이 답은 남아요.') && !document.querySelector('.stopbtn')`);
++  const 낙관적유지 = await 크롬.돌리기(`(() => ({
++    사용자말: [...document.querySelectorAll('.msg.me')].some((x) => x.textContent.includes('이 말은 서버가 늦어도 남아야 해')),
++    받은답: [...document.querySelectorAll('.msg.bot')].some((x) => x.textContent.includes('서버 저장을 기다리는 동안에도 이 답은 남아요.')),
++  }))()`);
++  낙관적유지.통과 = 낙관적유지.사용자말 && 낙관적유지.받은답;
++  // 처방 4: 240개 원문 중 최근 80개만 DOM에 두고, 접은 160개와 원문 보존을 말한다.
++  await 크롬.돌리기(`location.hash = '#/s/large'`);
++  await 크롬.준비대기(`document.body.innerText.includes('이전 대화 160개는 화면에서 접어 두었어요.')`);
++  const 큰대화 = await 크롬.돌리기(`(() => ({
++    그린대화: document.querySelectorAll('#wrap .turn').length,
++    접은수고지: document.body.innerText.includes('이전 대화 160개는 화면에서 접어 두었어요.'),
++    원문보존고지: document.body.innerText.includes('저장된 원문은 그대로예요.'),
++  }))()`);
++  큰대화.통과 = 큰대화.그린대화 === 80 && 큰대화.접은수고지 && 큰대화.원문보존고지;
++  // 보이는 80개가 전체를 가리지 않는다. 첫 묶음은 실제 휠로 맨 위로 올리고,
++  // 둘째 묶음은 화면 안에 보이는 더보기를 CDP 좌표로 누른다.
++  const 증분로드 = [];
++  await 크롬.돌리기(`(() => {
++    window.__historyLoadAudit = {};
++    const log = document.getElementById('log');
++    log.addEventListener('scroll', () => {
++      const anchor = document.querySelector('#wrap .turn[data-entry-index]');
++      if (!window.__historyLoadAudit.scroll && log.scrollTop <= 1 && anchor && document.querySelectorAll('#wrap .turn').length === 80) {
++        window.__historyLoadAudit.scroll = { oldStart: Number(anchor.dataset.entryIndex), beforeY: anchor.getBoundingClientRect().top };
++      }
++    }, { capture: true });
++    document.addEventListener('click', (event) => {
++      if (!event.target.closest?.('.history-cut button, button.history-cut')) return;
++      const anchor = document.querySelector('#wrap .turn[data-entry-index]');
++      window.__historyLoadAudit.click = { oldStart: Number(anchor.dataset.entryIndex), beforeY: anchor.getBoundingClientRect().top };
++    }, { capture: true });
++  })()`);
++  await 크롬.돌리기(`document.getElementById('log').scrollTop = 48`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 100))`);
++  const 첫준비 = await 크롬.돌리기(`(() => {
++    const log = document.getElementById('log');
++    const r = log.getBoundingClientRect();
++    return { wheel: { x: r.left + r.width / 2, y: r.top + r.height / 2, deltaX: 0, deltaY: -10000 } };
++  })()`);
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseWheel', ...첫준비.wheel });
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length >= 160`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 180))`);
++  Object.assign(첫준비, await 크롬.돌리기(`window.__historyLoadAudit.scroll`));
++  const 첫결과 = await 크롬.돌리기(`(() => {
++    const turns = [...document.querySelectorAll('#wrap .turn')];
++    const indices = turns.map((x) => Number(x.dataset.entryIndex));
++    const afterY = document.querySelector('.turn[data-entry-index="160"]').getBoundingClientRect().top;
++    return { 방법: '실제 CDP 마우스 휠 위로', oldStart: 160, beforeY: ${JSON.stringify(첫준비.beforeY)}, afterY,
++      delta: afterY - ${JSON.stringify(첫준비.beforeY)}, 그린대화: turns.length, indices,
++      uniqueCount: new Set(indices).size, duplicates: indices.length - new Set(indices).size,
++      input: ${JSON.stringify(첫준비.wheel)} };
++  })()`);
++  증분로드.push(첫결과);
++
++  await 크롬.돌리기(`document.getElementById('log').scrollTop = 2`);
++  await 크롬.돌리기(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
++  const 둘준비 = await 크롬.돌리기(`(() => {
++    const log = document.getElementById('log');
++    const button = document.querySelector('.history-cut button, button.history-cut');
++    const b = button.getBoundingClientRect(), l = log.getBoundingClientRect();
++    const visible = b.width > 0 && b.height > 0 && b.top >= Math.max(0, l.top)
++      && b.bottom <= Math.min(innerHeight, l.bottom) && b.left >= 0 && b.right <= innerWidth;
++    return { oldStart: 80, beforeY: document.querySelector('.turn[data-entry-index="80"]').getBoundingClientRect().top,
++      button: { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width, height: b.height,
++        viewportVisible: visible, x: b.left + b.width / 2, y: b.top + b.height / 2 } };
++  })()`);
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 둘준비.button.x, y: 둘준비.button.y });
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 둘준비.button.x, y: 둘준비.button.y, button: 'left', clickCount: 1 });
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 둘준비.button.x, y: 둘준비.button.y, button: 'left', clickCount: 1 });
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length >= 240`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 180))`);
++  Object.assign(둘준비, await 크롬.돌리기(`window.__historyLoadAudit.click`));
++  const 둘결과 = await 크롬.돌리기(`(() => {
++    const turns = [...document.querySelectorAll('#wrap .turn')];
++    const indices = turns.map((x) => Number(x.dataset.entryIndex));
++    const afterY = document.querySelector('.turn[data-entry-index="80"]').getBoundingClientRect().top;
++    return { 방법: '보이는 버튼 CDP 좌표 클릭', oldStart: 80, beforeY: ${JSON.stringify(둘준비.beforeY)}, afterY,
++      delta: afterY - ${JSON.stringify(둘준비.beforeY)}, 그린대화: turns.length, indices,
++      uniqueCount: new Set(indices).size, duplicates: indices.length - new Set(indices).size,
++      button: ${JSON.stringify(둘준비.button)}, input: { method: 'Input.dispatchMouseEvent', coordinateClick: true } };
++  })()`);
++  증분로드.push(둘결과);
++  큰대화.증분로드 = 증분로드;
++  큰대화.전체통과 = 증분로드.map((x) => x.그린대화).join(',') === '160,240'
++    && 증분로드.every((x) => Math.abs(x.delta) <= 1 && x.duplicates === 0 && x.uniqueCount === x.그린대화)
++    && 둘결과.button.viewportVisible
++    && !(await 크롬.돌리기(`!!document.querySelector('.history-cut button, button.history-cut')`));
++
++  // 80+1 경계는 한 번에 81개가 되고, 작은 대화는 더보기가 아예 없다.
++  await 크롬.돌리기(`location.hash = '#/s/boundary'`);
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 80`);
++  const 경계처음 = await 크롬.돌리기(`!!document.querySelector('.history-cut button, button.history-cut')`);
++  if (경계처음) await 크롬.돌리기(`document.querySelector('.history-cut button, button.history-cut').click()`);
++  const 경계와작은대화 = {
++    경계: await 크롬.돌리기(`({ 수: document.querySelectorAll('#wrap .turn').length, 더보기: !!document.querySelector('.history-cut button, button.history-cut') })`),
++  };
++  await 크롬.돌리기(`location.hash = '#/s/small'`);
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 20`);
++  경계와작은대화.작은대화 = await 크롬.돌리기(`({ 수: document.querySelectorAll('#wrap .turn').length, 더보기: !!document.querySelector('.history-cut button, button.history-cut') })`);
++  경계와작은대화.통과 = 경계와작은대화.경계.수 === 81 && !경계와작은대화.경계.더보기
++    && 경계와작은대화.작은대화.수 === 20 && !경계와작은대화.작은대화.더보기;
++  // 처방 5: 실제 검색 버튼으로 열어 결과의 맞은 말을 강조하고, 누르면 원 대목으로 이동한다.
++  await 크롬.돌리기(`(() => {
++    document.getElementById('searchbtn').click();
++    const q = document.getElementById('q'); q.value = '큰 대화 답 240';
++    document.getElementById('qgo').click();
++  })()`);
++  await 크롬.준비대기(`document.querySelector('#qresults mark')?.textContent === '큰 대화 답 240'`);
++  const 검색강조 = await 크롬.돌리기(`document.querySelector('#qresults mark')?.textContent`);
++  await 크롬.돌리기(`document.querySelector('#qresults .qh-body').click()`);
++  await 크롬.준비대기(`!!document.querySelector('.turn.search-target')`);
++  const 검색스니펫 = await 크롬.돌리기(`(() => ({
++    강조: false,
++    원대화: location.hash === '#/s/large',
++    첫일치이동: !!document.querySelector('.turn.search-target .msg.bot'),
++  }))()`);
++  검색스니펫.강조 = 검색강조 === '큰 대화 답 240';
++  검색스니펫.통과 = 검색스니펫.강조 && 검색스니펫.원대화 && 검색스니펫.첫일치이동;
++
++  // 검색 히트가 접힌 범위에 있어도 entryIndex가 가리킨 청크를 올린 뒤 그 원문만 강조한다.
++  await 크롬.돌리기(`(() => {
++    document.getElementById('searchbtn').click();
++    document.getElementById('q').value = '접힌 정확한 원문';
++    document.getElementById('qgo').click();
++  })()`);
++  await 크롬.준비대기(`document.querySelector('#qresults mark')?.textContent === '접힌 정확한 원문'`);
++  await 크롬.돌리기(`document.querySelector('#qresults .qh-body').click()`);
++  await 크롬.준비대기(`!!document.querySelector('.turn.search-target[data-entry-index="20"]')`);
++  const 접힌검색 = await 크롬.돌리기(`(() => ({
++    원대화: location.hash === '#/s/large',
++    대상번호: document.querySelector('.turn.search-target[data-entry-index="20"]')?.dataset.entryIndex,
++    원문강조: document.querySelector('.turn.search-target[data-entry-index="20"] mark.search-original-match')?.textContent,
++    그린대화: document.querySelectorAll('#wrap .turn').length,
++  }))()`);
++  접힌검색.통과 = 접힌검색.원대화 && 접힌검색.대상번호 === '20'
++    && 접힌검색.원문강조 === '접힌 정확한 원문' && 접힌검색.그린대화 > 80;
++
++  // 부재 검색은 현재 대화나 로드 범위를 바꾸지 않는다.
++  const 부재전 = await 크롬.돌리기(`({ hash: location.hash, count: document.querySelectorAll('#wrap .turn').length })`);
++  await 크롬.돌리기(`document.getElementById('searchbtn').click(); document.getElementById('q').value = '없는 대목'; document.getElementById('qgo').click()`);
++  await 크롬.준비대기(`document.getElementById('qresults').textContent.includes('찾은 대화가 없어요')`);
++  const 부재검색 = await 크롬.돌리기(`({ hash: location.hash, count: document.querySelectorAll('#wrap .turn').length })`);
++  부재검색.통과 = 부재검색.hash === 부재전.hash && 부재검색.count === 부재전.count;
++
++  // 오너 실사용 회귀: 발화가 많은 대화를 본 뒤 새 대화에서 한 번 말해도 한 벌만 보여야 한다.
++  await 크롬.돌리기(`document.querySelector('#newchat').click()`);
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 0`);
++  await 크롬.돌리기(`document.querySelector('#text').value = '안녕'; document.querySelector('#send').click()`);
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .msg.bot').length > 0`);
++  const 새대화중복 = await 크롬.돌리기(`(() => ({
++    사용자: [...document.querySelectorAll('#wrap .msg.me')].filter((x) => x.textContent.trim() === '안녕').length,
++    답: [...document.querySelectorAll('#wrap .msg.bot')].filter((x) => x.textContent.includes('무엇을 같이 해볼까요')).length,
++  }))()`);
++  새대화중복.통과 = 새대화중복.사용자 === 1 && 새대화중복.답 === 1;
++  const 통과 = 결과.every((x) => x.통과) && 낙관적유지.통과 && 큰대화.통과 && 큰대화.전체통과
++    && 경계와작은대화.통과 && 검색스니펫.통과 && 접힌검색.통과 && 부재검색.통과 && 새대화중복.통과;
++  console.log(JSON.stringify({ 폭, 주소: base, 결과, 낙관적유지, 큰대화, 경계와작은대화, 검색스니펫, 접힌검색, 부재검색, 새대화중복, 통과 }, null, 2));
++  process.exitCode = 통과 ? 0 : 1;
++} finally {
++  await 크롬.닫기();
++  server.close();
++  server.closeAllConnections();
++  // Node 내장 fetch(초기 정적/상태 요청과 CDP HTTP)가 keep-alive 소켓을 잠시 붙든다.
++  // 결과·exitCode·자원 정리가 모두 끝난 뒤 그 대기만 강제로 끊는다.
++  setTimeout(() => process.exit(process.exitCode ?? 0), 0).unref();
++}
+diff --git a/scripts/live/ux-history-cdp-cleanup-proof.mjs b/scripts/live/ux-history-cdp-cleanup-proof.mjs
+new file mode 100644
+index 00000000..053d3717
+--- /dev/null
++++ b/scripts/live/ux-history-cdp-cleanup-proof.mjs
+@@ -0,0 +1,56 @@
++// 외부 timeout 신호와 조기 포트/대상 실패가 전용 Chrome·프로필을 남기지 않는지 실제 프로세스로 잰다.
++import { spawn, execFile } from 'node:child_process';
++import { access } from 'node:fs/promises';
++import { promisify } from 'node:util';
++
++import { 크롬띄우기 } from './ux-history-cdp.mjs';
++
++const execFileAsync = promisify(execFile);
++const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
++const prefix = `ux-history-cleanup-${process.pid}-`;
++
++async function 프로필목록() {
++  const { stdout } = await execFileAsync('ps', ['-axo', 'command']);
++  return [...stdout.matchAll(new RegExp(`--user-data-dir=([^ ]*${prefix}[^ ]*)`, 'g'))].map((match) => match[1]);
++}
++
++async function 없어짐(profile) {
++  await sleep(300);
++  const processes = (await 프로필목록()).filter((path) => path === profile).length;
++  let directory = true;
++  try { await access(profile); } catch { directory = false; }
++  return { profile, processes, directory };
++}
++
++async function 조기실패(failurePoint) {
++  let message = '';
++  let profile = '';
++  try {
++    await 크롬띄우기({
++      url: 'data:text/html,cleanup-proof', profilePrefix: prefix, failurePoint,
++      onProfile: (value) => { profile = value; },
++    });
++  } catch (error) { message = error.message; }
++  return { failurePoint, message, ...await 없어짐(profile) };
++}
++
++const fixture = spawn(process.execPath, ['scripts/live/ux-history-load-fixture.mjs'], {
++  cwd: new URL('../..', import.meta.url),
++  env: { ...process.env, UX_HISTORY_PROFILE_PREFIX: prefix }, stdio: 'ignore',
++});
++let signalProfile = '';
++for (let i = 0; i < 40 && !signalProfile; i += 1) {
++  await sleep(100);
++  signalProfile = (await 프로필목록())[0] ?? '';
++}
++if (!signalProfile) throw new Error('SIGTERM 전에 전용 Chrome 프로필을 못 찾았다');
++fixture.kill('SIGTERM');
++await new Promise((resolve) => fixture.once('exit', resolve));
++const signal = await 없어짐(signalProfile);
++const beforePort = await 조기실패('before-port');
++const beforeTarget = await 조기실패('before-target');
++const 통과 = signal.processes === 0 && !signal.directory
++  && beforePort.processes === 0 && !beforePort.directory && beforePort.message === '시험용 포트 이전 실패'
++  && beforeTarget.processes === 0 && !beforeTarget.directory && beforeTarget.message === '시험용 대상 탐색 이전 실패';
++console.log(JSON.stringify({ signal, beforePort, beforeTarget, 통과 }));
++process.exitCode = 통과 ? 0 : 1;
+diff --git a/scripts/live/ux-history-cdp.mjs b/scripts/live/ux-history-cdp.mjs
+new file mode 100644
+index 00000000..25f40fa2
+--- /dev/null
++++ b/scripts/live/ux-history-cdp.mjs
+@@ -0,0 +1,175 @@
++// ux-history-load-fixture 전용 Chrome 손. 공용 도우미와 달리 CDP 탐색 HTTP를 keep-alive 없이
++// 닫아서, 실제 검증 뒤 Node fetch 소켓의 60초 유휴 만료가 게이트 시간을 붙들지 않게 한다.
++import { spawn } from 'node:child_process';
++import { mkdtemp, readFile, rm } from 'node:fs/promises';
++import { get } from 'node:http';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++
++const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
++const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
++
++function httpGet(url, { json = false, timeoutMs = 3000 } = {}) {
++  return new Promise((resolve, reject) => {
++    const req = get(url, { agent: false, headers: { connection: 'close' } }, (res) => {
++      let body = '';
++      res.setEncoding('utf8');
++      res.on('data', (chunk) => { body += chunk; });
++      res.on('end', () => {
++        clearTimeout(timer);
++        if ((res.statusCode ?? 500) >= 400) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
++        try { resolve(json ? JSON.parse(body) : body); } catch (error) { reject(error); }
++      });
++    });
++    const timer = setTimeout(() => req.destroy(new Error(`HTTP ${timeoutMs}ms 제한`)), timeoutMs);
++    req.once('error', (error) => { clearTimeout(timer); reject(error); });
++  });
++}
++
++export async function 크롬띄우기({
++  url, width = 1280, height = 860, profilePrefix = 'ux-history-chrome-', failurePoint = '', onProfile,
++} = {}) {
++  const 프로필 = await mkdtemp(join(tmpdir(), profilePrefix));
++  onProfile?.(프로필);
++  const proc = spawn(CHROME, [
++    '--headless=new', `--user-data-dir=${프로필}`, '--remote-debugging-port=0',
++    `--window-size=${width},${height}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions',
++    '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
++    '--disable-backgrounding-occluded-windows', url,
++  ], { stdio: 'ignore' });
++  const 강제종료 = () => {
++    if (proc.exitCode == null && proc.signalCode == null) {
++      try { proc.kill('SIGKILL'); } catch {}
++    }
++  };
++  const 강제종료후대기 = async () => {
++    const 끝남 = new Promise((resolve) => {
++      if (proc.exitCode != null || proc.signalCode != null) resolve();
++      else proc.once('exit', resolve);
++    });
++    강제종료();
++    await 끝남;
++  };
++  const 종료시강제종료 = () => 강제종료();
++  const 신호처리 = new Map();
++  const 안전장치해제 = () => {
++    process.removeListener('exit', 종료시강제종료);
++    for (const [signal, handler] of 신호처리) process.removeListener(signal, handler);
++  };
++  process.once('exit', 종료시강제종료);
++  for (const signal of ['SIGTERM', 'SIGINT']) {
++    const handler = async () => {
++      // execFile timeout 등으로 fixture 부모가 죽어도 Chrome을 먼저 끊고 원래 신호로 끝난다.
++      await 강제종료후대기();
++      안전장치해제();
++      await rm(프로필, { recursive: true, force: true });
++      process.kill(process.pid, signal);
++    };
++    신호처리.set(signal, handler);
++    process.once(signal, handler);
++  }
++  if (failurePoint === 'before-port') {
++    await 강제종료후대기(); 안전장치해제();
++    await rm(프로필, { recursive: true, force: true });
++    throw new Error('시험용 포트 이전 실패');
++  }
++
++  let 포트 = null;
++  for (let i = 0; i < 100 && 포트 == null; i += 1) {
++    await sleep(100);
++    try { 포트 = Number((await readFile(join(프로필, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); } catch {}
++  }
++  if (!포트) {
++    await 강제종료후대기(); 안전장치해제();
++    await rm(프로필, { recursive: true, force: true });
++    throw new Error('크롬이 포트를 안 적었다');
++  }
++  if (failurePoint === 'before-target') {
++    await 강제종료후대기(); 안전장치해제();
++    await rm(프로필, { recursive: true, force: true });
++    throw new Error('시험용 대상 탐색 이전 실패');
++  }
++
++  let 대상 = null;
++  for (let i = 0; i < 60 && !대상; i += 1) {
++    await sleep(100);
++    try {
++      const list = await httpGet(`http://127.0.0.1:${포트}/json/list`, { json: true });
++      대상 = list.find((item) => item.type === 'page' && item.url.startsWith(url.slice(0, 25)));
++    } catch {}
++  }
++  if (!대상) {
++    await 강제종료후대기(); 안전장치해제();
++    await rm(프로필, { recursive: true, force: true });
++    throw new Error('대상 페이지를 못 찾았다');
++  }
++
++  const ws = new WebSocket(대상.webSocketDebuggerUrl);
++  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
++  let id = 0;
++  const 대기 = new Map();
++  ws.onmessage = (event) => {
++    const message = JSON.parse(event.data);
++    const pending = 대기.get(message.id);
++    if (!pending) return;
++    대기.delete(message.id);
++    if (message.error) pending.reject(new Error(JSON.stringify(message.error)));
++    else pending.resolve(message.result);
++  };
++  const send = (method, params = {}) => new Promise((resolve, reject) => {
++    const 번호 = ++id;
++    대기.set(번호, { resolve, reject });
++    ws.send(JSON.stringify({ id: 번호, method, params }));
++  });
++  const 돌리기 = async (expression, timeoutMs = 60_000) => {
++    let timer;
++    const timeout = new Promise((_, reject) => {
++      timer = setTimeout(() => reject(new Error(`페이지 식이 ${timeoutMs}ms 안에 안 끝났다`)), timeoutMs);
++    });
++    let result;
++    try {
++      result = await Promise.race([
++        send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }), timeout,
++      ]);
++    } finally { clearTimeout(timer); }
++    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? '페이지에서 예외');
++    return result.result?.value;
++  };
++  const 준비대기 = async (조건 = 'true', 회 = 60) => {
++    for (let i = 0; i < 회; i += 1) {
++      try {
++        if (await 돌리기(`(() => document.readyState === 'complete' && (${조건}))()`, 5000)) return true;
++      } catch {}
++      await sleep(250);
++    }
++    throw new Error('페이지가 안 선다');
++  };
++  const 닫기 = async () => {
++    const 소켓종료 = new Promise((resolve) => {
++      if (ws.readyState === WebSocket.CLOSED) resolve();
++      else {
++        ws.addEventListener('close', resolve, { once: true });
++        ws.addEventListener('error', resolve, { once: true });
++      }
++    });
++    // DevTools HTTP가 답을 멈춰도 제한 뒤 반드시 아래 child kill fallback으로 간다.
++    try { await httpGet(`http://127.0.0.1:${포트}/json/close/${encodeURIComponent(대상.id)}`, { timeoutMs: 2000 }); } catch {}
++    await Promise.race([소켓종료, sleep(1000)]);
++    try { ws.close(); } catch {}
++    await Promise.race([소켓종료, sleep(1000)]);
++    const 종료 = () => new Promise((resolve) => {
++      if (proc.exitCode != null || proc.signalCode != null) resolve();
++      else proc.once('exit', resolve);
++    });
++    const 첫종료 = 종료();
++    proc.kill();
++    await Promise.race([첫종료, sleep(2000)]);
++    if (proc.exitCode == null && proc.signalCode == null) {
++      강제종료();
++      await Promise.race([종료(), sleep(1000)]);
++    }
++    안전장치해제();
++    await rm(프로필, { recursive: true, force: true });
++  };
++  return { 돌리기, send, 준비대기, 닫기 };
++}
+diff --git a/scripts/live/ux-history-load-fixture.mjs b/scripts/live/ux-history-load-fixture.mjs
+new file mode 100644
+index 00000000..196cf59a
+--- /dev/null
++++ b/scripts/live/ux-history-load-fixture.mjs
+@@ -0,0 +1,281 @@
++// 대화 이력 손의 양성 두 viewport와 반대시험 두 개를 한 격리 Chrome/프로필에서 잰다.
++// 제품 DOM/CSS/렌더 함수는 복제하지 않고, 서버가 실제 index.html 원문 또는 그 변이를 건넨다.
++import { createServer } from 'node:http';
++import { readFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { dirname, join } from 'node:path';
++
++import { 크롬띄우기 } from './ux-history-cdp.mjs';
++
++const 여기 = dirname(fileURLToPath(import.meta.url));
++const 웹 = join(여기, '../../src/surface/web');
++const 정적 = new Map([
++  ['/', ['index.html', 'text/html; charset=utf-8']],
++  ['/index.html', ['index.html', 'text/html; charset=utf-8']],
++  ['/markdown.js', ['markdown.js', 'text/javascript; charset=utf-8']],
++  ['/approval-state.js', ['approval-state.js', 'text/javascript; charset=utf-8']],
++]);
++
++const 원문 = Array.from({ length: 240 }, (_, i) => i % 2 === 0
++  ? { role: 'user', text: i === 18 || i === 20 ? '접힌 정확한 원문 — 반복 단어' : `큰 대화 사용자 ${i + 1}` }
++  : { role: 'assistant', result: { kind: 'reply', reply: `큰 대화 답 ${i + 1}` } });
++const 시작시각 = performance.now();
++const 단계시각 = {};
++const 찍기 = (이름) => { 단계시각[이름] = Number((performance.now() - 시작시각).toFixed(1)); };
++
++function 변이한제품HTML(source, mutation) {
++  if (mutation === 'none') return { source, applied: true };
++  if (mutation === 'anchor-correction-removed') {
++    const changed = source.replace('await 원문자리맞추기(oldStart, oldTop);', '');
++    return { source: changed, applied: changed !== source };
++  }
++  if (mutation === 'unique-guard-removed') {
++    const needle = '마지막서버사용자수 = 서버사용자수;';
++    const changed = source.replace(needle, `if (s.id === 'large' && start < 160) {
++      const duplicate = wrap.querySelector('.turn[data-entry-index]')?.cloneNode(true);
++      if (duplicate) wrap.appendChild(duplicate);
++    }
++    ${needle}`);
++    return { source: changed, applied: changed !== source };
++  }
++  throw new Error(`모르는 변이: ${mutation}`);
++}
++
++function json(res, body, status = 200) {
++  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
++  res.end(JSON.stringify(body));
++}
++
++async function 고정물서버() {
++  const 적용표 = new Map();
++  const server = createServer(async (req, res) => {
++    const u = new URL(req.url, 'http://127.0.0.1');
++    if (정적.has(u.pathname)) {
++      const [name, type] = 정적.get(u.pathname);
++      const source = await readFile(join(웹, name), 'utf8');
++      res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
++      if (name !== 'index.html') { res.end(source); return; }
++      const mutation = u.searchParams.get('mutation') ?? 'none';
++      const changed = 변이한제품HTML(source, mutation);
++      적용표.set(u.searchParams.get('run') ?? mutation, changed.applied);
++      res.end(changed.source);
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/sessions') {
++      json(res, { sessions: [
++        { id: 'large', title: '큰 대화', updatedAt: '2026-08-13T00:00:00.000Z' },
++        { id: 'boundary', title: '경계 대화', updatedAt: '2026-08-13T00:00:00.000Z' },
++        { id: 'small', title: '작은 대화', updatedAt: '2026-08-13T00:00:00.000Z' },
++      ] });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/sessions/large') {
++      json(res, { id: 'large', title: '큰 대화', updatedAt: '2026-08-13T00:00:00.000Z', transcript: 원문, activePendingIds: [] });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/sessions/boundary') {
++      json(res, { id: 'boundary', title: '경계 대화', transcript: Array.from({ length: 81 }, (_, i) => ({ role: 'user', text: `경계 대화 ${i + 1}` })), activePendingIds: [] });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/sessions/small') {
++      json(res, { id: 'small', title: '작은 대화', transcript: Array.from({ length: 20 }, (_, i) => ({ role: 'user', text: `작은 대화 ${i + 1}` })), activePendingIds: [] });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/model/connection') {
++      json(res, { connected: true, provider: 'fixture', modelId: 'UX 이력 고정물', source: 'saved' });
++      return;
++    }
++    if (req.method === 'GET' && u.pathname === '/onboarding') {
++      json(res, { needed: false, canConnect: false, seenWelcome: true });
++      return;
++    }
++    if (req.method === 'POST' && u.pathname === '/search') {
++      let body = '';
++      for await (const chunk of req) body += chunk;
++      const query = JSON.parse(body || '{}').query ?? '';
++      if (query === '없는 대목') { json(res, { results: [] }); return; }
++      const statement = '…접힌 정확한 원문 — 반복 단어…';
++      const matchText = '접힌 정확한 원문';
++      json(res, { results: [{ statement, source: {
++        sessionId: 'large', title: '큰 대화', role: 'user', entryIndex: 20, matchText,
++        matchStart: statement.indexOf(matchText), matchLength: matchText.length,
++      } }] });
++      return;
++    }
++    if (req.method === 'GET') { json(res, {}); return; }
++    json(res, { ok: true });
++  });
++  await new Promise((resolve, reject) => {
++    server.once('error', reject);
++    server.listen(0, '127.0.0.1', resolve);
++  });
++  return { server, port: server.address().port, 적용표 };
++}
++
++async function 한경우(크롬, base, 적용표, { 폭, 변이, run }) {
++  await 크롬.send('Emulation.setDeviceMetricsOverride', {
++    width: 폭, height: 900, deviceScaleFactor: 2, mobile: 폭 < 768,
++  });
++  const url = `${base}/?mutation=${encodeURIComponent(변이)}&run=${encodeURIComponent(run)}#/s/large`;
++  await 크롬.send('Page.navigate', { url });
++  await 크롬.준비대기(`location.hash === '#/s/large'
++    && document.querySelectorAll('#wrap .turn').length === 80
++    && document.body.innerText.includes('이전 대화 160개는 화면에서 접어 두었어요.')`);
++
++  const 처음그린대화 = await 크롬.돌리기(`document.querySelectorAll('#wrap .turn').length`);
++  await 크롬.돌리기(`(() => {
++    window.__historyLoadAudit = {};
++    const log = document.getElementById('log');
++    log.addEventListener('scroll', () => {
++      const anchor = document.querySelector('#wrap .turn[data-entry-index]');
++      if (!window.__historyLoadAudit.scroll && log.scrollTop <= 1 && anchor
++        && document.querySelectorAll('#wrap .turn').length === 80) {
++        window.__historyLoadAudit.scroll = {
++          oldStart: Number(anchor.dataset.entryIndex), beforeY: anchor.getBoundingClientRect().top,
++        };
++      }
++    }, { capture: true });
++    document.addEventListener('click', (event) => {
++      if (!event.target.closest?.('.history-cut button, button.history-cut')) return;
++      const anchor = document.querySelector('#wrap .turn[data-entry-index]');
++      window.__historyLoadAudit.click = {
++        oldStart: Number(anchor.dataset.entryIndex), beforeY: anchor.getBoundingClientRect().top,
++      };
++    }, { capture: true });
++  })()`);
++
++  await 크롬.돌리기(`document.getElementById('log').scrollTop = 48`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 100))`);
++  const wheel = await 크롬.돌리기(`(() => {
++    const r = document.getElementById('log').getBoundingClientRect();
++    return { x: r.left + r.width / 2, y: r.top + r.height / 2, deltaX: 0, deltaY: -10000 };
++  })()`);
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseWheel', ...wheel });
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length >= 160`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 180))`);
++  const 첫기준 = await 크롬.돌리기(`window.__historyLoadAudit.scroll`);
++  const 첫결과 = await 크롬.돌리기(`((audit) => {
++    const turns = [...document.querySelectorAll('#wrap .turn')];
++    const indices = turns.map((x) => Number(x.dataset.entryIndex));
++    const afterY = document.querySelector('.turn[data-entry-index="' + audit.oldStart + '"]')?.getBoundingClientRect().top;
++    return { 방법: '실제 CDP 마우스 휠 위로', oldStart: audit.oldStart, beforeY: audit.beforeY, afterY,
++      delta: afterY - audit.beforeY, 그린대화: turns.length, indices,
++      uniqueCount: new Set(indices).size, duplicates: indices.length - new Set(indices).size,
++      input: ${JSON.stringify(wheel)} };
++  })(${JSON.stringify(첫기준)})`);
++
++  await 크롬.돌리기(`document.getElementById('log').scrollTop = 2`);
++  await 크롬.돌리기(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
++  const 둘준비 = await 크롬.돌리기(`(() => {
++    const log = document.getElementById('log');
++    const button = document.querySelector('.history-cut button, button.history-cut');
++    const b = button.getBoundingClientRect(), l = log.getBoundingClientRect();
++    return { button: { left: b.left, top: b.top, right: b.right, bottom: b.bottom,
++      viewportVisible: b.width > 0 && b.height > 0 && b.top >= Math.max(0, l.top)
++        && b.bottom <= Math.min(innerHeight, l.bottom) && b.left >= 0 && b.right <= innerWidth,
++      x: b.left + b.width / 2, y: b.top + b.height / 2 } };
++  })()`);
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 둘준비.button.x, y: 둘준비.button.y });
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 둘준비.button.x, y: 둘준비.button.y, button: 'left', clickCount: 1 });
++  await 크롬.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 둘준비.button.x, y: 둘준비.button.y, button: 'left', clickCount: 1 });
++  await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length >= 240`);
++  await 크롬.돌리기(`new Promise((resolve) => setTimeout(resolve, 180))`);
++  const 둘기준 = await 크롬.돌리기(`window.__historyLoadAudit.click`);
++  const 둘결과 = await 크롬.돌리기(`((audit, button) => {
++    const turns = [...document.querySelectorAll('#wrap .turn')];
++    const indices = turns.map((x) => Number(x.dataset.entryIndex));
++    const afterY = document.querySelector('.turn[data-entry-index="' + audit.oldStart + '"]')?.getBoundingClientRect().top;
++    return { 방법: '보이는 버튼 CDP 좌표 클릭', oldStart: audit.oldStart, beforeY: audit.beforeY, afterY,
++      delta: afterY - audit.beforeY, 그린대화: turns.length, indices,
++      uniqueCount: new Set(indices).size, duplicates: indices.length - new Set(indices).size,
++      button, input: { method: 'Input.dispatchMouseEvent', coordinateClick: true } };
++  })(${JSON.stringify(둘기준)}, ${JSON.stringify(둘준비.button)})`);
++
++  const 증분로드 = [첫결과, 둘결과];
++  let 경계검색 = null;
++  if (변이 === 'none') {
++    await 크롬.돌리기(`location.hash = '#/s/boundary'`);
++    await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 80`);
++    await 크롬.돌리기(`document.querySelector('.history-cut button, button.history-cut').click()`);
++    await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 81`);
++    const 경계 = await 크롬.돌리기(`({ 수: document.querySelectorAll('#wrap .turn').length,
++      더보기: !!document.querySelector('.history-cut button, button.history-cut') })`);
++    await 크롬.돌리기(`location.hash = '#/s/small'`);
++    await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 20`);
++    const 작은대화 = await 크롬.돌리기(`({ 수: document.querySelectorAll('#wrap .turn').length,
++      더보기: !!document.querySelector('.history-cut button, button.history-cut') })`);
++
++    await 크롬.돌리기(`location.hash = '#/s/large'`);
++    await 크롬.준비대기(`document.querySelectorAll('#wrap .turn').length === 80`);
++    await 크롬.돌리기(`(() => {
++      document.getElementById('searchbtn').click();
++      document.getElementById('q').value = '접힌 정확한 원문';
++      document.getElementById('qgo').click();
++    })()`);
++    await 크롬.준비대기(`document.querySelector('#qresults mark')?.textContent === '접힌 정확한 원문'`);
++    await 크롬.돌리기(`document.querySelector('#qresults .qh-body').click()`);
++    await 크롬.준비대기(`!!document.querySelector('.turn.search-target[data-entry-index="20"]')`);
++    const 접힌검색 = await 크롬.돌리기(`({
++      대상번호: document.querySelector('.turn.search-target[data-entry-index="20"]')?.dataset.entryIndex,
++      원문강조: document.querySelector('.turn.search-target[data-entry-index="20"] mark.search-original-match')?.textContent,
++      그린대화: document.querySelectorAll('#wrap .turn').length,
++    })`);
++    const 부재전 = await 크롬.돌리기(`({ hash: location.hash, count: document.querySelectorAll('#wrap .turn').length })`);
++    await 크롬.돌리기(`(() => {
++      document.getElementById('searchbtn').click();
++      document.getElementById('q').value = '없는 대목';
++      document.getElementById('qgo').click();
++    })()`);
++    await 크롬.준비대기(`document.getElementById('qresults').textContent.includes('찾은 대화가 없어요')`);
++    const 부재후 = await 크롬.돌리기(`({ hash: location.hash, count: document.querySelectorAll('#wrap .turn').length })`);
++    경계검색 = { 경계, 작은대화, 접힌검색, 부재전, 부재후 };
++    경계검색.통과 = 경계.수 === 81 && !경계.더보기 && 작은대화.수 === 20 && !작은대화.더보기
++      && 접힌검색.대상번호 === '20' && 접힌검색.원문강조 === '접힌 정확한 원문'
++      && 접힌검색.그린대화 > 80 && 부재후.hash === 부재전.hash && 부재후.count === 부재전.count;
++  }
++
++  const 전체통과 = 처음그린대화 === 80
++    && 첫결과.그린대화 === 160 && 둘결과.그린대화 === 240
++    && 첫결과.indices.join(',') === Array.from({ length: 160 }, (_, i) => i + 80).join(',')
++    && 둘결과.indices.join(',') === Array.from({ length: 240 }, (_, i) => i).join(',')
++    && 증분로드.every((x) => Math.abs(x.delta) <= 0.75 && x.duplicates === 0 && x.uniqueCount === x.그린대화)
++    && 둘결과.button.viewportVisible && (경계검색?.통과 ?? true);
++  return { 폭, 변이, productMutationApplied: 적용표.get(run) === true, 처음그린대화, 증분로드, 경계검색, 전체통과 };
++}
++
++const { server, port, 적용표 } = await 고정물서버();
++찍기('server-ready');
++const base = `http://127.0.0.1:${port}`;
++const 크롬 = await 크롬띄우기({
++  url: `${base}/?mutation=none&run=boot#/s/large`, width: 1180, height: 900,
++  profilePrefix: process.env.UX_HISTORY_PROFILE_PREFIX ?? 'ux-history-chrome-',
++});
++찍기('chrome-ready');
++try {
++  const 양성 = [];
++  for (const 폭 of [1180, 375]) {
++    양성.push(await 한경우(크롬, base, 적용표, { 폭, 변이: 'none', run: `positive-${폭}` }));
++    찍기(`positive-${폭}`);
++  }
++  const 변이 = [];
++  for (const 이름 of ['anchor-correction-removed', 'unique-guard-removed']) {
++    변이.push(await 한경우(크롬, base, 적용표, { 폭: 1180, 변이: 이름, run: `mutation-${이름}` }));
++    찍기(`mutation-${이름}`);
++  }
++  const 통과 = 양성.every((x) => x.전체통과 && x.productMutationApplied)
++    && 변이.every((x) => !x.전체통과 && x.productMutationApplied);
++  찍기('evidence-ready');
++  console.log(JSON.stringify({ chromeLaunches: 1, serverLaunches: 1, profileCount: 1, 단계시각, 양성, 변이, 통과 }, null, 2));
++  process.exitCode = 통과 ? 0 : 1;
++} finally {
++  찍기('chrome-close-start');
++  await 크롬.닫기();
++  찍기('chrome-close-end');
++  // 내 fixture 연결을 먼저 끊어 fetch keep-alive의 60초 유휴 만료를 기다리지 않는다.
++  server.closeAllConnections();
++  찍기('server-close-start');
++  await new Promise((resolve) => server.close(resolve));
++  찍기('server-close-end');
++  const 활성손잡이 = process._getActiveHandles().map((x) => x?.constructor?.name ?? typeof x);
++  console.error(JSON.stringify({ 단계시각, 활성손잡이 }));
++}
+diff --git a/scripts/live/ux-serve.mjs b/scripts/live/ux-serve.mjs
+new file mode 100644
+index 00000000..570668b4
+--- /dev/null
++++ b/scripts/live/ux-serve.mjs
+@@ -0,0 +1,26 @@
++// 조각 A 반대시험 재측정용 **격리 서버**. 모델 자격은 안 옮긴다(규율) — 이 측정은
++// 그리는 방식만 재므로 모델이 필요 없다. 방은 mkdtemp 가 준 자리 하나만 쓰고 그것만 지운다.
++import { mkdtemp, mkdir } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { pathToFileURL } from 'node:url';
++
++const repo = new URL('../..', import.meta.url).pathname;
++const { startLiveServer } = await import(pathToFileURL(join(repo, 'src/surface/server.js')));
++
++const 방 = await mkdtemp(join(tmpdir(), 'a-remeasure-'));
++const stateDir = join(방, 'state');
++await mkdir(stateDir, { recursive: true });
++await mkdir(join(방, 'GPAO-T5'), { recursive: true });
++
++const server = await startLiveServer({
++  port: 0,
++  processEnv: {
++    HOME: 방, GPAO_T5_DATA_DIR: stateDir, GPAO_T5_HOME: 방,
++    GPAO_T5_FILE_ROOTS: join(방, 'GPAO-T5'),
++  },
++});
++// **서버가 알려준 포트**를 쓴다 — 박으면 남의 서버와 말한다(착수 점검 §라이브 대본 규율).
++console.log(`PORT=${server.address().port}`);
++console.log(`ROOM=${방}`);
++// process.exit 금지 — 신호로만 내린다(finally 를 건너뛰면 좀비가 남는다).
+diff --git a/scripts/live/ux-snapshot.mjs b/scripts/live/ux-snapshot.mjs
+new file mode 100644
+index 00000000..f2315c52
+--- /dev/null
++++ b/scripts/live/ux-snapshot.mjs
+@@ -0,0 +1,35 @@
++// 실제 제품면을 같은 자로 나란히 보는 대본. 격리 Chrome만 쓰고, 받은 URL 밖은 건드리지 않는다.
++import { writeFile } from 'node:fs/promises';
++import { 크롬띄우기 } from './ux-cdp.mjs';
++
++const [url, out, widthArg = '1180'] = process.argv.slice(2);
++if (!url || !out) throw new Error('사용법: node scripts/live/ux-snapshot.mjs <url> <png> [폭]');
++const width = Number(widthArg);
++const 크롬 = await 크롬띄우기({ url, width, height: 860 });
++try {
++  await 크롬.준비대기('document.body && document.body.innerText.length > 0', 120);
++  await new Promise((resolve) => setTimeout(resolve, 1500));
++  await 크롬.send('Emulation.setDeviceMetricsOverride', {
++    width, height: 860, deviceScaleFactor: 1, mobile: width <= 720,
++  });
++  const 화면 = await 크롬.돌리기(`(() => ({
++    title: document.title,
++    url: location.href.replace(/#.*$/, '#…'),
++    text: document.body.innerText.slice(0, 4000),
++    buttons: [...document.querySelectorAll('button')].filter((x) => {
++      const r = x.getBoundingClientRect();
++      return r.width > 0 && r.height > 0;
++    }).slice(0, 40).map((x) => (x.innerText || x.getAttribute('aria-label') || x.title || '').trim()).filter(Boolean),
++    nav: [...document.querySelectorAll('nav a, aside a, [role="navigation"] a')].filter((x) => {
++      const r = x.getBoundingClientRect();
++      return r.width > 0 && r.height > 0;
++    }).slice(0, 40).map((x) => (x.innerText || x.getAttribute('aria-label') || '').trim()).filter(Boolean),
++  }))()`);
++  const shot = await 크롬.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
++  await writeFile(out, Buffer.from(shot.data, 'base64'));
++  console.log(JSON.stringify({ width, out, 화면 }, null, 2));
++} finally {
++  await 크롬.닫기();
++}
++// Node 내장 fetch의 keep-alive 소켓이 계측 완료 뒤에도 대본을 붙잡지 않게 한다.
++setTimeout(() => process.exit(process.exitCode ?? 0), 50);
+diff --git a/scripts/live/ux-walk.mjs b/scripts/live/ux-walk.mjs
+new file mode 100644
+index 00000000..a9b3dd7f
+--- /dev/null
++++ b/scripts/live/ux-walk.mjs
+@@ -0,0 +1,103 @@
++// **전수 걷기** — 화면을 하나씩 열고 버튼을 하나씩 세어 표로 낸다.
++// 짐작이 아니라 **실제 클릭**이다. 안 눌러 본 것은 「안 눌러 봤다」로 남긴다.
++import { writeFile } from 'node:fs/promises';
++import { 크롬띄우기 } from './ux-cdp.mjs';
++
++const base = process.argv[2];
++const 폭 = Number(process.argv[3] || 1180);
++const 크롬 = await 크롬띄우기({ url: base, width: 폭, height: 900 });
++// ⚠ `--window-size` 는 맥에서 **최소 창 너비(약 500px)** 아래로 안 내려간다 — 375 를 줘도 500 이 된다.
++//    첫 판이 그렇게 나왔다(자가 못 닿았다). 진짜 좁은 폭은 CDP 로 **강제**해야 잰다.
++await 크롬.send('Emulation.setDeviceMetricsOverride', {
++  width: 폭, height: 900, deviceScaleFactor: 2, mobile: 폭 < 768,
++});
++await 크롬.준비대기("!!document.getElementById('actbar')");
++try {
++  const 결과 = await 크롬.돌리기(`(async () => {
++    const 뜸 = (ms) => new Promise(r => setTimeout(r, ms));
++    const out = { 폭: innerWidth, 화면: [], 버튼전수: [], 말: {}, 문제: [] };
++
++    const 보이나 = (e) => { const r = e.getBoundingClientRect();
++      const cs = getComputedStyle(e);
++      return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05; };
++    const 훑기 = (이름) => {
++      const bs = [...document.querySelectorAll('button, [role=button], .ov-act')];
++      const 목록 = bs.map((b) => ({
++        화면: 이름,
++        // 숨긴 아이콘까지 세면 화면에 없는 말이 어휘로 잡힌다. 사람이 보는 글만 잰다.
++        글: (b.innerText || b.textContent || '').trim().slice(0, 24),
++        라벨: b.getAttribute('aria-label') || b.title || null,
++        보임: 보이나(b),
++        꺼짐: !!b.disabled,
++        폭0: b.getBoundingClientRect().width === 0,
++      }));
++      out.버튼전수.push(...목록);
++      // 이 화면에서 **글자도 라벨도 없는 버튼**은 사람이 뜻을 알 수 없다
++      for (const b of 목록) if (b.보임 && !b.글 && !b.라벨) out.문제.push({ 화면: 이름, 왜: '글자도 라벨도 없는 버튼' });
++      return 목록.filter((b) => b.보임).length;
++    };
++
++    // ── 0. 본화면 ──────────────────────────────────────────────────
++    out.화면.push({ 이름: '대화(본화면)', 열림: true, 보이는버튼: 훑기('대화'), 비고: '' });
++
++    // ── 1. 검색 패널 ───────────────────────────────────────────────
++    document.getElementById('searchbtn')?.click(); await 뜸(300);
++    out.화면.push({ 이름: '대화 찾기', 열림: document.getElementById('search').style.display === 'block',
++      보이는버튼: 훑기('찾기'), 비고: '' });
++    document.getElementById('searchbtn')?.click(); await 뜸(200);
++
++    // ── 2. 상태 칩 ────────────────────────────────────────────────
++    document.getElementById('chip')?.click(); await 뜸(500);
++    const st = document.getElementById('state');
++    out.화면.push({ 이름: '상태(칩)', 열림: !!st && 보이나(st), 보이는버튼: 훑기('상태'),
++      비고: (st?.textContent || '').trim().slice(0, 60) });
++    document.getElementById('chip')?.click(); await 뜸(200);
++
++    // ── 3. 도구함 ─────────────────────────────────────────────────
++    // 사람이 하는 길: 설정 → 도구와 연결 → 도구함 열기. classList로 문을 강제로 열면
++    // 진입 버튼이 끊겨도 걷기가 초록이 되는 바로 그 거짓 양성이다.
++    document.getElementById('settingsbtn').click(); await 뜸(500);
++    const 도구탭 = [...document.querySelectorAll('#set-tabs button')].find((b) => b.textContent.trim() === '도구와 연결');
++    도구탭?.click(); await 뜸(700);
++    const 도구문 = [...document.querySelectorAll('#set-body button')].find((b) => b.textContent.trim() === '도구함 열기');
++    도구문?.click(); await 뜸(700);
++    const 도구함열림 = document.getElementById('tbov').classList.contains('open');
++    if (!도구함열림) out.문제.push({ 화면: '도구함', 왜: '사람이 누를 진입 경로로 열리지 않는다' });
++    out.화면.push({ 이름: '도구함', 열림: 도구함열림, 보이는버튼: 훑기('도구함'),
++      비고: (document.getElementById('tb-body')?.textContent || '').trim().slice(0, 60) });
++    document.getElementById('tb-x')?.click(); await 뜸(200);
++
++    // ── 4. 설정 7탭 — **하나씩 실제로 연다** ────────────────────────
++    // 모듈 안 함수는 못 부른다 — **사람이 하는 그대로** 버튼을 눌러서 간다.
++    document.getElementById('settingsbtn').click(); await 뜸(800);
++    const 탭들 = ['모델','메신저','도구와 연결','스킬','자동화','기억과 개인정보','모양'];
++    for (const t of 탭들) {
++      const 탭 = [...document.querySelectorAll('#set-tabs button')].find((b) => b.textContent.trim() === t);
++      if (!탭) { out.문제.push({ 화면: '설정/' + t, 왜: '탭 버튼이 없다' }); continue; }
++      탭.click();
++      await 뜸(900);
++      const body = document.getElementById('set-body');
++      const 글 = (body?.textContent || '').trim();
++      out.화면.push({ 이름: '설정 · ' + t, 열림: document.getElementById('setov').classList.contains('open'),
++        보이는버튼: 훑기('설정/' + t), 비고: 글.slice(0, 70), 빈칸: 글.length === 0 });
++      if (!글) out.문제.push({ 화면: '설정/' + t, 왜: '내용이 비어 있다(사람이 열면 빈 화면)' });
++    }
++    document.getElementById('setov').classList.remove('open');
++
++    // ── 5. 말 대조 — 같은 뜻이 화면마다 다른 말을 쓰나 ───────────────
++    const 사전 = { 지움: ['지우기','삭제','치워 두기','휴지통','제거'], 되돌림: ['되돌리기','복구','되살리기','붙듦 해제'],
++      닫기: ['닫기','✕','대화로 돌아가기'], 보냄: ['보내기','다시 보내기','전송'] };
++    for (const [뜻, 말들] of Object.entries(사전)) {
++      const 쓰인것 = [...new Set(out.버튼전수.filter((b) => 말들.some((w) => b.글 === w || b.라벨 === w)).map((b) => b.글 || b.라벨))];
++      out.말[뜻] = 쓰인것;
++      if (쓰인것.length > 2) out.문제.push({ 화면: '(전역)', 왜: \`「\${뜻}」을 \${쓰인것.length}가지 말로 쓴다: \${쓰인것.join(' / ')}\` });
++    }
++    return out;
++  })()`, 180000);
++  console.log(JSON.stringify(결과, null, 2));
++  if (process.argv[4]) await writeFile(process.argv[4], JSON.stringify(결과, null, 2));
++} finally {
++  await 크롬.닫기();
++  // Node 내장 fetch의 keep-alive만 남는다. 측정·출력·자원 정리 뒤 대본을 끝낸다.
++  setTimeout(() => process.exit(process.exitCode ?? 0), 0).unref();
++}
+diff --git a/scripts/s1/preflight.mjs b/scripts/s1/preflight.mjs
+index ab967950..43915c5a 100644
+--- a/scripts/s1/preflight.mjs
++++ b/scripts/s1/preflight.mjs
+@@ -508,6 +508,9 @@ export const 허용파일 = [
+   'src/runtime/tool-runner.js',
+   // F-5 멈춤 — 표면(HTTP 문 + 화면 버튼)에서 커널 취소 이음새까지.
+   'src/surface/web/index.html',
++  // UX 처방 ⑤(2026-08-13) — 검색 결과가 대화 첫머리가 아니라 실제로 맞은 대목을
++  // 보여 주고 원 대화의 같은 위치로 이동하려면, 후보가 일치 위치를 함께 내야 한다.
++  'src/kernel/l5-growth/session-search.js',
+   // §S5 출구 검증 — 완료 주장을 원장과 대조하고 어긋나면 모델에게 되돌린다.
+   'src/kernel/l2-plan/exit-verification.js',
+   // **P-OP 결함 가족 A-②**(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다.
+diff --git a/src/kernel/l5-growth/session-search.js b/src/kernel/l5-growth/session-search.js
+index e4b1389f..9d544d57 100644
+--- a/src/kernel/l5-growth/session-search.js
++++ b/src/kernel/l5-growth/session-search.js
+@@ -17,9 +17,35 @@ function entryText(entry) {
+   return '';
+ }
+ 
+-function clip(text, n = 140) {
++function matchRange(text, query) {
++  const lower = text.toLocaleLowerCase();
++  const q = query.toLocaleLowerCase();
++  let at = lower.indexOf(q);
++  let length = q.length;
++  if (at < 0) {
++    const found = q.split(/\s+/).filter(Boolean)
++      .map((part) => ({ at: lower.indexOf(part), length: part.length }))
++      .filter((x) => x.at >= 0).sort((a, b) => a.at - b.at)[0];
++    if (found) ({ at, length } = found);
++  }
++  return at < 0 ? null : { at, length };
++}
++
++function clipAround(text, query, n = 180) {
+   const t = String(text ?? '').trim();
+-  return t.length > n ? `${t.slice(0, n)}…` : t;
++  const matched = matchRange(t, query);
++  if (!matched) return { snippet: t.length > n ? `${t.slice(0, n)}…` : t };
++  const room = Math.max(0, n - matched.length);
++  const start = Math.max(0, Math.min(matched.at - Math.floor(room / 2), t.length - n));
++  const end = Math.min(t.length, start + n);
++  const prefix = start > 0 ? '…' : '';
++  const suffix = end < t.length ? '…' : '';
++  return {
++    snippet: `${prefix}${t.slice(start, end)}${suffix}`,
++    matchStart: prefix.length + matched.at - start,
++    matchLength: matched.length,
++    matchText: t.slice(matched.at, matched.at + matched.length),
++  };
+ }
+ 
+ /**
+@@ -34,11 +60,11 @@ export function searchTranscripts(sessions, query) {
+   if (!q) return [];
+   const hits = [];
+   for (const s of sessions ?? []) {
+-    for (const entry of s.transcript ?? []) {
++    for (const [entryIndex, entry] of (s.transcript ?? []).entries()) {
+       const text = entryText(entry);
+       // isRelevant(질의어, 대화텍스트): 질의 단어가 대화에 나타나면 히트(조사 근사 포함).
+       if (text && isRelevant(q, text)) {
+-        hits.push({ sessionId: s.id, title: s.title, role: entry.role, snippet: clip(text) });
++        hits.push({ sessionId: s.id, title: s.title, role: entry.role, entryIndex, ...clipAround(text, q) });
+       }
+     }
+   }
+@@ -56,7 +82,10 @@ export function makeSearchCandidate(hit, candidateId) {
+     candidateId,
+     kind: RECALLED_KIND,
+     statement: hit.snippet,
+-    source: { sessionId: hit.sessionId, title: hit.title, role: hit.role }, // 출처(어느 대화에서 왔는지)
++    source: {
++      sessionId: hit.sessionId, title: hit.title, role: hit.role,
++      entryIndex: hit.entryIndex, matchStart: hit.matchStart, matchLength: hit.matchLength, matchText: hit.matchText,
++    }, // 출처(어느 대화의 어느 대목에서 왔는지)
+     admitted: false,
+     replayPassed: false,
+     userConfirmed: false, // 사용자가 "이 맥락 써도 돼"라고 admit하기 전엔 영향 0
+diff --git a/src/surface/web/index.html b/src/surface/web/index.html
+index b781d394..19cf4b84 100644
+--- a/src/surface/web/index.html
++++ b/src/surface/web/index.html
+@@ -215,7 +215,7 @@
+   #state .ov-act:hover { background:var(--hover); }
+   #state .ov-act:disabled { opacity:.5; cursor:default; }
+ 
+-  #log { flex:1; overflow-y:auto; padding:var(--sp-6) var(--sp-5); }
++  #log { flex:1; overflow-y:auto; overflow-anchor:none; padding:var(--sp-6) var(--sp-5); }
+   .wrap { max-width:768px; margin:0 auto; display:flex; flex-direction:column; gap:var(--sp-5); }
+   .turn { display:flex; flex-direction:column; gap:var(--sp-2); animation:rise var(--dur-normal) var(--ease-out); }
+   @keyframes rise { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+@@ -370,7 +370,7 @@
+       transition:transform var(--dur-normal) var(--ease-out); box-shadow:var(--sh-lg); }
+     body.nav-open #side { transform:translateX(0); }
+     .crumb .hb { display:inline; }
+-    /* 모바일 크럼 압축: 앱 이름·구분자 숨겨 "Work Chat"만, 검색 버튼은 아이콘만 — 한 줄에 들어간다. */
++    /* 모바일 크럼 압축: 앱 이름·구분자 숨겨 "Work Chat"만, 닫힌 검색 버튼은 아이콘만 — 한 줄에 들어간다. */
+     .crumb { padding:var(--sp-3) var(--sp-3); }
+     .crumb .appn { display:none; }
+     #searchbtn .sb-t { display:none; }
+@@ -415,6 +415,125 @@
+     padding:var(--sp-1) var(--sp-3); box-shadow:var(--sh-lg); cursor:pointer; white-space:nowrap;
+     transition:background var(--dur-fast) var(--ease-out); }
+   #tobottom:hover { background:var(--hover); }
++
++  /* ── 조각 B · 기본 동작을 준다 (UX 기획 §2 B · 2026-08-12) ────────────────
++     §1 동시 작업 조건 그대로: **맨 끝에 조각 이름과 함께 덧붙이고 위의 어떤 줄도 안 고친다.**
++     바로 위가 조각 A 다 — 그 블록도 안 건드렸다. */
++
++  /* 멈춤은 **있는데 안 보였다**(투명 배경 · 회색 글자 — 조사 §0 ③).
++     답이 흐르는 동안 사용자가 쥘 수 있는 손잡이는 이것 하나뿐인데 배경에 묻혀 있었다.
++     새 버튼을 만들지 않는다 — 있는 버튼의 조만 올린다. */
++  .stopbtn { color:var(--fg); background:var(--bot); border-color:var(--line-strong);
++    box-shadow:var(--sh-sm); font-weight:550; }
++  .stopbtn::before { content:"■"; font-size:.72em; margin-right:var(--sp-1); vertical-align:1px; color:var(--danger); }
++  .stopbtn:hover { background:var(--hover); color:var(--fg-strong); }
++  .stopbtn:disabled::before { color:var(--muted); }
++
++  /* 기본 동작 막대 — ★ **말풍선 안에 넣지 않는다.**
++     조각 A 의 `겹쳐맞추기` 가 흐르는 동안 자식 노드를 제자리에서 맞춘다. 안에 버튼을 넣으면
++     ① 다음 조각에 지워지고 ② 「화면 DOM == renderMarkdown 출력」계약(A 반대시험 ⑥)이 깨진다.
++     `position:fixed` 라 대화 높이(scrollHeight)도 안 건드린다 — 따라가기 계산과 완전히 무관하다
++     (조각 A 가 「맨 아래로」를 높이 0 으로 붙인 것과 같은 이유다). */
++  #actbar { position:fixed; z-index:20; display:none; gap:var(--sp-1);
++    padding:2px; border-radius:var(--r-md); background:var(--elevated);
++    border:1px solid var(--line-strong); box-shadow:var(--sh-md); }
++  #actbar.on { display:flex; }
++  #actbar button { font:inherit; font-size:var(--fs-xs); line-height:1.6;
++    padding:2px var(--sp-2); border:none; border-radius:var(--r-sm);
++    background:transparent; color:var(--muted); cursor:pointer; white-space:nowrap; }
++  #actbar button:hover { background:var(--hover); color:var(--fg-strong); }
++  #actbar button.done { color:var(--ok); }
++
++  /* 기본 동작 줄 — **말풍선 바로 아래에 늘 서 있다**(2026-08-12 오너 지적: 호버는 안 보인다).
++     말풍선 **밖**·같은 턴 상자 안이라 조각 A 의 겹쳐맞추기가 안 건드린다.
++     늘 보이되 조용하게: 작고 흐리다가 그 턴에 손이 가면 진해진다.
++     — 안 보이는 기능은 없는 기능이고, 시끄러운 기능은 잔소리다. 그 사이가 여기다. */
++  .acts { display:flex; gap:var(--sp-1); margin-top:calc(var(--sp-1) * -1); align-self:flex-start; }
++  .acts.right { align-self:flex-end; }
++  .acts button { font:inherit; font-size:var(--fs-sm); line-height:1; width:26px; height:24px;
++    display:inline-flex; align-items:center; justify-content:center;
++    border:none; border-radius:var(--r-sm); background:transparent; color:var(--muted);
++    /* ⚠ 쉬는 상태를 흐리게 두지 않는다. 첫 판은 .55 였는데, 그건 「호버해야 보인다」를
++       투명도로 다시 만든 것이다 — 오너 지적의 핵심은 **안 보이면 없는 것**이라는 쪽이다.
++       색으로 조용하게 하고(--muted), 밝기로 숨기지는 않는다. */
++    opacity:1; cursor:pointer; transition:opacity var(--dur-fast) var(--ease-out),
++      background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
++  .turn:hover .acts button { color:var(--fg); }
++  .acts button:hover { background:var(--hover); color:var(--fg-strong); opacity:1; }
++  .acts button:focus-visible { opacity:1; outline:2px solid var(--accent); outline-offset:1px; }
++  .acts button.done { color:var(--ok); opacity:1; }
++
++  /* ── 조각 D · 손이 한 일이 남는다 (UX 기획 §2 D · 2026-08-12) ──────────────
++     §1 규약 그대로 맨 끝에 덧붙인다. 조각 A·B 블록은 안 건드렸다.
++
++     관통 원칙(기획 §6-1): **판단에 꼭 필요한 최소치만 1차 화면에.**
++     기본은 접힌 한 줄이고, 펼쳐야 한 줄씩 보인다. 잔소리를 늘리지 않는다. */
++
++  /* 기록 본문을 **한 덩이 글**에서 **한 걸음 한 줄**로. 앞의 표식이 상태를 말한다 —
++     실패한 손이 성공한 것과 같은 글자로 서 있으면 펼쳐도 구별이 안 된다. */
++  /* ⚠ 여기에 `display:` 를 쓰면 안 된다. 위의 `.record .body { display:none }` 보다
++     specificity 가 높아 **기록이 늘 펼쳐진 채로 선다** — 「기본은 접힌 한 줄」이 그 자리에서
++     깨진다. 첫 판에 `display:flex` 로 썼다가 **라이브에서 잡혔다**(검사는 코드만 읽어서
++     못 잡았다 — 계산된 스타일을 재야 보이는 종류다). 접고 펴는 것은 머리의 inline
++     `display` 가 한다. 줄 간격은 flex 의 gap 대신 이웃 여백으로 준다. */
++  .record .body.rows { white-space:normal; }
++  .rec-row + .rec-row { margin-top:var(--sp-1); }
++  .rec-row { display:flex; gap:var(--sp-2); align-items:baseline; }
++  .rec-row .m { flex:none; width:1.1em; text-align:center; font-size:.85em; line-height:1.5; }
++  .rec-row .t { flex:1 1 auto; min-width:0; }
++  .rec-row.ok .m { color:var(--ok); }
++  .rec-row.unk .m { color:var(--warn); }
++  .rec-row.est .m { color:var(--muted); }
++  /* 「미확인」·「추정」은 **말로도** 붙인다 — 색만으로 가르면 색을 못 보는 사람에게는
++     성공과 같은 줄이 된다(그건 숫자보다 나쁘다: 거짓을 짧게 말하는 것). */
++  .rec-row .tag { flex:none; font-size:var(--fs-xs); color:var(--muted);
++    border:1px solid var(--line); border-radius:var(--r-sm); padding:0 4px; }
++  .rec-row.unk .tag { color:var(--warn); border-color:var(--warn); }
++
++  /* 흐르는 중의 걸음들 — 답이 시작되면 **지우지 않고 접는다**(기획 §2 D).
++     지우면 "진행을 본 적이 없다"가 되고, 펼쳐 두면 같은 사실을 두 번 말하는 화면이 된다.
++     그래서 **접힌 한 줄**이 답이다. 접힌 이름은 숫자가 아니라 첫 사실을 말한다. */
++  .msg.steps.folded { border-left-color:var(--line-strong); }
++  .steps-head { display:inline-flex; align-items:center; gap:var(--sp-2); cursor:pointer;
++    color:var(--muted); transition:color var(--dur-fast) var(--ease-out); }
++  .steps-head:hover { color:var(--fg); }
++  .steps-head .tw { display:inline-block; transition:transform var(--dur-fast) var(--ease-out); }
++  .steps-head.open .tw { transform:rotate(90deg); }
++  .msg.steps.folded .steps-body { display:none; }
++  .msg.steps.folded .steps-body.open { display:flex; flex-direction:column; gap:var(--sp-1); margin-top:var(--sp-1); }
++
++  /* ── 조각 F · 확장 통로를 하나로 (UX 기획 §2 F · 2026-08-12) ────────────────
++     §1 규약 그대로 맨 끝에 덧붙인다. 위의 `#tbov, #setov` 줄은 **한 글자도 안 고쳤다** —
++     기존 화면 둘은 그 규칙으로 그대로 서고, 이 규칙은 **다음에 올 화면**을 받는다.
++     그래서 새 화면은 CSS 를 안 건드린다: 마크업에 `class="ov"` · `class="ovpanel"` 만 준다.
++     (겹쳐도 결과가 같다 — 같은 값이다. 나중에 기존 둘의 id 규칙을 걷어낼 때 이 자리가 정본이다.) */
++  .ov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
++  .ov.open { display:block; }
++  .ovpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
++    border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
++
++  /* ── 줄 선 말이 보인다 (비교군 정밀분석 §3 처방1 · 2026-08-13) ────────────────
++     §1 규약대로 맨 끝에 덧붙인다.
++     **안 도는 것에 도는 표시를 남기지 않는다** — `.trace::before` 의 뛰는 점은
++     「지금 일하는 중」이라는 뜻이다. 줄 서 있는 것도, 취소된 것도 일하고 있지 않다.
++     같은 점을 그대로 두면 화면이 거짓말을 한다(멈춤이 안 보이던 것과 같은 계열). */
++  .trace.queued::before { animation:none; background:var(--muted); }
++  .trace.still::before { display:none; }
++  .trace.still { opacity:.75; }
++
++  /* 조각 H — 닫는 말은 어디서나 「닫기」 하나다. 글자가 된 오버레이 문과 검색의 열린
++     상태가 같은 크기로 서고, 375px에서도 검색을 닫을 때는 말 자체가 사라지지 않는다. */
++  .tb-head .tb-x { font-size:var(--fs-sm); }
++  #searchbtn.closing #search-icon { display:none; }
++  #searchbtn.closing .sb-t { display:inline; }
++  .history-cut { margin:0 auto var(--sp-4); padding:var(--sp-2) var(--sp-3); width:fit-content;
++    max-width:100%; border:1px solid var(--line); border-radius:var(--r-full); color:var(--muted);
++    background:var(--panel); font-size:var(--fs-xs); text-align:center; }
++  .history-cut button { margin-left:var(--sp-2); padding:var(--sp-1) var(--sp-3); border:1px solid var(--line-strong);
++    border-radius:var(--r-full); background:var(--surface); color:var(--fg); font:inherit; cursor:pointer; }
++  .qh-body mark { background:var(--warn-subtle); color:inherit; border-radius:3px; padding:0 2px; }
++  mark.search-original-match { background:var(--warn-subtle); color:inherit; border-radius:3px; padding:0 2px; }
++  .turn.search-target { outline:2px solid var(--warn); outline-offset:4px; border-radius:var(--r-md); }
+ </style>
+ </head>
+ <body>
+@@ -438,7 +557,7 @@
+       <span class="spacer"></span>
+       <button id="selArchive">숨기기</button>
+       <button id="selDelete" class="warn">지우기</button>
+-      <button id="selCancel">취소</button>
++      <button id="selCancel">닫기</button>
+     </div>
+     <div class="sessions" id="sessions"></div>
+     <div class="sidefoot">
+@@ -453,7 +572,7 @@
+     <div class="crumb">
+       <span class="hb" id="hb">☰</span>
+       <span class="bc"><span class="appn">GPAO-T5 <span class="sep">›</span> </span>Work Chat</span>
+-      <button id="searchbtn" title="지난 대화 찾기">🔍<span class="sb-t"> 대화 찾기</span></button>
++      <button id="searchbtn" title="지난 대화 찾기"><span id="search-icon">🔍</span><span class="sb-t"> 대화 찾기</span></button>
+       <button id="chip" title="현재 상태 보기">확인 중</button>
+     </div>
+     <div id="state"></div>
+@@ -482,7 +601,7 @@
+   <div id="tbov">
+     <div id="tbpanel">
+       <div class="tb-head">
+-        <h2>🜁 도구함 <button class="tb-x" id="tb-x" title="닫기">✕</button></h2>
++        <h2>🜁 도구함 <button class="tb-x" id="tb-x" title="닫기">닫기</button></h2>
+         <p>T5가 작업에 사용할 도구예요. 연결 상태는 실제 실행 상태와 같아요.</p>
+         <input class="tb-search" id="tb-search" placeholder="도구 검색" />
+       </div>
+@@ -493,8 +612,8 @@
+   <div id="setov">
+     <div id="setpanel">
+       <div class="tb-head">
+-        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="대화로 돌아가기">✕</button></h2>
+-        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">← 대화로 돌아가기</a></p>
++        <h2>⚙ 설정 <button class="tb-x" id="set-x" title="닫기">닫기</button></h2>
++        <p><a id="set-back" style="cursor:pointer; color:var(--accent);">닫기</a></p>
+         <div id="set-tabs" class="tb-badges" style="margin-top:var(--sp-2);"></div>
+       </div>
+       <div class="tb-body" id="set-body"></div>
+@@ -674,11 +793,15 @@ const searchPanel = document.getElementById('search');
+ const qInput = document.getElementById('q');
+ const qResults = document.getElementById('qresults');
+ const sbText = document.querySelector('#searchbtn .sb-t');
++const searchIcon = document.getElementById('search-icon');
+ function toggleSearch(force) {
+   const open = force ?? (searchPanel.style.display !== 'block');
+   searchPanel.style.display = open ? 'block' : 'none';
+   if (sbText) sbText.textContent = open ? ' 닫기' : ' 대화 찾기';
+-  document.getElementById('searchbtn').title = open ? '닫기' : '지난 대화 찾기';
++  const searchButton = document.getElementById('searchbtn');
++  searchButton.title = open ? '닫기' : '지난 대화 찾기';
++  searchButton.classList.toggle('closing', open);
++  searchIcon.style.display = open ? 'none' : '';
+   if (open) qInput.focus();
+ }
+ document.getElementById('searchbtn').onclick = () => toggleSearch();
+@@ -705,15 +828,44 @@ function renderQResults(results) {
+     card.appendChild(tag);
+     const srcEl = src.title ? el('qh-src', `대화: ${src.title}${src.role ? ` · ${src.role === 'user' ? '내 말' : 'T5'}` : ''}`) : null;
+     if (srcEl) card.appendChild(srcEl);
+-    const bodyEl = el('qh-body', r.statement);
++    const bodyEl = el('qh-body');
++    const statement = String(r.statement ?? '');
++    const matchStart = Number(src.matchStart);
++    const matchLength = Number(src.matchLength);
++    if (Number.isInteger(matchStart) && Number.isInteger(matchLength) && matchStart >= 0 && matchLength > 0
++      && matchStart + matchLength <= statement.length) {
++      bodyEl.append(document.createTextNode(statement.slice(0, matchStart)));
++      const mark = document.createElement('mark');
++      mark.textContent = statement.slice(matchStart, matchStart + matchLength);
++      bodyEl.append(mark, document.createTextNode(statement.slice(matchStart + matchLength)));
++    } else bodyEl.textContent = statement;
+     card.appendChild(bodyEl);
+     // 이동은 반영과 다른 행동이다 — 제목·본문 클릭은 그 대화로 가고, 반영·되돌리기는 버튼만 한다.
+     const 이동 = async () => {
+       if (!src.sessionId) { toast('이 결과의 원본 대화 정보가 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+       const ok = await fetch('/sessions/' + src.sessionId).then((x) => x.ok).catch(() => false);
+       if (!ok) { toast('그 대화가 지워졌거나 열 수 없어요 — 내용은 "반영하기"로 지금 대화에 쓸 수 있어요.'); return; }
+-      await selectSession(src.sessionId);
++      const entryIndex = Number(src.entryIndex);
++      await selectSession(src.sessionId, { entryIndex: Number.isInteger(entryIndex) ? entryIndex : null });
+       toggleSearch(false);
++      const matchText = String(src.matchText ?? '').trim();
++      const roleClass = src.role === 'user' ? '.msg.me' : '.msg.bot';
++      const indexedTurns = Number.isInteger(entryIndex)
++        ? [...document.querySelectorAll(`.turn[data-entry-index="${entryIndex}"]`)] : [];
++      // entryIndex가 있으면 화면에서 같은 문구를 다시 찾지 않는다. 검색이 가리킨 원문 한 행이 신분이다.
++      const matched = indexedTurns.map((turn) => turn.querySelector(roleClass))
++        .find((node) => node && (!matchText || node.textContent.includes(matchText)))
++        ?? (!Number.isInteger(entryIndex) && matchText
++          ? [...document.querySelectorAll(roleClass)].find((n) => n.textContent.includes(matchText)) : null);
++      if (matched) {
++        const turn = matched.closest('.turn');
++        turn?.classList.add('search-target');
++        if (matchText) 원문맞은말표시(matched, matchText);
++        matched.scrollIntoView({ block: 'center', behavior: 'smooth' });
++        setTimeout(() => turn?.classList.remove('search-target'), 1800);
++      } else if (document.querySelector('.history-cut')) {
++        toast('이 대목은 접힌 이전 대화에 있어요. 검색 결과의 문장을 그대로 확인해 주세요.');
++      }
+     };
+     for (const n of [srcEl, bodyEl]) if (n) { n.style.cursor = 'pointer'; n.title = '이 대화로 이동'; n.onclick = 이동; }
+     const btn = document.createElement('button'); btn.className = 'qh-act';
+@@ -746,6 +898,61 @@ function renderQResults(results) {
+   }
+ }
+ 
++// ── 조각 F · 확장 통로를 하나로 (UX 기획 §2 F · 2026-08-12) ────────────────────
++//
++// 지금 새 화면 하나를 더하려면 **다섯 곳**을 고쳐야 했다:
++//   ① 마크업  ② CSS 선택자 목록 셋(`#tbov, #setov` …)  ③ 열기/닫기 함수 한 벌
++//   ④ 진입 배선  ⑤ 닫기 배선 셋(✕ · 배경 클릭 · Esc)
++// 그중 **넷은 화면마다 똑같은 일**이다. 똑같은 일이 화면 수만큼 복사되면 하나를 빠뜨린 화면이
++// 생긴다 — 실제로 그랬다: **Esc 는 조각 B 가 붙이기 전까지 두 화면 다 없었다.**
++//
++// 그래서 그 넷을 여기 한 벌로 모은다. 이제 새 화면은 **두 곳**이다 — 마크업 한 덩이
++// (`class="ov"`)와 등록 한 줄. CSS 는 맨 끝 `/* 조각 F */` 의 `.ov`·`.ovpanel` 이 받는다.
++//
++// ★ 등록표만 만들고 아무도 안 쓰면 그건 **만든 것이지 닿은 것이 아니다.** 그래서 이번에
++//   기존 화면 둘(도구함·설정)을 **실제로 이 통로로 옮겼다.** 소비자 0인 통로는 안 남긴다.
++// ★ 해시 라우팅·깊은 링크는 이번에 **안 한다**(기획 §4) — 범위가 크고 지금 불편을 안 줄인다.
++const 오버레이표 = new Map();
++
++/** 화면 하나를 통로에 올린다. 올리면 열기·닫기·배경 클릭·✕·Esc·사이드바 접기가 함께 붙는다. */
++function 오버레이등록({ 이름, 덮개, 닫기단추 = [], 열릴때 }) {
++  const 겉 = document.getElementById(덮개);
++  if (!겉) return null;                       // 없는 화면은 등록하지 않는다(죽은 문 금지)
++  오버레이표.set(이름, { 이름, 겉, 열릴때 });
++  겉.addEventListener('click', (e) => { if (e.target === 겉) 오버레이닫기(이름); });
++  for (const id of 닫기단추) {
++    const b = document.getElementById(id);
++    if (b) b.onclick = () => 오버레이닫기(이름);
++  }
++  return 이름;
++}
++// 연 **순서**를 센다. 안 세면 Esc 가 「맨 나중에 연 것」이 아니라 **등록 순서**로 닫는다 —
++// 첫 판이 그랬고, 라이브에서 둘을 같이 열어 보고서야 드러났다. 주석에는 「맨 나중에 연 것」이라
++// 적혀 있었으니 **말이 맞고 코드가 틀린** 자리였다. 코드를 말에 맞춘다.
++let 열림순번 = 0;
++async function 오버레이열기(이름, ...인자) {
++  const 문 = 오버레이표.get(이름);
++  if (!문) return;
++  문.겉.classList.add('open');
++  문.연때 = ++열림순번;
++  document.body.classList.remove('nav-open');   // 좁은 화면에서 사이드바가 위에 남지 않게
++  주소쓰기(`/화면/${이름}`);   // 조각 G: 화면도 주소를 갖는다 — 통로에 올라온 것은 전부 공짜로
++  await 문.열릴때?.(...인자);
++}
++function 오버레이닫기(이름) {
++  const 문 = 오버레이표.get(이름);
++  if (!문 || !문.겉.classList.contains('open')) return;
++  문.겉.classList.remove('open');
++  // 화면을 닫으면 주소는 **그 아래 있던 대화**로 돌아간다(빈 주소로 떨어뜨리지 않는다).
++  if (!열린오버레이().length) 주소쓰기(currentSessionId ? `/s/${currentSessionId}` : '');
++}
++/** 지금 열려 있는 것들 — **연 순서대로**. Esc 가 하나만 닫는 근거다(조각 B). */
++function 열린오버레이() {
++  return [...오버레이표.values()]
++    .filter((문) => 문.겉.classList.contains('open'))
++    .sort((a, b) => (a.연때 ?? 0) - (b.연때 ?? 0));
++}
++
+ // ── 도구함 (2.0-A) — 실제 /toolbox 상태만 보여준다(없는 도구 안 만듦, 죽은 버튼 없음). ──
+ const tbov = document.getElementById('tbov');
+ const tbBody = document.getElementById('tb-body');
+@@ -753,20 +960,27 @@ const tbSearch = document.getElementById('tb-search');
+ let tbTools = [];
+ const mk = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+ 
+-async function openToolbox(focusId) {
+-  tbov.classList.add('open');
+-  document.body.classList.remove('nav-open');
+-  tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
+-  try {
+-    const r = await (await fetch('/toolbox')).json();
+-    tbTools = r.tools || [];
+-    renderToolbox('', focusId);
+-    await renderPendingSenders();
+-    await renderInvalidDeclared();
+-    if (!focusId) tbSearch.focus();
+-  } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
+-}
+-function closeToolbox() { tbov.classList.remove('open'); }
++// 조각 F: 이 화면은 이제 **통로에 올라간 것 하나**다. 열고 닫고 배경을 누르고 ✕ 를 누르고
++// Esc 를 받는 일은 통로가 한다 — 여기 남는 것은 **이 화면만의 내용**이다.
++오버레이등록({
++  이름: '도구함',
++  덮개: 'tbov',
++  닫기단추: ['tb-x'],
++  열릴때: async (focusId) => {
++    tbBody.replaceChildren(mk('div', 'tb-empty', '불러오는 중…'));
++    try {
++      const r = await (await fetch('/toolbox')).json();
++      tbTools = r.tools || [];
++      renderToolbox('', focusId);
++      await renderPendingSenders();
++      await renderInvalidDeclared();
++      if (!focusId) tbSearch.focus();
++    } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
++  },
++});
++// 부르는 자리가 여럿이라 이름은 그대로 둔다(옮기는 일과 이름 바꾸는 일을 한 커밋에 섞지 않는다).
++async function openToolbox(focusId) { await 오버레이열기('도구함', focusId); }
++function closeToolbox() { 오버레이닫기('도구함'); }
+ 
+ // ╔══ 조각 E 투영 시작 ═══════════════════════════════════════════════════════════
+ // **자동화 목록 투영 한 벌**(기획서 §2 조각 E · §5 · §6-2). 화면이 상태를 제 손으로 다시
+@@ -1010,10 +1224,12 @@ const SET_SECTIONS = [
+   ['model', '모델'], ['messenger', '메신저'], ['tools', '도구와 연결'],
+   ['skills', '스킬'], ['automation', '자동화'], ['memory', '기억과 개인정보'], ['looks', '모양'],
+ ];
+-function closeSettings() { setov.classList.remove('open'); }
+-async function openSettings(section = 'model') {
+-  setov.classList.add('open');
+-  document.body.classList.remove('nav-open');
++// 조각 F: 설정도 같은 통로에 올린다. 닫는 문이 둘(✕ · 「대화로 돌아가기」)이라 둘 다 등록한다 —
++// 전에는 각각 따로 배선돼 있었고, 그런 자리가 바로 하나를 빠뜨리게 되는 자리다.
++오버레이등록({ 이름: '설정', 덮개: 'setov', 닫기단추: ['set-x', 'set-back'], 열릴때: (section) => 설정그리기(section) });
++function closeSettings() { 오버레이닫기('설정'); }
++async function openSettings(section = 'model') { await 오버레이열기('설정', section); }
++async function 설정그리기(section = 'model') {
+   setTabs.replaceChildren(...SET_SECTIONS.map(([id, label]) => {
+     const b = document.createElement('button'); b.className = 'tb-badge'; b.textContent = label;
+     b.style.cursor = 'pointer';
+@@ -1225,9 +1441,7 @@ const SET_RENDER = {
+   },
+ };
+ document.getElementById('settingsbtn').onclick = () => openSettings();
+-document.getElementById('set-x').onclick = closeSettings;
+-document.getElementById('set-back').onclick = closeSettings;
+-setov.onclick = (e) => { if (e.target === setov) closeSettings(); };
++// 조각 F: ✕ · 「대화로 돌아가기」 · 배경 클릭 배선 셋을 여기서 걷었다 — 등록 한 줄이 대신한다.
+ // 기억 액션은 공통 통로(memAction·onOverviewAction)를 그대로 쓴다 — 표면마다 갈라지지 않게.
+ setBody.addEventListener('click', async (e) => {
+   if (!e.target.closest('.ov-act')) return;
+@@ -1366,8 +1580,7 @@ function toolCard(t) {
+   card.onclick = () => card.classList.toggle('open');
+   return card;
+ }
+-document.getElementById('tb-x').onclick = closeToolbox;
+-tbov.onclick = (e) => { if (e.target === tbov) closeToolbox(); };
++// 조각 F: ✕ · 배경 클릭 배선 둘을 여기서 걷었다 — 등록 한 줄이 대신한다.
+ tbSearch.oninput = () => renderToolbox(tbSearch.value);
+ 
+ function el(cls, txt) { const d = document.createElement('div'); if (cls) d.className = cls; if (txt != null) d.textContent = txt; return d; }
+@@ -1698,7 +1911,12 @@ document.getElementById('listtabs').onclick = async (ev) => {
+ };
+ async function newSession() {
+   const s = await (await fetch('/sessions', { method: 'POST' })).json();
+-  currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
++  currentSessionId = s.id;
++  // 낙관 턴의 기준은 **이 대화의** 저장 수다. 직전 대화의 수를 물려받으면 새 대화 첫 턴이
++  // 이미 저장된 뒤에도 `서버사용자수 <= 기준사용자수`가 되어 화면에 한 벌 더 붙는다.
++  마지막서버사용자수 = 0;
++  마지막서버답수 = 0;
++  wrap.innerHTML = ''; await loadSessions();
+   document.body.classList.remove('nav-open'); text.focus();
+ }
+ // 대화 한 벌을 **한 함수로만** 그린다.
+@@ -1713,29 +1931,126 @@ async function newSession() {
+ // 진실**이고, 턴·승인·거절이 끝나면 그 사실로 대화를 다시 투영한다.
+ // 다만 **마지막 결과만 현재**로 그린다 — `historical` 은 비밀 입력면·기억 제안 같은 지금 필요한
+ // 자리까지 숨기므로, 전부 과거로 그리면 방금 열린 입력창이 사라진다.
+-async function 대화투영(s) {
++let 마지막서버사용자수 = 0;
++let 마지막서버답수 = 0;
++const 최근대화표시한도 = 80;
++let 대화표시상태 = { sessionId: null, start: 0, snapshot: null };
++let 대화더불러오는중 = false;
++
++function 원문맞은말표시(root, text) {
++  if (!root || !text) return false;
++  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
++  let node;
++  while ((node = walker.nextNode())) {
++    const at = node.data.indexOf(text);
++    if (at < 0) continue;
++    const before = document.createTextNode(node.data.slice(0, at));
++    const mark = document.createElement('mark'); mark.className = 'search-original-match'; mark.textContent = text;
++    const after = document.createTextNode(node.data.slice(at + text.length));
++    node.replaceWith(before, mark, after);
++    return true;
++  }
++  return false;
++}
++
++async function 대화투영(s, { entryIndex = null } = {}) {
+   const active = s.activePendingIds || [];
+-  const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
++  const 대화 = s.transcript || [];
++  const 첫범위 = Math.max(0, 대화.length - 최근대화표시한도);
++  let start = 대화표시상태.sessionId === s.id ? Math.min(대화표시상태.start, 첫범위) : 첫범위;
++  if (Number.isInteger(entryIndex) && entryIndex >= 0 && entryIndex < 대화.length) {
++    while (entryIndex < start) start = Math.max(0, start - 최근대화표시한도);
++  }
++  대화표시상태 = { sessionId: s.id, start, snapshot: s };
++  const 표시대화 = 대화.slice(start);
++  const 접은수 = start;
++  const 서버사용자수 = 대화.filter((e) => e.role === 'user').length;
++  const 서버답수 = 대화.filter((e) => e.role === 'assistant').length;
++  const 마지막 = 표시대화.map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
++  // 서버 저장이 화면보다 한 박자 늦을 때 통째 투영이 방금 친 말·받은 답을 지우지 않게 맡아 둔다.
++  // 노드 자체를 다시 붙이므로 진행 표시·버튼의 실제 배선도 복제되지 않는다.
++  const 낙관턴 = [...wrap.querySelectorAll('.turn[data-optimistic-users]')]
++    .filter((턴) => 턴.getAttribute('data-optimistic-session') === s.id);
+   wrap.innerHTML = '';
+-  (s.transcript || []).forEach((e, i) => {
+-    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
++  if (접은수 > 0) {
++    const cut = el('history-cut', `이전 대화 ${접은수}개는 화면에서 접어 두었어요. 저장된 원문은 그대로예요.`);
++    const more = document.createElement('button'); more.type = 'button'; more.textContent = `이전 대화 ${Math.min(최근대화표시한도, 접은수)}개 더 보기`;
++    more.onclick = () => 이전대화더보기(); cut.appendChild(more); wrap.appendChild(cut);
++  }
++  표시대화.forEach((e, i) => {
++    const 원문번호 = start + i;
++    const before = wrap.children.length;
++    if (e.role === 'user') {
++      const box = turnBox(); box.appendChild(el('who right', '사용자'));
++      const 내말 = el('msg me', e.text); box.appendChild(내말);
++      동작줄(box, 내말, 'me');   // 조각 B: 말풍선 **아래**에 늘 서 있는 줄(호버 아님)
++    }
+     else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
++    for (const node of [...wrap.children].slice(before)) if (node.classList?.contains('turn')) node.dataset.entryIndex = String(원문번호);
+   });
++  for (const 턴 of 낙관턴) {
++    const 기준사용자수 = Number(턴.getAttribute('data-optimistic-users'));
++    const 기준답수 = Number(턴.getAttribute('data-optimistic-assistants'));
++    if (서버사용자수 <= 기준사용자수) { wrap.appendChild(턴); continue; }
++    if (서버답수 <= 기준답수) {
++      // 사용자는 서버에 닿았고 답만 늦었다. 같은 말을 두 번 보이지 않고 받은 답 쪽만 지킨다.
++      턴.querySelectorAll('.who.right,.msg.me,.acts.right').forEach((n) => n.remove());
++      if (턴.childElementCount) wrap.appendChild(턴);
++    }
++  }
++  마지막서버사용자수 = 서버사용자수;
++  마지막서버답수 = 서버답수;
+   return s;
+ }
+ 
++async function 이전대화더보기() {
++  if (대화더불러오는중 || !대화표시상태.snapshot || 대화표시상태.start <= 0) return;
++  대화더불러오는중 = true;
++  const oldStart = 대화표시상태.start;
++  const anchor = wrap.querySelector(`.turn[data-entry-index="${oldStart}"]`);
++  const oldTop = anchor?.getBoundingClientRect().top ?? 0;
++  대화표시상태.start = Math.max(0, oldStart - 최근대화표시한도);
++  try {
++    await 자리지키며(() => 대화투영(대화표시상태.snapshot));
++    따라간다 = false; 맨아래버튼갱신();
++    await 원문자리맞추기(oldStart, oldTop);
++  } finally { 대화더불러오는중 = false; }
++}
++
++// DOM 교체 직후의 레이아웃과 다음 frame의 브라우저 scroll anchoring이 순서대로 들어와도
++// 같은 원문이 사용자 눈앞에 남도록 두 frame 모두에서 같은 anchor를 기준으로 맞춘다.
++async function 원문자리맞추기(oldStart, oldTop) {
++  for (let frame = 0; frame < 2; frame += 1) {
++    const same = wrap.querySelector(`.turn[data-entry-index="${oldStart}"]`);
++    const delta = (same?.getBoundingClientRect().top ?? oldTop) - oldTop;
++    자리옮김(logEl.scrollTop + delta);
++    await new Promise((resolve) => requestAnimationFrame(resolve));
++  }
++  // 물리 휠의 compositor 끝 조각이 frame 뒤에 도착하는 Chrome에서도 같은 자리를 다시 맞춘다.
++  await new Promise((resolve) => setTimeout(resolve, 100));
++  const settled = wrap.querySelector(`.turn[data-entry-index="${oldStart}"]`);
++  const residual = (settled?.getBoundingClientRect().top ?? oldTop) - oldTop;
++  자리옮김(logEl.scrollTop + residual);
++}
++
++// 더보기 단추와 같은 통로를 맨 위까지 올린 사용자의 스크롤에도 연결한다.
++logEl.addEventListener('scroll', () => {
++  if (logEl.scrollTop <= 1 && 대화표시상태.start > 0) void 이전대화더보기();
++}, { passive: true });
++
+ /** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
+ async function 대화다시그리기() {
+   if (!currentSessionId) return;
+   await 자리지키며(async () => 대화투영(await (await fetch('/sessions/' + currentSessionId)).json()));
+ }
+ 
+-async function selectSession(id) {
++async function selectSession(id, { entryIndex = null } = {}) {
+   currentSessionId = id;
+-  await 대화투영(await (await fetch('/sessions/' + id)).json());
++  await 대화투영(await (await fetch('/sessions/' + id)).json(), { entryIndex });
+   await loadSessions();
+   scrollToBottom(true); // 대화를 열면 마지막 대목부터 보인다(위에서부터 읽게 두지 않는다)
+   document.body.classList.remove('nav-open');
++  주소쓰기(`/s/${id}`);   // 조각 G: 연 대화가 주소에 남는다(뒤로가기·링크가 여기서 생긴다)
+ }
+ 
+ function renderSelfState(s) {
+@@ -1875,12 +2190,29 @@ function renderRecord(box, ledger) {
+   const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
+   head.appendChild(tw);
+   head.appendChild(document.createTextNode(` ${기록라벨(ledger)}`)); // OS 가 만든 문장 — HTML 로 해석하지 않는다
++  // ── 조각 D ── 펼친 안쪽을 **한 걸음 한 줄**로 세운다.
++  //
++  // 전에는 셋을 `'; '` 로 이어 붙인 한 덩이 글이었다. 그러면 펼쳐도 **실패한 손이 성공한
++  // 것과 같은 글자로** 서 있다 — 「확인: A; B  미확인: C」 에서 C 가 못 한 일이라는 것이
++  // 눈에 안 들어온다(기획 §2 D 반대시험 둘째). 표식·꼬리표·색 셋을 같이 준다:
++  // 색만으로 가르면 색을 못 보는 사람에게는 여전히 같은 줄이다.
++  //
++  // 새 데이터도 새 문장도 안 만든다 — **있는 배열 셋을 있는 그대로 줄로 놓는 것뿐**이다.
+   const body = el('body');
+-  body.textContent = [
+-    ledger.confirmed.length ? '확인: ' + ledger.confirmed.join('; ') : '',
+-    ledger.unconfirmed.length ? '미확인: ' + ledger.unconfirmed.join('; ') : '',
+-    ledger.estimated.length ? '추정: ' + ledger.estimated.join('; ') : '',
+-  ].filter(Boolean).join('\n');
++  body.classList.add('rows');
++  const 줄놓기 = (목록, 조, 표식, 꼬리표) => {
++    for (const 말 of 목록 ?? []) {
++      const row = el(`rec-row ${조}`);
++      const m = el('m'); m.textContent = 표식;
++      const t = el('t'); t.textContent = String(말);   // OS 가 만든 문장 — HTML 로 해석하지 않는다
++      row.appendChild(m); row.appendChild(t);
++      if (꼬리표) { const g = el('tag'); g.textContent = 꼬리표; row.appendChild(g); }
++      body.appendChild(row);
++    }
++  };
++  줄놓기(ledger.confirmed, 'ok', '●', '');
++  줄놓기(ledger.unconfirmed, 'unk', '○', '미확인');
++  줄놓기(ledger.estimated, 'est', '◌', '추정');
+   head.onclick = () => { const o = body.style.display === 'block'; body.style.display = o ? 'none' : 'block'; head.classList.toggle('open', !o); };
+   rec.appendChild(head); rec.appendChild(body); box.appendChild(rec);
+ }
+@@ -1972,7 +2304,12 @@ function renderResult(r, opts = {}) {
+   if (답문.trim()) {
+     const bot = el('msg bot');
+     renderMarkdownInto(bot, 답문);
++    // 조각 B: 복사는 **모델이 쓴 원문**을 준다(그린 글자가 아니라). 표·코드·목록이 붙여넣는
++    // 자리에서 그대로 산다. 속성이 아니라 **JS 속성**으로 단다 — 속성으로 달면 조각 A 의
++    // `속성맞추기` 가 새것 기준으로 지운다.
++    bot.__원문 = 답문;
+     box.appendChild(bot);
++    동작줄(box, bot, 'bot');   // 조각 B: 답 **아래** 한 줄. 늘 보인다
+   }
+   renderRecord(box, r.ledger);
+   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
+@@ -2346,15 +2683,47 @@ async function submit() {
+   const t = text.value.trim(); if (!t) return;
+   const surfaceStartedAt = performance.now();
+   if (!currentSessionId) await newSession();
+-  const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
++  const 앞선낙관턴수 = wrap.querySelectorAll('.turn[data-optimistic-users]').length;
++  const box = turnBox(); box.appendChild(el('who right', '사용자'));
++  box.setAttribute('data-optimistic-session', currentSessionId);
++  box.setAttribute('data-optimistic-users', String(마지막서버사용자수 + 앞선낙관턴수));
++  box.setAttribute('data-optimistic-assistants', String(마지막서버답수 + 앞선낙관턴수));
++  const 내말 = el('msg me', t); box.appendChild(내말);
++  동작줄(box, 내말, 'me');
+   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
+-  // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
+-  const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
++  // ── 줄 선 말이 보인다 (비교군 정밀분석 §3 처방1 · 2026-08-13) ─────────────────────
++  //
++  // 서버는 **이미** 한 세션의 턴을 줄 세운다(`server.js` `withSessionQueue`). 안 깨진다.
++  // **없던 것은 그 사실을 말하는 화면뿐이었다** — 답이 흐르는 중에 말을 보내면 두 번째
++  // 「요청을 이해하고 있어요…」가 서고 「멈추기」가 둘이 됐다. 사람은 자기 말이 먹힌 건지
++  // 줄 서 있는 건지 알 길이 없었다. 조각 D 와 같은 병이다: **있는 사실을 화면이 안 말했다.**
++  //
++  // 오픈클로는 이 자리에 모드 넷을 둔다(`concepts/queue-steering.md`: steer·followup·collect·
++  // interrupt). T5 가 지금 하는 것은 `followup` 이다 — **그걸 그대로 말한다.** 실제로 하는 것과
++  // 다른 이름을 붙이지 않는다(끼워 넣기는 커널이 필요해 여기서 안 한다).
++  const 앞선것 = [...document.querySelectorAll('.stopbtn')].some((b) => !b.disabled);
++  const trace = el('trace', 앞선것 ? '앞의 답이 끝나면 이어서 할게요 — 줄 서 있어요' : '요청을 이해하고 있어요…');
++  if (앞선것) trace.classList.add('queued');
++  box.appendChild(trace);
+   // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
+   // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
+   // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
+-  const 멈춤 = el('stopbtn'); 멈춤.textContent = '멈추기';
++  //
++  // 줄 서 있는 동안은 **멈출 것이 없다** — 아직 아무것도 안 돌고 있다. 그래서 「멈추기」 대신
++  // 「차례 취소」다: 사람이 마음을 바꾸는 길이고, 죽은 버튼을 안 만드는 길이다.
++  const 멈춤 = el('stopbtn'); 멈춤.textContent = 앞선것 ? '차례 취소' : '멈추기';
++  let 취소됨 = false;
+   멈춤.onclick = async () => {
++    // 줄 서 있던 것을 취소하는 것은 **서버를 부를 일이 아니다** — 아직 아무것도 안 돌고 있다.
++    // 이 화면의 차례만 접는다(서버의 큐는 이 요청이 아예 안 들어간 것과 같아진다).
++    if (멈춤.textContent === '차례 취소') {
++      취소됨 = true;
++      trace.textContent = '보내지 않았어요 — 입력칸에 그대로 돌려놨어요.';
++      trace.className = 'trace still';   // 안 도는 것에 도는 표시를 남기지 않는다
++      멈춤.remove();
++      입력칸에얹기(t);   // 사람의 말을 버리지 않는다(조각 B 와 같은 규율)
++      return;
++    }
+     멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';
+     await fetch('/turn/cancel', {
+       method: 'POST', headers: { 'content-type': 'application/json' },
+@@ -2366,6 +2735,13 @@ async function submit() {
+   const 멈춤치우기 = () => 멈춤.remove();
+   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
+   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
++  // 앞의 답이 끝날 때까지 기다린다 — 서버도 줄을 세우지만, **먼저 화면에서** 기다려야
++  // 「차례 취소」가 진짜 취소가 된다(이미 서버로 떠난 것은 못 물린다).
++  while (앞선것 && !취소됨 && [...document.querySelectorAll('.stopbtn')].some((b) => b !== 멈춤 && !b.disabled)) {
++    await new Promise((r) => setTimeout(r, 120));
++  }
++  if (취소됨) { 멈춤치우기(); return; }
++  if (앞선것) { trace.textContent = '요청을 이해하고 있어요…'; trace.classList.remove('queued'); 멈춤.textContent = '멈추기'; }
+   try {
+     const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
+     const recovery = streamed.recovery;
+@@ -2375,6 +2751,15 @@ async function submit() {
+       await streamed.reportComplete();
+       return;
+     }
++    // 받은 답은 서버의 늦은 스냅샷보다 먼저 화면에 도착한 사실이다. 투영 직전에 임시
++    // 미리보기를 지우더라도 같은 노드에 맡겨 두고, 서버 답이 잡히는 순간에만 걷는다.
++    if (streamed.answerText) {
++      const localAnswer = el('msg bot');
++      renderMarkdownInto(localAnswer, streamed.answerText);
++      localAnswer.__원문 = streamed.answerText;
++      box.appendChild(localAnswer);
++      동작줄(box, localAnswer, 'bot');
++    }
+     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
+     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
+     // 통째로 갈아끼우므로 "따라 보고 있었는가"를 **미리** 재야 한다(아래 자리지키며 주석).
+@@ -2455,6 +2840,10 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
+         start.measurementId, 'first_grounded_content', sample,
+       ));
+     };
++    // 조각 D: 걸음 말들을 들고 있는다 — 답이 시작될 때 **지우지 않고 접기** 위해서다(아래).
++    const 걸음말 = [];
++    let 걸음몸 = null;
++    let 걸음머리글 = null;   // 접힌 뒤에도 걸음이 더 오면 이름이 낡는다 — 그때 여기를 고친다
+     es.addEventListener('partial_result', (e) => {
+       try {
+         const { text } = JSON.parse(e.data);
+@@ -2462,15 +2851,53 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
+         if (!steps) {
+           steps = document.createElement('div');
+           steps.className = 'msg steps';
++          걸음몸 = document.createElement('div');
++          걸음몸.className = 'steps-body open';   // 기다리는 동안은 그대로 보인다(자리를 채우는 것이 일이다)
++          steps.appendChild(걸음몸);
+           trace.parentNode.insertBefore(steps, trace);
+         }
++        걸음말.push(text);
+         const line = document.createElement('div');
+         line.textContent = text;          // OS 가 만든 문장 — 마크다운으로 해석하지 않는다
+-        steps.appendChild(line);
++        걸음몸.appendChild(line);
++        걸음이름갱신();                    // 접힌 뒤에 온 걸음도 이름에 센다(안 하면 「외 N건」이 낡는다)
+         markGrounded();                   // 확인된 사실이 화면에 닿은 순간이 첫 유용한 내용이다
+         scrollToBottom();
+       } catch {}
+     });
++    /**
++     * ── 조각 D ── 답이 오기 시작하면 걸음들을 **접는다. 지우지 않는다.**
++     *
++     * 전에는 `steps.remove()` 였다. 사유도 적혀 있었다 — *"채울 공백이 없으므로 자리를 내준다.
++     * 남겨두면 같은 사실을 두 번 말하는 화면이 된다."* 앞 절반은 맞고 뒤 절반이 이 조각이
++     * 고치는 자리다: **펼친 채 남기면** 두 번 말하는 화면이 맞지만, **접힌 한 줄**은 아니다.
++     * 지웠기 때문에 팀원이 *"진행을 본 적이 없다"* 고 했다 — 정보가 없었던 게 아니라 사라졌다.
++     *
++     * 접힌 이름은 **숫자가 아니라 첫 사실**이다(기록라벨과 같은 규율 · 오너 결정 2026-08-03).
++     * "걸음 3개" 는 참이지만 사용자가 알고 싶은 것이 아니다.
++     */
++    const 걸음이름 = () => {
++      const 첫 = String(걸음말[0] ?? '').replace(/[.\s]+$/, '');
++      const 나머지 = 걸음말.length - 1;
++      return 나머지 > 0 ? `${첫} 외 ${나머지}건` : 첫;
++    };
++    const 걸음이름갱신 = () => { if (걸음머리글) 걸음머리글.textContent = ` ${걸음이름()}`; };
++    const 걸음접기 = () => {
++      if (!steps || steps.classList.contains('folded')) return;
++      const 머리 = document.createElement('div');
++      머리.className = 'steps-head';
++      const tw = document.createElement('span'); tw.className = 'tw'; tw.textContent = '▸';
++      머리.appendChild(tw);
++      걸음머리글 = document.createTextNode(` ${걸음이름()}`);
++      머리.appendChild(걸음머리글);
++      머리.onclick = () => {
++        const 열림 = 걸음몸.classList.toggle('open');
++        머리.classList.toggle('open', 열림);
++      };
++      steps.insertBefore(머리, 걸음몸);
++      걸음몸.classList.remove('open');
++      steps.classList.add('folded');
++    };
+     // **되돌린 답은 앞의 것을 지우고 다시 쓴다**(F-8). 이어붙이면 서로 어긋난 두 답이
+     // 한 답으로 보인다 — 라이브에서 "터미널로 가져올게요" 뒤에 "직접 실행할 수는 없어요"가 붙었다.
+     es.addEventListener('answer_reset', () => {
+@@ -2485,12 +2912,16 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
+           trace.textContent = '';
+           // 확인된 중간 결과는 **기다림을 채우는 것**이다. 답이 오기 시작하면 채울 공백이
+           // 없으므로 자리를 내준다 — 남겨두면 같은 사실을 두 번 말하는 화면이 된다.
+-          steps?.remove(); steps = null;
++          // 조각 D: **자리는 내주되 지우지는 않는다** — 접힌 한 줄로 남긴다(위 `걸음접기`).
++          걸음접기();
+           preview = document.createElement('div');
+           // **최종 답과 같은 조**여야 한다(조각 A). `msg` 만 주면 마크다운 간격·말풍선이 안 붙어
+           // 완료 순간 같은 글의 높이가 619.8px → 447.4px 로 튄다(실측 -27.8%). 읽던 줄이 달아난다.
+           preview.className = 'msg bot';
+           trace.parentNode.insertBefore(preview, trace);
++          // 조각 B: 흐르는 **중에도** 복사가 돼야 한다(기획 §2 B 반대시험 ①). 답이 끝나면
++          // 대화투영이 이 상자를 통째로 갈아끼우고 그때 renderResult 가 같은 줄을 다시 세운다.
++          동작줄(trace.parentNode, preview, 'bot');
+         }
+         previewText += piece;
+         renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
+@@ -2500,6 +2931,7 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
+     });
+     const completed = () => ({
+       recovery,
++      answerText: previewText,
+       reportComplete: async () => reportVisibleTiming(
+         start.measurementId, 'turn_complete', await afterVisiblePaint(surfaceStartedAt),
+       ),
+@@ -2559,13 +2991,280 @@ async function maybeWelcome(sessionId) {
+   if (r?.state === 'greeted' && r.text) renderResult({ kind: 'reply', reply: r.text }, {});
+ }
+ 
++// ── 조각 B · 기본 동작을 준다 (UX 기획 §2 B · 2026-08-12) ──────────────────────
++//
++// 조사 §0 ③ 이 낸 것: 복사 0 · 수정 0 · 재생성 0 · 코드블록 복사 0 · Esc 0 · ⌘K 0.
++// *"새 화면을 만들지 않는다"* 는 원칙이 **서버 상태를 하나도 안 만드는 기본 동작**까지 삼켰다.
++// 이 넷은 「죽은 버튼」이 될 수 없는 것들이다 — 못 할 상황 자체가 없다.
++//
++// ★ 이 조각이 지킨 두 계약
++//   ① **말풍선 안에 아무것도 안 넣는다.** 조각 A 의 `겹쳐맞추기` 가 흐르는 동안 자식 노드를
++//      제자리 맞춤한다 — 안에 버튼을 넣으면 다음 조각에 지워지고, 「화면 DOM 이
++//      renderMarkdown 출력과 글자까지 같다」(A 반대시험 ⑥)가 그 자리에서 깨진다.
++//      그래서 막대는 **body 에 position:fixed 로 한 개**만 두고 손이 간 곳을 따라간다.
++//   ② **못 하는 것에는 버튼을 안 만든다**(*"죽은 버튼 대신 텍스트"*). 셋을 실제로 감춘다 —
++//      클립보드가 없는 브라우저에서는 복사가 아예 없고, 앞선 사용자 발화를 못 찾으면
++//      「같은 질문 다시」가 없고, 답이 흐르는 중에는 새 턴을 여는 버튼이 없다.
++// ★ 2026-08-12 정정 — **호버는 UX 가 아니었다.**
++//   첫 판은 말풍선에 마우스를 올려야 뜨는 떠 있는 막대였다. 오너가 새 화면을 받고 처음 한 말이
++//   *"뭐가 변한 게 하나도 없는 것 같은데?"* 였다 — **있는데 안 보이면 없는 것과 같다**(멈춤이
++//   투명 배경·회색 글자였던 것과 **정확히 같은 병**이다. 그걸 고치면서 같은 병을 새로 만들었다).
++//   그래서 기본 동작은 **말풍선 아래 늘 서 있는 한 줄**로 바꾼다. 호버는 그 줄을 **진하게만** 한다.
++//   떠 있는 막대는 코드블록 하나에만 남는다 — 그건 말풍선 안의 조각이라 아래에 줄을 놓을 수 없다.
++const 복사가능 = !!(navigator.clipboard && navigator.clipboard.writeText);
++const 손바 = document.createElement('div');
++손바.id = 'actbar';
++document.body.appendChild(손바);
++let 손댄것 = null;
++
++const 흐르는중 = () => !!document.querySelector('.stopbtn');
++function 손바숨기기() { 손바.classList.remove('on'); 손댄것 = null; }
++
++/** 답 하나 위에 있던 **사용자 발화**를 찾는다. 못 찾으면 null — 그러면 버튼을 안 만든다. */
++function 앞선발화(답) {
++  let 칸 = 답.closest('.turn');
++  while (칸) {
++    칸 = 칸.previousElementSibling;
++    const 나 = 칸?.querySelector?.('.msg.me');
++    if (나) return 나.textContent;
++  }
++  return null;
++}
++
++async function 복사하기(글, 단추) {
++  try {
++    await navigator.clipboard.writeText(글);
++    const 옛 = 단추.textContent;
++    단추.textContent = '복사됨'; 단추.classList.add('done');
++    setTimeout(() => { 단추.textContent = 옛; 단추.classList.remove('done'); }, 1200);
++  } catch { toast('복사하지 못했어요 — 글을 직접 긁어서 복사해 주세요.'); }
++}
++
++/** 입력칸에 글을 얹고 손이 이어서 고칠 수 있게 둔다(보내지는 않는다). */
++function 입력칸에얹기(글) {
++  text.value = 글;
++  text.dispatchEvent(new Event('input', { bubbles: true })); // 높이 재계산은 있는 배선이 한다
++  text.focus();
++  text.setSelectionRange(text.value.length, text.value.length);
++}
++
++function 단추(라벨, 제목, 눌렀을때) {
++  const b = document.createElement('button');
++  b.type = 'button'; b.textContent = 라벨; b.title = 제목;
++  b.onclick = (e) => { e.preventDefault(); 눌렀을때(b); };
++  return b;
++}
++
++/** 손이 간 것 하나에 맞는 막대를 세운다. **만들 수 있는 것만 만든다.** */
++function 손바세우기(대상, 종류) {
++  손바.textContent = '';
++  // 떠 있는 막대에 남는 것은 **코드블록 하나뿐**이다. 코드블록은 말풍선 *안*의 조각이라
++  // 아래에 줄을 놓을 자리가 없고, 안에 버튼을 넣으면 조각 A 의 겹쳐맞추기가 지운다.
++  if (종류 !== 'code' || !복사가능) return false;
++  손바.appendChild(단추('코드 복사', '이 코드블록만 복사해요', (b) => 복사하기(대상.innerText, b)));
++  return 손바.childElementCount > 0;
++}
++
++/**
++ * ── 기본 동작 줄 — **말풍선 바로 아래에 늘 서 있다** (2026-08-12 오너 지적 반영) ──────
++ *
++ * 말풍선 **밖**, 같은 턴 상자 안에 놓는다. 안에 넣으면 조각 A 의 `겹쳐맞추기` 가 흐르는 동안
++ * 자식 노드를 제자리 맞춤하면서 지운다 — 그래서 「아래」가 구조적으로도 맞는 자리다.
++ *
++ * 늘 보이되 **조용하다**(작고 흐린 아이콘). 그 턴에 손이 가면 진해진다. 안 보이는 기능은
++ * 없는 기능이고, 시끄러운 기능은 잔소리다 — 그 사이가 여기다.
++ */
++function 동작줄(상자, 대상, 종류) {
++  const 줄 = el(`acts ${종류 === 'me' ? 'right' : ''}`.trim());
++  const 아이콘 = (기호, 라벨, 제목, 눌렀을때) => {
++    const b = 단추(기호, 제목, 눌렀을때);
++    b.setAttribute('aria-label', 라벨);   // 기호만 있으면 읽어 주는 도구에 아무 말도 안 남는다
++    return b;
++  };
++  if (종류 === 'me') {
++    if (복사가능) 줄.appendChild(아이콘('⧉', '복사', '내가 보낸 말을 복사해요', (b) => 복사하기(대상.textContent, b)));
++    // **수정은 삭제가 아니라 분기다**(비교군 §6-2). 위의 말과 그 아래 답은 **그대로 둔다** —
++    // 고친 말은 새 말로 내려가 붙는다. 그래서 언제든 원래 것으로 돌아갈 수 있다.
++    줄.appendChild(아이콘('✎', '고쳐 다시 보내기', '이 말을 입력칸에 올려요 — 고쳐서 보내면 새 답이 아래에 붙어요', () => {
++      입력칸에얹기(대상.textContent);
++      toast('입력칸에 올렸어요 — 고쳐서 보내면 새 답이 맨 아래에 붙어요. 위의 말과 답은 그대로 남아요.');
++    }));
++  } else {
++    if (복사가능) 줄.appendChild(아이콘('⧉', '복사', '이 답을 복사해요', (b) => 복사하기(대상.__원문 ?? 대상.innerText, b)));
++    // 「같은 질문 다시」 — T5 는 답을 **갈아치우지 못한다**(되감기 개념이 없다 · 기획 §4).
++    // 그러니 「재생성」이라 부르지 않는다. 하는 일 그대로다: 같은 질문을 다시 보낸다.
++    // 앞선 발화가 없으면(인사말 등) 이 아이콘은 **아예 안 선다**(죽은 버튼 금지).
++    if (앞선발화(대상) && !흐르는중()) {
++      줄.appendChild(아이콘('↻', '같은 질문 다시', '같은 질문을 한 번 더 보내요 — 위의 답은 그대로 남아요', async () => {
++        // 흐르는 중에 또 보내면 한 대화에 두 턴이 겹친다 — **누르는 순간에** 본다.
++        if (흐르는중()) { toast('지금 답이 오는 중이에요 — 끝나면 다시 눌러 주세요.'); return; }
++        const 질문 = 앞선발화(대상);
++        if (!질문) return;
++        입력칸에얹기(질문);
++        toast('같은 질문을 다시 보냈어요 — 새 답이 맨 아래에 붙어요. 위의 답은 그대로 남아요.');
++        await submit();
++      }));
++    }
++  }
++  // 상자 끝이 아니라 **말풍선 바로 다음**에 꽂는다 — 흐르는 중에는 뒤에 진행 표시·멈춤이
++  // 더 붙으므로, 끝에 붙이면 「답 아래」가 아니라 「멈추기 아래」가 된다.
++  if (줄.childElementCount) 대상.parentNode?.insertBefore(줄, 대상.nextSibling);
++  return 줄;
++}
++
++function 손바붙이기(대상) {
++  const r = 대상.getBoundingClientRect();
++  const l = logEl.getBoundingClientRect();
++  손바.classList.add('on');
++  const w = 손바.offsetWidth, h = 손바.offsetHeight;
++  const x = Math.min(Math.max(r.right - w, l.left + 4), l.right - w - 4);
++  // 상자 위에 걸치되 대화 창 밖으로는 안 나간다(머리글을 덮으면 그게 더 방해다).
++  const y = Math.max(r.top - h + 4, l.top + 2);
++  손바.style.left = `${Math.round(x)}px`;
++  손바.style.top = `${Math.round(y)}px`;
++}
++
++logEl.addEventListener('pointerover', (e) => {
++  if (e.pointerType === 'touch') return;         // 손가락에는 호버가 없다 — 헛돌지 않게 뺀다
++  // 말풍선은 이제 **아래 줄**이 받는다. 떠 있는 막대는 코드블록 하나만 남는다.
++  const 코드 = e.target.closest?.('pre');
++  if (!코드 || !logEl.contains(코드)) { if (손댄것) 손바숨기기(); return; }
++  if (코드 === 손댄것) return;
++  손댄것 = 코드;
++  if (손바세우기(코드, 'code')) 손바붙이기(코드);
++  else 손바숨기기();
++});
++logEl.addEventListener('pointerleave', (e) => { if (!손바.contains(e.relatedTarget)) 손바숨기기(); });
++손바.addEventListener('pointerleave', (e) => { if (!logEl.contains(e.relatedTarget)) 손바숨기기(); });
++// 스크롤하면 자리가 어긋난다 — 따라 옮기고, 창 밖으로 나가면 접는다.
++// (막대는 body 에 fixed 라 이 상자의 높이 계산에는 아무 영향이 없다.)
++logEl.addEventListener('scroll', () => {
++  if (!손댄것) return;
++  if (!logEl.contains(손댄것)) { 손바숨기기(); return; }
++  const r = 손댄것.getBoundingClientRect(), l = logEl.getBoundingClientRect();
++  if (r.bottom < l.top || r.top > l.bottom) { 손바숨기기(); return; }
++  손바붙이기(손댄것);
++}, { passive: true });
++
++// ── 흡수 · `↑` 로 방금 한 말을 되부른다 (선행자 공부 §3 · 2026-08-13) ──────────────
++//
++// 사람은 하루에도 몇 번씩 **방금 한 말을 조금 고쳐 다시 보낸다.** 셸도 챗도 그 짓을 `↑` 로
++// 받는다 — 배우지 않고도 하는 손버릇이다. T5 에는 그 길이 **없었다**: 조각 B 의
++// 「고쳐 다시 보내기」는 *지나간 말*에는 답을 줬지만 **입력칸에 선 사람**에게는 아무것도 안 줬다.
++//
++// 규율 셋
++//  · **글이 있으면 안 가로챈다.** 입력칸에 글이 있는데 ↑ 를 누르는 사람은 대개 커서를 위로
++//    옮기려는 것이다. 빼앗으면 그게 더 큰 불편이다(빈 칸일 때만 되부른다).
++//  · `↓` 로 돌아오고, 맨 아래는 **원래 쓰던 글**이다 — 사람의 것을 뺏지 않는다.
++//  · **새 상태를 안 만든다.** 화면이 이미 들고 있는 `.msg.me` 를 읽는다(서버·저장소 두 벌 금지).
++let 되부름자리 = -1;      // -1 = 지금 쓰던 글. 0 부터가 지난 발화(최근 순)
++let 쓰던글 = '';
++function 내가한말들() { return [...document.querySelectorAll('.msg.me')].map((m) => m.textContent).reverse(); }
++text.addEventListener('keydown', (e) => {
++  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
++  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return;
++  const 말들 = 내가한말들();
++  if (!말들.length) return;
++  if (e.key === 'ArrowUp') {
++    // 글이 있고 아직 되부르기 전이면 사람의 것이다 — 손대지 않는다.
++    if (되부름자리 === -1 && text.value.trim()) return;
++    if (되부름자리 + 1 >= 말들.length) return;      // 더 거슬러 갈 것이 없으면 가만히 둔다
++    if (되부름자리 === -1) 쓰던글 = text.value;      // 빼앗지 않으려고 맡아 둔다
++    되부름자리 += 1;
++  } else {
++    if (되부름자리 === -1) return;                  // 되부르지 않았으면 ↓ 는 평소대로
++    되부름자리 -= 1;
++  }
++  e.preventDefault();
++  text.value = 되부름자리 === -1 ? 쓰던글 : 말들[되부름자리];
++  text.dispatchEvent(new Event('input', { bubbles: true }));   // 높이 재계산은 있는 배선이 한다
++  text.setSelectionRange(text.value.length, text.value.length);
++});
++// 보내고 나면 되부름은 처음으로 돌아간다 — 다음 ↑ 는 **방금 보낸 그 말**이다.
++text.addEventListener('input', () => { if (!text.value) { 되부름자리 = -1; 쓰던글 = ''; } });
++send.addEventListener('click', () => { 되부름자리 = -1; 쓰던글 = ''; });
++
++// ── 자판 (기획 §2 B-5) ── 손이 반사적으로 가는 자리. **새 기능이 아니라 이미 있는 것의 입구**다.
++document.addEventListener('keydown', (e) => {
++  if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); toggleSearch(); return; }
++  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); return; }
++  if (e.key !== 'Escape') return;
++  // Esc 는 **하나만** 한다. 이 순서가 곧 "지금 사용자가 세우고 싶은 것"의 순서다 —
++  // 돌고 있는 일이 있으면 그것부터. 한 번에 둘을 닫으면 무엇이 닫혔는지 사용자가 모른다.
++  // ⚠ `.stopbtn` 은 `<button>` 이 아니라 **`<div>`** 다(`el('stopbtn')` 이 만든다).
++  //   `:disabled` 는 폼 요소에만 붙는 유사클래스라 div 에는 **절대 안 맞는다** — 첫 판에서
++  //   `:not(:disabled)` 로 걸렀더니 이미 「멈추는 중」인 턴에서도 이 갈래가 먹어 Esc 가
++  //   아무것도 못 닫았다(라이브에서 잡았다: 찾기 패널이 Esc 로 안 닫혔다).
++  //   그래서 선택자가 아니라 **속성**을 본다.
++  const 멈춤 = [...document.querySelectorAll('.stopbtn')].find((b) => !b.disabled);
++  if (멈춤) { e.preventDefault(); 멈춤.click(); return; }
++  // 조각 F: 화면 이름을 하나씩 적지 않는다. 통로에 올라온 것 중 열린 것을 **하나만** 닫는다 —
++  // 여기 이름을 적으면 새 화면이 늘 때마다 이 줄을 고쳐야 하고, 그게 「다섯 곳」의 다섯째였다.
++  const 열린것 = 열린오버레이();
++  if (열린것.length) { e.preventDefault(); 오버레이닫기(열린것.at(-1).이름); return; }
++  if (searchPanel.style.display === 'block') { e.preventDefault(); toggleSearch(false); return; }
++  if (손바.classList.contains('on')) { e.preventDefault(); 손바숨기기(); }
++});
++
++// ── 조각 G · 대화와 화면에 **주소**가 생긴다 (기획 §4 「F 다음」 · 2026-08-13) ─────────
++//
++// 기획 §4 는 이것을 *"값은 있으나 범위가 크고(뒤로가기·상태 복원·검사 9개) 지금 불편을 안
++// 줄인다 — **F 다음**"* 으로 미뤄 뒀다. F 가 닫혔으므로 지금이 그 자리다.
++//
++// 조사가 낸 사실: `hash`·`pushState` **0건**. **세션조차 주소가 없었다.**
++// 그래서 뒤로가기로 돌아올 수도, 새로고침 뒤 같은 자리로 돌아올 수도, 북마크할 수도 없었다.
++// 오너가 *"페이지도 하나도 새로 생성된 게 없네"* 라고 한 말이 가장 정확하게 참인 자리다 —
++// 화면이 없었던 게 아니라 **주소가 없어서 「페이지」라는 개념 자체가 없었다.**
++//
++// ⚠ **이 주소로 할 수 없는 것 — 남에게 보내기**(2026-08-13 오너 지적으로 정정).
++//    T5 는 `127.0.0.1` 에 뜬다. `#/s/<id>` 는 **그 컴퓨터의 그 사람에게만** 열린다.
++//    첫 보고에서 나는 *"링크를 누구에게 보낼 수 있다"* 고 적었다 — **거짓 효과 주장이었다.**
++//    여기서 얻은 것은 공유가 아니라 **자기 되찾기**다: 새로고침 · 뒤로가기 · 북마크 · 자기 메모.
++//    그래서 「링크 복사·공유」 버튼을 만들지 않는다 — 남이 못 여는 링크를 주는 것이 죽은 버튼이다.
++//    공유가 필요해지면 그건 주소가 아니라 **배포 축**(LAN·터널·계정)의 일이고 헌장이 걸리는 자리다.
++//
++// ★ 조각 F 가 없었으면 이 조각은 화면 수만큼 커졌다. 통로에 올라온 화면은 **이름 하나**로
++//   주소를 얻는다 — 이 블록에 화면 이름을 하나도 안 적었다. 새 화면이 늘어도 여기는 안 는다.
++// ★ 주소는 **정본이 아니라 그림자**다. 주소를 바꾸면 화면이 따라오고, 화면이 바뀌면 주소가
++//   따라온다. 되돌아오는 고리를 끊는 자물쇠는 `주소읽는중` 하나뿐이다.
++let 주소읽는중 = false;
++function 주소쓰기(길, { 밀기 = true } = {}) {
++  if (주소읽는중) return;                       // 주소를 읽어 화면을 세우는 중이면 되쓰지 않는다
++  const 새 = `#${길}`;
++  if (location.hash === 새) return;             // 같은 자리를 뒤로가기 목록에 쌓지 않는다
++  try { history[밀기 ? 'pushState' : 'replaceState'](null, '', 새); } catch { location.hash = 길; }
++}
++const 지금길 = () => decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
++
++/** 주소를 읽어 화면을 그 자리로 세운다. 뒤로가기·직접 입력·새로고침이 전부 여기로 온다. */
++async function 주소따라가기() {
++  주소읽는중 = true;
++  try {
++    const 길 = 지금길();
++    const 화면 = /^\/화면\/(.+)$/.exec(길);
++    // 주소가 말하지 않는 화면은 닫는다 — 안 닫으면 뒤로가기가 아무것도 안 한 것처럼 보인다.
++    for (const 문 of 열린오버레이()) if (!화면 || 문.이름 !== 화면[1]) 오버레이닫기(문.이름);
++    const 대화 = /^\/s\/([\w-]+)$/.exec(길);
++    if (대화 && 대화[1] !== currentSessionId) await selectSession(대화[1]);
++    if (화면 && 오버레이표.has(화면[1])) await 오버레이열기(화면[1]);
++  } catch { /* 주소가 가리키던 것이 사라졌을 수 있다 — 화면을 깨지 않는다 */ }
++  finally { 주소읽는중 = false; }
++}
++window.addEventListener('hashchange', 주소따라가기);
++window.addEventListener('popstate', 주소따라가기);
++
+ // 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
+ (async () => {
+   await refreshInitialModelStatus();
+   try {
+-    const { sessions } = await (await fetch('/sessions')).json();
+-    if (sessions.length) await selectSession(sessions[0].id);
+-    else await newSession();
++    // 조각 G: **주소가 먼저다.** 링크로 들어온 사람에게 최근 대화를 열어 주면 그 링크는 거짓말이 된다.
++    const 온길 = 지금길();
++    if (/^\/(s|화면)\//.test(온길)) { await 주소따라가기(); }
++    else {
++      const { sessions } = await (await fetch('/sessions')).json();
++      if (sessions.length) await selectSession(sessions[0].id);
++      else await newSession();
++    }
+   } catch { await newSession(); }
+   try {
+     const onboarding = await maybeRunOnboarding();
+diff --git a/test/a-queued-message-says-so.test.js b/test/a-queued-message-says-so.test.js
+new file mode 100644
+index 00000000..a09f9fc9
+--- /dev/null
++++ b/test/a-queued-message-says-so.test.js
+@@ -0,0 +1,68 @@
++// **줄 선 말이 보인다** (비교군 정밀분석 §3 처방1 · 2026-08-13).
++//
++// 서버는 **이미** 한 세션의 턴을 줄 세운다(`server.js` `withSessionQueue`). 안 깨진다.
++// **없던 것은 그 사실을 말하는 화면뿐이었다** — 답이 흐르는 중에 말을 보내면 두 번째
++// 「요청을 이해하고 있어요…」가 서고 「멈추기」가 둘이 됐다. 사람은 자기 말이 먹힌 건지
++// 줄 서 있는 건지 알 길이 없었다. 조각 D 와 같은 병이다: **있는 사실을 화면이 안 말했다.**
++//
++// 오픈클로는 이 자리에 모드 넷을 둔다(`concepts/queue-steering.md`).
++// T5 가 지금 하는 것은 그중 `followup` 이다 — 이 검사가 무는 것은
++// **「하는 것을 그대로 말하는가」**다. 안 하는 것(끼워 넣기)을 한다고 말하면 그게 거짓이다.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++const submit = (() => {
++  const at = html.indexOf('async function submit() {');
++  if (at < 0) return '';
++  const 뒤 = html.slice(at);
++  return 뒤.slice(0, 뒤.indexOf('\n}') + 2);
++})();
++
++test('submit 을 찾았다 — 없으면 아래가 아무것도 못 지킨다', () => {
++  assert.ok(submit.length > 0, 'submit 을 못 찾았다');
++});
++
++test('앞의 답이 흐르는 중이면 **줄 서 있다고 말한다**', () => {
++  assert.match(submit, /const 앞선것 = \[\.\.\.document\.querySelectorAll\('\.stopbtn'\)\]\.some\(\(b\) => !b\.disabled\)/,
++    '지금 도는 턴이 있는지는 살아 있는 멈춤 버튼으로 안다(새 상태를 안 만든다)');
++  assert.match(submit, /앞의 답이 끝나면 이어서 할게요 — 줄 서 있어요/,
++    '줄 선 사실을 사용자 언어로 말해야 한다 — 침묵하면 먹힌 건지 모른다');
++});
++
++// ★ 이 검사가 알맹이다. 안 도는 것에 도는 표시를 남기면 화면이 거짓말을 한다.
++test('줄 서 있는 것과 취소된 것에는 **도는 표시를 안 남긴다**', () => {
++  assert.match(html, /\.trace\.queued::before \{ animation:none;/,
++    '뛰는 점은 「지금 일하는 중」이라는 뜻이다 — 줄 서 있는 것은 일하고 있지 않다');
++  assert.match(html, /\.trace\.still::before \{ display:none; \}/,
++    '취소된 줄에 도는 점이 남으면 안 보내진 것이 도는 것처럼 보인다');
++  assert.match(submit, /trace\.className = 'trace still';/, '취소되면 도는 조를 벗는다');
++});
++
++test('줄 서 있는 동안 버튼은 「멈추기」가 아니라 「차례 취소」다 — 죽은 버튼 금지', () => {
++  assert.match(submit, /멈춤\.textContent = 앞선것 \? '차례 취소' : '멈추기';/,
++    '아직 아무것도 안 돌고 있는데 「멈추기」를 주면 누를 것이 없는 버튼이다');
++  assert.match(submit, /if \(멈춤\.textContent === '차례 취소'\) \{/, '취소 갈래가 따로 있어야 한다');
++});
++
++test('차례 취소는 **서버를 안 부른다** — 아직 아무것도 안 돌고 있다', () => {
++  const 취소 = submit.slice(submit.indexOf("if (멈춤.textContent === '차례 취소')"),
++    submit.indexOf("멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';"));
++  assert.ok(취소.length > 0, '취소 갈래를 못 찾았다');
++  assert.doesNotMatch(취소, /fetch\(/, '안 돌고 있는 것을 서버에 멈추라고 하면 거짓 요청이다');
++  assert.match(취소, /입력칸에얹기\(t\);/,
++    '사람의 말을 버리지 않는다 — 취소는 삭제가 아니다(조각 B 와 같은 규율)');
++});
++
++test('취소했으면 **스트림을 아예 시작하지 않는다**', () => {
++  assert.match(submit, /if \(취소됨\) \{ 멈춤치우기\(\); return; \}/,
++    '취소한 뒤에도 streamTurn 으로 내려가면 취소가 취소가 아니다');
++  assert.match(submit, /while \(앞선것 && !취소됨 &&/,
++    '먼저 화면에서 기다려야 「차례 취소」가 진짜 취소가 된다 — 서버로 떠난 것은 못 물린다');
++});
++
++test('차례가 오면 **줄 섰다는 말을 거둔다** — 낡은 문구를 남기지 않는다', () => {
++  assert.match(submit, /if \(앞선것\) \{ trace\.textContent = '요청을 이해하고 있어요…'; trace\.classList\.remove\('queued'\); 멈춤\.textContent = '멈추기'; \}/,
++    '차례가 왔는데 「줄 서 있어요」가 남아 있으면 화면이 낡은 사실을 말한다');
++});
+diff --git a/test/audit-docs.test.js b/test/audit-docs.test.js
+index 1614998c..d9a523da 100644
+--- a/test/audit-docs.test.js
++++ b/test/audit-docs.test.js
+@@ -42,6 +42,7 @@ function scaffold() {
+     '## 노드 A — 다른것', '파일: 어딘가 · 근거: 무엇',
+   ].join('\n');
+   const files = {
++    [자리('NEXT-SESSION')]: '# 다음 세션\n현재 단일 세션 입구',
+     [자리('T5-PLAN')]: 계획서,
+     [자리('HANDOFF')]: handoff,
+     [자리('VISION-AND-PERFORMANCE')]: '# 비전\n오너 철학 원문',
+@@ -218,3 +219,32 @@ test('정본 투영: package 메타가 첫 슬라이스에 머물면 잡는다',
+     assert.ok(errors.some((e) => e.includes('description이 첫 슬라이스')), String(errors));
+   } finally { rmSync(repo, { recursive: true, force: true }); }
+ });
++
++test('권위 단일성: design의 새 세션 입구는 NEXT-SESSION.md 하나뿐이다', () => {
++  const repo = scaffold();
++  try {
++    writeFileSync(join(repo, 'design/NEXT-SESSION-UX-2.md'), [
++      '# UX 담당 인수인계',
++      '새 대화를 열고 이 파일을 읽고 그대로 진행해',
++    ].join('\n'));
++    const errors = auditDocs(repo);
++    assert.ok(errors.some((e) => e.includes('경쟁 세션 입구')), String(errors));
++  } finally { rmSync(repo, { recursive: true, force: true }); }
++});
++
++test('권위 단일성: UX 계보 자료는 근거 배너와 단일 계획·현재 프로그램 귀속이 필요하다', () => {
++  const repo = scaffold();
++  try {
++    const uxDocs = [
++      'design/T5-UX-PLAN-ko.md',
++      'design/T5-UX-HUMAN-PATTERNS-ko.md',
++      'design/T5-UX-COMPARATIVE-STUDY-ko.md',
++      'design/T5-UX-FULL-WALK-2026-08-13-ko.md',
++    ];
++    for (const rel of uxDocs) writeFileSync(join(repo, rel), '# UX 자료\n자체 작업 순서');
++    const errors = auditDocs(repo);
++    for (const rel of uxDocs) {
++      assert.ok(errors.some((e) => e.includes(rel) && e.includes('근거 귀속')), `${rel}: ${String(errors)}`);
++    }
++  } finally { rmSync(repo, { recursive: true, force: true }); }
++});
+diff --git a/test/basic-actions-are-reachable.test.js b/test/basic-actions-are-reachable.test.js
+new file mode 100644
+index 00000000..34e0d17e
+--- /dev/null
++++ b/test/basic-actions-are-reachable.test.js
+@@ -0,0 +1,161 @@
++// **기본 동작을 준다** (UX 기획 §2 조각 B · 2026-08-12).
++//
++// 조사가 낸 것: 복사 0 · 수정 0 · 재생성 0 · 코드블록 복사 0 · Esc 0 · ⌘K 0.
++// 그리고 멈춤은 **있는데 안 보였다**(투명 배경 · 회색 글자).
++// *"새 화면을 만들지 않는다"* 는 옳은 원칙이 **서버 상태를 하나도 안 만드는 기본 동작**까지
++// 삼킨 자리다 — 이 넷은 「죽은 버튼」이 될 수 없는 것들이다.
++//
++// 이 검사가 지키는 것은 **버튼이 있다**가 아니라 **없어야 할 때 없다**와
++// **조각 A 를 안 깬다** 둘이다. 있는 것은 눈으로 보이고, 없는 것은 안 보인다.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++/**
++ * 조각 B 가 덧붙인 자바스크립트 블록만 잘라 낸다 — 다른 조각의 코드를 자기 증거로 쓰지 않게.
++ * **못 찾으면 빈 문자열을 낸다**(여기서 throw 하지 않는다). throw 하면 파일이 통째로 하나의
++ * 실패가 되어 **아래 검사 아홉이 각각 무는지를 아무도 못 본다** — 선빨강이 「1건 실패」로
++ * 뭉개지면 그건 아홉 개를 잰 것이 아니라 하나를 잰 것이다(빈 측정 · F-95 에서 밟았다).
++ */
++const B블록 = (() => {
++  const 시작 = html.indexOf('// ── 조각 B · 기본 동작을 준다');
++  if (시작 < 0) return '';
++  const 끝 = html.indexOf('// 초기화: 세션 목록', 시작);
++  return 끝 > 시작 ? html.slice(시작, 끝) : '';
++})();
++
++test('조각 B 블록이 index.html 안에 있다 — 없으면 아래 검사가 아무것도 못 지킨다', () => {
++  assert.ok(B블록.length > 0, '조각 B 블록을 못 찾았다');
++});
++
++// ── ① 조각 A 와 부딪히지 않는다 ─────────────────────────────────────────────
++// 조각 A 의 `겹쳐맞추기` 는 흐르는 동안 말풍선의 자식 노드를 제자리 맞춤한다. 말풍선 **안**에
++// 버튼을 넣으면 다음 조각에 지워지고, A 반대시험 ⑥(화면 DOM == renderMarkdown 출력)이 깨진다.
++// ★ 2026-08-12 오너 지적으로 **무는 사실이 바뀐 자리**(무르게 한 것이 아니라 더 세졌다).
++//   첫 판은 호버해야 뜨는 떠 있는 막대였다. 오너가 새 화면을 받고 처음 한 말이
++//   *"뭐가 변한 게 하나도 없는 것 같은데?"* 였다 — **있는데 안 보이면 없는 것과 같다.**
++//   멈춤이 투명 배경·회색 글자였던 것과 정확히 같은 병을, 그걸 고치면서 새로 만들었다.
++//   그래서 이제 문는다: 기본 동작은 **말풍선 아래에 늘 서 있는 줄**이어야 하고, 호버로만
++//   나타나면 안 된다. 떠 있는 막대는 코드블록 하나에만 남는다.
++test('기본 동작은 **늘 보이는 줄**이다 — 호버해야 나타나면 없는 것과 같다', () => {
++  assert.match(B블록, /function 동작줄\(상자, 대상, 종류\)/, '아래에 놓는 줄이 있어야 한다');
++  assert.match(html, /동작줄\(box, 내말, 'me'\)/, '사용자 발화 아래에 줄이 서야 한다(투영·전송 두 자리)');
++  assert.match(html, /동작줄\(box, bot, 'bot'\)/, '답 아래에 줄이 서야 한다');
++  // 늘 보이는 것이 기본이고, 호버는 **진하게만** 한다 — 나타나게 하는 것이 아니다.
++  assert.match(html, /\.turn:hover \.acts button \{ color:var\(--fg\); \}/, "호버는 진하게만 한다");
++  assert.match(html, /opacity:1; cursor:pointer/, "쉬는 상태를 흐리게 두면 호버 규칙을 투명도로 다시 만든 것이다");
++  assert.doesNotMatch(html, /\.acts \{[^}]*display:none/, '줄을 숨기면 첫 판의 병으로 돌아간다');
++  // 호버 막대에 남는 것은 코드블록뿐이다.
++  const 호버 = B블록.slice(B블록.indexOf("logEl.addEventListener('pointerover'"));
++  assert.doesNotMatch(호버.slice(0, 500), /\.msg\.me|\.msg\.bot/,
++    '말풍선을 다시 호버로 돌리면 오너가 지적한 그 자리로 돌아간다');
++});
++
++test('동작 막대는 말풍선 안이 아니라 body 에 뜬다 — 조각 A 의 겹쳐맞추기와 안 부딪힌다', () => {
++  assert.match(B블록, /document\.body\.appendChild\(손바\)/,
++    '막대는 body 에 붙어야 한다 — 말풍선·대화상자 안에 넣으면 흐르는 중에 지워진다');
++  // 아래 줄도 말풍선 **밖**이어야 한다 — 안에 넣으면 흐르는 동안 겹쳐맞추기가 지운다.
++  assert.match(B블록, /대상\.parentNode\?\.insertBefore\(줄, 대상\.nextSibling\)/,
++    '줄은 말풍선이 아니라 **턴 상자**에 붙는다');
++  assert.doesNotMatch(B블록, /\.innerHTML\s*=/,
++    '조각 B 는 innerHTML 을 쓰지 않는다 — 모델 텍스트가 들어가는 자리는 renderMarkdownInto 하나뿐이다');
++  const css = html.slice(html.indexOf('#actbar {'), html.indexOf('#actbar {') + 400);
++  assert.match(css, /position:fixed/,
++    'fixed 가 아니면 대화 높이(scrollHeight)에 끼어들어 조각 A 의 따라가기 계산을 흔든다');
++});
++
++test('복사는 그린 글자가 아니라 **모델이 쓴 원문**을 준다 — 속성이 아니라 JS 속성으로 단다', () => {
++  assert.match(html, /bot\.__원문 = 답문;/,
++    '답 상자에 원문을 달아야 표·코드·목록이 붙여넣는 자리에서 산다');
++  assert.doesNotMatch(html, /setAttribute\(['"]data-원문/,
++    '속성으로 달면 조각 A 의 속성맞추기가 새것 기준으로 지운다(흐르는 중 사라진다)');
++  assert.match(B블록, /대상\.__원문 \?\? 대상\.innerText/,
++    '원문이 없으면(흐르는 중 미리보기) 화면 글자로 물러선다 — 복사가 그때도 돼야 한다');
++});
++
++// ── ②③④ 죽은 버튼 금지 — **없어야 할 때 없다** ──────────────────────────────
++test('클립보드를 못 쓰는 브라우저에서는 복사 버튼을 아예 안 만든다', () => {
++  assert.match(B블록, /const 복사가능 = !!\(navigator\.clipboard && navigator\.clipboard\.writeText\)/,
++    '있는지부터 물어야 한다 — 눌러 보고 실패하는 버튼이 죽은 버튼이다');
++  assert.match(B블록, /if \(종류 !== 'code' \|\| !복사가능\) return false;/,
++    '코드블록 갈래도 같은 자로 막아야 한다');
++  assert.match(B블록, /if \(복사가능\) 줄\.appendChild\(아이콘\('⧉'/,
++    '아래 줄도 복사가능 일 때만 복사 아이콘을 세운다');
++});
++
++test('앞선 사용자 발화를 못 찾으면 「같은 질문 다시」가 안 선다', () => {
++  assert.match(B블록, /function 앞선발화\(답\)[\s\S]*?return null;/,
++    '못 찾으면 null 을 내야 한다 — 지어낸 질문을 다시 보내지 않는다');
++  assert.match(B블록, /if \(앞선발화\(대상\) && !흐르는중\(\)\) \{/,
++    '앞선 발화가 있을 때만 「같은 질문 다시」를 세운다');
++});
++
++test('답이 흐르는 중에는 새 턴을 여는 버튼이 안 서고, 서 있었더라도 누를 때 다시 본다', () => {
++  assert.match(B블록, /const 흐르는중 = \(\) => !!document\.querySelector\('\.stopbtn'\)/,
++    '멈춤 버튼의 존재가 곧 「지금 턴이 돈다」는 사실이다(따로 상태를 안 만든다)');
++  assert.match(B블록, /if \(흐르는중\(\)\) \{ toast\(/,
++    '막대를 띄운 뒤에 답이 시작될 수 있다 — 누르는 순간에 한 번 더 봐야 한 대화에 두 턴이 안 겹친다');
++});
++
++// ── ⑤ 멈춤이 배경에 안 묻힌다 ──────────────────────────────────────────────
++test('멈춤은 있는 버튼의 조를 올린다 — 새 버튼을 만들지 않는다', () => {
++  const 자리 = html.lastIndexOf('.stopbtn {');
++  assert.ok(자리 > html.indexOf('/* ── 조각 B'), '조각 B 의 덧붙임은 <style> 맨 끝에 있어야 한다(§1 규약)');
++  const 조 = html.slice(자리, 자리 + 260);
++  assert.match(조, /background:var\(--bot\)/, '투명 배경이 배경에 묻힌 원인이다');
++  assert.match(조, /color:var\(--fg\)/, '회색 글자(--muted)로는 답이 흐르는 동안 눈에 안 들어온다');
++  assert.match(조, /border-color:var\(--line-strong\)/, '연한 테두리도 같은 이유로 올린다');
++  // 있는 버튼을 고친 것이지 새로 만든 것이 아니다 — 새 멈춤 버튼이 생기면 안 된다.
++  // ⚠ 첫 판은 `el('stopbtn')` 글자를 세다가 **내가 쓴 주석까지 세어** 스스로 빨개졌다.
++  //   세는 자는 코드와 주석을 갈라야 한다 — 만드는 자리는 대입문 하나다.
++  assert.equal((html.match(/const 멈춤 = el\('stopbtn'\)/g) || []).length, 1,
++    '멈춤 버튼을 만드는 자리는 하나뿐이어야 한다');
++});
++
++// ── ⑥ Esc 는 한 번에 하나만 ────────────────────────────────────────────────
++test('Esc 는 한 번에 하나만 닫는다 — 무엇이 닫혔는지 사용자가 안다', () => {
++  const esc = B블록.slice(B블록.indexOf("if (e.key !== 'Escape') return;"));
++  const 갈래 = esc.split('\n').filter((l) => /^\s*if \(.*\) \{ e\.preventDefault\(\);/.test(l));
++  assert.ok(갈래.length >= 4, `Esc 갈래가 넷 이상이어야 한다(멈춤·설정·도구함·찾기) — 지금 ${갈래.length}`);
++  for (const l of 갈래.slice(0, -1)) {
++    assert.match(l, /return;\s*\}$/, `갈래가 return 으로 안 끝나면 한 번에 둘이 닫힌다: ${l.trim()}`);
++  }
++  // 순서가 곧 우선순위다 — 돌고 있는 일을 세우는 것이 맨 앞이어야 한다.
++  // (2026-08-12 · 조각 F 가 화면 닫기를 통로로 옮겼다. 지키는 사실은 그대로이고 **비교 대상만**
++  //  `closeSettings()` 에서 통로 호출로 바뀐다 — 이름을 하나씩 적지 않는 것이 F 의 요지다.)
++  const 통로닫기 = esc.indexOf('오버레이닫기(열린것');
++  assert.ok(통로닫기 > 0, '화면 닫기가 Esc 갈래에 없다');
++  assert.ok(esc.indexOf('멈춤.click()') < 통로닫기, '돌고 있는 일이 있으면 그것부터 세운다');
++});
++
++// 라이브에서 잡은 자리다(2026-08-12). 첫 판은 `.stopbtn:not(:disabled)` 로 걸렀는데,
++// `.stopbtn` 은 `el('stopbtn')` 이 만든 **div** 라 `:disabled` 가 절대 안 맞는다 —
++// 이미 「멈추는 중」인 턴에서도 그 갈래가 먹어 **Esc 가 아무것도 못 닫았다.**
++// 검사로 세우지 않으면 다음 사람이 같은 선택자를 다시 쓴다.
++test('멈춤 상태는 선택자가 아니라 속성으로 본다 — .stopbtn 은 button 이 아니라 div 다', () => {
++  assert.match(html, /const 멈춤 = el\('stopbtn'\)/,
++    '멈춤을 div 로 만든다는 사실이 이 검사의 근거다 — button 으로 바뀌면 이 검사를 다시 본다');
++  assert.doesNotMatch(B블록, /stopbtn:not\(:disabled\)/,
++    ':disabled 는 폼 요소에만 붙는다 — div 에는 안 맞아 늘 참이 된다');
++  assert.match(B블록, /querySelectorAll\('\.stopbtn'\)\]\.find\(\(b\) => !b\.disabled\)/,
++    '속성을 직접 봐야 「이미 멈추는 중」이 갈린다');
++});
++
++test('⌘K 는 대화 찾기, ⌘Enter 는 보내기 — 이미 있는 것의 입구지 새 기능이 아니다', () => {
++  assert.match(B블록, /\(e\.metaKey \|\| e\.ctrlKey\) && \(e\.key === 'k' \|\| e\.key === 'K'\)[\s\S]{0,80}toggleSearch\(\)/,
++    '⌘K 는 이미 있는 검색 패널을 연다(새 화면을 만들지 않는다)');
++  assert.match(B블록, /\(e\.metaKey \|\| e\.ctrlKey\) && e\.key === 'Enter'[\s\S]{0,80}submit\(\)/,
++    '⌘Enter 는 이미 있는 submit 을 부른다');
++});
++
++// ── ⑦ 수정은 삭제가 아니라 분기다 ──────────────────────────────────────────
++test('고쳐 다시 보내기는 위의 말과 답을 안 지운다 — 그리고 그 사실을 사용자에게 말한다', () => {
++  const 시작 = B블록.indexOf("'고쳐 다시 보내기'");
++  const 갈래 = B블록.slice(시작, 시작 + 500);
++  assert.doesNotMatch(갈래, /remove\(\)|innerHTML|deleteTurn|삭제/,
++    '고치기가 앞의 말·답을 지우면 「언제든 원래 것으로 돌아갈 수 있다」가 깨진다');
++  assert.match(갈래, /toast\(/, '그 아래 답이 어떻게 되는지 말해 줘야 한다(반대시험 ③)');
++  assert.match(갈래, /위의 말과 답은 그대로 남아요/, '무엇이 남는지를 사용자 언어로 적는다');
++});
+diff --git a/test/conversations-have-an-address.test.js b/test/conversations-have-an-address.test.js
+new file mode 100644
+index 00000000..97ced7e8
+--- /dev/null
++++ b/test/conversations-have-an-address.test.js
+@@ -0,0 +1,72 @@
++// **대화와 화면에 주소가 생긴다** (UX 기획 §4 「F 다음」 · 2026-08-13).
++//
++// 조사가 낸 사실: `hash`·`pushState` **0건** — **세션조차 주소가 없었다.**
++// 그래서 링크로 대화를 열 수도, 뒤로가기로 돌아올 수도, 새로고침 뒤 같은 자리로 돌아올 수도
++// 없었다. 오너의 *"페이지도 하나도 새로 생성된 게 없네"* 가 가장 정확하게 참인 자리다 —
++// 화면이 없었던 게 아니라 **주소가 없어서 「페이지」라는 개념이 없었다.**
++//
++// 기획 §4 는 이걸 *"범위가 크다 — **F 다음**"* 으로 미뤄 뒀다. F 가 닫혔으므로 지금이 그 자리다.
++// 그래서 이 파일은 조각 F 검사의 *"이번에 안 한다"* 를 **대체한다**(무르게 한 것이 아니라,
++// 미뤄 둔 조건이 충족돼 열린 것이다 — 조각 F 검사 쪽에도 그 사유를 적었다).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++const G블록 = (() => {
++  const 시작 = html.indexOf('// ── 조각 G · 대화와 화면에 **주소**가 생긴다');
++  if (시작 < 0) return '';
++  const 끝 = html.indexOf('</script>', 시작);
++  return 끝 > 시작 ? html.slice(시작, 끝) : '';
++})();
++
++test('조각 G 블록이 있다 — 없으면 아래가 아무것도 못 지킨다', () => {
++  assert.ok(G블록.length > 0, '조각 G 블록을 못 찾았다');
++});
++
++test('연 대화가 주소에 남는다 — 링크가 성립하는 최소 조건이다', () => {
++  assert.match(html, /주소쓰기\(`\/s\/\$\{id\}`\);/, 'selectSession 이 주소를 남겨야 한다');
++  assert.match(G블록, /history\[밀기 \? 'pushState' : 'replaceState'\]/,
++    '뒤로가기가 생기려면 이력에 밀어야 한다');
++});
++
++// ★ 이 검사가 조각 F 의 값을 실제로 거둔 자리다.
++test('화면 주소에 **화면 이름을 하나도 안 적는다** — 통로가 이름을 안다(조각 F)', () => {
++  assert.match(html, /주소쓰기\(`\/화면\/\$\{이름\}`\);/, '통로가 열릴 때 주소를 남긴다');
++  assert.match(G블록, /오버레이표\.has\(화면\[1\]\)/, '주소를 읽을 때도 통로에 물어본다');
++  assert.doesNotMatch(G블록, /설정|도구함|tbov|setov/,
++    '여기 화면 이름을 적으면 새 화면이 늘 때마다 이 블록을 고쳐야 한다 — 그게 조각 F 이전이다');
++});
++
++test('주소가 말하지 않는 화면은 닫힌다 — 안 그러면 뒤로가기가 아무 일도 안 한 것처럼 보인다', () => {
++  assert.match(G블록, /for \(const 문 of 열린오버레이\(\)\) if \(!화면 \|\| 문\.이름 !== 화면\[1\]\) 오버레이닫기\(문\.이름\);/,
++    '주소와 화면이 어긋나면 사용자는 뒤로가기가 고장 났다고 읽는다');
++  assert.match(html, /if \(!열린오버레이\(\)\.length\) 주소쓰기\(currentSessionId \? `\/s\/\$\{currentSessionId\}` : ''\);/,
++    '화면을 닫으면 주소는 그 아래 대화로 돌아간다 — 빈 주소로 떨어뜨리지 않는다');
++});
++
++// 되돌아오는 고리(주소→화면→주소→…)는 이 자물쇠 하나로만 끊긴다. 지우면 조용히 무한이 된다.
++test('주소와 화면이 서로를 되쓰지 않는다 — 자물쇠가 하나 있다', () => {
++  assert.match(G블록, /let 주소읽는중 = false;/, '자물쇠가 있어야 한다');
++  assert.match(G블록, /if \(주소읽는중\) return;/, '읽는 중에는 되쓰지 않는다');
++  assert.match(G블록, /finally \{ 주소읽는중 = false; \}/, '예외가 나도 자물쇠는 풀려야 한다');
++  assert.match(G블록, /if \(location\.hash === 새\) return;/,
++    '같은 자리를 이력에 쌓으면 뒤로가기를 여러 번 눌러야 한 칸 움직인다');
++});
++
++test('링크로 들어온 사람에게 **다른 대화를 열어 주지 않는다**', () => {
++  assert.match(html, /if \(\/\^\\\/\(s\|화면\)\\\/\/\.test\(온길\)\) \{ await 주소따라가기\(\); \}/,
++    '주소가 있으면 주소가 먼저다 — 최근 대화를 열면 그 링크는 거짓말이 된다');
++});
++
++test('뒤로가기·주소 직접 입력·새로고침이 **같은 한 자리**로 온다', () => {
++  assert.match(G블록, /window\.addEventListener\('hashchange', 주소따라가기\);/, 'hashchange');
++  assert.match(G블록, /window\.addEventListener\('popstate', 주소따라가기\);/, 'popstate');
++  // 셋이 다른 함수로 갈라지면 그중 하나만 고쳐지는 일이 생긴다(조각 F 가 고친 그 병).
++  assert.equal((G블록.match(/주소따라가기\)/g) || []).length, 2, '두 사건이 같은 함수로 와야 한다');
++});
++
++test('주소가 가리키던 것이 사라져도 화면이 안 깨진다', () => {
++  assert.match(G블록, /catch \{ \/\* 주소가 가리키던 것이 사라졌을 수 있다/,
++    '지운 대화의 링크를 열었을 때 흰 화면이 되면 안 된다');
++});
+diff --git a/test/hand-record-survives-the-answer.test.js b/test/hand-record-survives-the-answer.test.js
+new file mode 100644
+index 00000000..eced04fa
+--- /dev/null
++++ b/test/hand-record-survives-the-answer.test.js
+@@ -0,0 +1,106 @@
++// **손이 한 일이 남는다** (UX 기획 §2 조각 D · 2026-08-12).
++//
++// 조사가 낸 것: `partial_result` 는 답이 시작되면 **통째로 삭제**되고, 끝나면 접힌 줄 하나만
++// 남는데 그 안쪽은 셋을 `'; '` 로 이어 붙인 한 덩이 글이었다. 그래서 둘이 동시에 일어났다 —
++// 팀원은 *"진행을 본 적이 없다"* 고 했고, 펼쳐도 **실패한 손이 성공한 것과 같은 글자**로 섰다.
++//
++// 이 조각의 규율은 기획 §6-1 관통 원칙이다: **판단에 꼭 필요한 최소치만 1차 화면에.**
++// 그래서 답은 「남긴다」가 아니라 **「접어서 남긴다」**다 — 지우면 못 보고, 펼쳐 두면 잔소리다.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++/** 이름 있는 함수 하나의 본문(다음 줄머리 `}` 까지) — 조각 A 검사와 같은 방식. */
++function 본문(머리) {
++  const at = html.indexOf(머리);
++  if (at < 0) return '';
++  const 뒤 = html.slice(at);
++  return 뒤.slice(0, 뒤.indexOf('\n}') + 2);
++}
++
++// ── ① 지우지 않는다. 접는다 ────────────────────────────────────────────────
++test('답이 시작돼도 걸음들을 지우지 않는다 — 접는다', () => {
++  const 답시작 = html.slice(html.indexOf("if (!preview) {"), html.indexOf("previewText += piece;"));
++  assert.ok(답시작.length > 0, 'answer_delta 의 첫 조각 갈래를 못 찾았다');
++  assert.doesNotMatch(답시작, /steps\?\.remove\(\)/,
++    '지우면 「진행을 본 적이 없다」로 돌아간다 — 정보가 없었던 게 아니라 사라진 것이었다');
++  assert.match(답시작, /걸음접기\(\)/, '자리는 내주되 접힌 한 줄로 남긴다');
++});
++
++test('접힌 것은 **기본이 닫힘**이다 — 잔소리를 늘리지 않는다', () => {
++  const 접기 = html.slice(html.indexOf('const 걸음접기 ='), html.indexOf('const 걸음접기 =') + 900);
++  assert.match(접기, /걸음몸\.classList\.remove\('open'\)/, '접는 순간 안쪽은 닫혀 있어야 한다');
++  assert.match(접기, /steps\.classList\.add\('folded'\)/, '접힘 표시가 붙어야 CSS 가 안쪽을 감춘다');
++  assert.match(html, /\.msg\.steps\.folded \.steps-body \{ display:none; \}/,
++    '접힘 표시가 실제로 안쪽을 감춰야 한다 — 클래스만 붙고 안 감추면 아무것도 안 접힌 것이다');
++  assert.match(접기, /머리\.onclick/, '펼 수 있어야 「접었다 편다」가 성립한다');
++});
++
++// 라이브에서 잡은 자리다(2026-08-12). 줄 배치를 주려고 `.record .body.rows` 에
++// `display:flex` 를 썼는데, 그게 위의 `.record .body { display:none }` 보다 specificity 가
++// 높아 **기록이 늘 펼쳐진 채로 섰다** — 「기본은 접힌 한 줄」이 그 자리에서 깨졌다.
++// 코드만 읽는 검사로는 못 잡는 종류라(계산된 스타일을 재야 보인다) 규칙 자체를 못 박는다.
++test('줄 배치가 접힘을 이기지 않는다 — .body.rows 는 display 를 안 건드린다', () => {
++  const 줄 = html.split('\n').find((l) => l.includes('.record .body.rows {'));
++  assert.ok(줄, '.record .body.rows 규칙을 못 찾았다');
++  assert.doesNotMatch(줄, /display:/,
++    '여기서 display 를 주면 기본 display:none 을 이겨 기록이 늘 펼쳐진다(라이브에서 밟았다)');
++  assert.match(html, /\.rec-row \+ \.rec-row \{ margin-top:/,
++    '줄 간격은 flex 의 gap 이 아니라 이웃 여백으로 준다 — 그래야 display 를 안 건드린다');
++});
++
++test('접힌 이름은 **숫자가 아니라 첫 사실**이다', () => {
++  const 이름 = 본문('const 걸음이름 = () => {');
++  assert.match(이름, /걸음말\[0\]/, '첫 사실을 이름으로 올린다');
++  assert.doesNotMatch(이름, /걸음 \$\{|도구 \$\{/,
++    '「걸음 3개」는 참이지만 사용자가 알고 싶은 것이 아니다(대리지표 · 오너 결정 2026-08-03)');
++  assert.match(이름, /외 \$\{나머지\}건/, '나머지가 있으면 몇 건이 더 있는지는 말한다');
++});
++
++test('접힌 뒤에 온 걸음도 이름에 센다 — 「외 N건」이 낡지 않는다', () => {
++  assert.match(html, /걸음이름갱신\(\);/, '걸음이 붙을 때마다 이름을 다시 세운다');
++  assert.match(html, /const 걸음이름갱신 = \(\) => \{ if \(걸음머리글\)/,
++    '접히기 전에는 머리가 없다 — 그때는 아무것도 안 한다');
++});
++
++// ── ② 실패한 손이 성공한 것과 구별된다 ──────────────────────────────────────
++test('기록을 펼치면 **한 걸음 한 줄**이다 — 한 덩이 글이 아니다', () => {
++  const rec = 본문('function renderRecord(box, ledger) {');
++  assert.ok(rec.length > 0, 'renderRecord 를 못 찾았다');
++  assert.doesNotMatch(rec, /join\('; '\)/,
++    "';' 로 이어 붙이면 걸음 경계가 사라져 펼쳐도 무엇이 몇 건인지 안 보인다");
++  assert.match(rec, /body\.classList\.add\('rows'\)/, '줄 배치로 세운다');
++  assert.match(rec, /줄놓기\(ledger\.confirmed[\s\S]*줄놓기\(ledger\.unconfirmed[\s\S]*줄놓기\(ledger\.estimated/,
++    '세 배열을 각각 줄로 놓는다 — 새 데이터를 만들지 않는다');
++});
++
++test('미확인·추정은 **색만이 아니라 말로도** 갈린다', () => {
++  const rec = 본문('function renderRecord(box, ledger) {');
++  assert.match(rec, /줄놓기\(ledger\.unconfirmed, 'unk', '○', '미확인'\)/,
++    '못 한 일에는 「미확인」 꼬리표가 붙어야 한다');
++  assert.match(rec, /줄놓기\(ledger\.estimated, 'est', '◌', '추정'\)/,
++    '추정도 확인과 갈려야 한다');
++  assert.match(rec, /줄놓기\(ledger\.confirmed, 'ok', '●', ''\)/,
++    '확인된 것에는 꼬리표를 안 붙인다 — 기본이 확인이다');
++  // 색만으로 가르면 색을 못 보는 사람에게는 성공과 같은 줄이 된다.
++  assert.match(html, /\.rec-row \.tag \{/, '꼬리표가 실제로 스타일을 갖는다');
++  assert.match(html, /\.rec-row\.unk \.m \{ color:var\(--warn\); \}/, '표식 색도 함께 준다(색은 보조다)');
++});
++
++test('OS 가 만든 문장을 HTML 로 해석하지 않는다 — 줄로 바꾸면서 그 규율을 안 놓쳤다', () => {
++  const rec = 본문('function renderRecord(box, ledger) {');
++  assert.doesNotMatch(rec, /innerHTML/,
++    '기록 본문은 원장 문장이다 — innerHTML 로 넣으면 그 문장 안의 꺾쇠가 태그가 된다');
++  assert.match(rec, /t\.textContent = String\(말\)/, '글자로만 넣는다');
++});
++
++// ── ③ 조각 A·B 를 안 깬다 ──────────────────────────────────────────────────
++test('조각 A 의 미리보기 상자와 따라가기를 안 건드렸다', () => {
++  assert.match(html, /preview\.className = 'msg bot';/,
++    '조각 A 가 세운 「미리보기는 최종 답과 같은 조」가 그대로 있어야 한다');
++  const 답시작 = html.slice(html.indexOf("if (!preview) {"), html.indexOf("previewText += piece;"));
++  assert.doesNotMatch(답시작, /scrollTop|scrollHeight/,
++    '조각 D 는 스크롤을 안 만진다 — 그 자리는 조각 A 것이다');
++});
+diff --git a/test/human-surface-polish.test.js b/test/human-surface-polish.test.js
+index 92e80d5d..8052af56 100644
+--- a/test/human-surface-polish.test.js
++++ b/test/human-surface-polish.test.js
+@@ -111,13 +111,27 @@ test('P90-2: 화면이 확인된 중간 결과를 그리고 첫 유용한 내용
+   assert.match(html, /markGrounded\(\)/, '첫 유용한 내용 보고가 두 경로에서 같은 자리를 쓰지 않는다');
+   assert.match(html, /steps\?\.remove\(\)/,
+     '완료 뒤에도 중간 결과가 남으면 지속된 최종 답과 두 벌이 된다');
+-  // 답이 흐르기 시작하면 채울 공백이 없다. 그때도 남겨두면 확인 사실과 답이 나란히 서서
+-  // 같은 말을 두 번 하는 화면이 된다 — 실제 라이브 회차에서 관측된 모습이다.
+-  assert.match(
+-    html.slice(html.indexOf("addEventListener('answer_delta'"), html.indexOf("const completed =")),
+-    /steps\?\.remove\(\)/,
+-    '답변 조각이 시작돼도 중간 결과가 남으면 같은 사실이 화면에 두 벌로 선다',
+-  );
++  // 답이 흐르기 시작하면 채울 공백이 없다. 그때도 **펼친 채** 남겨두면 확인 사실과 답이
++  // 나란히 서서 같은 말을 두 번 하는 화면이 된다 — 실제 라이브 회차에서 관측된 모습이다.
++  //
++  // ── 2026-08-12 · UX 기획 §2 조각 D 로 **무는 사실을 바꿨다**(무르게 한 것이 아니다) ──
++  // 지키는 것은 그대로다: *"같은 사실이 화면에 두 벌로 서지 않는다."*
++  // 바뀐 것은 **그것을 지키는 방법**이다. 전에는 `steps.remove()` 로 지웠는데, 지웠기 때문에
++  // 답이 끝난 뒤 「무엇을 읽고 무엇을 바꿨는지」를 되짚을 자리가 없었다 — 팀원이 *"진행을 본
++  // 적이 없다"* 고 한 이유다. 정보가 없었던 게 아니라 **사라졌다.**
++  // 이제는 **접는다**: 기본이 닫힘이라 화면에 서는 것은 한 줄뿐이고(두 벌이 아니다), 필요하면
++  // 편다. 그래서 이 자리는 「지웠는가」가 아니라 **「접었는가 · 접힌 것이 닫혀 있는가」**를 문다.
++  // 지우기로 되돌아가거나 접힌 것이 열린 채로 서면 아래 셋 중 하나가 빨개진다.
++  const 답시작 = html.slice(html.indexOf("addEventListener('answer_delta'"), html.indexOf("const completed ="));
++  assert.doesNotMatch(답시작, /steps\?\.remove\(\)/,
++    '지우면 답이 끝난 뒤 되짚을 자리가 없다 — 자리는 내주되 지우지는 않는다(조각 D)');
++  assert.match(답시작, /걸음접기\(\)/,
++    '답변 조각이 시작되면 중간 결과는 접혀야 한다 — 펼친 채 남으면 같은 사실이 두 벌로 선다');
++  const 접기 = html.slice(html.indexOf('const 걸음접기 ='), html.indexOf('const 걸음접기 =') + 900);
++  assert.match(접기, /걸음몸\.classList\.remove\('open'\)/,
++    '접는 순간 안쪽이 닫혀 있어야 「두 벌이 아니다」가 성립한다');
++  assert.match(html, /\.msg\.steps\.folded \.steps-body \{ display:none; \}/,
++    '클래스만 붙고 실제로 안 감추면 아무것도 안 접힌 것이다');
+   // 답과 같은 조로 그리면 사용자는 그것을 답으로 읽는다. 진행 중 사실은 조용해야 한다.
+   assert.match(html, /\.msg\.steps\s*\{[^}]*color:var\(--muted\)/,
+     '확인된 중간 결과가 최종 답과 같은 조로 그려지면 답으로 오인된다');
+diff --git a/test/last-thing-i-said-comes-back.test.js b/test/last-thing-i-said-comes-back.test.js
+new file mode 100644
+index 00000000..3623c566
+--- /dev/null
++++ b/test/last-thing-i-said-comes-back.test.js
+@@ -0,0 +1,61 @@
++// **`↑` 로 방금 한 말이 돌아온다** (선행자 공부 §3 · 2026-08-13).
++//
++// 오너 지시에서 나온 조각이다: *"너는 인간의 행동을 모르잖아 … 이미 잘 쓰이고 있는 서비스를
++// 보면서 **인간의 직관적 행동과 결핍과 필요를 헤아려서** UX 를 구성해야 한다."*
++//
++// 사람은 하루에도 몇 번씩 **방금 한 말을 조금 고쳐 다시 보낸다.** 셸도 챗도 그 짓을 `↑` 로
++// 받는다 — 배우지 않고도 하는 손버릇이다. T5 에는 그 길이 없었다: 조각 B 의
++// 「고쳐 다시 보내기」는 *지나간 말*에는 답을 줬지만 **입력칸에 선 사람**에게는 아무것도 안 줬다.
++//
++// 이 검사가 무는 것은 「↑ 가 동작한다」가 아니라 **「사람의 것을 안 뺏는다」**다.
++// 되부르기는 편의고, 쓰던 글을 잃는 것은 손해다 — 손해가 편의보다 크면 안 만드느니만 못하다.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++const 블록 = (() => {
++  const 시작 = html.indexOf('// ── 흡수 · `↑` 로 방금 한 말을 되부른다');
++  if (시작 < 0) return '';
++  const 끝 = html.indexOf('// ── 자판 (기획 §2 B-5) ──', 시작);
++  return 끝 > 시작 ? html.slice(시작, 끝) : '';
++})();
++
++test('되부르기 블록이 있다 — 없으면 아래가 아무것도 못 지킨다', () => {
++  assert.ok(블록.length > 0, '되부르기 블록을 못 찾았다');
++});
++
++// ★ 이 검사가 알맹이다. 편의보다 **안 뺏는 것**이 먼저다.
++test('입력칸에 **글이 있으면 ↑ 를 안 가로챈다** — 커서를 옮기려는 사람이 더 많다', () => {
++  assert.match(블록, /if \(되부름자리 === -1 && text\.value\.trim\(\)\) return;/,
++    '쓰던 글이 있는데 가로채면 되부르기가 편의가 아니라 손해가 된다');
++  assert.match(블록, /if \(되부름자리 === -1\) 쓰던글 = text\.value;/,
++    '되부르기 전에 쓰던 글을 맡아 둬야 ↓ 로 돌아올 수 있다');
++  assert.match(블록, /text\.value = 되부름자리 === -1 \? 쓰던글 : 말들\[되부름자리\];/,
++    '맨 아래는 지난 발화가 아니라 **원래 쓰던 글**이어야 한다');
++});
++
++test('조합 중·수식키와 안 부딪힌다 — 한글 입력과 텍스트 편집을 안 깬다', () => {
++  assert.match(블록, /if \(e\.metaKey \|\| e\.ctrlKey \|\| e\.altKey \|\| e\.shiftKey \|\| e\.isComposing\) return;/,
++    '수식키 조합(선택·단어 이동)과 한글 조합 중에는 손대지 않는다');
++});
++
++test('되부를 것이 없으면 **아무 일도 안 한다** — 빈 칸을 만들지 않는다', () => {
++  assert.match(블록, /if \(!말들\.length\) return;/, '보낸 말이 없으면 그냥 둔다');
++  assert.match(블록, /if \(되부름자리 \+ 1 >= 말들\.length\) return;/,
++    '더 거슬러 갈 것이 없을 때 빈 칸으로 떨어뜨리면 사람은 고장으로 읽는다');
++});
++
++// 새 저장소·새 서버 상태를 만들지 않는다(§규율). 화면이 이미 들고 있는 것을 읽는다.
++test('발화 목록을 **새로 저장하지 않는다** — 화면에 있는 것을 읽는다', () => {
++  assert.match(블록, /function 내가한말들\(\) \{ return \[\.\.\.document\.querySelectorAll\('\.msg\.me'\)\]/,
++    '화면이 이미 진실을 들고 있다 — 따로 쌓으면 두 벌이 된다');
++  assert.doesNotMatch(블록, /localStorage|sessionStorage|fetch\(/,
++    '되부르기는 서버도 저장소도 안 건드린다');
++  assert.match(블록, /\.reverse\(\)/, '최근 것부터 거슬러 올라가야 손버릇과 맞는다');
++});
++
++test('보내고 나면 처음으로 돌아간다 — 다음 ↑ 는 **방금 보낸 그 말**이다', () => {
++  assert.match(블록, /send\.addEventListener\('click', \(\) => \{ 되부름자리 = -1; 쓰던글 = ''; \}\);/,
++    '보낸 뒤에도 자리가 남아 있으면 다음 ↑ 가 엉뚱한 말을 올린다');
++});
+diff --git a/test/one-way-to-add-a-screen.test.js b/test/one-way-to-add-a-screen.test.js
+new file mode 100644
+index 00000000..7813d5de
+--- /dev/null
++++ b/test/one-way-to-add-a-screen.test.js
+@@ -0,0 +1,84 @@
++// **확장 통로를 하나로** (UX 기획 §2 조각 F · 2026-08-12).
++//
++// 조사가 낸 것: 새 화면 하나를 더하려면 **다섯 곳**을 고쳐야 했다 —
++//   ① 마크업 ② CSS 선택자 목록 셋 ③ 열기/닫기 한 벌 ④ 진입 배선 ⑤ 닫기 배선 셋.
++// 그중 넷은 화면마다 똑같은 일이라, 복사되는 만큼 **하나를 빠뜨린 화면**이 생긴다.
++// 실제로 그랬다: Esc 는 조각 B 가 붙이기 전까지 두 화면 다 없었고, 설정의 닫는 문 둘(✕ ·
++// 「대화로 돌아가기」)은 각각 따로 배선돼 있었다.
++//
++// 이 검사가 무는 것은 「통로가 있다」가 아니라 **「통로에 실제로 올라가 있다」**이다 —
++// 등록표만 만들고 아무도 안 쓰면 그건 만든 것이지 닿은 것이 아니다.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++test('통로가 하나 있다 — 열기·닫기·배경 클릭·✕ 가 한 자리에 모였다', () => {
++  const 등록 = html.slice(html.indexOf('function 오버레이등록('), html.indexOf('async function 오버레이열기('));
++  assert.ok(등록.length > 0, '오버레이등록 을 못 찾았다');
++  assert.match(등록, /겉\.addEventListener\('click'[\s\S]*오버레이닫기/, '배경 클릭 닫기가 통로 안에 있어야 한다');
++  assert.match(등록, /for \(const id of 닫기단추\)/, '✕ 같은 닫는 문들도 통로가 배선해야 한다');
++  assert.match(등록, /if \(!겉\) return null;/, '없는 화면은 등록하지 않는다 — 죽은 문을 만들지 않는다');
++  assert.match(html, /document\.body\.classList\.remove\('nav-open'\);\s*\/\/ 좁은 화면에서/,
++    '사이드바 접기도 화면마다 복사하지 않고 통로가 한다');
++});
++
++// ★ 이 검사가 이 조각의 알맹이다. 소비자 0인 통로는 「영향 0」이다.
++test('기존 화면 둘이 **실제로** 그 통로에 올라가 있다 — 만든 것이 아니라 닿은 것이다', () => {
++  assert.match(html, /오버레이등록\(\{\s*\n?\s*이름: '도구함',/, '도구함이 통로에 안 올라가 있다');
++  assert.match(html, /오버레이등록\(\{ 이름: '설정', 덮개: 'setov', 닫기단추: \['set-x', 'set-back'\]/,
++    '설정이 통로에 안 올라가 있다(닫는 문 둘 다 등록해야 한다)');
++  // 열고 닫는 일을 화면이 제 손으로 하면 통로를 우회한 것이다.
++  assert.doesNotMatch(html, /setov\.classList\.add\('open'\)/, '설정이 통로를 우회해 스스로 연다');
++  assert.doesNotMatch(html, /tbov\.classList\.add\('open'\)/, '도구함이 통로를 우회해 스스로 연다');
++  assert.match(html, /function closeSettings\(\) \{ 오버레이닫기\('설정'\); \}/, '닫기도 통로를 지나야 한다');
++  assert.match(html, /function closeToolbox\(\) \{ 오버레이닫기\('도구함'\); \}/, '닫기도 통로를 지나야 한다');
++});
++
++test('닫기 배선이 화면마다 복사돼 있지 않다 — 빠뜨릴 자리가 없어졌다', () => {
++  assert.doesNotMatch(html, /setov\.onclick = /, '배경 클릭 배선이 아직 화면 쪽에 남아 있다');
++  assert.doesNotMatch(html, /tbov\.onclick = /, '배경 클릭 배선이 아직 화면 쪽에 남아 있다');
++  assert.doesNotMatch(html, /getElementById\('set-x'\)\.onclick/, '✕ 배선이 아직 화면 쪽에 남아 있다');
++  assert.doesNotMatch(html, /getElementById\('tb-x'\)\.onclick/, '✕ 배선이 아직 화면 쪽에 남아 있다');
++});
++
++test('Esc 는 화면 이름을 하나씩 적지 않는다 — 그게 다섯째 자리였다', () => {
++  const esc = html.slice(html.indexOf("if (e.key !== 'Escape') return;"), html.indexOf("if (손바.classList"));
++  assert.match(esc, /열린오버레이\(\)/, '열린 것을 통로에 물어야 한다');
++  assert.doesNotMatch(esc, /setov\.classList\.contains|tbov\.classList\.contains/,
++    'Esc 에 화면 이름을 적으면 새 화면이 늘 때마다 이 줄을 고쳐야 한다');
++  // 한 번에 하나만 — 조각 B 가 세운 계약이 통로로 옮겨도 그대로여야 한다.
++  assert.match(esc, /오버레이닫기\(열린것\.at\(-1\)\.이름\); return;/,
++    '맨 나중에 연 것 하나만 닫는다(한 번에 둘을 닫으면 무엇이 닫혔는지 모른다)');
++  // ⚠ 「맨 나중에 연 것」이 성립하려면 **연 순서를 세야** 한다. 첫 판은 안 세서 등록 순서로
++  //   닫았고, 라이브에서 둘을 같이 열어 보고서야 드러났다(주석은 맞고 코드가 틀렸다).
++  assert.match(html, /문\.연때 = \+\+열림순번;/, '열 때마다 순번을 남겨야 한다');
++  assert.match(html, /\.sort\(\(a, b\) => \(a\.연때 \?\? 0\) - \(b\.연때 \?\? 0\)\)/,
++    '연 순서로 세우지 않으면 at(-1) 은 「맨 나중에 연 것」이 아니라 등록 순서다');
++});
++
++test('새 화면은 CSS 를 안 건드린다 — 통로가 받는 규칙이 따로 있다', () => {
++  assert.match(html, /\.ov \{ position:fixed; inset:0; z-index:30; display:none;/,
++    '새 화면이 쓸 겉 규칙이 있어야 한다');
++  assert.match(html, /\.ov\.open \{ display:block; \}/, '열림 규칙도 이름 없이 서야 한다');
++  assert.match(html, /\.ovpanel \{ position:absolute;/, '패널 규칙도 이름 없이 서야 한다');
++  // §1 규약: 기존 줄은 안 고친다 — 두 화면은 여전히 id 규칙으로 선다.
++  assert.match(html, /#tbov, #setov \{ position:fixed; inset:0; z-index:30; display:none;/,
++    '기존 규칙을 고치면 두 화면이 이 커밋에서 같이 흔들린다 — 옮기는 일과 정리하는 일을 섞지 않는다');
++});
++
++// ── 2026-08-13 · 이 자리는 **조건이 충족돼 열렸다**(무르게 한 것이 아니다) ──────────
++// 기획 §4 의 문장은 *"안 한다"* 가 아니라 *"값은 있으나 범위가 크다 — **F 다음**"* 이었다.
++// F 가 닫혔으므로 미룸의 조건이 끝났고, 조각 G 가 그것을 한다. 그래서 무는 사실을 뒤집는 대신
++// **주인을 옮긴다**: 주소를 다루는 자리는 조각 G 하나여야 하고, 조각 F 는 여전히 안 다룬다.
++// (조각 G 의 계약은 `test/conversations-have-an-address.test.js` 가 문다.)
++test('주소는 조각 G 가 한 자리에서 다룬다 — F 의 통로 코드는 여전히 주소를 모른다', () => {
++  const F블록 = html.slice(html.indexOf('// ── 조각 F · 확장 통로를 하나로'),
++    html.indexOf('// ── 도구함 (2.0-A)'));
++  assert.ok(F블록.length > 0, '조각 F 블록을 못 찾았다');
++  assert.doesNotMatch(F블록, /location\.hash|pushState|popstate|hashchange/,
++    '통로가 주소를 직접 다루면 주소 규칙이 두 곳에 생긴다 — 「두 벌」 계열이 하나 더 는다');
++  // 통로는 **주소쓰기 한 줄**만 부른다(규칙은 조각 G 가 갖는다).
++  assert.match(html, /주소쓰기\(`\/화면\/\$\{이름\}`\);/, '통로는 이름만 넘긴다');
++});
+diff --git a/test/s1-preflight.test.js b/test/s1-preflight.test.js
+index 9c55e9ef..cd3b3b79 100644
+--- a/test/s1-preflight.test.js
++++ b/test/s1-preflight.test.js
+@@ -224,6 +224,8 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
+     'src/surface/live-context.js',
+     'src/runtime/tool-runner.js',
+     'src/surface/web/index.html',
++    // UX 처방 ⑤(2026-08-13) — 검색 후보가 실제 일치 대목과 위치를 표면에 전달한다.
++    'src/kernel/l5-growth/session-search.js',
+     'src/kernel/l2-plan/exit-verification.js',
+     // P-OP 결함 가족 A-②(2026-08-10) — 물음표로 끝나는 인용은 합의의 증거가 아니다(입장 경계만).
+     'src/surface/work-state-admission.js',
+diff --git a/test/session-search.test.js b/test/session-search.test.js
+index b5375cfc..80424ec3 100644
+--- a/test/session-search.test.js
++++ b/test/session-search.test.js
+@@ -44,6 +44,17 @@ test('searchTranscripts: user 발화와 assistant reply 모두 검색 대상', (
+   assert.ok(hits.some((h) => h.role === 'assistant'));
+ });
+ 
++test('검색어가 긴 글 뒤쪽에 있어도 스니펫 안에 맞은 대목과 위치가 함께 온다', () => {
++  const long = [{ id: 'long', title: '긴 대화', transcript: [
++    { role: 'user', text: `${'앞부분 '.repeat(50)}진짜찾을말 뒤의 문장` },
++  ] }];
++  const [hit] = searchTranscripts(long, '진짜찾을말');
++  assert.match(hit.snippet, /진짜찾을말/);
++  assert.equal(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength), '진짜찾을말');
++  assert.equal(hit.matchText, '진짜찾을말');
++  assert.equal(hit.entryIndex, 0);
++});
++
+ // ── 안전 불변식: 검색 결과는 raw로 영향 0, admission 통과해야 영향 ──
+ test('검색 후보는 raw 상태에서 영향 0 — 라우터 admittedContext에 안 들어간다', () => {
+   const [hit] = searchTranscripts(sessions, '부오상회');
+diff --git a/test/ux-close-vocabulary.test.js b/test/ux-close-vocabulary.test.js
+new file mode 100644
+index 00000000..6db6b506
+--- /dev/null
++++ b/test/ux-close-vocabulary.test.js
+@@ -0,0 +1,16 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++test('실제로 닫는 입구는 모두 같은 말 닫기를 쓴다', () => {
++  assert.match(html, /id="selCancel">닫기<\/button>/);
++  assert.match(html, /id="tb-x"[^>]*>닫기<\/button>/);
++  assert.match(html, /id="set-x"[^>]*>닫기<\/button>/);
++  assert.match(html, /id="set-back"[^>]*>닫기<\/a>/);
++  assert.match(html, /id="search-icon"/);
++  assert.match(html, /searchIcon\.style\.display = open \? 'none' : ''/);
++  assert.doesNotMatch(html, /id="(?:tb|set)-x"[^>]*>✕<\/button>/);
++  assert.doesNotMatch(html, /id="set-back"[^>]*>← 대화로 돌아가기<\/a>/);
++});
+diff --git a/test/ux-hidden-surfaces-fixture.test.js b/test/ux-hidden-surfaces-fixture.test.js
+new file mode 100644
+index 00000000..1d4aaf1c
+--- /dev/null
++++ b/test/ux-hidden-surfaces-fixture.test.js
+@@ -0,0 +1,21 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++
++import { 숨은표면고정물 } from '../scripts/live/ux-hidden-fixtures.mjs';
++
++test('UX 전수 걷기에서 못 본 여덟 표면을 고정한다', () => {
++  assert.deepEqual(숨은표면고정물.map((x) => x.id), [
++    'approval',
++    'secret-input',
++    'capability-resolution',
++    'memory-change',
++    'automation-proposal',
++    'pattern-candidate',
++    'delivery-failure',
++    'recovery',
++  ]);
++  for (const 고정물 of 숨은표면고정물) {
++    assert.ok(고정물.기대글.length > 0, `${고정물.id}: 화면 판별 문장이 없다`);
++    assert.ok(고정물.기대버튼.length > 0 || 고정물.id === 'recovery', `${고정물.id}: 실제 행동 입구가 없다`);
++  }
++});
+diff --git a/test/ux-history-load-interaction.test.js b/test/ux-history-load-interaction.test.js
+new file mode 100644
+index 00000000..7bd88fa9
+--- /dev/null
++++ b/test/ux-history-load-interaction.test.js
+@@ -0,0 +1,89 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++
++const execFileAsync = promisify(execFile);
++
++async function 실제크롬배치() {
++  const { stdout } = await execFileAsync(process.execPath, ['scripts/live/ux-history-load-fixture.mjs'], {
++    cwd: new URL('..', import.meta.url), timeout: 110_000, maxBuffer: 4 * 1024 * 1024,
++  });
++  return JSON.parse(stdout);
++}
++
++async function 종료반대시험() {
++  const { stdout } = await execFileAsync(process.execPath, ['scripts/live/ux-history-cdp-cleanup-proof.mjs'], {
++    cwd: new URL('..', import.meta.url), timeout: 25_000,
++  });
++  return JSON.parse(stdout);
++}
++
++function 증분근거(증거, 폭) {
++  assert.equal(증거.폭, 폭);
++  assert.equal(증거.변이, 'none');
++  assert.equal(증거.처음그린대화, 80, '처음에는 최근 80개만 보여야 한다');
++  const [휠, 좌표클릭] = 증거.증분로드;
++  assert.deepEqual([휠.그린대화, 좌표클릭.그린대화], [160, 240]);
++  assert.equal(휠.방법, '실제 CDP 마우스 휠 위로');
++  assert.equal(좌표클릭.방법, '보이는 버튼 CDP 좌표 클릭');
++  assert.deepEqual([휠.oldStart, 좌표클릭.oldStart], [160, 80]);
++  for (const load of [휠, 좌표클릭]) {
++    assert.ok(Number.isFinite(load.beforeY) && Number.isFinite(load.afterY) && Number.isFinite(load.delta));
++    assert.ok(Math.abs(load.delta) <= 0.75,
++      `${폭}px oldStart=${load.oldStart} 원문 자리가 ${load.delta}px 튀었다`);
++    assert.equal(load.uniqueCount, load.그린대화);
++    assert.equal(load.duplicates, 0, '증분 load가 이미 보이는 원문을 복제하면 안 된다');
++  }
++  assert.deepEqual(휠.indices, Array.from({ length: 160 }, (_, i) => i + 80));
++  assert.deepEqual(좌표클릭.indices, Array.from({ length: 240 }, (_, i) => i));
++  assert.equal(좌표클릭.button.viewportVisible, true, '화면 밖 버튼을 스크립트로 누르면 안 된다');
++  assert.equal(좌표클릭.input.method, 'Input.dispatchMouseEvent');
++  assert.equal(좌표클릭.input.coordinateClick, true);
++  assert.ok(좌표클릭.button.x >= 좌표클릭.button.left && 좌표클릭.button.x <= 좌표클릭.button.right);
++  assert.ok(좌표클릭.button.y >= 좌표클릭.button.top && 좌표클릭.button.y <= 좌표클릭.button.bottom);
++  assert.deepEqual(증거.경계검색.경계, { 수: 81, 더보기: false });
++  assert.deepEqual(증거.경계검색.작은대화, { 수: 20, 더보기: false });
++  assert.equal(증거.경계검색.접힌검색.대상번호, '20');
++  assert.equal(증거.경계검색.접힌검색.원문강조, '접힌 정확한 원문');
++  assert.ok(증거.경계검색.접힌검색.그린대화 > 80);
++  assert.deepEqual(증거.경계검색.부재후, 증거.경계검색.부재전,
++    '없는 검색 결과가 현재 대화와 로드 범위를 바꾸면 안 된다');
++  assert.equal(증거.경계검색.통과, true);
++  assert.equal(증거.전체통과, true);
++}
++
++// 한 격리 Chrome/프로필과 한 서버 안에서 두 viewport와 두 실제 제품 변이를 순차로 잰다.
++// 정적 HTML의 낱말을 세지 않고 실제 휠·화면 안 좌표 클릭 뒤의 DOM 원문과 동적 anchor를 읽는다.
++test('대화 이력 손을 한 실제 Chrome 배치에서 양성·반대시험까지 증명한다', { timeout: 120_000 }, async () => {
++  const evidence = await 실제크롬배치();
++  assert.equal(evidence.chromeLaunches, 1);
++  assert.equal(evidence.serverLaunches, 1);
++  assert.equal(evidence.profileCount, 1);
++  assert.deepEqual(evidence.양성.map((x) => x.폭), [1180, 375]);
++  evidence.양성.forEach((x) => 증분근거(x, x.폭));
++
++  assert.deepEqual(evidence.변이.map((x) => x.변이), [
++    'anchor-correction-removed', 'unique-guard-removed',
++  ]);
++  const [anchorRemoved, uniqueRemoved] = evidence.변이;
++  assert.equal(anchorRemoved.전체통과, false, 'anchor 보정 제거 변이가 초록으로 살아남았다');
++  assert.ok(anchorRemoved.증분로드.some((x) => Math.abs(x.delta) > 0.75));
++  assert.equal(uniqueRemoved.전체통과, false, '원문 고유성 제거 변이가 초록으로 살아남았다');
++  assert.ok(uniqueRemoved.증분로드.some((x) => x.duplicates > 0));
++  assert.equal(evidence.통과, true);
++
++  // 별도 파일로 두면 test-concurrency=3에서 실제 Chrome 둘이 겹친다. 같은 gate 한 줄에서
++  // 정상 배치가 닫힌 다음 실패 종료 세 갈래를 순차로 밟는다.
++  const cleanup = await 종료반대시험();
++  assert.deepEqual({ processes: cleanup.signal.processes, directory: cleanup.signal.directory }, {
++    processes: 0, directory: false,
++  });
++  assert.deepEqual({ message: cleanup.beforePort.message, processes: cleanup.beforePort.processes, directory: cleanup.beforePort.directory }, {
++    message: '시험용 포트 이전 실패', processes: 0, directory: false,
++  });
++  assert.deepEqual({ message: cleanup.beforeTarget.message, processes: cleanup.beforeTarget.processes, directory: cleanup.beforeTarget.directory }, {
++    message: '시험용 대상 탐색 이전 실패', processes: 0, directory: false,
++  });
++  assert.equal(cleanup.통과, true);
++});
+diff --git a/test/ux-large-conversation-window.test.js b/test/ux-large-conversation-window.test.js
+new file mode 100644
+index 00000000..7bcaa545
+--- /dev/null
++++ b/test/ux-large-conversation-window.test.js
+@@ -0,0 +1,16 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++// 실제 DOM 행위는 ux-history-load-interaction.test.js가 물고, 여기는 그 행위가
++// 시작범위를 한 번만 잘라 버리는 예전 구조로 되돌아가지 않게 구조 축을 받친다.
++test('큰 대화는 최근 80개에서 시작하고 이전 원문을 80개씩 증분한다', () => {
++  assert.match(html, /const 최근대화표시한도 = 80/);
++  assert.match(html, /Math\.max\(0, 대화\.length - 최근대화표시한도\)/);
++  assert.match(html, /대화\.slice\(start\)/);
++  assert.match(html, /대화표시상태\.start = Math\.max\(0, oldStart - 최근대화표시한도\)/);
++  assert.match(html, /이전 대화 \$\{접은수\}개는 화면에서 접어 두었어요/);
++  assert.match(html, /저장된 원문은 그대로예요/);
++});
+diff --git a/test/ux-optimistic-retention.test.js b/test/ux-optimistic-retention.test.js
+new file mode 100644
+index 00000000..1e974747
+--- /dev/null
++++ b/test/ux-optimistic-retention.test.js
+@@ -0,0 +1,20 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++test('서버 스냅샷이 늦어도 아직 안 실린 사용자 말과 받은 답을 다시 붙인다', () => {
++  assert.match(html, /data-optimistic-users/);
++  assert.match(html, /data-optimistic-assistants/);
++  assert.match(html, /data-optimistic-session/);
++  assert.match(html, /서버사용자수 <= 기준사용자수/);
++  assert.match(html, /서버답수 <= 기준답수/);
++  assert.match(html, /streamed\.answerText/);
++});
++
++test('새 대화는 직전 대화의 서버 발화 수를 물려받지 않는다', () => {
++  const body = html.match(/async function newSession\(\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
++  assert.match(body, /마지막서버사용자수 = 0/);
++  assert.match(body, /마지막서버답수 = 0/);
++});
+diff --git a/test/ux-search-snippet.test.js b/test/ux-search-snippet.test.js
+new file mode 100644
+index 00000000..bf20ba39
+--- /dev/null
++++ b/test/ux-search-snippet.test.js
+@@ -0,0 +1,13 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
++
++test('검색 결과는 맞은 대목을 표시하고 원 대화의 첫 일치로 이동한다', () => {
++  assert.match(html, /document\.createElement\('mark'\)/);
++  assert.match(html, /src\.matchStart/);
++  assert.match(html, /src\.matchText/);
++  assert.match(html, /scrollIntoView\(\{ block: 'center'/);
++  assert.match(html, /이 대목은 접힌 이전 대화에 있어요/);
++});
