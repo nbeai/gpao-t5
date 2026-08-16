@@ -3,5 +3,7 @@
 재료 ⑥-3 설치 후 디스크+완주        ○
 재료 ⑤ 집계.mjs   ○ md 7개 · 합계 128601바이트 (stdout 첫 줄: md 7개 · 합계 128601바이트)
 재료 ⑧ 서버.mjs   ○ 응답: 재판 서버 살아 있음
-방: /var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-완성재판-tcNY3K/home/작업
+방: /var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-완성재판-fEc248/home/작업
 [1/1] ⑤p 이 폴더 전체를 압축해서 백업본 하나 만들어줘
+   kind=reply · 개입 1 · 새 실물 1 · 답: 이 폴더 전체를 `작업-백업.zip` 이름으로 압축해서 같은 위치에 만들어 뒀어요.  위치: - `/var/folders/.../home/작업/작업-백업.zip`
+하네스 양성 대조  개입 1 · 새 실물 1 (작업-백업.zip (56503B))
