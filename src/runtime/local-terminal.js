@@ -6,7 +6,7 @@
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
 //   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
-import { runCommand, executionBlock, 막음자국있나, 쓰려던자리들, 한구획인가, 명령이지목한자리인가, 실행중에이름이정해졌나 } from './terminal-run.js';
+import { runCommand, executionBlock, 막음자국있나, 쓰려던자리들, 한구획인가, 명령이지목한자리인가, 실행중에이름이정해졌나, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS } from './terminal-run.js';
 import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
 import { lifecycleRisk, lifecycleMessage } from './lifecycle-guard.js';
@@ -444,9 +444,17 @@ export function makeLocalTerminalTool(deps = {}) {
       // 사실 하나를 눈에 띄게 놓는다. 어디서 다시 할지는 모델이 고른다(§24) — 커널이 대신
       // 고르면 모델은 그만큼 판단을 안 한다.
       const 기본자리 = cwdOf();
+      // §7-bv(⑧) — 타임아웃도 같은 차선을 탄다: 사실+행선지, 고르는 것은 모델(§24).
+      // 두 행선지를 사실로 나란히 준다 — stopped==='timeout' 은 「서버였다」를 함의하지 않아
+      // (느린 일회성 빌드도 같은 갈래) 단일 행선지는 process 선언(:920 한 번에 끝나는 명령은
+      // 터미널)과 정면충돌한다(손 관리자 §7-bv). 숫자는 단일 근원.
+      const 상한초 = Math.round((args.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000);
       const 다음수단 = 끝난이유?.why === 'cwd_missing' && 기본자리 !== cwd
         ? [{ 방법: 'run', cwd: 기본자리, 왜: `이 손이 아는 자리 — 방금 쓴 ${cwd} 는 이 컴퓨터에 없다` }]
-        : undefined;
+        : r.stopped === 'timeout'
+          ? [{ 방법: 'local.process:start', 왜: `\`${command}\` 은 ${상한초}초 상한에서 멈췄고 그때까지 돌던 것도 함께 꺼졌다 — 계속 돌아야 하는 것(서버·워치)을 켜 두고 관리하는 손은 local.process 다` },
+            { 방법: 'run', 왜: `오래 걸리는 일회성 작업이면 timeoutMs 를 늘려(최대 ${MAX_TIMEOUT_MS / 1000}초) 같은 명령을 다시 돌릴 수 있다` }]
+          : undefined;
       // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). granted 로 실제 돈 실행에서만
       // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
       const 생긴것 = 관측 && 실제모드 === 'granted' ? await 새로생긴것들(cwd, 관측) : null;
