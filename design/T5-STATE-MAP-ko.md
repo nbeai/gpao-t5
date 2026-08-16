@@ -1,6 +1,6 @@
 # T5 상태 지도 (정본 · 2026-08-12)
 
-> 기준 커밋 4a187273 (2026-08-16) — 이 문서를 마지막으로 손질한 커밋. 그 이후의 움직임은 세션 시작 점검이 잰다(§4-c ①).
+> 기준 커밋 eec6fe37 (2026-08-17) — 이 문서를 마지막으로 손질한 커밋. 그 이후의 움직임은 세션 시작 점검이 잰다(design/T5-FINAL-ASSEMBLY-ko.md §4-c ①).
 
 **이 문서는 「지금 무엇이 어떻게 있는가」다.** 「무엇을 할 것인가」는 `T5-FINAL-ASSEMBLY-ko.md`(계획서)다.
 둘을 섞지 않는다 — 지도가 판단을 하면 다음 사람이 지도를 안 믿는다.
@@ -27,12 +27,13 @@
 ## 1. 한 장 요약
 
 ```
-규모      src 189파일 · 커널 82(20,428줄) · 런타임 64(19,018) · 표면 43(11,942) = 51,388줄
-          ← 2026-08-16 실측. 재는 법: `find src/<층> -name '*.js' | wc -l`(파일) ·
-            `find src/<층> -name '*.js' -exec cat {} + | wc -l`(줄) — 베끼지 말고 재라(§4-c ②)
-          검사 489파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
-          (마지막 단독 실측 4,305 — §7-bn-2 · 도장 5ad8266e) · 스크립트는 `ls scripts`
-결합점    turn.js 3,737줄 · server.js 4,339줄(`wc -l` · 2026-08-16 실측) — 둘이 import 130개를
+규모      src 189파일 · 커널 82(20,468줄) · 런타임 64(19,116) · 표면 43(11,971) = 51,555줄
+          ← 2026-08-17 실측. 재는 법: `find src/<층> -name '*.js' | wc -l`(파일) ·
+            `find src/<층> -name '*.js' -exec cat {} + | wc -l`(줄) — 베끼지 말고 재라
+            (design/T5-FINAL-ASSEMBLY-ko.md §4-c ②)
+          검사 494파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
+          (마지막 단독 실측 4,320/4,320 — 2026-08-17 `npm test` 실행 · 도장 eec6fe37) · 스크립트는 `ls scripts`
+결합점    turn.js 3,764줄 · server.js 4,363줄(`wc -l` · 2026-08-17 실측) — 둘이 import 130개를
           직접 문다(import 수는 2026-08-12 실측)
 모델 노출  28 = 작업 손 17 + 통제 채널 11 (+ connector 2 는 대부분 자리에서 안 보임)
 표면      엔드포인트 76 핸들러 / 79 경로 · 저장소 25 · 커넥터 선언 8(전부 미연결)
@@ -47,7 +48,7 @@
 
 모든 경로는 `runTurn(input, ctx)` — `turn.js:895`(2026-08-16 실측 · 재는 법:
 `grep -n 'export async function runTurn' src/kernel/turn.js`). ⚠ 이 절 안의 나머지 줄 번호는
-2026-08-12 실측이라 지금과 어긋나 있다(같은 함수·같은 흐름은 유효) — 쓰기 전에 grep 으로 재라(§4-c ②).
+2026-08-12 실측이라 지금과 어긋나 있다(같은 함수·같은 흐름은 유효) — 쓰기 전에 grep 으로 재라(design/T5-FINAL-ASSEMBLY-ko.md §4-c ②).
 
 ### 2-1. 턴 머리 (777–906)
 
@@ -129,7 +130,7 @@
 | 손 | 파일 | 동사 | 등급(기본) | 모델이 읽는 설명 |
 |---|---|---|---|---|
 | `local.file` | local-file.js (1,076) | list read write move bulk_move delete undo versions (8) | write/delete 이나 `reversible:true` → **자동** | desc 419자 |
-| `local.terminal` | local-terminal.js (272) | — (`command`) | probe 결과로 read/write, write 는 **항상 카드** | capability 559자(⑧ 유도 재료 `ac327607` 뒤 · 2026-08-16 실측) + readReach 81 |
+| `local.terminal` | local-terminal.js (544 · `wc -l` 2026-08-17 — 기존 272는 지도 기준 커밋 4a187273 에서도 447이라 그때부터 틀린 값이었다, 정정) | — (`command`) | probe 결과로 read/write, write 는 **항상 카드** | capability 598자(node 로 `demoDescriptors({desktop:false})` 터미널 capability length · 2026-08-17 실측) + readReach 81 |
 | `local.locate` | local-locate.js (613) | — (`what`/`from`/`depth`) | read → 자동 | desc 516자 |
 | `local.process` | local-process.js (231) | start status logs stop (4) | start=write(자동) · stop=organize | desc 245자 |
 | `local.system` | local-system.js (156) | — (`limit`) · **두 축을 한 번에**: 프로세스 + 남은 저장 공간(`df -k /`) | read | desc 227자 |
@@ -195,6 +196,16 @@ BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개**(필터 전 절단 — �
 이 상한은 이제 모델에게도 **사실+행선지**로 실린다(`ac327607` · 완성재판 ⑧ 유도 재료 —
 맨 금지문 "서버 실행은 하지 않는다"를 `DEFAULT_TIMEOUT_MS` 단일 근원의 시간 사실 문장 +
 "계속 돌 것은 `local.process`" 행선지로 교체 · 검사 `test/terminal-declares-its-time-limit.test.js`).
+「`DEFAULT_TIMEOUT_MS` 단일 근원」의 범위는 capability·schema.description 두 사본까지다 —
+`demo-context.js:785` 의 `timeoutMs` 파라미터 설명("기본 120초, 최대 600초")은 리터럴이다(부채 등재됨).
+
+타임아웃 뒤 사실 셋(`0bc6a85f`·`98e4b4ea` · local-terminal.js:448-456·467-500 · demo-context.js:706·753 · 2026-08-17 실측):
+- granted/reach 실행이 시간 상한에서 멈추면 `failed:true`·`failureState=FAILED` 로 원장에 실패로
+  남고 `result` 는 유지된다(tool-runner 실패 갈래는 result 를 안 옮겨 **원장 오염 0**) ·
+  `diagnosticTrace` 에 stopped·exitCode·stdout·stderr·truncated·failedBy·실행중새로생긴것이 실린다.
+- `다음수단` 행선지 둘: 상주(서버·워치)는 `local.process` / 오래 걸리는 일회성은 `timeoutMs` 연장
+  (최대 `MAX_TIMEOUT_MS`) — `stopped==='timeout'` 이 「서버였다」를 함의하지 않아 둘을 나란히 준다.
+- ⑥ 유도 한 문장("실행 요청이 곧 허락 구하기다…")은 capability + schema.description **두 사본**이다.
 
 ### 3-4. 화면 손
 
@@ -349,7 +360,7 @@ exit-verification.js   위 11조항
 
 | 저장소 | 파일 | 담는 것 |
 |---|---|---|
-| Session | `<DATA>/<uuid>.json` | transcript·ledgerEntries·pendingApprovals·knownCounterparts·workingState·origin |
+| Session | `<DATA>/<uuid>.json` | transcript·ledgerEntries·pendingApprovals·knownCounterparts·workingState·origin·**산출물사실**`[{path,turn}]`·**산출물턴수** — 수명은 `FORGET_AFTER_TURNS=8` 공유(working-state.js:24)·렌더 5칸 · 경계 실측: 나이 8 생존/9 소멸·축출 6중 5칸(§7-bt-1) |
 | Memory | `<DATA>/memory.json` | candidates·promoted·observations·bundles·replay·shownRefs·lane |
 | MemoryLedger | `<DATA>/memory-ledger.json` + `.key`(0600) | 수명주기 **digest 만**(원문 없음) |
 | 집 기억 | `<HOME>/기억.md` | 승격 기억 1줄1개 + `<!-- t5:id -->` + 저장소 짝표식 |
@@ -439,8 +450,8 @@ replay 를 못 넘는다.**
 
 ## 10. 검사·게이트·계측기
 
-**검사** 489파일(`ls test/*.test.js | wc -l` · 2026-08-16 실측) · 건수는 `npm test` 가 잰다(마지막
-단독 실측 4,305 — §7-bn-2) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
+**검사** 494파일(`ls test/*.test.js | wc -l` · 2026-08-17 실측) · 건수는 `npm test` 가 잰다(마지막
+단독 실측 4,320/4,320 — 2026-08-17 실행) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
 **두꺼운 곳**: 화면손 62파일 497건 · 결함번호 회귀 58/454 · T-cell 15/295.
 **빈 곳**: inbox 0 · 설치/업데이트/제거 0 · 사용자 이미지→모델 3(전부 화면손) · 환경변수로 갈리는 검사 0.
 ~~문서 **생성** 검사 0~~ → **거짓이었다**(F-104 · 2026-08-12). `test/xlsx-writer-must-reach-the-model.test.js`
@@ -511,6 +522,13 @@ replay 를 못 넘는다.**
                      위험도: 지금 사용자 피해 0 · 갈라짐 대기
 ```
 
+**그리고 ⑨ 계열 「두 벌」이 하나 늘었다(2026-08-17 실측).** 산출물사실 승계 로직(산출물턴수 증가
++ 병합·중복 제거·수명 필터·10개 절단)이 server.js 의 **두 표면에 같은 모양으로 복제**돼 있다
+(:2356-2364 ↔ :4056-4064 · 재는 법 `grep -n '산출물턴수 = (session.산출물턴수' src/surface/server.js`).
+병기: demo-context 의 타임아웃·⑥ 유도 문장 두 사본(:706↔:753)은 **의도된 두 벌**이다(F3 단어경계
+두 사본 선례 — 같은 사실을 싣는 두 표면에 같은 문장을 싣는다) — **문장 두 사본과 로직 두 벌을
+한 줄에 섞지 말 것.** 늘어난 것은 로직 쪽이다.
+
 **~~그리고 「이 턴이 파일을 다뤘나」를 한 파일 안에서 두 자로 쟀다~~ → 한 벌로(`ffb3a3f` · 2026-08-12).**
 `exit-verification.js` 안에서 `지어낸실물` 의 정의역은 `/^local\./` 였고 `완료주장검증` 의 `파일봄` 은
 `local.file|locate|capsule` 이었다 — **한 손이 두 자에서 다른 종류였다.** 넓은 쪽이 F-95 를 만들었다:
@@ -562,8 +580,11 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | J8 | **정직** | 「승인을 기다리는 일」 줄이 모델에게 영영 안 간다(`turn.pendingApprovals` 를 넘기는 호출자 0) | working-state.js:171 |
 | J9 | ~~정직~~ **닫힘**(536b3bb · test/j9-truncation-notice-on-tool-turns.test.js) | 도구를 쓴 턴의 답이 잘려도 「잘렸다」 안내가 안 붙는다(빠른 경로에만) | turn.js:1423 |
 | J11 | ~~정직~~ **닫힘** | 커널이 **모델이 쓴 참인 답을 버리고** 영수증 문장으로 갈아치웠다. `지어낸실물` 의 정의역이 `/^local\./` 라 터미널 읽기 턴까지 물었고, 답의 `Node.js` 가 **파일 이름으로 뽑혀** 원장에 없다고 판정됐다(라이브 3/3 · 모델은 세 번 다 `v24.14.0` 을 썼다). `ffb3a3f` 에서 정의역을 그 그물의 자기 겨냥(파일 실물 손)으로 되돌리고 **자 두 벌을 한 벌로** 합쳤다. 수리 후 라이브 5/5 | exit-verification.js:280 · `파일실물손` :202 · 검사 `test/f95-honest-answer-is-not-a-fabricated-file.test.js` |
-| J12 | **정직** | **모델 답을 런타임 문장으로 갈아치우는 자리가 4인데 자는 2만 센다.** 계획서 §3-A 는 「지금 2자리 · 목표 0」이라 적혀 있고, `answer-authorship-lanes.test.js:31` 은 `turn.js` 안의 `/정직한답/g` **글자 수**를 세어 2를 요구한다 — ③④ 에는 그 낱말이 없어 **구조적으로 안 걸린다**. `turn.js:827` 주석은 스스로 *"셋째 갈아치움 칸이다"* 라고 적어 뒀는데 표도 자도 안 고쳤다. J11 이 그 셋째 칸에서 났다. **계획서 표는 고쳤고 자는 안 고쳤다**(다음 슬라이스 · 장부 F-97) → **자는 고쳐졌다**(`31170dc9` — 낱말 세기를 버리고 기제별 정의역 6: A 정직한답 2 + B fallbackReplyFrom 3 + C 리터럴 1). 남은 5문항은 인계서 §3-7 이 정본. 줄 번호 현재값은 2026-08-16 재실측(`grep -n '정직한답\|fallbackReplyFrom' src/kernel/turn.js` — ④ 산출물 수리 §7-bn 이 3,5xx 대를 밀었다) | turn.js:696·3615(정직한답)·708·848·852(fallbackReplyFrom) · 자 `test/answer-authorship-lanes.test.js`(합계 단언 6) |
+| J12 | **정직** | **모델 답을 런타임 문장으로 갈아치우는 자리가 4인데 자는 2만 센다.** 계획서 §3-A 는 「지금 2자리 · 목표 0」이라 적혀 있고, `answer-authorship-lanes.test.js:31` 은 `turn.js` 안의 `/정직한답/g` **글자 수**를 세어 2를 요구한다 — ③④ 에는 그 낱말이 없어 **구조적으로 안 걸린다**. `turn.js:836` 주석은 스스로 *"셋째 갈아치움 칸이다"* 라고 적어 뒀는데 표도 자도 안 고쳤다. J11 이 그 셋째 칸에서 났다. **계획서 표는 고쳤고 자는 안 고쳤다**(다음 슬라이스 · 장부 F-97) → **자는 고쳐졌다**(`31170dc9` — 낱말 세기를 버리고 기제별 정의역 6: A 정직한답 2 + B fallbackReplyFrom 3 + C 리터럴 1). 남은 5문항은 인계서 §3-7 이 정본. 줄 번호 현재값은 2026-08-17 재실측(`grep -n '정직한답\|fallbackReplyFrom' src/kernel/turn.js`) | turn.js:696·3638(정직한답)·708·848·852(fallbackReplyFrom) · 자 `test/answer-authorship-lanes.test.js`(합계 단언 6) |
 | J10 | ~~정직~~ **닫힘** | 모델이 손을 **자기가 보는 이름**(`local_file`·`functions.local_file`)으로 적으면 예약이 안 섰다 — 후보만 서고 job 0, 그런데 답은 「켜 뒀어요」였다(라이브 26회차 중 18회만 섬 · 상관 6/6). `0be311b` 에서 `kernelToolName` 한 자리로 모으고 **입구에서 한 번** 편다. 그물은 안 넓어진다(근거가 접두 규칙이 아니라 실재 손 목록) · 「아무 스킬에나 묶는 자리」 봉인은 반대시험 ④로 다시 세운 채 그대로 | model-provider.js:`kernelToolName` · server.js:`손이름펴기` · 검사 `test/f93-automation-hand-name.test.js` |
+| J13 | **정직** | 「죽은 실행 위 거짓 생존 주장」을 무는 그물이 없다 — §7-bx 수리 전후 동형 미검출(기존 그물 정의역 밖 — **안 재서 0이지 없어서 0이 아니다**) | 그물 부재 · 근거 `docs/03-verification/evidence/terminal-2026-08-17/bx-반대시험iv-실측.md` |
+| J14 | **정직** | 「답의 값 vs 원장 실측 대조」를 무는 그물이 없다 — 1차 R1 u8: 원장에 없는 수 15,868 을 제시하고 원장의 11,373·15,837 을 누락 · 2차 R3 u8: 회수 stdout 파일별 12줄 중 답 도달 0줄 | 그물 부재 · 근거 `docs/03-verification/evidence/terminal-2026-08-15/기준선과-남은자리.md:1856-1857·1916` |
+| J15 | **정직** | 「정리」 결과 미수령 — 2판 4모양 병렬 · **공통 원인 미측정**: 백업 안 하위폴더 잔존 2 · 완료 과대 선언 1 · 역방향 과소 보고 1 | 근거 `docs/03-verification/evidence/terminal-2026-08-15/기준선과-남은자리.md:1932-1934` |
 | F1 | ~~마찰~~ **닫힘**(0684285 · test/f1-search-tiers-are-actually-reachable.test.js) | 실제 검색기가 DDG 하나뿐 — SearXNG·Tavily 키를 넘기는 배선도 env 도 없다 | live-context.js:193 |
 | F2 | ~~마찰~~ **닫힘**(1ac96be · test/f2-mcp-kind-from-declared-facts.test.js) | 미분류 MCP 도구가 전부 `unknown_kind`+승인 → 조회도 카드 | tool-admission.js:65 |
 | F3 | **마찰** (파생어 절반은 닫힘) | 비밀 이름 정규식이 일반 자료도 잡는다(`token-정산.xlsx` 읽기 차단, 사유 미고지 — 이 증상은 **그대로다**: `tokens?([-_.]…)` 도 `token-…` 붙임말을 잡는다). `b3eea28` 이후 `bulk_move` 도 같은 정규식을 쓴다 — `정산.pem` 류가 이동에서 제외된다(이쪽은 사유를 고지한다). **파생어 삼킴은 닫힘**(`fc2c2ad3` · §7-be — 접두 매칭 `token[^/]*` 이 npm 내부 `tokenize.js` 까지 삼켜 granted 뒤에도 install 을 죽였다. token/secret 을 단어 경계로, **두 사본 동시**: local-protection.js `SECRET_NAMES`:53 · `SECRET_NAME_PATHS`:80 · 닻 유지 · 검사 `test/secret-names-do-not-eat-source-files.test.js`) | local-protection.js:53·80 · local-file.js:1018 |
@@ -576,6 +597,7 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | X4 | ~~정직~~ **닫힘**(3a95836) | 진입 감사가 **자기 기준을 거짓말했다** — 메시지는 「인수인계에 없는 sidecar worktree」인데 코드는 인계를 한 줄도 안 읽고 뿌리 밖 worktree 를 무조건 실패시켰다. 오너가 시킨 방 분리(`scripts/lane.mjs`)를 쓰는 순간 게이트가 빨개졌다. 지금은 작업 방은 **본선에 안 들어간 커밋이 있을 때만** 실패하고, 못 세면 판정하지 않는다. 커밋 순간을 무는 자는 `.githooks/pre-commit`(`core.hooksPath` **상대경로** — 훅이 가지를 따라다닌다) · 장부 F-100·F-101 | `scripts/audit-project-entry.mjs` · `gate.mjs:38` · 검사 `test/f101-lane-rooms-are-not-defects.test.js`(4건) |
 | X5 | ~~정직~~ **닫힘**(f97383a) | 계측기가 **「0건」을 「없다」로 읽었다** — `document-create` 검색어가 전부 외부 라이브러리 이름이라 자체 구현(`buildXlsx`)과 파일 스킬(`SKILL.md`)을 못 봤다. 그 0 이 §10 「문서 생성 검사 0」으로 굳었고, **틀린 사실이 `test/state-probe.test.js` 의 `assert.equal(found.length, 0)` 으로 잠겨 있었다.** 지금은 규격마다 **양성 대조**가 필수다. **제품에서 이미 두 번 고친 병이다** — S2(부재가 안전의 증거로 읽힘) · J6(절단을 다 봤다로 읽음) · 장부 F-104 | `scripts/state-probe.mjs:199-245` · 검사 `test/f104-absence-needs-a-ruler-that-bites.test.js`(3건) |
 | X6 | ~~정직~~ **닫힘**(F-105) | **안 잰 0 을 0 으로 읽었다 — 같은 계열 넷째.** 라이브 대본이 원장을 `/turn` **응답**에서 찾았는데 응답은 `result` 만 보내고 `ledgerEntries` 는 세션에만 붙는다(`server.js:1832`) → **열 회차 전부 빈 배열**, 그 위에서 「무효 0 · 실패 흔적 없음」을 적을 뻔했다. **셋째(X5)에서 이미 구조를 세웠는데 그 자의 정의역이 `state-probe.mjs` 한 파일이라 안 물었다.** 지금은 `store.load(id).ledgerEntries` 로 읽고, `원장잼` 칸과 집계 `M6원장미측정` 축이 **잰 양**을 남긴다. **무는 범위는 아직 한 모양뿐이다**(응답에 없는 이름을 응답에서 읽기) — 다른 모양의 미측정은 여전히 사람이 본다 | `scripts/live/h04-memory-round.mjs` · 검사 `test/f105-a-zero-you-did-not-measure-is-not-a-zero.test.js`(4건 · 선빨강 3) |
+| X7 | **정직** | **재는 자 계열 다섯째**(S2 → J6 → X5 → X6 → 이것). 완성재판 러너의 원장 투영이 FAILED 영수증의 stdout 을 동봉하지 않는다 — stdout 을 `e.result` 에서만 읽는데 tool-runner 실패 갈래는 result 를 안 옮긴다 → §7-bg-1 의 stdout 원문 보존 의무(`기준선과-남은자리.md:1192`)가 §7-bx(타임아웃 → FAILED) 뒤 깨짐 | `scripts/terminal-qualification/완성재판.mjs:231-233` |
 | X1 | — | 작업 트리에 살아 있는 자격 파일 `scripts/compare-live/secret-env.sh`(600·git 무시) | — |
 | X2 | — | `organ-round.mjs` 문장표가 자기 주석과 모순(뺐다는 창 전환 두 줄이 배열에 그대로) | organ-round.mjs:87-99 |
 | X3 | — | A층(living-sim)이 `EXTERNAL_EFFECT_HANDS` 를 거부해 화면·브라우저·발신 손은 **자격·계보 검증을 한 번도 안 받는다** | living-sim-runner.js |
@@ -658,7 +680,7 @@ OS 색인 활용           **더했다(2026-08-12)** — 형식 질의는 mdfind
 ⑦  화면·브라우저 손           desktop-* 8 · browser* 3 · host-manners · robots
 ⑧  웹·채널·커넥터·모델접속     model-provider 전량 포함 32파일 — ★ 최종 메시지 조립
 ⑨  표면·서버·저장소           src/surface/ 43파일 — ★ demo↔live 관계 · descriptor 정의 자리
-⑩  검사·게이트·스크립트        test/ · scripts/ 전량(개수는 `ls … | wc -l` 로 그때 잰다 · §4-c ②) — ★ 덮인 영역 / 빈 영역
+⑩  검사·게이트·스크립트        test/ · scripts/ 전량(개수는 `ls … | wc -l` 로 그때 잰다 · design/T5-FINAL-ASSEMBLY-ko.md §4-c ②) — ★ 덮인 영역 / 빈 영역
 공통 규율: 파일을 끝까지 읽는다 · 모든 줄에 파일:줄 · 추측·개선 제안 금지 ·
           못 읽은 것은 「미확인」 · 수정 도구 없는 에이전트를 쓴다
 ```
@@ -667,6 +689,6 @@ OS 색인 활용           **더했다(2026-08-12)** — 형식 질의는 mdfind
 
 ```bash
 node scripts/state-probe.mjs      # 유료 0 · 40초 — 지금 무엇이 있고 없나
-npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,305 · §7-bn-2) · 되돌아가지 않았다는 최소 조건
+npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,320/4,320 · 2026-08-17) · 되돌아가지 않았다는 최소 조건
 npm start                         # 완료 판정의 유일한 자리 (계획서 §3)
 ```
