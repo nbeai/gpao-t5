@@ -127,6 +127,69 @@ test('★ 선빨강 — 실패를 삼키는 명령(`find -delete`)은 파괴인�
     + '**규칙을 새로 만드는 게 아니라 exit 0 갈래에만 안 닿은 그 규칙을 균일하게 펴는 일이다.**');
 });
 
+// ── (나) 수리의 울타리 넷 — **수리 전에 얼린다** (감시자 지시 2026-08-16) ──────
+//
+// 다음 수리: 「기존 것을 하나도 안 건드리는 생성」은 카드 없이 끝낸다(개입 0).
+// 가르는 기계 사실은 **쓰려다 막힌 자리가 현재 디스크에 존재하는가**다.
+// 아래 넷은 그 수리가 **넘으면 안 되는 선**이고, 지금 전부 초록이다 — 수리 후에도 초록이어야 한다.
+
+// 울타리 ① 복합 명령 — 새 이름이 앞, 파괴가 뒤.
+// 막힌자리는 stderr 첫 일치 **하나**다(terminal-run.js) — 새 이름이 먼저 잡히면
+// 「없는 자리 = 자동」으로 굴러떨어지고, 승인 없이 **명령 전체**(rm 포함)가 돈다.
+test('울타리 ① — 새 이름 생성 뒤에 파괴를 붙인 복합 명령은 여전히 카드다', async () => {
+  const 자리 = await 방();
+  const 결과 = await 첫턴('echo x > 새이름.txt && rm -rf 시작문서', 자리);
+  assert.equal(결과.kind, 'approval',
+    '복합 명령의 **한 조각**(새 이름)만 보고 전체를 자동으로 흘렸다 — 뒤에 rm 이 붙어 있다');
+  assert.deepEqual((await readdir(자리)).sort(), ['b.md', '시작문서'],
+    '승인 전에 무엇인가 실행됐다');
+});
+
+// 울타리 ② 새 이름인데 **시스템 자리** — 「없는 자리 = 안전」이 아니다.
+// /Library/LaunchAgents 는 root 소유라 실제 피해는 안 나지만(이 검사가 안전한 이유),
+// 「새 이름이니 자동」 규칙이 이 갈래를 열면 위협모델(system 영역)에 정면으로 닿는다.
+test('울타리 ② — 시스템 자리의 새 이름 쓰기는 여전히 카드다', async () => {
+  const 결과 = await 첫턴('echo x > /Library/LaunchAgents/t5-검사-새것.plist', await 방());
+  assert.equal(결과.kind, 'approval',
+    '**새 이름이라는 이유로 시스템 자리 쓰기가 자동이 됐다** — 없는 자리가 곧 안전한 자리가 아니다');
+});
+
+// 울타리 ③ write 가 아닌 변경 갈래(listen·privilege·signal)는 이 수리로 **안 움직인다**.
+test('울타리 ③ — 포트 열기·권한 변경·프로세스 신호는 자리 유무와 무관하게 그대로 「바꾼다」다', async () => {
+  for (const [이름, stderr] of [
+    ['listen', 'Error: listen EPERM: operation not permitted 0.0.0.0:3000'],
+    ['privilege', 'launchctl: not privileged to start service'],
+    ['signal', 'zsh:kill:1: kill 123 failed: operation not permitted'],
+  ]) {
+    const 손 = makeLocalTerminalTool({
+      sandboxAvailable: () => true,
+      run: async () => ({ exitCode: 1, stdout: '', stderr }),
+    });
+    const p = await 손.probe('아무명령', { cwd: '/x' });
+    assert.equal(p.changes, true,
+      `${이름} 갈래가 「바꾼다」에서 내려왔다 — 이 갈래에는 자리가 없고, 자리 규칙이 닿으면 안 된다`);
+  }
+});
+
+// 울타리 ④ 자리를 특정 못 하면($( ) 이름) **카드 유지** — 안전 폴백을 말이 아니라 검사로.
+test('울타리 ④ — 이름을 실행 중에 만드는 생성은 자리를 못 밟으므로 여전히 카드다', async () => {
+  const 결과 = await 첫턴('tar -czf b-$(date +%s).tgz .', await 방());
+  assert.equal(결과.kind, 'approval',
+    '자리를 못 밟았는데 자동이 됐다 — 모르면 카드다(미상에 자동 탈출구를 만들지 않는다)');
+});
+
+// ── ★ (나) 선빨강 — 수리가 만들 사실. **지금은 빨갛다** ─────────────────────
+// 「기존 것을 하나도 안 건드리는 생성」이 카드 없이 끝나고 **실물이 디스크에 있다**.
+// 계약은 카드 부재만이 아니다 — 감시자 조건 5: 디스크 실물을 같이 문다(§7-ai-3 종료 판정 그대로).
+test('★ (나) 선빨강 — 새 이름 생성은 카드 없이 끝나고 실물이 디스크에 남는다', async () => {
+  const 자리 = await 방();
+  const 결과 = await 첫턴('tar -czf backup.tar.gz 시작문서', 자리);
+  assert.notEqual(결과.kind, 'approval',
+    '기존 것을 하나도 안 건드리는 생성인데 카드가 떴다 — 비교군은 같은 일을 개입 0 으로 끝낸다(§7-af)');
+  assert.ok((await readdir(자리)).includes('backup.tar.gz'),
+    '카드는 안 떴는데 실물이 없다 — 카드 부재가 실행을 뜻하지 않으면 그건 침묵이지 자동이 아니다');
+});
+
 // 대조군 둘째 — **감시자가 지목한 공백**(2026-08-16).
 // 아래 `ls -1` 은 exit 0 이고 stderr 가 **비어 있어** 어떤 새 규칙도 안 문다.
 // 필요한 것은 **exit 0 + stderr 에 막힘 자국 + 그런데 아무것도 안 바꾸는** 명령이다.
