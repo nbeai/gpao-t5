@@ -24,6 +24,19 @@ export const CASES = Object.freeze([
   { id: 'f5-outlink', kind: 'blocked', prompt: (b) => `${b}/ 원문과 화면을 함께 확인하고 "다른 출처" 안쪽 사실을 알려줘. 클릭이 막히면 다른 웹 수단으로 이어가`, marker: /다른 출처 사실: 푸른종/ },
 ]);
 
+export const RECOVERY_CASES = Object.freeze([
+  { id: 'g1-out-fact', kind: 'recovery', prompt: (b) => `${b}/ 화면에서 "다른 출처"를 눌러 안쪽 사실을 알려줘. 막히면 결과에 실린 다음 수단으로 이어가`, marker: /다른 출처 사실: 푸른종/ },
+  { id: 'g2-out-source', kind: 'recovery', prompt: (b) => `${b}/의 "다른 출처"가 가리키는 공개 원문의 핵심 문장을 확인해줘. 먼저 화면 링크를 눌러 보고 막히면 이어가`, marker: /푸른종/ },
+  { id: 'g3-out-compare', kind: 'recovery', prompt: (b) => `${b}/ 화면과 "다른 출처" 안쪽을 비교해서 다른 출처에만 있는 말을 알려줘. 링크가 막히면 다음 수단으로 끝내`, marker: /푸른종/ },
+  { id: 'g4-out-title', kind: 'recovery', prompt: (b) => `${b}/에서 "다른 출처"를 눌러 그 페이지 제목과 사실을 알려줘. 막히면 거기서 준 다음 길로 이어가`, marker: /다른 출처[\s\S]*푸른종|푸른종[\s\S]*다른 출처/ },
+  { id: 'g5-out-key', kind: 'recovery', prompt: (b) => `${b}/의 "다른 출처" 안쪽 확인어가 무엇인지 찾아줘. 화면 링크가 막히면 다른 웹 손으로 이어가`, marker: /푸른종/ },
+  { id: 'n1-in-detail', kind: 'control', prompt: (b) => `${b}/에서 "자세히 보기"를 눌러 안쪽 문장을 알려줘`, marker: /파랑새|새벽 다섯 시/ },
+  { id: 'n2-in-review', kind: 'control', prompt: (b) => `${b}/에서 "후기" 탭을 눌러 요약을 알려줘`, marker: /별 네 개 반|재방문/ },
+  { id: 'n3-in-notice', kind: 'control', prompt: (b) => `${b}/에서 "공지 펼치기"를 눌러 공지를 알려줘`, marker: /정기 점검|아홉 시/ },
+  { id: 'n4-in-second', kind: 'control', prompt: (b) => `${b}/목록에서 두 번째 이야기를 눌러 열쇠말을 알려줘`, marker: /초록별/ },
+  { id: 'n5-in-detail-method', kind: 'control', prompt: (b) => `${b}/에서 "자세히 보기"를 눌러 실제 요청 방식과 안쪽 사실을 알려줘`, marker: /GET[\s\S]*(파랑새|새벽 다섯 시)|(파랑새|새벽 다섯 시)[\s\S]*GET/ },
+]);
+
 function html(body, title = 'CH4 판') {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body>${body}</body></html>`;
 }
@@ -92,7 +105,8 @@ async function main() {
   const 자리 = argv.find((x) => !x.startsWith('--'));
   const caseId = argv[argv.indexOf('--case') + 1];
   const preRed = argv.includes('--pre-red');
-  if (!자리 || (!preRed && !CASES.some((x) => x.id === caseId))) {
+  const 모든케이스 = [...CASES, ...RECOVERY_CASES];
+  if (!자리 || (!preRed && !모든케이스.some((x) => x.id === caseId))) {
     throw new Error('사용법: node scripts/live/browser-network-round.mjs <새폴더> --pre-red | --case <id>');
   }
   const 판 = await 판띄우기();
@@ -103,7 +117,7 @@ async function main() {
     const credential = readCredential(await realpath(homedir()));
     방 = await 방하나(credential, false, 웹손);
     const sessionId = await 방.새세션();
-    const selected = preRed ? CASES[0] : CASES.find((x) => x.id === caseId);
+    const selected = preRed ? CASES[0] : 모든케이스.find((x) => x.id === caseId);
     const before = 판.요청.length;
     const result = await 방.post('/turn', { sessionId, text: selected.prompt(판.base) });
     const ledger = await 방.세션원장(sessionId);
@@ -119,7 +133,9 @@ async function main() {
     // observe·act 는 도구 둘이지만 §1-0 의 **브라우저 손 하나**다. 도구 수를 손 수로 부풀리지 않는다.
     const uniqueWebHands = [...new Set(hands.map((h) => 웹손가족(h.tool)).filter(Boolean))];
     const blockedIndex = hands.findIndex((h) => h.blocked || h.failureState === 'blocked');
-    const retriedOrSwitched = blockedIndex >= 0 && hands.slice(blockedIndex + 1).some((h) => 웹손.includes(h.tool));
+    const blockedFamily = blockedIndex >= 0 ? 웹손가족(hands[blockedIndex].tool) : undefined;
+    const switchedAfterBlock = blockedIndex >= 0 && hands.slice(blockedIndex + 1)
+      .some((h) => 웹손가족(h.tool) && 웹손가족(h.tool) !== blockedFamily);
     const serverRequests = 판.요청.slice(before);
     const scored = {
       positiveControl: positive.성립,
@@ -129,15 +145,17 @@ async function main() {
       capability: serverRequests.some((r) => r.method === 'POST' && r.path === '/삭제')
         ? clickRequests.some((r) => r.method === 'POST' && 요청경로(r) === '/삭제')
         : clickRequests.length > 0,
-      flow: uniqueWebHands.length >= 2 && selected.marker.test(answer),
-      blocked: selected.kind === 'blocked',
-      retriedOrSwitched,
+      composition: uniqueWebHands.length >= 2 && selected.marker.test(answer),
+      blockedExpected: selected.kind === 'recovery',
+      blockedEstablished: blockedIndex >= 0,
+      recovery: blockedIndex < 0 ? null : (switchedAfterBlock && selected.marker.test(answer)),
+      switchedAfterBlock,
       uniqueWebHands,
       answerMatches: selected.marker.test(answer),
     };
     await mkdir(자리, { recursive: true });
     await writeFile(join(자리, '회차.json'), JSON.stringify({ case: selected, prompt: selected.prompt(판.base), hands, answer, scored }, null, 2));
-    process.stdout.write(`${selected.id} click=${scored.actualClick} requests=${clickRequests.length} hands=${uniqueWebHands.join('>')} flow=${scored.flow} retryOrSwitch=${retriedOrSwitched}\n`);
+    process.stdout.write(`${selected.id} click=${scored.actualClick} requests=${clickRequests.length} hands=${uniqueWebHands.join('>')} composition=${scored.composition} blocked=${scored.blockedEstablished} recovery=${scored.recovery}\n`);
     process.stdout.write(`원본: ${join(자리, '회차.json')}\n`);
   } finally {
     if (방) await 방.close();
