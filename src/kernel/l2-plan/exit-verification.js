@@ -750,6 +750,24 @@ function 형식주장어긋남(reply) {
   return null;
 }
 
+/**
+ * 전체 원장을 직렬화하기 **전에** 확실히 무해한 답만 걷는다.
+ *
+ * 완료형·명령·실물·형식 주장은 기존 술어를 그대로 써서 보수적으로 남긴다. 새 분류기나
+ * 동사 목록을 만들지 않는다. 영수증/계약/자동화/손 미달 중 하나라도 있으면 현실 대조가
+ * 가능하므로 기존 출구 검증을 그대로 탄다.
+ */
+export function 출구검증생략가능({
+  reply, receipts = [], 파일계약빈손 = false, 자동화사실 = false, 손0건 = false,
+}) {
+  if (!String(reply ?? '').trim()) return false;
+  if ((receipts ?? []).length || 파일계약빈손 || 자동화사실 || 손0건) return false;
+  if (완료주장인가(reply)) return false;
+  if (안돌린명령(reply, '').length) return false;
+  if (형식주장어긋남(reply)) return false;
+  return true;
+}
+
 export function 완료주장검증({
   reply, receipts = [], 원장글 = '', 이미돌려줬나 = false, 자리종류 = null, 자동화 = null,
 }) {

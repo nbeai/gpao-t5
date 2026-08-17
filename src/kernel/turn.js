@@ -55,7 +55,9 @@ import { APPROVAL_TTL_MS, isSendTool } from './contracts.js';
 import { 심문허용 } from './model-sovereign.js';
 import { 이월지문, 이월행동, 발화밖파괴 } from './l2-plan/carryover.js';
 import { 턴예산, 가드레일신호, 예산소진, 소진사유 } from './turn-budget.js';
-import { 완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증 } from './l2-plan/exit-verification.js';
+import {
+  완료주장검증, 빈손으로끝났나, 미완료를밝혔나, 절대재검증, 출구검증생략가능,
+} from './l2-plan/exit-verification.js';
 
 // 시간 소스 — 테스트는 ctx.now 주입으로 결정적으로 제어(만료 시나리오). 미주입 시 실시간.
 function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
@@ -754,6 +756,17 @@ function 완료검증한번(ctx, 인자) {
 }
 
 async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 = false }) {
+  // 원장 직렬화보다 먼저 선다. 확실히 무해한 일반 답만 건너뛰며, 완료·실물·명령 주장이나
+  // 이번 턴 현실(영수증·자동화·손 미달)이 하나라도 있으면 아래 기존 그물을 그대로 탄다.
+  const 자동화사실 = Boolean(
+    (ctx.automationProposal?.statement && ctx.automationProposal?.rejected !== true)
+    || (ctx.automationControl?.jobRef && ctx.automationControl?.rejected !== true),
+  );
+  if (출구검증생략가능({
+    reply, receipts, 파일계약빈손, 자동화사실, 손0건: ctx.손0건으로닫으려함 === true,
+  })) {
+    return reply;
+  }
   // **원장글**: 이 턴의 영수증 + 앞 턴 교환 + **이 대화의 전체 영수증**(ctx.ledger).
   // 답이 가리킨 자리가 여기 없으면 지어낸 것이다. 두 벌을 따로 만들지 않는다 —
   // 모델이 받은 것과 같은 사실 위에서 대조한다.
