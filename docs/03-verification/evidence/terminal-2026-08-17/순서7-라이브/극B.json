@@ -1,0 +1,40 @@
+{
+ "이름": "극B",
+ "발화": "작업 폴더에 뭐가 있는지 알려줘.",
+ "기억심기": true,
+ "심은기억": {
+  "promoted": [
+   {
+    "statement": "앞으로 보고서는 표보다 짧은 목록으로 정리해줘.",
+    "kind": "preference"
+   }
+  ],
+  "candidates": 0
+ },
+ "개입": 0,
+ "kind": "reply",
+ "reply": "작업 폴더에는 지금 세 파일이 있어요.\n\n- `메모.txt`\n- `분기보고.md`\n- `정산.csv`",
+ "원장": [
+  {
+   "tool": "local.file",
+   "failureState": "none"
+  },
+  {
+   "tool": "local.file",
+   "failureState": "none"
+  },
+  {
+   "failureState": "none"
+  }
+ ],
+ "memoryWithdrawMiss": null,
+ "입력길이": 3909,
+ "축1근거": {
+  "지시블록있나": false,
+  "사실블록있나": false,
+  "입력에기억문장": true
+ },
+ "축1": "블록 밖 실림 — 측정 불성립",
+ "축2": "표 아님",
+ "덤프자리": "/tmp/order7-dump-극B-1786939627598"
+}
