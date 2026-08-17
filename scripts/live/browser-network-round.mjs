@@ -127,7 +127,9 @@ async function main() {
       blocked: e.result?.blocked === true,
       failureState: e.failureState ?? 'none',
       networkRequests: 요청사실(e),
-      boundary: e.result?.observation?.boundary ?? null,
+      boundary: e.막힌곳?.kind === 'external_link'
+        ? { reason: e.막힌곳.kind, address: e.막힌곳.address, next: e.다음수단?.[0] }
+        : null,
       blockedOpen: e.result?.observation?.blockedOpen ?? [],
     }));
     const answer = String(result.result?.reply ?? result.reply ?? '');

@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import { 클릭가능술어, 클릭판정술어 } from '../src/runtime/browser.js';
 import { observationFacts, makeBrowserActTool } from '../src/runtime/browser-tool.js';
+import { ToolRunner } from '../src/runtime/tool-runner.js';
 
 const 술어 = new Function(`return (${클릭가능술어})`)();
 const 판정술어 = new Function(`return (${클릭판정술어})`)();
@@ -83,14 +84,33 @@ test('경계 영수증: 외부 링크는 이동 0 + 이유·주소·다음 수�
   const act = makeBrowserActTool({ browser: {
     click: async () => ({ clicked: false, reason: 'external_link', boundary: {
       reason: 'external_link', address: 'https://example.com/소식',
+      sourceUrl: 'http://127.0.0.1:9999/', sourceTitle: '판',
       next: { kind: 'public_web_source', address: 'https://example.com/소식' },
     } }),
     profileKind: () => 'isolated',
   } });
   const r = await act.handler({ action: 'click', ref: 'e9' });
   assert.equal(r.blocked, true);
-  assert.deepEqual(r.result.observation.boundary.next, { kind: 'public_web_source', address: 'https://example.com/소식' });
+  assert.deepEqual(r.다음수단, [{ kind: 'public_web_source', address: 'https://example.com/소식' }]);
+  assert.deepEqual(r.막힌곳, { kind: 'external_link', address: 'https://example.com/소식' });
   assert.match(r.nextSafeAction, /공개 원문 주소/);
+});
+
+test('runner 관통: 외부 링크 경계가 source 계약에 먹히지 않고 blocked 영수증으로 산다', async () => {
+  const tool = makeBrowserActTool({ browser: {
+    click: async () => ({ clicked: false, reason: 'external_link', boundary: {
+      reason: 'external_link', address: 'https://example.com/소식',
+      sourceUrl: 'http://127.0.0.1:9999/', sourceTitle: '판',
+      next: { kind: 'public_web_source', address: 'https://example.com/소식' },
+    } }),
+    profileKind: () => 'isolated',
+  } });
+  const receipt = await new ToolRunner({ 'browser.act': tool }).run('browser.act',
+    { action: 'click', ref: 'e9' },
+    { connectedTools: [{ id: 'browser.act', connected: true, status: 'usable', executable: true, toolKind: 'read' }] });
+  assert.equal(receipt.failureState, 'blocked');
+  assert.deepEqual(receipt.막힌곳, { kind: 'external_link', address: 'https://example.com/소식' });
+  assert.deepEqual(receipt.다음수단, [{ kind: 'public_web_source', address: 'https://example.com/소식' }]);
 });
 
 test('경계말: 술어가 거절한 클릭은 경계로 말한다 — 실패가 아니다', async () => {

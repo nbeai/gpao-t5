@@ -271,7 +271,10 @@ export function makeBrowserActTool(deps = {}) {
           if (r.reason === 'external_link' && r.boundary?.address) {
             return {
               blocked: true, fetchState: 'blocked',
-              result: { observation: { boundary: r.boundary } },
+              // 웹 blocked 계약은 result·sources를 받지 않는다. runner가 보존하는 두 칸에
+              // 기계 사실과 다음 길을 싣고, 대상 내용을 봤다고 승격하지 않는다.
+              막힌곳: { kind: r.boundary.reason, address: r.boundary.address },
+              다음수단: [r.boundary.next],
               userSafeSummary: `그 링크는 현재 화면 밖 주소라 이 손으로 누르지 않았어요: ${r.boundary.address}.`,
               nextSafeAction: `그 공개 원문 주소를 읽는 수단으로 이어갈 수 있어요: ${r.boundary.address}.`,
             };

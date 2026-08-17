@@ -666,7 +666,7 @@ export function makeBrowser(deps = {}) {
           const el = document.querySelector('[data-t5-ref=${JSON.stringify(ref)}]');
           if (!el) return 'gone';
         const 판정 = (${클릭판정술어})(el, location.origin);
-        if (!판정.된다) return 판정;
+        if (!판정.된다) return { ...판정, sourceUrl: location.href, sourceTitle: document.title };
         el.click();
         return { 된다: true };
       })()`);
@@ -684,6 +684,8 @@ export function makeBrowser(deps = {}) {
           clicked: false, reason: ok.이유 ?? 'not_clickable',
           boundary: {
             reason: ok.이유 ?? 'not_clickable', ...(address ? { address } : {}),
+            ...(ok.sourceUrl ? { sourceUrl: ok.sourceUrl } : {}),
+            ...(ok.sourceTitle ? { sourceTitle: ok.sourceTitle } : {}),
             ...(address ? { next: { kind: 'public_web_source', address } } : {}),
           },
         };
