@@ -1,0 +1,96 @@
+{
+  "case": {
+    "id": "f3-long",
+    "kind": "blocked",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:52148/긴글을 끝까지 확인해서 맨 끝 확인어를 알려줘. 잘렸으면 다른 웹 수단으로 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-xnnaFR/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:52148/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e3"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:52148/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:52148/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Fetch"
+        }
+      ]
+    }
+  ],
+  "answer": "맨 끝 확인어는:\n\n“운다” 입니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/자세히"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/자세히"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:52148/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:52148/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "flow": false,
+    "blocked": true,
+    "retriedOrSwitched": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": false
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "case": {
+    "id": "a5-second",
+    "kind": "ability",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:51931/목록 원문을 확인하고 두 번째 이야기를 눌러, 실제 요청의 방식과 주소와 열쇠말을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-EK6me2/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:51931/목록"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e2"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:51931/%EB%AA%A9%EB%A1%9D/%EB%91%98%EC%A7%B8",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:51931/%EC%A1%B0%EA%B0%81/%EB%91%98%EC%A7%B8",
+          "resourceType": "Fetch"
+        }
+      ]
+    }
+  ],
+  "answer": "지금 화면에서 확인한 내용만 정리하면 이렇다.\n\n1. **원래 목록 주소(원문)**\n   - `http://127.0.0.1:51931/목록`\n\n2. **둘째 이야기를 눌렀을 때 실제로 나간 요청 방식과 주소**\n   - 방식: `GET`\n   - 주소 1: `http://127.0.0.1:51931/%EB%AA%A9%EB%A1%9D/%EB%91%98%EC%A7%B8`\n     - URL 디코딩하면: `http://127.0.0.1:51931/목록/둘째`\n   - 주소 2: `http://127.0.0.1:51931/%EC%A1%B0%EA%B0%81/%EB%91%98%EC%A7%B8`\n     - URL 디코딩하면: `http://127.0.0.1:51931/조각/둘째`\n\n3. **둘째 이야기의 열쇠말**\n   - 화면 본문: `둘째 이야기 둘째 이야기의 열쇠말은 초록별이다`\n   - 따라서 **열쇠말**: `초록별`",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/목록"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/목록/둘째"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/둘째"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:51931/%EB%AA%A9%EB%A1%9D/%EB%91%98%EC%A7%B8",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:51931/%EC%A1%B0%EA%B0%81/%EB%91%98%EC%A7%B8",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "flow": false,
+    "blocked": false,
+    "retriedOrSwitched": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

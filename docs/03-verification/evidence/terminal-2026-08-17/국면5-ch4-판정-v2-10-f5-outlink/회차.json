@@ -1,0 +1,111 @@
+{
+  "case": {
+    "id": "f5-outlink",
+    "kind": "blocked",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:52293/ 원문과 화면을 함께 확인하고 \"다른 출처\" 안쪽 사실을 알려줘. 클릭이 막히면 다른 웹 수단으로 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-J076em/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "web.collect",
+      "args": {
+        "request": "http://127.0.0.1:52293/",
+        "limit": 900
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:52293/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e3"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:52293/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:52293/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Fetch"
+        }
+      ]
+    }
+  ],
+  "answer": "공개 자료로 확인했어요: 동네가게 안내 (127.0.0.1). 화면은 열렸는데 글이 거의 없어요(113자): 동네가게. 화면은 열렸는데 글이 거의 없어요(30자): 자세한 이야기. 이 동작 뒤 실제 요청: GET http://127.0.0.1:52293/%EC%9E%90%EC%84%B8%ED%9E%88 · GET http://127.0.0.1:52293/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/자세히"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/자세히"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:52293/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:52293/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "flow": false,
+    "blocked": true,
+    "retriedOrSwitched": false,
+    "uniqueWebHands": [
+      "web.collect",
+      "browser"
+    ],
+    "answerMatches": false
+  }
+}

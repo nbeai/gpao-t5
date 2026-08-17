@@ -1,0 +1,56 @@
+{
+  "case": {
+    "id": "f2-thin",
+    "kind": "blocked",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:52081/얇은 화면의 실제 본문을 확인해 알려줘. 한 손 결과가 비면 다른 웹 수단으로 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-3fT5Iq/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:52081/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    }
+  ],
+  "answer": "열린 화면의 실제 본문은 다음이야.\n\n동네가게 안내  \n여기는 소개 문단이다. 가게의 기본 정보가 적혀 있다.  \n\n소개 후기 소개 탭 내용: 10년 된 가게이고 골목 안쪽에 있다.  \n\n자세히 보기 공지 펼치기 다른 출처 모두 삭제 신청하기",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": false,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "flow": false,
+    "blocked": true,
+    "retriedOrSwitched": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": false
+  }
+}

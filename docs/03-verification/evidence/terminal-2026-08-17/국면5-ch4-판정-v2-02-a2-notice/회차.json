@@ -1,0 +1,82 @@
+{
+  "case": {
+    "id": "a2-notice",
+    "kind": "ability",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:51681/ 원문을 확인하고 \"공지 펼치기\"를 누른 뒤, 실제 나간 요청의 방식과 주소와 공지 내용을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-uG93OM/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:51681/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": []
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e4"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:51681/%EC%A1%B0%EA%B0%81/%EA%B3%B5%EC%A7%80",
+          "resourceType": "Fetch"
+        }
+      ]
+    }
+  ],
+  "answer": "- 공지 펼치기 버튼 클릭 시 실제로 나간 요청  \n  - 방식(method): `GET`  \n  - 주소(URL): `http://127.0.0.1:51681/%EC%A1%B0%EA%B0%81/%EA%B3%B5%EC%A7%80`\n\n- 공지 내용  \n  - `공지: 내일 아홉 시부터 정기 점검이 있다`",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/공지"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:51681/%EC%A1%B0%EA%B0%81/%EA%B3%B5%EC%A7%80",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "flow": false,
+    "blocked": false,
+    "retriedOrSwitched": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}
