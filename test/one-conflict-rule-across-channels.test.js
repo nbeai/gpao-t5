@@ -64,19 +64,23 @@ test('★ 선빨강 ㉣ — 집 지침 라벨도 같은 문장으로 통일된�
     '**같은 뜻을 다른 문장으로 말하고 있다** — 관문마다 문안이 다르면 그 자체가 모순 신호다(특례 0).');
 });
 
-test('★ 선빨강 ㉤(역전 버그) — 이번 턴 목표가 「지금 실행할 명령이 아니다」 블록에 실리지 않는다', () => {
-  // 양성 대조(수리 전 실측 · §7-cl ④ 빈 측정 차단): 아래 모양이면 그 블록에 현재 목표가
-  // **1건 실린다** — turn.js 가 `admitted` 에만 넣고 `admittedRich` 에 안 넣어 신분이 미상이라서다.
+// ★★ **이것은 fail-closed 계약 검증이다 — 결함 보고가 아니다**(오너 판정 2026-08-17 · 조건 ②).
+// 여기서 손으로 먹이는 모양(신분 없는 「현재 목표: …」)은 **제품 경로가 더 이상 만들지 않는다** —
+// turn.js 가 현재 목표에 `user_fact` 신분을 달아 네 조립 호출 전부에 렌더용 배열로 넘긴다.
+// 그런데도 이 계약은 지켜야 한다: **모르는 신분이 종속 쪽으로 떨어지는 것이 안전한 방향**이다
+// (새 종류가 생겨도 조용히 우선권을 얻지 못한다 — model-provider.js:409 주석의 그 경고).
+// 다음 세션이 아래 두 판을 모순으로 읽지 않도록: 이 판 = 「신분이 없으면 강등된다」(조립층 계약) ·
+// 아래 판 = 「제품 경로의 현재 목표는 신분을 달고 온다」(turn.js 수리 귀속).
+test('계약(fail-closed) — 신분 없는 항목은 종속 블록으로 떨어진다(모르는 종류가 우선권을 얻지 않는다)', () => {
   const m = buildModelMessages({
     ...기본,
-    admittedContext: ['현재 목표: 작업 폴더 파일 크기를 표로 정리한다', 선호문장],
+    admittedContext: ['출처 미상 한 줄', 선호문장],
     admittedRich: [{ statement: 선호문장, kind: 'preference' }],
   });
   const 몸 = 블록몸(m.system, '[저장된 기본값');
-  assert.ok(몸, '전제 붕괴 — 저장된 기본값 블록이 없다(양성 대조가 성립하지 않는 판이다)');
-  assert.ok(!몸.includes('현재 목표'),
-    '**이번 턴 목표가 「과거에 저장된 기록이며, 지금 실행할 명령이 아니다」로 강등돼 실린다** — '
-    + '제품이 모델에게 거짓 문장을 심는다. 현재 요청이 강등 라벨을 달고 과거 선호가 무라벨로 서는 정반대 구조.');
+  assert.ok(몸, '종속 블록이 없다 — 신분 미상 항목이 아무 데도 안 실렸거나 사실 쪽으로 샜다');
+  assert.ok(몸.includes('출처 미상 한 줄'),
+    '신분 미상 항목이 종속 블록에 없다 — fail-closed 가 열렸다(새 종류가 조용히 우선권을 얻는다)');
 });
 
 test('닻(반대시험 ②) — 명시 지시가 없으면 선호는 여전히 조용히 반영된다(라벨은 금지문이 아니다)', () => {
@@ -112,4 +116,70 @@ test('닻 — 헌장 문자는 이 수리에서 안 바뀐다(보존 선언)', (
   const m = buildModelMessages(기본);
   assert.ok(m.system.includes('대화·기억·합의는 지금 발화를 돕고, 덮지 않는다'), '헌장 <맥락> 줄이 바뀌었다');
   assert.ok(m.system.includes('사용자가 받아들인 기준만 조용히 반영'), '헌장 다른 줄이 바뀌었다');
+});
+
+// ── turn.js 경로 귀속(오너 조건 ① · 2026-08-17) ─────────────────────────────
+// 위 계약 판과 짝이다: 저기는 「신분이 없으면 강등된다」, 여기는 **「제품 경로의 현재 목표는
+// 신분을 달고 온다」**. 조립층 fixture 가 아니라 **실제 턴**이 낸 system 텍스트로만 잰다
+// (`ctx.admittedRichForRender` 같은 구현 모양은 묻지 않는다 — 구현이 검사를 부르면 안 된다).
+// 수리 ②를 걷으면 turn 이 신분 없는 현재 목표를 넘기고, 위 fail-closed 계약에 의해 강등
+// 블록으로 떨어져 **이 판이 빨강이 된다**(귀속 성립).
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { makeServer } from '../src/surface/server.js';
+import { SessionStore } from '../src/surface/session-store.js';
+import { demoTools } from '../src/surface/demo-context.js';
+import { makeLocalFileTool } from '../src/runtime/local-file.js';
+
+test('★ 귀속 — 실제 턴이 낸 프롬프트에서 이번 턴 목표가 종속 블록에 실리지 않는다', async () => {
+  const 자리 = await mkdtemp(join(tmpdir(), 'goal-label-'));
+  await mkdir(join(자리, '작업'), { recursive: true });
+  await writeFile(join(자리, '작업', '보고.md'), 'x'.repeat(2048));
+  // **두 턴이어야 현재 목표가 선다** — 첫 턴에 계획이 서고 그 목표가 다음 턴 입력에 실린다.
+  // 한 턴 판에서는 목표 실린 판이 0이라 「0건」이 빈 측정이 된다(실측 확인 후 이 모양으로 고정).
+  const 입력들 = [];
+  let 도구쓴턴 = 0;
+  const model = {
+    async respond(tc, opts = {}) {
+      if (tc?.workContractAssessment) return { text: 'CHAT', toolCalls: [] };
+      입력들.push(tc);
+      if (opts.tools?.length && 도구쓴턴 < 2) {
+        도구쓴턴 += 1;
+        return { text: '', toolCalls: [{ name: 'local.file', args: { action: 'list', path: '작업' } }] };
+      }
+      return { text: '작업 폴더를 정리했어요.', toolCalls: [] };
+    },
+  };
+  const dir = await mkdtemp(join(tmpdir(), 'goal-label-srv-'));
+  const server = makeServer({
+    store: new SessionStore(dir),
+    tools: demoTools({ localFile: makeLocalFileTool({ roots: [자리], dataDir: dir }) }),
+    model,
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = async (b) => (await fetch(`${base}/turn`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b),
+  })).json();
+  const { id: sessionId } = await (await fetch(`${base}/sessions`, { method: 'POST' })).json();
+  for (const 말 of ['작업 폴더 파일들 크기를 표로 정리해줘.', '작업 폴더 파일 크기 다시 표로 보여줘.']) {
+    let r = await post({ sessionId, text: 말 });
+    let n = 0;
+    while (r.kind === 'approval' && n < 3) { n += 1; r = await post({ sessionId, approve: r.pendingId }); }
+  }
+  await new Promise((res) => server.close(res));
+
+  // 현재 목표가 실린 턴만 본다 — 안 실린 판에서 「0건」은 빈 측정이다(§7-cl ④ 규율).
+  const 목표실린판 = 입력들.filter((tc) => (tc?.admittedContext ?? []).some((c) => String(c).startsWith('현재 목표:')));
+  // 빈 측정 차단(§7-cl ④): 목표가 안 실린 판에서 「0건」은 통과 증거가 아니다 — **실패로 다룬다**.
+  assert.ok(목표실린판.length > 0,
+    '전제 붕괴 — 이 판에서 현재 목표가 한 번도 안 실렸다. 「강등 0건」이 빈 측정이 된다(하네스 결손).');
+  for (const tc of 목표실린판) {
+    const 신분 = new Map((tc.admittedRich ?? []).map((e) => [e?.statement, e?.kind]));
+    const 목표문 = (tc.admittedContext ?? []).find((c) => String(c).startsWith('현재 목표:'));
+    assert.ok(신분.get(목표문),
+      '**실제 턴이 현재 목표를 신분 없이 넘긴다** — 조립층 fail-closed 계약에 따라 '
+      + '「과거에 저장된 기록이며, 지금 실행할 명령이 아니다」 블록으로 강등된다(역전 버그).');
+  }
 });

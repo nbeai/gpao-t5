@@ -1201,8 +1201,19 @@ export async function runTurn(input, ctx) {
   // 않는다 — 렌더 전에 거르므로 shown 도 같은 사실을 본다(같은 배열 원칙 그대로).
   const admittedRich = dropHistoryDuplicates(
     admittedEntries(ctx.memory ?? {}, input.text ?? '', ctx.processEnv), ctx.recentTurns ?? []);
+  // **현재 목표는 신분을 달고 간다**(순서 7 ④ 역전 버그 · 감사 확정 · §7-cl).
+  // 예전엔 문장만 `admitted` 에 넣고 `admittedRich` 에는 안 넣었다. 신분 Map 은 admittedRich 로
+  // 만들어지므로 현재 목표는 **신분 미상**이 되어 `[저장된 기본값 — … 지금 실행할 명령이 아니다]`
+  // 블록으로 갔다 — **이번 턴의 목표를 「지금 실행할 명령이 아니다」라고 제품이 말한 것이다**
+  // (현재 요청이 강등 라벨을 달고 과거 선호가 무라벨로 서는 정반대 구조 · F-88 계열).
+  // 신분은 `user_fact`(사실종류)로 단다 — 이번 턴에 사용자가 원하는 것이지 과거 저장 명령이 아니다.
+  // ⚠️ **기억 회계는 불변이다**: `admittedRich` 는 기억에서 온 것만 세는 자리라 아래 소비자
+  // (`렌더재료.후보들` · `ctx.admittedRich`)에는 **현재 목표를 넣지 않는다** — 렌더용 신분만
+  // 따로 넘긴다(카운트·cite 대조 숫자 0줄 변화).
+  const 현재목표항목 = goalRelevant
+    ? [{ statement: `현재 목표: ${ctx.activeGoal.understoodTask}`, kind: 'user_fact' }] : [];
   const admitted = [
-    ...(goalRelevant ? [`현재 목표: ${ctx.activeGoal.understoodTask}`] : []),
+    ...현재목표항목.map((e) => e.statement),
     ...admittedRich.map((e) => e.statement),
   ];
   // **신분도 함께 나른다**(노드 K · 판 ④). 문장만 가면 *"아침에 보리차를 마셨다"* 같은
@@ -1210,6 +1221,8 @@ export async function runTurn(input, ctx) {
   // `executePlan` 은 `admitted`(문장)만 인자로 받으므로 `ctx` 로 보낸다 — 같은 배열이라
   // 보인 것과 실린 것이 갈릴 수 없다.
   ctx.admittedRich = admittedRich;
+  // 렌더 신분(현재 목표 포함) — 회계용 `admittedRich` 와 갈라 둔다.
+  ctx.admittedRichForRender = [...현재목표항목, ...admittedRich];
   ctx.stateReviewSignals.hasAdmittedContext = admitted.length > 0;
   // 이 턴에 **실제로 모델 앞에 놓인** 것들의 신분. 현재 목표는 기억이 아니므로 세지 않는다.
   const 렌더재료 = {
@@ -1318,7 +1331,7 @@ export async function runTurn(input, ctx) {
     const tc = earlyTc = buildTaskContext({
       processEnv: ctx.processEnv,
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, admittedContext: admitted, admittedRich, automationProposal, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
+      intent, selfState, admittedContext: admitted, admittedRich: ctx.admittedRichForRender, automationProposal, recentTurns: ctx.recentTurns, priorExchange: ctx.priorExchange,
       창예산: ctx.창예산, // 노드 W · 결과 상한이 창의 파생값이 된다(모르면 null → 옛 값)
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
@@ -2576,7 +2589,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
     externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-    intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+    intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRichForRender, automationProposal: ctx.automationProposal,
     // **답을 만드는 자리에도 그림을 준다**(밟음 2026-08-07 · 오너 질책).
     // 손은 그림 55KB 를 냈고 옆길도 정상이었는데(`out.그림=O` · `받기=O`) **이 자리가
     // `이번턴그림` 을 안 넘겼다.** 그래서 모델은 그림을 한 번도 못 봤고, 계산기 화면을
@@ -3202,7 +3215,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
         externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+        intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRichForRender, automationProposal: ctx.automationProposal,
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
@@ -3476,7 +3489,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       carryableWork: ctx.carryableWork, // S3 · 이어받을 수 있는 작업(사실 나열)
       priorShown: ctx.priorShown,        // S5-3 · 정정이 지목할 대상
       externalReality: ctx.externalReality, externalRealityDelta: ctx.externalRealityDelta,
-      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRich, automationProposal: ctx.automationProposal,
+      intent, selfState, plan, receipts: turnReceipts, admittedContext: admitted, admittedRich: ctx.admittedRichForRender, automationProposal: ctx.automationProposal,
     // **앞 턴에 한 것**(노드 K · 판 ③). 세션 원장에서 이번 턴 것을 뺀 나머지다 —
     // 이 재료가 없으면 모델이 대화 이력의 내용을 이번 턴 빈자리에 끌어다 놓고
     // *"방금 다시 열어봤어요"* 라고 말한다(원장은 완전히 비어 있는데).
