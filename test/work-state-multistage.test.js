@@ -32,7 +32,7 @@ function turnContext(model) {
       };
     },
   };
-  return { env: demoEnv(), tools: demoTools({ localTerminal: terminal }), model };
+  return { env: demoEnv(), tools: demoTools({ localTerminal: terminal }), model, modelControls: ['work.state'] };
 }
 
 function approvalContext(model) {

@@ -22,8 +22,11 @@ import { ToolRunner } from '../src/runtime/tool-runner.js';
 
 /** 씨앗 턴에 기억 채널을 부르는 대본 모델 — 사용자 경로와 같은 재료를 만든다. */
 const 대본모델 = (statement) => ({
-  async respond(tc) {
+  async respond(tc, opts = {}) {
     if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+    if (opts.tools?.some((tool) => tool.name === 'control.select') && !this.냈나) return {
+      text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }],
+    };
     if (!this.냈나) {
       this.냈나 = true;
       return {

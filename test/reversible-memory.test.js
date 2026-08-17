@@ -34,8 +34,13 @@ const 고른다 = (perTurn) => {
     // 세는데, P90-1 정산이 열리면 턴당 호출이 하나 늘어 **대본이 통째로 밀린다**(철회 호출이
     // 먹혔다). 정산은 `workStateSettlement` 를 들고 오는 다른 질문이므로 여기서 갈라 답한다 —
     // 검사가 재려는 것(기억 반영·철회)은 그대로다.
-    async respond(tc) {
+    async respond(tc, opts = {}) {
       if (tc?.workStateSettlement) return { text: '', toolCalls: [{ name: 'work.state', args: { noChange: true } }] };
+      const waiting = script[0];
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select')
+        && String(waiting?.name ?? '').startsWith('memory.')) {
+        return { text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }] };
+      }
       const next = script.shift();
       return next ? { text: '', toolCalls: [next] } : '알겠어요.';
     },

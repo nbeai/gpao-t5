@@ -32,6 +32,9 @@ async function 제안턴({ 열어둠 = false } = {}) {
   const model = {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: '', toolCalls: [{ name: 'work.deliverable', args: { output: 'chat' } }] };
+      if (opts.tools?.some((t) => t.name === 'control.select')) return {
+        text: '', toolCalls: [{ name: 'control.select', args: { categories: ['automation'] } }],
+      };
       if (opts.tools?.some((t) => t.name === 'automation.propose') && !this.냈나) {
         this.냈나 = true;
         return { text: '매일 아침 9시에 확인하도록 걸어 둘까?', toolCalls: [{

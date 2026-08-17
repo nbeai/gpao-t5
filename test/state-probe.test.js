@@ -320,8 +320,9 @@ test('칸0 계측기: 못 잰 것은 0 이 아니라 「계측 불가 · 사유�
   assert.equal(e.거짓건수.계측불가, true, '거짓 건수를 숫자로 적으면 안 된다');
   assert.ok(e.거짓건수.사유?.length > 0, '계측 불가에는 사유가 붙는다');
   assert.equal(Object.hasOwn(e.거짓건수, 'count'), false, '못 잰 것에 건수를 달지 않는다');
-  // ⑤ ask.user — 노출 여부는 재고, 사용 횟수는 기록에 칸이 없어 계측 불가다.
-  assert.equal(e.askUser.exposedToModel, true, 'ask.user 는 모델에게 노출된다');
+  // ⑤ ask.user — fresh 턴에는 selector로 지연 공개된다. full schema를 상시 노출했다고 말하면 거짓이다.
+  assert.equal(e.askUser.exposedToModel, false, 'fresh 턴에 ask.user full schema를 상시 노출했다');
+  assert.equal(e.askUser.availableViaSelector, true, 'ask.user로 가는 selector 통로가 없다');
   assert.equal(e.askUser.usageCount.계측불가, true, '사용 횟수를 0 으로 적으면 안 된다');
   assert.ok(e.askUser.usageCount.사유?.length > 0);
 });

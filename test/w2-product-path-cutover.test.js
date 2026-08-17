@@ -165,6 +165,11 @@ test('W2 model proposals persist through /turn as canonical influence-free candi
   const model = {
     async respond(_context, options = {}) {
       for (const schema of options.tools ?? []) offeredControls.add(schema.name);
+      if ((options.tools ?? []).some((schema) => schema.name === 'control.select')) {
+        return { text: '', toolCalls: [{ name: 'control.select', args: {
+          categories: ['skill', 'automation', 'agent'],
+        } }] };
+      }
       if (answered) return { text: '후보로만 준비했어요.', toolCalls: [] };
       answered = true;
       return {

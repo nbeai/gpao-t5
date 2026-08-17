@@ -21,6 +21,7 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { SkillDefinitionStore } from '../src/surface/skill-store.js';
+import { progressiveControlModel } from './helpers/progressive-control-model.js';
 
 const CLOSE = process.env.T5_F64_PROBE_CLOSE === '1';
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -42,7 +43,7 @@ async function startProduct({ root, state, model, terminalCwd = root, initialize
   await initialize?.({ automationStore, runLedger, skillStore, agentProfileStore });
   const server = makeServer({
     store, automationStore, automationRunLedger: runLedger, skillStore, agentProfileStore,
-    model, env: demoEnv(),
+    model: progressiveControlModel(model), env: demoEnv(),
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [root], dataDir: state, homeDir: root }),
       localTerminal: makeLocalTerminalTool({ cwd: terminalCwd, dataDir: state }),

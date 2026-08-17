@@ -13,6 +13,22 @@ import { toolSchemasFor } from './tool-schema.js';
 
 // 통제 호출 선언 — 실행 손이 아니므로 ToolDescriptor 가 아니라 여기 산다.
 export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
+  name: 'control.select',
+  description: '현재 요청에 구조 제출 채널이 꼭 필요할 때 해당 범주를 고른다.'
+    + ' 이것은 기억·예약·질문·작업상태를 만들거나 바꾸지 않는다 — 다음 모델 호출에 필요한 제출 형식만 연다.'
+    + ' 일반 답을 바로 할 수 있거나 실행 손을 이미 골랐으면 쓰지 않는다.',
+  parameters: {
+    type: 'object',
+    properties: {
+      categories: {
+        type: 'array', minItems: 1, maxItems: 6, uniqueItems: true,
+        items: { type: 'string', enum: ['memory', 'automation', 'skill', 'agent', 'work', 'question'] },
+        description: '이번 요청에 필요한 구조 채널 범주. 필요한 것만 고르되 복합 요청이면 여러 개를 함께 고른다.',
+      },
+    },
+    required: ['categories'],
+  },
+}, {
   // ── W2 사전 배선 · Automation 통제 3슬롯 ──────────────────────────────
   // 왜 본선이 미리 뚫는가: AC-2·AC-3·AC-4 세 작업선이 같은 배열과 같은 분리 경계를 동시에
   // 고치면 그 자리가 최대 충돌면이 된다(AC1-RECHECK §4). 슬롯을 미리 두면 작업선은 자기
@@ -420,6 +436,36 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
 }]);
 
 const CONTROL_NAMES = new Set(MODEL_CONTROL_SCHEMAS.map((s) => s.name));
+export function isModelControlName(name) { return CONTROL_NAMES.has(name); }
+const CONTROL_CATEGORY_NAMES = Object.freeze({
+  memory: ['memory.propose', 'memory.cite', 'memory.correction', 'memory.withdraw'],
+  automation: ['automation.propose', 'automation.control', 'automation.observe'],
+  skill: ['skill.propose'],
+  agent: ['agent.propose'],
+  work: ['work.state'],
+  question: ['ask.user'],
+});
+export function controlCategoryForName(name) {
+  return Object.entries(CONTROL_CATEGORY_NAMES)
+    .find(([, names]) => names.includes(name))?.[0] ?? null;
+}
+
+function normalizedControlCategories(values) {
+  const out = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    if (!Object.hasOwn(CONTROL_CATEGORY_NAMES, value) || out.includes(value)) continue;
+    out.push(value);
+    if (out.length === 6) break;
+  }
+  return out;
+}
+
+/** selector가 고른 범주의 실제 제출 schema. selector 자체는 다시 포함하지 않는다. */
+export function controlSchemasForCategories(categories) {
+  const names = new Set(normalizedControlCategories(categories)
+    .flatMap((category) => CONTROL_CATEGORY_NAMES[category]));
+  return MODEL_CONTROL_SCHEMAS.filter((schema) => names.has(schema.name));
+}
 const MEMORY_KINDS = new Set(['preference', 'operating_principle', 'user_fact']);
 const APPLIES_TO = new Set(['from_now_on', 'this_turn_only']);
 const SPEECH_ACTS = new Set(['declaration', 'question', 'quotation', 'negation', 'recollection', 'unknown']);
@@ -497,12 +543,23 @@ export function modelSchemasFor(selfState, enabledControls = []) {
   return [...hands, ...controls.filter((sch) => hands.length || !실행제안.has(sch.name))];
 }
 
+/** progressive disclosure 전용: 준비된 기본 채널을 자동으로 더하지 않고 지정한 것만 연다. */
+export function modelSchemasForExact(selfState, controlNames = []) {
+  const hands = toolSchemasFor(selfState);
+  const enabled = new Set(controlNames);
+  const 실행제안 = new Set(['skill.propose', 'automation.propose', 'agent.propose']);
+  const controls = MODEL_CONTROL_SCHEMAS
+    .filter((schema) => enabled.has(schema.name))
+    .filter((schema) => hands.length || !실행제안.has(schema.name));
+  return [...hands, ...controls];
+}
+
 /**
  * 모델 호출 결과의 **단일 분리 경계.** 통제 호출을 골라내고 실행 후보만 남긴다.
  * 문장이 비었거나 종류가 틀리면 조용히 버린다 — 잘못된 제안이 후보가 되는 것보다
  * 안 되는 쪽이 안전하다(후보조차 사용자 확인 대상이므로).
  * @param {Array<{name:string, args?:object}>} [toolCalls]
- * @returns {{memorySuggestion:object|null, memoryWithdrawal:object|null,
+ * @returns {{controlSelection:string[], memorySuggestion:object|null, memoryWithdrawal:object|null,
  *   memoryCitation:{used:string[]}|null, memoryCorrection:object|null, rest:Array}}
  */
 export function splitModelControlCalls(toolCalls = []) {
@@ -526,8 +583,15 @@ export function splitModelControlCalls(toolCalls = []) {
   let memoryCitation = null;
   // S5-3: 정정 여부는 **모델이 알려준다.** Runtime 에 낱말 규칙을 두지 않는다.
   let memoryCorrection = null;
+  const controlSelection = [];
   for (const c of toolCalls) {
     if (!CONTROL_NAMES.has(c?.name)) { rest.push(c); continue; }
+    if (c.name === 'control.select') {
+      for (const category of normalizedControlCategories(c.args?.categories)) {
+        if (!controlSelection.includes(category) && controlSelection.length < 6) controlSelection.push(category);
+      }
+      continue;
+    }
     if (c.name === 'ask.user') {
       // **못 쓸 질문은 조용히 버린다.** 빈 문장이나 선택지 하나는 고르는 게 아니라 떠넘기는 것이고,
       // 그대로 내보내면 사용자가 문장을 다시 써야 한다 — 물어서 마찰만 늘린 턴이 된다.
@@ -647,6 +711,7 @@ export function splitModelControlCalls(toolCalls = []) {
   }
   const workStateProposal = mergeWorkStateProposals(workStateProposals);
   return {
+    controlSelection,
     memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
     approvalDecision,
     askUser,

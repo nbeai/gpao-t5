@@ -13,6 +13,7 @@ import { AUTOMATION_SCHEMA_VERSION, contentHash, skillHashSource } from '../src/
 import { DeliveryStore } from '../src/surface/delivery-store.js';
 import { makeServer } from '../src/surface/server.js';
 import { SessionStore } from '../src/surface/session-store.js';
+import { progressiveControlModel } from './helpers/progressive-control-model.js';
 
 const room = () => mkdtemp(join(tmpdir(), 't5-l6-local-delivery-'));
 
@@ -74,7 +75,7 @@ test('L6 local delivery red: natural local web chat proposal은 actionable candi
   const dir = await room();
   const store = new SessionStore(dir);
   const server = makeServer({
-    store, model: chatProposalModel(), env: demoEnv(), tools: demoTools(),
+    store, model: progressiveControlModel(chatProposalModel()), env: demoEnv(), tools: demoTools(),
     processEnv: { HOME: dir, GPAO_T5_HOME: dir, GPAO_T5_DATA_DIR: dir, GPAO_T5_FILE_ROOTS: dir },
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -97,7 +98,7 @@ test('L6 local delivery red: natural local web chat proposal은 actionable candi
 // (자동성 헌장 `kernel/l2-plan/authority.js`: *"automate → 자동. 문지기는 사후 교정 표면"*).
 test('natural chat 명시 예약은 서버가 봉인한 현재 local conversation만 job에 결속한다', async () => {
   const dir = await room(); const store = new SessionStore(dir);
-  const server = makeServer({ store, model: chatProposalModel(), env: demoEnv(), tools: demoTools(),
+  const server = makeServer({ store, model: progressiveControlModel(chatProposalModel()), env: demoEnv(), tools: demoTools(),
     processEnv: { HOME: dir, GPAO_T5_HOME: dir, GPAO_T5_DATA_DIR: dir, GPAO_T5_FILE_ROOTS: dir } });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -230,7 +231,7 @@ test('channel-origin conversation은 local delivery target으로 입장하지 �
   const productTools = demoTools(); let productToolCalls = 0;
   const originalRun = productTools.run.bind(productTools);
   productTools.run = async (...args) => { productToolCalls += 1; return originalRun(...args); };
-  const server = makeServer({ store, model: chatProposalModel(), env: demoEnv(), tools: productTools,
+  const server = makeServer({ store, model: progressiveControlModel(chatProposalModel()), env: demoEnv(), tools: productTools,
     processEnv: { HOME: dir, GPAO_T5_HOME: dir, GPAO_T5_DATA_DIR: dir, GPAO_T5_FILE_ROOTS: dir } });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {

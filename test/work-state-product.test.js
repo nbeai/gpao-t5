@@ -43,6 +43,9 @@ function stateModel(seen) {
     async respond(tc, opts = {}) {
       seen.push(tc);
       if (!opts.tools?.length) return '답을 완성했어요.';
+      if (opts.tools.some((tool) => tool.name === 'control.select')) return {
+        text: '', toolCalls: [{ name: 'control.select', args: { categories: ['work'] } }],
+      };
       if (tc.currentRequest === '참석자는 35명으로 하자') return {
         text: '좋아요. 장소는 어디로 정할까요?',
         toolCalls: [{ name: 'work.state', args: {
@@ -298,6 +301,9 @@ test('새 대화는 모델에게 실제로 보인 같은 principal 프로젝트�
   const model = { async respond(tc, opts = {}) {
     seen.push(tc);
     if (!opts.tools?.length) return '답을 완성했어요.';
+    if (opts.tools.some((tool) => tool.name === 'control.select')) return {
+      text: '', toolCalls: [{ name: 'control.select', args: { categories: ['work'] } }],
+    };
     if (tc.currentRequest === '행사 참석자는 42명으로 확정하자') return {
       text: '42명으로 확정했어요.',
       toolCalls: [{ name: 'work.state', args: { changes: [{
@@ -339,8 +345,11 @@ test('새 대화는 모델에게 실제로 보인 같은 principal 프로젝트�
 test('새 대화 주 호출이 상태를 생략하면 하나뿐인 carryable 브리프로 정산한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-work-product-carry-settlement-'));
   const quote = '행사 참석자는 42명으로 확정하자';
-  const model = { async respond(tc) {
+  const model = { async respond(tc, opts = {}) {
     if (tc.workContractAssessment) return 'CHAT';
+    if (opts.tools?.some((tool) => tool.name === 'control.select')) return {
+      text: '', toolCalls: [{ name: 'control.select', args: { categories: ['work'] } }],
+    };
     if (tc.currentRequest === quote) return {
       text: '42명으로 확정했어요.',
       toolCalls: [{ name: 'work.state', args: { changes: [{

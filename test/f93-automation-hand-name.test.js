@@ -38,6 +38,7 @@ import { SkillDefinitionStore } from '../src/surface/skill-store.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeServer } from '../src/surface/server.js';
+import { progressiveControlModel } from './helpers/progressive-control-model.js';
 
 const NOW = 1_786_287_600_000;                 // 2026-08-10 00:00 Asia/Seoul
 const 아침9시 = Object.freeze({
@@ -96,7 +97,7 @@ async function 제품(model) {
   });
   const server = makeServer({
     store, automationStore, automationRunLedger: runLedger, skillStore, agentProfileStore,
-    clock: () => NOW, model, env: demoEnv(),
+    clock: () => NOW, model: progressiveControlModel(model), env: demoEnv(),
     tools: demoTools({
       localFile: makeLocalFileTool({ roots: [root], dataDir: state, homeDir: root }),
     }),

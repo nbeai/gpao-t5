@@ -38,7 +38,9 @@ import { parseSend, resolveSendTarget } from './l1-intent/send-parse.js';
 import { parseFileRequest, fileClarifyQuestion } from './l1-intent/file-parse.js';
 import { callsToIntentParts } from './l2-plan/tool-schema.js';
 import {
-  mergeWorkStateProposals, modelSchemasFor, splitModelControlCalls,
+  controlCategoryForName, controlSchemasForCategories, isModelControlName, mergeWorkStateProposals,
+  modelSchemasFor, modelSchemasForExact,
+  splitModelControlCalls,
 } from './l2-plan/model-control.js';
 import {
   bindDeliverableReceipt, fileWorkIsInPlay, parseDeliverableJudgment, unsatisfiedDeliverables,
@@ -64,6 +66,32 @@ function nowMs(ctx) { return ctx.now ? ctx.now() : Date.now(); }
 function requestDigest(text) { return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 16); }
 function 모델앞선영수증(entries, turnReceipts) {
   return (entries ?? []).filter((e) => !turnReceipts.includes(e) && e?.origin !== 'runtime_observation');
+}
+
+function 빈자동화현실(reality) {
+  if (!reality || typeof reality !== 'object') return false;
+  // principal이 아직 결속되지 않은 표면에는 **입장 가능한 기존 자동화 상태가 없다**.
+  // 상태를 0이라고 꾸미는 것이 아니라, 이 턴에 같은-principal 상태를 실을 수 없다는 경계 사실이다.
+  if (reality.principalBound === false && reality.availability === 'unknown') return true;
+  return ['candidates', 'jobs', 'recentRuns'].every((key) => {
+    const collection = reality[key];
+    return collection?.total === 0 && collection?.truncated === false
+      && Array.isArray(collection?.items) && collection.items.length === 0;
+  });
+}
+
+/** 정의가 조금이라도 불확실하면 false — 비용보다 통제 기능 보존 쪽으로 폴백한다. */
+function freshStatelessControlTurn(ctx, admitted = []) {
+  if (!Array.isArray(ctx.modelControls) || !ctx.modelControls.length) return false;
+  if ((ctx.pending?.size ?? 0) > 0 || (ctx.승인대기카드?.length ?? 0) > 0) return false;
+  if (ctx.activeGoal || ctx.hadWorkGoal === true || ctx.workingState || ctx.projectWorkState || ctx.usedSkill) return false;
+  if ((ctx.carryableWork?.length ?? 0) || (ctx.carryableProjects?.length ?? 0)
+    || (ctx.priorExchange?.length ?? 0)
+    || (admitted?.length ?? 0)) return false;
+  const memory = ctx.memory;
+  if (!memory || memory.corrupted === true
+    || ['promoted', 'candidates', 'observed'].some((key) => (memory[key]?.length ?? 0) > 0)) return false;
+  return 빈자동화현실(ctx.automationReality);
 }
 
 function 동의후속(text = '') {
@@ -202,6 +230,7 @@ async function 화면자리(ctx) {
  * 예산을 올린 것이 시늉이 된다(옛 6 이 정확히 그 모양이었다).
  */
 const 걸음정지선 = 40;
+const 통제미반영답 = '이 응답에서는 추가로 남기거나 설정하거나 물을 내용이 아직 미정이에요.';
 /**
  * **산출물 재요청 뒷단** — 걸음 수와 무관한 별개 축이라 따로 선다.
  * 값은 옛 6 그대로다(행동 변화 0). 밀어붙이는 것이 진전을 만들지 않는다는 실측이
@@ -908,6 +937,25 @@ function 답으로삼기(ctx, out, 현재답 = '') {
   return 글;
 }
 
+function 보인모델호출만(out, schemas) {
+  if (typeof out === 'string' || !out || !Array.isArray(out.toolCalls)) return out;
+  const shown = new Set((schemas ?? []).map((schema) => schema?.name).filter(Boolean));
+  // 실행 손은 안 보여준 호출도 기존 경계가 "없는 손" 영수증으로 남긴다. 조용히 버리면 모델은
+  // 자기가 시킨 일이 갔다고 믿는다. 여기서 걷는 것은 **미공개 내부 control**뿐이다.
+  const toolCalls = out.toolCalls.filter((call) => !isModelControlName(call?.name) || shown.has(call?.name));
+  return toolCalls.length === out.toolCalls.length ? out : { ...out, toolCalls };
+}
+
+function 유효통제제출인가(split) {
+  return Boolean(
+    split?.memorySuggestion || split?.memoryWithdrawal || split?.memoryCitation
+    || (split?.memoryCorrection && Object.keys(split.memoryCorrection).length)
+    || split?.skillProposal || split?.automationProposal || split?.automationControl
+    || split?.automationObserve || split?.agentProposal || split?.askUser
+    || split?.workStateProposal || split?.workStateNoChange,
+  );
+}
+
 export async function runTurn(input, ctx) {
   // 3축: 이번 턴의 응답 표면. **맨 위에서 한 번만** 정한다 — 승인 재개(executePlan 직행) 경로도
   // 같은 표면을 쓴다. 채널마다 커널을 나누지 않는다(같은 커널, 표면만 다르다).
@@ -916,6 +964,7 @@ export async function runTurn(input, ctx) {
   미리보기원장(ctx);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
+  ctx.deferredControlSelection = undefined;
   // 한 사용자 요청의 모델 왕복은 승인 카드로 턴이 갈려도 한 장부다. 새 발화는 새 장부를 열고,
   // 승인 재개는 카드에 봉인한 수치 장부만 복원한다(원문·응답은 이 장부에 없다).
   const 승인회계 = typeof input.approve === 'string'
@@ -1016,17 +1065,6 @@ export async function runTurn(input, ctx) {
     );
     refreshSourceCoverage(ctx, ledger);
   }
-
-  // **이 턴에 무엇을 줬고 무엇을 왜 걸렀는지를 남긴다**(S7 착수 조건 · 오너 지시 2026-08-05).
-  //
-  // *"안 준 손은 흔적이 없다."* 지금은 손 스물 몇 개 중 몇 개만 모델에게 가고, **안 준 사실이
-  // 어디에도 안 남는다.** S7 은 그 집합을 상황에서 계산하는 칸이라, 틀려도 화면에 안 나타나고
-  // "모델이 요즘 좀 이상한데"로만 보인다. S6 은 216칸 표가 잡았지만 여기는 잡을 표가 없다.
-  //
-  // 판정하지 않는다 — 이미 난 결정을 **볼 수 있게** 만들 뿐이다(S0 가 S1 을 살린 그 자리).
-  // 덤프가 꺼져 있으면 아무 일도 하지 않는다(`promptDumpDir` 이 null 이면 즉시 반환).
-  void dump손제시(손제시기록(selfState, ctx.modelControls ?? []), ctx.processEnv ?? process.env)
-    .catch(() => null);   // 계측이 본선을 세우지 않는다
 
   // P-ID-1 자기인지 — 어떤 모델이 붙든 매 턴 자기가 무엇인지·어디까지 되는지 안다(헌법 §5).
   //   · 이름을 지어 주면 **이번 턴부터** 그 이름으로 답한다(지속은 서버가 identityUpdate 로).
@@ -1303,6 +1341,9 @@ export async function runTurn(input, ctx) {
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
     if (분리?.approvalDecision) approvalDecision = 분리.approvalDecision;
     collectWorkState(분리);
+    if (ctx.deferredControlSelection?.length && 유효통제제출인가(분리)) {
+      ctx.deferredControlSelection = undefined;
+    }
   };
   const 통제제안 = () => ({
     skillProposal, automationProposal, automationControl, agentProposal,
@@ -1415,7 +1456,18 @@ export async function runTurn(input, ctx) {
     });
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
     const wantedWeb = earlyWantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
-    const out = await ctx.model.respond(tc, {
+    const 점진통제 = freshStatelessControlTurn(ctx, admitted);
+    const 첫도구 = 점진통제
+      ? modelSchemasForExact(selfState, ['control.select'])
+      : modelSchemasFor(selfState, ctx.modelControls);
+    // 첫 판단 호출에 **실제로 준 통제 채널**을 기록한다. 예전 턴 단위 기록은 full control을
+    // 적어 selector가 실제로 간 턴에서 거짓말했다. provider 입력 덤프와 같은 call-specific 사실이다.
+    const 손이름 = new Set((selfState.connectedTools ?? []).map((tool) => tool.id));
+    const 제시기록 = (schemas) => dump손제시(손제시기록(
+      selfState, (schemas ?? []).map((schema) => schema.name).filter((name) => !손이름.has(name)),
+    ), ctx.processEnv ?? process.env).catch(() => null);
+    void 제시기록(첫도구);
+    const 첫원답 = await ctx.model.respond(tc, {
       accountingPurpose: 'primary',
       onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
       search: wantedWeb,
@@ -1424,8 +1476,64 @@ export async function runTurn(input, ctx) {
       // 그냥 "리뷰"로 검색해 **책 리뷰 쓰는 방법**을 읽어 왔다. 잘못된 인자는 오염된 사실을 만들고,
       // 오염된 사실은 다음 턴까지 번진다. 속도보다 이해가 먼저다(절대 원칙 §0).
       effort: 'medium',
-      tools: modelSchemasFor(selfState, ctx.modelControls),
+      tools: 첫도구,
     });
+    let out = 보인모델호출만(첫원답, 첫도구);
+    낸호출세기(out);
+    // 공개되지 않은 알려진 control은 그 인자를 믿지 않고 **범주만** 복구한다. 실제 제출은
+    // schema를 본 두 번째 호출에서 다시 받아야 한다. unknown 실행 손은 기존 없는-손 원장으로 간다.
+    const 보인첫이름 = new Set(첫도구.map((schema) => schema.name));
+    const 원호출들 = typeof 첫원답 === 'string' ? [] : (첫원답?.toolCalls ?? []);
+    const 미공개범주 = [...new Set(원호출들
+      .filter((call) => isModelControlName(call?.name) && !보인첫이름.has(call.name))
+      .map((call) => controlCategoryForName(call.name)).filter(Boolean))];
+    const 첫호출들 = typeof out === 'string' ? [] : (out?.toolCalls ?? []);
+    const 첫분리 = splitModelControlCalls(첫호출들);
+    const 선택범주 = [...new Set([...첫분리.controlSelection, ...미공개범주])].slice(0, 6);
+    const 통제선택시도 = 원호출들.some((call) => isModelControlName(call?.name));
+    if (점진통제 && 선택범주.length && 첫분리.rest.length) {
+      // 실행을 먼저 한 번만 걷되, 모델이 함께 고른 control 범주는 같은 턴의 후속 호출에 사실로 남긴다.
+      ctx.deferredControlSelection = [...선택범주];
+      if (typeof out !== 'string') out = { ...out, text: '' }; // 실행 전 control 성공 주장은 아직 사실이 아니다.
+    }
+    if (점진통제 && 선택범주.length && !첫분리.rest.length) {
+      let 공개반영 = false;
+      if ((ctx.왕복수 ?? 0) < 턴예산(ctx.processEnv ?? process.env).왕복) {
+        const 공개이름 = controlSchemasForCategories(선택범주).map((schema) => schema.name);
+        const 공개도구 = modelSchemasForExact(selfState, 공개이름);
+        void 제시기록(공개도구);
+        const 공개답 = await ctx.model.respond({ ...tc, controlSelection: {
+          categories: 선택범주,
+        } }, {
+          accountingPurpose: 'control_disclosure',
+          onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
+          search: wantedWeb,
+          effort: 'medium',
+          tools: 공개도구,
+        }).catch(() => null);
+        if (공개답 !== null) {
+          const 보인공개답 = 보인모델호출만(공개답, 공개도구);
+          낸호출세기(보인공개답);
+          const 공개분리 = splitModelControlCalls(
+            typeof 보인공개답 === 'string' ? [] : (보인공개답?.toolCalls ?? []),
+          );
+          const 유효통제 = 유효통제제출인가(공개분리);
+          if (유효통제) { out = 보인공개답; 공개반영 = true; }
+          else if (공개분리.rest.length && typeof 보인공개답 !== 'string') {
+            // disclosure에서 실행 손으로 방향을 바꿔도 호출은 버리지 않는다. 다만 control 성공
+            // 문장은 아직 거짓이므로 걷고, 선택 범주는 실행 후 후속 호출에 계속 공급한다.
+            ctx.deferredControlSelection = [...선택범주];
+            out = { ...보인공개답, text: '' };
+            공개반영 = true;
+          }
+        }
+      }
+      // selector/router 단계의 문장은 상태 효과를 입증하지 않는다. 공개가 실패·공백·예산 소진이면
+      // 성공 문장을 승격하지 않고 사용자에게 정직한 미반영 사실로 끝낸다.
+      if (!공개반영) out = { text: 통제미반영답, toolCalls: [] };
+    } else if (점진통제 && 통제선택시도 && !첫분리.rest.length) {
+      out = { text: 통제미반영답, toolCalls: [] };
+    }
     // **잘린 답을 다 쓴 답인 것처럼 내지 않는다**(절대 게이트 1 — 거짓 성공).
     // 라이브(오너 2026-08-05): 답이 `예를 들어 스윙이면` 에서 문장 한가운데 끊겼는데
     // T5 는 아무 말 없이 그대로 내보냈다. 사용자는 왜 끊겼는지 알 길이 없었다.
@@ -1434,7 +1542,6 @@ export async function runTurn(input, ctx) {
     earlyReply = 답으로삼기(ctx, out, '');
     // **모든 모델 호출 결과는 이 한 경계를 지난다** — 통제 호출(기억 후보 등)은 실행이 아니므로
     // 여기서 분리되어 후보 채널로만 가고, 나머지만 계획·승인·실행으로 간다.
-    낸호출세기(out);
     const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     통제제안받기(분리);
     if (분리.memorySuggestion) memorySuggestion = 분리.memorySuggestion;
@@ -2301,6 +2408,11 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   //
   // 도구 이름으로도, 개수로도 갈리지 않는다. **매번 다시 만든다**(refreshRuntimeReality 머리말).
   const 현실다시 = () => { ({ selfState, summary } = refreshRuntimeReality(ctx)); };
+  const 모델도구 = () => {
+    if (!ctx.deferredControlSelection?.length) return modelSchemasFor(selfState, ctx.modelControls);
+    const names = controlSchemasForCategories(ctx.deferredControlSelection).map((schema) => schema.name);
+    return modelSchemasForExact(selfState, names);
+  };
   // 이번 턴 receipt 만 따로 모은다 — 세션 원장(감사용)과 턴 응답(사용자용)을 분리한다.
   /** @type {import('../contracts.js').ToolReceipt[]} */
   // 계획 단계에서 막힌 사실도 **이번 턴의 영수증**이다 — 여기 없으면 모델은 자기가 고른 손이
@@ -2674,6 +2786,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     modelProviderId: ctx.modelProviderId, workingState, projectWorkState: ctx.projectWorkState,
     worksetReality: ctx.worksetReality,
     automationReality: ctx.automationReality,
+    controlSelection: ctx.deferredControlSelection?.length
+      ? { categories: ctx.deferredControlSelection } : undefined,
     ...예산사실(),
     // 막힌 게 있으면 **다음에 무엇을 하면 되는지**를 사실로 준다(막다른 답 금지).
     // **도구가 남긴 말이 먼저다.** 도구는 자기가 왜 막혔는지 정확히 안다("제가 다루는 폴더 안에서
@@ -2712,7 +2826,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
       search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
       effort: 'medium',
-      tools: modelSchemasFor(selfState, ctx.modelControls),
+      tools: 모델도구(),
     });
   // ── P6-L · 한 턴 안에서 손을 이어 쓴다 ────────────────────────────────
   // 예전엔 여기서 `finalOut.toolCalls` 를 **버렸다.** 그래서 모델이 다음 걸음을 정확히 알고도
@@ -2983,7 +3097,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     }
     const 미달 = 목적미달();
     if (!Object.keys(미달).length) return false;                    // 목적에 닿았다 — 끝낸다
-    const 손들 = modelSchemasFor(selfState, ctx.modelControls);
+    const 손들 = 모델도구();
     if (!손들.length) return false;
     이어간횟수 += 1;
     // ── **약속으로 턴을 닫지 않는다** (오픈북 · 헤르메스 kanban_stop.py:88-101) ──────
@@ -3181,7 +3295,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         };
         finalOut = await ctx.model.respond(tc, {
           accountingPurpose: 'automation_observe', search: wantedWeb, effort: 'medium',
-          tools: modelSchemasFor(selfState, ctx.modelControls),
+          tools: 모델도구(),
         });
         continue;
       }
@@ -3294,6 +3408,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
         nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
         workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
         automationReality: ctx.automationReality,
+        controlSelection: ctx.deferredControlSelection?.length
+          ? { categories: ctx.deferredControlSelection } : undefined,
         recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
         ...예산사실(),
         ...(ctx.selfhood ?? {}),
@@ -3304,7 +3420,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       if (!대기호출.length && !안걷은호출남았나()) {
         finalOut = await ctx.model.respond(tc, {
           accountingPurpose: 'tool_loop', onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
-          ...(예산소진(쓴것(), 예산) ? {} : { tools: modelSchemasFor(selfState, ctx.modelControls) }),
+          ...(예산소진(쓴것(), 예산) ? {} : { tools: 모델도구() }),
         });
       }
       continue;
@@ -3569,6 +3685,8 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       nativeSearch: Boolean(ctx.modelSupportsSearch), modelProviderId: ctx.modelProviderId,
       workingState, projectWorkState: ctx.projectWorkState, worksetReality: ctx.worksetReality,
       automationReality: ctx.automationReality,
+      controlSelection: ctx.deferredControlSelection?.length
+        ? { categories: ctx.deferredControlSelection } : undefined,
       recoveryHint: 다음길(turnReceipts, 있는손(), 손설명()),
       ...예산사실(), // 남았으면 남았다는 사실(H08 실측) — 이제 두 축 다 준다
       // **손을 조용히 거두면 모델은 "손이 없다"로 읽는다.** 실측(오너 라이브 2026-07-28):
@@ -3590,7 +3708,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       finalOut = await ctx.model.respond(tc, {
         accountingPurpose: 'tool_loop', onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
         // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
-        ...(예산소진(쓴것(), 예산) ? {} : { tools: modelSchemasFor(selfState, ctx.modelControls) }),
+        ...(예산소진(쓴것(), 예산) ? {} : { tools: 모델도구() }),
       });
     }
   }

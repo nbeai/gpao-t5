@@ -191,6 +191,10 @@ export function buildModelMessages(tc) {
   // 출구 검증이 되돌린 사실 — 답이 원장과 어긋났다. **사실 한 줄이지 지시가 아니다.**
   if (tc.completionMismatch?.사실) 턴변동.push(tc.completionMismatch.사실);
   if (tc.answerOnly) 턴변동.push('실행 사실과 현재 요청은 이미 위에 있다. 새 행동을 약속하거나 다음 턴으로 미루지 말고, 사용자에게 보낼 최종 답만 지금 작성한다.');
+  if (Array.isArray(tc.controlSelection?.categories) && tc.controlSelection.categories.length) {
+    턴변동.push(`이번 요청에서 네가 고른 구조 제출 범주: ${tc.controlSelection.categories.join(', ')}.`
+      + ' 선택 자체는 기억·예약·설정·질문·상태 변경이 아니다.');
+  }
   // 반대 방향의 같은 사실 — 남아 있으면 남아 있다고 말한다. 이게 없으면 모델이 "손을 다
   // 써서 다음 턴에 하겠다"는 거짓 소진을 지어내고 일을 미룬다(H08 라이브 실측 2026-08-01).
   // **숫자가 곧 배급 신호다**(아껴 쓰지 않게 한다 · 오너 지시 2026-08-11).

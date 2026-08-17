@@ -801,6 +801,7 @@ async function 체감지표({ recordsDir, exposedNames }) {
 
     askUser: {
       exposedToModel: exposedNames.includes('ask.user'),
+      availableViaSelector: exposedNames.includes('control.select'),
       channelAt: 'src/kernel/l2-plan/model-control.js (MODEL_CONTROL_SCHEMAS)',
       usageCount: { 계측불가: true,
         사유: '통제 호출은 splitModelControlCalls 가 turnExchange 밖에서 갈라내므로'
@@ -951,7 +952,7 @@ async function 확정계열({ 방, 상태 }) {
   }] });
   const 씨앗 = { skills: 1, profiles: 1 };
 
-  const 대본 = { 낼것: () => ({ text: '네.', toolCalls: [] }) };
+  const 대본 = { 낼것: () => ({ text: '네.', toolCalls: [] }), 범주: null };
   const 프롬프트판 = [];
   const { buildModelMessages } = await import(join(저장소, 'src/runtime/model-provider.js'));
   const 가짜모델 = {
@@ -961,6 +962,9 @@ async function 확정계열({ 방, 상태 }) {
         const m = buildModelMessages(tc);
         프롬프트판.push({ systemStable: m.systemStable ?? null, tools: opts.tools ?? [] });
       } catch { /* 조립이 안 되면 그 판은 안 센다 — 지어내지 않는다 */ }
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select') && 대본.범주) {
+        return { text: '', toolCalls: [{ name: 'control.select', args: { categories: [대본.범주] } }] };
+      }
       return 대본.낼것(tc, opts);
     },
   };
@@ -1005,6 +1009,9 @@ async function 확정계열({ 방, 상태 }) {
 
     for (const 계열 of 계열규격) {
       const 채널이름 = 계열.key === 'automation' ? 'automation.propose' : 계열.채널;
+      대본.범주 = 계열.key === 'skill' ? 'skill'
+        : 계열.key === 'agent' ? 'agent'
+          : 계열.key === 'memory' ? 'memory' : 'automation';
       대본.낼것 = (_tc, opts) => (opts.tools?.length
         ? { text: '', toolCalls: [{ name: 채널이름, args: 인자[채널이름] }] }
         : { text: '적어 뒀어요.', toolCalls: [] });
@@ -1193,7 +1200,8 @@ function 사람표(결과) {
     줄.push(`      ${e.결과없이닫힌턴.turns.slice(0, 8).join(', ')}${e.결과없이닫힌턴.truncated ? ' …' : ''}`);
   }
   if (e.결과없이닫힌턴.주의) 줄.push(`      ${e.결과없이닫힌턴.주의}`);
-  줄.push(`  ⑤ ask.user — 모델 노출 ${e.askUser.exposedToModel ? '있음' : '없음'}`
+  줄.push(`  ⑤ ask.user — full schema 상시 노출 ${e.askUser.exposedToModel ? '있음' : '없음'}`
+    + ` · selector 통로 ${e.askUser.availableViaSelector ? '있음' : '없음'}`
     + ` · 사용 횟수: ${못잼(e.askUser.usageCount)}`);
   줄.push(`      글자 히트 파일 ${e.askUser.글자히트파일수}개 — ${e.askUser.글자히트주의}`);
   줄.push(표('체감 지표 · 회차 묶음별 (합계는 여러 시험이 섞인 값이다 — 짚으려면 여기서 본다)',

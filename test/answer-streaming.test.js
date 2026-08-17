@@ -525,6 +525,9 @@ test('계열④ 제품 경로: 서버 후처리가 답을 늘려도(민감 기�
   const dir = await mkdtempF(join(tmpdir(), 'gpao-t5-str4tail-'));
   const model = {
     async respond(tc, opts = {}) {
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select')) return {
+        text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }],
+      };
       opts.onDelta?.('키 확인했어요.');
       return { text: '키 확인했어요.', toolCalls: [{ name: 'memory.propose', args: {
         kind: 'preference', statement: 'API 키는 sk-abcdEFGH1234567890abcdEFGH 야',
@@ -579,8 +582,11 @@ import { demoTools as demoTools2 } from '../src/surface/demo-context.js';
       호출 += 1;
       받은옵션.push({ 도구있음: Boolean(opts.tools?.length), onDelta있음: Boolean(opts.onDelta) });
       받은문맥.push({ answerOnly: tc.answerOnly, toolBudgetSpent: tc.toolBudgetSpent });
-      // 첫 호출: 기억만 적고 **텍스트는 안 낸다**(라이브에서 실제로 이렇게 왔다).
-      if (호출 === 1) {
+      if (opts.tools?.some((tool) => tool.name === 'control.select')) {
+        return { text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }] };
+      }
+      // disclosure 호출: 기억만 적고 **텍스트는 안 낸다**(라이브에서 실제로 이렇게 왔다).
+      if (opts.tools?.some((tool) => tool.name === 'memory.propose')) {
         return { text: '', toolCalls: [{ name: 'memory.propose', args: {
           kind: 'preference', statement: '이번만 줄글로 길게 써줘.',
           evidence: { utteranceQuote: '이번만 줄글로 길게 써줘.', speechAct: 'declaration', appliesTo: 'this_turn_only' },
@@ -597,7 +603,7 @@ import { demoTools as demoTools2 } from '../src/surface/demo-context.js';
     const s = await post('/sessions');
     const r = await post('/turn', { sessionId: s.id, text: '이번만 줄글로 길게 써줘.' });
     assert2.ok(String(r.reply ?? '').trim(), '사용자가 빈 답을 받았다');
-    assert2.ok(호출 >= 2, '텍스트가 없으면 한 번 더 물어야 한다');
+    assert2.ok(호출 >= 3, 'selector→통제 제출 뒤 텍스트가 없으면 한 번 더 물어야 한다');
 
     // **재시도는 도구 없이 간다.** 다시 쥐여 주면 또 고르고 또 텍스트가 없을 수 있다.
     assert2.equal(받은옵션.at(-1).도구있음, false, '재시도에 도구를 다시 줬다');

@@ -33,7 +33,17 @@ export async function 대본모델띄우기({ 대본, 모델id = 'claude-opus-4-
   // **이력 길이로 판정하면 안 된다** — T5 는 대화 이력을 매번 함께 싣기 때문에 두 번째 턴부터
   // 항상 참이 된다(실측: 그래서 삭제가 실행되지 않았다). 턴의 신분은 사용자의 마지막 문장이다.
   const 쓴턴 = new Set();
+  const selector쓴턴 = new Set();
   const 고른것 = [];
+  const 통제범주 = (tool) => {
+    if (String(tool).startsWith('memory.')) return 'memory';
+    if (String(tool).startsWith('automation.')) return 'automation';
+    if (tool === 'skill.propose') return 'skill';
+    if (tool === 'agent.propose') return 'agent';
+    if (tool === 'work.state') return 'work';
+    if (tool === 'ask.user') return 'question';
+    return null;
+  };
 
   const server = createServer((req, res) => {
     let body = '';
@@ -52,6 +62,17 @@ export async function 대본모델띄우기({ 대본, 모델id = 'claude-opus-4-
       const 이번턴 = String(m?.messages?.at(-1)?.content ?? '').trim().split('\n').at(-1).trim();
       const 규칙 = 대본.find((r) => 이번턴.includes(r.열쇠));
       const 배선됨 = Boolean(규칙) && 쓸수있는도구.includes(wireToolName(규칙.tool));
+      const 범주 = 규칙 ? 통제범주(규칙.tool) : null;
+
+      if (규칙 && 범주 && !배선됨 && 쓸수있는도구.includes(wireToolName('control.select'))
+        && !selector쓴턴.has(이번턴)) {
+        selector쓴턴.add(이번턴);
+        고른것.push({ 턴: 이번턴, tool: 'control.select' });
+        return 보내기(200, 응답본문([{
+          type: 'tool_use', id: `tu_${고른것.length}`,
+          name: wireToolName('control.select'), input: { categories: [범주] },
+        }]));
+      }
 
       if (규칙 && 배선됨 && !쓴턴.has(이번턴)) {
         쓴턴.add(이번턴);

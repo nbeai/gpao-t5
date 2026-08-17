@@ -137,6 +137,9 @@ test('sha256 기계 지문은 카드번호로 오인하지 않고 함께 있는 
 test('모델 제출과 정규식 후보 모두 비밀값을 장기 기억에 쓰지 않는다', async () => {
   const modelProposal = {
     async respond(_tc, opts = {}) {
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select')) return {
+        text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }],
+      };
       return opts.tools?.length
         ? { text: '기억할게요.', toolCalls: [{ name: 'memory.propose', args: { statement: `API 키는 ${SECRET}` } }] }
         : '기억할게요.';
@@ -256,6 +259,9 @@ test('채널 턴도 transcript 저장 전에 민감한 모델 기억 제안을 �
   });
   const model = {
     async respond(_tc, opts = {}) {
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select')) return {
+        text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }],
+      };
       return opts.tools?.length
         ? { text: '기억할게요.', toolCalls: [{ name: 'memory.propose', args: { statement: `숨은 키 ${SECRET}` } }] }
         : '기억할게요.';

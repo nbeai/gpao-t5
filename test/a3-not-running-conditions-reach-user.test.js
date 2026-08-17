@@ -108,6 +108,9 @@ function 적는모델(본것, 답문장 = '매일 아침 9시에 알려드리도
     const request = String(tc.currentRequest ?? '');
     if (tc.automationProposal) return 답문장;
     if (!opts.tools?.length) return '알겠어.';
+    if (opts.tools.some((tool) => tool.name === 'control.select')) return {
+      text: '', toolCalls: [{ name: 'control.select', args: { categories: ['automation'] } }],
+    };
     if (!request.trim()) return '알겠어.';
     return { text: '', toolCalls: [{ name: 'automation.propose', args: {
       statement: request, kind: 'daily', operation: 'create', trigger: 아침9시,

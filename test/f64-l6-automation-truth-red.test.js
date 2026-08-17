@@ -24,6 +24,7 @@ import { makeServer, redactSensitiveResult } from '../src/surface/server.js';
 import { projectAutomationReality } from '../src/surface/automation-surface.js';
 import { SessionStore } from '../src/surface/session-store.js';
 import { SkillDefinitionStore } from '../src/surface/skill-store.js';
+import { progressiveControlModel } from './helpers/progressive-control-model.js';
 
 const FALSE_REPLY = '화요일 10시, 켜짐, 다음 실행도 잡혔어요.';
 const FROZEN_NOW = 1_786_287_600_000; // 2026-08-10 00:00 Asia/Seoul
@@ -157,7 +158,7 @@ async function startProduct({ model, jobs = [], candidates = [], space, preserve
   const server = makeServer({
     store, automationStore, automationRunLedger: runLedger, skillStore, agentProfileStore,
     clock,
-    model, env: demoEnv(),
+    model: progressiveControlModel(model), env: demoEnv(),
     tools: demoTools({ localFile: makeLocalFileTool({ roots: [x.root], dataDir: x.state, homeDir: x.root }) }),
     processEnv: { HOME: x.root, GPAO_T5_HOME: x.root, GPAO_T5_DATA_DIR: x.state, GPAO_T5_FILE_ROOTS: x.root },
   });

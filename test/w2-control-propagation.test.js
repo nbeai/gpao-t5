@@ -20,6 +20,7 @@ test('W2 통제 제안은 빠른 답에서 실행되지 않고 소비자까지 �
   const result = await runTurn({ text: '이런 역할들을 준비해줘' }, {
     env: demoEnv(),
     tools: demoTools(),
+    modelControls: ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'],
     model: sequenceModel([{ text: '후보로 준비할게요', toolCalls: [
       { name: 'skill.propose', args: skill },
       { name: 'automation.propose', args: automation },
@@ -40,6 +41,7 @@ test('W2 통제 제안은 승인 대기 경로에서도 사라지지 않는다',
     env: demoEnv(),
     tools: demoTools(),
     pending: new Map(),
+    modelControls: ['skill.propose', 'automation.propose', 'agent.propose', 'work.state'],
     // 탈것을 파일 삭제에서 **전송**으로 옮겼다(자동성 헌장 2026-08-03) — 되돌릴 수 있는 삭제는
     // 이제 자동이라 승인이라는 사건을 만들 수 없다. 재는 것은 삭제가 아니라
     // **통제 제안이 승인 반환 경로에서 유실되지 않는가**이므로 승인이 나는 손이면 된다.

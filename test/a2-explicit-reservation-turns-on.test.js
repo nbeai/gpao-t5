@@ -124,6 +124,9 @@ function 적기만하는모델(overrides = {}) {
   return { async respond(tc, opts = {}) {
     const request = String(tc.currentRequest ?? '');
     if (!opts.tools?.length) return '알겠어.';
+    if (opts.tools.some((tool) => tool.name === 'control.select')) return {
+      text: '', toolCalls: [{ name: 'control.select', args: { categories: ['automation'] } }],
+    };
     if (tc.automationProposal) return '적어 뒀어.';
     if (!request.trim()) return '알겠어.';
     return { text: '', toolCalls: [{ name: 'automation.propose', args: {

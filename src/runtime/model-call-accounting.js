@@ -11,6 +11,7 @@ export const MODEL_CALL_PURPOSES = Object.freeze([
   'goal_recovery', 'tool_loop', 'final_response', 'work_state_settlement', 'welcome',
   'replay_execute', 'replay_judge',
   'growth_propose', 'growth_validate', 'growth_execute', 'growth_judge',
+  'control_disclosure',
 ]);
 
 const INSTRUMENTED = Symbol('t5.model-call-accounting.instrumented');

@@ -33,9 +33,13 @@ const 민감 = '이 API 키 기억해둬: sk-test-0000000000000000000000000000';
 function 모델(대본, 본것) {
   const script = [...대본];
   return {
-    async respond(tc) {
+    async respond(tc, opts = {}) {
       if (tc?.workStateSettlement) return { text: '', toolCalls: [{ name: 'work.state', args: { noChange: true } }] };
       본것?.push(tc);
+      if ((opts.tools ?? []).some((tool) => tool.name === 'control.select')
+        && String(script[0]?.name ?? '').startsWith('memory.')) {
+        return { text: '', toolCalls: [{ name: 'control.select', args: { categories: ['memory'] } }] };
+      }
       const next = script.shift();
       return next ? { text: '', toolCalls: [next] } : '알겠어요.';
     },
