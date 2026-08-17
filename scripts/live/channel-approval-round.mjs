@@ -120,6 +120,14 @@ async function 채널방(credential, { 이름 }) {
       enableAgentDelegation: false,
       surfaceToken: identity.token, installId: identity.installId,
     });
+    // ★ 양성 대조를 위해 HTTP 도 연다 — **웹 `approve` 경로가 표적을 실제로 지우는지** 찍어야
+    // 「집행됐나」 자가 true 를 낼 수 있는 자임이 증명된다. 지금 그 자는 라이브·검사 어디서도
+    // true 를 낸 적이 없다(resume 검사의 터미널은 **스텁**이라 실제 삭제 0 — F-104·F-105 계열).
+    const port = await new Promise((res, rej) => {
+      server.once('error', rej);
+      server.listen(0, '127.0.0.1', () => { server.off('error', rej); res(server.address().port); });
+    });
+    const headers = { 'content-type': 'application/json', cookie: `t5_surface=${identity.token}` };
     return {
       room, store, 표적, 보낸것,
       /** 실수신기가 부르는 그 입구. 자동 답장이 이 길에만 있다. */
@@ -128,8 +136,15 @@ async function 채널방(credential, { 이름 }) {
         userId: who.userId ?? 'u-aigis', username: who.username ?? 'Aigis',
         text, isDirectMessage: true, isMention: true,
       }),
+      /** 웹 표면의 승인 집행 — **양성 대조 전용**. 제품은 한 줄도 안 바꾼다. */
+      웹승인: async (sessionId, pendingId) => {
+        const r = await fetch(`http://127.0.0.1:${port}/turn`, {
+          method: 'POST', headers, body: JSON.stringify({ sessionId, approve: pendingId }),
+        });
+        return JSON.parse(await r.text());
+      },
       세션: async (id) => store.load(id),
-      close: async () => { 되돌리기(); },
+      close: async () => { await new Promise((r) => server.close(r)); 되돌리기(); },
     };
   } catch (e) { 되돌리기(); throw e; }
 }
@@ -145,7 +160,9 @@ async function 한회차({ 이름, credential, 두번째, 발신자 }) {
     기록.승인카드섰나 = (r1?.kind === 'approval');
     기록.표적_1턴뒤 = await 있나(방.표적);
     const s1 = await 방.세션(r1?.sessionId);
-    기록.pending_1턴뒤 = Object.keys(s1?.pendingApprovals ?? {}).length;
+    const 대기1 = Object.keys(s1?.pendingApprovals ?? {});
+    기록.pending_1턴뒤 = 대기1.length;
+    기록.pendingId_1턴 = 대기1[0] ?? null;   // ★ 자 보강: 개수가 아니라 id — 「대기 1개」는 「같은 카드」가 아니다
 
     const t1 = Date.now();
     const r2 = await 방.말걸기(두번째, 발신자 ? { userId: 발신자.userId, username: 발신자.username } : {});
@@ -154,7 +171,10 @@ async function 한회차({ 이름, credential, 두번째, 발신자 }) {
     기록.표적_2턴뒤 = await 있나(방.표적);
     기록.집행됐나 = 기록.표적_1턴뒤 === true && 기록.표적_2턴뒤 === false;
     const s2 = await 방.세션(r2?.sessionId);
-    기록.pending_2턴뒤 = Object.keys(s2?.pendingApprovals ?? {}).length;
+    const 대기2 = Object.keys(s2?.pendingApprovals ?? {});
+    기록.pending_2턴뒤 = 대기2.length;
+    기록.pendingId_2턴 = 대기2[0] ?? null;
+    기록.같은카드인가 = Boolean(기록.pendingId_1턴) && 기록.pendingId_1턴 === 기록.pendingId_2턴;
     기록.채널로나간말 = 방.보낸것.map((x) => x.text);
   } finally {
     await 방.close();
@@ -176,9 +196,45 @@ export function 채점(기록) {
   };
 }
 
+/**
+ * ★ **양성 대조 회차**(손 관리자 착수 조건 2) — 자가 true 를 낼 수 있는 자임을 증명한다.
+ * 텔레그램으로 시켜 카드를 세운 뒤 **웹 approve 경로**로 집행한다. 제품 코드 0줄.
+ * 이게 서면 ㉠ 자가 양성을 본다 ㉡ 「집행 능력은 이미 있고 없는 것은 채널 쪽 방아쇠뿐」이
+ * 기계 사실이 되어 수리 범위가 좁아진다.
+ */
+async function 양성대조({ credential }) {
+  const 방 = await 채널방(credential, { 이름: '양성대조' });
+  const 기록 = { 이름: '양성대조(웹 approve)', 두번째: '(웹에서 카드 누름)', 발신자: 'Aigis(허용)',
+    턴: [], 채널로나간말: [], 표적: 방.표적 };
+  try {
+    const r1 = await 방.말걸기(발화.시킴);
+    기록.턴.push({ 발화: 발화.시킴, kind: r1?.kind ?? null });
+    기록.승인카드섰나 = (r1?.kind === 'approval');
+    기록.표적_1턴뒤 = await 있나(방.표적);
+    const s1 = await 방.세션(r1?.sessionId);
+    const 대기들 = Object.keys(s1?.pendingApprovals ?? {});
+    기록.pending_1턴뒤 = 대기들.length;
+    기록.pendingId_1턴 = 대기들[0] ?? null;          // ★ 자 보강(착수 조건 3): id 를 찍는다
+    if (기록.pendingId_1턴) {
+      const r2 = await 방.웹승인(r1.sessionId, 기록.pendingId_1턴);
+      기록.턴.push({ 발화: `approve:${기록.pendingId_1턴}`, kind: r2?.kind ?? null });
+    }
+    기록.표적_2턴뒤 = await 있나(방.표적);
+    기록.집행됐나 = 기록.표적_1턴뒤 === true && 기록.표적_2턴뒤 === false;
+    const s2 = await 방.세션(r1?.sessionId);
+    const 남은 = Object.keys(s2?.pendingApprovals ?? {});
+    기록.pending_2턴뒤 = 남은.length;
+    기록.pendingId_소멸 = Boolean(기록.pendingId_1턴) && !남은.includes(기록.pendingId_1턴);
+    기록.채널로나간말 = 방.보낸것.map((x) => x.text);
+  } finally { await 방.close(); }
+  return 기록;
+}
+
 export async function 회차들() {
   const credential = readCredential(await realpath(homedir()));
   const 결과 = [];
+  // ★ 양성 대조를 **맨 앞**에 둔다 — 자가 못 보는 자면 뒤 회차는 전부 무의미하다.
+  결과.push(await 양성대조({ credential }));
   // 기저 — 「승인」 한 마디. §7-cr 관측의 정확한 재현 자리.
   결과.push(await 한회차({ 이름: '기저-승인', credential, 두번째: 발화.승인 }));
   // 표현 다양성(슬라이스 1 미측정분 표본화) — 같은 뜻 다른 말.
