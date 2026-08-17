@@ -104,20 +104,35 @@ async function 판띄우기() {
  */
 export async function 기계양성대조(base) {
   const importFrom = (p) => import(new URL(`../../${p}`, import.meta.url).href);
-  const [bt, br] = await Promise.all([importFrom('src/runtime/browser-tool.js'), importFrom('src/runtime/browser.js')]);
+  const [bt, br, cp, fs] = await Promise.all([
+    importFrom('src/runtime/browser-tool.js'), importFrom('src/runtime/browser.js'),
+    import('node:child_process'), import('node:fs/promises'),
+  ]);
   const 크롬 = br.findBrowserSync();
   if (!크롬) throw new Error('브라우저 없음 — 이 판을 깔 수 없다');
-  const 브라우저 = br.makeBrowser({ browserPath: 크롬 });
+  // ★ 감시자 조건 A(2026-08-17): **방 조건 그대로** 태운다 — 판정 1·2회차가 탄 이유는 매번
+  // 「그 회차가 처음 밟는 자 층」이 무너진 것이었다(2호 환경 사실 · 3호 빈 HOME 렌더러).
+  // 그래서 이 대조는 방하나와 같은 HOME 재매핑 + 같은 실홈 launch 주입 아래에서
+  // 렌더 → ref 수집 → click → 본문 도달 사슬 전체를 모델 없이 먼저 통과시킨다.
+  const 실홈 = process.env.HOME;
+  const 방흉내 = await fs.mkdtemp('/tmp/브클릭-대조-');
+  await fs.mkdir(`${방흉내}/home`, { recursive: true });
+  process.env.HOME = `${방흉내}/home`;
+  const 브라우저 = br.makeBrowser({
+    browserPath: 크롬,
+    launch: (p, a, o) => cp.spawn(p, a, { ...(o ?? {}), env: { ...process.env, HOME: 실홈 } }),
+  });
   const observe = bt.makeBrowserObserveTool({ browser: 브라우저 });
   const act = bt.makeBrowserActTool({ browser: 브라우저 });
   try {
     const 열림 = await observe.handler({ action: 'open', url: `${base}/가게` });
+    if (열림.blocked) return { 성립: false, 이유: `열기 막힘: ${열림.userSafeSummary}` };
     const 후보 = (열림.result?.observation?.canOpen ?? []).find((c) => /후기/.test(c.text));
     if (!후보) return { 성립: false, 이유: 'canOpen 에 후기 탭 없음', canOpen: 열림.result?.observation?.canOpen ?? [] };
     const 눌림 = await act.handler({ action: 'click', ref: 후보.ref });
     const 본문 = String(눌림.result?.markdown ?? '');
     return { 성립: /별 네 개 반|재방문/.test(본문), ref: 후보.ref, blocked: 눌림.blocked === true };
-  } finally { await 브라우저.close?.(); }
+  } finally { await 브라우저.close?.(); process.env.HOME = 실홈; }
 }
 
 /** 요구 — 사용자 문장. 잰다 는 목적 텍스트의 기계 정규식만(산문 판독 0). */
