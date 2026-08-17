@@ -1200,7 +1200,7 @@ const DESCRIPTORS = [
     schema: {
       description: '보고 있는 화면을 다룬다.'
         + ' `scroll` 아래로 내리기(최대 5번, 더 안 나오면 멈춘다) ·'
-        + ' `click` 앞선 관찰이 준 ref 누르기 — **링크·버튼·탭·더보기**(`canOpen` 목록의 자리 · 폼 제출과 바깥 사이트 이탈은 손이 물러난다) ·'
+        + ' `click` 앞선 관찰이 준 ref 확인 — **링크·버튼·탭·더보기**(`canOpen`)는 누르고, 화면 밖 링크(`blockedOpen`)는 이동하지 않은 채 이유·주소·다음 수단 사실을 돌려준다 ·'
         + ' `type` 앞선 관찰이 준 ref 의 칸에 `text` 를 치기 ·'
         + ' `press` 그 칸에서 `key`(Enter) 치기 — **검색은 이걸 쳐야 끝난다.**'
         + ' 칸은 관찰이 준 `canType` 목록에서 고른다(거기 `kind` 가 함께 온다).'
@@ -1209,7 +1209,7 @@ const DESCRIPTORS = [
         type: 'object',
         properties: {
           action: { type: 'string', enum: ['scroll', 'click', 'type', 'press'] },
-          ref: { type: 'string', description: '앞선 관찰이 준 ref. click 은 `canOpen` 의 자리(링크·버튼·탭·더보기), type·press 는 `canType` 의 칸' },
+          ref: { type: 'string', description: '앞선 관찰이 준 ref. click 은 `canOpen` 또는 `blockedOpen`의 자리, type·press 는 `canType`의 칸' },
           text: { type: 'string', description: 'type 일 때 칠 글자' },
           key: { type: 'string', description: 'press 일 때 칠 키. 지금 열려 있는 것은 Enter 하나다' },
           times: { type: 'number', description: 'scroll 일 때 몇 번 내릴지(최대 5)' },

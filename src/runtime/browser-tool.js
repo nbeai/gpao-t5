@@ -59,6 +59,15 @@ export function observationFacts(view) {
           : a.expanded !== undefined ? 'expander'
             : a.role === 'link' ? 'link' : 'button' }))
       .slice(0, 12),
+    // 누를 수 있는 것과 섞지 않는다. 다만 조용히 버리지도 않는다 — 경계도 다음 판단의 사실이다.
+    blockedOpen: (view?.blockedOpen ?? [])
+      .filter((a) => a.reason === 'external_link')
+      .map((a) => {
+        let address;
+        try { const u = new URL(a.address); address = `${u.origin}${u.pathname}`; } catch { address = undefined; }
+        return { ref: a.ref, text: a.text, reason: a.reason, ...(address ? { address } : {}) };
+      })
+      .slice(0, 12),
     // **글자를 칠 수 있는 칸.** 여기 없는 자리는 짚을 이름이 없고, 이름이 없으면 안 친다.
     // 종류를 함께 준다 — 모델이 보안 칸을 고르고 나서 거절당하는 왕복을 안 하게 한다.
     // **칸에 이미 들어 있는 값은 싣지 않는다**(화면을 읽는 것과 남의 입력을 퍼오는 것은 다르다).
@@ -67,6 +76,12 @@ export function observationFacts(view) {
       .filter((f) => f.kind !== 'gone')
       .slice(0, 12),
   };
+}
+
+function 경계링크말(facts) {
+  const links = (facts.blockedOpen ?? []).slice(0, 2);
+  if (!links.length) return '';
+  return ` 화면 밖 주소라 이 손으로는 열지 않는 링크: ${links.map((x) => `${x.text}[ref=${x.ref}] → ${x.address}`).join(' · ')}. 공개 원문 주소로 이어갈 수 있어요.`;
 }
 
 const NO_BROWSER = {
@@ -142,7 +157,7 @@ function toReceipt(view, { action, acted, profile }) {
       // 열렸다는 것과 읽었다는 것은 다르다. 내용이 없으면 없다고 말한다(본 척 금지).
       ? `화면은 열렸는데 글이 거의 없어요(${facts.seen?.chars ?? 0}자): ${facts.title ?? facts.url}.`
       : `화면으로 확인했어요: ${facts.title ?? facts.url}.`)
-      + 요청사실말(view?.networkRequests) + 칠수있는칸말(facts),
+      + 요청사실말(view?.networkRequests) + 칠수있는칸말(facts) + 경계링크말(facts),
     ...(facts.moreBelow
       ? { nextSafeAction: `${stopNote ? `${stopNote} ` : ''}화면 아래쪽이 남아 있어요 — 더 내리면 새로 불러오는 내용이 있을 수 있어요. 계속 볼까요?` }
       : (stopNote ? { nextSafeAction: stopNote } : {})),
@@ -253,6 +268,14 @@ export function makeBrowserActTool(deps = {}) {
       if (args.action === 'click') {
         const r = await browser.click(String(args.ref ?? ''));
         if (!r.clicked) {
+          if (r.reason === 'external_link' && r.boundary?.address) {
+            return {
+              blocked: true, fetchState: 'blocked',
+              result: { observation: { boundary: r.boundary } },
+              userSafeSummary: `그 링크는 현재 화면 밖 주소라 이 손으로 누르지 않았어요: ${r.boundary.address}.`,
+              nextSafeAction: `그 공개 원문 주소를 읽는 수단으로 이어갈 수 있어요: ${r.boundary.address}.`,
+            };
+          }
           // 못 누른 것은 **실패가 아니라 경계**다. 왜 안 되는지 사람 말로 말한다.
           return {
             blocked: true, fetchState: 'blocked',

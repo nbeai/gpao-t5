@@ -286,15 +286,22 @@ export function 엔터판정(f) {
  *     선빨강 기계 양성대조가 실측). 페이지 안 JS 의 부수효과까지는 이 술어가 보증하지
  *     않는다 — 그 미보장은 선등록 ㉳ 로 사실 등재됐다(경계 문장은 descriptor 가 진다).
  */
-export const 클릭가능술어 = `(e, origin) => {
-  if (e.tagName === 'A') return Boolean(e.href) && e.href.startsWith(origin);
+export const 클릭판정술어 = `(e, origin) => {
+  if (e.tagName === 'A') {
+    if (!e.href) return { 된다: false, 이유: 'no_destination' };
+    if (!e.href.startsWith(origin)) return { 된다: false, 이유: 'external_link', address: e.href };
+    return { 된다: true };
+  }
   const form = e.closest ? e.closest('form') : null;
   if (form) {
-    if (String(form.method || '').toLowerCase() === 'post') return false;
-    if (String(e.type || 'submit').toLowerCase() === 'submit') return false;
+    if (String(form.method || '').toLowerCase() === 'post') return { 된다: false, 이유: 'post_form' };
+    if (String(e.type || 'submit').toLowerCase() === 'submit') return { 된다: false, 이유: 'submit_control' };
   }
-  return true;
+  return { 된다: true };
 }`;
+
+/** 기존 소비자는 boolean을 받되, 수집·클릭은 위 판정 한 벌을 함께 쓴다. */
+export const 클릭가능술어 = `(e, origin) => (${클릭판정술어})(e, origin).된다 === true`;
 
 const OBSERVE_SCRIPT = `(() => {
   const vis = (e) => {
@@ -304,6 +311,7 @@ const OBSERVE_SCRIPT = `(() => {
   const label = (e) => (e.getAttribute('aria-label') || e.innerText || e.value || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
   const here = location.origin;
   const actionable = [];
+  const blockedOpen = [];
   let n = 0;
   for (const e of document.querySelectorAll('a,button,[role="tab"],[role="button"],[aria-expanded]')) {
     if (!vis(e)) continue;
@@ -311,10 +319,14 @@ const OBSERVE_SCRIPT = `(() => {
     if (!t) continue;
     const role = e.getAttribute('role') || (e.tagName === 'A' ? 'link' : e.tagName.toLowerCase());
     const href = e.tagName === 'A' ? e.href : undefined;
-    // 경계는 술어 한 벌이 진다 — 여기서 걸러진 것은 클릭 시점에도 같은 술어로 거절된다.
-    if (!(${클릭가능술어})(e, here)) continue;
     const ref = 'e' + (++n);
     e.setAttribute('data-t5-ref', ref);
+    // 배제도 **사실**이다. 조용히 버리면 모델은 막혔다는 것과 다음 주소를 모두 잃는다.
+    const 판정 = (${클릭판정술어})(e, here);
+    if (!판정.된다) {
+      if (판정.이유 === 'external_link') blockedOpen.push({ ref, role, text: t, reason: 판정.이유, address: 판정.address });
+      continue;
+    }
     actionable.push({ ref, role, text: t, expanded: e.getAttribute('aria-expanded') ?? undefined, href });
     if (actionable.length >= 40) break;
   }
@@ -336,7 +348,7 @@ const OBSERVE_SCRIPT = `(() => {
   }
   const de = document.scrollingElement || document.documentElement;
   return {
-    글자칸,
+    글자칸, blockedOpen,
     title: document.title,
     url: location.href,
     // **텍스트는 화면에 보이는 만큼이 아니라 지금 DOM 에 있는 전부다**(innerText 의 성질).
@@ -653,17 +665,29 @@ export function makeBrowser(deps = {}) {
         ok = await evaluate(`(() => {
           const el = document.querySelector('[data-t5-ref=${JSON.stringify(ref)}]');
           if (!el) return 'gone';
-          if (!(${클릭가능술어})(el, location.origin)) return 'not_clickable';
-          el.click();
-          return 'ok';
-        })()`);
+        const 판정 = (${클릭판정술어})(el, location.origin);
+        if (!판정.된다) return 판정;
+        el.click();
+        return { 된다: true };
+      })()`);
       } finally {
         // 실패 갈래는 아래에서 즉시 끝난다. 성공 갈래는 정착 창 동안 계속 수집해야 하므로
         // 여기서는 listener 를 두고, 재관찰 뒤에 해제한다.
-        if (ok !== 'ok') stop?.();
+        if (ok?.된다 !== true) stop?.();
       }
       if (ok === 'gone') return { clicked: false, reason: 'gone' };
-      if (ok === 'not_clickable') return { clicked: false, reason: 'not_clickable' };
+      if (ok?.된다 === false) {
+        const address = ok.address
+          ? 네트워크요청사실({ request: { method: 'GET', url: ok.address } })?.address
+          : undefined;
+        return {
+          clicked: false, reason: ok.이유 ?? 'not_clickable',
+          boundary: {
+            reason: ok.이유 ?? 'not_clickable', ...(address ? { address } : {}),
+            ...(address ? { next: { kind: 'public_web_source', address } } : {}),
+          },
+        };
+      }
       try {
         await sleep(1200); // 탭 전환·펼침·링크 이동에 시간을 준다(고정 대기 — 남은 칸 ④)
         const view = await evaluate(OBSERVE_SCRIPT);

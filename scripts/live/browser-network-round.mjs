@@ -127,12 +127,13 @@ async function main() {
       blocked: e.result?.blocked === true,
       failureState: e.failureState ?? 'none',
       networkRequests: 요청사실(e),
+      boundary: e.result?.observation?.boundary ?? null,
     }));
     const answer = String(result.result?.reply ?? result.reply ?? '');
     const clickRequests = hands.filter((h) => h.tool === 'browser.act' && h.args?.action === 'click').flatMap((h) => h.networkRequests);
     // observe·act 는 도구 둘이지만 §1-0 의 **브라우저 손 하나**다. 도구 수를 손 수로 부풀리지 않는다.
     const uniqueWebHands = [...new Set(hands.map((h) => 웹손가족(h.tool)).filter(Boolean))];
-    const blockedIndex = hands.findIndex((h) => h.blocked || h.failureState === 'blocked');
+    const blockedIndex = hands.findIndex((h) => h.blocked && h.boundary?.reason === 'external_link');
     const blockedFamily = blockedIndex >= 0 ? 웹손가족(hands[blockedIndex].tool) : undefined;
     const switchedAfterBlock = blockedIndex >= 0 && hands.slice(blockedIndex + 1)
       .some((h) => 웹손가족(h.tool) && 웹손가족(h.tool) !== blockedFamily);

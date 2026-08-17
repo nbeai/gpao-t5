@@ -8,10 +8,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { 클릭가능술어 } from '../src/runtime/browser.js';
+import { 클릭가능술어, 클릭판정술어 } from '../src/runtime/browser.js';
 import { observationFacts, makeBrowserActTool } from '../src/runtime/browser-tool.js';
 
 const 술어 = new Function(`return (${클릭가능술어})`)();
+const 판정술어 = new Function(`return (${클릭판정술어})`)();
 const ORIGIN = 'http://127.0.0.1:9999';
 
 /** 가짜 요소 — 술어가 읽는 면만 만든다(DOM 불필요 · 의존성 0 유지). */
@@ -24,6 +25,12 @@ test('술어: 같은 사이트 링크는 누른다 · 바깥 링크는 안 누�
   assert.equal(술어(요소({ tag: 'A', href: `${ORIGIN}/자세히` }), ORIGIN), true);
   assert.equal(술어(요소({ tag: 'A', href: 'https://example.com/소식' }), ORIGIN), false);
   assert.equal(술어(요소({ tag: 'A', href: undefined }), ORIGIN), false);
+});
+
+test('외부 링크 배제는 사라지지 않고 이유·주소 사실이 된다', () => {
+  assert.deepEqual(판정술어(요소({ tag: 'A', href: 'https://example.com/소식?token=숨김' }), ORIGIN), {
+    된다: false, 이유: 'external_link', address: 'https://example.com/소식?token=숨김',
+  });
 });
 
 test('술어: 폼 밖 버튼은 type 미지정이어도 누른다 — 옛 필터의 과잉 배제 자리(선빨강 실측)', () => {
@@ -61,6 +68,29 @@ test('전달: canOpen 이 링크·버튼을 버리지 않고 kind 와 함께 싣
   assert.equal(kinds.e3, 'link');
   assert.equal(kinds.e4, 'expander');
   assert.equal(facts.canOpen.length, 12, '상한 12 는 이 슬라이스에서 안 바꾼다(슬라이스 ② 몫)');
+});
+
+test('전달: 외부 링크는 canOpen과 분리된 blockedOpen 사실로 실린다', () => {
+  const facts = observationFacts({
+    url: `${ORIGIN}/`, title: '판', text: '본문'.repeat(200), textTotal: 400,
+    scroll: { y: 0, viewport: 100, total: 100 }, actionable: [],
+    blockedOpen: [{ ref: 'e9', role: 'link', text: '다른 출처', reason: 'external_link', address: 'https://example.com/소식?token=숨김' }],
+  });
+  assert.deepEqual(facts.blockedOpen, [{ ref: 'e9', text: '다른 출처', reason: 'external_link', address: 'https://example.com/%EC%86%8C%EC%8B%9D' }]);
+});
+
+test('경계 영수증: 외부 링크는 이동 0 + 이유·주소·다음 수단 사실을 낸다', async () => {
+  const act = makeBrowserActTool({ browser: {
+    click: async () => ({ clicked: false, reason: 'external_link', boundary: {
+      reason: 'external_link', address: 'https://example.com/소식',
+      next: { kind: 'public_web_source', address: 'https://example.com/소식' },
+    } }),
+    profileKind: () => 'isolated',
+  } });
+  const r = await act.handler({ action: 'click', ref: 'e9' });
+  assert.equal(r.blocked, true);
+  assert.deepEqual(r.result.observation.boundary.next, { kind: 'public_web_source', address: 'https://example.com/소식' });
+  assert.match(r.nextSafeAction, /공개 원문 주소/);
 });
 
 test('경계말: 술어가 거절한 클릭은 경계로 말한다 — 실패가 아니다', async () => {
