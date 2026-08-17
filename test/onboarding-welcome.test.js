@@ -8,7 +8,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OnboardingStore, onboardingNeeded } from '../src/surface/onboarding-store.js';
-import { buildWelcomeContext, makeWelcome, NOT_CONNECTED_NOTICE } from '../src/surface/welcome.js';
+import { buildWelcomeContext, makeWelcome, NOT_CONNECTED_NOTICE, MODEL_CHECKING_NOTICE } from '../src/surface/welcome.js';
 import { makeModelConnection, ModelConnectionStore, CERTAINLY_INVALID } from '../src/surface/model-connection.js';
 import { buildSelfState } from '../src/kernel/l0-evidence/self-state.js';
 import { demoEnv } from '../src/surface/demo-context.js';
@@ -89,19 +89,44 @@ test('buildWelcomeContext: 규격만 지시하고 문장은 모델에 맡긴다(
   assert.deepEqual(tc.authorityFacts.needsApproval, []);     // 인사는 실행이 아니다
 });
 
-test('makeWelcome: 연결됐으면 모델이 만든 문장을 쓰고, 미연결이면 인사를 지어내지 않는다', async () => {
-  const selfState = buildSelfState(demoEnv());
+test('makeWelcome: modelReady 정본만 보고 인사 모델 호출 여부를 결정한다', async () => {
+  const selfState = buildSelfState({
+    ...demoEnv(), model: { id: 'usable-model', authSignal: 'ok', healthState: 'usable' },
+  });
   let asked = null;
   const model = { respond: async (tc) => { asked = tc; return '안녕하세요, 무엇부터 도와드릴까요?'; } };
-  const ok = await makeWelcome({ model, selfState, connected: true });
+  const ok = await makeWelcome({ model, selfState, connected: false }); // 옛 이중 판정 인자는 결과를 바꾸지 못한다.
   assert.equal(ok.state, 'greeted');
   assert.equal(ok.text, '안녕하세요, 무엇부터 도와드릴까요?');
   assert.ok(asked.currentRequest.length, '모델에게 규격을 넘겼다');
 
-  const none = await makeWelcome({ model: { respond: async () => '지어낸 인사' }, selfState, connected: false });
+  let stubCalls = 0;
+  const stubState = buildSelfState(demoEnv());
+  const none = await makeWelcome({
+    model: { respond: async () => { stubCalls += 1; return '지어낸 인사'; } },
+    selfState: stubState, connected: true,
+  });
   assert.equal(none.state, 'not_connected');
   assert.equal(none.text, undefined);
   assert.equal(none.userSafeSummary, NOT_CONNECTED_NOTICE.userSafeSummary);
+  assert.equal(stubCalls, 0, 'stub/modelReady false인데 인사를 만들러 달라고 모델을 불렀다');
+});
+
+test('makeWelcome: unverified를 미연결이라 하지 않고 호출 길은 남겨 둔다', async () => {
+  let calls = 0;
+  const unverified = buildSelfState({
+    ...demoEnv(), model: { id: 'configured-model', authSignal: 'ok' },
+  });
+  const r = await makeWelcome({
+    model: { respond: async () => { calls += 1; return '지어낸 인사'; } },
+    selfState: unverified, connected: false,
+  });
+  assert.equal(r.state, 'not_ready');
+  assert.equal(r.userSafeSummary, MODEL_CHECKING_NOTICE.userSafeSummary);
+  assert.match(r.userSafeSummary, /연결은 구성/);
+  assert.doesNotMatch(r.userSafeSummary, /연결되지 않/);
+  assert.match(r.nextSafeAction, /요청은 그대로 시도/);
+  assert.equal(calls, 0, '첫 인사로 readiness를 시험하지는 않는다');
 });
 
 // ── 서버 표면 ─────────────────────────────────────────────────────────────

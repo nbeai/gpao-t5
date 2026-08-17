@@ -784,6 +784,8 @@ export function buildTaskContext(p) {
   const selfStateFacts = {
     model: summary.model,
     modelAuthState: summary.modelAuthState,
+    modelStatus: summary.modelStatus,
+    modelReady: summary.modelReady,
     // ── **F-115 · 발화 분류는 사실 공급의 열쇠가 아니다**(오너 지시 2026-08-14) ──────
     //
     // 여기 있던 것은 Phase 2-2 「다이어트」였다: `answerMode === 'fast_chat'` 이면 능력

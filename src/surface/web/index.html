@@ -1740,18 +1740,21 @@ async function selectSession(id) {
 
 function renderSelfState(s) {
   if (!s) return;
-  // P-RT-2 감사 B1: 자격이 usable 이어도 doctor 가 model_missing/unreachable 을 보고했으면
-  // "준비됨"이라 말하지 않는다(보이는 것=되는 것).
-  const healthIssue = s.modelHealthState === 'model_missing' || s.modelHealthState === 'unreachable';
-  const label = s.modelAuthState !== 'usable' ? s.modelAuthState : (healthIssue ? '모델 확인 필요' : '준비됨');
-  const warn = s.modelAuthState !== 'usable' || healthIssue || (s.limits && s.limits.length);
+  // auth·health·id 합성은 커널의 modelStatus 한 곳이 소유한다. 화면은 다시 판정하지 않는다.
+  const modelStatus = s.modelStatus ?? 'unverified';
+  const label = modelStatus === 'usable' ? '준비됨'
+    : modelStatus === 'stub' ? '연결 필요'
+      : modelStatus === 'unverified' ? '모델 확인 중…'
+        : (modelStatus === 'model_missing' || modelStatus === 'unreachable') ? '모델 확인 필요'
+          : modelStatus;
+  const warn = modelStatus !== 'usable' || (s.limits && s.limits.length);
   chip.textContent = label;
   chip.classList.toggle('warn', !!warn);
   modelinfo.textContent = `${s.model} · ${label}`;
   let self = document.getElementById('stateSelf');
   if (!self) { self = document.createElement('div'); self.id = 'stateSelf'; statePanel.prepend(self); }
   self.textContent = [
-    `모델: ${s.model} (${s.modelAuthState})`,
+    `모델: ${s.model} (${modelStatus})`,
     `바로 쓰는 연결: ${s.ready.length ? s.ready.join(', ') : '없음'}`,   // 라벨만(내부 id 비노출)
     s.limits && s.limits.length ? `막힌 것: ${s.limits.join(' · ')}` : null,
     s.nextSafeAction ? `다음: ${s.nextSafeAction}` : null,
@@ -2551,8 +2554,6 @@ async function maybeRunOnboarding() {
 async function maybeWelcome(sessionId) {
   const ob = await (await fetch('/onboarding')).json().catch(() => null);
   if (!ob || ob.seenWelcome) return;
-  const conn = await (await fetch('/model/connection')).json().catch(() => null);
-  if (!conn?.connected) return; // 인사를 지어내지 않는다(fail-closed)
   const r = await (await fetch('/welcome', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId }),
   })).json().catch(() => null);

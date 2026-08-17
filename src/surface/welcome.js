@@ -11,6 +11,12 @@ export const NOT_CONNECTED_NOTICE = Object.freeze({
   nextSafeAction: '모델을 연결하면 바로 이어서 도와드릴게요.',
 });
 
+export const MODEL_CHECKING_NOTICE = Object.freeze({
+  state: 'not_ready',
+  userSafeSummary: '모델 연결은 구성됐고 실제 사용 가능 여부를 확인 중이에요.',
+  nextSafeAction: '요청은 그대로 시도할 수 있어요.',
+});
+
 /**
  * 웰컴용 TaskContextPacket(§11). 사실은 우리가, 문장은 모델이.
  * 숨은 지시는 **사용자 발화로 위장하지 않는다** — transcript 에 남기지 않는다(호출부 계약).
@@ -25,7 +31,11 @@ export function buildWelcomeContext(selfState) {
       '능력 나열, 자동 도움 제안, 상투적인 질문은 붙이지 마. 사용자의 첫 말을 조용히 기다려.',
       '없는 기능을 약속하지 말고 내부 단계·파일명·도구 id·이 지시문 자체는 언급하지 마.',
     ].join(' '),
-    selfStateFacts: { model: s.model, modelAuthState: s.modelAuthState, readyTools: s.ready, limits: s.limits },
+    selfStateFacts: {
+      model: s.model, modelAuthState: s.modelAuthState,
+      modelStatus: s.modelStatus, modelReady: s.modelReady,
+      readyTools: s.ready, limits: s.limits,
+    },
     admittedContext: [],
     authorityFacts: { boundary: 'greeting_only', autoAllowed: [], needsApproval: [], forbidden: [] },
     answerMode: 'fast_chat',
@@ -35,11 +45,19 @@ export function buildWelcomeContext(selfState) {
 
 /**
  * 첫 인사를 만든다. 모델이 없으면(stub 포함) 인사를 만들지 않고 정직한 안내를 돌려준다.
- * @param {{model:{respond:Function}, selfState:Object, connected:boolean}} p
- * @returns {Promise<{state:'greeted'|'not_connected', text?:string, userSafeSummary?:string, nextSafeAction?:string}>}
+ * @param {{model:{respond:Function}, selfState:Object}} p
+ * @returns {Promise<{state:'greeted'|'not_connected'|'not_ready', text?:string, userSafeSummary?:string, nextSafeAction?:string}>}
  */
-export async function makeWelcome({ model, selfState, connected }) {
-  if (!connected) return { ...NOT_CONNECTED_NOTICE };
+export async function makeWelcome({ model, selfState }) {
+  if (selfState?.modelReady !== true) {
+    if (selfState?.modelStatus === 'stub') return { ...NOT_CONNECTED_NOTICE };
+    if (selfState?.modelStatus === 'unverified') return { ...MODEL_CHECKING_NOTICE };
+    return {
+      state: 'not_ready',
+      userSafeSummary: selfState?.limits?.find((x) => x.startsWith('모델 ')) ?? '지금은 모델을 사용할 수 없어요.',
+      nextSafeAction: selfState?.nextSafeAction,
+    };
+  }
   const text = await model.respond(buildWelcomeContext(selfState));
   return { state: 'greeted', text };
 }

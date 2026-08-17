@@ -8,6 +8,11 @@
  */
 
 /**
+ * @typedef {'usable'|'stub'|'unverified'|'model_missing'|'unreachable'|'billing_blocked'|'rate_limited'|'auth_failed'} ModelStatus
+ * auth·health·model id를 합친 실제 준비 상태. usable은 검증된 한 칸뿐이다.
+ */
+
+/**
  * @typedef {'usable'|'needs_auth'|'needs_config'|'needs_connection'|'blocked'} ToolStatus
  * Phase 5.1(§6): 실행 가능성 세분화. "왜 못 쓰는지"를 담는다. executable은 status===usable의 파생.
  */
@@ -25,6 +30,8 @@
  * @typedef {Object} SelfStateSnapshot   §6 Operational Selfhood 계약
  * @property {{id:string, strengths?:string, limits?:string}} currentModel
  * @property {ModelAuthState} modelAuthState
+ * @property {ModelStatus} modelStatus
+ * @property {boolean} modelReady          `modelStatus === 'usable'`의 파생
  * @property {ConnectedTool[]} connectedTools
  * @property {string[]} grantedAuthorities
  * @property {string[]} [riskyActions]

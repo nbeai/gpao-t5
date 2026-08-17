@@ -51,6 +51,8 @@ export function buildCapabilityFacts(selfState) {
       limits: selfState.limits ?? [],
       authState: selfState.modelAuthState,
       healthState: selfState.modelHealthState,
+      status: selfState.modelStatus,
+      ready: selfState.modelReady,
     },
     ready: ready.map((t) => ({
       label: t.label ?? t.id,

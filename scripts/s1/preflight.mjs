@@ -408,6 +408,9 @@ export const 허용파일 = [
   'src/kernel/l2-plan/tool-descriptor.js',
   // 그 축을 selfState 가 나른다 — 안 나르면 커널이 비교할 재료를 못 받는다.
   'src/kernel/l0-evidence/self-state.js',
+  // P0 모델 상태 진실: auth·health·id 결합 정본을 능력 사실과 첫 인사에도 같이 쓴다.
+  'src/kernel/capabilities.js',
+  'src/surface/welcome.js',
   // **동사의 사용자 말과 손별 한계가 모델에게 가는 자리**(칸 1 · 2026-08-11).
   // `toolCapabilityLine` 이 enum 에서 동사 목록을 생성하고(손을 빼면 말도 빠진다),
   // `scopedLimitLines` 가 선언된 `limits` 를 **손·동사와 함께** 낸다 — 지금까지 실행

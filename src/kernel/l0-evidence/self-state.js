@@ -26,6 +26,21 @@ export function classifyModelAuth(signal) {
   return AUTH_STATE.USABLE;
 }
 
+const 모델자격불능 = new Set([
+  AUTH_STATE.BILLING_BLOCKED, AUTH_STATE.RATE_LIMITED, AUTH_STATE.AUTH_FAILED,
+]);
+
+/** auth 원자료는 보존하고, health·id와 합친 readiness를 한 곳에서만 만든다. */
+export function deriveModelStatus({ modelId, authState, healthState } = {}) {
+  if (모델자격불능.has(authState)) return authState;
+  if (모델자격불능.has(healthState)) return healthState;
+  if (modelId === 'beai5-stub' || healthState === 'stub') return 'stub';
+  if (healthState === 'model_missing') return 'model_missing';
+  if (healthState === 'unreachable') return 'unreachable';
+  if (healthState === 'usable') return 'usable';
+  return 'unverified';
+}
+
 /**
  * 자격 상태에 맞는 다음 안전 행동 문구(막다른 답 금지).
  * @param {import('../contracts.js').ModelAuthState} state
@@ -40,6 +55,18 @@ function nextActionForAuth(state) {
       return '모델 연결이 풀렸어요. 다시 연결하면 이어갈 수 있어요.';
     default:
       return undefined;
+  }
+}
+
+function nextActionForModelStatus(status) {
+  const auth = nextActionForAuth(status);
+  if (auth) return auth;
+  switch (status) {
+    case 'stub': return '모델을 연결하면 바로 이어서 도와드릴게요.';
+    case 'unverified': return '모델 상태를 확인 중이에요. 요청은 그대로 시도할 수 있어요.';
+    case 'model_missing': return '사용할 모델을 다시 고르면 이어서 할 수 있어요.';
+    case 'unreachable': return '연결은 보존했어요. 잠시 후 다시 확인하거나 다른 모델로 이어갈 수 있어요.';
+    default: return undefined;
   }
 }
 
@@ -115,6 +142,9 @@ export function reasonLabel(reason) {
 export function buildSelfState(env, deps = {}) {
   const model = env.model ?? { id: 'unknown' };
   const modelAuthState = classifyModelAuth(model.authSignal);
+  const modelHealthState = model.healthState;
+  const modelStatus = deriveModelStatus({ modelId: model.id, authState: modelAuthState, healthState: modelHealthState });
+  const modelReady = modelStatus === 'usable';
   // P5-B-0: **손이 있는지는 도구 레지스트리가 안다.** env 가 따로 관리하면 두 진실이 되고,
   // 어긋난 쪽이 모델에게 노출된다(demo 에서 `local.terminal` 등 셋이 실제로 그랬다).
   // 레지스트리를 받으면 그것이 진실이고, 없으면 env 가 실어 보낸 `hasHandler` 를 쓴다.
@@ -169,17 +199,11 @@ export function buildSelfState(env, deps = {}) {
   });
 
   const limits = [];
-  if (modelAuthState !== AUTH_STATE.USABLE) {
-    limits.push(`모델 상태: ${modelAuthState}`);
-  }
-  // P-RT-2 감사 B1: 자격(auth)과 별도의 모델 readiness 축. doctor 가 env.model.healthState 로 싣는다.
-  // model_missing/unreachable 인데 "준비됨"으로 보이면 T3 "보이는 것≠되는 것" 재발 — 한계로 정직 표시.
-  const modelHealthState = model.healthState;
-  if (modelAuthState === AUTH_STATE.USABLE && modelHealthState === 'model_missing') {
-    limits.push('모델 확인 필요: 설정된 모델을 지금 쓸 수 없어요');
-  } else if (modelAuthState === AUTH_STATE.USABLE && modelHealthState === 'unreachable') {
-    limits.push('모델 확인 필요: 모델 서비스에 연결이 안 돼요');
-  }
+  if (modelStatus === 'stub') limits.push('모델 연결 필요: 지금은 내장 안내 모드예요');
+  else if (modelStatus === 'unverified') limits.push('모델 확인 중: 연결은 구성됐지만 실제 사용 가능 여부는 아직 미확인이에요');
+  else if (modelStatus === 'model_missing') limits.push('모델 확인 필요: 설정된 모델을 지금 쓸 수 없어요');
+  else if (modelStatus === 'unreachable') limits.push('모델 확인 필요: 모델 서비스에 연결이 안 돼요');
+  else if (modelStatus !== 'usable') limits.push(`모델 상태: ${modelStatus}`);
   for (const t of connectedTools) {
     // 목록에 있으나 실행 불가한 도구는 한계로 정직하게 표시한다(헌법 §3-3).
     // P5-B-0: **왜 못 쓰는지를 이유에서 말한다.** 예전엔 연결 여부만 보고 "연결하면 가능"이라
@@ -192,6 +216,8 @@ export function buildSelfState(env, deps = {}) {
     currentModel: { id: model.id, strengths: model.strengths, limits: model.limits },
     modelAuthState,
     modelHealthState, // 검증 축(P-RT-2): usable|model_missing|unreachable|… / 미검증이면 undefined
+    modelStatus,
+    modelReady,
     connectedTools,
     grantedAuthorities: env.grantedAuthorities ?? [],
     // 지금 **실행 가능한 손** 가운데 확인이 필요한 것만. 연결도 안 된 손을 위험 목록에
@@ -200,7 +226,7 @@ export function buildSelfState(env, deps = {}) {
       .filter((t) => t.executable && t.needsApproval)
       .map((t) => t.label ?? t.id),
     limits,
-    nextSafeAction: nextActionForAuth(modelAuthState),
+    nextSafeAction: nextActionForModelStatus(modelStatus),
   };
 }
 
@@ -223,6 +249,8 @@ export function selfStateSummary(selfState) {
     model: selfState.currentModel.id,
     modelAuthState: selfState.modelAuthState,
     modelHealthState: selfState.modelHealthState, // 칩이 "준비됨" 대신 "모델 확인 필요"를 고를 근거
+    modelStatus: selfState.modelStatus,
+    modelReady: selfState.modelReady,
     // 사용자면에는 내부 도구 id 대신 라벨만 노출한다(안티 대시보드, 감사 지적).
     ready: selfState.connectedTools.filter((t) => t.executable).map((t) => t.label ?? t.id),
     // 모델 입력용: 라벨 + 실제로 하는 일 한 줄. 화면 칩은 위 ready(라벨만)를 그대로 쓴다.

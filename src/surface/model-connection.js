@@ -282,6 +282,15 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     };
   }
 
+  /** health 결과가 어느 default 연결 세대의 것인지 묶는다. 비밀 값은 들어가지 않는다. */
+  function defaultGeneration() {
+    const s = selectionFor(DEFAULT_ROLE);
+    return JSON.stringify([
+      s.resolution, s.connectionInstanceId, s.credentialRef,
+      s.providerId, s.endpointOrigin, s.requestModelId,
+    ]);
+  }
+
   /** 검증 통과분을 목록에 넣고(같은 조합이면 갱신) 기본으로 세운다. */
   async function upsertAndActivate(rec) {
     rec.id = connectionId(rec);
@@ -299,8 +308,14 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
   }
 
   // 검증 결과를 env.model(SelfState 단일 진실)에 반영하고 공개용으로 위생 처리(P-RT-2 계약 이관).
-  function reflect(report) {
+  function reflect(report, expectedGeneration = defaultGeneration()) {
     const { authSignal, ...publicReport } = report;
+    if (expectedGeneration !== defaultGeneration()) {
+      return {
+        state: 'unverified', modelId: env.model?.id ?? null,
+        userSafeSummary: '새로 고른 모델을 확인 중이에요.',
+      };
+    }
     if (['auth_failed', 'billing_blocked', 'rate_limited'].includes(report.state)) {
       env.model.authSignal = authSignal;
     } else if (report.state === 'usable') {
@@ -308,6 +323,17 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     }
     env.model.healthState = report.state;
     return publicReport;
+  }
+
+  /** 실제 default provider 응답은 같은 세대의 readiness를 usable로 올린다. stub은 제외한다. */
+  async function respondForRole(role, tc, opts = {}) {
+    const selection = selectionFor(role);
+    const generation = role === DEFAULT_ROLE ? defaultGeneration() : null;
+    const out = await clientForRole(role).respond(tc, opts);
+    if (role === DEFAULT_ROLE && selection.resolution !== 'stub') {
+      reflect({ state: 'usable', modelId: selection.requestModelId, userSafeSummary: '지금 바로 쓸 수 있어요.' }, generation);
+    }
+    return out;
   }
 
   function publicConnection(rec) {
@@ -327,7 +353,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
   return {
     /** ModelClient — 기본 역할로 위임(핫스왑). 서버가 withModelTimeout 으로 감싼다. */
     // opts(P-STR-1 onDelta 등)를 그대로 통과시킨다 — 위임 래퍼가 인자를 삼키면 스트리밍이 죽는다.
-    model: { respond: (tc, opts) => clientForRole(DEFAULT_ROLE).respond(tc, opts) },
+    model: { respond: (tc, opts) => respondForRole(DEFAULT_ROLE, tc, opts) },
 
     /** 역할별 ModelClient — 에이전트·자동화가 생기면 role 만 넘기면 된다(커널 변경 없이 확장). */
     modelFor(role) {
@@ -337,13 +363,12 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
          * @param {{onCallIdentity?:(idn:object)=>void}} [opts] 성장(replay)은 이걸로 신분을 받는다.
          */
         async respond(tc, opts = {}) {
-          if (typeof opts.onCallIdentity !== 'function') return clientForRole(role).respond(tc, opts);
+          if (typeof opts.onCallIdentity !== 'function') return respondForRole(role, tc, opts);
           // 선택은 **호출 시점**에 읽는다(핫스왑 뒤에도 실제로 쓰인 연결이 남게).
           const selection = selectionFor(role);
           const startedAt = Date.now();
           let 실제 = null;
-          const out = await clientForRole(role)
-            .respond(tc, { ...opts, onCallIdentity: (f) => { 실제 = f; } });
+          const out = await respondForRole(role, tc, { ...opts, onCallIdentity: (f) => { 실제 = f; } });
           // 어댑터가 사실을 내지 않았으면(스텁·스트리밍) 지어내지 않는다 — 빈 신분은
           // §4.4 검증에서 그대로 떨어진다.
           opts.onCallIdentity({
@@ -463,7 +488,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
         kind: 'api_key', provider: cfg.provider, key: cfg.token,
         modelId: cfg.modelId, baseUrl: cfg.baseUrl, addedAt: Date.now(),
       });
-      const publicReport = reflect(report);
+      const publicReport = reflect(report, defaultGeneration());
       return {
         connected: true,
         verified: report.state === 'usable', // 저장됐다≠검증됐다
@@ -542,24 +567,25 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
 
     /** 활성 구성 재검증(P-RT-2 doctor 승계 — 두 축 반영 + 공개면 위생). */
     async doctor() {
+      const generation = defaultGeneration();
       const rec = activeConn();
       if (rec?.kind === 'chatgpt_oauth') {
         // 계정 연결엔 모델 목록 endpoint 가 없다 — refresh 성공 여부로 검증한다(과금 0 유지).
         try {
           await credentialsFor(rec)();
-          return reflect({ provider: 'chatgpt_oauth', modelId: rec.modelId, state: 'usable', userSafeSummary: '지금 바로 쓸 수 있어요.' });
+          return reflect({ provider: 'chatgpt_oauth', modelId: rec.modelId, state: 'usable', userSafeSummary: '지금 바로 쓸 수 있어요.' }, generation);
         } catch (e) {
           return reflect({
             provider: 'chatgpt_oauth', modelId: rec.modelId, state: 'auth_failed',
             authSignal: e?.authSignal ?? 'auth_failed refresh',
             userSafeSummary: 'ChatGPT 계정 연결이 만료됐어요.',
             nextSafeAction: '다시 로그인하면 이어서 쓸 수 있어요.',
-          });
+          }, generation);
         }
       }
       const cfg = rec ? configOf(rec) : envCfg;
-      if (!cfg) return describeUnprobedModel(env.model);
-      return reflect(await checkConfigHealth(cfg, { fetchImpl, timeoutMs: 진단시간 }));
+      if (!cfg) return reflect(describeUnprobedModel(env.model), generation);
+      return reflect(await checkConfigHealth(cfg, { fetchImpl, timeoutMs: 진단시간 }), generation);
     },
 
     /** 지금 연결된 provider id — 모델 계열별 **운영 보정**을 고르는 데만 쓴다(정체성 불변). */

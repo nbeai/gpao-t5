@@ -118,7 +118,8 @@ test('칩 매핑: index.html 이 model_missing/unreachable 을 "모델 확인 �
   const { readFile } = await import('node:fs/promises');
   const html = await readFile(new URL('../src/surface/web/index.html', import.meta.url), 'utf8');
   assert.ok(html.includes('모델 확인 필요'), '칩 문구 존재');
-  assert.ok(html.includes('modelHealthState'), '칩이 검증 축을 실제로 읽는다');
+  assert.ok(html.includes('modelStatus'), '칩이 auth·health·id 결합 정본을 실제로 읽는다');
+  assert.ok(!html.includes('const healthIssue = s.modelHealthState'), '화면이 health를 다시 합성한다');
 });
 
 test('초기 화면은 stub 를 준비됨으로 꾸미지 않고 저장된 연결 사실을 즉시 갱신한다', async () => {
