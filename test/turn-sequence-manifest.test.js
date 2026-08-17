@@ -15,6 +15,17 @@
 // **정리 중 이 파일을 고쳐서 통과시키면 안 된다.** 순서가 바뀌었다면 그것이 회귀다.
 // 의도한 변경이라면 왜 바뀌어야 하는지를 먼저 적고 별도 커밋으로 바꾼다
 // (원장 forbiddenFixes: "호출 순서 기반 기존 시험을 수정해 회귀 은폐").
+// ── **손이 하나 늘었다: `telegram.inbox`**(2026-08-17 · 국면 4 슬라이스 1) ────
+// `tools=12` → `tools=13`. **왕복은 이번에도 안 늘었다** — 이 검사가 지키는 것은 그쪽이다.
+// 값을 치르는 근거(불변식 B — 코어 도구 하나는 매 API 콜 비용): 채널 손이 **전부 보내는
+// 쪽**이었다(telegram.send · slack.post · mail.send). 받은 것을 꺼내 보는 손이 0개라
+// "텔레그램으로 뭐 왔어?" 가 **끝날 자리가 없었다** — state-probe channel-inbox 가
+// 「훑은 파일 66 · 조회 손 검색어 다섯 0건 · 걸린 1건은 양성대조 telegram.send 뿐」으로
+// 그 부재를 기계로 세워 뒀다. `session.search` 가 밟은 그 병이다: 가진 것을 못 쓰면 없는 것과
+// 같고, 여기는 가진 것조차 없었다.
+// 이 손은 읽기(read)라 승인 카드가 없고, 설명문에 발동 조건을 안 박았다(유도 · session.search
+// 규율). 모델이 안 부르면 그 경로는 통째로 안 돈다. 검사: test/channel-inbox-hand.test.js.
+//
 // ── **손이 또 하나 늘었다: `ask.user`**(2026-08-05 · S8 ④) ──────────────────
 // `tools=11` → `tools=12`. **왕복은 이번에도 안 늘었다.**
 // 값을 치르는 근거: 지금까지 **커널이 자기 문장으로 되물었다**(`turn.js` 세 자리).
@@ -70,7 +81,7 @@ test('순서 동결 ①: 대화만 하는 턴은 계획 1 + 최종 답 1', async
   const r = await runTurn({ text: '요즘 가게가 너무 힘들다' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=12]',
+    'model[-|tools=13]',
     'model[answerOnly|tools=0]',
   ], '대화 턴의 모델 왕복이 바뀌었다 — 늘었다면 사용자는 그만큼 더 기다린다');
 });
@@ -88,10 +99,10 @@ test('순서 동결 ②: 도구 한 걸음 턴은 모델 4회 · 도구 1회', a
   const r = await runTurn({ text: '정산.csv 읽고 알려줘' }, ctx);
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
-    'model[-|tools=12]',
+    'model[-|tools=13]',
     'model[workContractAssessment|tools=1|req]',
     'tool[local.file]',
-    'model[-|tools=12]',
+    'model[-|tools=13]',
     'model[answerOnly|tools=0]',
   ], '도구 턴의 호출 순서가 바뀌었다');
 });
@@ -108,7 +119,7 @@ test('순서 동결 ③: 승인 카드 턴은 모델 2회 · 도구 실행 0회'
   const r = await runTurn({ text: '임시폴더 지워줘' }, ctx);
   assert.equal(r.kind, 'approval', '되돌릴 수 없는 명령은 헌장 ② 라 승인 경계다');
   assert.deepEqual(순서, [
-    'model[-|tools=12]',
+    'model[-|tools=13]',
     'model[workContractAssessment|tools=1|req]',
   ], '승인 전에 실행이 끼어들었거나 모델 왕복이 바뀌었다');
   assert.ok(!순서.includes('tool[local.terminal]'), '승인 전 효과 0 — 카드 턴에서 손이 움직였다');
@@ -135,7 +146,7 @@ test('순서 동결 ④: 승인 재개는 실행 먼저, 그다음 모델 2회',
   assert.equal(r.kind, 'reply');
   assert.deepEqual(순서, [
     'tool[local.terminal]',
-    'model[-|tools=12]',
+    'model[-|tools=13]',
   ], '승인 재개의 호출 순서가 바뀌었다 — 실행이 뒤로 가면 사용자는 허락한 일을 다시 기다린다');
 });
 

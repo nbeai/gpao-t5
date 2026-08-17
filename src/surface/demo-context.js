@@ -1224,6 +1224,25 @@ const DESCRIPTORS = [
         required: ['text'],
       },
     } }),
+  // 국면 4 · **받는 쪽 손.** 여기 위의 셋은 전부 보내는 손이었고 받은 것을 꺼내 보는 손이
+  // 하나도 없었다 — 그래서 "텔레그램으로 뭐 왔어?" 가 끝날 자리가 없었다.
+  // 설명문은 `session.search` 규율을 그대로 쓴다: **무엇을 돌려주는지**와 **경계**를 적고
+  // 「언제 부르라」는 안 적는다. 발동 조건을 박으면 "연락 온 거 있어?"·"누가 뭐래?" 를 놓친다.
+  defineTool({ id: 'telegram.inbox', label: '텔레그램 받은 것', owner: 'channel', connector: 'telegram',
+    availability: [{ kind: 'connected' }], toolKind: 'read', reversible: true,
+    capability: '텔레그램으로 온 것을 T5 가 처리한 것 기준으로 돌려준다. 제목·조각만 주며 대화 내용을 통째로 옮기지 않는다.',
+    operatorFact: '채널로 들어온 것을 직접 꺼내 보고, 보고 있지 않은 채널은 보고 있지 않다고 말한다.',
+    schema: {
+      description: '채널로 들어온 것을 돌려준다. **T5 가 처리한 것 기준**이며, 허용 목록 밖이라 처리하지 않은 것은'
+        + ' 내용 없이 사람 수·횟수만 함께 낸다. 받는 배선이 없는 채널은 빈 목록이 아니라 그 사실을 돌려준다.'
+        + ' 제목·조각만 주며 대화 내용을 통째로 옮기지 않는다.',
+      parameters: {
+        type: 'object',
+        properties: {
+          channel: { type: 'string', description: '어느 채널인지. 비워 두면 텔레그램이에요' },
+        },
+      },
+    } }),
 ];
 /**
  * 도구함 투영용 descriptor 목록(라벨·toolKind·needsApproval·sourcePolicy 포함).
@@ -1312,6 +1331,7 @@ const FACTS = {
   'mail.send': { connected: true, auth: false },
   'slack.post': { connected: true },
   'telegram.send': { connected: true },
+  'telegram.inbox': { connected: true },
   'session.search': { connected: true },
 };
 
@@ -1459,6 +1479,18 @@ export function demoTools(opts = {}) {
       previewOf: makeSendPreview({ channel: 'telegram' }),
       async handler() {
         return { result: { sent: true }, userSafeSummary: '텔레그램으로 보냈어요.' };
+      },
+    },
+    // 대본 방에는 실제 수신기가 없다. **빈 목록으로 답하지 않는다** — 빈 목록은 "안 왔다"로
+    // 읽히고, 그건 없는 능력을 있다고 말하는 것이다(라이브 손은 live-context 가 준다).
+    'telegram.inbox': opts.channelInbox ?? {
+      isFixture: true,
+      async handler(args = {}) {
+        const channel = String(args?.channel ?? 'telegram');
+        return {
+          result: { channel, hasReceiver: false, arrived: [], searched: 0, unknownSenders: null },
+          userSafeSummary: '이 방에는 받는 배선이 없어요 — T5 가 그 채널을 보고 있지 않아요.',
+        };
       },
     },
   });

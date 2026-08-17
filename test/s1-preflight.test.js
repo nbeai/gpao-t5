@@ -157,6 +157,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/local-locate.js',
     'src/kernel/l0-evidence/working-state.js',
     'src/runtime/session-search-tool.js',
+    // 국면 4 · 채널 조회 손. 채널 손이 전부 보내는 쪽이라 "텔레그램으로 뭐 왔어?" 가 끝날
+    // 자리가 없었다. 새 저장소 0 — 이미 durable 한 원천 둘(세션 transcript · allowlist
+    // pending 집계)을 읽기만 한다. 넓힌 사유는 preflight.mjs 의 같은 자리 주석에 있다.
+    'src/runtime/channel-inbox-tool.js',
     'src/kernel/l0-evidence/ledger.js',
     // **제안과 실행을 나눈다**(2026-08-04). 계약은 "호출 안 했으면 actualCall 은 null" 인데
     // 다중 호출 줄 세우기가 미실행 호출에도 채우고 있었다 — 원장이 "안 부른 것"을 "부른 것"으로

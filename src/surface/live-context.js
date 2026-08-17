@@ -24,7 +24,9 @@ import { makeLocalLocateTool } from '../runtime/local-locate.js';
 import { makeLocalDiscoveryTool } from '../runtime/local-discovery.js';
 import { makeLocalSystemTool } from '../runtime/local-system.js';
 import { ProcessStore } from '../runtime/process-store.js';
-import { defaultSessionDir } from './session-store.js';
+import { makeChannelInboxTool } from '../runtime/channel-inbox-tool.js';
+import { AllowlistStore } from './allowlist-store.js';
+import { defaultSessionDir, SessionStore } from './session-store.js';
 import { makeSessionSearchTool } from '../runtime/session-search-tool.js';
 import { makeBrowser, findBrowserSync } from '../runtime/browser.js';
 import { makeHostManners } from '../runtime/host-manners.js';
@@ -233,6 +235,19 @@ export function liveDeps(processEnv = {}, deps = {}) {
     localProcess: makeLocalProcessTool({ store: new ProcessStore(stateDir), dataDir: stateDir }),
     // 지난 대화 찾기 — 실제 세션 저장소에서. 지운 대화는 제외한다(휴지통이 검색으로 되살아나지 않게).
     sessionSearch: deps.sessionStore ? makeSessionSearchTool({ store: deps.sessionStore }) : undefined,
+    // 국면 4 · 채널 조회 손. 세션 저장소가 있을 때만 선다(`session.search` 와 같은 조건).
+    // 허용목록은 **같은 자리를 읽기만** 한다 — 서버가 쓰는 그 파일이다(server.js 가
+    // `new AllowlistStore(store.dir)` 로 세우고, 그 store 가 여기 오는 sessionStore 다).
+    // 새 저장소를 만들지 않는다. 채널 사실(수신기 유무)은 liveChannels 가 원천이다.
+    // **라이브에는 늘 실물 손이 선다** — 세션 저장소를 안 받았으면 이 자리의 저장소를 직접
+    // 세운다(`localProcess` 가 stateDir 로 ProcessStore 를 세우는 그 전례). 조건부로 두면
+    // 저장소 없이 부른 라이브가 대본 스텁으로 떨어지고, 그건 `local.file` 사고 그대로다
+    // (§16-C 등록된 도구는 실제로 동작해야 한다 · test/local-file.test.js 가 문다).
+    channelInbox: makeChannelInboxTool({
+      store: deps.sessionStore ?? new SessionStore(stateDir),
+      allowlist: new AllowlistStore(deps.sessionStore?.dir ?? stateDir),
+      channels: () => liveChannels(processEnv),
+    }),
     // P2-10: 이 컴퓨터에 브라우저가 있을 때만 손을 배선한다. 없으면 descriptor 도 안 딸려온다
     // (liveToolIds 가 손에서 파생하므로 — 1축의 배당금). 없는 손을 선언하지 않는다.
     // 같은 브라우저 인스턴스를 둘이 나눠 쓴다(창을 두 개 띄우지 않는다).

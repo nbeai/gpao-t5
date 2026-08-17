@@ -84,8 +84,13 @@ test('손이 선언에 선다 — 보내는 손만 있던 자리에 받는 손�
 
 test('손이 실제로 붙는다 — 선언만 있고 손이 없으면 사용자에게 하는 거짓말이다', () => {
   assert.ok(demoTools({}).tools['telegram.inbox']?.handler, 'demo 손 미배선');
+  // ⚠️ 계측 주의: liveDeps 의 손 자리는 `tools.tools` 다(server.js 도 `deps.tools?.tools` 로 읽는다).
+  // 첫 판에서 `live.tools[id]` 로 읽어 **없는 결함을 만들 뻔했다** — 자를 먼저 의심하라.
   const live = liveDeps({ TELEGRAM_BOT_TOKEN: 't' }, { sessionStore: { dir: '/tmp/없는자리', async loadAll() { return []; } } });
-  assert.ok(live.tools['telegram.inbox']?.handler, 'live 손 미배선');
+  assert.ok(live.tools.tools['session.search']?.handler, '양성대조 실패 — 자가 틀렸다');
+  assert.ok(live.tools.tools['telegram.inbox']?.handler, 'live 손 미배선');
+  // 1축: 라이브 선언 = 라이브에 실제 손이 있는 것. 손이 붙었으면 선언도 서야 한다.
+  assert.ok(live.descriptors.some((d) => d.id === 'telegram.inbox'), '손은 붙었는데 선언이 없다');
 });
 
 // ── 2. 교차 세션 읽기 — 웹에서 물어도 방에 온 것을 본다 ─────────────────────
@@ -114,10 +119,16 @@ test('안 온 것을 지어내지 않는다 — 투입 밖 문장은 답에 없�
 test('제목·시각·조각만 돌려준다 — 대화 전문을 옮기지 않는다', async () => {
   const { result } = await 손세우기().handler({ channel: 'telegram' });
   for (const 한줄 of result.arrived) {
-    assert.ok(한줄.title && 'at' in 한줄 && 한줄.snippet, '제목·시각·조각 계약 미달');
+    assert.ok(한줄.title && 한줄.snippet, '제목·조각 계약 미달');
     // 조각이지 전문이 아니다. 전문을 실으면 조회가 내보내기가 된다.
     assert.ok(한줄.snippet.length <= 120, '조각 상한을 넘었다 — 내보내기가 된다');
     assert.ok(!('transcript' in 한줄) && !('text' in 한줄));
+    // ★ 선등록 대비 정정(구현 중 · 결과 보기 전): 선등록은 전례를 따라 「제목·**시각**·조각」이라
+    // 적었는데, transcript 항목에는 **시각이 없다**(turn-ref.js stampTurn 이 turnRef 만 심는다).
+    // `at` 칸을 만들면 모델이 「몇 시에 왔어요」를 지어낼 자리를 우리가 만드는 것이다.
+    // 그래서 도착 시각 칸을 안 만들고, 방이 마지막으로 움직인 시각만 그 이름으로 낸다.
+    assert.ok(!('at' in 한줄), '도착 시각인 척하는 칸을 만들면 안 된다 — 그 시각은 없다');
+    assert.ok('roomUpdatedAt' in 한줄);
   }
 });
 
