@@ -199,8 +199,7 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/capsule.js',
     'src/runtime/sandbox.js',
     'src/runtime/terminal-run.js',
-    // **터미널 유보 해제**(오너 결정 2026-08-06) — 읽기성 네트워크를 승인에서 뺐다.
-    // 넓힌 이유는 `preflight.mjs` 의 `허용파일` 주석에 적혀 있다.
+    // P0 외부 효과 경계(2026-08-18) — 자동 reach를 닫고 효과별 승인 모드로 나눴다.
     'src/runtime/local-terminal.js',
     // 주석만 고쳤다(F-46) — 선언 넷과 강제 홈 전체가 두 진실이라 그 사실을 머리말에 적었다.
     'src/runtime/file-scope.js',

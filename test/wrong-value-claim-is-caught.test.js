@@ -25,11 +25,11 @@ import { makeLocalFileTool } from '../src/runtime/local-file.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 
 // 결정적 서버판(A1 판례 재사용 · dead-run-survival-claim-is-caught 와 같은 구조).
-// granted 실행은 성공으로 돌아온다 — stdout 이 원장의 실측값이다.
+// 승인된 write 실행은 성공으로 돌아온다 — stdout 이 원장의 실측값이다.
 async function 판({ 답문장, 명령, 실행결과, 발화 }) {
   const 자리 = await mkdtemp(join(tmpdir(), 'wrong-value-'));
-  const run = async (command, { mode } = {}) => (mode === 'granted'
-    ? { command, cwd: 자리, mode: 'granted', ...실행결과 }
+  const run = async (command, { mode } = {}) => (mode === 'write'
+    ? { command, cwd: 자리, mode: 'write', ...실행결과 }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {

@@ -1,4 +1,4 @@
-// **읽기성 네트워크는 묻지 않는다** — 오너 결정 2026-08-06(터미널 유보 해제).
+// **임의 터미널 네트워크는 실행 전에 묻는다** — P0 외부 효과 경계.
 //
 // ── 무엇이 유보였나 (라이브로 갈랐다) ──────────────────────────────────────
 // 계획서 v3.1 §20·§22 는 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀다. **코드에 그런 유보는
@@ -7,25 +7,17 @@
 //   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됐다 (라이브 확인: 파일이 생겼다)
 //   읽기성 네트워크        **카드가 떴다** (`curl -s -o /dev/null https://example.com`)
 //
-// `curl` 조회·`git pull`·`npm ls`·`gh pr list` 는 이 컴퓨터를 하나도 안 바꾼다. 자동성 헌장의
-// 넷(비밀값·되돌릴 수 없는 파괴·새 상대 첫 전송·돈) 어디에도 안 걸린다. 그런데 물었다.
-//
-// 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다**(`web.collect`). 같은 일을 터미널에서만
-// 물었다 — 능력의 문제가 아니라 두 손이 다른 선을 쓰던 것이다.
-//
-// ── 고칠 재료가 이미 다 있었다 ────────────────────────────────────────────
-//   `sandbox.js`   `reach` 모드 = 쓰기✗ · 네트워크✓ · 비밀✗   ← 있는데 터미널이 안 썼다
-//   `terminal-run.js` `executionBlock` 이 `why:'network'` 를 따로 낸다  ← 가를 재료도 있었다
-//
-// 둘을 이으면 끝이다. 명령 목록을 만들지 않는다(§sandbox.js 첫 문단 — 목록은 항상 뚫린다).
-// 판정은 그대로 **돌려 보고 안다**: 네트워크에만 막혔으면 네트워크만 열고 다시 돌린다.
-//
-// ── 안 여는 것 ────────────────────────────────────────────────────────────
-// 쓰기·비밀·시그널·AppleEvent 는 reach 에서도 그대로 닫힌다. 그래서 "아무것도 안 바꿨다"는
-// 증명이 유지된다. 바꾸려는 명령은 여전히 승인으로 간다.
+// `reach` 는 파일 쓰기를 막아도 POST·DELETE·업로드·웹훅 같은 **바깥 쓰기**를 막지 않는다.
+// 네트워크를 열어 성공했다는 사실은 읽기 증명이 아니다. 임의 셸 네트워크는 정확한 명령을
+// 사용자에게 보여 주고 승인받은 뒤에만 `reach` 로 실행한다. 공개 웹 읽기는 `web.collect`가 맡는다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
+import { sandboxAvailable } from '../src/runtime/sandbox.js';
 import { toolActionKind } from '../src/kernel/l2-plan/action-plan.js';
 import { explainAuthority, UNKNOWN_KIND } from '../src/kernel/l2-plan/authority.js';
 
@@ -43,8 +35,8 @@ function 실행기(대본) {
 const 네트워크막힘 = { exitCode: 6, stdout: '', stderr: 'curl: (6) Could not resolve host: example.com' };
 const 쓰기막힘 = { exitCode: 1, stdout: '', stderr: "touch: 유보.txt: Operation not permitted" };
 
-// ── ① 네트워크로만 막힌 명령은 자동으로 돈다 ────────────────────────────
-test('읽기성 네트워크는 카드를 안 띄운다 — reach 로 다시 돌려 사실을 낸다', async () => {
+// ── ① 네트워크 효과는 probe에서 멈춘다 ────────────────────────────────────
+test('임의 터미널 네트워크는 자동 reach로 다시 돌지 않는다', async () => {
   const { run, 부른것 } = 실행기({
     probe: 네트워크막힘,
     reach: { exitCode: 0, stdout: '200', stderr: '' },
@@ -52,19 +44,14 @@ test('읽기성 네트워크는 카드를 안 띄운다 — reach 로 다시 돌
   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
 
   const p = await 손.probe('curl -s -o /dev/null -w "%{http_code}" https://example.com');
-  assert.equal(p.changes, false, '네트워크만 막힌 것은 "바꾸려 했다"가 아니다 — 카드로 가면 안 된다');
-
-  const r = await 손.handler({ command: 'curl -s -o /dev/null -w "%{http_code}" https://example.com' });
-  assert.ok(!r.blocked, `막히면 안 된다: ${r.userSafeSummary}`);
-  assert.equal(r.result.stdout, '200', '실제로 돈 결과가 와야 한다');
-  assert.deepEqual(부른것.map((x) => x.mode), ['probe', 'reach', 'probe', 'reach'],
-    'probe 로 재 보고 네트워크만 막혔으면 reach 로 한 번 더 — granted 를 쓰지 않는다');
+  assert.notEqual(p.changes, false, '외부 효과 가능성을 로컬 무변경으로 읽어 자동 실행했다');
+  assert.equal(toolActionKind({ toolId: 'local.terminal', args: p }), UNKNOWN_KIND);
+  assert.equal(explainAuthority({ kind: UNKNOWN_KIND, toolId: 'local.terminal' }).needsApproval, true);
+  assert.deepEqual(부른것.map((x) => x.mode), ['probe'], '승인 전에 reach가 실행됐다');
 });
 
 // ── ② 쓰기로 막힌 명령은 그대로 승인으로 간다 (회귀) ─────────────────────
-test('바꾸려는 명령은 여전히 묻는다 — 유보 해제가 쓰기를 열지 않는다', async () => {
-  // **`reach` 도 쓰기를 막는다**(`sandbox.js` 의 `deny file-write*` 는 reach 조건 밖이다).
-  // 그래서 열어 봐도 같은 벽에 막히고, 그 사실이 "이건 진짜 변경 시도"라는 증명이 된다.
+test('파일을 바꾸려는 명령도 기존처럼 묻는다', async () => {
   const { run, 부른것 } = 실행기({ probe: 쓰기막힘, reach: 쓰기막힘 });
   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
 
@@ -75,18 +62,24 @@ test('바꾸려는 명령은 여전히 묻는다 — 유보 해제가 쓰기를 
   assert.equal(r.blocked, true);
   assert.equal(r.needsGrant, true, '승인 카드로 가야 한다');
   assert.match(r.userSafeSummary, /파일을 바꾸는 일/, '카드 이유는 probe 가 말한 그대로여야 한다');
-  // 열어 본 것 자체는 맞다 — 알아맞히지 않고 돌려 보는 것이 이 설계다.
-  assert.ok(부른것.some((x) => x.mode === 'reach'), '알아맞히지 말고 열어 봐야 한다');
+  assert.ok(!부른것.some((x) => x.mode === 'reach'), '파일 쓰기 판정에 불필요한 네트워크를 열었다');
 });
 
-// ── ③ 네트워크를 연 뒤에도 바꾸려 하면 묻는다 ───────────────────────────
-test('네트워크를 열었더니 이번엔 파일을 바꾸려 하면 — 거기서 묻는다', async () => {
-  const { run } = 실행기({ probe: 네트워크막힘, reach: 쓰기막힘 });
+// ── ③ 승인 뒤에도 승인한 효과만 연다 ─────────────────────────────────────
+test('네트워크 승인은 reach로 실행하고 로컬 쓰기까지 함께 열지 않는다', async () => {
+  const { run, 부른것 } = 실행기({
+    probe: 네트워크막힘,
+    reach: { exitCode: 0, stdout: '200', stderr: '' },
+    granted: { exitCode: 0, stdout: 'all-open', stderr: '' },
+  });
   const 손 = makeLocalTerminalTool({ run, cwd: '/tmp' });
-
-  const r = await 손.handler({ command: 'curl -s https://example.com -o 받은것.html' });
-  assert.equal(r.blocked, true, 'reach 에서 쓰기에 막히면 그때는 승인이다');
-  assert.equal(r.needsGrant, true);
+  const r = await 손.handler({
+    command: 'curl -s https://example.com',
+    granted: true,
+    probeResult: { command: 'curl -s https://example.com', mode: 'probe', ...네트워크막힘 },
+  });
+  assert.equal(r.result.stdout, '200');
+  assert.deepEqual(부른것.map((x) => x.mode), ['reach'], '네트워크 승인으로 all-open granted를 열었다');
 });
 
 // ── ④ 실패를 삼키는 명령은 자동으로 안 넘긴다 (회귀) ─────────────────────
@@ -105,4 +98,87 @@ test('실패를 삼키는 명령은 네트워크 갈래로 새지 않는다', as
   assert.equal(explainAuthority({ kind: UNKNOWN_KIND, toolId: 'local.terminal' }).needsApproval, true,
     'exit 0 을 못 믿는 명령은 모르면 승인 쪽이다');
   assert.ok(!부른것.some((x) => x.mode === 'reach'));
+});
+
+test('실물 반례: 승인 전 POST는 로컬 sink에 한 건도 도착하지 않는다', {
+  skip: !sandboxAvailable() && 'macOS sandbox reach 경로에서만 재현',
+}, async () => {
+  const 받은것 = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      받은것.push({ method: req.method, url: req.url, body });
+      res.end('ok');
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  try {
+    const port = server.address().port;
+    const control = await fetch(`http://127.0.0.1:${port}/control`, { method: 'POST', body: 'control' });
+    assert.equal(control.status, 200, 'sink 양성 대조가 서지 않았다');
+    assert.equal(받은것.length, 1, 'sink가 직접 POST도 못 받는다');
+    받은것.length = 0;
+
+    const py = [
+      'import socket',
+      `s=socket.create_connection(("127.0.0.1",${port}))`,
+      's.sendall(b"POST /pwned HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nContent-Length: 14\\r\\n\\r\\nt5-reach-proof")',
+      's.close()',
+    ].join(';');
+    const command = `PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -c ${JSON.stringify(py)}`;
+    const 손 = makeLocalTerminalTool({ cwd: '/tmp' });
+    const p = await 손.probe(command, { cwd: '/tmp', timeoutMs: 10_000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.equal(받은것.length, 0, `승인 전에 외부 효과가 도착했다: ${JSON.stringify(받은것)}`);
+    assert.notEqual(p.changes, false, 'POST를 실행하고 read로 분류했다');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('실물 반례: 로컬 쓰기 승인으로 네트워크까지 함께 열리지 않는다', {
+  skip: !sandboxAvailable() && 'macOS sandbox effect profile 경로에서만 재현',
+}, async () => {
+  const 받은것 = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      받은것.push({ method: req.method, url: req.url, body });
+      res.end('ok');
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  try {
+    const port = server.address().port;
+    const dir = await mkdtemp(join(tmpdir(), 't5-write-grant-'));
+    const py = [
+      'import socket',
+      `s=socket.create_connection(("127.0.0.1",${port}))`,
+      's.sendall(b"POST /scope-widened HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nContent-Length: 14\\r\\n\\r\\nt5-write-grant")',
+      's.close()',
+    ].join(';');
+    const command = `echo made > made.txt && PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -c ${JSON.stringify(py)}`;
+    const 손 = makeLocalTerminalTool({ cwd: dir });
+    const p = await 손.probe(command, { cwd: dir, timeoutMs: 10_000 });
+    assert.equal(p.changes, true, '전제: 첫 효과는 로컬 쓰기로 확인돼야 한다');
+
+    await 손.handler({ command, cwd: dir, granted: true, probeResult: p.probe });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.equal(await readFile(join(dir, 'made.txt'), 'utf8'), 'made\n', '승인한 로컬 쓰기가 실행되지 않았다');
+    assert.equal(받은것.length, 0, `파일 승인으로 네트워크까지 열렸다: ${JSON.stringify(받은것)}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

@@ -5,7 +5,7 @@
 // 그래서 계획 단계에서 **probe** 를 먼저 돌린다 — 쓰기·네트워크·비밀읽기가 막힌 상태라
 // 승인 없이 돌려도 아무 영향이 없다(그래서 이게 안전하다). 그 결과가 등급을 정한다:
 //   · probe 성공  → 아무것도 안 바꿨다는 증명. 그대로 답한다(A0).
-//   · probe 막힘  → 바꾸려 했다는 뜻. 승인 카드로 간다(A2). 승인 뒤 granted 로 다시 돌린다.
+//   · probe 막힘  → 효과가 있거나 모른다는 뜻. 승인 카드로 간다(A2). 승인 뒤 그 효과만 연다.
 import { runCommand, executionBlock, 막음자국있나, 쓰려던자리들, 한구획인가, 명령이지목한자리인가, 실행중에이름이정해졌나, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS } from './terminal-run.js';
 import { sandboxAvailable } from './sandbox.js';
 import { protectionFor } from './local-protection.js';
@@ -43,11 +43,12 @@ const blank = (v) => {
  *
  * 갈래마다 특례를 뚫지 않는다 — 그러면 명령 모양이 늘 때마다 거짓말이 하나씩 는다.
  * `executionBlock` 이 이미 아는 `why` 를 **안 버리고** 한 규칙으로 읽는다:
- * 아래 다섯만 **변경 시도의 증거**이고, 나머지 막힘은 「모른다」다(→ 미상 → 언제나 카드).
+ * 아래 넷만 **로컬 변경 시도의 증거**이고, 나머지 막힘은 「모른다」다(→ 미상 → 언제나 카드).
+ * 네트워크는 로컬 변경과 다른 효과다. 밖에 닿아 성공했다는 사실은 읽기 증명이 아니므로
+ * 승인 전에 열어 보지 않고 미상으로 둔다.
  */
 const 변경시도증거 = new Set([
   'listen',    // 포트를 여는 것 = 바깥에서 닿게 만드는 상태 변경
-  'network',   // 밖으로 나가려 했다 (읽기성인지는 reach 재시험이 따로 가른다)
   'privilege', // 컴퓨터 설정을 바꾸려다 OS 권한에 막혔다
   'signal',    // 돌고 있는 프로그램을 끄려 했다
   'write',     // 막힌 이름이 **쓰려던 자리**(리다이렉트 대상)였다 — 추측이 아니라 증거다
@@ -89,61 +90,21 @@ function 창조만인가(r, command, cwd) {
   });
 }
 
-/**
- * **네트워크만 열면 되는지 알아맞히지 않는다 — 열어 보고 안다.**
- *
- * 첫 판은 `executionBlock(r).why === 'network'` 로 골랐다. 실물에서 안 먹었다(밟음 2026-08-06):
- *   `ping -c1 8.8.8.8`  probe → `ping: sendto: Operation not permitted` → **`why:'write'` 로 잡힘**
- *                        reach → **통과**
- * 샌드박스가 네트워크를 막을 때 나오는 말은 `ENOTFOUND` 가 아니라 그냥 `Operation not permitted`
- * 다. 문구 목록으로 네트워크를 가르려던 것이고, 그건 이 파일이 처음부터 버린 방식이다
- * (`sandbox.js` 첫 문단 — 목록은 항상 뚫린다).
- *
- * 그래서 probe 와 같은 구조를 한 번 더 쓴다: **네트워크만 열고 다시 돌려 본다.**
- *   reach 에서 통과 → 막던 것은 네트워크뿐이었다는 **증명**. 이 컴퓨터는 안 바뀌었다(쓰기·비밀은 닫힘)
- *   reach 에서도 막힘 → 진짜 변경 시도. 그대로 승인으로 간다
- *
- * **두 자리만 뺀다** — 둘 다 "돌려 봐도 모르는" 자리라 구조가 성립하지 않는다:
- *   `listen`          포트를 여는 것은 나가서 읽는 게 아니라 **바깥에서 닿게 만드는 상태 변경**이다.
- *                     안 빼고 열었더니 서버 띄우기가 승인 없이 돌았다(회귀가 잡았다).
- *   `unreadable_exit` 실패를 삼키는 명령은 exit code 가 정보가 아니다. 모르면 승인 쪽이다.
- */
-const 열어봐도소용없는것 = new Set(['listen', 'unreadable_exit']);
-
-function 네트워크만열어볼까(r) {
-  const block = executionBlock(r);
-  if (!block) return false;
-  if (block.kind !== 'sandbox' && block.kind !== 'permission') return false;
-  return !열어봐도소용없는것.has(block.why);
+/** 승인 전 탐침은 네트워크를 열지 않는다. 바깥 효과는 성공 뒤에 판별할 수 없기 때문이다. */
+async function 재보기(run, command, { cwd, timeoutMs }) {
+  return run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
 }
 
 /**
- * **읽기성 네트워크는 묻지 않는다** (오너 결정 2026-08-06 · 터미널 유보 해제).
- *
- * 계획서 v3.1 §20·§22 가 *"임의 명령 실행은 계속 유보"* 라고 적어 뒀는데 **코드에 그런 유보는
- * 없었다** — 셸은 통째로 열려 있고 명령 목록도 없다. 라이브로 갈라 보니 실제 마찰은 한 자리였다:
- *
- *   되돌릴 수 있는 쓰기   카드 없음 · 그냥 실행됨
- *   읽기성 네트워크        **카드가 떴다** — `curl` 조회 · `git pull` · `npm ls` · `gh pr list`
- *
- * 이 컴퓨터를 하나도 안 바꾸는 일인데 물었다. 자동성 헌장의 넷 어디에도 안 걸린다.
- * 그리고 **웹 손은 이미 임의 주소로 자동 GET 을 한다** — 같은 일을 터미널에서만 물었다.
- * 능력 문제가 아니라 두 손이 다른 선을 쓰고 있었다.
- *
- * 고칠 재료는 이미 다 있었다. `sandbox.js` 의 `reach`(쓰기✗ · 네트워크✓ · 비밀✗)를
- * 커넥터 CLI 손만 쓰고 터미널 본체는 안 썼다. 둘을 잇는다.
- *
- * **명령 목록을 만들지 않는다**(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 판정은 그대로
- * *돌려 보고 안다*: 네트워크에만 막혔으면 네트워크만 열고 한 번 더 돌린다. 거기서도 막히면
- * 그건 진짜 변경 시도이므로 승인으로 간다.
+ * 승인 뒤에도 탐침이 확인한 효과보다 넓게 열지 않는다.
+ * 로컬 쓰기·시그널·네트워크가 각각 자기 샌드박스 모드로 간다.
  */
-async function 재보기(run, command, { cwd, timeoutMs }) {
-  const 첫판 = await run(String(command ?? ''), { mode: 'probe', cwd, timeoutMs });
-  if (!네트워크만열어볼까(첫판)) return 첫판;
-  const 둘째판 = await run(String(command ?? ''), { mode: 'reach', cwd, timeoutMs });
-  // **reach 에서도 막혔으면 첫판을 그대로 쓴다.** 승인 카드에 실릴 이유는 probe 가 말한 것이
-  // 정확하다 — reach 는 네트워크를 연 뒤의 두 번째 벽이라 사용자에게는 덜 정확한 설명이 된다.
-  return looksBlocked(둘째판) ? 첫판 : 둘째판;
+function 승인뒤모드(probeResult, command, dataDir) {
+  const lifecycle = lifecycleRisk(command, { dataDir });
+  if (lifecycle?.approvable) return 'signal';
+  const why = executionBlock(probeResult)?.why;
+  if (why === 'network' || why === 'listen') return 'reach';
+  return 'write';
 }
 
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
@@ -351,29 +312,35 @@ export function makeLocalTerminalTool(deps = {}) {
           nextSafeAction: '작업 폴더를 알려주시면 거기서 할게요.' };
       }
 
-      // 이미 계획 단계에서 probe 를 했고 승인을 받았으면 granted 로 실제 실행한다.
-      const mode = args.granted ? 'granted' : 'probe';
+      // 직접 승인 호출처럼 probe 원본이 없는 길은 여기서 안전 probe 를 한 번 세운다.
+      // 제품 턴 경로는 이미 같은 원본을 실어 오므로 다시 돌지 않는다.
+      const 승인탐침 = args.granted && !args.probeResult && !risk
+        ? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs })
+        : args.probeResult;
+      // 승인받은 효과보다 넓게 열지 않는다. 로컬 쓰기·시그널·네트워크를 각각
+      // write·signal·reach 프로파일로 실행하고, 임의 터미널에서는 all-open granted를 쓰지 않는다.
+      const mode = args.granted ? 승인뒤모드(승인탐침, command, deps.dataDir) : 'probe';
       // ── 터미널 산출물의 자리 관측(§7-bq · 오너 승인 2026-08-16) ──────────────────
       //
       // 실행이 디스크에 만든 것의 **경로**가 원장에 안 남아, 모델이 자기 산출물의 자리를
       // 다음 판단에서 못 받았다(§7-bp ④ R3 실물 — 실행이 만든 것의 자리를 원장이 모른다).
-      // granted 로 실제 도는 실행에만 건다 — probe/reach 는 쓰기가 닫혀 있어(기계 칸
+      // write 로 실제 도는 실행에만 건다 — probe/reach/signal 은 쓰기가 닫혀 있어(기계 칸
       // `sandboxed`·`probeChangedNothing`) 안 돈 것의 창조물을 관측하면 그 줄이 거짓이 된다.
       //
       // 실행 전/후 cwd 의 이름 집합을 재귀로 훑어 diff 한다. 명령 이름 목록이 아니라 구조
       // 사실이다(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 칸의 뜻은 「실행 구간에 새로
       // 생겼다」까지다 — 인과를 단정하지 않는다(커널은 손이 가져온 것을 적는다).
-      const 관측 = mode === 'granted' ? await 이름집합(cwd) : null;
+      const 관측 = mode === 'write' ? await 이름집합(cwd) : null;
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
-      const r = mode === 'granted'
+      const r = args.granted
         ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs })
         : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
       // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
       // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.
       // 실행기가 결과에 `mode` 를 실어 주므로 지어내지 않고 그 사실을 읽는다.
       const 실제모드 = r?.mode ?? mode;
-      const 실제로돌았나 = 실제모드 === 'granted' || 실제모드 === 'reach';
+      const 실제로돌았나 = ['granted', 'reach', 'write', 'signal'].includes(실제모드);
 
       if (mode === 'probe' && looksBlocked(r)) {
         // **여기서 실행하지 않는다.** 승인은 커널의 일이고, 도구는 사실만 돌려준다.
@@ -428,7 +395,7 @@ export function makeLocalTerminalTool(deps = {}) {
       //
       // 이름 패턴이 아니라 **승인받은 명령에 적힌 정확한 PID**를 본다. 판정하지 않고 사실만
       // 낸다 — 무엇을 말할지는 모델이 정한다(§24). 능력을 줄이지 않는다: 터미널은 그대로다.
-      const 끈PID = 실제모드 === 'granted' && /\b(kill|pkill|killall)\b/.test(command)
+      const 끈PID = 실제모드 === 'signal' && /\b(kill|pkill|killall)\b/.test(command)
         ? [...new Set((command.match(/\b\d{2,}\b/g) ?? []).map(Number))].filter((n) => n > 0)
         : [];
       const 종료확인 = 끈PID.length
@@ -455,10 +422,10 @@ export function makeLocalTerminalTool(deps = {}) {
           ? [{ 방법: 'local.process:start', 왜: `\`${command}\` 은 ${상한초}초 상한에서 멈췄고 그때까지 돌던 것도 함께 꺼졌다 — 계속 돌아야 하는 것(서버·워치)을 켜 두고 관리하는 손은 local.process 다` },
             { 방법: 'run', 왜: `오래 걸리는 일회성 작업이면 timeoutMs 를 늘려(최대 ${MAX_TIMEOUT_MS / 1000}초) 같은 명령을 다시 돌릴 수 있다` }]
           : undefined;
-      // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). granted 로 실제 돈 실행에서만
+      // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). write 로 실제 돈 실행에서만
       // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
-      const 생긴것 = 관측 && 실제모드 === 'granted' ? await 새로생긴것들(cwd, 관측) : null;
-      // §7-bx — **타임아웃으로 죽은 실행은 실패다**(오너 결정 ③ · 비교군 셋 동형). granted/reach
+      const 생긴것 = 관측 && 실제모드 === 'write' ? await 새로생긴것들(cwd, 관측) : null;
+      // §7-bx — **타임아웃으로 죽은 실행은 실패다**(오너 결정 ③ · 비교군 셋 동형). 승인 뒤 실행
       // 로 실제 돈 실행이 상한에서 강제 종료됐는데 성공 모양으로 돌아가면 영수증이
       // failureState:none 이 되어, 원장은 깨끗한 성공을 말하고 「내용 확인 안 됨」 표식·복구
       // 사다리가 영영 안 돈다. 부분 stdout·관측은 진단면으로 계속 준다(내용은 주되 사실로
@@ -531,7 +498,7 @@ export function makeLocalTerminalTool(deps = {}) {
           // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
           // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
           // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
-          : r.exitCode === 0 ? (실제모드 === 'granted' ? '실행했어요.'
+          : r.exitCode === 0 ? (실제모드 === 'write' || 실제모드 === 'signal' ? '실행했어요.'
             : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
               : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.

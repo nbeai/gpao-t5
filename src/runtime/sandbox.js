@@ -36,9 +36,12 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'|'reach'|'capsule'} mode
+ * @param {'probe'|'granted'|'reach'|'write'|'signal'|'capsule'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
+ *   reach   — 승인된 네트워크 효과만. 로컬 쓰기·시그널·AppleEvent는 닫는다.
+ *   write   — 승인된 로컬 쓰기만. 네트워크·시그널·AppleEvent는 닫는다.
+ *   signal  — 승인된 프로세스 시그널만. 파일 쓰기·네트워크·AppleEvent는 닫는다.
  * @param {{secrets?:string[], scratch?:string}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
@@ -51,6 +54,9 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
   if (mode === 'granted') {
     return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }
+  const 파일쓰기허용 = mode === 'write';
+  const 네트워크허용 = mode === 'reach';
+  const 시그널허용 = mode === 'signal';
   return [
     '(version 1)',
     '(allow default)',
@@ -69,9 +75,9 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     ...(mode === 'capsule'
       ? ['(deny process-exec*)', ...(runtime ? [`(allow process-exec* (literal ${lit(runtime)}))`] : [])]
       : []),
-    '(deny file-write*)',
+    ...(파일쓰기허용 ? [] : ['(deny file-write*)']),
     // 출력·터미널은 열어 둔다 — 이걸 막으면 명령이 화면에 아무 말도 못 한다.
-    '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',
+    ...(파일쓰기허용 ? [] : ['(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))']),
     // **셸이 자기 일을 하려고 쓰는 임시 자리 하나.** 이걸 안 열면 heredoc·here-string·프로세스
     // 치환이 전부 "파일을 바꾸려 했다"로 잡힌다 — zsh 가 `<<'PY'` 를 위해 임시 파일을 만들기
     // 때문이다(실측: `zsh: can't create temp file for here document`). 그래서 라이브에서
@@ -81,12 +87,12 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     // 이 자리는 **매 실행마다 새로 만들고 끝나면 지운다.** 사용자의 자리가 아니고 남지도 않으므로
     // "아무것도 안 바꿨다"는 증명은 그대로다. $TMPDIR 전체를 열면 안 된다 — 거기엔 남의 것이
     // 있다(적대적 검증의 미끼밭이 바로 거기 있고, 넓히면 30건 중 여럿이 뚫린다 — 반대 검증함).
-    ...(scratch ? [`(allow file-write* (subpath ${lit(scratch)}))`] : []),
+    ...(!파일쓰기허용 && scratch ? [`(allow file-write* (subpath ${lit(scratch)}))`] : []),
     // P5-B-1B `reach`: **읽기만 하되 바깥에 닿는** 자리. 커넥터가 선언한 CLI 손(`gh pr list`,
     // `aws s3 ls`)이 여기 산다 — 이 컴퓨터의 것은 하나도 못 바꾸는데 자기 서비스에는 물어봐야 한다.
     // probe 로 돌리면 네트워크가 막혀 "설치돼 있는데 안 되는" 상태가 되고, granted 로 돌리면
     // 파일 쓰기까지 열린다. **능력을 위해 안전을 푸는 게 아니라, 없던 칸에 이름을 붙인 것이다.**
-    ...(mode === 'reach' ? [] : ['(deny network*)']),
+    ...(네트워크허용 ? [] : ['(deny network*)']),
     // **probe 는 시험이어야 한다.** 실측 사고(오너 라이브 2026-07-28, 웹 화면):
     // "그럼 그거 꺼줘" 에 `killall openclaw` 가 probe 로 돌았고 **프로세스가 실제로 죽었다.**
     // 샌드박스가 아무것도 안 막았으니 런타임은 `changes:false` 로 읽었고, 승인 카드가 안 떴고,
@@ -96,7 +102,7 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
     // **명시적으로 안 막은 바깥 효과는 전부 통과한다.** 파일 쓰기와 네트워크만 막고 있었다.
     // `killall` 을 목록에 더하면 다음엔 `pkill`, 그 다음엔 다른 것으로 뚫린다.
     // 그래서 **효과의 종류**를 닫는다. 막히면 executionBlock 이 변경 시도로 읽고 승인으로 보낸다.
-    '(deny signal)',
+    ...(시그널허용 ? [] : ['(deny signal)']),
     // 다른 앱을 원격 조종하는 통로. `osascript -e 'tell application …'` 한 줄이면 파일도 지우고
     // 메일도 보낸다 — 파일 쓰기가 아니라서 위 규칙에 안 걸린다.
     '(deny appleevent-send)',

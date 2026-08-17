@@ -5,7 +5,8 @@
 //
 // 안전은 명령을 좁혀서가 아니라 **실행 환경**에서 온다(sandbox.js):
 //   ① probe 로 먼저 돌린다 — 성공하면 아무것도 안 바꿨다는 증명이라 그대로 쓴다.
-//   ② 막히면 승인을 받고 granted 로 다시 돌린다. 그때도 비밀 자리는 닫혀 있다.
+//   ② 막히면 승인을 받고 요청된 효과 하나(write·reach·signal)만 열어 다시 돌린다.
+//      그때도 비밀 자리는 닫혀 있다. granted 는 유지 호환용이며 임의 터미널은 쓰지 않는다.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { writeFile, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
@@ -32,7 +33,7 @@ function fold(text, max = MAX_OUTPUT) {
 /**
  * 명령 한 번 실행. **이 함수는 승인을 판단하지 않는다** — 시키는 모드로 돌리고 사실만 돌려준다.
  * @param {string} command 셸 명령 원문
- * @param {{mode?:'probe'|'granted'|'raw', cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal}} opts
+ * @param {{mode?:'probe'|'granted'|'reach'|'write'|'signal'|'raw', cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal}} opts
  */
 export async function runCommand(command, opts = {}) {
   const mode = opts.mode ?? 'probe';

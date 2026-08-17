@@ -127,11 +127,11 @@ test('승인 경계와 자기보존을 가른다 — 승인하면 실제로 실�
   // 승인하면 실제로 돈다
   let 돌았나 = false;
   const 승인후도구 = makeLocalTerminalTool({
-    run: async (c, o) => { 돌았나 = o?.mode === 'granted'; return { exitCode: 0, stdout: '', stderr: '', command: c }; },
+    run: async (c, o) => { 돌았나 = o?.mode === 'signal'; return { exitCode: 0, stdout: '', stderr: '', command: c }; },
   });
   const 승인후 = await 승인후도구.handler({ command: 'kill 999999', granted: true });
   assert.ok(!승인후.blocked, '승인했는데 아직도 막힌다');
-  assert.equal(돌았나, true, '승인했는데 granted 로 안 돌았다');
+  assert.equal(돌았나, true, '승인했는데 signal 효과 프로파일로 안 돌았다');
 });
 
 // 실측(오너 라이브 2026-07-29, A): 대상이 **실제로 죽었는데** T5 가

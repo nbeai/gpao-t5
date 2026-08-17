@@ -174,7 +174,7 @@ console.log(JSON.stringify({ sys: protectionFor('/System/Library/x')?.kind ?? nu
 // 실측(2026-08-02): 이 계약이 깨져 있었다 — `secretPaths()` 가 SECRET_DIRS 만 내보내서
 // 파일손이 막는 `~/Library/Messages`·`.env`·`id_rsa`·`.zsh_history` 를 터미널이 승인 없이
 // 읽었다. 정의역: SECRET_DIRS(자리) · SECRET_NAMES(이름) · USER_LIBRARY(닫힘+열림 예외)
-// × 프로파일 모드(probe·granted·reach). 아래는 그 정의역 전체를 한 평가기로 문다.
+// × 프로파일 모드(probe·granted·reach·write·signal). 아래는 그 정의역 전체를 한 평가기로 문다.
 
 /** 프로파일의 file-read 규칙을 순서대로 평가한다(뒤 규칙이 이긴다 — seatbelt 의미). */
 function 프로파일이읽기를막나(profile, path) {
@@ -210,7 +210,7 @@ test('P0-a: 파일손이 secret 이라는 자리는 샌드박스도 막는다 �
     '/어디든/api_token.txt',                    // 이름 규칙은 자리와 무관하다
     '/어디든/rclone.conf',
   ];
-  for (const mode of ['probe', 'granted', 'reach']) {
+  for (const mode of ['probe', 'granted', 'reach', 'write', 'signal']) {
     const prof = sandboxProfile(mode, {});
     for (const p of 표본) {
       assert.equal(protectionFor(p)?.kind, 'secret', `전제: 파일손이 막는 자리다: ${p}`);
@@ -229,7 +229,7 @@ test('P0-a: 열림 예외(동기화 자리)와 일반 자료는 샌드박스도 
     join(H, 'Desktop/메모.md'),
     join(H, 'Documents/credentials-발표자료.pptx'), // 이름 규칙 오탐 경계(F7.2와 같은 선)
   ];
-  for (const mode of ['probe', 'granted']) {
+  for (const mode of ['probe', 'granted', 'reach', 'write', 'signal']) {
     const prof = sandboxProfile(mode, {});
     for (const p of 열림) {
       assert.equal(프로파일이읽기를막나(prof, p), false,

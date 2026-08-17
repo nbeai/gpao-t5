@@ -54,8 +54,8 @@ import { 교환결과렌더 } from '../src/runtime/model-provider.js';
 async function 판(답문장) {
   const 자리 = await mkdtemp(join(tmpdir(), 'timeout-honest-'));
   let granted호출 = 0;   // 빈 초록 방지(검문 ② · H09): FAILED 갈래가 실제로 돌았는지 검사가 스스로 센다
-  const run = async (command, { mode } = {}) => (mode === 'granted' && ++granted호출
-    ? { command, cwd: 자리, mode: 'granted', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
+  const run = async (command, { mode } = {}) => (mode === 'write' && ++granted호출
+    ? { command, cwd: 자리, mode: 'write', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot create: 잠금.pid: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {

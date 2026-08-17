@@ -334,7 +334,11 @@ export const 기준지문 = Object.freeze({
   // browser.act ref 설명만 `canOpen`에서 `canOpen 또는 blockedOpen`으로 넓었다. 외부 링크를
   // 클릭 가능하게 만든 것이 아니라, 조용히 배제하던 경계를 ref·이유·주소 사실로 돌려주기 위한
   // 선언이다. 승인 정책·toolKind·시스템 프롬프트는 불변. 검사: browser-general-click.test.js.
-  스키마: 'eec33b151f69e3be',
+  // 2026-08-18 · **P0 터미널 외부 효과 경계**(eec33b15 → 3236d2ef · 손 20·배치 불변).
+  // 자동 reach가 승인 전 POST를 실제 전송한 sink 재현을 닫았다. 로컬 read 자동은 보존하고,
+  // 임의 셸 네트워크는 카드 뒤에서만 실행하며 공개 웹 읽기는 web.collect가 맡는다는 현재
+  // 실행 사실을 terminal 스키마 설명에 반영했다. 시스템 프롬프트는 불변.
+  스키마: '3236d2efabdc0683',
   도구수: 20,
   // 2026-08-05 · **배치를 처음 동결한다.** 여태 지문은 `.sort()` 로 재서 순서를 안 봤다 —
   // `web.collect` 가 `web.search` 보다 앞이던 우연한 배치도 그래서 안 잡혔다.

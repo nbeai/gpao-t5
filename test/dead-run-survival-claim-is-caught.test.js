@@ -21,8 +21,8 @@ import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 
 async function 판(답문장) {
   const 자리 = await mkdtemp(join(tmpdir(), 'dead-run-'));
-  const run = async (command, { mode } = {}) => (mode === 'granted'
-    ? { command, cwd: 자리, mode: 'granted', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
+  const run = async (command, { mode } = {}) => (mode === 'write'
+    ? { command, cwd: 자리, mode: 'write', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot create: 잠금.pid: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {

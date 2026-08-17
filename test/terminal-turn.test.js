@@ -2,6 +2,7 @@
 // 어제 배운 것: 단위 테스트가 턴 경로를 건너뛰면 초록인데 죽어 있다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { mkdtemp, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { runTurn } from '../src/kernel/turn.js';
 import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { sandboxAvailable } from '../src/runtime/sandbox.js';
+import { runCommand } from '../src/runtime/terminal-run.js';
 
 const 고른다 = (calls) => {
   let used = false;
@@ -61,6 +63,62 @@ test('네트워크가 필요한 명령도 승인에서 멈춘다', { skip: !sand
   const dir = await 자리();
   const r = await runTurn({ text: '설치해줘' }, ctx(dir, 명령('curl -s -m 5 https://example.com')));
   assert.equal(r.kind, 'approval', '인터넷으로 나가는 명령이 승인 없이 실행된다');
+});
+
+test('네트워크 명령은 승인 전 효과 0, 승인 재개 뒤 정확히 1회 실행된다', {
+  skip: !sandboxAvailable() && 'macOS sandbox network 경로에서만 재현',
+}, async () => {
+  const 받은것 = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      받은것.push({ method: req.method, url: req.url, body });
+      res.end('ok');
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  try {
+    const dir = await 자리();
+    const port = server.address().port;
+    const py = [
+      'import socket',
+      `s=socket.create_connection(("127.0.0.1",${port}))`,
+      's.sendall(b"POST /approved HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nContent-Length: 17\\r\\n\\r\\nt5-approved-proof")',
+      's.close()',
+    ].join(';');
+    const command = `PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -c ${JSON.stringify(py)}`
+      + ' || { echo "Network is unreachable" >&2; exit 1; }';
+    const 실행들 = [];
+    const localTerminal = makeLocalTerminalTool({
+      cwd: dir,
+      run: async (cmd, opts) => {
+        const result = await runCommand(cmd, opts);
+        실행들.push({ mode: opts.mode, exitCode: result.exitCode, stderr: result.stderr });
+        return result;
+      },
+    });
+    const context = {
+      env: demoEnv(), model: 고른다(명령(command)), tools: demoTools({ localTerminal }),
+    };
+
+    const first = await runTurn({ text: '확인값을 테스트 서비스에 보내줘' }, context);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(first.kind, 'approval', '네트워크 효과 전에 승인에서 멈추지 않았다');
+    assert.equal(받은것.length, 0, '승인 전에 외부 효과가 발생했다');
+
+    const resumed = await runTurn({ approve: first.pendingId }, context);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.notEqual(resumed.kind, 'approval', '승인 뒤 같은 카드가 다시 떴다');
+    assert.deepEqual(받은것, [{ method: 'POST', url: '/approved', body: 't5-approved-proof' }],
+      `승인한 네트워크 효과가 정확히 한 번 실행되지 않았다: ${JSON.stringify({ kind: resumed.kind, ledger: resumed.ledger, 실행들 })}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는다', async () => {

@@ -27,16 +27,16 @@ async function 방() {
   return d;
 }
 
-/** 실행기 스텁 — probe 는 쓰기 막힘 자국(카드로 가는 길), granted 는 **진짜 디스크 변화**를 만든다.
+/** 실행기 스텁 — probe 는 쓰기 막힘 자국(카드로 가는 길), write 는 **진짜 디스크 변화**를 만든다.
  *  관측 배선이 스텁의 주장이 아니라 실물 diff 를 밟게 하기 위해 파일을 실제로 만든다. */
 function 실행기(자리, 만들것들) {
   return async (command, { mode } = {}) => {
-    if (mode !== 'granted') {
+    if (mode !== 'write') {
       return { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '',
         stderr: `cannot create: 보관.tar: Operation not permitted`, durationMs: 1 };
     }
     for (const 이름 of 만들것들) writeFileSync(join(자리, 이름), '실물');
-    return { command, cwd: 자리, mode: 'granted', exitCode: 0, stdout: '묶음 완료', stderr: '', durationMs: 1 };
+    return { command, cwd: 자리, mode: 'write', exitCode: 0, stdout: '묶음 완료', stderr: '', durationMs: 1 };
   };
 }
 
@@ -74,7 +74,7 @@ async function 판(자리, { run, model }) {
   return { server, turn, sessionId };
 }
 
-test('★ 선빨강 — granted 터미널이 만든 파일의 자리가 결과물 줄에 선다', async () => {
+test('★ 선빨강 — 승인된 write 터미널이 만든 파일의 자리가 결과물 줄에 선다', async () => {
   const 자리 = await 방();
   const model = 묶는모델(자리);
   const { server, turn, sessionId } = await 판(자리, { run: 실행기(자리, ['보관.tar']), model });
@@ -100,12 +100,12 @@ test('★ 선빨강 — granted 터미널이 만든 파일의 자리가 결과�
 test('보존 닻 — 관측 상한 초과면 산출물 주장 자체가 없다 (부분 목록 금지 · H09)', async () => {
   const 자리 = await 방();
   const run = async (command, { mode } = {}) => {
-    if (mode !== 'granted') {
+    if (mode !== 'write') {
       return { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '',
         stderr: 'cannot create: 많이.txt: Operation not permitted', durationMs: 1 };
     }
     for (let i = 0; i < 2100; i += 1) writeFileSync(join(자리, `많이-${i}.txt`), 'x');
-    return { command, cwd: 자리, mode: 'granted', exitCode: 0, stdout: '', stderr: '', durationMs: 1 };
+    return { command, cwd: 자리, mode: 'write', exitCode: 0, stdout: '', stderr: '', durationMs: 1 };
   };
   const tool = makeLocalTerminalTool({ cwd: 자리, run, sandboxAvailable: () => true });
   const r = await tool.handler({ command: 'seq 1 2100 | xargs touch', cwd: 자리, granted: true });
