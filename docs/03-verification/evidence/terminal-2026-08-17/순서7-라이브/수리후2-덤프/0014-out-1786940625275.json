@@ -1,0 +1,12 @@
+{
+  "at": "2026-08-17T04:23:45.275Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "",
+  "textChars": 0,
+  "toolCalls": [
+    "work.deliverable"
+  ]
+}

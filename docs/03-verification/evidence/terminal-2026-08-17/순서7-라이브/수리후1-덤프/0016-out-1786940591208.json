@@ -1,0 +1,10 @@
+{
+  "at": "2026-08-17T04:23:11.208Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "- 메모.txt — 512B  \n- 분기보고.md — 4096B  \n- 정산.csv — 2048B",
+  "textChars": 54,
+  "toolCalls": []
+}
