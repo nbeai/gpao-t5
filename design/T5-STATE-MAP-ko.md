@@ -1,9 +1,10 @@
 # T5 상태 지도 (정본 · 2026-08-12)
 
-> 기준 커밋 da7a0c71 (2026-08-17) — 이 문서를 **직전에** 손질한 커밋(직전 값이다 — 「마지막으로
-> 손질한 커밋」 정의는 자기부정이었다: 같은 커밋이 자기 해시를 못 적는다 · 지도 관리자 정정). **베끼지 말고 재라**(§4-c ②):
-> `git log -1 --format=%h -- design/T5-STATE-MAP-ko.md`. (해시를 지우고 재는 법만 두었더니
-> 세션 시작 점검이 「도장 없음」으로 읽었다 — 훅은 「기준 커밋 <해시>」를 찾는다. 둘 다 둔다.)
+> 기준 커밋 5a1b9df1 (2026-08-17) — 이 문서를 **직전에** 손질한 커밋. 같은 커밋이 자기 해시를
+> 못 적으므로 정의는 「직전」이고, **재는 법도 「직전」을 낸다**(2026-08-17 세 번째 도장 사고
+> 정정 — 정의는 「직전」인데 재는 법은 `-1`(마지막)을 내서 재면 늘 「낡음」으로 읽혔다):
+> `git log -2 --format=%h -- design/T5-STATE-MAP-ko.md | tail -1`. (해시를 지우고 재는 법만
+> 두었더니 세션 시작 점검이 「도장 없음」으로 읽었다 — 훅은 「기준 커밋 <해시>」를 찾는다. 둘 다 둔다.)
 > 그 이후의 움직임은 세션 시작 점검이 잰다(design/T5-FINAL-ASSEMBLY-ko.md §4-c ①).
 
 **이 문서는 「지금 무엇이 어떻게 있는가」다.** 「무엇을 할 것인가」는 `T5-FINAL-ASSEMBLY-ko.md`(계획서)다.
@@ -35,8 +36,8 @@
           ← 2026-08-17 실측. 재는 법: `find src/<층> -name '*.js' | wc -l`(파일) ·
             `find src/<층> -name '*.js' -exec cat {} + | wc -l`(줄) — 베끼지 말고 재라
             (design/T5-FINAL-ASSEMBLY-ko.md §4-c ②)
-          검사 501파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
-          (마지막 단독 실측 4,385/4,385 — 2026-08-17 `npm test` 실행 · 도장 b8db0f65) · 스크립트는 `ls scripts`
+          검사 502파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
+          (마지막 단독 실측 4,391/4,391 — 2026-08-17 `npm test` 실행 · 도장 8248a9d6) · 스크립트는 `ls scripts`
 결합점    turn.js 3,764줄 · server.js 4,363줄(`wc -l` · 2026-08-17 실측) — 둘이 import 130개를
           직접 문다(import 수는 2026-08-12 실측)
 모델 노출  ★ **레인별로 갈린다 — 단일 숫자로 못 적는 첫 자리**(2026-08-17): 손 인벤토리 19
@@ -147,8 +148,8 @@
 | `local.capsule` | capsule.js (305) | — (`code`) | — (macOS 만) | desc 54 + code 666자 |
 | `web.search` | web-search-tool.js | — | read | desc 231자 |
 | `web.collect` | web-collector.js | — | read | desc 548자 |
-| `browser.observe` | browser-tool.js | open snapshot (2) | read | desc 145자 |
-| `browser.act` | browser-tool.js | scroll click type press (4) | read 선언 | desc 312자 |
+| `browser.observe` | browser-tool.js | open snapshot (2) | read | desc **153자** + capability 254 (재는 법: `node -e "import('./src/surface/demo-context.js').then(m=>…)"` — 커밋마다 낡는다) |
+| `browser.act` | browser-tool.js | scroll click type press (4) | 선언 `read` ⚠ · **실판정 자리 없음**(desktop.act 는 probe 가 받는데 여기는 없다 — §12 CH4) | desc **331자** + capability 152 (재는 법 위와 같음) |
 | `desktop.screen` | desktop-tool.js (542) | status observe (2) | read | **desc 914자** + capability 274 + operatorFact 325 |
 | `desktop.act` | desktop-act-tool.js (1,158) | **17개**(아래) | 선언 `read` ⚠ · 실판정은 probe | desc 545 + capability 207 + operatorFact 210 |
 | `session.search` | session-search-tool.js | — | read | desc 108자 |
@@ -233,7 +234,10 @@ BFS. 깊이 기본 3(1~5 clamp) · 폴더당 **400개**(필터 전 절단 — �
 기동: `--remote-debugging-port=<잡은자리> --user-data-dir=… [--headless=new] --no-first-run --disable-extensions --mute-audio`.
 자리는 9412 부터 **띄우기 전에 비었는지 물어보고** 잡는다(차 있으면 옆으로, 열 자리가 다 차면 정직하게 막는다 · §12-S5 닫힘) — 남의 크롬에는 안 붙는다.
 **탭을 한 번만 만들고(`Target.createTarget about:blank`) 그 세션 위에서만 돈다.** 탭 단위로 닫지 않는다. 유휴 120초면 종료.
-`browser.act` 실제 능력: `scroll`(최대 5회/20초) · `click`(**`role="tab"` 또는 `aria-expanded` 만** — 링크 못 누름) · `type`(ref 기반, 보안칸 거부) · `press`(**엔터만**, 검색 칸 또는 GET 폼일 때만).
+`browser.act` 실제 능력: `scroll`(최대 5회/20초) · `click`(**관찰이 준 ref 전부 — 링크·버튼·탭·펼침**.
+배제는 셋뿐: 폼 소속 submit(버튼 기본값 포함) · POST 폼 소속 · 외부 링크. 경계는 `클릭가능술어`
+**한 벌**이 지고 수집(`browser.js:289`)과 클릭(`:619`)이 같은 글자를 먹는다 · 신설 `0caa4d10` ·
+검사 `test/browser-general-click.test.js`) · `type`(ref 기반, 보안칸 거부) · `press`(**엔터만**, 검색 칸 또는 GET 폼일 때만).
 예의: 같은 호스트 1.2초 간격 · 10분 캐시 · 429/503 백오프 최대 15분 — `web.collect` 와 **같은 인스턴스 공유**.
 
 ### 3-6. 웹 손
@@ -422,7 +426,7 @@ HTTP 밖 진입점 3: `runtimeTick()` · `runtimeReconcile()` · `handleChannelM
 **UI 가 한 번도 안 부르는 엔드포인트 20여 개** — 자동화 관리(pause/resume/retry/tick) · 스킬 활성화 계열 · 사용자모델 4 · `/memory` · `/deliveries` · `/verify` · `/automation` · `/connectors` · `/model/health`. `GET /patterns` 는 **웹·검사·스크립트 어디에도 호출자가 0**.
 
 **demo ↔ live**: `npm start → server.js → liveDeps → live-context.js:5 가 demo-context 를 import`.
-모델이 읽는 손 설명·스키마·능력문장이 전부 `demo-context.js` 의 `DESCRIPTORS`(608–1079) + 조건부 화면 선언 둘에서 나온다. live 가 더 붙이는 건 `connector.connect`·`connector.declare` 둘.
+모델이 읽는 손 설명·스키마·능력문장이 전부 `demo-context.js` 의 `DESCRIPTORS`(**줄 범위는 커밋마다 낡는다** — 재는 법: `grep -n "^const DESCRIPTORS\|^  defineTool({" src/surface/demo-context.js`. 2026-08-17 실측으로 browser.act 는 :1164) + 조건부 화면 선언 둘에서 나온다. live 가 더 붙이는 건 `connector.connect`·`connector.declare` 둘.
 실측(이 기계 · 2026-08-17 state-probe 재실측): **손 인벤토리 19(telegram.inbox 신설) · 모델 노출
 캡처 총 29 · 커넥터 8(전부 미연결)** — 재는 법: `node scripts/state-probe.mjs`. `agent.delegate` 는 `enableAgentDelegation && scopeRoots` 일 때만 나중에 끼워진다.
 
@@ -481,8 +485,8 @@ replay 를 못 넘는다.**
 
 ## 10. 검사·게이트·계측기
 
-**검사** 501파일(`ls test/*.test.js | wc -l` · 2026-08-17 실측) · 건수는 `npm test` 가 잰다(마지막
-단독 실측 4,385/4,385 — 2026-08-17 실행 · 도장 b8db0f65) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
+**검사** 502파일(`ls test/*.test.js | wc -l` · 2026-08-17 실측) · 건수는 `npm test` 가 잰다(마지막
+단독 실측 4,391/4,391 — 2026-08-17 실행 · 도장 8248a9d6) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
 **두꺼운 곳**: 화면손 62파일 497건 · 결함번호 회귀 58/454 · T-cell 15/295.
 **빈 곳**: ~~inbox 0~~(거짓이 됐다 — `test/channel-inbox-hand.test.js` 신설 `1ea37b03` · 지도 마지막
 손질보다 뒤 · 지도 관리자 정정) · ★ **`approval.decide` 검사 0**(`test/`·`scripts/` 전체 0건 실측 —
@@ -499,7 +503,11 @@ replay 를 못 넘는다.**
 
 **계측기**(`state-probe.mjs` 1,325줄): 유료 0·실기기 0·오너 자리 접촉 0.
 **0·부재를 근거로 삼는 모든 자**(계측기 · 게이트 · **라이브 대본**)는 **양성 대조 없이 부재를 선언하지 못한다**(F-104 · 2026-08-12) — 말하기 전에
-**실재하는 것을 그 검색법으로 잡아 보인다.** 대조가 안 서면 그 줄은 「없다」가 아니라
+**실재하는 것을 그 검색법으로 잡아 보인다.**
+★ **그리고 그 양성 대조는 「판정 방의 조건 그대로」 아래에서 서야 한다**(2026-08-17 · X8 실증).
+자 v2.2 에는 양성 대조가 **있었는데도** 두 회차가 무효로 났다 — 대조가 방 조건(HOME 재매핑·
+실브라우저 launch) 밖에서 섰기 때문이다. 조건 밖에서 선 대조는 대조가 아니다(`6ec554fd` 가
+「기계 양성대조를 **방 조건 그대로로** 격상」한 것이 이 규율의 첫 이행이다). 대조가 안 서면 그 줄은 「없다」가 아니라
 **「이 자로는 못 본다」**로 나간다. 그 전에는 검색어가 외부 라이브러리 이름뿐이라 자체 구현
 (`buildXlsx`)과 파일 스킬(`SKILL.md`)을 못 보고 0건을 냈다.
 **규율은 넓지만 무는 자는 아직 좁다** — `test/f104-…` 는 `state-probe.mjs` 하나를 물고,
@@ -515,8 +523,8 @@ folders 를 구조적으로 침묵 — 「남은 파일: 1개(.gz)」가 「다 
 J6 재개 아님 — J6 은 local-locate 자리로 닫힘 유지 · 계열 상속이다. 같은 함수 전과: :302-311
 S1 회차 6 「남은 57개 침묵」 — 이번은 같은 문장에서 폴더가 빠진 둘째). 손 인벤토리 · **서버 실기동 한 턴으로 모델 노출 도구 캡처** · 통제 채널 · 기관 10 결손 · 부재 확인 7주제 · 확정 계열 4 · 캐시 접두 안정성 · 코드 파생 사실 · **미측정은 계획서 §2 를 인용**(값을 지어내지 않는다) · 체감 지표 사후 집계.
 
-**라이브 러너**(`scripts/live/` **실측 15파일**(`ls scripts/live | wc -l` · 2026-08-17 —
-`channel-inbox-round.mjs`·`channel-approval-round.mjs` 등 신설) — 아래는 전수가 아니라 대표 셋 · 완성재판 하네스는 `scripts/terminal-qualification/`(완성재판.mjs·비교군재판.sh)에 따로 산다): `organ-round.mjs`(실기기 · 독립 기준자 6종 · 동결 문장 4줄 · 승인 카드 1장 = 사용자 손 1회) · `charter.mjs`(대본 모델 · 판정 4축) · A층 `living-sim-runner.mjs`(기계 조건 **3개뿐**, 나머지는 `PM_UNJUDGED` · `EXTERNAL_EFFECT_HANDS` 쓸 수 있으면 **시험 거부**).
+**라이브 러너**(`scripts/live/` **실측 16파일**(`ls scripts/live | wc -l` · 2026-08-17 —
+`channel-inbox-round.mjs`·`channel-approval-round.mjs`·`browser-click-round.mjs` 등 신설) — 아래는 전수가 아니라 대표 셋 · 완성재판 하네스는 `scripts/terminal-qualification/`(완성재판.mjs·비교군재판.sh)에 따로 산다): `organ-round.mjs`(실기기 · 독립 기준자 6종 · 동결 문장 4줄 · 승인 카드 1장 = 사용자 손 1회) · `charter.mjs`(대본 모델 · 판정 4축) · A층 `living-sim-runner.mjs`(기계 조건 **3개뿐**, 나머지는 `PM_UNJUDGED` · `EXTERNAL_EFFECT_HANDS` 쓸 수 있으면 **시험 거부**).
 
 ---
 
@@ -556,7 +564,7 @@ S1 회차 6 「남은 57개 침묵」 — 이번은 같은 문장에서 폴더�
 
 ⑨  타이핑 경계 두 벌   같은 「글자 넣기」를 두 자리가 따로 판정한다 —
                      desktop.act : 커널 층(action-plan.js:186 · 탐침의 눌러본사실 위에서)
-                     browser.act : 손 안(browser.js 타이핑판정:212 · 엔터판정:235)
+                     browser.act : 손 안(browser.js 타이핑판정:212 · 엔터판정:234)
                      **뚫린 곳은 없다**(2026-08-12 직접 시험 6종: password·autocomplete
                      힌트·file·unknown 전부 막히고, 검색칸만 타이핑+엔터, 일반 텍스트칸은
                      타이핑만). 계획서 §5-2 의 표 그대로 선다.
@@ -572,6 +580,12 @@ S1 회차 6 「남은 57개 침묵」 — 이번은 같은 문장에서 폴더�
 병기: demo-context 의 타임아웃·⑥ 유도 문장 두 사본(:706↔:753)은 **의도된 두 벌**이다(F3 단어경계
 두 사본 선례 — 같은 사실을 싣는 두 표면에 같은 문장을 싣는다) — **문장 두 사본과 로직 두 벌을
 한 줄에 섞지 말 것.** 늘어난 것은 로직 쪽이다.
+
+★ **이 계열의 첫 「예방」 사례(2026-08-17 · 브라우저 클릭).** 「누를 수 있나」가 세 자리에
+흩어져 있었다(OBSERVE_SCRIPT 필터 · canOpen 필터 · click 재판정 — 앞의 둘은 서로 다른 술어였다).
+정의역을 넓히면서 **갈라진 뒤 합친 것이 아니라 갈라지기 전에** `클릭가능술어` 문자열 상수
+한 벌로 모았다(`browser.js:263` → 수집 `:289` · 클릭 `:619` 가 같은 글자를 먹는다 · `0caa4d10`).
+F-93·F-95 는 갈라진 뒤에 합쳤다 — 순서가 바뀐 첫 자리다.
 
 ★ **셋째 부류가 생겼다(2026-08-17): 의도된 로직 비대칭.** 한 카드를 결재하는 표면이 둘인데
 (화면 버튼 ↔ 채널 `approval.decide` · server.js:4009-4057) **행동이 일부러 다르다** — 웹 승인은
@@ -622,6 +636,8 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | S6 | **안전** | `legacy-default-agent`(A2·전 도구)가 유일 활성 역할이면 무조건 선택된다 — **자리 이동**(유산감사 2026-08-16 · `40170cd4` 실측): `server.js:1041` 은 현재 자동화 승인 코드이고 `legacy-default-agent` 는 `automation-contracts.js` 로 옮겨졌다. 「유일 활성이면 무조건 선택」 **행동의 존속 여부는 미확인** — 열림 유지 | automation-contracts.js:985·1094·1180 계열(실측) |
 | CH1 | **마찰 · 열림** | 채널 답신 키 어긋남 — server.js:3852·4173 이 `${channel}.send` 를 찾는데 실물 슬랙 손은 `slack.post`(live-context.js:84·124)이고 **`slack.send` 는 src 전체 0건** → 슬랙 왕복 도달 불가 잠복(텔레그램은 `telegram.send` 라 우연히 맞는다) | server.js:3852·4173(2026-08-17 실측 · 줄번호 낡음 주의 — 재는 법: `grep -n '채널}.send\|channel}.send' src/surface/server.js` 상당) |
 | CH2 | **마찰 · 열림** | 채널 조회 손 **간판만** telegram 에 묶임 — 몸통은 채널 무관(channel-inbox-tool.js:58). 「슬랙 조회 능력 부재」로 읽으면 틀린다 — 부재는 간판·배선이지 몸통이 아니다 | channel-inbox-tool.js:58 |
+| CH4 | **안전 · 열림 · 오너 상신** | `browser.act click` 은 **`read` 선언인데 상태를 바꾸는 POST 를 낸다.** `toolKind:'read'`(demo-context.js:1168) → §5-1 A0 → 항상 자동. 폼 밖 `type=button` + `onclick fetch POST` 는 술어가 기계로 못 가른다(공지 펼치기도 같은 fetch다) → **승인 카드 0 으로 `POST /삭제` 1건이 실제로 나갔다**(사용자가 시킨 클릭). `desktop.act` 는 같은 ⚠ 를 **probe 실판정**으로 받는데 `browser.act` 에는 그 자리가 없다. 선택지 셋(현상 유지+정직 등재 / write 승격 / 변이 관측 장치)은 **오너 결정** — 구현자·감시자가 안 고른다 | 원본 `docs/03-verification/evidence/terminal-2026-08-17/국면5-b-s1-반대시험/회차.json` r2-JS변이(`클릭시도 1 · blocked:false · POST델타 {"/삭제":1} · 승인 0`) · 자리 `src/runtime/browser.js:263`(술어) · `src/surface/demo-context.js:1168` |
+| X8 | **정직 · 닫힘(규칙 열림)** | **재는 자 계열의 새 모양 둘 — X6 과 같은 파일**(`scripts/live/h04-memory-round.mjs`). 앞의 일곱(S2→J6→X5→X6→X7→J13→task-context)은 전부 「**부재·0 을 없다로 읽음**」인데, 이 둘은 「**자가 만든 조건을 제품 사실로 읽음**」이다. **2호**: 방하나가 진짜 브라우저를 물리면서 환경 사실은 `connected:false` 를 실어(FACTS 에 브라우저 항목 없음) 모델의 **옳은 거절**을 「제품이 막혔다」로 읽었다. **3호**: HOME 재매핑 아래 macOS 크롬 렌더러 미기동(`CDP 응답 없음: Page.navigate` · 실HOME 2.7s 정상)을 제품 결함으로 읽었다 — 계측 환경 한계. 둘 다 자만 고쳤다(**제품 0줄**). ★ **파생 규칙(열림)**: 실브라우저 배선(`1f4d59db` 2026-08-13)이 HOME 재매핑(`44966420` 2026-08-12) **뒤**이므로 **2026-08-13 이후 브라우저 축 라이브 결론은 재사용 금지**(조건 확정 · 결론 미확정 · 재심 대상: `scripts/live/web-hand.mjs` 2026-08-13 계열) | 닫은 커밋 `36b334f3`(2호) · `7d02b0f4`(3호) · `6ec554fd`(자 v2.3 방 조건 격상) · 회차 원본 `국면5-b-s1-판정-1회`·`-2회` |
 | CH3 | **안전 · 열림** | 다건 대기 + 모호 「승인」에서 **되묻지 않고 집행**(반대시험 ③ 빨강 · 첫 실행값 · 2026-08-17). 다건 대기는 제품 경로로 지속 성립이 어려우나(턴마다 비움) approve 턴이 새 카드를 세우는 갈래에서 2카드 지속 가능성(코드 추론 · 미실측). 단건 정의역 밖 — 수리 안 얹음 · 재개봉은 다건 대기 집행 슬라이스와 함께 | 원본 `docs/03-verification/evidence/terminal-2026-08-17/국면4-s2-반대시험-1회/회차.json` · 자 한계 3줄 병기(선등록 §16) |
 | J1 | ~~정직~~ **닫힘** | 손이 준 `다음수단·다른후보·막힌곳·nextSafeAction` 이 어떤 와이어에도 안 실렸다. `24754f6` 에서 `다음길줄` 을 세워 교환·서술 두 자리에서 와이어 넷이 읽는다(사실 진술만·지시문 없음) | model-provider.js:685 · 검사 `test/every-wire-carries-the-next-path.test.js` |
 | J2 | ~~정직~~ **닫힘(절반은 남음)** | 지난 턴 실패가 성공처럼 서던 자리. `24754f6` 에서 상태 토큰을 옮기고 `(미확인: failed)` 로 표시. **남은 것**: `priorExchange` 는 여전히 요약만이고 결과 원문은 안 실린다(E1 계약 — 의도된 것) | task-context.js:1013 · model-provider.js:497 |
@@ -745,6 +761,6 @@ OS 색인 활용           **더했다(2026-08-12)** — 형식 질의는 mdfind
 
 ```bash
 node scripts/state-probe.mjs      # 유료 0 · 40초 — 지금 무엇이 있고 없나
-npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,385/4,385 · 2026-08-17 · 도장 b8db0f65 — 건수를 든 자리는 셋(§1·§10·여기)이다, 하나만 고치면 자기모순이 선다) · 되돌아가지 않았다는 최소 조건
+npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,391/4,391 · 2026-08-17 · 도장 8248a9d6 — 건수를 든 자리는 셋(§1·§10·여기)이다, 하나만 고치면 자기모순이 선다) · 되돌아가지 않았다는 최소 조건
 npm start                         # 완료 판정의 유일한 자리 (계획서 §3)
 ```
