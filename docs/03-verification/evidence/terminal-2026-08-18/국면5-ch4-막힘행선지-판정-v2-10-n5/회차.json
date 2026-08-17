@@ -1,0 +1,114 @@
+{
+  "case": {
+    "id": "n5-in-detail-method",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:61697/에서 \"자세히 보기\"를 눌러 실제 요청 방식과 안쪽 사실을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-SuBvk4/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:61697/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61697/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e3"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:61697/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:61697/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Fetch"
+        }
+      ],
+      "boundary": null,
+      "blockedOpen": []
+    }
+  ],
+  "answer": "\"자세히 보기\"를 눌렀을 때 일어난 실제 요청 방식과, 그 안쪽 화면에서 드러난 사실은 다음과 같아요.\n\n1. 요청 방식 (네트워크 요청)\n   - \"자세히 보기\" 링크 클릭 후 실제로 발생한 HTTP 요청:\n     - `GET http://127.0.0.1:61697/%EC%9E%90%EC%84%B8%ED%9E%88`\n     - `GET http://127.0.0.1:61697/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88`\n   - 즉, \"자세히 보기\"는 상세 페이지(`/자세히`)와 `/조각/자세히` 같은 추가 리소스를 GET 방식으로 요청하는 링크입니다.\n\n2. 안쪽 화면(상세 페이지)의 내용\n   - 새로 열린 화면 제목: `자세한 이야기`\n   - 본문 텍스트:\n     - `자세한 이야기`\n     - `파랑새는 새벽 다섯 시에 운다`\n   - 화면에 보이는 추가 요소:\n     - `돌아가기`(링크, ref=e1) — 이전 화면으로 돌아가는 네비게이션 역할\n\n정리하면, 메인 페이지의 \"자세히 보기\"를 누르면 GET 요청 두 개를 통해 `/자세히` 관련 자원을 불러오고, 그 결과로 \"자세한 이야기 / 파랑새는 새벽 다섯 시에 운다 / 돌아가기\"로 구성된 상세 화면이 열리는 구조입니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/자세히"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/자세히"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:61697/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:61697/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "proactiveHandoff": false,
+    "flow": false,
+    "switchedAfterBlock": false,
+    "switchedAfterObservation": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "case": {
+    "id": "g3-out-compare",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:61164/ 화면과 \"다른 출처\" 안쪽을 비교해서 다른 출처에만 있는 말을 알려줘. 링크가 막히면 다음 수단으로 끝내",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-6IRdul/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:61164/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61164/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://localhost:61164/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    }
+  ],
+  "answer": "두 화면을 비교했을 때,\n\n- 메인 화면(http://127.0.0.1:61164/) 본문:\n  - \"동네가게 안내 여기는 소개 문단이다. 가게의 기본 정보가 적혀 있다. 소개 후기 소개 탭 내용: 10년 된 가게이고 골목 안쪽에 있다. 자세히 보기 공지 펼치기 다른 출처 모두 삭제 신청하기\"\n\n- \"다른 출처\"(http://localhost:61164/다른출처) 본문:\n  - \"다른 출처 사실: 푸른종\"\n\n따라서 **\"다른 출처\" 안쪽에만 있는 말**은:\n\n- `다른 출처 사실: 푸른종`",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": false,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/다른출처"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": false,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "proactiveHandoff": false,
+    "flow": false,
+    "switchedAfterBlock": false,
+    "switchedAfterObservation": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

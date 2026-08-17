@@ -1,0 +1,91 @@
+{
+  "case": {
+    "id": "n4-in-intro",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:61626/에서 \"소개\" 탭을 눌러 소개 내용을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-K35VDp/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:61626/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61626/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e1"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61626/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    }
+  ],
+  "answer": "소개 탭 내용은 다음과 같아요.\n\n“소개 탭 내용: 10년 된 가게이고 골목 안쪽에 있다.”",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "proactiveHandoff": false,
+    "flow": false,
+    "switchedAfterBlock": false,
+    "switchedAfterObservation": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

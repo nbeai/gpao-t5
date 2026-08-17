@@ -1,0 +1,107 @@
+{
+  "case": {
+    "id": "n2-in-review",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:61484/에서 \"후기\" 탭을 눌러 요약을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-Gz1mO3/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:61484/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61484/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e2"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:61484/%EC%A1%B0%EA%B0%81/%ED%9B%84%EA%B8%B0",
+          "resourceType": "Fetch"
+        }
+      ],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61484/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    }
+  ],
+  "answer": "\"후기\" 탭 내용은:\n\n- 후기 요약: 별점은 대략 4.5점(네 개 반) 수준  \n- 재방문 의사가 있다는 긍정적인 평이 많음  \n\n즉, 전반적으로 만족도가 높고 다시 오겠다는 후기가 많은 가게라는 내용이에요.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/후기"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:61484/%EC%A1%B0%EA%B0%81/%ED%9B%84%EA%B8%B0",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "proactiveHandoff": false,
+    "flow": false,
+    "switchedAfterBlock": false,
+    "switchedAfterObservation": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

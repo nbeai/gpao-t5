@@ -1,0 +1,91 @@
+{
+  "case": {
+    "id": "g2-out-source",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:61058/의 \"다른 출처\"가 가리키는 공개 원문의 핵심 문장을 확인해줘. 먼저 화면 링크를 눌러 보고 막히면 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-1vdVDM/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": []
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:61058/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null,
+      "blockedOpen": [
+        {
+          "ref": "e5",
+          "text": "다른 출처",
+          "reason": "external_link",
+          "address": "http://localhost:61058/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      ]
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e5"
+      },
+      "blocked": false,
+      "failureState": "blocked",
+      "networkRequests": [],
+      "boundary": {
+        "reason": "external_link",
+        "address": "http://localhost:61058/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98",
+        "next": {
+          "kind": "public_web_source",
+          "address": "http://localhost:61058/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98"
+        }
+      },
+      "blockedOpen": []
+    }
+  ],
+  "answer": "답을 정리하는 연결이 잠시 끊겼어요. 방금까지 한 일은 기록에 남겼어요. 같은 일은 이어서 확인할 수 있어요.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": false,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "proactiveHandoff": false,
+    "flow": false,
+    "switchedAfterBlock": false,
+    "switchedAfterObservation": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": false
+  }
+}
