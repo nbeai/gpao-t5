@@ -1,0 +1,101 @@
+{
+  "case": {
+    "id": "n5-in-detail-method",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60803/에서 \"자세히 보기\"를 눌러 실제 요청 방식과 안쪽 사실을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-JXEYKJ/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60803/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e3"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:60803/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:60803/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Fetch"
+        }
+      ],
+      "boundary": null
+    }
+  ],
+  "answer": "\"자세히 보기\"를 눌렀을 때 실제로 일어난 요청과, 그 안에서 보이는 사실을 정리하면 다음과 같습니다.\n\n1. 실제 요청 방식 (네트워크 요청)\n   - HTTP 메서드: `GET`\n   - 요청된 경로:\n     1) `GET http://127.0.0.1:60803/%EC%9E%90%EC%84%B8%ED%9E%88`\n     2) `GET http://127.0.0.1:60803/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88`\n   - 두 번의 GET 요청이 연달아 발생한 것으로 보입니다.\n     - 첫 번째는 `/자세히` 같은 상세 페이지 엔드포인트\n     - 두 번째는 `/조각/자세히` 같은 부분 템플릿/조각 뷰를 가져오는 요청일 가능성이 큽니다(프론트에서 레이아웃과 내용을 나눠 불러오는 패턴).\n\n2. \"자세한 이야기\" 페이지 안쪽 사실(화면 내용)\n   - 페이지 제목(또는 주요 구획): `자세한 이야기`\n   - 본문 텍스트:  \n     `파랑새는 새벽 다섯 시에 운다`\n   - 추가 요소:\n     - 링크: `돌아가기` (ref=`e1`)\n\n   즉, \"자세히 보기\"를 누르면 \"자세한 이야기\"라는 화면으로 전환되고, 그 안에는 다음 문장이 핵심 콘텐츠로 들어 있습니다.\n   - 도메인 텍스트: “파랑새는 새벽 다섯 시에 운다”\n\n정리하면, 사용자의 클릭(자세히 보기)은 브라우저에서 두 개의 GET 요청( `/자세히`, `/조각/자세히`)을 발생시키고, 그 결과로 \"자세한 이야기\" 화면이 열리며, 그 안에는 \"파랑새는 새벽 다섯 시에 운다\"라는 문장이 실제 본문으로 렌더링되어 있습니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/자세히"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/자세히"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:60803/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:60803/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

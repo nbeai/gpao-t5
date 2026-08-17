@@ -1,0 +1,87 @@
+{
+  "case": {
+    "id": "n2-in-review",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60598/에서 \"후기\" 탭을 눌러 요약을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-6eptEu/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60598/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e2"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:60598/%EC%A1%B0%EA%B0%81/%ED%9B%84%EA%B8%B0",
+          "resourceType": "Fetch"
+        }
+      ],
+      "boundary": null
+    }
+  ],
+  "answer": "\"후기\" 탭 내용 요약:\n\n- 전반적인 평점: 별 4.5개(네 개 반) 수준\n- 후기 경향: 재방문 의사가 있다는 긍정적인 평가가 많음\n\n즉, 손님들이 전반적으로 만족도가 높고 다시 오고 싶다는 반응이 많은 가게라고 정리할 수 있습니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/후기"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:60598/%EC%A1%B0%EA%B0%81/%ED%9B%84%EA%B8%B0",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": true
+  }
+}

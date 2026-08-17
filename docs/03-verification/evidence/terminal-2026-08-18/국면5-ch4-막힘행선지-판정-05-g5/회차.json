@@ -1,0 +1,87 @@
+{
+  "case": {
+    "id": "g5-out-key",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60442/의 \"다른 출처\" 안쪽 확인어가 무엇인지 찾아줘. 화면 링크가 막히면 다른 웹 손으로 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-ZBJz20/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60442/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e5"
+      },
+      "blocked": false,
+      "failureState": "failed",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "web.collect",
+      "args": {
+        "request": "http://localhost:60442/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98",
+        "selectionGoal": "first_readable"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    }
+  ],
+  "answer": "\"http://127.0.0.1:60442/\"의 \"다른 출처\" 링크 안쪽 페이지를 확인했을 때, 본문에 적힌 확인어는:\n\n푸른종\n\n입니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/다른출처"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": true,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser",
+      "web.collect"
+    ],
+    "answerMatches": true
+  }
+}

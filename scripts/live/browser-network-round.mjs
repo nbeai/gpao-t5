@@ -25,7 +25,7 @@ export const CASES = Object.freeze([
 ]);
 
 export const RECOVERY_CASES = Object.freeze([
-  { id: 'g1-out-fact', kind: 'recovery', prompt: (b) => `${b}/ 화면에서 "다른 출처"를 눌러 안쪽 사실을 알려줘. 막히면 결과에 실린 다음 수단으로 이어가`, marker: /다른 출처 사실: 푸른종/ },
+  { id: 'g1-out-fact', kind: 'recovery', prompt: (b) => `${b}/ 화면에서 "다른 출처"를 눌러 안쪽 사실을 알려줘. 막히면 결과에 실린 다음 수단으로 이어가`, marker: /푸른종/ },
   { id: 'g2-out-source', kind: 'recovery', prompt: (b) => `${b}/의 "다른 출처"가 가리키는 공개 원문의 핵심 문장을 확인해줘. 먼저 화면 링크를 눌러 보고 막히면 이어가`, marker: /푸른종/ },
   { id: 'g3-out-compare', kind: 'recovery', prompt: (b) => `${b}/ 화면과 "다른 출처" 안쪽을 비교해서 다른 출처에만 있는 말을 알려줘. 링크가 막히면 다음 수단으로 끝내`, marker: /푸른종/ },
   { id: 'g4-out-title', kind: 'recovery', prompt: (b) => `${b}/에서 "다른 출처"를 눌러 그 페이지 제목과 사실을 알려줘. 막히면 거기서 준 다음 길로 이어가`, marker: /다른 출처[\s\S]*푸른종|푸른종[\s\S]*다른 출처/ },
@@ -33,7 +33,7 @@ export const RECOVERY_CASES = Object.freeze([
   { id: 'n1-in-detail', kind: 'control', prompt: (b) => `${b}/에서 "자세히 보기"를 눌러 안쪽 문장을 알려줘`, marker: /파랑새|새벽 다섯 시/ },
   { id: 'n2-in-review', kind: 'control', prompt: (b) => `${b}/에서 "후기" 탭을 눌러 요약을 알려줘`, marker: /별 네 개 반|재방문/ },
   { id: 'n3-in-notice', kind: 'control', prompt: (b) => `${b}/에서 "공지 펼치기"를 눌러 공지를 알려줘`, marker: /정기 점검|아홉 시/ },
-  { id: 'n4-in-second', kind: 'control', prompt: (b) => `${b}/목록에서 두 번째 이야기를 눌러 열쇠말을 알려줘`, marker: /초록별/ },
+  { id: 'n4-in-intro', kind: 'control', prompt: (b) => `${b}/에서 "소개" 탭을 눌러 소개 내용을 알려줘`, marker: /10년|골목/ },
   { id: 'n5-in-detail-method', kind: 'control', prompt: (b) => `${b}/에서 "자세히 보기"를 눌러 실제 요청 방식과 안쪽 사실을 알려줘`, marker: /GET[\s\S]*(파랑새|새벽 다섯 시)|(파랑새|새벽 다섯 시)[\s\S]*GET/ },
 ]);
 
@@ -128,15 +128,20 @@ async function main() {
       failureState: e.failureState ?? 'none',
       networkRequests: 요청사실(e),
       boundary: e.result?.observation?.boundary ?? null,
+      blockedOpen: e.result?.observation?.blockedOpen ?? [],
     }));
     const answer = String(result.result?.reply ?? result.reply ?? '');
     const clickRequests = hands.filter((h) => h.tool === 'browser.act' && h.args?.action === 'click').flatMap((h) => h.networkRequests);
     // observe·act 는 도구 둘이지만 §1-0 의 **브라우저 손 하나**다. 도구 수를 손 수로 부풀리지 않는다.
     const uniqueWebHands = [...new Set(hands.map((h) => 웹손가족(h.tool)).filter(Boolean))];
     const blockedIndex = hands.findIndex((h) => h.blocked && h.boundary?.reason === 'external_link');
+    const boundaryObservedIndex = hands.findIndex((h) => h.blockedOpen.some((x) => x.reason === 'external_link'));
     const blockedFamily = blockedIndex >= 0 ? 웹손가족(hands[blockedIndex].tool) : undefined;
     const switchedAfterBlock = blockedIndex >= 0 && hands.slice(blockedIndex + 1)
       .some((h) => 웹손가족(h.tool) && 웹손가족(h.tool) !== blockedFamily);
+    const observedFamily = boundaryObservedIndex >= 0 ? 웹손가족(hands[boundaryObservedIndex].tool) : undefined;
+    const switchedAfterObservation = boundaryObservedIndex >= 0 && hands.slice(boundaryObservedIndex + 1)
+      .some((h) => 웹손가족(h.tool) && 웹손가족(h.tool) !== observedFamily);
     const serverRequests = 판.요청.slice(before);
     const scored = {
       positiveControl: positive.성립,
@@ -150,13 +155,16 @@ async function main() {
       blockedExpected: selected.kind === 'recovery',
       blockedEstablished: blockedIndex >= 0,
       recovery: blockedIndex < 0 ? null : (switchedAfterBlock && selected.marker.test(answer)),
+      proactiveHandoff: boundaryObservedIndex < 0 ? null : (switchedAfterObservation && selected.marker.test(answer)),
+      flow: selected.marker.test(answer) && (switchedAfterBlock || switchedAfterObservation),
       switchedAfterBlock,
+      switchedAfterObservation,
       uniqueWebHands,
       answerMatches: selected.marker.test(answer),
     };
     await mkdir(자리, { recursive: true });
     await writeFile(join(자리, '회차.json'), JSON.stringify({ case: selected, prompt: selected.prompt(판.base), hands, answer, scored }, null, 2));
-    process.stdout.write(`${selected.id} click=${scored.actualClick} requests=${clickRequests.length} hands=${uniqueWebHands.join('>')} composition=${scored.composition} blocked=${scored.blockedEstablished} recovery=${scored.recovery}\n`);
+    process.stdout.write(`${selected.id} click=${scored.actualClick} requests=${clickRequests.length} hands=${uniqueWebHands.join('>')} flow=${scored.flow} proactive=${scored.proactiveHandoff} blocked=${scored.blockedEstablished} recovery=${scored.recovery}\n`);
     process.stdout.write(`원본: ${join(자리, '회차.json')}\n`);
   } finally {
     if (방) await 방.close();

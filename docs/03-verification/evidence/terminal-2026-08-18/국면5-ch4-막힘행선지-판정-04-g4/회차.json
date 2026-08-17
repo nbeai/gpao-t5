@@ -1,0 +1,88 @@
+{
+  "case": {
+    "id": "g4-out-title",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60356/에서 \"다른 출처\"를 눌러 그 페이지 제목과 사실을 알려줘. 막히면 거기서 준 다음 길로 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-7u4ids/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60356/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e5"
+      },
+      "blocked": false,
+      "failureState": "failed",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "web.collect",
+      "args": {
+        "request": "http://localhost:60356/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98",
+        "selectionGoal": "first_readable",
+        "limit": 900
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    }
+  ],
+  "answer": "localhost의 \"다른 출처\" 페이지에서 확인한 내용은 다음이야.\n\n- 페이지 제목: **다른 출처**\n- 이 페이지에 적혀 있던 사실 문장: **\"푸른종\"**\n\n그 외에는 메뉴·링크뿐이라, 이 페이지 안에서는 추가 정보(설명 문단 등)는 없었어.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/다른출처"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": true,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser",
+      "web.collect"
+    ],
+    "answerMatches": true
+  }
+}

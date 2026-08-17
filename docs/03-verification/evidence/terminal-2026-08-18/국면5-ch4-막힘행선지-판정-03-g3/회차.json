@@ -1,0 +1,87 @@
+{
+  "case": {
+    "id": "g3-out-compare",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60288/ 화면과 \"다른 출처\" 안쪽을 비교해서 다른 출처에만 있는 말을 알려줘. 링크가 막히면 다음 수단으로 끝내",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-jmumEz/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60288/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e5"
+      },
+      "blocked": false,
+      "failureState": "failed",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "web.collect",
+      "args": {
+        "request": "http://localhost:60288/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98",
+        "selectionGoal": "first_readable"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    }
+  ],
+  "answer": "지금 확인한 기준은 다음 두 화면입니다.\n\n1) `http://127.0.0.1:60288/`  \n- 보이는 문장들:\n  - `동네가게 안내`\n  - `여기는 소개 문단이다.`\n  - `가게의 기본 정보가 적혀 있다.`\n  - `소개 탭 내용: 10년 된 가게이고 골목 안쪽에 있다.`\n  - 버튼/링크 텍스트:\n    - `소개`\n    - `후기`\n    - `자세히 보기`\n    - `공지 펼치기`\n    - `다른 출처`\n    - `모두 삭제`\n    - `신청하기`\n\n2) \"다른 출처\" 링크 안쪽 (`http://localhost:60288/다른출처`)  \n- 실제 본문에 있던 내용:\n  - `다른 출처 사실: 푸른종`\n\n따라서, **\"다른 출처\" 안쪽에만 있고, 메인 화면(127.0.0.1:60288)에는 없는 말**은:\n\n- `다른 출처 사실: 푸른종`\n\n이 한 문장입니다.",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/다른출처"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": true,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser",
+      "web.collect"
+    ],
+    "answerMatches": true
+  }
+}

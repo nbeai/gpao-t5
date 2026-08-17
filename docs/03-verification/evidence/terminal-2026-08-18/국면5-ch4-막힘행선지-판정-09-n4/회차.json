@@ -1,0 +1,101 @@
+{
+  "case": {
+    "id": "n4-in-second",
+    "kind": "control",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60725/목록에서 두 번째 이야기를 눌러 열쇠말을 알려줘",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-lrb8kG/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60725/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e3"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:60725/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Document"
+        },
+        {
+          "method": "GET",
+          "address": "http://127.0.0.1:60725/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+          "resourceType": "Fetch"
+        }
+      ],
+      "boundary": null
+    }
+  ],
+  "answer": "두 번째 이야기(두 번째 문장)의 열쇠말은:\n\n파랑새",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/자세히"
+      },
+      {
+        "method": "GET",
+        "path": "/조각/자세히"
+      }
+    ],
+    "clickRequests": [
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:60725/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Document"
+      },
+      {
+        "method": "GET",
+        "address": "http://127.0.0.1:60725/%EC%A1%B0%EA%B0%81/%EC%9E%90%EC%84%B8%ED%9E%88",
+        "resourceType": "Fetch"
+      }
+    ],
+    "capability": true,
+    "composition": false,
+    "blockedExpected": false,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser"
+    ],
+    "answerMatches": false
+  }
+}

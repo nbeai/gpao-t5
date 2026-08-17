@@ -1,0 +1,88 @@
+{
+  "case": {
+    "id": "g2-out-source",
+    "kind": "recovery",
+    "marker": {}
+  },
+  "prompt": "http://127.0.0.1:60216/의 \"다른 출처\"가 가리키는 공개 원문의 핵심 문장을 확인해줘. 먼저 화면 링크를 눌러 보고 막히면 이어가",
+  "hands": [
+    {
+      "tool": "local.file",
+      "args": {
+        "action": "list",
+        "path": "/private/tmp/h04-Sp3Tmo/home/GPAO-T5",
+        "offset": 0,
+        "limit": 64
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.observe",
+      "args": {
+        "action": "open",
+        "url": "http://127.0.0.1:60216/"
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "browser.act",
+      "args": {
+        "action": "click",
+        "ref": "e5"
+      },
+      "blocked": false,
+      "failureState": "failed",
+      "networkRequests": [],
+      "boundary": null
+    },
+    {
+      "tool": "web.collect",
+      "args": {
+        "request": "http://localhost:60216/%EB%8B%A4%EB%A5%B8%EC%B6%9C%EC%B2%98",
+        "selectionGoal": "first_readable",
+        "limit": 900
+      },
+      "blocked": false,
+      "failureState": "none",
+      "networkRequests": [],
+      "boundary": null
+    }
+  ],
+  "answer": "공개 원문에서 확인된 핵심 문장은:\n\n“푸른종”",
+  "scored": {
+    "positiveControl": true,
+    "actualClick": true,
+    "serverRequests": [
+      {
+        "method": "GET",
+        "path": "/"
+      },
+      {
+        "method": "GET",
+        "path": "/favicon.ico"
+      },
+      {
+        "method": "GET",
+        "path": "/다른출처"
+      }
+    ],
+    "clickRequests": [],
+    "capability": false,
+    "composition": true,
+    "blockedExpected": true,
+    "blockedEstablished": false,
+    "recovery": null,
+    "switchedAfterBlock": false,
+    "uniqueWebHands": [
+      "browser",
+      "web.collect"
+    ],
+    "answerMatches": true
+  }
+}
