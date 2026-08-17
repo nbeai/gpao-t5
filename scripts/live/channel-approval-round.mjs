@@ -324,11 +324,18 @@ export async function 기저만() {
   return [await 한회차({ 이름: '기저-승인', credential, 두번째: 발화.승인 })];
 }
 
+/** 반대시험 ② 재실행 전용(§16 — 1회차가 무효 표본: 1턴 카드 미성립). 한 회차만. */
+export async function 일상만() {
+  const credential = readCredential(await realpath(homedir()));
+  return [await 한회차({ 이름: '반대2-일상문장', credential, 두번째: '오늘 날씨 어때?' })];
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const 자리 = process.argv[2];
-  if (!자리) throw new Error('사용법: node scripts/live/channel-approval-round.mjs <저장자리> [--반대|--기저만]');
+  if (!자리) throw new Error('사용법: node scripts/live/channel-approval-round.mjs <저장자리> [--반대|--기저만|--일상만]');
   const 결과 = process.argv.includes('--반대') ? await 반대회차들()
-    : process.argv.includes('--기저만') ? await 기저만() : await 회차들();
+    : process.argv.includes('--기저만') ? await 기저만()
+    : process.argv.includes('--일상만') ? await 일상만() : await 회차들();
   const 표 = 결과.map((r) => ({ ...r, 채점: 채점(r) }));
   await mkdir(자리, { recursive: true });
   await writeFile(join(자리, '회차.json'), JSON.stringify({ 모델: MODEL_ID, 발화, 표 }, null, 2));
