@@ -4,7 +4,7 @@
 //
 // 방은 복제하지 않는다 — `h04-memory-round.mjs` 의 `방하나` 를 그대로 쓴다(자 두 벌 금지).
 // F-92 자 사고 둘 승계: ㉠ 손을 쥐여 준다(local.file) ㉡ 기억 저장소는 방에 있다(회차마다 새 방).
-import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, readFile, cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { 방하나, readCredential } from './h04-memory-round.mjs';
 import { homedir } from 'node:os';
@@ -69,18 +69,28 @@ async function 한판({ 이름, 기억심기, 발화, credential }) {
     기록.memoryWithdrawMiss = r.memoryWithdrawMiss ?? null;
     const 입력 = await 마지막모델입력(덤프자리);
     기록.입력길이 = 입력.length;
+    // 축1 배관(1차 실행에서 정정 — 극B 가 「블록 미상」을 냈다): 첫 출현 앞에서 블록 이름을
+    // 되짚으면 같은 문장이 여러 자리에 실릴 때 오판한다. **블록을 먼저 잘라 그 안에서 찾는다.**
+    const 블록몸 = (이름) => {
+      const i = 입력.indexOf(`[${이름}`);
+      if (i < 0) return null;
+      const 다음 = 입력.indexOf('\n[', i + 1);
+      return 입력.slice(i, 다음 < 0 ? undefined : 다음);
+    };
     const 기억문장 = 기억발화.replace(/\.$/, '');
-    const 자리 = 입력.indexOf(기억문장);
+    const 지시몸 = 블록몸(지시블록);
+    const 사실몸 = 블록몸(사실블록);
+    기록.축1근거 = {
+      지시블록있나: Boolean(지시몸), 사실블록있나: Boolean(사실몸),
+      입력에기억문장: 입력.includes(기억문장),
+    };
     기록.축1 = !기억심기 ? '해당없음(기억 없는 판)'
-      : 자리 < 0 ? '기억 미실림 — 측정 불성립'
-        : (() => {                                   // 그 문장 **앞쪽 가장 가까운 블록 이름**
-          const 앞 = 입력.slice(0, 자리);
-          const 지시 = 앞.lastIndexOf(지시블록);
-          const 사실 = 앞.lastIndexOf(사실블록);
-          if (지시 < 0 && 사실 < 0) return '블록 미상 — 측정 불성립';
-          return 지시 > 사실 ? '지시 블록(저장된 기본값) — 측정 성립' : '사실 블록 — 다른 실험';
-        })();
+      : 지시몸?.includes(기억문장) ? '지시 블록(저장된 기본값) — 측정 성립'
+        : 사실몸?.includes(기억문장) ? '사실 블록 — 다른 실험'
+          : 입력.includes(기억문장) ? '블록 밖 실림 — 측정 불성립'
+            : '기억 미실림 — 측정 불성립';
     기록.축2 = 표정규식.test(기록.reply) ? '표' : '표 아님';
+    기록.덤프자리 = 덤프자리;
     return 기록;
   } finally {
     await 방.close();
@@ -102,6 +112,8 @@ const 결과 = await 한판({ ...표[무엇], credential });
 const 나갈자리 = join(process.cwd(), 'docs/03-verification/evidence/terminal-2026-08-17/순서7-라이브');
 await mkdir(나갈자리, { recursive: true });
 await writeFile(join(나갈자리, `${무엇}.json`), JSON.stringify(결과, null, 1));
+// 원본 전량 보존(순서 6 교훈 ⑧ · B7) — 덤프가 tmp 에서 휘발하면 축1 을 다시 못 잰다.
+await cp(결과.덤프자리, join(나갈자리, `${무엇}-덤프`), { recursive: true }).catch(() => {});
 console.log(JSON.stringify({
   이름: 결과.이름, kind: 결과.kind, 개입: 결과.개입, 축1: 결과.축1, 축2: 결과.축2,
   심은기억: 결과.심은기억, 입력길이: 결과.입력길이,
