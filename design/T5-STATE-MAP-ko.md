@@ -1,6 +1,7 @@
 # T5 상태 지도 (정본 · 2026-08-12)
 
-> 기준 커밋 382d42cf (2026-08-17) — 이 문서를 마지막으로 손질한 커밋. **베끼지 말고 재라**(§4-c ②):
+> 기준 커밋 da7a0c71 (2026-08-17) — 이 문서를 **직전에** 손질한 커밋(직전 값이다 — 「마지막으로
+> 손질한 커밋」 정의는 자기부정이었다: 같은 커밋이 자기 해시를 못 적는다 · 지도 관리자 정정). **베끼지 말고 재라**(§4-c ②):
 > `git log -1 --format=%h -- design/T5-STATE-MAP-ko.md`. (해시를 지우고 재는 법만 두었더니
 > 세션 시작 점검이 「도장 없음」으로 읽었다 — 훅은 「기준 커밋 <해시>」를 찾는다. 둘 다 둔다.)
 > 그 이후의 움직임은 세션 시작 점검이 잰다(design/T5-FINAL-ASSEMBLY-ko.md §4-c ①).
@@ -34,11 +35,15 @@
           ← 2026-08-17 실측. 재는 법: `find src/<층> -name '*.js' | wc -l`(파일) ·
             `find src/<층> -name '*.js' -exec cat {} + | wc -l`(줄) — 베끼지 말고 재라
             (design/T5-FINAL-ASSEMBLY-ko.md §4-c ②)
-          검사 497파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
-          (마지막 단독 실측 4,340/4,340 — 2026-08-17 `npm test` 실행 · 도장 a64412a8) · 스크립트는 `ls scripts`
+          검사 501파일(`ls test/*.test.js | wc -l`) · 건수는 `npm test` 실행값만이 잰다
+          (마지막 단독 실측 4,385/4,385 — 2026-08-17 `npm test` 실행 · 도장 b8db0f65) · 스크립트는 `ls scripts`
 결합점    turn.js 3,764줄 · server.js 4,363줄(`wc -l` · 2026-08-17 실측) — 둘이 import 130개를
           직접 문다(import 수는 2026-08-12 실측)
-모델 노출  28 = 작업 손 17 + 통제 채널 11 (+ connector 2 는 대부분 자리에서 안 보임)
+모델 노출  ★ **레인별로 갈린다 — 단일 숫자로 못 적는 첫 자리**(2026-08-17): 손 인벤토리 19
+          (telegram.inbox 신설) · 통제 선언 12(`approval.decide` 추가 — 재는 법: `grep -c "^  name: '"
+          src/kernel/l2-plan/model-control.js`) · 노출 목록 두 자리: 웹 server.js:2082 ↔ 채널 :4001
+          (`approval.decide` 는 **채널 턴에만**) · state-probe 실기동 캡처 총 29(웹 레인)
+          (+ connector 2 는 대부분 자리에서 안 보임)
 표면      엔드포인트 76 핸들러 / 79 경로 · 저장소 25 · 커넥터 선언 8(전부 미연결)
 모델      gpt-5.1 기본 · 공급자 와이어 5종(openai·anthropic·gemini·chatgpt·beai)
 ```
@@ -118,9 +123,9 @@
 | 축 | 값 | 무엇이 소진시키나 | 리셋 |
 |---|---|---|---|
 | 왕복 | 40 | 위 17자리 **전부** | 새 발화에서만 |
-| 되돌릴수있는것 | 200 | `reversible !== false` 손의 실행 1건 | **executePlan 진입마다** ⚠ |
-| 그밖 | 3 | `reversible === false` 손의 실행 1건 | **executePlan 진입마다** ⚠ |
-| 벽시계 | 600초 | executePlan 진입부터 | 진입마다 |
+| 되돌릴수있는것 | 200 | `reversible !== false` 손의 실행 1건 | 새 발화에서만(턴 머리 한 자리 · turn.js:918-929 — S4 수리가 §12 에만 닿고 이 표가 수리 전 문면으로 남아 있었다 · 지도 관리자 정정 2026-08-17) |
+| 그밖 | 3 | `reversible === false` 손의 실행 1건 | 새 발화에서만(위와 같은 자리) |
+| 벽시계 | 600초 | executePlan 진입부터 | 새 발화에서만(위와 같은 자리) |
 
 **`걸음정지선 = 40`(turn.js:199)은 아무것도 안 막는다** — 소비처는 `toolStepsLeft` 표시 두 곳뿐.
 `이어가기상한 = Math.max(산출물재요청상한, 6)`(2878 · 2026-08-17 재실측 — 재는 법: grep -n '이어가기상한' src/kernel/turn.js) 이 목적미달 되부름 횟수를 문다.
@@ -149,6 +154,7 @@
 | `session.search` | session-search-tool.js | — | read | desc 108자 |
 | `slack.post` | channel-sender.js | — | send | desc 33자 · operatorFact **없음** |
 | `telegram.send` | channel-sender.js | — | send | desc 36자 · operatorFact **없음** |
+| `telegram.inbox` | channel-inbox-tool.js | — | read | 간판만 telegram — 몸통은 채널 무관(:58) · 신설 d6c78451 |
 | `mail.send` | — | — | — | **핸들러 없음** · desc 28자 |
 | `agent.delegate` | agent-delegate-tool.js | — | A1 상한 | desc 130자 |
 
@@ -310,6 +316,11 @@ bulk 이동 갈래는 `skipped` 를 사유별로 세어 접는다 — `protected
 ### 5-3. 승인 카드가 서는 자리 2 · 실행이 막히는 자리 18
 
 카드: 계획 레인(1898) · 걸음 레인(2938, `이미한걸음` 봉인 포함).
+★ **결재 표면이 둘이 됐다**(2026-08-17 — 카드가 **서는** 자리는 그대로 2, 늘어난 것은 **결재**하는
+표면이다): 화면 버튼(직접 id) ↔ 채널(`approval.decide` 로 모델이 지목 + 코드가 자격 판정 —
+server.js:4009-4057 · **턴 전 대기 집합+카드 알맹이 동결 위에서만**, 이번 턴에 새로 선 카드는
+집행 불가 · 단건 정의역 · 거부도 같은 갈래). ② 프리패스: 채널 승인은 `knownCounterparts` 를
+**커밋하지 않는다** — 의도된 비대칭 · 결함 아님(재검토는 별도 슬라이스 + 화면 회수 수단 동반).
 차단 18: 승인 id 없음/만료/거부 · gated · **clarify(같은 턴 다른 손도 실행 안 함)** · 없는 손 · approvalEligibility(계획/걸음) · 파일 모호 · 전송 모호 · 예산 소진 · blockedTools · 없는 손 줄세우기 · 남은줄거두기 · 되풀이 · 걸음 되묻기 · 자동승인 실패 · 카드 발행.
 
 ---
@@ -412,7 +423,8 @@ HTTP 밖 진입점 3: `runtimeTick()` · `runtimeReconcile()` · `handleChannelM
 
 **demo ↔ live**: `npm start → server.js → liveDeps → live-context.js:5 가 demo-context 를 import`.
 모델이 읽는 손 설명·스키마·능력문장이 전부 `demo-context.js` 의 `DESCRIPTORS`(608–1079) + 조건부 화면 선언 둘에서 나온다. live 가 더 붙이는 건 `connector.connect`·`connector.declare` 둘.
-실측(이 기계): **live descriptor 19 · 손 18 · 커넥터 8(전부 미연결)**. `agent.delegate` 는 `enableAgentDelegation && scopeRoots` 일 때만 나중에 끼워진다.
+실측(이 기계 · 2026-08-17 state-probe 재실측): **손 인벤토리 19(telegram.inbox 신설) · 모델 노출
+캡처 총 29 · 커넥터 8(전부 미연결)** — 재는 법: `node scripts/state-probe.mjs`. `agent.delegate` 는 `enableAgentDelegation && scopeRoots` 일 때만 나중에 끼워진다.
 
 ---
 
@@ -469,10 +481,13 @@ replay 를 못 넘는다.**
 
 ## 10. 검사·게이트·계측기
 
-**검사** 497파일(`ls test/*.test.js | wc -l` · 2026-08-17 실측) · 건수는 `npm test` 가 잰다(마지막
-단독 실측 4,340/4,340 — 2026-08-17 실행 · 도장 a64412a8) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
+**검사** 501파일(`ls test/*.test.js | wc -l` · 2026-08-17 실측) · 건수는 `npm test` 가 잰다(마지막
+단독 실측 4,385/4,385 — 2026-08-17 실행 · 도장 b8db0f65) · 평탄 구조 · 임시 방을 194파일이 각자 만든다 · 가짜 모델을 117파일이 각자 정의(공용 모듈 없음) · `demo-context` 를 **156파일**이 import.
 **두꺼운 곳**: 화면손 62파일 497건 · 결함번호 회귀 58/454 · T-cell 15/295.
-**빈 곳**: inbox 0 · 설치/업데이트/제거 0 · 사용자 이미지→모델 3(전부 화면손) · 환경변수로 갈리는 검사 0.
+**빈 곳**: ~~inbox 0~~(거짓이 됐다 — `test/channel-inbox-hand.test.js` 신설 `1ea37b03` · 지도 마지막
+손질보다 뒤 · 지도 관리자 정정) · ★ **`approval.decide` 검사 0**(`test/`·`scripts/` 전체 0건 실측 —
+채널 승인 집행 갈래는 **라이브 회차 증거뿐**이다 · 양성 대조 병기: 같은 자로 `automation.control`
+6파일·`agent.propose` 6파일이 잡힌다 — 안 잰 0 이 아니다) · 설치/업데이트/제거 0 · 사용자 이미지→모델 3(전부 화면손) · 환경변수로 갈리는 검사 0.
 ~~문서 **생성** 검사 0~~ → **거짓이었다**(F-104 · 2026-08-12). `test/xlsx-writer-must-reach-the-model.test.js`
 가 `459ddfa`(08-12 10:43)로 이미 있었고, 이 지도의 마지막 갱신(18:24)보다 **여덟 시간 앞선다.**
 계측기의 0건이 이 줄로 굳었고, 그 줄을 읽은 사람이 「생성은 없다」로 갔다.
@@ -500,7 +515,8 @@ folders 를 구조적으로 침묵 — 「남은 파일: 1개(.gz)」가 「다 
 J6 재개 아님 — J6 은 local-locate 자리로 닫힘 유지 · 계열 상속이다. 같은 함수 전과: :302-311
 S1 회차 6 「남은 57개 침묵」 — 이번은 같은 문장에서 폴더가 빠진 둘째). 손 인벤토리 · **서버 실기동 한 턴으로 모델 노출 도구 캡처** · 통제 채널 · 기관 10 결손 · 부재 확인 7주제 · 확정 계열 4 · 캐시 접두 안정성 · 코드 파생 사실 · **미측정은 계획서 §2 를 인용**(값을 지어내지 않는다) · 체감 지표 사후 집계.
 
-**라이브 러너**(`scripts/live/` **실측 11파일**(`ls scripts/live | wc -l` · 2026-08-16) — 아래는 전수가 아니라 대표 셋 · 완성재판 하네스는 `scripts/terminal-qualification/`(완성재판.mjs·비교군재판.sh)에 따로 산다): `organ-round.mjs`(실기기 · 독립 기준자 6종 · 동결 문장 4줄 · 승인 카드 1장 = 사용자 손 1회) · `charter.mjs`(대본 모델 · 판정 4축) · A층 `living-sim-runner.mjs`(기계 조건 **3개뿐**, 나머지는 `PM_UNJUDGED` · `EXTERNAL_EFFECT_HANDS` 쓸 수 있으면 **시험 거부**).
+**라이브 러너**(`scripts/live/` **실측 15파일**(`ls scripts/live | wc -l` · 2026-08-17 —
+`channel-inbox-round.mjs`·`channel-approval-round.mjs` 등 신설) — 아래는 전수가 아니라 대표 셋 · 완성재판 하네스는 `scripts/terminal-qualification/`(완성재판.mjs·비교군재판.sh)에 따로 산다): `organ-round.mjs`(실기기 · 독립 기준자 6종 · 동결 문장 4줄 · 승인 카드 1장 = 사용자 손 1회) · `charter.mjs`(대본 모델 · 판정 4축) · A층 `living-sim-runner.mjs`(기계 조건 **3개뿐**, 나머지는 `PM_UNJUDGED` · `EXTERNAL_EFFECT_HANDS` 쓸 수 있으면 **시험 거부**).
 
 ---
 
@@ -557,6 +573,12 @@ S1 회차 6 「남은 57개 침묵」 — 이번은 같은 문장에서 폴더�
 두 사본 선례 — 같은 사실을 싣는 두 표면에 같은 문장을 싣는다) — **문장 두 사본과 로직 두 벌을
 한 줄에 섞지 말 것.** 늘어난 것은 로직 쪽이다.
 
+★ **셋째 부류가 생겼다(2026-08-17): 의도된 로직 비대칭.** 한 카드를 결재하는 표면이 둘인데
+(화면 버튼 ↔ 채널 `approval.decide` · server.js:4009-4057) **행동이 일부러 다르다** — 웹 승인은
+`knownCounterparts` 커밋 ○ · 채널 승인은 ✕(② 프리패스 배제 · 오지목 폭발 반경을 집행 1건에
+묶는 보수 선택). **「두 벌이니 합치자」로 고치면 안 된다** — 재검토 조건은 별도 슬라이스 +
+화면 회수 수단 동반(슬라이스 2 선등록 §1). 문장 사본·로직 두 벌·의도된 비대칭 — 세 부류를 가른다.
+
 **~~그리고 「이 턴이 파일을 다뤘나」를 한 파일 안에서 두 자로 쟀다~~ → 한 벌로(`ffb3a3f` · 2026-08-12).**
 `exit-verification.js` 안에서 `지어낸실물` 의 정의역은 `/^local\./` 였고 `완료주장검증` 의 `파일봄` 은
 `local.file|locate|capsule` 이었다 — **한 손이 두 자에서 다른 종류였다.** 넓은 쪽이 F-95 를 만들었다:
@@ -598,6 +620,9 @@ OpenClaw `agent-loop.md:132` · 클로드코드 원문 그대로).
 | S4 | ~~안전~~ **닫힘**(536b3bb · test/s4-irreversible-cap-is-per-request.test.js) | `되돌릴 수 없는 것 3` 이 executePlan 진입마다 리셋 — 카드 N번 뜨면 3×N | turn.js:2027 |
 | S5 | ~~안전~~ **닫힘** | 포트 9412 고정 · 소유권 확인 없음 → `/json/version` 이 답하기만 하면 **남의 크롬**을 몰았다. 띄우기 **전에** 자리를 물어 비었을 때만 잡고, 차 있으면 옆으로 옮기고, 열 자리가 다 차면 정직하게 막는다. 오픈북: 오픈클로 `docs/tools/browser.md:247-249`(*"auto-assign `cdpPort`"*)·`:283`(*"attachOnly … only attach if one is already running"*) + 집안 선례 `port-claim.js` 세 갈래. 남은 창: 자리 확인과 크롬이 실제로 잡기까지의 몇 초(코드에 적어 둠) | browser.js:330 · 검사 `test/s5-browser-does-not-attach-to-someone-elses-chrome.test.js` |
 | S6 | **안전** | `legacy-default-agent`(A2·전 도구)가 유일 활성 역할이면 무조건 선택된다 — **자리 이동**(유산감사 2026-08-16 · `40170cd4` 실측): `server.js:1041` 은 현재 자동화 승인 코드이고 `legacy-default-agent` 는 `automation-contracts.js` 로 옮겨졌다. 「유일 활성이면 무조건 선택」 **행동의 존속 여부는 미확인** — 열림 유지 | automation-contracts.js:985·1094·1180 계열(실측) |
+| CH1 | **마찰 · 열림** | 채널 답신 키 어긋남 — server.js:3852·4173 이 `${channel}.send` 를 찾는데 실물 슬랙 손은 `slack.post`(live-context.js:84·124)이고 **`slack.send` 는 src 전체 0건** → 슬랙 왕복 도달 불가 잠복(텔레그램은 `telegram.send` 라 우연히 맞는다) | server.js:3852·4173(2026-08-17 실측 · 줄번호 낡음 주의 — 재는 법: `grep -n '채널}.send\|channel}.send' src/surface/server.js` 상당) |
+| CH2 | **마찰 · 열림** | 채널 조회 손 **간판만** telegram 에 묶임 — 몸통은 채널 무관(channel-inbox-tool.js:58). 「슬랙 조회 능력 부재」로 읽으면 틀린다 — 부재는 간판·배선이지 몸통이 아니다 | channel-inbox-tool.js:58 |
+| CH3 | **안전 · 열림** | 다건 대기 + 모호 「승인」에서 **되묻지 않고 집행**(반대시험 ③ 빨강 · 첫 실행값 · 2026-08-17). 다건 대기는 제품 경로로 지속 성립이 어려우나(턴마다 비움) approve 턴이 새 카드를 세우는 갈래에서 2카드 지속 가능성(코드 추론 · 미실측). 단건 정의역 밖 — 수리 안 얹음 · 재개봉은 다건 대기 집행 슬라이스와 함께 | 원본 `docs/03-verification/evidence/terminal-2026-08-17/국면4-s2-반대시험-1회/회차.json` · 자 한계 3줄 병기(선등록 §16) |
 | J1 | ~~정직~~ **닫힘** | 손이 준 `다음수단·다른후보·막힌곳·nextSafeAction` 이 어떤 와이어에도 안 실렸다. `24754f6` 에서 `다음길줄` 을 세워 교환·서술 두 자리에서 와이어 넷이 읽는다(사실 진술만·지시문 없음) | model-provider.js:685 · 검사 `test/every-wire-carries-the-next-path.test.js` |
 | J2 | ~~정직~~ **닫힘(절반은 남음)** | 지난 턴 실패가 성공처럼 서던 자리. `24754f6` 에서 상태 토큰을 옮기고 `(미확인: failed)` 로 표시. **남은 것**: `priorExchange` 는 여전히 요약만이고 결과 원문은 안 실린다(E1 계약 — 의도된 것) | task-context.js:1013 · model-provider.js:497 |
 | J3 | ~~정직~~ **닫힘** | ChatGPT 와이어만 사실을 빼던 자리. `24754f6` 에서 렌더를 복제하지 않고 `교환결과렌더` 를 그대로 부른다 — 칸이 늘면 넷이 같이 는다 | chatgpt-model-client.js:44 |
@@ -720,6 +745,6 @@ OS 색인 활용           **더했다(2026-08-12)** — 형식 질의는 mdfind
 
 ```bash
 node scripts/state-probe.mjs      # 유료 0 · 40초 — 지금 무엇이 있고 없나
-npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,340/4,340 · 2026-08-17 · 도장 a64412a8 — 건수를 든 자리는 셋(§1·§10·여기)이다, 하나만 고치면 자기모순이 선다) · 되돌아가지 않았다는 최소 조건
+npm test                          # 건수는 실행이 잰다(마지막 단독 실측 4,385/4,385 · 2026-08-17 · 도장 b8db0f65 — 건수를 든 자리는 셋(§1·§10·여기)이다, 하나만 고치면 자기모순이 선다) · 되돌아가지 않았다는 최소 조건
 npm start                         # 완료 판정의 유일한 자리 (계획서 §3)
 ```
