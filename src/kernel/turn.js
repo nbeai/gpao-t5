@@ -24,6 +24,9 @@ import { buildActionPlan, toolActionKind } from './l2-plan/action-plan.js';
 import { 실행전판정, 승인면제, 걸음신분 } from './l2-plan/tool-boundary.js';
 import { 손제시기록 } from './l2-plan/tool-offer.js';
 import { dump손제시 } from '../runtime/prompt-dump.js';
+import {
+  createModelCallAccounting, instrumentModelCalls, restoreModelCallAccounting,
+} from '../runtime/model-call-accounting.js';
 import { observeWorksetReality, 표맥락에서 } from '../runtime/local-file.js';
 import { defaultFileRoots } from '../runtime/file-scope.js';
 import { isExecutionAllowed, decideAutoGrant, isSafetyFloor } from './l2-plan/authority.js';
@@ -253,7 +256,7 @@ async function fileDeliverablesFor({ model, tc, calls, intent }) {
     // 산문 파싱은 아래에서 폴백으로 그대로 남는다(구조 채널을 모르는 provider 대비).
     const out = await model.respond(
       { ...tc, workContractAssessment: { kind: 'file' } },
-      { effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },
+      { accountingPurpose: 'work_contract', effort: 'medium', tools: [WORK_DELIVERABLE_SCHEMA], requiredTool: WORK_DELIVERABLE_SCHEMA.name },
     );
     const structuredCall = typeof out === 'string' ? null
       : out?.toolCalls?.find((call) => call?.name === WORK_DELIVERABLE_SCHEMA.name
@@ -700,7 +703,7 @@ async function 답완성({ reply, tc, ctx, search, receipts = [], 출처계약�
   // 그대로 통과했다 — 그게 정본이 말한 "말로만 끝남"의 바로 그 자리였다.
   if (String(reply ?? '').trim()) return 출구검증(userFacingModelText(reply), { tc, ctx, receipts, 파일계약빈손 });
   const retry = await ctx.model.respond({ ...tc, answerOnly: true }, {
-    onDelta: ctx.onAnswerDelta, search, effort: 'medium',
+    accountingPurpose: 'answer_retry', onDelta: ctx.onAnswerDelta, search, effort: 'medium',
   });
   // **답을 낸 호출이 바뀌었다** — 잘림 사실도 이 호출의 것으로 바뀐다(J9).
   const 다시 = userFacingModelText(답으로삼기(ctx, retry, ''));
@@ -820,7 +823,7 @@ async function 출구검증(reply, { tc, ctx, receipts = [], 파일계약빈손 
     // 새 행동이 아니라 방금 한 일을 정직하게 말하는 것이다.
     answerOnly: true,
     completionMismatch: { 사실: 검증.모델에게, 실제바뀐수: 검증.실제 },
-  }, { onDelta: ctx.onAnswerDelta, effort: 'medium' }).catch(() => null);
+  }, { accountingPurpose: 'completion_repair', onDelta: ctx.onAnswerDelta, effort: 'medium' }).catch(() => null);
   const 고친답 = userFacingModelText(typeof 다시 === 'string' ? 다시 : (다시?.text ?? ''));
   // 되부름이 **실제로 답을 냈을 때만** 잘림 사실이 그 호출의 것으로 바뀐다(J9). 빈손으로
   // 돌아오면 아래에서 앞 답이 그대로 나가므로 앞 사실도 그대로 서야 한다.
@@ -900,6 +903,30 @@ export async function runTurn(input, ctx) {
   미리보기원장(ctx);
   const ledger = ctx.ledger ?? new TruthLedger();
   if (!ctx.pending) ctx.pending = new Map();
+  // 한 사용자 요청의 모델 왕복은 승인 카드로 턴이 갈려도 한 장부다. 새 발화는 새 장부를 열고,
+  // 승인 재개는 카드에 봉인한 수치 장부만 복원한다(원문·응답은 이 장부에 없다).
+  const 승인회계 = typeof input.approve === 'string'
+    ? ctx.pending.get(input.approve)?.modelCallAccounting : null;
+  if (typeof input.text === 'string' && input.text.trim()) {
+    ctx.modelCallAccounting = createModelCallAccounting({
+      lane: 'foreground', role: 'default', turnRef: input.turnRef ?? null, workRef: ctx.workRef ?? null,
+      env: ctx.processEnv ?? process.env,
+    });
+  } else if (승인회계) {
+    ctx.modelCallAccounting = restoreModelCallAccounting(승인회계, {
+      turnRef: input.turnRef ?? 승인회계.turnRef ?? null,
+      workRef: ctx.workRef ?? 승인회계.workRef ?? null,
+      env: ctx.processEnv ?? process.env,
+    });
+    // 승인 재개는 기존 왕복 예산도 같은 수만큼 이어받는다. 회계만 이어지고 예산이 0이면
+    // 재시작할 때마다 호출 한도가 다시 열리는 두 진실이 된다.
+    ctx.왕복수 = Math.max(ctx.왕복수 ?? 0, ctx.modelCallAccounting.sequence);
+  } else if (!ctx.modelCallAccounting) {
+    ctx.modelCallAccounting = createModelCallAccounting({
+      lane: 'foreground', role: 'default', turnRef: input.turnRef ?? null, workRef: ctx.workRef ?? null,
+      env: ctx.processEnv ?? process.env,
+    });
+  }
   // **완료 대조 재사용은 한 턴 안에서만 산다**(C2). `ctx` 는 턴을 넘어 살아 있으므로 여기서
   // 안 비우면 지난 턴의 판정이 이번 턴 답 위에 설 수 있다 — 재사용이 낡은 판정을 되살리면
   // 그건 원가 절감이 아니라 그물 구멍이다. 계측(진단면)도 이 턴의 것만 센다.
@@ -911,8 +938,11 @@ export async function runTurn(input, ctx) {
   // 모델 클라이언트를 **한 번 감싸** 여기 한 자리에서 센다. 모든 호출이 이 문을 지난다.
   if (!ctx.왕복계수붙임 && ctx.model?.respond) {
     const 원본모델 = ctx.model;
-    ctx.model = Object.create(원본모델);
-    ctx.model.respond = async (...a) => { ctx.왕복수 = (ctx.왕복수 ?? 0) + 1; return 원본모델.respond(...a); };
+    ctx.model = instrumentModelCalls(
+      원본모델,
+      () => ctx.modelCallAccounting,
+      () => { ctx.왕복수 = (ctx.왕복수 ?? 0) + 1; },
+    );
     ctx.왕복계수붙임 = true;
   }
   // **새 발화는 예산을 새로 연다. 승인 재개는 이어받는다** — 재개마다 0 이면 카드가 여러 번
@@ -1365,6 +1395,7 @@ export async function runTurn(input, ctx) {
     // 모델이 스스로 찾을 수 있으면 켜 두고 판단은 모델에 맡긴다(§24 — 우리가 목록으로 미리 맞히지 않는다).
     const wantedWeb = earlyWantedWeb = Boolean(intent.neededTools?.includes('web.collect')) || Boolean(ctx.modelSupportsSearch);
     const out = await ctx.model.respond(tc, {
+      accountingPurpose: 'primary',
       onDelta: intent.answerMode === 'fast_chat' && !influence ? ctx.onAnswerDelta : undefined,
       search: wantedWeb,
       // **도구를 함께 주는 호출에는 낮은 강도를 쓰지 않는다.** 낮으면 모델이 "방금 읽은 자료" 같은
@@ -1503,7 +1534,7 @@ export async function runTurn(input, ctx) {
       const writeTools = fileWriteTools(selfState, ctx.modelControls, { derived: true });
       if (writeTools.length) {
         const out = await ctx.model.respond({ ...earlyTc, unmetDeliverable: true }, {
-          effort: 'medium', tools: writeTools, requiredTool: 'local.file',
+          accountingPurpose: 'deliverable_followup', effort: 'medium', tools: writeTools, requiredTool: 'local.file',
         });
         낸호출세기(out);
         const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
@@ -1530,7 +1561,7 @@ export async function runTurn(input, ctx) {
     const fileTools = modelSchemasFor(selfState, ctx.modelControls).filter((t) => t.name === 붙일손);
     if (fileTools.length) {
       const out = await ctx.model.respond({ ...earlyTc, actionRequired: true }, {
-        effort: 'medium', tools: fileTools, requiredTool: 붙일손,
+        accountingPurpose: 'required_tool_followup', effort: 'medium', tools: fileTools, requiredTool: 붙일손,
       });
       낸호출세기(out);
       const 분리 = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
@@ -1558,7 +1589,7 @@ export async function runTurn(input, ctx) {
       ...baseTc,
       automationProposal: structuredClone(automationProposal),
       automationReality: structuredClone(ctx.automationReality),
-    }, { search, effort: 'medium' });
+    }, { accountingPurpose: 'automation_proposal', search, effort: 'medium' });
     return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
   const 자동화제어후답 = async (baseTc, currentReply, search) => {
@@ -1573,7 +1604,7 @@ export async function runTurn(input, ctx) {
       ...baseTc,
       automationControl: structuredClone(automationControl),
       automationReality: structuredClone(ctx.automationReality),
-    }, { search, effort: 'medium' });
+    }, { accountingPurpose: 'automation_control', search, effort: 'medium' });
     return 답으로삼기(ctx, out, currentReply);   // J9 — 답을 낸 호출에서 잘림을 본다
   };
   const 자동화관찰후답 = async (baseTc, currentReply, search) => {
@@ -1585,7 +1616,7 @@ export async function runTurn(input, ctx) {
       automationObserve: observed?.observation ?? { rejected: true, reason: 'observation_unknown' },
       automationReality: structuredClone(ctx.automationReality),
     }, {
-      search, effort: 'medium', tools: modelSchemasFor(selfState, ctx.modelControls),
+      accountingPurpose: 'automation_observe', search, effort: 'medium', tools: modelSchemasFor(selfState, ctx.modelControls),
     });
     const separated = splitModelControlCalls(typeof out === 'string' ? [] : (out?.toolCalls ?? []));
     통제제안받기(separated);
@@ -2136,6 +2167,7 @@ export async function runTurn(input, ctx) {
           : intent.toolArgs?.[g.action],
       })).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
+      modelCallAccounting: ctx.modelCallAccounting?.snapshot?.(),
     });
     // **멈출 때도 말한다.** 라이브 실측(ae1d3ea8): 사용자가 "작업용SSD"라고만 답한 턴에서
     // 승인 카드만 뜨고 T5 는 한 마디도 안 했다 — 사용자에겐 먹통으로 보인다. 카드에는 명령
@@ -2651,6 +2683,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   let finalOut = 표면
     ? { text: [표면.userSafeSummary, 표면.nextSafeAction].filter(Boolean).join(' ') }
     : await ctx.model.respond(tc, {
+      accountingPurpose: 'primary',
       onDelta: ctx.onAnswerDelta,
       // 우리 도구가 막혔으면 모델 내장 검색을 켜서 **다른 경로로 이어가게** 한다.
       search: wantedWeb || Boolean(step?.useModelSearch && ctx.modelSupportsSearch),
@@ -2955,7 +2988,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       ...tc, ...미달,
       recentTurns: [...(tc.recentTurns ?? []), { role: 'user', text: 계약말 }],
     }, {
-      search: wantedWeb, effort: 'medium', tools: 손들,
+      accountingPurpose: 'goal_recovery', search: wantedWeb, effort: 'medium', tools: 손들,
     }).catch(() => null);
     // **통제 호출은 「되게 만든 것」이 아니다** — 제안·기억만 다시 내면 미달은 그대로인데
     // 부작용(새 후보 등록)은 생긴다. 이 고리가 여는 것은 **작업 걸음**뿐이다.
@@ -3123,7 +3156,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           automationReality: structuredClone(ctx.automationReality),
         };
         finalOut = await ctx.model.respond(tc, {
-          search: wantedWeb, effort: 'medium',
+          accountingPurpose: 'automation_observe', search: wantedWeb, effort: 'medium',
           tools: modelSchemasFor(selfState, ctx.modelControls),
         });
         continue;
@@ -3141,7 +3174,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           automationProposal: structuredClone(ctx.automationProposal),
           automationReality: structuredClone(ctx.automationReality),
         };
-        finalOut = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
+        finalOut = await ctx.model.respond(tc, { accountingPurpose: 'automation_proposal', search: wantedWeb, effort: 'medium' });
         continue;
       }
       if (분리.automationControl && typeof ctx.applyAutomationControl === 'function') {
@@ -3153,7 +3186,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           automationControl: structuredClone(ctx.automationControl),
           automationReality: structuredClone(ctx.automationReality),
         };
-        finalOut = await ctx.model.respond(tc, { search: wantedWeb, effort: 'medium' });
+        finalOut = await ctx.model.respond(tc, { accountingPurpose: 'automation_control', search: wantedWeb, effort: 'medium' });
         continue;
       }
       const next = 분리.rest;
@@ -3246,7 +3279,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       // **안 걷은 응답도 덮지 않는다**(F-68) — 다음 반복의 머리가 그 호출들을 걷는다.
       if (!대기호출.length && !안걷은호출남았나()) {
         finalOut = await ctx.model.respond(tc, {
-          onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+          accountingPurpose: 'tool_loop', onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
           ...(예산소진(쓴것(), 예산) ? {} : { tools: modelSchemasFor(selfState, ctx.modelControls) }),
         });
       }
@@ -3417,6 +3450,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
           // 계획 단계의 `앞선막힘` 과 **같은 통로**다.
           이미한걸음: [...turnReceipts],
           grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
+          modelCallAccounting: ctx.modelCallAccounting?.snapshot?.(),
         });
         // **여기까지 한 일을 버리지 않는다.** 모델이 도구를 고르며 이미 한 말이 있으면 그게
         // 사용자 말이다(64a7634). 없으면 원장의 사실로 만든다 — 빈 카드만 뜨면 먹통으로 보인다.
@@ -3530,7 +3564,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
     // 다음 반복의 머리가 분리→줄세우기로 걷어 기존 판정·승인·원장을 그대로 태운다.
     if (!대기호출.length && !안걷은호출남았나()) {
       finalOut = await ctx.model.respond(tc, {
-        onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
+        accountingPurpose: 'tool_loop', onDelta: ctx.onAnswerDelta, search: wantedWeb, effort: 'medium',
         // 상한에 닿았으면 손을 거둔다 — 더 고를 수 없으니 지금까지의 사실로 답하게 된다.
         ...(예산소진(쓴것(), 예산) ? {} : { tools: modelSchemasFor(selfState, ctx.modelControls) }),
       });
@@ -3566,7 +3600,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
       automationReality: structuredClone(ctx.automationReality),
     };
     finalOut = await ctx.model.respond(tc, {
-      search: wantedWeb,
+      accountingPurpose: 'automation_proposal', search: wantedWeb,
       effort: 'medium',
     });
   }

@@ -336,6 +336,30 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
     return out;
   }
 
+  // 기본 대화와 역할별 호출이 **같은 실제 호출 신분**을 낸다. 예전에는 modelFor(role)에만
+  // 배선돼 기본 대화 회계가 provider/model을 알 수 없었다.
+  async function respondWithIdentity(role, tc, opts = {}) {
+    if (typeof opts.onCallIdentity !== 'function') return respondForRole(role, tc, opts);
+    const selection = selectionFor(role);
+    const generation = role === DEFAULT_ROLE
+      ? createHash('sha256').update(defaultGeneration()).digest('hex').slice(0, 16) : null;
+    const startedAt = Date.now();
+    let 실제 = null;
+    const out = await respondForRole(role, tc, { ...opts, onCallIdentity: (facts) => { 실제 = facts; } });
+    opts.onCallIdentity({
+      callId: randomUUID(), selection,
+      actualEndpointOrigin: 실제?.endpointOrigin ?? null,
+      actualRequestModelId: 실제?.requestModelId ?? null,
+      responseModelId: 실제?.responseModelId ?? null,
+      responseIdentitySource: 실제?.responseIdentitySource ?? 'not_reported',
+      usage: 실제?.usage ?? null,
+      finishReason: 실제?.finishReason ?? null,
+      connectionGeneration: generation,
+      startedAt, finishedAt: Date.now(),
+    });
+    return out;
+  }
+
   function publicConnection(rec) {
     return {
       id: rec.id,
@@ -353,7 +377,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
   return {
     /** ModelClient — 기본 역할로 위임(핫스왑). 서버가 withModelTimeout 으로 감싼다. */
     // opts(P-STR-1 onDelta 등)를 그대로 통과시킨다 — 위임 래퍼가 인자를 삼키면 스트리밍이 죽는다.
-    model: { respond: (tc, opts) => respondForRole(DEFAULT_ROLE, tc, opts) },
+    model: { respond: (tc, opts) => respondWithIdentity(DEFAULT_ROLE, tc, opts) },
 
     /** 역할별 ModelClient — 에이전트·자동화가 생기면 role 만 넘기면 된다(커널 변경 없이 확장). */
     modelFor(role) {
@@ -363,27 +387,7 @@ export function makeModelConnection({ env, processEnv = {}, store, fetchImpl, ti
          * @param {{onCallIdentity?:(idn:object)=>void}} [opts] 성장(replay)은 이걸로 신분을 받는다.
          */
         async respond(tc, opts = {}) {
-          if (typeof opts.onCallIdentity !== 'function') return respondForRole(role, tc, opts);
-          // 선택은 **호출 시점**에 읽는다(핫스왑 뒤에도 실제로 쓰인 연결이 남게).
-          const selection = selectionFor(role);
-          const startedAt = Date.now();
-          let 실제 = null;
-          const out = await respondForRole(role, tc, { ...opts, onCallIdentity: (f) => { 실제 = f; } });
-          // 어댑터가 사실을 내지 않았으면(스텁·스트리밍) 지어내지 않는다 — 빈 신분은
-          // §4.4 검증에서 그대로 떨어진다.
-          opts.onCallIdentity({
-            callId: randomUUID(),
-            selection,
-            actualEndpointOrigin: 실제?.endpointOrigin ?? null,
-            actualRequestModelId: 실제?.requestModelId ?? null,
-            responseModelId: 실제?.responseModelId ?? null,
-            responseIdentitySource: 실제?.responseIdentitySource ?? 'not_reported',
-            usage: 실제?.usage ?? null,
-            finishReason: 실제?.finishReason ?? null,
-            startedAt,
-            finishedAt: Date.now(),
-          });
-          return out;
+          return respondWithIdentity(role, tc, opts);
         },
       };
     },

@@ -236,6 +236,10 @@ test('preflight: 허용 파일 목록이 슬라이스 범위와 같다', () => {
     'src/runtime/model-provider.js',
     // S0 계측(2026-08-05) — 조립된 프롬프트를 보는 모듈. 기본 꺼짐이라 제품 동작을 안 바꾼다.
     'src/runtime/prompt-dump.js',
+    // P0 모델 왕복 회계 — 목적·상태·지연·토큰 수치만 남기고 원문은 저장하지 않는다.
+    'src/runtime/model-call-accounting.js',
+    // P0 background 왕복 누락 봉인 — 성장 워커 호출도 목적과 함께 같은 회계로 간다.
+    'src/kernel/l5-growth/tcell-grow.js',
     // F-15(2026-08-05) — 거짓 성공 게이트를 문구가 아니라 뒷받침 없는 구체 사실로 판정한다.
     'src/kernel/l2-plan/recovery-ladder.js',
     // S4 집(2026-08-05) — 사용자가 열어 고치는 지침·자기소개. 매 세션 실리고 예산이 있다.

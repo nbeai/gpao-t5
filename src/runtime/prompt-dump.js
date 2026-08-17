@@ -13,7 +13,7 @@
 // 크기(`systemChars`·`toolSchemaChars`)를 함께 남기는 이유 — 불변식 B(좁은 허리)는
 // "코어 도구 하나가 매 API 콜 비용"이라는 사실 위에 선다. 단계마다 **수치로** 대조하려면
 // 재는 자리가 상설이어야 한다.
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -65,6 +65,7 @@ const 가려서 = (v) => {
 };
 
 let 일련 = 0;
+const 모델호출파일 = new Map();
 
 /**
  * **모델이 낸 것**을 같은 자리에 남긴다. 입력만 보면 "왜 저 답이 나갔는지"를 못 잇는다.
@@ -89,6 +90,99 @@ export async function dumpModelOutput(출력, env = process.env) {
     toolCalls: (출력?.toolCalls ?? []).map((c) => c?.name).filter(Boolean),
   }, null, 2)}\n`, 'utf8');
   return 파일;
+}
+
+/**
+ * 모델 왕복의 **수치·신분만** 남긴다. 사용자 입력·모델 출력·도구 인자는 받지 않는 별도 통로다.
+ * `started`를 호출 전에 쓰므로 프로세스가 중간에 죽어도 미완료 호출이 흔적으로 남는다.
+ */
+export async function dumpModelCallMetric(metric, env = process.env) {
+  const dir = promptDumpDir(env);
+  if (!dir) return null;
+  const metricNumber = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null);
+  const metricInteger = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+  const metricText = (value) => {
+    if (typeof value !== 'string' || !value) return null;
+    return 비밀가림(value).slice(0, 240);
+  };
+  const breakdown = metric?.inputBreakdown && typeof metric.inputBreakdown === 'object' ? {
+    system: metricNumber(metric.inputBreakdown.system),
+    tools: metricNumber(metric.inputBreakdown.tools),
+    requiredTool: metricNumber(metric.inputBreakdown.requiredTool),
+    history: metricNumber(metric.inputBreakdown.history),
+    exchange: metricNumber(metric.inputBreakdown.exchange),
+    admitted: metricNumber(metric.inputBreakdown.admitted),
+    user: metricNumber(metric.inputBreakdown.user),
+    total: metricNumber(metric.inputBreakdown.total),
+  } : null;
+  const tokenFacts = metric?.tokens && typeof metric.tokens === 'object' ? {
+    source: ['actual', 'estimate'].includes(metric.tokens.source) ? metric.tokens.source : null,
+    coverage: ['reported_response', 'logical_respond'].includes(metric.tokens.coverage)
+      ? metric.tokens.coverage : null,
+    estimateVersion: metric.tokens.estimateVersion === 't5-char-v1' ? 't5-char-v1' : null,
+    input: metricNumber(metric.tokens.input),
+    output: metricNumber(metric.tokens.output),
+    total: metricNumber(metric.tokens.total),
+    cacheRead: metricNumber(metric.tokens.cacheRead),
+    cacheWrite: metricNumber(metric.tokens.cacheWrite),
+    reasoning: metricNumber(metric.tokens.reasoning),
+  } : null;
+  // 호출자가 실수로 원문을 보태도 이 경계 밖으로 못 나간다. 허용 필드는 신분·enum·수치뿐이다.
+  const safe = {
+    schemaVersion: metricInteger(metric?.schemaVersion) ?? 1,
+    callId: metricText(metric?.callId),
+    sequence: metricInteger(metric?.sequence),
+    purpose: metricText(metric?.purpose) ?? 'unlabeled',
+    lane: ['foreground', 'background'].includes(metric?.lane) ? metric.lane : null,
+    role: metricText(metric?.role),
+    turnRef: metricText(metric?.turnRef),
+    workRef: metricText(metric?.workRef),
+    runId: metricText(metric?.runId),
+    parentCallId: metricText(metric?.parentCallId),
+    status: ['started', 'succeeded', 'failed', 'timeout', 'cancelled', 'interrupted'].includes(metric?.status)
+      ? metric.status : null,
+    upstreamAttempts: metricInteger(metric?.upstreamAttempts),
+    inputBreakdown: breakdown,
+    inputBreakdownSource: metric?.inputBreakdownSource === 'estimate' ? 'estimate' : null,
+    inputBreakdownVersion: metric?.inputBreakdownVersion === 't5-char-v1' ? 't5-char-v1' : null,
+    provider: metricText(metric?.provider),
+    requestModelId: metricText(metric?.requestModelId),
+    responseModelId: metricText(metric?.responseModelId),
+    connectionInstanceId: metricText(metric?.connectionInstanceId),
+    connectionGeneration: metricText(metric?.connectionGeneration),
+    durationMs: metricNumber(metric?.durationMs),
+    ttftMs: metricNumber(metric?.ttftMs),
+    tokens: tokenFacts,
+  };
+  let 파일 = 모델호출파일.get(safe.callId);
+  if (!파일) {
+    일련 += 1;
+    파일 = join(dir, `${String(일련).padStart(4, '0')}-model-call-${Date.now()}.json`);
+    if (safe.callId) 모델호출파일.set(safe.callId, 파일);
+  }
+  await mkdir(dir, { recursive: true });
+  await writeFile(파일, `${JSON.stringify(safe, null, 2)}\n`, 'utf8');
+  if (safe.status !== 'started' && safe.callId) 모델호출파일.delete(safe.callId);
+  return 파일;
+}
+
+/** 부팅 전에 남아 있던 started는 이전 프로세스가 끝내지 못한 호출이다. */
+export async function markInterruptedModelCalls(env = process.env) {
+  const dir = promptDumpDir(env);
+  if (!dir) return 0;
+  let names;
+  try { names = await readdir(dir); } catch { return 0; }
+  let changed = 0;
+  for (const name of names.filter((value) => value.includes('-model-call-') && value.endsWith('.json'))) {
+    const path = join(dir, name);
+    try {
+      const record = JSON.parse(await readFile(path, 'utf8'));
+      if (record?.status !== 'started') continue;
+      await writeFile(path, `${JSON.stringify({ ...record, status: 'interrupted' }, null, 2)}\n`, 'utf8');
+      changed += 1;
+    } catch { /* 손상·다른 파일은 건드리지 않는다 */ }
+  }
+  return changed;
 }
 
 /**

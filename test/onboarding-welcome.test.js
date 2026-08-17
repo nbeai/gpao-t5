@@ -94,11 +94,16 @@ test('makeWelcome: modelReady 정본만 보고 인사 모델 호출 여부를 �
     ...demoEnv(), model: { id: 'usable-model', authSignal: 'ok', healthState: 'usable' },
   });
   let asked = null;
+  const accounting = [];
   const model = { respond: async (tc) => { asked = tc; return '안녕하세요, 무엇부터 도와드릴까요?'; } };
-  const ok = await makeWelcome({ model, selfState, connected: false }); // 옛 이중 판정 인자는 결과를 바꾸지 못한다.
+  const ok = await makeWelcome({
+    model, selfState, connected: false,
+    onModelCallRecord: (record) => accounting.push(record),
+  }); // 옛 이중 판정 인자는 결과를 바꾸지 못한다.
   assert.equal(ok.state, 'greeted');
   assert.equal(ok.text, '안녕하세요, 무엇부터 도와드릴까요?');
   assert.ok(asked.currentRequest.length, '모델에게 규격을 넘겼다');
+  assert.deepEqual(accounting.map((record) => [record.purpose, record.lane]), [['welcome', 'background']]);
 
   let stubCalls = 0;
   const stubState = buildSelfState(demoEnv());
@@ -169,6 +174,8 @@ test('서버 /welcome: 인사를 transcript 에 남기되 숨은 지시는 남�
     })).json();
     assert.equal(w.state, 'greeted');
     assert.equal(w.text, '반가워요. 무엇을 도와드릴까요?');
+    assert.deepEqual(server.backgroundModelCallAccounting().map((record) => [record.purpose, record.lane]),
+      [['welcome', 'background']], '서버가 background welcome 회계를 버렸다');
 
     const saved = await sessionStore.load(s.id);
     assert.equal(saved.transcript.length, 1);

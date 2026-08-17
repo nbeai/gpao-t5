@@ -230,13 +230,19 @@ test('S4: 손상된 기억 위에서는 성장하지 않는다', async () => {
 
 test('S4: 자격 없는 호출이면 케이스 실행으로 넘어가지 않는다(증거가 안 될 호출을 더 하지 않는다)', async () => {
   const memStore = await 준비();
+  const accounting = [];
   const { modelFor, calls } = 대본모델({
     신분값: () => 신분({ selection: { requestedRole: 'growth', resolution: 'stub' } }),
   });
-  const r = await growTick({ memStore, modelFor, now: 100_000 });
+  const r = await growTick({
+    memStore, modelFor, now: 100_000,
+    onModelCallRecord: (record) => accounting.push(record),
+  });
   assert.equal(calls.length, 1, '제안 한 번에서 멈춘다');
   assert.equal(r.reason, 'call_identity_unverified');
   assert.equal((await memStore.load()).candidates.length, 0);
+  assert.deepEqual(accounting.map((record) => [record.purpose, record.lane]),
+    [['growth_propose', 'background']], '성장 worker의 직접 호출이 background 회계에서 빠졌다');
 });
 
 test('S4: 모델이 형식을 못 지키면 후보를 만들지 않는다(지어내지 않는다)', async () => {

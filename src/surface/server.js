@@ -18,6 +18,7 @@ import { buildSelfState } from '../kernel/l0-evidence/self-state.js';
 import { toolSchemasFor } from '../kernel/l2-plan/tool-schema.js';
 import { modelSchemasFor, splitModelControlCalls } from '../kernel/l2-plan/model-control.js';
 import { kernelToolName } from '../runtime/model-provider.js';
+import { markInterruptedModelCalls } from '../runtime/prompt-dump.js';
 import { EXECUTABLE_KINDS } from '../runtime/connector-connect.js';
 import { checkConnectorSigns, refreshStaleSigns } from '../runtime/local-signs.js';
 import { connectorTruth, builtinTools } from '../kernel/l2-plan/connector-truth.js';
@@ -407,6 +408,12 @@ export function makeServer(deps = {}) {
   // 바깥에서 아무것도 받지 않는 순수한 덩어리였다 — 여기 남는 것은 조립뿐이다.
   const 계측장부 = makeTurnTimingRegistry();
   const { timingPathKind, timingPathClass, withTimingEntry, observeTiming } = 계측장부;
+  // 세션 턴 밖에서 돈 모델 호출도 버리지 않는다. 원문 없는 진단 레코드만 작은 ring에 둔다.
+  const backgroundModelCalls = [];
+  const onBackgroundModelCall = (record) => {
+    backgroundModelCalls.push(structuredClone(record));
+    if (backgroundModelCalls.length > 200) backgroundModelCalls.splice(0, backgroundModelCalls.length - 200);
+  };
   // 같은 세션의 턴은 durable truth(EventLog)와 transcript를 공유하므로 직렬화한다.
   // 다른 세션은 기존처럼 병렬로 둔다(lane 격리).
   const sessionQueues = new Map();
@@ -443,6 +450,7 @@ export function makeServer(deps = {}) {
     ...(deps.agentProfileStore ? { profileStore: deps.agentProfileStore } : {}),
     ...(deps.automationRunLedger ? { runLedger: deps.automationRunLedger } : {}),
     ...(deps.clock ? { now: deps.clock } : {}),
+    onModelCallRecord: onBackgroundModelCall,
     migrate: !deps.skillStore && !deps.automationStore && !deps.agentProfileStore,
   });
   if (deps.enableAgentDelegation && tools?.tools?.['local.file']?.scopeRoots?.length) {
@@ -1494,7 +1502,7 @@ export function makeServer(deps = {}) {
     deliverAutomationRuns,
     // 성장은 역할 연결(growth)이 있으면 그것으로, 없으면 기본 연결로 간다(막다른 답 금지).
     modelFor: (role) => deps.modelConnection?.modelFor?.(role) ?? model,
-    env, tools,
+    env, tools, onModelCallRecord: onBackgroundModelCall,
     // 호출마다 다시 읽는다 — 켜고 끄는 것이 실행 중에 바뀐다.
     관찰꺼짐: () => String(deps.processEnv?.GPAO_T5_TCELL ?? process.env.GPAO_T5_TCELL ?? '') === 'off',
   });
@@ -2276,7 +2284,10 @@ export function makeServer(deps = {}) {
               currentWorkBrief: workStateFacts(projectedWorkState)
                 || (carryableProjects.length === 1 ? carryableProjects[0].statement : ''),
             },
-          }, { effort: 'medium', tools: stateTools, requiredTool: 'work.state' });
+          }, {
+            accountingPurpose: 'work_state_settlement',
+            effort: 'medium', tools: stateTools, requiredTool: 'work.state',
+          });
           const split = splitModelControlCalls(
             typeof stateOut === 'string' ? [] : (stateOut?.toolCalls ?? []),
           );
@@ -3483,7 +3494,10 @@ export function makeServer(deps = {}) {
         const selfState = buildSelfState(env, { tools });
         let result;
         try {
-          result = await makeWelcome({ model, selfState, connected: Boolean(connStatus.connected) });
+          result = await makeWelcome({
+            model, selfState, connected: Boolean(connStatus.connected),
+            onModelCallRecord: onBackgroundModelCall,
+          });
         } catch (err) {
           // 모델이 실패해도 인사를 지어내지 않는다 — 정직하게 안내한다(§6.20 회복 표면).
           console.error('[welcome:diagnostic]', err?.stack ?? err);
@@ -4133,6 +4147,7 @@ export function makeServer(deps = {}) {
   };
   server.automationRuntime = automationRuntime;
   server.tcellObserveState = 관찰상태보기; // 관찰 워커의 격리 상태(진단면)
+  server.backgroundModelCallAccounting = () => structuredClone(backgroundModelCalls);
 
   /**
    * P5-1: 채널 수신기가 부르는 입구. HTTP `/channel/inbound` 와 **같은 커널 길**을 쓰되,
@@ -4267,6 +4282,9 @@ async function startLiveServerInner(opts, bootStore) {
     ...((opts.processEnv ?? process.env).TELEGRAM_BOT_TOKEN || !savedChannel?.telegram?.token
       ? {} : { TELEGRAM_BOT_TOKEN: savedChannel.telegram.token }),
   };
+  // 이전 프로세스가 모델 호출 중 죽었다면 선택 계측 파일의 started를 interrupted로 닫는다.
+  // 기본은 덤프가 꺼져 있어 파일 접근도 없다.
+  await markInterruptedModelCalls(processEnv).catch(() => 0);
   // P-RT-4: 세션 store 와 같은 디렉터리에 사용자 모델 연결을 지속한다(0600, 소스 트리 밖).
   const connectionStore = opts.connectionStore ?? new ModelConnectionStore(bootStore.dir);
   const { env: liveEnv, tools: liveTools, channels: liveChannelList, connectors: liveConnectorList,

@@ -48,9 +48,11 @@ test('canonical runtime reuses durable T-cell replay evidence through the sole A
       return '실제 replay 답';
     },
   };
+  const accounting = [];
   const runtime = new CanonicalAutomationRuntime({
     dir, env: demoEnv(), tools: demoTools(), memStore,
     withMemory: (task) => task(), modelFor: () => model,
+    onModelCallRecord: (record) => accounting.push(record),
   });
   await runtime.ready();
   const proposed = await runtime.skillService.propose({
@@ -69,6 +71,12 @@ test('canonical runtime reuses durable T-cell replay evidence through the sole A
   const runs = await runtime.runLedger.load();
   assert.equal(runs.runs.length, 6);
   assert.ok(runs.runs.every((run) => run.status === 'succeeded'));
+  assert.equal(accounting.length, 12, 'replay 6건의 execute/judge가 각각 한 번씩 기록돼야 한다');
+  for (let i = 0; i < accounting.length; i += 2) {
+    assert.deepEqual(accounting.slice(i, i + 2).map((record) => record.purpose),
+      ['replay_execute', 'replay_judge']);
+    assert.ok(accounting.slice(i, i + 2).every((record) => record.lane === 'background'));
+  }
 
   const approval = {
     id: 'approval-1', decision: 'approved', skillId: proposed.skill.id,

@@ -21,6 +21,7 @@ import {
   makeReplayCase, makeReplayCallReceipt, verifyCallIdentity, SUITE_MINIMUM,
 } from './tcell-replay.js';
 import { containsSensitiveValue } from '../l0-evidence/sensitive-text.js';
+import { createModelCallAccounting, instrumentModelCalls } from '../../runtime/model-call-accounting.js';
 // HRT-ST-003 · 순수 판정은 자기 파일에 있다. 방향은 한쪽뿐이다(판정 → 여기 아님).
 import {
   사례문장, 유효성요청, 유효성읽기, 판정요청, 판정으로, computeCaseVerdict, verifySuiteFromMemory,
@@ -530,7 +531,9 @@ function job정리(jobs = [], job, 교체할것) {
  *          store?:{loadAll:Function}, now?:number}} deps
  * @returns {Promise<{calls:number, action?:string, state?:string, pass?:boolean|null, reason?:string}>}
  */
-export async function growTick({ memStore, withMemory, modelFor, store, approvalTools, now = Date.now() }) {
+export async function growTick({
+  memStore, withMemory, modelFor, store, approvalTools, now = Date.now(), onModelCallRecord,
+}) {
   const 잠금 = withMemory ?? ((fn) => fn());
   // 연결부터 세운다. **못 부를 것을 집어 두면** 그 job 이 빌림에 잠긴 채로 아무 일도 안 일어난다.
   let client;
@@ -570,6 +573,12 @@ export async function growTick({ memStore, withMemory, modelFor, store, approval
   });
   if (계획.reason) return { calls: 0, reason: 계획.reason };
 
+  const accounting = createModelCallAccounting({
+    lane: 'background', role: 'growth', runId: 계획.job?.jobId ?? null,
+    onRecord: onModelCallRecord,
+  });
+  client = instrumentModelCalls(client, () => accounting);
+
   // ② 부르기 — **자물쇠 밖.** 여기서 모델이 아무리 오래 걸려도 전경 기억 작업은 그대로 돈다.
   const 한도 = 계획.예약; // 잡아 둔 만큼만 쓴다
   let calls = 0;
@@ -579,7 +588,11 @@ export async function growTick({ memStore, withMemory, modelFor, store, approval
     let idn = null;
     let text;
     try {
-      text = await client.respond(봉투(request), { ...호출옵션, onCallIdentity: (i) => { idn = i; } });
+      text = await client.respond(봉투(request), {
+        ...호출옵션,
+        accountingPurpose: 호출옵션.accountingPurpose,
+        onCallIdentity: (i) => { idn = i; },
+      });
     } catch (e) {
       return { ok: false, reason: 'call_failed', error: e?.message ?? String(e) };
     }
@@ -650,7 +663,8 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
     const r = await 성장호출(
       제안요청(계획.bundle, 원문.map((x) => x.user).filter(Boolean), job.priorAttempts ?? [],
         job.무효피드백 ?? null),
-      { maxTokens: GROW_CAPS.proposalMaxTokens },
+      { accountingPurpose: 'growth_propose', accountingLane: 'background', accountingRole: 'growth',
+        maxTokens: GROW_CAPS.proposalMaxTokens },
     );
     if (!r.ok) return { kind: 'propose', fail: r.reason };
     const 파싱관측 = {};
@@ -686,7 +700,9 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   }
   if (action === 'validate') {
     // 사례 유효성(H02 성과 계열): 무효 사례는 실행 전에 걸러 재제안으로 돌려보낸다.
-    const 검 = await 성장호출(유효성요청(job.초안.statement, job.초안.cases));
+    const 검 = await 성장호출(유효성요청(job.초안.statement, job.초안.cases), {
+      accountingPurpose: 'growth_validate', accountingLane: 'background', accountingRole: 'growth',
+    });
     if (!검.ok) return { kind: 'validate', fail: 검.reason };
     const 점검 = 유효성읽기(검.text, job.초안.cases.length);
     if (점검 === null) return { kind: 'validate', fail: 'validity_unreadable' };
@@ -694,10 +710,14 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   }
   if (action === 'run_case') {
     const c = job.cases.find((x) => x.phase === 'pending');
-    const 실행 = await 성장호출(실행요청(job.statement, c));
+    const 실행 = await 성장호출(실행요청(job.statement, c), {
+      accountingPurpose: 'growth_execute', accountingLane: 'background', accountingRole: 'growth',
+    });
     if (!실행.ok) return { kind: 'run_case', caseId: c.caseId, fail: 실행.reason };
     // 예산이 남으면 같은 tick 에서 판정까지 한다. 안 남으면 다음 tick 이 판정한다(재개 가능).
-    const 판정 = await 성장호출(판정요청(c, 실행.text, 원문[0]?.baseline ?? null));
+    const 판정 = await 성장호출(판정요청(c, 실행.text, 원문[0]?.baseline ?? null), {
+      accountingPurpose: 'growth_judge', accountingLane: 'background', accountingRole: 'growth',
+    });
     const 판정틀 = {};
     const verdict = 판정.ok ? 판정으로(c, 실행.text, 판정.text, 판정틀) : undefined;
     return {
@@ -714,7 +734,10 @@ async function 수행(계획, 성장호출, 원문, 기계접촉 = false) {
   }
   if (action === 'judge_case') {
     const c = job.cases.find((x) => x.phase === 'ran');
-    const 판정 = await 성장호출(판정요청(c, c.outputPreview ?? '', 원문[0]?.baseline ?? null, (c.재판정수 ?? 0) > 0));
+    const 판정 = await 성장호출(
+      판정요청(c, c.outputPreview ?? '', 원문[0]?.baseline ?? null, (c.재판정수 ?? 0) > 0),
+      { accountingPurpose: 'growth_judge', accountingLane: 'background', accountingRole: 'growth' },
+    );
     // **못 물어본 것**(예산 소진·호출 실패)과 물어봤는데 못 읽은 것은 다른 사실이다.
     // 앞엣것을 "판정 불가"로 굳히면 예산 상한이 그대로 표본 상실이 된다.
     if (!판정.ok) return { kind: 'judge_case', caseId: c.caseId, fail: 판정.reason };

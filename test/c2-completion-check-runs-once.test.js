@@ -77,9 +77,14 @@ test('C2 — 출구 그물은 그대로다: 원장에 없는 완료 주장은 �
       return '터미널에서 직접 확인해 볼게요.\n\n```bash\nls -al ~/문서모음\n```';
     },
   };
-  const r = await runTurn({ text: '폴더 좀 봐줘' }, { env: demoEnv(), tools: demoTools({ localFile }), model });
+  const ctx = { env: demoEnv(), tools: demoTools({ localFile }), model };
+  const r = await runTurn({ text: '폴더 좀 봐줘' }, ctx);
   assert.ok(받은사실.length >= 1,
     `답에 명령만 적고 안 돌렸는데 출구 그물이 안 물었다 — 재사용이 그물을 약하게 만들었다: ${JSON.stringify(r.reply)}`);
+  assert.equal(ctx.modelCallAccounting.records.filter((x) => x.purpose === 'completion_repair').length, 1,
+    '완료 불일치 되부름이 회계에서 빠졌거나 두 번 기록됐다');
+  assert.deepEqual(ctx.modelCallAccounting.records.map((x) => x.purpose), ['primary', 'completion_repair'],
+    '첫 답과 완료 보정 두 호출의 목적·순서가 회계와 어긋났다');
 });
 
 test('C2 — 재사용은 한 턴 안에서만이다(지난 턴 판정을 물려받지 않는다)', async () => {

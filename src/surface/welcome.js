@@ -3,6 +3,7 @@
 // 문장은 모델이 만든다(매번 다르되 규격은 지켜진다). 그리고 모델이 없으면 인사를 지어내지 않고
 // 정직하게 안내한다(fail-closed) — "인사는 되는데 대화는 안 되는" 거짓 성공을 만들지 않는다.
 import { selfStateSummary } from '../kernel/l0-evidence/self-state.js';
+import { createModelCallAccounting, instrumentModelCalls } from '../runtime/model-call-accounting.js';
 
 /** 모델 미연결일 때 쓰는 정직한 안내(하드코딩은 여기 하나뿐 — 인사가 아니라 상태 설명이다). */
 export const NOT_CONNECTED_NOTICE = Object.freeze({
@@ -48,7 +49,7 @@ export function buildWelcomeContext(selfState) {
  * @param {{model:{respond:Function}, selfState:Object}} p
  * @returns {Promise<{state:'greeted'|'not_connected'|'not_ready', text?:string, userSafeSummary?:string, nextSafeAction?:string}>}
  */
-export async function makeWelcome({ model, selfState }) {
+export async function makeWelcome({ model, selfState, onModelCallRecord }) {
   if (selfState?.modelReady !== true) {
     if (selfState?.modelStatus === 'stub') return { ...NOT_CONNECTED_NOTICE };
     if (selfState?.modelStatus === 'unverified') return { ...MODEL_CHECKING_NOTICE };
@@ -58,6 +59,12 @@ export async function makeWelcome({ model, selfState }) {
       nextSafeAction: selfState?.nextSafeAction,
     };
   }
-  const text = await model.respond(buildWelcomeContext(selfState));
+  const accounting = createModelCallAccounting({
+    lane: 'background', role: 'default', onRecord: onModelCallRecord,
+  });
+  const measuredModel = instrumentModelCalls(model, () => accounting);
+  const text = await measuredModel.respond(buildWelcomeContext(selfState), {
+    accountingPurpose: 'welcome', accountingLane: 'background',
+  });
   return { state: 'greeted', text };
 }

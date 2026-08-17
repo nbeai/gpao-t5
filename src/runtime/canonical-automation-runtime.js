@@ -28,6 +28,7 @@ import { AgentRunRunner } from './agent-runner.js';
 import { buildDelegation } from './agent-delegation.js';
 import { AutomationScheduler } from './automation-scheduler.js';
 import { commitClaimToRunLedger, prepareRunClaim } from './job-claimer.js';
+import { createModelCallAccounting, instrumentModelCalls } from './model-call-accounting.js';
 
 const REPLAY_TIMEOUT_MS = 60_000;
 
@@ -234,6 +235,7 @@ export class CanonicalAutomationRuntime {
     jobStore = new AutomationJobStore(dir),
     profileStore = new AgentProfileStore(dir),
     runLedger = new AutomationRunLedger(dir),
+    onModelCallRecord = null,
     migrate = true,
   }) {
     this.env = env;
@@ -247,6 +249,7 @@ export class CanonicalAutomationRuntime {
     this.jobStore = jobStore;
     this.profileStore = profileStore;
     this.runLedger = runLedger;
+    this.onModelCallRecord = onModelCallRecord;
     this.readyPromise = migrate ? migrateAutomationWorkspaceV1(dir, now()) : Promise.resolve(null);
     this.replayRequests = new Map();
     this.cancelledRuns = new Set();
@@ -430,10 +433,16 @@ export class CanonicalAutomationRuntime {
   async #execute(request) {
     const replay = request.context.replayRequest;
     if (replay) {
+      const accounting = createModelCallAccounting({
+        lane: 'background', role: 'growth', runId: request.run.id,
+        onRecord: this.onModelCallRecord,
+      });
+      const replayModel = instrumentModelCalls(request.model, () => accounting);
       const startedAt = this.now();
       let executionIdentity = null;
-      const raw = await request.model.respond(
+      const raw = await replayModel.respond(
         replayTaskContext(replayExecutionPrompt(replay), request.runtimeReality), {
+          accountingPurpose: 'replay_execute', accountingLane: 'background', accountingRole: 'growth',
           onCallIdentity: (value) => { executionIdentity = value; },
         },
       );
@@ -442,8 +451,9 @@ export class CanonicalAutomationRuntime {
       if (!executionVerified.ok) throw new Error(executionVerified.reason);
 
       let judgementIdentity = null;
-      const judged = await request.model.respond(
+      const judged = await replayModel.respond(
         replayTaskContext(replayJudgementPrompt(replay.replayCase, answer), request.runtimeReality), {
+          accountingPurpose: 'replay_judge', accountingLane: 'background', accountingRole: 'growth',
           onCallIdentity: (value) => { judgementIdentity = value; },
         },
       );

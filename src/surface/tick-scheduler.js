@@ -31,7 +31,7 @@ export function makeTickScheduler({
   store, memStore, withMemory, 기억영수증,
   automationRuntime, automationReady,
   deliverAutomationRuns,
-  modelFor, env, tools, 관찰꺼짐,
+  modelFor, env, tools, 관찰꺼짐, onModelCallRecord,
 }) {
   // 자동화 워커 — 자기 오류 경계를 갖는다. 여기서 터져도 관찰은 같은 tick 에서 계속 돈다.
   async function 자동화워커() {
@@ -92,6 +92,7 @@ export function makeTickScheduler({
         // 턴의 영수증에 이 도구의 실행이 있으면 성장은 그 원리를 무조건 권한 접촉으로 다룬다.
         approvalTools: (buildSelfState(env, { tools }).connectedTools ?? [])
           .filter((t) => t?.needsApproval === true).map((t) => t.id).filter(Boolean),
+        onModelCallRecord,
       });
       // 성장 워커는 실패를 예외가 아니라 **사유**로 돌려준다(§4.8 격리 판정의 입력).
       // 할 일이 없어서 쉰 tick(`idle`)은 성공도 실패도 아니다 — 세지 않는다.

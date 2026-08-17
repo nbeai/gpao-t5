@@ -142,6 +142,19 @@ test('S4: 신분은 실제 fetch 의 url·본문에서 나온다(선택값 복�
   assert.equal(verifyCallIdentity(idn).ok, true);
 });
 
+test('S4: 기본 대화 model도 실제 신분·usage·연결 세대를 회계 콜백에 낸다', async () => {
+  const store = await tmp();
+  const { impl } = 낚아채는fetch({ responseModel: 'beai-8.6' });
+  const mc = makeModelConnection({ env: {}, processEnv: {}, store, fetchImpl: impl });
+  await mc.connect({ provider: 'beai', key: 'k', modelId: 'beai-8.6' });
+  let idn = null;
+  await mc.model.respond(TC, { onCallIdentity: (value) => { idn = value; } });
+  assert.equal(idn.selection.providerId, 'beai');
+  assert.equal(idn.actualRequestModelId, 'beai-8.6');
+  assert.equal(idn.usage.total_tokens, 7);
+  assert.match(idn.connectionGeneration, /^[a-f0-9]{16}$/);
+});
+
 test('S4: 응답이 model 을 보고하면 응답 신분을 검증하고, 보고하지 않으면 주장하지 않는다', async () => {
   const store = await tmp();
   const 보고 = 낚아채는fetch({ responseModel: 'beai-8.6' });
