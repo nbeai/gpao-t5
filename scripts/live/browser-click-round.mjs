@@ -39,8 +39,8 @@ export function 페이지들() {
 <h1>동네가게 안내</h1>
 <p>여기는 소개 문단이다. 가게의 기본 정보가 적혀 있다.</p>
 <div role="tablist">
-  <button role="tab" aria-selected="true" onclick="탭열기('소개')">소개</button>
-  <button role="tab" aria-selected="false" onclick="탭열기('후기')">후기</button>
+  <button type="button" role="tab" aria-selected="true" onclick="탭열기('소개')">소개</button>
+  <button type="button" role="tab" aria-selected="false" onclick="탭열기('후기')">후기</button>
 </div>
 <div id="탭칸">소개 탭 내용: 10년 된 가게이고 골목 안쪽에 있다.</div>
 <p><a href="/자세히">자세히 보기</a></p>
