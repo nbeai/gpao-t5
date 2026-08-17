@@ -8,7 +8,7 @@ import { 기억발화, 표정규식, 답쓴호출입력 } from './order7-memory-
 const 자리 = join(dirname(fileURLToPath(import.meta.url)),
   '../../docs/03-verification/evidence/terminal-2026-08-17/순서7-라이브');
 const 결과 = { 자: '축1 정정 후 재채점(보존 덤프 · 회차 재실행 0)', 정정근거: 'model-provider.js:409', 판: [] };
-for (const 이름 of ['극A', '극B', '기저1', '기저2']) {
+for (const 이름 of ['극A', '극B', '기저1', '기저2', '수리후1', '수리후2']) {
   let 원본;
   try { 원본 = JSON.parse(await readFile(join(자리, `${이름}.json`), 'utf8')); } catch { continue; }
   const 덤프 = join(자리, `${이름}-덤프`);
