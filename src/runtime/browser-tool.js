@@ -45,14 +45,19 @@ export function observationFacts(view) {
     // 지연 로딩)뿐이다 — 그래서 "더 내리면 새 내용이 나올 수 있다"로만 말한다.
     canScroll: px > (s.viewport ?? 0),
     moreBelow: px > 0 && (s.y ?? 0) + (s.viewport ?? 0) < px,
-    // 더 열 수 있는 것: 탭과 펼침만(우리가 누를 수 있는 것과 같은 집합이다 — 못 누를 걸 보여주면 거짓말).
+    // 더 열 수 있는 것: 수집이 ref 를 준 것 전부 — 링크·버튼·탭·펼침(우리가 누를 수 있는
+    // 것과 같은 집합이다 — 못 누를 걸 보여주면 거짓말. 그 동일성은 클릭 시점이 같은 술어
+    // 한 벌로 재판정한다 · browser.js 클릭가능술어). 상한 12 는 유지 — 실세계 혼잡·우선
+    // 채움은 슬라이스 ② 의 이름 등재된 몫이다.
     // **얇은 화면**: 100% 를 받았어도 124자면 읽은 게 아니다. 실측(2026-07-27): 네이버가 띄운
     // IP 제한 안내(124자)를 100% 로 남겼더니, 모델이 "첫 화면의 일부 리뷰를 확인했다"고 말했다 —
     // 사실은 안내문만 봤다. 비율만으로는 이 차이가 안 보인다.
     thin: captured < THIN_CHARS,
     canOpen: (view?.actionable ?? [])
-      .filter((a) => a.role === 'tab' || a.expanded !== undefined)
-      .map((a) => ({ ref: a.ref, text: a.text, kind: a.role === 'tab' ? 'tab' : 'expander' }))
+      .map((a) => ({ ref: a.ref, text: a.text,
+        kind: a.role === 'tab' ? 'tab'
+          : a.expanded !== undefined ? 'expander'
+            : a.role === 'link' ? 'link' : 'button' }))
       .slice(0, 12),
     // **글자를 칠 수 있는 칸.** 여기 없는 자리는 짚을 이름이 없고, 이름이 없으면 안 친다.
     // 종류를 함께 준다 — 모델이 보안 칸을 고르고 나서 거절당하는 왕복을 안 하게 한다.
@@ -239,8 +244,8 @@ export function makeBrowserActTool(deps = {}) {
           // 못 누른 것은 **실패가 아니라 경계**다. 왜 안 되는지 사람 말로 말한다.
           return {
             blocked: true, fetchState: 'blocked',
-            userSafeSummary: r.reason === 'not_observational'
-              ? '그건 탭이나 더보기가 아니라서 누르지 않았어요. 이 손으로 누르는 것은 탭과 더보기예요.'
+            userSafeSummary: r.reason === 'not_clickable'
+              ? '그 자리는 이 손이 누르지 않는 자리예요 — 폼을 제출하거나 바깥 사이트로 나가는 걸음은 스스로 하지 않아요.'
               : '그 자리는 화면에서 사라졌어요.',
             nextSafeAction: '지금 화면을 다시 보고 이어갈까요?',
           };

@@ -42,19 +42,22 @@ test('글을 다 받았으면 100%, 화면 끝까지 갔으면 더 없다고 말
   assert.equal(f.moreBelow, false, '화면도 끝까지 갔다 — 없는 미확인 영역을 지어내지 않는다');
 });
 
+// 국면 5 슬라이스 1(일반 클릭 · 선등록 국면5-브라우저-슬라이스1-선등록.md): 집합 동일성
+// 계약은 그대로, 집합이 넓어졌다 — 수집이 ref 를 준 것 전부(링크·버튼 포함)가 canOpen 에
+// 실리고, 클릭 시점이 같은 술어 한 벌(browser.js 클릭가능술어)로 재판정한다.
 test('더 열 수 있는 것은 **누를 수 있는 것과 같은 집합**이다(못 누를 걸 보여주면 거짓말)', () => {
   const f = observationFacts(view());
-  assert.deepEqual(f.canOpen.map((c) => c.kind), ['tab', 'tab', 'expander']);
-  assert.ok(!f.canOpen.some((c) => c.text === '어떤 링크'), '링크는 누르지 않는다 — 주소로 여는 게 더 정직하다');
+  assert.deepEqual(f.canOpen.map((c) => c.kind), ['tab', 'tab', 'expander', 'link']);
+  assert.ok(f.canOpen.some((c) => c.text === '어떤 링크'), '같은 사이트 링크는 이제 누를 수 있는 집합 안이다 — 수집 술어가 경계를 진다');
 });
 
-// ── 안전은 구조로 좁혔다(단어 목록이 아니라 역할로) ──────────────────────
-test('탭·더보기가 아닌 것을 누르면 실패가 아니라 **경계**로 말한다', async () => {
+// ── 안전은 구조로 좁혔다(단어 목록이 아니라 역할·폼 소속으로) ──────────────
+test('술어가 거절한 자리(폼 제출·바깥 이탈)를 누르면 실패가 아니라 **경계**로 말한다', async () => {
   const tool = makeBrowserActTool({
-    browser: { async click() { return { clicked: false, reason: 'not_observational' }; } },
+    browser: { async click() { return { clicked: false, reason: 'not_clickable' }; } },
   });
   const r = await tool.handler({ action: 'click', ref: 'e9' });
-  assert.match(r.userSafeSummary, /탭이나 더보기가 아니라서/);
+  assert.match(r.userSafeSummary, /폼을 제출하거나 바깥 사이트로 나가는 걸음/);
   assert.ok(r.nextSafeAction, '막다른 답 금지');
   assert.equal(r.failureState, undefined, '경계는 실패가 아니다');
 });

@@ -246,6 +246,30 @@ export function 엔터판정(f) {
  * - 무엇을 누를 수 있는가(탭·더보기·같은 사이트 링크) ← 다음에 필요한 조작
  * 이 스크립트는 페이지 안에서 돈다. 사이트별 선택자가 아니라 **역할(role)과 구조**만 본다.
  */
+/**
+ * **누를 수 있나 — 술어 한 벌.** 수집(OBSERVE_SCRIPT)과 클릭 시점 재판정(click)이 **같은
+ * 글자**를 쓴다(두 벌이면 한쪽만 고쳐진다 — 이 저장소의 등재된 병). canOpen 에 보인 집합과
+ * 눌리는 집합이 같아야 한다(못 누를 걸 보여주면 거짓말 · browser-tool.js 정직성 계약).
+ *
+ * 경계는 역할·구조다(사이트를 몰라도 통한다):
+ *   · 바깥 사이트로 나가는 링크 ✕ (관찰 중인 화면을 벗어난다)
+ *   · **폼 소속** 제출 컨트롤 ✕ (type=submit 명시 또는 버튼 기본값 — 상태를 바꾼다) ·
+ *     POST 폼 소속 전부 ✕
+ *   · 폼 밖 버튼은 누른다 — 옛 필터는 `e.type === 'submit'` 하나로 걸러서 **type 미지정
+ *     일반 버튼까지 통째로 버렸다**(HTMLButtonElement 의 .type 기본값이 submit 이라 ·
+ *     선빨강 기계 양성대조가 실측). 페이지 안 JS 의 부수효과까지는 이 술어가 보증하지
+ *     않는다 — 그 미보장은 선등록 ㉳ 로 사실 등재됐다(경계 문장은 descriptor 가 진다).
+ */
+export const 클릭가능술어 = `(e, origin) => {
+  if (e.tagName === 'A') return Boolean(e.href) && e.href.startsWith(origin);
+  const form = e.closest ? e.closest('form') : null;
+  if (form) {
+    if (String(form.method || '').toLowerCase() === 'post') return false;
+    if (String(e.type || 'submit').toLowerCase() === 'submit') return false;
+  }
+  return true;
+}`;
+
 const OBSERVE_SCRIPT = `(() => {
   const vis = (e) => {
     const r = e.getBoundingClientRect();
@@ -261,10 +285,8 @@ const OBSERVE_SCRIPT = `(() => {
     if (!t) continue;
     const role = e.getAttribute('role') || (e.tagName === 'A' ? 'link' : e.tagName.toLowerCase());
     const href = e.tagName === 'A' ? e.href : undefined;
-    // 다른 사이트로 나가는 링크는 조작 대상이 아니다(관찰 중인 화면을 벗어난다).
-    if (href && !href.startsWith(here)) continue;
-    // 폼 제출은 상태를 바꾼다 — 이 슬라이스의 브라우저는 보기 위한 것이다.
-    if (e.type === 'submit' || e.closest('form')?.method?.toLowerCase() === 'post') continue;
+    // 경계는 술어 한 벌이 진다 — 여기서 걸러진 것은 클릭 시점에도 같은 술어로 거절된다.
+    if (!(${클릭가능술어})(e, here)) continue;
     const ref = 'e' + (++n);
     e.setAttribute('data-t5-ref', ref);
     actionable.push({ ref, role, text: t, expanded: e.getAttribute('aria-expanded') ?? undefined, href });
@@ -582,28 +604,25 @@ export function makeBrowser(deps = {}) {
     /**
      * 관찰에서 얻은 ref 만 누른다. 화면에 없던 것은 누르지 않는다.
      *
-     * **누를 수 있는 것을 구조로 좁힌다**(오너 지시: "탭, 더보기, 스크롤 정도로 제한"):
-     * 탭(role=tab)과 펼침(aria-expanded)뿐이다. 링크는 여기서 안 누른다 — 주소를 알고 있으니
-     * `open(href)` 로 가면 되고, 그게 "무엇을 열었는지"가 원장에 주소로 남아 더 정직하다.
-     * 단어 목록("결제·주문"을 막자)이 아니라 **역할**로 좁혔다 — 사이트를 몰라도 통한다.
-     * **누르기는 여전히 탭·더보기뿐이다** — 폼 제출·구매 버튼은 여기서 안 연다.
-     * 글자는 `type` 이, 검색을 끝내는 엔터는 `press` 가 각자 자기 경계를 지고 맡는다.
+     * **일반 클릭**(국면 5 슬라이스 1 · 2026-08-17): 링크·버튼·탭·더보기 — 수집이 ref 를 준
+     * 것 전부다. 경계는 `클릭가능술어` 한 벌이 진다(수집과 같은 글자 · 폼 제출/POST 폼/바깥
+     * 링크 ✕). 옛 제한(「탭·더보기만」 — 관찰 슬라이스 시점 오너 지시)은 국면 5 결재·오픈북
+     * 1행으로 열렸다 — 선등록에 근거 등재. 클릭 뒤 재관찰을 그대로 돌려주므로(아래) 모델의
+     * 관찰→조준→행동→재관찰 루프가 이 손 안에서 닫힌다. 링크 클릭의 도착 주소도 그 재관찰이
+     * 원장에 남긴다(url).
      */
     async click(ref) {
       await ensure();
       const ok = await evaluate(`(() => {
         const el = document.querySelector('[data-t5-ref=${JSON.stringify(ref)}]');
         if (!el) return 'gone';
-        const role = el.getAttribute('role');
-        const isTab = role === 'tab';
-        const isExpander = el.hasAttribute('aria-expanded');
-        if (!isTab && !isExpander) return 'not_observational';
+        if (!(${클릭가능술어})(el, location.origin)) return 'not_clickable';
         el.click();
         return 'ok';
       })()`);
       if (ok === 'gone') return { clicked: false, reason: 'gone' };
-      if (ok === 'not_observational') return { clicked: false, reason: 'not_observational' };
-      await sleep(1200); // 탭 전환·더보기 펼침에 시간을 준다
+      if (ok === 'not_clickable') return { clicked: false, reason: 'not_clickable' };
+      await sleep(1200); // 탭 전환·펼침·링크 이동에 시간을 준다(고정 대기 — 남은 칸 ④)
       return { clicked: true, ...(await evaluate(OBSERVE_SCRIPT)) };
     },
 
