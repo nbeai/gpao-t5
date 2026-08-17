@@ -3996,7 +3996,9 @@ export function makeServer(deps = {}) {
     ctx.admitAutomationProposal = (proposal) => 자동화후보입장(proposal, session, input.text ?? '');
     ctx.applyAutomationControl = (control) => 자동화제어적용(control, session);
     ctx.observeAutomation = (observation) => 자동화관찰(observation, session);
-    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state'];
+    // 채널 턴에만 `approval.decide` 를 켠다 — 웹은 실제 카드 버튼이 있어 이 통로가 필요 없고,
+    // 켜면 웹 프롬프트 문자가 움직인다(선등록 ㉡ 웹 경로 문자 불변).
+    ctx.modelControls = ['skill.propose', 'automation.propose', 'automation.control', 'automation.observe', 'agent.propose', 'work.state', 'approval.decide'];
     ctx.skills = ((await skillStore.load()).skills ?? [])
       .filter((skill) => skill.state === 'active' && 재사용가능한스킬인가(skill));
     // S5-3: 직전 답이 **놓고 쓴 문장들** — 정정이 무엇을 고치는지 지목할 대상.
@@ -4004,7 +4006,12 @@ export function makeServer(deps = {}) {
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
     ctx.priorShown = 직전에보인것(memory, channelTurnRef);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
-    const result = await runTurn({
+    // 국면 4 슬라이스 2 — **밖에서 낸 결정만 집행한다.** 이 턴이 시작될 때 이미 서 있던 카드가
+    // 무엇이었는지 먼저 얼린다. 이 집합 밖의 id 는 집행하지 않는다 — 모델이 이번 턴에 새로
+    // 제안한 카드를 「사용자가 승인한 것」으로 둔갑시킬 수 없게 하는 **코드 쪽 자격 판정**이다
+    // (라이브 반례: 1턴 카드 `rm "지울것.md"` 와 2턴 카드 `rm -f … && ls` 가 다른데 대기 수는 1→1).
+    const 턴전대기 = new Set(Object.keys(session.pendingApprovals ?? {}));
+    let result = await runTurn({
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,
       channelPolicy: event.channelPolicy, channelConnected: event.channelConnected,
@@ -4012,6 +4019,28 @@ export function makeServer(deps = {}) {
       channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
       turnRef: channelTurnRef,
     }, ctx);
+    // ★ 밖에서 결재까지 — 모델이 지목한 결정을 **자격을 코드로 판정한 뒤** 집행한다.
+    // 해석은 모델(어느 카드에 대한 말인가), 자격은 코드(그 카드가 원래 서 있던 것인가).
+    // 발신자 신분은 이 자리 위에서 이미 걸러졌다(allowlist_only 게이트 · inbound-gate).
+    const 밖결정 = result.approvalDecision ?? null;
+    delete result.approvalDecision;
+    if (밖결정 && 턴전대기.has(밖결정.pendingId)) {
+      // ★ **② 배제** — 밖에서 한 승인은 **이번 1건만** 집행한다. 화면에서 누른 승인이 남기는
+      // 「이 상대는 앞으로 안 물어봐도 됨」(turn.js `rememberCounterpart` → knownCounterparts →
+      // buildActionPlan)은 **커밋하지 않는다.** 지목 주체가 모델이므로 오지목의 폭발 반경을
+      // 집행 1건에 묶는 보수적 선택이고, **의도된 표면 비대칭**이다(선등록 §1 — 결함 아님).
+      const 승인전상대 = [...(ctx.knownCounterparts ?? [])];
+      result = await runTurn({
+        ...(밖결정.decision === 'approve' ? { approve: 밖결정.pendingId } : { reject: 밖결정.pendingId }),
+        source: 'external_channel',
+        channel: event.channelMeta.channel, channelLabel: registered?.label ?? profile?.label,
+        turnRef: channelTurnRef,
+      }, ctx);
+      if (ctx.knownCounterparts instanceof Set) {
+        ctx.knownCounterparts.clear();
+        for (const x of 승인전상대) ctx.knownCounterparts.add(x);
+      }
+    }
     finalizeSourceCoverage(ctx, channelTurnRef);
     const completionSettlement = await settleSingleFileCompletion({ ctx, session, result, turnRef: channelTurnRef,
       ledgerFrom: channelStampFrom.ledgerFrom })

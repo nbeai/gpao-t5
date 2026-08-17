@@ -129,6 +129,27 @@ export const MODEL_CONTROL_SCHEMAS = Object.freeze([{
     required: ['statement', 'operation', 'trigger', 'tool', 'action', 'skillPurpose', 'deliveryIntent'],
   },
 }, {
+  // 국면 4 슬라이스 2 · **밖에서 결재까지.** 승인 카드는 화면에서만 눌러졌다
+  // (server.js 「승인은 T5 화면에서 받는다」). 오너 원칙 ①(외부 메신저로 T5 전체를 컨트롤)이
+  // 그 경계를 열었고, 여는 방식은 **유도**다: 규칙이 낱말을 잡는 게 아니라 **모델이 판단한다.**
+  // 「승인」·「그거 승인할게」·「네 진행해주세요」를 규칙으로 잡으려 하면 규칙이 무한히 는다
+  // (라이브 실측 3종). 그래서 **무엇을 승인하는가의 해석만** 모델에게 주고,
+  // **자격 판정은 코드**가 한다(허용목록·카드 동일성 — 서버 쪽).
+  name: 'approval.decide',
+  description: '지금 대기 중인 승인 카드 하나에 대해 사용자가 방금 낸 결정을 옮긴다.'
+    + ' 사용자가 그 카드를 허락했으면 approve, 하지 말라고 했으면 reject.'
+    + ' **대기 중인 카드가 있고, 사용자의 이번 말이 그 카드에 대한 결정일 때만** 쓴다 —'
+    + ' 새 일을 시키는 말이나 무관한 말에는 쓰지 않는다.'
+    + ' 어느 카드인지 확신이 없으면 쓰지 말고 사용자에게 어느 것인지 물어라(지어내지 않는다).',
+  parameters: {
+    type: 'object',
+    properties: {
+      pendingId: { type: 'string', description: '결정 대상 카드의 id. 대기 목록에서 본 그대로' },
+      decision: { type: 'string', enum: ['approve', 'reject'] },
+    },
+    required: ['pendingId', 'decision'],
+  },
+}, {
   name: 'automation.control',
   description: 'AutomationRealitySnapshot에서 본 정확한 예약 하나를 사용자의 현재 요청대로 다룬다.'
     + ' commit=아직 켜지지 않은 후보를 실제 예약으로 확정(사용자가 켜 달라고 했을 때) ·'
@@ -494,6 +515,8 @@ export function splitModelControlCalls(toolCalls = []) {
   let automationControl = null;
   let automationObserve = null;
   let agentProposal = null;
+  // 국면 4 슬라이스 2 — 밖에서 낸 승인/거부 결정. 해석은 모델, 자격 판정은 코드(서버).
+  let approvalDecision = null;
   const workStateProposals = [];
   let workStateSeen = false;
   let workStateNoChange = false;
@@ -597,6 +620,14 @@ export function splitModelControlCalls(toolCalls = []) {
         }
       }
     }
+    if (c.name === 'approval.decide') {
+      // **fail-closed**: id 와 결정이 둘 다 성립해야 통제를 세운다. 모자라면 아무 일도 안 난다.
+      const pendingId = String(c?.args?.pendingId ?? '').trim().slice(0, 64);
+      const decision = c?.args?.decision === 'approve' || c?.args?.decision === 'reject'
+        ? c.args.decision : null;
+      if (pendingId && decision) approvalDecision = { pendingId, decision };
+      continue;
+    }
     if (c.name === 'memory.cite') {
       const used = Array.isArray(c?.args?.used)
         ? c.args.used.map((x) => String(x ?? '').trim().slice(0, 300)).filter(Boolean)
@@ -617,6 +648,7 @@ export function splitModelControlCalls(toolCalls = []) {
   const workStateProposal = mergeWorkStateProposals(workStateProposals);
   return {
     memorySuggestion, memoryWithdrawal, memoryCitation, memoryCorrection,
+    approvalDecision,
     askUser,
     skillProposal, automationProposal, automationControl, automationObserve, agentProposal,
     workStateProposal, workStateSeen, workStateNoChange,

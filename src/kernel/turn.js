@@ -1241,6 +1241,9 @@ export async function runTurn(input, ctx) {
   let automationControl = null;
   let automationObserve = null;
   let agentProposal = null;
+  // 국면 4 슬라이스 2 — 밖에서 낸 승인/거부 결정. 커널은 **옮기기만 한다**:
+  // 집행도 자격 판정도 여기서 하지 않는다(표면이 허용목록·카드 동일성을 보고 결정한다).
+  let approvalDecision = null;
   // **모델이 낸 질문.** 커널이 만든 되묻기와 한 자리를 놓고 다투지 않게 여기 하나만 둔다.
   let 물음 = null;
   const 통제제안받기 = (분리) => {
@@ -1255,13 +1258,16 @@ export async function runTurn(input, ctx) {
     ctx.automationProposal = automationProposal;
     ctx.automationControl = automationControl;
     if (분리?.agentProposal) agentProposal = 분리.agentProposal;
+    if (분리?.approvalDecision) approvalDecision = 분리.approvalDecision;
     collectWorkState(분리);
   };
   const 통제제안 = () => ({
     skillProposal, automationProposal, automationControl, agentProposal,
+    ...(approvalDecision ? { approvalDecision } : {}),
     workStateProposal: currentWorkStateProposal(),
   });
-  const 승인통제제안 = () => ({ skillProposal, automationProposal, automationControl, agentProposal });
+  const 승인통제제안 = () => ({ skillProposal, automationProposal, automationControl, agentProposal,
+    ...(approvalDecision ? { approvalDecision } : {}) });
   const shownMemoryRefs = shownFromRendered({
     turnRef: input.turnRef ?? null,
     ...렌더재료,
