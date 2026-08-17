@@ -1,0 +1,12 @@
+{
+  "at": "2026-08-17T06:28:24.339Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "",
+  "textChars": 0,
+  "toolCalls": [
+    "work.state"
+  ]
+}
