@@ -90,7 +90,7 @@ test('크롬 프로필 관찰 — 기본 켬 · 끄는 길은 =0', () => {
   assert.equal(브라우저프로필허용({ GPAO_T5_BROWSER_PROFILE: '1' }), true);
 });
 
-test('관통: 화면 손이 자리를 주면 이번 턴 모델 문맥에 화면 줄이 실린다 (턴 머리 관측)', async () => {
+test('관통: 화면 손이 있어도 모델이 고르기 전에는 앱·창을 관찰하지 않는다', async () => {
   const { runTurn } = await import('../src/kernel/turn.js');
   const { demoEnv, demoTools } = await import('../src/surface/demo-context.js');
   let 문맥본 = null;
@@ -101,16 +101,17 @@ test('관통: 화면 손이 자리를 주면 이번 턴 모델 문맥에 화면 
       return { text: '알겠어.' };
     },
   };
-  const desktop = { async places() { return { 창들: [{ label: '성심카드 가맹점센터 — Chrome', kind: 'screen' }], 걸린ms: 7 }; }, async handler() { return { result: {} }; } };
+  let placesCalls = 0;
+  const desktop = { async places() { placesCalls += 1; return { 창들: [{ label: '성심카드 가맹점센터 — Chrome', kind: 'screen' }], 걸린ms: 7 }; }, async handler() { return { result: {} }; } };
   const r = await runTurn({ text: '이번 달 얼마 벌었지?' }, {
     env: demoEnv({ include: ['desktop.screen'], hands: ['desktop.screen'] }),
     model,
     tools: demoTools({ desktop }),
   });
   const 상태줄 = JSON.stringify(문맥본?.workingState ?? {}) + JSON.stringify(문맥본 ?? {}).slice(0, 0);
-  assert.ok(상태줄.includes('성심카드'),
-    '화면 자리가 이번 턴 모델 재료에 없다 — 턴 끝 파생에만 실리면 M1 첫 턴은 영영 못 본다');
-  assert.equal(r.screenPlaceDiagnostic?.걸린ms, 7, '지연 실측이 응답 진단면에 없다(PM 조건 2)');
+  assert.equal(상태줄.includes('성심카드'), false, '안 물은 앱 이름이 이번 턴 모델 재료에 실렸다');
+  assert.equal(placesCalls, 0, '모델이 화면 손을 고르지 않았는데 창 목록을 열었다');
+  assert.equal(r.screenPlaceDiagnostic, undefined, '안 한 화면 관찰을 진단면에 했다고 적었다');
 });
 
 // ── **F-54 후반 봉인 — 자리 종류를 하나만 보고 끝내지 않는다** (PM 승인 2026-08-09) ──────

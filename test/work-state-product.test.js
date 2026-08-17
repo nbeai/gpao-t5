@@ -381,6 +381,7 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
   // 이 시험의 소유 계약은 완료된 파일 작업의 work-state 투영이다. 완료 입장 자체는
   // 사용자 exact path/body와 명시 policy가 있는 현재 제품 계약으로 공급한다.
   const request = `결과.md 파일에 '완성 내용'을 저장해줘. 원본은 그대로 둬.`;
+  let desktopPlaces = 0;
   const model = { async respond(tc, opts = {}) {
     if (tc?.workContractAssessment) return { text: '', toolCalls: [{
       name: 'work.deliverable', args: { output: 'file', sourcePolicy: 'none' },
@@ -405,7 +406,7 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
       async handler() { return { result: { hits: [] }, userSafeSummary: '파일 자리를 확인했어요.' }; },
     },
     desktop: {
-      async places() { return { 창들: [{ label: '테스트 화면' }], 걸린ms: 0 }; },
+      async places() { desktopPlaces += 1; return { 창들: [{ label: '테스트 화면' }], 걸린ms: 0 }; },
       async handler() { return { result: { windows: [] }, userSafeSummary: '화면을 확인했어요.' }; },
     },
   });
@@ -439,9 +440,10 @@ test('제품의 실행 완료는 실제 산출물 delivered 영수증과 완료 
     && !['runtime_verification', 'completion_settlement'].includes(entry.origin));
   assert.equal(fileReceipts.length, 2, 'read→write 실제 제품 경로여야 한다');
   for (const receipt of fileReceipts) {
-    assert.equal((receipt.userSafeSummary.match(/이번 턴에 아직 안 본 자리 종류/g) ?? []).length, 1,
-      `${receipt.actualCall.args.action}: unsigned read와 signed write 모두 자리 사실을 정확히 한 번만 동봉해야 한다`);
+    assert.equal((receipt.userSafeSummary.match(/이번 턴에 아직 안 본 자리 종류/g) ?? []).length, 0,
+      `${receipt.actualCall.args.action}: 파일 작업이 묻지 않은 화면 자리를 곁눈질했다`);
   }
+  assert.equal(desktopPlaces, 0, '파일 산출물 작업인데 열린 앱·창을 관찰했다');
   const records = await new WorkEventStore(dir).load();
   assert.ok(records.some((event) => event.type === 'execution_completed'
     && event.evidence?.verificationPassed === true

@@ -1355,18 +1355,26 @@ export async function runTurn(input, ctx) {
   // 상한에서 끊겼나(거짓 성공 금지 — 잘렸으면 잘렸다고 말한다). **이 턴의 사실은 `ctx` 가 든다**
   // (J9): 지역 변수면 `executePlan` 안에서 답을 낸 호출을 못 본다 — 복합 경로가 통째로 빠졌다.
   ctx.답잘림 = false;
-  // **화면 자리는 턴 머리에서 한 번 관측한다**(F-54). 턴 끝 파생에만 실으면 이번 턴 모델은
-  // 화면을 영영 못 본다(첫 턴 측정이 정확히 그 자리다 — M1). 여기서 관측해 이번 턴의
-  // workingState 에 얹고, 턴 끝 파생도 같은 관측을 이어받는다(드라이버 호출은 턴에 1회).
-  ctx.이번턴화면자리 = await 화면자리(ctx);
-  if (ctx.이번턴화면자리?.length) {
-    ctx.workingState = { ...(ctx.workingState ?? {}), screenPlaces: ctx.이번턴화면자리 };
-  }
-  // **파일 자리도 같은 규격으로 턴 머리에서 관측한다**(F-54 후반 대칭 · PM 지시 2026-08-09).
+  // **화면 자리는 desktop 손을 고른 뒤 실행 직전에 한 번 관측한다**(F-54 프라이버시 보정).
+  // 턴 머리에서 무조건 읽으면 "안녕"에도 열린 앱·창이 수집된다. 손 자체는 모델에게 그대로
+  // 보이고, 선택한 순간 fresh 자리를 workingState에 얹어 다음 호출과 턴 끝 파생이 이어받는다.
+  ctx.이번턴화면자리 = undefined;
+  ctx.화면자리지연 = undefined;
+  let 화면자리관측함 = false;
+  ctx.화면자리확보 = async () => {
+    if (화면자리관측함) return ctx.이번턴화면자리;
+    화면자리관측함 = true;
+    ctx.이번턴화면자리 = await 화면자리(ctx);
+    if (ctx.이번턴화면자리?.length) {
+      ctx.workingState = { ...(ctx.workingState ?? {}), screenPlaces: ctx.이번턴화면자리 };
+    }
+    return ctx.이번턴화면자리;
+  };
+  // **파일 자리는 턴 머리에서 관측한다**(F-54 후반 · PM 지시 2026-08-09).
   // 첫 판은 출구 그물에 `ctx.workingState.places`(= **이전 턴** 상태)를 넘겼고, 새 세션 첫
   // 턴에는 그게 비어 있어 그물이 한 번도 안 물었다 — 오너의 창 하나를 미검증 배선에 태운
-  // 그 자리다. 화면 자리만 머리 관측을 받고 파일 자리는 안 받은 **대칭 누락**이었다.
-  // 관측은 턴에 1회 — 아래 파생 자리들이 이 값을 이어받는다(두 번 세지 않는다).
+  // 그 자리다. 화면과 달리 이 명부는 열린 앱·창을 노출하지 않고 작업 루트의 고정 경계를
+  // 알려준다. 화면 쪽 옛 대칭 관측은 위의 lazy privacy 계약으로 퇴역했다.
   {
     const t0 = Date.now();
     ctx.이번턴파일자리 = await 볼수있는자리(ctx);
@@ -2409,6 +2417,9 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // 여기 모았다가 교환에만 붙이고, 턴이 끝나면 사라진다(CU F-2 · 계획 §6 수명).
   const 이번턴그림 = new Map();
   const 계약실행 = async (toolId, args) => {
+    // desktop 손의 실제 선택은 이번 요청에 화면 관찰이 필요한 실행 경로가 섰다는 사실이다.
+    // 기존 authority 정책은 그대로이며, 파일·웹·인사에서는 이 문이 열리지 않는다.
+    if (String(toolId).startsWith('desktop.')) await ctx.화면자리확보?.();
     // **열쇠는 영수증 자체다.** `callRef` 는 첫 호출(계획 경로)에는 없어서, 그걸 열쇠로 쓰면
     // 첫 클릭의 화면 증거가 조용히 사라진다(라이브에서 그랬다). 이름을 만들지 않는다 —
     // 손이 낸 그림을 받아 두었다가 **그 호출이 낸 영수증에 그대로 붙인다.**
@@ -2637,7 +2648,7 @@ async function executePlan(intent, plan, selfState, ctx, ledger, summary, admitt
   // receipt 가 진실이다 — workingState 는 여기서 파생되는 얇은 뷰다(별도 저장소 아님).
   let workingState = 이어받기정리(deriveWorkingState(ctx.workingState, {
     places: ctx.이번턴파일자리 ?? await 볼수있는자리(ctx),
-    screenPlaces: ctx.이번턴화면자리, // F-54 — 턴 머리의 그 관측(드라이버 호출은 턴에 1회)
+    screenPlaces: ctx.이번턴화면자리, // F-54 — desktop 손 선택 뒤의 fresh 관측(턴에 1회)
     receipts: turnReceipts,
     blocked: ladder ? rungMessage(ladder) : undefined,
   }), ctx.connectors);
