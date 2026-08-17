@@ -28,15 +28,15 @@ import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 // 승인된 write 실행은 성공으로 돌아온다 — stdout 이 원장의 실측값이다.
 async function 판({ 답문장, 명령, 실행결과, 발화 }) {
   const 자리 = await mkdtemp(join(tmpdir(), 'wrong-value-'));
-  const run = async (command, { mode } = {}) => (mode === 'write'
-    ? { command, cwd: 자리, mode: 'write', ...실행결과 }
+  const run = async (command, { mode, effects } = {}) => (mode === 'effects' && effects?.includes('write')
+    ? { command, cwd: 자리, mode: 'effects', effects, ...실행결과 }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: 'CHAT', toolCalls: [] };
       if (!opts.tools?.length) return 답문장;
-      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 명령, cwd: 자리 } }] }; }
+      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 명령, cwd: 자리, effects: ['write'] } }] }; }
       return { text: 답문장, toolCalls: [] };
     },
   };

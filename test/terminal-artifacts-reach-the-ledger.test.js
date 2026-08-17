@@ -99,16 +99,16 @@ test('★ 선빨강 — 승인된 write 터미널이 만든 파일의 자리가 
 
 test('보존 닻 — 관측 상한 초과면 산출물 주장 자체가 없다 (부분 목록 금지 · H09)', async () => {
   const 자리 = await 방();
-  const run = async (command, { mode } = {}) => {
-    if (mode !== 'write') {
+  const run = async (command, { mode, effects } = {}) => {
+    if (mode !== 'effects' || !effects?.includes('write')) {
       return { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '',
         stderr: 'cannot create: 많이.txt: Operation not permitted', durationMs: 1 };
     }
     for (let i = 0; i < 2100; i += 1) writeFileSync(join(자리, `많이-${i}.txt`), 'x');
-    return { command, cwd: 자리, mode: 'write', exitCode: 0, stdout: '', stderr: '', durationMs: 1 };
+    return { command, cwd: 자리, mode: 'effects', effects, exitCode: 0, stdout: '', stderr: '', durationMs: 1 };
   };
   const tool = makeLocalTerminalTool({ cwd: 자리, run, sandboxAvailable: () => true });
-  const r = await tool.handler({ command: 'seq 1 2100 | xargs touch', cwd: 자리, granted: true });
+  const r = await tool.handler({ command: 'seq 1 2100 | xargs touch', cwd: 자리, granted: true, effects: ['write'] });
   assert.equal(r.result.새로생긴것들, undefined,
     '상한을 넘긴 관측이 부분 목록을 냈다 — 「안 봤음」이 「이게 전부」로 승격된다(H09)');
 });

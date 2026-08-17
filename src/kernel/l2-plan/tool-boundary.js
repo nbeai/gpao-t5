@@ -60,7 +60,8 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
     ? args?.probeResult !== undefined || args?.changes !== undefined
     : args?.눌러본사실 !== undefined;
   if (!이미잰것 && toolId === 'local.terminal' && typeof args?.command === 'string') {
-    const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, { cwd: args.cwd }));
+    const probeOpts = { cwd: args.cwd, ...(Array.isArray(args.effects) ? { effects: args.effects } : {}) };
+    const probed = await 재본다(() => tools?.tools?.[toolId]?.probe?.(args.command, probeOpts));
     판정인자 = {
       ...args,
       // **probe 가 알아낸 자리를 그대로 받는다.** 빈 칸은 없는 칸이라 손이 기본 자리로 푸는데
@@ -69,6 +70,8 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
       // **기록이 갈린다** — 감사도 사용자도 그 명령이 어디서 돌았는지 못 본다.
       // 계획 경로는 처음부터 이걸 받고 있었다(`turn.js` 의 terminalOp). 두 벌이라 한쪽만 챙긴 자리다.
       ...(probed?.cwd ? { cwd: probed.cwd } : {}),
+      ...(probed?.approvalScope ? { approvalScope: probed.approvalScope } : {}),
+      ...(Array.isArray(args?.effects) ? { effects: probed?.effects ?? [] } : {}),
       changes: probed?.changes,
       // **`granted` 는 「probe 를 이미 했다」는 사실이다** — 승인 뒤 실행이 이 깃발로
       // granted 모드를 고른다(local-terminal.js: `args.granted ? 'granted' : 'probe'`).
@@ -185,6 +188,13 @@ export async function 실행전판정({ toolId, args, selfState, tools, 이번�
  * 대상은 라벨이고(그게 실행 값이다), 터미널은 명령 자체가 대상이다.
  */
 export function 걸음신분({ toolId, 판정인자 }) {
+  if (toolId === 'local.terminal') {
+    const command = String(판정인자?.command ?? '').trim();
+    const cwd = String(판정인자?.approvalScope ?? 판정인자?.cwd ?? '').trim();
+    const got = new Set(Array.isArray(판정인자?.effects) ? 판정인자.effects : []);
+    const effects = ['network', 'write', 'signal'].filter((x) => got.has(x));
+    return `${toolId}||${command}|cwd=${cwd}|effects=${effects.join(',')}`;
+  }
   const 걸음 = String(판정인자?.action ?? 판정인자?.op ?? '');
   const 대상 = String(
     판정인자?.path ?? 판정인자?.target ?? 판정인자?.대상?.label ?? 판정인자?.command ?? '',

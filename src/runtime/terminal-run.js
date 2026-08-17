@@ -33,7 +33,7 @@ function fold(text, max = MAX_OUTPUT) {
 /**
  * 명령 한 번 실행. **이 함수는 승인을 판단하지 않는다** — 시키는 모드로 돌리고 사실만 돌려준다.
  * @param {string} command 셸 명령 원문
- * @param {{mode?:'probe'|'granted'|'reach'|'write'|'signal'|'raw', cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal}} opts
+ * @param {{mode?:'probe'|'granted'|'reach'|'write'|'signal'|'effects'|'raw', effects?:string[], cwd?:string, timeoutMs?:number, env?:object, signal?:AbortSignal}} opts
  */
 export async function runCommand(command, opts = {}) {
   const mode = opts.mode ?? 'probe';
@@ -49,7 +49,7 @@ export async function runCommand(command, opts = {}) {
     const file = join(profileDir, 'p.sb');
     // `reach` 도 쓰기가 막힌 모드다 — 셸이 heredoc 을 못 쓰면 읽기만 하는 명령이
     // "파일을 바꾸려 했다"로 잡힌다(아래 주석의 그 사고). probe 와 같은 이유로 같이 연다.
-    if (mode === 'probe' || mode === 'reach') {
+    if (mode === 'probe' || mode === 'reach' || (mode === 'effects' && !opts.effects?.includes('write'))) {
       // 이번 실행만 쓰는 임시 자리. 셸의 heredoc·here-string 이 여기에 쓴다 — 이게 없으면
       // 읽기만 하는 명령이 "파일을 바꾸려 했다"로 잡혀 승인 카드로 간다(sandbox.js 주석 참고).
       // realpath 로 편다: macOS 의 /var 는 /private/var 로 가는 심볼릭 링크라, 편 경로가 아니면
@@ -57,7 +57,7 @@ export async function runCommand(command, opts = {}) {
       scratch = await realpath(await mkdir(join(profileDir, 'tmp')).then(() => join(profileDir, 'tmp')));
     }
     // allowRead: 커넥터가 선언한 자리만 도로 연다(그 명령의 자기 자격). 선언이 없으면 그대로 막힌다.
-    await writeFile(file, sandboxProfile(mode, { scratch, allowRead: opts.allowRead }), 'utf8');
+    await writeFile(file, sandboxProfile(mode, { scratch, allowRead: opts.allowRead, effects: opts.effects }), 'utf8');
     argv = ['/usr/bin/sandbox-exec', ['-f', file, '/bin/zsh', '-c', command]];
   }
 
@@ -116,6 +116,7 @@ export async function runCommand(command, opts = {}) {
     const stdout = fold(out); const stderr = fold(err);
     return {
       command, cwd, mode,
+      ...(mode === 'effects' ? { effects: opts.effects ?? [] } : {}),
       exitCode, durationMs: Date.now() - startedAt,
       stdout: stdout.text, stderr: stderr.text,
       truncated: stdout.truncated || stderr.truncated,

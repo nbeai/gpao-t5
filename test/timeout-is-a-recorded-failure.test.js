@@ -15,17 +15,17 @@ import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 
 async function 도구(모양) {
   const 자리 = await mkdtemp(join(tmpdir(), 'timeout-ledger-'));
-  const run = async (command, { mode } = {}) => ({
-    command, cwd: 자리, mode: mode === 'granted' ? 'granted' : mode,
+  const run = async (command, { mode, effects } = {}) => ({
+    command, cwd: 자리, mode, ...(mode === 'effects' ? { effects } : {}),
     ...(모양 === '정지' ? { exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중: 부분출력', stderr: '' }
       : { exitCode: 0, durationMs: 5, stdout: '끝', stderr: '' }),
   });
   return makeLocalTerminalTool({ cwd: 자리, run, sandboxAvailable: () => true });
 }
 
-test('★ 선빨강 — granted 타임아웃은 실패로 선다 (failureState 가 none 이면 원장이 거짓)', async () => {
+test('★ 선빨강 — 승인된 write 타임아웃은 실패로 선다 (failureState 가 none 이면 원장이 거짓)', async () => {
   const tool = await 도구('정지');
-  const r = await tool.handler({ command: 'node 서버.mjs', granted: true });
+  const r = await tool.handler({ command: 'node 서버.mjs', granted: true, effects: ['write'] });
   assert.equal(r.failed, true,
     '**죽은 실행이 성공 모양으로 돌아온다** — 영수증이 failureState:none 으로 서서, 원장은 깨끗한 '
     + '성공을 말하고 복구 사다리·「내용 확인 안 됨」 표식이 영영 안 돈다(비교군 셋 전부 실패로 기록)');
@@ -39,7 +39,7 @@ test('★ 선빨강 — granted 타임아웃은 실패로 선다 (failureState �
 
 test('반대시험(ii) — 정상 완료 exit 0 은 여전히 성공(none 경로)이다', async () => {
   const tool = await 도구('정상');
-  const r = await tool.handler({ command: 'ls', granted: true });
+  const r = await tool.handler({ command: 'ls', granted: true, effects: ['write'] });
   assert.equal(r.failed, undefined, '정상 완료가 실패로 승격됐다 — 정의역이 넓어졌다');
   assert.ok(r.result && r.userSafeSummary.includes('실행했어요'), '성공 갈래 모양이 깨졌다');
 });
@@ -54,15 +54,15 @@ import { 교환결과렌더 } from '../src/runtime/model-provider.js';
 async function 판(답문장) {
   const 자리 = await mkdtemp(join(tmpdir(), 'timeout-honest-'));
   let granted호출 = 0;   // 빈 초록 방지(검문 ② · H09): FAILED 갈래가 실제로 돌았는지 검사가 스스로 센다
-  const run = async (command, { mode } = {}) => (mode === 'write' && ++granted호출
-    ? { command, cwd: 자리, mode: 'write', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
+  const run = async (command, { mode, effects } = {}) => (mode === 'effects' && effects?.includes('write') && ++granted호출
+    ? { command, cwd: 자리, mode: 'effects', effects, exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot create: 잠금.pid: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: 'CHAT', toolCalls: [] };
       if (!opts.tools?.length) return 답문장;
-      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'node 서버.mjs', cwd: 자리 } }] }; }
+      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'node 서버.mjs', cwd: 자리, effects: ['write'] } }] }; }
       return { text: 답문장, toolCalls: [] };
     },
   };

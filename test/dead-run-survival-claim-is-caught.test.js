@@ -21,15 +21,15 @@ import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 
 async function 판(답문장) {
   const 자리 = await mkdtemp(join(tmpdir(), 'dead-run-'));
-  const run = async (command, { mode } = {}) => (mode === 'write'
-    ? { command, cwd: 자리, mode: 'write', exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
+  const run = async (command, { mode, effects } = {}) => (mode === 'effects' && effects?.includes('write')
+    ? { command, cwd: 자리, mode: 'effects', effects, exitCode: -1, stopped: 'timeout', durationMs: 120000, stdout: '듣는 중', stderr: '' }
     : { command, cwd: 자리, mode, sandboxed: true, exitCode: 1, stdout: '', stderr: 'cannot create: 잠금.pid: Operation not permitted', durationMs: 1 });
   let 골랐다 = false;
   const model = {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: 'CHAT', toolCalls: [] };
       if (!opts.tools?.length) return 답문장;
-      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'node 서버.mjs', cwd: 자리 } }] }; }
+      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command: 'node 서버.mjs', cwd: 자리, effects: ['write'] } }] }; }
       return { text: 답문장, toolCalls: [] };
     },
   };

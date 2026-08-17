@@ -740,6 +740,8 @@ const DESCRIPTORS = [
         + ' 파일 변경·설치가 필요한 명령도 그냥 쓰면 된다 — 실행 전에 커널이 바꾸는 것을 막아 둔 채'
         + ' 그 명령을 한 번 돌려 보고, 정말 바꾸는 명령일 때만 확인 카드를 띄운다.'
         + ' 바깥 네트워크에 닿는 셸 명령도 외부 효과를 실행 전에 구분할 수 없어 카드 뒤에서 실행한다.'
+        + ' 카드가 필요한 명령은 effects에 열 효과를 모두 적는다(network·write·signal).'
+        + ' 선언만으로는 실행되지 않고, 카드에서 확인된 효과만 열린다.'
         + ' 공개 웹 자료를 읽는 일은 web.collect가 승인 없이 맡는다.'
         + ' 네가 사용자에게 확인을 대신 받아 올 일은 없다.'
         // ── ⑧ 유도 재료(§7-bd · 2026-08-16) — **맨 금지문은 안 먹혔다. 사실과 행선지로 교체** ──
@@ -784,6 +786,11 @@ const DESCRIPTORS = [
           command: { type: 'string', description: '실행할 셸 명령 전체' },
           cwd: { type: 'string', description: '실행할 폴더(비우면 현재 작업 폴더)' },
           timeoutMs: { type: 'number', description: '최대 대기 시간(기본 120초, 최대 600초)' },
+          effects: {
+            type: 'array', uniqueItems: true,
+            items: { type: 'string', enum: ['network', 'write', 'signal'] },
+            description: '이 명령이 필요로 하는 효과 전체. 바깥 연결·전송은 network, 파일 생성·변경은 write, 프로세스 종료는 signal. 여러 효과면 모두 적는다. 승인 카드에 표시되며 승인 전에는 권한을 열지 않는다',
+          },
         },
         required: ['command'],
       },

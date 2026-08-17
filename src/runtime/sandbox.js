@@ -36,16 +36,17 @@ function denySecretReads(dirs) {
 }
 
 /**
- * @param {'probe'|'granted'|'reach'|'write'|'signal'|'capsule'} mode
+ * @param {'probe'|'granted'|'reach'|'write'|'signal'|'effects'|'capsule'} mode
  *   probe   — 아무것도 못 바꾸게 하고 돌려 본다(자동 판정용).
  *   granted — 사용자가 승인한 뒤. 변경·네트워크는 열되 **비밀은 여전히 닫는다.**
  *   reach   — 승인된 네트워크 효과만. 로컬 쓰기·시그널·AppleEvent는 닫는다.
  *   write   — 승인된 로컬 쓰기만. 네트워크·시그널·AppleEvent는 닫는다.
  *   signal  — 승인된 프로세스 시그널만. 파일 쓰기·네트워크·AppleEvent는 닫는다.
- * @param {{secrets?:string[], scratch?:string}} opts
+ *   effects — 사용자가 카드에서 승인한 효과 집합만 연다.
+ * @param {{secrets?:string[], scratch?:string, effects?:string[]}} opts
  *   scratch — 이번 실행에만 쓰고 버리는 임시 자리(runCommand 가 만든다). 여기만 쓰기를 연다.
  */
-export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime } = {}) {
+export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRead = [], runtime, effects = [] } = {}) {
   const denySecrets = denySecretReads(secrets);
   // **명령이 자기 자격을 읽는 자리.** 실측(오너 2026-07-28): `gh repo list` 가 실패했는데
   // 원인은 T5 의 비밀 보호가 `~/.config/gh` 를 막은 것이었다 — 그 명령의 **자기 토큰**이다.
@@ -54,9 +55,10 @@ export function sandboxProfile(mode, { secrets = secretPaths(), scratch, allowRe
   if (mode === 'granted') {
     return `(version 1)\n(allow default)\n${denySecrets}\n${열어줄것}\n`;
   }
-  const 파일쓰기허용 = mode === 'write';
-  const 네트워크허용 = mode === 'reach';
-  const 시그널허용 = mode === 'signal';
+  const 승인효과 = new Set(mode === 'effects' ? effects : []);
+  const 파일쓰기허용 = mode === 'write' || 승인효과.has('write');
+  const 네트워크허용 = mode === 'reach' || 승인효과.has('network');
+  const 시그널허용 = mode === 'signal' || 승인효과.has('signal');
   return [
     '(version 1)',
     '(allow default)',

@@ -165,7 +165,7 @@ test('실제로 살아 있으면 껐다고 말하지 않는다', async () => {
   const 자식 = spawn('/bin/sleep', ['30'], { stdio: 'ignore' });
   자식.unref();
   try {
-    const r2 = await tool.handler({ command: `kill ${자식.pid} 999000002`, granted: true });
+    const r2 = await tool.handler({ command: `kill ${자식.pid} 999000002`, granted: true, effects: ['signal'] });
     assert.ok(r2.result.terminated.some((x) => x.pid === 자식.pid && x.stillRunning === true),
       '살아 있는 대상을 죽었다고 말한다');
     assert.match(r2.userSafeSummary, /아직 돌고 있어요/);
@@ -175,6 +175,6 @@ test('실제로 살아 있으면 껐다고 말하지 않는다', async () => {
 test('승인 전(probe)이나 끄는 명령이 아니면 종료 확인을 붙이지 않는다', async () => {
   const { makeLocalTerminalTool } = await import('../src/runtime/local-terminal.js');
   const tool = makeLocalTerminalTool({ run: async (c) => ({ exitCode: 0, stdout: 'ok', stderr: '', command: c }) });
-  const 읽기 = await tool.handler({ command: 'ls -la', granted: true });
+  const 읽기 = await tool.handler({ command: 'ls -la' });
   assert.equal(읽기.result.terminated, undefined, '끄는 일이 아닌데 종료 확인을 붙였다');
 });

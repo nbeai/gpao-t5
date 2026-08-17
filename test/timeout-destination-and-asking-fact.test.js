@@ -20,9 +20,9 @@ import { compactResult } from '../src/kernel/l1-intent/task-context.js';
 
 async function 도구(정지) {
   const 자리 = await mkdtemp(join(tmpdir(), 'timeout-dest-'));
-  const run = async (command, { mode } = {}) => ({
+  const run = async (command, { mode, effects } = {}) => ({
     // 제품 실물: SIGTERM 종료는 code null → -1 (terminal-run.js:97-109 · 검문 어긋남 1 정정)
-    command, cwd: 자리, mode: 'granted', exitCode: 정지 ? -1 : 0, durationMs: 정지 ? 120000 : 5,
+    command, cwd: 자리, mode, ...(mode === 'effects' ? { effects } : {}), exitCode: 정지 ? -1 : 0, durationMs: 정지 ? 120000 : 5,
     stdout: '듣는 중', stderr: '', ...(정지 ? { stopped: 'timeout' } : {}),
   });
   return { tool: makeLocalTerminalTool({ cwd: 자리, run, sandboxAvailable: () => true }), 자리 };
@@ -30,7 +30,7 @@ async function 도구(정지) {
 
 test('★ 선빨강(⑧) — 타임아웃으로 멈춘 실행에 행선지(local.process)가 실린다', async () => {
   const { tool } = await 도구(true);
-  const r = await tool.handler({ command: 'node 서버.mjs', granted: true });
+  const r = await tool.handler({ command: 'node 서버.mjs', granted: true, effects: ['write'] });
   const 수단들 = r.result?.다음수단 ?? [];
   assert.ok(수단들.some((s) => JSON.stringify(s).includes('local.process')),
     '**타임아웃 실패 시점에 행선지가 0이다** — cwd_missing 갈래는 다음수단을 주는데 timeout 갈래는 '
@@ -42,7 +42,7 @@ test('★ 선빨강(⑧) — 타임아웃으로 멈춘 실행에 행선지(local
 
 test('닻 — 정상 종료(exit 0 · 정지 없음)에는 다음수단이 없다 (유도 과잉 방지)', async () => {
   const { tool } = await 도구(false);
-  const r = await tool.handler({ command: 'ls', granted: true });
+  const r = await tool.handler({ command: 'ls', granted: true, effects: ['write'] });
   assert.equal(r.result?.다음수단, undefined,
     '멈추지 않은 실행에 행선지가 붙었다 — 사실 없는 유도는 소음이다');
 });

@@ -64,14 +64,14 @@ test('③ 확인 문장은 변경을 주장하지 않는다 — 손이 낸 원�
     '변경 없음 사실이 확인 문장에 없다 — 손의 원문이 안 실렸다');
 });
 
-test('⑤ 반례: granted 로 실제 실행한 것에는 「변경 없음 증명」 칸이 없다', async () => {
+test('⑤ 반례: 승인된 write로 실제 실행한 것에는 「변경 없음 증명」 칸이 없다', async () => {
   // 성공 갈래는 granted·reach·probe 가 공유한다 — 무조건 실으면 실제로 바꾼 명령에
   // "변경 없음"이 붙는다(감시자 지적 1). granted 는 applied:true 로 이미 확인이다.
   const tool = makeLocalTerminalTool({
     run: async (command, { mode }) => ({ mode, exitCode: 0, stdout: '', stderr: '', durationMs: 5 }),
     sandboxAvailable: () => true,
   });
-  const r = await tool.handler({ command: 'mkdir 새폴더', granted: true });
+  const r = await tool.handler({ command: 'mkdir 새폴더', granted: true, effects: ['write'] });
   assert.equal(r.result.probeChangedNothing, undefined, 'granted 실행에 변경 없음 증명이 붙었다');
   assert.equal(r.result.applied, true);
 });

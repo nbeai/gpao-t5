@@ -27,6 +27,15 @@ const blank = (v) => {
   return t === '' || t == null ? undefined : t;
 };
 
+const 효과순서 = ['network', 'write', 'signal'];
+const 효과말 = { network: '네트워크', write: '파일 변경', signal: '프로세스 시그널' };
+
+/** 모델이 낸 값은 권한이 아니다. 카드에 실을 유효한 효과 집합만 정규화한다. */
+export function terminalEffects(value) {
+  const got = new Set(Array.isArray(value) ? value : []);
+  return 효과순서.filter((x) => got.has(x));
+}
+
 /**
  * probe 가 "권한에 막혔다"고 말하는가.
  * **이건 안전 판정이 아니라 말투 판정이다.** 안전은 이미 커널이 보장했다(막혔으니 아무 일도 안 났다).
@@ -99,12 +108,16 @@ async function 재보기(run, command, { cwd, timeoutMs }) {
  * 승인 뒤에도 탐침이 확인한 효과보다 넓게 열지 않는다.
  * 로컬 쓰기·시그널·네트워크가 각각 자기 샌드박스 모드로 간다.
  */
-function 승인뒤모드(probeResult, command, dataDir) {
+function 승인뒤권한({ effects, probeResult, command, dataDir }) {
+  const 선언 = terminalEffects(effects);
+  if (선언.length) return { mode: 'effects', effects: 선언 };
   const lifecycle = lifecycleRisk(command, { dataDir });
-  if (lifecycle?.approvable) return 'signal';
+  if (lifecycle?.approvable) return { mode: 'signal', effects: ['signal'] };
   const why = executionBlock(probeResult)?.why;
-  if (why === 'network' || why === 'listen') return 'reach';
-  return 'write';
+  if (why === 'network' || why === 'listen') return { mode: 'reach', effects: ['network'] };
+  if (why === 'write' || why === 'privilege') return { mode: 'write', effects: ['write'] };
+  if (why === 'signal') return { mode: 'signal', effects: ['signal'] };
+  return null;
 }
 
 /** 명령이 지금 이 자리에서 무엇을 하려 하는지 사용자 말로. 승인 카드에 실린다. */
@@ -176,9 +189,11 @@ export function makeLocalTerminalTool(deps = {}) {
    * @returns {Promise<{command:string, cwd:string, probe:object, changes:boolean}>}
    */
   async function probe(command, opts = {}) {
-    const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
-    if (risk) return { command, cwd: blank(opts.cwd) ?? cwdOf(), lifecycle: risk, changes: true };
     const cwd = blank(opts.cwd) ?? cwdOf();
+    const effects = terminalEffects(opts.effects);
+    const 계약 = { approvalScope: cwd, ...(effects.length ? { effects } : {}) };
+    const risk = lifecycleRisk(command, { dataDir: deps.dataDir });
+    if (risk) return { command, cwd, ...계약, lifecycle: risk, changes: true };
     // ── **샌드박스가 없으면 탐침은 아무것도 증명하지 못한다** (상태 지도 §12-S2 · 2026-08-12) ──
     //
     // `runCommand` 는 `sandboxAvailable()` 이 false 면 모드와 무관하게 생 `/bin/zsh` 로 간다
@@ -198,7 +213,7 @@ export function makeLocalTerminalTool(deps = {}) {
     // 답을 내던 것도 여기서 정렬된다 — 터미널은 돌되 자동 자격을 못 얻는다.
     if (!샌드박스있나()) {
       return {
-        command, cwd,
+        command, cwd, ...계약,
         샌드박스없음: true,
         // `changes` 를 참으로 세우지 않는다 — 그건 "바꾼다"는 **주장**이고 우리는 모른다.
         // 칸을 아예 안 만들면 `toolActionKind` 가 `unknown_kind`(카드)로 간다(action-plan.js:203).
@@ -244,16 +259,16 @@ export function makeLocalTerminalTool(deps = {}) {
     // ⚠️ 자국을 **아예 안 남기고** 삼키는 명령은 여전히 `실패를삼킴`(구문 사실)에 기댄다.
     //    거기까지는 이 수리가 못 간다 — 그 한계를 적고 간다.
     if (!막혔나) {
-      if (막음자국있나(r)) return { command, cwd, probe: r, 판정불능: 'unreadable_exit' };
-      return { command, cwd, probe: r, changes: false };   // 자국도 없다 = 안 바꾼다
+      if (막음자국있나(r)) return { command, cwd, ...계약, probe: r, 판정불능: 'unreadable_exit' };
+      return { command, cwd, ...계약, probe: r, changes: false };   // 자국도 없다 = 안 바꾼다
     }
     if (변경시도증거.has(막힘.why)) {
       return {
-        command, cwd, probe: r, changes: true,
+        command, cwd, ...계약, probe: r, changes: true,
         ...(막힘.why === 'write' && 창조만인가(r, command, r?.cwd ?? cwd) ? { 창조만한다: true } : {}),
       };
     }
-    return { command, cwd, probe: r, 판정불능: 막힘.why };
+    return { command, cwd, ...계약, probe: r, 판정불능: 막힘.why };
   }
 
   return {
@@ -274,10 +289,12 @@ export function makeLocalTerminalTool(deps = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) return undefined;
       const block = executionBlock(args.probeResult);
+      const effects = terminalEffects(args.effects);
       return {
         impact: `${command}`,
         scope: `${blank(args.cwd) ?? cwdOf()} 에서`,
         duration: '이번 한 번',
+        ...(effects.length ? { what: `허용할 효과: ${effects.map((x) => 효과말[x]).join(' · ')}` } : {}),
         // P0-c: 승인 전에 **무엇이 이미 확인됐는지.** 카드와 영수증이 같은 사실을 말해야 한다 —
         // probe 결과를 받은 카드는 그 명령이 이미 한 번(변경 차단 상태로) 돌았다는 뜻이다.
         ...(args.probeResult ? { checked: '바꾸는 걸 막아 둔 채 한 번 시험해 봤어요 — 지금까지 바뀐 건 없어요.' } : {}),
@@ -319,7 +336,18 @@ export function makeLocalTerminalTool(deps = {}) {
         : args.probeResult;
       // 승인받은 효과보다 넓게 열지 않는다. 로컬 쓰기·시그널·네트워크를 각각
       // write·signal·reach 프로파일로 실행하고, 임의 터미널에서는 all-open granted를 쓰지 않는다.
-      const mode = args.granted ? 승인뒤모드(승인탐침, command, deps.dataDir) : 'probe';
+      const 승인권한 = args.granted
+        ? 승인뒤권한({ effects: args.effects, probeResult: 승인탐침, command, dataDir: deps.dataDir })
+        : null;
+      if (args.granted && !승인권한) {
+        return {
+          blocked: true, needsGrant: true,
+          userSafeSummary: '어느 효과를 열어야 하는지 시험만으로 확정하지 못해 실행하지 않았어요.',
+          nextSafeAction: '필요한 효과를 명시한 새 승인 카드로 다시 확인할게요.',
+        };
+      }
+      const mode = args.granted ? 승인권한.mode : 'probe';
+      const effects = args.granted ? 승인권한.effects : [];
       // ── 터미널 산출물의 자리 관측(§7-bq · 오너 승인 2026-08-16) ──────────────────
       //
       // 실행이 디스크에 만든 것의 **경로**가 원장에 안 남아, 모델이 자기 산출물의 자리를
@@ -330,17 +358,18 @@ export function makeLocalTerminalTool(deps = {}) {
       // 실행 전/후 cwd 의 이름 집합을 재귀로 훑어 diff 한다. 명령 이름 목록이 아니라 구조
       // 사실이다(sandbox.js 첫 문단 — 목록은 항상 뚫린다). 칸의 뜻은 「실행 구간에 새로
       // 생겼다」까지다 — 인과를 단정하지 않는다(커널은 손이 가져온 것을 적는다).
-      const 관측 = mode === 'write' ? await 이름집합(cwd) : null;
+      const 파일쓰기열림 = mode === 'write' || (mode === 'effects' && effects.includes('write'));
+      const 관측 = 파일쓰기열림 ? await 이름집합(cwd) : null;
       // 계획 단계에서 돌린 결과가 오면 **그대로 쓴다.** 같은 명령을 두 번 돌리면 `date`·`ls` 처럼
       // 답이 달라지는 것에서 승인 카드에 보인 것과 실제 결과가 갈라진다.
       const r = args.granted
-        ? await run(command, { mode, cwd, timeoutMs: args.timeoutMs })
+        ? await run(command, { mode, effects, cwd, timeoutMs: args.timeoutMs })
         : (args.probeResult ?? await 재보기(run, command, { cwd, timeoutMs: args.timeoutMs }));
       // **실제로 어느 모드가 답을 냈는가.** `reach` 로 돈 명령은 진짜로 실행된 것이다
       // (네트워크가 실제로 나갔다) — 그걸 "확인만 했어요"라고 말하면 원장이 거짓이 된다.
       // 실행기가 결과에 `mode` 를 실어 주므로 지어내지 않고 그 사실을 읽는다.
       const 실제모드 = r?.mode ?? mode;
-      const 실제로돌았나 = ['granted', 'reach', 'write', 'signal'].includes(실제모드);
+      const 실제로돌았나 = ['granted', 'reach', 'write', 'signal', 'effects'].includes(실제모드);
 
       if (mode === 'probe' && looksBlocked(r)) {
         // **여기서 실행하지 않는다.** 승인은 커널의 일이고, 도구는 사실만 돌려준다.
@@ -395,7 +424,8 @@ export function makeLocalTerminalTool(deps = {}) {
       //
       // 이름 패턴이 아니라 **승인받은 명령에 적힌 정확한 PID**를 본다. 판정하지 않고 사실만
       // 낸다 — 무엇을 말할지는 모델이 정한다(§24). 능력을 줄이지 않는다: 터미널은 그대로다.
-      const 끈PID = 실제모드 === 'signal' && /\b(kill|pkill|killall)\b/.test(command)
+      const 시그널열림 = 실제모드 === 'signal' || (실제모드 === 'effects' && effects.includes('signal'));
+      const 끈PID = 시그널열림 && /\b(kill|pkill|killall)\b/.test(command)
         ? [...new Set((command.match(/\b\d{2,}\b/g) ?? []).map(Number))].filter((n) => n > 0)
         : [];
       const 종료확인 = 끈PID.length
@@ -424,7 +454,7 @@ export function makeLocalTerminalTool(deps = {}) {
           : undefined;
       // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). write 로 실제 돈 실행에서만
       // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
-      const 생긴것 = 관측 && 실제모드 === 'write' ? await 새로생긴것들(cwd, 관측) : null;
+      const 생긴것 = 관측 && 파일쓰기열림 ? await 새로생긴것들(cwd, 관측) : null;
       // §7-bx — **타임아웃으로 죽은 실행은 실패다**(오너 결정 ③ · 비교군 셋 동형). 승인 뒤 실행
       // 로 실제 돈 실행이 상한에서 강제 종료됐는데 성공 모양으로 돌아가면 영수증이
       // failureState:none 이 되어, 원장은 깨끗한 성공을 말하고 「내용 확인 안 됨」 표식·복구
@@ -437,6 +467,7 @@ export function makeLocalTerminalTool(deps = {}) {
           result: {
             command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
             stdout: r.stdout, stderr: r.stderr, stopped: r.stopped, applied: 실제로돌았나,
+            ...(실제모드 === 'effects' ? { effects } : {}),
             ...(다음수단 ? { 다음수단 } : {}),
           },
           다음수단,
@@ -466,6 +497,7 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
           applied: 실제로돌았나,
+          ...(실제모드 === 'effects' ? { effects } : {}),
           // ── F-118 · 성공한 probe 관측이 원장에서 「추정」으로 분류됐다 ─────────────────
           //
           // A0 계약(파일 머리)은 "probe 성공 = 아무것도 안 바꿨다는 증명. 그대로 답한다"인데,
@@ -498,7 +530,7 @@ export function makeLocalTerminalTool(deps = {}) {
           // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
           // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
           // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
-          : r.exitCode === 0 ? (실제모드 === 'write' || 실제모드 === 'signal' ? '실행했어요.'
+          : r.exitCode === 0 ? (실제모드 === 'write' || 실제모드 === 'signal' || 실제모드 === 'effects' ? '실행했어요.'
             : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
               : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.

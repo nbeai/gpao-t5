@@ -10,7 +10,7 @@
 // 여기서는 경계 자체의 계약을 잰다 — 순수하고, 실행하지 않고, 턴을 끝내지 않는다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { 실행전판정 } from '../src/kernel/l2-plan/tool-boundary.js';
+import { 실행전판정, 걸음신분 } from '../src/kernel/l2-plan/tool-boundary.js';
 
 const 상태 = (over = []) => ({ connectedTools: [
   { id: 'local.file', executable: true, reversible: true, needsApproval: false },
@@ -139,4 +139,23 @@ test('⑫ 전송이 아닌 손에는 아는 상대 면제를 쓰지 않는다', 
   assert.equal(승인면제({
     toolId: 'local.file', 판정인자: { target: '111' }, knownCounterparts: known, 전송인가: false,
   }).면제, false, '전송 면제가 파일 손까지 번졌다');
+});
+
+test('⑬ terminal 승인 신분은 명령·풀린 cwd·효과 집합에 함께 묶인다', () => {
+  const 기준 = 걸음신분({
+    toolId: 'local.terminal',
+    판정인자: { command: 'opaque', cwd: '/a', effects: ['network', 'write'] },
+  });
+  assert.equal(기준, 걸음신분({
+    toolId: 'local.terminal',
+    판정인자: { command: 'opaque', cwd: '/a', effects: ['write', 'network', 'write'] },
+  }), '같은 집합의 순서·중복만으로 다른 승인이 됐다');
+  assert.notEqual(기준, 걸음신분({
+    toolId: 'local.terminal',
+    판정인자: { command: 'opaque', cwd: '/b', effects: ['network', 'write'] },
+  }), 'cwd가 바뀌었는데 기존 승인을 재사용했다');
+  assert.notEqual(기준, 걸음신분({
+    toolId: 'local.terminal',
+    판정인자: { command: 'opaque', cwd: '/a', effects: ['network'] },
+  }), '효과 집합이 바뀌었는데 기존 승인을 재사용했다');
 });

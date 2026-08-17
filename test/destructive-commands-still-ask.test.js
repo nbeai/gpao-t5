@@ -43,13 +43,16 @@ async function 방() {
  *    스텁이 **같은 명령을 또 골랐고**, 이번엔 기존 파일 덮어쓰기라 카드가 떴다 — 제품이 맞고
  *    자가 틀렸다. 계약을 무는 스텁은 자기 상태로 한 번만 골라야 한다.
  */
-const 한명령모델 = (command) => {
+const 한명령모델 = (command, effects) => {
   let 골랐다 = false;
   return {
     async respond(tc, opts = {}) {
       if (tc?.workContractAssessment) return { text: '', toolCalls: [] };
       if (!opts.tools?.length) return '끝.';
-      if (!골랐다) { 골랐다 = true; return { text: '', toolCalls: [{ name: 'local.terminal', args: { command } }] }; }
+      if (!골랐다) {
+        골랐다 = true;
+        return { text: '', toolCalls: [{ name: 'local.terminal', args: { command, ...(effects ? { effects } : {}) } }] };
+      }
       return { text: '끝.', toolCalls: [] };
     },
   };
@@ -262,7 +265,9 @@ test('(나) 계약 — `.` 전체를 새 압축본 하나로 만드는 것도 �
 test('★ 선빨강 — 판정불능 카드를 승인하면 실제로 실행된다 (probe 를 또 돌지 않는다)', async () => {
   const 자리 = await 방();
   const tools = demoTools({ localTerminal: makeLocalTerminalTool({ cwd: 자리 }) });
-  const ctx = { env: demoEnv(), tools, model: 한명령모델('tar -czf b-$(date +%s).tgz .') };
+  // 새 효과 계약: 동적 이름이라 probe가 자리를 확정 못 해도,
+  // 모델이 write를 선언하고 사용자가 그 효과를 카드에서 승인하면 실행은 닿아야 한다.
+  const ctx = { env: demoEnv(), tools, model: 한명령모델('tar -czf b-$(date +%s).tgz .', ['write']) };
   const 첫 = await runTurn({ text: '부탁해' }, ctx);
   assert.equal(첫.kind, 'approval', '전제: $( ) 이름은 판정불능이라 카드다(울타리 ④)');
 

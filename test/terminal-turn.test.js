@@ -11,6 +11,7 @@ import { demoEnv, demoTools } from '../src/surface/demo-context.js';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
 import { sandboxAvailable } from '../src/runtime/sandbox.js';
 import { runCommand } from '../src/runtime/terminal-run.js';
+import { TruthLedger } from '../src/kernel/l0-evidence/ledger.js';
 
 const 고른다 = (calls) => {
   let used = false;
@@ -119,6 +120,44 @@ test('네트워크 명령은 승인 전 효과 0, 승인 재개 뒤 정확히 1�
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test('효과 집합이 모델 호출→카드→pending→재개→원장에서 같다', async () => {
+  const dir = await 자리();
+  const 실행들 = [];
+  const command = 'opaque-network-command';
+  const localTerminal = makeLocalTerminalTool({
+    cwd: dir,
+    run: async (cmd, opts = {}) => {
+      실행들.push({ mode: opts.mode, effects: opts.effects });
+      if (opts.mode === 'probe') {
+        return { command: cmd, cwd: dir, mode: 'probe', sandboxed: true, exitCode: 1,
+          stdout: '', stderr: 'operation not permitted', durationMs: 1 };
+      }
+      return { command: cmd, cwd: dir, mode: opts.mode, effects: opts.effects,
+        exitCode: 0, stdout: 'done', stderr: '', durationMs: 1 };
+    },
+  });
+  const context = {
+    env: demoEnv(),
+    model: 고른다([{ name: 'local.terminal', args: { command, cwd: dir, effects: ['network'] } }]),
+    tools: demoTools({ localTerminal }),
+    ledger: new TruthLedger(),
+  };
+
+  const first = await runTurn({ text: '이 명령으로 테스트 서비스에 연결해줘' }, context);
+  assert.equal(first.kind, 'approval');
+  assert.match(JSON.stringify(first.pending), /네트워크/, '승인 카드에 열 효과가 없다');
+
+  const resumed = await runTurn({ approve: first.pendingId }, context);
+  assert.notEqual(resumed.kind, 'approval');
+  assert.deepEqual(실행들, [
+    { mode: 'probe', effects: undefined },
+    { mode: 'effects', effects: ['network'] },
+  ], '모델이 선언하고 사용자가 승인한 효과가 재개 실행에 도달하지 않았다');
+  const terminal = context.ledger.entries.find((x) => x.actualCall?.tool === 'local.terminal' && x.result?.applied === true);
+  assert.deepEqual(terminal?.actualCall?.args?.effects, ['network'], '승인 효과가 원장에서 사라졌다');
+  assert.equal(terminal?.actualCall?.args?.cwd, dir, '승인한 자리가 원장에서 바뀌었다');
 });
 
 test('권한 부족으로 막힌 설정 변경도 승인 경로를 잃지 않는다', async () => {

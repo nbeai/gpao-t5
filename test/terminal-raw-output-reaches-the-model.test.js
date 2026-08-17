@@ -184,7 +184,7 @@ test('반대② 실패 결과는 data 로 승격되지 않는다 — 미확정 �
 
 test('반대③ 성공 갈래의 기존 모양은 안 깨진다 — data 로 가고 실행 사실이 산다', async () => {
   const { rec, x } = await 모델이받는것(
-    돈손('a.txt\nb.txt'), { command: 'ls', granted: true }, '작업 폴더 봐줘',
+    돈손('a.txt\nb.txt'), { command: 'ls', granted: true, effects: ['write'] }, '작업 폴더 봐줘',
   );
   assert.equal(rec.failureState, 'none', '성공이 실패로 바뀌었다');
   assert.equal(rec.result?.applied, true, '실제로 돌았다는 기계 사실이 사라졌다');

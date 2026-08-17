@@ -210,8 +210,11 @@ test('P0-a: 파일손이 secret 이라는 자리는 샌드박스도 막는다 �
     '/어디든/api_token.txt',                    // 이름 규칙은 자리와 무관하다
     '/어디든/rclone.conf',
   ];
-  for (const mode of ['probe', 'granted', 'reach', 'write', 'signal']) {
-    const prof = sandboxProfile(mode, {});
+  const 프로파일 = [
+    ...['probe', 'granted', 'reach', 'write', 'signal'].map((mode) => [mode, sandboxProfile(mode, {})]),
+    ['effects(network+write+signal)', sandboxProfile('effects', { effects: ['network', 'write', 'signal'] })],
+  ];
+  for (const [mode, prof] of 프로파일) {
     for (const p of 표본) {
       assert.equal(protectionFor(p)?.kind, 'secret', `전제: 파일손이 막는 자리다: ${p}`);
       assert.ok(프로파일이읽기를막나(prof, p),
@@ -229,8 +232,11 @@ test('P0-a: 열림 예외(동기화 자리)와 일반 자료는 샌드박스도 
     join(H, 'Desktop/메모.md'),
     join(H, 'Documents/credentials-발표자료.pptx'), // 이름 규칙 오탐 경계(F7.2와 같은 선)
   ];
-  for (const mode of ['probe', 'granted', 'reach', 'write', 'signal']) {
-    const prof = sandboxProfile(mode, {});
+  const 프로파일 = [
+    ...['probe', 'granted', 'reach', 'write', 'signal'].map((mode) => [mode, sandboxProfile(mode, {})]),
+    ['effects(network+write+signal)', sandboxProfile('effects', { effects: ['network', 'write', 'signal'] })],
+  ];
+  for (const [mode, prof] of 프로파일) {
     for (const p of 열림) {
       assert.equal(프로파일이읽기를막나(prof, p), false,
         `[${mode}] 파일손이 여는 자리를 샌드박스가 막는다(같은 목록 위반·과보호): ${p}`);
@@ -247,7 +253,7 @@ test('P0-a: 이름 규칙은 대소문자를 가리지 않는다 — 파일손�
   }
 });
 
-test('P0-a: 실제 커널 실측 — 이름 규칙 파일은 sandbox-exec 가 읽기를 거부한다', async (t) => {
+test('P0-a: 실제 커널 실측 — 승인 효과 집합에서도 비밀 이름은 읽히지 않는다', async (t) => {
   const { sandboxProfile, sandboxAvailable } = await import('../src/runtime/sandbox.js');
   if (!sandboxAvailable()) return t.skip('샌드박스 없음');
   const { execFile } = await import('node:child_process');
@@ -256,11 +262,16 @@ test('P0-a: 실제 커널 실측 — 이름 규칙 파일은 sandbox-exec 가 �
   const dir = await mkdtemp(join(tmpdir(), 'gpao-t5-p0a-'));
   await writeFile(join(dir, 'deploy_token.txt'), 'tok');   // 이름 규칙(token)
   await writeFile(join(dir, '메모.txt'), 'memo');           // 일반 자료
-  const prof = join(dir, 'p.sb');
-  await writeFile(prof, sandboxProfile('probe', { scratch: dir }));
-  await assert.rejects(
-    run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, 'deploy_token.txt')]),
-    '파일손이 막는 이름을 커널이 열었다 — 계약 위반이 실기계에서 재현된다');
-  const ok = await run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, '메모.txt')]);
-  assert.equal(ok.stdout, 'memo', '일반 자료까지 막으면 과보호다');
+  for (const [이름, 프로파일] of [
+    ['probe', sandboxProfile('probe', { scratch: dir })],
+    ['effects', sandboxProfile('effects', { effects: ['network', 'write', 'signal'] })],
+  ]) {
+    const prof = join(dir, `${이름}.sb`);
+    await writeFile(prof, 프로파일);
+    await assert.rejects(
+      run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, 'deploy_token.txt')]),
+      `[${이름}] 파일손이 막는 이름을 커널이 열었다 — 계약 위반이 실기계에서 재현된다`);
+    const ok = await run('sandbox-exec', ['-f', prof, '/bin/cat', join(dir, '메모.txt')]);
+    assert.equal(ok.stdout, 'memo', `[${이름}] 일반 자료까지 막으면 과보호다`);
+  }
 });

@@ -1811,7 +1811,10 @@ export async function runTurn(input, ctx) {
     if (id === 'local.terminal') {
       const command = typeof 낸것?.command === 'string' ? 낸것.command.trim() : '';
       if (!command) continue;
-      물을것 = { command, cwd: 낸것.cwd };
+      물을것 = {
+        command, cwd: 낸것.cwd,
+        ...(Array.isArray(낸것.effects) ? { effects: 낸것.effects } : {}),
+      };
     }
     if (!물을것) continue;
     const { 판정인자 } = await 실행전판정({ toolId: id, args: 물을것, selfState, tools: ctx.tools });
@@ -2127,7 +2130,10 @@ export async function runTurn(input, ctx) {
       // **무엇을 허락했는지**까지 봉인한다. 손 이름만 남기면 재시도가 "허락 안 한 것"이 되고,
       // 그 자리에서 걸음이 죽는다(F-34 · 라이브 2026-08-05).
       허락한걸음: [...(ctx.허락한걸음 ?? []), ...pendingGrants.map((g) => 걸음신분({
-        toolId: g.action, 판정인자: intent.toolArgs?.[g.action],
+        toolId: g.action,
+        판정인자: g.action === 'local.terminal'
+          ? (sendArgs?.[g.action] ?? intent.toolArgs?.[g.action])
+          : intent.toolArgs?.[g.action],
       })).filter(Boolean)],
       grantScope: { kind: 'once', expiresAt: nowMs(ctx) + APPROVAL_TTL_MS },
     });
