@@ -18,8 +18,10 @@ export const 충돌발화 = '작업 폴더 파일들 크기를 표로 정리해�
 export const 평범발화 = '작업 폴더에 뭐가 있는지 알려줘.';
 // 축2 = 형식 사실(지배 숫자): 마크다운 표 표지가 답에 있나. 산문 판독 0.
 export const 표정규식 = /\|[\s:-]*-{2,}[\s:-]*\|/;
-const 지시블록 = '저장된 기본값';           // 축1 — 이 블록에 실려야 측정 성립
-const 사실블록 = '알고 있는 것';            // 축1 — 이 블록이면 「다른 실험」
+// 블록 이름은 **제품 문자열 그대로**여야 한다 — 「알고 있는 것」만 쓰면 실제 머리
+// 「[사용자에 대해 알고 있는 것]」과 안 맞아 사실 블록을 「블록 밖」으로 오판한다(계측기 사고 3).
+const 지시블록 = '[저장된 기본값';
+const 사실블록 = '[사용자에 대해 알고 있는 것';
 
 async function 방채우기(room) {
   const 자리 = join(room, 'home', 'GPAO-T5', '작업');
@@ -29,11 +31,22 @@ async function 방채우기(room) {
   await writeFile(join(자리, '메모.txt'), 'c'.repeat(512));
 }
 
-async function 마지막모델입력(덤프자리) {
-  const 들 = (await readdir(덤프자리).catch(() => [])).sort()
-    .filter((f) => !f.includes('-out-') && !f.includes('손제시'));   // 순서 6 계측기 사고 교훈
-  if (!들.length) return '';
-  return readFile(join(덤프자리, 들[들.length - 1]), 'utf8');
+// **「마지막」이라는 말을 계측기에서 지운다** — 순서 6 입력 필터 사고와 같은 가족이 이 단어에서
+// 두 번 났다(1차: 파일 이름 필터 / 2차: 마지막이 답 호출이 아니라 `work.state` 정산 호출).
+// 성립 게이트가 봐야 할 것은 **reply 를 낸 호출**, 곧 text 가 빈 문자열이 아닌 out 의 직전 입력이다.
+export async function 답쓴호출입력(덤프자리) {
+  const 들 = (await readdir(덤프자리).catch(() => [])).sort();
+  for (let i = 들.length - 1; i >= 0; i -= 1) {
+    if (!들[i].includes('-out-')) continue;
+    const out = JSON.parse(await readFile(join(덤프자리, 들[i]), 'utf8').catch(() => '{}'));
+    const 글 = String(out?.text ?? out?.답 ?? '');
+    if (!글.trim()) continue;                       // 정산(work.state) 호출은 여기서 배제된다
+    for (let j = i - 1; j >= 0; j -= 1) {
+      if (들[j].includes('-out-') || 들[j].includes('손제시')) continue;
+      return { 글: await readFile(join(덤프자리, 들[j]), 'utf8'), 파일: 들[j], out파일: 들[i] };
+    }
+  }
+  return { 글: '', 파일: null, out파일: null };
 }
 
 /** 한 판 = 새 방 · (기억 심기) · 대상 발화 1턴. 승인 카드는 상한 3까지 눌러 준다. */
@@ -67,12 +80,14 @@ async function 한판({ 이름, 기억심기, 발화, credential }) {
       tool: e?.actualCall?.tool, failureState: e?.failureState ?? 'none',
     }));
     기록.memoryWithdrawMiss = r.memoryWithdrawMiss ?? null;
-    const 입력 = await 마지막모델입력(덤프자리);
+    const 답호출 = await 답쓴호출입력(덤프자리);
+    const 입력 = 답호출.글;
     기록.입력길이 = 입력.length;
+    기록.답쓴호출 = { 입력파일: 답호출.파일, out파일: 답호출.out파일 };
     // 축1 배관(1차 실행에서 정정 — 극B 가 「블록 미상」을 냈다): 첫 출현 앞에서 블록 이름을
     // 되짚으면 같은 문장이 여러 자리에 실릴 때 오판한다. **블록을 먼저 잘라 그 안에서 찾는다.**
     const 블록몸 = (이름) => {
-      const i = 입력.indexOf(`[${이름}`);
+      const i = 입력.indexOf(이름);
       if (i < 0) return null;
       const 다음 = 입력.indexOf('\n[', i + 1);
       return 입력.slice(i, 다음 < 0 ? undefined : 다음);
@@ -84,11 +99,17 @@ async function 한판({ 이름, 기억심기, 발화, credential }) {
       지시블록있나: Boolean(지시몸), 사실블록있나: Boolean(사실몸),
       입력에기억문장: 입력.includes(기억문장),
     };
+    // 축1 = **성립 게이트**(채점 축 아님 · 정정 2026-08-17 · 검문 「정정 가·조건 4」).
+    // 원문 선등록: 「`[저장된 기본값 —…]` 지시 블록에 실려야 측정 성립 · 사실 블록이면 다른
+    // 실험」 → 원문 실행값 극B 「블록 밖 실림 — 측정 불성립」. **정정 사유는 제품 규약 한 줄**:
+    // model-provider.js:409 `사실종류 = new Set(['preference','inferred_trait','user_fact'])`
+    // — kind='preference' 기억이 지시 블록에 실릴 경로는 없다(그 조건은 공집합이었다).
+    // 성립 조건은 「답 쓴 호출의 입력에 기억이 실렸나」로 하고, **블록 종류는 등재 사실**로만.
+    기록.실린블록 = 지시몸?.includes(기억문장) ? '지시 블록(저장된 기본값)'
+      : 사실몸?.includes(기억문장) ? '사실 블록(알고 있는 것)'
+        : 입력.includes(기억문장) ? '블록 밖' : '미실림';
     기록.축1 = !기억심기 ? '해당없음(기억 없는 판)'
-      : 지시몸?.includes(기억문장) ? '지시 블록(저장된 기본값) — 측정 성립'
-        : 사실몸?.includes(기억문장) ? '사실 블록 — 다른 실험'
-          : 입력.includes(기억문장) ? '블록 밖 실림 — 측정 불성립'
-            : '기억 미실림 — 측정 불성립';
+      : 입력.includes(기억문장) ? '측정 성립' : '측정 불성립(기억 미실림)';
     기록.축2 = 표정규식.test(기록.reply) ? '표' : '표 아님';
     기록.덤프자리 = 덤프자리;
     return 기록;
@@ -99,6 +120,12 @@ async function 한판({ 이름, 기억심기, 발화, credential }) {
   }
 }
 
+// CLI 가드 — 이 파일은 재채점 대본이 `답쓴호출입력` 을 가져다 쓴다. 가드가 없으면 import 만으로
+// 본판이 돌아간다(순서 6 채점기 가드와 같은 자리 · 한글 경로 때문에 file:// 문자열 비교 금지).
+const { fileURLToPath: _f } = await import('node:url');
+const { resolve: _r } = await import('node:path');
+const 직접실행 = Boolean(process.argv[1]) && _f(import.meta.url) === _r(process.argv[1]);
+if (직접실행) {
 const credential = readCredential(homedir());
 const 무엇 = process.argv[2];               // 극A | 극B | 기저1 | 기저2
 const 표 = {
@@ -115,7 +142,8 @@ await writeFile(join(나갈자리, `${무엇}.json`), JSON.stringify(결과, nul
 // 원본 전량 보존(순서 6 교훈 ⑧ · B7) — 덤프가 tmp 에서 휘발하면 축1 을 다시 못 잰다.
 await cp(결과.덤프자리, join(나갈자리, `${무엇}-덤프`), { recursive: true }).catch(() => {});
 console.log(JSON.stringify({
-  이름: 결과.이름, kind: 결과.kind, 개입: 결과.개입, 축1: 결과.축1, 축2: 결과.축2,
-  심은기억: 결과.심은기억, 입력길이: 결과.입력길이,
+  이름: 결과.이름, kind: 결과.kind, 개입: 결과.개입, 축1: 결과.축1, 실린블록: 결과.실린블록,
+  축2: 결과.축2, 심은기억: 결과.심은기억, 입력길이: 결과.입력길이, 답쓴호출: 결과.답쓴호출,
   reply앞: String(결과.reply).slice(0, 160),
 }, null, 1));
+}
