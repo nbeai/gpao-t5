@@ -129,7 +129,10 @@ try {
   // 덤프 전량 회수 + 마지막 모델 입력(이름 정렬 마지막 input 파일)
   const 덤프들 = (await readdir(덤프자리).catch(() => [])).sort();
   원본.덤프파일 = 덤프들;
-  const 입력들 = 덤프들.filter((f) => f.includes('input'));
+  // 입력 = 접미사 없는 NNNN-<ts>.json — 명명 규약은 제품 소스 prompt-dump.js(:81 out ·
+  // :112 손제시 · :168 입력)가 정한다. 첫 판의 'input' 문자열 필터는 어떤 이름에도 없어
+  // 늘 빈 배열을 만들었다(본판 실측 사고 — §7-cg-1 등재 · 원본은 a8a88639 정정 전 커밋).
+  const 입력들 = 덤프들.filter((f) => !f.includes('-out-') && !f.includes('손제시'));
   원본.마지막모델입력 = 입력들.length
     ? await readFile(join(덤프자리, 입력들[입력들.length - 1]), 'utf8') : '';
   await cp(덤프자리, join(여기, `회차${회차번호}-덤프`), { recursive: true }).catch(() => {});
