@@ -114,6 +114,7 @@ function cdpConnection(wsUrl) {
   const ws = new WebSocket(wsUrl);
   let seq = 0;
   const waiting = new Map();
+  const listeners = new Set();
   const ready = new Promise((res, rej) => {
     ws.onopen = () => res();
     ws.onerror = (e) => rej(new Error(`CDP 연결 실패: ${e?.message ?? 'unknown'}`));
@@ -121,6 +122,7 @@ function cdpConnection(wsUrl) {
   ws.onmessage = (e) => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.id && waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id); }
+    else if (m.method) for (const listener of [...listeners]) listener(m);
   };
   return {
     ready,
@@ -132,7 +134,31 @@ function cdpConnection(wsUrl) {
         ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
       });
     },
+    onEvent(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     close() { try { ws.close(); } catch { /* 이미 닫힘 */ } },
+  };
+}
+
+/**
+ * CDP 요청 사건 → 모델과 원장에 실어도 되는 최소 사실.
+ *
+ * 주소의 질의값·fragment·userinfo 는 싣지 않는다. 클릭이 낸 주소에는 토큰·검색어·사용자
+ * 식별자가 섞일 수 있다. 손이 알아야 하는 것은 실제 효과의 종류와 목적지이지 비밀값이 아니다.
+ */
+export function 네트워크요청사실(params) {
+  const request = params?.request;
+  if (!request?.url || !request?.method) return undefined;
+  let parsed;
+  try { parsed = new URL(request.url); } catch { return undefined; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return undefined;
+  return {
+    method: String(request.method).toUpperCase(),
+    address: `${parsed.origin}${parsed.pathname}`,
+    ...(parsed.search ? { queryOmitted: true } : {}),
+    ...(params?.type ? { resourceType: String(params.type) } : {}),
   };
 }
 
@@ -460,6 +486,8 @@ export function makeBrowser(deps = {}) {
     sessionId = sess.sessionId;
     await conn.send('Page.enable', {}, sessionId);
     await conn.send('Runtime.enable', {}, sessionId);
+    // CH4(c): 행동 뒤 **실제로 나간 요청**을 잡는다. Network 는 관찰만 켜며 새 의존성이 없다.
+    await conn.send('Network.enable', {}, sessionId);
     touch();
   }
 
@@ -613,17 +641,34 @@ export function makeBrowser(deps = {}) {
      */
     async click(ref) {
       await ensure();
-      const ok = await evaluate(`(() => {
-        const el = document.querySelector('[data-t5-ref=${JSON.stringify(ref)}]');
-        if (!el) return 'gone';
-        if (!(${클릭가능술어})(el, location.origin)) return 'not_clickable';
-        el.click();
-        return 'ok';
-      })()`);
+      const networkRequests = [];
+      // 클릭 직전부터 재관찰 직전까지가 이 행동의 귀속 창이다. 페이지의 과거 요청을 섞지 않는다.
+      const stop = conn.onEvent?.((event) => {
+        if (event.sessionId !== sessionId || event.method !== 'Network.requestWillBeSent') return;
+        const fact = 네트워크요청사실(event.params);
+        if (fact && networkRequests.length < 20) networkRequests.push(fact);
+      });
+      let ok;
+      try {
+        ok = await evaluate(`(() => {
+          const el = document.querySelector('[data-t5-ref=${JSON.stringify(ref)}]');
+          if (!el) return 'gone';
+          if (!(${클릭가능술어})(el, location.origin)) return 'not_clickable';
+          el.click();
+          return 'ok';
+        })()`);
+      } finally {
+        // 실패 갈래는 아래에서 즉시 끝난다. 성공 갈래는 정착 창 동안 계속 수집해야 하므로
+        // 여기서는 listener 를 두고, 재관찰 뒤에 해제한다.
+        if (ok !== 'ok') stop?.();
+      }
       if (ok === 'gone') return { clicked: false, reason: 'gone' };
       if (ok === 'not_clickable') return { clicked: false, reason: 'not_clickable' };
-      await sleep(1200); // 탭 전환·펼침·링크 이동에 시간을 준다(고정 대기 — 남은 칸 ④)
-      return { clicked: true, ...(await evaluate(OBSERVE_SCRIPT)) };
+      try {
+        await sleep(1200); // 탭 전환·펼침·링크 이동에 시간을 준다(고정 대기 — 남은 칸 ④)
+        const view = await evaluate(OBSERVE_SCRIPT);
+        return { clicked: true, networkRequests, ...view };
+      } finally { stop?.(); }
     },
 
     close,

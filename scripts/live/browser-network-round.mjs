@@ -12,7 +12,7 @@ import { 기계양성대조, 페이지들 } from './browser-click-round.mjs';
 const 웹손 = ['web.search', 'web.collect', 'browser.observe', 'browser.act'];
 
 export const CASES = Object.freeze([
-  { id: 'a1-delete', kind: 'ability', prompt: (b) => `${b}/ 원문으로 안내를 먼저 확인한 뒤 "모두 삭제"를 누르고, 실제 나간 요청의 방식과 주소 및 삭제 요청 누계를 알려줘`, marker: /삭제 요청 누계: 1/ },
+  { id: 'a1-delete', kind: 'ability', prompt: (b) => `${b}/ 원문으로 안내를 먼저 확인한 뒤 "모두 삭제"를 누르고, 실제 나간 요청의 방식과 주소 및 삭제 요청 누계를 알려줘`, marker: /삭제 요청 누계[\s\S]{0,100}(1건|1회)|1건 \(POST \/삭제\)/ },
   { id: 'a2-notice', kind: 'ability', prompt: (b) => `${b}/ 원문을 확인하고 "공지 펼치기"를 누른 뒤, 실제 나간 요청의 방식과 주소와 공지 내용을 알려줘`, marker: /정기 점검/ },
   { id: 'a3-review', kind: 'ability', prompt: (b) => `${b}/ 원문을 먼저 읽고 "후기" 탭을 누른 뒤, 실제 요청의 방식과 주소를 확인하고 후기 요약을 알려줘`, marker: /별 네 개 반|재방문/ },
   { id: 'a4-detail', kind: 'ability', prompt: (b) => `${b}/ 원문을 확인한 다음 "자세히 보기"로 들어가, 클릭 뒤 실제 요청의 방식과 주소 및 안쪽 문장을 알려줘`, marker: /파랑새|새벽 다섯 시/ },
@@ -75,6 +75,18 @@ function 요청사실(entry) {
   return observation.networkRequests ?? [];
 }
 
+function 요청경로(request) {
+  try { return decodeURIComponent(new URL(request?.address ?? request?.url ?? '').pathname); }
+  catch { return ''; }
+}
+
+function 웹손가족(tool) {
+  if (tool === 'web.collect') return 'web.collect';
+  if (tool === 'web.search') return 'web.search';
+  if (tool === 'browser.observe' || tool === 'browser.act') return 'browser';
+  return undefined;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const 자리 = argv.find((x) => !x.startsWith('--'));
@@ -104,7 +116,8 @@ async function main() {
     }));
     const answer = String(result.result?.reply ?? result.reply ?? '');
     const clickRequests = hands.filter((h) => h.tool === 'browser.act' && h.args?.action === 'click').flatMap((h) => h.networkRequests);
-    const uniqueWebHands = [...new Set(hands.map((h) => h.tool).filter((x) => 웹손.includes(x)))];
+    // observe·act 는 도구 둘이지만 §1-0 의 **브라우저 손 하나**다. 도구 수를 손 수로 부풀리지 않는다.
+    const uniqueWebHands = [...new Set(hands.map((h) => 웹손가족(h.tool)).filter(Boolean))];
     const blockedIndex = hands.findIndex((h) => h.blocked || h.failureState === 'blocked');
     const retriedOrSwitched = blockedIndex >= 0 && hands.slice(blockedIndex + 1).some((h) => 웹손.includes(h.tool));
     const serverRequests = 판.요청.slice(before);
@@ -114,7 +127,7 @@ async function main() {
       serverRequests,
       clickRequests,
       capability: serverRequests.some((r) => r.method === 'POST' && r.path === '/삭제')
-        ? clickRequests.some((r) => r.method === 'POST' && /\/삭제$/.test(r.address ?? r.url ?? ''))
+        ? clickRequests.some((r) => r.method === 'POST' && 요청경로(r) === '/삭제')
         : clickRequests.length > 0,
       flow: uniqueWebHands.length >= 2 && selected.marker.test(answer),
       blocked: selected.kind === 'blocked',
@@ -133,4 +146,3 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await main();
-

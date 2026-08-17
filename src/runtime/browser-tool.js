@@ -108,6 +108,13 @@ function 칠수있는칸말(facts) {
   return ` 바로 글자를 넣을 수 있는 칸: ${쓸것.map(하나).join(' · ')}.`;
 }
 
+/** 행동 뒤 실제 네트워크 사실 — 다음 손이 고를 재료. Runtime은 순서를 정하지 않는다. */
+function 요청사실말(requests) {
+  if (!Array.isArray(requests) || requests.length === 0) return '';
+  const shown = requests.slice(0, 4).map((r) => `${r.method} ${r.address}`);
+  return ` 이 동작 뒤 실제 요청: ${shown.join(' · ')}${requests.length > shown.length ? ` · 그 밖 ${requests.length - shown.length}건` : ''}.`;
+}
+
 /** 화면 한 장 → 도구 결과(영수증 재료). observe·act 가 같은 형태로 남긴다. */
 function toReceipt(view, { action, acted, profile }) {
   const facts = observationFacts(view);
@@ -120,7 +127,11 @@ function toReceipt(view, { action, acted, profile }) {
       // **어느 브라우저 자리에서 봤나**(`isolated`=로그인 없음 / `persistent`=로그인이 남는 자리).
       // 이게 없어서 실측에서 거짓 약속이 두 번 나왔다 — 사용자도 모델도 "로그인된 걸로 본 화면"
       // 인지 알 길이 없었다. 프로필은 손이 아는 사실이므로 손이 말한다(추측 금지).
-      observation: { ...facts, acted, ...(profile ? { profile } : {}) },
+      observation: {
+        ...facts, acted,
+        ...(Array.isArray(view?.networkRequests) ? { networkRequests: view.networkRequests } : {}),
+        ...(profile ? { profile } : {}),
+      },
       surfaceAction: `browser_${action}`, // 사후 기록(P2-9 와 같은 계약)
     },
     sources: [makeSourceEvidence({
@@ -130,7 +141,8 @@ function toReceipt(view, { action, acted, profile }) {
     userSafeSummary: (facts.thin
       // 열렸다는 것과 읽었다는 것은 다르다. 내용이 없으면 없다고 말한다(본 척 금지).
       ? `화면은 열렸는데 글이 거의 없어요(${facts.seen?.chars ?? 0}자): ${facts.title ?? facts.url}.`
-      : `화면으로 확인했어요: ${facts.title ?? facts.url}.`) + 칠수있는칸말(facts),
+      : `화면으로 확인했어요: ${facts.title ?? facts.url}.`)
+      + 요청사실말(view?.networkRequests) + 칠수있는칸말(facts),
     ...(facts.moreBelow
       ? { nextSafeAction: `${stopNote ? `${stopNote} ` : ''}화면 아래쪽이 남아 있어요 — 더 내리면 새로 불러오는 내용이 있을 수 있어요. 계속 볼까요?` }
       : (stopNote ? { nextSafeAction: stopNote } : {})),
