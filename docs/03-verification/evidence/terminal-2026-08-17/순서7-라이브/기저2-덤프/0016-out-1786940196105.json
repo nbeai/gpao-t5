@@ -1,0 +1,10 @@
+{
+  "at": "2026-08-17T04:16:36.105Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "작업 폴더 기준으로 정리했어요.  \n크기는 바이트 단위입니다.\n\n- 메모.txt — 512 B  \n- 분기보고.md — 4,096 B  \n- 정산.csv — 2,048 B",
+  "textChars": 95,
+  "toolCalls": []
+}

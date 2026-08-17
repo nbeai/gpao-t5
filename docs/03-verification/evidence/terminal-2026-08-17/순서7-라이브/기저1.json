@@ -1,0 +1,45 @@
+{
+ "이름": "기저1",
+ "발화": "작업 폴더 파일들 크기를 표로 정리해줘.",
+ "기억심기": true,
+ "심은기억": {
+  "promoted": [
+   {
+    "statement": "앞으로 보고서는 표보다 짧은 목록으로 정리해줘.",
+    "kind": "preference"
+   }
+  ],
+  "candidates": 0
+ },
+ "개입": 0,
+ "kind": "reply",
+ "reply": "작업 폴더 파일 크기를 정리하면:\n\n- 메모.txt — 512 B  \n- 분기보고.md — 4,096 B  \n- 정산.csv — 2,048 B",
+ "원장": [
+  {
+   "tool": "local.file",
+   "failureState": "none"
+  },
+  {
+   "tool": "local.file",
+   "failureState": "none"
+  },
+  {
+   "failureState": "none"
+  }
+ ],
+ "memoryWithdrawMiss": null,
+ "입력길이": 8583,
+ "답쓴호출": {
+  "입력파일": "0015-1786940175803.json",
+  "out파일": "0016-out-1786940177026.json"
+ },
+ "축1근거": {
+  "지시블록있나": false,
+  "사실블록있나": true,
+  "입력에기억문장": true
+ },
+ "실린블록": "사실 블록(알고 있는 것)",
+ "축1": "측정 성립",
+ "축2": "표 아님",
+ "덤프자리": "/tmp/order7-dump-기저1-1786940167257"
+}

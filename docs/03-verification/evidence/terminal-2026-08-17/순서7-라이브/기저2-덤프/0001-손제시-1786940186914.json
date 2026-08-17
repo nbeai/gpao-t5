@@ -1,0 +1,20 @@
+{
+  "at": "2026-08-17T04:16:26.926Z",
+  "kind": "tool_offer",
+  "전부": 1,
+  "준수": 1,
+  "거른수": 0,
+  "준것": [
+    "local.file"
+  ],
+  "거른것": [],
+  "통제채널": [
+    "skill.propose",
+    "automation.propose",
+    "automation.control",
+    "automation.observe",
+    "agent.propose",
+    "work.state"
+  ],
+  "이유별": {}
+}
