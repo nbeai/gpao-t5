@@ -131,12 +131,21 @@ export async function 방하나(credential, 손없이, 더쥘손 = []) {
     if (더쥘손.some((h) => h.startsWith('browser.'))) {
       // **진짜 브라우저를 물린다.** 안 물리면 손이 늘 `NO_BROWSER` 를 내고,
       // 그러면 「길이 막혔다」와 「길을 안 냈다」를 구별할 수 없다(F-105 규율).
-      const [bt, br] = await Promise.all([
+      const [bt, br, cp] = await Promise.all([
         importFrom('src/runtime/browser-tool.js'), importFrom('src/runtime/browser.js'),
+        import('node:child_process'),
       ]);
       const 크롬 = br.findBrowserSync();
       if (!크롬) throw new Error('이 컴퓨터에 브라우저가 없다 — 브라우저 손을 시험할 수 없다');
-      const 브라우저 = br.makeBrowser({ browserPath: 크롬 });
+      // ★ 자 결함 3호 수리(2026-08-17 · 기계 확정): 이 방의 HOME 재매핑(빈 방 홈) 아래에서
+      // macOS 크롬은 /json/version 엔 답해도 **렌더러가 서지 않는다**(--dump-dom 실패 실측 ·
+      // Page.navigate 20초 무응답 — 판정 2회차 4/4 무효의 원인). 제품 경로(실HOME)는 정상.
+      // 그래서 **크롬 프로세스에만 실HOME 을 준다** — T5 는 방을 보고(격리 유지), 크롬 프로필은
+      // 어차피 user-data-dir(임시)로 격리된다. 오너 자리는 읽기 전용 규율 그대로.
+      const 브라우저 = br.makeBrowser({
+        browserPath: 크롬,
+        launch: (p, a, o) => cp.spawn(p, a, { ...(o ?? {}), env: { ...process.env, HOME: ownerHome } }),
+      });
       if (더쥘손.includes('browser.observe')) 손구현['browser.observe'] = bt.makeBrowserObserveTool({ browser: 브라우저 });
       if (더쥘손.includes('browser.act')) 손구현['browser.act'] = bt.makeBrowserActTool({ browser: 브라우저 });
     }
