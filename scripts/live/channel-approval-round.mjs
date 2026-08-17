@@ -120,7 +120,7 @@ async function 채널방(credential, { 이름 }) {
 /** 한 회차 = 시킴 → (승인 발화) → 기계 대조. */
 async function 한회차({ 이름, credential, 두번째, 발신자 }) {
   const 방 = await 채널방(credential, { 이름 });
-  const 기록 = { 이름, 두번째, 발신자: 발신자 ?? 'Aigis(허용)', 턴: [], 채널로나간말: [], 표적 };
+  const 기록 = { 이름, 두번째, 발신자: 발신자 ? `${발신자.username}(허용목록 밖)` : 'Aigis(허용)', 턴: [], 채널로나간말: [], 표적: 방.표적 };
   try {
     const t0 = Date.now();
     const r1 = await 방.말걸기(발화.시킴);
