@@ -451,7 +451,7 @@ export function compactResult(result, maxChars = 1200) {
   // 저장소가 이미 이 축을 적어 뒀다(`design/T5-STATE-MAP-ko.md:586` · 아래 §S2 주석):
   // *"헤르메스는 실패도 성공과 같은 그릇에 담아 그대로 싣는다 … 클로드코드도 원문 그대로다."*
   //
-  // **판정하지 않는다.** 손이 낸 기계 사실(`applied`·`failedBy`·`stopped`·`terminated`)을 그대로
+  // **판정하지 않는다.** 손이 낸 기계 사실(`ran`·`localChanged`·`effects`·`failedBy`·`stopped`·`terminated`)을 그대로
   // 옮길 뿐이고, 무엇을 말할지는 모델이 정한다(§24).
   if (typeof result.command === 'string'
     && (typeof result.stdout === 'string' || typeof result.stderr === 'string'
@@ -460,10 +460,17 @@ export function compactResult(result, maxChars = 1200) {
     if (result.cwd) 머리.push(`자리: ${result.cwd}`);
     if (result.exitCode != null) 머리.push(`끝난 코드: ${result.exitCode}`);
     if (result.durationMs != null) 머리.push(`걸린 시간: ${result.durationMs}ms`);
-    // **`applied` 는 원장이 이미 읽는 기계 사실이다**(ledger.js `확인된사실`). 모델도 같은 것을
-    // 봐야 한다 — 안 그러면 "확인만 했어요"인 걸음을 모델이 실행으로 읽고 그 위에서 다음을 짠다.
-    if (result.applied === true) 머리.push('실제로 돌았다');
-    else if (result.applied === false) 머리.push('실제로는 안 돌았다 — 확인만 한 것이라 이 컴퓨터는 그대로다');
+    // 실행 사실과 로컬 변경 사실은 다른 질문이다. `ran`이 있는 새 영수증이
+    // 구버전 `applied`보다 우선한다. 미관측은 false로 메우지 않는다.
+    if (result.ran === true) 머리.push('실제로 돌았다');
+    else if (result.ran === false) 머리.push('실제로는 돌지 않았다');
+    else if (result.applied === true) 머리.push('실제로 돌았다(구버전 영수증)');
+    else if (result.applied === false) 머리.push('실제로는 안 돌았다(구버전 영수증)');
+    if (result.localChanged === true) 머리.push('로컬 사용자 상태 변경이 관측됐다');
+    else if (result.localChanged === false) 머리.push('로컬 사용자 상태 변경은 관측되지 않았다');
+    if (Array.isArray(result.effects) && result.effects.length) {
+      머리.push(`승인되어 열린 효과 범위: ${result.effects.join(' · ')}`);
+    }
     if (result.blockedBy) 머리.push(`막은 것: ${result.blockedBy}${result.blockReason ? ` · ${result.blockReason}` : ''}`);
     if (result.probeRan) 머리.push('탐침이 한 번 돌았다 — 지금까지 바뀐 것은 없다');
     if (result.failedBy) 머리.push(`끝난 이유: ${result.failedBy}${result.failReason ? ` · ${result.failReason}` : ''}`);

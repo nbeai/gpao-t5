@@ -10,10 +10,9 @@
 // 라이브 증상(2026-08-15 · 그냥써본다 10회): 터미널을 잡은 회차도 "지금까지 확인한 것만
 // 보면" 류의 자신 없는 답으로 끝났다.
 //
-// 수리 방향(유도·사실 채움): applied 의 뜻(변경이 실렸나)은 그대로 둔다 — 뒤집으면
-// 2026-08-03(실패 삼킨 쓰기가 confirmed 로 섬)이 재개봉된다. 대신 성공한 probe 가
-// 이미 증명한 사실 하나(`probeChangedNothing` — 막힌 갈래에는 이미 있는 칸)를 성공
-// 갈래에도 싣고, 원장은 그 사실이 있으면 「변경 없이 확인됨」으로 센다.
+// 현재 계약: 실행 사실은 `ran`, 관측된 로컬 사용자 상태 변경은 `localChanged`가
+// 각각 소유한다. `probeChangedNothing`은 구버전 영수증 호환을 위해만 남고, 새 판정은
+// ran/localChanged를 우선한다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalTerminalTool } from '../src/runtime/local-terminal.js';
@@ -52,16 +51,18 @@ test('② 그 관측은 추정 칸으로 가지 않는다', async () => {
   assert.equal(p.confirmed.length, 1);
 });
 
-test('③ 확인 문장은 변경을 주장하지 않는다 — 손이 낸 원문이 그대로 실린다', async () => {
+test('③ 실행 문장은 로컬 변경을 주장하지 않는다', async () => {
   // 2026-08-03 반례를 다시 열지 않는 조건: `cp … 2>/dev/null || true` 처럼 실패를 삼킨
   // 명령도 같은 갈래로 오는데, 그 확인이 「변경이 일어났다」로 읽히면 안 된다.
   // 커널이 문구를 덧붙이지 않는다(§24 · 감시자 지적: 작문 과잉) — 손이 이미
   // '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.' 를 말하고, 확인 칸은 그 원문이다.
   const rec = await 읽기probe영수증();
   const p = projectReceipts([rec]);
-  assert.ok(!/실행했어요/.test(p.confirmed[0] ?? ''), '확인 문장이 실행(변경)을 주장한다');
-  assert.match(p.confirmed[0] ?? '', /확인만 했어요|바꾸지 않았어요/,
-    '변경 없음 사실이 확인 문장에 없다 — 손의 원문이 안 실렸다');
+  assert.match(p.confirmed[0] ?? '', /실행했어요/, '실제로 돈 명령을 확인만 한 것으로 축소했다');
+  assert.match(p.confirmed[0] ?? '', /사용자 상태 변경은 관측되지 않았어요/,
+    '로컬 무변경 범위가 사용자 문장에 없다');
+  assert.doesNotMatch(p.confirmed[0] ?? '', /상태 변경이 관측됐어요/,
+    '실행 사실을 로컬 변경 사실로 승격했다');
 });
 
 test('⑤ 반례: 승인된 write로 실제 실행한 것에는 「변경 없음 증명」 칸이 없다', async () => {
@@ -73,7 +74,9 @@ test('⑤ 반례: 승인된 write로 실제 실행한 것에는 「변경 없음
   });
   const r = await tool.handler({ command: 'mkdir 새폴더', granted: true, effects: ['write'] });
   assert.equal(r.result.probeChangedNothing, undefined, 'granted 실행에 변경 없음 증명이 붙었다');
-  assert.equal(r.result.applied, true);
+  assert.equal(r.result.ran, true);
+  assert.equal(r.result.localChanged, undefined, '미관측 변경을 false로 메웠다');
+  assert.equal(Object.hasOwn(r.result, 'applied'), false, '새 영수증이 applied를 다시 낸다');
 });
 
 test('⑥ 반례: 샌드박스가 없는 호스트에서는 「변경 없음 증명」이 서지 않는다', async () => {
@@ -90,7 +93,9 @@ test('⑥ 반례: 샌드박스가 없는 호스트에서는 「변경 없음 증
     actualCall: { tool: 'local.terminal', args: { command: 'wc -l a.md' } },
     result: r.result, userSafeSummary: r.userSafeSummary,
   });
-  assert.equal(확인된사실(rec), false, '증명 없는 관측이 확인으로 섰다 — 경계가 넓어졌다');
+  assert.equal(r.result?.ran, true, '샌드박스 증명 부재가 실행 부재로 바뀌었다');
+  assert.equal(r.result?.localChanged, undefined, '무샌드박스 실행을 로컬 무변경으로 증명했다');
+  assert.equal(확인된사실(rec), true, '실제 stdout 관측을 실행 안 함으로 적었다');
 });
 
 test('⑦ 반례: 가용성이 참이어도 실행기 증명이 없으면 「변경 없음 증명」이 서지 않는다', async () => {

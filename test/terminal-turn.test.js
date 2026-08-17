@@ -155,7 +155,7 @@ test('효과 집합이 모델 호출→카드→pending→재개→원장에서 
     { mode: 'probe', effects: undefined },
     { mode: 'effects', effects: ['network'] },
   ], '모델이 선언하고 사용자가 승인한 효과가 재개 실행에 도달하지 않았다');
-  const terminal = context.ledger.entries.find((x) => x.actualCall?.tool === 'local.terminal' && x.result?.applied === true);
+  const terminal = context.ledger.entries.find((x) => x.actualCall?.tool === 'local.terminal' && x.result?.ran === true);
   assert.deepEqual(terminal?.actualCall?.args?.effects, ['network'], '승인 효과가 원장에서 사라졌다');
   assert.equal(terminal?.actualCall?.args?.cwd, dir, '승인한 자리가 원장에서 바뀌었다');
 });

@@ -133,6 +133,31 @@ export function describeCommand(command, probe) {
 // (H09 계보: 빈/잘린 측정을 긍정 증거로 세우지 않는다). 못 재면 안 적는다(fail-closed).
 const 관측상한 = 2000;
 
+/** signal 명령 종료와 대상 프로세스 소멸 사이의 짧은 경합을 흡수한다. */
+async function PID종료확인(pids, { maxMs = 250, intervalMs = 25 } = {}) {
+  const until = Date.now() + maxMs;
+  let states;
+  do {
+    states = pids.map((pid) => ({ pid, stillRunning: alive(pid) }));
+    if (states.every((x) => !x.stillRunning) || Date.now() >= until) return states;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  } while (true);
+}
+
+/** 승인 명령에서 실제 `kill` 피연산자인 양의 PID만 가져온다. 다른 구획의 숫자는 대상이 아니다. */
+function kill대상PID들(command) {
+  const out = [];
+  for (const segment of String(command ?? '').split(/&&|\|\||[;|\n]/)) {
+    const m = /^\s*(?:(?:builtin|command)\s+)?kill\b([\s\S]*)$/.exec(segment);
+    if (!m) continue;
+    for (const token of m[1].trim().split(/\s+/)) {
+      if (!token || token.startsWith('-') || /[<>]/.test(token)) continue;
+      if (/^\d{2,}$/.test(token)) out.push(Number(token));
+    }
+  }
+  return [...new Set(out.filter((n) => n > 0))];
+}
+
 /** cwd 아래 상대경로 이름 집합(재귀). 상한 초과·읽기 실패 자리는 건너뛰되 셈에는 넣는다. */
 async function 이름집합(뿌리) {
   const 모음 = new Set();
@@ -156,22 +181,19 @@ async function 이름집합(뿌리) {
  * npm install 류의 대량 부산물이 이 접기로 한 줄(node_modules)이 된다.
  * 뜻은 「실행 구간에 새로 생겼다」까지다 — 이 명령이 만들었다고 단정하지 않는다.
  */
-async function 새로생긴것들(뿌리, 전) {
+async function 이름변화관측(뿌리, 전) {
   if (!전) return null;
-  const 모음 = [];
-  let 본수 = 0;
-  const 걷기 = async (자리, 앞) => {
-    let 항목들;
-    try { 항목들 = await readdir(자리, { withFileTypes: true }); } catch { return true; }
-    for (const e of 항목들) {
-      if (++본수 > 관측상한) return false;
-      const 상대 = 앞 ? `${앞}/${e.name}` : e.name;
-      if (!전.has(상대)) { 모음.push(상대); continue; }          // 새 항목 — 폴더면 접는다
-      if (e.isDirectory() && !(await 걷기(join(자리, e.name), 상대))) return false;
-    }
+  const 후 = await 이름집합(뿌리);
+  if (!후) return null;
+  const 새이름 = [...후].filter((x) => !전.has(x)).sort();
+  const 새집합 = new Set(새이름);
+  const 생긴것 = 새이름.filter((p) => {
+    const parts = p.split('/');
+    for (let i = 1; i < parts.length; i += 1) if (새집합.has(parts.slice(0, i).join('/'))) return false;
     return true;
-  };
-  return (await 걷기(뿌리, '')) ? 모음.sort() : null;
+  });
+  const 사라진것 = [...전].some((x) => !후.has(x));
+  return { 생긴것, 이름변화: 새이름.length > 0 || 사라진것 };
 }
 
 export function makeLocalTerminalTool(deps = {}) {
@@ -389,6 +411,7 @@ export function makeLocalTerminalTool(deps = {}) {
             // 읽는다. 능력은 그대로 두고(오너 결정 2026-08-02) **사실을 기계 칸으로 남긴다.**
             // 무엇을 말할지는 모델이 정한다(§24) — 여기서 문구를 처방하지 않는다.
             probeRan: true,
+            ...(r?.sandboxed === true ? { localChanged: false } : {}),
             probeChangedNothing: true,   // 커널이 막아서 증명된 것: 이 컴퓨터는 안 바뀌었다
           },
           // ── **실패의 기계 원문을 그 칸에 넣는다**(기본 ③ · 2026-08-14) ──────────────
@@ -426,10 +449,10 @@ export function makeLocalTerminalTool(deps = {}) {
       // 낸다 — 무엇을 말할지는 모델이 정한다(§24). 능력을 줄이지 않는다: 터미널은 그대로다.
       const 시그널열림 = 실제모드 === 'signal' || (실제모드 === 'effects' && effects.includes('signal'));
       const 끈PID = 시그널열림 && /\b(kill|pkill|killall)\b/.test(command)
-        ? [...new Set((command.match(/\b\d{2,}\b/g) ?? []).map(Number))].filter((n) => n > 0)
+        ? kill대상PID들(command)
         : [];
       const 종료확인 = 끈PID.length
-        ? 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) }))
+        ? (r.exitCode === 0 ? await PID종료확인(끈PID) : 끈PID.map((pid) => ({ pid, stillRunning: alive(pid) })))
         : undefined;
       // ── **못 한 이유를 말했으면 이어갈 자리도 준다**(라이브 실측 2026-08-13) ──────────
       //
@@ -454,7 +477,15 @@ export function makeLocalTerminalTool(deps = {}) {
           : undefined;
       // §7-bq — 실행 구간에 새로 생긴 것의 자리(사실 공급). write 로 실제 돈 실행에서만
       // 잰다(위 관측이 그때만 선다). 못 쟀으면(null) 아무 주장도 안 싣는다.
-      const 생긴것 = 관측 && 파일쓰기열림 ? await 새로생긴것들(cwd, 관측) : null;
+      const 이름변화 = 관측 && 파일쓰기열림 ? await 이름변화관측(cwd, 관측) : null;
+      const 생긴것 = 이름변화?.생긴것 ?? null;
+      const 실행시작못함 = 끝난이유?.kind === 'env'
+        && (끝난이유.why === 'not_started' || 끝난이유.why === 'cwd_missing');
+      const ran = !실행시작못함 && (실제로돌았나 || 실제모드 === 'probe');
+      const 로컬변경차단 = r?.sandboxed === true && (실제모드 === 'probe' || 실제모드 === 'reach'
+        || (실제모드 === 'effects' && !effects.some((x) => x === 'write' || x === 'signal')));
+      const 로컬변경관측 = 이름변화?.이름변화 === true || 종료확인?.some((x) => !x.stillRunning);
+      const localChanged = 로컬변경관측 ? true : 로컬변경차단 ? false : undefined;
       // §7-bx — **타임아웃으로 죽은 실행은 실패다**(오너 결정 ③ · 비교군 셋 동형). 승인 뒤 실행
       // 로 실제 돈 실행이 상한에서 강제 종료됐는데 성공 모양으로 돌아가면 영수증이
       // failureState:none 이 되어, 원장은 깨끗한 성공을 말하고 「내용 확인 안 됨」 표식·복구
@@ -466,7 +497,8 @@ export function makeLocalTerminalTool(deps = {}) {
           failed: true,
           result: {
             command, cwd, exitCode: r.exitCode, durationMs: r.durationMs,
-            stdout: r.stdout, stderr: r.stderr, stopped: r.stopped, applied: 실제로돌았나,
+            stdout: r.stdout, stderr: r.stderr, stopped: r.stopped, ran,
+            ...(localChanged !== undefined ? { localChanged } : {}),
             ...(실제모드 === 'effects' ? { effects } : {}),
             ...(다음수단 ? { 다음수단 } : {}),
           },
@@ -496,20 +528,19 @@ export function makeLocalTerminalTool(deps = {}) {
           ...(생긴것?.length ? { 새로생긴것들: 생긴것 } : {}),
           ...(r.truncated ? { truncated: true, omittedChars: r.omittedChars } : {}),
           ...(r.stopped ? { stopped: r.stopped } : {}),
-          applied: 실제로돌았나,
+          ran,
+          ...(localChanged !== undefined ? { localChanged } : {}),
           ...(실제모드 === 'effects' ? { effects } : {}),
           // ── F-118 · 성공한 probe 관측이 원장에서 「추정」으로 분류됐다 ─────────────────
           //
           // A0 계약(파일 머리)은 "probe 성공 = 아무것도 안 바꿨다는 증명. 그대로 답한다"인데,
-          // applied:false 만 실으니 확인된사실(ledger.js)이 떨어져 그 관측이
+          // 퇴역 구현은 applied:false 만 실어 확인된사실(ledger.js)을 떨어뜨렸고,
           // "호출 없이 모델 지식으로만 답한 경우"(estimated)로 갔다 — 제품이 그 결과로
           // 답하면서 원장은 그 근거를 추정이라 적는, 한 제품 두 진실.
           //
-          // applied 의 뜻(변경이 실렸나)은 그대로다 — 뒤집으면 2026-08-03(실패 삼킨 쓰기가
-          // confirmed) 재개봉. 대신 막힌 갈래(:237)가 이미 쓰는 칸을 성공 갈래에도 싣는다.
-          // 발동 조건은 mode 라벨이 아니라 **실행기가 증명한 sandboxed** 다(terminal-run.js) —
-          // 샌드박스 없는 호스트에선 probe 라벨로도 생 zsh 가 돌아서, 라벨로 걸면
-          // 실제로 바꾼 명령이 「변경 없이 확인」으로 선다(손 관리자·감시자 동시 지적).
+          // 당시에는 applied 의 뜻을 유지했지만, 이제 실행과 변경을 ran/localChanged로 갈랐다.
+          // `probeChangedNothing`은 구버전 영수증 호환을 위해 유지한다. 새 영수증의 정본은
+          // 실행기가 증명한 `ran`과 `localChanged`이며, 샌드박스 라벨만으로는 무변경을 증명하지 않는다.
           ...(실제모드 === 'probe' && r?.sandboxed === true ? { probeChangedNothing: true } : {}),
         },
         // 못 한 것을 한 척하지 않는다 — exit code 를 그대로 말한다.
@@ -520,19 +551,22 @@ export function makeLocalTerminalTool(deps = {}) {
             : `일부는 아직 돌고 있어요 — 남은 것: ${종료확인.filter((x) => x.stillRunning).map((x) => x.pid).join(', ')}.`)
           : r.stopped === 'timeout'
           ? `시간이 다 돼서 멈췄어요(${Math.round((args.timeoutMs ?? 120000) / 1000)}초).`
-          // **확인한 것을 했다고 말하지 않는다**(오너 지적 2026-08-03 · 메모리·맥락의 뿌리).
+          // **퇴역 기록: 실행과 변경을 한 칸으로 보던 시절의 오류**(2026-08-03).
           // `probe` 는 쓰기가 막힌 채 도는 **확인**이다. 그런데 exit 0 이면 여기서 그대로
           // "실행했어요"라고 말했다 — 명령이 `2>/dev/null || true` 로 실패를 삼키면 exit 0 이
           // 나오므로, 아무것도 안 바뀐 채 원장에 `실행했어요 · failureState:none` 이 남았다
           // (헤르메스 대조 실측: 디스크는 그대로였고 모델은 그 거짓 기록 위에서 판단했다).
-          // **원장이 거짓이면 셀프후드도 말귀도 그 위에 못 선다.** `applied` 라는 기계 사실이
-          // 이미 result 에 있었는데 문장이 그것을 안 봤다.
-          // `reach` 로 돈 것은 **실제로 실행된 것**이다(네트워크가 나갔다). 다만 이 컴퓨터는
+          // **원장이 거짓이면 셀프후드도 말귀도 그 위에 못 선다.** 현재 문장은 ran·localChanged·effects를 같이 본다.
+          // `reach`는 승인된 network 범위를 열어 실행한다. 실제 network 발생은 별도로 관측하지 않았다. 다만 이 컴퓨터는
           // 하나도 안 바뀌었다 — 쓰기·비밀·시그널은 reach 에서도 닫혀 있다. 둘 다 사실이므로
           // 둘 다 말한다. 어느 쪽을 강조할지는 모델이 정한다(§24).
-          : r.exitCode === 0 ? (실제모드 === 'write' || 실제모드 === 'signal' || 실제모드 === 'effects' ? '실행했어요.'
-            : 실제모드 === 'reach' ? '실행했어요 — 바깥에서 읽어 온 것이고 이 컴퓨터는 바뀐 게 없어요.'
-              : '확인만 했어요 — 아직 아무것도 바꾸지 않았어요.')
+          : r.exitCode === 0 ? (localChanged === true
+            ? '실행했어요 — 이 컴퓨터의 사용자 상태 변경이 관측됐어요.'
+            : localChanged === false && (effects.includes('network') || 실제모드 === 'reach')
+              ? '실행했어요 — 승인된 네트워크 범위를 열어 실행했고, 이 컴퓨터의 사용자 상태 변경은 관측되지 않았어요.'
+              : localChanged === false
+                ? '실행했어요 — 읽기 결과를 얻었고, 이 컴퓨터의 사용자 상태 변경은 관측되지 않았어요.'
+                : '실행했어요 — 이 컴퓨터의 사용자 상태 변경 여부는 확인하지 못했어요.')
             // **샌드박스가 막은 것을 "실패"라고 말하지 않는다.** 코드 문제가 아니다.
             : (끝난이유?.kind === 'sandbox' || 끝난이유?.kind === 'permission') ? `${끝난이유.userWhy} — 코드 문제가 아니에요.`
               : 끝난이유?.kind === 'env' ? `${끝난이유.userWhy}`

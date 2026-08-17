@@ -187,11 +187,21 @@ test('반대③ 성공 갈래의 기존 모양은 안 깨진다 — data 로 가
     돈손('a.txt\nb.txt'), { command: 'ls', granted: true, effects: ['write'] }, '작업 폴더 봐줘',
   );
   assert.equal(rec.failureState, 'none', '성공이 실패로 바뀌었다');
-  assert.equal(rec.result?.applied, true, '실제로 돌았다는 기계 사실이 사라졌다');
+  assert.equal(rec.result?.ran, true, '실제로 돌았다는 기계 사실이 사라졌다');
+  assert.equal(Object.hasOwn(rec.result ?? {}, 'applied'), false, '새 터미널 영수증이 applied를 다시 낸다');
   assert.equal(x.failureState, undefined, '성공에 실패 상태가 붙었다');
   assert.ok(x.data, '성공 결과가 안 실렸다');
   assert.match(x.data, /a\.txt/, '성공 결과의 알맹이가 모델에게 안 갔다');
   assert.equal(x.실패원문, undefined, '성공 교환에 실패 원문 칸이 생겼다');
+});
+
+test('반대③-b 실제 모델 요청 와이어에 「돌았다」와 로컬 변경 범위가 함께 실린다', async () => {
+  const { 전문 } = await 모델이받는것(
+    돈손('hello-from-t5\nTue Aug 18'), { command: 'echo hello-from-t5 && date' }, '확인해줘',
+  );
+  assert.match(전문, /실제로 돌았다/, '명령 실행 사실이 와이어에 없다');
+  assert.match(전문, /사용자 상태 변경 여부는 확인하지 못했/, '미관측 변경을 false로 메웠거나 숨겼다');
+  assert.doesNotMatch(전문, /실제로는 안 돌았다/, '실행한 명령을 안 돌았다고 모델에게 보냈다');
 });
 
 test('반대④ 터미널이 아닌 결과는 예전 갈래 그대로 간다(갈래가 남의 자리를 먹지 않는다)', () => {

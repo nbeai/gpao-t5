@@ -20,6 +20,9 @@ import { FAILURE } from '../contracts.js';
  * @param {import('../contracts.js').ToolReceipt} rec
  */
 export function 확인된사실(rec) {
+  const 실행사실 = rec?.result && Object.hasOwn(rec.result, 'ran')
+    ? rec.result.ran === true
+    : (rec?.result?.applied !== false || rec?.result?.probeChangedNothing === true);
   return Boolean(rec
     && rec.lifecycle === 'delivered'
     && rec.failureState === FAILURE.NONE
@@ -27,7 +30,8 @@ export function 확인된사실(rec) {
     && rec.result !== undefined
     // **성공은 관찰된 실제 효과다**(정본 §S2 필수 계약 ③).
     //
-    // 손이 `applied` 라는 기계 사실을 내면 그것이 이 판정을 이긴다. `local.terminal` 의
+    // 새 terminal 영수증은 `ran`을 실행 사실의 정본으로 낸다. 구 `applied`는 ran이 없는
+    // 과거 영수증·다른 손의 호환 판정에서만 읽는다. 퇴역 배경: `local.terminal` 의
     // probe 는 **쓰기가 막힌 채 도는 확인**이라 exit 0 이어도 아무것도 안 바뀐다. 그런데
     // 여기서는 lifecycle·failureState·result 만 봐서 통과시켰고, 사용자면 문장은
     // "확인만 했어요"인데 **원장은 confirmed 로 세었다** — 한 턴에 두 진실이 섰다.
@@ -41,13 +45,13 @@ export function 확인된사실(rec) {
     // 실제로 한 일까지 미확인이 되어 원장이 반대 방향으로 거짓이 된다.
     //
     // ── F-118 · 「변경 없이 확인됨」도 확인이다 ─────────────────────────────────────
-    // A0(probe 성공)는 제품이 그 결과로 사용자에게 답하는 경로다. applied:false 하나로
+    // 퇴역 배경: A0(probe 성공)는 제품이 그 결과로 사용자에게 답하는 경로인데, applied:false 하나로
     // 떨어뜨리면 그 관측이 estimated("호출 없이 모델 지식으로만 답한 경우")로 가서
     // 원장이 거짓을 적는다. 손이 **증명과 함께** probeChangedNothing 을 실었을 때만
     // 확인으로 센다 — 증명은 실행기의 sandboxed 사실에서 나온다(local-terminal.js).
     // 변경 주장은 승격되지 않는다: 그 걸음의 사용자면 원문이 "확인만 했어요 — 아직
     // 아무것도 바꾸지 않았어요"이고 원장은 원문을 그대로 싣는다(f118 검사 ③이 문다).
-    && (rec.result?.applied !== false || rec.result?.probeChangedNothing === true));
+    && 실행사실);
 }
 
 /**
