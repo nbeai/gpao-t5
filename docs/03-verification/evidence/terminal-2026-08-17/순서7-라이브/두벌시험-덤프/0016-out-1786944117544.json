@@ -1,0 +1,10 @@
+{
+  "at": "2026-08-17T05:21:57.545Z",
+  "kind": "output",
+  "meta": {
+    "자리": "single/tools"
+  },
+  "text": "작업 폴더 파일 크기를 표로 정리하면:\n\n- 메모.txt — 512 B\n- 분기보고.md — 4,096 B\n- 정산.csv — 2,048 B",
+  "textChars": 78,
+  "toolCalls": []
+}
