@@ -4019,6 +4019,10 @@ export function makeServer(deps = {}) {
     // 제안한 카드를 「사용자가 승인한 것」으로 둔갑시킬 수 없게 하는 **코드 쪽 자격 판정**이다
     // (라이브 반례: 1턴 카드 `rm "지울것.md"` 와 2턴 카드 `rm -f … && ls` 가 다른데 대기 수는 1→1).
     const 턴전대기 = new Set(Object.keys(session.pendingApprovals ?? {}));
+    // 그리고 **카드 알맹이도** 얼린다. 첫 턴이 새 카드를 세우면 커널이 옛 대기를 비우므로
+    // (turn.js `이전대기를지난것으로` — 죽은 버튼 금지 규칙), 집행할 때 그 카드는 이미 없다.
+    // 라이브 2회차가 「그 승인 요청을 찾지 못했어요」로 멈춘 자리가 정확히 여기다.
+    const 턴전카드 = new Map(ctx.pending ?? []);
     let result = await runTurn({
       text: input.text, source: 'external_channel',
       triggerSignals: event.triggerSignals,
@@ -4038,6 +4042,10 @@ export function makeServer(deps = {}) {
       // buildActionPlan)은 **커밋하지 않는다.** 지목 주체가 모델이므로 오지목의 폭발 반경을
       // 집행 1건에 묶는 보수적 선택이고, **의도된 표면 비대칭**이다(선등록 §1 — 결함 아님).
       const 승인전상대 = [...(ctx.knownCounterparts ?? [])];
+      // 사용자가 **보고 결정한 그 카드**를 되살려 집행한다. 되살리는 것은 지목된 하나뿐이다 —
+      // 첫 턴이 새로 세운 카드는 그대로 두고, 옛 카드를 통째로 복원하지도 않는다.
+      const 그카드 = 턴전카드.get(밖결정.pendingId);
+      if (그카드 && ctx.pending instanceof Map) ctx.pending.set(밖결정.pendingId, 그카드);
       result = await runTurn({
         ...(밖결정.decision === 'approve' ? { approve: 밖결정.pendingId } : { reject: 밖결정.pendingId }),
         source: 'external_channel',
