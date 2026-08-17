@@ -232,6 +232,12 @@ export function buildModelMessages(tc) {
   // §7-bs 합류 — 완료 투영과 분리된 순수 사실 칸(산출물사실)을 같은 문장 한 줄로 합쳐 낸다.
   const working = workingStateFacts(tc.workingState, tc.산출물사실 ?? []);
   if (working) 턴변동.push(`[이 대화에서 지금까지]\n${working}`);
+  // 국면 4 슬라이스 2 — **대기 중인 카드의 번호와 내용.** 있을 때만 나가고 없으면 한 글자도
+  // 안 나간다(동결 지문 불변). 「이걸 승인해라」가 아니라 「지금 이런 것이 기다린다」는 사실이다.
+  const 대기 = (tc.승인대기카드 ?? []).filter((c) => c?.id);
+  if (대기.length) {
+    턴변동.push(`[지금 사용자 결정을 기다리는 것]\n${대기.map((c) => `- ${c.id}${c.무엇 ? ` · ${c.무엇}` : ''}`).join('\n')}`);
+  }
   const projectWorking = workStateFacts(tc.projectWorkState);
   if (projectWorking) {
     턴변동.push(`[현재 작업 브리프 — 사건 원장에서 확인됨]\n${종속한줄}\n${projectWorking}`);

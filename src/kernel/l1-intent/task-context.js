@@ -906,6 +906,8 @@ export function buildTaskContext(p) {
     workingState: p.workingState,
     // §7-bs 순수 사실 칸 — tc 는 명시 복사만 하므로 여기서 잇는다(안 이으면 조용히 떨어진다).
     산출물사실: p.산출물사실 ?? [],
+    // 국면 4 슬라이스 2 — 지금 사용자 결정을 기다리는 카드. **사실이지 지시가 아니다.**
+    승인대기카드: p.승인대기카드 ?? [],
     projectWorkState: p.projectWorkState,
     // F-65: runtime이 실제로 관측한 bounded 현재 작업셋. 허용 범위 자체와 구분하며,
     // 목록 실패/절단도 그대로 보존한다. 판단이나 도구 순서는 포함하지 않는다.

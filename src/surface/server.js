@@ -4006,6 +4006,14 @@ export function makeServer(deps = {}) {
     // 턴 신분을 아는 쪽이 계산한다(커널은 이 턴이 몇 번째인지 모른다).
     ctx.priorShown = 직전에보인것(memory, channelTurnRef);
     ctx.channelTargets = await channelTargetsFor(); // 채널에서 온 요청도 같은 사실을 본다
+    // 국면 4 슬라이스 2 — **지목할 번호를 모델이 봐야 부를 수 있다.** 라이브 1회차가 미달한
+    // 원인이 여기였다: `approval.decide` 통로는 뚫렸는데 `pendingId` 가 모델 입력에 0건이라
+    // 부를 재료가 없었다. **규칙이 아니라 사실을 준다**(유도) — 무엇을 하려던 카드가 몇 번인지.
+    ctx.승인대기카드 = Object.entries(session.pendingApprovals ?? {}).slice(0, 5).map(([id, v]) => ({
+      id,
+      무엇: String(v?.plan?.needsApproval?.[0]?.요약 ?? v?.plan?.needsApproval?.[0]?.action
+        ?? v?.사람말 ?? '').trim().slice(0, 120),
+    }));
     // 국면 4 슬라이스 2 — **밖에서 낸 결정만 집행한다.** 이 턴이 시작될 때 이미 서 있던 카드가
     // 무엇이었는지 먼저 얼린다. 이 집합 밖의 id 는 집행하지 않는다 — 모델이 이번 턴에 새로
     // 제안한 카드를 「사용자가 승인한 것」으로 둔갑시킬 수 없게 하는 **코드 쪽 자격 판정**이다

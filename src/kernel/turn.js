@@ -1349,6 +1349,7 @@ export async function runTurn(input, ctx) {
       workingState: ctx.workingState,
       // §7-bs 순수 사실 칸 — 지난 턴들의 산출물 자리(세션 차선 · 거부 턴에도 승계).
       산출물사실: ctx.산출물사실 ?? [],
+      승인대기카드: ctx.승인대기카드 ?? [],
       worksetReality: ctx.worksetReality,
       automationReality: ctx.automationReality,
       projectWorkState: ctx.projectWorkState,
