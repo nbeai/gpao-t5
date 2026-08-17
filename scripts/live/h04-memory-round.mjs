@@ -144,7 +144,17 @@ export async function 방하나(credential, 손없이, 더쥘손 = []) {
       const ll = await importFrom('src/runtime/local-locate.js');
       손구현['local.locate'] = ll.makeLocalLocateTool({ roots: [fileRoot], homeDir: home });
     }
-    const env = ctx.demoEnv({ include: 손목록, hands: 손목록 });
+    // ★ 자 결함 2호 수리(국면 5 슬라이스 1 · 2026-08-17): 이 방은 브라우저 손에 **진짜
+    // 브라우저를 물리면서** 환경 사실은 demoEnv 의 FACTS 기본값(브라우저 항목 없음 →
+    // connected:false → needs_connection)을 그대로 실어 왔다 — 모델의 손 현실이 「연결
+    // 필요」라고 말했고, 모델은 옳게 그 손을 안 불렀다(판정 1회차 4/4 무효의 원인).
+    // 손을 물렸으면 사실도 같이 물린다 — 실물과 사실의 일치.
+    const env = ctx.demoEnv({
+      include: 손목록, hands: 손목록,
+      ...(더쥘손.some((h) => h.startsWith('browser.'))
+        ? { factOverrides: { 'browser.observe': { connected: true }, 'browser.act': { connected: true } } }
+        : {}),
+    });
     env.connections = (env.connections ?? []).filter((c) => 손목록.includes(c.id));
     env.model = { id: MODEL_ID, strengths: '자연 대화·판단', authSignal: 'ok' };
     const store = new st.SessionStore(stateDir);
