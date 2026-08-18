@@ -21,6 +21,7 @@
 - 기존 `src/`, `test/`, `scripts/`는 동결된 legacy 증거선이다.
 - 새 코어는 `refoundation/` 아래에서 독립적으로 만든다.
 - 새 코어는 legacy `src/`를 import하지 않는다.
+- 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
 - legacy 제품 수정은 새 코어 비교에 필요한 계측 또는 즉시 차단해야 할 실제 P0 위험일 때만
   오너에게 범위를 설명하고 별도 작업으로 연다.
 - Memory, Skills, Learning, Automation, Channels, Multi-agent는 `T5-REFOUNDATION.md`의 현재

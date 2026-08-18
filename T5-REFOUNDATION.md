@@ -30,7 +30,7 @@ legacy T5                 refoundation T5
 
 ## R0 — 독립 개발 환경
 
-상태: `COMPLETE` — `npm run refoundation:check` 3/3, 격리 자격 신호 0, legacy 제품 소스 변경 0.
+상태: `COMPLETE` — 환경 검사 4/4, 격리 자격 신호 0, legacy 제품 소스 변경 0.
 
 사용자 완료 문장:
 
@@ -58,6 +58,8 @@ Non-goals:
 - 기존 `src/`·`test/` 제품 파일 변경 0
 
 ## R1 — Thin Hand
+
+상태: `IN_PROGRESS` — 주입 모델 기준 최소 loop·실제 exec·실패 관측·명령 전환·취소·timeout 성립.
 
 사용자 완료 문장:
 
@@ -128,11 +130,14 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 필수 결과:
 
-- 대화 adapter
+- 기존 콘솔의 시각 디자인·대화 UX를 기본으로 재사용하고 새 코어에 붙이는 얇은 adapter
 - 최소 질문
 - 사용자 중심 결과와 artifact
 - 필요한 순간의 Preview/Commit/Undo
 - 기술 오류 비노출, 부분 성공·미달의 정확한 설명
+
+Non-goals: 콘솔 재디자인. 기존 UI 자체가 사용자 목적 달성을 막는 실제 증거가 있을 때만 해당 부분을
+고친다. 기존 `server.js`·`turn.js` 실행 배선은 재사용하지 않는다.
 
 ## R5 — Persistent Personal Agent
 
@@ -151,4 +156,4 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R1의 첫 작업 계약인 `Run → Model → exec → observation → Model` 최소 loop의 실패시험을 작성한다.
+R1의 실제 model adapter 하나와 prompt dump를 붙이고, 격리 fixture에서 첫 실제 모델 과업을 수행한다.
