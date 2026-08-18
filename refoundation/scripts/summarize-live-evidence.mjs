@@ -79,6 +79,8 @@ const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf
 const runtimeFiles = [
   'refoundation/src/agent-loop.js',
   'refoundation/src/exec-tool.js',
+  'refoundation/src/command-explainer.js',
+  'refoundation/package-lock.json',
   'refoundation/src/chatgpt-oauth-credential.js',
   'refoundation/src/chatgpt-responses-model.js',
   'refoundation/scripts/run-live.mjs',

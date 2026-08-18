@@ -79,6 +79,7 @@ const runtimeFiles = [
   'refoundation/src/agent-loop.js', 'refoundation/src/exec-tool.js',
   'refoundation/src/openai-responses-model.js', 'refoundation/src/chatgpt-responses-model.js',
   'refoundation/src/chatgpt-oauth-credential.js', 'refoundation/src/project-qualification.js',
+  'refoundation/src/command-explainer.js', 'refoundation/package-lock.json',
   'refoundation/scripts/run-project-qualification.mjs',
 ];
 const runtimeHash = createHash('sha256');
