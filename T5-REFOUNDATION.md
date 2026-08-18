@@ -63,6 +63,16 @@ Non-goals:
 API 키와 OAuth 실제 fixture가 모두 통과했다. OAuth는 요청·응답 모델 `gpt-5.5`, 모델 4왕복,
 exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰다.
 
+터미널 기능:
+
+- 범용 POSIX shell 실행, stdout·stderr·exit code 원문 반환
+- timeout·abort·출력 상한·격리 workspace·자격 환경 차단
+- `tree-sitter-bash@0.25.1` + `web-tree-sitter@0.26.9` 정확 핀
+- WASM 지연 로딩·캐시, 128KB 입력 상한, 500ms 파싱 제한
+- command steps·nested context·operators를 같은 ToolReceipt로 모델에게 반환
+- 설명기 실패는 실행 능력을 줄이지 않음
+- 실제 OAuth 모델: `find` 1단계, `printf/cat` 5단계·sequence 4개 관측, 최종 답 42
+
 영역 상태:
 
 - 프로젝트 조사: 성립
@@ -167,5 +177,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-API 키와 OAuth 두 연결을 보존한 채 R1의 남은 산출물 생성·재확인 영역을 표현과 fixture가 다른 복수
-과업으로 측정한다. 자격 입력과 로그인은 기존 콘솔 UX를 사용하고 터미널 입력을 요구하지 않는다.
+기존 콘솔 UI를 재디자인하지 않고 새 agent loop·범용 terminal에 연결하는 얇은 surface adapter를 만든다.
+사용자가 평소 말로 새 코어를 직접 쓰게 한 뒤, 실제 사용에서 반복되는 활용 미달을 공통 원인 단위로
+개선한다. 테스트 통과 수나 단일 성공 케이스를 성능으로 보고하지 않는다.

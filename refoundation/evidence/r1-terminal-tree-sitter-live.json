@@ -1,0 +1,69 @@
+{
+  "schema": "t5.refoundation.live-evidence.v1",
+  "observedAt": "2026-08-18T13:39:54.005Z",
+  "sourceCommit": "0da9ef11790581a455897bf23579d0df75f263df",
+  "runtimeDigest": "72f83c75958841c2ff7f30758f34b32f6eb19b94277559fab2c9ba08ed9291e2",
+  "runtimeFilesDirty": false,
+  "sourceWorktreeDirty": false,
+  "sourceChanges": [],
+  "isolatedRoom": "t5-refoundation-live-jGSEdU",
+  "auth": "chatgpt_oauth",
+  "requestModel": "gpt-5.5",
+  "responseModels": [
+    "gpt-5.5",
+    "gpt-5.5",
+    "gpt-5.5"
+  ],
+  "modelTurns": 3,
+  "toolCalls": [
+    {
+      "callId": "call_3CQZLvgdudgVx3BysWmXbvhd",
+      "name": "exec",
+      "arguments": {
+        "command": "find . -type f -name '*.txt' -print",
+        "cwd": null
+      },
+      "outcome": "succeeded",
+      "exitCode": 0,
+      "explanationOk": true,
+      "steps": [
+        "find"
+      ],
+      "operators": []
+    },
+    {
+      "callId": "call_x5vPWdwgePxxs8SjfZ2Uodxf",
+      "name": "exec",
+      "arguments": {
+        "command": "printf '%s\\n' '--- ./첫째.txt ---'; cat './첫째.txt'; printf '\\n%s\\n' '--- ./둘째.txt ---'; cat './둘째.txt'; printf '\\n'",
+        "cwd": null
+      },
+      "outcome": "succeeded",
+      "exitCode": 0,
+      "explanationOk": true,
+      "steps": [
+        "printf",
+        "cat",
+        "printf",
+        "cat",
+        "printf"
+      ],
+      "operators": [
+        "sequence",
+        "sequence",
+        "sequence",
+        "sequence"
+      ]
+    }
+  ],
+  "finalAnswer": "작업 폴더의 `.txt` 파일을 터미널로 직접 확인했습니다.\n\n- `첫째.txt`: 13\n- `둘째.txt`: 29\n\n숫자 합계는 **42**입니다.",
+  "fixture": {
+    "values": [
+      13,
+      29
+    ],
+    "expectedSum": 42
+  },
+  "credentialLikeMatches": [],
+  "passed": true
+}
