@@ -1,0 +1,53 @@
+{
+  "schema": "t5.refoundation.pty-backend-demand-live.v1",
+  "sourceCommits": [
+    "caa219dabeacd821305fbacd73a74e5d2ffe621f",
+    "7ea1a3788267993e994c27fccad2f199d5a556f0"
+  ],
+  "observedAt": "2026-08-19",
+  "ptyDependency": { "name": "node-pty", "version": "1.1.0", "exactPin": true, "auditVulnerabilities": 0 },
+  "pipeCounterexample": {
+    "programRequiresTTY": true,
+    "state": "failed",
+    "exitCode": 42,
+    "stderr": "TTY_REQUIRED"
+  },
+  "actualOAuthPty": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5",
+    "sessionId": "b5105615-9c15-4785-8423-8101fbe14c25",
+    "runId": "eb0ed971-e594-4cba-b7cc-07ed3578d0e1",
+    "toolSequence": [
+      { "name": "pty_start", "state": "running", "stdout": "Enter value:" },
+      { "name": "process_control", "action": "write", "state": "running" },
+      { "name": "process_control", "action": "poll", "state": "completed", "processExitCode": 0 }
+    ],
+    "input": "hello-pty",
+    "terminalOutput": "hello-pty\r\nTTY_VALUE hello-pty\r\n",
+    "ttyRequiredSeen": false,
+    "effectObservationKind": "observe",
+    "passed": true
+  },
+  "resizeContract": {
+    "initial": { "rows": 24, "cols": 80 },
+    "resized": { "rows": 40, "cols": 100 },
+    "observedBy": "stty size",
+    "passed": true
+  },
+  "backendDemandAudit": {
+    "inspectedPersistentRuns": 18,
+    "sshSignals": 0,
+    "dockerSignals": 0,
+    "cloudSignals": 0,
+    "hpcSignals": 0,
+    "adapterRequired": false,
+    "decision": "keep local backend; do not invent an unused adapter"
+  },
+  "limits": {
+    "realSecretTTYInputTested": false,
+    "reason": "secret_input boundary forbids model/tool argument secrets",
+    "windowsPtyActuallyRun": false,
+    "remoteBackendImplemented": false
+  },
+  "passed": true
+}
