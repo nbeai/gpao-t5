@@ -64,14 +64,22 @@ test('모델은 필요한 스킬만 열고 기존 터미널로 실행하며 두 
     if (turn === 1) {
       const skill = input.tools.find((tool) => tool.name === 'skill');
       assert.ok(skill);
-      assert.match(skill.description, /file-discovery/);
-      assert.doesNotMatch(skill.description, /Normalize names/);
+      assert.doesNotMatch(skill.description, /file-discovery|Normalize names/);
+      assert.match(skill.description, /action=search/i);
       return { text: '', toolCalls: [{
-        id: 'view-skill', name: 'skill', args: { action: 'view', name: 'file-discovery' },
+        id: 'search-skill', name: 'skill', args: { action: 'search', name: 'local file filename' },
       }] };
     }
     const observation = JSON.parse(input.messages.at(-1).content);
     if (turn === 2) {
+      assert.equal(observation.actualCall.name, 'skill');
+      assert.equal(observation.result.state, 'searched');
+      assert.equal(observation.result.skills[0].name, 'file-discovery');
+      return { text: '', toolCalls: [{
+        id: 'view-skill', name: 'skill', args: { action: 'view', name: 'file-discovery' },
+      }] };
+    }
+    if (turn === 3) {
       assert.equal(observation.actualCall.name, 'skill');
       assert.match(observation.result.content, /Normalize names/);
       return { text: '', toolCalls: [{ id: 'use-terminal', name: 'exec', args: {
@@ -102,9 +110,10 @@ test('모델은 필요한 스킬만 열고 기존 터미널로 실행하며 두 
     assert.equal(reply.reply, '스킬을 읽고 터미널로 확인했습니다.');
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const completed = run.events.filter((event) => event.type === 'tool_completed');
-    assert.deepEqual(completed.map((event) => event.payload.receipt.actualCall.name), ['skill', 'exec']);
-    assert.equal(completed[0].payload.receipt.result.state, 'viewed');
-    assert.match(completed[0].payload.receipt.result.contentDigest, /^[0-9a-f]{64}$/);
+    assert.deepEqual(completed.map((event) => event.payload.receipt.actualCall.name), ['skill', 'skill', 'exec']);
+    assert.equal(completed[0].payload.receipt.result.state, 'searched');
+    assert.equal(completed[1].payload.receipt.result.state, 'viewed');
+    assert.match(completed[1].payload.receipt.result.contentDigest, /^[0-9a-f]{64}$/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

@@ -1,0 +1,101 @@
+{
+  "schema": "t5.skill-catalog-on-demand-live.v1",
+  "recordedAt": "2026-08-19T03:31:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "comparison": {
+    "rounds": 2,
+    "skills": 17,
+    "specializedProcedure": {
+      "inline": {
+        "passed": 2,
+        "modelCalls": 4,
+        "wallMs": 8582,
+        "providerInputTokens": 8141,
+        "requestBytes": 50564,
+        "skillCalls": 2
+      },
+      "onDemand": {
+        "passed": 2,
+        "modelCalls": 6,
+        "wallMs": 14194,
+        "providerInputTokens": 9432,
+        "requestBytes": 60132,
+        "skillCalls": 4,
+        "actionsPerCase": ["search", "view"]
+      }
+    },
+    "ordinaryNoSkill": {
+      "inline": {
+        "passed": 2,
+        "modelCalls": 2,
+        "wallMs": 3002,
+        "providerInputTokens": 3650,
+        "requestBytes": 22040,
+        "skillCalls": 0
+      },
+      "onDemand": {
+        "passed": 2,
+        "modelCalls": 2,
+        "wallMs": 2754,
+        "providerInputTokens": 2404,
+        "requestBytes": 14828,
+        "skillCalls": 0
+      }
+    },
+    "firstSkillSchemaBytes": {
+      "inline": 4077,
+      "onDemand": 471
+    },
+    "runIds": {
+      "inline": [
+        "260bd304-ca04-45f5-9878-a5df531b6651",
+        "6b92ef0f-f245-44ca-964a-616688017081",
+        "cc789ec3-5f60-4042-b2f3-013ef06d3b6c",
+        "7f58fdb6-6164-4bcc-b3cf-17461d118215"
+      ],
+      "onDemand": [
+        "74dbaf94-e6f4-474c-907a-3f9743987db7",
+        "0a9f6452-e3fa-488d-b41c-2e7101d695e7",
+        "c790a241-79f1-42c7-aa8f-0a2825317f12",
+        "a28e68a0-943d-4e80-97bd-3cadefd5d747"
+      ]
+    }
+  },
+  "defaultPathLive": {
+    "ordinary": {
+      "sessionId": "5a9aa1e0-1151-4c2e-ae33-81a20b4b61e9",
+      "runId": "c1024e57-d9b1-46b8-a7f2-1cbd2c711913",
+      "answer": "323",
+      "skillCalls": 0,
+      "requestBytes": 7342,
+      "skillSchemaBytes": 471,
+      "providerInputTokens": 1166
+    },
+    "specialized": {
+      "sessionId": "baa79fc3-fd22-4b76-9588-50d56e51e6df",
+      "runId": "fa400146-a757-4ba4-a9e9-a78475173ea9",
+      "actions": ["search", "view"],
+      "selectedSkill": "apple-notes",
+      "terminalCalls": 0,
+      "providerInputTokens": 5166
+    }
+  },
+  "decision": {
+    "defaultMode": "on-demand",
+    "skillBodiesChanged": false,
+    "tradeoff": "ordinary turns save static context; specialized turns pay one search roundtrip"
+  },
+  "verification": {
+    "unitBoundary": { "passed": 107, "failed": 0 },
+    "integration": { "passed": 11, "failed": 0 },
+    "legacyCoreImports": 0,
+    "existingCancellationTimingObservation": {
+      "mixedParallelRun": "one receipt observed stop_requested before terminal stopped",
+      "isolatedResult": { "passed": 1, "failed": 0 },
+      "changedInThisWork": false
+    }
+  },
+  "notImplemented": ["semantic skill retrieval", "automatic skill creation", "compaction"]
+}

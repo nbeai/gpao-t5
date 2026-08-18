@@ -68,6 +68,7 @@ export function makeConsoleServer({
   revealPath,
   processRegistry,
   skillsRoot = bundledSkillsRoot,
+  skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
   processYieldMs = 1000,
   onError,
@@ -76,6 +77,9 @@ export function makeConsoleServer({
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   if (!['full', 'historical-tool-receipt-v1'].includes(conversationProjection)) {
     throw new TypeError('unsupported conversation projection');
+  }
+  if (!['inline', 'on-demand'].includes(skillCatalogMode)) {
+    throw new TypeError('unsupported skill catalog mode');
   }
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
@@ -144,6 +148,7 @@ export function makeConsoleServer({
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: history.length,
       conversationProjection,
+      skillCatalogMode,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });
@@ -171,7 +176,9 @@ export function makeConsoleServer({
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];
-      if (skillSnapshot.skills.length) offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot }));
+      if (skillSnapshot.skills.length) {
+        offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
+      }
       const result = await runAgent({
         request: text,
         history,

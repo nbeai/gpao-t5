@@ -51,6 +51,34 @@ function catalogDescription(skills) {
   return text;
 }
 
+function onDemandDescription() {
+  return 'Discover optional procedural skills without a preloaded catalog. '
+    + 'For specialized apps, CLIs, formats, or workflows, use action=search with task keywords; '
+    + 'then action=view. Use action=list only if search fails.';
+}
+
+function searchTokens(value) {
+  return String(value ?? '').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function searchSkills(skills, query) {
+  const tokens = [...new Set(searchTokens(query))];
+  if (!tokens.length) throw new TypeError('skill search query is required');
+  return skills.map((skill) => {
+    const name = searchTokens(skill.name);
+    const description = searchTokens(skill.description);
+    let score = 0;
+    for (const token of tokens) {
+      if (name.includes(token)) score += 2;
+      else if (description.includes(token)) score += 1;
+    }
+    return { skill, score };
+  }).filter((entry) => entry.score > 0)
+    .sort((left, right) => (right.score - left.score) || left.skill.name.localeCompare(right.skill.name))
+    .slice(0, 8)
+    .map((entry) => publicSkill(entry.skill));
+}
+
 /** Load one immutable, compact catalog snapshot for a Run. Skill bodies stay out of model context. */
 export async function loadSkillSnapshot({ directory } = {}) {
   if (!directory) throw new TypeError('skill directory is required');
@@ -122,16 +150,17 @@ export async function loadSkillSnapshot({ directory } = {}) {
 }
 
 /** A knowledge surface, not a second executor. The model applies the selected text through other tools. */
-export function makeSkillTool({ snapshot } = {}) {
+export function makeSkillTool({ snapshot, catalogMode = 'inline' } = {}) {
   if (!snapshot || !Array.isArray(snapshot.skills)) throw new TypeError('skill snapshot is required');
+  if (!['inline', 'on-demand'].includes(catalogMode)) throw new TypeError('unsupported skill catalog mode');
   return {
     name: 'skill',
-    description: catalogDescription(snapshot.skills),
+    description: catalogMode === 'inline' ? catalogDescription(snapshot.skills) : onDemandDescription(),
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['list', 'view'] },
+        action: { type: 'string', enum: ['list', 'search', 'view'] },
         name: { type: ['string', 'null'] },
       },
       required: ['action', 'name'],
@@ -140,6 +169,10 @@ export function makeSkillTool({ snapshot } = {}) {
       if (action === 'list') return {
         state: 'listed', catalogDigest: snapshot.digest,
         skills: snapshot.skills.map(publicSkill), rejected: structuredClone(snapshot.rejected),
+      };
+      if (action === 'search') return {
+        state: 'searched', catalogDigest: snapshot.digest,
+        query: String(name ?? ''), skills: searchSkills(snapshot.skills, name),
       };
       if (action !== 'view') throw new Error(`Unknown skill action: ${action}`);
       const skill = snapshot.skills.find((entry) => entry.name === name);

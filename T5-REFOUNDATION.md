@@ -290,9 +290,22 @@ C1-P1 historical ToolReceipt projection:
 - 실제 C0 대화 기본 경로: 메시지가 11→13개로 늘었는데도 request 19,348→14,982 bytes,
   provider input 3,926→2,693 tokens; 값·경로 정확 회상, 새 tool call 0
 
-다음 한 작업은 빈 세션에서도 4,118 bytes로 가장 큰 단일 정적 항목인 skill catalog schema의 on-demand A/B다.
-skill 선택률·정확성·추가 왕복을 비교해 metadata 상시 노출의 이득이 비용보다 큰지 확정한다. 그 전에는
-summary·threshold·Memory flush를 만들지 않는다.
+C1-P2 on-demand skill catalog:
+
+- inline은 모든 skill 이름·설명을 tool schema에 넣고, on-demand는 고정된 `search/list/view` 계약만 노출
+- search는 이름·설명의 Unicode 단어를 결정론적으로 순위화해 최대 8개 metadata만 반환; 본문은 view 뒤 제공
+- 17개 격리 catalog 실제 OAuth 2회×전문/일반: inline 4/4, on-demand 4/4, terminal call 모두 0
+- 첫 skill schema 4,077→471 bytes. 일반 요청은 호출당 request 3,606 bytes·provider input 623 tokens 절감,
+  추가 왕복 0
+- 전문 절차 요청은 on-demand가 `search→view`로 정확성 유지, 대신 호출당 모델 1왕복·약 646 tokens·2.8초 증가
+- 현재 bundled 16개 실제 OAuth: 일반 계산은 skill call 0, schema 471 bytes, provider input 1,166 tokens;
+  Apple Notes 요청은 `search apple notes→view apple-notes`, terminal/app 접근 0, 절차 원칙 정확 응답
+- 기본 catalog mode를 `on-demand`로 승격; 사용자 skill 본문은 변경하지 않음
+
+다음 한 작업은 Long-session Context Pressure Qualification이다. projection 적용 상태에서 user·assistant·
+작은/큰 tool output을 단계적으로 누적하고, 앞·중간·최근의 정확한 needle 회상과 request byte·provider token·
+latency를 측정한다. 실제 실패나 비용 급증 지점이 나오기 전에는 retrieval·summary·threshold·Memory flush를
+만들지 않는다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -344,6 +357,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-P1이 과거 ToolReceipt 비용을 줄이면서 C0 회상·실패 복구를 보존했다. 이제 가장 큰 정적 단일 항목인
-skill schema 4,118 bytes를 다룬다. 다음 한 작업은 skill metadata 상시 노출과 on-demand list/search를 실제
-OAuth로 비교하는 것이다. 사용자 소유 skill 본문은 바꾸지 않고, 선택 정확도·왕복·token으로만 승격 판단한다.
+C1-P2가 skill catalog 상시 비용을 제거하면서 실제 16개 catalog의 자동 발견을 보존했다. 다음 한 작업은
+Long-session Context Pressure Qualification이다. 완전한 Conversation을 통제된 크기로 늘려 어느 구간에서
+회상·비용·provider 한계가 실제로 무너지는지 측정한다. 그 결과가 큰 tool output retrieval과 compaction 중
+무엇을 먼저 열지 결정한다.

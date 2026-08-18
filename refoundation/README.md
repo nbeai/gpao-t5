@@ -27,6 +27,7 @@ npm run refoundation:qualify:terminal
 npm run refoundation:console
 npm run refoundation:compare:skills -- --rounds 3
 npm run refoundation:compare:tool-projection -- --rounds 2
+npm run refoundation:compare:skill-catalog -- --rounds 2
 ```
 
 `refoundation:check`가 일상 진입점이다. legacy 전체 테스트와 gate는 새 코어의 일상 완료 기준이 아니다.
@@ -47,6 +48,9 @@ legacy 기준선은 단계 비교 또는 legacy 변경 작업에서 별도로 �
 `refoundation:compare:tool-projection`은 같은 full Conversation을 원문 replay와 historical ToolReceipt projection
 두 경로로 교차 실행한다. 성공 stdout 회상과 실패 stderr·exit code 복구, 새 tool call, provider token,
 canonical receipt 불변을 함께 검사한다.
+
+`refoundation:compare:skill-catalog`은 17개 격리 스킬에서 inline metadata와 on-demand search/list를 전문
+절차 요청·일반 요청으로 교차 비교한다. 사용자 skill 파일이나 실제 앱은 사용하지 않는다.
 
 콘솔 상태의 `conversations/<sessionId>.jsonl`은 모델이 실제로 본 user·assistant·tool 메시지의 append-only
 정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은
