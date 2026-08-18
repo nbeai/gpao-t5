@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   projectHistoricalConversation, projectHistoricalConversationEntries,
+  repairIncompleteToolCallMessages,
 } from '../src/conversation-projection.js';
 
 function terminalReceipt() {
@@ -111,4 +112,25 @@ test('큰 historical stdout은 head·tail·message ref만 보이고 중간 원�
   });
   assert.equal(entries[0].message.content, originalContent);
   assert.ok(Buffer.byteLength(projection.messages[0].content) < Buffer.byteLength(originalContent) * 0.2);
+});
+
+test('재시작 때 tool result가 없는 function call은 provider projection에만 unknown interruption을 채운다', () => {
+  const messages = [
+    { role: 'user', content: '긴 작업을 해줘' },
+    { role: 'assistant', content: '', toolCalls: [{
+      id: 'interrupted-call', name: 'exec', args: { command: 'long-task', cwd: null },
+    }] },
+    { role: 'user', content: '다음 요청' },
+  ];
+  const before = structuredClone(messages);
+  const repaired = repairIncompleteToolCallMessages(messages);
+  assert.deepEqual(messages, before);
+  assert.equal(repaired.length, 4);
+  assert.equal(repaired[2].role, 'tool');
+  assert.equal(repaired[2].toolCallId, 'interrupted-call');
+  const receipt = JSON.parse(repaired[2].content);
+  assert.equal(receipt.outcome, 'interrupted_unknown');
+  assert.equal(receipt.result.state, 'interrupted');
+  assert.equal(receipt.result.executionKnown, false);
+  assert.match(receipt.result.reason, /inspect current reality/i);
 });

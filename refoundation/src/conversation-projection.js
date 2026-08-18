@@ -85,9 +85,51 @@ function projectToolMessage(message, options = {}) {
   };
 }
 
+function interruptedToolMessage(call) {
+  return {
+    role: 'tool', toolCallId: String(call.id), name: String(call.name),
+    content: JSON.stringify({
+      schema: 't5.interrupted-tool-result.v1',
+      toolCallId: String(call.id),
+      requestedCall: { id: String(call.id), name: String(call.name), args: clone(call.args ?? {}) },
+      outcome: 'interrupted_unknown',
+      result: {
+        state: 'interrupted', executionKnown: false,
+        reason: 'The runtime ended before a completed tool receipt was recorded. Do not assume the effect ran or did not run; inspect current reality before retrying.',
+      },
+    }),
+  };
+}
+
+/** Repair provider call/result structure without rewriting canonical conversation truth. */
+export function repairIncompleteToolCallMessages(messages = []) {
+  const output = [];
+  const pending = new Map();
+  const flush = () => {
+    for (const call of pending.values()) output.push(interruptedToolMessage(call));
+    pending.clear();
+  };
+  for (const source of messages) {
+    const message = clone(source);
+    if (pending.size && message?.role !== 'tool') flush();
+    output.push(message);
+    if (message?.role === 'assistant') {
+      for (const call of message.toolCalls ?? []) {
+        if (call?.id && call?.name) pending.set(String(call.id), clone(call));
+      }
+    } else if (message?.role === 'tool' && message.toolCallId) {
+      pending.delete(String(message.toolCallId));
+    }
+  }
+  if (pending.size) flush();
+  return output;
+}
+
 /** Build model-visible history without changing the canonical Conversation ledger. */
 export function projectHistoricalConversation(messages = []) {
-  return messages.map((message) => projectToolMessage(message).message);
+  return repairIncompleteToolCallMessages(
+    messages.map((message) => projectToolMessage(message).message),
+  );
 }
 
 /** Project canonical entries and retain refs for large outputs available to conversation_recall. */
@@ -100,7 +142,7 @@ export function projectHistoricalConversationEntries(entries = [], {
     messageId: entry.messageId, largeOutputMode, maxInlineOutputChars, previewChars,
   }));
   return {
-    messages: projected.map((entry) => entry.message),
+    messages: repairIncompleteToolCallMessages(projected.map((entry) => entry.message)),
     recoverable: projected.flatMap((entry) => entry.recoverable),
   };
 }

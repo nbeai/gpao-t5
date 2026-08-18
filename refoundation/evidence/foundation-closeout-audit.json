@@ -1,0 +1,38 @@
+{
+  "schema": "t5.foundation-closeout-audit.v1",
+  "recordedAt": "2026-08-19T07:05:00+09:00",
+  "measuredImplementation": "macOS/POSIX console lane",
+  "gates": {
+    "R0": { "status": "complete", "evidence": ["environment 4/4", "legacy imports 0"] },
+    "R1": { "status": "complete", "evidence": ["project qualification 2/2", "terminal performance 4/4", "R3 recovery 5/5", "R4 artifact journey 12/12"] },
+    "R2": { "status": "complete", "evidence": ["Run/Step/Receipt", "wake", "speed", "effect authority", "PTY"] },
+    "S1": { "status": "complete", "evidence": ["file discovery 3/3", "skill value A/B", "on-demand catalog"] },
+    "C0": { "status": "complete", "evidence": ["canonical conversation restart", "incomplete tool-call provider repair"] },
+    "C1": { "status": "complete", "evidence": ["projection", "recoverable output", "checkpoint", "repeated restart continuity"] },
+    "R3": { "status": "complete", "evidence": ["recovery 5/5", "Codex/Claude/Hermes comparison 3/3"] },
+    "R4": { "status": "complete", "evidence": ["41 human turns", "Preview/create/verify/Undo", "browser UI audit"] },
+    "R5": { "status": "complete", "evidence": ["memory flush", "selection/conflict", "session search"] }
+  },
+  "remaining": {
+    "platformFollowup": [
+      "Windows real-device exec, process tree stop, Explorer reveal, and path handling are not measured"
+    ],
+    "operationalFollowup": [
+      "Managed processes are process-memory registered; abnormal runtime crash/restart recovery is not implemented or claimed"
+    ],
+    "demandGated": [
+      "remote backend",
+      "SQLite FTS5 at larger transcript scale",
+      "browser/app/MCP hands",
+      "channels",
+      "automation service",
+      "multi-agent"
+    ]
+  },
+  "releaseClaims": {
+    "foundationComplete": true,
+    "windowsSupportComplete": false,
+    "crashResilientBackgroundWork": false
+  },
+  "passed": true
+}

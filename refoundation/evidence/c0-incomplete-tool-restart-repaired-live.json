@@ -1,0 +1,28 @@
+{
+  "schema": "t5.c0-incomplete-tool-restart-repaired-live.v1",
+  "recordedAt": "2026-08-18T22:03:27.292Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "sourceFailure": {
+    "sessionId": "41cbec96-01d4-4691-834e-7579f33d9c89",
+    "providerError": "No tool output found for function call",
+    "repeatedFailedRuns": 3
+  },
+  "qualification": {
+    "sessionId": "8a7b521d-5130-48dd-bb30-98b4f31ccd61",
+    "runId": "cde2814a-a220-4b94-b5c3-f87bb4a33931",
+    "httpStatus": 200,
+    "runStatus": "completed",
+    "answer": "안녕!",
+    "terminalCalls": 0,
+    "canonicalToolMessages": 0,
+    "syntheticCanonicalWrites": 0
+  },
+  "contract": {
+    "canonicalRewrite": false,
+    "providerProjectionSyntheticResult": true,
+    "executionKnown": false,
+    "inspectRealityBeforeRetry": true
+  },
+  "passed": true
+}

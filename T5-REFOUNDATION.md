@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R4 — COMPLETE`; 다음 작업은 R0–R5 foundation closeout audit
+현재 Gate: `FOUNDATION R0–R5 — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -59,7 +59,8 @@ Non-goals:
 
 ## R1 — Thin Hand
 
-상태: `IN_PROGRESS` — 최소 loop·실제 exec·가린 prompt dump·API 키/OAuth 이중 콘솔 연결 성립.
+상태: `COMPLETE` — 최소 loop·실제 exec·가린 prompt dump·API 키/OAuth 이중 콘솔 연결,
+terminal performance·project fix·recovery·artifact 인간 여정까지 사용자 완료 문장 성립.
 API 키와 OAuth 실제 fixture가 모두 통과했다. OAuth는 요청·응답 모델 `gpt-5.5`, 모델 4왕복,
 exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰다.
 
@@ -86,8 +87,8 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 - 콘솔 답의 POSIX·Windows 절대경로와, 이미 관측된 절대경로에 유일하게 대응하는 상대경로를 화면에서만
   링크화. 클릭하면 현재 플랫폼 어댑터가 Finder·Explorer·기타 파일 관리자로 전달하며, 삭제된 경로는
   가장 가까운 존재 상위 폴더를 엶
-- 관리형 프로세스의 현재 경계: 레지스트리는 실행 중 T5 프로세스 메모리에만 존재해 재시작 복구는 아직
-  없음. PTY·TTY 직접 입력과 Windows 실제 프로세스 트리 종료는 미측정
+- 관리형 프로세스의 현재 경계: 레지스트리는 실행 중 T5 프로세스 메모리에만 존재해 비정상 crash/restart
+  복구는 아직 없음. PTY·TTY 직접 입력은 R2에서 성립, Windows 실제 프로세스 트리 종료는 미측정
 - 실제 OAuth 콘솔: 장기 작업 완료 재관측, 모델이 선택한 중단의 종료 확인·후속 효과 부재, running
   상태로 턴 반환 후 다음 턴 재관측, 실행 중 stdin write까지 성립
 - 2026-08-19 회귀 교정: 모든 `exec`를 1초 뒤 관리형으로 강제해 기존 완결 영수증을 잃었던 설계를 폐기.
@@ -105,7 +106,7 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 - 기존 CLI 발견·활용: `npm`·`node`·`python3` 실측
 - 실패 결과 뒤 다음 행동: 두 프로젝트에서 실패 재현 → 수정 → 재실행 성립
 - 파일 찾기·읽기·요약·수정·생성·복사·이동·삭제: `/private/tmp` 통제 구역의 연속 콘솔 시나리오 1회 성립.
-  독립 읽기 전용 대조까지 통과했으나 파일 영역 성능 완료로 판정하지 않음
+  독립 읽기 전용 대조와 R4 12턴 실제 자료→artifact→검증→Undo까지 원본 불변으로 성립
 
 사용자 완료 문장:
 
@@ -134,6 +135,13 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 - 첫 명령 실패 뒤 다른 수단 전환
 
 각 영역은 표현과 fixture를 바꾼 복수 과업으로 판정한다. 호출 횟수 자체는 Gate가 아니다.
+
+R1 완료 근거:
+
+- 프로젝트 조사·실패 진단·소스 수정·테스트 재검증: `r1-project-qualification.json` 2/2
+- 여러 파일 검색·계산·모호성 정지·실패 후 전환: `r1-terminal-performance.json` 4/4
+- 방법 실패·부분 결과·safe retry·PTY·불가능 정지: `r3-recovery-live.json` 5/5
+- 산출물 생성·재확인·원본 보존·recoverable Undo: `r4-human-multiturn-live.json` 파일 여정 12/12
 
 ## R2 — Truth and Authority
 
@@ -250,14 +258,18 @@ Non-goals:
 
 ### C0-R1 — Incomplete Tool Call Restart Hygiene
 
-상태: `DEFERRED` — 개발 중 오너가 의도적으로 중단한 단일 시험 Session. 현재 우선순위 아님.
+상태: `COMPLETE` — 개발 중단 Session에서 발견된 provider 400을 실제 crash/restart 가능 결손으로 재분류하고
+canonical 불변 provider projection repair가 실제 OAuth까지 성립.
 
 - Session `41cbec96-01d4-4691-834e-7579f33d9c89`의 Run
   `91cd9c2e-35c6-427d-8edb-50ed1e91d43a`가 model function call과 `tool_started` 뒤 종료 사건 없이 끊김
 - canonical Conversation에는 `call_0mWQV8JidejW2srALmXZFegD` function call만 있고 대응 tool output이 없음
 - 이후 같은 Session의 Run 3개가 모두 OAuth 400 `No tool output found for function call`로 실패
-- 세 실패는 독립 사례가 아니라 같은 오염 Session의 반복. 일반 사용자 흐름에서 재현되기 전까지 수정하지
-  않고 출시 전 restart hygiene 후보로 보존
+- 다음 provider projection은 누락된 call_id에 `interrupted_unknown` tool result를 구조적으로 삽입
+- 실행됐다고도 미실행이라고도 하지 않고 `executionKnown:false`; effect 재시도 전 현재 현실 관측을 요구
+- canonical Conversation에는 synthetic message를 쓰지 않음
+- 실제 OAuth 격리 Session: HTTP 200·Run completed·답 `안녕!`, terminal call 0, canonical synthetic write 0
+- 증거: `refoundation/evidence/c0-incomplete-tool-restart-repaired-live.json`
 
 ## C1 — Context Projection and Compaction
 
@@ -594,9 +606,20 @@ R5 완료 판정:
 Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증할 때 하나씩 연다. 새 능력은 agent loop를
 재작성하지 않고 도구 또는 상태 공급자로 붙어야 한다.
 
+Foundation closeout 분류:
+
+- 완료: R0·R1·R2·R3·R4·R5, S1, C0·C1 — 현재 측정된 macOS/POSIX console lane
+- 플랫폼 후속: Windows 실제 기기의 exec·process tree stop·Explorer reveal·path 현실은 미측정;
+  계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
+- 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
+  crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser/app/MCP, channels, automation service,
+  multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
+- 증거: `refoundation/evidence/foundation-closeout-audit.json`
+
 ## 현재 다음 한 작업
 
-R0·R2·R3·R4·R5와 C0·C1은 완료됐지만 R1 문서 상태가 아직 `IN_PROGRESS`다. 다음 한 작업은 새 기능이 아니라
-R0–R5 foundation closeout audit이다. R1의 사용자 완료 문장과 terminal 영역 목록을 현재 실제 OAuth·인간 여정
-증거에 대조하고, 진짜 미달만 남긴다. 완료되지 않은 C0-R1 interrupted-tool restart hygiene와 Windows 실제 기기
-미측정도 출시 전 필수/관찰/플랫폼 후속으로 정확히 분류한 뒤에만 R6 확장으로 간다.
+Foundation R0–R5 closeout은 완료됐다. 다음 한 작업은 R6 capability demand review다. 실제 콘솔의 인간 사용자
+요청과 실패 Run을 보고 terminal·memory·session search로 닿지 못한 목적을 빈도·영향으로 분류한 뒤,
+browser/app/MCP·channel·automation·multi-agent 중 사용자 가치가 가장 큰 한 능력만 연다. Windows 실제 기기와
+crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어 보고하지 않는다.
