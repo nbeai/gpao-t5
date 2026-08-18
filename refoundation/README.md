@@ -29,6 +29,7 @@ npm run refoundation:compare:skills -- --rounds 3
 npm run refoundation:compare:tool-projection -- --rounds 2
 npm run refoundation:compare:skill-catalog -- --rounds 2
 npm run refoundation:qualify:context-pressure -- --keep
+npm run refoundation:qualify:conversation-pressure -- --keep
 ```
 
 `refoundation:check`가 일상 진입점이다. legacy 전체 테스트와 gate는 새 코어의 일상 완료 기준이 아니다.
@@ -60,6 +61,10 @@ canonical receipt 불변을 함께 검사한다.
 
 큰 historical stdout/stderr projection에는 canonical `messageId`가 들어간다. 이 ref가 있는 세션에서만
 `conversation_recall(find|read)`이 제공되며, 허용된 같은-session 원문만 재실행 없이 읽는다.
+
+`refoundation:qualify:conversation-pressure`는 tool output 없이 user·assistant pair만 10KB~900KB로 늘려
+early fact·middle decision·recent open work 회상과 첫 provider context-window 실패를 측정한다.
+`--from extreme`처럼 시작 tier를 지정할 수 있다.
 
 콘솔 상태의 `conversations/<sessionId>.jsonl`은 모델이 실제로 본 user·assistant·tool 메시지의 append-only
 정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은

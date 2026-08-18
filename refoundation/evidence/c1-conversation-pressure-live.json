@@ -1,0 +1,49 @@
+{
+  "schema": "t5.conversation-pressure-live.v1",
+  "recordedAt": "2026-08-19T04:04:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "toolOutputsSeeded": false,
+  "tiers": [
+    { "id": "small", "messages": 41, "conversationChars": 10000, "requestBytes": 20829, "providerInputTokens": 4976, "wallMs": 2537, "needles": "3/3", "runId": "8e45a5f9-6864-450e-8423-035902491199" },
+    { "id": "medium", "messages": 121, "conversationChars": 60000, "requestBytes": 77309, "providerInputTokens": 22016, "wallMs": 3103, "needles": "3/3", "runId": "ed90750f-b0dc-4a60-b9be-88ce66728993" },
+    { "id": "large", "messages": 301, "conversationChars": 180000, "requestBytes": 211889, "providerInputTokens": 64800, "wallMs": 4198, "needles": "3/3", "runId": "7a63faec-20f3-47f0-ad8e-4b9999ac7443" },
+    { "id": "stress", "messages": 901, "conversationChars": 540000, "requestBytes": 620489, "providerInputTokens": 179356, "wallMs": 6346, "needles": "3/3", "runId": "d04d9174-9289-455b-a2c0-82c5af222bb2" },
+    { "id": "edge", "messages": 1001, "conversationChars": 600000, "requestBytes": 688589, "providerInputTokens": 217972, "wallMs": 7054, "needles": "3/3", "runId": "61b3c9a8-7df7-4a7a-9e60-a80141cc3ffa" },
+    { "id": "overflow", "messages": 1101, "conversationChars": 660000, "requestBytes": 756689, "providerInputTokens": 200991, "wallMs": 7064, "needles": "3/3", "runId": "828964fd-0553-4d9f-895a-0625295e0be3" },
+    { "id": "extreme", "messages": 1301, "conversationChars": 780000, "requestBytes": 892889, "providerInputTokens": 248756, "wallMs": 7318, "needles": "3/3", "runId": "5903e61d-0324-412c-a848-a902465ce22b" },
+    {
+      "id": "limit",
+      "messages": 1501,
+      "conversationChars": 900000,
+      "requestBytes": 1029089,
+      "providerInputTokens": null,
+      "wallMs": 3440,
+      "needles": "0/3",
+      "httpStatus": 500,
+      "runStatus": "failed",
+      "error": "Your input exceeds the context window of this model. Please adjust your input and try again.",
+      "runId": "2028bf6f-2d74-450c-a210-2fd48e10193b"
+    }
+  ],
+  "successfulCeiling": {
+    "messages": 1301,
+    "conversationChars": 780000,
+    "providerInputTokens": 248756,
+    "needles": "3/3"
+  },
+  "firstFailureTier": "limit",
+  "decision": {
+    "compactionOpened": true,
+    "next": "in-place-conversation-checkpoint-v0",
+    "canonicalRewrite": false,
+    "memoryFlushOpened": false,
+    "deferredDevelopmentSessionHygiene": true
+  },
+  "verification": {
+    "lastProductUnitBoundary": { "passed": 111, "failed": 0 },
+    "lastProductIntegration": { "passed": 12, "failed": 0 },
+    "qualificationScriptSyntax": "passed"
+  }
+}

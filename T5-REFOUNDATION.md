@@ -250,14 +250,14 @@ Non-goals:
 
 ### C0-R1 — Incomplete Tool Call Restart Hygiene
 
-상태: `NEXT` — C1-P3 콘솔 재시작 중 실제 결손이 열림.
+상태: `DEFERRED` — 개발 중 오너가 의도적으로 중단한 단일 시험 Session. 현재 우선순위 아님.
 
 - Session `41cbec96-01d4-4691-834e-7579f33d9c89`의 Run
   `91cd9c2e-35c6-427d-8edb-50ed1e91d43a`가 model function call과 `tool_started` 뒤 종료 사건 없이 끊김
 - canonical Conversation에는 `call_0mWQV8JidejW2srALmXZFegD` function call만 있고 대응 tool output이 없음
 - 이후 같은 Session의 Run 3개가 모두 OAuth 400 `No tool output found for function call`로 실패
-- 다음 목표: 원본은 그대로 두고 provider projection에서 unmatched call마다 실행 여부 `unknown/interrupted`인
-  synthetic tool result를 정확한 call_id로 보충해 세션을 다시 진행 가능하게 한다
+- 세 실패는 독립 사례가 아니라 같은 오염 Session의 반복. 일반 사용자 흐름에서 재현되기 전까지 수정하지
+  않고 출시 전 restart hygiene 후보로 보존
 
 ## C1 — Context Projection and Compaction
 
@@ -339,8 +339,23 @@ C1-P3 recoverable large tool output:
 - overflow 660KB: 28,126 tokens, needle 3/3, recall 3, terminal 0
 - 기본 large output mode를 `recoverable`로 승격; 단위·경계 111/111, 통합 12/12
 
-다음 한 작업은 실제 세션을 막은 C0-R1 Incomplete Tool Call Restart Hygiene다. 이 복구가 성립한 뒤
-C1-Q2 Conversation-only Pressure Qualification으로 돌아간다. summary compaction과 Memory flush는 계속 닫혀 있다.
+C1-Q2 conversation-only Context pressure qualification:
+
+- tool output 0, user·assistant pair만 누적하고 early owner fact·middle decision·recent open work 정확 회상
+- small 41 messages·10KB: 4,976 tokens, 3/3, 2.5초
+- medium 121 messages·60KB: 22,016 tokens, 3/3, 3.1초
+- large 301 messages·180KB: 64,800 tokens, 3/3, 4.2초
+- stress 901 messages·540KB: 179,356 tokens, 3/3, 6.3초
+- edge 1,001 messages·600KB: 217,972 tokens, 3/3, 7.1초
+- overflow 1,101 messages·660KB: 200,991 tokens, 3/3, 7.1초. 반복 패턴의 tokenization/cache 영향으로
+  char 크기와 provider token은 단조 비례하지 않아 둘 다 원장에 유지
+- extreme 1,301 messages·780KB: request 892,889 bytes, provider input 248,756 tokens, 3/3, 7.3초
+- limit 1,501 messages·900KB: request 1,029,089 bytes에서 context window exceeded,
+  HTTP 500·Run failed·tool call 0, 실패 전 Context Receipt 지속
+
+다음 한 작업은 C1-C1 In-place Conversation Checkpoint v0다. canonical 원문은 append-only로 보존하고,
+provider projection에 checkpoint summary + 최근 tail을 사용한다. 첫 구현은 exact identifier·현재 목표·결정·
+미해결 작업 보존, 실패 시 원본 Context 유지, 같은 session identity 유지까지만 연다. Memory flush는 그 뒤다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -392,6 +407,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-P3가 큰 historical tool output의 context-window 실패를 canonical 원문 손실 없이 제거했다. 그러나 실제
-재시작에서 unmatched function call이 같은 Session의 후속 Run 3개를 막은 C0-R1 결손이 열렸다. 다음 한 작업은
-provider projection에 truthful interrupted tool result를 보충해 해당 세션을 복구하는 것이다. 완료 뒤 C1-Q2로 돌아간다.
+C1-Q2가 tool output 없는 일반 대화에서도 1,501 messages·900KB에서 실제 context-window 실패를 재현했다.
+다음 한 작업은 C1-C1 In-place Conversation Checkpoint v0다. canonical 원문은 그대로 두고 summary + 최근 tail만
+provider에 공급하며, exact fact·decision·open work 회상과 900KB 실패 제거가 성립해야 한다. Memory flush는 아직 닫는다.
