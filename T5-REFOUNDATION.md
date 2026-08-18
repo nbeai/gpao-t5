@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `C1 — COMPLETE`; 다음 Gate의 첫 작업은 pre-compaction memory flush 범위 판정
+현재 Gate: `R5-P2 — Memory Selection and Conflict`
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -426,12 +426,57 @@ Non-goals: 콘솔 재디자인. 기존 UI 자체가 사용자 목적 달성을 �
 
 ## R5 — Persistent Personal Agent
 
+상태: `IN_PROGRESS` — P1 pre-compaction memory flush와 작은 user/work memory, P2 선택·충돌 자격이
+실제 OAuth까지 성립. Episode·검색·session search는 아직 없음.
+
 사용자 완료 문장:
 
 > 새 세션에서도 T5가 명시된 선호와 진행 중인 일을 정확히 이어받고, 사용자는 기억을 대화로
 > 확인·수정·삭제할 수 있다.
 
 필수 결과: append-only transcript, compaction, pre-compaction flush, 작은 user core, session search.
+
+### R5-P1 — Pre-compaction Memory Flush v0
+
+비교군에서 채택한 원리:
+
+- OpenClaw `f95b5a006226`: compaction 직전 별도 silent agent turn, daily append-only target 한정,
+  같은 compaction cycle 중복 방지, 쓰기 출처와 실패를 본 사용자 답과 분리
+- Hermes `9664e386f6`: MEMORY/USER 분리, 작은 bounded store, memory-only isolated review,
+  add·replace·remove 사용자 통제, 새 Session의 frozen snapshot
+- T5는 daily scratch와 장기 core를 두 벌로 만들지 않고, v0에서 검증할 작은 current memory 원장 하나만 사용
+
+현재 성립한 계약:
+
+- 0600 append-only `memory.jsonl`; `memory_added`·`memory_replaced`·`memory_removed` 사건과 안정된 memoryId
+- 현재값은 `user`(사용자 사실·선호)와 `work`(지속할 사실·결정)만 허용; Episode·Skill·transcript는 섞지 않음
+- entry 2,000 bytes, 전체 current content 16,000 bytes, 100 items 상한; 정확 중복은 새 사건 없이 기존 ID 반환
+- checkpoint summary 완성 뒤 별도 maintenance model이 memory 도구 하나만 사용; 터미널·스킬·외부 도구 없음
+- maintenance 호출과 receipt는 같은 Run에 남지만 canonical Conversation에는 넣지 않아 다음 사용자 요청을 오염시키지 않음
+- 자동 write는 source에 sessionId·runId·coversThroughMessageId·`pre_checkpoint` origin을 지속
+- review 실패·빈 결과·iteration 미완료는 `memory_flush_failed`로 남기고 checkpoint와 본 사용자 답은 계속
+- 각 Run 시작 때 bounded current memory를 frozen snapshot으로 공급; data이지 지시가 아니며 현재 요청·현재 현실이 우선
+- 본 모델에는 같은 memory 도구의 list·add·replace·remove를 제공해 사용자가 평소 말로 확인·기억·수정·삭제
+- `/memory/state`는 current projection, `/memory/ledger`는 append-only 사건을 기존 콘솔에 공급
+- 실제 OAuth: 780KB pre-checkpoint 자동 저장 1회, 서버 재시작 새 Session 회상은 tool call 0,
+  자연어 replace·remove는 각각 memory tool 1회, 다시 연 Session에서 제거된 기억 부재 확인
+- 기본 memory flush mode를 `pre-checkpoint-v0`로 승격
+- 증거: `refoundation/evidence/r5-pre-compaction-memory-flush-live.json`
+
+Non-goals:
+
+- Episode, vector/embedding, FTS, session search, 외부 memory provider, memory 관리 UI 재디자인
+- 자동으로 Skill을 고치거나 환경 실패·일회 요청·비밀값을 기억하는 것
+- memory가 현재 요청이나 새로 관측한 현실을 이기는 것
+
+### R5-P2 — Memory Selection and Conflict
+
+- 780KB 혼합 대화에 durable user preference·work decision과 일회 요청·해결된 오류·assistant 추측·비밀값을
+  서로 다른 시점과 role로 배치
+- 실제 OAuth maintenance model은 durable 2/2만 user/work로 저장하고 제외 대상 4/4를 저장하지 않음
+- 규칙별 정규식이나 코드별 필터 0; 같은 memory-only review 지침과 도구 경계로 판단
+- 새 Session에 과거 선호가 공급된 상태에서 현재 요청이 반대로 지시하면 tool call 0으로 현재 요청만 수행
+- 증거: `refoundation/evidence/r5-memory-selection-conflict-live.json`
 
 ## R6 이후 — 증거가 열 때만
 
@@ -441,7 +486,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1은 두 번째 checkpoint와 서버 재시작 뒤 실제 OAuth 회상까지 성립해 완료됐다. 다음 한 작업은 비교군에서
-확인한 pre-compaction memory flush를 T5에 여는 범위 판정이다. checkpoint 직전 무엇을 장기 기억 후보로
-내보내야 하는지, 무엇을 Conversation summary에만 남길지, 사용자가 확인·수정·삭제할 최소 계약을 먼저 정한다.
-이 판정 전에는 memory 저장소·검색·자동 추출을 구현하지 않는다.
+R5-P1·P2가 자동 저장·재시작 회상·사용자 수정·삭제·선택·현재 요청 우선까지 성립했다. 다음 한 작업은
+R5-P3 Session Search v0 범위 판정이다. Memory로 승격할 필요는 없지만 사용자가 과거 대화·작업을 다시 찾으려는
+경우 canonical Conversation 원장과 compacted prefix를 어떻게 검색할지 OpenClaw·Hermes 실제 소스와 T5 사용
+시나리오를 대조한다. 이 판정 전에는 embedding·외부 vector DB·Episode 자동 생성을 열지 않는다.

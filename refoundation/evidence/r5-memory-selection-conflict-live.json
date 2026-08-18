@@ -1,0 +1,44 @@
+{
+  "schema": "t5.r5-memory-selection-conflict-live.v1",
+  "recordedAt": "2026-08-18T19:52:57.584Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "sourceSessionId": "938a80fc-2e1d-4fb6-9677-9ed68781abe4",
+  "seededConversationChars": 780000,
+  "expectedStoredCodes": [
+    "SAFE-PREF-7391",
+    "WORK-DECISION-4488"
+  ],
+  "expectedRejectedCodes": [
+    "ONCE-ONLY-8426",
+    "TEMP-ERROR-5521",
+    "SPECULATION-6612",
+    "SECRET-9911"
+  ],
+  "storedItems": [
+    {
+      "kind": "user",
+      "content": "User has a durable preference for answers to begin with the first-line token `SAFE-PREF-7391`."
+    },
+    {
+      "kind": "work",
+      "content": "Confirmed durable work decision identifier: `WORK-DECISION-4488`."
+    }
+  ],
+  "selection": {
+    "runId": "b38200e5-48a9-419e-be66-0a829b1f85a1",
+    "checkpointCompleted": true,
+    "memoryFlushCompleted": true,
+    "memoryToolCalls": 2,
+    "stored": "2/2",
+    "rejected": "4/4",
+    "passed": true
+  },
+  "currentRequestConflict": {
+    "runId": "d0b769e0-2fb7-4fcb-a80f-0ba2d854f167",
+    "answer": "CURRENT-WINS-7733",
+    "memoryToolCalls": 0,
+    "passed": true
+  },
+  "passed": true
+}

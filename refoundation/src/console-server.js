@@ -25,6 +25,10 @@ import {
   planConversationCheckpoint,
   summarizeConversationCheckpoint,
 } from './conversation-checkpoint.js';
+import { MemoryLedger } from './memory-ledger.js';
+import {
+  makeMemoryTool, memoryContextMessage, memoryFlushRequest, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
+} from './memory-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -88,6 +92,8 @@ export function makeConsoleServer({
   checkpointTailBytes = 60_000,
   checkpointChunkBytes = 180_000,
   checkpointSummarizer,
+  memoryFlushMode = 'pre-checkpoint-v0',
+  memoryFlushMaxModelTurns = 8,
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -105,8 +111,12 @@ export function makeConsoleServer({
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
   }
+  if (!['off', 'pre-checkpoint-v0'].includes(memoryFlushMode)) {
+    throw new TypeError('unsupported memory flush mode');
+  }
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
+  const memories = new MemoryLedger(join(stateDir, 'memory'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
@@ -122,15 +132,17 @@ export function makeConsoleServer({
 
   async function status() { return Promise.resolve(modelStatus()); }
 
-  function projectConversation(conversation) {
+  function projectConversation(conversation, memoryItems = []) {
     const active = activeConversationProjection(conversation);
     const projectedTail = conversationProjection === 'historical-tool-receipt-v1'
       ? projectHistoricalConversationEntries(active.tailEntries, { largeOutputMode: largeToolOutputMode })
       : { messages: active.tailEntries.map((entry) => structuredClone(entry.message)), recoverable: [] };
-    return {
-      messages: active.checkpoint
+    const messages = active.checkpoint
         ? [structuredClone(active.messages[0]), ...projectedTail.messages]
-        : projectedTail.messages,
+        : projectedTail.messages;
+    const recalledMemory = memoryContextMessage(memoryItems);
+    return {
+      messages: recalledMemory ? [recalledMemory, ...messages] : messages,
       recoverable: projectedTail.recoverable,
       active,
     };
@@ -180,14 +192,17 @@ export function makeConsoleServer({
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
+    await memories.ensure();
+    const memorySnapshot = await memories.read();
     let canonicalConversation = await conversations.read(sessionId);
-    let projection = projectConversation(canonicalConversation);
+    let projection = projectConversation(canonicalConversation, memorySnapshot.items);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: projection.messages.length,
       conversationProjection,
       skillCatalogMode,
       largeToolOutputMode,
       conversationCheckpointMode,
+      memoryFlushMode,
       recoverableHistoricalOutputs: projection.recoverable.length,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
@@ -252,6 +267,81 @@ export function makeConsoleServer({
               },
             });
             const checkpointId = randomUUID();
+            if (memoryFlushMode === 'pre-checkpoint-v0') {
+              await run.append({
+                type: 'memory_flush_started', stepId: 'memory-flush', payload: {
+                  checkpointId, coversThroughMessageId: summarized.coversThroughMessageId,
+                  currentItems: memorySnapshot.items.length,
+                },
+              });
+              try {
+                const memoryModel = await modelFactory({
+                  sessionId, workspace, computer: computerFacts,
+                  instructionsOverride: MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
+                  purpose: 'memory_flush',
+                });
+                const memoryTool = makeMemoryTool({
+                  ledger: memories,
+                  source: {
+                    origin: 'pre_checkpoint', sessionId, runId: run.runId,
+                    coversThroughMessageId: summarized.coversThroughMessageId,
+                  },
+                });
+                const memoryResult = await runAgent({
+                  request: memoryFlushRequest(summarized.summary, memorySnapshot.items),
+                  model: memoryModel, tools: [memoryTool], signal: controller.signal,
+                  maxModelTurns: memoryFlushMaxModelTurns,
+                  onEvent: async (event) => {
+                    const memoryTurn = -2000 + Number(event.turn ?? 0);
+                    if (event.type === 'model_start') {
+                      await run.append({
+                        type: 'model_started', stepId: `memory-model-${event.turn}`,
+                        payload: { turn: memoryTurn, purpose: 'memory_flush' },
+                      });
+                    } else if (event.type === 'model_context') {
+                      await run.append({
+                        type: 'model_context_built', stepId: `memory-model-${event.turn}`,
+                        payload: { turn: memoryTurn, purpose: 'memory_flush', contextReceipt: event.contextReceipt },
+                      });
+                    } else if (event.type === 'model_end') {
+                      await run.append({
+                        type: 'model_completed', stepId: `memory-model-${event.turn}`,
+                        payload: { turn: memoryTurn, purpose: 'memory_flush', response: event.response },
+                      });
+                    } else if (event.type === 'tool_start') {
+                      await run.append({
+                        type: 'tool_started', stepId: `memory-tool-${event.toolCallId}`,
+                        payload: {
+                          turn: memoryTurn, purpose: 'memory_flush', toolCallId: event.toolCallId,
+                          name: event.name, args: event.args,
+                        },
+                      });
+                    } else if (event.type === 'tool_end') {
+                      await run.append({
+                        type: 'tool_completed', stepId: `memory-tool-${event.receipt.toolCallId}`,
+                        payload: { turn: memoryTurn, purpose: 'memory_flush', receipt: event.receipt },
+                      });
+                    }
+                  },
+                });
+                if (memoryResult.status !== 'completed') {
+                  throw new Error(`memory flush ended without completion: ${memoryResult.status}`);
+                }
+                const afterMemory = await memories.read();
+                await run.append({
+                  type: 'memory_flush_completed', stepId: 'memory-flush', payload: {
+                    checkpointId, modelTurns: memoryResult.modelTurns,
+                    receiptCount: memoryResult.receipts.length,
+                    itemsBefore: memorySnapshot.items.length, itemsAfter: afterMemory.items.length,
+                  },
+                });
+              } catch (error) {
+                await run.append({
+                  type: 'memory_flush_failed', stepId: 'memory-flush',
+                  payload: { checkpointId, error: error?.message ?? String(error) },
+                });
+              }
+            }
             await conversations.appendCheckpoint({
               sessionId, checkpointId,
               coversThroughMessageId: summarized.coversThroughMessageId,
@@ -271,7 +361,7 @@ export function makeConsoleServer({
               },
             });
             canonicalConversation = await conversations.read(sessionId);
-            projection = projectConversation(canonicalConversation);
+            projection = projectConversation(canonicalConversation, memorySnapshot.items);
           } catch (error) {
             await run.append({
               type: 'checkpoint_failed', stepId: 'checkpoint',
@@ -303,6 +393,10 @@ export function makeConsoleServer({
       if (skillSnapshot.skills.length) {
         offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
       }
+      offeredTools.unshift(makeMemoryTool({
+        ledger: memories,
+        source: { origin: 'foreground', sessionId, runId: run.runId },
+      }));
       const result = await runAgent({
         request: text,
         history,
@@ -345,6 +439,7 @@ export function makeConsoleServer({
             emit('tool_progress', {
               text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
                 : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
+                  : event.name === 'memory' ? '기억을 확인하고 있어요'
                   : '터미널을 사용하고 있어요',
             });
           } else if (event.type === 'tool_end') {
@@ -735,8 +830,16 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/skills') { json(res, 200, { skills: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, { jobs: [], candidates: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/overview') { json(res, 200, {}); return; }
-      if (req.method === 'GET' && url.pathname === '/memory/state') { json(res, 200, { items: [] }); return; }
-      if (req.method === 'GET' && url.pathname === '/memory/ledger') { json(res, 200, { entries: [] }); return; }
+      if (req.method === 'GET' && url.pathname === '/memory/state') {
+        await memories.ensure();
+        const memory = await memories.read();
+        json(res, 200, { items: memory.items }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/memory/ledger') {
+        await memories.ensure();
+        const memory = await memories.read();
+        json(res, 200, { entries: memory.events }); return;
+      }
       if (req.method === 'GET' && url.pathname === '/connectors/truth') { json(res, 200, { connectors: [] }); return; }
       if (req.method === 'POST' && url.pathname === '/turn/metrics/visible') {
         const input = await body(req);
@@ -751,6 +854,7 @@ export function makeConsoleServer({
   });
   server.managedProcesses = processes;
   server.conversationLedger = conversations;
+  server.memoryLedger = memories;
   server.runLedger = runLedger;
   server.authorityStore = authority;
   server.unsubscribeTerminalWake = unsubscribeTerminal;

@@ -1,0 +1,167 @@
+import { randomUUID } from 'node:crypto';
+import { appendFile, chmod, mkdir, open, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+const SCHEMA = 't5.memory-event.v1';
+const KINDS = new Set(['user', 'work']);
+
+function clone(value) { return value == null ? value : structuredClone(value); }
+function bytes(value) { return Buffer.byteLength(String(value ?? ''), 'utf8'); }
+
+function normalizedContent(content) {
+  const value = String(content ?? '').trim();
+  if (!value) throw new TypeError('memory content is required');
+  return value;
+}
+
+function normalizedKind(kind) {
+  const value = String(kind ?? '');
+  if (!KINDS.has(value)) throw new TypeError('memory kind must be user or work');
+  return value;
+}
+
+function parseEvents(text) {
+  const events = String(text ?? '').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  if (!events.length || events[0].type !== 'memory_started') throw new Error('invalid memory ledger');
+  for (const [index, event] of events.entries()) {
+    if (event.schema !== SCHEMA || event.sequence !== index + 1) {
+      throw new Error('invalid memory event sequence');
+    }
+    if (event.type !== 'memory_started' && !event.memoryId) throw new Error('invalid memory event');
+    if (['memory_added', 'memory_replaced'].includes(event.type)) {
+      normalizedKind(event.kind);
+      normalizedContent(event.content);
+    }
+  }
+  return events;
+}
+
+function project(events) {
+  const current = new Map();
+  for (const event of events) {
+    if (event.type === 'memory_added') {
+      current.set(event.memoryId, {
+        memoryId: event.memoryId, kind: event.kind, content: event.content,
+        source: clone(event.source ?? null), createdAt: event.recordedAt, updatedAt: event.recordedAt,
+      });
+    } else if (event.type === 'memory_replaced') {
+      const previous = current.get(event.memoryId);
+      if (!previous) throw new Error('memory replacement target is missing');
+      current.set(event.memoryId, {
+        ...previous, kind: event.kind, content: event.content,
+        source: clone(event.source ?? null), updatedAt: event.recordedAt,
+      });
+    } else if (event.type === 'memory_removed') {
+      if (!current.has(event.memoryId)) throw new Error('memory removal target is missing');
+      current.delete(event.memoryId);
+    }
+  }
+  return [...current.values()];
+}
+
+export class MemoryLedger {
+  constructor(directory, { maxEntryBytes = 2_000, maxActiveBytes = 16_000, maxItems = 100 } = {}) {
+    if (!directory) throw new TypeError('memory ledger directory is required');
+    this.directory = directory;
+    this.path = join(directory, 'memory.jsonl');
+    this.maxEntryBytes = maxEntryBytes;
+    this.maxActiveBytes = maxActiveBytes;
+    this.maxItems = maxItems;
+    this.queue = Promise.resolve();
+  }
+
+  serialize(work) {
+    const next = this.queue.then(work, work);
+    this.queue = next.catch(() => {});
+    return next;
+  }
+
+  async ensure() {
+    return this.serialize(async () => {
+      try { return await this.read(); }
+      catch (error) { if (error?.code !== 'ENOENT') throw error; }
+      await mkdir(this.directory, { recursive: true, mode: 0o700 });
+      await chmod(this.directory, 0o700);
+      const handle = await open(this.path, 'ax', 0o600);
+      await handle.close();
+      await chmod(this.path, 0o600);
+      const event = {
+        schema: SCHEMA, sequence: 1, recordedAt: new Date().toISOString(), type: 'memory_started',
+      };
+      await appendFile(this.path, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+      return this.read();
+    });
+  }
+
+  async read() {
+    const events = parseEvents(await readFile(this.path, 'utf8'));
+    return { events: clone(events), items: project(events) };
+  }
+
+  validateCapacity(items) {
+    if (items.length > this.maxItems) throw new Error('memory capacity exceeded');
+    const total = items.reduce((sum, item) => sum + bytes(item.content), 0);
+    if (total > this.maxActiveBytes) throw new Error('memory capacity exceeded');
+  }
+
+  async append(type, fields) {
+    const current = await this.read();
+    const event = {
+      schema: SCHEMA, sequence: current.events.length + 1,
+      recordedAt: new Date().toISOString(), type, ...clone(fields),
+    };
+    await appendFile(this.path, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+    return event;
+  }
+
+  async add({ kind, content, source = null } = {}) {
+    const nextKind = normalizedKind(kind);
+    const nextContent = normalizedContent(content);
+    if (bytes(nextContent) > this.maxEntryBytes) throw new Error('memory entry is too large');
+    return this.serialize(async () => {
+      const current = await this.read();
+      const duplicate = current.items.find((item) => item.kind === nextKind && item.content === nextContent);
+      if (duplicate) return clone(duplicate);
+      this.validateCapacity([...current.items, { kind: nextKind, content: nextContent }]);
+      const memoryId = randomUUID();
+      const event = await this.append('memory_added', {
+        memoryId, kind: nextKind, content: nextContent, source,
+      });
+      return {
+        memoryId, kind: nextKind, content: nextContent, source: clone(source),
+        createdAt: event.recordedAt, updatedAt: event.recordedAt,
+      };
+    });
+  }
+
+  async replace({ memoryId, kind, content, source = null } = {}) {
+    const id = String(memoryId ?? '');
+    const nextContent = normalizedContent(content);
+    if (bytes(nextContent) > this.maxEntryBytes) throw new Error('memory entry is too large');
+    return this.serialize(async () => {
+      const current = await this.read();
+      const previous = current.items.find((item) => item.memoryId === id);
+      if (!previous) throw new Error('memory not found');
+      const nextKind = kind == null ? previous.kind : normalizedKind(kind);
+      if (previous.kind === nextKind && previous.content === nextContent) return clone(previous);
+      const nextItems = current.items.map((item) => item.memoryId === id
+        ? { ...item, kind: nextKind, content: nextContent } : item);
+      this.validateCapacity(nextItems);
+      const event = await this.append('memory_replaced', {
+        memoryId: id, kind: nextKind, content: nextContent, source,
+      });
+      return { ...previous, kind: nextKind, content: nextContent, source: clone(source), updatedAt: event.recordedAt };
+    });
+  }
+
+  async remove({ memoryId, source = null } = {}) {
+    const id = String(memoryId ?? '');
+    return this.serialize(async () => {
+      const current = await this.read();
+      const previous = current.items.find((item) => item.memoryId === id);
+      if (!previous) throw new Error('memory not found');
+      await this.append('memory_removed', { memoryId: id, source });
+      return clone(previous);
+    });
+  }
+}
