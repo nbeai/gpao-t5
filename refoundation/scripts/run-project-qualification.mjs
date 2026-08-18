@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { dirname, join, resolve } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
-import { makeExecTool } from '../src/exec-tool.js';
+import { makeTerminalHand } from '../src/exec-tool.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
 import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
 import {
@@ -103,7 +103,8 @@ for (const definition of PROJECT_CASES) {
   const responseDir = join(data, 'response-dump');
   await Promise.all([home, workspace, data].map((path) => mkdir(path, { recursive: true })));
   await materializeProjectCase(definition, workspace);
-  const tool = makeExecTool({ workspace });
+  const terminal = makeTerminalHand({ workingDirectory: workspace, ownerId: definition.id, yieldMs: 5000 });
+  const tool = terminal.tools[0];
   const baselineTest = await tool.execute({ command: 'npm test', cwd: null });
   const before = await snapshotProject(workspace);
   const previousHome = process.env.T5_REFOUNDATION_HOME;
@@ -123,7 +124,7 @@ for (const definition of PROJECT_CASES) {
     agentResult = await runAgent({
       request: definition.request,
       model: selectedModel.model,
-      tools: [tool],
+      tools: terminal.tools,
       maxModelTurns: 20,
     });
   } catch (error) {

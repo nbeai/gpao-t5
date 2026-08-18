@@ -66,7 +66,10 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 터미널 기능:
 
 - 현재 컴퓨터의 명령 처리기 실행, stdout·stderr·exit code 원문 반환
-- timeout·abort·출력 상한·기본 cwd·자격 환경 차단
+- 짧은 명령은 같은 호출에서 완료, 계속 실행 중이면 timeout 거짓말 대신 `running` process handle 반환
+- `process_control`: 세션별 list·cursor 이후 새 출력 poll·stdin write·프로세스 트리 stop
+- `stop_requested`와 실제 종료 확인된 `stopped` 분리, 콘솔 취소·런타임 종료 시 소유 프로세스 트리 정리
+- 관측당 출력 상한·1MB 관리 spool·기본 cwd·자격 환경 차단
 - `tree-sitter-bash@0.25.1` + `web-tree-sitter@0.26.9` 정확 핀
 - WASM 지연 로딩·캐시, 128KB 입력 상한, 500ms 파싱 제한
 - command steps·nested context·operators를 같은 ToolReceipt로 모델에게 반환
@@ -82,6 +85,8 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 - 콘솔 답의 POSIX·Windows 절대경로와, 이미 관측된 절대경로에 유일하게 대응하는 상대경로를 화면에서만
   링크화. 클릭하면 현재 플랫폼 어댑터가 Finder·Explorer·기타 파일 관리자로 전달하며, 삭제된 경로는
   가장 가까운 존재 상위 폴더를 엶
+- 관리형 프로세스의 현재 경계: 레지스트리는 실행 중 T5 프로세스 메모리에만 존재해 재시작 복구는 아직
+  없음. PTY·TTY 직접 입력과 Windows 실제 프로세스 트리 종료는 미측정
 
 영역 상태:
 

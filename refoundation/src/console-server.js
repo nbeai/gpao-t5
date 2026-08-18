@@ -6,9 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
-import { makeExecTool } from './exec-tool.js';
+import { makeTerminalHand } from './exec-tool.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
+import { ManagedProcessRegistry } from './managed-process.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -56,6 +57,8 @@ export function makeConsoleServer({
   uiRoot = legacyUiRoot,
   computerEnvironment,
   revealPath,
+  processRegistry,
+  processYieldMs = 1000,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -63,6 +66,7 @@ export function makeConsoleServer({
   const sessions = new ConsoleSessionStore(stateDir);
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
+  const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
   const reveal = revealPath ?? makePathRevealer({ platform: computer.platform });
   const pendingStreams = new Map();
   const running = new Map();
@@ -79,11 +83,15 @@ export function makeConsoleServer({
     running.set(sessionId, controller);
     try {
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
+      const terminal = makeTerminalHand({
+        workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
+        yieldMs: processYieldMs,
+      });
       const result = await runAgent({
         request: text,
         history,
         model,
-        tools: [makeExecTool({ workingDirectory: workspace, computer })],
+        tools: terminal.tools,
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {
@@ -109,7 +117,7 @@ export function makeConsoleServer({
     }
   }
 
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
@@ -210,6 +218,7 @@ export function makeConsoleServer({
       if (req.method === 'POST' && url.pathname === '/turn/cancel') {
         const input = await body(req);
         running.get(input.sessionId)?.abort();
+        await processes.stopOwner(input.sessionId, 'user_cancelled');
         json(res, 200, { ok: true }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
@@ -270,4 +279,6 @@ export function makeConsoleServer({
       json(res, error?.status ?? 500, { error: error?.message ?? '처리 중 문제가 있었어요.' });
     }
   });
+  server.managedProcesses = processes;
+  return server;
 }

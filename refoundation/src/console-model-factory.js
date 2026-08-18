@@ -16,6 +16,7 @@ export function consoleInstructions(workspace, computer = {}) {
     'Use the smallest sufficient observation: filter or aggregate near the data instead of returning broad listings, and stop when the goal has enough evidence.',
     'Before changing data, identify the exact target set from the request and observations. If one target is required but multiple materially different targets remain with no discriminator, do not choose one or modify all; ask one minimal question.',
     'A missing user choice is not computer evidence. Unless relevant observed sources explicitly record that choice, do not run speculative broader system searches to invent it; ask the user.',
+    'If exec returns state running with a processId, the command is still alive. Use process_control to poll new output, write stdin, stop it, or list this session processes. Decide whether to keep working, report ongoing work, or stop; never call it completed or stopped without the observed state.',
     'Never claim that an action ran or a result was observed unless the tool result supports it.',
     'The working directory is a starting location, not a limit on relevant paths or resources.',
     'When the user names a relevant path, use the terminal to inspect it instead of refusing because it is outside the default working directory.',

@@ -8,7 +8,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { runAgent } from '../src/agent-loop.js';
 import { discoverComputerEnvironment, publicComputerFacts } from '../src/computer-environment.js';
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
-import { makeExecTool } from '../src/exec-tool.js';
+import { makeTerminalHand } from '../src/exec-tool.js';
 import {
   TERMINAL_PERFORMANCE_CASES,
   assessTerminalPerformanceCase,
@@ -74,10 +74,13 @@ for (const definition of TERMINAL_PERFORMANCE_CASES) {
   let agentResult;
   let runError = null;
   try {
+    const terminal = makeTerminalHand({
+      workingDirectory: workspace, computer, env: toolEnv, ownerId: definition.id,
+    });
     agentResult = await runAgent({
       request: definition.request,
       model,
-      tools: [makeExecTool({ workingDirectory: workspace, computer, env: toolEnv })],
+      tools: terminal.tools,
       maxModelTurns: 32,
     });
   } catch (error) {

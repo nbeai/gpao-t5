@@ -80,3 +80,141 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료를 관측한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-process-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  const modelFactory = () => {
+    let observed = '';
+    return { async respond(input) {
+      const last = input.messages.at(-1);
+      if (last.role !== 'tool') return {
+        text: '', responseId: 'start', responseModel: 'process-model',
+        toolCalls: [{
+          id: 'long-exec', name: 'exec',
+          args: { command: "printf 'phase-1'; sleep 0.08; printf 'phase-2'", cwd: null },
+        }],
+      };
+      const receipt = JSON.parse(last.content);
+      if (receipt.requestedCall.name === 'exec') {
+        assert.equal(receipt.result.state, 'running');
+        observed += receipt.result.stdout;
+        return {
+          text: '', responseId: 'poll', responseModel: 'process-model',
+          toolCalls: [{
+            id: 'long-poll', name: 'process_control', args: {
+              action: 'poll', processId: receipt.result.processId,
+              cursor: receipt.result.cursor, input: null, end: null, waitMs: 200,
+            },
+          }],
+        };
+      }
+      assert.equal(receipt.requestedCall.name, 'process_control');
+      observed += receipt.result.stdout;
+      if (receipt.result.state === 'running') return {
+        text: '', responseId: 'poll-again', responseModel: 'process-model',
+        toolCalls: [{
+          id: `long-poll-${Date.now()}`, name: 'process_control', args: {
+            action: 'poll', processId: receipt.result.processId,
+            cursor: receipt.result.cursor, input: null, end: null, waitMs: 200,
+          },
+        }],
+      };
+      assert.equal(receipt.result.state, 'completed');
+      assert.equal(observed, 'phase-1phase-2');
+      assert.equal(receipt.result.processExitCode, 0);
+      return {
+        text: '장기 작업의 새 출력과 완료를 확인했습니다.', toolCalls: [],
+        responseId: 'done', responseModel: 'process-model',
+      };
+    } };
+  };
+  const errors = [];
+  const server = makeConsoleServer({
+    stateDir, workspace, modelFactory, processYieldMs: 20,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'process-model' }),
+    onError: (error) => errors.push(error),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '시간이 걸리는 작업을 끝까지 확인해줘' }),
+    }).then((response) => response.json());
+    assert.equal(errors.length, 0, errors[0]?.stack ?? errors[0]?.message);
+    assert.equal(reply.reply, '장기 작업의 새 출력과 완료를 확인했습니다.');
+    assert.equal(server.managedProcesses.list(created.id)[0].state, 'completed');
+  } finally {
+    await server.managedProcesses.stopAll('test_cleanup');
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝낸다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-cancel-process-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const marker = join(workspace, 'should-not-exist.txt');
+  await mkdir(workspace, { recursive: true });
+  const modelFactory = () => ({
+    async respond(input) {
+      const last = input.messages.at(-1);
+      if (last.role !== 'tool') return {
+        text: '', toolCalls: [{
+          id: 'cancel-exec', name: 'exec',
+          args: { command: `(sleep 0.5; printf late > '${marker}') & wait`, cwd: null },
+        }],
+      };
+      const receipt = JSON.parse(last.content);
+      return {
+        text: '', toolCalls: [{
+          id: `cancel-poll-${Date.now()}`, name: 'process_control', args: {
+            action: 'poll', processId: receipt.result.processId,
+            cursor: receipt.result.cursor, input: null, end: null, waitMs: 30000,
+          },
+        }],
+      };
+    },
+  });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory, processYieldMs: 20 });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const start = await fetch(`${base}/turn/stream-start`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '오래 걸리는 작업을 시작해줘' }),
+    }).then((response) => response.json());
+    const streamPromise = fetch(`${base}/turn/stream?sessionId=${created.id}&streamId=${start.streamId}`)
+      .then((response) => response.text());
+    for (let attempt = 0; attempt < 50 && !server.managedProcesses.list(created.id).length; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(server.managedProcesses.list(created.id)[0]?.state, 'running');
+    await fetch(`${base}/turn/cancel`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id }),
+    });
+    const stream = await streamPromise;
+    assert.match(stream, /멈췄어요/);
+    assert.equal(server.managedProcesses.list(created.id)[0].state, 'stopped');
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    const { access } = await import('node:fs/promises');
+    await assert.rejects(() => access(marker));
+  } finally {
+    await server.managedProcesses.stopAll('test_cleanup');
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

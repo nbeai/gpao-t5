@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { makeExecTool } from '../src/exec-tool.js';
+import { makeExecTool, makeProcessControlTool } from '../src/exec-tool.js';
 
 async function rooms(fn) {
   const root = await mkdtemp(join(tmpdir(), 't5-exec-boundary-'));
@@ -38,10 +38,17 @@ test('기본 cwd는 능력 경계가 아니며 사용자가 지목한 접근 가
   assert.equal(result.stdout.trim(), await realpath(outside));
 }));
 
-test('exec timeout은 실행 결과에 timeout 사실을 남긴다', async () => rooms(async ({ workspace }) => {
-  const result = await makeExecTool({ workspace, timeoutMs: 20 }).execute({ command: 'sleep 1' });
-  assert.equal(result.stopped, 'timeout');
-  assert.notEqual(result.exitCode, 0);
+test('exec는 오래 걸리는 명령을 거짓 timeout으로 만들지 않고 제어 가능한 handle을 돌려준다', async () => rooms(async ({ workspace }) => {
+  const tool = makeExecTool({ workspace, yieldMs: 20 });
+  const result = await tool.execute({ command: 'sleep 1', cwd: null });
+  assert.equal(result.state, 'running');
+  assert.ok(result.processId);
+  const control = makeProcessControlTool({ processRegistry: tool.processRegistry });
+  const stopped = await control.execute({
+    action: 'stop', processId: result.processId, cursor: result.cursor, input: null, end: null, waitMs: null,
+  });
+  assert.equal(stopped.state, 'stopped');
+  assert.equal(stopped.terminationConfirmed, true);
 }));
 
 test('exec 결과에는 Tree-sitter가 읽은 명령 단계와 operator가 붙는다', async () => rooms(async ({ workspace }) => {

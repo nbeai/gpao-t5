@@ -26,5 +26,6 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.match(instructions, /user choice.*not.*computer evidence/i);
   assert.match(instructions, /speculative.*broader system/i);
+  assert.match(instructions, /process_control.*poll.*write.*stop.*list/i);
   assert.doesNotMatch(instructions, /macos|darwin/i);
 });

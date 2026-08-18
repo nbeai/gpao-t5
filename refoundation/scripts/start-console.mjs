@@ -45,6 +45,9 @@ if (!process.argv.includes('--no-open')) {
   spawn(opener, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref();
 }
 
-const stop = () => server.close(() => process.exit(0));
+const stop = async () => {
+  await server.managedProcesses.stopAll('runtime_shutdown');
+  server.close(() => process.exit(0));
+};
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);

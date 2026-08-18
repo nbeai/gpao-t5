@@ -4,7 +4,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
-import { makeExecTool } from '../src/exec-tool.js';
+import { makeTerminalHand } from '../src/exec-tool.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
 import { makePromptDumper } from '../src/prompt-dump.js';
 import {
@@ -98,10 +98,11 @@ try {
     throw new Error(`지원하지 않는 인증 방식: ${authMode}`);
   }
   if (!model) throw new Error('사용할 모델 연결을 만들지 못했습니다.');
+  const terminal = makeTerminalHand({ workingDirectory: workspace, ownerId: 'live-run' });
   const result = await runAgent({
     request,
     model,
-    tools: [makeExecTool({ workspace })],
+    tools: terminal.tools,
     maxModelTurns: 12,
   });
   const fixturePassed = customRequest ? null : (
