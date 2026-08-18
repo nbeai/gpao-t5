@@ -1,0 +1,66 @@
+{
+  "schema": "t5.skill-runtime-live.v1",
+  "recordedAt": "2026-08-19T02:12:00+09:00",
+  "model": "gpt-5.5",
+  "fixture": {
+    "root": "/private/tmp/t5-s1-live",
+    "usedActualUserData": false,
+    "facts": {
+      "oldTextBirthEpoch": 1787073033,
+      "recentTextBirthEpoch": 1787073040,
+      "distractors": ["비아이5.pdf", "비아이50.txt"]
+    }
+  },
+  "cases": [
+    {
+      "kind": "exact_name_with_extension_and_creation_order",
+      "runId": "7b193095-389b-4bdc-862a-1f19f2b658b0",
+      "status": "completed",
+      "expectedPath": "/private/tmp/t5-s1-live/recent/비아이5.txt",
+      "reportedPath": "/private/tmp/t5-s1-live/recent/비아이5.txt",
+      "skillViews": 1,
+      "execCalls": 2,
+      "modelCalls": 4,
+      "wallMs": 23968,
+      "totalTokens": 15133
+    },
+    {
+      "kind": "title_with_unknown_extension",
+      "runId": "89d92799-16e9-4d65-a16d-22a84252aa7a",
+      "status": "completed",
+      "expectedPath": "/private/tmp/t5-s1-live/recent/비아이5.txt",
+      "reportedPath": "/private/tmp/t5-s1-live/recent/비아이5.txt",
+      "skillViews": 1,
+      "execCalls": 2,
+      "modelCalls": 4,
+      "wallMs": 22125,
+      "totalTokens": 14546
+    },
+    {
+      "kind": "missing_target_stops_without_repeat",
+      "runId": "4991fdb0-df96-408f-98ea-8a0f740656ce",
+      "status": "completed",
+      "matches": 0,
+      "checkedDirectories": 4,
+      "checkedEntries": 7,
+      "skillViews": 1,
+      "execCalls": 1,
+      "modelCalls": 3,
+      "wallMs": 18130,
+      "totalTokens": 9185
+    }
+  ],
+  "verification": {
+    "skillValidator": "passed",
+    "dependencyAuditVulnerabilities": 0,
+    "unitBoundaryTests": { "passed": 90, "failed": 0 },
+    "integrationTests": { "passed": 9, "failed": 0 },
+    "legacyCoreImports": 0,
+    "existingPtyParallelFlake": {
+      "observed": true,
+      "symptom": "parallel full suite twice observed only SIZE1 before the PTY geometry assertion and left the test pending",
+      "isolatedResult": { "passed": 3, "failed": 0 },
+      "changedInThisWork": false
+    }
+  }
+}

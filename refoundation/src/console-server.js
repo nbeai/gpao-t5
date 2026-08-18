@@ -14,10 +14,12 @@ import { RunLedger } from './run-ledger.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
+import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
+const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 
 function json(res, status, value) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -62,6 +64,7 @@ export function makeConsoleServer({
   computerEnvironment,
   revealPath,
   processRegistry,
+  skillsRoot = bundledSkillsRoot,
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -150,11 +153,13 @@ export function makeConsoleServer({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
       });
+      const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
+      const skillTool = makeSkillTool({ snapshot: skillSnapshot });
       const result = await runAgent({
         request: text,
         history,
         model,
-        tools: terminal.tools,
+        tools: [skillTool, ...terminal.tools],
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {
@@ -175,7 +180,9 @@ export function makeConsoleServer({
                 turn: event.turn, toolCallId: event.toolCallId, name: event.name, args: event.args,
               },
             });
-            emit('tool_progress', { text: '터미널을 사용하고 있어요' });
+            emit('tool_progress', {
+              text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요' : '터미널을 사용하고 있어요',
+            });
           } else if (event.type === 'tool_end') {
             await run.append({
               type: 'tool_completed', stepId: `tool-${event.receipt.toolCallId}`,

@@ -6,6 +6,78 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
+test('모델은 필요한 스킬만 열고 기존 터미널로 실행하며 두 사실을 같은 Run에 남긴다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-skill-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const skillsRoot = join(room, 'skills');
+  const skillDir = join(skillsRoot, 'file-discovery');
+  await mkdir(workspace, { recursive: true });
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(join(skillDir, 'SKILL.md'), [
+    '---',
+    'name: file-discovery',
+    'description: Find the intended local file across filename variations.',
+    '---',
+    '',
+    '# File discovery',
+    '',
+    'Normalize names, search the title stem, then verify the extension.',
+  ].join('\n'));
+
+  let turn = 0;
+  const modelFactory = () => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) {
+      const skill = input.tools.find((tool) => tool.name === 'skill');
+      assert.ok(skill);
+      assert.match(skill.description, /file-discovery/);
+      assert.doesNotMatch(skill.description, /Normalize names/);
+      return { text: '', toolCalls: [{
+        id: 'view-skill', name: 'skill', args: { action: 'view', name: 'file-discovery' },
+      }] };
+    }
+    const observation = JSON.parse(input.messages.at(-1).content);
+    if (turn === 2) {
+      assert.equal(observation.actualCall.name, 'skill');
+      assert.match(observation.result.content, /Normalize names/);
+      return { text: '', toolCalls: [{ id: 'use-terminal', name: 'exec', args: {
+        command: "printf 'found-after-skill'", cwd: null,
+        effect: { kind: 'observe', summary: '스킬 절차 적용 결과', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+      } }] };
+    }
+    assert.equal(observation.actualCall.name, 'exec');
+    assert.equal(observation.result.stdout, 'found-after-skill');
+    return { text: '스킬을 읽고 터미널로 확인했습니다.', toolCalls: [] };
+  } });
+
+  const server = makeConsoleServer({
+    stateDir, workspace, skillsRoot, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'skill-model' }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '이름이 조금 다른 파일을 찾아줘' }),
+    }).then((response) => response.json());
+    assert.equal(reply.reply, '스킬을 읽고 터미널로 확인했습니다.');
+    const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
+    const completed = run.events.filter((event) => event.type === 'tool_completed');
+    assert.deepEqual(completed.map((event) => event.payload.receipt.actualCall.name), ['skill', 'exec']);
+    assert.equal(completed[0].payload.receipt.result.state, 'viewed');
+    assert.match(completed[0].payload.receipt.result.contentDigest, /^[0-9a-f]{64}$/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted reply를 왕복한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-surface-'));
   const stateDir = join(room, 'state');

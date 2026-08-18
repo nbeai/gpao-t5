@@ -5,7 +5,7 @@
 ## 경계
 
 - 기존 `../src`, `../test`, `../scripts`의 제품 코드를 import하지 않는다.
-- 현재 Gate가 열지 않은 memory, skills, channels, automation, multi-agent를 만들지 않는다.
+- 현재 Gate가 열지 않은 memory, channels, automation, multi-agent와 S1 범위를 넘는 skills를 만들지 않는다.
 - 실제 사용자 HOME·계정·자격증명을 테스트에 사용하지 않는다.
 - 상태와 산출물은 임시 격리 경로 또는 `T5_REFOUNDATION_*`가 가리키는 저장소 밖 경로에 둔다.
 
@@ -49,5 +49,6 @@ refoundation/
   src/       새 코어만
   test/      새 코어 불변식·과업 시험
   scripts/   격리·경계·진단
+  skills/    S1이 연 신뢰된 bundled 절차 지식; 실행기는 아님
   evidence/  작은 기계 증거만; 실행 부산물은 저장소 밖
 ```

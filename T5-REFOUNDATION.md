@@ -182,6 +182,37 @@ PTY가 실제 OAuth까지 성립. 영속 Run 18개 backend 수요 audit 결과 0
 - `process_control resize`가 실제 `stty size` 24×80 → 40×100으로 반영
 - backend demand audit: 영속 Run 18개에서 SSH·Docker·cloud·HPC 실행 위치 요구 0, adapter 미구현
 
+## S1 — Just-in-Time Procedural Skill v0
+
+상태: `COMPLETE` — 사용자가 실측한 `비아이5.txt`와 `비아이5 문서` 탐색 편차가 터미널 손의 결손이
+아니라 방법 선택의 편차임을 근거로, R6의 전체 Skills 축보다 먼저 검증 가능한 최소 절차 스킬 slice를 열었다.
+
+사용자 완료 문장:
+
+> T5가 현재 목적에 맞는 짧은 방법을 필요할 때만 읽고, 기존 터미널로 적용하며, 선택·실행·결과를
+> 같은 Run에서 다시 확인할 수 있다.
+
+현재 성립한 계약:
+
+- 신뢰된 bundled `refoundation/skills/*/SKILL.md` 한 위치만 사용; 설치·원격·사용자 스킬은 아직 없음
+- AgentSkills 핵심 frontmatter `name`·`description`을 `yaml@2.9.0`으로 읽고, 이름과 폴더를 대조
+- Run 시작 때 작은 metadata snapshot을 만들고 본문은 모델이 `skill view`를 선택한 뒤에만 문맥에 공급
+- snapshot digest와 본문 digest, `skill` requested/actual call, 결과 원문을 기존 ToolReceipt에 그대로 기록
+- realpath가 skill root를 벗어난 링크, 잘못된 frontmatter, 64KB 초과 문서를 능력인 척하지 않고 제외
+- 스킬 런타임은 실행·검색·판단을 대신하지 않음; 모델이 읽고 기존 `exec`·`process_*`·`pty_*`를 선택
+- 첫 `file-discovery`: 제목·확장자 분리, Unicode 정규화, 좁은 범위부터 탐색, 수단 전환, 생성/수정일
+  구분, 최종 경로 재관측, 모호성 질문과 미발견 정지를 명령 강제 없이 안내
+- 격리 fixture 실제 OAuth 3/3: 확장자 포함 최신 파일, 확장자 미상 제목, 미발견 후 무반복 정지
+- 실제 Run: `7b193095-389b-4bdc-862a-1f19f2b658b0`, `89d92799-16e9-4d65-a16d-22a84252aa7a`,
+  `4991fdb0-df96-408f-98ea-8a0f740656ce`
+
+측정된 경계:
+
+- 성공 시간 24.0초·22.1초, 미발견 정지 18.1초. 셸 실행은 각 0.1초 안팎이고 대부분은 모델 왕복
+- 정확 탐색 두 Run은 skill 1회 + exec 2회 + 모델 4왕복, 미발견은 skill 1회 + exec 1회 + 모델 3왕복
+- marketplace, 여러 root 우선순위, hot reload, 요구 binary/platform gating, 스킬 작성·수정, 스크립트 실행,
+  자동 학습은 수요가 증명되지 않아 구현하지 않음
+
 ## R3 — Recovery and Comparative Performance
 
 사용자 완료 문장:
@@ -226,11 +257,12 @@ Non-goals: 콘솔 재디자인. 기존 UI 자체가 사용자 목적 달성을 �
 
 ## R6 이후 — 증거가 열 때만
 
-전용 파일·웹·브라우저 손, 외부 앱·MCP, 메신저 Gateway, Skills, Learning, Automation,
+전용 파일·웹·브라우저 손, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
 Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증할 때 하나씩 연다. 새 능력은 agent loop를
 재작성하지 않고 도구 또는 상태 공급자로 붙어야 한다.
 
 ## 현재 다음 한 작업
 
-다섯 단계 목표의 완료 감사가 성립했다. 다음 개발은 사용자의 실제 콘솔 사용에서 새 병목이나 능력 결손이
-관측될 때 이 원장·wake·속도·권한·PTY 기반 위에서 연다. 수요 없는 backend는 만들지 않는다.
+S1의 최소 절차 스킬과 첫 `file-discovery` 실제 OAuth 3/3이 성립했다. 다음 한 작업은 사용자가 콘솔에서
+자연스럽게 사용하는 동안 Run을 읽어, 현재 측정된 skill 열람 1왕복이 실제 정확성 이득보다 큰 병목인지
+비교한다. 수요 없는 skill marketplace·자동 작성·다중 root와 backend는 만들지 않는다.
