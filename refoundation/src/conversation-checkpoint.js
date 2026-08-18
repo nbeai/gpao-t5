@@ -33,10 +33,12 @@ export function activeConversationProjection(conversation) {
 }
 
 export function planConversationCheckpoint({
-  conversation, currentRequest = '', triggerBytes = 750_000, tailBytes = 60_000,
+  conversation, currentRequest = '', projectedMessages,
+  triggerBytes = 750_000, tailBytes = 60_000,
 } = {}) {
   const active = activeConversationProjection(conversation);
-  const activeBytes = jsonBytes(active.messages) + Buffer.byteLength(String(currentRequest), 'utf8');
+  const triggerContext = Array.isArray(projectedMessages) ? projectedMessages : active.messages;
+  const activeBytes = jsonBytes(triggerContext) + Buffer.byteLength(String(currentRequest), 'utf8');
   if (activeBytes < triggerBytes) return { needed: false, reason: 'below_trigger', active, activeBytes };
 
   const candidates = active.tailEntries;

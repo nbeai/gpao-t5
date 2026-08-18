@@ -358,6 +358,8 @@ C1-Q2 conversation-only Context pressure qualification:
 C1-C1 In-place Conversation Checkpoint v0:
 
 - provider usage token이 아니라 전송 전 계산 가능한 active Context UTF-8 byte가 750,000을 넘을 때만 발동
+- 이 byte는 canonical 영수증 원문이 아니라 C1-P1 ToolReceipt projection·C1-P3 large-output stub을 먼저
+  적용한 provider Context에서 계산해, 오래된 도구 영수증을 줄이기 전에 일반 대화를 요약하지 않음
 - canonical Conversation message는 한 바이트도 다시 쓰지 않고 checkpoint를 append-only 사건으로 추가
 - 오래된 prefix는 180KB 이하 chunk로 요약하고, 최근 약 60KB tail은 canonical 원문 그대로 유지
 - exact ID·경로·날짜·수치·현재 목표·사실·결정·제약·약속·실패·미해결 작업 보존을 summary model에 요구

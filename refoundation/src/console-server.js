@@ -205,6 +205,7 @@ export function makeConsoleServer({
       if (conversationCheckpointMode === 'in-place-v0') {
         const plan = planConversationCheckpoint({
           conversation: canonicalConversation, currentRequest: text,
+          projectedMessages: projection.messages,
           triggerBytes: checkpointTriggerBytes, tailBytes: checkpointTailBytes,
         });
         if (plan.needed) {

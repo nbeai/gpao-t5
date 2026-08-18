@@ -33,6 +33,17 @@ test('checkpoint plan은 오래된 prefix만 요약하고 최근 tail은 원문�
   );
 });
 
+test('checkpoint 발동은 canonical 영수증 원문이 아니라 먼저 줄인 provider projection byte를 본다', () => {
+  const conversation = { entries: entries(12, 500), checkpoints: [] };
+  const plan = planConversationCheckpoint({
+    conversation, currentRequest: '계속해', triggerBytes: 1_000, tailBytes: 260,
+    projectedMessages: [{ role: 'assistant', content: '작게 투영된 과거 영수증' }],
+  });
+  assert.equal(plan.needed, false);
+  assert.equal(plan.reason, 'below_trigger');
+  assert.ok(plan.activeBytes < 1_000);
+});
+
 test('latest checkpoint projection은 summary 한 개와 cover 이후 canonical tail만 사용한다', () => {
   const conversation = {
     entries: entries(8),
