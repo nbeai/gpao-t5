@@ -32,19 +32,19 @@ async function resolveWorkingDirectory(defaultDirectory, requested) {
   return realpath(candidate);
 }
 
-/** Create the R1 shell hand. It exposes the shell, not a command allowlist. */
-export function makeExecTool({
-  workingDirectory,
-  workspace,
-  computer,
-  shell,
-  processRegistry,
-  ownerId = 'default',
-  yieldMs = DEFAULT_YIELD_MS,
-  outputLimit = DEFAULT_OUTPUT_LIMIT,
-  env = {},
-  explainCommand,
-} = {}) {
+function makeCommandTool(options = {}, { managed }) {
+  const {
+    workingDirectory,
+    workspace,
+    computer,
+    shell,
+    processRegistry,
+    ownerId = 'default',
+    yieldMs = DEFAULT_YIELD_MS,
+    outputLimit = DEFAULT_OUTPUT_LIMIT,
+    env = {},
+    explainCommand,
+  } = options;
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
   const detected = computer ?? discoverComputerEnvironment({ userHome: defaultDirectory });
@@ -60,8 +60,10 @@ export function makeExecTool({
     : async () => ({ ok: false, parser: 'unavailable', commandFamily: runtime.family }));
 
   const tool = {
-    name: 'exec',
-    description: 'Run a command on the current computer. Short commands return their result; continuing commands return a running processId for process_control.',
+    name: managed ? 'process_start' : 'exec',
+    description: managed
+      ? 'Start a command that should continue as a managed process. Returns running processId when still active; use process_control afterward.'
+      : 'Run a foreground command to completion and return its complete observed stdout, stderr, and exit status in one result.',
     parameters: {
       type: 'object',
       properties: {
@@ -83,26 +85,47 @@ export function makeExecTool({
       try { commandExplanation = await explain(command); }
       catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
 
-      const result = await registry.start({
-        program: runtime.program,
-        args: runtime.argsFor(command),
-        command,
-        cwd,
-        env: isolatedEnv(root, env, runtime),
-        ownerId,
-        waitMs: yieldMs,
-      });
-      if (context.signal?.aborted && result.state === 'running') {
-        return {
-          ...await registry.stop({ processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor }),
-          commandExplanation,
-        };
+      const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
+      context.signal?.addEventListener('abort', onAbort, { once: true });
+      try {
+        let result = await registry.start({
+          program: runtime.program,
+          args: runtime.argsFor(command),
+          command,
+          cwd,
+          env: isolatedEnv(root, env, runtime),
+          ownerId,
+          waitMs: managed ? yieldMs : null,
+          spoolLimit: managed ? undefined : Number.POSITIVE_INFINITY,
+        });
+        if (context.signal?.aborted && result.state === 'running') {
+          result = await registry.stop({
+            processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor,
+          });
+        }
+        if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
+          registry.forget(result.processId, ownerId);
+          const { processId: ignoredProcessId, cursor: ignoredCursor, ...foreground } = result;
+          return { ...foreground, commandExplanation };
+        }
+        return { ...result, commandExplanation };
+      } finally {
+        context.signal?.removeEventListener('abort', onAbort);
       }
-      return { ...result, commandExplanation };
     },
   };
   tool.processRegistry = registry;
   return tool;
+}
+
+/** Foreground shell hand: preserve the original one-command → one-complete-receipt contract. */
+export function makeExecTool(options = {}) {
+  return makeCommandTool(options, { managed: false });
+}
+
+/** Managed shell hand: the model explicitly chooses a process handle and lifecycle controls. */
+export function makeProcessStartTool(options = {}) {
+  return makeCommandTool(options, { managed: true });
 }
 
 function controlObservation(result) {
@@ -116,7 +139,7 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
   if (!processRegistry) throw new TypeError('processRegistry is required');
   return {
     name: 'process_control',
-    description: 'List, poll, write to, or stop a managed process returned by exec. Poll with the last cursor to receive only new output.',
+    description: 'List, poll, write to, or stop a managed process returned by process_start. Poll with the last cursor to receive only new output.',
     parameters: {
       type: 'object',
       properties: {
@@ -158,6 +181,7 @@ export function makeTerminalHand(options = {}) {
     outputLimit: options.outputLimit ?? DEFAULT_OUTPUT_LIMIT,
   });
   const exec = makeExecTool({ ...options, processRegistry });
+  const start = makeProcessStartTool({ ...options, processRegistry });
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
-  return { processRegistry, tools: [exec, control] };
+  return { processRegistry, tools: [exec, start, control] };
 }

@@ -97,6 +97,7 @@ export class ManagedProcessRegistry {
       signal: record.signal,
       startedAt: record.startedAt,
       endedAt: record.endedAt,
+      durationMs: (record.endedAtMs ?? Date.now()) - record.startedAtMs,
       ...(record.error ? { error: record.error } : {}),
       ...(record.stopReason ? { stopReason: record.stopReason } : {}),
       ...(record.state === 'stopped' ? { terminationConfirmed: true } : {}),
@@ -125,7 +126,10 @@ export class ManagedProcessRegistry {
     });
   }
 
-  async start({ program, args = [], cwd, env, ownerId, waitMs = 1000, command = null }) {
+  async start({
+    program, args = [], cwd, env, ownerId, waitMs = 1000, command = null,
+    spoolLimit = this.spoolLimit,
+  }) {
     if (!program || !cwd || !ownerId) throw new TypeError('program, cwd, and ownerId are required');
     const id = randomUUID();
     const child = this.spawnProcess(program, args, {
@@ -137,9 +141,9 @@ export class ManagedProcessRegistry {
     const record = {
       id, ownerId, child, command, cwd,
       state: 'running', exitCode: null, signal: null, error: null,
-      stopReason: null, startedAt: new Date().toISOString(), endedAt: null,
-      stdout: new OutputSpool(this.spoolLimit),
-      stderr: new OutputSpool(this.spoolLimit),
+      stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
+      stdout: new OutputSpool(spoolLimit),
+      stderr: new OutputSpool(spoolLimit),
       activityWaiters: new Set(),
       closePromise: null,
     };
@@ -162,12 +166,14 @@ export class ManagedProcessRegistry {
       record.exitCode = code ?? -1;
       record.signal = signal ?? null;
       record.endedAt = new Date().toISOString();
+      record.endedAtMs = Date.now();
       if (record.state === 'stop_requested') record.state = 'stopped';
       else record.state = code === 0 ? 'completed' : 'failed';
       this.#notifyActivity(record);
       record.resolveClose();
     });
-    await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
+    if (waitMs == null) await record.closePromise;
+    else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
     return this.#snapshot(record);
   }
 
@@ -228,6 +234,13 @@ export class ManagedProcessRegistry {
         stdout: record.stdout.total,
         stderr: record.stderr.total,
       }));
+  }
+
+  forget(processId, ownerId) {
+    const record = this.#owned(processId, ownerId);
+    if (!terminal(record.state)) throw Object.assign(new Error('cannot forget a running process'), { status: 409 });
+    this.records.delete(record.id);
+    return true;
   }
 
   async stopOwner(ownerId, reason = 'owner_cancelled') {

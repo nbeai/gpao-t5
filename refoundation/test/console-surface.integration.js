@@ -93,12 +93,12 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
       if (last.role !== 'tool') return {
         text: '', responseId: 'start', responseModel: 'process-model',
         toolCalls: [{
-          id: 'long-exec', name: 'exec',
+          id: 'long-exec', name: 'process_start',
           args: { command: "printf 'phase-1'; sleep 0.08; printf 'phase-2'", cwd: null },
         }],
       };
       const receipt = JSON.parse(last.content);
-      if (receipt.requestedCall.name === 'exec') {
+      if (receipt.requestedCall.name === 'process_start') {
         assert.equal(receipt.result.state, 'running');
         observed += receipt.result.stdout;
         return {
@@ -169,7 +169,7 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
       const last = input.messages.at(-1);
       if (last.role !== 'tool') return {
         text: '', toolCalls: [{
-          id: 'cancel-exec', name: 'exec',
+          id: 'cancel-exec', name: 'process_start',
           args: { command: `(sleep 0.5; printf late > '${marker}') & wait`, cwd: null },
         }],
       };

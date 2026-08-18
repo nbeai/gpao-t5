@@ -66,7 +66,8 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 터미널 기능:
 
 - 현재 컴퓨터의 명령 처리기 실행, stdout·stderr·exit code 원문 반환
-- 짧은 명령은 같은 호출에서 완료, 계속 실행 중이면 timeout 거짓말 대신 `running` process handle 반환
+- `exec`는 기존 foreground 계약 보존: 시간이 걸려도 완료 뒤 전체 stdout·stderr·종료코드를 한 영수증으로 반환
+- 모델이 장기·백그라운드 생명주기를 선택할 때만 `process_start`가 `running` process handle 반환
 - `process_control`: 세션별 list·cursor 이후 새 출력 poll·stdin write·프로세스 트리 stop
 - `stop_requested`와 실제 종료 확인된 `stopped` 분리, 콘솔 취소·런타임 종료 시 소유 프로세스 트리 정리
 - 관측당 출력 상한·1MB 관리 spool·기본 cwd·자격 환경 차단
@@ -89,6 +90,8 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
   없음. PTY·TTY 직접 입력과 Windows 실제 프로세스 트리 종료는 미측정
 - 실제 OAuth 콘솔: 장기 작업 완료 재관측, 모델이 선택한 중단의 종료 확인·후속 효과 부재, running
   상태로 턴 반환 후 다음 턴 재관측, 실행 중 stdin write까지 성립
+- 2026-08-19 회귀 교정: 모든 `exec`를 1초 뒤 관리형으로 강제해 기존 완결 영수증을 잃었던 설계를 폐기.
+  foreground `exec`와 명시적 `process_start`를 분리하고, 둘은 같은 프로세스 그룹 취소 엔진을 사용
 
 영역 상태:
 
