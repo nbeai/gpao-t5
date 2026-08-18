@@ -5,6 +5,9 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
+import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
+import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
+import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
@@ -24,12 +27,16 @@ const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
+const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
+const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
 const server = makeConsoleServer({
   stateDir,
   workspace,
   modelFactory: (context) => access.model(context),
   modelStatus: () => access.status(),
   computerEnvironment,
+  webSearchProviders,
+  webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {

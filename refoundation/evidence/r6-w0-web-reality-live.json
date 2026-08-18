@@ -1,0 +1,83 @@
+{
+  "schema": "t5.r6-w0-web-reality-live.v1",
+  "recordedAt": "2026-08-19T08:05:00+09:00",
+  "mainModel": { "provider": "chatgpt_oauth", "model": "gpt-5.5" },
+  "searchProvider": { "provider": "openai", "model": "gpt-5.1", "credentialExposed": false },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "linkedom": "0.18.13",
+    "exactPins": true,
+    "auditVulnerabilities": 0
+  },
+  "scenarios": [
+    {
+      "name": "direct_official_url_read",
+      "runId": "35a52381-0490-42b6-9ad5-a1d83f56b458",
+      "status": "completed",
+      "toolStates": ["web_read:read"],
+      "observedTextChars": 5343,
+      "truncated": false,
+      "modelTurns": 2,
+      "wallMs": 8671,
+      "passed": true
+    },
+    {
+      "name": "search_choose_read_official_notice",
+      "runId": "ecc4e7f6-d699-49a4-a654-ae55ec308f1a",
+      "status": "completed",
+      "toolStates": ["web_search:candidates", "web_read:read"],
+      "selectedRank": 1,
+      "selectedUrl": "https://developers.naver.com/notice/article/32530",
+      "modelTurns": 3,
+      "wallMs": 31915,
+      "passed": true
+    },
+    {
+      "name": "naver_place_mobile_ssr_hydration",
+      "runId": "77ae5e4d-f196-4f31-b3c4-e17b681f805a",
+      "status": "completed",
+      "requestedUrl": "https://maps.naver.com/p/entry/place/1747125291",
+      "finalUrl": "https://m.place.naver.com/restaurant/1747125291/home",
+      "strategy": "naver-mobile-ssr",
+      "toolStates": ["web_read:partial_dynamic"],
+      "observedFacts": ["business_name", "category", "road_address", "lot_address", "review_counts", "review_score", "menus", "prices"],
+      "modelTurns": 2,
+      "wallMs": 22394,
+      "passed": true
+    },
+    {
+      "name": "dynamic_boundary_before",
+      "runId": "5185402f-436b-4649-a791-d8cd2fa1fb5d",
+      "status": "cancelled",
+      "toolCalls": 17,
+      "modelTurns": 17,
+      "totalTokens": 412079,
+      "wallMs": 153750,
+      "cause": "partial_dynamic lacked an explicit browser-required/static-exhausted capability boundary",
+      "passed": false
+    },
+    {
+      "name": "dynamic_boundary_after",
+      "runId": "d5b0a57f-d652-44fe-a359-ffe556ee56d3",
+      "status": "completed",
+      "toolStates": ["web_read:partial_dynamic"],
+      "capabilityBoundary": { "required": "browser_render", "available": false, "staticObservationExhausted": true },
+      "modelTurns": 2,
+      "toolCalls": 1,
+      "totalTokens": 5698,
+      "wallMs": 13797,
+      "repeatedTerminalFallbacks": 0,
+      "passed": true
+    }
+  ],
+  "verification": {
+    "unitAndBoundary": { "passed": 153, "failed": 0 },
+    "integration": { "passed": 20, "failed": 0 },
+    "legacyImports": 0
+  },
+  "scope": {
+    "complete": ["web_search_candidates", "web_read", "naver_mobile_ssr", "hydration_observation", "dynamic_stop_boundary"],
+    "excluded": ["browser_action", "computer_use", "authenticated_account_changes", "naver_api_hub_credentials"]
+  },
+  "passed": true
+}

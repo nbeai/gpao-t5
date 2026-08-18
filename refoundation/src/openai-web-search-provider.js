@@ -1,0 +1,114 @@
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+
+function outputCitations(output = []) {
+  const titles = new Map();
+  for (const item of output) {
+    if (item?.type !== 'message') continue;
+    for (const content of item.content ?? []) {
+      for (const annotation of content?.annotations ?? []) {
+        if (annotation?.type !== 'url_citation' || !annotation.url) continue;
+        titles.set(String(annotation.url), String(annotation.title ?? '').trim());
+      }
+    }
+  }
+  return titles;
+}
+
+function searchSources(output = [], limit = 8) {
+  const titles = outputCitations(output);
+  const seen = new Set();
+  const rows = [];
+  for (const item of output) {
+    if (item?.type !== 'web_search_call') continue;
+    const ranked = Array.isArray(item.results) && item.results.length
+      ? item.results : item.action?.sources;
+    if (!Array.isArray(ranked)) continue;
+    for (const source of ranked) {
+      const url = String(source?.url ?? '').trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      rows.push({
+        title: String(source?.title ?? titles.get(url) ?? '').trim(),
+        url,
+        snippet: String(source?.snippet ?? '').trim(),
+        sourceType: String(source?.type ?? 'url'),
+      });
+      if (rows.length >= limit) return rows;
+    }
+  }
+  return rows;
+}
+
+function safeError(value, secret) {
+  const text = String(value ?? '').slice(0, 2_000);
+  return secret ? text.split(secret).join('[REDACTED]') : text;
+}
+
+export function makeStoredOpenAIWebSearchProvider({
+  credentialCatalog,
+  connectionId,
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  if (!credentialCatalog || typeof credentialCatalog.list !== 'function') {
+    throw new TypeError('credential catalog is required');
+  }
+
+  async function connection() {
+    const available = await credentialCatalog.list();
+    return connectionId
+      ? available.find((item) => item.id === connectionId && item.kind === 'api_key') ?? null
+      : available.find((item) => item.kind === 'api_key' && item.provider === 'openai') ?? null;
+  }
+
+  return {
+    id: 'openai',
+    label: 'OpenAI Web Search',
+    async available() {
+      return await connection()
+        ? { available: true }
+        : { available: false, reason: 'openai_api_connection_missing' };
+    },
+    async search(query, { limit = 8, domains = [], signal } = {}) {
+      const selected = await connection();
+      if (!selected) throw new Error('OpenAI API connection is not available');
+      const credential = await credentialCatalog.select(selected.id);
+      const key = String(credential.apiKey ?? '').trim();
+      if (!key) throw new Error('OpenAI API connection has no key');
+      const baseUrl = String(credential.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+      const body = {
+        model: credential.modelId,
+        reasoning: { effort: 'low' },
+        tools: [{
+          type: 'web_search',
+          ...(domains.length ? { filters: { allowed_domains: domains } } : {}),
+        }],
+        tool_choice: 'required',
+        include: ['web_search_call.results', 'web_search_call.action.sources'],
+        input: `Search the public web for this exact query and consult useful candidate sources: ${query}`,
+        store: false,
+      };
+      let response;
+      try {
+        response = await fetchImpl(`${baseUrl}/responses`, {
+          method: 'POST', signal,
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        throw new Error(`OpenAI web search request failed: ${safeError(error?.message ?? error, key)}`);
+      }
+      const raw = await response.text();
+      if (!response.ok) {
+        let message = raw;
+        try { message = JSON.parse(raw)?.error?.message ?? raw; } catch { /* keep raw */ }
+        throw new Error(`OpenAI web search ${response.status}: ${safeError(message, key)}`);
+      }
+      let json;
+      try { json = JSON.parse(raw); }
+      catch { throw new Error('OpenAI web search returned invalid JSON'); }
+      const rows = searchSources(json.output, limit);
+      if (!rows.length) throw new Error('OpenAI web search returned no source candidates');
+      return rows;
+    },
+  };
+}

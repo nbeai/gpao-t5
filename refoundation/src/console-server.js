@@ -30,6 +30,8 @@ import {
   makeMemoryTool, memoryContextMessage, memoryFlushRequest, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
 } from './memory-tool.js';
 import { makeSessionSearchTool } from './session-search-tool.js';
+import { makeWebSearchTool } from './web-search-tool.js';
+import { makeWebReadTool } from './web-read-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -66,11 +68,12 @@ function historyFrom(session) {
 }
 
 function selfState(status, workspace) {
+  const searchReady = (status?.connections ?? []).some((connection) => connection.kind === 'api_key');
   return {
     model: status?.modelId ?? '연결 필요',
     modelAuthState: status?.connected ? 'usable' : 'needs_connection',
     modelHealthState: status?.connected ? 'usable' : null,
-    ready: ['터미널'],
+    ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : [])],
     limits: [`기본 터미널 위치: ${workspace}`],
   };
 }
@@ -95,6 +98,8 @@ export function makeConsoleServer({
   checkpointSummarizer,
   memoryFlushMode = 'pre-checkpoint-v0',
   memoryFlushMaxModelTurns = 8,
+  webSearchProviders = [],
+  webReadOptions = {},
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -132,6 +137,8 @@ export function makeConsoleServer({
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
   const pendingSurfaceMetrics = new Map();
+  const webReadTool = makeWebReadTool(webReadOptions);
+  const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
 
   async function status() { return Promise.resolve(modelStatus()); }
 
@@ -388,6 +395,11 @@ export function makeConsoleServer({
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(webReadTool);
+      if ((await Promise.all(webSearchProviders.map(async (provider) => {
+        try { return (await provider.available())?.available === true; }
+        catch { return false; }
+      }))).some(Boolean)) offeredTools.unshift(webSearchTool);
       if (projection.recoverable.length) {
         offeredTools.unshift(makeConversationRecallTool({
           ledger: conversations, sessionId, allowedRefs: projection.recoverable,
@@ -443,7 +455,9 @@ export function makeConsoleServer({
               },
             });
             emit('tool_progress', {
-              text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
+              text: event.name === 'web_search' ? '웹에서 후보를 찾고 있어요'
+                : event.name === 'web_read' ? '선택한 페이지를 읽고 있어요'
+                : event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
                 : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
                   : event.name === 'memory' ? '기억을 확인하고 있어요'
                     : event.name === 'session_search' ? '이전 대화를 찾고 있어요'
@@ -463,7 +477,8 @@ export function makeConsoleServer({
                 name: event.receipt.requestedCall.name, content: JSON.stringify(event.receipt),
               },
             });
-            emit('trace_status', { text: '터미널 결과를 확인하고 있어요' });
+            emit('trace_status', { text: event.name === 'web_search' || event.name === 'web_read'
+              ? '웹 관측 결과를 확인하고 있어요' : '터미널 결과를 확인하고 있어요' });
           }
         },
       });

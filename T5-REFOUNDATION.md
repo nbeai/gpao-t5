@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `FOUNDATION R0–R5 — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W0 SEARCH & URL REALITY — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -600,9 +600,69 @@ R5 완료 판정:
 - 사용자는 대화로 기억시키고 확인·수정·삭제하며, 과거 대화를 요청하면 exact search 뒤 canonical 근거로 답함
 - Memory·Session history 모두 현재 요청과 현재 직접 source를 대신하지 않음
 
+## R6 — Web Hand
+
+### R6-W0 — Search & URL Reality
+
+상태: `COMPLETE` — 읽지 않은 검색 후보와 실제 URL 본문을 분리하고, 일반 웹·네이버 공식 문서·
+네이버 공개 플레이스를 실제 OAuth 콘솔에서 관통했다. Browser action과 CU는 포함하지 않았다.
+
+사용자 완료 문장:
+
+> 사용자가 현재 웹 자료를 찾거나 주소를 주면 T5가 후보를 고르고 정확한 페이지를 직접 읽어,
+> 출처·최종주소·관측 범위와 함께 답하며 정적 읽기로 못 본 동적 범위는 과장하지 않고 멈춘다.
+
+현재 성립한 계약:
+
+- `web_search`는 OpenAI Responses hosted search의 ranked results를 후보로만 반환; 페이지를 자동으로 읽지 않음
+- 활성 OAuth `gpt-5.5`와 별개로 저장된 OpenAI API 연결을 search provider가 사용하며 API key는 모델·오류·원장에 노출하지 않음
+- provider 선택·가용성·실패·대안은 사실로 반환하고, 실패한 provider 뒤 다른 provider를 runtime이 몰래 실행하지 않음
+- `web_read`는 HTTP(S) 한 주소의 IRI 정규화, private network 차단, redirect chain, 최종 URL,
+  content type, canonical URL, 제목, Readability 본문, JSON/XML/text를 관측
+- `@mozilla/readability@0.6.0`·`linkedom@0.18.13` 정확 핀, 응답 4MB·결과 64K·redirect 8회 상한
+- 본문·검색 snippet은 `untrusted_external`이고 instruction authority 0; 웹 안의 지시를 사용자 지시로 취급하지 않음
+- 큰 결과는 total/shown/omitted chars를 분리하고, 로그인벽·rate limit·동적 껍데기·부분 동적·지원하지 않는 형식을 성공과 분리
+- 동적 정적관측이 소진됐고 Browser tool이 없으면 capability boundary를 반환; 같은 HTML·JS bundle을 terminal로 반복하지 않고 종료
+- 읽기 좋은 주소는 resolver slot이 정함. 네이버 공개 지도·플레이스·검색·블로그는 모바일 SSR 주소를
+  선택하되 요청 원주소·선택 전략·실제 redirect·최종주소를 모두 Receipt에 보존
+- SPA HTML 안의 균형 JSON hydration(Apollo·Next 등)에서 사람에게 의미 있는 문자열을 bounded 추출;
+  item limit·문자 limit 도달을 별도 표기하고 내부 ID·token·image URL은 제외
+- 두 도구는 기존 agent loop에 일반 ToolReceipt로 붙어 같은 append-only Run·Conversation에 지속
+
+실제 OAuth 콘솔:
+
+- 정확한 Ncloud 공식 URL 읽기: `web_read` 1회, 5,343자 전부 관측, 2 model turns, 8.7초
+- 주소 없는 네이버 이관 공지: `web_search → web_read`, 공식 공지 1순위 선택, 3 model turns, 31.9초
+- 데스크톱 네이버 플레이스: mobile SSR + Apollo state, `web_read` 1회로 상호·업종·주소·리뷰·메뉴·가격 분석,
+  2 model turns, 22.4초
+- 사업주 동적 포털 기준선: boundary 뒤 JS bundle을 17 tool calls·412,079 tokens·153.8초 동안 추적하다 사용자 취소
+- 같은 포털 교정 후: `web_read` 1회·2 model turns·5,698 tokens·13.8초, 관측 일부와 Browser 필요 범위를 밝히고 종료
+- 증거: `refoundation/evidence/r6-w0-web-reality-live.json`
+
+Non-goals:
+
+- Browser 렌더링·click·type·upload·download, 로그인 세션, CU·화면 전체 조작
+- NAVER API HUB·Maps·Commerce credential 연결 완료 주장; provider가 필요한 실제 계정 과업에서 별도 개방
+- PDF·오피스 문서 내용을 HTML 본문인 척 처리; 지원하지 않는 content type은 다른 실제 손으로 전환
+
+완료 Gate:
+
+- 검색 후보와 읽은 본문의 기계적 분리
+- redirect·canonical·content type·관측 범위·잘림의 정직한 Receipt
+- 일반 정적 문서, JSON, 동적 껍데기, 로그인/차단, 네이버 mobile SSR·hydration 반대시험
+- 실제 OAuth에서 direct read·search→read·네이버 플레이스 분석·불가능 정지
+- 기존 terminal·memory·context·session 영역 회귀 0
+
+### R6-W1 — Browser Observation
+
+상태: `NEXT` — Browser 내부 관측만 연다. CU는 열지 않는다.
+
+개방 범위: browser status/profile/tab/navigate/snapshot/screenshot, 안정된 tab/document/ref, 현재 콘솔 preview,
+동적 페이지의 실제 렌더링 범위와 W0 Receipt 연결. click·type·submit·upload·download 및 외부 효과는 다음 Gate다.
+
 ## R6 이후 — 증거가 열 때만
 
-전용 파일·웹·브라우저 손, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
+브라우저 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
 Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증할 때 하나씩 연다. 새 능력은 agent loop를
 재작성하지 않고 도구 또는 상태 공급자로 붙어야 한다.
 
@@ -613,13 +673,14 @@ Foundation closeout 분류:
   계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
 - 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
   crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
-- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser/app/MCP, channels, automation service,
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser action/app/MCP, channels, automation service,
   multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
 - 증거: `refoundation/evidence/foundation-closeout-audit.json`
 
 ## 현재 다음 한 작업
 
-Foundation R0–R5 closeout은 완료됐다. 다음 한 작업은 R6 capability demand review다. 실제 콘솔의 인간 사용자
-요청과 실패 Run을 보고 terminal·memory·session search로 닿지 못한 목적을 빈도·영향으로 분류한 뒤,
-browser/app/MCP·channel·automation·multi-agent 중 사용자 가치가 가장 큰 한 능력만 연다. Windows 실제 기기와
-crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어 보고하지 않는다.
+R6-W0 Search & URL Reality는 완료됐다. 다음 한 작업은 `R6-W1 Browser Observation`이다. W0가
+`partial_dynamic`으로 정확히 멈춘 페이지를 실제 렌더링해 보는 범위만 열고, status/profile/tab/navigate/
+snapshot/screenshot과 기존 Run·Receipt 연결을 먼저 세운다. click·type·submit·upload·download와 CU는 열지 않는다.
+Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어
+보고하지 않는다.
