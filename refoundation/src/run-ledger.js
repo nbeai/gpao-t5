@@ -14,12 +14,13 @@ function safeRunId(runId) {
 }
 
 class RunWriter {
-  constructor({ runId, file }) {
+  constructor({ runId, file, onTerminal }) {
     this.runId = runId;
     this.file = file;
     this.sequence = 0;
     this.queue = Promise.resolve();
     this.finished = false;
+    this.onTerminal = onTerminal;
   }
 
   serialize(work) {
@@ -43,7 +44,10 @@ class RunWriter {
       };
       await appendFile(this.file, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
       this.sequence = event.sequence;
-      if (TERMINAL.has(event.type)) this.finished = true;
+      if (TERMINAL.has(event.type)) {
+        this.finished = true;
+        this.onTerminal?.();
+      }
       return clone(event);
     });
   }
@@ -58,6 +62,7 @@ export class RunLedger {
   constructor(directory) {
     if (!directory) throw new TypeError('run ledger directory is required');
     this.directory = directory;
+    this.activeRuns = new Set();
   }
 
   async start({ sessionId, request, metadata = {} }) {
@@ -69,7 +74,10 @@ export class RunLedger {
     const handle = await open(file, 'ax', 0o600);
     await handle.close();
     await chmod(file, 0o600);
-    const writer = new RunWriter({ runId, file });
+    this.activeRuns.add(runId);
+    const writer = new RunWriter({
+      runId, file, onTerminal: () => this.activeRuns.delete(runId),
+    });
     await writer.append({
       type: 'run_started',
       payload: { sessionId: String(sessionId), request, metadata: clone(metadata) },
@@ -93,7 +101,8 @@ export class RunLedger {
       }
     }
     const terminal = [...events].reverse().find((event) => TERMINAL.has(event.type));
-    const status = terminal ? terminal.type.slice('run_'.length) : 'interrupted';
+    const status = terminal ? terminal.type.slice('run_'.length)
+      : this.activeRuns.has(id) ? 'running' : 'interrupted';
     return {
       runId: id,
       sessionId: events[0].payload.sessionId,

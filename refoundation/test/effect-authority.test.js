@@ -4,7 +4,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AuthorityStore, boundaryForEffect } from '../src/effect-authority.js';
+import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from '../src/effect-authority.js';
 
 test('네 사용자 경계만 멈추고 관측·가역적 로컬 변경은 자동 진행한다', () => {
   assert.equal(boundaryForEffect({ kind: 'observe' }), null);
@@ -72,4 +72,11 @@ test('거절된 효과는 같은 pending ID로 실행할 수 없다', async () =
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('명백한 파괴·외부 전송을 observe로 낮춰 선언하면 preflight가 거부한다', () => {
+  assert.equal(effectDeclarationMismatch("rm -f '/tmp/a'", { kind: 'observe' }), 'destructive_required');
+  assert.equal(effectDeclarationMismatch("find /tmp/x -type f -delete", { kind: 'local_change' }), 'destructive_required');
+  assert.equal(effectDeclarationMismatch("curl -X POST --data hi https://example.com", { kind: 'observe' }), 'external_send_required');
+  assert.equal(effectDeclarationMismatch("printf hi > /tmp/a", { kind: 'local_change' }), null);
 });

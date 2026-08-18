@@ -174,6 +174,8 @@ append-only 권한 원장과 shell preflight·콘솔 승인 카드 코드 계약
 - pending 권한은 정확한 tool call digest에 결속되어 한 번만 소비되고 승인·거절·소비가 0600 JSONL로 지속
 - preflight 미통과 call은 `actualCall: null`·`not_executed`; 승인 뒤 exact args만 한 번 실행
 - 선언된 로컬 target만 전후 존재·종류·크기·작은 파일 hash 관측, 외부 효과는 관측 못 했으면 false
+- 같은 프로세스의 active Run은 `running`, 종료 사건 없이 재시작 뒤 발견된 Run만 `interrupted`
+- 명백한 `rm`·`find -delete`·POST/전송 명령을 낮은 효과로 위장 선언하면 preflight 미실행
 
 ## R3 — Recovery and Comparative Performance
 

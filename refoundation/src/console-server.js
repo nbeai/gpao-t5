@@ -12,7 +12,7 @@ import { makePathRevealer } from './path-revealer.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
-import { AuthorityStore, boundaryForEffect } from './effect-authority.js';
+import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -106,6 +106,11 @@ export function makeConsoleServer({
         result: { state: 'authority_invalid', pendingId: effect.approvalToken, reason: consumed.reason },
       };
     }
+    const mismatch = effectDeclarationMismatch(args.command, effect);
+    if (mismatch) return {
+      allowed: false, outcome: 'not_executed',
+      result: { state: 'effect_declaration_mismatch', reason: mismatch, declaredEffect: effect },
+    };
     let proposal = await authority.findActiveCall(ownerId, toolName, args);
     if (!proposal) proposal = await authority.propose({ sessionId: ownerId, toolName, args });
     return {

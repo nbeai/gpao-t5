@@ -34,6 +34,17 @@ export function boundaryForEffect(effect = {}) {
   return null;
 }
 
+export function effectDeclarationMismatch(command, effect = {}) {
+  const text = String(command ?? '');
+  const destructive = /(?:^|[;&|]\s*)\s*(?:rm|rmdir|shred|unlink)\b/.test(text)
+    || /\bfind\b[^\n]*\s-delete(?:\s|$)/.test(text);
+  if (destructive && effect.kind !== 'destructive') return 'destructive_required';
+  const externalSend = /\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--request\s+(?:POST|PUT|PATCH|DELETE)|--data(?:-raw|-binary|-urlencode)?\b|-d(?:\s|$))/i.test(text)
+    || /\b(?:scp|sftp|rsync)\b/.test(text);
+  if (externalSend && effect.kind !== 'external_send' && effect.kind !== 'payment') return 'external_send_required';
+  return null;
+}
+
 export class AuthorityStore {
   constructor(directory) {
     if (!directory) throw new TypeError('authority directory is required');

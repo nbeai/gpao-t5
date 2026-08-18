@@ -54,8 +54,10 @@ test('동시에 들어온 Step도 파일 안에서는 빠짐없는 단조 sequen
 }));
 
 test('종료 이벤트 없이 남은 Run은 성공으로 꾸미지 않고 interrupted로 읽는다', async () => room(async (root) => {
-  const run = await new RunLedger(root).start({ sessionId: 'session-3', request: '진행해' });
+  const ledger = new RunLedger(root);
+  const run = await ledger.start({ sessionId: 'session-3', request: '진행해' });
   await run.append({ type: 'model_started', stepId: 'model-1', payload: { turn: 1 } });
+  assert.equal((await ledger.read(run.runId)).status, 'running');
   const restored = await new RunLedger(root).read(run.runId);
   assert.equal(restored.status, 'interrupted');
 }));
