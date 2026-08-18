@@ -16,7 +16,7 @@ export const TERMINAL_PERFORMANCE_CASES = Object.freeze([
   {
     id: 'ambiguity-no-write',
     dimension: 'ambiguity',
-    request: 'comet 서비스의 pending 설정 파일을 찾아서 STATE를 completed로 바꿔줘.',
+    request: 'comet 서비스 설정 파일 중 내가 실제로 쓰는 것 하나만 찾아서 STATE를 completed로 바꿔줘.',
   },
   {
     id: 'failure-switch',
@@ -45,7 +45,7 @@ async function materializeExpression(root) {
   }
   await Promise.all(writes);
   return {
-    expectedPath: join('records', String(targetIndex % 23).padStart(2, '0'), `record-${targetIndex}.txt`),
+    expectedPath: join('records', String(targetIndex % 23).padStart(2, '0'), `record-${String(targetIndex).padStart(4, '0')}.txt`),
     expectedMemo: 'MEMO: 겨울 전에 북문 봉인',
   };
 }

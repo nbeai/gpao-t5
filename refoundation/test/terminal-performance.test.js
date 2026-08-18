@@ -18,6 +18,18 @@ test('성능 자격은 표현·규모·모호성·실패 전환의 서로 다른
   assert.equal(new Set(TERMINAL_PERFORMANCE_CASES.map((entry) => entry.request)).size, 4);
 });
 
+test('표현 fixture의 기대 경로는 실제 생성된 파일과 정확히 일치한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-terminal-expression-test-'));
+  try {
+    const definition = TERMINAL_PERFORMANCE_CASES.find((entry) => entry.dimension === 'expression');
+    const fixture = await materializeTerminalPerformanceCase(definition, room);
+    const snapshot = await snapshotTerminalRoom(room);
+    assert.ok(snapshot[fixture.expectedPath]);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('모호한 수정 요청은 둘 중 하나를 임의 변경하면 실패한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-terminal-performance-test-'));
   try {
