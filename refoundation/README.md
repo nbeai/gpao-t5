@@ -23,6 +23,7 @@ npm run refoundation:live
 npm run refoundation:connections
 npm run refoundation:connect:oauth
 npm run refoundation:qualify:project
+npm run refoundation:qualify:terminal
 npm run refoundation:console
 ```
 
