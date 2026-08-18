@@ -137,7 +137,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 ## R2 — Truth and Authority
 
-상태: `COMPLETION_AUDIT` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
+상태: `COMPLETE` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
 Run 기반 속도 영수증, 4단계 효과·권한 경계가 실제 OAuth·열린 콘솔까지 성립. 5단계 실제 수요 기반
 PTY가 실제 OAuth까지 성립. 영속 Run 18개 backend 수요 audit 결과 0건으로 local 유지.
 
@@ -232,5 +232,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-다섯 단계 전체의 completion audit를 수행한다. 각 실제 증거·기존 foreground `exec` 회귀·효과 경계·
-PTY·backend 수요 조건을 대조하고 누락이 없을 때만 현재 목표를 완료로 닫는다.
+다섯 단계 목표의 완료 감사가 성립했다. 다음 개발은 사용자의 실제 콘솔 사용에서 새 병목이나 능력 결손이
+관측될 때 이 원장·wake·속도·권한·PTY 기반 위에서 연다. 수요 없는 backend는 만들지 않는다.

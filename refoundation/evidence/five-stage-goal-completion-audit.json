@@ -1,0 +1,78 @@
+{
+  "schema": "t5.refoundation.five-stage-goal-completion-audit.v1",
+  "sourceCommit": "c7219e1af7f92c0e426b09dcab603945d17f9433",
+  "auditedAt": "2026-08-19",
+  "objective": [
+    "Run·Step·Receipt persistence",
+    "process_start completion wake",
+    "run speed receipt",
+    "effect and authority boundaries",
+    "demand-proven PTY and execution backend"
+  ],
+  "requirements": [
+    {
+      "id": 1,
+      "status": "proven",
+      "evidence": "r2-run-ledger-live.json",
+      "facts": ["append-only 0600 JSONL", "model steps", "full tool receipts", "restart restoration", "completed/cancelled/failed/running/interrupted distinction"]
+    },
+    {
+      "id": 2,
+      "status": "proven",
+      "evidence": "r2-managed-process-wake-live.json",
+      "facts": ["explicit process_start only", "unobserved terminal wake once", "separate model wake run", "open console SSE notification", "foreground exec excluded"]
+    },
+    {
+      "id": 3,
+      "status": "proven",
+      "evidence": "r2-run-speed-receipt-live.json",
+      "facts": ["wall/model/tool/token/output split", "browser visible timings", "missing metrics remain null", "metrics are not completion gates"]
+    },
+    {
+      "id": 4,
+      "status": "proven",
+      "evidence": "r2-effect-authority-live.json",
+      "facts": ["reversible local automatic", "unbacked destruction approval", "new-recipient loopback approval", "mock payment UI approval", "secret input not executed", "exact-call single-use authority", "targeted before/after observations"]
+    },
+    {
+      "id": 5,
+      "status": "proven",
+      "evidence": "r2-pty-backend-demand-live.json",
+      "facts": ["pipe TTY_REQUIRED failure", "actual OAuth pty_start/write/poll success", "real PTY resize", "18 persistent runs audited", "zero backend demand signals", "local backend retained"]
+    }
+  ],
+  "foregroundRegression": {
+    "status": "proven",
+    "actualSessions": [
+      "bb2be8d7-feef-4dea-b6ab-71283c946e6d",
+      "5b376855-bf53-447a-a02f-af58ef067183"
+    ],
+    "facts": [
+      "foreground exec remains one complete receipt",
+      "Unicode-normalized 비아이5 file search succeeded twice",
+      "effect schema did not force background conversion",
+      "foreground cancellation stops the process tree"
+    ]
+  },
+  "finalVerification": {
+    "npmCiExactLock": "passed",
+    "postinstallPtyHelperExecutable": "passed",
+    "doctor": "passed",
+    "legacyImportBoundary": "passed",
+    "unitContracts": 86,
+    "unitFailures": 0,
+    "loopbackIntegrationContracts": 8,
+    "loopbackIntegrationFailures": 0,
+    "dependencyAuditVulnerabilities": 0,
+    "backendDemandInspectedRuns": 18,
+    "backendDemandSignals": 0
+  },
+  "explicitLimitsNotClaimed": [
+    "secure secret-entry UI",
+    "complete classification of effects hidden inside arbitrary interpreter code",
+    "actual Windows PTY execution",
+    "remote/container backend without a user demand signal",
+    "general proof of external delivery beyond target-specific receipts"
+  ],
+  "passed": true
+}
