@@ -36,6 +36,7 @@
     "refoundation:qualify:project": "node refoundation/scripts/run-project-qualification.mjs",
     "refoundation:qualify:terminal": "node refoundation/scripts/run-terminal-performance.mjs",
     "refoundation:console": "node refoundation/scripts/start-console.mjs",
+    "refoundation:audit:backend": "node refoundation/scripts/audit-backend-demand.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

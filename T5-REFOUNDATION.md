@@ -139,7 +139,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
 Run 기반 속도 영수증, 4단계 효과·권한 경계가 실제 OAuth·열린 콘솔까지 성립. 5단계 실제 수요 기반
-PTY에서 pipe 기반 `TTY_REQUIRED` 실패와 PTY 성공 코드 계약 성립, 실제 OAuth·backend audit 전.
+PTY가 실제 OAuth까지 성립. 영속 Run 18개 backend 수요 audit 결과 0건으로 local 유지.
 
 사용자 완료 문장:
 
@@ -178,6 +178,9 @@ PTY에서 pipe 기반 `TTY_REQUIRED` 실패와 PTY 성공 코드 계약 성립, 
 - 명백한 `rm`·`find -delete`·POST/전송 명령을 낮은 효과로 위장 선언하면 preflight 미실행
 - `node-pty@1.1.0` 정확 핀, `pty_start`는 같은 processId·poll·write·resize·stop·wake·effect 계약 사용
 - macOS prebuilt spawn-helper 실행 비트는 refoundation postinstall에서 해당 플랫폼 파일만 복구
+- 실제 OAuth PTY: `pty_start(running, Enter value:) → write → poll(completed, exit 0, TTY output)`
+- `process_control resize`가 실제 `stty size` 24×80 → 40×100으로 반영
+- backend demand audit: 영속 Run 18개에서 SSH·Docker·cloud·HPC 실행 위치 요구 0, adapter 미구현
 
 ## R3 — Recovery and Comparative Performance
 
@@ -229,5 +232,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-5단계 PTY를 실제 OAuth 콘솔에서 TTY-only fixture로 실측한다. 이후 backend는 현재 local 실행으로
-불가능한 실제 위치 분리 수요가 있는지 audit하고, 증거가 없으면 미구현 결론을 명시한다.
+다섯 단계 전체의 completion audit를 수행한다. 각 실제 증거·기존 foreground `exec` 회귀·미구현 경계를
+대조하고 누락이 없을 때만 현재 목표를 완료로 닫는다.
