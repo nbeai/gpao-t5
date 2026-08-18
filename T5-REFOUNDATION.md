@@ -65,7 +65,7 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 
 터미널 기능:
 
-- 범용 POSIX shell 실행, stdout·stderr·exit code 원문 반환
+- 현재 컴퓨터의 명령 처리기 실행, stdout·stderr·exit code 원문 반환
 - timeout·abort·출력 상한·기본 cwd·자격 환경 차단
 - `tree-sitter-bash@0.25.1` + `web-tree-sitter@0.26.9` 정확 핀
 - WASM 지연 로딩·캐시, 128KB 입력 상한, 500ms 파싱 제한
@@ -75,6 +75,10 @@ exec 3회 성공, 최종 답 42, 자격 형태 검출 0으로 종단까지 섰�
 - 기존 콘솔 UI → 새 session → 새 agent loop → terminal → OAuth 답 → transcript 지속 실제 관통
 - 사용자 콘솔 기본 cwd: 사용자 홈. 기본 위치는 능력 경계가 아니며 사용자가 지목한 관련 경로를 터미널로 관측
 - 2026-08-18 실제 실패 교정: `~/T5-Workspace` 전용 지침 때문에 Downloads 관측을 거절함 → 전용 지침 제거 뒤 같은 요청에서 실제 `exec` 사용 및 답 성립
+- 2026-08-18 오너 교정: 제품 중심은 macOS가 아니라 컴퓨터의 보편 능력. 기본 cwd 바깥을 거절하던
+  기존 시험 계약을 폐기하고, 접근 가능한 사용자 지정 cwd로 이동하는 반대시험으로 교체
+- 운영체제 환경 발견을 중심부에서 분리. POSIX는 실제 셸, Windows는 현재 명령 처리기의 호출 규약을
+  같은 `exec` 손에 공급. Windows 실제 기기 실행은 아직 미측정이며 지원 완료로 판정하지 않음
 
 영역 상태:
 

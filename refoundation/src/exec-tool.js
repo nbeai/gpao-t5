@@ -1,25 +1,26 @@
 import { spawn } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { explainShellCommand } from './command-explainer.js';
+import { discoverComputerEnvironment } from './computer-environment.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
 
-function inside(root, candidate) {
-  const rel = relative(root, candidate);
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-}
-
-function isolatedEnv(workspace, additions = {}) {
-  const keep = ['PATH', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TMPDIR', 'TMP', 'TEMP'];
+function isolatedEnv(defaultDirectory, additions = {}, runtime = {}) {
+  const keep = [
+    'PATH', 'Path', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TMPDIR', 'TMP', 'TEMP',
+    ...(runtime.environmentKeys ?? []),
+  ];
   const env = Object.fromEntries(keep.flatMap((name) => (
     process.env[name] == null ? [] : [[name, process.env[name]]]
   )));
   return {
     ...env,
-    HOME: process.env.T5_REFOUNDATION_HOME ?? workspace,
-    T5_REFOUNDATION_WORKSPACE: workspace,
+    HOME: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory,
+    USERPROFILE: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory,
+    T5_REFOUNDATION_WORKING_DIRECTORY: defaultDirectory,
+    T5_REFOUNDATION_WORKSPACE: defaultDirectory,
     ...additions,
   };
 }
@@ -35,36 +36,44 @@ function limited(text, limit) {
   };
 }
 
-async function resolveWorkingDirectory(workspace, requested) {
+async function resolveWorkingDirectory(defaultDirectory, requested) {
   const candidate = requested
-    ? (isAbsolute(requested) ? requested : resolve(workspace, requested))
-    : workspace;
-  const actual = await realpath(candidate);
-  if (!inside(workspace, actual)) throw new Error('cwd is outside the isolated workspace');
-  return actual;
+    ? (isAbsolute(requested) ? requested : resolve(defaultDirectory, requested))
+    : defaultDirectory;
+  return realpath(candidate);
 }
 
 /** Create the R1 shell hand. It exposes the shell, not a command allowlist. */
 export function makeExecTool({
+  workingDirectory,
   workspace,
-  shell = '/bin/sh',
+  computer,
+  shell,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   outputLimit = DEFAULT_OUTPUT_LIMIT,
   env = {},
-  explainCommand = explainShellCommand,
+  explainCommand,
 } = {}) {
-  if (!workspace || !isAbsolute(workspace)) throw new TypeError('absolute workspace is required');
+  const defaultDirectory = workingDirectory ?? workspace;
+  if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
+  const detected = computer ?? discoverComputerEnvironment({ userHome: defaultDirectory });
+  const runtime = shell
+    ? { family: 'posix', program: shell, environmentKeys: [], argsFor: (command) => ['-lc', command] }
+    : detected.commandRuntime;
+  const explain = explainCommand ?? (runtime.family === 'posix'
+    ? explainShellCommand
+    : async () => ({ ok: false, parser: 'unavailable', commandFamily: runtime.family }));
 
   return {
     name: 'exec',
-    description: 'Run a shell command inside the isolated working directory and return stdout, stderr, and exit status.',
+    description: 'Run a command on the current computer and return stdout, stderr, and exit status.',
     parameters: {
       type: 'object',
       properties: {
         command: { type: 'string', description: 'Complete shell command to run.' },
         cwd: {
           type: ['string', 'null'],
-          description: 'Directory inside the isolated workspace, or null to use the workspace root.',
+          description: 'Accessible directory to run in, or null to use the default working directory.',
         },
       },
       required: ['command', 'cwd'],
@@ -73,17 +82,17 @@ export function makeExecTool({
     async execute(args = {}, context = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) throw new TypeError('command is required');
-      const root = await realpath(workspace);
+      const root = await realpath(defaultDirectory);
       const cwd = await resolveWorkingDirectory(root, args.cwd);
       const startedAt = Date.now();
       let commandExplanation;
-      try { commandExplanation = await explainCommand(command); }
+      try { commandExplanation = await explain(command); }
       catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
 
       return new Promise((done) => {
-        const child = spawn(shell, ['-lc', command], {
+        const child = spawn(runtime.program, runtime.argsFor(command), {
           cwd,
-          env: isolatedEnv(root, env),
+          env: isolatedEnv(root, env, runtime),
           stdio: ['ignore', 'pipe', 'pipe'],
         });
         let stdout = '';

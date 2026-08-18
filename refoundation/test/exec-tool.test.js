@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -31,13 +31,11 @@ test('exec는 부모 프로세스의 자격 환경변수를 셸에 상속하지 
   }
 }));
 
-test('exec는 workspace 안 심볼릭 링크를 통한 cwd 탈출을 거부한다', async () => rooms(async ({ workspace, outside }) => {
-  await symlink(outside, join(workspace, 'escape'));
+test('기본 cwd는 능력 경계가 아니며 사용자가 지목한 접근 가능한 디렉터리로 이동한다', async () => rooms(async ({ workspace, outside }) => {
   const tool = makeExecTool({ workspace });
-  await assert.rejects(
-    () => tool.execute({ command: 'pwd', cwd: 'escape' }),
-    /outside the isolated workspace/,
-  );
+  const result = await tool.execute({ command: 'pwd', cwd: outside });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout.trim(), await realpath(outside));
 }));
 
 test('exec timeout은 실행 결과에 timeout 사실을 남긴다', async () => rooms(async ({ workspace }) => {

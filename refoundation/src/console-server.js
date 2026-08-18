@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
 import { makeExecTool } from './exec-tool.js';
+import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -52,11 +53,14 @@ export function makeConsoleServer({
   modelFactory,
   modelStatus = () => ({ connected: false, provider: null, modelId: null }),
   uiRoot = legacyUiRoot,
+  computerEnvironment,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   const sessions = new ConsoleSessionStore(stateDir);
+  const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
+  const computerFacts = publicComputerFacts(computer);
   const pendingStreams = new Map();
   const running = new Map();
 
@@ -71,12 +75,12 @@ export function makeConsoleServer({
     const controller = new AbortController();
     running.set(sessionId, controller);
     try {
-      const model = await modelFactory({ sessionId, workspace });
+      const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const result = await runAgent({
         request: text,
         history,
         model,
-        tools: [makeExecTool({ workspace })],
+        tools: [makeExecTool({ workingDirectory: workspace, computer })],
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {
@@ -123,7 +127,9 @@ export function makeConsoleServer({
       }
       if (req.method === 'GET' && url.pathname === '/health') {
         const connection = await status();
-        json(res, 200, { ok: true, product: 'gpao-t5-refoundation', model: connection, workspace }); return;
+        json(res, 200, {
+          ok: true, product: 'gpao-t5-refoundation', model: connection, workspace, computer: computerFacts,
+        }); return;
       }
       if (req.method === 'GET' && url.pathname === '/model/connection') {
         const connection = await status();
