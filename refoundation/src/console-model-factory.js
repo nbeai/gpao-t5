@@ -48,11 +48,12 @@ export function makeConsoleModelAccess({ connectionFile, stateDir } = {}) {
         connections,
       };
     },
-    async model({ sessionId, workspace, computer }) {
+    async model({ sessionId, workspace, computer, instructionsOverride }) {
       const selected = await catalog.select();
       const dumpRoot = join(stateDir, 'diagnostics', sessionId, `${Date.now()}`);
       const diagnostics = process.env.T5_REFOUNDATION_PROMPT_DUMP === '1';
-      const instructions = consoleInstructions(workspace, computer);
+      const instructions = typeof instructionsOverride === 'string'
+        ? instructionsOverride : consoleInstructions(workspace, computer);
       if (selected.kind === 'chatgpt_oauth') {
         const responseDumper = diagnostics ? makePromptDumper({ directory: join(dumpRoot, 'response') }) : null;
         return makeChatGptResponsesModel({

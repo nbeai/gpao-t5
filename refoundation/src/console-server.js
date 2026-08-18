@@ -19,6 +19,12 @@ import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
+import {
+  activeConversationProjection,
+  CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS,
+  planConversationCheckpoint,
+  summarizeConversationCheckpoint,
+} from './conversation-checkpoint.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -77,6 +83,11 @@ export function makeConsoleServer({
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
   largeToolOutputMode = 'recoverable',
+  conversationCheckpointMode = 'in-place-v0',
+  checkpointTriggerBytes = 750_000,
+  checkpointTailBytes = 60_000,
+  checkpointChunkBytes = 180_000,
+  checkpointSummarizer,
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -90,6 +101,9 @@ export function makeConsoleServer({
   }
   if (!['inline', 'recoverable'].includes(largeToolOutputMode)) {
     throw new TypeError('unsupported large tool output mode');
+  }
+  if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
+    throw new TypeError('unsupported conversation checkpoint mode');
   }
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
@@ -107,6 +121,20 @@ export function makeConsoleServer({
   const pendingSurfaceMetrics = new Map();
 
   async function status() { return Promise.resolve(modelStatus()); }
+
+  function projectConversation(conversation) {
+    const active = activeConversationProjection(conversation);
+    const projectedTail = conversationProjection === 'historical-tool-receipt-v1'
+      ? projectHistoricalConversationEntries(active.tailEntries, { largeOutputMode: largeToolOutputMode })
+      : { messages: active.tailEntries.map((entry) => structuredClone(entry.message)), recoverable: [] };
+    return {
+      messages: active.checkpoint
+        ? [structuredClone(active.messages[0]), ...projectedTail.messages]
+        : projectedTail.messages,
+      recoverable: projectedTail.recoverable,
+      active,
+    };
+  }
 
   async function effectPreflight({ toolName, args, ownerId }) {
     const effect = args?.effect;
@@ -152,16 +180,14 @@ export function makeConsoleServer({
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
-    const canonicalConversation = await conversations.read(sessionId);
-    const projection = conversationProjection === 'historical-tool-receipt-v1'
-      ? projectHistoricalConversationEntries(canonicalConversation.entries, { largeOutputMode: largeToolOutputMode })
-      : { messages: canonicalConversation.messages, recoverable: [] };
-    const history = projection.messages;
+    let canonicalConversation = await conversations.read(sessionId);
+    let projection = projectConversation(canonicalConversation);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
-      priorConversationMessages: history.length,
+      priorConversationMessages: projection.messages.length,
       conversationProjection,
       skillCatalogMode,
       largeToolOutputMode,
+      conversationCheckpointMode,
       recoverableHistoricalOutputs: projection.recoverable.length,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
@@ -173,8 +199,87 @@ export function makeConsoleServer({
       for (const metric of pending) await run.append({ type: 'surface_metric', payload: metric });
     }
     const controller = new AbortController();
+    running.set(sessionId, controller);
     let runFinished = false;
     try {
+      if (conversationCheckpointMode === 'in-place-v0') {
+        const plan = planConversationCheckpoint({
+          conversation: canonicalConversation, currentRequest: text,
+          triggerBytes: checkpointTriggerBytes, tailBytes: checkpointTailBytes,
+        });
+        if (plan.needed) {
+          await run.append({
+            type: 'checkpoint_started', stepId: 'checkpoint', payload: {
+              activeBytes: plan.activeBytes, sourceBytes: plan.sourceBytes,
+              sourceMessageCount: plan.summarizeEntries.length,
+              tailMessageCount: plan.tailEntries.length,
+            },
+          });
+          let checkpointCall = 0;
+          try {
+            const summarized = await summarizeConversationCheckpoint(plan, {
+              chunkBytes: checkpointChunkBytes,
+              summarize: async (input) => {
+                checkpointCall += 1;
+                if (typeof checkpointSummarizer === 'function') {
+                  return checkpointSummarizer({ ...input, sessionId, runId: run.runId });
+                }
+                const turn = -1000 + checkpointCall;
+                const stepId = `checkpoint-model-${checkpointCall}`;
+                await run.append({
+                  type: 'model_started', stepId,
+                  payload: { turn, purpose: 'conversation_checkpoint', phase: input.phase },
+                });
+                const summaryModel = await modelFactory({
+                  sessionId, workspace, computer: computerFacts,
+                  instructionsOverride: CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS,
+                  purpose: 'conversation_checkpoint',
+                });
+                const response = await summaryModel.respond({
+                  messages: [{ role: 'user', content: input.prompt }], tools: [], signal: controller.signal,
+                  onContextReceipt: async (contextReceipt) => run.append({
+                    type: 'model_context_built', stepId,
+                    payload: { turn, purpose: 'conversation_checkpoint', contextReceipt },
+                  }),
+                });
+                await run.append({
+                  type: 'model_completed', stepId,
+                  payload: { turn, purpose: 'conversation_checkpoint', response },
+                });
+                if (response.toolCalls?.length) throw new Error('checkpoint model requested a tool');
+                return response.text;
+              },
+            });
+            const checkpointId = randomUUID();
+            await conversations.appendCheckpoint({
+              sessionId, checkpointId,
+              coversThroughMessageId: summarized.coversThroughMessageId,
+              summary: summarized.summary,
+              sourceMessageCount: summarized.sourceMessageCount,
+              sourceBytes: summarized.sourceBytes,
+              tailMessageCount: summarized.tailMessageCount,
+            });
+            await run.append({
+              type: 'checkpoint_completed', stepId: 'checkpoint', payload: {
+                checkpointId, coversThroughMessageId: summarized.coversThroughMessageId,
+                sourceMessageCount: summarized.sourceMessageCount,
+                sourceBytes: summarized.sourceBytes,
+                tailMessageCount: summarized.tailMessageCount,
+                chunks: summarized.chunks,
+                summaryBytes: Buffer.byteLength(summarized.summary, 'utf8'),
+              },
+            });
+            canonicalConversation = await conversations.read(sessionId);
+            projection = projectConversation(canonicalConversation);
+          } catch (error) {
+            await run.append({
+              type: 'checkpoint_failed', stepId: 'checkpoint',
+              payload: { error: error?.message ?? String(error) },
+            });
+          }
+        }
+      }
+      const history = projection.messages;
       await conversations.appendMessage({
         sessionId, messageId: `${run.runId}:user`, runId: run.runId,
         message: { role: 'user', content: text },
@@ -182,7 +287,6 @@ export function makeConsoleServer({
       await sessions.append(sessionId, {
         ...(options.inputEntry ?? { role: 'user', text }), runId: run.runId,
       });
-      running.set(sessionId, controller);
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,

@@ -36,6 +36,10 @@ function parseEvents(text, sessionId) {
     if (event.type === 'message' && (!event.messageId || !validMessage(event.message))) {
       throw new Error('invalid conversation message');
     }
+    if (event.type === 'checkpoint' && (!event.checkpointId || !event.coversThroughMessageId
+      || typeof event.summary !== 'string' || !event.summary.trim())) {
+      throw new Error('invalid conversation checkpoint');
+    }
   }
   return events;
 }
@@ -110,6 +114,15 @@ export class ConversationLedger {
       events: clone(events),
       entries,
       messages: entries.map((entry) => clone(entry.message)),
+      checkpoints: events.filter((event) => event.type === 'checkpoint').map((event) => ({
+        checkpointId: event.checkpointId,
+        coversThroughMessageId: event.coversThroughMessageId,
+        summary: event.summary,
+        sourceMessageCount: event.sourceMessageCount,
+        sourceBytes: event.sourceBytes,
+        tailMessageCount: event.tailMessageCount,
+        recordedAt: event.recordedAt,
+      })),
     };
   }
 
@@ -132,6 +145,36 @@ export class ConversationLedger {
         ...(runId ? { runId: String(runId) } : {}),
         ...(Number.isInteger(turn) ? { turn } : {}),
         message: clone(message),
+      };
+      await appendFile(this.file(id), `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+      return clone(event);
+    });
+  }
+
+  async appendCheckpoint({
+    sessionId, checkpointId, coversThroughMessageId, summary,
+    sourceMessageCount, sourceBytes, tailMessageCount,
+  } = {}) {
+    const id = safeSessionId(sessionId);
+    if (!String(checkpointId ?? '').trim() || !String(coversThroughMessageId ?? '').trim()
+      || !String(summary ?? '').trim()) throw new TypeError('checkpoint id, coverage, and summary are required');
+    return this.serialize(async () => {
+      const current = await this.read(id);
+      if (!current.entries.some((entry) => entry.messageId === coversThroughMessageId)) {
+        throw new Error('checkpoint coverage message not found');
+      }
+      const existing = current.events.find((event) => (
+        event.type === 'checkpoint' && event.checkpointId === checkpointId
+      ));
+      if (existing) return clone(existing);
+      const event = {
+        schema: SCHEMA, sessionId: id, sequence: current.events.length + 1,
+        recordedAt: new Date().toISOString(), type: 'checkpoint',
+        checkpointId: String(checkpointId), coversThroughMessageId: String(coversThroughMessageId),
+        summary: String(summary),
+        sourceMessageCount: Number(sourceMessageCount) || 0,
+        sourceBytes: Number(sourceBytes) || 0,
+        tailMessageCount: Number(tailMessageCount) || 0,
       };
       await appendFile(this.file(id), `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
       return clone(event);

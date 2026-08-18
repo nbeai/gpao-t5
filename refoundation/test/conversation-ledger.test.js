@@ -70,3 +70,29 @@ test('legacy UI 대화는 원장이 없을 때 한 번만 가져오고 기존 �
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('checkpoint는 기존 message를 바꾸지 않고 append-only 사건으로 추가된다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-conversation-checkpoint-ledger-'));
+  const sessionId = '44444444-4444-4444-8444-444444444444';
+  try {
+    const ledger = new ConversationLedger(root);
+    await ledger.ensure({ sessionId });
+    await ledger.appendMessage({
+      sessionId, messageId: 'm-1', runId: 'run-1', message: { role: 'user', content: '원본 사실' },
+    });
+    const before = await readFile(join(root, `${sessionId}.jsonl`), 'utf8');
+    await ledger.appendCheckpoint({
+      sessionId, checkpointId: 'cp-1', coversThroughMessageId: 'm-1',
+      summary: '원본 사실', sourceMessageCount: 1, sourceBytes: 20, tailMessageCount: 0,
+    });
+    const after = await readFile(join(root, `${sessionId}.jsonl`), 'utf8');
+    assert.ok(after.startsWith(before));
+    const reopened = await new ConversationLedger(root).read(sessionId);
+    assert.equal(reopened.messages[0].content, '원본 사실');
+    assert.equal(reopened.checkpoints.length, 1);
+    assert.equal(reopened.checkpoints[0].summary, '원본 사실');
+    assert.equal(reopened.checkpoints[0].coversThroughMessageId, 'm-1');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

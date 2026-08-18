@@ -261,7 +261,9 @@ Non-goals:
 
 ## C1 — Context Projection and Compaction
 
-상태: `IN_PROGRESS` — 첫 단계 Context Receipt v0가 실제 OAuth까지 성립. 아직 projection·pruning·compaction은 없음.
+상태: `IN_PROGRESS` — Context Receipt, 과거 ToolReceipt projection, recoverable large output,
+on-demand skill catalog, in-place Conversation Checkpoint v0가 실제 OAuth까지 성립. 반복 checkpoint와
+checkpoint 뒤 재시작 연속성은 아직 미측정.
 
 사용자 완료 문장:
 
@@ -353,9 +355,28 @@ C1-Q2 conversation-only Context pressure qualification:
 - limit 1,501 messages·900KB: request 1,029,089 bytes에서 context window exceeded,
   HTTP 500·Run failed·tool call 0, 실패 전 Context Receipt 지속
 
-다음 한 작업은 C1-C1 In-place Conversation Checkpoint v0다. canonical 원문은 append-only로 보존하고,
-provider projection에 checkpoint summary + 최근 tail을 사용한다. 첫 구현은 exact identifier·현재 목표·결정·
-미해결 작업 보존, 실패 시 원본 Context 유지, 같은 session identity 유지까지만 연다. Memory flush는 그 뒤다.
+C1-C1 In-place Conversation Checkpoint v0:
+
+- provider usage token이 아니라 전송 전 계산 가능한 active Context UTF-8 byte가 750,000을 넘을 때만 발동
+- canonical Conversation message는 한 바이트도 다시 쓰지 않고 checkpoint를 append-only 사건으로 추가
+- 오래된 prefix는 180KB 이하 chunk로 요약하고, 최근 약 60KB tail은 canonical 원문 그대로 유지
+- exact ID·경로·날짜·수치·현재 목표·사실·결정·제약·약속·실패·미해결 작업 보존을 summary model에 요구
+- 여러 chunk는 한 continuity checkpoint로 병합; 빈 결과·tool call·provider 오류면 checkpoint를 기록하지 않고
+  기존 full Context로 계속하는 fail-closed 계약
+- latest checkpoint + cover 이후 canonical tail에 C1-P1 ToolReceipt projection을 적용해 본 모델에 공급
+- checkpoint model call과 Context Receipt도 같은 Run에 지속하되 사용자 답은 본 모델만 작성
+- 실제 OAuth: 780KB·900KB·1.02MB 모두 early fact·middle decision·recent open work 3/3 회상,
+  본 모델 request 78,252·81,497·78,874 bytes, terminal/tool call 0
+- 첫 checkpoint는 6·6·7회 별도 model call을 쓰며 전체 request 합계는 837,168·965,319·1,086,554 bytes다.
+  따라서 이번 승격은 속도·비용 개선이 아니라 context-window 실패를 막는 안전선이다
+- 기존 900KB request 1,029,089 bytes context-window 실패를 제거했고 1.02MB까지 성공; canonical 원문 불변,
+  같은 session identity 유지
+- 기본 경로를 `in-place-v0`로 승격; 단위·경계 116/116, 통합 14/14
+- 증거: `refoundation/evidence/c1-in-place-conversation-checkpoint-live.json`
+
+다음 한 작업은 C1-C2 repeated/restart checkpoint continuity qualification이다. 첫 checkpoint 뒤 대화가 다시
+발동선에 도달한 같은 Session과 서버 재시작 뒤에도 이전 checkpoint·새 tail·새 결정을 잃지 않는지 실제 OAuth로
+확인한다. 이 경계가 선 뒤 C1을 닫고 pre-compaction memory flush 착수 여부를 판정한다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -407,6 +428,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-Q2가 tool output 없는 일반 대화에서도 1,501 messages·900KB에서 실제 context-window 실패를 재현했다.
-다음 한 작업은 C1-C1 In-place Conversation Checkpoint v0다. canonical 원문은 그대로 두고 summary + 최근 tail만
-provider에 공급하며, exact fact·decision·open work 회상과 900KB 실패 제거가 성립해야 한다. Memory flush는 아직 닫는다.
+C1-C1이 canonical 원문을 보존하면서 900KB 실패를 제거하고 1.02MB까지 실제 OAuth 회상 3/3을 세웠다.
+다음 한 작업은 C1-C2 repeated/restart checkpoint continuity qualification이다. 같은 Session의 두 번째 checkpoint와
+서버 재시작 뒤 continuity를 실제 OAuth로 확인하기 전에는 C1 전체를 완료로 올리지 않는다. Memory flush는 아직 닫는다.

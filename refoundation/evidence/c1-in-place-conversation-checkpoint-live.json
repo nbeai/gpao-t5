@@ -1,0 +1,70 @@
+{
+  "schema": "t5.c1-in-place-conversation-checkpoint-live.v1",
+  "recordedAt": "2026-08-18T19:20:39.308Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "toolOutputsSeeded": false,
+  "checkpointMode": "in-place-v0",
+  "trigger": {
+    "kind": "active_context_utf8_bytes",
+    "bytes": 750000
+  },
+  "baseline": {
+    "limitConversationChars": 900000,
+    "requestBytes": 1029089,
+    "result": "context_window_exceeded"
+  },
+  "results": [
+    {
+      "tier": "extreme",
+      "sessionId": "9e5bba67-1c65-4de1-9caa-8cee1ab9f083",
+      "runId": "45485cd9-b8b2-4d40-9087-c0b9afe7a8fe",
+      "conversationChars": 780000,
+      "checkpointSourceBytes": 762161,
+      "checkpointChunks": 5,
+      "checkpointSummaryBytes": 5735,
+      "mainRequestBytes": 78252,
+      "allModelRequestBytes": 837168,
+      "mainProviderInputTokens": 20652,
+      "allModelProviderInputTokens": 253873,
+      "checkpointModelCalls": 6,
+      "answerNeedles": "3/3",
+      "passed": true
+    },
+    {
+      "tier": "limit",
+      "sessionId": "794739b7-aa7d-42bd-af5b-b237ae7ce1d9",
+      "runId": "8a6db4f9-4271-4c9d-a365-24ed19753d81",
+      "conversationChars": 900000,
+      "checkpointSourceBytes": 888661,
+      "checkpointChunks": 5,
+      "checkpointSummaryBytes": 8918,
+      "mainRequestBytes": 81497,
+      "allModelRequestBytes": 965319,
+      "mainProviderInputTokens": 23120,
+      "allModelProviderInputTokens": 316548,
+      "checkpointModelCalls": 6,
+      "answerNeedles": "3/3",
+      "passed": true
+    },
+    {
+      "tier": "overlimit",
+      "sessionId": "3013ada2-1446-4c40-b6b5-163875813ab2",
+      "runId": "52f10550-7e70-43e4-9623-d2aae3b85681",
+      "conversationChars": 1020000,
+      "checkpointSourceBytes": 1015161,
+      "checkpointChunks": 6,
+      "checkpointSummaryBytes": 6381,
+      "mainRequestBytes": 78874,
+      "allModelRequestBytes": 1086554,
+      "mainProviderInputTokens": 21556,
+      "allModelProviderInputTokens": 341382,
+      "checkpointModelCalls": 7,
+      "answerNeedles": "3/3",
+      "passed": true
+    }
+  ],
+  "canonicalConversationRewritten": false,
+  "sameSessionIdentity": true,
+  "firstFailureTier": null
+}

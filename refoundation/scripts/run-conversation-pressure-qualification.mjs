@@ -11,6 +11,11 @@ import { ConsoleSessionStore } from '../src/console-session-store.js';
 const keep = process.argv.includes('--keep');
 const fromIndex = process.argv.indexOf('--from');
 const fromTier = fromIndex >= 0 ? process.argv[fromIndex + 1] : null;
+const checkpointIndex = process.argv.indexOf('--checkpoint');
+const conversationCheckpointMode = checkpointIndex >= 0 ? process.argv[checkpointIndex + 1] : 'off';
+if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
+  throw new TypeError('--checkpoint must be off or in-place-v0');
+}
 const room = await mkdtemp(join(tmpdir(), 't5-conversation-pressure-'));
 const stateDir = join(room, 'state');
 const workspace = join(room, 'workspace');
@@ -115,7 +120,9 @@ async function runTier(server, base, tier) {
   }
   const answer = String(surface.reply ?? '');
   const toolCalls = run?.events?.filter((event) => event.type === 'tool_completed').length ?? null;
-  const contextCall = context?.calls?.[0];
+  const contextCall = context?.calls?.find((call) => Number(call.turn) > 0) ?? context?.calls?.at(-1);
+  const checkpointCalls = context?.calls?.filter((call) => Number(call.turn) < 0).length ?? 0;
+  const checkpointEvents = run?.events?.filter((event) => event.type === 'checkpoint_completed') ?? [];
   return {
     tier: tier.id,
     sessionId: seeded.sessionId,
@@ -130,10 +137,15 @@ async function runTier(server, base, tier) {
     seededConversationChars: tier.pairs * tier.charsPerMessage * 2,
     sourceMessages: contextCall?.context?.source?.messages ?? null,
     requestBytes: contextCall?.context?.requestBytes ?? null,
+    totalRequestBytes: context?.aggregate?.requestBytes ?? null,
     inputBytes: contextCall?.context?.input?.bytes ?? null,
     providerInputTokens: contextCall?.providerUsage?.inputTokens ?? null,
+    totalProviderInputTokens: context?.aggregate?.providerInputTokens ?? null,
     wallMs: speed?.wallMs ?? (Date.now() - startedAt),
     modelCalls: speed?.model?.calls ?? null,
+    checkpointModelCalls: checkpointCalls,
+    checkpointCompleted: checkpointEvents.length === 1,
+    checkpoint: checkpointEvents[0]?.payload ?? null,
     toolCalls,
     error: response.ok ? null : (surface.error ?? 'turn failed'),
   };
@@ -144,7 +156,7 @@ const previousHome = process.env.T5_REFOUNDATION_HOME;
 process.env.T5_REFOUNDATION_HOME = isolatedHome;
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const server = makeConsoleServer({
-  stateDir, workspace,
+  stateDir, workspace, conversationCheckpointMode,
   modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
   computerEnvironment: discoverComputerEnvironment({ userHome: workspace }),
 });
@@ -163,7 +175,7 @@ try {
   console.log(JSON.stringify({
     schema: 't5.conversation-pressure-qualification.v1', recordedAt: new Date().toISOString(),
     model: (await access.status()).modelId, actualUserData: false,
-    toolOutputsSeeded: false, results,
+    toolOutputsSeeded: false, conversationCheckpointMode, results,
     firstFailureTier: results.find((result) => !result.passed)?.tier ?? null,
     room: keep ? room : null,
   }, null, 2));
