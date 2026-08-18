@@ -1,0 +1,41 @@
+{
+  "schema": "t5.conversation-ledger-live.v1",
+  "recordedAt": "2026-08-19T02:59:00+09:00",
+  "model": "gpt-5.5",
+  "fixture": {
+    "path": "/private/tmp/t5-c0-live/continuity-value.txt",
+    "value": "C0-OAUTH-7391",
+    "actualUserData": false
+  },
+  "sessionId": "c2e9f667-8a1f-4db1-9a9c-370bcf910c47",
+  "observationRun": {
+    "runId": "298f1391-760d-4259-a0c6-5beac7adcd5b",
+    "tool": "exec",
+    "toolStdout": "C0-OAUTH-7391\n",
+    "finalAnswer": "확인했습니다.",
+    "finalAnswerContainsValue": false
+  },
+  "restart": {
+    "performed": true,
+    "conversationFileMode": "0600",
+    "conversationSequenceBeforeRecall": 9
+  },
+  "recallRun": {
+    "runId": "93f0e637-0e1f-4654-9d02-4fe2df7e9aad",
+    "answer": "C0-OAUTH-7391",
+    "toolCalls": 0,
+    "status": "completed",
+    "conversationSequenceAfterRecall": 11
+  },
+  "verification": {
+    "unitBoundary": { "passed": 99, "failed": 0 },
+    "integration": { "passed": 11, "failed": 0 },
+    "legacyCoreImports": 0
+  },
+  "notVerified": [
+    "compaction",
+    "long-context threshold",
+    "crash recovery for an unmatched historical tool call",
+    "durable memory across separate sessions"
+  ]
+}

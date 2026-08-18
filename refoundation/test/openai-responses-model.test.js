@@ -131,3 +131,39 @@ test('Responses adapter 오류는 API 키를 사용자 오류문에 노출하지
     (error) => error.status === 401 && !String(error.message).includes(SECRET),
   );
 });
+
+test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요청에 재생한다', async () => {
+  const requests = [];
+  const model = makeOpenAIResponsesModel({
+    apiKey: SECRET,
+    model: 'gpt-test',
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return jsonResponse({
+        id: 'continued', model: 'gpt-test',
+        output: [{
+          type: 'message', role: 'assistant', status: 'completed',
+          content: [{ type: 'output_text', text: '이전 값은 value-7391입니다.' }],
+        }],
+        usage: { input_tokens: 30, output_tokens: 8, total_tokens: 38 },
+      });
+    },
+  });
+  await model.respond({
+    messages: [
+      { role: 'user', content: '파일 값을 확인해줘' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'old-call', name: 'exec', args: { command: 'read-value', cwd: null } }] },
+      { role: 'tool', toolCallId: 'old-call', name: 'exec', content: '{"stdout":"value-7391"}' },
+      { role: 'assistant', content: '확인했습니다.' },
+      { role: 'user', content: '아까 값만 알려줘' },
+    ],
+    tools: [execDefinition],
+  });
+  assert.deepEqual(requests[0].input, [
+    { role: 'user', content: '파일 값을 확인해줘' },
+    { type: 'function_call', call_id: 'old-call', name: 'exec', arguments: '{"command":"read-value","cwd":null}' },
+    { type: 'function_call_output', call_id: 'old-call', output: '{"stdout":"value-7391"}' },
+    { role: 'assistant', content: '확인했습니다.' },
+    { role: 'user', content: '아까 값만 알려줘' },
+  ]);
+});

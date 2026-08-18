@@ -19,13 +19,34 @@ function toolDefinitions(tools) {
 }
 
 function initialInput(messages) {
-  return messages.filter((message) => message?.role === 'user' || message?.role === 'assistant').map((message) => ({
-    type: 'message', role: message.role,
-    content: [{
-      type: message.role === 'assistant' ? 'output_text' : 'input_text',
-      text: String(message.content ?? ''),
-    }],
-  }));
+  const items = [];
+  for (const message of messages) {
+    if (message?.role === 'user' || message?.role === 'assistant') {
+      const content = String(message.content ?? '');
+      if (message.role === 'user' || content || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
+        items.push({
+          type: 'message', role: message.role,
+          content: [{
+            type: message.role === 'assistant' ? 'output_text' : 'input_text', text: content,
+          }],
+        });
+      }
+      for (const call of message.toolCalls ?? []) {
+        items.push({
+          type: 'function_call', call_id: String(call.id ?? ''), name: String(call.name ?? ''),
+          arguments: JSON.stringify(call.args ?? {}),
+        });
+      }
+      continue;
+    }
+    if (message?.role === 'tool' && message.toolCallId) {
+      items.push({
+        type: 'function_call_output', call_id: String(message.toolCallId),
+        output: String(message.content ?? ''),
+      });
+    }
+  }
+  return items;
 }
 
 function textFromOutput(output) {
@@ -103,6 +124,9 @@ export function makeChatGptResponsesModel({
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
       if (!started) {
         input.push(...initialInput(messages));
+        for (const message of messages) {
+          if (message?.role === 'tool' && message.toolCallId) returned.add(message.toolCallId);
+        }
         started = true;
       }
       for (const message of messages) {

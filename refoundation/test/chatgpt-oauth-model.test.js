@@ -259,3 +259,43 @@ test('ChatGPT OAuth adapter는 transient provider 실패만 제한적으로 재�
   assert.equal(calls, 2);
   assert.deepEqual(waits, [10]);
 });
+
+test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청에 재생한다', async () => {
+  const requests = [];
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  const model = makeChatGptResponsesModel({
+    credentials,
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return sseResponse([{
+        type: 'response.completed',
+        response: {
+          id: 'continued', model: 'gpt-account-model',
+          output: [{
+            type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: '이전 값은 value-7391입니다.' }],
+          }],
+        },
+      }]);
+    },
+  });
+  await model.respond({
+    messages: [
+      { role: 'user', content: '파일 값을 확인해줘' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'old-call', name: 'exec', args: { command: 'read-value', cwd: null } }] },
+      { role: 'tool', toolCallId: 'old-call', name: 'exec', content: '{"stdout":"value-7391"}' },
+      { role: 'assistant', content: '확인했습니다.' },
+      { role: 'user', content: '아까 값만 알려줘' },
+    ],
+    tools: [execDefinition],
+  });
+  assert.deepEqual(requests[0].input, [
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: '파일 값을 확인해줘' }] },
+    { type: 'function_call', call_id: 'old-call', name: 'exec', arguments: '{"command":"read-value","cwd":null}' },
+    { type: 'function_call_output', call_id: 'old-call', output: '{"stdout":"value-7391"}' },
+    { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '확인했습니다.' }] },
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: '아까 값만 알려줘' }] },
+  ]);
+});

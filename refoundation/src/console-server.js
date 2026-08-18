@@ -15,6 +15,7 @@ import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
+import { ConversationLedger } from './conversation-ledger.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -71,6 +72,7 @@ export function makeConsoleServer({
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   const sessions = new ConsoleSessionStore(stateDir);
+  const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
@@ -129,7 +131,8 @@ export function makeConsoleServer({
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
-    const history = historyFrom(session);
+    await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
+    const history = (await conversations.read(sessionId)).messages;
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: history.length,
       trigger: options.trigger ?? 'user',
@@ -144,6 +147,10 @@ export function makeConsoleServer({
     const controller = new AbortController();
     let runFinished = false;
     try {
+      await conversations.appendMessage({
+        sessionId, messageId: `${run.runId}:user`, runId: run.runId,
+        message: { role: 'user', content: text },
+      });
       await sessions.append(sessionId, {
         ...(options.inputEntry ?? { role: 'user', text }), runId: run.runId,
       });
@@ -174,6 +181,15 @@ export function makeConsoleServer({
               type: 'model_completed', stepId: `model-${event.turn}`,
               payload: { turn: event.turn, response: event.response },
             });
+            await conversations.appendMessage({
+              sessionId, messageId: `${run.runId}:assistant:${event.turn}`, runId: run.runId,
+              turn: event.turn,
+              message: {
+                role: 'assistant', content: event.response.text,
+                ...(event.response.toolCalls.length
+                  ? { toolCalls: structuredClone(event.response.toolCalls) } : {}),
+              },
+            });
           } else if (event.type === 'tool_start') {
             await run.append({
               type: 'tool_started', stepId: `tool-${event.toolCallId || `${event.turn}-${event.name}`}`,
@@ -188,6 +204,15 @@ export function makeConsoleServer({
             await run.append({
               type: 'tool_completed', stepId: `tool-${event.receipt.toolCallId}`,
               payload: { turn: event.turn, receipt: event.receipt },
+            });
+            await conversations.appendMessage({
+              sessionId,
+              messageId: `${run.runId}:tool:${event.receipt.toolCallId || `${event.turn}:${event.name}`}`,
+              runId: run.runId, turn: event.turn,
+              message: {
+                role: 'tool', toolCallId: event.receipt.toolCallId,
+                name: event.receipt.requestedCall.name, content: JSON.stringify(event.receipt),
+              },
             });
             emit('trace_status', { text: '터미널 결과를 확인하고 있어요' });
           }
@@ -573,6 +598,7 @@ export function makeConsoleServer({
     }
   });
   server.managedProcesses = processes;
+  server.conversationLedger = conversations;
   server.runLedger = runLedger;
   server.authorityStore = authority;
   server.unsubscribeTerminalWake = unsubscribeTerminal;

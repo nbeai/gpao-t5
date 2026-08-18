@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R1 — Thin Hand`
+현재 Gate: `C1 — Context Projection and Compaction`
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -220,6 +220,47 @@ PTY가 실제 OAuth까지 성립. 영속 Run 18개 backend 수요 audit 결과 0
 - marketplace, 여러 root 우선순위, hot reload, 요구 binary/platform gating, 스킬 작성·수정, 스크립트 실행,
   자동 학습은 수요가 증명되지 않아 구현하지 않음
 
+## C0 — Canonical Conversation Ledger
+
+상태: `COMPLETE` — user·assistant 최종 답만 남기던 UI transcript와, model/tool 원문을 가진 Run 원장이
+분리되어 다음 턴에서 도구 관측이 사라지는 결손을 실제 소스 대조로 확정하고 완전한 세션 원장을 세웠다.
+
+사용자 완료 문장:
+
+> 첫 Run의 도구 결과가 최종 답에 다시 적히지 않아도, 새 턴과 콘솔 재시작 뒤 모델이 그 결과를
+> 정확히 이어서 사용한다.
+
+현재 성립한 계약:
+
+- 세션별 0600 append-only JSONL, 단조 sequence와 안정된 messageId
+- user, assistant text, assistant tool calls, tool result 원문을 모두 같은 순서로 지속
+- 각 message를 `runId`·`toolCallId`와 연결; Run은 실행 증거, Conversation은 다음 Context 정본
+- 실행 ToolReceipt는 Run 원장에 먼저 기록하고 Conversation 원장에 같은 관측을 모델 메시지로 기록
+- 새 모델 adapter가 이전 Run의 `function_call`·`function_call_output`을 첫 provider 요청에 재생
+- 기존 UI 세션은 Conversation 원장이 없을 때 user·assistant 메시지만 한 번 가져오고 이후 재주입하지 않음
+- 실제 OAuth: ToolReceipt에만 `C0-OAUTH-7391`, 최종 답은 `확인했습니다.`; 콘솔 재시작 뒤 새 도구 호출
+  0회로 `C0-OAUTH-7391` 정확 복원
+- 실제 Session `c2e9f667-8a1f-4db1-9a9c-370bcf910c47`, 관측 Run
+  `298f1391-760d-4259-a0c6-5beac7adcd5b`, 복원 Run `93f0e637-0e1f-4654-9d02-4fe2df7e9aad`
+
+Non-goals:
+
+- compaction, memory, session search, transcript branch/tree, vector index
+- 기존 UI transcript 제거·재디자인
+- crash 중 미완성 tool-call group의 restart hygiene
+
+## C1 — Context Projection and Compaction
+
+상태: `NEXT`
+
+사용자 완료 문장:
+
+> 원본 Conversation은 모두 살아 있으면서, 긴 대화에서도 T5가 현재 목적·결정·정확한 경로·남은 일을
+> 잃지 않고 필요한 Context만 사용해 계속 작업한다.
+
+첫 작업은 압축기가 아니라 현재 provider usage와 다음 요청·tool schema·Conversation projection의 실제
+크기를 같은 Run에서 측정하는 Context Receipt다. 그 측정 없이 threshold·summary·Memory flush를 만들지 않는다.
+
 ## R3 — Recovery and Comparative Performance
 
 사용자 완료 문장:
@@ -270,7 +311,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-S1-P1의 명시된 작은 작업공간 비교에서는 스킬 정확성 이득 0과 추가 비용이 확정됐다. 다음 한 작업은
-`내 컴퓨터에서 파일을 찾아줘`처럼 범위가 넓고 실제로 실패·지연했던 요청의 Run을 같은 방식으로 확보해,
-결손이 방법 지식인지 검색 범위·인덱스·모델 변동성인지 확정하는 것이다. 그 증거 전에는 `file-discovery`
-본문을 키우거나 전용 파일 검색 손을 만들지 않는다.
+C0 완전한 Conversation 원장과 실제 OAuth 재시작 연속성이 성립했다. 다음 한 작업은 C1의 Context Receipt다.
+원본 대화·도구 결과·도구 schema·현재 요청이 다음 provider 입력에서 차지하는 실제 크기와 provider usage를
+Run에 분리 기록한다. 이 측정 전에는 compaction threshold, summary prompt, Memory flush를 만들지 않는다.

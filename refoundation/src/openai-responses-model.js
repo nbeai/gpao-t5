@@ -46,9 +46,33 @@ function apiTools(tools = []) {
 }
 
 function initialInput(messages) {
-  return messages.filter((message) => message?.role === 'user' || message?.role === 'assistant').map((message) => ({
-    role: message.role, content: String(message.content ?? ''),
-  }));
+  const items = [];
+  for (const message of messages) {
+    if (message?.role === 'user') {
+      items.push({ role: 'user', content: String(message.content ?? '') });
+      continue;
+    }
+    if (message?.role === 'assistant') {
+      const content = String(message.content ?? '');
+      if (content || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
+        items.push({ role: 'assistant', content });
+      }
+      for (const call of message.toolCalls ?? []) {
+        items.push({
+          type: 'function_call', call_id: String(call.id ?? ''), name: String(call.name ?? ''),
+          arguments: JSON.stringify(call.args ?? {}),
+        });
+      }
+      continue;
+    }
+    if (message?.role === 'tool' && message.toolCallId) {
+      items.push({
+        type: 'function_call_output', call_id: String(message.toolCallId),
+        output: String(message.content ?? ''),
+      });
+    }
+  }
+  return items;
 }
 
 /**
@@ -78,6 +102,9 @@ export function makeOpenAIResponsesModel({
     async respond({ messages = [], tools = [], signal } = {}) {
       if (!started) {
         input.push(...initialInput(messages));
+        for (const message of messages) {
+          if (message?.role === 'tool' && message.toolCallId) returnedToolCalls.add(message.toolCallId);
+        }
         started = true;
       }
 

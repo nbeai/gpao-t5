@@ -43,6 +43,10 @@ legacy 기준선은 단계 비교 또는 legacy 변경 작업에서 별도로 �
 정답률과 절대경로 보고를 분리하고 Run 시간·모델 왕복·토큰·exec·skill view를 비교한다. `--rounds`는
 1~10이며, 실제 사용자 HOME 대신 별도 격리 HOME과 단일 `file-discovery` root만 사용한다.
 
+콘솔 상태의 `conversations/<sessionId>.jsonl`은 모델이 실제로 본 user·assistant·tool 메시지의 append-only
+정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은
+요청·실행·효과의 증거 원장이다.
+
 OAuth 연결은 `refoundation:connect:oauth`를 실행하면 브라우저가 자동으로 열린다. 사용자는 로그인과
 승인만 누르면 되고 터미널 입력은 하지 않는다. 이 경로는 공개 OpenAI API OAuth 계약이 아니라 기존
 Codex 계정 backend를 사용하는 비공식 호환 경로다.

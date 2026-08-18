@@ -36,6 +36,26 @@ function toolMessage(receipt) {
   };
 }
 
+function historyMessage(message) {
+  if ((message?.role === 'user' || message?.role === 'assistant')
+    && typeof message.content === 'string') {
+    return {
+      role: message.role,
+      content: message.content,
+      ...(message.role === 'assistant' && Array.isArray(message.toolCalls)
+        ? { toolCalls: structuredClone(message.toolCalls) } : {}),
+    };
+  }
+  if (message?.role === 'tool' && typeof message.content === 'string'
+    && message.toolCallId && message.name) {
+    return {
+      role: 'tool', toolCallId: String(message.toolCallId), name: String(message.name),
+      content: message.content,
+    };
+  }
+  return null;
+}
+
 async function executeCall(call, tools, signal) {
   const requested = requestedCall(call);
   const tool = tools.get(requested.name);
@@ -132,9 +152,7 @@ export async function runAgent({
   }
 
   const definitions = [...registry.values()].map(toolDefinition);
-  const prior = history.filter((message) => (
-    (message?.role === 'user' || message?.role === 'assistant') && typeof message.content === 'string'
-  )).map((message) => ({ role: message.role, content: message.content }));
+  const prior = history.map(historyMessage).filter(Boolean);
   const transcript = [...prior, { role: 'user', content: request }];
   const receipts = [];
   const modelCalls = [];
