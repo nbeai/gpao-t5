@@ -1,0 +1,42 @@
+{
+  "schema": "t5.refoundation.console-boundary-correction-evidence.v1",
+  "sourceCommit": "f22a057db95e82f70b0148aaf7f4dd44bb6a922d",
+  "date": "2026-08-18",
+  "proofLevel": "actual_console_stream_without_persisted_tool_receipt",
+  "ownerObservedFailure": {
+    "request": "다운로드 폴더에서 가장 최근 파일이 뭔지 알려줘.",
+    "result": "refused_without_terminal_call",
+    "statedReason": "the runtime was limited to /Users/jyp/T5-Workspace",
+    "rootCause": [
+      "console default cwd was /Users/jyp/T5-Workspace",
+      "model instructions said to stay inside the provided workspace"
+    ]
+  },
+  "correction": {
+    "defaultCwd": "/Users/jyp",
+    "defaultIsCapabilityBoundary": false,
+    "workspaceOnlyInstructionRemoved": true
+  },
+  "actualConsoleReplay": {
+    "sessionId": "ab800019-d035-4479-84b3-ab769e9658b2",
+    "request": "다운로드 폴더에서 가장 최근 파일이 뭔지 알려줘.",
+    "streamEvents": [
+      "trace_status",
+      "trace_status",
+      "tool_progress",
+      "trace_status",
+      "trace_status",
+      "answer_delta",
+      "complete"
+    ],
+    "terminalCallStarted": true,
+    "answerReportedLatestFileAndModificationTime": true,
+    "answerRedactedFromGitBecauseItContainsUserFilename": true,
+    "completedKind": "reply"
+  },
+  "scope": {
+    "proves": "the exact Downloads request no longer refuses on the old workspace rule and starts exec",
+    "doesNotProve": "general terminal performance or all user-PC tasks are complete"
+  },
+  "passed": true
+}
