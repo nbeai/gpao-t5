@@ -138,8 +138,8 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 ## R2 — Truth and Authority
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
-Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계 효과·권한 경계의 command-bound
-append-only 권한 원장과 shell preflight·콘솔 승인 카드 코드 계약 성립, 실제 OAuth 실측 전.
+Run 기반 속도 영수증, 4단계 효과·권한 경계가 실제 OAuth·열린 콘솔까지 성립. 5단계 실제 수요 기반
+PTY·backend 진행 전.
 
 사용자 완료 문장:
 
@@ -227,5 +227,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 4단계에서 가역적 로컬 변경 자동 진행과 백업 없는 파괴 승인·거절을 실제 OAuth 콘솔로 실측한다.
-새 상대 전송은 루프백 수신 서버만 사용하고 결제·비밀값은 실제 대상 없이 미실행 경계를 확인한다.
+5단계에서 현재 stdin 손으로 실패하는 실제 TTY-only fixture를 먼저 확정한다. PTY가 필요한 경우 검증된
+범용 부품을 채택하고, backend는 현재 local 실행으로 불가능한 실제 위치 분리 수요가 확인될 때만 연다.
