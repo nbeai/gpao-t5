@@ -137,8 +137,8 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 ## R2 — Truth and Authority
 
-상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt와 2단계 명시적 `process_start` 완료 wake가 실제
-OAuth·열린 콘솔까지 성립. 3단계 Run 기반 속도 영수증 코드 계약 성립, 실제 브라우저 실측 전.
+상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
+Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계 효과·권한 경계 진행 전.
 
 사용자 완료 문장:
 
@@ -219,5 +219,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 3단계 속도 영수증을 실제 브라우저 Run에서 읽어 병목을 구분한다. 성립하면 4단계 효과·권한 경계로
-이동하되, 사전 전체 스캔이나 런타임 목적 판단을 넣지 않는다.
+R2 4단계 효과·권한 경계로 이동한다. 실행 전후 전체 스캔이나 런타임 목적 판단을 넣지 않고, 모델이
+요청한 실제 call과 관측된 효과를 분리하며 오너의 네 경계에서만 실행 직전 멈춘다.

@@ -1,0 +1,33 @@
+{
+  "schema": "t5.refoundation.run-speed-receipt-live.v1",
+  "sourceCommit": "64a483c95e3be6e34b29aab7490303c9ea3834fd",
+  "observedAt": "2026-08-19",
+  "connection": { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" },
+  "sessionId": "fe20d4ce-2c29-4e89-a556-3a6ebb6e5cbf",
+  "runId": "a3084113-c61a-406e-a4ca-272fd41fbcfe",
+  "request": "터미널로 현재 작업 위치와 현재 시각을 직접 확인해서 알려줘.",
+  "status": "completed",
+  "wallMs": 7629,
+  "model": {
+    "calls": 2,
+    "durationMs": 7581,
+    "inputTokens": 2019,
+    "outputTokens": 116,
+    "totalTokens": 2135
+  },
+  "tools": {
+    "calls": 1,
+    "durationMs": 15,
+    "outputChars": 52,
+    "omittedChars": 0,
+    "failedCalls": 0
+  },
+  "visible": {
+    "firstFeedbackMs": 29.4,
+    "firstGroundedContentMs": 7662.7,
+    "turnCompleteMs": 7663.2
+  },
+  "observation": "model round trips dominated this run; shell execution was 15ms of 7629ms wall time",
+  "metricRole": "comparison_only_not_completion_gate",
+  "passed": true
+}
