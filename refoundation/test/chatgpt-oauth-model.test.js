@@ -197,3 +197,65 @@ test('ChatGPT OAuth adapter는 SSE function call과 결과를 같은 call_id로 
   });
   assert.ok(requests.every((request) => !JSON.stringify(request.body).includes(ACCESS)));
 });
+
+test('ChatGPT OAuth adapter는 response.failed를 빈 정상 답으로 바꾸지 않는다', async () => {
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  const model = makeChatGptResponsesModel({
+    credentials,
+    maxAttempts: 1,
+    fetchImpl: async () => sseResponse([
+      {
+        type: 'error',
+        error: { type: 'service_unavailable_error', code: 'server_is_overloaded', message: 'overloaded' },
+      },
+      {
+        type: 'response.failed',
+        response: { status: 'failed', error: { code: 'server_is_overloaded', message: 'overloaded' }, output: [] },
+      },
+    ]),
+  });
+  await assert.rejects(
+    () => model.respond({ messages: [{ role: 'user', content: 'work' }], tools: [execDefinition] }),
+    (error) => error.code === 'server_is_overloaded' && error.retriable === true,
+  );
+});
+
+test('ChatGPT OAuth adapter는 transient provider 실패만 제한적으로 재시도한다', async () => {
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  let calls = 0;
+  const waits = [];
+  const model = makeChatGptResponsesModel({
+    credentials,
+    maxAttempts: 3,
+    retryDelayMs: 10,
+    wait: async (ms) => { waits.push(ms); },
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return sseResponse([{
+        type: 'response.failed',
+        response: { status: 'failed', error: { code: 'server_error', message: 'try again' }, output: [] },
+      }]);
+      return sseResponse([
+        { type: 'response.output_text.delta', delta: '복구됐습니다.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'recovered', model: 'gpt-account-model',
+            output: [{
+              type: 'message', role: 'assistant', status: 'completed',
+              content: [{ type: 'output_text', text: '복구됐습니다.' }],
+            }],
+          },
+        },
+      ]);
+    },
+  });
+  const result = await model.respond({ messages: [{ role: 'user', content: 'work' }], tools: [] });
+  assert.equal(result.text, '복구됐습니다.');
+  assert.equal(calls, 2);
+  assert.deepEqual(waits, [10]);
+});

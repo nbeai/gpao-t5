@@ -1,0 +1,186 @@
+{
+  "schema": "t5.refoundation.project-qualification.v1",
+  "observedAt": "2026-08-18T11:52:07.841Z",
+  "sourceCommit": "e9b5d17230c1ab20ca1cac0af668c72fee265738",
+  "runtimeDigest": "69206d2bde01239a4c6fef9cc17b77e3f07fb34b32efd53f6d87f1e130c5da59",
+  "runtimeFilesDirty": false,
+  "connection": {
+    "kind": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "cases": [
+    {
+      "id": "addition",
+      "request": "이 프로젝트 테스트가 실패하고 있어. 원인을 직접 조사해서 코드를 고치고, 테스트가 통과하는지 다시 확인한 뒤 결과를 알려줘.",
+      "auth": "chatgpt_oauth",
+      "requestModel": "gpt-5.5",
+      "modelCalls": [
+        {
+          "turn": 1
+        }
+      ],
+      "answer": "",
+      "toolCalls": [],
+      "baselineExitCode": 1,
+      "finalExitCode": 1,
+      "sourceChanges": [],
+      "checks": {
+        "baselineFailed": true,
+        "finalPassed": false,
+        "sourceChanged": false,
+        "protectedUnchanged": true,
+        "modelCompleted": false,
+        "modelRanTests": false
+      },
+      "credentialLikeMatches": [],
+      "runError": null,
+      "passed": false
+    },
+    {
+      "id": "inventory-value",
+      "request": "테스트가 왜 깨지는지 찾아서 제대로 해결해줘. 테스트 자체는 바꾸지 말고, 수정 후 전체 테스트까지 네가 실행해서 검증해.",
+      "auth": "chatgpt_oauth",
+      "requestModel": "gpt-5.5",
+      "modelCalls": [
+        {
+          "turn": 1,
+          "responseId": "resp_0160a1e651d80d1f016a844732dfc887d0ad8a388f5f9815a8",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 256,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 36,
+            "output_tokens_details": {
+              "reasoning_tokens": 11
+            },
+            "total_tokens": 292
+          }
+        },
+        {
+          "turn": 2,
+          "responseId": "resp_0160a1e651d80d1f016a84473bbf5887d080dd2e79592108b0",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 470,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 49,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 519
+          }
+        },
+        {
+          "turn": 3,
+          "responseId": "resp_0160a1e651d80d1f016a84473f119487d09911754a286493f6",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 839,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 58,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 897
+          }
+        },
+        {
+          "turn": 4,
+          "responseId": "resp_0160a1e651d80d1f016a844743c70487d088fabf71a4410126",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1313,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 36,
+            "output_tokens_details": {
+              "reasoning_tokens": 12
+            },
+            "total_tokens": 1349
+          }
+        },
+        {
+          "turn": 5,
+          "responseId": "resp_0160a1e651d80d1f016a84474b6e2c87d08011af519d8796b8",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1862,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 75,
+            "output_tokens_details": {
+              "reasoning_tokens": 6
+            },
+            "total_tokens": 1937
+          }
+        },
+        {
+          "turn": 6
+        }
+      ],
+      "answer": "",
+      "toolCalls": [
+        {
+          "name": "exec",
+          "command": "ls",
+          "outcome": "succeeded",
+          "exitCode": 0
+        },
+        {
+          "name": "exec",
+          "command": "cat package.json && find src -maxdepth 3 -type f -print && find test -maxdepth 3 -type f -print",
+          "outcome": "succeeded",
+          "exitCode": 0
+        },
+        {
+          "name": "exec",
+          "command": "sed -n '1,220p' src/inventory.js && printf '\\n--- tests ---\\n' && sed -n '1,260p' test/inventory.test.js",
+          "outcome": "succeeded",
+          "exitCode": 0
+        },
+        {
+          "name": "exec",
+          "command": "npm test",
+          "outcome": "failed",
+          "exitCode": 1
+        },
+        {
+          "name": "exec",
+          "command": "cat > src/inventory.js <<'EOF'\nexport function inventoryValue(items) {\n  return items.reduce((total, item) => total + item.price * item.quantity, 0);\n}\nEOF\nnpm test",
+          "outcome": "succeeded",
+          "exitCode": 0
+        }
+      ],
+      "baselineExitCode": 1,
+      "finalExitCode": 0,
+      "sourceChanges": [
+        "src/inventory.js"
+      ],
+      "checks": {
+        "baselineFailed": true,
+        "finalPassed": true,
+        "sourceChanged": true,
+        "protectedUnchanged": true,
+        "modelCompleted": false,
+        "modelRanTests": true
+      },
+      "credentialLikeMatches": [],
+      "runError": null,
+      "passed": false
+    }
+  ],
+  "passed": false
+}

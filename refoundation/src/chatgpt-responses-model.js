@@ -1,4 +1,15 @@
 const DEFAULT_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses';
+const TRANSIENT_CODES = new Set(['server_is_overloaded', 'server_error', 'rate_limit_exceeded', 'empty_response']);
+
+class ChatGptTransportError extends Error {
+  constructor(message, { code = null, status = null, retriable = false } = {}) {
+    super(message);
+    this.name = 'ChatGptTransportError';
+    this.code = code;
+    this.status = status;
+    this.retriable = retriable;
+  }
+}
 
 function toolDefinitions(tools) {
   return tools.map((tool) => ({
@@ -35,6 +46,7 @@ function readSse(raw) {
   const items = [];
   const deltas = [];
   let completed = null;
+  let failure = null;
   for (const line of raw.split('\n')) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
@@ -44,6 +56,8 @@ function readSse(raw) {
     if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') deltas.push(event.delta);
     else if (event.type === 'response.output_item.done' && event.item) items.push(event.item);
     else if (event.type === 'response.completed' && event.response) completed = event.response;
+    else if (event.type === 'response.failed') failure = event.response?.error ?? event.error ?? { code: 'response_failed' };
+    else if (event.type === 'error') failure ??= event.error ?? { code: 'response_error' };
   }
   const output = Array.isArray(completed?.output) && completed.output.length ? completed.output : items;
   return {
@@ -52,6 +66,7 @@ function readSse(raw) {
     output,
     text: deltas.length ? deltas.join('') : textFromOutput(output),
     usage: completed?.usage ?? null,
+    failure,
   };
 }
 
@@ -68,8 +83,12 @@ export function makeChatGptResponsesModel({
   fetchImpl = globalThis.fetch,
   dump,
   observeResponse,
+  maxAttempts = 3,
+  retryDelayMs = 250,
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 } = {}) {
   if (!credentials || typeof credentials.get !== 'function') throw new TypeError('OAuth credentials source is required');
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new TypeError('maxAttempts must be positive');
   const input = [];
   const returned = new Set();
   let started = false;
@@ -99,43 +118,72 @@ export function makeChatGptResponsesModel({
         stream: true,
         store: false,
       };
-      await dump?.({
-        body,
-        meta: { provider: 'chatgpt_oauth', endpoint: new URL(endpoint).origin, model: requestModel },
-      });
-
-      let response;
-      try {
-        response = await fetchImpl(endpoint, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${credential.access}`,
-            ...(credential.accountId ? { 'chatgpt-account-id': credential.accountId } : {}),
-            accept: 'text/event-stream',
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        await dump?.({
+          body,
+          meta: {
+            provider: 'chatgpt_oauth', endpoint: new URL(endpoint).origin,
+            model: requestModel, attempt,
           },
-          body: JSON.stringify(body),
-          signal,
         });
-      } catch (error) {
-        throw new Error(`ChatGPT OAuth request failed: ${scrub(error?.message ?? error, credential.access)}`);
-      }
-      if (!response.ok) {
-        const detail = scrub((await response.text()).slice(0, 2_000), credential.access);
-        throw Object.assign(new Error(`ChatGPT OAuth response ${response.status}: ${detail}`), { status: response.status });
-      }
 
-      const raw = await response.text();
-      await observeResponse?.({ status: response.status, raw });
-      const parsed = readSse(raw);
-      input.push(...structuredClone(parsed.output));
-      return {
-        text: parsed.text,
-        toolCalls: callsFromOutput(parsed.output),
-        responseId: parsed.id,
-        responseModel: parsed.model,
-        usage: parsed.usage,
-      };
+        let parsed;
+        let transportError;
+        try {
+          const response = await fetchImpl(endpoint, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${credential.access}`,
+              ...(credential.accountId ? { 'chatgpt-account-id': credential.accountId } : {}),
+              accept: 'text/event-stream',
+            },
+            body: JSON.stringify(body),
+            signal,
+          });
+          const raw = await response.text();
+          await observeResponse?.({ status: response.status, raw, attempt });
+          if (!response.ok) {
+            const detail = scrub(raw.slice(0, 2_000), credential.access);
+            transportError = new ChatGptTransportError(`ChatGPT OAuth response ${response.status}: ${detail}`, {
+              code: `http_${response.status}`, status: response.status,
+              retriable: response.status === 429 || response.status >= 500,
+            });
+          } else {
+            parsed = readSse(raw);
+            if (parsed.failure) {
+              const code = parsed.failure.code ?? parsed.failure.type ?? 'response_failed';
+              transportError = new ChatGptTransportError(parsed.failure.message ?? code, {
+                code, status: response.status, retriable: TRANSIENT_CODES.has(code),
+              });
+            } else if (!parsed.text && !parsed.output.length) {
+              transportError = new ChatGptTransportError('ChatGPT OAuth returned an empty response', {
+                code: 'empty_response', status: response.status, retriable: true,
+              });
+            }
+          }
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          transportError = error instanceof ChatGptTransportError ? error : new ChatGptTransportError(
+            `ChatGPT OAuth request failed: ${scrub(error?.message ?? error, credential.access)}`,
+            { code: 'network_error', retriable: true },
+          );
+        }
+
+        if (!transportError) {
+          input.push(...structuredClone(parsed.output));
+          return {
+            text: parsed.text,
+            toolCalls: callsFromOutput(parsed.output),
+            responseId: parsed.id,
+            responseModel: parsed.model,
+            usage: parsed.usage,
+          };
+        }
+        if (!transportError.retriable || attempt === maxAttempts) throw transportError;
+        await wait(retryDelayMs * attempt);
+      }
+      throw new ChatGptTransportError('ChatGPT OAuth attempts exhausted');
     },
   };
 }
