@@ -13,7 +13,8 @@
     "internalRunOrToolTermsVisible": false,
     "absolutePathLinkSupport": true,
     "homeAbbreviatedPathLinkGapObserved": true,
-    "homeAbbreviatedPathLinkImplemented": true
+    "homeAbbreviatedPathLinkImplemented": true,
+    "homeAbbreviatedPathLinksVerifiedInBrowser": 7
   },
   "uiRedesignRequired": false,
   "passed": true
