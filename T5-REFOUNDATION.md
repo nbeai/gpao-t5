@@ -247,7 +247,17 @@ Non-goals:
 
 - compaction, memory, session search, transcript branch/tree, vector index
 - 기존 UI transcript 제거·재디자인
-- crash 중 미완성 tool-call group의 restart hygiene
+
+### C0-R1 — Incomplete Tool Call Restart Hygiene
+
+상태: `NEXT` — C1-P3 콘솔 재시작 중 실제 결손이 열림.
+
+- Session `41cbec96-01d4-4691-834e-7579f33d9c89`의 Run
+  `91cd9c2e-35c6-427d-8edb-50ed1e91d43a`가 model function call과 `tool_started` 뒤 종료 사건 없이 끊김
+- canonical Conversation에는 `call_0mWQV8JidejW2srALmXZFegD` function call만 있고 대응 tool output이 없음
+- 이후 같은 Session의 Run 3개가 모두 OAuth 400 `No tool output found for function call`로 실패
+- 다음 목표: 원본은 그대로 두고 provider projection에서 unmatched call마다 실행 여부 `unknown/interrupted`인
+  synthetic tool result를 정확한 call_id로 보충해 세션을 다시 진행 가능하게 한다
 
 ## C1 — Context Projection and Compaction
 
@@ -329,9 +339,8 @@ C1-P3 recoverable large tool output:
 - overflow 660KB: 28,126 tokens, needle 3/3, recall 3, terminal 0
 - 기본 large output mode를 `recoverable`로 승격; 단위·경계 111/111, 통합 12/12
 
-다음 한 작업은 C1-Q2 Conversation-only Pressure Qualification이다. tool output 없이 user·assistant 결정·경로·
-미해결 작업을 많은 turn에 누적하고 앞·중간·최근 사실 회상과 provider pressure를 측정한다. 이 조건에서 실제
-손실이나 한계가 나타날 때만 summary compaction을 연다. Memory flush는 그 뒤다.
+다음 한 작업은 실제 세션을 막은 C0-R1 Incomplete Tool Call Restart Hygiene다. 이 복구가 성립한 뒤
+C1-Q2 Conversation-only Pressure Qualification으로 돌아간다. summary compaction과 Memory flush는 계속 닫혀 있다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -383,6 +392,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-P3가 큰 historical tool output의 context-window 실패를 canonical 원문 손실 없이 제거했다. 다음 한 작업은
-C1-Q2 Conversation-only Pressure Qualification이다. tool output을 제외한 긴 사용자·assistant 대화에서 실제
-손실·비용 급증·provider 한계를 측정한다. 그 증거가 나오기 전에는 summary compaction과 Memory flush를 열지 않는다.
+C1-P3가 큰 historical tool output의 context-window 실패를 canonical 원문 손실 없이 제거했다. 그러나 실제
+재시작에서 unmatched function call이 같은 Session의 후속 Run 3개를 막은 C0-R1 결손이 열렸다. 다음 한 작업은
+provider projection에 truthful interrupted tool result를 보충해 해당 세션을 복구하는 것이다. 완료 뒤 C1-Q2로 돌아간다.

@@ -1,0 +1,27 @@
+{
+  "schema": "t5.incomplete-tool-call-live.v1",
+  "recordedAt": "2026-08-19T03:56:00+09:00",
+  "sessionId": "41cbec96-01d4-4691-834e-7579f33d9c89",
+  "originRun": {
+    "runId": "91cd9c2e-35c6-427d-8edb-50ed1e91d43a",
+    "statusAfterRestart": "interrupted",
+    "lastEvents": ["model_completed", "tool_started"],
+    "functionCallId": "call_0mWQV8JidejW2srALmXZFegD",
+    "matchingToolCompleted": false,
+    "matchingConversationToolMessage": false
+  },
+  "followupFailures": [
+    "c7268a81-ce9c-4e50-8623-1791cda0330c",
+    "7c8d36de-19a2-46f1-9644-a141ac12f763",
+    "f95a772e-2745-45fa-ab47-78a5c666c224"
+  ],
+  "providerError": "No tool output found for function call call_0mWQV8JidejW2srALmXZFegD.",
+  "rootCause": "canonical conversation truthfully preserved an unmatched assistant function call, but provider projection supplied no interrupted tool result",
+  "decision": {
+    "next": "incomplete-tool-call-restart-hygiene",
+    "canonicalRewrite": false,
+    "syntheticResultMustClaimExecution": false,
+    "resumeConversationRequired": true,
+    "conversationOnlyPressureDeferred": true
+  }
+}
