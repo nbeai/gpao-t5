@@ -8,6 +8,7 @@ import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
 import { makeExecTool } from './exec-tool.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
+import { makePathRevealer } from './path-revealer.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -54,6 +55,7 @@ export function makeConsoleServer({
   modelStatus = () => ({ connected: false, provider: null, modelId: null }),
   uiRoot = legacyUiRoot,
   computerEnvironment,
+  revealPath,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -61,6 +63,7 @@ export function makeConsoleServer({
   const sessions = new ConsoleSessionStore(stateDir);
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
+  const reveal = revealPath ?? makePathRevealer({ platform: computer.platform });
   const pendingStreams = new Map();
   const running = new Map();
 
@@ -110,9 +113,15 @@ export function makeConsoleServer({
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-        const html = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
+        const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
+        const html = source.replace('</body>', '<script type="module" src="/path-links.js"></script>\n</body>');
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         res.end(html);
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/path-links.js') {
+        res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        res.end(await readFile(resolve(here, 'path-links.js'), 'utf8'));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/markdown.js') {
@@ -130,6 +139,14 @@ export function makeConsoleServer({
         json(res, 200, {
           ok: true, product: 'gpao-t5-refoundation', model: connection, workspace, computer: computerFacts,
         }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/computer/reveal') {
+        if (req.headers['x-t5-console-action'] !== 'reveal') {
+          json(res, 403, { error: 'console action header is required' }); return;
+        }
+        const input = await body(req);
+        const opened = await reveal(input.path);
+        json(res, 200, { ok: true, ...opened }); return;
       }
       if (req.method === 'GET' && url.pathname === '/model/connection') {
         const connection = await status();

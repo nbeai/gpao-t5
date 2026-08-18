@@ -28,10 +28,15 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     };
   };
   const errors = [];
+  const revealed = [];
   const server = makeConsoleServer({
     stateDir, workspace, modelFactory,
     modelStatus: () => ({ connected: true, provider: 'test', modelId: 'console-model' }),
     onError: (error) => errors.push(error),
+    revealPath: async (path) => {
+      revealed.push(path);
+      return { openedPath: path, targetType: 'file' };
+    },
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -41,6 +46,14 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
   try {
     const html = await fetch(`${base}/`).then((response) => response.text());
     assert.match(html, /GPAO-T5/);
+    assert.match(html, /path-links\.js/);
+    const reveal = await fetch(`${base}/computer/reveal`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-t5-console-action': 'reveal' },
+      body: JSON.stringify({ path: '/private/tmp/example.txt' }),
+    }).then((response) => response.json());
+    assert.equal(reveal.ok, true);
+    assert.deepEqual(revealed, ['/private/tmp/example.txt']);
     const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const start = await fetch(`${base}/turn/stream-start`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
