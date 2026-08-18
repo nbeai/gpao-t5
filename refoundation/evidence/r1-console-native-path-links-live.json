@@ -1,0 +1,41 @@
+{
+  "schema": "t5.refoundation.console-native-path-links-evidence.v1",
+  "sourceCommit": "4a584d87cb6576bc8889f45c1d40cfa0813d6d4e",
+  "date": "2026-08-18",
+  "proofLevel": "actual_browser_dom_click_plus_native_explorer_observation",
+  "consoleUrl": "http://127.0.0.1:4174/",
+  "sessionId": "6ed8a843-3ccd-48fb-9e9d-bd89fe0e85cb",
+  "renderObservation": {
+    "absolutePathsLinked": true,
+    "unambiguousRelativePathsLinked": true,
+    "relativeExamples": {
+      "archive/aurora-backup.txt": "/private/tmp/t5-console-six-6ed8a843/archive/aurora-backup.txt",
+      "inbox/scratch.tmp": "/private/tmp/t5-console-six-6ed8a843/inbox/scratch.tmp"
+    },
+    "ambiguousRelativePathsAreNotGuessed": true,
+    "modelAnswerTextMutated": false
+  },
+  "actualClicks": [
+    {
+      "displayedPath": "/private/tmp/t5-console-six-6ed8a843/archive",
+      "pathExisted": true,
+      "nativeExplorer": "Finder",
+      "observedFrontWindowTarget": "/private/tmp/t5-console-six-6ed8a843/archive/",
+      "passed": true
+    },
+    {
+      "displayedPath": "inbox/scratch.tmp",
+      "resolvedPath": "/private/tmp/t5-console-six-6ed8a843/inbox/scratch.tmp",
+      "pathExisted": false,
+      "nativeExplorer": "Finder",
+      "observedFrontWindowTarget": "/private/tmp/t5-console-six-6ed8a843/inbox/",
+      "passed": true
+    }
+  ],
+  "platformScope": {
+    "macOSActual": "passed",
+    "windowsExplorerMapping": "contract_checked_not_run_on_windows",
+    "linuxFileManagerMapping": "implemented_not_run_on_linux"
+  },
+  "passed": true
+}
