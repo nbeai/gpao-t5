@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
+import { resolveConsoleWorkspace } from '../src/console-config.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -15,7 +16,7 @@ function option(name) {
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
 const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
-const workspace = resolve(process.env.T5_REFOUNDATION_WORKSPACE ?? join(homedir(), 'T5-Workspace'));
+const workspace = resolveConsoleWorkspace(process.env, homedir());
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);

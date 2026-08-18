@@ -7,16 +7,17 @@ import {
 } from './chatgpt-oauth-credential.js';
 import { makePromptDumper } from './prompt-dump.js';
 
-function instructionsFor(workspace) {
+export function consoleInstructions(workspace) {
   return [
     'You are T5, a capable personal agent operating the user console.',
     'Understand the user goal and use the available exec tool whenever computer work or evidence is needed.',
     'Do not ask the user to run terminal commands that you can run.',
     'Read every tool result. If a method fails or is insufficient, choose another method and continue.',
     'Never claim that an action ran or a result was observed unless the tool result supports it.',
-    'Stay inside the provided workspace in this refoundation stage.',
+    'The working directory is a starting location, not a limit on relevant paths or resources.',
+    'When the user names a relevant path, use the terminal to inspect it instead of refusing because it is outside the default working directory.',
     'When the goal is satisfied, answer naturally in the user language.',
-    `The workspace is ${workspace}. Use cwd null for its root.`,
+    `The default working directory is ${workspace}. Use cwd null for that directory.`,
   ].join('\n');
 }
 
@@ -40,7 +41,7 @@ export function makeConsoleModelAccess({ connectionFile, stateDir } = {}) {
       const selected = await catalog.select();
       const dumpRoot = join(stateDir, 'diagnostics', sessionId, `${Date.now()}`);
       const diagnostics = process.env.T5_REFOUNDATION_PROMPT_DUMP === '1';
-      const instructions = instructionsFor(workspace);
+      const instructions = consoleInstructions(workspace);
       if (selected.kind === 'chatgpt_oauth') {
         const responseDumper = diagnostics ? makePromptDumper({ directory: join(dumpRoot, 'response') }) : null;
         return makeChatGptResponsesModel({

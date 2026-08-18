@@ -42,7 +42,7 @@ function selfState(status, workspace) {
     modelAuthState: status?.connected ? 'usable' : 'needs_connection',
     modelHealthState: status?.connected ? 'usable' : null,
     ready: ['터미널'],
-    limits: [`현재 작업 공간: ${workspace}`],
+    limits: [`기본 터미널 위치: ${workspace}`],
   };
 }
 
