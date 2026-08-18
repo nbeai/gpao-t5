@@ -1,203 +1,119 @@
-# GPAO-T5 Agent Instructions
+# GPAO-T5 Engineering Contract
 
-## Owner communication constraint (2026-08-03, mandatory)
+이 저장소의 개발 지침이다. 작업 전에 이 문서를 읽고, 하위 디렉터리에 `AGENTS.md`가 있으면
+그쪽이 우선한다.
 
-- Do not restate the owner's words as if they were the agent's new finding, framework, or conclusion.
-- Do not inflate an ordinary existing action into a newly named phase, seal, baseline, checklist, document, or work item.
-- Answer the exact question first with the shortest sufficient answer. Add only a genuinely missing fact, risk, or decision.
-- Before proposing anything new, check whether the owner already decided it or the current plan already covers it. If so, use the existing name and process.
-- Agreement needs no decorative paraphrase. Audit and planning output must contribute net-new information rather than repackaging context.
-- Create a new term, artifact, test layer, or process only when an existing contract cannot hold the necessary work, and state that concrete necessity plainly.
+> **2026-08-18 정리**: 계획서 계열(`design/` 124파일 · 루트 `GPAO-T5-*.md` 31개)을 삭제했다.
+> 이유는 「낡은 지도가 세션을 네 번 루프에 태운 것」이다. 그 문서들이 쥐고 있던 **규칙**만
+> 이 문서로 옮겼다. 삭제 전 상태는 `보존/삭제전-01ed2738` 브랜치와 git 이력에 전부 있다.
 
-## Start here (2026-08-13)
+---
 
-Read `design/NEXT-SESSION.md` first. It is the single onboarding document for a session that
-knows nothing: what to read, what standards apply, the development rules, what "done" means,
-who declares completion, how to use the four standing agents, what to work on now, and what not
-to touch. It points back into the authorities below rather than replacing them.
+## 0. 지금의 개발 목표 — 하나뿐이다
 
-## Single top product authority (mandatory)
+**사용자가 입력창에 무언가 입력하면, 터미널을 써서 그 일이 끝난다.**
+Claude Code · OpenClaw 가 하는 그 수준으로. 그 외의 축(저장·압축·확장·채널)은 이것이 선 뒤다.
 
-Before any planning, implementation, review, verification, handoff, or release work, read and obey:
+한 케이스를 통과시키는 것은 목표가 아니다. **영역이 서야 한다.**
 
-- `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
+## 1. 제품 불변식 — 어길 수 없다
 
-It is the single authority for owner vision, product purpose, the seven domains, 말귀, functional correctness,
-comparative performance, model operation, Selfhood, memory/growth, reference absorption, and final judgment.
-Do not replace it with a summary or recreate its principles in another document. Technical contracts may only
-interpret or execute it.
+```
+· 실행하지 않은 일을 실행했다고 기록하지 않는다. 실행한 일을 안 했다고도 하지 않는다.
+· 로컬 효과와 외부 효과를 따로 판정한다. 「이 컴퓨터가 안 바뀌었다」는 「아무 일도 없었다」가 아니다.
+· 승인받은 효과보다 넓은 권한을 열지 않는다.
+· 요청과 무관한 파일·화면·계정·앱은 관찰하지 않는다. 미리 훑지 않는다.
+· 사용자에게 보이는 답은 모델이 쓴다. 런타임이 내부 회계를 답 문자열에 이어 붙이지 않는다.
+· 모델의 주장은 영수증을 대체하지 않는다. 그러나 영수증이 모델의 판단을 대체하지도 않는다.
+```
 
-This folder is the official GPAO-T5 development root.
+## 2. 손의 정의 — 완성의 단위 (오너 2026-08-13)
 
-Canonical entry map: `docs/PROJECT-AUTHORITY-MAP-ko.md`.
-Official working folder: `/Users/jyp/Developer/t5-p-op`.
-Do not treat another T5 worktree, an archived handoff, or local harness notes as current project truth.
-Run `npm run audit:workspace` before starting a new implementation line and after changing authority, handoff,
-archive, or worktree state.
+> *"내가 말하는 손은 기능이 아니라 **기능과 성능의 조합**이야. 더하기가 아니라 **곱하기**이고
+> 함수이지. … **특정 영역의 일만 잘 할 수 있다면 그건 손이 아니라 로봇팔인거다.**
+> AI의 절대 목표는 **사용자의 요구를 실현시키는 것**이다."*
 
-After the single top authority, read these execution and engineering documents:
+```
+손 = 기능 × 성능
+```
 
-1. `README.md`
-2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
-3. `GPAO-T5-DEVELOPMENT-ABSOLUTE-PRINCIPLES-2026-07-24-ko.md`
-4. `GPAO-T5-ENGINEERING-ENVIRONMENT-CHARTER-2026-07-24-ko.md`
-5. `GPAO-T5-DEVELOPMENT-METHOD-ASSET-2026-07-28-ko.md`
-   - Preserves the reusable method that turns owner philosophy into human scenarios, shared contracts,
-     implementation, live evidence, independent audit, and durable project knowledge.
-   - Use it as the operating cycle for new work. It does not replace the single top product authority.
+도구 수를 세지 않는다. 한 영역의 손은 이 함수로 닫힌다:
 
-The current canonical assembly (owner re-freeze 2026-08-11) — it comes before every plan node:
+```
+사용자 목적 → 현재 현실 관측 → 가장 적절한 수단 선택 → 권한 판정 → 실행
+→ 사후 상태 관측 → 목적과 결과 대조 → 미달이면 다른 수단으로 전환
+→ 원장이 목적 달성을 확인 → 답
+```
 
-5a. `design/T5-FINAL-ASSEMBLY-ko.md` — **the canonical assembly. It outranks every node of `design/T5-PLAN.md`.**
-   - §3 is the only place that defines how anything is judged done: console live only, plus the live round
-     spec (count, diversity, scoring, multi-turn freeze) that is fixed before a round is run.
-   - §4 is the four-step slice discipline (comparison axis → pre-red → repair → re-judgment).
-     §5 is the owner-approved order. §9/§9-1 are the live mines, including HOME isolation.
-   - When this and another document disagree, this one wins. Fix the other document — do not keep a second copy.
+## 3. 오너 원칙 — 설계가 여기 걸리면 설계가 틀린 것이다
 
-The one and only plan (owner directive 2026-08-06):
+```
+존재이유        사용자 목적 달성. 그 위에 아무것도 없다
+지능의 자리      지능은 모델이 가져온다. 우리가 만드는 것은 환경·구조·원리다
+강제가 아니라 유도  "이걸 넣으면 모델이 더 잘 판단하게 되나, 판단을 안 하게 되나?"
+                규칙을 박아 모델을 깡통으로 만들지 않는다
+자동성이 의무다   승인으로 안전을 사지 마라. 마찰을 늘려 안전해 보이게 하지 않는다
+물길            막지 마라(능력 축소 금지) · 새나가거나 맴돌지 않게 하라
+원장은 git 이다   기록은 고르지 않는다. 실패도 그대로 남긴다. 판단 칸을 원장에 신설하지 않는다
+기능 먼저        기능을 세우고 그 위에 성능을 입힌다. 순서를 뒤집지 않는다
+```
 
-5b. `design/T5-PLAN.md` — **what T5 builds next. There is no second plan.**
-   - Before writing product code, open it, pick the node your change belongs to, and read that node in full.
-     Partial reads and "I'll read it after" are what made the previous plans dead letters.
-   - Start at the map (first section). Every node carries `지금 몇/몇` · `닫는 조건` · `파일` · `근거`,
-     so following one node reaches everything connected to it. `scripts/audit-docs.mjs` check 10 enforces that.
-   - Other `design/` plan documents are **evidence, not plans**. The three former plans carry a banner saying so
-     and naming which node reads them. Do not take work orders from them.
-   - Never create a new plan document. Add a node to this one.
-   - **Plan prose is edited on the main line only.** Measured 2026-08-14: two teams edited the same node on
-     their own branches, the completion contract split in two, and neither version was on the main line.
-     Do the work in a lane; land the plan edit on main.
-   - Progress belongs in `git log`, open defects in `design/T5-FOLLOWUP-LEDGER-ko.md` — not in the plan.
-   - **Closing a node means re-running the whole alignment board**, not just the sentence you fixed:
-     `docs/03-verification/T5-ALIGNMENT-BOARD-ko.md`. All nine items, or the node is not closed.
-     The board is frozen before scoring — do not add, drop, or reword items after seeing results.
+## 4. 개발 규칙
 
-Mandatory reference absorption supplement:
+```
+· 한 작업은 한 결함·한 계약만 바꾼다. 「관련된 김에 정리」 금지.
+· 고치기 전에 **원인을 확정한다.** 추론으로 고치지 않는다.
+  계측기가 이미 있다 — GPAO_T5_PROMPT_DUMP 를 켜고 모델에게 나간 바이트를 읽어라.
+· 수정 전에 실패하는 반대시험을 먼저 만든다. 걷으면 다시 빨간지 확인한다.
+· 기존 검사를 삭제·완화·skip 하지 않는다. 계약 자체가 틀렸다고 판단되면
+  **무엇이 왜 틀렸는지 적고 오너 확인을 받은 뒤** 바꾼다.
+· 실제 홈·계정·자격증명으로 시험하지 않는다. GPAO_T5_DATA_DIR·GPAO_T5_HOME 격리.
+· 외부 효과 시험은 루프백 수신 서버로 한다. 진짜 인터넷 대상 금지.
+· 공유 브랜치 amend 금지(새 커밋만) · `git add -A`·`git add -u` 금지(명시 경로만)
+· npm test 와 npm run gate 동시 실행 금지. 게이트가 빨가면 CPU 값부터 보고
+  **초록 나올 때까지 재실행하지 말고 첫 실행값을 등재**한다.
+· 새 계획서를 만들지 않는다. 규칙은 이 파일과 하위 AGENTS.md 로만 늘린다.
+```
 
-6. `GPAO-T5-P-OP-REFERENCE-ABSORPTION-SUPPLEMENT-2026-07-28-ko.md`
-   - Defines what T5 should absorb from OpenClaw and Hermes for current and future P-OP work.
-   - Do not copy their dashboards, channel breadth, CLI/TUI posture, infrastructure, paths, branding, or service-specific connector code.
-   - Absorb only the T5-translated operating contracts: `OperatorRealitySnapshot`, `ConversationLane`, `SurfaceCapabilityDescriptor`, delivery recovery discipline, automation wake discipline, repair narrative, and scope isolation.
+## 5. 지금 알려진 결함 — 고치기 전에 읽어라
 
-Current T-cell and H-stage boundary:
+2026-08-18 독립 평가 둘 + 자체 실측으로 확정된 것. **위치까지 확인됐다.**
 
-7. `design/T5-TCELL-DEVELOPMENT-PLAN-2026-07-31-ko.md` is the frozen current T-cell implementation contract.
-   - The previous T-cell specification is retired under `docs/archive/retired-plans/` and never regains authority.
-   - TG/CX product work was rolled back and is not current product truth.
-   - S0-S5 are implemented and have production/live path evidence. Do not reopen their design from retired plans.
-   - The active line is `docs/03-verification/T5-H-STAGE-BOARD-2026-08-01-ko.md`: remediate diagnosed defect
-     families, then seal H01-H07, H08-H09, Agent Core/H10, and the final product journey.
-   - Verify the exact live state against Git and `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`; do not copy a volatile
-     status into a new plan or infer completion from test counts.
-   - Retired plans and the pre-start briefing are history and causal evidence, not current implementation commands.
+```
+P0  reach 구멍          probe 실패 → 자동 network 재시도 → 성공하면 승인 없이 통과
+                       두 평가자가 각각 로컬 sink 로 POST 수신 재현
+                       src/runtime/local-terminal.js 재보기() · src/runtime/sandbox.js reach 프로파일
+P0  원장 거짓           probe 로 돈 읽기 명령이 exitCode 0 · stdout 있는데
+                       "확인만 했어요" / "실제로는 안 돌았다"
+                       local-terminal.js:536 · task-context.js:466
+                       ★ 같은 파일 reach 갈래가 이미 정답 문장을 쓴다
+P0  답 오염            런타임이 「안 본 자리 — 카카오톡·Telegram·메모·Notion」을
+                       사용자 답 문자열에 괄호로 이어 붙인다. turn.js:167·172
+                       뿌리: turn.js:1318·1329 가 **턴 머리에서 화면·파일을 미리 훑는다**
+P1  왕복 낭비          출구검증이 답을 만든 뒤 모델을 다시 부른다 turn.js:817
+                       FILE/CHAT 심문 turn.js:254 · 작업상태 판정 server.js:2270
+                       「안녕」 한 마디에 2왕복 · 왕복당 약 24,300 토큰
+P1  두 진실            모델 미연결(stub)인데 modelAuthState: usable
+P2  압축 없음          conversation.js — 요약이 아니라 문자 절단. MAX_TURNS 12
+P2  손 과잉            도구 29개 중 12개가 손이 아니라 내부 장부
+```
 
-Owner-operation boundary:
-   - The development and audit teams operate the terminal, browser, local UI, tests, fixtures, screenshots, and
-     routine verification themselves.
-   - Ask the owner to act only when the action cannot be delegated: account login, consent, secret entry, irreversible
-     external authority, spending, or a genuinely subjective final product choice.
-   - Never make the owner run commands, click routine test UI, reproduce engineering defects, or arbitrate technical
-     scope between agents merely because the team has not completed its own investigation.
+## 6. 읽을 것
 
-Mandatory final pre-human validation gate:
+```
+docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md   제품 철학 정본
+docs/PROJECT-AUTHORITY-MAP-ko.md                                                  문서 지도
+docs/03-verification/                                                             라이브 회차 원본(원장)
+.claude/agents/t5-hand-keeper.md · t5-process-supervisor.md                        검문 계약서
+~/.claude/projects/-Users-jyp-Developer-gpao-t5/memory/MEMORY.md                   오너 원칙 축적본(저장소 밖)
+```
 
-8. `docs/03-verification/T5-FINAL-DUAL-MODEL-HUMAN-SCENARIO-VALIDATION-PLAN-2026-07-28-ko.md`
-   - Run only after P-OP A-H is sealed and before human user testing or installation-package production.
-   - Codex must use GPT-5.6sol. Claude must use Opus 5 or Fable 5. Record the exact provider-exposed model
-     identity; do not silently substitute a lower or auto-selected model.
-   - The two lanes run blind first, then cross-audit and reproduce each other's findings.
-   - No final dual-model `PASS` means no installation-package production. Any product change after `PASS`
-     requires impact analysis and the affected dual-model scenarios to run again.
+## 7. 오너만 정한다
 
-Mandatory independent audit and collaboration contract:
+```
+누구를 위한 제품인가 · 어떤 외부 효과를 자동 허용할까 · 무엇을 완료로 볼까
+실제 사용자 자료로 시험할 시점 · 출시 여부 · 중단 기준
+```
 
-9. `GPAO-T5-INDEPENDENT-AUDIT-AND-COLLABORATION-CONTRACT-2026-07-29-ko.md`
-   - **Owner declaration 2026-08-14: this contract's closing-judgment clauses are abolished. The only judge is
-     the actual console live result — `design/T5-FINAL-ASSEMBLY-ko.md` §3.** The document carries the same
-     banner at its head and is kept, not deleted. What stays in force is everything below about parallel
-     development and scope hygiene; read the clauses about who declares completion as retired.
-   - Every implementation, audit, resumed, handoff, and release session must read and obey it.
-   - Audit must inspect the whole relevant range and submit the complete problem set together: reproduction,
-     impact, shared structural scope, classification, preserved behavior, and stop condition.
-   - Do not prescribe implementation patches in the audit handoff. The implementer reasons over the whole
-     structure; the auditor independently verifies the resulting design and behavior.
-   - Do not drip-feed findings, reopen a passed scenario for peripheral issues, lower product quality for a
-     deadline, or make the owner arbitrate technical scope between agents.
-   - Claude implements and produces live evidence; Codex audits the whole plan and recommends the most
-     effective path. Do not co-edit the same files or turn independent audit into serial rework.
-   - Its parallel-development contract is also mandatory: stabilize one shared contract first, isolate sidecar
-     work by worktree and disjoint file ownership, and let one integration owner admit audited contract units.
-     Parallel agents never merge directly into the canonical line or make the owner arbitrate technical choices.
-
-Mandatory current-session handoff:
-
-10. `GPAO-T5-CURRENT-SESSION-HANDOFF-ko.md`
-   - Every new, resumed, or takeover session reads this after the audit contract and current execution board.
-   - It records the latest verified baseline, current file ownership, blockers, designated follow-ups, next work,
-     and stop condition. Verify it against Git before acting because active implementation may have advanced.
-   - Update this fixed-path document at each major P-OP handoff instead of creating disconnected handoff notes.
-
-Mandatory skill, scheduling, agent, and automation implementation plan:
-
-11. `design/T5-SKILL-TRIGGER-AGENT-AUTOMATION-IMPLEMENTATION-PLAN-2026-07-29-ko.md`
-   - Read before changing skills, recurring or scheduled work, background execution, agent creation/delegation,
-     automation UI, scheduler persistence, or T-cell automation learning.
-   - Defines one shared structure: Skill is how, Trigger is when, AgentRun is the bounded executor, and
-     AutomationJob binds them under the existing P-OP authority, ledger, recovery, and delivery contracts.
-   - Core user-created skills, durable scheduling, and bounded agents are pre-human-beta and pre-package work.
-     External skill/plugin ecosystems, agent swarms, and recursive multi-agent orchestration are not.
-
-## Product principle and execution contracts
-
-There is one product philosophy authority:
-
-1. `docs/03-product-plan/GPAO-T5-VISION-AND-PERFORMANCE-PHILOSOPHY-2026-07-27-ko.md`
-
-The following documents execute it without creating competing philosophy:
-
-2. `GPAO-T5-MODEL-OS-OPERATING-LOOP-2026-07-27-ko.md`
-   - Model/runtime responsibility split, reality assembly, execution truth, and next-turn continuity.
-3. `GPAO-T5-CORE-OPERATOR-HARNESS-WORK-ORDER-2026-07-28-ko.md`
-   - Current core execution order, process audit, real-user scenarios, and completion evidence.
-
-Read the current execution board and handoff for volatile status. No execution contract can override the product
-purpose, and the top product document cannot by itself claim that implementation is complete.
-
-For current (v3.x) development, also read — these define what "done" means now:
-
-4a. `GPAO-T5-DEVELOPMENT-PLAN-v3.0-2026-07-26-ko.md` (owner, canonical identity §0 and Phases 1-9)
-4b. `GPAO-T5-DEVELOPMENT-PLAN-v3.1-SUPPLEMENT-2026-07-26-ko.md` (completion definition, target list,
-    performance floor, Phase 0 debt). **A slice is not done while any "다만 ~는 아직" remains.**
-
-For Phase 0 reference inventory, also read:
-
-5. `GPAO-T5-REFERENCE-INVENTORY-PROTOCOL-2026-07-24-ko.md`
-
-Product rules:
-
-- Use the seven domains, six product laws, comparison standard, and final judgment exactly as defined in the
-  single top product authority. Do not maintain a second copy here.
-
-Development discipline:
-
-- Verify the delivered artifact, not only source files.
-- Do not build on unverified premises.
-- Gate destructive, external, irreversible, public, paid, secret, or account-affecting actions.
-- Prefer reference-first absorption over reinvention, while preserving GPAO-T5 identity and license boundaries.
-- Keep changes surgical and simple.
-- Every fix should include a failing reproduction or scenario gate.
-- Completion means the real user path works.
-
-Working-environment rules (see the Engineering Environment Charter):
-
-- Build artifacts and stages live outside the source tree at a fixed absolute path. Never derive that path from mutable strings (version, cwd, brand).
-- Do not commit generated outputs (build/, dist/, out/). Source and generated outputs stay physically separate.
-- Builds are deterministic: no Date.now/random in outputs; stamp from content hashes computed on the final (post-transform) artifact.
-- When multiple agents work at once, isolate by `git worktree`; do not co-edit one file; merge via PR. Solo work needs no worktree.
-- Judgment (owner declaration 2026-08-14): **"유일한 감사는 실제 콘솔 라이브 결과다. 그게 틀리면 틀린 것이고 그게 맞으면 맞는 것이다."** Whoever implements runs the live rounds and judges from them; if that judgment is wrong, the next live round catches it. Do not wait for a separate human or model auditor to declare something closed, and do not treat an auditor's opinion as the project's direction — that is how the audit became the project manager and pulled work narrow, partisan, or excessive. The one place the rules live is `design/T5-FINAL-ASSEMBLY-ko.md` §3; do not restate them here.
-- Two exceptions the owner kept: (a) **safety belts stay** — secret leakage, irreversible destruction, and touching the owner's own state are damage by the time a live round reveals them, so `scripts/human-use/prove-isolation.mjs` and its siblings remain mandatory brakes, not audits; (b) **live rounds fix their count and scoring axes before running** — cherry-picked rounds are a lie. The frozen round spec is `design/T5-FINAL-ASSEMBLY-ko.md` §3.
-- Because maker and judge are now the same actor, the discipline that replaces a second pair of eyes is the frozen live spec plus the standing rule that irreversible or external actions are never pushed solo — user approval remains that gate.
-- Dual-role marking (kept, meaning changed 2026-08-14): tag work where one actor both implemented and judged with the commit trailer `Dual-Role: <actor> (impl+audit — needs independent audit)`. **It now means: not a main-line candidate until a live round's raw output is attached.** It no longer means "waiting for a human auditor" — 25 such commits in the last 200 waited for an audit that never came, and 23 of them sat over a day on no list at all. Where a live round cannot be run at all (instrument or ruler repairs), write down why it cannot, and that note is what clears the tag.
-- Remote sync: local commits are frequent and free; push to origin at each major milestone (charter/spec sealed, roadmap phase done, first build slice complete, a domain closed, merge after audit passes). Do not let origin trail local for long. `main` stays green — never push a half-done or unaudited state. Force pushes / history rewrites / tags / releases need user approval; ordinary fast-forward pushes proceed at milestones.
-- Enforcement gates (hooks/CI/test gates) are intentionally deferred to Phase 5, when real code and a build pipeline exist. Everyday local work stays frictionless.
+이것들을 에이전트가 대신 정하지 않는다. 「터미널 완성」이 실제보다 크게 보고된 것도
+완료 기준을 구현자가 스스로 정했기 때문이다.
