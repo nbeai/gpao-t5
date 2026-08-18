@@ -60,9 +60,12 @@ export function makeExecTool({
       type: 'object',
       properties: {
         command: { type: 'string', description: 'Complete shell command to run.' },
-        cwd: { type: 'string', description: 'Optional directory inside the isolated workspace.' },
+        cwd: {
+          type: ['string', 'null'],
+          description: 'Directory inside the isolated workspace, or null to use the workspace root.',
+        },
       },
-      required: ['command'],
+      required: ['command', 'cwd'],
       additionalProperties: false,
     },
     async execute(args = {}, context = {}) {

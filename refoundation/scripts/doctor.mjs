@@ -30,7 +30,10 @@ for (const path of [
 
 try {
   const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
-  for (const name of ['refoundation:doctor', 'refoundation:boundary', 'refoundation:test', 'refoundation:check', 'refoundation:isolated']) {
+  for (const name of [
+    'refoundation:doctor', 'refoundation:boundary', 'refoundation:test', 'refoundation:check',
+    'refoundation:integration', 'refoundation:ci', 'refoundation:isolated', 'refoundation:live',
+  ]) {
     if (!pkg.scripts?.[name]) failures.push(`루트 npm script 없음: ${name}`);
   }
 } catch (error) {

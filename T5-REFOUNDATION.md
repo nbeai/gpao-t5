@@ -59,7 +59,8 @@ Non-goals:
 
 ## R1 — Thin Hand
 
-상태: `IN_PROGRESS` — 주입 모델 기준 최소 loop·실제 exec·실패 관측·명령 전환·취소·timeout 성립.
+상태: `IN_PROGRESS` — 최소 loop·실제 exec·OpenAI Responses adapter·가린 prompt dump·루프백 관통
+성립. 실제 provider 과업은 키가 개발 프로세스에 명시적으로 제공된 뒤 측정한다.
 
 사용자 완료 문장:
 
@@ -156,4 +157,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R1의 실제 model adapter 하나와 prompt dump를 붙이고, 격리 fixture에서 첫 실제 모델 과업을 수행한다.
+`T5_REFOUNDATION_OPENAI_API_KEY`가 명시된 환경에서 격리 fixture의 첫 실제 모델 과업을 수행하고,
+그 결과로 R1 과업 영역 측정을 시작한다. 기존 콘솔 저장 자격은 자동으로 읽지 않는다.

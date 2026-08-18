@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: '20'
       - name: Verify refoundation development lane
-        run: npm run refoundation:check
+        run: npm run refoundation:ci
 
   test:
     runs-on: ubuntu-latest
