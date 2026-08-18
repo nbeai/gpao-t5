@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { absolutePathSegments } from '../src/path-links.js';
+import { absolutePathSegments, resolveRelativeReference } from '../src/path-links.js';
 
 test('콘솔 답의 POSIX·Windows 절대경로를 사용자 문장 변경 없이 찾아낸다', () => {
   assert.deepEqual(
@@ -23,4 +23,18 @@ test('코드 한 줄에 든 공백 포함 절대경로 전체를 하나의 경�
 
 test('상대경로와 URL은 파일 탐색기 링크로 오인하지 않는다', () => {
   assert.deepEqual(absolutePathSegments('reports/result.md와 https://example.com/a를 봐'), []);
+});
+
+test('대화에서 이미 관측된 절대경로와 유일하게 대응하는 상대경로만 해결한다', () => {
+  const known = [
+    '/private/tmp/run/inbox/alpha.txt',
+    '/private/tmp/run/archive/aurora-backup.txt',
+    '/private/tmp/run/reports/aurora-summary.md',
+  ];
+  assert.equal(resolveRelativeReference('archive/aurora-backup.txt', known), known[1]);
+  assert.equal(resolveRelativeReference('reports', known), '/private/tmp/run/reports');
+  assert.equal(resolveRelativeReference('missing/file.txt', known), null);
+  assert.equal(resolveRelativeReference('alpha.txt', [
+    '/tmp/one/alpha.txt', '/tmp/two/alpha.txt',
+  ]), null);
 });

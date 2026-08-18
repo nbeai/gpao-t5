@@ -27,12 +27,52 @@ export function absolutePathSegments(input, { wholeLine = false } = {}) {
   return found;
 }
 
+function pathAncestors(path) {
+  const separator = /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\') ? '\\' : '/';
+  const normalized = separator === '\\' ? path.replaceAll('/', '\\') : path;
+  const results = [normalized];
+  let cursor = normalized;
+  while (true) {
+    const cut = cursor.lastIndexOf(separator);
+    if (cut <= (separator === '\\' ? 2 : 0)) break;
+    cursor = cursor.slice(0, cut);
+    results.push(cursor);
+  }
+  return results;
+}
+
+export function resolveRelativeReference(reference, knownAbsolutePaths = []) {
+  const raw = String(reference ?? '').trim().replace(/^\.([\\/])/, '');
+  if (!raw || raw.startsWith('/') || /^[A-Za-z]:[\\/]/.test(raw) || /^https?:\/\//i.test(raw)) return null;
+  const matches = new Set();
+  for (const known of knownAbsolutePaths) {
+    for (const candidate of pathAncestors(known)) {
+      const separator = candidate.includes('\\') ? '\\' : '/';
+      const relative = separator === '\\' ? raw.replaceAll('/', '\\') : raw.replaceAll('\\', '/');
+      if (candidate.endsWith(`${separator}${relative}`)) matches.add(candidate);
+    }
+  }
+  return matches.size === 1 ? [...matches][0] : null;
+}
+
+function knownPaths(document) {
+  return Array.from(document.querySelectorAll('a.t5-path-link[data-t5-path]'))
+    .map((link) => link.dataset.t5Path)
+    .filter(Boolean);
+}
+
 function segmentsForNode(node) {
   if (node.parentElement?.tagName !== 'CODE') return absolutePathSegments(node.data);
   const segments = [];
   let offset = 0;
   for (const line of node.data.split('\n')) {
-    for (const segment of absolutePathSegments(line, { wholeLine: true })) {
+    const absolute = absolutePathSegments(line, { wholeLine: true });
+    const trimmed = line.trim();
+    const relative = absolute.length ? null : resolveRelativeReference(trimmed, knownPaths(node.ownerDocument));
+    const lineSegments = absolute.length ? absolute : (relative ? [{
+      start: line.indexOf(trimmed), end: line.indexOf(trimmed) + trimmed.length, path: relative,
+    }] : []);
+    for (const segment of lineSegments) {
       segments.push({ ...segment, start: segment.start + offset, end: segment.end + offset });
     }
     offset += line.length + 1;
