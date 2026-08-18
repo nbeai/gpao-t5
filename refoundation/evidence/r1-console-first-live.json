@@ -1,0 +1,27 @@
+{
+  "schema": "t5.refoundation.console-surface-evidence.v1",
+  "sourceCommit": "c4ff1e730359a6c26bde27618266618de1ff3a45",
+  "proofLevel": "surface_observation_not_tool_receipt",
+  "server": {
+    "product": "gpao-t5-refoundation",
+    "url": "http://127.0.0.1:4174",
+    "workspace": "/Users/jyp/T5-Workspace",
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "sessionId": "a7cb2471-55bc-4d3b-87e7-871a9aed0c30",
+  "request": "현재 작업 공간의 경로와 파일 개수를 터미널로 직접 확인해서 알려줘.",
+  "streamEvents": [
+    "trace_status",
+    "trace_status",
+    "tool_progress",
+    "trace_status",
+    "trace_status",
+    "answer_delta",
+    "complete"
+  ],
+  "reply": "터미널로 직접 확인한 결과입니다.\n\n- 현재 작업 공간 경로: `/Users/jyp/T5-Workspace`\n- 파일 개수: `0개`",
+  "persistedTranscriptEntries": 2,
+  "toolReceiptPersisted": false,
+  "passed": true
+}
