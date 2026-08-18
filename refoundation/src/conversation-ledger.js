@@ -107,6 +107,7 @@ export class ConversationLedger {
       messageId: event.messageId,
       runId: event.runId ?? null,
       turn: event.turn ?? null,
+      recordedAt: event.recordedAt,
       message: clone(event.message),
     }));
     return {

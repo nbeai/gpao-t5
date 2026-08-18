@@ -45,6 +45,7 @@
     "refoundation:qualify:checkpoint-continuity": "node refoundation/scripts/run-checkpoint-continuity-qualification.mjs",
     "refoundation:qualify:memory-flush": "node refoundation/scripts/run-memory-flush-qualification.mjs",
     "refoundation:qualify:memory-selection": "node refoundation/scripts/run-memory-selection-qualification.mjs",
+    "refoundation:qualify:session-search": "node refoundation/scripts/run-session-search-qualification.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

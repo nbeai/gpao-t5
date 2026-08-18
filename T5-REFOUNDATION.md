@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R5-P2 — Memory Selection and Conflict`
+현재 Gate: `R5 — COMPLETE`; 다음 Gate는 R3 Recovery and Comparative Performance 재판정
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -426,8 +426,8 @@ Non-goals: 콘솔 재디자인. 기존 UI 자체가 사용자 목적 달성을 �
 
 ## R5 — Persistent Personal Agent
 
-상태: `IN_PROGRESS` — P1 pre-compaction memory flush와 작은 user/work memory, P2 선택·충돌 자격이
-실제 OAuth까지 성립. Episode·검색·session search는 아직 없음.
+상태: `COMPLETE` — canonical Conversation·compaction, P1 pre-compaction memory flush와 작은 user/work
+memory, P2 선택·충돌, P3 Session Search가 실제 OAuth까지 성립. Episode·semantic/vector search는 이후 수요 항목.
 
 사용자 완료 문장:
 
@@ -478,6 +478,40 @@ Non-goals:
 - 새 Session에 과거 선호가 공급된 상태에서 현재 요청이 반대로 지시하면 tool call 0으로 현재 요청만 수행
 - 증거: `refoundation/evidence/r5-memory-selection-conflict-live.json`
 
+### R5-P3 — Session Search v0
+
+비교군에서 채택한 원리:
+
+- OpenClaw `f95b5a006226`: exact full-text discovery와 bounded history read 분리, user/assistant 기본 검색,
+  visible Session·snippet·총 byte 제한, 현재 live context와 생성 scaffolding 제외
+- Hermes `9664e386f6`: CJK 검색, Session별 dedup, stable message anchor 주변 read, archived pre-compaction 원문 포함,
+  현재 직접 source가 있으면 과거 대화보다 먼저 관측
+
+현재 성립한 계약:
+
+- `session_search` 하나의 `search`·`read`·`browse`; 모델이 발견하고 stable sessionId/messageId로 원문을 다시 읽음
+- NFKC·대소문자 정규화와 Unicode/CJK 토큰 AND, exact phrase boost, Session별 최고 hit와 match count
+- 기본 discovery는 user/assistant만 검색; terminal/tool 관측이 필요할 때만 `includeTools=true`
+- `session_search` 자신의 과거 receipt는 discovery에서 제외해 검색 결과가 자기 자신을 재검색하지 않음
+- 현재 Session의 live tail은 제외하고 latest checkpoint가 덮은 canonical prefix만 검색 가능
+- archived Session과 checkpoint 이전 원문은 포함, soft-deleted Session은 제외
+- C0 이전 canonical JSONL이 없는 Session은 기존 UI user/assistant transcript를 읽기 전용 fallback으로 검색
+- search 10 results·500 query chars·300 snippet chars·32KB, read ±20 messages·message 4,000 chars·32KB 상한
+- 별도 index가 아닌 canonical JSONL 직접 scan으로 먼저 기능 성립; 파생 index stale/재구축 상태 없음
+- 실제 OAuth 122 Session·서버 재시작: archived+checkpoint source를 search 1회 22ms, read 1회 2ms로 복원,
+  terminal 0, 정확 경로·tool 값 회수
+- 현재 파일과 과거 Session 값 충돌: session search 0, terminal 1회로 현재 파일 값 선택
+- 현재 규모에서 scan이 10–24ms였으므로 SQLite FTS5는 병목이 관측될 때 같은 도구 계약 아래 도입
+- 실제 실패 기준선: Run `fc14ec1e-6ef6-46d3-bb2d-d204bb9ae2b3`에서 다른 Session을 기억하지 못한다고 답함
+- 증거: `refoundation/evidence/r5-session-search-live.json`
+
+R5 완료 판정:
+
+- 긴 한 Session의 원문·압축·재시작 연속성은 C0/C1, Session을 넘는 작은 사실·선호·결정은 P1/P2,
+  승격하지 않은 과거 대화·tool 관측은 P3가 담당
+- 사용자는 대화로 기억시키고 확인·수정·삭제하며, 과거 대화를 요청하면 exact search 뒤 canonical 근거로 답함
+- Memory·Session history 모두 현재 요청과 현재 직접 source를 대신하지 않음
+
 ## R6 이후 — 증거가 열 때만
 
 전용 파일·웹·브라우저 손, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -486,7 +520,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R5-P1·P2가 자동 저장·재시작 회상·사용자 수정·삭제·선택·현재 요청 우선까지 성립했다. 다음 한 작업은
-R5-P3 Session Search v0 범위 판정이다. Memory로 승격할 필요는 없지만 사용자가 과거 대화·작업을 다시 찾으려는
-경우 canonical Conversation 원장과 compacted prefix를 어떻게 검색할지 OpenClaw·Hermes 실제 소스와 T5 사용
-시나리오를 대조한다. 이 판정 전에는 embedding·외부 vector DB·Episode 자동 생성을 열지 않는다.
+R5는 Context·Memory·Session Search까지 완료됐다. 다음 한 작업은 현재까지 진화한 core를 기준으로 R3 Recovery
+and Comparative Performance의 실패 기준선과 완료 문장을 다시 대조하는 것이다. 첫 수단 실패 뒤 전환,
+부분 결과의 재계획, 동일 목적의 다른 수단 선택을 실제 사용자 과업과 Codex·Claude Code·OpenClaw·Hermes
+비교로 측정한다. 새 recovery 규칙이나 재시도 층은 원인이 확인되기 전에 만들지 않는다.

@@ -1,0 +1,34 @@
+{
+  "schema": "t5.r5-session-search-live.v1",
+  "recordedAt": "2026-08-18T20:15:01.011Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "priorCrossSessionFailureRunId": "fc14ec1e-6ef6-46d3-bb2d-d204bb9ae2b3",
+  "sourceSessionId": "641ebf21-47b9-4608-893d-811a8cd41867",
+  "sourceArchived": true,
+  "sourceCheckpointed": true,
+  "distractorSessions": 120,
+  "totalSearchableSessions": 122,
+  "serverRestartedBeforeRecall": true,
+  "historicalRecall": {
+    "runId": "dd391f31-a026-4546-8d9c-34638dca9dfb",
+    "expectedPath": "/Users/test/Downloads/비아이5.txt",
+    "expectedValue": "SOURCE-VALUE-7391",
+    "searchCalls": 1,
+    "searchWallMs": 22,
+    "readCalls": 1,
+    "readWallMs": 2,
+    "terminalCalls": 0,
+    "passed": true
+  },
+  "currentSourceWins": {
+    "runId": "925b7c16-e004-4665-b41c-b598f588dacd",
+    "historicalValue": "OLD-SOURCE-5533",
+    "currentValue": "CURRENT-SOURCE-8426",
+    "sessionSearchCalls": 0,
+    "terminalCalls": 1,
+    "passed": true
+  },
+  "sqliteFtsRequiredAtMeasuredScale": false,
+  "passed": true
+}

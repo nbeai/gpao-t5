@@ -29,6 +29,7 @@ import { MemoryLedger } from './memory-ledger.js';
 import {
   makeMemoryTool, memoryContextMessage, memoryFlushRequest, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
 } from './memory-tool.js';
+import { makeSessionSearchTool } from './session-search-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -397,6 +398,9 @@ export function makeConsoleServer({
         ledger: memories,
         source: { origin: 'foreground', sessionId, runId: run.runId },
       }));
+      offeredTools.unshift(makeSessionSearchTool({
+        ledger: conversations, sessions, currentSessionId: sessionId,
+      }));
       const result = await runAgent({
         request: text,
         history,
@@ -440,6 +444,7 @@ export function makeConsoleServer({
               text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
                 : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
                   : event.name === 'memory' ? '기억을 확인하고 있어요'
+                    : event.name === 'session_search' ? '이전 대화를 찾고 있어요'
                   : '터미널을 사용하고 있어요',
             });
           } else if (event.type === 'tool_end') {
