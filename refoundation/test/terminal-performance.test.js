@@ -57,6 +57,19 @@ test('모호한 수정 요청은 둘 중 하나를 임의 변경하면 실패한
       },
     });
     assert.equal(changed.passed, false);
+
+    const wasteful = assessTerminalPerformanceCase({
+      definition, fixture, before, after: afterUnchanged,
+      agentResult: {
+        status: 'completed', answer: '둘 중 실제 사용 지역을 판단할 근거가 없어 알려주세요.',
+        modelTurns: 9,
+        receipts: Array.from({ length: 8 }, (_, index) => ({
+          actualCall: { name: 'exec', args: { command: `observation-${index}` } },
+          outcome: 'succeeded', result: { exitCode: 0 },
+        })),
+      },
+    });
+    assert.equal(wasteful.passed, false);
   } finally {
     await rm(room, { recursive: true, force: true });
   }

@@ -22,5 +22,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /use the terminal/i);
   assert.match(instructions, /platform=win32/);
   assert.match(instructions, /command family=cmd/);
+  assert.match(instructions, /smallest sufficient observation/i);
+  assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.doesNotMatch(instructions, /macos|darwin/i);
 });

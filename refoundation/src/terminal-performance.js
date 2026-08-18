@@ -148,6 +148,8 @@ export function assessTerminalPerformanceCase({ definition, fixture, before, aft
     specific = {
       leftFilesUnchanged: JSON.stringify(before) === JSON.stringify(after),
       surfacedAmbiguity: /둘|두\s*개|2개|여러|모호|east|west|지역|어느/.test(answer),
+      boundedDecisionCost: receipts.length <= 4
+        && (agentResult?.modelTurns ?? receipts.length + 1) <= 5,
     };
   } else {
     const failedRg = receipts.findIndex((receipt) => (
