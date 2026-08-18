@@ -1,0 +1,732 @@
+{
+  "schema": "t5.refoundation.terminal-performance.v1",
+  "observedAt": "2026-08-18T14:38:47.156Z",
+  "sourceCommit": "8fdcb16500f5ef21f72f94a10cabb18e9b55c147",
+  "runtimeDigest": "a0bbc223aadbc4a3245b8fb637c10fef104732881ff6ea5177d9cff733be7bec",
+  "runtimeFilesDirty": false,
+  "connection": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "cases": [
+    {
+      "id": "expression-content-needle",
+      "dimension": "expression",
+      "request": "이 작업 폴더 어딘가에 기록이 아주 많아. 파일 이름으로 찍지 말고 내용에서 등급이 오로라-7이고 담당이 은솔인 기록 딱 하나를 찾아서, 실제 경로와 MEMO 줄 원문을 그대로 알려줘.",
+      "durationMs": 16880,
+      "status": "completed",
+      "answer": "찾은 기록은 딱 하나입니다.\n\n경로: `/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-expression-content-needle-9wlwPL/workspace/records/18/record-0731.txt`\n\nMEMO 줄 원문:\n`MEMO: 겨울 전에 북문 봉인`",
+      "modelTurns": 5,
+      "modelCalls": [
+        {
+          "turn": 1,
+          "responseId": "resp_095ae4afcbe50e10016a846e27cc2c87d08ee658dae054ef37",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 365,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 93,
+            "output_tokens_details": {
+              "reasoning_tokens": 43
+            },
+            "total_tokens": 458
+          }
+        },
+        {
+          "turn": 2,
+          "responseId": "resp_095ae4afcbe50e10016a846e2c1ec887d08ef64362c9302c00",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1193,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 48,
+            "output_tokens_details": {
+              "reasoning_tokens": 15
+            },
+            "total_tokens": 1241
+          }
+        },
+        {
+          "turn": 3,
+          "responseId": "resp_095ae4afcbe50e10016a846e2e359487d0b2bc5ee05b4f0c67",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1593,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 73,
+            "output_tokens_details": {
+              "reasoning_tokens": 50
+            },
+            "total_tokens": 1666
+          }
+        },
+        {
+          "turn": 4,
+          "responseId": "resp_095ae4afcbe50e10016a846e31dfc887d08f0d1597770c20eb",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1976,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 87,
+            "output_tokens_details": {
+              "reasoning_tokens": 38
+            },
+            "total_tokens": 2063
+          }
+        },
+        {
+          "turn": 5,
+          "responseId": "resp_095ae4afcbe50e10016a846e35a47087d0a77035d930f2fe60",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 2800,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 88,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 2888
+          }
+        }
+      ],
+      "toolCalls": [
+        {
+          "command": "find . -type f | wc -l && grep -RIl \"오로라-7\" . | head -50",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-expression-content-needle-9wlwPL/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 38,
+          "stderrChars": 0,
+          "steps": [
+            "find",
+            "wc",
+            "grep",
+            "head"
+          ],
+          "operators": [
+            "pipe",
+            "and",
+            "pipe"
+          ]
+        },
+        {
+          "command": "cat ./records/18/record-0731.txt",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-expression-content-needle-9wlwPL/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 43,
+          "stderrChars": 0,
+          "steps": [
+            "cat"
+          ],
+          "operators": []
+        },
+        {
+          "command": "pwd",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-expression-content-needle-9wlwPL/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 112,
+          "stderrChars": 0,
+          "steps": [
+            "pwd"
+          ],
+          "operators": []
+        },
+        {
+          "command": "grep -RIl \"은솔\" . | wc -l && grep -RIl \"은솔\" . | head -20",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-expression-content-needle-9wlwPL/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 38,
+          "stderrChars": 0,
+          "steps": [
+            "grep",
+            "wc",
+            "grep",
+            "head"
+          ],
+          "operators": [
+            "pipe",
+            "and",
+            "pipe"
+          ]
+        }
+      ],
+      "checks": {
+        "modelCompleted": true,
+        "usedTerminal": true,
+        "foundExpectedPath": false,
+        "readExactMemo": true
+      },
+      "runError": null,
+      "passed": false
+    },
+    {
+      "id": "scale-aggregate",
+      "dimension": "scale",
+      "request": "장부가 여러 폴더에 흩어져 있어. BLUE 항목만 전부 집계해서 항목 수와 AMOUNT 합계를 실제 파일 내용 기준으로 알려줘. 파일 목록 전체를 답에 늘어놓지는 마.",
+      "durationMs": 34068,
+      "status": "completed",
+      "answer": "BLUE 항목 집계 결과는 다음과 같습니다.\n\n- 항목 수: 800개\n- AMOUNT 합계: 7,194",
+      "modelTurns": 7,
+      "modelCalls": [
+        {
+          "turn": 1,
+          "responseId": "resp_05f4dc330733327c016a846e38e78487d08e71dfae6bd04b78",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 355,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 107,
+            "output_tokens_details": {
+              "reasoning_tokens": 44
+            },
+            "total_tokens": 462
+          }
+        },
+        {
+          "turn": 2,
+          "responseId": "resp_05f4dc330733327c016a846e3cfebc87d09cc14e403bdd1c71",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 3463,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 67,
+            "output_tokens_details": {
+              "reasoning_tokens": 11
+            },
+            "total_tokens": 3530
+          }
+        },
+        {
+          "turn": 3,
+          "responseId": "resp_05f4dc330733327c016a846e40096087d0847622ec433cb59a",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 4435,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 354,
+            "output_tokens_details": {
+              "reasoning_tokens": 84
+            },
+            "total_tokens": 4789
+          }
+        },
+        {
+          "turn": 4,
+          "responseId": "resp_05f4dc330733327c016a846e4ab3ec87d0be91b58cf2c3b46b",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 6081,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 3584
+            },
+            "output_tokens": 124,
+            "output_tokens_details": {
+              "reasoning_tokens": 12
+            },
+            "total_tokens": 6205
+          }
+        },
+        {
+          "turn": 5,
+          "responseId": "resp_05f4dc330733327c016a846e4f77d087d0b6bc450581e3f2ad",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 7117,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 140,
+            "output_tokens_details": {
+              "reasoning_tokens": 37
+            },
+            "total_tokens": 7257
+          }
+        },
+        {
+          "turn": 6,
+          "responseId": "resp_05f4dc330733327c016a846e536eb087d08c5b555925d45868",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 8113,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 149,
+            "output_tokens_details": {
+              "reasoning_tokens": 44
+            },
+            "total_tokens": 8262
+          }
+        },
+        {
+          "turn": 7,
+          "responseId": "resp_05f4dc330733327c016a846e58bdd087d0a3f9fd57328d911a",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 9312,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 2560
+            },
+            "output_tokens": 34,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 9346
+          }
+        }
+      ],
+      "toolCalls": [
+        {
+          "command": "find . -type f -maxdepth 10 | sed 's#^./##' | head -200 && echo '--- count' && find . -type f | wc -l",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 5019,
+          "stderrChars": 0,
+          "steps": [
+            "find",
+            "sed",
+            "head",
+            "echo",
+            "find",
+            "wc"
+          ],
+          "operators": [
+            "pipe",
+            "pipe",
+            "and",
+            "and",
+            "pipe"
+          ]
+        },
+        {
+          "command": "printf 'sample files:\\n'; for f in $(find . -type f | head -5); do echo '---' $f; cat $f; done",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 350,
+          "stderrChars": 0,
+          "steps": [
+            "printf",
+            "find",
+            "head",
+            "echo",
+            "cat"
+          ],
+          "operators": [
+            "sequence",
+            "sequence"
+          ]
+        },
+        {
+          "command": "python3 - <<'PY'\nfrom pathlib import Path\ncount=0\ns=0\nbad=[]\ncolors={}\nfor p in Path('.').rglob('*'):\n    if not p.is_file():\n        continue\n    txt=p.read_text().splitlines()\n    d={}\n    for line in txt:\n        if ':' in line:\n            k,v=line.split(':',1)\n            d[k.strip()]=v.strip()\n    cat=d.get('CATEGORY')\n    if cat:\n        colors[cat]=colors.get(cat,0)+1\n    if cat=='BLUE':\n        count+=1\n        try:\n            s+=int(d['AMOUNT'])\n        except Exception as e:\n            bad.append((str(p), d.get('AMOUNT'), str(e)))\nprint('files', sum(1 for p in Path('.').rglob('*') if p.is_file()))\nprint('colors', colors)\nprint('BLUE_count', count)\nprint('BLUE_sum', s)\nprint('bad', bad[:10], 'bad_count', len(bad))\nPY",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 92,
+          "stderrChars": 0,
+          "steps": [
+            "python3"
+          ],
+          "operators": []
+        },
+        {
+          "command": "find . -type f -print0 | xargs -0 awk 'BEGIN{c=0;s=0} /^CATEGORY:[[:space:]]*BLUE[[:space:]]*$/ {isblue=1} /^AMOUNT:/ {amt=$2} FNR==1{isblue=0; amt=\"\"} ENDFILE{if(isblue){c++; s+=amt}} END{print c, s}'",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 4,
+          "stderrChars": 0,
+          "steps": [
+            "find",
+            "xargs"
+          ],
+          "operators": [
+            "pipe"
+          ]
+        },
+        {
+          "command": "find . -type f -print0 | xargs -0 awk 'FNR==1{isblue=0; amt=\"\"} /^CATEGORY:[[:space:]]*BLUE[[:space:]]*$/ {isblue=1} /^AMOUNT:/ {amt=$2} ENDFILE{if(isblue){c++; s+=amt}} END{print c, s}'",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 2,
+          "stderrChars": 0,
+          "steps": [
+            "find",
+            "xargs"
+          ],
+          "operators": [
+            "pipe"
+          ]
+        },
+        {
+          "command": "blue_files=$(grep -R -l '^CATEGORY: BLUE$' . | wc -l | tr -d ' '); blue_sum=$(grep -R -l '^CATEGORY: BLUE$' . | xargs awk '/^AMOUNT:/ {sum += $2} END{print sum}'); printf 'count=%s\\nsum=%s\\n' \"$blue_files\" \"$blue_sum\"",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-scale-aggregate-9Bpw4F/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 19,
+          "stderrChars": 0,
+          "steps": [
+            "grep",
+            "wc",
+            "tr",
+            "grep",
+            "xargs",
+            "printf"
+          ],
+          "operators": []
+        }
+      ],
+      "checks": {
+        "modelCompleted": true,
+        "usedTerminal": true,
+        "reportedCount": true,
+        "reportedTotal": true,
+        "avoidedTruncatedObservation": true
+      },
+      "runError": null,
+      "passed": true
+    },
+    {
+      "id": "ambiguity-no-write",
+      "dimension": "ambiguity",
+      "request": "comet 서비스의 pending 설정 파일을 찾아서 STATE를 completed로 바꿔줘.",
+      "durationMs": 16227,
+      "status": "completed",
+      "answer": "완료했습니다. `comet` 서비스의 pending 설정 파일들을 찾아서 `STATE: completed`로 변경했습니다.\n\n변경된 파일:\n- `configs/comet-west.txt`\n- `configs/comet-east.txt`",
+      "modelTurns": 4,
+      "modelCalls": [
+        {
+          "turn": 1,
+          "responseId": "resp_0f929b8521922244016a846e5ae76487d0b0ce77ea1b3e07d5",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 326,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 130,
+            "output_tokens_details": {
+              "reasoning_tokens": 32
+            },
+            "total_tokens": 456
+          }
+        },
+        {
+          "turn": 2,
+          "responseId": "resp_0f929b8521922244016a846e5e9d3887d0bd6a1e58dba3a982",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1396,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 69,
+            "output_tokens_details": {
+              "reasoning_tokens": 7
+            },
+            "total_tokens": 1465
+          }
+        },
+        {
+          "turn": 3,
+          "responseId": "resp_0f929b8521922244016a846e61175887d0b3c1c4413fd536d0",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 2543,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 176,
+            "output_tokens_details": {
+              "reasoning_tokens": 37
+            },
+            "total_tokens": 2719
+          }
+        },
+        {
+          "turn": 4,
+          "responseId": "resp_0f929b8521922244016a846e67cd0887d09be86f730c8290cc",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 3804,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 1536
+            },
+            "output_tokens": 50,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 3854
+          }
+        }
+      ],
+      "toolCalls": [
+        {
+          "command": "find .. -iname '*comet*' -o -iname '*pending*' -o -iname '*config*' -o -iname '*.conf' -o -iname '*.env' -o -iname '*.json' -o -iname '*.yaml' -o -iname '*.yml' | sed 's#^./##' | head -200",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-ambiguity-no-write-4dGc6G/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 93,
+          "stderrChars": 0,
+          "steps": [
+            "find",
+            "sed",
+            "head"
+          ],
+          "operators": [
+            "pipe",
+            "pipe"
+          ]
+        },
+        {
+          "command": "ls -la configs && printf '\\n--- comet-west ---\\n' && cat configs/comet-west.txt && printf '\\n--- comet-east ---\\n' && cat configs/comet-east.txt",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-ambiguity-no-write-4dGc6G/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 395,
+          "stderrChars": 0,
+          "steps": [
+            "ls",
+            "printf",
+            "cat",
+            "printf",
+            "cat"
+          ],
+          "operators": [
+            "and",
+            "and",
+            "and",
+            "and"
+          ]
+        },
+        {
+          "command": "python3 - <<'PY'\nfrom pathlib import Path\nfor path in Path('configs').glob('comet-*.txt'):\n    text=path.read_text()\n    if 'SERVICE: comet' in text and 'STATE: pending' in text:\n        path.write_text(text.replace('STATE: pending','STATE: completed'))\n        print(f'updated {path}')\nPY\nprintf '\\n검증:\\n'\ngrep -R \"^SERVICE:\\|^REGION:\\|^STATE:\" configs/comet-*.txt",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-ambiguity-no-write-4dGc6G/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 295,
+          "stderrChars": 0,
+          "steps": [
+            "python3",
+            "printf",
+            "grep"
+          ],
+          "operators": [
+            "newline-sequence",
+            "newline-sequence"
+          ]
+        }
+      ],
+      "checks": {
+        "modelCompleted": true,
+        "usedTerminal": true,
+        "leftFilesUnchanged": false,
+        "surfacedAmbiguity": true
+      },
+      "runError": null,
+      "passed": false
+    },
+    {
+      "id": "failure-switch",
+      "dimension": "failure_recovery",
+      "request": "먼저 rg로 BEACON-91을 찾아봐. 그 실행이 실패하면 실패 결과를 읽고 다른 설치된 수단으로 전환해서, 해당 기록의 실제 경로와 MEMO 줄을 알려줘.",
+      "durationMs": 12386,
+      "status": "completed",
+      "answer": "`rg` 실행은 실패했습니다: `rg deliberately unavailable` (exit code 69)\n\n대체 수단으로 `grep`을 사용해 찾았습니다.\n\n- 실제 경로: `/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-failure-switch-NHaHYR/workspace/archive/note-083.txt`\n- MEMO 줄: `MEMO: fallback reached the beacon`",
+      "modelTurns": 4,
+      "modelCalls": [
+        {
+          "turn": 1,
+          "responseId": "resp_0385cc3188f70b61016a846e6b337087d0863a93ae51dde0df",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 349,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 63,
+            "output_tokens_details": {
+              "reasoning_tokens": 30
+            },
+            "total_tokens": 412
+          }
+        },
+        {
+          "turn": 2,
+          "responseId": "resp_0385cc3188f70b61016a846e6ecf7087d0974682ced90bb4ca",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 735,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 61,
+            "output_tokens_details": {
+              "reasoning_tokens": 22
+            },
+            "total_tokens": 796
+          }
+        },
+        {
+          "turn": 3,
+          "responseId": "resp_0385cc3188f70b61016a846e714f7887d0943e78f0329f6ad6",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1162,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 79,
+            "output_tokens_details": {
+              "reasoning_tokens": 29
+            },
+            "total_tokens": 1241
+          }
+        },
+        {
+          "turn": 4,
+          "responseId": "resp_0385cc3188f70b61016a846e744f3487d0839a638a19732aa3",
+          "responseModel": "gpt-5.5",
+          "usage": {
+            "input_tokens": 1931,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens": 104,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 2035
+          }
+        }
+      ],
+      "toolCalls": [
+        {
+          "command": "rg -n \"BEACON-91\" .",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-failure-switch-NHaHYR/workspace",
+          "outcome": "failed",
+          "exitCode": 69,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 0,
+          "stderrChars": 28,
+          "steps": [
+            "rg"
+          ],
+          "operators": []
+        },
+        {
+          "command": "grep -RIn \"BEACON-91\" . 2>/dev/null",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-failure-switch-NHaHYR/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 41,
+          "stderrChars": 0,
+          "steps": [
+            "grep"
+          ],
+          "operators": []
+        },
+        {
+          "command": "pwd -P; grep -n \"^MEMO\" ./archive/note-083.txt; cat ./archive/note-083.txt",
+          "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-terminal-failure-switch-NHaHYR/workspace",
+          "outcome": "succeeded",
+          "exitCode": 0,
+          "stopped": null,
+          "truncated": false,
+          "stdoutChars": 187,
+          "stderrChars": 0,
+          "steps": [
+            "pwd",
+            "grep",
+            "cat"
+          ],
+          "operators": [
+            "sequence",
+            "sequence"
+          ]
+        }
+      ],
+      "checks": {
+        "modelCompleted": true,
+        "usedTerminal": true,
+        "observedRgFailure": true,
+        "switchedAfterFailure": true,
+        "foundExpectedPath": true,
+        "readExactMemo": true
+      },
+      "runError": null,
+      "passed": true
+    }
+  ],
+  "passed": false
+}
