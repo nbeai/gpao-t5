@@ -1,0 +1,40 @@
+{
+  "schema": "t5.refoundation.managed-process-wake-live.v1",
+  "sourceCommit": "3358211c0bed80697620f3fc9749283a0cc43cfd",
+  "observedAt": "2026-08-19",
+  "connection": { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" },
+  "sessionId": "a38720a1-f786-4d9d-bf5d-cafd30947e6c",
+  "originRunId": "ea021655-00eb-4e7e-a24b-15babbe470ac",
+  "wakeRunId": "55cb2be4-c6d6-418d-a499-adacbd04e512",
+  "processId": "b19d66ef-2531-4675-86c8-6db304c85b4f",
+  "firstTurn": {
+    "tool": "process_start",
+    "observedState": "running",
+    "modelPolled": false,
+    "reply": "작업을 시작했고 현재 running 상태입니다. 진행 중입니다."
+  },
+  "terminalEvent": {
+    "state": "completed",
+    "processExitCode": 0,
+    "stdout": "WAKE-LIVE-DONE\n",
+    "stderr": "",
+    "originRunLinked": true
+  },
+  "wakeRun": {
+    "trigger": "managed_process_terminal",
+    "status": "completed",
+    "reply": "관리 중이던 작업이 완료되었습니다.\n\n출력:\n`WAKE-LIVE-DONE`"
+  },
+  "openConsoleObservation": {
+    "sseEvent": "managed_process_wake",
+    "notificationCount": 1,
+    "notificationTextWasModelReply": true
+  },
+  "mechanicalContracts": {
+    "foregroundExecExcluded": "passed",
+    "alreadyObservedTerminalExcluded": "passed",
+    "wakeClaimedAtMostOnce": "passed",
+    "runtimeShutdownStopExcluded": "passed"
+  },
+  "passed": true
+}
