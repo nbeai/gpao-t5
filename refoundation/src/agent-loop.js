@@ -86,14 +86,16 @@ async function executeCall(call, tools, signal) {
  *
  * @param {{
  *   request:string,
+ *   history?:Array<{role:'user'|'assistant',content:string}>,
  *   model:{respond:(input:{messages:object[],tools:object[],signal?:AbortSignal})=>Promise<*>},
  *   tools?:Array<{name:string,description:string,parameters:object,execute:Function}>,
  *   signal?:AbortSignal,
  *   maxModelTurns?:number,
+ *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
 export async function runAgent({
-  request, model, tools = [], signal, maxModelTurns = DEFAULT_MAX_MODEL_TURNS,
+  request, history = [], model, tools = [], signal, maxModelTurns = DEFAULT_MAX_MODEL_TURNS, onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
   if (!model || typeof model.respond !== 'function') throw new TypeError('model.respond is required');
@@ -107,7 +109,10 @@ export async function runAgent({
   }
 
   const definitions = [...registry.values()].map(toolDefinition);
-  const transcript = [{ role: 'user', content: request }];
+  const prior = history.filter((message) => (
+    (message?.role === 'user' || message?.role === 'assistant') && typeof message.content === 'string'
+  )).map((message) => ({ role: message.role, content: message.content }));
+  const transcript = [...prior, { role: 'user', content: request }];
   const receipts = [];
   const modelCalls = [];
   let modelTurns = 0;
@@ -116,6 +121,7 @@ export async function runAgent({
     if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
 
     modelTurns += 1;
+    await onEvent?.({ type: 'model_start', turn: modelTurns });
     const response = normalizeResponse(await model.respond({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
@@ -139,9 +145,11 @@ export async function runAgent({
 
     for (const call of response.toolCalls) {
       if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+      await onEvent?.({ type: 'tool_start', turn: modelTurns, name: call?.name, args: structuredClone(call?.args ?? {}) });
       const receipt = await executeCall(call, registry, signal);
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
+      await onEvent?.({ type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome });
       if (signal?.aborted || receipt.outcome === 'cancelled') {
         return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       }

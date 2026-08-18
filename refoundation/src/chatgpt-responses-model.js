@@ -19,9 +19,12 @@ function toolDefinitions(tools) {
 }
 
 function initialInput(messages) {
-  return messages.filter((message) => message?.role === 'user').map((message) => ({
-    type: 'message', role: 'user',
-    content: [{ type: 'input_text', text: String(message.content ?? '') }],
+  return messages.filter((message) => message?.role === 'user' || message?.role === 'assistant').map((message) => ({
+    type: 'message', role: message.role,
+    content: [{
+      type: message.role === 'assistant' ? 'output_text' : 'input_text',
+      text: String(message.content ?? ''),
+    }],
   }));
 }
 

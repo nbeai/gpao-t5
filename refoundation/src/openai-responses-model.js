@@ -46,8 +46,8 @@ function apiTools(tools = []) {
 }
 
 function initialInput(messages) {
-  return messages.filter((message) => message?.role === 'user').map((message) => ({
-    role: 'user', content: String(message.content ?? ''),
+  return messages.filter((message) => message?.role === 'user' || message?.role === 'assistant').map((message) => ({
+    role: message.role, content: String(message.content ?? ''),
   }));
 }
 

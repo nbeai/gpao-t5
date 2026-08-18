@@ -23,6 +23,7 @@ npm run refoundation:live
 npm run refoundation:connections
 npm run refoundation:connect:oauth
 npm run refoundation:qualify:project
+npm run refoundation:console
 ```
 
 `refoundation:check`가 일상 진입점이다. legacy 전체 테스트와 gate는 새 코어의 일상 완료 기준이 아니다.

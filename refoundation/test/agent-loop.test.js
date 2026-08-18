@@ -145,3 +145,25 @@ test('모르는 도구 요청은 실행하지 않고 그 사실을 모델에게 
   assert.equal(result.status, 'completed');
   assert.equal(result.receipts[0].outcome, 'unavailable');
 });
+
+test('콘솔의 앞선 사용자·assistant 대화가 현재 요청보다 먼저 모델 문맥에 들어간다', async () => {
+  const model = {
+    async respond(input) {
+      assert.deepEqual(input.messages, [
+        { role: 'user', content: '앞 질문' },
+        { role: 'assistant', content: '앞 답' },
+        { role: 'user', content: '그걸 이어서 해줘' },
+      ]);
+      return { text: '이어진 답', toolCalls: [] };
+    },
+  };
+  const result = await runAgent({
+    request: '그걸 이어서 해줘',
+    history: [
+      { role: 'user', content: '앞 질문' },
+      { role: 'assistant', content: '앞 답' },
+    ],
+    model,
+  });
+  assert.equal(result.answer, '이어진 답');
+});

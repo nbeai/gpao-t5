@@ -34,6 +34,7 @@
     "refoundation:connect:oauth": "node refoundation/scripts/connect-chatgpt.mjs",
     "refoundation:evidence": "node refoundation/scripts/summarize-live-evidence.mjs",
     "refoundation:qualify:project": "node refoundation/scripts/run-project-qualification.mjs",
+    "refoundation:console": "node refoundation/scripts/start-console.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",
