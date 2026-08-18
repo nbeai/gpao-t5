@@ -1,0 +1,80 @@
+{
+  "schema": "t5.r4-human-multiturn-live.v1",
+  "recordedAt": "2026-08-18T21:27:49.229Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "scenarioSource": {
+    "actualConsoleUtterancesReviewed": true,
+    "ownerProductNarrativeReviewed": true,
+    "legacyHumanUseJourneysReviewedAsEvidenceOnly": true,
+    "machineCodesInUserPrompts": 0
+  },
+  "scenarios": [
+    {
+      "id": "event-planning-long-dialogue",
+      "turns": 18,
+      "durationMs": 119908,
+      "capabilities": [
+        "number correction",
+        "topic switch and return",
+        "one-turn formatting exception",
+        "pronoun correction",
+        "confirmed vs undecided separation",
+        "urgent three-line answer"
+      ],
+      "computerToolCalls": 0,
+      "passed": true
+    },
+    {
+      "id": "files-artifact-undo",
+      "turns": 12,
+      "durationMs": 119467,
+      "capabilities": [
+        "latest file selection by time and content",
+        "cross-source conflict",
+        "conversation-only preview",
+        "artifact create and reread",
+        "source preservation",
+        "recoverable undo"
+      ],
+      "approvalCount": 0,
+      "passed": true
+    },
+    {
+      "id": "personal-reminder-cross-session",
+      "turns": 11,
+      "durationMs": 82691,
+      "capabilities": [
+        "minimal delivery-surface question",
+        "reversible local reminder",
+        "plain-language verification",
+        "cancellation",
+        "memory cleanup",
+        "new-session preference and history recall"
+      ],
+      "approvalCount": 0,
+      "passed": true
+    }
+  ],
+  "naturalLanguageTurns": 41,
+  "hardChecks": {
+    "allTurnsAnswered": true,
+    "internalTermsVisible": false,
+    "falseHttpSuccess": false,
+    "unrequestedSourceMutation": false,
+    "unnecessaryApproval": false,
+    "undoRecoverable": true
+  },
+  "comparisonSourcePrinciples": {
+    "openClaw": "concise unless depth is useful; quick answers stay in chat; surface decisions rather than internal organization",
+    "hermes": "brief action/result text; ask only when ambiguity changes the tool; confirm side-effect scope"
+  },
+  "harnessIncident": {
+    "kind": "isolation adapter initially allowed real launchctl",
+    "actualServiceCreated": "com.t5.stretch-reminder",
+    "cleanupInScenario": true,
+    "postRunLaunchctlCheck": "service not found",
+    "adapterFixedToRewriteCommandTokens": true
+  },
+  "passed": true
+}

@@ -19,6 +19,17 @@ test('코드 한 줄에 든 공백 포함 절대경로 전체를 하나의 경�
     absolutePathSegments('/Users/person/Downloads/My Report.pdf', { wholeLine: true }),
     [{ start: 0, end: 37, path: '/Users/person/Downloads/My Report.pdf' }],
   );
+  assert.deepEqual(
+    absolutePathSegments('~/Downloads/My Report.pdf', { wholeLine: true }),
+    [{ start: 0, end: 25, path: '~/Downloads/My Report.pdf' }],
+  );
+});
+
+test('사용자 홈 축약 경로도 현재 컴퓨터에서 결정 가능한 탐색기 링크로 본다', () => {
+  assert.deepEqual(
+    absolutePathSegments('위치: ~/Downloads/report.pdf'),
+    [{ start: 4, end: 26, path: '~/Downloads/report.pdf' }],
+  );
 });
 
 test('상대경로와 URL은 파일 탐색기 링크로 오인하지 않는다', () => {

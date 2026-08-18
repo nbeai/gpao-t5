@@ -1,0 +1,20 @@
+{
+  "schema": "t5.r4-console-ui-audit.v1",
+  "recordedAt": "2026-08-18T21:28:00.000Z",
+  "surface": "existing T5 console design",
+  "browser": "Codex In-app Browser",
+  "actualUserDataReadOnly": true,
+  "checks": {
+    "conversationInputVisible": true,
+    "sendActionVisible": true,
+    "sessionSidebarVisible": true,
+    "conversationSearchVisible": true,
+    "modelReadyStateVisible": true,
+    "internalRunOrToolTermsVisible": false,
+    "absolutePathLinkSupport": true,
+    "homeAbbreviatedPathLinkGapObserved": true,
+    "homeAbbreviatedPathLinkImplemented": true
+  },
+  "uiRedesignRequired": false,
+  "passed": true
+}

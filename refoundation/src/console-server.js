@@ -123,7 +123,9 @@ export function makeConsoleServer({
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
-  const reveal = revealPath ?? makePathRevealer({ platform: computer.platform });
+  const reveal = revealPath ?? makePathRevealer({
+    platform: computer.platform, userHome: computer.userHome,
+  });
   const pendingStreams = new Map();
   const running = new Map();
   const pendingProcessWakes = new Map();

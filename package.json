@@ -48,6 +48,7 @@
     "refoundation:qualify:session-search": "node refoundation/scripts/run-session-search-qualification.mjs",
     "refoundation:qualify:recovery": "node refoundation/scripts/run-recovery-qualification.mjs",
     "refoundation:compare:recovery": "node refoundation/scripts/run-recovery-comparison.mjs",
+    "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

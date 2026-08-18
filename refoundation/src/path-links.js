@@ -4,6 +4,7 @@ function wholeLineSegment(text) {
   const end = text.search(/\s*$/);
   const path = text.slice(start, end);
   const absolute = path.startsWith('/')
+    || /^~[\\/]/.test(path)
     || /^[A-Za-z]:[\\/]/.test(path)
     || /^\\\\[^\\]+\\[^\\]+/.test(path);
   return absolute && !/^https?:\/\//i.test(path) ? [{ start, end, path }] : [];
@@ -13,7 +14,7 @@ export function absolutePathSegments(input, { wholeLine = false } = {}) {
   const text = String(input ?? '');
   if (wholeLine) return wholeLineSegment(text);
   const found = [];
-  const pattern = /[A-Za-z]:\\[^\s<>"'`]+|\/(?!\/)[^\s<>"'`]+/g;
+  const pattern = /~\/[^\s<>"'`]+|[A-Za-z]:\\[^\s<>"'`]+|\/(?!\/)[^\s<>"'`]+/g;
   for (const match of text.matchAll(pattern)) {
     const start = match.index;
     if (start > 0 && text[start - 1] === '/') continue;

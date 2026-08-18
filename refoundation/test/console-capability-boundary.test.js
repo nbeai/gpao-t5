@@ -23,11 +23,15 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /platform=win32/);
   assert.match(instructions, /command family=cmd/);
   assert.match(instructions, /smallest sufficient observation/i);
+  assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
   assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.match(instructions, /user choice.*not.*computer evidence/i);
+  assert.match(instructions, /missing destination.*delivery surface.*account.*ask one direct question/i);
   assert.match(instructions, /speculative.*broader system/i);
+  assert.match(instructions, /conversational choice.*does not.*authorize.*source files/i);
   assert.match(instructions, /exec.*foreground.*complete result/i);
   assert.match(instructions, /process_start only.*process_control.*poll.*write.*stop.*list/i);
+  assert.match(instructions, /undoing.*recoverable trash.*backup.*inverse operation/i);
   assert.doesNotMatch(instructions, /macos|darwin/i);
 });
 

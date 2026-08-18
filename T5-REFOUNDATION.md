@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R3 — COMPLETE`; 다음 Gate는 R4 Conversation Product Slice gap audit
+현재 Gate: `R4 — COMPLETE`; 다음 작업은 R0–R5 foundation closeout audit
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -447,6 +447,9 @@ Non-goals:
 
 ## R4 — Conversation Product Slice
 
+상태: `COMPLETE` — 기존 콘솔 디자인을 유지한 채 실제 사용자 표현에서 만든 3개 장기 여정 41턴과
+브라우저 UI 감사가 성립. Interaction Intelligence 공통 gap 4개만 기존 model environment에 보완.
+
 사용자 완료 문장:
 
 > 사용자는 agent, tool, model을 고르지 않고 평소 말로 과업을 끝내며 필요한 결과물과 결정만 본다.
@@ -461,6 +464,41 @@ Non-goals:
 
 Non-goals: 콘솔 재디자인. 기존 UI 자체가 사용자 목적 달성을 막는 실제 증거가 있을 때만 해당 부분을
 고친다. 기존 `server.js`·`turn.js` 실행 배선은 재사용하지 않는다.
+
+R4 인간 사용자 시나리오:
+
+- 실제 콘솔 발화와 오너 제품 서술에서 말투·후속 표현을 수집; legacy human-use 문서는 실패 유형 참고만 사용
+- 사용자 prompt에 도구명·exit code·정답 식별 코드 0; 정답과 상태 판정은 fixture·Run·파일 snapshot에 숨김
+- 18턴 행사 계획: 35→28 정정, 주제 전환·보류, 한 턴 표 예외, 대명사 과잉 해석 정정,
+  확정/미정 분리, 급한 3줄까지 computer tool 0으로 통과
+- 12턴 파일 여정: 수정 시각+내용으로 최신본 선택, 자료 충돌, 대화 preview, 저장·재확인,
+  원본 hash 불변, 휴지통 Undo, 승인 0으로 통과
+- 11턴 개인 여정: 전달 매체 최소 질문, macOS 알림 생성·확인·취소, Memory에서 취소 상태 제거,
+  새 Session의 취향·과거 작업 회상까지 통과
+- 총 41 natural-language turns; 모든 턴 정상 답, 내부 pending/tool/Run 용어 노출 0, false success 0
+- 증거: `refoundation/evidence/r4-human-multiturn-live.json`
+
+Interaction Intelligence 보완:
+
+- 기본은 결론과 다음 행동 중심의 가장 짧은 유용한 답; 사용자가 깊이를 원하거나 과업에 필요할 때만 확장
+- 계획·초안에서 사용할 사실/출처 선택은 source file 수정 허가가 아님; edit/save/create 등 행동 요청까지 대화 상태로 유지
+- T5가 방금 만든 artifact의 Undo는 가능한 경우 영구 삭제보다 trash·backup·inverse operation 우선
+- 반복 행동/전달에서 destination·surface·account가 도구 선택을 바꾸면 능력 설명 대신 한 문장 질문
+- 비교 근거: OpenClaw `f95b5a006226` concise chat budget·human-facing decision,
+  Hermes `9664e386f6` brief action/result·tool-changing ambiguity만 질문·side-effect scope 확인
+
+기존 콘솔 UI 감사:
+
+- 입력창·보내기·Session sidebar·대화 찾기·model ready가 첫 화면에 존재; 답에 내부 Run/tool 용어 0
+- 디자인 재작업 필요 없음. 기존 답이 자주 쓰는 `~/Downloads/...`가 링크화되지 않던 gap만 확인
+- `~/`·`~\\`를 현재 computer.userHome으로 기계적으로 확장해 Finder/Explorer reveal 계약에 추가
+- 증거: `refoundation/evidence/r4-console-ui-audit.json`
+
+격리 시험 사고 기록:
+
+- 첫 알림 fixture의 로그인 shell이 fake PATH를 재설정해 실제 `com.t5.stretch-reminder` LaunchAgent를 잠시 등록
+- 같은 시나리오의 취소가 bootout했고 사후 `launchctl print`는 service not found 확인; 실제 사용자 파일 작성 0
+- harness를 command-token absolute fake rewrite로 수정하고 독립 probe·재실행에서 fake state만 사용 확인
 
 ## R5 — Persistent Personal Agent
 
@@ -558,7 +596,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R3는 실제 recovery 5축과 비교군 공통 3축까지 완료됐다. 다음 한 작업은 R4 Conversation Product Slice gap
-audit이다. 기존 콘솔 디자인은 유지하고, 현재 core의 terminal·authority·artifact·memory·session search가 일반
-사용자 대화에서 기술 용어·불필요한 질문·내부 오류 없이 결과와 필요한 Preview/Undo로 나타나는지 실제 콘솔
-시나리오를 먼저 측정한다. UI 재디자인이나 새 adapter 층은 관측된 gap이 있기 전에는 만들지 않는다.
+R0·R2·R3·R4·R5와 C0·C1은 완료됐지만 R1 문서 상태가 아직 `IN_PROGRESS`다. 다음 한 작업은 새 기능이 아니라
+R0–R5 foundation closeout audit이다. R1의 사용자 완료 문장과 terminal 영역 목록을 현재 실제 OAuth·인간 여정
+증거에 대조하고, 진짜 미달만 남긴다. 완료되지 않은 C0-R1 interrupted-tool restart hygiene와 Windows 실제 기기
+미측정도 출시 전 필수/관찰/플랫폼 후속으로 정확히 분류한 뒤에만 R6 확장으로 간다.

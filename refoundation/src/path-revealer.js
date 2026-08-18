@@ -45,11 +45,14 @@ async function closestExisting(path, platform, statPath) {
 
 export function makePathRevealer({
   platform = process.platform,
+  userHome,
   statPath = stat,
   spawnProcess = spawn,
 } = {}) {
   return async function revealPath(rawPath) {
-    const requestedPath = String(rawPath ?? '').trim();
+    const raw = String(rawPath ?? '').trim();
+    const requestedPath = /^~[\\/]/.test(raw) && userHome
+      ? pathApi(platform).join(userHome, raw.slice(2)) : raw;
     if (!requestedPath || requestedPath.includes('\0') || !isAbsoluteFor(platform, requestedPath)) {
       throw Object.assign(new Error('absolute path is required'), { status: 400 });
     }
