@@ -10,7 +10,7 @@
     "commandProgram": "/bin/zsh"
   },
   "actualConsoleReplay": {
-    "sessionId": "1b69e987-d753-4d09-9cfc-a5d0a9964752",
+    "sessionId": "aba6a84c-0f57-4b6d-a8d0-09787682d9f7",
     "request": "터미널의 작업 위치를 /private/tmp로 옮긴 뒤 pwd로 직접 확인해서 알려줘.",
     "defaultWorkingDirectory": "/Users/jyp",
     "requestedWorkingDirectory": "/private/tmp",
