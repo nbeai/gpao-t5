@@ -13,6 +13,9 @@ function normalizeResponse(response) {
   return {
     text: typeof response?.text === 'string' ? response.text : '',
     toolCalls: Array.isArray(response?.toolCalls) ? response.toolCalls : [],
+    responseId: response?.responseId ?? null,
+    responseModel: response?.responseModel ?? null,
+    usage: response?.usage ?? null,
   };
 }
 
@@ -106,10 +109,11 @@ export async function runAgent({
   const definitions = [...registry.values()].map(toolDefinition);
   const transcript = [{ role: 'user', content: request }];
   const receipts = [];
+  const modelCalls = [];
   let modelTurns = 0;
 
   while (modelTurns < maxModelTurns) {
-    if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelTurns };
+    if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
 
     modelTurns += 1;
     const response = normalizeResponse(await model.respond({
@@ -117,6 +121,12 @@ export async function runAgent({
       tools: structuredClone(definitions),
       signal,
     }));
+    modelCalls.push({
+      turn: modelTurns,
+      ...(response.responseId ? { responseId: response.responseId } : {}),
+      ...(response.responseModel ? { responseModel: response.responseModel } : {}),
+      ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
+    });
     transcript.push({
       role: 'assistant',
       content: response.text,
@@ -124,19 +134,19 @@ export async function runAgent({
     });
 
     if (!response.toolCalls.length) {
-      return { status: 'completed', answer: response.text, transcript, receipts, modelTurns };
+      return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };
     }
 
     for (const call of response.toolCalls) {
-      if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelTurns };
+      if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       const receipt = await executeCall(call, registry, signal);
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
       if (signal?.aborted || receipt.outcome === 'cancelled') {
-        return { status: 'cancelled', answer: null, transcript, receipts, modelTurns };
+        return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       }
     }
   }
 
-  return { status: 'limit_reached', answer: null, transcript, receipts, modelTurns };
+  return { status: 'limit_reached', answer: null, transcript, receipts, modelCalls, modelTurns };
 }

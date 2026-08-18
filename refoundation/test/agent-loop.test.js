@@ -112,11 +112,18 @@ test('취소되면 같은 응답에 남은 도구 호출을 시작하지 않는�
 });
 
 test('런타임은 모델의 최종 답을 덧붙이거나 교정하지 않는다', async () => {
-  const model = { async respond() { return { text: '모델이 쓴 답 그대로', toolCalls: [] }; } };
+  const model = { async respond() { return {
+    text: '모델이 쓴 답 그대로', toolCalls: [],
+    responseId: 'response-1', responseModel: 'model-reported', usage: { input_tokens: 3, output_tokens: 2 },
+  }; } };
   const result = await runAgent({ request: '인사해줘', model, tools: [] });
   assert.equal(result.answer, '모델이 쓴 답 그대로');
   assert.equal(result.transcript.at(-1).content, '모델이 쓴 답 그대로');
   assert.equal(result.modelTurns, 1);
+  assert.deepEqual(result.modelCalls, [{
+    turn: 1, responseId: 'response-1', responseModel: 'model-reported',
+    usage: { input_tokens: 3, output_tokens: 2 },
+  }]);
 });
 
 test('모르는 도구 요청은 실행하지 않고 그 사실을 모델에게 돌려준다', async () => {

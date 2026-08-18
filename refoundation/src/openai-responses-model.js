@@ -141,6 +141,7 @@ export function makeOpenAIResponsesModel({
         text: outputText(json.output),
         toolCalls: functionCalls(json.output),
         responseId: json.id ?? null,
+        responseModel: json.model ?? model,
         usage: json.usage ?? null,
       };
     },

@@ -36,6 +36,7 @@ try {
     'refoundation:connections',
     'refoundation:connect:oauth',
     'refoundation:evidence',
+    'refoundation:qualify:project',
   ]) {
     if (!pkg.scripts?.[name]) failures.push(`루트 npm script 없음: ${name}`);
   }
