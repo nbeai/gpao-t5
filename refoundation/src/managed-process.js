@@ -70,6 +70,7 @@ export class ManagedProcessRegistry {
     this.stopGraceMs = stopGraceMs;
     this.killGraceMs = killGraceMs;
     this.records = new Map();
+    this.terminalListeners = new Set();
   }
 
   #owned(processId, ownerId) {
@@ -126,9 +127,21 @@ export class ManagedProcessRegistry {
     });
   }
 
+  #notifyTerminal(record) {
+    const event = {
+      processId: record.id,
+      ownerId: record.ownerId,
+      state: record.state,
+      metadata: structuredClone(record.metadata),
+    };
+    setTimeout(() => {
+      for (const listener of this.terminalListeners) listener(structuredClone(event));
+    }, 0);
+  }
+
   async start({
     program, args = [], cwd, env, ownerId, waitMs = 1000, command = null,
-    spoolLimit = this.spoolLimit,
+    spoolLimit = this.spoolLimit, metadata = {},
   }) {
     if (!program || !cwd || !ownerId) throw new TypeError('program, cwd, and ownerId are required');
     const id = randomUUID();
@@ -140,6 +153,7 @@ export class ManagedProcessRegistry {
     });
     const record = {
       id, ownerId, child, command, cwd,
+      metadata: structuredClone(metadata), terminalObserved: false, wakeClaimed: false,
       state: 'running', exitCode: null, signal: null, error: null,
       stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
       stdout: new OutputSpool(spoolLimit),
@@ -171,6 +185,7 @@ export class ManagedProcessRegistry {
       else record.state = code === 0 ? 'completed' : 'failed';
       this.#notifyActivity(record);
       record.resolveClose();
+      this.#notifyTerminal(record);
     });
     if (waitMs == null) await record.closePromise;
     else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
@@ -185,7 +200,9 @@ export class ManagedProcessRegistry {
       && before.stderr === (cursor?.stderr ?? 0)) {
       await this.#waitForActivity(record, waitMs, before);
     }
-    return this.#snapshot(record, cursor);
+    const snapshot = this.#snapshot(record, cursor);
+    if (terminal(record.state)) record.terminalObserved = true;
+    return snapshot;
   }
 
   write({ processId, input, ownerId, end = false }) {
@@ -224,16 +241,46 @@ export class ManagedProcessRegistry {
       await this.#signalTree(record, 'SIGKILL');
       await Promise.race([record.closePromise, delay(this.killGraceMs)]);
     }
-    return this.#snapshot(record, cursor);
+    const snapshot = this.#snapshot(record, cursor);
+    if (terminal(record.state)) record.terminalObserved = true;
+    return snapshot;
   }
 
   list(ownerId) {
     return [...this.records.values()]
       .filter((record) => record.ownerId === ownerId)
-      .map((record) => this.#snapshot(record, {
+      .map((record) => {
+        const snapshot = this.#snapshot(record, {
         stdout: record.stdout.total,
         stderr: record.stderr.total,
-      }));
+        });
+        if (terminal(record.state)) record.terminalObserved = true;
+        return snapshot;
+      });
+  }
+
+  onTerminal(listener) {
+    if (typeof listener !== 'function') throw new TypeError('terminal listener is required');
+    this.terminalListeners.add(listener);
+    return () => this.terminalListeners.delete(listener);
+  }
+
+  markTerminalObserved(processId, ownerId) {
+    const record = this.#owned(processId, ownerId);
+    if (terminal(record.state)) record.terminalObserved = true;
+  }
+
+  claimTerminalWake(processId) {
+    const record = this.records.get(String(processId ?? ''));
+    if (!record || !terminal(record.state) || record.metadata?.kind !== 'managed'
+      || record.terminalObserved || record.wakeClaimed
+      || record.stopReason === 'runtime_shutdown' || record.stopReason === 'test_cleanup') return null;
+    record.wakeClaimed = true;
+    return {
+      ...this.#snapshot(record),
+      ownerId: record.ownerId,
+      metadata: structuredClone(record.metadata),
+    };
   }
 
   forget(processId, ownerId) {

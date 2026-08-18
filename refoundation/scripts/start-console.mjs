@@ -46,6 +46,7 @@ if (!process.argv.includes('--no-open')) {
 }
 
 const stop = async () => {
+  server.closeWakeStreams();
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(() => process.exit(0));
 };

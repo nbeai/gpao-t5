@@ -97,11 +97,18 @@ function makeCommandTool(options = {}, { managed }) {
           ownerId,
           waitMs: managed ? yieldMs : null,
           spoolLimit: managed ? undefined : Number.POSITIVE_INFINITY,
+          metadata: {
+            kind: managed ? 'managed' : 'foreground',
+            ...(options.originRunId ? { originRunId: options.originRunId } : {}),
+          },
         });
         if (context.signal?.aborted && result.state === 'running') {
           result = await registry.stop({
             processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor,
           });
+        }
+        if (managed && result.state !== 'running' && result.state !== 'stop_requested') {
+          registry.markTerminalObserved(result.processId, ownerId);
         }
         if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
           registry.forget(result.processId, ownerId);

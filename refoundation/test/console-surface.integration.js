@@ -47,6 +47,7 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     const html = await fetch(`${base}/`).then((response) => response.text());
     assert.match(html, /GPAO-T5/);
     assert.match(html, /path-links\.js/);
+    assert.match(html, /wake-events\.js/);
     const reveal = await fetch(`${base}/computer/reveal`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-t5-console-action': 'reveal' },
@@ -268,6 +269,87 @@ test('모델 호출 실패도 답으로 꾸미지 않고 run_failed 사실로 �
     const session = await fetch(`${base}/sessions/${created.id}`).then((item) => item.json());
     assert.equal(session.transcript.length, 1);
   } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을 자동으로 깨운다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-process-wake-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  const modelFactory = () => {
+    let turn = 0;
+    return { async respond(input) {
+      const request = input.messages.at(-1)?.content ?? '';
+      if (request.includes('managed process terminal event')) return {
+        text: '자동 완료 알림: wake-output', toolCalls: [],
+        responseId: 'wake-model', responseModel: 'wake-test-model',
+      };
+      if (turn++ === 0) return {
+        text: '', toolCalls: [{
+          id: 'wake-process', name: 'process_start',
+          args: { command: "sleep 0.08; printf 'wake-output'", cwd: null },
+        }],
+        responseId: 'start-model', responseModel: 'wake-test-model',
+      };
+      return {
+        text: '작업을 시작했고 실행 중입니다.', toolCalls: [],
+        responseId: 'running-model', responseModel: 'wake-test-model',
+      };
+    } };
+  };
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory, processYieldMs: 20 });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const wakeResponse = await fetch(`${base}/events/stream`);
+  const wakeReader = wakeResponse.body.getReader();
+  const decoder = new TextDecoder();
+  await wakeReader.read();
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const first = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '백그라운드 작업을 시작하고 기다리지 마' }),
+    }).then((response) => response.json());
+    assert.equal(first.reply, '작업을 시작했고 실행 중입니다.');
+    let session;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      session = await fetch(`${base}/sessions/${created.id}`).then((response) => response.json());
+      if (session.transcript.length === 4) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(session.transcript.length, 4);
+    assert.equal(session.transcript[2].role, 'system_event');
+    assert.equal(session.transcript[2].event.state, 'completed');
+    assert.equal(session.transcript[2].event.stdout, 'wake-output');
+    assert.equal(session.transcript[3].result.reply, '자동 완료 알림: wake-output');
+    const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((response) => response.json());
+    assert.equal(runs.runs.length, 2);
+    assert.ok(runs.runs.some((run) => run.status === 'completed'));
+    const details = await Promise.all(runs.runs.map((run) => (
+      fetch(`${base}/runs/${run.runId}`).then((response) => response.json())
+    )));
+    const wakeRun = details.find((run) => run.metadata.trigger === 'managed_process_terminal');
+    assert.ok(wakeRun);
+    assert.equal(wakeRun.metadata.originRunId, session.transcript[1].result.runId);
+    let wakeWire = '';
+    for (let attempt = 0; attempt < 10 && !wakeWire.includes('managed_process_wake'); attempt += 1) {
+      const chunk = await Promise.race([
+        wakeReader.read(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('wake event timeout')), 500)),
+      ]);
+      wakeWire += decoder.decode(chunk.value ?? new Uint8Array());
+    }
+    assert.match(wakeWire, /event: managed_process_wake/);
+    assert.match(wakeWire, /자동 완료 알림: wake-output/);
+  } finally {
+    await wakeReader.cancel();
+    await server.managedProcesses.stopAll('test_cleanup');
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
   }

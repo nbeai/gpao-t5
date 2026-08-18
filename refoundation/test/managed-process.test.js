@@ -103,3 +103,34 @@ test('다른 세션은 process handle을 관측하거나 제어할 수 없다', 
     /process not found/,
   );
 }));
+
+test('process_start가 running으로 반환된 뒤 생긴 terminal 상태는 한 번만 wake 대상으로 claim된다', async () => room(async ({ root, registry }) => {
+  const notified = [];
+  const unsubscribe = registry.onTerminal((event) => notified.push(event));
+  const started = await registry.start({
+    program: '/bin/sh', args: ['-lc', "sleep 0.06; printf 'wake-output'"], cwd: root,
+    env: process.env, ownerId: 'session-wake', waitMs: 10,
+    metadata: { kind: 'managed', originRunId: 'run-origin' },
+  });
+  assert.equal(started.state, 'running');
+  await delay(100);
+  assert.equal(notified.length, 1);
+  const wake = registry.claimTerminalWake(started.processId);
+  assert.equal(wake.state, 'completed');
+  assert.equal(wake.stdout, 'wake-output');
+  assert.equal(wake.ownerId, 'session-wake');
+  assert.equal(wake.metadata.originRunId, 'run-origin');
+  assert.equal(registry.claimTerminalWake(started.processId), null);
+  unsubscribe();
+}));
+
+test('모델이 poll로 terminal 상태를 이미 관측한 process는 다시 wake하지 않는다', async () => room(async ({ root, registry }) => {
+  const started = await registry.start({
+    program: '/bin/sh', args: ['-lc', "sleep 0.04; printf 'observed'"], cwd: root,
+    env: process.env, ownerId: 'session-observed', waitMs: 5,
+    metadata: { kind: 'managed' },
+  });
+  await collectUntilTerminal(registry, started, 'session-observed');
+  await delay(10);
+  assert.equal(registry.claimTerminalWake(started.processId), null);
+}));

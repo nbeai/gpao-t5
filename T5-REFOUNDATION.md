@@ -138,7 +138,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 ## R2 — Truth and Authority
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt 실제 OAuth 콘솔·재시작 복원까지 성립. 2단계
-명시적 `process_start` 완료 wake 진행 전.
+명시적 `process_start` 완료 wake 코드 계약 성립, 실제 OAuth·열린 콘솔 알림 실측 전.
 
 사용자 완료 문장:
 
@@ -162,6 +162,9 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 - completed·cancelled·failed 분리, 종료 이벤트 없는 Run은 `interrupted`
 - transcript assistant 결과와 Run을 `runId`로 연결, `/runs`에서 재조회
 - 아직 효과·허가·목적 달성 판단은 기록하지 않음
+- `process_start` terminal 상태는 모델이 이미 poll·stop으로 관측하지 않은 경우 한 번만 claim
+- initiating Run 종료 뒤 같은 session의 `system_event`·wake Run을 자동 생성하고 원래 Run과 연결
+- wake 모델 답을 로컬 SSE로 열린 콘솔에 전달, foreground `exec`는 wake 대상에서 제외
 
 ## R3 — Recovery and Comparative Performance
 
@@ -213,5 +216,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 2단계로 명시적 `process_start`의 출력·완료·실패 wake를 연결한다. foreground `exec`는 wake나
-자동 background 전환 대상이 아니며, 기존 완결 영수증 성공 계약은 각 단계의 선행 회귀 조건이다.
+R2 2단계 `process_start` 완료 wake를 실제 OAuth와 열린 콘솔에서 관측한다. 성립하면 Run 원장의
+기록 시각·모델 사용량·ToolReceipt 크기를 이용한 3단계 속도 영수증으로 이동한다. foreground `exec`는
+wake나 자동 background 전환 대상이 아니다.

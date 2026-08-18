@@ -72,26 +72,32 @@ export function makeConsoleServer({
   const reveal = revealPath ?? makePathRevealer({ platform: computer.platform });
   const pendingStreams = new Map();
   const running = new Map();
+  const pendingProcessWakes = new Map();
+  const wakeSubscribers = new Set();
 
   async function status() { return Promise.resolve(modelStatus()); }
 
-  async function executeTurn(sessionId, text, emit = () => {}) {
+  async function executeTurn(sessionId, text, emit = () => {}, options = {}) {
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     const history = historyFrom(session);
-    const run = await runLedger.start({
-      sessionId, request: text, metadata: { priorConversationMessages: history.length },
-    });
+    const run = await runLedger.start({ sessionId, request: text, metadata: {
+      priorConversationMessages: history.length,
+      trigger: options.trigger ?? 'user',
+      ...(options.metadata ?? {}),
+    } });
     const controller = new AbortController();
     let runFinished = false;
     try {
-      await sessions.append(sessionId, { role: 'user', text, runId: run.runId });
+      await sessions.append(sessionId, {
+        ...(options.inputEntry ?? { role: 'user', text }), runId: run.runId,
+      });
       running.set(sessionId, controller);
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
-        yieldMs: processYieldMs,
+        yieldMs: processYieldMs, originRunId: run.runId,
       });
       const result = await runAgent({
         request: text,
@@ -141,6 +147,7 @@ export function makeConsoleServer({
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
+        ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace),
       };
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
@@ -156,15 +163,77 @@ export function makeConsoleServer({
       throw error;
     } finally {
       running.delete(sessionId);
+      for (const [processId, event] of pendingProcessWakes) {
+        if (event.ownerId === sessionId) {
+          pendingProcessWakes.delete(processId);
+          queueMicrotask(() => { attemptProcessWake(event).catch((error) => onError?.(error)); });
+        }
+      }
     }
   }
+
+  function broadcastWake(payload) {
+    for (const response of wakeSubscribers) {
+      response.write(`event: managed_process_wake\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
+  }
+
+  async function attemptProcessWake(event) {
+    if (running.has(event.ownerId)) {
+      pendingProcessWakes.set(event.processId, event);
+      return;
+    }
+    const process = processes.claimTerminalWake(event.processId);
+    if (!process) return;
+    const wakeText = [
+      'managed process terminal event',
+      `processId: ${process.processId}`,
+      `state: ${process.state}`,
+      `processExitCode: ${process.exitCode}`,
+      `stdout:\n${process.stdout}`,
+      `stderr:\n${process.stderr}`,
+      'Tell the user naturally that the managed work completed or failed. Use only this observed event.',
+    ].join('\n');
+    const completed = await executeTurn(event.ownerId, wakeText, () => {}, {
+      trigger: 'managed_process_terminal',
+      metadata: {
+        processId: process.processId,
+        originRunId: process.metadata?.originRunId ?? null,
+        terminalState: process.state,
+      },
+      inputEntry: {
+        role: 'system_event',
+        event: {
+          kind: 'managed_process_terminal', processId: process.processId,
+          state: process.state, processExitCode: process.exitCode,
+          stdout: process.stdout, stderr: process.stderr,
+          cursor: process.cursor, originRunId: process.metadata?.originRunId ?? null,
+        },
+      },
+    });
+    if (completed.kind === 'reply') broadcastWake({
+      sessionId: event.ownerId,
+      runId: completed.runId,
+      processId: process.processId,
+      state: process.state,
+      reply: completed.result.answer,
+    });
+  }
+
+  const unsubscribeTerminal = processes.onTerminal((event) => {
+    attemptProcessWake(event).catch((error) => onError?.(error));
+  });
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
-        const html = source.replace('</body>', '<script type="module" src="/path-links.js"></script>\n</body>');
+        const html = source.replace('</body>', [
+          '<script type="module" src="/path-links.js"></script>',
+          '<script type="module" src="/wake-events.js"></script>',
+          '</body>',
+        ].join('\n'));
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         res.end(html);
         return;
@@ -172,6 +241,11 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/path-links.js') {
         res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
         res.end(await readFile(resolve(here, 'path-links.js'), 'utf8'));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/wake-events.js') {
+        res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        res.end(await readFile(resolve(here, 'wake-events.js'), 'utf8'));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/markdown.js') {
@@ -189,6 +263,16 @@ export function makeConsoleServer({
         json(res, 200, {
           ok: true, product: 'gpao-t5-refoundation', model: connection, workspace, computer: computerFacts,
         }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/events/stream') {
+        res.writeHead(200, {
+          'content-type': 'text/event-stream; charset=utf-8',
+          'cache-control': 'no-cache', connection: 'keep-alive',
+        });
+        res.write(': connected\n\n');
+        wakeSubscribers.add(res);
+        req.once('close', () => wakeSubscribers.delete(res));
+        return;
       }
       if (req.method === 'POST' && url.pathname === '/computer/reveal') {
         if (req.headers['x-t5-console-action'] !== 'reveal') {
@@ -334,5 +418,11 @@ export function makeConsoleServer({
   });
   server.managedProcesses = processes;
   server.runLedger = runLedger;
+  server.unsubscribeTerminalWake = unsubscribeTerminal;
+  server.closeWakeStreams = () => {
+    unsubscribeTerminal();
+    for (const response of wakeSubscribers) response.end();
+    wakeSubscribers.clear();
+  };
   return server;
 }
