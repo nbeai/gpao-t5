@@ -1,0 +1,66 @@
+{
+  "schema": "t5.refoundation.live-evidence.v1",
+  "observedAt": "2026-08-18T10:49:30.292Z",
+  "sourceCommit": "a114db9862a98d538b25d3dcab563319d9e17db1",
+  "runtimeDigest": "f94919c0cd35d829cf14cb68feb2046ec224d949c1f9b8eaf1ef412cb8a6c1f6",
+  "runtimeFilesDirty": false,
+  "sourceWorktreeDirty": true,
+  "sourceChanges": [
+    "M package.json",
+    " M refoundation/scripts/doctor.mjs",
+    "?? refoundation/evidence/r1-oauth-first-live.json",
+    "?? refoundation/scripts/summarize-live-evidence.mjs"
+  ],
+  "isolatedRoom": "t5-refoundation-live-G0KSRB",
+  "auth": "chatgpt_oauth",
+  "requestModel": "gpt-5.5",
+  "responseModels": [
+    "gpt-5.5",
+    "gpt-5.5",
+    "gpt-5.5",
+    "gpt-5.5"
+  ],
+  "modelTurns": 4,
+  "toolCalls": [
+    {
+      "callId": "call_bgpFTCuBRMaKXEFJRu7yd9jE",
+      "name": "exec",
+      "arguments": {
+        "command": "find . -type f -name '*.txt' -print",
+        "cwd": null
+      },
+      "outcome": "succeeded",
+      "exitCode": 0
+    },
+    {
+      "callId": "call_M8tcd9OCBKxgedrpete66jri",
+      "name": "exec",
+      "arguments": {
+        "command": "printf '--- 첫째.txt ---\\n'; cat './첫째.txt'; printf '\\n--- 둘째.txt ---\\n'; cat './둘째.txt'; printf '\\n'",
+        "cwd": null
+      },
+      "outcome": "succeeded",
+      "exitCode": 0
+    },
+    {
+      "callId": "call_ntcLOHKhyTYyrm0PTDYGNg9c",
+      "name": "exec",
+      "arguments": {
+        "command": "python3 - <<'PY'\nfrom pathlib import Path\nimport re\nfiles=sorted(Path('.').rglob('*.txt'))\ntotal=0\nfor p in files:\n    text=p.read_text(encoding='utf-8')\n    nums=[int(x) for x in re.findall(r'[-+]?\\d+', text)]\n    print(f'{p}: {nums} sum={sum(nums)}')\n    total += sum(nums)\nprint('TOTAL', total)\nPY",
+        "cwd": null
+      },
+      "outcome": "succeeded",
+      "exitCode": 0
+    }
+  ],
+  "finalAnswer": "작업 폴더의 `.txt` 파일들을 직접 확인했습니다.\n\n- `첫째.txt`: 13\n- `둘째.txt`: 29\n\n숫자 합계는 **42**입니다.",
+  "fixture": {
+    "values": [
+      13,
+      29
+    ],
+    "expectedSum": 42
+  },
+  "credentialLikeMatches": [],
+  "passed": true
+}
