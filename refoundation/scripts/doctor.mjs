@@ -33,6 +33,8 @@ try {
   for (const name of [
     'refoundation:doctor', 'refoundation:boundary', 'refoundation:test', 'refoundation:check',
     'refoundation:integration', 'refoundation:ci', 'refoundation:isolated', 'refoundation:live',
+    'refoundation:connections',
+    'refoundation:connect:oauth',
   ]) {
     if (!pkg.scripts?.[name]) failures.push(`루트 npm script 없음: ${name}`);
   }

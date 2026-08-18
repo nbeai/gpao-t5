@@ -30,6 +30,8 @@
     "refoundation:ci": "npm run refoundation:check && npm run refoundation:integration",
     "refoundation:isolated": "node refoundation/scripts/run-isolated.mjs --",
     "refoundation:live": "node refoundation/scripts/run-live.mjs",
+    "refoundation:connections": "node refoundation/scripts/list-connections.mjs",
+    "refoundation:connect:oauth": "node refoundation/scripts/connect-chatgpt.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

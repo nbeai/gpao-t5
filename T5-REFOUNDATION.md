@@ -59,8 +59,9 @@ Non-goals:
 
 ## R1 — Thin Hand
 
-상태: `IN_PROGRESS` — 최소 loop·실제 exec·OpenAI Responses adapter·가린 prompt dump·루프백 관통
-성립. 실제 provider 과업은 키가 개발 프로세스에 명시적으로 제공된 뒤 측정한다.
+상태: `IN_PROGRESS` — 최소 loop·실제 exec·가린 prompt dump·API 키/OAuth 이중 콘솔 연결 성립.
+API 키 실제 fixture는 통과했다. OAuth 실제 모델의 exec 선택은 관측했고 SSE 파서 누락을 수리했으나,
+수리 후 실제 종단 재측정은 실행 권한 자동검토 시간 초과로 미실행이다. OAuth 루프백 종단은 통과했다.
 
 사용자 완료 문장:
 
@@ -157,5 +158,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-`T5_REFOUNDATION_OPENAI_API_KEY`가 명시된 환경에서 격리 fixture의 첫 실제 모델 과업을 수행하고,
-그 결과로 R1 과업 영역 측정을 시작한다. 기존 콘솔 저장 자격은 자동으로 읽지 않는다.
+수리된 OAuth 경로로 격리 fixture의 실제 종단을 재측정한다. 통과하면 API 키와 OAuth 두 연결을 보존한 채
+R1 과업 영역 측정을 시작한다. 자격 입력과 로그인은 기존 콘솔 UX를 사용하고 터미널 입력을 요구하지 않는다.
