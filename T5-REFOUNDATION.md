@@ -1,0 +1,154 @@
+# T5 Refoundation — Single Development Map
+
+상태: `ACTIVE`
+현재 Gate: `R1 — Thin Hand`
+
+이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
+담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
+
+## 전략
+
+기존 T5는 즉시 폐기하거나 계속 수리하지 않는다.
+
+```
+legacy T5                 refoundation T5
+실패 원본·비교 기준       독립된 새 실행 코어
+저수준 부품 후보          legacy 중심부 import 금지
+동결                       실제 과업으로 승격 판단
+```
+
+새 코어가 실제 사용자 과업에서 legacy와 비교군을 이긴 뒤 검증된 부품만 이식한다.
+
+## 공통 중단선
+
+- 같은 결함 가족의 세 번째 패치
+- 실제 모델 과업 없이 구조만 증가
+- 현재 Gate 밖 기능 추가
+- legacy 중심 오케스트레이터 import
+- 테스트 초록을 사용자 목적 달성으로 승격
+- 새 계획서·인계서·봉인문으로 같은 사실 복제
+
+## R0 — 독립 개발 환경
+
+상태: `COMPLETE` — `npm run refoundation:check` 3/3, 격리 자격 신호 0, legacy 제품 소스 변경 0.
+
+사용자 완료 문장:
+
+> 새 T5 작업은 기존 중심부와 실제 사용자 홈을 건드리지 않는 독립 레인에서 시작할 수 있다.
+
+필수 결과:
+
+- 오너 제품 정본, 단일 개발 지도, 작업 규율
+- `refoundation/` 독립 경계
+- 실제 HOME·DATA·WORKSPACE를 쓰지 않는 격리 실행기
+- legacy import를 막는 경계 검사
+- 새 레인만 빠르게 검증하는 명령과 CI job
+
+Non-goals:
+
+- 모델 호출
+- agent loop
+- terminal tool
+- memory, skill, channel, automation
+
+완료 Gate:
+
+- `npm run refoundation:check` 통과
+- 격리 실행에서 HOME·DATA·WORKSPACE가 임시 경로임을 기계적으로 확인
+- 기존 `src/`·`test/` 제품 파일 변경 0
+
+## R1 — Thin Hand
+
+사용자 완료 문장:
+
+> 격리된 작업 폴더에서 사용자가 자연어로 목표를 말하면 실제 모델이 `exec`를 반복 사용하고,
+> 결과를 관측해 완료한 뒤 자기 문장으로 답한다.
+
+구성:
+
+- Session과 Run
+- 실제 model adapter 하나
+- `exec` 하나
+- model ↔ tool 반복 loop
+- ToolReceipt
+- cancellation
+- prompt dump
+
+Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-agent.
+
+완료 Gate:
+
+- 프로젝트 조사
+- 테스트 실패 진단·수정·재검증
+- 여러 파일 검색·계산
+- 기존 CLI 발견·활용
+- 산출물 생성·재확인
+- 첫 명령 실패 뒤 다른 수단 전환
+
+각 영역은 표현과 fixture를 바꾼 복수 과업으로 판정한다. 호출 횟수 자체는 Gate가 아니다.
+
+## R2 — Truth and Authority
+
+사용자 완료 문장:
+
+> T5가 요청·허가·실행·로컬 효과·외부 효과·목적 달성을 구분하고, 오너의 네 경계 밖에서는
+> 불필요하게 멈추지 않는다.
+
+필수 결과:
+
+- append-only Run/Step/Receipt
+- 로컬 효과와 외부 효과의 별도 관측
+- 비밀값·백업 없는 파괴·새 상대 첫 전송·결제 경계
+- 실행 전후 상태 대조
+- 모델 답에 런타임 문장 덧붙임 0
+
+완료 Gate: reach 승인 우회, probe 원장 거짓, 실행/미실행 역전, 답 오염 반대시험 통과.
+
+## R3 — Recovery and Comparative Performance
+
+사용자 완료 문장:
+
+> 첫 수단이 막히거나 결과가 부족하면 T5가 실패 원문을 보고 다른 명령·CLI·도구로 전환해 끝낸다.
+
+필수 결과:
+
+- 실패 원문과 다음 현실이 모델에게 전달
+- 중복 호출 방지와 안전한 retry
+- 큰 결과 원본 보존·구간 재조회
+- Run 중심 시간·호출·결과 trace
+- legacy·Claude Code·Codex·Hermes 비교 harness
+
+완료 Gate: 현재 legacy 실측 `흐름 0/10`, `막힘 뒤 전환 0/5`를 유효 과업에서 명확히 초과.
+
+## R4 — Conversation Product Slice
+
+사용자 완료 문장:
+
+> 사용자는 agent, tool, model을 고르지 않고 평소 말로 과업을 끝내며 필요한 결과물과 결정만 본다.
+
+필수 결과:
+
+- 대화 adapter
+- 최소 질문
+- 사용자 중심 결과와 artifact
+- 필요한 순간의 Preview/Commit/Undo
+- 기술 오류 비노출, 부분 성공·미달의 정확한 설명
+
+## R5 — Persistent Personal Agent
+
+사용자 완료 문장:
+
+> 새 세션에서도 T5가 명시된 선호와 진행 중인 일을 정확히 이어받고, 사용자는 기억을 대화로
+> 확인·수정·삭제할 수 있다.
+
+필수 결과: append-only transcript, compaction, pre-compaction flush, 작은 user core, session search.
+
+## R6 이후 — 증거가 열 때만
+
+전용 파일·웹·브라우저 손, 외부 앱·MCP, 메신저 Gateway, Skills, Learning, Automation,
+Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증할 때 하나씩 연다. 새 능력은 agent loop를
+재작성하지 않고 도구 또는 상태 공급자로 붙어야 한다.
+
+## 현재 다음 한 작업
+
+R1의 첫 작업 계약인 `Run → Model → exec → observation → Model` 최소 loop의 실패시험을 작성한다.
