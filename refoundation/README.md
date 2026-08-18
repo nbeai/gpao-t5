@@ -47,6 +47,10 @@ legacy 기준선은 단계 비교 또는 legacy 변경 작업에서 별도로 �
 정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은
 요청·실행·효과의 증거 원장이다.
 
+`GET /runs/<runId>/context`는 실제 provider 요청의 내용 없는 크기 영수증을 반환한다. instructions·input·
+tool schema byte, input 종류·source role·도구 이름별 크기와 provider token usage를 함께 보여주며 prompt
+원문은 반환하지 않는다.
+
 OAuth 연결은 `refoundation:connect:oauth`를 실행하면 브라우저가 자동으로 열린다. 사용자는 로그인과
 승인만 누르면 되고 터미널 입력은 하지 않는다. 이 경로는 공개 OpenAI API OAuth 계약이 아니라 기존
 Codex 계정 backend를 사용하는 비공식 호환 경로다.

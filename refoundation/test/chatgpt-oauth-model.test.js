@@ -281,7 +281,7 @@ test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청�
       }]);
     },
   });
-  await model.respond({
+  const response = await model.respond({
     messages: [
       { role: 'user', content: '파일 값을 확인해줘' },
       { role: 'assistant', content: '', toolCalls: [{ id: 'old-call', name: 'exec', args: { command: 'read-value', cwd: null } }] },
@@ -298,4 +298,9 @@ test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청�
     { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '확인했습니다.' }] },
     { type: 'message', role: 'user', content: [{ type: 'input_text', text: '아까 값만 알려줘' }] },
   ]);
+  assert.equal(response.contextReceipt.provider, 'chatgpt_oauth');
+  assert.equal(response.contextReceipt.requestBytes, Buffer.byteLength(JSON.stringify(requests[0])));
+  assert.equal(response.contextReceipt.input.byKind.function_call.items, 1);
+  assert.equal(response.contextReceipt.input.byKind.function_call_output.items, 1);
+  assert.doesNotMatch(JSON.stringify(response.contextReceipt), /value-7391|파일 값을/);
 });

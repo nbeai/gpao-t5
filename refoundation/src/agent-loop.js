@@ -16,6 +16,7 @@ function normalizeResponse(response) {
     responseId: response?.responseId ?? null,
     responseModel: response?.responseModel ?? null,
     usage: response?.usage ?? null,
+    contextReceipt: response?.contextReceipt ?? null,
   };
 }
 
@@ -173,6 +174,7 @@ export async function runAgent({
       ...(response.responseId ? { responseId: response.responseId } : {}),
       ...(response.responseModel ? { responseModel: response.responseModel } : {}),
       ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
+      ...(response.contextReceipt ? { contextReceipt: structuredClone(response.contextReceipt) } : {}),
     });
     await onEvent?.({
       type: 'model_end',
@@ -183,6 +185,7 @@ export async function runAgent({
         responseId: response.responseId,
         responseModel: response.responseModel,
         usage: structuredClone(response.usage),
+        contextReceipt: structuredClone(response.contextReceipt),
       },
     });
     transcript.push({

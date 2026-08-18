@@ -1,0 +1,62 @@
+{
+  "schema": "t5.context-receipt-live.v1",
+  "recordedAt": "2026-08-19T03:08:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "containsPromptContent": false,
+  "freshSession": {
+    "sessionId": "9992189a-2c13-489b-9bea-50eff0f146a1",
+    "runId": "a24cd0d9-5234-4da0-b424-7d7eb1a032c4",
+    "requestBytes": 10975,
+    "instructionsBytes": 2713,
+    "inputBytes": 100,
+    "providerInputTokens": 1879,
+    "toolSchemas": {
+      "totalBytes": 8062,
+      "definitions": 5,
+      "byName": {
+        "skill": 4118,
+        "exec": 1011,
+        "process_start": 1036,
+        "pty_start": 996,
+        "process_control": 895
+      }
+    }
+  },
+  "continuedConversation": {
+    "sessionId": "c2e9f667-8a1f-4db1-9a9c-370bcf910c47",
+    "runId": "172736d7-657c-4e17-8d37-bb006631851b",
+    "requestBytes": 19348,
+    "instructionsBytes": 2713,
+    "inputBytes": 8473,
+    "providerInputTokens": 3926,
+    "sourceMessages": 11,
+    "inputItems": 11,
+    "inputByKindBytes": {
+      "user_message": 1060,
+      "assistant_message": 297,
+      "function_call": 959,
+      "function_call_output": 6145
+    },
+    "toolSchemaBytes": 8062,
+    "toolCallsInRun": 0,
+    "answer": "C0-OAUTH-7391 /private/tmp/t5-c0-live/continuity-value.txt"
+  },
+  "deltaContinuedMinusFresh": {
+    "requestBytes": 8373,
+    "inputBytes": 8373,
+    "providerInputTokens": 2047
+  },
+  "verification": {
+    "unitBoundary": { "passed": 102, "failed": 0 },
+    "integration": { "passed": 11, "failed": 0 },
+    "legacyCoreImports": 0
+  },
+  "notImplemented": [
+    "context threshold",
+    "tool-result projection",
+    "pruning",
+    "compaction summary",
+    "memory flush"
+  ]
+}

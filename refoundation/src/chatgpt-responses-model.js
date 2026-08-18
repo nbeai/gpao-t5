@@ -1,3 +1,5 @@
+import { makeContextReceipt } from './context-receipt.js';
+
 const DEFAULT_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses';
 const TRANSIENT_CODES = new Set(['server_is_overloaded', 'server_error', 'rate_limit_exceeded', 'empty_response']);
 
@@ -145,6 +147,10 @@ export function makeChatGptResponsesModel({
         stream: true,
         store: false,
       };
+      const contextReceipt = makeContextReceipt({
+        provider: 'chatgpt_oauth', model: requestModel, instructions,
+        input: body.input, tools: body.tools, sourceMessages: messages, body,
+      });
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         await dump?.({
           body,
@@ -205,6 +211,7 @@ export function makeChatGptResponsesModel({
             responseId: parsed.id,
             responseModel: parsed.model,
             usage: parsed.usage,
+            contextReceipt,
           };
         }
         if (!transportError.retriable || attempt === maxAttempts) throw transportError;

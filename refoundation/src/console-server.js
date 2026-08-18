@@ -12,6 +12,7 @@ import { makePathRevealer } from './path-revealer.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
+import { deriveRunContextReport } from './run-context-receipt.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
@@ -452,6 +453,11 @@ export function makeConsoleServer({
       if (speedMatch) {
         const run = await runLedger.read(decodeURIComponent(speedMatch[1]));
         json(res, 200, deriveRunSpeedReceipt(run)); return;
+      }
+      const contextMatch = req.method === 'GET' && url.pathname.match(/^\/runs\/([^/]+)\/context$/);
+      if (contextMatch) {
+        const run = await runLedger.read(decodeURIComponent(contextMatch[1]));
+        json(res, 200, deriveRunContextReport(run)); return;
       }
       if (req.method === 'GET' && url.pathname.startsWith('/runs/')) {
         json(res, 200, await runLedger.read(decodeURIComponent(url.pathname.slice('/runs/'.length)))); return;

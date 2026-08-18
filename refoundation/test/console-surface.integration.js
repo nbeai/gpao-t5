@@ -127,11 +127,27 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
             effect: { kind: 'observe', summary: '문자 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
           } }],
           responseId: 'r1', responseModel: 'console-model',
+          contextReceipt: {
+            schema: 't5.context-receipt.v1', provider: 'test', model: 'console-model',
+            requestBytes: 100, instructionsBytes: 10,
+            input: { items: 1, bytes: 20, byKind: {} },
+            tools: { definitions: 1, bytes: 30 },
+            source: { messages: 1, bytes: 20, currentUserBytes: 10, byRole: {} },
+          },
         };
         const receipt = JSON.parse(input.messages.at(-1).content);
         assert.equal(receipt.result.stdout, 'console-ok');
         assert.equal(receipt.result.commandExplanation.steps[0].executable, 'printf');
-        return { text: '콘솔 터미널 연결 완료', toolCalls: [], responseId: 'r2', responseModel: 'console-model' };
+        return {
+          text: '콘솔 터미널 연결 완료', toolCalls: [], responseId: 'r2', responseModel: 'console-model',
+          contextReceipt: {
+            schema: 't5.context-receipt.v1', provider: 'test', model: 'console-model',
+            requestBytes: 200, instructionsBytes: 10,
+            input: { items: 3, bytes: 120, byKind: {} },
+            tools: { definitions: 1, bytes: 30 },
+            source: { messages: 3, bytes: 120, currentUserBytes: 10, byRole: {} },
+          },
+        };
       },
     };
   };
@@ -212,6 +228,12 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.equal(speed.model.calls, 2);
     assert.equal(speed.tools.calls, 1);
     assert.equal(speed.tools.outputChars, 'console-ok'.length);
+    const context = await fetch(`${base}/runs/${run.runId}/context`).then((response) => response.json());
+    assert.equal(context.calls.length, 2);
+    assert.deepEqual(context.aggregate, {
+      calls: 2, requestBytes: 300, inputBytes: 140, instructionsBytes: 20,
+      toolSchemaBytes: 60, providerInputTokens: null,
+    });
     const listed = await fetch(`${base}/sessions`).then((response) => response.json());
     assert.equal(listed.sessions[0].turns, 2);
   } finally {

@@ -1,3 +1,5 @@
+import { makeContextReceipt } from './context-receipt.js';
+
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
 
@@ -126,6 +128,10 @@ export function makeOpenAIResponsesModel({
         reasoning: { effort: reasoningEffort },
         store: false,
       };
+      const contextReceipt = makeContextReceipt({
+        provider: 'openai', model, instructions, input: body.input, tools: body.tools,
+        sourceMessages: messages, body,
+      });
       await dump?.({
         body,
         meta: { provider: 'openai', endpoint: new URL(endpoint).origin, model },
@@ -170,6 +176,7 @@ export function makeOpenAIResponsesModel({
         responseId: json.id ?? null,
         responseModel: json.model ?? model,
         usage: json.usage ?? null,
+        contextReceipt,
       };
     },
   };

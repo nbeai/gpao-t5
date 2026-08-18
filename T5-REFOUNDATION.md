@@ -251,15 +251,34 @@ Non-goals:
 
 ## C1 — Context Projection and Compaction
 
-상태: `NEXT`
+상태: `IN_PROGRESS` — 첫 단계 Context Receipt v0가 실제 OAuth까지 성립. 아직 projection·pruning·compaction은 없음.
 
 사용자 완료 문장:
 
 > 원본 Conversation은 모두 살아 있으면서, 긴 대화에서도 T5가 현재 목적·결정·정확한 경로·남은 일을
 > 잃지 않고 필요한 Context만 사용해 계속 작업한다.
 
-첫 작업은 압축기가 아니라 현재 provider usage와 다음 요청·tool schema·Conversation projection의 실제
-크기를 같은 Run에서 측정하는 Context Receipt다. 그 측정 없이 threshold·summary·Memory flush를 만들지 않는다.
+현재 성립한 계약:
+
+- 두 model adapter가 실제 전송 직전 body에서 instructions·input·tool schema의 UTF-8 byte를 측정
+- input은 user/assistant/function call/function output/reasoning 종류별, source는 role별 항목 수·byte 기록
+- tool schema는 도구 이름별 byte 기록; prompt·사용자 문장·tool 결과·비밀값 내용은 Receipt에 기록하지 않음
+- 각 model_completed 사건에 Context Receipt와 provider usage를 함께 지속하고 `/runs/:id/context`로 재조회
+- provider usage가 없으면 token을 0으로 꾸미지 않고 `null`
+
+실제 OAuth 측정:
+
+- 빈 세션 Run `a24cd0d9-5234-4da0-b424-7d7eb1a032c4`: request 10,975 bytes, provider input
+  1,879 tokens. instructions 2,713, input 100, tool schema 8,062 bytes
+- tool schema 8,062 bytes: skill 4,118, exec 1,011, process_start 1,036, pty_start 996,
+  process_control 895. 현재 bundled skill 16개의 metadata가 하나의 skill schema에 포함된 상태
+- C0 대화 연속 Run `172736d7-657c-4e17-8d37-bb006631851b`: request 19,348 bytes, provider input
+  3,926 tokens. input 8,473 bytes 중 과거 function outputs 6,145 bytes
+- 빈 세션 대비 대화 연속 Run은 request +8,373 bytes, provider input +2,047 tokens
+
+다음 한 작업은 원본 ToolReceipt는 Conversation에 그대로 보존하면서 오래된 tool message만 모델용 projection에서
+작게 만드는 반대시험이다. 현재 Run의 tool 결과와 정확한 경로·오류·출력은 손대지 않으며, 효과가 측정되기
+전에는 summary·threshold·Memory flush를 만들지 않는다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -311,6 +330,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C0 완전한 Conversation 원장과 실제 OAuth 재시작 연속성이 성립했다. 다음 한 작업은 C1의 Context Receipt다.
-원본 대화·도구 결과·도구 schema·현재 요청이 다음 provider 입력에서 차지하는 실제 크기와 provider usage를
-Run에 분리 기록한다. 이 측정 전에는 compaction threshold, summary prompt, Memory flush를 만들지 않는다.
+C1 Context Receipt가 정적 tool schema 비용과 동적 ToolReceipt 비용을 분리했다. 다음 한 작업은 오래된
+ToolReceipt의 모델용 projection A/B다. Conversation·Run 원본은 바꾸지 않고, 현재 tool round는 원문을
+유지하며, 과거 receipt를 줄인 뒤에도 C0 재시작 회상과 실패 복구가 그대로 성립하는지를 실제 OAuth로 비교한다.
