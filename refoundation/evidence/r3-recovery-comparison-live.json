@@ -1,0 +1,47 @@
+{
+  "schema": "t5.r3-recovery-comparison-live.v1",
+  "recordedAt": "2026-08-18T20:54:06.266Z",
+  "actualUserData": false,
+  "commonCases": [
+    "method-unavailable-switch",
+    "partial-observation-replan",
+    "impossible-bounded-stop"
+  ],
+  "results": {
+    "t5": {
+      "model": "gpt-5.5",
+      "passed": "3/3",
+      "durationMs": [16293, 24179, 23263]
+    },
+    "codex": {
+      "version": "codex-cli 0.148.0-alpha.9",
+      "model": "gpt-5.6-sol",
+      "passed": "3/3",
+      "durationMs": [21896, 25954, 19302]
+    },
+    "claudeCode": {
+      "version": "2.1.212",
+      "passed": "3/3",
+      "durationMs": [26243, 42640, 18767]
+    },
+    "hermes": {
+      "version": "0.20.0",
+      "passed": "3/3",
+      "durationMs": [218449, 89275, 41660]
+    },
+    "openClaw": {
+      "sourceCommit": "f95b5a0062264eeb2bfb26f22197582ff425adb4",
+      "runtimeRun": "not_measured",
+      "reason": "installed 2026.6.11 has no isolated-workspace one-shot; source contract only"
+    },
+    "legacyT5": {
+      "priorBaseline": "flow 0/10; blocked-switch 0/5"
+    }
+  },
+  "fixtureIntegrity": {
+    "forcedFailureObserved": true,
+    "forcedPartialObserved": true,
+    "workspaceUnchanged": true
+  },
+  "passed": true
+}

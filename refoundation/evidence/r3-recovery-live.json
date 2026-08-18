@@ -1,0 +1,54 @@
+{
+  "schema": "t5.r3-recovery-live.v1",
+  "recordedAt": "2026-08-18T20:30:47.719Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "cases": [
+    {
+      "id": "method-unavailable-switch",
+      "runId": "ac95d4a8-603f-487c-9419-ddbbc99e3a7b",
+      "durationMs": 16293,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "result": "failed first command -> different Python method -> exact path and MEMO",
+      "passed": true
+    },
+    {
+      "id": "partial-observation-replan",
+      "runId": "879d63cb-4ec7-472f-8094-387c307c6221",
+      "durationMs": 24179,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "result": "partial warning -> complete independent aggregation -> 140 / 1402",
+      "passed": true
+    },
+    {
+      "id": "transient-safe-retry",
+      "runId": "c83591d5-179e-4689-a41f-336a8e2df2ea",
+      "durationMs": 11199,
+      "modelCalls": 3,
+      "toolCalls": 2,
+      "result": "no-start transient -> exact call retried once -> success",
+      "passed": true
+    },
+    {
+      "id": "tty-mode-switch",
+      "runId": "9eea1867-00d1-4cb1-b4a7-e2aa83c7bffb",
+      "durationMs": 17820,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "result": "PTY selected -> stdin write -> completed output",
+      "passed": true
+    },
+    {
+      "id": "impossible-bounded-stop",
+      "runId": "14584afb-ad71-4096-9ea5-69e306b91c94",
+      "durationMs": 23263,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "result": "zero matches -> workspace unchanged -> bounded absent answer",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

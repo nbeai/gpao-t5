@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R5 — COMPLETE`; 다음 Gate는 R3 Recovery and Comparative Performance 재판정
+현재 Gate: `R3 — COMPLETE`; 다음 Gate는 R4 Conversation Product Slice gap audit
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -393,6 +393,9 @@ C1 완료 판정: 원본 Conversation을 보존한 상태에서 도구 영수증
 
 ## R3 — Recovery and Comparative Performance
 
+상태: `COMPLETE` — legacy `흐름 0/10`·`막힘 뒤 전환 0/5` 대비 새 T5 recovery 5/5,
+Codex·Claude Code·Hermes 공통 비교 3/3이 실제 격리 과업에서 성립.
+
 사용자 완료 문장:
 
 > 첫 수단이 막히거나 결과가 부족하면 T5가 실패 원문을 보고 다른 명령·CLI·도구로 전환해 끝낸다.
@@ -406,6 +409,41 @@ C1 완료 판정: 원본 Conversation을 보존한 상태에서 도구 영수증
 - legacy·Claude Code·Codex·Hermes 비교 harness
 
 완료 Gate: 현재 legacy 실측 `흐름 0/10`, `막힘 뒤 전환 0/5`를 유효 과업에서 명확히 초과.
+
+현재 성립한 계약:
+
+- 일반 command/tool 실패는 원문 receipt를 모델에게 그대로 돌리고 모델이 다른 command·CLI·tool을 선택
+- `command did not start`가 명시된 replay-safe transient만 모델이 같은 exact call을 한 번 재시도
+- exit 0이어도 `PARTIAL_OBSERVATION`이 있으면 완료로 간주하지 않고 독립 집계 방식으로 전체 재검증
+- TTY 요구는 별도 판정 층이 아니라 모델이 `pty_start → write → poll`을 선택해 전환
+- 존재하지 않는 목표는 workspace 변경 0, 5회 이하 tool call, 정상 사용자 답으로 정지
+- 큰 출력 원문·구간 재조회는 C1-P3, Run 시간·호출·결과 trace는 R2 영수증을 그대로 사용
+- 동일 실패에 대한 일반 retry engine·명령 allowlist·정규식 recovery planner를 추가하지 않음
+
+R3 실제 OAuth 5축:
+
+- 방법 불가: 첫 command exit 69 → 다른 Python method → exact path·MEMO, 16.3초
+- 부분 결과: partial 경고 → 독립 전체 집계 → BLUE 140·AMOUNT 1,402, 24.2초
+- 안전 재시도: no-start exit 75 → exact call 1회 재시도 → 성공, 11.2초
+- interaction mode: PTY → 입력 → 완료 출력, 17.8초
+- 불가능 정지: 전체 0 match·변경 0·tool 4회 → 부재 답, 23.3초
+- 증거: `refoundation/evidence/r3-recovery-live.json`
+
+비교군 대조:
+
+- Codex `0.148.0-alpha.9`, Claude Code `2.1.212`, Hermes `0.20.0`을 동일 격리 fixture와 forced failure로 실행
+- 공통 3축(방법 실패·부분 결과·불가능 정지) 모두 T5 3/3, Codex 3/3, Claude Code 3/3, Hermes 3/3
+- OpenClaw 최신 소스 `f95b5a006226`: tool 결과 오류를 모델에 보존하고, replay-safe provider 실패만 제한 재시도;
+  tool activity 뒤 max-turn/failover 자동 replay 금지. 설치판은 격리 workspace one-shot 부재로 runtime 미측정
+- 속도는 T5 16.3/24.2/23.3초, Codex 21.9/26.0/19.3초, Claude 26.2/42.6/18.8초,
+  Hermes 218.4/89.3/41.7초. 목적 달성은 동률이며 T5가 비교 범위에서 성능 열세 아님
+- 증거: `refoundation/evidence/r3-recovery-comparison-live.json`
+
+Non-goals:
+
+- 모든 실패를 자동 재시도하거나 숨기는 runtime
+- 외부 API의 비멱등 효과를 tool receipt 확인 없이 replay
+- 호출 횟수만 줄이기 위해 결과 검증을 생략하는 것
 
 ## R4 — Conversation Product Slice
 
@@ -520,7 +558,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R5는 Context·Memory·Session Search까지 완료됐다. 다음 한 작업은 현재까지 진화한 core를 기준으로 R3 Recovery
-and Comparative Performance의 실패 기준선과 완료 문장을 다시 대조하는 것이다. 첫 수단 실패 뒤 전환,
-부분 결과의 재계획, 동일 목적의 다른 수단 선택을 실제 사용자 과업과 Codex·Claude Code·OpenClaw·Hermes
-비교로 측정한다. 새 recovery 규칙이나 재시도 층은 원인이 확인되기 전에 만들지 않는다.
+R3는 실제 recovery 5축과 비교군 공통 3축까지 완료됐다. 다음 한 작업은 R4 Conversation Product Slice gap
+audit이다. 기존 콘솔 디자인은 유지하고, 현재 core의 terminal·authority·artifact·memory·session search가 일반
+사용자 대화에서 기술 용어·불필요한 질문·내부 오류 없이 결과와 필요한 Preview/Undo로 나타나는지 실제 콘솔
+시나리오를 먼저 측정한다. UI 재디자인이나 새 adapter 층은 관측된 gap이 있기 전에는 만들지 않는다.
