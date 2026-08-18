@@ -138,7 +138,8 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 ## R2 — Truth and Authority
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
-Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계 효과·권한 경계 진행 전.
+Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계 효과·권한 경계의 command-bound
+append-only 권한 원장 성립, shell·콘솔 승인 연결 전.
 
 사용자 완료 문장:
 
@@ -168,6 +169,9 @@ Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계
 - Run 사건에서 wall·model call/duration/token·tool call/duration/output·사용자 가시 시간을 계산
 - 기존 UI의 visible measurement를 `surface_metric`으로 terminal event 뒤에도 append-only 지속
 - 없는 가시성·사용량은 0으로 꾸미지 않고 `null`, 시간·횟수는 결과 Gate가 아닌 비교 지표
+- 효과 경계: 관측·가역적 로컬 변경·백업 있는 파괴·기존 상대 전송은 자동, 백업 없는 파괴·새 상대
+  첫 전송·결제는 승인, 비밀 입력은 별도 사용자 입력 경계
+- pending 권한은 정확한 tool call digest에 결속되어 한 번만 소비되고 승인·거절·소비가 0600 JSONL로 지속
 
 ## R3 — Recovery and Comparative Performance
 
@@ -219,5 +223,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 4단계 효과·권한 경계로 이동한다. 실행 전후 전체 스캔이나 런타임 목적 판단을 넣지 않고, 모델이
-요청한 실제 call과 관측된 효과를 분리하며 오너의 네 경계에서만 실행 직전 멈춘다.
+R2 4단계 권한 원장을 `exec`·`process_start` preflight와 기존 콘솔 승인 카드에 연결한다. 실행 전후
+전체 스캔이나 런타임 목적 판단을 넣지 않고, 선언 효과·허가·실제 call·표적 사후관측을 분리한다.
