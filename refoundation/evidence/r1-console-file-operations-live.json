@@ -1,0 +1,55 @@
+{
+  "schema": "t5.refoundation.console-file-operations-evidence.v1",
+  "sourceCommit": "bfa7acf3112b4cc29981575cc5bcea7100fbc864",
+  "date": "2026-08-18",
+  "proofLevel": "actual_console_stream_plus_independent_filesystem_observation",
+  "sessionId": "6ed8a843-3ccd-48fb-9e9d-bd89fe0e85cb",
+  "testRoot": "/private/tmp/t5-console-six-6ed8a843",
+  "turns": [
+    {
+      "capabilities": ["create_directory", "create_files", "read_back"],
+      "terminalStarts": 1,
+      "result": "passed"
+    },
+    {
+      "capabilities": ["find_by_content_without_filename", "read", "summarize"],
+      "terminalStarts": 2,
+      "selected": "inbox/alpha.txt",
+      "result": "passed"
+    },
+    {
+      "capabilities": ["modify", "preserve_unrequested_content", "read_back"],
+      "terminalStarts": 1,
+      "observedState": ["STATUS: completed", "REVIEWED: yes"],
+      "result": "passed"
+    },
+    {
+      "capabilities": ["create_directory", "create_summary_file", "read_back"],
+      "terminalStarts": 2,
+      "created": "reports/aurora-summary.md",
+      "result": "passed"
+    },
+    {
+      "capabilities": ["copy", "move", "delete_file", "delete_directory", "preserve_named_files", "post_observation"],
+      "terminalStarts": 2,
+      "result": "passed"
+    }
+  ],
+  "independentReadOnlyVerification": {
+    "finalFiles": [
+      "inbox/alpha.txt",
+      "inbox/beta.txt",
+      "archive/aurora-backup.txt",
+      "archive/aurora-summary.md"
+    ],
+    "sourceAndBackupByteIdentical": true,
+    "movedSummaryContentMatched": true,
+    "scratchFileAbsent": true,
+    "reportsDirectoryAbsent": true
+  },
+  "scope": {
+    "proves": "all six requested file-operation classes completed in one controlled multi-turn console scenario",
+    "doesNotProve": "the general file domain is complete, performance across varied real-world requests, or safe handling of every destructive operation"
+  },
+  "passed": true
+}
