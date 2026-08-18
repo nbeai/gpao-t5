@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { explainShellCommand } from './command-explainer.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -50,6 +51,7 @@ export function makeExecTool({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   outputLimit = DEFAULT_OUTPUT_LIMIT,
   env = {},
+  explainCommand = explainShellCommand,
 } = {}) {
   if (!workspace || !isAbsolute(workspace)) throw new TypeError('absolute workspace is required');
 
@@ -74,6 +76,9 @@ export function makeExecTool({
       const root = await realpath(workspace);
       const cwd = await resolveWorkingDirectory(root, args.cwd);
       const startedAt = Date.now();
+      let commandExplanation;
+      try { commandExplanation = await explainCommand(command); }
+      catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
 
       return new Promise((done) => {
         const child = spawn(shell, ['-lc', command], {
@@ -115,6 +120,7 @@ export function makeExecTool({
             durationMs: Date.now() - startedAt,
             truncated: out.truncated || err.truncated,
             omittedChars: (out.omittedChars ?? 0) + (err.omittedChars ?? 0),
+            commandExplanation,
             ...(stopped ? { stopped } : {}),
           });
         };

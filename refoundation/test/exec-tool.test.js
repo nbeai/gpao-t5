@@ -45,3 +45,24 @@ test('exec timeout은 실행 결과에 timeout 사실을 남긴다', async () =>
   assert.equal(result.stopped, 'timeout');
   assert.notEqual(result.exitCode, 0);
 }));
+
+test('exec 결과에는 Tree-sitter가 읽은 명령 단계와 operator가 붙는다', async () => rooms(async ({ workspace }) => {
+  const result = await makeExecTool({ workspace }).execute({
+    command: "printf 'b\\na\\n' | sort && printf done",
+    cwd: null,
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.commandExplanation.ok, true);
+  assert.deepEqual(result.commandExplanation.steps.map((step) => step.executable), ['printf', 'sort', 'printf']);
+  assert.deepEqual(result.commandExplanation.operators.map((operator) => operator.kind), ['pipe', 'and']);
+}));
+
+test('명령 설명기가 실패해도 셸 실행 능력은 줄지 않는다', async () => rooms(async ({ workspace }) => {
+  const result = await makeExecTool({
+    workspace,
+    explainCommand: async () => { throw new Error('parser unavailable'); },
+  }).execute({ command: "printf 'still-ran'", cwd: null });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, 'still-ran');
+  assert.deepEqual(result.commandExplanation, { ok: false, error: 'parser unavailable' });
+}));

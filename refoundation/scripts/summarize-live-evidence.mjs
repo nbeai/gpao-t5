@@ -53,7 +53,14 @@ const outputs = promptRecords.flatMap((record) => record.body?.input ?? [])
   .map((item) => {
     let receipt = {};
     try { receipt = JSON.parse(item.output); } catch { /* output stays unknown */ }
-    return { callId: item.call_id, outcome: receipt.outcome ?? null, exitCode: receipt.result?.exitCode ?? null };
+    return {
+      callId: item.call_id,
+      outcome: receipt.outcome ?? null,
+      exitCode: receipt.result?.exitCode ?? null,
+      explanationOk: receipt.result?.commandExplanation?.ok ?? null,
+      steps: (receipt.result?.commandExplanation?.steps ?? []).map((step) => step.executable),
+      operators: (receipt.result?.commandExplanation?.operators ?? []).map((operator) => operator.kind),
+    };
   });
 const finalDeltas = events(responseRecords.at(-1)?.body?.raw)
   .filter((event) => event.type === 'response.output_text.delta')

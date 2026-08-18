@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install pinned refoundation runtime dependencies
+        run: npm ci --prefix refoundation
       - name: Verify refoundation development lane
         run: npm run refoundation:ci
 

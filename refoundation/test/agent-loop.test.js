@@ -27,6 +27,8 @@ test('모델이 exec 결과를 관측한 뒤 자기 답으로 종료한다', asy
       const observation = JSON.parse(input.messages.at(-1).content);
       assert.equal(observation.outcome, 'succeeded');
       assert.equal(observation.result.stdout, '6');
+      assert.equal(observation.result.commandExplanation.ok, true);
+      assert.equal(observation.result.commandExplanation.steps[0].executable, 'printf');
       return { text: '계산 결과는 6입니다.', toolCalls: [] };
     },
   };

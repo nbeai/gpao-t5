@@ -75,6 +75,8 @@ test('live runner는 Responses HTTP → exec → function output → 최종 답�
     assert.equal(result.fixturePassed, true);
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].outcome, 'succeeded');
+    assert.deepEqual(result.toolCalls[0].steps, ['awk']);
+    assert.deepEqual(result.toolCalls[0].operators, []);
     assert.equal(requests.length, 2);
     assert.ok(requests.every((request) => request.authorization === `Bearer ${KEY}`));
     assert.ok(requests.every((request) => !JSON.stringify(request.body).includes(KEY)));
@@ -157,6 +159,7 @@ test('live runner는 콘솔에 저장된 OAuth 연결만으로 같은 과업을 
     const result = JSON.parse(stdout);
     assert.equal(result.auth, 'chatgpt_oauth');
     assert.equal(result.fixturePassed, true);
+    assert.deepEqual(result.toolCalls[0].steps, ['awk']);
     assert.equal(call, 2);
   } finally {
     await new Promise((resolve) => server.close(resolve));
