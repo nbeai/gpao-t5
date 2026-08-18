@@ -131,7 +131,7 @@ async function executeCall(call, tools, signal) {
  * @param {{
  *   request:string,
  *   history?:Array<{role:'user'|'assistant',content:string}>,
- *   model:{respond:(input:{messages:object[],tools:object[],signal?:AbortSignal})=>Promise<*>},
+ *   model:{respond:(input:{messages:object[],tools:object[],signal?:AbortSignal,onContextReceipt?:(receipt:object)=>Promise<void>})=>Promise<*>},
  *   tools?:Array<{name:string,description:string,parameters:object,execute:Function}>,
  *   signal?:AbortSignal,
  *   maxModelTurns?:number,
@@ -168,6 +168,11 @@ export async function runAgent({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
       signal,
+      onContextReceipt: async (contextReceipt) => {
+        await onEvent?.({
+          type: 'model_context', turn: modelTurns, contextReceipt: structuredClone(contextReceipt),
+        });
+      },
     }));
     modelCalls.push({
       turn: modelTurns,

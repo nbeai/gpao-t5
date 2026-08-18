@@ -410,7 +410,9 @@ test('모델 호출 실패도 답으로 꾸미지 않고 run_failed 사실로 �
   await mkdir(workspace, { recursive: true });
   const server = makeConsoleServer({
     stateDir, workspace,
-    modelFactory: () => ({ async respond() { throw new Error('provider exploded'); } }),
+    modelFactory: () => ({ async respond() {
+      throw Object.assign(new Error('provider exploded'), { status: 200 });
+    } }),
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);

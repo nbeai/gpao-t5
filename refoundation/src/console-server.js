@@ -29,6 +29,11 @@ function json(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
+function httpErrorStatus(error) {
+  const status = Number(error?.status);
+  return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+}
+
 async function body(req, limit = 1024 * 1024) {
   let text = '';
   for await (const chunk of req) {
@@ -192,6 +197,11 @@ export function makeConsoleServer({
               type: 'model_started', stepId: `model-${event.turn}`, payload: { turn: event.turn },
             });
             emit('trace_status', { text: '판단하고 있어요' });
+          } else if (event.type === 'model_context') {
+            await run.append({
+              type: 'model_context_built', stepId: `model-${event.turn}`,
+              payload: { turn: event.turn, contextReceipt: event.contextReceipt },
+            });
           } else if (event.type === 'model_end') {
             await run.append({
               type: 'model_completed', stepId: `model-${event.turn}`,
@@ -615,7 +625,7 @@ export function makeConsoleServer({
       json(res, 404, { error: '이 재창립 단계에서는 아직 제공하지 않아요.' });
     } catch (error) {
       onError?.(error);
-      json(res, error?.status ?? 500, { error: error?.message ?? '처리 중 문제가 있었어요.' });
+      json(res, httpErrorStatus(error), { error: error?.message ?? '처리 중 문제가 있었어요.' });
     }
   });
   server.managedProcesses = processes;

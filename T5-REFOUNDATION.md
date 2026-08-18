@@ -302,10 +302,22 @@ C1-P2 on-demand skill catalog:
   Apple Notes 요청은 `search apple notes→view apple-notes`, terminal/app 접근 0, 절차 원칙 정확 응답
 - 기본 catalog mode를 `on-demand`로 승격; 사용자 skill 본문은 변경하지 않음
 
-다음 한 작업은 Long-session Context Pressure Qualification이다. projection 적용 상태에서 user·assistant·
-작은/큰 tool output을 단계적으로 누적하고, 앞·중간·최근의 정확한 needle 회상과 request byte·provider token·
-latency를 측정한다. 실제 실패나 비용 급증 지점이 나오기 전에는 retrieval·summary·threshold·Memory flush를
-만들지 않는다.
+C1-Q1 long-session Context pressure qualification:
+
+- historical ToolReceipt projection·on-demand skill 상태에서 독립 세션별 앞/중간/최근 needle 회상
+- small 12,000 stdout chars: request 22,847 bytes, provider input 7,697 tokens, 3/3 회상
+- medium 60,000 chars: request 70,865 bytes, provider input 28,634 tokens, 3/3 회상
+- large 180,000 chars: request 190,847 bytes, provider input 85,921 tokens, 3/3 회상
+- stress 540,000 chars·37 messages: request 557,381 bytes, provider input 240,790 tokens, 3/3 회상,
+  새 tool call 0, 5.7초
+- edge 600,000 chars·41 messages: request 618,349 bytes에서 provider가 context window exceeded,
+  HTTP 500·Run failed·새 tool call 0. provider 응답 전 Context Receipt가 실패 Run에 지속됨
+- ChatGPT transport HTTP 200 안의 `response.failed` status가 콘솔 HTTP 200으로 새던 결함을 함께 발견;
+  400~599만 외부 status로 인정하고 나머지 실패는 500으로 통일
+
+다음 한 작업은 C1-P3 Recoverable Large Tool Output이다. canonical 원문은 유지하고 오래된 큰 stdout/stderr를
+head·tail·크기·message ref가 있는 stub으로 바꾼다. 모델은 전용 구간 read로 필요한 원문만 다시 가져온다.
+회상 정확성과 context-window 실패 제거가 실제 OAuth로 성립하기 전에는 summary·Memory flush를 만들지 않는다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -357,7 +369,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-P2가 skill catalog 상시 비용을 제거하면서 실제 16개 catalog의 자동 발견을 보존했다. 다음 한 작업은
-Long-session Context Pressure Qualification이다. 완전한 Conversation을 통제된 크기로 늘려 어느 구간에서
-회상·비용·provider 한계가 실제로 무너지는지 측정한다. 그 결과가 큰 tool output retrieval과 compaction 중
-무엇을 먼저 열지 결정한다.
+C1-Q1이 일반 대화가 아니라 누적된 큰 historical tool output에서 첫 실제 context-window 실패를 재현했다.
+다음 한 작업은 C1-P3 Recoverable Large Tool Output이다. 원본 Conversation은 그대로 두고 큰 과거 출력만
+복구 가능한 stub으로 projection하며, 앞·중간·최근 needle을 구간 read로 다시 찾는다. 이 손이 선 뒤에도
+일반 대화 자체가 한계를 만들 때만 compaction을 연다.

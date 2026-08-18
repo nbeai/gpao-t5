@@ -134,6 +134,7 @@ test('Responses adapter 오류는 API 키를 사용자 오류문에 노출하지
 
 test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요청에 재생한다', async () => {
   const requests = [];
+  const observedContexts = [];
   const model = makeOpenAIResponsesModel({
     apiKey: SECRET,
     model: 'gpt-test',
@@ -158,6 +159,7 @@ test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요�
       { role: 'user', content: '아까 값만 알려줘' },
     ],
     tools: [execDefinition],
+    onContextReceipt: async (receipt) => observedContexts.push(receipt),
   });
   assert.deepEqual(requests[0].input, [
     { role: 'user', content: '파일 값을 확인해줘' },
@@ -171,4 +173,5 @@ test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요�
   assert.equal(response.contextReceipt.input.byKind.function_call.items, 1);
   assert.equal(response.contextReceipt.input.byKind.function_call_output.items, 1);
   assert.doesNotMatch(JSON.stringify(response.contextReceipt), /value-7391|파일 값을/);
+  assert.deepEqual(observedContexts, [response.contextReceipt]);
 });

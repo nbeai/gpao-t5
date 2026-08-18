@@ -60,3 +60,23 @@ test('Run Context Report는 call별 실제 크기와 provider usage를 같은 �
     toolSchemaBytes: 300, providerInputTokens: 321,
   });
 });
+
+test('provider가 실패해도 전송 전 Context Receipt는 usage null로 보고된다', () => {
+  const contextReceipt = {
+    schema: 't5.context-receipt.v1', provider: 'openai', model: 'gpt-test',
+    requestBytes: 9999, instructionsBytes: 200,
+    input: { items: 3, bytes: 8000, byKind: {} },
+    tools: { definitions: 1, bytes: 300 },
+    source: { messages: 3, bytes: 7800, currentUserBytes: 20, byRole: {} },
+  };
+  const report = deriveRunContextReport({
+    runId: 'failed-run', status: 'failed', events: [{
+      type: 'model_context_built', stepId: 'model-1',
+      payload: { turn: 1, contextReceipt },
+    }],
+  });
+  assert.equal(report.calls[0].completed, false);
+  assert.equal(report.calls[0].context.requestBytes, 9999);
+  assert.equal(report.calls[0].providerUsage, null);
+  assert.equal(report.aggregate.providerInputTokens, null);
+});

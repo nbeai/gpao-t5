@@ -28,6 +28,7 @@ npm run refoundation:console
 npm run refoundation:compare:skills -- --rounds 3
 npm run refoundation:compare:tool-projection -- --rounds 2
 npm run refoundation:compare:skill-catalog -- --rounds 2
+npm run refoundation:qualify:context-pressure -- --keep
 ```
 
 `refoundation:check`가 일상 진입점이다. legacy 전체 테스트와 gate는 새 코어의 일상 완료 기준이 아니다.
@@ -51,6 +52,10 @@ canonical receipt 불변을 함께 검사한다.
 
 `refoundation:compare:skill-catalog`은 17개 격리 스킬에서 inline metadata와 on-demand search/list를 전문
 절차 요청·일반 요청으로 교차 비교한다. 사용자 skill 파일이나 실제 앱은 사용하지 않는다.
+
+`refoundation:qualify:context-pressure`는 12KB부터 600KB까지 historical tool stdout을 단계적으로 누적해
+앞·중간·최근 needle 회상, request byte, provider token, latency와 첫 context-window 실패를 측정한다.
+`--from edge`처럼 시작 tier를 지정할 수 있고 `--keep`일 때만 격리 원장을 남긴다.
 
 콘솔 상태의 `conversations/<sessionId>.jsonl`은 모델이 실제로 본 user·assistant·tool 메시지의 append-only
 정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은

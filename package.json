@@ -40,6 +40,7 @@
     "refoundation:compare:skills": "node refoundation/scripts/run-skill-value-comparison.mjs",
     "refoundation:compare:tool-projection": "node refoundation/scripts/run-tool-receipt-projection-comparison.mjs",
     "refoundation:compare:skill-catalog": "node refoundation/scripts/run-skill-catalog-comparison.mjs",
+    "refoundation:qualify:context-pressure": "node refoundation/scripts/run-context-pressure-qualification.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

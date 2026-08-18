@@ -1,0 +1,88 @@
+{
+  "schema": "t5.context-pressure-live.v1",
+  "recordedAt": "2026-08-19T03:43:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "projection": "historical-tool-receipt-v1",
+  "skillCatalog": "on-demand",
+  "tiers": [
+    {
+      "id": "small",
+      "stdoutChars": 12000,
+      "sourceMessages": 13,
+      "requestBytes": 22847,
+      "providerInputTokens": 7697,
+      "wallMs": 2676,
+      "needles": "3/3",
+      "toolCalls": 0,
+      "runId": "b228d9fd-ab6f-492a-a53d-4e41236eaa7f"
+    },
+    {
+      "id": "medium",
+      "stdoutChars": 60000,
+      "sourceMessages": 13,
+      "requestBytes": 70865,
+      "providerInputTokens": 28634,
+      "wallMs": 2689,
+      "needles": "3/3",
+      "toolCalls": 0,
+      "runId": "1ac29cae-07ad-454b-949e-ff23c3d388fe"
+    },
+    {
+      "id": "large",
+      "stdoutChars": 180000,
+      "sourceMessages": 13,
+      "requestBytes": 190847,
+      "providerInputTokens": 85921,
+      "wallMs": 3397,
+      "needles": "3/3",
+      "toolCalls": 0,
+      "runId": "ec8b0966-e370-4a7d-a98a-6eb70c5991b4"
+    },
+    {
+      "id": "stress",
+      "stdoutChars": 540000,
+      "sourceMessages": 37,
+      "requestBytes": 557381,
+      "providerInputTokens": 240790,
+      "wallMs": 5722,
+      "needles": "3/3",
+      "toolCalls": 0,
+      "runId": "06cd1fc4-4135-4e50-88ff-d627e31c1be1"
+    },
+    {
+      "id": "edge",
+      "stdoutChars": 600000,
+      "sourceMessages": 41,
+      "requestBytes": 618349,
+      "providerInputTokens": null,
+      "wallMs": 914,
+      "needles": "0/3",
+      "toolCalls": 0,
+      "httpStatus": 500,
+      "runStatus": "failed",
+      "error": "Your input exceeds the context window of this model. Please adjust your input and try again.",
+      "runId": "5ef59b34-83a2-499b-87ca-c35ab5b756b0"
+    }
+  ],
+  "firstFailureTier": "edge",
+  "failureReceipt": {
+    "event": "model_context_built",
+    "persistedBeforeProviderResult": true,
+    "requestBytes": 618349,
+    "inputBytes": 611046,
+    "functionOutputBytes": 605530
+  },
+  "decision": {
+    "next": "recoverable-large-tool-output",
+    "reason": "historical function outputs caused the first measured context-window failure",
+    "compactionOpened": false,
+    "memoryFlushOpened": false
+  },
+  "verification": {
+    "unitBoundary": { "passed": 109, "failed": 0 },
+    "integration": { "passed": 11, "failed": 0 },
+    "legacyCoreImports": 0
+  }
+}

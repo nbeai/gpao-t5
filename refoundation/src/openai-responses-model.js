@@ -101,7 +101,7 @@ export function makeOpenAIResponsesModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], signal } = {}) {
+    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
       if (!started) {
         input.push(...initialInput(messages));
         for (const message of messages) {
@@ -132,6 +132,7 @@ export function makeOpenAIResponsesModel({
         provider: 'openai', model, instructions, input: body.input, tools: body.tools,
         sourceMessages: messages, body,
       });
+      await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({
         body,
         meta: { provider: 'openai', endpoint: new URL(endpoint).origin, model },

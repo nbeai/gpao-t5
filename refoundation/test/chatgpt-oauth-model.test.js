@@ -262,6 +262,7 @@ test('ChatGPT OAuth adapter는 transient provider 실패만 제한적으로 재�
 
 test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청에 재생한다', async () => {
   const requests = [];
+  const observedContexts = [];
   const credentials = { async get() { return {
     access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
   }; } };
@@ -290,6 +291,7 @@ test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청�
       { role: 'user', content: '아까 값만 알려줘' },
     ],
     tools: [execDefinition],
+    onContextReceipt: async (receipt) => observedContexts.push(receipt),
   });
   assert.deepEqual(requests[0].input, [
     { type: 'message', role: 'user', content: [{ type: 'input_text', text: '파일 값을 확인해줘' }] },
@@ -303,4 +305,5 @@ test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청�
   assert.equal(response.contextReceipt.input.byKind.function_call.items, 1);
   assert.equal(response.contextReceipt.input.byKind.function_call_output.items, 1);
   assert.doesNotMatch(JSON.stringify(response.contextReceipt), /value-7391|파일 값을/);
+  assert.deepEqual(observedContexts, [response.contextReceipt]);
 });
