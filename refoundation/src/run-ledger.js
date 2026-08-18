@@ -31,7 +31,7 @@ class RunWriter {
   append({ type, stepId = null, payload = {} }) {
     if (!type) throw new TypeError('run event type is required');
     return this.serialize(async () => {
-      if (this.finished) throw new Error('run is already finished');
+      if (this.finished && type !== 'surface_metric') throw new Error('run is already finished');
       const event = {
         schema: SCHEMA,
         runId: this.runId,

@@ -70,6 +70,16 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.match(stream, /콘솔 터미널 연결 완료/);
     assert.match(stream, /event: complete/);
 
+    for (const [event, elapsedMs] of [
+      ['first_feedback_visible', 12], ['first_grounded_content', 34], ['turn_complete', 56],
+    ]) {
+      const metric = await fetch(`${base}/turn/metrics/visible`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ measurementId: start.measurementId, event, elapsedMs, visibilityState: 'visible' }),
+      }).then((response) => response.json());
+      assert.equal(metric.ok, true);
+    }
+
     const session = await fetch(`${base}/sessions/${created.id}`).then((response) => response.json());
     assert.equal(session.transcript.length, 2);
     assert.equal(session.transcript[0].role, 'user');
@@ -86,7 +96,14 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.equal(receiptEvent.payload.receipt.actualCall.args.command, "printf 'console-ok'");
     assert.equal(receiptEvent.payload.receipt.result.stdout, 'console-ok');
     assert.equal(receiptEvent.payload.receipt.result.exitCode, 0);
-    assert.equal(run.events.at(-1).type, 'run_completed');
+    assert.equal(run.events.at(-1).type, 'surface_metric');
+    const speed = await fetch(`${base}/runs/${run.runId}/speed`).then((response) => response.json());
+    assert.deepEqual(speed.visible, {
+      firstFeedbackMs: 12, firstGroundedContentMs: 34, turnCompleteMs: 56,
+    });
+    assert.equal(speed.model.calls, 2);
+    assert.equal(speed.tools.calls, 1);
+    assert.equal(speed.tools.outputChars, 'console-ok'.length);
     const listed = await fetch(`${base}/sessions`).then((response) => response.json());
     assert.equal(listed.sessions[0].turns, 2);
   } finally {

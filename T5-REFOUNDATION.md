@@ -138,7 +138,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 ## R2 — Truth and Authority
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt와 2단계 명시적 `process_start` 완료 wake가 실제
-OAuth·열린 콘솔까지 성립. 3단계 Run 기반 속도 영수증 진행 전.
+OAuth·열린 콘솔까지 성립. 3단계 Run 기반 속도 영수증 코드 계약 성립, 실제 브라우저 실측 전.
 
 사용자 완료 문장:
 
@@ -165,6 +165,9 @@ OAuth·열린 콘솔까지 성립. 3단계 Run 기반 속도 영수증 진행 �
 - `process_start` terminal 상태는 모델이 이미 poll·stop으로 관측하지 않은 경우 한 번만 claim
 - initiating Run 종료 뒤 같은 session의 `system_event`·wake Run을 자동 생성하고 원래 Run과 연결
 - wake 모델 답을 로컬 SSE로 열린 콘솔에 전달, foreground `exec`는 wake 대상에서 제외
+- Run 사건에서 wall·model call/duration/token·tool call/duration/output·사용자 가시 시간을 계산
+- 기존 UI의 visible measurement를 `surface_metric`으로 terminal event 뒤에도 append-only 지속
+- 없는 가시성·사용량은 0으로 꾸미지 않고 `null`, 시간·횟수는 결과 Gate가 아닌 비교 지표
 
 ## R3 — Recovery and Comparative Performance
 
@@ -216,5 +219,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 3단계로 Run 원장의 기록 시각·모델 사용량·ToolReceipt 크기에서 속도 영수증을 만든다. 달성·올바른
-정지는 계속 Gate이고, 시간·왕복·토큰·출력량은 원인 비교 지표다.
+R2 3단계 속도 영수증을 실제 브라우저 Run에서 읽어 병목을 구분한다. 성립하면 4단계 효과·권한 경계로
+이동하되, 사전 전체 스캔이나 런타임 목적 판단을 넣지 않는다.

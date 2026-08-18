@@ -59,3 +59,18 @@ test('종료 이벤트 없이 남은 Run은 성공으로 꾸미지 않고 interr
   const restored = await new RunLedger(root).read(run.runId);
   assert.equal(restored.status, 'interrupted');
 }));
+
+test('run_completed 뒤에는 실행 사건이 아니라 surface_metric 관측만 추가 append할 수 있다', async () => room(async (root) => {
+  const run = await new RunLedger(root).start({ sessionId: 'session-4', request: '보이는 시간도 기록해' });
+  await run.finish('completed');
+  await run.append({
+    type: 'surface_metric', payload: {
+      event: 'turn_complete', elapsedMs: 321, visibilityState: 'visible',
+    },
+  });
+  await assert.rejects(() => run.append({ type: 'tool_started', payload: {} }), /already finished/);
+  const restored = await new RunLedger(root).read(run.runId);
+  assert.equal(restored.status, 'completed');
+  assert.equal(restored.events.at(-1).type, 'surface_metric');
+  assert.deepEqual(restored.events.map((event) => event.sequence), [1, 2, 3]);
+}));

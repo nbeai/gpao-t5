@@ -11,6 +11,7 @@ import { discoverComputerEnvironment, publicComputerFacts } from './computer-env
 import { makePathRevealer } from './path-revealer.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
+import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -74,6 +75,8 @@ export function makeConsoleServer({
   const running = new Map();
   const pendingProcessWakes = new Map();
   const wakeSubscribers = new Set();
+  const measurementRuns = new Map();
+  const pendingSurfaceMetrics = new Map();
 
   async function status() { return Promise.resolve(modelStatus()); }
 
@@ -87,6 +90,12 @@ export function makeConsoleServer({
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });
+    if (options.measurementId) {
+      measurementRuns.set(options.measurementId, { run, runId: run.runId });
+      const pending = pendingSurfaceMetrics.get(options.measurementId) ?? [];
+      pendingSurfaceMetrics.delete(options.measurementId);
+      for (const metric of pending) await run.append({ type: 'surface_metric', payload: metric });
+    }
     const controller = new AbortController();
     let runFinished = false;
     try {
@@ -170,6 +179,28 @@ export function makeConsoleServer({
         }
       }
     }
+  }
+
+  async function recordSurfaceMetric(input = {}) {
+    const measurementId = String(input.measurementId ?? '');
+    if (!measurementId || !['first_feedback_visible', 'first_grounded_content', 'turn_complete'].includes(input.event)
+      || !Number.isFinite(input.elapsedMs)) return false;
+    const metric = {
+      event: input.event,
+      elapsedMs: input.elapsedMs,
+      visibilityState: ['visible', 'hidden', 'prerender'].includes(input.visibilityState)
+        ? input.visibilityState : 'hidden',
+    };
+    const bound = measurementRuns.get(measurementId);
+    if (bound) {
+      await bound.run.append({ type: 'surface_metric', payload: metric });
+      if (input.event === 'turn_complete') measurementRuns.delete(measurementId);
+    } else {
+      const pending = pendingSurfaceMetrics.get(measurementId) ?? [];
+      pending.push(metric);
+      pendingSurfaceMetrics.set(measurementId, pending);
+    }
+    return true;
   }
 
   function broadcastWake(payload) {
@@ -312,6 +343,11 @@ export function makeConsoleServer({
           eventCount: run.events.length,
         })) }); return;
       }
+      const speedMatch = req.method === 'GET' && url.pathname.match(/^\/runs\/([^/]+)\/speed$/);
+      if (speedMatch) {
+        const run = await runLedger.read(decodeURIComponent(speedMatch[1]));
+        json(res, 200, deriveRunSpeedReceipt(run)); return;
+      }
       if (req.method === 'GET' && url.pathname.startsWith('/runs/')) {
         json(res, 200, await runLedger.read(decodeURIComponent(url.pathname.slice('/runs/'.length)))); return;
       }
@@ -364,8 +400,11 @@ export function makeConsoleServer({
           json(res, 400, { error: '세션과 발화가 필요해요.' }); return;
         }
         const streamId = randomUUID();
-        pendingStreams.set(streamId, { sessionId: input.sessionId, text: input.text, expiresAt: Date.now() + 30_000 });
-        json(res, 200, { streamId, measurementId: randomUUID() }); return;
+        const measurementId = randomUUID();
+        pendingStreams.set(streamId, {
+          sessionId: input.sessionId, text: input.text, measurementId, expiresAt: Date.now() + 30_000,
+        });
+        json(res, 200, { streamId, measurementId }); return;
       }
       if (req.method === 'GET' && url.pathname === '/turn/stream') {
         const streamId = url.searchParams.get('streamId');
@@ -380,7 +419,9 @@ export function makeConsoleServer({
         }
         try {
           emit('trace_status', { text: '요청을 시작했어요' });
-          const completed = await executeTurn(pending.sessionId, pending.text, emit);
+          const completed = await executeTurn(pending.sessionId, pending.text, emit, {
+            measurementId: pending.measurementId,
+          });
           if (completed.kind === 'cancelled') emit('recoverable_error', { text: '멈췄어요.' });
           else emit('answer_delta', { text: completed.result.answer });
           emit('complete', { kind: completed.kind });
@@ -408,7 +449,10 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/memory/state') { json(res, 200, { items: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/memory/ledger') { json(res, 200, { entries: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/connectors/truth') { json(res, 200, { connectors: [] }); return; }
-      if (req.method === 'POST' && url.pathname === '/turn/metrics/visible') { json(res, 200, { ok: true }); return; }
+      if (req.method === 'POST' && url.pathname === '/turn/metrics/visible') {
+        const input = await body(req);
+        json(res, 200, { ok: await recordSurfaceMetric(input) }); return;
+      }
 
       json(res, 404, { error: '이 재창립 단계에서는 아직 제공하지 않아요.' });
     } catch (error) {
