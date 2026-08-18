@@ -30,3 +30,11 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /process_start only.*process_control.*poll.*write.*stop.*list/i);
   assert.doesNotMatch(instructions, /macos|darwin/i);
 });
+
+test('macOS 환경은 사용자에게 같은 파일명이 분해형일 수 있다는 현실을 모델에 공급한다', () => {
+  const instructions = consoleInstructions('/Users/example', {
+    platform: 'darwin', architecture: 'arm64', commandFamily: 'posix', commandProgram: '/bin/zsh',
+  });
+  assert.match(instructions, /unicode normalization/i);
+  assert.match(instructions, /visually identical.*different.*code points/i);
+});

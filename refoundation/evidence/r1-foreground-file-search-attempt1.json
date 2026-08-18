@@ -1,0 +1,18 @@
+{
+  "schema": "t5.refoundation.foreground-file-search-attempt.v1",
+  "sourceCommit": "1c2a09a22be52c0394195624d5634a1f0e508afb",
+  "observedAt": "2026-08-19",
+  "sessionId": "24d146c1-287d-4c92-99a5-d505730dc141",
+  "request": "내 컴퓨터에서 가장 최근에 생성된 비아이5.txt 파일을 찾아줄래?",
+  "foregroundContractRestored": true,
+  "observedCommand": "find / -name '비아이5.txt' -type f -print ... | sort -nr | head -20",
+  "observedRuntimeSecondsBeforeCancel": 150,
+  "rootCause": "the model chose raw NFC exact-name matching while the existing macOS filename used decomposed Unicode code points",
+  "fileActuallyExisted": true,
+  "actualPath": "/Users/jyp/Downloads/비아이5.txt",
+  "rawFilenameEqualsRequest": false,
+  "normalizedFilenameEqualsRequest": true,
+  "cancelledByEvaluator": true,
+  "processTreeAbsentAfterCancel": true,
+  "passed": false
+}

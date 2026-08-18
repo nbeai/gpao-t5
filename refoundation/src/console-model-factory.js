@@ -22,6 +22,9 @@ export function consoleInstructions(workspace, computer = {}) {
     'The working directory is a starting location, not a limit on relevant paths or resources.',
     'When the user names a relevant path, use the terminal to inspect it instead of refusing because it is outside the default working directory.',
     `Current computer facts: platform=${computer.platform ?? 'unknown'}, architecture=${computer.architecture ?? 'unknown'}, command family=${computer.commandFamily ?? 'unknown'}, command program=${computer.commandProgram ?? 'unknown'}.`,
+    ...(computer.platform === 'darwin' ? [
+      'macOS filesystem fact: visually identical filenames can use different Unicode code points. For user-visible filename matching, account for Unicode normalization instead of relying only on raw exact-name comparison.',
+    ] : []),
     'When the goal is satisfied, answer naturally in the user language.',
     `The default working directory is ${workspace}. Use cwd null for that directory.`,
   ].join('\n');
