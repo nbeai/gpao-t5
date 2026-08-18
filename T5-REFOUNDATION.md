@@ -315,9 +315,23 @@ C1-Q1 long-session Context pressure qualification:
 - ChatGPT transport HTTP 200 안의 `response.failed` status가 콘솔 HTTP 200으로 새던 결함을 함께 발견;
   400~599만 외부 status로 인정하고 나머지 실패는 500으로 통일
 
-다음 한 작업은 C1-P3 Recoverable Large Tool Output이다. canonical 원문은 유지하고 오래된 큰 stdout/stderr를
-head·tail·크기·message ref가 있는 stub으로 바꾼다. 모델은 전용 구간 read로 필요한 원문만 다시 가져온다.
-회상 정확성과 context-window 실패 제거가 실제 OAuth로 성립하기 전에는 summary·Memory flush를 만들지 않는다.
+C1-P3 recoverable large tool output:
+
+- canonical Conversation entry가 `messageId`·`runId`·message를 함께 제공하고 원문은 불변
+- 과거 stdout/stderr가 8,000자를 넘을 때 head 1,000·tail 1,000·전체/생략 크기·message ref만 projection
+- `conversation_recall`은 현재 session projection이 허용한 messageId/stream만 find/read; 원래 명령 재실행 없음
+- 작은 출력·현재 Run·skill·unknown/malformed receipt는 원문 유지; 큰 출력이 없으면 recall schema도 미노출
+- 실제 OAuth medium: 28,634→10,930 tokens, needle 3/3, recall 3, terminal 0
+- large: 85,921→11,218 tokens, needle 3/3, recall 3, terminal 0
+- stress 540KB: 240,790→24,865 tokens, needle 3/3, recall 3, terminal 0
+- edge 600KB: 기존 context-window 실패→47,228 tokens 성공, needle 3/3. 한 Run에서 ref 10개를 모두
+  확인한 비효율은 관측했지만 다른 tier에서 반복되지 않아 미수정
+- overflow 660KB: 28,126 tokens, needle 3/3, recall 3, terminal 0
+- 기본 large output mode를 `recoverable`로 승격; 단위·경계 111/111, 통합 12/12
+
+다음 한 작업은 C1-Q2 Conversation-only Pressure Qualification이다. tool output 없이 user·assistant 결정·경로·
+미해결 작업을 많은 turn에 누적하고 앞·중간·최근 사실 회상과 provider pressure를 측정한다. 이 조건에서 실제
+손실이나 한계가 나타날 때만 summary compaction을 연다. Memory flush는 그 뒤다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -369,7 +383,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-Q1이 일반 대화가 아니라 누적된 큰 historical tool output에서 첫 실제 context-window 실패를 재현했다.
-다음 한 작업은 C1-P3 Recoverable Large Tool Output이다. 원본 Conversation은 그대로 두고 큰 과거 출력만
-복구 가능한 stub으로 projection하며, 앞·중간·최근 needle을 구간 read로 다시 찾는다. 이 손이 선 뒤에도
-일반 대화 자체가 한계를 만들 때만 compaction을 연다.
+C1-P3가 큰 historical tool output의 context-window 실패를 canonical 원문 손실 없이 제거했다. 다음 한 작업은
+C1-Q2 Conversation-only Pressure Qualification이다. tool output을 제외한 긴 사용자·assistant 대화에서 실제
+손실·비용 급증·provider 한계를 측정한다. 그 증거가 나오기 전에는 summary compaction과 Memory flush를 열지 않는다.

@@ -40,6 +40,8 @@ test('세션 메시지는 append-only sequence로 기록되고 재시작 뒤 전
       'user', 'assistant', 'tool', 'assistant',
     ]);
     assert.match(conversation.messages[2].content, /hidden-value/);
+    assert.equal(conversation.entries[2].messageId, 'run-1:tool-call-1');
+    assert.equal(conversation.entries[2].runId, 'run-1');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

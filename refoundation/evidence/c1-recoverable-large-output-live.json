@@ -1,0 +1,96 @@
+{
+  "schema": "t5.recoverable-large-output-live.v1",
+  "recordedAt": "2026-08-19T03:53:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "projection": {
+    "mode": "recoverable",
+    "thresholdChars": 8000,
+    "headChars": 1000,
+    "tailChars": 1000,
+    "canonicalChanged": false,
+    "recallScope": "allowed messageId and stream in current session"
+  },
+  "qualification": [
+    {
+      "tier": "medium",
+      "stdoutChars": 60000,
+      "baselineProviderInputTokens": 28634,
+      "recoverableProviderInputTokens": 10930,
+      "initialProviderInputTokens": 4884,
+      "modelCalls": 2,
+      "recallCalls": 3,
+      "terminalCalls": 0,
+      "needles": "3/3",
+      "runId": "a4a747a7-c148-4276-a720-205c749d87b7"
+    },
+    {
+      "tier": "large",
+      "stdoutChars": 180000,
+      "baselineProviderInputTokens": 85921,
+      "recoverableProviderInputTokens": 11218,
+      "initialProviderInputTokens": 5028,
+      "modelCalls": 2,
+      "recallCalls": 3,
+      "terminalCalls": 0,
+      "needles": "3/3",
+      "runId": "9f883e5e-765c-4806-8aab-639e6a243146"
+    },
+    {
+      "tier": "stress",
+      "stdoutChars": 540000,
+      "baselineProviderInputTokens": 240790,
+      "recoverableProviderInputTokens": 24865,
+      "initialProviderInputTokens": 11847,
+      "modelCalls": 2,
+      "recallCalls": 3,
+      "terminalCalls": 0,
+      "needles": "3/3",
+      "runId": "ad20ea5e-7ebe-4e62-a7cd-09fa10435bb3"
+    },
+    {
+      "tier": "edge",
+      "stdoutChars": 600000,
+      "baseline": "context-window-failed",
+      "recoverableProviderInputTokens": 47228,
+      "initialProviderInputTokens": 14302,
+      "modelCalls": 3,
+      "recallCalls": 10,
+      "terminalCalls": 0,
+      "needles": "3/3",
+      "runId": "8b5e7479-fb96-4ed5-8115-37cf3a94d6ce"
+    },
+    {
+      "tier": "overflow",
+      "stdoutChars": 660000,
+      "baseline": "larger-than-first-failure",
+      "recoverableProviderInputTokens": 28126,
+      "initialProviderInputTokens": 13466,
+      "modelCalls": 2,
+      "recallCalls": 3,
+      "terminalCalls": 0,
+      "needles": "3/3",
+      "runId": "b47a7e37-38fd-4c9c-bf1c-89f10edb3e88"
+    }
+  ],
+  "contracts": {
+    "largeOutputToolOnlyWhenNeeded": true,
+    "currentRunResultsRemainFull": true,
+    "smallHistoricalResultsRemainInline": true,
+    "findAndRangeRead": true,
+    "originalCommandRerun": false,
+    "skillAndUnknownReceiptsRemainFull": true
+  },
+  "decision": {
+    "defaultMode": "recoverable",
+    "contextWindowFailureRemoved": true,
+    "compactionOpened": false,
+    "next": "conversation-only-pressure-qualification"
+  },
+  "verification": {
+    "unitBoundary": { "passed": 111, "failed": 0 },
+    "integration": { "passed": 12, "failed": 0 },
+    "legacyCoreImports": 0
+  }
+}

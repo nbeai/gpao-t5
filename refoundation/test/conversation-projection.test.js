@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { projectHistoricalConversation } from '../src/conversation-projection.js';
+import {
+  projectHistoricalConversation, projectHistoricalConversationEntries,
+} from '../src/conversation-projection.js';
 
 function terminalReceipt() {
   return {
@@ -80,4 +82,33 @@ test('승인 전 미실행 receipt는 pending ID와 이유를 보존한다', () 
   assert.equal(compact.result.pendingId, 'pending-7');
   assert.equal(compact.result.reason, 'destructive');
   assert.equal(compact.result.command, 'rm /tmp/a');
+});
+
+test('큰 historical stdout은 head·tail·message ref만 보이고 중간 원문은 canonical에 남는다', () => {
+  const receipt = terminalReceipt();
+  receipt.result.stdout = `${'H'.repeat(9_000)}MIDDLE-NEEDLE-7391${'T'.repeat(9_000)}`;
+  const originalContent = JSON.stringify(receipt);
+  const entries = [{
+    messageId: 'large-tool-message', runId: 'run-large',
+    message: { role: 'tool', toolCallId: 'call-1', name: 'exec', content: originalContent },
+  }];
+  const projection = projectHistoricalConversationEntries(entries, {
+    largeOutputMode: 'recoverable', maxInlineOutputChars: 8_000, previewChars: 1_000,
+  });
+  assert.equal(projection.messages.length, 1);
+  assert.equal(projection.recoverable.length, 1);
+  assert.deepEqual(projection.recoverable[0], {
+    messageId: 'large-tool-message', stream: 'stdout', totalChars: 18_018,
+  });
+  const compact = JSON.parse(projection.messages[0].content);
+  assert.doesNotMatch(compact.result.stdout, /MIDDLE-NEEDLE-7391/);
+  assert.match(compact.result.stdout, /^H+/);
+  assert.match(compact.result.stdout, /T+$/);
+  assert.deepEqual(compact.result.stdoutProjection, {
+    state: 'recoverable', messageId: 'large-tool-message', stream: 'stdout',
+    totalChars: 18_018, inlineChars: 2_000, omittedChars: 16_018,
+    recallTool: 'conversation_recall',
+  });
+  assert.equal(entries[0].message.content, originalContent);
+  assert.ok(Buffer.byteLength(projection.messages[0].content) < Buffer.byteLength(originalContent) * 0.2);
 });

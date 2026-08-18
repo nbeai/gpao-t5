@@ -99,10 +99,17 @@ export class ConversationLedger {
       throw error;
     }
     const events = parseEvents(text, id);
+    const entries = events.filter((event) => event.type === 'message').map((event) => ({
+      messageId: event.messageId,
+      runId: event.runId ?? null,
+      turn: event.turn ?? null,
+      message: clone(event.message),
+    }));
     return {
       sessionId: id,
       events: clone(events),
-      messages: events.filter((event) => event.type === 'message').map((event) => clone(event.message)),
+      entries,
+      messages: entries.map((entry) => clone(entry.message)),
     };
   }
 

@@ -55,7 +55,11 @@ canonical receipt 불변을 함께 검사한다.
 
 `refoundation:qualify:context-pressure`는 12KB부터 600KB까지 historical tool stdout을 단계적으로 누적해
 앞·중간·최근 needle 회상, request byte, provider token, latency와 첫 context-window 실패를 측정한다.
-`--from edge`처럼 시작 tier를 지정할 수 있고 `--keep`일 때만 격리 원장을 남긴다.
+`--from edge`처럼 시작 tier를 지정할 수 있고 `--large-output recoverable`로 canonical range-recall 경로를
+재자격한다. `--keep`일 때만 격리 원장을 남긴다.
+
+큰 historical stdout/stderr projection에는 canonical `messageId`가 들어간다. 이 ref가 있는 세션에서만
+`conversation_recall(find|read)`이 제공되며, 허용된 같은-session 원문만 재실행 없이 읽는다.
 
 콘솔 상태의 `conversations/<sessionId>.jsonl`은 모델이 실제로 본 user·assistant·tool 메시지의 append-only
 정본이다. `console-sessions.json`의 transcript는 기존 UI를 위한 화면 projection이고, `runs/*.jsonl`은

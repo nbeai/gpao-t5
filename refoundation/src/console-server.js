@@ -17,7 +17,8 @@ import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
 import { ConversationLedger } from './conversation-ledger.js';
-import { projectHistoricalConversation } from './conversation-projection.js';
+import { projectHistoricalConversationEntries } from './conversation-projection.js';
+import { makeConversationRecallTool } from './conversation-recall-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -75,6 +76,7 @@ export function makeConsoleServer({
   skillsRoot = bundledSkillsRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
+  largeToolOutputMode = 'recoverable',
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -85,6 +87,9 @@ export function makeConsoleServer({
   }
   if (!['inline', 'on-demand'].includes(skillCatalogMode)) {
     throw new TypeError('unsupported skill catalog mode');
+  }
+  if (!['inline', 'recoverable'].includes(largeToolOutputMode)) {
+    throw new TypeError('unsupported large tool output mode');
   }
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
@@ -147,13 +152,17 @@ export function makeConsoleServer({
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
-    const canonicalHistory = (await conversations.read(sessionId)).messages;
-    const history = conversationProjection === 'historical-tool-receipt-v1'
-      ? projectHistoricalConversation(canonicalHistory) : canonicalHistory;
+    const canonicalConversation = await conversations.read(sessionId);
+    const projection = conversationProjection === 'historical-tool-receipt-v1'
+      ? projectHistoricalConversationEntries(canonicalConversation.entries, { largeOutputMode: largeToolOutputMode })
+      : { messages: canonicalConversation.messages, recoverable: [] };
+    const history = projection.messages;
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: history.length,
       conversationProjection,
       skillCatalogMode,
+      largeToolOutputMode,
+      recoverableHistoricalOutputs: projection.recoverable.length,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });
@@ -181,6 +190,11 @@ export function makeConsoleServer({
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];
+      if (projection.recoverable.length) {
+        offeredTools.unshift(makeConversationRecallTool({
+          ledger: conversations, sessionId, allowedRefs: projection.recoverable,
+        }));
+      }
       if (skillSnapshot.skills.length) {
         offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
       }
@@ -224,7 +238,9 @@ export function makeConsoleServer({
               },
             });
             emit('tool_progress', {
-              text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요' : '터미널을 사용하고 있어요',
+              text: event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
+                : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
+                  : '터미널을 사용하고 있어요',
             });
           } else if (event.type === 'tool_end') {
             await run.append({

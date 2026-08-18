@@ -11,6 +11,11 @@ import { ConsoleSessionStore } from '../src/console-session-store.js';
 const keep = process.argv.includes('--keep');
 const fromIndex = process.argv.indexOf('--from');
 const fromTier = fromIndex >= 0 ? process.argv[fromIndex + 1] : null;
+const largeOutputIndex = process.argv.indexOf('--large-output');
+const largeToolOutputMode = largeOutputIndex >= 0 ? process.argv[largeOutputIndex + 1] : 'inline';
+if (!['inline', 'recoverable'].includes(largeToolOutputMode)) {
+  throw new TypeError('--large-output must be inline or recoverable');
+}
 const room = await mkdtemp(join(tmpdir(), 't5-context-pressure-'));
 const stateDir = join(room, 'state');
 const workspace = join(room, 'workspace');
@@ -139,27 +144,39 @@ async function runTier(server, base, tier) {
     ]);
   }
   const answer = String(surface.reply ?? '');
-  const toolCalls = run?.events?.filter((event) => event.type === 'tool_completed').length ?? null;
+  const toolReceipts = run?.events?.filter((event) => event.type === 'tool_completed')
+    .map((event) => event.payload.receipt) ?? [];
+  const toolCalls = run ? toolReceipts.length : null;
+  const recallCalls = toolReceipts.filter((receipt) => receipt.actualCall?.name === 'conversation_recall').length;
+  const otherToolCalls = toolReceipts.filter((receipt) => receipt.actualCall?.name !== 'conversation_recall').length;
   const contextCall = context?.calls?.[0];
+  const functionOutputBytes = context?.calls?.reduce((total, call) => (
+    total + (call.context?.input?.byKind?.function_call_output?.bytes ?? 0)
+  ), 0) ?? null;
   return {
     tier: tier.id,
     sessionId: seeded.sessionId,
     runId,
     httpStatus: response.status,
     runStatus: run?.status ?? 'unknown',
-    passed: response.ok && seeded.needles.every((needle) => answer.includes(needle)) && toolCalls === 0,
+    passed: response.ok && seeded.needles.every((needle) => answer.includes(needle)) && otherToolCalls === 0,
     answer,
     expectedNeedles: seeded.needles,
     seededOutputs: tier.outputs,
     seededStdoutChars: tier.outputs * tier.charsPerOutput,
     sourceMessages: contextCall?.context?.source?.messages ?? null,
-    requestBytes: contextCall?.context?.requestBytes ?? null,
-    inputBytes: contextCall?.context?.input?.bytes ?? null,
-    functionOutputBytes: contextCall?.context?.input?.byKind?.function_call_output?.bytes ?? null,
-    providerInputTokens: contextCall?.providerUsage?.inputTokens ?? null,
+    requestBytes: context?.aggregate?.requestBytes ?? null,
+    initialRequestBytes: contextCall?.context?.requestBytes ?? null,
+    inputBytes: context?.aggregate?.inputBytes ?? null,
+    initialInputBytes: contextCall?.context?.input?.bytes ?? null,
+    functionOutputBytes,
+    providerInputTokens: context?.aggregate?.providerInputTokens ?? null,
+    initialProviderInputTokens: contextCall?.providerUsage?.inputTokens ?? null,
     wallMs: speed?.wallMs ?? (Date.now() - startedAt),
     modelCalls: speed?.model?.calls ?? null,
     toolCalls,
+    recallCalls,
+    otherToolCalls,
     error: response.ok ? null : (surface.error ?? 'turn failed'),
   };
 }
@@ -169,7 +186,7 @@ const previousHome = process.env.T5_REFOUNDATION_HOME;
 process.env.T5_REFOUNDATION_HOME = isolatedHome;
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const server = makeConsoleServer({
-  stateDir, workspace,
+  stateDir, workspace, largeToolOutputMode,
   modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
   computerEnvironment: discoverComputerEnvironment({ userHome: workspace }),
 });
@@ -188,7 +205,7 @@ try {
   console.log(JSON.stringify({
     schema: 't5.context-pressure-qualification.v1', recordedAt: new Date().toISOString(),
     model: (await access.status()).modelId, actualUserData: false,
-    projection: 'historical-tool-receipt-v1', skillCatalog: 'on-demand', results,
+    projection: 'historical-tool-receipt-v1', largeToolOutputMode, skillCatalog: 'on-demand', results,
     firstFailureTier: results.find((result) => !result.passed)?.tier ?? null,
     room: keep ? room : null,
   }, null, 2));
