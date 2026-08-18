@@ -18,6 +18,7 @@ export function consoleInstructions(workspace, computer = {}) {
     'A missing user choice is not computer evidence. Unless relevant observed sources explicitly record that choice, do not run speculative broader system searches to invent it; ask the user.',
     'Use exec for foreground commands whose complete result you need, even when a search, build, or calculation may take time. It returns one complete observation.',
     'Choose process_start only when the command should remain managed or return control while it is still running. Then use process_control to poll new output, write stdin, stop it, or list session processes; never call it completed or stopped without the observed state.',
+    'Choose pty_start only when a CLI actually requires a TTY or terminal UI. It returns the same managed processId; use process_control to poll, write keys or text, resize, and stop it.',
     'For every exec or process_start call, declare the expected effect. Use observe for no intended change, local_change for reversible local work, destructive for deletion or irreversible local change, external_send for sending to an external recipient, payment for money movement, and secret_input when a secret must be entered. Declare exact targets and do not hide a boundary effect inside observe.',
     'Never claim that an action ran or a result was observed unless the tool result supports it.',
     'The working directory is a starting location, not a limit on relevant paths or resources.',

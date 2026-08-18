@@ -192,6 +192,46 @@ export class ManagedProcessRegistry {
     return this.#snapshot(record);
   }
 
+  async startPty({ ptyProcess, command, cwd, ownerId, waitMs = 1000, metadata = {}, spoolLimit = this.spoolLimit }) {
+    if (!ptyProcess || !cwd || !ownerId) throw new TypeError('ptyProcess, cwd, and ownerId are required');
+    const id = randomUUID();
+    const child = {
+      pid: ptyProcess.pid,
+      stdin: {
+        write: (input) => { ptyProcess.write(String(input)); return true; },
+        end: () => {},
+      },
+    };
+    const record = {
+      id, ownerId, child, ptyProcess, command, cwd,
+      metadata: structuredClone(metadata), terminalObserved: false, wakeClaimed: false,
+      state: 'running', exitCode: null, signal: null, error: null,
+      stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
+      stdout: new OutputSpool(spoolLimit), stderr: new OutputSpool(spoolLimit),
+      activityWaiters: new Set(), closePromise: null,
+    };
+    record.closePromise = new Promise((resolveClose) => { record.resolveClose = resolveClose; });
+    this.records.set(id, record);
+    ptyProcess.onData((chunk) => {
+      record.stdout.append(chunk);
+      this.#notifyActivity(record);
+    });
+    ptyProcess.onExit(({ exitCode, signal }) => {
+      record.exitCode = exitCode ?? -1;
+      record.signal = signal == null ? null : String(signal);
+      record.endedAt = new Date().toISOString();
+      record.endedAtMs = Date.now();
+      if (record.state === 'stop_requested') record.state = 'stopped';
+      else record.state = exitCode === 0 ? 'completed' : 'failed';
+      this.#notifyActivity(record);
+      record.resolveClose();
+      this.#notifyTerminal(record);
+    });
+    if (waitMs == null) await record.closePromise;
+    else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
+    return this.#snapshot(record);
+  }
+
   async poll({ processId, cursor, ownerId, waitMs = 0 }) {
     const record = this.#owned(processId, ownerId);
     const before = { stdout: record.stdout.total, stderr: record.stderr.total };
@@ -215,7 +255,21 @@ export class ManagedProcessRegistry {
     return { processId: record.id, state: record.state, accepted, stdinEnded: Boolean(end) };
   }
 
+  resize({ processId, cols, rows, ownerId }) {
+    const record = this.#owned(processId, ownerId);
+    if (!record.ptyProcess || record.state !== 'running') {
+      throw Object.assign(new Error('process is not a running PTY'), { status: 409 });
+    }
+    record.ptyProcess.resize(cols, rows);
+    return { processId: record.id, state: record.state, cols, rows };
+  }
+
   async #signalTree(record, signal) {
+    if (record.ptyProcess) {
+      try { record.ptyProcess.kill(signal); }
+      catch (error) { if (error?.code !== 'ESRCH') throw error; }
+      return;
+    }
     if (this.platform === 'win32') {
       const force = signal === 'SIGKILL' ? ['/F'] : [];
       const killer = this.spawnProcess('taskkill.exe', ['/PID', String(record.child.pid), '/T', ...force], {

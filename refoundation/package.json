@@ -6,7 +6,11 @@
   "engines": {
     "node": ">=20"
   },
+  "scripts": {
+    "postinstall": "node scripts/prepare-node-pty.mjs"
+  },
   "dependencies": {
+    "node-pty": "1.1.0",
     "tree-sitter-bash": "0.25.1",
     "web-tree-sitter": "0.26.9"
   }

@@ -4,6 +4,7 @@ import { explainShellCommand } from './command-explainer.js';
 import { discoverComputerEnvironment } from './computer-environment.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
+import { makePtyStartTool } from './pty-tool.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -202,7 +203,7 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'poll', 'write', 'stop'] },
+        action: { type: 'string', enum: ['list', 'poll', 'write', 'resize', 'stop'] },
         processId: { type: ['string', 'null'] },
         cursor: {
           type: ['object', 'null'],
@@ -213,8 +214,10 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
         input: { type: ['string', 'null'] },
         end: { type: ['boolean', 'null'] },
         waitMs: { type: ['integer', 'null'], minimum: 0, maximum: 30000 },
+        cols: { type: ['integer', 'null'], minimum: 20, maximum: 500 },
+        rows: { type: ['integer', 'null'], minimum: 5, maximum: 200 },
       },
-      required: ['action', 'processId', 'cursor', 'input', 'end', 'waitMs'],
+      required: ['action', 'processId', 'cursor', 'input', 'end', 'waitMs', 'cols', 'rows'],
       additionalProperties: false,
     },
     async execute(args = {}) {
@@ -225,6 +228,9 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
       }), processRegistry, args.processId, ownerId);
       if (args.action === 'write') return processRegistry.write({
         processId: args.processId, input: args.input ?? '', end: Boolean(args.end), ownerId,
+      });
+      if (args.action === 'resize') return processRegistry.resize({
+        processId: args.processId, cols: args.cols, rows: args.rows, ownerId,
       });
       if (args.action === 'stop') return withTerminalEffect(await processRegistry.stop({
         processId: args.processId, cursor: args.cursor, ownerId, reason: 'model_requested',
@@ -241,6 +247,7 @@ export function makeTerminalHand(options = {}) {
   });
   const exec = makeExecTool({ ...options, processRegistry });
   const start = makeProcessStartTool({ ...options, processRegistry });
+  const ptyStart = makePtyStartTool({ ...options, processRegistry });
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
-  return { processRegistry, tools: [exec, start, control] };
+  return { processRegistry, tools: [exec, start, ptyStart, control] };
 }

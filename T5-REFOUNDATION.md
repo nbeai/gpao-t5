@@ -139,7 +139,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
 Run 기반 속도 영수증, 4단계 효과·권한 경계가 실제 OAuth·열린 콘솔까지 성립. 5단계 실제 수요 기반
-PTY·backend 진행 전.
+PTY에서 pipe 기반 `TTY_REQUIRED` 실패와 PTY 성공 코드 계약 성립, 실제 OAuth·backend audit 전.
 
 사용자 완료 문장:
 
@@ -176,6 +176,8 @@ PTY·backend 진행 전.
 - 선언된 로컬 target만 전후 존재·종류·크기·작은 파일 hash 관측, 외부 효과는 관측 못 했으면 false
 - 같은 프로세스의 active Run은 `running`, 종료 사건 없이 재시작 뒤 발견된 Run만 `interrupted`
 - 명백한 `rm`·`find -delete`·POST/전송 명령을 낮은 효과로 위장 선언하면 preflight 미실행
+- `node-pty@1.1.0` 정확 핀, `pty_start`는 같은 processId·poll·write·resize·stop·wake·effect 계약 사용
+- macOS prebuilt spawn-helper 실행 비트는 refoundation postinstall에서 해당 플랫폼 파일만 복구
 
 ## R3 — Recovery and Comparative Performance
 
@@ -227,5 +229,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-5단계에서 현재 stdin 손으로 실패하는 실제 TTY-only fixture를 먼저 확정한다. PTY가 필요한 경우 검증된
-범용 부품을 채택하고, backend는 현재 local 실행으로 불가능한 실제 위치 분리 수요가 확인될 때만 연다.
+5단계 PTY를 실제 OAuth 콘솔에서 TTY-only fixture로 실측한다. 이후 backend는 현재 local 실행으로
+불가능한 실제 위치 분리 수요가 있는지 audit하고, 증거가 없으면 미구현 결론을 명시한다.
