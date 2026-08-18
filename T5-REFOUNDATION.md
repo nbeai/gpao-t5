@@ -137,7 +137,8 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 ## R2 — Truth and Authority
 
-상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt 코드 계약 성립, 실제 OAuth 콘솔·재시작 복원 실측 전.
+상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt 실제 OAuth 콘솔·재시작 복원까지 성립. 2단계
+명시적 `process_start` 완료 wake 진행 전.
 
 사용자 완료 문장:
 
@@ -212,6 +213,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 1단계 Run·Step·Receipt를 실제 OAuth 콘솔에서 실행하고 서버 재시작 뒤 같은 receipt가 복원되는지
-확인한다. 성립하면 명시적 `process_start`의 완료 wake로 이동한다. foreground `exec` 성공 계약은 각
-단계의 선행 회귀 조건이다.
+R2 2단계로 명시적 `process_start`의 출력·완료·실패 wake를 연결한다. foreground `exec`는 wake나
+자동 background 전환 대상이 아니며, 기존 완결 영수증 성공 계약은 각 단계의 선행 회귀 조건이다.

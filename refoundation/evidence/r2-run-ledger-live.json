@@ -1,0 +1,55 @@
+{
+  "schema": "t5.refoundation.run-ledger-live.v1",
+  "sourceCommit": "dcffad39bbe162e3ce8322d6894d75e98e59a965",
+  "observedAt": "2026-08-19",
+  "connection": { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" },
+  "sessionId": "69fb4d3a-8dd8-42e6-9426-a3c94101b6b7",
+  "runId": "6651f288-f512-496f-8909-795c93f48d27",
+  "request": "터미널로 현재 작업 위치를 직접 확인해서 알려줘.",
+  "status": "completed",
+  "events": [
+    "run_started",
+    "model_started",
+    "model_completed",
+    "tool_started",
+    "tool_completed",
+    "model_started",
+    "model_completed",
+    "surface_persisted",
+    "run_completed"
+  ],
+  "receipt": {
+    "requestedCommand": "pwd",
+    "actualCommand": "pwd",
+    "outcome": "succeeded",
+    "state": "completed",
+    "cwd": "/Users/jyp",
+    "stdout": "/Users/jyp\n",
+    "stderr": "",
+    "exitCode": 0,
+    "durationMs": 8
+  },
+  "restartObservation": {
+    "sameRunId": true,
+    "sameStatus": true,
+    "sameEventCount": 9,
+    "sameSequences": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "sameCommand": "pwd",
+    "sameStdout": "/Users/jyp\n",
+    "sameExitCode": 0
+  },
+  "mechanicalContracts": {
+    "appendOnlyJsonl": "passed",
+    "fileMode0600": "passed",
+    "concurrentMonotonicSequence": "passed",
+    "cancelledDistinctFromCompleted": "passed",
+    "failedDistinctFromCompleted": "passed",
+    "missingTerminalEventReadsInterrupted": "passed"
+  },
+  "limits": {
+    "effectClassificationPresent": false,
+    "authorityDecisionPresent": false,
+    "purposeAchievementDecisionPresent": false
+  },
+  "passed": true
+}
