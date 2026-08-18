@@ -1,0 +1,65 @@
+{
+  "schema": "t5.refoundation.managed-process-live.v1",
+  "sourceCommit": "48e41680d2b2adadfef96a232635ed2cdadb1154",
+  "observedAt": "2026-08-19",
+  "proofLevel": "actual_oauth_console_surface_plus_independent_effect_observation",
+  "connection": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "longCompletion": {
+    "sessionId": "08243a4c-0da2-4742-9ad1-ea9887c167df",
+    "terminalStarts": 2,
+    "initialState": "running",
+    "initialOutput": "PHASE-1",
+    "finalState": "completed",
+    "processExitCode": 0,
+    "newOutput": ["PHASE-2", "PHASE-3", "FINISHED"],
+    "passed": true
+  },
+  "confirmedStop": {
+    "sessionId": "aa67cff3-2d71-469a-be54-0bc8e26e9919",
+    "terminalStarts": 4,
+    "initialState": "running",
+    "finalState": "stopped",
+    "signal": "SIGTERM",
+    "terminationConfirmed": true,
+    "markerPath": "/private/tmp/t5-managed-stop-live-aa67.marker",
+    "modelObservedAbsentAfterTwoSeconds": true,
+    "independentReadOnlyObservationAbsent": true,
+    "passed": true
+  },
+  "crossTurnResume": {
+    "sessionId": "2479aec1-b9a5-4561-bb73-9c24a0ae9ee9",
+    "firstTurnState": "running",
+    "firstTurnReturnedWithoutPolling": true,
+    "secondTurnState": "completed",
+    "processExitCode": 0,
+    "secondTurnNewOutput": "BACKGROUND-FINISHED",
+    "sameProcessIdAcrossTurns": true,
+    "passed": true
+  },
+  "stdinWrite": {
+    "sessionId": "b091bb1b-aa08-4322-a8bb-d1ff2e33dd40",
+    "terminalStarts": 3,
+    "input": "hello-t5",
+    "finalState": "completed",
+    "processExitCode": 0,
+    "output": "you typed hello-t5",
+    "passed": true
+  },
+  "mechanicalContracts": {
+    "unixProcessGroupStopAndNoLateChildWrite": "passed",
+    "cursorReturnsOnlyNewOutput": "passed",
+    "pollWakesOnOutputOrExitActivity": "passed",
+    "sessionOwnershipIsolation": "passed",
+    "consoleCancelStopsOwnedProcessTree": "passed"
+  },
+  "limits": {
+    "toolReceiptsPersistedInConsoleTranscript": false,
+    "registrySurvivesT5Restart": false,
+    "ptyAvailable": false,
+    "windowsProcessTreeStopActuallyRun": false
+  },
+  "passed": true
+}
