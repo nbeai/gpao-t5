@@ -17,6 +17,7 @@ import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
 import { ConversationLedger } from './conversation-ledger.js';
+import { projectHistoricalConversation } from './conversation-projection.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -67,11 +68,15 @@ export function makeConsoleServer({
   revealPath,
   processRegistry,
   skillsRoot = bundledSkillsRoot,
+  conversationProjection = 'historical-tool-receipt-v1',
   processYieldMs = 1000,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
+  if (!['full', 'historical-tool-receipt-v1'].includes(conversationProjection)) {
+    throw new TypeError('unsupported conversation projection');
+  }
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
@@ -133,9 +138,12 @@ export function makeConsoleServer({
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
-    const history = (await conversations.read(sessionId)).messages;
+    const canonicalHistory = (await conversations.read(sessionId)).messages;
+    const history = conversationProjection === 'historical-tool-receipt-v1'
+      ? projectHistoricalConversation(canonicalHistory) : canonicalHistory;
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: history.length,
+      conversationProjection,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });

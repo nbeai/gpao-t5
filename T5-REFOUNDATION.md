@@ -276,9 +276,23 @@ Non-goals:
   3,926 tokens. input 8,473 bytes 중 과거 function outputs 6,145 bytes
 - 빈 세션 대비 대화 연속 Run은 request +8,373 bytes, provider input +2,047 tokens
 
-다음 한 작업은 원본 ToolReceipt는 Conversation에 그대로 보존하면서 오래된 tool message만 모델용 projection에서
-작게 만드는 반대시험이다. 현재 Run의 tool 결과와 정확한 경로·오류·출력은 손대지 않으며, 효과가 측정되기
-전에는 summary·threshold·Memory flush를 만들지 않는다.
+C1-P1 historical ToolReceipt projection:
+
+- canonical Conversation과 Run의 full receipt는 그대로 두고, 다음 모델에게 보이는 과거 terminal receipt만
+  `t5.historical-tool-receipt.v1`으로 결정론적 변환
+- stdout·stderr·state·exit code·process 상태·승인 pending/reason·효과 kind/targets/changed 보존
+- command explanation, 시각, duration, 전후 hash 같은 실행 회계 중복 제거
+- skill·알 수 없는 도구·해석 불가능한 receipt는 원문 유지; 현재 Run의 tool result도 원문 유지
+- 실제 OAuth A/B 2회×성공/실패 2종: full 4/4, projected 4/4, 새 tool call 모두 0,
+  canonical receipt 변경 0
+- projected 합계 절감: request 15,096 bytes, function output 15,096 bytes, provider input 3,584 tokens;
+  호출당 3,774 bytes·896 tokens
+- 실제 C0 대화 기본 경로: 메시지가 11→13개로 늘었는데도 request 19,348→14,982 bytes,
+  provider input 3,926→2,693 tokens; 값·경로 정확 회상, 새 tool call 0
+
+다음 한 작업은 빈 세션에서도 4,118 bytes로 가장 큰 단일 정적 항목인 skill catalog schema의 on-demand A/B다.
+skill 선택률·정확성·추가 왕복을 비교해 metadata 상시 노출의 이득이 비용보다 큰지 확정한다. 그 전에는
+summary·threshold·Memory flush를 만들지 않는다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -330,6 +344,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1 Context Receipt가 정적 tool schema 비용과 동적 ToolReceipt 비용을 분리했다. 다음 한 작업은 오래된
-ToolReceipt의 모델용 projection A/B다. Conversation·Run 원본은 바꾸지 않고, 현재 tool round는 원문을
-유지하며, 과거 receipt를 줄인 뒤에도 C0 재시작 회상과 실패 복구가 그대로 성립하는지를 실제 OAuth로 비교한다.
+C1-P1이 과거 ToolReceipt 비용을 줄이면서 C0 회상·실패 복구를 보존했다. 이제 가장 큰 정적 단일 항목인
+skill schema 4,118 bytes를 다룬다. 다음 한 작업은 skill metadata 상시 노출과 on-demand list/search를 실제
+OAuth로 비교하는 것이다. 사용자 소유 skill 본문은 바꾸지 않고, 선택 정확도·왕복·token으로만 승격 판단한다.

@@ -1,0 +1,75 @@
+{
+  "schema": "t5.tool-receipt-projection-live.v1",
+  "recordedAt": "2026-08-19T03:22:00+09:00",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "comparison": {
+    "rounds": 2,
+    "casesPerArm": 4,
+    "cases": ["successful-observation", "failed-observation"],
+    "full": {
+      "passed": 4,
+      "requestBytes": 46858,
+      "inputBytes": 19538,
+      "functionOutputBytes": 17444,
+      "providerInputTokens": 8932,
+      "toolCalls": 0,
+      "canonicalReceiptsUnchanged": 4
+    },
+    "projected": {
+      "passed": 4,
+      "requestBytes": 31762,
+      "inputBytes": 4442,
+      "functionOutputBytes": 2348,
+      "providerInputTokens": 5348,
+      "toolCalls": 0,
+      "canonicalReceiptsUnchanged": 4
+    },
+    "deltaProjectedMinusFull": {
+      "passed": 0,
+      "requestBytes": -15096,
+      "inputBytes": -15096,
+      "functionOutputBytes": -15096,
+      "providerInputTokens": -3584,
+      "toolCalls": 0
+    },
+    "runIds": {
+      "full": [
+        "a7c729ba-dc95-4a55-ac7f-76aa7af99ecd",
+        "54946f26-bb7d-43cc-ba74-84034e2e563f",
+        "da00aca2-565f-48d2-bace-718cef360094",
+        "74e47830-b4e3-49a1-86f4-86813dcfee13"
+      ],
+      "projected": [
+        "78540e49-a520-46c0-9fd1-c88fe5cedf56",
+        "6e789700-cdd8-4271-bf1e-02c17625d439",
+        "f0332e22-0741-425e-be6d-c4aa327bd12e",
+        "71e5a7fa-63c6-4733-bd1d-119cd4f572cd"
+      ]
+    }
+  },
+  "defaultPathLive": {
+    "sessionId": "c2e9f667-8a1f-4db1-9a9c-370bcf910c47",
+    "runId": "04c67948-40f0-4f6b-8994-34b6e2301f4e",
+    "projection": "historical-tool-receipt-v1",
+    "sourceMessages": 13,
+    "requestBytes": 14982,
+    "inputBytes": 4107,
+    "functionOutputBytes": 1438,
+    "providerInputTokens": 2693,
+    "answer": "C0-OAUTH-7391 /private/tmp/t5-c0-live/continuity-value.txt",
+    "toolCalls": 0
+  },
+  "preservedInProjection": [
+    "stdout", "stderr", "state", "exitCode", "process state",
+    "approval pendingId and reason", "effect kind targets and changed"
+  ],
+  "keptFull": ["current run tool results", "skill receipts", "unknown tools", "malformed receipts"],
+  "verification": {
+    "unitBoundary": { "passed": 105, "failed": 0 },
+    "integration": { "passed": 11, "failed": 0 },
+    "legacyCoreImports": 0
+  },
+  "notImplemented": ["tool output truncation", "compaction summary", "memory flush"]
+}

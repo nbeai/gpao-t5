@@ -63,6 +63,7 @@ test('최종 답에 없는 tool 관측도 콘솔 재시작 뒤 다음 모델 Con
       assert.ok(historicalTool);
       assert.equal(historicalTool.toolCallId, 'remembered-call');
       assert.match(historicalTool.content, /value-7391/);
+      assert.doesNotMatch(historicalTool.content, /commandExplanation|startedAt|effectObservation/);
       const historicalCall = input.messages.find((message) => (
         message.role === 'assistant' && message.toolCalls?.[0]?.id === 'remembered-call'
       ));
@@ -77,6 +78,11 @@ test('최종 답에 없는 tool 관측도 콘솔 재시작 뒤 다음 모델 Con
       body: JSON.stringify({ sessionId, text: '아까 확인한 값만 알려줘' }),
     }).then((response) => response.json());
     assert.equal(second.reply, '아까 관측한 값은 value-7391입니다.');
+    const canonical = await secondServer.conversationLedger.read(sessionId);
+    const originalTool = canonical.events.find((event) => (
+      event.type === 'message' && event.message?.role === 'tool'
+    ));
+    assert.match(originalTool.message.content, /commandExplanation|startedAt/);
   } finally {
     await close(secondServer);
     await rm(room, { recursive: true, force: true });
