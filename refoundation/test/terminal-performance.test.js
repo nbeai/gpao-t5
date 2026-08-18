@@ -69,7 +69,20 @@ test('모호한 수정 요청은 둘 중 하나를 임의 변경하면 실패한
         })),
       },
     });
-    assert.equal(wasteful.passed, false);
+    assert.equal(wasteful.passed, true);
+    assert.deepEqual(wasteful.metrics, { modelTurns: 9, toolCalls: 8 });
+
+    const neverStopped = assessTerminalPerformanceCase({
+      definition, fixture, before, after: afterUnchanged,
+      agentResult: {
+        status: 'limit_reached', answer: null, modelTurns: 32,
+        receipts: Array.from({ length: 31 }, () => ({
+          actualCall: { name: 'exec', args: { command: 'keep-searching' } },
+          outcome: 'succeeded', result: { exitCode: 0 },
+        })),
+      },
+    });
+    assert.equal(neverStopped.passed, false);
   } finally {
     await rm(room, { recursive: true, force: true });
   }

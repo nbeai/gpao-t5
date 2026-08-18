@@ -111,6 +111,7 @@ for (const definition of TERMINAL_PERFORMANCE_CASES) {
       operators: (receipt.result?.commandExplanation?.operators ?? []).map((operator) => operator.kind),
     })),
     checks: verdict.checks,
+    metrics: verdict.metrics,
     runError,
     passed: verdict.passed,
     ...(keep ? { room } : {}),
