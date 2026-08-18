@@ -154,12 +154,13 @@ export function makeConsoleServer({
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
-      const skillTool = makeSkillTool({ snapshot: skillSnapshot });
+      const offeredTools = [...terminal.tools];
+      if (skillSnapshot.skills.length) offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot }));
       const result = await runAgent({
         request: text,
         history,
         model,
-        tools: [skillTool, ...terminal.tools],
+        tools: offeredTools,
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {

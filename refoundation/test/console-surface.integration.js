@@ -6,6 +6,39 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
+test('빈 스킬 root인 비교군은 skill 도구 없이 기존 터미널만 모델에 제공한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-no-skills-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const skillsRoot = join(room, 'empty-skills');
+  await Promise.all([workspace, skillsRoot].map((path) => mkdir(path, { recursive: true })));
+  const modelFactory = () => ({ async respond(input) {
+    assert.equal(input.tools.some((tool) => tool.name === 'skill'), false);
+    assert.equal(input.tools.some((tool) => tool.name === 'exec'), true);
+    return { text: '기존 터미널만 제공됨', toolCalls: [] };
+  } });
+  const server = makeConsoleServer({
+    stateDir, workspace, skillsRoot, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'no-skill-model' }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '확인해줘' }),
+    }).then((response) => response.json());
+    assert.equal(reply.reply, '기존 터미널만 제공됨');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('모델은 필요한 스킬만 열고 기존 터미널로 실행하며 두 사실을 같은 Run에 남긴다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-skill-'));
   const stateDir = join(room, 'state');

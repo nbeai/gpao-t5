@@ -1,0 +1,94 @@
+{
+  "schema": "t5.skill-value-comparison-evidence.v1",
+  "recordedAt": "2026-08-19T02:36:00+09:00",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "contract": {
+    "sameModelInstructions": true,
+    "sameTerminalHand": true,
+    "counterbalancedOrder": true,
+    "isolatedHomeOutsideWorkspace": true,
+    "skillArmContainsOnly": ["file-discovery"],
+    "absoluteAndRelativeExpectedPathsBothCountAsCorrect": true,
+    "absolutePathReportingMeasuredSeparately": true
+  },
+  "cases": [
+    "exact-extension-latest-created",
+    "title-with-unknown-extension",
+    "missing-stops-without-repeat"
+  ],
+  "finalComparison": {
+    "rounds": 3,
+    "conversations": 18,
+    "withoutSkill": {
+      "cases": 9,
+      "passed": 9,
+      "wallMs": 131368,
+      "modelCalls": 19,
+      "totalTokens": 52293,
+      "execCalls": 10,
+      "skillViews": 0,
+      "absolutePathsReported": 0
+    },
+    "withSkill": {
+      "cases": 9,
+      "passed": 9,
+      "wallMs": 159606,
+      "modelCalls": 24,
+      "totalTokens": 79466,
+      "execCalls": 13,
+      "skillViews": 2,
+      "absolutePathsReported": 1
+    },
+    "deltaWithMinusWithout": {
+      "passed": 0,
+      "wallMs": 28238,
+      "modelCalls": 5,
+      "totalTokens": 27173,
+      "execCalls": 3,
+      "absolutePathsReported": 1
+    }
+  },
+  "runIds": {
+    "withoutSkill": [
+      "9ca3f350-beba-40d5-bda7-2798fafce3fb",
+      "c71e5b2c-e1fb-4a3b-bec6-3b4ea9b0d36e",
+      "f5bee6bb-a58d-42cd-83f0-43b123f696c7",
+      "3f29d5c1-beb3-45c7-a7f6-270678821634",
+      "2a2de19c-de21-4bae-8f98-7d6cc956b4a4",
+      "54dce087-503a-4ea8-876e-454ee992f077",
+      "1593a60e-8dca-4ccc-973a-21c062714719",
+      "dfe43544-f70e-4f07-908a-91b6f7aeabe1",
+      "f427be97-d631-4955-98e0-6b987b36683e"
+    ],
+    "withSkill": [
+      "4b3ee897-582f-40c4-8b5d-cd6d5fd55b65",
+      "5d14605a-ecd1-421a-b723-f819b54a63bf",
+      "1ef4ee5f-37ad-4392-a639-6903c33d48f4",
+      "74966a93-61d2-4d8b-8b8f-fd0bb3dd7463",
+      "4ec396cc-dcd6-483a-a619-fbd929e05cbd",
+      "86198e57-bf0c-43c3-ac98-34447bebeabb",
+      "7678d4f0-82fa-4f3c-a4c6-42fef83d796b",
+      "9a7ba8a9-2bbe-4915-9c11-7aa9431c6c01",
+      "88188194-3833-4264-8a85-2beef6db3438"
+    ]
+  },
+  "excludedDiagnostics": [
+    {
+      "reason": "initial scorer treated correct relative paths as failures and Python HOME was inside the fixture"
+    },
+    {
+      "reason": "a concurrent change expanded the bundled catalog to 16 skills; used only to diagnose unconditional view guidance, not file-discovery value"
+    }
+  ],
+  "decision": {
+    "keepSkillRuntime": true,
+    "keepFileDiscoveryBodyUnchanged": true,
+    "change": "skill tool now asks the model to view full text only when the detailed procedure is actually needed",
+    "notProven": [
+      "benefit for a small explicitly scoped workspace",
+      "behavior for broad whole-computer searches",
+      "stable absolute-path reporting benefit"
+    ]
+  }
+}

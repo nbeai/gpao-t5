@@ -37,8 +37,10 @@ function publicSkill(entry) {
 }
 
 function catalogDescription(skills) {
-  const heading = 'Read an on-demand procedural skill before using existing tools. '
-    + 'Use action=view when one of these skills matches the user goal. Available skills:';
+  const heading = 'Skills are optional on-demand procedures for using existing tools. '
+    + 'Call action=view only when a detailed procedure is needed to complete the goal. '
+    + 'Do not view a skill merely because its topic matches when the summary and your current knowledge are sufficient. '
+    + 'Available skills:';
   if (!skills.length) return `${heading} none.`;
   let text = heading;
   for (const skill of skills) {
