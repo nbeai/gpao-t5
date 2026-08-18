@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runAgent } from './agent-loop.js';
@@ -10,6 +10,7 @@ import { makeTerminalHand } from './exec-tool.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
 import { ManagedProcessRegistry } from './managed-process.js';
+import { RunLedger } from './run-ledger.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -64,6 +65,7 @@ export function makeConsoleServer({
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   const sessions = new ConsoleSessionStore(stateDir);
+  const runLedger = new RunLedger(join(stateDir, 'runs'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
@@ -78,10 +80,14 @@ export function makeConsoleServer({
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     const history = historyFrom(session);
-    await sessions.append(sessionId, { role: 'user', text });
+    const run = await runLedger.start({
+      sessionId, request: text, metadata: { priorConversationMessages: history.length },
+    });
     const controller = new AbortController();
-    running.set(sessionId, controller);
+    let runFinished = false;
     try {
+      await sessions.append(sessionId, { role: 'user', text, runId: run.runId });
+      running.set(sessionId, controller);
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
@@ -95,12 +101,38 @@ export function makeConsoleServer({
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {
-          if (event.type === 'model_start') emit('trace_status', { text: '판단하고 있어요' });
-          else if (event.type === 'tool_start') emit('tool_progress', { text: '터미널을 사용하고 있어요' });
-          else if (event.type === 'tool_end') emit('trace_status', { text: '터미널 결과를 확인하고 있어요' });
+          if (event.type === 'model_start') {
+            await run.append({
+              type: 'model_started', stepId: `model-${event.turn}`, payload: { turn: event.turn },
+            });
+            emit('trace_status', { text: '판단하고 있어요' });
+          } else if (event.type === 'model_end') {
+            await run.append({
+              type: 'model_completed', stepId: `model-${event.turn}`,
+              payload: { turn: event.turn, response: event.response },
+            });
+          } else if (event.type === 'tool_start') {
+            await run.append({
+              type: 'tool_started', stepId: `tool-${event.toolCallId || `${event.turn}-${event.name}`}`,
+              payload: {
+                turn: event.turn, toolCallId: event.toolCallId, name: event.name, args: event.args,
+              },
+            });
+            emit('tool_progress', { text: '터미널을 사용하고 있어요' });
+          } else if (event.type === 'tool_end') {
+            await run.append({
+              type: 'tool_completed', stepId: `tool-${event.receipt.toolCallId}`,
+              payload: { turn: event.turn, receipt: event.receipt },
+            });
+            emit('trace_status', { text: '터미널 결과를 확인하고 있어요' });
+          }
         },
       });
-      if (result.status === 'cancelled') return { kind: 'cancelled', result };
+      if (result.status === 'cancelled') {
+        await run.finish('cancelled', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
+        runFinished = true;
+        return { kind: 'cancelled', result, runId: run.runId };
+      }
       if (result.status !== 'completed' || !String(result.answer ?? '').trim()) {
         throw new Error(`agent ended without an answer: ${result.status}`);
       }
@@ -108,10 +140,20 @@ export function makeConsoleServer({
       const surfaceResult = {
         kind: 'reply',
         reply: result.answer,
+        runId: run.runId,
         selfStateSummary: selfState(connection, workspace),
       };
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
-      return { kind: 'reply', surfaceResult, result };
+      await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
+      await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
+      runFinished = true;
+      return { kind: 'reply', surfaceResult, result, runId: run.runId };
+    } catch (error) {
+      if (!runFinished) {
+        await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
+        runFinished = true;
+      }
+      throw error;
     } finally {
       running.delete(sessionId);
     }
@@ -177,6 +219,17 @@ export function makeConsoleServer({
           archived: url.searchParams.get('archived') === '1',
           deleted: url.searchParams.get('deleted') === '1',
         }) }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/runs') {
+        const runs = await runLedger.list({ sessionId: url.searchParams.get('sessionId') ?? undefined });
+        json(res, 200, { runs: runs.map((run) => ({
+          runId: run.runId, sessionId: run.sessionId, request: run.request,
+          status: run.status, startedAt: run.startedAt, endedAt: run.endedAt,
+          eventCount: run.events.length,
+        })) }); return;
+      }
+      if (req.method === 'GET' && url.pathname.startsWith('/runs/')) {
+        json(res, 200, await runLedger.read(decodeURIComponent(url.pathname.slice('/runs/'.length)))); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions') {
         const session = await sessions.create();
@@ -280,5 +333,6 @@ export function makeConsoleServer({
     }
   });
   server.managedProcesses = processes;
+  server.runLedger = runLedger;
   return server;
 }

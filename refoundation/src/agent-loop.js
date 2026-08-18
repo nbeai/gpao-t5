@@ -133,6 +133,17 @@ export async function runAgent({
       ...(response.responseModel ? { responseModel: response.responseModel } : {}),
       ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
     });
+    await onEvent?.({
+      type: 'model_end',
+      turn: modelTurns,
+      response: {
+        text: response.text,
+        toolCalls: structuredClone(response.toolCalls),
+        responseId: response.responseId,
+        responseModel: response.responseModel,
+        usage: structuredClone(response.usage),
+      },
+    });
     transcript.push({
       role: 'assistant',
       content: response.text,
@@ -145,11 +156,17 @@ export async function runAgent({
 
     for (const call of response.toolCalls) {
       if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
-      await onEvent?.({ type: 'tool_start', turn: modelTurns, name: call?.name, args: structuredClone(call?.args ?? {}) });
+      await onEvent?.({
+        type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
+        name: call?.name, args: structuredClone(call?.args ?? {}),
+      });
       const receipt = await executeCall(call, registry, signal);
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
-      await onEvent?.({ type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome });
+      await onEvent?.({
+        type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,
+        receipt: structuredClone(receipt),
+      });
       if (signal?.aborted || receipt.outcome === 'cancelled') {
         return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       }

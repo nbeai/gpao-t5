@@ -73,6 +73,19 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.equal(session.transcript.length, 2);
     assert.equal(session.transcript[0].role, 'user');
     assert.equal(session.transcript[1].result.reply, '콘솔 터미널 연결 완료');
+    assert.ok(session.transcript[1].result.runId);
+    const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((response) => response.json());
+    assert.equal(runs.runs.length, 1);
+    assert.equal(runs.runs[0].runId, session.transcript[1].result.runId);
+    assert.equal(runs.runs[0].status, 'completed');
+    const run = await fetch(`${base}/runs/${runs.runs[0].runId}`).then((response) => response.json());
+    assert.ok(run.events.some((event) => event.type === 'model_started'));
+    assert.ok(run.events.some((event) => event.type === 'model_completed'));
+    const receiptEvent = run.events.find((event) => event.type === 'tool_completed');
+    assert.equal(receiptEvent.payload.receipt.actualCall.args.command, "printf 'console-ok'");
+    assert.equal(receiptEvent.payload.receipt.result.stdout, 'console-ok');
+    assert.equal(receiptEvent.payload.receipt.result.exitCode, 0);
+    assert.equal(run.events.at(-1).type, 'run_completed');
     const listed = await fetch(`${base}/sessions`).then((response) => response.json());
     assert.equal(listed.sessions[0].turns, 2);
   } finally {
@@ -209,11 +222,52 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
     const stream = await streamPromise;
     assert.match(stream, /멈췄어요/);
     assert.equal(server.managedProcesses.list(created.id)[0].state, 'stopped');
+    const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((response) => response.json());
+    assert.equal(runs.runs[0].status, 'cancelled');
+    const run = await fetch(`${base}/runs/${runs.runs[0].runId}`).then((response) => response.json());
+    assert.equal(run.events.at(-1).type, 'run_cancelled');
+    assert.ok(run.events.some((event) => (
+      event.type === 'tool_completed' && event.payload.receipt.result.state === 'stopped'
+    )));
     await new Promise((resolve) => setTimeout(resolve, 550));
     const { access } = await import('node:fs/promises');
     await assert.rejects(() => access(marker));
   } finally {
     await server.managedProcesses.stopAll('test_cleanup');
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('모델 호출 실패도 답으로 꾸미지 않고 run_failed 사실로 남는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-failed-run-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  const server = makeConsoleServer({
+    stateDir, workspace,
+    modelFactory: () => ({ async respond() { throw new Error('provider exploded'); } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const response = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '실패도 기록해' }),
+    });
+    assert.equal(response.status, 500);
+    const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((item) => item.json());
+    assert.equal(runs.runs[0].status, 'failed');
+    const run = await fetch(`${base}/runs/${runs.runs[0].runId}`).then((item) => item.json());
+    assert.equal(run.events.at(-1).type, 'run_failed');
+    assert.equal(run.events.at(-1).payload.error, 'provider exploded');
+    const session = await fetch(`${base}/sessions/${created.id}`).then((item) => item.json());
+    assert.equal(session.transcript.length, 1);
+  } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
   }

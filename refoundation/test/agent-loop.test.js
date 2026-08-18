@@ -128,6 +128,32 @@ test('런타임은 모델의 최종 답을 덧붙이거나 교정하지 않는�
   }]);
 });
 
+test('agent loop 이벤트는 Model Step과 전체 ToolReceipt를 원장에 넘길 수 있다', async () => withWorkspace(async (workspace) => {
+  const events = [];
+  let turn = 0;
+  const model = { async respond() {
+    if (turn++ === 0) return {
+      text: '확인 중', responseId: 'model-response-1', responseModel: 'event-model',
+      usage: { input_tokens: 4, output_tokens: 3 },
+      toolCalls: [{ id: 'event-tool-1', name: 'exec', args: { command: "printf 'event-ok'", cwd: null } }],
+    };
+    return { text: '완료', toolCalls: [], responseId: 'model-response-2', responseModel: 'event-model' };
+  } };
+  const result = await runAgent({
+    request: '확인해', model, tools: [makeExecTool({ workspace })],
+    onEvent: (event) => events.push(event),
+  });
+  assert.equal(result.status, 'completed');
+  const modelCompleted = events.find((event) => event.type === 'model_end' && event.turn === 1);
+  assert.equal(modelCompleted.response.responseId, 'model-response-1');
+  assert.equal(modelCompleted.response.text, '확인 중');
+  assert.equal(modelCompleted.response.toolCalls[0].id, 'event-tool-1');
+  const toolCompleted = events.find((event) => event.type === 'tool_end');
+  assert.equal(toolCompleted.receipt.toolCallId, 'event-tool-1');
+  assert.equal(toolCompleted.receipt.actualCall.args.command, "printf 'event-ok'");
+  assert.equal(toolCompleted.receipt.result.stdout, 'event-ok');
+}));
+
 test('모르는 도구 요청은 실행하지 않고 그 사실을 모델에게 돌려준다', async () => {
   let turn = 0;
   const model = {

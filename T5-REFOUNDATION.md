@@ -137,6 +137,8 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 ## R2 — Truth and Authority
 
+상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt 코드 계약 성립, 실제 OAuth 콘솔·재시작 복원 실측 전.
+
 사용자 완료 문장:
 
 > T5가 요청·허가·실행·로컬 효과·외부 효과·목적 달성을 구분하고, 오너의 네 경계 밖에서는
@@ -151,6 +153,14 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 - 모델 답에 런타임 문장 덧붙임 0
 
 완료 Gate: reach 승인 우회, probe 원장 거짓, 실행/미실행 역전, 답 오염 반대시험 통과.
+
+현재 성립한 1단계 계약:
+
+- Run별 0600 JSONL, 기존 바이트 재작성 없이 sequence append
+- Model Step의 요청·응답 메타데이터와 Tool Step의 requested/actual call·원문 결과·outcome 지속
+- completed·cancelled·failed 분리, 종료 이벤트 없는 Run은 `interrupted`
+- transcript assistant 결과와 Run을 `runId`로 연결, `/runs`에서 재조회
+- 아직 효과·허가·목적 달성 판단은 기록하지 않음
 
 ## R3 — Recovery and Comparative Performance
 
@@ -202,7 +212,6 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-사용자가 `http://127.0.0.1:4174`의 기존 콘솔 UI에서 새 코어를 직접 사용한다. 실제 사용에서 반복되는
-터미널 활용 미달을 공통 원인 단위로 개선한다. 테스트 통과 수나 단일 성공 케이스를 성능으로 보고하지
-않는다. 홈은 기본 현실로 열어 두고, R2에서는 읽기 능력을 막는 대신 쓰기·삭제·외부 효과가 실제 경계에서
-정확히 판정되도록 세운다.
+R2 1단계 Run·Step·Receipt를 실제 OAuth 콘솔에서 실행하고 서버 재시작 뒤 같은 receipt가 복원되는지
+확인한다. 성립하면 명시적 `process_start`의 완료 wake로 이동한다. foreground `exec` 성공 계약은 각
+단계의 선행 회귀 조건이다.
