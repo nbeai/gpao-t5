@@ -12,6 +12,8 @@ import { makePathRevealer } from './path-revealer.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
+import { AuthorityStore, boundaryForEffect } from './effect-authority.js';
+import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -67,6 +69,7 @@ export function makeConsoleServer({
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   const sessions = new ConsoleSessionStore(stateDir);
   const runLedger = new RunLedger(join(stateDir, 'runs'));
+  const authority = new AuthorityStore(join(stateDir, 'authority'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
@@ -79,6 +82,40 @@ export function makeConsoleServer({
   const pendingSurfaceMetrics = new Map();
 
   async function status() { return Promise.resolve(modelStatus()); }
+
+  async function effectPreflight({ toolName, args, ownerId }) {
+    const effect = args?.effect;
+    if (!effect?.kind) return {
+      allowed: false, outcome: 'not_executed',
+      result: { state: 'effect_declaration_required' },
+    };
+    const boundary = boundaryForEffect(effect);
+    if (!boundary) return { allowed: true };
+    if (boundary === 'secret_input') return {
+      allowed: false, outcome: 'not_executed',
+      result: {
+        state: 'secret_input_required', effect,
+        reason: 'Secret values must come from a user-controlled input surface, not model tool arguments.',
+      },
+    };
+    if (effect.approvalToken) {
+      const consumed = await authority.consume(effect.approvalToken, { toolName, args });
+      if (consumed.allowed) return { allowed: true };
+      return {
+        allowed: false, outcome: 'not_executed',
+        result: { state: 'authority_invalid', pendingId: effect.approvalToken, reason: consumed.reason },
+      };
+    }
+    let proposal = await authority.findActiveCall(ownerId, toolName, args);
+    if (!proposal) proposal = await authority.propose({ sessionId: ownerId, toolName, args });
+    return {
+      allowed: false, outcome: 'not_executed',
+      result: {
+        state: 'approval_required', pendingId: proposal.pendingId,
+        effect: proposal.args.effect, toolName, command: proposal.args.command, cwd: proposal.args.cwd,
+      },
+    };
+  }
 
   async function executeTurn(sessionId, text, emit = () => {}, options = {}) {
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
@@ -106,7 +143,7 @@ export function makeConsoleServer({
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
-        yieldMs: processYieldMs, originRunId: run.runId,
+        yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
       });
       const result = await runAgent({
         request: text,
@@ -152,7 +189,29 @@ export function makeConsoleServer({
         throw new Error(`agent ended without an answer: ${result.status}`);
       }
       const connection = await status();
-      const surfaceResult = {
+      const approvalReceipt = [...result.receipts].reverse().find((receipt) => (
+        receipt.result?.state === 'approval_required'
+      ));
+      const surfaceResult = approvalReceipt ? (() => {
+        const { effect, pendingId, command } = approvalReceipt.result;
+        return {
+          kind: 'approval', reply: result.answer, runId: run.runId, pendingId,
+          pending: [{
+            action: effect.kind, label: effect.summary, tier: 'A3', safetyFloor: true,
+            preview: {
+              impact: effect.kind, where: effect.targets.join(', '), what: command,
+              cancel: effect.reversible ? '되돌릴 수 있다고 선언됨' : '되돌리기 어려움',
+            },
+            reason: {
+              why: effect.kind === 'payment' ? '돈이 나가는 일이에요.'
+                : effect.kind === 'external_send' ? '새 상대에게 처음 보내는 일이에요.'
+                  : '백업 없는 파괴적 변경이에요.',
+              reversible: effect.reversible ? '되돌릴 수 있다고 선언됨' : '되돌리기 어려움',
+            },
+          }],
+          selfStateSummary: selfState(connection, workspace),
+        };
+      })() : {
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
@@ -216,6 +275,12 @@ export function makeConsoleServer({
     }
     const process = processes.claimTerminalWake(event.processId);
     if (!process) return;
+    const effectAfter = process.metadata?.declaredEffect
+      ? await observeDeclaredEffect(process.metadata.declaredEffect, process.metadata.effectCwd)
+      : null;
+    const effectObservation = effectAfter ? compareEffectObservations(
+      process.metadata.declaredEffect, process.metadata.effectBefore, effectAfter,
+    ) : null;
     const wakeText = [
       'managed process terminal event',
       `processId: ${process.processId}`,
@@ -223,6 +288,7 @@ export function makeConsoleServer({
       `processExitCode: ${process.exitCode}`,
       `stdout:\n${process.stdout}`,
       `stderr:\n${process.stderr}`,
+      `effectObservation:\n${JSON.stringify(effectObservation)}`,
       'Tell the user naturally that the managed work completed or failed. Use only this observed event.',
     ].join('\n');
     const completed = await executeTurn(event.ownerId, wakeText, () => {}, {
@@ -239,6 +305,7 @@ export function makeConsoleServer({
           state: process.state, processExitCode: process.exitCode,
           stdout: process.stdout, stderr: process.stderr,
           cursor: process.cursor, originRunId: process.metadata?.originRunId ?? null,
+          effectObservation,
         },
       },
     });
@@ -359,7 +426,8 @@ export function makeConsoleServer({
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
         if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
         json(res, 200, {
-          id: session.id, title: session.title, transcript: session.transcript, activePendingIds: [],
+          id: session.id, title: session.title, transcript: session.transcript,
+          activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
         }); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions/meta') {
@@ -434,6 +502,37 @@ export function makeConsoleServer({
       }
       if (req.method === 'POST' && url.pathname === '/turn') {
         const input = await body(req);
+        if (input.approve || input.reject) {
+          const pendingId = input.approve ?? input.reject;
+          const proposal = await authority.read(pendingId);
+          if (proposal.sessionId !== input.sessionId) {
+            json(res, 404, { error: '승인 요청을 찾지 못했어요.' }); return;
+          }
+          if (input.reject) {
+            await authority.reject(pendingId);
+            const completed = await executeTurn(input.sessionId, [
+              'authority rejection event', `pendingId: ${pendingId}`,
+              'The user rejected this effect. Do not execute it. Respond naturally and briefly.',
+            ].join('\n'), () => {}, {
+              trigger: 'authority_rejected', metadata: { pendingId },
+              inputEntry: { role: 'system_event', event: { kind: 'authority_rejected', pendingId } },
+            });
+            json(res, 200, completed.surfaceResult); return;
+          }
+          await authority.approve(pendingId);
+          const approvedArgs = structuredClone(proposal.args);
+          approvedArgs.effect.approvalToken = pendingId;
+          const completed = await executeTurn(input.sessionId, [
+            'authority approval event', `pendingId: ${pendingId}`,
+            'The user approved exactly the following tool call once.',
+            JSON.stringify({ toolName: proposal.toolName, args: approvedArgs }),
+            'Reissue that exact tool call once, then inspect its receipt and answer naturally.',
+          ].join('\n'), () => {}, {
+            trigger: 'authority_approved', metadata: { pendingId },
+            inputEntry: { role: 'system_event', event: { kind: 'authority_approved', pendingId } },
+          });
+          json(res, 200, completed.surfaceResult); return;
+        }
         const completed = await executeTurn(input.sessionId, input.text);
         json(res, 200, completed.surfaceResult ?? { kind: completed.kind }); return;
       }
@@ -462,6 +561,7 @@ export function makeConsoleServer({
   });
   server.managedProcesses = processes;
   server.runLedger = runLedger;
+  server.authorityStore = authority;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {
     unsubscribeTerminal();

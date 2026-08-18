@@ -59,6 +59,29 @@ async function executeCall(call, tools, signal) {
     };
   }
 
+  if (typeof tool.preflight === 'function') {
+    try {
+      const gate = await tool.preflight(requested.args, { signal });
+      if (gate?.allowed === false) {
+        return {
+          toolCallId: requested.id,
+          requestedCall: requested,
+          actualCall: null,
+          outcome: gate.outcome ?? 'not_executed',
+          result: structuredClone(gate.result ?? { state: 'not_executed' }),
+        };
+      }
+    } catch (error) {
+      return {
+        toolCallId: requested.id,
+        requestedCall: requested,
+        actualCall: null,
+        outcome: 'failed',
+        result: { error: error?.message ?? String(error), stage: 'preflight' },
+      };
+    }
+  }
+
   const actualCall = { name: requested.name, args: structuredClone(requested.args) };
   try {
     const result = await tool.execute(requested.args, { signal });

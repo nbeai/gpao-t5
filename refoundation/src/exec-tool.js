@@ -3,9 +3,30 @@ import { isAbsolute, resolve } from 'node:path';
 import { explainShellCommand } from './command-explainer.js';
 import { discoverComputerEnvironment } from './computer-environment.js';
 import { ManagedProcessRegistry } from './managed-process.js';
+import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
+
+const EFFECT_SCHEMA = {
+  type: 'object',
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['observe', 'local_change', 'destructive', 'external_send', 'payment', 'secret_input'],
+    },
+    summary: { type: 'string' },
+    targets: { type: 'array', items: { type: 'string' } },
+    reversible: { type: 'boolean' },
+    backupAvailable: { type: 'boolean' },
+    recipientNew: { type: 'boolean' },
+    approvalToken: { type: ['string', 'null'] },
+  },
+  required: [
+    'kind', 'summary', 'targets', 'reversible', 'backupAvailable', 'recipientNew', 'approvalToken',
+  ],
+  additionalProperties: false,
+};
 
 function isolatedEnv(defaultDirectory, additions = {}, runtime = {}) {
   const keep = [
@@ -44,6 +65,7 @@ function makeCommandTool(options = {}, { managed }) {
     outputLimit = DEFAULT_OUTPUT_LIMIT,
     env = {},
     explainCommand,
+    effectPreflight,
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -72,8 +94,9 @@ function makeCommandTool(options = {}, { managed }) {
           type: ['string', 'null'],
           description: 'Accessible directory to run in, or null to use the default working directory.',
         },
+        effect: EFFECT_SCHEMA,
       },
-      required: ['command', 'cwd'],
+      required: ['command', 'cwd', 'effect'],
       additionalProperties: false,
     },
     async execute(args = {}, context = {}) {
@@ -88,6 +111,7 @@ function makeCommandTool(options = {}, { managed }) {
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
       try {
+        const effectBefore = await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
         let result = await registry.start({
           program: runtime.program,
           args: runtime.argsFor(command),
@@ -100,6 +124,9 @@ function makeCommandTool(options = {}, { managed }) {
           metadata: {
             kind: managed ? 'managed' : 'foreground',
             ...(options.originRunId ? { originRunId: options.originRunId } : {}),
+            declaredEffect: structuredClone(args.effect ?? { kind: 'observe', targets: [] }),
+            effectBefore: structuredClone(effectBefore),
+            effectCwd: cwd,
           },
         });
         if (context.signal?.aborted && result.state === 'running') {
@@ -110,6 +137,14 @@ function makeCommandTool(options = {}, { managed }) {
         if (managed && result.state !== 'running' && result.state !== 'stop_requested') {
           registry.markTerminalObserved(result.processId, ownerId);
         }
+        const effectAfter = result.state === 'running' || result.state === 'stop_requested'
+          ? null : await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
+        result = {
+          ...result,
+          effectObservation: compareEffectObservations(
+            args.effect ?? { kind: 'observe', targets: [] }, effectBefore, effectAfter,
+          ),
+        };
         if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
           registry.forget(result.processId, ownerId);
           const { processId: ignoredProcessId, cursor: ignoredCursor, ...foreground } = result;
@@ -121,6 +156,11 @@ function makeCommandTool(options = {}, { managed }) {
       }
     },
   };
+  if (typeof effectPreflight === 'function') {
+    tool.preflight = (args, context) => effectPreflight({
+      toolName: tool.name, args: structuredClone(args), ownerId, context,
+    });
+  }
   tool.processRegistry = registry;
   return tool;
 }
@@ -140,6 +180,18 @@ function controlObservation(result) {
   if (!result || typeof result !== 'object') return result;
   const { exitCode, ...rest } = result;
   return { ...rest, processExitCode: exitCode };
+}
+
+async function withTerminalEffect(result, processRegistry, processId, ownerId) {
+  const observation = controlObservation(result);
+  if (!['completed', 'failed', 'stopped'].includes(result?.state)) return observation;
+  const metadata = processRegistry.metadata(processId, ownerId);
+  if (!metadata?.declaredEffect) return observation;
+  const after = await observeDeclaredEffect(metadata.declaredEffect, metadata.effectCwd);
+  observation.effectObservation = compareEffectObservations(
+    metadata.declaredEffect, metadata.effectBefore, after,
+  );
+  return observation;
 }
 
 export function makeProcessControlTool({ processRegistry, ownerId = 'default' } = {}) {
@@ -168,15 +220,15 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
     async execute(args = {}) {
       if (args.action === 'list') return { processes: controlObservation(processRegistry.list(ownerId)) };
       if (!args.processId) throw new TypeError('processId is required');
-      if (args.action === 'poll') return controlObservation(await processRegistry.poll({
+      if (args.action === 'poll') return withTerminalEffect(await processRegistry.poll({
         processId: args.processId, cursor: args.cursor, ownerId, waitMs: args.waitMs ?? 0,
-      }));
+      }), processRegistry, args.processId, ownerId);
       if (args.action === 'write') return processRegistry.write({
         processId: args.processId, input: args.input ?? '', end: Boolean(args.end), ownerId,
       });
-      if (args.action === 'stop') return controlObservation(await processRegistry.stop({
+      if (args.action === 'stop') return withTerminalEffect(await processRegistry.stop({
         processId: args.processId, cursor: args.cursor, ownerId, reason: 'model_requested',
-      }));
+      }), processRegistry, args.processId, ownerId);
       throw new TypeError(`unknown process action: ${args.action}`);
     },
   };

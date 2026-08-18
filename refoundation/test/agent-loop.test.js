@@ -172,6 +172,35 @@ test('모르는 도구 요청은 실행하지 않고 그 사실을 모델에게 
   assert.equal(result.receipts[0].outcome, 'unavailable');
 });
 
+test('authority preflight가 멈춘 call은 actualCall 없이 not_executed receipt로 남는다', async () => {
+  let executed = false;
+  let turn = 0;
+  const tool = {
+    name: 'exec', description: 'effect test', parameters: { type: 'object' },
+    async preflight() {
+      return {
+        allowed: false, outcome: 'not_executed',
+        result: { state: 'approval_required', pendingId: 'pending-1' },
+      };
+    },
+    async execute() { executed = true; return { exitCode: 0 }; },
+  };
+  const model = { async respond(input) {
+    if (turn++ === 0) return {
+      text: '', toolCalls: [{ id: 'gated-call', name: 'exec', args: { command: 'rm target' } }],
+    };
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    assert.equal(receipt.outcome, 'not_executed');
+    assert.equal(receipt.actualCall, null);
+    assert.equal(receipt.result.pendingId, 'pending-1');
+    return { text: '승인이 필요합니다.', toolCalls: [] };
+  } };
+  const result = await runAgent({ request: '지워줘', model, tools: [tool] });
+  assert.equal(result.status, 'completed');
+  assert.equal(executed, false);
+  assert.equal(result.receipts[0].actualCall, null);
+});
+
 test('콘솔의 앞선 사용자·assistant 대화가 현재 요청보다 먼저 모델 문맥에 들어간다', async () => {
   const model = {
     async respond(input) {

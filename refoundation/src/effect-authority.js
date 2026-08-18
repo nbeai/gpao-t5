@@ -151,4 +151,9 @@ export class AuthorityStore {
     }
     return out;
   }
+
+  async findActiveCall(sessionId, toolName, args) {
+    const digest = callDigest(toolName, args);
+    return (await this.listActive(sessionId)).find((item) => item.callDigest === digest) ?? null;
+  }
 }

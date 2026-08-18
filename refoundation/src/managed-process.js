@@ -270,6 +270,10 @@ export class ManagedProcessRegistry {
     if (terminal(record.state)) record.terminalObserved = true;
   }
 
+  metadata(processId, ownerId) {
+    return structuredClone(this.#owned(processId, ownerId).metadata);
+  }
+
   claimTerminalWake(processId) {
     const record = this.records.get(String(processId ?? ''));
     if (!record || !terminal(record.state) || record.metadata?.kind !== 'managed'

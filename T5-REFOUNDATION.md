@@ -139,7 +139,7 @@ Non-goals: 전용 파일·웹·브라우저 도구, memory, UI, learning, multi-
 
 상태: `IN_PROGRESS` — 1단계 Run·Step·Receipt, 2단계 명시적 `process_start` 완료 wake, 3단계
 Run 기반 속도 영수증이 실제 OAuth·열린 콘솔까지 성립. 4단계 효과·권한 경계의 command-bound
-append-only 권한 원장 성립, shell·콘솔 승인 연결 전.
+append-only 권한 원장과 shell preflight·콘솔 승인 카드 코드 계약 성립, 실제 OAuth 실측 전.
 
 사용자 완료 문장:
 
@@ -172,6 +172,8 @@ append-only 권한 원장 성립, shell·콘솔 승인 연결 전.
 - 효과 경계: 관측·가역적 로컬 변경·백업 있는 파괴·기존 상대 전송은 자동, 백업 없는 파괴·새 상대
   첫 전송·결제는 승인, 비밀 입력은 별도 사용자 입력 경계
 - pending 권한은 정확한 tool call digest에 결속되어 한 번만 소비되고 승인·거절·소비가 0600 JSONL로 지속
+- preflight 미통과 call은 `actualCall: null`·`not_executed`; 승인 뒤 exact args만 한 번 실행
+- 선언된 로컬 target만 전후 존재·종류·크기·작은 파일 hash 관측, 외부 효과는 관측 못 했으면 false
 
 ## R3 — Recovery and Comparative Performance
 
@@ -223,5 +225,5 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-R2 4단계 권한 원장을 `exec`·`process_start` preflight와 기존 콘솔 승인 카드에 연결한다. 실행 전후
-전체 스캔이나 런타임 목적 판단을 넣지 않고, 선언 효과·허가·실제 call·표적 사후관측을 분리한다.
+R2 4단계에서 가역적 로컬 변경 자동 진행과 백업 없는 파괴 승인·거절을 실제 OAuth 콘솔로 실측한다.
+새 상대 전송은 루프백 수신 서버만 사용하고 결제·비밀값은 실제 대상 없이 미실행 경계를 확인한다.

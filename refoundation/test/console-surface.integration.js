@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,7 +17,10 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
       async respond(input) {
         turn += 1;
         if (turn === 1) return {
-          text: '', toolCalls: [{ id: 'console-call', name: 'exec', args: { command: "printf 'console-ok'", cwd: null } }],
+          text: '', toolCalls: [{ id: 'console-call', name: 'exec', args: {
+            command: "printf 'console-ok'", cwd: null,
+            effect: { kind: 'observe', summary: '문자 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+          } }],
           responseId: 'r1', responseModel: 'console-model',
         };
         const receipt = JSON.parse(input.messages.at(-1).content);
@@ -125,7 +128,10 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
         text: '', responseId: 'start', responseModel: 'process-model',
         toolCalls: [{
           id: 'long-exec', name: 'process_start',
-          args: { command: "printf 'phase-1'; sleep 0.08; printf 'phase-2'", cwd: null },
+          args: {
+            command: "printf 'phase-1'; sleep 0.08; printf 'phase-2'", cwd: null,
+            effect: { kind: 'observe', summary: '진행 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+          },
         }],
       };
       const receipt = JSON.parse(last.content);
@@ -156,6 +162,7 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
       assert.equal(receipt.result.state, 'completed');
       assert.equal(observed, 'phase-1phase-2');
       assert.equal(receipt.result.processExitCode, 0);
+      assert.equal(receipt.result.effectObservation.declared.kind, 'observe');
       return {
         text: '장기 작업의 새 출력과 완료를 확인했습니다.', toolCalls: [],
         responseId: 'done', responseModel: 'process-model',
@@ -201,7 +208,10 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
       if (last.role !== 'tool') return {
         text: '', toolCalls: [{
           id: 'cancel-exec', name: 'process_start',
-          args: { command: `(sleep 0.5; printf late > '${marker}') & wait`, cwd: null },
+          args: {
+            command: `(sleep 0.5; printf late > '${marker}') & wait`, cwd: null,
+            effect: { kind: 'local_change', summary: '테스트 marker 생성', targets: [marker], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+          },
         }],
       };
       const receipt = JSON.parse(last.content);
@@ -244,9 +254,9 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
     assert.equal(runs.runs[0].status, 'cancelled');
     const run = await fetch(`${base}/runs/${runs.runs[0].runId}`).then((response) => response.json());
     assert.equal(run.events.at(-1).type, 'run_cancelled');
-    assert.ok(run.events.some((event) => (
-      event.type === 'tool_completed' && event.payload.receipt.result.state === 'stopped'
-    )));
+    const toolReceipts = run.events.filter((event) => event.type === 'tool_completed')
+      .map((event) => event.payload.receipt);
+    assert.ok(toolReceipts.some((receipt) => receipt.result.state === 'stopped'), JSON.stringify(toolReceipts));
     await new Promise((resolve) => setTimeout(resolve, 550));
     const { access } = await import('node:fs/promises');
     await assert.rejects(() => access(marker));
@@ -307,7 +317,10 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
       if (turn++ === 0) return {
         text: '', toolCalls: [{
           id: 'wake-process', name: 'process_start',
-          args: { command: "sleep 0.08; printf 'wake-output'", cwd: null },
+          args: {
+            command: "sleep 0.08; printf 'wake-output'", cwd: null,
+            effect: { kind: 'observe', summary: '완료 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+          },
         }],
         responseId: 'start-model', responseModel: 'wake-test-model',
       };
@@ -344,6 +357,7 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
     assert.equal(session.transcript[2].role, 'system_event');
     assert.equal(session.transcript[2].event.state, 'completed');
     assert.equal(session.transcript[2].event.stdout, 'wake-output');
+    assert.equal(session.transcript[2].event.effectObservation.declared.kind, 'observe');
     assert.equal(session.transcript[3].result.reply, '자동 완료 알림: wake-output');
     const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((response) => response.json());
     assert.equal(runs.runs.length, 2);
@@ -367,6 +381,91 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
   } finally {
     await wakeReader.cancel();
     await server.managedProcesses.stopAll('test_cleanup');
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('백업 없는 삭제는 승인 전 실행되지 않고 exact call 승인 뒤 한 번만 실행된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-authority-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const target = join(workspace, 'delete-me.txt');
+  await mkdir(workspace, { recursive: true });
+  await writeFile(target, 'keep until approved\n', 'utf8');
+  const destructiveArgs = {
+    command: `rm '${target}'`, cwd: null,
+    effect: {
+      kind: 'destructive', summary: 'delete-me.txt 삭제', targets: [target],
+      reversible: false, backupAvailable: false, recipientNew: false, approvalToken: null,
+    },
+  };
+  const modelFactory = () => ({ async respond(input) {
+    const last = input.messages.at(-1);
+    if (last.role === 'tool') {
+      const receipt = JSON.parse(last.content);
+      if (receipt.result.state === 'approval_required') {
+        assert.equal(receipt.actualCall, null);
+        return { text: '삭제 전에 승인이 필요합니다.', toolCalls: [] };
+      }
+      assert.equal(receipt.outcome, 'succeeded');
+      return { text: '승인된 파일을 삭제했습니다.', toolCalls: [] };
+    }
+    if (last.content.includes('authority approval event')) {
+      const encoded = last.content.split('\n').find((line) => line.startsWith('{'));
+      const approved = JSON.parse(encoded);
+      return {
+        text: '', toolCalls: [{ id: 'approved-delete', name: approved.toolName, args: approved.args }],
+      };
+    }
+    return { text: '', toolCalls: [{ id: 'proposed-delete', name: 'exec', args: destructiveArgs }] };
+  } });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const proposed = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, text: '파일을 삭제해줘' }),
+    }).then((response) => response.json());
+    assert.equal(proposed.kind, 'approval');
+    assert.ok(proposed.pendingId);
+    await access(target);
+    const beforeSession = await fetch(`${base}/sessions/${created.id}`).then((response) => response.json());
+    assert.deepEqual(beforeSession.activePendingIds, [proposed.pendingId]);
+    assert.equal((await server.authorityStore.read(proposed.pendingId)).status, 'pending');
+
+    const approved = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, approve: proposed.pendingId }),
+    }).then((response) => response.json());
+    assert.equal(approved.kind, 'reply');
+    assert.equal(approved.reply, '승인된 파일을 삭제했습니다.');
+    await assert.rejects(() => access(target));
+    assert.equal((await server.authorityStore.read(proposed.pendingId)).status, 'consumed');
+    const afterSession = await fetch(`${base}/sessions/${created.id}`).then((response) => response.json());
+    assert.deepEqual(afterSession.activePendingIds, []);
+    const runs = await fetch(`${base}/runs?sessionId=${created.id}`).then((response) => response.json());
+    assert.equal(runs.runs.length, 2);
+    const details = await Promise.all(runs.runs.map((run) => (
+      fetch(`${base}/runs/${run.runId}`).then((response) => response.json())
+    )));
+    const firstReceipt = details.find((run) => run.metadata.trigger === 'user').events
+      .find((event) => event.type === 'tool_completed').payload.receipt;
+    assert.equal(firstReceipt.outcome, 'not_executed');
+    assert.equal(firstReceipt.actualCall, null);
+    const approvedReceipt = details.find((run) => run.metadata.trigger === 'authority_approved').events
+      .find((event) => event.type === 'tool_completed').payload.receipt;
+    assert.equal(approvedReceipt.outcome, 'succeeded');
+    assert.equal(approvedReceipt.actualCall.args.command, destructiveArgs.command);
+    assert.equal(approvedReceipt.result.effectObservation.before.targets[0].exists, true);
+    assert.equal(approvedReceipt.result.effectObservation.after.targets[0].exists, false);
+    assert.equal(approvedReceipt.result.effectObservation.changed, true);
+  } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
   }
