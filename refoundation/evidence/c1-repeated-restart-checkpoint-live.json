@@ -1,0 +1,52 @@
+{
+  "schema": "t5.c1-repeated-restart-checkpoint-live.v1",
+  "recordedAt": "2026-08-18T19:31:16.122Z",
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "toolOutputsSeeded": false,
+  "defaultCheckpointMode": true,
+  "sessionId": "e248a62c-01b5-456d-abf2-e1aa3917a331",
+  "serverRestartedBetweenTurns": true,
+  "seededConversationChars": {
+    "first": 780000,
+    "second": 720000,
+    "total": 1500000
+  },
+  "first": {
+    "runId": "1f00c52c-4945-425d-9a22-daf9d45bbf9e",
+    "checkpointId": "d54cb8d4-a841-4440-910b-4260c235423c",
+    "coversThroughMessageId": "first:seed:1205",
+    "checkpointSourceBytes": 760958,
+    "checkpointSummaryBytes": 7309,
+    "checkpointChunks": 5,
+    "checkpointModelCalls": 6,
+    "mainRequestBytes": 79689,
+    "allModelRequestBytes": 838101,
+    "mainProviderInputTokens": 22820,
+    "allModelProviderInputTokens": 276914,
+    "answerNeedles": "3/3",
+    "toolCalls": 0,
+    "passed": true
+  },
+  "second": {
+    "runId": "e06db79e-bf24-4c05-95df-15c79dae649f",
+    "checkpointId": "1dc78987-3a05-44ae-b409-edf9570ff288",
+    "coversThroughMessageId": "second:seed:1105",
+    "checkpointSourceBytes": 765607,
+    "checkpointSummaryBytes": 9825,
+    "checkpointChunks": 5,
+    "checkpointModelCalls": 6,
+    "mainRequestBytes": 82258,
+    "allModelRequestBytes": 853432,
+    "mainProviderInputTokens": 22462,
+    "allModelProviderInputTokens": 269254,
+    "answerNeedles": "5/5",
+    "toolCalls": 0,
+    "passed": true
+  },
+  "canonicalMessageCount": 2504,
+  "checkpointCount": 2,
+  "canonicalConversationRewritten": false,
+  "sameSessionIdentity": true,
+  "passed": true
+}

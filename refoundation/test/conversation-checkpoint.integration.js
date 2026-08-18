@@ -105,3 +105,52 @@ test('checkpoint summary 실패는 원장을 바꾸지 않고 full context로 �
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('checkpoint 뒤 서버를 재시작해도 같은 session에서 다음 checkpoint가 이전 continuity를 이어받는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-checkpoint-restart-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  const { session, ledger } = await seed(stateDir, 12);
+  const makeServer = (answer, summaries) => makeConsoleServer({
+    stateDir, workspace, checkpointTriggerBytes: 1, checkpointTailBytes: 200,
+    checkpointChunkBytes: 600,
+    checkpointSummarizer: async ({ phase, prompt }) => {
+      summaries.push({ phase, prompt });
+      return phase === 'merge'
+        ? `${answer} EARLY=ALPHA-7391 DECISION=BETA-7391`
+        : `${answer} EARLY=ALPHA-7391`;
+    },
+    modelFactory: () => ({ async respond() { return { text: answer, toolCalls: [] }; } }),
+  });
+  const firstSummaries = [];
+  const firstServer = makeServer('FIRST-CHECKPOINT-7391', firstSummaries);
+  const firstBase = await listen(firstServer);
+  try {
+    await fetch(`${firstBase}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '첫 checkpoint' }),
+    }).then((response) => response.json());
+  } finally {
+    await new Promise((resolve) => firstServer.close(resolve));
+  }
+
+  const secondSummaries = [];
+  const secondServer = makeServer('SECOND-CHECKPOINT-7391', secondSummaries);
+  const secondBase = await listen(secondServer);
+  try {
+    const reply = await fetch(`${secondBase}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '재시작 뒤 다음 checkpoint' }),
+    }).then((response) => response.json());
+    assert.equal(reply.reply, 'SECOND-CHECKPOINT-7391');
+    assert.ok(secondSummaries.some(({ prompt }) => /FIRST-CHECKPOINT-7391/.test(prompt)));
+    const conversation = await ledger.read(session.id);
+    assert.equal(conversation.checkpoints.length, 2);
+    assert.notEqual(conversation.checkpoints[0].checkpointId, conversation.checkpoints[1].checkpointId);
+    assert.equal(conversation.entries.filter((entry) => entry.runId === 'seed-run').length, 12);
+  } finally {
+    await new Promise((resolve) => secondServer.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

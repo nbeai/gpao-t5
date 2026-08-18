@@ -42,6 +42,7 @@
     "refoundation:compare:skill-catalog": "node refoundation/scripts/run-skill-catalog-comparison.mjs",
     "refoundation:qualify:context-pressure": "node refoundation/scripts/run-context-pressure-qualification.mjs",
     "refoundation:qualify:conversation-pressure": "node refoundation/scripts/run-conversation-pressure-qualification.mjs",
+    "refoundation:qualify:checkpoint-continuity": "node refoundation/scripts/run-checkpoint-continuity-qualification.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `C1 — Context Projection and Compaction`
+현재 Gate: `C1 — COMPLETE`; 다음 Gate의 첫 작업은 pre-compaction memory flush 범위 판정
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -261,9 +261,9 @@ Non-goals:
 
 ## C1 — Context Projection and Compaction
 
-상태: `IN_PROGRESS` — Context Receipt, 과거 ToolReceipt projection, recoverable large output,
-on-demand skill catalog, in-place Conversation Checkpoint v0가 실제 OAuth까지 성립. 반복 checkpoint와
-checkpoint 뒤 재시작 연속성은 아직 미측정.
+상태: `COMPLETE` — Context Receipt, 과거 ToolReceipt projection, recoverable large output,
+on-demand skill catalog, in-place Conversation Checkpoint v0, 반복 checkpoint와 서버 재시작 뒤 연속성이
+실제 OAuth까지 성립.
 
 사용자 완료 문장:
 
@@ -374,9 +374,20 @@ C1-C1 In-place Conversation Checkpoint v0:
 - 기본 경로를 `in-place-v0`로 승격; 단위·경계 116/116, 통합 14/14
 - 증거: `refoundation/evidence/c1-in-place-conversation-checkpoint-live.json`
 
-다음 한 작업은 C1-C2 repeated/restart checkpoint continuity qualification이다. 첫 checkpoint 뒤 대화가 다시
-발동선에 도달한 같은 Session과 서버 재시작 뒤에도 이전 checkpoint·새 tail·새 결정을 잃지 않는지 실제 OAuth로
-확인한다. 이 경계가 선 뒤 C1을 닫고 pre-compaction memory flush 착수 여부를 판정한다.
+C1-C2 repeated/restart checkpoint continuity qualification:
+
+- 기본 `in-place-v0` 경로에서 780KB 대화의 첫 checkpoint를 만든 뒤 서버를 완전히 종료
+- 같은 Session 원장에 720KB 새 대화를 누적하고 새 서버가 원장만으로 재개해 두 번째 checkpoint 생성
+- 첫 owner fact·첫 decision·첫 open work와 새 decision·새 open work를 최종 답에서 5/5 정확 회수
+- 두 Run 모두 terminal·skill call 0, HTTP 200·Run completed; 같은 session identity 유지
+- canonical message 2,504개 불변, checkpoint 2개 append-only, coverage가 `first:seed:1205`에서
+  `second:seed:1105`로 전진
+- 첫/두 번째 본 모델 request 79,689·82,258 bytes; checkpoint model call은 각각 6회
+- 증거: `refoundation/evidence/c1-repeated-restart-checkpoint-live.json`
+
+C1 완료 판정: 원본 Conversation을 보존한 상태에서 도구 영수증을 먼저 줄이고, 큰 원문은 필요할 때
+재조회하며, 일반 대화는 byte 안전선에서 checkpoint + 최근 tail로 전환한다. checkpoint가 반복되고 서버가
+재시작되어도 같은 Session의 이전 사실·결정·미해결 작업을 이어간다.
 
 ## R3 — Recovery and Comparative Performance
 
@@ -428,6 +439,7 @@ Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증
 
 ## 현재 다음 한 작업
 
-C1-C1이 canonical 원문을 보존하면서 900KB 실패를 제거하고 1.02MB까지 실제 OAuth 회상 3/3을 세웠다.
-다음 한 작업은 C1-C2 repeated/restart checkpoint continuity qualification이다. 같은 Session의 두 번째 checkpoint와
-서버 재시작 뒤 continuity를 실제 OAuth로 확인하기 전에는 C1 전체를 완료로 올리지 않는다. Memory flush는 아직 닫는다.
+C1은 두 번째 checkpoint와 서버 재시작 뒤 실제 OAuth 회상까지 성립해 완료됐다. 다음 한 작업은 비교군에서
+확인한 pre-compaction memory flush를 T5에 여는 범위 판정이다. checkpoint 직전 무엇을 장기 기억 후보로
+내보내야 하는지, 무엇을 Conversation summary에만 남길지, 사용자가 확인·수정·삭제할 최소 계약을 먼저 정한다.
+이 판정 전에는 memory 저장소·검색·자동 추출을 구현하지 않는다.
