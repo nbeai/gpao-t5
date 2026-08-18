@@ -125,6 +125,7 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
         cursor: {
           type: ['object', 'null'],
           properties: { stdout: { type: 'integer' }, stderr: { type: 'integer' } },
+          required: ['stdout', 'stderr'],
           additionalProperties: false,
         },
         input: { type: ['string', 'null'] },

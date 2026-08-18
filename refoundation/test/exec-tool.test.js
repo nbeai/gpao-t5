@@ -51,6 +51,12 @@ test('exec는 오래 걸리는 명령을 거짓 timeout으로 만들지 않고 �
   assert.equal(stopped.terminationConfirmed, true);
 }));
 
+test('process_control의 중첩 cursor 스키마는 strict function 계약을 만족한다', () => {
+  const exec = makeExecTool({ workspace: '/private/tmp' });
+  const control = makeProcessControlTool({ processRegistry: exec.processRegistry });
+  assert.deepEqual(control.parameters.properties.cursor.required, ['stdout', 'stderr']);
+});
+
 test('exec 결과에는 Tree-sitter가 읽은 명령 단계와 operator가 붙는다', async () => rooms(async ({ workspace }) => {
   const result = await makeExecTool({ workspace }).execute({
     command: "printf 'b\\na\\n' | sort && printf done",

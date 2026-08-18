@@ -1,0 +1,13 @@
+{
+  "schema": "t5.refoundation.managed-process-live-attempt.v1",
+  "sourceCommit": "11d7bbfea520e1a8355952b674dd6ec6aa9a4155",
+  "observedAt": "2026-08-19",
+  "sessionId": "c6387764-1819-4172-bf61-12bdfac03a27",
+  "request": "터미널에서 1초 간격으로 PHASE-1, PHASE-2, PHASE-3을 출력한 뒤 FINISHED를 출력하는 작업을 실행해줘. 작업이 끝날 때까지 실행 상태와 새 출력을 직접 다시 확인하고, 최종 상태와 관측한 전체 출력을 알려줘.",
+  "result": "failed_before_model_call",
+  "streamEvents": ["trace_status", "trace_status", "recoverable_error", "complete"],
+  "providerStatus": 400,
+  "rootCause": "process_control cursor object declared stdout and stderr properties without the strict required array",
+  "terminalStarted": false,
+  "passed": false
+}
