@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,17 +9,29 @@ const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_BINARY = resolve(here, '..', 'node_modules', '.bin', 'agent-browser');
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_BUFFER = 8 * 1024 * 1024;
+export const BROWSER_NAMESPACE = 't5-refoundation-v2';
+const SECRET_FIELD_SELECTOR = [
+  'input[type="password"]',
+  'input[autocomplete~="current-password"]', 'input[autocomplete~="new-password"]',
+  'input[autocomplete~="one-time-code"]', '[name*="otp" i]', '[id*="otp" i]',
+  '[name*="verification" i]', '[id*="verification" i]',
+  'input[autocomplete~="cc-name"]', 'input[autocomplete~="cc-number"]',
+  'input[autocomplete~="cc-csc"]', 'input[autocomplete~="cc-exp"]',
+  'input[autocomplete~="cc-exp-month"]', 'input[autocomplete~="cc-exp-year"]',
+].join(', ');
 
 export function sessionNameForOwner(ownerId) {
   const digest = createHash('sha256').update(String(ownerId ?? '')).digest('hex').slice(0, 20);
   return `t5-${digest}`;
 }
 
-function defaultRun(binary, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER } = {}) {
+function defaultRun(binary, {
+  timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER, environment = {},
+} = {}) {
   return (args, { signal } = {}) => new Promise((resolveRun, reject) => {
     execFile(binary, args, {
       encoding: 'utf8', timeout: timeoutMs, maxBuffer, signal,
-      env: { ...process.env, NO_COLOR: '1' },
+      env: { ...process.env, ...environment, NO_COLOR: '1' },
     }, (error, stdout, stderr) => {
       if (error && error.code === 'ENOENT') {
         reject(Object.assign(new Error('agent-browser binary is missing'), { code: 'BINARY_MISSING' }));
@@ -117,6 +130,23 @@ export function sanitizedNetworkFacts(value = {}, maxRequests = 100) {
   };
 }
 
+export async function secureBrowserStatePermissions(root) {
+  let entries;
+  try { entries = await readdir(root, { withFileTypes: true }); }
+  catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+  await chmod(root, 0o700);
+  for (const entry of entries) {
+    const path = join(root, entry.name);
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error('browser state must not contain symbolic links');
+    if (info.isDirectory()) await secureBrowserStatePermissions(path);
+    else await chmod(path, 0o600);
+  }
+}
+
 export function makeAgentBrowserDriver({
   ownerId,
   outputDirectory,
@@ -128,22 +158,64 @@ export function makeAgentBrowserDriver({
   const session = sessionNameForOwner(ownerId);
   const sessionRoot = dirname(resolve(outputDirectory));
   const profileDirectory = join(sessionRoot, 'profile');
-  const execute = run ?? defaultRun(binary);
-  const namespace = 't5-refoundation';
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 'user';
+  const socketDirectory = join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-ab-${uid}`);
+  const usesDefaultRun = run == null;
+  const execute = run ?? defaultRun(binary, {
+    environment: {
+      HOME: sessionRoot, USERPROFILE: sessionRoot,
+      AGENT_BROWSER_SOCKET_DIR: socketDirectory,
+      AGENT_BROWSER_AUTOSAVE_INTERVAL_MS: '0',
+    },
+  });
+  const namespace = BROWSER_NAMESPACE;
   let availabilityCache = null;
   let activeTabId = null;
-  const common = [
-    '--namespace', namespace,
-    '--profile', profileDirectory,
-    '--headed', 'false',
-    '--no-auto-dialog',
-    '--idle-timeout', '10m',
-    '--session', session,
-    '--pin-tab', '--json',
-  ];
+  let headedMode = false;
+  let userControl = false;
+  let runtimeRootReady = false;
+
+  function commonArgs() {
+    return [
+      '--namespace', namespace,
+      '--profile', profileDirectory,
+      '--headed', String(headedMode),
+      '--no-auto-dialog',
+      '--idle-timeout', '10m',
+      '--session', session,
+      '--restore',
+      '--pin-tab', '--json',
+    ];
+  }
+
+  async function ensureRuntimeRoot() {
+    if (usesDefaultRun && !runtimeRootReady) {
+      await Promise.all([
+        mkdir(sessionRoot, { recursive: true, mode: 0o700 }),
+        mkdir(socketDirectory, { recursive: true, mode: 0o700 }),
+      ]);
+      await Promise.all([chmod(sessionRoot, 0o700), chmod(socketDirectory, 0o700)]);
+      runtimeRootReady = true;
+    }
+  }
 
   async function command(args, options = {}) {
-    return parseJsonOutput(await execute([...common, ...args], options), args[0] ?? 'command');
+    await ensureRuntimeRoot();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const raw = await execute([...commonArgs(), ...args], options);
+        if (usesDefaultRun) {
+          await secureBrowserStatePermissions(join(sessionRoot, '.agent-browser'));
+        }
+        return parseJsonOutput(raw, args[0] ?? 'command');
+      } catch (error) {
+        const lifecycleRace = /Failed to connect.*No such file|No such file.*Failed to connect/i
+          .test(error?.message ?? '');
+        if (!lifecycleRace || attempt > 0 || options.signal?.aborted) throw error;
+        await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+      }
+    }
+    throw new Error('agent-browser command retry exhausted');
   }
 
   async function currentTab(options = {}) {
@@ -187,9 +259,7 @@ export function makeAgentBrowserDriver({
 
   async function submitFacts({ tabId, ref, signal } = {}) {
     const element = await elementFacts({ tabId, ref, signal });
-    const secretFieldCount = countValue(await command([
-      'get', 'count', 'input[type="password"], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"], input[autocomplete~="cc-name"], input[autocomplete~="cc-number"], input[autocomplete~="cc-csc"], input[autocomplete~="cc-exp"], input[autocomplete~="cc-exp-month"], input[autocomplete~="cc-exp-year"]',
-    ], { signal }));
+    const secretFieldCount = countValue(await command(['get', 'count', SECRET_FIELD_SELECTOR], { signal }));
     const fileInputCount = countValue(await command(['get', 'count', 'input[type="file"]'], { signal }));
     return { element, secretFieldCount, fileInputCount };
   }
@@ -221,6 +291,7 @@ export function makeAgentBrowserDriver({
   return {
     profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
     session,
+    userControlActive: () => userControl,
     async available() {
       if (availabilityCache) return structuredClone(availabilityCache);
       try {
@@ -245,6 +316,7 @@ export function makeAgentBrowserDriver({
       if (!availability.available) return { state: 'unavailable', session, ...availability };
       let sessions = [];
       try {
+        await ensureRuntimeRoot();
         const listed = parseJsonOutput(await execute([
           '--namespace', namespace, '--json', 'session', 'list',
         ], { signal }), 'session list');
@@ -270,6 +342,91 @@ export function makeAgentBrowserDriver({
     },
     elementFacts,
     submitFacts,
+    async beginUserLogin(url, { signal } = {}) {
+      await command(['close'], { signal });
+      activeTabId = null;
+      headedMode = true;
+      try {
+        const opened = await command(['open', String(url)], { signal });
+        const tab = await currentTab({ signal });
+        userControl = true;
+        return {
+          state: 'user_control_required', pageObserved: false, secretValuesObserved: false,
+          profile: { ...this.profile },
+          tab: normalizeTab({ ...opened, ...tab, url: tab.url || opened.url || url }),
+          handoff: { visible: true, inputOwner: 'user', modelActionsBlocked: true },
+        };
+      } catch (error) {
+        headedMode = false;
+        userControl = false;
+        throw error;
+      }
+    },
+    async loginStatus({ tabId, signal } = {}) {
+      if (!userControl) return {
+        state: 'login_handoff_not_active', pageObserved: false, secretValuesObserved: false,
+      };
+      await selectTab(tabId, { signal });
+      const secretFieldsPresent = countValue(
+        await command(['get', 'count', SECRET_FIELD_SELECTOR], { signal }),
+      ) > 0;
+      const tab = await currentTab({ signal });
+      if (secretFieldsPresent) return {
+        state: 'user_action_required', pageObserved: false, secretValuesObserved: false,
+        secretFieldsPresent: true, tab,
+      };
+      let currentUrl;
+      try {
+        const parsed = new URL(tab.url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported login result URL');
+        currentUrl = parsed.href;
+      } catch (error) {
+        throw new Error(`cannot resume login result: ${error?.message ?? String(error)}`);
+      }
+      activeTabId = null;
+      await command(['close'], { signal });
+      headedMode = false;
+      try {
+        await command(['open', currentUrl], { signal });
+        const resumedSecretFields = countValue(
+          await command(['get', 'count', SECRET_FIELD_SELECTOR], { signal }),
+        );
+        if (resumedSecretFields > 0) {
+          const resumedTab = await currentTab({ signal });
+          activeTabId = null;
+          headedMode = true;
+          await command(['open', resumedTab.url || currentUrl], { signal });
+          return {
+            state: 'user_action_required', pageObserved: false, secretValuesObserved: false,
+            secretFieldsPresent: true, continuityEstablished: false,
+            tab: await currentTab({ signal }),
+          };
+        }
+        const observed = await takeSnapshot({ full: false, signal });
+        userControl = false;
+        return {
+          state: 'handoff_complete_candidate', secretFieldsPresent: false,
+          secretValuesObserved: false, continuityEstablished: true,
+          profile: { ...this.profile }, ...observed,
+          handoff: { visible: false, inputOwner: 'user', resumedHeadless: true },
+        };
+      } catch (error) {
+        headedMode = true;
+        throw error;
+      }
+    },
+    async cancelUserLogin({ signal } = {}) {
+      if (!userControl) return {
+        state: 'login_handoff_not_active', pageObserved: false, secretValuesObserved: false,
+      };
+      await command(['close'], { signal });
+      activeTabId = null;
+      headedMode = false;
+      userControl = false;
+      return {
+        state: 'user_control_cancelled', pageObserved: false, secretValuesObserved: false,
+      };
+    },
     async navigate(url, { signal } = {}) {
       const opened = await command(['open', String(url)], { signal });
       const observed = await takeSnapshot({ full: false, signal });
@@ -299,7 +456,9 @@ export function makeAgentBrowserDriver({
       };
     },
     async close({ signal } = {}) {
-      try { await command(['close'], { signal }); } catch { /* already closed */ }
+      await command(['close'], { signal });
+      activeTabId = null;
+      userControl = false;
     },
   };
 }

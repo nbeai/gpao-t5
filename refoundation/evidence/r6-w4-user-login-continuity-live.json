@@ -1,0 +1,98 @@
+{
+  "schema": "t5.r6-w4-user-login-continuity-live.v1",
+  "recordedAt": "2026-08-19T11:50:00+09:00",
+  "mainModel": { "provider": "chatgpt_oauth", "model": "gpt-5.5" },
+  "comparators": {
+    "openclaw": { "version": "2026.6.11", "principle": "manual login in a dedicated managed profile" },
+    "hermes": { "revision": "20e01f935b13", "principle": "headed browser survives turns and managed identity survives recreation" },
+    "agentBrowser": { "version": "0.34.0", "principle": "stable session plus restore persists cookies and localStorage" }
+  },
+  "capability": {
+    "tool": "browser",
+    "openedActions": ["login_start", "login_status", "login_cancel"],
+    "profile": "t5_session_managed_isolated",
+    "namespace": "t5-refoundation-v2",
+    "inputOwner": "user",
+    "blockedDuringHandoff": ["tabs", "navigate", "snapshot", "screenshot", "click", "fill", "submit"],
+    "modelCredentialActions": 0,
+    "cookieOrStorageReadActions": 0,
+    "excluded": ["existing_user_profile", "cookie_import", "state_import", "credential_vault", "captcha_bypass", "upload", "download", "computer_use"]
+  },
+  "directLoopbackProbe": {
+    "loginStart": { "state": "user_control_required", "visible": true, "pageObserved": false },
+    "beforeUserCompletion": { "state": "user_action_required", "secretFieldsPresent": true, "pageObserved": false },
+    "afterUserCompletion": {
+      "state": "handoff_complete_candidate",
+      "secretFieldsPresent": false,
+      "secretValuesObserved": false,
+      "continuityEstablished": true,
+      "page": "사업자 대시보드"
+    },
+    "newDriver": { "loginRequiredAgain": false, "page": "사업자 대시보드" },
+    "passed": true
+  },
+  "runtimeState": {
+    "home": "inside_t5_session_root",
+    "sessionRootMode": "0700",
+    "restoreFileMode": "0600",
+    "periodicAutosaveMs": 0,
+    "socketDirectory": "user_scoped_private_tmp_0700",
+    "symlinkPolicy": "fail_closed",
+    "stateContentsInspected": false
+  },
+  "oauthRuns": [
+    {
+      "name": "login_page_to_visible_user_handoff",
+      "runId": "137a4a24-fb62-46bc-9004-f1f25b5cf317",
+      "status": "completed",
+      "toolActions": ["navigate", "login_start"],
+      "loginStartPageObserved": false,
+      "secretValuesObserved": false,
+      "toolTextArguments": [null, null],
+      "modelTurns": 3,
+      "wallMs": 17941,
+      "passed": true
+    },
+    {
+      "name": "user_completion_to_protected_page",
+      "runId": "49db986b-dbac-430a-80a3-997ab2057564",
+      "status": "completed",
+      "toolActions": ["login_status"],
+      "url": "http://127.0.0.1:43182/protected",
+      "page": "사업자 대시보드",
+      "secretValuesObserved": false,
+      "continuityEstablished": true,
+      "modelTurns": 2,
+      "wallMs": 13052,
+      "passed": true
+    },
+    {
+      "name": "console_restart_without_relogin",
+      "runId": "3172397c-a2ca-4bd7-b58d-e522fc752d8d",
+      "status": "completed",
+      "toolActions": ["tabs", "navigate"],
+      "url": "http://127.0.0.1:43182/protected",
+      "page": "사업자 대시보드",
+      "additionalLogins": 0,
+      "modelTurns": 3,
+      "wallMs": 11782,
+      "passed": true
+    }
+  ],
+  "measuredCorrections": [
+    "added one bounded reconnect only for the exact close/restart socket race error",
+    "added post-headless secret-field recheck so lost login state cannot become a success claim",
+    "enabled session restore because session id alone does not persist browser state",
+    "moved restore HOME under T5 state and IPC sockets to a short private tmp path",
+    "disabled asynchronous autosave and versioned the namespace so old daemon settings cannot restore 0644 state files"
+  ],
+  "verification": {
+    "unit": { "passed": 185, "failed": 0 },
+    "integration": { "passed": 26, "failed": 0 },
+    "ptyIncluded": true,
+    "markdownSafety": { "passed": 21, "failed": 0 },
+    "auditVulnerabilities": 0,
+    "legacyImports": 0
+  },
+  "passed": true
+}

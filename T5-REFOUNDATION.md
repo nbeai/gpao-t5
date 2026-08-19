@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W3 BROWSER SUBMIT AND CONFIRMATION — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W4 USER-CONTROLLED LOGIN CONTINUITY — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -811,6 +811,74 @@ Non-goals:
 - 실제 OAuth 멀티턴에서 fill-only 확인 뒤 후속 submit·접수 결과 판정
 - 기존 terminal·web·memory·context·session 영역 회귀 유지
 
+### R6-W4 — User-Controlled Login Continuity
+
+상태: `COMPLETE` — T5 전용 격리 browser profile을 사용자에게 보이는 창으로 넘겨 직접 로그인하게 하고,
+자격정보를 모델에 주지 않은 채 같은 T5 Session·profile의 로그인 상태를 browser·콘솔 재시작 뒤까지 이어갔다.
+
+사용자 완료 문장:
+
+> 로그인이 필요하면 T5가 전용 창을 열고 사용자가 직접 비밀번호·OTP를 입력한다. T5는 그 값을 보지 않으며,
+> 사용자가 완료를 알린 뒤 실제 로그인 후 화면을 확인하고 콘솔 재시작 뒤에도 같은 상태를 이어 쓴다.
+
+비교군에서 채택한 원리:
+
+- OpenClaw `2026.6.11`: 기존 일상 Chrome이 아니라 전용 `openclaw` profile에서 **manual login**을 권장하고,
+  모델에게 credential을 주지 않음
+- Hermes `20e01f935b13`: local headed mode에서는 browser를 턴 사이에 유지하고, managed persistence는
+  profile-scoped stable identity로 close/recreate 뒤 같은 상태를 사용
+- agent-browser `0.34.0`: stable `--session --restore`가 cookie·localStorage를 close·idle·재시작 뒤 복원
+
+현재 성립한 계약:
+
+- `browser`에 `login_start·login_status·login_cancel` 세 handoff 상태만 추가; password·OTP·cookie·storage
+  read/write/import action은 schema 0
+- `login_start`는 현재 T5 Session의 전용 managed profile을 headed로 relaunch하고 URL·tab metadata만 반환;
+  login page content·secret value 관측 0, input owner는 user
+- handoff 중에는 `snapshot·screenshot·tabs·navigate·click·fill·submit`을 모두
+  `user_control_in_progress·not_executed`; status·profiles·login_status·login_cancel만 허용
+- `login_status`는 먼저 password·OTP·신용카드 field 존재만 count하고 값은 읽지 않음. 남아 있으면
+  `user_action_required·pageObserved:false`로 사용자에게 다시 넘김
+- field가 사라져도 headed 결과만 믿지 않고 profile을 flush한 뒤 headless로 relaunch하고 같은 검사를 다시 수행;
+  로그인벽이 돌아오면 snapshot 없이 `continuityEstablished:false`, 통과할 때만 새 observation을 모델에 공급
+- secret selector/count 형식 오류, close/relaunch 실패는 없음으로 꾸미지 않고 fail-closed
+- 사용자가 취소하면 `login_cancel`이 headed browser를 닫고 handoff state를 해제; 무한 대기 없음
+- restore state는 사용자 홈의 `~/.agent-browser`가 아니라 T5 Session root를 전용 HOME으로 사용하고,
+  root·하위 directory 0700, state file 0600; symlink가 끼면 실패
+- macOS Unix socket 길이 상한을 피하려고 비영속 IPC만 사용자별 0700 `/private/tmp/t5-ab-<uid>`에 분리
+- W1–W3 daemon의 옛 autosave 설정이 새 권한을 덮지 못하도록 namespace를 `t5-refoundation-v2`로 올리고,
+  periodic autosave는 0; close 시 저장 직후 T5가 권한 강제
+- close 직후 daemon socket 정리 경합의 정확한 `Failed to connect: No such file`만 250ms 뒤 한 번 재연결;
+  다른 오류와 두 번째 실패는 그대로 반환
+- 기존 사용자 Chrome profile·cookie import·credential vault·자동 login·CAPTCHA 우회는 사용하지 않음
+
+실제 OAuth 콘솔:
+
+- 로그인 요청 Run `137a4a24-fb62-46bc-9004-f1f25b5cf317`: `navigate(login page) → login_start`,
+  visible 전용 창, tool text null, `pageObserved:false·secretValuesObserved:false`, 3 model turns·17.9초
+- 사용자 역할 인증은 T5 tool 밖에서 1회; 실제 계정·비밀번호·OTP 사용 0
+- 완료 Run `49db986b-dbac-430a-80a3-997ab2057564`: login_status 1회,
+  `/protected·사업자 대시보드`, `secretValuesObserved:false·continuityEstablished:true`, 2 turns·13.1초
+- 콘솔 재시작 Run `3172397c-a2ca-4bd7-b58d-e522fc752d8d`: 재로그인 0,
+  tabs→navigate로 같은 `/protected·사업자 대시보드`, 3 turns·11.8초
+- 실제 v2 Session root 0700, restore state 0600, fixture login 1회
+- 증거: `refoundation/evidence/r6-w4-user-login-continuity-live.json`
+
+Non-goals:
+
+- 기존 Chrome/Edge profile attach·복사, cookie/state import·export, 모델 credential 입력, password vault
+- CAPTCHA 우회, 자동 2FA, 로그인 성공 규칙 엔진, account recovery
+- 새 T5 대화 간 profile 공유, upload·download, remote browser, desktop/CU
+
+완료 Gate:
+
+- headed user handoff 중 model observation/action 0과 cancel 중단선
+- secret field 전환 전후 이중 검사와 continuity 미성립 fail-closed
+- 실제 managed restore의 browser·driver·콘솔 재시작 연속성
+- T5 관리 상태 경로·0700/0600·symlink 반대시험과 비영속 socket 분리
+- 실제 OAuth 멀티턴에서 로그인 요청→사용자 handoff→보호 페이지→콘솔 재시작 재진입
+- terminal·PTY·web·memory·context·session 전체 회귀 유지
+
 ## R6 이후 — 증거가 열 때만
 
 브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -824,15 +892,17 @@ Foundation closeout 분류:
   계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
 - 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
   crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
-- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser upload/download/login profile, app/MCP,
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser upload/download, existing user-profile import,
+  app/MCP,
   channels, automation service,
   multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
 - 증거: `refoundation/evidence/foundation-closeout-audit.json`
 
 ## 현재 다음 한 작업
 
-R6-W3 Browser Submit and Confirmation까지 완료됐다. 다음 능력을 자동으로 열지 않는다. 실제 콘솔 사용에서 terminal·
-web read/search·browser observe/action으로 끝낼 수 없는 반복 병목이 생기면 그 Run/Receipt로 원인을 확정하고,
-Skill·upload/download·로그인 profile·외부 앱/MCP·Gateway·Automation 중 가장 작은 한 축만 연다.
+R6-W4 User-Controlled Login Continuity까지 완료됐다. 계획된 다음 한 작업은 `R6-W5 Browser File Transfer`다.
+먼저 실제 download와 파일 영수증을 열고, upload는 사용자 지정 파일·외부 전송 권한·사후 화면을 별도 Gate로
+검증한다. 기존 사용자 browser profile import·CU는 W5에 섞지 않는다. 그 뒤 W6에서 네이버 스마트플레이스 같은
+로그인 사업자 업무를 실제 멀티턴으로 종단 자격한다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로
 섞어 보고하지 않는다.

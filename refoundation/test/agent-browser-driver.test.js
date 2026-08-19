@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { makeAgentBrowserDriver, sanitizedNetworkFacts, sessionNameForOwner } from '../src/agent-browser-driver.js';
+import {
+  BROWSER_NAMESPACE, makeAgentBrowserDriver, sanitizedNetworkFacts,
+  secureBrowserStatePermissions, sessionNameForOwner,
+} from '../src/agent-browser-driver.js';
 
 test('T5 Session은 경로·사용자 식별자를 노출하지 않는 안정된 agent-browser session 이름을 쓴다', () => {
   const first = sessionNameForOwner('session-user-visible-123');
@@ -53,7 +56,7 @@ test('status는 session list만 읽고 브라우저를 새로 띄우지 않는�
   const status = await driver.status();
   assert.equal(status.running, false);
   assert.equal(status.tabCount, 0);
-  assert.deepEqual(calls, [['--version'], ['--namespace', 't5-refoundation', '--json', 'session', 'list']]);
+  assert.deepEqual(calls, [['--version'], ['--namespace', BROWSER_NAMESPACE, '--json', 'session', 'list']]);
 });
 
 test('session list의 실제 문자열 항목도 현재 running session으로 읽는다', async () => {
@@ -198,4 +201,89 @@ test('submit 전 secret·file count 관측 형식이 깨지면 0으로 꾸미지
     () => driver.submitFacts({ tabId: 't1', ref: 'e5' }),
     /invalid element count/,
   );
+});
+
+test('user login handoff는 같은 persistent profile을 headed로 열고 비밀 field가 사라진 뒤에만 headless snapshot을 돌려준다', async () => {
+  const calls = [];
+  let secretFieldCount = 1;
+  const run = async (args) => {
+    const headed = args[args.indexOf('--headed') + 1];
+    const command = args.slice(args.indexOf('--json') + 1);
+    calls.push({ headed, command });
+    if (command[0] === 'tab' && command[1] === 'list') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabs: [{ tabId: 't1', url: secretFieldCount ? 'https://example.com/login' : 'https://example.com/dashboard', active: true }] } }) };
+    if (command[0] === 'get' && command[1] === 'count') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { count: secretFieldCount } }) };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabId: 't1', url: 'https://example.com/dashboard', snapshot: '- heading "대시보드" [ref=e1]', refs: { e1: { role: 'heading', name: '대시보드' } } } }) };
+    return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { url: command[1] ?? '' } }) };
+  };
+  const driver = makeAgentBrowserDriver({ ownerId: 'manual-login', outputDirectory: '/private/tmp', run });
+  const started = await driver.beginUserLogin('https://example.com/login');
+  assert.equal(started.state, 'user_control_required');
+  assert.equal(started.pageObserved, false);
+  assert.equal(driver.userControlActive(), true);
+  assert.ok(calls.some((call) => call.headed === 'true' && call.command[0] === 'open'));
+  assert.equal(calls.some((call) => call.command[0] === 'snapshot'), false);
+
+  const waiting = await driver.loginStatus({ tabId: 't1' });
+  assert.equal(waiting.state, 'user_action_required');
+  assert.equal(waiting.secretFieldsPresent, true);
+  assert.equal(waiting.pageObserved, false);
+
+  secretFieldCount = 0;
+  const completed = await driver.loginStatus({ tabId: 't1' });
+  assert.equal(completed.state, 'handoff_complete_candidate');
+  assert.equal(completed.secretFieldsPresent, false);
+  assert.match(completed.snapshot.text, /대시보드/);
+  assert.equal(driver.userControlActive(), false);
+  assert.ok(calls.some((call) => call.headed === 'false' && call.command[0] === 'open'));
+});
+
+test('browser close 직후 소켓 정리 경합만 한 번 재연결하고 다른 실패로 넓히지 않는다', async () => {
+  let calls = 0;
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'lifecycle-race', outputDirectory: '/private/tmp',
+    run: async () => {
+      calls += 1;
+      if (calls === 1) return { exitCode: 1, stdout: '', stderr: '{"error":"Failed to connect: No such file or directory (os error 2)","success":false}' };
+      return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[]}}' };
+    },
+  });
+  assert.deepEqual(await driver.tabs(), { tabs: [] });
+  assert.equal(calls, 2);
+});
+
+test('browser restore 상태는 디렉터리 0700·파일 0600이고 symlink가 끼면 닫힌다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-state-mode-'));
+  const state = join(room, '.agent-browser');
+  const nested = join(state, 'sessions');
+  try {
+    await mkdir(nested, { recursive: true, mode: 0o755 });
+    const file = join(nested, 'state.json');
+    await writeFile(file, '{}', { mode: 0o644 });
+    await secureBrowserStatePermissions(state);
+    assert.equal((await stat(state)).mode & 0o777, 0o700);
+    assert.equal((await stat(nested)).mode & 0o777, 0o700);
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
+    await symlink(file, join(state, 'linked-state'));
+    await assert.rejects(() => secureBrowserStatePermissions(state), /symbolic links/);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('사용자가 login handoff를 취소하면 headed session을 닫고 model action을 다시 연다', async () => {
+  const calls = [];
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'cancel-login', outputDirectory: '/private/tmp',
+    run: async (args) => {
+      const command = args.slice(args.indexOf('--json') + 1);
+      calls.push(command);
+      if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/login","active":true}]}}' };
+      return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+    },
+  });
+  await driver.beginUserLogin('https://example.com/login');
+  const cancelled = await driver.cancelUserLogin();
+  assert.equal(cancelled.state, 'user_control_cancelled');
+  assert.equal(driver.userControlActive(), false);
+  assert.ok(calls.some((command) => command[0] === 'close'));
 });

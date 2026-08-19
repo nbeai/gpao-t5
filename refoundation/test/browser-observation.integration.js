@@ -36,6 +36,7 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
         assert.ok(browser);
         assert.deepEqual(browser.parameters.properties.action.enum, [
           'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+          'login_start', 'login_status', 'login_cancel',
         ]);
         return { text: '', toolCalls: [{ id: 'observe-page', name: 'browser', args: {
           action: 'navigate', url: 'https://example.com/app', tabId: null,
@@ -70,6 +71,79 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
     assert.match(completed[0].payload.receipt.result.observation.observationId, /^[0-9a-f]{64}$/);
   } finally {
     await server.closeBrowsers?.();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 login_status만 page observation을 모델에 연다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-login-handoff-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  let phase = 0;
+  let active = false;
+  const calls = [];
+  const driver = {
+    profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
+    userControlActive: () => active,
+    async available() { return { available: true, version: '0.34.0' }; },
+    async beginUserLogin(url) {
+      calls.push(['login_start', url]); active = true;
+      return { state: 'user_control_required', pageObserved: false, secretValuesObserved: false, tab: { tabId: 't1', targetId: 'target-1', title: '', url } };
+    },
+    async loginStatus() {
+      calls.push(['login_status']); active = false;
+      return {
+        state: 'handoff_complete_candidate', secretFieldsPresent: false, secretValuesObserved: false,
+        continuityEstablished: true,
+        tab: { tabId: 't1', targetId: 'target-1', title: '사업자 대시보드', url: 'https://example.com/dashboard' },
+        snapshot: { text: '- heading "사업자 대시보드" [ref=e1]', refs: { e1: { role: 'heading', name: '사업자 대시보드' } }, totalChars: 40, truncated: false },
+        handoff: { visible: false, inputOwner: 'user', resumedHeadless: true },
+      };
+    },
+    async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
+    async tabs() { return { tabs: [] }; }, async navigate() { throw new Error('not used'); },
+    async snapshot() { throw new Error('must not observe login form'); }, async screenshot() { throw new Error('not used'); },
+    async close() {},
+  };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, effect: null };
+  const server = makeConsoleServer({
+    stateDir, workspace, browserDriverFactory: () => driver,
+    modelFactory: () => ({ async respond(input) {
+      phase += 1;
+      if (phase === 1) return { text: '', toolCalls: [{ id: 'login', name: 'browser', args: {
+        action: 'login_start', ...nulls, url: 'https://example.com/login',
+      } }] };
+      if (phase === 2) {
+        const receipt = JSON.parse(input.messages.at(-1).content);
+        assert.equal(receipt.result.pageObserved, false);
+        return { text: '전용 브라우저에서 직접 로그인한 뒤 완료했다고 알려주세요.', toolCalls: [] };
+      }
+      if (phase === 3) return { text: '', toolCalls: [{ id: 'login-status', name: 'browser', args: {
+        action: 'login_status', ...nulls, tabId: 't1',
+      } }] };
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.match(receipt.result.observation.text, /사업자 대시보드/);
+      assert.equal(receipt.result.continuityEstablished, true);
+      return { text: '로그인 뒤 사업자 대시보드를 확인했어요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const first = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '사업자 페이지에 로그인해야 해' }) }).then((response) => response.json());
+    assert.match(first.reply, /직접 로그인/);
+    const second = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '로그인 완료했어' }) }).then((response) => response.json());
+    assert.match(second.reply, /사업자 대시보드/);
+    assert.deepEqual(calls, [['login_start', 'https://example.com/login'], ['login_status']]);
+    const run = await fetch(`${base}/runs/${second.runId}`).then((response) => response.json());
+    const receipt = run.events.find((event) => event.type === 'tool_completed').payload.receipt;
+    assert.equal(receipt.result.secretValuesObserved, false);
+    assert.equal(JSON.stringify(receipt).includes('password'), false);
+  } finally {
+    await server.closeBrowsers();
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
   }

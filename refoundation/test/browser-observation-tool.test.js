@@ -87,14 +87,74 @@ function fixtureDriver() {
   };
 }
 
-test('browser W3 schema는 명시적 submit만 더하고 upload·download·evaluate는 없다', () => {
+test('browser W4 schema는 user-controlled login handoff만 더하고 credential·cookie·upload 기능은 없다', () => {
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
     'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+    'login_start', 'login_status', 'login_cancel',
   ]);
-  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate'];
+  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
+});
+
+test('login handoff 중에는 page content와 action을 모델에 열지 않고 완료 후보 뒤 새 observation만 연다', async () => {
+  const driver = fixtureDriver();
+  let active = false;
+  let completed = false;
+  driver.userControlActive = () => active;
+  driver.beginUserLogin = async (url) => {
+    active = true;
+    return {
+      state: 'user_control_required', pageObserved: false, secretValuesObserved: false,
+      tab: { tabId: 't1', targetId: 'target-1', title: '', url },
+    };
+  };
+  driver.loginStatus = async () => {
+    if (!completed) return {
+      state: 'user_action_required', pageObserved: false,
+      secretFieldsPresent: true, secretValuesObserved: false,
+      tab: { tabId: 't1', targetId: 'target-1', title: '', url: 'https://example.com/login' },
+    };
+    active = false;
+    return {
+      state: 'handoff_complete_candidate', secretFieldsPresent: false,
+      continuityEstablished: true,
+      tab: { tabId: 't1', targetId: 'target-1', title: 'Dashboard', url: 'https://example.com/dashboard' },
+      snapshot: { text: '- heading "Dashboard" [ref=e1]', refs: { e1: { role: 'heading', name: 'Dashboard' } }, totalChars: 36, truncated: false },
+    };
+  };
+  driver.cancelUserLogin = async () => {
+    active = false;
+    return { state: 'user_control_cancelled', pageObserved: false, secretValuesObserved: false };
+  };
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry });
+  const common = {
+    tabId: null, full: null, maxChars: 20_000, fullPage: null,
+    observationId: null, ref: null, text: null, effect: null,
+  };
+  const started = await tool.execute({ action: 'login_start', ...common, url: 'https://example.com/login' });
+  assert.equal(started.state, 'user_control_required');
+  assert.equal(started.pageObserved, false);
+  const blockedSnapshot = await tool.execute({ action: 'snapshot', ...common, url: null, tabId: 't1' });
+  assert.equal(blockedSnapshot.state, 'user_control_in_progress');
+  assert.equal(blockedSnapshot.effect, 'not_executed');
+  const blockedTabs = await tool.execute({ action: 'tabs', ...common, url: null });
+  assert.equal(blockedTabs.state, 'user_control_in_progress');
+  const waiting = await tool.execute({ action: 'login_status', ...common, url: null, tabId: 't1' });
+  assert.equal(waiting.state, 'user_action_required');
+  assert.equal(waiting.observation, undefined);
+  completed = true;
+  const result = await tool.execute({ action: 'login_status', ...common, url: null, tabId: 't1' });
+  assert.equal(result.state, 'handoff_complete_candidate');
+  assert.equal(result.continuityEstablished, true);
+  assert.equal(result.observation.refScope.url, 'https://example.com/dashboard');
+  assert.equal(registry.resolve({ observationId: result.observation.observationId, tabId: 't1', ref: 'e1' }).ok, true);
+  await tool.execute({ action: 'login_start', ...common, url: 'https://example.com/login' });
+  const cancelled = await tool.execute({ action: 'login_cancel', ...common, url: null });
+  assert.equal(cancelled.state, 'user_control_cancelled');
+  assert.equal(active, false);
 });
 
 test('navigate는 실제 탭과 같은 snapshot의 observationId·refs를 한 Receipt로 돌려준다', async () => {

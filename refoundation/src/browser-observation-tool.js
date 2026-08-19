@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
-const ACTIONS = ['status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit'];
+const ACTIONS = [
+  'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+  'login_start', 'login_status', 'login_cancel',
+];
 const ACTION_KINDS = new Set(['click', 'fill', 'submit']);
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
@@ -72,7 +75,7 @@ export function makeBrowserObservationTool({
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
   const tool = {
     name: 'browser',
-    description: 'Observe rendered web pages and use exact refs from the latest observation to click, fill non-secret text, or explicitly submit a non-secret form in a managed isolated browser. There is no secret input, upload, download, evaluation, login-profile reuse, or computer use.',
+    description: 'Observe and act in a managed isolated browser. login_start opens the same dedicated profile visibly for the user to enter credentials; while that handoff is active all page observation and model actions are blocked. login_status resumes model observation only after secret fields are absent. There is no model secret input, cookie/storage access, user-profile import, upload, download, evaluation, or computer use.',
     parameters: {
       type: 'object',
       properties: {
@@ -80,7 +83,7 @@ export function makeBrowserObservationTool({
           type: 'string', enum: ACTIONS,
           description: 'Use submit, never click, for an observed type=submit control.',
         },
-        url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate, otherwise null.' },
+        url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate or login_start, otherwise null.' },
         tabId: { type: ['string', 'null'], description: 'Stable tabId from tabs or a prior observation, otherwise null.' },
         full: { type: ['boolean', 'null'], description: 'For snapshot: true includes full accessible page text; false is compact interactive structure.' },
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_CHARS },
@@ -105,6 +108,12 @@ export function makeBrowserObservationTool({
       if (!availability?.available) return {
         state: 'unavailable', reason: availability?.reason ?? 'browser_unavailable', effect: 'observe',
       };
+      const userControlActive = driver.userControlActive?.() === true;
+      const safeDuringHandoff = new Set(['status', 'profiles', 'login_status', 'login_cancel']);
+      if (userControlActive && !safeDuringHandoff.has(args.action)) return {
+        state: 'user_control_in_progress', effect: 'not_executed', pageObserved: false,
+        secretValuesObserved: false,
+      };
       if (args.action === 'status') return {
         ...(await driver.status(context.signal ? { signal: context.signal } : {})), effect: 'observe', profile: profileOf(driver),
       };
@@ -115,6 +124,37 @@ export function makeBrowserObservationTool({
         state: 'observed', effect: 'observe', profile: profileOf(driver),
         ...(await driver.tabs(context.signal ? { signal: context.signal } : {})),
       };
+      if (args.action === 'login_start') {
+        if (!args.url) throw new TypeError('url is required for browser login_start');
+        return {
+          ...(await driver.beginUserLogin(
+            browserUrl(args.url), context.signal ? { signal: context.signal } : {},
+          )),
+          effect: 'observe',
+        };
+      }
+      if (args.action === 'login_status') {
+        const result = await driver.loginStatus({
+          tabId: args.tabId, ...(context.signal ? { signal: context.signal } : {}),
+        });
+        if (!result?.snapshot) return { ...structuredClone(result), effect: 'observe' };
+        const observed = observationResult(
+          driver, result, args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry,
+        );
+        return {
+          state: result.state, effect: 'observe', profile: profileOf(driver),
+          secretFieldsPresent: false, secretValuesObserved: false,
+          continuityEstablished: result.continuityEstablished === true,
+          tab: observed.tab, observation: observed.observation,
+          handoff: structuredClone(result.handoff),
+        };
+      }
+      if (args.action === 'login_cancel') {
+        return {
+          ...(await driver.cancelUserLogin(context.signal ? { signal: context.signal } : {})),
+          effect: 'observe',
+        };
+      }
       if (args.action === 'navigate') {
         if (!args.url) throw new TypeError('url is required for browser navigate');
         return observationResult(driver, await driver.navigate(browserUrl(args.url), context.signal ? { signal: context.signal } : {}),
