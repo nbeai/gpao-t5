@@ -34,12 +34,30 @@ import { makeWebSearchTool } from './web-search-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
+import { AttachmentStore } from './attachment-store.js';
+import {
+  attachmentContext, makeAttachmentTool, modelImageInputs,
+} from './attachment-hand.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
+
+function attachmentSurface(record) {
+  return {
+    attachmentId: record.attachmentId,
+    direction: record.direction,
+    originalName: record.originalName,
+    mimeType: record.mimeType,
+    kind: record.kind,
+    bytes: record.bytes,
+    sha256: record.sha256,
+    downloadUrl: record.downloadUrl,
+    ...(record.previewUrl ? { previewUrl: record.previewUrl } : {}),
+  };
+}
 
 function json(res, status, value) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -126,6 +144,7 @@ export function makeConsoleServer({
   browserDriverFactory,
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
+  attachmentStore,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -150,6 +169,7 @@ export function makeConsoleServer({
   const memories = new MemoryLedger(join(stateDir, 'memory'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
+  const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
@@ -254,6 +274,17 @@ export function makeConsoleServer({
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
+    const attachmentIds = [...new Set((options.attachmentIds ?? []).map(String))];
+    if (attachmentIds.length > 10) throw Object.assign(new Error('한 번에 첨부할 수 있는 파일은 10개까지예요.'), { status: 413 });
+    const currentAttachments = await Promise.all(attachmentIds.map((attachmentId) => (
+      attachments.get({ sessionId, attachmentId })
+    )));
+    const attachmentProjection = currentAttachments.map(attachmentSurface);
+    const attachmentBlock = attachmentContext(currentAttachments);
+    const modelRequest = attachmentBlock ? `${text}\n\n${attachmentBlock}` : text;
+    const imageInputs = await modelImageInputs({ store: attachments, sessionId, records: currentAttachments });
+    const outputCandidates = new Set();
+    const outputKey = (path) => resolve(String(path ?? '')).normalize('NFC');
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
     await memories.ensure();
     const memorySnapshot = await memories.read();
@@ -267,9 +298,24 @@ export function makeConsoleServer({
       conversationCheckpointMode,
       memoryFlushMode,
       recoverableHistoricalOutputs: projection.recoverable.length,
+      attachmentCount: currentAttachments.length,
+      attachmentIds,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });
+    if (attachmentIds.length) {
+      const messageId = `${run.runId}:user`;
+      await attachments.link({ sessionId, attachmentIds, messageId, runId: run.runId });
+      await run.append({
+        type: 'attachments_linked', stepId: 'attachments', payload: {
+          messageId, attachmentIds,
+          attachments: currentAttachments.map((record) => ({
+            attachmentId: record.attachmentId, originalName: record.originalName,
+            kind: record.kind, mimeType: record.mimeType, bytes: record.bytes, sha256: record.sha256,
+          })),
+        },
+      });
+    }
     if (options.measurementId) {
       measurementRuns.set(options.measurementId, { run, runId: run.runId });
       const pending = pendingSurfaceMetrics.get(options.measurementId) ?? [];
@@ -436,10 +482,16 @@ export function makeConsoleServer({
       const history = projection.messages;
       await conversations.appendMessage({
         sessionId, messageId: `${run.runId}:user`, runId: run.runId,
-        message: { role: 'user', content: text },
+        message: {
+          role: 'user', content: modelRequest,
+          ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
+        },
       });
       await sessions.append(sessionId, {
-        ...(options.inputEntry ?? { role: 'user', text }), runId: run.runId,
+        ...(options.inputEntry ?? {
+          role: 'user', text,
+          ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
+        }), runId: run.runId,
       });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const terminal = makeTerminalHand({
@@ -449,6 +501,12 @@ export function makeConsoleServer({
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(makeAttachmentTool({
+        store: attachments, sessionId, workspace, runId: run.runId,
+        authorizeOutputPath: (candidate) => (
+          requestContainsExactPath(text, candidate) || outputCandidates.has(outputKey(candidate))
+        ),
+      }));
       let browserReady = false;
       const currentBrowser = await browserDriver(sessionId);
       if (currentBrowser) {
@@ -492,7 +550,8 @@ export function makeConsoleServer({
         ledger: conversations, sessions, currentSessionId: sessionId,
       }));
       const result = await runAgent({
-        request: text,
+        request: modelRequest,
+        requestAttachments: imageInputs,
         history,
         model,
         tools: offeredTools,
@@ -532,6 +591,7 @@ export function makeConsoleServer({
             });
             emit('tool_progress', {
               text: event.name === 'browser' ? '브라우저 화면을 관측하고 있어요'
+                : event.name === 'attachment' ? '첨부 파일을 확인하고 있어요'
                 : event.name === 'web_search' ? '웹에서 후보를 찾고 있어요'
                 : event.name === 'web_read' ? '선택한 페이지를 읽고 있어요'
                 : event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
@@ -541,6 +601,11 @@ export function makeConsoleServer({
                   : '터미널을 사용하고 있어요',
             });
           } else if (event.type === 'tool_end') {
+            if (event.receipt.result?.effectObservation?.changed === true) {
+              for (const target of event.receipt.result.effectObservation.declared?.targets ?? []) {
+                outputCandidates.add(outputKey(target));
+              }
+            }
             await run.append({
               type: 'tool_completed', stepId: `tool-${event.receipt.toolCallId}`,
               payload: { turn: event.turn, receipt: event.receipt },
@@ -555,7 +620,9 @@ export function makeConsoleServer({
               },
             });
             emit('trace_status', { text: event.name === 'browser' || event.name === 'web_search' || event.name === 'web_read'
-              ? '웹 관측 결과를 확인하고 있어요' : '터미널 결과를 확인하고 있어요' });
+              ? '웹 관측 결과를 확인하고 있어요'
+              : event.name === 'attachment' ? '첨부 파일 결과를 확인하고 있어요'
+                : '터미널 결과를 확인하고 있어요' });
           }
         },
       });
@@ -571,6 +638,12 @@ export function makeConsoleServer({
       const approvalReceipt = [...result.receipts].reverse().find((receipt) => (
         receipt.result?.state === 'approval_required'
       ));
+      const outputArtifacts = result.receipts.filter((receipt) => (
+        receipt.requestedCall?.name === 'attachment'
+        && receipt.requestedCall?.args?.action === 'register_output'
+        && receipt.outcome === 'succeeded'
+        && receipt.result?.artifact
+      )).map((receipt) => attachmentSurface(receipt.result.artifact));
       const surfaceResult = approvalReceipt ? (() => {
         const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
@@ -596,6 +669,7 @@ export function makeConsoleServer({
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
+        ...(outputArtifacts.length ? { artifacts: outputArtifacts } : {}),
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
       };
@@ -726,6 +800,57 @@ export function makeConsoleServer({
         res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
         res.end(await readFile(resolve(here, 'wake-events.js'), 'utf8'));
         return;
+      }
+      if (req.method === 'POST' && url.pathname === '/attachments') {
+        const sessionId = url.searchParams.get('sessionId');
+        const session = await sessions.load(sessionId);
+        if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
+        const originalName = url.searchParams.get('filename') ?? req.headers['x-file-name'];
+        if (!String(originalName ?? '').trim()) { json(res, 400, { error: '파일 이름이 필요해요.' }); return; }
+        const record = await attachments.receiveStream({
+          sessionId,
+          originalName,
+          declaredMime: req.headers['content-type'] ?? null,
+          stream: req,
+        });
+        json(res, 201, attachmentSurface(record)); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/attachments') {
+        const sessionId = url.searchParams.get('sessionId');
+        const session = await sessions.load(sessionId);
+        if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
+        json(res, 200, {
+          attachments: (await attachments.list({ sessionId })).map(attachmentSurface),
+        }); return;
+      }
+      const attachmentDiscardMatch = req.method === 'POST' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/discard$/i,
+      );
+      if (attachmentDiscardMatch) {
+        const input = await body(req);
+        json(res, 200, await attachments.discard({
+          sessionId: input.sessionId, attachmentId: attachmentDiscardMatch[1],
+        })); return;
+      }
+      const attachmentContentMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/content$/i,
+      );
+      if (attachmentContentMatch) {
+        const sessionId = url.searchParams.get('sessionId');
+        const { record, bytes } = await attachments.readContent({
+          sessionId, attachmentId: attachmentContentMatch[1],
+        });
+        const inline = url.searchParams.get('inline') === '1'
+          && (record.kind === 'image' || record.kind === 'pdf');
+        const fallback = record.originalName.replace(/[^A-Za-z0-9._-]/g, '_') || 'attachment';
+        res.writeHead(200, {
+          'content-type': record.mimeType,
+          'content-length': String(bytes.length),
+          'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(record.originalName)}`,
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'private, max-age=300',
+        });
+        res.end(bytes); return;
       }
       const browserArtifactMatch = req.method === 'GET' && url.pathname.match(
         /^\/browser-artifacts\/(t5-[0-9a-f]{20})\/(browser-[0-9a-f-]{36}\.png)$/,
@@ -870,7 +995,9 @@ export function makeConsoleServer({
         const streamId = randomUUID();
         const measurementId = randomUUID();
         pendingStreams.set(streamId, {
-          sessionId: input.sessionId, text: input.text, measurementId, expiresAt: Date.now() + 30_000,
+          sessionId: input.sessionId, text: input.text,
+          attachmentIds: Array.isArray(input.attachmentIds) ? input.attachmentIds.map(String) : [],
+          measurementId, expiresAt: Date.now() + 30_000,
         });
         json(res, 200, { streamId, measurementId }); return;
       }
@@ -888,7 +1015,7 @@ export function makeConsoleServer({
         try {
           emit('trace_status', { text: '요청을 시작했어요' });
           const completed = await executeTurn(pending.sessionId, pending.text, emit, {
-            measurementId: pending.measurementId,
+            measurementId: pending.measurementId, attachmentIds: pending.attachmentIds,
           });
           if (completed.kind === 'cancelled') emit('recoverable_error', { text: '멈췄어요.' });
           else emit('answer_delta', { text: completed.result.answer });
@@ -933,7 +1060,9 @@ export function makeConsoleServer({
           });
           json(res, 200, completed.surfaceResult); return;
         }
-        const completed = await executeTurn(input.sessionId, input.text);
+        const completed = await executeTurn(input.sessionId, input.text, () => {}, {
+          attachmentIds: Array.isArray(input.attachmentIds) ? input.attachmentIds.map(String) : [],
+        });
         json(res, 200, completed.surfaceResult ?? { kind: completed.kind }); return;
       }
 
@@ -974,6 +1103,7 @@ export function makeConsoleServer({
   server.managedProcesses = processes;
   server.conversationLedger = conversations;
   server.memoryLedger = memories;
+  server.attachmentStore = attachments;
   server.runLedger = runLedger;
   server.authorityStore = authority;
   server.unsubscribeTerminalWake = unsubscribeTerminal;

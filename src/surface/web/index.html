@@ -318,6 +318,23 @@
     border-radius:var(--r-lg); padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); background:var(--elevated);
     box-shadow:var(--sh-sm); transition:border-color var(--dur-normal) var(--ease-out), box-shadow var(--dur-normal) var(--ease-out); }
   .inbox:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+  .inbox.drag { border-color:var(--accent); background:var(--accent-glow); }
+  #attach { flex:none; width:34px; height:34px; border:1px solid var(--line); border-radius:var(--r-md);
+    background:transparent; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; }
+  #attach:hover { color:var(--fg); border-color:var(--line-strong); }
+  .attachlist { display:flex; flex-wrap:wrap; gap:var(--sp-2); margin:0 0 var(--sp-2); }
+  .attachlist:empty { display:none; }
+  .attach-chip { display:inline-flex; align-items:center; gap:var(--sp-2); max-width:100%;
+    padding:var(--sp-1) var(--sp-2); border:1px solid var(--line); border-radius:999px;
+    background:var(--surface); color:var(--muted); font-size:var(--fs-xs); }
+  .attach-chip .aname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; }
+  .attach-chip button { border:0; background:transparent; color:var(--faint); cursor:pointer; padding:0; }
+  .attachment-row { display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-top:var(--sp-2); }
+  .artifact-card { display:flex; align-items:center; gap:var(--sp-3); width:min(520px,100%);
+    border:1px solid var(--line); border-radius:var(--r-md); padding:var(--sp-3); background:var(--surface);
+    color:var(--fg); text-decoration:none; }
+  .artifact-card:hover { border-color:var(--line-strong); box-shadow:var(--sh-sm); }
+  .artifact-card .meta { color:var(--muted); font-size:var(--fs-xs); }
   /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
      보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
   #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
@@ -467,7 +484,10 @@
     <div id="log"><div class="wrap" id="wrap"></div></div>
     <div class="composer">
       <div class="cwrap">
+        <div class="attachlist" id="attachlist"></div>
         <div class="inbox">
+          <button id="attach" type="button" title="파일 첨부" aria-label="파일 첨부">＋</button>
+          <input id="filepick" type="file" multiple hidden>
           <textarea id="text" rows="1" placeholder="GPAO-T5에게 메시지 입력" autofocus></textarea>
           <button id="send">보내기</button>
         </div>
@@ -511,10 +531,93 @@ const statePanel = document.getElementById('state');
 const modelinfo = document.getElementById('modelinfo');
 const text = document.getElementById('text');
 const send = document.getElementById('send');
+const attach = document.getElementById('attach');
+const filepick = document.getElementById('filepick');
+const attachlist = document.getElementById('attachlist');
 const sessionsEl = document.getElementById('sessions');
 let currentSessionId = null;
+let stagedAttachments = [];
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const fileSize = (bytes) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024
+  ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+function attachmentChip(record, removable = false) {
+  const chip = el('attach-chip');
+  chip.appendChild(el(null, record.kind === 'image' ? '🖼' : record.kind === 'audio' ? '🔊'
+    : record.kind === 'video' ? '🎬' : record.kind === 'archive' ? '🗜' : '📎'));
+  const name = el('aname', `${record.originalName} · ${fileSize(record.bytes)}`);
+  chip.appendChild(name);
+  if (removable) {
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '✕';
+    remove.setAttribute('aria-label', `${record.originalName} 첨부 취소`);
+    remove.onclick = async () => {
+      remove.disabled = true;
+      const response = await fetch(`/attachments/${record.attachmentId}/discard`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId }),
+      });
+      if (response.ok) {
+        stagedAttachments = stagedAttachments.filter((item) => item.attachmentId !== record.attachmentId);
+        renderStagedAttachments();
+      } else remove.disabled = false;
+    };
+    chip.appendChild(remove);
+  }
+  return chip;
+}
+
+function renderStagedAttachments() {
+  attachlist.replaceChildren(...stagedAttachments.map((record) => attachmentChip(record, true)));
+}
+
+function renderMessageAttachments(box, records = []) {
+  if (!records.length) return;
+  const row = el('attachment-row');
+  for (const record of records) {
+    const link = document.createElement('a'); link.href = record.downloadUrl; link.target = '_blank';
+    link.rel = 'noopener'; link.style.textDecoration = 'none'; link.appendChild(attachmentChip(record));
+    row.appendChild(link);
+  }
+  box.appendChild(row);
+}
+
+function renderArtifacts(box, records = []) {
+  if (!records.length) return;
+  const row = el('attachment-row');
+  for (const record of records) {
+    const card = document.createElement('a'); card.className = 'artifact-card';
+    card.href = record.downloadUrl; card.download = record.originalName;
+    card.appendChild(el(null, '📄'));
+    const info = document.createElement('div');
+    info.appendChild(el(null, record.originalName));
+    info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드`));
+    card.appendChild(info); row.appendChild(card);
+  }
+  box.appendChild(row);
+}
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  if (!currentSessionId) await newSession();
+  const remaining = 10 - stagedAttachments.length;
+  if (remaining <= 0) { sysline('한 번에 첨부할 수 있는 파일은 10개까지예요.'); return; }
+  attach.disabled = true;
+  try {
+    for (const file of [...files].slice(0, remaining)) {
+      if (file.size > 128 * 1024 * 1024) { sysline(`${file.name}은 128MB를 넘어 첨부하지 않았어요.`); continue; }
+      const response = await fetch(`/attachments?sessionId=${encodeURIComponent(currentSessionId)}&filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream' }, body: file,
+      });
+      const record = await response.json();
+      if (!response.ok) { sysline(record.error || `${file.name}을 첨부하지 못했어요.`); continue; }
+      stagedAttachments.push(record);
+      renderStagedAttachments();
+    }
+  } finally {
+    attach.disabled = false; filepick.value = '';
+  }
+}
 
 document.querySelectorAll('[data-soon]').forEach((n) => {
   n.addEventListener('click', () => sysline(`${n.dataset.soon} 화면은 다음 단계에서 준비됩니다. 지금은 채팅으로 이어가 주세요.`));
@@ -1698,7 +1801,7 @@ document.getElementById('listtabs').onclick = async (ev) => {
 };
 async function newSession() {
   const s = await (await fetch('/sessions', { method: 'POST' })).json();
-  currentSessionId = s.id; wrap.innerHTML = ''; await loadSessions();
+  currentSessionId = s.id; wrap.innerHTML = ''; stagedAttachments = []; renderStagedAttachments(); await loadSessions();
   document.body.classList.remove('nav-open'); text.focus();
 }
 // 대화 한 벌을 **한 함수로만** 그린다.
@@ -1718,7 +1821,10 @@ async function 대화투영(s) {
   const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
   wrap.innerHTML = '';
   (s.transcript || []).forEach((e, i) => {
-    if (e.role === 'user') { const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text)); }
+    if (e.role === 'user') {
+      const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text));
+      renderMessageAttachments(box, e.attachments);
+    }
     else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
   });
   return s;
@@ -1731,6 +1837,7 @@ async function 대화다시그리기() {
 }
 
 async function selectSession(id) {
+  if (currentSessionId && currentSessionId !== id) { stagedAttachments = []; renderStagedAttachments(); }
   currentSessionId = id;
   await 대화투영(await (await fetch('/sessions/' + id)).json());
   await loadSessions();
@@ -1974,6 +2081,7 @@ function renderResult(r, opts = {}) {
     renderMarkdownInto(bot, 답문);
     box.appendChild(bot);
   }
+  renderArtifacts(box, r.artifacts);
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
   // 거치지 않고 전용 통로로 저장소에 곧장 간다. 재접속 시엔 다시 띄우지 않는다(지난 요청이다).
@@ -2343,10 +2451,14 @@ function renderSuggestion(box, sug) {
 }
 
 async function submit() {
-  const t = text.value.trim(); if (!t) return;
+  const typed = text.value.trim();
+  const t = typed || (stagedAttachments.length ? '첨부한 파일을 확인해줘.' : '');
+  if (!t) return;
   const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
+  const sentAttachments = [...stagedAttachments];
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
+  renderMessageAttachments(box, sentAttachments);
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
@@ -2367,7 +2479,11 @@ async function submit() {
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
-    const streamed = await streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint });
+    const streamed = await streamTurn(t, trace, {
+      surfaceStartedAt, firstFeedbackPaint,
+      attachmentIds: sentAttachments.map((record) => record.attachmentId),
+      onStarted: () => { stagedAttachments = []; renderStagedAttachments(); },
+    });
     const recovery = streamed.recovery;
     trace.remove();
     if (recovery) {
@@ -2416,9 +2532,10 @@ async function reportVisibleTiming(measurementId, event, sample) {
   }).catch(() => {}); // 계측 실패가 대화 흐름을 막지 않는다
 }
 
-async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
-  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t }) })).json();
+async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint, attachmentIds = [], onStarted }) {
+  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t, attachmentIds }) })).json();
   if (!start.streamId) throw new Error('stream-start');
+  onStarted?.();
   firstFeedbackPaint.then((sample) => reportVisibleTiming(start.measurementId, 'first_feedback_visible', sample));
   return new Promise((resolve, reject) => {
     const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
@@ -2512,6 +2629,16 @@ async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint }) {
     es.onerror = () => { 임시표면정리(); es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
   });
 }
+attach.onclick = () => filepick.click();
+filepick.onchange = () => uploadFiles(filepick.files);
+const inbox = document.querySelector('.inbox');
+for (const event of ['dragenter', 'dragover']) inbox.addEventListener(event, (e) => {
+  e.preventDefault(); inbox.classList.add('drag');
+});
+for (const event of ['dragleave', 'drop']) inbox.addEventListener(event, (e) => {
+  e.preventDefault(); inbox.classList.remove('drag');
+});
+inbox.addEventListener('drop', (e) => uploadFiles(e.dataTransfer?.files ?? []));
 send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
 // 한글·일본어·중국어는 **조합 중**에 Enter 가 온다(조합 확정 Enter). 그때 보내면 확정되지 않은

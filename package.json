@@ -53,6 +53,7 @@
     "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
     "refoundation:qualify:business-workflow": "node refoundation/scripts/run-business-workflow-qualification.mjs",
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",
+    "refoundation:qualify:attachments": "node refoundation/scripts/run-attachment-qualification.mjs",
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",

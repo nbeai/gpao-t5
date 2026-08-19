@@ -103,6 +103,23 @@ test('D1 판정은 출처·미확인·합계·수식·원본 무변경·재개�
   assert.ok(Object.values(result.checks).every(Boolean));
 });
 
+test('공백 없는 유효한 업무 헤더와 고객 미확인 표현도 같은 의미로 판정한다', () => {
+  const input = passingInput();
+  const detail = input.outputObservation.workbook.sheets[0].cells;
+  detail.find((cell) => cell.address === 'G2').value = '출처파일';
+  detail.find((cell) => cell.address === 'G2').text = '출처파일';
+  detail.find((cell) => cell.address === 'H2').value = '통합상태';
+  detail.find((cell) => cell.address === 'H2').text = '통합상태';
+  detail.find((cell) => cell.address === 'B6').value = '고객 미확인';
+  detail.find((cell) => cell.address === 'B6').text = '고객 미확인';
+  const summary = input.outputObservation.workbook.sheets[1].cells;
+  summary.find((cell) => cell.address === 'B2').value = '공급가액합계';
+  summary.find((cell) => cell.address === 'B2').text = '공급가액합계';
+  summary.find((cell) => cell.address === 'A5').value = '고객 미확인';
+  summary.find((cell) => cell.address === 'A5').text = '고객 미확인';
+  assert.equal(assessDocumentDataQualification(input).passed, true);
+});
+
 test('그럴듯한 답만 있어도 누락·억지 귀속·틀린 합계·미검산·원본 변경은 실패다', () => {
   for (const mutate of [
     (input) => { input.turns[0].receipts = []; },

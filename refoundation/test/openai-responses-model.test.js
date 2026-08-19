@@ -29,6 +29,34 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+test('Responses adapter는 현재 사용자 이미지 첨부를 input_image data URL로 보낸다', async () => {
+  const requests = [];
+  const model = makeOpenAIResponsesModel({
+    apiKey: SECRET, model: 'gpt-image-input-test',
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return jsonResponse({
+        id: 'image-response', model: 'gpt-image-input-test',
+        output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '이미지를 확인했습니다.' }] }],
+      });
+    },
+  });
+  await model.respond({
+    messages: [{
+      role: 'user', content: '이 이미지를 설명해줘',
+      modelAttachments: [{ type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2U=' }],
+    }],
+    tools: [],
+  });
+  assert.deepEqual(requests[0].input, [{
+    role: 'user',
+    content: [
+      { type: 'input_text', text: '이 이미지를 설명해줘' },
+      { type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2U=' },
+    ],
+  }]);
+});
+
 test('Responses adapter는 모델 output 전체와 같은 call_id의 도구 결과를 다음 호출에 보존한다', async () => {
   const dumpDir = await mkdtemp(join(tmpdir(), 't5-prompt-dump-'));
   const requests = [];

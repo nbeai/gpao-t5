@@ -20,17 +20,28 @@ function toolDefinitions(tools) {
   }));
 }
 
+function imageInputs(message) {
+  return (message?.modelAttachments ?? []).map((item) => {
+    if (item?.type !== 'input_image' || !['auto', 'low', 'high'].includes(item.detail)
+      || !/^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(item.image_url ?? '')) {
+      throw new TypeError('invalid model image attachment');
+    }
+    return { type: 'input_image', detail: item.detail, image_url: item.image_url };
+  });
+}
+
 function initialInput(messages) {
   const items = [];
   for (const message of messages) {
     if (message?.role === 'user' || message?.role === 'assistant') {
       const content = String(message.content ?? '');
       if (message.role === 'user' || content || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
+        const images = message.role === 'user' ? imageInputs(message) : [];
         items.push({
           type: 'message', role: message.role,
           content: [{
             type: message.role === 'assistant' ? 'output_text' : 'input_text', text: content,
-          }],
+          }, ...images],
         });
       }
       for (const call of message.toolCalls ?? []) {

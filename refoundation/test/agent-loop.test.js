@@ -5,6 +5,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
+
+test('현재 사용자 첨부의 provider input은 agent loop 첫 모델 호출에만 결속된다', async () => {
+  const calls = [];
+  const model = { async respond(input) {
+    calls.push(input.messages);
+    return { text: '이미지를 확인했습니다.', toolCalls: [] };
+  } };
+  const attachments = [{ type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2U=' }];
+  const result = await runAgent({
+    request: '무엇이 보여?', requestAttachments: attachments, model, tools: [],
+  });
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(calls[0].at(-1).modelAttachments, attachments);
+  assert.deepEqual(result.transcript.at(0).modelAttachments, attachments);
+});
 import { makeExecTool } from '../src/exec-tool.js';
 
 async function withWorkspace(fn) {

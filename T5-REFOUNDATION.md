@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
-상태: `ACTIVE`
-현재 Gate: `R7-D1 DOCUMENT DATA HAND — COMPLETE` (격리 XLSX/PDF fixture·실제 OAuth, macOS 레인)
+상태: `FIRST_COMPLETE`
+현재 Gate: `R8-A1 UNIFIED ATTACHMENT HAND — COMPLETE` (격리 첨부 fixture·실제 OAuth, macOS 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1028,6 +1028,69 @@ Non-goals:
 - 세무 판단·회계 분개·현금흐름 의미를 런타임이 대신 결정하는 규칙 엔진
 - Windows 실제 Excel 렌더링·파일 연결 완료 주장
 
+## R8-A1 — Unified Attachment Hand · First Complete
+
+사용자가 콘솔에 파일을 직접 첨부하고 결과 파일을 다시 받는 순환을 닫았다. 내부에서는 수신과 전달을
+분리하지만, 둘은 같은 immutable content identity와 append-only Attachment ledger를 쓴다.
+
+Attachment ingress:
+
+- 콘솔 파일 선택·다중 첨부·드래그앤드롭·보내기 전 취소
+- 파일별 128MiB, Session별 512MiB, 턴별 10개 상한
+- 원래 파일명은 metadata로만 보존; 저장 경로로 사용하지 않음
+- magic bytes로 MIME/kind 판별, 0600 object·0700 directory, SHA-256 content-addressed dedupe
+- `AttachmentId·Session·Message·Run` 연결은 append-only `t5.attachment-event.v1`
+- 다른 Session ID로 조회·다운로드 불가; 현재 턴 image base64는 provider input에만 존재하고 Conversation에는 0
+
+종류별 관측:
+
+- image: PNG/JPEG/GIF/WebP 사실 + 현재 턴 `input_image`; 실제 OAuth gpt-5.5 vision 통과
+- text: bounded UTF-8 preview·전체/표시/생략 문자 수, `untrusted_external·instructionAuthority:none`
+- PDF/XLSX: R7 Document Data Hand의 page·sheet·cell·formula observation 재사용
+- ZIP: 중앙 directory manifest 선관측 뒤에만 별도 managed root로 해제;
+  traversal·absolute/backslash path·symlink·encrypted entry·unsupported compression·entry/total size·compression ratio 차단
+- audio/video/기타 document: 안전 수신·identity는 완료, STT/video/document extractor 미연결이면
+  `contentUnderstood:false` capability boundary. 수신을 이해 완료로 승격하지 않음
+
+Artifact delivery:
+
+- 모델이 workspace에서 요청 결과를 생성·재개방한 뒤 `attachment.register_output`
+- workspace 밖·symlink·hardlink·128MiB 초과이거나 현재 요청·이번 Run의 실제 변경 target에 결속되지 않은 결과는 등록 불가
+- 등록 결과는 Attachment ledger에서 Run과 연결되고, 콘솔에 파일명·크기·실제 download card로 표시
+- download bytes SHA-256가 등록 Receipt와 같을 때만 전달 완료 사실
+
+실제 OAuth 인간형 6턴:
+
+- 빨간 PNG 직접 첨부 → 모델이 `빨간 정사각형` 관측
+- 병합·숨김·수식 XLSX 2개 + PDF 1개 + 외부 셸 지시가 든 text 1개 직접 첨부
+- 외부 지시 실행 0, 원본 hash 변경 0
+- 사용자 의미 보정 뒤 `통합내역·고객별요약` XLSX 생성, 5건·68,300원,
+  한빛상회 40,300·새봄상사 25,000·고객 미확인 3,000, exact source·formula result
+- output 5,060 bytes, download SHA-256 `3c322c8175ebffa9eb9907bb0b5ae57e97c3cbce05377d0cd6e9f17e8f6851a3` 일치
+- 콘솔 재시작 뒤 입력 첨부 5개·결과 artifact·내용·download link 연속
+- Attachment 논리곱 15/15, Document 논리곱 18/18, 6 Runs·14 model turns·11 tool calls·failed 0
+- 증거: `refoundation/evidence/r8-a1-unified-attachment-live.json`
+
+### 1차 완성 판정
+
+현재 측정된 macOS console lane에서 다음 사용자 순환이 모두 실제로 이어진다.
+
+```
+말한다 → 로컬·웹을 관측한다 → 파일을 직접 첨부한다 → 필요한 부분을 읽는다
+→ 컴퓨터·웹에서 실행한다 → 결과 파일을 만든다 → 다시 검증한다
+→ 콘솔에서 다운로드한다 → 재시작·과거 Session·기억이 이어진다
+```
+
+따라서 foundation 기능 추가 단계는 여기서 멈추고 `FIRST_COMPLETE`로 전환한다. 다음 작업은 실제 사용자
+알파 사용에서 실패하거나 불편한 Run·Receipt가 공통 결손을 증명할 때만 연다.
+
+Non-goals / honest boundaries:
+
+- STT·음성 의미 분석, 영상 장면/자막 이해, DOCX/PPTX 내용 추출은 아직 연결되지 않음
+- TAR·7z·RAR 해제, ZIP64, 암호화 archive는 완료 주장하지 않음
+- OCR·손글씨·복잡한 PDF table layout과 Office의 pixel-perfect 렌더링은 별도 실제 수요
+- Windows 실제 파일 chooser·drag/drop·download UX는 미측정
+
 ## R6 이후 — 증거가 열 때만
 
 브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -1049,7 +1112,8 @@ Foundation closeout 분류:
 
 ## 현재 다음 한 작업
 
-계획된 Web Hand W0~W6과 첫 Document Data Hand D1은 완료됐다. 다음 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
+Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
+다음 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지한다.

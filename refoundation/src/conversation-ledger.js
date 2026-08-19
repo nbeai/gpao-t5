@@ -5,6 +5,17 @@ const SCHEMA = 't5.conversation-event.v1';
 
 function clone(value) { return value == null ? value : structuredClone(value); }
 
+function validAttachment(attachment) {
+  return attachment && /^[0-9a-f-]{36}$/i.test(attachment.attachmentId ?? '')
+    && ['input', 'output'].includes(attachment.direction)
+    && typeof attachment.originalName === 'string'
+    && typeof attachment.mimeType === 'string'
+    && typeof attachment.kind === 'string'
+    && Number.isInteger(attachment.bytes) && attachment.bytes >= 0
+    && /^[0-9a-f]{64}$/.test(attachment.sha256 ?? '')
+    && typeof attachment.downloadUrl === 'string';
+}
+
 function safeSessionId(sessionId) {
   const value = String(sessionId ?? '');
   if (!/^[0-9a-f-]{36}$/i.test(value)) throw Object.assign(new Error('conversation not found'), { status: 404 });
@@ -21,6 +32,10 @@ function validMessage(message) {
     return Array.isArray(message.toolCalls) && message.toolCalls.every((call) => (
       call && call.id && call.name && call.args && typeof call.args === 'object' && !Array.isArray(call.args)
     ));
+  }
+  if (message.attachments !== undefined) {
+    if (message.role !== 'user' || !Array.isArray(message.attachments)
+      || message.attachments.length > 10 || !message.attachments.every(validAttachment)) return false;
   }
   return true;
 }

@@ -130,6 +130,7 @@ async function executeCall(call, tools, signal) {
  *
  * @param {{
  *   request:string,
+ *   requestAttachments?:Array<object>,
  *   history?:Array<{role:'user'|'assistant',content:string}>,
  *   model:{respond:(input:{messages:object[],tools:object[],signal?:AbortSignal,onContextReceipt?:(receipt:object)=>Promise<void>})=>Promise<*>},
  *   tools?:Array<{name:string,description:string,parameters:object,execute:Function}>,
@@ -139,7 +140,8 @@ async function executeCall(call, tools, signal) {
  * }} input
  */
 export async function runAgent({
-  request, history = [], model, tools = [], signal, maxModelTurns = DEFAULT_MAX_MODEL_TURNS, onEvent,
+  request, requestAttachments = [], history = [], model, tools = [], signal,
+  maxModelTurns = DEFAULT_MAX_MODEL_TURNS, onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
   if (!model || typeof model.respond !== 'function') throw new TypeError('model.respond is required');
@@ -154,7 +156,11 @@ export async function runAgent({
 
   const definitions = [...registry.values()].map(toolDefinition);
   const prior = history.map(historyMessage).filter(Boolean);
-  const transcript = [...prior, { role: 'user', content: request }];
+  if (!Array.isArray(requestAttachments)) throw new TypeError('requestAttachments must be an array');
+  const transcript = [...prior, {
+    role: 'user', content: request,
+    ...(requestAttachments.length ? { modelAttachments: structuredClone(requestAttachments) } : {}),
+  }];
   const receipts = [];
   const modelCalls = [];
   let modelTurns = 0;

@@ -47,11 +47,27 @@ function apiTools(tools = []) {
   }));
 }
 
+function imageInputs(message) {
+  return (message?.modelAttachments ?? []).map((item) => {
+    if (item?.type !== 'input_image' || !['auto', 'low', 'high'].includes(item.detail)
+      || !/^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(item.image_url ?? '')) {
+      throw new TypeError('invalid model image attachment');
+    }
+    return { type: 'input_image', detail: item.detail, image_url: item.image_url };
+  });
+}
+
 function initialInput(messages) {
   const items = [];
   for (const message of messages) {
     if (message?.role === 'user') {
-      items.push({ role: 'user', content: String(message.content ?? '') });
+      const images = imageInputs(message);
+      items.push({
+        role: 'user',
+        content: images.length ? [
+          { type: 'input_text', text: String(message.content ?? '') }, ...images,
+        ] : String(message.content ?? ''),
+      });
       continue;
     }
     if (message?.role === 'assistant') {

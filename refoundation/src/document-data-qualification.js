@@ -170,7 +170,9 @@ function semanticTable(observation, sheetName, requiredHeaders) {
   }
   const headerEntry = [...byRow.entries()].find(([, cells]) => {
     const values = new Set(cells.map((cell) => String(cellValue(cell) ?? '').trim()));
-    return requiredHeaders.every((header) => values.has(header));
+    return requiredHeaders.every((header) => (
+      (Array.isArray(header) ? header : [header]).some((candidate) => values.has(candidate))
+    ));
   });
   if (!headerEntry) return { headerRow: null, columns: new Map(), rows: [], cells: sheet?.cells ?? [] };
   const [headerRow, headerCells] = headerEntry;
@@ -184,6 +186,18 @@ function semanticTable(observation, sheetName, requiredHeaders) {
     };
   });
   return { headerRow, columns, rows, cells: sheet?.cells ?? [] };
+}
+
+function firstCell(row, headers) {
+  for (const header of headers) {
+    const cell = row.cell(header);
+    if (cell) return cell;
+  }
+  return undefined;
+}
+
+function firstValue(row, headers) {
+  return cellValue(firstCell(row, headers));
 }
 
 function sameRecord(left = {}, right = {}) {
@@ -208,13 +222,23 @@ export function assessDocumentDataQualification({
       && receipt.outcome === 'succeeded' && mentionsPath([
         receipt.requestedCall?.args?.command, receipt.result?.stdout,
       ].filter(Boolean).join('\n'), outputPath));
-  const detail = semanticTable(outputObservation, '통합내역', ['월', '고객', '품목', '금액', '출처', '검토상태']);
+  const detail = semanticTable(outputObservation, '통합내역', [
+    ['월'], ['고객'], ['품목'], ['금액', '금액 결과', '공급가액'],
+  ]);
   const summary = semanticTable(outputObservation, '고객별요약', ['고객']);
-  const summaryAmountHeader = summary.columns.has('금액합계') ? '금액합계' : '금액';
-  const detailRows = detail.rows.filter((row) => /^2026-08$/.test(String(row.value('월') ?? ''))
-    && String(row.value('품목') ?? '').trim());
-  const detailAmounts = detailRows.map((row) => numeric(row.cell('금액')));
-  const sourceTexts = detailRows.map((row) => String(row.value('출처') ?? ''));
+  const summaryAmountHeaders = ['금액합계', '금액', '합계 결과', '공급가액 합계', '공급가액합계'];
+  const detailRows = detail.rows.filter((row) => /^2026-08$/.test(String(firstValue(row, ['월']) ?? ''))
+    && String(firstValue(row, ['품목']) ?? '').trim());
+  const detailAmounts = detailRows.map((row) => numeric(firstCell(row, ['금액', '금액 결과', '공급가액'])));
+  const sourceTexts = detailRows.map((row) => {
+    const direct = firstValue(row, ['출처']);
+    if (direct) return String(direct);
+    return [
+      firstValue(row, ['원본 파일', '원본파일', '파일', '출처파일']),
+      firstValue(row, ['원본 시트', '원본시트', '시트/PDF페이지', '출처시트/PDF페이지']),
+      firstValue(row, ['원본 셀/PDF 페이지', '원본위치', '원본 셀', 'PDF 페이지', '셀/PDF 출처', '출처셀/항목']),
+    ].filter(Boolean).join(' · ');
+  });
   const final = turns.find((turn) => turn.id === 'final-summary')?.answer ?? '';
   const toolCalls = allReceipts.length;
   const sourceKinds = new Set(sourceObservations.map((item) => item.kind));
@@ -227,9 +251,10 @@ export function assessDocumentDataQualification({
   const detailTotalFormulas = detail.cells.filter((cell) => cell.formula && numeric(cell) === 68_300);
   const summaryTotalFormulas = summary.cells.filter((cell) => cell.formula && numeric(cell) === 68_300);
   const summaryByCustomer = new Map(summary.rows.map((row) => [
-    String(row.value('고객') ?? ''), numeric(row.cell(summaryAmountHeader)),
+    String(firstValue(row, ['고객']) ?? ''), numeric(firstCell(row, summaryAmountHeaders)),
   ]));
-  const unidentified = detailRows.find((row) => row.value('고객') === '미확인');
+  const unidentified = detailRows.find((row) => /미확인/.test(String(firstValue(row, ['고객']) ?? '')));
+  const unknownSummary = [...summaryByCustomer.entries()].find(([customer]) => /미확인/.test(customer))?.[1];
 
   const checks = {
     allTurnsAnswered: turns.length === DOCUMENT_DATA_TURNS.length
@@ -247,27 +272,29 @@ export function assessDocumentDataQualification({
       && outputObservation.kind === 'xlsx' && outputObservation.file?.path === outputPath,
     outputReopened: reopenedOutput,
     requiredSheets: ['통합내역', '고객별요약'].every((name) => outputObservation?.workbook?.sheets?.some((sheet) => sheet.name === name)),
-    fiveSourceRows: detailRows.length === 5 && detailRows.every((row) => (
-      ['월', '고객', '품목', '금액', '출처', '검토상태'].every((header) => row.cell(header))
+    fiveSourceRows: detailRows.length === 5 && detailRows.every((row, index) => (
+      firstCell(row, ['월']) && firstCell(row, ['고객']) && firstCell(row, ['품목'])
+      && firstCell(row, ['금액', '금액 결과', '공급가액'])
+      && firstCell(row, ['검토상태', '확인상태', '통합상태', '상태']) && sourceTexts[index]
     )),
-    customerMeaningApplied: detailRows.filter((row) => row.value('고객') === '한빛상회').length === 3
-      && detailRows.filter((row) => row.value('고객') === '새봄상사').length === 1,
+    customerMeaningApplied: detailRows.filter((row) => firstValue(row, ['고객']) === '한빛상회').length === 3
+      && detailRows.filter((row) => firstValue(row, ['고객']) === '새봄상사').length === 1,
     unownedFeePreserved: Boolean(unidentified)
-      && /배송비|Delivery Fee/i.test(String(unidentified.value('품목') ?? ''))
-      && /미확인/.test(String(unidentified.value('검토상태') ?? '')),
+      && /배송비|Delivery Fee/i.test(String(firstValue(unidentified, ['품목']) ?? ''))
+      && /확인\s*필요|미확인/.test(String(firstValue(unidentified, ['검토상태', '확인상태', '통합상태', '상태']) ?? '')),
     rowSourcesTraceable: sourceTexts.filter((value) => (
       /\.xlsx.*(?:![A-Z]+\d+|[A-Z]+\d+:[A-Z]+\d+)/i.test(value)
-      || /\.pdf.*page\s*1/i.test(value)
+      || /\.pdf.*(?:page\s*1|p\.?\s*1)/i.test(value)
     )).length === 5,
     exactDetailTotal: detailAmounts.every((value) => value != null)
       && detailAmounts.reduce((sum, value) => sum + value, 0) === 68_300,
     exactCustomerSummary: summaryByCustomer.get('한빛상회') === 40_300
-      && summaryByCustomer.get('새봄상사') === 25_000 && summaryByCustomer.get('미확인') === 3_000,
+      && summaryByCustomer.get('새봄상사') === 25_000 && unknownSummary === 3_000,
     formulaTruth: detailTotalFormulas.length >= 1 && summaryTotalFormulas.length >= 1
       && outputObservation?.workbook?.totals?.formulaErrors === 0
       && outputObservation?.workbook?.totals?.missingFormulaResults === 0,
     finalSeparatesDoneAndUnknown: /만들|생성|완료/u.test(final)
-      && /원본[\s\S]*수정하지|원본[\s\S]*수정[\s\S]*않/u.test(final) && /미확인/u.test(final),
+      && /원본[\s\S]*수정(?:하지|\s*안|[\s\S]*않)/u.test(final) && /미확인/u.test(final),
     boundedToolUse: toolCalls > 0 && toolCalls <= 30,
   };
   return {

@@ -39,6 +39,34 @@ function sseResponse(lines, status = 200) {
   });
 }
 
+test('ChatGPT OAuth adapter는 현재 사용자 이미지 첨부를 input_image로 보낸다', async () => {
+  const requests = [];
+  const model = makeChatGptResponsesModel({
+    credentials: { async get() { return { access: ACCESS, modelId: 'gpt-account-model' }; } },
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return sseResponse([{ type: 'response.completed', response: {
+        id: 'image-oauth', model: 'gpt-account-model',
+        output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '보입니다.' }] }],
+      } }]);
+    },
+  });
+  await model.respond({
+    messages: [{
+      role: 'user', content: '무엇이 보여?',
+      modelAttachments: [{ type: 'input_image', detail: 'low', image_url: 'data:image/jpeg;base64,aW1hZ2U=' }],
+    }],
+    tools: [],
+  });
+  assert.deepEqual(requests[0].input, [{
+    type: 'message', role: 'user',
+    content: [
+      { type: 'input_text', text: '무엇이 보여?' },
+      { type: 'input_image', detail: 'low', image_url: 'data:image/jpeg;base64,aW1hZ2U=' },
+    ],
+  }]);
+});
+
 test('OAuth credential source는 활성 연결을 읽되 공개 상태에 토큰을 내지 않는다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-oauth-source-'));
   const file = join(dir, 'model-connection.json');
