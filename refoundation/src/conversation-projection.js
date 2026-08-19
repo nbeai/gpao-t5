@@ -1,4 +1,5 @@
 const TERMINAL_TOOLS = new Set(['exec', 'process_start', 'pty_start', 'process_control']);
+const BROWSER_TOOLS = new Set(['browser']);
 const RESULT_KEYS = [
   'state', 'stdout', 'stderr', 'truncated', 'omittedChars', 'exitCode', 'processExitCode',
   'signal', 'error', 'stopped', 'stopReason', 'terminationConfirmed', 'processId', 'cursor',
@@ -6,6 +7,7 @@ const RESULT_KEYS = [
 ];
 export const DEFAULT_MAX_INLINE_HISTORICAL_OUTPUT_CHARS = 8_000;
 export const DEFAULT_HISTORICAL_OUTPUT_PREVIEW_CHARS = 1_000;
+export const DEFAULT_OLD_BROWSER_OBSERVATION_CHARS = 1_000;
 
 function clone(value) { return value == null ? value : structuredClone(value); }
 
@@ -59,8 +61,126 @@ function compactResult(result, options) {
   return { result: compact, recoverable };
 }
 
+function pickObject(source, keys) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return undefined;
+  const output = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) output[key] = clone(source[key]);
+  }
+  return Object.keys(output).length ? output : undefined;
+}
+
+function compactBrowserTab(tab) {
+  return pickObject(tab, ['tabId', 'title', 'url', 'active']);
+}
+
+function compactBrowserObservation(observation, {
+  preserveInteractionState = false,
+  oldObservationChars = DEFAULT_OLD_BROWSER_OBSERVATION_CHARS,
+} = {}) {
+  if (!observation || typeof observation !== 'object' || Array.isArray(observation)) return undefined;
+  const compact = pickObject(observation, [
+    'observationId', 'totalChars', 'shownChars', 'truncated', 'omittedChars',
+    'trust', 'instructionAuthority',
+  ]) ?? {};
+  const scope = pickObject(observation.refScope, ['observationId', 'tabId', 'url']);
+  if (scope) compact.refScope = scope;
+  if (typeof observation.text === 'string') {
+    if (preserveInteractionState || observation.text.length <= oldObservationChars) {
+      compact.text = observation.text;
+    } else {
+      compact.text = observation.text.slice(0, oldObservationChars);
+      compact.textProjection = {
+        state: 'historical_preview', totalChars: observation.text.length,
+        inlineChars: oldObservationChars,
+        omittedChars: observation.text.length - oldObservationChars,
+      };
+    }
+  }
+  if (preserveInteractionState && observation.refs && typeof observation.refs === 'object') {
+    compact.refs = clone(observation.refs);
+  }
+  return compact;
+}
+
+function compactBrowserNetwork(network) {
+  if (!network || typeof network !== 'object' || Array.isArray(network)) return undefined;
+  const compact = pickObject(network, ['totalRequests', 'truncated']) ?? {};
+  if (Array.isArray(network.requests)) {
+    compact.requests = network.requests.map((request) => pickObject(request, [
+      'method', 'address', 'queryOmitted', 'resourceType', 'status', 'mimeType',
+    ]) ?? {});
+  }
+  return compact;
+}
+
+function compactBrowserResult(result, options) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+  const compact = pickObject(result, [
+    'state', 'pendingId', 'reason', 'error', 'pageObserved', 'secretValuesObserved',
+    'secretFieldsPresent', 'continuityEstablished',
+  ]) ?? {};
+  const operation = options.browserAction;
+  const action = pickObject(result.action, ['kind', 'ref', 'textChars']);
+  if (action) compact.action = action;
+  else if (operation) compact.action = { kind: operation };
+  const effect = compactEffect(result.declaredEffect ?? result.effect);
+  if (effect) compact.effect = effect;
+  else if (typeof result.effect === 'string') compact.effect = { kind: result.effect };
+  const tab = compactBrowserTab(result.tab);
+  if (tab) compact.tab = tab;
+  if (Array.isArray(result.tabs)) compact.tabs = result.tabs.map(compactBrowserTab).filter(Boolean);
+  const handoff = pickObject(result.handoff, [
+    'visible', 'inputOwner', 'modelActionsBlocked', 'resumedHeadless',
+  ]);
+  if (handoff) compact.handoff = handoff;
+  const before = pickObject(result.before, ['observationId', 'ref', 'refFact']);
+  if (before) {
+    const scope = pickObject(result.before?.refScope, ['observationId', 'tabId', 'url']);
+    if (scope) before.refScope = scope;
+    compact.before = before;
+  }
+  const observation = compactBrowserObservation(result.observation, options);
+  if (observation) compact.observation = observation;
+  const after = compactBrowserObservation(result.after, options);
+  if (after) compact.after = after;
+  const navigation = pickObject(result.navigation, ['changed', 'from', 'to']);
+  if (navigation) compact.navigation = navigation;
+  const network = compactBrowserNetwork(result.network);
+  if (network) compact.network = network;
+  const file = pickObject(result.file, ['path', 'bytes', 'sha256', 'mimeType', 'trust']);
+  if (file) compact.file = file;
+  const source = pickObject(result.source, ['address', 'queryOmitted']);
+  if (source) compact.source = source;
+  return { result: compact, recoverable: [] };
+}
+
+function browserReceiptInfo(message) {
+  if (message?.role !== 'tool' || !BROWSER_TOOLS.has(message.name)) return null;
+  try {
+    const receipt = JSON.parse(message.content);
+    if (!receipt || typeof receipt !== 'object') return null;
+    const observation = receipt.result?.after ?? receipt.result?.observation;
+    const tabId = receipt.result?.tab?.tabId ?? observation?.refScope?.tabId
+      ?? receipt.actualCall?.args?.tabId ?? '__default__';
+    return { receipt, tabId: String(tabId), hasObservation: Boolean(observation) };
+  } catch {
+    return null;
+  }
+}
+
+function latestBrowserObservationIndexes(messages) {
+  const latest = new Map();
+  messages.forEach((message, index) => {
+    const info = browserReceiptInfo(message);
+    if (info?.hasObservation) latest.set(info.tabId, index);
+  });
+  return new Set(latest.values());
+}
+
 function projectToolMessage(message, options = {}) {
-  if (message?.role !== 'tool' || !TERMINAL_TOOLS.has(message.name)) {
+  if (message?.role !== 'tool'
+    || (!TERMINAL_TOOLS.has(message.name) && !BROWSER_TOOLS.has(message.name))) {
     return { message: clone(message), recoverable: [] };
   }
   let receipt;
@@ -68,7 +188,10 @@ function projectToolMessage(message, options = {}) {
   catch { return { message: clone(message), recoverable: [] }; }
   if (!receipt || typeof receipt !== 'object' || !receipt.toolCallId
     || typeof receipt.outcome !== 'string') return { message: clone(message), recoverable: [] };
-  const compacted = compactResult(receipt.result, options);
+  const browserAction = receipt.actualCall?.args?.action ?? receipt.requestedCall?.args?.action;
+  const compacted = BROWSER_TOOLS.has(message.name)
+    ? compactBrowserResult(receipt.result, { ...options, browserAction })
+    : compactResult(receipt.result, options);
   if (!compacted) return { message: clone(message), recoverable: [] };
   const tool = receipt.actualCall?.name ?? receipt.requestedCall?.name ?? message.name;
   const projected = {
@@ -127,8 +250,11 @@ export function repairIncompleteToolCallMessages(messages = []) {
 
 /** Build model-visible history without changing the canonical Conversation ledger. */
 export function projectHistoricalConversation(messages = []) {
+  const preserveBrowserIndexes = latestBrowserObservationIndexes(messages);
   return repairIncompleteToolCallMessages(
-    messages.map((message) => projectToolMessage(message).message),
+    messages.map((message, index) => projectToolMessage(message, {
+      preserveInteractionState: preserveBrowserIndexes.has(index),
+    }).message),
   );
 }
 
@@ -138,8 +264,10 @@ export function projectHistoricalConversationEntries(entries = [], {
   maxInlineOutputChars = DEFAULT_MAX_INLINE_HISTORICAL_OUTPUT_CHARS,
   previewChars = DEFAULT_HISTORICAL_OUTPUT_PREVIEW_CHARS,
 } = {}) {
-  const projected = entries.map((entry) => projectToolMessage(entry.message, {
+  const preserveBrowserIndexes = latestBrowserObservationIndexes(entries.map((entry) => entry.message));
+  const projected = entries.map((entry, index) => projectToolMessage(entry.message, {
     messageId: entry.messageId, largeOutputMode, maxInlineOutputChars, previewChars,
+    preserveInteractionState: preserveBrowserIndexes.has(index),
   }));
   return {
     messages: repairIncompleteToolCallMessages(projected.map((entry) => entry.message)),

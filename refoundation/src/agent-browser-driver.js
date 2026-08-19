@@ -229,6 +229,7 @@ export function makeAgentBrowserDriver({
   const namespace = BROWSER_NAMESPACE;
   let availabilityCache = null;
   let activeTabId = null;
+  let activeTabUrl = null;
   let headedMode = false;
   let userControl = false;
   let runtimeRootReady = false;
@@ -285,6 +286,7 @@ export function makeAgentBrowserDriver({
     const tabs = normalizeTabs(data);
     const tab = tabs.find((item) => item.active) ?? tabs[0] ?? normalizeTab();
     activeTabId = tab.tabId;
+    activeTabUrl = tab.url || null;
     return tab;
   }
 
@@ -292,6 +294,7 @@ export function makeAgentBrowserDriver({
     if (tabId && tabId !== activeTabId) {
       const selected = normalizeTab(await command(['tab', String(tabId)], options));
       activeTabId = selected.tabId ?? String(tabId);
+      activeTabUrl = selected.url || null;
     }
   }
 
@@ -303,6 +306,7 @@ export function makeAgentBrowserDriver({
     const tab = await currentTab({ signal });
     const observed = snapshotFacts(data, tab);
     activeTabId = observed.tab.tabId;
+    activeTabUrl = observed.tab.url || null;
     return observed;
   }
 
@@ -499,7 +503,9 @@ export function makeAgentBrowserDriver({
     },
     async tabs({ signal } = {}) {
       const tabs = normalizeTabs(await command(['tab', 'list'], { signal }));
-      activeTabId = tabs.find((tab) => tab.active)?.tabId ?? activeTabId;
+      const active = tabs.find((tab) => tab.active);
+      activeTabId = active?.tabId ?? activeTabId;
+      activeTabUrl = active?.url ?? activeTabUrl;
       return { tabs };
     },
     elementFacts,
@@ -508,6 +514,7 @@ export function makeAgentBrowserDriver({
     async beginUserLogin(url, { signal } = {}) {
       await command(['close'], { signal });
       activeTabId = null;
+      activeTabUrl = null;
       headedMode = true;
       try {
         const opened = await command(['open', String(url)], { signal });
@@ -547,6 +554,7 @@ export function makeAgentBrowserDriver({
         throw new Error(`cannot resume login result: ${error?.message ?? String(error)}`);
       }
       activeTabId = null;
+      activeTabUrl = null;
       await command(['close'], { signal });
       headedMode = false;
       try {
@@ -557,6 +565,7 @@ export function makeAgentBrowserDriver({
         if (resumedSecretFields > 0) {
           const resumedTab = await currentTab({ signal });
           activeTabId = null;
+          activeTabUrl = null;
           headedMode = true;
           await command(['open', resumedTab.url || currentUrl], { signal });
           return {
@@ -584,6 +593,7 @@ export function makeAgentBrowserDriver({
       };
       await command(['close'], { signal });
       activeTabId = null;
+      activeTabUrl = null;
       headedMode = false;
       userControl = false;
       return {
@@ -591,7 +601,12 @@ export function makeAgentBrowserDriver({
       };
     },
     async navigate(url, { signal } = {}) {
+      if (!activeTabUrl) {
+        try { await currentTab({ signal }); } catch { /* no active tab yet */ }
+      }
+      const hadActivePage = Boolean(activeTabUrl);
       const opened = await command(['open', String(url)], { signal });
+      if (hadActivePage) await command(['reload'], { signal });
       const observed = await takeSnapshot({ full: false, signal });
       return {
         tab: normalizeTab({ ...opened, ...observed.tab, url: observed.tab.url || opened.url || url }),
@@ -661,6 +676,7 @@ export function makeAgentBrowserDriver({
     async close({ signal } = {}) {
       await command(['close'], { signal });
       activeTabId = null;
+      activeTabUrl = null;
       userControl = false;
     },
   };

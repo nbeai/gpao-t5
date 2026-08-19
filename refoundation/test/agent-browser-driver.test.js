@@ -30,18 +30,33 @@ test('driver navigate는 격리 session에서 open 뒤 compact snapshot을 같�
     const result = await driver.navigate('https://example.com/');
     assert.equal(result.tab.tabId, 't1');
     assert.equal(result.snapshot.refs.e1.role, 'heading');
-    assert.ok(calls[0].includes('--session'));
-    assert.ok(calls[0].includes('--namespace'));
-    assert.ok(calls[0].includes('--profile'));
-    assert.ok(calls[0].includes('--no-auto-dialog'));
-    assert.equal(calls[0][calls[0].indexOf('--headed') + 1], 'false');
-    assert.ok(calls[0].includes('open'));
-    assert.ok(calls[1].includes('snapshot'));
-    assert.ok(calls[1].includes('-i'));
-    assert.ok(calls[1].includes('-c'));
+    const openCall = calls.find((call) => call.includes('open'));
+    const snapshotCall = calls.find((call) => call.includes('snapshot'));
+    assert.ok(openCall.includes('--session'));
+    assert.ok(openCall.includes('--namespace'));
+    assert.ok(openCall.includes('--profile'));
+    assert.ok(openCall.includes('--no-auto-dialog'));
+    assert.equal(openCall[openCall.indexOf('--headed') + 1], 'false');
+    assert.ok(snapshotCall.includes('-i'));
+    assert.ok(snapshotCall.includes('-c'));
   } finally {
     await rm(room, { recursive: true, force: true });
   }
+});
+
+test('재시작 복원 탭과 같은 URL을 navigate하면 stale DOM을 쓰지 않고 reload 뒤 관측한다', async () => {
+  const calls = [];
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    calls.push(command);
+    if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/documents","active":true}]}}' };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/documents","snapshot":"- paragraph \\"최근 업로드: report.pdf\\"","refs":{}}}' };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"url":"https://example.com/documents"}}' };
+  };
+  const driver = makeAgentBrowserDriver({ ownerId: 'fresh-navigation', outputDirectory: '/private/tmp', run });
+  const result = await driver.navigate('https://example.com/documents');
+  assert.match(result.snapshot.text, /최근 업로드/);
+  assert.deepEqual(calls.map((call) => call[0]), ['tab', 'open', 'reload', 'snapshot', 'tab']);
 });
 
 test('status는 session list만 읽고 브라우저를 새로 띄우지 않는다', async () => {

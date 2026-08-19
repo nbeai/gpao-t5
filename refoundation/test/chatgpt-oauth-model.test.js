@@ -260,6 +260,58 @@ test('ChatGPT OAuth adapter는 transient provider 실패만 제한적으로 재�
   assert.deepEqual(waits, [10]);
 });
 
+test('계정 backend가 내부 prompt_cache_retention 힌트를 간헐적으로 거부할 때만 같은 body를 bounded 재시도한다', async () => {
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  const bodies = [];
+  let calls = 0;
+  const model = makeChatGptResponsesModel({
+    credentials, maxAttempts: 2, wait: async () => {},
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      bodies.push(JSON.parse(init.body));
+      if (calls === 1) return new Response(JSON.stringify({
+        error: {
+          message: 'prompt_cache_retention is not supported on this model',
+          type: 'invalid_request_error', param: 'prompt_cache_retention', code: 'invalid_parameter',
+        },
+      }), { status: 400, headers: { 'content-type': 'application/json' } });
+      return sseResponse([
+        { type: 'response.output_text.delta', delta: '이어갑니다.' },
+        { type: 'response.completed', response: {
+          id: 'cache-recovered', model: 'gpt-account-model',
+          output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: '이어갑니다.' }] }],
+        } },
+      ]);
+    },
+  });
+  const result = await model.respond({ messages: [{ role: 'user', content: '계속해' }], tools: [] });
+  assert.equal(result.text, '이어갑니다.');
+  assert.equal(calls, 2);
+  assert.deepEqual(bodies[1], bodies[0]);
+  assert.equal(Object.hasOwn(bodies[0], 'prompt_cache_retention'), false);
+});
+
+test('다른 HTTP 400은 cache 힌트 오류로 넓혀 재시도하지 않는다', async () => {
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  let calls = 0;
+  const model = makeChatGptResponsesModel({
+    credentials, maxAttempts: 3, wait: async () => {},
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response('{"error":{"message":"ordinary invalid request"}}', { status: 400 });
+    },
+  });
+  await assert.rejects(
+    () => model.respond({ messages: [{ role: 'user', content: 'work' }], tools: [] }),
+    (error) => error.code === 'http_400' && error.retriable === false,
+  );
+  assert.equal(calls, 1);
+});
+
 test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청에 재생한다', async () => {
   const requests = [];
   const observedContexts = [];

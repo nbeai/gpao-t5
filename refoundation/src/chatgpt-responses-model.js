@@ -100,6 +100,11 @@ function scrub(text, access) {
   return access ? String(text).split(access).join('[REDACTED]') : String(text);
 }
 
+function unsupportedInternalCacheHint(status, detail) {
+  return status === 400
+    && /prompt_cache_retention is not supported on this model/i.test(String(detail ?? ''));
+}
+
 /** ChatGPT/Codex account transport. This is an unofficial account backend, not the public API contract. */
 export function makeChatGptResponsesModel({
   credentials,
@@ -179,9 +184,11 @@ export function makeChatGptResponsesModel({
           await observeResponse?.({ status: response.status, raw, attempt });
           if (!response.ok) {
             const detail = scrub(raw.slice(0, 2_000), credential.access);
+            const cacheHintRejected = unsupportedInternalCacheHint(response.status, detail);
             transportError = new ChatGptTransportError(`ChatGPT OAuth response ${response.status}: ${detail}`, {
-              code: `http_${response.status}`, status: response.status,
-              retriable: response.status === 429 || response.status >= 500,
+              code: cacheHintRejected ? 'unsupported_prompt_cache_retention' : `http_${response.status}`,
+              status: response.status,
+              retriable: cacheHintRejected || response.status === 429 || response.status >= 500,
             });
           } else {
             parsed = readSse(raw);
