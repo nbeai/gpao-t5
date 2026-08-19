@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runAgent } from './agent-loop.js';
@@ -32,6 +32,7 @@ import {
 import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
+import { makeBrowserObservationTool } from './browser-observation-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -67,13 +68,13 @@ function historyFrom(session) {
   });
 }
 
-function selfState(status, workspace) {
+function selfState(status, workspace, browserReady = false) {
   const searchReady = (status?.connections ?? []).some((connection) => connection.kind === 'api_key');
   return {
     model: status?.modelId ?? '연결 필요',
     modelAuthState: status?.connected ? 'usable' : 'needs_connection',
     modelHealthState: status?.connected ? 'usable' : null,
-    ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : [])],
+    ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : []), ...(browserReady ? ['브라우저 관측'] : [])],
     limits: [`기본 터미널 위치: ${workspace}`],
   };
 }
@@ -100,6 +101,7 @@ export function makeConsoleServer({
   memoryFlushMaxModelTurns = 8,
   webSearchProviders = [],
   webReadOptions = {},
+  browserDriverFactory,
   processYieldMs = 1000,
   onError,
 } = {}) {
@@ -139,6 +141,26 @@ export function makeConsoleServer({
   const pendingSurfaceMetrics = new Map();
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
+  const browserDrivers = new Map();
+  const browserArtifactRoot = resolve(stateDir, 'browser');
+
+  async function browserDriver(sessionId) {
+    if (typeof browserDriverFactory !== 'function') return null;
+    if (!browserDrivers.has(sessionId)) {
+      browserDrivers.set(sessionId, await browserDriverFactory(sessionId));
+    }
+    return browserDrivers.get(sessionId);
+  }
+
+  function publishBrowserScreenshot(sessionId, captured) {
+    const path = resolve(captured.file.path);
+    const parts = relative(browserArtifactRoot, path).split(sep);
+    if (parts.length !== 3 || !/^t5-[0-9a-f]{20}$/.test(parts[0]) || parts[1] !== 'artifacts'
+      || !/^browser-[0-9a-f-]{36}\.png$/.test(parts[2])) {
+      throw new Error('browser screenshot path is outside the managed artifact directory');
+    }
+    return { url: `/browser-artifacts/${parts[0]}/${parts[2]}` };
+  }
 
   async function status() { return Promise.resolve(modelStatus()); }
 
@@ -395,6 +417,20 @@ export function makeConsoleServer({
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];
+      let browserReady = false;
+      const currentBrowser = await browserDriver(sessionId);
+      if (currentBrowser) {
+        const availability = await currentBrowser.available().catch((error) => ({
+          available: false, reason: error?.message ?? String(error),
+        }));
+        if (availability.available) {
+          browserReady = true;
+          offeredTools.unshift(makeBrowserObservationTool({
+            driver: currentBrowser,
+            publishScreenshot: (captured) => publishBrowserScreenshot(sessionId, captured),
+          }));
+        }
+      }
       offeredTools.unshift(webReadTool);
       if ((await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
@@ -455,7 +491,8 @@ export function makeConsoleServer({
               },
             });
             emit('tool_progress', {
-              text: event.name === 'web_search' ? '웹에서 후보를 찾고 있어요'
+              text: event.name === 'browser' ? '브라우저 화면을 관측하고 있어요'
+                : event.name === 'web_search' ? '웹에서 후보를 찾고 있어요'
                 : event.name === 'web_read' ? '선택한 페이지를 읽고 있어요'
                 : event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
                 : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
@@ -477,7 +514,7 @@ export function makeConsoleServer({
                 name: event.receipt.requestedCall.name, content: JSON.stringify(event.receipt),
               },
             });
-            emit('trace_status', { text: event.name === 'web_search' || event.name === 'web_read'
+            emit('trace_status', { text: event.name === 'browser' || event.name === 'web_search' || event.name === 'web_read'
               ? '웹 관측 결과를 확인하고 있어요' : '터미널 결과를 확인하고 있어요' });
           }
         },
@@ -511,14 +548,14 @@ export function makeConsoleServer({
               reversible: effect.reversible ? '되돌릴 수 있다고 선언됨' : '되돌리기 어려움',
             },
           }],
-          selfStateSummary: selfState(connection, workspace),
+          selfStateSummary: selfState(connection, workspace, browserReady),
         };
       })() : {
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
-        selfStateSummary: selfState(connection, workspace),
+        selfStateSummary: selfState(connection, workspace, browserReady),
       };
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
@@ -647,6 +684,20 @@ export function makeConsoleServer({
         res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
         res.end(await readFile(resolve(here, 'wake-events.js'), 'utf8'));
         return;
+      }
+      const browserArtifactMatch = req.method === 'GET' && url.pathname.match(
+        /^\/browser-artifacts\/(t5-[0-9a-f]{20})\/(browser-[0-9a-f-]{36}\.png)$/,
+      );
+      if (browserArtifactMatch) {
+        const path = join(browserArtifactRoot, browserArtifactMatch[1], 'artifacts', browserArtifactMatch[2]);
+        let bytes;
+        try { bytes = await readFile(path); }
+        catch (error) {
+          if (error?.code === 'ENOENT') { json(res, 404, { error: '브라우저 미리보기를 찾지 못했어요.' }); return; }
+          throw error;
+        }
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' });
+        res.end(bytes); return;
       }
       if (req.method === 'GET' && url.pathname === '/markdown.js') {
         res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
@@ -846,7 +897,11 @@ export function makeConsoleServer({
 
       // Existing UI panels outside the refoundation slice receive honest empty projections.
       if (req.method === 'GET' && url.pathname === '/toolbox') {
-        json(res, 200, { tools: [{ id: 'exec', label: '터미널', executable: true }] }); return;
+        json(res, 200, { tools: [
+          { id: 'exec', label: '터미널', executable: true },
+          ...(typeof browserDriverFactory === 'function'
+            ? [{ id: 'browser', label: '브라우저 관측', executable: true }] : []),
+        ] }); return;
       }
       if (req.method === 'GET' && url.pathname === '/channels') { json(res, 200, { channels: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/skills') { json(res, 200, { skills: [] }); return; }
@@ -884,6 +939,12 @@ export function makeConsoleServer({
     unsubscribeTerminal();
     for (const response of wakeSubscribers) response.end();
     wakeSubscribers.clear();
+  };
+  server.closeBrowsers = async () => {
+    await Promise.all([...browserDrivers.values()].map(async (driver) => {
+      try { await driver.close?.(); } catch { /* already closed */ }
+    }));
+    browserDrivers.clear();
   };
   return server;
 }

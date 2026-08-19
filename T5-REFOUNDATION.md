@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W0 SEARCH & URL REALITY — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W1 BROWSER OBSERVATION — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -655,10 +655,66 @@ Non-goals:
 
 ### R6-W1 — Browser Observation
 
-상태: `NEXT` — Browser 내부 관측만 연다. CU는 열지 않는다.
+상태: `COMPLETE` — W0의 `partial_dynamic` 뒤 실제 격리 브라우저를 렌더링하고, 같은 대화에서
+snapshot·screenshot·status·tabs를 Run/Receipt와 기존 콘솔 UI까지 관통했다. CU는 열지 않았다.
 
-개방 범위: browser status/profile/tab/navigate/snapshot/screenshot, 안정된 tab/document/ref, 현재 콘솔 preview,
-동적 페이지의 실제 렌더링 범위와 W0 Receipt 연결. click·type·submit·upload·download 및 외부 효과는 다음 Gate다.
+사용자 완료 문장:
+
+> 정적 읽기로 부족한 웹페이지는 T5가 전용 격리 브라우저에서 실제 렌더링해 내용을 읽고,
+> 요청하면 같은 화면의 캡처를 대화 안에 보여 주며 다음 턴에도 같은 탭을 이어서 관측한다.
+
+현재 성립한 계약:
+
+- 외부 실행 부품 `agent-browser@0.34.0` 정확 핀; Rust/CDP daemon과 시스템 Chrome을 사용하고 T5가 raw CDP를 재구현하지 않음
+- 모델에게 보이는 도구는 `browser` 하나, action은 `status·profiles·tabs·navigate·snapshot·screenshot` 여섯 개뿐
+- click·type·fill·press·evaluate·upload·download·submit schema 0; desktop/CU·접근성 권한·좌표 조작 0
+- T5 전용 namespace, Session ID의 SHA-256 파생 이름, Session별 전용 profile 경로, headless, 자동 dialog 처리 금지,
+  10분 idle cleanup을 CLI 인자로 강제; 사용자 Chrome profile·cookie·로그인에 붙지 않음
+- passive status는 `session list`만 읽고 브라우저를 새로 띄우지 않음; 실행 중 여부와 tab list는 별도 사실
+- tab은 agent-browser stable `tN`과 CDP targetId·title·URL·active를 보존
+- snapshot마다 content+refs+tab을 SHA-256 observationId로 묶고 refScope에 observationId·tabId·targetId·URL 지속;
+  다른 snapshot의 ref로 승격하지 않음
+- compact snapshot은 렌더링된 interactive 구조, full snapshot은 접근성 본문; shown·total·omitted chars와 truncation 분리
+- snapshot과 페이지 내용은 `untrusted_external`, instruction authority 0
+- screenshot은 T5 관리 폴더의 실제 PNG·bytes·SHA-256만 Receipt에 남김; 픽셀을 모델이 읽었다고 주장하지 않고
+  모델 사실은 accessibility snapshot에서 얻음
+- screenshot preview URL은 session hash+file UUID의 관리 경로만 허용하고, 외부/data/임의 상대 이미지 금지;
+  같은 origin에서 기존 Markdown UI로 렌더링되며 서버 재시작 뒤에도 같은 파일을 다시 엶
+- console shutdown은 해당 런타임이 소유한 browser session을 닫고, screenshot과 전용 profile은 영속 상태로 보존
+
+실제 OAuth 콘솔:
+
+- W0 사업주 포털: 정적 351자만 보고 browser 필요 경계에서 종료
+- W1 같은 포털 직접 probe: compact 5,355자·145 refs, full 15,642자·잘림 0
+- 실제 사용자 핵심 요약: `web_read → browser.navigate`, snapshot 4,902자·138 refs,
+  3 model turns·14,553 tokens·15.1초, 불필요 screenshot 0
+- 실제 사용자 요약+캡처: `web_read → browser.navigate → browser.screenshot`, snapshot 4,894자·138 refs,
+  PNG 919,652 bytes·SHA-256 지속, 기존 콘솔에서 image visible, 4 model turns·18.8초
+- 같은 Session 후속 턴: status `running:true`, stable `t1`, 같은 스마트플레이스 URL을 재관측
+- 증거: `refoundation/evidence/r6-w1-browser-observation-live.json`
+
+Non-goals:
+
+- click·type·submit·upload·download·결제·발송 등 브라우저 행동과 외부 효과
+- 사용자 Chrome/Edge 기존 로그인 세션 연결, cookie import, 비밀번호·OTP 입력
+- screenshot pixel vision, CAPTCHA, browser extension, remote/cloud browser, CU
+
+완료 Gate:
+
+- 실제 렌더링 snapshot과 W0 partial_dynamic의 차이 측정
+- passive status, managed profile, stable tab/target, snapshot/ref scope, truncation 반대시험
+- screenshot 실제 파일·hash·same-origin preview·서버 재시작 지속
+- 실제 OAuth 멀티턴에서 동적 페이지 요약→화면 캡처→status/tab 재조회
+- action schema 부재와 사용자 profile 미접근
+- 기존 terminal·web·memory·context·session 영역 회귀 0
+
+### R6-W2 — Browser Action and Truth
+
+상태: `NEXT` — Browser 내부 행동을 효과·권한·사후검증 계약 위에서 한 종류씩 연다. CU는 열지 않는다.
+
+첫 개방 후보는 현재 snapshot ref에 결속된 click과 일반 text input이다. 관찰·검색과 외부 전송·게시·결제·삭제를
+구분하고, 행동 전후 같은 tab의 새 observation과 실제 network/download 사실로 목적 달성을 확인하기 전에는
+성공으로 답하지 않는다. 로그인 profile·upload·download는 실제 수요와 별도 Gate에서 연다.
 
 ## R6 이후 — 증거가 열 때만
 
@@ -679,8 +735,7 @@ Foundation closeout 분류:
 
 ## 현재 다음 한 작업
 
-R6-W0 Search & URL Reality는 완료됐다. 다음 한 작업은 `R6-W1 Browser Observation`이다. W0가
-`partial_dynamic`으로 정확히 멈춘 페이지를 실제 렌더링해 보는 범위만 열고, status/profile/tab/navigate/
-snapshot/screenshot과 기존 Run·Receipt 연결을 먼저 세운다. click·type·submit·upload·download와 CU는 열지 않는다.
-Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어
-보고하지 않는다.
+R6-W1 Browser Observation은 완료됐다. 다음 한 작업은 `R6-W2 Browser Action and Truth`다. 현재 snapshot의
+ref와 tab에 결속된 click·일반 text input을 최소 행동으로 열고, 외부 전송·게시·결제·삭제 경계와 행동 전후
+재관측을 먼저 세운다. 사용자 로그인 profile·upload·download·CU는 열지 않는다. Windows 실제 기기와
+crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어 보고하지 않는다.

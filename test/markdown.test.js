@@ -49,6 +49,26 @@ test('마크다운 링크와 맨몸 주소 모두 누를 수 있게 된다', () 
   assert.match(h, /<a href="https:\/\/example\.com\/a"/);
 });
 
+test('T5가 발급한 browser artifact만 대화 안의 이미지 미리보기로 그린다', () => {
+  const id = 'f8877100-adb2-41d1-a4a1-95a5824e6e1d';
+  const session = 't5-0123456789abcdef0123';
+  const h = renderMarkdown(`![브라우저 화면](/browser-artifacts/${session}/browser-${id}.png)`);
+  assert.match(h, new RegExp(`<img src="/browser-artifacts/${session}/browser-${id}\\.png"`));
+  assert.match(h, /alt="브라우저 화면"/);
+});
+
+test('외부·data·임의 상대경로 이미지는 미리보기 권한을 얻지 않는다', () => {
+  for (const source of [
+    '![외부](https://example.com/x.png)',
+    '![data](data:image/png;base64,AAAA)',
+    '![파일](../../secret.png)',
+    '![가짜](/browser-artifacts/t5-bad/browser-not-a-uuid.png)',
+  ]) {
+    const h = renderMarkdown(source);
+    assert.doesNotMatch(h, /<img\b/, source);
+  }
+});
+
 // ── 여기서부터가 본체: 무엇이 절대 통과하지 않는가 ────────────────────────
 test('HTML 은 통과하지 않는다 — 수집한 페이지의 태그가 답변에 섞여도 글자로 보인다', () => {
   const h = renderMarkdown('<script>alert(1)</script><img src=x onerror=alert(1)>');

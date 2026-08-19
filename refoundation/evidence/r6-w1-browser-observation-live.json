@@ -1,0 +1,86 @@
+{
+  "schema": "t5.r6-w1-browser-observation-live.v1",
+  "recordedAt": "2026-08-19T08:35:00+09:00",
+  "mainModel": { "provider": "chatgpt_oauth", "model": "gpt-5.5" },
+  "browserRuntime": {
+    "name": "agent-browser",
+    "version": "0.34.0",
+    "exactPin": true,
+    "engine": "system_chrome_cdp",
+    "profile": "t5_managed_isolated",
+    "userProfileAccess": false,
+    "computerUse": false,
+    "auditVulnerabilities": 0
+  },
+  "capability": {
+    "tool": "browser",
+    "actions": ["status", "profiles", "tabs", "navigate", "snapshot", "screenshot"],
+    "excludedActions": ["click", "type", "fill", "press", "evaluate", "submit", "upload", "download"],
+    "namespace": "t5-refoundation",
+    "sessionIdentity": "sha256-derived",
+    "automaticDialogHandling": false
+  },
+  "directProbes": {
+    "exampleNavigate": { "tabId": "t1", "refs": 2, "passed": true },
+    "smartplace": {
+      "url": "https://new.smartplace.naver.com/",
+      "w0StaticChars": 351,
+      "compactSnapshotChars": 5355,
+      "fullSnapshotChars": 15642,
+      "fullSnapshotTruncated": false,
+      "refs": 145,
+      "passed": true
+    },
+    "truncation": { "maxChars": 500, "shownChars": 500, "totalChars": 15573, "omittedChars": 15073, "passed": true }
+  },
+  "oauthRuns": [
+    {
+      "name": "dynamic_summary_snapshot_only",
+      "runId": "f73bf449-11bc-4078-b942-e663439138d8",
+      "status": "completed",
+      "toolStates": ["web_read:partial_dynamic", "browser.navigate:observed"],
+      "browserSnapshotChars": 4902,
+      "refs": 138,
+      "modelTurns": 3,
+      "totalTokens": 14553,
+      "wallMs": 15054,
+      "unnecessaryScreenshots": 0,
+      "passed": true
+    },
+    {
+      "name": "dynamic_summary_and_visible_screenshot",
+      "runId": "d15b5175-175a-459c-87b6-257c4e2fa67b",
+      "status": "completed",
+      "toolStates": ["web_read:partial_dynamic", "browser.navigate:observed", "browser.screenshot:captured"],
+      "browserSnapshotChars": 4894,
+      "refs": 138,
+      "screenshotBytes": 919652,
+      "screenshotSha256": "439fafe6b9959d1153a33f6aa61681aa9554f59c002bcdc61adbdd58b7b0407e",
+      "previewVisibleInConsole": true,
+      "modelTurns": 4,
+      "wallMs": 18817,
+      "passed": true
+    },
+    {
+      "name": "next_turn_status_and_stable_tab",
+      "runId": "d743ab0d-1c6b-49b5-a6de-da17d677d365",
+      "status": "completed",
+      "toolStates": ["browser.status:ready", "browser.tabs:observed"],
+      "running": true,
+      "tabId": "t1",
+      "url": "https://new.smartplace.naver.com/",
+      "passed": true
+    }
+  ],
+  "verification": {
+    "unitAndBoundary": { "passed": 165, "failed": 0 },
+    "integration": { "passed": 23, "failed": 0 },
+    "markdownSafety": { "passed": 21, "failed": 0 },
+    "legacyImports": 0
+  },
+  "scope": {
+    "complete": ["managed_browser_lifecycle", "passive_status", "profiles", "tabs", "navigate", "snapshot", "screenshot", "durable_console_preview"],
+    "excluded": ["browser_actions", "existing_user_login", "file_transfer", "computer_use", "remote_browser"]
+  },
+  "passed": true
+}

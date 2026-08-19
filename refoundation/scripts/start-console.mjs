@@ -8,6 +8,7 @@ import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
+import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
@@ -37,6 +38,10 @@ const server = makeConsoleServer({
   computerEnvironment,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
+  browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
+    ownerId: sessionId,
+    outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
+  }),
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -54,6 +59,7 @@ if (!process.argv.includes('--no-open')) {
 
 const stop = async () => {
   server.closeWakeStreams();
+  await server.closeBrowsers();
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(() => process.exit(0));
 };

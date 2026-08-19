@@ -1,0 +1,199 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, stat } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_BINARY = resolve(here, '..', 'node_modules', '.bin', 'agent-browser');
+const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_BUFFER = 8 * 1024 * 1024;
+
+export function sessionNameForOwner(ownerId) {
+  const digest = createHash('sha256').update(String(ownerId ?? '')).digest('hex').slice(0, 20);
+  return `t5-${digest}`;
+}
+
+function defaultRun(binary, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER } = {}) {
+  return (args, { signal } = {}) => new Promise((resolveRun, reject) => {
+    execFile(binary, args, {
+      encoding: 'utf8', timeout: timeoutMs, maxBuffer, signal,
+      env: { ...process.env, NO_COLOR: '1' },
+    }, (error, stdout, stderr) => {
+      if (error && error.code === 'ENOENT') {
+        reject(Object.assign(new Error('agent-browser binary is missing'), { code: 'BINARY_MISSING' }));
+        return;
+      }
+      resolveRun({ exitCode: Number.isInteger(error?.code) ? error.code : error ? 1 : 0, stdout, stderr });
+    });
+  });
+}
+
+function parseJsonOutput(result, action) {
+  if (result.exitCode !== 0) {
+    throw new Error(String(result.stderr || result.stdout || `${action} failed`).trim());
+  }
+  const text = String(result.stdout ?? '').trim();
+  if (!text) return {};
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { throw new Error(`agent-browser ${action} returned invalid JSON`); }
+  if (parsed?.success === false) throw new Error(parsed.error ?? `agent-browser ${action} failed`);
+  return parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed;
+}
+
+function normalizeTab(value = {}) {
+  return {
+    tabId: value.tabId ?? value.tab_id ?? value.id ?? null,
+    targetId: value.targetId ?? value.target_id ?? null,
+    title: String(value.title ?? ''),
+    url: String(value.url ?? ''),
+    ...(value.active != null ? { active: Boolean(value.active) } : {}),
+  };
+}
+
+function normalizeTabs(value) {
+  const rows = Array.isArray(value) ? value
+    : Array.isArray(value?.tabs) ? value.tabs
+      : Array.isArray(value?.pages) ? value.pages : [];
+  return rows.map(normalizeTab);
+}
+
+function snapshotFacts(value = {}, fallbackTab = {}) {
+  const text = String(value.snapshot ?? value.text ?? value.content ?? '');
+  return {
+    tab: normalizeTab({ ...fallbackTab, ...value }),
+    snapshot: {
+      text,
+      refs: value.refs && typeof value.refs === 'object' ? value.refs : {},
+      totalChars: Number.isFinite(value.totalChars) ? value.totalChars : text.length,
+      truncated: value.truncated === true,
+    },
+  };
+}
+
+export function makeAgentBrowserDriver({
+  ownerId,
+  outputDirectory,
+  binary = DEFAULT_BINARY,
+  run,
+} = {}) {
+  if (!ownerId) throw new TypeError('browser ownerId is required');
+  if (!outputDirectory) throw new TypeError('browser output directory is required');
+  const session = sessionNameForOwner(ownerId);
+  const sessionRoot = dirname(resolve(outputDirectory));
+  const profileDirectory = join(sessionRoot, 'profile');
+  const execute = run ?? defaultRun(binary);
+  const namespace = 't5-refoundation';
+  let availabilityCache = null;
+  const common = [
+    '--namespace', namespace,
+    '--profile', profileDirectory,
+    '--headed', 'false',
+    '--no-auto-dialog',
+    '--idle-timeout', '10m',
+    '--session', session,
+    '--pin-tab', '--json',
+  ];
+
+  async function command(args, options = {}) {
+    return parseJsonOutput(await execute([...common, ...args], options), args[0] ?? 'command');
+  }
+
+  async function currentTab(options = {}) {
+    const data = await command(['tab', 'list'], options);
+    const tabs = normalizeTabs(data);
+    return tabs.find((tab) => tab.active) ?? tabs[0] ?? normalizeTab();
+  }
+
+  async function selectTab(tabId, options = {}) {
+    if (tabId) await command(['tab', String(tabId)], options);
+  }
+
+  async function takeSnapshot({ tabId, full = false, maxChars, signal } = {}) {
+    await selectTab(tabId, { signal });
+    const args = ['snapshot', ...(full ? [] : ['-i', '-c'])];
+    if (Number.isInteger(maxChars)) args.push('--max-output', String(maxChars));
+    const data = await command(args, { signal });
+    const tab = await currentTab({ signal });
+    return snapshotFacts(data, tab);
+  }
+
+  return {
+    profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
+    session,
+    async available() {
+      if (availabilityCache) return structuredClone(availabilityCache);
+      try {
+        const result = await execute(['--version']);
+        if (result.exitCode !== 0) {
+          availabilityCache = { available: false, reason: String(result.stderr || 'version_failed').trim() };
+          return structuredClone(availabilityCache);
+        }
+        const version = String(result.stdout ?? '').match(/\d+\.\d+\.\d+/)?.[0] ?? null;
+        availabilityCache = { available: true, version };
+        return structuredClone(availabilityCache);
+      } catch (error) {
+        availabilityCache = {
+          available: false,
+          reason: error?.code === 'BINARY_MISSING' ? 'binary_missing' : error?.message ?? String(error),
+        };
+        return structuredClone(availabilityCache);
+      }
+    },
+    async status({ signal } = {}) {
+      const availability = await this.available();
+      if (!availability.available) return { state: 'unavailable', session, ...availability };
+      let sessions = [];
+      try {
+        const listed = parseJsonOutput(await execute([
+          '--namespace', namespace, '--json', 'session', 'list',
+        ], { signal }), 'session list');
+        sessions = Array.isArray(listed.sessions) ? listed.sessions : [];
+      } catch { /* no daemon sessions */ }
+      const active = sessions.find((item) => (
+        typeof item === 'string' ? item === session : item?.name === session || item?.session === session
+      ));
+      return {
+        state: 'ready', session, version: availability.version,
+        running: Boolean(active),
+        tabCount: active && typeof active === 'object'
+          ? Number(active.tabCount ?? active.tabs ?? 0) : active ? null : 0,
+      };
+    },
+    async profiles() {
+      return { profiles: [{ ...this.profile }] };
+    },
+    async tabs({ signal } = {}) {
+      return { tabs: normalizeTabs(await command(['tab', 'list'], { signal })) };
+    },
+    async navigate(url, { signal } = {}) {
+      const opened = await command(['open', String(url)], { signal });
+      const observed = await takeSnapshot({ full: false, signal });
+      return {
+        tab: normalizeTab({ ...opened, ...observed.tab, url: observed.tab.url || opened.url || url }),
+        snapshot: observed.snapshot,
+      };
+    },
+    snapshot(options = {}) { return takeSnapshot(options); },
+    async screenshot({ tabId, fullPage = false, signal } = {}) {
+      await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
+      await selectTab(tabId, { signal });
+      const path = resolve(outputDirectory, `browser-${randomUUID()}.png`);
+      await command(['screenshot', path, ...(fullPage ? ['--full'] : [])], { signal });
+      const [fileStat, bytes, tab] = await Promise.all([
+        stat(path), readFile(path), currentTab({ signal }),
+      ]);
+      return {
+        tab,
+        file: {
+          path, bytes: fileStat.size,
+          sha256: createHash('sha256').update(bytes).digest('hex'), mimeType: 'image/png',
+        },
+      };
+    },
+    async close({ signal } = {}) {
+      try { await command(['close'], { signal }); } catch { /* already closed */ }
+    },
+  };
+}
