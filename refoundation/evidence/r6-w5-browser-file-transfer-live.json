@@ -1,0 +1,113 @@
+{
+  "schema": "t5.r6-w5-browser-file-transfer-live.v1",
+  "recordedAt": "2026-08-19T13:00:00+09:00",
+  "mainModel": { "provider": "chatgpt_oauth", "model": "gpt-5.5" },
+  "comparators": {
+    "openclaw": { "version": "2026.6.11", "principle": "managed download and inbound upload roots plus exact refs" },
+    "hermes": { "revision": "20e01f935b13", "generalBrowserFileTransfer": false },
+    "agentBrowser": { "version": "0.34.0", "primitives": ["download-path", "upload"] }
+  },
+  "download": {
+    "action": "download",
+    "binding": ["latest_observationId", "tabId", "ref", "local_change"],
+    "managedRootOnly": true,
+    "singleCompletedFile": true,
+    "maxBytes": 67108864,
+    "partialSuffixes": ["crdownload", "part", "tmp"],
+    "fileFacts": ["path", "bytes", "sha256", "mimeType", "trust"],
+    "sourceQueryValuesStored": false,
+    "automaticOpenOrExecute": false
+  },
+  "upload": {
+    "action": "upload",
+    "binding": ["current_user_request_exact_absolute_path", "latest_observationId", "tabId", "type=file", "external_send"],
+    "sourceHashBoundBeforeCommand": true,
+    "sourceHashRecheckedAfterCommand": true,
+    "newRecipientOpen": false,
+    "credentialFilesOpen": false,
+    "fileContentStoredInReceipt": false
+  },
+  "directProbes": {
+    "download": {
+      "state": "acted",
+      "filename": "monthly-9182.pdf",
+      "bytes": 27,
+      "sha256": "767ad9666ca1d98e266b7e574ecf0319655d157b9512540366c773e590fadb7d",
+      "mimeType": "application/pdf",
+      "mode": "0600",
+      "sourceQueryOmitted": true,
+      "agentBrowserNetworkRequests": 0,
+      "passed": true
+    },
+    "upload": {
+      "state": "acted",
+      "filename": "business-report.txt",
+      "bytes": 22,
+      "sha256": "436f3943cfd7c79c120359c94c8be8760b05cc36180a29c629348742696bf3cf",
+      "networkMethod": "POST",
+      "networkStatus": 200,
+      "queryOmitted": true,
+      "fixtureReceivedBytes": 22,
+      "postSnapshotShowsFilename": true,
+      "passed": true
+    }
+  },
+  "oauthRuns": [
+    {
+      "name": "managed_pdf_download",
+      "runId": "914364e5-d113-4f9f-82cf-2e4322f4d8ca",
+      "status": "completed",
+      "toolActions": ["navigate", "download"],
+      "failedToolCalls": 0,
+      "filename": "business-report-4421.pdf",
+      "bytes": 33,
+      "mimeType": "application/pdf",
+      "mode": "0600",
+      "sourceQueryOmitted": true,
+      "modelTurns": 3,
+      "wallMs": 13858,
+      "passed": true
+    },
+    {
+      "name": "exact_user_path_upload",
+      "runId": "6aacc11d-0cef-44a2-8aaf-0fc06a7bd166",
+      "status": "completed",
+      "toolActions": ["navigate", "upload"],
+      "failedToolCalls": 0,
+      "requestedPathEqualsActualPath": true,
+      "sourceHashUnchanged": true,
+      "bytes": 30,
+      "mimeType": "application/pdf",
+      "networkMethod": "POST",
+      "networkStatus": 200,
+      "queryOmitted": true,
+      "fixtureUploads": 1,
+      "fixtureReceivedBytes": 30,
+      "postSnapshotShowsFilename": true,
+      "modelTurns": 3,
+      "wallMs": 15669,
+      "passed": true
+    }
+  ],
+  "preflightBoundaries": {
+    "downloadViaClick": "download_requires_explicit_action",
+    "downloadPartial": "not_completed",
+    "uploadViaClick": "upload_requires_explicit_action",
+    "pathNotInCurrentUserRequest": "upload_path_not_user_authorized",
+    "pathSubstringOnly": "upload_path_not_user_authorized",
+    "nonFileInput": "ref_not_file_input",
+    "credentialLikePath": "upload_file_rejected",
+    "symlinkOrHardlink": "upload_file_rejected",
+    "sourceHashRace": "stopped_before_external_command",
+    "newRecipient": "upload_new_recipient_not_open"
+  },
+  "verification": {
+    "unit": { "passed": 194, "failed": 0 },
+    "integration": { "passed": 28, "failed": 0 },
+    "ptyIncluded": true,
+    "markdownSafety": { "passed": 21, "failed": 0 },
+    "auditVulnerabilities": 0,
+    "legacyImports": 0
+  },
+  "passed": true
+}

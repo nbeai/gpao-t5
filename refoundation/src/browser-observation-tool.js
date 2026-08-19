@@ -4,9 +4,9 @@ import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
 const ACTIONS = [
   'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
-  'login_start', 'login_status', 'login_cancel',
+  'login_start', 'login_status', 'login_cancel', 'download', 'upload',
 ];
-const ACTION_KINDS = new Set(['click', 'fill', 'submit']);
+const ACTION_KINDS = new Set(['click', 'fill', 'submit', 'download', 'upload']);
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
 
@@ -71,17 +71,18 @@ export function makeBrowserObservationTool({
   publishScreenshot,
   observationRegistry = makeBrowserObservationRegistry(),
   authorizeEffect,
+  authorizeUploadPath,
 } = {}) {
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
   const tool = {
     name: 'browser',
-    description: 'Observe and act in a managed isolated browser. login_start opens the same dedicated profile visibly for the user to enter credentials; while that handoff is active all page observation and model actions are blocked. login_status resumes model observation only after secret fields are absent. There is no model secret input, cookie/storage access, user-profile import, upload, download, evaluation, or computer use.',
+    description: 'Observe and act in a managed isolated browser. download saves one completed artifact under the T5-managed root. upload accepts only an exact absolute path authorized by the current user request and an observed file input, binds its hash, and returns sanitized network plus a new snapshot. File controls reject ordinary click. There is no model secret input, cookie/storage access, user-profile import, evaluation, or computer use.',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string', enum: ACTIONS,
-          description: 'Use submit, never click, for an observed type=submit control.',
+          description: 'Use submit, download, or upload rather than click for the corresponding observed control.',
         },
         url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate or login_start, otherwise null.' },
         tabId: { type: ['string', 'null'], description: 'Stable tabId from tabs or a prior observation, otherwise null.' },
@@ -89,16 +90,17 @@ export function makeBrowserObservationTool({
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_CHARS },
         fullPage: { type: ['boolean', 'null'], description: 'For screenshot: capture the whole scrollable page.' },
         observationId: { type: ['string', 'null'], description: 'Exact latest observationId that supplied ref, otherwise null.' },
-        ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click or fill, otherwise null.' },
+        ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click, fill, submit, download, or upload; otherwise null.' },
         text: { type: ['string', 'null'], maxLength: 4_000, description: 'Non-secret text for fill, otherwise null.' },
+        filePath: { type: ['string', 'null'], description: 'Exact absolute user-provided path for upload, otherwise null.' },
         effect: {
-          description: 'For click/fill/submit, targets must contain the exact current page URL or origin only; never append an element label or description.',
+          description: 'For click/fill/submit/download/upload, targets must contain the exact current page URL or origin only; never append an element label or description.',
           anyOf: [EFFECT_SCHEMA, { type: 'null' }],
         },
       },
       required: [
         'action', 'url', 'tabId', 'full', 'maxChars', 'fullPage',
-        'observationId', 'ref', 'text', 'effect',
+        'observationId', 'ref', 'text', 'filePath', 'effect',
       ],
       additionalProperties: false,
     },
@@ -174,6 +176,9 @@ export function makeBrowserObservationTool({
         const acted = await driver[args.action]({
           tabId: args.tabId, ref: args.ref,
           ...(args.action === 'fill' ? { text: args.text } : {}),
+          ...(args.action === 'upload' ? {
+            filePath: args.filePath, expectedSha256: safety.fileFacts?.sha256,
+          } : {}),
           signal: context.signal,
         });
         const after = observationResult(driver, acted, args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
@@ -192,6 +197,9 @@ export function makeBrowserObservationTool({
             from: before.refScope.url, to: after.tab.url,
           },
           network: structuredClone(acted.network ?? { totalRequests: 0, truncated: false, requests: [] }),
+          ...(['download', 'upload'].includes(args.action) ? {
+            file: structuredClone(acted.file), source: structuredClone(acted.source),
+          } : {}),
         };
       }
       const captured = await driver.screenshot({
@@ -248,7 +256,10 @@ export function makeBrowserObservationTool({
     if (args.action === 'click') {
       const submitLike = String(elementFacts.type ?? '').toLowerCase() === 'submit';
       if (submitLike) return { ...blocked('submit_requires_explicit_action'), binding };
-      if (elementFacts.download != null) return { ...blocked('download_action_not_open'), binding };
+      if (elementFacts.download != null) return { ...blocked('download_requires_explicit_action'), binding };
+      if (String(elementFacts.type ?? '').toLowerCase() === 'file') {
+        return { ...blocked('upload_requires_explicit_action'), binding };
+      }
       const mutableControl = ['button', 'checkbox', 'radio', 'switch', 'menuitem'].includes(role);
       if (mutableControl && args.effect.kind === 'observe') {
         return { ...blocked('effect_declaration_mismatch', {
@@ -270,11 +281,39 @@ export function makeBrowserObservationTool({
         return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
       }
     }
+    if (args.action === 'download') {
+      if (!['link', 'button'].includes(role)) {
+        return { ...blocked('ref_not_download_control', { role }), binding };
+      }
+      if (args.effect.kind !== 'local_change') {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'local_change_required' }), binding };
+      }
+    }
+    let fileFacts = null;
+    if (args.action === 'upload') {
+      if (String(elementFacts.type ?? '').toLowerCase() !== 'file') {
+        return { ...blocked('ref_not_file_input'), binding };
+      }
+      if (!args.filePath || typeof authorizeUploadPath !== 'function'
+        || await authorizeUploadPath(args.filePath, context) !== true) {
+        return { ...blocked('upload_path_not_user_authorized'), binding };
+      }
+      if (args.effect.kind !== 'external_send') {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
+      }
+      if (args.effect.recipientNew === true) {
+        return { ...blocked('upload_new_recipient_not_open'), binding };
+      }
+      try { fileFacts = await driver.uploadFileFacts(args.filePath); }
+      catch (error) {
+        return { ...blocked('upload_file_rejected', { reason: error?.message ?? String(error) }), binding };
+      }
+    }
     if (includeAuthority && typeof authorizeEffect === 'function') {
       const authority = await authorizeEffect(args, context);
       if (authority?.allowed === false) return { ...authority, binding };
     }
-    return { allowed: true, binding, elementFacts };
+    return { allowed: true, binding, elementFacts, fileFacts };
   }
 
   if (typeof authorizeEffect === 'function') {

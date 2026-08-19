@@ -1,14 +1,18 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { chmod, lstat, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_BINARY = resolve(here, '..', 'node_modules', '.bin', 'agent-browser');
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_BUFFER = 8 * 1024 * 1024;
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
+const DEFAULT_DOWNLOAD_POLL_MS = 100;
+const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+const DEFAULT_UPLOAD_SETTLE_MS = 300;
 export const BROWSER_NAMESPACE = 't5-refoundation-v2';
 const SECRET_FIELD_SELECTOR = [
   'input[type="password"]',
@@ -96,6 +100,30 @@ function countValue(value) {
   return count;
 }
 
+function localMimeType(path, bytes) {
+  if (bytes.subarray(0, 5).toString('binary') === '%PDF-') return 'application/pdf';
+  if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  const extension = extname(path).toLowerCase();
+  return ({
+    '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json',
+    '.csv': 'text/csv', '.pdf': 'application/pdf', '.png': 'image/png',
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.zip': 'application/zip',
+  })[extension] ?? 'application/octet-stream';
+}
+
+function credentialLikePath(path) {
+  const lower = path.toLowerCase();
+  const name = basename(lower);
+  const parts = lower.split(/[\\/]+/);
+  if (name === '.env' || name.startsWith('.env.')
+    || ['.npmrc', '.pypirc', 'id_rsa', 'id_ed25519', 'credentials', 'auth.json', 'cookies.json'].includes(name)) return true;
+  if (['.pem', '.key', '.p12', '.pfx'].includes(extname(name))) return true;
+  return parts.some((part) => ['.ssh', '.gnupg'].includes(part))
+    || lower.endsWith('/.aws/credentials') || lower.endsWith('/.kube/config')
+    || lower.includes('/.agent-browser/');
+}
+
 function cliRef(ref) {
   const value = String(ref ?? '').trim();
   if (!/^e\d+$/.test(value)) throw new TypeError('invalid browser ref');
@@ -130,6 +158,30 @@ export function sanitizedNetworkFacts(value = {}, maxRequests = 100) {
   };
 }
 
+function sanitizedSource(rawAddress, baseAddress) {
+  let parsed;
+  try { parsed = new URL(String(rawAddress ?? ''), baseAddress); }
+  catch { return null; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+  return {
+    address: `${parsed.origin}${parsed.pathname}`,
+    queryOmitted: Boolean(parsed.search),
+  };
+}
+
+async function downloadEntries(directory) {
+  const entries = new Map();
+  for (const name of await readdir(directory).catch((error) => {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  })) {
+    const path = join(directory, name);
+    const info = await lstat(path);
+    entries.set(name, { path, info });
+  }
+  return entries;
+}
+
 export async function secureBrowserStatePermissions(root) {
   let entries;
   try { entries = await readdir(root, { withFileTypes: true }); }
@@ -152,12 +204,18 @@ export function makeAgentBrowserDriver({
   outputDirectory,
   binary = DEFAULT_BINARY,
   run,
+  downloadTimeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS,
+  downloadPollMs = DEFAULT_DOWNLOAD_POLL_MS,
+  maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES,
+  maxUploadBytes = DEFAULT_MAX_DOWNLOAD_BYTES,
+  uploadSettleMs = DEFAULT_UPLOAD_SETTLE_MS,
 } = {}) {
   if (!ownerId) throw new TypeError('browser ownerId is required');
   if (!outputDirectory) throw new TypeError('browser output directory is required');
   const session = sessionNameForOwner(ownerId);
   const sessionRoot = dirname(resolve(outputDirectory));
   const profileDirectory = join(sessionRoot, 'profile');
+  const downloadDirectory = join(sessionRoot, 'downloads');
   const uid = typeof process.getuid === 'function' ? process.getuid() : 'user';
   const socketDirectory = join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-ab-${uid}`);
   const usesDefaultRun = run == null;
@@ -184,6 +242,7 @@ export function makeAgentBrowserDriver({
       '--idle-timeout', '10m',
       '--session', session,
       '--restore',
+      '--download-path', downloadDirectory,
       '--pin-tab', '--json',
     ];
   }
@@ -193,8 +252,11 @@ export function makeAgentBrowserDriver({
       await Promise.all([
         mkdir(sessionRoot, { recursive: true, mode: 0o700 }),
         mkdir(socketDirectory, { recursive: true, mode: 0o700 }),
+        mkdir(downloadDirectory, { recursive: true, mode: 0o700 }),
       ]);
-      await Promise.all([chmod(sessionRoot, 0o700), chmod(socketDirectory, 0o700)]);
+      await Promise.all([
+        chmod(sessionRoot, 0o700), chmod(socketDirectory, 0o700), chmod(downloadDirectory, 0o700),
+      ]);
       runtimeRootReady = true;
     }
   }
@@ -272,6 +334,106 @@ export function makeAgentBrowserDriver({
     return sanitizedNetworkFacts(await command(['network', 'requests'], { signal }));
   }
 
+  async function cleanupNewDownloads(before) {
+    const after = await downloadEntries(downloadDirectory);
+    for (const [name, entry] of after) {
+      if (!before.has(name)) await rm(entry.path, { force: true, recursive: false });
+    }
+  }
+
+  async function waitForCompletedDownload(before) {
+    const deadline = Date.now() + downloadTimeoutMs;
+    let previousSignature = null;
+    while (Date.now() <= deadline) {
+      const after = await downloadEntries(downloadDirectory);
+      const fresh = [...after.entries()].filter(([name]) => !before.has(name));
+      const partial = fresh.filter(([name]) => /\.(?:crdownload|part|tmp)$/i.test(name));
+      const complete = fresh.filter(([name]) => !/\.(?:crdownload|part|tmp)$/i.test(name));
+      const oversized = fresh.find(([, entry]) => entry.info.size > maxDownloadBytes);
+      if (oversized) {
+        await cleanupNewDownloads(before);
+        throw new Error(`download exceeded ${maxDownloadBytes} bytes`);
+      }
+      if (complete.length > 1) {
+        await cleanupNewDownloads(before);
+        throw new Error('download produced multiple files');
+      }
+      if (complete.length === 1 && partial.length === 0) {
+        const [name, entry] = complete[0];
+        const signature = `${name}:${entry.info.size}:${entry.info.mtimeMs}`;
+        if (signature === previousSignature) return entry;
+        previousSignature = signature;
+      } else {
+        previousSignature = null;
+      }
+      await new Promise((resolveWait) => setTimeout(resolveWait, downloadPollMs));
+    }
+    await cleanupNewDownloads(before);
+    throw new Error('download did not complete before timeout');
+  }
+
+  async function completedDownloadFact(entry, network, href, pageUrl) {
+    const info = await lstat(entry.path);
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1) {
+      await rm(entry.path, { force: true, recursive: false });
+      throw new Error('downloaded artifact is not a private regular file');
+    }
+    const root = await realpath(downloadDirectory);
+    const actual = await realpath(entry.path);
+    const rel = relative(root, actual);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || rel.includes(sep)) {
+      await rm(entry.path, { force: true, recursive: false });
+      throw new Error('downloaded artifact escaped the managed directory');
+    }
+    const bytes = await readFile(actual);
+    if (bytes.length > maxDownloadBytes) {
+      await rm(actual, { force: true, recursive: false });
+      throw new Error(`download exceeded ${maxDownloadBytes} bytes`);
+    }
+    await chmod(actual, 0o600);
+    const source = sanitizedSource(href, pageUrl)
+      ?? network.requests.find((request) => !request.address.endsWith('/favicon.ico'))
+      ?? null;
+    const networkMime = network.requests.find((request) => (
+      !source || request.address === source.address
+    ))?.mimeType;
+    const magicMime = bytes.subarray(0, 5).toString('binary') === '%PDF-'
+      ? 'application/pdf' : null;
+    return {
+      file: {
+        path: actual, bytes: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        mimeType: networkMime || magicMime || 'application/octet-stream',
+        trust: 'untrusted_external',
+      },
+      source: source ? {
+        address: source.address,
+        queryOmitted: source.queryOmitted === true,
+      } : null,
+    };
+  }
+
+  async function uploadFileFact(filePath) {
+    if (!isAbsolute(String(filePath ?? ''))) throw new TypeError('upload path must be absolute');
+    const requested = resolve(String(filePath));
+    const requestedInfo = await lstat(requested);
+    if (requestedInfo.isSymbolicLink()) throw new Error('upload path must not be symbolic');
+    const actual = await realpath(requested);
+    if (actual !== requested) throw new Error('upload path must not traverse symbolic directories');
+    const info = await lstat(actual);
+    if (!info.isFile()) throw new Error('upload path must be a regular file');
+    if (info.nlink !== 1) throw new Error('upload path must not be a hardlink');
+    if (credentialLikePath(actual)) throw new Error('credential-like files cannot be uploaded');
+    if (info.size > maxUploadBytes) throw new Error(`upload exceeded ${maxUploadBytes} bytes`);
+    const bytes = await readFile(actual);
+    if (bytes.length > maxUploadBytes) throw new Error(`upload exceeded ${maxUploadBytes} bytes`);
+    return {
+      path: actual, bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      mimeType: localMimeType(actual, bytes), trust: 'user_selected_local',
+    };
+  }
+
   async function act(kind, { tabId, ref, text, signal } = {}) {
     await selectTab(tabId, { signal });
     await clearNetwork({ signal });
@@ -342,6 +504,7 @@ export function makeAgentBrowserDriver({
     },
     elementFacts,
     submitFacts,
+    uploadFileFacts: uploadFileFact,
     async beginUserLogin(url, { signal } = {}) {
       await command(['close'], { signal });
       activeTabId = null;
@@ -439,6 +602,46 @@ export function makeAgentBrowserDriver({
     click(options = {}) { return act('click', options); },
     fill(options = {}) { return act('fill', options); },
     submit(options = {}) { return act('submit', options); },
+    async download({ tabId, ref, signal } = {}) {
+      await mkdir(downloadDirectory, { recursive: true, mode: 0o700 });
+      await chmod(downloadDirectory, 0o700);
+      await selectTab(tabId, { signal });
+      const pageBefore = await currentTab({ signal });
+      const facts = await elementFacts({ tabId, ref, signal });
+      const before = await downloadEntries(downloadDirectory);
+      await clearNetwork({ signal });
+      await command(['click', cliRef(ref)], { signal });
+      const entry = await waitForCompletedDownload(before);
+      const observed = await takeSnapshot({ tabId, full: false, signal });
+      const network = await networkFacts({ signal });
+      const artifact = await completedDownloadFact(entry, network, facts.href, pageBefore.url);
+      return {
+        action: { kind: 'download', ref: String(ref) },
+        ...observed, network, ...artifact,
+      };
+    },
+    async upload({ tabId, ref, filePath, expectedSha256, signal } = {}) {
+      const before = await uploadFileFact(filePath);
+      if (!expectedSha256 || before.sha256 !== expectedSha256) {
+        throw new Error('upload source changed before upload');
+      }
+      await selectTab(tabId, { signal });
+      await clearNetwork({ signal });
+      await command(['upload', cliRef(ref), before.path], { signal });
+      if (uploadSettleMs > 0) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, uploadSettleMs));
+      }
+      const observed = await takeSnapshot({ tabId, full: false, signal });
+      const network = await networkFacts({ signal });
+      const after = await uploadFileFact(filePath);
+      if (after.sha256 !== before.sha256 || after.bytes !== before.bytes) {
+        throw new Error('upload source changed during upload');
+      }
+      return {
+        action: { kind: 'upload', ref: String(ref) },
+        ...observed, network, file: after,
+      };
+    },
     async screenshot({ tabId, fullPage = false, signal } = {}) {
       await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
       await selectTab(tabId, { signal });

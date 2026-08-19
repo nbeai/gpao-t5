@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { consoleInstructions } from '../src/console-model-factory.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
+import { requestContainsExactPath } from '../src/console-server.js';
 
 test('콘솔의 기본 터미널 범위는 사용자의 홈이며 별도 설정만 명시적으로 덮어쓴다', () => {
   assert.equal(resolveConsoleWorkspace({}, '/Users/example'), '/Users/example');
@@ -41,4 +42,14 @@ test('macOS 환경은 사용자에게 같은 파일명이 분해형일 수 있�
   });
   assert.match(instructions, /unicode normalization/i);
   assert.match(instructions, /visually identical.*different.*code points/i);
+});
+
+test('browser upload 권한은 현재 요청의 완전한 절대경로 토큰에만 결속된다', () => {
+  const path = '/Users/example/My Files/report.pdf';
+  assert.equal(requestContainsExactPath(`이 파일을 올려줘: ${path}`, path), true);
+  assert.equal(requestContainsExactPath(`업로드: \`${path}\``, path), true);
+  assert.equal(requestContainsExactPath(`다른 파일 ${path}.bak`, path), false);
+  assert.equal(requestContainsExactPath(`/prefix${path}`, path), false);
+  assert.equal(requestContainsExactPath('report.pdf를 올려줘', path), false);
+  assert.equal(requestContainsExactPath('경로 없음', ''), false);
 });

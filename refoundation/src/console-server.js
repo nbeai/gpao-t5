@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runAgent } from './agent-loop.js';
@@ -48,6 +48,26 @@ function json(res, status, value) {
 function httpErrorStatus(error) {
   const status = Number(error?.status);
   return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+}
+
+export function requestContainsExactPath(request, candidate) {
+  const text = String(request ?? '');
+  const path = String(candidate ?? '');
+  if (!path || !isAbsolute(path)) return false;
+  let from = 0;
+  while (from <= text.length) {
+    const index = text.indexOf(path, from);
+    if (index < 0) return false;
+    const before = index === 0 ? '' : text[index - 1];
+    const afterIndex = index + path.length;
+    const after = afterIndex >= text.length ? '' : text[afterIndex];
+    const beforeOk = !before || /[\s"'`([{:=]/u.test(before);
+    let afterOk = !after || /[\s"'`,.;:!?)}\]]/u.test(after);
+    if (after === '.' && /[\p{L}\p{N}_-]/u.test(text[afterIndex + 1] ?? '')) afterOk = false;
+    if (beforeOk && afterOk) return true;
+    from = index + 1;
+  }
+  return false;
 }
 
 async function body(req, limit = 1024 * 1024) {
@@ -438,6 +458,10 @@ export function makeConsoleServer({
             driver: currentBrowser,
             publishScreenshot: (captured) => publishBrowserScreenshot(sessionId, captured),
             observationRegistry: browserObservationRegistry(sessionId),
+            authorizeUploadPath: (candidate) => (
+              (!options.trigger || options.trigger === 'user')
+              && requestContainsExactPath(text, candidate)
+            ),
             authorizeEffect: (args) => effectPreflight({
               toolName: 'browser', args, ownerId: sessionId,
             }),

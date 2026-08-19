@@ -24,6 +24,7 @@ function fixtureDriver() {
             e4: { role: 'textbox', name: '검색' },
             e5: { role: 'button', name: '제출' },
             e6: { role: 'link', name: '받기' },
+            e8: { role: 'button', name: '파일 선택' },
           },
           totalChars: 80, truncated: false,
         },
@@ -48,6 +49,7 @@ function fixtureDriver() {
       if (ref === 'e4') return { type: 'text', autocomplete: null, href: null, download: null };
       if (ref === 'e5') return { type: 'submit', autocomplete: null, href: null, download: null };
       if (ref === 'e6') return { type: null, autocomplete: null, href: 'https://example.com/file.zip', download: '' };
+      if (ref === 'e8') return { type: 'file', autocomplete: null, href: null, download: null };
       return { type: 'button', autocomplete: null, href: null, download: null };
     },
     async submitFacts({ ref }) {
@@ -84,17 +86,43 @@ function fixtureDriver() {
         network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/submit', resourceType: 'Document', status: 200, mimeType: 'text/html' }] },
       };
     },
+    async download(options) {
+      calls.push(['download', options]);
+      return {
+        action: { kind: 'download', ref: options.ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: 'Example', url: 'https://example.com/' },
+        snapshot: { text: '- link "받기" [ref=e6]', refs: { e6: { role: 'link', name: '받기' } }, totalChars: 23, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/report.pdf', resourceType: 'Document', status: 200, mimeType: 'application/pdf' }] },
+        file: { path: '/private/tmp/t5/downloads/report.pdf', bytes: 120, sha256: 'c'.repeat(64), mimeType: 'application/pdf', trust: 'untrusted_external' },
+        source: { address: 'https://example.com/report.pdf', queryOmitted: false },
+      };
+    },
+    async uploadFileFacts(filePath) {
+      calls.push(['uploadFileFacts', filePath]);
+      return { path: filePath, bytes: 25, sha256: 'e'.repeat(64), mimeType: 'application/pdf', trust: 'user_selected_local' };
+    },
+    async upload(options) {
+      calls.push(['upload', options]);
+      return {
+        action: { kind: 'upload', ref: options.ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: 'Upload', url: 'https://example.com/upload' },
+        snapshot: { text: '- button "파일 선택" [ref=e8]: report.pdf', refs: { e8: { role: 'button', name: '파일 선택' } }, totalChars: 42, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/upload', resourceType: 'Fetch', status: 200, mimeType: 'application/json' }] },
+        file: { path: options.filePath, bytes: 25, sha256: 'e'.repeat(64), mimeType: 'application/pdf', trust: 'user_selected_local' },
+      };
+    },
   };
 }
 
-test('browser W4 schema는 user-controlled login handoff만 더하고 credential·cookie·upload 기능은 없다', () => {
+test('browser W5 schema는 download·upload를 열고 credential·cookie 기능은 없다', () => {
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
     'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
-    'login_start', 'login_status', 'login_cancel',
+    'login_start', 'login_status', 'login_cancel', 'download', 'upload',
   ]);
-  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
+  assert.ok(tool.parameters.required.includes('filePath'));
+  const forbidden = ['type', 'press', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
 });
 
@@ -300,8 +328,8 @@ test('password·OTP·결제정보 표준 필드는 text가 주어져도 실행 �
   assert.equal(driver.calls.some((call) => call[0] === 'fill'), false);
 });
 
-test('submit control은 일반 click으로 우회할 수 없고 download도 계속 열리지 않는다', async () => {
-  for (const [ref, state] of [['e5', 'submit_requires_explicit_action'], ['e6', 'download_action_not_open']]) {
+test('submit·download control은 일반 click으로 우회할 수 없다', async () => {
+  for (const [ref, state] of [['e5', 'submit_requires_explicit_action'], ['e6', 'download_requires_explicit_action']]) {
     const driver = fixtureDriver();
     const registry = makeBrowserObservationRegistry();
     const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
@@ -314,6 +342,87 @@ test('submit control은 일반 click으로 우회할 수 없고 download도 계�
     assert.equal(gate.allowed, false);
     assert.equal(gate.result.state, state);
     assert.equal(driver.calls.some((call) => call[0] === 'click'), false);
+  }
+});
+
+test('download는 최신 ref와 local_change 선언 뒤 완성 파일·source·새 snapshot을 반환한다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const base = {
+    action: 'download', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e6', text: null,
+  };
+  const rejected = await tool.preflight({ ...base, effect: effect('observe') });
+  assert.equal(rejected.allowed, false);
+  assert.equal(rejected.result.state, 'effect_declaration_mismatch');
+  const args = { ...base, effect: effect('local_change') };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'acted');
+  assert.equal(result.action.kind, 'download');
+  assert.equal(result.file.path, '/private/tmp/t5/downloads/report.pdf');
+  assert.equal(result.file.bytes, 120);
+  assert.match(result.file.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(result.file.trust, 'untrusted_external');
+  assert.equal(result.source.address, 'https://example.com/report.pdf');
+  assert.equal(result.network.requests[0].mimeType, 'application/pdf');
+  assert.equal(result.after.refScope.tabId, 't1');
+});
+
+test('upload는 현재 사용자 요청의 exact path·file input·external_send 뒤 file/network/snapshot을 반환한다', async () => {
+  const path = '/Users/test/Documents/report.pdf';
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry,
+    authorizeUploadPath: (candidate) => candidate === path,
+    authorizeEffect: async () => ({ allowed: true }),
+  });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const base = {
+    action: 'upload', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e8', text: null, filePath: path,
+  };
+  const observe = await tool.preflight({ ...base, effect: effect('observe') });
+  assert.equal(observe.result.state, 'effect_declaration_mismatch');
+  const args = { ...base, effect: effect('external_send') };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const result = await tool.execute(args);
+  assert.equal(result.action.kind, 'upload');
+  assert.equal(result.file.path, path);
+  assert.equal(result.file.sha256, 'e'.repeat(64));
+  assert.equal(result.file.trust, 'user_selected_local');
+  assert.equal(result.network.requests[0].method, 'POST');
+  assert.match(result.after.text, /report\.pdf/);
+  const call = driver.calls.find((item) => item[0] === 'upload');
+  assert.equal(call[1].expectedSha256, 'e'.repeat(64));
+});
+
+test('upload는 사용자 요청에 없는 경로·file이 아닌 ref·새 상대를 실행 전에 막는다', async () => {
+  const path = '/Users/test/Documents/report.pdf';
+  for (const fixture of [
+    { ref: 'e8', authorize: false, effect: effect('external_send'), state: 'upload_path_not_user_authorized' },
+    { ref: 'e2', authorize: true, effect: effect('external_send'), state: 'ref_not_file_input' },
+    { ref: 'e8', authorize: true, effect: effect('external_send', { recipientNew: true }), state: 'upload_new_recipient_not_open' },
+  ]) {
+    const driver = fixtureDriver();
+    const registry = makeBrowserObservationRegistry();
+    const tool = makeBrowserObservationTool({
+      driver, observationRegistry: registry,
+      authorizeUploadPath: () => fixture.authorize,
+      authorizeEffect: async () => ({ allowed: true }),
+    });
+    const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+    const gate = await tool.preflight({
+      action: 'upload', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+      observationId: before.observation.observationId, ref: fixture.ref, text: null, filePath: path,
+      effect: fixture.effect,
+    });
+    assert.equal(gate.allowed, false);
+    assert.equal(gate.result.state, fixture.state);
+    assert.equal(driver.calls.some((item) => item[0] === 'upload'), false);
   }
 });
 

@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W4 USER-CONTROLLED LOGIN CONTINUITY — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W5 BROWSER FILE TRANSFER — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -879,6 +879,76 @@ Non-goals:
 - 실제 OAuth 멀티턴에서 로그인 요청→사용자 handoff→보호 페이지→콘솔 재시작 재진입
 - terminal·PTY·web·memory·context·session 전체 회귀 유지
 
+### R6-W5 — Browser File Transfer
+
+상태: `COMPLETE` — download와 upload를 한꺼번에 열지 않고 D1 Download Truth 뒤 U1 Upload Authority를
+순서대로 닫았다. 브라우저 파일은 최신 ref·실제 파일·효과·사후 현실이 모두 맞을 때만 성공이다.
+
+사용자 완료 문장:
+
+> T5가 웹에서 받은 파일은 실제 완성 파일과 경로·크기·해시를 확인해 알려 주고, 웹으로 보낼 파일은
+> 사용자가 현재 요청에 정확히 지정한 기존 파일 하나만 전송한 뒤 실제 요청과 화면 결과를 확인한다.
+
+비교군에서 채택한 원리:
+
+- OpenClaw `2026.6.11`: download를 managed temp root로 제한하고, upload는 managed inbound file과 exact ref만 허용;
+  file chooser upload는 arming/action 경계를 분리
+- agent-browser `0.34.0`: `--download-path`와 exact-ref `upload` primitive를 재사용하되 다운로드 완료 파일,
+  업로드 source hash·권한·사후 성공 판정은 T5가 담당
+- Hermes `20e01f935b13`: 현재 일반 browser tool에는 독립적인 범용 file transfer 계약이 없어 T5가 복제하지 않음
+
+#### D1 — Download Truth
+
+- `browser.download`는 최신 `observationId·tabId·ref`, link/button role, `local_change`, 현재 page URL/origin을 요구
+- download control을 일반 click으로 누르면 `download_requires_explicit_action·actualCall:null`
+- 모델은 저장 경로·파일명을 정하지 않음; T5 Session별 0700 `downloads/`만 agent-browser `--download-path`로 사용
+- click 전후 directory 차이에서 새 파일 하나만 허용; `.crdownload·.part·.tmp`, timeout, 다중 파일,
+  64MB 초과, symlink·hardlink·하위 경로 이탈은 성공 금지하고 새 managed partial을 정리
+- 파일 크기가 두 번 연속 안정되고 partial이 없을 때만 완성; file mode 0600, bytes·SHA-256·MIME·절대경로 지속
+- 다운로드 파일은 `untrusted_external`; 자동 open·execute·parse 0
+- agent-browser network 목록이 attachment 요청을 제공하지 않는 실제 경계를 확인. source는 click 전 실제 href를
+  tab URL 기준으로 해석하고 origin+pathname만 보존하며 query 값은 제거
+- 행동 뒤 같은 tab의 새 snapshot/ref scope를 함께 반환
+
+#### U1 — Upload Authority
+
+- `browser.upload`는 현재 **사용자 요청 문장**에 완전한 절대경로 토큰으로 등장한 파일만 허용;
+  substring·상대경로·과거 대화·web content·system event에서 가져온 경로는 불허
+- 최신 ref의 실제 element type이 `file`이어야 하며 일반 click은 `upload_requires_explicit_action`
+- user file은 final path와 모든 parent가 exact realpath인 regular file, hardlink 1개, 64MB 이하만 허용
+- `.env·.npmrc·.pypirc·SSH/GPG key·PEM/KEY/P12/PFX·AWS/Kube credential·agent-browser state` 등
+  credential-like file은 사용자가 경로를 적어도 이번 Gate에서 차단
+- preflight가 읽은 SHA-256을 실제 upload call에 결속; 명령 직전 불일치면 외부 실행 0,
+  명령 뒤 원본 hash·bytes가 바뀌면 성공으로 답하지 않음
+- upload는 `external_send`만 허용하고 새 상대(`recipientNew:true`)는 이번 Gate에서 열지 않음
+- agent-browser upload 후 sanitized network와 새 snapshot을 함께 반환. network 0은 file input 선택 사실일 뿐
+  서버 도착이 아니며, POST status와 사후 화면이 있을 때만 그 사실을 모델이 별도로 판정
+- header·query 값·파일 content는 Receipt에 넣지 않고 path·bytes·SHA-256·MIME·trust만 기록
+
+실제 OAuth 콘솔:
+
+- D1 Run `914364e5-d113-4f9f-82cf-2e4322f4d8ca`: `navigate → download`, 실패 호출 0,
+  `business-report-4421.pdf`, 33 bytes, PDF, SHA-256, mode 0600, query 제거 source, 3 turns·13.9초
+- U1 Run `6aacc11d-0cef-44a2-8aaf-0fc06a7bd166`: `navigate → upload`, 실패 호출 0,
+  사용자 지정 `/private/tmp/.../business-profile-6402.pdf`만 선택, 전후 SHA-256 동일,
+  POST `/upload` 200·query 제거·fixture 수신 30 bytes·화면 filename 일치, 3 turns·15.7초
+- 실제 사용자 파일·계정 사용 0; 모든 file transfer는 격리 fixture
+- 증거: `refoundation/evidence/r6-w5-browser-file-transfer-live.json`
+
+Non-goals:
+
+- 여러 파일·폴더 upload/download, background 대용량 전송, resume, archive 자동 해제
+- 다운로드 파일 자동 열기·실행·내용 해석, upload 파일 자동 검색·대체·변환
+- 새 상대 upload, credential file, 기존 사용자 browser profile import, remote browser, desktop/CU
+- Windows 실제 파일 chooser·Explorer 동작 완료 주장
+
+완료 Gate:
+
+- download partial·다중·초과·경로 이탈과 upload path substring·file ref·credential·hash race 반대시험
+- 실제 agent-browser download file과 upload POST·사후 snapshot
+- 실제 OAuth에서 managed file 영수증과 exact user-path 외부 전송
+- terminal·PTY·web·login·memory·context·session 전체 회귀 유지
+
 ## R6 이후 — 증거가 열 때만
 
 브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -892,7 +962,7 @@ Foundation closeout 분류:
   계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
 - 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
   crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
-- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser upload/download, existing user-profile import,
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, existing user-profile import,
   app/MCP,
   channels, automation service,
   multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
@@ -900,9 +970,9 @@ Foundation closeout 분류:
 
 ## 현재 다음 한 작업
 
-R6-W4 User-Controlled Login Continuity까지 완료됐다. 계획된 다음 한 작업은 `R6-W5 Browser File Transfer`다.
-먼저 실제 download와 파일 영수증을 열고, upload는 사용자 지정 파일·외부 전송 권한·사후 화면을 별도 Gate로
-검증한다. 기존 사용자 browser profile import·CU는 W5에 섞지 않는다. 그 뒤 W6에서 네이버 스마트플레이스 같은
-로그인 사업자 업무를 실제 멀티턴으로 종단 자격한다.
+R6-W5 Browser File Transfer까지 완료됐다. 계획된 Web Hand의 마지막 한 작업은
+`R6-W6 Authenticated Business Workflow Qualification`이다. 네이버 스마트플레이스 같은 로그인 사업자 업무에서
+search/read→login handoff→observe→fill/click/submit→download/upload 중 실제 요청에 필요한 손만 조합해
+긴 멀티턴 목적을 종단 자격한다. 새 저수준 browser action이나 사이트별 규칙 엔진을 먼저 만들지 않는다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로
 섞어 보고하지 않는다.

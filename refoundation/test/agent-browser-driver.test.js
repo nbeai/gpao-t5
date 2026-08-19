@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -286,4 +286,131 @@ test('사용자가 login handoff를 취소하면 headed session을 닫고 model 
   assert.equal(cancelled.state, 'user_control_cancelled');
   assert.equal(driver.userControlActive(), false);
   assert.ok(calls.some((command) => command[0] === 'close'));
+});
+
+test('download는 managed root에 새로 완성된 단일 파일의 hash·크기·MIME·source를 관측한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-download-'));
+  const output = join(room, 'artifacts');
+  const downloads = join(room, 'downloads');
+  let downloaded = false;
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    if (command[0] === 'click') {
+      await mkdir(downloads, { recursive: true });
+      await writeFile(join(downloads, 'report.pdf'), Buffer.from('%PDF-1.7\nfixture'));
+      downloaded = true;
+      return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"clicked":"@e6"}}' };
+    }
+    if (command[0] === 'network' && command.includes('--clear')) return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+    if (command[0] === 'network') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { requests: [{ method: 'GET', url: 'https://example.com/report.pdf?token=hidden', resourceType: 'Document', status: 200, mimeType: 'application/pdf' }] } }) };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabId: 't1', url: 'https://example.com/', snapshot: '- link "받기" [ref=e6]', refs: { e6: { role: 'link', name: '받기' } } } }) };
+    if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabs: [{ tabId: 't1', url: 'https://example.com/', active: true }] } }) };
+    if (command[0] === 'get' && command[1] === 'attr') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { value: command.at(-1) === 'href' ? '/report.pdf?token=hidden' : command.at(-1) === 'download' ? 'report.pdf' : null } }) };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+  };
+  try {
+    const driver = makeAgentBrowserDriver({ ownerId: 'download', outputDirectory: output, run });
+    await driver.navigate('https://example.com/');
+    const result = await driver.download({ tabId: 't1', ref: 'e6' });
+    assert.equal(downloaded, true);
+    assert.equal(result.file.path, join(await realpath(downloads), 'report.pdf'));
+    assert.equal(result.file.bytes, 16);
+    assert.match(result.file.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(result.file.mimeType, 'application/pdf');
+    assert.equal(result.file.trust, 'untrusted_external');
+    assert.deepEqual(result.source, { address: 'https://example.com/report.pdf', queryOmitted: true });
+    assert.equal(result.network.requests[0].queryOmitted, true);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('partial download가 timeout되면 완성 파일로 승격하지 않고 managed partial을 정리한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-download-partial-'));
+  const downloads = join(room, 'downloads');
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    if (command[0] === 'click') {
+      await mkdir(downloads, { recursive: true });
+      await writeFile(join(downloads, 'report.pdf.crdownload'), 'partial');
+    }
+    if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/","active":true}]}}' };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/","snapshot":"- link \\"받기\\" [ref=e6]","refs":{"e6":{"role":"link"}}}}' };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+  };
+  try {
+    const driver = makeAgentBrowserDriver({ ownerId: 'partial', outputDirectory: join(room, 'artifacts'), run, downloadTimeoutMs: 20, downloadPollMs: 5 });
+    await assert.rejects(() => driver.download({ tabId: 't1', ref: 'e6' }), /download did not complete/);
+    assert.deepEqual(await readdir(downloads), []);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('upload file facts는 exact regular file만 hash하고 credential·symlink·hardlink를 거부한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-upload-facts-'));
+  try {
+    const actualRoom = await realpath(room);
+    const file = join(actualRoom, 'report.pdf');
+    await writeFile(file, '%PDF-1.7\nupload');
+    const driver = makeAgentBrowserDriver({ ownerId: 'upload-facts', outputDirectory: join(room, 'artifacts'), run: async () => ({ exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' }) });
+    const facts = await driver.uploadFileFacts(file);
+    assert.equal(facts.path, await realpath(file));
+    assert.match(facts.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(facts.mimeType, 'application/pdf');
+    await writeFile(join(actualRoom, '.env'), 'SECRET=value');
+    await assert.rejects(() => driver.uploadFileFacts(join(actualRoom, '.env')), /credential/i);
+    await symlink(file, join(actualRoom, 'linked.pdf'));
+    await assert.rejects(() => driver.uploadFileFacts(join(actualRoom, 'linked.pdf')), /symbolic/i);
+    const hard = join(actualRoom, 'hard.pdf');
+    await link(file, hard);
+    await assert.rejects(() => driver.uploadFileFacts(hard), /hardlink/i);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('upload는 실행 직전 hash에 파일을 결속하고 POST network·새 snapshot을 반환한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-upload-'));
+  const file = join(await realpath(room), 'report.txt');
+  await writeFile(file, 'UPLOAD-FIXTURE-9912\n');
+  const calls = [];
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    calls.push(command);
+    if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/form","active":true}]}}' };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/form","snapshot":"- button \\"보고서 파일\\" [ref=e8]: report.txt","refs":{"e8":{"role":"button","name":"보고서 파일"}}}}' };
+    if (command[0] === 'network' && command.includes('--clear')) return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+    if (command[0] === 'network') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"requests":[{"method":"POST","url":"https://example.com/upload?token=hidden","resourceType":"Fetch","status":200,"mimeType":"application/json"}]}}' };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"uploaded":1}}' };
+  };
+  try {
+    const driver = makeAgentBrowserDriver({ ownerId: 'upload', outputDirectory: join(room, 'artifacts'), run, uploadSettleMs: 0 });
+    const facts = await driver.uploadFileFacts(file);
+    const result = await driver.upload({ tabId: 't1', ref: 'e8', filePath: file, expectedSha256: facts.sha256 });
+    assert.equal(result.action.kind, 'upload');
+    assert.equal(result.file.sha256, facts.sha256);
+    assert.equal(result.file.trust, 'user_selected_local');
+    assert.equal(result.network.requests[0].address, 'https://example.com/upload');
+    assert.equal(result.network.requests[0].queryOmitted, true);
+    assert.ok(calls.some((command) => command[0] === 'upload' && command[1] === '@e8' && command[2] === file));
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('upload 직전 결속된 hash와 현재 파일이 다르면 외부 명령 전에 멈춘다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-upload-race-'));
+  const file = join(await realpath(room), 'report.txt');
+  await writeFile(file, 'before');
+  let commands = 0;
+  try {
+    const driver = makeAgentBrowserDriver({ ownerId: 'upload-race', outputDirectory: join(room, 'artifacts'), run: async () => { commands += 1; return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' }; } });
+    const facts = await driver.uploadFileFacts(file);
+    await writeFile(file, 'after');
+    await assert.rejects(() => driver.upload({ tabId: 't1', ref: 'e8', filePath: file, expectedSha256: facts.sha256 }), /changed before upload/);
+    assert.equal(commands, 0);
+  } finally {
+    await rm(room, { recursive: true, force: true });
+  }
 });

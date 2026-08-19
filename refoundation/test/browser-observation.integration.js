@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -36,12 +36,12 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
         assert.ok(browser);
         assert.deepEqual(browser.parameters.properties.action.enum, [
           'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
-          'login_start', 'login_status', 'login_cancel',
+          'login_start', 'login_status', 'login_cancel', 'download', 'upload',
         ]);
         return { text: '', toolCalls: [{ id: 'observe-page', name: 'browser', args: {
           action: 'navigate', url: 'https://example.com/app', tabId: null,
           full: null, maxChars: 20_000, fullPage: null,
-          observationId: null, ref: null, text: null, effect: null,
+          observationId: null, ref: null, text: null, filePath: null, effect: null,
         } }] };
       }
       const receipt = JSON.parse(input.messages.at(-1).content);
@@ -71,6 +71,143 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
     assert.match(completed[0].payload.receipt.result.observation.observationId, /^[0-9a-f]{64}$/);
   } finally {
     await server.closeBrowsers?.();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수증의 경로·hash를 답에 남긴다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-download-console-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const file = join(stateDir, 'browser', 'fixture', 'downloads', 'report.pdf');
+  await Promise.all([mkdir(workspace, { recursive: true }), mkdir(join(stateDir, 'browser', 'fixture', 'downloads'), { recursive: true })]);
+  await writeFile(file, Buffer.from('%PDF-1.7\nconsole-download'), { mode: 0o600 });
+  let phase = 0;
+  let observed;
+  const driver = {
+    profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
+    userControlActive: () => false,
+    async available() { return { available: true, version: '0.34.0' }; },
+    async navigate() { return {
+      tab: { tabId: 't1', targetId: 'target-1', title: '보고서', url: 'https://example.com/reports' },
+      snapshot: { text: '- link "월간 보고서" [ref=e2]', refs: { e2: { role: 'link', name: '월간 보고서' } }, totalChars: 30, truncated: false },
+    }; },
+    async elementFacts() { return { type: null, autocomplete: null, href: 'https://example.com/report.pdf', download: 'report.pdf' }; },
+    async download({ ref }) { return {
+      action: { kind: 'download', ref },
+      tab: { tabId: 't1', targetId: 'target-1', title: '보고서', url: 'https://example.com/reports' },
+      snapshot: { text: '- link "월간 보고서" [ref=e2]', refs: { e2: { role: 'link', name: '월간 보고서' } }, totalChars: 30, truncated: false },
+      network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/report.pdf', resourceType: 'Document', status: 200, mimeType: 'application/pdf' }] },
+      file: { path: file, bytes: 25, sha256: 'd'.repeat(64), mimeType: 'application/pdf', trust: 'untrusted_external' },
+      source: { address: 'https://example.com/report.pdf', queryOmitted: false },
+    }; },
+    async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
+    async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async screenshot() { throw new Error('not used'); }, async close() {},
+  };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const server = makeConsoleServer({
+    stateDir, workspace, browserDriverFactory: () => driver,
+    modelFactory: () => ({ async respond(input) {
+      phase += 1;
+      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-reports', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/reports' } }] };
+      if (phase === 2) {
+        observed = JSON.parse(input.messages.at(-1).content).result.observation;
+        return { text: '', toolCalls: [{ id: 'download-report', name: 'browser', args: {
+          action: 'download', ...nulls, tabId: 't1', observationId: observed.observationId, ref: 'e2',
+          effect: { kind: 'local_change', summary: '월간 보고서 다운로드', targets: ['https://example.com/reports'], reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null },
+        } }] };
+      }
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.result.file.sha256, 'd'.repeat(64));
+      return { text: `다운로드했습니다: ${receipt.result.file.path} (${receipt.result.file.bytes} bytes)`, toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '월간 보고서를 다운로드해줘' }) }).then((response) => response.json());
+    assert.match(reply.reply, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
+    const receipt = run.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
+    assert.equal(receipt.actualCall.name, 'browser');
+    assert.equal(receipt.result.file.trust, 'untrusted_external');
+    assert.equal(receipt.result.before.observationId, observed.observationId);
+  } finally {
+    await server.closeBrowsers();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('콘솔 upload는 현재 사용자 문장에 적힌 exact path만 file input으로 외부 전송한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-upload-console-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const file = join(await realpath(room), 'business-profile.pdf');
+  await mkdir(workspace, { recursive: true });
+  await writeFile(file, Buffer.from('%PDF-1.7\nupload-console'));
+  let phase = 0;
+  let uploads = 0;
+  const sha256 = 'e'.repeat(64);
+  const driver = {
+    profile: { id: 'isolated', kind: 'managed_isolated', selected: true }, userControlActive: () => false,
+    async available() { return { available: true, version: '0.34.0' }; },
+    async navigate() { return {
+      tab: { tabId: 't1', targetId: 'target-1', title: '자료 제출', url: 'https://example.com/upload' },
+      snapshot: { text: '- button "사업자 자료" [ref=e8]', refs: { e8: { role: 'button', name: '사업자 자료' } }, totalChars: 33, truncated: false },
+    }; },
+    async elementFacts() { return { type: 'file', autocomplete: null, href: null, download: null }; },
+    async uploadFileFacts(candidate) { return { path: candidate, bytes: 23, sha256, mimeType: 'application/pdf', trust: 'user_selected_local' }; },
+    async upload({ ref, filePath, expectedSha256 }) {
+      uploads += 1; assert.equal(expectedSha256, sha256);
+      return {
+        action: { kind: 'upload', ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: '자료 제출', url: 'https://example.com/upload' },
+        snapshot: { text: '- button "사업자 자료" [ref=e8]: business-profile.pdf', refs: { e8: { role: 'button', name: '사업자 자료' } }, totalChars: 55, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/api/upload', resourceType: 'Fetch', status: 200, mimeType: 'application/json' }] },
+        file: { path: filePath, bytes: 23, sha256, mimeType: 'application/pdf', trust: 'user_selected_local' },
+      };
+    },
+    async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
+    async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async screenshot() { throw new Error('not used'); }, async close() {},
+  };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const server = makeConsoleServer({
+    stateDir, workspace, browserDriverFactory: () => driver,
+    modelFactory: () => ({ async respond(input) {
+      phase += 1;
+      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-upload', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/upload' } }] };
+      if (phase === 2) {
+        const observation = JSON.parse(input.messages.at(-1).content).result.observation;
+        return { text: '', toolCalls: [{ id: 'upload-file', name: 'browser', args: {
+          action: 'upload', ...nulls, tabId: 't1', observationId: observation.observationId,
+          ref: 'e8', filePath: file,
+          effect: { kind: 'external_send', summary: '사업자 자료 업로드', targets: ['https://example.com/upload'], reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null },
+        } }] };
+      }
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.result.network.requests[0].method, 'POST');
+      return { text: `업로드했습니다: ${receipt.result.file.path}`, toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: `이 파일을 업로드해줘: ${file}` }) }).then((response) => response.json());
+    assert.match(reply.reply, /업로드했습니다/);
+    assert.equal(uploads, 1);
+    const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
+    const receipt = run.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
+    assert.equal(receipt.result.file.path, file);
+    assert.equal(receipt.result.file.sha256, sha256);
+    assert.equal(receipt.result.after.refScope.tabId, 't1');
+  } finally {
+    await server.closeBrowsers();
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
   }
@@ -107,7 +244,7 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
     async snapshot() { throw new Error('must not observe login form'); }, async screenshot() { throw new Error('not used'); },
     async close() {},
   };
-  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, effect: null };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -180,7 +317,7 @@ test('browser screenshot Receipt의 previewUrl은 기존 콘솔 markdown에서 �
       turn += 1;
       if (turn === 1) return { text: '', toolCalls: [{ id: 'capture-page', name: 'browser', args: {
         action: 'screenshot', url: null, tabId: 't1', full: null, maxChars: null, fullPage: true,
-        observationId: null, ref: null, text: null, effect: null,
+        observationId: null, ref: null, text: null, filePath: null, effect: null,
       } }] };
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.match(receipt.result.file.previewUrl, /^\/browser-artifacts\/t5-[0-9a-f]{20}\/browser-[0-9a-f-]{36}\.png$/);
@@ -297,7 +434,7 @@ test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 �
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, text: null, effect: null };
+  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, text: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -390,7 +527,7 @@ test('browser submit 결제 효과는 실제 제출 전에 exact-call 승인으�
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, effect: null };
+  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
