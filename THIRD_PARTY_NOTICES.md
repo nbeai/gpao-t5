@@ -13,8 +13,13 @@ retain that complete text and all required notices.
 | Package | Version | Declared license |
 |---|---:|---|
 | `@mozilla/readability` | 0.6.0 | Apache-2.0 |
+| `@nodable/entities` | 3.0.0 | MIT |
+| `@office-kit/xlsx` | 0.9.0 | MIT |
+| `@office-kit/xlsx/node_modules/saxes` | 6.0.0 | ISC |
 | `agent-browser` | 0.34.0 | Apache-2.0 |
+| `anynum` | 1.0.1 | MIT |
 | `boolbase` | 2.0.0 | ISC |
+| `clawpdf` | 0.3.0 | MIT |
 | `css-select` | 7.0.0 | BSD-2-Clause |
 | `css-what` | 8.0.0 | BSD-2-Clause |
 | `cssom` | 0.5.0 | MIT |
@@ -23,6 +28,9 @@ retain that complete text and all required notices.
 | `domhandler` | 6.0.1 | BSD-2-Clause |
 | `domutils` | 4.0.2 | BSD-2-Clause |
 | `entities` | 8.0.0 | BSD-2-Clause |
+| `fast-xml-builder` | 1.3.1 | MIT |
+| `fast-xml-parser` | 5.11.0 | MIT |
+| `fflate` | 0.8.3 | MIT |
 | `html-escaper` | 3.0.3 | MIT |
 | `htmlparser2` | 10.1.0 | MIT |
 | `htmlparser2/node_modules/dom-serializer` | 2.0.0 | MIT |
@@ -32,20 +40,27 @@ retain that complete text and all required notices.
 | `htmlparser2/node_modules/domutils` | 3.2.2 | BSD-2-Clause |
 | `htmlparser2/node_modules/entities` | 7.0.1 | BSD-2-Clause |
 | `linkedom` | 0.18.13 | ISC |
+| `is-unsafe` | 2.0.0 | MIT |
 | `node-addon-api` | 8.9.2 | MIT |
 | `node-gyp-build` | 4.8.4 | MIT |
 | `node-pty` | 1.1.0 | MIT |
 | `node-pty/node_modules/node-addon-api` | 7.1.1 | MIT |
 | `nth-check` | 3.0.1 | BSD-2-Clause |
+| `path-expression-matcher` | 1.6.2 | MIT |
+| `strnum` | 2.4.2 | MIT |
 | `tree-sitter-bash` | 0.25.1 | MIT |
 | `uhyphen` | 0.2.0 | ISC |
 | `web-tree-sitter` | 0.26.9 | MIT |
+| `xml-naming` | 0.3.0 | MIT |
+| `xmlchars` | 2.2.0 | MIT |
 | `yaml` | 2.9.0 | ISC |
 
 Direct upstream projects:
 
 - Mozilla Readability: <https://github.com/mozilla/readability>
+- Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>
+- clawpdf: <https://github.com/openclaw/clawpdf>
 - LinkeDOM: <https://github.com/WebReflection/linkedom>
 - node-pty: <https://github.com/microsoft/node-pty>
 - tree-sitter-bash: <https://github.com/tree-sitter/tree-sitter-bash>

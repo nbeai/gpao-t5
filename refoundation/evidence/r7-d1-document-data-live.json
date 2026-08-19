@@ -1,0 +1,73 @@
+{
+  "schema": "t5.r7-d1-document-data-live.v1",
+  "recordedAt": "2026-08-19T09:52:10.984Z",
+  "model": { "provider": "chatgpt_oauth", "id": "gpt-5.5" },
+  "dataBoundary": { "actualUserData": false, "fixture": "isolated_xlsx_pdf_business_documents" },
+  "fixture": {
+    "files": ["한빛상회_8월_견적.xlsx", "HANBIT_SHOP_추가정산.pdf", "새봄상사_8월_정산.xlsx"],
+    "features": ["merged title", "hidden source row", "formula and cached result", "PDF blank customer", "cross-script customer alias"]
+  },
+  "workflow": {
+    "naturalLanguageTurns": 5,
+    "runs": 5,
+    "modelTurns": 10,
+    "toolCalls": 5,
+    "failedToolCalls": 0,
+    "notExecutedToolCalls": 0,
+    "sourceFilesChanged": 0
+  },
+  "checks": {
+    "allTurnsAnswered": true,
+    "noInternalTerms": true,
+    "allSourcesObserved": true,
+    "noEarlyOutput": true,
+    "sourcesUnchanged": true,
+    "exactlyOneOutput": true,
+    "outputObserved": true,
+    "outputReopened": true,
+    "requiredSheets": true,
+    "fiveSourceRows": true,
+    "customerMeaningApplied": true,
+    "unownedFeePreserved": true,
+    "rowSourcesTraceable": true,
+    "exactDetailTotal": true,
+    "exactCustomerSummary": true,
+    "formulaTruth": true,
+    "finalSeparatesDoneAndUnknown": true,
+    "boundedToolUse": true
+  },
+  "output": {
+    "filename": "8월_사업자료_통합.xlsx",
+    "bytes": 4668,
+    "sha256": "77f3a9022807019123711ca1d08fe66be2bc85075646a0b1eb9272b3a2d5dbb1",
+    "sheets": ["통합내역", "고객별요약"],
+    "detailRows": 5,
+    "grandTotal": 68300,
+    "customerTotals": { "한빛상회": 40300, "새봄상사": 25000, "미확인": 3000 },
+    "formulas": 13,
+    "formulaErrors": 0,
+    "missingFormulaResults": 0
+  },
+  "performance": {
+    "customParserBaseline": { "modelTurns": 15, "toolCalls": 10, "providerTokens": 257744, "requestBytes": 946625 },
+    "directBuiltInDocumentCli": { "modelTurns": 10, "toolCalls": 5, "providerTokens": 128851, "requestBytes": 519575 },
+    "reduction": { "modelTurns": 5, "toolCalls": 5, "providerTokens": 128893, "providerTokensPercent": 50.0, "requestBytes": 427050, "requestBytesPercent": 45.1 }
+  },
+  "runIds": [
+    "9a7b903b-f9a4-4ba0-b903-c50e25c9fb9f",
+    "383de233-4812-4bfa-a0d6-66a64fab27d2",
+    "ebc58beb-7cd3-4dbf-8b14-7b8f2e6d33dd",
+    "adc702a3-1b5a-42a6-8c6f-2ce8205968f6",
+    "c6483043-046f-43eb-b2aa-dedc7f75641c"
+  ],
+  "verification": {
+    "unit": { "passed": 222, "failed": 0, "pty": 3 },
+    "integration": { "passed": 30, "failed": 0 },
+    "markdownSafety": { "passed": 21, "failed": 0 },
+    "thirdPartyPackages": 42,
+    "auditVulnerabilities": 0,
+    "legacyImports": 0
+  },
+  "assessment": "Replayed the saved canonical Run/Receipt ledger and output workbook after generalizing equivalent source-address separators; all 18 semantic checks passed.",
+  "passed": true
+}

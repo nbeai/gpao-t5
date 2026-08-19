@@ -1,0 +1,89 @@
+{
+  "schema": "t5.r7-d0-document-data-toolchain-comparison.v1",
+  "recordedAt": "2026-08-19T09:55:00+09:00",
+  "objective": "Expose binary business-document reality to the model without building service-specific semantics.",
+  "comparators": {
+    "openclaw": {
+      "version": "2026.6.11",
+      "pdf": {
+        "shape": "built-in tool",
+        "component": "clawpdf",
+        "installedVersion": "0.3.0",
+        "behavior": ["native provider when available", "text-first fallback", "page PNG fallback", "bounded pages and bytes"]
+      },
+      "spreadsheet": "No bundled spreadsheet-specific skill was present in the inspected local installation; terminal remains the general route."
+    },
+    "hermes": {
+      "xlsx": {
+        "shape": "on-demand skill over terminal",
+        "components": ["openpyxl", "pandas", "markitdown", "LibreOffice recalculation"],
+        "contracts": ["two-pass formula/value reads", "mandatory recalculation for formula outputs", "formula error scan", "spot-check computed cells"]
+      },
+      "pdf": {
+        "shape": "separate PDF and OCR/document skills",
+        "components": ["PyMuPDF", "marker-pdf", "PDF manipulation libraries"]
+      }
+    },
+    "anthropic_skills": {
+      "xlsx": ["openpyxl for formula and formatting", "pandas for bulk data", "LibreOffice recalc", "re-open and inspect"],
+      "lesson": "A successful command exit is not spreadsheet correctness."
+    },
+    "legacy_t5": {
+      "observed": "Document extensions occurred in file-location fixtures and plans, but no XLSX/PDF parser, generator, formula recalculation, or re-open verification implementation was found."
+    }
+  },
+  "githubCandidates": [
+    {
+      "name": "clawpdf",
+      "version": "0.3.0",
+      "license": "MIT",
+      "decision": "adopt",
+      "reason": "OpenClaw-proven zero-runtime-dependency PDFium WASM text extraction and rendering boundary; compatible with Node 20+."
+    },
+    {
+      "name": "@office-kit/xlsx",
+      "version": "0.9.0",
+      "license": "MIT",
+      "decision": "adopt_with_exact_pin_and_countertests",
+      "reason": "Node 22+ pure TypeScript OOXML read/write, three direct runtime dependencies, decompression guards, formula cache and advanced-part passthrough. Pre-1.0 status remains explicit."
+    },
+    {
+      "name": "exceljs",
+      "version": "4.4.0",
+      "license": "MIT",
+      "decision": "reject",
+      "reason": "Trial install added 98 packages, several deprecated transitive packages, and an indirect moderate advisory requiring a forced uuid override."
+    },
+    {
+      "name": "Docling",
+      "decision": "defer_until_layout_or_ocr_demand",
+      "reason": "Powerful unified document representation and table/OCR pipelines, but substantially heavier than the first machine-readable XLSX/PDF requirement."
+    },
+    {
+      "name": "pdfplumber_or_PyMuPDF",
+      "decision": "defer",
+      "reason": "Strong coordinate/table extraction, but the product currently has no managed Python runtime and clawpdf closes the first text-PDF boundary."
+    }
+  ],
+  "t5Contracts": [
+    "source path, hash, sheet/cell or page provenance",
+    "merged, hidden, formula, cached-result and number-format facts stay distinct",
+    "projection limits remain visible",
+    "unknown or conflicting business meaning is not inferred",
+    "new output by default; no silent overwrite",
+    "formula requires an independently supplied cached result",
+    "output is re-opened and reconciled with sources"
+  ],
+  "sources": [
+    "https://github.com/openclaw/openclaw/blob/main/docs/tools/pdf.md",
+    "https://github.com/openclaw/clawpdf",
+    "https://github.com/NousResearch/hermes-agent/blob/main/skills/productivity/xlsx/SKILL.md",
+    "https://github.com/NousResearch/hermes-agent/blob/main/skills/productivity/pdf/SKILL.md",
+    "https://github.com/anthropics/skills/blob/main/skills/xlsx/SKILL.md",
+    "https://github.com/office-kit/xlsx",
+    "https://github.com/docling-project/docling",
+    "https://github.com/jsvine/pdfplumber",
+    "https://github.com/pymupdf/PyMuPDF"
+  ],
+  "passed": true
+}

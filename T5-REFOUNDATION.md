@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W6 AUTHENTICATED BUSINESS WORKFLOW — COMPLETE` (격리 사업자 fixture·실제 OAuth, macOS 레인)
+현재 Gate: `R7-D1 DOCUMENT DATA HAND — COMPLETE` (격리 XLSX/PDF fixture·실제 OAuth, macOS 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -982,6 +982,52 @@ Non-goals:
 - 사이트별 selector·규칙 엔진, 실제 고객 전송, 실제 정산 문서 사용
 - Windows 실제 브라우저·파일 chooser 지원 완료 주장
 
+## R7-D1 — Document Data Hand
+
+비정형 사업 문서를 서비스별 로봇팔로 만들지 않고, 모델이 터미널에서 쓰는 범용 문서 손으로 세웠다.
+비교군·GitHub 조사 결과는 `refoundation/evidence/r7-d0-document-data-toolchain-comparison.json`에 있다.
+
+채택 구조:
+
+- PDF 현실: OpenClaw과 같은 `clawpdf@0.3.0` — PDFium WASM, 텍스트·페이지·회전·크기, 텍스트 없음 경계
+- XLSX 현실: `@office-kit/xlsx@0.9.0` 정확 핀 — Node 22+, 순수 Node, OOXML read/write, 병합·숨김·수식 캐시
+- 모델 표면: `$T5_DOCUMENT_CLI help|inspect|create-xlsx`; 별도 모델 도구나 의미 규칙 엔진 없음
+- 상세 절차: `document-data` Skill은 필요할 때만 출처·충돌·재검산 방법을 공급
+- 원본은 읽기만 하고 새 output만 생성; 기존 output은 명시적 `--replace` 없이는 거부
+
+관측 계약:
+
+- file path·bytes·SHA-256·mode
+- XLSX sheet state, 셀 주소·typed value·number format, merge master, hidden row/column,
+  formula text·cached result·error/missing result, 전체/표시/생략 셀 수
+- PDF page count·page number·dimensions·rotation·text·생략량; 추출 텍스트 0이면 `requiresOcrOrVision:true`
+- 스캔 문서를 읽은 척하지 않고 실제 OCR/vision이 열릴 때까지 정지
+
+생성·검증 계약:
+
+- 다중 sheet·typed row·source column·formula+독립 계산 result를 받는 일반 workbook 명세
+- result 없는 formula는 거부; formula error·missing result를 재개방 관측
+- 출력은 0600 임시 파일 뒤 원자적 rename, 생성 직후 같은 관측기로 다시 open
+- 의미 정확성은 모델이 원본의 `파일·시트·셀` 또는 `파일·페이지` 출처와 건수·합계를 대조
+
+실제 OAuth 5턴:
+
+- 입력: 병합 제목·숨김 행·수식 XLSX 2개 + 고객 공란이 있는 text PDF 1개
+- 사용자 보정: `HANBIT SHOP → 한빛상회`, 고객 없는 배송비는 `미확인`, 전부 KRW 공급가액
+- 출력: `통합내역`·`고객별요약`, 5건, 68,300원, 고객별 40,300·25,000·3,000
+- 원본 hash 변경 0, 출력 4,668 bytes, formula 13, formula error 0, missing result 0
+- 재개방 뒤 exact source·unknown·행 수·고객별/전체 합계 논리곱 18/18 통과
+- 직접 내장 CLI 노출 전 custom parser 기준보다 model turns `15→10`, tool calls `10→5`,
+  request bytes `946,625→519,575`(-45.1%), provider tokens `257,744→128,851`(-50.0%)
+- 증거: `refoundation/evidence/r7-d1-document-data-live.json`
+
+Non-goals:
+
+- `.xls`·`.xlsb`·ODS, 차트·피벗의 시각적 완성, Excel/LibreOffice formula engine 대체
+- OCR 완료 주장, 한국어 스캔·손글씨·복잡한 PDF table structure 완료 주장
+- 세무 판단·회계 분개·현금흐름 의미를 런타임이 대신 결정하는 규칙 엔진
+- Windows 실제 Excel 렌더링·파일 연결 완료 주장
+
 ## R6 이후 — 증거가 열 때만
 
 브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -1003,7 +1049,7 @@ Foundation closeout 분류:
 
 ## 현재 다음 한 작업
 
-계획된 Web Hand W0~W6은 완료됐다. 다음 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
+계획된 Web Hand W0~W6과 첫 Document Data Hand D1은 완료됐다. 다음 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지한다.

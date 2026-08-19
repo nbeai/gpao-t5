@@ -39,6 +39,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
+const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 
 function json(res, status, value) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -124,6 +125,7 @@ export function makeConsoleServer({
   webReadOptions = {},
   browserDriverFactory,
   processYieldMs = 1000,
+  documentCli = bundledDocumentCli,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -443,6 +445,7 @@ export function makeConsoleServer({
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
+        env: { T5_DOCUMENT_CLI: documentCli },
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
       const offeredTools = [...terminal.tools];

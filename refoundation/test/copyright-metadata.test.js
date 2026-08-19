@@ -34,7 +34,7 @@ test('lock에 든 모든 제3자 package의 exact version·license가 notices에
     read('refoundation/package-lock.json').then(JSON.parse),
   ]);
   const packages = Object.entries(lock.packages).filter(([path]) => path);
-  assert.equal(packages.length, 29);
+  assert.equal(packages.length, 42);
   for (const [path, metadata] of packages) {
     const name = path.replace(/^node_modules\//, '');
     assert.ok(metadata.version, `${name} version missing`);
