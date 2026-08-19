@@ -1,5 +1,12 @@
 # GPAO-T5
 
+Copyright © 2026 YOON. All rights reserved.
+
+This repository is private and UNLICENSED. It grants no public permission to
+use, copy, modify, or distribute the original GPAO-T5 materials. Third-party
+components retain their original licenses; see [COPYRIGHT](COPYRIGHT),
+[NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 Status: `official_development_root`
 
 This folder is the formal development root for GPAO-T5.

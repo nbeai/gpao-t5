@@ -2,6 +2,8 @@
   "name": "@gpao-t5/refoundation",
   "version": "0.0.0",
   "private": true,
+  "author": "YOON",
+  "license": "UNLICENSED",
   "type": "module",
   "engines": {
     "node": ">=20"

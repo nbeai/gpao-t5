@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "GPAO-T5 Original AI Operating System — local development build",
+  "author": "YOON",
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=20"
   },

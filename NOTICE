@@ -1,0 +1,16 @@
+GPAO-T5
+Copyright © 2026 YOON. All rights reserved.
+
+GPAO-T5 is currently private and unpublished. The repository does not grant a
+public software license. The package metadata therefore uses UNLICENSED and
+private=true to prevent accidental publication or an implied permission to
+redistribute.
+
+The YOON copyright notice covers only original GPAO-T5 project materials.
+Third-party software, libraries, generated artifacts, trademarks, and other
+materials retain their original ownership and license terms.
+
+THIRD_PARTY_NOTICES.md records the dependency inventory currently used by the
+refoundation runtime. A distributed build that bundles third-party code must
+also retain the complete license and copyright text shipped by each bundled
+package.
