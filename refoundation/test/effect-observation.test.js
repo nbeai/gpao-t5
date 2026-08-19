@@ -50,9 +50,11 @@ test('foreground exec Receipt는 선언 효과와 target 전후 현실을 분리
 });
 
 test('외부 효과는 선언과 실행 결과를 기록하되 실제 도착을 관측한 척하지 않는다', async () => {
-  const observed = await observeDeclaredEffect({
-    kind: 'external_send', targets: ['https://example.invalid'], summary: '전송',
-  }, '/tmp');
-  assert.equal(observed.scope, 'external');
-  assert.equal(observed.observed, false);
+  for (const kind of ['external_change', 'external_send']) {
+    const observed = await observeDeclaredEffect({
+      kind, targets: ['https://example.invalid'], summary: '외부 효과',
+    }, '/tmp');
+    assert.equal(observed.scope, 'external');
+    assert.equal(observed.observed, false);
+  }
 });

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { makeBrowserObservationTool } from '../src/browser-observation-tool.js';
+import { makeBrowserObservationRegistry } from '../src/browser-action-state.js';
 
 function fixtureDriver() {
   const calls = [];
@@ -15,7 +16,17 @@ function fixtureDriver() {
       calls.push(['navigate', url]);
       return {
         tab: { tabId: 't1', targetId: 'target-1', title: 'Example', url },
-        snapshot: { text: '- heading "Example" [ref=e1]', refs: { e1: { role: 'heading', name: 'Example' } }, totalChars: 28, truncated: false },
+        snapshot: {
+          text: '- heading "Example" [ref=e1]\n- button "다음" [ref=e2]\n- textbox "검색" [ref=e4]\n- button "제출" [ref=e5]\n- link "받기" [ref=e6]',
+          refs: {
+            e1: { role: 'heading', name: 'Example' },
+            e2: { role: 'button', name: '다음' },
+            e4: { role: 'textbox', name: '검색' },
+            e5: { role: 'button', name: '제출' },
+            e6: { role: 'link', name: '받기' },
+          },
+          totalChars: 80, truncated: false,
+        },
       };
     },
     async snapshot(options) {
@@ -32,16 +43,41 @@ function fixtureDriver() {
         file: { path: '/private/tmp/t5-browser/shot.png', bytes: 1200, sha256: 'a'.repeat(64), mimeType: 'image/png' },
       };
     },
+    async elementFacts({ ref }) {
+      calls.push(['elementFacts', ref]);
+      if (ref === 'e4') return { type: 'text', autocomplete: null, href: null, download: null };
+      if (ref === 'e5') return { type: 'submit', autocomplete: null, href: null, download: null };
+      if (ref === 'e6') return { type: null, autocomplete: null, href: 'https://example.com/file.zip', download: '' };
+      return { type: 'button', autocomplete: null, href: null, download: null };
+    },
+    async click(options) {
+      calls.push(['click', options]);
+      return {
+        action: { kind: 'click', ref: options.ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: 'After', url: 'https://example.com/after' },
+        snapshot: { text: '- heading "After" [ref=e5]', refs: { e5: { role: 'heading', name: 'After' } }, totalChars: 32, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/after', resourceType: 'Document', status: 200 }] },
+      };
+    },
+    async fill(options) {
+      calls.push(['fill', options]);
+      return {
+        action: { kind: 'fill', ref: options.ref, textChars: options.text.length },
+        tab: { tabId: 't1', targetId: 'target-1', title: 'Search', url: 'https://example.com/' },
+        snapshot: { text: '- textbox "검색" [ref=e4]: coffee', refs: { e4: { role: 'textbox', name: '검색' } }, totalChars: 38, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/suggest', queryOmitted: true, resourceType: 'Fetch', status: 200 }] },
+      };
+    },
   };
 }
 
-test('browser W1 schema에는 관측 행동만 있고 클릭·입력·평가가 없다', () => {
+test('browser W2 schema는 click·fill만 더하고 submit·upload·download·evaluate는 없다', () => {
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
-    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot',
+    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill',
   ]);
-  const forbidden = ['click', 'type', 'fill', 'press', 'upload', 'download', 'evaluate', 'submit'];
+  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate', 'submit'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
 });
 
@@ -103,4 +139,104 @@ test('browser navigate는 HTTP(S) 밖 주소와 URL 내 자격정보를 실행 �
   await assert.rejects(() => tool.execute({ ...base, url: 'file:///Users/test/secret' }), /protocol/i);
   await assert.rejects(() => tool.execute({ ...base, url: 'https://user:secret@example.com/' }), /credentials/i);
   assert.deepEqual(driver.calls, []);
+});
+
+const effect = (kind, overrides = {}) => ({
+  kind, summary: '브라우저 행동', targets: ['https://example.com/'],
+  reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+  ...overrides,
+});
+
+test('click은 최신 observation/ref와 external_change 선언을 확인한 뒤 행동 후 새 관측을 남긴다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const authorized = [];
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry,
+    authorizeEffect: async (args) => { authorized.push(args); return { allowed: true }; },
+  });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const args = {
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 20_000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e2', text: null,
+    effect: effect('external_change'),
+  };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'acted');
+  assert.equal(result.action.kind, 'click');
+  assert.equal(result.before.observationId, before.observation.observationId);
+  assert.notEqual(result.after.observationId, before.observation.observationId);
+  assert.equal(result.after.refScope.tabId, 't1');
+  assert.equal(result.network.requests[0].address, 'https://example.com/after');
+  assert.equal(authorized.length, 1);
+});
+
+test('stale observation과 관측하지 않은 ref는 driver 행동 전에 not_executed다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+  const first = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  await tool.execute({ action: 'snapshot', url: null, tabId: 't1', full: false, maxChars: 5000, fullPage: null });
+  const gate = await tool.preflight({
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: first.observation.observationId, ref: 'e2', text: null, effect: effect('external_change'),
+  });
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.outcome, 'not_executed');
+  assert.equal(gate.result.state, 'stale_observation');
+  assert.equal(driver.calls.some((call) => call[0] === 'click'), false);
+});
+
+test('fill은 observe로 낮출 수 없고 일반 external_send 뒤 network와 새 snapshot을 남긴다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const base = {
+    action: 'fill', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e4', text: 'coffee',
+  };
+  const rejected = await tool.preflight({ ...base, effect: effect('observe') });
+  assert.equal(rejected.result.state, 'effect_declaration_mismatch');
+  const args = { ...base, effect: effect('external_send') };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'acted');
+  assert.equal(result.action.textChars, 6);
+  assert.equal(result.network.requests[0].queryOmitted, true);
+  assert.match(result.after.text, /coffee/);
+});
+
+test('password·OTP·결제정보 표준 필드는 text가 주어져도 실행 전에 secret_input_required다', async () => {
+  const driver = fixtureDriver();
+  driver.elementFacts = async () => ({ type: 'password', autocomplete: 'current-password', href: null });
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const gate = await tool.preflight({
+    action: 'fill', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e4', text: 'should-not-run',
+    effect: effect('external_send'),
+  });
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.result.state, 'secret_input_required');
+  assert.equal(driver.calls.some((call) => call[0] === 'fill'), false);
+});
+
+test('별도 Gate인 submit·download는 높은 효과 선언으로 우회해도 click 전에 멈춘다', async () => {
+  for (const [ref, state] of [['e5', 'submit_action_not_open'], ['e6', 'download_action_not_open']]) {
+    const driver = fixtureDriver();
+    const registry = makeBrowserObservationRegistry();
+    const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+    const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+    const gate = await tool.preflight({
+      action: 'click', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+      observationId: before.observation.observationId, ref, text: null,
+      effect: effect('external_send'),
+    });
+    assert.equal(gate.allowed, false);
+    assert.equal(gate.result.state, state);
+    assert.equal(driver.calls.some((call) => call[0] === 'click'), false);
+  }
 });

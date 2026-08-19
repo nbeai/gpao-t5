@@ -33,6 +33,7 @@ import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
+import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -74,7 +75,7 @@ function selfState(status, workspace, browserReady = false) {
     model: status?.modelId ?? '연결 필요',
     modelAuthState: status?.connected ? 'usable' : 'needs_connection',
     modelHealthState: status?.connected ? 'usable' : null,
-    ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : []), ...(browserReady ? ['브라우저 관측'] : [])],
+    ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : []), ...(browserReady ? ['브라우저'] : [])],
     limits: [`기본 터미널 위치: ${workspace}`],
   };
 }
@@ -142,6 +143,7 @@ export function makeConsoleServer({
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
   const browserDrivers = new Map();
+  const browserObservations = new Map();
   const browserArtifactRoot = resolve(stateDir, 'browser');
 
   async function browserDriver(sessionId) {
@@ -150,6 +152,13 @@ export function makeConsoleServer({
       browserDrivers.set(sessionId, await browserDriverFactory(sessionId));
     }
     return browserDrivers.get(sessionId);
+  }
+
+  function browserObservationRegistry(sessionId) {
+    if (!browserObservations.has(sessionId)) {
+      browserObservations.set(sessionId, makeBrowserObservationRegistry());
+    }
+    return browserObservations.get(sessionId);
   }
 
   function publishBrowserScreenshot(sessionId, captured) {
@@ -428,6 +437,10 @@ export function makeConsoleServer({
           offeredTools.unshift(makeBrowserObservationTool({
             driver: currentBrowser,
             publishScreenshot: (captured) => publishBrowserScreenshot(sessionId, captured),
+            observationRegistry: browserObservationRegistry(sessionId),
+            authorizeEffect: (args) => effectPreflight({
+              toolName: 'browser', args, ownerId: sessionId,
+            }),
           }));
         }
       }
@@ -532,13 +545,15 @@ export function makeConsoleServer({
         receipt.result?.state === 'approval_required'
       ));
       const surfaceResult = approvalReceipt ? (() => {
-        const { effect, pendingId, command } = approvalReceipt.result;
+        const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
           kind: 'approval', reply: result.answer, runId: run.runId, pendingId,
           pending: [{
             action: effect.kind, label: effect.summary, tier: 'A3', safetyFloor: true,
             preview: {
-              impact: effect.kind, where: effect.targets.join(', '), what: command,
+              impact: effect.kind, where: effect.targets.join(', '),
+              what: command ?? (toolName === 'browser'
+                ? `browser ${approvalReceipt.requestedCall?.args?.action ?? 'action'}` : toolName),
               cancel: effect.reversible ? '되돌릴 수 있다고 선언됨' : '되돌리기 어려움',
             },
             reason: {
@@ -900,7 +915,7 @@ export function makeConsoleServer({
         json(res, 200, { tools: [
           { id: 'exec', label: '터미널', executable: true },
           ...(typeof browserDriverFactory === 'function'
-            ? [{ id: 'browser', label: '브라우저 관측', executable: true }] : []),
+            ? [{ id: 'browser', label: '브라우저', executable: true }] : []),
         ] }); return;
       }
       if (req.method === 'GET' && url.pathname === '/channels') { json(res, 200, { channels: [] }); return; }

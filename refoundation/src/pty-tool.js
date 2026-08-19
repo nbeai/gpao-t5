@@ -9,7 +9,7 @@ import { compareEffectObservations, observeDeclaredEffect } from './effect-obser
 const EFFECT_SCHEMA = {
   type: 'object',
   properties: {
-    kind: { type: 'string', enum: ['observe', 'local_change', 'destructive', 'external_send', 'payment', 'secret_input'] },
+    kind: { type: 'string', enum: ['observe', 'local_change', 'external_change', 'destructive', 'external_send', 'payment', 'secret_input'] },
     summary: { type: 'string' },
     targets: { type: 'array', items: { type: 'string' } },
     reversible: { type: 'boolean' },

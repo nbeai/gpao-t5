@@ -1,0 +1,85 @@
+{
+  "schema": "t5.r6-w2-browser-action-truth-live.v1",
+  "recordedAt": "2026-08-19T09:28:04+09:00",
+  "mainModel": { "provider": "chatgpt_oauth", "model": "gpt-5.5" },
+  "browserRuntime": { "name": "agent-browser", "version": "0.34.0", "profile": "t5_managed_isolated" },
+  "capability": {
+    "tool": "browser",
+    "openedActions": ["click", "fill"],
+    "binding": ["latest_observationId", "tabId", "ref"],
+    "postActionFacts": ["new_snapshot", "navigation", "sanitized_network"],
+    "excludedActions": ["submit", "secret_input", "upload", "download", "evaluate", "user_login_profile", "computer_use"]
+  },
+  "directLoopbackProbe": {
+    "fill": {
+      "tabId": "t1",
+      "ref": "e4",
+      "textChars": 6,
+      "networkRequests": 2,
+      "networkAddress": "http://127.0.0.1:43180/suggest",
+      "queryOmitted": true,
+      "postObservationChanged": true,
+      "passed": true
+    },
+    "click": {
+      "tabId": "t1",
+      "ref": "e3",
+      "from": "http://127.0.0.1:43180/",
+      "to": "http://127.0.0.1:43180/next",
+      "documentStatus": 200,
+      "passed": true
+    },
+    "driverCorrections": [
+      "agent-browser CLI refs require @eN while T5 receipts keep eN",
+      "reselecting the already-active tab invalidates agent-browser refs, so redundant selection is omitted"
+    ]
+  },
+  "oauthRuns": [
+    {
+      "name": "navigate_fill_network_and_post_snapshot",
+      "runId": "c56a1164-6cbf-491c-9d87-51d2f3be32e1",
+      "status": "completed",
+      "toolActions": ["navigate", "fill", "snapshot"],
+      "fillEffect": "external_send",
+      "networkRequests": 2,
+      "queryOmitted": true,
+      "submitClicks": 0,
+      "modelTurns": 4,
+      "wallMs": 21926,
+      "passed": true
+    },
+    {
+      "name": "next_turn_stable_ref_click_and_navigation",
+      "runId": "3a13db8c-13a3-463d-a26a-7b376a0d1ade",
+      "status": "completed",
+      "toolActions": ["click"],
+      "tabId": "t1",
+      "navigationChanged": true,
+      "documentStatus": 200,
+      "modelTurns": 2,
+      "wallMs": 9925,
+      "passed": true
+    }
+  ],
+  "preflightBoundaries": {
+    "staleObservation": "not_executed",
+    "unknownRef": "not_executed",
+    "secretField": "secret_input_required",
+    "submit": "submit_action_not_open",
+    "download": "download_action_not_open",
+    "payment": "approval_required_with_actualCall_null"
+  },
+  "verification": {
+    "browserUnit": { "passed": 23, "failed": 0 },
+    "browserIntegration": { "passed": 5, "failed": 0 },
+    "nonPtyUnitRegression": { "passed": 173, "failed": 0 },
+    "integrationRegression": { "passed": 25, "failed": 0 },
+    "ptyConcurrentAttempt": {
+      "passed": 2,
+      "failed": 1,
+      "reason": "multiple unrelated pty-terminal test processes had already been running for over four hours; resize observed empty stty output"
+    },
+    "legacyImports": 0
+  },
+  "passed": true
+}

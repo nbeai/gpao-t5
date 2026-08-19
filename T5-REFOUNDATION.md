@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W1 BROWSER OBSERVATION — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W2 BROWSER ACTION AND TRUTH — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -710,15 +710,59 @@ Non-goals:
 
 ### R6-W2 — Browser Action and Truth
 
-상태: `NEXT` — Browser 내부 행동을 효과·권한·사후검증 계약 위에서 한 종류씩 연다. CU는 열지 않는다.
+상태: `COMPLETE` — 현재 snapshot의 최신 ref에 결속된 click과 비밀이 아닌 일반 text fill을 실제
+격리 브라우저·OAuth 콘솔까지 열고, 효과·권한·사후 관측을 같은 Run/Receipt에 결합했다. CU는 열지 않았다.
 
-첫 개방 후보는 현재 snapshot ref에 결속된 click과 일반 text input이다. 관찰·검색과 외부 전송·게시·결제·삭제를
-구분하고, 행동 전후 같은 tab의 새 observation과 실제 network/download 사실로 목적 달성을 확인하기 전에는
-성공으로 답하지 않는다. 로그인 profile·upload·download는 실제 수요와 별도 Gate에서 연다.
+사용자 완료 문장:
+
+> T5가 렌더링한 페이지에서 정확히 관측한 대상을 누르거나 일반 문자를 입력하고, 실제로 나간 요청과
+> 행동 뒤의 새 화면을 확인해 목적 결과를 답하며, 오래된 대상·비밀·미개방 행동·권한 경계는 실행 전에 멈춘다.
+
+현재 성립한 계약:
+
+- 모델에게 보이는 `browser` 하나에 `click·fill`만 추가; 별도 submit·type·press·evaluate·upload·download action 0
+- 행동은 같은 tab의 **최신** `observationId·tabId·ref` 세 값에 결속; 다시 관측한 뒤의 오래된 ref, 다른 tab,
+  관측하지 않은 ref는 `actualCall:null·not_executed`
+- ref의 접근성 role과 실제 element `type·autocomplete·href·download`를 실행 전에 대조
+- password·OTP·결제정보 autocomplete와 `secret_input`은 모델 인자로 입력하지 않고 사용자 통제 입력 경계에서 정지
+- 명시적 form submit과 download link는 효과 선언을 높여도 이번 Gate에서 열리지 않음
+- 일반 fill도 input event가 요청을 보낼 수 있어 `observe`로 선언할 수 없고 `external_send·external_change`만 허용
+- link 관측은 `observe`, button 등 페이지 변경은 최소 `external_change`; 백업 없는 파괴·새 상대 전송·결제는
+  기존 exact-call AuthorityStore를 거쳐 승인 전 실제 driver 호출 0
+- 행동 직전 network buffer를 비우고, 행동 뒤 같은 tab의 새 compact snapshot과 URL 이동 전후, HTTP(S) 요청의
+  method·origin+pathname·resource type·status·MIME만 반환; header·query 값·fragment는 영수증에서 제외
+- agent-browser CLI의 `@eN` 표기는 driver 경계에서만 변환하고 T5 원장 ref는 `eN` 유지
+- agent-browser는 같은 active tab을 다시 선택하면 ref map을 지우므로, driver가 active tab 사실을 보존해 중복 선택을
+  생략; 다른 tab으로 실제 전환했다면 새 snapshot 없이는 기존 latest-ref 계약을 통과할 수 없음
+- 행동 결과를 성공 문장으로 만드는 것은 runtime이 아니라 before/after/network Receipt를 읽은 모델
+
+실제 OAuth 콘솔:
+
+- 일반 사용자 요청 `페이지를 열어 coffee 입력, 자동완성 요청과 현재 화면 확인, 제출 금지`:
+  `navigate → fill → snapshot`, Fetch `/suggest` 2건·query 값 제거·status 200·입력값 coffee 확인,
+  제출 click 0, 4 model turns·21.9초
+- 같은 Session 후속 요청 `다음 페이지 링크를 눌러 이동과 새 화면 확인`:
+  최신 `t1` ref로 click 1회, `/ → /next`, Document GET 200, 새 heading 관측, 2 model turns·9.9초
+- 직접 loopback 실물에서 구현 중 두 결함을 발견해 교정: CLI `@ref` 변환 누락, 같은 tab 재선택의 ref 무효화
+- 증거: `refoundation/evidence/r6-w2-browser-action-truth-live.json`
+
+Non-goals:
+
+- submit·upload·download·비밀번호·OTP·결제정보 입력, 사용자 기존 로그인 profile, cookie import
+- screenshot pixel vision, CAPTCHA, browser extension, remote/cloud browser, desktop/CU
+- 사전 DOM 전수 scan, 사이트별 action 규칙, runtime의 목적 달성 대신 판정
+
+완료 Gate:
+
+- stale/tab/ref 결속과 secret·submit·download 실행 전 정지 반대시험
+- browser action의 기존 효과·exact-call 권한 배선과 결제 승인 전 `actualCall:null`
+- 실제 driver fill·click, sanitized network, URL·새 snapshot 사후 관측
+- 실제 OAuth 멀티턴에서 입력→네트워크·화면 확인→후속 링크 이동
+- 기존 terminal·web·memory·context·session 영역 회귀 유지
 
 ## R6 이후 — 증거가 열 때만
 
-브라우저 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
+브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
 Multi-agent는 앞 Gate의 실제 병목과 비교 증거가 필요성을 입증할 때 하나씩 연다. 새 능력은 agent loop를
 재작성하지 않고 도구 또는 상태 공급자로 붙어야 한다.
 
@@ -729,13 +773,15 @@ Foundation closeout 분류:
   계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
 - 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
   crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
-- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser action/app/MCP, channels, automation service,
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser submit/upload/download/login profile, app/MCP,
+  channels, automation service,
   multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
 - 증거: `refoundation/evidence/foundation-closeout-audit.json`
 
 ## 현재 다음 한 작업
 
-R6-W1 Browser Observation은 완료됐다. 다음 한 작업은 `R6-W2 Browser Action and Truth`다. 현재 snapshot의
-ref와 tab에 결속된 click·일반 text input을 최소 행동으로 열고, 외부 전송·게시·결제·삭제 경계와 행동 전후
-재관측을 먼저 세운다. 사용자 로그인 profile·upload·download·CU는 열지 않는다. Windows 실제 기기와
-crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로 섞어 보고하지 않는다.
+R6-W2 Browser Action and Truth까지 완료됐다. 다음 능력을 자동으로 열지 않는다. 실제 콘솔 사용에서 terminal·
+web read/search·browser observe/action으로 끝낼 수 없는 반복 병목이 생기면 그 Run/Receipt로 원인을 확정하고,
+Skill·submit/upload/download·로그인 profile·외부 앱/MCP·Gateway·Automation 중 가장 작은 한 축만 연다.
+Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로
+섞어 보고하지 않는다.

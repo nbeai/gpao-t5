@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
+import { EFFECT_SCHEMA } from './exec-tool.js';
+import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
-const ACTIONS = ['status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot'];
+const ACTIONS = ['status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill'];
+const ACTION_KINDS = new Set(['click', 'fill']);
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
 
@@ -17,7 +20,7 @@ function browserUrl(raw) {
   return parsed.href;
 }
 
-function observationResult(driver, value, maxChars) {
+function observationResult(driver, value, maxChars, registry) {
   const text = String(value?.snapshot?.text ?? '');
   const shown = text.slice(0, maxChars);
   const totalChars = Math.max(text.length, Number(value?.snapshot?.totalChars ?? 0));
@@ -26,7 +29,7 @@ function observationResult(driver, value, maxChars) {
     targetId: value?.tab?.targetId ?? null,
     url: value?.tab?.url ?? '', text, refs: value?.snapshot?.refs ?? {},
   })).digest('hex');
-  return {
+  const result = {
     state: 'observed', effect: 'observe', profile: profileOf(driver),
     tab: structuredClone(value.tab),
     observation: {
@@ -41,13 +44,35 @@ function observationResult(driver, value, maxChars) {
       trust: 'untrusted_external', instructionAuthority: 'none',
     },
   };
+  registry.remember(result.observation);
+  return result;
 }
 
-export function makeBrowserObservationTool({ driver, publishScreenshot } = {}) {
+const SECRET_AUTOCOMPLETE = /^(?:current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp|cc-exp-month|cc-exp-year|cc-name)$/i;
+
+function effectTargetsCurrentPage(effect, observation) {
+  let origin = '';
+  try { origin = new URL(observation.refScope.url).origin; } catch { /* invalid observed URL */ }
+  return Array.isArray(effect?.targets) && effect.targets.some((target) => {
+    const value = String(target ?? '').trim();
+    return value === observation.refScope.url || value === origin;
+  });
+}
+
+function blocked(state, extra = {}) {
+  return { allowed: false, outcome: 'not_executed', result: { state, ...extra } };
+}
+
+export function makeBrowserObservationTool({
+  driver,
+  publishScreenshot,
+  observationRegistry = makeBrowserObservationRegistry(),
+  authorizeEffect,
+} = {}) {
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
-  return {
+  const tool = {
     name: 'browser',
-    description: 'Observe rendered web pages in a managed isolated browser. W1 is read-only: status, profiles, tabs, navigate, snapshot, and screenshot only; there is no click, typing, evaluation, upload, download, or computer use.',
+    description: 'Observe rendered web pages and use exact refs from the latest observation to click or fill non-secret text in a managed isolated browser. There is no submit action, secret input, upload, download, evaluation, login-profile reuse, or computer use.',
     parameters: {
       type: 'object',
       properties: {
@@ -57,8 +82,15 @@ export function makeBrowserObservationTool({ driver, publishScreenshot } = {}) {
         full: { type: ['boolean', 'null'], description: 'For snapshot: true includes full accessible page text; false is compact interactive structure.' },
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_CHARS },
         fullPage: { type: ['boolean', 'null'], description: 'For screenshot: capture the whole scrollable page.' },
+        observationId: { type: ['string', 'null'], description: 'Exact latest observationId that supplied ref, otherwise null.' },
+        ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click or fill, otherwise null.' },
+        text: { type: ['string', 'null'], maxLength: 4_000, description: 'Non-secret text for fill, otherwise null.' },
+        effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
       },
-      required: ['action', 'url', 'tabId', 'full', 'maxChars', 'fullPage'],
+      required: [
+        'action', 'url', 'tabId', 'full', 'maxChars', 'fullPage',
+        'observationId', 'ref', 'text', 'effect',
+      ],
       additionalProperties: false,
     },
     async execute(args = {}, context = {}) {
@@ -80,14 +112,39 @@ export function makeBrowserObservationTool({ driver, publishScreenshot } = {}) {
       if (args.action === 'navigate') {
         if (!args.url) throw new TypeError('url is required for browser navigate');
         return observationResult(driver, await driver.navigate(browserUrl(args.url), context.signal ? { signal: context.signal } : {}),
-          args.maxChars ?? DEFAULT_MAX_CHARS);
+          args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
       }
       if (args.action === 'snapshot') {
         return observationResult(driver, await driver.snapshot({
           tabId: args.tabId, full: args.full === true,
           maxChars: args.maxChars ?? DEFAULT_MAX_CHARS,
           ...(context.signal ? { signal: context.signal } : {}),
-        }), args.maxChars ?? DEFAULT_MAX_CHARS);
+        }), args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
+      }
+      if (ACTION_KINDS.has(args.action)) {
+        const safety = await actionSafety(args, context, false);
+        if (!safety.allowed) return { ...safety.result, effect: 'not_executed' };
+        const before = safety.binding.observation;
+        const acted = args.action === 'click'
+          ? await driver.click({ tabId: args.tabId, ref: args.ref, signal: context.signal })
+          : await driver.fill({ tabId: args.tabId, ref: args.ref, text: args.text, signal: context.signal });
+        const after = observationResult(driver, acted, args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
+        return {
+          state: 'acted', profile: profileOf(driver),
+          action: structuredClone(acted.action ?? { kind: args.action, ref: args.ref }),
+          declaredEffect: structuredClone(args.effect),
+          before: {
+            observationId: before.observationId,
+            refScope: structuredClone(before.refScope),
+            ref: args.ref, refFact: structuredClone(safety.binding.refFact),
+          },
+          tab: after.tab, after: after.observation,
+          navigation: {
+            changed: before.refScope.url !== after.tab.url,
+            from: before.refScope.url, to: after.tab.url,
+          },
+          network: structuredClone(acted.network ?? { totalRequests: 0, truncated: false, requests: [] }),
+        };
       }
       const captured = await driver.screenshot({
         tabId: args.tabId, fullPage: args.fullPage === true,
@@ -102,4 +159,59 @@ export function makeBrowserObservationTool({ driver, publishScreenshot } = {}) {
       };
     },
   };
+
+  async function actionSafety(args, context, includeAuthority) {
+    if (!ACTION_KINDS.has(args.action)) return { allowed: true };
+    const binding = observationRegistry.resolve({
+      observationId: args.observationId, tabId: args.tabId, ref: args.ref,
+    });
+    if (!binding.ok) return { ...blocked(binding.state, binding), binding };
+    if (!args.effect?.kind) return { ...blocked('effect_declaration_required'), binding };
+    if (!effectTargetsCurrentPage(args.effect, binding.observation)) {
+      return { ...blocked('effect_target_mismatch', {
+        observedUrl: binding.observation.refScope.url,
+      }), binding };
+    }
+    const role = String(binding.refFact?.role ?? '').toLowerCase();
+    let elementFacts = {};
+    try { elementFacts = await driver.elementFacts({ tabId: args.tabId, ref: args.ref, signal: context?.signal }); }
+    catch (error) { return { ...blocked('element_facts_unavailable', { reason: error?.message ?? String(error) }), binding }; }
+    if (args.action === 'fill') {
+      if (!['textbox', 'searchbox', 'combobox'].includes(role)) {
+        return { ...blocked('ref_not_text_input', { role }), binding };
+      }
+      if (elementFacts.type === 'password' || SECRET_AUTOCOMPLETE.test(String(elementFacts.autocomplete ?? ''))
+        || args.effect.kind === 'secret_input') {
+        return { ...blocked('secret_input_required', { field: elementFacts }), binding };
+      }
+      if (!['external_send', 'external_change'].includes(args.effect.kind)) {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
+      }
+      if (args.text == null) return { ...blocked('text_required'), binding };
+    }
+    if (args.action === 'click') {
+      const submitLike = String(elementFacts.type ?? '').toLowerCase() === 'submit';
+      if (submitLike) return { ...blocked('submit_action_not_open'), binding };
+      if (elementFacts.download != null) return { ...blocked('download_action_not_open'), binding };
+      const mutableControl = ['button', 'checkbox', 'radio', 'switch', 'menuitem'].includes(role);
+      if (mutableControl && args.effect.kind === 'observe') {
+        return { ...blocked('effect_declaration_mismatch', {
+          reason: 'external_change_required',
+        }), binding };
+      }
+    }
+    if (includeAuthority && typeof authorizeEffect === 'function') {
+      const authority = await authorizeEffect(args, context);
+      if (authority?.allowed === false) return { ...authority, binding };
+    }
+    return { allowed: true, binding, elementFacts };
+  }
+
+  if (typeof authorizeEffect === 'function') {
+    tool.preflight = async (args, context) => {
+      const safety = await actionSafety(args, context, true);
+      return safety.allowed ? { allowed: true } : safety;
+    };
+  }
+  return tool;
 }

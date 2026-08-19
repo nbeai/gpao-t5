@@ -22,7 +22,8 @@ async function observePath(path) {
 }
 
 export async function observeDeclaredEffect(effect = {}, cwd) {
-  if (effect.kind === 'external_send' || effect.kind === 'payment' || effect.kind === 'secret_input') {
+  if (effect.kind === 'external_change' || effect.kind === 'external_send'
+    || effect.kind === 'payment' || effect.kind === 'secret_input') {
     return {
       scope: 'external', observed: false,
       targets: structuredClone(effect.targets ?? []),

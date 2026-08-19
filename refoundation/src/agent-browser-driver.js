@@ -72,6 +72,45 @@ function snapshotFacts(value = {}, fallbackTab = {}) {
   };
 }
 
+function attrValue(value) {
+  const raw = value?.value ?? value?.attribute ?? value?.result ?? null;
+  return raw == null ? null : String(raw);
+}
+
+function cliRef(ref) {
+  const value = String(ref ?? '').trim();
+  if (!/^e\d+$/.test(value)) throw new TypeError('invalid browser ref');
+  return `@${value}`;
+}
+
+export function sanitizedNetworkFacts(value = {}, maxRequests = 100) {
+  const rows = Array.isArray(value) ? value
+    : Array.isArray(value?.requests) ? value.requests
+      : Array.isArray(value?.entries) ? value.entries : [];
+  const requests = [];
+  for (const row of rows.slice(0, maxRequests)) {
+    const rawAddress = row?.url ?? row?.address ?? row?.request?.url;
+    let parsed;
+    try { parsed = new URL(String(rawAddress ?? '')); }
+    catch { continue; }
+    if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+    requests.push({
+      method: String(row?.method ?? row?.request?.method ?? 'GET').toUpperCase(),
+      address: `${parsed.origin}${parsed.pathname}`,
+      ...(parsed.search ? { queryOmitted: true } : {}),
+      resourceType: String(row?.resourceType ?? row?.type ?? row?.request?.resourceType ?? ''),
+      status: Number.isFinite(Number(row?.status ?? row?.response?.status))
+        ? Number(row?.status ?? row?.response?.status) : null,
+      mimeType: String(row?.mimeType ?? row?.response?.mimeType ?? ''),
+    });
+  }
+  return {
+    totalRequests: rows.length,
+    truncated: rows.length > maxRequests,
+    requests,
+  };
+}
+
 export function makeAgentBrowserDriver({
   ownerId,
   outputDirectory,
@@ -86,6 +125,7 @@ export function makeAgentBrowserDriver({
   const execute = run ?? defaultRun(binary);
   const namespace = 't5-refoundation';
   let availabilityCache = null;
+  let activeTabId = null;
   const common = [
     '--namespace', namespace,
     '--profile', profileDirectory,
@@ -103,11 +143,16 @@ export function makeAgentBrowserDriver({
   async function currentTab(options = {}) {
     const data = await command(['tab', 'list'], options);
     const tabs = normalizeTabs(data);
-    return tabs.find((tab) => tab.active) ?? tabs[0] ?? normalizeTab();
+    const tab = tabs.find((item) => item.active) ?? tabs[0] ?? normalizeTab();
+    activeTabId = tab.tabId;
+    return tab;
   }
 
   async function selectTab(tabId, options = {}) {
-    if (tabId) await command(['tab', String(tabId)], options);
+    if (tabId && tabId !== activeTabId) {
+      const selected = normalizeTab(await command(['tab', String(tabId)], options));
+      activeTabId = selected.tabId ?? String(tabId);
+    }
   }
 
   async function takeSnapshot({ tabId, full = false, maxChars, signal } = {}) {
@@ -116,7 +161,46 @@ export function makeAgentBrowserDriver({
     if (Number.isInteger(maxChars)) args.push('--max-output', String(maxChars));
     const data = await command(args, { signal });
     const tab = await currentTab({ signal });
-    return snapshotFacts(data, tab);
+    const observed = snapshotFacts(data, tab);
+    activeTabId = observed.tab.tabId;
+    return observed;
+  }
+
+  async function elementFacts({ tabId, ref, signal } = {}) {
+    await selectTab(tabId, { signal });
+    // agent-browser serializes a browser session; concurrent CLI clients can race its ref map.
+    const type = await command(['get', 'attr', cliRef(ref), 'type'], { signal });
+    const autocomplete = await command(['get', 'attr', cliRef(ref), 'autocomplete'], { signal });
+    const href = await command(['get', 'attr', cliRef(ref), 'href'], { signal });
+    const download = await command(['get', 'attr', cliRef(ref), 'download'], { signal });
+    return {
+      type: attrValue(type), autocomplete: attrValue(autocomplete),
+      href: attrValue(href), download: attrValue(download),
+    };
+  }
+
+  async function clearNetwork({ signal } = {}) {
+    await command(['network', 'requests', '--clear'], { signal });
+  }
+
+  async function networkFacts({ signal } = {}) {
+    return sanitizedNetworkFacts(await command(['network', 'requests'], { signal }));
+  }
+
+  async function act(kind, { tabId, ref, text, signal } = {}) {
+    await selectTab(tabId, { signal });
+    await clearNetwork({ signal });
+    await command(kind === 'click'
+      ? ['click', cliRef(ref)]
+      : ['fill', cliRef(ref), String(text ?? '')], { signal });
+    const observed = await takeSnapshot({ tabId, full: false, signal });
+    const network = await networkFacts({ signal });
+    return {
+      action: kind === 'click'
+        ? { kind, ref: String(ref) }
+        : { kind, ref: String(ref), textChars: String(text ?? '').length },
+      ...observed, network,
+    };
   }
 
   return {
@@ -165,8 +249,11 @@ export function makeAgentBrowserDriver({
       return { profiles: [{ ...this.profile }] };
     },
     async tabs({ signal } = {}) {
-      return { tabs: normalizeTabs(await command(['tab', 'list'], { signal })) };
+      const tabs = normalizeTabs(await command(['tab', 'list'], { signal }));
+      activeTabId = tabs.find((tab) => tab.active)?.tabId ?? activeTabId;
+      return { tabs };
     },
+    elementFacts,
     async navigate(url, { signal } = {}) {
       const opened = await command(['open', String(url)], { signal });
       const observed = await takeSnapshot({ full: false, signal });
@@ -176,6 +263,8 @@ export function makeAgentBrowserDriver({
       };
     },
     snapshot(options = {}) { return takeSnapshot(options); },
+    click(options = {}) { return act('click', options); },
+    fill(options = {}) { return act('fill', options); },
     async screenshot({ tabId, fullPage = false, signal } = {}) {
       await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
       await selectTab(tabId, { signal });
