@@ -35,7 +35,7 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
         const browser = input.tools.find((tool) => tool.name === 'browser');
         assert.ok(browser);
         assert.deepEqual(browser.parameters.properties.action.enum, [
-          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill',
+          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
         ]);
         return { text: '', toolCalls: [{ id: 'observe-page', name: 'browser', args: {
           action: 'navigate', url: 'https://example.com/app', tabId: null,
@@ -171,19 +171,24 @@ test('browser preview URL은 서버 재시작 뒤에도 같은 영속 screenshot
   }
 });
 
-test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 행동 후 관측·network를 같은 Receipt에 남긴다', async () => {
+test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 행동 후 관측·network를 남긴다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-action-console-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
   await mkdir(workspace, { recursive: true });
   let phase = 0;
   let observed;
+  let filled;
   let fills = 0;
+  let submits = 0;
   const page = (value = '') => ({
     tab: { tabId: 't1', targetId: 'target-1', title: '가게 검색', url: 'https://example.com/shop' },
     snapshot: {
       text: `- textbox "가게 이름" [ref=e4]${value ? `: ${value}` : ''}`,
-      refs: { e4: { role: 'textbox', name: '가게 이름' } }, totalChars: 40, truncated: false,
+      refs: {
+        e4: { role: 'textbox', name: '가게 이름' },
+        e5: { role: 'button', name: '확인' },
+      }, totalChars: 60, truncated: false,
     },
   });
   const driver = {
@@ -191,6 +196,10 @@ test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 
     async available() { return { available: true, version: '0.34.0' }; },
     async navigate() { return page(); },
     async elementFacts() { return { type: 'text', autocomplete: null, href: null }; },
+    async submitFacts() { return {
+      element: { type: 'submit', autocomplete: null, href: null, download: null },
+      secretFieldCount: 0, fileInputCount: 0,
+    }; },
     async fill({ ref, text }) {
       fills += 1;
       return {
@@ -199,6 +208,15 @@ test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 
           method: 'GET', address: 'https://example.com/suggest', queryOmitted: true,
           resourceType: 'Fetch', status: 200, mimeType: 'application/json',
         }] },
+      };
+    },
+    async submit({ ref }) {
+      submits += 1;
+      return {
+        action: { kind: 'submit', ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: '접수 완료', url: 'https://example.com/submit' },
+        snapshot: { text: '- heading "접수 완료" [ref=e7]', refs: { e7: { role: 'heading', name: '접수 완료' } }, totalChars: 34, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/submit', resourceType: 'Document', status: 200, mimeType: 'text/html' }] },
       };
     },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
@@ -224,12 +242,27 @@ test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 
           reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
         },
       } }] };
+      if (phase === 4) {
+        const receipt = JSON.parse(input.messages.at(-1).content);
+        assert.equal(receipt.result.state, 'acted');
+        assert.equal(receipt.result.action.textChars, 4);
+        assert.equal(receipt.result.network.requests[0].address, 'https://example.com/suggest');
+        assert.match(receipt.result.after.text, /봄 카페/);
+        filled = receipt.result.after;
+        return { text: '가게 이름에 “봄 카페”를 입력했고 자동완성 요청도 확인했어요.', toolCalls: [] };
+      }
+      if (phase === 5) return { text: '', toolCalls: [{ id: 'submit-shop', name: 'browser', args: {
+        action: 'submit', ...nulls, tabId: 't1', observationId: filled.observationId, ref: 'e5',
+        effect: {
+          kind: 'external_send', summary: '가게 신청 제출', targets: ['https://example.com/shop'],
+          reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null,
+        },
+      } }] };
       const receipt = JSON.parse(input.messages.at(-1).content);
-      assert.equal(receipt.result.state, 'acted');
-      assert.equal(receipt.result.action.textChars, 4);
-      assert.equal(receipt.result.network.requests[0].address, 'https://example.com/suggest');
-      assert.match(receipt.result.after.text, /봄 카페/);
-      return { text: '가게 이름에 “봄 카페”를 입력했고 자동완성 요청도 확인했어요.', toolCalls: [] };
+      assert.equal(receipt.result.action.kind, 'submit');
+      assert.equal(receipt.result.network.requests[0].method, 'POST');
+      assert.match(receipt.result.after.text, /접수 완료/);
+      return { text: '제출했고 접수 완료 화면을 확인했어요.', toolCalls: [] };
     } }),
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
@@ -245,6 +278,13 @@ test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 
     const receipt = run.events.find((event) => event.type === 'tool_completed').payload.receipt;
     assert.equal(receipt.actualCall.name, 'browser');
     assert.equal(receipt.result.before.observationId, observed.observationId);
+    const third = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '좋아. 그 내용으로 제출해줘' }) }).then((response) => response.json());
+    assert.match(third.reply, /접수 완료/);
+    assert.equal(submits, 1);
+    const submitRun = await fetch(`${base}/runs/${third.runId}`).then((response) => response.json());
+    const submitReceipt = submitRun.events.find((event) => event.type === 'tool_completed').payload.receipt;
+    assert.equal(submitReceipt.result.before.observationId, filled.observationId);
+    assert.equal(submitReceipt.result.navigation.to, 'https://example.com/submit');
   } finally {
     await server.closeBrowsers();
     await new Promise((resolve) => server.close(resolve));
@@ -252,14 +292,14 @@ test('두 사용자 턴 사이에도 최신 browser ref만 이어서 fill하고 
   }
 });
 
-test('browser 결제 효과는 실제 click 전에 exact-call 승인으로 멈춘다', async () => {
+test('browser submit 결제 효과는 실제 제출 전에 exact-call 승인으로 멈춘다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-payment-boundary-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
   await mkdir(workspace, { recursive: true });
   let phase = 0;
   let observationId;
-  let clicks = 0;
+  let submits = 0;
   const driver = {
     profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
     async available() { return { available: true, version: '0.34.0' }; },
@@ -267,8 +307,11 @@ test('browser 결제 효과는 실제 click 전에 exact-call 승인으로 멈�
       tab: { tabId: 't1', targetId: 'target-1', title: '결제', url: 'https://shop.example/cart' },
       snapshot: { text: '- button "결제" [ref=e2]', refs: { e2: { role: 'button', name: '결제' } }, totalChars: 24, truncated: false },
     }; },
-    async elementFacts() { return { type: 'button', autocomplete: null, href: null, download: null }; },
-    async click() { clicks += 1; throw new Error('must not execute before approval'); },
+    async submitFacts() { return {
+      element: { type: 'submit', autocomplete: null, href: null, download: null },
+      secretFieldCount: 0, fileInputCount: 0,
+    }; },
+    async submit() { submits += 1; throw new Error('must not execute before approval'); },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
     async screenshot() { throw new Error('not used'); }, async close() {},
@@ -284,7 +327,7 @@ test('browser 결제 효과는 실제 click 전에 exact-call 승인으로 멈�
       if (phase === 2) {
         observationId = JSON.parse(input.messages.at(-1).content).result.observation.observationId;
         return { text: '', toolCalls: [{ id: 'pay', name: 'browser', args: {
-          action: 'click', ...nulls, tabId: 't1', observationId, ref: 'e2',
+          action: 'submit', ...nulls, tabId: 't1', observationId, ref: 'e2',
           effect: { kind: 'payment', summary: '상품 결제', targets: ['https://shop.example/cart'], reversible: false, backupAvailable: false, recipientNew: false, approvalToken: null },
         } }] };
       }
@@ -300,8 +343,8 @@ test('browser 결제 효과는 실제 click 전에 exact-call 승인으로 멈�
     const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '장바구니 상품을 결제해줘' }) }).then((response) => response.json());
     assert.equal(reply.kind, 'approval');
     assert.match(reply.reply, /실행하지 않았/);
-    assert.equal(reply.pending[0].preview.what, 'browser click');
-    assert.equal(clicks, 0);
+    assert.equal(reply.pending[0].preview.what, 'browser submit');
+    assert.equal(submits, 0);
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const receipt = run.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
     assert.equal(receipt.actualCall, null);

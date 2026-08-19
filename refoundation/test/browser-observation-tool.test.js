@@ -50,6 +50,13 @@ function fixtureDriver() {
       if (ref === 'e6') return { type: null, autocomplete: null, href: 'https://example.com/file.zip', download: '' };
       return { type: 'button', autocomplete: null, href: null, download: null };
     },
+    async submitFacts({ ref }) {
+      calls.push(['submitFacts', ref]);
+      const element = ref === 'e5'
+        ? { type: 'submit', autocomplete: null, href: null, download: null }
+        : { type: 'button', autocomplete: null, href: null, download: null };
+      return { element, secretFieldCount: 0, fileInputCount: 0 };
+    },
     async click(options) {
       calls.push(['click', options]);
       return {
@@ -68,16 +75,25 @@ function fixtureDriver() {
         network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/suggest', queryOmitted: true, resourceType: 'Fetch', status: 200 }] },
       };
     },
+    async submit(options) {
+      calls.push(['submit', options]);
+      return {
+        action: { kind: 'submit', ref: options.ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: '접수 완료', url: 'https://example.com/submit' },
+        snapshot: { text: '- heading "접수 완료" [ref=e7]', refs: { e7: { role: 'heading', name: '접수 완료' } }, totalChars: 34, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/submit', resourceType: 'Document', status: 200, mimeType: 'text/html' }] },
+      };
+    },
   };
 }
 
-test('browser W2 schema는 click·fill만 더하고 submit·upload·download·evaluate는 없다', () => {
+test('browser W3 schema는 명시적 submit만 더하고 upload·download·evaluate는 없다', () => {
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
-    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill',
+    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
   ]);
-  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate', 'submit'];
+  const forbidden = ['type', 'press', 'upload', 'download', 'evaluate'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
 });
 
@@ -224,8 +240,8 @@ test('password·OTP·결제정보 표준 필드는 text가 주어져도 실행 �
   assert.equal(driver.calls.some((call) => call[0] === 'fill'), false);
 });
 
-test('별도 Gate인 submit·download는 높은 효과 선언으로 우회해도 click 전에 멈춘다', async () => {
-  for (const [ref, state] of [['e5', 'submit_action_not_open'], ['e6', 'download_action_not_open']]) {
+test('submit control은 일반 click으로 우회할 수 없고 download도 계속 열리지 않는다', async () => {
+  for (const [ref, state] of [['e5', 'submit_requires_explicit_action'], ['e6', 'download_action_not_open']]) {
     const driver = fixtureDriver();
     const registry = makeBrowserObservationRegistry();
     const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
@@ -238,5 +254,54 @@ test('별도 Gate인 submit·download는 높은 효과 선언으로 우회해도
     assert.equal(gate.allowed, false);
     assert.equal(gate.result.state, state);
     assert.equal(driver.calls.some((call) => call[0] === 'click'), false);
+  }
+});
+
+test('submit은 명시적 submit control과 외부 전송 선언 뒤 POST·새 화면을 같은 Receipt에 남긴다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const authorized = [];
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry,
+    authorizeEffect: async (args) => { authorized.push(args); return { allowed: true }; },
+  });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const base = {
+    action: 'submit', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e5', text: null,
+  };
+  const observe = await tool.preflight({ ...base, effect: effect('observe') });
+  assert.equal(observe.allowed, false);
+  assert.equal(observe.result.state, 'effect_declaration_mismatch');
+  const args = { ...base, effect: effect('external_send') };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'acted');
+  assert.equal(result.action.kind, 'submit');
+  assert.equal(result.network.requests[0].method, 'POST');
+  assert.equal(result.navigation.to, 'https://example.com/submit');
+  assert.match(result.after.text, /접수 완료/);
+  assert.equal(authorized.length, 1);
+});
+
+test('submit은 다른 button, 비밀 필드가 있는 페이지, file input이 있는 페이지에서 실행 전에 멈춘다', async () => {
+  for (const fixture of [
+    { ref: 'e2', facts: { element: { type: 'button' }, secretFieldCount: 0, fileInputCount: 0 }, state: 'ref_not_submit_control' },
+    { ref: 'e5', facts: { element: { type: 'submit' }, secretFieldCount: 1, fileInputCount: 0 }, state: 'secret_input_required' },
+    { ref: 'e5', facts: { element: { type: 'submit' }, secretFieldCount: 0, fileInputCount: 1 }, state: 'upload_action_not_open' },
+  ]) {
+    const driver = fixtureDriver();
+    driver.submitFacts = async () => fixture.facts;
+    const registry = makeBrowserObservationRegistry();
+    const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+    const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+    const gate = await tool.preflight({
+      action: 'submit', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+      observationId: before.observation.observationId, ref: fixture.ref, text: null,
+      effect: effect('external_send'),
+    });
+    assert.equal(gate.allowed, false);
+    assert.equal(gate.result.state, fixture.state);
+    assert.equal(driver.calls.some((call) => call[0] === 'submit'), false);
   }
 });

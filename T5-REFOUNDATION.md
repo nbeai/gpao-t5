@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `ACTIVE`
-현재 Gate: `R6-W2 BROWSER ACTION AND TRUTH — COMPLETE` (측정된 macOS/POSIX 레인)
+현재 Gate: `R6-W3 BROWSER SUBMIT AND CONFIRMATION — COMPLETE` (측정된 macOS/POSIX 레인)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -760,6 +760,57 @@ Non-goals:
 - 실제 OAuth 멀티턴에서 입력→네트워크·화면 확인→후속 링크 이동
 - 기존 terminal·web·memory·context·session 영역 회귀 유지
 
+### R6-W3 — Browser Submit and Confirmation
+
+상태: `COMPLETE` — W2에서 명시적으로 막았던 form submit 한 종류만, 최신 ref·효과·권한·사후검증
+계약 위에 열었다. upload·download·로그인 profile·CU는 열지 않았다.
+
+사용자 완료 문장:
+
+> T5가 사용자가 확인한 일반 입력값을 명시적으로 제출하고, 실제 전송과 제출 뒤 화면을 다시 관측해
+> 접수 결과를 답하며, 비밀·파일·결제·파괴·새 상대 경계는 제출 전에 멈춘다.
+
+현재 성립한 계약:
+
+- 기존 `browser` action에 `submit` 하나만 추가; 실행 primitive는 agent-browser의 검증된 exact-ref click 재사용
+- submit은 같은 tab의 최신 `observationId·tabId·ref`와 실제 `type=submit` control에만 허용
+- type=submit을 일반 click으로 누르면 `submit_requires_explicit_action·actualCall:null`; 모델이 효과를 숨긴 채
+  우연히 제출하는 경로를 없애고 명시적 submit으로만 실행
+- 제출 전 현재 페이지의 password·OTP·신용카드 autocomplete field와 file input 개수를 좁게 관측;
+  하나라도 있으면 각각 `secret_input_required`·`upload_action_not_open`으로 실제 click 0
+- submit은 최소 `external_send`; observe·local/external change로 낮춰 선언할 수 없고 payment·destructive는
+  실제 의미일 때만 허용
+- 결제·백업 없는 파괴·새 상대 전송은 기존 exact-call AuthorityStore 승인 전 driver submit 0
+- 행동 직전 network buffer를 비우고 실제 POST/GET method·origin+pathname·status·MIME, redirect/navigation,
+  새 compact snapshot을 같은 Receipt에 기록; form value·body·header·query 값은 network 영수증에 싣지 않음
+- action schema는 정확한 URL/origin만 effect target으로 받으며 요소 라벨을 target 문자열에 덧붙이지 않도록 명시
+- 제출 결과의 성공·접수 번호 판정은 runtime이 아니라 post-submit snapshot과 network Receipt를 읽은 모델이 담당
+
+실제 OAuth 콘솔:
+
+- 첫 사용자 턴 `상담 신청 페이지를 열어 여름 식당 입력, 아직 제출 금지`: `navigate → fill`, 실패 호출 0,
+  제출 0, 입력값·신청 버튼 재관측, 3 model turns·15.4초
+- 같은 Session 후속 턴 `그 내용으로 신청하고 접수 결과·번호 확인`: submit control의 일반 click 1회는
+  `not_executed`로 멈추고 모델이 즉시 `submit`으로 전환, 실제 POST `/apply` 200 한 건, `/ → /apply`,
+  새 화면의 `신청 접수 완료·W3-2` 확인, 4 model turns·18.7초
+- schema target 설명 보강 전에는 URL 뒤 요소 설명을 붙인 fill 1회가 막혔고, 보강 후 같은 변형에서 재발 0
+- 직접 loopback tool probe: preflight allowed, POST 1건, 새 observation, 접수 완료 heading, body 원문 노출 0
+- 증거: `refoundation/evidence/r6-w3-browser-submit-live.json`
+
+Non-goals:
+
+- password·OTP·결제정보 입력, upload·download, 사용자 기존 로그인 profile·cookie import
+- 사이트별 form 규칙, 숨은 API 역추적, CAPTCHA, remote browser, desktop/CU
+- submit 선택을 runtime이 대신하거나 실패 없이 한 번에 고르는 규칙 엔진
+
+완료 Gate:
+
+- submit-control/ref/effect와 stale ref, secret field, file input 반대시험
+- 일반 click 우회 차단과 payment exact-call 승인 전 `actualCall:null`
+- 실제 agent-browser POST·sanitized network·navigation·새 snapshot
+- 실제 OAuth 멀티턴에서 fill-only 확인 뒤 후속 submit·접수 결과 판정
+- 기존 terminal·web·memory·context·session 영역 회귀 유지
+
 ## R6 이후 — 증거가 열 때만
 
 브라우저의 미개방 행동, 외부 앱·MCP, 메신저 Gateway, S1 범위를 넘는 Skills, Learning, Automation,
@@ -773,15 +824,15 @@ Foundation closeout 분류:
   계약/adapter 시험만으로 Windows 지원 완료를 주장하지 않음
 - 운영 후속: managed process의 비정상 crash/restart 복구는 없음;
   crash-resilient background work를 제품 약속하기 전 별도 실제 수요·설계 필요
-- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser submit/upload/download/login profile, app/MCP,
+- 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, browser upload/download/login profile, app/MCP,
   channels, automation service,
   multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
 - 증거: `refoundation/evidence/foundation-closeout-audit.json`
 
 ## 현재 다음 한 작업
 
-R6-W2 Browser Action and Truth까지 완료됐다. 다음 능력을 자동으로 열지 않는다. 실제 콘솔 사용에서 terminal·
+R6-W3 Browser Submit and Confirmation까지 완료됐다. 다음 능력을 자동으로 열지 않는다. 실제 콘솔 사용에서 terminal·
 web read/search·browser observe/action으로 끝낼 수 없는 반복 병목이 생기면 그 Run/Receipt로 원인을 확정하고,
-Skill·submit/upload/download·로그인 profile·외부 앱/MCP·Gateway·Automation 중 가장 작은 한 축만 연다.
+Skill·upload/download·로그인 profile·외부 앱/MCP·Gateway·Automation 중 가장 작은 한 축만 연다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지하며 지원 완료로
 섞어 보고하지 않는다.

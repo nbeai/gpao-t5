@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
-const ACTIONS = ['status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill'];
-const ACTION_KINDS = new Set(['click', 'fill']);
+const ACTIONS = ['status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit'];
+const ACTION_KINDS = new Set(['click', 'fill', 'submit']);
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
 
@@ -72,11 +72,14 @@ export function makeBrowserObservationTool({
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
   const tool = {
     name: 'browser',
-    description: 'Observe rendered web pages and use exact refs from the latest observation to click or fill non-secret text in a managed isolated browser. There is no submit action, secret input, upload, download, evaluation, login-profile reuse, or computer use.',
+    description: 'Observe rendered web pages and use exact refs from the latest observation to click, fill non-secret text, or explicitly submit a non-secret form in a managed isolated browser. There is no secret input, upload, download, evaluation, login-profile reuse, or computer use.',
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ACTIONS },
+        action: {
+          type: 'string', enum: ACTIONS,
+          description: 'Use submit, never click, for an observed type=submit control.',
+        },
         url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate, otherwise null.' },
         tabId: { type: ['string', 'null'], description: 'Stable tabId from tabs or a prior observation, otherwise null.' },
         full: { type: ['boolean', 'null'], description: 'For snapshot: true includes full accessible page text; false is compact interactive structure.' },
@@ -85,7 +88,10 @@ export function makeBrowserObservationTool({
         observationId: { type: ['string', 'null'], description: 'Exact latest observationId that supplied ref, otherwise null.' },
         ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click or fill, otherwise null.' },
         text: { type: ['string', 'null'], maxLength: 4_000, description: 'Non-secret text for fill, otherwise null.' },
-        effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
+        effect: {
+          description: 'For click/fill/submit, targets must contain the exact current page URL or origin only; never append an element label or description.',
+          anyOf: [EFFECT_SCHEMA, { type: 'null' }],
+        },
       },
       required: [
         'action', 'url', 'tabId', 'full', 'maxChars', 'fullPage',
@@ -125,9 +131,11 @@ export function makeBrowserObservationTool({
         const safety = await actionSafety(args, context, false);
         if (!safety.allowed) return { ...safety.result, effect: 'not_executed' };
         const before = safety.binding.observation;
-        const acted = args.action === 'click'
-          ? await driver.click({ tabId: args.tabId, ref: args.ref, signal: context.signal })
-          : await driver.fill({ tabId: args.tabId, ref: args.ref, text: args.text, signal: context.signal });
+        const acted = await driver[args.action]({
+          tabId: args.tabId, ref: args.ref,
+          ...(args.action === 'fill' ? { text: args.text } : {}),
+          signal: context.signal,
+        });
         const after = observationResult(driver, acted, args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
         return {
           state: 'acted', profile: profileOf(driver),
@@ -174,7 +182,15 @@ export function makeBrowserObservationTool({
     }
     const role = String(binding.refFact?.role ?? '').toLowerCase();
     let elementFacts = {};
-    try { elementFacts = await driver.elementFacts({ tabId: args.tabId, ref: args.ref, signal: context?.signal }); }
+    let submitFacts = null;
+    try {
+      if (args.action === 'submit') {
+        submitFacts = await driver.submitFacts({ tabId: args.tabId, ref: args.ref, signal: context?.signal });
+        elementFacts = submitFacts.element ?? {};
+      } else {
+        elementFacts = await driver.elementFacts({ tabId: args.tabId, ref: args.ref, signal: context?.signal });
+      }
+    }
     catch (error) { return { ...blocked('element_facts_unavailable', { reason: error?.message ?? String(error) }), binding }; }
     if (args.action === 'fill') {
       if (!['textbox', 'searchbox', 'combobox'].includes(role)) {
@@ -191,13 +207,27 @@ export function makeBrowserObservationTool({
     }
     if (args.action === 'click') {
       const submitLike = String(elementFacts.type ?? '').toLowerCase() === 'submit';
-      if (submitLike) return { ...blocked('submit_action_not_open'), binding };
+      if (submitLike) return { ...blocked('submit_requires_explicit_action'), binding };
       if (elementFacts.download != null) return { ...blocked('download_action_not_open'), binding };
       const mutableControl = ['button', 'checkbox', 'radio', 'switch', 'menuitem'].includes(role);
       if (mutableControl && args.effect.kind === 'observe') {
         return { ...blocked('effect_declaration_mismatch', {
           reason: 'external_change_required',
         }), binding };
+      }
+    }
+    if (args.action === 'submit') {
+      if (String(elementFacts.type ?? '').toLowerCase() !== 'submit') {
+        return { ...blocked('ref_not_submit_control'), binding };
+      }
+      if (Number(submitFacts?.secretFieldCount ?? 0) > 0) {
+        return { ...blocked('secret_input_required', { secretFieldCount: submitFacts.secretFieldCount }), binding };
+      }
+      if (Number(submitFacts?.fileInputCount ?? 0) > 0) {
+        return { ...blocked('upload_action_not_open', { fileInputCount: submitFacts.fileInputCount }), binding };
+      }
+      if (!['external_send', 'payment', 'destructive'].includes(args.effect.kind)) {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
       }
     }
     if (includeAuthority && typeof authorizeEffect === 'function') {

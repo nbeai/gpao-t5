@@ -155,3 +155,47 @@ test('snapshot이 만든 ref를 쓸 때 같은 활성 tab을 재선택해 ref를
   assert.equal(calls.some((args) => args[0] === 'tab' && args[1] === 't1'), false);
   assert.ok(calls.some((args) => args.join(' ') === 'get attr @e4 type'));
 });
+
+test('submit은 exact ref의 submit·secret·file 사실을 확인하고 click 뒤 POST·새 snapshot을 돌려준다', async () => {
+  const calls = [];
+  let submitted = false;
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    calls.push(command);
+    if (command[0] === 'open') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { url: 'https://example.com/form' } }) };
+    if (command[0] === 'click') { submitted = true; return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' }; }
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: submitted
+      ? { tabId: 't1', url: 'https://example.com/submit', snapshot: '- heading "접수 완료" [ref=e1]', refs: { e1: { role: 'heading', name: '접수 완료' } } }
+      : { tabId: 't1', url: 'https://example.com/form', snapshot: '- button "확인" [ref=e5]', refs: { e5: { role: 'button', name: '확인' } } } }) };
+    if (command[0] === 'tab' && command[1] === 'list') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabs: [{ tabId: 't1', url: submitted ? 'https://example.com/submit' : 'https://example.com/form', active: true }] } }) };
+    if (command[0] === 'get' && command[1] === 'attr') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { value: command.at(-1) === 'type' ? 'submit' : null } }) };
+    if (command[0] === 'get' && command[1] === 'count') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { count: 0 } }) };
+    if (command[0] === 'network' && command.includes('--clear')) return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+    if (command[0] === 'network') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { requests: [{ method: 'POST', url: 'https://example.com/submit', resourceType: 'Document', status: 200, mimeType: 'text/html' }] } }) };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+  };
+  const driver = makeAgentBrowserDriver({ ownerId: 'submit', outputDirectory: '/private/tmp', run });
+  await driver.navigate('https://example.com/form');
+  const facts = await driver.submitFacts({ tabId: 't1', ref: 'e5' });
+  assert.deepEqual(facts, {
+    element: { type: 'submit', autocomplete: null, href: null, download: null },
+    secretFieldCount: 0, fileInputCount: 0,
+  });
+  const result = await driver.submit({ tabId: 't1', ref: 'e5' });
+  assert.deepEqual(result.action, { kind: 'submit', ref: 'e5' });
+  assert.equal(result.network.requests[0].method, 'POST');
+  assert.match(result.snapshot.text, /접수 완료/);
+  assert.ok(calls.some((args) => args.join(' ') === 'click @e5'));
+  assert.ok(calls.some((args) => args.join(' ').includes('autocomplete~="cc-number"')));
+});
+
+test('submit 전 secret·file count 관측 형식이 깨지면 0으로 꾸미지 않고 닫힌다', async () => {
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'submit-count-failure', outputDirectory: '/private/tmp',
+    run: async () => ({ exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' }),
+  });
+  await assert.rejects(
+    () => driver.submitFacts({ tabId: 't1', ref: 'e5' }),
+    /invalid element count/,
+  );
+});

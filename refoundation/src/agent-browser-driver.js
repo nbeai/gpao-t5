@@ -77,6 +77,12 @@ function attrValue(value) {
   return raw == null ? null : String(raw);
 }
 
+function countValue(value) {
+  const count = Number(value?.count ?? value?.value ?? value?.result);
+  if (!Number.isInteger(count) || count < 0) throw new Error('agent-browser returned an invalid element count');
+  return count;
+}
+
 function cliRef(ref) {
   const value = String(ref ?? '').trim();
   if (!/^e\d+$/.test(value)) throw new TypeError('invalid browser ref');
@@ -179,6 +185,15 @@ export function makeAgentBrowserDriver({
     };
   }
 
+  async function submitFacts({ tabId, ref, signal } = {}) {
+    const element = await elementFacts({ tabId, ref, signal });
+    const secretFieldCount = countValue(await command([
+      'get', 'count', 'input[type="password"], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"], input[autocomplete~="cc-name"], input[autocomplete~="cc-number"], input[autocomplete~="cc-csc"], input[autocomplete~="cc-exp"], input[autocomplete~="cc-exp-month"], input[autocomplete~="cc-exp-year"]',
+    ], { signal }));
+    const fileInputCount = countValue(await command(['get', 'count', 'input[type="file"]'], { signal }));
+    return { element, secretFieldCount, fileInputCount };
+  }
+
   async function clearNetwork({ signal } = {}) {
     await command(['network', 'requests', '--clear'], { signal });
   }
@@ -190,15 +205,15 @@ export function makeAgentBrowserDriver({
   async function act(kind, { tabId, ref, text, signal } = {}) {
     await selectTab(tabId, { signal });
     await clearNetwork({ signal });
-    await command(kind === 'click'
-      ? ['click', cliRef(ref)]
-      : ['fill', cliRef(ref), String(text ?? '')], { signal });
+    await command(kind === 'fill'
+      ? ['fill', cliRef(ref), String(text ?? '')]
+      : ['click', cliRef(ref)], { signal });
     const observed = await takeSnapshot({ tabId, full: false, signal });
     const network = await networkFacts({ signal });
     return {
-      action: kind === 'click'
-        ? { kind, ref: String(ref) }
-        : { kind, ref: String(ref), textChars: String(text ?? '').length },
+      action: kind === 'fill'
+        ? { kind, ref: String(ref), textChars: String(text ?? '').length }
+        : { kind, ref: String(ref) },
       ...observed, network,
     };
   }
@@ -254,6 +269,7 @@ export function makeAgentBrowserDriver({
       return { tabs };
     },
     elementFacts,
+    submitFacts,
     async navigate(url, { signal } = {}) {
       const opened = await command(['open', String(url)], { signal });
       const observed = await takeSnapshot({ full: false, signal });
@@ -265,6 +281,7 @@ export function makeAgentBrowserDriver({
     snapshot(options = {}) { return takeSnapshot(options); },
     click(options = {}) { return act('click', options); },
     fill(options = {}) { return act('fill', options); },
+    submit(options = {}) { return act('submit', options); },
     async screenshot({ tabId, fullPage = false, signal } = {}) {
       await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
       await selectTab(tabId, { signal });
