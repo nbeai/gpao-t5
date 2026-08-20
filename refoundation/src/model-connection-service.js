@@ -10,6 +10,7 @@ const API_PROVIDERS = Object.freeze([
   Object.freeze({ id: 'openai', label: 'OpenAI', kind: 'api_key', defaultModel: 'gpt-5.6-terra' }),
   Object.freeze({ id: 'anthropic', label: 'Claude', kind: 'api_key', defaultModel: 'claude-sonnet-5' }),
   Object.freeze({ id: 'gemini', label: 'Gemini', kind: 'api_key', defaultModel: 'gemini-3.6-flash' }),
+  Object.freeze({ id: 'upstage', label: 'Upstage', kind: 'api_key', defaultModel: 'solar-pro4' }),
 ]);
 
 export function modelConnectionProviders() {

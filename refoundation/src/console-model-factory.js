@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { makeOpenAIResponsesModel } from './openai-responses-model.js';
 import { makeAnthropicMessagesModel } from './anthropic-messages-model.js';
 import { makeGeminiGenerateContentModel } from './gemini-generate-content-model.js';
+import { makeUpstageChatCompletionsModel } from './upstage-chat-completions-model.js';
 import { makeChatGptResponsesModel } from './chatgpt-responses-model.js';
 import {
   makeStoredChatGptCredentialSource, makeStoredModelCredentialCatalog,
@@ -105,6 +106,9 @@ export function makeConsoleModelAccess({ connectionFile, stateDir, fetchImpl = g
       }
       if (selected.provider === 'gemini') {
         return makeGeminiGenerateContentModel({ ...common, baseUrl: base });
+      }
+      if (selected.provider === 'upstage') {
+        return makeUpstageChatCompletionsModel({ ...common, endpoint: `${base}/chat/completions` });
       }
       throw new Error(`Unsupported API provider: ${selected.provider}`);
     },

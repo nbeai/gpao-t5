@@ -705,7 +705,8 @@ function endpointError(result, fallback) {
   return result?.data?.error ?? result?.data?.userSafeSummary ?? fallback;
 }
 const MODEL_PROVIDER_LABEL = {
-  openai: 'OpenAI', anthropic: 'Claude', gemini: 'Gemini', chatgpt_oauth: 'ChatGPT 계정',
+  openai: 'OpenAI', anthropic: 'Claude', gemini: 'Gemini', upstage: 'Upstage',
+  chatgpt_oauth: 'ChatGPT 계정',
 };
 
 // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 칩 패널에서 키를 연결한다. 서버가 "확실한 무효만 거절"을

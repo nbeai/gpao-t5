@@ -8,9 +8,13 @@ import {
   makeModelConnectionService, modelConnectionProviders,
 } from '../src/model-connection-service.js';
 
-test('설정은 실제 adapter가 선 API 3종과 ChatGPT OAuth만 연결 후보로 낸다', () => {
+test('설정은 실제 adapter가 선 API 4종과 ChatGPT OAuth만 연결 후보로 낸다', () => {
   const providers = modelConnectionProviders();
-  assert.deepEqual(providers.providers.map((provider) => provider.id), ['openai', 'anthropic', 'gemini']);
+  assert.deepEqual(
+    providers.providers.map((provider) => provider.id),
+    ['openai', 'anthropic', 'gemini', 'upstage'],
+  );
+  assert.equal(providers.providers.at(-1).defaultModel, 'solar-pro4');
   assert.deepEqual(providers.oauth.map((provider) => provider.id), ['chatgpt_oauth']);
 });
 

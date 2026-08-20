@@ -994,7 +994,8 @@ export function makeConsoleServer({
             label: item.kind === 'chatgpt_oauth' ? 'ChatGPT 계정'
               : item.provider === 'openai' ? 'OpenAI'
                 : item.provider === 'anthropic' ? 'Claude'
-                  : item.provider === 'gemini' ? 'Gemini' : item.provider,
+                  : item.provider === 'gemini' ? 'Gemini'
+                    : item.provider === 'upstage' ? 'Upstage' : item.provider,
             keyMasked: item.kind === 'api_key' ? 'API 키 저장됨' : null,
             unofficial: item.kind === 'chatgpt_oauth',
           })),

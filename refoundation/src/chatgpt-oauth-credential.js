@@ -11,6 +11,7 @@ const API_PROVIDERS = Object.freeze({
   gemini: Object.freeze({
     modelId: 'gemini-3.6-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
   }),
+  upstage: Object.freeze({ modelId: 'solar-pro4', baseUrl: 'https://api.upstage.ai/v1' }),
 });
 
 export class ModelConnectionError extends Error {
@@ -81,6 +82,14 @@ function validationRequest(provider, modelId, key) {
     url: `${baseUrl}/v1/models/${encodeURIComponent(modelId)}`,
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
   };
+  if (provider === 'upstage') return {
+    url: `${baseUrl}/chat/completions`, method: 'POST',
+    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: modelId, messages: [{ role: 'user', content: 'Reply with OK only.' }],
+      reasoning_effort: 'low', stream: false,
+    }),
+  };
   const resource = modelId.replace(/^models\//, '');
   return {
     url: `${baseUrl}/models/${encodeURIComponent(resource)}`,
@@ -103,7 +112,12 @@ export async function validateApiKeyConnection({
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
   const request = validationRequest(provider, modelId, key);
   let response;
-  try { response = await fetchImpl(request.url, { method: 'GET', headers: request.headers }); }
+  try {
+    response = await fetchImpl(request.url, {
+      method: request.method ?? 'GET', headers: request.headers,
+      ...(request.body ? { body: request.body } : {}),
+    });
+  }
   catch { return validationFailure(provider, modelId, null); }
   if (!response.ok) return validationFailure(provider, modelId, response.status);
   let json;
@@ -115,8 +129,12 @@ export async function validateApiKeyConnection({
       return { valid: false, provider, modelId, reason: 'model_lacks_generation', status: response.status };
     }
   }
+  if (provider === 'upstage' && !json?.choices?.[0]?.message) {
+    return validationFailure(provider, modelId, response.status);
+  }
   const observedModelId = provider === 'gemini'
-    ? String(json?.name ?? '').replace(/^models\//, '') : String(json?.id ?? '');
+    ? String(json?.name ?? '').replace(/^models\//, '')
+    : provider === 'upstage' ? String(json?.model ?? '') : String(json?.id ?? '');
   if (!observedModelId) return validationFailure(provider, modelId, response.status);
   return {
     valid: true, provider, modelId,

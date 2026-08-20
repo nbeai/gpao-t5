@@ -20,7 +20,7 @@ const post = (base, path, body = {}) => fetch(`${base}${path}`, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
 });
 
-test('설정 API는 모델 3종·Telegram 연결을 검증·저장·활성하고 비밀값을 응답에 내지 않는다', async () => {
+test('설정 API는 모델 4종·Telegram 연결을 검증·저장·활성하고 비밀값을 응답에 내지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-settings-connections-'));
   const connectionFile = join(room, 'model-connections.json');
   const catalog = makeStoredModelCredentialCatalog({ file: connectionFile });
@@ -66,7 +66,10 @@ test('설정 API는 모델 3종·Telegram 연결을 검증·저장·활성하고
   const base = await listen(server);
   try {
     const modelProviders = await fetch(`${base}/model/providers`).then((response) => response.json());
-    assert.deepEqual(modelProviders.providers.map((item) => item.id), ['openai', 'anthropic', 'gemini']);
+    assert.deepEqual(
+      modelProviders.providers.map((item) => item.id),
+      ['openai', 'anthropic', 'gemini', 'upstage'],
+    );
     const connected = await post(base, '/model/connect', { provider: 'openai', key: secret });
     assert.equal(connected.status, 200);
     assert.doesNotMatch(await connected.text(), new RegExp(secret));
