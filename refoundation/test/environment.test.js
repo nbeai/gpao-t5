@@ -14,7 +14,7 @@ test('재창립 정본은 제품·진행·작업 규율로 분리된다', () => 
   const map = readFileSync(resolve(root, 'T5-REFOUNDATION.md'), 'utf8');
   const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
   assert.match(product, /사용자는 T5를 배우지 않는다/);
-  assert.match(map, /현재 Gate: `R9-X4-R1 SHARED REMOTE MCP RUNTIME — COMPLETE`/);
+  assert.match(map, /현재 Gate: `R9-X5-S1 MANAGED PROCEDURAL ACQUISITION — COMPLETE`/);
   assert.match(map, /상태: `FIRST_COMPLETE`/);
   assert.match(map, /Unified Attachment Hand A1까지 완료되어 1차 완성/);
   assert.match(agents, /새 코어는 `refoundation\/`/);

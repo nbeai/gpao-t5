@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X4-R1 SHARED REMOTE MCP RUNTIME — COMPLETE` (Notion·Linear 공통 도구·권한 경계)
+현재 Gate: `R9-X5-S1 MANAGED PROCEDURAL ACQUISITION — COMPLETE` (text-only 방법 준비·제거·복원·재사용)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1327,6 +1327,43 @@ Non-goals / honest boundary:
 - Linear와 Notion이 같은 schema validation·annotations·read/write/destructive authority·bounded result 사용
 - 집중 12/12; 실제 Notion 계정 tool call은 자동 시험하지 않아 미확인으로 유지
 - 증거: `refoundation/evidence/r9-x4-r1-shared-remote-mcp-runtime-2026-08-21.json`
+
+## R9-X5-S1 — Managed Procedural Acquisition
+
+상태: `COMPLETE` — 실행 코드나 임의 URL을 열지 않고, T5가 함께 배포한 검증된 text-only 작업 방법을
+사용자 목적 중 필요할 때 관리 상태에 준비하고 같은 턴과 새 Session에서 재사용한다.
+
+사용자 완료 문장:
+
+> 사용자가 반복 업무를 부탁하면 T5가 이미 준비된 방법을 먼저 찾고, 없으면 검증된 방법을 조용히 준비해
+> 바로 적용한다. 다음 대화에서는 다시 준비하지 않으며, 제거한 방법은 복원할 수 있다.
+
+현재 성립한 계약:
+
+- `refoundation/skill-packages/*/SKILL.md` 한 trusted root; 64KB·frontmatter·folder·realpath 검증 재사용
+- package에서 실행 파일·script·추가 binary를 설치하지 않고 검증된 `SKILL.md` bytes만 0600 복사
+- T5 state의 0700 `managed-skills/active·trash`, 0600 append-only lifecycle ledger
+- install은 reversible local change, remove는 trash rename, restore는 최신 제거본 복원
+- bundled root가 managed root보다 우선하고 같은 이름의 낮은 우선순위 방법은 제외
+- install 결과가 method content를 반환해 같은 Run에서 즉시 적용; 다음 Run부터 layered skill snapshot에 포함
+- 첫 package `customer-inquiry-triage`: 바로 답변 가능·직접 확인 필요 분리, 사실·추정 분리, draft-only
+- 실제 `gpt-5.5`: 첫 Session `skill search → package search → install` 1회; 새 Session `skill search → view`, 재설치 0
+- 단위: 0600 설치·제거·복원·layered snapshot; 실제 두 답 모두 사용자 사실과 확인 필요를 정확히 분리
+- 증거: `refoundation/evidence/r9-x5-s1-managed-skill-live-2026-08-21.json`
+
+Non-goals / honest boundary:
+
+- 원격 Skill URL·Marketplace·사용자 archive·Git 설치, executable script와 package dependency
+- CLI·Homebrew·npm·pip 설치, 시스템 PATH 변경, 관리자 권한, 자동 update
+- package가 T5 core·bundled skill을 덮어쓰기
+
+완료 Gate:
+
+- 설치 전 installed skill 우선 검색, trusted package만 준비
+- 첫 Run 즉시 적용, 새 Session·서버 재시작 뒤 재사용, 중복 설치 0
+- 제거·복원과 mode·digest·lifecycle 원장
+- 임의 URL·script·symlink·root 이탈 실행 0
+- 기존 X1~X4·전체 기능 회귀 유지
 
 ## 현재 다음 한 작업
 

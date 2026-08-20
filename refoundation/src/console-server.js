@@ -15,7 +15,8 @@ import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 import { deriveRunContextReport } from './run-context-receipt.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
-import { loadSkillSnapshot, makeSkillTool } from './skill-runtime.js';
+import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
+import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -58,6 +59,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
+const bundledSkillPackagesRoot = resolve(repositoryRoot, 'refoundation', 'skill-packages');
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 const founderManifestoPath = resolve(
@@ -173,6 +175,8 @@ export function makeConsoleServer({
   revealPath,
   processRegistry,
   skillsRoot = bundledSkillsRoot,
+  skillPackagesRoot = bundledSkillPackagesRoot,
+  managedSkillsRoot,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
@@ -250,6 +254,11 @@ export function makeConsoleServer({
   const messengerState = new MessengerStateStore(messengerDirectory);
   let onboardingSkipped = false;
   let capabilityCoordinator = null;
+  const managedRoot = managedSkillsRoot ?? join(stateDir, 'managed-skills');
+  const skillPackageSnapshotPromise = loadSkillSnapshot({ directory: skillPackagesRoot });
+  const managedSkillStorePromise = skillPackageSnapshotPromise.then((catalogSnapshot) => (
+    new ManagedSkillStore({ root: managedRoot, catalogSnapshot })
+  ));
 
   async function browserDriver(sessionId) {
     if (typeof browserDriverFactory !== 'function') return null;
@@ -673,7 +682,12 @@ export function makeConsoleServer({
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
         env: { T5_DOCUMENT_CLI: documentCli },
       });
-      const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
+      const [bundledSkillSnapshot, managedSkillSnapshot, skillPackageSnapshot, managedSkillStore] = await Promise.all([
+        loadSkillSnapshot({ directory: skillsRoot }),
+        loadSkillSnapshot({ directory: join(managedRoot, 'active') }),
+        skillPackageSnapshotPromise, managedSkillStorePromise,
+      ]);
+      const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeAttachmentTool({
@@ -716,6 +730,14 @@ export function makeConsoleServer({
       }
       if (skillSnapshot.skills.length) {
         offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
+      }
+      if (skillPackageSnapshot.skills.length) {
+        offeredTools.unshift(makeSkillAcquisitionTool({
+          store: managedSkillStore, catalogSnapshot: skillPackageSnapshot,
+          authorizeEffect: (args) => effectPreflight({
+            toolName: 'capability_prepare', args, ownerId: sessionId,
+          }),
+        }));
       }
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({

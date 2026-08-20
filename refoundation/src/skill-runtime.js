@@ -149,6 +149,23 @@ export async function loadSkillSnapshot({ directory } = {}) {
   return snapshot;
 }
 
+/** Merge trusted roots in precedence order. Earlier roots win and bodies remain lazy. */
+export function mergeSkillSnapshots(snapshots = []) {
+  const skills = []; const rejected = []; const contentByName = new Map(); const seen = new Set();
+  for (const snapshot of snapshots) {
+    if (!snapshot?.skills) continue;
+    rejected.push(...(snapshot.rejected ?? []).map((entry) => structuredClone(entry)));
+    for (const skill of snapshot.skills) {
+      if (seen.has(skill.name)) { rejected.push({ name: skill.name, reason: 'lower_precedence_duplicate' }); continue; }
+      seen.add(skill.name); skills.push(publicSkill(skill));
+      const content = snapshot.contentByName?.get(skill.name); if (typeof content === 'string') contentByName.set(skill.name, content);
+    }
+  }
+  const merged = { directory: null, digest: digest(JSON.stringify(skills)), skills, rejected };
+  Object.defineProperty(merged, 'contentByName', { value: contentByName, enumerable: false });
+  return merged;
+}
+
 /** A knowledge surface, not a second executor. The model applies the selected text through other tools. */
 export function makeSkillTool({ snapshot, catalogMode = 'inline' } = {}) {
   if (!snapshot || !Array.isArray(snapshot.skills)) throw new TypeError('skill snapshot is required');

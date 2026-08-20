@@ -1,0 +1,8 @@
+{
+  "schema": "t5.r9-managed-skill-live.v1",
+  "model": { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" },
+  "firstTurnTools": ["skill:search", "capability_prepare:search", "capability_prepare:install"],
+  "newSessionTools": ["skill:search", "skill:view"],
+  "checks": { "installedOnce": true, "immediateUse": true, "newSessionReuse": true, "noRepeatedInstall": true, "removalRecoverable": true },
+  "passed": true
+}
